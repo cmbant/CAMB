@@ -3,7 +3,7 @@
 !     Code for Anisotropies in the Microwave Background
 !     by Antony lewis (http://cosmologist.info) and Anthony Challinor
 !     See readme.html for documentation. 
-!     This version September 2008
+!     This version Feb 2009
 
 !     Note that though the code is internally parallelised, it is not thread-safe
 !     so you cannot generate more than one model at the same time in different threads.
@@ -1450,7 +1450,8 @@ contains
          if (SourceNum==3 .and. (.not. DoInt .or. UseLimber(l,IV%q))) then
             !Limber approximation for small scale lensing (better than poor version of above integral)
              xf = CP%tau0-invsinfunc(l/nu)*CP%r
-             if (xf > TimeSteps%Lowest .and. xf > TimeSteps%Highest) then
+!Feb09 fix screw up introduced Feb 2008 version
+             if (xf < TimeSteps%Highest .and. xf > TimeSteps%Lowest) then
              nbot=Ranges_IndexOf(TimeSteps,xf)
              xf= (xf-TimeSteps%points(nbot))/(TimeSteps%points(nbot+1)-TimeSteps%points(nbot))                  
              sums(3) = (IV%Source_q(nbot,3)*(1-xf) + xf*IV%Source_q(nbot+1,3))*&

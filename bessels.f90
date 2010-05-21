@@ -1,7 +1,7 @@
 !CAMB spherical and hyperspherical Bessel function routines
 !This version May 2006 - minor changes to bjl (http://cosmocoffee.info/viewtopic.php?t=530)
 !Feb 2007: fixed for high l, uses Ranges
-
+!Feb 2009: minor fix for non-flat compiled with non-smart IF evaluation
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !Flat bessel function module
 
@@ -349,11 +349,13 @@
 
 !Deep in the tails the closed recursion relation is not stable
 !Added July 2003 to prevent problems with very nearly flat models
-       if (DoRecurs .and. closed .and. Chi < asin(sqrt(l*(l+1._dl))/beta) - 2/beta) then
+       if (DoRecurs .and. closed) then
+        if  (Chi < asin(sqrt(l*(l+1._dl))/beta) - 2/beta) then
            if (phi_langer(l,K,beta,Chi) < 1e-7) then
              call phi_small_closed_int(l,beta,chi,y1,y2)
              return
            end if 
+       end if     
      end if        
 
      if (DoRecurs) then 
