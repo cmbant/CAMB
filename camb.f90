@@ -50,7 +50,7 @@
         nullify(Dat%ClTransScal%q_int, Dat%ClTransScal%dq_int, Dat%ClTransScal%Delta_p_l_k)
         nullify(Dat%ClTransVec%q_int, Dat%ClTransVec%dq_int, Dat%ClTransVec%Delta_p_l_k)
         nullify(Dat%ClTransTens%q_int, Dat%ClTransTens%dq_int, Dat%ClTransTens%Delta_p_l_k)
-        nullify(Dat%MTrans%sigma_8,Dat%MTrans%TransferData)
+        nullify(Dat%MTrans%sigma_8,Dat%MTrans%TransferData,Dat%MTrans%q_trans)
              
        end subroutine CAMB_InitCAMBdata
 
@@ -91,42 +91,107 @@
         type(CAMBparams) :: Params
         integer, optional :: error !Zero if OK
         type(CAMBparams) P
+        logical :: separate = .true. !whether to do P_k in separate call or not
+
+        if (Params%DoLensing .and. Params%NonLinear==NonLinear_Lens) separate = .false.
         
-    
-        if (.not. Params%WantCls .or. .not. (Params%WantTensors.and. Params%WantScalars)) then
-          if (present(error)) then
-           call CAMBParams_Set(Params, error) !set other derived variables in ModelParams (modules.f90) 
-           if (error /= 0) return
-          else
-           call CAMBParams_Set(Params)  
+         if (Params%WantCls .and. Params%WantScalars) then
+          P = Params
+          if (separate) then
+          P%WantTransfer = .false.
+          P%Transfer%high_precision = .false.
           end if
-       
+          P%WantTensors = .false.
+          P%WantVectors = .false.
+          if (present(error)) then
+               call CAMBParams_Set(P, error) !set other derived variables in ModelParams (modules.f90) 
+              if (error /= 0) return
+              else
+               call CAMBParams_Set(P)  
+            end if
           call cmbmain
-          Params = CP
-        else
-           !Get scalars first then tensors. Time consuming things are internally cached.
-           P = Params
-           P%WantTensors = .false.
-           
-           if (present(error)) then
-            call CAMBParams_Set(P, error) !set other derived variables in ModelParams (modules.f90)
-            if (error /=0) return 
-           else
-            call CAMBParams_Set(P) !set other derived variables in ModelParams (modules.f90) 
-           end if
-
+          call_again = .true.
+          !Need to store CP%flat etc, but must keep original P_k settings
+          CP%Transfer%high_precision = Params%Transfer%high_precision
+          CP%WantTransfer = Params%WantTransfer
+          CP%WantTensors = Params%WantTensors
+          CP%WantVectors = Params%WantVectors
+          CP%Transfer%num_redshifts = Params%Transfer%num_redshifts
+          Params = CP            
+         end if
+ 
+         if (Params%WantCls .and. Params%WantTensors) then
+          P=Params
+          P%WantTransfer = .false.
+          P%Transfer%high_precision = .false.
+          P%WantScalars = .false.
+          P%WantVectors = .false.
+          if (present(error)) then
+               call CAMBParams_Set(P, error) !set other derived variables in ModelParams (modules.f90) 
+              if (error /= 0) return
+              else
+               call CAMBParams_Set(P)  
+            end if
            call cmbmain
-           CP%WantTensors = .true.
-           Params = CP 
-            
-           CP%WantScalars = .false.
-           CP%WantTransfer = .false.
-           CP%WantVectors = .false.
-         
+           call_again = .true.
+           CP%Transfer%high_precision = Params%Transfer%high_precision
+           CP%WantTransfer = Params%WantTransfer
+           CP%WantScalars = Params%WantScalars
+           CP%WantVectors = Params%WantVectors
+           CP%Transfer%num_redshifts = Params%Transfer%num_redshifts
+           Params = CP            
+   
+         end if
+ 
+         if (Params%WantCls .and. Params%WantVectors) then
+          P=Params
+          P%WantTransfer = .false.
+          P%Transfer%high_precision = .false.
+          P%WantScalars = .false.
+          P%WantTensors = .false.
+          if (present(error)) then
+               call CAMBParams_Set(P, error) !set other derived variables in ModelParams (modules.f90) 
+              if (error /= 0) return
+              else
+               call CAMBParams_Set(P)  
+            end if
+           call cmbmain
+           call_again = .true.
+          CP%Transfer%high_precision = Params%Transfer%high_precision
+          CP%WantTransfer = Params%WantTransfer
+          CP%WantTensors = Params%WantTensors
+          CP%WantScalars = Params%WantScalars
+          CP%Transfer%num_redshifts = Params%Transfer%num_redshifts
+          Params = CP            
+   
+         end if
+
+         if (Params%WantTransfer .and. &
+          .not. (Params%WantCls .and. Params%WantScalars .and. .not. separate)) then
+          P=Params
+          P%WantCls = .false.
+          P%WantScalars = .false.
+          P%WantTensors = .false.
+          P%WantVectors = .false.
+          if (present(error)) then
+               call CAMBParams_Set(P, error) !set other derived variables in ModelParams (modules.f90) 
+              if (error /= 0) return
+              else
+               call CAMBParams_Set(P)  
+            end if
            call cmbmain
 
-           CP = Params 
-        end if
+          !Need to store num redshifts etc
+          CP%WantScalars = Params%WantScalars
+          CP%WantCls =  Params%WantCls
+          CP%WantTensors = Params%WantTensors
+          CP%WantVectors = Params%WantVectors
+          Params = CP            
+
+         end if
+
+        call_again = .false.
+   
 
         if (.not. CP%OnlyTransfers) then
 
@@ -209,7 +274,9 @@
             P%YHe     = 0.24
             P%Num_Nu_massless =3.04
             P%Num_Nu_massive  =0
-
+            P%Nu_mass_splittings = .false.
+            P%Nu_mass_eigenstates = 0
+           
             P%Scalar_initial_condition =initial_adiabatic
             P%NonLinear = NonLinear_none
             
@@ -233,8 +300,8 @@
             P%Max_l_tensor=400
             P%Max_eta_k_tensor=800
             !Set up transfer just enough to get sigma_8 OK
-            P%Transfer%kmax=0.5  
-            P%Transfer%k_per_logint=3
+            P%Transfer%kmax=0.9  
+            P%Transfer%k_per_logint=0
             P%Transfer%num_redshifts=1
             P%Transfer%redshifts=0
 
@@ -244,7 +311,7 @@
 
             P%DoLensing = .false.
 
-            P%MassiveNuMethod = Nu_trunc
+            P%MassiveNuMethod = Nu_best
             P%OnlyTransfers = .false.
 
          end subroutine CAMB_SetDefParams
@@ -326,7 +393,8 @@
                 write(*,*) 'Maximum ',  max_transfer_redshifts, &
                      'redshifts. You have: ', P%transfer%num_redshifts 
               end if
-              if (P%transfer%kmax < 0.01 .or. P%transfer%kmax > 50000 .or. P%transfer%k_per_logint <1) then
+              if (P%transfer%kmax < 0.01 .or. P%transfer%kmax > 50000 .or. &
+                     P%transfer%k_per_logint>0 .and.  P%transfer%k_per_logint <1) then
                  OK = .false.
                  write(*,*) 'Strange transfer function settings.'
               end if

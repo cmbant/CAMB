@@ -9,7 +9,7 @@ module IniFile
   integer, parameter :: Ini_max_name_len = 128
   integer, parameter :: Ini_max_string_len = 1024
   logical :: Ini_fail_on_not_found = .false.
-
+  logical :: Ini_Echo_Read = .false.
   type TNameValue
    !no known way to make character string pointers..
     character(Ini_max_name_len)  :: Name
@@ -151,16 +151,26 @@ contains
   subroutine Ini_Open(filename, unit_id,  error, slash_comments)
      character (LEN=*), intent(IN) :: filename
      integer, intent(IN) :: unit_id
-     logical, intent(OUT) :: error
+     logical, optional, intent(OUT) :: error
      logical, optional, intent(IN) :: slash_comments
-     
-     call TNameValueList_Clear(DefIni%L)
-     call TNameValueList_Clear(DefIni%ReadValues)
-     
+     logical aerror
+
+     call TNameValueList_Init(DefIni%L)
+     call TNameValueList_Init(DefIni%ReadValues)
+          
      if (present(slash_comments)) then
-      call Ini_Open_File(DefIni,filename,unit_id,error,slash_comments)
+      call Ini_Open_File(DefIni,filename,unit_id,aerror,slash_comments)
      else
-      call Ini_Open_File(DefIni,filename,unit_id,error)
+      call Ini_Open_File(DefIni,filename,unit_id,aerror)
+     end if
+
+     if (present(error)) then
+       error = aerror
+     else
+      if (aerror) then
+        write (*,*) 'Ini_Open: Error opening file ' // trim(filename)
+        stop
+      end if
      end if
 
   end subroutine Ini_Open
@@ -255,6 +265,7 @@ contains
 
    if (AValue/='') then
     call  TNameValueList_Add(Ini%ReadValues, Key, AValue)
+    if (Ini_Echo_Read) write (*,*) trim(Key)//' = ',trim(AValue)
     return
    end if
    if (Ini_fail_on_not_found) then
@@ -301,7 +312,7 @@ contains
       write (S,*) Default
       call  TNameValueList_Add(Ini%ReadValues, Key, S)
    else
-    if (verify(trim(S),'0123456789') /= 0) goto 10
+    if (verify(trim(S),'-+0123456789') /= 0) goto 10
     read (S,*, err = 10) Ini_Read_Int_File
    end if
 

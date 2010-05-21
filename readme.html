@@ -12,7 +12,7 @@
 Code for Anisotropies in the Microwave Background by <A
 HREF="http://cosmologist.info/">Antony Lewis</A> and Anthony
 Challinor. <P>
-This version March 2006.
+This version September 2006.
 <P>
 <FONT SIZE=-1>
 Origially based on CMBFAST developed by Uros Seljak and Matias
@@ -76,10 +76,27 @@ Run <B>make all</B> to build a library libcamb.a that you can use when
 linking to other programs. (You will also need to include the module files using -I/cambfolder).
 <P>
 As of November 2004 the supplied sample params.ini file produces results in &mu;K<sup>2</sup> from the given primordial curvature perturbation power (<B>scalar_amp</B>) on 0.05 MPc<sup>-1</sup> scales. To get unnormalized dimensionless results set <B>scalar_amp(1)=1</B> and <B>CMB_outputscale=1</B> (as in previous CAMB versions). To compute lensed C<sub>l</sub>s you must set the normalization to some realistic value (the calculation is non-linear, so normalization matters).
+<P>
+You can <A HREF="http://camb.info/test_suite.tar.gz">download</A> a test suite for comparing accuracy with different parameters and code versions. Just extract the file to your CAMB directory and read the readme.
 
 <P>
 <A NAME="version">
 <H3>Version History</H3>
+
+<B>September 2006</B><BR>
+Fixed problem generating combinations of scalars and tensors in camb.f90 (since August version).
+<P>
+<B>August 2006</B><BR>
+Speeded calculation of lensed spectra and lensing power spectrum by using Limber approximation on small scales (no loss of accuracy). Fixed missing f_K in source term for non-flat lensing potential. Minor changes to default parameters and compatibility tweaks. Can <A HREF="http://camb.info/test_suite.tar.gz">download</A> test suite for comparing accuracy and code versions.
+<P>
+
+
+<B>July 2006</B><BR>
+Fixed bug setting default neutrino degeneracy if none specified and initialization of nu_mass_eigenstates for programmatic access. Other minor fixes.
+<P>
+<B>June 2006</B><BR>
+Added support for arbitrary neutrino mass splittings. New option to set <B>transfer_k_per_logint=0</B> to get automatic accurate k-sampling of the matter power spectrum. Fixed Transfer_GetMatterPower at large scales for non-flat models. New setting value <B>massive_nu_approx=3</B> to use whatever method is good to get fast accurate results. Other internal changes.
+<P>
 
 <B>March 2006</B><BR>
 Fixed bug lensing scalar spectrum when generated at the same time as tensors. New (hard coded) parameter <B>lmin</B> in modules.f90 - set to 1 if you want to generate temeprature and lensing potential l=1 (Newtonian Gauge) C<sub>l</sub>.
@@ -448,7 +465,7 @@ Implements the NonLinear module, to calculate non linear scalings of the matter 
 <A NAME="refs">
 <H3>REFERENCES</H3>
 <P>
-Some notes and relevant Maple derivations are given <A HREF="http://camb.info/theory.html">here</A> (see also the Appendix of <A HREF="http://arxiv.org/abs/astro-ph/0406096">astro-ph/0406096</A>). A handy BibTex file is given on the <A HREF="http://cosmologist.info/cosmomc/">CosmoMC</A> home page.
+Some notes and relevant Maple derivations are given <A HREF="http://camb.info/theory.html">here</A> (see also the Appendix of <A HREF="http://arxiv.org/abs/astro-ph/0406096">astro-ph/0406096</A>). There is a  <A HREF="http://cosmologist.info/cosmomc/cosmomc.bib">BibTex</A> file of references (including <A HREF="http://cosmologist.info/cosmomc">CosmoMC</A>).
 </P>
 <P>
 Efficient computation of CMB anisotropies in closed FRW Models<BR>

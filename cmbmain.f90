@@ -3,7 +3,7 @@
 !     Code for Anisotropies in the Microwave Background
 !     by Antony lewis (http://cosmologist.info) and Anthony Challinor
 !     See readme.html for documentation. 
-!     This version April 2005
+!     This version August 2006
 
 !     Note that though the code is internally parallelised, it is not thread-safe
 !     so you cannot generate more than one model at the same time in different threads.
@@ -108,13 +108,13 @@
     
 !     qmax - CP%Max_eta_k/CP%tau0, qmin = qmin0/CP%tau0 for CP%flat case
 
-      real(dl) qmin, qmax
+      real(dl) qmin, qmax 
 
       real(dl) max_etak_tensor , max_etak_vector, max_etak_scalar
  !     Will only be calculated if k*tau < max_etak_xx
 
       integer maximum_l !Max value of l to compute
-      real(dl) maximum_qeta
+      real(dl) :: maximum_qeta = 3000._dl
 
       Type(ClTransferData), pointer :: ThisCT
                     
@@ -131,9 +131,9 @@ contains
       real(sp) actual,timeprev,starttime
 
       if (CP%WantCls) then
-
+ 
          if (CP%WantTensors .and. CP%WantScalars) stop 'CMBMAIN cannot generate tensors and scalars'
-              !Use CAMB_GetResults instead
+         !Use CAMB_GetResults instead
 
          if (CP%WantTensors) then
             maximum_l = CP%Max_l_tensor
@@ -162,7 +162,7 @@ contains
          actual=GetTestTime()
          write(*,*) actual-timeprev,' Timing for InitVars'
          write (*,*) 'r = ',real(CP%r),' scale = ',real(scale), 'age = ', real(CP%tau0)  
-      end if
+      end if 
 
        if (.not. CP%OnlyTransfers)  call InitializePowers(CP%InitPower,CP%curv)
 
@@ -352,18 +352,127 @@ contains
     
 
       subroutine InitTransfer
-      
+        integer nu,lastnu, ntodo, nq, q_ix, first_i
+        real(dl) dlog_lowk1,dlog_lowk, d_osc,dlog_osc, dlog_highk, boost
+        real(dl) amin,q_switch_lowk,q_switch_lowk1,q_switch_osc,q_switch_highk
+        real(dl), dimension(:), allocatable :: q_transfer
+
+       if (CP%Transfer%k_per_logint==0) then
+        !Optimized spacing
+        !Large log spacing on superhorizon scales
+        !Linear spacing for horizon scales and first few baryon osciallations
+        !Log spacing for last few osciallations
+        !large log spacing for small scales
+
+           boost = AccuracyBoost
+           if (CP%Transfer%high_precision) boost = boost*1.5
+
+           q_switch_lowk1 = 0.7/taurst
+           dlog_lowk1=2*boost
+
+           q_switch_lowk = 8/taurst
+           dlog_lowk=8*boost
+
+           q_switch_osc = min(CP%Transfer%kmax,30/taurst)
+           d_osc= 200*boost
+
+           q_switch_highk = min(CP%Transfer%kmax,60/taurst)
+           dlog_osc = 17*boost
+
+           !Then up to kmax
+           dlog_highk = 3*boost
+            
+           amin = 5e-5_dl
+
+           nq=int((log(CP%Transfer%kmax/amin))*d_osc)+1 
+           allocate(q_transfer(nq))
+     
+           nq=int((log(q_switch_lowk1/amin))*dlog_lowk1)+1 
+           do q_ix=1, nq
+            q_transfer(q_ix) = amin*exp((q_ix-1)/dlog_lowk1)
+           end do
+           MT%num_q_trans = nq
+
+           nq=int(log( q_switch_lowk/q_transfer(MT%num_q_trans))*dlog_lowk) +1
+           do q_ix=1, nq
+            q_transfer(MT%num_q_trans+q_ix) = q_transfer(MT%num_q_trans)*exp(q_ix/dlog_lowk)
+           end do
+           MT%num_q_trans = MT%num_q_trans + nq
+
+           nq=int((q_switch_osc-q_transfer(MT%num_q_trans))*d_osc)+1 
+           do q_ix=1, nq
+            q_transfer(MT%num_q_trans+q_ix) = q_transfer(MT%num_q_trans)+ q_ix/d_osc
+           end do
+           MT%num_q_trans = MT%num_q_trans + nq
+
+           if (CP%Transfer%kmax > q_transfer(MT%num_q_trans)) then
+            nq=int(log( q_switch_highk/q_transfer(MT%num_q_trans))*dlog_osc) +1
+            do q_ix=1, nq
+             q_transfer(MT%num_q_trans+q_ix) = q_transfer(MT%num_q_trans)*exp(q_ix/dlog_osc)
+            end do
+            MT%num_q_trans = MT%num_q_trans + nq
+           end if
+
+           if (CP%Transfer%kmax > q_transfer(MT%num_q_trans)) then
+            nq=int(log(CP%Transfer%kmax/q_transfer(MT%num_q_trans))*dlog_highk)+1 
+            do q_ix=1, nq
+             q_transfer(MT%num_q_trans+q_ix) = q_transfer(MT%num_q_trans)*exp(q_ix/dlog_highk)
+            end do
+            MT%num_q_trans = MT%num_q_trans + nq
+           end if
+   
+        else
+         !Fixed spacing
+          MT%num_q_trans=int((log(CP%Transfer%kmax)-log(qmin))*CP%Transfer%k_per_logint)+1
+          allocate(q_transfer(MT%num_q_trans))
+          do q_ix=1, MT%num_q_trans
+            q_transfer(q_ix) = qmin*exp(real(q_ix)/CP%Transfer%k_per_logint)
+          end do
+        end if
+
+         if (CP%closed) then
+              lastnu=0
+              ntodo = 0
+               do q_ix=1,MT%num_q_trans
+                nu =nint(CP%r*q_transfer(q_ix))
+                if (.not. ((nu<3).or.(nu<=lastnu))) then
+                   ntodo=ntodo+1
+                   q_transfer(ntodo)= nu/CP%r
+                   lastnu=nu
+                end if
+               end do
+              MT%num_q_trans = ntodo
+         end if
+
          if (CP%WantCls) then
-            if (CP%Transfer%kmax > qmax) then
-               MT%num_q_trans=num_q_evolve+int((log(CP%Transfer%kmax)-log(qmax))*CP%Transfer%k_per_logint)+1
-            else
-               MT%num_q_trans=num_q_evolve
-            end if
+               ntodo = MT%num_q_trans
+               first_i = ntodo+1
+               do q_ix = 1,ntodo
+                if (q_transfer(q_ix) > qmax) then
+                      first_i=q_ix 
+                      exit
+                end if
+               end do            
+           
+              if (first_i > ntodo) then
+               MT%num_q_trans = num_q_evolve 
+              else
+               MT%num_q_trans = num_q_evolve + (ntodo - first_i+1) 
+              end if
+              call Transfer_Allocate(MT)
+
+              MT%q_trans(1:num_q_evolve) = q_evolve(1:num_q_evolve)
+              if (MT%num_q_trans > num_q_evolve) then
+               MT%q_trans(num_q_evolve+1:MT%num_q_trans) = q_transfer(first_i:ntodo)
+          end if
+
          else
-            MT%num_q_trans=int((log(CP%Transfer%kmax)-log(qmin))*CP%Transfer%k_per_logint)+1
-         endif
- 
-         call Transfer_Allocate(MT)
+             num_q_evolve = 0
+             call Transfer_Allocate(MT)
+             MT%q_trans = q_transfer(1:MT%num_q_trans)
+         end if
+          
+         deallocate(q_transfer)
   
       end  subroutine InitTransfer
 
@@ -384,8 +493,8 @@ contains
           taustart=min(taustart,0.1_dl)
 
 !     Start when massive neutrinos are strongly relativistic.
-            if (amnu /= 0._dl) then
-               taustart=min(taustart,1.d-3/amnu/adotrad)
+            if (CP%Num_nu_massive>0) then
+               taustart=min(taustart,1.d-3/maxval(nu_masses(1:CP%Nu_mass_eigenstates))/adotrad)
             end if
 
             GetTauStart=taustart
@@ -429,6 +538,7 @@ contains
         end if
        
         allocate(Src(num_q_evolve,SourceNum,nstep))
+        Src=0
         allocate(ddSrc(num_q_evolve,SourceNum,nstep))
     
        end subroutine GetSourceMem
@@ -569,6 +679,7 @@ contains
                   q_evolve(q_ix)=q_evolve(nk1)+(q_ix-nk1)*dkn1
                end if
             end if
+
          end do
 
          if (CP%closed) call SetClosedkValuesFromArr(q_evolve,num_q_evolve)
@@ -661,7 +772,7 @@ contains
              call output(EV,y, EV%ScalEqsToPropagate,j,tau,sources)
              Src(EV%q_ix,1:SourceNum,j)=sources
  
-             if (CP%Num_Nu_Massive > 0 .and.(CP%MassiveNuMethod==Nu_trunc).and..not.EV%MassiveNuApprox.and. &
+             if (CP%Num_Nu_Massive > 0 .and.(EV%NuMethod==Nu_trunc).and..not.EV%MassiveNuApprox.and. &
                   .not.CP%Transfer%high_precision.and. &
                  ((EV%q<0.1_dl .and.EV%w_nu < 0.015/AccuracyBoost/lAccuracyBoost).or.&
                   (EV%w_nu < 0.008/AccuracyBoost/lAccuracyBoost))) then 
@@ -788,55 +899,23 @@ contains
      subroutine TransferOut
     !Output transfer functions for k larger than used for C_l computation
       implicit none
-      integer q_ix,nu,lastnu, ntodo
-      real(dl) qdone,tau
+      integer q_ix
+      real(dl) tau
       type(EvolutionVars) EV
     
-      real(dl) kvals(MT%num_q_trans)
-   
-       if (CP%WantCls) then
-            if (CP%Transfer%kmax > qmax) then
-               qdone=q_evolve(num_q_evolve) !Get the last one we did
-            else
-               return !Already done them all
-            end if
-       else
-            qdone=qmin  !Start at the beginning
-            num_q_evolve=0
-       endif
-     
-       if (CP%closed) then
-          lastnu=nint(qdone*CP%r)
-          ntodo = num_q_evolve
-           do q_ix=num_q_evolve+1,MT%num_q_trans
-            nu =nint(CP%r*qdone*exp(real(q_ix-num_q_evolve,dl)/CP%Transfer%k_per_logint))
-            if (.not. ((nu<3).or.(nu<=lastnu))) then
-               ntodo=ntodo+1
-               kvals(ntodo)= nu/CP%r
-               lastnu=nu
-            end if
-           end do
-          MT%TransferData(1,ntodo+1:MT%num_q_trans,Transfer_kh)=0  
-         
-       else
-        ntodo=MT%num_q_trans
-       end if
 
-       if (DebugMsgs .and. Feedbacklevel > 0) write(*,*) ntodo, 'transfer k values'
+       if (DebugMsgs .and. Feedbacklevel > 0) & 
+         write(*,*) MT%num_q_trans-num_q_evolve, 'transfer k values'
 
       !$OMP PARAllEl DO DEFAUlT(SHARED),SCHEDUlE(DYNAMIC) &
       !$OMP & PRIVATE(EV, tau, q_ix) 
 
 !     loop over wavenumbers.
-         do q_ix=num_q_evolve+1,ntodo
+         do q_ix=num_q_evolve+1,MT%num_q_trans
       
             EV%TransferOnly=.true. !in case we want to do something to speed it up
           
-            if (CP%closed) then
-               EV%q=kvals(q_ix)
-            else !not CP%closed
-               EV%q=qdone*exp(real(q_ix-num_q_evolve,dl)/CP%Transfer%k_per_logint)
-            end if
+            EV%q= MT%q_trans(q_ix)
 
             EV%q2=EV%q**2
             EV%q_ix = q_ix
@@ -848,7 +927,7 @@ contains
             call GetTransfer(EV, tau)
 
          end do
-  !$OMP END PARAllEl DO 
+     !$OMP END PARAllEl DO 
 
      end subroutine TransferOut
       
@@ -863,12 +942,12 @@ contains
        if (CP%Transfer%high_precision) atol=atol/10000
 
        ind=1
-            call initial(EV,y, tau)  
+       call initial(EV,y, tau)  
          
-             do i=1,CP%Transfer%num_redshifts
-               call GaugeInterface_EvolveScal(EV,tau,y,tautf(i),atol,ind,c,w)
-               call outtransf(EV,y,MT%TransferData(:,EV%q_ix,i))
-             end do
+       do i=1,CP%Transfer%num_redshifts
+          call GaugeInterface_EvolveScal(EV,tau,y,tautf(i),atol,ind,c,w)
+          call outtransf(EV,y,MT%TransferData(:,EV%q_ix,i))
+       end do
  
      end subroutine GetTransfer
 
@@ -972,7 +1051,7 @@ contains
         end do 
 
        else
-      !Slit up into logarithmically spaced intervals from qmin up to k=lognum*dk0
+      !Split up into logarithmically spaced intervals from qmin up to k=lognum*dk0
       !then no-lognum*dk0 linearly spaced at dk0 up to no*dk0
       !then at dk up to qmax
          if (CP%closed) then
@@ -1188,13 +1267,32 @@ contains
 
       end subroutine DoSourceIntegration     
 
+      function UseLimber(l,k)
+       !Calculate lensing potential power using Limber rather than j_l integration
+       !even when sources calculated as part of temperature calculation
+       !(Limber better on small scales unless step sizes made much smaller)
+       !This affects speed, esp. of non-flat case
+        logical :: UseLimber
+        integer l
+        real(dl) :: k
+ 
+        if (CP%AccurateBB .or. CP%flat) then
+         UseLimber = l > 700*AccuracyBoost .and. k > 0.05
+        else
+         !This is accurate at percent level only (good enough here)
+         UseLimber = l > 300*AccuracyBoost .or. k>0.05
+        end if
+
+      end function UseLimber
+
 !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-!CP%flat source integration
+!flat source integration
         subroutine DoFlatIntegration(IV, llmax)
         implicit none
         type(IntegrationVars) IV
         integer llmax
         integer j
+        logical DoInt
         real(dl) xlim,xlmax1 
         real(dl) tmin, tmax
         real(dl) a2, J_l, aa(IV%SourceSteps), fac(IV%SourceSteps)
@@ -1246,23 +1344,33 @@ contains
 
                 end do
               else 
-               do n= TimeToTimeStep(tmin),min(IV%SourceSteps,TimeToTimeStep(tmax))
+                 DoInt = .not. CP%WantScalars .or. IV%q < max(850,lSamp%l(j))*3*AccuracyBoost/CP%tau0  
+                 if (DoInt) then
+                  do n= TimeToTimeStep(tmin),min(IV%SourceSteps,TimeToTimeStep(tmax))
+                   !Full Bessel integration
+                     a2=aa(n)
+                     bes_ix=bes_index(n) 
 
-                 a2=aa(n)
-                 bes_ix=bes_index(n) 
-
-                 J_l=a2*ajl(bes_ix,j)+(1-a2)*(ajl(bes_ix+1,j) - ((a2+1) &
-                        *ajlpr(bes_ix,j)+(2-a2)*ajlpr(bes_ix+1,j))* fac(n)) !cubic spline
-                 J_l = J_l*dtau2(n)
+                     J_l=a2*ajl(bes_ix,j)+(1-a2)*(ajl(bes_ix+1,j) - ((a2+1) &
+                            *ajlpr(bes_ix,j)+(2-a2)*ajlpr(bes_ix+1,j))* fac(n)) !cubic spline
+                     J_l = J_l*dtau2(n)
               
-                !The unwrapped form is faster
+                    !The unwrapped form is faster
      
-                 sums(1) = sums(1) + IV%Source_q(n,1)*J_l
-                 sums(2) = sums(2) + IV%Source_q(n,2)*J_l
-                 sums(3) = sums(3) + IV%Source_q(n,3)*J_l
-
+                     sums(1) = sums(1) + IV%Source_q(n,1)*J_l
+                     sums(2) = sums(2) + IV%Source_q(n,2)*J_l
+                     sums(3) = sums(3) + IV%Source_q(n,3)*J_l
     
-               end do
+                  end do
+                 end if
+                 if (.not. DoInt .or. UseLimber(lsamp%l(j),IV%q) .and. CP%WantScalars) then
+                  !Limber approximation for small scale lensing (better than poor version of above integral)
+                  xf = CP%tau0-lSamp%l(j)/IV%q
+                  n=TimeToTimeStep(xf)
+                  xf= (xf-atau0(n))/(atau0(n+1)-atau0(n))                  
+                  sums(3) = (IV%Source_q(n,3)*(1-xf) + xf*IV%Source_q(n+1,3))*sqrt(pi/2/lSamp%l(j))/IV%q 
+                 end if
+
               end if
   
               ThisCT%Delta_p_l_k(1:SourceNum,j,IV%q_ix) = ThisCT%Delta_p_l_k(1:SourceNum,j,IV%q_ix) + sums(1:SourceNum)
@@ -1279,12 +1387,12 @@ contains
 
       subroutine IntegrateSourcesBessels(IV,j,l,nu)  
       use USpherBessels
-       type(IntegrationVars) IV
-    
+      type(IntegrationVars) IV
+      logical DoInt   
       integer l,j, nstart,nDissipative,ntop,nbot,nrange,nnow
       real(dl) nu,ChiDissipative,ChiStart,tDissipative,y1,y2,y1dis,y2dis     
-      real(dl) x,chi, miny1
-      real(dl) out_arr(SourceNum)     
+      real(dl) xf,x,chi, miny1
+      real(dl) sums(SourceNum),out_arr(SourceNum)     
     
       !Calculate chi where for smaller chi it is dissipative
       x=sqrt(real(l*(l+1),dl))/nu
@@ -1320,7 +1428,10 @@ contains
       !Integrate chi down in dissipative region
       ! cuts off when ujl gets small
          miny1= 0.5d-4/l/AccuracyBoost
-  
+         sums=0
+
+         DoInt =  SourceNum/=3 .or. IV%q < max(850,l)*3*AccuracyBoost/(CP%chi0*CP%r) 
+         if (DoInt) then
          if ((nstart < min(nstep-1,IV%SourceSteps)).and.(y1dis > miny1)) then
      
             y1=y1dis
@@ -1331,8 +1442,7 @@ contains
                if (nnow < ntop) then
                   call DoRangeInt(IV,chi,ChiDissipative,nnow,ntop,dtaureg(nrange), &
                               nu,l,y1,y2,out_arr)        
-       
-                 ThisCT%Delta_p_l_k(1:SourceNum,j,IV%q_ix)=ThisCT%Delta_p_l_k(1:SourceNum,j,IV%q_ix)+out_arr
+                 sums  = sums + out_arr
                  nnow = ntop
                  if (chi==0) exit !small enough to cut off
                end if
@@ -1351,7 +1461,7 @@ contains
                if (nnow >  nbot) then
                   call DoRangeInt(IV,chi,ChiDissipative,nnow,nbot,dtaureg(nrange), &
                               nu,l,y1,y2,out_arr)
-                 ThisCT%Delta_p_l_k(1:SourceNum,j,IV%q_ix)=ThisCT%Delta_p_l_k(1:SourceNum,j,IV%q_ix)+out_arr
+                 sums=sums+out_arr
          
                  if (chi==0) exit !small for remaining region
                  nnow = nbot
@@ -1360,6 +1470,18 @@ contains
             end do
 
            end if
+
+           end if !DoInt
+         if (SourceNum==3 .and. (.not. DoInt .or. UseLimber(l,IV%q))) then
+            !Limber approximation for small scale lensing (better than poor version of above integral)
+             xf = CP%tau0-invsinfunc(l/nu)*CP%r
+             nbot=TimeToTimeStep(xf)
+             xf= (xf-atau0(nbot))/(atau0(nbot+1)-atau0(nbot))                  
+             sums(3) = (IV%Source_q(nbot,3)*(1-xf) + xf*IV%Source_q(nbot+1,3))*&
+                           sqrt(pi/2/l/sqrt(1-CP%Ksign*real(l**2)/nu**2))/IV%q 
+         end if
+
+         ThisCT%Delta_p_l_k(1:SourceNum,j,IV%q_ix)=ThisCT%Delta_p_l_k(1:SourceNum,j,IV%q_ix)+sums
            
       end if !Do Scalars
            
@@ -1471,7 +1593,8 @@ contains
       if (dtau==dtaurec_q) then
        num2=num2/4
       end if
-      if ((num2*IntAccuracyBoost < dchisource .and. .not. CP%Dolensing) & !Oscillating fast 
+      if (num2*IntAccuracyBoost < dchisource .and. (.not. CP%DoLensing .or. UseLimber(l,IV%q)) & 
+!       if ((num2*IntAccuracyBoost < dchisource ) & !Oscillating fast 
         .or. (nstart>IV%SourceSteps.and.nend>IV%SourceSteps)) then  
          out = 0
          y1=0._dl !So we know to calculate starting y1,y2 if there is next range

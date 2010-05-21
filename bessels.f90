@@ -1,5 +1,5 @@
 !CAMB spherical and hyperspherical Bessel function routines
-!This version June 2004 - bessels calculated on the fly rather than cached to disk
+!This version May 2006 - minor changes to bjl (http://cosmocoffee.info/viewtopic.php?t=530)
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !Flat bessel function module
@@ -69,6 +69,7 @@
        real(dl) x
        real(dl) xlim
        integer i,j
+
  
         if (DebugMsgs .and. FeedbackLevel > 0) write (*,*) 'Generating flat Bessels...'
       
@@ -104,6 +105,7 @@
        Allocate(ajl(1:num_xx,1:lSamp%l0))
        Allocate(ajlpr(1:num_xx,1:lSamp%l0))
 
+   
        do j=1,lSamp%l0
        
          do  i=1,num_xx
@@ -132,239 +134,150 @@
 
      end subroutine GenerateBessels
 
-      subroutine bjl(l,x,jl)
-         use Precision
-!  Calculates the spherical bessel function j_l(x)
+         SUBROUTINE BJL(L,X,JL)
+        !!== MODIFIED SUBROUTINE FOR SPHERICAL BESSEL FUNCTIONS.                       ==!!
+        !!== CORRECTED THE SMALL BUGS IN PACKAGE CMBFAST&CAMB(for l=4,5, x~0.001-0.002)==!! 
+        !!== CORRECTED THE SIGN OF J_L(X) FOR X<0 CASE                                 ==!!
+        !!== WORKS FASTER AND MORE ACCURATE FOR LOW L, X<<L, AND L<<X cases            ==!! 
+        !!== zqhuang@astro.utoronto.ca                                                 ==!!
+        IMPLICIT NONE
+        INTEGER L
+        real(dl) X,JL
+        real(dl) AX,AX2
+        real(dl),PARAMETER::LN2=0.6931471805599453094D0
+        real(dl),PARAMETER::ONEMLN2=0.30685281944005469058277D0
+        real(dl),PARAMETER::PID2=1.5707963267948966192313217D0
+        real(dl),PARAMETER::PID4=0.78539816339744830961566084582D0
+        real(dl),parameter::ROOTPI12 = 21.269446210866192327578D0
+        real(dl),parameter::GAMMA1 =   2.6789385347077476336556D0 !/* Gamma function of 1/3 */
+        real(dl),parameter::GAMMA2 =   1.3541179394264004169452D0 !/* Gamma function of 2/3 */
+        real(dl),PARAMETER::PI=3.141592653589793238463D0
+        real(dl) NU,NU2,BETA,BETA2,COSB
+        real(dl) sx,sx2
+        real(dl) cotb,cot3b,cot6b,secb,sec2b
+        real(dl) trigarg,expterm,L3
 
-!  and optionally its derivative for real x and integer l>=0.
+        IF(L.LT.0)THEN
+            write(*,*) 'Can not evaluate Spherical Bessel Function with index l<0'
+            STOP
+        ENDIF
+        AX=DABS(X)
+        AX2=AX**2
+        IF(L.LT.7)THEN
+            IF(L.EQ.0)THEN
+                IF(AX.LT.1.D-1)THEN
+                    JL=1.D0-AX2/6.D0*(1.D0-AX2/20.D0)
+                ELSE
+                    JL=DSIN(AX)/AX
+                ENDIF
+            ELSEIF(L.EQ.1)THEN
+                IF(AX.LT.2.D-1)THEN
+                    JL=AX/3.D0*(1.D0-AX2/10.D0*(1.D0-AX2/28.D0))
+                ELSE
+                    JL=(DSIN(AX)/AX-DCOS(AX))/AX
+                ENDIF
+            ELSEIF(L.EQ.2)THEN
+                IF(AX.LT.3.D-1)THEN
+                    JL=AX2/15.D0*(1.D0-AX2/14.D0*(1.D0-AX2/36.D0))
+                ELSE
+                    JL=(-3.0D0*DCOS(AX)/AX-DSIN(AX)*(1.D0-3.D0/AX2))/AX
+                ENDIF
+            ELSEIF(L.EQ.3)THEN
+                IF(AX.LT.4.D-1)THEN
+                    JL=AX*AX2/105.D0*(1.D0-AX2/18.D0*(1.D0-AX2/44.D0))
+                ELSE
+                    JL=(DCOS(AX)*(1.D0-15.D0/AX2)-DSIN(AX)*(6.D0-15.D0/AX2)/AX)/AX
+                ENDIF
+            ELSEIF(L.EQ.4)THEN
+                IF(AX.LT.6.D-1)THEN
+                    JL=AX2**2/945.D0*(1.D0-AX2/22.D0*(1.D0-AX2/52.D0))
+                ELSE
+                    JL=(DSIN(AX)*(1.D0-(45.D0-105.D0/AX2)/AX2)+DCOS(AX)*(10.D0-105.D0/AX2)/AX)/AX
+                ENDIF
+            ELSEIF(L.EQ.5)THEN
+                IF(AX.LT.1.D0)THEN
+                    JL=AX2**2*AX/10395.D0*(1.D0-AX2/26.D0*(1.D0-AX2/60.D0))
+                ELSE
+                    JL=(DSIN(AX)*(15.D0-(420.D0-945.D0/AX2)/AX2)/AX-DCOS(AX)*(1.D0-(105.D0-945.0d0/AX2)/AX2))/AX
+                ENDIF
+            ELSE
+                IF(AX.LT.1.D0)THEN
+                    JL=AX2**3/135135.D0*(1.D0-AX2/30.D0*(1.D0-AX2/68.D0))
+                ELSE
+                    JL=(DSIN(AX)*(-1.D0+(210.D0-(4725.D0-10395.D0/AX2)/AX2)/AX2)+ &
+                        DCOS(AX)*(-21.D0+(1260.D0-10395.D0/AX2)/AX2)/AX)/AX
+                ENDIF
+            ENDIF
+        ELSE
+            NU=0.5D0+L
+            NU2=NU**2
+            IF(AX.LT.1.D-40)THEN
+                JL=0.D0
+            ELSEIF((AX2/L).LT.5.D-1)THEN
+                JL=DEXP(L*DLOG(AX/NU)-LN2+NU*ONEMLN2-(1.D0-(1.D0-3.5D0/NU2)/NU2/30.D0)/12.D0/NU) &
+                   /NU*(1.D0-AX2/(4.D0*NU+4.D0)*(1.D0-AX2/(8.D0*NU+16.D0)*(1.D0-AX2/(12.D0*NU+36.D0))))
+            ELSEIF((L**2/AX).LT.5.D-1)THEN
+                BETA=AX-PID2*(L+1)
+                JL=(DCOS(BETA)*(1.D0-(NU2-0.25D0)*(NU2-2.25D0)/8.D0/AX2*(1.D0-(NU2-6.25)*(NU2-12.25D0)/48.D0/AX2)) &
+                   -DSIN(BETA)*(NU2-0.25D0)/2.D0/AX* (1.D0-(NU2-2.25D0)*(NU2-6.25D0)/24.D0/AX2*(1.D0-(NU2-12.25)* &
+                       (NU2-20.25)/80.D0/AX2)) )/AX   
+            ELSE
+                L3=NU**0.325
+                IF(AX .LT. NU-1.31*L3) then
+                    COSB=NU/AX
+                    SX = DSQRT(NU2-AX2)
+                    COTB=NU/SX
+                    SECB=AX/NU
+                    BETA=DLOG(COSB+SX/AX)
+                    COT3B=COTB**3
+                    COT6B=COT3B**2
+                    SEC2B=SECB**2
+                    EXPTERM=( (2.D0+3.D0*SEC2B)*COT3B/24.D0 &
+                       - ( (4.D0+SEC2B)*SEC2B*COT6B/16.D0 &
+                       + ((16.D0-(1512.D0+(3654.D0+375.D0*SEC2B)*SEC2B)*SEC2B)*COT3B/5760.D0 &
+                       + (32.D0+(288.D0+(232.D0+13.D0*SEC2B)*SEC2B)*SEC2B)*SEC2B*COT6B/128.D0/NU)*COT6B/NU) &
+                       /NU)/NU
+                    JL=DSQRT(COTB*COSB)/(2.D0*NU)*DEXP(-NU*BETA+NU/COTB-EXPTERM)
 
-!  Asymptotic approximations 8.11.5, 8.12.5, and 8.42.7 from
+                !          /**************** Region 2: x >> l ****************/
 
-!  G.N.Watson, A Treatise on the Theory of Bessel Functions,
-!  2nd Edition (Cambridge University Press, 1944).
-!  Higher terms in expansion for x near l given by
-!  Airey in Phil. Mag. 31, 520 (1916).
+                ELSEIF (AX .GT. NU+1.48*L3) then
+                    COSB=NU/AX
+                    SX=DSQRT(AX2-NU2)
+                    COTB=NU/SX
+                    SECB=AX/NU
+                    BETA=DACOS(COSB)
+                    COT3B=COTB**3
+                    COT6B=COT3B**2
+                    SEC2B=SECB**2
+                    TRIGARG=NU/COTB-NU*BETA-PID4 &
+                           -((2.0+3.0*SEC2B)*COT3B/24.D0  &
+                           +(16.D0-(1512.D0+(3654.D0+375.D0*SEC2B)*SEC2B)*SEC2B)*COT3B*COT6B/5760.D0/NU2)/NU
+                    EXPTERM=( (4.D0+sec2b)*sec2b*cot6b/16.D0 &
+                           -(32.D0+(288.D0+(232.D0+13.D0*SEC2B)*SEC2B)*SEC2B)*SEC2B*COT6B**2/128.D0/NU2)/NU2
+                    JL=DSQRT(COTB*COSB)/NU*DEXP(-EXPTERM)*DCOS(TRIGARG)
 
-!  This approximation is accurate to near 0.1% at the boundaries
-!  between the asymptotic regions; well away from the boundaries
-!  the accuracy is better than 10^{-5}. The derivative accuracy
-!  is somewhat worse than the function accuracy but still better
-!  than 1%.
+                !          /***************** Region 3: x near l ****************/
 
-!  Point *jlp initially to a negative value to forego calculating
-!  the derivative; point it to a positive value to do the derivative
-!  also (Note: give it a definite value before the calculation
-!  so it's not pointing at junk.) The derivative calculation requires
-
-!  only arithmetic operations, plus evaluation of one sin() for the
-!  x>>l region.
-
-
-!  Original code by Arthur Kosowsky   akosowsky@cfa.harvard.edu
-!  This fortran version only computes j_l(x)
-        implicit none
-        integer l
-        real(dl) nu, nu2,ax,ax2,beta,beta2,beta4,beta6
-        real(dl) sx,sx2,cx,sum1,sum2,sum3,sum4,sum5,deriv1
-        real(dl) cotb,cot3b,cot6b,secb,sec2b,sec4b,sec6b
-        real(dl) trigarg,trigcos,expterm,prefactor,llimit,ulimit,fl
-        real(dl) x,jl
-
-!        PI = 3.1415926536
-        real(dl), parameter :: ROOTPI = 1.772453851
-        real(dl), parameter :: GAMMA1 = 2.6789385347 ! Gamma function of 1/3
-        real(dl), parameter :: GAMMA2 = 1.3541179394 ! Gamma function of 2/3
-
-
-        ax = abs(x)
-        fl = l
-
-
-        beta = fl**0.325
-        llimit=1.31*beta   !/* limits of asymptotic regions; fitted */
-        ulimit=1.48*beta
-
-         nu= fl + 0.5
-
-         nu2=nu*nu
-
-        if (l .lt. 0) then
-                print*, 'Bessel function index < 0\n'
-                stop
-        end if
-
-!          /************* Use closed form for l<6 **********/
-
-        if (l .lt. 6) then
-
-        sx=sin(ax)
-        cx=cos(ax)
-        ax2=ax*ax
-
-            if(l .eq. 0) then
-            if(ax .gt. 0.001) then
-                 jl=sx/ax
-                 else
-
-                 jl=1._dl-ax2/6._dl
-                 end if    !   /* small x trap */
-            endif
-
-
-            if(l .eq. 1) then
-
-            if(ax .gt. 0.001) then
-                 jl=(sx/ax -cx)/ax
-                 else
-
-                 jl=ax/3._dl
-                 end if
-            endif
-
-            if(l .eq. 2) then
-              if(ax .gt. 0.001) then
-                  jl=(-3._dl*cx/ax &
-                          -sx*(1._dl-3._dl/ax2))/ax
-              else
-
-                  jl=ax2/15._dl
-                  end if
-            endif
-
-            if(l .eq. 3) then
-          if(ax .gt. 0.001) then
-                jl=(cx*(1._dl-15._dl/ax2) &
-                          -sx*(6._dl-15._dl/ax2)/ax)/ax
-           else
-
-                jl=ax*ax2/105._dl
-                endif
-            endif
-
-            if(l .eq. 4) then
-          if(ax .gt. 0.001) then
-        jl=(sx*(1._dl-45._dl/(ax*ax)+105._dl &
-             /(ax*ax*ax*ax)) +cx*(10._dl-105._dl/(ax*ax))/ax)/ax
-          else
-
-                jl=ax2*ax2/945._dl
-                end if
-            endif
-
-             if(l .eq. 5) then
-
-          if(ax .gt. 0.001) then
-        jl=(sx*(15._dl-420._dl/(ax*ax)+945._dl &
-          /(ax*ax*ax*ax))/ax -cx*(1.0-105._dl/(ax*ax)+945._dl &
-                                          /(ax*ax*ax*ax)))/ax
-           else
-
-                jl=ax2*ax2*ax/10395._dl
-                endif
-             endif
-
-
-!          /********************** x=0 **********************/
-
-        else if (ax .lt. 1.d-30) then
-        jl=0.0
-
-!          /*************** Region 1: x << l ****************/
-
-        else if (ax .le. fl+0.5-llimit) then
-
-
-!       beta=acosh(nu/ax)
-        if (nu/ax .lt. 1._dl) print*, 'trouble with acosh'
-        beta = dlog(nu/ax + sqrt((nu/ax)**2 - 1._dl) )
-                !(4.6.21)
-        cotb=nu/sqrt(nu*nu-ax*ax)      ! /* cotb=coth(beta) */
-        cot3b=cotb*cotb*cotb
-        cot6b=cot3b*cot3b
-        secb=ax/nu
-        sec2b=secb*secb
-        sec4b=sec2b*sec2b
-        sec6b=sec4b*sec2b
-        sum1=2.0+3.0*sec2b
-        expterm=sum1*cot3b/(24.0*nu)
-        sum2=4.0+sec2b
-        expterm = expterm - sum2*sec2b*cot6b/(16.0*nu2)
-        sum3=16.0-1512.0*sec2b-3654.0*sec4b-375.0*sec6b
-        expterm = expterm - sum3*cot3b*cot6b/(5760.0*nu*nu2)
-        sum4=32.0+288.0*sec2b+232.0*sec4b+13.0*sec6b
-        expterm = expterm - sum4*sec2b*cot6b*cot6b/(128.0*nu2*nu2)
-        expterm=exp(-nu*beta+nu/cotb-expterm)
-        prefactor=sqrt(cotb/secb)/(2.0*nu)
-        jl=prefactor*expterm
-
-!          /**************** Region 2: x >> l ****************/
-
-
-        else if (ax .ge. fl+0.5+ulimit) then
-
-
-        beta=acos(nu/ax)
-        cotb=nu/sqrt(ax*ax-nu*nu)      !/* cotb=cot(beta) */
-        cot3b=cotb*cotb*cotb
-        cot6b=cot3b*cot3b
-        secb=ax/nu
-        sec2b=secb*secb
-        sec4b=sec2b*sec2b
-        sec6b=sec4b*sec2b
-        trigarg=nu/cotb - nu*beta - PI/4.0
-        sum1=2.0+3.0*sec2b
-        trigarg = trigarg - sum1*cot3b/(24.0*nu)
-        sum3=16.0-1512.0*sec2b-3654.0*sec4b-375.0*sec6b
-        trigarg = trigarg - sum3*cot3b*cot6b/(5760.0*nu*nu2)
-        trigcos=cos(trigarg)
-        sum2=4.0+sec2b
-        expterm=sum2*sec2b*cot6b/(16.0*nu2)
-        sum4=32.0+288.0*sec2b+232.0*sec4b+13.0*sec6b
-        expterm = expterm - sum4*sec2b*cot6b*cot6b/(128.0*nu2*nu2)
-        expterm=exp(-expterm)
-        prefactor=sqrt(cotb/secb)/nu
-        jl=prefactor*expterm*trigcos
-
-!          /***************** Region 3: x near l ****************/
-
-        else
-
-
-
-        beta=ax-nu
-
-        beta2=beta*beta
-        beta4=beta2*beta2
-        beta6=beta2*beta4
-        sx=6.0/ax
-        sx2=sx*sx
-        cx=sqrt(sx)
-
-        secb=sx**0.333333333
-
-        sec2b=secb*secb
-
-        deriv1=GAMMA1*secb
-        deriv1= deriv1+ beta*GAMMA2*sec2b
-        sum1=(beta2/6.0-1.0/15.0)*beta
-        deriv1 = deriv1 - sum1*sx*secb*GAMMA1/3.0
-        sum2=beta4/24.0-beta2/24.0+1.0/280.0
-        deriv1 = deriv1 - 2.0*sum2*sx*sec2b*GAMMA2/3.0
-        sum3=beta6/720.0-7.0*beta4/1440.0+beta2/288.0-1.0/3600.0
-        deriv1 = deriv1 + 4.0*sum3*sx2*secb*GAMMA1/9.0
-        sum4=(beta6/5040.0-beta4/900.0+19.0*beta2/12600.0- &
-        13.0/31500.0)*beta
-        deriv1 = deriv1 + 10.0*sum4*sx2*sec2b*GAMMA2/9.0
-        sum5=(beta4*beta4/362880.0-beta6/30240.0+71.0*beta4/604800.0 &
-                     -121.0*beta2/907200.0 + 7939.0/232848000.0)*beta
-        deriv1 = deriv1 - 28.0*sum5*sx2*sx*secb*GAMMA1/27.0
-
-        jl=deriv1*cx/(12.0*ROOTPI)
-
-        end if
-
-        end subroutine bjl
-     
+                ELSE
+                    BETA=AX-NU
+                    BETA2=BETA**2
+                    SX=6.D0/AX
+                    SX2=SX**2
+                    SECB=SX**0.3333333333333333d0
+                    SEC2B=SECB**2
+                    JL=( GAMMA1*SECB + BETA*GAMMA2*SEC2B &
+                          -(BETA2/18.D0-1.D0/45.D0)*BETA*SX*SECB*GAMMA1 &
+                          -((BETA2-1.D0)*BETA2/36.D0+1.D0/420.D0)*SX*SEC2B*GAMMA2   &
+                          +(((BETA2/1620.D0-7.D0/3240.D0)*BETA2+1.D0/648.D0)*BETA2-1.D0/8100.D0)*SX2*SECB*GAMMA1 &
+                          +(((BETA2/4536.D0-1.D0/810.D0)*BETA2+19.D0/11340.D0)*BETA2-13.D0/28350.D0)*BETA*SX2*SEC2B*GAMMA2 &
+                          -((((BETA2/349920.D0-1.D0/29160.D0)*BETA2+71.D0/583200.D0)*BETA2-121.D0/874800.D0)* &
+                           BETA2+7939.D0/224532000.D0)*BETA*SX2*SX*SECB*GAMMA1)*DSQRT(SX)/ROOTPI12
+                ENDIF
+            ENDIF
+        ENDIF
+        IF(X.LT.0.AND.MOD(L,2).NE.0)JL=-JL
+        END SUBROUTINE BJL    
 
      end module SpherBessels
 
@@ -1426,7 +1339,7 @@
       end function polevl
 
 !
-!                                      N
+!                                      
 ! Evaluate polynomial when coefficient of x  is 1.0.
 ! Otherwise same as polevl.
 !

@@ -34,7 +34,9 @@
 #endif        
 #endif
         logical bad
+
         InputFile = ''
+   
 
         if (iargc() /= 0)  call getarg(1,InputFile)
         if (InputFile == '') stop 'No parameter input file'
@@ -122,9 +124,26 @@
        P%Num_Nu_massless  = Ini_Read_Double('massless_neutrinos')
        P%Num_Nu_massive   = Ini_Read_Double('massive_neutrinos')
    
+       P%nu_mass_splittings = .true.
+       P%Nu_mass_eigenstates = Ini_Read_Int('nu_mass_eigenstates',1)
+       if (P%Nu_mass_eigenstates > max_nu) stop 'too many mass eigenstates'
+       numstr = Ini_Read_String('nu_mass_degeneracies')
+       if (numstr=='') then
+         P%Nu_mass_degeneracies(1)= P%Num_nu_massive
+       else
+        read(numstr,*) P%Nu_mass_degeneracies(1:P%Nu_mass_eigenstates)
+       end if
+       numstr = Ini_read_String('nu_mass_fractions')
+       if (numstr=='') then
+        P%Nu_mass_fractions(1)=1  
+        if (P%Nu_mass_eigenstates >1) stop 'must give nu_mass_fractions for the eigenstates'
+       else
+        read(numstr,*) P%Nu_mass_fractions(1:P%Nu_mass_eigenstates)
+       end if
+
        if (P%NonLinear==NonLinear_lens .and. P%DoLensing) then
           if (P%WantTransfer) &
-             write (*,*) 'over-riding transfer settings to get non-linear lensing'
+             write (*,*) 'overriding transfer settings to get non-linear lensing'
           P%WantTransfer  = .true.
           call Transfer_SetForNonlinearLensing(P%Transfer)
           P%Transfer%high_precision=  Ini_Read_Logical('transfer_high_precision',.false.)
@@ -164,6 +183,8 @@
 
            Ini_fail_on_not_found = .false. 
            
+          RECFAST_fudge = Ini_Read_Double('RECFAST_fudge',1.14d0)
+
            i = Ini_Read_Int('recombination',1)
            if (i==2) then
              use_Dubrovich = .true.
@@ -235,13 +256,18 @@
        P%AccuratePolarization = Ini_Read_Logical('accurate_polarization',.true.)
        P%AccurateReionization = Ini_Read_Logical('accurate_reionization',.false.)
        P%AccurateBB = Ini_Read_Logical('accurate_BB',.false.)
-
-       DoLateRadTruncation = Ini_Read_Logical('do_late_rad_trunction',.true.)
-
+        
+       !Mess here to fix typo with backwards compatibility
+       if (Ini_Read_String('do_late_rad_trunction') /= '') then
+         DoLateRadTruncation = Ini_Read_Logical('do_late_rad_trunction',.true.)
+         if (Ini_Read_String('do_late_rad_truncation')/='') stop 'check do_late_rad_xxxx'
+       else
+        DoLateRadTruncation = Ini_Read_Logical('do_late_rad_truncation',.true.)
+       end if
        DoTensorNeutrinos = Ini_Read_Logical('do_tensor_neutrinos',.false.)
        FeedbackLevel = Ini_Read_Int('feedback_level',0)
        
-       P%MassiveNuMethod  = Ini_Read_Int('massive_nu_approx',Nu_trunc)
+       P%MassiveNuMethod  = Ini_Read_Int('massive_nu_approx',Nu_best)
 
        ThreadNum      = Ini_Read_Int('number_of_threads',0)
        AccuracyBoost  = Ini_Read_Double('accuracy_boost',1.d0)
@@ -255,6 +281,10 @@
        call Ini_Close
 
        if (.not. CAMB_ValidateParams(P)) stop 'Stopped due to parameter error'
+
+#ifdef RUNIDLE
+       call SetIdle
+#endif 
 
        if (FeedbackLevel > 0) then
          Age = CAMB_GetAge(P) 
@@ -295,3 +325,15 @@
         end program driver
 
 
+#ifdef RUNIDLE
+ !If in Windows and want to run with low priorty so can multitask
+   subroutine SetIdle
+    USE DFWIN
+    Integer dwPriority 
+    Integer CheckPriority
+
+    dwPriority = 64 ! idle priority
+    CheckPriority = SetPriorityClass(GetCurrentProcess(), dwPriority)
+
+   end subroutine SetIdle
+#endif RUNIDLE

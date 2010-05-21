@@ -2,7 +2,7 @@
 
 !     Code for Anisotropies in the Microwave Background
 !     by Antony Lewis (http://cosmologist.info) and Anthony Challinor
-!     See readme.html for documentation. This version March 2005.
+!     See readme.html for documentation. This version August 2006.
 !
 !     Based on CMBFAST  by  Uros Seljak and Matias Zaldarriaga, itself based
 !     on Boltzmann code written by Edmund Bertschinger, Chung-Pei Ma and Paul Bode.
@@ -30,7 +30,7 @@
         implicit none    
         public
 
-        character(LEN=*), parameter :: version = 'Mar_06'
+        character(LEN=*), parameter :: version = 'Aug_06'
         
         integer :: FeedbackLevel = 0 !if >0 print out useful information about the model
 
@@ -38,19 +38,20 @@
 
         logical, parameter :: DebugEvolution = .false. !Set to true to do all the evolution for all k
 
-        integer, parameter :: Nu_int = 0, Nu_trunc=1, Nu_approx = 2
+        integer, parameter :: Nu_int = 0, Nu_trunc=1, Nu_approx = 2, Nu_best = 3
          !For CAMBparams%MassiveNuMethod
          !Nu_int: always integrate distribution function
          !Nu_trunc: switch to expansion in velocity once non-relativistic
          !Nu_approx: approximate scheme - good for CMB, but not formally correct and no good for matter power
+         !Nu_best: automatically use mixture which is fastest and most accurate
 
-    
+        integer, parameter :: max_Nu = 5 !Maximum number of neutrino species    
         integer, parameter :: max_transfer_redshifts = 128
         integer, parameter :: fileio_unit = 13 !Any number not used elsewhere will do       
         integer, parameter :: outCOBE=0, outNone=1
   
         real(dl), parameter ::  OutputDenominator =twopi
-       !When using outNone the output is lSamp%l(lSamp%l+1)Cl/OutputDenominator
+       !When using outNone the output is l(l+1)Cl/OutputDenominator
 
         type ReionizationParams
              real(dl)   :: redshift
@@ -93,6 +94,12 @@
          real(dl)  :: omegab, omegac, omegav, omegan
          !Omega baryon, CDM, Lambda and massive neutrino
          real(dl)  :: H0,TCMB,yhe,Num_Nu_massless,Num_Nu_massive
+
+         logical :: Nu_mass_splittings
+         integer   :: Nu_mass_eigenstates  !1 for degenerate masses
+         real(dl)  :: Nu_mass_degeneracies(max_nu)
+         real(dl)  :: Nu_mass_fractions(max_nu)
+             !The ratios of the masses
 
          integer   :: Scalar_initial_condition 
          !must be one of the initial_xxx values defined in GaugeInterface
@@ -139,6 +146,9 @@
 
        real(dl) scale !relative to CP%flat. e.g. for scaling lSamp%l sampling.
 
+       logical ::call_again = .false.
+          !if being called again with same parameters to get different thing
+
  
 !     grhom =kappa*a^2*rho_m0
 !     grhornomass=grhor*number of massless neutrino species
@@ -146,11 +156,14 @@
 !     dtaurec - dtau during recombination
 !     adotrad - a(tau) in radiation era
 
-        real(dl) grhom,grhog,grhor,grhob,grhoc,grhov,grhornomass,grhormass,grhok
+        real(dl) grhom,grhog,grhor,grhob,grhoc,grhov,grhornomass,grhok
         real(dl) taurst,dtaurec,taurend, tau_maxvis,adotrad
 
-!     amnu=m_nu*c**2/(k_B*T_nu0) (neutrino masses assumed degenerate)      
-       real(dl) :: amnu = 0
+!Neutrinos
+        real(dl) grhormass(max_nu)
+     
+!     nu_masses=m_nu*c**2/(k_B*T_nu0)      
+       real(dl) :: nu_masses(max_nu) 
         
        real(dl) akthom !sigma_T * (number density of protons now)
 
@@ -195,8 +208,9 @@
            type(CAMBparams), intent(in) :: P
            real(dl) GetOmegak
            integer, optional :: error !Zero if OK
+           integer nu_i
            external GetOmegak
-
+           real(dl), save :: last_tau0
            !Constants in SI units
            real(dl), parameter :: Mpc = 3.085678e22_dl, G=6.6726e-11_dl, kappa=2*fourpi*G, &
                    sigma_thomson = 6.6524616e-29_dl, c = 2.99792458e8_dl, m_p = 1.672623e-27_dl, &
@@ -210,7 +224,7 @@
                 stop
               end if
            end if
-           
+        
            CP=P
           
            CP%Max_eta_k = max(CP%Max_eta_k,CP%Max_eta_k_tensor)
@@ -241,6 +255,26 @@
               CP%Num_Nu_Massive  = 0
            end if
 
+           if (CP%Num_nu_massive > 0) then
+               if (.not. CP%Nu_mass_splittings) then
+                 !Default totally degenerate masses
+                 CP%Nu_mass_eigenstates = 1
+                 CP%Nu_mass_degeneracies(1) = CP%Num_Nu_Massive 
+                 CP%Nu_mass_fractions(1) = 1
+               else
+                 if (CP%Nu_mass_degeneracies(1)==0) CP%Nu_mass_degeneracies(1) = CP%Num_Nu_Massive 
+                 if (abs(sum(CP%Nu_mass_fractions(1:CP%Nu_mass_eigenstates))-1) > 1e-4) &
+                   stop 'Nu_mass_fractions do not add up to 1'
+
+                 if (abs(sum(CP%Nu_mass_degeneracies(1:CP%Nu_mass_eigenstates))-CP%Num_nu_massive) >1e-4 ) &
+                    stop 'nu_mass_eigenstates do not add up to num_nu_massive'
+                 if (CP%Nu_mass_eigenstates==0) stop 'Have Num_nu_massive>0 but no nu_mass_eigenstates'
+
+               end if
+           else
+            CP%Nu_mass_eigenstates = 0
+           end if
+           
            if ((CP%WantTransfer).and. CP%MassiveNuMethod==Nu_approx) then
               CP%MassiveNuMethod = Nu_trunc
            end if
@@ -277,13 +311,16 @@
            grhor = 7._dl/8*(4._dl/11)**(4._dl/3)*grhog !7/8*(4/11)^(4/3)*grhog (per neutrino species)
           !grhor=3.3957d-14*tcmb**4
            grhornomass=grhor*CP%Num_Nu_massless
-           grhormass=grhor*CP%Num_Nu_massive
+           grhormass=0
+           do nu_i = 1, CP%Nu_mass_eigenstates
+            grhormass(nu_i)=grhor*CP%Nu_mass_degeneracies(nu_i)
+           end do
            grhoc=grhom*CP%omegac
            grhob=grhom*CP%omegab
            grhov=grhom*CP%omegav
            grhok=grhom*CP%omegak
 !  adotrad gives the relation a(tau) in the radiation era:
-           adotrad = sqrt((grhog+grhornomass+grhormass)/3)
+           adotrad = sqrt((grhog+grhornomass+sum(grhormass(1:CP%Nu_mass_eigenstates)))/3)
        
            akthom = sigma_thomson*CP%omegab*(1-CP%yhe)*grhom*c**2/kappa/m_p/Mpc
               !sigma_T * (number density of protons now)
@@ -292,12 +329,18 @@
               CP%Num_nu_massless = CP%Num_nu_massless + CP%Num_nu_massive
               CP%Num_nu_massive = 0
            end if
-           call init_massive_nu(CP%omegan /=0)
-        
-           call init_background
-           
-           CP%tau0=TimeOfz(0._dl)
 
+           if (.not.call_again) then
+      
+            call init_massive_nu(CP%omegan /=0)
+            call init_background
+            CP%tau0=TimeOfz(0._dl)
+            last_tau0=CP%tau0
+           else
+              CP%tau0=last_tau0
+           end if         
+           
+         
            if (CP%closed .and. CP%tau0/CP%r >3.14) then
              if (present(error)) then
               error = 2
@@ -309,15 +352,19 @@
     
            if (present(error)) then
               error = 0
-           else if (FeedbackLevel > 0) then
+           else if (FeedbackLevel > 0 .and. .not. call_again) then
               write(*,'("Om_b h^2             = ",f7.5)') CP%omegab*(CP%H0/100)**2
               write(*,'("Om_c h^2             = ",f7.5)') CP%omegac*(CP%H0/100)**2
               write(*,'("Om_nu h^2            = ",f7.5)') CP%omegan*(CP%H0/100)**2
               write(*,'("Om_Lambda            = ",f7.5)') CP%omegav
               write(*,'("Om_K                 = ",f7.5)') CP%omegak
-              if (CP%Num_Nu_Massive /=0) &
-               write(*,'("m_nu*c^2/k_B/T_nu0   = ",f8.2," (m_nu = ",f6.3," eV)")') amnu,1.68e-4*amnu 
-             end if
+              if (CP%Num_Nu_Massive > 0) then
+                do nu_i=1, CP%Nu_mass_eigenstates 
+                 write(*,'(f4.2, " nu, m_nu*c^2/k_B/T_nu0   = ",f8.2," (m_nu = ",f6.3," eV)")') &
+                     CP%nu_mass_degeneracies(nu_i), nu_masses(nu_i),1.68e-4*nu_masses(nu_i)
+                end do
+              end if
+           end if
            CP%chi0=rofChi(CP%tau0/CP%r)
            scale= CP%chi0*CP%r/CP%tau0  !e.g. changel sampling depending on approx peak spacing      
            
@@ -387,6 +434,14 @@
           invsinfunc = 1._dl/x
          endif
          end function invsinfunc    
+
+        function f_K(x)
+         real(dl) :: f_K
+         real(dl), intent(in) :: x
+         f_K = CP%r*rofChi(x/CP%r)
+          
+        end function f_K
+
 
         function DeltaTime(a1,a2)
         implicit none
@@ -900,8 +955,8 @@
              if (CP%WantTensors) then
                   if (.not.CP%WantScalars) Norm = 1/Cl_tensor(lnorm,in, C_Temp)
                   !Otherwise Norm already set correctly
-                  Cl_tensor(lmin:CP%Max_l_tensor, in, CT_Temp:CT_Cross) = &
-                        Cl_tensor(lmin:CP%Max_l_tensor, in, CT_Temp:CT_Cross) * Norm
+                  Cl_tensor(lmin:CP%Max_l_tensor, in, CT_Temp:CT_Cross) =  &
+                    Cl_tensor(lmin:CP%Max_l_tensor, in, CT_Temp:CT_Cross) * Norm
              end if
        end do
 
@@ -1075,9 +1130,9 @@
           real(dl), parameter  :: const  = 7._dl/120*pi**4 ! 5.68219698_dl
              !const = int q^3 F(q) dq = 7/120*pi^4
           real(dl), parameter  :: const2 = 5._dl/7/pi**2   !0.072372274_dl
-          real(dl), parameter  :: zeta3  = 1.20205690_dl
-          real(dl), parameter  :: zeta5  = 1.036927755_dl
-          real(dl), parameter  :: zeta7  = 1.008349277_dl
+          real(dl), parameter  :: zeta3  = 1.2020569031595942853997_dl
+          real(dl), parameter  :: zeta5  = 1.0369277551433699263313_dl
+          real(dl), parameter  :: zeta7  = 1.0083492773819228268397_dl
 
           integer, parameter  :: nrhopn=2000  
           real(dl), parameter :: am_min = 0.01_dl  !0.02_dl
@@ -1092,16 +1147,16 @@
 
           real(dl), dimension(:), allocatable ::  r1,p1,dr1,dp1,ddr1,qdn
           
-          real(dl), parameter :: dq=1._dl 
-          !Sample for massive neutrino momentum (can't change easily)
-          
-          integer, parameter :: nqmax0=15 !number of q to sample for each lSamp%l
+          real(dl), parameter :: dq=1._dl  
+          !Sample for massive neutrino momentum; increase nqmax0 appropriately
+          !These settings appear to be OK for P_k accuate at 1e-3 level
+          integer, parameter :: nqmax0=15 !number of q to sample for each l
 
           real(dl) dlfdlq(nqmax0) !pre-computed array
           integer nqmax
  
        public Nu_Init,Nu_background,Nu_Integrate,Nu_Integrate01,Nu_Intvsq, &
-              Nu_Shear,Nu_derivs, nqmax, dlfdlq, dq, nqmax0
+              Nu_Shear,Nu_derivs, Nu_rho, nqmax, dlfdlq, dq, nqmax0
        contains
   !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
@@ -1114,22 +1169,17 @@
          real(dl) q, am, rhonu,pnu
          real(dl) spline_data(nrhopn)
 
-         real(dl) amnu1
      
-!  amnu=m_nu*c**2/(k_B*T_nu0).
-!  The 1.0e-18 is to prevent certain compilers (e.g. Sun's) from
-!  thinking that a divide by zero will occur.
+!  nu_masses=m_nu(i)*c**2/(k_B*T_nu0).
 !  Get number density n of neutrinos from
 !  rho_massless/n = int q^3/(1+e^q) / int q^2/(1+e^q)=7/180 pi^4/Zeta(3)
 !  then m = Omega_nu/N_nu rho_crit /n
 !  Error due to velocity < 1e-5
-
-
-        amnu1=const/(1.5d0*zeta3)*grhom/grhor*CP%omegan /((CP%Num_Nu_massive+1.0d-18))
         
-       if (amnu1==amnu) return !Been here before
-
-        amnu=amnu1
+        do i=1, CP%Nu_mass_eigenstates 
+         nu_masses(i)=const/(1.5d0*zeta3)*grhom/grhor*CP%omegan*CP%Nu_mass_fractions(i) &
+               /CP%Nu_mass_degeneracies(i)
+        end do
 
         if (allocated(r1)) return
          
@@ -1137,9 +1187,8 @@
         allocate(r1(nrhopn),p1(nrhopn),dr1(nrhopn),dp1(nrhopn),ddr1(nrhopn),qdn(nqmax0))
 
          do i=1,nqmax0
-            q=i*dq-1._dl/2
+            q=(i-0.5d0)*dq
             dlfdlq(i)=-q/(1._dl+exp(-q))
-            q=i-0.5d0
             qdn(i)=dq*q**3/(exp(q)+1._dl)
          end do
 
@@ -1170,7 +1219,7 @@
 
 !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
         subroutine nuRhoPres(am,rhonu,pnu)
-!  Compute the density and pressure of one flavor of massive neutrinos,
+!  Compute the density and pressure of one eigenstate of massive neutrinos,
 !  in units of the mean density of one flavor of massless neutrinos.
 
         real(dl),  parameter :: qmax=30._dl
@@ -1212,21 +1261,19 @@
         real(dl), intent(out) :: rhonu, pnu
 
 !  Compute massive neutrino density and pressure in units of the mean
-!  density of one flavor of massless neutrinos.  Use cubic splines to
+!  density of one eigenstate of massless neutrinos.  Use cubic splines to
 !  interpolate from a table.
 
-        real(dl) d,am2
+        real(dl) d
         integer i
       
-        am2=am**2
-
         if (am <= am_minp) then
-          rhonu=1._dl + const2*am2  
+          rhonu=1._dl + const2*am**2  
           pnu=(2-rhonu)/3._dl
           return
         else if (am >= am_maxp) then
           rhonu = 3/(2*const)*(zeta3*am + (15*zeta5)/2/am)
-          pnu = 900._dl/120._dl/const*(zeta5-63._dl/4*Zeta7/am2)/am
+          pnu = 900._dl/120._dl/const*(zeta5-63._dl/4*Zeta7/am**2)/am
           return
         end if
 
@@ -1245,14 +1292,47 @@
 
         end subroutine Nu_background
 
+!cccccccccccccccccccccccccccccccccccccccccc
+       subroutine Nu_rho(am,rhonu)
+        use precision
+        use ModelParams
+        real(dl), intent(in) :: am
+        real(dl), intent(out) :: rhonu
+
+!  Compute massive neutrino density in units of the mean
+!  density of one eigenstate of massless neutrinos.  Use cubic splines to
+!  interpolate from a table.
+
+        real(dl) d
+        integer i
+      
+        if (am <= am_minp) then
+          rhonu=1._dl + const2*am**2  
+          return
+        else if (am >= am_maxp) then
+          rhonu = 3/(2*const)*(zeta3*am + (15*zeta5)/2/am)
+          return
+        end if
+        
+        d=log(am/am_min)/dlnam+1._dl
+        i=int(d)
+        d=d-i
+       
+!  Cubic spline interpolation.
+        rhonu=r1(i)+d*(dr1(i)+d*(3._dl*(r1(i+1)-r1(i))-2._dl*dr1(i) &
+               -dr1(i+1)+d*(dr1(i)+dr1(i+1)+2._dl*(r1(i)-r1(i+1)))))
+        rhonu=exp(rhonu)
+       end subroutine Nu_rho
+
+
 !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
         subroutine Nu_Integrate01(am,drhonu,fnu,psi0,psi1)
         use precision
         use ModelParams
     
 !  Compute the perturbations of density and energy flux
-!  of one flavor of massive neutrinos, in units of the mean
-!  density of one flavor of massless neutrinos, by integrating over
+!  of one eigenstate of massive neutrinos, in units of the mean
+!  density of one eigenstate of massless neutrinos, by integrating over
 !  momentum.
         real(dl), intent(IN)  :: am,psi0(nqmax0),psi1(nqmax0) 
         real(dl), intent(OUT) ::  drhonu,fnu
@@ -1267,7 +1347,7 @@
         g1(1)=0
         g3(1)=0
         do iq=2,(nqmax0+1)
-            q=iq-1.5d0
+            q=(iq-1.5d0)*dq
             aq=am/q
             v=1._dl/sqrt(1._dl+aq*aq)          
             g1(iq)=qdn(iq-1)*psi0(iq-1)/v           
@@ -1288,8 +1368,8 @@
         use ModelParams
     
 !  Compute the perturbations of density, energy flux, pressure, and
-!  shear stress of one flavor of massive neutrinos, in units of the mean
-!  density of one flavor of massless neutrinos, by integrating over
+!  shear stress of one eigenstate of massive neutrinos, in units of the mean
+!  density of one eigenstate of massless neutrinos, by integrating over
 !  momentum.
         real(dl), intent(IN)  :: am,psi0(nqmax0),psi1(nqmax0),psi2(nqmax0) 
         real(dl), intent(OUT) ::  drhonu,fnu,dpnu,shearnu
@@ -1308,7 +1388,7 @@
         g3(1)=0._dl
         g4(1)=0._dl
         do iq=2,(nqmax0+1)
-            q=iq-1.5d0
+            q=(iq-1.5d0)*dq
             aq=am/q
             v=1._dl/sqrt(1._dl+aq*aq)          
             g1(iq)=qdn(iq-1)*psi0(iq-1)/v
@@ -1351,7 +1431,7 @@
         g2(1)=0._dl
    
         do iq=2,(nqmax0+1)
-            q=iq-1.5d0
+            q=(iq-1.5d0)*dq
             aq=am/q
             v=1._dl/sqrt(1._dl+aq*aq)          
             g1(iq)=qdn(iq-1)*psi1(iq-1)*v**2
@@ -1372,8 +1452,8 @@
         use ModelParams
 
 !  Compute the perturbations of 
-!  shear stress of one flavor of massive neutrinos, in units of the mean
-!  density of one flavor of massless neutrinos, by integrating over
+!  shear stress of one eigenstate of massive neutrinos, in units of the mean
+!  density of one eigenstate of massless neutrinos, by integrating over
 !  momentum.
         real(dl), intent(IN) :: am 
      
@@ -1392,7 +1472,7 @@
 !  q is the comoving momentum in units of k_B*T_nu0/c.
         g4(1)=0._dl      
         do  iq=2,(nqmax0+1)
-            q=iq-1.5d0
+            q=(iq-1.5d0)*dq
             aq=am/q
             v=1._dl/sqrt(1._dl+aq*aq)                     
             g4(iq)=qdn(iq-1)*psi2(iq-1)*v         
@@ -1403,8 +1483,7 @@
         end subroutine Nu_Shear
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
-        subroutine Nu_derivs(am,adotoa,rhonu,rhonudot,shearnudot, &
-                        psi2,psi2dot)
+        subroutine Nu_derivs(am,adotoa,rhonu,rhonudot,shearnudot,psi2,psi2dot)
         use precision
         use ModelParams
 
@@ -1425,7 +1504,7 @@
 !  q is the comoving momentum in units of k_B*T_nu0/c.
         g1(1)=0._dl
         do iq=2,(nqmax0+1)
-            q=iq-1.5d0
+            q=(iq-1.5d0)*dq
             aq=am/q
             aqdot=aq*adotoa
             v=1._dl/sqrt(1._dl+aq*aq)
@@ -1472,7 +1551,7 @@
              nqmax=nqmax0 
              call Nu_Init  
         else
-             amnu = 0
+             nu_masses = 0
              nqmax= 0
         end if
       end subroutine init_massive_nu
@@ -1493,7 +1572,7 @@
         Type MatterTransferData
          !Computed data
          integer   ::  num_q_trans   !    number of steps in k for transfer calculation
-    
+         real(dl), dimension (:), pointer :: q_trans
          real(dl), dimension (:,:), pointer ::  sigma_8
          real, dimension(:,:,:), pointer :: TransferData
          !TransferData(entry,k_index,z_index) for entry=Tranfer_kh.. Transfer_tot
@@ -1609,8 +1688,11 @@
           real(dl) ho,a0,b0
           
            logk = log(kh)
-           if (logk < PK%log_kh(1)) &
-             stop 'MatterPowerData_k: k too low - not calculated'
+           if (logk < PK%log_kh(1)) then
+              outpower = 0 
+              return
+!             stop 'MatterPowerData_k: k too low - not calculated'
+           end if
            if (logk > PK%log_kh(PK%num_k)) then
             !Do dodgy linear extrapolation on assumption accuracy of result won't matter
            
@@ -1660,7 +1742,10 @@
           
 
           if (npoints < 2) stop 'Need at least 2 points in Transfer_GetMatterPower'
-          if (minkh < MTrans%TransferData(Transfer_kh,1,itf)) stop 'Transfer_GetMatterPower: kh out of computed region'
+
+!         if (minkh < MTrans%TransferData(Transfer_kh,1,itf)) then
+!            stop 'Transfer_GetMatterPower: kh out of computed region'
+!          end if
           if (minkh*exp((npoints-1)*dlnkh) > MTrans%TransferData(Transfer_kh,MTrans%num_q_trans,itf) &
                 .and. FeedbackLevel > 0 ) &
                     write(*,*) 'Warning: extrapolating matter power in Transfer_GetMatterPower'
@@ -1690,6 +1775,10 @@
             lastix = npoints + 1
             do il=1, npoints
                xi=logmink + dlnkh*(il-1)
+               if (xi < kvals(1)) then
+                 outpower(il)=-30.
+                 cycle
+               end if
                do while ((xi > kvals(llo+1)).and.(llo < MTrans%num_q_trans))
                   llo=llo+1
                end do
@@ -1813,6 +1902,7 @@
 
 
           call Transfer_Free(MTrans)
+          allocate(MTrans%q_trans(MTrans%num_q_trans))            
           allocate(MTrans%TransferData(Transfer_max,MTrans%num_q_trans,CP%Transfer%num_redshifts))  
           allocate(MTrans%sigma_8(CP%Transfer%num_redshifts, CP%InitPower%nn))
            
@@ -1822,6 +1912,7 @@
           Type(MatterTransferData):: MTrans
           integer st
 
+          deallocate(MTrans%q_trans, STAT = st)
           deallocate(MTrans%TransferData, STAT = st)
           deallocate(MTrans%sigma_8, STAT = st)
           
@@ -1832,13 +1923,12 @@
           integer i
 
           P%kmax = 5
-          P%k_per_logint  = 5
+          P%k_per_logint  = 0
           P%num_redshifts =  nint(10*AccuracyBoost)
           if (P%num_redshifts > max_transfer_redshifts) &
                 stop 'Transfer_SetForNonlinearLensing: Too many redshifts'
           do i=1,P%num_redshifts
-           P%redshifts(i) = &
-             real(P%num_redshifts-i)/(P%num_redshifts/10)
+           P%redshifts(i) = real(P%num_redshifts-i)/(P%num_redshifts/10)
           end do
 
        end subroutine Transfer_SetForNonlinearLensing
@@ -1872,8 +1962,8 @@
           Type(MatterTransferData), intent(in) :: MTrans
           character(LEN=Ini_max_string_len), intent(IN) :: FileNames(*)
           integer itf,in,i
-          integer, parameter :: points = 500
-          real outpower(points,CP%InitPower%nn)
+          integer points
+          real, dimension(:,:), allocatable :: outpower
           character(LEN=80) fmt
           real minkh,dlnkh
 
@@ -1881,8 +1971,11 @@
           fmt = '('//trim(adjustl(fmt))//'E15.5)'
           do itf=1, CP%Transfer%num_redshifts
             if (FileNames(itf) /= '') then
-             minkh = MTrans%TransferData(Transfer_kh,1,itf)
-             dlnkh = log(MTrans%TransferData(Transfer_kh,MTrans%num_q_trans,itf)/minkh)/(points-0.999)
+             minkh = 1e-4
+             dlnkh = 0.02
+             points = log(MTrans%TransferData(Transfer_kh,MTrans%num_q_trans,itf)/minkh)/dlnkh+1
+!             dlnkh = log(MTrans%TransferData(Transfer_kh,MTrans%num_q_trans,itf)/minkh)/(points-0.999)
+             allocate(outpower(points,CP%InitPower%nn))
              do in = 1, CP%InitPower%nn
               call Transfer_GetMatterPower(MTrans,outpower(1,in), itf, in, minkh,dlnkh, points)
               if (CP%OutputNormalization == outCOBE) then
@@ -1893,12 +1986,13 @@
                  end if
              end if
              end do
-
+     
              open(unit=fileio_unit,file=FileNames(itf),form='formatted',status='replace')
              do i=1,points
               write (fileio_unit, fmt) minkh*exp((i-1)*dlnkh),outpower(i,1:CP%InitPower%nn)
              end do
             close(fileio_unit)
+             deallocate(outpower) 
             end if
           end do
 
@@ -2127,7 +2221,7 @@
            
           else
             xe(i)=xeRECFAST(a)
- !           print *, 1/a-1, xe(i)
+            !print *, 1/a-1, xe(i) 
           end if 
          
 !  Baryon sound speed squared (over c**2).
@@ -2150,7 +2244,7 @@
           tau01=tau
           adot0=adot
           end do !i
-                   
+                 
           if (CP%Reionization .and. (xe(nthermo) < CP%Reion%fraction)) then
              write(*,*)'Warning: We use a smooth function to '
              write(*,*)'approach your specified reionization'
@@ -2265,9 +2359,10 @@
            if (CP%WantTensors) then
               dtau0=max(dtaurec*3.5d0,Maxtau/2000._dl/AccuracyBoost)
            else       
-              dtau0=Maxtau/500._dl/AccuracyBoost
-              if (CP%DoLensing) dtau0=dtau0/2 
-              if (CP%AccurateBB) dtau0=dtau0/3 !Need to get C_Phi accurate on small scales
+              dtau0=Maxtau/500._dl/AccuracyBoost 
+             !Don't need this since adding in Limber on small scales
+              !  if (CP%DoLensing) dtau0=dtau0/2 
+              !  if (CP%AccurateBB) dtau0=dtau0/3 !Need to get C_Phi accurate on small scales
            end if
       
            nreg(1)=1

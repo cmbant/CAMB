@@ -156,6 +156,7 @@
 !                       March 2003 fixed bugs reported by savita gahlaut
 !                       March 2005 added option for corrections from astro-ph/0501672.
 !                                  thanks to V.K.Dubrovich, S.I.Grachev
+!                       June 2006 defined RECFAST_fudge as free parameter (AML)
 !!      ===============================================================
 
        module RECDATA
@@ -196,10 +197,11 @@
         integer, parameter :: Nz0=10000
         real(dl) zrec(Nz0),xrec(Nz0),dxrec(Nz0)
         integer Nz
-        logical :: use_Dubrovich = .false. !use astro-ph/0501672 corrections
+        real(dl) :: RECFAST_fudge = 1.14
 
-        real(dl) :: last_OmB =0, Last_YHe=0, Last_H0=0, Last_dtauda=0 
-        public xeRECFAST, InitRECFAST, use_Dubrovich
+        logical :: use_Dubrovich = .false. !use astro-ph/0501672 corrections
+ 
+        public xeRECFAST, InitRECFAST, use_Dubrovich, RECFAST_fudge
        contains
 
         function xeRECFAST(a)
@@ -227,6 +229,7 @@
         subroutine InitRECFAST(OmegaB,h0inp,tcmb,yp)
         use RECDATA
         implicit none
+        real(dl), save :: last_OmB =0, Last_YHe=0, Last_H0=0, Last_dtauda=0, last_fudge 
 
         real(dl) Trad,Tmat,d0hi,d0lo
         integer Ndim,I
@@ -251,7 +254,7 @@
 !       ===============================================================
 
         if (Last_OmB==OmegaB .and. Last_H0 == h0inp .and. yp == Last_YHe .and. & 
-             dtauda(0.2352375823_dl) == Last_dtauda) return
+             dtauda(0.2352375823_dl) == Last_dtauda .and. last_fudge == RECFAST_fudge) return
            !This takes up most of the single thread time, so cache if at all possible
            !For example if called with different reionization, or tensor rather than scalar
         
@@ -259,6 +262,7 @@
         Last_OmB = OmegaB
         Last_H0 = h0inp
         Last_YHe=yp
+        last_fudge = RECFAST_FUDGE
 
 
 !       dimensions for integrator
@@ -317,7 +321,7 @@
         H_frac = 1.D-3
 
 !       Fudge factor to approximate for low z out of equilibrium effect
-        fu=1.14
+        fu=RECFAST_fudge
 
 !       Set initial matter temperature
         y(3) = Tnow*(1._dl+z)            !Initial rad. & mat. temperature
@@ -431,9 +435,10 @@
           zrec(i)=zend
           xrec(i)=x
           
+        !  write(*,'(4E15.5)') zend, x, y(1), y(2)
      
         end do
-       
+      ! stop
         d0hi=1.0d40
         d0lo=1.0d40
         call spline(zrec,xrec,nz,d0lo,d0hi,dxrec)
