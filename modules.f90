@@ -2,7 +2,7 @@
 
 !     Code for Anisotropies in the Microwave Background
 !     by Antony Lewis (http://cosmologist.info) and Anthony Challinor
-!     See readme.html for documentation. This version August 2006.
+!     See readme.html for documentation. This version February 2008.
 !
 !     Based on CMBFAST  by  Uros Seljak and Matias Zaldarriaga, itself based
 !     on Boltzmann code written by Edmund Bertschinger, Chung-Pei Ma and Paul Bode.
@@ -23,14 +23,26 @@
 !     E. Bertschinger.  See the LICENSE file of the COSMICS distribution
 !     for restrictions on the modification and distribution of this software.
 
+        module constants
+         use precision
+        
+         real(dl), parameter :: Mpc = 3.085678e22_dl, G=6.6742e-11_dl, kappa=2*fourpi*G, &
+                   sigma_thomson = 6.6524616e-29_dl, c = 2.99792458e8_dl, m_p = 1.672623e-27_dl, &
+                   sigma_boltz = 5.67051e-8_dl, k_B = 1.380658e-23_dl
+
+        real(dl), parameter:: barssc0= k_B / m_p / c**2
+
+        end module constants
+
         module ModelParams
         use precision
         use InitialPower
+        use Ranges
         
         implicit none    
         public
 
-        character(LEN=*), parameter :: version = 'Aug_06'
+        character(LEN=*), parameter :: version = 'Feb_08'
         
         integer :: FeedbackLevel = 0 !if >0 print out useful information about the model
 
@@ -49,9 +61,16 @@
         integer, parameter :: max_transfer_redshifts = 128
         integer, parameter :: fileio_unit = 13 !Any number not used elsewhere will do       
         integer, parameter :: outCOBE=0, outNone=1
-  
+    
+        integer :: max_bessels_l_index  = 1000000
+        real(dl) :: max_bessels_etak = 1000000*2
+
+
         real(dl), parameter ::  OutputDenominator =twopi
        !When using outNone the output is l(l+1)Cl/OutputDenominator
+
+
+        Type(Regions) :: TimeSteps
 
         type ReionizationParams
              real(dl)   :: redshift
@@ -59,6 +78,7 @@
              real(dl)   :: fraction
         end type ReionizationParams
      
+
         type TransferParams
             logical     ::  high_precision
             integer     ::  num_redshifts
@@ -178,6 +198,7 @@
           
       real(dl) :: AccuracyBoost =1._dl  
 
+
           !Decrease step sizes, etc. by this parameter. Useful for checking accuracy.
           !Can also be used to improve speed significantly if less accuracy is required.              
           !or improving accuracy for extreme models. 
@@ -205,6 +226,7 @@
       
 
          subroutine CAMBParams_Set(P, error)
+           use constants
            type(CAMBparams), intent(in) :: P
            real(dl) GetOmegak
            integer, optional :: error !Zero if OK
@@ -212,9 +234,7 @@
            external GetOmegak
            real(dl), save :: last_tau0
            !Constants in SI units
-           real(dl), parameter :: Mpc = 3.085678e22_dl, G=6.6726e-11_dl, kappa=2*fourpi*G, &
-                   sigma_thomson = 6.6524616e-29_dl, c = 2.99792458e8_dl, m_p = 1.672623e-27_dl, &
-                   sigma_boltz = 5.67051e-8_dl
+
             if ((P%WantTensors .or. P%WantVectors).and. P%WantTransfer .and. .not. P%WantScalars) then
               write (*,*) 'Cannot generate tensor C_l and transfer without scalar C_l'
               if (present(error)) then
@@ -340,7 +360,13 @@
               CP%tau0=last_tau0
            end if         
            
-         
+           if ( CP%NonLinear==NonLinear_Lens) then
+             CP%Transfer%kmax = max(CP%Transfer%kmax, CP%Max_eta_k/CP%tau0) 
+             if (FeedbackLevel > 0 .and. CP%Transfer%kmax== CP%Max_eta_k/CP%tau0) &
+                  write (*,*) 'max_eta_k changed to ', CP%Max_eta_k
+           end if
+
+
            if (CP%closed .and. CP%tau0/CP%r >3.14) then
              if (present(error)) then
               error = 2
@@ -353,14 +379,16 @@
            if (present(error)) then
               error = 0
            else if (FeedbackLevel > 0 .and. .not. call_again) then
-              write(*,'("Om_b h^2             = ",f7.5)') CP%omegab*(CP%H0/100)**2
-              write(*,'("Om_c h^2             = ",f7.5)') CP%omegac*(CP%H0/100)**2
-              write(*,'("Om_nu h^2            = ",f7.5)') CP%omegan*(CP%H0/100)**2
-              write(*,'("Om_Lambda            = ",f7.5)') CP%omegav
-              write(*,'("Om_K                 = ",f7.5)') CP%omegak
+              write(*,'("Om_b h^2             = ",f9.6)') CP%omegab*(CP%H0/100)**2
+              write(*,'("Om_c h^2             = ",f9.6)') CP%omegac*(CP%H0/100)**2
+              write(*,'("Om_nu h^2            = ",f9.6)') CP%omegan*(CP%H0/100)**2
+              write(*,'("Om_Lambda            = ",f9.6)') CP%omegav
+              write(*,'("Om_K                 = ",f9.6)') CP%omegak
+              write(*,'("Om_m (1-Om_K-Om_L)   = ",f9.6)') 1-CP%omegak-CP%omegav
+              write(*,'("100 theta (CosmoMC)  = ",f9.6)') 100*CosmomcTheta()
               if (CP%Num_Nu_Massive > 0) then
                 do nu_i=1, CP%Nu_mass_eigenstates 
-                 write(*,'(f4.2, " nu, m_nu*c^2/k_B/T_nu0   = ",f8.2," (m_nu = ",f6.3," eV)")') &
+                 write(*,'(f5.2, " nu, m_nu*c^2/k_B/T_nu0   = ",f8.2," (m_nu = ",f6.3," eV)")') &
                      CP%nu_mass_degeneracies(nu_i), nu_masses(nu_i),1.68e-4*nu_masses(nu_i)
                 end do
               end if
@@ -431,7 +459,7 @@
           else if (CP%open) then
           invsinfunc=log((x+sqrt(1._dl+x**2)))  
           else
-          invsinfunc = 1._dl/x
+          invsinfunc = x
          endif
          end function invsinfunc    
 
@@ -470,6 +498,44 @@
           AngularDiameterDistance = CP%r/(1+z)*rofchi(DeltaTime(1/(1+z),1._dl)/CP%r)
 
         end function AngularDiameterDistance
+
+       function dsound_da(a)
+          implicit none
+          real(dl) dsound_da,dtauda,a,R,cs
+          external dtauda
+
+           R=3.0d4*a*CP%omegab*(CP%h0/100.0d0)**2
+           cs=1.0d0/sqrt(3*(1+R))
+           dsound_da=dtauda(a)*cs
+        
+       end function dsound_da
+
+
+       function CosmomcTheta()
+         real(dl) zstar, astar, atol, rs, DA, rombint
+         external rombint
+         real(dl) CosmomcTheta
+         real(dl) ombh2, omdmh2
+
+         ombh2 = CP%omegab*(CP%h0/100.0d0)**2
+         omdmh2 = (CP%omegac+CP%omegan)*(CP%h0/100.0d0)**2
+
+
+    !!From Hu & Sugiyama
+           zstar =  1048*(1+0.00124*ombh2**(-0.738))*(1+ &
+            (0.0783*ombh2**(-0.238)/(1+39.5*ombh2**0.763)) * &
+               (omdmh2+ombh2)**(0.560/(1+21.1*ombh2**1.81)))
+     
+           astar = 1/(1+zstar)
+           atol = 1e-6
+           rs = rombint(dsound_da,1d-8,astar,atol)
+           DA = AngularDiameterDistance(zstar)/astar
+           CosmomcTheta = rs/DA
+    !       print *,'z* = ',zstar, 'r_s = ',rs, 'DA = ',DA, rs/DA
+
+      end function CosmomcTheta
+
+
 
 
       subroutine Reionization_Init
@@ -678,19 +744,34 @@
 
         step=max(nint(50*Ascale),7)
         bot=ls(lind)+step
-        top=max_l
+        top=min(5000,max_l)
 
          do lvar = bot,top,step
           lind=lind+1
           ls(lind)=lvar
          end do
 
+         if (max_l > 5000) then
+             !Should be pretty smooth or tiny out here   
+             step=max(nint(400*Ascale),50)
+             lvar = ls(lind)
+            
+             do
+              lvar = lvar + step
+              if (lvar > max_l) exit
+              lind=lind+1
+              ls(lind)=lvar
+              step = nint(step*1.5) !log spacing
+             end do
+
+         end if
+
          if (ls(lind) /=max_l) then          
            lind=lind+1
            ls(lind)=max_l
          end if
         if (.not. CP%flat) ls(lind-1)=int(max_l+ls(lind-2))/2
-        !Not in CP%flat case to interpolation table is the same when using lower l_max
+        !Not in CP%flat case so interpolation table is the same when using lower l_max
         end if
         end if
         lSet%l0=lind
@@ -749,6 +830,8 @@
         use ModelParams
         use InitialPower
         use lValues
+        use Ranges
+        use AMlUtils
         implicit none
         public
 
@@ -760,8 +843,7 @@
           !Changes -scalars:  2 for just CMB, 3 for lensing
           !- tensors: T and E and phi (for lensing), and T, E, B respectively
         
-          integer num_q_int
-          real(dl), dimension(:), pointer ::  q_int, dq_int
+          Type (Regions) :: q
 
           real(dl), dimension(:,:,:), pointer :: Delta_p_l_k
       
@@ -790,15 +872,18 @@
         contains
 
 
-
         subroutine Init_ClTransfer(CTrans)
+        !Need to set the Ranges array q before calling this
           Type(ClTransferData) :: CTrans
+          integer st
 
-          call Free_ClTransfer(CTrans)
-          allocate(CTrans%q_int(CTrans%num_q_int), CTrans%dq_int(CTrans%num_q_int))
-          allocate(CTrans%Delta_p_l_k(CTrans%NumSources,CTrans%ls%l0, CTrans%num_q_int))
+          deallocate(CTrans%Delta_p_l_k, STAT = st)
+          call Ranges_getArray(CTrans%q, .true.)
+
+          allocate(CTrans%Delta_p_l_k(CTrans%NumSources,min(max_bessels_l_index,CTrans%ls%l0), CTrans%q%npoints))
           CTrans%Delta_p_l_k = 0
 
+  
          end subroutine Init_ClTransfer
 
 
@@ -806,14 +891,13 @@
           Type(ClTransferData) :: CTrans
           integer st
 
-          !if (associated(CTrans%Delta_p_l_k)) 
-          deallocate(CTrans%Delta_p_l_k, STAT = st)
-          !if (associated(CTrans%q_int)) 
-          deallocate(CTrans%q_int, STAT = st)
-          !if (associated(CTrans%dq_int)) 
-          deallocate(CTrans%dq_int, STAT = st) 
+           deallocate(CTrans%Delta_p_l_k, STAT = st)
+           nullify(CTrans%Delta_p_l_k)
+           call Ranges_Free(CTrans%q)
 
         end subroutine Free_ClTransfer
+
+
 
         subroutine Init_Cls
       
@@ -838,10 +922,10 @@
 
         end subroutine Init_Cls
        
-        subroutine output_cl_files(ScalFile,TensFile, TotFile, LensFile, factor)
+        subroutine output_cl_files(ScalFile,TensFile, TotFile, LensFile, LensTotFile, factor)
         implicit none
         integer in,il
-        character(LEN=*) ScalFile, TensFile, TotFile, LensFile
+        character(LEN=*) ScalFile, TensFile, TotFile, LensFile, LensTotFile
         real(dl), intent(in), optional :: factor
         real(dl) fact
 
@@ -855,23 +939,22 @@
          if (CP%WantScalars .and. ScalFile /= '') then
  
            open(unit=fileio_unit,file=ScalFile,form='formatted',status='replace')
-            do in=1,CP%InitPower%nn
-             do il=lmin,CP%Max_l
-              if (C_last==C_PhiTemp) then
-               write(fileio_unit,'(1I5,5E15.5)')il ,fact*Cl_scalar(il,in,C_Temp:C_PhiTemp)
-              else
-               write(fileio_unit,'(1I5,3E15.5)')il ,fact*Cl_scalar(il,in,C_Temp:C_Cross)
-              end if
+           do in=1,CP%InitPower%nn
+             do il=lmin,min(10000,CP%Max_l)
+               write(fileio_unit,trim(numcat('(1I6,',C_last))//'E15.5)')il ,fact*Cl_scalar(il,in,C_Temp:C_last)
+             end do
+             do il=10100,CP%Max_l, 100
+               write(fileio_unit,trim(numcat('(1E15.5,',C_last))//'E15.5)') real(il) ,fact*Cl_scalar(il,in,C_Temp:C_last)
              end do
             end do
-           close(fileio_unit)
-        end if
+            close(fileio_unit)
+         end if
   
        if (CP%WantTensors .and. TensFile /= '') then
            open(unit=fileio_unit,file=TensFile,form='formatted',status='replace')
             do in=1,CP%InitPower%nn
              do il=lmin,CP%Max_l_tensor
-               write(fileio_unit,'(1I5,4E15.5)')il, fact*Cl_tensor(il, in, CT_Temp:CT_Cross)
+               write(fileio_unit,'(1I6,4E15.5)')il, fact*Cl_tensor(il, in, CT_Temp:CT_Cross)
              end do
             end do
            close(fileio_unit)
@@ -881,11 +964,12 @@
            open(unit=fileio_unit,file=TotFile,form='formatted',status='replace')
            do in=1,CP%InitPower%nn
              do il=lmin,CP%Max_l_tensor
-                write(fileio_unit,'(1I5,4E15.5)')il, fact*(Cl_scalar(il, in, C_Temp:C_E)+ Cl_tensor(il,in, C_Temp:C_E)), &
+
+                write(fileio_unit,'(1I6,4E15.5)')il, fact*(Cl_scalar(il, in, C_Temp:C_E)+ Cl_tensor(il,in, C_Temp:C_E)), &
                    fact*Cl_tensor(il,in, CT_B), fact*(Cl_scalar(il, in, C_Cross) + Cl_tensor(il, in, CT_Cross))
              end do
              do il=CP%Max_l_tensor+1,CP%Max_l
-                  write(fileio_unit,'(1I5,4E15.5)')il ,fact*Cl_scalar(il,in,C_Temp:C_E), 0._dl, fact*Cl_scalar(il,in,C_Cross)
+                  write(fileio_unit,'(1I6,4E15.5)')il ,fact*Cl_scalar(il,in,C_Temp:C_E), 0._dl, fact*Cl_scalar(il,in,C_Cross)
              end do
            end do
            close(fileio_unit)
@@ -895,11 +979,27 @@
            open(unit=fileio_unit,file=LensFile,form='formatted',status='replace')
             do in=1,CP%InitPower%nn
              do il=lmin, lmax_lensed
-               write(fileio_unit,'(1I5,4E15.5)')il, fact*Cl_lensed(il, in, CT_Temp:CT_Cross)
+               write(fileio_unit,'(1I6,4E15.5)')il, fact*Cl_lensed(il, in, CT_Temp:CT_Cross)
              end do
             end do
            close(fileio_unit)      
         end if
+
+
+       if (CP%WantScalars .and. CP%WantTensors .and. CP%DoLensing .and. LensTotFile /= '') then
+           open(unit=fileio_unit,file=LensTotFile,form='formatted',status='replace')
+           do in=1,CP%InitPower%nn
+             do il=lmin,min(CP%Max_l_tensor,lmax_lensed)
+                write(fileio_unit,'(1I6,4E15.5)')il, fact*(Cl_lensed(il, in, CT_Temp:CT_Cross)+ Cl_tensor(il,in, CT_Temp:CT_Cross))
+             end do
+             do il=min(CP%Max_l_tensor,lmax_lensed)+1,lmax_lensed
+                write(fileio_unit,'(1I6,4E15.5)')il, fact*Cl_lensed(il, in, CT_Temp:CT_Cross)
+             end do
+           end do
+     
+        end if
+
+
 
         end subroutine output_cl_files
 
@@ -925,6 +1025,7 @@
                write(fileio_unit,'(1I5,4E15.5)')il, fact*Cl_vector(il, in, CT_Temp:CT_Cross)
              end do
             end do
+
            close(fileio_unit)
         end if
  
@@ -985,6 +1086,7 @@
           
         xlog10=log(10._dl)
   
+
 ! COBE normalization
 ! fit the spectrum to a quadratic around C_10 with equal weights in logl
 
@@ -1046,6 +1148,7 @@
 !!$!delta^2 = k^4*(tf)^2*ScalarPower(k,in)*COBE_scale where (tf) is output in the transfer function file
 !!$!delta^2 = 4*pi*k^3 P(k)
 
+
 ! C_l normalization; output l(l+1)C_l/twopi
            c10=c10*2.2d-9/fourpi
 
@@ -1057,67 +1160,21 @@
           end do !in
          end subroutine COBEnormalize
         
+         subroutine ModelData_Free
+
+             call Free_ClTransfer(CTransScal)
+             call Free_ClTransfer(CTransVec)
+             call Free_ClTransfer(CTransTens)
+             if (allocated(Cl_vector)) deallocate(Cl_vector)
+             if (allocated(Cl_tensor)) deallocate(Cl_tensor)
+             if (allocated(Cl_scalar)) deallocate(Cl_scalar)
+             if (allocated(Cl_lensed)) deallocate(Cl_lensed)
+             if (allocated(COBElikelihoods)) deallocate(COBElikelihoods)
+             if (allocated(COBE_scales)) deallocate(COBE_scales) 
+ 
+         end subroutine ModelData_Free
+
         end module ModelData
-
-
-!cccccccccccccccccccccccccccccccccccccccccccccccccc
-
-
-        module TimeSteps
-        use precision
-        use ModelParams
-        public
-        
-        !atau0 is the time at each timestep       
-        real(dl), dimension(:), allocatable ::  atau0
-        !CP%flat vars 
-        !dtau2 is (t(i+1)-t(i-1))/2
-        real(dl), dimension(:), allocatable ::  dtau2
-        !CP%open,CP%closed vars
-        integer nreg(6),nr
-        real(dl) dtaureg(5)
-
-        integer nstep !total number of steps in time integral
-        integer n1 !steps during recombination (taurst to taurend)
-        
-       contains
-
-         subroutine SetNumTimeSteps(n)
-           integer, intent(IN) :: n
-
-           nstep = n
-
-           if (allocated(atau0)) then
-              deallocate(atau0,dtau2)
-           end if
-          allocate(atau0(nstep),dtau2(nstep))
-
-        end subroutine SetNumTimeSteps
-
-         function TimeToTimeStep(tau)
-
-!         Given a tau finds the position in the atau0 array
-          integer TimeToTimeStep,TimeStep
-          integer i
-          real(dl) tau
-
-           TimeStep=0
-           do i=1,nr
-              if (tau < atau0(nreg(i+1)) .and. tau >=atau0(nreg(i))) then
-                 TimeStep=nreg(i)+int((tau-atau0(nreg(i)))/dtaureg(i))
-                exit
-              end if
-           end do
-           if (tau >= atau0(nstep)) then
-              TimeToTimeStep=nstep-1
-           else 
-              TimeToTimeStep=max(min(TimeStep,nstep-1),1)
-           end if
-          end function TimeToTimeStep
-
-       end module TimeSteps
-
-
 
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
@@ -1569,6 +1626,13 @@
        
         integer, parameter :: Transfer_max = Transfer_tot
 
+        logical :: transfer_interp_matterpower  = .true. !output regular grid in log k
+         !set to false to output calculated values for later interpolation
+
+        integer :: transfer_power_var = Transfer_tot 
+         !What to use to calulcate the output matter power spectrum and sigma_8
+         !Transfer_tot uses total matter perturbation
+
         Type MatterTransferData
          !Computed data
          integer   ::  num_q_trans   !    number of steps in k for transfer calculation
@@ -1634,7 +1698,7 @@
                  PK_data%log_kh(ik) = log(kh)
                  do itf = 1, nz
                    PK_data%matpower(ik,itf) = &
-                    log(MTrans%TransferData(Transfer_tot,ik,itf_start+itf-1)**2*k & 
+                    log(MTrans%TransferData(transfer_power_var,ik,itf_start+itf-1)**2*k & 
                                    *pi*twopi*h**3*ScalarPower(k,in))
                  end do
           end do
@@ -1642,6 +1706,46 @@
           call MatterPowerdata_getsplines(PK_data)
 
         end subroutine Transfer_GetMatterPowerData
+
+        subroutine MatterPowerData_Load(PK_data,fname)
+          !Loads in kh, P_k from file for one redshiftr and one initial power spectrum
+          !Not redshift is not stored in file, so not set correctly
+          !Also note that output _matterpower file is already interpolated, so re-interpolating is probs not a good idea
+
+          !Get total matter power spectrum in units of (h Mpc^{-1})^3 ready for interpolation.
+          !Here there definition is < Delta^2(x) > = 1/(2 pi)^3 int d^3k P_k(k)
+          use AmlUtils
+          character(LEN=*) :: fname
+          Type(MatterPowerData) :: PK_data
+          real(dl)kh, Pk
+          integer ik
+          integer nz
+          
+
+          nz = 1
+          call openTxtFile(fname, fileio_unit)
+         
+          PK_data%num_k = FileLines(fileio_unit)
+          PK_Data%num_z = 1
+
+          allocate(PK_data%matpower(PK_data%num_k,nz))
+          allocate(PK_data%ddmat(PK_data%num_k,nz))
+          allocate(PK_data%nonlin_ratio(PK_data%num_k,nz))
+          allocate(PK_data%log_kh(PK_data%num_k))
+       
+          allocate(PK_data%redshifts(nz))
+          PK_data%redshifts = 0
+
+          do ik=1,PK_data%num_k
+              read (fileio_unit,*) kh, Pk
+              PK_data%matpower(ik,1) = log(Pk) 
+              PK_data%log_kh(ik) = log(kh)
+          end do
+     
+          call MatterPowerdata_getsplines(PK_data)
+
+        end subroutine MatterPowerData_Load
+
 
         subroutine MatterPowerdata_getsplines(PK_data)
           Type(MatterPowerData) :: PK_data
@@ -1686,14 +1790,14 @@
           integer llo,lhi
           real(dl) outpower, dp
           real(dl) ho,a0,b0
+          integer, save :: i_last = 1          
           
            logk = log(kh)
            if (logk < PK%log_kh(1)) then
-              outpower = 0 
-              return
-!             stop 'MatterPowerData_k: k too low - not calculated'
-           end if
-           if (logk > PK%log_kh(PK%num_k)) then
+              dp = (PK%matpower(2,itf) -  PK%matpower(1,itf)) / &
+                 ( PK%log_kh(2)-PK%log_kh(1) )
+              outpower = PK%matpower(1,itf) + dp*(logk - PK%log_kh(1))
+           else if (logk > PK%log_kh(PK%num_k)) then
             !Do dodgy linear extrapolation on assumption accuracy of result won't matter
            
              dp = (PK%matpower(PK%num_k,itf) -  PK%matpower(PK%num_k-1,itf)) / &
@@ -1701,10 +1805,14 @@
              outpower = PK%matpower(PK%num_k,itf) + dp*(logk - PK%log_kh(PK%num_k))
            else 
 
-            llo=1
+            llo=min(i_last,PK%num_k)
+            do while (PK%log_kh(llo) > logk)
+               llo=llo-1
+            end do
             do while (PK%log_kh(llo+1)< logk)
-             llo=llo+1
-            end do  
+               llo=llo+1
+            end do
+            i_last =llo  
             lhi=llo+1
             ho=PK%log_kh(lhi)-PK%log_kh(llo) 
             a0=(PK%log_kh(lhi)-logk)/ho
@@ -1762,7 +1870,7 @@
              kh = MTrans%TransferData(Transfer_kh,ik,itf)
              k = kh*h
              kvals(ik) = log(kh)
-             atransfer=MTrans%TransferData(Transfer_tot,ik,itf)
+             atransfer=MTrans%TransferData(transfer_power_var,ik,itf)
              if (CP%NonLinear/=NonLinear_None) &
                  atransfer = atransfer* PK%nonlin_ratio(ik,1) !only one element, this itf
              matpower(ik) = log(atransfer**2*k*pi*twopi*h**3)
@@ -1781,6 +1889,7 @@
                end if
                do while ((xi > kvals(llo+1)).and.(llo < MTrans%num_q_trans))
                   llo=llo+1
+                  if (llo >= MTrans%num_q_trans) exit
                end do
                if (llo == MTrans%num_q_trans) then
                    lastix = il
@@ -1838,7 +1947,7 @@
                if (kh==0) cycle
                k = kh*H
                
-               delta = k**2*MTrans%TransferData(Transfer_tot,ik,itf)
+               delta = k**2*MTrans%TransferData(transfer_power_var,ik,itf)
                !if (CP%NonLinear/=NonLinear_None) delta= delta* MTrans%NonLinearScaling(ik,itf)
                !sigma_8 defined "as though it were linear"
 
@@ -1899,9 +2008,11 @@
 
         subroutine Transfer_Allocate(MTrans)
          Type(MatterTransferData) :: MTrans
+         integer st
 
-
-          call Transfer_Free(MTrans)
+          deallocate(MTrans%q_trans, STAT = st)
+          deallocate(MTrans%TransferData, STAT = st)
+          deallocate(MTrans%sigma_8, STAT = st)
           allocate(MTrans%q_trans(MTrans%num_q_trans))            
           allocate(MTrans%TransferData(Transfer_max,MTrans%num_q_trans,CP%Transfer%num_redshifts))  
           allocate(MTrans%sigma_8(CP%Transfer%num_redshifts, CP%InitPower%nn))
@@ -1915,6 +2026,9 @@
           deallocate(MTrans%q_trans, STAT = st)
           deallocate(MTrans%TransferData, STAT = st)
           deallocate(MTrans%sigma_8, STAT = st)
+          nullify(MTrans%q_trans)
+          nullify(MTrans%TransferData)
+          nullify(MTrans%sigma_8)
           
         end subroutine Transfer_Free
 
@@ -1922,7 +2036,7 @@
           Type(TransferParams) :: P
           integer i
 
-          P%kmax = 5
+          P%kmax = 5*AccuracyBoost
           P%k_per_logint  = 0
           P%num_redshifts =  nint(10*AccuracyBoost)
           if (P%num_redshifts > max_transfer_redshifts) &
@@ -1966,11 +2080,39 @@
           real, dimension(:,:), allocatable :: outpower
           character(LEN=80) fmt
           real minkh,dlnkh
+          Type(MatterPowerData) :: PK_data
+
 
           write (fmt,*) CP%InitPower%nn+1
           fmt = '('//trim(adjustl(fmt))//'E15.5)'
           do itf=1, CP%Transfer%num_redshifts
             if (FileNames(itf) /= '') then
+
+            
+             if (.not. transfer_interp_matterpower ) then
+             
+             points = MTrans%num_q_trans
+             allocate(outpower(points,CP%InitPower%nn))
+       
+                 do in = 1, CP%InitPower%nn
+
+                   call Transfer_GetMatterPowerData(MTrans, PK_data, in, itf)
+
+                  if (CP%NonLinear/=NonLinear_None) call MatterPowerdata_MakeNonlinear(PK_Data)
+
+                   outpower(:,in) = exp(PK_data%matpower(:,1))
+                   call MatterPowerdata_Free(PK_Data)
+                 end do
+
+                 open(unit=fileio_unit,file=FileNames(itf),form='formatted',status='replace')
+                 do i=1,points
+                  write (fileio_unit, fmt) MTrans%TransferData(Transfer_kh,i,1),outpower(i,1:CP%InitPower%nn)
+                 end do
+                 close(fileio_unit)
+
+             else
+
+
              minkh = 1e-4
              dlnkh = 0.02
              points = log(MTrans%TransferData(Transfer_kh,MTrans%num_q_trans,itf)/minkh)/dlnkh+1
@@ -1991,8 +2133,12 @@
              do i=1,points
               write (fileio_unit, fmt) minkh*exp((i-1)*dlnkh),outpower(i,1:CP%InitPower%nn)
              end do
-            close(fileio_unit)
+             close(fileio_unit)
+             
+             end if
+
              deallocate(outpower) 
+             
             end if
           end do
 
@@ -2004,7 +2150,7 @@
 !ccccccccccccccccccccccccccccccccccccccccccccccccccc
 
         module ThermoData
-        use TimeSteps
+        use ModelData
         implicit none
         private
         integer,parameter :: nthermo=10000
@@ -2023,7 +2169,7 @@
         real(dl) :: matter_verydom_tau
          
         public thermo,inithermo,vis,opac,expmmu,dvis,dopac,ddvis, tight_tau,&
-               Thermo_OpacityToTime,matter_verydom_tau
+               Thermo_OpacityToTime,matter_verydom_tau, ThermoData_Free
        contains
 
         subroutine thermo(tau,cs2b,opacity, dopacity)
@@ -2093,20 +2239,18 @@
 !  Compute and save unperturbed baryon temperature and ionization fraction
 !  as a function of time.  With nthermo=10000, xe(tau) has a relative 
 ! accuracy (numerical integration precision) better than 1.e-5.
+        use constants
         use precision
         use ModelParams
-        use TimeSteps
         use RECFAST
         use MassiveNu
         real(dl) taumin,taumax
-        real(dl) dlntau0
    
-        real(dl), parameter:: barssc0=9.1820d-14
-    
-        real(dl) taurend1,tau01,adot0,a0,a02,x1,x2,barssc,dtau
+   
+        real(dl) tau01,adot0,a0,a02,x1,x2,barssc,dtau
         real(dl) xe0,tau,a,a2
         real(dl) adot,tg0,ahalf,adothalf,fe,thomc,thomc0,etc,a2t
-        real(dl) xod,tgh,dtbdla,vfi,cf1,taurend2, maxvis, vis
+        real(dl) xod,tgh,dtbdla,vfi,cf1,maxvis, vis
         integer ncount,i,j1,j2,iv,ns
         real(dl) spline_data(nthermo)
         real(dl) last_dotmu
@@ -2223,7 +2367,8 @@
             xe(i)=xeRECFAST(a)
             !print *, 1/a-1, xe(i) 
           end if 
-         
+        
+       
 !  Baryon sound speed squared (over c**2).
           dtbdla=-2._dl*tb(i)-thomc*adothalf/adot*(a*tb(i)-CP%tcmb)
           barssc=barssc0*(1._dl-0.75d0*CP%yhe+(1._dl-CP%yhe)*xe(i))
@@ -2269,12 +2414,12 @@
         end do  
 
         if (CP%AccurateReionization) then                         
-          if (FeedbackLevel > 0) write(*,'("Reion opt depth      = ",f6.4)') actual_opt_depth
+          if (FeedbackLevel > 0) write(*,'("Reion opt depth      = ",f7.4)') actual_opt_depth
        end if
 
         iv=0
         vfi=0._dl
-! Getting the starting and finishing times for decoupling and time of maximum visibility
+! Getting the starting and finishing times for decoupling a+nd time of maximum visibility
         if (ncount == 0) then
            cf1=1._dl
            ns=nthermo
@@ -2282,50 +2427,47 @@
               cf1=exp(sdotmu(nthermo)-sdotmu(ncount))
               ns=ncount
            end if
-        maxvis = 0
-        do j1=1,ns
+         maxvis = 0
+         do j1=1,ns
            vis = emmu(j1)*dotmu(j1)
            tau = tauminn*exp((j1-1)*dlntau)
-           if (vis > maxvis) then
-              maxvis=vis
-              tau_maxvis = tau
-           end if
-           vfi=vfi+vis*cf1
-           if ((iv == 0).and.(vfi > 1.0d-6)) then  
+           vfi=vfi+vis*cf1*dlntau*tau
+           if ((iv == 0).and.(vfi > 1.0d-7/AccuracyBoost)) then  
               taurst=9._dl/10._dl*tau
               iv=1
-           end if
-           if ((iv == 1).and.(vfi > 0.995)) then 
-              taurend1=1.5d0*tau
-              taurend1=max(taurend1,taurend1*sqrt(2500._dl/  &
-           (CP%omegac+CP%omegab)/CP%h0**2))  
-              iv=2
+           elseif (iv == 1) then 
+               if (vis > maxvis) then
+                maxvis=vis
+                tau_maxvis = tau
+               end if
+               if (vfi > 0.995) then 
+                taurend=tau
+                iv=2
+                exit
+               end if
            end if
          end do
- 
+
            if (iv /= 2) then
-              taurend1=1.5d0*(tauminn*exp((ncount-1)*dlntau))
+             stop 'inithermo: failed to find end of recombination'
+!              taurend=1.5d0*(tauminn*exp((ncount-1)*dlntau))
            end if
-             
+          
 
 ! Calculating the timesteps during recombination.
            
-          dtaurec=min(dtaurec,taurst/40)
     
- 
            if (CP%WantTensors) then
-              dtaurec=dtaurec/2
-              dlntau0=0.025d-1
-          else
-              dlntau0=0.01d0  !For CP%flat models
-            end if
-           taurend2=dtaurec/dlntau0
-
-           taurend=max(taurend1,taurend2)
+              dtaurec=min(dtaurec,taurst/160)/AccuracyBoost 
+           else
+              dtaurec=min(dtaurec,taurst/40)/AccuracyBoost 
+           end if
+ 
            taurend=min(taurend,CP%ReionHist%tau_start)
-           n1=int((taurend-taurst)/dtaurec)
-           dtaurec=(taurend-taurst)/n1
-           n1=n1+1        
+
+         if (DebugMsgs) then
+           write (*,*) 'taurst, taurend = ', taurst, taurend
+         end if
   
         matter_verydom_tau = max(matter_verydom_tau,taurend)
 
@@ -2339,8 +2481,8 @@
         call SetTimeSteps
 
         !$OMP PARALLEL DO DEFAULT(SHARED),SCHEDULE(STATIC) 
-        do j2=1,nstep
-             call DoThermoSpline(j2,atau0(j2))
+        do j2=1,TimeSteps%npoints
+             call DoThermoSpline(j2,TimeSteps%points(j2))
         end do 
          !$OMP END PARALLEL DO 
 
@@ -2348,16 +2490,16 @@
 
 
         subroutine SetTimeSteps
-        real(dl) dtau0,taulast
-        integer nlast
-        integer n21,n34
-        integer i,j
-        real(dl) dt1,dt2,dt3,dtauri
-        integer nri0  
+        real(dl) dtau0
+        integer nri0, nstep
+
+         call Ranges_Init(TimeSteps)
+
+         call Ranges_Add_delta(TimeSteps, taurst, taurend, dtaurec)
 
         ! Calculating the timesteps after recombination
            if (CP%WantTensors) then
-              dtau0=max(dtaurec*3.5d0,Maxtau/2000._dl/AccuracyBoost)
+              dtau0=max(taurst/40,Maxtau/2000._dl/AccuracyBoost)
            else       
               dtau0=Maxtau/500._dl/AccuracyBoost 
              !Don't need this since adding in Limber on small scales
@@ -2365,91 +2507,37 @@
               !  if (CP%AccurateBB) dtau0=dtau0/3 !Need to get C_Phi accurate on small scales
            end if
       
-           nreg(1)=1
-           nreg(2)=n1
-           dtaureg(1)=dtaurec
-           taulast=taurend
-           nr=1       
 
-! Correcting if there is reionization.
+         call Ranges_Add_delta(TimeSteps,taurend, CP%tau0, dtau0)
 
-           if (CP%Reionization) then
-              dt1=0._dl
-              dt2=0._dl
-              dt3=0._dl
-            
-              if (CP%WantScalars) then
-                dtauri=dtau0 
-              else
-                dtauri=3._dl*dtaurec
-              end if
+         if (CP%Reionization) then
            
-
-              n21=int((CP%ReionHist%tau_start-taurend)/dtau0)
-              if (n21 > 0) then
-                 nr=nr+1
-                 dt1=(CP%ReionHist%tau_start-taurend)/n21
-                 dtaureg(nr)=dt1
-                 nreg(nr+1)=nreg(nr)+n21
-              end if
-             
-              nr=nr+1
               nri0=int(50*AccuracyBoost) !Steps while reionization going from zero to maximum
-              nri0 = max(nri0,nint((CP%ReionHist%tau_complete-CP%ReionHist%tau_start)/dtauri))
-              dt2=(CP%ReionHist%tau_complete-CP%ReionHist%tau_start)/nri0
-              dtaureg(nr)=dt2
-              nreg(nr+1)=nreg(nr)+nri0
-
-              
-              n34=int((CP%tau0-(taurend+n21*dt1+ nri0*dt2))/dtauri)
-              if (n34 > 0) then
-                 nr=nr+1
-                 dt3=(CP%tau0-(taurend+n21*dt1+ nri0*dt2))/n34
-                 dtaureg(nr)=dt3
-                 nreg(nr+1)=nreg(nr)+n34
-              end if
-
-              taulast=(taurend+n21*dt1+ nri0*dt2+n34*dt3)
+              call Ranges_Add(TimeSteps,CP%ReionHist%tau_start,CP%ReionHist%tau_complete,nri0) 
 
            end if
-           
-           nlast=int((Maxtau-taulast)/dtau0)
-            !Go to one step past the present
-           if (nlast > 0) then
-              nr=nr+1
-              dtau0=(Maxtau-taulast)/dble(nlast)
-              dtaureg(nr)=dtau0
-              nreg(nr+1)=nreg(nr)+nlast
-           end if
 
-        call SetNumTimeSteps(nreg(nr+1)) !set nstep and alloc atau0,dtau2 arrays
+!Create arrays out of the region information.
+        call Ranges_GetArray(TimeSteps)
+        nstep = TimeSteps%npoints
 
         if (allocated(vis)) then
            deallocate(vis,dvis,ddvis,expmmu,dopac, opac)
         end if
         allocate(vis(nstep),dvis(nstep),ddvis(nstep),expmmu(nstep),dopac(nstep),opac(nstep))
 
-!Create atau0 array out of the region information.
-        atau0(1)=taurst
-          do i=1,nr
-             do j=nreg(i)+1,nreg(i+1)
-                atau0(j)=atau0(j-1)+dtaureg(i)               
-             end do
-          end do
-          if (CP%flat) then
-            dtau2(1)=0
-             do j=2,nstep-1
-                 dtau2(j)=abs(atau0(j+1)-atau0(j-1))/2
-             end do
- 
-             dtau2(2)=(atau0(2)-taurst)/2
-             dtau2(nstep)=(atau0(nstep)-atau0(nstep-1))/2
-          end if
-
-          if (DebugMsgs .and. FeedbackLevel > 0) write(*,*) 'Set ',nstep, ' time steps'
+        if (DebugMsgs .and. FeedbackLevel > 0) write(*,*) 'Set ',nstep, ' time steps'
     
         end subroutine SetTimeSteps
 
+
+        subroutine ThermoData_Free
+         if (allocated(vis)) then
+           deallocate(vis,dvis,ddvis,expmmu,dopac, opac)
+         end if
+         call Ranges_Free(TimeSteps)
+
+        end subroutine ThermoData_Free
 
 !cccccccccccccc
         subroutine DoThermoSpline(j2,tau)

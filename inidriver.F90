@@ -9,6 +9,8 @@
         use LambdaGeneral
         use Lensing
         use RECFAST        
+        use AMLUtils
+        use Transfer
 #ifdef NAGF95
         use F90_UNIX
 #endif
@@ -17,7 +19,8 @@
         Type(CAMBparams) P
         
         character(LEN=Ini_max_string_len) numstr, VectorFileName, &
-            InputFile, ScalarFileName, TensorFileName, TotalFileName, LensedFileName
+            InputFile, ScalarFileName, TensorFileName, TotalFileName, LensedFileName,&
+            LensedTotFileName
         integer i
         character(LEN=Ini_max_string_len) TransferFileNames(max_transfer_redshifts), &
                MatterPowerFileNames(max_transfer_redshifts), outroot
@@ -27,12 +30,6 @@
        character(LEN=Ini_max_string_len) FITSfilename
 #endif
 
-#ifndef NAGF95
-#ifndef __INTEL_COMPILER_BUILD_DATE
-        integer iargc
-        external iargc
-#endif        
-#endif
         logical bad
 
         InputFile = ''
@@ -153,6 +150,8 @@
         P%transfer%kmax          =  Ini_Read_Double('transfer_kmax')
         P%transfer%k_per_logint  =  Ini_Read_Int('transfer_k_per_logint')
         P%transfer%num_redshifts =  Ini_Read_Int('transfer_num_redshifts')
+        transfer_interp_matterpower = Ini_Read_Logical('transfer_interp_matterpower ', .true.)
+        transfer_power_var = Ini_read_int('transfer_power_var',transfer_tot)
         if (P%transfer%num_redshifts > max_transfer_redshifts) stop 'Too many redshifts'
         do i=1, P%transfer%num_redshifts
              write (numstr,*) i 
@@ -181,17 +180,15 @@
               P%Reion%fraction = Ini_Read_Double('re_ionization_frac')
         end if 
 
-           Ini_fail_on_not_found = .false. 
+          Ini_fail_on_not_found = .false. 
            
-          RECFAST_fudge = Ini_Read_Double('RECFAST_fudge',1.14d0)
+          RECFAST_fudge = Ini_Read_Double('RECFAST_fudge',RECFAST_fudge_default)
+          RECFAST_fudge_He = Ini_Read_Double('RECFAST_fudge_He',RECFAST_fudge_He_default)
+          RECFAST_Heswitch = Ini_Read_Int('RECFAST_Heswitch',RECFAST_Heswitch_default)
 
            i = Ini_Read_Int('recombination',1)
-           if (i==2) then
-             use_Dubrovich = .true.
-           else if (i/=1) then
-             stop 'Unknown recombination'
-           end if
-
+           if (i/=1) stop 'recombination option deprecated'
+       
            P%InitPower%nn = Ini_Read_Int('initial_power_num')
            if (P%InitPower%nn>nnmax) stop 'Too many initial power spectra - increase nnmax in InitialPower'
            P%InitPower%rat(:) = 1
@@ -229,7 +226,11 @@
         end if
         if (P%WantTensors) then
           TensorFileName =  trim(outroot) //Ini_Read_String('tensor_output_file')
-         if (P%WantScalars) TotalFileName =  trim(outroot) //Ini_Read_String('total_output_file')
+         if (P%WantScalars)  then
+          TotalFileName =  trim(outroot) //Ini_Read_String('total_output_file')
+          LensedTotFileName = Ini_Read_String('lensed_total_output_file')
+          if (LensedTotFileName/='') LensedTotFileName= trim(outroot) //trim(LensedTotFileName)
+         end if
         end if
         if (P%WantVectors) then
           VectorFileName =  trim(outroot) //Ini_Read_String('vector_output_file')
@@ -308,7 +309,7 @@
           end if
 
          call output_cl_files(ScalarFileName, TensorFileName, TotalFileName, &
-              LensedFileName, output_factor)
+              LensedFileName, LensedTotFilename, output_factor)
 
          if (P%WantVectors) then
            call output_veccl_files(VectorFileName, output_factor)
@@ -320,7 +321,7 @@
 #endif
         end if
 
-             
+        call CAMB_cleanup             
   
         end program driver
 
@@ -336,4 +337,4 @@
     CheckPriority = SetPriorityClass(GetCurrentProcess(), dwPriority)
 
    end subroutine SetIdle
-#endif RUNIDLE
+#endif

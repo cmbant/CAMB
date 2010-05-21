@@ -233,3 +233,13 @@ end module NonLinear
      end subroutine NonLinear_GetRatios
      
 
+
+     subroutine NonLinear_GetRatios_all(CAMB_Pk)
+      use Transfer
+      use NonLinear
+      type(MatterPowerData) :: CAMB_Pk
+
+       stop 'Halofit module doesn''t support non-linear velocities'
+
+     end subroutine NonLinear_GetRatios_All
+

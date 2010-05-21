@@ -3,7 +3,7 @@
 !     Code for Anisotropies in the Microwave Background
 !     by Antony lewis (http://cosmologist.info) and Anthony Challinor
 !     See readme.html for documentation. 
-!     This version August 2006
+!     This version February 2008
 
 !     Note that though the code is internally parallelised, it is not thread-safe
 !     so you cannot generate more than one model at the same time in different threads.
@@ -59,7 +59,6 @@
       use ModelParams
       use ModelData
       use GaugeInterface
-      use TimeSteps
       use Transfer
       use SpherBessels
       use lvalues
@@ -98,15 +97,13 @@
       real(dl), dimension(:,:,:), allocatable :: iCl_scalar, iCl_vector,iCl_tensor
        ! Cls at the l values we actually compute,  iCl_xxx(l_index, Cl_type, initial_power_index)
       
-      ! values of q to evolve the propagation equations to compute the sources
-      integer num_q_evolve
-      real(dl), dimension(:), allocatable :: q_evolve !array of q=nu/r (=k if K=0) values for sources
+      Type(Regions) :: Evolve_q
 
       real(dl),parameter :: qmin0=0.1_dl
 
       real(dl) :: dtaurec_q
     
-!     qmax - CP%Max_eta_k/CP%tau0, qmin = qmin0/CP%tau0 for CP%flat case
+!     qmax - CP%Max_eta_k/CP%tau0, qmin = qmin0/CP%tau0 for flat case
 
       real(dl) qmin, qmax 
 
@@ -143,6 +140,7 @@ contains
             maximum_qeta = CP%Max_eta_k
          end if
 
+
          call initlval(lSamp, maximum_l)
 
          if (CP%flat)  call InitSpherBessels
@@ -150,12 +148,14 @@ contains
          !Preferably stick to Max_l being a multiple of 50
       end if 
 
+
       if (DebugMsgs .and. Feedbacklevel > 0) then
          actual=GetTestTime()
          starttime=actual !times don't include reading the Bessel file
        end if
      
       call InitVars !Most of single thread time spent here (in InitRECFAST)
+
 
       if (DebugMsgs .and. Feedbacklevel > 0) then
          timeprev=actual
@@ -177,10 +177,10 @@ contains
 !      ***note that !$ is the prefix for conditional multi-processor compilation***
       !$ if (ThreadNum /=0) call OMP_SET_NUM_THREADS(ThreadNum)
         
-    
+   
       if (CP%WantCls) then
 
-         if (DebugMsgs .and. Feedbacklevel > 0) write(*,*) 'Set ',num_q_evolve,' source k values'
+         if (DebugMsgs .and. Feedbacklevel > 0) write(*,*) 'Set ',Evolve_q%npoints,' source k values'
          
          call GetSourceMem
 
@@ -198,7 +198,7 @@ contains
 
          !$OMP PARAllEl DO DEFAUlT(SHARED),SCHEDUlE(DYNAMIC) &
          !$OMP & PRIVATE(EV, q_ix)
-         do q_ix= 1,num_q_evolve
+         do q_ix= 1,Evolve_q%npoints
              call DoSourcek(EV,q_ix)
          end do
          !$OMP END PARAllEl DO
@@ -210,6 +210,7 @@ contains
          end if
 
       endif !WantCls
+
    
 !     If transfer functions are requested, set remaining k values and output
       if (CP%WantTransfer) then
@@ -246,19 +247,17 @@ contains
        
          ExactClosedSum = CP%curv > 5e-9_dl .or. scale < 0.93_dl
 
-
          call SetkValuesForInt
 
-         if (DebugMsgs .and. Feedbacklevel > 0) write(*,*) 'Set ',ThisCT%num_q_int,' integration k values'
+         if (DebugMsgs .and. Feedbacklevel > 0) write(*,*) 'Set ',ThisCT%q%npoints,' integration k values'
 
     
       !Begin k-loop and integrate Sources*Bessels over time
       
-      !$OMP PARAllEl DO DEFAUlT(SHARED),SHARED(nstep), SCHEDUlE(STATIC,4) 
-          do q_ix=1,ThisCT%num_q_int
+      !$OMP PARAllEl DO DEFAUlT(SHARED),SHARED(TimeSteps), SCHEDUlE(STATIC,4) 
+          do q_ix=1,ThisCT%q%npoints
             call SourceToTransfers(q_ix)
          end do !q loop
-  
        !$OMP END PARAllEl DO 
   
         if (DebugMsgs .and. Feedbacklevel > 0) then
@@ -292,7 +291,7 @@ contains
            lSamp = CTransS%ls
            allocate(iCl_Scalar(CTransS%ls%l0,C_Temp:C_last,CP%InitPower%nn))
            iCl_scalar = 0
-           call CalcScalCls(CTransS,GetInitPowerArrayScal)
+           call CalcScalCls(CTransS)
            if (DebugMsgs .and. Feedbacklevel > 0) write (*,*) 'CalcScalCls'
        end if    
 
@@ -332,14 +331,14 @@ contains
       integer q_ix
       type(IntegrationVars) :: IV
     
-          allocate(IV%Source_q(nstep,SourceNum))
-          if (.not.CP%flat) allocate(IV%ddSource_q(nstep,SourceNum))
+          allocate(IV%Source_q(TimeSteps%npoints,SourceNum))
+          if (.not.CP%flat) allocate(IV%ddSource_q(TimeSteps%npoints,SourceNum))
 
             call IntegrationVars_init(IV)
 
             IV%q_ix = q_ix
-            IV%q =ThisCT%q_int(q_ix)
-            IV%dq= ThisCT%dq_int(q_ix)
+            IV%q =ThisCT%q%points(q_ix)
+            IV%dq= ThisCT%q%dpoints(q_ix)
 
             call InterpolateSources(IV)
            
@@ -454,20 +453,20 @@ contains
                 end if
                end do            
            
-              if (first_i > ntodo) then
-               MT%num_q_trans = num_q_evolve 
+               if (first_i > ntodo) then
+               MT%num_q_trans = Evolve_q%npoints 
               else
-               MT%num_q_trans = num_q_evolve + (ntodo - first_i+1) 
+               MT%num_q_trans = Evolve_q%npoints + (ntodo - first_i+1) 
               end if
               call Transfer_Allocate(MT)
 
-              MT%q_trans(1:num_q_evolve) = q_evolve(1:num_q_evolve)
-              if (MT%num_q_trans > num_q_evolve) then
-               MT%q_trans(num_q_evolve+1:MT%num_q_trans) = q_transfer(first_i:ntodo)
+              MT%q_trans(1:Evolve_q%npoints) = Evolve_q%points(1:Evolve_q%npoints)
+              if (MT%num_q_trans > Evolve_q%npoints) then
+               MT%q_trans(Evolve_q%npoints+1:MT%num_q_trans) = q_transfer(first_i:ntodo)
           end if
 
          else
-             num_q_evolve = 0
+             Evolve_q%npoints = 0
              call Transfer_Allocate(MT)
              MT%q_trans = q_transfer(1:MT%num_q_trans)
          end if
@@ -506,7 +505,7 @@ contains
         real(dl) taustart
         type(EvolutionVars) EV
 
-            EV%q=q_evolve(q_ix) 
+            EV%q=Evolve_q%points(q_ix) 
  
             EV%q2=EV%q**2
 
@@ -537,9 +536,9 @@ contains
            SourceNum=3 
         end if
        
-        allocate(Src(num_q_evolve,SourceNum,nstep))
+        allocate(Src(Evolve_q%npoints,SourceNum,TimeSteps%npoints))
         Src=0
-        allocate(ddSrc(num_q_evolve,SourceNum,nstep))
+        allocate(ddSrc(Evolve_q%npoints,SourceNum,TimeSteps%npoints))
     
        end subroutine GetSourceMem
 
@@ -547,7 +546,7 @@ contains
        subroutine FreeSourceMem
          
         deallocate(Src, ddSrc)
-        deallocate(q_evolve)
+        call Ranges_Free(Evolve_q)
 
        end subroutine FreeSourceMem
 
@@ -562,6 +561,8 @@ contains
       real(dl) taumin, maxq
       integer itf
 
+
+
  ! Maximum and minimum k-values.      
       if (CP%flat) then
       qmax=maximum_qeta/CP%tau0
@@ -570,12 +571,11 @@ contains
         qmax=maximum_qeta/CP%r/CP%chi0
         qmin=qmin0/CP%r/CP%chi0/AccuracyBoost
       end if
-
 !     Timesteps during recombination (tentative, the actual
 !     timestep is the minimum between this value and taurst/40,
 !     where taurst is the time when recombination starts - see inithermo
 
-      dtaurec_q=4/qmax/AccuracyBoost  
+      dtaurec_q=4/qmax/AccuracyBoost 
       if (.not. CP%flat) dtaurec_q=dtaurec_q/6
       !AL:Changed Dec 2003, dtaurec feeds back into the non-flat integration via the step size
       dtaurec = dtaurec_q
@@ -599,11 +599,12 @@ contains
    
 !     Initialize baryon temperature and ionization fractions vs. time.
 !     This subroutine also fixes the timesteps where the sources are
-!     saved in order to do the integration. So nstep is set here.
+!     saved in order to do the integration. So TimeSteps is set here.
       !These routines in ThermoData (modules.f90)
   
       call inithermo(taumin,CP%tau0)
-    
+
+   
       if (DebugMsgs .and. Feedbacklevel > 0) write (*,*) 'inithermo'
 
 !Do any array initialization for propagation equations
@@ -630,9 +631,8 @@ contains
       subroutine SetkValuesForSources
       implicit none
       real(dl) dlnk0, dkn1, dkn2, q_switch
-      integer nk1,nk2, q_ix
+      real(dl) qmax_log
 
-         num_q_evolve=0
 
 !     set k values for which the sources for the anisotropy and
 !     polarization will be calculated. For low values of k we
@@ -654,59 +654,49 @@ contains
               dlnk0=dlnk0/2 !*0.3_dl
               dkn2=dkn2*0.7_dl
           end if
-         nk1=int(log(dkn1/qmin/dlnk0)/dlnk0)+1
 
+         qmax_log = dkn1/dlnk0
          q_switch = 2*6.3/taurst
            !Want linear spacing for wavenumbers which come inside horizon
            !Could use sound horizon, but for tensors that is not relevant
+
+         call Ranges_Init(Evolve_q)
+         call Ranges_Add_delta(Evolve_q, qmin, qmax_log, dlnk0, IsLog = .true.)
+         call Ranges_Add_delta(Evolve_q, qmax_log, min(qmax,q_switch), dkn1)
          if (qmax > q_switch) then
-            nk2=int((q_switch-qmin*exp((nk1-1)*dlnk0)) /dkn1)+nk1+1
-            num_q_evolve=int((qmax-q_switch)/dkn2)+nk2+1
-         else
-             num_q_evolve=int((qmax-qmin*exp((nk1-1)*dlnk0))/dkn1)+nk1+1
-            nk2=num_q_evolve+1
+           call Ranges_Add_delta(Evolve_q, q_switch, qmax, dkn2)
          end if
 
-         allocate(q_evolve(num_q_evolve))
+         call Ranges_GetArray(Evolve_q, .false.)
 
-         do q_ix=1,num_q_evolve
-            if (q_ix <= nk1) then
-               q_evolve(q_ix)=qmin*exp((q_ix-1)*dlnk0)
-            else
-               if (q_ix > nk2) then
-                  q_evolve(q_ix)=q_evolve(nk2)+(q_ix-nk2)*dkn2
-               else
-                  q_evolve(q_ix)=q_evolve(nk1)+(q_ix-nk1)*dkn1
-               end if
-            end if
-
-         end do
-
-         if (CP%closed) call SetClosedkValuesFromArr(q_evolve,num_q_evolve)
+         if (CP%closed) &
+           call SetClosedkValuesFromArr(Evolve_q) 
+  
 
       end subroutine SetkValuesForSources
 
 
-      subroutine SetClosedkValuesFromArr(arr,size)
-      real(dl) arr(*)
-      integer i,nu,lastnu,size,nmax
+      subroutine SetClosedkValuesFromArr(R)
+      Type(Regions) :: R
+      integer i,nu,lastnu,nmax
        !nu = 3,4,5... in CP%closed case, so set nearest integers from arr array
                 
        lastnu=3
        nmax=1
       
-       do i=2,size
-         nu=nint(arr(i)*CP%r)
+       do i=2,R%npoints
+         nu=nint(R%points(i)*CP%r)
          if (nu > lastnu) then
           nmax=nmax+1
           lastnu=nu         
-          arr(nmax)=nu/CP%r 
+          R%points(nmax)=nu/CP%r 
          end if
        
        end do  
-       arr(1)=3/CP%r
+       R%points(1)=3/CP%r
+       R%Lowest = R%points(1) 
      
-        size=nmax
+       R%npoints=nmax
 
       end subroutine SetClosedkValuesFromArr
 
@@ -720,9 +710,9 @@ contains
       integer j,ind,itf
       real(dl) c(24),w(EV%nvar,9), y(EV%nvar), sources(SourceNum)
 
-!!
-! EV%q=0.3
-! EV%q2=EV%q**2
+!
+!EV%q=0.2
+!EV%q2=EV%q**2
 
          w=0
          y=0
@@ -733,31 +723,28 @@ contains
          ind=1
 
 !!Example code for plotting out variable evolution
-!if (.false.) then
-   !        tol1=tol/exp(AccuracyBoost-1)
-  !      call GaugeInterface_EvolveScal(EV,tau,y,CP%tau0,tol1,ind,c,w)
+!if (.true.) then
+!           tol1=tol/exp(AccuracyBoost-1)
        
-     !!   do j=1,6000      
-      !    tauend = taustart * exp(j/6000._dl*log(CP%tau0/taustart))
-      !    call GaugeInterface_EvolveScal(EV,tau,y,tauend,tol1,ind,c,w)
+!        do j=1,6000      
+!          tauend = taustart * exp(j/6000._dl*log(CP%tau0/taustart))
+!          call GaugeInterface_EvolveScal(EV,tau,y,tauend,tol1,ind,c,w)
          
-       !   write (*,'(8E15.5)') y(1:7), grhoc*y(1)/(grhog)                            
-       !  end do
- !     stop
+!          write (*,'(4E15.5)') 1/y(1)-1, y(3), y(EV%w_ix) ,y(EV%w_ix+1)                           
+!         end do
+!     stop
 !end if
 
 
 !     Begin timestep loop.
-!
-!     d contains the sources for the anisotropy and dp
-!     for the polarization. t means tensor.
 
            itf=1
            tol1=tol/exp(AccuracyBoost-1)
            if (CP%WantTransfer .and. CP%Transfer%high_precision) tol1=tol1/100
 
-           do j=2,nstep               
-             tauend=atau0(j)  
+           do j=2,TimeSteps%npoints               
+             tauend=TimeSteps%points(j)  
+
              if (.not. DebugEvolution .and. (EV%q*tauend > max_etak_scalar .and. tauend > taurend) &
                   .and. .not. CP%Dolensing .and. &
                   (.not.CP%WantTransfer.or.tau > tautf(CP%Transfer%num_redshifts))) then
@@ -778,14 +765,14 @@ contains
                   (EV%w_nu < 0.008/AccuracyBoost/lAccuracyBoost))) then 
      
                 !Neutrinos no longer highly relativistic so make approximation               
-                if (.not.CP%DoLensing.and..not. CP%WantTransfer &
+                if ( .not.CP%DoLensing.and..not. CP%WantTransfer &
                        .or. EV%w_nu < 1e-8/EV%q**2/AccuracyBoost/lAccuracyBoost)  &
                            call SwitchToMassiveNuApprox(EV, y)
               end if
              
 !     Calculation of transfer functions.
 101          if (CP%WantTransfer.and.itf <= CP%Transfer%num_redshifts) then
-                  if (j < nstep.and.tauend < tautf(itf) .and.atau0(j+1) > tautf(itf)) then
+                  if (j < TimeSteps%npoints.and.tauend < tautf(itf) .and.TimeSteps%points(j+1)  > tautf(itf)) then
                           
                      call GaugeInterface_EvolveScal(EV,tau,y,tautf(itf),tol1,ind,c,w)
 
@@ -796,8 +783,8 @@ contains
                            call outtransf(EV,y, MT%TransferData(:,EV%q_ix,itf))
                          
                            itf=itf+1
-                           if (j < nstep.and.itf <= CP%Transfer%num_redshifts.and. &
-                                atau0(j+1) > tautf(itf)) goto 101
+                           if (j < TimeSteps%npoints.and.itf <= CP%Transfer%num_redshifts.and. &
+                                TimeSteps%points(j+1) > tautf(itf)) goto 101
                   endif
 
                   end if
@@ -823,9 +810,9 @@ contains
            ind=1 
            tol1=tol/exp(AccuracyBoost-1)
 
-!     Begin timestep loop.            
-               do j=2,nstep
-                  tauend=atau0(j)
+!     Begin timestep loop.    
+           do j=2,TimeSteps%npoints
+                  tauend=TimeSteps%points(j)        
                   if (EV%q*tauend > max_etak_tensor) then
                      Src(EV%q_ix,1:SourceNum,j) = 0
                    else
@@ -878,8 +865,8 @@ contains
 !nd if
 
 !     Begin timestep loop.            
-               do j=2,nstep
-                  tauend=atau0(j)
+               do j=2,TimeSteps%npoints
+                  tauend=TimeSteps%points(j)
 
                   if ( EV%q*tauend > max_etak_vector) then
                      Src(EV%q_ix,1:SourceNum,j) = 0
@@ -905,13 +892,13 @@ contains
     
 
        if (DebugMsgs .and. Feedbacklevel > 0) & 
-         write(*,*) MT%num_q_trans-num_q_evolve, 'transfer k values'
+         write(*,*) MT%num_q_trans-Evolve_q%npoints, 'transfer k values'
 
       !$OMP PARAllEl DO DEFAUlT(SHARED),SCHEDUlE(DYNAMIC) &
       !$OMP & PRIVATE(EV, tau, q_ix) 
 
 !     loop over wavenumbers.
-         do q_ix=num_q_evolve+1,MT%num_q_trans
+         do q_ix=Evolve_q%npoints+1,MT%num_q_trans
       
             EV%TransferOnly=.true. !in case we want to do something to speed it up
           
@@ -969,12 +956,12 @@ contains
          if (CP%InitPower%nn > 1) stop 'Non-linear lensing only does one initial power'
 
         first_step=1
-        do while(atau0(first_step) < tautf(1))
+        do while(TimeSteps%points(first_step) < tautf(1))
            first_step = first_step + 1 
         end do
-
-        do ik=1, num_q_evolve
-         if (q_evolve(ik)/(CP%H0/100) >  Min_kh_nonlinear) then
+ 
+        do ik=1, Evolve_q%npoints
+          if (Evolve_q%points(ik)/(CP%H0/100) >  Min_kh_nonlinear) then
 
             !Interpolate non-linear scaling in conformal time
             do i = 1, CP%Transfer%num_redshifts
@@ -987,10 +974,10 @@ contains
             tf_lo=1
             tf_hi=tf_lo+1
 
-            do i=first_step,nstep-1
+            do i=first_step,TimeSteps%npoints-1
   
-              tau = atau0(i)
-              
+              tau = TimeSteps%points(i)
+            
               do while (tau > tautf(tf_hi))
                   tf_lo = tf_lo + 1
                   tf_hi = tf_hi + 1
@@ -1019,41 +1006,44 @@ contains
       integer i,j
 !     get the interpolation matrix for the sources to interpolate them
 !     for other k-values
-      !$OMP PARAllEl DO DEFAUlT(SHARED), SCHEDUlE(STATIC), PRIVATE(i,j) , SHARED(num_q_evolve)
-        do  i=1,nstep
-          do j=1, SourceNum
-               call spline(q_evolve,Src(1,j,i),num_q_evolve,spl_large,spl_large,ddSrc(1,j,i))
+      !$OMP PARAllEl DO DEFAUlT(SHARED), SCHEDUlE(STATIC), PRIVATE(i,j) , SHARED(Evolve_q)
+        do  i=1,TimeSteps%npoints
+           do j=1, SourceNum
+               call spline(Evolve_q%points,Src(1,j,i),Evolve_q%npoints,spl_large,spl_large,ddSrc(1,j,i))
           end do
         end do
        !$OMP END PARAllEl DO 
        end subroutine InitSourceInterpolation
 
-      subroutine SetkValuesForInt
+
+     subroutine SetkValuesForInt
       implicit none
        
-      integer k,no,no1,no2
-      real(dl) dk,dk0,dlnk1, dk2, max_k_dk
+      integer no
+      real(dl) dk,dk0,dlnk1, dk2, max_k_dk, k_max_log, k_max_0
       integer lognum
-      real(dl)  IntSampleBoost
+      real(dl)  qmax_int,IntSampleBoost
+      
 
-      IntSampleBoost=AccuracyBoost
+       qmax_int = min(qmax,max_bessels_etak/CP%tau0)
+
+
+       IntSampleBoost=AccuracyBoost
 
 !     Fixing the # of k for the integration. 
       
+       call Ranges_Init(ThisCT%q)
+
       if (CP%closed.and.ExactClosedSum) then
        
-        ThisCT%num_q_int = nint(qmax*CP%r)-2
+        call Ranges_Add(ThisCT%q,3/CP%r, nint(qmax_int*CP%r)/CP%r, nint(qmax_int*CP%r)-2)
         call Init_ClTransfer(ThisCT)
  
-        do k=1,ThisCT%num_q_int
-               ThisCT%q_int(k) = (k+2)/CP%r
-               ThisCT%dq_int(k) = 1/CP%r  
-        end do 
-
        else
+
       !Split up into logarithmically spaced intervals from qmin up to k=lognum*dk0
       !then no-lognum*dk0 linearly spaced at dk0 up to no*dk0
-      !then at dk up to qmax
+      !then at dk up to max_k_dk, then dk2 up to qmax_int
          if (CP%closed) then
             lognum=nint(20*IntSampleBoost)
             dlnk1=1._dl/lognum 
@@ -1061,71 +1051,41 @@ contains
             dk=1.2/CP%r/CP%chi0/IntSampleBoost
             dk0=0.4_dl/CP%r/CP%chi0/IntSampleBoost
          else 
-            lognum=nint(10*IntSampleBoost)
+            lognum=nint(10*IntSampleBoost) 
             dlnk1=1._dl/lognum  
             no=nint(600*IntSampleBoost)
-            dk0=1.8_dl/CP%r/CP%chi0/IntSampleBoost
-            dk=3._dl/CP%r/CP%chi0/IntSampleBoost
+            dk0=1.8_dl/CP%r/CP%chi0/IntSampleBoost   
+            dk=3._dl/CP%r/CP%chi0/IntSampleBoost   
          end if
 
-         no1=int(log(lognum*dk0/qmin)/dlnk1)+1
+         k_max_log = lognum*dk0
+         k_max_0  = no*dk0
 
-         dk2 = 0.04/IntSampleBoost
+         dk2 = 0.04/IntSampleBoost !very small scales
 
-         if (qmax > (no*dk0)) then
-            max_k_dk = max(3000, 2*maximum_l)/CP%tau0
-            if (qmax > max_k_dk) then
-               no2 = int((max_k_dk-no*dk0)/dk)+no
-               ThisCT%num_q_int=int((qmax-max_k_dk)/dk2)+no2
-            else
-               ThisCT%num_q_int=int((qmax-no*dk0)/dk)+no
-               no2 = ThisCT%num_q_int+1
-            end if
-         else
-            no=int((qmax-lognum*dk0)/dk0)+no1
-            ThisCT%num_q_int=no
-            no2 = ThisCT%num_q_int+1
-         end if
+         call Ranges_Add_delta(ThisCT%q, qmin, k_max_log, dlnk1, IsLog = .true.)
+         call Ranges_Add_delta(ThisCT%q, k_max_log, min(qmax_int,k_max_0), dk0)     
+       
+         if (qmax_int > k_max_0) then
+
+         max_k_dk = max(3000, 2*maximum_l)/CP%tau0
+       
+          call Ranges_Add_delta(ThisCT%q, k_max_0, min(qmax_int, max_k_dk), dk)
+          if (qmax_int > max_k_dk) then
+           !This allows inclusion of high k modes for computing BB lensed spectrum accurately
+           !without taking ages to compute.
+            call Ranges_Add_delta(ThisCT%q, max_k_dk, qmax_int, dk2)
+          end if    
+
+         end if           
 
          call Init_ClTransfer(ThisCT)
 
-         do  k=1,ThisCT%num_q_int 
-           if (k <=no2) then
-            if (k <= no) then
-               if (k <= no1) then
-                  ThisCT%q_int(k)=lognum*dk0*exp(-(no1-k)*dlnk1)
-                  if (k ==no1) then
-                   ThisCT%dq_int(no1)=lognum*dk0*(1._dl-exp(-dlnk1/2)) + dk0/2
-                  else
-                   ThisCT%dq_int(k)=ThisCT%q_int(k)*2*sinh(dlnk1/2)
-                  end if
-               else
-                  ThisCT%q_int(k)=ThisCT%q_int(no1)+(k-no1)*dk0
-                  ThisCT%dq_int(k)=dk0
-               end if
-            else
-               ThisCT%q_int(k)=ThisCT%q_int(no)+(k-no)*dk
-               ThisCT%dq_int(k)=dk
-            end if
-           else
-              !This allows inclusion of high k modes for computing BB lensed spectrum accurately
-              !without taking ages to compute.
-               ThisCT%q_int(k)=ThisCT%q_int(no2)+(k-no2)*dk2
-               ThisCT%dq_int(k)=dk2
-           end if
-         end do
-        
-        ThisCT%dq_int(no)=(dk+dk0)/2
-        if (no2<ThisCT%num_q_int) ThisCT%dq_int(no2) = (dk+dk2)/2
-
- 
        if (CP%closed) then
-        call SetClosedkValuesFromArr(ThisCT%q_int,ThisCT%num_q_int)
-        do k=2,ThisCT%num_q_int-1
-           ThisCT%dq_int(k)=(ThisCT%q_int(k+1)-ThisCT%q_int(k-1))/2
-        end do
-        ThisCT%dq_int(1)=1/CP%r
-        ThisCT%dq_int(ThisCT%num_q_int)=ThisCT%dq_int(ThisCT%num_q_int-1)        
+        call SetClosedkValuesFromArr(ThisCT%q)
+        call Ranges_Getdpoints(ThisCT%q,half_ends = .false.)
+        ThisCT%q%dpoints(1) = 1/CP%r
+     
        end if
 
        end if !ExactClosedSum
@@ -1140,18 +1100,22 @@ contains
       type(IntegrationVars) IV
 
 
-!     finding position of k in table q_evolve to do the interpolation.
+!     finding position of k in table Evolve_q to do the interpolation.
 
+!Can't use the following in closed case because regions are not set up (only points)  
+!           klo = min(Evolve_q%npoints-1,Ranges_IndexOf(Evolve_q, IV%q))
+           !This is a bit inefficient, but thread safe
             klo=1
-            !This is a bit inefficient, but thread safe
-            do while ((IV%q > q_evolve(klo+1)).and.(klo < (num_q_evolve-1))) 
+            do while ((IV%q > Evolve_q%points(klo+1)).and.(klo < (Evolve_q%npoints-1))) 
                klo=klo+1
             end do
+
             khi=klo+1
 
-            ho=q_evolve(khi)-q_evolve(klo)
-            a0=(q_evolve(khi)-IV%q)/ho
-            b0=(IV%q-q_evolve(klo))/ho           
+
+            ho=Evolve_q%points(khi)-Evolve_q%points(klo)
+            a0=(Evolve_q%points(khi)-IV%q)/ho
+            b0=(IV%q-Evolve_q%points(klo))/ho           
             ho2o6 = ho**2/6
             a03=(a0**3-a0)
             b03=(b0**3-b0)
@@ -1160,11 +1124,11 @@ contains
 !     Interpolating the source as a function of time for the present
 !     wavelength.
              step=2
-               do i=2, nstep
-                  xf=IV%q*(CP%tau0-atau0(i))
+               do i=2, TimeSteps%npoints
+                  xf=IV%q*(CP%tau0-TimeSteps%points(i))
                   if (CP%WantTensors) then
-                   if (IV%q*atau0(i) < max_etak_tensor.and. xf > 1.e-8_dl) then
-                     step=i
+                   if (IV%q*TimeSteps%points(i) < max_etak_tensor.and. xf > 1.e-8_dl) then
+                    step=i
                      IV%Source_q(i,1:SourceNum) =a0*Src(klo,1:SourceNum,i)+&
                           b0*Src(khi,1:SourceNum,i)+(a03 *ddSrc(klo,1:SourceNum,i)+ &
                           b03*ddSrc(khi,1:SourceNum,i)) *ho2o6
@@ -1173,7 +1137,7 @@ contains
                    end if
                   end if
                   if (CP%WantVectors) then
-                   if (IV%q*atau0(i) < max_etak_vector.and. xf > 1.e-8_dl) then
+                   if (IV%q*TimeSteps%points(i) < max_etak_vector.and. xf > 1.e-8_dl) then
                      step=i
                      IV%Source_q(i,1:SourceNum) =a0*Src(klo,1:SourceNum,i)+&
                           b0*Src(khi,1:SourceNum,i)+(a03 *ddSrc(klo,1:SourceNum,i)+ &
@@ -1184,7 +1148,7 @@ contains
                   end if
 
                   if (CP%WantScalars) then
-                     if ((CP%Dolensing .or. IV%q*atau0(i) < max_etak_scalar) .and. xf > 1.e-8_dl) then
+                     if ((CP%Dolensing .or. IV%q*TimeSteps%points(i) < max_etak_scalar) .and. xf > 1.e-8_dl) then
                         step=i
                         IV%Source_q(i,1:SourceNum)=a0*Src(klo,1:SourceNum,i)+ &
                          b0*Src(khi,1:SourceNum,i) + (a03*ddSrc(klo,1:SourceNum,i) &
@@ -1195,13 +1159,13 @@ contains
                      end if
                   end if
                end do
-               step=max(step,n1)
                IV%SourceSteps = step
   
 
           if (.not.CP%flat) then
              do i=1, SourceNum
-                call spline(atau0,IV%Source_q(1,i),nstep,spl_large,spl_large,IV%ddSource_q(1,i))
+                call spline(TimeSteps%points,IV%Source_q(1,i),TimeSteps%npoints,&
+                     spl_large,spl_large,IV%ddSource_q(1,i))
              end do
           end if
            
@@ -1215,8 +1179,8 @@ contains
       type(IntegrationVars), intent(INOUT) :: IV
         
         IV%Source_q(1,1:SourceNum)=0
-        IV%Source_q(nstep,1:SourceNum) = 0
-        IV%Source_q(nstep-1,1:SourceNum) = 0
+        IV%Source_q(TimeSteps%npoints,1:SourceNum) = 0
+        IV%Source_q(TimeSteps%npoints-1,1:SourceNum) = 0
  
       end  subroutine IntegrationVars_Init
 
@@ -1238,7 +1202,7 @@ contains
            llmax=nint(nu)-1
           else
            llmax=nint(nu*rofChi(CP%tau0/CP%r + 6*pi/nu))
-           llmax=min(llmax,nint(nu)-1)  !nu >= lSamp%l+1
+           llmax=min(llmax,nint(nu)-1)  !nu >= l+1
           end if       
 
          else
@@ -1277,7 +1241,7 @@ contains
         real(dl) :: k
  
         if (CP%AccurateBB .or. CP%flat) then
-         UseLimber = l > 700*AccuracyBoost .and. k > 0.05
+         UseLimber = l > 700*AccuracyBoost .and. k > 0.05    
         else
          !This is accurate at percent level only (good enough here)
          UseLimber = l > 300*AccuracyBoost .or. k>0.05
@@ -1303,27 +1267,28 @@ contains
 !     timestep
 
          do j=1,IV%SourceSteps !Precompute arrays for this k
-            xf=abs(IV%q*(CP%tau0-atau0(j)))
-            bes_index(j)=GetBesselIndex(xf)
+            xf=abs(IV%q*(CP%tau0-TimeSteps%points(j)))
+            bes_index(j)=Ranges_indexOf(BessRanges,xf)
           !Precomputed values for the interpolation
             bes_ix= bes_index(j)
-            fac(j)=xx(bes_ix+1)-xx(bes_ix)
-            aa(j)=(xx(bes_ix+1)-xf)/fac(j)
+            fac(j)=BessRanges%points(bes_ix+1)-BessRanges%points(bes_ix)
+            aa(j)=(BessRanges%points(bes_ix+1)-xf)/fac(j)
             fac(j)=fac(j)**2*aa(j)/6
          end do
+
 
          do j=1,lSamp%l0 
              if (lSamp%l(j) > llmax) return
              xlim=xlimfrac*lSamp%l(j)
              xlim=max(xlim,xlimmin)
              xlim=lSamp%l(j)-xlim
-             xlmax1=80*lSamp%l(j)
+             xlmax1=80*lSamp%l(j)*AccuracyBoost
              tmin=CP%tau0-xlmax1/IV%q
              tmax=CP%tau0-xlim/IV%q
              tmax=min(CP%tau0,tmax)
-             tmin=max(atau0(2),tmin)
+             tmin=max(TimeSteps%points(2),tmin)
                
-             if (tmax < atau0(2)) exit
+             if (tmax < TimeSteps%points(2)) exit
              sums(1:SourceNum) = 0
  
             !As long as we sample the source well enough, it is sufficient to
@@ -1331,14 +1296,14 @@ contains
 
              if (SourceNum==2) then
               !This is the innermost loop, so we separate the no lensing scalar case to optimize it
-                do n= TimeToTimeStep(tmin),min(IV%SourceSteps,TimeToTimeStep(tmax))
+                 do n= Ranges_IndexOf(TimeSteps,tmin),min(IV%SourceSteps,Ranges_IndexOf(TimeSteps,tmax))
 
                  a2=aa(n)
                  bes_ix=bes_index(n) 
 
                  J_l=a2*ajl(bes_ix,j)+(1-a2)*(ajl(bes_ix+1,j) - ((a2+1) &
                         *ajlpr(bes_ix,j)+(2-a2)*ajlpr(bes_ix+1,j))* fac(n)) !cubic spline
-                 J_l = J_l*dtau2(n)
+                 J_l = J_l*TimeSteps%dpoints(n)
                  sums(1) = sums(1) + IV%Source_q(n,1)*J_l
                  sums(2) = sums(2) + IV%Source_q(n,2)*J_l
 
@@ -1346,14 +1311,14 @@ contains
               else 
                  DoInt = .not. CP%WantScalars .or. IV%q < max(850,lSamp%l(j))*3*AccuracyBoost/CP%tau0  
                  if (DoInt) then
-                  do n= TimeToTimeStep(tmin),min(IV%SourceSteps,TimeToTimeStep(tmax))
-                   !Full Bessel integration
+                  do n= Ranges_IndexOf(TimeSteps,tmin),min(IV%SourceSteps,Ranges_IndexOf(TimeSteps,tmax))
+                  !Full Bessel integration
                      a2=aa(n)
                      bes_ix=bes_index(n) 
 
                      J_l=a2*ajl(bes_ix,j)+(1-a2)*(ajl(bes_ix+1,j) - ((a2+1) &
                             *ajlpr(bes_ix,j)+(2-a2)*ajlpr(bes_ix+1,j))* fac(n)) !cubic spline
-                     J_l = J_l*dtau2(n)
+                     J_l = J_l*TimeSteps%dpoints(n)
               
                     !The unwrapped form is faster
      
@@ -1366,9 +1331,13 @@ contains
                  if (.not. DoInt .or. UseLimber(lsamp%l(j),IV%q) .and. CP%WantScalars) then
                   !Limber approximation for small scale lensing (better than poor version of above integral)
                   xf = CP%tau0-lSamp%l(j)/IV%q
-                  n=TimeToTimeStep(xf)
-                  xf= (xf-atau0(n))/(atau0(n+1)-atau0(n))                  
-                  sums(3) = (IV%Source_q(n,3)*(1-xf) + xf*IV%Source_q(n+1,3))*sqrt(pi/2/lSamp%l(j))/IV%q 
+                  if (xf < TimeSteps%Highest .and. xf > TimeSteps%Lowest) then
+                   n=Ranges_IndexOf(TimeSteps,xf)
+                   xf= (xf-TimeSteps%points(n))/(TimeSteps%points(n+1)-TimeSteps%points(n))                  
+                   sums(3) = (IV%Source_q(n,3)*(1-xf) + xf*IV%Source_q(n+1,3))*sqrt(pi/2/lSamp%l(j))/IV%q 
+                  else
+                   sums(3)=0
+                  end if
                  end if
 
               end if
@@ -1386,7 +1355,7 @@ contains
 !non-flat source integration
 
       subroutine IntegrateSourcesBessels(IV,j,l,nu)  
-      use USpherBessels
+      use SpherBessels
       type(IntegrationVars) IV
       logical DoInt   
       integer l,j, nstart,nDissipative,ntop,nbot,nrange,nnow
@@ -1405,14 +1374,14 @@ contains
  
         !Then get nearest source point with lower Chi...
       tDissipative=CP%tau0 - CP%r*ChiStart
-      if (tDissipative<atau0(1)) then
+      if (tDissipative<TimeSteps%points(1)) then
          nDissipative=2
        else 
-         nDissipative = TimeToTimeStep(tDissipative)+1
+         nDissipative = Ranges_IndexOf(TimeSteps,tDissipative)+1
       endif 
-      nDissipative=min(nDissipative,nstep-1)
+      nDissipative=min(nDissipative,TimeSteps%npoints-1)
 
-      tDissipative = atau0(nDissipative)
+      tDissipative = TimeSteps%points(nDissipative)
 
       ChiStart =  max(1d-8,(CP%tau0-tDissipative)/CP%r)
        
@@ -1432,15 +1401,19 @@ contains
 
          DoInt =  SourceNum/=3 .or. IV%q < max(850,l)*3*AccuracyBoost/(CP%chi0*CP%r) 
          if (DoInt) then
-         if ((nstart < min(nstep-1,IV%SourceSteps)).and.(y1dis > miny1)) then
+         if ((nstart < min(TimeSteps%npoints-1,IV%SourceSteps)).and.(y1dis > miny1)) then
      
             y1=y1dis
             y2=y2dis
             nnow=nstart
-            do nrange = 1,nr
-               ntop = min(nreg(nrange+1),nstep-1)
+            do nrange = 1,TimeSteps%Count
+               if (nrange == TimeSteps%count) then
+                ntop = TimeSteps%npoints -1
+               else
+                ntop = TimeSteps%R(nrange+1)%start_index
+               end if
                if (nnow < ntop) then
-                  call DoRangeInt(IV,chi,ChiDissipative,nnow,ntop,dtaureg(nrange), &
+                  call DoRangeInt(IV,chi,ChiDissipative,nnow,ntop,TimeSteps%R(nrange)%delta, &
                               nu,l,y1,y2,out_arr)        
                  sums  = sums + out_arr
                  nnow = ntop
@@ -1456,10 +1429,10 @@ contains
            y2=y2dis
            chi=ChiStart
             nnow=nstart
-            do nrange = nr,1,-1 
-               nbot = nreg(nrange)         
+            do nrange = TimeSteps%Count,1,-1 
+               nbot = TimeSteps%R(nrange)%start_index          
                if (nnow >  nbot) then
-                  call DoRangeInt(IV,chi,ChiDissipative,nnow,nbot,dtaureg(nrange), &
+                  call DoRangeInt(IV,chi,ChiDissipative,nnow,nbot,TimeSteps%R(nrange)%delta, &
                               nu,l,y1,y2,out_arr)
                  sums=sums+out_arr
          
@@ -1475,10 +1448,14 @@ contains
          if (SourceNum==3 .and. (.not. DoInt .or. UseLimber(l,IV%q))) then
             !Limber approximation for small scale lensing (better than poor version of above integral)
              xf = CP%tau0-invsinfunc(l/nu)*CP%r
-             nbot=TimeToTimeStep(xf)
-             xf= (xf-atau0(nbot))/(atau0(nbot+1)-atau0(nbot))                  
+             if (xf > TimeSteps%Lowest .and. xf > TimeSteps%Highest) then
+             nbot=Ranges_IndexOf(TimeSteps,xf)
+             xf= (xf-TimeSteps%points(nbot))/(TimeSteps%points(nbot+1)-TimeSteps%points(nbot))                  
              sums(3) = (IV%Source_q(nbot,3)*(1-xf) + xf*IV%Source_q(nbot+1,3))*&
-                           sqrt(pi/2/l/sqrt(1-CP%Ksign*real(l**2)/nu**2))/IV%q 
+                           sqrt(pi/2/l/sqrt(1-CP%Ksign*real(l**2)/nu**2))/IV%q
+             else
+              sums(3) = 0
+             end if                
          end if
 
          ThisCT%Delta_p_l_k(1:SourceNum,j,IV%q_ix)=ThisCT%Delta_p_l_k(1:SourceNum,j,IV%q_ix)+sums
@@ -1491,14 +1468,18 @@ contains
       !Integrate chi down in dissipative region
       !DoRangeInt cuts off when ujl gets small
          miny1= 1.d-6/l/AccuracyBoost
-         if ((nstart < nstep-1).and.(y1dis>miny1)) then
+         if ((nstart < TimeSteps%npoints-1).and.(y1dis>miny1)) then
             y1=y1dis
             y2=y2dis
             nnow=nstart
-            do nrange = 1,nr
-               ntop = min(nreg(nrange+1),nstep-1)
+            do nrange = 1,TimeSteps%Count
+               if (nrange == TimeSteps%count) then
+                ntop = TimeSteps%npoints -1
+               else
+                ntop = TimeSteps%R(nrange+1)%start_index
+               end if
                if (nnow < ntop) then
-                 call DoRangeIntTensor(IV,chi,ChiDissipative,nnow,ntop,dtaureg(nrange), &
+                 call DoRangeIntTensor(IV,chi,ChiDissipative,nnow,ntop,TimeSteps%R(nrange)%delta, &
                               nu,l,y1,y2,out_arr)
 
                  ThisCT%Delta_p_l_k(1:SourceNum,j,IV%q_ix) = ThisCT%Delta_p_l_k(1:SourceNum,j,IV%q_ix) + out_arr
@@ -1507,21 +1488,21 @@ contains
                  if (chi==0) exit
                end if
             end do
-       
+                   
          end if 
         
                  
-         !Integrate chi up in oscillatory region
+!Integrate chi up in oscillatory region
           if (nstart > 2) then
            y1=y1dis
            y2=y2dis
            chi=ChiStart
          
            nnow=nstart
-           do nrange = nr,1,-1 
-               nbot = nreg(nrange)         
+            do nrange = TimeSteps%Count,1,-1 
+               nbot = TimeSteps%R(nrange)%start_index          
                if (nnow >  nbot) then
-                 call DoRangeIntTensor(IV,chi,ChiDissipative,nnow,nbot,dtaureg(nrange), &
+                 call DoRangeIntTensor(IV,chi,ChiDissipative,nnow,nbot,TimeSteps%R(nrange)%delta, &
                               nu,l,y1,y2,out_arr)
                  ThisCT%Delta_p_l_k(1:SourceNum,j,IV%q_ix) = ThisCT%Delta_p_l_k(1:SourceNum,j,IV%q_ix) + out_arr
                 
@@ -1531,7 +1512,7 @@ contains
             end do
 
           end if
-           
+       
         end if !Do Tensors
      
       end subroutine IntegrateSourcesBessels
@@ -1549,7 +1530,6 @@ contains
 
       use precision
       use ModelParams
-      use USpherBessels
       type(IntegrationVars) IV
       integer l,nIntSteps,nstart,nend,nlowest,isgn,i,is,Startn
       real(dl) nu,dtau,num1,num2,Deltachi,aux1,aux2
@@ -1599,13 +1579,13 @@ contains
          out = 0
          y1=0._dl !So we know to calculate starting y1,y2 if there is next range
          y2=0._dl
-         chi=(CP%tau0-atau0(nend))/CP%r
+         chi=(CP%tau0-TimeSteps%points(nend))/CP%r
          return
         end if
      
       Startn=nstart
       if (nstart>IV%SourceSteps .and. nend < IV%SourceSteps) then
-         chi=(CP%tau0-atau0(IV%SourceSteps))/CP%r
+         chi=(CP%tau0-TimeSteps%points(IV%SourceSteps))/CP%r
          Startn=IV%SourceSteps
          call USpherBesselWithDeriv(CP%closed,chi,l,nu,y1,y2)
       else if ((y2==0._dl).and.(y1==0._dl)) then 
@@ -1627,7 +1607,7 @@ contains
 
       nlowest=min(Startn,nend)
       aux1=1._dl*CP%r/dtau  !used to calculate nearest timestep quickly
-      aux2=(CP%tau0-atau0(nlowest))/dtau + nlowest
+      aux2=(CP%tau0-TimeSteps%points(nlowest))/dtau + nlowest
           
       nu2=nu*nu
       ap1=l*(l+1)
@@ -1651,7 +1631,7 @@ contains
       Interpolate = dchisource > dchimax
       if (Interpolate) then !split up smaller than source step size
          delchi=dchimax
-         Deltachi=sgn*(atau0(Startn)-atau0(nend))/CP%r
+         Deltachi=sgn*(TimeSteps%points(Startn)-TimeSteps%points(nend))/CP%r
          nIntSteps=int(Deltachi/delchi+0.99_dl)        
          delchi=Deltachi/nIntSteps 
          dtau2o6=(CP%r*delchi)**2/6._dl
@@ -1757,7 +1737,6 @@ contains
 
       use precision
       use ModelParams
-      use USpherBessels
       type(IntegrationVars), target :: IV
       integer l,nIntSteps,nstart,nend,nlowest,isgn,i,is
       real(dl) nu,dtau,num1,num2,Deltachi,aux1,aux2
@@ -1776,7 +1755,6 @@ contains
       ddsourcep => IV%ddSource_q(:,1:)
       
      
-! atau0 is the array with the time where the sources are stored.
       if (nend==nstart) then  
             out=0
             return
@@ -1815,7 +1793,7 @@ contains
          out = 0
          y1=0._dl !!So we know to calculate starting y1,y2 if there is next range
          y2=0._dl
-         chi=(CP%tau0-atau0(nend))/CP%r
+         chi=(CP%tau0-TimeSteps%points(nend))/CP%r
          return
         end if
       if ((y2==0._dl).and.(y1==0._dl)) call USpherBesselWithDeriv(CP%closed,chi,l,nu,y1,y2)
@@ -1824,8 +1802,8 @@ contains
 
       nlowest=min(nstart,nend)
       aux1=1._dl*CP%r/dtau  !used to calculate nearest timestep quickly
-      aux2=(CP%tau0-atau0(nlowest))/dtau + nlowest
-     
+      aux2=(CP%tau0-TimeSteps%points(nlowest))/dtau + nlowest
+          
      
       nu2=nu*nu
       ap1=l*(l+1)
@@ -1848,7 +1826,7 @@ contains
       Interpolate = dchisource > dchimax
       if (Interpolate) then !split up smaller than source step size
          delchi=dchimax
-         Deltachi=sgn*(atau0(nstart)-atau0(nend))/CP%r
+         Deltachi=sgn*(TimeSteps%points(nstart)-TimeSteps%points(nend))/CP%r
          nIntSteps=int(Deltachi/delchi+0.99_dl)
          delchi=Deltachi/nIntSteps 
          dtau2o6=(CP%r*delchi)**2/6._dl
@@ -1939,18 +1917,6 @@ contains
        
          end subroutine DoRangeIntTensor
 
-
-        subroutine GetInitPowerArrayScal(pows,ks, numks,pix)
-         integer, intent(in) :: numks, pix
-         real(dl) pows(numks), ks(numks)
-         integer i
-      
-         do i = 1, numks
-            pows(i) =  ScalarPower(ks(i) ,pix)
-         end do
-
-        end subroutine GetInitPowerArrayScal
-
         subroutine GetInitPowerArrayVec(pows,ks, numks,pix)
          integer, intent(in) :: numks, pix
          real(dl) pows(numks), ks(numks)
@@ -1976,31 +1942,31 @@ contains
         end subroutine GetInitPowerArrayTens
 
 
-        subroutine CalcScalCls(CTrans, GetInitPowers)
+        subroutine CalcScalCls(CTrans)
         implicit none
         Type(ClTransferData) :: CTrans
-        external GetInitPowers
         integer pix,j
-        real(dl) apowers, pows(CTrans%num_q_int)
+        real(dl) apowers, pows(CTrans%q%npoints)
         integer q_ix
-        real(dl)  ks(CTrans%num_q_int),dlnks(CTrans%num_q_int),dlnk
+        real(dl)  ks(CTrans%q%npoints),dlnks(CTrans%q%npoints),dlnk
         real(dl) ctnorm,dbletmp
 
          do pix=1,CP%InitPower%nn
 
-          do q_ix = 1, CTrans%num_q_int 
+          do q_ix = 1, CTrans%q%npoints 
 
              if (CP%flat) then
-                     ks(q_ix) = CTrans%q_int(q_ix)
-                     dlnks(q_ix) = CTrans%dq_int(q_ix)/CTrans%q_int(q_ix)
+                     ks(q_ix) = CTrans%q%points(q_ix)
+                     dlnks(q_ix) = CTrans%q%dpoints(q_ix)/CTrans%q%points(q_ix)
              else
-                     ks(q_ix) = sqrt(CTrans%q_int(q_ix)**2 - CP%curv)
-                     dlnks(q_ix) = CTrans%dq_int(q_ix)*CTrans%q_int(q_ix)/ks(q_ix)**2
+                     ks(q_ix) = sqrt(CTrans%q%points(q_ix)**2 - CP%curv)
+                     dlnks(q_ix) = CTrans%q%dpoints(q_ix)*CTrans%q%points(q_ix)/ks(q_ix)**2
              end if
+
+             pows(q_ix) =  ScalarPower(ks(q_ix) ,pix)
+
       
           end do
-
-         call GetInitPowers(pows,ks,CTrans%num_q_int,pix)
 
 
         !$OMP PARAllEl DO DEFAUlT(SHARED),SCHEDUlE(STATIC,4) &
@@ -2010,9 +1976,9 @@ contains
 
         !Integrate dk/k Delta_l_q**2 * Power(k)
 
-          do q_ix = 1, CTrans%num_q_int 
+          do q_ix = 1, CTrans%q%npoints 
 
-             if (.not.(CP%closed.and.nint(CTrans%q_int(q_ix)*CP%r)<=CTrans%ls%l(j))) then 
+             if (.not.(CP%closed.and.nint(CTrans%q%points(q_ix)*CP%r)<=CTrans%ls%l(j))) then 
                !cut off at nu = l + 1
              dlnk = dlnks(q_ix)
              apowers = pows(q_ix)
@@ -2067,35 +2033,35 @@ contains
         real(dl) nu
         real(dl) apowert,  measure
         real(dl) ctnorm,dbletmp
-        real(dl) pows(CTrans%num_q_int)
-        real(dl)  ks(CTrans%num_q_int),measures(CTrans%num_q_int)
+        real(dl) pows(CTrans%q%npoints)
+        real(dl)  ks(CTrans%q%npoints),measures(CTrans%q%npoints)
 
         !For tensors we want Integral dnu/nu (nu^2-3)/(nu^2-1) Delta_l_k^2 P(k) for CP%closed
 
         do in=1,CP%InitPower%nn
         
-         do q_ix = 1, CTrans%num_q_int 
+         do q_ix = 1, CTrans%q%npoints 
 
              if (CP%flat) then
-                     ks(q_ix) = CTrans%q_int(q_ix)
-                     measures(q_ix) = CTrans%dq_int(q_ix)/CTrans%q_int(q_ix)
+                     ks(q_ix) = CTrans%q%points(q_ix)
+                     measures(q_ix) = CTrans%q%dpoints(q_ix)/CTrans%q%points(q_ix)
              else
-                     nu = CTrans%q_int(q_ix)*CP%r
-                     ks(q_ix) = sqrt(CTrans%q_int(q_ix)**2 - 3*CP%curv)
-                     measures(q_ix) = CTrans%dq_int(q_ix)/CTrans%q_int(q_ix)*(nu**2-3*CP%Ksign)/(nu**2-CP%Ksign)
+                     nu = CTrans%q%points(q_ix)*CP%r
+                     ks(q_ix) = sqrt(CTrans%q%points(q_ix)**2 - 3*CP%curv)
+                     measures(q_ix) = CTrans%q%dpoints(q_ix)/CTrans%q%points(q_ix)*(nu**2-3*CP%Ksign)/(nu**2-CP%Ksign)
              end if
 
           end do
 
-         call GetInitPowers(pows,ks,CTrans%num_q_int,in)
+         call GetInitPowers(pows,ks,CTrans%q%npoints,in)
 
         !$OMP PARAllEl DO DEFAUlT(SHARED),SCHEDUlE(STATIC,4) &
         !$OMP & PRIVATE(j,q_ix,measure,apowert,ctnorm,dbletmp)
          do j=1,CTrans%ls%l0
 
-          do q_ix = 1, CTrans%num_q_int 
+          do q_ix = 1, CTrans%q%npoints 
 
-                 if (.not.(CP%closed.and. nint(CTrans%q_int(q_ix)*CP%r)<=CTrans%ls%l(j))) then
+                 if (.not.(CP%closed.and. nint(CTrans%q%points(q_ix)*CP%r)<=CTrans%ls%l(j))) then
                      !cut off at nu = l+1
 
                  apowert = pows(q_ix)
@@ -2130,27 +2096,27 @@ contains
         integer in,j, q_ix
         real(dl) power,  measure
         real(dl) ctnorm,lfac,dbletmp
-        real(dl) pows(CTrans%num_q_int)
-        real(dl)  ks(CTrans%num_q_int),measures(CTrans%num_q_int)
+        real(dl) pows(CTrans%q%npoints)
+        real(dl)  ks(CTrans%q%npoints),measures(CTrans%q%npoints)
 
         do in=1,CP%InitPower%nn
         
-         do q_ix = 1, CTrans%num_q_int 
+         do q_ix = 1, CTrans%q%npoints 
 
-               ks(q_ix) = CTrans%q_int(q_ix)
-               measures(q_ix) = CTrans%dq_int(q_ix)/CTrans%q_int(q_ix)
+               ks(q_ix) = CTrans%q%points(q_ix)
+               measures(q_ix) = CTrans%q%dpoints(q_ix)/CTrans%q%points(q_ix)
 
           end do
 
-         call GetInitPowers(pows,ks,CTrans%num_q_int,in)
+         call GetInitPowers(pows,ks,CTrans%q%npoints,in)
 
         !$OMP PARAllEl DO DEFAUlT(SHARED),SCHEDUlE(STATIC,4) &
         !$OMP & PRIVATE(j,q_ix,measure,power,ctnorm,dbletmp)
          do j=1,CTrans%ls%l0
 
-          do q_ix = 1, CTrans%num_q_int 
+          do q_ix = 1, CTrans%q%npoints 
 
-             if (.not.(CP%closed.and. nint(CTrans%q_int(q_ix)*CP%r)<=CTrans%ls%l(j))) then
+             if (.not.(CP%closed.and. nint(CTrans%q%points(q_ix)*CP%r)<=CTrans%ls%l(j))) then
                      !cut off at nu = l+1
 
                  power = pows(q_ix)
@@ -2183,25 +2149,31 @@ contains
        Type(ClTransferData) :: CTransS, CTransT, CTransV
       integer in,i
   
+!Note using log interpolation is worse]
+
       !$OMP PARALLEL DO DEFAULT(SHARED), PRIVATE(i,in), SHARED(CTransS,CTransT),IF(CP%InitPower%nn > 1)
       do in=1,CP%InitPower%nn
-          if (CP%WantScalars) then
-               do i = C_Temp, C_last
-                call InterpolateClArr(CTransS%ls,iCl_scalar(1,i,in),Cl_scalar(lmin, in, i),CTransS%ls%l0)
-               end do
-             end if
-          
-              if (CP%WantVectors) then
-               do i = C_Temp, CT_cross
-                call InterpolateClArr(CTransV%ls,iCl_vector(1,i,in),Cl_vector(lmin, in, i),CTransV%ls%l0)
-               end do
-             end if
-             
-             if (CP%WantTensors) then
-               do i = CT_Temp, CT_Cross
-                call InterpolateClArr(CTransT%ls,iCl_tensor(1,i,in),Cl_tensor(lmin, in, i),CTransT%ls%l0)
-               end do
-             end if
+         if (CP%WantScalars) then
+           do i = C_Temp, C_last
+             call InterpolateClArr(CTransS%ls,iCl_scalar(1,i,in),Cl_scalar(lmin, in, i), &
+                 CTransS%ls%l0)
+  
+           end do
+         end if
+      
+         if (CP%WantVectors) then
+           do i = C_Temp, CT_cross
+            call InterpolateClArr(CTransV%ls,iCl_vector(1,i,in),Cl_vector(lmin, in, i),CTransV%ls%l0)
+           end do
+         end if
+         
+         if (CP%WantTensors) then
+           do i = CT_Temp, CT_Cross
+             call InterpolateClArr(CTransT%ls,iCl_tensor(1,i,in),Cl_tensor(lmin, in, i), &
+               CTransT%ls%l0)
+ 
+           end do
+         end if
       end do
       !$OMP END PARALLEL DO
       end subroutine InterpolateCls

@@ -59,9 +59,9 @@ contains
    end subroutine TNameValueList_Clear
 
    subroutine TNameValueList_ValueOf(L, AName, AValue)
-     Type (TNameValueList) :: L
+     Type (TNameValueList), intent(in) :: L
      character(LEN=*), intent(in) :: AName
-     CHARACTER(LEN=*) :: AValue
+     CHARACTER(LEN=*), intent(out) :: AValue
      integer i
 
      do i=1, L%Count

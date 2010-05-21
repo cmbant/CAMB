@@ -1,12 +1,12 @@
 !General numerical routines and global accuracy. Includes modified dverk for CAMB.
 
  module Precision
-
+ use AMLUtils
  integer, parameter :: dl = KIND(1.d0)
  integer, parameter :: sp = KIND(1.0)
 
- real(dl), parameter :: pi = 3.1415926535897932384626433832795_dl, twopi=2*pi, fourpi=4*pi
- real(dl), parameter :: sqrt6=2.4494897427831780981972840747059_dl
+! real(dl), parameter :: pi = 3.1415926535897932384626433832795_dl, twopi=2*pi, fourpi=4*pi
+! real(dl), parameter :: sqrt6=2.4494897427831780981972840747059_dl
 
  end module Precision
 
@@ -24,8 +24,9 @@
         real(dl), intent(in) :: y(n),g(n)
         real(dl), intent(out) :: dy(n)
         integer :: n1, i
-        real(dl) :: f(n)
+        real(dl), allocatable, dimension(:) :: f
 
+        allocate(f(n))
         n1=n-1
 !  Quartic fit to dy/di at boundaries, assuming d3y/di3=0.
         f(1)=(-10._dl*y(1)+15._dl*y(2)-6._dl*y(3)+y(4))/6._dl
@@ -40,7 +41,7 @@
         do i=n1,1,-1
           dy(i)=f(i)-g(i)*dy(i+1)
         end do
-
+        deallocate(f)
         end subroutine splder
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
         subroutine splini(g,n)
@@ -118,6 +119,74 @@
         end function rombint
 
 
+!cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+        function rombint_obj(obj,f,a,b,tol, maxit)
+        use Precision
+!  Rombint returns the integral from a to b of using Romberg integration.
+!  The method converges provided that f(x) is continuous in (a,b).
+!  f must be real(dl) and must be declared external in the calling
+!  routine.  tol indicates the desired relative accuracy in the integral.
+!
+        implicit none
+        integer, intent(in), optional :: maxit
+        integer :: MAXITER=20
+        integer, parameter :: MAXJ=5
+        dimension g(MAXJ+1)
+        real obj !dummy
+        real(dl) f
+        external f
+        real(dl) :: rombint_obj
+        real(dl), intent(in) :: a,b,tol
+        integer :: nint, i, k, jmax, j
+        real(dl) :: h, gmax, error, g, g0, g1, fourj
+!
+
+        if (present(maxit)) then
+            MaxIter = maxit
+        end if
+        h=0.5d0*(b-a)
+        gmax=h*(f(obj,a)+f(obj,b))
+        g(1)=gmax
+        nint=1
+        error=1.0d20
+        i=0
+10        i=i+1
+          if (i.gt.MAXITER.or.(i.gt.5.and.abs(error).lt.tol)) &
+            go to 40
+!  Calculate next trapezoidal rule approximation to integral.
+          g0=0._dl
+            do 20 k=1,nint
+            g0=g0+f(obj,a+(k+k-1)*h)
+20        continue
+          g0=0.5d0*g(1)+h*g0
+          h=0.5d0*h
+          nint=nint+nint
+          jmax=min(i,MAXJ)
+          fourj=1._dl
+            do 30 j=1,jmax
+!  Use Richardson extrapolation.
+            fourj=4._dl*fourj
+            g1=g0+(g0-g(j))/(fourj-1._dl)
+            g(j)=g0
+            g0=g1
+30        continue
+          if (abs(g0).gt.tol) then
+            error=1._dl-gmax/g0
+          else
+            error=gmax
+          end if
+          gmax=g0
+          g(jmax+1)=g0
+        go to 10
+40      rombint_obj=g0
+        if (i.gt.MAXITER.and.abs(error).gt.tol)  then
+          write(*,*) 'Warning: Rombint failed to converge; '
+          write (*,*)'integral, error, tol:', rombint_obj,error, tol
+        end if
+        
+        end function rombint_obj
+
+
 !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 ! calculates array of second derivatives used by cubic spline
 ! interpolation. y2 is array of second derivatives, yp1 and ypn are first
@@ -170,6 +239,48 @@
   
 !  (C) Copr. 1986-92 Numerical Recipes Software =$j*m,).
       END SUBROUTINE spline
+
+
+     SUBROUTINE spline_deriv(x,y,y2,y1,n)
+     !Get derivative y1 given array of x, y and y''
+      use Precision
+      implicit none
+      INTEGER, intent(in) :: n
+      real(dl), intent(in) :: x(n), y(n), y2(n)
+      real(dl), intent(out) :: y1(n)
+      INTEGER i
+      real(dl) dx
+   
+
+      do i=1, n-1
+           
+         dx = (x(i+1) - x(i))
+         y1(i) = (y(i+1) - y(i))/dx - dx*(2*y2(i) + y2(i+1))/6
+      end do
+       dx = x(n) - x(n-1)
+       y1(n) = (y(n) - y(n-1))/dx + dx* ( y2(i-1)  + 2*y2(i) )/6
+
+      END SUBROUTINE spline_deriv
+
+      subroutine spline_integrate(x,y,y2,yint,n)
+       !Cumulative integral of cubic spline
+       use Precision
+       integer, intent(in) :: n
+       real(dl), intent(in) :: x(n), y(n), y2(n)
+       real(dl), intent(out) :: yint(n)
+       real(dl) dx
+       integer i
+
+       yint(1) = 0
+       do i=2, n
+           
+         dx = (x(i) - x(i-1))
+         yint(i) = yint(i-1) + dx*( (y(i)+y(i-1))/2 - dx**2/24*(y2(i)+y2(i-1))) 
+          
+       end do
+       
+      end subroutine spline_integrate
+
 
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc

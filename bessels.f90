@@ -1,5 +1,6 @@
 !CAMB spherical and hyperspherical Bessel function routines
 !This version May 2006 - minor changes to bjl (http://cosmocoffee.info/viewtopic.php?t=530)
+!Feb 2007: fixed for high l, uses Ranges
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !Flat bessel function module
@@ -7,22 +8,25 @@
         module SpherBessels
         use Precision
         use ModelParams
+        use Ranges
         implicit none
         private
         
   !     Bessel functions and their second derivatives for interpolation
     
-        real(dl), dimension(:,:), allocatable ::  ajl,ajlpr
+        real(dl), dimension(:,:), allocatable ::  ajl,ajlpr, ddajlpr
 
-  !     xx stores the value of x, the argument of the Bessel function,
-  !     at each point the Bessel functions are calculated   
-        real(dl), dimension(:), allocatable :: xx
         integer  num_xx, kmaxfile, file_numl,  file_l(lmax_arr)
+!      parameters for working out where the flat Bessel functions are small
+!      Both should increase for higher accuracy
+!        real(dl), parameter :: xlimmin=15._dl  , xlimfrac = 0.05_dl 
+         real(dl), parameter :: xlimmin=35._dl  , xlimfrac = 0.05_dl 
+        
+        Type(Regions):: BessRanges
 
-!     parameters for working out where the flat Bessel functions are small
-        real(dl), parameter :: xlimmin=15._dl, xlimfrac = 0.05_dl
-
-        public ajl, ajlpr, xx, InitSpherBessels, GetBesselIndex, xlimmin, xlimfrac
+        public ajl, ajlpr, ddajlpr, BessRanges, InitSpherBessels, xlimmin, xlimfrac
+        public USpherBesselWithDeriv, phi_recurs,phi_langer, bjl, Bessels_Free
+ 
        contains
 
          
@@ -30,10 +34,10 @@
 !     This subroutine reads the jl files from disk (or generates them if not on disk)
       use lvalues
       implicit none
-    
+
       !See if already loaded with enough (and correct) lSamp%l values and k*eta values
       if (allocated(ajl) .and. (lSamp%l0 <= file_numl) .and. all(file_l(1:lSamp%l0)-lSamp%l(1:lSamp%l0)==0) &
-                    .and. (int(CP%Max_eta_k)+1 <= kmaxfile)) return
+                    .and. (int(min(max_bessels_etak,CP%Max_eta_k))+1 <= kmaxfile)) return
 
       !Haven't made them before, so make them now
       call GenerateBessels
@@ -42,98 +46,86 @@
 
       end subroutine InitSpherBessels
 
-
-       function GetBesselIndex(xf)
-         integer GetBesselIndex
-         real(dl), intent(IN) :: xf
-
-            if (xf <= 25) then
-                  if (xf <= 5) then
-                     if (xf<=1) then
-                      GetBesselIndex=int(100*xf)+1
-                     else
-                      GetBesselIndex=int(10*(xf-1))+101
-                     end if
-                  else
-                     GetBesselIndex=int((xf-5._dl)*5)+141
-                  end if
-               else
-                  GetBesselIndex=int((xf-25))+241
-               end if
-
-       end function GetBesselIndex
-
-
      subroutine GenerateBessels
        use lvalues
        real(dl) x
        real(dl) xlim
        integer i,j
+       integer max_ix
 
  
         if (DebugMsgs .and. FeedbackLevel > 0) write (*,*) 'Generating flat Bessels...'
       
+
         file_numl= lSamp%l0 
         file_l(1:lSamp%l0) = lSamp%l(1:lSamp%l0)
-        kmaxfile = int(CP%Max_eta_k)+1
+        kmaxfile = int(min(CP%Max_eta_k,max_bessels_etak))+1
      
-        if (allocated(xx)) deallocate(xx)
-        num_xx = (kmaxfile-25) +241 
-        allocate(xx(num_xx))
 
-        do i=1,num_xx
-         if (i <= 241) then
-            if (i <= 141) then
-             if (i<= 101) then
-              !0 to 1 - need good accuracy to get tensors right
-               xx(i) = (i-1)/100._dl
-             else
-              !1.1 to 5
-               xx(i)=(i-101)/10._dl + 1
-             end if
-            else
-             ! 5.2 to 25
-               xx(i)=(i-141)/5._dl+5
-            end if
-         else
-            xx(i)=(i-241)+25
-         end if
-        end do
+        call Ranges_Init(BessRanges)
+
+        call Ranges_Add_delta(BessRanges,0._dl, 1._dl,0.01_dl)
+        call Ranges_Add_delta(BessRanges,1._dl, 5._dl,0.1_dl)
+        call Ranges_Add_delta(BessRanges,5._dl, 25._dl,0.2_dl)
+        call Ranges_Add_delta(BessRanges,25._dl, real(kmaxfile,dl),1._dl)
+
+        call Ranges_GetArray(bessRanges, .false.)
+        num_xx = BessRanges%npoints
+
+
+       max_ix = min(max_bessels_l_index,lSamp%l0)
 
        if (allocated(ajl)) deallocate(ajl)
        if (allocated(ajlpr)) deallocate(ajlpr)
-       Allocate(ajl(1:num_xx,1:lSamp%l0))
-       Allocate(ajlpr(1:num_xx,1:lSamp%l0))
+       if (allocated(ddajlpr)) deallocate(ddajlpr)
+       Allocate(ajl(1:num_xx,1:max_ix))
+       Allocate(ajlpr(1:num_xx,1:max_ix))
+       Allocate(ddajlpr(1:num_xx,1:max_ix))
 
-   
-       do j=1,lSamp%l0
+       do j=1,max_ix
        
          do  i=1,num_xx
-            x=xx(i)
+            x=BessRanges%points(i)
             xlim=xlimfrac*lSamp%l(j)
             xlim=max(xlim,xlimmin)
             xlim=lSamp%l(j)-xlim
             if (x > xlim) then
-               if ((lSamp%l(j)==3).and.(x <=0.2) .or. (lSamp%l(j) > 3).and.(x < 0.6) .or. &
-                            (lSamp%l(j)>=5).and.(x < 1.0)) then
+               if ((lSamp%l(j)==3).and.(x <=0.2) .or. (lSamp%l(j) > 3).and.(x < 0.5) .or. &
+                            (lSamp%l(j)>5).and.(x < 1.0)) then
                    ajl(i,j)=0
                  else
+                  !if ( lSamp%l(j) > 40000) then
+                  ! ajl(i,j) = phi_langer(lSamp%l(j),0,1._dl,x)
+                  !else
                    call bjl(lSamp%l(j),x,ajl(i,j))
+                  !end if
                end if
             else
-               ajl(i,j)=0
+                  ajl(i,j)=0
             end if
          end do
       end do
 
+
 !     get the interpolation matrix for bessel functions
 
-      do j=1,lSamp%l0
-         call spline(xx,ajl(1,j),num_xx,spl_large,spl_large,ajlpr(1,j))
+      do j=1,max_ix
+         call spline(BessRanges%points,ajl(1,j),num_xx,spl_large,spl_large,ajlpr(1,j))
+         call spline(BessRanges%points,ajlpr(1,j),num_xx,spl_large,spl_large,ddajlpr(1,j))
       end do
 
      end subroutine GenerateBessels
 
+     subroutine Bessels_Free
+
+       if (allocated(ajl)) deallocate(ajl)
+       if (allocated(ajlpr)) deallocate(ajlpr)
+       if (allocated(ddajlpr)) deallocate(ddajlpr)
+       call Ranges_Free(BessRanges)
+
+     end  subroutine Bessels_Free
+
+ 
          SUBROUTINE BJL(L,X,JL)
         !!== MODIFIED SUBROUTINE FOR SPHERICAL BESSEL FUNCTIONS.                       ==!!
         !!== CORRECTED THE SMALL BUGS IN PACKAGE CMBFAST&CAMB(for l=4,5, x~0.001-0.002)==!! 
@@ -170,6 +162,7 @@
                 ELSE
                     JL=DSIN(AX)/AX
                 ENDIF
+
             ELSEIF(L.EQ.1)THEN
                 IF(AX.LT.2.D-1)THEN
                     JL=AX/3.D0*(1.D0-AX2/10.D0*(1.D0-AX2/28.D0))
@@ -216,7 +209,7 @@
             ELSEIF((AX2/L).LT.5.D-1)THEN
                 JL=DEXP(L*DLOG(AX/NU)-LN2+NU*ONEMLN2-(1.D0-(1.D0-3.5D0/NU2)/NU2/30.D0)/12.D0/NU) &
                    /NU*(1.D0-AX2/(4.D0*NU+4.D0)*(1.D0-AX2/(8.D0*NU+16.D0)*(1.D0-AX2/(12.D0*NU+36.D0))))
-            ELSEIF((L**2/AX).LT.5.D-1)THEN
+            ELSEIF((real(L,dl)**2/AX).LT.5.D-1)THEN
                 BETA=AX-PID2*(L+1)
                 JL=(DCOS(BETA)*(1.D0-(NU2-0.25D0)*(NU2-2.25D0)/8.D0/AX2*(1.D0-(NU2-6.25)*(NU2-12.25D0)/48.D0/AX2)) &
                    -DSIN(BETA)*(NU2-0.25D0)/2.D0/AX* (1.D0-(NU2-2.25D0)*(NU2-6.25D0)/24.D0/AX2*(1.D0-(NU2-12.25)* &
@@ -279,7 +272,7 @@
         IF(X.LT.0.AND.MOD(L,2).NE.0)JL=-JL
         END SUBROUTINE BJL    
 
-     end module SpherBessels
+ !    end module SpherBessels
 
 
 
@@ -318,16 +311,16 @@
 
 
 
- module USpherBessels
- use Precision
- implicit none
- private 
+! module USpherBessels
+! use Precision
+! implicit none
+! private 
  
  
- public USpherBesselWithDeriv, phi_recurs,phi_langer
+ !public USpherBesselWithDeriv, phi_recurs,phi_langer
  
  
- contains
+! contains
 
         subroutine USpherBesselWithDeriv(closed,Chi,l,beta,y1,y2)
           !returns y1=ujl*sinhChi and y2=diff(y1,Chi)
@@ -1360,7 +1353,23 @@
 
 
 
-  end module USpherBessels
+  end module SpherBessels !USpherBessels
 
 
+
+        SUBROUTINE BJL_EXTERNAL(L,X,JL)
+        use SpherBessels
+        use Precision
+        !!== MODIFIED SUBROUTINE FOR SPHERICAL BESSEL FUNCTIONS.                       ==!!
+        !!== CORRECTED THE SMALL BUGS IN PACKAGE CMBFAST&CAMB(for l=4,5, x~0.001-0.002)==!! 
+        !!== CORRECTED THE SIGN OF J_L(X) FOR X<0 CASE                                 ==!!
+        !!== WORKS FASTER AND MORE ACCURATE FOR LOW L, X<<L, AND L<<X cases            ==!! 
+        !!== zqhuang@astro.utoronto.ca                                                 ==!!
+        IMPLICIT NONE
+        INTEGER L
+        real(dl) X,JL
+
+        call BJL(L,X,JL)
+         
+        END SUBROUTINE BJL_EXTERNAL
 

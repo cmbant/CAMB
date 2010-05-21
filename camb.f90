@@ -46,10 +46,15 @@
 
        subroutine CAMB_InitCAMBdata(Dat)
         type (CAMBdata) :: Dat
-     
-        nullify(Dat%ClTransScal%q_int, Dat%ClTransScal%dq_int, Dat%ClTransScal%Delta_p_l_k)
-        nullify(Dat%ClTransVec%q_int, Dat%ClTransVec%dq_int, Dat%ClTransVec%Delta_p_l_k)
-        nullify(Dat%ClTransTens%q_int, Dat%ClTransTens%dq_int, Dat%ClTransTens%Delta_p_l_k)
+ 
+!Comment these out to try to avoid intel bugs with status deallocating uninitialized pointers   
+        call Ranges_Nullify(Dat%ClTransScal%q)
+        call Ranges_Nullify(Dat%ClTransVec%q)
+        call Ranges_Nullify(Dat%ClTransTens%q)
+
+        nullify(Dat%ClTransScal%Delta_p_l_k)
+        nullify(Dat%ClTransVec%Delta_p_l_k)
+        nullify(Dat%ClTransTens%Delta_p_l_k)
         nullify(Dat%MTrans%sigma_8,Dat%MTrans%TransferData,Dat%MTrans%q_trans)
              
        end subroutine CAMB_InitCAMBdata
@@ -408,6 +413,21 @@
              end if
 
          end function CAMB_ValidateParams
+
+         subroutine CAMB_cleanup
+          use ThermoData
+          use SpherBessels
+          use ModelData
+          use Transfer
+
+            !Free memory
+           call ThermoData_Free
+           call Bessels_Free
+           call ModelData_Free  
+           call Transfer_Free(MT)
+
+         end subroutine CAMB_cleanup
+
 
   end module CAMB
 

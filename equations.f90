@@ -1,7 +1,7 @@
 ! Equations module for dark energy with constant equation of state parameter w
 ! allowing for perturbations based on a quintessence model
 ! by Antony Lewis (http://cosmologist.info/)
-! This version June 2006.
+! This version November 2006.
 
 ! Dec 2003, fixed (fatal) bug in tensor neutrino setup
 ! Changes to tight coupling approximatione
@@ -11,6 +11,7 @@
 ! Nov 2004, change massive neutrino l_max to be consistent with massless if light
 ! Apr 2005, added DoLateRadTruncation option
 ! June 2006, added support for arbitary neutrino mass splittings
+! Nov 2006, tweak to high_precision transfer function accuracy at lowish k
 
        module LambdaGeneral
          use precision
@@ -355,18 +356,20 @@
             if (CP%AccuratePolarization) scal = 4  !But need more to get polarization right
             EV%lmaxgpol=max(3,nint(min(8,nint(scal* 150* EV%q))*lAccuracyBoost))
             EV%lmaxnr=max(3,nint(min(7,nint(sqrt(scal)* 150 * EV%q))*lAccuracyBoost))
-            EV%lmaxg=max(3,nint(min(8,nint(sqrt(scal) *300 * EV%q))*lAccuracyBoost))
+            EV%lmaxg=max(3,nint(min(8,nint(sqrt(scal) *300 * EV%q))*lAccuracyBoost)) 
             if (CP%AccurateReionization) then
              EV%lmaxg=EV%lmaxg*4
              EV%lmaxgpol=EV%lmaxgpol*2
             end if
          end if                  
-         if (CP%Transfer%high_precision)  EV%lmaxnr=max(nint(25*lAccuracyBoost),3)
-        
+         if (CP%Transfer%high_precision) then
+           EV%lmaxnr=max(nint(25*lAccuracyBoost),3) 
+           EV%lmaxg=max(EV%lmaxg,nint(min(8,nint(sqrt(scal) *600 * EV%q))*lAccuracyBoost)) 
+         end if
          EV%nvar=5+ (EV%lmaxg+1) + EV%lmaxgpol-1 +(EV%lmaxnr+1) 
          if (w_lam /= -1 .and. w_Perturb) then
             EV%w_ix = EV%nvar+1
-            EV%nvar=EV%nvar+2
+            EV%nvar=EV%nvar+2 
          else
             EV%w_ix=0
          end if
@@ -1318,7 +1321,11 @@
         end if
 
 !!!If we want DE perturbations to get \delta\rho/\rho_m    
-!       dgrho=dgrho+y(EV%w_ix)*grhov*a**(-1-3*w_lam)
+     !  dgrho=dgrho+y(EV%w_ix)*grhov*a**(-1-3*w_lam)
+     !   Arr(Transfer_r) = y(EV%w_ix)/k2
+
+!        dgrho = dgrho+(clxc*grhoc + clxb*grhob)/a 
+!        grho =  grho+(grhoc+grhob)/a + grhov*a**(-1-3*w_lam)
 
   
         dgrho = dgrho+(clxc*grhoc + clxb*grhob)/a 
@@ -1438,7 +1445,7 @@
         ayprime(1)=adotoa*a
        
         if (w_lam /= -1 .and. w_Perturb) then
-           clxq=ay(EV%w_ix)
+           clxq=ay(EV%w_ix) 
            vq=ay(EV%w_ix+1) 
            dgrho=dgrho + clxq*grhov_t
            dgq = dgq + vq*grhov_t*(1+w_lam)
@@ -1450,6 +1457,7 @@
         sigma=z+1.5_dl*dgq/k2
       
         if (w_lam /= -1 .and. w_Perturb) then
+
            ayprime(EV%w_ix)= -3*adotoa*(cs2_lam-w_lam)*(clxq+3*adotoa*(1+w_lam)*vq/k) &
                -(1+w_lam)*k*vq -(1+w_lam)*k*z
 
@@ -1457,6 +1465,7 @@
 
         end if
 
+      
  !eta*k equation
         ayprime(2)=dgq/2
 
