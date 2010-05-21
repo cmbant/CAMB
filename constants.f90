@@ -28,7 +28,7 @@
        real(dl), parameter :: k_B = 1.3806504e-23_dl 
 
 
-       real(dl), parameter :: m_p = 1.672621637_dl  ! 1.672623e-27_dl
+       real(dl), parameter :: m_p = 1.672621637e-27_dl  ! 1.672623e-27_dl
        real(dl), parameter :: m_H = 1.673575e-27_dl !av. H atom
        real(dl), parameter :: m_e = 9.10938215e-31_dl
        real(dl), parameter :: mass_ratio_He_H = 3.9715_dl
