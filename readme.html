@@ -5,7 +5,7 @@
 <BODY BGCOLOR="#FFFFFF" LINK="#0000FF" VLINK="#800080">
 <BODY>
 <CENTER>
-<A HREF="#compiling">Compiling</A> - <A HREF="#version">History</A> - <A HREF="#COMPARE">Comparison</A> - <A HREF="#FILES">Source files</A> - <A HREF="#ACCURACY">Accuracy</A> - 
+<A HREF="#compiling">Compiling</A> - <A HREF="#version">History</A> - <A HREF="#COMPARE">Comparison</A> - <A HREF="#FILES">Source files</A> - <A HREF="#ACCURACY">Accuracy</A> -
  <A HREF="#adds">Add-ons</A> - <A HREF="#refs">References</A>
 </CENTER>
 <FONT FACE="Arial,Helvetica" SIZE=2>
@@ -13,13 +13,13 @@
 Code for Anisotropies in the Microwave Background by <A
 HREF="http://cosmologist.info/">Antony Lewis</A> and Anthony
 Challinor. <P>
-This version February 2008.
+This version March 2008.
 <P>
 <FONT SIZE=-1>
-Origially based on CMBFAST developed by Uros Seljak and Matias
+Originally based on CMBFAST developed by Uros Seljak and Matias
 Zaldarriaga, itself based on Boltzmann code written by
 Edmund Bertschinger, Chung-Pei Ma and Paul Bode.
-For information on CMBFAST see <A HREF="http://cmbfast.org">http://cmbfast.org</A>.
+For information on CMBFAST see <A HREF="http://cfa-www.harvard.edu/~mzaldarr/CMBFAST/cmbfast.html">http://cmbfast.org</A>.
 For latest information on this program see <A HREF="http://camb.info">camb.info</A>.
 </FONT>
 <P>
@@ -78,8 +78,14 @@ You can <A HREF="http://camb.info/test_suite.tar.gz">download</A> a test suite f
 <P>
 <A NAME="version">
 <H3>Version History</H3>
+
+<B>March 2008</B><BR>
+<I>(26th March, fixed pivot parameters in sample .ini)</I><BR>
+New reionization history model: new input parameter <B>re_delta_redshift</B> (does not change optical depth), and option to set <B>re_ionization_frac=-1</B> to automatically set the reionization fraction from input Y<sub>He</sub> assuming Helium is singly reionized at the same time as hydrogen (hence mapping of redshift to optical depth different to before at 10% level; see the <A HREF="http://cosmologist.info/notes/CAMB.pdf">notes</A>).  Reionization history now specified in (replaceable) module in reionization.f90; default includes tiny effect of He double reionization at z~3.5. Some internal reorganization.
+Added <B>pivot_scalar</B> and <B>pivot_tensor</B> input parameters for initial power spectrum. <b>output</b> subroutine (equations.f90) re-arranged to separated ISW source terms.
+<P>
 <B>February 2008</B><BR>
-Updated RECFAST to version 1.4 (~0.5% effect at high <I>l</I>;new RECFAST_fudge_He,RECFAST_Heswitch parameters, removed Dubrovich modifications). <B>lensed_total_output_file</b> parameter to get lensed scalar plus tensor power spectrum. Calculates CosmoMC's theta parameter for each model (code in modules.f90). Modules routine <B>MatterPowerData_Load</B> to read in matter power (for splining from pre-computed file); <B>MatterPowerData_k</B> function now extrapolates low-k out of range. <B>transfer_interp_matterpower</B> parameter to switch between interpolated regular grid in log k or array at actual computed values (better for later re-interpolation). Added camb.vfproj Intel Visual Fortran project file. Simplifying internal changes from <A HREF="http://camb.info/sources">CAMB sources</A>, e.g. use of Ranges module for setting time steps and k sampling values; also now switches to log k source spacing at very high l to speed up calculation where spectra smooth. More diagnostics and options in the  <A HREF="http://camb.info/test_suite.tar.gz">test suite</A>.
+Updated RECFAST to version 1.4 (~0.5% effect at high <I>l</I>; new RECFAST_fudge_He,RECFAST_Heswitch parameters, removed Dubrovich modifications). <B>lensed_total_output_file</b> parameter to get lensed scalar plus tensor power spectrum. Calculates CosmoMC's theta parameter for each model (code in modules.f90). Modules routine <B>MatterPowerData_Load</B> to read in matter power (for splining from pre-computed file); <B>MatterPowerData_k</B> function now extrapolates low-k out of range. <B>transfer_interp_matterpower</B> parameter to switch between interpolated regular grid in log k or array at actual computed values (better for later re-interpolation). Added camb.vfproj Intel Visual Fortran project file. Simplifying internal changes from <A HREF="http://camb.info/sources">CAMB sources</A>, e.g. use of Ranges module for setting time steps and k sampling values; also now switches to log k source spacing at very high l to speed up calculation where spectra smooth. More diagnostics and options in the  <A HREF="http://camb.info/test_suite.tar.gz">test suite</A>.
 <P>
 <B>November 2006</B><BR>
 Updated RECFAST to version 1.3 (0.1% effect on C<sub>l</sub>). Tweak to get &lt;0.3% error in matter power spectrum around the peak when <B>transfer_high_precision = T</B>.
@@ -98,11 +104,11 @@ Added support for arbitrary neutrino mass splittings. New option to set <B>trans
 <P>
 
 <B>March 2006</B><BR>
-Fixed bug lensing scalar spectrum when generated at the same time as tensors. New (hard coded) parameter <B>lmin</B> in modules.f90 - set to 1 if you want to generate temeprature and lensing potential l=1 (Newtonian Gauge) C<sub>l</sub>.
+Fixed bug lensing scalar spectrum when generated at the same time as tensors. New (hard coded) parameter <B>lmin</B> in modules.f90 - set to 1 if you want to generate temperature and lensing potential l=1 (Newtonian Gauge) C<sub>l</sub>.
 <P>
 <B>April 2005</B><BR>
 Added <B>do_nonlinear</B> option to apply non-linear corrections from HALOFIT (<A HREF="http://arxiv.org/abs/astro-ph/0207664">astro-ph/0207664</A>). <B>do_nonlinear = 1</B> applies just to the matter power spectra, <B>do_nonlinear=2</B> applies corrections to the lensed CMB power spectra (important for BB). HALOFIT should only be used for standard adiabatic &Lambda;CDM models with power law initial power spectra.
-New <B>recombination</B> option (1 does RECFAST as before, 2 uses modified version from <a href="http://arxiv.org/abs/astro-ph/0501672">astro-ph/0501672</a>). New option <B>do_late_rad_trunction</B> to turn off the small scale radiation hierarchies after matter domination (see <A HREF="http://cosmocoffee.info/discuss/astro-ph/0503277">astro-ph/0503277</A> and the <A HREF="http://cosmologist.info/notes/CAMB.ps.gz">notes</A>) - saves some time. New <B>output_root</B> option to prefix output file names and generate output_root_params.ini file of input parameters for the run.
+New <B>recombination</B> option (1 does RECFAST as before, 2 uses modified version from <a href="http://arxiv.org/abs/astro-ph/0501672">astro-ph/0501672</a>). New option <B>do_late_rad_trunction</B> to turn off the small scale radiation hierarchies after matter domination (see <A HREF="http://cosmocoffee.info/discuss/astro-ph/0503277">astro-ph/0503277</A> and the <A HREF="http://cosmologist.info/notes/CAMB.pdf">notes</A>) - saves some time. New <B>output_root</B> option to prefix output file names and generate output_root_params.ini file of input parameters for the run.
 <P>
 <B>November 2004</B><BR>
 Default lensing routine (<B>lensing_method=1</B>) changed to use new full-sky correlation function method (<A HREF="http://arxiv.org/abs/astro-ph/0502425">astro-ph/0502425</A>) in preference to the harmonic method of <A HREF="http://arxiv.org/abs/astro-ph/0001303">astro-ph/0001303</A> (<B>lensing_method=3</B>; inaccurate at l>1000 at ~1.5% level by l=2000). The lensed result is now significantly faster and more accurate.
@@ -314,6 +320,8 @@ the symmetry of the Bessel functions is used to extend to the Chi> Pi/2 region.
 From the user's point of view the main point is that this code is
 rather faster than CMBFAST in many cases. Assuming same recombination history CAMB agrees with the CMBFAST 4.5 high precision TT calculation to < 1% at low l, and about 0.3% at l>100 in concordance flat models. If CAMB is run with high precision options the agreement is nearly 0.1% at high l. The polarized spectra also agree well except around the first dip in the EE spectrum with reionization (see CAMB's accurate_reionization parameter).
 <P>
+Note that as of March 2008 CAMB's reionization parameterization is slightly different to CMBFAST. CMBFAST 4.5.1 also uses an old version of RECFAST.
+<P>
 CMBFAST 3.2 introduced an include file for adjusting the
 l-sampling. In CAMB this is done automatically depending on the model,
 so there is no need to modify the l-sampling by hand.
@@ -329,7 +337,7 @@ save you some time and effort. CMBFAST 4 also supports some extended models not 
 CAMB is in Fortran 90 and is more modularized, so using different initial power spectra, modified equations, etc. is often just a case of modifying one or two files and re-compiling.
 <P>
 Note that the conventions for the polarization power spectra output by CAMB agree with those of CMBFAST. This sign convention for the cross-correlation C_l^TE spectrum differs from the definitions in <A
-HREF="http://arxiv.org/abs/astro-ph/9911481">astro-ph/9911481</A>. As from CMBFAST 4.2 the intial power spectrum normalization conventions also agree.
+HREF="http://arxiv.org/abs/astro-ph/9911481">astro-ph/9911481</A>. As from CMBFAST 4.2 the initial power spectrum normalization conventions also agree.
 <P>
 
 <A NAME="FILES">
@@ -390,13 +398,22 @@ initial power spectra. Change this file to use your own initial power
 spectrum, change how the spectra are parameterized, or to change how
 the Cls are normalized. Comments in the code explain this further.
 <P>
+
+<P>
+<B> reionization.f90</B>
+<P>
+This file defines a module called Reionization that parameterizes the reionization history and supplies a function <B>Reionization_xe</B> that gives x<sub>e</sub> as a function of redshift. Optical depth input parameters are mapped into z<sub>re</sub> (defined as where x<sub>e</sub> is half its maximum (ex second He reionization)) using a binary search. See the CAMB <A HREF="http://cosmologist.info/notes/CAMB.pdf">notes</A> for discussion. This module should be easily modifiable for alternative reionization models.
+<P>
+<B>halofit.f90</B><P>
+Implements the NonLinear module, to calculate non linear scalings of the matter power spectrum as a function of redshift. Uses HALOFIT (<A HREF="http://arxiv.org/abs/astro-ph/0207664">astro-ph/0207664</A>, code thanks to <A HREF="http://www.astro.upenn.edu/~res">Robert Smith</A>. Note this is only reliable at the several percent level for standard &Lambda;CDM models with power law initial power spectra. This module can be replaced to use a different non-linear fitting method.
+
+
+<P>
+
  <B> inidriver.F90</B>
 <P>
     Reads in parameters from a file of name/value pairs and calls CAMB. Modify
     this file to generate grids of models, change the parameterization, etc.
-<P>
-<B>halofit.f90</B><P>
-Implements the NonLinear module, to calculate non linear scalings of the matter power spectrum as a function of redshift. Uses HALOFIT (<A HREF="http://arxiv.org/abs/astro-ph/0207664">astro-ph/0207664</A>, code thanks to <A HREF="http://www.astro.upenn.edu/~res">Robert Smith</A>. Note this is only reliable at the several percent level for standard &Lambda;CDM models with power law initial power spectra. This module can be replaced to use a different non-linear fitting method.
 
 <P>
  <B> modules.f90</B>
@@ -423,7 +440,7 @@ Implements the NonLinear module, to calculate non linear scalings of the matter 
  <B> subroutines.f90</B>
 <P>
    Various subroutines for interpolation, and modified Runge-Kutta
-   dverk for parallelised evolution.
+   dverk for parallelized evolution.
 <P>
 <B> writefits.f90</B>
 <P>
@@ -463,7 +480,7 @@ Scalar errors should rarely exceed 0.3% for min(2500, l well into the damping ta
 <A NAME="adds">
 <H3>Add-ons, extensions, external sites</H3>
 <UL>
-<LI><A HREF="http://camb.info/sources">CAMB sources</A> get linear 21cm, lensing and number counts; 3rd order perturbation theory P(k); perturbed recombination 
+<LI><A HREF="http://camb.info/sources">CAMB sources</A> get linear 21cm, lensing and number counts; 3rd order perturbation theory P(k); perturbed recombination
 <LI><A HREF="http://camb.info/extra.html">Quintessence</A> module
 <LI><A HREF="http://lambda.gsfc.nasa.gov/toolbox/tb_camb_form.cfm">CAMB online</A> (note may not be latest version)
 <LI><A HREF="http://astronomy.sussex.ac.uk/~sleach/inflation/camb_inflation.html">Inflationary parameterization</A> of initial power by Samuel Leach.

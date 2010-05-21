@@ -586,8 +586,7 @@ contains
       if (maximum_qeta <3500 .and. AccuracyBoost < 2) max_etak_scalar = max_etak_scalar * 1.5
         !tweak to get large scales right
       max_etak_vector = max_etak_scalar
-      call Reionization_Init
- 
+      
       if (CP%WantCls) then     
          maxq = qmax
          if (CP%WantTransfer) maxq=max(qmax,CP%Transfer%kmax)
@@ -637,7 +636,7 @@ contains
 !     set k values for which the sources for the anisotropy and
 !     polarization will be calculated. For low values of k we
 !     use a logarithmic spacing. closed case dealt with by SetClosedkValues
-         if (CP%WantScalars .and. CP%Reionization .and. CP%AccuratePolarization) then
+         if (CP%WantScalars .and. CP%Reion%Reionization .and. CP%AccuratePolarization) then
             dlnk0=2._dl/10/AccuracyBoost
             !Need this to get accurate low l polarization
          else
@@ -772,19 +771,23 @@ contains
              
 !     Calculation of transfer functions.
 101          if (CP%WantTransfer.and.itf <= CP%Transfer%num_redshifts) then
-                  if (j < TimeSteps%npoints.and.tauend < tautf(itf) .and.TimeSteps%points(j+1)  > tautf(itf)) then
+                if (j < TimeSteps%npoints) then
+                  if (tauend < tautf(itf) .and.TimeSteps%points(j+1)  > tautf(itf)) then
                           
                      call GaugeInterface_EvolveScal(EV,tau,y,tautf(itf),tol1,ind,c,w)
 
                   endif
+                end if  
 !     output transfer functions for this k-value.
                       
                   if (abs(tau-tautf(itf)) < 1.e-5_dl) then
                            call outtransf(EV,y, MT%TransferData(:,EV%q_ix,itf))
                          
                            itf=itf+1
-                           if (j < TimeSteps%npoints.and.itf <= CP%Transfer%num_redshifts.and. &
+                           if (j < TimeSteps%npoints) then
+                            if (itf <= CP%Transfer%num_redshifts.and. &
                                 TimeSteps%points(j+1) > tautf(itf)) goto 101
+                           end if    
                   endif
 
                   end if

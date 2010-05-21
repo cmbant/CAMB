@@ -2,7 +2,7 @@
 
 !     Code for Anisotropies in the Microwave Background
 !     by Antony Lewis (http://cosmologist.info) and Anthony Challinor
-!     See readme.html for documentation. This version February 2008.
+!     See readme.html for documentation. This version March 2008.
 !
 !     Based on CMBFAST  by  Uros Seljak and Matias Zaldarriaga, itself based
 !     on Boltzmann code written by Edmund Bertschinger, Chung-Pei Ma and Paul Bode.
@@ -28,7 +28,7 @@
         
          real(dl), parameter :: Mpc = 3.085678e22_dl, G=6.6742e-11_dl, kappa=2*fourpi*G, &
                    sigma_thomson = 6.6524616e-29_dl, c = 2.99792458e8_dl, m_p = 1.672623e-27_dl, &
-                   sigma_boltz = 5.67051e-8_dl, k_B = 1.380658e-23_dl
+                   sigma_boltz = 5.67051e-8_dl, k_B = 1.380658e-23_dl, m_H = 1.673575e-27_dl
 
         real(dl), parameter:: barssc0= k_B / m_p / c**2
 
@@ -38,11 +38,12 @@
         use precision
         use InitialPower
         use Ranges
+        use Reionization
         
         implicit none    
         public
 
-        character(LEN=*), parameter :: version = 'Feb_08'
+        character(LEN=*), parameter :: version = 'Mar_08'
         
         integer :: FeedbackLevel = 0 !if >0 print out useful information about the model
 
@@ -72,12 +73,6 @@
 
         Type(Regions) :: TimeSteps
 
-        type ReionizationParams
-             real(dl)   :: redshift
-             real(dl)   :: optical_depth
-             real(dl)   :: fraction
-        end type ReionizationParams
-     
 
         type TransferParams
             logical     ::  high_precision
@@ -88,13 +83,6 @@
         end type TransferParams
 
 !other variables, options, derived variables, etc.
-
-        type ReionizationHistory
- 
-          real(dl) :: tau_half, tau_start, tau_complete
-          real(dl) :: tau_width_fraction
-
-        end type ReionizationHistory
 
          integer, parameter :: NonLinear_none=0, NonLinear_Pk =1, NonLinear_Lens=2
 
@@ -132,10 +120,8 @@
   
          logical   :: AccurateBB
            !Do you care about BB accuracy (e.g. in lensing)
-  
 
-!Reionization settings - used if Reionization=.true.
-         logical   :: Reionization, use_optical_depth
+!Reionization settings - used if Reion%Reionization=.true.
          logical   :: AccurateReionization
            !Do you care about pecent level accuracy on EE signal from reionization?
 
@@ -225,11 +211,13 @@
         contains
       
 
-         subroutine CAMBParams_Set(P, error)
+         subroutine CAMBParams_Set(P, error, DoReion)
            use constants
            type(CAMBparams), intent(in) :: P
            real(dl) GetOmegak
            integer, optional :: error !Zero if OK
+           logical, optional :: DoReion
+           logical WantReion
            integer nu_i
            external GetOmegak
            real(dl), save :: last_tau0
@@ -244,27 +232,22 @@
                 stop
               end if
            end if
+           
+           if (present(DoReion)) then
+            WantReion = DoReion
+           else
+            WantReion = .true.
+           end if
         
            CP=P
           
            CP%Max_eta_k = max(CP%Max_eta_k,CP%Max_eta_k_tensor)
-
-           if (.not. CP%Reionization .or. CP%use_optical_depth.and.CP%Reion%optical_depth<0.001 &
-                .or. .not.CP%use_optical_depth .and. CP%Reion%Redshift<0.001) then
-              CP%Reionization=.false.
-              CP%use_optical_depth=.false.
-              CP%Reion%fraction = 0
-              CP%Reion%redshift = 0
-              CP%Reion%optical_depth = 0
-           else if (CP%use_optical_depth) then
-              CP%Reion%fraction = 1._dl
-           end if
-
+           
            if (CP%WantTransfer) then
               CP%WantScalars=.true.
               if (.not. CP%WantCls) then
                  CP%AccuratePolarization = .false.
-                 CP%Reionization = .false.
+                 CP%Reion%Reionization = .false.
               end if
            else
               CP%transfer%num_redshifts=0
@@ -342,7 +325,7 @@
 !  adotrad gives the relation a(tau) in the radiation era:
            adotrad = sqrt((grhog+grhornomass+sum(grhormass(1:CP%Nu_mass_eigenstates)))/3)
        
-           akthom = sigma_thomson*CP%omegab*(1-CP%yhe)*grhom*c**2/kappa/m_p/Mpc
+           akthom = sigma_thomson*CP%omegab*(1-CP%yhe)*grhom*c**2/kappa/m_H/Mpc
               !sigma_T * (number density of protons now)
     
            if (CP%omegan==0) then
@@ -356,6 +339,7 @@
             call init_background
             CP%tau0=TimeOfz(0._dl)
             last_tau0=CP%tau0
+            if (WantReion) call Reionization_Init(CP%Reion,CP%ReionHist, CP%YHe, akthom, CP%tau0, FeedbackLevel)
            else
               CP%tau0=last_tau0
            end if         
@@ -401,9 +385,7 @@
     
          function GetTestTime()
            real(sp) GetTestTime
-!           real(dp) etime,tarray(2)
-!           external etime
-            real(sp) atime
+           real(sp) atime
 
 !           GetTestTime = etime(tarray)
          !Can replace this if etime gives problems
@@ -475,7 +457,7 @@
         implicit none
         real(dl) DeltaTime, atol
         real(dl), intent(IN) :: a1,a2
-        real(dl) dtauda,rombint !diff of tau w.CP%r.t a and integration
+        real(dl) dtauda, rombint !diff of tau w.CP%r.t a and integration
         external dtauda, rombint
 
         atol = tol/1000/exp(AccuracyBoost-1)
@@ -512,10 +494,11 @@
 
 
        function CosmomcTheta()
-         real(dl) zstar, astar, atol, rs, DA, rombint
-         external rombint
+         real(dl) zstar, astar, atol, rs, DA
          real(dl) CosmomcTheta
          real(dl) ombh2, omdmh2
+         real(dl) rombint
+         external rombint
 
          ombh2 = CP%omegab*(CP%h0/100.0d0)**2
          omdmh2 = (CP%omegac+CP%omegan)*(CP%h0/100.0d0)**2
@@ -535,98 +518,7 @@
 
       end function CosmomcTheta
 
-
-
-
-      subroutine Reionization_Init
-
-       CP%ReionHist%tau_width_fraction=150._dl /3 
-       !Use sharp reionization, scale 1/150 of the time of reionization
-        
-       if (CP%use_optical_depth) then
-        call Re_SetFromOpticalDepth
-        if (FeedbackLevel > 0) write(*,'("Reion redshift       = ",f6.3)') CP%Reion%redshift
-
-       else
-        if (FeedbackLevel > 0) write(*,'("Sharp opt depth      = ",f6.3)') &
-           Re_OpticalDepthAtZ(CP%Reion%redshift)
-
-       end if
-
-!      Time at which reionization takes place
-       if (CP%Reion%redshift /= 0) then
-         CP%ReionHist%tau_half=TimeOfz(CP%Reion%redshift)
-         CP%ReionHist%tau_start = max(0.05_dl,(1-15/CP%ReionHist%tau_width_fraction))*CP%ReionHist%tau_half
-           !Time when a very small reionization fraction (assuming tanh fitting)
-         CP%ReionHist%tau_complete = min(CP%tau0, CP%ReionHist%tau_half*2 - CP%ReionHist%tau_start)
-      else
-         CP%ReionHist%tau_half=CP%tau0
-         CP%ReionHist%tau_start=CP%tau0
-         CP%ReionHist%tau_complete=CP%tau0
-       end if
-
-       end subroutine Reionization_Init
-
-
-      subroutine Re_SetFromOpticalDepth
-
-! This subroutine calculates the redshift of reionization
-! from an Reion%optical_depth and sets the reionization fraction CP%Reion%fraction=1.
-! assumes sharp reionization and fraction of 1   
-      integer na
-      real(dl) dz, optd
-      real(dl) dtauda  !diff of tau w.r.t a and integration
-      external dtauda
-
-      real(dl) z
-
-      
-      CP%Reion%redshift = 0
-
-      if (CP%Reion%optical_depth /= 0) then
-
-         CP%Reion%fraction = 1
-
-         na=1
-         optd=0
-         dz=1._dl/2000/AccuracyBoost
-         z=0
-         do while (optd < CP%Reion%optical_depth)
-            z=na*dz
-            optd=optd+dz*CP%Reion%fraction*akthom*dtauda(1/(1+z))
-            na=na+1
-         end do
-         CP%Reion%redshift=z
-      else
-
-         CP%Reion%fraction = 0
-
-      end if
-   
-      end subroutine Re_SetFromOpticalDepth
-
-      function Re_OpticalDepthAtZ(az)
-
-      integer na
-      real(dl), intent(in) :: az
-      real(dl) optd, dz, Re_OpticalDepthAtZ
-      real(dl) dtauda  !diff of tau w.r.t a and integration
-      external dtauda
-
-      real(dl) z
-      
-         optd=0
-         dz=1._dl/5000
-         do na = 1, nint(az/dz)
-            z=(na-0.5_dl)*dz
-            optd=optd+dz*CP%Reion%fraction*akthom*dtauda(1/(1+z))
-         end do
-         Re_OpticalDepthAtZ = optd
-
-      end function Re_OpticalDepthAtZ
-
-
-        end module ModelParams
+   end module ModelParams
 
 
 
@@ -2250,14 +2142,14 @@
         real(dl) tau01,adot0,a0,a02,x1,x2,barssc,dtau
         real(dl) xe0,tau,a,a2
         real(dl) adot,tg0,ahalf,adothalf,fe,thomc,thomc0,etc,a2t
-        real(dl) xod,tgh,dtbdla,vfi,cf1,maxvis, vis
+        real(dl) dtbdla,vfi,cf1,maxvis, vis
         integer ncount,i,j1,j2,iv,ns
         real(dl) spline_data(nthermo)
         real(dl) last_dotmu
         real(dl) dtauda  !diff of tau w.CP%r.t a and integration
         external dtauda
  
-        real(dl) z,mid_delta, dip, a_verydom
+        real(dl) a_verydom
 
          call InitRECFAST(CP%omegab,CP%h0,CP%tcmb,CP%yhe)
           !almost all the time spent here
@@ -2310,6 +2202,7 @@
           a=a0+2._dl*dtau/(1._dl/adot0+1._dl/adot)         
 !  Baryon temperature evolution: adiabatic except for Thomson cooling.
 !  Use  quadrature solution.
+! This is redundant as also calculated in REFCAST, but agrees well before reionization
           tg0=CP%tcmb/a0
           ahalf=0.5d0*(a0+a)
           adothalf=0.5d0*(adot0+adot)
@@ -2325,37 +2218,14 @@
        
 ! If there is re-ionization, smoothly increase xe to the 
 ! requested value.
-          if (CP%Reionization .and. tau > CP%ReionHist%tau_start) then
+          if (CP%Reion%Reionization .and. tau > CP%ReionHist%tau_start) then
              if(ncount == 0) then
                 ncount=i-1
              end if   
 
-!     SMOOTH REIONIZATION
-             xod=CP%ReionHist%tau_width_fraction*(tau/CP%ReionHist%tau_half - 1)
-             if (xod > 100) then
-                tgh=1
-             else
-                tgh=tanh(xod)
-             end if
-             xe(i)=(CP%Reion%fraction-xe(ncount))*(tgh+1._dl)/2._dl+xe(ncount)
-             z = 1/a-1
-!Note: when adding in different reion histories, check nri0 parameter (time step sampling)
-
-             if (.false. .and.CP%Reion%redshift > 10 .and. z > 6 .and. z<CP%Reion%redshift-2) then
-!!!Not used...
-                !Fudge poor fit to double reionization with dip
-                mid_delta = (z - (CP%Reion%redshift + 6)/2)
-                dip=(1-4/(CP%Reion%redshift-6))* &
-                     exp(-mid_delta**2/(2*((CP%Reion%redshift-6)/8)**2))
-                if (z < mid_delta) then
-                  dip = dip*(1-exp(-(z-6)**2/0.4))
-                else
-                 dip = dip*(1-exp(-(z-CP%Reion%redshift+2)**2/0.7))
-                end if 
-                xe(i)=xe(i)*(1 - dip)
-             end if
-         
-            if (CP%AccurateReionization) then
+            xe(i) = Reionization_xe(a, tau, xe(ncount))
+            !print *,1/a-1,xe(i)
+            if (CP%AccurateReionization .and. FeedbackLevel > 0) then                         
                 dotmu(i)=(xeRECFAST(a) - xe(i))*akthom/a2
                 if (last_dotmu /=0) then
                  actual_opt_depth = actual_opt_depth - 2._dl*dtau/(1._dl/dotmu(i)+1._dl/last_dotmu)
@@ -2365,9 +2235,8 @@
            
           else
             xe(i)=xeRECFAST(a)
-            !print *, 1/a-1, xe(i) 
           end if 
-        
+       
        
 !  Baryon sound speed squared (over c**2).
           dtbdla=-2._dl*tb(i)-thomc*adothalf/adot*(a*tb(i)-CP%tcmb)
@@ -2390,15 +2259,10 @@
           adot0=adot
           end do !i
                  
-          if (CP%Reionization .and. (xe(nthermo) < CP%Reion%fraction)) then
-             write(*,*)'Warning: We use a smooth function to '
-             write(*,*)'approach your specified reionization'
-             write(*,*)'fraction. The redshift that is deduced from'
-             write(*,*)'your input paprameters is so low that our'
-             write(*,*)'smooth function does not reach the required'
-             write(*,*)'value. You should go in to subroutine inithermo'
-             write(*,*)'and play with the shape of this smooth function.'
-             write(*,*)'Search for SMOOTH REIONIZATION in modules.f90'
+          if (CP%Reion%Reionization .and. (xe(nthermo) < 0.999d0)) then
+             write(*,*)'Warning: xe at redshift zero is < 1'
+             write(*,*) 'Check input parameters an Reionization_xe'
+             write(*,*) 'function in the Reionization module'
           end if
    
         do j1=1,nthermo
@@ -2413,9 +2277,9 @@
           end if
         end do  
 
-        if (CP%AccurateReionization) then                         
-          if (FeedbackLevel > 0) write(*,'("Reion opt depth      = ",f7.4)') actual_opt_depth
-       end if
+        if (CP%AccurateReionization .and. FeedbackLevel > 0) then                         
+         write(*,'("Reion opt depth      = ",f7.4)') actual_opt_depth
+        end if
 
         iv=0
         vfi=0._dl
@@ -2463,7 +2327,7 @@
               dtaurec=min(dtaurec,taurst/40)/AccuracyBoost 
            end if
  
-           taurend=min(taurend,CP%ReionHist%tau_start)
+           if (CP%Reion%Reionization) taurend=min(taurend,CP%ReionHist%tau_start)
 
          if (DebugMsgs) then
            write (*,*) 'taurst, taurend = ', taurst, taurend
@@ -2501,21 +2365,21 @@
            if (CP%WantTensors) then
               dtau0=max(taurst/40,Maxtau/2000._dl/AccuracyBoost)
            else       
-              dtau0=Maxtau/500._dl/AccuracyBoost 
+              dtau0=Maxtau/500._dl/AccuracyBoost
              !Don't need this since adding in Limber on small scales
               !  if (CP%DoLensing) dtau0=dtau0/2 
               !  if (CP%AccurateBB) dtau0=dtau0/3 !Need to get C_Phi accurate on small scales
            end if
-      
-
+    
          call Ranges_Add_delta(TimeSteps,taurend, CP%tau0, dtau0)
 
-         if (CP%Reionization) then
+         if (CP%Reion%Reionization) then
            
-              nri0=int(50*AccuracyBoost) !Steps while reionization going from zero to maximum
+              nri0=int(Reionization_timesteps(CP%ReionHist)*AccuracyBoost) 
+                !Steps while reionization going from zero to maximum
               call Ranges_Add(TimeSteps,CP%ReionHist%tau_start,CP%ReionHist%tau_complete,nri0) 
 
-           end if
+         end if
 
 !Create arrays out of the region information.
         call Ranges_GetArray(TimeSteps)

@@ -127,8 +127,10 @@ DEP_F90_CMBMA=\
 	".\Debug\Precision.mod"\
 	".\Debug\SpherBessels.mod"\
 	".\Debug\ThermoData.mod"\
-	".\Debug\TimeSteps.mod"\
 	".\Debug\Transfer.mod"\
+	
+NODEP_F90_CMBMA=\
+	".\Debug\TimeSteps.mod"\
 	".\Debug\USpherBessels.mod"\
 	
 # End Source File
@@ -210,20 +212,22 @@ DEP_F90_RECFA=\
 # End Source File
 # Begin Source File
 
+SOURCE=.\reionization.f90
+# End Source File
+# Begin Source File
+
 SOURCE=.\subroutines.f90
 # End Source File
 # Begin Source File
 
 SOURCE=.\utils.F90
-DEP_F90_UTILS=\
-	{$(INCLUDE)}"cxml_dll_use.mod"\
-	{$(INCLUDE)}"CXML_INCLUDE.F90"\
-	{$(INCLUDE)}"cxml_static_use.mod"\
-	
 NODEP_F90_UTILS=\
 	".\Debug\F90_UNIX.mod"\
 	".\Debug\IFPORT.mod"\
 	".\Debug\mpif.h"\
+	".\xml_dll_use.mod"\
+	".\XML_INCLUDE.F90"\
+	".\xml_static_use.mod"\
 	
 # End Source File
 # End Group

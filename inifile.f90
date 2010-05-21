@@ -282,6 +282,54 @@ contains
   end function Ini_Read_String_File
 
 
+ function Ini_Key_To_Arraykey(Key, index)  result(AValue)
+    character (LEN=*), intent(IN) :: Key
+    integer, intent(in) :: index
+    character(LEN=Ini_max_string_len) :: AValue
+    
+    character(LEN=32) :: numstr
+    write (numstr,*) index 
+    numstr=adjustl(numstr)
+
+    AValue = trim(Key) // '(' // trim(numStr) // ')' 
+ 
+ end function Ini_Key_To_Arraykey
+
+
+  function Ini_Read_String_Array(Key, index, NotFoundFail) result(AValue)
+   character (LEN=*), intent(IN) :: Key
+   integer, intent(in) :: index
+   logical, optional, intent(IN) :: NotFoundFail
+   character(LEN=Ini_max_string_len) :: AValue
+
+     if (present(NotFoundFail)) then
+      AValue = Ini_Read_String_Array_File(DefIni, Key, index, NotFoundFail)
+     else
+      AValue = Ini_Read_String_Array_File(DefIni, Key, index)
+     end if
+
+  end function Ini_Read_String_Array
+
+
+  function Ini_Read_String_Array_File(Ini, Key, index, NotFoundFail) result(AValue)
+   Type(TIniFile) :: Ini
+   integer, intent(in) :: index
+   character (LEN=*), intent(IN) :: Key
+   logical, optional, intent(IN) :: NotFoundFail
+   character(LEN=Ini_max_string_len) :: AValue
+   character(LEN=Ini_max_string_len) :: ArrayKey
+   
+     ArrayKey = Ini_Key_To_Arraykey(Key,index)
+     if (present(NotFoundFail)) then
+      AValue = Ini_Read_String_File(Ini, ArrayKey, NotFoundFail)
+     else
+      AValue = Ini_Read_String_File(Ini, ArrayKey)
+     end if
+   
+  end function Ini_Read_String_Array_File
+
+
+
     function Ini_Read_Int(Key, Default)
      integer, optional, intent(IN) :: Default
      character (LEN=*), intent(IN) :: Key
@@ -322,6 +370,7 @@ contains
    stop
 
   end function Ini_Read_Int_File
+
 
     function Ini_Read_Double(Key, Default)
      double precision, optional, intent(IN) :: Default
@@ -364,6 +413,40 @@ contains
   end function Ini_Read_Double_File
 
 
+    function Ini_Read_Double_Array(Key, index, Default)
+     double precision, optional, intent(IN) :: Default
+     integer, intent(in) :: index
+     character (LEN=*), intent(IN) :: Key
+     double precision Ini_Read_Double_Array
+
+     if (present(Default)) then
+      Ini_Read_Double_Array = Ini_Read_Double_Array_File(DefIni, Key, index, Default)
+     else
+      Ini_Read_Double_Array = Ini_Read_Double_Array_File(DefIni, Key, index)
+     end if
+     
+    end function Ini_Read_Double_Array
+
+
+  function Ini_Read_Double_Array_File(Ini,Key, index, Default)
+  !Reads Key(1), Key(2), etc.
+   Type(TIniFile) :: Ini
+   double precision Ini_Read_Double_Array_File 
+   double precision, optional, intent(IN) :: Default
+   integer, intent(in) :: index
+   character (LEN=*), intent(IN) :: Key
+   character(LEN=Ini_max_string_len) :: S, ArrrayKey
+
+     ArrrayKey = Ini_Key_To_Arraykey(Key,index)
+     if (present(Default)) then
+      Ini_Read_Double_Array_File = Ini_Read_Double_File(Ini, ArrrayKey, Default)
+     else
+      Ini_Read_Double_Array_File = Ini_Read_Double_File(Ini, ArrrayKey)
+     end if
+
+  end function Ini_Read_Double_Array_File
+
+
     function Ini_Read_Real(Key, Default)
      real, optional, intent(IN) :: Default
      character (LEN=*), intent(IN) :: Key
@@ -403,6 +486,39 @@ contains
    stop
 
   end function Ini_Read_Real_File
+
+
+   function Ini_Read_Real_Array(Key, index, Default)
+     real, optional, intent(IN) :: Default
+     integer, intent(in) :: index
+     character (LEN=*), intent(IN) :: Key
+     real Ini_Read_Real_Array
+
+     if (present(Default)) then
+      Ini_Read_Real_Array = Ini_Read_Real_Array_File(DefIni, Key, index, Default)
+     else
+      Ini_Read_Real_Array = Ini_Read_Real_Array_File(DefIni, Key, index)
+     end if
+   end function Ini_Read_Real_Array
+
+
+  function Ini_Read_Real_Array_File(Ini,Key, index, Default)
+  !Reads Key(1), Key(2), etc.
+   Type(TIniFile) :: Ini
+   real Ini_Read_Real_Array_File 
+   real, optional, intent(IN) :: Default
+   integer, intent(in) :: index
+   character (LEN=*), intent(IN) :: Key
+   character(LEN=Ini_max_string_len) :: S, ArrrayKey
+   
+     ArrrayKey = Ini_Key_To_Arraykey(Key,index)
+     if (present(Default)) then
+      Ini_Read_Real_Array_File = Ini_Read_Real_File(Ini, ArrrayKey, Default)
+     else
+      Ini_Read_Real_Array_File = Ini_Read_Real_File(Ini, ArrrayKey)
+     end if
+
+  end function Ini_Read_Real_Array_File
 
 
     function Ini_Read_Logical(Key, Default)

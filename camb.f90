@@ -7,6 +7,7 @@
          use Transfer
          use GaugeInterface
          use InitialPower
+         use Reionization
          implicit none
 
          Type CAMBdata
@@ -97,8 +98,10 @@
         integer, optional :: error !Zero if OK
         type(CAMBparams) P
         logical :: separate = .true. !whether to do P_k in separate call or not
-
+        logical :: InReionization
+        
         if (Params%DoLensing .and. Params%NonLinear==NonLinear_Lens) separate = .false.
+        InReionization = Params%Reion%Reionization
         
          if (Params%WantCls .and. Params%WantScalars) then
           P = Params
@@ -191,6 +194,7 @@
           CP%WantCls =  Params%WantCls
           CP%WantTensors = Params%WantTensors
           CP%WantVectors = Params%WantVectors
+          CP%Reion%Reionization = InReionization
           Params = CP            
 
          end if
@@ -241,14 +245,14 @@
            !Return age in gigayears, returns -1 on error
            type(CAMBparams), intent(in) :: P
            real(dl) CAMB_GetAge
-           real(dl) atol,a1,a2,rombint, dtda
+           real(dl) atol,a1,a2, dtda, rombint
            real(dl), parameter :: Mpc = 3.085678e22_dl, &
                  c = 2.99792458e8_dl, Gyr=3.1556926e16
            integer error
-           external rombint, dtda
+           external dtda,rombint
 
 
-           call  CAMBParams_Set(P, error)
+           call  CAMBParams_Set(P, error, .false.)
 
            if (error/=0) then
             CAMB_GetAge = -1
@@ -261,6 +265,21 @@
            end if
     
          end function CAMB_GetAge
+
+
+        function CAMB_GetZreFromTau(P, tau)
+           type(CAMBparams) :: P
+           real(dl) tau
+           real(dl) CAMB_GetZreFromTau
+           integer error
+
+            P%Reion%use_optical_depth = .true.
+            P%Reion%optical_depth = tau
+            call CAMBParams_Set(P,error)
+            
+            CAMB_GetZreFromTau = CP%Reion%redshift
+
+        end function CAMB_GetZreFromTau
 
       
         subroutine CAMB_SetDefParams(P)
@@ -287,10 +306,7 @@
             
             call SetDefPowerParams(P%InitPower)
           
-            P%Reionization = .true.
-            P%use_optical_depth = .false.
-            P%Reion%redshift = 6
-            P%Reion%fraction = 1
+            call Reionization_SetDefParams(P%Reion)
 
             P%Transfer%high_precision=.false.
     
@@ -374,23 +390,8 @@
                 OK = .false.
                 write(*,*) 'You need Max_eta_k larger than Max_l to get good results'
              end if
-             if (P%Reionization) then
-               if (P%use_optical_depth) then
-                  if (P%Reion%optical_depth<0 .or. P%Reion%optical_depth > 0.9) then
-                    OK = .false.
-                    write(*,*) 'Optical depth is strange. You have:',P%Reion%optical_depth 
-                  end if
-               else
-                  if (P%Reion%redshift < 0 .or. P%Reion%Redshift > 30) then
-                     OK = .false.
-                      write(*,*) 'Reionization redshift strange. You have: ',P%Reion%Redshift
-                  end if
-                  if (P%Reion%fraction < 0.1 .or. P%Reion%fraction > 1 + P%Yhe) then
-                     OK = .false.
-                      write(*,*) 'Reionization fraction strange. You have: ',P%Reion%fraction
-                  end if
-               end if
-             end if
+             
+             call Reionization_Validate(P%Reion, OK)
 
              if (P%WantTransfer) then
               if (P%transfer%num_redshifts > max_transfer_redshifts .or. P%transfer%num_redshifts<1) then

@@ -54,15 +54,14 @@
       end Type InitialPowerParams
 
       real(dl) curv  !Curvature contant, set in InitializePowers     
-
       
       Type(InitialPowerParams) :: P
   
 !Make things visible as neccessary...
  
-      public  InitializePowers, ScalarPower, TensorPower
-      public nnmax,InitialPowerParams,Power_Descript, Power_Name, SetDefPowerParams
-
+      public InitialPowerParams, InitialPower_ReadParams, InitializePowers, ScalarPower, TensorPower
+      public nnmax,Power_Descript, Power_Name, SetDefPowerParams
+!      public 
     contains
        
   
@@ -87,11 +86,11 @@
 
         real(dl) acurv
 
-        P = AParamSet
-        if (P%nn > nnmax) then
-           write (*,*) 'To use ',P%nn,'power spectra you need to increase'
+        if (AParamSet%nn > nnmax) then
+           write (*,*) 'To use ',AParamSet%nn,'power spectra you need to increase'
            write (*,*) 'nnmax in power_tilt.f90, currently ',nnmax
         end if
+        P = AParamSet
 
         curv=acurv         
 
@@ -146,6 +145,7 @@
         TensorPower=P%rat(in)*P%ScalarPowerAmp(in)*exp(P%ant(in)*log(k/P%k_0_tensor))
         if (curv < 0) TensorPower=TensorPower*tanh(PiByTwo*sqrt(-k**2/curv-3)) 
 
+       
       end function TensorPower
 
       !Get parameters describing parameterisation (for FITS file)
@@ -183,7 +183,34 @@
          Power_Descript = num
 
        end  function Power_Descript
+        
+       subroutine InitialPower_ReadParams(InitPower, Ini, WantTensors)
+          use IniFile
+          Type(InitialPowerParams) :: InitPower
+          Type(TIniFile) :: Ini
+          logical, intent(in) :: WantTensors
+          integer i
+          
+           InitPower%k_0_scalar = Ini_Read_Double_File(Ini,'pivot_scalar',InitPower%k_0_scalar)
+           InitPower%k_0_tensor = Ini_Read_Double_File(Ini,'pivot_tensor',InitPower%k_0_tensor) 
+           InitPower%nn = Ini_Read_Int('initial_power_num')
+           if (InitPower%nn>nnmax) stop 'Too many initial power spectra - increase nnmax in InitialPower'
+           InitPower%rat(:) = 1
+           do i=1, InitPower%nn
 
+              InitPower%an(i) = Ini_Read_Double_Array_File(Ini,'scalar_spectral_index', i)
+              InitPower%n_run(i) = Ini_Read_Double_Array_File(Ini,'scalar_nrun',i,0._dl) 
+              
+              if (WantTensors) then
+                 InitPower%ant(i) = Ini_Read_Double_Array_File(Ini,'tensor_spectral_index',i)
+                 InitPower%rat(i) = Ini_Read_Double_Array_File(Ini,'initial_ratio',i)
+              end if              
+
+              InitPower%ScalarPowerAmp(i) = Ini_Read_Double_Array_File(Ini,'scalar_amp',i,1._dl) 
+              !Always need this as may want to set tensor amplitude even if scalars not computed
+           end do
+          
+       end  subroutine InitialPower_ReadParams 
 
 
      end module InitialPower

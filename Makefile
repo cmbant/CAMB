@@ -41,6 +41,9 @@ FFLAGS = -openmp -O2 -ip -W0 -WB -fpp2 -vec_report0
 #F90C     = f95
 #FFLAGS = -DNAGF95 -O3
 
+#PGF90
+#F90C = pgf90
+#FLAGS = -O2 -DESCAPEBACKSLASH
 
 #Sun V880
 #F90C = mpf90
@@ -53,12 +56,13 @@ FFLAGS = -openmp -O2 -ip -W0 -WB -fpp2 -vec_report0
 
 #IBM XL Fortran, multi-processor (run gmake)
 #F90C     = xlf90_r
-#FFLAGS  = -qsmp=omp -qsuffix=f=f90:cpp=F90 -O3 -qstrict -qarch=pwr3 -qtune=pwr3
+#FFLAGS  = -DESCAPEBACKSLASH -DIBMXL -qsmp=omp -qsuffix=f=f90:cpp=F90 -O3 -qstrict -qarch=pwr3 -qtune=pwr3
 
 
 #Files containing evolution equations initial power spectrum module
 EQUATIONS     = equations
 POWERSPECTRUM = power_tilt
+REIONIZATION = reionization
 #Module doing non-linear scaling
 NONLINEAR     = halofit
 
@@ -82,12 +86,25 @@ F90FLAGS      = $(FFLAGS)
 HEALPIXLD     = -L$(HEALPIXDIR)/lib -lhealpix -L$(FITSDIR) -l$(FITSLIB)
 FC            = $(F90C)
 
-CAMBOBJ       = utils.o subroutines.o inifile.o $(POWERSPECTRUM).o recfast.o modules.o \
+CAMBOBJ       = utils.o subroutines.o inifile.o $(POWERSPECTRUM).o recfast.o $(REIONIZATION).o modules.o \
 	bessels.o $(EQUATIONS).o $(NONLINEAR).o lensing.o cmbmain.o camb.o
 
 default: camb
 
 all: camb $(CAMBLIB)
+
+subroutines: utils.o
+$(POWERSPECTRUM): subroutines.o
+recfast.o: subroutines.o
+$(REIONIZATION).o: recfast.o
+modules.o: $(REIONIZATION).o
+bessels.o: modules.o
+$(EQUATIONS): bessels.o
+$(NONLINEAR).o:  modules.o
+lensing.o: bessels.o
+cmbmain.o: lensing.o
+camb.o: cmbmain.o
+
 
 camb: $(CAMBOBJ) $(DRIVER)
 	$(F90C) $(F90FLAGS) $(CAMBOBJ) $(DRIVER) -o $@

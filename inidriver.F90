@@ -34,7 +34,6 @@
 
         InputFile = ''
    
-
         if (iargc() /= 0)  call getarg(1,InputFile)
         if (InputFile == '') stop 'No parameter input file'
 
@@ -154,13 +153,11 @@
         transfer_power_var = Ini_read_int('transfer_power_var',transfer_tot)
         if (P%transfer%num_redshifts > max_transfer_redshifts) stop 'Too many redshifts'
         do i=1, P%transfer%num_redshifts
-             write (numstr,*) i 
-             numstr=adjustl(numstr)
-             P%transfer%redshifts(i)  = Ini_Read_Double('transfer_redshift('//trim(numstr)//')',0._dl)
-             TransferFileNames(i)     = Ini_Read_String('transfer_filename('//trim(numstr)//')')
+             P%transfer%redshifts(i)  = Ini_Read_Double_Array('transfer_redshift',i,0._dl)
+             TransferFileNames(i)     = Ini_Read_String_Array('transfer_filename',i)
              if (TransferFileNames(i)/= '') &
                    TransferFileNames(i) = trim(outroot)//TransferFileNames(i)
-             MatterPowerFilenames(i)  = Ini_Read_String('transfer_matterpower('//trim(numstr)//')')
+             MatterPowerFilenames(i)  = Ini_Read_String_Array('transfer_matterpower',i)
              if (MatterPowerFilenames(i) /= '') &
                  MatterPowerFilenames(i)=trim(outroot)//MatterPowerFilenames(i)
         end do
@@ -170,53 +167,26 @@
          P%transfer%high_precision = .false.
        endif
   
-        P%Reionization = Ini_Read_Logical('reionization')
-        P%use_optical_depth = P%Reionization .and. Ini_Read_Logical('re_use_optical_depth') 
+        Ini_fail_on_not_found = .false. 
   
-        if ( P%use_optical_depth) then
-              P%Reion%optical_depth = Ini_Read_Double('re_optical_depth')
-           else if (P%Reionization) then
-              P%Reion%redshift = Ini_Read_Double('re_redshift')
-              P%Reion%fraction = Ini_Read_Double('re_ionization_frac')
-        end if 
+        call Reionization_ReadParams(P%Reion, DefIni)
+        call InitialPower_ReadParams(P%InitPower, DefIni, P%WantTensors) 
+  
+        RECFAST_fudge = Ini_Read_Double('RECFAST_fudge',RECFAST_fudge_default)
+        RECFAST_fudge_He = Ini_Read_Double('RECFAST_fudge_He',RECFAST_fudge_He_default)
+        RECFAST_Heswitch = Ini_Read_Int('RECFAST_Heswitch',RECFAST_Heswitch_default)
 
-          Ini_fail_on_not_found = .false. 
-           
-          RECFAST_fudge = Ini_Read_Double('RECFAST_fudge',RECFAST_fudge_default)
-          RECFAST_fudge_He = Ini_Read_Double('RECFAST_fudge_He',RECFAST_fudge_He_default)
-          RECFAST_Heswitch = Ini_Read_Int('RECFAST_Heswitch',RECFAST_Heswitch_default)
-
-           i = Ini_Read_Int('recombination',1)
-           if (i/=1) stop 'recombination option deprecated'
-       
-           P%InitPower%nn = Ini_Read_Int('initial_power_num')
-           if (P%InitPower%nn>nnmax) stop 'Too many initial power spectra - increase nnmax in InitialPower'
-           P%InitPower%rat(:) = 1
-           do i=1, P%InitPower%nn
-              write (numstr,*) i 
-              numstr=adjustl(numstr)
-              P%InitPower%an(i) = &
-                   Ini_Read_Double('scalar_spectral_index('//trim(numstr)//')')
-
-              P%InitPower%n_run(i) = &
-                   Ini_Read_Double('scalar_nrun('//trim(numstr)//')',0._dl)
+        i = Ini_Read_Int('recombination',1)
+        if (i/=1) stop 'recombination option deprecated'
     
-              if (P%WantTensors) then
-                 P%InitPower%ant(i) = Ini_Read_Double('tensor_spectral_index('//trim(numstr)//')')
-                 P%InitPower%rat(i) = Ini_Read_Double('initial_ratio('//trim(numstr)//')')
-              end if              
-
-              P%InitPower%ScalarPowerAmp(i) = Ini_Read_Double('scalar_amp('//trim(numstr)//')',1.d0) 
-              !Always need this as may want to set tensor amplitude even if scalars not computed
-           end do
-      
-            if (P%WantScalars .or. P%WantTransfer) then
+        if (P%WantScalars .or. P%WantTransfer) then
             P%Scalar_initial_condition = Ini_Read_Int('initial_condition',initial_adiabatic)
             if (P%Scalar_initial_condition == initial_vector) then
                 P%InitialConditionVector=0
               numstr = Ini_Read_String('initial_vector',.true.)
               read (numstr,*) P%InitialConditionVector(1:initial_iso_neutrino_vel)
             end if
+
         end if
 
         

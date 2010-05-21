@@ -273,6 +273,7 @@
         !1000 to get in MiliKelvin
 
         logical :: Do21cm = .false.
+        logical :: doTmatTspin = .false.
 
         real(dl) :: recfast_saha_z !Redshift at which saha OK
         real(dl) :: recfast_saha_tau !set externally
@@ -281,7 +282,7 @@
         public xeRECFAST, TmRECFAST, TsRECFAST,InitRECFAST, RECFAST_fudge, RECFAST_fudge_He, RECFAST_Heswitch,&
                RECFAST_fudge_default,RECFAST_fudge_He_default, RECFAST_Heswitch_default, &
                A10, NNow, T_21cm, kappa_HH_21cm,kappa_eH_21cm,kappa_pH_21cm, Recfast_CT, fHe, MPC_in_sec, &
-               Do21cm, line21_const, f_21cm, Do21cm_mina, dDeltaxe_dtau, recfast_saha_tau, recfast_saha_z
+               Do21cm, doTmatTspin, line21_const, f_21cm, Do21cm_mina, dDeltaxe_dtau, recfast_saha_tau, recfast_saha_z
        contains
 
 
@@ -291,6 +292,7 @@
         real(dl) zst,a,z,az,bz,TmRECFAST
         integer ilo,ihi
         
+        if (.not. doTmatTspin) stop 'RECFAST: TmRECFAST not stored'
         z=1/a-1
         if (z >= zrec(1)) then
             TmRECFAST=Tnow/a
@@ -618,6 +620,8 @@
         last_fudge = RECFAST_FUDGE
         last_fudgeHe = RECFAST_FUDGE_He
 
+        if (Do21cm) doTmatTspin = .true.
+
 
 !       write(*,*)'recfast version 1.0'
 !       write(*,*)'Using Hummer''s case B recombination rates for H'
@@ -792,7 +796,7 @@
           zrec(i)=zend
           xrec(i)=x
     
-          if (Do21cm) then
+          if (doTmatTspin) then
               if (Evolve_Ts .and. zend< 1/Do21cm_minev-1 ) then
                Tspin = y(4)
               else 
@@ -816,7 +820,7 @@
         d0hi=1.0d40
         d0lo=1.0d40
         call spline(zrec,xrec,nz,d0lo,d0hi,dxrec)
-        if (Do21cm) then
+        if (doTmatTspin) then
          call spline(zrec,tsrec,nz,d0lo,d0hi,dtsrec)
          call spline(zrec,tmrec,nz,d0lo,d0hi,dtmrec)
         end if
@@ -1104,8 +1108,7 @@
         real(dl) dtauda
         external dtauda
 
-
-
+       
         Delta_tg =Delta_Tm
         x_H = min(1._dl,xeRECFAST(a))
 
@@ -1160,9 +1163,7 @@
 
         end function dDeltaxe_dtau
 
-
 !  ===============================================================
-        
 
         end module RECFAST
 
