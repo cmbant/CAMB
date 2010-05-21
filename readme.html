@@ -13,7 +13,7 @@
 Code for Anisotropies in the Microwave Background by <A
 HREF="http://cosmologist.info/">Antony Lewis</A> and Anthony
 Challinor. <P>
-This version March 2008.
+This version June 2008.
 <P>
 <FONT SIZE=-1>
 Originally based on CMBFAST developed by Uros Seljak and Matias
@@ -79,6 +79,9 @@ You can <A HREF="http://camb.info/test_suite.tar.gz">download</A> a test suite f
 <A NAME="version">
 <H3>Version History</H3>
 
+<B>June 2008</B><BR>
+Fixed significant bug affecting very closed models (introduced Feb 2008; slightly closed models were fine).
+<P>
 <B>March 2008</B><BR>
 <I>(26th March, fixed pivot parameters in sample .ini)</I><BR>
 New reionization history model: new input parameter <B>re_delta_redshift</B> (does not change optical depth), and option to set <B>re_ionization_frac=-1</B> to automatically set the reionization fraction from input Y<sub>He</sub> assuming Helium is singly reionized at the same time as hydrogen (hence mapping of redshift to optical depth different to before at 10% level; see the <A HREF="http://cosmologist.info/notes/CAMB.pdf">notes</A>).  Reionization history now specified in (replaceable) module in reionization.f90; default includes tiny effect of He double reionization at z~3.5. Some internal reorganization.

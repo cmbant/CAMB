@@ -43,7 +43,7 @@ FFLAGS = -openmp -O2 -ip -W0 -WB -fpp2 -vec_report0
 
 #PGF90
 #F90C = pgf90
-#FLAGS = -O2 -DESCAPEBACKSLASH
+#FFLAGS = -O2 -DESCAPEBACKSLASH
 
 #Sun V880
 #F90C = mpf90

@@ -2,7 +2,7 @@
 
 !     Code for Anisotropies in the Microwave Background
 !     by Antony Lewis (http://cosmologist.info) and Anthony Challinor
-!     See readme.html for documentation. This version March 2008.
+!     See readme.html for documentation. This version June 2008.
 !
 !     Based on CMBFAST  by  Uros Seljak and Matias Zaldarriaga, itself based
 !     on Boltzmann code written by Edmund Bertschinger, Chung-Pei Ma and Paul Bode.
@@ -43,7 +43,7 @@
         implicit none    
         public
 
-        character(LEN=*), parameter :: version = 'Mar_08'
+        character(LEN=*), parameter :: version = 'Jun_08'
         
         integer :: FeedbackLevel = 0 !if >0 print out useful information about the model
 

@@ -930,7 +930,7 @@
   logical file_units(file_units_start:file_units_end)
 
   INTERFACE CONCAT
-    module procedure concat_s, concat_s_n_s_n_s_n_s_n
+    module procedure concat_s, concat_s_n
     
   END INTERFACE
 
@@ -967,6 +967,13 @@
   file_units(i) = .false.
     
  end subroutine CloseFile 
+
+ subroutine ClearFileUnit(i)
+  integer, intent(in) :: i
+  
+  file_units(i) = .false.
+    
+ end subroutine ClearFileUnit
 
   function GetParamCount()
    integer GetParamCount
@@ -1062,9 +1069,9 @@
    end if
   end function GetParam
 
-  function concat_s(S1,S2,S3,S4,S5,S6) result(concat)
+  function concat_s(S1,S2,S3,S4,S5,S6,S7,S8) result(concat)
    character(LEN=*), intent(in) :: S1, S2
-   character(LEN=*), intent(in) , optional :: S3, S4, S5, S6
+   character(LEN=*), intent(in) , optional :: S3, S4, S5, S6,S7,S8
    character(LEN = 1000) concat
 
    concat = trim(S1) // S2
@@ -1076,6 +1083,12 @@
          concat = trim(concat) // S5
            if (present(S6)) then
              concat = trim(concat) // S6
+              if (present(S7)) then
+                concat = trim(concat) // S6
+                if (present(S8)) then
+                  concat = trim(concat) // S8
+                end if
+              end if    
            end if
        end if
      end if
@@ -1083,28 +1096,34 @@
 
   end function concat_s
 
- function concat_s_n_s_n_s_n_s_n(S1,N2,S3,N4,S5,N6,S7,N8,S9) result(concat)
-   character(LEN=*), intent(in) :: S1
+ function concat_s_n(SS1,N2,SS3,N4,SS5,N6,SS7,N8,SS9,N10,SS11) result(concat)
+   character(LEN=*), intent(in) :: SS1
    integer, intent(in) :: N2
-   character(LEN=*), intent(in) , optional :: S3, S5, S7, S9
-   integer, intent(in), optional ::N4,N6,N8
+   character(LEN=*), intent(in) , optional :: SS3, SS5, SS7, SS9,SS11
+   integer, intent(in), optional ::N4,N6,N8, N10
    character(LEN = 1000) concat
    
-   concat = trim(S1) //trim(IntToStr(N2))
-     if (present(S3)) then
-    concat = trim(concat) // S3
+   concat = trim(SS1) //trim(IntToStr(N2))
+     if (present(SS3)) then
+    concat = trim(concat) // SS3
      if (present(N4)) then
        concat = trim(concat) // trim(IntToStr(N4))
-       if (present(S5)) then
-         concat = trim(concat) // S5
+       if (present(SS5)) then
+         concat = trim(concat) // SS5
            if (present(N6)) then
              concat = trim(concat) // trim(intToStr(N6))
-             if (present(S7)) then
-             concat = trim(concat) // S7
+             if (present(SS7)) then
+             concat = trim(concat) // SS7
               if (present(N8)) then
                concat = trim(concat) // trim(intToStr(N8))
-              if (present(S9)) then
-               concat = trim(concat) // S9
+              if (present(SS9)) then
+               concat = trim(concat) // SS9
+                if (present(N10)) then
+                concat = trim(concat) // trim(intToStr(N10))
+                  if (present(SS11)) then
+                   concat = trim(concat) // SS11
+                  end if
+                end if
               end if       
            end if
        end if
@@ -1113,7 +1132,7 @@
    end if
    end if
    
- end  function concat_s_n_s_n_s_n_s_n
+ end  function concat_s_n
 
   subroutine Exchange(i1,i2)
    integer i1,i2,tmp
@@ -1291,6 +1310,26 @@
     ExtractFilePath = ''
 
   end function ExtractFilePath
+
+  function ExtractFileExt(aname)
+    character(LEN=*), intent(IN) :: aname
+    character(LEN=120) ExtractFileExt
+    integer len, i
+
+    len = len_trim(aname)
+    do i = len, 1, -1
+       if (aname(i:i)=='/') then
+          ExtractFileExt = ''
+          return
+       else if (aname(i:i)=='.') then
+          ExtractFileExt= aname(i:len)   
+          return
+       end if
+    end do
+    ExtractFileExt = ''
+
+  end function ExtractFileExt
+
 
  function ExtractFileName(aname)
     character(LEN=*), intent(IN) :: aname
@@ -1630,6 +1669,23 @@ subroutine CreateOpenTxtFile(aname, aunit, append)
       end subroutine spline_double
 
 
+      function DLGAMMA(x)
+       !Use Stirling generalization for large x
+       !See e.g. http://en.wikipedia.org/wiki/Stirling's_approximation
+       !Is accurate to at least 10 decimals, worse just about 30
+       double precision :: x
+       double precision:: DLGAMMA !approx log gamma
+       double precision, parameter :: const = .91893853320467274180d0 !log(2pi)/2
+   
+       if (x<32.d0) then
+        DLGAMMA = log(GAMMA(x))
+       else
+        DLGAMMA = (x-0.5d0)*log(x) - x + const +  &
+         1/12.d0/(1+x)*(1+1/(x+2)*(1+59.d0/30/(x+3)*(1+2.9491525423728813559d0/(x+4))))
+      end if
+      end function DLGAMMA
+
+
       function LogGamma(x)
         real LogGamma
         real, intent(in) :: x
@@ -1654,7 +1710,7 @@ subroutine CreateOpenTxtFile(aname, aunit, append)
 
       end function LogGamma
 
-    REAL FUNCTION GAMMA(X)
+    DOUBLE PRECISION FUNCTION GAMMA(X)
 !----------------------------------------------------------------------
 !
 ! This routine calculates the GAMMA function for a real argument X.
@@ -1743,19 +1799,19 @@ subroutine CreateOpenTxtFile(aname, aunit, append)
 !----------------------------------------------------------------------
       INTEGER I,N
       LOGICAL PARITY
-    REAL C,EPS,FACT,HALF,ONE,P,PI,Q,RES,SQRTPI,SUM,TWELVE, &
+    DOUBLE PRECISION C,EPS,FACT,HALF,ONE,P,PI,Q,RES,SQRTPI,SUM,TWELVE, &
          TWO,X,XBIG,XDEN,XINF,XMININ,XNUM,Y,Y1,YSQ,Z,ZERO
       DIMENSION C(7),P(8),Q(8)
 !----------------------------------------------------------------------
 !  Mathematical constants
 !----------------------------------------------------------------------
-    DATA ONE,HALF,TWELVE,TWO,ZERO/1.0E0,0.5E0,12.0E0,2.0E0,0.0E0/, &
-        SQRTPI/0.9189385332046727417803297E0/, &
-        PI/3.1415926535897932384626434E0/
+    DATA ONE,HALF,TWELVE,TWO,ZERO/1.0D0,0.5D0,12.0D0,2.0D0,0.0D0/, &
+        SQRTPI/0.9189385332046727417803297D0/, &
+        PI/3.1415926535897932384626434D0/
 !----------------------------------------------------------------------
 !  Machine dependent parameters
 !----------------------------------------------------------------------
-    DATA XBIG,XMININ,EPS/35.040E0,1.18E-38,1.19E-7/, &
+    DATA XBIG,XMININ,EPS/35.040D0,1.18D-38,1.19D-7/, &
         XINF/3.4E38/
 !----------------------------------------------------------------------
 !  Numerator and denominator coefficients for rational minimax
@@ -1772,10 +1828,10 @@ subroutine CreateOpenTxtFile(aname, aunit, append)
 !----------------------------------------------------------------------
 ! Coefficients for minimax approximation over (12, INF).
 !----------------------------------------------------------------------
-    DATA C/-1.910444077728E-03,8.4171387781295E-04, &
-        -5.952379913043012E-04,7.93650793500350248E-04, &
-        -2.777777777777681622553E-03,8.333333333333333331554247E-02, &
-         5.7083835261E-03/
+    DATA C/-1.910444077728D-03,8.4171387781295D-04, &
+        -5.952379913043012D-04,7.93650793500350248D-04, &
+        -2.777777777777681622553D-03,8.333333333333333331554247D-02, &
+         5.7083835261D-03/
 !----------------------------------------------------------------------
 !  Statement functions for conversion between integer and float
 !----------------------------------------------------------------------

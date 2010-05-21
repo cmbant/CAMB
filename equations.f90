@@ -660,9 +660,7 @@
         real(dl) clxq, vq, diff_rhopi
         real(dl) sources(CTransScal%NumSources)
         real(dl) ISW
-
-        !real(dl) t4,t92
- 
+        
         yprime = 0
         if (CP%flat) then
             call fderivs(EV,EV%ScalEqsToPropagate,tau,y,yprime)
@@ -825,7 +823,9 @@
             ! - (grhor_t*pir + grhog_t*pig+ pinu*gpnu_t)/k2
          
          sources(3) = -2*phi*f_K(tau-tau_maxvis)/(f_K(CP%tau0-tau_maxvis)*f_K(CP%tau0-tau))
- 
+       !  sources(3) = -2*phi/f_K(CP%tau0-tau)
+
+
 !         sources(3) = -2*phi*(tau-tau_maxvis)/((CP%tau0-tau_maxvis)*(CP%tau0-tau))
           !We include the lensing factor of two here
        else

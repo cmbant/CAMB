@@ -3,7 +3,7 @@
 !     Code for Anisotropies in the Microwave Background
 !     by Antony lewis (http://cosmologist.info) and Anthony Challinor
 !     See readme.html for documentation. 
-!     This version February 2008
+!     This version June 2008
 
 !     Note that though the code is internally parallelised, it is not thread-safe
 !     so you cannot generate more than one model at the same time in different threads.
@@ -246,7 +246,7 @@ contains
          call InitSourceInterpolation   
        
          ExactClosedSum = CP%curv > 5e-9_dl .or. scale < 0.93_dl
-
+     
          call SetkValuesForInt
 
          if (DebugMsgs .and. Feedbacklevel > 0) write(*,*) 'Set ',ThisCT%q%npoints,' integration k values'
@@ -632,7 +632,6 @@ contains
       real(dl) dlnk0, dkn1, dkn2, q_switch
       real(dl) qmax_log
 
-
 !     set k values for which the sources for the anisotropy and
 !     polarization will be calculated. For low values of k we
 !     use a logarithmic spacing. closed case dealt with by SetClosedkValues
@@ -670,7 +669,7 @@ contains
 
          if (CP%closed) &
            call SetClosedkValuesFromArr(Evolve_q) 
-  
+ 
 
       end subroutine SetkValuesForSources
 
@@ -694,7 +693,7 @@ contains
        end do  
        R%points(1)=3/CP%r
        R%Lowest = R%points(1) 
-     
+       R%Highest = R%points(nmax)
        R%npoints=nmax
 
       end subroutine SetClosedkValuesFromArr
@@ -1039,10 +1038,10 @@ contains
 
       if (CP%closed.and.ExactClosedSum) then
        
-        call Ranges_Add(ThisCT%q,3/CP%r, nint(qmax_int*CP%r)/CP%r, nint(qmax_int*CP%r)-2)
+        call Ranges_Add(ThisCT%q,3/CP%r, nint(qmax_int*CP%r)/CP%r, nint(qmax_int*CP%r)-3) !fix jun08
         call Init_ClTransfer(ThisCT)
- 
-       else
+        call Ranges_Getdpoints(ThisCT%q,half_ends = .false.) !Jun08
+      else
 
       !Split up into logarithmically spaced intervals from qmin up to k=lognum*dk0
       !then no-lognum*dk0 linearly spaced at dk0 up to no*dk0
