@@ -3,7 +3,7 @@
 !     Code for Anisotropies in the Microwave Background
 !     by Antony lewis (http://cosmologist.info) and Anthony Challinor
 !     See readme.html for documentation. 
-!     This version Feb 2009
+!     This version September 2008
 
 !     Note that though the code is internally parallelised, it is not thread-safe
 !     so you cannot generate more than one model at the same time in different threads.
@@ -31,7 +31,7 @@
 
 !     This code evolves the linearized perturbation equations of general relativity,
 !     the Boltzmann equations and the fluid equations for perturbations
-!     of a Friedmann-Robertson-Walker universe with a supplied system of gauge-dependent
+!     of a Friedmann-Robertson-Walker universe with a supplied system of gauge-dependent equation
 !     in a modules called GaugeInterface.  The sources for the line of sight integral are
 !     computed at sampled times during the evolution for various of wavenumbers. The sources
 !     are then interpolated to a denser wavenumber sampling for computing the line of
@@ -153,7 +153,7 @@ contains
          actual=GetTestTime()
          starttime=actual !times don't include reading the Bessel file
        end if
-     
+    
       call InitVars !Most of single thread time spent here (in InitRECFAST)
 
 
@@ -173,7 +173,6 @@ contains
 
       if (CP%WantTransfer) call InitTransfer
  
-
 !      ***note that !$ is the prefix for conditional multi-processor compilation***
       !$ if (ThreadNum /=0) call OMP_SET_NUM_THREADS(ThreadNum)
         
@@ -194,7 +193,6 @@ contains
 
          ThisCT%NumSources = SourceNum
          ThisCT%ls = lSamp
-
 
          !$OMP PARAllEl DO DEFAUlT(SHARED),SCHEDUlE(DYNAMIC) &
          !$OMP & PRIVATE(EV, q_ix)
@@ -241,6 +239,7 @@ contains
 !     if CMB calculations are requested, calculate the Cl by
 !     integrating the sources over time and over k.
 
+
       if (CP%WantCls) then
 
          call InitSourceInterpolation   
@@ -250,9 +249,9 @@ contains
          call SetkValuesForInt
 
          if (DebugMsgs .and. Feedbacklevel > 0) write(*,*) 'Set ',ThisCT%q%npoints,' integration k values'
-
-    
+   
       !Begin k-loop and integrate Sources*Bessels over time
+
       
       !$OMP PARAllEl DO DEFAUlT(SHARED),SHARED(TimeSteps), SCHEDUlE(STATIC,4) 
           do q_ix=1,ThisCT%q%npoints
@@ -265,8 +264,7 @@ contains
          actual=GetTestTime()
          write(*,*)actual-timeprev,' Timing For Integration'
         end if
-  
-
+ 
         call FreeSourceMem
 
         !Final calculations for CMB output unless want the Cl transfer functions only.
@@ -275,6 +273,7 @@ contains
 
       end if
 
+ 
       if (DebugMsgs .and. Feedbacklevel > 0) then
          timeprev=actual
          actual = GetTestTime()
@@ -291,6 +290,7 @@ contains
            lSamp = CTransS%ls
            allocate(iCl_Scalar(CTransS%ls%l0,C_Temp:C_last,CP%InitPower%nn))
            iCl_scalar = 0
+           
            call CalcScalCls(CTransS)
            if (DebugMsgs .and. Feedbacklevel > 0) write (*,*) 'CalcScalCls'
        end if    
@@ -562,11 +562,10 @@ contains
       integer itf
 
 
-
  ! Maximum and minimum k-values.      
       if (CP%flat) then
       qmax=maximum_qeta/CP%tau0
-      qmin=qmin0/CP%tau0/AccuracyBoost
+      qmin=qmin0/CP%tau0/AccuracyBoost 
       else              
         qmax=maximum_qeta/CP%r/CP%chi0
         qmin=qmin0/CP%r/CP%chi0/AccuracyBoost
@@ -594,15 +593,14 @@ contains
          maxq=CP%Transfer%kmax
       end if
 
+
       taumin=GetTauStart(maxq)
    
 !     Initialize baryon temperature and ionization fractions vs. time.
 !     This subroutine also fixes the timesteps where the sources are
 !     saved in order to do the integration. So TimeSteps is set here.
       !These routines in ThermoData (modules.f90)
-  
       call inithermo(taumin,CP%tau0)
-
    
       if (DebugMsgs .and. Feedbacklevel > 0) write (*,*) 'inithermo'
 
@@ -635,6 +633,7 @@ contains
 !     set k values for which the sources for the anisotropy and
 !     polarization will be calculated. For low values of k we
 !     use a logarithmic spacing. closed case dealt with by SetClosedkValues
+
          if (CP%WantScalars .and. CP%Reion%Reionization .and. CP%AccuratePolarization) then
             dlnk0=2._dl/10/AccuracyBoost
             !Need this to get accurate low l polarization
@@ -670,7 +669,6 @@ contains
          if (CP%closed) &
            call SetClosedkValuesFromArr(Evolve_q) 
  
-
       end subroutine SetkValuesForSources
 
 
@@ -709,7 +707,7 @@ contains
       real(dl) c(24),w(EV%nvar,9), y(EV%nvar), sources(SourceNum)
 
 !
-!EV%q=0.2
+!EV%q=1
 !EV%q2=EV%q**2
 
          w=0
@@ -722,13 +720,14 @@ contains
 
 !!Example code for plotting out variable evolution
 !if (.true.) then
-!           tol1=tol/exp(AccuracyBoost-1)
-       
+!          tol1=tol/exp(AccuracyBoost-1)
+!       
 !        do j=1,6000      
 !          tauend = taustart * exp(j/6000._dl*log(CP%tau0/taustart))
+!          !tauend = 1/EV%q*1.01
 !          call GaugeInterface_EvolveScal(EV,tau,y,tauend,tol1,ind,c,w)
-         
-!          write (*,'(4E15.5)') 1/y(1)-1, y(3), y(EV%w_ix) ,y(EV%w_ix+1)                           
+!         
+!          write (*,'(5E15.5)') tauend,1/y(1)-1, y(3),y(4), y(5)!y(EV%w_ix) ,y(EV%w_ix+1)                           
 !         end do
 !     stop
 !end if
@@ -1029,8 +1028,9 @@ contains
 
        qmax_int = min(qmax,max_bessels_etak/CP%tau0)
 
-
-       IntSampleBoost=AccuracyBoost
+       IntSampleBoost=AccuracyBoost 
+       if (do_bispectrum) IntSampleBoost = IntSampleBoost * 2  
+       if (hard_bispectrum) IntSampleBoost = IntSampleBoost * 2  
 
 !     Fixing the # of k for the integration. 
       
@@ -1062,6 +1062,9 @@ contains
 
          k_max_log = lognum*dk0
          k_max_0  = no*dk0
+         
+         !if (hard_bispectrum) 
+         if (do_bispectrum) k_max_0 = max(10.d0,k_max_0) 
 
          dk2 = 0.04/IntSampleBoost !very small scales
 
@@ -1278,18 +1281,21 @@ contains
             fac(j)=fac(j)**2*aa(j)/6
          end do
 
-
          do j=1,lSamp%l0 
              if (lSamp%l(j) > llmax) return
              xlim=xlimfrac*lSamp%l(j)
              xlim=max(xlim,xlimmin)
              xlim=lSamp%l(j)-xlim
-             xlmax1=80*lSamp%l(j)*AccuracyBoost
-             tmin=CP%tau0-xlmax1/IV%q
+             if (full_bessel_integration) then
+                 tmin = TimeSteps%points(2)
+             else
+                 xlmax1=80*lSamp%l(j)*AccuracyBoost
+                 tmin=CP%tau0-xlmax1/IV%q
+                 tmin=max(TimeSteps%points(2),tmin)                 
+             end if 
              tmax=CP%tau0-xlim/IV%q
              tmax=min(CP%tau0,tmax)
-             tmin=max(TimeSteps%points(2),tmin)
-               
+        
              if (tmax < TimeSteps%points(2)) exit
              sums(1:SourceNum) = 0
  
@@ -1305,6 +1311,7 @@ contains
 
                  J_l=a2*ajl(bes_ix,j)+(1-a2)*(ajl(bes_ix+1,j) - ((a2+1) &
                         *ajlpr(bes_ix,j)+(2-a2)*ajlpr(bes_ix+1,j))* fac(n)) !cubic spline
+ 
                  J_l = J_l*TimeSteps%dpoints(n)
                  sums(1) = sums(1) + IV%Source_q(n,1)*J_l
                  sums(2) = sums(2) + IV%Source_q(n,2)*J_l
@@ -1450,7 +1457,9 @@ contains
          if (SourceNum==3 .and. (.not. DoInt .or. UseLimber(l,IV%q))) then
             !Limber approximation for small scale lensing (better than poor version of above integral)
              xf = CP%tau0-invsinfunc(l/nu)*CP%r
+
 !Feb09 fix screw up introduced Feb 2008 version
+!       if (xf > TimeSteps%Lowest .and. xf > TimeSteps%Highest) then
              if (xf < TimeSteps%Highest .and. xf > TimeSteps%Lowest) then
              nbot=Ranges_IndexOf(TimeSteps,xf)
              xf= (xf-TimeSteps%points(nbot))/(TimeSteps%points(nbot+1)-TimeSteps%points(nbot))                  
@@ -1946,6 +1955,7 @@ contains
 
 
         subroutine CalcScalCls(CTrans)
+!        use SeparableBispectrum
         implicit none
         Type(ClTransferData) :: CTrans
         integer pix,j
@@ -1953,6 +1963,7 @@ contains
         integer q_ix
         real(dl)  ks(CTrans%q%npoints),dlnks(CTrans%q%npoints),dlnk
         real(dl) ctnorm,dbletmp
+
 
          do pix=1,CP%InitPower%nn
 
@@ -2014,7 +2025,7 @@ contains
                      iCl_scalar(j,C_Phi,pix)   =  &
                             iCl_scalar(j,C_Phi,pix)*fourpi*real(CTrans%ls%l(j)**2,dl)**2    
                      !The lensing power spectrum computed is l^4 C_l^{\phi\phi}
-                     !We put pix extra factors of %l here to improve interpolation in CTrans%ls%l
+                     !We put pix extra factors of l here to improve interpolation in CTrans%ls%l
                      iCl_scalar(j,C_PhiTemp,pix)   =  &
                             iCl_scalar(j,C_PhiTemp,pix)*fourpi*real(CTrans%ls%l(j)**2,dl)*CTrans%ls%l(j)
                       !Cross-correlation is CTrans%ls%l^3 C_l^{\phi T}
@@ -2025,7 +2036,95 @@ contains
 
           end do
 
+!         call GetReducedSeparableBispectrum(CTrans, iCl_scalar(1,C_temp,1)) 
+  
         end subroutine CalcScalCls
+
+        subroutine CalcScalCls2(CTrans)
+        !Calculate C_ll' for non-isotropic models
+        !Run with l_sample_boost=50 to get every l
+        !not used in normal CAMB
+        implicit none
+        Type(ClTransferData) :: CTrans
+        integer j,j2,in
+        real(dl) apowers, pows(CTrans%q%npoints)
+        integer q_ix
+        real(dl)  ks(CTrans%q%npoints),dlnks(CTrans%q%npoints),dlnk
+        real(dl) ctnorm,dbletmp
+        real(dl), allocatable :: iCl_Scalar2(:,:,:,:) 
+
+         allocate(iCl_Scalar2(CTranS%ls%l0,CTrans%ls%l0,C_Temp:C_last,CP%InitPower%nn))
+         iCl_scalar2 = 0
+    
+         do in=1,CP%InitPower%nn
+          do q_ix = 1, CTrans%q%npoints 
+
+             if (CP%flat) then
+                     ks(q_ix) = CTrans%q%points(q_ix)
+                     dlnks(q_ix) = CTrans%q%dpoints(q_ix)/CTrans%q%points(q_ix)
+             else
+                     ks(q_ix) = sqrt(CTrans%q%points(q_ix)**2 - CP%curv)
+                     dlnks(q_ix) = CTrans%q%dpoints(q_ix)*CTrans%q%points(q_ix)/ks(q_ix)**2
+             end if
+
+             pows(q_ix) =  ScalarPower(ks(q_ix) ,in)
+
+          end do
+
+         do j=1,CTrans%ls%l0
+          do j2=1,CTrans%ls%l0
+
+        !Integrate dk/k Delta_l_q**2 * Power(k)
+
+          do q_ix = 1, CTrans%q%npoints 
+
+             if (.not.(CP%closed.and.nint(CTrans%q%points(q_ix)*CP%r)<= CTrans%ls%l(j))) then 
+               !cut off at nu = l + 1
+             dlnk = dlnks(q_ix)
+             apowers = pows(q_ix)
+
+             iCl_scalar2(j,j2,C_Temp:C_E,in) = iCl_scalar2(j,j2,C_Temp:C_E,in) +  &
+                          apowers*CTrans%Delta_p_l_k(1:2,j,q_ix)*CTrans%Delta_p_l_k(1:2,j2,q_ix)*dlnk
+             iCl_scalar2(j,j2,C_Cross,in) = iCl_scalar2(j,j2,C_Cross,in) + &
+                          apowers*CTrans%Delta_p_l_k(1,j,q_ix)*CTrans%Delta_p_l_k(2,j2,q_ix)*dlnk
+    
+             end if
+
+           end do
+
+!Output l(l+1)C_l/OutputDenominator
+
+           !ctnorm = (CTrans%ls%l+2)!/(CTrans%ls%l-2)! - beware of int overflow
+            ctnorm=(CTrans%ls%l(j)*CTrans%ls%l(j)-1)*real((CTrans%ls%l(j)+2)*CTrans%ls%l(j),dl)
+            ctnorm=sqrt(ctnorm*(CTrans%ls%l(j2)*CTrans%ls%l(j2)-1)*real((CTrans%ls%l(j2)+2)*CTrans%ls%l(j2),dl))
+            
+            dbletmp=(CTrans%ls%l(j)*(CTrans%ls%l(j)+1))/OutputDenominator*fourpi  
+            dbletmp=sqrt(dbletmp*(CTrans%ls%l(j2)*(CTrans%ls%l(j2)+1))/OutputDenominator*fourpi  )
+                 
+            iCl_scalar2(j,j2,C_Temp,in)  =  iCl_scalar2(j,j2,C_Temp,in)*dbletmp
+            iCl_scalar2(j,j2,C_E,in)     =  iCl_scalar2(j,j2,C_E,in)*dbletmp*ctnorm
+            iCl_scalar2(j,j2,C_Cross,in) =  iCl_scalar2(j,j2,C_Cross,in)*dbletmp*sqrt(ctnorm)
+    
+           end do
+
+          end do
+
+        end do
+        
+        call CreateTxtFile('z:\cl2.dat',1)
+        do j=1,CTrans%ls%l0
+        do j2=1,CTrans%ls%l0
+         write (1,*) CTrans%ls%l(j),CTrans%ls%l(j2),iCl_scalar2(j,j2,1,1)*7.4311e12
+        end do
+        end do  
+        close(1)
+        call CreateTxtFile('cl1l2.dat',1)
+        do j=1,999
+         write (1,'(999E15.5)') iCl_scalar2(j,1:999,1,1)*7.4311e12
+        end do          
+        stop
+
+        end subroutine CalcScalCls2
 
      
         subroutine CalcTensCls(CTrans, GetInitPowers)

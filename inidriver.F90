@@ -10,7 +10,8 @@
         use Lensing
         use AMLUtils
         use Transfer
-#ifdef NAGF95
+        use constants
+#ifdef NAGF95 
         use F90_UNIX
 #endif
         implicit none
@@ -19,7 +20,7 @@
         
         character(LEN=Ini_max_string_len) numstr, VectorFileName, &
             InputFile, ScalarFileName, TensorFileName, TotalFileName, LensedFileName,&
-            LensedTotFileName
+            LensedTotFileName, LensPotentialFileName
         integer i
         character(LEN=Ini_max_string_len) TransferFileNames(max_transfer_redshifts), &
                MatterPowerFileNames(max_transfer_redshifts), outroot
@@ -31,9 +32,7 @@
 
         logical bad
 
-        InputFile = ''
-   
-        if (iargc() /= 0)  call getarg(1,InputFile)
+        InputFile = GetParam(1)
         if (InputFile == '') stop 'No parameter input file'
 
         call Ini_Open(InputFile, 1, bad, .false.)
@@ -114,7 +113,7 @@
 
        end if
 
-       P%tcmb   = Ini_Read_Double('temp_cmb',2.726_dl)
+       P%tcmb   = Ini_Read_Double('temp_cmb',COBE_CMBTemp)
        P%yhe    = Ini_Read_Double('helium_fraction',0.24_dl)
        P%Num_Nu_massless  = Ini_Read_Double('massless_neutrinos')
        P%Num_Nu_massive   = Ini_Read_Double('massive_neutrinos')
@@ -148,13 +147,15 @@
         P%transfer%kmax          =  Ini_Read_Double('transfer_kmax')
         P%transfer%k_per_logint  =  Ini_Read_Int('transfer_k_per_logint')
         P%transfer%num_redshifts =  Ini_Read_Int('transfer_num_redshifts')
+        
         transfer_interp_matterpower = Ini_Read_Logical('transfer_interp_matterpower ', transfer_interp_matterpower)
         transfer_power_var = Ini_read_int('transfer_power_var',transfer_power_var)
         if (P%transfer%num_redshifts > max_transfer_redshifts) stop 'Too many redshifts'
         do i=1, P%transfer%num_redshifts
              P%transfer%redshifts(i)  = Ini_Read_Double_Array('transfer_redshift',i,0._dl)
-             TransferFileNames(i)     = Ini_Read_String_Array('transfer_filename',i)
+             transferFileNames(i)     = Ini_Read_String_Array('transfer_filename',i)
              MatterPowerFilenames(i)  = Ini_Read_String_Array('transfer_matterpower',i)
+             
              if (TransferFileNames(i) == '') then
                  TransferFileNames(i) =  trim(numcat('transfer_',i))//'.dat' 
              end if
@@ -197,6 +198,8 @@
        if (P%WantScalars) then
           ScalarFileName = trim(outroot)//Ini_Read_String('scalar_output_file')
           LensedFileName =  trim(outroot) //Ini_Read_String('lensed_output_file')
+          LensPotentialFileName =  Ini_Read_String('lens_potential_output_file')
+          if (LensPotentialFileName/='') LensPotentialFileName = concat(outroot,LensPotentialFileName)
         end if
         if (P%WantTensors) then
           TensorFileName =  trim(outroot) //Ini_Read_String('tensor_output_file')
@@ -284,6 +287,8 @@
 
          call output_cl_files(ScalarFileName, TensorFileName, TotalFileName, &
               LensedFileName, LensedTotFilename, output_factor)
+              
+         call output_lens_pot_files(LensPotentialFileName, output_factor)
 
          if (P%WantVectors) then
            call output_veccl_files(VectorFileName, output_factor)

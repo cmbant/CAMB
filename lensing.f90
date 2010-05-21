@@ -60,7 +60,7 @@ private
  real(dl), dimension(:), allocatable  :: lnfa
 
 public lens_Cls, lensing_includes_tensors, lensing_method, lensing_method_flat_corr,&
-      lensing_method_curv_corr,lensing_method_harmonic, BessI, bessj0
+      lensing_method_curv_corr,lensing_method_harmonic, BessI, bessj0, rec3jj
 contains
 
 

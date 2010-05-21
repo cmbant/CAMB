@@ -5,7 +5,7 @@
 <BODY BGCOLOR="#FFFFFF" LINK="#0000FF" VLINK="#800080">
 <BODY>
 <CENTER>
-<A HREF="#compiling">Compiling</A> - <A HREF="#version">History</A> - <A HREF="#COMPARE">Comparison</A> - <A HREF="#FILES">Source files</A> - <A HREF="#ACCURACY">Accuracy</A> -
+<A HREF="#compiling">Compiling</A> - <A HREF="#outputs">Outputs</A>- <A HREF="#version">History</A> - <A HREF="#COMPARE">Comparison</A> - <A HREF="#FILES">Source files</A> - <A HREF="#ACCURACY">Accuracy</A> -
  <A HREF="#adds">Add-ons</A> - <A HREF="#refs">References</A>
 </CENTER>
 <FONT FACE="Arial,Helvetica" SIZE=2>
@@ -13,7 +13,7 @@
 Code for Anisotropies in the Microwave Background by <A
 HREF="http://cosmologist.info/">Antony Lewis</A> and Anthony
 Challinor. <P>
-This version February 2009.
+This version January 2010.
 <P>
 <FONT SIZE=-1>
 Originally based on CMBFAST developed by Uros Seljak and Matias
@@ -25,6 +25,7 @@ For latest information on this program see <A HREF="http://camb.info">camb.info<
 <P>
 CAMB is also supplied as part of the <A HREF="http://cosmologist.info/cosmomc/">CosmoMC</A> parameter estimation package. For an extension including perturbed recombination, 21cm, lensing and number count sources see <A HREF="http://camb.info/sources">CAMB sources</A>.
 <P>
+
 <A NAME="compiling">
 <B>Compiling and running</B>
 </P>
@@ -76,12 +77,37 @@ As of November 2004 the supplied sample params.ini file produces results in &mu;
 You can <A HREF="http://camb.info/test_suite.tar.gz">download</A> a test suite for comparing accuracy with different parameters and code versions. Just extract the file to your CAMB directory and read the readme.
 
 <P>
+<A NAME="outputs">
+<H3>Outputs</H3>
+Unlensed scalar angular power spectra are output to <b>output_root</b>_scalCls.dat. The columns are
+<BLOCKQUOTE>
+l C<sub>TT</sub> C<sub>EE</sub> C<sub>TE</sub> [C<sub>&Phi;</sub> C<sub>&Phi;T</sub>]
+</BLOCKQUOTE>
+Here all C<sub>X</sub> are l(l+1)C_l/2pi except for C<sub>&Phi;</sub> and C<sub>&Phi;T</sub> which are C<sub>&Phi;</sub>= l<sup>4</sup> C<sub>l</sub><sup>&Phi</sup>, where  C<sub>l</sub><sup>&Phi</sup> is the (CMB) lensing potential power spectrum, and C<sub>&Phi;T</sub> = l<sup>3</sup> C<sub>l</sub><sup>&Phi;T</sup>. The lensing terms in square brackets are only produced if <b>do_lensing = T</b>. If <b>CMB_outputscale = 7.4311e12</B> ([T<sub>CMB</sub>10<sup>6</sup>]<sup>2</sup>, the default), the units are &mu;K<sup>2</sup>. Note that lensing spectra are also multiplied by CMB_outputscale, so you may want to divide this out of the answer to get a sensible dimensionless spectrum. If requested the lensed power spectrum is output to <b>output_root</b>_lensedCls.dat
+<P>
+Tensor  angular power spectra are output to <b>output_root</b>_tensCls.dat if requested. 
+The columns are
+<BLOCKQUOTE>
+l C<sub>TT</sub> C<sub>EE</sub> C<sub>BB</sub>  C<sub>TE</sub>  
+</BLOCKQUOTE>
+If scalars and tensors are generated, the total spectrum is in <b>output_root</b>_totCls.dat, in the same format as the tensor output file.
+<P>
+If transfer functions are requested the columns in the <b>output_root</b>_transfer_out.dat output file are
+<BLOCKQUOTE>
+k/h Delta_CDM/k<sup>2</sup> Delta_b/k<sup>2</sup> Delta_g/k<sup>2</sup> Delata_r/k<sup>2</sup> Delta_nu/k<sup>2</sup> Delta_tot/k<sup>2</sup>
+</BLOCKQUOTE>
+where all quantities are in the synchronous gauge and evaluated at the requested redshift, given a unit primordial curvature perturbation on superhorizon scales (for adiabatic modes, chi_0=-1). Here subscripts refer to CDM, baryon, photon, massless neutrino, massive neutrinos, and total (massive) respectively. <b>output_root</b>_matterpower.dat contains the conventionally normalized matter power spectrum (for baryons+cdm+massive neutrinos), in h/Mpc units.
+
+<P>
 <A NAME="version">
 <H3>Version History</H3>
 
+<B>January 2010</B><BR>
+Recfast updated to version 1.5 (rising to 2% change at l=2000; added rate fudge to match <A HREF="http://arxiv.org/abs/0910.4383">0910.4383</A>; use <b>RECFAST_Hswitch = F</b> to recover old result). Added <b>lens_potential_output_file</b> parameter to get sensibly normalized lensing potential ([l(l+1)]<sup>2</sup>C<sub>l</sub>/2&pi; and temperature correlation). Added code parameter do_bispectrum to modules.f90 for parameter tweaks to get accurate transfer functions for fnl calculations.
+<P>
+
 <B>February 2009</B><BR>
 Fixed serious bug in the calculation of lensed non-flat models (introduced in the Feb 2008 version).
-
 <P>
 
 <B>November 2008</B><BR>
@@ -89,7 +115,7 @@ Fixed proton mass error (and hence incorrect baryon evolution on pressure-dampin
 
 <P>
 <B>September 2008</B><BR>
-Restructured recombination module to allow use of different models. RECFAST default implementation updated to version 1.4.2 (+fixes, tiny change to results). Misc minor changes. 
+Restructured recombination module to allow use of different models. RECFAST default implementation updated to version 1.4.2 (+fixes, tiny change to results). Misc minor changes.
 </P>
 <B>June 2008</B><BR>
 Fixed significant bug affecting very closed models (introduced Feb 2008; slightly closed models were fine).
@@ -494,6 +520,7 @@ Scalar errors should rarely exceed 0.3% for min(2500, l well into the damping ta
 <A NAME="adds">
 <H3>Add-ons, extensions, external sites</H3>
 <UL>
+<LI><A HREF="http://background.uchicago.edu/camb_rpc/">Reionization principal components</a>
 <LI><A HREF="http://camb.info/ppf/">Parameterized Post-Friedmann Dark Energy</A>
 <LI><A HREF="http://camb.info/sources">CAMB sources</A> get linear 21cm, lensing and number counts; 3rd order perturbation theory P(k); perturbed recombination
 <LI><A HREF="http://camb.info/extra.html">Quintessence</A> module

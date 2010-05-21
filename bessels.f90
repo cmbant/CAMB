@@ -60,6 +60,7 @@
         file_numl= lSamp%l0 
         file_l(1:lSamp%l0) = lSamp%l(1:lSamp%l0)
         kmaxfile = int(min(CP%Max_eta_k,max_bessels_etak))+1
+        if (do_bispectrum) kmaxfile = kmaxfile*2
      
 
         call Ranges_Init(BessRanges)
@@ -355,7 +356,7 @@
              call phi_small_closed_int(l,beta,chi,y1,y2)
              return
            end if 
-       end if     
+       end if    
      end if        
 
      if (DoRecurs) then 

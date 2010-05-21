@@ -947,6 +947,7 @@
  function new_file_unit()
   integer i, new_file_unit
   logical, save :: file_units_inited = .false.
+  logical notfree
  
   if (.not. file_units_inited) then
    file_units = .false.
@@ -955,6 +956,8 @@
  
   do i=file_units_start, file_units_end
    if (.not. file_units(i) .and. i/=tmp_file_unit) then
+    inquire(i,opened=notfree)
+    if (notfree) cycle
     file_units(i)=.true.
     new_file_unit = i
     return
@@ -1090,7 +1093,7 @@
            if (present(S6)) then
              concat = trim(concat) // S6
               if (present(S7)) then
-                concat = trim(concat) // S6
+                concat = trim(concat) // S7
                 if (present(S8)) then
                   concat = trim(concat) // S8
                 end if
@@ -1199,13 +1202,24 @@
    
   end  function IntToLogical
  
-  function IntToStr(I)
+  function IntToStr(I, minlen)
    integer , intent(in) :: I
    character(LEN=30) IntToStr
+   integer, intent(in), optional :: minlen
+   integer n
+   character (LEN=20) :: form
 
-   write (IntToStr,*) i
-   IntToStr = adjustl(IntToStr)
+   if (present(minlen)) then
+    n = minlen
+    if (I<0) n=n+1
+    form = concat('(I',n,'.',minlen,')')
+    write (IntToStr,form) i
+   else
+    write (IntToStr,*) i
+    IntToStr = adjustl(IntToStr)
+   end if
 
+ 
   end function IntToStr
 
   function StrToInt(S)
@@ -2754,3 +2768,4 @@ contains
 end module Random
 
 
+ 

@@ -10,12 +10,13 @@
 ! Only tested for plain LCDM models with power law initial power spectra
 
 ! Adapted for F90 and CAMB, AL March 2005
-
+!!BR09 Oct 09: generalized expressions for om(z) and ol(z) to include w
 !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
       module NonLinear
       use ModelParams
       use transfer
+      use LambdaGeneral
       implicit none 
       private
        
@@ -37,7 +38,8 @@
       real(dl) diff,xlogr1,xlogr2,rmid
       integer i
 
-       omm0 = CP%omegac+CP%omegab
+       !!BR09 putting neutrinos into the matter as well, not sure if this is correct, but at least one will get a consisent omk.
+       omm0 = CP%omegac+CP%omegab+CP%omegan
 
        CAMB_Pk%nonlin_ratio = 1
 
@@ -48,8 +50,8 @@
 ! curvature (rncur) of the power spectrum at the desired redshift, using method 
 ! described in Smith et al (2002).
        a = 1/real(1+CAMB_Pk%Redshifts(itf),dl)
-       om_m = omega_m(a, omm0, CP%omegav)  
-       om_v = omega_v(a, omm0, CP%omegav)
+       om_m = omega_m(a, omm0, CP%omegav, w_lam)  
+       om_v = omega_v(a, omm0, CP%omegav, w_lam)
 
       xlogr1=-2.0
       xlogr2=3.5
@@ -200,24 +202,27 @@
       
       end subroutine wint
       
+!!BR09 generalize to constant w
 
-      function omega_m(aa,om_m0,om_v0)
+      function omega_m(aa,om_m0,om_v0,wval)
       implicit none
-      real(dl) omega_m,omega_t,om_m0,om_v0,aa
-      omega_t=1.0+(om_m0+om_v0-1.0)/(1-om_m0-om_v0+om_v0*aa*aa+om_m0/aa)
-      omega_m=omega_t*om_m0/(om_m0+om_v0*aa*aa*aa)
+      real(dl) omega_m,omega_t,om_m0,om_v0,aa,wval
+      omega_t=1.0+(om_m0+om_v0-1.0)/(1-om_m0-om_v0+om_v0*((aa)**(-1.0-3.0*wval))+om_m0/aa)
+      omega_m=omega_t*om_m0/(om_m0+om_v0*((aa)**(-3.0*wval)))
       end function omega_m
 
 !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 ! evolution of omega lambda with expansion factor
 
-      function omega_v(aa,om_m0,om_v0)      
+      function omega_v(aa,om_m0,om_v0,wval)      
       implicit none
-      real(dl) aa,omega_v,om_m0,om_v0,omega_t
-      omega_t=1.0+(om_m0+om_v0-1.0)/(1-om_m0-om_v0+om_v0*aa*aa+om_m0/aa)
-      omega_v=omega_t*om_v0/(om_v0+om_m0/aa/aa/aa)
+      real(dl) aa,omega_v,om_m0,om_v0,omega_t,wval
+      omega_t=1.0+(om_m0+om_v0-1.0)/(1-om_m0-om_v0+om_v0*((aa)**(-1.0-3.0*wval))+om_m0/aa)
+      omega_v=omega_t*om_v0*((aa)**(-3.0-3.0*wval))/(om_v0*((aa)**(-3.0-3.0*wval))+om_m0/aa/aa/aa)
       end function omega_v
+
+!!BR09 end generalize to constant w
 
 end module NonLinear
 

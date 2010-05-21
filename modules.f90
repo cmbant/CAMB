@@ -34,13 +34,20 @@
         implicit none    
         public
 
-        character(LEN=*), parameter :: version = 'Sept_08'
+        character(LEN=*), parameter :: version = 'Jan_10'
         
         integer :: FeedbackLevel = 0 !if >0 print out useful information about the model
 
         logical, parameter :: DebugMsgs=.false. !Set to true to view progress and timing
 
         logical, parameter :: DebugEvolution = .false. !Set to true to do all the evolution for all k
+          
+        logical, parameter :: do_bispectrum = .false. 
+          !parameter tweaks for calculating separable bispectra
+          !uncomment code in CalcScalCls in cmbmain.f90 to actually calculate the bispectrum
+        logical, parameter :: hard_bispectrum = do_bispectrum .and. .false. !!! e.g. warm inflation where delicate cancellations
+        
+        logical, parameter :: full_bessel_integration = do_bispectrum !(go into the tails when calculating the sources)
 
         integer, parameter :: Nu_int = 0, Nu_trunc=1, Nu_approx = 2, Nu_best = 3
          !For CAMBparams%MassiveNuMethod
@@ -50,7 +57,7 @@
          !Nu_best: automatically use mixture which is fastest and most accurate
 
         integer, parameter :: max_Nu = 5 !Maximum number of neutrino species    
-        integer, parameter :: max_transfer_redshifts = 128
+        integer, parameter :: max_transfer_redshifts = 500    !!!
         integer, parameter :: fileio_unit = 13 !Any number not used elsewhere will do       
         integer, parameter :: outCOBE=0, outNone=1
     
@@ -189,7 +196,7 @@
       real(sp) :: lAccuracyBoost=1. 
           !Boost number of multipoles integrated in Boltzman heirarchy
 
-      integer, parameter :: lmin = 2
+      integer, parameter :: lmin = 2  !!!!!
           !must be either 1 or 2       
 
       real(dl), parameter :: OmegaKFlat = 5e-7_dl !Value at which to use flat code
@@ -202,7 +209,7 @@
       integer, parameter:: l0max=4000
 
 !     lmax is max possible number of l's evaluated
-      integer, parameter :: lmax_arr = 100+l0max/7
+      integer, parameter :: lmax_arr = l0max !!!100+l0max/7
  
         contains
       
@@ -489,6 +496,7 @@
           external dtauda
 
            R=3.0d4*a*CP%omegab*(CP%h0/100.0d0)**2
+!          R = 3*grhob*a / (4*grhog) //above is mostly within 0.2% and used for previous consistency
            cs=1.0d0/sqrt(3*(1+R))
            dsound_da=dtauda(a)*cs
         
@@ -504,7 +512,6 @@
 
          ombh2 = CP%omegab*(CP%h0/100.0d0)**2
          omdmh2 = (CP%omegac+CP%omegan)*(CP%h0/100.0d0)**2
-
 
     !!From Hu & Sugiyama
            zstar =  1048*(1+0.00124*ombh2**(-0.738))*(1+ &
@@ -555,6 +562,18 @@
         real(dl) AScale
     
         Ascale=scale/lSampleBoost       
+       
+        if (lSampleBoost >=50) then
+         !just do all of them
+         lind=0
+         do lvar=lmin, max_l
+           lind=lind+1
+           ls(lind)=lvar 
+         end do
+         lSet%l0=lind
+         lSet%l(1:lind) = ls(1:lind)
+         return       
+        end if
       
         lind=0
         do lvar=lmin, 10
@@ -899,10 +918,45 @@
            end do
      
         end if
-
-
-
         end subroutine output_cl_files
+
+        subroutine output_lens_pot_files(LensPotFile, factor)
+        implicit none
+        integer in,il
+        real(dl), intent(in), optional :: factor
+        real(dl) fact, scale
+        character(LEN=*) LensPotFile
+         !output file of dimensionless [l(l+1)]^2 C_phi_phi/2pi and [l(l+1)]^(3/2) C_phi_T/2pi 
+         !This is the format used by Planck_like but original LensPix uses scalar_output_file.
+         
+         !(Cl_scalar and scalar_output_file numbers are instead l^4 C_phi and l^3 C_phi 
+         ! - for historical reasons) 
+
+        if (present(factor)) then
+          fact = factor
+        else
+          fact =1
+        end if
+
+        if (CP%WantScalars .and. CP%DoLensing .and. LensPotFile/='') then
+ 
+           open(unit=fileio_unit,file=LensPotFile,form='formatted',status='replace')
+           do in=1,CP%InitPower%nn
+             do il=lmin,min(10000,CP%Max_l)
+               scale = (real(il+1)/il)**2/OutputDenominator
+               write(fileio_unit,'(1I6,2E15.5)') il , scale*Cl_scalar(il,in,C_Phi),&
+                   (real(il+1)/il)**1.5/OutputDenominator*sqrt(factor)*Cl_scalar(il,in,C_PhiTemp)
+             end do
+             do il=10100,CP%Max_l, 100
+               scale = (real(il+1)/il)**2/OutputDenominator
+               write(fileio_unit,'(1I6,2E15.5)') il , scale*Cl_scalar(il,in,C_Phi),&
+                   (real(il+1)/il)**1.5/OutputDenominator*sqrt(factor)*Cl_scalar(il,in,C_PhiTemp)
+             end do
+            end do
+            close(fileio_unit)
+         end if
+        end subroutine output_lens_pot_files
+
 
         subroutine output_veccl_files(VecFile, factor)
         implicit none
@@ -1678,7 +1732,7 @@
           deallocate(PK_data%matpower,stat=i)
           deallocate(PK_data%ddmat,stat=i)
           deallocate(PK_data%nonlin_ratio,stat=i)
-          deallocate(PK_data%redshifts)
+          deallocate(PK_data%redshifts,stat=i)
 
         end subroutine MatterPowerdata_Free
 
@@ -2156,9 +2210,7 @@
         real(dl) last_dotmu
         real(dl) dtauda  !diff of tau w.CP%r.t a and integration
         external dtauda
- 
         real(dl) a_verydom
-
      
         call Recombination_Init(CP%Recomb, CP%omegac, CP%omegab,CP%Omegan, CP%Omegav, CP%h0,CP%tcmb,CP%yhe)
           !almost all the time spent here
@@ -2167,8 +2219,9 @@
         tight_tau = 0
         actual_opt_depth = 0
         ncount=0
-        thomc0=5.0577d-8*CP%tcmb**4
-
+        thomc0= Compton_CT * CP%tcmb**4 
+        !thomc0=5.0577d-8*CP%tcmb**4
+        
         tauminn=0.05d0*taumin
         dlntau=log(CP%tau0/tauminn)/(nthermo-1)
         last_dotmu = 0
@@ -2237,6 +2290,7 @@
             !print *,1/a-1,xe(i)
             if (CP%AccurateReionization .and. FeedbackLevel > 0) then                         
                 dotmu(i)=(Recombination_xe(a) - xe(i))*akthom/a2
+                
                 if (last_dotmu /=0) then
                  actual_opt_depth = actual_opt_depth - 2._dl*dtau/(1._dl/dotmu(i)+1._dl/last_dotmu)
                 end if
@@ -2252,6 +2306,8 @@
           dtbdla=-2._dl*tb(i)-thomc*adothalf/adot*(a*tb(i)-CP%tcmb)
           barssc=barssc0*(1._dl-0.75d0*CP%yhe+(1._dl-CP%yhe)*xe(i))
           cs2(i)=barssc*tb(i)*(1-dtbdla/tb(i)/3._dl)
+          
+          
 ! Calculation of the visibility function
           dotmu(i)=xe(i)*akthom/a2
 
@@ -2293,7 +2349,7 @@
 
         iv=0
         vfi=0._dl
-! Getting the starting and finishing times for decoupling a+nd time of maximum visibility
+! Getting the starting and finishing times for decoupling and time of maximum visibility
         if (ncount == 0) then
            cf1=1._dl
            ns=nthermo
@@ -2326,17 +2382,16 @@
              stop 'inithermo: failed to find end of recombination'
 !              taurend=1.5d0*(tauminn*exp((ncount-1)*dlntau))
            end if
-          
 
 ! Calculating the timesteps during recombination.
-           
     
            if (CP%WantTensors) then
               dtaurec=min(dtaurec,taurst/160)/AccuracyBoost 
            else
               dtaurec=min(dtaurec,taurst/40)/AccuracyBoost 
+              if (hard_bispectrum) dtaurec = dtaurec / 4
            end if
- 
+            
            if (CP%Reion%Reionization) taurend=min(taurend,CP%ReionHist%tau_start)
 
          if (DebugMsgs) then
@@ -2368,14 +2423,15 @@
         integer nri0, nstep
 
          call Ranges_Init(TimeSteps)
-
+         
          call Ranges_Add_delta(TimeSteps, taurst, taurend, dtaurec)
 
         ! Calculating the timesteps after recombination
            if (CP%WantTensors) then
               dtau0=max(taurst/40,Maxtau/2000._dl/AccuracyBoost)
            else       
-              dtau0=Maxtau/500._dl/AccuracyBoost
+              dtau0=Maxtau/500._dl/AccuracyBoost  
+              if (do_bispectrum) dtau0 = dtau0/3 
              !Don't need this since adding in Limber on small scales
               !  if (CP%DoLensing) dtau0=dtau0/2 
               !  if (CP%AccurateBB) dtau0=dtau0/3 !Need to get C_Phi accurate on small scales

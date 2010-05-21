@@ -14,7 +14,7 @@
 !C and that the same appear on ALL copies of the software and documentation,
 !C including modifications that you make for internal use or for distribution:
 !C
-!C Copyright 1999-2008 by University of British Columbia.  All rights reserved.
+!C Copyright 1999-2010 by University of British Columbia.  All rights reserved.
 !C
 !C THIS SOFTWARE IS PROVIDED "AS IS", AND U.B.C. MAKES NO 
 !C REPRESENTATIONS OR WARRANTIES, EXPRESS OR IMPLIED.  
@@ -27,7 +27,7 @@
 !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
 !CN     Name:        RECFAST
-!CV     Version: 1.4.2
+!CV     Version: 1.5
 !C 
 !CP     Purpose:  Calculate ionised fraction as a function of redshift.
 !CP            Solves for H and He simultaneously, and includes
@@ -37,10 +37,15 @@
 !CD     Description: Solves for ionisation history since recombination
 !CD     using the equations in Seager, Sasselov & Scott (ApJ, 1999).
 !CD     The Cosmological model can be flat or open.
-!CD     The matter temperature is also followed.
-!CD     The values for \alpha_B for H are from Hummer (1994).
-!CD     The singlet HeI coefficient is a fit from the full code.
-!CD     Care is taken to use the most accurate constants.
+!CD	 The matter temperature is also followed, with an update from
+!CD	 Scott & Scott (2009).
+!CD	 The values for \alpha_B for H are from Hummer (1994).
+!CD	 The singlet HeI coefficient is a fit from the full code.
+!CD	 Additional He "fudge factors" are as described in Wong, Moss
+!CD	 and Scott (2008).
+!CD	 Extra fitting function included (in optical depth) to account
+!CD	 for extra H physics described in Rubino-Martin et al. (2010).
+!CD	 Care is taken to use the most accurate constants.
 !C            
 !CA     Arguments:
 !CA     Name, Description
@@ -130,6 +135,14 @@
 !CA sigma_He_2Pt: H ionization x-section at HeI 23P1-11S0 freq. in m^2
 !CA CL_PSt = h_P*C*(L_He_2Pt - L_He_2st)/k_B
 !CA CfHe_t: triplet statistical correction
+!CA	Hswitch is an boolean for modifying the H recombination
+!CA	AGauss1 is the amplitude of the 1st Gaussian for the H fudging
+!CA	AGauss2 is the amplitude of the 2nd Gaussian for the H fudging
+!CA	zGauss1 is the ln(1+z) central value of the 1st Gaussian
+!CA	zGauss2 is the ln(1+z) central value of the 2nd Gaussian
+!CA	wGauss1 is the width of the 1st Gaussian
+!CA	wGauss2 is the width of the 2nd Gaussian
+
 
 !CA     tol: tolerance for the integrator
 !CA     cw(24),w(3,9): work space for DVERK
@@ -184,6 +197,8 @@
 !CH   			 Sept 2008 (added extra term to make transition, smoother for Tmat evolution)
 !                Sept 2008 Recfast 1.4.2 changes above added (AML) 
 !                          General recombination module structure, fix to make He x_e smooth also in recfast (AML)
+!CH		      	 Jan 2010 (added fitting function to modify K
+!CH			 	 to match x_e(z) for new H physics)
 
 !!      ===============================================================
 
@@ -248,16 +263,27 @@
         integer,  parameter :: Nz=10000
         real(dl), parameter :: delta_z = (zinitial-zfinal)/Nz
 
-        integer, parameter :: RECFAST_Heswitch_default = 6
-        real(dl), parameter :: RECFAST_fudge_default = 1.14_dl
+        integer, parameter ::  RECFAST_Heswitch_default = 6
         real(dl), parameter :: RECFAST_fudge_He_default = 0.86_dl !Helium fudge parameter
- 
+        logical, parameter  :: RECFAST_Hswitch_default = .true. !include H corrections (v1.5, 2010)
+        real(dl), parameter :: RECFAST_fudge_default = 1.14_dl
+        real(dl), parameter :: RECFAST_fudge_default2 = 1.105d0 
+              !fudge parameter if RECFAST_Hswitch
+        
+        real(dl), parameter :: AGauss1 =   -0.14D0	!Amplitude of 1st Gaussian
+        real(dl), parameter :: AGauss2 =	0.05D0	!Amplitude of 2nd Gaussian
+        real(dl), parameter :: zGauss1 =	7.28D0	!ln(1+z) of 1st Gaussian
+        real(dl), parameter :: zGauss2=		6.75D0	!ln(1+z) of 2nd Gaussian
+        real(dl), parameter :: wGauss1=		0.18D0	!Width of 1st Gaussian
+        real(dl), parameter :: wGauss2=		0.33D0	!Width of 2nd Gaussian
+         !	Gaussian fits for extra H physics (fit by Adam Moss)
 
         type RecombinationParams
 
           real(dl) :: RECFAST_fudge 
           real(dl) :: RECFAST_fudge_He 
-          integer  :: RECFAST_Heswitch 
+          integer  :: RECFAST_Heswitch
+          logical  :: RECFAST_Hswitch  
          !0) no change from old Recfast'
          !1) full expression for escape probability for singlet'
          !'   1P-1S transition'
@@ -272,7 +298,7 @@
    
         end  type RecombinationParams
 
-        character(LEN=*), parameter :: Recombination_Name = 'Recfast_1.4'
+        character(LEN=*), parameter :: Recombination_Name = 'Recfast_1.5'
       
         real(dl) zrec(Nz),xrec(Nz),dxrec(Nz), Tsrec(Nz) ,dTsrec(Nz), tmrec(Nz),dtmrec(Nz)
 
@@ -308,11 +334,13 @@
           Type(TIniFile) :: Ini
 
 
-             R%RECFAST_fudge = Ini_Read_Double_File(Ini,'RECFAST_fudge',RECFAST_fudge_default)
              R%RECFAST_fudge_He = Ini_Read_Double_File(Ini,'RECFAST_fudge_He',RECFAST_fudge_He_default)
              R%RECFAST_Heswitch = Ini_Read_Int_File(Ini, 'RECFAST_Heswitch',RECFAST_Heswitch_default)
-
-        
+             R%RECFAST_Hswitch = Ini_Read_Logical_File(Ini, 'RECFAST_Hswitch',RECFAST_Hswitch_default)
+             R%RECFAST_fudge = Ini_Read_Double_File(Ini,'RECFAST_fudge',RECFAST_fudge_default)
+             if (R%RECFAST_Hswitch) then
+                R%RECFAST_fudge = R%RECFAST_fudge - (RECFAST_fudge_default - RECFAST_fudge_default2)
+             end if   
          end subroutine Recombination_ReadParams 
 
         subroutine Recombination_SetDefParams(R)
@@ -322,7 +350,11 @@
           R%RECFAST_fudge = RECFAST_fudge_default
           R%RECFAST_fudge_He = RECFAST_fudge_He_default !Helium fudge parameter
           R%RECFAST_Heswitch = RECFAST_Heswitch_default
-   
+          R%RECFAST_Hswitch =  RECFAST_Hswitch_default
+          if (R%RECFAST_Hswitch) then
+                R%RECFAST_fudge = R%RECFAST_fudge - (RECFAST_fudge_default - RECFAST_fudge_default2)
+          end if   
+    
         end subroutine Recombination_SetDefParams
 
 
@@ -446,7 +478,7 @@
         real(dl), parameter :: tol=1.D-5                !Tolerance for R-K
 
         real(dl) dtauda
-        external dtauda
+        external dtauda, dverk
 
 !       ===============================================================
 
@@ -485,8 +517,8 @@
 
  !Not general, but only for approx 
         OmegaT=OmegaC+OmegaB            !total dark matter + baryons
-	    OmegaK=1.d0-OmegaT-OmegaV	    !curvature
-	
+        OmegaK=1.d0-OmegaT-OmegaV       !curvature
+    
   
 !       convert the Hubble constant units
         H = H0inp/100._dl
@@ -502,10 +534,10 @@
         Nnow = 3._dl*HO*HO*OmegaB/(8._dl*Pi*G*mu_H*m_H)
 
         n = Nnow * (1._dl+z)**3
-	    fnu = (21.d0/8.d0)*(4.d0/11.d0)**(4.d0/3.d0)
+        fnu = (21.d0/8.d0)*(4.d0/11.d0)**(4.d0/3.d0)
 !	(this is explictly for 3 massless neutrinos - change if N_nu.ne.3; but only used for approximation so not critical)
-	    z_eq = (3.d0*(HO*C)**2/(8.d0*Pi*G*a_rad*(1.d0+fnu)*Tnow**4))*(OmegaB+OmegaC)
-	    z_eq = z_eq - 1.d0
+        z_eq = (3.d0*(HO*C)**2/(8.d0*Pi*G*a_rad*(1.d0+fnu)*Tnow**4))*(OmegaB+OmegaC)
+        z_eq = z_eq - 1.d0
 
       
 !       Set up some constants so they don't have to be calculated later
@@ -807,7 +839,16 @@
         else
           He_Boltz = exp(Bfact/Tmat)
         end if
-        K = CK/Hz              !Peebles coefficient K=lambda_a^3/8piH
+!	now deal with H and its fudges
+    if (.not. Recomb%RECFAST_Hswitch) then
+      K = CK/Hz		!Peebles coefficient K=lambda_a^3/8piH
+    else
+!c	fit a double Gaussian correction function
+      K = CK/Hz*(1.0d0 &
+        +AGauss1*exp(-((log(1.0d0+z)-zGauss1)/wGauss1)**2.d0) &
+        +AGauss2*exp(-((log(1.0d0+z)-zGauss2)/wGauss2)**2.d0))
+    end if        
+        
         
  !  add the HeI part, using same T_0 and T_1 values
     Rdown_trip = a_trip/(sq_0*(1.d0+sq_0)**(1.0-b_trip))
@@ -850,7 +891,7 @@
         tauHe_t = tauHe_t /(8.d0*Pi*Hz*L_He_2Pt**(3.d0))
         pHe_t = (1.d0 - dexp(-tauHe_t))/tauHe_t
         CL_PSt = h_P*C*(L_He_2Pt - L_He_2st)/k_B
-    	if ((Heflag.eq.3) .or. (Heflag.eq.5).or.(x_H.gt.0.99999d0)) then !Recfast 1.4.2 (?)
+        if ((Heflag.eq.3) .or. (Heflag.eq.5).or.(x_H.gt.0.99999d0)) then !Recfast 1.4.2 (?)
 !        if ((Heflag.eq.3) .or. (Heflag.eq.5) .or. x_H >= 0.9999999d0) then    !no H cont. effect
             CfHe_t = A2P_t*pHe_t*dexp(-CL_PSt/Tmat)
             CfHe_t = CfHe_t/(Rup_trip+CfHe_t)   !"C" factor for triplets
@@ -923,13 +964,13 @@
 !                f(3)=Tmat/(1._dl+z)      !Tmat follows Trad
 !	additional term to smooth transition to Tmat evolution,
 !	(suggested by Adam Moss)
-      	 dHdz = (HO**2/2.d0/Hz)*(4.d0*(1.d0+z)**3/(1.d0+z_eq)*OmegaT &
-	 	 + 3.d0*OmegaT*(1.d0+z)**2 + 2.d0*OmegaK*(1.d0+z) )
+         dHdz = (HO**2/2.d0/Hz)*(4.d0*(1.d0+z)**3/(1.d0+z_eq)*OmegaT &
+         + 3.d0*OmegaT*(1.d0+z)**2 + 2.d0*OmegaK*(1.d0+z) )
 
-		epsilon = Hz*(1.d0+x+fHe)/(CT*Trad**3*x)
-		f(3) = Tnow &
-		+ epsilon*((1.d0+fHe)/(1.d0+fHe+x))*((f(1)+fHe*f(2))/x) &
-		- epsilon* dHdz/Hz + 3.0d0*epsilon/(1.d0+z) 
+        epsilon = Hz*(1.d0+x+fHe)/(CT*Trad**3*x)
+        f(3) = Tnow &
+        + epsilon*((1.d0+fHe)/(1.d0+fHe+x))*((f(1)+fHe*f(2))/x) &
+        - epsilon* dHdz/Hz + 3.0d0*epsilon/(1.d0+z) 
                 
         else
                 f(3)= CT * (Trad**4) * x / (1._dl+x+fHe) &

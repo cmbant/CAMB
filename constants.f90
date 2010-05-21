@@ -13,7 +13,6 @@
    module constants
        use precision
        implicit none
-
       
        real(dl), parameter :: const_pi = 3.1415926535897932384626433832795_dl
        real(dl), parameter :: const_twopi=2._dl*const_pi, const_fourpi=4._dl*const_pi
@@ -54,7 +53,7 @@
 
        real(dl), parameter :: line21_const = 3*l_21cm**2*C*h_P/32/const_pi/k_B*A10 * Mpc_in_sec * 1000
         !1000 to get in MiliKelvin
-
+       real(dl), parameter :: COBE_CMBTemp = 2.726 !(Fixsen 2009)
 
    end module constants
 

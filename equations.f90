@@ -1,4 +1,4 @@
-! Equations module for dark energy with constant equation of state parameter w
+!+ Equations module for dark energy with constant equation of state parameter w
 ! allowing for perturbations based on a quintessence model
 ! by Antony Lewis (http://cosmologist.info/)
 ! This version November 2006.
@@ -689,7 +689,7 @@
         grhor_t=grhornomass/a2
         grhog_t=grhog/a2
         grhov_t=grhov*a**(-1-3*w_lam)
-    
+
         if (EV%no_rad_multpoles) then
             clxg=2*(grhoc_t*clxc+grhob_t*clxb)/3/k**2
             clxr=clxg
@@ -778,8 +778,11 @@
               -diff_rhopi/k**2-1.D0/adotoa*dgrho/3.D0+(3.D0*gpres+5.D0*grho)*sigma/k/3.D0 &
               -2.D0/k*adotoa/EV%Kf(1)*etak)*expmmu(j)
 
+!e.g. to get only late-time ISW
+!  if (1/a-1 < 30) ISW=0
+
 !The rest
-        sources(1)= ISW +  ((-9.D0/160.D0*pig-27.D0/80.D0*ypol(2))/k**2*opac(j)+(11.D0/10.D0*sigma- &
+    sources(1)= ISW +  ((-9.D0/160.D0*pig-27.D0/80.D0*ypol(2))/k**2*opac(j)+(11.D0/10.D0*sigma- &
     3.D0/8.D0*EV%Kf(2)*ypol(3)+vb-9.D0/80.D0*EV%Kf(2)*y(9)+3.D0/40.D0*qg)/k-(- &
     180.D0*ypolprime(2)-30.D0*pigdot)/k**2/160.D0)*dvis(j)+(-(9.D0*pigdot+ &
     54.D0*ypolprime(2))/k**2*opac(j)/160.D0+pig/16.D0+clxg/4.D0+3.D0/8.D0*ypol(2)+(- &
@@ -788,8 +791,11 @@
     80.D0*dopac(j)*ypol(2))/k**2)*vis(j)+(3.D0/16.D0*ddvis(j)*pig+9.D0/ &
     8.D0*ddvis(j)*ypol(2))/k**2+21.D0/10.D0/k/EV%Kf(1)*vis(j)*etak   
 
+! Doppler term
+!   sources(1)=  (sigma+vb)/k*dvis(j)+((-2.D0*adotoa*sigma+vbdot)/k-1.D0/k**2*dgpi)*vis(j) &
+!         +1.D0/k/EV%Kf(1)*vis(j)*etak
 
-!Equivalent result
+!Equivalent full result
 !    t4 = 1.D0/adotoa
 !    t92 = k**2
 !   sources(1) = (4.D0/3.D0*EV%Kf(1)*expmmu(j)*sigma+2.D0/3.D0*(-sigma-t4*etak)*expmmu(j))*k+ &
@@ -824,9 +830,6 @@
             ! - (grhor_t*pir + grhog_t*pig+ pinu*gpnu_t)/k2
          
          sources(3) = -2*phi*f_K(tau-tau_maxvis)/(f_K(CP%tau0-tau_maxvis)*f_K(CP%tau0-tau))
-       !  sources(3) = -2*phi/f_K(CP%tau0-tau)
-
-
 !         sources(3) = -2*phi*(tau-tau_maxvis)/((CP%tau0-tau_maxvis)*(CP%tau0-tau))
           !We include the lensing factor of two here
        else
@@ -1008,6 +1011,7 @@
         om = (grhob+grhoc)/sqrt(3*(grhog+grhonu))       
         omtau=om*tau
         Rv=grhonu/(grhonu+grhog)
+        
         Rg = 1-Rv
         Rc=CP%omegac/(CP%omegac+CP%omegab)
         Rb=1-Rc
@@ -1219,22 +1223,22 @@
 
         yt(2)= tens0 
 !commented things are for the compensated mode with magnetic fields; can be neglected
-          ! -15/28._dl*x**2*(bigR-1)/(15+4*bigR)*Magnetic*(1-5./2*omtau/(2*bigR+15))
+!-15/28._dl*x**2*(bigR-1)/(15+4*bigR)*Magnetic*(1-5./2*omtau/(2*bigR+15))
     
         elec=-tens0*(1+2*CP%curv/k2)*(2*bigR+10)/(4*bigR+15) !elec, with H=1
        
         !shear
         yt(3)=-5._dl/2/(bigR+5)*x*elec 
-          !+ 15._dl/14*x*(bigR-1)/(4*bigR+15)*Magnetic*(1 - 15./2*omtau/(2*bigR+15))
+!          + 15._dl/14*x*(bigR-1)/(4*bigR+15)*Magnetic*(1 - 15./2*omtau/(2*bigR+15))
         
         yt(4:EV%nvart)=0._dl
      
 !  Neutrinos 
         if (DoTensorNeutrinos) then
          pir=-2._dl/3._dl/(bigR+5)*x**2*elec 
-           !+ (bigR-1)/bigR*Magnetic*(1-15./14*x**2/(15+4*bigR))
-         aj3r=  -2._dl/21._dl/(bigR+5)*x**3*elec 
-           !+ 3._dl/7*x*(bigR-1)/bigR*Magnetic
+!           + (bigR-1)/bigR*Magnetic*(1-15./14*x**2/(15+4*bigR))
+         aj3r=  -2._dl/21._dl/(bigR+5)*x**3*elec !&
+!           + 3._dl/7*x*(bigR-1)/bigR*Magnetic
          yt((EV%lmaxt-1)+(EV%lmaxpolt-1)*2+3+1)=pir
          yt((EV%lmaxt-1)+(EV%lmaxpolt-1)*2+3+2)=aj3r
         end if
@@ -1340,15 +1344,14 @@
         end if
 
 !!!If we want DE perturbations to get \delta\rho/\rho_m    
-     !  dgrho=dgrho+y(EV%w_ix)*grhov*a**(-1-3*w_lam)
-     !   Arr(Transfer_r) = y(EV%w_ix)/k2
-
+!       dgrho=dgrho+y(EV%w_ix)*grhov*a**(-1-3*w_lam)
+!        Arr(Transfer_r) = y(EV%w_ix)/k2
+!
 !        dgrho = dgrho+(clxc*grhoc + clxb*grhob)/a 
 !        grho =  grho+(grhoc+grhob)/a + grhov*a**(-1-3*w_lam)
 
-  
-        dgrho = dgrho+(clxc*grhoc + clxb*grhob)/a 
-        grho =  grho+(grhoc+grhob)/a
+         dgrho = dgrho+(clxc*grhoc + clxb*grhob)/a 
+         grho =  grho+(grhoc+grhob)/a
         
         Arr(Transfer_tot) = dgrho/grho/k2 
              
@@ -1411,8 +1414,7 @@
          else
          grhov_t=grhov*a**(-1-3*w_lam)
         end if
-
-
+        
        if (EV%no_rad_multpoles) then
         clxg=2*(grhoc_t*clxc+grhob_t*clxb)/3/k**2
         clxr=clxg
@@ -1458,11 +1460,10 @@
         if (CP%Num_Nu_Massive > 0) then
            call MassiveNuVars(EV,ay,a,grho,gpres,dgrho,dgq, wnu_arr)
         end if
-
         
         adotoa=sqrt(grho/3)
         ayprime(1)=adotoa*a
-       
+
         if (w_lam /= -1 .and. w_Perturb) then
            clxq=ay(EV%w_ix) 
            vq=ay(EV%w_ix+1) 
@@ -1474,8 +1475,7 @@
 ! have to get z from eta for numerical stability
         z=(0.5_dl*dgrho/k + etak)/adotoa 
         sigma=z+1.5_dl*dgq/k2
-      
-        
+
         if (w_lam /= -1 .and. w_Perturb) then
 
            ayprime(EV%w_ix)= -3*adotoa*(cs2_lam-w_lam)*(clxq+3*adotoa*(1+w_lam)*vq/k) &
@@ -1812,8 +1812,7 @@
         
         endif
      
-
-        rhopi=grhog_t*pig 
+        rhopi=grhog_t*pig !+ grhog_t*Magnetic
 
 !  Neutrino equations: 
 !  Anisotropic stress  
