@@ -1,0 +1,306 @@
+# Check on the consistency of the perturbation equations for scalar
+# perturbations. Conformal time version. 
+# Compute the source terms for the line of sight integral
+# Includes cdm, baryons, lambda, massive neutrinos and a scalar field
+# We set the CDM (accel=0) frame from the start
+
+# Beware of buggy maple versions (e.g. 4). v3 and v6 workswell. To run in
+# later versions you need to do a global replace of " to %.
+
+
+theta_t:=3*diff(S(t),t)/S(t)^2;
+
+dS:=1/3*S(t)^2*theta(t);
+dtheta:=-1/3*S(t)*(theta(t))^2-1/2*kappa*S(t)*(rho(t)+3*p(t));
+H:=dS/S(t);
+
+Friedmann:=theta(t)^2=3*kappa*rho(t)-9*K/S(t)^2;
+
+#Eliminate phi(t) using constraint equation
+cons1:=2*(k/S(t))^3*Kfac*phi(t)-kappa*k/S(t)*(rhox(t)+rhopi(t)*Kfac)-kappa*theta(t)*rhoq(t);
+solve(cons1,phi(t));
+phi(t):=simplify(%); 
+
+#Eliminate z in favour of the curvature perturbation eta
+z(t):=solve(k^2*eta(t)=kappa*S(t)^2*rhox(t) -2*k*H*z(t),z(t));
+
+
+drag_t:=opac(t)*(4/3*v(t)-qg(t));
+photbar_t:=rhog(t)/rhob(t);
+dgrho_t:=kappa*S(t)^2*rhox(t);
+
+drhob:=-S(t)*theta(t)*(rhob(t)+pb(t));
+drhoc:=-S(t)*theta(t)*rhoc(t);
+drhog:=-4*S(t)/3*theta(t)*rhog(t);
+drhor:=-4/3*S(t)*theta(t)*rhor(t);
+drhonu:=-S(t)*theta(t)*(rhonu(t)+pnu(t));
+drhopsi:=-S(t)*theta(t)*(rhopsi(t)+ppsi(t));
+
+
+dclxr:=-4/3*k*z(t)-k*qr(t);
+dclxg:=-4/3*k*z(t)-k*qg(t);
+dclxb:=-(1+pb(t)/rhob(t))*k*(z(t)+v(t)) +(pb(t)/rhob(t)-c2(t))*S(t)*theta(t)*clxb(t);
+dclxc:=-k*z(t);
+dclxnu:=-k*(1+pnu(t)/rhonu(t))*z(t) - k*qnu(t) +S(t)*theta(t)*(-clxpnu(t) + clxnu(t)*pnu(t)/rhonu(t));
+
+dclvdot:= - 2*dS/S(t)*diff(clv(t),t) - k*z(t)*diff(psi(t),t) - k^2*clv(t) - clv(t)*S(t)^2*V2(t);
+
+
+dpsidot:=-2*dS/S(t)*diff(psi(t),t)-S(t)^2*V1(t);
+
+
+rhopsi_t:=1/2*diff(psi(t),t)^2/S(t)^2 + V(t);
+ppsi_t:=1/2*diff(psi(t),t)^2/S(t)^2 - V(t);
+
+dz:=-1/3*S(t)*theta(t)*z(t)-1/2*kappa*S(t)^2/k*(2*rhog(t)*clxg(t)+2*rhor(t)*clxr(t)+(1+3*c2(t))*rhob(t)*clxb(t)+rhoc(t)*clxc(t)+rhonu(t)*(clxpnu(t)*3+ clxnu(t)) + 1/S(t)^2*(4*diff(psi(t),t)*diff(clv(t),t)-2*clv(t)*S(t)^2*V1(t)));
+
+Kfac_sub:= (1-3*K/k^2);
+dqr:=-2/3*k*pir(t)*Kfac+1/3*k*clxr(t);
+dqg:=-2/3*k*pig(t)*Kfac+1/3*k*clxg(t)+drag(t);
+dv:=-1/3*(1-3*c2(t))*S(t)*theta(t)*v(t)+1/(1+pb(t)/rhob(t))*(c2(t)*k*clxb(t)-photbar(t)*drag(t));
+dqnu:=-1/3*theta(t)*S(t)*(1-3*pnu(t)/rhonu(t))*qnu(t) -k/3*(2*Kfac*pinu(t) - 3*clxpnu(t));
+
+dsigma:=-1/3*S(t)*theta(t)*sigma(t)-k*phi(t)-1/2*kappa*S(t)^2/k*(rhopi(t));
+
+rho_t:=rhob(t)+rhoc(t)+rhor(t)+rhog(t)+rhonu(t)+rhopsi(t)+rhov(t);
+p_t:=1/3*(rhor(t)+rhog(t))+pb(t)+pnu(t)+ppsi(t)-rhov(t);
+dpb:=c2(t)*drhob;
+
+
+dpig:=-9/10*opac(t)*pig(t) - 3/5*k*Kf[2]*J_3(t) + 2/5*k*qg(t) + 8/15*k*sigma(t);
+
+
+
+rhopi_t:=rhog(t)*pig(t)+rhor(t)*pir(t) + rhonu(t)*pinu(t);
+rhox_t:=rhog(t)*clxg(t)+rhor(t)*clxr(t)+rhob(t)*clxb(t)+rhoc(t)*clxc(t) +rhonu(t)*clxnu(t) + 1/S(t)^2*(diff(psi(t),t)*diff(clv(t),t)+clv(t)*S(t)^2*V1(t));
+rhoq_t:=rhog(t)*qg(t)+rhor(t)*qr(t)+(rhob(t)+pb(t))*v(t) + rhonu(t)*qnu(t) +k*diff(psi(t),t)*clv(t)/S(t)^2;
+#pressure perturbation
+rhoxp_t:=rhonu(t)*clxpnu(t) + 1/3*(rhog(t)*clxg(t)+rhor(t)*clxr(t)) + 1/S(t)^2*(diff(psi(t),t)*diff(clv(t),t)-clv(t)*S(t)^2*V1(t))+c2(t)*rhob(t)*clxb(t);
+
+subtots:={rhopi(t)=rhopi_t,rhoq(t)=rhoq_t,rhox(t)=rhox_t,rho(t)=rho_t,p(t)=p_t,rhoxp(t)=rhoxp_t};
+
+#deta:=-1/k*(2*K*z(t) + kappa*S(t)^2*rhoq(t));
+deta:=Kfac*(S(t)*kappa*rhox(t)/theta(t) - k^2*eta(t)/S(t)/theta(t) - 2/3*k*sigma(t));
+
+drhoq:=k*rhoxp(t)-4*H*rhoq(t)-2/3*k*Kfac*rhopi(t);
+drhox:=-k*rhoq(t) - 3*H*(rhox(t) + rhoxp(t)) - k*z(t)*(rho(t)+p(t));
+
+
+polter_t:=2/15*(3*pig(t)/4 + 9*E2(t)/2);
+
+dE2:=-opac(t)*(E2(t) - polter(t)) - k/3*Kf[2]*E3(t);
+
+# Constraint
+
+cons2:=2/3*(k/S(t))^2*(z(t)-Kfac*sigma(t))+kappa*rhoq(t);
+
+solve(cons2,eta(t));
+eta_sub:=%;
+
+solve(eta(t)=eta_sub,rhoq(t));
+rhoq_sub:=%;
+
+simplify(subs(rhoq(t)=rhoq_sub,dsigma));
+dsigma:=%;
+
+
+
+sublist:={diff(S(t),t)=dS,diff(rhob(t),t)=drhob,diff(rhoc(t),t)=drhoc,diff(rhor(t),t)=drhor,diff(rhog(t),t)=drhog,diff(clxr(t),t)=dclxr,diff(clxg(t),t)=dclxg,diff(clxb(t),t)=dclxb,diff(clxc(t),t)=dclxc,diff(z(t),t)=dz,diff(qr(t),t)=dqr,diff(qg(t),t)=dqg,diff(v(t),t)=dv,diff(sigma(t),t)=dsigma,diff(theta(t),t)=dtheta,diff(exptau(t),t)=g(t),diff(pig(t),t)=dpig,diff(rhonu(t),t)=drhonu,diff(clxnu(t),t)=dclxnu,diff(eta(t),t)=deta,diff(diff(clv(t),t),t)=dclvdot,diff(diff(psi(t),t),t)=dpsidot,diff(eta(t),t)=deta,diff(V1(t),t)=diff(psi(t),t)*V2(t)};
+
+#End of main definitions and equations
+#########################################
+
+
+#check consistency
+
+diff(cons2,t);
+
+x:=simplify(subs(sublist,%));
+
+subs(subtots,%);
+simplify(%);
+x:=simplify(subs(sublist,%));
+
+subs(eta(t)=eta_sub,x);
+subs(subtots,%);
+
+simplify(subs(sublist,%));
+subs({rhopsi(t)=rhopsi_t,ppsi(t)=ppsi_t},%);
+
+subs(photbar(t)=rhog(t)/rhob(t),%);
+subs(diff(pb(t),t)=dpb,%);
+simplify(%);
+
+subs(diff(qnu(t),t)=dqnu,%);
+subs(diff(V1(t),t)=diff(psi(t),t)*V2(t),%);
+simplify(%);
+
+x:=%:
+
+subs(Friedmann,x);
+subs(subtots,%);
+subs({rhopsi(t)=rhopsi_t,ppsi(t)=ppsi_t},%);
+subs(Kfac=Kfac_sub,%);
+simplify(%);
+# Consistent if now have zero 
+
+#try q equation...
+
+subs(rhoxp(t)=rhoxp_t,drhoq);
+simplify(diff(rhoq_sub,t)-%):
+subs(diff(rhox(t),t)=drhox,%);
+subs(sublist,%);
+simplify(%);
+subs(Friedmann,%);
+
+subs(subtots,%):
+simplify(%);
+subs({rhopsi(t)=rhopsi_t,ppsi(t)=ppsi_t},%);
+subs(eta(t)=eta_sub,%);
+subs(subtots,%):
+simplify(%);
+subs(sublist,%):
+simplify(%);
+subs(Friedmann,%);
+subs(subtots,%):
+simplify(%);
+
+subs(Kfac=Kfac_sub,%):
+simplify(%);
+subs({rhopsi(t)=rhopsi_t,ppsi(t)=ppsi_t},%):
+simplify(%);
+
+#also zero (there must be an easier way...!)
+#Now enough consistency checks to convince me.
+#######################################
+
+no_quint:={psi(t)=0,V(t)=0,V1(t)=0,V2(t)=0,rhopsi(t)=0,ppsi(t)=0};
+no_numassive:={pinu(t)=0,qnu(t)=0,rhonu(t)=0,pnu(t)=0};
+
+#some things for trying different variables
+solve(eta_sub=eta(t),sigma(t));
+sigma_sub:=%;
+solve(eta(t)=eta_sub,rhoq(t));
+rhoq_sub:=%;
+
+######################################
+###Do line of sight stuff (diff by parts, etc).
+
+fac1(t):=k*sigma(t)*exptau(t) +g(t)*15/8*polter(t);
+
+dfac1(t):=-diff(fac1(t),t)/k;
+
+simplify(subs(polter(t)=polter_t,%)):
+simplify(subs(diff(E2(t),t)=dE2,%));
+
+simplify(subs(sublist,%));
+
+-diff(%,t)/k;
+simplify(subs(polter(t)=polter_t,%)):
+x:=%;
+
+
+sublist2:={diff(S(t),t)=dS,diff(rhob(t),t)=drhob,diff(rhoc(t),t)=drhoc,diff(rhor(t),t)=drhor,diff(rhog(t),t)=drhog,diff(rhonu(t),t)=drhonu,diff(exptau(t),t)=g(t),diff(theta(t),t)=dtheta};
+
+
+
+x;
+#subs(rhopi(t)=rhopi_t,%);
+#simplify(%);
+simplify(subs(sublist2,%));
+#subs(rhopi(t)=rhopi_t,%);
+ddfac1:=simplify(%);
+
+
+%+diff(g(t)*v(t),t)/k;
+simplify(subs(sublist2,%));
+
+x:=%;
+
+source:=x+1/3*fac1(t)-1/3*exptau(t)*k*z(t) +1/4*g(t)*clxg(t);
+
+
+source;
+subs(diff(sigma(t),t)=dsigma,%):
+simplify(subs(sublist2,%));
+simplify(%);
+
+simplify(subs(rhopi(t)=rhopi_t,%));
+x:=simplify(subs(sublist2,%));
+subs(diff(eta(t),t)=deta,x):
+x:=simplify(%);
+
+  #collect(%,theta(t));  
+  #x:=subs(Friedmann,%);
+
+  #subs(K=(1-Kfac)*k^2/3,%);
+  #x:=simplify(%);
+
+#subs(eta(t)=eta_sub,%):
+#simplify(%):
+#x:=%;
+
+subs(K=(1-Kfac)*k^2/3,%);
+#x:=simplify(subs(diff(polter(t),t)=diff(polter_t,t),%));
+x:=simplify(subs(polter(t)=polter_t,%));
+
+###########
+#calculational stuff
+
+simplify(subs(theta(t)=3*adot/S(t)^2,x));
+##Approx here - pb(t)=0
+simplify(subs(pb(t)=0,%));
+subs(rhox(t)=dgrho/S(t)^2/kappa,%);
+
+
+#subs(z(t)=zs(t)/S(t),%);
+
+subs(rhopi(t)=rhopi_t,%);
+subs(rhog(t)=grhog_t/kappa/S(t)^2,rhor(t)=grhor_t/kappa/S(t)^2,rhob(t)=grhob_t/kappa/S(t)^2,rhoc(t)=grhoc_t/kappa/S(t)^2,rhonu(t)=grhonu_t/kappa/S(t)^2,pnu(t)=gpnu_t/kappa/S(t)^2,rhopsi(t)=grhopsi_t/kappa/S(t)^2,ppsi(t)=gppsi_t/kappa/S(t)^2,%);
+
+subs(diff(S(t),t)=adot,%);
+x:=simplify(%);
+
+##Go into fderivs's variables
+
+
+fortsubs:={diff(qg(t),t)=qgdot,diff(pig(t),t)=pigdot,diff(pir(t),t)=pirdot,diff(qr(t),t)=qrdot,diff(v(t),t)=vbdot,rhoq(t)=dgq/kappa/a^2,S(t)=a,sigma(t)=sigma,exptau(t)=expmmu[j],diff(diff(g(t),t),t)=ddvis[j],diff(g(t),t)=dvis[j],g(t)=vis[j],diff(opac(t),t)=dopac[j],opac(t)=opac[j],v(t)=vb,pig(t)=pig,pir(t)=pir,qg(t)=qg,diff(J_3(t),t)=yprime[9],z(t)=z,clxg(t)=clxg,diff(E2(t),t)=ypolprime[2],E2(t)=ypol[2],diff(E3(t),t)=ypolprime[3],E3(t)=ypol[3],polter(t)=polter,J_3(t)=y[9],Kfac=Kf[1],diff(pinu(t),t)=pinudot,pinu(t)=pinu,p(t)=gpres/kappa/a^2,rho(t)=grho/kappa/a^2,eta(t)=-2*etak/k,diff(eta(t),t)=-2*etakdot/k};
+
+
+##simplify(subs(subtots,%));
+
+
+
+precision:=double;
+with(codegen,fortran);
+subs(fortsubs,x);
+simplify(%);
+subs(adot=adotoa*a,%);
+#simplify(%,[expmmu(j)*opac(j)=vis(j)]);
+tmp:=%;
+collect(%,[a,k,adotoa,sigma,pig,exppmu[j],dvis[j],vis[j],opac[j],aux]);
+collect(%,expmmu[j]);
+collect(%,Kf[1]);
+
+
+fortran(%,optimized);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

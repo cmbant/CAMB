@@ -1,0 +1,563 @@
+<HTML>
+<HEAD>
+<TITLE>CAMB ReadMe</TITLE>
+</HEAD>
+<BODY BGCOLOR="#FFFFFF" LINK="#0000FF" VLINK="#800080">
+<BODY>
+<CENTER>
+<A HREF="#compiling">Compiling</A> - <A HREF="#version">History</A> - <A HREF="#COMPARE">Comparison</A> - <A HREF="#FILES">Source files</A> - <A HREF="#refs">References</A>
+</CENTER>
+<FONT FACE="Arial,Helvetica" SIZE=2>
+<H2>CAMB ReadMe</H2>
+Code for Anisotropies in the Microwave Background by <A
+HREF="http://cosmologist.info/">Antony Lewis</A> and Anthony
+Challinor. <P>
+This version March 2006.
+<P>
+<FONT SIZE=-1>
+Origially based on CMBFAST developed by Uros Seljak and Matias
+Zaldarriaga, itself based on Boltzmann code written by
+Edmund Bertschinger, Chung-Pei Ma and Paul Bode.
+For information on CMBFAST see <A HREF="http://cmbfast.org">http://cmbfast.org</A>.
+For latest information on this program see <A HREF="http://camb.info">camb.info</A>.
+</FONT>
+<P>
+CAMB is also supplied as part of the <A HREF="http://cosmologist.info/cosmomc/">CosmoMC</A> parameter estimation package.
+<P>
+<A NAME="compiling">
+<B>Compiling and running</B>
+</P>
+You will need a Fortran 90 (or higher) compiler - you can get free <A HREF="http://www.intel.com/software/products/compilers/downloads/forlin.htm" TARGET="_blank">Intel Linux</A> or <A HREF="http://g95.sourceforge.net/">Gnu F95</A> compilers.
+<UL>
+<LI><A HREF="http://camb.info/CAMBsubmit.html">Download</A> CAMB
+<LI>Unzip and untar the file (<B>tar xfv CAMB.tar.gz</B>). All files will be extracted to a
+directory called "CAMB".
+<LI>Run <B>make</B> to compile everything you will need. (you may need to
+edit the supplied Makefile, see below)
+<LI>Run <B>./camb params.ini</B>, where params.ini is a file
+ of parameter values (sample supplied). The params.ini file should be
+ fairly self-explanatory.
+</UL>
+</P>
+<P>
+The Makefile comes set up for Intel machines using ifc. Just comment the relevant parts to compile on different systems. If you have Compaq Visual Fortran you can open the supplied .dsp project file, no need to use the Makefile (currently Intel Visual Fortran is not recommended). To run on multi-processor machines add the -openmp (or equivalent) option to the Makefile's FFLAGS parameter to compile a parallelized (OPENMP) version.
+</P>
+<P>
+You can also edit the Makefile's EQUATIONS and POWERSPECTRUM
+ variables. The POWERSPECTRUM.f90  file contains a module giving the initial
+ power spectrum, the EQUATIONS.f90 file contains the background evolution
+ equations and sets of gauge-dependent perturbation
+ equations. To avoid problems run <B>make clean</B> after changing the
+ Makefile before recompiling.
+</P>
+<P>
+You can produce files in  <A
+HREF="http://heasarc.gsfc.nasa.gov/docs/software/fitsio/fitsio.html">FITS</A>
+ format - to do this you will need to have <A
+HREF="http://www.eso.org/science/healpix/">HEALPIX</A> installed and make
+ some edits to the Makefile - see the Makefile for details. After compiling with <B>make camb_fits</B>,
+ you can then use <B>camb_fits</B> instead of <B>camb</B> - the FITS file
+ produced is given the name specified in params.ini. Note that the FITS file format for polarization changed with HEALPIX 1.2, CAMB uses the new format.
+</P>
+<P>
+You may be interested in an inflationary parameterization of the
+initial power spectra - see this <A
+HREF="http://astronomy.sussex.ac.uk/~sleach/inflation/camb_inflation.html">add-on
+code</A> by Samuel Leach.
+<P>
+All the equations that need to be modified for
+simple non-standard models are in the equations.f90 file.  It should be possible to produce other files
+for extended models (see the sample <A
+HREF="http://camb.info/extra.html">quintessence</A> module). (Note that varying
+constant - e.g. alpha -  models are not quite so simple to plug in).
+<P>
+After modifying any of the source code run <B>make clean</B> before running <B>make</B> to recompile (Visual Fortran will re-compile dependent code automatically).
+Run <B>make all</B> to build a library libcamb.a that you can use when
+linking to other programs. (You will also need to include the module files using -I/cambfolder).
+<P>
+As of November 2004 the supplied sample params.ini file produces results in &mu;K<sup>2</sup> from the given primordial curvature perturbation power (<B>scalar_amp</B>) on 0.05 MPc<sup>-1</sup> scales. To get unnormalized dimensionless results set <B>scalar_amp(1)=1</B> and <B>CMB_outputscale=1</B> (as in previous CAMB versions). To compute lensed C<sub>l</sub>s you must set the normalization to some realistic value (the calculation is non-linear, so normalization matters).
+
+<P>
+<A NAME="version">
+<H3>Version History</H3>
+
+<B>March 2006</B><BR>
+Fixed bug lensing scalar spectrum when generated at the same time as tensors. New (hard coded) parameter <B>lmin</B> in modules.f90 - set to 1 if you want to generate temeprature and lensing potential l=1 (Newtonian Gauge) C<sub>l</sub>.
+<P>
+<B>April 2005</B><BR>
+Added <B>do_nonlinear</B> option to apply non-linear corrections from HALOFIT (<A HREF="http://arxiv.org/abs/astro-ph/0207664">astro-ph/0207664</A>). <B>do_nonlinear = 1</B> applies just to the matter power spectra, <B>do_nonlinear=2</B> applies corrections to the lensed CMB power spectra (important for BB). HALOFIT should only be used for standard adiabatic &Lambda;CDM models with power law initial power spectra.
+New <B>recombination</B> option (1 does RECFAST as before, 2 uses modified version from <a href="http://arxiv.org/abs/astro-ph/0501672">astro-ph/0501672</a>). New option <B>do_late_rad_trunction</B> to turn off the small scale radiation hierarchies after matter domination (see <A HREF="http://cosmocoffee.info/discuss/astro-ph/0503277">astro-ph/0503277</A> and the <A HREF="http://cosmologist.info/notes/CAMB.ps.gz">notes</A>) - saves some time. New <B>output_root</B> option to prefix output file names and generate output_root_params.ini file of input parameters for the run.
+<P>
+<B>November 2004</B><BR>
+Default lensing routine (<B>lensing_method=1</B>) changed to use new full-sky correlation function method (<A HREF="http://arxiv.org/abs/astro-ph/0502425">astro-ph/0502425</A>) in preference to the harmonic method of <A HREF="http://arxiv.org/abs/astro-ph/0001303">astro-ph/0001303</A> (<B>lensing_method=3</B>; inaccurate at l>1000 at ~1.5% level by l=2000). The lensed result is now significantly faster and more accurate.
+Also added flat-sky method (<B>lensing_method=2</B>) of <A HREF="http://arxiv.org/abs/astro-ph/9505109">astro-ph/9505109</A> and <A HREF="http://arxiv.org/abs/astro-ph/9803150">astro-ph/9803150</A> as in CMBFAST (accurate to 0.4%). New <B>accurate_BB</B> parameter to get lensed BB accurately (within assumptions of linearity and given k_max, l_max, etc.). Note lensed_output_file no longer contains any tensor contribution. Various changes for better accuracy and compiler compatibility, including same accuracy with massive neutrinos as with massless.
+<P>
+<B>August 2004</B><BR>
+<P>
+Fixed effect of reionization on the lensed C<sub>l</sub> (0.5% on small scale TT).
+</P>
+<B>June 2004</B><BR>
+<P>
+Fixed serious problem with tensor mode polarized C<sub>l</sub> from reionization (significantly underestimated power).
+Changed default tensor pivot scale to 0.05 Mpc<sup>-1</sup> (same as for scalars). Flat Bessel functions no longer cached to disk (faster to compute than read in many cases; prevents problems in uses with MPI). New <B>accurate_reionization</B> flag for accurate calculation of large scale scalar EE around the first dip (also outputs computed optical depth due to reionization). Option to output vector mode spectra from regular vorticity mode (<A HREF="http://arxiv.org/abs/astro-ph/0403583">astro-ph/0403583</A>) or magnetic field (<A HREF="http://arxiv.org/abs/astro-ph/0406096">astro-ph/0406096</A>).
+</P>
+<B>December 2003</B><BR>
+<I>Fix - 17 Dec:</I> corrected problem with significantly non-flat models (e.g. &Omega;<sub>K</sub>=-0.1, H<sub>0</sub>=40)
+<P>
+Improved accuracy of non-flat calculation, and allowed for very nearly flat models (&Omega;<sub>K</sub> ~ 1e-5). Non-flat code should be as accurate as the flat (0.5%) on most scales. Added run-time parameters <B>do_tensor_neutrinos</B> (to include the neutrino evolution in the tensor equations) and <B>cs2_lam</B> (constant sound speed of the dark energy) instead of having to modify the code. Fixed fatal bug in tensor neutrino setup introduced some time this year. Added parameter <B>CMB_outputscale</B> to scale output Cls by a constant (see comments in params.ini for getting microK^2 output).
+</P>
+
+<B>July 2003</B><BR>
+<P>
+Fixed instability in bessels.f90 which gave problem for very nearly flat closed models with abnormal Helium fractions (and possibly other models). Dark energy equations in equations.f90 changed to use simpler general fluid equations for the perturbations (see <A HREF="http://arxiv.org/abs/astro-ph/0307104">astro-ph/0307104</A>). inidriver.F90 now reads in scalar amplitude even if computing tensors only (so combination with the initial ratio sets correct tensor amplitude).
+</P>
+
+<B>May 2003</B><BR>
+<P>
+Fixed bug in equations.f90 giving errors with non-flat models. Fixed bug in inidriver.F90 setting H<sub>0</sub> with <B>use_physical=F</B>. Fixed camb.f90 file in download - missing routines for getting C<sub>l</sub> transfer functions.
+</P>
+<B>April 2003</B><BR>
+<P>
+Some major restructuring, including new functions to return the CMB transfer functions (see camb.f90). The tight coupling code has been re-written, adding quadrupole terms and accounting for the time variation of the opacity numerically. The code should be more accurate and faster, especially on small scales. Minor fixes to RECFAST to match version in CMBFAST (0.01% effect on C<sub>l</sub>s), and bug fix in output routine (0.3%). Includes constant w dark energy and running spectral index parameters by default (rather than with an add-on). New <B>use_physical</B> parameter to allow alternative model specification by Om_b h^2, Om_b h^2 and Om_k. Polarization .fits files now compatible with HEALPIX 1.2.
+</P>
+
+<B>November 2002</B>
+<P>
+Minor changes for greater compiler compatibility, in particular with Visual Fortran. Makefile includes suggested options for a variety of compilers.
+</P>
+
+<B>September 2002</B>
+<P>
+Added support for neutrino isocurvature initial conditions, and
+totally correlated mixed initial conditions (assuming the same power
+spectrum for each mode) - new <B>initial_vector</B> parameter in
+params.ini. Partially correlated mixed initial conditions can be
+computed by combining results from different runs with totally
+correlated initial conditions.
+</P>
+
+<B>July 2002</B>
+<P>
+Changes for compatibility with <A
+HREF="http://cosmologist.info/cosmomc/">CosmoMC</A>. New option to output matter power spectrum.
+Changed default pivot point for tensor initial power spectrum to
+0.002 MPc<sup>-1</sup> (power_tilt.f90), added pivot point and normalization to
+initial power parameters. Minor enhancements to inifile.f90. Utility
+routines Re_OpticalDepthAtZ and Transfer_GetMatterPower added to
+modules.f90.
+</P>
+
+<B>March 2002</B>
+<P>
+Massive neutrino support improved. Background evolution is much
+faster, and only ever needs to be computed once for all neutrino
+masses. Output transfer function files now include columns for the
+massive neutrino and total perturbations. Sigma_8 is now computed
+including CDM, baryons and massive neutrinos.  Fixed problem computing matter
+power spectrum in massive neutrino models. New parameter
+<B>massive_nu_approx</B> to control
+how the massive neutrinos are evolved - option for new approximate fast scheme
+that is quite accurate for the CMB. New <B>feedback_level</B> parameter
+that can be used to get useful information about the model being
+calculated.
+<BR>
+Fixed rare problem computing closed models, and bug in computation of
+closed transfer functions. The names of the massive neutrino
+subroutines have been changed because the argument that is passed has changed.
+</P>
+
+<B>February 2002</B>
+<P>
+Fixed FITS file output to start at l=0 rather than l=2 to be consistent
+with HEALPIX.
+</P>
+<B>January 2002</B>
+<P>
+The code is now fully internally parallelized and lensing is
+supported. Can now use about 16 processors with good efficiency -
+just compile with the OpenMP -mp compiler flag. The lensing power
+spectrum is computed explicitly and then used to computed the lensed
+CMB power spectra using the full-sky results of  <A
+HREF="http://arxiv.org/abs/astro-ph/0001303">astro-ph/0001303</A> (many
+thanks for Gayoung Chon for work on the lensed power spectrum
+code). To generate the lensed power spectra set do_lensing=T in
+params.ini and the output will be in the lensed_output_file. The lensing power spectrum l<sup>4</sup> C<sub>l</sub><sup>&phi;&phi;</sup> is also output as the 5th
+column of the scalar_output_file, followed by the cross-correlation
+with the temperature l<sup>3</sup> C<sub>l</sub><sup>&phi;T</sup>.
+
+</P>
+
+<B>October 2001</B><P>
+Fixed bug in RECFAST - corrects C_l errors at 1-2% level. Background
+evolution is now determined from routines in gauge_inv.f90 (and
+gauge_sync.f90) - you now only need to edit these files to add
+additional matter components, use extended theories, etc. RECFAST now
+consistent with massive neutrinos.
+Added Makefile for better compilation, and added option to create FITS
+format power spectrum files. Changed driver.f90 to driver.F90, and new
+file writefits.f90. Some minor changes to ease use with a
+wider range of compilers (e.g. NaG F95 for Linux).
+<P>
+<B>May 2001</B><P>
+Fixed the neutrino ratio factor in the normalization of the scalar
+power spectrum to be consistent with the power spectrum as defined
+since the January 2001 version. Changes to gauge_inv.f90 and gauge_sync.f90.
+<P>
+<B>April 2001</B><P>
+New <A
+HREF="http://camb.info/examples.html">example
+code</A>. These samples show how you can call CAMB from other programs
+via a subroutine. There are also improved InitialPower
+modules for parameterizing the initial power spectrum to obtain
+meaningful tensor/scalar ratios for general models and for
+parameterizing in terms of slow-roll inflation parameters.<P>
+
+Fixed a floating error arising when both tensor and scalar spectra are generated but
+with ratio zero.
+<P>
+
+<B>February 2001</B><P>
+Fixed bug in recfast.f90 introduced in August 2000 update (caused
+erroneous blip in ionization history).<P>
+
+
+<B>January 2001</B><P>
+New file power.f90 added to separate out the InitialPower module for
+easily modifying the initial power spectrum. The InitialPower module now has
+additional parameters to control the normalization of the output Cls,
+allowing absolute computations using correctly normalized initial
+power spectra (set the UseScalTensRatio parameter to false to compute the
+tensor/scalar ratio correctly from the initial power spectra in
+general models). The InitialPower module is now commented to fully
+explain the definition of the power spectra that should be returned by the TensorPower and
+ScalarPower routines. <P>
+The transfer functions are now output in terms of k rather than beta
+(nu*K) in non-flat models,
+and the way to compute the matter power spectrum from the transfer
+functions via d2norm is documented. The variables used to propagate
+the tensor modes in gauge_inv.f90 have been changed to be equivalent
+to the metric variables, improving stability when DoTensorNeutrinos=true.
+<P>
+<B>September 2000</B><P>
+Now uses an accurate approximation to propagate massive neutrino
+perturbations once no longer highly relativistic, speeding up
+computation by about a factor of two (gauge_inv routine only). All massive
+neutrino code is now
+re-organized into a module called MassiveNu in modules.f90. The massive
+neutrino equations are described in  <A
+HREF="http://arxiv.org/abs/astro-ph/0203507">astro-ph/0203507</A>
+ <P>
+
+<B>August 2000</B><P>
+Minor changes to recfast.f90 and modules.f90 to prevent floating
+point errors on some systems. (Thanks for Louise Griffiths)<P>
+
+<B>July 2000</B><P>
+Fixes inaccurate computation of the tensor quadrupole in flat
+models, pointed out in <A
+HREF="http://arxiv.org/abs/astro-ph/0006392">astro-ph/0006392</A> . The only code change is to subroutine TensSourceSumIntJl in cmbmain.f90.<P>
+
+<B>February 2000</B><P>
+Massive neutrinos are now supported. The treatment is essentially the
+same as CMBFAST. However gauge_inv now includes neutrino anisotropic
+stress in the tensor computation by default, accounting for massive neutrinos
+when appropriate. You can revert to the old default by changing the
+"DoTensorNeutrinos" parameter in gauge_inv.  <P>
+This version also fixes the tight coupling switch over to give
+accurate results with gauge_sync. This fixes errors introduced in
+CMBFAST 3.0/CAMB Nov 99.
+<P>
+<B>November 1999</B><P>
+Adds support for RECFAST recombination
+and fixes various bugs that were in CMBFAST 2.4.1 but fixed in CMBFAST
+3.0. RECFAST is an option via the fifth line in the input file as in
+CMBFAST. Using it does not slow things down significantly and corrects
+errors at around the 2% level.
+
+<A NAME="COMPARE">
+<H3>Comparison with CMBFAST</H3>
+This code was originally developed from CMBFAST 2.4.1 to support closed models
+and gauge invariant variables. After releasing this code CMBFAST 3.2
+was released which also supports closed models. These codes were
+developed independently and so are somewhat different, and both codes
+have developed independently since then.
+<P>
+The main differences in the non-flat computation lie in how we perform the integral of the source
+functions with the hyperspherical Bessel functions. We use
+Kosowsky's WKB approximation or the recursion relation to evaluate the Bessel
+functions at the starting point of ranges of integration, and then
+integrate the differential equation. CMBFAST
+integrates up the differential equation from a pre-calculated starting point. Unlike
+CMBFAST 3.2 our ranges of integration continue into the Chi > pi/2
+region for closed models. We avoid problems with stability of the
+integration (contamination with the irregular solution) by cutting off
+the integration when the errors become important (where the values in the
+dissipative tail are becoming small). This leads to very small errors,
+and allows for a much simpler scheme than that used in CMBFAST 3.2 where
+the symmetry of the Bessel functions is used to extend to the Chi> Pi/2 region.
+<P>
+From the user's point of view the main point is that this code is
+rather faster than CMBFAST in many cases. CAMB agrees with the CMBFAST 4.5 high precision TT calculation to < 1% at low l, and about 0.3% at l>100 in concordance flat models. If CAMB is run with high precision options the agreement is nearly 0.1% at high l. The polarized spectra also agree well except around the first dip in the EE spectrum with reionization (see CAMB's accurate_reionization parameter).
+<P>
+CMBFAST 3.2 introduced an include file for adjusting the
+l-sampling. In CAMB this is done automatically depending on the model,
+so there is no need to modify the l-sampling by hand.
+<P>
+CMBFAST uses the flat sky and Limber approximation and works from the transfer
+functions to work out the lensing potential, CAMB uses the full result (agreement is excellent). CAMB uses a full-sky correlation function method rather than the flat sky approx (about max 0.4% effect on EE).
+<P>
+CMBFAST 4 uses a "k-splitting" to allow rapid computation of grids of
+models to reasonable accuracy. If you need to generate a large number
+of models and accuracy is not vital using CMBFAST 4 would probably
+save you some time and effort. CMBFAST 4 also supports some extended models not supported by CAMB, e.g. 5-D models.
+<P>
+CAMB is in Fortran 90 and is more modularized, so using different initial power spectra, modified equations, etc. is often just a case of modifying one or two files and re-compiling.
+<P>
+Note that the conventions for the polarization power spectra output by CAMB agree with those of CMBFAST. This sign convention for the cross-correlation C_l^TE spectrum differs from the definitions in <A
+HREF="http://arxiv.org/abs/astro-ph/9911481">astro-ph/9911481</A>. As from CMBFAST 4.2 the intial power spectrum normalization conventions also agree.
+<P>
+
+<A NAME="FILES">
+<H3>The source files</H3>
+<P>
+<BLOCKQUOTE>
+<B>camb.f90</B>
+<P>
+Main wrapper routines for running CAMB in your programs. Add "use
+camb" to your programs and call CAMB_GetResults to generate output
+from a set of model parameters (specified in the CAMBparams type -
+defined at the top of modules.f90). You can call
+CAMB_ValidateParams(P) to check that the parameter set is valid, use
+CAMB_GetAge to compute the age of a model in gigayears, and
+CAMB_GetCls to retrieve the computed Cls. The results can also be
+accessed directly using the arrays in the ModelData module (defined in modules.f90).<P>
+Sample programs tester.f90 and sigma8.f90 are supplied showing how to
+use CAMB from your own programs. You can also use CAMB_GetTransfers to access the C_l transfer functions directly without incorporating the initial power spectrum.
+</P>
+<B>cmbmain.f90</B>
+<P>
+The main subroutine that does integrations, etc. Encompasses CMBFAST's
+cmbflat and cmbopen.
+<P>
+<B>equations.f90</B>
+<P>
+Files containing background and perturbation evolution equations. The
+perturbations equations used are derived in the covariant approach,
+fixing to the CDM (zero acceleration) frame, which are essentially
+equivalent to the synchronous gauge equations.
+<P>
+   The file defines a module called &quot;GaugeInterface&quot; which provides
+   the necessary perturbation calculation routines for
+   &quot;cmbmain&quot;.
+<P>
+   The subroutine dtauda(a) returns dt/da and is used wherever the
+   background evolution is needed. It
+   can be modified for different backgrounds. You may
+   also need to change the GetOmegak routine if you add additional
+   components, and can edit the init_background routine to do
+   additional initialization.
+    <P>
+   outtransf writes out the matter transfer functions.
+<P>
+   The "output" subroutine computes the scalar sources at a given time for a
+   given wavenumber. These are the temperature, E polarization and (if
+   doing lensing) the lensing source. By editing the equation for the
+   lensing source it should be straightforward to compute power
+   spectra for other matter tracers, e.g. for cross-correlation with
+   the CMB. The lensing power spectrum is automatically computed if
+   <B>DoLensing=T</B>.
+
+<P>
+<B> power_tilt.f90</B>
+<P>
+This file defines a module called InitialPower that returns the
+initial power spectra. Change this file to use your own initial power
+spectrum, change how the spectra are parameterized, or to change how
+the Cls are normalized. Comments in the code explain this further.
+<P>
+ <B> inidriver.F90</B>
+<P>
+    Reads in parameters from a file of name/value pairs and calls CAMB. Modify
+    this file to generate grids of models, change the parameterization, etc.
+<P>
+<B>halofit.f90</B><P>
+Implements the NonLinear module, to calculate non linear scalings of the matter power spectrum as a function of redshift. Uses HALOFIT (<A HREF="http://arxiv.org/abs/astro-ph/0207664">astro-ph/0207664</A>, code thanks to <A HREF="http://www.astro.upenn.edu/~res">Robert Smith</A>. Note this is only reliable at the several percent level for standard &Lambda;CDM models with power law initial power spectra. This module can be replaced to use a different non-linear fitting method.
+
+<P>
+ <B> modules.f90</B>
+<P>
+   Various modules used by the other parts of the program, Module
+   &quot;ModelParams&quot; contains most of the model parameters. Boolean vars
+   flat, open and closed determine the model type.
+<P>
+
+ <B>bessels.f90</B>
+<P>
+   Module to calculate spherical and hyper-spherical Bessel
+   functions. Hyper-spherical functions generated by use of
+   either the recursion relation or Kosowsky's WKB approximation. Based on
+   Arthur Kosowsky's &quot;hyperjl.c&quot;.
+<P>
+
+<B>lensing.f90</B>
+<P>
+  Lensing module for computing the lensed CMB power spectra from the
+  unlensed spectra and a lensing power spectrum. See <A HREF="http://arxiv.org/abs/astro-ph/0502425">astro-ph/0502425</A>.
+</P>
+
+ <B> subroutines.f90</B>
+<P>
+   Various subroutines for interpolation, and modified Runge-Kutta
+   dverk for parallelised evolution.
+<P>
+<B> writefits.f90</B>
+<P>
+ Subroutine WriteFitsCls that uses HEALPIX routines to output power spectrum
+ in FITS format.
+ <P>
+<B>recfast.f90</B>
+<P>
+ RECFAST integrator for Cosmic Recombination of Hydrogen and Helium
+ by Douglas Scott (with minor modifications for CMBFAST and the
+ CAMB). See <A
+ HREF="http://www.astro.ubc.ca/people/scott/recfast.html">RECFAST</A>
+ for the original code.
+
+</BLOCKQUOTE>
+
+<P>
+<H3>Accuracy</H3>
+<P>
+<BLOCKQUOTE>
+ RMS errors &lt; 0.3% for min(2500, l well into the damping tail)
+   for most models at default accuracy setting. See also <A HREF="#COMPARE">comparison</A> with CMBFAST. Accuracy of course assumes the model is correct, and is dependent on RECFAST being the correct ionization history. Lensed C_l TT, TE and EE are accurate at the same level if l_max and k_max are set large enough (to within the approximation that the lensing potential is linear).
+<P>
+ Extreme models (e.g. scale &gt; 4, h&gt;1) may give errors of 5% or more.
+<P>
+ Tensor errors around 2%, more on small scales
+<P>
+ Hierarchy truncation errors up to 5% at high l (&gt;1500) in some
+   closed models
+<P>
+ You can improve or check accuracy (or increase speed) by changing
+   global accuracy parameters at the bottom of the params.ini input file.
+<P>
+</BLOCKQUOTE>
+
+
+<A NAME="refs">
+<H3>REFERENCES</H3>
+<P>
+Some notes and relevant Maple derivations are given <A HREF="http://camb.info/theory.html">here</A> (see also the Appendix of <A HREF="http://arxiv.org/abs/astro-ph/0406096">astro-ph/0406096</A>). A handy BibTex file is given on the <A HREF="http://cosmologist.info/cosmomc/">CosmoMC</A> home page.
+</P>
+<P>
+Efficient computation of CMB anisotropies in closed FRW Models<BR>
+Antony Lewis, Anthony Challinor and Anthony Lasenby <A
+HREF="http://arxiv.org/abs/astro-ph/9911177">astro-ph/9911177</A> Ap. J. 538:473-476, 2000.
+<P>
+Geometric Algebra and
+Covariant Methods in Physics and Cosmology, Chapters 6&7<BR>
+PhD thesis, Antony Lewis 2000.  <A
+HREF="http://antonylewis.com/thesis.ps.gz">PostScript</A>.
+<P>
+<B>Covariant theory</B>
+<P>
+ Cosmic Microwave Background Anisotropies in the CDM model: A
+ Covariant and Gauge-Invariant Approach<BR>
+ Anthony Challinor and Anthony Lasenby, <A HREF="http://arxiv.org/abs/astro-ph/9804301">astro-ph/9804301</A>
+ Ap. J. 513:1 1-22, 1999
+<P>Evolution of cosmological dark matter perturbations<BR>
+Antony Lewis and Anthony Challinor <A
+HREF="http://arxiv.org/abs/astro-ph/0203507">astro-ph/0203507</A>
+Phys. Rev. D66, 023531 (2002)
+
+<P>
+ Microwave background anisotropies from gravitational waves: the 1+3
+ covariant approach <BR>
+ Anthony Challinor, <A HREF="http://arxiv.org/abs/astro-ph/9906474">astro-ph/9906474</A>
+<P>
+Microwave background polarization in cosmological models<BR>
+Anthony Challinor, <A
+HREF="http://arxiv.org/abs/astro-ph/9911481">astro-ph/9911481</A>
+<P>
+CMB anisotropies from primordial inhomogeneous magnetic fields<BR>
+Antony Lewis, <A
+HREF="http://arxiv.org/abs/astro-ph/0406096">astro-ph/0406096</A><BR>
+(The appendix contains general derivations of the multipole equations and C<SUB>l</SUB> as used in CAMB)
+<P>
+
+<B>Initial conditions</B>
+<P>
+ The General Primordial Cosmic Perturbation <BR>
+ Martin Bucher, Kavilan Moodley and Neil Turok, <A HREF="http://arxiv.org/abs/astro-ph/9904231">astro-ph/9904231</A>
+ (These results extended to the non-flat case; see the <A HREF="http://camb.info/theory.html">theory page</A>)
+
+<P>
+Observable primordial vector modes<BR>
+Antony Lewis, <A HREF="http://arxiv.org/abs/astro-ph/0403583">astro-ph/0403583</A>
+<P>
+<B>HALOFIT</B>
+<P>
+Stable clustering, the halo model and nonlinear cosmological power spectra<BR>
+Smith, R. E. and others,  <A HREF="http://arxiv.org/abs/astro-ph/0207664">astro-ph/0207664</A>
+<P>
+<B>RECOMBINATION</B>
+<P>
+A new calculation of the recombination epoch.<BR>
+Seager, S., Sasselov, D. & Scott, D., 1999, ApJ, 523, L1, <A HREF="http://arxiv.org/abs/astro-ph/9909275">astro-ph/9909275</A>.
+<P>
+Dynamics of the Primordial Hydrogen and Helium (HeI) Recombination in the Universe<BR>
+Dubrovich, V. K. and Grachev, S. I, <A HREF="http://cosmocoffee.info/discuss/astro-ph/0501672">astro-ph/0501672</A>.
+<P>
+<B>Weak lensing of the CMB</B>
+<P>
+<BLOCKQUOTE>
+<B>lensing_method=1</B><BR>
+Lensed CMB power spectra from all-sky correlation functions<BR>
+A. Challinor and A. Lewis. <A HREF="http://arxiv.org/abs/astro-ph/0502425">astro-ph/0502425</A>. (For Maple derivations see the <A HREF="http://camb.info/theory.html">theory page</A>.)
+<P>
+<B>lensing_method=2</B><BR>
+Gravitational lensing effect on cosmic microwave background
+                  anisotropies: A Power spectrum approach<BR>
+Uros Seljak. <A HREF="http://arxiv.org/abs/astro-ph/9505109">astro-ph/9505109</A>
+<P>
+Gravitational Lensing Effect on Cosmic Microwave Background
+                  Polarization<BR>
+Uros Seljak and Matias Zaldarriaga. <A HREF="http://arxiv.org/abs/astro-ph/9803150">astro-ph/9803150</A>
+<P>
+<B>lensing_method=3</B><BR>
+Weak Lensing of the CMB: A Harmonic Approach<BR>
+Wayne Hu. <A HREF="http://arxiv.org/abs/astro-ph/0001303">astro-ph/0001303</A><BR>
+See also <A HREF="http://arxiv.org/abs/astro-ph/0301064">astro-ph/0301064</A>, <A HREF="http://arxiv.org/abs/astro-ph/0301031">astro-ph/0301031</A>
+</P>
+</BLOCKQUOTE>
+
+<B>Synchronous gauge theory and non-flat models</B>
+<P>
+ Complete treatment of CMB anisotropies in a FRW universe<BR>
+ Wayne Hu, Uros Seljak and Matias Zaldarriaga.
+ Phys. Rev. D57:6, 3290-3301, 1998. <A HREF="http://arxiv.org/abs/astro-ph/9709066">astro-ph/9709066</A>.
+<P>
+
+<P>
+<B>WKB approx to hyperspherical Bessel functions</B>
+<P>
+ Efficient Computation of Hyperspherical Bessel Functions<BR>
+ Arthur Kosowsky, <A HREF="http://arxiv.org/abs/astro-ph/9805173">astro-ph/9805173</A>
+<P>
+
+
+<B>CMBFAST and the line of sight approach</B>
+<P>
+ A line of sight integration approach to Cosmic Microwave Background
+ Anisotropies<BR>
+ Uros Seljak and Matias Zaldarriaga, <A HREF="http://arxiv.org/abs/astro-ph/9603033">astro-ph/9603033</A>
+ Ap.J. 469:2 437-444, 1996
+<P>
+CMBFAST for spatially closed universes<BR>
+Uros Seljak and Matias Zaldariaga,  <A HREF="http://arxiv.org/abs/astro-ph/9911219">astro-ph/9911219</A>
+<P>
+See also the references on the CMBFAST <A HREF="http://cmbfast.org">home page</A>.
+</FONT>
+</BODY>
+</HTML>
