@@ -14,6 +14,8 @@ module Reionization
 !so could be easily modified for other monatonic parameterizations.
 
 !AL March 2008
+!AL July 2008 - added trap for setting optical depth without use_optical_depth
+
 !See CAMB notes for further discussion: http://cosmologist.info/notes/CAMB.pdf
 
        character(LEN=*), parameter :: Reionization_Name = 'CAMB_reionization'
@@ -144,7 +146,7 @@ contains
  end subroutine Reionization_SetParamsForZre
 
  subroutine Reionization_Init(Reion, ReionHist, Yhe, akthom, tau0, FeedbackLevel)
-  use RECDATA
+  use constants
   Type(ReionizationParams), target :: Reion
   Type(ReionizationHistory), target :: ReionHist
   real(dl), intent(in) :: akthom, tau0, Yhe 
@@ -152,7 +154,7 @@ contains
   real(dl) astart
 
      ReionHist%akthom = akthom  
-     ReionHist%fHe =  YHe/(not4*(1.d0-YHe))
+     ReionHist%fHe =  YHe/(mass_ratio_He_H*(1.d0-YHe))
  
      ReionHist%tau_start=tau0
      ReionHist%tau_complete=tau0
@@ -162,6 +164,10 @@ contains
 
      if (Reion%Reionization) then
  
+            if (Reion%optical_depth /= 0._dl .and. .not. Reion%use_optical_depth) &
+             write (*,*) 'WARNING: You seem to have set the optical depth, but use_optical_depth = F'
+    
+
            if (Reion%use_optical_depth.and.Reion%optical_depth<0.001 &
                 .or. .not.Reion%use_optical_depth .and. Reion%Redshift<0.001) then
                Reion%Reionization = .false.
@@ -203,6 +209,7 @@ contains
  
        Reion%Reionization = .true.
        Reion%use_optical_depth = .false.
+       Reion%optical_depth = 0._dl
        Reion%redshift = 10
        Reion%fraction = Reionization_DefFraction
        Reion%delta_redshift = 0.5_dl

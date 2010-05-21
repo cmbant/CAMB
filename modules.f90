@@ -2,7 +2,7 @@
 
 !     Code for Anisotropies in the Microwave Background
 !     by Antony Lewis (http://cosmologist.info) and Anthony Challinor
-!     See readme.html for documentation. This version June 2008.
+!     See readme.html for documentation. This version July 2008.
 !
 !     Based on CMBFAST  by  Uros Seljak and Matias Zaldarriaga, itself based
 !     on Boltzmann code written by Edmund Bertschinger, Chung-Pei Ma and Paul Bode.
@@ -23,27 +23,18 @@
 !     E. Bertschinger.  See the LICENSE file of the COSMICS distribution
 !     for restrictions on the modification and distribution of this software.
 
-        module constants
-         use precision
-        
-         real(dl), parameter :: Mpc = 3.085678e22_dl, G=6.6742e-11_dl, kappa=2*fourpi*G, &
-                   sigma_thomson = 6.6524616e-29_dl, c = 2.99792458e8_dl, m_p = 1.672623e-27_dl, &
-                   sigma_boltz = 5.67051e-8_dl, k_B = 1.380658e-23_dl, m_H = 1.673575e-27_dl
-
-        real(dl), parameter:: barssc0= k_B / m_p / c**2
-
-        end module constants
 
         module ModelParams
         use precision
-        use InitialPower
         use Ranges
+        use InitialPower
         use Reionization
+        use Recombination
         
         implicit none    
         public
 
-        character(LEN=*), parameter :: version = 'Jun_08'
+        character(LEN=*), parameter :: version = 'Sept_08'
         
         integer :: FeedbackLevel = 0 !if >0 print out useful information about the model
 
@@ -129,6 +120,7 @@
         
          type(InitialPowerParams) :: InitPower  !see power_tilt.f90 - you can change this
          type(ReionizationParams) :: Reion
+         type(RecombinationParams) :: Recomb
          type(TransferParams)     :: Transfer 
 
          real(dl) ::  InitialConditionVector(1:10) !Allow up to 10 for future extensions
@@ -139,6 +131,7 @@
 
 !Derived parameters, not set initially
          type(ReionizationHistory) :: ReionHist
+         
          logical flat,closed,open
          real(dl) omegak
          real(dl) curv,r, Ksign !CP%r = 1/sqrt(|CP%curv|), CP%Ksign = 1,0 or -1
@@ -172,6 +165,9 @@
        real(dl) :: nu_masses(max_nu) 
         
        real(dl) akthom !sigma_T * (number density of protons now)
+       real(dl) fHe !n_He_tot / n_H_tot
+       real(dl) Nnow
+
 
       integer :: ThreadNum = 0 
        !If zero assigned automatically, obviously only used if parallelised
@@ -325,9 +321,14 @@
 !  adotrad gives the relation a(tau) in the radiation era:
            adotrad = sqrt((grhog+grhornomass+sum(grhormass(1:CP%Nu_mass_eigenstates)))/3)
        
-           akthom = sigma_thomson*CP%omegab*(1-CP%yhe)*grhom*c**2/kappa/m_H/Mpc
+          
+           Nnow = CP%omegab*(1-CP%yhe)*grhom*c**2/kappa/m_H/Mpc**2
+
+           akthom = sigma_thomson*Nnow*Mpc
               !sigma_T * (number density of protons now)
     
+           fHe = CP%YHe/(mass_ratio_He_H*(1.d0-CP%YHe))  !n_He_tot / n_H_tot
+      
            if (CP%omegan==0) then
               CP%Num_nu_massless = CP%Num_nu_massless + CP%Num_nu_massive
               CP%Num_nu_massive = 0
@@ -338,6 +339,7 @@
             call init_massive_nu(CP%omegan /=0)
             call init_background
             CP%tau0=TimeOfz(0._dl)
+        ! print *, 'chi = ',  (CP%tau0 - TimeOfz(0.15_dl)) * CP%h0/100   
             last_tau0=CP%tau0
             if (WantReion) call Reionization_Init(CP%Reion,CP%ReionHist, CP%YHe, akthom, CP%tau0, FeedbackLevel)
            else
@@ -561,10 +563,17 @@
         end do
 
         if (CP%AccurateReionization) then
+            if (lSampleBoost > 1) then
+             do lvar=11, 37,1
+               lind=lind+1
+               ls(lind)=lvar 
+             end do       
+            else
              do lvar=11, 37,2
                lind=lind+1
                ls(lind)=lvar 
              end do       
+            end if 
 
             step = max(nint(5*Ascale),2)           
             bot=40
@@ -2134,7 +2143,6 @@
         use constants
         use precision
         use ModelParams
-        use RECFAST
         use MassiveNu
         real(dl) taumin,taumax
    
@@ -2151,7 +2159,8 @@
  
         real(dl) a_verydom
 
-         call InitRECFAST(CP%omegab,CP%h0,CP%tcmb,CP%yhe)
+     
+        call Recombination_Init(CP%Recomb, CP%omegac, CP%omegab,CP%Omegan, CP%Omegav, CP%h0,CP%tcmb,CP%yhe)
           !almost all the time spent here
 
         Maxtau=taumax
@@ -2159,6 +2168,7 @@
         actual_opt_depth = 0
         ncount=0
         thomc0=5.0577d-8*CP%tcmb**4
+
         tauminn=0.05d0*taumin
         dlntau=log(CP%tau0/tauminn)/(nthermo-1)
         last_dotmu = 0
@@ -2226,7 +2236,7 @@
             xe(i) = Reionization_xe(a, tau, xe(ncount))
             !print *,1/a-1,xe(i)
             if (CP%AccurateReionization .and. FeedbackLevel > 0) then                         
-                dotmu(i)=(xeRECFAST(a) - xe(i))*akthom/a2
+                dotmu(i)=(Recombination_xe(a) - xe(i))*akthom/a2
                 if (last_dotmu /=0) then
                  actual_opt_depth = actual_opt_depth - 2._dl*dtau/(1._dl/dotmu(i)+1._dl/last_dotmu)
                 end if
@@ -2234,7 +2244,7 @@
             end if
            
           else
-            xe(i)=xeRECFAST(a)
+            xe(i)=Recombination_xe(a)
           end if 
        
        

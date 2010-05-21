@@ -220,8 +220,14 @@
      if (t_end <= t_start) stop 'Ranges_Add: end must be larger than start'
      if (nstep <=0) stop 'Ranges_Add: nstep must be > 0'
      if (Reg%Count>= Max_Ranges) stop 'Ranges_Add: Increase Max_Ranges'
-     
-     if (Reg%count > 0) NewRegions(1:Reg%count) = Reg%R(1:Reg%count)
+
+!avoid IBM compiler bug, from Angel de Vicente
+!    if (Reg%count > 0) NewRegions(1:Reg%count) = Reg%R(1:Reg%count)
+     if (Reg%count > 0) THEN
+         DO i=1,Reg%count
+         NewRegions(i) = Reg%R(i)
+         END DO
+     END IF
      nreg = Reg%count + 1
      AReg=> NewRegions(nreg)
      AReg%Low = t_start

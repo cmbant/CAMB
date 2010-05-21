@@ -13,7 +13,7 @@
 Code for Anisotropies in the Microwave Background by <A
 HREF="http://cosmologist.info/">Antony Lewis</A> and Anthony
 Challinor. <P>
-This version June 2008.
+This version September 2008.
 <P>
 <FONT SIZE=-1>
 Originally based on CMBFAST developed by Uros Seljak and Matias
@@ -79,6 +79,10 @@ You can <A HREF="http://camb.info/test_suite.tar.gz">download</A> a test suite f
 <A NAME="version">
 <H3>Version History</H3>
 
+<B>September 2008</B><BR>
+<P>
+Restructured recombination module to allow use of different models. RECFAST default implementation updated to version 1.4.2 (+fixes, tiny change to results). Misc minor changes. 
+</P>
 <B>June 2008</B><BR>
 Fixed significant bug affecting very closed models (introduced Feb 2008; slightly closed models were fine).
 <P>
@@ -456,8 +460,7 @@ Implements the NonLinear module, to calculate non linear scalings of the matter 
  by Douglas Scott (with minor modifications for CMBFAST and the
  CAMB). See <A
  HREF="http://www.astro.ubc.ca/people/scott/recfast.html">RECFAST</A>
- for the original code.
-
+ for the original code. This module implements the RECOMBINATION module required by CAMB, and could be replaced by other models.
 </BLOCKQUOTE>
 <P>
 <A NAME="ACCURACY">
@@ -483,6 +486,7 @@ Scalar errors should rarely exceed 0.3% for min(2500, l well into the damping ta
 <A NAME="adds">
 <H3>Add-ons, extensions, external sites</H3>
 <UL>
+<LI><A HREF="http://camb.info/ppf/">Parameterized Post-Friedmann Dark Energy</A>
 <LI><A HREF="http://camb.info/sources">CAMB sources</A> get linear 21cm, lensing and number counts; 3rd order perturbation theory P(k); perturbed recombination
 <LI><A HREF="http://camb.info/extra.html">Quintessence</A> module
 <LI><A HREF="http://lambda.gsfc.nasa.gov/toolbox/tb_camb_form.cfm">CAMB online</A> (note may not be latest version)

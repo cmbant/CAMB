@@ -4,7 +4,7 @@
 ! This version November 2006.
 
 ! Dec 2003, fixed (fatal) bug in tensor neutrino setup
-! Changes to tight coupling approximatione
+! Changes to tight coupling approximation
 ! June 2004, fixed problem with large scale polarized tensors; support for vector modes
 ! Generate vector modes on their own. The power spectrum is taken from the scalar parameters.
 ! August 2004, fixed reionization term in lensing potential
@@ -364,7 +364,7 @@
          end if                  
          if (CP%Transfer%high_precision) then
            EV%lmaxnr=max(nint(25*lAccuracyBoost),3) 
-           EV%lmaxg=max(EV%lmaxg,nint(min(8,nint(sqrt(scal) *600 * EV%q))*lAccuracyBoost)) 
+           EV%lmaxg=max(EV%lmaxg,nint(min(8,nint(600 * EV%q))*lAccuracyBoost)) 
          end if
          EV%nvar=5+ (EV%lmaxg+1) + EV%lmaxgpol-1 +(EV%lmaxnr+1) 
          if (w_lam /= -1 .and. w_Perturb) then
@@ -750,6 +750,7 @@
 !  have to get z from eta for numerical stability       
         z=(0.5_dl*dgrho/k + etak)/adotoa 
         sigma=(z+1.5_dl*dgq/k2)/EV%Kf(1)
+         
 
         polter = 0.1_dl*pig+9._dl/15._dl*ypol(2)
 
@@ -1474,6 +1475,7 @@
         z=(0.5_dl*dgrho/k + etak)/adotoa 
         sigma=z+1.5_dl*dgq/k2
       
+        
         if (w_lam /= -1 .and. w_Perturb) then
 
            ayprime(EV%w_ix)= -3*adotoa*(cs2_lam-w_lam)*(clxq+3*adotoa*(1+w_lam)*vq/k) &

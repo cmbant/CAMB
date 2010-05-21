@@ -63,6 +63,8 @@ FFLAGS = -openmp -O2 -ip -W0 -WB -fpp2 -vec_report0
 EQUATIONS     = equations
 POWERSPECTRUM = power_tilt
 REIONIZATION = reionization
+RECOMBINATION = recfast
+
 #Module doing non-linear scaling
 NONLINEAR     = halofit
 
@@ -86,17 +88,18 @@ F90FLAGS      = $(FFLAGS)
 HEALPIXLD     = -L$(HEALPIXDIR)/lib -lhealpix -L$(FITSDIR) -l$(FITSLIB)
 FC            = $(F90C)
 
-CAMBOBJ       = utils.o subroutines.o inifile.o $(POWERSPECTRUM).o recfast.o $(REIONIZATION).o modules.o \
+CAMBOBJ       = constants.o utils.o subroutines.o inifile.o $(POWERSPECTRUM).o $(RECOMBINATION).o $(REIONIZATION).o modules.o \
 	bessels.o $(EQUATIONS).o $(NONLINEAR).o lensing.o cmbmain.o camb.o
 
 default: camb
 
 all: camb $(CAMBLIB)
 
-subroutines: utils.o
+
+subroutines.o: constants.o utils.o
 $(POWERSPECTRUM): subroutines.o
-recfast.o: subroutines.o
-$(REIONIZATION).o: recfast.o
+$(RECOMBINATION).o: subroutines.o
+$(REIONIZATION).o: constants.o
 modules.o: $(REIONIZATION).o
 bessels.o: modules.o
 $(EQUATIONS): bessels.o

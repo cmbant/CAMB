@@ -8,6 +8,7 @@
          use GaugeInterface
          use InitialPower
          use Reionization
+         use Recombination
          implicit none
 
          Type CAMBdata
@@ -243,11 +244,12 @@
 
         function CAMB_GetAge(P)
            !Return age in gigayears, returns -1 on error
+           use constants
            type(CAMBparams), intent(in) :: P
            real(dl) CAMB_GetAge
            real(dl) atol,a1,a2, dtda, rombint
-           real(dl), parameter :: Mpc = 3.085678e22_dl, &
-                 c = 2.99792458e8_dl, Gyr=3.1556926e16
+!           real(dl), parameter :: Mpc = 3.085678e22_dl, &
+!                 c = 2.99792458e8_dl, Gyr=3.1556926e16
            integer error
            external dtda,rombint
 
@@ -305,6 +307,8 @@
             P%NonLinear = NonLinear_none
             
             call SetDefPowerParams(P%InitPower)
+
+            call Recombination_SetDefParams(P%Recomb)
           
             call Reionization_SetDefParams(P%Reion)
 
@@ -392,6 +396,7 @@
              end if
              
              call Reionization_Validate(P%Reion, OK)
+             call Recombination_Validate(P%Recomb, OK)
 
              if (P%WantTransfer) then
               if (P%transfer%num_redshifts > max_transfer_redshifts .or. P%transfer%num_redshifts<1) then

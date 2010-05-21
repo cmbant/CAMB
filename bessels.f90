@@ -12,7 +12,7 @@
         implicit none
         private
         
-  !     Bessel functions and their second derivatives for interpolation
+!     Bessel functions and their second derivatives for interpolation
     
         real(dl), dimension(:,:), allocatable ::  ajl,ajlpr, ddajlpr
 

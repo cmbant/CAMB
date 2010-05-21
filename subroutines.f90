@@ -1,19 +1,5 @@
 !General numerical routines and global accuracy. Includes modified dverk for CAMB.
 
- module Precision
- use AMLUtils
- integer, parameter :: dl = KIND(1.d0)
- integer, parameter :: sp = KIND(1.0)
-
-! real(dl), parameter :: pi = 3.1415926535897932384626433832795_dl, twopi=2*pi, fourpi=4*pi
-! real(dl), parameter :: sqrt6=2.4494897427831780981972840747059_dl
-
- 
-
-
- end module Precision
-
-
 
 !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 

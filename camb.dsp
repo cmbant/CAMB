@@ -93,7 +93,7 @@ LINK32=link.exe
 # Begin Source File
 
 SOURCE=.\bessels.f90
-DEP_F90_BESSE=\
+NODEP_F90_BESSE=\
 	".\Debug\lvalues.mod"\
 	".\Debug\ModelParams.mod"\
 	".\Debug\Precision.mod"\
@@ -102,7 +102,7 @@ DEP_F90_BESSE=\
 # Begin Source File
 
 SOURCE=.\camb.f90
-DEP_F90_CAMB_=\
+NODEP_F90_CAMB_=\
 	".\Debug\CAMBmain.mod"\
 	".\Debug\GaugeInterface.mod"\
 	".\Debug\InitialPower.mod"\
@@ -116,7 +116,7 @@ DEP_F90_CAMB_=\
 # Begin Source File
 
 SOURCE=.\cmbmain.f90
-DEP_F90_CMBMA=\
+NODEP_F90_CMBMA=\
 	".\Debug\GaugeInterface.mod"\
 	".\Debug\InitialPower.mod"\
 	".\Debug\lvalues.mod"\
@@ -127,17 +127,19 @@ DEP_F90_CMBMA=\
 	".\Debug\Precision.mod"\
 	".\Debug\SpherBessels.mod"\
 	".\Debug\ThermoData.mod"\
-	".\Debug\Transfer.mod"\
-	
-NODEP_F90_CMBMA=\
 	".\Debug\TimeSteps.mod"\
+	".\Debug\Transfer.mod"\
 	".\Debug\USpherBessels.mod"\
 	
 # End Source File
 # Begin Source File
 
+SOURCE=.\constants.f90
+# End Source File
+# Begin Source File
+
 SOURCE=.\equations.f90
-DEP_F90_EQUAT=\
+NODEP_F90_EQUAT=\
 	".\Debug\lvalues.mod"\
 	".\Debug\MassiveNu.mod"\
 	".\Debug\ModelData.mod"\
@@ -150,7 +152,7 @@ DEP_F90_EQUAT=\
 # Begin Source File
 
 SOURCE=.\halofit.f90
-DEP_F90_HALOF=\
+NODEP_F90_HALOF=\
 	".\Debug\ModelParams.mod"\
 	".\Debug\Transfer.mod"\
 	
@@ -158,16 +160,14 @@ DEP_F90_HALOF=\
 # Begin Source File
 
 SOURCE=.\inidriver.F90
-DEP_F90_INIDR=\
+NODEP_F90_INIDR=\
 	".\Debug\AmlUtils.mod"\
 	".\Debug\CAMB.mod"\
+	".\Debug\F90_UNIX.mod"\
 	".\Debug\IniFile.mod"\
 	".\Debug\LambdaGeneral.mod"\
 	".\Debug\lensing.mod"\
 	".\Debug\RECFAST.MOD"\
-	
-NODEP_F90_INIDR=\
-	".\Debug\F90_UNIX.mod"\
 	
 # End Source File
 # Begin Source File
@@ -177,7 +177,7 @@ SOURCE=.\inifile.f90
 # Begin Source File
 
 SOURCE=.\lensing.f90
-DEP_F90_LENSI=\
+NODEP_F90_LENSI=\
 	".\Debug\InitialPower.mod"\
 	".\Debug\lvalues.mod"\
 	".\Debug\ModelData.mod"\
@@ -188,7 +188,7 @@ DEP_F90_LENSI=\
 # Begin Source File
 
 SOURCE=.\modules.f90
-DEP_F90_MODUL=\
+NODEP_F90_MODUL=\
 	".\Debug\AmlUtils.mod"\
 	".\Debug\IniFile.mod"\
 	".\Debug\InitialPower.mod"\
@@ -199,14 +199,14 @@ DEP_F90_MODUL=\
 # Begin Source File
 
 SOURCE=.\power_tilt.f90
-DEP_F90_POWER=\
+NODEP_F90_POWER=\
 	".\Debug\Precision.mod"\
 	
 # End Source File
 # Begin Source File
 
 SOURCE=.\recfast.f90
-DEP_F90_RECFA=\
+NODEP_F90_RECFA=\
 	".\Debug\Precision.mod"\
 	
 # End Source File

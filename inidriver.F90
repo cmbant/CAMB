@@ -8,7 +8,6 @@
         use CAMB
         use LambdaGeneral
         use Lensing
-        use RECFAST        
         use AMLUtils
         use Transfer
 #ifdef NAGF95
@@ -149,18 +148,26 @@
         P%transfer%kmax          =  Ini_Read_Double('transfer_kmax')
         P%transfer%k_per_logint  =  Ini_Read_Int('transfer_k_per_logint')
         P%transfer%num_redshifts =  Ini_Read_Int('transfer_num_redshifts')
-        transfer_interp_matterpower = Ini_Read_Logical('transfer_interp_matterpower ', .true.)
-        transfer_power_var = Ini_read_int('transfer_power_var',transfer_tot)
+        transfer_interp_matterpower = Ini_Read_Logical('transfer_interp_matterpower ', transfer_interp_matterpower)
+        transfer_power_var = Ini_read_int('transfer_power_var',transfer_power_var)
         if (P%transfer%num_redshifts > max_transfer_redshifts) stop 'Too many redshifts'
         do i=1, P%transfer%num_redshifts
              P%transfer%redshifts(i)  = Ini_Read_Double_Array('transfer_redshift',i,0._dl)
              TransferFileNames(i)     = Ini_Read_String_Array('transfer_filename',i)
+             MatterPowerFilenames(i)  = Ini_Read_String_Array('transfer_matterpower',i)
+             if (TransferFileNames(i) == '') then
+                 TransferFileNames(i) =  trim(numcat('transfer_',i))//'.dat' 
+             end if
+             if (MatterPowerFilenames(i) == '') then
+                 MatterPowerFilenames(i) =  trim(numcat('matterpower_',i))//'.dat' 
+             end if
              if (TransferFileNames(i)/= '') &
                    TransferFileNames(i) = trim(outroot)//TransferFileNames(i)
-             MatterPowerFilenames(i)  = Ini_Read_String_Array('transfer_matterpower',i)
              if (MatterPowerFilenames(i) /= '') &
                  MatterPowerFilenames(i)=trim(outroot)//MatterPowerFilenames(i)
         end do
+
+
         P%transfer%kmax=P%transfer%kmax*(P%h0/100._dl)
                 
        else
@@ -171,14 +178,11 @@
   
         call Reionization_ReadParams(P%Reion, DefIni)
         call InitialPower_ReadParams(P%InitPower, DefIni, P%WantTensors) 
-  
-        RECFAST_fudge = Ini_Read_Double('RECFAST_fudge',RECFAST_fudge_default)
-        RECFAST_fudge_He = Ini_Read_Double('RECFAST_fudge_He',RECFAST_fudge_He_default)
-        RECFAST_Heswitch = Ini_Read_Int('RECFAST_Heswitch',RECFAST_Heswitch_default)
-
-        i = Ini_Read_Int('recombination',1)
-        if (i/=1) stop 'recombination option deprecated'
-    
+        call Recombination_ReadParams(P%Recomb, DefIni)
+        if (Ini_HasKey('recombination')) then
+         i = Ini_Read_Int('recombination',1)
+         if (i/=1) stop 'recombination option deprecated'
+        end if
         if (P%WantScalars .or. P%WantTransfer) then
             P%Scalar_initial_condition = Ini_Read_Int('initial_condition',initial_adiabatic)
             if (P%Scalar_initial_condition == initial_vector) then
@@ -229,21 +233,21 @@
        P%AccurateBB = Ini_Read_Logical('accurate_BB',.false.)
         
        !Mess here to fix typo with backwards compatibility
-       if (Ini_Read_String('do_late_rad_trunction') /= '') then
+       if (Ini_HasKey('do_late_rad_trunction')) then
          DoLateRadTruncation = Ini_Read_Logical('do_late_rad_trunction',.true.)
-         if (Ini_Read_String('do_late_rad_truncation')/='') stop 'check do_late_rad_xxxx'
+         if (Ini_HasKey('do_late_rad_truncation')) stop 'check do_late_rad_xxxx'
        else
         DoLateRadTruncation = Ini_Read_Logical('do_late_rad_truncation',.true.)
        end if
-       DoTensorNeutrinos = Ini_Read_Logical('do_tensor_neutrinos',.false.)
-       FeedbackLevel = Ini_Read_Int('feedback_level',0)
+       DoTensorNeutrinos = Ini_Read_Logical('do_tensor_neutrinos',DoTensorNeutrinos)
+       FeedbackLevel = Ini_Read_Int('feedback_level',FeedbackLevel)
        
        P%MassiveNuMethod  = Ini_Read_Int('massive_nu_approx',Nu_best)
 
-       ThreadNum      = Ini_Read_Int('number_of_threads',0)
-       AccuracyBoost  = Ini_Read_Double('accuracy_boost',1.d0)
-       lAccuracyBoost = Ini_Read_Double('l_accuracy_boost',1.d0)
-       lSampleBoost   = Ini_Read_Double('l_sample_boost',1.d0)
+       ThreadNum      = Ini_Read_Int('number_of_threads',ThreadNum)
+       AccuracyBoost  = Ini_Read_Double('accuracy_boost',AccuracyBoost)
+       lAccuracyBoost = Ini_Read_Real('l_accuracy_boost',lAccuracyBoost)
+       lSampleBoost   = Ini_Read_Double('l_sample_boost',lSampleBoost)
 
        if (outroot /= '') then
          call Ini_SaveReadValues(trim(outroot) //'params.ini',1)
