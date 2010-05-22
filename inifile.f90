@@ -203,7 +203,7 @@ contains
      integer, intent(IN) :: unit_id
      logical, intent(OUT) :: error
      logical, optional, intent(IN) :: slash_comments
-     character (LEN=120) :: InLine
+     character (LEN=Ini_max_string_len) :: InLine
     
 
     call TNameValueList_Init(Ini%L)

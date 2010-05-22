@@ -779,7 +779,7 @@
               -2.D0/k*adotoa/EV%Kf(1)*etak)*expmmu(j)
 
 !e.g. to get only late-time ISW
-!  if (1/a-1 < 30) ISW=0
+!  if (1/a-1 > 30) ISW=0
 
 !The rest
     sources(1)= ISW +  ((-9.D0/160.D0*pig-27.D0/80.D0*ypol(2))/k**2*opac(j)+(11.D0/10.D0*sigma- &
@@ -829,9 +829,16 @@
          phi = -(dgrho +3*dgq*adotoa/k)/(k2*EV%Kf(1)*2) 
             ! - (grhor_t*pir + grhog_t*pig+ pinu*gpnu_t)/k2
          
-         sources(3) = -2*phi*f_K(tau-tau_maxvis)/(f_K(CP%tau0-tau_maxvis)*f_K(CP%tau0-tau))
-!         sources(3) = -2*phi*(tau-tau_maxvis)/((CP%tau0-tau_maxvis)*(CP%tau0-tau))
+!        sources(3) = -2*phi*f_K(tau-tau_maxvis)/(f_K(CP%tau0-tau_maxvis)*f_K(CP%tau0-tau))
+
           !We include the lensing factor of two here
+
+!         sources(3) = ISW
+
+         if(1/a-1 < 30) sources(3) = ISW
+        if(1/a-1 > 30) sources(3) = 0.
+
+
        else
          sources(3) = 0
        end if

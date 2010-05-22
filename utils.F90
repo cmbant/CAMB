@@ -1041,6 +1041,39 @@
   MpiSize=1   
 #endif
   end subroutine MpiStat
+                  
+  subroutine MpiQuietWait
+  !Set MPI thread to sleep, e.g. so can run openmp on cpu instead
+#ifdef MPI  
+     integer flag, ierr, STATUS(MPI_STATUS_SIZE)
+     integer i, MpiId, MpiSize
+       
+     call MpiStat(MpiID, MpiSize)
+     if (MpiID/=0) then  
+      do
+       call MPI_IPROBE(0,0,MPI_COMM_WORLD,flag, MPI_STATUS_IGNORE,ierr)
+       if (flag/=0) then
+             call MPI_RECV(i,1,MPI_INTEGER, 0,0,MPI_COMM_WORLD,status,ierr)
+             exit
+       end if
+       call sleep(1)
+      end do
+     end if 
+#endif
+  end subroutine
+  
+  subroutine MpiWakeQuietWait
+#ifdef MPI  
+    integer j, MpiId, MpiSize, ierr,r
+       
+     call MpiStat(MpiID, MpiSize)
+     if (MpiID==0) then
+     do j=1, MpiSize-1              
+           call MPI_ISSEND(MpiId,1,MPI_INTEGER, j,0,MPI_COMM_WORLD,r,ierr)
+     end do  
+     end if
+#endif
+  end subroutine MpiWakeQuietWait
  
 #ifdef __GFORTRAN__
   
@@ -1452,7 +1485,7 @@
    integer, intent(in) :: aunit
 
 
-   open(unit=aunit,file=aname,form=mode,status='old', err=500)
+   open(unit=aunit,file=aname,form=mode,status='old', action='read', err=500)
    return
 
 500 call MpiStop('File not found: '//trim(aname))
@@ -1533,17 +1566,13 @@ subroutine CreateOpenTxtFile(aname, aunit, append)
 
  end subroutine CreateOpenFile
 
- 
-
- function FileColumns(aunit) result(n)
-   integer, intent(in) :: aunit
-   integer n,i
-   logical isNum
+ function TxtNumberColumns(InLine) result(n)
    character(LEN=4096) :: InLine
-
+   integer n,i
+   logical isNum    
+   
    n=0
    isNum=.false.
-   read(aunit,'(a)', end = 10) InLine
    do i=1, len_trim(InLIne)
     if (verify(InLine(i:i),'-+eE.0123456789') == 0) then
       if (.not. IsNum) n=n+1
@@ -1552,7 +1581,35 @@ subroutine CreateOpenTxtFile(aname, aunit, append)
       IsNum=.false.     
     end if
    end do
+   
+ end function TxtNumberColumns
+ 
+  function TxtColumns(InLine) result(n)
+   character(LEN=4096) :: InLine
+   integer n,i
+   logical isNum    
+   
+   n=0
+   isNum=.false.
+   do i=1, len_trim(InLine)
+    if (InLine(i:i) > char(32)) then
+      if (.not. IsNum) n=n+1
+      IsNum=.true.
+    else
+      IsNum=.false.     
+    end if
+   end do
+   
+ end function TxtColumns
 
+ function FileColumns(aunit) result(n)
+   integer, intent(in) :: aunit
+   integer n
+   character(LEN=4096) :: InLine
+
+   n=0
+   read(aunit,'(a)', end = 10) InLine
+   n = TxtNumberColumns(InLine)
 10 rewind aunit
   
  end function FileColumns
@@ -1574,6 +1631,26 @@ subroutine CreateOpenTxtFile(aname, aunit, append)
 
  end function FileLines
 
+
+ function TopCommentLine(aname) result(res)
+    character(LEN=*), intent(IN) :: aname
+    integer n, file_id 
+    character(LEN=1024) :: InLine, res
+    
+    res = ''
+    file_id = new_file_unit()
+    call OpenTxtFile(aname, file_id)
+    InLine=''
+    do while (InLine /= '') 
+     read(file_id,'(a)', end = 10) InLine
+    end do
+    If (InLIne(1:1)=='#') then
+     res = InLine
+    end if
+
+10  call CloseFile(file_id)
+
+ end function TopCommentLine
 
 
  function TxtFileColumns(aname) result(n)

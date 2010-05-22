@@ -264,7 +264,6 @@
            a1=0
            a2=1
            CAMB_GetAge = rombint(dtda,a1,a2,atol)*Mpc/c/Gyr
-
            end if
     
          end function CAMB_GetAge
@@ -286,7 +285,6 @@
 
       
         subroutine CAMB_SetDefParams(P)
-            use constants
             type(CAMBparams), intent(out) :: P
 
             P%WantTransfer= .false.
@@ -298,7 +296,7 @@
             P%omegan  = 0
             P%H0      = 65
 
-            P%TCMB    = COBE_CMBTemp
+            P%TCMB    = 2.726
             P%YHe     = 0.24
             P%Num_Nu_massless =3.04
             P%Num_Nu_massive  =0
@@ -321,7 +319,9 @@
             P%WantScalars = .true.
             P%WantVectors = .false.
             P%WantTensors = .false.
-            
+            P%want_zstar = .false.  !!JH 
+            P%want_zdrag = .false.  !!JH  
+
             P%Max_l=1500
             P%Max_eta_k=3000
             P%Max_l_tensor=400

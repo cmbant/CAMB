@@ -34,7 +34,7 @@
         implicit none    
         public
 
-        character(LEN=*), parameter :: version = 'Jan_10'
+        character(LEN=*), parameter :: version = 'May_10'
         
         integer :: FeedbackLevel = 0 !if >0 print out useful information about the model
 
@@ -90,6 +90,7 @@
          logical   :: WantCls, WantTransfer
          logical   :: WantScalars, WantTensors, WantVectors
          logical   :: DoLensing
+         logical   :: want_zstar, want_zdrag     !!JH for updated BAO likelihood.
          integer   :: NonLinear
 
          integer   :: Max_l, Max_l_tensor
@@ -2122,9 +2123,10 @@
         real(dl) :: tight_tau, actual_opt_depth
          !Times when 1/(opacity*tau) = 0.01, for use switching tight coupling approximation
         real(dl) :: matter_verydom_tau
-         
+        real(dl) :: r_drag0, z_star, z_drag  !!JH for updated BAO likelihood.
         public thermo,inithermo,vis,opac,expmmu,dvis,dopac,ddvis, tight_tau,&
-               Thermo_OpacityToTime,matter_verydom_tau, ThermoData_Free
+               Thermo_OpacityToTime,matter_verydom_tau, ThermoData_Free,&
+               z_star, z_drag !!JH for updated BAO likelihood.
        contains
 
         subroutine thermo(tau,cs2b,opacity, dopacity)
@@ -2415,6 +2417,14 @@
         end do 
          !$OMP END PARALLEL DO 
 
+        if (CP%want_zdrag .or. CP%want_zstar) then !JH: calculate exact zstar and/or zdrag
+
+           r_drag0 = 3.d0/4.d0*CP%omegab*grhom/grhog
+
+           if (CP%want_zstar) call find_z(optdepth,z_star)
+           if (CP%want_zdrag) call find_z(dragoptdepth,z_drag)
+
+        end if
         end subroutine inithermo        
 
 
@@ -2511,6 +2521,86 @@
           end if
         end subroutine DoThermoSpline
 
-      
+!!!!!!!!!!!!!!!!!!!
+!JH: functions and subroutines for calculating z_star and z_drag
+
+        function doptdepth_dz(z)
+          real(dl) :: doptdepth_dz
+          real(dl), intent(in) :: z
+          real(dl) :: a
+          real(dl) :: dtauda
+          external dtauda
+
+          a = 1._dl/(1._dl+z)
+
+          !ignoring reionisation, not relevant for distance measures
+          doptdepth_dz = Recombination_xe(a)*akthom*dtauda(a)
+
+        end function doptdepth_dz
+
+        function optdepth(z)
+          real(dl) :: rombint2
+          external rombint
+          real(dl) optdepth
+          real(dl),intent(in) :: z
+
+          optdepth = rombint2(doptdepth_dz, 0.d0, z, 1d-5, 20, 100)
+
+        end function optdepth
+
+
+        function ddragoptdepth_dz(z)
+          real(dl) :: ddragoptdepth_dz
+          real(dl), intent(in) :: z
+          real(dl) :: a
+          real(dl) :: dtauda
+          external dtauda
+
+          a = 1._dl/(1._dl+z)
+          ddragoptdepth_dz = doptdepth_dz(z)/r_drag0/a
+
+        end function ddragoptdepth_dz
+
+
+        function dragoptdepth(z)
+          real(dl) :: rombint2
+          external rombint
+          real(dl) dragoptdepth
+          real(dl),intent(in) :: z
+
+          dragoptdepth =  rombint2(ddragoptdepth_dz, 0.d0, z, 1d-5, 20, 100)
+
+        end function dragoptdepth
+
+
+       subroutine find_z(func,zout)  !find redshift at which (photon/drag) optical depth = 1
+          real(dl), external :: func
+          real(dl), intent(out) :: zout
+          real(dl) :: try1,try2,diff,avg
+          integer :: i
+
+          try1 = 0.d0
+          try2 = 10000.d0
+
+          i=0
+          diff = 10.d0
+         do while (diff .gt. 1d-3)
+             i=i+1
+             if (i .eq. 100) stop 'optical depth redshift finder did not converge'
+
+             diff = func(try2)-func(try1)
+             avg = 0.5d0*(try2+try1)
+             if (func(avg) .gt. 1.d0) then
+                try2 = avg
+             else
+                try1 = avg
+             end if
+          end do
+
+          zout = avg
+
+        end subroutine find_z
+
+!!!!!!!!!!!!!!!!!!! end JH
  
       end module ThermoData
