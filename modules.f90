@@ -774,8 +774,8 @@
 
         !Computed output power spectra data
                          
-        integer, parameter :: C_Temp = 1, C_E = 2, C_Cross =3, C_Phi = 4, C_PhiTemp = 5
-        integer :: C_last = C_PhiTemp
+        integer, parameter :: C_Temp = 1, C_E = 2, C_Cross =3, C_Phi = 4, C_PhiTemp = 5, C_PhiE=6
+        integer :: C_last = C_PhiE
         integer, parameter :: CT_Temp =1, CT_E = 2, CT_B = 3, CT_Cross=  4
   
 
@@ -862,10 +862,11 @@
            open(unit=fileio_unit,file=ScalFile,form='formatted',status='replace')
            do in=1,CP%InitPower%nn
              do il=lmin,min(10000,CP%Max_l)
-               write(fileio_unit,trim(numcat('(1I6,',C_last))//'E15.5)')il ,fact*Cl_scalar(il,in,C_Temp:C_last)
+               write(fileio_unit,trim(numcat('(1I6,',C_last))//'E15.5)')il ,fact*Cl_scalar(il,in,C_Temp:min(C_PhiTemp,C_last))
              end do
              do il=10100,CP%Max_l, 100
-               write(fileio_unit,trim(numcat('(1E15.5,',C_last))//'E15.5)') real(il) ,fact*Cl_scalar(il,in,C_Temp:C_last)
+               write(fileio_unit,trim(numcat('(1E15.5,',C_last))//'E15.5)') real(il), &
+                          fact*Cl_scalar(il,in,C_Temp:min(C_PhiTemp,C_last))
              end do
             end do
             close(fileio_unit)
@@ -945,13 +946,14 @@
            do in=1,CP%InitPower%nn
              do il=lmin,min(10000,CP%Max_l)
                scale = (real(il+1)/il)**2/OutputDenominator
-               write(fileio_unit,'(1I6,2E15.5)') il , scale*Cl_scalar(il,in,C_Phi),&
-                   (real(il+1)/il)**1.5/OutputDenominator*sqrt(factor)*Cl_scalar(il,in,C_PhiTemp)
+               write(fileio_unit,'(1I6,3E15.5)') il , scale*Cl_scalar(il,in,C_Phi),&
+                   (real(il+1)/il)**1.5/OutputDenominator*sqrt(factor)*Cl_scalar(il,in,C_PhiTemp:C_PhiE)
+                   
              end do
              do il=10100,CP%Max_l, 100
                scale = (real(il+1)/il)**2/OutputDenominator
-               write(fileio_unit,'(1I6,2E15.5)') il , scale*Cl_scalar(il,in,C_Phi),&
-                   (real(il+1)/il)**1.5/OutputDenominator*sqrt(factor)*Cl_scalar(il,in,C_PhiTemp)
+               write(fileio_unit,'(1I6,3E15.5)') il , scale*Cl_scalar(il,in,C_Phi),&
+                   (real(il+1)/il)**1.5/OutputDenominator*sqrt(factor)*Cl_scalar(il,in,C_PhiTemp:C_PhiE)
              end do
             end do
             close(fileio_unit)

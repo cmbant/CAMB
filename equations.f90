@@ -779,7 +779,7 @@
               -2.D0/k*adotoa/EV%Kf(1)*etak)*expmmu(j)
 
 !e.g. to get only late-time ISW
-!  if (1/a-1 > 30) ISW=0
+!  if (1/a-1 < 30) ISW=0
 
 !The rest
     sources(1)= ISW +  ((-9.D0/160.D0*pig-27.D0/80.D0*ypol(2))/k**2*opac(j)+(11.D0/10.D0*sigma- &
@@ -790,6 +790,7 @@
     9.D0/80.D0*EV%Kf(2)*yprime(9))/k+(-9.D0/160.D0*dopac(j)*pig-21.D0/10.D0*dgpi-27.D0/ &
     80.D0*dopac(j)*ypol(2))/k**2)*vis(j)+(3.D0/16.D0*ddvis(j)*pig+9.D0/ &
     8.D0*ddvis(j)*ypol(2))/k**2+21.D0/10.D0/k/EV%Kf(1)*vis(j)*etak   
+
 
 ! Doppler term
 !   sources(1)=  (sigma+vb)/k*dvis(j)+((-2.D0*adotoa*sigma+vbdot)/k-1.D0/k**2*dgpi)*vis(j) &
@@ -829,20 +830,14 @@
          phi = -(dgrho +3*dgq*adotoa/k)/(k2*EV%Kf(1)*2) 
             ! - (grhor_t*pir + grhog_t*pig+ pinu*gpnu_t)/k2
          
-!        sources(3) = -2*phi*f_K(tau-tau_maxvis)/(f_K(CP%tau0-tau_maxvis)*f_K(CP%tau0-tau))
-
+         sources(3) = -2*phi*f_K(tau-tau_maxvis)/(f_K(CP%tau0-tau_maxvis)*f_K(CP%tau0-tau))
+!         sources(3) = -2*phi*(tau-tau_maxvis)/((CP%tau0-tau_maxvis)*(CP%tau0-tau))
           !We include the lensing factor of two here
-
-!         sources(3) = ISW
-
-         if(1/a-1 < 30) sources(3) = ISW
-        if(1/a-1 > 30) sources(3) = 0.
-
-
        else
          sources(3) = 0
        end if
       end if
+      
      end subroutine output
 
 
@@ -1333,6 +1328,7 @@
         clxr = y(7+EV%lmaxg)
         k    = EV%k_buf
         k2   = EV%k2_buf
+
  
         Arr(Transfer_kh) = k/(CP%h0/100._dl)
         Arr(Transfer_cdm) = clxc/k2
@@ -1342,7 +1338,7 @@
   
         dgrho = 0 
         grho =  0
-
+        
         if (CP%Num_Nu_Massive > 0) then
           call MassiveNuVars(EV,y,a,grho,gpres,dgrho,dgq)
            Arr(Transfer_nu) = dgrho/grho/k2

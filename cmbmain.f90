@@ -3,7 +3,6 @@
 !     Code for Anisotropies in the Microwave Background
 !     by Antony lewis (http://cosmologist.info) and Anthony Challinor
 !     See readme.html for documentation. 
-!     This version September 2008
 
 !     Note that though the code is internally parallelised, it is not thread-safe
 !     so you cannot generate more than one model at the same time in different threads.
@@ -527,7 +526,7 @@ contains
         if (CP%WantScalars) then
            if (CP%Dolensing) then
             SourceNum=3
-            C_last = C_PhiTemp
+            C_last = C_PhiE
          else
             SourceNum=2
             C_last = C_Cross
@@ -720,11 +719,11 @@ contains
 
 !!Example code for plotting out variable evolution
 !if (.true.) then
-!          tol1=tol/exp(AccuracyBoost-1)
-!       
-!        do j=1,6000      
-!          tauend = taustart * exp(j/6000._dl*log(CP%tau0/taustart))
-!          !tauend = 1/EV%q*1.01
+!         tol1=tol/exp(AccuracyBoost-1)
+!      
+!       do j=1,6000      
+!         tauend = taustart * exp(j/6000._dl*log(CP%tau0/taustart))
+!         !tauend = 1/EV%q*1.01
 !          call GaugeInterface_EvolveScal(EV,tau,y,tauend,tol1,ind,c,w)
 !         
 !          write (*,'(5E15.5)') tauend,1/y(1)-1, y(3),y(4), y(5)!y(EV%w_ix) ,y(EV%w_ix+1)                           
@@ -2006,6 +2005,8 @@ contains
                                                        apowers*CTrans%Delta_p_l_k(3,j,q_ix)**2*dlnk
                         iCl_scalar(j,C_PhiTemp,pix) = iCl_scalar(j,C_PhiTemp,pix) +  &
                                           apowers*CTrans%Delta_p_l_k(3,j,q_ix)*CTrans%Delta_p_l_k(1,j,q_ix)*dlnk
+                        iCl_scalar(j,C_PhiE,pix) = iCl_scalar(j,C_PhiE,pix) +  &
+                                          apowers*CTrans%Delta_p_l_k(3,j,q_ix)*CTrans%Delta_p_l_k(2,j,q_ix)*dlnk
              end if
 
              end if
@@ -2029,6 +2030,9 @@ contains
                      iCl_scalar(j,C_PhiTemp,pix)   =  &
                             iCl_scalar(j,C_PhiTemp,pix)*fourpi*real(CTrans%ls%l(j)**2,dl)*CTrans%ls%l(j)
                       !Cross-correlation is CTrans%ls%l^3 C_l^{\phi T}
+                     iCl_scalar(j,C_PhiE,pix)   =  &
+                            iCl_scalar(j,C_PhiE,pix)*fourpi*real(CTrans%ls%l(j)**2,dl)*CTrans%ls%l(j)*sqrt(ctnorm)
+                      !Cross-correlation is CTrans%ls%l^3 C_l^{\phi E}
              end if
 
            end do
