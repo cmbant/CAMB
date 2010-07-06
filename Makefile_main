@@ -4,6 +4,7 @@ EQUATIONS     = equations
 POWERSPECTRUM = power_tilt
 REIONIZATION = reionization
 RECOMBINATION = recfast
+BISPECTRUM = SeparableBispectrum
 
 #Module doing non-linear scaling
 NONLINEAR     = halofit
@@ -22,7 +23,7 @@ F90FLAGS      = $(FFLAGS)
 HEALPIXLD     = -L$(HEALPIXDIR)/lib -lhealpix -L$(FITSDIR) -l$(FITSLIB)
 
 CAMBOBJ       = constants.o utils.o subroutines.o inifile.o $(POWERSPECTRUM).o $(RECOMBINATION).o $(REIONIZATION).o modules.o \
-	bessels.o $(EQUATIONS).o $(NONLINEAR).o lensing.o cmbmain.o camb.o
+	bessels.o $(EQUATIONS).o $(NONLINEAR).o lensing.o $(BISPECTRUM).o cmbmain.o camb.o
 
 default: camb
 
@@ -38,8 +39,9 @@ bessels.o: modules.o
 $(EQUATIONS).o: bessels.o
 $(NONLINEAR).o:  modules.o
 lensing.o: bessels.o
+$(BISPECTRUM).o: lensing.o modules.o
 cmbmain.o: lensing.o $(NONLINEAR).o $(EQUATIONS).o
-camb.o: cmbmain.o
+camb.o: $(BISPECTRUM).o cmbmain.o
 
 
 camb: $(CAMBOBJ) $(DRIVER)

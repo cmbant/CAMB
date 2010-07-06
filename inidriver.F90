@@ -11,6 +11,7 @@
         use AMLUtils
         use Transfer
         use constants
+        use Bispectrum
 #ifdef NAGF95 
         use F90_UNIX
 #endif
@@ -184,6 +185,9 @@
          i = Ini_Read_Int('recombination',1)
          if (i/=1) stop 'recombination option deprecated'
         end if
+        
+        call Bispectrum_ReadParams(BispectrumParams, DefIni, outroot)
+        
         if (P%WantScalars .or. P%WantTransfer) then
             P%Scalar_initial_condition = Ini_Read_Int('initial_condition',initial_adiabatic)
             if (P%Scalar_initial_condition == initial_vector) then
@@ -193,7 +197,6 @@
             end if
 
         end if
-
         
        if (P%WantScalars) then
           ScalarFileName = trim(outroot)//Ini_Read_String('scalar_output_file')
@@ -250,8 +253,11 @@
        ThreadNum      = Ini_Read_Int('number_of_threads',ThreadNum)
        AccuracyBoost  = Ini_Read_Double('accuracy_boost',AccuracyBoost)
        lAccuracyBoost = Ini_Read_Real('l_accuracy_boost',lAccuracyBoost)
-       lSampleBoost   = Ini_Read_Double('l_sample_boost',lSampleBoost)
-
+       if (do_bispectrum) then
+        lSampleBoost   = 50
+       else
+        lSampleBoost   = Ini_Read_Double('l_sample_boost',lSampleBoost)
+       end if
        if (outroot /= '') then
          call Ini_SaveReadValues(trim(outroot) //'params.ini',1)
        end if

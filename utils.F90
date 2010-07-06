@@ -3,6 +3,7 @@
 
 !April 2006: fix to TList_RealArr_Thin
 !March 2008: fix to Ranges
+!June 2010: fixed bug in  DeleteFile gradually using up file units
 !This version Mar 2008
 
  module Ranges
@@ -65,6 +66,18 @@
    
 
   end subroutine Ranges_Nullify
+
+  subroutine Ranges_Assign(R,Rin)
+   Type(Regions) R, Rin
+
+    call Ranges_Init(R)
+    R = Rin
+    nullify(R%points,R%dpoints)
+    if (associated(Rin%points)) then
+      call Ranges_GetArray(R, associated(Rin%dpoints))
+    end if
+  
+  end subroutine Ranges_Assign
 
    function Ranges_IndexOf(Reg, tau) result(pointstep)
       Type(Regions), intent(in), target :: Reg
@@ -1445,14 +1458,13 @@
     character(LEN=*), intent(IN) :: aname
     integer file_id 
 
-     file_id = new_file_unit()
-
-     open(unit = file_id, file = aname, err = 2)
-     close(unit = file_id, status = 'DELETE')
- 2   return
-
-     file_units(file_id) = .false.
-    
+     if (FileExists(aname)) then
+      file_id = new_file_unit()
+      open(unit = file_id, file = aname, err = 2)
+      close(unit = file_id, status = 'DELETE')
+ 2    file_units(file_id) = .false.
+     end if
+     
   end subroutine DeleteFile
 
 
@@ -2538,13 +2550,14 @@ module Random
 
 contains
    
-  subroutine initRandom(i)
+  subroutine initRandom(i, i2)
   use AMLUtils
 #ifdef ZIGGURAT
   use Ziggurat
 #endif
   implicit none
   integer, optional, intent(IN) :: i
+  integer, optional, intent(IN) :: i2
   integer seed_in,kl,ij
   character(len=10) :: fred
   real :: klr
@@ -2555,7 +2568,12 @@ contains
     seed_in = -1
    end if
       if (seed_in /=-1) then
-       kl = 9373
+       if (present(i2)) then
+        kl=i2
+        if (i2 > 30081) call MpiStop('initRandom:second seed too large')
+       else
+        kl = 9373
+       end if
        ij = i
       else
        call system_clock(count=ij)

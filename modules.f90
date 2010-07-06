@@ -41,13 +41,11 @@
         logical, parameter :: DebugMsgs=.false. !Set to true to view progress and timing
 
         logical, parameter :: DebugEvolution = .false. !Set to true to do all the evolution for all k
-          
-        logical, parameter :: do_bispectrum = .false. 
-          !parameter tweaks for calculating separable bispectra
-          !uncomment code in CalcScalCls in cmbmain.f90 to actually calculate the bispectrum
-        logical, parameter :: hard_bispectrum = do_bispectrum .and. .false. !!! e.g. warm inflation where delicate cancellations
+
+        logical ::  do_bispectrum  = .false. 
+        logical, parameter :: hard_bispectrum = .false. !!! e.g. warm inflation where delicate cancellations
         
-        logical, parameter :: full_bessel_integration = do_bispectrum !(go into the tails when calculating the sources)
+        logical, parameter :: full_bessel_integration = .false. !(go into the tails when calculating the sources)
 
         integer, parameter :: Nu_int = 0, Nu_trunc=1, Nu_approx = 2, Nu_best = 3
          !For CAMBparams%MassiveNuMethod
@@ -128,9 +126,9 @@
         
          type(InitialPowerParams) :: InitPower  !see power_tilt.f90 - you can change this
          type(ReionizationParams) :: Reion
-         type(RecombinationParams) :: Recomb
+         type(RecombinationParams):: Recomb
          type(TransferParams)     :: Transfer 
-
+         
          real(dl) ::  InitialConditionVector(1:10) !Allow up to 10 for future extensions
           !ignored unless Scalar_initial_condition == initial_vector
 
@@ -145,7 +143,7 @@
          real(dl) curv,r, Ksign !CP%r = 1/sqrt(|CP%curv|), CP%Ksign = 1,0 or -1
          real(dl) tau0,chi0 !time today and rofChi(CP%tau0/CP%r) 
     
-         
+                      
          end type CAMBparams
 
         type(CAMBparams) CP  !Global collection of parameters
@@ -187,7 +185,6 @@
           !Increase lSampleBoost to increase sampling in lSamp%l for Cl interpolation
           
       real(dl) :: AccuracyBoost =1._dl  
-
 
           !Decrease step sizes, etc. by this parameter. Useful for checking accuracy.
           !Can also be used to improve speed significantly if less accuracy is required.              
@@ -849,7 +846,7 @@
         character(LEN=*) ScalFile, TensFile, TotFile, LensFile, LensTotFile
         real(dl), intent(in), optional :: factor
         real(dl) fact
-
+        integer last_C
 
         if (present(factor)) then
           fact = factor
@@ -858,15 +855,15 @@
         end if
 
          if (CP%WantScalars .and. ScalFile /= '') then
- 
+           last_C=min(C_PhiTemp,C_last)
            open(unit=fileio_unit,file=ScalFile,form='formatted',status='replace')
            do in=1,CP%InitPower%nn
              do il=lmin,min(10000,CP%Max_l)
-               write(fileio_unit,trim(numcat('(1I6,',C_last))//'E15.5)')il ,fact*Cl_scalar(il,in,C_Temp:min(C_PhiTemp,C_last))
+               write(fileio_unit,trim(numcat('(1I6,',last_C))//'E15.5)')il ,fact*Cl_scalar(il,in,C_Temp:last_C)
              end do
              do il=10100,CP%Max_l, 100
-               write(fileio_unit,trim(numcat('(1E15.5,',C_last))//'E15.5)') real(il), &
-                          fact*Cl_scalar(il,in,C_Temp:min(C_PhiTemp,C_last))
+               write(fileio_unit,trim(numcat('(1E15.5,',last_C))//'E15.5)') real(il),&
+                       fact*Cl_scalar(il,in,C_Temp:last_C)
              end do
             end do
             close(fileio_unit)
@@ -923,10 +920,12 @@
         end subroutine output_cl_files
 
         subroutine output_lens_pot_files(LensPotFile, factor)
+      !Write out L TT EE BB TE PP PT PE where P is the lensing potential, all unlensed  
+      !This input supported by LensPix from 2010
         implicit none
         integer in,il
         real(dl), intent(in), optional :: factor
-        real(dl) fact, scale
+        real(dl) fact, scale, BB, TT, TE, EE
         character(LEN=*) LensPotFile
          !output file of dimensionless [l(l+1)]^2 C_phi_phi/2pi and [l(l+1)]^(3/2) C_phi_T/2pi 
          !This is the format used by Planck_like but original LensPix uses scalar_output_file.
@@ -941,19 +940,33 @@
         end if
 
         if (CP%WantScalars .and. CP%DoLensing .and. LensPotFile/='') then
- 
+  
            open(unit=fileio_unit,file=LensPotFile,form='formatted',status='replace')
            do in=1,CP%InitPower%nn
              do il=lmin,min(10000,CP%Max_l)
-               scale = (real(il+1)/il)**2/OutputDenominator
-               write(fileio_unit,'(1I6,3E15.5)') il , scale*Cl_scalar(il,in,C_Phi),&
-                   (real(il+1)/il)**1.5/OutputDenominator*sqrt(factor)*Cl_scalar(il,in,C_PhiTemp:C_PhiE)
+             
+               TT = Cl_scalar(il, in, C_Temp)
+               EE = Cl_scalar(il, in, C_E)
+               TE = Cl_scalar(il, in, C_Cross)              
+               if (CP%WantTensors .and. il <= CP%Max_l_tensor) then
+                TT= TT+Cl_tensor(il,in, CT_Temp)
+                EE= EE+Cl_tensor(il,in, CT_E)
+                TE= TE+Cl_tensor(il,in, CT_Cross)
+                BB= Cl_tensor(il,in, CT_B)               
+               else
+                BB=0
+               end if
+               scale = (real(il+1)/il)**2/OutputDenominator !Factor to go from old l^4 factor to new
+               
+               write(fileio_unit,'(1I6,7E15.5)') il , fact*TT, fact*EE, fact*BB, fact*TE, scale*Cl_scalar(il,in,C_Phi),&
+                   (real(il+1)/il)**1.5/OutputDenominator*sqrt(fact)*Cl_scalar(il,in,C_PhiTemp:C_PhiE)
                    
              end do
              do il=10100,CP%Max_l, 100
                scale = (real(il+1)/il)**2/OutputDenominator
-               write(fileio_unit,'(1I6,3E15.5)') il , scale*Cl_scalar(il,in,C_Phi),&
-                   (real(il+1)/il)**1.5/OutputDenominator*sqrt(factor)*Cl_scalar(il,in,C_PhiTemp:C_PhiE)
+               write(fileio_unit,'(1E15.5,7E15.5)') real(il), fact*Cl_scalar(il,in,C_Temp:C_E),0.,fact*Cl_scalar(il,in,C_Cross), &
+                    scale*Cl_scalar(il,in,C_Phi),&
+                   (real(il+1)/il)**1.5/OutputDenominator*sqrt(fact)*Cl_scalar(il,in,C_PhiTemp:C_PhiE)
              end do
             end do
             close(fileio_unit)
@@ -2393,7 +2406,7 @@
               dtaurec=min(dtaurec,taurst/160)/AccuracyBoost 
            else
               dtaurec=min(dtaurec,taurst/40)/AccuracyBoost 
-              if (hard_bispectrum) dtaurec = dtaurec / 4
+              if (do_bispectrum .and. hard_bispectrum) dtaurec = dtaurec / 4
            end if
             
            if (CP%Reion%Reionization) taurend=min(taurend,CP%ReionHist%tau_start)

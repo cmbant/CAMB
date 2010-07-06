@@ -1028,9 +1028,11 @@ contains
        qmax_int = min(qmax,max_bessels_etak/CP%tau0)
 
        IntSampleBoost=AccuracyBoost 
-       if (do_bispectrum) IntSampleBoost = IntSampleBoost * 2  
-       if (hard_bispectrum) IntSampleBoost = IntSampleBoost * 2  
-
+       if (do_bispectrum) then
+        IntSampleBoost = IntSampleBoost * 2  
+        if (hard_bispectrum) IntSampleBoost = IntSampleBoost * 2  
+       end if
+       
 !     Fixing the # of k for the integration. 
       
        call Ranges_Init(ThisCT%q)
@@ -1062,7 +1064,6 @@ contains
          k_max_log = lognum*dk0
          k_max_0  = no*dk0
          
-         !if (hard_bispectrum) 
          if (do_bispectrum) k_max_0 = max(10.d0,k_max_0) 
 
          dk2 = 0.04/IntSampleBoost !very small scales
@@ -1285,7 +1286,7 @@ contains
              xlim=xlimfrac*lSamp%l(j)
              xlim=max(xlim,xlimmin)
              xlim=lSamp%l(j)-xlim
-             if (full_bessel_integration) then
+             if (full_bessel_integration .or. do_bispectrum) then
                  tmin = TimeSteps%points(2)
              else
                  xlmax1=80*lSamp%l(j)*AccuracyBoost
@@ -1954,7 +1955,7 @@ contains
 
 
         subroutine CalcScalCls(CTrans)
-!        use SeparableBispectrum
+        use Bispectrum
         implicit none
         Type(ClTransferData) :: CTrans
         integer pix,j
@@ -2040,8 +2041,6 @@ contains
 
           end do
 
-!         call GetReducedSeparableBispectrum(CTrans, iCl_scalar(1,C_temp,1)) 
-  
         end subroutine CalcScalCls
 
         subroutine CalcScalCls2(CTrans)
@@ -2263,7 +2262,6 @@ contains
            do i = C_Temp, C_last
              call InterpolateClArr(CTransS%ls,iCl_scalar(1,i,in),Cl_scalar(lmin, in, i), &
                  CTransS%ls%l0)
-  
            end do
          end if
       
@@ -2277,12 +2275,11 @@ contains
            do i = CT_Temp, CT_Cross
              call InterpolateClArr(CTransT%ls,iCl_tensor(1,i,in),Cl_tensor(lmin, in, i), &
                CTransT%ls%l0)
- 
            end do
          end if
       end do
       !$OMP END PARALLEL DO
-      end subroutine InterpolateCls
+    end subroutine InterpolateCls
 
 
 end module CAMBmain

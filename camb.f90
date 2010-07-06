@@ -95,6 +95,7 @@
        subroutine CAMB_GetResults(Params, error)
         use CAMBmain
         use lensing
+        use Bispectrum
         type(CAMBparams) :: Params
         integer, optional :: error !Zero if OK
         type(CAMBparams) P
@@ -210,6 +211,8 @@
          if (CP%DoLensing) then
            call lens_Cls 
          end if
+         
+         if (do_bispectrum) call GetBispectrum(CTransScal) 
 
         end if
 
@@ -285,6 +288,7 @@
 
       
         subroutine CAMB_SetDefParams(P)
+            use Bispectrum
             type(CAMBparams), intent(out) :: P
 
             P%WantTransfer= .false.
@@ -311,7 +315,7 @@
             call Recombination_SetDefParams(P%Recomb)
           
             call Reionization_SetDefParams(P%Reion)
-
+            
             P%Transfer%high_precision=.false.
     
             P%OutputNormalization = outNone

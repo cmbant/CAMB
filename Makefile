@@ -8,11 +8,6 @@
 F90C     = ifort
 FFLAGS = -openmp -O2 -ip -W0 -WB -fpp2 -vec_report0
 
-# Intel 9 on IA-64 (eg. COSMOS)
-# (do "module load icomp90" before compiling)
-#F90C = ifort
-#FFLAGS = -openmp -fpp2 -w -O3 -ip -mP2OPT_hlo_prefetch=F
-
 #Intel ifc, add -openmp for multi-processor (some have bugs):
 #F90C     = ifc
 #FFLAGS = -O2 -Vaxlib -ip -W0 -WB -quiet -fpp2
@@ -23,7 +18,7 @@ FFLAGS = -openmp -O2 -ip -W0 -WB -fpp2 -vec_report0
 #FFLAGS = -O2
 
 #Gfortran compiler: if pre v4.3 add -D__GFORTRAN__
-#F90C     = gfc
+#F90C     = gfortran
 #FFLAGS =  -O2 
 
 #SGI, -mp toggles multi-processor. Use -O2 if -Ofast gives problems.
