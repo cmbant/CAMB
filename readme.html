@@ -13,7 +13,7 @@
 Code for Anisotropies in the Microwave Background by <A
 HREF="http://cosmologist.info/">Antony Lewis</A> and Anthony
 Challinor. <P>
-This version May 2010.
+This version October 2010.
 <P>
 <FONT SIZE=-1>
 Originally based on CMBFAST developed by Uros Seljak and Matias
@@ -109,9 +109,13 @@ where all quantities are in the synchronous gauge and evaluated at the requested
 <A NAME="version">
 <H3>Version History</H3>
 
-<B>May 2010</B><BR>
-
-<b>lens_potential_output_file</b> format changed to included temperature and polarization spectra (scalar+tensor), and extra column giving [l(l+1)]<sup>3/2</sup>C<sub>&psi;E</sub>/2&pi; - the correlation of the lensing potential with the E polarization. Updates for BAO calculations in CosmoMC May 2010. 
+<B>May (CosmoMC) and October 2010</B><BR>
+<UL>
+<LI>Added Bispectrum module to calculate CMB lensing and local primordial non-Gaussianity bispectra for temperature and polarization. Compile with -DFISHER to also calculate Fisher elements for the bispectra, including lensing signal variance effects. Corresponding new parameters in the .ini file. 
+<LI><b>lens_potential_output_file</b> format changed to included temperature and polarization spectra (scalar+tensor), and extra column giving [l(l+1)]<sup>3/2</sup>C<sub>&psi;E</sub>/2&pi; - the correlation of the lensing potential with the E polarization. 
+<LI>
+Updates for BAO calculations in CosmoMC May 2010. 
+</UL>
 <P>
 <B>January 2010</B><BR>
 Recfast updated to version 1.5 (rising to 2% change at l=2000; added rate fudge to match <A HREF="http://arxiv.org/abs/0910.4383">0910.4383</A>; use <b>RECFAST_Hswitch = F</b> to recover old result). Added <b>lens_potential_output_file</b> parameter to get sensibly normalized lensing potential ([l(l+1)]<sup>2</sup>C<sub>l</sub>/2&pi; and temperature correlation). Added code parameter do_bispectrum to modules.f90 for parameter tweaks to get accurate transfer functions for f<sub>NL</sub> calculations.
