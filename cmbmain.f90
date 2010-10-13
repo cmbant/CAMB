@@ -1214,7 +1214,7 @@ contains
           llmax=nint(nu*CP%chi0)
           
           if (llmax<15) then
-           llmax=15
+           llmax=17 !AL Sept2010 changed from 15 to get l=16 smooth
           else
            llmax=nint(nu*rofChi(CP%tau0/CP%r + 6*pi/nu))
           end if
