@@ -423,11 +423,11 @@ contains
                   max_l = min(lmax,l1+l2) 
                   bix=bi_ix
                   a3j2(:,:,1)=0.5d0
-                  if (nfields>1) then             
-                    call rec3jj(a3j(abs(l2-l1)),dble(l1),dble(l2),0._dl,0._dl)   
-                    call rec3jj(a3j2(max(2,abs(l2-l1)),1,2),dble(l1),dble(l2),2._dl,0._dl)   
-                    call rec3jj(a3j2(max(2,abs(l2-l1)),2,2),dble(l1),dble(l2),0._dl,2._dl)   
-                    call rec3jj(a3j2(max(0,abs(l2-l1)),3,2),dble(l1),dble(l2),2._dl,-2._dl)                                       
+                  if (nfields>1) then
+                    call GetThreeJs(a3j(abs(l2-l1)),l1,l2,0,0)   
+                    call GetThreeJs(a3j2(max(2,abs(l2-l1)),1,2),l1,l2,2,0)   
+                    call GetThreeJs(a3j2(max(2,abs(l2-l1)),2,2),l1,l2,0,2)   
+                    call GetThreeJs(a3j2(max(0,abs(l2-l1)),3,2),l1,l2,2,-2)                                       
                     do l3=min_l,max_l ,2
                       a3j2(l3,:,2) = a3j2(l3,:,2)/a3j(l3)*0.5d0           
                     end do
@@ -508,9 +508,9 @@ contains
                   bix=bi_ix
                     
                     a3j2(:,:,1)=0.5d0
-                    call rec3jj(a3j2(max(2,abs(l2-l1)),1,2),dble(l1),dble(l2),2._dl,0._dl)   
-                    call rec3jj(a3j2(max(2,abs(l2-l1)),2,2),dble(l1),dble(l2),0._dl,2._dl)   
-                    call rec3jj(a3j2(max(0,abs(l2-l1)),3,2),dble(l1),dble(l2),2._dl,-2._dl)                                       
+                    call GetThreeJs(a3j2(max(2,abs(l2-l1)),1,2),l1,l2,2,0)   
+                    call GetThreeJs(a3j2(max(2,abs(l2-l1)),2,2),l1,l2,0,2)   
+                    call GetThreeJs(a3j2(max(0,abs(l2-l1)),3,2),l1,l2,2,-2)                                       
                     do l3=min_l,max_l ,2
                      a3j2(l3,:,2) = a3j2(l3,:,2)*0.5d0*sqrt(real((2*L1+1)*(2*L2+1),dl)*(2*L3+1)/(3.1415926535*4))            
                     end do
@@ -909,7 +909,7 @@ contains
                  min_l = min_l+1
               end if 
               max_l = min(lmax,l1+l2) 
-              call rec3jj(a3j(abs(l2-l1)),dble(l1),dble(l2),0._dl,0._dl)
+              call GetThreeJs(a3j(abs(l2-l1)),l1,l2,0,0)
               do l3=min_l,max_l ,2    
                 a3j_00(l3)=a3j(l3)**2
               end do

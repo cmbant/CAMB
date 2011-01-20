@@ -13,7 +13,7 @@
 Code for Anisotropies in the Microwave Background by <A
 HREF="http://cosmologist.info/">Antony Lewis</A> and Anthony
 Challinor. <P>
-This version October 2010.
+This version January 2011.
 <P>
 <FONT SIZE=-1>
 Originally based on CMBFAST developed by Uros Seljak and Matias
@@ -85,16 +85,16 @@ l C<sub>TT</sub> C<sub>EE</sub> C<sub>TE</sub> [C<sub>&Phi;</sub> C<sub>&Phi;T</
 </BLOCKQUOTE>
 Here all C<sub>X</sub> are l(l+1)C_l/2pi except for C<sub>&Phi;</sub> and C<sub>&Phi;T</sub> which are C<sub>&Phi;</sub>= l<sup>4</sup> C<sub>l</sub><sup>&Phi</sup>, where  C<sub>l</sub><sup>&Phi</sup> is the (CMB) lensing potential power spectrum, and C<sub>&Phi;T</sub> = l<sup>3</sup> C<sub>l</sub><sup>&Phi;T</sup>. The lensing terms in square brackets are only produced if <b>do_lensing = T</b>. If <b>CMB_outputscale = 7.4311e12</B> ([T<sub>CMB</sub>10<sup>6</sup>]<sup>2</sup>, the default), the units are &mu;K<sup>2</sup>. Note that lensing spectra are also multiplied by CMB_outputscale, so you may want to divide this out of the answer to get a sensible dimensionless spectrum or use the <b>lens_potential_output_file</b> file mentioned below. If requested the lensed power spectrum is output to <b>output_root</b>_lensedCls.dat
 <P>
-Tensor  angular power spectra are output to <b>output_root</b>_tensCls.dat if requested. 
+Tensor  angular power spectra are output to <b>output_root</b>_tensCls.dat if requested.
 The columns are
 <BLOCKQUOTE>
-l C<sub>TT</sub> C<sub>EE</sub> C<sub>BB</sub>  C<sub>TE</sub>  
+l C<sub>TT</sub> C<sub>EE</sub> C<sub>BB</sub>  C<sub>TE</sub>
 </BLOCKQUOTE>
 If scalars and tensors are generated, the total spectrum is in <b>output_root</b>_totCls.dat, in the same format as the tensor output file.
 <P>
 If <b>do_lensing=T</b> and <b>lens_potential_output_file</b> is specified a file is output containing unlensed scalar (+tensor if calculated) spectra along with the lensing potentials in this format:
 <BLOCKQUOTE>
-l C<sub>TT</sub> C<sub>EE</sub> C<sub>BB</sub>  C<sub>TE</sub> C<sub>dd</sub> C<sub>dT</sub> C<sub>dE</sub>  
+l C<sub>TT</sub> C<sub>EE</sub> C<sub>BB</sub>  C<sub>TE</sub> C<sub>dd</sub> C<sub>dT</sub> C<sub>dE</sub>
 </BLOCKQUOTE>
 where as before C<sub>X</sub> are l(l+1)C<sub>l</sub>/2&pi;, and d is the deflection angle, so C<sub>dd</sub>=[l(l+1)]<sup>2</sup>C<sub>l</sub><sup>&Phi;</sup>/2&pi;,  C<sub>dT</sub>=[l(l+1)]<sup>3/2</sup>C<sub>l</sub><sup>&Phi;T</sup>/2&pi;,
 C<sub>dE</sub>=[l(l+1)]<sup>3/2</sup>C<sub>l</sub><sup>&Phi;E</sup>/2&pi;. These are the spectra required for simulating lensed skies using <A HREF="http://cosmologist.info/lenspix">LensPix</A>.
@@ -109,12 +109,13 @@ where all quantities are in the synchronous gauge and evaluated at the requested
 <A NAME="version">
 <H3>Version History</H3>
 
-<B>May (CosmoMC) and October 2010</B><BR>
+<B>January 2011</B><BR>
 <UL>
-<LI>Added Bispectrum module to calculate CMB lensing and local primordial non-Gaussianity bispectra for temperature and polarization. Compile with -DFISHER to also calculate Fisher elements for the bispectra, including lensing signal variance effects. Corresponding new parameters in the .ini file. 
-<LI><b>lens_potential_output_file</b> format changed to included temperature and polarization spectra (scalar+tensor), and extra column giving [l(l+1)]<sup>3/2</sup>C<sub>&psi;E</sub>/2&pi; - the correlation of the lensing potential with the E polarization. 
+<LI>(14 Jan) updated Makefile for gfortran compatibility and easier compilation for bispectrum fisher calculations
+<LI>Added Bispectrum module to calculate CMB lensing and local primordial non-Gaussianity bispectra for temperature and polarization (see <A HREF="http://arxiv.org/abs/1101.2234">arXiv:1101.2234</A>). Define FISHER in the makefile to also calculate Fisher elements for the bispectra, including lensing signal variance effects (you make need to edit makefile to link to LAPACK). Corresponding new parameters in the .ini file.
+<LI><b>lens_potential_output_file</b> format changed to included temperature and polarization spectra (scalar+tensor), and extra column giving [l(l+1)]<sup>3/2</sup>C<sub>&psi;E</sub>/2&pi; - the correlation of the lensing potential with the E polarization.
 <LI>
-Updates for BAO calculations in CosmoMC May 2010. 
+Updates for BAO calculations were in CosmoMC May 2010.
 </UL>
 <P>
 <B>January 2010</B><BR>
@@ -510,7 +511,12 @@ Implements the NonLinear module, to calculate non linear scalings of the matter 
  CAMB). See <A
  HREF="http://www.astro.ubc.ca/people/scott/recfast.html">RECFAST</A>
  for the original code. This module implements the RECOMBINATION module required by CAMB, and could be replaced by other models.
+ <P>
+<B>SeparableBispectrum.f90</B>
+<P>
+  Implements calculation of simple separable primordial bispectra, specifically the local constant f<sub>NL</sub> model, and the CMB lensing bispectrum due to the linear temperature and polarization cross-correlation with the lensing potential. Compile with FISHER defined in the makefile to also calculate Fisher elements, including the effects of lensing signal variance (edit Makefile to link to LAPACK if necessary). Note that the primordial bispectra here are unlensed (see <A HREF="http://arxiv.org/abs/0905.4732">arXiv:0905.4732</a> for a calculation), but the lensed bispectra are calculated non-perturbatively (but approximately) using the lensed small-scale CMB power spectra. Note that calculating primordial bispectra is significantly slower than doing standard power spectrum calculations, however it parallelizes well.
 </BLOCKQUOTE>
+
 <P>
 <A NAME="ACCURACY">
 <H3>Accuracy</H3>
@@ -557,6 +563,7 @@ Geometric Algebra and
 Covariant Methods in Physics and Cosmology, Chapters 6&7<BR>
 PhD thesis, Antony Lewis 2000.  <A
 HREF="http://antonylewis.com/thesis.ps.gz">PostScript</A>.
+</P>
 <P>
 <B>Covariant theory</B>
 <P>
@@ -632,6 +639,13 @@ Wayne Hu. <A HREF="http://arxiv.org/abs/astro-ph/0001303">astro-ph/0001303</A><B
 See also <A HREF="http://arxiv.org/abs/astro-ph/0301064">astro-ph/0301064</A>, <A HREF="http://arxiv.org/abs/astro-ph/0301031">astro-ph/0301031</A>
 </P>
 </BLOCKQUOTE>
+
+<B>Bispectra</B>
+<P>
+The shape of the CMB lensing bispectrum<BR>
+Antony Lewis, Anthony Challinor and Duncan Hanson <A HREF="http://arxiv.org/abs/1101.2234">arXiv:1101.2234</A>
+</P>
+
 
 <B>Synchronous gauge theory and non-flat models</B>
 <P>

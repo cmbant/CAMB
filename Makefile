@@ -1,13 +1,18 @@
 #CAMB Makefile
 
+#Set FISHER=Y to compile bispectrum fisher matrix code
+FISHER=
+
 #Edit for your compiler
 #Note there are many ifc versions, some of which behave oddly
 
 #Intel , -openmp toggles mutli-processor:
 #note version 10.0 gives wrong result for lensed when compiled with -openmp [fixed in 10.1]
-#add -lmpi if you want to compile with -DFISHER to calculate bispectrum fisher elements
 F90C     = ifort
 FFLAGS = -openmp -O2 -ip -W0 -WB -fpp2 -vec_report0
+ifneq ($(FISHER),)
+FFLAGS += -mkl
+endif
 
 #Intel ifc, add -openmp for multi-processor (some have bugs):
 #F90C     = ifc
@@ -20,7 +25,7 @@ FFLAGS = -openmp -O2 -ip -W0 -WB -fpp2 -vec_report0
 
 #Gfortran compiler: if pre v4.3 add -D__GFORTRAN__
 #F90C     = gfortran
-#FFLAGS =  -O2 -x f95-cpp-input 
+#FFLAGS =  -O2  
 
 #SGI, -mp toggles multi-processor. Use -O2 if -Ofast gives problems.
 #F90C     = f90
@@ -61,5 +66,12 @@ FITSDIR       = /home/cpac/cpac-tools/lib
 FITSLIB       = cfitsio
 #Location of HEALPIX for building camb_fits
 HEALPIXDIR    = /home/cpac/cpac-tools/healpix
+
+ifneq ($(FISHER),)
+FFLAGS += -DFISHER
+EXTCAMBFILES = Matrix_utils.o
+else
+EXTCAMBFILES = 
+endif
 
 include ./Makefile_main

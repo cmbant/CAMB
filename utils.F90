@@ -491,11 +491,11 @@
   implicit none
 
   type real_pointer
-    real, dimension(:), pointer :: p
+    real, dimension(:), pointer :: p 
   end type real_pointer
 
   type double_pointer
-    double precision, dimension(:), pointer :: p
+    double precision, dimension(:), pointer :: p 
   end type double_pointer
 
   type String_pointer
@@ -507,13 +507,13 @@
     integer Count
     integer Delta
     integer Capacity
-    type(Real_Pointer), dimension(:), pointer :: Items
+    type(Real_Pointer), dimension(:), pointer :: Items 
   end Type TList_RealArr
 
   Type TStringList
     integer Count
     integer Delta
-    integer Capacity
+    integer Capacity 
     type(String_Pointer), dimension(:), pointer :: Items
   end Type TStringList
 
@@ -704,11 +704,19 @@
 
    end subroutine TStringList_Clear
 
-   subroutine TStringList_SetFromString(L, S, valid_chars)
+   subroutine TStringList_SetFromString(L, S, valid_chars_in)
     Type (TStringList) :: L
-    character(Len=*), intent(in) :: S, valid_chars
+    character(Len=*), intent(in) :: S
+    character(Len=*), intent(in), optional :: valid_chars_in
     character(LEN=1024) item
     integer i,j
+    character(LEN=256) valid_chars
+    
+    if (present(valid_chars_in)) then
+       valid_chars = valid_chars_in
+    else
+       valid_chars='abcdefghijklmopqrstuvwxyzABCDEFGHIJKLMOPQRSTUVWXYZ0123456789_-.'
+    endif
 
      call TStringList_Clear(L)
      item ='' 
@@ -744,6 +752,20 @@
     L%Items(L%Count)%P(i) = P(i:i)
     end do
    end subroutine TStringList_Add
+
+   function TStringList_Item(L, i) result(S)
+    Type (TStringList) :: L
+    integer, intent(in) :: i
+    integer j
+    character(LEN=1024) S
+
+    S=''
+    if (i<=L%Count .and. i>0) then
+     do j=1,size(L%Items(i)%P)
+       S(j:j)=L%Items(i)%P(j)       
+     end do
+    end if
+   end function TStringList_Item
 
    subroutine TStringList_SetCapacity(L, C)
     Type (TStringList) :: L
@@ -1214,8 +1236,7 @@
    if (i>0) then
      S = S(1:i-1)//trim(RepS)//S(i+len_trim(FindS):len_trim(S))
    end if
-  
-  
+
   end subroutine StringReplace
 
   function numcat(S, num)
@@ -1281,7 +1302,7 @@
    integer, intent(in), optional :: figs
    character(LEN=30) RealToStr
 
-    if (abs(R)>=0.001) then
+    if (abs(R)>=0.001 .or. R==0.) then
      write (RealToStr,'(f12.6)') R
 
    RealToStr = adjustl(RealToStr)
@@ -1293,7 +1314,7 @@
 
     else
      if (present(figs)) then
-      write (RealToStr,'(E'//trim(numcat('(',figs))//'.2)') R
+      write (RealToStr,trim(numcat('(E',figs))//'.2)') R
      else
       write (RealToStr,'(G9.2)') R
      end if
@@ -2062,7 +2083,6 @@ subroutine CreateOpenTxtFile(aname, aunit, append)
       integer, parameter :: dl = KIND(1.d0)
       integer, intent(in) :: l2in,l3in, m2in,m3in
       real(dl), dimension(*) :: thrcof
-#ifdef THREEJ
       INTEGER, PARAMETER :: i8 = 8
       integer(i8) :: l2,l3,m2,m3
       integer(i8) :: l1, m1, l1min,l1max, lmatch, nfin, a1, a2
@@ -2336,13 +2356,6 @@ subroutine CreateOpenTxtFile(aname, aunit, append)
          thrcof(n) = cnorm*thrcof(n)
       end do
       return 
-#else
-   call MpiStop('must compile with -DTHREEJ to use 3j routine')
-
-!Just prevent unused variable warnings:
-   thrcof(1)=l2in+l3in+m2in+m3in
-#endif
-
 
     end subroutine GetThreeJs
 
