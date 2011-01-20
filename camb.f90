@@ -7,8 +7,6 @@
          use Transfer
          use GaugeInterface
          use InitialPower
-         use Reionization
-         use Recombination
          implicit none
 
          Type CAMBdata
@@ -48,11 +46,10 @@
 
        subroutine CAMB_InitCAMBdata(Dat)
         type (CAMBdata) :: Dat
- 
-!Comment these out to try to avoid intel bugs with status deallocating uninitialized pointers   
-        call Ranges_Nullify(Dat%ClTransScal%q)
-        call Ranges_Nullify(Dat%ClTransVec%q)
-        call Ranges_Nullify(Dat%ClTransTens%q)
+     
+        call Ranges_Init(Dat%ClTransScal%q)
+        call Ranges_Init(Dat%ClTransVec%q)
+        call Ranges_Init(Dat%ClTransTens%q)
 
         nullify(Dat%ClTransScal%Delta_p_l_k)
         nullify(Dat%ClTransVec%Delta_p_l_k)
@@ -95,15 +92,13 @@
        subroutine CAMB_GetResults(Params, error)
         use CAMBmain
         use lensing
-        use Bispectrum
         type(CAMBparams) :: Params
         integer, optional :: error !Zero if OK
         type(CAMBparams) P
         logical :: separate = .true. !whether to do P_k in separate call or not
-        logical :: InReionization
-        
-        if (Params%DoLensing .and. Params%NonLinear==NonLinear_Lens) separate = .false.
-        InReionization = Params%Reion%Reionization
+
+        if ((Params%DoLensing .or. num_redshiftwindows>0) &
+           .and. Params%NonLinear==NonLinear_Lens) separate = .false.
         
          if (Params%WantCls .and. Params%WantScalars) then
           P = Params
@@ -196,7 +191,6 @@
           CP%WantCls =  Params%WantCls
           CP%WantTensors = Params%WantTensors
           CP%WantVectors = Params%WantVectors
-          CP%Reion%Reionization = InReionization
           Params = CP            
 
          end if
@@ -211,8 +205,6 @@
          if (CP%DoLensing) then
            call lens_Cls 
          end if
-         
-         if (do_bispectrum) call GetBispectrum(CTransScal) 
 
         end if
 
@@ -247,17 +239,16 @@
 
         function CAMB_GetAge(P)
            !Return age in gigayears, returns -1 on error
-           use constants
            type(CAMBparams), intent(in) :: P
            real(dl) CAMB_GetAge
-           real(dl) atol,a1,a2, dtda, rombint
-!           real(dl), parameter :: Mpc = 3.085678e22_dl, &
-!                 c = 2.99792458e8_dl, Gyr=3.1556926e16
+           real(dl) atol,a1,a2,rombint, dtda
+           real(dl), parameter :: Mpc = 3.085678e22_dl, &
+                 c = 2.99792458e8_dl, Gyr=3.1556926e16
            integer error
-           external dtda,rombint
+           external rombint, dtda
 
 
-           call  CAMBParams_Set(P, error, .false.)
+           call  CAMBParams_Set(P, error,  .false.)
 
            if (error/=0) then
             CAMB_GetAge = -1
@@ -266,33 +257,19 @@
            atol = 1d-4
            a1=0
            a2=1
-           CAMB_GetAge = rombint(dtda,a1,a2,atol)*Mpc/c/Gyr
+           CAMB_GetAge = rombint(dtda,a1,a2,atol)*Mpc/c/Gyr 
            end if
     
          end function CAMB_GetAge
 
-
-        function CAMB_GetZreFromTau(P, tau)
-           type(CAMBparams) :: P
-           real(dl) tau
-           real(dl) CAMB_GetZreFromTau
-           integer error
-
-            P%Reion%use_optical_depth = .true.
-            P%Reion%optical_depth = tau
-            call CAMBParams_Set(P,error)
-            
-            CAMB_GetZreFromTau = CP%Reion%redshift
-
-        end function CAMB_GetZreFromTau
-
       
         subroutine CAMB_SetDefParams(P)
-            use Bispectrum
+            use constants
             type(CAMBparams), intent(out) :: P
 
             P%WantTransfer= .false.
             P%WantCls = .true.
+            P%Want_CMB = .true.
 
             P%omegab  = .045
             P%omegac  = 0.255
@@ -300,7 +277,7 @@
             P%omegan  = 0
             P%H0      = 65
 
-            P%TCMB    = 2.726
+            P%TCMB    = COBE_CMBTemp
             P%YHe     = 0.24
             P%Num_Nu_massless =3.04
             P%Num_Nu_massive  =0
@@ -313,9 +290,9 @@
             call SetDefPowerParams(P%InitPower)
 
             call Recombination_SetDefParams(P%Recomb)
-          
             call Reionization_SetDefParams(P%Reion)
-            
+
+ 
             P%Transfer%high_precision=.false.
     
             P%OutputNormalization = outNone
@@ -323,9 +300,7 @@
             P%WantScalars = .true.
             P%WantVectors = .false.
             P%WantTensors = .false.
-            P%want_zstar = .false.  !!JH 
-            P%want_zdrag = .false.  !!JH  
-
+            
             P%Max_l=1500
             P%Max_eta_k=3000
             P%Max_l_tensor=400
@@ -400,9 +375,9 @@
                 OK = .false.
                 write(*,*) 'You need Max_eta_k larger than Max_l to get good results'
              end if
-             
+
              call Reionization_Validate(P%Reion, OK)
-             call Recombination_Validate(P%Recomb, OK)
+
 
              if (P%WantTransfer) then
               if (P%transfer%num_redshifts > max_transfer_redshifts .or. P%transfer%num_redshifts<1) then
@@ -425,21 +400,6 @@
              end if
 
          end function CAMB_ValidateParams
-
-         subroutine CAMB_cleanup
-          use ThermoData
-          use SpherBessels
-          use ModelData
-          use Transfer
-
-            !Free memory
-           call ThermoData_Free
-           call Bessels_Free
-           call ModelData_Free  
-           call Transfer_Free(MT)
-
-         end subroutine CAMB_cleanup
-
 
   end module CAMB
 
