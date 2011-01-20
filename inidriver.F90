@@ -8,32 +8,35 @@
         use CAMB
         use LambdaGeneral
         use Lensing
-        use AMLUtils
-        use Transfer
+        use NonLinear
+        use AMLutils
         use constants
-        use Bispectrum
-#ifdef NAGF95 
-        use F90_UNIX
-#endif
         implicit none
       
         Type(CAMBparams) P
         
-        character(LEN=Ini_max_string_len) numstr, VectorFileName, &
-            InputFile, ScalarFileName, TensorFileName, TotalFileName, LensedFileName,&
-            LensedTotFileName, LensPotentialFileName
+        character(LEN=Ini_max_string_len) numstr, S, VectorFileName, &
+            InputFile, ScalarFileName, ScalarCovFileName,TensorFileName, TotalFileName, LensedFileName
         integer i
         character(LEN=Ini_max_string_len) TransferFileNames(max_transfer_redshifts), &
-               MatterPowerFileNames(max_transfer_redshifts), outroot
+               MatterPowerFileNames(max_transfer_redshifts), outroot, &
+               TransferClFileNames(max_transfer_redshifts)
+        
+
         real(dl) output_factor, Age
+        Type (TRedWin), pointer :: RedWin
 
 #ifdef WRITE_FITS
        character(LEN=Ini_max_string_len) FITSfilename
 #endif
 
         logical bad
+        logical :: DoCounts = .false.
 
-        InputFile = GetParam(1)
+
+        InputFile = ''
+
+        if (GetParamCount() /= 0)  InputFile = GetParam(1)
         if (InputFile == '') stop 'No parameter input file'
 
         call Ini_Open(InputFile, 1, bad, .false.)
@@ -50,6 +53,94 @@
         P%WantVectors = Ini_Read_Logical('get_vector_cls',.false.)
         P%WantTensors = Ini_Read_Logical('get_tensor_cls',.false.)
         
+        P%Want_CMB =  Ini_Read_Logical('want_CMB',.true.)
+
+        if (P%WantScalars) then
+         num_redshiftwindows = Ini_Read_Int('num_redshiftwindows',0)
+        else
+         num_redshiftwindows = 0
+        end if
+        if (num_redshiftwindows>0) then
+         DoRedshiftLensing = Ini_Read_Logical('DoRedshiftLensing',.false.)
+         limber_windows = Ini_Read_Logical('limber_windows',.false.)
+        end if
+        Do21cm = Ini_Read_Logical('Do21cm', .false.)
+        num_extra_redshiftwindows = 0
+        do i=1, num_redshiftwindows
+             RedWin => Redshift_w(i)
+             call InitRedshiftWindow(RedWin)
+             write (numstr,*) i 
+             numstr=adjustl(numstr)
+             RedWin%Redshift = Ini_Read_Double('redshift('//trim(numstr)//')')
+             S = Ini_Read_String('redshift_kind('//trim(numstr)//')')
+             if (S=='21cm') then
+              RedWin%kind = window_21cm
+            elseif (S=='counts') then
+              RedWin%kind = window_counts
+            elseif (S=='lensing') then
+              RedWin%kind = window_lensing
+            else
+              write (*,*) i, 'Error: unknown type of window '//trim(S)
+              stop
+            end if
+            RedWin%a = 1/(1+RedWin%Redshift)
+            if (RedWin%kind /= window_21cm) then  
+              RedWin%sigma = Ini_Read_Double('redshift_sigma('//trim(numstr)//')')
+              RedWin%sigma_z = RedWin%sigma
+            else
+              Do21cm = .true.
+              RedWin%sigma = Ini_Read_Double('redshift_sigma_Mhz('//trim(numstr)//')')
+              if (RedWin%sigma < 0.003) then
+               write(*,*) 'WARNING:Window very narrow.'
+               write(*,*) ' --> use transfer functions and transfer_21cm_cl =T ?'
+              end if
+              !with 21cm widths are in Mhz, make dimensionless scale factor
+              RedWin%sigma = RedWin%sigma/(f_21cm/1e6)
+              RedWin%sigma_z = RedWin%sigma*(1+RedWin%RedShift)**2
+              write(*,*) i,'delta_z = ', RedWin%sigma_z
+            end if
+            if (RedWin%kind == window_counts) then
+              DoCounts = .true.
+              RedWin%bias = Ini_Read_Double('redshift_bias('//trim(numstr)//')')
+              RedWin%dlog10Ndm = Ini_Read_Double('redshift_dlog10Ndm('//trim(numstr)//')',0.d0)
+              if (DoRedshiftLensing) then 
+               num_extra_redshiftwindows=num_extra_redshiftwindows+1
+               RedWin%mag_index = num_extra_redshiftwindows
+              end if
+             end if
+        end do
+
+ 
+        if (Do21cm) then
+          line_basic = Ini_Read_Logical('line_basic')
+          line_distortions = Ini_read_Logical('line_distortions')
+          line_extra = Ini_Read_Logical('line_extra')
+
+          line_phot_dipole = Ini_read_Logical('line_phot_dipole')
+          line_phot_quadrupole = Ini_Read_Logical('line_phot_quadrupole')
+          line_reionization = Ini_Read_Logical('line_reionization')
+
+          use_mK = Ini_read_Logical('use_mK')
+          if (DebugMsgs) then
+           write (*,*) 'Doing 21cm'
+           write (*,*) 'dipole = ',line_phot_dipole, ' quadrupole =', line_phot_quadrupole  
+          end if    
+        else
+         line_extra = .false.
+        end if
+
+        if (DoCounts) then
+          counts_density = Ini_read_Logical('counts_density')
+          counts_redshift = Ini_read_Logical('counts_redshift')
+          counts_radial = Ini_read_Logical('counts_radial')
+          counts_evolve = Ini_read_Logical('counts_evolve')
+          counts_timedelay = Ini_read_Logical('counts_timedelay')
+          counts_ISW = Ini_read_Logical('counts_ISW')
+          counts_potential = Ini_read_Logical('counts_potential')
+          counts_velocity = Ini_read_Logical('counts_velocity')
+          
+        end if
+          
         P%OutputNormalization=outNone
         if (Ini_Read_Logical('COBE_normalize',.false.))  P%OutputNormalization=outCOBE
         output_factor = Ini_Read_Double('CMB_outputscale',1.d0)
@@ -59,6 +150,8 @@
         P%WantTransfer=Ini_Read_Logical('get_transfer')
         
         P%NonLinear = Ini_Read_Int('do_nonlinear',NonLinear_none)
+
+        evolve_delta_xe = Ini_read_Logical('evolve_delta_xe', .false.)
    
         P%DoLensing = .false.
         if (P%WantCls) then
@@ -136,11 +229,11 @@
         read(numstr,*) P%Nu_mass_fractions(1:P%Nu_mass_eigenstates)
        end if
 
-       if (P%NonLinear==NonLinear_lens .and. P%DoLensing) then
+       if (P%NonLinear==NonLinear_lens .and. (P%DoLensing .or. num_redshiftwindows>0)) then
           if (P%WantTransfer) &
              write (*,*) 'overriding transfer settings to get non-linear lensing'
           P%WantTransfer  = .true.
-          call Transfer_SetForNonlinearLensing(P%Transfer)
+          call Transfer_SetForNonlinearLensing(P%Transfer, P%Max_eta_k)
           P%Transfer%high_precision=  Ini_Read_Logical('transfer_high_precision',.false.)
        
        else if (P%WantTransfer)  then
@@ -148,69 +241,98 @@
         P%transfer%kmax          =  Ini_Read_Double('transfer_kmax')
         P%transfer%k_per_logint  =  Ini_Read_Int('transfer_k_per_logint')
         P%transfer%num_redshifts =  Ini_Read_Int('transfer_num_redshifts')
-        
-        transfer_interp_matterpower = Ini_Read_Logical('transfer_interp_matterpower ', transfer_interp_matterpower)
-        transfer_power_var = Ini_read_int('transfer_power_var',transfer_power_var)
+        if (Do21cm) transfer_21cm_cl = Ini_Read_Logical('transfer_21cm_cl',.false.)
+        if (transfer_21cm_cl .and. P%transfer%kmax > 800) then
+        !Actually line widths are important at significantly larger scales too
+         write (*,*) 'WARNING: kmax very large. '
+         write(*,*) ' -- Neglected line width effects will dominate'
+        end if
         if (P%transfer%num_redshifts > max_transfer_redshifts) stop 'Too many redshifts'
         do i=1, P%transfer%num_redshifts
-             P%transfer%redshifts(i)  = Ini_Read_Double_Array('transfer_redshift',i,0._dl)
-             transferFileNames(i)     = Ini_Read_String_Array('transfer_filename',i)
-             MatterPowerFilenames(i)  = Ini_Read_String_Array('transfer_matterpower',i)
-             
+             write (numstr,*) i 
+             numstr=adjustl(numstr)
+             P%transfer%redshifts(i)  = Ini_Read_Double('transfer_redshift('//trim(numstr)//')',0._dl)
+             TransferFileNames(i)     = Ini_Read_String('transfer_filename('//trim(numstr)//')')
+             MatterPowerFilenames(i)  = Ini_Read_String('transfer_matterpower('//trim(numstr)//')')
+             if (Do21cm) then
+               TransferClFileNames(i)     = Ini_Read_String('transfer_cl_filename('//trim(numstr)//')')
+               if (TransferClFileNames(i) == '') then
+                  TransferClFileNames(i) =  trim(numcat('sharp_cl_',i))//'.dat' 
+               end if
+             end if
              if (TransferFileNames(i) == '') then
                  TransferFileNames(i) =  trim(numcat('transfer_',i))//'.dat' 
              end if
              if (MatterPowerFilenames(i) == '') then
                  MatterPowerFilenames(i) =  trim(numcat('matterpower_',i))//'.dat' 
              end if
+
              if (TransferFileNames(i)/= '') &
                    TransferFileNames(i) = trim(outroot)//TransferFileNames(i)
              if (MatterPowerFilenames(i) /= '') &
                  MatterPowerFilenames(i)=trim(outroot)//MatterPowerFilenames(i)
+            
+             if (TransferClFileNames(i)/= '') &
+                   TransferClFileNames(i) = trim(outroot)//TransferClFileNames(i)
+          
         end do
-
-
         P%transfer%kmax=P%transfer%kmax*(P%h0/100._dl)
                 
        else
          P%transfer%high_precision = .false.
        endif
   
-        Ini_fail_on_not_found = .false. 
-  
-        call Reionization_ReadParams(P%Reion, DefIni)
-        call InitialPower_ReadParams(P%InitPower, DefIni, P%WantTensors) 
-        call Recombination_ReadParams(P%Recomb, DefIni)
-        if (Ini_HasKey('recombination')) then
-         i = Ini_Read_Int('recombination',1)
-         if (i/=1) stop 'recombination option deprecated'
-        end if
-        
-        call Bispectrum_ReadParams(BispectrumParams, DefIni, outroot)
-        
-        if (P%WantScalars .or. P%WantTransfer) then
+     
+      
+          call Reionization_ReadParams(P%Reion, DefIni)
+          call InitialPower_ReadParams(P%InitPower, DefIni, P%WantTensors) 
+          call Recombination_ReadParams(P%Recomb, DefIni)
+
+
+           i = Ini_Read_Int('recombination',1)
+           if (i>1) then
+             stop 'recombination option deprecated'
+           end if
+
+           P%InitPower%nn = Ini_Read_Int('initial_power_num')
+           if (P%InitPower%nn>nnmax) stop 'Too many initial power spectra - increase nnmax in InitialPower'
+           P%InitPower%rat(:) = 1
+           do i=1, P%InitPower%nn
+              write (numstr,*) i 
+              numstr=adjustl(numstr)
+              P%InitPower%an(i) = &
+                   Ini_Read_Double('scalar_spectral_index('//trim(numstr)//')')
+
+              P%InitPower%n_run(i) = &
+                   Ini_Read_Double('scalar_nrun('//trim(numstr)//')',0._dl)
+    
+              if (P%WantTensors) then
+                 P%InitPower%ant(i) = Ini_Read_Double('tensor_spectral_index('//trim(numstr)//')')
+                 P%InitPower%rat(i) = Ini_Read_Double('initial_ratio('//trim(numstr)//')')
+              end if              
+
+              P%InitPower%ScalarPowerAmp(i) = Ini_Read_Double('scalar_amp('//trim(numstr)//')',1.d0) 
+              !Always need this as may want to set tensor amplitude even if scalars not computed
+           end do
+      
+            if (P%WantScalars .or. P%WantTransfer) then
             P%Scalar_initial_condition = Ini_Read_Int('initial_condition',initial_adiabatic)
             if (P%Scalar_initial_condition == initial_vector) then
                 P%InitialConditionVector=0
               numstr = Ini_Read_String('initial_vector',.true.)
               read (numstr,*) P%InitialConditionVector(1:initial_iso_neutrino_vel)
             end if
-
         end if
+
         
        if (P%WantScalars) then
           ScalarFileName = trim(outroot)//Ini_Read_String('scalar_output_file')
           LensedFileName =  trim(outroot) //Ini_Read_String('lensed_output_file')
-          LensPotentialFileName =  Ini_Read_String('lens_potential_output_file')
-          if (LensPotentialFileName/='') LensPotentialFileName = concat(outroot,LensPotentialFileName)
+          ScalarCovFileName = trim(outroot)//Ini_Read_String('scalar_covariance_output_file')
         end if
         if (P%WantTensors) then
           TensorFileName =  trim(outroot) //Ini_Read_String('tensor_output_file')
-         if (P%WantScalars)  then
-          TotalFileName =  trim(outroot) //Ini_Read_String('total_output_file')
-          LensedTotFileName = Ini_Read_String('lensed_total_output_file')
-          if (LensedTotFileName/='') LensedTotFileName= trim(outroot) //trim(LensedTotFileName)
-         end if
+         if (P%WantScalars) TotalFileName =  trim(outroot) //Ini_Read_String('total_output_file')
         end if
         if (P%WantVectors) then
           VectorFileName =  trim(outroot) //Ini_Read_String('vector_output_file')
@@ -239,25 +361,22 @@
        P%AccurateBB = Ini_Read_Logical('accurate_BB',.false.)
         
        !Mess here to fix typo with backwards compatibility
-       if (Ini_HasKey('do_late_rad_trunction')) then
+       if (Ini_Read_String('do_late_rad_trunction') /= '') then
          DoLateRadTruncation = Ini_Read_Logical('do_late_rad_trunction',.true.)
-         if (Ini_HasKey('do_late_rad_truncation')) stop 'check do_late_rad_xxxx'
+         if (Ini_Read_String('do_late_rad_truncation')/='') stop 'check do_late_rad_xxxx'
        else
         DoLateRadTruncation = Ini_Read_Logical('do_late_rad_truncation',.true.)
        end if
-       DoTensorNeutrinos = Ini_Read_Logical('do_tensor_neutrinos',DoTensorNeutrinos)
-       FeedbackLevel = Ini_Read_Int('feedback_level',FeedbackLevel)
+       DoTensorNeutrinos = Ini_Read_Logical('do_tensor_neutrinos',.false.)
+       FeedbackLevel = Ini_Read_Int('feedback_level',0)
        
        P%MassiveNuMethod  = Ini_Read_Int('massive_nu_approx',Nu_best)
 
-       ThreadNum      = Ini_Read_Int('number_of_threads',ThreadNum)
-       AccuracyBoost  = Ini_Read_Double('accuracy_boost',AccuracyBoost)
-       lAccuracyBoost = Ini_Read_Real('l_accuracy_boost',lAccuracyBoost)
-       if (do_bispectrum) then
-        lSampleBoost   = 50
-       else
-        lSampleBoost   = Ini_Read_Double('l_sample_boost',lSampleBoost)
-       end if
+       ThreadNum      = Ini_Read_Int('number_of_threads',0)
+       AccuracyBoost  = Ini_Read_Double('accuracy_boost',1.d0)
+       lAccuracyBoost = Ini_Read_Double('l_accuracy_boost',1.d0)
+       lSampleBoost   = Ini_Read_Double('l_sample_boost',1.d0)
+
        if (outroot /= '') then
          call Ini_SaveReadValues(trim(outroot) //'params.ini',1)
        end if
@@ -277,9 +396,15 @@
 
        call CAMB_GetResults(P)
     
-        if (P%WantTransfer .and. .not. (P%NonLinear==NonLinear_lens .and. P%DoLensing)) then
+        if (P%WantTransfer .and. .not. (P%NonLinear==NonLinear_lens &
+            .and. (P%DoLensing .or. num_redshiftwindows>0))) then
+
          call Transfer_SaveToFiles(MT,TransferFileNames)
          call Transfer_SaveMatterPower(MT,MatterPowerFileNames)
+!        call Transfer_SaveMatterPower(MT,MatterPowerFileNames, .true.)
+         
+         if (do21cm .and. transfer_21cm_cl) call Transfer_Get21cmCls(MT,TransferClFileNames) 
+
          if ((P%OutputNormalization /= outCOBE) .or. .not. P%WantCls)  call Transfer_output_sig8(MT)
         end if
 
@@ -291,10 +416,8 @@
            
           end if
 
-         call output_cl_files(ScalarFileName, TensorFileName, TotalFileName, &
-              LensedFileName, LensedTotFilename, output_factor)
-              
-         call output_lens_pot_files(LensPotentialFileName, output_factor)
+         call output_cl_files(ScalarFileName, ScalarCovFileName,TensorFileName, TotalFileName, &
+              LensedFileName, output_factor)
 
          if (P%WantVectors) then
            call output_veccl_files(VectorFileName, output_factor)
@@ -306,7 +429,7 @@
 #endif
         end if
 
-        call CAMB_cleanup             
+             
   
         end program driver
 
