@@ -201,7 +201,7 @@ contains
          ThisCT%ls = lSamp
 
 
-         !$OMP PARAllEl DO DEFAUlT(SHARED),SCHEDUlE(DYNAMIC) &
+         !$OMP PARAllEl DO DEFAUlT(SHARED),SCHEDUlE(STATIC,4) &
          !$OMP & PRIVATE(EV, q_ix)
          do q_ix= 1,Evolve_q%npoints
              call DoSourcek(EV,q_ix)
@@ -350,7 +350,7 @@ contains
      subroutine CalcLimberScalCls(CTrans)
        Type(ClTransferData) :: CTrans
        integer ell, i, s_ix, ik, pix
-        real(dl) CL, reall,fac
+        real(dl) CL, reall,fac, dbletmp
 
 
       if (.not. limber_windows) return 
@@ -359,21 +359,28 @@ contains
        do i =1, num_redshiftwindows
         s_ix = 3+i
         if (CTrans%limber_l_min(s_ix) /=0) then
-
+!$OMP PARALLEL DO DEFAUlT(SHARED), SCHEDUlE(STATIC,2), PRIVATE(Cl,ell,reall,fac,ik,dbletmp) 
+      
         do ell = CTrans%limber_l_min(s_ix), Ctrans%ls%l0
           Cl = 0
           reall = real(CTrans%ls%l(ell),dl)
-          fac = (2*pi**2)/fourpi/reall**3 
+          fac = (2*pi**2)/fourpi/reall**3 !fourpi because multipled by fourpi later
           do ik = 1, CTrans%Limber_windows(s_ix,ell)%num_k
+           !Actually integral over chi; source has sqrt( chi dchi)
            Cl=Cl+  CTrans%Limber_windows(s_ix,ell)%Source(ik)**2 * &
                 fac*ScalarPower(CTrans%Limber_windows(s_ix,ell)%k(ik) ,pix) 
-                !  * reall**2/(2*pi)
           end do
-!!        if(Redshift_w(i)%kind == window_lensing) Cl = Cl*reall*(reall+1)/2  !suggested fix for limber lensing??
+          if(Redshift_w(i)%kind == window_lensing) Cl = Cl*(reall*(reall+1)/2)**2  
           
           iCl_scalar(ell,C_PhiTemp + i,pix)  =Cl
 
+          dbletmp=(reall*(reall+1))/OutputDenominator*fourpi  
+          iCl_Array(ell,s_ix,s_ix,pix) = Cl*dbletmp 
+
         end do
+!$OMP END PARAllEl DO 
+       
+        
         end if
        end do
       end do
@@ -381,11 +388,11 @@ contains
      end subroutine CalcLimberScalCls
 
      subroutine GetLimberTransfers
-        integer ell
+        integer ell, ell_needed
         integer i,s_ix
         Type(TRedWin), pointer :: W
         integer n1,n2,n, ell_limb
-        real(dl) int,k, chi
+        real(dl) int,k, chi, chimin
         integer klo, khi
         real(dl) a0,b0,ho2o6,a03,b03,ho
 
@@ -402,33 +409,46 @@ contains
         else
           max_bessels_l_index  = ThisCT%ls%l0  
         end if
-        max_bessels_etak  = CP%Max_eta_k
-  
-
+ 
+        if (CP%Want_CMB) then
+         max_bessels_etak  = ThisCT%ls%l(ThisCT%ls%l0)*2
+        else
+         max_bessels_etak  = 5000
+        end if
+        
         do i =1, num_redshiftwindows
           s_ix = 3+i
           W => Redshift_w(i)
           !Turn on limber when k is a scale smaller than window width
-          ell_limb = nint(AccuracyBoost*max(200, nint(6* W%chi0/W%sigma_tau))) 
-          
+          if (W%kind==window_lensing) then
+           ell_limb = 500*AccuracyBoost
+          else
+           ell_limb = nint(AccuracyBoost*max(200, nint(6* W%chi0/W%sigma_tau))) 
+          end if
+       
+          ell_needed = ThisCT%ls%l(ThisCT%ls%l0)
           do ell = 1, ThisCT%ls%l0
            if (ThisCT%ls%l(ell) >= ell_limb) then
             ThisCT%limber_l_min(s_ix) =  ell
+            ell_needed = ell
             max_bessels_l_index = max(max_bessels_l_index,ThisCT%limber_l_min(s_ix)-1) 
             if (FeedbackLevel > 1) write (*,*) i,'Limber switch', ThisCT%ls%l(ell)
             exit
            end if
           end do
 
+          max_bessels_etak = max(max_bessels_etak, WindowKmaxForL(W,ell_needed)*CP%tau0)
 
          if (ThisCT%limber_l_min(s_ix)/=0) then
           n1 = Ranges_IndexOf(TimeSteps, W%tau_start)
-          n2 = min(TimeSteps%npoints-1,Ranges_IndexOf(TimeSteps, W%tau_end)) 
-
+          if (W%kind==window_lensing) then
+            n2 = TimeSteps%npoints-1
+          else
+            n2 = min(TimeSteps%npoints-1,Ranges_IndexOf(TimeSteps, W%tau_end)) 
+          end if 
+          
           do ell = ThisCT%limber_l_min(s_ix), ThisCT%ls%l0
         
-!           chi = (CP%tau0-W%tau)
-
            ThisCT%Limber_windows(s_ix,ell)%num_k = n2-n1+1
 
            allocate(ThisCT%Limber_windows(s_ix,ell)%k(ThisCT%Limber_windows(s_ix,ell)%num_k))
@@ -460,17 +480,13 @@ contains
 
            end do 
 
-
-
           end do
         else
          max_bessels_l_index  = ThisCT%ls%l0
         end if
 
         end do
- 
-       max_bessels_etak  = min(CP%Max_eta_k, max(5000._dl,ThisCT%ls%l(max_bessels_l_index)*2._dl))
-
+       
      end  subroutine GetLimberTransfers
 
 
@@ -1083,7 +1099,7 @@ contains
        if (DebugMsgs .and. Feedbacklevel > 0) & 
          write(*,*) MT%num_q_trans-Evolve_q%npoints, 'transfer k values'
 
-      !$OMP PARAllEl DO DEFAUlT(SHARED),SCHEDUlE(DYNAMIC) &
+      !$OMP PARAllEl DO DEFAUlT(SHARED),SCHEDUlE(STATIC) &
       !$OMP & PRIVATE(EV, tau, q_ix) 
 
 !     loop over wavenumbers.
@@ -1150,6 +1166,8 @@ contains
            first_step = first_step + 1 
         end do
 
+ !$OMP PARAllEl DO DEFAUlT(SHARED), SCHEDUlE(STATIC), &
+ !$OMP & PRIVATE(ik, i,scaling,ddScaling, tf_lo,tf_hi,tau,ho,a0,b0,ascale)
         do ik=1, Evolve_q%npoints
          if (Do21cm) then
               Src(ik,4:SourceNum,:) = Src(ik,4:SourceNum,:) * CAMB_Pk%nonlin_ratio(ik,1)
@@ -1190,7 +1208,7 @@ contains
           end if
           end if
        end do
-       
+ !$OMP END PARAllEl DO        
        call MatterPowerdata_Free(CAMB_pk)
  
       end subroutine MakeNonlinearSources
@@ -2173,13 +2191,15 @@ contains
         implicit none
         Type(ClTransferData) :: CTrans
         integer off_ix,pix,j
-        real(dl) apowers, pows(CTrans%q%npoints)
+        real(dl) apowers
         integer q_ix, w_ix, w_ix2
-        real(dl)  ks(CTrans%q%npoints),dlnks(CTrans%q%npoints),dlnk
+        real(dl), allocatable :: ks(:), dlnks(:), pows(:)
+        real(dl)  dlnk
         real(dl) ctnorm,dbletmp, Delta1, Delta2
         Type(TRedWin), pointer :: Win
         real(dl) ell
 
+        allocate(ks(CTrans%q%npoints),dlnks(CTrans%q%npoints), pows(CTrans%q%npoints))
         do pix=1,CP%InitPower%nn
 
           do q_ix = 1, CTrans%q%npoints 
@@ -2197,9 +2217,8 @@ contains
           end do
 
 
-        !! OMP PARAllEl DO DEFAUlT(SHARED),SCHEDUlE(STATIC,4) &
-        !! OMP & PRIVATE(j,q_ix,dlnk,apowers,ctnorm,dbletmp)
-
+!$OMP PARALLEL DO DEFAULT(SHARED),SCHEDULE(STATIC,2) &
+!$OMP& PRIVATE(j,ell,q_ix,dlnk,apowers,ctnorm,dbletmp,Delta1,Delta2,w_ix,w_ix2,Win,off_ix)
          do j=1, CTrans%ls%l0
         !Integrate dk/k Delta_l_q**2 * Power(k)
          ell = real(CTrans%ls%l(j),dl)
@@ -2220,8 +2239,9 @@ contains
              if (CTrans%NumSources>2) then
               ctnorm=sqrt((ell*ell-1)*(ell+2)*ell)
               dbletmp=(ell*(ell+1))/OutputDenominator*fourpi  
-              
+
               do w_ix=1,3 + num_redshiftwindows
+               if (CTrans%limber_l_min(w_ix)/= 0 .and. j>=CTrans%limber_l_min(w_ix)) cycle
                Delta1= CTrans%Delta_p_l_k(w_ix,j,q_ix)
                if (w_ix == 2) Delta1=Delta1*ctnorm  
                if (w_ix>3) then
@@ -2236,6 +2256,7 @@ contains
                end if
       
                do w_ix2=1,3 + num_redshiftwindows
+                if (CTrans%limber_l_min(w_ix2)/= 0 .and. j>=CTrans%limber_l_min(w_ix2)) cycle
                 Delta2=  CTrans%Delta_p_l_k(w_ix2,j,q_ix)  
                 if (w_ix2 == 2) Delta2=Delta2*ctnorm  
                 if (w_ix2>3) then
@@ -2341,9 +2362,10 @@ contains
             end do
 
            end do
-         !! OMP END PARAllEl DO
+         !$OMP END PARALLEL DO
 
           end do
+          deallocate(ks,pows,dlnks)
 
         end subroutine CalcScalCls
 

@@ -2,7 +2,7 @@
 
 !     Code for Anisotropies in the Microwave Background
 !     by Antony Lewis (http://cosmologist.info) and Anthony Challinor
-!     See readme.html for documentation. This version Nov 2010
+!     See readme.html for documentation. 
 !
 !     Based on CMBFAST  by  Uros Seljak and Matias Zaldarriaga, itself based
 !     on Boltzmann code written by Edmund Bertschinger, Chung-Pei Ma and Paul Bode.
@@ -38,7 +38,7 @@
            real(dl) tau, tau_start, tau_end
            real(dl) sigma_z ! estimate of of width in z
            real(dl) sigma_tau !width in conformal time (set by code)
-           real(dl) chi0 
+           real(dl) chi0, chimin 
            integer mag_index !The index into the extra sources using for adding magnification to counts
            real(dl), dimension(:), pointer :: winF, wing,wing2,wingtau,dwing,dwing2,dwingtau,ddwing,ddwing2,ddwingtau,&
                                               winV,dwinV,ddwinV, win_lens, comoving_density_ev
@@ -152,7 +152,7 @@
         implicit none    
         public
 
-        character(LEN=*), parameter :: version = 'Nov_10'
+        character(LEN=*), parameter :: version = 'Mar_11'
       
         integer :: FeedbackLevel = 0 !if >0 print out useful information about the model
 
@@ -344,7 +344,6 @@
            integer nu_i
            external GetOmegak
            real(dl), save :: last_tau0
-           real(dl) chimin
            !Constants in SI units
      
             if ((P%WantTensors .or. P%WantVectors).and. P%WantTransfer .and. .not. P%WantScalars) then
@@ -479,15 +478,9 @@
            do nu_i=1,num_redshiftwindows
             Redshift_w(nu_i)%tau = TimeOfz(Redshift_w(nu_i)%Redshift)
             Redshift_w(nu_i)%chi0 = CP%tau0-Redshift_w(nu_i)%tau 
-            chimin = min(Redshift_w(nu_i)%chi0,&
+            Redshift_w(nu_i)%chimin = min(Redshift_w(nu_i)%chi0,&
               CP%tau0 - TimeOfz(max(0.05_dl,Redshift_w(nu_i)%Redshift - 1.5*Redshift_w(nu_i)%sigma)) )   
-            if (Redshift_w(nu_i)%kind == window_lensing) then
-             CP%Max_eta_k = max(CP%max_eta_k, AccuracyBoost*CP%Max_l*CP%tau0/10) !Redshift_w(nu_i)%chi0)
-             elseif  (Redshift_w(nu_i)%kind == window_counts) then
-             CP%Max_eta_k = max(CP%max_eta_k, AccuracyBoost*30*CP%Max_l*CP%tau0/chimin)
-             else
-             CP%Max_eta_k = max(CP%max_eta_k, 1.2*CP%Max_l*CP%tau0/Redshift_w(nu_i)%chi0)
-            end if
+            CP%Max_eta_k = max(CP%Max_eta_k, CP%tau0*WindowKmaxForL(Redshift_w(nu_i),CP%max_l))
            end do
 
 !           if (CP%Max_eta_k > 50000*AccuracyBoost) write (*,*) 'Only doing k up to ', 50000/CP%tau0 
@@ -632,6 +625,22 @@
           AngularDiameterDistance = CP%r/(1+z)*rofchi(DeltaTime(1/(1+z),1._dl)/CP%r)
 
         end function AngularDiameterDistance
+
+        function WindowKmaxForL(W,ell) result(res)
+         use RedshiftSpaceData
+         Type(TRedWin), intent(in) :: W
+         real(dl) res
+         integer, intent(in)::  ell
+         
+            if (W%kind == window_lensing) then
+             res = AccuracyBoost*ell/10. 
+             elseif  (W%kind == window_counts) then
+             res = AccuracyBoost*30*ell/W%chimin
+             else
+             res = 1.2*ell*CP%tau0/W%chi0
+            end if
+            
+        end function WindowKmaxForL
 
 
         end module ModelParams
