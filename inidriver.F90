@@ -293,27 +293,6 @@
            if (i>1) then
              stop 'recombination option deprecated'
            end if
-
-           P%InitPower%nn = Ini_Read_Int('initial_power_num')
-           if (P%InitPower%nn>nnmax) stop 'Too many initial power spectra - increase nnmax in InitialPower'
-           P%InitPower%rat(:) = 1
-           do i=1, P%InitPower%nn
-              write (numstr,*) i 
-              numstr=adjustl(numstr)
-              P%InitPower%an(i) = &
-                   Ini_Read_Double('scalar_spectral_index('//trim(numstr)//')')
-
-              P%InitPower%n_run(i) = &
-                   Ini_Read_Double('scalar_nrun('//trim(numstr)//')',0._dl)
-    
-              if (P%WantTensors) then
-                 P%InitPower%ant(i) = Ini_Read_Double('tensor_spectral_index('//trim(numstr)//')')
-                 P%InitPower%rat(i) = Ini_Read_Double('initial_ratio('//trim(numstr)//')')
-              end if              
-
-              P%InitPower%ScalarPowerAmp(i) = Ini_Read_Double('scalar_amp('//trim(numstr)//')',1.d0) 
-              !Always need this as may want to set tensor amplitude even if scalars not computed
-           end do
       
             if (P%WantScalars .or. P%WantTransfer) then
             P%Scalar_initial_condition = Ini_Read_Int('initial_condition',initial_adiabatic)
