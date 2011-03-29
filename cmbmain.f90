@@ -2241,7 +2241,9 @@ contains
               dbletmp=(ell*(ell+1))/OutputDenominator*fourpi  
 
               do w_ix=1,3 + num_redshiftwindows
-               if (CTrans%limber_l_min(w_ix)/= 0 .and. j>=CTrans%limber_l_min(w_ix)) cycle
+               if (w_ix>3) then
+                if (CTrans%limber_l_min(w_ix)/= 0 .and. j>=CTrans%limber_l_min(w_ix)) cycle
+               end if
                Delta1= CTrans%Delta_p_l_k(w_ix,j,q_ix)
                if (w_ix == 2) Delta1=Delta1*ctnorm  
                if (w_ix>3) then
@@ -2256,7 +2258,9 @@ contains
                end if
       
                do w_ix2=1,3 + num_redshiftwindows
-                if (CTrans%limber_l_min(w_ix2)/= 0 .and. j>=CTrans%limber_l_min(w_ix2)) cycle
+                if (w_ix2>3) then
+                  if (CTrans%limber_l_min(w_ix2)/= 0 .and. j>=CTrans%limber_l_min(w_ix2)) cycle
+                end if
                 Delta2=  CTrans%Delta_p_l_k(w_ix2,j,q_ix)  
                 if (w_ix2 == 2) Delta2=Delta2*ctnorm  
                 if (w_ix2>3) then
