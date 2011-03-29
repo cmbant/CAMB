@@ -488,9 +488,6 @@
            if ( CP%NonLinear==NonLinear_Lens) then
              CP%Transfer%kmax = max(CP%Transfer%kmax, CP%Max_eta_k/CP%tau0) 
            end if
-           if (FeedbackLevel > 0) write (*,*) 'max_eta_k: ', CP%Max_eta_k
-           if (FeedbackLevel > 0) write (*,*) 'max_k: ', CP%Max_eta_k/CP%tau0
-
 
            end if
 
@@ -517,6 +514,10 @@
                  write(*,'(f5.2, " nu, m_nu*c^2/k_B/T_nu0   = ",f8.2," (m_nu = ",f6.3," eV)")') &
                      CP%nu_mass_degeneracies(nu_i), nu_masses(nu_i),1.68e-4*nu_masses(nu_i)
                 end do
+              end if
+              if  (CP%WantScalars .and. CP%WantCls)  then
+                 write(*,'("max_eta_k            = ",E9.2)') CP%Max_eta_k
+                 write(*,'("max_k                = ",f9.3)') CP%Max_eta_k/CP%tau0
               end if
            end if
            CP%chi0=rofChi(CP%tau0/CP%r)
@@ -3134,7 +3135,9 @@
              
              has_lensing_windows = .true.
              Redshift_w(RW_i)%has_lensing_window = .true.
-             if (FeedbackLevel>0) print *, RW_i,'Int W = ',awin_lens1(RW_i)
+            if (FeedbackLevel>0) &
+                  & write(*,'(I1," Int W              = ",f9.6)') RW_i, awin_lens1(RW_i)
+
              Win%awin_lens=Win%awin_lens/awin_lens1(RW_i)
            else
              Redshift_w(RW_i)%has_lensing_window = .false.
