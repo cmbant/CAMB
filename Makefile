@@ -82,6 +82,10 @@ CAMBOBJ       = constants.o utils.o subroutines.o inifile.o $(POWERSPECTRUM).o $
 
 
 
+default: camb
+
+all: camb $(CAMBLIB)
+
 
 subroutines.o: constants.o utils.o
 $(POWERSPECTRUM).o: subroutines.o  inifile.o
@@ -95,9 +99,6 @@ lensing.o: bessels.o
 cmbmain.o: lensing.o $(NONLINEAR).o $(EQUATIONS).o
 camb.o: cmbmain.o
 
-default: camb
-
-all: camb $(CAMBLIB)
 
 camb: $(CAMBOBJ) $(DRIVER)
 	$(F90C) $(F90FLAGS) $(CAMBOBJ) $(DRIVER) -o $@
