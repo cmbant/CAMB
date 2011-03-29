@@ -260,7 +260,7 @@
 
         real(dl), parameter ::  zinitial = 1e4_dl !highest redshift
         real(dl), parameter ::  zfinal=0._dl
-        integer,  parameter :: Nz=10000
+        integer,  parameter :: Nz=10000  
         real(dl), parameter :: delta_z = (zinitial-zfinal)/Nz
 
         integer, parameter ::  RECFAST_Heswitch_default = 6
@@ -352,7 +352,7 @@
           R%RECFAST_Heswitch = RECFAST_Heswitch_default
           R%RECFAST_Hswitch =  RECFAST_Hswitch_default
           if (R%RECFAST_Hswitch) then
-                R%RECFAST_fudge = R%RECFAST_fudge - (RECFAST_fudge_default - RECFAST_fudge_default2)
+                R%RECFAST_fudge = RECFAST_fudge_default2
           end if   
     
         end subroutine Recombination_SetDefParams

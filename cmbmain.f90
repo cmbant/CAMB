@@ -1099,7 +1099,7 @@ contains
        if (DebugMsgs .and. Feedbacklevel > 0) & 
          write(*,*) MT%num_q_trans-Evolve_q%npoints, 'transfer k values'
 
-      !$OMP PARAllEl DO DEFAUlT(SHARED),SCHEDUlE(STATIC) &
+      !$OMP PARAllEl DO DEFAUlT(SHARED),SCHEDUlE(DYNAMIC) &
       !$OMP & PRIVATE(EV, tau, q_ix) 
 
 !     loop over wavenumbers.

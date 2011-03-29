@@ -38,7 +38,6 @@
 		<File RelativePath="power_tilt.f90"/>
 		<File RelativePath="recfast.f90"/>
 		<File RelativePath=".\reionization.f90"/>
-		<File RelativePath=".\SeparableBispectrum.f90"/>
 		<File RelativePath="subroutines.f90"/>
 		<File RelativePath="utils.F90">
 			<FileConfiguration Name="Debug|Win32">

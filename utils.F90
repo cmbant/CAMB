@@ -4,7 +4,6 @@
 !April 2006: fix to TList_RealArr_Thin
 !March 2008: fix to Ranges
 !June 2010: fixed bug in  DeleteFile gradually using up file units
-!This version Mar 2008
 
  module Ranges
  !A collection of ranges, consisting of sections of minimum step size
@@ -2083,7 +2082,7 @@ subroutine CreateOpenTxtFile(aname, aunit, append)
       integer, parameter :: dl = KIND(1.d0)
       integer, intent(in) :: l2in,l3in, m2in,m3in
       real(dl), dimension(*) :: thrcof
-      INTEGER, PARAMETER :: i8 = 8
+      INTEGER, PARAMETER :: i8 = selected_int_kind(18)
       integer(i8) :: l2,l3,m2,m3
       integer(i8) :: l1, m1, l1min,l1max, lmatch, nfin, a1, a2
       
