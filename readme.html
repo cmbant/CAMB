@@ -83,7 +83,7 @@ Unlensed scalar angular power spectra are output to <b>output_root</b>_scalCls.d
 <BLOCKQUOTE>
 l C<sub>TT</sub> C<sub>EE</sub> C<sub>TE</sub> [C<sub>&Phi;</sub> C<sub>&Phi;T</sub>]
 </BLOCKQUOTE>
-Here all C<sub>X</sub> are l(l+1)C_l/2pi except for C<sub>&Phi;</sub> and C<sub>&Phi;T</sub> which are C<sub>&Phi;</sub>= l<sup>4</sup> C<sub>l</sub><sup>&Phi</sup>, where  C<sub>l</sub><sup>&Phi</sup> is the (CMB) lensing potential power spectrum, and C<sub>&Phi;T</sub> = l<sup>3</sup> C<sub>l</sub><sup>&Phi;T</sup>. The lensing terms in square brackets are only produced if <b>do_lensing = T</b>. If <b>CMB_outputscale = 7.4311e12</B> ([T<sub>CMB</sub>10<sup>6</sup>]<sup>2</sup>, the default), the units are &mu;K<sup>2</sup>. Note that lensing spectra are also multiplied by CMB_outputscale, so you may want to divide this out of the answer to get a sensible dimensionless spectrum or use the <b>lens_potential_output_file</b> file mentioned below. If requested the lensed power spectrum is output to <b>output_root</b>_lensedCls.dat
+Here all C<sub>X</sub> are l(l+1)C_l/2pi except for C<sub>&Phi;</sub> and C<sub>&Phi;T</sub> which are C<sub>&Phi;</sub>= l<sup>4</sup> C<sub>l</sub><sup>&Phi;</sup>, where  C<sub>l</sub><sup>&Phi;</sup> is the (CMB) lensing potential power spectrum, and C<sub>&Phi;T</sub> = l<sup>3</sup> C<sub>l</sub><sup>&Phi;T</sup>. The lensing terms in square brackets are only produced if <b>do_lensing = T</b>. If <b>CMB_outputscale = 7.4311e12</B> ([T<sub>CMB</sub>10<sup>6</sup>]<sup>2</sup>, the default), the units are &mu;K<sup>2</sup>. Note that lensing spectra are also multiplied by CMB_outputscale, so you may want to divide this out of the answer to get a sensible dimensionless spectrum or use the <b>lens_potential_output_file</b> file mentioned below. If requested the lensed power spectrum is output to <b>output_root</b>_lensedCls.dat
 <P>
 Tensor  angular power spectra are output to <b>output_root</b>_tensCls.dat if requested.
 The columns are
@@ -99,6 +99,7 @@ l C<sub>TT</sub> C<sub>EE</sub> C<sub>BB</sub>  C<sub>TE</sub> C<sub>dd</sub> C<
 where as before C<sub>X</sub> are l(l+1)C<sub>l</sub>/2&pi;, and d is the deflection angle, so C<sub>dd</sub>=[l(l+1)]<sup>2</sup>C<sub>l</sub><sup>&Phi;</sup>/2&pi;,  C<sub>dT</sub>=[l(l+1)]<sup>3/2</sup>C<sub>l</sub><sup>&Phi;T</sup>/2&pi;,
 C<sub>dE</sub>=[l(l+1)]<sup>3/2</sup>C<sub>l</sub><sup>&Phi;E</sup>/2&pi;. These are the spectra required for simulating lensed skies using <A HREF="http://cosmologist.info/lenspix">LensPix</A>.
 <P>
+<A NAME="transfer"></A>
 If transfer functions are requested the columns in the <b>output_root</b>_transfer_out.dat output file are
 <BLOCKQUOTE>
 k/h Delta_CDM/k<sup>2</sup> Delta_b/k<sup>2</sup> Delta_g/k<sup>2</sup> Delata_r/k<sup>2</sup> Delta_nu/k<sup>2</sup> Delta_tot/k<sup>2</sup>
