@@ -83,6 +83,7 @@
        Allocate(ajlpr(1:num_xx,1:max_ix))
        Allocate(ddajlpr(1:num_xx,1:max_ix))
 
+       !$OMP PARALLEL DO DEFAULT(SHARED),SCHEDULE(STATIC), PRIVATE(j,i,x,xlim)
        do j=1,max_ix
        
          do  i=1,num_xx
@@ -105,15 +106,13 @@
                   ajl(i,j)=0
             end if
          end do
-      end do
-
 
 !     get the interpolation matrix for bessel functions
-
-      do j=1,max_ix
-         call spline(BessRanges%points,ajl(1,j),num_xx,spl_large,spl_large,ajlpr(1,j))
-         call spline(BessRanges%points,ajlpr(1,j),num_xx,spl_large,spl_large,ddajlpr(1,j))
+        call spline(BessRanges%points,ajl(1,j),num_xx,spl_large,spl_large,ajlpr(1,j))
+        call spline(BessRanges%points,ajlpr(1,j),num_xx,spl_large,spl_large,ddajlpr(1,j))
+         
       end do
+     !$OMP END PARALLEL DO
 
      end subroutine GenerateBessels
 
