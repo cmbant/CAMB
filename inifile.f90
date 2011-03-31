@@ -1,7 +1,7 @@
 !Module to read in name/value pairs from a file, with each line of the form line 'name = value'
 !Should correctly interpret FITS headers
 !Antony Lewis (http://cosmologist.info/). Released to the public domain.
-!This version Oct 2009.
+!This version Apr 11, added support for INCLUDE(file); check for duplicate keys
 
 module IniFile
  implicit none
@@ -13,6 +13,8 @@ module IniFile
   logical :: Ini_fail_on_not_found = .false.
 
   logical :: Ini_Echo_Read = .false.
+
+  logical :: Ini_AllowDuplicateKeys = .false.
 
   type TNameValue
    !no known way to make character string pointers..
@@ -98,6 +100,8 @@ contains
     Type (TNameValueList) :: L
     character(LEN=*), intent(in) :: AName, AValue
 
+    if (.not. Ini_AllowDuplicateKeys .and. TNameValueList_HasKey(L,AName)) &
+      stop 'TNameValueList_Add: duplicate key name in .ini file' 
     if (L%Count == L%Capacity) call TNameValueList_SetCapacity(L, L%Capacity + L%Delta)
     L%Count = L%Count + 1
     allocate(L%Items(L%Count)%P)
@@ -194,21 +198,49 @@ contains
 
   end subroutine Ini_Open
 
+  function Ini_ExtractFilePath(aname)
+    character(LEN=*), intent(IN) :: aname
+    character(LEN=Ini_max_string_len) Ini_ExtractFilePath
+    integer len, i
 
+    len = len_trim(aname)
+    do i = len, 1, -1
+       if (aname(i:i)=='/') then
+          Ini_ExtractFilePath = aname(1:i)
+          return
+       end if
+    end do
+    Ini_ExtractFilePath = ''
 
-  subroutine Ini_Open_File(Ini, filename, unit_id,  error, slash_comments)
+  end function Ini_ExtractFilePath
+
+  recursive subroutine Ini_Open_File(Ini, filename, unit_id,  &
+                                    error, slash_comments, append)
      Type(TIniFile) :: Ini
 
      character (LEN=*), intent(IN) :: filename
      integer, intent(IN) :: unit_id
      logical, intent(OUT) :: error
      logical, optional, intent(IN) :: slash_comments
-     character (LEN=Ini_max_string_len) :: InLine
-    
-
-    call TNameValueList_Init(Ini%L)
-    call TNameValueList_Init(Ini%ReadValues)
-
+     logical, optional, intent(in) :: append
+     character (LEN=Ini_max_string_len) :: InLine, IncludeFile
+     integer lastpos, i
+     Type (TNameValueList) IncudeFiles
+     logical doappend, FileExists
+     
+     if (present(append)) then
+      doappend=append
+     else
+      doappend=.false.
+     end if  
+     
+     if (.not. doappend) then
+       call TNameValueList_Init(Ini%L)
+       call TNameValueList_Init(Ini%ReadValues)
+     end if
+ 
+    call TNameValueList_Init(IncudeFiles) 
+     
     if (present(slash_comments)) then
      Ini%SlashComments = slash_comments
     else
@@ -220,14 +252,40 @@ contains
     do 
       read (unit_id,'(a)',end=400) InLine
       if (InLine == 'END') exit;
-      if (InLine /= '') call Ini_NameValue_Add(Ini,InLine) 
+      if (InLine(1:8) == 'INCLUDE(') then
+           lastpos = scan(InLine,')')
+           if (lastpos/=0) then
+            call TNameValueList_Add(IncudeFiles, trim(adjustl(InLine(9:lastpos-1))),'')            
+           else
+            stop 'Ini_Open_File: error in INCLUDE line'
+           end if 
+      elseif (InLine /= '') then
+       call Ini_NameValue_Add(Ini,InLine) 
+      end if
     end do
 
 400 close(unit_id)
     error=.false.
+
+    do i=1, IncudeFiles%Count
+       if (error) exit
+       IncludeFile=IncudeFiles%Items(i)%P%Name
+       inquire(file=IncludeFile, exist = FileExists)
+       if (.not. FileExists) then
+         IncludeFile=trim(Ini_ExtractFilePath(filename))//trim(IncludeFile)
+         inquire(file=IncludeFile, exist = FileExists)
+         if (.not. FileExists) stop 'Ini_Open_File: INCLUDE file not found'
+         end if
+       end if
+       call Ini_Open_File(Ini, IncludeFile, unit_id,  &
+                          error, slash_comments, append=.true.)      
+    end do
+    call TNameValueList_Clear(IncudeFiles)
+    
     return
 
 500 error=.true.
+    call TNameValueList_Clear(IncudeFiles)
 
   end subroutine Ini_Open_File
 
