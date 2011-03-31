@@ -297,7 +297,6 @@ contains
           real(dl), allocatable :: fish_l1(:,:,:,:), fish_L_ij(:,:), fish_L_noise(:,:)
           Type(TBispectrum), target,allocatable :: SqueezedLensingKernel(:,:)
           real(dl) sigma2, xlc, tmpf(3)
-          real(dl) LensFisherNoCosVar
           integer  f1,f2,f3, minl2,bigi,bigj, bispectrum_type2, lmaxcuti
           integer sz,corrsize
           Type(TCov), allocatable :: InvC(:)
@@ -1074,7 +1073,6 @@ contains
            if (bispectrum_type == lens_bispectrum_ix .and. bispectrum_type2 == lens_bispectrum_ix ) then 
             print *,'doing signal part of the lensing variance'
             fish_contribs_sig=0
-            LensFisherNoCosVar = Fisher(bispectrum_type2,bispectrum_type)
             do i=lmin, lmax_lensing_corrT
              corrsize = count(CPhi(2:1+nfields,i)/=0)
              allocate(fish_L_ij(corrsize,corrsize))
