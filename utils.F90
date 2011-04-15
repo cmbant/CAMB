@@ -1383,7 +1383,7 @@
 
   function ExtractFilePath(aname)
     character(LEN=*), intent(IN) :: aname
-    character(LEN=120) ExtractFilePath
+    character(LEN=1024) ExtractFilePath
     integer len, i
 
     len = len_trim(aname)
@@ -1435,7 +1435,7 @@
 
  function ChangeFileExt(aname,ext)
     character(LEN=*), intent(IN) :: aname,ext
-    character(LEN=120) ChangeFileExt
+    character(LEN=1024) ChangeFileExt
     integer len, i
 
     len = len_trim(aname)
@@ -1452,7 +1452,7 @@
 
   function CheckTrailingSlash(aname)
      character(LEN=*), intent(in) :: aname
-     character(LEN=120) CheckTrailingSlash
+     character(LEN=1024) CheckTrailingSlash
      integer len
      
      len = len_trim(aname)

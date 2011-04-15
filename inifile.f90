@@ -30,6 +30,7 @@ module IniFile
     integer Count
     integer Delta
     integer Capacity
+    logical ignoreDuplicates
     type(TNameValue_pointer), dimension(:), pointer :: Items
   end Type TNameValueList
 
@@ -42,12 +43,15 @@ module IniFile
 
 contains
 
-   subroutine TNameValueList_Init(L)
+   subroutine TNameValueList_Init(L, ignoreDuplicates)
     Type (TNameValueList) :: L
+    logical, intent(in), optional :: ignoreDuplicates
     
      L%Count = 0
      L%Capacity = 0
      L%Delta = 128
+     L%ignoreDuplicates = .false.
+     if (present(ignoreDuplicates)) L%ignoreDuplicates=ignoreDuplicates
      nullify(L%Items)
 
    end subroutine TNameValueList_Init
@@ -100,8 +104,11 @@ contains
     Type (TNameValueList) :: L
     character(LEN=*), intent(in) :: AName, AValue
 
-    if (.not. Ini_AllowDuplicateKeys .and. TNameValueList_HasKey(L,AName)) &
-      stop 'TNameValueList_Add: duplicate key name in .ini file' 
+    if (.not. Ini_AllowDuplicateKeys .and. TNameValueList_HasKey(L,AName)) then
+      if (L%ignoreDuplicates) return
+      write (*,*) 'IniFile,TNameValueList_Add: duplicate key name in file: '//trim(AName)
+      stop 
+     end if 
     if (L%Count == L%Capacity) call TNameValueList_SetCapacity(L, L%Capacity + L%Delta)
     L%Count = L%Count + 1
     allocate(L%Items(L%Count)%P)
@@ -179,7 +186,7 @@ contains
      logical aerror
 
      call TNameValueList_Init(DefIni%L)
-     call TNameValueList_Init(DefIni%ReadValues)
+     call TNameValueList_Init(DefIni%ReadValues, .true.)
           
      if (present(slash_comments)) then
       call Ini_Open_File(DefIni,filename,unit_id,aerror,slash_comments)
@@ -236,7 +243,7 @@ contains
      
      if (.not. doappend) then
        call TNameValueList_Init(Ini%L)
-       call TNameValueList_Init(Ini%ReadValues)
+       call TNameValueList_Init(Ini%ReadValues, .true.)
      end if
  
     call TNameValueList_Init(IncudeFiles) 
@@ -275,7 +282,6 @@ contains
          IncludeFile=trim(Ini_ExtractFilePath(filename))//trim(IncludeFile)
          inquire(file=IncludeFile, exist = FileExists)
          if (.not. FileExists) stop 'Ini_Open_File: INCLUDE file not found'
-         end if
        end if
        call Ini_Open_File(Ini, IncludeFile, unit_id,  &
                           error, slash_comments, append=.true.)      
@@ -298,7 +304,7 @@ contains
     integer i
 
     call TNameValueList_Init(Ini%L)
-    call TNameValueList_Init(Ini%ReadValues)
+    call TNameValueList_Init(Ini%ReadValues, .true.)
 
     Ini%SlashComments = slash_comments
 

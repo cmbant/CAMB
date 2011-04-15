@@ -121,8 +121,6 @@
 
           lnrat = log(k/P%k_0_scalar)
           ScalarPower=P%ScalarPowerAmp(in)*exp((P%an(in)-1)*lnrat + P%n_run(in)/2*lnrat**2)   
-     
-!         ScalarPower = ScalarPower * (1 + 0.1*cos( lnrat*30 ) )
  
       end function ScalarPower
 
