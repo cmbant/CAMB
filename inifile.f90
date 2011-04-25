@@ -274,7 +274,8 @@ contains
        if (.not. FileExists) then
          IncludeFile=trim(Ini_ExtractFilePath(filename))//trim(IncludeFile)
          inquire(file=IncludeFile, exist = FileExists)
-         if (.not. FileExists) stop 'Ini_Open_File: INCLUDE file not found'
+         if (.not. FileExists) then 
+          stop 'Ini_Open_File: INCLUDE file not found'
          end if
        end if
        call Ini_Open_File(Ini, IncludeFile, unit_id,  &
