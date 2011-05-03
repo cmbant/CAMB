@@ -2,7 +2,7 @@
 
 !     Code for Anisotropies in the Microwave Background
 !     by Antony Lewis (http://cosmologist.info) and Anthony Challinor
-!     See readme.html for documentation. This version July 2008.
+!     See readme.html for documentation. 
 !
 !     Based on CMBFAST  by  Uros Seljak and Matias Zaldarriaga, itself based
 !     on Boltzmann code written by Edmund Bertschinger, Chung-Pei Ma and Paul Bode.
@@ -34,14 +34,14 @@
         implicit none    
         public
 
-        character(LEN=*), parameter :: version = 'May_10'
+        character(LEN=*), parameter :: version = 'May_11'
         
         integer :: FeedbackLevel = 0 !if >0 print out useful information about the model
 
         logical, parameter :: DebugMsgs=.false. !Set to true to view progress and timing
 
         logical, parameter :: DebugEvolution = .false. !Set to true to do all the evolution for all k
-
+ 
         logical ::  do_bispectrum  = .false. 
         logical, parameter :: hard_bispectrum = .false. !!! e.g. warm inflation where delicate cancellations
         
@@ -179,7 +179,9 @@
        !If zero assigned automatically, obviously only used if parallelised
    
 !Parameters for checking/changing overall accuracy
-!1._dl corresponds to target 1% scalar accuracy for non-extreme models
+!If HighAccuracyDefault=.false., the other parameters equal to 1 corresponds to ~0.3% scalar C_l accuracy
+!If HighAccuracyDefault=.true., the other parameters equal to 1 corresponds to ~0.1% scalar C_l accuracy (at L>600)
+      logical :: HighAccuracyDefault = .false.
 
       real(dl) :: lSampleBoost=1._dl
           !Increase lSampleBoost to increase sampling in lSamp%l for Cl interpolation
@@ -2124,7 +2126,7 @@
         use ModelData
         implicit none
         private
-        integer,parameter :: nthermo=10000
+        integer,parameter :: nthermo=20000
         
         real(dl) tb(nthermo),cs2(nthermo),xe(nthermo)
         real(dl) dcs2(nthermo)
@@ -2388,7 +2390,7 @@
                 tau_maxvis = tau
                end if
                if (vfi > 0.995) then 
-                taurend=tau
+                taurend=tau 
                 iv=2
                 exit
                end if
@@ -2455,7 +2457,7 @@
            if (CP%WantTensors) then
               dtau0=max(taurst/40,Maxtau/2000._dl/AccuracyBoost)
            else       
-              dtau0=Maxtau/500._dl/AccuracyBoost  
+              dtau0=Maxtau/500._dl/AccuracyBoost 
               if (do_bispectrum) dtau0 = dtau0/3 
              !Don't need this since adding in Limber on small scales
               !  if (CP%DoLensing) dtau0=dtau0/2 
@@ -2555,7 +2557,7 @@
 
         function optdepth(z)
           real(dl) :: rombint2
-          external rombint
+          external rombint2
           real(dl) optdepth
           real(dl),intent(in) :: z
 
@@ -2579,7 +2581,7 @@
 
         function dragoptdepth(z)
           real(dl) :: rombint2
-          external rombint
+          external rombint2
           real(dl) dragoptdepth
           real(dl),intent(in) :: z
 

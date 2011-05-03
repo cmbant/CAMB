@@ -557,30 +557,31 @@ contains
       use ModelParams
       
       implicit none
-      real(dl) taumin, maxq
+      real(dl) taumin, maxq, initAccuracyBoost
       integer itf
-
+      
+      initAccuracyBoost = AccuracyBoost
 
  ! Maximum and minimum k-values.      
       if (CP%flat) then
       qmax=maximum_qeta/CP%tau0
-      qmin=qmin0/CP%tau0/AccuracyBoost 
+      qmin=qmin0/CP%tau0/initAccuracyBoost 
       else              
         qmax=maximum_qeta/CP%r/CP%chi0
-        qmin=qmin0/CP%r/CP%chi0/AccuracyBoost
+        qmin=qmin0/CP%r/CP%chi0/initAccuracyBoost
       end if
 !     Timesteps during recombination (tentative, the actual
 !     timestep is the minimum between this value and taurst/40,
 !     where taurst is the time when recombination starts - see inithermo
 
-      dtaurec_q=4/qmax/AccuracyBoost 
+      dtaurec_q=4/qmax/initAccuracyBoost 
       if (.not. CP%flat) dtaurec_q=dtaurec_q/6
       !AL:Changed Dec 2003, dtaurec feeds back into the non-flat integration via the step size
       dtaurec = dtaurec_q
       !dtau rec may be changed by inithermo
 
-      max_etak_tensor = AccuracyBoost*maximum_qeta /10  
-      max_etak_scalar = AccuracyBoost*max(1700._dl,maximum_qeta) /20 
+      max_etak_tensor = initAccuracyBoost*maximum_qeta /10  
+      max_etak_scalar = initAccuracyBoost*max(1700._dl,maximum_qeta) /20 
       if (maximum_qeta <3500 .and. AccuracyBoost < 2) max_etak_scalar = max_etak_scalar * 1.5
         !tweak to get large scales right
       max_etak_vector = max_etak_scalar
@@ -628,31 +629,33 @@ contains
       implicit none
       real(dl) dlnk0, dkn1, dkn2, q_switch
       real(dl) qmax_log
-
+      real(dl) SourceAccuracyBoost
 !     set k values for which the sources for the anisotropy and
 !     polarization will be calculated. For low values of k we
 !     use a logarithmic spacing. closed case dealt with by SetClosedkValues
 
+         SourceAccuracyBoost = AccuracyBoost    
          if (CP%WantScalars .and. CP%Reion%Reionization .and. CP%AccuratePolarization) then
-            dlnk0=2._dl/10/AccuracyBoost
+            dlnk0=2._dl/10/SourceAccuracyBoost
             !Need this to get accurate low l polarization
          else
-            dlnk0=5._dl/10/AccuracyBoost
+            dlnk0=5._dl/10/SourceAccuracyBoost
             if (CP%closed) dlnk0=dlnk0/2
          end if
 
          if (CP%AccurateReionization) dlnk0 = dlnk0/2
 
-         dkn1=0.6_dl/taurst/AccuracyBoost 
-         dkn2=1.1_dl/taurst/AccuracyBoost 
-          if (CP%WantTensors .or. CP%WantVectors) then
+         dkn1=0.6_dl/taurst/SourceAccuracyBoost   
+         dkn2=0.9_dl/taurst/SourceAccuracyBoost 
+         if (HighAccuracyDefault) dkn2=dkn2/1.2
+         if (CP%WantTensors .or. CP%WantVectors) then
               dkn1=dkn1  *0.8_dl
               dlnk0=dlnk0/2 !*0.3_dl
-              dkn2=dkn2*0.7_dl
+              dkn2=dkn2*0.85_dl
           end if
 
          qmax_log = dkn1/dlnk0
-         q_switch = 2*6.3/taurst
+         q_switch = 2*6.3/taurst 
            !Want linear spacing for wavenumbers which come inside horizon
            !Could use sound horizon, but for tensors that is not relevant
 
@@ -735,7 +738,7 @@ contains
 !     Begin timestep loop.
 
            itf=1
-           tol1=tol/exp(AccuracyBoost-1)
+           tol1=tol/exp(AccuracyBoost-1) 
            if (CP%WantTransfer .and. CP%Transfer%high_precision) tol1=tol1/100
 
            do j=2,TimeSteps%npoints               
@@ -1058,7 +1061,8 @@ contains
             dlnk1=1._dl/lognum  
             no=nint(600*IntSampleBoost)
             dk0=1.8_dl/CP%r/CP%chi0/IntSampleBoost   
-            dk=3._dl/CP%r/CP%chi0/IntSampleBoost   
+            dk=3._dl/CP%r/CP%chi0/IntSampleBoost 
+            if (HighAccuracyDefault) dk=dk/1.4
          end if
 
          k_max_log = lognum*dk0
@@ -1066,7 +1070,7 @@ contains
          
          if (do_bispectrum) k_max_0 = max(10.d0,k_max_0) 
 
-         dk2 = 0.04/IntSampleBoost !very small scales
+         dk2 = 0.04/IntSampleBoost  !very small scales  
 
          call Ranges_Add_delta(ThisCT%q, qmin, k_max_log, dlnk1, IsLog = .true.)
          call Ranges_Add_delta(ThisCT%q, k_max_log, min(qmax_int,k_max_0), dk0)     
@@ -1153,7 +1157,7 @@ contains
                   end if
 
                   if (CP%WantScalars) then
-                     if ((CP%Dolensing .or. IV%q*TimeSteps%points(i) < max_etak_scalar) .and. xf > 1.e-8_dl) then
+                     if ((DebugEvolution .or. CP%Dolensing .or. IV%q*TimeSteps%points(i) < max_etak_scalar) .and. xf > 1.e-8_dl) then
                         step=i
                         IV%Source_q(i,1:SourceNum)=a0*Src(klo,1:SourceNum,i)+ &
                          b0*Src(khi,1:SourceNum,i) + (a03*ddSrc(klo,1:SourceNum,i) &
@@ -1218,6 +1222,7 @@ contains
           else
            llmax=nint(nu*rofChi(CP%tau0/CP%r + 6*pi/nu))
           end if
+          
       
          end if 
 
@@ -1266,6 +1271,7 @@ contains
         real(dl) tmin, tmax
         real(dl) a2, J_l, aa(IV%SourceSteps), fac(IV%SourceSteps)
         real(dl) xf, sums(SourceNum)
+        real(dl) qmax_int
         integer bes_ix,n, bes_index(IV%SourceSteps)
      
 !     Find the position in the xx table for the x correponding to each
@@ -1318,7 +1324,9 @@ contains
 
                 end do
               else 
-                 DoInt = .not. CP%WantScalars .or. IV%q < max(850,lSamp%l(j))*3*AccuracyBoost/CP%tau0  
+                 qmax_int= max(850,lSamp%l(j))*3*AccuracyBoost/CP%tau0
+                 if (HighAccuracyDefault) qmax_int=qmax_int*1.2
+                 DoInt = .not. CP%WantScalars .or. IV%q < qmax_int 
                  if (DoInt) then
                   do n= Ranges_IndexOf(TimeSteps,tmin),min(IV%SourceSteps,Ranges_IndexOf(TimeSteps,tmax))
                   !Full Bessel integration
@@ -1334,7 +1342,7 @@ contains
                      sums(1) = sums(1) + IV%Source_q(n,1)*J_l
                      sums(2) = sums(2) + IV%Source_q(n,2)*J_l
                      sums(3) = sums(3) + IV%Source_q(n,3)*J_l
-    
+                     
                   end do
                  end if
                  if (.not. DoInt .or. UseLimber(lsamp%l(j),IV%q) .and. CP%WantScalars) then
@@ -2011,7 +2019,7 @@ contains
              end if
 
              end if
-
+             
            end do
 
 !Output l(l+1)C_l/OutputDenominator

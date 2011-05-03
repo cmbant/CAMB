@@ -1,4 +1,4 @@
-!+ Equations module for dark energy with constant equation of state parameter w
+! Equations module for dark energy with constant equation of state parameter w
 ! allowing for perturbations based on a quintessence model
 ! by Antony Lewis (http://cosmologist.info/)
 ! This version November 2006.
@@ -218,14 +218,14 @@
             !as ensuring tight coupling is accurate enough
              if (EV%k_buf > epsw) then
                if (EV%k_buf > epsw*5) then
-                ep=ep0*5/AccuracyBoost
+                ep=ep0*5/AccuracyBoost 
+                if (HighAccuracyDefault) ep = ep*0.65  
                else
                 ep=ep0
                end if
              else
                ep=ep0 
              end if
-
             !Check the k/opacity criterion
              tau_check = min(tauend, tau_switch)   
              call thermo(tau_check,cs2,opacity)
@@ -344,8 +344,9 @@
          end if
 
         if (CP%WantScalars) then
-         EV%lmaxg  = max(nint(8*lAccuracyBoost),3)  
-         EV%lmaxnr = max(nint(14*lAccuracyBoost),3)  
+         EV%lmaxg  = max(nint(8*lAccuracyBoost),3) 
+         EV%lmaxnr = max(nint(14*lAccuracyBoost),3)
+         if (HighAccuracyDefault)  EV%lmaxnr=nint(EV%lmaxnr*1.3) 
             !need quite high to avoid ~ 0.5% systematics at l>1000
          EV%lmaxgpol = EV%lmaxg  
          if (.not.CP%AccuratePolarization) EV%lmaxgpol=max(nint(4*lAccuracyBoost),3)

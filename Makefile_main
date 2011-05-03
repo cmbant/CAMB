@@ -58,8 +58,7 @@ camb_fits: writefits.f90 $(CAMBOBJ) $(DRIVER)
 utils.o:
 	$(F90C) $(F90FLAGS) -c utils.F90	
 
-$(BISPECTRUM).o:
-	$(F90C) $(F90FLAGS) -c $(BISPECTRUM).F90	 
+ 
 
 Matrix_utils.o:
 	$(F90C) $(F90FLAGS) -c Matrix_utils.F90	

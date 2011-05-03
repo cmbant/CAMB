@@ -253,6 +253,7 @@
        ThreadNum      = Ini_Read_Int('number_of_threads',ThreadNum)
        AccuracyBoost  = Ini_Read_Double('accuracy_boost',AccuracyBoost)
        lAccuracyBoost = Ini_Read_Real('l_accuracy_boost',lAccuracyBoost)
+       HighAccuracyDefault = Ini_Read_Logical('high_accuracy_default',HighAccuracyDefault)
        if (do_bispectrum) then
         lSampleBoost   = 50
        else
