@@ -40,8 +40,8 @@ $(EQUATIONS).o: bessels.o
 $(NONLINEAR).o:  modules.o
 lensing.o: bessels.o
 $(BISPECTRUM).o: lensing.o modules.o
-cmbmain.o: lensing.o $(NONLINEAR).o $(EQUATIONS).o
-camb.o: $(BISPECTRUM).o cmbmain.o
+cmbmain.o: lensing.o $(NONLINEAR).o $(EQUATIONS).o $(BISPECTRUM).o 
+camb.o: cmbmain.o
 Matrix_utils.o: utils.o
 camb: $(CAMBOBJ) $(DRIVER)
 	$(F90C) $(F90FLAGS) $(CAMBOBJ) $(DRIVER) -o $@
@@ -58,7 +58,8 @@ camb_fits: writefits.f90 $(CAMBOBJ) $(DRIVER)
 utils.o:
 	$(F90C) $(F90FLAGS) -c utils.F90	
 
- 
+$(BISPECTRUM).o:
+	 $(F90C) $(F90FLAGS) -c $(BISPECTRUM).F90	
 
 Matrix_utils.o:
 	$(F90C) $(F90FLAGS) -c Matrix_utils.F90	
