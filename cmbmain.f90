@@ -1378,7 +1378,7 @@ contains
       integer l,j, nstart,nDissipative,ntop,nbot,nrange,nnow
       real(dl) nu,ChiDissipative,ChiStart,tDissipative,y1,y2,y1dis,y2dis     
       real(dl) xf,x,chi, miny1
-      real(dl) sums(SourceNum),out_arr(SourceNum)     
+      real(dl) sums(SourceNum),out_arr(SourceNum), qmax_int   
     
       !Calculate chi where for smaller chi it is dissipative
       x=sqrt(real(l*(l+1),dl))/nu
@@ -1415,8 +1415,9 @@ contains
       ! cuts off when ujl gets small
          miny1= 0.5d-4/l/AccuracyBoost
          sums=0
-
-         DoInt =  SourceNum/=3 .or. IV%q < max(850,l)*3*AccuracyBoost/(CP%chi0*CP%r) 
+         qmax_int= max(850,lSamp%l(j))*3*AccuracyBoost/(CP%chi0*CP%r)
+         if (HighAccuracyDefault) qmax_int=qmax_int*1.2
+         DoInt =  SourceNum/=3 .or. IV%q < qmax_int
          if (DoInt) then
          if ((nstart < min(TimeSteps%npoints-1,IV%SourceSteps)).and.(y1dis > miny1)) then
      
@@ -1636,12 +1637,12 @@ contains
       if (scalel < 120) then
          dchimax=0.4_dl*num1
       else if (scalel < 1400) then
-         dchimax=0.25_dl*num1
+         dchimax=0.25_dl*num1 *1.5
       else
-         dchimax=0.35_dl*num1 
+         dchimax=0.35_dl*num1 *1.5
       end if
 
-      dchimax=dchimax/IntAccuracyBoost
+      dchimax=dchimax/IntAccuracyBoost 
     
       ujl=y1/sh
       sources = IV%Source_q(Startn,1:SourceNum)
