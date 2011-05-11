@@ -52,6 +52,7 @@
        real(dl) xlim
        integer i,j
        integer max_ix
+       real(dl), parameter :: bessel_boost =1._dl 
 
  
         if (DebugMsgs .and. FeedbackLevel > 0) write (*,*) 'Generating flat Bessels...'
@@ -65,10 +66,11 @@
 
         call Ranges_Init(BessRanges)
 
-        call Ranges_Add_delta(BessRanges,0._dl, 1._dl,0.01_dl)
-        call Ranges_Add_delta(BessRanges,1._dl, 5._dl,0.1_dl)
-        call Ranges_Add_delta(BessRanges,5._dl, 25._dl,0.2_dl)
-        call Ranges_Add_delta(BessRanges,25._dl, real(kmaxfile,dl),1._dl)
+        call Ranges_Add_delta(BessRanges,0._dl, 1._dl,0.01_dl/bessel_boost)
+        call Ranges_Add_delta(BessRanges,1._dl, 5._dl,0.1_dl/bessel_boost)
+        call Ranges_Add_delta(BessRanges,5._dl, 25._dl,0.2_dl/bessel_boost)
+        call Ranges_Add_delta(BessRanges,25._dl, 150._dl,0.5_dl/bessel_boost/AccuracyBoost)
+        call Ranges_Add_delta(BessRanges,150._dl, real(kmaxfile,dl),0.8_dl/bessel_boost/AccuracyBoost)
 
         call Ranges_GetArray(bessRanges, .false.)
         num_xx = BessRanges%npoints

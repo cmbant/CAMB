@@ -638,7 +638,7 @@
              elseif  (W%kind == window_counts) then
              res = AccuracyBoost*30*ell/W%chimin
              else
-             res = 1.2*ell*CP%tau0/W%chi0
+             res = 1.2*ell/W%chi0
             end if
             
         end function WindowKmaxForL
