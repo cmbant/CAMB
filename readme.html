@@ -13,7 +13,7 @@
 Code for Anisotropies in the Microwave Background by <A
 HREF="http://cosmologist.info/">Antony Lewis</A> and Anthony
 Challinor. <P>
-This version January 2011.
+This version May 2011.
 <P>
 <FONT SIZE=-1>
 Originally based on CMBFAST developed by Uros Seljak and Matias
@@ -110,6 +110,13 @@ where all quantities are in the synchronous gauge and evaluated at the requested
 <A NAME="version">
 <H3>Version History</H3>
 
+<B>May 2011</B><BR>
+<UL>
+<LI>Added <b>high_accuracy_default</b> parameter, to give target accuracy of 0.1% for 500&lt;L&lt;2000 rather than default of 0.3%. This is much faster than increasing the accuracy boost parameters.
+<LI>Various tweaks to fixed internal accuracy parameters for consistency with <b>high_accuracy_default</b> (very small decrease in speed)
+<LI>Added apodization in lensing.f90 so that slow full integration is now only used for lmax>=5000 rather than lmax>=3000 (or if AccurateBB is set).
+<LI>Added quick calculation of the high-L tails of the lensing convolution by rescaling a template (speeds up high-accurcy lensedCl calculation with minimal loss of accuracy).
+</UL>
 <B>January 2011</B><BR>
 <UL>
 <LI>(14 Jan) updated Makefile for gfortran compatibility and easier compilation for bispectrum fisher calculations

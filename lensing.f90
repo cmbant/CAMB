@@ -159,6 +159,8 @@ subroutine CorrFuncFullSkyImpl(lmax)
   integer llo, lhi
   real(dl) a0,b0,ho
   real(dl) extrap, CphiGradient
+  logical :: short_integral_range
+  integer, parameter :: slow_highL = 5000 !Lmax at which to do full range to prevent ringing etc
 
   logical, parameter :: approx = .false.
 
@@ -179,10 +181,11 @@ subroutine CorrFuncFullSkyImpl(lmax)
     Cl_Lensed = 0
    
     npoints = CP%Max_l  * 2    
-    if (CP%AccurateBB .or. CP%Max_l>3000) npoints = npoints * 2 
- 
+    short_integral_range = .not. CP%AccurateBB .and. CP%Max_l<=slow_highL
+    if (.not. short_integral_range ) npoints = npoints * 2 
+
     dtheta = pi / npoints
-    if (.not. CP%AccurateBB .and. CP%Max_l<=3000) then
+    if (short_integral_range) then
       npoints = int(npoints /32 *min(32._dl,AccuracyBoost)) 
       !OK for TT, EE, TE but inaccurate for low l BB
       !this induces high frequency ringing on very small scales
@@ -190,7 +193,7 @@ subroutine CorrFuncFullSkyImpl(lmax)
 
     if (DebugMsgs) timeprev=GetTestTime()
 
-    if (CP%AccurateBB .or. CP%Max_l > 3000) then
+    if (.not. short_integral_range) then
      !There is an odd serious problem with interpolating if you do a large
      !angular range.
       
@@ -259,7 +262,7 @@ subroutine CorrFuncFullSkyImpl(lmax)
   !$OMP PARALLEL DO DEFAULT(PRIVATE),  &
   !OMP PRIVATE(P,dP,d11,dm11,d22,d2m2,d20,corrcontribs,ddcontribs),& 
   !$OMP SHARED(lfacs,lfacs2,lrootfacs,Cphil3,CTT,CTE,CEE,lens_contrib, lmax), &
-  !$OMP SHARED(dtheta,CP,lmax_lensed,roots, npoints,interp_fac,jmax,ls,xl) 
+  !$OMP SHARED(dtheta,CP,lmax_lensed,roots, npoints,interp_fac,jmax,ls,xl,short_integral_range) 
       do i=1,npoints-1
 
       theta = i * dtheta 
@@ -429,6 +432,9 @@ subroutine CorrFuncFullSkyImpl(lmax)
 do j=1,4
   corr(j) = sum(corrcontribs(1:14,j))+interp_fac*sum(corrcontribs(15:jmax,j))
 end do
+
+if (short_integral_range .and. i>npoints-20) &
+        corr=corr*exp(-(i-npoints+20)**2/150.0) !taper the end to help prevent ringing
 
 !Interpolate contributions
 !Increasing interp_fac and using this seems to be slower than above
