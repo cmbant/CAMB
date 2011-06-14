@@ -115,8 +115,8 @@ subroutine CorrFuncFullSky
   integer :: lmax_extrap 
   integer lmax
   
-  lmax_extrap = CP%Max_l - lensed_convolution_margin + 250  
-  if (HighAccuracyDefault) lmax_extrap=lmax_extrap+500
+  lmax_extrap = CP%Max_l - lensed_convolution_margin + 450  
+  if (HighAccuracyDefault) lmax_extrap=lmax_extrap+300
   lmax_extrap = min(lmax_extrap_highl,lmax_extrap)
   call CorrFuncFullSkyImpl(max(lmax_extrap,CP%max_l))
 

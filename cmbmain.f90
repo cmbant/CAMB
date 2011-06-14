@@ -362,7 +362,7 @@ contains
         !Log spacing for last few osciallations
         !large log spacing for small scales
 
-           boost = AccuracyBoost
+           boost = AccuracyBoost 
            if (CP%Transfer%high_precision) boost = boost*1.5
 
            q_switch_lowk1 = 0.7/taurst
@@ -488,7 +488,7 @@ contains
              end if
 
 !     Make sure to start early in the radiation era.
-          taustart=min(taustart,0.1_dl)
+           taustart=min(taustart,0.1_dl)
 
 !     Start when massive neutrinos are strongly relativistic.
             if (CP%Num_nu_massive>0) then
@@ -506,6 +506,8 @@ contains
 
             EV%q=Evolve_q%points(q_ix) 
  
+!!!!!
+!EV%q=0.1
             EV%q2=EV%q**2
 
             EV%q_ix = q_ix
@@ -708,8 +710,10 @@ contains
       integer j,ind,itf
       real(dl) c(24),w(EV%nvar,9), y(EV%nvar), sources(SourceNum)
 
-!
-!EV%q=1
+
+!Note to get right number of eqns also have to set this in DoSourcek
+!!!
+!EV%q=0.1
 !EV%q2=EV%q**2
 
          w=0
@@ -721,16 +725,18 @@ contains
          ind=1
 
 !!Example code for plotting out variable evolution
-!if (.true.) then
-!         tol1=tol/exp(AccuracyBoost-1)
+!if (.false.) then
+!        tol1=tol/exp(AccuracyBoost-1)
+!        call CreateTxtFile('test.txt',1)
 !      
-!       do j=1,6000      
-!         tauend = taustart * exp(j/6000._dl*log(CP%tau0/taustart))
-!         !tauend = 1/EV%q*1.01
+!       do j=1,20000      
+!         tauend = taustart * exp(j/20000._dl*log(CP%tau0/taustart))
+!
 !          call GaugeInterface_EvolveScal(EV,tau,y,tauend,tol1,ind,c,w)
-!         
-!          write (*,'(5E15.5)') tauend,1/y(1)-1, y(3),y(4), y(5)!y(EV%w_ix) ,y(EV%w_ix+1)                           
-!         end do
+!           write (1,'(6E15.5)') tauend, y(EV%r_ix:EV%r_ix+2)
+!                        
+!          end do
+!          close(1)
 !     stop
 !end if
 
@@ -757,18 +763,7 @@ contains
  
              call output(EV,y, EV%ScalEqsToPropagate,j,tau,sources)
              Src(EV%q_ix,1:SourceNum,j)=sources
- 
-             if (CP%Num_Nu_Massive > 0 .and.(EV%NuMethod==Nu_trunc).and..not.EV%MassiveNuApprox.and. &
-                  .not.CP%Transfer%high_precision.and. &
-                 ((EV%q<0.1_dl .and.EV%w_nu < 0.015/AccuracyBoost/lAccuracyBoost).or.&
-                  (EV%w_nu < 0.008/AccuracyBoost/lAccuracyBoost))) then 
-     
-                !Neutrinos no longer highly relativistic so make approximation               
-                if ( .not.CP%DoLensing.and..not. CP%WantTransfer &
-                       .or. EV%w_nu < 1e-8/EV%q**2/AccuracyBoost/lAccuracyBoost)  &
-                           call SwitchToMassiveNuApprox(EV, y)
-              end if
-             
+            
 !     Calculation of transfer functions.
 101          if (CP%WantTransfer.and.itf <= CP%Transfer%num_redshifts) then
                 if (j < TimeSteps%npoints) then
@@ -820,13 +815,9 @@ contains
                      Src(EV%q_ix,1:SourceNum,j) = 0
                    else
       
-                     if (CP%flat) then
-                      call dverk(EV,EV%nvart,fderivst,tau,yt,tauend,tol1,ind,c,EV%nvart,wt) !tauend
-                     else 
-                      call dverk(EV,EV%nvart, derivst,tau,yt,tauend,tol1,ind,c,EV%nvart,wt)
-                     end if
- 
-                     call outputt(EV,yt,EV%nvart,j,tau,Src(EV%q_ix,CT_Temp,j),&
+                      call GaugeInterface_EvolveTens(EV,tau,yt,tauend,tol1,ind,c,wt)
+             
+                      call outputt(EV,yt,EV%nvart,j,tau,Src(EV%q_ix,CT_Temp,j),&
                                   Src(EV%q_ix,CT_E,j),Src(EV%q_ix,CT_B,j))
            
                    end if
@@ -875,7 +866,7 @@ contains
                      Src(EV%q_ix,1:SourceNum,j) = 0
                    else
       
-                      call dverk(EV,EV%nvarv,fderivsv,tau,yv,tauend,tol1,ind,c,EV%nvarv,wt) !tauend
+                      call dverk(EV,EV%nvarv,derivsv,tau,yv,tauend,tol1,ind,c,EV%nvarv,wt) !tauend
                  
                       call outputv(EV,yv,EV%nvarv,j,tau,Src(EV%q_ix,CT_Temp,j),&
                                   Src(EV%q_ix,CT_E,j),Src(EV%q_ix,CT_B,j))

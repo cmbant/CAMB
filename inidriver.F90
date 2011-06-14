@@ -245,7 +245,7 @@
        else
         DoLateRadTruncation = Ini_Read_Logical('do_late_rad_truncation',.true.)
        end if
-       DoTensorNeutrinos = Ini_Read_Logical('do_tensor_neutrinos',DoTensorNeutrinos)
+       DoTensorNeutrinos = Ini_Read_Logical('do_tensor_neutrinos',DoTensorNeutrinos )
        FeedbackLevel = Ini_Read_Int('feedback_level',FeedbackLevel)
        
        P%MassiveNuMethod  = Ini_Read_Int('massive_nu_approx',Nu_best)
@@ -257,6 +257,7 @@
        if (HighAccuracyDefault) then
          P%Max_eta_k=max(min(P%max_l,3000)*2.5_dl,P%Max_eta_k)
        end if
+       DoTensorNeutrinos = DoTensorNeutrinos .or. HighAccuracyDefault
        if (do_bispectrum) then
         lSampleBoost   = 50
        else

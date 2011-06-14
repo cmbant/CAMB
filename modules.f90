@@ -34,7 +34,7 @@
         implicit none    
         public
 
-        character(LEN=*), parameter :: version = 'May_11'
+        character(LEN=*), parameter :: version = 'Jun_11'
         
         integer :: FeedbackLevel = 0 !if >0 print out useful information about the model
 
@@ -462,14 +462,19 @@
         end function f_K
 
 
-        function DeltaTime(a1,a2)
+        function DeltaTime(a1,a2, in_tol)
         implicit none
         real(dl) DeltaTime, atol
         real(dl), intent(IN) :: a1,a2
+        real(dl), optional, intent(in) :: in_tol
         real(dl) dtauda, rombint !diff of tau w.CP%r.t a and integration
         external dtauda, rombint
 
-        atol = tol/1000/exp(AccuracyBoost-1)
+        if (present(in_tol)) then
+         atol = in_tol
+        else
+         atol = tol/1000/exp(AccuracyBoost-1)
+        end if
         DeltaTime=rombint(dtauda,a1,a2,atol)
       
         end function DeltaTime
@@ -1356,7 +1361,7 @@
 
 
 !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-        subroutine Nu_Integrate01(am,drhonu,fnu,psi0,psi1)
+        subroutine Nu_Integrate01(am,drhonu,fnu,psi0,psi1, step)
         use precision
         use ModelParams
     
@@ -1364,24 +1369,27 @@
 !  of one eigenstate of massive neutrinos, in units of the mean
 !  density of one eigenstate of massless neutrinos, by integrating over
 !  momentum.
-        real(dl), intent(IN)  :: am,psi0(nqmax0),psi1(nqmax0) 
+        real(dl), intent(IN)  :: am,psi0(*),psi1(*)
+        integer, intent(in) :: step 
         real(dl), intent(OUT) ::  drhonu,fnu
         real(dl), parameter   :: qmax=nqmax0-0.5d0
     
 
         real(dl) g0(4),g1(nqmax0+1),g3(nqmax0+1)
         real(dl) aq,v,q
-        integer iq
+        integer iq, off
    
 !  q is the comoving momentum in units of k_B*T_nu0/c.
         g1(1)=0
         g3(1)=0
+        off=1
         do iq=2,(nqmax0+1)
             q=(iq-1.5d0)*dq
             aq=am/q
             v=1._dl/sqrt(1._dl+aq*aq)          
-            g1(iq)=qdn(iq-1)*psi0(iq-1)/v           
-            g3(iq)=qdn(iq-1)*psi1(iq-1)           
+            g1(iq)=qdn(iq-1)*psi0(off)/v           
+            g3(iq)=qdn(iq-1)*psi1(off)
+            off=off+step           
         end do
         call splint(g1,g0(1),nqmax0+1)
         call splint(g3,g0(3),nqmax0+1)
@@ -1393,7 +1401,7 @@
 
 
 !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-        subroutine Nu_Integrate(am,drhonu,fnu,dpnu,shearnu,psi0,psi1,psi2)
+        subroutine Nu_Integrate(am,drhonu,fnu,dpnu,shearnu,psi0,psi1,psi2, step)
         use precision
         use ModelParams
     
@@ -1401,7 +1409,8 @@
 !  shear stress of one eigenstate of massive neutrinos, in units of the mean
 !  density of one eigenstate of massless neutrinos, by integrating over
 !  momentum.
-        real(dl), intent(IN)  :: am,psi0(nqmax0),psi1(nqmax0),psi2(nqmax0) 
+        real(dl), intent(IN)  :: am,psi0(*),psi1(*),psi2(*)
+        integer, intent(in)   :: step 
         real(dl), intent(OUT) ::  drhonu,fnu,dpnu,shearnu
         real(dl), parameter   :: qmax=nqmax0-0.5d0
     
@@ -1409,7 +1418,7 @@
         real(dl) g0(4),g1(nqmax0+1),g2(nqmax0+1)
         real(dl) g3(nqmax0+1),g4(nqmax0+1)
         real(dl) aq,v,q
-        integer iq
+        integer iq, off
    
 
 !  q is the comoving momentum in units of k_B*T_nu0/c.
@@ -1417,14 +1426,16 @@
         g2(1)=0._dl
         g3(1)=0._dl
         g4(1)=0._dl
+        off=1
         do iq=2,(nqmax0+1)
             q=(iq-1.5d0)*dq
             aq=am/q
             v=1._dl/sqrt(1._dl+aq*aq)          
-            g1(iq)=qdn(iq-1)*psi0(iq-1)/v
-            g2(iq)=qdn(iq-1)*psi0(iq-1)*v
-            g3(iq)=qdn(iq-1)*psi1(iq-1)
-            g4(iq)=qdn(iq-1)*psi2(iq-1)*v         
+            g1(iq)=qdn(iq-1)*psi0(off)/v
+            g2(iq)=qdn(iq-1)*psi0(off)*v
+            g3(iq)=qdn(iq-1)*psi1(off)
+            g4(iq)=qdn(iq-1)*psi2(off)*v
+            off=off+step         
         end do
         call splint(g1,g0(1),nqmax0+1)
         call splint(g2,g0(2),nqmax0+1)
@@ -1439,7 +1450,7 @@
         end subroutine Nu_Integrate
 
 !cccccccccccccccccccccccccccccccccccccccccccccc
-   subroutine Nu_Intvsq(am,G11,G30,psi1,psi3)
+   subroutine Nu_Intvsq(am,G11,G30,psi1,psi3, step)
         use precision
         use ModelParams
 
@@ -1448,25 +1459,26 @@
 
         real(dl), intent(IN) :: am
         real(dl), parameter :: qmax=nqmax0-0.5d0
-        real(dl)  psi1(nqmax0),psi3(nqmax0)
+        real(dl)  psi1(*),psi3(*)
+        integer, intent(in) :: step
 
         real(dl) g0(4),g1(nqmax0+1),g2(nqmax0+1)
             
         real(dl) G11,G30
         real(dl) aq,q,v
-        integer iq
+        integer iq, off
 
 !  q is the comoving momentum in units of k_B*T_nu0/c.
         g1(1)=0._dl
         g2(1)=0._dl
-   
+        off=1    
         do iq=2,(nqmax0+1)
             q=(iq-1.5d0)*dq
             aq=am/q
             v=1._dl/sqrt(1._dl+aq*aq)          
-            g1(iq)=qdn(iq-1)*psi1(iq-1)*v**2
-            g2(iq)=qdn(iq-1)*psi3(iq-1)*v**2
-         
+            g1(iq)=qdn(iq-1)*psi1(off)*v**2
+            g2(iq)=qdn(iq-1)*psi3(off)*v**2
+            off=off+step
         end do
         call splint(g1,g0(1),nqmax0+1)
         call splint(g2,g0(2),nqmax0+1)
@@ -1477,7 +1489,7 @@
         end subroutine Nu_Intvsq
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-        subroutine Nu_Shear(am,shearnu,psi2)
+        subroutine Nu_Shear(am,shearnu,psi2, step)
         use precision
         use ModelParams
 
@@ -1486,13 +1498,14 @@
 !  density of one eigenstate of massless neutrinos, by integrating over
 !  momentum.
         real(dl), intent(IN) :: am 
+        integer, intent(in) :: step
      
         real(dl), parameter :: qmax=nqmax0-0.5d0
-        real(dl) psi2(nqmax0)
+        real(dl) psi2(*)
 
         real(dl) g0(4),g4(nqmax0+1)
         real(dl) shearnu,q,aq,v
-        integer iq
+        integer iq, off
 
         if (nqmax==0) then
           shearnu=0._dl
@@ -1500,12 +1513,14 @@
         end if
 !
 !  q is the comoving momentum in units of k_B*T_nu0/c.
-        g4(1)=0._dl      
+        g4(1)=0._dl    
+        off=1  
         do  iq=2,(nqmax0+1)
             q=(iq-1.5d0)*dq
             aq=am/q
             v=1._dl/sqrt(1._dl+aq*aq)                     
-            g4(iq)=qdn(iq-1)*psi2(iq-1)*v         
+            g4(iq)=qdn(iq-1)*psi2(off)*v         
+            off=off+step
         end do
         call splint(g4,g0(4),nqmax0+1)       
         shearnu=(g0(4)+g4(nqmax0+1)*2._dl/qmax)/const*2._dl/3._dl
@@ -1513,33 +1528,35 @@
         end subroutine Nu_Shear
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
-        subroutine Nu_derivs(am,adotoa,rhonu,rhonudot,shearnudot,psi2,psi2dot)
+        subroutine Nu_derivs(am,adotoa,rhonu,rhonudot,shearnudot,psi2,psi2dot, step)
         use precision
         use ModelParams
 
 !  Compute the time derivative of the mean density in massive neutrinos
 !  and the shear perturbation.
 !
-      
+        integer, intent(in) :: step
         real(dl), parameter :: qmax=nqmax0-0.5d0
-        real(dl) psi2(nqmax0),psi2dot(nqmax0)
+        real(dl) psi2(*),psi2dot(*)
 
         real(dl) g1(nqmax0+1)
         real(dl) adotoa,rhonu,rhonudot,shearnudot
         real(dl) aq,q,v,d,aqdot,vdot,g0
         real(dl), intent(IN) :: am
-        integer iq,i
+        integer iq,i,off
      
 
 !  q is the comoving momentum in units of k_B*T_nu0/c.
         g1(1)=0._dl
+        off=1
         do iq=2,(nqmax0+1)
             q=(iq-1.5d0)*dq
             aq=am/q
             aqdot=aq*adotoa
             v=1._dl/sqrt(1._dl+aq*aq)
             vdot=-aq*aqdot/(1._dl+aq*aq)**1.5d0
-            g1(iq)=qdn(iq-1)*(psi2dot(iq-1)*v+psi2(iq-1)*vdot)
+            g1(iq)=qdn(iq-1)*(psi2dot(off)*v+psi2(off)*vdot)
+            off=off+step
         end do
         call splint(g1,g0,nqmax0+1)
      
@@ -2246,9 +2263,8 @@
         last_dotmu = 0
 
         matter_verydom_tau = 0
-        a_verydom = AccuracyBoost*10*(grhog+grhornomass)/(grhoc+grhob)
-        if (CP%Num_Nu_massive /= 0) a_verydom=a_verydom*1.5 
-
+        a_verydom = AccuracyBoost*5*(grhog+grhornomass)/(grhoc+grhob)
+ 
 !  Initial conditions: assume radiation-dominated universe.
         tau01=tauminn
         adot0=adotrad
@@ -2417,8 +2433,6 @@
            write (*,*) 'taurst, taurend = ', taurst, taurend
          end if
   
-        matter_verydom_tau = max(matter_verydom_tau,taurend)
-
         call splini(spline_data,nthermo)
         call splder(cs2,dcs2,nthermo,spline_data)
         call splder(dotmu,ddotmu,nthermo,spline_data)
