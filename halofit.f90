@@ -112,12 +112,16 @@
       subroutine halofit(rk,rn,rncur,rknl,plin,pnl,pq,ph)
       implicit none
 
-      real(dl) gam,a,b,c,xmu,xnu,alpha,beta,f1,f2,f3
+      real(dl) extragam,gam,a,b,c,xmu,xnu,alpha,beta,f1,f2,f3
       real(dl) rk,rn,plin,pnl,pq,ph
       real(dl) rknl,y,rncur
       real(dl) f1a,f2a,f3a,f1b,f2b,f3b,frac
 
-      gam=0.86485+0.2989*rn+0.1631*rncur
+!SPB11: Standard halofit underestimates the power on the smallest scales by a
+!factor of two. Add an extra correction from the simulations in Bird, Viel,
+!Haehnelt 2011 which partially accounts for this.
+      extragam = 0.3159 -0.0765*rn -0.8350*rncur
+      gam=extragam+0.86485+0.2989*rn+0.1631*rncur
       a=1.4861+1.83693*rn+1.67618*rn*rn+0.7940*rn*rn*rn+ &
            0.1670756*rn*rn*rn*rn-0.620695*rncur
       a=10**a      
