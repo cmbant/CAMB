@@ -21,7 +21,7 @@
       private
        
        real, parameter :: Min_kh_nonlinear = 0.005
-       real(dl):: om_m,om_v
+       real(dl):: om_m,om_v,fnu,omm0
 
       public Min_kh_nonlinear,NonLinear_GetNonLinRatios
       
@@ -33,13 +33,14 @@
      !This implementation uses Halofit
       type(MatterPowerData) :: CAMB_Pk
       integer itf
-      real(dl) a, omm0,plin,pq,ph,pnl,rk
+      real(dl) a,plin,pq,ph,pnl,rk
       real(dl) sig,rknl,rneff,rncur,d1,d2
       real(dl) diff,xlogr1,xlogr2,rmid
       integer i
 
        !!BR09 putting neutrinos into the matter as well, not sure if this is correct, but at least one will get a consisent omk.
        omm0 = CP%omegac+CP%omegab+CP%omegan
+       fnu = CP%omegan/(CP%omegab+CP%omegac)
 
        CAMB_Pk%nonlin_ratio = 1
 
@@ -152,7 +153,7 @@
       y=(rk/rknl)
 
       ph=a*y**(f1*3)/(1+b*y**(f2)+(f3*c*y)**(3-gam))
-      ph=ph/(1+xmu*y**(-1)+xnu*y**(-2))
+      ph=ph/(1+xmu*y**(-1)+xnu*y**(-2))*(1+fnu*(2.080-12.39*(omm0-0.3))/(1+1.201e-03*y**3))
       pq=plin*(1+plin)**beta/(1+plin*alpha)*exp(-y/4.0-y**2/8.0)
 
       pnl=pq+ph
