@@ -114,7 +114,7 @@
       implicit none
 
       real(dl) extragam,gam,a,b,c,xmu,xnu,alpha,beta,f1,f2,f3
-      real(dl) rk,rn,plin,pnl,pq,ph
+      real(dl) rk,rn,plin,pnl,pq,ph,plinaa
       real(dl) rknl,y,rncur
       real(dl) f1a,f2a,f3a,f1b,f2b,f3b,frac
 
@@ -131,7 +131,7 @@
       xmu=10**(-3.54419+0.19086*rn)
       xnu=10**(0.95897+1.2857*rn)
       alpha=1.38848+0.3701*rn-0.1452*rn*rn
-      beta=0.8291+0.9854*rn+0.3400*rn**2
+      beta=0.8291+0.9854*rn+0.3400*rn**2+fnu*(-6.4868+1.4373*rn**2)
 
       if(abs(1-om_m).gt.0.01) then ! omega evolution 
          f1a=om_m**(-0.0732)
@@ -154,7 +154,8 @@
 
       ph=a*y**(f1*3)/(1+b*y**(f2)+(f3*c*y)**(3-gam))
       ph=ph/(1+xmu*y**(-1)+xnu*y**(-2))*(1+fnu*(2.080-12.39*(omm0-0.3))/(1+1.201e-03*y**3))
-      pq=plin*(1+plin)**beta/(1+plin*alpha)*exp(-y/4.0-y**2/8.0)
+      plinaa=plin*(1+fnu*26.29*rk**2/(1+1.5*rk**2))
+      pq=plin*(1+plinaa)**beta/(1+plinaa*alpha)*exp(-y/4.0-y**2/8.0)
 
       pnl=pq+ph
 
