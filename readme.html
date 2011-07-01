@@ -110,12 +110,13 @@ where all quantities are in the synchronous gauge and evaluated at the requested
 <A NAME="version">
 <H3>Version history</H3>
 
-<B>June 2011</B><BR>
+<B>July 2011</B><BR>
 <UL>
 <LI>Added <b>high_accuracy_default</b> parameter, to give target accuracy of 0.1% for 500&lt;L&lt;2000 rather than default of 0.3%. This is much faster than increasing the accuracy boost parameters. 
 <LI>Added improved high k&tau; approximations from <A HREF="http://arxiv.org/abs/1104.2933">arXiv:1104.2933</A>. 
+<LI>Optimized very accurate massive neutrino evolution and perturbatively relativistic expansion (much faster, see the <A HREF="http://cosmologist.info/notes/CAMB.pdf">notes</A>)
 <LI>
-Merged flat and non-flat derivative routines in equations.f90, time evolution restructuring and some higher-order tight coupling terms from <A HREF="http://arxiv.org/abs/1012.0569">arXiv:1012.0569</A>. Switches in massive neutrino evolution for faster evolution in the ultra-light limit. (for normal masses still slow compared to arXiv:1104.2935)
+Merged flat and non-flat derivative routines in equations.f90, time evolution restructuring and some higher-order tight coupling terms from <A HREF="http://arxiv.org/abs/1012.0569">arXiv:1012.0569</A>. 
 <LI>Various tweaks to fixed internal accuracy parameters for consistency with <b>high_accuracy_default</b> (very small decrease in speed)
 <LI>Added apodization in lensing.f90 so that slow full integration is now only used for lmax>=5000 rather than lmax>=3000 (or if AccurateBB is set).
 <LI>Added quick calculation of the high-L tails of the lensing convolution by rescaling a template (speeds up high-accurcy lensedCl calculation with minimal loss of accuracy).
