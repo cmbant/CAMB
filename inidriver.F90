@@ -25,7 +25,7 @@
         integer i
         character(LEN=Ini_max_string_len) TransferFileNames(max_transfer_redshifts), &
                MatterPowerFileNames(max_transfer_redshifts), outroot
-        real(dl) output_factor, Age
+        real(dl) output_factor, Age, nmassive
 
 #ifdef WRITE_FITS
        character(LEN=Ini_max_string_len) FITSfilename
@@ -117,7 +117,10 @@
        P%tcmb   = Ini_Read_Double('temp_cmb',COBE_CMBTemp)
        P%yhe    = Ini_Read_Double('helium_fraction',0.24_dl)
        P%Num_Nu_massless  = Ini_Read_Double('massless_neutrinos')
-       P%Num_Nu_massive   = Ini_Read_Double('massive_neutrinos')
+       nmassive = Ini_Read_Double('massive_neutrinos')
+       !Store fractional numbers in the massless total
+       P%Num_Nu_massive   = int(nmassive+1e-6)
+       P%Num_Nu_massless  = P%Num_Nu_massless + nmassive-P%Num_Nu_massive
    
        P%nu_mass_splittings = .true.
        P%Nu_mass_eigenstates = Ini_Read_Int('nu_mass_eigenstates',1)

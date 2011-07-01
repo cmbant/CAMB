@@ -13,6 +13,7 @@
 ! Nov 2006, tweak to high_precision transfer function accuracy at lowish k
 ! June 2011, improved radiation approximations from arXiv: 1104.2933; Some 2nd order tight coupling terms
 !            merged fderivs and derivs so flat and non-flat use same equations; more precomputed arrays
+!            optimized neutrino sampling, and reorganised neutrino integration functions
 
        module LambdaGeneral
          use precision
@@ -138,7 +139,9 @@
             integer polind  !index into scalar array of polarization hierarchy
 
     !array indices for massive neutrino equations
-            integer nu_ix(max_nu)
+            integer nu_ix(max_nu), nu_pert_ix
+            integer nq(max_nu), lmaxnu_pert
+            logical has_nu_relativistic
 
     !Initial values for massive neutrino v*3 variables calculated when switching 
     !to non-relativistic approx
@@ -171,13 +174,13 @@
             
             logical no_nu_multpoles, no_phot_multpoles 
             integer lmaxnu_tau(max_nu)  !lmax for massive neutinos at time being integrated
-            logical nu_notmassless(max_nu), nu_nonrelativistic(max_nu)
+            logical nu_nonrelativistic(max_nu)
              
             real(dl) denlk(max_l_evolve),denlk2(max_l_evolve), polfack(max_l_evolve)
             real(dl) Kf(max_l_evolve)  
 
-            real(dl) denlkt(4,max_l_evolve),Kft(max_l_evolve) 
             integer E_ix, B_ix !tensor polarization indices
+            real(dl) denlkt(4,max_l_evolve),Kft(max_l_evolve) 
               
                
         end type EvolutionVars
@@ -189,9 +192,7 @@
        integer, parameter :: lmaxnu_high_ktau=3
 
        real(dl) epsw
-       real(dl) nu_tau_notmassless(max_nu), nu_tau_nonrelativistic(max_nu),nu_tau_massive(max_nu)  
-       integer debug
-
+       real(dl) nu_tau_notmassless(nqmax0+1,max_nu), nu_tau_nonrelativistic(max_nu),nu_tau_massive(max_nu)  
        contains
 
 
@@ -205,9 +206,27 @@
              call MpiStop('Dverk error -3: the subroutine was unable  to  satisfy  the  error ' &
                            //'requirement  with a particular step-size that is less than or * ' &
                            //'equal to hmin, which may mean that tol is too small' &
-                           //'--- but most likely you''ve messed up the y array indexing')     
+                           //'--- but most likely you''ve messed up the y array indexing; ' &
+                           //'compiling with bounds checking may (or may not) help find the problem.' )     
             end if
         end subroutine GaugeInterface_ScalEv
+        
+        function next_nu_nq(nq) result (next_nq)
+         integer, intent(in) :: nq
+         integer q, next_nq
+        
+         if (nq==0) then
+         next_nq=1
+         else
+         q = nu_q(nq)         
+         if (q>=10) then
+           next_nq = nqmax
+         else
+           next_nq = nq+1
+         end if
+         end if
+        
+        end function next_nu_nq
 
          recursive subroutine GaugeInterface_EvolveScal(EV,tau,y,tauend,tol1,ind,c,w)
          use ThermoData
@@ -234,24 +253,24 @@
          !Evolve equations from tau to tauend, performing switches in equations if necessary.
           
           if (.not. EV%high_ktau_neutrino_approx .and. .not. EV%no_nu_multpoles ) then
-             tau_switch_ktau=  max(20, EV%lmaxnr-4)/EV%k_buf
+            tau_switch_ktau=  max(20, EV%lmaxnr-4)/EV%k_buf
           end if          
 
          if (CP%Num_Nu_massive /= 0) then
           do nu_i = 1, CP%Nu_mass_eigenstates       
-            if (.not. EV%nu_notmassless(nu_i)) then
-              tau_switch_nu_massless = min(tau_switch_nu_massless,nu_tau_notmassless(nu_i))
+            if (EV%nq(nu_i) /= nqmax) then
+              tau_switch_nu_massless = min(tau_switch_nu_massless,nu_tau_notmassless(next_nu_nq(EV%nq(nu_i)),nu_i))
             else if (.not. EV%nu_nonrelativistic(nu_i)) then
               tau_switch_nu_nonrel = min(nu_tau_nonrelativistic(nu_i),tau_switch_nu_nonrel)            
             else if (EV%NuMethod==Nu_trunc .and..not. EV%MassiveNuApprox(nu_i)) then
-               tau_switch_nu_massive = min(tau_switch_nu_massive,EV%MassiveNuApproxTime(nu_i)) 
+              tau_switch_nu_massive = min(tau_switch_nu_massive,EV%MassiveNuApproxTime(nu_i)) 
             end if   
           end do        
          end if
          
          if (DoLateRadTruncation) then
           
-          if (.not. EV%no_nu_multpoles .and. tau_switch_nu_massless ==noSwitch)  &
+          if (.not. EV%no_nu_multpoles) & !!.and. .not. EV%has_nu_relativistic .and. tau_switch_nu_massless ==noSwitch)  &
                tau_switch_no_nu_multpoles=max(15/EV%k_buf*AccuracyBoost,min(taurend,matter_verydom_tau)) 
           
           if (.not. EV%no_phot_multpoles .and. (.not.CP%WantCls .or. EV%k_buf>0.02*AccuracyBoost)) &
@@ -259,7 +278,7 @@
          end if          
          
          next_switch = min(tau_switch_ktau, tau_switch_nu_massless,EV%TightSwitchoffTime, tau_switch_nu_massive, &
-               tau_switch_no_nu_multpoles, tau_switch_no_phot_multpoles, tau_switch_nu_nonrel, CP%tau0)
+               tau_switch_no_nu_multpoles, tau_switch_no_phot_multpoles, tau_switch_nu_nonrel,noSwitch)
          
          if (next_switch < tauend) then
              if (next_switch > tau+smallTime) then
@@ -305,16 +324,17 @@
            else if (next_switch==tau_switch_ktau) then
             !k tau >> 1, evolve massless neutrino effective fluid up to l=2
                 EVout%high_ktau_neutrino_approx=.true.
+                EV%nq(1:CP%Nu_mass_eigenstates) = nqmax               
                 call SetupScalarArrayIndices(EVout)
                 call CopyScalarVariableArray(y,yout, EV, EVout)
                 y=yout
                 EV=EVout
            else if (next_switch == tau_switch_nu_massless) then
-             !Mass starts to become important, start evolving each momentum mode
+             !Mass starts to become important, start evolving next momentum mode
               do nu_i = 1, CP%Nu_mass_eigenstates       
-                if (.not. EV%nu_notmassless(nu_i) .and.  next_switch==nu_tau_notmassless(nu_i) ) then
-                     ind=1
-                     EVout%nu_notmassless(nu_i)=.true.
+                 if (EV%nq(nu_i) /= nqmax .and. &
+                   next_switch == nu_tau_notmassless(next_nu_nq(EV%nq(nu_i)),nu_i)) then
+                     EVOut%nq(nu_i) = next_nu_nq(EV%nq(nu_i))
                      call SetupScalarArrayIndices(EVout)
                      call CopyScalarVariableArray(y,yout, EV, EVout)
                      EV=EVout
@@ -336,18 +356,17 @@
               end do
            else if (next_switch == tau_switch_nu_massive) then
             !Very non-relativistic neutrinos, switch to truncated velocity-weight hierarchy
-           
               do nu_i = 1, CP%Nu_mass_eigenstates       
                 if (.not. EV%MassiveNuApprox(nu_i) .and.  next_switch== EV%MassiveNuApproxTime(nu_i) ) then
                      call SwitchToMassiveNuApprox(EV,y, nu_i)
                      exit
                 end if
               end do
-  
            else if (next_switch==tau_switch_no_nu_multpoles) then
            !Turn off neutrino hierarchies at late time where slow and not needed.
                  ind=1
                  EVout%no_nu_multpoles=.true.
+                 EVOut%nq(1:CP%Nu_mass_eigenstates ) = nqmax                 
                  call SetupScalarArrayIndices(EVout)
                  call CopyScalarVariableArray(y,yout, EV, EVout)
                  y=yout
@@ -402,7 +421,7 @@
         subroutine GaugeInterface_Init
           !Precompute various arrays and other things independent of wavenumber
           integer j, nu_i
-          real(dl) a_nonrel, a_mass,a_massive
+          real(dl) a_nonrel, a_mass,a_massive, time
 
           epsw = 100/CP%tau0
          
@@ -425,11 +444,18 @@
          end do     
     
          do nu_i=1, CP%Nu_Mass_eigenstates
-            a_mass =  1.d-2/nu_masses(nu_i)/AccuracyBoost 
-            if (HighAccuracyDefault) a_mass=a_mass/4
-            nu_tau_notmassless(nu_i) = DeltaTime(0._dl,a_mass) 
+            a_mass =  1.e-1_dl/nu_masses(nu_i)/lAccuracyBoost 
+            !if (HighAccuracyDefault) a_mass=a_mass/4
+            time=DeltaTime(0._dl,nu_q(1)*a_mass)
+            nu_tau_notmassless(1, nu_i) = time
+            do j=2,nqmax
+             !times when each momentum mode becomes signficantly nonrelativistic
+             time= time + DeltaTime(nu_q(j-1)*a_mass,nu_q(j)*a_mass, 0.01_dl)
+             nu_tau_notmassless(j, nu_i) = time
+            end do
+            
             a_nonrel =  2.d0/nu_masses(nu_i)*AccuracyBoost
-            nu_tau_nonrelativistic(nu_i) =nu_tau_notmassless(nu_i) + DeltaTime(a_mass,a_nonrel) 
+            nu_tau_nonrelativistic(nu_i) =DeltaTime(0._dl,a_nonrel) 
             a_massive =  17.d0/nu_masses(nu_i)*AccuracyBoost 
             nu_tau_massive(nu_i) =nu_tau_nonrelativistic(nu_i) + DeltaTime(a_nonrel,a_massive) 
             
@@ -482,27 +508,37 @@
 
          !Massive neutrinos 
          if (CP%Num_Nu_massive /= 0) then
-          
+
+           EV%has_nu_relativistic = any(EV%nq(1:CP%Nu_Mass_eigenstates)/=nqmax)
+           if (EV%has_nu_relativistic) then
+            EV%lmaxnu_pert=EV%lmaxnu 
+            EV%nu_pert_ix=neq+1
+            neq = neq+ EV%lmaxnu_pert+1
+            maxeq=maxeq+ EV%lmaxnu_pert+1
+           else
+            EV%lmaxnu_pert=0
+           end if
+           
            do nu_i=1, CP%Nu_Mass_eigenstates
            
-           if (EV%high_ktau_neutrino_approx) then
+            if (EV%high_ktau_neutrino_approx) then
               EV%lmaxnu_tau(nu_i)=min(EV%lmaxnu,lmaxnu_high_ktau)
-           else
-              EV%lmaxnu_tau(nu_i) =max(min(nint(0.5_dl*EV%q*nu_tau_nonrelativistic(nu_i)*AccuracyBoost),EV%lmaxnu),3) 
-              if (EV%nu_nonrelativistic(nu_i)) EV%lmaxnu_tau(nu_i)=min(EV%lmaxnu_tau(nu_i),4)
-           end if
+            else
+              EV%lmaxnu_tau(nu_i) =max(min(nint(0.5_dl*EV%q*nu_tau_nonrelativistic(nu_i)*lAccuracyBoost),EV%lmaxnu),3) 
+              if (EV%nu_nonrelativistic(nu_i)) EV%lmaxnu_tau(nu_i)=min(EV%lmaxnu_tau(nu_i),nint(4*lAccuracyBoost))
+            end if
         
-           EV%nu_ix(nu_i)=neq+1 
-           if (EV%nu_notmassless(nu_i)) then
-             if (EV%MassiveNuApprox(nu_i)) then
-               neq= neq+4
-             else
-              neq = neq+ nqmax*(EV%lmaxnu_tau(nu_i)+1)
-             endif
-           end if
-           maxeq = maxeq + nqmax*(EV%lmaxnu+1)
+            EV%nu_ix(nu_i)=neq+1 
+            if (EV%MassiveNuApprox(nu_i)) then
+                neq = neq+4
+            else
+                neq = neq+ EV%nq(nu_i)*(EV%lmaxnu_tau(nu_i)+1)
+            endif
+            maxeq = maxeq + nqmax*(EV%lmaxnu+1)
           end do
-
+           
+         else
+          EV%has_nu_relativistic = .false.
          end if
 
          EV%ScalEqsToPropagate = neq
@@ -516,8 +552,9 @@
           type(EvolutionVars) EV, EVOut
           real(dl), intent(in) :: y(EV%nvar)
           real(dl), intent(out) :: yout(EVout%nvar)
-          integer lmax,i
+          integer lmax,i, nq
           integer nnueq,nu_i, ix_off, ix_off2, ind, ind2
+          real(dl) q, pert_scale
           
           yout=0 
           yout(1:basic_num_eqns) = y(1:basic_num_eqns)
@@ -555,28 +592,39 @@
          if (CP%Num_Nu_massive /= 0) then
            
            do nu_i=1,CP%Nu_mass_eigenstates
-           ix_off=EV%nu_ix(nu_i)
-           ix_off2=EVOut%nu_ix(nu_i)
-           if (EV%nu_notmassless(nu_i) .and. EVOut%nu_notmassless(nu_i)) then
-               if (EV%MassiveNuApprox(nu_i) .and. EVout%MassiveNuApprox(nu_i)) then
+            ix_off=EV%nu_ix(nu_i)
+            ix_off2=EVOut%nu_ix(nu_i)
+            if (EV%MassiveNuApprox(nu_i) .and. EVout%MassiveNuApprox(nu_i)) then
                  nnueq=4
                  yout(ix_off2:ix_off2+nnueq-1)=y(ix_off:ix_off+nnueq-1)
-               else if (.not. EV%MassiveNuApprox(nu_i) .and. .not. EVout%MassiveNuApprox(nu_i)) then
+            else if (.not. EV%MassiveNuApprox(nu_i) .and. .not. EVout%MassiveNuApprox(nu_i)) then
                  lmax=min(EV%lmaxnu_tau(nu_i),EVOut%lmaxnu_tau(nu_i))
-                 do i=1,nqmax
+                 nq = min(EV%nq(nu_i), EVOut%nq(nu_i))
+                 do i=1,nq
                      ind= ix_off + (i-1)*(EV%lmaxnu_tau(nu_i)+1)
                      ind2=ix_off2+ (i-1)*(EVOut%lmaxnu_tau(nu_i)+1)
                      yout(ind2:ind2+lmax) = y(ind:ind+lmax) 
                  end do
-               end if
-           else if  (.not. EV%nu_notmassless(nu_i) .and. EVOut%nu_notmassless(nu_i)) then
-              lmax = min(EVOut%lmaxnu_tau(nu_i), EV%lmaxnr)
-              do i=1,nqmax
-                ind2=ix_off2+ (i-1)*(EVOut%lmaxnu_tau(nu_i)+1)
-                yout(ind2:ind2+lmax) = -0.25_dl*dlfdlq(i)*y(EV%r_ix:EV%r_ix+lmax)            
-              end do
-           end if
-          end do
+                 do i=nq+1, EVOut%nq(nu_i)
+                   lmax = min(EVOut%lmaxnu_tau(nu_i), EV%lmaxnr)
+                   ind2=ix_off2+ (i-1)*(EVOut%lmaxnu_tau(nu_i)+1)
+                   yout(ind2:ind2+lmax) = y(EV%r_ix:EV%r_ix+lmax)            
+  
+                  !Add leading correction for the mass
+                   q=nu_q(i)
+                   pert_scale=(nu_masses(nu_i)/q)**2/2
+                   lmax = min(lmax,EV%lmaxnu_pert)
+                   yout(ind2:ind2+lmax) = yout(ind2:ind2+lmax) &
+                                   + y(EV%nu_pert_ix:EV%nu_pert_ix+lmax)*pert_scale           
+                  
+                 end do
+            end if
+           end do
+           
+           if (EVOut%has_nu_relativistic .and. EV%has_nu_relativistic) then   
+            lmax = min(EVOut%lmaxnu_pert, EV%lmaxnu_pert)
+            yout(EVout%nu_pert_ix:EVout%nu_pert_ix+lmax)=  y(EV%nu_pert_ix:EV%nu_pert_ix+lmax)
+          end if
     
          end if         
           
@@ -654,23 +702,36 @@
           !Set the numer of equations in each hierarchy, and get total number of equations for this k
           type(EvolutionVars) EV
           real(dl) scal
-          integer nu_i
+          integer nu_i,q_rel,j
         
          if (CP%Num_Nu_massive == 0) then
             EV%lmaxnu=0
          else 
-             do nu_i = 1, CP%Nu_mass_eigenstates       
-               EV%nu_notmassless(nu_i) = 1/EV%q > nu_tau_notmassless(nu_i)
-               EV%nu_nonrelativistic(nu_i) = .false.
-             end do
+            do nu_i = 1, CP%Nu_mass_eigenstates       
+               !Start with momentum modes for which t_k ~ time at which mode becomes non-relativistic
+               q_rel=0
+               do j=1, nqmax
+                 !two different q's here EV%q ~k
+                if (nu_q(j) > nu_masses(nu_i)*adotrad/EV%q) exit
+                q_rel = q_rel + 1 
+               end do
 
-             EV%NuMethod = CP%MassiveNuMethod
-             if (EV%NuMethod == Nu_Best) EV%NuMethod = Nu_Trunc
+               if (q_rel>= nqmax-2) then
+                EV%nq(nu_i)=nqmax
+               else
+                EV%nq(nu_i)=q_rel
+               end if
+               !q_rel = nint(nu_masses(nu_i)*adotrad/EV%q) !two dffierent q's here EV%q ~k
+               !EV%nq(nu_i)=max(0,min(nqmax0,q_rel)) !number of momentum modes to evolve intitially 
+               EV%nu_nonrelativistic(nu_i) = .false.
+            end do
+
+            EV%NuMethod = CP%MassiveNuMethod
+            if (EV%NuMethod == Nu_Best) EV%NuMethod = Nu_Trunc
             !l_max for massive neutrinos
             if (CP%Transfer%high_precision) then
-             EV%lmaxnu=nint(25*lAccuracyBoost)
+             EV%lmaxnu=nint(25*lAccuracyBoost) 
             else
-!             EV%lmaxnu=max(3,nint(6*lAccuracyBoost))   
              EV%lmaxnu=max(3,nint(10*lAccuracyBoost))   
             endif 
             
@@ -695,11 +756,11 @@
          EV%lmaxgpol = EV%lmaxg  
          if (.not.CP%AccuratePolarization) EV%lmaxgpol=max(nint(4*lAccuracyBoost),3)
      
-         if (EV%q < 0.05) then
+         if (EV%q < 0.05) then  
             !Large scales need fewer equations
             scal  = 1
             if (CP%AccuratePolarization) scal = 4  !But need more to get polarization right
-            EV%lmaxgpol=max(3,nint(min(8,nint(scal* 150* EV%q))*lAccuracyBoost))
+            EV%lmaxgpol=max(3,nint(min(8,nint(scal* 150* EV%q))*lAccuracyBoost)) 
             EV%lmaxnr=max(3,nint(min(7,nint(sqrt(scal)* 150 * EV%q))*lAccuracyBoost)) 
             EV%lmaxg=max(3,nint(min(8,nint(sqrt(scal) *300 * EV%q))*lAccuracyBoost)) 
             if (CP%AccurateReionization) then
@@ -708,7 +769,7 @@
             end if
          end if                  
          if (EV%TransferOnly) then
-            EV%lmaxgpol = min(EV%lmaxgpol,nint(5*lAccuracyBoost))
+            EV%lmaxgpol = min(EV%lmaxgpol,nint(5*lAccuracyBoost)) 
             EV%lmaxg = min(EV%lmaxg,nint(6*lAccuracyBoost))     
          end if
          if (CP%Transfer%high_precision) then
@@ -717,20 +778,23 @@
            else
              EV%lmaxnr=max(nint(30*lAccuracyBoost),3) 
            endif   
-           EV%lmaxg=max(EV%lmaxg,nint(min(8,nint(600 * EV%q))*lAccuracyBoost)) 
+           if (EV%q > 0.04 .and. EV%q < 0.5) then !baryon oscillation scales
+              EV%lmaxg=max(EV%lmaxg,10) 
+           end if   
          end if
 
          if (CP%closed) then         
-          EV%lmaxnu=min(EV%lmaxnu, EV%FirstZerolForBeta)         
-          EV%lmaxnr=min(EV%lmaxnr, EV%FirstZerolForBeta)         
-          EV%lmaxg=min(EV%lmaxg, EV%FirstZerolForBeta)         
-          EV%lmaxgpol=min(EV%lmaxgpol, EV%FirstZerolForBeta)         
+          EV%lmaxnu=min(EV%lmaxnu, EV%FirstZerolForBeta-1)         
+          EV%lmaxnr=min(EV%lmaxnr, EV%FirstZerolForBeta-1)         
+          EV%lmaxg=min(EV%lmaxg, EV%FirstZerolForBeta-1)         
+          EV%lmaxgpol=min(EV%lmaxgpol, EV%FirstZerolForBeta-1)         
          end if
          
          EV%poltruncfac=real(EV%lmaxgpol,dl)/(EV%lmaxgpol-2)
-         EV%MaxlNeeded=max(EV%lmaxg,EV%lmaxnr,EV%lmaxgpol,EV%lmaxnu)
+         EV%MaxlNeeded=max(EV%lmaxg,EV%lmaxnr,EV%lmaxgpol,EV%lmaxnu) 
          if (EV%MaxlNeeded > max_l_evolve) stop 'Need to increase max_l_evolve'
          call SetupScalarArrayIndices(EV,EV%nvar)
+         if (CP%closed) EV%nvar=EV%nvar+1 !so can reference lmax+1 with zero coefficient
          EV%lmaxt=0
          
         else
@@ -750,10 +814,10 @@
            EV%lmaxnrt=0
           end if
           if (CP%closed) then
-            EV%lmaxt=min(EV%FirstZerolForBeta,EV%lmaxt)
-            EV%lmaxpolt=min(EV%FirstZerolForBeta,EV%lmaxpolt)
-            EV%lmaxnrt=min(EV%FirstZerolForBeta,EV%lmaxnrt)
-            EV%lmaxnut=min(EV%FirstZerolForBeta,EV%lmaxnut)            
+            EV%lmaxt=min(EV%FirstZerolForBeta-1,EV%lmaxt)
+            EV%lmaxpolt=min(EV%FirstZerolForBeta-1,EV%lmaxpolt)
+            EV%lmaxnrt=min(EV%FirstZerolForBeta-1,EV%lmaxnrt)
+            EV%lmaxnut=min(EV%FirstZerolForBeta-1,EV%lmaxnut)            
           end if
           EV%MaxlNeededt=max(EV%lmaxpolt,EV%lmaxt, EV%lmaxnrt, EV%lmaxnut)
           if (EV%MaxlNeededt > max_l_evolve) stop 'Need to increase max_l_evolve'
@@ -789,7 +853,7 @@
         integer, intent(in) :: nu_i
 
         real(dl) a,a2,pnu,clxnu,dpnu,pinu,rhonu
-        real(dl) shearnu, qnu
+        real(dl) qnu
         real(dl) y(EV%nvar), yout(EV%nvar)
      
         a=y(1)
@@ -799,31 +863,29 @@
         call SetupScalarArrayIndices(EVout)
         call CopyScalarVariableArray(y,yout, EV, EVout)
         
-           !Get density and pressure as ratio to massles by interpolation from table
-           call Nu_background(a*nu_masses(nu_i),rhonu,pnu)
-           !Integrate over q
+       !Get density and pressure as ratio to massles by interpolation from table
+        call Nu_background(a*nu_masses(nu_i),rhonu,pnu)
 
-           call Nu_Integrate(a*nu_masses(nu_i),clxnu,qnu,dpnu,shearnu, &
-                 y(EV%nu_ix(nu_i)),y(EV%nu_ix(nu_i)+1),y(EV%nu_ix(nu_i)+2), EV%lmaxnu_tau(nu_i)+1)
-            !clxnu_here  = rhonu*clxnu, qnu_here = qnu*rhonu
-           dpnu=dpnu/rhonu
-           qnu=qnu/rhonu
-           clxnu = clxnu/rhonu
-           pinu=1.5_dl*shearnu/rhonu                     
- 
-           yout(EVout%nu_ix(nu_i))=clxnu
-           yout(EVout%nu_ix(nu_i)+1)=dpnu
-           yout(EVout%nu_ix(nu_i)+2)=qnu
-           yout(EVout%nu_ix(nu_i)+3)=pinu
+       !Integrate over q
+        call Nu_Integrate_L012(EV, y, a, nu_i, clxnu,qnu,dpnu,pinu)
+        !clxnu_here  = rhonu*clxnu, qnu_here = qnu*rhonu
+        dpnu=dpnu/rhonu
+        qnu=qnu/rhonu
+        clxnu = clxnu/rhonu
+        pinu=pinu/rhonu                     
 
-           call Nu_Intvsq(a*nu_masses(nu_i),EVout%G11(nu_i),EVout%G30(nu_i), &
-                         y(EV%nu_ix(nu_i)+1),y(EV%nu_ix(nu_i)+3), EV%lmaxnu_tau(nu_i))
+        yout(EVout%nu_ix(nu_i))=clxnu
+        yout(EVout%nu_ix(nu_i)+1)=dpnu
+        yout(EVout%nu_ix(nu_i)+2)=qnu
+        yout(EVout%nu_ix(nu_i)+3)=pinu
+
+        call Nu_Intvsq(EV,y, a, nu_i, EVout%G11(nu_i),EVout%G30(nu_i))
 !Analytic solution for higher moments, proportional to a^{-3}
-           EVout%G11(nu_i)=EVout%G11(nu_i)*a2*a/rhonu  
-           EVout%G30(nu_i)=EVout%G30(nu_i)*a2*a/rhonu   
+        EVout%G11(nu_i)=EVout%G11(nu_i)*a2*a/rhonu  
+        EVout%G30(nu_i)=EVout%G30(nu_i)*a2*a/rhonu   
 
-         EV=EVout
-         y=yout
+        EV=EVout
+        y=yout
          
         end subroutine SwitchToMassiveNuApprox
 
@@ -840,8 +902,8 @@
           !dgpi_diff = a^2 kappa (3*p -rho)*pi
 
         integer nu_i
-        real(dl) pinudot,grhormass_t, rhonu, pnu, shearnu, rhonudot
-        real(dl) shearnudot, adotoa, grhonu_t,gpnu_t
+        real(dl) pinudot,grhormass_t, rhonu, pnu,  rhonudot
+        real(dl) adotoa, grhonu_t,gpnu_t
         real(dl) clxnu, qnu, pinu, dpnu
         real(dl) dtauda
 
@@ -852,7 +914,6 @@
            !Get density and pressure as ratio to massless by interpolation from table
            call Nu_background(a*nu_masses(nu_i),rhonu,pnu)
 
-           if (EV%nu_notmassless(nu_i)) then            
            if (EV%MassiveNuApprox(nu_i)) then    
               clxnu=y(EV%nu_ix(nu_i))
               !dpnu = y(EV%iq0+1+off_ix)
@@ -862,26 +923,18 @@
         
            else
             !Integrate over q
-
-            call Nu_Integrate(a*nu_masses(nu_i),clxnu,qnu,dpnu,shearnu, &
-              y(EV%nu_ix(nu_i)),y(EV%nu_ix(nu_i)+1),y(EV%nu_ix(nu_i)+2),EV%lmaxnu_tau(nu_i)+1)
+            call Nu_Integrate_L012(EV, y, a, nu_i, clxnu,qnu,dpnu,pinu)
             !clxnu_here  = rhonu*clxnu, qnu_here = qnu*rhonu
             !dpnu=dpnu/rhonu
             qnu=qnu/rhonu
             clxnu = clxnu/rhonu
-            pinu=1.5_dl*shearnu/rhonu       
+            pinu=pinu/rhonu       
             adotoa = 1/(a*dtauda(a))
-            call Nu_derivs(a*nu_masses(nu_i),adotoa,rhonu,rhonudot,shearnudot, &
-                    y(EV%nu_ix(nu_i)+2),yprime(EV%nu_ix(nu_i)+2),EV%lmaxnu_tau(nu_i)+1)
-            pinudot=1.5_dl*shearnudot/rhonu - rhonudot/rhonu*pinu    
+            rhonudot = Nu_drho(a*nu_masses(nu_i),adotoa,rhonu)
+            
+            call Nu_pinudot(EV,y, yprime, a,adotoa, nu_i,pinudot)
+            pinudot=pinudot/rhonu - rhonudot/rhonu*pinu    
           endif
-          
-          else
-           clxnu = y(EV%r_ix)
-           qnu = y(EV%r_ix+1)
-           pinu = y(EV%r_ix+2)
-           pinudot = yprime(EV%r_ix+2)
-          end if
 
           grhonu_t=grhormass_t*rhonu
           gpnu_t=grhormass_t*pnu
@@ -889,17 +942,164 @@
           grho = grho  + grhonu_t
           gpres= gpres + gpnu_t
 
-          dgrho= dgrho + grhonu_t*clxnu
-          dgq  = dgq   + grhonu_t*qnu
-          dgpi = dgpi  + grhonu_t*pinu
-          gdpi_diff = gdpi_diff + pinu*(3*gpnu_t-grhonu_t)
-          pidot_sum = pidot_sum + grhonu_t*pinudot
+          dgrho= dgrho + grhonu_t*clxnu  
+          dgq  = dgq   + grhonu_t*qnu 
+          dgpi = dgpi  + grhonu_t*pinu 
+          gdpi_diff = gdpi_diff + pinu*(3*gpnu_t-grhonu_t) 
+          pidot_sum = pidot_sum + grhonu_t*pinudot 
 
         end do
 
      end subroutine MassiveNuVarsOut
 
+       subroutine Nu_Integrate_L012(EV,y,a,nu_i,drhonu,fnu,dpnu,pinu)
+        type(EvolutionVars) EV
+!  Compute the perturbations of density and energy flux
+!  of one eigenstate of massive neutrinos, in units of the mean
+!  density of one eigenstate of massless neutrinos, by integrating over
+!  momentum.
+        integer, intent(in) :: nu_i
+        real(dl), intent(in) :: a, y(EV%nvar)
+        real(dl), intent(OUT) ::  drhonu,fnu
+        real(dl), optional, intent(OUT) :: dpnu,pinu
+        real(dl) tmp, am, aq,v, pert_scale
+        integer iq, ind
+   
+!  q is the comoving momentum in units of k_B*T_nu0/c.
+
+        drhonu=0
+        fnu=0
+        if (present(dpnu)) then
+         dpnu=0
+         pinu=0
+        end if
+        am=a*nu_masses(nu_i)
+        ind=EV%nu_ix(nu_i)
+        do iq=1,EV%nq(nu_i)
+            aq=am/nu_q(iq)
+            v=1._dl/sqrt(1._dl+aq*aq)          
+            drhonu=drhonu+ nu_int_kernel(iq)* y(ind)/v           
+            fnu=fnu+nu_int_kernel(iq)* y(ind+1)
+            if (present(dpnu)) then
+             dpnu=dpnu+  nu_int_kernel(iq)* y(ind)*v 
+             pinu=pinu+ nu_int_kernel(iq)*y(ind+2)*v
+            end if  
+            ind=ind+EV%lmaxnu_tau(nu_i)+1           
+        end do
+        ind = EV%nu_pert_ix
+        do iq=EV%nq(nu_i)+1,nqmax
+         !Get the rest from perturbatively relativistic expansion
+            aq=am/nu_q(iq)
+            v=1._dl/sqrt(1._dl+aq*aq)          
+            pert_scale=(nu_masses(nu_i)/nu_q(iq))**2/2
+            tmp = nu_int_kernel(iq)*(y(EV%r_ix)  + pert_scale*y(ind)  )
+            drhonu=drhonu+ tmp/v           
+            fnu=fnu+nu_int_kernel(iq)*(y(EV%r_ix+1)+ pert_scale*y(ind+1))
+            if (present(dpnu)) then
+              dpnu=dpnu+ tmp*v
+              pinu = pinu+ nu_int_kernel(iq)*(y(EV%r_ix+2)+ pert_scale*y(ind+2))*v
+            end if
+        end do
+
+        if (present(dpnu)) then
+         dpnu = dpnu/3
+        end if
+     
+        end subroutine Nu_Integrate_L012
+
+       subroutine Nu_pinudot(EV,y, ydot, a,adotoa, nu_i,pinudot)
+        type(EvolutionVars) EV
+        integer, intent(in) :: nu_i
+        real(dl), intent(in) :: a,adotoa, y(EV%nvar), ydot(EV%nvar)
            
+!  Compute the time derivative of the mean density in massive neutrinos
+!  and the shear perturbation.
+        real(dl) pinudot
+        real(dl) aq,q,v,aqdot,vdot
+        real(dl) psi2,psi2dot
+        real(dl) am, pert_scale
+        integer iq,ind
+
+!  q is the comoving momentum in units of k_B*T_nu0/c.
+        pinudot=0._dl
+        ind=EV%nu_ix(nu_i)+2
+        am=a*nu_masses(nu_i)
+        do iq=1,EV%nq(nu_i)
+            q=nu_q(iq)
+            aq=am/q
+            aqdot=aq*adotoa
+            v=1._dl/sqrt(1._dl+aq*aq)
+            vdot=-aq*aqdot/(1._dl+aq*aq)**1.5d0
+            pinudot=pinudot+nu_int_kernel(iq)*(ydot(ind)*v+y(ind)*vdot)
+            ind=ind+EV%lmaxnu_tau(nu_i)+1           
+        end do
+        ind = EV%nu_pert_ix+2
+        do iq=EV%nq(nu_i)+1,nqmax
+            q=nu_q(iq)
+            aq=am/q
+            aqdot=aq*adotoa
+            pert_scale=(nu_masses(nu_i)/q)**2/2
+            v=1._dl/sqrt(1._dl+aq*aq)
+            vdot=-aq*aqdot/(1._dl+aq*aq)**1.5d0
+            psi2dot=ydot(EV%r_ix+2)  + pert_scale*ydot(ind)
+            psi2=y(EV%r_ix+2)  + pert_scale*y(ind)
+            pinudot=pinudot+nu_int_kernel(iq)*(psi2dot*v+psi2*vdot)
+        end do
+
+       end subroutine Nu_pinudot
+
+!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+        function Nu_pi(EV,y, a, nu_i) result(pinu)
+        type(EvolutionVars) EV
+        integer, intent(in) :: nu_i
+        real(dl), intent(in) :: a, y(EV%nvar)
+        real(dl) :: am      
+        real(dl) pinu,q,aq,v
+        integer iq, ind
+ 
+        pinu=0
+        ind=EV%nu_ix(nu_i)+2
+        if (EV%nq(nu_i)/=nqmax) stop 'Nu_Intvsq nq/=nqmax0'
+        do iq=1, EV%nq(nu_i)
+            q=nu_q(iq)
+            aq=am/q
+            v=1._dl/sqrt(1._dl+aq*aq)          
+            pinu=pinu+nu_int_kernel(iq)*y(ind)*v
+            ind =ind+EV%lmaxnut+1  
+        end do
+
+        end function Nu_pi
+
+!cccccccccccccccccccccccccccccccccccccccccccccc
+      subroutine Nu_Intvsq(EV,y, a, nu_i, G11,G30)
+        type(EvolutionVars) EV
+        integer, intent(in) :: nu_i
+        real(dl), intent(in) :: a, y(EV%nvar)
+        real(dl), intent(OUT) ::  G11,G30
+
+!  Compute the third order variables (in velocity dispersion) 
+!by integrating over momentum.
+        real(dl) aq,q,v, am
+        integer iq, ind
+
+!  q is the comoving momentum in units of k_B*T_nu0/c.
+        am=a*nu_masses(nu_i)
+        ind=EV%nu_ix(nu_i)
+        G11=0._dl
+        G30=0._dl
+        if (EV%nq(nu_i)/=nqmax) stop 'Nu_Intvsq nq/=nqmax0'
+        do iq=1, EV%nq(nu_i)
+            q=nu_q(iq)
+            aq=am/q
+            v=1._dl/sqrt(1._dl+aq*aq)          
+            G11=G11+nu_int_kernel(iq)*y(ind+1)*v**2
+            G30=G30+nu_int_kernel(iq)*y(ind+3)*v**2
+            ind = ind+EV%lmaxnu_tau(nu_i)+1     
+        end do
+           
+        end subroutine Nu_Intvsq
+
+
      subroutine MassiveNuVars(EV,y,a,grho,gpres,dgrho,dgq, wnu_arr)
         implicit none
         type(EvolutionVars) EV
@@ -920,28 +1120,20 @@
           !Get density and pressure as ratio to massless by interpolation from table
           call Nu_background(a*nu_masses(nu_i),rhonu,pnu)
  
-          if (EV%nu_notmassless(nu_i)) then 
-           if (EV%MassiveNuApprox(nu_i)) then    
+          if (EV%MassiveNuApprox(nu_i)) then    
               clxnu=y(EV%nu_ix(nu_i))
               qnu=y(EV%nu_ix(nu_i)+2)
            else
             !Integrate over q
-            call Nu_Integrate01(a*nu_masses(nu_i),clxnu,qnu, &
-              y(EV%nu_ix(nu_i)),y(EV%nu_ix(nu_i)+1),EV%lmaxnu_tau(nu_i)+1)
-            !clxnu_here  = rhonu*clxnu, qnu_here = qnu*rhonu
-            qnu=qnu/rhonu
-            clxnu = clxnu/rhonu
+             call Nu_Integrate_L012(EV, y, a, nu_i, clxnu,qnu)
+             !clxnu_here  = rhonu*clxnu, qnu_here = qnu*rhonu
+             qnu=qnu/rhonu
+             clxnu = clxnu/rhonu
            endif
-
-          else
-           clxnu = y(EV%r_ix)
-           qnu = y(EV%r_ix+1)
-          end if
  
           grhonu_t=grhormass_t*rhonu
           gpnu_t=grhormass_t*pnu
-          
-          
+                    
           grho = grho  + grhonu_t
           gpres= gpres + gpnu_t
           dgrho= dgrho + grhonu_t*clxnu
@@ -1343,7 +1535,7 @@
              Rc,Rb,Rv,Rg,grhonu,chi
         real(dl) k,k2 
         real(dl) a,a2, iqg, rhomass,a_massive, ep
-        integer l,i, nu_i, j
+        integer l,i, nu_i, j, ind
         integer, parameter :: i_clxg=1,i_clxr=2,i_clxc=3, i_clxb=4, &
                 i_qg=5,i_qr=6,i_vb=7,i_pir=8, i_eta=9, i_aj3r=10,i_clxq=11,i_vq=12
         integer, parameter :: i_max = i_vq
@@ -1352,7 +1544,7 @@
         if (CP%flat) then
          EV%k_buf=EV%q
          EV%k2_buf=EV%q2     
-         EV%Kf(1:EV%MaxlNeeded)=1._dl !initialize for CP%flat case 
+         EV%Kf(1:EV%MaxlNeeded)=1._dl
         else
          EV%k2_buf=EV%q2-CP%curv
          EV%k_buf=sqrt(EV%k2_buf)
@@ -1533,15 +1725,13 @@
           else if (a_massive > 17.d0/nu_masses(nu_i)*AccuracyBoost) then
             EV%MassiveNuApproxTime(nu_i)=max(EV%MassiveNuApproxTime(nu_i),DeltaTime(0._dl,a_massive, 0.01_dl))  
           end if
-          
-          if (EV%nu_notmassless(nu_i)) then              
-          do  i=1,nqmax
-           y(EV%nu_ix(nu_i)+nqmax*(i-1))=-0.25_dl*dlfdlq(i)*InitVec(i_clxr)
-           y(EV%nu_ix(nu_i)+nqmax*(i-1)+1)=-0.25_dl*dlfdlq(i)*InitVec(i_qr)
-           y(EV%nu_ix(nu_i)+nqmax*(i-1)+2)=-0.25_dl*dlfdlq(i)*InitVec(i_pir)
-           if (EV%lmaxnu_tau(nu_i)>2) y(EV%nu_ix(nu_i)+nqmax*(i-1)+3)=-0.25_dl*dlfdlq(i)*InitVec(i_aj3r)           
+          ind = EV%nu_ix(nu_i)    
+          do  i=1,EV%nq(nu_i)
+           y(ind:ind+2)=y(EV%r_ix:EV%r_ix+2) 
+           if (EV%lmaxnu_tau(nu_i)>2) y(ind+3)=InitVec(i_aj3r)           
+           ind = ind + EV%lmaxnu_tau(nu_i)+1
           end do
-         end if
+
         end do       
 
         end subroutine initial
@@ -1782,10 +1972,11 @@
         real(dl) qgdot,qrdot,pigdot,pirdot,vbdot,dgrho,adotoa
         real(dl) a,a2,z,clxc,clxb,vb,clxg,qg,pig,clxr,qr,pir
         real(dl) clxq, vq,  E2, dopacity
-        integer l,i,ind, off_ix, ix
+        integer l,i,ind, ind2, off_ix, ix
         real(dl) dgs,sigmadot,dz !, ddz
         !non-flat vars
         real(dl) cothxor !1/tau in flat case
+        
        
         k=EV%k_buf
         k2=EV%k2_buf     
@@ -2001,28 +2192,30 @@
             pigdot=EV%denlk(2)*qg-EV%denlk2(2)*ay(ix+1)-opacity*(pig - polter) &
                    +8._dl/15._dl*k*sigma
             ayprime(ix)=pigdot
-            do  l=3,EV%lmaxg-1
-               ix=ix+1
-               ayprime(ix)=(EV%denlk(l)*ay(ix-1)-EV%denlk2(l)*ay(ix+1))-opacity*ay(ix)
-            end do
-            ix=ix+1
+            if (EV%lmaxg>2) then !closed case
+              do  l=3,EV%lmaxg-1
+                ix=ix+1
+                ayprime(ix)=(EV%denlk(l)*ay(ix-1)-EV%denlk2(l)*ay(ix+1))-opacity*ay(ix)
+              end do
+             ix=ix+1
           !  Truncate the photon moment expansion
-            ayprime(ix)=k*ay(ix-1)-(EV%lmaxg+1)*cothxor*ay(ix) -opacity*ay(ix)
-
+             ayprime(ix)=k*ay(ix-1)-(EV%lmaxg+1)*cothxor*ay(ix) -opacity*ay(ix)
+            endif 
 !  Polarization
             !l=2 
             ix=EV%polind+2
             ayprime(ix) = -opacity*(ay(ix) - polter) - k/3._dl*ay(ix+1)
             !and the rest
-            do l=3,EV%lmaxgpol-1
+            if (EV%lmaxgpol>2) then
+              do l=3,EV%lmaxgpol-1
                ix=ix+1
                ayprime(ix)=-opacity*ay(ix) + (EV%denlk(l)*ay(ix-1)-EV%polfack(l)*ay(ix+1))
-            end do  
-            ix=ix+1
-            !truncate
-            ayprime(ix)=-opacity*ay(ix) + &
-               k*EV%poltruncfac*ay(ix-1)-(EV%lmaxgpol+3)*cothxor*ay(ix)
-      
+              end do  
+              ix=ix+1
+              !truncate
+              ayprime(ix)=-opacity*ay(ix) + &
+                k*EV%poltruncfac*ay(ix-1)-(EV%lmaxgpol+3)*cothxor*ay(ix)
+           endif
          end if
         end if
 
@@ -2058,13 +2251,15 @@
                 ix=EV%r_ix+2
                 pirdot=EV%denlk(2)*qr- EV%denlk2(2)*ay(ix+1)+8._dl/15._dl*k*sigma
                 ayprime(ix)=pirdot
-                do l=3,EV%lmaxnr-1
+                if (EV%lmaxnr>2) then
+                 do l=3,EV%lmaxnr-1
                    ix=ix+1
                    ayprime(ix)=(EV%denlk(l)*ay(ix-1) - EV%denlk2(l)*ay(ix+1)) 
-                end do   
-        !  Truncate the neutrino expansion
-                ix=ix+1
-                ayprime(ix)=k*ay(ix-1)- (EV%lmaxnr+1)*cothxor*ay(ix)
+                 end do   
+            !  Truncate the neutrino expansion
+                 ix=ix+1
+                 ayprime(ix)=k*ay(ix-1)- (EV%lmaxnr+1)*cothxor*ay(ix)
+                end if
          end if     
         end if ! no_nu_multpoles
 
@@ -2072,7 +2267,6 @@
          if (CP%Num_Nu_massive == 0) return
           
           do nu_i = 1, CP%Nu_mass_eigenstates
-          if (EV%nu_notmassless(nu_i)) then
           if (EV%MassiveNuApprox(nu_i)) then
              !Now EV%iq0 = clx, EV%iq0+1 = clxp, EV%iq0+2 = G_1, EV%iq0+3=G_2=pinu
              !see astro-ph/0203507
@@ -2088,12 +2282,12 @@
           else
    
               ind=EV%nu_ix(nu_i)
-              do i=1,nqmax
-               q=(i-0.5_dl)*dq
+              do i=1,EV%nq(nu_i)
+               q=nu_q(i)
                aq=a*nu_masses(nu_i)/q
                v=1._dl/sqrt(1._dl+aq*aq)
 
-               ayprime(ind)=-k*v*ay(ind+1)+z*k*dlfdlq(i)/3
+               ayprime(ind)=-k*(4._dl/3._dl*z + v*ay(ind+1))
                ind=ind+1
                ayprime(ind)=v*(EV%denlk(1)*ay(ind-1)-EV%denlk2(1)*ay(ind+1))
                ind=ind+1
@@ -2101,7 +2295,7 @@
                  ayprime(ind)=-ayprime(ind-2) -3*cothxor*ay(ind)
                else
                  ayprime(ind)=v*(EV%denlk(2)*ay(ind-1)-EV%denlk2(2)*ay(ind+1)) &
-                      -k*2._dl/15._dl*sigma*dlfdlq(i)
+                      +k*8._dl/15._dl*sigma
                  do l=3,EV%lmaxnu_tau(nu_i)-1
                    ind=ind+1
                    ayprime(ind)=v*(EV%denlk(l)*ay(ind-1)-EV%denlk2(l)*ay(ind+1))
@@ -2114,9 +2308,23 @@
               end do
  
           end if
-          end if 
           end do
 
+          if (EV%has_nu_relativistic) then
+           ind=EV%nu_pert_ix
+           ayprime(ind)=+k*a2*qr -k*ay(ind+1)  
+           ind2= EV%r_ix
+           do l=1,EV%lmaxnu_pert-1
+            ind=ind+1
+            ind2=ind2+1
+            ayprime(ind)= -a2*(EV%denlk(l)*ay(ind2-1)-EV%denlk2(l)*ay(ind2+1)) &
+                          +   (EV%denlk(l)*ay(ind-1)-EV%denlk2(l)*ay(ind+1))
+           end do
+            ind=ind+1
+            ind2=ind2+1
+            ayprime(ind)= k*(ay(ind-1) -a2*ay(ind2-1)) -(EV%lmaxnu_pert+1)*cothxor*ay(ind)
+          end if
+          
         end subroutine derivs
 
      
@@ -2302,15 +2510,15 @@
         use MassiveNu
         implicit none      
         type(EvolutionVars) EV
-        integer n,l,i,ind, nu_i, off_ix
+        integer n,l,i,ind, nu_i
         real(dl), target ::  ayt(n),aytprime(n)
         real(dl) tau,grho,rhopi,cs2,opacity,pirdt
         real(dl), dimension(:),pointer :: neut,neutprime,E,B,Eprime,Bprime
         real(dl) q,aq,v
         real(dl)  grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,polter
-        real(dl) Hchi,shear, pig
+        real(dl) Hchi,pinu, pig
         real(dl) k,k2,a,a2
-        real(dl) pir, adotoa, rhonu, shearnu
+        real(dl) pir, adotoa, rhonu, shear
 
         real(dl) cothxor
       
@@ -2453,15 +2661,15 @@
             else
               ind=EV%nu_ix(nu_i)+2
               
-              call Nu_Shear(a*nu_masses(nu_i),shearnu,ayt(ind), EV%lmaxnut-1)                 
-              rhopi=rhopi+ grhormass(nu_i)/a2*1.5_dl*shearnu  
+              pinu= Nu_pi(EV, ayt(ind),a, nu_i)                 
+              rhopi=rhopi+ grhormass(nu_i)/a2*pinu   
          
               do i=1,nqmax
-                q=(i-0.5_dl)*dq
+                q=nu_q(i)
                 aq=a*nu_masses(nu_i)/q
                 v=1._dl/sqrt(1._dl+aq*aq)
 
-                aytprime(ind)=-v*EV%denlkt(2,2)*ayt(ind+1)- 2._dl/15._dl*k*shear*dlfdlq(i)
+                aytprime(ind)=-v*EV%denlkt(2,2)*ayt(ind+1)+8._dl/15._dl*k*shear
                 do l=3,EV%lmaxnut-1
                  ind=ind+1
                  aytprime(ind)=v*(EV%denlkt(1,L)*ayt(ind-1)-EV%denlkt(2,L)*ayt(ind+1))     

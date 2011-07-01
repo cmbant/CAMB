@@ -112,6 +112,8 @@
       integer maximum_l !Max value of l to compute
       real(dl) :: maximum_qeta = 3000._dl
 
+      real(dl) :: fixq = 0._dl !Debug output of one q
+      
       Type(ClTransferData), pointer :: ThisCT
                     
       public cmbmain, ClTransferToCl 
@@ -506,8 +508,10 @@ contains
 
             EV%q=Evolve_q%points(q_ix) 
  
-!!!!!
-!EV%q=0.1
+!!!!!!
+if (fixq/=0._dl) then
+EV%q=fixq
+end if
             EV%q2=EV%q**2
 
             EV%q_ix = q_ix
@@ -710,11 +714,11 @@ contains
       integer j,ind,itf
       real(dl) c(24),w(EV%nvar,9), y(EV%nvar), sources(SourceNum)
 
-
-!Note to get right number of eqns also have to set this in DoSourcek
-!!!
-!EV%q=0.1
-!EV%q2=EV%q**2
+        if (fixq/=0._dl) then
+            !evolution output
+            EV%q=fixq
+            EV%q2=EV%q**2
+        endif
 
          w=0
          y=0
@@ -725,21 +729,18 @@ contains
          ind=1
 
 !!Example code for plotting out variable evolution
-!if (.false.) then
-!        tol1=tol/exp(AccuracyBoost-1)
-!        call CreateTxtFile('test.txt',1)
-!      
-!       do j=1,20000      
-!         tauend = taustart * exp(j/20000._dl*log(CP%tau0/taustart))
-!
-!          call GaugeInterface_EvolveScal(EV,tau,y,tauend,tol1,ind,c,w)
-!           write (1,'(6E15.5)') tauend, y(EV%r_ix:EV%r_ix+2)
-!                        
-!          end do
-!          close(1)
-!     stop
-!end if
-
+       if (fixq/=0._dl) then
+        tol1=tol/exp(AccuracyBoost-1)
+    !   call CreateTxtFile('evolve.txt',1)
+    
+         do j=1,1000      
+          tauend = taustart +(j-1)*CP%tau0/1000
+          call GaugeInterface_EvolveScal(EV,tau,y,tauend,tol1,ind,c,w)
+          write (1,'(2E15.5)') tau, y(EV%g_ix), y(EV%r_ix)
+         end do
+         close(1)
+         stop
+      end if
 
 !     Begin timestep loop.
 
@@ -1148,7 +1149,8 @@ contains
                   end if
 
                   if (CP%WantScalars) then
-                     if ((DebugEvolution .or. CP%Dolensing .or. IV%q*TimeSteps%points(i) < max_etak_scalar) .and. xf > 1.e-8_dl) then
+                     if ((DebugEvolution .or. CP%Dolensing .or. IV%q*TimeSteps%points(i) < max_etak_scalar) &
+                          .and. xf > 1.e-8_dl) then
                         step=i
                         IV%Source_q(i,1:SourceNum)=a0*Src(klo,1:SourceNum,i)+ &
                          b0*Src(khi,1:SourceNum,i) + (a03*ddSrc(klo,1:SourceNum,i) &
