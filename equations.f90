@@ -703,7 +703,7 @@
           type(EvolutionVars) EV
           real(dl) scal
           integer nu_i,q_rel,j
-        
+
          if (CP%Num_Nu_massive == 0) then
             EV%lmaxnu=0
          else 
@@ -782,7 +782,7 @@
               EV%lmaxg=max(EV%lmaxg,10) 
            end if   
          end if
-
+      
          if (CP%closed) then         
           EV%lmaxnu=min(EV%lmaxnu, EV%FirstZerolForBeta-1)         
           EV%lmaxnr=min(EV%lmaxnr, EV%FirstZerolForBeta-1)         
@@ -842,7 +842,7 @@
         else
           EV%nvarv=0
         end if       
-
+        
         end subroutine GetNumEqns
 
 !cccccccccccccccccccccccccccccccccc
@@ -1719,7 +1719,7 @@
         do nu_i = 1, CP%Nu_mass_eigenstates       
           
           EV%MassiveNuApproxTime(nu_i) = Nu_tau_massive(nu_i)
-          a_massive =  20000*k/nu_masses(nu_i)*AccuracyBoost*lAccuracyBoost 
+          a_massive =  20000*k/nu_masses(nu_i)*AccuracyBoost*lAccuracyBoost  
           if (a_massive >=0.99) then
             EV%MassiveNuApproxTime(nu_i)=CP%tau0+1
           else if (a_massive > 17.d0/nu_masses(nu_i)*AccuracyBoost) then

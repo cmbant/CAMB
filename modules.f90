@@ -38,7 +38,7 @@
         
         integer :: FeedbackLevel = 0 !if >0 print out useful information about the model
 
-        logical, parameter :: DebugMsgs=.true. !Set to true to view progress and timing
+        logical, parameter :: DebugMsgs=.false. !Set to true to view progress and timing
 
         logical, parameter :: DebugEvolution = .false. !Set to true to do all the evolution for all k
  
@@ -1244,13 +1244,13 @@
           
         else if (nqmax==4) then
           !This seems to be very accurate (limited by other numerics)
-           nu_q(1:4) = (/0.7, 2.62814, 5.90428, 12/)
+           nu_q(1:4) = (/0.7, 2.62814, 5.90428, 12.0/)
            nu_int_kernel(1:4) = (/0.0200251, 1.84539, 3.52736, 0.289427/)
       
         else if (nqmax==5) then
         !exact for n=-4,-2..3 
         !This seems to be very accurate (limited by other numerics)
-         nu_q(1:5) = (/0.583165, 2, 4, 7.26582, 13/)  
+         nu_q(1:5) = (/0.583165, 2.0, 4.0, 7.26582, 13.0/)  
          nu_int_kernel(1:5) = (/0.0081201, 0.689407, 2.8063, 2.05156, 0.126817/) 
   
         else

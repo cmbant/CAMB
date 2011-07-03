@@ -112,11 +112,12 @@ where all quantities are in the synchronous gauge and evaluated at the requested
 
 <B>July 2011</B><BR>
 <UL>
-<LI>Added <b>high_accuracy_default</b> parameter, to give target accuracy of 0.1% for 500&lt;L&lt;2000 rather than default of 0.3%. This is much faster than increasing the accuracy boost parameters. 
-<LI>Added improved high k&tau; approximations from <A HREF="http://arxiv.org/abs/1104.2933">arXiv:1104.2933</A>. 
+<LI>Added <b>high_accuracy_default</b> parameter, to give target accuracy of 0.1% for 500&lt;L&lt;2000 rather than default of 0.3%. This is much faster than increasing the accuracy boost parameters.
+<LI>Added improved high k&tau; approximations from <A HREF="http://arxiv.org/abs/1104.2933">arXiv:1104.2933</A>.
 <LI>Optimized very accurate massive neutrino evolution and perturbatively relativistic expansion (much faster, see the <A HREF="http://cosmologist.info/notes/CAMB.pdf">notes</A>)
+<LI>Fractional numbers of neutrinos now used to increase neutrino temperature equally for all neutrinos, giving consistency for number densities of massive neutrinos
 <LI>
-Merged flat and non-flat derivative routines in equations.f90, time evolution restructuring and some higher-order tight coupling terms from <A HREF="http://arxiv.org/abs/1012.0569">arXiv:1012.0569</A>. 
+Merged flat and non-flat derivative routines in equations.f90, time evolution restructuring and some higher-order tight coupling terms from <A HREF="http://arxiv.org/abs/1012.0569">arXiv:1012.0569</A>.
 <LI>Various tweaks to fixed internal accuracy parameters for consistency with <b>high_accuracy_default</b> (very small decrease in speed)
 <LI>Added apodization in lensing.f90 so that slow full integration is now only used for lmax>=5000 rather than lmax>=3000 (or if AccurateBB is set).
 <LI>Added quick calculation of the high-L tails of the lensing convolution by rescaling a template (speeds up high-accurcy lensedCl calculation with minimal loss of accuracy).
@@ -367,7 +368,7 @@ errors at around the 2% level.
 
 <A NAME="COMPARE">
 <H3>Comparison with CLASS</H3>
- The <A href="http://class-code.net">CLASS</A> CMB code is written independently of CAMB and CMBFAST and is in pure C (not C++, despite the name). The basic equations and alogorithm are substantially the same as CMBFAST in both cases, with CLASS having a C implementation of CAMB's lensed power spectrum method, and CAMB implementing in F90 some of the new very-sub-horizon approximations introduced in CLASS (which make little difference at WMAP precision, but significantly increase speed for small-scales and high accuracy). Currently CLASS does not do non-flat models or calculate the bispectrum, CAMB does not do warm darm matter and is less optimized for massive neutrinos. For standard models at CAMB's default accuracy settings speeds should be similar depending on compilers used, with CAMB's <b>high_accuracy_default</b> option being similar to CLASS's <b>cl_permille.pre</b>.
+ The <A href="http://class-code.net">CLASS</A> CMB code is written independently of CAMB and CMBFAST and is in pure C (not C++, despite the name). The basic equations and alogorithm are substantially the same as CMBFAST in both cases, with CLASS having a C implementation of CAMB's lensed power spectrum method, and CAMB implementing in F90 some of the new very-sub-horizon approximations introduced in CLASS (which make little difference at WMAP precision, but significantly increase speed for small-scales and high accuracy). Currently CLASS does not do non-flat models or calculate the bispectrum, CAMB does not do warm darm matter. For standard models at CAMB's default accuracy settings speeds should be similar depending on compilers used, with CAMB's <b>high_accuracy_default</b> option being similar to CLASS's <b>cl_permille.pre</b>.
 
 <H3>Comparison with CMBFAST</H3>
 This code was originally developed from CMBFAST 2.4.1 to support closed models

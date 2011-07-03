@@ -361,7 +361,7 @@ contains
         !Optimized spacing
         !Large log spacing on superhorizon scales
         !Linear spacing for horizon scales and first few baryon osciallations
-        !Log spacing for last few osciallations
+        !Log spacing for last few oscillations
         !large log spacing for small scales
 
            boost = AccuracyBoost 
@@ -375,9 +375,11 @@ contains
 
            q_switch_osc = min(CP%Transfer%kmax,30/taurst)
            d_osc= 200*boost
-
+           if (HighAccuracyDefault) d_osc = d_osc*1.8
+    
            q_switch_highk = min(CP%Transfer%kmax,60/taurst)
            dlog_osc = 17*boost
+           if (HighAccuracyDefault) q_switch_highk = min(CP%Transfer%kmax,90/taurst)
 
            !Then up to kmax
            dlog_highk = 3*boost
