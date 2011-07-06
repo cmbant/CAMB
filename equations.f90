@@ -156,8 +156,7 @@
     !Massive neutrino scheme being used at the moment        
             integer NuMethod
 
-    !Tru when using tight-coupling approximation (required for stability at early times)
-
+    !True when using tight-coupling approximation (required for stability at early times)
             logical TightCoupling, TensTightCoupling
             real(dl) TightSwitchoffTime
   
@@ -273,7 +272,7 @@
           if (.not. EV%no_nu_multpoles) & !!.and. .not. EV%has_nu_relativistic .and. tau_switch_nu_massless ==noSwitch)  &
                tau_switch_no_nu_multpoles=max(15/EV%k_buf*AccuracyBoost,min(taurend,matter_verydom_tau)) 
           
-          if (.not. EV%no_phot_multpoles .and. (.not.CP%WantCls .or. EV%k_buf>0.02*AccuracyBoost)) &
+          if (.not. EV%no_phot_multpoles .and. (.not.CP%WantCls .or. EV%k_buf>0.03*AccuracyBoost)) &
                tau_switch_no_phot_multpoles =max(15/EV%k_buf,taurend)*AccuracyBoost 
          end if          
          
@@ -522,11 +521,16 @@
            do nu_i=1, CP%Nu_Mass_eigenstates
            
             if (EV%high_ktau_neutrino_approx) then
-              EV%lmaxnu_tau(nu_i)=min(EV%lmaxnu,lmaxnu_high_ktau)
+              if (HighAccuracyDefault .and. CP%WantTransfer .and. EV%q < 1.d0) then
+               EV%lmaxnu_tau(nu_i)=max(4,lmaxnu_high_ktau)
+               else
+               EV%lmaxnu_tau(nu_i)=lmaxnu_high_ktau
+              end if
             else
               EV%lmaxnu_tau(nu_i) =max(min(nint(0.5_dl*EV%q*nu_tau_nonrelativistic(nu_i)*lAccuracyBoost),EV%lmaxnu),3) 
               if (EV%nu_nonrelativistic(nu_i)) EV%lmaxnu_tau(nu_i)=min(EV%lmaxnu_tau(nu_i),nint(4*lAccuracyBoost))
             end if
+            EV%lmaxnu_tau(nu_i)=min(EV%lmaxnu,EV%lmaxnu_tau(nu_i))
         
             EV%nu_ix(nu_i)=neq+1 
             if (EV%MassiveNuApprox(nu_i)) then
@@ -749,8 +753,12 @@
          EV%no_phot_multpoles =.false.
          EV%no_nu_multpoles =.false.
          EV%MassiveNuApprox=.false.
- 
-         EV%lmaxg  = max(nint(8*lAccuracyBoost),3) 
+
+         if (HighAccuracyDefault .and. CP%AccuratePolarization) then
+          EV%lmaxg  = max(nint(11*lAccuracyBoost),3) 
+         else
+          EV%lmaxg  = max(nint(8*lAccuracyBoost),3)          
+         end if
          EV%lmaxnr = max(nint(14*lAccuracyBoost),3)
 
          EV%lmaxgpol = EV%lmaxg  
@@ -790,7 +798,7 @@
           EV%lmaxgpol=min(EV%lmaxgpol, EV%FirstZerolForBeta-1)         
          end if
          
-         EV%poltruncfac=real(EV%lmaxgpol,dl)/(EV%lmaxgpol-2)
+         EV%poltruncfac=real(EV%lmaxgpol,dl)/max(1,(EV%lmaxgpol-2))
          EV%MaxlNeeded=max(EV%lmaxg,EV%lmaxnr,EV%lmaxgpol,EV%lmaxnu) 
          if (EV%MaxlNeeded > max_l_evolve) stop 'Need to increase max_l_evolve'
          call SetupScalarArrayIndices(EV,EV%nvar)
@@ -1056,10 +1064,11 @@
         real(dl) :: am      
         real(dl) pinu,q,aq,v
         integer iq, ind
- 
+
+        if (EV%nq(nu_i)/=nqmax) stop 'Nu_pi nq/=nqmax0'
         pinu=0
         ind=EV%nu_ix(nu_i)+2
-        if (EV%nq(nu_i)/=nqmax) stop 'Nu_Intvsq nq/=nqmax0'
+        am=a*nu_masses(nu_i)
         do iq=1, EV%nq(nu_i)
             q=nu_q(iq)
             aq=am/q
@@ -1093,7 +1102,9 @@
             aq=am/q
             v=1._dl/sqrt(1._dl+aq*aq)          
             G11=G11+nu_int_kernel(iq)*y(ind+1)*v**2
+            if (EV%lmaxnu_tau(nu_i)>2) then
             G30=G30+nu_int_kernel(iq)*y(ind+3)*v**2
+            end if
             ind = ind+EV%lmaxnu_tau(nu_i)+1     
         end do
            
@@ -1149,12 +1160,12 @@
 
 
 !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-        subroutine output(EV,y, n,j,tau,sources)
+        subroutine output(EV,y, j,tau,sources)
         use ThermoData
         use lvalues
         use ModelData 
         implicit none
-        integer n,j
+        integer j
         type(EvolutionVars) EV
         real(dl), target :: y(EV%nvar),yprime(EV%nvar)
         real(dl), dimension(:),pointer :: ypol,ypolprime
@@ -2189,10 +2200,10 @@
             E2=ay(EV%polind+2)
             polter = pig/10+9._dl/15*E2 !2/15*(3/4 pig + 9/2 E2)
             ix= EV%g_ix+2
-            pigdot=EV%denlk(2)*qg-EV%denlk2(2)*ay(ix+1)-opacity*(pig - polter) &
+            if (EV%lmaxg>2) then 
+              pigdot=EV%denlk(2)*qg-EV%denlk2(2)*ay(ix+1)-opacity*(pig - polter) &
                    +8._dl/15._dl*k*sigma
-            ayprime(ix)=pigdot
-            if (EV%lmaxg>2) then !closed case
+              ayprime(ix)=pigdot
               do  l=3,EV%lmaxg-1
                 ix=ix+1
                 ayprime(ix)=(EV%denlk(l)*ay(ix-1)-EV%denlk2(l)*ay(ix+1))-opacity*ay(ix)
@@ -2200,13 +2211,15 @@
              ix=ix+1
           !  Truncate the photon moment expansion
              ayprime(ix)=k*ay(ix-1)-(EV%lmaxg+1)*cothxor*ay(ix) -opacity*ay(ix)
+            else !closed case
+              pigdot=EV%denlk(2)*qg-opacity*(pig - polter) +8._dl/15._dl*k*sigma
+              ayprime(ix)=pigdot
             endif 
 !  Polarization
             !l=2 
             ix=EV%polind+2
-            ayprime(ix) = -opacity*(ay(ix) - polter) - k/3._dl*ay(ix+1)
-            !and the rest
             if (EV%lmaxgpol>2) then
+              ayprime(ix) = -opacity*(ay(ix) - polter) - k/3._dl*ay(ix+1)
               do l=3,EV%lmaxgpol-1
                ix=ix+1
                ayprime(ix)=-opacity*ay(ix) + (EV%denlk(l)*ay(ix-1)-EV%polfack(l)*ay(ix+1))
@@ -2215,6 +2228,8 @@
               !truncate
               ayprime(ix)=-opacity*ay(ix) + &
                 k*EV%poltruncfac*ay(ix-1)-(EV%lmaxgpol+3)*cothxor*ay(ix)
+           else !closed case
+              ayprime(ix) = -opacity*(ay(ix) - polter) 
            endif
          end if
         end if
@@ -2249,9 +2264,9 @@
 !               ayprime(3+EV%lmaxg+7+1:EV%lmaxnr+EV%lmaxg+7)=0
            else
                 ix=EV%r_ix+2
-                pirdot=EV%denlk(2)*qr- EV%denlk2(2)*ay(ix+1)+8._dl/15._dl*k*sigma
-                ayprime(ix)=pirdot
                 if (EV%lmaxnr>2) then
+                 pirdot=EV%denlk(2)*qr- EV%denlk2(2)*ay(ix+1)+8._dl/15._dl*k*sigma
+                 ayprime(ix)=pirdot
                  do l=3,EV%lmaxnr-1
                    ix=ix+1
                    ayprime(ix)=(EV%denlk(l)*ay(ix-1) - EV%denlk2(l)*ay(ix+1)) 
@@ -2259,6 +2274,9 @@
             !  Truncate the neutrino expansion
                  ix=ix+1
                  ayprime(ix)=k*ay(ix-1)- (EV%lmaxnr+1)*cothxor*ay(ix)
+                else
+                 pirdot=EV%denlk(2)*qr +8._dl/15._dl*k*sigma
+                 ayprime(ix)=pirdot
                 end if
          end if     
         end if ! no_nu_multpoles

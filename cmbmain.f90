@@ -372,13 +372,14 @@ contains
 
            q_switch_lowk = 8/taurst
            dlog_lowk=8*boost
+           if (HighAccuracyDefault) dlog_lowk = dlog_lowk*2.5
 
            q_switch_osc = min(CP%Transfer%kmax,30/taurst)
            d_osc= 200*boost
            if (HighAccuracyDefault) d_osc = d_osc*1.8
     
            q_switch_highk = min(CP%Transfer%kmax,60/taurst)
-           dlog_osc = 17*boost
+           dlog_osc = 17*boost 
            if (HighAccuracyDefault) q_switch_highk = min(CP%Transfer%kmax,90/taurst)
 
            !Then up to kmax
@@ -568,7 +569,7 @@ end if
       real(dl) taumin, maxq, initAccuracyBoost
       integer itf
       
-      initAccuracyBoost = AccuracyBoost
+      initAccuracyBoost = AccuracyBoost 
 
  ! Maximum and minimum k-values.      
       if (CP%flat) then
@@ -642,7 +643,7 @@ end if
 !     polarization will be calculated. For low values of k we
 !     use a logarithmic spacing. closed case dealt with by SetClosedkValues
 
-         SourceAccuracyBoost = AccuracyBoost    
+         SourceAccuracyBoost = AccuracyBoost     
          if (CP%WantScalars .and. CP%Reion%Reionization .and. CP%AccuratePolarization) then
             dlnk0=2._dl/10/SourceAccuracyBoost
             !Need this to get accurate low l polarization
@@ -764,7 +765,7 @@ end if
              !Integrate over time, calulate end point derivs and calc output
              call GaugeInterface_EvolveScal(EV,tau,y,tauend,tol1,ind,c,w)
  
-             call output(EV,y, EV%ScalEqsToPropagate,j,tau,sources)
+             call output(EV,y,j,tau,sources)
              Src(EV%q_ix,1:SourceNum,j)=sources
             
 !     Calculation of transfer functions.
@@ -1024,7 +1025,7 @@ end if
 
        qmax_int = min(qmax,max_bessels_etak/CP%tau0)
 
-       IntSampleBoost=AccuracyBoost 
+       IntSampleBoost=AccuracyBoost  
        if (do_bispectrum) then
         IntSampleBoost = IntSampleBoost * 2  
         if (hard_bispectrum) IntSampleBoost = IntSampleBoost * 2  
@@ -1048,16 +1049,16 @@ end if
             lognum=nint(20*IntSampleBoost)
             dlnk1=1._dl/lognum 
             no=nint(1300*IntSampleBoost)
-            dk=1.2/CP%r/CP%chi0/IntSampleBoost
+            dk=1.2/CP%r/CP%chi0/IntSampleBoost 
             dk0=0.4_dl/CP%r/CP%chi0/IntSampleBoost
          else 
-            lognum=nint(10*IntSampleBoost) 
+            lognum=nint(10*IntSampleBoost)
             dlnk1=1._dl/lognum  
             no=nint(600*IntSampleBoost)
             dk0=1.8_dl/CP%r/CP%chi0/IntSampleBoost   
             dk=3._dl/CP%r/CP%chi0/IntSampleBoost 
-            if (HighAccuracyDefault) dk=dk/1.4
          end if
+         if (HighAccuracyDefault) dk=dk/1.4
 
          k_max_log = lognum*dk0
          k_max_0  = no*dk0
@@ -1290,7 +1291,7 @@ end if
              if (full_bessel_integration .or. do_bispectrum) then
                  tmin = TimeSteps%points(2)
              else
-                 xlmax1=80*lSamp%l(j)*AccuracyBoost
+                 xlmax1=80*lSamp%l(j)*AccuracyBoost 
                  tmin=CP%tau0-xlmax1/IV%q
                  tmin=max(TimeSteps%points(2),tmin)                 
              end if 
@@ -1560,7 +1561,7 @@ end if
       real(dl) IntAccuracyBoost
       real(dl) sources(SourceNum), out(SourceNum)
    
-      IntAccuracyBoost=AccuracyBoost
+      IntAccuracyBoost=AccuracyBoost 
 ! atau0 is the array with the time where the sources are stored.
       if (nend==nstart) then  
             out = 0

@@ -554,7 +554,6 @@
 
         Type lSamples
             integer l0
-           ! integer, dimension(:), pointer :: lSamp%l 
             integer l(lmax_arr)
         end Type lSamples
 
@@ -778,11 +777,11 @@
         
           Type (Regions) :: q
 
-          real(dl), dimension(:,:,:), pointer :: Delta_p_l_k
+          real(dl), dimension(:,:,:), pointer :: Delta_p_l_k => NULL() 
       
          end Type ClTransferData
 
-         Type(ClTransferData), target :: CTransScal, CTransTens, CTransVec
+         Type(ClTransferData), save, target :: CTransScal, CTransTens, CTransVec
 
         !Computed output power spectra data
                          
@@ -1469,24 +1468,24 @@
         Type MatterTransferData
          !Computed data
          integer   ::  num_q_trans   !    number of steps in k for transfer calculation
-         real(dl), dimension (:), pointer :: q_trans
-         real(dl), dimension (:,:), pointer ::  sigma_8
-         real, dimension(:,:,:), pointer :: TransferData
+         real(dl), dimension (:), pointer :: q_trans => NULL() 
+         real(dl), dimension (:,:), pointer ::  sigma_8 => NULL() 
+         real, dimension(:,:,:), pointer :: TransferData => NULL() 
          !TransferData(entry,k_index,z_index) for entry=Tranfer_kh.. Transfer_tot
         end Type MatterTransferData
 
         Type MatterPowerData
          !everything is a function of k/h
           integer   ::  num_k, num_z          
-          real(dl), dimension(:), pointer :: log_kh, redshifts
+          real(dl), dimension(:), pointer :: log_kh, redshifts => NULL() 
           !matpower is log(P_k)
-          real(dl), dimension(:,:), pointer :: matpower, ddmat
+          real(dl), dimension(:,:), pointer :: matpower, ddmat => NULL() 
           !if NonLinear, nonlin_ratio =  sqrt(P_nonlinear/P_linear)
           !function of k and redshift NonLinearScaling(k_index,z_index)         
-          real(dl), dimension(:,:), pointer :: nonlin_ratio
+          real(dl), dimension(:,:), pointer :: nonlin_ratio => NULL() 
         end Type MatterPowerData
 
-        Type (MatterTransferData) :: MT        
+        Type (MatterTransferData), save :: MT        
 
       contains
 
@@ -2265,7 +2264,7 @@
            if (CP%WantTensors) then
               dtaurec=min(dtaurec,taurst/160)/AccuracyBoost 
            else
-              dtaurec=min(dtaurec,taurst/40)/AccuracyBoost 
+              dtaurec=min(dtaurec,taurst/40)/AccuracyBoost  
               if (do_bispectrum .and. hard_bispectrum) dtaurec = dtaurec / 4
            end if
             

@@ -113,7 +113,6 @@ end subroutine lens_CheckLoadedHighLTemplate
 subroutine CorrFuncFullSky
 
   integer :: lmax_extrap 
-  integer lmax
   
   lmax_extrap = CP%Max_l - lensed_convolution_margin + 450  
   if (HighAccuracyDefault) lmax_extrap=lmax_extrap+300
@@ -158,7 +157,6 @@ subroutine CorrFuncFullSkyImpl(lmax)
   integer j,jmax
   integer llo, lhi
   real(dl) a0,b0,ho
-  real(dl) extrap, CphiGradient
   logical :: short_integral_range
   integer, parameter :: slow_highL = 5000 !Lmax at which to do full range to prevent ringing etc
 

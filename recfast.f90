@@ -260,7 +260,7 @@
 
         real(dl), parameter ::  zinitial = 1e4_dl !highest redshift
         real(dl), parameter ::  zfinal=0._dl
-        integer,  parameter :: Nz=10000
+        integer,  parameter :: Nz=10000  
         real(dl), parameter :: delta_z = (zinitial-zfinal)/Nz
 
         integer, parameter ::  RECFAST_Heswitch_default = 6
@@ -270,12 +270,12 @@
         real(dl), parameter :: RECFAST_fudge_default2 = 1.105d0 
               !fudge parameter if RECFAST_Hswitch
         
-        real(dl), parameter :: AGauss1 =   -0.14D0	!Amplitude of 1st Gaussian
-        real(dl), parameter :: AGauss2 =	0.05D0	!Amplitude of 2nd Gaussian
-        real(dl), parameter :: zGauss1 =	7.28D0	!ln(1+z) of 1st Gaussian
-        real(dl), parameter :: zGauss2=		6.75D0	!ln(1+z) of 2nd Gaussian
-        real(dl), parameter :: wGauss1=		0.18D0	!Width of 1st Gaussian
-        real(dl), parameter :: wGauss2=		0.33D0	!Width of 2nd Gaussian
+        real(dl), parameter :: AGauss1 =   -0.14D0  !Amplitude of 1st Gaussian
+        real(dl), parameter :: AGauss2 =    0.05D0  !Amplitude of 2nd Gaussian
+        real(dl), parameter :: zGauss1 =    7.28D0  !ln(1+z) of 1st Gaussian
+        real(dl), parameter :: zGauss2=	    6.75D0  !ln(1+z) of 2nd Gaussian
+        real(dl), parameter :: wGauss1=	    0.18D0  !Width of 1st Gaussian
+        real(dl), parameter :: wGauss2=	    0.33D0  !Width of 2nd Gaussian
          !	Gaussian fits for extra H physics (fit by Adam Moss)
 
         type RecombinationParams
@@ -352,7 +352,7 @@
           R%RECFAST_Heswitch = RECFAST_Heswitch_default
           R%RECFAST_Hswitch =  RECFAST_Hswitch_default
           if (R%RECFAST_Hswitch) then
-                R%RECFAST_fudge = R%RECFAST_fudge - (RECFAST_fudge_default - RECFAST_fudge_default2)
+                R%RECFAST_fudge = RECFAST_fudge_default2
           end if   
     
         end subroutine Recombination_SetDefParams
