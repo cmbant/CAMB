@@ -654,7 +654,7 @@
              neq = neq + EV%lmaxnrt-1
              if (present(maxeq)) maxeq = maxeq+EV%lmaxnrt-1
              if (CP%Num_Nu_massive /= 0 ) then
-               do nu_i=1, CP%Num_Nu_massive
+               do nu_i=1, CP%nu_mass_eigenstates
                    EV%EvolveTensorMassiveNu(nu_i) = nu_tau_nonrelativistic(nu_i) < 0.8*tau_maxvis*AccuracyBoost
                    if (EV%EvolveTensorMassiveNu(nu_i)) then
                     EV%nu_ix(nu_i)=neq-1 
@@ -687,7 +687,7 @@
           if (DoTensorNeutrinos) then       
              lmaxt=min(EV%lmaxnrt,EVOut%lmaxnrt)    
              yout(EVout%r_ix+2:EVout%r_ix+lmaxt)=y(EV%r_ix+2:EV%r_ix+lmaxt)     
-             do nu_i =1, CP%Num_Nu_massive
+             do nu_i =1, CP%nu_mass_eigenstates
                 if (EV%EvolveTensorMassiveNu(nu_i)) then
                  lmaxt=min(EV%lmaxnut,EVOut%lmaxnut)
                  do i=1,nqmax

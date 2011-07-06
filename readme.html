@@ -539,11 +539,12 @@ Implements the NonLinear module, to calculate non linear scalings of the matter 
 <H3>Accuracy</H3>
 <P>
 <BLOCKQUOTE>
-Scalar errors should rarely exceed 0.3% for min(2500, l well into the damping tail) at default accuracy setting. See also <A HREF="#COMPARE">comparison</A> with CMBFAST. Accuracy of course assumes the model is correct, and is dependent on RECFAST being the correct ionization history; there are currently uncertainties in hydrogen recombination that may give errors around 1% at high l. Lensed C_l TT, TE and EE are accurate at the same level if l_max and k_max are set large enough (to within the approximation that the lensing potential is linear, or the accuracy of the the HALOFIT non-linear model).
+Scalar errors should rarely exceed 0.3% for min(2500, L well into the damping tail) at default accuracy setting, and 0.1% for 500&lt;L&lt;2000 with <b>high_accuracy_default=T</b>. Matter power spectrum errors are usually dominated by interpolation in the acoustic oscillations, with about 0.2% accuracy with high_accuracy_default (but much better rms accuracy).
+See also <A HREF="#COMPARE">comparison</A> with CMBFAST. Accuracy of course assumes the model is correct, and is dependent on RECFAST being the correct ionization history. Lensed C_l TT, TE and EE are accurate at the same level  (to within the approximation that the lensing potential is linear, or the accuracy of the the HALOFIT non-linear model).
 <P>
  Extreme models (e.g. scale &gt; 4, h&gt;1) may give errors of 5% or more.
 <P>
- Tensor errors around 2% or more on small scales (e.g. due to l-interpolation). Low l accuracy somewhat worse than scalars (typically < 1%).
+ Tensor errors around 2% or more on small scales (e.g. due to l-interpolation). Low l accuracy somewhat worse than scalars (typically < 1%). Turn on neutrinos in the input file for accurate results (automatic on high accuracy setting).
 <P>
  Hierarchy truncation errors up to 5% at high l (&gt;1500) in some
    closed models
