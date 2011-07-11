@@ -23,7 +23,7 @@ F90FLAGS      = $(FFLAGS)
 HEALPIXLD     = -L$(HEALPIXDIR)/lib -lhealpix -L$(FITSDIR) -l$(FITSLIB)
 
 CAMBOBJ       = constants.o utils.o $(EXTCAMBFILES) subroutines.o inifile.o $(POWERSPECTRUM).o $(RECOMBINATION).o \
-	$(REIONIZATION).o modules.o bessels.o $(EQUATIONS).o $(NONLINEAR).o lensing.o $(BISPECTRUM).o cmbmain.o camb.o 
+	$(REIONIZATION).o modules.o bessels.o $(EQUATIONS).o $(NONLINEAR).o lensing.o $(BISPECTRUM).o cmbmain.o camb.o
 
 default: camb
 
@@ -40,7 +40,7 @@ $(EQUATIONS).o: bessels.o
 $(NONLINEAR).o:  modules.o
 lensing.o: bessels.o
 $(BISPECTRUM).o: lensing.o modules.o
-cmbmain.o: lensing.o $(NONLINEAR).o $(EQUATIONS).o $(BISPECTRUM).o 
+cmbmain.o: lensing.o $(NONLINEAR).o $(EQUATIONS).o $(BISPECTRUM).o
 camb.o: cmbmain.o
 Matrix_utils.o: utils.o
 camb: $(CAMBOBJ) $(DRIVER)
@@ -57,9 +57,6 @@ camb_fits: writefits.f90 $(CAMBOBJ) $(DRIVER)
 
 utils.o:
 	$(F90C) $(F90FLAGS) -c utils.F90	
-
-$(BISPECTRUM).o:
-	 $(F90C) $(F90FLAGS) -c $(BISPECTRUM).F90	
 
 Matrix_utils.o:
 	$(F90C) $(F90FLAGS) -c Matrix_utils.F90	

@@ -9,8 +9,9 @@
          use InitialPower
          use Reionization
          use Recombination
+         use lensing
          implicit none
-
+         
          Type CAMBdata
             Type (ClTransferData) :: ClTransScal,ClTransTens,ClTransVec
             Type (MatterTransferData) :: MTrans
