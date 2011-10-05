@@ -511,10 +511,9 @@ contains
 
             EV%q=Evolve_q%points(q_ix) 
  
-!!!!!!
-if (fixq/=0._dl) then
-EV%q=fixq
-end if
+            if (fixq/=0._dl) then
+                EV%q=fixq !for testing
+            end if
             EV%q2=EV%q**2
 
             EV%q_ix = q_ix
@@ -643,9 +642,9 @@ end if
 !     polarization will be calculated. For low values of k we
 !     use a logarithmic spacing. closed case dealt with by SetClosedkValues
 
-         SourceAccuracyBoost = AccuracyBoost     
+         SourceAccuracyBoost = AccuracyBoost  
          if (CP%WantScalars .and. CP%Reion%Reionization .and. CP%AccuratePolarization) then
-            dlnk0=2._dl/10/SourceAccuracyBoost
+            dlnk0=2._dl/10/SourceAccuracyBoost 
             !Need this to get accurate low l polarization
          else
             dlnk0=5._dl/10/SourceAccuracyBoost
@@ -678,15 +677,54 @@ end if
          call Ranges_GetArray(Evolve_q, .false.)
 
          if (CP%closed) &
-           call SetClosedkValuesFromArr(Evolve_q) 
+           call SetClosedkValuesFromArr(Evolve_q, .false.) 
  
       end subroutine SetkValuesForSources
 
 
-      subroutine SetClosedkValuesFromArr(R)
+      subroutine SetClosedkValuesFromArr(R, forInt)
       Type(Regions) :: R
       integer i,nu,lastnu,nmax
        !nu = 3,4,5... in CP%closed case, so set nearest integers from arr array
+      logical, intent(in) :: forInt
+      integer ix
+      real(dl) dnu
+      integer, allocatable :: nu_array(:)
+             
+       if (forInt .and. nint(R%points(1)*CP%r)<=3) then
+        
+         !quantization is important       
+       call Ranges_Getdpoints(R,half_ends = .false.)
+       R%dpoints = max(1,int(R%dpoints*CP%r+0.02))
+       lastnu=2
+       ix=1
+       dnu =R%dpoints(ix)
+       nmax=0
+       lastnu=2   
+       allocate(nu_array(R%npoints*2))    
+       do
+        
+       do while (R%dpoints(ix)==dnu .and. ix <R%npoints) 
+        ix=ix+1
+       end do
+       do nu=lastnu+1,nint(R%points(ix)*CP%r), nint(dnu)
+          nmax=nmax+1 
+          nu_array(nmax)= nu
+       end do
+       lastnu=nu_array(nmax) + nint(dnu)-1
+       if (ix==R%npoints) exit
+       dnu = R%dpoints(ix)
+       end do
+       if (nint(R%points(R%npoints)*CP%r) > nu_array(nmax)) then
+          nmax=nmax+1
+          nu_array(nmax) = nint(R%points(R%npoints)*CP%r)
+       end if 
+       deallocate(R%points)
+       allocate(R%points(nmax))
+       R%points = nu_array(1:nmax)/CP%r
+       deallocate(nu_array)
+       
+      else
                 
        lastnu=3
        nmax=1
@@ -694,13 +732,16 @@ end if
        do i=2,R%npoints
          nu=nint(R%points(i)*CP%r)
          if (nu > lastnu) then
-          nmax=nmax+1
+          nmax=nmax+1 
           lastnu=nu         
           R%points(nmax)=nu/CP%r 
          end if
        
        end do  
        R%points(1)=3/CP%r
+       
+       end if
+       
        R%Lowest = R%points(1) 
        R%Highest = R%points(nmax)
        R%npoints=nmax
@@ -1025,7 +1066,7 @@ end if
 
        qmax_int = min(qmax,max_bessels_etak/CP%tau0)
 
-       IntSampleBoost=AccuracyBoost  
+       IntSampleBoost=AccuracyBoost 
        if (do_bispectrum) then
         IntSampleBoost = IntSampleBoost * 2  
         if (hard_bispectrum) IntSampleBoost = IntSampleBoost * 2  
@@ -1045,20 +1086,13 @@ end if
       !Split up into logarithmically spaced intervals from qmin up to k=lognum*dk0
       !then no-lognum*dk0 linearly spaced at dk0 up to no*dk0
       !then at dk up to max_k_dk, then dk2 up to qmax_int
-         if (CP%closed) then
-            lognum=nint(20*IntSampleBoost)
-            dlnk1=1._dl/lognum 
-            no=nint(1300*IntSampleBoost)
-            dk=1.2/CP%r/CP%chi0/IntSampleBoost 
-            dk0=0.4_dl/CP%r/CP%chi0/IntSampleBoost
-         else 
-            lognum=nint(10*IntSampleBoost)
-            dlnk1=1._dl/lognum  
-            no=nint(600*IntSampleBoost)
-            dk0=1.8_dl/CP%r/CP%chi0/IntSampleBoost   
-            dk=3._dl/CP%r/CP%chi0/IntSampleBoost 
-         end if
-         if (HighAccuracyDefault) dk=dk/1.4
+         lognum=nint(10*IntSampleBoost)
+         dlnk1=1._dl/lognum  
+         no=nint(600*IntSampleBoost)
+         dk0=1.8_dl/CP%r/CP%chi0/IntSampleBoost   
+         dk=3._dl/CP%r/CP%chi0/IntSampleBoost 
+         
+         if (HighAccuracyDefault) dk=dk/1.6 
 
          k_max_log = lognum*dk0
          k_max_0  = no*dk0
@@ -1086,10 +1120,13 @@ end if
          call Init_ClTransfer(ThisCT)
 
        if (CP%closed) then
-        call SetClosedkValuesFromArr(ThisCT%q)
+        call SetClosedkValuesFromArr(ThisCT%q,.true.)
         call Ranges_Getdpoints(ThisCT%q,half_ends = .false.)
         ThisCT%q%dpoints(1) = 1/CP%r
-     
+        !!!  
+        deallocate(ThisCT%Delta_p_l_k) !Re-do this from Init_ClTransfer because number of points changed
+        allocate(ThisCT%Delta_p_l_k(ThisCT%NumSources,min(max_bessels_l_index,ThisCT%ls%l0), ThisCT%q%npoints))
+        ThisCT%Delta_p_l_k = 0     
        end if
 
        end if !ExactClosedSum
@@ -1412,7 +1449,7 @@ end if
          miny1= 0.5d-4/l/AccuracyBoost
          sums=0
          qmax_int= max(850,lSamp%l(j))*3*AccuracyBoost/(CP%chi0*CP%r)
-         if (HighAccuracyDefault) qmax_int=qmax_int*1.2
+         if (HighAccuracyDefault) qmax_int=qmax_int*1.2 
          DoInt =  SourceNum/=3 .or. IV%q < qmax_int
          if (DoInt) then
          if ((nstart < min(TimeSteps%npoints-1,IV%SourceSteps)).and.(y1dis > miny1)) then
@@ -1562,6 +1599,7 @@ end if
       real(dl) sources(SourceNum), out(SourceNum)
    
       IntAccuracyBoost=AccuracyBoost 
+
 ! atau0 is the array with the time where the sources are stored.
       if (nend==nstart) then  
             out = 0
@@ -1575,21 +1613,19 @@ end if
       scalel=l/scale
       if (scalel>=2400) then
          num2=num1*2.5
-      else if (scalel>=1100) then
-         num2=num1*1.5
       else if (scalel< 50) then
          num2=num1*0.8_dl
-      else if (scalel < 170) then 
-        num2=num1*1.5_dl
-      else if (scalel < 1100) then 
-         num2=num1*1.2_dl
-      else
-         num2=num1
+      else 
+        num2=num1*1.5_dl 
       end if    
       !Dec 2003, since decrease dtaurec, can make this smaller
       if (dtau==dtaurec_q) then
        num2=num2/4
       end if
+
+      if (HighAccuracyDefault .and. scalel<1500 .and. scalel > 150) &
+          IntAccuracyBoost=IntAccuracyBoost*(1+(2000-scalel)*0.6/2000 ) 
+
       if (num2*IntAccuracyBoost < dchisource .and. (.not. CP%DoLensing .or. UseLimber(l,IV%q)) & 
 !       if ((num2*IntAccuracyBoost < dchisource ) & !Oscillating fast 
         .or. (nstart>IV%SourceSteps.and.nend>IV%SourceSteps)) then  
@@ -1616,7 +1652,7 @@ end if
          chiDispTop = 1d20
       end if
 
-      minujl=MINUJl1/l/IntAccuracyBoost
+      minujl=MINUJl1/l/IntAccuracyBoost 
       isgn=sign(1,Startn-nend)!direction of chi integration 
         !higher n, later time, smaller chi
     
@@ -1630,8 +1666,8 @@ end if
       ap1=l*(l+1)
       sh=rofChi(chi)
            
-      if (scalel < 120) then
-         dchimax=0.4_dl*num1
+      if (scalel < 1100) then
+         dchimax= 0.3*num1 
       else if (scalel < 1400) then
          dchimax=0.25_dl*num1 *1.5
       else
@@ -1994,7 +2030,6 @@ end if
          do j=1,CTrans%ls%l0
 
         !Integrate dk/k Delta_l_q**2 * Power(k)
-
           do q_ix = 1, CTrans%q%npoints 
 
              if (.not.(CP%closed.and.nint(CTrans%q%points(q_ix)*CP%r)<=CTrans%ls%l(j))) then 

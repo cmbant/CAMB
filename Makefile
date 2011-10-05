@@ -4,7 +4,7 @@
 FISHER=
 
 #Edit for your compiler
-#Note there are many ifc versions, some of which behave oddly
+#Note there are many old ifc versions, some of which behave oddly
 
 #Intel , -openmp toggles mutli-processor:
 #note version 10.0 gives wrong result for lensed when compiled with -openmp [fixed in 10.1]
@@ -14,7 +14,16 @@ ifneq ($(FISHER),)
 FFLAGS += -mkl
 endif
 
-#Intel ifc, add -openmp for multi-processor (some have bugs):
+#Gfortran compiler: 
+#The options here work in v4.5, delete from RHS in earlier versions (15% slower)
+#if pre v4.3 add -D__GFORTRAN__
+#On my machine v4.5 is about 20% slower than ifort
+#Can try -fstack-arrays in later versions - is it faster?
+F90C     = gfortran
+FFLAGS =  -O3 -ffast-math -march=native -funroll-loops 
+
+
+#Old Intel ifc, add -openmp for multi-processor (some have bugs):
 #F90C     = ifc
 #FFLAGS = -O2 -Vaxlib -ip -W0 -WB -quiet -fpp2
 #some systems can can also add e.g. -tpp7 -xW
@@ -22,10 +31,6 @@ endif
 #G95 compiler
 #F90C   = g95
 #FFLAGS = -O2
-
-#Gfortran compiler: if pre v4.3 add -D__GFORTRAN__
-#F90C     = gfortran
-#FFLAGS =  -O2  
 
 #SGI, -mp toggles multi-processor. Use -O2 if -Ofast gives problems.
 #F90C     = f90
