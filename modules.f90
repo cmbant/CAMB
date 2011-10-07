@@ -34,7 +34,7 @@
         implicit none    
         public
 
-        character(LEN=*), parameter :: version = 'July_11'
+        character(LEN=*), parameter :: version = 'Oct_11'
         
         integer :: FeedbackLevel = 0 !if >0 print out useful information about the model
 
@@ -674,7 +674,11 @@
            end if
         else
 
-        step=max(nint(50*Ascale),7)
+        if (HighAccuracyDefault) then
+         step=max(nint(42*Ascale),7)
+        else
+         step=max(nint(50*Ascale),7)
+        end if
         bot=ls(lind)+step
         top=min(5000,max_l)
 
