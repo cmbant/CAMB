@@ -6,6 +6,7 @@ FISHER=
 #Edit for your compiler
 #Note there are many old ifc versions, some of which behave oddly
 
+
 #Intel , -openmp toggles mutli-processor:
 #note version 10.0 gives wrong result for lensed when compiled with -openmp [fixed in 10.1]
 F90C     = ifort
@@ -19,8 +20,8 @@ endif
 #if pre v4.3 add -D__GFORTRAN__
 #On my machine v4.5 is about 20% slower than ifort
 #Can try -fstack-arrays in later versions - is it faster?
-F90C     = gfortran
-FFLAGS =  -O3 -ffast-math -march=native -funroll-loops 
+#F90C     = gfortran
+#FFLAGS =  -O3 -fopenmp -ffast-math -march=native -funroll-loops
 
 
 #Old Intel ifc, add -openmp for multi-processor (some have bugs):
