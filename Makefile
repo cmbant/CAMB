@@ -10,12 +10,12 @@ FISHER=
 #Intel , -openmp toggles mutli-processor:
 #note version 10.0 gives wrong result for lensed when compiled with -openmp [fixed in 10.1]
 F90C     = ifort
-FFLAGS = -openmp -O2 -ip -W0 -WB -fpp2 -vec_report0
+FFLAGS = -openmp -fast -W0 -WB -fpp2 -vec_report0
 ifneq ($(FISHER),)
 FFLAGS += -mkl
 endif
 
-#Gfortran compiler: 
+#Gfortran compiler:
 #The options here work in v4.5, delete from RHS in earlier versions (15% slower)
 #if pre v4.3 add -D__GFORTRAN__
 #On my machine v4.5 is about 20% slower than ifort
@@ -77,7 +77,7 @@ ifneq ($(FISHER),)
 FFLAGS += -DFISHER
 EXTCAMBFILES = Matrix_utils.o
 else
-EXTCAMBFILES = 
+EXTCAMBFILES =
 endif
 
-include ./Makefile_main
+include ./Makefile_main 

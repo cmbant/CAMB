@@ -27,7 +27,7 @@
         use lensing
         type(CAMBparams) :: Params
         type (CAMBdata)  :: OutData
-        integer, optional :: error !Zero if OK
+        integer :: error !Zero if OK
   
       !Set internal types from OutData so it always 'owns' the memory, prevent leaks
       
@@ -81,9 +81,11 @@
 
         CP = CData%Params
         call InitializePowers(CP%InitPower,CP%curv)
+        if (global_error_flag/=0) return
         if (CData%Params%WantCls) then
           call ClTransferToCl(CData%ClTransScal,CData%ClTransTens, CData%ClTransvec)  
-          if (CP%DoLensing) call lens_Cls
+          if (CP%DoLensing .and. global_error_flag==0) call lens_Cls
+          if (global_error_flag/=0) return
           if (CP%OutputNormalization == outCOBE) call COBEnormalize
         end if
         if (CData%Params%WantTransfer) call Transfer_Get_sigma8(Cdata%MTrans,8._dl)
@@ -97,6 +99,7 @@
         use CAMBmain
         use lensing
         use Bispectrum
+        use Errors
         type(CAMBparams) :: Params
         integer, optional :: error !Zero if OK
         type(CAMBparams) P
@@ -105,6 +108,7 @@
         
         if (Params%DoLensing .and. Params%NonLinear==NonLinear_Lens) separate = .false.
         InReionization = Params%Reion%Reionization
+        global_error_flag = 0
         
          if (Params%WantCls .and. Params%WantScalars) then
           P = Params
@@ -114,13 +118,12 @@
           end if
           P%WantTensors = .false.
           P%WantVectors = .false.
-          if (present(error)) then
-               call CAMBParams_Set(P, error) !set other derived variables in ModelParams (modules.f90) 
-              if (error /= 0) return
-              else
-               call CAMBParams_Set(P)  
-            end if
-          call cmbmain
+          call CAMBParams_Set(P)  
+          if (global_error_flag==0) call cmbmain
+          if (global_error_flag/=0) then
+            if (present(error)) error =global_error_flag
+            return 
+          end if
           call_again = .true.
           !Need to store CP%flat etc, but must keep original P_k settings
           CP%Transfer%high_precision = Params%Transfer%high_precision
@@ -137,13 +140,12 @@
           P%Transfer%high_precision = .false.
           P%WantScalars = .false.
           P%WantVectors = .false.
-          if (present(error)) then
-               call CAMBParams_Set(P, error) !set other derived variables in ModelParams (modules.f90) 
-              if (error /= 0) return
-              else
-               call CAMBParams_Set(P)  
-            end if
-           call cmbmain
+          call CAMBParams_Set(P)  
+          if (global_error_flag==0) call cmbmain
+          if (global_error_flag/=0) then
+            if (present(error)) error =global_error_flag
+            return 
+          end if
            call_again = .true.
            CP%Transfer%high_precision = Params%Transfer%high_precision
            CP%WantTransfer = Params%WantTransfer
@@ -160,14 +162,13 @@
           P%Transfer%high_precision = .false.
           P%WantScalars = .false.
           P%WantTensors = .false.
-          if (present(error)) then
-               call CAMBParams_Set(P, error) !set other derived variables in ModelParams (modules.f90) 
-              if (error /= 0) return
-              else
-               call CAMBParams_Set(P)  
-            end if
-           call cmbmain
-           call_again = .true.
+          call CAMBParams_Set(P)  
+          if (global_error_flag==0) call cmbmain
+          if (global_error_flag/=0) then
+            if (present(error)) error =global_error_flag
+            return 
+          end if
+          call_again = .true.
           CP%Transfer%high_precision = Params%Transfer%high_precision
           CP%WantTransfer = Params%WantTransfer
           CP%WantTensors = Params%WantTensors
@@ -184,14 +185,12 @@
           P%WantScalars = .false.
           P%WantTensors = .false.
           P%WantVectors = .false.
-          if (present(error)) then
-               call CAMBParams_Set(P, error) !set other derived variables in ModelParams (modules.f90) 
-              if (error /= 0) return
-              else
-               call CAMBParams_Set(P)  
-            end if
-           call cmbmain
-
+          call CAMBParams_Set(P)  
+          if (global_error_flag==0) call cmbmain
+          if (global_error_flag/=0) then
+            if (present(error)) error =global_error_flag
+            return 
+          end if
           !Need to store num redshifts etc
           CP%WantScalars = Params%WantScalars
           CP%WantCls =  Params%WantCls
@@ -209,11 +208,11 @@
 
          if (CP%WantCls .and. CP%OutputNormalization == outCOBE) call COBEnormalize
 
-         if (CP%DoLensing) then
+         if (CP%DoLensing .and. global_error_flag==0) then
            call lens_Cls 
          end if
          
-         if (do_bispectrum) call GetBispectrum(CTransScal) 
+         if (do_bispectrum .and. global_error_flag==0) call GetBispectrum(CTransScal) 
 
         end if
 

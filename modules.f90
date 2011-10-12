@@ -30,6 +30,7 @@
         use InitialPower
         use Reionization
         use Recombination
+        use Errors
         
         implicit none    
         public
@@ -228,15 +229,12 @@
            !Constants in SI units
 
             if ((P%WantTensors .or. P%WantVectors).and. P%WantTransfer .and. .not. P%WantScalars) then
-              write (*,*) 'Cannot generate tensor C_l and transfer without scalar C_l'
-              if (present(error)) then
-                error = 1
-                return
-              else
-                stop
-              end if
-           end if
-           
+              call GlobalError( 'Cannot generate tensor C_l and transfer without scalar C_l',error_unsupported_params)
+            end if
+ 
+            if (present(error)) error = global_error_flag
+            if (global_error_flag/=0) return
+          
            if (present(DoReion)) then
             WantReion = DoReion
            else
@@ -353,13 +351,15 @@
       
             call init_massive_nu(CP%omegan /=0)
             call init_background
-            CP%tau0=TimeOfz(0._dl)
-        ! print *, 'chi = ',  (CP%tau0 - TimeOfz(0.15_dl)) * CP%h0/100   
-            last_tau0=CP%tau0
-            if (WantReion) call Reionization_Init(CP%Reion,CP%ReionHist, CP%YHe, akthom, CP%tau0, FeedbackLevel)
+            if (global_error_flag==0) then
+             CP%tau0=TimeOfz(0._dl)
+         ! print *, 'chi = ',  (CP%tau0 - TimeOfz(0.15_dl)) * CP%h0/100   
+             last_tau0=CP%tau0
+             if (WantReion) call Reionization_Init(CP%Reion,CP%ReionHist, CP%YHe, akthom, CP%tau0, FeedbackLevel)
+            end if
            else
               CP%tau0=last_tau0
-           end if         
+           end if  
            
            if ( CP%NonLinear==NonLinear_Lens) then
              CP%Transfer%kmax = max(CP%Transfer%kmax, CP%Max_eta_k/CP%tau0) 
@@ -367,16 +367,15 @@
                   write (*,*) 'max_eta_k changed to ', CP%Max_eta_k
            end if
 
-
            if (CP%closed .and. CP%tau0/CP%r >3.14) then
-             if (present(error)) then
-              error = 2
-              return
-             else
-              stop 'chi >= pi in closed model not supported'
-             end if
+             call GlobalError('chi >= pi in closed model not supported',error_unsupported_params)
            end if
-    
+
+           if (global_error_flag/=0) then
+             if (present(error)) error = global_error_flag            
+             return
+           end if       
+           
            if (present(error)) then
               error = 0
            else if (FeedbackLevel > 0 .and. .not. call_again) then
@@ -1454,6 +1453,7 @@
 
         module Transfer
         use ModelData
+        use Errors
         implicit none
         public
         integer, parameter :: Transfer_kh =1, Transfer_cdm=2,Transfer_b=3,Transfer_g=4, &
@@ -1503,7 +1503,7 @@
           Type(MatterPowerData) :: PK_data
           integer, intent(in) :: in
           integer, intent(in), optional :: itf_only
-          real(dl) h, kh, k
+          real(dl) h, kh, k, power
           integer ik
           integer nz,itf, itf_start, itf_end
           
@@ -1532,10 +1532,15 @@
                  kh = MTrans%TransferData(Transfer_kh,ik,1)
                  k = kh*h
                  PK_data%log_kh(ik) = log(kh)
+                 power = ScalarPower(k,in)
+                 if (global_error_flag/=0) then
+                     call MatterPowerdata_Free(PK_data) 
+                     return
+                 end if      
                  do itf = 1, nz
                    PK_data%matpower(ik,itf) = &
                     log(MTrans%TransferData(transfer_power_var,ik,itf_start+itf-1)**2*k & 
-                                   *pi*twopi*h**3*ScalarPower(k,in))
+                                   *pi*twopi*h**3*power)
                  end do
           end do
      
@@ -1614,6 +1619,8 @@
           deallocate(PK_data%ddmat,stat=i)
           deallocate(PK_data%nonlin_ratio,stat=i)
           deallocate(PK_data%redshifts,stat=i)
+          nullify(PK_data%log_kh,PK_data%matpower,PK_data%ddmat, &
+             PK_data%nonlin_ratio,PK_data%redshifts)
 
         end subroutine MatterPowerdata_Free
 
@@ -1753,6 +1760,7 @@
             do il = 1, npoints
                k = exp(logmink + dlnkh*(il-1))*h
                outpower(il) = outpower(il) * ScalarPower(k,in) 
+               if (global_error_flag /= 0) exit
             end do
 
           if (CP%NonLinear/=NonLinear_None) call MatterPowerdata_Free(PK)
@@ -1770,6 +1778,8 @@
          
           !Calculate MTrans%sigma_8^2 = int dk/k win**2 T_k**2 P(k), where win is the FT of a spherical top hat
           !of radius sigr8 h^{-1} Mpc
+          
+           if (global_error_flag /= 0) return
           
          H=CP%h0/100._dl
          do in = 1, CP%InitPower%nn
@@ -2095,7 +2105,7 @@
      
         call Recombination_Init(CP%Recomb, CP%omegac, CP%omegab,CP%Omegan, CP%Omegav, CP%h0,CP%tcmb,CP%yhe)
           !almost all the time spent here
-
+        if (global_error_flag/=0) return
         Maxtau=taumax
         tight_tau = 0
         actual_opt_depth = 0
@@ -2259,8 +2269,8 @@
          end do
 
            if (iv /= 2) then
-             stop 'inithermo: failed to find end of recombination'
-!              taurend=1.5d0*(tauminn*exp((ncount-1)*dlntau))
+             call GlobalError('inithermo: failed to find end of recombination',error_reionization)
+             return
            end if
 
 ! Calculating the timesteps during recombination.
@@ -2462,7 +2472,11 @@
           diff = 10.d0
          do while (diff .gt. 1d-3)
              i=i+1
-             if (i .eq. 100) stop 'optical depth redshift finder did not converge'
+             if (i .eq. 100) then
+               call GlobalError('optical depth redshift finder did not converge',error_reionization)
+               zout=0
+               return
+            end if 
 
              diff = func(try2)-func(try1)
              avg = 0.5d0*(try2+try1)

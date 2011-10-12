@@ -63,6 +63,7 @@
       use lvalues
       use MassiveNu
       use InitialPower
+      use Errors
 
       implicit none
 
@@ -156,7 +157,7 @@ contains
        end if
     
       call InitVars !Most of single thread time spent here (in InitRECFAST)
-
+      if (global_error_flag/=0) return
 
       if (DebugMsgs .and. Feedbacklevel > 0) then
          timeprev=actual
@@ -166,6 +167,7 @@ contains
       end if 
 
        if (.not. CP%OnlyTransfers)  call InitializePowers(CP%InitPower,CP%curv)
+       if (global_error_flag/=0) return
 
 !     Calculation of the CMB sources.
 
@@ -198,7 +200,7 @@ contains
          !$OMP PARAllEl DO DEFAUlT(SHARED),SCHEDUlE(DYNAMIC) &
          !$OMP & PRIVATE(EV, q_ix)
          do q_ix= 1,Evolve_q%npoints
-             call DoSourcek(EV,q_ix)
+             if (global_error_flag==0) call DoSourcek(EV,q_ix)
          end do
          !$OMP END PARAllEl DO
         
@@ -212,7 +214,7 @@ contains
 
    
 !     If transfer functions are requested, set remaining k values and output
-      if (CP%WantTransfer) then
+      if (CP%WantTransfer .and. global_error_flag==0) then
         call TransferOut
          if (DebugMsgs .and. Feedbacklevel > 0) then
          timeprev=actual
@@ -222,7 +224,7 @@ contains
       end if
 
        if (CP%WantTransfer .and. CP%WantCls .and. CP%DoLensing &
-            .and. CP%NonLinear==NonLinear_Lens) then
+            .and. CP%NonLinear==NonLinear_Lens .and. global_error_flag==0) then
           
           call NonLinearLensing
           if (DebugMsgs .and. Feedbacklevel > 0) then
@@ -233,7 +235,7 @@ contains
 
        end if
 
-       if (CP%WantTransfer .and. .not. CP%OnlyTransfers) &
+       if (CP%WantTransfer .and. .not. CP%OnlyTransfers .and. global_error_flag==0) &
           call Transfer_Get_sigma8(MT,8._dl) 
            !Can call with other arguments if need different size
  
@@ -242,7 +244,9 @@ contains
 
 
       if (CP%WantCls) then
-
+         
+         if (global_error_flag==0) then
+          
          call InitSourceInterpolation   
        
          ExactClosedSum = CP%curv > 5e-9_dl .or. scale < 0.93_dl
@@ -266,11 +270,14 @@ contains
          write(*,*)actual-timeprev,' Timing For Integration'
         end if
  
+        end if
+        
         call FreeSourceMem
 
         !Final calculations for CMB output unless want the Cl transfer functions only.
 
-        if (.not. CP%OnlyTransfers) call ClTransferToCl(CTransScal,CTransTens, CTransVec)
+        if (.not. CP%OnlyTransfers .and. global_error_flag==0) &
+          call ClTransferToCl(CTransScal,CTransTens, CTransVec)
 
       end if
 
@@ -287,7 +294,7 @@ contains
      subroutine ClTransferToCl(CTransS,CTransT, CTransV)
         Type(ClTransferData) :: CTransS,CTransT, CTransV
 
-       if (CP%WantScalars) then
+       if (CP%WantScalars .and. global_error_flag==0) then
            lSamp = CTransS%ls
            allocate(iCl_Scalar(CTransS%ls%l0,C_Temp:C_last,CP%InitPower%nn))
            iCl_scalar = 0
@@ -296,7 +303,7 @@ contains
            if (DebugMsgs .and. Feedbacklevel > 0) write (*,*) 'CalcScalCls'
        end if    
 
-       if (CP%WantVectors) then
+       if (CP%WantVectors .and. global_error_flag==0) then
            allocate(iCl_vector(CTransV%ls%l0,C_Temp:CT_Cross,CP%InitPower%nn))
            iCl_vector = 0
            call CalcVecCls(CTransV,GetInitPowerArrayVec)
@@ -304,26 +311,31 @@ contains
        end if    
 
 
-       if (CP%WantTensors) then
+       if (CP%WantTensors .and. global_error_flag==0) then
            allocate(iCl_Tensor(CTransT%ls%l0,CT_Temp:CT_Cross,CP%InitPower%nn))
            iCl_tensor = 0
            call CalcTensCls(CTransT,GetInitPowerArrayTens)
            if (DebugMsgs .and. Feedbacklevel > 0) write (*,*) 'CalcTensCls'
        end if
 
-       call Init_Cls
- !     Calculating Cls for every l.
-       call InterpolateCls(CTransS,CTransT, CTransV)
+       if (global_error_flag==0) then
+        call Init_Cls
+ 
+  !     Calculating Cls for every l.
+        call InterpolateCls(CTransS,CTransT, CTransV)
    
-       if (DebugMsgs .and. Feedbacklevel > 0) write (*,*) 'InterplolateCls'
+        if (DebugMsgs .and. Feedbacklevel > 0) write (*,*) 'InterplolateCls'
 
-       if (CP%WantScalars) deallocate(iCl_scalar)
-       if (CP%WantVectors) deallocate(iCl_vector)
-       if (CP%WantTensors) deallocate(iCl_tensor)
+       end if
+
+       if (CP%WantScalars .and. allocated(iCl_Scalar)) deallocate(iCl_scalar)
+       if (CP%WantVectors .and. allocated(iCl_Vector)) deallocate(iCl_vector)
+       if (CP%WantTensors .and. allocated(iCl_Tensor)) deallocate(iCl_tensor)
+       
+       if (global_error_flag/=0) return
  
        if (CP%OutputNormalization >=2) call NormalizeClsAtl(CP%OutputNormalization)
        !Normalize to C_l=1 at l=OutputNormalization 
-  
      
      end subroutine ClTransferToCl
     
@@ -523,9 +535,9 @@ contains
    
             call GetNumEqns(EV)
 
-            if (CP%WantScalars) call CalcScalarSources(EV,taustart)
-            if (CP%WantVectors) call CalcVectorSources(EV,taustart)
-            if (CP%WantTensors) call CalcTensorSources(EV,taustart)
+            if (CP%WantScalars .and. global_error_flag==0) call CalcScalarSources(EV,taustart)
+            if (CP%WantVectors .and. global_error_flag==0) call CalcVectorSources(EV,taustart)
+            if (CP%WantTensors .and. global_error_flag==0) call CalcTensorSources(EV,taustart)
 
       end subroutine DoSourcek
 
@@ -552,7 +564,7 @@ contains
 
        subroutine FreeSourceMem
          
-        deallocate(Src, ddSrc)
+        if (allocated(Src))deallocate(Src, ddSrc)
         call Ranges_Free(Evolve_q)
 
        end subroutine FreeSourceMem
@@ -609,6 +621,7 @@ contains
 !     saved in order to do the integration. So TimeSteps is set here.
       !These routines in ThermoData (modules.f90)
       call inithermo(taumin,CP%tau0)
+      if (global_error_flag/=0) return
    
       if (DebugMsgs .and. Feedbacklevel > 0) write (*,*) 'inithermo'
 
@@ -767,7 +780,7 @@ contains
          w=0
          y=0
          call initial(EV,y, taustart)
-
+         if (global_error_flag/=0) return
        
          tau=taustart
          ind=1
@@ -805,6 +818,7 @@ contains
              
              !Integrate over time, calulate end point derivs and calc output
              call GaugeInterface_EvolveScal(EV,tau,y,tauend,tol1,ind,c,w)
+             if (global_error_flag/=0) return
  
              call output(EV,y,j,tau,sources)
              Src(EV%q_ix,1:SourceNum,j)=sources
@@ -815,6 +829,7 @@ contains
                   if (tauend < tautf(itf) .and.TimeSteps%points(j+1)  > tautf(itf)) then
                           
                      call GaugeInterface_EvolveScal(EV,tau,y,tautf(itf),tol1,ind,c,w)
+                     if (global_error_flag/=0) return
 
                   endif
                 end if  
@@ -968,10 +983,12 @@ contains
        if (CP%Transfer%high_precision) atol=atol/10000
 
        ind=1
-       call initial(EV,y, tau)  
+       call initial(EV,y, tau) 
+       if (global_error_flag/=0) return 
          
        do i=1,CP%Transfer%num_redshifts
           call GaugeInterface_EvolveScal(EV,tau,y,tautf(i),atol,ind,c,w)
+          if (global_error_flag/=0) return
           call outtransf(EV,y,MT%TransferData(:,EV%q_ix,i))
        end do
  
@@ -1978,6 +1995,7 @@ contains
          do i = 1, numks
          !!change to vec...
             pows(i) =  ScalarPower(ks(i) ,pix)
+            if (global_error_flag/=0) exit
          end do
 
         end subroutine GetInitPowerArrayVec
@@ -1990,6 +2008,7 @@ contains
       
          do i = 1, numks
             pows(i) =  TensorPower(ks(i) ,pix)
+            if (global_error_flag/=0) exit
          end do
 
         end subroutine GetInitPowerArrayTens
@@ -2019,7 +2038,7 @@ contains
              end if
 
              pows(q_ix) =  ScalarPower(ks(q_ix) ,pix)
-
+             if (global_error_flag/=0) return
       
           end do
 
@@ -2111,6 +2130,7 @@ contains
              end if
 
              pows(q_ix) =  ScalarPower(ks(q_ix) ,in)
+             if (global_error_flag/=0) return
 
           end do
 

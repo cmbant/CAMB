@@ -89,6 +89,7 @@
         use ModelParams
         use MassiveNu
         use LambdaGeneral
+        use Errors
         implicit none
         public
 
@@ -202,11 +203,11 @@
             
             call dverk(EV,EV%ScalEqsToPropagate,derivs,tau,y,tauend,tol1,ind,c,EV%nvar,w)
             if (ind==-3) then
-             call MpiStop('Dverk error -3: the subroutine was unable  to  satisfy  the  error ' &
+             call GlobalError('Dverk error -3: the subroutine was unable  to  satisfy  the  error ' &
                            //'requirement  with a particular step-size that is less than or * ' &
                            //'equal to hmin, which may mean that tol is too small' &
                            //'--- but most likely you''ve messed up the y array indexing; ' &
-                           //'compiling with bounds checking may (or may not) help find the problem.' )     
+                      //'compiling with bounds checking may (or may not) help find the problem.',error_evolution)     
             end if
         end subroutine GaugeInterface_ScalEv
         
@@ -282,6 +283,7 @@
          if (next_switch < tauend) then
              if (next_switch > tau+smallTime) then
                 call GaugeInterface_ScalEv(EV, y, tau,next_switch,tol1,ind,c,w)
+                if (global_error_flag/=0) return
              end if
    
              EVout=EV
@@ -2602,6 +2604,8 @@
         pig=ayt(ind)
         polter = 0.1_dl*pig + 9._dl/15._dl*E(2)
 
+        if (EV%lmaxt > 2) then
+         
         aytprime(ind)=-EV%denlkt(2,2)*ayt(ind+1)+k*8._dl/15._dl*shear  &
                   -opacity*(pig - polter)
 
@@ -2639,6 +2643,14 @@
 !truncate
         Bprime(l) =(EV%denlkt(1,L)*B(l-1) - EV%denlkt(4,L)*E(l))  -opacity*B(l)
 
+        else !lmax=2
+        
+         aytprime(ind)=k*8._dl/15._dl*shear-opacity*(pig - polter) 
+         Eprime(2) = - opacity*(E(2) - polter) + EV%denlkt(4,2)*B(2)
+         Bprime(2) = - EV%denlkt(4,2)*E(2)  -opacity*B(2)
+        
+        end if     
+
         else  !Tight coupling
          pig = 32._dl/45._dl*k/opacity*shear
         
@@ -2658,7 +2670,8 @@
         pir=neut(2)
 
         rhopi=rhopi+grhor_t*pir
-
+ 
+        if (EV%lmaxnrt>2) then   
         pirdt=-EV%denlkt(2,2)*neut(3) + 8._dl/15._dl*k*shear
         neutprime(2)=pirdt
 !  And for the moments
@@ -2669,6 +2682,11 @@
 !  Truncate the hierarchy
         neutprime(EV%lmaxnrt)=k*EV%lmaxnrt/(EV%lmaxnrt-2._dl)*neut(EV%lmaxnrt-1)-  &
                        (EV%lmaxnrt+3._dl)*cothxor*neut(EV%lmaxnrt)
+
+        else
+         pirdt= 8._dl/15._dl*k*shear
+         neutprime(2)=pirdt
+        end if
 
          !  Massive neutrino equations of motion and contributions to anisotropic stress.
          if (CP%Num_Nu_massive > 0) then
@@ -2686,15 +2704,18 @@
                 q=nu_q(i)
                 aq=a*nu_masses(nu_i)/q
                 v=1._dl/sqrt(1._dl+aq*aq)
-
-                aytprime(ind)=-v*EV%denlkt(2,2)*ayt(ind+1)+8._dl/15._dl*k*shear
-                do l=3,EV%lmaxnut-1
-                 ind=ind+1
-                 aytprime(ind)=v*(EV%denlkt(1,L)*ayt(ind-1)-EV%denlkt(2,L)*ayt(ind+1))     
-                end do
-                ind = ind+1
-    !  Truncate moment expansion.
-                aytprime(ind)=k*v*EV%lmaxnut/(EV%lmaxnut-2._dl)*ayt(ind-1)-(EV%lmaxnut+3)*cothxor*ayt(ind)
+                if (EV%lmaxnut>2) then
+                 aytprime(ind)=-v*EV%denlkt(2,2)*ayt(ind+1)+8._dl/15._dl*k*shear
+                 do l=3,EV%lmaxnut-1
+                  ind=ind+1
+                  aytprime(ind)=v*(EV%denlkt(1,L)*ayt(ind-1)-EV%denlkt(2,L)*ayt(ind+1))     
+                 end do
+                 ind = ind+1
+                !Truncate moment expansion.
+                 aytprime(ind)=k*v*EV%lmaxnut/(EV%lmaxnut-2._dl)*ayt(ind-1)-(EV%lmaxnut+3)*cothxor*ayt(ind)
+                else
+                 aytprime(ind)=8._dl/15._dl*k*shear
+                end if
                 ind=ind+1
               end do
             end if          

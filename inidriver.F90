@@ -283,7 +283,11 @@
          write (*,'("Age of universe/GYr  = ",f7.3)') Age  
        end if 
 
-       call CAMB_GetResults(P)
+       if (global_error_flag==0) call CAMB_GetResults(P)
+       if (global_error_flag/=0) then
+        write (*,*) 'Error result '//trim(global_error_message)
+        stop
+       endif
     
         if (P%WantTransfer .and. .not. (P%NonLinear==NonLinear_lens .and. P%DoLensing)) then
          call Transfer_SaveToFiles(MT,TransferFileNames)

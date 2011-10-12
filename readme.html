@@ -13,7 +13,7 @@
 Code for Anisotropies in the Microwave Background by <A
 HREF="http://cosmologist.info/">Antony Lewis</A> and Anthony
 Challinor. <P>
-This version July 2011.
+This version October 2011.
 <P>
 <FONT SIZE=-1>
 Originally based on CMBFAST developed by Uros Seljak and Matias
@@ -113,7 +113,9 @@ where all quantities are in the synchronous gauge and evaluated at the requested
 <B>October 2011</B><BR>
 <UL>
 <LI>Fixed array bounds issue for closed-model tensor calculation
-<LI>Tweaks for high_accuracy_default accuracy in non-flat models
+<LI>Tweaks for high_accuracy_default stability in closed models
+<LI>L sampling slightly increased (1.2 factor) at high L for high_accuracy_default
+<LI>Added global_error_flag and Errors module for handling bailout from various modules
 <LI>Updated Makefile
 </UL>
 
@@ -128,7 +130,7 @@ where all quantities are in the synchronous gauge and evaluated at the requested
 Merged flat and non-flat derivative routines in equations.f90, time evolution restructuring and some higher-order tight coupling terms from <A HREF="http://arxiv.org/abs/1012.0569">arXiv:1012.0569</A>.
 <LI>Various tweaks to fixed internal accuracy parameters for consistency with <b>high_accuracy_default</b> (very small decrease in speed)
 <LI>Added apodization in lensing.f90 so that slow full integration is now only used for lmax>=5000 rather than lmax>=3000 (or if AccurateBB is set).
-<LI>Added quick calculation of the high-L tails of the lensing convolution by rescaling a template (speeds up high-accurcy lensedCl calculation with minimal loss of accuracy).
+<LI>Added quick calculation of the high-L tails of the lensing convolution by rescaling a template (speeds up high-accuracy lensedCl calculation with minimal loss of accuracy).
 <LI>Removed a couple of options relating to unlensed or temperature-only calculations that are now rarely relevant
 </UL>
 <B>January 2011</B><BR>
