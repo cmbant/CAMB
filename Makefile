@@ -18,8 +18,8 @@ endif
 #Gfortran compiler:
 #The options here work in v4.5, delete from RHS in earlier versions (15% slower)
 #if pre v4.3 add -D__GFORTRAN__
+#With v4.6+ try -Ofast -march=native -fopenmp
 #On my machine v4.5 is about 20% slower than ifort
-#Can try -fstack-arrays in later versions - is it faster?
 #F90C     = gfortran
 #FFLAGS =  -O3 -fopenmp -ffast-math -march=native -funroll-loops
 
