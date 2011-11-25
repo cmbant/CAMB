@@ -51,7 +51,7 @@ endif
 
 #PGF90
 #F90C = pgf90
-#FFLAGS = -O2 -DESCAPEBACKSLASH
+#FFLAGS = -O2 -DESCAPEBACKSLASH -Mpreprocess
 
 #Sun V880
 #F90C = mpf90
@@ -80,4 +80,4 @@ else
 EXTCAMBFILES =
 endif
 
-include ./Makefile_main 
+include ./Makefile_main

@@ -228,6 +228,8 @@
            real(dl), save :: last_tau0
            !Constants in SI units
 
+            global_error_flag = 0
+
             if ((P%WantTensors .or. P%WantVectors).and. P%WantTransfer .and. .not. P%WantScalars) then
               call GlobalError( 'Cannot generate tensor C_l and transfer without scalar C_l',error_unsupported_params)
             end if

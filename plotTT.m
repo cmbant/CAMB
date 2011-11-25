@@ -1,5 +1,5 @@
-
-function plotcls(varargin)
+%Usage: e.g. plotTT('scalCls.dat'), or plotTT('scalCls.dat','scalCls2.dat')
+function plotTT(varargin)
 global l_label
 
 hin=ishold;
@@ -40,16 +40,21 @@ minTT = min(minTT,min(TT(:)));
 maxTT = max(maxTT,max(TT(:)));
 
 lmin=min(lmin,min(ls));
-lmax=max(lmax,max(ls));
+lmax=min(3000,max(lmax,max(ls)));
 subplot(ploty,plotx,1);
 seth(h);
-plot(sqrt(ls),TT,col);
+plot(sqrt(ls),TT,':k','LineWidth',2);
 setaxes(minTT*0.9,maxTT*1.1,1,sqrt(lmax));
-ticks = [2 10 40 100 200 400 700 1000 1500];
+if (lmax>2500)
+ticks = [2 10 40 100 200 400 700 1000 1500 2000 2500];
+else
+ticks = [2 10 40 100 200 400 700 1000 1500 2000];
+end
 set(gca,'XTick',sqrt(ticks));
 set(gca,'XTickLabel',ticks);
 
 if i>1   
+  print i
   subplot(ploty,plotx,2);
   if i==2
    seth(hin);
@@ -57,15 +62,15 @@ if i>1
    seth(h)
   end
   dm = min(size(TT),size(compTT));
+  dm = min(3000,dm);
   cmp= (TT(1:dm) - compTT(1:dm)) ./ compTT(1:dm);
 
-  plot(sqrt(ls),cmp,col);
+  plot(sqrt(ls(1:dm)),cmp,col);
   hold on;
   plot([1 sqrt(lmax)],[0 0],':k');
-  ylabel('{\Delta C_l / C_l} (TT)');
+  ylabel('\Delta C_l / C_l');
   xlabel(l_label);
-  set(gca,'XLim',[1 sqrt(lmax)]);
-ticks = [2 10 40 100 200 400 700 1000 1500];
+  set(gca,'XLim',[2 sqrt(lmax)]);
 set(gca,'XTick',sqrt(ticks));
 set(gca,'XTickLabel',ticks);
 
@@ -77,8 +82,6 @@ end;
 
 seth(hin);
 % print -dpsc2 plotcls.ps;
-
-
 
 function seth(h)
 
@@ -93,3 +96,4 @@ global l_label
 
 set(gca,'YLim',[a,b],'XLim',[c,d]);
 xlabel(l_label);ylabel('l(l+1) C_l / 2\pi');
+
