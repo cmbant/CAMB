@@ -1383,7 +1383,7 @@
 
   function ExtractFilePath(aname)
     character(LEN=*), intent(IN) :: aname
-    character(LEN=120) ExtractFilePath
+    character(LEN=1024) ExtractFilePath
     integer len, i
 
     len = len_trim(aname)
@@ -1435,7 +1435,7 @@
 
  function ChangeFileExt(aname,ext)
     character(LEN=*), intent(IN) :: aname,ext
-    character(LEN=120) ChangeFileExt
+    character(LEN=1024) ChangeFileExt
     integer len, i
 
     len = len_trim(aname)
@@ -1452,7 +1452,7 @@
 
   function CheckTrailingSlash(aname)
      character(LEN=*), intent(in) :: aname
-     character(LEN=120) CheckTrailingSlash
+     character(LEN=1024) CheckTrailingSlash
      integer len
      
      len = len_trim(aname)
@@ -1599,7 +1599,7 @@ subroutine CreateOpenTxtFile(aname, aunit, append)
  end subroutine CreateOpenFile
 
  function TxtNumberColumns(InLine) result(n)
-   character(LEN=4096) :: InLine
+   character(LEN=*) :: InLine
    integer n,i
    logical isNum    
    
@@ -1617,7 +1617,7 @@ subroutine CreateOpenTxtFile(aname, aunit, append)
  end function TxtNumberColumns
  
   function TxtColumns(InLine) result(n)
-   character(LEN=4096) :: InLine
+   character(LEN=*) :: InLine
    integer n,i
    logical isNum    
    
@@ -1637,7 +1637,7 @@ subroutine CreateOpenTxtFile(aname, aunit, append)
  function FileColumns(aunit) result(n)
    integer, intent(in) :: aunit
    integer n
-   character(LEN=4096) :: InLine
+   character(LEN=4096*32) :: InLine
 
    n=0
    read(aunit,'(a)', end = 10) InLine
@@ -1666,7 +1666,7 @@ subroutine CreateOpenTxtFile(aname, aunit, append)
 
  function TopCommentLine(aname) result(res)
     character(LEN=*), intent(IN) :: aname
-    integer n, file_id 
+    integer file_id 
     character(LEN=1024) :: InLine, res
     
     res = ''
