@@ -31,6 +31,7 @@ module Bispectrum
      integer Slice_Base_L, ndelta, deltas(max_bispectrum_deltas)
      logical do_parity_odd
      logical DoFisher
+     logical export_alpha_beta
      real(dl) FisherNoise, FisherNoisePol, FisherNoiseFwhmArcmin
      character(LEN=Ini_max_string_len)  FullOutputFile
      logical SparseFullOutput
@@ -347,6 +348,13 @@ contains
             if (l1>lmax) then 
               l1 =lmax
             end if
+            if (BispectrumParams%Slice_Base_L>0 .and. SampleL%l0>0) then
+              !Make sure requested slice base is actually calculated   
+              if ( BispectrumParams%Slice_Base_L <l1 .and. BispectrumParams%Slice_Base_L>SampleL%l(SampleL%l0)) then
+                SampleL%l0= SampleL%l0 + 1
+                SampleL%l(SampleL%l0) = BispectrumParams%Slice_Base_L                
+              end if
+            end if
             SampleL%l0= SampleL%l0 + 1
            ! print *,l1          
             SampleL%l(SampleL%l0) = l1
@@ -403,7 +411,8 @@ contains
               end do  
 #endif
               if (DebugMsgs) starttime=GetTestTime()         
-              
+                        
+          
            !$OMP PARAllEl DO DEFAUlT(SHARED),SCHEDULE(STATIC,3) &
            !$OMP PRIVATE(il1,l1,l2,l3,max_l,min_l,bix,bi_ix, tmp1,tmp2,tmp3), &
            !$OMP PRIVATE(field1,field2,field3, Bispectrum, a3j,a3j2)
@@ -618,6 +627,15 @@ contains
           call Ranges_Add_delta(TimeStepsNongauss, -taurst*10*AccuracyBoost, taurst, dtaurec)
           call Ranges_getArray(TimeStepsNongauss, .true.)
      
+!$        if (BispectrumParams%export_alpha_beta) call OMP_SET_NUM_THREADS(1)
+          if (BispectrumParams%export_alpha_beta) then 
+               !Note that all the points outside recombination are not really needed
+               !And these are for curvature perturbation, so do not include 3/5 factor
+               call CreateTxtFile(trim(output_root)//'_alpha.txt',100)
+               call CreateTxtFile(trim(output_root)//'_beta.txt',101)
+               call CreateTxtFile(trim(output_root)//'_alpha_beta_r.txt',102)
+          end if
+
           if (DebugMsgs) starttime=GetTestTime()
          
          !$OMP PARALLEL DO DEFAUlT(SHARED),SCHEDULE(STATIC,3) &
@@ -650,6 +668,12 @@ contains
              end do
             end do
             deallocate(res,resP)
+ 
+            if (BispectrumParams%export_alpha_beta) then
+             write(100,concat('(',lmax-lmin+1 ,'E15.5)')) res_l(lmin:lmax,1,1)
+             write(101,concat('(',lmax-lmin+1 ,'E15.5)')) resP_l(lmin:lmax,1,1)
+             write(102,'(1E15.5)') r
+            end if
             
             if (npd>0) then
              do j=1,npd
@@ -696,6 +720,11 @@ contains
             if (npd>0) deallocate(resPd_l)            
           end do !TimeStepsNongauss   
  !$OMP END PARAllEl DO
+          if (BispectrumParams%export_alpha_beta) then
+            close(100)
+            close(101)
+            close(102)
+          end if
           deallocate(TransferPolFac)
           call Ranges_Free(TimeStepsNongauss)
   
@@ -1101,13 +1130,14 @@ contains
              deallocate(fish_L_ij)
              deallocate(fish_L_noise)
             end do
-            deallocate(fish_contribs)
             print *,'Lensing Fisher including lensing variance ', sum(fish_contribs_sig)
     
            end if
            
            end do
           end do
+         deallocate(fish_contribs)
+      
           print *, 'Results assuming zero fiducial bispectra' 
           do bispectrum_type=1,nbispectra
            print *,trim(IntToStr(bispectrum_type))//'-'//trim(BispectrumNames(bispectrum_type)), &
@@ -1303,6 +1333,7 @@ contains
           B%do_lensing_bispectrum = .true.
           B%do_primordial_bispectrum = .true.
           B%do_parity_odd = .false.
+          B%export_alpha_beta = .false.
        
        end subroutine Bispectrum_SetDefParams      
        
@@ -1352,8 +1383,13 @@ contains
           end if
           B%FullOutputFile = Ini_Read_String_File(Ini,'bispectrum_full_output_file') 
           if (B%FullOutputFile /='') then
-           B%SparseFullOutput = Ini_Read_Logical_file(Ini,'bispectrum_full_output_sparse')
+           B%SparseFullOutput = Ini_Read_Logical_file(Ini,'bispectrum_full_output_sparse',B%SparseFullOutput)
           end if
+          
+          if (B%do_primordial_bispectrum) then
+             B%export_alpha_beta = Ini_Read_Logical_file(Ini,'bispectrum_export_alpha_beta', B%export_alpha_beta)
+          end if
+          
           end if
           
         end subroutine Bispectrum_ReadParams  

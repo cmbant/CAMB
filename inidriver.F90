@@ -24,7 +24,7 @@
             LensedTotFileName, LensPotentialFileName
         integer i
         character(LEN=Ini_max_string_len) TransferFileNames(max_transfer_redshifts), &
-               MatterPowerFileNames(max_transfer_redshifts), outroot
+               MatterPowerFileNames(max_transfer_redshifts), outroot, version_check
         real(dl) output_factor, Age, nmassive
 
 #ifdef WRITE_FITS
@@ -240,7 +240,14 @@
        P%AccuratePolarization = Ini_Read_Logical('accurate_polarization',.true.)
        P%AccurateReionization = Ini_Read_Logical('accurate_reionization',.false.)
        P%AccurateBB = Ini_Read_Logical('accurate_BB',.false.)
-        
+ 
+       version_check = Ini_Read_String('version_check')
+       if (version_check == '') then
+          !tag the output used parameters .ini file with the version of CAMB being used now
+           call TNameValueList_Add(DefIni%ReadValues, 'version_check', version)
+       else if (version_check /= version) then
+           write(*,*) 'WARNING: version_check does not match this CAMB version'
+        end if
        !Mess here to fix typo with backwards compatibility
        if (Ini_HasKey('do_late_rad_trunction')) then
          DoLateRadTruncation = Ini_Read_Logical('do_late_rad_trunction',.true.)
@@ -267,7 +274,11 @@
         lSampleBoost   = Ini_Read_Double('l_sample_boost',lSampleBoost)
        end if
        if (outroot /= '') then
-         call Ini_SaveReadValues(trim(outroot) //'params.ini',1)
+         if (InputFile /= trim(outroot) //'params.ini') then   
+          call Ini_SaveReadValues(trim(outroot) //'params.ini',1)
+         else
+          write(*,*) 'Output _params.ini not created as would overwrite input'    
+         end if
        end if
 
        call Ini_Close
