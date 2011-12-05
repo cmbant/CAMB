@@ -21,7 +21,7 @@
       private
        
        real, parameter :: Min_kh_nonlinear = 0.005
-       real(dl):: om_m,om_v
+       real(dl):: om_m,om_v,fnu,omm0
 
       public Min_kh_nonlinear,NonLinear_GetNonLinRatios
       
@@ -33,13 +33,14 @@
      !This implementation uses Halofit
       type(MatterPowerData) :: CAMB_Pk
       integer itf
-      real(dl) a, omm0,plin,pq,ph,pnl,rk
+      real(dl) a,plin,pq,ph,pnl,rk
       real(dl) sig,rknl,rneff,rncur,d1,d2
       real(dl) diff,xlogr1,xlogr2,rmid
       integer i
 
        !!BR09 putting neutrinos into the matter as well, not sure if this is correct, but at least one will get a consisent omk.
        omm0 = CP%omegac+CP%omegab+CP%omegan
+       fnu = CP%omegan/(CP%omegab+CP%omegac)
 
        CAMB_Pk%nonlin_ratio = 1
 
@@ -112,12 +113,16 @@
       subroutine halofit(rk,rn,rncur,rknl,plin,pnl,pq,ph)
       implicit none
 
-      real(dl) gam,a,b,c,xmu,xnu,alpha,beta,f1,f2,f3
-      real(dl) rk,rn,plin,pnl,pq,ph
+      real(dl) extragam,gam,a,b,c,xmu,xnu,alpha,beta,f1,f2,f3
+      real(dl) rk,rn,plin,pnl,pq,ph,plinaa
       real(dl) rknl,y,rncur
       real(dl) f1a,f2a,f3a,f1b,f2b,f3b,frac
 
-      gam=0.86485+0.2989*rn+0.1631*rncur
+!SPB11: Standard halofit underestimates the power on the smallest scales by a
+!factor of two. Add an extra correction from the simulations in Bird, Viel,
+!Haehnelt 2011 which partially accounts for this.
+      extragam = 0.3159 -0.0765*rn -0.8350*rncur
+      gam=extragam+0.86485+0.2989*rn+0.1631*rncur
       a=1.4861+1.83693*rn+1.67618*rn*rn+0.7940*rn*rn*rn+ &
            0.1670756*rn*rn*rn*rn-0.620695*rncur
       a=10**a      
@@ -126,7 +131,7 @@
       xmu=10**(-3.54419+0.19086*rn)
       xnu=10**(0.95897+1.2857*rn)
       alpha=1.38848+0.3701*rn-0.1452*rn*rn
-      beta=0.8291+0.9854*rn+0.3400*rn**2
+      beta=0.8291+0.9854*rn+0.3400*rn**2+fnu*(-6.4868+1.4373*rn**2)
 
       if(abs(1-om_m).gt.0.01) then ! omega evolution 
          f1a=om_m**(-0.0732)
@@ -148,8 +153,9 @@
       y=(rk/rknl)
 
       ph=a*y**(f1*3)/(1+b*y**(f2)+(f3*c*y)**(3-gam))
-      ph=ph/(1+xmu*y**(-1)+xnu*y**(-2))
-      pq=plin*(1+plin)**beta/(1+plin*alpha)*exp(-y/4.0-y**2/8.0)
+      ph=ph/(1+xmu*y**(-1)+xnu*y**(-2))*(1+fnu*(2.080-12.39*(omm0-0.3))/(1+1.201e-03*y**3))
+      plinaa=plin*(1+fnu*26.29*rk**2/(1+1.5*rk**2))
+      pq=plin*(1+plinaa)**beta/(1+plinaa*alpha)*exp(-y/4.0-y**2/8.0)
 
       pnl=pq+ph
 
