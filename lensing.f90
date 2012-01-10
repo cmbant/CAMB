@@ -45,8 +45,6 @@ implicit none
  
  integer :: lensing_method = lensing_method_curv_corr
 
- character(LEN=1024) :: highL_unlensed_cl_template = 'HighLExtrapTemplate_lenspotentialCls.dat'
-
 private
 
  logical  :: lensing_includes_tensors = .false.
@@ -58,8 +56,6 @@ private
  real(dl), dimension(:), allocatable :: Bess4, ddBess4
  real(dl), dimension(:), allocatable :: Bess6, ddBess6
 
- real(dl), allocatable :: highL_CL_template(:,:)
- integer, parameter :: lmax_extrap_highl = 6000
  integer, parameter :: lensed_convolution_margin = 100
    !Number of L less than L max at which the lensed power spectrum is calculated 
 
@@ -68,7 +64,7 @@ private
  real(dl), dimension(:), allocatable  :: lnfa
 
 public lens_Cls, lensing_includes_tensors, lensing_method, lensing_method_flat_corr,&
-      lensing_method_curv_corr,lensing_method_harmonic, BessI, bessj0, highL_unlensed_cl_template
+      lensing_method_curv_corr,lensing_method_harmonic, BessI, bessj0
 contains
 
 
@@ -88,27 +84,6 @@ subroutine lens_Cls
  end if
 end subroutine lens_Cls
 
-subroutine lens_CheckLoadedHighLTemplate
-  use ModelData
-  integer L
-  real(dl) array(7)
-
- if (.not. allocated(highL_CL_template)) then
-     allocate(highL_CL_template(2:lmax_extrap_highl, C_Temp:C_Phi))
-     call OpenTxtFile(highL_unlensed_cl_template,fileio_unit)
-     do
-      read(fileio_unit,*, end=500) L , array 
-      if (L>lmax_extrap_highl) exit
-      array = array * (2*l+1)/(4*pi) * 2*pi/(l*(l+1))
-      highL_CL_template(L, C_Temp:C_E) =array(1:2)
-      highL_CL_template(L, C_Cross) =array(4)
-      highL_CL_template(L, C_Phi) =array(5)      
-     end do
-     
-500  close(fileio_unit)
- end if
-
-end subroutine lens_CheckLoadedHighLTemplate
 
 subroutine CorrFuncFullSky
 
@@ -156,7 +131,7 @@ subroutine CorrFuncFullSkyImpl(lmax)
   integer  interp_fac
   integer j,jmax
   integer llo, lhi
-  real(dl) a0,b0,ho
+  real(dl) a0,b0,ho, sc
   logical :: short_integral_range
   integer, parameter :: slow_highL = 5000 !Lmax at which to do full range to prevent ringing etc
 
@@ -238,16 +213,18 @@ subroutine CorrFuncFullSkyImpl(lmax)
      stop
     end if
     if (lmax > CP%Max_l) then
-     call lens_CheckLoadedHighLTemplate
-     fac=Cphil3(CP%Max_l)/highL_CL_template(CP%Max_l, C_Phi)
-     fac2=CTT(CP%Max_l)/highL_CL_template(CP%Max_l, C_Temp)
+     l=CP%Max_l
+     sc = (2*l+1)/(4*pi) * 2*pi/(l*(l+1))     
+     fac2=CTT(CP%Max_l)/(sc*highL_CL_template(CP%Max_l, C_Temp))
+     fac=Cphil3(CP%Max_l)/(sc*highL_CL_template(CP%Max_l, C_Phi))  
      do l=CP%Max_l+1, lmax
        !Fill in tail from template
-       Cphil3(l) = highL_CL_template(l, C_Phi)*fac
+       sc = (2*l+1)/(4*pi) * 2*pi/(l*(l+1))  
+       Cphil3(l) = highL_CL_template(l, C_Phi)*fac*sc
        
-       CTT(l) =  highL_CL_template(l, C_Temp)*fac2
-       CEE(l) =  highL_CL_template(l, C_E)*fac2 
-       CTE(l) =  highL_CL_template(l, C_Cross)*fac2 
+       CTT(l) =  highL_CL_template(l, C_Temp)*fac2*sc
+       CEE(l) =  highL_CL_template(l, C_E)*fac2 *sc
+       CTE(l) =  highL_CL_template(l, C_Cross)*fac2*sc 
       if (Cphil3(CP%Max_l+1) > 1e-7) then
        write (*,*) 'You need to normalize the high-L template so it is dimensionless'
        stop

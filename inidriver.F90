@@ -264,6 +264,7 @@
        AccuracyBoost  = Ini_Read_Double('accuracy_boost',AccuracyBoost)
        lAccuracyBoost = Ini_Read_Real('l_accuracy_boost',lAccuracyBoost)
        HighAccuracyDefault = Ini_Read_Logical('high_accuracy_default',HighAccuracyDefault)
+       use_spline_template = Ini_Read_Logical('use_spline_template',use_spline_template)
        if (HighAccuracyDefault) then
          P%Max_eta_k=max(min(P%max_l,3000)*2.5_dl,P%Max_eta_k)
        end if

@@ -130,21 +130,21 @@ contains
       real(sp) actual,timeprev,starttime
 
       if (CP%WantCls) then
- 
+        
          if (CP%WantTensors .and. CP%WantScalars) stop 'CMBMAIN cannot generate tensors and scalars'
          !Use CAMB_GetResults instead
 
          if (CP%WantTensors) then
-            maximum_l = CP%Max_l_tensor
+            maximum_l = CP%Max_l_tensor 
             maximum_qeta = CP%Max_eta_k_tensor
          else
             maximum_l = CP%Max_l
             maximum_qeta = CP%Max_eta_k
          end if
 
-
+   
          call initlval(lSamp, maximum_l)
-
+         
          if (CP%flat)  call InitSpherBessels
          !This is only slow if not called before with same (or higher) Max_l, Max_eta_k
          !Preferably stick to Max_l being a multiple of 50
@@ -2320,8 +2320,8 @@ contains
       do in=1,CP%InitPower%nn
          if (CP%WantScalars) then
            do i = C_Temp, C_last
-             call InterpolateClArr(CTransS%ls,iCl_scalar(1,i,in),Cl_scalar(lmin, in, i), &
-                 CTransS%ls%l0)
+              call InterpolateClArrTemplated(CTransS%ls,iCl_scalar(1,i,in),Cl_scalar(lmin, in, i), &
+                 CTransS%ls%l0,i)
            end do
          end if
       

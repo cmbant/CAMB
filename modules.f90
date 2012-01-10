@@ -35,7 +35,7 @@
         implicit none    
         public
 
-        character(LEN=*), parameter :: version = 'Dec_11'
+        character(LEN=*), parameter :: version = 'Jan_12'
         
         integer :: FeedbackLevel = 0 !if >0 print out useful information about the model
 
@@ -213,6 +213,13 @@
 !     lmax is max possible number of l's evaluated
       integer, parameter :: lmax_arr = l0max 
  
+      character(LEN=1024) :: highL_unlensed_cl_template = 'HighLExtrapTemplate_lenspotentialCls.dat'
+           !fiducial high-accuracy high-L C_L used for making small cosmology-independent numerical corrections
+           !to lensing and C_L interpolation. Ideally close to models of interest, but dependence is weak.
+      logical :: use_spline_template = .true.  
+      integer, parameter :: lmax_extrap_highl = 6000
+      real(dl), allocatable :: highL_CL_template(:,:)
+           
         contains
       
 
@@ -539,7 +546,7 @@
            CosmomcTheta = rs/DA
     !       print *,'z* = ',zstar, 'r_s = ',rs, 'DA = ',DA, rs/DA
 
-      end function CosmomcTheta
+       end function CosmomcTheta
 
    end module ModelParams
 
@@ -675,7 +682,7 @@
            end if
         else
 
-        if (HighAccuracyDefault) then
+        if (HighAccuracyDefault .and. .not. use_spline_template) then
          step=max(nint(42*Ascale),7)
         else
          step=max(nint(50*Ascale),7)
@@ -720,7 +727,7 @@
       type (lSamples), intent(in) :: lSet        
       real(dl), intent(in) :: iCl(*)
       real(dl), intent(out):: all_Cl(lmin:*)
-      integer, intent(in) :: max_ind
+      integer, intent(in) :: max_ind      
       integer il,llo,lhi, xi
       real(dl) ddCl(lSet%l0)
       real(dl) xl(lSet%l0)
@@ -731,8 +738,8 @@
       if (max_ind > lSet%l0) stop 'Wrong max_ind in InterpolateClArr'
 
       xl = real(lSet%l(1:lSet%l0),dl)
-      call spline(xl,iCl(1),max_ind,cllo,clhi,ddCl(1))
-     
+      call spline(xl,iCL(1),max_ind,cllo,clhi,ddCl(1))
+         
             llo=1
             do il=lmin,lSet%l(max_ind)
                xi=il
@@ -748,8 +755,54 @@
                        +(b0**3-b0)*ddCl(lhi))*ho**2/6
               
             end do
-
+           
       end subroutine InterpolateClArr
+      
+       subroutine InterpolateClArrTemplated(lSet,iCl, all_Cl, max_ind, template_index)
+      type (lSamples), intent(in) :: lSet        
+      real(dl), intent(in) :: iCl(*)
+      real(dl), intent(out):: all_Cl(lmin:*)
+      integer, intent(in) :: max_ind
+      integer, intent(in), optional :: template_index
+      integer maxdelta, il
+      real(dl) DeltaCL(lSet%l0)
+      real(dl), allocatable :: tmpall(:)
+
+      if (max_ind > lSet%l0) stop 'Wrong max_ind in InterpolateClArrTemplated'
+
+      if (use_spline_template .and. present(template_index)) then
+        if (template_index<=3) then
+          !interpolate only the difference between the C_l and an accurately interpolated template. Temp only for the mo.
+          !Using unlensed for template, seems to be good enough 
+           maxdelta=max_ind
+           do while (lSet%l(maxdelta) > lmax_extrap_highl) 
+            maxdelta=maxdelta-1
+           end do
+           DeltaCL(1:maxdelta)=iCL(1:maxdelta)- highL_CL_template(lSet%l(1:maxdelta), template_index)
+        
+           call InterpolateClArr(lSet,DeltaCl, all_Cl, maxdelta)
+      
+           do il=lmin,lSet%l(maxdelta)
+                all_Cl(il) = all_Cl(il) +  highL_CL_template(il,template_index)
+           end do
+       
+           if (maxdelta < max_ind) then
+           !directly interpolate high L where no template (doesn't effect lensing spectrum much anyway)
+            allocate(tmpall(lmin:lSet%l(max_ind)))
+            call InterpolateClArr(lSet,iCl, tmpall, max_ind)
+            !overlap to reduce interpolation artefacts
+            all_cl(lSet%l(maxdelta-2):lSet%l(max_ind) ) = tmpall(lSet%l(maxdelta-2):lSet%l(max_ind))
+            deallocate(tmpall)
+           end if
+          return
+        end if        
+       end if 
+                    
+       call InterpolateClArr(lSet,iCl, all_Cl, max_ind)
+       
+           
+      end subroutine InterpolateClArrTemplated
+      
 
  
     
@@ -833,11 +886,34 @@
            call Ranges_Free(CTrans%q)
 
         end subroutine Free_ClTransfer
+        
+        subroutine CheckLoadedHighLTemplate
+          integer L
+          real(dl) array(7)
+
+         if (.not. allocated(highL_CL_template)) then
+             allocate(highL_CL_template(lmin:lmax_extrap_highl, C_Temp:C_Phi))
+             call OpenTxtFile(highL_unlensed_cl_template,fileio_unit)
+             if (lmin==1) highL_CL_template(lmin,:)=0
+             do
+              read(fileio_unit,*, end=500) L , array 
+              if (L>lmax_extrap_highl) exit
+            !  array = array * (2*l+1)/(4*pi) * 2*pi/(l*(l+1)) 
+              highL_CL_template(L, C_Temp:C_E) =array(1:2)
+              highL_CL_template(L, C_Cross) =array(4)
+              highL_CL_template(L, C_Phi) =array(5)    
+             end do
+     
+         500  close(fileio_unit)
+         end if
+
+        end subroutine CheckLoadedHighLTemplate
 
 
 
         subroutine Init_Cls
       
+        call CheckLoadedHighLTemplate 
         if (CP%WantScalars) then
          if (allocated(Cl_scalar)) deallocate(Cl_scalar)
          allocate(Cl_scalar(lmin:CP%Max_l, CP%InitPower%nn, C_Temp:C_last))
