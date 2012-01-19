@@ -112,7 +112,7 @@ where all quantities are in the synchronous gauge and evaluated at the requested
 <H3>Version history</H3>
 <B>January 2012</B><BR>
 <UL>
-<LI>Interpolation accuracy and speed improved by using fiducial template (set <b>use_spline_template=F</b> to recover previous behaviour).
+<LI>Interpolation accuracy and speed improved by using fiducial template (set <b>use_spline_template=F</b> to recover previous behaviour). For summary of current accuracy performance see <A HREF="http://arxiv.org/abs/1201.3654">arXiv:1201.3654</A>.
 </UL>
 
 <B>December 2011</B><BR>
@@ -503,7 +503,7 @@ the Cls are normalized. Comments in the code explain this further.
 This file defines a module called Reionization that parameterizes the reionization history and supplies a function <B>Reionization_xe</B> that gives x<sub>e</sub> as a function of redshift. Optical depth input parameters are mapped into z<sub>re</sub> (defined as where x<sub>e</sub> is half its maximum (ex second He reionization)) using a binary search. See the CAMB <A HREF="http://cosmologist.info/notes/CAMB.pdf">notes</A> for discussion. This module should be easily modifiable for alternative reionization models.
 <P>
 <B>halofit.f90</B><P>
-Implements the NonLinear module, to calculate non linear scalings of the matter power spectrum as a function of redshift. Uses HALOFIT (<A HREF="http://arxiv.org/abs/astro-ph/0207664">astro-ph/0207664</A>, code thanks to <A HREF="http://www.astro.upenn.edu/~res">Robert Smith</A>. Note this is only reliable at the several percent level for standard &Lambda;CDM models with power law initial power spectra. This module can be replaced to use a different non-linear fitting method.
+Implements the NonLinear module, to calculate non linear scalings of the matter power spectrum as a function of redshift. Uses HALOFIT (<A HREF="http://arxiv.org/abs/astro-ph/0207664">astro-ph/0207664</A>, code thanks to <A HREF="http://www.astro.upenn.edu/~res">Robert Smith</A>, with tweaks from <A HREF="http://arxiv.org/abs/1109.4416">arXiv:1109.4416</A>. Note this is only reliable at the several percent level for standard &Lambda;CDM models with power law initial power spectra. This module can be replaced to use a different non-linear fitting method.
 
 
 <P>
@@ -563,7 +563,9 @@ Implements the NonLinear module, to calculate non linear scalings of the matter 
 <H3>Accuracy</H3>
 <P>
 <BLOCKQUOTE>
-Scalar errors should rarely exceed 0.3% for min(2500, L well into the damping tail) at default accuracy setting, and 0.1% for 500&lt;L&lt;2000 with <b>high_accuracy_default=T</b>. Matter power spectrum errors are usually dominated by interpolation in the acoustic oscillations, with about 0.2% accuracy with high_accuracy_default (but much better rms accuracy).
+Scalar numerical errors should rarely exceed 0.3% for min(2500, L well into the damping tail) at default accuracy setting, and 0.1% for 500&lt;L&lt;2000 with <b>high_accuracy_default=T</b>. Matter power spectrum errors are usually dominated by interpolation in the acoustic oscillations, with about 0.2% accuracy with high_accuracy_default (but much better rms accuracy). For a detailed study of numerical accuracy as of January 2012 see <A HREF="http://arxiv.org/abs/1201.3654">arXiv:1201.3654</A>.
+
+
 See also <A HREF="#COMPARE">comparison</A> with CMBFAST. Accuracy of course assumes the model is correct, and is dependent on RECFAST being the correct ionization history. Lensed C_l TT, TE and EE are accurate at the same level  (to within the approximation that the lensing potential is linear, or the accuracy of the the HALOFIT non-linear model).
 <P>
  Extreme models (e.g. scale &gt; 4, h&gt;1) may give errors of 5% or more.
@@ -594,9 +596,14 @@ See also <A HREF="#COMPARE">comparison</A> with CMBFAST. Accuracy of course assu
 <A NAME="refs">
 <H3>REFERENCES</H3>
 <P>
-Some notes and relevant Maple derivations are given <A HREF="http://camb.info/theory.html">here</A> (see also the Appendix of <A HREF="http://arxiv.org/abs/astro-ph/0406096">astro-ph/0406096</A>). The <A HREF="http://cosmologist.info/notes/CAMB.pdf">CAMB notes</A> outline the equations and approximations used, and relation to standard synchronous-gauge and Newtonian-gauge variables.
+Some notes and relevant Maple derivations are given <A HREF="http://camb.info/theory.html">here</A> (see also the Appendix of <A HREF="http://arxiv.org/abs/astro-ph/0406096">astro-ph/0406096</A>). The <A HREF="http://cosmologist.info/notes/CAMB.pdf">CAMB notes</A> outline the equations and approximations used, and relation to standard synchronous-gauge and Newtonian-gauge variables; see also <A
+HREF="http://arxiv.org/abs/1201.3654">arXiv:1201.3654</A>.
 There is a  <A HREF="http://cosmologist.info/cosmomc/cosmomc.bib">BibTex</A> file of references (including <A HREF="http://cosmologist.info/cosmomc">CosmoMC</A>).
 </P>
+<P>
+CMB power spectrum parameter degeneracies in the era of precision cosmology<BR>
+Cullan Howlett, Antony Lewis, Alex Hall, Anthony Challinor <A
+HREF="http://arxiv.org/abs/1201.3654">arXiv:1201.3654</A>.
 <P>
 Efficient computation of CMB anisotropies in closed FRW Models<BR>
 Antony Lewis, Anthony Challinor and Anthony Lasenby <A
@@ -647,7 +654,8 @@ Antony Lewis, <A HREF="http://arxiv.org/abs/astro-ph/0403583">astro-ph/0403583</
 <B>HALOFIT</B>
 <P>
 Stable clustering, the halo model and nonlinear cosmological power spectra<BR>
-Smith, R. E. and others,  <A HREF="http://arxiv.org/abs/astro-ph/0207664">astro-ph/0207664</A>
+Smith, R. E. and others,  <A HREF="http://arxiv.org/abs/astro-ph/0207664">astro-ph/0207664</A>.
+
 <P>
 <B>RECOMBINATION</B>
 <P>
@@ -696,13 +704,25 @@ The Cosmic Linear Anisotropy Solving System (CLASS) II:
 Blas, Diego and Lesgourgues, Julien and Tram, Thomas. <A HREF="http://arxiv.org/abs/1104.2933">arXiv:1104.2933</A>
 </P>
 
+<B>Massive Neutrinos</B>
+<P>
+CMB power spectrum parameter degeneracies in the era of precision cosmology
+<BR>
+Cullan Howlett, Antony Lewis, Alex Hall, Anthony Challinor.
+<A HREF="http://arxiv.org/abs/1201.3654">arXiv:1201.3654</A>
 
+<P>
+<P>Evolution of cosmological dark matter perturbations<BR>
+Antony Lewis and Anthony Challinor <A
+HREF="http://arxiv.org/abs/astro-ph/0203507">astro-ph/0203507</A>
+Phys. Rev. D66, 023531 (2002)
+
+<P>
 <B>Synchronous gauge theory and non-flat models</B>
 <P>
  Complete treatment of CMB anisotropies in a FRW universe<BR>
  Wayne Hu, Uros Seljak and Matias Zaldarriaga.
  Phys. Rev. D57:6, 3290-3301, 1998. <A HREF="http://arxiv.org/abs/astro-ph/9709066">astro-ph/9709066</A>.
-<P>
 
 <P>
 <B>WKB approx to hyperspherical Bessel functions</B>
@@ -719,10 +739,16 @@ Blas, Diego and Lesgourgues, Julien and Tram, Thomas. <A HREF="http://arxiv.org/
  Uros Seljak and Matias Zaldarriaga, <A HREF="http://arxiv.org/abs/astro-ph/9603033">astro-ph/9603033</A>
  Ap.J. 469:2 437-444, 1996
 <P>
+
+Integral solution for the microwave background
+                        anisotropies in nonflat universes<BR>
+ Matias Zaldarriaga, Uros Seljak, Edmund Bertschinger.
+ ApJ. 494:491-501, 1998.  <A HREF="http://arxiv.org/abs/astro-ph/97042656">astro-ph/9704265</A>.
+
+<P>
 CMBFAST for spatially closed universes<BR>
 Uros Seljak and Matias Zaldariaga,  <A HREF="http://arxiv.org/abs/astro-ph/9911219">astro-ph/9911219</A>
-<P>
-See also the references on the CMBFAST <A HREF="http://cfa-www.harvard.edu/~mzaldarr/CMBFAST/cmbfast.html">home page</A>.
+
 </FONT>
 </BODY>
 </HTML>
