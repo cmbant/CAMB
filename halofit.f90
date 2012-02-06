@@ -40,7 +40,7 @@
 
        !!BR09 putting neutrinos into the matter as well, not sure if this is correct, but at least one will get a consisent omk.
        omm0 = CP%omegac+CP%omegab+CP%omegan
-       fnu = CP%omegan/(CP%omegab+CP%omegac)
+       fnu = CP%omegan/omm0
 
        CAMB_Pk%nonlin_ratio = 1
 
