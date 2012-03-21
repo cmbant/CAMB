@@ -181,8 +181,8 @@
 
             integer E_ix, B_ix !tensor polarization indices
             real(dl) denlkt(4,max_l_evolve),Kft(max_l_evolve) 
-              
-               
+
+
         end type EvolutionVars
 
 !precalculated arrays
@@ -2091,7 +2091,6 @@
        
 !  8*pi*a*a*SUM[(rho_i+p_i)*v_i]
         dgq=dgq + grhog_t*qg+grhor_t*qr
-
 
 !  Photon mass density over baryon mass density
         photbar=grhog_t/grhob_t

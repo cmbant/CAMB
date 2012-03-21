@@ -502,8 +502,12 @@ contains
               taustart=0.001_dl/q
             else
               taustart=0.001_dl/sqrt(q**2-CP%curv)
-             end if
+            end if
 
+            if (fixq/=0._dl) then
+              taustart = 0.001_dl/fixq  
+            end if
+            
 !     Make sure to start early in the radiation era.
            taustart=min(taustart,0.1_dl)
 
@@ -770,6 +774,9 @@ contains
       real(dl) tau,tol1,tauend, taustart
       integer j,ind,itf
       real(dl) c(24),w(EV%nvar,9), y(EV%nvar), sources(SourceNum)
+      
+      real(dl) yprime(EV%nvar), ddelta, delta, adotoa,dtauda, growth
+      external dtauda
 
         if (fixq/=0._dl) then
             !evolution output
@@ -788,12 +795,17 @@ contains
 !!Example code for plotting out variable evolution
        if (fixq/=0._dl) then
         tol1=tol/exp(AccuracyBoost-1)
-    !   call CreateTxtFile('evolve.txt',1)
-    
-         do j=1,1000      
-          tauend = taustart +(j-1)*CP%tau0/1000
+        call CreateTxtFile('evolve_q005.txt',1)
+         do j=1,1000       
+          tauend = taustart+(j-1)*(CP%tau0-taustart)/1000 
           call GaugeInterface_EvolveScal(EV,tau,y,tauend,tol1,ind,c,w)
-          write (1,'(2E15.5)') tau, y(EV%g_ix), y(EV%r_ix)
+          yprime = 0
+          call derivs(EV,EV%ScalEqsToPropagate,tau,y,yprime)      
+          adotoa = 1/(y(1)*dtauda(y(1)))
+          ddelta= (yprime(3)*grhoc+yprime(4)*grhob)/(grhob+grhoc)
+          delta=(grhoc*y(3)+grhob*y(4))/(grhob+grhoc)
+          growth= ddelta/delta/adotoa
+          write (1,'(7E15.5)') tau, delta, growth, y(3), y(4), y(EV%g_ix), y(1)
          end do
          close(1)
          stop
@@ -2276,7 +2288,7 @@ contains
          call GetInitPowers(pows,ks,CTrans%q%npoints,in)
 
         !$OMP PARAllEl DO DEFAUlT(SHARED),SCHEDUlE(STATIC,4) &
-        !$OMP & PRIVATE(j,q_ix,measure,power,ctnorm,dbletmp)
+        !$OMP & PRIVATE(j,q_ix,measure,power,ctnorm,dbletmp,lfac)
          do j=1,CTrans%ls%l0
 
           do q_ix = 1, CTrans%q%npoints 
