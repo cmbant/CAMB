@@ -1268,7 +1268,7 @@
              pigdot=0
              octg=0
              octgprime=0
-             qgdot = -4*dz/k
+             qgdot = -4*dz/3
         else
             if (EV%TightCoupling) then
              pig = EV%pig
