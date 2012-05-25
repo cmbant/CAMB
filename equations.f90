@@ -1113,10 +1113,11 @@
         end subroutine Nu_Intvsq
 
 
-     subroutine MassiveNuVars(EV,y,a,grho,gpres,dgrho,dgq, wnu_arr)
+     subroutine MassiveNuVars(EV,y,a,grho,gpres,dgrho,dgq, wnu_arr,split_dgrho)
         implicit none
         type(EvolutionVars) EV
         real(dl) :: y(EV%nvar), a, grho,gpres,dgrho,dgq
+        logical,intent(in),optional :: split_dgrho
         real(dl), intent(out), optional :: wnu_arr(max_nu)
           !grho = a^2 kappa rho
           !gpres = a^2 kappa p
@@ -1152,8 +1153,13 @@
           dgrho= dgrho + grhonu_t*clxnu
           dgq  = dgq   + grhonu_t*qnu
 
+
           if (present(wnu_arr)) then
-           wnu_arr(nu_i) =pnu/rhonu
+            if (present(split_dgrho)) then
+              wnu_arr(nu_i)= clxnu
+            else
+             wnu_arr(nu_i) =pnu/rhonu
+            end if
           end if
 
         end do
@@ -1906,7 +1912,7 @@
         type(EvolutionVars) EV
    
         real(dl) clxc, clxb, clxg, clxr, k,k2
-        real(dl) grho,gpres,dgrho,dgq,a
+        real(dl) grho,gpres,dgrho,dgrho_nu(CP%Nu_mass_eigenstates),dgq,a
         real Arr(Transfer_max)
         real(dl) y(EV%nvar)
 
@@ -1938,8 +1944,15 @@
         grho =  0
         
         if (CP%Num_Nu_Massive > 0) then
-          call MassiveNuVars(EV,y,a,grho,gpres,dgrho,dgq)
-           Arr(Transfer_nu) = dgrho/grho/k2
+          call MassiveNuVars(EV,y,a,grho,gpres,dgrho,dgq,dgrho_nu,.true.)
+           ! Re-use transfer_r since we know it is really zero for massive
+           ! neutrinos.
+           if (CP%Nu_mass_eigenstates > 1) then
+               Arr(Transfer_nu) = dgrho_nu(1)/k2
+               Arr(Transfer_r) = dgrho_nu(2)/k2
+           else
+               Arr(Transfer_nu) = dgrho/grho/k2
+           end if
         else
            Arr(Transfer_nu) = 0
         end if
