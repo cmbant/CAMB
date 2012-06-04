@@ -890,33 +890,14 @@
            call Ranges_Free(CTrans%q)
 
         end subroutine Free_ClTransfer
-
+        
         subroutine CheckLoadedHighLTemplate
           integer L
           real(dl) array(7)
-          integer :: path_max=1024
-          character(len=1024):: cmdline
 
          if (.not. allocated(highL_CL_template)) then
              allocate(highL_CL_template(lmin:lmax_extrap_highl, C_Temp:C_Phi))
-             if (FileExists(highL_unlensed_cl_template)) then
-                call OpenTxtFile(highL_unlensed_cl_template,fileio_unit)
-             else
-                 !Dirty hack to get the directory of the binary. Clearly fails
-                 !if path is longer than 1024 characters.
-                 call get_command_argument(0,cmdline, path_max)
-                 path_max = scan(cmdline,'/',back=.true.)
-                 if(path_max .eq. 0) then
-                    !Path separator is different on windows.
-                    path_max = scan(cmdline,'\',back=.true.)
-                 end if
-                 if(path_max .eq. 0) then
-                    !If still no directory, we're stuck.
-                    call OpenTxtFile(highL_unlensed_cl_template,fileio_unit)
-                 end if
-                 cmdline=cmdline(1:scan(cmdline,'/',back=.true.))
-                 call OpenTxtFile(trim(cmdline)//highL_unlensed_cl_template,fileio_unit)
-             end if
+             call OpenTxtFile(highL_unlensed_cl_template,fileio_unit)
              if (lmin==1) highL_CL_template(lmin,:)=0
              do
               read(fileio_unit,*, end=500) L , array 
