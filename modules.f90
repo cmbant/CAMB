@@ -328,6 +328,7 @@
            !Num_Nu_massive is already integer, Num_Nu_massless can contain fraction
            !We assume all eigenstates affected the same way
            fractional_number  = CP%Num_Nu_massless + CP%Num_Nu_massive
+           actual_massless = int(CP%Num_Nu_massless + 1e-6)
            if (actual_massless + CP%Num_Nu_massive /= 0) then
              grhor = grhor * fractional_number/(actual_massless + CP%Num_Nu_massive)
              grhornomass=grhor*actual_massless
@@ -335,7 +336,6 @@
              !Prevent problems with n_eff < 1; thanks Zhen Hou
              grhornomass=grhor*CP%Num_Nu_massless
            end if
-           grhornomass=grhor*actual_massless
            grhormass=0
            do nu_i = 1, CP%Nu_mass_eigenstates
             grhormass(nu_i)=grhor*CP%Nu_mass_degeneracies(nu_i)
