@@ -27,7 +27,7 @@
 !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
 !CN     Name:        RECFAST
-!CV     Version: 1.5
+!CV     Version: 1.5.2
 !C 
 !CP     Purpose:  Calculate ionised fraction as a function of redshift.
 !CP            Solves for H and He simultaneously, and includes
@@ -197,8 +197,10 @@
 !CH   			 Sept 2008 (added extra term to make transition, smoother for Tmat evolution)
 !                Sept 2008 Recfast 1.4.2 changes above added (AML) 
 !                          General recombination module structure, fix to make He x_e smooth also in recfast (AML)
-!CH		      	 Jan 2010 (added fitting function to modify K
+!CH		 Jan 2010 (added fitting function to modify K
 !CH			 	 to match x_e(z) for new H physics)
+!AL             June 2012 updated fudge parameters to match HyRec and CosmoRec (AML)
+!AL             Sept 2012 changes now in public recfast, version number changed to match Recfast 1.5.2.
 
 !!      ===============================================================
 
@@ -266,17 +268,17 @@
         integer, parameter ::  RECFAST_Heswitch_default = 6
         real(dl), parameter :: RECFAST_fudge_He_default = 0.86_dl !Helium fudge parameter
         logical, parameter  :: RECFAST_Hswitch_default = .true. !include H corrections (v1.5, 2010)
-        real(dl), parameter :: RECFAST_fudge_default = 1.14_dl
-        real(dl), parameter :: RECFAST_fudge_default2 = 1.105d0 
+        real(dl), parameter :: RECFAST_fudge_default = 1.14_dl !1.14_dl
+        real(dl), parameter :: RECFAST_fudge_default2 = 1.105d0 + 0.02d0
               !fudge parameter if RECFAST_Hswitch
         
-        real(dl), parameter :: AGauss1 =   -0.14D0  !Amplitude of 1st Gaussian
-        real(dl), parameter :: AGauss2 =    0.05D0  !Amplitude of 2nd Gaussian
-        real(dl), parameter :: zGauss1 =    7.28D0  !ln(1+z) of 1st Gaussian
-        real(dl), parameter :: zGauss2=	    6.75D0  !ln(1+z) of 2nd Gaussian
-        real(dl), parameter :: wGauss1=	    0.18D0  !Width of 1st Gaussian
-        real(dl), parameter :: wGauss2=	    0.33D0  !Width of 2nd Gaussian
-         !	Gaussian fits for extra H physics (fit by Adam Moss)
+        real(dl) :: AGauss1 =      -0.14D0  !Amplitude of 1st Gaussian
+        real(dl) :: AGauss2 =       0.079D0 ! 0.05D0  !Amplitude of 2nd Gaussian
+        real(dl) :: zGauss1 =       7.28D0  !ln(1+z) of 1st Gaussian
+        real(dl) :: zGauss2=	    6.73D0  !ln(1+z) of 2nd Gaussian
+        real(dl) :: wGauss1=	    0.18D0  !Width of 1st Gaussian
+        real(dl) :: wGauss2=	    0.33D0  !Width of 2nd Gaussian
+        !Gaussian fits for extra H physics (fit by Adam Moss , modified by Antony Lewis)
 
         type RecombinationParams
 
@@ -298,7 +300,7 @@
    
         end  type RecombinationParams
 
-        character(LEN=*), parameter :: Recombination_Name = 'Recfast_1.5'
+        character(LEN=*), parameter :: Recombination_Name = 'Recfast_1.5.2'
       
         real(dl) zrec(Nz),xrec(Nz),dxrec(Nz), Tsrec(Nz) ,dTsrec(Nz), tmrec(Nz),dtmrec(Nz)
 
@@ -338,10 +340,16 @@
              R%RECFAST_Heswitch = Ini_Read_Int_File(Ini, 'RECFAST_Heswitch',RECFAST_Heswitch_default)
              R%RECFAST_Hswitch = Ini_Read_Logical_File(Ini, 'RECFAST_Hswitch',RECFAST_Hswitch_default)
              R%RECFAST_fudge = Ini_Read_Double_File(Ini,'RECFAST_fudge',RECFAST_fudge_default)
+             AGauss1 = Ini_REad_Double_File(Ini,'AGauss1',AGauss1)
+             AGauss2 = Ini_REad_Double_File(Ini,'AGauss2',AGauss2)
+             zGauss1 = Ini_REad_Double_File(Ini,'zGauss1',zGauss1)
+             zGauss2 = Ini_REad_Double_File(Ini,'zGauss2',zGauss2)
+             wGauss1 = Ini_REad_Double_File(Ini,'wGauss1',wGauss1)
+             wGauss2 = Ini_REad_Double_File(Ini,'wGauss2',wGauss2)
              if (R%RECFAST_Hswitch) then
                 R%RECFAST_fudge = R%RECFAST_fudge - (RECFAST_fudge_default - RECFAST_fudge_default2)
              end if   
-         end subroutine Recombination_ReadParams 
+         end subroutine Recombination_ReadParams
 
         subroutine Recombination_SetDefParams(R)
          type (RecombinationParams) ::R
@@ -449,10 +457,11 @@
 
 
 
-        subroutine Recombination_init(Recomb, OmegaC, OmegaB, Omegan, Omegav, h0inp,tcmb,yp)
+        subroutine Recombination_init(Recomb, OmegaC, OmegaB, Omegan, Omegav, h0inp,tcmb,yp, nnu)
         !Would love to pass structure as arguments, but F90 would give circular reference...
         !hence mess passing parameters explcitly and non-generally
         !Note recfast only uses OmegaB, h0inp, tcmb and yp - others used only for Tmat approximation where effect small
+        !nnu currently not used here
         use RECDATA
         use AMLUtils
         implicit none
@@ -463,13 +472,13 @@
         real(dl) Trad,Tmat,Tspin,d0hi,d0lo
         integer I
 
-        real(dl) OmegaB,OmegaC, Omegan, Omegav, H
-        real(dl) z,n,x,x0,rhs,x_H,x_He,x_H0,x_He0,h0inp
+        real(dl), intent(in) :: OmegaB,OmegaC, Omegan, Omegav, h0inp, yp
+        real(dl), intent(in), optional :: nnu
+        real(dl) z,n,x,x0,rhs,x_H,x_He,x_H0,x_He0,H
         real(dl) zstart,zend,tcmb
         real(dl) cw(24)
         real(dl), dimension(:,:), allocatable :: w
         real(dl) y(4)
-        real(dl) yp
         real(dl) C10, tau_21Ts
         real(dl) fnu
         integer ind,nw

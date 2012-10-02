@@ -13,7 +13,7 @@
 Code for Anisotropies in the Microwave Background by <A
 HREF="http://cosmologist.info/">Antony Lewis</A> and Anthony
 Challinor. <P>
-This version January 2012.
+This version October 2012.
 <P>
 <FONT SIZE=-1>
 Originally based on CMBFAST developed by Uros Seljak and Matias
@@ -111,12 +111,18 @@ where all quantities are in the synchronous gauge and evaluated at the requested
 <A NAME="version">
 <H3>Version history</H3>
 
-<B>xxx 2012</B><BR>
+
+<B>October 2012</B><BR>
 <UL>
+<LI>Updated Recfast to 1.5.2 (~0.15% change in C<sub>l</sub> from small tweaks to fudge parameters to match CosmoRec and HyRec)
+<LI>Updated Halofit model from <A HREF="http://arxiv.org/abs/1208.2701">arXiv:1208.2701</A> (thanks Ryuichi Takahashi)
+<LI>Calculation of various potentially useful derived parameters (if <b>derived_parameters=T</b>)
 <LI>Change to allow N<sub>eff</sub>&lt;1 to work (thanks Zhen Hou)
 <LI>Typo in approximation result in equations.f90 corrected (thanks Alex Hall; no effect on numerics)
+<LI>Switch off use_spline_template for non-adiabatic models (thanks Jo Dunkley)
+<LI>Support for compiling with and linking to <A HREF="http://www.cita.utoronto.ca/~jchluba/Science_Jens/Recombination/CosmoRec.html">CosmoRec</A> for recombination model (RECOMBINATION=cosmorec); HyRec also supports but requires HyRec source modification available on request
+<LI>IniFile module updated [supports overridden and common parameters via DEFAULT(name.ini) and INCLUDE(name.ini)].
 </UL>
-
 
 <B>January 2012</B><BR>
 <UL>
@@ -511,7 +517,8 @@ the Cls are normalized. Comments in the code explain this further.
 This file defines a module called Reionization that parameterizes the reionization history and supplies a function <B>Reionization_xe</B> that gives x<sub>e</sub> as a function of redshift. Optical depth input parameters are mapped into z<sub>re</sub> (defined as where x<sub>e</sub> is half its maximum (ex second He reionization)) using a binary search. See the CAMB <A HREF="http://cosmologist.info/notes/CAMB.pdf">notes</A> for discussion. This module should be easily modifiable for alternative reionization models.
 <P>
 <B>halofit.f90</B><P>
-Implements the NonLinear module, to calculate non linear scalings of the matter power spectrum as a function of redshift. Uses HALOFIT (<A HREF="http://arxiv.org/abs/astro-ph/0207664">astro-ph/0207664</A>, code thanks to <A HREF="http://www.astro.upenn.edu/~res">Robert Smith</A>, with tweaks from <A HREF="http://arxiv.org/abs/1109.4416">arXiv:1109.4416</A>. Note this is only reliable at the several percent level for standard &Lambda;CDM models with power law initial power spectra. This module can be replaced to use a different non-linear fitting method.
+Implements the NonLinear module, to calculate non linear scalings of the matter power spectrum as a function of redshift. Uses HALOFIT (<A HREF="http://arxiv.org/abs/astro-ph/0207664">astro-ph/0207664</A>, code thanks to <A HREF="http://www.astro.upenn.edu/~res">Robert Smith</A>, with tweaks
+from <A HREF="http://arxiv.org/abs/1208.2701">arXiv:1208.2701</A> (thanks Ryuichi Takahashi) - see that paper for discussion of numerical accuracy. This module can be replaced to use a different non-linear fitting method if desired.
 
 
 <P>

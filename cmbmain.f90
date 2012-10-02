@@ -115,9 +115,11 @@
 
       real(dl) :: fixq = 0._dl !Debug output of one q
       
+      real(dl) :: ALens = 1._dl
+      
       Type(ClTransferData), pointer :: ThisCT
                     
-      public cmbmain, ClTransferToCl, InitVars !InitVars for BAO hack
+      public cmbmain, ALens, ClTransferToCl, InitVars !InitVars for BAO hack
 
 contains  
 
@@ -1036,7 +1038,7 @@ contains
                 scaling(i) = CAMB_Pk%nonlin_ratio(ik,i)
             end do
             if (all(abs(scaling-1) < 5e-4)) cycle
-            call spline(tautf,scaling(1),CP%Transfer%num_redshifts,&
+            call spline(tautf(1),scaling(1),CP%Transfer%num_redshifts,&
                                  spl_large,spl_large,ddScaling(1))
        
             tf_lo=1
@@ -1231,7 +1233,7 @@ contains
                   end if
                end do
                IV%SourceSteps = step
-  
+
 
           if (.not.CP%flat) then
              do i=1, SourceNum
@@ -1312,11 +1314,13 @@ contains
         integer l
         real(dl) :: k
  
+        !note increasing non-limber to l>700 is not neccessarily more accurate unless AccruacyBoost much higher
+        !use **0.2 to at least give some sensitivity to Limber effects
         if (CP%AccurateBB .or. CP%flat) then
-         UseLimber = l > 700*AccuracyBoost .and. k > 0.05    
+         UseLimber = l > 700*AccuracyBoost**0.2 .and. k > 0.05
         else
          !This is accurate at percent level only (good enough here)
-         UseLimber = l > 300*AccuracyBoost .or. k>0.05
+         UseLimber = l > 300*min(AccuracyBoost,2.4_dl) .or. k>0.05
         end if
 
       end function UseLimber
@@ -2096,14 +2100,14 @@ contains
             iCl_scalar(j,C_Cross,pix) =  iCl_scalar(j,C_Cross,pix)*dbletmp*sqrt(ctnorm)
             if (CTrans%NumSources>2) then
                      iCl_scalar(j,C_Phi,pix)   =  &
-                            iCl_scalar(j,C_Phi,pix)*fourpi*real(CTrans%ls%l(j)**2,dl)**2    
+                          ALens*iCl_scalar(j,C_Phi,pix)*fourpi*real(CTrans%ls%l(j)**2,dl)**2    
                      !The lensing power spectrum computed is l^4 C_l^{\phi\phi}
                      !We put pix extra factors of l here to improve interpolation in CTrans%ls%l
                      iCl_scalar(j,C_PhiTemp,pix)   =  &
-                            iCl_scalar(j,C_PhiTemp,pix)*fourpi*real(CTrans%ls%l(j)**2,dl)*CTrans%ls%l(j)
+                          sqrt(ALens)*  iCl_scalar(j,C_PhiTemp,pix)*fourpi*real(CTrans%ls%l(j)**2,dl)*CTrans%ls%l(j)
                       !Cross-correlation is CTrans%ls%l^3 C_l^{\phi T}
                      iCl_scalar(j,C_PhiE,pix)   =  &
-                            iCl_scalar(j,C_PhiE,pix)*fourpi*real(CTrans%ls%l(j)**2,dl)*CTrans%ls%l(j)*sqrt(ctnorm)
+                          sqrt(ALens)*  iCl_scalar(j,C_PhiE,pix)*fourpi*real(CTrans%ls%l(j)**2,dl)*CTrans%ls%l(j)*sqrt(ctnorm)
                       !Cross-correlation is CTrans%ls%l^3 C_l^{\phi E}
              end if
 

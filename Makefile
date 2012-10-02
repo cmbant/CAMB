@@ -4,13 +4,15 @@
 FISHER=
 
 #Edit for your compiler
-#Note there are many old ifc versions, some of which behave oddly
+#Note there are many old ifort versions, some of which behave oddly
 
 
 #Intel , -openmp toggles mutli-processor:
 #note version 10.0 gives wrong result for lensed when compiled with -openmp [fixed in 10.1]
 F90C     = ifort
 FFLAGS = -openmp -fast -W0 -WB -fpp2 -vec_report0
+## This is flag is passed to the Fortran compiler allowing it to link C++ if required (not usually):
+F90CRLINK = -cxxlib
 ifneq ($(FISHER),)
 FFLAGS += -mkl
 endif
@@ -68,10 +70,10 @@ endif
 
 #Settings for building camb_fits
 #Location of FITSIO and name of library
-FITSDIR       = /home/cpac/cpac-tools/lib
+FITSDIR       ?= /home/cpac/cpac-tools/lib
 FITSLIB       = cfitsio
 #Location of HEALPIX for building camb_fits
-HEALPIXDIR    = /home/cpac/cpac-tools/healpix
+HEALPIXDIR    ?= /home/cpac/cpac-tools/healpix
 
 ifneq ($(FISHER),)
 FFLAGS += -DFISHER

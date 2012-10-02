@@ -1,21 +1,24 @@
 
 #Files containing evolution equations initial power spectrum module
-EQUATIONS     = equations
-POWERSPECTRUM = power_tilt
-REIONIZATION = reionization
-RECOMBINATION = recfast
-BISPECTRUM = SeparableBispectrum
+EQUATIONS     ?= equations
+POWERSPECTRUM ?= power_tilt
+REIONIZATION ?= reionization
+RECOMBINATION ?= recfast
+
+
+
+BISPECTRUM ?= SeparableBispectrum
 
 #Module doing non-linear scaling
-NONLINEAR     = halofit
+NONLINEAR     ?= halofit
 
 #Driver program
-DRIVER        = inidriver.F90
-#DRIVER        = sigma8.f90
-#DRIVER        = tester.f90
+DRIVER        ?= inidriver.F90
+#DRIVER       ?= sigma8.f90
+#DRIVER       ?= tester.f90
 
 
-CAMBLIB       = libcamb.a
+CAMBLIB       = libcamb_$(RECOMBINATION).a
 
 #Shouldn't need to change anything else...
 
@@ -24,6 +27,26 @@ HEALPIXLD     = -L$(HEALPIXDIR)/lib -lhealpix -L$(FITSDIR) -l$(FITSLIB)
 
 CAMBOBJ       = constants.o utils.o $(EXTCAMBFILES) subroutines.o inifile.o $(POWERSPECTRUM).o $(RECOMBINATION).o \
 	$(REIONIZATION).o modules.o bessels.o $(EQUATIONS).o $(NONLINEAR).o lensing.o $(BISPECTRUM).o cmbmain.o camb.o
+
+F90CRLINK ?= -lstdc++
+
+## CosmoRec
+ifeq ($(RECOMBINATION),cosmorec)
+COSMOREC_PATH ?=../CosmoRec/
+GSL_LINK ?=-lgsl -lgslcblas
+camb: libCosmoRec.a
+$(CAMBLIB): libCosmoRec.a
+F90CRLINK += -L$(COSMOREC_PATH) -lCosmoRec $(GSL_LINK)
+endif
+
+
+ifeq ($(RECOMBINATION),hyrec)
+HYREC_PATH ?= ../HyRec/
+camb: libhyrec.a
+$(CAMBLIB): libhyrec.a
+F90CRLINK += -L$(HYREC_PATH) -lhyrec
+endif
+
 
 default: camb
 
@@ -44,10 +67,10 @@ cmbmain.o: lensing.o $(NONLINEAR).o $(EQUATIONS).o $(BISPECTRUM).o
 camb.o: cmbmain.o
 Matrix_utils.o: utils.o
 camb: $(CAMBOBJ) $(DRIVER)
-	$(F90C) $(F90FLAGS) $(CAMBOBJ) $(DRIVER) -o $@
+	$(F90C) $(F90FLAGS) $(CAMBOBJ) $(DRIVER) $(F90CRLINK) -o $@
 
 $(CAMBLIB): $(CAMBOBJ)
-	ar -r $@ $?
+	ar -r $@ $(CAMBOBJ)
 
 camb_fits: writefits.f90 $(CAMBOBJ) $(DRIVER)
 	$(F90C) $(F90FLAGS) -I$(HEALPIXDIR)/include $(CAMBOBJ) writefits.f90 $(DRIVER) $(HEALPIXLD) -DWRITE_FITS -o $@
@@ -55,16 +78,23 @@ camb_fits: writefits.f90 $(CAMBOBJ) $(DRIVER)
 %.o: %.f90
 	$(F90C) $(F90FLAGS) -c $*.f90
 
-utils.o:
-	$(F90C) $(F90FLAGS) -c utils.F90	
+%.o: %.F90
+	$(F90C) $(F90FLAGS) -c $*.F90
 
-$(BISPECTRUM).o: $(BISPECTRUM).F90
-	$(F90C) $(F90FLAGS) -c $(BISPECTRUM).F90	
-
-
-Matrix_utils.o:
-	$(F90C) $(F90FLAGS) -c Matrix_utils.F90	
 
 clean:
 	-rm -f *.o *.a *.d core *.mod
+
+
+## CosmoRec make parts
+cleanCR:
+	cd $(COSMOREC_PATH); make tidy;
+
+libCosmoRec.a:
+	cd $(COSMOREC_PATH); make lib;
+
+
+libhyrec.a:
+	cd $(HYREC_PATH); make libhyrec.a;
+
 

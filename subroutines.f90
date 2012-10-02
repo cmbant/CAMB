@@ -107,7 +107,7 @@
   
         rombint2=g0
         if (i > maxit .and. abs(error) > tol)  then
-          write(*,*) 'Warning: Rombint failed to converge; '
+          write(*,*) 'Warning: Rombint2 failed to converge; '
           write (*,*)'integral, error, tol:', rombint2,error, tol
         end if
         
@@ -372,13 +372,13 @@
 !This version is modified to pass an object parameter to the function on each call
 !Fortunately Fortran doesn't do type checking on functions, so we can pretend the
 !passed object parameter (EV) is any type we like. In reality it is just a pointer.
-
       subroutine dverk (EV,n, fcn, x, y, xend, tol, ind, c, nw, w)
       use Precision
       use AMLUtils
       integer n, ind, nw, k
       real(dl) x, y(n), xend, tol, c(*), w(nw,9), temp
       real EV !It isn't, but as long as it maintains it as a pointer we are OK
+!     class(*) EV !seems to be correct way to do this in Fortran 2003
 !
 !***********************************************************************
 !                                                                      *

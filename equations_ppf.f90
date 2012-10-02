@@ -14,30 +14,182 @@
 ! June 2011, improved radiation approximations from arXiv: 1104.2933; Some 2nd order tight coupling terms
 !            merged fderivs and derivs so flat and non-flat use same equations; more precomputed arrays
 !            optimized neutrino sampling, and reorganised neutrino integration functions
+! Feb 2012, updated PPF version but now only simple case for w, w_a (no anisotropic stresses etc)
 
-       module LambdaGeneral
+      module LambdaGeneral
          use precision
+         use  ModelParams
          implicit none
-          
-         real(dl)  :: w_lam = -1 !p/rho for the dark energy (assumed constant) 
+ 
+         real(dl)  :: w_lam = -1_dl !p/rho for the dark energy (assumed constant) 
+! w_lam is now w0
+!comoving sound speed. Always exactly 1 for quintessence 
+!(otherwise assumed constant, though this is almost certainly unrealistic)
          real(dl) :: cs2_lam = 1_dl 
-          !comoving sound speed. Always exactly 1 for quintessence 
-          !(otherwise assumed constant, though this is almost certainly unrealistic)
+!cs2_lam now is ce^2
 
-         logical :: w_perturb = .true.
-       contains
+         logical :: use_tabulated_w = .false.
+         real(dl) :: wa_ppf = 0._dl
+         real(dl) :: c_Gamma_ppf = 0.4_dl
+         integer, parameter :: nwmax = 5000, nde = 2000
+         integer :: nw_ppf
+         real(dl) w_ppf(nwmax), a_ppf(nwmax), ddw_ppf(nwmax) 
+         real(dl) rde(nde),ade(nde),ddrde(nde)
+         real(dl), parameter :: amin = 1.d-9
+         logical :: is_cosmological_constant
+         private nde,ddw_ppf,rde,ade,ddrde,amin
+      contains
 
-        subroutine DarkEnergy_ReadParams(Ini)
-        use IniFile
+       subroutine DarkEnergy_ReadParams(Ini)
+        use IniFile 
         Type(TIniFile) :: Ini
+        character(LEN=Ini_max_string_len) wafile
+        integer i
 
-           w_lam = Ini_Read_Double_File(Ini,'w', -1.d0)
+           if (Ini_HasKey_File(Ini,'usew0wa')) then
+            stop 'input variables changed from usew0wa: now use_tabulated_w or w, wa'
+           end if
+              
+           use_tabulated_w = Ini_Read_Logical_File(Ini,'use_tabulated_w',.false.) 
+           if(.not. use_tabulated_w)then
+               w_lam = Ini_Read_Double_File(Ini,'w', -1.d0)   
+               wa_ppf = Ini_Read_Double_File(Ini,'wa', 0.d0)
+               if (Feedback >0) write(*,'("(w0, wa) = (", f8.5,", ", f8.5, ")")') w_lam,wa_ppf
+           else 
+              wafile = Ini_Read_String_File(Ini,'wafile')    
+              open(unit=10,file=wafile,status='old')
+              nw_ppf=0
+              do i=1,nwmax+1
+                 read(10,*,end=100)a_ppf(i),w_ppf(i)  
+                 a_ppf(i)=dlog(a_ppf(i))
+                 nw_ppf=nw_ppf+1
+              enddo 
+              write(*,'("Note: ", a, " has more than ", I8, " data points")') trim(wafile), nwmax
+              write(*,*)'Increase nwmax in LambdaGeneral'
+              stop
+    100       close(10)
+              write(*,'("read in ", I8, " (a, w) data points from ", a)') nw_ppf, trim(wafile)
+              call setddwa
+              call interpolrde
+           endif
            cs2_lam = Ini_Read_Double_File(Ini,'cs2_lam',1.d0)
+           call setcgammappf
+           
+       end subroutine DarkEnergy_ReadParams
 
-        end subroutine DarkEnergy_ReadParams
 
-       end module LambdaGeneral
+         subroutine setddwa
+         real(dl), parameter :: wlo=1.d30, whi=1.d30
 
+         call spline(a_ppf,w_ppf,nw_ppf,wlo,whi,ddw_ppf) !a_ppf is lna here
+
+         end subroutine setddwa
+
+
+         function w_de(a)
+         real(dl) :: w_de, al
+         real(dl), intent(IN) :: a
+
+         if(.not. use_tabulated_w) then
+            w_de=w_lam+wa_ppf*(1._dl-a)
+         else
+            al=dlog(a)
+            if(al.lt.a_ppf(1)) then
+                w_de=w_ppf(1)                   !if a < minimum a from wa.dat
+            elseif(al.gt.a_ppf(nw_ppf)) then
+                w_de=w_ppf(nw_ppf)              !if a > maximus a from wa.dat
+            else
+                call cubicsplint(a_ppf,w_ppf,ddw_ppf,nw_ppf,al,w_de)
+        endif
+         endif
+         end function w_de  ! equation of state of the PPF DE 
+
+
+         function drdlna_de(al)
+         real(dl) :: drdlna_de, a
+         real(dl), intent(IN) :: al
+
+         a=dexp(al)
+         drdlna_de=3._dl*(1._dl+w_de(a)) 
+        
+         end function drdlna_de
+
+
+         subroutine interpolrde
+         real(dl), parameter :: rlo=1.d30, rhi=1.d30
+         real(dl) :: atol, almin, al, rombint, fint
+         integer :: i
+         external rombint
+         atol=1.d-5
+         almin=dlog(amin)        
+         do i=1,nde
+            al=almin-almin/(nde-1)*(i-1)    !interpolate between amin and today
+            fint=rombint(drdlna_de, al, 0._dl, atol)+4._dl*al  
+            ade(i)=al
+            rde(i)=dexp(fint) !rho_de*a^4 normalize to its value at today
+         enddo
+         call spline(ade,rde,nde,rlo,rhi,ddrde)
+         end subroutine interpolrde
+      
+         function grho_de(a)  !8 pi G a^4 rho_de
+         real(dl) :: grho_de, al, fint
+         real(dl), intent(IN) :: a
+         external rombint 
+         
+         if(.not. use_tabulated_w) then
+            grho_de=grhov*a**(1._dl-3.*w_lam-3.*wa_ppf)*exp(-3.*wa_ppf*(1._dl-a)) 
+         else
+            if(a.eq.0.d0)then
+               grho_de=0.d0      !assume rho_de*a^4-->0, when a-->0, OK if w_de always <0.
+            else
+               al=dlog(a)
+               if(al.lt.ade(1))then
+                  fint=rde(1)*(a/amin)**(1.-3.*w_de(amin))    !if a<amin, assume here w=w_de(amin)  
+               else              !if amin is small enough, this extrapolation will be unnecessary.
+                  call cubicsplint(ade,rde,ddrde,nde,al,fint)
+               endif
+               grho_de=grhov*fint
+            endif
+         endif
+         end function grho_de
+
+!-------------------------------------------------------------------
+        SUBROUTINE cubicsplint(xa,ya,y2a,n,x,y)
+        INTEGER n
+        real(dl)x,y,xa(n),y2a(n),ya(n)
+        INTEGER k,khi,klo
+        real(dl)a,b,h
+        klo=1
+        khi=n
+1       if (khi-klo.gt.1) then
+          k=(khi+klo)/2
+          if(xa(k).gt.x)then
+            khi=k
+          else
+            klo=k
+          endif
+        goto 1
+        endif
+        h=xa(khi)-xa(klo)
+        if (h.eq.0.) stop 'bad xa input in splint'
+        a=(xa(khi)-x)/h
+        b=(x-xa(klo))/h
+        y=a*ya(klo)+b*ya(khi)+&
+       ((a**3-a)*y2a(klo)+(b**3-b)*y2a(khi))*(h**2)/6.d0
+        END SUBROUTINE cubicsplint
+!--------------------------------------------------------------------
+ 
+         
+        subroutine setcgammappf
+
+        c_Gamma_ppf=0.4d0*sqrt(cs2_lam)
+
+        end subroutine setcgammappf
+
+ 
+        end module LambdaGeneral
+
+!cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
     
 !Return OmegaK - modify this if you add extra fluid components
@@ -51,9 +203,11 @@
   
   
        subroutine init_background
+        use LambdaGeneral
          !This is only called once per model, and is a good point to do any extra initialization.
          !It is called before first call to dtauda, but after
          !massive neutrinos are initialized and after GetOmegak
+         is_cosmological_constant = .not. use_tabulated_w .and. w_lam==-1_dl .and. wa_ppf==0._dl
        end  subroutine init_background
 
 
@@ -69,16 +223,17 @@
         real(dl), intent(IN) :: a
         real(dl) rhonu,grhoa2, a2
         integer nu_i
-
+       
         a2=a**2
 
 !  8*pi*G*rho*a**4.
         grhoa2=grhok*a2+(grhoc+grhob)*a+grhog+grhornomass
-         if (w_lam == -1._dl) then
+         if (is_cosmological_constant) then
            grhoa2=grhoa2+grhov*a2**2
          else
-           grhoa2=grhoa2+grhov*a**(1-3*w_lam)
+           grhoa2=grhoa2+ grho_de(a)
          end if
+
         if (CP%Num_Nu_massive /= 0) then
 !Get massive neutrino density relative to massless
            do nu_i = 1, CP%nu_mass_eigenstates
@@ -90,6 +245,7 @@
         dtauda=sqrt(3/grhoa2)
      
         end function dtauda
+
 !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
 !Gauge-dependent perturbation equations
@@ -104,7 +260,7 @@
         public
 
         !Description of this file. Change if you make modifications.
-        character(LEN=*), parameter :: Eqns_name = 'gauge_inv'
+        character(LEN=*), parameter :: Eqns_name = 'crossing_ppf'
 
         integer, parameter :: basic_num_eqns = 5
           
@@ -181,6 +337,10 @@
 
             real(dl) pig, pigdot !For tight coupling
             real(dl) poltruncfac
+
+            !PPF parameters  
+            real(dl) dgrho_e_ppf, dgq_e_ppf
+            real(dl) dgrhoec_ppf, dgqec_ppf, vTc_ppf 
             
             logical no_nu_multpoles, no_phot_multpoles 
             integer lmaxnu_tau(max_nu)  !lmax for massive neutinos at time being integrated
@@ -191,8 +351,6 @@
 
             integer E_ix, B_ix !tensor polarization indices
             real(dl) denlkt(4,max_l_evolve),Kft(max_l_evolve) 
-
-
         end type EvolutionVars
 
 !precalculated arrays
@@ -329,7 +487,6 @@
                  y(EV%g_ix+3) = 3./7*y(EV%g_ix+2)*EV%k_buf/opacity
                  y(EV%polind+2) = EV%pig/4   
                  y(EV%polind+3) =y(EV%g_ix+3)/4 
-                 
                  end if
                  
            else if (next_switch==tau_switch_ktau) then
@@ -509,10 +666,10 @@
           maxeq = maxeq +  (EV%lmaxg+1)+(EV%lmaxnr+1)+EV%lmaxgpol-1
 
           !Dark energy
-          if (w_lam /= -1 .and. w_Perturb) then
-            EV%w_ix = neq+1
-            neq=neq+2 
-            maxeq=maxeq+2
+          if (.not. is_cosmological_constant) then
+            EV%w_ix = neq+1 
+            neq=neq+1 !ppf
+            maxeq=maxeq+1
           else
             EV%w_ix=0
           end if
@@ -574,9 +731,8 @@
           
           yout=0 
           yout(1:basic_num_eqns) = y(1:basic_num_eqns)
-          if (w_lam /= -1 .and. w_Perturb) then
+          if (.not. is_cosmological_constant) then
                yout(EVout%w_ix)=y(EV%w_ix)
-               yout(EVout%w_ix+1)=y(EV%w_ix+1)
           end if  
           
           if (.not. EV%no_phot_multpoles .and. .not. EVout%no_phot_multpoles) then
@@ -787,7 +943,8 @@
              EV%lmaxg=EV%lmaxg*4
              EV%lmaxgpol=EV%lmaxgpol*2
             end if
-         end if                  
+         end if              
+         
          if (EV%TransferOnly) then
             EV%lmaxgpol = min(EV%lmaxgpol,nint(5*lAccuracyBoost)) 
             EV%lmaxg = min(EV%lmaxg,nint(6*lAccuracyBoost))     
@@ -1169,8 +1326,7 @@
         end do
 
      end subroutine MassiveNuVars
-
-
+     
 !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
         subroutine output(EV,y, j,tau,sources)
         use ThermoData
@@ -1192,10 +1348,12 @@
           !dgpi_diff = sum (3*p_nu -rho_nu)*pi_nu
 
         real(dl) k,k2  ,adotoa, grho, gpres,etak,phi,dgpi
-        real(dl) clxq, vq, diff_rhopi, octg, octgprime
+        real(dl)  diff_rhopi, octg, octgprime
         real(dl) sources(CTransScal%NumSources)
+!        real(dl) t4,t92
         real(dl) ISW
-        
+        real(dl) w_eff
+
         yprime = 0
         call derivs(EV,EV%ScalEqsToPropagate,tau,y,yprime)        
         
@@ -1226,17 +1384,28 @@
         grhoc_t=grhoc/a
         grhor_t=grhornomass/a2
         grhog_t=grhog/a2
-        grhov_t=grhov*a**(-1-3*w_lam)
-        grho=grhob_t+grhoc_t+grhor_t+grhog_t+grhov_t
-        gpres=(grhog_t+grhor_t)/3+grhov_t*w_lam
 
-!  8*pi*a*a*SUM[rho_i*clx_i] add radiation later
+        !  8*pi*a*a*SUM[rho_i*clx_i] add radiation later
         dgrho=grhob_t*clxb+grhoc_t*clxc
 
 !  8*pi*a*a*SUM[(rho_i+p_i)*v_i]
         dgq=grhob_t*vb
+        
+        if (is_cosmological_constant) then
+         w_eff = -1_dl
+         grhov_t=grhov*a2 
+        else 
+!ppf
+         w_eff=w_de(a)   !effective de
+         grhov_t=grho_de(a)/a2 
+         dgrho=dgrho+EV%dgrho_e_ppf
+         dgq=dgq+EV%dgq_e_ppf
+        end if    
+        grho=grhob_t+grhoc_t+grhor_t+grhog_t+grhov_t
+        gpres=(grhog_t+grhor_t)/3+grhov_t*w_eff
 
-        dgpi=0   
+        
+        dgpi= 0   
         dgpi_diff = 0
         pidot_sum = 0
 
@@ -1244,15 +1413,6 @@
          call MassiveNuVarsOut(EV,y,yprime,a,grho,gpres,dgrho,dgq,dgpi, dgpi_diff,pidot_sum)
         end if
 
-        if (w_lam /= -1 .and. w_Perturb) then
-          
-           clxq=y(EV%w_ix)
-           vq=y(EV%w_ix+1) 
-           dgrho=dgrho + clxq*grhov_t
-           dgq = dgq + vq*grhov_t*(1+w_lam)
-         
-        end if
-        
         adotoa=sqrt((grho+grhok)/3)
 
         if (EV%no_nu_multpoles) then
@@ -1312,7 +1472,7 @@
 !  have to get z from eta for numerical stability       
         z=(0.5_dl*dgrho/k + etak)/adotoa 
         sigma=(z+1.5_dl*dgq/k2)/EV%Kf(1)
-         
+
         polter = 0.1_dl*pig+9._dl/15._dl*ypol(2)
 
         if (CP%flat) then
@@ -1336,7 +1496,8 @@
         end if
 
         pidot_sum =  pidot_sum + grhog_t*pigdot + grhor_t*pirdot
-        diff_rhopi = pidot_sum - (4*dgpi+ dgpi_diff )*adotoa
+        diff_rhopi = pidot_sum - (4*dgpi+ dgpi_diff )*adotoa 
+
 
 !Maple's fortran output - see scal_eqs.map
 !2phi' term (\phi' + \psi' in Newtonian gauge)
@@ -1365,8 +1526,8 @@
 !Equivalent full result
 !    t4 = 1.D0/adotoa
 !    t92 = k**2
-!   sources(1) = (4.D0/3.D0*EV%Kf(1)*expmmu(j)*sigma+2.D0/3.D0*(-sigma-t4*etak)*expmmu(j))*k+ &
-!       (3.D0/8.D0*ypol(2)+pig/16.D0+clxg/4.D0)*vis(j)
+!    sources(1) = (4.D0/3.D0*EV%Kf(1)*expmmu(j)*sigma+2.D0/3.D0*(-sigma-t4*etak)*expmmu(j))*k+ &
+!        (3.D0/8.D0*ypol(2)+pig/16.D0+clxg/4.D0)*vis(j)
 !    sources(1) = sources(1)-t4*expmmu(j)*dgrho/3.D0+((11.D0/10.D0*sigma- &
 !         3.D0/8.D0*EV%Kf(2)*ypol(3)+vb+ 3.D0/40.D0*qg-9.D0/80.D0*EV%Kf(2)*y(9))*dvis(j)+(5.D0/3.D0*grho+ &
 !        gpres)*sigma*expmmu(j)+(-2.D0*adotoa*etak*expmmu(j)+21.D0/10.D0*etak*vis(j))/ &
@@ -1397,6 +1558,7 @@
             ! - (grhor_t*pir + grhog_t*pig+ pinu*gpnu_t)/k2
          
          sources(3) = -2*phi*f_K(tau-tau_maxvis)/(f_K(CP%tau0-tau_maxvis)*f_K(CP%tau0-tau))
+
 !         sources(3) = -2*phi*(tau-tau_maxvis)/((CP%tau0-tau_maxvis)*(CP%tau0-tau))
           !We include the lensing factor of two here
        else
@@ -1723,9 +1885,8 @@
         y(EV%g_ix)=InitVec(i_clxg)
         y(EV%g_ix+1)=InitVec(i_qg) 
               
-        if (w_lam /= -1 .and. w_Perturb) then
-         y(EV%w_ix) = InitVec(i_clxq)
-         y(EV%w_ix+1) = InitVec(i_vq)
+        if (.not. is_cosmological_constant) then
+         y(EV%w_ix) = InitVec(i_clxq) !ppf: Gamma=0, i_clxq stands for i_Gamma
         end if
 
 !  Neutrinos
@@ -1971,7 +2132,7 @@
 
 !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
         subroutine derivs(EV,n,tau,ay,ayprime)
-!  Evaluate the time derivatives of the perturbations, flat case
+!  Evaluate the time derivatives of the perturbations
 !  ayprime is not necessarily GaugeInterface.yprime, so keep them distinct
         use ThermoData
         use MassiveNu
@@ -1993,13 +2154,15 @@
 
         real(dl) dgq,grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,sigma,polter
         real(dl) qgdot,qrdot,pigdot,pirdot,vbdot,dgrho,adotoa
-        real(dl) a,a2,z,clxc,clxb,vb,clxg,qg,pig,clxr,qr,pir
-        real(dl) clxq, vq,  E2, dopacity
+       real(dl) a,a2,dz,z,clxc,clxb,vb,clxg,qg,pig,clxr,qr,pir
+        real(dl) E2, dopacity
         integer l,i,ind, ind2, off_ix, ix
-        real(dl) dgs,sigmadot,dz !, ddz
+        real(dl) dgs,sigmadot !, ddz
         !non-flat vars
         real(dl) cothxor !1/tau in flat case
-        
+!ppf
+       real(dl) Gamma,S_Gamma,ckH,Gammadot,Fa,dgqe,dgrhoe, vT
+       real(dl) w_eff
        
         k=EV%k_buf
         k2=EV%k2_buf     
@@ -2022,12 +2185,15 @@
         grhoc_t=grhoc/a
         grhor_t=grhornomass/a2
         grhog_t=grhog/a2
-        if (w_lam==-1._dl) then
-         grhov_t=grhov*a2
-         else
-         grhov_t=grhov*a**(-1-3*w_lam)
+        if (is_cosmological_constant) then
+          grhov_t=grhov*a2
+          w_eff = -1_dl
+        else
+ !ppf 
+         w_eff=w_de(a)   !effective de
+         grhov_t=grho_de(a)/a2
         end if
-
+        
 !  Get sound speed and ionisation fraction.
         if (EV%TightCoupling) then
           call thermo(tau,cs2,opacity,dopacity)
@@ -2056,12 +2222,12 @@
          cothxor=1._dl/tanfunc(tau/CP%r)/CP%r
         end if
          
-        if (w_lam /= -1 .and. w_Perturb) then
-           clxq=ay(EV%w_ix) 
-           vq=ay(EV%w_ix+1) 
-           dgrho=dgrho + clxq*grhov_t
-           dgq = dgq + vq*grhov_t*(1+w_lam)
-       end if
+       ! if (w_lam /= -1 .and. w_Perturb) then
+       !    clxq=ay(EV%w_ix) 
+       !    vq=ay(EV%w_ix+1) 
+       !    dgrho=dgrho + clxq*grhov_t
+       !    dgq = dgq + vq*grhov_t*(1+w_lam)
+       !end if
 
        if (EV%no_nu_multpoles) then
         !RSA approximation of arXiv:1104.2933, dropping opactity terms in the velocity
@@ -2108,6 +2274,41 @@
         
         ayprime(1)=adotoa*a
 
+       if (.not. is_cosmological_constant) then
+
+     !ppf
+          vT= dgq/(grho+gpres)
+          Gamma=ay(EV%w_ix)
+    
+    !sigma for ppf
+          sigma = (etak + (dgrho + 3*adotoa/k*dgq)/2._dl/k)/EV%kf(1) - k*Gamma 
+          sigma = sigma/adotoa
+      
+          S_Gamma=grhov_t*(1+w_eff)*(vT+sigma)*k/adotoa/2._dl/k2
+          ckH=c_Gamma_ppf*k/adotoa    
+          Gammadot=S_Gamma/(1+ckH*ckH)- Gamma -ckH*ckH*Gamma
+          Gammadot=Gammadot*adotoa
+          ayprime(EV%w_ix)=Gammadot
+      
+          if(ckH*ckH.gt.3.d1)then
+                Gamma=0
+                Gammadot=0.d0
+                ayprime(EV%w_ix)=Gammadot
+          endif
+      
+          Fa=1+3*(grho+gpres)/2._dl/k2/EV%kf(1)
+          dgqe=S_Gamma - Gammadot/adotoa - Gamma 
+          dgqe=-dgqe/Fa*2._dl*k*adotoa + vT*grhov_t*(1+w_eff)
+          dgrhoe=-2*k2*EV%kf(1)*Gamma-3/k*adotoa*dgqe
+          dgrho=dgrho+dgrhoe
+          dgq=dgq+dgqe
+      
+          EV%dgrho_e_ppf=dgrhoe
+          EV%dgq_e_ppf=dgqe
+          EV%dgrhoec_ppf=dgrhoe+3._dl*(1+w_eff)*grhov_t*adotoa*vT/k
+          EV%dgqec_ppf=dgqe+(1+w_eff)*grhov_t*sigma
+          EV%vTc_ppf=vT+sigma
+       end if  
 
 !  Get sigma (shear) and z from the constraints
 ! have to get z from eta for numerical stability
@@ -2120,16 +2321,16 @@
          sigma=(z+1.5_dl*dgq/k2)/EV%Kf(1)
          ayprime(2)=0.5_dl*dgq + CP%curv*z
         end if
-        
-        if (w_lam /= -1 .and. w_Perturb) then
 
-           ayprime(EV%w_ix)= -3*adotoa*(cs2_lam-w_lam)*(clxq+3*adotoa*(1+w_lam)*vq/k) &
-               -(1+w_lam)*k*vq -(1+w_lam)*k*z
-
-           ayprime(EV%w_ix+1) = -adotoa*(1-3*cs2_lam)*vq + k*cs2_lam*clxq/(1+w_lam)
-
-        end if
-
+      !if (w_lam /= -1 .and. w_Perturb) then
+        !
+        !   ayprime(EV%w_ix)= -3*adotoa*(cs2_lam-w_lam)*(clxq+3*adotoa*(1+w_lam)*vq/k) &
+        !       -(1+w_lam)*k*vq -(1+w_lam)*k*z
+        !
+        !   ayprime(EV%w_ix+1) = -adotoa*(1-3*cs2_lam)*vq + k*cs2_lam*clxq/(1+w_lam)
+        !
+        !end if
+        !
 !  CDM equation of motion
         clxcdot=-k*z
         ayprime(3)=clxcdot
@@ -2148,7 +2349,7 @@
          if (EV%TightCoupling) then
    
            !  ddota/a
-            gpres=gpres+ (grhog_t+grhor_t)/3 +grhov_t*w_lam
+            gpres=gpres+ (grhog_t+grhor_t)/3 +grhov_t*w_eff
             adotdota=(adotoa*adotoa-gpres)/2
 
             pig = 32._dl/45/opacity*k*(sigma+vb)
@@ -2374,6 +2575,8 @@
         real(dl) k,k2,a,a2, adotdota
         real(dl) pir,adotoa  
    
+        stop 'ppf not implemented for vectors'
+        
          k2=EV%k2_buf
          k=EV%k_buf       
 
@@ -2568,10 +2771,10 @@
         grhoc_t=grhoc/a
         grhor_t=grhornomass/a2
         grhog_t=grhog/a2
-        if (w_lam==-1._dl) then
-         grhov_t=grhov*a2       
+        if (is_cosmological_constant) then
+          grhov_t=grhov*a2
         else
-         grhov_t=grhov*a**(-1-3*w_lam)
+         grhov_t=grho_de(a)/a2
         end if
         
         grho=grhob_t+grhoc_t+grhor_t+grhog_t+grhov_t

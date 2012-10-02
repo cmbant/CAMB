@@ -1718,6 +1718,13 @@ subroutine CreateOpenTxtFile(aname, aunit, append)
  
  end function LastFileLine
 
+ subroutine writeArrayLine(unit, arr)
+  real, intent(in) :: arr(:)
+  integer, intent(in) :: unit
+  
+  write(unit,concat('(',size(arr),'E16.6)')) arr
+  
+ end subroutine writeArrayLine
  
 
       subroutine spline_real(x,y,n,y2)

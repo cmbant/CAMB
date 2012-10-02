@@ -345,7 +345,9 @@
             P%MassiveNuMethod = Nu_best
             P%OnlyTransfers = .false.
 
-         end subroutine CAMB_SetDefParams
+            P%DerivedParameters = .true.
+
+        end subroutine CAMB_SetDefParams
 
 
          !Stop with error is not good
