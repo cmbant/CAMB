@@ -28,9 +28,9 @@ CAMB is also supplied as part of the <A HREF="http://cosmologist.info/cosmomc/">
 <A NAME="compiling">
 <B>Compiling and running</B>
 </P>
-To install and compile yourself you will need a Fortran 90 (or higher) compiler - you can get free <A HREF="http://www.intel.com/software/products/compilers/downloads/forlin.htm" TARGET="_blank">Intel Linux</A>, <A HREF="http://g95.sourceforge.net/">G95</A> or <A HREF="http://gcc.gnu.org/wiki/GFortran">GFortran</A> compilers.
- Alternatively you can use CAMB in the pre-configured <A HREF="http://cosmologist.info/CosmoBox">CosmoBox</A> virtual machine. <P>
- To install yourself:
+To install and compile yourself you will need a Fortran 90 (or higher) compiler - you can get the free <A HREF="http://g95.sourceforge.net/">G95</A> or <A HREF="http://gcc.gnu.org/wiki/GFortran">GFortran</A> compilers, or the optimized Intel compiler <em>ifort</em> is installed on many academic clusters and also supports integrated development and debugging in Visual Studio under Windows.
+ Alternatively you can use CAMB in the pre-configured <A HREF="http://cosmologist.info/CosmoBox">CosmoBox</A> virtual machine, using the eclipse integrated development environment. <P>
+ To install yourself from the command line:
 <UL>
 <LI><A HREF="http://camb.info/CAMBsubmit.html">Download</A> CAMB
 <LI>Unzip and untar the file (<B>tar xfv CAMB.tar.gz</B>). All files will be extracted to a
@@ -43,15 +43,17 @@ edit the supplied Makefile, see below)
 </UL>
 </P>
 <P>
-The Makefile comes set up for Intel machines using ifc. Just comment the relevant parts to compile on different systems. If you have Compaq Visual Fortran you can open the supplied .dsp project file, no need to use the Makefile (currently Intel Visual Fortran is not recommended). To run on multi-processor machines add the -openmp (or equivalent) option to the Makefile's FFLAGS parameter to compile a parallelized (OPENMP) version.
+The Makefile comes set up for Intel machines using Intel's ifort compiler. Just comment the relevant parts to compile on different systems. If you have Intel's Visual Fortran you can use the projects in the VisualStudio folder, no need to use the Makefile. To run on multi-processor machines add the -openmp (or equivalent) option to the Makefile's FFLAGS parameter to compile a parallelized (OPENMP) version.
 </P>
 <P>
-You can also edit the Makefile's EQUATIONS and POWERSPECTRUM
- variables. The POWERSPECTRUM.f90  file contains a module giving the initial
+You can also edit the Makefile's EQUATIONS, POWERSPECTRUM, RECOMBINATION and REIONIZATION
+ variables, which determine which module is used to implement and model various parts of the calculation. The POWERSPECTRUM.f90  file contains a module giving the initial
  power spectrum, the EQUATIONS.f90 file contains the background evolution
  equations and sets of gauge-dependent perturbation
- equations. To avoid problems run <B>make clean</B> after changing the
- Makefile before recompiling.
+ equations (the alternative equations_ppf.f90 is provided to implement the common <i>w</i>, <i>w<sub>a</sub></i> varying dark energy parameterization). RECOMBINATION.f90 gives the background recombination history: recfast by default, but you can also compile to use <A HREF="http://www.cita.utoronto.ca/~jchluba/Science_Jens/Recombination/CosmoRec.html">CosmoRec</A> and <A HREF="http://www.sns.ias.edu/~yacine/hyrec/hyrec.html">HyRec</A>. REIONIZATION is by default a simple relatively fast single-step reionization model (following <A HREF="http://arxiv.org/abs/0804.3865">arXiv:0804.3865</A>).
+  Various other modules can also be changed at compile time if desired.
+ To avoid problems run <B>make clean</B> after changing the
+ Makefile before recompiling. You can also use e.g. <B>make RECOMBINATION=cosmorec</b> to override the default and compile with a different module.
 </P>
 <P>
 You can produce files in  <A
@@ -67,7 +69,7 @@ All the equations that need to be modified for
 simple non-standard models are in the equations.f90 file.  It should be possible to produce other files
 for extended models (see the sample <A
 HREF="http://camb.info/extra.html">quintessence</A> module). (Note that varying
-constant - e.g. alpha -  models are not quite so simple to plug in).
+constant - e.g. alpha -  models are not quite so simple to plug in; a sample equations_ppf.f90 file provided to implement a varying <i>w</i> dark energy equation of state in the <A HREF="http://arxiv.org/abs/0808.3125">PPF</A> model).
 <P>
 After modifying any of the source code run <B>make clean</B> before running <B>make</B> to recompile (Visual Fortran will re-compile dependent code automatically).
 Run <B>make all</B> to build a library libcamb.a that you can use when
@@ -114,7 +116,7 @@ where all quantities are in the synchronous gauge and evaluated at the requested
 
 <B>October 2012</B><BR>
 <UL>
-<LI>Updated Recfast to 1.5.2 (~0.15% change in C<sub>l</sub> from small tweaks to fudge parameters to match CosmoRec and HyRec)
+<LI>Updated Recfast to 1.5.2 (~0.15% change in C<sub>l</sub> from small tweaks to fudge parameters to match <A HREF="http://www.cita.utoronto.ca/~jchluba/Science_Jens/Recombination/CosmoRec.html">CosmoRec</A> and <A HREF="http://www.sns.ias.edu/~yacine/hyrec/hyrec.html">HyRec</A>)
 <LI>Updated Halofit model from <A HREF="http://arxiv.org/abs/1208.2701">arXiv:1208.2701</A> (thanks Ryuichi Takahashi)
 <LI>Calculation of various potentially useful derived parameters (if <b>derived_parameters=T</b>)
 <LI>Change to allow N<sub>eff</sub>&lt;1 to work (thanks Zhen Hou)
@@ -501,7 +503,7 @@ equivalent to the synchronous gauge equations.
    spectra for other matter tracers, e.g. for cross-correlation with
    the CMB. The lensing power spectrum is automatically computed if
    <B>DoLensing=T</B>.
-
+<P><i>equations_ppf.f90</i> is an alternative module that allows evolving dark energy crossing w=-1.
 <P>
 <B> power_tilt.f90</B>
 <P>
@@ -566,7 +568,7 @@ from <A HREF="http://arxiv.org/abs/1208.2701">arXiv:1208.2701</A> (thanks Ryuich
  by Douglas Scott (with minor modifications for CMBFAST and the
  CAMB). See <A
  HREF="http://www.astro.ubc.ca/people/scott/recfast.html">RECFAST</A>
- for the original code. This module implements the RECOMBINATION module required by CAMB, and could be replaced by other models.
+ for the original code. This module implements the RECOMBINATION module required by CAMB, and could be replaced by more detailed codes. Sample wrappers are also provided for <A HREF="http://www.cita.utoronto.ca/~jchluba/Science_Jens/Recombination/CosmoRec.html">CosmoRec</A> and <A HREF="http://www.sns.ias.edu/~yacine/hyrec/hyrec.html">HyRec</A>, but the libraries for these must be installed separately (the latter requiring a modification to enable CAMB support; contact Antony Lewis for the code).
  <P>
 <B>SeparableBispectrum.f90</B>
 <P>
@@ -627,7 +629,7 @@ HREF="http://arxiv.org/abs/astro-ph/9911177">astro-ph/9911177</A> Ap. J. 538:473
 Geometric Algebra and
 Covariant Methods in Physics and Cosmology, Chapters 6&7<BR>
 PhD thesis, Antony Lewis 2000.  <A
-HREF="http://antonylewis.com/thesis.ps.gz">PostScript</A>.
+HREF="http://cosmologist.info/thesis.ps.gz">PostScript</A>.
 </P>
 <P>
 <B>Covariant theory</B>
@@ -670,6 +672,10 @@ Antony Lewis, <A HREF="http://arxiv.org/abs/astro-ph/0403583">astro-ph/0403583</
 <P>
 Stable clustering, the halo model and nonlinear cosmological power spectra<BR>
 Smith, R. E. and others,  <A HREF="http://arxiv.org/abs/astro-ph/0207664">astro-ph/0207664</A>.
+<P>
+
+Revising the Halofit Model for the Nonlinear Matter Power Spectrum<BR>
+Ryuichi Takahashi and others, <A HREF="http://arxiv.org/abs/1208.2701">arXiv:1208.2701</A>.
 
 <P>
 <B>RECOMBINATION</B>

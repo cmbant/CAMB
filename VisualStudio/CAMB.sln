@@ -9,10 +9,16 @@ Project("{6989167D-11E4-40FE-8C1A-2192A86A7E90}") = "CAMB_devel", "CAMB_devel.vf
 EndProject
 Project("{6989167D-11E4-40FE-8C1A-2192A86A7E90}") = "CAMBLib", "CAMBLib.vfproj", "{DBB2F5F1-BF96-4AAD-9CE7-15EB2E22E3E7}"
 	ProjectSection(ProjectDependencies) = postProject
+		{9A850B68-FC7B-42F7-BB78-C4C38EF90B25} = {9A850B68-FC7B-42F7-BB78-C4C38EF90B25}
 		{C7D790F6-3574-43A1-A5E1-1E6FC5478F95} = {C7D790F6-3574-43A1-A5E1-1E6FC5478F95}
 	EndProjectSection
 EndProject
 Project("{6989167D-11E4-40FE-8C1A-2192A86A7E90}") = "SharedObj", "SharedObj.vfproj", "{C7D790F6-3574-43A1-A5E1-1E6FC5478F95}"
+EndProject
+Project("{6989167D-11E4-40FE-8C1A-2192A86A7E90}") = "MatrixDouble", "MatrixDouble.vfproj", "{9A850B68-FC7B-42F7-BB78-C4C38EF90B25}"
+	ProjectSection(ProjectDependencies) = postProject
+		{C7D790F6-3574-43A1-A5E1-1E6FC5478F95} = {C7D790F6-3574-43A1-A5E1-1E6FC5478F95}
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -46,6 +52,14 @@ Global
 		{C7D790F6-3574-43A1-A5E1-1E6FC5478F95}.Release|Win32.Build.0 = Release|Win32
 		{C7D790F6-3574-43A1-A5E1-1E6FC5478F95}.Release|x64.ActiveCfg = Release|x64
 		{C7D790F6-3574-43A1-A5E1-1E6FC5478F95}.Release|x64.Build.0 = Release|x64
+		{9A850B68-FC7B-42F7-BB78-C4C38EF90B25}.Debug|Win32.ActiveCfg = Debug|Win32
+		{9A850B68-FC7B-42F7-BB78-C4C38EF90B25}.Debug|Win32.Build.0 = Debug|Win32
+		{9A850B68-FC7B-42F7-BB78-C4C38EF90B25}.Debug|x64.ActiveCfg = Debug|x64
+		{9A850B68-FC7B-42F7-BB78-C4C38EF90B25}.Debug|x64.Build.0 = Debug|x64
+		{9A850B68-FC7B-42F7-BB78-C4C38EF90B25}.Release|Win32.ActiveCfg = Release|Win32
+		{9A850B68-FC7B-42F7-BB78-C4C38EF90B25}.Release|Win32.Build.0 = Release|Win32
+		{9A850B68-FC7B-42F7-BB78-C4C38EF90B25}.Release|x64.ActiveCfg = Release|x64
+		{9A850B68-FC7B-42F7-BB78-C4C38EF90B25}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
