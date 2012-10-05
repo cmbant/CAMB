@@ -47,7 +47,7 @@ The Makefile comes set up for Intel machines using Intel's ifort compiler. Just 
 </P>
 <P>
 You can also edit the Makefile's EQUATIONS, POWERSPECTRUM, RECOMBINATION and REIONIZATION
- variables, which determine which module is used to implement and model various parts of the calculation. The POWERSPECTRUM.f90  file contains a module giving the initial
+ variables , which determine which module is used to implement and model various parts of the calculation. The POWERSPECTRUM.f90  file contains a module giving the initial
  power spectrum, the EQUATIONS.f90 file contains the background evolution
  equations and sets of gauge-dependent perturbation
  equations (the alternative equations_ppf.f90 is provided to implement the common <i>w</i>, <i>w<sub>a</sub></i> varying dark energy parameterization). RECOMBINATION.f90 gives the background recombination history: recfast by default, but you can also compile to use <A HREF="http://www.cita.utoronto.ca/~jchluba/Science_Jens/Recombination/CosmoRec.html">CosmoRec</A> and <A HREF="http://www.sns.ias.edu/~yacine/hyrec/hyrec.html">HyRec</A>. REIONIZATION is by default a simple relatively fast single-step reionization model (following <A HREF="http://arxiv.org/abs/0804.3865">arXiv:0804.3865</A>).
@@ -122,7 +122,7 @@ where all quantities are in the synchronous gauge and evaluated at the requested
 <LI>Change to allow N<sub>eff</sub>&lt;1 to work (thanks Zhen Hou)
 <LI>Typo in approximation result in equations.f90 corrected (thanks Alex Hall; no effect on numerics)
 <LI>Switch off use_spline_template for non-adiabatic models (thanks Jo Dunkley)
-<LI>Support for compiling with and linking to <A HREF="http://www.cita.utoronto.ca/~jchluba/Science_Jens/Recombination/CosmoRec.html">CosmoRec</A> for recombination model (RECOMBINATION=cosmorec); HyRec also supports but requires HyRec source modification available on request
+<LI>Support for compiling with and linking to <A HREF="http://www.cita.utoronto.ca/~jchluba/Science_Jens/Recombination/CosmoRec.html">CosmoRec</A> for recombination model (make RECOMBINATION=cosmorec) and HyRec <A HREF="http://www.sns.ias.edu/~yacine/hyrec/hyrec.html">HyRec</A> (make RECOMBINATION=hyrec) 
 <LI>IniFile module updated [supports overridden and common parameters via DEFAULT(name.ini) and INCLUDE(name.ini)].
 </UL>
 
@@ -568,7 +568,7 @@ from <A HREF="http://arxiv.org/abs/1208.2701">arXiv:1208.2701</A> (thanks Ryuich
  by Douglas Scott (with minor modifications for CMBFAST and the
  CAMB). See <A
  HREF="http://www.astro.ubc.ca/people/scott/recfast.html">RECFAST</A>
- for the original code. This module implements the RECOMBINATION module required by CAMB, and could be replaced by more detailed codes. Sample wrappers are also provided for <A HREF="http://www.cita.utoronto.ca/~jchluba/Science_Jens/Recombination/CosmoRec.html">CosmoRec</A> and <A HREF="http://www.sns.ias.edu/~yacine/hyrec/hyrec.html">HyRec</A>, but the libraries for these must be installed separately (the latter requiring a modification to enable CAMB support; contact Antony Lewis for the code).
+ for the original code. This module implements the RECOMBINATION module required by CAMB, and could be replaced by more detailed codes. Sample wrappers are also provided for <A HREF="http://www.cita.utoronto.ca/~jchluba/Science_Jens/Recombination/CosmoRec.html">CosmoRec</A> and <A HREF="http://www.sns.ias.edu/~yacine/hyrec/hyrec.html">HyRec</A>, but the libraries for these must be installed separately.
  <P>
 <B>SeparableBispectrum.f90</B>
 <P>
