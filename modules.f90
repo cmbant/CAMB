@@ -2207,7 +2207,8 @@
         real(dl) rombint
         external rombint
 
-        call Recombination_Init(CP%Recomb, CP%omegac, CP%omegab,CP%Omegan, CP%Omegav, CP%h0,CP%tcmb,CP%yhe,CP%Num_Nu_massless + CP%Num_Nu_massive)
+        call Recombination_Init(CP%Recomb, CP%omegac, CP%omegab,CP%Omegan, CP%Omegav, &
+             CP%h0,CP%tcmb,CP%yhe,CP%Num_Nu_massless + CP%Num_Nu_massive)
           !almost all the time spent here
         if (global_error_flag/=0) return
         Maxtau=taumax
