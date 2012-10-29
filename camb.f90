@@ -289,6 +289,7 @@
       
         subroutine CAMB_SetDefParams(P)
             use Bispectrum
+            use constants
             type(CAMBparams), intent(out) :: P
 
             P%WantTransfer= .false.
@@ -300,7 +301,7 @@
             P%omegan  = 0
             P%H0      = 65
 
-            P%TCMB    = 2.726
+            P%TCMB    = COBE_CMBTemp
             P%YHe     = 0.24
             P%Num_Nu_massless =3.04
             P%Num_Nu_massive  =0

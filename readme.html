@@ -113,6 +113,12 @@ where all quantities are in the synchronous gauge and evaluated at the requested
 <A NAME="version">
 <H3>Version history</H3>
 
+<B>xx 2012</B><BR>
+<UL>
+<LI>Derived parameter r_s now use accurate result for the sound speed (CosmoMC theta unchanged)
+<LI>Updated default T_CMB=2.7255 to match Planck default assumption
+<LI>modules.f90 utility functions: Hofz and dsound_da_exact
+</UL>
 
 <B>October 2012</B><BR>
 <UL>
@@ -122,7 +128,7 @@ where all quantities are in the synchronous gauge and evaluated at the requested
 <LI>Change to allow N<sub>eff</sub>&lt;1 to work (thanks Zhen Hou)
 <LI>Typo in approximation result in equations.f90 corrected (thanks Alex Hall; no effect on numerics)
 <LI>Switch off use_spline_template for non-adiabatic models (thanks Jo Dunkley)
-<LI>Support for compiling with and linking to <A HREF="http://www.cita.utoronto.ca/~jchluba/Science_Jens/Recombination/CosmoRec.html">CosmoRec</A> for recombination model (make RECOMBINATION=cosmorec) and HyRec <A HREF="http://www.sns.ias.edu/~yacine/hyrec/hyrec.html">HyRec</A> (make RECOMBINATION=hyrec) 
+<LI>Support for compiling with and linking to <A HREF="http://www.cita.utoronto.ca/~jchluba/Science_Jens/Recombination/CosmoRec.html">CosmoRec</A> for recombination model (make RECOMBINATION=cosmorec) and HyRec <A HREF="http://www.sns.ias.edu/~yacine/hyrec/hyrec.html">HyRec</A> (make RECOMBINATION=hyrec)
 <LI>IniFile module updated [supports overridden and common parameters via DEFAULT(name.ini) and INCLUDE(name.ini)].
 </UL>
 

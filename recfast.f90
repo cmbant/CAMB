@@ -275,9 +275,9 @@
         real(dl) :: AGauss1 =      -0.14D0  !Amplitude of 1st Gaussian
         real(dl) :: AGauss2 =       0.079D0 ! 0.05D0  !Amplitude of 2nd Gaussian
         real(dl) :: zGauss1 =       7.28D0  !ln(1+z) of 1st Gaussian
-        real(dl) :: zGauss2=	    6.73D0  !ln(1+z) of 2nd Gaussian
-        real(dl) :: wGauss1=	    0.18D0  !Width of 1st Gaussian
-        real(dl) :: wGauss2=	    0.33D0  !Width of 2nd Gaussian
+        real(dl) :: zGauss2=        6.73D0  !ln(1+z) of 2nd Gaussian
+        real(dl) :: wGauss1=        0.18D0  !Width of 1st Gaussian
+        real(dl) :: wGauss2=        0.33D0  !Width of 2nd Gaussian
         !Gaussian fits for extra H physics (fit by Adam Moss , modified by Antony Lewis)
 
         type RecombinationParams
@@ -850,7 +850,7 @@
         end if
 !	now deal with H and its fudges
     if (.not. Recomb%RECFAST_Hswitch) then
-      K = CK/Hz		!Peebles coefficient K=lambda_a^3/8piH
+      K = CK/Hz !Peebles coefficient K=lambda_a^3/8piH
     else
 !c	fit a double Gaussian correction function
       K = CK/Hz*(1.0d0 &

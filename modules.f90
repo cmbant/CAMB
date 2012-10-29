@@ -35,7 +35,7 @@
         implicit none
         public
 
-        character(LEN=*), parameter :: version = 'Oct_12'
+        character(LEN=*), parameter :: version = 'Oct_12_change_rs'
 
         integer :: FeedbackLevel = 0 !if >0 print out useful information about the model
 
@@ -519,11 +519,43 @@
           real(dl) AngularDiameterDistance
           real(dl), intent(in) :: z
 
-          AngularDiameterDistance = CP%r/(1+z)*rofchi(DeltaTime(1/(1+z),1._dl)/CP%r)
+          AngularDiameterDistance = CP%r/(1+z)*rofchi(ComovingRadialDistance(z) /CP%r)
 
         end function AngularDiameterDistance
 
+        function ComovingRadialDistance(z) 
+          real(dl) ComovingRadialDistance
+          real(dl), intent(in) :: z
+
+          ComovingRadialDistance = DeltaTime(1/(1+z),1._dl)
+
+        end function ComovingRadialDistance
+
+        function Hofz(z) 
+        !!non-comoving Hubble in MPC units, divide by MPC_in_sec to get in SI units
+        real(dl) Hofz, dtauda,a
+        real(dl), intent(in) :: z
+        external dtauda
+
+         a = 1/(1+z)
+         Hofz = 1/(a**2*dtauda(a))
+
+        end function Hofz
+
+       function dsound_da_exact(a)
+          implicit none
+          real(dl) dsound_da_exact,dtauda,a,R,cs
+          external dtauda
+
+           R = 3*grhob*a / (4*grhog) 
+           cs=1.0d0/sqrt(3*(1+R))
+           dsound_da_exact=dtauda(a)*cs
+
+       end function dsound_da_exact
+
+        
        function dsound_da(a)
+       !approximate form used e.g. by CosmoMC for theta
           implicit none
           real(dl) dsound_da,dtauda,a,R,cs
           external dtauda
@@ -2445,14 +2477,14 @@
         if (CP%want_zdrag .or. CP%DerivedParameters) call find_z(dragoptdepth,z_drag)
 
         if (CP%DerivedParameters) then
-            rs =rombint(dsound_da,1d-8,1/(z_star+1),1d-6)
+            rs =rombint(dsound_da_exact,1d-8,1/(z_star+1),1d-6)
             DA = AngularDiameterDistance(z_star)/(1/(z_star+1))
 
             ThermoDerivedParams( derived_zstar ) = z_star
             ThermoDerivedParams( derived_rstar ) = rs
             ThermoDerivedParams( derived_thetastar ) = 100*rs/DA
             ThermoDerivedParams( derived_zdrag ) = z_drag
-            rs =rombint(dsound_da,1d-8,1/(z_drag+1),1d-6)
+            rs =rombint(dsound_da_exact,1d-8,1/(z_drag+1),1d-6)
             ThermoDerivedParams( derived_rdrag ) = rs
             ThermoDerivedParams( derived_kD ) =  sqrt(1.d0/(rombint(ddamping_da, 1d-8, 1/(z_star+1), 1d-6)/6))
             ThermoDerivedParams( derived_thetaD ) =  100*pi/ThermoDerivedParams( derived_kD )/DA
