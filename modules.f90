@@ -35,7 +35,7 @@
         implicit none
         public
 
-        character(LEN=*), parameter :: version = 'Oct_12_change_rs'
+        character(LEN=*), parameter :: version = 'Nov_12'
 
         integer :: FeedbackLevel = 0 !if >0 print out useful information about the model
 
@@ -221,9 +221,9 @@
       integer, parameter :: lmax_extrap_highl = 6000
       real(dl), allocatable :: highL_CL_template(:,:)
 
-      integer, parameter :: derived_zstar=1, derived_rstar=2, derived_thetastar=3,derived_zdrag=4, &
-         derived_rdrag=5,derived_kD=6,derived_thetaD=7 , derived_zEQ =8, derived_thetaEQ=9 !, derived_mnu=10
-      integer, parameter :: nthermo_derived = 9
+      integer, parameter :: derived_age=1, derived_zstar=2, derived_rstar=3, derived_thetastar=4,derived_zdrag=5, &
+         derived_rdrag=6,derived_kD=7,derived_thetaD=8 , derived_zEQ =9, derived_thetaEQ=10 
+      integer, parameter :: nthermo_derived = 10
       real(dl) ThermoDerivedParams(nthermo_derived)
 
        contains
@@ -514,6 +514,21 @@
 
         TimeOfz=DeltaTime(0._dl,1._dl/(z+1._dl))
         end function TimeOfz
+        
+        function DeltaPhysicalTimeGyr(a1,a2, in_tol)
+         use constants
+         real(dl), intent(in) :: a1, a2
+         real(dl), optional, intent(in) :: in_tol
+         real(dl) rombint,DeltaPhysicalTimeGyr, atol
+         external rombint
+
+           if (present(in_tol)) then
+             atol = in_tol
+           else
+             atol = 1d-4/exp(AccuracyBoost-1)
+           end if
+           DeltaPhysicalTimeGyr = rombint(dtda,a1,a2,atol)*Mpc/c/Gyr
+        end function DeltaPhysicalTimeGyr
 
         function AngularDiameterDistance(z)
           real(dl) AngularDiameterDistance
@@ -567,6 +582,11 @@
 
        end function dsound_da
 
+        function dtda(a)
+                real(dl) dtda,dtauda,a
+                external dtauda
+                dtda= dtauda(a)*a
+        end function
 
        function CosmomcTheta()
          real(dl) zstar, astar, atol, rs, DA
@@ -2319,7 +2339,7 @@
 
             xe(i) = Reionization_xe(a, tau, xe(ncount))
             !print *,1/a-1,xe(i)
-            if (CP%AccurateReionization .and. FeedbackLevel > 0) then
+            if (CP%AccurateReionization .and. CP%DerivedParameters) then
                 dotmu(i)=(Recombination_xe(a) - xe(i))*akthom/a2
 
                 if (last_dotmu /=0) then
@@ -2371,7 +2391,7 @@
                actual_opt_depth==0 .and. xe(j1) < 1e-3) then
               actual_opt_depth = -sdotmu(j1)+sdotmu(nthermo)
            end if
-           if (CP%AccurateReionization .and. z_star==0.d0) then
+           if (CP%AccurateReionization .and. CP%DerivedParameters .and. z_star==0.d0) then
               if (sdotmu(nthermo)-sdotmu(j1) - actual_opt_depth < 1) then
                 tau01=1-(sdotmu(nthermo)-sdotmu(j1) - actual_opt_depth)
                 tau01=tau01*(1._dl/dotmu(j1)+1._dl/dotmu(j1-1))/2
@@ -2480,6 +2500,7 @@
             rs =rombint(dsound_da_exact,1d-8,1/(z_star+1),1d-6)
             DA = AngularDiameterDistance(z_star)/(1/(z_star+1))
 
+            ThermoDerivedParams( derived_Age ) = DeltaPhysicalTimeGyr(0.0_dl,1.0_dl)
             ThermoDerivedParams( derived_zstar ) = z_star
             ThermoDerivedParams( derived_rstar ) = rs
             ThermoDerivedParams( derived_thetastar ) = 100*rs/DA
@@ -2500,6 +2521,7 @@
 
             if (FeedbackLevel > 0) then
 
+                        write(*,'("Age of universe/GYr  = ",f7.3)') ThermoDerivedParams( derived_Age )
                         write(*,'("zstar                = ",f8.2)') ThermoDerivedParams( derived_zstar )
                         write(*,'("r_s(zstar)/Mpc       = ",f7.2)') ThermoDerivedParams( derived_rstar )
                         write(*,'("100*theta            = ",f9.6)') ThermoDerivedParams( derived_thetastar )

@@ -250,23 +250,14 @@
            use constants
            type(CAMBparams), intent(in) :: P
            real(dl) CAMB_GetAge
-           real(dl) atol,a1,a2, dtda, rombint
-!           real(dl), parameter :: Mpc = 3.085678e22_dl, &
-!                 c = 2.99792458e8_dl, Gyr=3.1556926e16
            integer error
-           external dtda,rombint
-
 
            call  CAMBParams_Set(P, error, .false.)
 
            if (error/=0) then
             CAMB_GetAge = -1
            else
-
-           atol = 1d-4
-           a1=0
-           a2=1
-           CAMB_GetAge = rombint(dtda,a1,a2,atol)*Mpc/c/Gyr
+            CAMB_GetAge = DeltaPhysicalTimeGyr(0.0_dl,1.0_dl)
            end if
     
          end function CAMB_GetAge
@@ -446,15 +437,4 @@
 
   end module CAMB
 
-
-  function dtda(a)
-          use Precision
-          implicit none
-          real(dl) dtda,dtauda,a
-          external dtauda
-          
-          dtda= dtauda(a)*a
-  end function
-
-        
 

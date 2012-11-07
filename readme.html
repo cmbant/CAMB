@@ -47,7 +47,7 @@ The Makefile comes set up for Intel machines using Intel's ifort compiler. Just 
 </P>
 <P>
 You can also edit the Makefile's EQUATIONS, POWERSPECTRUM, RECOMBINATION and REIONIZATION
- variables , which determine which module is used to implement and model various parts of the calculation. The POWERSPECTRUM.f90  file contains a module giving the initial
+ variables , which determine which module is used to implement and model various parts of the calculation. The POWERSPECTRUM.f90  file7 contains a module giving the initial
  power spectrum, the EQUATIONS.f90 file contains the background evolution
  equations and sets of gauge-dependent perturbation
  equations (the alternative equations_ppf.f90 is provided to implement the common <i>w</i>, <i>w<sub>a</sub></i> varying dark energy parameterization). RECOMBINATION.f90 gives the background recombination history: recfast by default, but you can also compile to use <A HREF="http://www.cita.utoronto.ca/~jchluba/Science_Jens/Recombination/CosmoRec.html">CosmoRec</A> and <A HREF="http://www.sns.ias.edu/~yacine/hyrec/hyrec.html">HyRec</A>. REIONIZATION is by default a simple relatively fast single-step reionization model (following <A HREF="http://arxiv.org/abs/0804.3865">arXiv:0804.3865</A>).
@@ -115,9 +115,10 @@ where all quantities are in the synchronous gauge and evaluated at the requested
 
 <B>xx 2012</B><BR>
 <UL>
-<LI>Derived parameter r_s now use accurate result for the sound speed (CosmoMC theta unchanged)
-<LI>Updated default T_CMB=2.7255 to match Planck default assumption
-<LI>modules.f90 utility functions: Hofz and dsound_da_exact
+<LI>Updated default T_CMB=2.7255 (does not change results for same input parameters)
+<LI>Derived sound horizon output parameter now uses more accurate sound speed using correct CMB temperature (power spectrum results and CosmoMC theta unchanged)
+<LI>Fixed bug calculating zstar with Feedback=0 and accurate_reionization (gave wrong results)
+<LI>Utility functions Hofz, DeltaPhysicalTimeGyr, and dsound_da_exact for getting H(z), age and the accurate sound speed
 </UL>
 
 <B>October 2012</B><BR>

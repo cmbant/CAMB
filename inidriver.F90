@@ -25,7 +25,7 @@
         integer i
         character(LEN=Ini_max_string_len) TransferFileNames(max_transfer_redshifts), &
                MatterPowerFileNames(max_transfer_redshifts), outroot, version_check
-        real(dl) output_factor, Age, nmassive
+        real(dl) output_factor, nmassive
 
 #ifdef WRITE_FITS
        character(LEN=Ini_max_string_len) FITSfilename
@@ -289,11 +289,6 @@
 #ifdef RUNIDLE
        call SetIdle
 #endif 
-
-       if (FeedbackLevel > 0) then
-         Age = CAMB_GetAge(P) 
-         write (*,'("Age of universe/GYr  = ",f7.3)') Age  
-       end if 
 
        if (global_error_flag==0) call CAMB_GetResults(P)
        if (global_error_flag/=0) then
