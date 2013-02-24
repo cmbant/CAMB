@@ -1917,7 +1917,7 @@
    
         real(dl) clxc, clxb, clxg, clxr, k,k2
         real(dl) grho,gpres,dgrho,dgq,a
-        real Arr(Transfer_max)
+        real Arr(:)
         real(dl) y(EV%nvar)
 
         a    = y(1)

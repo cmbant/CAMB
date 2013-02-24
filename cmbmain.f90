@@ -168,7 +168,7 @@ contains
          write (*,*) 'r = ',real(CP%r),' scale = ',real(scale), 'age = ', real(CP%tau0)  
       end if 
 
-       if (.not. CP%OnlyTransfers)  call InitializePowers(CP%InitPower,CP%curv)
+       if (.not. CP%OnlyTransfers .or. CP%NonLinear==NonLinear_Lens)  call InitializePowers(CP%InitPower,CP%curv)
        if (global_error_flag/=0) return
 
 !     Calculation of the CMB sources.

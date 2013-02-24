@@ -114,7 +114,8 @@ where all quantities are in the synchronous gauge and evaluated at the requested
 <H3>Version history</H3>
 
 <B>xx 2012</B><BR>
-<UL>
+<UL>Read in AccuracyBoost parameters earlier so they are reflected e.g. in e.g. Transfer_SetForNonlinearLensing.
+<LI>Temperatures of massive neutrinos set from the degeneracy, e.g. 3.046, unless same_neutrino_Neff set (no degeneracies specific in .ini)
 <LI>Updated default T_CMB=2.7255 (does not change results for same input parameters)
 <LI>Derived sound horizon output parameter now uses more accurate sound speed using correct CMB temperature (power spectrum results and CosmoMC theta unchanged)
 <LI>Fixed bug calculating zstar with Feedback=0 and accurate_reionization (gave wrong results)

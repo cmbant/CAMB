@@ -1349,11 +1349,13 @@ subroutine Matrix_Write_double(aname, mat, forcetable)
 
  end subroutine Matrix_Mult_TN
 
-  subroutine Matrix_Cholesky(M, err)
+  subroutine Matrix_Cholesky(M, err, zeroed)
    !Note upper triangular is not zeroed
      real(dm), intent(inout):: M(:,:)
      integer n, info
      integer, optional :: err
+     logical, intent(in), optional :: zeroed
+     integer i
       
      n=Size(M,DIM=1)
      if (Size(M,DIM=2)/=n) call MpiStop('Matrix_Cholesky: non-square matrix')
@@ -1369,7 +1371,14 @@ subroutine Matrix_Write_double(aname, mat, forcetable)
      else
      if (info/=0) &
        call MpiStop('Matrix_Cholesky: not positive definite '//trim(IntToStr(info))) 
-    end if
+     end if
+     
+     if (info==0 .and. present(zeroed)) then
+         do i=1,n
+             M(1:i-1,i)=0
+          end do
+     end if
+     
   end subroutine Matrix_Cholesky
  
   subroutine Matrix_CCholesky(M)

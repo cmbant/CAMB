@@ -52,7 +52,8 @@
 
        real(dl), parameter :: line21_const = 3*l_21cm**2*C*h_P/32/const_pi/k_B*A10 * Mpc_in_sec * 1000
         !1000 to get in MiliKelvin
-       real(dl), parameter :: COBE_CMBTemp = 2.7255 !(Fixsen 2009) used as default value
+       real(dl), parameter :: COBE_CMBTemp = 2.7255_dl !(Fixsen 2009) used as default value
+       real(dl), parameter :: default_nnu = 3.046_dl
 
    end module constants
 
