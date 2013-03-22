@@ -13,7 +13,7 @@
 Code for Anisotropies in the Microwave Background by <A
 HREF="http://cosmologist.info/">Antony Lewis</A> and Anthony
 Challinor. <P>
-This version October 2012.
+This version March 2013.
 <P>
 <FONT SIZE=-1>
 Originally based on CMBFAST developed by Uros Seljak and Matias
@@ -113,8 +113,10 @@ where all quantities are in the synchronous gauge and evaluated at the requested
 <A NAME="version">
 <H3>Version history</H3>
 
-<B>xx 2012</B><BR>
-<UL>Read in AccuracyBoost parameters earlier so they are reflected e.g. in e.g. Transfer_SetForNonlinearLensing.
+<B>March 2013</B><BR>
+<UL>
+<LI>Fix numerical accuracy for larger neutrino masses and bug in and non-linear lensing calculation in very closed models
+<LI>Read in AccuracyBoost parameters earlier so they are reflected e.g. in e.g. Transfer_SetForNonlinearLensing.
 <LI>Temperatures of massive neutrinos set from the degeneracy, e.g. 3.046, unless same_neutrino_Neff set (no degeneracies specific in .ini)
 <LI>Updated default T_CMB=2.7255 (does not change results for same input parameters)
 <LI>Derived sound horizon output parameter now uses more accurate sound speed using correct CMB temperature (power spectrum results and CosmoMC theta unchanged)

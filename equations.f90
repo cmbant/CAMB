@@ -14,6 +14,7 @@
 ! June 2011, improved radiation approximations from arXiv: 1104.2933; Some 2nd order tight coupling terms
 !            merged fderivs and derivs so flat and non-flat use same equations; more precomputed arrays
 !            optimized neutrino sampling, and reorganised neutrino integration functions
+! Feb 2013: fixed various issues with accuracy at larger neutrino masses
 
        module LambdaGeneral
          use precision
@@ -455,7 +456,7 @@
          end do     
     
          do nu_i=1, CP%Nu_Mass_eigenstates
-            a_mass =  1.e-1_dl/nu_masses(nu_i)/lAccuracyBoost 
+            a_mass =  1.e-1_dl/nu_masses(nu_i)/lAccuracyBoost
             !if (HighAccuracyDefault) a_mass=a_mass/4
             time=DeltaTime(0._dl,nu_q(1)*a_mass)
             nu_tau_notmassless(1, nu_i) = time
@@ -465,7 +466,7 @@
              nu_tau_notmassless(j, nu_i) = time
             end do
             
-            a_nonrel =  2.d0/nu_masses(nu_i)*AccuracyBoost
+            a_nonrel =  2.5d0/nu_masses(nu_i)*AccuracyBoost !!!Feb13tweak
             nu_tau_nonrelativistic(nu_i) =DeltaTime(0._dl,a_nonrel) 
             a_massive =  17.d0/nu_masses(nu_i)*AccuracyBoost 
             nu_tau_massive(nu_i) =nu_tau_nonrelativistic(nu_i) + DeltaTime(a_nonrel,a_massive) 
@@ -539,7 +540,8 @@
                EV%lmaxnu_tau(nu_i)=lmaxnu_high_ktau
               end if
             else
-              EV%lmaxnu_tau(nu_i) =max(min(nint(0.5_dl*EV%q*nu_tau_nonrelativistic(nu_i)*lAccuracyBoost),EV%lmaxnu),3) 
+              EV%lmaxnu_tau(nu_i) =max(min(nint(0.8_dl*EV%q*nu_tau_nonrelativistic(nu_i)*lAccuracyBoost),EV%lmaxnu),3)
+              !!!Feb13tweak
               if (EV%nu_nonrelativistic(nu_i)) EV%lmaxnu_tau(nu_i)=min(EV%lmaxnu_tau(nu_i),nint(4*lAccuracyBoost))
             end if
             EV%lmaxnu_tau(nu_i)=min(EV%lmaxnu,EV%lmaxnu_tau(nu_i))
@@ -717,12 +719,14 @@
           use MassiveNu
           !Set the numer of equations in each hierarchy, and get total number of equations for this k
           type(EvolutionVars) EV
-          real(dl) scal
+          real(dl) scal, max_nu_mass
           integer nu_i,q_rel,j
 
          if (CP%Num_Nu_massive == 0) then
             EV%lmaxnu=0
+            max_nu_mass=0
          else 
+            max_nu_mass = maxval(nu_masses(1:CP%Nu_mass_eigenstates))
             do nu_i = 1, CP%Nu_mass_eigenstates       
                !Start with momentum modes for which t_k ~ time at which mode becomes non-relativistic
                q_rel=0
@@ -746,10 +750,11 @@
             if (EV%NuMethod == Nu_Best) EV%NuMethod = Nu_Trunc
             !l_max for massive neutrinos
             if (CP%Transfer%high_precision) then
-             EV%lmaxnu=nint(25*lAccuracyBoost) 
+             EV%lmaxnu=nint(25*lAccuracyBoost)
             else
-             EV%lmaxnu=max(3,nint(10*lAccuracyBoost))   
-            endif 
+             EV%lmaxnu=max(3,nint(10*lAccuracyBoost))
+             if (max_nu_mass>700) EV%lmaxnu=max(3,nint(15*lAccuracyBoost)) !Feb13 tweak
+            endif
             
          end if
 
@@ -772,6 +777,7 @@
           EV%lmaxg  = max(nint(8*lAccuracyBoost),3)          
          end if
          EV%lmaxnr = max(nint(14*lAccuracyBoost),3)
+         if (max_nu_mass>700 .and. HighAccuracyDefault) EV%lmaxnr = max(nint(32*lAccuracyBoost),3) !Feb13 tweak
 
          EV%lmaxgpol = EV%lmaxg  
          if (.not.CP%AccuratePolarization) EV%lmaxgpol=max(nint(4*lAccuracyBoost),3)

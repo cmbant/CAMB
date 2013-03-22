@@ -321,7 +321,10 @@ contains
        if (.not. FileExists) then
          IncludeFile=trim(Ini_ExtractFilePath(filename))//trim(IncludeFile)
          inquire(file=IncludeFile, exist = FileExists)
-         if (.not. FileExists) stop 'Ini_Open_File: INCLUDE file not found'
+         if (.not. FileExists) then
+             write(*,*) 'Ini_Open_File: INCLUDE file not found: '//trim(IncudeFiles%Items(i)%P%Name)
+             stop 
+         end if
        end if
        call Ini_Open_File(Ini, IncludeFile, unit_id,  &
                           error, slash_comments, append=.true.,only_if_undefined=isDefault)      
@@ -333,7 +336,10 @@ contains
        if (.not. FileExists) then
          IncludeFile=trim(Ini_ExtractFilePath(filename))//trim(IncludeFile)
          inquire(file=IncludeFile, exist = FileExists)
-         if (.not. FileExists) stop 'Ini_Open_File: DEFAULT file not found'
+         if (.not. FileExists) then
+             write(*,*) 'Ini_Open_File: DEFAULT file not found:' //trim(DefaultValueFiles%Items(i)%P%Name)
+             stop
+         end if
        end if
        call Ini_Open_File(Ini, IncludeFile, unit_id,  &
                           error, slash_comments, append=.true., only_if_undefined=.true.)      

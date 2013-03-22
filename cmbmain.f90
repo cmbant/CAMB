@@ -1,6 +1,6 @@
 !     This this is the main CAMB program module.
 !
-!     Code for Anisotropies in the Microwave Background
+!     Code for Anisotropies in the Microwave Backgroundeqma
 !     by Antony lewis (http://cosmologist.info) and Anthony Challinor
 !     See readme.html for documentation. 
 
@@ -465,7 +465,9 @@ contains
                ntodo = MT%num_q_trans
                first_i = ntodo+1
                do q_ix = 1,ntodo
-                if (q_transfer(q_ix) > qmax) then
+                if (q_transfer(q_ix) > Evolve_q%highest+1d-4) then
+                !Feb13 fix for case with closed universe where qmax is not neccessarily right quantized value
+                 !   if (q_transfer(q_ix) > qmax) then
                       first_i=q_ix 
                       exit
                 end if

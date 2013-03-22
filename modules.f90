@@ -35,7 +35,7 @@
     implicit none
     public
 
-    character(LEN=*), parameter :: version = '25Jan_13'
+    character(LEN=*), parameter :: version = 'Mar_13b'
 
     integer :: FeedbackLevel = 0 !if >0 print out useful information about the model
 
@@ -426,7 +426,7 @@
         if (CP%Num_Nu_Massive > 0) then
             conv = k_B*(8*grhor/grhog/7)**0.25*CP%tcmb/eV !approx 1.68e-4
             do nu_i=1, CP%Nu_mass_eigenstates
-                write(*,'(f7.4, " nu, m_nu*c^2/k_B/T_nu0   = ",f8.2," (m_nu = ",f6.3," eV)")') &
+                write(*,'(f7.4, " nu, m_nu*c^2/k_B/T_nu0   = ",f9.2," (m_nu = ",f6.3," eV)")') &
                 CP%nu_mass_degeneracies(nu_i), nu_masses(nu_i),conv*nu_masses(nu_i)
             end do
         end if
