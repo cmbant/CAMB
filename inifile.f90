@@ -1,7 +1,8 @@
 !Module to read in name/value pairs from a file, with each line of the form line 'name = value'
 !Should correctly interpret FITS headers
 !Antony Lewis (http://cosmologist.info/). Released to the public domain.
-!This version Apr 11, added support for INCLUDE(file); check for duplicate keys
+!Apr 11, added support for INCLUDE(file); check for duplicate keys
+!Jun 12, added support for DEFAULT(file), provides default values for keys not defined in the read file
 
 module IniFile
  implicit none
@@ -84,28 +85,45 @@ contains
 
    end subroutine TNameValueList_ValueOf
 
-   function TNameValueList_HasKey(L, AName) result (AValue)
+   
+    function TNameValueList_IndexOf(L, AName) result (AValue)
      Type (TNameValueList), intent(in) :: L
      character(LEN=*), intent(in) :: AName
-     logical :: AValue
+     integer :: AValue
      integer i
 
      do i=1, L%Count
        if (L%Items(i)%P%Name == AName) then
-          AValue = .true.
+          AValue = i
           return
        end if
      end do
-     AValue = .false.
+     AValue = -1
+     
+   end function TNameValueList_IndexOf
+
+   function TNameValueList_HasKey(L, AName) result (AValue)
+     Type (TNameValueList), intent(in) :: L
+     character(LEN=*), intent(in) :: AName
+     logical :: AValue
+    
+     AValue = TNameValueList_IndexOf(L,AName) /= -1
      
    end function TNameValueList_HasKey
     
-   subroutine TNameValueList_Add(L, AName, AValue)
+   subroutine TNameValueList_Add(L, AName, AValue, only_if_undefined)
     Type (TNameValueList) :: L
     character(LEN=*), intent(in) :: AName, AValue
-
-    if (.not. Ini_AllowDuplicateKeys .and. TNameValueList_HasKey(L,AName)) then
-      if (L%ignoreDuplicates) return
+    logical, optional, intent(in) :: only_if_undefined
+    logical isDefault
+    
+    if (present(only_if_undefined)) then
+     isDefault = only_if_undefined
+    else
+     isDefault = .true.
+    end if
+    if ((.not. Ini_AllowDuplicateKeys .or. isDefault) .and. TNameValueList_HasKey(L,AName)) then
+      if (L%ignoreDuplicates .or. isDefault) return
       write (*,*) 'IniFile,TNameValueList_Add: duplicate key name in file: '//trim(AName)
       stop 
      end if 
@@ -147,12 +165,19 @@ contains
      
    end subroutine TNameValueList_Delete
 
-  subroutine Ini_NameValue_Add(Ini,AInLine)
+  subroutine Ini_NameValue_Add(Ini,AInLine,only_if_undefined)
     Type(TIniFile) :: Ini
     character (LEN=*), intent(IN) :: AInLine
     integer EqPos, slashpos, lastpos
+    logical, optional, intent(in) :: only_if_undefined
+    logical isDefault
     character (LEN=len(AInLine)) :: AName, S, InLine
 
+     if (present(only_if_undefined)) then
+      isDefault = only_if_undefined  
+     else
+      isDefault = .false.  
+     end if
       InLine=trim(adjustl(AInLine))
       EqPos = scan(InLine,'=')
       if (EqPos/=0 .and. InLine(1:1)/='#' .and. InLine(1:7) /= 'COMMENT' ) then
@@ -172,7 +197,7 @@ contains
            S = S(2:lastpos-1)
           end if
          end if
-         call TNameValueList_Add(Ini%L, AName, S)
+         call TNameValueList_Add(Ini%L, AName, S,only_if_undefined = isDefault )
 
       end if
 
@@ -222,18 +247,18 @@ contains
   end function Ini_ExtractFilePath
 
   recursive subroutine Ini_Open_File(Ini, filename, unit_id,  &
-                                    error, slash_comments, append)
+                                    error, slash_comments, append,only_if_undefined)
      Type(TIniFile) :: Ini
 
      character (LEN=*), intent(IN) :: filename
      integer, intent(IN) :: unit_id
      logical, intent(OUT) :: error
      logical, optional, intent(IN) :: slash_comments
-     logical, optional, intent(in) :: append
+     logical, optional, intent(in) :: append, only_if_undefined
      character (LEN=Ini_max_string_len) :: InLine, IncludeFile
      integer lastpos, i
-     Type (TNameValueList) IncudeFiles
-     logical doappend, FileExists
+     Type (TNameValueList) IncudeFiles, DefaultValueFiles
+     logical doappend, FileExists, isDefault
      
      if (present(append)) then
       doappend=append
@@ -241,12 +266,19 @@ contains
       doappend=.false.
      end if  
      
+     if (present(only_if_undefined)) then
+        isDefault = only_if_undefined
+     else
+        isDefault = .false.
+     end if
+     
      if (.not. doappend) then
        call TNameValueList_Init(Ini%L)
        call TNameValueList_Init(Ini%ReadValues, .true.)
      end if
  
     call TNameValueList_Init(IncudeFiles) 
+    call TNameValueList_Init(DefaultValueFiles) 
      
     if (present(slash_comments)) then
      Ini%SlashComments = slash_comments
@@ -266,8 +298,16 @@ contains
            else
             stop 'Ini_Open_File: error in INCLUDE line'
            end if 
+      elseif (InLine(1:8) == 'DEFAULT(') then
+          !Settings to read in as defaults, overridden by subsequent re-definitions
+          lastpos = scan(InLine,')')
+           if (lastpos/=0) then
+            call TNameValueList_Add(DefaultValueFiles, trim(adjustl(InLine(9:lastpos-1))),'')            
+           else
+            stop 'Ini_Open_File: error in DEFAULT line'
+           end if 
       elseif (InLine /= '') then
-       call Ini_NameValue_Add(Ini,InLine) 
+       call Ini_NameValue_Add(Ini,InLine, only_if_undefined=isDefault) 
       end if
     end do
 
@@ -281,17 +321,38 @@ contains
        if (.not. FileExists) then
          IncludeFile=trim(Ini_ExtractFilePath(filename))//trim(IncludeFile)
          inquire(file=IncludeFile, exist = FileExists)
-         if (.not. FileExists) stop 'Ini_Open_File: INCLUDE file not found'
+         if (.not. FileExists) then
+             write(*,*) 'Ini_Open_File: INCLUDE file not found: '//trim(IncudeFiles%Items(i)%P%Name)
+             stop 
+         end if
        end if
        call Ini_Open_File(Ini, IncludeFile, unit_id,  &
-                          error, slash_comments, append=.true.)      
+                          error, slash_comments, append=.true.,only_if_undefined=isDefault)      
     end do
+    do i=1, DefaultValueFiles%Count
+       if (error) exit
+       IncludeFile=DefaultValueFiles%Items(i)%P%Name
+       inquire(file=IncludeFile, exist = FileExists)
+       if (.not. FileExists) then
+         IncludeFile=trim(Ini_ExtractFilePath(filename))//trim(IncludeFile)
+         inquire(file=IncludeFile, exist = FileExists)
+         if (.not. FileExists) then
+             write(*,*) 'Ini_Open_File: DEFAULT file not found:' //trim(DefaultValueFiles%Items(i)%P%Name)
+             stop
+         end if
+       end if
+       call Ini_Open_File(Ini, IncludeFile, unit_id,  &
+                          error, slash_comments, append=.true., only_if_undefined=.true.)      
+    end do
+
     call TNameValueList_Clear(IncudeFiles)
+    call TNameValueList_Clear(DefaultValueFiles)
     
     return
 
 500 error=.true.
     call TNameValueList_Clear(IncudeFiles)
+    call TNameValueList_Clear(DefaultValueFiles)
 
   end subroutine Ini_Open_File
 
@@ -344,6 +405,19 @@ contains
 
   end function Ini_Read_String
 
+  function Ini_Read_String_Default(Key, Default,AllowBlank) result(AValue)
+   character (LEN=*), intent(IN) :: Key, Default
+   character(LEN=Ini_max_string_len) :: AValue
+   logical, intent(in), optional :: AllowBlank
+
+   if (present(AllowBlank)) then
+      AValue = Ini_Read_String_Default_File(DefIni, Key, Default, AllowBlank)
+   else    
+      AValue = Ini_Read_String_Default_File(DefIni, Key, Default)
+   end if
+   
+  end function Ini_Read_String_Default
+
 
   function Ini_Read_String_File(Ini, Key, NotFoundFail) result(AValue)
    Type(TIniFile) :: Ini
@@ -371,7 +445,24 @@ contains
    end if
 
   end function Ini_Read_String_File
+
+  function Ini_Read_String_Default_File(Ini, Key, Default, AllowBlank) result(AValue)
+   Type(TIniFile) :: Ini
+   character (LEN=*), intent(IN) :: Key, Default
+   character(LEN=Ini_max_string_len) :: AValue
+   logical, intent(in), optional :: AllowBlank
+
+   if (Ini_HasKey_File(Ini,Key)) then
+    AValue = Ini_Read_String_file(Ini, Key, .false.)
+    if (present(AllowBlank)) then
+      if (AllowBlank) return
+    end if
+    if (AValue=='') AValue = Default
+   else
+    AValue = Default
+   end if
   
+  end function Ini_Read_String_Default_File
   
   function Ini_HasKey(Key) result(AValue)
    character (LEN=*), intent(IN) :: Key
