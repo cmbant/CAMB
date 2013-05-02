@@ -50,7 +50,7 @@ module Reionization
 
         end type ReionizationHistory
 
-      real(dl), parameter :: Reionization_maxz = 40._dl
+      real(dl), parameter :: Reionization_maxz = 50._dl
       real(dl), private, parameter :: Reionization_tol = 1d-5
 
       real(dl), private, external :: dtauda, rombint,rombint2
@@ -298,7 +298,7 @@ end function Reionization_GetOptDepth
                   try_b = Reion%redshift
        end if
        if (abs(try_b - try_t) < 2e-3/Reionization_AccuracyBoost) exit
-       if (i>100) call mpiStop('Reionization_zreFromOptDepth: failed to converge')        
+       if (i>100) call mpiStop('Reionization_zreFromOptDepth: failed to converge')
   end do
   
   

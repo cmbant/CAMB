@@ -1,23 +1,39 @@
-#CAMB sources makefile
+#CAMB Makefile
+
+#Set FISHER=Y to compile bispectrum fisher matrix code
+FISHER=
+
 #Edit for your compiler
+#Note there are many old ifort versions, some of which behave oddly
 
-#Intel ifort , -openmp toggles mutli-processor:
+
+#Intel , -openmp toggles mutli-processor:
+#note version 10.0 gives wrong result for lensed when compiled with -openmp [fixed in 10.1]
 F90C     = ifort
-FFLAGS = -openmp -ip -O2 -vec_report0 -W0 -WB -fpp2
+FFLAGS = -openmp -fast -W0 -WB -fpp2 -vec_report0
+## This is flag is passed to the Fortran compiler allowing it to link C++ if required (not usually):
+F90CRLINK = -cxxlib
+ifneq ($(FISHER),)
+FFLAGS += -mkl
+endif
 
-#Sun, single processor:
-#F90C     = f90
-#FFLAGS = -O2
+#Gfortran compiler:
+#The options here work in v4.5, delete from RHS in earlier versions (15% slower)
+#if pre v4.3 add -D__GFORTRAN__
+#With v4.6+ try -Ofast -march=native -fopenmp
+#On my machine v4.5 is about 20% slower than ifort
+#F90C     = gfortran
+#FFLAGS =  -O3 -fopenmp -ffast-math -march=native -funroll-loops
 
-# Intel 9 on IA-64 (eg. COSMOS)
-# (do "module load icomp90" before compiling)
-#F90C = ifort
-#FFLAGS = -openmp -fpp2 -w -O3 -ip -mP2OPT_hlo_prefetch=F
 
-#Intel ifc, add -openmp for multi-processor (some have bugs):
+#Old Intel ifc, add -openmp for multi-processor (some have bugs):
 #F90C     = ifc
 #FFLAGS = -O2 -Vaxlib -ip -W0 -WB -quiet -fpp2
 #some systems can can also add e.g. -tpp7 -xW
+
+#G95 compiler
+#F90C   = g95
+#FFLAGS = -O2
 
 #SGI, -mp toggles multi-processor. Use -O2 if -Ofast gives problems.
 #F90C     = f90
@@ -33,15 +49,11 @@ FFLAGS = -openmp -ip -O2 -vec_report0 -W0 -WB -fpp2
 
 #NAGF95, single processor:
 #F90C     = f95
-#FFLAGS = -DNAGF95 -O3 -mismatch
+#FFLAGS = -DNAGF95 -O3
 
-#Gfortran compiler
-#F90C = gfc
-#FFLAGS = -O2 
-
-#G95 compiler
-#F90C   = g95
-#FFLAGS = -O2
+#PGF90
+#F90C = pgf90
+#FFLAGS = -O2 -DESCAPEBACKSLASH -Mpreprocess
 
 #Sun V880
 #F90C = mpf90
@@ -54,66 +66,20 @@ FFLAGS = -openmp -ip -O2 -vec_report0 -W0 -WB -fpp2
 
 #IBM XL Fortran, multi-processor (run gmake)
 #F90C     = xlf90_r
-#FFLAGS  = -qsmp=omp -qsuffix=f=f90:cpp=F90 -O3 -qstrict -qarch=pwr3 -qtune=pwr3
+#FFLAGS  = -DESCAPEBACKSLASH -DIBMXL -qsmp=omp -qsuffix=f=f90:cpp=F90 -O3 -qstrict -qarch=pwr3 -qtune=pwr3
 
+#Settings for building camb_fits
+#Location of FITSIO and name of library
+FITSDIR       ?= /home/cpac/cpac-tools/lib
+FITSLIB       = cfitsio
+#Location of HEALPIX for building camb_fits
+HEALPIXDIR    ?= /home/cpac/cpac-tools/healpix
 
-#Files containing evolution equations initial power spectrum module
-EQUATIONS     = equations
-POWERSPECTRUM = power_tilt
-#Module doing non-linear scaling
-NONLINEAR     = halofit
-#Instead use perturbation theory (good for high redshift/21cm approx)
-#NONLINEAR     = nonlinear_PT
-REIONIZATION = reionization
-RECOMBINATION = recfast
+ifneq ($(FISHER),)
+FFLAGS += -DFISHER
+EXTCAMBFILES = Matrix_utils.o
+else
+EXTCAMBFILES =
+endif
 
-#Driver program
-DRIVER        = inidriver.F90
-
-CAMBLIB       = libcamb_sources.a
-
-#Shouldn't need to change anything else...
-
-F90FLAGS      = $(FFLAGS)
-FC            = $(F90C)
-
-CAMBOBJ       = constants.o utils.o subroutines.o inifile.o $(POWERSPECTRUM).o $(RECOMBINATION).o $(REIONIZATION).o modules.o \
-	bessels.o $(EQUATIONS).o $(NONLINEAR).o lensing.o cmbmain.o camb.o
-
-
-
-default: camb
-
-all: camb $(CAMBLIB)
-
-
-subroutines.o: constants.o utils.o
-$(POWERSPECTRUM).o: subroutines.o  inifile.o
-$(RECOMBINATION).o: subroutines.o inifile.o
-$(REIONIZATION).o: constants.o inifile.o
-modules.o: $(REIONIZATION).o $(POWERSPECTRUM).o $(RECOMBINATION).o
-bessels.o: modules.o
-$(EQUATIONS).o: bessels.o
-$(NONLINEAR).o:  modules.o
-lensing.o: bessels.o
-cmbmain.o: lensing.o $(NONLINEAR).o $(EQUATIONS).o
-camb.o: cmbmain.o
-
-
-camb: $(CAMBOBJ) $(DRIVER)
-	$(F90C) $(F90FLAGS) $(CAMBOBJ) $(DRIVER) -o $@
-
-$(CAMBLIB): $(CAMBOBJ)
-	ar -r $@ $?
-
-%.o: %.f90
-	$(F90C) $(F90FLAGS) -c $*.f90
-
-
-%.o: %.F90
-	$(F90C) $(F90FLAGS) -c $*.F90
-
-clean:
-	-rm -f *.o *.a *.d core *.mod
-
-
+include ./Makefile_main

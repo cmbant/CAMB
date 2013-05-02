@@ -2,6 +2,7 @@
 !This version May 2006 - minor changes to bjl (http://cosmocoffee.info/viewtopic.php?t=530)
 !Feb 2007: fixed for high l, uses Ranges
 !Feb 2009: minor fix for non-flat compiled with non-smart IF evaluation
+!Dec 2011: minor tweak to DoRecurs for smoother errors across flat for L~O(30)
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !Flat bessel function module
 
@@ -346,7 +347,7 @@
         sinhChi = sin_K
         cothChi = cot_K
    
-       DoRecurs = ((l<=30).OR.((.not.closed.or.(abs(Chi-pi/2)>0.2d0)).and.(beta*l<750) &
+       DoRecurs = ((l<=45*AccuracyBoost).OR.((.not.closed.or.(abs(Chi-pi/2)>0.2d0)).and.(beta*l<750) &
             .or.closed.and.(beta*l<4000)))
 
 !Deep in the tails the closed recursion relation is not stable

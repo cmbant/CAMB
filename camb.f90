@@ -7,8 +7,11 @@
          use Transfer
          use GaugeInterface
          use InitialPower
+         use Reionization
+         use Recombination
+         use lensing
          implicit none
-
+         
          Type CAMBdata
             Type (ClTransferData) :: ClTransScal,ClTransTens,ClTransVec
             Type (MatterTransferData) :: MTrans
@@ -24,7 +27,7 @@
         use lensing
         type(CAMBparams) :: Params
         type (CAMBdata)  :: OutData
-        integer, optional :: error !Zero if OK
+        integer :: error !Zero if OK
   
       !Set internal types from OutData so it always 'owns' the memory, prevent leaks
       
@@ -77,9 +80,11 @@
 
         CP = CData%Params
         call InitializePowers(CP%InitPower,CP%curv)
+        if (global_error_flag/=0) return
         if (CData%Params%WantCls) then
           call ClTransferToCl(CData%ClTransScal,CData%ClTransTens, CData%ClTransvec)  
-          if (CP%DoLensing) call lens_Cls
+          if (CP%DoLensing .and. global_error_flag==0) call lens_Cls
+          if (global_error_flag/=0) return
           if (CP%OutputNormalization == outCOBE) call COBEnormalize
         end if
         if (CData%Params%WantTransfer) call Transfer_Get_sigma8(Cdata%MTrans,8._dl)
@@ -92,13 +97,20 @@
        subroutine CAMB_GetResults(Params, error)
         use CAMBmain
         use lensing
+        use Bispectrum
+        use Errors
         type(CAMBparams) :: Params
         integer, optional :: error !Zero if OK
         type(CAMBparams) P
         logical :: separate = .true. !whether to do P_k in separate call or not
+        logical :: InReionization
 
         if ((Params%DoLensing .or. num_redshiftwindows>0) &
            .and. Params%NonLinear==NonLinear_Lens) separate = .false.
+
+        InReionization = Params%Reion%Reionization
+        global_error_flag = 0
+        call_again = .false.
         
          if (Params%WantCls .and. Params%WantScalars) then
           P = Params
@@ -108,13 +120,12 @@
           end if
           P%WantTensors = .false.
           P%WantVectors = .false.
-          if (present(error)) then
-               call CAMBParams_Set(P, error) !set other derived variables in ModelParams (modules.f90) 
-              if (error /= 0) return
-              else
-               call CAMBParams_Set(P)  
-            end if
-          call cmbmain
+          call CAMBParams_Set(P)  
+          if (global_error_flag==0) call cmbmain
+          if (global_error_flag/=0) then
+            if (present(error)) error =global_error_flag
+            return 
+          end if
           call_again = .true.
           !Need to store CP%flat etc, but must keep original P_k settings
           CP%Transfer%high_precision = Params%Transfer%high_precision
@@ -131,13 +142,12 @@
           P%Transfer%high_precision = .false.
           P%WantScalars = .false.
           P%WantVectors = .false.
-          if (present(error)) then
-               call CAMBParams_Set(P, error) !set other derived variables in ModelParams (modules.f90) 
-              if (error /= 0) return
-              else
-               call CAMBParams_Set(P)  
-            end if
-           call cmbmain
+          call CAMBParams_Set(P)  
+          if (global_error_flag==0) call cmbmain
+          if (global_error_flag/=0) then
+            if (present(error)) error =global_error_flag
+            return 
+          end if
            call_again = .true.
            CP%Transfer%high_precision = Params%Transfer%high_precision
            CP%WantTransfer = Params%WantTransfer
@@ -154,14 +164,13 @@
           P%Transfer%high_precision = .false.
           P%WantScalars = .false.
           P%WantTensors = .false.
-          if (present(error)) then
-               call CAMBParams_Set(P, error) !set other derived variables in ModelParams (modules.f90) 
-              if (error /= 0) return
-              else
-               call CAMBParams_Set(P)  
-            end if
-           call cmbmain
-           call_again = .true.
+          call CAMBParams_Set(P)  
+          if (global_error_flag==0) call cmbmain
+          if (global_error_flag/=0) then
+            if (present(error)) error =global_error_flag
+            return 
+          end if
+          call_again = .true.
           CP%Transfer%high_precision = Params%Transfer%high_precision
           CP%WantTransfer = Params%WantTransfer
           CP%WantTensors = Params%WantTensors
@@ -178,14 +187,12 @@
           P%WantScalars = .false.
           P%WantTensors = .false.
           P%WantVectors = .false.
-          if (present(error)) then
-               call CAMBParams_Set(P, error) !set other derived variables in ModelParams (modules.f90) 
-              if (error /= 0) return
-              else
-               call CAMBParams_Set(P)  
-            end if
-           call cmbmain
-
+          call CAMBParams_Set(P)  
+          if (global_error_flag==0) call cmbmain
+          if (global_error_flag/=0) then
+            if (present(error)) error =global_error_flag
+            return 
+          end if
           !Need to store num redshifts etc
           CP%WantScalars = Params%WantScalars
           CP%WantCls =  Params%WantCls
@@ -202,9 +209,11 @@
 
          if (CP%WantCls .and. CP%OutputNormalization == outCOBE) call COBEnormalize
 
-         if (CP%DoLensing) then
+         if (CP%DoLensing .and. global_error_flag==0) then
            call lens_Cls 
          end if
+
+         if (do_bispectrum .and. global_error_flag==0) call GetBispectrum(CTransScal) 
 
         end if
 
@@ -241,29 +250,21 @@
            !Return age in gigayears, returns -1 on error
            type(CAMBparams), intent(in) :: P
            real(dl) CAMB_GetAge
-           real(dl) atol,a1,a2,rombint, dtda
-           real(dl), parameter :: Mpc = 3.085678e22_dl, &
-                 c = 2.99792458e8_dl, Gyr=3.1556926e16
            integer error
-           external rombint, dtda
-
 
            call  CAMBParams_Set(P, error,  .false.)
 
            if (error/=0) then
             CAMB_GetAge = -1
            else
-
-           atol = 1d-4
-           a1=0
-           a2=1
-           CAMB_GetAge = rombint(dtda,a1,a2,atol)*Mpc/c/Gyr 
+            CAMB_GetAge = DeltaPhysicalTimeGyr(0.0_dl,1.0_dl)
            end if
     
          end function CAMB_GetAge
 
       
         subroutine CAMB_SetDefParams(P)
+            use Bispectrum
             use constants
             type(CAMBparams), intent(out) :: P
 
@@ -279,9 +280,10 @@
 
             P%TCMB    = COBE_CMBTemp
             P%YHe     = 0.24
-            P%Num_Nu_massless =3.04
+            P%Num_Nu_massless =default_nnu
             P%Num_Nu_massive  =0
             P%Nu_mass_splittings = .false.
+            P%same_neutrino_Neff = .false.
             P%Nu_mass_eigenstates = 0
            
             P%Scalar_initial_condition =initial_adiabatic
@@ -320,7 +322,9 @@
             P%MassiveNuMethod = Nu_best
             P%OnlyTransfers = .false.
 
-         end subroutine CAMB_SetDefParams
+            P%DerivedParameters = .true.
+
+        end subroutine CAMB_SetDefParams
 
 
          !Stop with error is not good
@@ -403,15 +407,4 @@
 
   end module CAMB
 
-
-  function dtda(a)
-          use Precision
-          implicit none
-          real(dl) dtda,dtauda,a
-          external dtauda
-          
-          dtda= dtauda(a)*a
-  end function
-
-        
 

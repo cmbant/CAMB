@@ -56,6 +56,9 @@ private
  real(dl), dimension(:), allocatable :: Bess4, ddBess4
  real(dl), dimension(:), allocatable :: Bess6, ddBess6
 
+ integer, parameter :: lensed_convolution_margin = 100
+   !Number of L less than L max at which the lensed power spectrum is calculated 
+
 !Harmonic method stores
  integer :: lmax_donelnfa = 0
  real(dl), dimension(:), allocatable  :: lnfa
@@ -83,6 +86,18 @@ end subroutine lens_Cls
 
 
 subroutine CorrFuncFullSky
+
+  integer :: lmax_extrap 
+  
+  lmax_extrap = CP%Max_l - lensed_convolution_margin + 450  
+  if (HighAccuracyDefault) lmax_extrap=lmax_extrap+300
+  lmax_extrap = min(lmax_extrap_highl,lmax_extrap)
+  call CorrFuncFullSkyImpl(max(lmax_extrap,CP%max_l))
+
+end subroutine CorrFuncFullSky
+
+
+subroutine CorrFuncFullSkyImpl(lmax)
  !Accurate curved sky correlation function method
  !Uses non-perturbative isotropic term with 2nd order expansion in C_{gl,2}
  !Neglects C_{gl}(theta) terms (very good approx)
@@ -90,18 +105,21 @@ subroutine CorrFuncFullSky
   use ModelData
   use lvalues
   implicit none
+  integer, intent(in) :: lmax
   integer l, i, in
   integer :: npoints 
   real(dl) corr(4), Cg2, sigmasq, theta
   real(dl) dtheta
   real(dl) llp1,fac, fac1,fac2,fac3, rootllp1, rootfac1, rootfac2, rootfac3
-  real(dl) P(CP%Max_l),dP(CP%Max_l)
-  real(dl) d_11(CP%Max_l),d_m11(CP%Max_l)
-  real(dl) d_22(CP%Max_l),d_2m2(CP%Max_l),d_20(CP%Max_l)
-  real(dl) Cphil3(lmin:CP%Max_l), CTT(lmin:CP%Max_l), CTE(lmin:CP%Max_l),CEE(lmin:CP%Max_l)
   integer max_lensed_ix
+  real(dl) P(lmax),dP(lmax)
   real(dl) sinth,halfsinth, x, T2,T4
-  real(dl) roots(-1:CP%Max_l+4), lfacs(CP%Max_l), lfacs2(CP%Max_l), lrootfacs(CP%Max_l)
+  real(dl) roots(-1:lmax+4), lfacs(lmax), lfacs2(lmax), lrootfacs(lmax)
+  real(dl) d_11(lmax),d_m11(lmax)
+  real(dl) d_22(lmax),d_2m2(lmax),d_20(lmax)
+  real(dl) Cphil3(lmin:lmax), CTT(lmin:lmax), CTE(lmin:lmax),CEE(lmin:lmax)
+  real(dl) ls(lmax)
+  real(dl) xl(lmax),ddcontribs(lmax,4),corrcontribs(lmax,4)
   real(dl), allocatable, dimension(:,:,:) :: lens_contrib(:,:,:)
   integer thread_ix
   real(dl) pmm, pmmp1
@@ -112,10 +130,10 @@ subroutine CorrFuncFullSky
   real(sp) timeprev
   integer  interp_fac
   integer j,jmax
-  real(dl) ls(CP%Max_l)
-  real(dl) xl(CP%Max_l),ddcontribs(CP%Max_l,4),corrcontribs(CP%Max_l,4)
   integer llo, lhi
-  real(dl) a0,b0,ho
+  real(dl) a0,b0,ho, sc
+  logical :: short_integral_range
+  integer, parameter :: slow_highL = 5000 !Lmax at which to do full range to prevent ringing etc
 
   logical, parameter :: approx = .false.
 
@@ -125,7 +143,8 @@ subroutine CorrFuncFullSky
     if (lensing_includes_tensors) stop 'Haven''t implemented tensor lensing'
 
     max_lensed_ix = lSamp%l0-1
-    do while(lSamp%l(max_lensed_ix) > CP%Max_l -250)
+!    do while(lSamp%l(max_lensed_ix) > CP%Max_l -250)
+    do while(lSamp%l(max_lensed_ix) > CP%Max_l - lensed_convolution_margin) 
       max_lensed_ix = max_lensed_ix -1
     end do
     lmax_lensed = lSamp%l(max_lensed_ix)
@@ -135,10 +154,11 @@ subroutine CorrFuncFullSky
     Cl_Lensed = 0
    
     npoints = CP%Max_l  * 2    
-    if (CP%AccurateBB .or. CP%Max_l>3000) npoints = npoints * 2 
- 
+    short_integral_range = .not. CP%AccurateBB .and. CP%Max_l<=slow_highL
+    if (.not. short_integral_range ) npoints = npoints * 2 
+
     dtheta = pi / npoints
-    if (.not. CP%AccurateBB .and. CP%Max_l<=3000) then
+    if (short_integral_range) then
       npoints = int(npoints /32 *min(32._dl,AccuracyBoost)) 
       !OK for TT, EE, TE but inaccurate for low l BB
       !this induces high frequency ringing on very small scales
@@ -146,7 +166,7 @@ subroutine CorrFuncFullSky
 
     if (DebugMsgs) timeprev=GetTestTime()
 
-    if (CP%AccurateBB .or. CP%Max_l > 3000) then
+    if (.not. short_integral_range) then
      !There is an odd serious problem with interpolating if you do a large
      !angular range.
       
@@ -156,7 +176,7 @@ subroutine CorrFuncFullSky
     end if
 
     jmax = 0
-    do l=lmin,CP%Max_l
+    do l=lmin,lmax
        if (l<=15 .or. mod(l-15,interp_fac)==interp_fac/2) then
          jmax =jmax+1
          ls(jmax)=l
@@ -168,7 +188,7 @@ subroutine CorrFuncFullSky
     end do
 
     roots(-1)=0 !just so dipole doesn't screw up
-    do l=0,CP%Max_l+4
+    do l=0,lmax+4
      roots(l) = sqrt(real(l,dl))
     end do
 
@@ -187,20 +207,37 @@ subroutine CorrFuncFullSky
        CEE(l) =  Cl_scalar(l,in,C_E)*fac
        CTE(l) =  Cl_scalar(l,in,C_Cross)*fac
     end do
-
     if (Cphil3(10) > 1e-7) then
      write (*,*) 'You need to normalize realistically to use lensing.'
      write (*,*) 'see http://cosmocoffee.info/viewtopic.php?t=94'
      stop
     end if
-
+    if (lmax > CP%Max_l) then
+     l=CP%Max_l
+     sc = (2*l+1)/(4*pi) * 2*pi/(l*(l+1))     
+     fac2=CTT(CP%Max_l)/(sc*highL_CL_template(CP%Max_l, C_Temp))
+     fac=Cphil3(CP%Max_l)/(sc*highL_CL_template(CP%Max_l, C_Phi))  
+     do l=CP%Max_l+1, lmax
+       !Fill in tail from template
+       sc = (2*l+1)/(4*pi) * 2*pi/(l*(l+1))  
+       Cphil3(l) = highL_CL_template(l, C_Phi)*fac*sc
+       
+       CTT(l) =  highL_CL_template(l, C_Temp)*fac2*sc
+       CEE(l) =  highL_CL_template(l, C_E)*fac2 *sc
+       CTE(l) =  highL_CL_template(l, C_Cross)*fac2*sc 
+      if (Cphil3(CP%Max_l+1) > 1e-7) then
+       write (*,*) 'You need to normalize the high-L template so it is dimensionless'
+       stop
+      end if
+     end do
+   end if
   lens_contrib=0
 
   !uncomment second line for PGF90 workaround
   !$OMP PARALLEL DO DEFAULT(PRIVATE),  &
   !OMP PRIVATE(P,dP,d11,dm11,d22,d2m2,d20,corrcontribs,ddcontribs),& 
-  !$OMP SHARED(lfacs,lfacs2,lrootfacs,Cphil3,CTT,CTE,CEE,lens_contrib), &
-  !$OMP SHARED(dtheta,CP,lmax_lensed,roots, npoints,interp_fac,jmax,ls,xl) 
+  !$OMP SHARED(lfacs,lfacs2,lrootfacs,Cphil3,CTT,CTE,CEE,lens_contrib, lmax), &
+  !$OMP SHARED(dtheta,CP,lmax_lensed,roots, npoints,interp_fac,jmax,ls,xl,short_integral_range) 
       do i=1,npoints-1
 
       theta = i * dtheta 
@@ -223,7 +260,7 @@ subroutine CorrFuncFullSky
         d_2m2(1)=0
         d_20(1)=0
       end if
-      do l=2,CP%Max_l
+      do l=2,lmax
 
         P(l)= ((2*l-1)* x *pmmp1 - (l-1)*Pmm)/ l
         dP(l) = l*(pmmp1-x*P(l))/sinth**2
@@ -250,7 +287,7 @@ subroutine CorrFuncFullSky
         d_20(l) = (2*x*dP(l) - llp1*P(l) ) / lrootfacs(l)
 
       end do
-
+    
        do j=1,jmax
         l =ls(j)
  
@@ -371,6 +408,9 @@ do j=1,4
   corr(j) = sum(corrcontribs(1:14,j))+interp_fac*sum(corrcontribs(15:jmax,j))
 end do
 
+if (short_integral_range .and. i>npoints-20) &
+        corr=corr*exp(-(i-npoints+20)**2/150.0) !taper the end to help prevent ringing
+
 !Interpolate contributions
 !Increasing interp_fac and using this seems to be slower than above
 if (.false.) then
@@ -380,7 +420,7 @@ if (.false.) then
       end do 
       corr=0
       llo=1
-      do l=lmin,CP%Max_l
+      do l=lmin,lmax
            if ((l > ls(llo+1)).and.(llo < jmax)) then
               llo=llo+1
            end if
@@ -448,7 +488,7 @@ end if
 
      if (DebugMsgs) write(*,*) GetTestTime()-timeprev, 'Time for corr lensing'
 
-end subroutine CorrFuncFullSky
+end subroutine CorrFuncFullSkyImpl
 
 
 

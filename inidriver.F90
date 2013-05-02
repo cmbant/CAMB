@@ -11,19 +11,24 @@
         use NonLinear
         use AMLutils
         use constants
+        use Bispectrum
+        use CAMBmain
+#ifdef NAGF95 
+        use F90_UNIX
+#endif
         implicit none
       
         Type(CAMBparams) P
         
-        character(LEN=Ini_max_string_len) numstr, S, VectorFileName, &
-            InputFile, ScalarFileName, ScalarCovFileName,TensorFileName, TotalFileName, LensedFileName
+        character(LEN=Ini_max_string_len) numstr, VectorFileName, &
+            InputFile, ScalarFileName, TensorFileName, TotalFileName, LensedFileName,&
+            LensedTotFileName, LensPotentialFileName
         integer i
         character(LEN=Ini_max_string_len) TransferFileNames(max_transfer_redshifts), &
-               MatterPowerFileNames(max_transfer_redshifts), outroot, &
-               TransferClFileNames(max_transfer_redshifts)
-        
-
-        real(dl) output_factor, Age
+               MatterPowerFileNames(max_transfer_redshifts), outroot, version_check
+        real(dl) output_factor, nmassive
+!Sources
+        character(LEN=Ini_max_string_len) S,TransferClFileNames(max_transfer_redshifts),ScalarCovFileName
         Type (TRedWin), pointer :: RedWin
 
 #ifdef WRITE_FITS
@@ -148,6 +153,10 @@
         P%WantCls= P%WantScalars .or. P%WantTensors .or. P%WantVectors
 
         P%WantTransfer=Ini_Read_Logical('get_transfer')
+
+        AccuracyBoost  = Ini_Read_Double('accuracy_boost',AccuracyBoost)
+        lAccuracyBoost = Ini_Read_Real('l_accuracy_boost',lAccuracyBoost)
+        HighAccuracyDefault = Ini_Read_Logical('high_accuracy_default',HighAccuracyDefault)
         
         P%NonLinear = Ini_Read_Int('do_nonlinear',NonLinear_none)
 
@@ -186,8 +195,7 @@
                 
 !  Read initial parameters.
        
-       w_lam = Ini_Read_Double('w', -1.d0)   
-       cs2_lam = Ini_Read_Double('cs2_lam',1.d0)
+       call DarkEnergy_ReadParams(DefIni)
 
        P%h0     = Ini_Read_Double('hubble')
  
@@ -210,14 +218,17 @@
        P%tcmb   = Ini_Read_Double('temp_cmb',COBE_CMBTemp)
        P%yhe    = Ini_Read_Double('helium_fraction',0.24_dl)
        P%Num_Nu_massless  = Ini_Read_Double('massless_neutrinos')
-       P%Num_Nu_massive   = Ini_Read_Double('massive_neutrinos')
+       nmassive = Ini_Read_Double('massive_neutrinos')
+       !Store fractional numbers in the massless total
+       P%Num_Nu_massive   = int(nmassive+1e-6)
+       P%Num_Nu_massless  = P%Num_Nu_massless + nmassive-P%Num_Nu_massive
    
        P%nu_mass_splittings = .true.
        P%Nu_mass_eigenstates = Ini_Read_Int('nu_mass_eigenstates',1)
        if (P%Nu_mass_eigenstates > max_nu) stop 'too many mass eigenstates'
        numstr = Ini_Read_String('nu_mass_degeneracies')
        if (numstr=='') then
-         P%Nu_mass_degeneracies(1)= P%Num_nu_massive
+         P%Nu_mass_degeneracies(1)= 0
        else
         read(numstr,*) P%Nu_mass_degeneracies(1:P%Nu_mass_eigenstates)
        end if
@@ -282,25 +293,28 @@
          P%transfer%high_precision = .false.
        endif
   
-     
-      
-          call Reionization_ReadParams(P%Reion, DefIni)
-          call InitialPower_ReadParams(P%InitPower, DefIni, P%WantTensors) 
-          call Recombination_ReadParams(P%Recomb, DefIni)
-
-
-           i = Ini_Read_Int('recombination',1)
-           if (i>1) then
-             stop 'recombination option deprecated'
-           end if
-      
-            if (P%WantScalars .or. P%WantTransfer) then
+        Ini_fail_on_not_found = .false. 
+        
+        ALens = Ini_Read_Double('Alens',Alens)
+  
+        call Reionization_ReadParams(P%Reion, DefIni)
+        call InitialPower_ReadParams(P%InitPower, DefIni, P%WantTensors) 
+        call Recombination_ReadParams(P%Recomb, DefIni)
+        if (Ini_HasKey('recombination')) then
+         i = Ini_Read_Int('recombination',1)
+         if (i/=1) stop 'recombination option deprecated'
+        end if
+        
+        call Bispectrum_ReadParams(BispectrumParams, DefIni, outroot)
+        
+        if (P%WantScalars .or. P%WantTransfer) then
             P%Scalar_initial_condition = Ini_Read_Int('initial_condition',initial_adiabatic)
             if (P%Scalar_initial_condition == initial_vector) then
                 P%InitialConditionVector=0
               numstr = Ini_Read_String('initial_vector',.true.)
               read (numstr,*) P%InitialConditionVector(1:initial_iso_neutrino_vel)
             end if
+            if (P%Scalar_initial_condition/= initial_adiabatic) use_spline_template = .false.
         end if
 
         
@@ -338,7 +352,15 @@
        P%AccuratePolarization = Ini_Read_Logical('accurate_polarization',.true.)
        P%AccurateReionization = Ini_Read_Logical('accurate_reionization',.false.)
        P%AccurateBB = Ini_Read_Logical('accurate_BB',.false.)
-        
+       P%DerivedParameters = Ini_Read_Logical('derived_parameters',.true.)
+
+       version_check = Ini_Read_String('version_check')
+       if (version_check == '') then
+          !tag the output used parameters .ini file with the version of CAMB being used now
+           call TNameValueList_Add(DefIni%ReadValues, 'version_check', version)
+       else if (version_check /= version) then
+           write(*,*) 'WARNING: version_check does not match this CAMB version'
+        end if
        !Mess here to fix typo with backwards compatibility
        if (Ini_Read_String('do_late_rad_trunction') /= '') then
          DoLateRadTruncation = Ini_Read_Logical('do_late_rad_trunction',.true.)
@@ -346,18 +368,28 @@
        else
         DoLateRadTruncation = Ini_Read_Logical('do_late_rad_truncation',.true.)
        end if
-       DoTensorNeutrinos = Ini_Read_Logical('do_tensor_neutrinos',.false.)
-       FeedbackLevel = Ini_Read_Int('feedback_level',0)
+       DoTensorNeutrinos = Ini_Read_Logical('do_tensor_neutrinos',DoTensorNeutrinos )
+       FeedbackLevel = Ini_Read_Int('feedback_level',FeedbackLevel)
        
        P%MassiveNuMethod  = Ini_Read_Int('massive_nu_approx',Nu_best)
 
-       ThreadNum      = Ini_Read_Int('number_of_threads',0)
-       AccuracyBoost  = Ini_Read_Double('accuracy_boost',1.d0)
-       lAccuracyBoost = Ini_Read_Double('l_accuracy_boost',1.d0)
-       lSampleBoost   = Ini_Read_Double('l_sample_boost',1.d0)
-
+       ThreadNum      = Ini_Read_Int('number_of_threads',ThreadNum)
+       use_spline_template = Ini_Read_Logical('use_spline_template',use_spline_template)
+       if (HighAccuracyDefault) then
+         P%Max_eta_k=max(min(P%max_l,3000)*2.5_dl,P%Max_eta_k)
+       end if
+       DoTensorNeutrinos = DoTensorNeutrinos .or. HighAccuracyDefault
+       if (do_bispectrum) then
+        lSampleBoost   = 50
+       else
+        lSampleBoost   = Ini_Read_Double('l_sample_boost',lSampleBoost)
+       end if
        if (outroot /= '') then
-         call Ini_SaveReadValues(trim(outroot) //'params.ini',1)
+         if (InputFile /= trim(outroot) //'params.ini') then   
+          call Ini_SaveReadValues(trim(outroot) //'params.ini',1)
+         else
+          write(*,*) 'Output _params.ini not created as would overwrite input'    
+         end if
        end if
 
        call Ini_Close
@@ -368,12 +400,11 @@
        call SetIdle
 #endif 
 
-       if (FeedbackLevel > 0) then
-         Age = CAMB_GetAge(P) 
-         write (*,'("Age of universe/GYr  = ",f7.3)') Age  
-       end if 
-
-       call CAMB_GetResults(P)
+       if (global_error_flag==0) call CAMB_GetResults(P)
+       if (global_error_flag/=0) then
+        write (*,*) 'Error result '//trim(global_error_message)
+        stop
+       endif
     
         if (P%WantTransfer .and. .not. (P%NonLinear==NonLinear_lens &
             .and. (P%DoLensing .or. num_redshiftwindows>0))) then
@@ -396,7 +427,7 @@
           end if
 
          call output_cl_files(ScalarFileName, ScalarCovFileName,TensorFileName, TotalFileName, &
-              LensedFileName, output_factor)
+              LensedFileName, LensedTotFilename,output_factor)
 
          if (P%WantVectors) then
            call output_veccl_files(VectorFileName, output_factor)

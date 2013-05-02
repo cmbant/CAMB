@@ -971,10 +971,11 @@
 
   INTERFACE CONCAT
     module procedure concat_s, concat_s_n
-    
   END INTERFACE
-
-
+  
+  INTERFACE RealToStr
+   module procedure SingleToStr, DoubleToStr
+  END INTERFACE RealToStr
 
   contains
 
@@ -1240,7 +1241,7 @@
 
   function numcat(S, num)
    character(LEN=*) S
-   character(LEN=120) numcat, numstr
+   character(LEN=1024) numcat, numstr
    integer num
 
    write (numstr, *) num
@@ -1295,34 +1296,57 @@
    read (S,*) StrToInt
   end function StrToInt
 
-
-   function RealToStr(R, figs)
+   function DoubleToStr(R, figs)
+      double precision, intent(in) :: R
+      integer, intent(in), optional :: figs
+      character(LEN=30) DoubleToStr
+  
+   DoubleToStr = SingleToStr(real(R),figs)
+      
+   end function DoubleToStr
+   
+   function SingleToStr(R, figs)
    real, intent(in) :: R
    integer, intent(in), optional :: figs
-   character(LEN=30) RealToStr
+   character(LEN=30) SingleToStr
 
     if (abs(R)>=0.001 .or. R==0.) then
-     write (RealToStr,'(f12.6)') R
+     write (SingleToStr,'(f12.6)') R
 
-   RealToStr = adjustl(RealToStr)
+   SingleToStr = adjustl(SingleToStr)
    if (present(figs)) then
-    RealToStr = RealToStr(1:figs)
+    SingleToStr = SingleToStr(1:figs)
    else
-    RealToStr = RealToStr(1:6)  
+    SingleToStr = SingleToStr(1:6)  
    end if
 
     else
      if (present(figs)) then
-      write (RealToStr,trim(numcat('(E',figs))//'.2)') R
+      write (SingleToStr,trim(numcat('(E',figs))//'.2)') R
      else
-      write (RealToStr,'(G9.2)') R
+      write (SingleToStr,'(G9.2)') R
      end if
-     RealToStr = adjustl(RealToStr)
+     SingleToStr = adjustl(SingleToStr)
     end if
-        
 
-  end function RealToStr
+   end function SingleToStr
   
+   subroutine WriteFormatInts(unit, formatst, i1,i2,i3,i4)
+     integer, intent(in) :: unit
+     character(LEN=*), intent(in) :: formatst
+     integer, intent(in) :: i1
+     integer, intent(in),optional :: i2,i3,i4
+     character(LEN=1024*16) S
+     
+     S = formatst
+     call StringReplace('%u', IntToStr(i1), S)
+     if (present(i2)) call StringReplace('%u', IntToStr(i2), S)
+     if (present(i3)) call StringReplace('%u', IntToStr(i3), S)
+     if (present(i4)) call StringReplace('%u', IntToStr(i4), S)
+
+     write(unit,'(a)') trim(S)
+   end subroutine WriteFormatInts
+   
   function IndexOf(aval,arr, n)
      integer, intent(in) :: n, arr(n), aval
      integer IndexOf, i
@@ -1419,7 +1443,7 @@
 
  function ExtractFileName(aname)
     character(LEN=*), intent(IN) :: aname
-    character(LEN=120) ExtractFileName
+    character(LEN=1024) ExtractFileName
     integer len, i
 
     len = len_trim(aname)
@@ -1599,7 +1623,7 @@ subroutine CreateOpenTxtFile(aname, aunit, append)
  end subroutine CreateOpenFile
 
  function TxtNumberColumns(InLine) result(n)
-   character(LEN=4096) :: InLine
+   character(LEN=*) :: InLine
    integer n,i
    logical isNum    
    
@@ -1617,7 +1641,7 @@ subroutine CreateOpenTxtFile(aname, aunit, append)
  end function TxtNumberColumns
  
   function TxtColumns(InLine) result(n)
-   character(LEN=4096) :: InLine
+   character(LEN=*) :: InLine
    integer n,i
    logical isNum    
    
@@ -1637,7 +1661,7 @@ subroutine CreateOpenTxtFile(aname, aunit, append)
  function FileColumns(aunit) result(n)
    integer, intent(in) :: aunit
    integer n
-   character(LEN=4096) :: InLine
+   character(LEN=4096*32) :: InLine
 
    n=0
    read(aunit,'(a)', end = 10) InLine
@@ -1666,7 +1690,7 @@ subroutine CreateOpenTxtFile(aname, aunit, append)
 
  function TopCommentLine(aname) result(res)
     character(LEN=*), intent(IN) :: aname
-    integer n, file_id 
+    integer file_id 
     character(LEN=1024) :: InLine, res
     
     res = ''
@@ -1718,6 +1742,13 @@ subroutine CreateOpenTxtFile(aname, aunit, append)
  
  end function LastFileLine
 
+ subroutine writeArrayLine(unit, arr)
+  real, intent(in) :: arr(:)
+  integer, intent(in) :: unit
+  
+  write(unit,concat('(',size(arr),'E16.6)')) arr
+  
+ end subroutine writeArrayLine
  
 
       subroutine spline_real(x,y,n,y2)
@@ -2557,8 +2588,13 @@ END MODULE ziggurat
 module Random
  integer :: rand_inst = 0 
  logical, parameter :: use_ziggurat = .false.
+ integer, parameter :: krand = KIND(1.d0)
   !Ziggurat is significantly (3-4x) faster, see Wikipedia for details
   !Have seem some suspicious things, though couldn't replicate; may be OK..
+
+  INTERFACE RandRotation
+  MODULE PROCEDURE RandRotationS, RandRotationD
+  END INTERFACE
 
 contains
    
@@ -2572,7 +2608,7 @@ contains
   integer, optional, intent(IN) :: i2
   integer seed_in,kl,ij
   character(len=10) :: fred
-  real :: klr
+  real(krand) :: klr
   
    if (present(i)) then
     seed_in = i
@@ -2604,7 +2640,7 @@ contains
 
   subroutine RandIndices(indices, nmax, n)
    use AMLUtils
-     integer, intent(in) :: nmax, n
+    integer, intent(in) :: nmax, n
     integer indices(n),i, ix
     integer tmp(nmax)
  
@@ -2620,8 +2656,7 @@ contains
 
   end subroutine RandIndices
 
-
-  subroutine RandRotation(R, N)
+  subroutine RandRotationS(R, N)
    !this is most certainly not the world's most efficient or robust random rotation generator
     integer, intent(in) :: N
     real R(N,N), vec(N), norm
@@ -2641,7 +2676,30 @@ contains
      R(j,:) = vec / sqrt(norm)
     end do
     
-  end subroutine RandRotation
+  end subroutine RandRotationS
+  
+  
+  subroutine RandRotationD(R, N)
+   !this is most certainly not the world's most efficient or robust random rotation generator
+    integer, intent(in) :: N
+    double precision R(N,N), vec(N), norm
+    integer i,j
+    
+    do j = 1, N
+     do
+         do i = 1, N
+          vec(i) = Gaussian1()
+         end do
+         do i = 1, j-1
+           vec = vec - sum(vec*R(i,:))*R(i,:)
+         end do
+         norm = sum(vec**2)
+         if (norm > 1e-3) exit
+     end do
+     R(j,:) = vec / sqrt(norm)
+    end do
+    
+  end subroutine RandRotationD
 
 
   double precision function GAUSSIAN1()
