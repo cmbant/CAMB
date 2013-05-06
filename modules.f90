@@ -58,18 +58,15 @@
     integer, parameter :: max_Nu = 5 !Maximum number of neutrino species
     integer, parameter :: max_transfer_redshifts = 150
     integer, parameter :: fileio_unit = 13 !Any number not used elsewhere will do
-    integer, parameter :: outCOBE=0, outNone=1
+    integer, parameter :: outNone=1
 
     integer :: max_bessels_l_index  = 1000000
     real(dl) :: max_bessels_etak = 1000000*2
 
-
     real(dl), parameter ::  OutputDenominator =twopi
     !When using outNone the output is l(l+1)Cl/OutputDenominator
 
-
     Type(Regions) :: TimeSteps
-
 
     type TransferParams
         logical     ::  high_precision
@@ -91,6 +88,7 @@
     logical   :: DoLensing
     logical   :: want_zstar, want_zdrag     !!JH for updated BAO likelihood.
     integer   :: NonLinear
+    logical   :: Want_CMB
 
     integer   :: Max_l, Max_l_tensor
     real(dl)  :: Max_eta_k, Max_eta_k_tensor
@@ -112,7 +110,7 @@
     !must be one of the initial_xxx values defined in GaugeInterface
 
     integer   :: OutputNormalization
-    !outNone, outCOBE, or C_OutputNormalization=1 if > 1
+    !outNone, or C_OutputNormalization=1 if > 1
 
     logical   :: AccuratePolarization
     !Do you care about the accuracy of the polarization Cls?
@@ -151,12 +149,10 @@
 
     type(CAMBparams) CP  !Global collection of parameters
 
-
     real(dl) scale !relative to CP%flat. e.g. for scaling lSamp%l sampling.
 
     logical ::call_again = .false.
     !if being called again with same parameters to get different thing
-
 
     !     grhom =kappa*a^2*rho_m0
     !     grhornomass=grhor*number of massless neutrino species
@@ -198,6 +194,9 @@
 
     real(sp) :: lAccuracyBoost=1.
     !Boost number of multipoles integrated in Boltzman heirarchy
+
+    integer :: limber_phiphi = 0 !for l>limber_phiphi use limber approx for lensing potential
+    integer :: num_redshiftwindows = 0
 
     integer, parameter :: lmin = 2
     !must be either 1 or 2
@@ -675,6 +674,20 @@
 
     contains
 
+    function lvalues_indexOf(lSet,l)
+        type(lSamples) :: lSet
+        integer, intent(in) :: l
+        integer lvalues_indexOf, i
+
+        do i=2,lSet%l0
+        if (l < lSet%l(i)) then
+            lvalues_indexOf = i-1
+            return
+        end if
+        end do
+        lvalues_indexOf = lSet%l0
+
+    end function  lvalues_indexOf
 
     subroutine initlval(lSet,max_l)
 
@@ -909,14 +922,7 @@
 
     end subroutine InterpolateClArrTemplated
 
-
-
-
-
-    !ccccccccccccccccccccccccccc
-
     end module lvalues
-
 
 
     !ccccccccccccccccccccccccccccccccccccccccccccccccccc
@@ -931,6 +937,13 @@
     implicit none
     public
 
+    !Sources
+    Type LimberRec
+        integer n1,n2 !corresponding time step array indices
+        real(dl), dimension(:), pointer :: k
+        real(dl), dimension(:), pointer :: Source
+    end Type LimberRec
+
     Type ClTransferData
         !Cl transfer function variables
         !values of q for integration over q to get C_ls
@@ -940,8 +953,12 @@
         !- tensors: T and E and phi (for lensing), and T, E, B respectively
 
         Type (Regions) :: q
-
         real(dl), dimension(:,:,:), pointer :: Delta_p_l_k => NULL()
+
+        integer, dimension(:), pointer :: Limber_l_min => NULL()
+        !For each l, the set of k in each limber window
+        !indices LimberWindow(SourceNum,l)
+        Type(LimberRec), dimension(:,:), pointer :: Limber_windows => NULL()
 
     end Type ClTransferData
 
@@ -953,6 +970,7 @@
     integer :: C_last = C_PhiE
     integer, parameter :: CT_Temp =1, CT_E = 2, CT_B = 3, CT_Cross=  4
 
+    logical :: has_cl_2D_array = .false.
 
     real(dl), dimension (:,:,:), allocatable :: Cl_scalar, Cl_tensor, Cl_vector
     !Indices are Cl_xxx( l , intial_power_index, Cl_type)
@@ -963,10 +981,7 @@
     real(dl) , dimension (:,:,:), allocatable :: Cl_lensed
     !Cl_lensed(l, power_index, Cl_type) are the interpolated Cls
 
-    real(dl), dimension (:), allocatable ::  COBElikelihoods,COBE_scales
-    !Set by COBEnormalize if using outCOBE
     contains
-
 
     subroutine Init_ClTransfer(CTrans)
     !Need to set the Ranges array q before calling this
@@ -979,9 +994,16 @@
     allocate(CTrans%Delta_p_l_k(CTrans%NumSources,min(max_bessels_l_index,CTrans%ls%l0), CTrans%q%npoints))
     CTrans%Delta_p_l_k = 0
 
-
     end subroutine Init_ClTransfer
 
+    subroutine Init_Limber(CTrans)
+        Type(ClTransferData) :: CTrans
+
+        allocate(CTrans%Limber_l_min(CTrans%NumSources))
+        CTrans%Limber_l_min = 0
+        allocate(CTrans%Limber_windows(CTrans%NumSources,CTrans%ls%l0))
+
+    end subroutine Init_Limber
 
     subroutine Free_ClTransfer(CTrans)
     Type(ClTransferData) :: CTrans
@@ -1203,15 +1225,6 @@
 
     end subroutine output_veccl_files
 
-
-    subroutine output_COBElikelihood
-    integer in
-    do in=1, CP%InitPower%nn
-        write(*,*)'COBE Likelihood relative to CP%flat=',COBElikelihoods(in)
-    end do
-    end  subroutine output_COBElikelihood
-
-
     subroutine NormalizeClsAtL(lnorm)
     implicit none
     integer, intent(IN) :: lnorm
@@ -1235,103 +1248,6 @@
 
     end  subroutine NormalizeClsAtL
 
-    !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-
-    subroutine COBEnormalize
-    use precision
-    use ModelParams
-
-
-    integer in
-    real(dl) xlog10
-    real(dl) c10, d1,d2,d3,d4,d5,d6,d7, xlogl, COBE_scale
-    real(dl) x1, x2,x3,x4,x5,x6,x7,sy,s,sx,sxy,sxx,delt,d1pr,d1ppr
-    real(dl) Ctot(lmin:20)
-
-
-    if (allocated(COBElikelihoods)) deallocate(COBElikelihoods)
-    if (allocated(COBE_scales)) deallocate(COBE_scales)
-    allocate(COBElikelihoods(CP%InitPower%nn))
-    allocate(COBE_scales(CP%InitPower%nn))
-
-
-
-    xlog10=log(10._dl)
-
-
-    ! COBE normalization
-    ! fit the spectrum to a quadratic around C_10 with equal weights in logl
-
-    do in=1,CP%InitPower%nn
-
-    if (CP%WantTensors) then
-        Ctot =  Cl_tensor(lmin:20, in, C_Temp)
-    else
-        Ctot = 0
-    end if
-    if (CP%WantScalars) then
-        Ctot=Ctot + Cl_scalar(lmin:20, in, C_Temp)
-
-    end if
-    c10=Ctot(10)
-
-    d1=(Ctot(3))/c10-1._dl
-    d2=(Ctot(4))/c10-1._dl
-    d3=(Ctot(6))/c10-1._dl
-    d4=(Ctot(8))/c10-1._dl
-    d5=(Ctot(12))/c10-1._dl
-    d6=(Ctot(15))/c10-1._dl
-    d7=(Ctot(20))/c10-1._dl
-
-
-    x1=log(3._dl)/xlog10-1._dl
-    x2=log(4._dl)/xlog10-1._dl
-    x3=log(6._dl)/xlog10-1._dl
-    x4=log(8._dl)/xlog10-1._dl
-    x5=log(12._dl)/xlog10-1._dl
-    x6=log(15._dl)/xlog10-1._dl
-    x7=log(20._dl)/xlog10-1._dl
-    sy=x1*d1+x2*d2+x3*d3+x4*d4+x5*d5+x6*d6+x7*d7
-    s=x1*x1+x2*x2+x3*x3+x4*x4+x5*x5+x6*x6+x7*x7
-    sx=x1**3+x2**3+x3**3+x4**3+x5**3+x6**3+x7**3
-    sxy=x1**2*d1+x2**2*d2+x3**2*d3+x4**2*d4+ &
-    x5**2*d5+x6**2*d6+x7**2*d7
-    sxx=x1**4+x2**4+x3**4+x4**4+x5**4+x6**4+x7**4
-    delt=s*sxx-sx*sx
-    d1pr=(sxx*sy-sx*sxy)/delt
-    d1ppr=2._dl*(s*sxy-sx*sy)/delt
-
-    ! Bunn and White fitting formula
-    c10=(0.64575d0+0.02282d0*d1pr+0.01391d0*d1pr*d1pr &
-    -0.01819d0*d1ppr-0.00646d0*d1pr*d1ppr &
-    +0.00103d0*d1ppr*d1ppr)/c10
-    ! logl
-    xlogl=-0.01669d0+1.19895d0*d1pr-0.83527d0*d1pr*d1pr &
-    -0.43541d0*d1ppr-0.03421d0*d1pr*d1ppr &
-    +0.01049d0*d1ppr*d1ppr
-    ! write(*,*)'COBE Likelihood relative to CP%flat=',exp(xlogl)
-    COBElikelihoods(in) = exp(xlogl)
-
-    ! density power spectrum normalization;
-
-    COBE_scale=c10/OutputDenominator*1.1d-9
-    COBE_scales(in)=COBE_scale
-
-    !!$!delta^2 = k^4*(tf)^2*ScalarPower(k,in)*COBE_scale where (tf) is output in the transfer function file
-    !!$!delta^2 = 4*pi*k^3 P(k)
-
-
-    ! C_l normalization; output l(l+1)C_l/twopi
-    c10=c10*2.2d-9/fourpi
-
-    if (CP%WantScalars) Cl_scalar(lmin:CP%Max_l, in, C_Temp:C_last) = &
-    Cl_scalar(lmin:CP%Max_l, in, C_Temp:C_last)*c10
-    if (CP%WantTensors) Cl_tensor(lmin:CP%Max_l_tensor, in, CT_Temp:CT_Cross) = &
-    Cl_tensor(lmin:CP%Max_l_tensor, in, CT_Temp:CT_Cross)*c10
-
-    end do !in
-    end subroutine COBEnormalize
-
     subroutine ModelData_Free
 
     call Free_ClTransfer(CTransScal)
@@ -1341,8 +1257,6 @@
     if (allocated(Cl_tensor)) deallocate(Cl_tensor)
     if (allocated(Cl_scalar)) deallocate(Cl_scalar)
     if (allocated(Cl_lensed)) deallocate(Cl_lensed)
-    if (allocated(COBElikelihoods)) deallocate(COBElikelihoods)
-    if (allocated(COBE_scales)) deallocate(COBE_scales)
 
     end subroutine ModelData_Free
 
@@ -2037,22 +1951,6 @@
 
     end subroutine Transfer_output_Sig8
 
-
-    subroutine Transfer_output_Sig8AndNorm(MTrans)
-    Type(MatterTransferData), intent(in) :: MTrans
-    integer in, j
-
-    do in=1, CP%InitPower%nn
-        write(*,*) 'Power spectrum ',in, ' COBE_scale = ',real(COBE_scales(in))
-        do j = 1, CP%Transfer%num_redshifts
-            write(*,*) 'at z = ',real(CP%Transfer%redshifts(j)), ' sigma8(all matter) = ', &
-            real(MTrans%sigma_8(j,in)*sqrt(COBE_scales(in)))
-        end do
-    end do
-
-    end subroutine Transfer_output_Sig8AndNorm
-
-
     subroutine Transfer_Allocate(MTrans)
     Type(MatterTransferData) :: MTrans
     integer st
@@ -2175,13 +2073,6 @@
         allocate(outpower(points,CP%InitPower%nn))
         do in = 1, CP%InitPower%nn
             call Transfer_GetMatterPowerS(MTrans,outpower(1,in), itf, in, minkh,dlnkh, points)
-            if (CP%OutputNormalization == outCOBE) then
-                if (allocated(COBE_scales)) then
-                    outpower(:,in) = outpower(:,in)*COBE_scales(in)
-                else
-                    if (FeedbackLevel>0) write (*,*) 'Cannot COBE normalize - no Cls generated'
-                end if
-            end if
         end do
 
         open(unit=fileio_unit,file=FileNames(itf),form='formatted',status='replace')

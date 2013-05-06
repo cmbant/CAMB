@@ -52,7 +52,6 @@
         P%WantTensors = Ini_Read_Logical('get_tensor_cls',.false.)
         
         P%OutputNormalization=outNone
-        if (Ini_Read_Logical('COBE_normalize',.false.))  P%OutputNormalization=outCOBE
         output_factor = Ini_Read_Double('CMB_outputscale',1.d0)
 
         P%WantCls= P%WantScalars .or. P%WantTensors .or. P%WantVectors
@@ -269,9 +268,7 @@
 
        ThreadNum      = Ini_Read_Int('number_of_threads',ThreadNum)
        use_spline_template = Ini_Read_Logical('use_spline_template',use_spline_template)
-       if (HighAccuracyDefault) then
-         P%Max_eta_k=max(min(P%max_l,3000)*2.5_dl,P%Max_eta_k)
-       end if
+
        DoTensorNeutrinos = DoTensorNeutrinos .or. HighAccuracyDefault
        if (do_bispectrum) then
         lSampleBoost   = 50
@@ -303,16 +300,10 @@
         if (P%WantTransfer .and. .not. (P%NonLinear==NonLinear_lens .and. P%DoLensing)) then
          call Transfer_SaveToFiles(MT,TransferFileNames)
          call Transfer_SaveMatterPower(MT,MatterPowerFileNames)
-         if ((P%OutputNormalization /= outCOBE) .or. .not. P%WantCls)  call Transfer_output_sig8(MT)
+         call Transfer_output_sig8(MT)
         end if
 
         if (P%WantCls) then
-  
-         if (P%OutputNormalization == outCOBE) then
-
-            if (P%WantTransfer) call Transfer_output_Sig8AndNorm(MT)
-           
-          end if
 
          call output_cl_files(ScalarFileName, TensorFileName, TotalFileName, &
               LensedFileName, LensedTotFilename, output_factor)
