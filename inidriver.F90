@@ -1,7 +1,7 @@
     !     Code for Anisotropies in the Microwave Background
     !     by Antony Lewis (http://cosmologist.info/) and Anthony Challinor
     !     See readme.html for documentation. This is a sample driver routine that reads
-    !     in one set of parameters and produdes the corresponding output. 
+    !     in one set of parameters and produdes the corresponding output.
 
     program driver
     use IniFile
@@ -13,7 +13,7 @@
     use constants
     use Bispectrum
     use CAMBmain
-#ifdef NAGF95 
+#ifdef NAGF95
     use F90_UNIX
 #endif
     implicit none
@@ -76,7 +76,7 @@
             if (P%WantVectors) then
                 if (P%WantScalars .or. P%WantTensors) stop 'Must generate vector modes on their own'
                 i = Ini_Read_Int('vector_mode')
-                if (i==0) then 
+                if (i==0) then
                     vec_sig0 = 1
                     Magnetic = 0
                 else if (i==1) then
@@ -84,7 +84,7 @@
                     vec_sig0 = 0
                 else
                     stop 'vector_mode must be 0 (regular) or 1 (magnetic)'
-                end if 
+                end if
             end if
         end if
 
@@ -94,27 +94,22 @@
         end if
     endif
 
-
     !  Read initial parameters.
 
     call DarkEnergy_ReadParams(DefIni)
 
     P%h0     = Ini_Read_Double('hubble')
 
-    if (Ini_Read_Logical('use_physical',.false.)) then 
-
-    P%omegab = Ini_Read_Double('ombh2')/(P%H0/100)**2
-    P%omegac = Ini_Read_Double('omch2')/(P%H0/100)**2
-    P%omegan = Ini_Read_Double('omnuh2')/(P%H0/100)**2
-    P%omegav = 1- Ini_Read_Double('omk') - P%omegab-P%omegac - P%omegan
-
+    if (Ini_Read_Logical('use_physical',.false.)) then
+        P%omegab = Ini_Read_Double('ombh2')/(P%H0/100)**2
+        P%omegac = Ini_Read_Double('omch2')/(P%H0/100)**2
+        P%omegan = Ini_Read_Double('omnuh2')/(P%H0/100)**2
+        P%omegav = 1- Ini_Read_Double('omk') - P%omegab-P%omegac - P%omegan
     else
-
-    P%omegab = Ini_Read_Double('omega_baryon')
-    P%omegac = Ini_Read_Double('omega_cdm')
-    P%omegav = Ini_Read_Double('omega_lambda')
-    P%omegan = Ini_Read_Double('omega_neutrino')
-
+        P%omegab = Ini_Read_Double('omega_baryon')
+        P%omegac = Ini_Read_Double('omega_cdm')
+        P%omegav = Ini_Read_Double('omega_lambda')
+        P%omegan = Ini_Read_Double('omega_neutrino')
     end if
 
     P%tcmb   = Ini_Read_Double('temp_cmb',COBE_CMBTemp)
@@ -136,7 +131,7 @@
     end if
     numstr = Ini_read_String('nu_mass_fractions')
     if (numstr=='') then
-        P%Nu_mass_fractions(1)=1  
+        P%Nu_mass_fractions(1)=1
         if (P%Nu_mass_eigenstates >1) stop 'must give nu_mass_fractions for the eigenstates'
     else
         read(numstr,*) P%Nu_mass_fractions(1:P%Nu_mass_eigenstates)
@@ -162,32 +157,28 @@
             P%transfer%redshifts(i)  = Ini_Read_Double_Array('transfer_redshift',i,0._dl)
             transferFileNames(i)     = Ini_Read_String_Array('transfer_filename',i)
             MatterPowerFilenames(i)  = Ini_Read_String_Array('transfer_matterpower',i)
-
             if (TransferFileNames(i) == '') then
-                TransferFileNames(i) =  trim(numcat('transfer_',i))//'.dat' 
+                TransferFileNames(i) =  trim(numcat('transfer_',i))//'.dat'
             end if
             if (MatterPowerFilenames(i) == '') then
-                MatterPowerFilenames(i) =  trim(numcat('matterpower_',i))//'.dat' 
+                MatterPowerFilenames(i) =  trim(numcat('matterpower_',i))//'.dat'
             end if
             if (TransferFileNames(i)/= '') &
             TransferFileNames(i) = trim(outroot)//TransferFileNames(i)
             if (MatterPowerFilenames(i) /= '') &
             MatterPowerFilenames(i)=trim(outroot)//MatterPowerFilenames(i)
         end do
-
-
         P%transfer%kmax=P%transfer%kmax*(P%h0/100._dl)
-
     else
         P%transfer%high_precision = .false.
     endif
 
-    Ini_fail_on_not_found = .false. 
+    Ini_fail_on_not_found = .false.
 
     ALens = Ini_Read_Double('Alens',Alens)
 
     call Reionization_ReadParams(P%Reion, DefIni)
-    call InitialPower_ReadParams(P%InitPower, DefIni, P%WantTensors) 
+    call InitialPower_ReadParams(P%InitPower, DefIni, P%WantTensors)
     call Recombination_ReadParams(P%Recomb, DefIni)
     if (Ini_HasKey('recombination')) then
         i = Ini_Read_Int('recombination',1)
@@ -240,10 +231,10 @@
             end if
         end if
     end if
-#endif        
+#endif
 
 
-    Ini_fail_on_not_found = .false. 
+    Ini_fail_on_not_found = .false.
 
     !optional parameters controlling the computation
 
@@ -281,10 +272,10 @@
         lSampleBoost   = Ini_Read_Double('l_sample_boost',lSampleBoost)
     end if
     if (outroot /= '') then
-        if (InputFile /= trim(outroot) //'params.ini') then   
+        if (InputFile /= trim(outroot) //'params.ini') then
             call Ini_SaveReadValues(trim(outroot) //'params.ini',1)
         else
-            write(*,*) 'Output _params.ini not created as would overwrite input'    
+            write(*,*) 'Output _params.ini not created as would overwrite input'
         end if
     end if
 
@@ -294,7 +285,7 @@
 
 #ifdef RUNIDLE
     call SetIdle
-#endif 
+#endif
 
     if (global_error_flag==0) call CAMB_GetResults(P)
     if (global_error_flag/=0) then
@@ -325,7 +316,7 @@
 #endif
     end if
 
-    call CAMB_cleanup             
+    call CAMB_cleanup
 
     end program driver
 
@@ -334,7 +325,7 @@
     !If in Windows and want to run with low priorty so can multitask
     subroutine SetIdle
     USE DFWIN
-    Integer dwPriority 
+    Integer dwPriority
     Integer CheckPriority
 
     dwPriority = 64 ! idle priority
