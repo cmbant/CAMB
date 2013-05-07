@@ -427,41 +427,39 @@
     end do
 
     if (ThisCT%limber_l_min(s_ix)/=0) then
+        n1 = Ranges_IndexOf(TimeSteps,tau_maxvis)
+        n2 = TimeSteps%npoints-1
 
-    n1 = Ranges_IndexOf(TimeSteps,tau_maxvis)
-    n2 = TimeSteps%npoints-1
+        do ell = ThisCT%limber_l_min(s_ix), ThisCT%ls%l0
+            LimbRec => ThisCT%Limber_windows(s_ix,ell)
+            LimbRec%n1 = n1
+            LimbRec%n2 = n2
 
-    do ell = ThisCT%limber_l_min(s_ix), ThisCT%ls%l0
-        LimbRec => ThisCT%Limber_windows(s_ix,ell)
-        LimbRec%n1 = n1
-        LimbRec%n2 = n2
+            allocate(LimbRec%k(n1:n2))
+            allocate(LimbRec%Source(n1:n2))
 
-        allocate(LimbRec%k(n1:n2))
-        allocate(LimbRec%Source(n1:n2))
+            int = 0
+            do n = n1,n2
+                chi = (CP%tau0-TimeSteps%points(n))
+                k = (ThisCT%ls%l(ell)+0.5_dl)/chi
+                LimbRec%k(n) = k
+                if (k<=qmax) then
+                    klo = Ranges_IndexOf(Evolve_q, k)
+                    khi=klo+1
+                    ho=Evolve_q%points(khi)-Evolve_q%points(klo)
+                    a0=(Evolve_q%points(khi)-k)/ho
+                    b0=(k-Evolve_q%points(klo))/ho
+                    ho2o6 = ho**2/6
+                    a03=(a0**3-a0)
+                    b03=(b0**3-b0)
 
-        int = 0
-        do n = n1,n2
-            chi = (CP%tau0-TimeSteps%points(n))
-            k = (ThisCT%ls%l(ell)+0.5_dl)/chi
-            LimbRec%k(n) = k
-            if (k<=qmax) then
-                klo = Ranges_IndexOf(Evolve_q, k)
-                khi=klo+1
-                ho=Evolve_q%points(khi)-Evolve_q%points(klo)
-                a0=(Evolve_q%points(khi)-k)/ho
-                b0=(k-Evolve_q%points(klo))/ho
-                ho2o6 = ho**2/6
-                a03=(a0**3-a0)
-                b03=(b0**3-b0)
-
-                LimbRec%Source(n)= sqrt(chi*TimeSteps%dpoints(n))* (  a0*Src(klo,s_ix,n)+&
-                b0*Src(khi,s_ix,n)+(a03 *ddSrc(klo,s_ix,n)+ &
-                b03*ddSrc(khi,s_ix,n)) *ho2o6)
-            else
-                LimbRec%Source(n)=0
-            end if
-        end do 
-    end do
+                    LimbRec%Source(n)= sqrt(chi*TimeSteps%dpoints(n))* (a0*Src(klo,s_ix,n)+&
+                    b0*Src(khi,s_ix,n)+(a03 *ddSrc(klo,s_ix,n)+ b03*ddSrc(khi,s_ix,n)) *ho2o6)
+                else
+                    LimbRec%Source(n)=0
+                end if
+            end do 
+        end do
     else
         max_bessels_l_index  = ThisCT%ls%l0
     end if
@@ -2388,7 +2386,8 @@
     subroutine InterpolateCls(CTransS,CTransT,CTransV)
     implicit none
     Type(ClTransferData) :: CTransS, CTransT, CTransV
-    integer in,i
+    integer in,i,j
+    integer, parameter :: ind(2,2)=[[1,3],[3,2]]
 
     !Note using log interpolation is worse
 
@@ -2399,6 +2398,20 @@
                 call InterpolateClArrTemplated(CTransS%ls,iCl_scalar(1,i,in),Cl_scalar(lmin, in, i), &
                 CTransS%ls%l0,i)
             end do
+
+            if (CTransScal%NumSources>2 .and. has_cl_2D_array) then
+                do i=1,3+num_redshiftwindows
+                    do j=i,3+num_redshiftwindows
+                        if (i<3 .and. j<3) then
+                            Cl_scalar_array(:,in,i,j) = Cl_scalar(:, in, ind(i,j))
+                        else
+                            call InterpolateClArr(CTransS%ls,iCl_array(1,i,j,in), &
+                            Cl_scalar_array(lmin, in, i,j),CTransS%ls%l0)
+                        end if
+                        if (i/=j) Cl_scalar_array(:,in,j,i) = Cl_scalar_array(:,in,i,j)
+                    end do
+                end do
+            end if
         end if
 
         if (CP%WantVectors) then
@@ -2409,8 +2422,7 @@
 
         if (CP%WantTensors) then
             do i = CT_Temp, CT_Cross
-                call InterpolateClArr(CTransT%ls,iCl_tensor(1,i,in),Cl_tensor(lmin, in, i), &
-                CTransT%ls%l0)
+                call InterpolateClArr(CTransT%ls,iCl_tensor(1,i,in),Cl_tensor(lmin, in, i), CTransT%ls%l0)
             end do
         end if
     end do

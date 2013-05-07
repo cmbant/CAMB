@@ -938,7 +938,6 @@
     implicit none
     public
 
-    !Sources
     Type LimberRec
         integer n1,n2 !corresponding time step array indices
         real(dl), dimension(:), pointer :: k
