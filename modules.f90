@@ -1760,9 +1760,8 @@
     real(dl), parameter :: cllo=1.e30_dl,clhi=1.e30_dl
 
     do i = 1,PK_Data%num_z
-
-    call spline(PK_data%log_kh,PK_data%matpower(1,i),PK_data%num_k,&
-    cllo,clhi,PK_data%ddmat(1,i))
+        call spline(PK_data%log_kh,PK_data%matpower(1,i),PK_data%num_k,&
+        cllo,clhi,PK_data%ddmat(1,i))
     end do
 
     end subroutine MatterPowerdata_getsplines
@@ -1785,10 +1784,18 @@
     deallocate(PK_data%ddmat,stat=i)
     deallocate(PK_data%nonlin_ratio,stat=i)
     deallocate(PK_data%redshifts,stat=i)
-    nullify(PK_data%log_kh, & !PK_data%matpower,PK_data%ddmat 
-    PK_data%nonlin_ratio,PK_data%redshifts)
+    call MatterPowerdata_Nullify(PK_data)
 
     end subroutine MatterPowerdata_Free
+
+    subroutine MatterPowerdata_Nullify(PK_data)
+    Type(MatterPowerData) :: PK_data
+
+    nullify(PK_data%log_kh)
+    nullify(PK_data%nonlin_ratio)
+    nullify(PK_data%redshifts)
+
+    end subroutine MatterPowerdata_Nullify
 
     function MatterPowerData_k(PK,  kh, itf) result(outpower)
     !Get matter power spectrum at particular k/h by interpolation
