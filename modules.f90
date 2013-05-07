@@ -2264,7 +2264,7 @@
     real(dl) dtauda  !diff of tau w.CP%r.t a and integration
     external dtauda
     real(dl) a_verydom
-    real(dl) awin_lens1,awin_lens2,dwing_lens, rs, DA
+    real(dl) awin_lens1p,awin_lens2p,dwing_lens, rs, DA
     real(dl) rombint
     integer noutput
     external rombint
@@ -2454,8 +2454,8 @@
 
     if (dowinlens) then
         vfi=0
-        awin_lens1=0
-        awin_lens2=0
+        awin_lens1p=0
+        awin_lens2p=0
         winlens=0
         do j1=1,nthermo-1
             vis = emmu(j1)*dotmu(j1)
@@ -2464,10 +2464,10 @@
             if (vfi < 0.995) then
                 dwing_lens =  vis*cf1*dlntau*tau / 0.995
 
-                awin_lens1 = awin_lens1 + dwing_lens
-                awin_lens2 = awin_lens2 + dwing_lens/(CP%tau0-tau)
+                awin_lens1p = awin_lens1p + dwing_lens
+                awin_lens2p = awin_lens2p + dwing_lens/(CP%tau0-tau)
             end if
-            winlens(j1)= awin_lens1/(CP%tau0-tau) - awin_lens2
+            winlens(j1)= awin_lens1p/(CP%tau0-tau) - awin_lens2p
         end do
     end if
 
