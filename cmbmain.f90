@@ -428,40 +428,40 @@
 
     if (ThisCT%limber_l_min(s_ix)/=0) then
 
-        n1 = Ranges_IndexOf(TimeSteps,tau_maxvis)
-        n2 = TimeSteps%npoints-1
+    n1 = Ranges_IndexOf(TimeSteps,tau_maxvis)
+    n2 = TimeSteps%npoints-1
 
-        do ell = ThisCT%limber_l_min(s_ix), ThisCT%ls%l0
-            LimbRec => ThisCT%Limber_windows(s_ix,ell)
-            LimbRec%n1 = n1
-            LimbRec%n2 = n2
+    do ell = ThisCT%limber_l_min(s_ix), ThisCT%ls%l0
+        LimbRec => ThisCT%Limber_windows(s_ix,ell)
+        LimbRec%n1 = n1
+        LimbRec%n2 = n2
 
-            allocate(LimbRec%k(n1:n2))
-            allocate(LimbRec%Source(n1:n2))
+        allocate(LimbRec%k(n1:n2))
+        allocate(LimbRec%Source(n1:n2))
 
-            int = 0
-            do n = n1,n2
-                chi = (CP%tau0-TimeSteps%points(n))
-                k = (ThisCT%ls%l(ell)+0.5_dl)/chi
-                LimbRec%k(n) = k
-                if (k<=qmax) then
-                    klo = Ranges_IndexOf(Evolve_q, k)
-                    khi=klo+1
-                    ho=Evolve_q%points(khi)-Evolve_q%points(klo)
-                    a0=(Evolve_q%points(khi)-k)/ho
-                    b0=(k-Evolve_q%points(klo))/ho
-                    ho2o6 = ho**2/6
-                    a03=(a0**3-a0)
-                    b03=(b0**3-b0)
+        int = 0
+        do n = n1,n2
+            chi = (CP%tau0-TimeSteps%points(n))
+            k = (ThisCT%ls%l(ell)+0.5_dl)/chi
+            LimbRec%k(n) = k
+            if (k<=qmax) then
+                klo = Ranges_IndexOf(Evolve_q, k)
+                khi=klo+1
+                ho=Evolve_q%points(khi)-Evolve_q%points(klo)
+                a0=(Evolve_q%points(khi)-k)/ho
+                b0=(k-Evolve_q%points(klo))/ho
+                ho2o6 = ho**2/6
+                a03=(a0**3-a0)
+                b03=(b0**3-b0)
 
-                    LimbRec%Source(n)= sqrt(chi*TimeSteps%dpoints(n))* (  a0*Src(klo,s_ix,n)+&
-                    b0*Src(khi,s_ix,n)+(a03 *ddSrc(klo,s_ix,n)+ &
-                    b03*ddSrc(khi,s_ix,n)) *ho2o6)
-                else
-                    LimbRec%Source(n)=0
-                end if
-            end do 
-        end do
+                LimbRec%Source(n)= sqrt(chi*TimeSteps%dpoints(n))* (  a0*Src(klo,s_ix,n)+&
+                b0*Src(khi,s_ix,n)+(a03 *ddSrc(klo,s_ix,n)+ &
+                b03*ddSrc(khi,s_ix,n)) *ho2o6)
+            else
+                LimbRec%Source(n)=0
+            end if
+        end do 
+    end do
     else
         max_bessels_l_index  = ThisCT%ls%l0
     end if
@@ -685,7 +685,7 @@
         if (WantLateTime) then
             SourceNum=3
             C_last = C_PhiE
-            SourceNum=SourceNum + num_redshiftwindows
+            SourceNum=SourceNum + num_redshiftwindows + num_extra_redshiftwindows
         else
             SourceNum=2
             C_last = C_Cross
@@ -2102,12 +2102,12 @@
     use Bispectrum
     implicit none
     Type(ClTransferData) :: CTrans
-    integer pix,j
-    real(dl) apowers, pows(CTrans%q%npoints)
-    integer q_ix
-    real(dl)  ks(CTrans%q%npoints),dlnks(CTrans%q%npoints),dlnk
-    real(dl) ctnorm,dbletmp
+    integer pix,j, q_ix, w_ix, w_ix2
+    real(dl) apowers
+    real(dl) dlnk, ell, ctnorm, dbletmp, Delta1, Delta2
+    real(dl), allocatable :: ks(:), dlnks(:), pows(:)
 
+    allocate(ks(CTrans%q%npoints),dlnks(CTrans%q%npoints), pows(CTrans%q%npoints))
 
     do pix=1,CP%InitPower%nn
         do q_ix = 1, CTrans%q%npoints
@@ -2118,64 +2118,87 @@
                 ks(q_ix) = sqrt(CTrans%q%points(q_ix)**2 - CP%curv)
                 dlnks(q_ix) = CTrans%q%dpoints(q_ix)*CTrans%q%points(q_ix)/ks(q_ix)**2
             end if
-
             pows(q_ix) =  ScalarPower(ks(q_ix) ,pix)
             if (global_error_flag/=0) return
         end do
 
-
-        !$OMP PARAllEl DO DEFAUlT(SHARED),SCHEDUlE(STATIC,4) &
-        !$OMP & PRIVATE(j,q_ix,dlnk,apowers,ctnorm,dbletmp)
+        !Seems not to OMP well.. comment
+        !OMP PARAllEl DO DEFAUlT(SHARED),SCHEDUlE(STATIC,4) &
+        !OMP & PRIVATE(j,q_ix,dlnk,apowers,ctnorm,dbletmp)
         do j=1,CTrans%ls%l0
             !Integrate dk/k Delta_l_q**2 * Power(k)
-            do q_ix = 1, CTrans%q%npoints
-                if (.not.(CP%closed.and.nint(CTrans%q%points(q_ix)*CP%r)<=CTrans%ls%l(j))) then
-                    !cut off at nu = l + 1
-                    dlnk = dlnks(q_ix)
-                    apowers = pows(q_ix)
+            ell = real(CTrans%ls%l(j),dl)
+            if (j<= max_bessels_l_index)  then
+                do q_ix = 1, CTrans%q%npoints
+                    if (.not.(CP%closed.and.nint(CTrans%q%points(q_ix)*CP%r)<=CTrans%ls%l(j))) then
+                        !cut off at nu = l + 1
+                        dlnk = dlnks(q_ix)
+                        apowers = pows(q_ix)
 
-                    iCl_scalar(j,C_Temp:C_E,pix) = iCl_scalar(j,C_Temp:C_E,pix) +  &
-                    apowers*CTrans%Delta_p_l_k(1:2,j,q_ix)**2*dlnk
-                    iCl_scalar(j,C_Cross,pix) = iCl_scalar(j,C_Cross,pix) + &
-                    apowers*CTrans%Delta_p_l_k(1,j,q_ix)*CTrans%Delta_p_l_k(2,j,q_ix)*dlnk
-                    if (CTrans%NumSources>2) then
-                        iCl_scalar(j,C_Phi,pix) = iCl_scalar(j,C_Phi,pix) +  &
-                        apowers*CTrans%Delta_p_l_k(3,j,q_ix)**2*dlnk
-                        iCl_scalar(j,C_PhiTemp,pix) = iCl_scalar(j,C_PhiTemp,pix) +  &
-                        apowers*CTrans%Delta_p_l_k(3,j,q_ix)*CTrans%Delta_p_l_k(1,j,q_ix)*dlnk
-                        iCl_scalar(j,C_PhiE,pix) = iCl_scalar(j,C_PhiE,pix) +  &
-                        apowers*CTrans%Delta_p_l_k(3,j,q_ix)*CTrans%Delta_p_l_k(2,j,q_ix)*dlnk
+                        iCl_scalar(j,C_Temp:C_E,pix) = iCl_scalar(j,C_Temp:C_E,pix) +  &
+                        apowers*CTrans%Delta_p_l_k(1:2,j,q_ix)**2*dlnk
+                        iCl_scalar(j,C_Cross,pix) = iCl_scalar(j,C_Cross,pix) + &
+                        apowers*CTrans%Delta_p_l_k(1,j,q_ix)*CTrans%Delta_p_l_k(2,j,q_ix)*dlnk
+
+                        if (CTrans%NumSources>2 .and. has_cl_2D_array) then
+                            ctnorm=sqrt((ell*ell-1)*(ell+2)*ell)
+                            dbletmp=(ell*(ell+1))/OutputDenominator*fourpi
+
+                            do w_ix=1,3 + num_redshiftwindows
+                                if (w_ix>3 .or. limber_phiphi>0 .and. w_ix2==3) then
+                                    if (CTrans%limber_l_min(w_ix)/= 0 .and. j>=CTrans%limber_l_min(w_ix)) cycle
+                                end if
+                                Delta1= CTrans%Delta_p_l_k(w_ix,j,q_ix)
+                                if (w_ix == 2) Delta1=Delta1*ctnorm
+
+                                do w_ix2=1,3 + num_redshiftwindows
+                                    if (w_ix2>3 .or. limber_phiphi>0 .and. w_ix2==3) then
+                                        if (CTrans%limber_l_min(w_ix2)/= 0 .and. j>=CTrans%limber_l_min(w_ix2)) cycle
+                                    end if
+                                    Delta2=  CTrans%Delta_p_l_k(w_ix2,j,q_ix)
+                                    if (w_ix2 == 2) Delta2=Delta2*ctnorm
+                                    iCl_Array(j,w_ix,w_ix2,pix) = iCl_Array(j,w_ix,w_ix2,pix)+Delta1*Delta2*apowers*dlnk*dbletmp
+                                end do
+                            end do
+                        end if
+
+                        if (CTrans%NumSources>2) then
+                            if (limber_phiphi==0 .or.  CTrans%limber_l_min(3)== 0 .or. j<CTrans%limber_l_min(3)) then
+                                iCl_scalar(j,C_Phi,pix) = iCl_scalar(j,C_Phi,pix) +  &
+                                apowers*CTrans%Delta_p_l_k(3,j,q_ix)**2*dlnk
+                                iCl_scalar(j,C_PhiTemp,pix) = iCl_scalar(j,C_PhiTemp,pix) +  &
+                                apowers*CTrans%Delta_p_l_k(3,j,q_ix)*CTrans%Delta_p_l_k(1,j,q_ix)*dlnk
+                                iCl_scalar(j,C_PhiE,pix) = iCl_scalar(j,C_PhiE,pix) +  &
+                                apowers*CTrans%Delta_p_l_k(3,j,q_ix)*CTrans%Delta_p_l_k(2,j,q_ix)*dlnk
+                            end if
+                        end if
+
                     end if
+                end do
 
-                end if
-
-            end do
+            end if !limber (j<= max_bessels_l_index)
 
             !Output l(l+1)C_l/OutputDenominator
-
-            !ctnorm = (CTrans%ls%l+2)!/(CTrans%ls%l-2)! - beware of int overflow
-            ctnorm=(CTrans%ls%l(j)*CTrans%ls%l(j)-1)*real((CTrans%ls%l(j)+2)*CTrans%ls%l(j),dl)
-            dbletmp=(CTrans%ls%l(j)*(CTrans%ls%l(j)+1))/OutputDenominator*fourpi
+            ctnorm=(ell*ell-1)*(ell+2)*ell
+            dbletmp=(ell*(ell+1))/OutputDenominator*fourpi
 
             iCl_scalar(j,C_Temp,pix)  =  iCl_scalar(j,C_Temp,pix)*dbletmp
             iCl_scalar(j,C_E,pix)     =  iCl_scalar(j,C_E,pix)*dbletmp*ctnorm
             iCl_scalar(j,C_Cross,pix) =  iCl_scalar(j,C_Cross,pix)*dbletmp*sqrt(ctnorm)
             if (CTrans%NumSources>2) then
-                iCl_scalar(j,C_Phi,pix)   =  &
-                ALens*iCl_scalar(j,C_Phi,pix)*fourpi*real(CTrans%ls%l(j)**2,dl)**2
+                iCl_scalar(j,C_Phi,pix) = ALens*iCl_scalar(j,C_Phi,pix)*fourpi*ell**4
                 !The lensing power spectrum computed is l^4 C_l^{\phi\phi}
                 !We put pix extra factors of l here to improve interpolation in CTrans%ls%l
-                iCl_scalar(j,C_PhiTemp,pix)   =  &
-                sqrt(ALens)*  iCl_scalar(j,C_PhiTemp,pix)*fourpi*real(CTrans%ls%l(j)**2,dl)*CTrans%ls%l(j)
+                iCl_scalar(j,C_PhiTemp,pix) = sqrt(ALens)*  iCl_scalar(j,C_PhiTemp,pix)*fourpi*ell**3
                 !Cross-correlation is CTrans%ls%l^3 C_l^{\phi T}
-                iCl_scalar(j,C_PhiE,pix)   =  &
-                sqrt(ALens)*  iCl_scalar(j,C_PhiE,pix)*fourpi*real(CTrans%ls%l(j)**2,dl)*CTrans%ls%l(j)*sqrt(ctnorm)
+                iCl_scalar(j,C_PhiE,pix) = sqrt(ALens)*  iCl_scalar(j,C_PhiE,pix)*fourpi*ell**3*sqrt(ctnorm)
                 !Cross-correlation is CTrans%ls%l^3 C_l^{\phi E}
             end if
 
         end do
-        !$OMP END PARAllEl DO
+        !OMP END PARAllEl DO
     end do
+    deallocate(ks,pows,dlnks)
 
     end subroutine CalcScalCls
 

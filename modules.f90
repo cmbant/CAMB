@@ -197,6 +197,7 @@
 
     integer :: limber_phiphi = 0 !for l>limber_phiphi use limber approx for lensing potential
     integer :: num_redshiftwindows = 0
+    integer :: num_extra_redshiftwindows = 0
 
     integer, parameter :: lmin = 2
     !must be either 1 or 2
