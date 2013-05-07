@@ -672,21 +672,23 @@
     end Type lSamples
 
     Type(lSamples) :: lSamp
+    !Sources
+    logical :: Log_lvalues  = .false.
 
     contains
 
     function lvalues_indexOf(lSet,l)
-        type(lSamples) :: lSet
-        integer, intent(in) :: l
-        integer lvalues_indexOf, i
+    type(lSamples) :: lSet
+    integer, intent(in) :: l
+    integer lvalues_indexOf, i
 
-        do i=2,lSet%l0
+    do i=2,lSet%l0
         if (l < lSet%l(i)) then
             lvalues_indexOf = i-1
             return
         end if
-        end do
-        lvalues_indexOf = lSet%l0
+    end do
+    lvalues_indexOf = lSet%l0
 
     end function  lvalues_indexOf
 
@@ -760,83 +762,93 @@
         ls(lind)=lvar
     end do
 
-    step=max(nint(20*Ascale),4)
-    bot=ls(lind)+step
-    top=bot+step*2
-
-    do lvar = bot,top,step
-        lind=lind+1
-        ls(lind)=lvar
-    end do
-
-    if (ls(lind)>=max_l) then
-        do lvar=lind,1,-1
-            if (ls(lvar)<=max_l) exit
-        end do
-        lind=lvar
-        if (ls(lind)<max_l) then
-            lind=lind+1
-            ls(lind)=max_l
-        end if
-    else
-
-    step=max(nint(25*Ascale),4)
-    !Get EE right around l=200 by putting extra point at 175
-    bot=ls(lind)+step
-    top=bot+step
-
-    do lvar = bot,top,step
-        lind=lind+1
-        ls(lind)=lvar
-    end do
-
-
-    if (ls(lind)>=max_l) then
-        do lvar=lind,1,-1
-            if (ls(lvar)<=max_l) exit
-        end do
-        lind=lvar
-        if (ls(lind)<max_l) then
-            lind=lind+1
-            ls(lind)=max_l
-        end if
-    else
-
-    if (HighAccuracyDefault .and. .not. use_spline_template) then
-        step=max(nint(42*Ascale),7)
-    else
-        step=max(nint(50*Ascale),7)
-    end if
-    bot=ls(lind)+step
-    top=min(5000,max_l)
-
-    do lvar = bot,top,step
-        lind=lind+1
-        ls(lind)=lvar
-    end do
-
-    if (max_l > 5000) then
-        !Should be pretty smooth or tiny out here
-        step=max(nint(400*Ascale),50)
-        lvar = ls(lind)
-
+    !Sources
+    if (Log_lvalues) then
+        !Useful for generating smooth things like 21cm to high l
+        step=max(nint(20*Ascale),4)
         do
             lvar = lvar + step
             if (lvar > max_l) exit
             lind=lind+1
             ls(lind)=lvar
-            step = nint(step*1.5) !log spacing
+            step = nint(step*1.2) !log spacing
+        end do
+    else
+        step=max(nint(20*Ascale),4)
+        bot=ls(lind)+step
+        top=bot+step*2
+
+        do lvar = bot,top,step
+            lind=lind+1
+            ls(lind)=lvar
         end do
 
-    end if
+        if (ls(lind)>=max_l) then
+            do lvar=lind,1,-1
+                if (ls(lvar)<=max_l) exit
+            end do
+            lind=lvar
+            if (ls(lind)<max_l) then
+                lind=lind+1
+                ls(lind)=max_l
+            end if
+        else
 
-    if (ls(lind) /=max_l) then
-        lind=lind+1
-        ls(lind)=max_l
-    end if
-    if (.not. CP%flat) ls(lind-1)=int(max_l+ls(lind-2))/2
-    !Not in CP%flat case so interpolation table is the same when using lower l_max
-    end if
+        step=max(nint(25*Ascale),4)
+        !Get EE right around l=200 by putting extra point at 175
+        bot=ls(lind)+step
+        top=bot+step
+
+        do lvar = bot,top,step
+            lind=lind+1
+            ls(lind)=lvar
+        end do
+
+        if (ls(lind)>=max_l) then
+            do lvar=lind,1,-1
+                if (ls(lvar)<=max_l) exit
+            end do
+            lind=lvar
+            if (ls(lind)<max_l) then
+                lind=lind+1
+                ls(lind)=max_l
+            end if
+        else
+            if (HighAccuracyDefault .and. .not. use_spline_template) then
+                step=max(nint(42*Ascale),7)
+            else
+                step=max(nint(50*Ascale),7)
+            end if
+            bot=ls(lind)+step
+            top=min(5000,max_l)
+
+            do lvar = bot,top,step
+                lind=lind+1
+                ls(lind)=lvar
+            end do
+
+            if (max_l > 5000) then
+                !Should be pretty smooth or tiny out here
+                step=max(nint(400*Ascale),50)
+                lvar = ls(lind)
+                do
+                    lvar = lvar + step
+                    if (lvar > max_l) exit
+                    lind=lind+1
+                    ls(lind)=lvar
+                    step = nint(step*1.5) !log spacing
+                end do
+            end if
+            !Sources
+        end if !log_lvalues
+
+        if (ls(lind) /=max_l) then
+            lind=lind+1
+            ls(lind)=max_l
+        end if
+        if (.not. CP%flat) ls(lind-1)=int(max_l+ls(lind-2))/2
+        !Not in CP%flat case so interpolation table is the same when using lower l_max
+        end if
     end if
     lSet%l0=lind
     lSet%l(1:lind) = ls(1:lind)
@@ -976,6 +988,10 @@
     !Indices are Cl_xxx( l , intial_power_index, Cl_type)
     !where Cl_type is one of the above constants
 
+    real(dl), dimension (:,:,:,:), allocatable :: Cl_Scalar_Array
+    !Indices are Cl_xxx( l , intial_power_index, field1,field2)
+    !where ordering of fields is T, E, \psi (CMB lensing potential), window_1, window_2...
+
     !The following are set only if doing lensing
     integer lmax_lensed !Only accurate to rather less than this
     real(dl) , dimension (:,:,:), allocatable :: Cl_lensed
@@ -997,11 +1013,11 @@
     end subroutine Init_ClTransfer
 
     subroutine Init_Limber(CTrans)
-        Type(ClTransferData) :: CTrans
+    Type(ClTransferData) :: CTrans
 
-        allocate(CTrans%Limber_l_min(CTrans%NumSources))
-        CTrans%Limber_l_min = 0
-        allocate(CTrans%Limber_windows(CTrans%NumSources,CTrans%ls%l0))
+    allocate(CTrans%Limber_l_min(CTrans%NumSources))
+    CTrans%Limber_l_min = 0
+    allocate(CTrans%Limber_windows(CTrans%NumSources,CTrans%ls%l0))
 
     end subroutine Init_Limber
 
@@ -1012,8 +1028,28 @@
     deallocate(CTrans%Delta_p_l_k, STAT = st)
     nullify(CTrans%Delta_p_l_k)
     call Ranges_Free(CTrans%q)
+    call Free_Limber(CTrans)
 
     end subroutine Free_ClTransfer
+
+    subroutine Free_Limber(CTrans)
+    Type(ClTransferData) :: CTrans
+    integer st,i,j
+
+    do i=1, CTrans%NumSources
+        if (CTrans%Limber_l_min(i)/=0) then
+            do j=CTrans%Limber_l_min(i), CTrans%ls%l0
+                deallocate(CTrans%Limber_windows(i, j)%k, STAT = st)
+                deallocate(CTrans%Limber_windows(i, j)%Source, STAT = st)
+            end do
+        end if
+    end do
+    deallocate(CTrans%Limber_l_min, STAT = st)
+    deallocate(CTrans%Limber_windows, STAT = st)
+    nullify(CTrans%Limber_l_min)
+    nullify(CTrans%Limber_windows)
+
+    end subroutine Free_Limber
 
     subroutine CheckLoadedHighLTemplate
     integer L
@@ -1038,7 +1074,6 @@
     end subroutine CheckLoadedHighLTemplate
 
 
-
     subroutine Init_Cls
 
     call CheckLoadedHighLTemplate
@@ -1046,6 +1081,11 @@
         if (allocated(Cl_scalar)) deallocate(Cl_scalar)
         allocate(Cl_scalar(lmin:CP%Max_l, CP%InitPower%nn, C_Temp:C_last))
         Cl_scalar = 0
+        if (has_cl_2D_array) then
+            if (allocated(Cl_scalar_array)) deallocate(Cl_scalar_array)
+            allocate(Cl_scalar_Array(lmin:CP%Max_l, CP%InitPower%nn, 3+num_redshiftwindows,3+num_redshiftwindows))
+            Cl_scalar_array = 0
+        end if
     end if
 
     if (CP%WantVectors) then
@@ -1063,13 +1103,15 @@
 
     end subroutine Init_Cls
 
-    subroutine output_cl_files(ScalFile,TensFile, TotFile, LensFile, LensTotFile, factor)
+    subroutine output_cl_files(ScalFile,ScalCovFile,TensFile, TotFile, LensFile, LensTotFile, factor)
     implicit none
     integer in,il
-    character(LEN=*) ScalFile, TensFile, TotFile, LensFile, LensTotFile
+    character(LEN=*) ScalFile, TensFile, TotFile, LensFile, LensTotFile,ScalCovfile
     real(dl), intent(in), optional :: factor
     real(dl) fact
     integer last_C
+    real(dl), allocatable :: outarr(:,:)
+
 
     if (present(factor)) then
         fact = factor
@@ -1090,6 +1132,27 @@
             end do
         end do
         close(fileio_unit)
+    end if
+
+    if (CP%WantScalars .and. has_cl_2D_array .and. ScalCovFile /= '' .and. CTransScal%NumSources>2) then
+        allocate(outarr(1:3+num_redshiftwindows,1:3+num_redshiftwindows))
+        open(unit=fileio_unit,file=ScalCovFile,form='formatted',status='replace')
+        do in=1,CP%InitPower%nn
+            do il=lmin,min(10000,CP%Max_l)
+                outarr=Cl_scalar_array(il,in,1:3+num_redshiftwindows,1:3+num_redshiftwindows)
+                outarr(1:2,:)=sqrt(fact)*outarr(1:2,:)
+                outarr(:,1:2)=sqrt(fact)*outarr(:,1:2)
+                write(fileio_unit,trim(numcat('(1I6,',(3+num_redshiftwindows)**2))//'E15.5)') il, outarr
+            end do
+            do il=10100,CP%Max_l, 100
+                outarr=Cl_scalar_array(il,in,1:3+num_redshiftwindows,1:3+num_redshiftwindows)
+                outarr(1:2,:)=sqrt(fact)*outarr(1:2,:)
+                outarr(:,1:2)=sqrt(fact)*outarr(:,1:2)
+                write(fileio_unit,trim(numcat('(1E15.5,',(3+num_redshiftwindows)**2))//'E15.5)') real(il), outarr
+            end do
+        end do
+        close(fileio_unit)
+        deallocate(outarr)
     end if
 
     if (CP%WantTensors .and. TensFile /= '') then
@@ -1257,6 +1320,7 @@
     if (allocated(Cl_tensor)) deallocate(Cl_tensor)
     if (allocated(Cl_scalar)) deallocate(Cl_scalar)
     if (allocated(Cl_lensed)) deallocate(Cl_lensed)
+    if (allocated(Cl_scalar_array)) deallocate(Cl_scalar_array)
 
     end subroutine ModelData_Free
 
