@@ -104,7 +104,8 @@
     logical :: separate = .true. !whether to do P_k in separate call or not
     logical :: InReionization
 
-    if (Params%DoLensing .and. Params%NonLinear==NonLinear_Lens) separate = .false.
+    if ((Params%DoLensing .or. num_redshiftwindows>0)&
+    .and. Params%NonLinear==NonLinear_Lens) separate = .false.
     InReionization = Params%Reion%Reionization
     global_error_flag = 0
     call_again = .false.
@@ -242,7 +243,6 @@
 
     function CAMB_GetAge(P)
     !Return age in gigayears, returns -1 on error
-    use constants
     type(CAMBparams), intent(in) :: P
     real(dl) CAMB_GetAge
     integer error
