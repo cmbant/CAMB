@@ -2217,15 +2217,12 @@
         +2*(dotmu(i)-dotmu(i+1)))))
 
         if (present(dopacity)) then
-
-        dopacity=(ddotmu(i)+d*(dddotmu(i)+d*(3*(ddotmu(i+1)  &
-        -ddotmu(i))-2*dddotmu(i)-dddotmu(i+1)+d*(dddotmu(i) &
-        +dddotmu(i+1)+2*(ddotmu(i)-ddotmu(i+1))))))/(tau*dlntau)
-
+            dopacity=(ddotmu(i)+d*(dddotmu(i)+d*(3*(ddotmu(i+1)  &
+            -ddotmu(i))-2*dddotmu(i)-dddotmu(i+1)+d*(dddotmu(i) &
+            +dddotmu(i+1)+2*(ddotmu(i)-ddotmu(i+1))))))/(tau*dlntau)
         end if
     end if
     end subroutine thermo
-
 
 
     function Thermo_OpacityToTime(opacity)
@@ -2346,7 +2343,6 @@
             if(ncount == 0) then
                 ncount=i-1
             end if
-
             xe(i) = Reionization_xe(a, tau, xe(ncount))
             !print *,1/a-1,xe(i)
             if (CP%AccurateReionization .and. CP%DerivedParameters) then
@@ -2357,11 +2353,9 @@
                 end if
                 last_dotmu = dotmu(i)
             end if
-
         else
             xe(i)=Recombination_xe(a)
         end if
-
 
         !  Baryon sound speed squared (over c**2).
         dtbdla=-2._dl*tb(i)-thomc*adothalf/adot*(a*tb(i)-CP%tcmb)
@@ -2577,11 +2571,9 @@
     call Ranges_Add_delta(TimeSteps,taurend, CP%tau0, dtau0)
 
     if (CP%Reion%Reionization) then
-
-    nri0=int(Reionization_timesteps(CP%ReionHist)*AccuracyBoost)
-    !Steps while reionization going from zero to maximum
-    call Ranges_Add(TimeSteps,CP%ReionHist%tau_start,CP%ReionHist%tau_complete,nri0)
-
+        nri0=int(Reionization_timesteps(CP%ReionHist)*AccuracyBoost)
+        !Steps while reionization going from zero to maximum
+        call Ranges_Add(TimeSteps,CP%ReionHist%tau_start,CP%ReionHist%tau_complete,nri0)
     end if
 
     !Create arrays out of the region information.
