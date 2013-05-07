@@ -1820,24 +1820,22 @@
         ( PK%log_kh(PK%num_k)-PK%log_kh(PK%num_k-1) )
         outpower = PK%matpower(PK%num_k,itf) + dp*(logk - PK%log_kh(PK%num_k))
     else
+        llo=min(i_last,PK%num_k)
+        do while (PK%log_kh(llo) > logk)
+            llo=llo-1
+        end do
+        do while (PK%log_kh(llo+1)< logk)
+            llo=llo+1
+        end do
+        i_last =llo
+        lhi=llo+1
+        ho=PK%log_kh(lhi)-PK%log_kh(llo)
+        a0=(PK%log_kh(lhi)-logk)/ho
+        b0=1-a0
 
-    llo=min(i_last,PK%num_k)
-    do while (PK%log_kh(llo) > logk)
-        llo=llo-1
-    end do
-    do while (PK%log_kh(llo+1)< logk)
-        llo=llo+1
-    end do
-    i_last =llo
-    lhi=llo+1
-    ho=PK%log_kh(lhi)-PK%log_kh(llo)
-    a0=(PK%log_kh(lhi)-logk)/ho
-    b0=1-a0
-
-    outpower = a0*PK%matpower(llo,itf)+ b0*PK%matpower(lhi,itf)+&
-    ((a0**3-a0)* PK%ddmat(llo,itf) &
-    +(b0**3-b0)*PK%ddmat(lhi,itf))*ho**2/6
-
+        outpower = a0*PK%matpower(llo,itf)+ b0*PK%matpower(lhi,itf)+&
+        ((a0**3-a0)* PK%ddmat(llo,itf) &
+        +(b0**3-b0)*PK%ddmat(lhi,itf))*ho**2/6
     end if
 
     outpower = exp(max(-30._dl,outpower))
@@ -2066,7 +2064,6 @@
     stop 'Transfer_SetForNonlinearLensing: Too many redshifts'
     do i=1,P%num_redshifts
         P%redshifts(i) = real(P%num_redshifts-i)/(P%num_redshifts/maxRedshift)
-
     end do
 
     end subroutine Transfer_SetForNonlinearLensing
@@ -2101,61 +2098,52 @@
     character(LEN=Ini_max_string_len), intent(IN) :: FileNames(*)
     integer itf,in,i
     integer points
-    real, dimension(:,:), allocatable :: outpower
+    real, dimension(:,:,:), allocatable :: outpower
     character(LEN=80) fmt
     real minkh,dlnkh
     Type(MatterPowerData) :: PK_data
+    integer ncol
 
+    ncol=1
 
     write (fmt,*) CP%InitPower%nn+1
     fmt = '('//trim(adjustl(fmt))//'E15.5)'
     do itf=1, CP%Transfer%num_redshifts
         if (FileNames(itf) /= '') then
+            if (.not. transfer_interp_matterpower ) then
+                points = MTrans%num_q_trans
+                allocate(outpower(points,CP%InitPower%nn,ncol))
 
+                do in = 1, CP%InitPower%nn
+                    call Transfer_GetMatterPowerData(MTrans, PK_data, in, itf)
+                    if (CP%NonLinear/=NonLinear_None) call MatterPowerdata_MakeNonlinear(PK_Data)
+                    outpower(:,in,1) = exp(PK_data%matpower(:,1))
+                    call MatterPowerdata_Free(PK_Data)
+                end do
 
-        if (.not. transfer_interp_matterpower ) then
+                open(unit=fileio_unit,file=FileNames(itf),form='formatted',status='replace')
+                do i=1,points
+                    write (fileio_unit, fmt) MTrans%TransferData(Transfer_kh,i,1),outpower(i,1:CP%InitPower%nn,:)
+                end do
+                close(fileio_unit)
+            else
+                minkh = 1e-4
+                dlnkh = 0.02
+                points = log(MTrans%TransferData(Transfer_kh,MTrans%num_q_trans,itf)/minkh)/dlnkh+1
+                !             dlnkh = log(MTrans%TransferData(Transfer_kh,MTrans%num_q_trans,itf)/minkh)/(points-0.999)
+                allocate(outpower(points,CP%InitPower%nn,1))
+                do in = 1, CP%InitPower%nn
+                    call Transfer_GetMatterPowerS(MTrans,outpower(1,in,1), itf, in, minkh,dlnkh, points)
+                end do
 
-        points = MTrans%num_q_trans
-        allocate(outpower(points,CP%InitPower%nn))
+                open(unit=fileio_unit,file=FileNames(itf),form='formatted',status='replace')
+                do i=1,points
+                    write (fileio_unit, fmt) minkh*exp((i-1)*dlnkh),outpower(i,1:CP%InitPower%nn,1)
+                end do
+                close(fileio_unit)
+            end if
 
-        do in = 1, CP%InitPower%nn
-
-        call Transfer_GetMatterPowerData(MTrans, PK_data, in, itf)
-
-        if (CP%NonLinear/=NonLinear_None) call MatterPowerdata_MakeNonlinear(PK_Data)
-
-        outpower(:,in) = exp(PK_data%matpower(:,1))
-        call MatterPowerdata_Free(PK_Data)
-        end do
-
-        open(unit=fileio_unit,file=FileNames(itf),form='formatted',status='replace')
-        do i=1,points
-            write (fileio_unit, fmt) MTrans%TransferData(Transfer_kh,i,1),outpower(i,1:CP%InitPower%nn)
-        end do
-        close(fileio_unit)
-
-        else
-
-
-        minkh = 1e-4
-        dlnkh = 0.02
-        points = log(MTrans%TransferData(Transfer_kh,MTrans%num_q_trans,itf)/minkh)/dlnkh+1
-        !             dlnkh = log(MTrans%TransferData(Transfer_kh,MTrans%num_q_trans,itf)/minkh)/(points-0.999)
-        allocate(outpower(points,CP%InitPower%nn))
-        do in = 1, CP%InitPower%nn
-            call Transfer_GetMatterPowerS(MTrans,outpower(1,in), itf, in, minkh,dlnkh, points)
-        end do
-
-        open(unit=fileio_unit,file=FileNames(itf),form='formatted',status='replace')
-        do i=1,points
-            write (fileio_unit, fmt) minkh*exp((i-1)*dlnkh),outpower(i,1:CP%InitPower%nn)
-        end do
-        close(fileio_unit)
-
-        end if
-
-        deallocate(outpower)
-
+            deallocate(outpower)
         end if
     end do
 
@@ -2548,20 +2536,19 @@
         end if
 
         if (FeedbackLevel > 0) then
+            write(*,'("Age of universe/GYr  = ",f7.3)') ThermoDerivedParams( derived_Age )
+            write(*,'("zstar                = ",f8.2)') ThermoDerivedParams( derived_zstar )
+            write(*,'("r_s(zstar)/Mpc       = ",f7.2)') ThermoDerivedParams( derived_rstar )
+            write(*,'("100*theta            = ",f9.6)') ThermoDerivedParams( derived_thetastar )
 
-        write(*,'("Age of universe/GYr  = ",f7.3)') ThermoDerivedParams( derived_Age )
-        write(*,'("zstar                = ",f8.2)') ThermoDerivedParams( derived_zstar )
-        write(*,'("r_s(zstar)/Mpc       = ",f7.2)') ThermoDerivedParams( derived_rstar )
-        write(*,'("100*theta            = ",f9.6)') ThermoDerivedParams( derived_thetastar )
+            write(*,'("zdrag                = ",f8.2)') ThermoDerivedParams( derived_zdrag )
+            write(*,'("r_s(zdrag)/Mpc       = ",f7.2)') ThermoDerivedParams( derived_rdrag )
 
-        write(*,'("zdrag                = ",f8.2)') ThermoDerivedParams( derived_zdrag )
-        write(*,'("r_s(zdrag)/Mpc       = ",f7.2)') ThermoDerivedParams( derived_rdrag )
+            write(*,'("k_D(zstar) Mpc       = ",f7.4)') ThermoDerivedParams( derived_kD )
+            write(*,'("100*theta_D          = ",f9.6)') ThermoDerivedParams( derived_thetaD )
 
-        write(*,'("k_D(zstar) Mpc       = ",f7.4)') ThermoDerivedParams( derived_kD )
-        write(*,'("100*theta_D          = ",f9.6)') ThermoDerivedParams( derived_thetaD )
-
-        write(*,'("z_EQ (if v_nu=1)     = ",f8.2)') ThermoDerivedParams( derived_zEQ )
-        write(*,'("100*theta_EQ         = ",f9.6)') ThermoDerivedParams( derived_thetaEQ )
+            write(*,'("z_EQ (if v_nu=1)     = ",f8.2)') ThermoDerivedParams( derived_zEQ )
+            write(*,'("100*theta_EQ         = ",f9.6)') ThermoDerivedParams( derived_thetaEQ )
         end if
     end if
 
