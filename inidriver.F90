@@ -34,7 +34,8 @@
 
     logical bad
 
-    InputFile = GetParam(1)
+    InputFile = ''
+    if (GetParamCount() /= 0)  InputFile = GetParam(1)
     if (InputFile == '') stop 'No parameter input file'
 
     call Ini_Open(InputFile, 1, bad, .false.)
@@ -300,19 +301,17 @@
     end if
 
     if (P%WantCls) then
+        call output_cl_files(ScalarFileName, ScalarCovFileName, TensorFileName, TotalFileName, &
+        LensedFileName, LensedTotFilename, output_factor)
 
-    call output_cl_files(ScalarFileName, ScalarCovFileName, TensorFileName, TotalFileName, &
-    LensedFileName, LensedTotFilename, output_factor)
+        call output_lens_pot_files(LensPotentialFileName, output_factor)
 
-    call output_lens_pot_files(LensPotentialFileName, output_factor)
-
-    if (P%WantVectors) then
-        call output_veccl_files(VectorFileName, output_factor)
-    end if
-
+        if (P%WantVectors) then
+            call output_veccl_files(VectorFileName, output_factor)
+        end if
 
 #ifdef WRITE_FITS
-    if (FITSfilename /= '') call WriteFitsCls(FITSfilename, CP%Max_l)
+        if (FITSfilename /= '') call WriteFitsCls(FITSfilename, CP%Max_l)
 #endif
     end if
 

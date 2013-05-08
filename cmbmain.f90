@@ -392,7 +392,7 @@
     real(dl) a0,b0,ho2o6,a03,b03,ho
     Type(LimberRec), pointer :: LimbRec
 
-    if (num_redshiftwindows>0 .or. limber_phiphi>0) call Init_Limber(ThisCT)
+    call Init_Limber(ThisCT)
 
     if (num_redshiftwindows==0 .and. limber_phiphi==0 .or. .not. CP%WantScalars) then
         max_bessels_l_index = ThisCT%ls%l0
@@ -2160,7 +2160,7 @@
                             end do
                         end if
 
-                        if (CTrans%NumSources>2) then
+                        if (CTrans%NumSources>2 ) then
                             if (limber_phiphi==0 .or.  CTrans%limber_l_min(3)== 0 .or. j<CTrans%limber_l_min(3)) then
                                 iCl_scalar(j,C_Phi,pix) = iCl_scalar(j,C_Phi,pix) +  &
                                 apowers*CTrans%Delta_p_l_k(3,j,q_ix)**2*dlnk

@@ -1017,7 +1017,9 @@
 
     allocate(CTrans%Limber_l_min(CTrans%NumSources))
     CTrans%Limber_l_min = 0
-    allocate(CTrans%Limber_windows(CTrans%NumSources,CTrans%ls%l0))
+    if (num_redshiftwindows>0 .or. limber_phiphi>0) then
+        allocate(CTrans%Limber_windows(CTrans%NumSources,CTrans%ls%l0))
+    end if
 
     end subroutine Init_Limber
 
