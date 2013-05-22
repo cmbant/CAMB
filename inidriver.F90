@@ -46,6 +46,8 @@
     outroot = Ini_Read_String('output_root')
     if (outroot /= '') outroot = trim(outroot) // '_'
 
+    highL_unlensed_cl_template = Ini_Read_String_Default('highL_unlensed_cl_template',highL_unlensed_cl_template)
+
     call CAMB_SetDefParams(P)
 
     P%WantScalars = Ini_Read_Logical('get_scalar_cls')
@@ -107,10 +109,10 @@
         P%omegan = Ini_Read_Double('omnuh2')/(P%H0/100)**2
         P%omegav = 1- Ini_Read_Double('omk') - P%omegab-P%omegac - P%omegan
     else
-        P%omegab = Ini_Read_Double('omega_baryon')
-        P%omegac = Ini_Read_Double('omega_cdm')
-        P%omegav = Ini_Read_Double('omega_lambda')
-        P%omegan = Ini_Read_Double('omega_neutrino')
+    P%omegab = Ini_Read_Double('omega_baryon')
+    P%omegac = Ini_Read_Double('omega_cdm')
+    P%omegav = Ini_Read_Double('omega_lambda')
+    P%omegan = Ini_Read_Double('omega_neutrino')
     end if
 
     P%tcmb   = Ini_Read_Double('temp_cmb',COBE_CMBTemp)
