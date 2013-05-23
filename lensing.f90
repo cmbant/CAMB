@@ -119,8 +119,9 @@ subroutine CorrFuncFullSkyImpl(lmax)
   real(dl) d_22(lmax),d_2m2(lmax),d_20(lmax)
   real(dl) Cphil3(lmin:lmax), CTT(lmin:lmax), CTE(lmin:lmax),CEE(lmin:lmax)
   real(dl) ls(lmax)
-  real(dl) xl(lmax),ddcontribs(lmax,4),corrcontribs(lmax,4)
-  real(dl), allocatable, dimension(:,:,:) :: lens_contrib(:,:,:)
+  real(dl) xl(lmax)
+  real(dl), allocatable :: ddcontribs(:,:),corrcontribs(:,:)
+  real(dl), allocatable :: lens_contrib(:,:,:)
   integer thread_ix
   real(dl) pmm, pmmp1
   real(dl) d4m4,d11,dm11,d2m2,d22,d20,d23,d2m3,d33,d3m3,d04,d1m2,d12,d13,d1m3,d2m4
@@ -196,6 +197,7 @@ subroutine CorrFuncFullSkyImpl(lmax)
     thread_ix = 1
     !$ thread_ix = OMP_GET_MAX_THREADS()  
     allocate(lens_contrib(4,lmax_lensed,thread_ix))
+    allocate(ddcontribs(lmax,4),corrcontribs(lmax,4))
 
     do in = 1, CP%InitPower%nn
 
@@ -483,8 +485,9 @@ end if
 
       end do
 
-      end do !loop over different initial power spectra
-     deallocate(lens_contrib)
+    end do !loop over different initial power spectra
+    deallocate(ddcontribs,corrcontribs)
+    deallocate(lens_contrib)
 
      if (DebugMsgs) write(*,*) GetTestTime()-timeprev, 'Time for corr lensing'
 

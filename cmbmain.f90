@@ -407,7 +407,7 @@
     end if
 
     if (CP%Want_CMB) then
-        max_bessels_etak= min(ThisCT%ls%l(ThisCT%ls%l0),3000)*2.5_dl
+        max_bessels_etak= min(ThisCT%ls%l(ThisCT%ls%l0),3000)*2.5_dl*AccuracyBoost
     else
         max_bessels_etak = 5000
     end if
