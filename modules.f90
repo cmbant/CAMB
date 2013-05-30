@@ -35,13 +35,15 @@
     implicit none
     public
 
-    character(LEN=*), parameter :: version = 'Mar_13b'
+    character(LEN=*), parameter :: version = 'Jun13'
 
     integer :: FeedbackLevel = 0 !if >0 print out useful information about the model
 
     logical, parameter :: DebugMsgs=.false. !Set to true to view progress and timing
 
     logical, parameter :: DebugEvolution = .false. !Set to true to do all the evolution for all k
+
+    real(dl) :: DebugParam = 0._dl !not used but read in, useful for parameter-dependent tests
 
     logical ::  do_bispectrum  = .false.
     logical, parameter :: hard_bispectrum = .false. ! e.g. warm inflation where delicate cancellations
@@ -2519,34 +2521,34 @@
         ThermoDerivedParams( derived_thetaEQ ) = 100*timeOfz( ThermoDerivedParams( derived_zEQ ))/DA
 
         if (associated(BackgroundOutputs%z_outputs)) then
-            if (allocated(BackgroundOutputs%H)) &
+        if (allocated(BackgroundOutputs%H)) &
             deallocate(BackgroundOutputs%H, BackgroundOutputs%DA, BackgroundOutputs%rs_by_D_v)
             noutput = size(BackgroundOutputs%z_outputs)
             allocate(BackgroundOutputs%H(noutput), BackgroundOutputs%DA(noutput), BackgroundOutputs%rs_by_D_v(noutput))
             do i=1,noutput
-                BackgroundOutputs%H(i) = HofZ(BackgroundOutputs%z_outputs(i))
+            BackgroundOutputs%H(i) = HofZ(BackgroundOutputs%z_outputs(i))
                 BackgroundOutputs%DA(i) = AngularDiameterDistance(BackgroundOutputs%z_outputs(i))
                 BackgroundOutputs%rs_by_D_v(i) = rs/BAO_D_v_from_DA_H(BackgroundOutputs%z_outputs(i), &
                 BackgroundOutputs%DA(i),BackgroundOutputs%H(i))
-            end do
+                end do
+            end if
+
+            if (FeedbackLevel > 0) then
+                write(*,'("Age of universe/GYr  = ",f7.3)') ThermoDerivedParams( derived_Age )
+                write(*,'("zstar                = ",f8.2)') ThermoDerivedParams( derived_zstar )
+                write(*,'("r_s(zstar)/Mpc       = ",f7.2)') ThermoDerivedParams( derived_rstar )
+                write(*,'("100*theta            = ",f9.6)') ThermoDerivedParams( derived_thetastar )
+
+                write(*,'("zdrag                = ",f8.2)') ThermoDerivedParams( derived_zdrag )
+                write(*,'("r_s(zdrag)/Mpc       = ",f7.2)') ThermoDerivedParams( derived_rdrag )
+
+                write(*,'("k_D(zstar) Mpc       = ",f7.4)') ThermoDerivedParams( derived_kD )
+                write(*,'("100*theta_D          = ",f9.6)') ThermoDerivedParams( derived_thetaD )
+
+                write(*,'("z_EQ (if v_nu=1)     = ",f8.2)') ThermoDerivedParams( derived_zEQ )
+                write(*,'("100*theta_EQ         = ",f9.6)') ThermoDerivedParams( derived_thetaEQ )
+            end if
         end if
-
-        if (FeedbackLevel > 0) then
-            write(*,'("Age of universe/GYr  = ",f7.3)') ThermoDerivedParams( derived_Age )
-            write(*,'("zstar                = ",f8.2)') ThermoDerivedParams( derived_zstar )
-            write(*,'("r_s(zstar)/Mpc       = ",f7.2)') ThermoDerivedParams( derived_rstar )
-            write(*,'("100*theta            = ",f9.6)') ThermoDerivedParams( derived_thetastar )
-
-            write(*,'("zdrag                = ",f8.2)') ThermoDerivedParams( derived_zdrag )
-            write(*,'("r_s(zdrag)/Mpc       = ",f7.2)') ThermoDerivedParams( derived_rdrag )
-
-            write(*,'("k_D(zstar) Mpc       = ",f7.4)') ThermoDerivedParams( derived_kD )
-            write(*,'("100*theta_D          = ",f9.6)') ThermoDerivedParams( derived_thetaD )
-
-            write(*,'("z_EQ (if v_nu=1)     = ",f8.2)') ThermoDerivedParams( derived_zEQ )
-            write(*,'("100*theta_EQ         = ",f9.6)') ThermoDerivedParams( derived_thetaEQ )
-        end if
-    end if
 
     end subroutine inithermo
 

@@ -178,6 +178,7 @@
 
     Ini_fail_on_not_found = .false.
 
+    DebugParam = Ini_Read_Double('DebugParam',DebugParam)
     ALens = Ini_Read_Double('Alens',Alens)
 
     call Reionization_ReadParams(P%Reion, DefIni)

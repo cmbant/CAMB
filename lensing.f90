@@ -133,9 +133,9 @@ subroutine CorrFuncFullSkyImpl(lmax)
   integer j,jmax
   integer llo, lhi
   real(dl) a0,b0,ho, sc
+  integer apodize_point_width
   logical :: short_integral_range
-  integer, parameter :: slow_highL = 5000 !Lmax at which to do full range to prevent ringing etc
-
+  real(dl) range_fac
   logical, parameter :: approx = .false.
 
 !$ integer  OMP_GET_THREAD_NUM, OMP_GET_MAX_THREADS
@@ -144,7 +144,6 @@ subroutine CorrFuncFullSkyImpl(lmax)
     if (lensing_includes_tensors) stop 'Haven''t implemented tensor lensing'
 
     max_lensed_ix = lSamp%l0-1
-!    do while(lSamp%l(max_lensed_ix) > CP%Max_l -250)
     do while(lSamp%l(max_lensed_ix) > CP%Max_l - lensed_convolution_margin) 
       max_lensed_ix = max_lensed_ix -1
     end do
@@ -154,27 +153,25 @@ subroutine CorrFuncFullSkyImpl(lmax)
     
     Cl_Lensed = 0
    
-    npoints = CP%Max_l  * 2    
-    short_integral_range = .not. CP%AccurateBB .and. CP%Max_l<=slow_highL
-    if (.not. short_integral_range ) npoints = npoints * 2 
-
+    npoints = CP%Max_l  * 2 *AccuracyBoost
+    short_integral_range = .not. CP%AccurateBB
     dtheta = pi / npoints
+    if (CP%Max_l > 3500) dtheta=dtheta/1.3
+    apodize_point_width = nint(0.003 / dtheta)
+    npoints = int(pi/dtheta)
     if (short_integral_range) then
-      npoints = int(npoints /32 *min(32._dl,AccuracyBoost)) 
+       range_fac= max(1._dl,32/AccuracyBoost) !fraction of range to integrate
+       npoints = int(npoints /range_fac)
       !OK for TT, EE, TE but inaccurate for low l BB
       !this induces high frequency ringing on very small scales
+      !which is then mitigated by the apodization below
+    else
+        range_fac=1
     end if
 
     if (DebugMsgs) timeprev=GetTestTime()
 
-    if (.not. short_integral_range) then
-     !There is an odd serious problem with interpolating if you do a large
-     !angular range.
-      
-     interp_fac =1
-    else
-     interp_fac = max(1,nint(10/AccuracyBoost))
-    end if
+    interp_fac = max(1,min(nint(10/AccuracyBoost),int(range_fac*2)-1))
 
     jmax = 0
     do l=lmin,lmax
@@ -410,8 +407,13 @@ do j=1,4
   corr(j) = sum(corrcontribs(1:14,j))+interp_fac*sum(corrcontribs(15:jmax,j))
 end do
 
-if (short_integral_range .and. i>npoints-20) &
-        corr=corr*exp(-(i-npoints+20)**2/150.0) !taper the end to help prevent ringing
+!if (short_integral_range .and. i>npoints-20) &
+!        corr=corr*exp(-(i-npoints+20)**2/150.0) !taper the end to help prevent ringing
+
+if (short_integral_range .and. i>npoints-apodize_point_width*3) &
+        corr=corr*exp(-(i-npoints+apodize_point_width*3)**2/real(2*apodize_point_width**2))
+            !taper the end to help prevent ringing
+
 
 !Interpolate contributions
 !Increasing interp_fac and using this seems to be slower than above

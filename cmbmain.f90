@@ -819,6 +819,7 @@
 
     q_cmb = 2*l_smooth_sample/CP%chi0*AccuracyBoost  !assume everything is smooth at l > l_smooth_sample
     dksmooth = q_cmb/2/(AccuracyBoost)**2
+    if (CP%Want_CMB) dksmooth = dksmooth/6
 
     call Ranges_Init(Evolve_q)
     call Ranges_Add_delta(Evolve_q, qmin, qmax_log, dlnk0, IsLog = .true.)
