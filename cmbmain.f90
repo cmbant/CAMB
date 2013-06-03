@@ -1416,9 +1416,9 @@
     real(dl) :: k
 
     !note increasing non-limber is not neccessarily more accurate unless AccuracyBoost much higher
-    !use **0.2 to at least give some sensitivity to Limber effects
+    !use **0.5 to at least give some sensitivity to Limber effects
     !Could be lower but care with phi-T correlation at lower L
-    UseLimber = l > 400*AccuracyBoost**0.2
+    UseLimber = l > 400*AccuracyBoost**0.5
 
     end function UseLimber
 
