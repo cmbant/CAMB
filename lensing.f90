@@ -137,6 +137,7 @@ subroutine CorrFuncFullSkyImpl(lmax)
   logical :: short_integral_range
   real(dl) range_fac
   logical, parameter :: approx = .false.
+  integer f_i_1,f_i_2
 
 !$ integer  OMP_GET_THREAD_NUM, OMP_GET_MAX_THREADS
 !$ external OMP_GET_THREAD_NUM, OMP_GET_MAX_THREADS
@@ -196,15 +197,30 @@ subroutine CorrFuncFullSkyImpl(lmax)
     allocate(lens_contrib(4,lmax_lensed,thread_ix))
     allocate(ddcontribs(lmax,4),corrcontribs(lmax,4))
 
+    if (nscatter>1) then
+        allocate(Cl_lensed_freqs(lmin:lmax_lensed,CP%InitPower%nn,1:4,num_cmb_freq,num_cmb_freq))
+    end if
+    
+    do f_i_1=nscatter,1,-1
+    do f_i_2=nscatter,1,-1
+
+    if (f_i_1==1 .and. f_i_2>1 .or. f_i_2==1 .and. f_i_1>1) cycle
+        
     do in = 1, CP%InitPower%nn
 
     do l=lmin,CP%Max_l
      ! (2*l+1)l(l+1)/4pi C_phi_phi: Cl_scalar(l,1,C_Phi) is l^4 C_phi_phi
        Cphil3(l) = Cl_scalar(l,in,C_Phi)*(2*l+1)*(l+1)/real(l,dl)**3/(4*pi) 
        fac = (2*l+1)/(4*pi) * 2*pi/(l*(l+1))
+       if (f_i_2>1 .or. f_i_2>1) then
+       CTT(l) =   Cl_Scalar_Array(l,in,4+ (f_i_1-2)*2,4+ (f_i_2-2)*2)*fac
+       CEE(l) =   Cl_Scalar_Array(l,in,5+ (f_i_1-2)*2,5+ (f_i_2-2)*2)*fac
+       CTE(l) =   Cl_Scalar_Array(l,in,4+ (f_i_1-2)*2,5+ (f_i_2-2)*2)*fac
+       else
        CTT(l) =  Cl_scalar(l,in,C_Temp)*fac
        CEE(l) =  Cl_scalar(l,in,C_E)*fac
        CTE(l) =  Cl_scalar(l,in,C_Cross)*fac
+       end if
     end do
     if (Cphil3(10) > 1e-7) then
      write (*,*) 'You need to normalize realistically to use lensing.'
@@ -474,6 +490,20 @@ end if
      end do
   !$OMP END PARALLEL DO
      
+      
+      if (f_i_1>1 .and. f_i_2>1) then
+         do l=lmin, lmax_lensed
+         !sign from d(cos theta) = -sin theta dtheta
+           fac = l*(l+1)/OutputDenominator*dtheta *2*pi
+           Cl_lensed_freqs(l,in,CT_Temp,f_i_1-1,f_i_2-1)= sum(lens_contrib(CT_Temp,l,:))*fac &
+                 +  Cl_Scalar_Array(l,in,4+ (f_i_1-2)*2,4+ (f_i_2-2)*2)
+           Cl_lensed_freqs(l,in,CT_E,f_i_1-1,f_i_2-1)=sum(lens_contrib(CT_E,l,:))*fac &
+                 +  Cl_Scalar_Array(l,in,5+ (f_i_1-2)*2,5+ (f_i_2-2)*2)
+           Cl_lensed_freqs(l,in,CT_B,f_i_1-1,f_i_2-1)= sum(lens_contrib(CT_B,l,:))*fac
+           Cl_lensed_freqs(l,in,CT_Cross,f_i_1-1,f_i_2-1)= sum(lens_contrib(CT_Cross,l,:))*fac &
+              +  Cl_Scalar_Array(l,in,4+ (f_i_1-2)*2,5+ (f_i_2-2)*2)
+        end do
+      else
       do l=lmin, lmax_lensed
          !sign from d(cos theta) = -sin theta dtheta
        fac = l*(l+1)/OutputDenominator*dtheta *2*pi
@@ -486,8 +516,12 @@ end if
                  + Cl_scalar(l,in,C_Cross) 
 
       end do
+      end if
 
-    end do !loop over different initial power spectra
+        end do !loop over different initial power spectra
+    end do !frequencies
+    end do !frequencies
+
     deallocate(ddcontribs,corrcontribs)
     deallocate(lens_contrib)
 

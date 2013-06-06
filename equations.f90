@@ -1241,7 +1241,7 @@
         real(dl) clxq, vq, diff_rhopi, octg, octgprime
         real(dl) sources(CTransScal%NumSources)
         real(dl) ISW
-        integer f_i, ix_off
+        integer f_i, ix_off, s_ix
         
         y(1:EV%nvar)=yin(1:EV%nvar)
         yprimein = 0
@@ -1385,10 +1385,10 @@
 
         pidot_sum =  pidot_sum + grhog_t*pigdot + grhor_t*pirdot
         diff_rhopi = pidot_sum - (4*dgpi+ dgpi_diff )*adotoa
+        s_ix=0
+        do f_i = 1, nscatter
 
-
-        f_i=1
-        if (.not. EV%no_phot_multpoles .and. EV%Rayleigh .and. f_i>1) then
+         if (.not. EV%no_phot_multpoles .and. EV%Rayleigh .and. f_i>1) then
             ix_off=EV%g_ix_freq+(f_i-2)*EV%freq_neq 
             y(EV%g_ix:EV%g_ix+EV%freq_neq-1) = yin(EV%g_ix:EV%g_ix+EV%freq_neq-1)+ &
                  yin(ix_off:ix_off+EV%freq_neq-1)
@@ -1404,7 +1404,7 @@
              qg  =y(EV%g_ix+1)
              qgdot =yprime(EV%g_ix+1)
      
-        end if
+         end if
         
 !Maple's fortran output - see scal_eqs.map
 !2phi' term (\phi' + \psi' in Newtonian gauge)
@@ -1416,7 +1416,7 @@
 !  if (1/a-1 < 30) ISW=0
 
 !The rest, note y(9)->octg, yprime(9)->octgprime (octopoles)
-    sources(1)= ISW +  ((-9.D0/160.D0*pig-27.D0/80.D0*ypol(2))/k**2*opac(j,f_i)+(11.D0/10.D0*sigma- &
+    sources(s_ix+1)= ISW +  ((-9.D0/160.D0*pig-27.D0/80.D0*ypol(2))/k**2*opac(j,f_i)+(11.D0/10.D0*sigma- &
     3.D0/8.D0*EV%Kf(2)*ypol(3)+vb-9.D0/80.D0*EV%Kf(2)*octg+3.D0/40.D0*qg)/k-(- &
     180.D0*ypolprime(2)-30.D0*pigdot)/k**2/160.D0)*dvis(j,f_i)+(-(9.D0*pigdot+ &
     54.D0*ypolprime(2))/k**2*opac(j,f_i)/160.D0+pig/16.D0+clxg/4.D0+3.D0/8.D0*ypol(2)+(- &
@@ -1448,13 +1448,14 @@
 
       if (x > 0._dl) then
          !E polarization source
-           sources(2)=vis(j,f_i)*polter*(15._dl/8._dl)/divfac 
+           sources(s_ix+2)=vis(j,f_i)*polter*(15._dl/8._dl)/divfac 
                !factor of four because no 1/16 later
         else
-           sources(2)=0
+           sources(s_ix+2)=0
         end if
- 
-      if (CTransScal%NumSources > 2) then
+       s_ix=s_ix+2 
+        
+      if (CTransScal%NumSources > 2 .and. f_i==1) then
          !Get lensing sources
          !Can modify this here if you want to get power spectra for other tracer
        if (tau>taurend .and. CP%tau0-tau > 0.1_dl) then
@@ -1470,7 +1471,12 @@
        else
          sources(3) = 0
        end if
+       s_ix=s_ix+1 
+
       end if
+      
+       end do !f_i
+
       
      end subroutine output
 

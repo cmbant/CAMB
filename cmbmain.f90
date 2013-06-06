@@ -678,7 +678,6 @@
     end subroutine DoSourcek
 
     subroutine GetSourceMem
-
     if (CP%WantScalars) then
         if (WantLateTime) then
             SourceNum=3
@@ -688,6 +687,7 @@
             SourceNum=2
             C_last = C_Cross
         end if
+        SourceNum=SourceNum + num_cmb_freq*2
     else
         SourceNum=3
     end if
@@ -1503,6 +1503,7 @@
                     sums(1) = sums(1) + IV%Source_q(n,1)*J_l
                     sums(2) = sums(2) + IV%Source_q(n,2)*J_l
                     sums(3) = sums(3) + IV%Source_q(n,3)*J_l
+                    sums(4:SourceNum) = sums(4:SourceNum) + IV%Source_q(n,4:SourceNum)*J_l
 
                 end do
             end if
@@ -2143,19 +2144,19 @@
                             ctnorm=sqrt((ell*ell-1)*(ell+2)*ell)
                             dbletmp=(ell*(ell+1))/OutputDenominator*fourpi
 
-                            do w_ix=1,3 + num_redshiftwindows
-                                if (w_ix>3 .or. limber_phiphi>0 .and. w_ix2==3) then
+                            do w_ix=1,3 + num_redshiftwindows + num_cmb_freq*2
+                                if (w_ix>nscatter*2+1 .or. limber_phiphi>0 .and. w_ix2==3) then
                                     if (CTrans%limber_l_min(w_ix)/= 0 .and. j>=CTrans%limber_l_min(w_ix)) cycle
                                 end if
                                 Delta1= CTrans%Delta_p_l_k(w_ix,j,q_ix)
-                                if (w_ix == 2) Delta1=Delta1*ctnorm
+                                if (w_ix == 2 .or. w_ix<=nscatter*2+1 .and. w_ix>3 .and. mod(w_ix-3,2)==0 ) Delta1=Delta1*ctnorm
 
-                                do w_ix2=1,3 + num_redshiftwindows
-                                    if (w_ix2>3 .or. limber_phiphi>0 .and. w_ix2==3) then
+                                do w_ix2=1,3 + num_redshiftwindows  + num_cmb_freq*2
+                                    if (w_ix2>nscatter*2+1 .or. limber_phiphi>0 .and. w_ix2==3) then
                                         if (CTrans%limber_l_min(w_ix2)/= 0 .and. j>=CTrans%limber_l_min(w_ix2)) cycle
                                     end if
                                     Delta2=  CTrans%Delta_p_l_k(w_ix2,j,q_ix)
-                                    if (w_ix2 == 2) Delta2=Delta2*ctnorm
+                                    if (w_ix2 == 2.or. w_ix2<=nscatter*2+1 .and. w_ix2>3 .and. mod(w_ix2-3,2)==0 ) Delta2=Delta2*ctnorm
                                     iCl_Array(j,w_ix,w_ix2,pix) = iCl_Array(j,w_ix,w_ix2,pix)+Delta1*Delta2*apowers*dlnk*dbletmp
                                 end do
                             end do
@@ -2401,13 +2402,19 @@
             end do
 
             if (CTransScal%NumSources>2 .and. has_cl_2D_array) then
-                do i=1,3+num_redshiftwindows
-                    do j=i,3+num_redshiftwindows
+                do i=1,3+num_redshiftwindows + num_cmb_freq*2
+                    do j=i,3+num_redshiftwindows + num_cmb_freq*2
                         if (i<3 .and. j<3) then
                             Cl_scalar_array(:,in,i,j) = Cl_scalar(:, in, ind(i,j))
                         else
-                            call InterpolateClArr(CTransS%ls,iCl_array(1,i,j,in), &
-                            Cl_scalar_array(lmin, in, i,j),CTransS%ls%l0)
+                            if (i<=3+num_cmb_freq*2 .and. j<=3+num_cmb_freq*2 .and. i>3 .and. j>3) then
+                              call InterpolateClArrTemplated(CTransS%ls,iCl_array(1,i,j,in),Cl_scalar_array(lmin, in, i,j), &
+                                CTransS%ls%l0,ind(1+mod(i-4,2),1+mod(j-4,2)))
+
+                            else
+                             call InterpolateClArr(CTransS%ls,iCl_array(1,i,j,in), &
+                             Cl_scalar_array(lmin, in, i,j),CTransS%ls%l0)
+                            end if
                         end if
                         if (i/=j) Cl_scalar_array(:,in,j,i) = Cl_scalar_array(:,in,i,j)
                     end do

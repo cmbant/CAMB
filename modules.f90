@@ -35,7 +35,12 @@
     implicit none
     public
 
-    character(LEN=*), parameter :: version = 'Jun13'
+    character(LEN=*), parameter :: version = 'Jun13_rayleigh'
+
+     integer, parameter :: num_cmb_freq = 5
+    integer, parameter :: nscatter = num_cmb_freq+1
+    real(dl) :: freq_factors(num_cmb_freq)  = &
+     [(143/ 3125349._dl)**4, (217/ 3125349._dl)**4, (353/ 3125349._dl)**4, (545/ 3125349._dl)**4, (857/ 3125349._dl)**4]
 
     integer :: FeedbackLevel = 0 !if >0 print out useful information about the model
 
@@ -992,13 +997,14 @@
 
     real(dl), dimension (:,:,:,:), allocatable :: Cl_Scalar_Array
     !Indices are Cl_xxx( l , intial_power_index, field1,field2)
-    !where ordering of fields is T, E, \psi (CMB lensing potential), window_1, window_2...
+    !where ordering of fields is T, E, \psi (CMB lensing potential),T_freq_1,E_freq_1,.... window_1, window_2...
 
     !The following are set only if doing lensing
     integer lmax_lensed !Only accurate to rather less than this
     real(dl) , dimension (:,:,:), allocatable :: Cl_lensed
     !Cl_lensed(l, power_index, Cl_type) are the interpolated Cls
-
+    real(dl) , dimension (:,:,:,:,:), allocatable :: Cl_lensed_freqs
+    
     contains
 
     subroutine Init_ClTransfer(CTrans)
@@ -1087,7 +1093,7 @@
         Cl_scalar = 0
         if (has_cl_2D_array) then
             if (allocated(Cl_scalar_array)) deallocate(Cl_scalar_array)
-            allocate(Cl_scalar_Array(lmin:CP%Max_l, CP%InitPower%nn, 3+num_redshiftwindows,3+num_redshiftwindows))
+            allocate(Cl_scalar_Array(lmin:CP%Max_l, CP%InitPower%nn, 3+num_redshiftwindows+num_cmb_freq*2,3+num_redshiftwindows+num_cmb_freq*2))
             Cl_scalar_array = 0
         end if
     end if
@@ -1115,7 +1121,8 @@
     real(dl) fact
     integer last_C
     real(dl), allocatable :: outarr(:,:)
-
+    integer nsource_out
+    integer f_i_1,f_i_2
 
     if (present(factor)) then
         fact = factor
@@ -1139,20 +1146,25 @@
     end if
 
     if (CP%WantScalars .and. has_cl_2D_array .and. ScalCovFile /= '' .and. CTransScal%NumSources>2) then
-        allocate(outarr(1:3+num_redshiftwindows,1:3+num_redshiftwindows))
+        nsource_out = 3+num_redshiftwindows+num_cmb_freq*2
+        allocate(outarr(1:nsource_out,1:nsource_out))
         open(unit=fileio_unit,file=ScalCovFile,form='formatted',status='replace')
         do in=1,CP%InitPower%nn
             do il=lmin,min(10000,CP%Max_l)
-                outarr=Cl_scalar_array(il,in,1:3+num_redshiftwindows,1:3+num_redshiftwindows)
+                outarr=Cl_scalar_array(il,in,1:nsource_out,1:nsource_out)
                 outarr(1:2,:)=sqrt(fact)*outarr(1:2,:)
                 outarr(:,1:2)=sqrt(fact)*outarr(:,1:2)
-                write(fileio_unit,trim(numcat('(1I6,',(3+num_redshiftwindows)**2))//'E15.5)') il, outarr
+                outarr(:,4:3+num_cmb_freq*2)=sqrt(fact)*outarr(:,4:3+num_cmb_freq*2)
+                outarr(4:3+num_cmb_freq*2,:)=sqrt(fact)*outarr(4:3+num_cmb_freq*2,:)
+                write(fileio_unit,trim(numcat('(1I6,',(nsource_out)**2))//'E15.5)') il, outarr
             end do
             do il=10100,CP%Max_l, 100
-                outarr=Cl_scalar_array(il,in,1:3+num_redshiftwindows,1:3+num_redshiftwindows)
+                outarr=Cl_scalar_array(il,in,1:nsource_out,1:nsource_out)
                 outarr(1:2,:)=sqrt(fact)*outarr(1:2,:)
                 outarr(:,1:2)=sqrt(fact)*outarr(:,1:2)
-                write(fileio_unit,trim(numcat('(1E15.5,',(3+num_redshiftwindows)**2))//'E15.5)') real(il), outarr
+                outarr(:,4:3+num_cmb_freq*2)=sqrt(fact)*outarr(:,4:3+num_cmb_freq*2)
+                outarr(4:3+num_cmb_freq*2,:)=sqrt(fact)*outarr(4:3+num_cmb_freq*2,:)
+                write(fileio_unit,trim(numcat('(1E15.5,',(nsource_out)**2))//'E15.5)') real(il), outarr
             end do
         end do
         close(fileio_unit)
@@ -1192,6 +1204,19 @@
             end do
         end do
         close(fileio_unit)
+        if (num_cmb_freq>0) then
+         do f_i_1=1,num_cmb_freq
+         do f_i_2=1,num_cmb_freq
+            open(unit=fileio_unit,file=trim(LensFile)//trim(concat('_',f_i_1,'_',f_i_2)),form='formatted',status='replace')
+            do in=1,CP%InitPower%nn
+            do il=lmin, lmax_lensed
+                write(fileio_unit,'(1I6,4E15.5)')il, fact*Cl_lensed_freqs(il, in, CT_Temp:CT_Cross,f_i_1,f_i_2)
+            end do
+            end do
+           close(fileio_unit)
+         end do
+         end do
+        end if
     end if
 
 
@@ -2164,10 +2189,6 @@
     private
     integer,parameter :: nthermo=20000
     
-    integer, parameter :: num_cmb_freq = 0
-    integer, parameter :: nscatter = num_cmb_freq+1
-    real(dl) :: freq_factors(num_cmb_freq)  ![ (554/ 3125349._dl)**4*0 ]
-
 
     real(dl) tb(nthermo),cs2(nthermo),xe(nthermo)
     real(dl) dcs2(nthermo)
@@ -2187,7 +2208,7 @@
     real(dl) :: r_drag0, z_star, z_drag  !!JH for updated BAO likelihood.
 
     public thermo,thermoarr,inithermo,vis,opac,expmmu,dvis,dopac,ddvis,lenswin, tight_tau,&
-    Thermo_OpacityToTime,matter_verydom_tau, ThermoData_Free,num_cmb_freq,freq_factors, &
+    Thermo_OpacityToTime,matter_verydom_tau, ThermoData_Free,num_cmb_freq,nscatter,freq_factors, &
     z_star, z_drag  !!JH for updated BAO likelihood.
     contains
 
