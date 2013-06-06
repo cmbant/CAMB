@@ -105,7 +105,7 @@
         public
 
         !Description of this file. Change if you make modifications.
-        character(LEN=*), parameter :: Eqns_name = 'gauge_inv'
+        character(LEN=*), parameter :: Eqns_name = 'gauge_inv_rayleigh'
 
         integer, parameter :: basic_num_eqns = 5
           
@@ -129,7 +129,13 @@
          initial_iso_baryon=3,  initial_iso_neutrino=4, initial_iso_neutrino_vel=5, initial_vector = 0
          integer, parameter :: initial_nummodes =  initial_iso_neutrino_vel
 
+
         type EvolutionVars
+
+            real(dl) RayleighSwitchOnTime
+            logical Rayleigh
+            integer g_ix_freq, polind_freq, freq_neq
+
             real(dl) q, q2
             real(dl) k_buf,k2_buf ! set in initial
 
@@ -290,7 +296,8 @@
          end if          
          
          next_switch = min(tau_switch_ktau, tau_switch_nu_massless,EV%TightSwitchoffTime, tau_switch_nu_massive, &
-               tau_switch_no_nu_multpoles, tau_switch_no_phot_multpoles, tau_switch_nu_nonrel,noSwitch)
+               tau_switch_no_nu_multpoles, tau_switch_no_phot_multpoles, tau_switch_nu_nonrel, &
+               EV%RayleighSwitchOnTime, noSwitch)
          
          if (next_switch < tauend) then
              if (next_switch > tau+smallTime) then
@@ -299,7 +306,7 @@
              end if
    
              EVout=EV
-          
+
             if (next_switch == EV%TightSwitchoffTime) then 
               !TightCoupling           
                  EVout%TightCoupling=.false.
@@ -334,7 +341,15 @@
                  
                  end if
                  
-           else if (next_switch==tau_switch_ktau) then
+            else if (next_switch == EV%RayleighSwitchOnTime) then
+                 EVout%RayleighSwitchOnTime = noSwitch
+                 EVout%Rayleigh = .true.
+                 call SetupScalarArrayIndices(EVout)
+                 call CopyScalarVariableArray(y,yout, EV, EVout)
+                 EV=EVout
+                 y=yout
+                 ind=1
+            else if (next_switch==tau_switch_ktau) then
             !k tau >> 1, evolve massless neutrino effective fluid up to l=2
                 EVout%high_ktau_neutrino_approx=.true.
                 EV%nq(1:CP%Nu_mass_eigenstates) = nqmax               
@@ -480,6 +495,7 @@
         subroutine SetupScalarArrayIndices(EV, max_num_eqns)
           !Set up array indices after the lmax have been decided
           use MassiveNu
+          use ThermoData
           !Set the numer of equations in each hierarchy, and get total number of equations for this k
           type(EvolutionVars) EV
           integer, intent(out), optional :: max_num_eqns
@@ -498,7 +514,14 @@
              EV%polind = neq -1 !polind+2 is L=2, for polarizationthe first calculated         
              neq=neq + EV%lmaxgpol-1
            end if
+           if (EV%Rayleigh) then
+               EV%g_ix_freq=neq+1
+               EV%polind_freq = neq+ (EV%lmaxg+1) -1
+               EV%freq_neq=(EV%lmaxg+1+EV%lmaxgpol-1)
+               neq=neq+EV%freq_neq*num_cmb_freq
+           end if
           end if
+          maxeq=maxeq+(EV%lmaxg+1+EV%lmaxgpol-1)*num_cmb_freq
           if (.not. EV%no_nu_multpoles) then
            !Massless neutrino multipoles
            EV%r_ix= neq+1   
@@ -568,6 +591,7 @@
         end subroutine SetupScalarArrayIndices
 
         subroutine CopyScalarVariableArray(y,yout, EV, EVout)
+          use ThermoData
           type(EvolutionVars) EV, EVOut
           real(dl), intent(in) :: y(EV%nvar)
           real(dl), intent(out) :: yout(EVout%nvar)
@@ -594,7 +618,21 @@
               lmax = min(EV%lmaxgpol,EVout%lmaxgpol)
               yout(EVout%polind+2:EVout%polind+lmax)=y(EV%polind+2:EV%polind+lmax)
             end if
-            
+
+            if (EV%Rayleigh .and. EVout%Rayleigh) then
+             do i=1,num_cmb_freq
+                 !assume number of frequencies is fixed
+             ix_off2 = EVOut%g_ix_freq + (i-1)*EVOut%freq_neq
+             ix_off = EV%g_ix_freq + (i-1)*EV%freq_neq
+             lmax = min(EV%lmaxg,EVout%lmaxg)
+             yout(ix_off2:ix_off2+lmax)=y(ix_off:ix_off+lmax)
+             lmax = min(EV%lmaxgpol,EVout%lmaxgpol)
+             ix_off2 = EVOut%polind_freq + (i-1)*EVOut%freq_neq
+             ix_off = EV%polind_freq + (i-1)*EV%freq_neq
+             yout(ix_off2+2:ix_off2+lmax)=y(ix_off+2:ix_off+lmax)
+             end do
+            end if
+
           end if  
 
           if (.not. EV%no_nu_multpoles .and. .not. EVout%no_nu_multpoles) then
@@ -1179,13 +1217,14 @@
 
 
 !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-        subroutine output(EV,y, j,tau,sources)
+        subroutine output(EV,yin, j,tau,sources)
         use ThermoData
         use lvalues
         use ModelData 
         implicit none
         integer j
         type(EvolutionVars) EV
+        real(dl) yin(EV%nvar),yprimein(EV%nvar)
         real(dl), target :: y(EV%nvar),yprime(EV%nvar)
         real(dl), dimension(:),pointer :: ypol,ypolprime
         
@@ -1202,10 +1241,12 @@
         real(dl) clxq, vq, diff_rhopi, octg, octgprime
         real(dl) sources(CTransScal%NumSources)
         real(dl) ISW
+        integer f_i, ix_off
         
-        yprime = 0
-        call derivs(EV,EV%ScalEqsToPropagate,tau,y,yprime)        
-        
+        y(1:EV%nvar)=yin(1:EV%nvar)
+        yprimein = 0
+        call derivs(EV,EV%ScalEqsToPropagate,tau,y,yprimein)        
+        yprime(1:EV%nvar) = yprimein(1:EV%nvar)
         if (EV%TightCoupling .or. EV%no_phot_multpoles) then
          pol=0
          polprime=0
@@ -1279,7 +1320,7 @@
         if (EV%no_phot_multpoles) then
              z=(0.5_dl*dgrho/k + etak)/adotoa 
              dz= -adotoa*z - 0.5_dl*dgrho/k
-             clxg=-4*dz/k -4/k*opac(j)*(vb+z)
+             clxg=-4*dz/k -4/k*opac(j,1)*(vb+z)
              qg=-4._dl/3*z
              pig=0
              pigdot=0
@@ -1291,9 +1332,9 @@
              pig = EV%pig
              !pigdot=EV%pigdot
              if (second_order_tightcoupling) then
-               octg = (3._dl/7._dl)*pig*(EV%k_buf/opac(j)) 
-               ypol(2) = EV%pig/4 + EV%pigdot*(1._dl/opac(j))*(-5._dl/8._dl)
-               ypol(3) = (3._dl/7._dl)*(EV%k_buf/opac(j))*ypol(2)
+               octg = (3._dl/7._dl)*pig*(EV%k_buf/opac(j,1)) 
+               ypol(2) = EV%pig/4 + EV%pigdot*(1._dl/opac(j,1))*(-5._dl/8._dl)
+               ypol(3) = (3._dl/7._dl)*(EV%k_buf/opac(j,1))*ypol(2)
              else
                ypol(2) = EV%pig/4
                octg=0
@@ -1334,9 +1375,9 @@
         if (EV%TightCoupling) then
           if (second_order_tightcoupling) then
             pigdot = EV%pigdot  
-            ypolprime(2)= (pigdot/4._dl)*(1+(5._dl/2._dl)*(dopac(j)/opac(j)**2))
+            ypolprime(2)= (pigdot/4._dl)*(1+(5._dl/2._dl)*(dopac(j,1)/opac(j,1)**2))
           else
-           pigdot = -dopac(j)/opac(j)*pig + 32._dl/45*k/opac(j)*(-2*adotoa*sigma  &
+           pigdot = -dopac(j,1)/opac(j,1)*pig + 32._dl/45*k/opac(j,1)*(-2*adotoa*sigma  &
                  +etak/EV%Kf(1)-  dgpi/k +vbdot )
            ypolprime(2)= pigdot/4
           end if
@@ -1345,24 +1386,44 @@
         pidot_sum =  pidot_sum + grhog_t*pigdot + grhor_t*pirdot
         diff_rhopi = pidot_sum - (4*dgpi+ dgpi_diff )*adotoa
 
+
+        f_i=1
+        if (.not. EV%no_phot_multpoles .and. EV%Rayleigh .and. f_i>1) then
+            ix_off=EV%g_ix_freq+(f_i-2)*EV%freq_neq 
+            y(EV%g_ix:EV%g_ix+EV%freq_neq-1) = yin(EV%g_ix:EV%g_ix+EV%freq_neq-1)+ &
+                 yin(ix_off:ix_off+EV%freq_neq-1)
+             yprime(EV%g_ix:EV%g_ix+EV%freq_neq-1) = yprimein(EV%g_ix:EV%g_ix+EV%freq_neq-1)+ &
+                 yprimein(ix_off:ix_off+EV%freq_neq-1)
+
+             pig =y(EV%g_ix+2)
+             polter = 0.1_dl*pig+9._dl/15._dl*ypol(2)
+             pigdot=yprime(EV%g_ix+2)
+             octg=y(EV%g_ix+3)
+             octgprime=yprime(EV%g_ix+3)
+             clxg=y(EV%g_ix)
+             qg  =y(EV%g_ix+1)
+             qgdot =yprime(EV%g_ix+1)
+     
+        end if
+        
 !Maple's fortran output - see scal_eqs.map
 !2phi' term (\phi' + \psi' in Newtonian gauge)
         ISW = (4.D0/3.D0*k*EV%Kf(1)*sigma+(-2.D0/3.D0*sigma-2.D0/3.D0*etak/adotoa)*k &
               -diff_rhopi/k**2-1.D0/adotoa*dgrho/3.D0+(3.D0*gpres+5.D0*grho)*sigma/k/3.D0 &
-              -2.D0/k*adotoa/EV%Kf(1)*etak)*expmmu(j)
+              -2.D0/k*adotoa/EV%Kf(1)*etak)*expmmu(j,f_i)
 
 !e.g. to get only late-time ISW
 !  if (1/a-1 < 30) ISW=0
 
 !The rest, note y(9)->octg, yprime(9)->octgprime (octopoles)
-    sources(1)= ISW +  ((-9.D0/160.D0*pig-27.D0/80.D0*ypol(2))/k**2*opac(j)+(11.D0/10.D0*sigma- &
+    sources(1)= ISW +  ((-9.D0/160.D0*pig-27.D0/80.D0*ypol(2))/k**2*opac(j,f_i)+(11.D0/10.D0*sigma- &
     3.D0/8.D0*EV%Kf(2)*ypol(3)+vb-9.D0/80.D0*EV%Kf(2)*octg+3.D0/40.D0*qg)/k-(- &
-    180.D0*ypolprime(2)-30.D0*pigdot)/k**2/160.D0)*dvis(j)+(-(9.D0*pigdot+ &
-    54.D0*ypolprime(2))/k**2*opac(j)/160.D0+pig/16.D0+clxg/4.D0+3.D0/8.D0*ypol(2)+(- &
+    180.D0*ypolprime(2)-30.D0*pigdot)/k**2/160.D0)*dvis(j,f_i)+(-(9.D0*pigdot+ &
+    54.D0*ypolprime(2))/k**2*opac(j,f_i)/160.D0+pig/16.D0+clxg/4.D0+3.D0/8.D0*ypol(2)+(- &
     21.D0/5.D0*adotoa*sigma-3.D0/8.D0*EV%Kf(2)*ypolprime(3)+vbdot+3.D0/40.D0*qgdot- &
-    9.D0/80.D0*EV%Kf(2)*octgprime)/k+(-9.D0/160.D0*dopac(j)*pig-21.D0/10.D0*dgpi-27.D0/ &
-    80.D0*dopac(j)*ypol(2))/k**2)*vis(j)+(3.D0/16.D0*ddvis(j)*pig+9.D0/ &
-    8.D0*ddvis(j)*ypol(2))/k**2+21.D0/10.D0/k/EV%Kf(1)*vis(j)*etak   
+    9.D0/80.D0*EV%Kf(2)*octgprime)/k+(-9.D0/160.D0*dopac(j,f_i)*pig-21.D0/10.D0*dgpi-27.D0/ &
+    80.D0*dopac(j,f_i)*ypol(2))/k**2)*vis(j,f_i)+(3.D0/16.D0*ddvis(j,f_i)*pig+9.D0/ &
+    8.D0*ddvis(j,f_i)*ypol(2))/k**2+21.D0/10.D0/k/EV%Kf(1)*vis(j,f_i)*etak   
 
 
 ! Doppler term
@@ -1387,7 +1448,7 @@
 
       if (x > 0._dl) then
          !E polarization source
-           sources(2)=vis(j)*polter*(15._dl/8._dl)/divfac 
+           sources(2)=vis(j,f_i)*polter*(15._dl/8._dl)/divfac 
                !factor of four because no 1/16 later
         else
            sources(2)=0
@@ -1430,6 +1491,7 @@
         real(dl), dimension(:),pointer :: E,Bprime,Eprime
         real(dl), target :: pol(3),polEprime(3), polBprime(3) 
         real(dl) dtauda
+        integer :: f_i = 1
 
         call derivst(EV,EV%nvart,tau,yt,ytprime)
       
@@ -1453,8 +1515,8 @@
 !  Use the tight-coupling approximation
            a =yt(1)
            adotoa = 1/(a*dtauda(a))
-           pigdot=32._dl/45._dl*k/opac(j)*(2._dl*adotoa*shear+ytprime(3))
-           pig = 32._dl/45._dl*k/opac(j)*shear
+           pigdot=32._dl/45._dl*k/opac(j,f_i)*(2._dl*adotoa*shear+ytprime(3))
+           pig = 32._dl/45._dl*k/opac(j,f_i)*shear
            pol=0
            polEprime=0
            polBprime=0
@@ -1475,20 +1537,20 @@
 
         polter = 0.1_dl*pig + 9._dl/15._dl*E(2)
         polterdot=9._dl/15._dl*Eprime(2) + 0.1_dl*pigdot
-        polterddot = 9._dl/15._dl*(-dopac(j)*(E(2)-polter)-opac(j)*(  &
+        polterddot = 9._dl/15._dl*(-dopac(j,f_i)*(E(2)-polter)-opac(j,f_i)*(  &
                    Eprime(2)-polterdot) + k*(2._dl/3._dl*Bprime(2)*aux - &
                    5._dl/27._dl*Eprime(3)*EV%Kft(2))) &
                    +0.1_dl*(k*(-octg*EV%Kft(2)/3._dl + 8._dl/15._dl*ytprime(3)) - &
-                   dopac(j)*(pig - polter) - opac(j)*(pigdot-polterdot))
+                   dopac(j,f_i)*(pig - polter) - opac(j,f_i)*(pigdot-polterdot))
 
-        dt=(shear*expmmu(j) + (15._dl/8._dl)*polter*vis(j)/k)*CP%r/sinhxr**2/prefac 
+        dt=(shear*expmmu(j,f_i) + (15._dl/8._dl)*polter*vis(j,f_i)/k)*CP%r/sinhxr**2/prefac 
    
         dte=CP%r*15._dl/8._dl/k/prefac* &
-            ((ddvis(j)*polter + 2._dl*dvis(j)*polterdot + vis(j)*polterddot)  &
-              + 4._dl*cothxor*(dvis(j)*polter + vis(j)*polterdot) - &
-                   vis(j)*polter*(k2 -6*cothxor**2))
+            ((ddvis(j,f_i)*polter + 2._dl*dvis(j,f_i)*polterdot + vis(j,f_i)*polterddot)  &
+              + 4._dl*cothxor*(dvis(j,f_i)*polter + vis(j,f_i)*polterdot) - &
+                   vis(j,f_i)*polter*(k2 -6*cothxor**2))
       
-        dtb=15._dl/4._dl*EV%q*CP%r/k/prefac*(vis(j)*(2._dl*cothxor*polter + polterdot) + dvis(j)*polter)
+        dtb=15._dl/4._dl*EV%q*CP%r/k/prefac*(vis(j,f_i)*(2._dl*cothxor*polter + polterdot) + dvis(j,f_i)*polter)
    
         else
         dt=0._dl
@@ -1537,12 +1599,12 @@
         else
          dt =0
         end if   
-        dt= (4*(vb+sigma)*vis(j) + 15._dl/2/k*( vis(j)*polterdot + dvis(j)*polter) &
-               + 4*(expmmu(j)*yvprime(2)) )/x 
+        dt= (4*(vb+sigma)*vis(j,1) + 15._dl/2/k*( vis(j,1)*polterdot + dvis(j,1)*polter) &
+               + 4*(expmmu(j,1)*yvprime(2)) )/x 
    
-        dte= 15._dl/2*2*polter/x**2*vis(j) + 15._dl/2/k*(dvis(j)*polter + vis(j)*polterdot)/x 
+        dte= 15._dl/2*2*polter/x**2*vis(j,1) + 15._dl/2/k*(dvis(j,1)*polter + vis(j,1)*polterdot)/x 
       
-        dtb= -15._dl/2*polter/x*vis(j)
+        dtb= -15._dl/2*polter/x*vis(j,1)
 
         else
          dt=0
@@ -1570,6 +1632,7 @@
                 i_qg=5,i_qr=6,i_vb=7,i_pir=8, i_eta=9, i_aj3r=10,i_clxq=11,i_vq=12
         integer, parameter :: i_max = i_vq
         real(dl) initv(6,1:i_max), initvec(1:i_max)
+        integer f_i
        
         if (CP%flat) then
          EV%k_buf=EV%q
@@ -1611,7 +1674,13 @@
          if (second_order_tightcoupling) ep=ep*2 
          EV%TightSwitchoffTime = min(tight_tau,Thermo_OpacityToTime(EV%k_buf/ep)) 
 
-      
+         if (num_cmb_freq>0) then
+             EV%RayleighSwitchOnTime = EV%TightSwitchoffTime
+         else
+             EV%RayleighSwitchOnTime=CP%tau0+1
+         end if
+         EV%Rayleigh = .false.
+         
         y=0   
    
 !  k*tau, (k*tau)**2, (k*tau)**3
@@ -2006,7 +2075,8 @@
         real(dl) dgs,sigmadot,dz !, ddz
         !non-flat vars
         real(dl) cothxor !1/tau in flat case
-        
+        integer f_i
+        real(dl) polter_freq, opac_rayleigh, opac_tot
        
         k=EV%k_buf
         k2=EV%k2_buf     
@@ -2039,7 +2109,7 @@
         if (EV%TightCoupling) then
           call thermo(tau,cs2,opacity,dopacity)
          else
-          call thermo(tau,cs2,opacity)        
+          call thermo(tau,cs2,opacity)
         end if
 
         gpres=0
@@ -2249,8 +2319,51 @@
            else !closed case
               ayprime(ix) = -opacity*(ay(ix) - polter) 
            endif
-         end if
         end if
+
+        if (EV%Rayleigh) then
+         !assume after tight coupling ended
+         do f_i = 1, num_cmb_freq
+                opac_rayleigh = freq_factors(f_i)*max(0._dl,1-Recombination_xe(a))*akthom/a2**3
+                opac_tot=opac_rayleigh+opacity
+                ind = EV%g_ix_freq + (f_i-1)*EV%freq_neq
+                ayprime(ind)=-k*ay(ind+1)
+                ayprime(ind+1)= EV%denlk(1)*ay(ind)-EV%denlk2(1)*ay(ind+2) !+
+                E2=ay(EV%polind_freq + (f_i-1)*EV%freq_neq +2)
+                polter_freq = ay(ind+2)/10+9._dl/15*E2 !2/15*(3/4 pig + 9/2 E2)
+                if (EV%lmaxg>2) then
+                     ayprime(ind+2)=EV%denlk(2)*ay(ind+1)-EV%denlk2(2)*ay(ind+3)-opac_tot*(ay(ind+2) - polter_freq) &
+                       -opac_rayleigh*(ay(EV%g_ix+2) - polter) 
+                     ix= ind+2
+                     do  l=3,EV%lmaxg-1
+                        ix=ix+1
+                        ayprime(ix)=(EV%denlk(l)*ay(ix-1)-EV%denlk2(l)*ay(ix+1))-opac_tot*ay(ix)-(opac_rayleigh)*ay(EV%g_ix+l)
+                     end do
+                     ix=ix+1
+                  !  Truncate the photon moment expansion
+                     ayprime(ix)=k*ay(ix-1)-(EV%lmaxg+1)*cothxor*ay(ix) -opac_tot*ay(ix)-opac_rayleigh*ay(EV%g_ix+EV%lmaxg)
+                else 
+                     ayprime(ind+2)=EV%denlk(2)*ay(ind+1)-opac_tot*(ay(ind+2) - polter_freq)-opac_rayleigh*(ay(EV%g_ix+2) - polter) 
+                endif
+        !  Polarization
+                    !l=2
+                    ix=EV%polind_freq+(f_i-1)*EV%freq_neq + 2
+                    if (EV%lmaxgpol>2) then
+                      ayprime(ix) = -opac_tot*(ay(ix) - polter_freq) - k/3._dl*ay(ix+1)- (opac_rayleigh)*(ay(EV%polind+2) - polter)
+                      do l=3,EV%lmaxgpol-1
+                       ix=ix+1
+                       ayprime(ix)=-opac_tot*ay(ix)-opac_rayleigh*ay(EV%polind+l) + (EV%denlk(l)*ay(ix-1)-EV%polfack(l)*ay(ix+1))
+                      end do
+                      ix=ix+1
+                      !truncate
+                      ayprime(ix)=-opac_tot*ay(ix)-opac_rayleigh*ay(EV%polind+EV%lmaxgpol) + &
+                        k*EV%poltruncfac*ay(ix-1)-(EV%lmaxgpol+3)*cothxor*ay(ix)
+                   else !closed case
+                      ayprime(ix) = -opac_tot*(ay(ix) - polter_freq)-opac_rayleigh*ay(EV%polind+2)
+                   endif
+         end do
+        end if
+     end if
 
         if (.not. EV%no_nu_multpoles) then
    

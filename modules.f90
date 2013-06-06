@@ -2163,16 +2163,22 @@
     implicit none
     private
     integer,parameter :: nthermo=20000
+    
+    integer, parameter :: num_cmb_freq = 0
+    integer, parameter :: nscatter = num_cmb_freq+1
+    real(dl) :: freq_factors(num_cmb_freq)  ![ (554/ 3125349._dl)**4*0 ]
+
 
     real(dl) tb(nthermo),cs2(nthermo),xe(nthermo)
     real(dl) dcs2(nthermo)
-    real(dl) dotmu(nthermo), ddotmu(nthermo)
-    real(dl) sdotmu(nthermo),emmu(nthermo)
-    real(dl) demmu(nthermo)
-    real(dl) dddotmu(nthermo),ddddotmu(nthermo)
+    real(dl) dotmu(nthermo,nscatter), ddotmu(nthermo,nscatter)
+    real(dl) sdotmu(nthermo,nscatter),emmu(nthermo,nscatter)
+    real(dl) demmu(nthermo,nscatter)
+    real(dl) dddotmu(nthermo,nscatter),ddddotmu(nthermo,nscatter)
     real(dl) winlens(nthermo),dwinlens(nthermo), scalefactor(nthermo)
     real(dl) tauminn,dlntau,Maxtau
-    real(dl), dimension(:), allocatable :: vis,dvis,ddvis,expmmu,dopac, opac, lenswin
+    real(dl), dimension(:,:), allocatable :: vis,dvis,ddvis,expmmu,dopac, opac
+    real(dl), dimension(:), allocatable :: lenswin
     logical, parameter :: dowinlens = .false.
 
     real(dl) :: tight_tau, actual_opt_depth
@@ -2180,8 +2186,8 @@
     real(dl) :: matter_verydom_tau
     real(dl) :: r_drag0, z_star, z_drag  !!JH for updated BAO likelihood.
 
-    public thermo,inithermo,vis,opac,expmmu,dvis,dopac,ddvis,lenswin, tight_tau,&
-    Thermo_OpacityToTime,matter_verydom_tau, ThermoData_Free,&
+    public thermo,thermoarr,inithermo,vis,opac,expmmu,dvis,dopac,ddvis,lenswin, tight_tau,&
+    Thermo_OpacityToTime,matter_verydom_tau, ThermoData_Free,num_cmb_freq,freq_factors, &
     z_star, z_drag  !!JH for updated BAO likelihood.
     contains
 
@@ -2202,11 +2208,54 @@
     if (i < 1) then
         !Linear interpolation if out of bounds (should not occur).
         cs2b=cs2(1)+(d+i-1)*dcs2(1)
-        opacity=dotmu(1)+(d-1)*ddotmu(1)
+        opacity=dotmu(1,1)+(d-1)*ddotmu(1,1)
         stop 'thermo out of bounds'
     else if (i >= nthermo) then
         cs2b=cs2(nthermo)+(d+i-nthermo)*dcs2(nthermo)
-        opacity=dotmu(nthermo)+(d-nthermo)*ddotmu(nthermo)
+        opacity=dotmu(nthermo,1)+(d-nthermo)*ddotmu(nthermo,1)
+        if (present(dopacity)) then
+            dopacity = 0
+            stop 'thermo1 shouldn''t happen'
+        end if
+    else
+        !Cubic spline interpolation.
+        cs2b=cs2(i)+d*(dcs2(i)+d*(3*(cs2(i+1)-cs2(i))  &
+        -2*dcs2(i)-dcs2(i+1)+d*(dcs2(i)+dcs2(i+1)  &
+        +2*(cs2(i)-cs2(i+1)))))
+        opacity=dotmu(i,1)+d*(ddotmu(i,1)+d*(3*(dotmu(i+1,1)-dotmu(i,1)) &
+        -2*ddotmu(i,1)-ddotmu(i+1,1)+d*(ddotmu(i,1)+ddotmu(i+1,1) &
+        +2*(dotmu(i,1)-dotmu(i+1,1)))))
+
+        if (present(dopacity)) then
+            dopacity=(ddotmu(i,1)+d*(dddotmu(i,1)+d*(3*(ddotmu(i+1,1)  &
+            -ddotmu(i,1))-2*dddotmu(i,1)-dddotmu(i+1,1)+d*(dddotmu(i,1) &
+            +dddotmu(i+1,1)+2*(ddotmu(i,1)-ddotmu(i+1,1))))))/(tau*dlntau)
+        end if
+    end if
+    end subroutine thermo
+
+    subroutine thermoarr(tau,cs2b,opacity, dopacity)
+    !Compute unperturbed sound speed squared,
+    !and ionization fraction by interpolating pre-computed tables.
+    !If requested also get time derivative of opacity
+    implicit none
+    real(dl) tau,cs2b,opacity(nscatter)
+    real(dl), intent(out), optional :: dopacity(nscatter)
+
+    integer i
+    real(dl) d
+
+    d=log(tau/tauminn)/dlntau+1._dl
+    i=int(d)
+    d=d-i
+    if (i < 1) then
+        !Linear interpolation if out of bounds (should not occur).
+        cs2b=cs2(1)+(d+i-1)*dcs2(1)
+        opacity=dotmu(1,:)+(d-1)*ddotmu(1,:)
+        stop 'thermo out of bounds'
+    else if (i >= nthermo) then
+        cs2b=cs2(nthermo)+(d+i-nthermo)*dcs2(nthermo)
+        opacity=dotmu(nthermo,:)+(d-nthermo)*ddotmu(nthermo,:)
         if (present(dopacity)) then
             dopacity = 0
             stop 'thermo: shouldn''t happen'
@@ -2216,17 +2265,17 @@
         cs2b=cs2(i)+d*(dcs2(i)+d*(3*(cs2(i+1)-cs2(i))  &
         -2*dcs2(i)-dcs2(i+1)+d*(dcs2(i)+dcs2(i+1)  &
         +2*(cs2(i)-cs2(i+1)))))
-        opacity=dotmu(i)+d*(ddotmu(i)+d*(3*(dotmu(i+1)-dotmu(i)) &
-        -2*ddotmu(i)-ddotmu(i+1)+d*(ddotmu(i)+ddotmu(i+1) &
-        +2*(dotmu(i)-dotmu(i+1)))))
+        opacity=dotmu(i,:)+d*(ddotmu(i,:)+d*(3*(dotmu(i+1,:)-dotmu(i,:)) &
+        -2*ddotmu(i,:)-ddotmu(i+1,:)+d*(ddotmu(i,:)+ddotmu(i+1,:) &
+        +2*(dotmu(i,:)-dotmu(i+1,:)))))
 
         if (present(dopacity)) then
-            dopacity=(ddotmu(i)+d*(dddotmu(i)+d*(3*(ddotmu(i+1)  &
-            -ddotmu(i))-2*dddotmu(i)-dddotmu(i+1)+d*(dddotmu(i) &
-            +dddotmu(i+1)+2*(ddotmu(i)-ddotmu(i+1))))))/(tau*dlntau)
+            dopacity=(ddotmu(i,:)+d*(dddotmu(i,:)+d*(3*(ddotmu(i+1,:)  &
+            -ddotmu(i,:))-2*dddotmu(i,:)-dddotmu(i+1,:)+d*(dddotmu(i,:) &
+            +dddotmu(i+1,:)+2*(ddotmu(i,:)-ddotmu(i+1,:))))))/(tau*dlntau)
         end if
     end if
-    end subroutine thermo
+    end subroutine thermoarr
 
 
     function Thermo_OpacityToTime(opacity)
@@ -2236,7 +2285,7 @@
     !Do this the bad slow way for now..
     !The answer is approximate
     j =1
-    do while(dotmu(j)> opacity)
+    do while(dotmu(j,1)> opacity)
         j=j+1
     end do
 
@@ -2267,7 +2316,7 @@
     real(dl) a_verydom
     real(dl) awin_lens1p,awin_lens2p,dwing_lens, rs, DA
     real(dl) rombint
-    integer noutput
+    integer noutput,f_i
     external rombint
 
     call Recombination_Init(CP%Recomb, CP%omegac, CP%omegab,CP%Omegan, CP%Omegav, &
@@ -2306,8 +2355,8 @@
     xe(1)=xe0+0.25d0*CP%yhe/(1._dl-CP%yhe)*(x1+2*x2)
     barssc=barssc0*(1._dl-0.75d0*CP%yhe+(1._dl-CP%yhe)*xe(1))
     cs2(1)=4._dl/3._dl*barssc*tb(1)
-    dotmu(1)=xe(1)*akthom/a02
-    sdotmu(1)=0
+    dotmu(1,:)=xe(1)*akthom/a02
+    sdotmu(1,:)=0
 
     do i=2,nthermo
         tau=tauminn*exp((i-1)*dlntau)
@@ -2350,12 +2399,12 @@
             xe(i) = Reionization_xe(a, tau, xe(ncount))
             !print *,1/a-1,xe(i)
             if (CP%AccurateReionization .and. CP%DerivedParameters) then
-                dotmu(i)=(Recombination_xe(a) - xe(i))*akthom/a2
+                dotmu(i,:)=(Recombination_xe(a) - xe(i))*akthom/a2
 
                 if (last_dotmu /=0) then
-                    actual_opt_depth = actual_opt_depth - 2._dl*dtau/(1._dl/dotmu(i)+1._dl/last_dotmu)
+                    actual_opt_depth = actual_opt_depth - 2._dl*dtau/(1._dl/dotmu(i,1)+1._dl/last_dotmu)
                 end if
-                last_dotmu = dotmu(i)
+                last_dotmu = dotmu(i,1)
             end if
         else
             xe(i)=Recombination_xe(a)
@@ -2368,15 +2417,18 @@
 
 
         ! Calculation of the visibility function
-        dotmu(i)=xe(i)*akthom/a2
+        dotmu(i,1)=xe(i)*akthom/a2
+        do f_i=1,num_cmb_freq
+          dotmu(i,1+f_i)=dotmu(i,1) + max(0._dl,1-xe(i))*freq_factors(f_i)*akthom/a2**3
+        end do
 
-        if (tight_tau==0 .and. 1/(tau*dotmu(i)) > 0.005) tight_tau = tau !0.005
+        if (tight_tau==0 .and. 1/(tau*dotmu(i,1)) > 0.005) tight_tau = tau !0.005
         !Tight coupling switch time when k/opacity is smaller than 1/(tau*opacity)
 
         if (tau < 0.001) then
-            sdotmu(i)=0
+            sdotmu(i,:)=0
         else
-            sdotmu(i)=sdotmu(i-1)+2._dl*dtau/(1._dl/dotmu(i)+1._dl/dotmu(i-1))
+            sdotmu(i,:)=sdotmu(i-1,:)+2._dl*dtau/(1._dl/dotmu(i,:)+1._dl/dotmu(i-1,:))
         end if
 
         a0=a
@@ -2391,18 +2443,18 @@
     end if
 
     do j1=1,nthermo
-        if (sdotmu(j1) - sdotmu(nthermo)< -69) then
-            emmu(j1)=1.d-30
+        if (sdotmu(j1,1) - sdotmu(nthermo,1)< -69) then
+            emmu(j1,:)=1.d-30
         else
-            emmu(j1)=exp(sdotmu(j1)-sdotmu(nthermo))
+            emmu(j1,:)=exp(sdotmu(j1,:)-sdotmu(nthermo,:))
             if (.not. CP%AccurateReionization .and. &
             actual_opt_depth==0 .and. xe(j1) < 1e-3) then
-                actual_opt_depth = -sdotmu(j1)+sdotmu(nthermo)
+                actual_opt_depth = -sdotmu(j1,1)+sdotmu(nthermo,1)
             end if
             if (CP%AccurateReionization .and. CP%DerivedParameters .and. z_star==0.d0) then
-                if (sdotmu(nthermo)-sdotmu(j1) - actual_opt_depth < 1) then
-                    tau01=1-(sdotmu(nthermo)-sdotmu(j1) - actual_opt_depth)
-                    tau01=tau01*(1._dl/dotmu(j1)+1._dl/dotmu(j1-1))/2
+                if (sdotmu(nthermo,1)-sdotmu(j1,1) - actual_opt_depth < 1) then
+                    tau01=1-(sdotmu(nthermo,1)-sdotmu(j1,1) - actual_opt_depth)
+                    tau01=tau01*(1._dl/dotmu(j1,1)+1._dl/dotmu(j1-1,1))/2
                     z_star = 1/(scaleFactor(j1)- tau01/dtauda(scaleFactor(j1))) -1
                 end if
             end if
@@ -2421,12 +2473,12 @@
         cf1=1._dl
         ns=nthermo
     else
-        cf1=exp(sdotmu(nthermo)-sdotmu(ncount))
+        cf1=exp(sdotmu(nthermo,1)-sdotmu(ncount,1))
         ns=ncount
     end if
     maxvis = 0
     do j1=1,ns
-        vis = emmu(j1)*dotmu(j1)
+        vis = emmu(j1,1)*dotmu(j1,1)
         tau = tauminn*exp((j1-1)*dlntau)
         vfi=vfi+vis*cf1*dlntau*tau
         if ((iv == 0).and.(vfi > 1.0d-7/AccuracyBoost)) then
@@ -2456,7 +2508,7 @@
         awin_lens2p=0
         winlens=0
         do j1=1,nthermo-1
-            vis = emmu(j1)*dotmu(j1)
+            vis = emmu(j1,1)*dotmu(j1,1)
             tau = tauminn*exp((j1-1)*dlntau)
             vfi=vfi+vis*cf1*dlntau*tau
             if (vfi < 0.995) then
@@ -2486,10 +2538,12 @@
 
     call splini(spline_data,nthermo)
     call splder(cs2,dcs2,nthermo,spline_data)
-    call splder(dotmu,ddotmu,nthermo,spline_data)
-    call splder(ddotmu,dddotmu,nthermo,spline_data)
-    call splder(dddotmu,ddddotmu,nthermo,spline_data)
-    call splder(emmu,demmu,nthermo,spline_data)
+    do f_i=1, nscatter
+     call splder(dotmu(1,f_i),ddotmu(1,f_i),nthermo,spline_data)
+     call splder(ddotmu(1,f_i),dddotmu(1,f_i),nthermo,spline_data)
+     call splder(dddotmu(1,f_i),ddddotmu(1,f_i),nthermo,spline_data)
+     call splder(emmu(1,f_i),demmu(1,f_i),nthermo,spline_data)
+    end do
     if (dowinlens) call splder(winlens,dwinlens,nthermo,spline_data)
 
     call SetTimeSteps
@@ -2588,7 +2642,7 @@
         deallocate(vis,dvis,ddvis,expmmu,dopac, opac)
         if (dowinlens) deallocate(lenswin)
     end if
-    allocate(vis(nstep),dvis(nstep),ddvis(nstep),expmmu(nstep),dopac(nstep),opac(nstep))
+    allocate(vis(nstep,nscatter),dvis(nstep,nscatter),ddvis(nstep,nscatter),expmmu(nstep,nscatter),dopac(nstep,nscatter),opac(nstep,nscatter))
     if (dowinlens) allocate(lenswin(nstep))
 
     if (DebugMsgs .and. FeedbackLevel > 0) write(*,*) 'Set ',nstep, ' time steps'
@@ -2609,47 +2663,50 @@
     subroutine DoThermoSpline(j2,tau)
     integer j2,i
     real(dl) d,ddopac,tau
+    integer scat
 
     !     Cubic-spline interpolation.
     d=log(tau/tauminn)/dlntau+1._dl
     i=int(d)
 
     d=d-i
+    do scat=1,nscatter
     if (i < nthermo) then
-        opac(j2)=dotmu(i)+d*(ddotmu(i)+d*(3._dl*(dotmu(i+1)-dotmu(i)) &
-        -2._dl*ddotmu(i)-ddotmu(i+1)+d*(ddotmu(i)+ddotmu(i+1) &
-        +2._dl*(dotmu(i)-dotmu(i+1)))))
-        dopac(j2)=(ddotmu(i)+d*(dddotmu(i)+d*(3._dl*(ddotmu(i+1)  &
-        -ddotmu(i))-2._dl*dddotmu(i)-dddotmu(i+1)+d*(dddotmu(i) &
-        +dddotmu(i+1)+2._dl*(ddotmu(i)-ddotmu(i+1))))))/(tau &
+        opac(j2,scat)=dotmu(i,scat)+d*(ddotmu(i,scat)+d*(3._dl*(dotmu(i+1,scat)-dotmu(i,scat)) &
+        -2._dl*ddotmu(i,scat)-ddotmu(i+1,scat)+d*(ddotmu(i,scat)+ddotmu(i+1,scat) &
+        +2._dl*(dotmu(i,scat)-dotmu(i+1,scat)))))
+        dopac(j2,scat)=(ddotmu(i,scat)+d*(dddotmu(i,scat)+d*(3._dl*(ddotmu(i+1,scat)  &
+        -ddotmu(i,scat))-2._dl*dddotmu(i,scat)-dddotmu(i+1,scat)+d*(dddotmu(i,scat) &
+        +dddotmu(i+1,scat)+2._dl*(ddotmu(i,scat)-ddotmu(i+1,scat))))))/(tau &
         *dlntau)
-        ddopac=(dddotmu(i)+d*(ddddotmu(i)+d*(3._dl*(dddotmu(i+1) &
-        -dddotmu(i))-2._dl*ddddotmu(i)-ddddotmu(i+1)  &
-        +d*(ddddotmu(i)+ddddotmu(i+1)+2._dl*(dddotmu(i) &
-        -dddotmu(i+1)))))-(dlntau**2)*tau*dopac(j2)) &
+        ddopac=(dddotmu(i,scat)+d*(ddddotmu(i,scat)+d*(3._dl*(dddotmu(i+1,scat) &
+        -dddotmu(i,scat))-2._dl*ddddotmu(i,scat)-ddddotmu(i+1,scat)  &
+        +d*(ddddotmu(i,scat)+ddddotmu(i+1,scat)+2._dl*(dddotmu(i,scat) &
+        -dddotmu(i+1,scat)))))-(dlntau**2)*tau*dopac(j2,scat)) &
         /(tau*dlntau)**2
-        expmmu(j2)=emmu(i)+d*(demmu(i)+d*(3._dl*(emmu(i+1)-emmu(i)) &
-        -2._dl*demmu(i)-demmu(i+1)+d*(demmu(i)+demmu(i+1) &
-        +2._dl*(emmu(i)-emmu(i+1)))))
+        expmmu(j2,scat)=emmu(i,scat)+d*(demmu(i,scat)+d*(3._dl*(emmu(i+1,scat)-emmu(i,scat)) &
+        -2._dl*demmu(i,scat)-demmu(i+1,scat)+d*(demmu(i,scat)+demmu(i+1,scat) &
+        +2._dl*(emmu(i,scat)-emmu(i+1,scat)))))
 
         if (dowinlens) then
             lenswin(j2)=winlens(i)+d*(dwinlens(i)+d*(3._dl*(winlens(i+1)-winlens(i)) &
             -2._dl*dwinlens(i)-dwinlens(i+1)+d*(dwinlens(i)+dwinlens(i+1) &
             +2._dl*(winlens(i)-winlens(i+1)))))
         end if
-        vis(j2)=opac(j2)*expmmu(j2)
-        dvis(j2)=expmmu(j2)*(opac(j2)**2+dopac(j2))
-        ddvis(j2)=expmmu(j2)*(opac(j2)**3+3*opac(j2)*dopac(j2)+ddopac)
+        vis(j2,scat)=opac(j2,scat)*expmmu(j2,scat)
+        dvis(j2,scat)=expmmu(j2,scat)*(opac(j2,scat)**2+dopac(j2,scat))
+        ddvis(j2,scat)=expmmu(j2,scat)*(opac(j2,scat)**3+3*opac(j2,scat)*dopac(j2,scat)+ddopac)
     else
-        opac(j2)=dotmu(nthermo)
-        dopac(j2)=ddotmu(nthermo)
-        ddopac=dddotmu(nthermo)
-        expmmu(j2)=emmu(nthermo)
-        vis(j2)=opac(j2)*expmmu(j2)
-        dvis(j2)=expmmu(j2)*(opac(j2)**2+dopac(j2))
-        ddvis(j2)=expmmu(j2)*(opac(j2)**3+3._dl*opac(j2)*dopac(j2)+ddopac)
+        opac(j2,scat)=dotmu(nthermo,scat)
+        dopac(j2,scat)=ddotmu(nthermo,scat)
+        ddopac=dddotmu(nthermo,scat)
+        expmmu(j2,scat)=emmu(nthermo,scat)
+        vis(j2,scat)=opac(j2,scat)*expmmu(j2,scat)
+        dvis(j2,scat)=expmmu(j2,scat)*(opac(j2,scat)**2+dopac(j2,scat))
+        ddvis(j2,scat)=expmmu(j2,scat)*(opac(j2,scat)**3+3._dl*opac(j2,scat)*dopac(j2,scat)+ddopac)
 
     end if
+    end do
     end subroutine DoThermoSpline
 
 
