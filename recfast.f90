@@ -250,6 +250,7 @@
         data    sigma_He_2Pt    /1.484872D-22/  !Hummer & Storey (1998)
 !    Atomic data for HeI 
 
+        real(dl), parameter :: HeRayleighFac = 0.1_dl !Rayleigh neutral He scattering cross section as ratio to H 
 
        end module RECDATA
 
@@ -303,7 +304,8 @@
         character(LEN=*), parameter :: Recombination_Name = 'Recfast_1.5.2'
       
         real(dl) zrec(Nz),xrec(Nz),dxrec(Nz), Tsrec(Nz) ,dTsrec(Nz), tmrec(Nz),dtmrec(Nz)
-
+        real(dl) x_rayleigh_eff(Nz),dx_rayleigh_eff(Nz)
+        
         real(dl), parameter :: Do21cm_mina = 1/(1+900.) !at which to start evolving Delta_TM
         logical, parameter :: evolve_Ts = .false. !local equilibrium is very accurate
         real(dl), parameter :: Do21cm_minev = 1/(1+400.) !at which to evolve T_s
@@ -324,7 +326,7 @@
                Recombination_ReadParams, Recombination_SetDefParams, Recombination_Validate, Recombination_Name, &
                kappa_HH_21cm,kappa_eH_21cm,kappa_pH_21cm, &
                Do21cm, doTmatTspin, Do21cm_mina, dDeltaxe_dtau, &
-               recombination_saha_tau, recombination_saha_z
+               recombination_saha_tau, recombination_saha_z, Recombination_rayleigh_eff
  
        contains
 
@@ -454,6 +456,30 @@
         endif
 
         end function Recombination_xe
+
+        function Recombination_rayleigh_eff(a)
+        real(dl), intent(in) :: a
+        real(dl) zst,z,az,bz,Recombination_rayleigh_eff
+        integer ilo,ihi
+        
+        z=1/a-1
+        if (z.ge.zrec(1)) then
+          Recombination_rayleigh_eff=x_rayleigh_eff(1)
+        else
+         if (z.le.zrec(nz)) then
+          Recombination_rayleigh_eff=x_rayleigh_eff(nz)
+         else
+          zst=(zinitial-z)/delta_z
+          ihi= int(zst)
+          ilo = ihi+1
+          az=zst - int(zst)
+          bz=1-az     
+          Recombination_rayleigh_eff=az*x_rayleigh_eff(ilo)+bz*x_rayleigh_eff(ihi)+ &
+           ((az**3-az)*dx_rayleigh_eff(ilo)+(bz**3-bz)*dx_rayleigh_eff(ihi))/6._dl
+         endif
+        endif
+
+        end function Recombination_rayleigh_eff
 
 
 
@@ -686,6 +712,7 @@
 
           zrec(i)=zend
           xrec(i)=x
+          x_rayleigh_eff(i)=  1-x_H + HeRayleighFac*(1 - x_He)*fHe
 
     
           if (doTmatTspin) then
@@ -713,6 +740,7 @@
         d0hi=1.0d40
         d0lo=1.0d40
         call spline(zrec,xrec,nz,d0lo,d0hi,dxrec)
+        call spline(zrec,x_rayleigh_eff,nz,d0lo,d0hi,dx_rayleigh_eff)
         if (doTmatTspin) then
          call spline(zrec,tsrec,nz,d0lo,d0hi,dtsrec)
          call spline(zrec,tmrec,nz,d0lo,d0hi,dtmrec)

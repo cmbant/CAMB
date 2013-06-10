@@ -2440,7 +2440,7 @@
         ! Calculation of the visibility function
         dotmu(i,1)=xe(i)*akthom/a2
         do f_i=1,num_cmb_freq
-          dotmu(i,1+f_i)=dotmu(i,1) + max(0._dl,1-xe(i))*freq_factors(f_i)*akthom/a2**3
+          dotmu(i,1+f_i)=dotmu(i,1) + Recombination_rayleigh_eff(a)*freq_factors(f_i)*akthom/a2**3
         end do
 
         if (tight_tau==0 .and. 1/(tau*dotmu(i,1)) > 0.005) tight_tau = tau !0.005
