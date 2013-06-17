@@ -105,7 +105,8 @@
         public
 
         !Description of this file. Change if you make modifications.
-        character(LEN=*), parameter :: Eqns_name = 'gauge_inv_rayleigh'
+        character(LEN=*), parameter :: Eqns_name = 'rayleigh_backeffect'
+        logical, parameter :: rayleigh_back = .false.
 
         integer, parameter :: basic_num_eqns = 5
           
@@ -211,8 +212,38 @@
 
        real(dl) epsw
        real(dl) nu_tau_notmassless(nqmax0+1,max_nu), nu_tau_nonrelativistic(max_nu),nu_tau_massive(max_nu)  
-       contains
+    contains
 
+       subroutine Phot_Integrate_L012(EV,y,drhonu,fnu,pinu,opacity, opac_qgphot, opac_phot)
+        type(EvolutionVars) EV
+!  Compute the perturbations of density and energy flux
+!  of photons in units of the mean density for Blackbody
+        real(dl), intent(in) :: y(EV%nvar)
+        real(dl), intent(OUT) ::  drhonu,fnu, pinu
+        real(dl), optional :: opacity(nscatter), opac_qgphot, opac_phot
+        integer iq, ind
+
+!  q is the comoving momentum in units of k_B*T_gamma0/c.
+
+        drhonu=0
+        fnu=0
+        pinu=0
+        if (present(opacity)) then
+        opac_qgphot=0
+        opac_phot=0
+        end if
+        do iq=1,num_cmb_freq
+            ind = EV%g_ix_freq + (iq-1)*EV%freq_neq
+            drhonu=drhonu+ phot_int_kernel(iq)* y(ind)
+            fnu=fnu+phot_int_kernel(iq)* y(ind+1)
+            pinu=pinu+ phot_int_kernel(iq)*y(ind+2)
+            if (present(opacity)) then
+            opac_qgphot = opac_qgphot + phot_int_kernel(iq)* y(ind+1) * opacity(iq+1)
+            opac_phot = opac_phot + phot_int_kernel(iq)*opacity(iq+1)
+            end if
+        end do
+
+        end subroutine  Phot_Integrate_L012
 
         subroutine GaugeInterface_ScalEv(EV,y,tau,tauend,tol1,ind,c,w)
          type(EvolutionVars) EV
@@ -488,7 +519,7 @@
             nu_tau_massive(nu_i) =nu_tau_nonrelativistic(nu_i) + DeltaTime(a_nonrel,a_massive) 
             
          end do 
-       
+
         end subroutine GaugeInterface_Init
 
 
@@ -1242,6 +1273,7 @@
         real(dl) sources(CTransScal%NumSources)
         real(dl) ISW
         integer f_i, ix_off, s_ix
+        real(dl) drhophot,qgphot,piphot
         
         y(1:EV%nvar)=yin(1:EV%nvar)
         yprimein = 0
@@ -1355,6 +1387,13 @@
        dgq   = dgq   + grhog_t*qg+grhor_t*qr
        dgpi  = dgpi  + grhor_t*pir + grhog_t*pig
 
+       if (rayleigh_back .and. EV%Rayleigh .and. .not.EV%no_phot_multpoles )  then
+            call Phot_Integrate_L012(EV,y,drhophot,qgphot,piphot)
+            dgrho=dgrho + grhog_t*drhophot
+            dgq=dgq + grhog_t*qgphot
+            dgpi=dgpi + grhog_t*piphot
+       end if
+
 
 !  Get sigma (shear) and z from the constraints
 !  have to get z from eta for numerical stability       
@@ -1453,6 +1492,8 @@
         else
            sources(s_ix+2)=0
         end if
+        
+       if (f_i>2) sources(s_ix+1:s_ix+2)= sources(s_ix+1:s_ix+2) - sources(1:2)
        s_ix=s_ix+2 
         
       if (CTransScal%NumSources > 2 .and. f_i==1) then
@@ -2067,7 +2108,7 @@
 
 !  Internal variables.
 
-        real(dl) opacity
+        real(dl) opacity(nscatter), dopacity(nscatter)
         real(dl) photbar,cs2,pb43,grho,slip,clxgdot, &
                       clxcdot,clxbdot,adotdota,gpres,clxrdot,etak
         real(dl) q,aq,v
@@ -2076,13 +2117,14 @@
         real(dl) dgq,grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,sigma,polter
         real(dl) qgdot,qrdot,pigdot,pirdot,vbdot,dgrho,adotoa
         real(dl) a,a2,z,clxc,clxb,vb,clxg,qg,pig,clxr,qr,pir
-        real(dl) clxq, vq,  E2, dopacity
+        real(dl) clxq, vq,  E2
         integer l,i,ind, ind2, off_ix, ix
         real(dl) dgs,sigmadot,dz !, ddz
         !non-flat vars
         real(dl) cothxor !1/tau in flat case
         integer f_i
         real(dl) polter_freq, opac_rayleigh, opac_tot
+        real(dl) drhophot,qgphot,piphot,opac_qgphot, opac_phot
        
         k=EV%k_buf
         k2=EV%k2_buf     
@@ -2113,9 +2155,9 @@
 
 !  Get sound speed and ionisation fraction.
         if (EV%TightCoupling) then
-          call thermo(tau,cs2,opacity,dopacity)
+          call thermoarr(tau,cs2,opacity,dopacity)
          else
-          call thermo(tau,cs2,opacity)
+          call thermoarr(tau,cs2,opacity)
         end if
 
         gpres=0
@@ -2165,10 +2207,10 @@
          if (.not. EV%no_nu_multpoles) then
           z=(0.5_dl*dgrho/k + etak)/adotoa 
           dz= -adotoa*z - 0.5_dl*dgrho/k
-          clxg=-4*dz/k-4/k*opacity*(vb+z)
+          clxg=-4*dz/k-4/k*opacity(1)*(vb+z)
           qg=-4._dl/3*z
          else
-          clxg=clxr-4/k*opacity*(vb+z)
+          clxg=clxr-4/k*opacity(1)*(vb+z)
           qg=qr          
          end if
          pig=0    
@@ -2185,6 +2227,18 @@
 !  8*pi*a*a*SUM[(rho_i+p_i)*v_i]
         dgq=dgq + grhog_t*qg+grhor_t*qr
 
+       if (.not. EV%TightCoupling .and. .not.EV%no_phot_multpoles )  then
+            call Phot_Integrate_L012(EV,ay,drhophot,qgphot,piphot, opacity, opac_qgphot,opac_phot)
+            if (rayleigh_back) then
+            dgrho=dgrho + grhog_t*drhophot
+            dgq=dgq + grhog_t*qgphot
+            else
+            opac_qgphot = 0
+            opac_phot = opacity(1)
+            end if
+        end if
+
+        
 !  Photon mass density over baryon mass density
         photbar=grhog_t/grhob_t
         pb43=4._dl/3*photbar
@@ -2234,11 +2288,11 @@
             gpres=gpres+ (grhog_t+grhor_t)/3 +grhov_t*w_lam
             adotdota=(adotoa*adotoa-gpres)/2
 
-            pig = 32._dl/45/opacity*k*(sigma+vb)
+            pig = 32._dl/45/opacity(1)*k*(sigma+vb)
 
     !  First-order approximation to baryon-photon splip
-             slip = - (2*adotoa/(1+pb43) + dopacity/opacity)* (vb-3._dl/4*qg) &
-             +(-adotdota*vb-k/2*adotoa*clxg +k*(cs2*clxbdot-clxgdot/4))/(opacity*(1+pb43))
+             slip = - (2*adotoa/(1+pb43) + dopacity(1)/opacity(1))* (vb-3._dl/4*qg) &
+             +(-adotdota*vb-k/2*adotoa*clxg +k*(cs2*clxbdot-clxgdot/4))/(opacity(1)*(1+pb43))
             
             if (second_order_tightcoupling) then
             ! by Francis-Yan Cyr-Racine simplified (inconsistently) by AL assuming flat
@@ -2251,15 +2305,15 @@
              sigmadot = -2*adotoa*sigma-dgs/k+etak
 
              !Once know slip, recompute qgdot, pig, pigdot
-             qgdot = k*(clxg/4._dl-pig/2._dl) +opacity*slip 
+             qgdot = k*(clxg/4._dl-pig/2._dl) +opacity(1)*slip 
 
-             pig = 32._dl/45/opacity*k*(sigma+3._dl*qg/4._dl)*(1+(dopacity*11._dl/6._dl/opacity**2)) &
-                 + (32._dl/45._dl/opacity**2)*k*(sigmadot+3._dl*qgdot/4._dl)*(-11._dl/6._dl)
+             pig = 32._dl/45/opacity(1)*k*(sigma+3._dl*qg/4._dl)*(1+(dopacity(1)*11._dl/6._dl/opacity(1)**2)) &
+                 + (32._dl/45._dl/opacity(1)**2)*k*(sigmadot+3._dl*qgdot/4._dl)*(-11._dl/6._dl)
 
-             pigdot = -(32._dl/45._dl)*(dopacity/opacity**2)*k*(sigma+3._dl*qg/4._dl)*(1 + &
-                 dopacity*11._dl/6._dl/opacity**2 ) &
-                 + (32._dl/45._dl/opacity)*k*(sigmadot+3._dl*qgdot/4._dl)*(1+(11._dl/6._dl) &
-                 *(dopacity/opacity**2))
+             pigdot = -(32._dl/45._dl)*(dopacity(1)/opacity(1)**2)*k*(sigma+3._dl*qg/4._dl)*(1 + &
+                 dopacity(1)*11._dl/6._dl/opacity(1)**2 ) &
+                 + (32._dl/45._dl/opacity(1))*k*(sigmadot+3._dl*qgdot/4._dl)*(1+(11._dl/6._dl) &
+                 *(dopacity(1)/opacity(1)**2))
 
              EV%pigdot = pigdot
    
@@ -2274,9 +2328,14 @@
 
             EV%pig = pig
 
-        else
-            vbdot=-adotoa*vb+cs2*k*clxb-photbar*opacity*(4._dl/3*vb-qg)
+       else
+           if (.not. EV%TightCoupling .and. .not.EV%no_phot_multpoles)  then 
+             vbdot = -adotoa*vb+cs2*k*clxb -photbar*(opac_phot*(4._dl/3*vb-qg) -opac_qgphot)
+           else
+             vbdot=-adotoa*vb+cs2*k*clxb-photbar*opacity(1)*(4._dl/3*vb-qg)
+           end if
         end if
+
 
         ayprime(5)=vbdot
     
@@ -2284,8 +2343,13 @@
 
  !  Photon equations of motion
         ayprime(EV%g_ix)=clxgdot
-        qgdot=4._dl/3*(-vbdot-adotoa*vb+cs2*k*clxb)/pb43 &
+       if (.not. EV%TightCoupling .and. .not.EV%no_phot_multpoles)  then 
+        qgdot=4._dl/3*(photbar*opacity(1)*(4._dl/3*vb-qg))/pb43 &
              +EV%denlk(1)*clxg-EV%denlk2(1)*pig  
+       else
+          qgdot=4._dl/3*(-vbdot-adotoa*vb+cs2*k*clxb)/pb43 &
+             +EV%denlk(1)*clxg-EV%denlk2(1)*pig  
+       end if
         ayprime(EV%g_ix+1)=qgdot
         
 !  Use explicit equations for photon moments if appropriate       
@@ -2295,35 +2359,35 @@
             polter = pig/10+9._dl/15*E2 !2/15*(3/4 pig + 9/2 E2)
             ix= EV%g_ix+2
             if (EV%lmaxg>2) then 
-              pigdot=EV%denlk(2)*qg-EV%denlk2(2)*ay(ix+1)-opacity*(pig - polter) &
+              pigdot=EV%denlk(2)*qg-EV%denlk2(2)*ay(ix+1)-opacity(1)*(pig - polter) &
                    +8._dl/15._dl*k*sigma
               ayprime(ix)=pigdot
               do  l=3,EV%lmaxg-1
                 ix=ix+1
-                ayprime(ix)=(EV%denlk(l)*ay(ix-1)-EV%denlk2(l)*ay(ix+1))-opacity*ay(ix)
+                ayprime(ix)=(EV%denlk(l)*ay(ix-1)-EV%denlk2(l)*ay(ix+1))-opacity(1)*ay(ix)
               end do
              ix=ix+1
           !  Truncate the photon moment expansion
-             ayprime(ix)=k*ay(ix-1)-(EV%lmaxg+1)*cothxor*ay(ix) -opacity*ay(ix)
+             ayprime(ix)=k*ay(ix-1)-(EV%lmaxg+1)*cothxor*ay(ix) -opacity(1)*ay(ix)
             else !closed case
-              pigdot=EV%denlk(2)*qg-opacity*(pig - polter) +8._dl/15._dl*k*sigma
+              pigdot=EV%denlk(2)*qg-opacity(1)*(pig - polter) +8._dl/15._dl*k*sigma
               ayprime(ix)=pigdot
             endif 
 !  Polarization
             !l=2 
             ix=EV%polind+2
             if (EV%lmaxgpol>2) then
-              ayprime(ix) = -opacity*(ay(ix) - polter) - k/3._dl*ay(ix+1)
+              ayprime(ix) = -opacity(1)*(ay(ix) - polter) - k/3._dl*ay(ix+1)
               do l=3,EV%lmaxgpol-1
                ix=ix+1
-               ayprime(ix)=-opacity*ay(ix) + (EV%denlk(l)*ay(ix-1)-EV%polfack(l)*ay(ix+1))
+               ayprime(ix)=-opacity(1)*ay(ix) + (EV%denlk(l)*ay(ix-1)-EV%polfack(l)*ay(ix+1))
               end do  
               ix=ix+1
               !truncate
-              ayprime(ix)=-opacity*ay(ix) + &
+              ayprime(ix)=-opacity(1)*ay(ix) + &
                 k*EV%poltruncfac*ay(ix-1)-(EV%lmaxgpol+3)*cothxor*ay(ix)
            else !closed case
-              ayprime(ix) = -opacity*(ay(ix) - polter) 
+              ayprime(ix) = -opacity(1)*(ay(ix) - polter) 
            endif
         end if
 
@@ -2332,10 +2396,11 @@
          do f_i = 1, num_cmb_freq
                 opac_rayleigh = freq_factors(f_i)*Recombination_rayleigh_eff(a)*akthom/a2**3 
                 !max(0._dl,1-Recombination_xe(a))*akthom/a2**3
-                opac_tot=opac_rayleigh+opacity
+                opac_tot=opac_rayleigh+opacity(1)
                 ind = EV%g_ix_freq + (f_i-1)*EV%freq_neq
                 ayprime(ind)=-k*ay(ind+1)
-                ayprime(ind+1)= EV%denlk(1)*ay(ind)-EV%denlk2(1)*ay(ind+2) !+
+                ayprime(ind+1)= EV%denlk(1)*ay(ind)-EV%denlk2(1)*ay(ind+2)  + &
+                    4._dl/3*photbar*(-opacity(1)*ay(ind+1) + opac_rayleigh*(4._dl/3*vb-qg-ay(ind+1)))/pb43
                 E2=ay(EV%polind_freq + (f_i-1)*EV%freq_neq +2)
                 polter_freq = ay(ind+2)/10+9._dl/15*E2 !2/15*(3/4 pig + 9/2 E2)
                 if (EV%lmaxg>2) then

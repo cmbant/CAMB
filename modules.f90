@@ -37,11 +37,12 @@
 
     character(LEN=*), parameter :: version = 'Jun13_rayleigh'
 
-     integer, parameter :: num_cmb_freq = 5
+     integer, parameter :: num_cmb_freq = 6 !!!
     integer, parameter :: nscatter = num_cmb_freq+1
-    real(dl) :: freq_factors(num_cmb_freq)  = &
-     [(143/ 3125349._dl)**4, (217/ 3125349._dl)**4, (353/ 3125349._dl)**4, (545/ 3125349._dl)**4, (857/ 3125349._dl)**4]
-
+    real(dl) :: phot_freqs(num_cmb_freq)  !set in equations _Init
+    real(dl) :: phot_int_kernel(num_cmb_freq)
+    real(dl) :: freq_factors(num_cmb_freq) 
+    
     integer :: FeedbackLevel = 0 !if >0 print out useful information about the model
 
     logical, parameter :: DebugMsgs=.false. !Set to true to view progress and timing
@@ -2339,7 +2340,38 @@
     real(dl) rombint
     integer noutput,f_i
     external rombint
+    real(dl) dq, q, dlfdlq
 
+
+           if (.true.) then
+            phot_freqs(1:6) = [0, 143, 217,353, 545, 857]  
+             do i=1, size(phot_freqs)
+               q = phot_freqs(i)/56.8
+               !this should not be used, just for code consistency
+               if (i==1) then
+                 dq= (phot_freqs(i+1)/56.8-q)*2
+               elseif (i==size(phot_freqs)) then
+                 dq= (q-phot_freqs(i-1)/56.8)*2
+               else
+                dq = (phot_freqs(i+1)-phot_freqs(i-1))/2/56.8
+               end if
+               dlfdlq=-q/(1._dl-exp(-q))
+               phot_int_kernel(i)=dq*q**3/(exp(q)-1._dl) * (-0.25_dl*dlfdlq)
+             end do
+           else
+               dq = 18/real(num_cmb_freq)
+                do i=1,num_cmb_freq
+                    q=(i-0.5d0)*dq
+                    phot_freqs(i) = 56.8*q !phot_freqs in GHz
+                    dlfdlq=-q/(1._dl-exp(-q))
+                    phot_int_kernel(i)=dq*q**3/(exp(q)-1._dl) * (-0.25_dl*dlfdlq) !now evolve 4F_l/dlfdlq(i)
+                end do
+               phot_int_kernel=phot_int_kernel/sum(phot_int_kernel) !  (Pi**4/15)
+           end if
+           print *, 'Doing frequencies: ', phot_freqs
+           freq_factors = (phot_freqs/ 3125349._dl)**4
+
+    
     call Recombination_Init(CP%Recomb, CP%omegac, CP%omegab,CP%Omegan, CP%Omegav, &
     CP%h0,CP%tcmb,CP%yhe,CP%Num_Nu_massless + CP%Num_Nu_massive)
     !almost all the time spent here
@@ -2376,8 +2408,10 @@
     xe(1)=xe0+0.25d0*CP%yhe/(1._dl-CP%yhe)*(x1+2*x2)
     barssc=barssc0*(1._dl-0.75d0*CP%yhe+(1._dl-CP%yhe)*xe(1))
     cs2(1)=4._dl/3._dl*barssc*tb(1)
-    dotmu(1,:)=xe(1)*akthom/a02
+    dotmu(1,1)=xe(1)*akthom/a02
     sdotmu(1,:)=0
+    dotmu(1,2:)=0
+    scaleFactor(1)=a0
 
     do i=2,nthermo
         tau=tauminn*exp((i-1)*dlntau)
@@ -2440,7 +2474,7 @@
         ! Calculation of the visibility function
         dotmu(i,1)=xe(i)*akthom/a2
         do f_i=1,num_cmb_freq
-          dotmu(i,1+f_i)=dotmu(i,1) + Recombination_rayleigh_eff(a)*freq_factors(f_i)*akthom/a2**3
+          dotmu(i,1+f_i)=dotmu(i,1)*0 + Recombination_rayleigh_eff(a)*freq_factors(f_i)*akthom/a2**3
         end do
 
         if (tight_tau==0 .and. 1/(tau*dotmu(i,1)) > 0.005) tight_tau = tau !0.005
@@ -2486,6 +2520,20 @@
         write(*,'("Reion opt depth      = ",f7.4)') actual_opt_depth
     end if
 
+!After turning of electron contribution to dotmu
+    !call CreateTxtFile('c:\tmp\planck\rayleigh\visibilities.txt',1)
+    !do j1=1,nthermo !!!!
+    !     tau = tauminn*exp((j1-1)*dlntau)
+    !     write(1,'(9E15.5)') tau, scaleFactor(j1), dotmu(j1,1)*scaleFactor(j1)**2/akthom, real(emmu(j1,1)*dotmu(j1,1)),real(emmu(j1,1)*dotmu(j1,3:7))
+    !end do
+    !close(1)
+    !call CreateTxtFile('c:\tmp\planck\rayleigh\taudot.txt',1)
+    !do j1=1,nthermo !!!!
+    !     tau = tauminn*exp((j1-1)*dlntau)
+    !     write(1,'(9E15.5)') tau, scaleFactor(j1), dotmu(j1,1)*scaleFactor(j1)**2/akthom, real(dotmu(j1,1)),real(dotmu(j1,3:7))
+    !end do
+    !close(1)
+    !stop
 
     iv=0
     vfi=0._dl
