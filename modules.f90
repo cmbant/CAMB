@@ -37,11 +37,12 @@
 
     character(LEN=*), parameter :: version = 'Jun13_rayleigh'
 
-     integer, parameter :: num_cmb_freq = 6 !!!
+    integer, parameter  :: num_cmb_freq = 6 !8 PRISM !!!
+    logical :: rayleigh_diff = .true.
     integer, parameter :: nscatter = num_cmb_freq+1
     real(dl) :: phot_freqs(num_cmb_freq)  !set in equations _Init
     real(dl) :: phot_int_kernel(num_cmb_freq)
-    real(dl) :: freq_factors(num_cmb_freq) 
+    real(dl) :: freq_factors(num_cmb_freq,2) 
     
     integer :: FeedbackLevel = 0 !if >0 print out useful information about the model
 
@@ -1206,7 +1207,10 @@
         end do
         close(fileio_unit)
         if (num_cmb_freq>0) then
-         do f_i_1=1,num_cmb_freq
+        open(unit=fileio_unit,file=trim(LensFile)//'_freqs',form='formatted',status='replace')
+        write(fileio_unit,'('//trim(IntToStr(num_cmb_freq))//'E15.5)') phot_freqs
+        close(fileio_unit)
+        do f_i_1=1,num_cmb_freq
          do f_i_2=1,num_cmb_freq
             open(unit=fileio_unit,file=trim(LensFile)//trim(concat('_',f_i_1,'_',f_i_2)),form='formatted',status='replace')
             do in=1,CP%InitPower%nn
@@ -2343,8 +2347,9 @@
     real(dl) dq, q, dlfdlq
 
 
-           if (.true.) then
-            phot_freqs(1:6) = [0, 143, 217,353, 545, 857]  
+           if (num_cmb_freq<10) then
+            phot_freqs(1:6) = [0, 143, 217,353, 545, 857]
+!             phot_freqs(1:8) = [220,265,300,320,295,460,555,660]*1.085 !Prism
              do i=1, size(phot_freqs)
                q = phot_freqs(i)/56.8
                !this should not be used, just for code consistency
@@ -2355,9 +2360,13 @@
                else
                 dq = (phot_freqs(i+1)-phot_freqs(i-1))/2/56.8
                end if
+               if (q==0._dl) then
+                   phot_int_kernel(i)=0
+               else
                dlfdlq=-q/(1._dl-exp(-q))
                phot_int_kernel(i)=dq*q**3/(exp(q)-1._dl) * (-0.25_dl*dlfdlq)
-             end do
+               end if
+            end do
            else
                dq = 18/real(num_cmb_freq)
                 do i=1,num_cmb_freq
@@ -2369,9 +2378,9 @@
                phot_int_kernel=phot_int_kernel/sum(phot_int_kernel) !  (Pi**4/15)
            end if
            print *, 'Doing frequencies: ', phot_freqs
-           freq_factors = (phot_freqs/ 3125349._dl)**4
+           freq_factors(:,1) = (phot_freqs/ 3125349._dl)**4
+           freq_factors(:,2) = (phot_freqs/ 3125349._dl)**6 * 638./243*0
 
-    
     call Recombination_Init(CP%Recomb, CP%omegac, CP%omegab,CP%Omegan, CP%Omegav, &
     CP%h0,CP%tcmb,CP%yhe,CP%Num_Nu_massless + CP%Num_Nu_massive)
     !almost all the time spent here
@@ -2454,7 +2463,7 @@
             xe(i) = Reionization_xe(a, tau, xe(ncount))
             !print *,1/a-1,xe(i)
             if (CP%AccurateReionization .and. CP%DerivedParameters) then
-                dotmu(i,:)=(Recombination_xe(a) - xe(i))*akthom/a2
+                dotmu(i,1)=(Recombination_xe(a) - xe(i))*akthom/a2
 
                 if (last_dotmu /=0) then
                     actual_opt_depth = actual_opt_depth - 2._dl*dtau/(1._dl/dotmu(i,1)+1._dl/last_dotmu)
@@ -2474,16 +2483,27 @@
         ! Calculation of the visibility function
         dotmu(i,1)=xe(i)*akthom/a2
         do f_i=1,num_cmb_freq
-          dotmu(i,1+f_i)=dotmu(i,1)*0 + Recombination_rayleigh_eff(a)*freq_factors(f_i)*akthom/a2**3
+          dotmu(i,1+f_i)=dotmu(i,1) + Recombination_rayleigh_eff(a)*akthom/a2*(min(1._dl,&
+                  freq_factors(f_i,1)/a2**2 + freq_factors(f_i,2)/a2**3))
         end do
 
         if (tight_tau==0 .and. 1/(tau*dotmu(i,1)) > 0.005) tight_tau = tau !0.005
         !Tight coupling switch time when k/opacity is smaller than 1/(tau*opacity)
 
         if (tau < 0.001) then
-            sdotmu(i,:)=0
+            sdotmu(i,1)=0
         else
-            sdotmu(i,:)=sdotmu(i-1,:)+2._dl*dtau/(1._dl/dotmu(i,:)+1._dl/dotmu(i-1,:))
+            sdotmu(i,1)=sdotmu(i-1,1)+2._dl*dtau/(1._dl/dotmu(i,1)+1._dl/dotmu(i-1,1))
+        end if
+!        if (all(dotmu(i-1,2:)>1d-30)) then
+!            sdotmu(i,2:)=sdotmu(i-1,2:)+2._dl*dtau/(1._dl/dotmu(i,2:)+1._dl/dotmu(i-1,2:))
+!        else
+!            sdotmu(i,2:)=sdotmu(i-1,2:)
+!        end if
+        if (tau < 0.001) then
+             sdotmu(i,2:)=0
+        else
+             sdotmu(i,2:)=sdotmu(i-1,2:)+2._dl*dtau/(1._dl/dotmu(i,2:)+1._dl/dotmu(i-1,2:))
         end if
 
         a0=a
@@ -2524,13 +2544,13 @@
     !call CreateTxtFile('c:\tmp\planck\rayleigh\visibilities.txt',1)
     !do j1=1,nthermo !!!!
     !     tau = tauminn*exp((j1-1)*dlntau)
-    !     write(1,'(9E15.5)') tau, scaleFactor(j1), dotmu(j1,1)*scaleFactor(j1)**2/akthom, real(emmu(j1,1)*dotmu(j1,1)),real(emmu(j1,1)*dotmu(j1,3:7))
+    !     write(1,'(9E15.5)') tau, scaleFactor(j1), dotmu(j1,1)*scaleFactor(j1)**2/akthom, real(emmu(j1,1)*dotmu(j1,1)),real(emmu(j1,3:7)*emmu(j1,1)*dotmu(j1,3:7))
     !end do
     !close(1)
     !call CreateTxtFile('c:\tmp\planck\rayleigh\taudot.txt',1)
     !do j1=1,nthermo !!!!
     !     tau = tauminn*exp((j1-1)*dlntau)
-    !     write(1,'(9E15.5)') tau, scaleFactor(j1), dotmu(j1,1)*scaleFactor(j1)**2/akthom, real(dotmu(j1,1)),real(dotmu(j1,3:7))
+    !     write(1,'(14E15.5)') tau, scaleFactor(j1), dotmu(j1,1)*scaleFactor(j1)**2/akthom, real(dotmu(j1,1)),real(dotmu(j1,3:7)),real(emmu(j1,3:7))
     !end do
     !close(1)
     !stop

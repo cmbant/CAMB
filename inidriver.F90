@@ -43,6 +43,8 @@
 
     Ini_fail_on_not_found = .false.
 
+    rayleigh_diff = Ini_read_logical('rayleigh_diff',rayleigh_diff)
+    
     outroot = Ini_Read_String('output_root')
     if (outroot /= '') outroot = trim(outroot) // '_'
 

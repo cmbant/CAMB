@@ -2407,7 +2407,7 @@
                         if (i<3 .and. j<3) then
                             Cl_scalar_array(:,in,i,j) = Cl_scalar(:, in, ind(i,j))
                         else
-                            if (i<=3+num_cmb_freq*2 .and. j<=3+num_cmb_freq*2 .and. i>3 .and. j>3) then
+                            if (i<=3+num_cmb_freq*2 .and. j<=3+num_cmb_freq*2 .and. i>3 .and. j>3 .and. (i<=5 .and. j<=5 .or. .not. rayleigh_diff)) then
                               call InterpolateClArrTemplated(CTransS%ls,iCl_array(1,i,j,in),Cl_scalar_array(lmin, in, i,j), &
                                 CTransS%ls%l0,ind(1+mod(i-4,2),1+mod(j-4,2)))
 

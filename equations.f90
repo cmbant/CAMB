@@ -106,7 +106,7 @@
 
         !Description of this file. Change if you make modifications.
         character(LEN=*), parameter :: Eqns_name = 'rayleigh_backeffect'
-        logical, parameter :: rayleigh_back = .false.
+        logical, parameter :: rayleigh_back = .false. !must also change num_cmb_freq
 
         integer, parameter :: basic_num_eqns = 5
           
@@ -1493,7 +1493,7 @@
            sources(s_ix+2)=0
         end if
         
-       if (f_i>2) sources(s_ix+1:s_ix+2)= sources(s_ix+1:s_ix+2) - sources(1:2)
+       if (rayleigh_diff .and. f_i>2) sources(s_ix+1:s_ix+2)= sources(s_ix+1:s_ix+2) - sources(1:2)
        s_ix=s_ix+2 
         
       if (CTransScal%NumSources > 2 .and. f_i==1) then
@@ -2394,7 +2394,8 @@
         if (EV%Rayleigh) then
          !assume after tight coupling ended
          do f_i = 1, num_cmb_freq
-                opac_rayleigh = freq_factors(f_i)*Recombination_rayleigh_eff(a)*akthom/a2**3 
+                opac_rayleigh = Recombination_rayleigh_eff(a)*akthom/a2*(min(1._dl,&
+                  freq_factors(f_i,1)/a2**2 + freq_factors(f_i,2)/a2**3)) 
                 !max(0._dl,1-Recombination_xe(a))*akthom/a2**3
                 opac_tot=opac_rayleigh+opacity(1)
                 ind = EV%g_ix_freq + (f_i-1)*EV%freq_neq
