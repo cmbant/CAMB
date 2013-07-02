@@ -43,7 +43,7 @@
     real(dl) :: phot_freqs(num_cmb_freq)  !set in equations _Init
     real(dl) :: phot_int_kernel(num_cmb_freq)
     real(dl) :: freq_factors(num_cmb_freq,2) 
-    
+
     integer :: FeedbackLevel = 0 !if >0 print out useful information about the model
 
     logical, parameter :: DebugMsgs=.false. !Set to true to view progress and timing
@@ -1006,7 +1006,7 @@
     real(dl) , dimension (:,:,:), allocatable :: Cl_lensed
     !Cl_lensed(l, power_index, Cl_type) are the interpolated Cls
     real(dl) , dimension (:,:,:,:,:), allocatable :: Cl_lensed_freqs
-    
+
     contains
 
     subroutine Init_ClTransfer(CTrans)
@@ -1207,20 +1207,20 @@
         end do
         close(fileio_unit)
         if (num_cmb_freq>0) then
-        open(unit=fileio_unit,file=trim(LensFile)//'_freqs',form='formatted',status='replace')
-        write(fileio_unit,'('//trim(IntToStr(num_cmb_freq))//'E15.5)') phot_freqs
-        close(fileio_unit)
-        do f_i_1=1,num_cmb_freq
-         do f_i_2=1,num_cmb_freq
-            open(unit=fileio_unit,file=trim(LensFile)//trim(concat('_',f_i_1,'_',f_i_2)),form='formatted',status='replace')
-            do in=1,CP%InitPower%nn
-            do il=lmin, lmax_lensed
-                write(fileio_unit,'(1I6,4E15.5)')il, fact*Cl_lensed_freqs(il, in, CT_Temp:CT_Cross,f_i_1,f_i_2)
+            open(unit=fileio_unit,file=trim(LensFile)//'_freqs',form='formatted',status='replace')
+            write(fileio_unit,'('//trim(IntToStr(num_cmb_freq))//'E15.5)') phot_freqs
+            close(fileio_unit)
+            do f_i_1=1,num_cmb_freq
+                do f_i_2=1,num_cmb_freq
+                    open(unit=fileio_unit,file=trim(LensFile)//trim(concat('_',f_i_1,'_',f_i_2)),form='formatted',status='replace')
+                    do in=1,CP%InitPower%nn
+                        do il=lmin, lmax_lensed
+                            write(fileio_unit,'(1I6,4E15.5)')il, fact*Cl_lensed_freqs(il, in, CT_Temp:CT_Cross,f_i_1,f_i_2)
+                        end do
+                    end do
+                    close(fileio_unit)
+                end do
             end do
-            end do
-           close(fileio_unit)
-         end do
-         end do
         end if
     end if
 
@@ -2193,7 +2193,7 @@
     implicit none
     private
     integer,parameter :: nthermo=20000
-    
+
 
     real(dl) tb(nthermo),cs2(nthermo),xe(nthermo)
     real(dl) dcs2(nthermo)
@@ -2345,41 +2345,43 @@
     integer noutput,f_i
     external rombint
     real(dl) dq, q, dlfdlq
+    logical :: plot_scatter = .false.
+    real(dl) elec_fac
 
 
-           if (num_cmb_freq<10) then
-            phot_freqs(1:6) = [0, 143, 217,353, 545, 857]
-!             phot_freqs(1:8) = [220,265,300,320,295,460,555,660]*1.085 !Prism
-             do i=1, size(phot_freqs)
-               q = phot_freqs(i)/56.8
-               !this should not be used, just for code consistency
-               if (i==1) then
-                 dq= (phot_freqs(i+1)/56.8-q)*2
-               elseif (i==size(phot_freqs)) then
-                 dq= (q-phot_freqs(i-1)/56.8)*2
-               else
+    if (num_cmb_freq<10) then
+        phot_freqs(1:6) = [0, 143, 217,353, 545, 857]
+        !             phot_freqs(1:8) = [220,265,300,320,295,460,555,660]*1.085 !Prism
+        do i=1, size(phot_freqs)
+            q = phot_freqs(i)/56.8
+            !this should not be used, just for code consistency
+            if (i==1) then
+                dq= (phot_freqs(i+1)/56.8-q)*2
+            elseif (i==size(phot_freqs)) then
+                dq= (q-phot_freqs(i-1)/56.8)*2
+            else
                 dq = (phot_freqs(i+1)-phot_freqs(i-1))/2/56.8
-               end if
-               if (q==0._dl) then
-                   phot_int_kernel(i)=0
-               else
-               dlfdlq=-q/(1._dl-exp(-q))
-               phot_int_kernel(i)=dq*q**3/(exp(q)-1._dl) * (-0.25_dl*dlfdlq)
-               end if
-            end do
-           else
-               dq = 18/real(num_cmb_freq)
-                do i=1,num_cmb_freq
-                    q=(i-0.5d0)*dq
-                    phot_freqs(i) = 56.8*q !phot_freqs in GHz
-                    dlfdlq=-q/(1._dl-exp(-q))
-                    phot_int_kernel(i)=dq*q**3/(exp(q)-1._dl) * (-0.25_dl*dlfdlq) !now evolve 4F_l/dlfdlq(i)
-                end do
-               phot_int_kernel=phot_int_kernel/sum(phot_int_kernel) !  (Pi**4/15)
-           end if
-           print *, 'Doing frequencies: ', phot_freqs
-           freq_factors(:,1) = (phot_freqs/ 3125349._dl)**4
-           freq_factors(:,2) = (phot_freqs/ 3125349._dl)**6 * 638./243*0
+            end if
+            if (q==0._dl) then
+                phot_int_kernel(i)=0
+            else
+                dlfdlq=-q/(1._dl-exp(-q))
+                phot_int_kernel(i)=dq*q**3/(exp(q)-1._dl) * (-0.25_dl*dlfdlq)
+            end if
+        end do
+    else
+        dq = 18/real(num_cmb_freq)
+        do i=1,num_cmb_freq
+            q=(i-0.5d0)*dq
+            phot_freqs(i) = 56.8*q !phot_freqs in GHz
+            dlfdlq=-q/(1._dl-exp(-q))
+            phot_int_kernel(i)=dq*q**3/(exp(q)-1._dl) * (-0.25_dl*dlfdlq) !now evolve 4F_l/dlfdlq(i)
+        end do
+        phot_int_kernel=phot_int_kernel/sum(phot_int_kernel) !  (Pi**4/15)
+    end if
+    print *, 'Doing frequencies: ', phot_freqs
+    freq_factors(:,1) = (phot_freqs/ 3125349._dl)**4
+    freq_factors(:,2) = (phot_freqs/ 3125349._dl)**6 * 638._dl/243
 
     call Recombination_Init(CP%Recomb, CP%omegac, CP%omegab,CP%Omegan, CP%Omegav, &
     CP%h0,CP%tcmb,CP%yhe,CP%Num_Nu_massless + CP%Num_Nu_massive)
@@ -2482,9 +2484,14 @@
 
         ! Calculation of the visibility function
         dotmu(i,1)=xe(i)*akthom/a2
+        if (plot_scatter) then
+            elec_fac=0
+        else
+            elec_fac =1
+        end if
         do f_i=1,num_cmb_freq
-          dotmu(i,1+f_i)=dotmu(i,1) + Recombination_rayleigh_eff(a)*akthom/a2*(min(1._dl,&
-                  freq_factors(f_i,1)/a2**2 + freq_factors(f_i,2)/a2**3))
+            dotmu(i,1+f_i)=dotmu(i,1)*elec_fac + Recombination_rayleigh_eff(a)*akthom/a2*(min(1._dl,&
+            freq_factors(f_i,1)/a2**2 + freq_factors(f_i,2)/a2**3))
         end do
 
         if (tight_tau==0 .and. 1/(tau*dotmu(i,1)) > 0.005) tight_tau = tau !0.005
@@ -2495,15 +2502,18 @@
         else
             sdotmu(i,1)=sdotmu(i-1,1)+2._dl*dtau/(1._dl/dotmu(i,1)+1._dl/dotmu(i-1,1))
         end if
-!        if (all(dotmu(i-1,2:)>1d-30)) then
-!            sdotmu(i,2:)=sdotmu(i-1,2:)+2._dl*dtau/(1._dl/dotmu(i,2:)+1._dl/dotmu(i-1,2:))
-!        else
-!            sdotmu(i,2:)=sdotmu(i-1,2:)
-!        end if
-        if (tau < 0.001) then
-             sdotmu(i,2:)=0
+        if (plot_scatter) then
+            where(dotmu(i-1,2:)>1d-30)
+                sdotmu(i,2:)=sdotmu(i-1,2:)+2._dl*dtau/(1._dl/dotmu(i,2:)+1._dl/dotmu(i-1,2:))
+            elsewhere
+                sdotmu(i,2:)=sdotmu(i-1,2:)
+            end where
         else
-             sdotmu(i,2:)=sdotmu(i-1,2:)+2._dl*dtau/(1._dl/dotmu(i,2:)+1._dl/dotmu(i-1,2:))
+            if (tau < 0.001) then
+                sdotmu(i,2:)=0
+            else
+                sdotmu(i,2:)=sdotmu(i-1,2:)+2._dl*dtau/(1._dl/dotmu(i,2:)+1._dl/dotmu(i-1,2:))
+            end if
         end if
 
         a0=a
@@ -2540,21 +2550,21 @@
         write(*,'("Reion opt depth      = ",f7.4)') actual_opt_depth
     end if
 
-!After turning of electron contribution to dotmu
-    !call CreateTxtFile('c:\tmp\planck\rayleigh\visibilities.txt',1)
-    !do j1=1,nthermo !!!!
-    !     tau = tauminn*exp((j1-1)*dlntau)
-    !     write(1,'(9E15.5)') tau, scaleFactor(j1), dotmu(j1,1)*scaleFactor(j1)**2/akthom, real(emmu(j1,1)*dotmu(j1,1)),real(emmu(j1,3:7)*emmu(j1,1)*dotmu(j1,3:7))
-    !end do
-    !close(1)
-    !call CreateTxtFile('c:\tmp\planck\rayleigh\taudot.txt',1)
-    !do j1=1,nthermo !!!!
-    !     tau = tauminn*exp((j1-1)*dlntau)
-    !     write(1,'(14E15.5)') tau, scaleFactor(j1), dotmu(j1,1)*scaleFactor(j1)**2/akthom, real(dotmu(j1,1)),real(dotmu(j1,3:7)),real(emmu(j1,3:7))
-    !end do
-    !close(1)
-    !stop
-
+    if (plot_scatter) then
+        call CreateTxtFile('c:\tmp\planck\rayleigh\visibilities_tot.txt',1)
+        do j1=1,nthermo !!!!
+            tau = tauminn*exp((j1-1)*dlntau)
+            write(1,'(9E15.5)') tau, scaleFactor(j1), dotmu(j1,1)*scaleFactor(j1)**2/akthom, real(emmu(j1,1)*dotmu(j1,1)),real(emmu(j1,3:7)*emmu(j1,1)*dotmu(j1,3:7))
+        end do
+        close(1)
+        call CreateTxtFile('c:\tmp\planck\rayleigh\taudot_tot.txt',1)
+        do j1=1,nthermo !!!!
+            tau = tauminn*exp((j1-1)*dlntau)
+            write(1,'(14E15.5)') tau, scaleFactor(j1), dotmu(j1,1)*scaleFactor(j1)**2/akthom, real(dotmu(j1,1)),real(dotmu(j1,3:7)),real(emmu(j1,3:7))
+        end do
+        close(1)
+        stop
+    end if
     iv=0
     vfi=0._dl
     ! Getting the starting and finishing times for decoupling and time of maximum visibility
@@ -2628,10 +2638,10 @@
     call splini(spline_data,nthermo)
     call splder(cs2,dcs2,nthermo,spline_data)
     do f_i=1, nscatter
-     call splder(dotmu(1,f_i),ddotmu(1,f_i),nthermo,spline_data)
-     call splder(ddotmu(1,f_i),dddotmu(1,f_i),nthermo,spline_data)
-     call splder(dddotmu(1,f_i),ddddotmu(1,f_i),nthermo,spline_data)
-     call splder(emmu(1,f_i),demmu(1,f_i),nthermo,spline_data)
+        call splder(dotmu(1,f_i),ddotmu(1,f_i),nthermo,spline_data)
+        call splder(ddotmu(1,f_i),dddotmu(1,f_i),nthermo,spline_data)
+        call splder(dddotmu(1,f_i),ddddotmu(1,f_i),nthermo,spline_data)
+        call splder(emmu(1,f_i),demmu(1,f_i),nthermo,spline_data)
     end do
     if (dowinlens) call splder(winlens,dwinlens,nthermo,spline_data)
 
@@ -2664,34 +2674,34 @@
         ThermoDerivedParams( derived_thetaEQ ) = 100*timeOfz( ThermoDerivedParams( derived_zEQ ))/DA
 
         if (associated(BackgroundOutputs%z_outputs)) then
-        if (allocated(BackgroundOutputs%H)) &
+            if (allocated(BackgroundOutputs%H)) &
             deallocate(BackgroundOutputs%H, BackgroundOutputs%DA, BackgroundOutputs%rs_by_D_v)
             noutput = size(BackgroundOutputs%z_outputs)
             allocate(BackgroundOutputs%H(noutput), BackgroundOutputs%DA(noutput), BackgroundOutputs%rs_by_D_v(noutput))
             do i=1,noutput
-            BackgroundOutputs%H(i) = HofZ(BackgroundOutputs%z_outputs(i))
+                BackgroundOutputs%H(i) = HofZ(BackgroundOutputs%z_outputs(i))
                 BackgroundOutputs%DA(i) = AngularDiameterDistance(BackgroundOutputs%z_outputs(i))
                 BackgroundOutputs%rs_by_D_v(i) = rs/BAO_D_v_from_DA_H(BackgroundOutputs%z_outputs(i), &
                 BackgroundOutputs%DA(i),BackgroundOutputs%H(i))
-                end do
-            end if
-
-            if (FeedbackLevel > 0) then
-                write(*,'("Age of universe/GYr  = ",f7.3)') ThermoDerivedParams( derived_Age )
-                write(*,'("zstar                = ",f8.2)') ThermoDerivedParams( derived_zstar )
-                write(*,'("r_s(zstar)/Mpc       = ",f7.2)') ThermoDerivedParams( derived_rstar )
-                write(*,'("100*theta            = ",f9.6)') ThermoDerivedParams( derived_thetastar )
-
-                write(*,'("zdrag                = ",f8.2)') ThermoDerivedParams( derived_zdrag )
-                write(*,'("r_s(zdrag)/Mpc       = ",f7.2)') ThermoDerivedParams( derived_rdrag )
-
-                write(*,'("k_D(zstar) Mpc       = ",f7.4)') ThermoDerivedParams( derived_kD )
-                write(*,'("100*theta_D          = ",f9.6)') ThermoDerivedParams( derived_thetaD )
-
-                write(*,'("z_EQ (if v_nu=1)     = ",f8.2)') ThermoDerivedParams( derived_zEQ )
-                write(*,'("100*theta_EQ         = ",f9.6)') ThermoDerivedParams( derived_thetaEQ )
-            end if
+            end do
         end if
+
+        if (FeedbackLevel > 0) then
+            write(*,'("Age of universe/GYr  = ",f7.3)') ThermoDerivedParams( derived_Age )
+            write(*,'("zstar                = ",f8.2)') ThermoDerivedParams( derived_zstar )
+            write(*,'("r_s(zstar)/Mpc       = ",f7.2)') ThermoDerivedParams( derived_rstar )
+            write(*,'("100*theta            = ",f9.6)') ThermoDerivedParams( derived_thetastar )
+
+            write(*,'("zdrag                = ",f8.2)') ThermoDerivedParams( derived_zdrag )
+            write(*,'("r_s(zdrag)/Mpc       = ",f7.2)') ThermoDerivedParams( derived_rdrag )
+
+            write(*,'("k_D(zstar) Mpc       = ",f7.4)') ThermoDerivedParams( derived_kD )
+            write(*,'("100*theta_D          = ",f9.6)') ThermoDerivedParams( derived_thetaD )
+
+            write(*,'("z_EQ (if v_nu=1)     = ",f8.2)') ThermoDerivedParams( derived_zEQ )
+            write(*,'("100*theta_EQ         = ",f9.6)') ThermoDerivedParams( derived_thetaEQ )
+        end if
+    end if
 
     end subroutine inithermo
 
@@ -2760,41 +2770,41 @@
 
     d=d-i
     do scat=1,nscatter
-    if (i < nthermo) then
-        opac(j2,scat)=dotmu(i,scat)+d*(ddotmu(i,scat)+d*(3._dl*(dotmu(i+1,scat)-dotmu(i,scat)) &
-        -2._dl*ddotmu(i,scat)-ddotmu(i+1,scat)+d*(ddotmu(i,scat)+ddotmu(i+1,scat) &
-        +2._dl*(dotmu(i,scat)-dotmu(i+1,scat)))))
-        dopac(j2,scat)=(ddotmu(i,scat)+d*(dddotmu(i,scat)+d*(3._dl*(ddotmu(i+1,scat)  &
-        -ddotmu(i,scat))-2._dl*dddotmu(i,scat)-dddotmu(i+1,scat)+d*(dddotmu(i,scat) &
-        +dddotmu(i+1,scat)+2._dl*(ddotmu(i,scat)-ddotmu(i+1,scat))))))/(tau &
-        *dlntau)
-        ddopac=(dddotmu(i,scat)+d*(ddddotmu(i,scat)+d*(3._dl*(dddotmu(i+1,scat) &
-        -dddotmu(i,scat))-2._dl*ddddotmu(i,scat)-ddddotmu(i+1,scat)  &
-        +d*(ddddotmu(i,scat)+ddddotmu(i+1,scat)+2._dl*(dddotmu(i,scat) &
-        -dddotmu(i+1,scat)))))-(dlntau**2)*tau*dopac(j2,scat)) &
-        /(tau*dlntau)**2
-        expmmu(j2,scat)=emmu(i,scat)+d*(demmu(i,scat)+d*(3._dl*(emmu(i+1,scat)-emmu(i,scat)) &
-        -2._dl*demmu(i,scat)-demmu(i+1,scat)+d*(demmu(i,scat)+demmu(i+1,scat) &
-        +2._dl*(emmu(i,scat)-emmu(i+1,scat)))))
+        if (i < nthermo) then
+            opac(j2,scat)=dotmu(i,scat)+d*(ddotmu(i,scat)+d*(3._dl*(dotmu(i+1,scat)-dotmu(i,scat)) &
+            -2._dl*ddotmu(i,scat)-ddotmu(i+1,scat)+d*(ddotmu(i,scat)+ddotmu(i+1,scat) &
+            +2._dl*(dotmu(i,scat)-dotmu(i+1,scat)))))
+            dopac(j2,scat)=(ddotmu(i,scat)+d*(dddotmu(i,scat)+d*(3._dl*(ddotmu(i+1,scat)  &
+            -ddotmu(i,scat))-2._dl*dddotmu(i,scat)-dddotmu(i+1,scat)+d*(dddotmu(i,scat) &
+            +dddotmu(i+1,scat)+2._dl*(ddotmu(i,scat)-ddotmu(i+1,scat))))))/(tau &
+            *dlntau)
+            ddopac=(dddotmu(i,scat)+d*(ddddotmu(i,scat)+d*(3._dl*(dddotmu(i+1,scat) &
+            -dddotmu(i,scat))-2._dl*ddddotmu(i,scat)-ddddotmu(i+1,scat)  &
+            +d*(ddddotmu(i,scat)+ddddotmu(i+1,scat)+2._dl*(dddotmu(i,scat) &
+            -dddotmu(i+1,scat)))))-(dlntau**2)*tau*dopac(j2,scat)) &
+            /(tau*dlntau)**2
+            expmmu(j2,scat)=emmu(i,scat)+d*(demmu(i,scat)+d*(3._dl*(emmu(i+1,scat)-emmu(i,scat)) &
+            -2._dl*demmu(i,scat)-demmu(i+1,scat)+d*(demmu(i,scat)+demmu(i+1,scat) &
+            +2._dl*(emmu(i,scat)-emmu(i+1,scat)))))
 
-        if (dowinlens) then
-            lenswin(j2)=winlens(i)+d*(dwinlens(i)+d*(3._dl*(winlens(i+1)-winlens(i)) &
-            -2._dl*dwinlens(i)-dwinlens(i+1)+d*(dwinlens(i)+dwinlens(i+1) &
-            +2._dl*(winlens(i)-winlens(i+1)))))
+            if (dowinlens) then
+                lenswin(j2)=winlens(i)+d*(dwinlens(i)+d*(3._dl*(winlens(i+1)-winlens(i)) &
+                -2._dl*dwinlens(i)-dwinlens(i+1)+d*(dwinlens(i)+dwinlens(i+1) &
+                +2._dl*(winlens(i)-winlens(i+1)))))
+            end if
+            vis(j2,scat)=opac(j2,scat)*expmmu(j2,scat)
+            dvis(j2,scat)=expmmu(j2,scat)*(opac(j2,scat)**2+dopac(j2,scat))
+            ddvis(j2,scat)=expmmu(j2,scat)*(opac(j2,scat)**3+3*opac(j2,scat)*dopac(j2,scat)+ddopac)
+        else
+            opac(j2,scat)=dotmu(nthermo,scat)
+            dopac(j2,scat)=ddotmu(nthermo,scat)
+            ddopac=dddotmu(nthermo,scat)
+            expmmu(j2,scat)=emmu(nthermo,scat)
+            vis(j2,scat)=opac(j2,scat)*expmmu(j2,scat)
+            dvis(j2,scat)=expmmu(j2,scat)*(opac(j2,scat)**2+dopac(j2,scat))
+            ddvis(j2,scat)=expmmu(j2,scat)*(opac(j2,scat)**3+3._dl*opac(j2,scat)*dopac(j2,scat)+ddopac)
+
         end if
-        vis(j2,scat)=opac(j2,scat)*expmmu(j2,scat)
-        dvis(j2,scat)=expmmu(j2,scat)*(opac(j2,scat)**2+dopac(j2,scat))
-        ddvis(j2,scat)=expmmu(j2,scat)*(opac(j2,scat)**3+3*opac(j2,scat)*dopac(j2,scat)+ddopac)
-    else
-        opac(j2,scat)=dotmu(nthermo,scat)
-        dopac(j2,scat)=ddotmu(nthermo,scat)
-        ddopac=dddotmu(nthermo,scat)
-        expmmu(j2,scat)=emmu(nthermo,scat)
-        vis(j2,scat)=opac(j2,scat)*expmmu(j2,scat)
-        dvis(j2,scat)=expmmu(j2,scat)*(opac(j2,scat)**2+dopac(j2,scat))
-        ddvis(j2,scat)=expmmu(j2,scat)*(opac(j2,scat)**3+3._dl*opac(j2,scat)*dopac(j2,scat)+ddopac)
-
-    end if
     end do
     end subroutine DoThermoSpline
 
