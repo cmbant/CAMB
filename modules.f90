@@ -35,7 +35,7 @@
     implicit none
     public
 
-    character(LEN=*), parameter :: version = 'Jun13_rayleigh'
+    character(LEN=*), parameter :: version = 'Jul13_rayleigh'
 
     integer, parameter  :: num_cmb_freq = 6 !8 PRISM !!!
     logical :: rayleigh_diff = .true.
@@ -227,7 +227,7 @@
     !fiducial high-accuracy high-L C_L used for making small cosmology-independent numerical corrections
     !to lensing and C_L interpolation. Ideally close to models of interest, but dependence is weak.
     logical :: use_spline_template = .true.
-    integer, parameter :: lmax_extrap_highl = 6000
+    integer, parameter :: lmax_extrap_highl = 8000
     real(dl), allocatable :: highL_CL_template(:,:)
 
     integer, parameter :: derived_age=1, derived_zstar=2, derived_rstar=3, derived_thetastar=4,derived_zdrag=5, &
