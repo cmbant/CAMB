@@ -601,7 +601,7 @@
         subroutine GaugeInterface_Init
           !Precompute various arrays and other things independent of wavenumber
           integer j, nu_i
-          real(dl) a_nonrel, a_mass,a_massive, time
+          real(dl) a_nonrel, a_mass,a_massive, time, nu_mass
 
           epsw = 100/CP%tau0
          
