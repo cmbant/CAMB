@@ -1005,7 +1005,7 @@
     integer lmax_lensed !Only accurate to rather less than this
     real(dl) , dimension (:,:,:), allocatable :: Cl_lensed
     !Cl_lensed(l, power_index, Cl_type) are the interpolated Cls
-    real(dl) , dimension (:,:,:,:,:), allocatable :: Cl_lensed_freqs
+    real(dl) , dimension (:,:,:,:,:), allocatable :: Cl_lensed_freqs, Cl_tensor_freqs
 
     contains
 
@@ -1181,6 +1181,23 @@
             end do
         end do
         close(fileio_unit)
+        if (num_cmb_freq>0) then
+            open(unit=fileio_unit,file=trim(TensFile)//'_freqs',form='formatted',status='replace')
+            write(fileio_unit,'('//trim(IntToStr(num_cmb_freq))//'E15.5)') phot_freqs
+            close(fileio_unit)
+            do f_i_1=1,num_cmb_freq
+                do f_i_2=1,num_cmb_freq
+                    open(unit=fileio_unit,file=trim(TensFile)//trim(concat('_',f_i_1,'_',f_i_2)),form='formatted',status='replace')
+                    do in=1,CP%InitPower%nn
+                        do il=lmin, CP%Max_l_tensor
+                            write(fileio_unit,'(1I6,4E15.5)')il, fact*Cl_tensor_freqs(il, in, CT_Temp:CT_Cross,f_i_1,f_i_2)
+                        end do
+                    end do
+                    close(fileio_unit)
+                end do
+            end do
+        end if
+
     end if
 
     if (CP%WantTensors .and. CP%WantScalars .and. TotFile /= '') then

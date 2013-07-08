@@ -449,7 +449,7 @@
         
         end subroutine GaugeInterface_EvolveScal
 
-         subroutine GaugeInterface_EvolveTens(EV,tau,y,tauend,tol1,ind,c,w)
+        subroutine GaugeInterface_EvolveTens(EV,tau,y,tauend,tol1,ind,c,w)
          use ThermoData
          type(EvolutionVars) EV, EVOut
          real(dl) c(24),w(EV%nvart,9), y(EV%nvart),yout(EV%nvart), tol1, tau, tauend
@@ -469,6 +469,14 @@
             call thermo(tau,cs2,opacity)
             y(EV%g_ix+2)= 32._dl/45._dl*EV%k_buf/opacity*y(3)
             y(EV%E_ix+2) = y(EV%g_ix+2)/4
+
+            EVout%Rayleigh = .true.
+            call SetupTensorArrayIndices(EVout)
+            call CopyTensorVariableArray(y,yout, EV, EVout)
+            EV=EVout
+            y=yout
+            ind=1
+
            end if
  
            call dverk(EV,EV%TensEqsToPropagate, derivst,tau,y,tauend,tol1,ind,c,EV%nvart,w)
@@ -729,9 +737,15 @@
            EV%E_ix = EV%g_ix + (EV%lmaxt-1)
            EV%B_ix = EV%E_ix + (EV%lmaxpolt-1)
            neq = neq+ (EV%lmaxt-1)+(EV%lmaxpolt-1)*2
+           if (EV%Rayleigh) then
+               EV%g_ix_freq=neq-1
+               EV%polind_freq = neq+ (EV%lmaxt-1) -1
+               EV%freq_neq=EV%lmaxt-1+(EV%lmaxpolt-1)*2
+               neq=neq+EV%freq_neq*num_cmb_freq
+           end if
           end if
           if (present(maxeq)) then
-           maxeq =3 + (EV%lmaxt-1)+(EV%lmaxpolt-1)*2
+           maxeq =3 + ((EV%lmaxt-1)+(EV%lmaxpolt-1)*2) * (num_cmb_freq+1)
           end if
           EV%r_ix = neq -1
           if (DoTensorNeutrinos) then           
@@ -758,6 +772,7 @@
           real(dl), intent(in) :: y(EV%nvart)
           real(dl), intent(out) :: yout(EVout%nvart)
           integer lmaxpolt, lmaxt, nu_i, ind, ind2, i
+          integer ix_off, ix_off2, lmax
           
           yout=0 
           yout(1:3) = y(1:3)          
@@ -767,6 +782,21 @@
            lmaxpolt = min(EV%lmaxpolt, EVOut%lmaxpolt)    
            yout(EVout%E_ix+2:EVout%E_ix+lmaxpolt)=y(EV%E_ix+2:EV%E_ix+lmaxpolt)         
            yout(EVout%B_ix+2:EVout%B_ix+lmaxpolt)=y(EV%B_ix+2:EV%B_ix+lmaxpolt)         
+           
+           if (EV%Rayleigh .and. EVout%Rayleigh) then
+             do i=1,num_cmb_freq
+             ix_off2 = EVOut%g_ix_freq + (i-1)*EVOut%freq_neq
+             ix_off = EV%g_ix_freq + (i-1)*EV%freq_neq
+             lmax = min(EV%lmaxt,EVout%lmaxt)
+             yout(ix_off2+2:ix_off2+lmax)=y(ix_off+2:ix_off+lmax)
+             lmax = min(EV%lmaxgpol,EVout%lmaxgpol)
+             ix_off2 = EVOut%polind_freq + (i-1)*EVOut%freq_neq
+             ix_off = EV%polind_freq + (i-1)*EV%freq_neq
+             yout(ix_off2+2:ix_off2+lmax)=y(ix_off+2:ix_off+lmax)
+             yout(ix_off2+2+(lmax-1):ix_off2+(lmax-1)+lmax)=y(ix_off+2+(lmax-1):ix_off+(lmax-1)+lmax)
+             end do
+            end if
+
           end if
           if (DoTensorNeutrinos) then       
              lmaxt=min(EV%lmaxnrt,EVOut%lmaxnrt)    
@@ -1523,7 +1553,7 @@
 
 
 !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-        subroutine outputt(EV,yt,n,j,tau,dt,dte,dtb)
+        subroutine outputt(EV,ytin,n,j,tau,dt,dte,dtb)
 !calculate the tensor sources for open and closed case
         use ThermoData
 
@@ -1531,17 +1561,23 @@
         integer j,n
         type(EvolutionVars) :: EV
         real(dl), target :: yt(n), ytprime(n)
-        real(dl) tau,dt,dte,dtb,x,polterdot,polterddot,prefac
+        real(dl)  :: ytin(n), ytprimein(n)
+        
+        real(dl) tau,dt(nscatter),dte(nscatter),dtb(nscatter),x,polterdot,polterddot,prefac
         real(dl) pig, pigdot, octg, aux, polter, shear, adotoa,a
         real(dl) sinhxr,cothxor
         real(dl) k,k2
         real(dl), dimension(:),pointer :: E,Bprime,Eprime
         real(dl), target :: pol(3),polEprime(3), polBprime(3) 
         real(dl) dtauda
-        integer :: f_i = 1
+        integer :: f_i, ix_off
 
-        call derivst(EV,EV%nvart,tau,yt,ytprime)
-      
+        yt(1:EV%nvart)=ytin(1:EV%nvart)
+        ytprimein = 0
+
+        call derivst(EV,EV%nvart,tau,ytin,ytprimein)
+        ytprime(1:EV%nvart)=ytprimein(1:EV%nvart)
+
         k2=EV%k2_buf
         k=EV%k_buf 
         aux=EV%aux_buf  
@@ -1562,8 +1598,8 @@
 !  Use the tight-coupling approximation
            a =yt(1)
            adotoa = 1/(a*dtauda(a))
-           pigdot=32._dl/45._dl*k/opac(j,f_i)*(2._dl*adotoa*shear+ytprime(3))
-           pig = 32._dl/45._dl*k/opac(j,f_i)*shear
+           pigdot=32._dl/45._dl*k/opac(j,1)*(2._dl*adotoa*shear+ytprime(3))
+           pig = 32._dl/45._dl*k/opac(j,1)*shear
            pol=0
            polEprime=0
            polBprime=0
@@ -1579,6 +1615,20 @@
     
         if (EV%q*sinhxr > 1.e-8_dl) then  
 
+        do f_i = 1, nscatter
+
+         if (EV%Rayleigh .and. f_i>1) then
+             ix_off=EV%g_ix_freq+2+(f_i-2)*EV%freq_neq
+             yt(EV%g_ix+2:EV%g_ix+2+EV%freq_neq-1) = ytin(EV%g_ix+2:EV%g_ix+2+EV%freq_neq-1)+ &
+                 ytin(ix_off:ix_off+EV%freq_neq-1)
+             ytprime(EV%g_ix+2:EV%g_ix+2+EV%freq_neq-1) = ytprimein(EV%g_ix+2:EV%g_ix+2+EV%freq_neq-1)+ &
+                 ytprimein(ix_off:ix_off+EV%freq_neq-1)
+
+             pig =yt(EV%g_ix+2)
+             pigdot=ytprime(EV%g_ix+2)
+             octg=ytprime(EV%g_ix+3)
+         end if
+            
         prefac=sqrt(EV%q2*CP%r*CP%r-CP%Ksign)
         cothxor=cosfunc(x)/sinhxr
 
@@ -1590,15 +1640,16 @@
                    +0.1_dl*(k*(-octg*EV%Kft(2)/3._dl + 8._dl/15._dl*ytprime(3)) - &
                    dopac(j,f_i)*(pig - polter) - opac(j,f_i)*(pigdot-polterdot))
 
-        dt=(shear*expmmu(j,f_i) + (15._dl/8._dl)*polter*vis(j,f_i)/k)*CP%r/sinhxr**2/prefac 
+        dt(f_i)=(shear*expmmu(j,f_i) + (15._dl/8._dl)*polter*vis(j,f_i)/k)*CP%r/sinhxr**2/prefac 
    
-        dte=CP%r*15._dl/8._dl/k/prefac* &
+        dte(f_i)=CP%r*15._dl/8._dl/k/prefac* &
             ((ddvis(j,f_i)*polter + 2._dl*dvis(j,f_i)*polterdot + vis(j,f_i)*polterddot)  &
               + 4._dl*cothxor*(dvis(j,f_i)*polter + vis(j,f_i)*polterdot) - &
                    vis(j,f_i)*polter*(k2 -6*cothxor**2))
       
-        dtb=15._dl/4._dl*EV%q*CP%r/k/prefac*(vis(j,f_i)*(2._dl*cothxor*polter + polterdot) + dvis(j,f_i)*polter)
-   
+        dtb(f_i)=15._dl/4._dl*EV%q*CP%r/k/prefac*(vis(j,f_i)*(2._dl*cothxor*polter + polterdot) + dvis(j,f_i)*polter)
+        end do
+        
         else
         dt=0._dl
         dte=0._dl
@@ -2734,8 +2785,9 @@
         type(EvolutionVars) EV
         integer n,l,i,ind, nu_i
         real(dl), target ::  ayt(n),aytprime(n)
-        real(dl) tau,grho,rhopi,cs2,opacity,pirdt
+        real(dl) tau,grho,rhopi,cs2,opacity(nscatter),pirdt
         real(dl), dimension(:),pointer :: neut,neutprime,E,B,Eprime,Bprime
+        real(dl), dimension(:),pointer :: Ef,Bf,Efprime,Bfprime
         real(dl) q,aq,v
         real(dl)  grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,polter
         real(dl) Hchi,pinu, pig
@@ -2743,6 +2795,8 @@
         real(dl) pir, adotoa, rhonu, shear
 
         real(dl) cothxor
+        real(dl) opac_rayleigh,opac_tot,polter_freq
+        integer f_i
       
         k2=EV%k2_buf
         k= EV%k_buf   
@@ -2787,7 +2841,7 @@
 
         aytprime(1)=adotoa*a
 
-        call thermo(tau,cs2,opacity)
+        call thermoarr(tau,cs2,opacity)
 
         if (.not. EV%TensTightCoupling) then
 !  Don't use tight coupling approx - use explicit equations:
@@ -2809,52 +2863,113 @@
         if (EV%lmaxt > 2) then
          
         aytprime(ind)=-EV%denlkt(2,2)*ayt(ind+1)+k*8._dl/15._dl*shear  &
-                  -opacity*(pig - polter)
+                  -opacity(1)*(pig - polter)
 
         do l=3, EV%lmaxt -1
          ind = ind+1
-         aytprime(ind)=EV%denlkt(1,L)*ayt(ind-1)-EV%denlkt(2,L)*ayt(ind+1)-opacity*ayt(ind)
+         aytprime(ind)=EV%denlkt(1,L)*ayt(ind-1)-EV%denlkt(2,L)*ayt(ind+1)-opacity(1)*ayt(ind)
         end do
 
         !Truncate the hierarchy 
         ind=ind+1
         aytprime(ind)=k*EV%lmaxt/(EV%lmaxt-2._dl)*ayt(ind-1)- &
-                       (EV%lmaxt+3._dl)*cothxor*ayt(ind)-opacity*ayt(ind)
+                       (EV%lmaxt+3._dl)*cothxor*ayt(ind)-opacity(1)*ayt(ind)
 
 !E and B-bar equations
      
-        Eprime(2) = - opacity*(E(2) - polter) + EV%denlkt(4,2)*B(2) - &
+        Eprime(2) = - opacity(1)*(E(2) - polter) + EV%denlkt(4,2)*B(2) - &
                         EV%denlkt(3,2)*E(3)
         
         do l=3, EV%lmaxpolt-1
                        
            Eprime(l) =(EV%denlkt(1,L)*E(l-1)-EV%denlkt(3,L)*E(l+1) + EV%denlkt(4,L)*B(l)) &
-                          -opacity*E(l) 
+                          -opacity(1)*E(l) 
    
         end do
         l= EV%lmaxpolt
 !truncate: difficult, but setting l+1 to zero seems to work OK
-        Eprime(l) = (EV%denlkt(1,L)*E(l-1) + EV%denlkt(4,L)*B(l)) -opacity*E(l) 
+        Eprime(l) = (EV%denlkt(1,L)*E(l-1) + EV%denlkt(4,L)*B(l)) -opacity(1)*E(l) 
                     
-        Bprime(2) =-EV%denlkt(3,2)*B(3) - EV%denlkt(4,2)*E(2)  -opacity*B(2)
+        Bprime(2) =-EV%denlkt(3,2)*B(3) - EV%denlkt(4,2)*E(2)  -opacity(1)*B(2)
         do l=3, EV%lmaxpolt-1
         Bprime(l) =(EV%denlkt(1,L)*B(l-1) -EV%denlkt(3,L)*B(l+1) - EV%denlkt(4,L)*E(l)) &
-                         -opacity*B(l)
+                         -opacity(1)*B(l)
         end do
         l=EV%lmaxpolt 
 !truncate
-        Bprime(l) =(EV%denlkt(1,L)*B(l-1) - EV%denlkt(4,L)*E(l))  -opacity*B(l)
+        Bprime(l) =(EV%denlkt(1,L)*B(l-1) - EV%denlkt(4,L)*E(l))  -opacity(1)*B(l)
 
+        
+        if (EV%Rayleigh) then
+         !assume after tight coupling ended
+         do f_i = 1, num_cmb_freq
+                opac_rayleigh = Recombination_rayleigh_eff(a)*akthom/a2*(min(1._dl,&
+                  freq_factors(f_i,1)/a2**2 + freq_factors(f_i,2)/a2**3)) 
+                opac_tot=opac_rayleigh+opacity(1)
+    
+                ind = EV%g_ix_freq + (f_i-1)*EV%freq_neq
+                Ef => ayt(ind + (EV%lmaxt-1)+1:)
+                Bf => ayt(ind + (EV%lmaxt-1)+(EV%lmaxpolt-1)+1:)
+                Efprime=> aytprime(ind + (EV%lmaxt-1)+1:)
+                Bfprime => aytprime(ind + (EV%lmaxt-1)+(EV%lmaxpolt-1)+1:)
+
+                ind =ind + 2
+                !  Photon anisotropic stres
+                polter_freq = 0.1_dl*ayt(ind) + 9._dl/15._dl*Ef(2)
+
+                aytprime(ind)=-EV%denlkt(2,2)*ayt(ind+1) -opac_rayleigh*(pig - polter) &
+                 - opac_tot*(ayt(ind)-polter_freq)
+
+                do l=3, EV%lmaxt -1
+                 ind = ind+1
+                 aytprime(ind)=EV%denlkt(1,L)*ayt(ind-1)-EV%denlkt(2,L)*ayt(ind+1)-opac_rayleigh*ayt(EV%g_ix+l) &
+                   - opac_tot*ayt(ind)
+                end do
+
+                !Truncate the hierarchy
+                ind=ind+1
+                aytprime(ind)=k*EV%lmaxt/(EV%lmaxt-2._dl)*ayt(ind-1)- &
+                               (EV%lmaxt+3._dl)*cothxor*ayt(ind)-opac_tot*ayt(ind)-opac_rayleigh*ayt(EV%g_ix+EV%lmaxt)
+
+        !E and B-bar equations
+
+                Efprime(2) = - opac_rayleigh*(E(2) - polter) - opac_tot*(Ef(2)-polter_freq) + EV%denlkt(4,2)*Bf(2) - &
+                                EV%denlkt(3,2)*Ef(3)
+
+                do l=3, EV%lmaxpolt-1
+
+                   Efprime(l) =(EV%denlkt(1,L)*Ef(l-1)-EV%denlkt(3,L)*Ef(l+1) + EV%denlkt(4,L)*Bf(l)) &
+                                  -opac_rayleigh*E(l) - opac_tot*Ef(l)
+
+                end do
+                l= EV%lmaxpolt
+        !truncate: difficult, but setting l+1 to zero seems to work OK
+                Efprime(l) = (EV%denlkt(1,L)*Ef(l-1) + EV%denlkt(4,L)*Bf(l)) -opac_rayleigh*E(l) - opac_tot*Ef(l)
+
+                Bfprime(2) =-EV%denlkt(3,2)*Bf(3) - EV%denlkt(4,2)*Ef(2) -opac_rayleigh*B(2) -opac_tot*Bf(2)
+                do l=3, EV%lmaxpolt-1
+                Bfprime(l) =(EV%denlkt(1,L)*Bf(l-1) -EV%denlkt(3,L)*Bf(l+1) - EV%denlkt(4,L)*Ef(l)) &
+                                 -opac_rayleigh*B(l) - opac_tot*Bf(l)
+                end do
+                l=EV%lmaxpolt
+        !truncate
+                Bfprime(l) =(EV%denlkt(1,L)*Bf(l-1) - EV%denlkt(4,L)*Ef(l))  -opac_rayleigh*B(l) - opac_tot*Bf(l)
+
+          end do
+        end if
+        
         else !lmax=2
-        
-         aytprime(ind)=k*8._dl/15._dl*shear-opacity*(pig - polter) 
-         Eprime(2) = - opacity*(E(2) - polter) + EV%denlkt(4,2)*B(2)
-         Bprime(2) = - EV%denlkt(4,2)*E(2)  -opacity*B(2)
-        
-        end if     
+
+         stop 'lmax 2 in tensor, no Rayleigh here'
+         aytprime(ind)=k*8._dl/15._dl*shear-opacity(1)*(pig - polter) 
+         Eprime(2) = - opacity(1)*(E(2) - polter) + EV%denlkt(4,2)*B(2)
+         Bprime(2) = - EV%denlkt(4,2)*E(2)  -opacity(1)*B(2)
+
+
+        end if
 
         else  !Tight coupling
-         pig = 32._dl/45._dl*k/opacity*shear
+         pig = 32._dl/45._dl*k/opacity(1)*shear
         
         endif
       

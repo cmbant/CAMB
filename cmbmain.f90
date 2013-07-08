@@ -91,6 +91,8 @@
     ! indices  Src( k_index, source_index, time_step_index )
 
     real(dl), dimension(:,:,:), allocatable :: iCl_scalar, iCl_vector, iCl_tensor
+    real(dl), dimension(:,:,:,:,:), allocatable :: iCl_tensor_array
+
     ! Cls at the l values we actually compute,  iCl_xxx(l_index, Cl_type, initial_power_index)
 
     real(dl), dimension(:,:,:,:), allocatable :: iCl_Array
@@ -309,6 +311,9 @@
     if (CP%WantTensors .and. global_error_flag==0) then
         allocate(iCl_Tensor(CTransT%ls%l0,CT_Temp:CT_Cross,CP%InitPower%nn))
         iCl_tensor = 0
+        allocate(iCl_Tensor_array(CTransT%ls%l0,CT_Temp:CT_Cross,CP%InitPower%nn,num_cmb_freq,num_cmb_freq))
+        iCl_Tensor_array = 0
+
         call CalcTensCls(CTransT,GetInitPowerArrayTens)
         if (DebugMsgs .and. Feedbacklevel > 0) write (*,*) 'CalcTensCls'
     end if
@@ -323,8 +328,10 @@
     if (CP%WantScalars .and. allocated(iCl_Scalar)) deallocate(iCl_scalar)
     if (CP%WantScalars .and. allocated(iCl_Array)) deallocate(iCl_Array)
     if (CP%WantVectors .and. allocated(iCl_Vector)) deallocate(iCl_vector)
-    if (CP%WantTensors .and. allocated(iCl_Tensor)) deallocate(iCl_tensor)
-
+    if (CP%WantTensors .and. allocated(iCl_Tensor)) then
+         deallocate(iCl_tensor)
+         deallocate(iCl_Tensor_array)
+    end if
     if (global_error_flag/=0) return
 
     if (CP%OutputNormalization >=2) call NormalizeClsAtl(CP%OutputNormalization)
@@ -689,7 +696,7 @@
         end if
         SourceNum=SourceNum + num_cmb_freq*2
     else
-        SourceNum=3
+        SourceNum=3*(num_cmb_freq+1)
     end if
 
     allocate(Src(Evolve_q%npoints,SourceNum,TimeSteps%npoints))
@@ -999,7 +1006,8 @@
     real(dl) tau,tol1,tauend, taustart
     integer j,ind
     real(dl) c(24),wt(EV%nvart,9), yt(EV%nvart)
-
+    real(dl) outT(nscatter),outE(nscatter),outB(nscatter)
+    integer f_i
     call initialt(EV,yt, taustart)
 
     tau=taustart
@@ -1014,8 +1022,13 @@
         else
             call GaugeInterface_EvolveTens(EV,tau,yt,tauend,tol1,ind,c,wt)
 
-            call outputt(EV,yt,EV%nvart,j,tau,Src(EV%q_ix,CT_Temp,j),&
-            Src(EV%q_ix,CT_E,j),Src(EV%q_ix,CT_B,j))
+            call outputt(EV,yt,EV%nvart,j,tau,outT,outE,outB)
+            do f_i=1,nscatter
+             Src(EV%q_ix,1+(f_i-1)*3:3+(f_i-1)*3,j) = [outT(f_i),outE(f_i),outB(f_i)]
+            end do
+            
+!            call outputt(EV,yt,EV%nvart,j,tau,Src(EV%q_ix,CT_Temp,j),&
+!            Src(EV%q_ix,CT_E,j),Src(EV%q_ix,CT_B,j))
         end if
     end do
 
@@ -2292,6 +2305,8 @@
     real(dl) ctnorm,dbletmp
     real(dl) pows(CTrans%q%npoints)
     real(dl)  ks(CTrans%q%npoints),measures(CTrans%q%npoints)
+    real(dl) Delta1, Delta2
+    integer f1,f2
 
     !For tensors we want Integral dnu/nu (nu^2-3)/(nu^2-1) Delta_l_k^2 P(k) for CP%closed
 
@@ -2312,7 +2327,8 @@
         !$OMP PARAllEl DO DEFAUlT(SHARED),SCHEDUlE(STATIC,4) &
         !$OMP & PRIVATE(j,q_ix,measure,apowert,ctnorm,dbletmp)
         do j=1,CTrans%ls%l0
-            do q_ix = 1, CTrans%q%npoints
+
+         do q_ix = 1, CTrans%q%npoints
                 if (.not.(CP%closed.and. nint(CTrans%q%points(q_ix)*CP%r)<=CTrans%ls%l(j))) then
                     !cut off at nu = l+1
                     apowert = pows(q_ix)
@@ -2323,16 +2339,30 @@
 
                     iCl_tensor(j,CT_cross, in ) = iCl_tensor(j,CT_cross, in ) &
                     +apowert*CTrans%Delta_p_l_k(CT_Temp,j,q_ix)*CTrans%Delta_p_l_k(CT_E,j,q_ix)*measure
+                    
+                    do f1=1,num_cmb_freq
+                        do f2=1,num_cmb_freq
+
+                         iCl_tensor_array(j,CT_Temp:CT_B,in,f1,f2) = iCl_tensor_array(j,CT_Temp:CT_B,in,f1,f2) + &
+                         apowert*CTrans%Delta_p_l_k(CT_Temp+(f1)*3:CT_B+(f1)*3,j,q_ix)*CTrans%Delta_p_l_k(CT_Temp+(f2)*3:CT_B+(f2)*3,j,q_ix)*measure
+
+                         iCl_tensor_array(j,CT_cross, in,f1,f2) = iCl_tensor_array(j,CT_cross, in,f1,f2 ) &
+                          +apowert*CTrans%Delta_p_l_k(CT_Temp+f1*3,j,q_ix)*CTrans%Delta_p_l_k(CT_E+f2*3,j,q_ix)*measure
+                        end do
+                    end do
                 end if
             end do
 
         ctnorm=(CTrans%ls%l(j)*CTrans%ls%l(j)-1)*real((CTrans%ls%l(j)+2)*CTrans%ls%l(j),dl)
         dbletmp=(CTrans%ls%l(j)*(CTrans%ls%l(j)+1))/OutputDenominator*pi/4
         iCl_tensor(j, CT_Temp, in) = iCl_tensor(j, CT_Temp, in)*dbletmp*ctnorm
+        iCl_tensor_array(j, CT_Temp, in,:,:) = iCl_tensor_array(j, CT_Temp, in,:,:)*dbletmp*ctnorm
         if (CTrans%ls%l(j)==1) dbletmp=0
         iCl_tensor(j, CT_E:CT_B, in) = iCl_tensor(j, CT_E:CT_B, in)*dbletmp
         iCl_tensor(j, CT_Cross, in)  = iCl_tensor(j, CT_Cross, in)*dbletmp*sqrt(ctnorm)
-    end do
+        iCl_tensor_array(j, CT_E:CT_B, in,:,:) = iCl_tensor_array(j, CT_E:CT_B, in,:,:)*dbletmp
+        iCl_tensor_array(j, CT_Cross, in,:,:)  = iCl_tensor_array(j, CT_Cross, in,:,:)*dbletmp*sqrt(ctnorm)
+         end do
     end do
 
     end subroutine CalcTensCls
@@ -2390,6 +2420,7 @@
     Type(ClTransferData) :: CTransS, CTransT, CTransV
     integer in,i,j
     integer, parameter :: ind(2,2)=[[1,3],[3,2]]
+    integer f1,f2
 
     !Note using log interpolation is worse
 
@@ -2432,6 +2463,15 @@
             do i = CT_Temp, CT_Cross
                 call InterpolateClArr(CTransT%ls,iCl_tensor(1,i,in),Cl_tensor(lmin, in, i), CTransT%ls%l0)
             end do
+            allocate(Cl_tensor_freqs(lmin:CP%Max_l_tensor,CP%InitPower%nn,1:4,num_cmb_freq,num_cmb_freq))
+            do f1=1,num_cmb_freq
+            do f2=1,num_cmb_freq
+            do i = CT_Temp, CT_Cross
+                call InterpolateClArr(CTransT%ls,iCl_tensor_array(1,i,in,f1,f2),Cl_tensor_freqs(lmin, in, i, f1,f2), CTransT%ls%l0)
+            end do
+            end do
+            end do
+            
         end if
     end do
     !$OMP END PARALLEL DO
