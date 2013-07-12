@@ -27,6 +27,7 @@
     character(LEN=Ini_max_string_len) TransferFileNames(max_transfer_redshifts), &
     MatterPowerFileNames(max_transfer_redshifts), outroot, version_check
     real(dl) output_factor, nmassive
+    character(LEN=Ini_max_string_len) RayleighTerms
 
 #ifdef WRITE_FITS
     character(LEN=Ini_max_string_len) FITSfilename
@@ -44,6 +45,8 @@
     Ini_fail_on_not_found = .false.
 
     rayleigh_diff = Ini_read_logical('rayleigh_diff',rayleigh_diff)
+    RayleighTerms = Ini_read_String('rayleigh_pows')
+    if (RayleighTerms/='') read(RayleighTerms,*) rayleigh_pows
     
     outroot = Ini_Read_String('output_root')
     if (outroot /= '') outroot = trim(outroot) // '_'

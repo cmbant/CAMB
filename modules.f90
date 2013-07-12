@@ -39,10 +39,12 @@
 
     integer, parameter  :: num_cmb_freq = 6 !8 PRISM !!!
     logical :: rayleigh_diff = .true.
+    logical :: rayleigh_pows(3) = [.true.,.true.,.true.]
+    
     integer, parameter :: nscatter = num_cmb_freq+1
     real(dl) :: phot_freqs(num_cmb_freq)  !set in equations _Init
     real(dl) :: phot_int_kernel(num_cmb_freq)
-    real(dl) :: freq_factors(num_cmb_freq,2) 
+    real(dl) :: freq_factors(num_cmb_freq,3) 
 
     integer :: FeedbackLevel = 0 !if >0 print out useful information about the model
 
@@ -2399,7 +2401,11 @@
     print *, 'Doing frequencies: ', phot_freqs
     freq_factors(:,1) = (phot_freqs/ 3125349._dl)**4
     freq_factors(:,2) = (phot_freqs/ 3125349._dl)**6 * 638._dl/243
-
+    freq_factors(:,3) = (phot_freqs/ 3125349._dl)**8 * 1626820991._dl/136048896._dl
+    if (.not. rayleigh_pows(1)) freq_factors(:,1)=0
+    if (.not. rayleigh_pows(2)) freq_factors(:,2)=0
+    if (.not. rayleigh_pows(3)) freq_factors(:,3)=0
+    
     call Recombination_Init(CP%Recomb, CP%omegac, CP%omegab,CP%Omegan, CP%Omegav, &
     CP%h0,CP%tcmb,CP%yhe,CP%Num_Nu_massless + CP%Num_Nu_massive)
     !almost all the time spent here
@@ -2508,7 +2514,7 @@
         end if
         do f_i=1,num_cmb_freq
             dotmu(i,1+f_i)=dotmu(i,1)*elec_fac + Recombination_rayleigh_eff(a)*akthom/a2*(min(1._dl,&
-            freq_factors(f_i,1)/a2**2 + freq_factors(f_i,2)/a2**3))
+            freq_factors(f_i,1)/a2**2 + freq_factors(f_i,2)/a2**3  + freq_factors(f_i,3)/a2**4 ))
         end do
 
         if (tight_tau==0 .and. 1/(tau*dotmu(i,1)) > 0.005) tight_tau = tau !0.005

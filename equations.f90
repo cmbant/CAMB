@@ -2456,7 +2456,7 @@
          !assume after tight coupling ended
          do f_i = 1, num_cmb_freq
                 opac_rayleigh = Recombination_rayleigh_eff(a)*akthom/a2*(min(1._dl,&
-                  freq_factors(f_i,1)/a2**2 + freq_factors(f_i,2)/a2**3)) 
+                  freq_factors(f_i,1)/a2**2 + freq_factors(f_i,2)/a2**3  + freq_factors(f_i,3)/a2**4)) 
                 !max(0._dl,1-Recombination_xe(a))*akthom/a2**3
                 opac_tot=opac_rayleigh+opacity(1)
                 ind = EV%g_ix_freq + (f_i-1)*EV%freq_neq
@@ -2914,7 +2914,7 @@
          !assume after tight coupling ended
          do f_i = 1, num_cmb_freq
                 opac_rayleigh = Recombination_rayleigh_eff(a)*akthom/a2*(min(1._dl,&
-                  freq_factors(f_i,1)/a2**2 + freq_factors(f_i,2)/a2**3)) 
+                  freq_factors(f_i,1)/a2**2 + freq_factors(f_i,2)/a2**3 + freq_factors(f_i,3)/a2**4)) 
                 opac_tot=opac_rayleigh+opacity(1)
     
                 ind = EV%g_ix_freq + (f_i-1)*EV%freq_neq
