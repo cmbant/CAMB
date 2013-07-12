@@ -2390,7 +2390,7 @@
     implicit none
     Type(ClTransferData) :: CTransS, CTransT, CTransV
     integer in,i,j
-    integer, parameter :: ind(2,2)=[[1,3],[3,2]]
+    integer, parameter :: ind(2,2)= (/(/ 1,3 /),(/ 3,2 /)/) ! [[1,3],[3,2]]
 
     !Note using log interpolation is worse
 

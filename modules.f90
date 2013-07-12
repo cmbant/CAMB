@@ -1072,7 +1072,9 @@
             highL_CL_template(L, C_Phi) =array(5)
         end do
 
-500     close(fileio_unit)
+500     if (L< lmax_extrap_highl) &
+         stop 'CheckLoadedHighLTemplate: template file does not go up to lmax_extrap_highl'
+        close(fileio_unit)
     end if
 
     end subroutine CheckLoadedHighLTemplate
