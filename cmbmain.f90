@@ -2390,7 +2390,8 @@
     implicit none
     Type(ClTransferData) :: CTransS, CTransT, CTransV
     integer in,i,j
-    integer, parameter :: ind(2,2)= (/(/ 1,3 /),(/ 3,2 /)/) ! [[1,3],[3,2]]
+    integer, dimension(2,2), parameter :: ind = reshape( (/ 1,3,3,2 /), shape(ind))
+    !use verbose form above for gfortran consistency  [[1,3],[3,2]]
 
     !Note using log interpolation is worse
 
