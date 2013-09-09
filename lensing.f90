@@ -955,116 +955,22 @@ end subroutine BadHarmonic
 
       end subroutine GetBessels
 
-
+!Wrap standard built-in F2008 funcitons (appear OK for ifort and gfortran)
 
       FUNCTION bessj0(x)
       real(dl) bessj0,x
-      real(dl) ax,xx,z
-      real(dl) p1,p2,p3,p4,p5,q1,q2,q3,q4,q5,r1,r2,r3,r4,r5,r6, &
-        s1,s2,s3,s4,s5,s6,y
-      SAVE p1,p2,p3,p4,p5,q1,q2,q3,q4,q5,r1,r2,r3,r4,r5,r6,s1,s2,s3,s4, &
-       s5,s6
-      DATA p1,p2,p3,p4,p5/1.d0,-.1098628627d-2,.2734510407d-4, &
-      -.2073370639d-5,.2093887211d-6/, q1,q2,q3,q4,q5/-.1562499995d-1, &
-      .1430488765d-3,-.6911147651d-5,.7621095161d-6,-.934945152d-7/
-      DATA r1,r2,r3,r4,r5,r6/57568490574.d0,-13362590354.d0, &
-       651619640.7d0,-11214424.18d0,77392.33017d0,-184.9052456d0/,s1,s2, &
-       s3,s4,s5,s6/57568490411.d0,1029532985.d0,9494680.718d0, &
-       59272.64853d0,267.8532712d0,1.d0/
 
-      if(abs(x).lt.8.d0)then
-        y=x**2
-        bessj0=(r1+y*(r2+y*(r3+y*(r4+y*(r5+y*r6)))))/(s1+y*(s2+y*(s3+y* &
-          (s4+y*(s5+y*s6)))))
-      else
-        ax=abs(x)
-        z=8.d0/ax
-        y=z**2
-        xx=ax-.785398164d0
-        bessj0=sqrt(.636619772d0/ax)*(cos(xx)*(p1+y*(p2+y*(p3+y*(p4+y* &
-           p5))))-z*sin(xx)*(q1+y*(q2+y*(q3+y*(q4+y*q5)))))
-      endif
-!  (C) Copr. 1986-92 Numerical Recipes Software
+      bessj0 = bessel_j0(x)
 
       END FUNCTION bessj0
 
+      FUNCTION bessj(n,x)
+      real(dl) bessj,x
+      integer n
 
+      bessj = bessel_jn(n,x)
 
-      FUNCTION BESSJ1(X)
-      real(dl), intent(in) :: x
-      real(dl) bessj1,ax,z,xx
-      real(dl) Y,P1,P2,P3,P4,P5,Q1,Q2,Q3,Q4,Q5,R1,R2,R3,R4,R5, &
-         R6,S1,S2,S3,S4,S5,S6
-      DATA R1,R2,R3,R4,R5,R6/72362614232.D0,-7895059235.D0,242396853.1D0,&
-         -2972611.439D0,15704.48260D0,-30.16036606D0/, &
-         S1,S2,S3,S4,S5,S6/144725228442.D0,2300535178.D0, &
-         18583304.74D0,99447.43394D0,376.9991397D0,1.D0/
-      DATA P1,P2,P3,P4,P5/1.D0,.183105D-2,-.3516396496D-4,.2457520174D-5, & 
-         -.240337019D-6/, Q1,Q2,Q3,Q4,Q5/.04687499995D0,-.2002690873D-3, &     
-         .8449199096D-5,-.88228987D-6,.105787412D-6/
-      IF(ABS(X).LT.8.)THEN
-        Y=X**2
-        BESSJ1=X*(R1+Y*(R2+Y*(R3+Y*(R4+Y*(R5+Y*R6))))) &
-           /(S1+Y*(S2+Y*(S3+Y*(S4+Y*(S5+Y*S6)))))
-      ELSE
-        AX=ABS(X)
-        Z=8.0d0/AX
-        Y=Z**2
-        XX=AX-2.356194491d0
-        BESSJ1=SQRT(.636619772d0/AX)*(COS(XX)*(P1+Y*(P2+Y*(P3+Y*(P4+Y &
-           *P5))))-Z*SIN(XX)*(Q1+Y*(Q2+Y*(Q3+Y*(Q4+Y*Q5))))) &
-           *SIGN(1._dl,x)
-      ENDIF
-
-      END FUNCTION BESSJ1
-
-
-      FUNCTION BESSJ(N,X)
-      real(dl) bessj
-      real(dl), intent(in) :: x
-      integer, intent(in) :: n
-      integer, parameter :: IACC = 40
-      real(dl), parameter :: BIGNO=1.d10,BIGNI=1.d-10
-      integer jsum,j,m
-      real(dl) bj,bjm, bjp, tox, sum
-      
-      IF(N.LT.2)STOP 'bad argument N in BESSJ'
-
-      TOX=2/X
-      IF(X.GT.FLOAT(N))THEN
-        BJM=BESSJ0(X)
-        BJ=BESSJ1(X)
-        DO J=1,N-1
-          BJP=J*TOX*BJ-BJM
-          BJM=BJ
-          BJ=BJP
-        END DO
-        BESSJ=BJ
-      ELSE
-        M=2*((N+INT(SQRT(FLOAT(IACC*N))))/2)
-        BESSJ=0.0d0
-        JSUM=0
-        SUM=0._dl
-        BJP=0._dl
-        BJ=1._dl
-        DO J=M,1,-1
-          BJM=J*TOX*BJ-BJP
-          BJP=BJ
-          BJ=BJM
-          IF(ABS(BJ).GT.BIGNO)THEN
-            BJ=BJ*BIGNI
-            BJP=BJP*BIGNI
-            BESSJ=BESSJ*BIGNI
-            SUM=SUM*BIGNI
-          ENDIF
-          IF(JSUM.NE.0)SUM=SUM+BJ
-          JSUM=1-JSUM
-          IF(J.EQ.N)BESSJ=BJP
-        end do
-        SUM=2.*SUM-BJ
-        BESSJ=BESSJ/SUM
-      ENDIF
-      END FUNCTION BESSJ
+      END FUNCTION bessj
 
 ! ----------------------------------------------------------------------
 ! Auxiliary Bessel functions for N=0, N=1
