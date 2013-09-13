@@ -37,14 +37,16 @@
 
     character(LEN=*), parameter :: version = 'Jul13_rayleigh'
 
-    integer, parameter  :: num_cmb_freq = 6 !8 PRISM !!!
+    integer, parameter  :: num_cmb_freq =  6
     logical :: rayleigh_diff = .true.
     logical :: rayleigh_pows(3) = [.true.,.true.,.true.]
+    logical :: rayleigh_back_approx = .false.
     
     integer, parameter :: nscatter = num_cmb_freq+1
     real(dl) :: phot_freqs(num_cmb_freq)  !set in equations _Init
     real(dl) :: phot_int_kernel(num_cmb_freq)
     real(dl) :: freq_factors(num_cmb_freq,3) 
+    real(dl) :: av_freq_factors(3) 
 
     integer :: FeedbackLevel = 0 !if >0 print out useful information about the model
 
@@ -2338,6 +2340,19 @@
 
     end function Thermo_OpacityToTime
 
+    function total_scattering_eff(a)
+    real(dl), intent(in) :: a
+    real(dl) a2,total_scattering_eff
+
+    if (rayleigh_back_approx) then
+     a2=a**2
+     total_scattering_eff= Recombination_xe(a) + Recombination_rayleigh_eff(a)*(min(1._dl,&
+                  av_freq_factors(1)/a2**2 + av_freq_factors(2)/a2**3  + av_freq_factors(3)/a2**4))
+    else
+       total_scattering_eff= Recombination_xe(a)
+    end if
+    end function total_scattering_eff
+    
     subroutine inithermo(taumin,taumax)
     !  Compute and save unperturbed baryon temperature and ionization fraction
     !  as a function of time.  With nthermo=10000, xe(tau) has a relative
@@ -2402,6 +2417,11 @@
     freq_factors(:,1) = (phot_freqs/ 3125349._dl)**4
     freq_factors(:,2) = (phot_freqs/ 3125349._dl)**6 * 638._dl/243
     freq_factors(:,3) = (phot_freqs/ 3125349._dl)**8 * 1626820991._dl/136048896._dl
+    !These are int q^n q^3*F *(-1/4)*(d log F/dlog q) / int q^3 F
+    av_freq_factors(1) = (356.88/ 3125349._dl)**4
+    av_freq_factors(2) = (409.22/ 3125349._dl)**6 * 638._dl/243
+    av_freq_factors(3) = (459.8/ 3125349._dl)**8 * 1626820991._dl/136048896._dl
+    
     if (.not. rayleigh_pows(1)) freq_factors(:,1)=0
     if (.not. rayleigh_pows(2)) freq_factors(:,2)=0
     if (.not. rayleigh_pows(3)) freq_factors(:,3)=0
@@ -2488,7 +2508,7 @@
             xe(i) = Reionization_xe(a, tau, xe(ncount))
             !print *,1/a-1,xe(i)
             if (CP%AccurateReionization .and. CP%DerivedParameters) then
-                dotmu(i,1)=(Recombination_xe(a) - xe(i))*akthom/a2
+                dotmu(i,1)=(total_scattering_eff(a) - xe(i))*akthom/a2
 
                 if (last_dotmu /=0) then
                     actual_opt_depth = actual_opt_depth - 2._dl*dtau/(1._dl/dotmu(i,1)+1._dl/last_dotmu)
@@ -2496,7 +2516,7 @@
                 last_dotmu = dotmu(i,1)
             end if
         else
-            xe(i)=Recombination_xe(a)
+            xe(i)=total_scattering_eff(a)
         end if
 
         !  Baryon sound speed squared (over c**2).
@@ -2841,7 +2861,7 @@
 
     R=r_drag0*a
     !ignoring reionisation, not relevant for distance measures
-    ddamping_da = (R**2 + 16*(1+R)/15)/(1+R)**2*dtauda(a)*a**2/(Recombination_xe(a)*akthom)
+    ddamping_da = (R**2 + 16*(1+R)/15)/(1+R)**2*dtauda(a)*a**2/(total_scattering_eff(a)*akthom)
 
     end function ddamping_da
 
@@ -2859,7 +2879,7 @@
     a = 1._dl/(1._dl+z)
 
     !ignoring reionisation, not relevant for distance measures
-    doptdepth_dz = Recombination_xe(a)*akthom*dtauda(a)
+     doptdepth_dz = total_scattering_eff(a)*akthom*dtauda(a)
 
     end function doptdepth_dz
 
