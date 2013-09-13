@@ -35,7 +35,7 @@
     implicit none
     public
 
-    character(LEN=*), parameter :: version = 'July13'
+    character(LEN=*), parameter :: version = 'Aug13'
 
     integer :: FeedbackLevel = 0 !if >0 print out useful information about the model
 
