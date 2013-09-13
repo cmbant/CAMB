@@ -586,11 +586,22 @@
          
          end subroutine GaugeInterface_EvolveTens
 
- 
+         function DeltaTimeMaxed(a1,a2, tol) result(t)
+         real(dl) a1,a2,t
+         real(dl), optional :: tol
+            if (a1>1._dl) then
+                 t=0
+            elseif (a2 > 1._dl) then
+                 t = DeltaTime(a1,1.01_dl, tol)
+            else
+                 t= DeltaTime(a1,a2, tol)
+            end if
+         end function DeltaTimeMaxed
+
         subroutine GaugeInterface_Init
           !Precompute various arrays and other things independent of wavenumber
           integer j, nu_i
-          real(dl) a_nonrel, a_mass,a_massive, time
+          real(dl) a_nonrel, a_mass,a_massive, time, nu_mass
 
           epsw = 100/CP%tau0
          
@@ -611,25 +622,25 @@
          do j=1,max_l_evolve
            denl(j)=1._dl/(2*j+1)
          end do     
-    
+
          do nu_i=1, CP%Nu_Mass_eigenstates
-            a_mass =  1.e-1_dl/nu_masses(nu_i)/lAccuracyBoost
+            nu_mass = max(0.1_dl,nu_masses(nu_i))
+            a_mass =  1.e-1_dl/nu_mass/lAccuracyBoost
             !if (HighAccuracyDefault) a_mass=a_mass/4
             time=DeltaTime(0._dl,nu_q(1)*a_mass)
             nu_tau_notmassless(1, nu_i) = time
             do j=2,nqmax
              !times when each momentum mode becomes signficantly nonrelativistic
-             time= time + DeltaTime(nu_q(j-1)*a_mass,nu_q(j)*a_mass, 0.01_dl)
+             time= time + DeltaTimeMaxed(nu_q(j-1)*a_mass,nu_q(j)*a_mass, 0.01_dl)
              nu_tau_notmassless(j, nu_i) = time
             end do
-            
-            a_nonrel =  2.5d0/nu_masses(nu_i)*AccuracyBoost !!!Feb13tweak
-            nu_tau_nonrelativistic(nu_i) =DeltaTime(0._dl,a_nonrel) 
-            a_massive =  17.d0/nu_masses(nu_i)*AccuracyBoost 
-            nu_tau_massive(nu_i) =nu_tau_nonrelativistic(nu_i) + DeltaTime(a_nonrel,a_massive) 
-            
-         end do 
-       
+
+            a_nonrel =  2.5d0/nu_mass*AccuracyBoost !!!Feb13tweak
+            nu_tau_nonrelativistic(nu_i) =DeltaTimeMaxed(0._dl,a_nonrel)
+            a_massive =  17.d0/nu_mass*AccuracyBoost
+            nu_tau_massive(nu_i) =nu_tau_nonrelativistic(nu_i) + DeltaTimeMaxed(a_nonrel,a_massive)
+         end do
+
         end subroutine GaugeInterface_Init
 
 

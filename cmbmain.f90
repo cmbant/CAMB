@@ -818,6 +818,8 @@
     !Could use sound horizon, but for tensors that is not relevant
 
     q_cmb = 2*l_smooth_sample/CP%chi0*AccuracyBoost  !assume everything is smooth at l > l_smooth_sample
+    if (CP%Want_CMB .and. maximum_l > 5000 .and. CP%AccuratePolarization) q_cmb = q_cmb*1.4 
+            !prevent EE going wild in tail
     dksmooth = q_cmb/2/(AccuracyBoost)**2
     if (CP%Want_CMB) dksmooth = dksmooth/6
 
@@ -2388,7 +2390,8 @@
     implicit none
     Type(ClTransferData) :: CTransS, CTransT, CTransV
     integer in,i,j
-    integer, parameter :: ind(2,2)=[[1,3],[3,2]]
+    integer, dimension(2,2), parameter :: ind = reshape( (/ 1,3,3,2 /), shape(ind))
+    !use verbose form above for gfortran consistency  [[1,3],[3,2]]
 
     !Note using log interpolation is worse
 

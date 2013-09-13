@@ -249,54 +249,50 @@
 ! interpolation. y2 is array of second derivatives, yp1 and ypn are first
 ! derivatives at end points.
 
-
-      SUBROUTINE spline(x,y,n,yp1,ypn,y2)
+!Thanks Martin Reinecke
+    subroutine spline(x,y,n,d11,d1n,d2)
       use Precision
-      implicit none
-      INTEGER, intent(in) :: n
-      real(dl), intent(in) :: x(n), y(n), yp1, ypn
-      real(dl), intent(out) :: y2(n)
-      INTEGER i,k
-      real(dl) p,qn,sig,un
-      real(dl), dimension(:), allocatable :: u
+      integer, intent(in) :: n
+      real(dl), intent(in) :: x(n), y(n), d11, d1n
+      real(dl), intent(out) :: d2(n)
+      integer i
+      real(dl) xp,qn,sig,un,xxdiv,u(n-1),d1l,d1r
 
-       
-      Allocate(u(1:n))
-      if (yp1.gt..99d30) then
-        y2(1)=0._dl
+      d1r= (y(2)-y(1))/(x(2)-x(1))
+      if (d11>.99e30_dl) then
+        d2(1)=0._dl
         u(1)=0._dl
       else
-        y2(1)=-0.5d0
-        u(1)=(3._dl/(x(2)-x(1)))*((y(2)-y(1))/(x(2)-x(1))-yp1)
+        d2(1)=-0.5_dl
+        u(1)=(3._dl/(x(2)-x(1)))*(d1r-d11)
       endif
-      
+
       do i=2,n-1
-        sig=(x(i)-x(i-1))/(x(i+1)-x(i-1))
-        p=sig*y2(i-1)+2._dl 
-   
-        y2(i)=(sig-1._dl)/p
-      
-         u(i)=(6._dl*((y(i+1)-y(i))/(x(i+ &
-         1)-x(i))-(y(i)-y(i-1))/(x(i)-x(i-1)))/(x(i+1)-x(i-1))-sig* &
-         u(i-1))/p
+        d1l=d1r
+        d1r=(y(i+1)-y(i))/(x(i+1)-x(i))
+        xxdiv=1._dl/(x(i+1)-x(i-1))
+        sig=(x(i)-x(i-1))*xxdiv
+        xp=1._dl/(sig*d2(i-1)+2._dl)
+
+        d2(i)=(sig-1._dl)*xp
+
+        u(i)=(6._dl*(d1r-d1l)*xxdiv-sig*u(i-1))*xp
       end do
-      if (ypn.gt..99d30) then
+      d1l=d1r
+
+      if (d1n>.99e30_dl) then
         qn=0._dl
         un=0._dl
       else
-        qn=0.5d0
-        un=(3._dl/(x(n)-x(n-1)))*(ypn-(y(n)-y(n-1))/(x(n)-x(n-1)))
+        qn=0.5_dl
+        un=(3._dl/(x(n)-x(n-1)))*(d1n-d1l)
       endif
-      y2(n)=(un-qn*u(n-1))/(qn*y2(n-1)+1._dl)
-      do k=n-1,1,-1
-        y2(k)=y2(k)*y2(k+1)+u(k)
+
+      d2(n)=(un-qn*u(n-1))/(qn*d2(n-1)+1._dl)
+      do i=n-1,1,-1
+        d2(i)=d2(i)*d2(i+1)+u(i)
       end do
-
-      Deallocate(u)
-  
-!  (C) Copr. 1986-92 Numerical Recipes Software =$j*m,).
-      END SUBROUTINE spline
-
+    end subroutine spline 
 
      SUBROUTINE spline_deriv(x,y,y2,y1,n)
      !Get derivative y1 given array of x, y and y''
@@ -307,7 +303,6 @@
       real(dl), intent(out) :: y1(n)
       INTEGER i
       real(dl) dx
-   
 
       do i=1, n-1
            

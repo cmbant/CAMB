@@ -26,14 +26,11 @@
   call CAMB_GetCls(clout, lmx, 1, .false.)
   !HealPix 1.2 uses E-B conventions
 
-  if (CP%OutputNormalization == outCOBE) then
-     fac=2*pi*CP%tcmb**2
+
+  if (CP%OutputNormalization >=2) then
+   fac=1
   else
-     if (CP%OutputNormalization >=2) then
-      fac=1
-     else
-      fac=OutputDenominator*CP%tcmb**2
-     end if
+   fac=OutputDenominator*CP%tcmb**2
   end if
 
 !FITS file has Cls without l(l+1)/twopi factors

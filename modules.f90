@@ -35,7 +35,7 @@
     implicit none
     public
 
-    character(LEN=*), parameter :: version = 'Jun13'
+    character(LEN=*), parameter :: version = 'July13'
 
     integer :: FeedbackLevel = 0 !if >0 print out useful information about the model
 
@@ -220,7 +220,7 @@
     !fiducial high-accuracy high-L C_L used for making small cosmology-independent numerical corrections
     !to lensing and C_L interpolation. Ideally close to models of interest, but dependence is weak.
     logical :: use_spline_template = .true.
-    integer, parameter :: lmax_extrap_highl = 6000
+    integer, parameter :: lmax_extrap_highl = 8000
     real(dl), allocatable :: highL_CL_template(:,:)
 
     integer, parameter :: derived_age=1, derived_zstar=2, derived_rstar=3, derived_thetastar=4,derived_zdrag=5, &
@@ -1040,15 +1040,17 @@
     Type(ClTransferData) :: CTrans
     integer st,i,j
 
-    do i=1, CTrans%NumSources
-        if (CTrans%Limber_l_min(i)/=0) then
-            do j=CTrans%Limber_l_min(i), CTrans%ls%l0
-                deallocate(CTrans%Limber_windows(i, j)%k, STAT = st)
-                deallocate(CTrans%Limber_windows(i, j)%Source, STAT = st)
-            end do
-        end if
-    end do
-    deallocate(CTrans%Limber_l_min, STAT = st)
+    if (associated(CTrans%Limber_l_min)) then
+        do i=1, CTrans%NumSources
+            if (CTrans%Limber_l_min(i)/=0) then
+                do j=CTrans%Limber_l_min(i), CTrans%ls%l0
+                    deallocate(CTrans%Limber_windows(i, j)%k, STAT = st)
+                    deallocate(CTrans%Limber_windows(i, j)%Source, STAT = st)
+                end do
+            end if
+        end do
+        deallocate(CTrans%Limber_l_min, STAT = st)
+    end if
     deallocate(CTrans%Limber_windows, STAT = st)
     nullify(CTrans%Limber_l_min)
     nullify(CTrans%Limber_windows)
@@ -1072,7 +1074,9 @@
             highL_CL_template(L, C_Phi) =array(5)
         end do
 
-500     close(fileio_unit)
+500     if (L< lmax_extrap_highl) &
+        stop 'CheckLoadedHighLTemplate: template file does not go up to lmax_extrap_highl'
+        close(fileio_unit)
     end if
 
     end subroutine CheckLoadedHighLTemplate
@@ -2521,34 +2525,34 @@
         ThermoDerivedParams( derived_thetaEQ ) = 100*timeOfz( ThermoDerivedParams( derived_zEQ ))/DA
 
         if (associated(BackgroundOutputs%z_outputs)) then
-        if (allocated(BackgroundOutputs%H)) &
+            if (allocated(BackgroundOutputs%H)) &
             deallocate(BackgroundOutputs%H, BackgroundOutputs%DA, BackgroundOutputs%rs_by_D_v)
             noutput = size(BackgroundOutputs%z_outputs)
             allocate(BackgroundOutputs%H(noutput), BackgroundOutputs%DA(noutput), BackgroundOutputs%rs_by_D_v(noutput))
             do i=1,noutput
-            BackgroundOutputs%H(i) = HofZ(BackgroundOutputs%z_outputs(i))
+                BackgroundOutputs%H(i) = HofZ(BackgroundOutputs%z_outputs(i))
                 BackgroundOutputs%DA(i) = AngularDiameterDistance(BackgroundOutputs%z_outputs(i))
                 BackgroundOutputs%rs_by_D_v(i) = rs/BAO_D_v_from_DA_H(BackgroundOutputs%z_outputs(i), &
                 BackgroundOutputs%DA(i),BackgroundOutputs%H(i))
-                end do
-            end if
-
-            if (FeedbackLevel > 0) then
-                write(*,'("Age of universe/GYr  = ",f7.3)') ThermoDerivedParams( derived_Age )
-                write(*,'("zstar                = ",f8.2)') ThermoDerivedParams( derived_zstar )
-                write(*,'("r_s(zstar)/Mpc       = ",f7.2)') ThermoDerivedParams( derived_rstar )
-                write(*,'("100*theta            = ",f9.6)') ThermoDerivedParams( derived_thetastar )
-
-                write(*,'("zdrag                = ",f8.2)') ThermoDerivedParams( derived_zdrag )
-                write(*,'("r_s(zdrag)/Mpc       = ",f7.2)') ThermoDerivedParams( derived_rdrag )
-
-                write(*,'("k_D(zstar) Mpc       = ",f7.4)') ThermoDerivedParams( derived_kD )
-                write(*,'("100*theta_D          = ",f9.6)') ThermoDerivedParams( derived_thetaD )
-
-                write(*,'("z_EQ (if v_nu=1)     = ",f8.2)') ThermoDerivedParams( derived_zEQ )
-                write(*,'("100*theta_EQ         = ",f9.6)') ThermoDerivedParams( derived_thetaEQ )
-            end if
+            end do
         end if
+
+        if (FeedbackLevel > 0) then
+            write(*,'("Age of universe/GYr  = ",f7.3)') ThermoDerivedParams( derived_Age )
+            write(*,'("zstar                = ",f8.2)') ThermoDerivedParams( derived_zstar )
+            write(*,'("r_s(zstar)/Mpc       = ",f7.2)') ThermoDerivedParams( derived_rstar )
+            write(*,'("100*theta            = ",f9.6)') ThermoDerivedParams( derived_thetastar )
+
+            write(*,'("zdrag                = ",f8.2)') ThermoDerivedParams( derived_zdrag )
+            write(*,'("r_s(zdrag)/Mpc       = ",f7.2)') ThermoDerivedParams( derived_rdrag )
+
+            write(*,'("k_D(zstar) Mpc       = ",f7.4)') ThermoDerivedParams( derived_kD )
+            write(*,'("100*theta_D          = ",f9.6)') ThermoDerivedParams( derived_thetaD )
+
+            write(*,'("z_EQ (if v_nu=1)     = ",f8.2)') ThermoDerivedParams( derived_zEQ )
+            write(*,'("100*theta_EQ         = ",f9.6)') ThermoDerivedParams( derived_thetaEQ )
+        end if
+    end if
 
     end subroutine inithermo
 
