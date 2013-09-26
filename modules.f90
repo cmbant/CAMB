@@ -101,7 +101,6 @@
     !Omega baryon, CDM, Lambda and massive neutrino
     real(dl)  :: H0,TCMB,yhe,Num_Nu_massless
     integer   :: Num_Nu_massive !sum of Nu_mass_numbers below
-    logical   :: Nu_mass_splittings !unused, could be deleted
     integer   :: Nu_mass_eigenstates  !1 for degenerate masses
     logical   :: share_delta_neff !take fractional part to heat all eigenstates the same
     real(dl)  :: Nu_mass_degeneracies(max_nu)
@@ -283,13 +282,13 @@
     end if
 
     if (CP%Num_Nu_Massive /= sum(CP%Nu_mass_numbers(1:CP%Nu_mass_eigenstates))) then
-         if (sum(CP%Nu_mass_numbers(1:CP%Nu_mass_eigenstates))/=0) stop 'Num_Nu_Massive is not sum of Nu_mass_numbers'
+        if (sum(CP%Nu_mass_numbers(1:CP%Nu_mass_eigenstates))/=0) stop 'Num_Nu_Massive is not sum of Nu_mass_numbers'
     end if
     if (CP%Omegan == 0 .and. CP%Num_Nu_Massive /=0) then
         if (CP%share_delta_neff) then
-         CP%Num_Nu_Massless = CP%Num_Nu_Massless + CP%Num_Nu_Massive
+            CP%Num_Nu_Massless = CP%Num_Nu_Massless + CP%Num_Nu_Massive
         else
-         CP%Num_Nu_Massless = CP%Num_Nu_Massless + sum(CP%Nu_mass_degeneracies(1:CP%Nu_mass_eigenstates))
+            CP%Num_Nu_Massless = CP%Num_Nu_Massless + sum(CP%Nu_mass_degeneracies(1:CP%Nu_mass_eigenstates))
         end if
         CP%Num_Nu_Massive  = 0
         CP%Nu_mass_numbers = 0
@@ -297,23 +296,19 @@
 
     nu_massless_degeneracy = CP%Num_Nu_massless !N_eff for massless neutrinos
     if (CP%Num_nu_massive > 0) then
-        if (.not. CP%Nu_mass_splittings) then
-            stop  'Nu_mass_splittings false no longer supported'
-        else
-            if (CP%Nu_mass_eigenstates==0) stop 'Have Num_nu_massive>0 but no nu_mass_eigenstates'
-            if (CP%Nu_mass_eigenstates==1 .and. CP%Nu_mass_numbers(1)==0) CP%Nu_mass_numbers(1) = CP%Num_Nu_Massive
-            if (all(CP%Nu_mass_numbers(1:CP%Nu_mass_eigenstates)==0)) CP%Nu_mass_numbers=1 !just assume one normal, one sterile
-            if (CP%share_delta_neff) then
-                !default case of equal heating of all neutrinos
-                fractional_number = CP%Num_Nu_massless + CP%Num_Nu_massive
-                actual_massless = int(CP%Num_Nu_massless + 1e-6_dl)
-                neff_i = fractional_number/(actual_massless + CP%Num_Nu_massive)
-                nu_massless_degeneracy = neff_i*actual_massless
-                CP%Nu_mass_degeneracies(1:CP%Nu_mass_eigenstates) = CP%Nu_mass_numbers(1:CP%Nu_mass_eigenstates)*neff_i
-            end if
-            if (abs(sum(CP%Nu_mass_fractions(1:CP%Nu_mass_eigenstates))-1) > 1e-4) &
-            stop 'Nu_mass_fractions do not add up to 1'
+        if (CP%Nu_mass_eigenstates==0) stop 'Have Num_nu_massive>0 but no nu_mass_eigenstates'
+        if (CP%Nu_mass_eigenstates==1 .and. CP%Nu_mass_numbers(1)==0) CP%Nu_mass_numbers(1) = CP%Num_Nu_Massive
+        if (all(CP%Nu_mass_numbers(1:CP%Nu_mass_eigenstates)==0)) CP%Nu_mass_numbers=1 !just assume one normal, one sterile
+        if (CP%share_delta_neff) then
+            !default case of equal heating of all neutrinos
+            fractional_number = CP%Num_Nu_massless + CP%Num_Nu_massive
+            actual_massless = int(CP%Num_Nu_massless + 1e-6_dl)
+            neff_i = fractional_number/(actual_massless + CP%Num_Nu_massive)
+            nu_massless_degeneracy = neff_i*actual_massless
+            CP%Nu_mass_degeneracies(1:CP%Nu_mass_eigenstates) = CP%Nu_mass_numbers(1:CP%Nu_mass_eigenstates)*neff_i
         end if
+        if (abs(sum(CP%Nu_mass_fractions(1:CP%Nu_mass_eigenstates))-1) > 1e-4) &
+        stop 'Nu_mass_fractions do not add up to 1'
     else
         CP%Nu_mass_eigenstates = 0
     end if

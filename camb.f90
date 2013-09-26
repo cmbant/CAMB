@@ -291,7 +291,6 @@
     P%YHe     = 0.24
     P%Num_Nu_massless =default_nnu
     P%Num_Nu_massive  =0
-    P%Nu_mass_splittings = .true.
     P%share_delta_neff = .false.
     P%Nu_mass_eigenstates = 0
     P%Nu_mass_numbers=0
