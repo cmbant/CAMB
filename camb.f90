@@ -291,9 +291,10 @@
     P%YHe     = 0.24
     P%Num_Nu_massless =default_nnu
     P%Num_Nu_massive  =0
-    P%Nu_mass_splittings = .false.
-    P%same_neutrino_Neff = .false.
+    P%Nu_mass_splittings = .true.
+    P%share_delta_neff = .false.
     P%Nu_mass_eigenstates = 0
+    P%Nu_mass_numbers=0
 
     P%Scalar_initial_condition =initial_adiabatic
     P%NonLinear = NonLinear_none
@@ -364,12 +365,12 @@
         '  Warning: YHe is the Helium fraction of baryons.', &
         '  Your have:', P%yhe
     end if
-    if (P%Num_Nu_massive < 0.or.P%Num_Nu_massive > 3.1) then
+    if (P%Num_Nu_massive < 0) then
         OK = .false.
         write(*,*) &
         'Warning: Num_Nu_massive is strange:',P%Num_Nu_massive
     end if
-    if (P%Num_Nu_massless < 0.or.P%Num_Nu_massless > 3.1) then
+    if (P%Num_Nu_massless < 0) then
         OK = .false.
         write(*,*) &
         'Warning: Num_nu_massless is strange:', P%Num_Nu_massless

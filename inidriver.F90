@@ -118,26 +118,32 @@
     P%tcmb   = Ini_Read_Double('temp_cmb',COBE_CMBTemp)
     P%yhe    = Ini_Read_Double('helium_fraction',0.24_dl)
     P%Num_Nu_massless  = Ini_Read_Double('massless_neutrinos')
-    nmassive = Ini_Read_Double('massive_neutrinos')
-    !Store fractional numbers in the massless total
-    P%Num_Nu_massive   = int(nmassive+1e-6)
-    P%Num_Nu_massless  = P%Num_Nu_massless + nmassive-P%Num_Nu_massive
 
-    P%nu_mass_splittings = .true.
     P%Nu_mass_eigenstates = Ini_Read_Int('nu_mass_eigenstates',1)
     if (P%Nu_mass_eigenstates > max_nu) stop 'too many mass eigenstates'
-    numstr = Ini_Read_String('nu_mass_degeneracies')
-    if (numstr=='') then
-        P%Nu_mass_degeneracies(1)= 0
-    else
-        read(numstr,*) P%Nu_mass_degeneracies(1:P%Nu_mass_eigenstates)
-    end if
-    numstr = Ini_read_String('nu_mass_fractions')
-    if (numstr=='') then
-        P%Nu_mass_fractions(1)=1
-        if (P%Nu_mass_eigenstates >1) stop 'must give nu_mass_fractions for the eigenstates'
-    else
-        read(numstr,*) P%Nu_mass_fractions(1:P%Nu_mass_eigenstates)
+
+    numstr = Ini_Read_String('massive_neutrinos')
+    read(numstr, *) nmassive
+    if (abs(nmassive-nint(nmassive))>1e-6) stop 'massive_neutrinos should now be integer (or integer array)'
+    read(numstr,*, end=100, err=100) P%Nu_Mass_numbers(1:P%Nu_mass_eigenstates)
+    P%Num_Nu_massive = sum(P%Nu_Mass_numbers(1:P%Nu_mass_eigenstates))
+
+    if (P%Num_Nu_massive>0) then
+        P%share_delta_neff = Ini_Read_Logical('share_delta_neff', .true.)
+        numstr = Ini_Read_String('nu_mass_degeneracies')
+        if (P%share_delta_neff) then
+            if (numstr/='') write (*,*) 'WARNING: nu_mass_degeneracies ignored when share_delta_neff'
+        else
+            if (numstr=='') stop 'must give degeneracies for each eigenstate if share_delta_neff=F'
+            read(numstr,*) P%Nu_mass_degeneracies(1:P%Nu_mass_eigenstates)
+        end if
+        numstr = Ini_Read_String('nu_mass_fractions')
+        if (numstr=='') then
+            if (P%Nu_mass_eigenstates >1) stop 'must give nu_mass_fractions for the eigenstates'
+            P%Nu_mass_fractions(1)=1
+        else
+            read(numstr,*) P%Nu_mass_fractions(1:P%Nu_mass_eigenstates)
+        end if
     end if
 
     if (P%NonLinear==NonLinear_lens .and. P%DoLensing) then
@@ -319,7 +325,9 @@
     end if
 
     call CAMB_cleanup
+    stop
 
+100 stop 'Must give num_massive number of integer physical neutrinos for each eigenstate'
     end program driver
 
 

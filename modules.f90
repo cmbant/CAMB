@@ -35,7 +35,7 @@
     implicit none
     public
 
-    character(LEN=*), parameter :: version = 'July13'
+    character(LEN=*), parameter :: version = 'Sept13'
 
     integer :: FeedbackLevel = 0 !if >0 print out useful information about the model
 
@@ -100,14 +100,14 @@
     real(dl)  :: omegab, omegac, omegav, omegan
     !Omega baryon, CDM, Lambda and massive neutrino
     real(dl)  :: H0,TCMB,yhe,Num_Nu_massless
-    integer   :: Num_Nu_massive
-    logical :: Nu_mass_splittings
+    integer   :: Num_Nu_massive !sum of Nu_mass_numbers below
+    logical   :: Nu_mass_splittings !unused, could be deleted
     integer   :: Nu_mass_eigenstates  !1 for degenerate masses
-    logical   :: same_neutrino_Neff !take fractional part to heat all eigenstates the same
+    logical   :: share_delta_neff !take fractional part to heat all eigenstates the same
     real(dl)  :: Nu_mass_degeneracies(max_nu)
-    real(dl)  :: Nu_mass_fractions(max_nu)
-    !The ratios of the masses
-
+    real(dl)  :: Nu_mass_fractions(max_nu) !The ratios of the total densities
+    integer   :: Nu_mass_numbers(max_nu) !physical number per eigenstate
+ 
     integer   :: Scalar_initial_condition
     !must be one of the initial_xxx values defined in GaugeInterface
 
@@ -247,6 +247,7 @@
     logical, optional :: DoReion
     logical WantReion
     integer nu_i,actual_massless
+    real(dl) nu_massless_degeneracy, neff_i
     external GetOmegak
     real(dl), save :: last_tau0
     !Constants in SI units
@@ -281,29 +282,37 @@
         CP%transfer%num_redshifts=0
     end if
 
+    if (CP%Num_Nu_Massive /= sum(CP%Nu_mass_numbers(1:CP%Nu_mass_eigenstates))) then
+         if (sum(CP%Nu_mass_numbers(1:CP%Nu_mass_eigenstates))/=0) stop 'Num_Nu_Massive is not sum of Nu_mass_numbers'
+    end if
     if (CP%Omegan == 0 .and. CP%Num_Nu_Massive /=0) then
-        CP%Num_Nu_Massless = CP%Num_Nu_Massless + CP%Num_Nu_Massive
+        if (CP%share_delta_neff) then
+         CP%Num_Nu_Massless = CP%Num_Nu_Massless + CP%Num_Nu_Massive
+        else
+         CP%Num_Nu_Massless = CP%Num_Nu_Massless + sum(CP%Nu_mass_degeneracies(1:CP%Nu_mass_eigenstates))
+        end if
         CP%Num_Nu_Massive  = 0
+        CP%Nu_mass_numbers = 0
     end if
 
+    nu_massless_degeneracy = CP%Num_Nu_massless !N_eff for massless neutrinos
     if (CP%Num_nu_massive > 0) then
         if (.not. CP%Nu_mass_splittings) then
-            !Default totally degenerate masses
-            CP%Nu_mass_eigenstates = 1
-            CP%Nu_mass_degeneracies(1) = CP%Num_Nu_Massive
-            CP%Nu_mass_fractions(1) = 1
+            stop  'Nu_mass_splittings false no longer supported'
         else
-            if (CP%Nu_mass_degeneracies(1)==0) then
-                CP%Nu_mass_degeneracies(1) = CP%Num_Nu_Massive
-                CP%same_neutrino_Neff = .true.
+            if (CP%Nu_mass_eigenstates==0) stop 'Have Num_nu_massive>0 but no nu_mass_eigenstates'
+            if (CP%Nu_mass_eigenstates==1 .and. CP%Nu_mass_numbers(1)==0) CP%Nu_mass_numbers(1) = CP%Num_Nu_Massive
+            if (all(CP%Nu_mass_numbers(1:CP%Nu_mass_eigenstates)==0)) CP%Nu_mass_numbers=1 !just assume one normal, one sterile
+            if (CP%share_delta_neff) then
+                !default case of equal heating of all neutrinos
+                fractional_number = CP%Num_Nu_massless + CP%Num_Nu_massive
+                actual_massless = int(CP%Num_Nu_massless + 1e-6_dl)
+                neff_i = fractional_number/(actual_massless + CP%Num_Nu_massive)
+                nu_massless_degeneracy = neff_i*actual_massless
+                CP%Nu_mass_degeneracies(1:CP%Nu_mass_eigenstates) = CP%Nu_mass_numbers(1:CP%Nu_mass_eigenstates)*neff_i
             end if
             if (abs(sum(CP%Nu_mass_fractions(1:CP%Nu_mass_eigenstates))-1) > 1e-4) &
             stop 'Nu_mass_fractions do not add up to 1'
-
-            !                 if (abs(sum(CP%Nu_mass_degeneracies(1:CP%Nu_mass_eigenstates))-CP%Num_nu_massive) >1e-4 ) &
-            !                   stop 'nu_mass_eigenstates do not add up to num_nu_massive'
-            if (CP%Nu_mass_eigenstates==0) stop 'Have Num_nu_massive>0 but no nu_mass_eigenstates'
-
         end if
     else
         CP%Nu_mass_eigenstates = 0
@@ -344,24 +353,11 @@
     ! grhog=1.4952d-13*tcmb**4
     grhor = 7._dl/8*(4._dl/11)**(4._dl/3)*grhog !7/8*(4/11)^(4/3)*grhog (per neutrino species)
     !grhor=3.3957d-14*tcmb**4
-    !correction for fractional number of neutrinos, e.g. 3.04 to give slightly higher T_nu hence rhor
-    !Num_Nu_massive is already integer, Num_Nu_massless can contain fraction
-    !We assume all eigenstates affected the same way
 
-    !With mass splitting=True, the Nu_mass_degeneracies parameters account for heating from grhor
-    !Otherwise we set from Neff
-    if (CP%same_neutrino_Neff) then
-        fractional_number = CP%Num_Nu_massless + CP%Num_Nu_massive
-        actual_massless = int(CP%Num_Nu_massless + 1e-6_dl)
-        if (actual_massless + CP%Num_Nu_massive /= 0) then
-            grhor = grhor * fractional_number/(actual_massless + CP%Num_Nu_massive)
-            grhornomass=grhor*actual_massless
-        else
-            grhornomass=grhor*CP%Num_Nu_massless
-        end if
-    else
-        grhornomass=grhor*CP%Num_Nu_massless
-    end if
+    !correction for fractional number of neutrinos, e.g. 3.04 to give slightly higher T_nu hence rhor
+    !for massive Nu_mass_degeneracies parameters account for heating from grhor
+
+    grhornomass=grhor*nu_massless_degeneracy
     grhormass=0
     do nu_i = 1, CP%Nu_mass_eigenstates
         grhormass(nu_i)=grhor*CP%Nu_mass_degeneracies(nu_i)
@@ -380,11 +376,6 @@
     !sigma_T * (number density of protons now)
 
     fHe = CP%YHe/(mass_ratio_He_H*(1.d0-CP%YHe))  !n_He_tot / n_H_tot
-
-    if (CP%omegan==0) then
-        CP%Num_nu_massless = CP%Num_nu_massless + CP%Num_nu_massive
-        CP%Num_nu_massive = 0
-    end if
 
     if (.not.call_again) then
 
@@ -426,10 +417,13 @@
         write(*,'("Om_m (1-Om_K-Om_L)   = ",f9.6)') 1-CP%omegak-CP%omegav
         write(*,'("100 theta (CosmoMC)  = ",f9.6)') 100*CosmomcTheta()
         if (CP%Num_Nu_Massive > 0) then
-            conv = k_B*(8*grhor/grhog/7)**0.25*CP%tcmb/eV !approx 1.68e-4
+            write(*,'("N_eff (total)        = ",f9.6)') nu_massless_degeneracy + &
+            sum(CP%Nu_mass_degeneracies(1:CP%Nu_mass_eigenstates))
             do nu_i=1, CP%Nu_mass_eigenstates
-                write(*,'(f7.4, " nu, m_nu*c^2/k_B/T_nu0   = ",f9.2," (m_nu = ",f6.3," eV)")') &
-                CP%nu_mass_degeneracies(nu_i), nu_masses(nu_i),conv*nu_masses(nu_i)
+                conv = k_B*(8*grhor/grhog/7)**0.25*CP%tcmb/eV * &
+                (CP%nu_mass_degeneracies(nu_i)/CP%nu_mass_numbers(nu_i))**0.25 !approx 1.68e-4
+                write(*,'(I2, " nu, g=",f7.4," m_nu*c^2/k_B/T_nu0= ",f9.2," (m_nu= ",f6.3," eV)")') &
+                CP%nu_mass_numbers(nu_i), CP%nu_mass_degeneracies(nu_i), nu_masses(nu_i),conv*nu_masses(nu_i)
             end do
         end if
     end if
