@@ -302,7 +302,7 @@
         else
             if (CP%Nu_mass_eigenstates==0) stop 'Have Num_nu_massive>0 but no nu_mass_eigenstates'
             if (CP%Nu_mass_eigenstates==1 .and. CP%Nu_mass_numbers(1)==0) CP%Nu_mass_numbers(1) = CP%Num_Nu_Massive
-            if (all(CP%Nu_mass_numbers(1:CP%Nu_mass_eigenstates)==0)) CP%Nu_mass_numbers=1 !just assume one normal, one sterile
+            if (all(CP%Nu_mass_numbers(1:CP%Nu_mass_eigenstates)==0)) CP%Nu_mass_numbers=1 !just assume one for all
             if (CP%share_delta_neff) then
                 !default case of equal heating of all neutrinos
                 fractional_number = CP%Num_Nu_massless + CP%Num_Nu_massive
