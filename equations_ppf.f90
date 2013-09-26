@@ -1572,8 +1572,8 @@
          !phi_lens = Phi - 1/2 kappa (a/k)^2 sum_i rho_i pi_i
          !Neglect pi contributions because not accurate at late time anyway
          phi = -(dgrho +3*dgq*adotoa/k)/(k2*EV%Kf(1)*2) 
-            ! - (grhor_t*pir + grhog_t*pig+ pinu*gpnu_t)/k2
-         
+            ! - dgpi/k2/2
+
          sources(3) = -2*phi*f_K(tau-tau_maxvis)/(f_K(CP%tau0-tau_maxvis)*f_K(CP%tau0-tau))
 
 !         sources(3) = -2*phi*(tau-tau_maxvis)/((CP%tau0-tau_maxvis)*(CP%tau0-tau))
