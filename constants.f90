@@ -19,7 +19,7 @@
        real(dl), parameter :: c = 2.99792458e8_dl
        real(dl), parameter :: h_P = 6.62606896e-34_dl
         
-       real(dl), parameter :: G=6.67428e-11_dl
+       real(dl), parameter :: G=6.6738e-11_dl !data book 2012, last digit +/-8
        real(dl), parameter :: sigma_thomson = 6.6524616e-29_dl
        real(dl), parameter :: sigma_boltz = 5.6704e-8_dl
        real(dl), parameter :: k_B = 1.3806504e-23_dl
