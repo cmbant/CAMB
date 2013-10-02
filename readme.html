@@ -5,15 +5,15 @@
 <BODY BGCOLOR="#FFFFFF" LINK="#0000FF" VLINK="#800080">
 <BODY>
 <CENTER>
-<A HREF="#compiling">Compiling</A> - <A HREF="#outputs">Outputs</A>- <A HREF="#version">History</A> - <A HREF="#COMPARE">Comparison</A> - <A HREF="#FILES">Source files</A> - <A HREF="#ACCURACY">Accuracy</A> -
- <A HREF="#adds">Add-ons</A> - <A HREF="#refs">References</A>
+<A HREF="#compiling">Compiling</A> | <A HREF="#inputs">Inputs</A> | <A HREF="#outputs">Outputs</A>| <A HREF="#coding">Customization</A> | <A HREF="#version">History</A> | <A HREF="#COMPARE">Comparison</A> | <A HREF="#FILES">Source files</A> | <A HREF="#ACCURACY">Accuracy</A> |
+ <A HREF="#adds">Add-ons</A> | <A HREF="#refs">References</A>
 </CENTER>
 <FONT FACE="Arial,Helvetica" SIZE=2>
 <H2>CAMB ReadMe</H2>
 Code for Anisotropies in the Microwave Background by <A
 HREF="http://cosmologist.info/">Antony Lewis</A> and Anthony
 Challinor. <P>
-This version July 2013.
+This version September 2013.
 <P>
 <FONT SIZE=-1>
 Originally based on CMBFAST developed by Uros Seljak and Matias
@@ -45,40 +45,14 @@ edit the supplied Makefile, see below)
 <P>
 The Makefile comes set up for Intel machines using Intel's ifort compiler. Just comment the relevant parts to compile on different systems. If you have Intel's Visual Fortran you can use the projects in the VisualStudio folder, no need to use the Makefile. To run on multi-processor machines add the -openmp (or equivalent) option to the Makefile's FFLAGS parameter to compile a parallelized (OPENMP) version.
 </P>
+<A NAME="inputs">
+<H3>Input parameters</H3>
 <P>
-You can also edit the Makefile's EQUATIONS, POWERSPECTRUM, RECOMBINATION and REIONIZATION
- variables , which determine which module is used to implement and model various parts of the calculation. The POWERSPECTRUM.f90  file7 contains a module giving the initial
- power spectrum, the EQUATIONS.f90 file contains the background evolution
- equations and sets of gauge-dependent perturbation
- equations (the alternative equations_ppf.f90 is provided to implement the common <i>w</i>, <i>w<sub>a</sub></i> varying dark energy parameterization). RECOMBINATION.f90 gives the background recombination history: recfast by default, but you can also compile to use <A HREF="http://www.cita.utoronto.ca/~jchluba/Science_Jens/Recombination/CosmoRec.html">CosmoRec</A> and <A HREF="http://www.sns.ias.edu/~yacine/hyrec/hyrec.html">HyRec</A>. REIONIZATION is by default a simple relatively fast single-step reionization model (following <A HREF="http://arxiv.org/abs/0804.3865">arXiv:0804.3865</A>).
-  Various other modules can also be changed at compile time if desired.
- To avoid problems run <B>make clean</B> after changing the
- Makefile before recompiling. You can also use e.g. <B>make RECOMBINATION=cosmorec</b> to override the default and compile with a different module.
-</P>
+The params.ini file specifies the parameters used to run the program. Comments in params.ini should make this fairly self-explanatory,
+more complicated cases, for example to run with multiple neutrino mass eigenstates and sterile neutrinos at different temperatures
+see the documentation and examples in the <A HREF="http://cosmologist.info/notes/CAMB.pdf">CAMB notes</A>. To produce the matter power spectrum in addition to CMB C<sub>l</sub> set <b>get_transfer = T</b>; the <b>do_nonlinear</b> input parameter determines whether this is output as the linear power spectrum or includes non-linear corrections from the Halofit model.
 <P>
-You can produce files in  <A
-HREF="http://heasarc.gsfc.nasa.gov/docs/software/fitsio/fitsio.html">FITS</A>
- format - to do this you will need to have <A
-HREF="http://www.eso.org/science/healpix/">HEALPIX</A> installed and make
- some edits to the Makefile - see the Makefile for details. After compiling with <B>make camb_fits</B>,
- you can then use <B>camb_fits</B> instead of <B>camb</B> - the FITS file
- produced is given the name specified in params.ini. Note that the FITS file format for polarization changed with HEALPIX 1.2, CAMB uses the new format.
-</P>
-<P>
-All the equations that need to be modified for
-simple non-standard models are in the equations.f90 file.  It should be possible to produce other files
-for extended models (see the sample <A
-HREF="http://camb.info/extra.html">quintessence</A> module). (Note that varying
-constant - e.g. alpha -  models are not quite so simple to plug in; a sample equations_ppf.f90 file provided to implement a varying <i>w</i> dark energy equation of state in the <A HREF="http://arxiv.org/abs/0808.3125">PPF</A> model).
-<P>
-After modifying any of the source code run <B>make clean</B> before running <B>make</B> to recompile (Visual Fortran will re-compile dependent code automatically).
-Run <B>make all</B> to build a library libcamb.a that you can use when
-linking to other programs. (You will also need to include the module files using -I/cambfolder).
-<P>
-As of November 2004 the supplied sample params.ini file produces results in &mu;K<sup>2</sup> from the given primordial curvature perturbation power (<B>scalar_amp</B>) on 0.05 MPc<sup>-1</sup> scales. To get unnormalized dimensionless results set <B>scalar_amp(1)=1</B> and <B>CMB_outputscale=1</B> (as in previous CAMB versions). To compute lensed C<sub>l</sub>s you must set the normalization to some realistic value (the calculation is non-linear, so normalization matters).
-<P>
-You can <A HREF="http://camb.info/test_suite.tar.gz">download</A> a test suite for comparing accuracy with different parameters and code versions. Just extract the file to your CAMB directory and read the readme.
-
+The default params.ini file produces results in &mu;K<sup>2</sup> from the given primordial curvature perturbation power (<B>scalar_amp</B>) on 0.05 MPc<sup>-1</sup> scales. To get unnormalized dimensionless results set <B>scalar_amp(1)=1</B> and <B>CMB_outputscale=1</B>. To compute lensed C<sub>l</sub>s you must set the normalization to some realistic value (the calculation is non-linear, so normalization matters).
 <P>
 <A NAME="outputs">
 <H3>Outputs</H3>
@@ -110,12 +84,50 @@ k/h Delta_CDM/k<sup>2</sup> Delta_b/k<sup>2</sup> Delta_g/k<sup>2</sup> Delata_r
 where all quantities are in the synchronous gauge and evaluated at the requested redshift, given a unit primordial curvature perturbation on superhorizon scales (for adiabatic modes, chi_0=-1). Here subscripts refer to CDM, baryon, photon, massless neutrino, massive neutrinos, and total (massive) respectively. <b>output_root</b>_matterpower.dat contains the conventionally normalized matter power spectrum (for baryons+cdm+massive neutrinos), in h/Mpc units.
 
 <P>
+<A NAME="coding">
+<H3>Compilation options and code modifications</H3>
+<P>
+You can edit the Makefile's EQUATIONS, POWERSPECTRUM, RECOMBINATION and REIONIZATION
+ variables , which determine which module is used to implement and model various parts of the calculation. The POWERSPECTRUM.f90  file7 contains a module giving the initial
+ power spectrum, the EQUATIONS.f90 file contains the background evolution
+ equations and sets of gauge-dependent perturbation
+ equations (the alternative equations_ppf.f90 is provided to implement the common <i>w</i>, <i>w<sub>a</sub></i> varying dark energy parameterization). RECOMBINATION.f90 gives the background recombination history: recfast by default, but you can also compile to use <A HREF="http://www.cita.utoronto.ca/~jchluba/Science_Jens/Recombination/CosmoRec.html">CosmoRec</A> and <A HREF="http://www.sns.ias.edu/~yacine/hyrec/hyrec.html">HyRec</A>. REIONIZATION is by default a simple relatively fast single-step reionization model (following <A HREF="http://arxiv.org/abs/0804.3865">arXiv:0804.3865</A>).
+  Various other modules can also be changed at compile time if desired.
+ To avoid problems run <B>make clean</B> after changing the
+ Makefile before recompiling. You can also use e.g. <B>make RECOMBINATION=cosmorec</b> to override the default and compile with a different module.
+</P>
+<P>
+You can produce files in  <A
+HREF="http://heasarc.gsfc.nasa.gov/docs/software/fitsio/fitsio.html">FITS</A>
+ format - to do this you will need to have <A
+HREF="http://www.eso.org/science/healpix/">HEALPIX</A> installed and make
+ some edits to the Makefile - see the Makefile for details. After compiling with <B>make camb_fits</B>,
+ you can then use <B>camb_fits</B> instead of <B>camb</B> - the FITS file
+ produced is given the name specified in params.ini. Note that the FITS file format for polarization changed with HEALPIX 1.2, CAMB uses the new format.
+</P>
+<P>
+All the equations that need to be modified for
+simple non-standard models are in the equations.f90 file.  It should be possible to produce other files
+for extended models (see the sample <A
+HREF="http://camb.info/extra.html">quintessence</A> module). (Note that varying
+constant - e.g. alpha -  models are not quite so simple to plug in; a sample equations_ppf.f90 file provided to implement a varying <i>w</i> dark energy equation of state in the <A HREF="http://arxiv.org/abs/0808.3125">PPF</A> model).
+<P>
+After modifying any of the source code run <B>make clean</B> before running <B>make</B> to recompile (Visual Fortran will re-compile dependent code automatically).
+Run <B>make all</B> to build a library libcamb.a that you can use when
+linking to other programs. (You will also need to include the module files using -I/cambfolder).
+<P>
+You can <A HREF="http://camb.info/test_suite.tar.gz">download</A> a test suite for comparing accuracy with different parameters and code versions. Just extract the file to your CAMB directory and read the readme.
+<P>
+Some details about what different source code files do are given <A HREF="#FILES">below</A>, see also the <A HREF="http://cosmologist.info/notes/CAMB.pdf">CAMB notes</A>.
+
+<P>
 <A NAME="version">
 <H3>Version history</H3>
 
-<B>xx 2013</B><BR>
+<B>September 2013</B><BR>
 <UL>
 <LI>Modified more general neutrino mass input specification: <B>share_delta_neff</B> and <B>massive_neutrinos</b> now integer array. See section the <A HREF="http://cosmologist.info/notes/CAMB.pdf">CAMB notes</A> for detailed documentation and examples.
+<LI>Changes to support non-linear CMB lensing and non-linear matter power (<B>do_nonlinear = 3</B>); (thanks Jason Dossett)
 <LI>Replaced numerical recipes functions with internal fortran or new versions (thanks Martin Reinecke)
 <LI>Fixed memory issue for CosmoMC compatibility
 </UL>
@@ -434,7 +446,7 @@ errors at around the 2% level.
 
 <A NAME="COMPARE">
 <H3>Comparison with CLASS</H3>
- The <A href="http://class-code.net">CLASS</A> CMB code is written independently of CAMB and CMBFAST and is in pure C (not C++, despite the name). The basic equations and algorithm are substantially the same as CMBFAST in both cases, with CLASS having a C implementation of CAMB's lensed power spectrum method, and CAMB implementing in F90 some of the new very-sub-horizon approximations introduced in CLASS (which make little difference at WMAP precision, but significantly increase speed for small-scales and high accuracy). For standard models at CAMB's default accuracy settings speeds should be similar depending on compilers used, with CAMB's <b>high_accuracy_default</b> option being similar to CLASS's <b>cl_permille.pre</b>.
+ The <A href="http://class-code.net">CLASS</A> CMB code is written independently of CAMB and CMBFAST and is in pure C (not C++, despite the name). The basic equations and algorithm are substantially the same as CMBFAST in both cases, with CLASS having a C implementation of CAMB's lensed power spectrum method, and CAMB implementing in F90 some of the new very-sub-horizon approximations introduced in CLASS (which make little difference at WMAP precision, but significantly increase speed for small-scales and high accuracy). The codes use different combinations of approximation schemes and sampling for massive neutrinos. For standard models at CAMB's default accuracy settings speeds should be similar depending on compilers used, with CAMB's <b>high_accuracy_default</b> option being similar to CLASS's <b>cl_permille.pre</b>.
 
 <H3>Comparison with CMBFAST</H3>
 This code was originally developed from CMBFAST 2.4.1 to support closed models
