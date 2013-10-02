@@ -101,11 +101,12 @@
     type(CAMBparams) :: Params
     integer, optional :: error !Zero if OK
     type(CAMBparams) P
-    logical :: separate = .true. !whether to do P_k in separate call or not
+    logical :: separate = .false. !whether to do P_k in separate call or not
     logical :: InReionization
 
-    if ((Params%DoLensing .or. num_redshiftwindows>0)&
-    .and. Params%NonLinear==NonLinear_Lens) separate = .false.
+    !JD no longer need to calculate separately PK and Cls separately just slows stuff down
+    !    if ((Params%DoLensing .or. num_redshiftwindows>0)&
+    !    .and. Params%NonLinear==NonLinear_Lens) separate = .false.
     InReionization = Params%Reion%Reionization
     global_error_flag = 0
     call_again = .false.
@@ -135,6 +136,9 @@
         CP%WantTensors = Params%WantTensors
         CP%WantVectors = Params%WantVectors
         CP%Transfer%num_redshifts = Params%Transfer%num_redshifts
+        !JD 08/13 for nonlinear lensing of CMB + LSS compatibility 
+        CP%Transfer%PK_redshifts_index=Params%Transfer%PK_redshifts_index
+        CP%Transfer%PK_num_redshifts = Params%Transfer%PK_num_redshifts      
         Params = CP
     end if
 
@@ -156,6 +160,9 @@
         CP%WantScalars = Params%WantScalars
         CP%WantVectors = Params%WantVectors
         CP%Transfer%num_redshifts = Params%Transfer%num_redshifts
+        !JD 08/13 for nonlinear lensing of CMB + LSS compatibility 
+        CP%Transfer%PK_redshifts_index=Params%Transfer%PK_redshifts_index
+        CP%Transfer%PK_num_redshifts = Params%Transfer%PK_num_redshifts 
         Params = CP
     end if
 
@@ -177,6 +184,9 @@
         CP%WantTensors = Params%WantTensors
         CP%WantScalars = Params%WantScalars
         CP%Transfer%num_redshifts = Params%Transfer%num_redshifts
+        !JD 08/13 for nonlinear lensing of CMB + LSS compatibility 
+        CP%Transfer%PK_redshifts_index=Params%Transfer%PK_redshifts_index
+        CP%Transfer%PK_num_redshifts = Params%Transfer%PK_num_redshifts
         Params = CP
     end if
 
@@ -324,6 +334,12 @@
     P%Transfer%k_per_logint=0
     P%Transfer%num_redshifts=1
     P%Transfer%redshifts=0
+    !JD 08/13 CAMB Fix for for nonlinear lensing of CMB + MPK compatibility
+    P%Transfer%PK_num_redshifts=1
+    P%Transfer%PK_redshifts=0
+    P%Transfer%NLL_num_redshifts=1
+    P%Transfer%NLL_redshifts=0
+    !End JD
 
     P%AccuratePolarization = .true.
     P%AccurateReionization = .false.

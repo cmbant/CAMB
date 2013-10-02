@@ -1,6 +1,6 @@
     !     This this is the main CAMB program module.
     !
-    !     Code for Anisotropies in the Microwave Backgroundeqma
+!     Code for Anisotropies in the Microwave Background
     !     by Antony lewis (http://cosmologist.info) and Anthony Challinor
     !     See readme.html for documentation.
 
@@ -164,7 +164,10 @@
         write (*,*) 'r = ',real(CP%r),' scale = ',real(scale), 'age = ', real(CP%tau0)
     end if
 
-    if (.not. CP%OnlyTransfers .or. CP%NonLinear==NonLinear_Lens)call InitializePowers(CP%InitPower,CP%curv)
+       !JD 08/13 for nonlinear lensing of CMB + MPK compatibility
+       !if (.not. CP%OnlyTransfers .or. CP%NonLinear==NonLinear_Lens)  call InitializePowers(CP%InitPower,CP%curv)
+       if (.not. CP%OnlyTransfers .or. CP%NonLinear==NonLinear_Lens .or. CP%NonLinear==NonLinear_both) &
+         call InitializePowers(CP%InitPower,CP%curv)
     if (global_error_flag/=0) return
 
     !Calculation of the CMB sources.
@@ -218,7 +221,7 @@
     end if
 
     if (CP%WantTransfer .and. CP%WantCls .and. WantLateTime &
-    .and. CP%NonLinear==NonLinear_Lens .and. global_error_flag==0) then
+    .and. (CP%NonLinear==NonLinear_Lens .or. CP%NonLinear==NonLinear_both) .and. global_error_flag==0) then
         call MakeNonlinearSources
         if (DebugMsgs .and. Feedbacklevel > 0) then
             timeprev=actual
