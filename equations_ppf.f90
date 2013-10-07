@@ -1370,6 +1370,7 @@
 !        real(dl) t4,t92
         real(dl) ISW
         real(dl) w_eff
+        real(dl) hdotoh,ppiedot
 
         yprime = 0
         call derivs(EV,EV%ScalEqsToPropagate,tau,y,yprime)        
@@ -1490,6 +1491,15 @@
         z=(0.5_dl*dgrho/k + etak)/adotoa 
         sigma=(z+1.5_dl*dgq/k2)/EV%Kf(1)
 
+        if (is_cosmological_constant) then
+            ppiedot=0
+        else
+            hdotoh=(-3._dl*grho-3._dl*gpres -2._dl*grhok)/6._dl/adotoa
+            ppiedot=3._dl*EV%dgrho_e_ppf+EV%dgq_e_ppf*(12._dl/k*adotoa+k/adotoa-3._dl/k*(adotoa+hdotoh))+ &
+            grhov_t*(1+w_eff)*k*z/adotoa -2._dl*k2*EV%Kf(1)*(yprime(EV%w_ix)/adotoa-2._dl*y(EV%w_ix))
+            ppiedot=ppiedot*adotoa/EV%Kf(1)
+        end if
+
         polter = 0.1_dl*pig+9._dl/15._dl*ypol(2)
 
         if (CP%flat) then
@@ -1513,7 +1523,7 @@
         end if
 
         pidot_sum =  pidot_sum + grhog_t*pigdot + grhor_t*pirdot
-        diff_rhopi = pidot_sum - (4*dgpi+ dgpi_diff )*adotoa 
+        diff_rhopi = pidot_sum - (4*dgpi+ dgpi_diff )*adotoa + ppiedot
 
 
 !Maple's fortran output - see scal_eqs.map
