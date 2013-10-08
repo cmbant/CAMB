@@ -95,7 +95,7 @@
  call add_card(header,'SCALARS',CP%WantScalars, 'includes scalar modes')
  call add_card(header,'TENSORS',CP%WantTensors, 'includes tensor modes')
  call add_card(header,'INITFLAG',CP%Scalar_initial_condition, 'initial condition flag') 
- COBEnorm = CP%outputNormalization==outCOBE
+ COBEnorm = .false.
  call add_card(header,'COBENORM',COBEnorm, 'COBE normalized') 
  call add_card(header,'KETA_MAX',CP%Max_eta_k, 'Max wavenumber') 
  call add_card(header,'PRECIS',AccuracyBoost, 'Relative computation accuracy') 
