@@ -44,12 +44,7 @@
   deallocate(clout)
 
   header = ''
-
-  if (CP%OutputNormalization == outCOBE) then
-     unitstr='Kelvin-squared'
-  else
-     unitstr='unknown'
-  end if
+  unitstr='unknown'
 
   call add_card(header,'COMMENT','-----------------------------------------------')
   call add_card(header,'COMMENT','     CMB power spectrum C(l) keywords          ')
