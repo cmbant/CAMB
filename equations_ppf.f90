@@ -16,6 +16,7 @@
 !            optimized neutrino sampling, and reorganised neutrino integration functions
 ! Feb 2012, updated PPF version but now only simple case for w, w_a (no anisotropic stresses etc)
 ! Feb 2013: fixed various issues with accuracy at larger neutrino masses
+! Oct 2013: fix PPF, consistent with updated equations_cross
 
       module LambdaGeneral
          use precision
@@ -261,7 +262,7 @@
         public
 
         !Description of this file. Change if you make modifications.
-        character(LEN=*), parameter :: Eqns_name = 'crossing_ppf'
+        character(LEN=*), parameter :: Eqns_name = 'equations_ppf-Oct13'
 
         integer, parameter :: basic_num_eqns = 5
           
@@ -341,7 +342,6 @@
 
             !PPF parameters  
             real(dl) dgrho_e_ppf, dgq_e_ppf
-            real(dl) dgrhoec_ppf, dgqec_ppf, vTc_ppf 
             
             logical no_nu_multpoles, no_phot_multpoles 
             integer lmaxnu_tau(max_nu)  !lmax for massive neutinos at time being integrated
@@ -2333,9 +2333,6 @@
       
           EV%dgrho_e_ppf=dgrhoe
           EV%dgq_e_ppf=dgqe
-          EV%dgrhoec_ppf=dgrhoe+3._dl*(1+w_eff)*grhov_t*adotoa*vT/k
-          EV%dgqec_ppf=dgqe+(1+w_eff)*grhov_t*sigma
-          EV%vTc_ppf=vT+sigma
        end if  
 
 !  Get sigma (shear) and z from the constraints
