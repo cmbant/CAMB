@@ -2189,7 +2189,7 @@
         real(dl) cothxor !1/tau in flat case
 !ppf
        real(dl) Gamma,S_Gamma,ckH,Gammadot,Fa,dgqe,dgrhoe, vT
-       real(dl) w_eff
+       real(dl) w_eff, grhoT
        
         k=EV%k_buf
         k2=EV%k2_buf     
@@ -2228,8 +2228,8 @@
           call thermo(tau,cs2,opacity)        
         end if
 
-        gpres=0
-        grho=grhob_t+grhoc_t+grhor_t+grhog_t+grhov_t
+        gpres=(grhor_t+grhog_t)/3._dl
+        grho = grhob_t+grhoc_t+grhor_t+grhog_t + grhov_t
 
 !total perturbations: matter terms first, then add massive nu, de and radiation 
 !  8*pi*a*a*SUM[rho_i*clx_i]
@@ -2304,7 +2304,8 @@
        if (.not. is_cosmological_constant) then
 
      !ppf
-          vT= dgq/(grho+gpres)
+          grhoT = grho - grhov_t
+          vT= dgq/(grhoT+gpres)
           Gamma=ay(EV%w_ix)
     
     !sigma for ppf
@@ -2323,7 +2324,7 @@
                 ayprime(EV%w_ix)=Gammadot
           endif
       
-          Fa=1+3*(grho+gpres)/2._dl/k2/EV%kf(1)
+          Fa=1+3*(grhoT+gpres)/2._dl/k2/EV%kf(1)
           dgqe=S_Gamma - Gammadot/adotoa - Gamma 
           dgqe=-dgqe/Fa*2._dl*k*adotoa + vT*grhov_t*(1+w_eff)
           dgrhoe=-2*k2*EV%kf(1)*Gamma-3/k*adotoa*dgqe
@@ -2376,7 +2377,7 @@
          if (EV%TightCoupling) then
    
            !  ddota/a
-            gpres=gpres+ (grhog_t+grhor_t)/3 +grhov_t*w_eff
+            gpres=gpres + grhov_t*w_eff
             adotdota=(adotoa*adotoa-gpres)/2
 
             pig = 32._dl/45/opacity*k*(sigma+vb)
