@@ -1745,7 +1745,7 @@
     if (HighAccuracyDefault .and. scalel<1500 .and. scalel > 150) &
     IntAccuracyBoost=IntAccuracyBoost*(1+(2000-scalel)*0.6/2000 )
 
-    if (num2*IntAccuracyBoost < dchisource .and. (.not. CP%DoLensing .or. UseLimber(l,IV%q)) &
+    if (num2*IntAccuracyBoost < dchisource .and. (.not. WantLateTime .or. UseLimber(l,IV%q)) &
     .or. (nstart>IV%SourceSteps.and.nend>IV%SourceSteps)) then
         out = 0
         y1=0._dl !So we know to calculate starting y1,y2 if there is next range
