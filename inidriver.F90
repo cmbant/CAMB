@@ -147,7 +147,7 @@
     end if
 
     !JD 08/13 begin changes for nonlinear lensing of CMB + LSS compatibility
-    !P%Transfer%redshifts -> P%Transfer%PK_redshifts and P%Transfer%num_redshifts -> P%Transfer%PK_num_redshifts 
+    !P%Transfer%redshifts -> P%Transfer%PK_redshifts and P%Transfer%num_redshifts -> P%Transfer%PK_num_redshifts
     !in the P%WantTransfer loop.
     if (((P%NonLinear==NonLinear_lens .or. P%NonLinear==NonLinear_both) .and. P%DoLensing) &
     .or. P%PK_WantTransfer) then
@@ -189,7 +189,7 @@
         P%WantTransfer  = .true.
         call Transfer_SetForNonlinearLensing(P%Transfer)
     end if
-    
+
     call Transfer_SortAndIndexRedshifts(P%Transfer)
     !JD 08/13 end changes
 
