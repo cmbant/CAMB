@@ -536,26 +536,26 @@
         end if
 
         do nu_i=1, CP%Nu_Mass_eigenstates
-        if (EV%high_ktau_neutrino_approx) then
-            if (HighAccuracyDefault .and. CP%WantTransfer .and. EV%q < 1.d0) then
-                EV%lmaxnu_tau(nu_i)=max(4,lmaxnu_high_ktau)
+            if (EV%high_ktau_neutrino_approx) then
+                if (HighAccuracyDefault .and. CP%WantTransfer .and. EV%q < 1.d0) then
+                    EV%lmaxnu_tau(nu_i)=max(4,lmaxnu_high_ktau)
+                else
+                    EV%lmaxnu_tau(nu_i)=lmaxnu_high_ktau
+                end if
             else
-                EV%lmaxnu_tau(nu_i)=lmaxnu_high_ktau
+                EV%lmaxnu_tau(nu_i) =max(min(nint(0.8_dl*EV%q*nu_tau_nonrelativistic(nu_i)*lAccuracyBoost),EV%lmaxnu),3)
+                !!!Feb13tweak
+                if (EV%nu_nonrelativistic(nu_i)) EV%lmaxnu_tau(nu_i)=min(EV%lmaxnu_tau(nu_i),nint(4*lAccuracyBoost))
             end if
-        else
-            EV%lmaxnu_tau(nu_i) =max(min(nint(0.8_dl*EV%q*nu_tau_nonrelativistic(nu_i)*lAccuracyBoost),EV%lmaxnu),3)
-            !!!Feb13tweak
-            if (EV%nu_nonrelativistic(nu_i)) EV%lmaxnu_tau(nu_i)=min(EV%lmaxnu_tau(nu_i),nint(4*lAccuracyBoost))
-        end if
-        EV%lmaxnu_tau(nu_i)=min(EV%lmaxnu,EV%lmaxnu_tau(nu_i))
+            EV%lmaxnu_tau(nu_i)=min(EV%lmaxnu,EV%lmaxnu_tau(nu_i))
 
-        EV%nu_ix(nu_i)=neq+1
-        if (EV%MassiveNuApprox(nu_i)) then
-            neq = neq+4
-        else
-            neq = neq+ EV%nq(nu_i)*(EV%lmaxnu_tau(nu_i)+1)
-        endif
-        maxeq = maxeq + nqmax*(EV%lmaxnu+1)
+            EV%nu_ix(nu_i)=neq+1
+            if (EV%MassiveNuApprox(nu_i)) then
+                neq = neq+4
+            else
+                neq = neq+ EV%nq(nu_i)*(EV%lmaxnu_tau(nu_i)+1)
+            endif
+            maxeq = maxeq + nqmax*(EV%lmaxnu+1)
         end do
     else
         EV%has_nu_relativistic = .false.
@@ -927,43 +927,43 @@
     real(dl) dtauda
 
     do nu_i = 1, CP%Nu_mass_eigenstates
-    grhormass_t=grhormass(nu_i)/a**2
+        grhormass_t=grhormass(nu_i)/a**2
 
-    !Get density and pressure as ratio to massless by interpolation from table
-    call Nu_background(a*nu_masses(nu_i),rhonu,pnu)
+        !Get density and pressure as ratio to massless by interpolation from table
+        call Nu_background(a*nu_masses(nu_i),rhonu,pnu)
 
-    if (EV%MassiveNuApprox(nu_i)) then
-        clxnu=y(EV%nu_ix(nu_i))
-        !dpnu = y(EV%iq0+1+off_ix)
-        qnu=y(EV%nu_ix(nu_i)+2)
-        pinu=y(EV%nu_ix(nu_i)+3)
-        pinudot=yprime(EV%nu_ix(nu_i)+3)
-    else
-        !Integrate over q
-        call Nu_Integrate_L012(EV, y, a, nu_i, clxnu,qnu,dpnu,pinu)
-        !clxnu_here  = rhonu*clxnu, qnu_here = qnu*rhonu
-        !dpnu=dpnu/rhonu
-        qnu=qnu/rhonu
-        clxnu = clxnu/rhonu
-        pinu=pinu/rhonu
-        adotoa = 1/(a*dtauda(a))
-        rhonudot = Nu_drho(a*nu_masses(nu_i),adotoa,rhonu)
+        if (EV%MassiveNuApprox(nu_i)) then
+            clxnu=y(EV%nu_ix(nu_i))
+            !dpnu = y(EV%iq0+1+off_ix)
+            qnu=y(EV%nu_ix(nu_i)+2)
+            pinu=y(EV%nu_ix(nu_i)+3)
+            pinudot=yprime(EV%nu_ix(nu_i)+3)
+        else
+            !Integrate over q
+            call Nu_Integrate_L012(EV, y, a, nu_i, clxnu,qnu,dpnu,pinu)
+            !clxnu_here  = rhonu*clxnu, qnu_here = qnu*rhonu
+            !dpnu=dpnu/rhonu
+            qnu=qnu/rhonu
+            clxnu = clxnu/rhonu
+            pinu=pinu/rhonu
+            adotoa = 1/(a*dtauda(a))
+            rhonudot = Nu_drho(a*nu_masses(nu_i),adotoa,rhonu)
 
-        call Nu_pinudot(EV,y, yprime, a,adotoa, nu_i,pinudot)
-        pinudot=pinudot/rhonu - rhonudot/rhonu*pinu
-    endif
+            call Nu_pinudot(EV,y, yprime, a,adotoa, nu_i,pinudot)
+            pinudot=pinudot/rhonu - rhonudot/rhonu*pinu
+        endif
 
-    grhonu_t=grhormass_t*rhonu
-    gpnu_t=grhormass_t*pnu
+        grhonu_t=grhormass_t*rhonu
+        gpnu_t=grhormass_t*pnu
 
-    grho = grho  + grhonu_t
-    gpres= gpres + gpnu_t
+        grho = grho  + grhonu_t
+        gpres= gpres + gpnu_t
 
-    dgrho= dgrho + grhonu_t*clxnu
-    dgq  = dgq   + grhonu_t*qnu
-    dgpi = dgpi  + grhonu_t*pinu
-    gdpi_diff = gdpi_diff + pinu*(3*gpnu_t-grhonu_t)
-    pidot_sum = pidot_sum + grhonu_t*pinudot
+        dgrho= dgrho + grhonu_t*clxnu
+        dgq  = dgq   + grhonu_t*qnu
+        dgpi = dgpi  + grhonu_t*pinu
+        gdpi_diff = gdpi_diff + pinu*(3*gpnu_t-grhonu_t)
+        pidot_sum = pidot_sum + grhonu_t*pinudot
     end do
 
     end subroutine MassiveNuVarsOut
@@ -1133,33 +1133,33 @@
     real(dl) grhormass_t, rhonu, qnu, clxnu, grhonu_t, gpnu_t, pnu
 
     do nu_i = 1, CP%Nu_mass_eigenstates
-    grhormass_t=grhormass(nu_i)/a**2
+        grhormass_t=grhormass(nu_i)/a**2
 
-    !Get density and pressure as ratio to massless by interpolation from table
-    call Nu_background(a*nu_masses(nu_i),rhonu,pnu)
+        !Get density and pressure as ratio to massless by interpolation from table
+        call Nu_background(a*nu_masses(nu_i),rhonu,pnu)
 
-    if (EV%MassiveNuApprox(nu_i)) then
-        clxnu=y(EV%nu_ix(nu_i))
-        qnu=y(EV%nu_ix(nu_i)+2)
-    else
-        !Integrate over q
-        call Nu_Integrate_L012(EV, y, a, nu_i, clxnu,qnu)
-        !clxnu_here  = rhonu*clxnu, qnu_here = qnu*rhonu
-        qnu=qnu/rhonu
-        clxnu = clxnu/rhonu
-    endif
+        if (EV%MassiveNuApprox(nu_i)) then
+            clxnu=y(EV%nu_ix(nu_i))
+            qnu=y(EV%nu_ix(nu_i)+2)
+        else
+            !Integrate over q
+            call Nu_Integrate_L012(EV, y, a, nu_i, clxnu,qnu)
+            !clxnu_here  = rhonu*clxnu, qnu_here = qnu*rhonu
+            qnu=qnu/rhonu
+            clxnu = clxnu/rhonu
+        endif
 
-    grhonu_t=grhormass_t*rhonu
-    gpnu_t=grhormass_t*pnu
+        grhonu_t=grhormass_t*rhonu
+        gpnu_t=grhormass_t*pnu
 
-    grho = grho  + grhonu_t
-    gpres= gpres + gpnu_t
-    dgrho= dgrho + grhonu_t*clxnu
-    dgq  = dgq   + grhonu_t*qnu
+        grho = grho  + grhonu_t
+        gpres= gpres + gpnu_t
+        dgrho= dgrho + grhonu_t*clxnu
+        dgq  = dgq   + grhonu_t*qnu
 
-    if (present(wnu_arr)) then
-        wnu_arr(nu_i) =pnu/rhonu
-    end if
+        if (present(wnu_arr)) then
+            wnu_arr(nu_i) =pnu/rhonu
+        end if
     end do
 
     end subroutine MassiveNuVars
@@ -1724,19 +1724,19 @@
     if (CP%Num_Nu_massive == 0) return
 
     do nu_i = 1, CP%Nu_mass_eigenstates
-    EV%MassiveNuApproxTime(nu_i) = Nu_tau_massive(nu_i)
-    a_massive =  20000*k/nu_masses(nu_i)*AccuracyBoost*lAccuracyBoost
-    if (a_massive >=0.99) then
-        EV%MassiveNuApproxTime(nu_i)=CP%tau0+1
-    else if (a_massive > 17.d0/nu_masses(nu_i)*AccuracyBoost) then
-        EV%MassiveNuApproxTime(nu_i)=max(EV%MassiveNuApproxTime(nu_i),DeltaTime(0._dl,a_massive, 0.01_dl))
-    end if
-    ind = EV%nu_ix(nu_i)
-    do  i=1,EV%nq(nu_i)
-        y(ind:ind+2)=y(EV%r_ix:EV%r_ix+2)
-        if (EV%lmaxnu_tau(nu_i)>2) y(ind+3)=InitVec(i_aj3r)
-        ind = ind + EV%lmaxnu_tau(nu_i)+1
-    end do
+        EV%MassiveNuApproxTime(nu_i) = Nu_tau_massive(nu_i)
+        a_massive =  20000*k/nu_masses(nu_i)*AccuracyBoost*lAccuracyBoost
+        if (a_massive >=0.99) then
+            EV%MassiveNuApproxTime(nu_i)=CP%tau0+1
+        else if (a_massive > 17.d0/nu_masses(nu_i)*AccuracyBoost) then
+            EV%MassiveNuApproxTime(nu_i)=max(EV%MassiveNuApproxTime(nu_i),DeltaTime(0._dl,a_massive, 0.01_dl))
+        end if
+        ind = EV%nu_ix(nu_i)
+        do  i=1,EV%nq(nu_i)
+            y(ind:ind+2)=y(EV%r_ix:EV%r_ix+2)
+            if (EV%lmaxnu_tau(nu_i)>2) y(ind+3)=InitVec(i_aj3r)
+            ind = ind + EV%lmaxnu_tau(nu_i)+1
+        end do
     end do
 
     end subroutine initial
@@ -2597,8 +2597,8 @@
             EV%denlkt(3,2)*E(3)
 
             do l=3, EV%lmaxpolt-1
-            Eprime(l) =(EV%denlkt(1,L)*E(l-1)-EV%denlkt(3,L)*E(l+1) + EV%denlkt(4,L)*B(l)) &
-            -opacity*E(l)
+                Eprime(l) =(EV%denlkt(1,L)*E(l-1)-EV%denlkt(3,L)*E(l+1) + EV%denlkt(4,L)*B(l)) &
+                -opacity*E(l)
             end do
             l= EV%lmaxpolt
             !truncate: difficult, but setting l+1 to zero seems to work OK
