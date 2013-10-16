@@ -119,8 +119,9 @@ subroutine CorrFuncFullSkyImpl(lmax)
   real(dl) d_22(lmax),d_2m2(lmax),d_20(lmax)
   real(dl) Cphil3(lmin:lmax), CTT(lmin:lmax), CTE(lmin:lmax),CEE(lmin:lmax)
   real(dl) ls(lmax)
-  real(dl) xl(lmax),ddcontribs(lmax,4),corrcontribs(lmax,4)
-  real(dl), allocatable, dimension(:,:,:) :: lens_contrib(:,:,:)
+  real(dl) xl(lmax)
+  real(dl), allocatable :: ddcontribs(:,:),corrcontribs(:,:)
+  real(dl), allocatable :: lens_contrib(:,:,:)
   integer thread_ix
   real(dl) pmm, pmmp1
   real(dl) d4m4,d11,dm11,d2m2,d22,d20,d23,d2m3,d33,d3m3,d04,d1m2,d12,d13,d1m3,d2m4
@@ -132,9 +133,9 @@ subroutine CorrFuncFullSkyImpl(lmax)
   integer j,jmax
   integer llo, lhi
   real(dl) a0,b0,ho, sc
+  integer apodize_point_width
   logical :: short_integral_range
-  integer, parameter :: slow_highL = 5000 !Lmax at which to do full range to prevent ringing etc
-
+  real(dl) range_fac
   logical, parameter :: approx = .false.
 
 !$ integer  OMP_GET_THREAD_NUM, OMP_GET_MAX_THREADS
@@ -143,7 +144,6 @@ subroutine CorrFuncFullSkyImpl(lmax)
     if (lensing_includes_tensors) stop 'Haven''t implemented tensor lensing'
 
     max_lensed_ix = lSamp%l0-1
-!    do while(lSamp%l(max_lensed_ix) > CP%Max_l -250)
     do while(lSamp%l(max_lensed_ix) > CP%Max_l - lensed_convolution_margin) 
       max_lensed_ix = max_lensed_ix -1
     end do
@@ -153,27 +153,25 @@ subroutine CorrFuncFullSkyImpl(lmax)
     
     Cl_Lensed = 0
    
-    npoints = CP%Max_l  * 2    
-    short_integral_range = .not. CP%AccurateBB .and. CP%Max_l<=slow_highL
-    if (.not. short_integral_range ) npoints = npoints * 2 
-
+    npoints = CP%Max_l  * 2 *AccuracyBoost
+    short_integral_range = .not. CP%AccurateBB
     dtheta = pi / npoints
+    if (CP%Max_l > 3500) dtheta=dtheta/1.3
+    apodize_point_width = nint(0.003 / dtheta)
+    npoints = int(pi/dtheta)
     if (short_integral_range) then
-      npoints = int(npoints /32 *min(32._dl,AccuracyBoost)) 
+       range_fac= max(1._dl,32/AccuracyBoost) !fraction of range to integrate
+       npoints = int(npoints /range_fac)
       !OK for TT, EE, TE but inaccurate for low l BB
       !this induces high frequency ringing on very small scales
+      !which is then mitigated by the apodization below
+    else
+        range_fac=1
     end if
 
     if (DebugMsgs) timeprev=GetTestTime()
 
-    if (.not. short_integral_range) then
-     !There is an odd serious problem with interpolating if you do a large
-     !angular range.
-      
-     interp_fac =1
-    else
-     interp_fac = max(1,nint(10/AccuracyBoost))
-    end if
+    interp_fac = max(1,min(nint(10/AccuracyBoost),int(range_fac*2)-1))
 
     jmax = 0
     do l=lmin,lmax
@@ -196,6 +194,7 @@ subroutine CorrFuncFullSkyImpl(lmax)
     thread_ix = 1
     !$ thread_ix = OMP_GET_MAX_THREADS()  
     allocate(lens_contrib(4,lmax_lensed,thread_ix))
+    allocate(ddcontribs(lmax,4),corrcontribs(lmax,4))
 
     do in = 1, CP%InitPower%nn
 
@@ -237,7 +236,7 @@ subroutine CorrFuncFullSkyImpl(lmax)
   !$OMP PARALLEL DO DEFAULT(PRIVATE),  &
   !OMP PRIVATE(P,dP,d11,dm11,d22,d2m2,d20,corrcontribs,ddcontribs),& 
   !$OMP SHARED(lfacs,lfacs2,lrootfacs,Cphil3,CTT,CTE,CEE,lens_contrib, lmax), &
-  !$OMP SHARED(dtheta,CP,lmax_lensed,roots, npoints,interp_fac,jmax,ls,xl,short_integral_range) 
+  !$OMP SHARED(dtheta,CP,lmax_lensed,roots, npoints,interp_fac,jmax,ls,xl,short_integral_range,apodize_point_width)
       do i=1,npoints-1
 
       theta = i * dtheta 
@@ -408,8 +407,13 @@ do j=1,4
   corr(j) = sum(corrcontribs(1:14,j))+interp_fac*sum(corrcontribs(15:jmax,j))
 end do
 
-if (short_integral_range .and. i>npoints-20) &
-        corr=corr*exp(-(i-npoints+20)**2/150.0) !taper the end to help prevent ringing
+!if (short_integral_range .and. i>npoints-20) &
+!        corr=corr*exp(-(i-npoints+20)**2/150.0) !taper the end to help prevent ringing
+
+if (short_integral_range .and. i>npoints-apodize_point_width*3) &
+        corr=corr*exp(-(i-npoints+apodize_point_width*3)**2/real(2*apodize_point_width**2))
+            !taper the end to help prevent ringing
+
 
 !Interpolate contributions
 !Increasing interp_fac and using this seems to be slower than above
@@ -483,8 +487,9 @@ end if
 
       end do
 
-      end do !loop over different initial power spectra
-     deallocate(lens_contrib)
+    end do !loop over different initial power spectra
+    deallocate(ddcontribs,corrcontribs)
+    deallocate(lens_contrib)
 
      if (DebugMsgs) write(*,*) GetTestTime()-timeprev, 'Time for corr lensing'
 
@@ -950,116 +955,22 @@ end subroutine BadHarmonic
 
       end subroutine GetBessels
 
-
+!Wrap standard built-in F2008 funcitons (appear OK for ifort and gfortran)
 
       FUNCTION bessj0(x)
       real(dl) bessj0,x
-      real(dl) ax,xx,z
-      real(dl) p1,p2,p3,p4,p5,q1,q2,q3,q4,q5,r1,r2,r3,r4,r5,r6, &
-        s1,s2,s3,s4,s5,s6,y
-      SAVE p1,p2,p3,p4,p5,q1,q2,q3,q4,q5,r1,r2,r3,r4,r5,r6,s1,s2,s3,s4, &
-       s5,s6
-      DATA p1,p2,p3,p4,p5/1.d0,-.1098628627d-2,.2734510407d-4, &
-      -.2073370639d-5,.2093887211d-6/, q1,q2,q3,q4,q5/-.1562499995d-1, &
-      .1430488765d-3,-.6911147651d-5,.7621095161d-6,-.934945152d-7/
-      DATA r1,r2,r3,r4,r5,r6/57568490574.d0,-13362590354.d0, &
-       651619640.7d0,-11214424.18d0,77392.33017d0,-184.9052456d0/,s1,s2, &
-       s3,s4,s5,s6/57568490411.d0,1029532985.d0,9494680.718d0, &
-       59272.64853d0,267.8532712d0,1.d0/
 
-      if(abs(x).lt.8.d0)then
-        y=x**2
-        bessj0=(r1+y*(r2+y*(r3+y*(r4+y*(r5+y*r6)))))/(s1+y*(s2+y*(s3+y* &
-          (s4+y*(s5+y*s6)))))
-      else
-        ax=abs(x)
-        z=8.d0/ax
-        y=z**2
-        xx=ax-.785398164d0
-        bessj0=sqrt(.636619772d0/ax)*(cos(xx)*(p1+y*(p2+y*(p3+y*(p4+y* &
-           p5))))-z*sin(xx)*(q1+y*(q2+y*(q3+y*(q4+y*q5)))))
-      endif
-!  (C) Copr. 1986-92 Numerical Recipes Software
+      bessj0 = bessel_j0(x)
 
       END FUNCTION bessj0
 
+      FUNCTION bessj(n,x)
+      real(dl) bessj,x
+      integer n
 
+      bessj = bessel_jn(n,x)
 
-      FUNCTION BESSJ1(X)
-      real(dl), intent(in) :: x
-      real(dl) bessj1,ax,z,xx
-      real(dl) Y,P1,P2,P3,P4,P5,Q1,Q2,Q3,Q4,Q5,R1,R2,R3,R4,R5, &
-         R6,S1,S2,S3,S4,S5,S6
-      DATA R1,R2,R3,R4,R5,R6/72362614232.D0,-7895059235.D0,242396853.1D0,&
-         -2972611.439D0,15704.48260D0,-30.16036606D0/, &
-         S1,S2,S3,S4,S5,S6/144725228442.D0,2300535178.D0, &
-         18583304.74D0,99447.43394D0,376.9991397D0,1.D0/
-      DATA P1,P2,P3,P4,P5/1.D0,.183105D-2,-.3516396496D-4,.2457520174D-5, & 
-         -.240337019D-6/, Q1,Q2,Q3,Q4,Q5/.04687499995D0,-.2002690873D-3, &     
-         .8449199096D-5,-.88228987D-6,.105787412D-6/
-      IF(ABS(X).LT.8.)THEN
-        Y=X**2
-        BESSJ1=X*(R1+Y*(R2+Y*(R3+Y*(R4+Y*(R5+Y*R6))))) &
-           /(S1+Y*(S2+Y*(S3+Y*(S4+Y*(S5+Y*S6)))))
-      ELSE
-        AX=ABS(X)
-        Z=8.0d0/AX
-        Y=Z**2
-        XX=AX-2.356194491d0
-        BESSJ1=SQRT(.636619772d0/AX)*(COS(XX)*(P1+Y*(P2+Y*(P3+Y*(P4+Y &
-           *P5))))-Z*SIN(XX)*(Q1+Y*(Q2+Y*(Q3+Y*(Q4+Y*Q5))))) &
-           *SIGN(1._dl,x)
-      ENDIF
-
-      END FUNCTION BESSJ1
-
-
-      FUNCTION BESSJ(N,X)
-      real(dl) bessj
-      real(dl), intent(in) :: x
-      integer, intent(in) :: n
-      integer, parameter :: IACC = 40
-      real(dl), parameter :: BIGNO=1.d10,BIGNI=1.d-10
-      integer jsum,j,m
-      real(dl) bj,bjm, bjp, tox, sum
-      
-      IF(N.LT.2)STOP 'bad argument N in BESSJ'
-
-      TOX=2/X
-      IF(X.GT.FLOAT(N))THEN
-        BJM=BESSJ0(X)
-        BJ=BESSJ1(X)
-        DO J=1,N-1
-          BJP=J*TOX*BJ-BJM
-          BJM=BJ
-          BJ=BJP
-        END DO
-        BESSJ=BJ
-      ELSE
-        M=2*((N+INT(SQRT(FLOAT(IACC*N))))/2)
-        BESSJ=0.0d0
-        JSUM=0
-        SUM=0._dl
-        BJP=0._dl
-        BJ=1._dl
-        DO J=M,1,-1
-          BJM=J*TOX*BJ-BJP
-          BJP=BJ
-          BJ=BJM
-          IF(ABS(BJ).GT.BIGNO)THEN
-            BJ=BJ*BIGNI
-            BJP=BJP*BIGNI
-            BESSJ=BESSJ*BIGNI
-            SUM=SUM*BIGNI
-          ENDIF
-          IF(JSUM.NE.0)SUM=SUM+BJ
-          JSUM=1-JSUM
-          IF(J.EQ.N)BESSJ=BJP
-        end do
-        SUM=2.*SUM-BJ
-        BESSJ=BESSJ/SUM
-      ENDIF
-      END FUNCTION BESSJ
+      END FUNCTION bessj
 
 ! ----------------------------------------------------------------------
 ! Auxiliary Bessel functions for N=0, N=1

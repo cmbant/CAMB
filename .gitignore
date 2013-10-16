@@ -1,0 +1,16 @@
+*.mod
+*.a
+*.o
+*.sm
+*~
+.metadata
+.project
+.pydevproject
+x64/
+Debug/
+Release/
+*.suo
+*.pyc
+*.asv
+*.u2d
+*.user

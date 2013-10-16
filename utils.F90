@@ -1749,84 +1749,73 @@ subroutine CreateOpenTxtFile(aname, aunit, append)
   write(unit,concat('(',size(arr),'E16.6)')) arr
   
  end subroutine writeArrayLine
- 
 
-      subroutine spline_real(x,y,n,y2)
 
+     subroutine spline_real(x,y,n,d2)
       integer, intent(in) :: n
-      real, intent(in) :: x(n),y(n)
-      real, intent(out) :: y2(n)
-      integer i,k
-      real p,qn,sig,un
-      real, dimension(:), allocatable :: u
+      integer, parameter :: dp=KIND(1.0)
+      real(dp), intent(in) :: x(n), y(n)
+      real(dp), intent(out) :: d2(n)
+      real(dp), dimension(:), allocatable :: u
+      integer i
+      real(dp) xp,sig,xxdiv,d1l,d1r
 
-       
-      allocate(u(1:n))
-  
-        y2(1)=0
-        u(1)=0
-        
+      allocate(u(1:n-1))
+
+      d2(1)=0._dp
+      u(1)=0._dp
+
+      d1r= (y(2)-y(1))/(x(2)-x(1))
       do i=2,n-1
-        sig=(x(i)-x(i-1))/(x(i+1)-x(i-1))
-        p=sig*y2(i-1)+2.0 
-   
-        y2(i)=(sig-1.0)/p
-      
-         u(i)=(6.0*((y(i+1)-y(i))/(x(i+ &
-         1)-x(i))-(y(i)-y(i-1))/(x(i)-x(i-1)))/(x(i+1)-x(i-1))-sig* &
-         u(i-1))/p
+        d1l=d1r
+        d1r=(y(i+1)-y(i))/(x(i+1)-x(i))
+        xxdiv=1._dp/(x(i+1)-x(i-1))
+        sig=(x(i)-x(i-1))*xxdiv
+        xp=1._dp/(sig*d2(i-1)+2._dp)
+        d2(i)=(sig-1._dp)*xp
+        u(i)=(6._dp*(d1r-d1l)*xxdiv-sig*u(i-1))*xp
       end do
-        qn=0.0
-        un=0.0
 
-      y2(n)=(un-qn*u(n-1))/(qn*y2(n-1)+1.0)
-      do k=n-1,1,-1
-        y2(k)=y2(k)*y2(k+1)+u(k)
+      d2(n)=0._dp
+      do i=n-1,1,-1
+        d2(i)=d2(i)*d2(i+1)+u(i)
       end do
 
       deallocate(u)
-  
-!  (C) Copr. 1986-92 Numerical Recipes Software, adapted.
-      end subroutine spline_real
+    end subroutine spline_real
 
-
-      subroutine spline_double(x,y,n,y2)
-
+     subroutine spline_double(x,y,n,d2)
       integer, intent(in) :: n
-      double precision, intent(in) :: x(n),y(n)
-      double precision, intent(out) :: y2(n)
-      integer i,k
-      double precision p,qn,sig,un
-      double precision, dimension(:), allocatable :: u
+      integer, parameter :: dp=KIND(1.d0)
+      real(dp), intent(in) :: x(n), y(n)
+      real(dp), intent(out) :: d2(n)
+      real(dp), dimension(:), allocatable :: u
+      integer i
+      real(dp) xp,sig,xxdiv,d1l,d1r
 
-       
-      allocate(u(1:n))
-  
-        y2(1)=0
-        u(1)=0
-        
+      allocate(u(1:n-1))
+
+      d2(1)=0._dp
+      u(1)=0._dp
+
+      d1r= (y(2)-y(1))/(x(2)-x(1))
       do i=2,n-1
-        sig=(x(i)-x(i-1))/(x(i+1)-x(i-1))
-        p=sig*y2(i-1)+2 
-   
-        y2(i)=(sig-1)/p
-      
-         u(i)=(6*((y(i+1)-y(i))/(x(i+ &
-         1)-x(i))-(y(i)-y(i-1))/(x(i)-x(i-1)))/(x(i+1)-x(i-1))-sig* &
-         u(i-1))/p
+        d1l=d1r
+        d1r=(y(i+1)-y(i))/(x(i+1)-x(i))
+        xxdiv=1._dp/(x(i+1)-x(i-1))
+        sig=(x(i)-x(i-1))*xxdiv
+        xp=1._dp/(sig*d2(i-1)+2._dp)
+        d2(i)=(sig-1._dp)*xp
+        u(i)=(6._dp*(d1r-d1l)*xxdiv-sig*u(i-1))*xp
       end do
-      qn=0
-      un=0
 
-      y2(n)=(un-qn*u(n-1))/(qn*y2(n-1)+1)
-      do k=n-1,1,-1
-        y2(k)=y2(k)*y2(k+1)+u(k)
+      d2(n)=0._dp
+      do i=n-1,1,-1
+        d2(i)=d2(i)*d2(i+1)+u(i)
       end do
 
       deallocate(u)
-  
-!  (C) Copr. 1986-92 Numerical Recipes Software, adapted.
-      end subroutine spline_double
+    end subroutine spline_double
 
 
       function DLGAMMA(x)
