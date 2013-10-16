@@ -2390,7 +2390,7 @@
 
     !Note using log interpolation is worse
 
-    !$OMP PARALLEL DO DEFAULT(SHARED), PRIVATE(i,in), SHARED(CTransS,CTransT),IF(CP%InitPower%nn > 1)
+    !$OMP PARALLEL DO DEFAULT(SHARED), PRIVATE(i,j,in), SHARED(CTransS,CTransT),IF(CP%InitPower%nn > 1)
     do in=1,CP%InitPower%nn
         if (CP%WantScalars) then
             do i = C_Temp, C_last
