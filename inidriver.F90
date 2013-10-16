@@ -264,7 +264,7 @@
 
         transfer_interp_matterpower = Ini_Read_Logical('transfer_interp_matterpower ', transfer_interp_matterpower)
         transfer_power_var = Ini_read_int('transfer_power_var',transfer_power_var)
-        if (P%transfer%num_redshifts > max_transfer_redshifts) stop 'Too many redshifts'
+        if (P%transfer%PK_num_redshifts > max_transfer_redshifts) stop 'Too many redshifts'
         do i=1, P%transfer%PK_num_redshifts
             P%transfer%PK_redshifts(i)  = Ini_Read_Double_Array('transfer_redshift',i,0._dl)
             transferFileNames(i)     = Ini_Read_String_Array('transfer_filename',i)
@@ -275,7 +275,6 @@
             if (MatterPowerFilenames(i) == '') then
                 MatterPowerFilenames(i) =  trim(numcat('matterpower_',i))//'.dat'
             end if
-
             if (TransferFileNames(i)/= '') &
             TransferFileNames(i) = trim(outroot)//TransferFileNames(i)
             if (MatterPowerFilenames(i) /= '') &
@@ -331,7 +330,6 @@
         if (P%Scalar_initial_condition/= initial_adiabatic) use_spline_template = .false.
     end if
 
-
     if (P%WantScalars) then
         ScalarFileName = trim(outroot)//Ini_Read_String('scalar_output_file')
         LensedFileName =  trim(outroot) //Ini_Read_String('lensed_output_file')
@@ -345,7 +343,11 @@
     end if
     if (P%WantTensors) then
         TensorFileName =  trim(outroot) //Ini_Read_String('tensor_output_file')
-        if (P%WantScalars) TotalFileName =  trim(outroot) //Ini_Read_String('total_output_file')
+        if (P%WantScalars)  then
+            TotalFileName =  trim(outroot) //Ini_Read_String('total_output_file')
+            LensedTotFileName = Ini_Read_String('lensed_total_output_file')
+            if (LensedTotFileName/='') LensedTotFileName= trim(outroot) //trim(LensedTotFileName)
+        end if
     end if
     if (P%WantVectors) then
         VectorFileName =  trim(outroot) //Ini_Read_String('vector_output_file')
@@ -382,9 +384,9 @@
         write(*,*) 'WARNING: version_check does not match this CAMB version'
     end if
     !Mess here to fix typo with backwards compatibility
-    if (Ini_Read_String('do_late_rad_trunction') /= '') then
+    if (Ini_HasKey('do_late_rad_trunction')) then
         DoLateRadTruncation = Ini_Read_Logical('do_late_rad_trunction',.true.)
-        if (Ini_Read_String('do_late_rad_truncation')/='') stop 'check do_late_rad_xxxx'
+        if (Ini_HasKey('do_late_rad_truncation')) stop 'check do_late_rad_xxxx'
     else
         DoLateRadTruncation = Ini_Read_Logical('do_late_rad_truncation',.true.)
     end if
@@ -434,6 +436,8 @@
     if (P%WantCls) then
         call output_cl_files(ScalarFileName, ScalarCovFileName,TensorFileName, TotalFileName, &
         LensedFileName, LensedTotFilename,output_factor)
+
+        call output_lens_pot_files(LensPotentialFileName, output_factor)
 
         if (P%WantVectors) then
             call output_veccl_files(VectorFileName, output_factor)

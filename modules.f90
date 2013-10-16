@@ -3,6 +3,7 @@
     !     Code for Anisotropies in the Microwave Background
     !     by Antony Lewis (http://cosmologist.info) and Anthony Challinor
     !     See readme.html for documentation.
+    !
     !     Based on CMBFAST  by  Uros Seljak and Matias Zaldarriaga, itself based
     !     on Boltzmann code written by Edmund Bertschinger, Chung-Pei Ma and Paul Bode.
     !     Original CMBFAST copyright and disclaimer:
@@ -46,9 +47,7 @@
 
 
     integer, parameter :: max_redshiftwindows  = 20
-    integer :: num_redshiftwindows
     logical :: limber_windows = .false.
-    integer :: num_extra_redshiftwindows =0 !for computing magnification contribution to counts
     logical :: DoRedshiftLensing = .false.
 
     Type(TRedWin), target :: Redshift_W(max_redshiftwindows)
@@ -113,11 +112,9 @@
     !   real(dl) z
 
     if (Win%kind == window_21cm) then
-
-    !Take W_T(S) = W_f(S)/S to be Gaussain, for frequency integration of T_b
-    winamp =  exp(-((a-Win%a)/Win%sigma)**2/2)
-    Window_f_a = a*winamp/Win%sigma/root2pi
-
+        !Take W_T(S) = W_f(S)/S to be Gaussain, for frequency integration of T_b
+        winamp =  exp(-((a-Win%a)/Win%sigma)**2/2)
+        Window_f_a = a*winamp/Win%sigma/root2pi
     else
         Window_f_a = count_obs_window_z(Win, 1/a-1,winamp)/a**2
     end if
@@ -321,6 +318,8 @@
     !Boost number of multipoles integrated in Boltzman heirarchy
 
     integer :: limber_phiphi = 0 !for l>limber_phiphi use limber approx for lensing potential
+    integer :: num_redshiftwindows = 0
+    integer :: num_extra_redshiftwindows = 0
 
     integer, parameter :: lmin = 2
     !must be either 1 or 2
@@ -500,15 +499,14 @@
     fHe = CP%YHe/(mass_ratio_He_H*(1.d0-CP%YHe))  !n_He_tot / n_H_tot
 
     if (.not.call_again) then
-
-    call init_massive_nu(CP%omegan /=0)
-    call init_background
-    if (global_error_flag==0) then
-        CP%tau0=TimeOfz(0._dl)
-        ! print *, 'chi = ',  (CP%tau0 - TimeOfz(0.15_dl)) * CP%h0/100
-        last_tau0=CP%tau0
-        if (WantReion) call Reionization_Init(CP%Reion,CP%ReionHist, CP%YHe, akthom, CP%tau0, FeedbackLevel)
-    end if
+        call init_massive_nu(CP%omegan /=0)
+        call init_background
+        if (global_error_flag==0) then
+            CP%tau0=TimeOfz(0._dl)
+            ! print *, 'chi = ',  (CP%tau0 - TimeOfz(0.15_dl)) * CP%h0/100
+            last_tau0=CP%tau0
+            if (WantReion) call Reionization_Init(CP%Reion,CP%ReionHist, CP%YHe, akthom, CP%tau0, FeedbackLevel)
+        end if
     else
         CP%tau0=last_tau0
     end if
@@ -887,21 +885,20 @@
         bot=40
         top=bot + step*10
     else
-
-    if (lSampleBoost >1) then
-        do lvar=11, 15
+        if (lSampleBoost >1) then
+            do lvar=11, 15
+                lind=lind+1
+                ls(lind)=lvar
+            end do
+        else
             lind=lind+1
-            ls(lind)=lvar
-        end do
-    else
-        lind=lind+1
-        ls(lind)=12
-        lind=lind+1
-        ls(lind)=15
-    end if
-    step = max(nint(10*Ascale),3)
-    bot=15+max(step/2,2)
-    top=bot + step*7
+            ls(lind)=12
+            lind=lind+1
+            ls(lind)=15
+        end if
+        step = max(nint(10*Ascale),3)
+        bot=15+max(step/2,2)
+        top=bot + step*7
     end if
 
     do lvar=bot, top, step
@@ -940,64 +937,61 @@
                 ls(lind)=max_l
             end if
         else
-
-        step=max(nint(25*Ascale),4)
-        !Get EE right around l=200 by putting extra point at 175
-        bot=ls(lind)+step
-        top=bot+step
-
-        do lvar = bot,top,step
-            lind=lind+1
-            ls(lind)=lvar
-        end do
-
-        if (ls(lind)>=max_l) then
-            do lvar=lind,1,-1
-                if (ls(lvar)<=max_l) exit
-            end do
-            lind=lvar
-            if (ls(lind)<max_l) then
-                lind=lind+1
-                ls(lind)=max_l
-            end if
-        else
-            if (HighAccuracyDefault .and. .not. use_spline_template) then
-                step=max(nint(42*Ascale),7)
-            else
-                step=max(nint(50*Ascale),7)
-            end if
+            step=max(nint(25*Ascale),4)
+            !Get EE right around l=200 by putting extra point at 175
             bot=ls(lind)+step
-            top=min(5000,max_l)
+            top=bot+step
 
             do lvar = bot,top,step
                 lind=lind+1
                 ls(lind)=lvar
             end do
 
-            if (max_l > 5000) then
-                !Should be pretty smooth or tiny out here
-                step=max(nint(400*Ascale),50)
-                lvar = ls(lind)
-                do
-                    lvar = lvar + step
-                    if (lvar > max_l) exit
+            if (ls(lind)>=max_l) then
+                do lvar=lind,1,-1
+                    if (ls(lvar)<=max_l) exit
+                end do
+                lind=lvar
+                if (ls(lind)<max_l) then
+                    lind=lind+1
+                    ls(lind)=max_l
+                end if
+            else
+                if (HighAccuracyDefault .and. .not. use_spline_template) then
+                    step=max(nint(42*Ascale),7)
+                else
+                    step=max(nint(50*Ascale),7)
+                end if
+                bot=ls(lind)+step
+                top=min(5000,max_l)
+
+                do lvar = bot,top,step
                     lind=lind+1
                     ls(lind)=lvar
-                    step = nint(step*1.5) !log spacing
                 end do
+
+                if (max_l > 5000) then
+                    !Should be pretty smooth or tiny out here
+                    step=max(nint(400*Ascale),50)
+                    lvar = ls(lind)
+                    do
+                        lvar = lvar + step
+                        if (lvar > max_l) exit
+                        lind=lind+1
+                        ls(lind)=lvar
+                        step = nint(step*1.5) !log spacing
+                    end do
+                end if
+                !Sources
+            end if !log_lvalues
+
+            if (ls(lind) /=max_l) then
+                lind=lind+1
+                ls(lind)=max_l
             end if
-            !Sources
-        end if !log_lvalues
-
-        !Sources
-        end if !log_lvalues
-
-        if (ls(lind) /=max_l) then
-            lind=lind+1
-            ls(lind)=max_l
+            if (.not. CP%flat) ls(lind-1)=int(max_l+ls(lind-2))/2
+            !Not in CP%flat case so interpolation table is the same when using lower l_max
         end if
-        if (.not. CP%flat) ls(lind-1)=int(max_l+ls(lind-2))/2
-        !Not in CP%flat case so interpolation table is the same when using lower l_max
     end if
     lSet%l0=lind
     lSet%l(1:lind) = ls(1:lind)
@@ -1034,7 +1028,6 @@
 
         all_Cl(il) = a0*iCl(llo)+ b0*iCl(lhi)+((a0**3-a0)* ddCl(llo) &
         +(b0**3-b0)*ddCl(lhi))*ho**2/6
-
     end do
 
     end subroutine InterpolateClArr
@@ -1327,9 +1320,8 @@
         open(unit=fileio_unit,file=TotFile,form='formatted',status='replace')
         do in=1,CP%InitPower%nn
             do il=lmin,CP%Max_l_tensor
-
-            write(fileio_unit,'(1I6,4E15.5)')il, fact*(Cl_scalar(il, in, C_Temp:C_E)+ Cl_tensor(il,in, C_Temp:C_E)), &
-            fact*Cl_tensor(il,in, CT_B), fact*(Cl_scalar(il, in, C_Cross) + Cl_tensor(il, in, CT_Cross))
+                write(fileio_unit,'(1I6,4E15.5)')il, fact*(Cl_scalar(il, in, C_Temp:C_E)+ Cl_tensor(il,in, C_Temp:C_E)), &
+                fact*Cl_tensor(il,in, CT_B), fact*(Cl_scalar(il, in, C_Cross) + Cl_tensor(il, in, CT_Cross))
             end do
             do il=CP%Max_l_tensor+1,CP%Max_l
                 write(fileio_unit,'(1I6,4E15.5)')il ,fact*Cl_scalar(il,in,C_Temp:C_E), 0._dl, fact*Cl_scalar(il,in,C_Cross)
@@ -1359,7 +1351,6 @@
                 write(fileio_unit,'(1I6,4E15.5)')il, fact*Cl_lensed(il, in, CT_Temp:CT_Cross)
             end do
         end do
-
     end if
     end subroutine output_cl_files
 
@@ -1384,36 +1375,33 @@
     end if
 
     if (CP%WantScalars .and. CP%DoLensing .and. LensPotFile/='') then
+        open(unit=fileio_unit,file=LensPotFile,form='formatted',status='replace')
+        do in=1,CP%InitPower%nn
+            do il=lmin,min(10000,CP%Max_l)
+                TT = Cl_scalar(il, in, C_Temp)
+                EE = Cl_scalar(il, in, C_E)
+                TE = Cl_scalar(il, in, C_Cross)
+                if (CP%WantTensors .and. il <= CP%Max_l_tensor) then
+                    TT= TT+Cl_tensor(il,in, CT_Temp)
+                    EE= EE+Cl_tensor(il,in, CT_E)
+                    TE= TE+Cl_tensor(il,in, CT_Cross)
+                    BB= Cl_tensor(il,in, CT_B)
+                else
+                    BB=0
+                end if
+                scale = (real(il+1)/il)**2/OutputDenominator !Factor to go from old l^4 factor to new
 
-    open(unit=fileio_unit,file=LensPotFile,form='formatted',status='replace')
-    do in=1,CP%InitPower%nn
-        do il=lmin,min(10000,CP%Max_l)
-
-        TT = Cl_scalar(il, in, C_Temp)
-        EE = Cl_scalar(il, in, C_E)
-        TE = Cl_scalar(il, in, C_Cross)
-        if (CP%WantTensors .and. il <= CP%Max_l_tensor) then
-            TT= TT+Cl_tensor(il,in, CT_Temp)
-            EE= EE+Cl_tensor(il,in, CT_E)
-            TE= TE+Cl_tensor(il,in, CT_Cross)
-            BB= Cl_tensor(il,in, CT_B)
-        else
-            BB=0
-        end if
-        scale = (real(il+1)/il)**2/OutputDenominator !Factor to go from old l^4 factor to new
-
-        write(fileio_unit,'(1I6,7E15.5)') il , fact*TT, fact*EE, fact*BB, fact*TE, scale*Cl_scalar(il,in,C_Phi),&
-        (real(il+1)/il)**1.5/OutputDenominator*sqrt(fact)*Cl_scalar(il,in,C_PhiTemp:C_PhiE)
-
+                write(fileio_unit,'(1I6,7E15.5)') il , fact*TT, fact*EE, fact*BB, fact*TE, scale*Cl_scalar(il,in,C_Phi),&
+                (real(il+1)/il)**1.5/OutputDenominator*sqrt(fact)*Cl_scalar(il,in,C_PhiTemp:C_PhiE)
+            end do
+            do il=10100,CP%Max_l, 100
+                scale = (real(il+1)/il)**2/OutputDenominator
+                write(fileio_unit,'(1E15.5,7E15.5)') real(il), fact*Cl_scalar(il,in,C_Temp:C_E),0.,fact*Cl_scalar(il,in,C_Cross), &
+                scale*Cl_scalar(il,in,C_Phi),&
+                (real(il+1)/il)**1.5/OutputDenominator*sqrt(fact)*Cl_scalar(il,in,C_PhiTemp:C_PhiE)
+            end do
         end do
-        do il=10100,CP%Max_l, 100
-            scale = (real(il+1)/il)**2/OutputDenominator
-            write(fileio_unit,'(1E15.5,7E15.5)') real(il), fact*Cl_scalar(il,in,C_Temp:C_E),0.,fact*Cl_scalar(il,in,C_Cross), &
-            scale*Cl_scalar(il,in,C_Phi),&
-            (real(il+1)/il)**1.5/OutputDenominator*sqrt(fact)*Cl_scalar(il,in,C_PhiTemp:C_PhiE)
-        end do
-    end do
-    close(fileio_unit)
+        close(fileio_unit)
     end if
     end subroutine output_lens_pot_files
 
@@ -1453,18 +1441,17 @@
     real(dl) Norm
 
     do in=1,CP%InitPower%nn
+        if (CP%WantScalars) then
+            Norm=1/Cl_scalar(lnorm,in, C_Temp)
+            Cl_scalar(lmin:CP%Max_l, in, C_Temp:C_Cross) = Cl_scalar(lmin:CP%Max_l, in, C_Temp:C_Cross) * Norm
+        end if
 
-    if (CP%WantScalars) then
-        Norm=1/Cl_scalar(lnorm,in, C_Temp)
-        Cl_scalar(lmin:CP%Max_l, in, C_Temp:C_Cross) = Cl_scalar(lmin:CP%Max_l, in, C_Temp:C_Cross) * Norm
-    end if
-
-    if (CP%WantTensors) then
-        if (.not.CP%WantScalars) Norm = 1/Cl_tensor(lnorm,in, C_Temp)
-        !Otherwise Norm already set correctly
-        Cl_tensor(lmin:CP%Max_l_tensor, in, CT_Temp:CT_Cross) =  &
-        Cl_tensor(lmin:CP%Max_l_tensor, in, CT_Temp:CT_Cross) * Norm
-    end if
+        if (CP%WantTensors) then
+            if (.not.CP%WantScalars) Norm = 1/Cl_tensor(lnorm,in, C_Temp)
+            !Otherwise Norm already set correctly
+            Cl_tensor(lmin:CP%Max_l_tensor, in, CT_Temp:CT_Cross) =  &
+            Cl_tensor(lmin:CP%Max_l_tensor, in, CT_Temp:CT_Cross) * Norm
+        end if
     end do
 
     end  subroutine NormalizeClsAtL
@@ -1477,9 +1464,6 @@
     if (allocated(Cl_vector)) deallocate(Cl_vector)
     if (allocated(Cl_tensor)) deallocate(Cl_tensor)
     if (allocated(Cl_scalar)) deallocate(Cl_scalar)
-    !Sources
-    if (allocated(Cl_scalar_array)) deallocate(Cl_scalar_array)
-
     if (allocated(Cl_lensed)) deallocate(Cl_lensed)
     if (allocated(Cl_scalar_array)) deallocate(Cl_scalar_array)
 
@@ -1566,18 +1550,15 @@
         !Accurate at 2e-4 level
         nu_q(1:3) = (/0.913201, 3.37517, 7.79184/)
         nu_int_kernel(1:3) = (/0.0687359, 3.31435, 2.29911/)
-
     else if (nqmax==4) then
         !This seems to be very accurate (limited by other numerics)
         nu_q(1:4) = (/0.7, 2.62814, 5.90428, 12.0/)
         nu_int_kernel(1:4) = (/0.0200251, 1.84539, 3.52736, 0.289427/)
-
     else if (nqmax==5) then
         !exact for n=-4,-2..3
         !This seems to be very accurate (limited by other numerics)
         nu_q(1:5) = (/0.583165, 2.0, 4.0, 7.26582, 13.0/)
         nu_int_kernel(1:5) = (/0.0081201, 0.689407, 2.8063, 2.05156, 0.126817/)
-
     else
         dq = (12 + nqmax/5)/real(nqmax)
         do i=1,nqmax
@@ -1585,7 +1566,6 @@
             nu_q(i) = q
             dlfdlq=-q/(1._dl+exp(-q))
             nu_int_kernel(i)=dq*q**3/(exp(q)+1._dl) * (-0.25_dl*dlfdlq) !now evolve 4F_l/dlfdlq(i)
-
         end do
     end if
     nu_int_kernel=nu_int_kernel/const
@@ -1733,24 +1713,19 @@
     integer i
 
     if (am< am_minp) then
-
-    rhonudot = 2*const2*am**2*adotoa
-
+        rhonudot = 2*const2*am**2*adotoa
     else if (am>am_maxp) then
-
-    rhonudot = 3/(2*const)*(zeta3*am - (15*zeta5)/2/am)*adotoa
-
+        rhonudot = 3/(2*const)*(zeta3*am - (15*zeta5)/2/am)*adotoa
     else
+        d=log(am/am_min)/dlnam+1._dl
+        i=int(d)
+        d=d-i
+        !  Cubic spline interpolation for rhonudot.
+        rhonudot=dr1(i)+d*(ddr1(i)+d*(3._dl*(dr1(i+1)-dr1(i)) &
+        -2._dl*ddr1(i)-ddr1(i+1)+d*(ddr1(i)+ddr1(i+1) &
+        +2._dl*(dr1(i)-dr1(i+1)))))
 
-    d=log(am/am_min)/dlnam+1._dl
-    i=int(d)
-    d=d-i
-    !  Cubic spline interpolation for rhonudot.
-    rhonudot=dr1(i)+d*(ddr1(i)+d*(3._dl*(dr1(i+1)-dr1(i)) &
-    -2._dl*ddr1(i)-ddr1(i+1)+d*(ddr1(i)+ddr1(i+1) &
-    +2._dl*(dr1(i)-dr1(i+1)))))
-
-    rhonudot=rhonu*adotoa*rhonudot/dlnam
+        rhonudot=rhonu*adotoa*rhonudot/dlnam
     end if
 
     end function Nu_drho
@@ -1955,14 +1930,12 @@
     real(dl), parameter :: cllo=1.e30_dl,clhi=1.e30_dl
 
     do i = 1,PK_Data%num_z
-
-    call spline(PK_data%log_k,PK_data%matpower(1,i),PK_data%num_k,&
-    cllo,clhi,PK_data%ddmat(1,i))
-    call spline(PK_data%log_k,PK_data%vvpower(1,i),PK_data%num_k,&
-    cllo,clhi,PK_data%ddvvpower(1,i))
-    call spline(PK_data%log_k,PK_data%vdpower(1,i),PK_data%num_k,&
-    cllo,clhi,PK_data%ddvdpower(1,i))
-
+        call spline(PK_data%log_k,PK_data%matpower(1,i),PK_data%num_k,&
+        cllo,clhi,PK_data%ddmat(1,i))
+        call spline(PK_data%log_k,PK_data%vvpower(1,i),PK_data%num_k,&
+        cllo,clhi,PK_data%ddvvpower(1,i))
+        call spline(PK_data%log_k,PK_data%vdpower(1,i),PK_data%num_k,&
+        cllo,clhi,PK_data%ddvdpower(1,i))
     end do
 
     end subroutine MatterPowerdata_getsplines21cm
@@ -2085,35 +2058,33 @@
         return
         !stop 'MatterPower21cm_k: out of bounds'
     else
+        llo=min(i_last,PK%num_k)
+        do while (PK%log_k(llo) > logk)
+            llo=llo-1
+        end do
+        do while (PK%log_k(llo+1)< logk)
+            llo=llo+1
+        end do
+        i_last =llo
+        lhi=llo+1
+        ho=PK%log_k(lhi)-PK%log_k(llo)
+        a0=(PK%log_k(lhi)-logk)/ho
+        b0=1-a0
+        f1= (a0**3-a0)
+        f2= (b0**3-b0)
+        f3= ho**2/6
 
-    llo=min(i_last,PK%num_k)
-    do while (PK%log_k(llo) > logk)
-        llo=llo-1
-    end do
-    do while (PK%log_k(llo+1)< logk)
-        llo=llo+1
-    end do
-    i_last =llo
-    lhi=llo+1
-    ho=PK%log_k(lhi)-PK%log_k(llo)
-    a0=(PK%log_k(lhi)-logk)/ho
-    b0=1-a0
-    f1= (a0**3-a0)
-    f2= (b0**3-b0)
-    f3= ho**2/6
 
+        monopole = a0*PK%matpower(llo,itf)+ b0*PK%matpower(lhi,itf)+&
+        (f1* PK%ddmat(llo,itf) &
+        +f2*PK%ddmat(lhi,itf))*f3
+        vv = a0*PK%vvpower(llo,itf)+ b0*PK%vvpower(lhi,itf)+&
+        (f1* PK%ddvvpower(llo,itf) &
+        +f2*PK%ddvvpower(lhi,itf))*f3
 
-    monopole = a0*PK%matpower(llo,itf)+ b0*PK%matpower(lhi,itf)+&
-    (f1* PK%ddmat(llo,itf) &
-    +f2*PK%ddmat(lhi,itf))*f3
-    vv = a0*PK%vvpower(llo,itf)+ b0*PK%vvpower(lhi,itf)+&
-    (f1* PK%ddvvpower(llo,itf) &
-    +f2*PK%ddvvpower(lhi,itf))*f3
-
-    vd = a0*PK%vdpower(llo,itf)+ b0*PK%vdpower(lhi,itf)+&
-    (f1* PK%ddvdpower(llo,itf) &
-    +f2*PK%ddvdpower(lhi,itf))*f3
-
+        vd = a0*PK%vdpower(llo,itf)+ b0*PK%vdpower(lhi,itf)+&
+        (f1* PK%ddvdpower(llo,itf) &
+        +f2*PK%ddvdpower(lhi,itf))*f3
     end if
 
     monopole = exp(max(-30._dl,monopole))
@@ -2217,7 +2188,6 @@
 
         outpower(il) = a0*matpower(llo)+ b0*matpower(lhi)+((a0**3-a0)* ddmat(llo) &
         +(b0**3-b0)*ddmat(lhi))*ho**2/6
-
     end do
 
     do while (lastix <= npoints)
@@ -2286,8 +2256,6 @@
                 sig8=sig8+(dsig8+dsig8o)*dlnk/2
                 dsig8o=dsig8
                 lnko=lnk
-
-
             end do
 
             MTrans%sigma_8(itf_PK,in) = sqrt(sig8)
@@ -2342,9 +2310,9 @@
 
     end subroutine Transfer_Free
 
-    subroutine Transfer_SetForNonlinearLensing(P, eta_k_max)
     !JD 08/13 Changes for nonlinear lensing of CMB + MPK compatibility
     !Changed function below to write to only P%NLL_*redshifts* variables
+    subroutine Transfer_SetForNonlinearLensing(P, eta_k_max)
     Type(TransferParams) :: P
     integer i
     real maxRedshift
@@ -2358,8 +2326,8 @@
         if (.not. present(eta_k_max)) stop 'bad call to Transfer_SetForNonlinearLensing'
         P%kmax = eta_k_max/10000.
         P%k_per_logint  = 0
-        P%num_redshifts =  1
-        P%redshifts(1) = Redshift_w(1)%Redshift
+        P%NLL_num_redshifts =  1
+        P%NLL_redshifts(1) = Redshift_w(1)%Redshift
         return
     end if
 
@@ -2416,13 +2384,13 @@
     real, dimension(:,:,:), allocatable :: outpower
     character(LEN=80) fmt
     real minkh,dlnkh
-    integer ncol
     Type(MatterPowerData) :: PK_data
+    integer ncol
     logical, intent(in), optional :: all21cm
     logical all21
+    !JD 08/13 Changes in here to PK arrays and variables
     integer itf_PK
 
-    call MatterPowerdata_Nullify(PK_data)
     if (present(all21cm)) then
         all21 = all21cm
     else
@@ -2467,7 +2435,6 @@
                         outpower(:,in,1) = outpower(:,in,1)/1d10*pi*twopi/MTrans%TransferData(Transfer_kh,:,1)**3
                         outpower(:,in,2) = outpower(:,in,2)/1d10*pi*twopi/MTrans%TransferData(Transfer_kh,:,1)**3
                         outpower(:,in,3) = outpower(:,in,3)/1d10*pi*twopi/MTrans%TransferData(Transfer_kh,:,1)**3
-
                     end if
 
                     call MatterPowerdata_Free(PK_Data)
@@ -2479,22 +2446,21 @@
                 end do
                 close(fileio_unit)
             else
+                if (all21) stop 'Transfer_SaveMatterPower: if output all assume not interpolated'
+                minkh = 1e-4
+                dlnkh = 0.02
+                points = log(MTrans%TransferData(Transfer_kh,MTrans%num_q_trans,itf)/minkh)/dlnkh+1
+                !             dlnkh = log(MTrans%TransferData(Transfer_kh,MTrans%num_q_trans,itf)/minkh)/(points-0.999)
+                allocate(outpower(points,CP%InitPower%nn,1))
+                do in = 1, CP%InitPower%nn
+                    call Transfer_GetMatterPowerS(MTrans,outpower(1,in,1), itf, in, minkh,dlnkh, points)
+                end do
 
-            if (all21) stop 'Transfer_SaveMatterPower: if output all assume not interpolated'
-            minkh = 1e-4
-            dlnkh = 0.02
-            points = log(MTrans%TransferData(Transfer_kh,MTrans%num_q_trans,itf)/minkh)/dlnkh+1
-            !             dlnkh = log(MTrans%TransferData(Transfer_kh,MTrans%num_q_trans,itf)/minkh)/(points-0.999)
-            allocate(outpower(points,CP%InitPower%nn,1))
-            do in = 1, CP%InitPower%nn
-                call Transfer_GetMatterPowerS(MTrans,outpower(1,in,1), itf, in, minkh,dlnkh, points)
-            end do
-
-            open(unit=fileio_unit,file=FileNames(itf),form='formatted',status='replace')
-            do i=1,points
-                write (fileio_unit, fmt) minkh*exp((i-1)*dlnkh),outpower(i,1:CP%InitPower%nn,1)
-            end do
-            close(fileio_unit)
+                open(unit=fileio_unit,file=FileNames(itf),form='formatted',status='replace')
+                do i=1,points
+                    write (fileio_unit, fmt) minkh*exp((i-1)*dlnkh),outpower(i,1:CP%InitPower%nn,1)
+                end do
+                close(fileio_unit)
             end if
 
             deallocate(outpower)
@@ -2544,9 +2510,7 @@
         *pi*twopi*h**3*ScalarPower(k,in))
 
         if (CP%NonLinear/=NonLinear_None) then
-
-        PK_data%matpower(ik,1) = PK_data%matpower(ik,1) + 2*log(PK_cdm%nonlin_ratio(ik,z_ix))
-
+            PK_data%matpower(ik,1) = PK_data%matpower(ik,1) + 2*log(PK_cdm%nonlin_ratio(ik,z_ix))
         end if
     end do
 
@@ -2605,18 +2569,14 @@
         (MTrans%TransferData(Transfer_monopole,ik,z_ix)*k**2))* pow)
 
         if (CP%NonLinear/=NonLinear_None) then
-
-        PK_data%matpower(ik,1) = PK_data%matpower(ik,1) + 2*log(PK_cdm%nonlin_ratio(ik,z_ix))
-        PK_data%vvpower(ik,1) = PK_data%vvpower(ik,1) + 2*log(PK_cdm%nonlin_ratio_vv(ik,z_ix))
-        PK_data%vdpower(ik,1) = PK_data%vdpower(ik,1) + 2*log(PK_cdm%nonlin_ratio_vd(ik,z_ix))
-
+            PK_data%matpower(ik,1) = PK_data%matpower(ik,1) + 2*log(PK_cdm%nonlin_ratio(ik,z_ix))
+            PK_data%vvpower(ik,1) = PK_data%vvpower(ik,1) + 2*log(PK_cdm%nonlin_ratio_vv(ik,z_ix))
+            PK_data%vdpower(ik,1) = PK_data%vdpower(ik,1) + 2*log(PK_cdm%nonlin_ratio_vd(ik,z_ix))
         end if
 
         !test              PK_data%matpower(ik,z_ix) = &
         !                    log( (MTrans%TransferData(Transfer_cdm,ik,z_ix)*k**2)**2 * pow)
         !                 PK_data%vvpower(ik,z_ix) = 0
-
-
     end do
 
     if (CP%NonLinear/=NonLinear_None)  call MatterPowerdata_Free(PK_cdm)
@@ -2708,102 +2668,93 @@
     fmt = '('//trim(adjustl(fmt))//'E15.5)'
     do itf=1, CP%Transfer%num_redshifts
         if (FileNames(itf) /= '') then
+            !print *, 'tau = ', MTrans%optical_depths(itf)
+            chi = CP%tau0-TimeOfz(CP%Transfer%redshifts(itf))
 
-        !print *, 'tau = ', MTrans%optical_depths(itf)
-        chi = CP%tau0-TimeOfz(CP%Transfer%redshifts(itf))
+            points = MTrans%num_q_trans
 
-        points = MTrans%num_q_trans
+            in =1
+            lastl=0
 
-        in =1
-        lastl=0
+            call MatterPowerdata_Nullify(PK_data)
 
-        call MatterPowerdata_Nullify(PK_data)
+            call Transfer_Get21cmPowerData(MTrans, PK_data, in, itf)
 
-        call Transfer_Get21cmPowerData(MTrans, PK_data, in, itf)
+            open(unit=fileio_unit,file=FileNames(itf),form='formatted',status='replace')
 
-        open(unit=fileio_unit,file=FileNames(itf),form='formatted',status='replace')
+            do ik =1, points-1
+                k =exp(PK_data%log_k(ik))
+                l=nint(k*chi)
+                !This is not an approximation, we are just chosing to sample l at values around (k samples)*chi
 
-        do ik =1, points-1
+                if (l>1 .and. l/= lastl) then
+                    lastl=l
+                    Vars%l=l
+                    Vars%chi = chi
+                    Vars%PK => PK_data
+                    Vars%itf = 1
+                    Cl=0
+                    atol = tol
+                    avg_fac = 200
+                    k_min = max(exp(PK_data%log_k(1)), k*(1-20*AccuracyBoost/chi))
+                    k_max = AccuracyBoost*max(k*(1+avg_fac/chi), k*(1._dl+real(l,dl)**(-0.666_dl)))
 
-        k =exp(PK_data%log_k(ik))
-        l=nint(k*chi)
-        !This is not an approximation, we are just chosing to sample l at values around (k samples)*chi
+                    if (k_max*chi < l+10) k_max = (l+10)/chi
 
-        if (l>1 .and. l/= lastl) then
-            lastl=l
-            Vars%l=l
-            Vars%chi = chi
-            Vars%PK => PK_data
-            Vars%itf = 1
-            Cl=0
-            atol = tol
-            avg_fac = 200
-            k_min = max(exp(PK_data%log_k(1)), k*(1-20*AccuracyBoost/chi))
-            k_max = AccuracyBoost*max(k*(1+avg_fac/chi), k*(1._dl+real(l,dl)**(-0.666_dl)))
+                    Vars%logs = .false.
+                    if (k_max < exp(PK_data%log_k(points))) then
+                        !Integrate bessels properly
+                        Cl = rombint_obj(Vars,Get21cmCl_l,k_min,k_max, atol, 25)
 
-            if (k_max*chi < l+10) k_max = (l+10)/chi
-
-            Vars%logs = .false.
-            if (k_max < exp(PK_data%log_k(points))) then
-
-            !Integrate bessels properly
-            Cl = rombint_obj(Vars,Get21cmCl_l,k_min,k_max, atol, 25)
-
-            Vars%logs = .true.
-            k_min = log(k_max)
+                        Vars%logs = .true.
+                        k_min = log(k_max)
 
 
-            if (l>2e6) then
-                !In baryon damping
-                !                     Vars%logs = .false.
-                !                     atol = tol/10
-                !                     k_min = max(exp(PK_data%log_k(1)), k*(1-10/chi) )
-                !                     k_max = k*(1+100/chi)
+                        if (l>2e6) then
+                            !In baryon damping
+                            !                     Vars%logs = .false.
+                            !                     atol = tol/10
+                            !                     k_min = max(exp(PK_data%log_k(1)), k*(1-10/chi) )
+                            !                     k_max = k*(1+100/chi)
 
-                k_max = min(log(5*k), PK_data%log_k(points))
-
-
-                !                    if (k_max < exp(PK_data%log_k(points))) then
-                !                      Cl = rombint_obj(Vars,Get21cmCl_l,k_min,k_max, atol, 25)
-                !                      Vars%logs = .true.
-                !                      k_min = log(k*(1+100/chi))
-                !                     k_max = min(log(3*k), PK_data%log_k(points))
-                !                    else
-                !                       k_max = exp(PK_data%log_k(points))
-                !                    end if
-
-            elseif (l>1e4) then
-                Vars%logs = .false.
-                k_min = k_max
-
-                k_max = min(k*35*AccuracyBoost, exp(PK_data%log_k(points)))
+                            k_max = min(log(5*k), PK_data%log_k(points))
 
 
-            else
-                !In white noise regime
-                k_max = min(log(max(0.3_dl,k)*18*AccuracyBoost), PK_data%log_k(points))
-            end if
+                            !                    if (k_max < exp(PK_data%log_k(points))) then
+                            !                      Cl = rombint_obj(Vars,Get21cmCl_l,k_min,k_max, atol, 25)
+                            !                      Vars%logs = .true.
+                            !                      k_min = log(k*(1+100/chi))
+                            !                     k_max = min(log(3*k), PK_data%log_k(points))
+                            !                    else
+                            !                       k_max = exp(PK_data%log_k(points))
+                            !                    end if
+                        elseif (l>1e4) then
+                            Vars%logs = .false.
+                            k_min = k_max
 
-            Cl = Cl+rombint_obj(Vars,Get21cmCl_l_avg,k_min,k_max, atol, 25)
-            !                   Cl = Cl+rombint_obj(Vars,Get21cmCl_l,k_min,k_max, atol, 25)
+                            k_max = min(k*35*AccuracyBoost, exp(PK_data%log_k(points)))
+                        else
+                            !In white noise regime
+                            k_max = min(log(max(0.3_dl,k)*18*AccuracyBoost), PK_data%log_k(points))
+                        end if
 
-            else
-                k_max = exp(PK_data%log_k(points))
-                Cl = rombint_obj(Vars,Get21cmCl_l,k_min,k_max, atol, 25)
-            end if
-
-
-            Cl=exp(-2*MTrans%optical_depths(itf))*fourpi*Cl*real(l,dl)*(l+1)/twopi/1d10
-
-            write (fileio_unit, '(1I12,3E15.6)') l, Cl, exp(PK_data%matpower(ik,1)/1d10), exp(PK_data%vvpower(ik,1)/1d10)
-        end if
-        end do
-
-        close(fileio_unit)
-
-        call MatterPowerdata_Free(PK_Data)
+                        Cl = Cl+rombint_obj(Vars,Get21cmCl_l_avg,k_min,k_max, atol, 25)
+                        !                   Cl = Cl+rombint_obj(Vars,Get21cmCl_l,k_min,k_max, atol, 25)
+                    else
+                        k_max = exp(PK_data%log_k(points))
+                        Cl = rombint_obj(Vars,Get21cmCl_l,k_min,k_max, atol, 25)
+                    end if
 
 
+                    Cl=exp(-2*MTrans%optical_depths(itf))*fourpi*Cl*real(l,dl)*(l+1)/twopi/1d10
+
+                    write (fileio_unit, '(1I12,3E15.6)') l, Cl, exp(PK_data%matpower(ik,1)/1d10), exp(PK_data%vvpower(ik,1)/1d10)
+                end if
+            end do
+
+            close(fileio_unit)
+
+            call MatterPowerdata_Free(PK_Data)
         end if
     end do
 
@@ -2968,6 +2919,7 @@
 
     real(dl) taumin,taumax
 
+
     real(dl) tau01,adot0,a0,a02,x1,x2,barssc,dtau
     real(dl) xe0,tau,a,a2
     real(dl) adot,tg0,ahalf,adothalf,fe,thomc,thomc0,etc,a2t
@@ -3075,7 +3027,6 @@
                 tau_eps = a*line21_const*NNow/a**3/(adot/a)/Tspin/1000
                 arhos_fac(i) = (1-exp(-tau_eps))/tau_eps*a*rho_fac*(1 - Trad/Tspin)/(adot/a)
                 !         arhos_fac(i) = a*rho_fac*(1 - Trad/Tspin)/(adot/a)
-
             else
                 rho_fac = grhoc/(a2*a)
                 arhos_fac(i) = a*rho_fac/(adot/a)
@@ -3084,39 +3035,32 @@
 
 
         do RW_i = 1, num_redshiftwindows
+            Win => RW(RW_i)
+            RedWin => Redshift_w(RW_i)
 
-        Win => RW(RW_i)
-        RedWin => Redshift_w(RW_i)
+            if (a > 1d-4) then
+                window = Window_f_a(RedWin,a, winamp)
 
-        if (a > 1d-4) then
+                if  (RedWin%kind == window_lensing .or.  RedWin%kind == window_counts .and. DoRedshiftLensing) then
+                    if (CP%tau0 - tau > 2) then
+                        dwing_lens =  adot * window *dtau
+                        awin_lens1(RW_i) = awin_lens1(RW_i) + dwing_lens
+                        awin_lens2(RW_i) = awin_lens2(RW_i) + dwing_lens/(CP%tau0-tau)
+                        Win%awin_lens(i) = awin_lens1(RW_i)/(CP%tau0-tau) - awin_lens2(RW_i)
+                    else
+                        Win%awin_lens(i) = 0
+                    end if
+                end if
 
-        window = Window_f_a(RedWin,a, winamp)
-
-        if  (RedWin%kind == window_lensing .or.  RedWin%kind == window_counts .and. DoRedshiftLensing) then
-
-        if (CP%tau0 - tau > 2) then
-
-        dwing_lens =  adot * window *dtau
-        awin_lens1(RW_i) = awin_lens1(RW_i) + dwing_lens
-        awin_lens2(RW_i) = awin_lens2(RW_i) + dwing_lens/(CP%tau0-tau)
-        Win%awin_lens(i) = awin_lens1(RW_i)/(CP%tau0-tau) - awin_lens2(RW_i)
-        else
-            Win%awin_lens(i) = 0
-        end if
-
-        end if
-
-        if (RedWin%tau_start ==0 .and. winamp > 1e-8) then
-            RedWin%tau_start = tau01
-        else if (RedWin%tau_start /=0 .and. RedWin%tau_end==MaxTau .and. winamp < 1e-8) then
-            RedWin%tau_end = min(CP%tau0,tau + dtau)
-            if (DebugMsgs) print *,'time window = ', RedWin%tau_start, RedWin%tau_end
-        end if
-
-        else
-            Win%awin_lens(i)=0
-        end if
-
+                if (RedWin%tau_start ==0 .and. winamp > 1e-8) then
+                    RedWin%tau_start = tau01
+                else if (RedWin%tau_start /=0 .and. RedWin%tau_end==MaxTau .and. winamp < 1e-8) then
+                    RedWin%tau_end = min(CP%tau0,tau + dtau)
+                    if (DebugMsgs) print *,'time window = ', RedWin%tau_start, RedWin%tau_end
+                end if
+            else
+                Win%awin_lens(i)=0
+            end if
         end do
         !End sources
 
@@ -3148,7 +3092,6 @@
                 end if
             end do
         end if
-
 
         ! If there is re-ionization, smoothly increase xe to the
         ! requested value.
@@ -3308,20 +3251,18 @@
 
     !Sources
     do RW_i = 1, num_redshiftwindows
+        Win => RW(RW_i)
+        if (Redshift_w(RW_i)%kind == window_lensing .or. &
+        Redshift_w(RW_i)%kind == window_counts .and. DoRedshiftLensing) then
+            has_lensing_windows = .true.
+            Redshift_w(RW_i)%has_lensing_window = .true.
+            if (FeedbackLevel>0) &
+            & write(*,'(I1," Int W              = ",f9.6)') RW_i, awin_lens1(RW_i)
 
-    Win => RW(RW_i)
-    if (Redshift_w(RW_i)%kind == window_lensing .or. &
-    Redshift_w(RW_i)%kind == window_counts .and. DoRedshiftLensing) then
-
-    has_lensing_windows = .true.
-    Redshift_w(RW_i)%has_lensing_window = .true.
-    if (FeedbackLevel>0) &
-    & write(*,'(I1," Int W              = ",f9.6)') RW_i, awin_lens1(RW_i)
-
-    Win%awin_lens=Win%awin_lens/awin_lens1(RW_i)
-    else
-        Redshift_w(RW_i)%has_lensing_window = .false.
-    end if
+            Win%awin_lens=Win%awin_lens/awin_lens1(RW_i)
+        else
+            Redshift_w(RW_i)%has_lensing_window = .false.
+        end if
     end do
 
 
@@ -3418,34 +3359,31 @@
     end do
 
     if (Do21cm .and. transfer_21cm_cl) then
+        !           do RW_i=15,800
+        !
+        !             a=1._dl/(1+RW_i)
+        !             Tspin = tsRecfast(a)
+        !             Trad = CP%TCMB/a
+        !             adot = 1/dtauda(a)
+        !             tau_eps = a**2*line21_const*NNow/a**3/adot/Tspin/1000
+        !             Tb21cm = 1000*(1-exp(-tau_eps))*a*(Tspin-Trad)
+        !
+        !             write (*,'(3E15.5)') 1/a-1, Tb21cm, tau_eps
+        !            end do
+        !           stop
 
-    !           do RW_i=15,800
-    !
-    !             a=1._dl/(1+RW_i)
-    !             Tspin = tsRecfast(a)
-    !             Trad = CP%TCMB/a
-    !             adot = 1/dtauda(a)
-    !             tau_eps = a**2*line21_const*NNow/a**3/adot/Tspin/1000
-    !             Tb21cm = 1000*(1-exp(-tau_eps))*a*(Tspin-Trad)
-    !
-    !             write (*,'(3E15.5)') 1/a-1, Tb21cm, tau_eps
-    !            end do
-    !           stop
+        do RW_i=1,CP%Transfer%num_redshifts
+            a=1._dl/(1+CP%Transfer%redshifts(RW_i))
+            Tspin = Recombination_Ts(a)
+            Trad = CP%TCMB/a
+            adot = 1/dtauda(a)
+            tau_eps = a**2*line21_const*NNow/a**3/adot/Tspin/1000
+            Tb21cm = 1000*(1-exp(-tau_eps))*a*(Tspin-Trad)
 
-    do RW_i=1,CP%Transfer%num_redshifts
-
-    a=1._dl/(1+CP%Transfer%redshifts(RW_i))
-    Tspin = Recombination_Ts(a)
-    Trad = CP%TCMB/a
-    adot = 1/dtauda(a)
-    tau_eps = a**2*line21_const*NNow/a**3/adot/Tspin/1000
-    Tb21cm = 1000*(1-exp(-tau_eps))*a*(Tspin-Trad)
-
-    outstr = 'z= '//trim(RealToStr(real(CP%Transfer%redshifts(RW_i))))// &
-    ': tau_21cm = '//trim(RealToStr(real(tau_eps),5))//'; T_b = '//trim(RealToStr(real(Tb21cm),6))//'mK'
-    write (*,*) trim(outstr)
-    end do
-
+            outstr = 'z= '//trim(RealToStr(real(CP%Transfer%redshifts(RW_i))))// &
+            ': tau_21cm = '//trim(RealToStr(real(tau_eps),5))//'; T_b = '//trim(RealToStr(real(Tb21cm),6))//'mK'
+            write (*,*) trim(outstr)
+        end do
     end if
 
     end subroutine inithermo
@@ -3483,54 +3421,47 @@
     tau_start_redshiftwindows = MaxTau
     tau_end_redshiftwindows = 0
     if (CP%WantScalars .or. line_reionization) then
+        do ix=1, num_redshiftwindows
+            Win => Redshift_W(ix)
 
-    do ix=1, num_redshiftwindows
+            Win%sigma_tau = Win%sigma_z*dtauda(1/(1+Win%Redshift))/(1+Win%Redshift)**2
 
-    Win => Redshift_W(ix)
+            if (Win%tau_start==0) then
+                Win%tau_start = max(Win%tau - Win%sigma_tau*7,taurst)
+                Win%tau_end = min(CP%tau0,Win%tau + Win%sigma_tau*7)
+            end if
 
-    Win%sigma_tau = Win%sigma_z*dtauda(1/(1+Win%Redshift))/(1+Win%Redshift)**2
+            tau_start_redshiftwindows = min(Win%tau_start,tau_start_redshiftwindows)
+            if (Win%kind /= window_lensing) then
+                !Have to be careful to integrate dwinV as the window tails off
+                tau_end_redshiftwindows = max(Win%tau_end,tau_end_redshiftwindows)
 
-    if (Win%tau_start==0) then
-        Win%tau_start = max(Win%tau - Win%sigma_tau*7,taurst)
-        Win%tau_end = min(CP%tau0,Win%tau + Win%sigma_tau*7)
-    end if
+                nwindow = nint(150*AccuracyBoost)
 
-    tau_start_redshiftwindows = min(Win%tau_start,tau_start_redshiftwindows)
-    if (Win%kind /= window_lensing) then
-
-    !Have to be careful to integrate dwinV as the window tails off
-    tau_end_redshiftwindows = max(Win%tau_end,tau_end_redshiftwindows)
-
-    nwindow = nint(150*AccuracyBoost)
-
-    if (Win%kind == window_21cm .and. (line_phot_dipole .or. line_phot_quadrupole)) nwindow = nwindow *3
-    !          nwindow = max(nwindow,nint( (Win%tau_end-Win%tau_start)/(6*Win%Chi0/CP%max_l/10)) )
+                if (Win%kind == window_21cm .and. (line_phot_dipole .or. line_phot_quadrupole)) nwindow = nwindow *3
+                !          nwindow = max(nwindow,nint( (Win%tau_end-Win%tau_start)/(6*Win%Chi0/CP%max_l/10)) )
 
 
-    if (Feedbacklevel > 1) write (*,*) ix, 'nwindow =', nwindow
+                if (Feedbacklevel > 1) write (*,*) ix, 'nwindow =', nwindow
 
-    call Ranges_Add(TimeSteps, Win%tau_start, Win%tau_end, nwindow)
-    !This should cover whole range where not tiny
+                call Ranges_Add(TimeSteps, Win%tau_start, Win%tau_end, nwindow)
+                !This should cover whole range where not tiny
 
-    if (Win%tau_end - Win%tau_start > Win%sigma_tau*7) then
-
-    call Ranges_Add(TimeSteps, TimeOfZ(Win%Redshift+Win%sigma_z*3), &
-    max(0._dl,TimeOfZ(Win%Redshift-Win%sigma_z*3)), nwindow)
-    !This should be over peak
-    end if
-    !Make sure line of sight integral OK too
-    ! if (dtau0 > Win%tau_end/300/AccuracyBoost) then
-    !  call Ranges_Add_delta(TimeSteps, Win%tau_end, CP%tau0,  Win%tau_start/300/AccuracyBoost)
-    ! end if
-
-    else
-        !Lensing along line of sight, so small steps all the way to now
-        call Ranges_Add_delta(TimeSteps, Win%tau_start, CP%tau0, Win%chi0*5/CP%max_l/AccuracyBoost)
-        !       call Ranges_Add_delta(TimeSteps, Win%tau_start, CP%tau0, Win%chi0/500)
-    end if
-
-    end do
-
+                if (Win%tau_end - Win%tau_start > Win%sigma_tau*7) then
+                    call Ranges_Add(TimeSteps, TimeOfZ(Win%Redshift+Win%sigma_z*3), &
+                    max(0._dl,TimeOfZ(Win%Redshift-Win%sigma_z*3)), nwindow)
+                    !This should be over peak
+                end if
+                !Make sure line of sight integral OK too
+                ! if (dtau0 > Win%tau_end/300/AccuracyBoost) then
+                !  call Ranges_Add_delta(TimeSteps, Win%tau_end, CP%tau0,  Win%tau_start/300/AccuracyBoost)
+                ! end if
+            else
+                !Lensing along line of sight, so small steps all the way to now
+                call Ranges_Add_delta(TimeSteps, Win%tau_start, CP%tau0, Win%chi0*5/CP%max_l/AccuracyBoost)
+                !       call Ranges_Add_delta(TimeSteps, Win%tau_start, CP%tau0, Win%chi0/500)
+            end if
+        end do
     end if
 
     if (CP%Reion%Reionization) then
@@ -3637,177 +3568,160 @@
     back_count_tmp = 0
 
     do j=jstart, TimeSteps%npoints
-
-    tau = TimeSteps%points(j)
-    z = step_redshift(j)
-    a = 1._dl/(1._dl+z)
-    a2=a**2
-    adot=1._dl/dtauda(a)
-
-
-    if (Do21cm) then
-        Tspin = Recombination_Ts(a)
-        Trad = CP%TCMB/a
-        rho_fac = line21_const*NNow/a**3 !neglect ionization fraction
-        tau_eps = a*rho_fac/(adot/a)/Tspin/1000
-        exp_fac =  (1-exp(-tau_eps))/tau_eps
-    else
-        rho_fac = grhoc/a**3
-    end if
-
-    hubble_tmp(j) = adot/a
-
-    do i = 1, num_redshiftwindows
-
-    RedWin => Redshift_W(i)
-    if (tau < RedWin%tau_start) cycle
-
-    window = Window_f_a(RedWin, a, winamp)
-
-    if (RedWin%kind == window_21cm) then
-
-    rhos = rho_fac*(1 - Trad/Tspin)
-
-    !Want to integrate this...
-    int_tmp(j,i) = drhos_fac(j)*a*window
-
-    RedWin%WinV(j) = -exp(-tau_eps)*a2*rhos*window/(adot/a)
-
-    RedWin%wing(j) = exp_fac*a2*rhos*window
-
-    !The window that doesn't go to zero at T_s = T_gamma
-    RedWin%wing2(j) = exp_fac*a2*rho_fac*Trad/Tspin*window
-
-    !Window for tau_s for the self-absoption term
-    RedWin%wingtau(j) =  RedWin%wing(j)*(1 - exp(-tau_eps)/exp_fac)
-
-    elseif ( RedWin%kind == window_counts) then
+        tau = TimeSteps%points(j)
+        z = step_redshift(j)
+        a = 1._dl/(1._dl+z)
+        a2=a**2
+        adot=1._dl/dtauda(a)
 
 
-    !window is n(a) where n is TOTAL not fractional number
-    !delta = int wing(eta) delta(eta) deta
-    RedWin%wing(j) = adot *window
-    !old like 21cm
-    !                 RedWin%wing(j) = a2*rho_fac*window
-
-    !Window with 1/H in
-    RedWin%wing2(j) = RedWin%wing(j)/(adot/a)
-
-    !winv is g/chi for the ISW and time delay terms
-    RedWin%WinV(j) = 0
-    if (tau < CP%tau0 -0.1) then
-        int_tmp(j,i) = RedWin%wing(j)/(CP%tau0 - tau)
-    else
-        int_tmp(j,i)=0
-    end if
-
-    if (counts_evolve) then
-        back_count_tmp(j,i) =  counts_background_z(RedWin, 1/a-1)/a
-        if (tau < CP%tau0 -0.1) then
-            RedWin%comoving_density_ev(j) = back_count_tmp(j,i)*(adot/a)/(CP%tau0 - tau)**2
+        if (Do21cm) then
+            Tspin = Recombination_Ts(a)
+            Trad = CP%TCMB/a
+            rho_fac = line21_const*NNow/a**3 !neglect ionization fraction
+            tau_eps = a*rho_fac/(adot/a)/Tspin/1000
+            exp_fac =  (1-exp(-tau_eps))/tau_eps
         else
-            RedWin%comoving_density_ev(j) = 0
+            rho_fac = grhoc/a**3
         end if
-    end if
 
-    end if
+        hubble_tmp(j) = adot/a
 
-    !Lensing windows should be fine from inithermo
+        do i = 1, num_redshiftwindows
+            RedWin => Redshift_W(i)
+            if (tau < RedWin%tau_start) cycle
 
-    end do
+            window = Window_f_a(RedWin, a, winamp)
 
+            if (RedWin%kind == window_21cm) then
+                rhos = rho_fac*(1 - Trad/Tspin)
+
+                !Want to integrate this...
+                int_tmp(j,i) = drhos_fac(j)*a*window
+
+                RedWin%WinV(j) = -exp(-tau_eps)*a2*rhos*window/(adot/a)
+
+                RedWin%wing(j) = exp_fac*a2*rhos*window
+
+                !The window that doesn't go to zero at T_s = T_gamma
+                RedWin%wing2(j) = exp_fac*a2*rho_fac*Trad/Tspin*window
+
+                !Window for tau_s for the self-absoption term
+                RedWin%wingtau(j) =  RedWin%wing(j)*(1 - exp(-tau_eps)/exp_fac)
+            elseif ( RedWin%kind == window_counts) then
+
+            !window is n(a) where n is TOTAL not fractional number
+            !delta = int wing(eta) delta(eta) deta
+            RedWin%wing(j) = adot *window
+            !old like 21cm
+            !                 RedWin%wing(j) = a2*rho_fac*window
+
+            !Window with 1/H in
+            RedWin%wing2(j) = RedWin%wing(j)/(adot/a)
+
+            !winv is g/chi for the ISW and time delay terms
+            RedWin%WinV(j) = 0
+            if (tau < CP%tau0 -0.1) then
+                int_tmp(j,i) = RedWin%wing(j)/(CP%tau0 - tau)
+            else
+                int_tmp(j,i)=0
+            end if
+
+            if (counts_evolve) then
+                back_count_tmp(j,i) =  counts_background_z(RedWin, 1/a-1)/a
+                if (tau < CP%tau0 -0.1) then
+                    RedWin%comoving_density_ev(j) = back_count_tmp(j,i)*(adot/a)/(CP%tau0 - tau)**2
+                else
+                    RedWin%comoving_density_ev(j) = 0
+                end if
+            end if
+            end if
+
+            !Lensing windows should be fine from inithermo
+        end do
     end do
 
 
     do i = 1, num_redshiftwindows
+        RedWin => Redshift_W(i)
 
-    RedWin => Redshift_W(i)
+        ! int (a*rho_s/H)' a W_f(a) d\eta, or for counts int g/chi deta
+        call spline(TimeSteps%points(jstart),int_tmp(jstart,i),ninterp,spl_large,spl_large,tmp)
+        call spline_integrate(TimeSteps%points(jstart),int_tmp(jstart,i),tmp, tmp2(jstart),ninterp)
+        RedWin%WinV(jstart:TimeSteps%npoints) =  &
+        RedWin%WinV(jstart:TimeSteps%npoints) + tmp2(jstart:TimeSteps%npoints)
 
-    ! int (a*rho_s/H)' a W_f(a) d\eta, or for counts int g/chi deta
-    call spline(TimeSteps%points(jstart),int_tmp(jstart,i),ninterp,spl_large,spl_large,tmp)
-    call spline_integrate(TimeSteps%points(jstart),int_tmp(jstart,i),tmp, tmp2(jstart),ninterp)
-    RedWin%WinV(jstart:TimeSteps%npoints) =  &
-    RedWin%WinV(jstart:TimeSteps%npoints) + tmp2(jstart:TimeSteps%npoints)
+        call spline(TimeSteps%points(jstart),RedWin%WinV(jstart),ninterp,spl_large,spl_large,RedWin%ddWinV(jstart))
+        call spline_deriv(TimeSteps%points(jstart),RedWin%WinV(jstart),RedWin%ddWinV(jstart), RedWin%dWinV(jstart), ninterp)
 
-    call spline(TimeSteps%points(jstart),RedWin%WinV(jstart),ninterp,spl_large,spl_large,RedWin%ddWinV(jstart))
-    call spline_deriv(TimeSteps%points(jstart),RedWin%WinV(jstart),RedWin%ddWinV(jstart), RedWin%dWinV(jstart), ninterp)
+        call spline(TimeSteps%points(jstart),RedWin%Wing(jstart),ninterp,spl_large,spl_large,RedWin%ddWing(jstart))
+        call spline_deriv(TimeSteps%points(jstart),RedWin%Wing(jstart),RedWin%ddWing(jstart), RedWin%dWing(jstart), ninterp)
 
-    call spline(TimeSteps%points(jstart),RedWin%Wing(jstart),ninterp,spl_large,spl_large,RedWin%ddWing(jstart))
-    call spline_deriv(TimeSteps%points(jstart),RedWin%Wing(jstart),RedWin%ddWing(jstart), RedWin%dWing(jstart), ninterp)
+        call spline(TimeSteps%points(jstart),RedWin%Wing2(jstart),ninterp,spl_large,spl_large,RedWin%ddWing2(jstart))
+        call spline_deriv(TimeSteps%points(jstart),RedWin%Wing2(jstart),RedWin%ddWing2(jstart), &
+        RedWin%dWing2(jstart), ninterp)
 
-    call spline(TimeSteps%points(jstart),RedWin%Wing2(jstart),ninterp,spl_large,spl_large,RedWin%ddWing2(jstart))
-    call spline_deriv(TimeSteps%points(jstart),RedWin%Wing2(jstart),RedWin%ddWing2(jstart), &
-    RedWin%dWing2(jstart), ninterp)
+        call spline_integrate(TimeSteps%points(jstart),RedWin%Wing(jstart),RedWin%ddWing(jstart), RedWin%WinF(jstart),ninterp)
+        RedWin%Fq = RedWin%WinF(TimeSteps%npoints)
 
-    call spline_integrate(TimeSteps%points(jstart),RedWin%Wing(jstart),RedWin%ddWing(jstart), RedWin%WinF(jstart),ninterp)
-    RedWin%Fq = RedWin%WinF(TimeSteps%npoints)
+        if (RedWin%kind == window_21cm) then
+            call spline_integrate(TimeSteps%points(jstart),RedWin%Wing2(jstart),&
+            RedWin%ddWing2(jstart), tmp(jstart),ninterp)
+            RedWin%optical_depth_21 = tmp(TimeSteps%npoints) / (CP%TCMB*1000)
+            !WinF not used.. replaced below
 
-    if (RedWin%kind == window_21cm) then
+            call spline(TimeSteps%points(jstart),RedWin%Wingtau(jstart),ninterp,spl_large,spl_large,RedWin%ddWingtau(jstart))
+            call spline_deriv(TimeSteps%points(jstart),RedWin%Wingtau(jstart),RedWin%ddWingtau(jstart), &
+            RedWin%dWingtau(jstart), ninterp)
+        elseif (RedWin%kind == window_counts) then
 
-    call spline_integrate(TimeSteps%points(jstart),RedWin%Wing2(jstart),&
-    RedWin%ddWing2(jstart), tmp(jstart),ninterp)
-    RedWin%optical_depth_21 = tmp(TimeSteps%npoints) / (CP%TCMB*1000)
-    !WinF not used.. replaced below
+        if (counts_evolve) then
+            call spline(TimeSteps%points(jstart),back_count_tmp(jstart,i),ninterp,spl_large,spl_large,tmp)
+            call spline_deriv(TimeSteps%points(jstart),back_count_tmp(jstart,i),tmp,tmp2(jstart),ninterp)
+            do ix = jstart, TimeSteps%npoints
+                if (RedWin%Wing(ix)==0._dl) then
+                    RedWin%Wingtau(ix) = 0
+                else
+                    RedWin%Wingtau(ix) =  -tmp2(ix) * RedWin%Wing(ix) / (back_count_tmp(ix,i)*hubble_tmp(ix)) &
+                    + 5*RedWin%dlog10Ndm * ( RedWin%Wing(ix)- int_tmp(ix,i)/hubble_tmp(ix))
+                end if
+            end do
 
-    call spline(TimeSteps%points(jstart),RedWin%Wingtau(jstart),ninterp,spl_large,spl_large,RedWin%ddWingtau(jstart))
-    call spline_deriv(TimeSteps%points(jstart),RedWin%Wingtau(jstart),RedWin%ddWingtau(jstart), &
-    RedWin%dWingtau(jstart), ninterp)
+            !comoving_density_ev is d log(a^3 n_s)/d eta * window
+            call spline(TimeSteps%points(jstart),RedWin%comoving_density_ev(jstart),ninterp,spl_large,spl_large,tmp)
+            call spline_deriv(TimeSteps%points(jstart),RedWin%comoving_density_ev(jstart),tmp,tmp2(jstart),ninterp)
+            do ix = jstart, TimeSteps%npoints
+                if (RedWin%Wing(ix)==0._dl) then
+                    RedWin%comoving_density_ev(ix) = 0
+                else
+                    RedWin%comoving_density_ev(ix) =   tmp2(ix) / RedWin%comoving_density_ev(ix)
+                end if
+            end do
+        else
+            RedWin%comoving_density_ev=0
+            call spline(TimeSteps%points(jstart),hubble_tmp(jstart),ninterp,spl_large,spl_large,tmp)
+            call spline_deriv(TimeSteps%points(jstart),hubble_tmp(jstart),tmp, tmp2(jstart), ninterp)
 
-    elseif (RedWin%kind == window_counts) then
+            !assume d( a^3 n_s) of background population is zero, so remaining terms are
+            !wingtau =  g*(2/H\chi + Hdot/H^2)  when s=0; int_tmp = window/chi
+            RedWin%Wingtau(jstart:TimeSteps%npoints) = &
+2           *(1-2.5*RedWin%dlog10Ndm)*int_tmp(jstart:TimeSteps%npoints,i)/hubble_tmp(jstart:TimeSteps%npoints)&
+            + 5*RedWin%dlog10Ndm*RedWin%Wing(jstart:TimeSteps%npoints) &
+            + tmp2(jstart:TimeSteps%npoints)/hubble_tmp(jstart:TimeSteps%npoints)**2*RedWin%Wing(jstart:TimeSteps%npoints)
+        endif
 
+        call spline(TimeSteps%points(jstart),RedWin%Wingtau(jstart),ninterp, &
+        spl_large,spl_large,RedWin%ddWingtau(jstart))
+        call spline_deriv(TimeSteps%points(jstart),RedWin%Wingtau(jstart),RedWin%ddWingtau(jstart), &
+        RedWin%dWingtau(jstart), ninterp)
 
-    if (counts_evolve) then
-        call spline(TimeSteps%points(jstart),back_count_tmp(jstart,i),ninterp,spl_large,spl_large,tmp)
-        call spline_deriv(TimeSteps%points(jstart),back_count_tmp(jstart,i),tmp,tmp2(jstart),ninterp)
-        do ix = jstart, TimeSteps%npoints
-            if (RedWin%Wing(ix)==0._dl) then
-                RedWin%Wingtau(ix) = 0
-            else
-                RedWin%Wingtau(ix) =  -tmp2(ix) * RedWin%Wing(ix) / (back_count_tmp(ix,i)*hubble_tmp(ix)) &
-                + 5*RedWin%dlog10Ndm * ( RedWin%Wing(ix)- int_tmp(ix,i)/hubble_tmp(ix))
-            end if
-        end do
-
-        !comoving_density_ev is d log(a^3 n_s)/d eta * window
-        call spline(TimeSteps%points(jstart),RedWin%comoving_density_ev(jstart),ninterp,spl_large,spl_large,tmp)
-        call spline_deriv(TimeSteps%points(jstart),RedWin%comoving_density_ev(jstart),tmp,tmp2(jstart),ninterp)
-        do ix = jstart, TimeSteps%npoints
-            if (RedWin%Wing(ix)==0._dl) then
-                RedWin%comoving_density_ev(ix) = 0
-            else
-                RedWin%comoving_density_ev(ix) =   tmp2(ix) / RedWin%comoving_density_ev(ix)
-            end if
-        end do
-
-    else
-
-    RedWin%comoving_density_ev=0
-    call spline(TimeSteps%points(jstart),hubble_tmp(jstart),ninterp,spl_large,spl_large,tmp)
-    call spline_deriv(TimeSteps%points(jstart),hubble_tmp(jstart),tmp, tmp2(jstart), ninterp)
-
-    !assume d( a^3 n_s) of background population is zero, so remaining terms are
-    !wingtau =  g*(2/H\chi + Hdot/H^2)  when s=0; int_tmp = window/chi
-    RedWin%Wingtau(jstart:TimeSteps%npoints) = &
-2   *(1-2.5*RedWin%dlog10Ndm)*int_tmp(jstart:TimeSteps%npoints,i)/hubble_tmp(jstart:TimeSteps%npoints)&
-    + 5*RedWin%dlog10Ndm*RedWin%Wing(jstart:TimeSteps%npoints) &
-    + tmp2(jstart:TimeSteps%npoints)/hubble_tmp(jstart:TimeSteps%npoints)**2*RedWin%Wing(jstart:TimeSteps%npoints)
-
-    endif
-
-    call spline(TimeSteps%points(jstart),RedWin%Wingtau(jstart),ninterp, &
-    spl_large,spl_large,RedWin%ddWingtau(jstart))
-    call spline_deriv(TimeSteps%points(jstart),RedWin%Wingtau(jstart),RedWin%ddWingtau(jstart), &
-    RedWin%dWingtau(jstart), ninterp)
-
-    !WinF is int[ g*(...)]
-    call spline_integrate(TimeSteps%points(jstart),RedWin%Wingtau(jstart),&
-    RedWin%ddWingtau(jstart), RedWin%WinF(jstart),ninterp)
-    !    tmp(jstart:TimeSteps%npoints) = int_tmp(jstart:TimeSteps%npoints,i)/RedWin%Wingtau(jstart:TimeSteps%npoints)
-    !    call spline(TimeSteps%points(jstart),tmp(jstart),ninterp,spl_large,spl_large,tmp2)
-    !    call spline_integrate(TimeSteps%points(jstart),tmp,tmp2, RedWin%WinF(jstart),ninterp)
-
-    end if
-
+        !WinF is int[ g*(...)]
+        call spline_integrate(TimeSteps%points(jstart),RedWin%Wingtau(jstart),&
+        RedWin%ddWingtau(jstart), RedWin%WinF(jstart),ninterp)
+        !    tmp(jstart:TimeSteps%npoints) = int_tmp(jstart:TimeSteps%npoints,i)/RedWin%Wingtau(jstart:TimeSteps%npoints)
+        !    call spline(TimeSteps%points(jstart),tmp(jstart),ninterp,spl_large,spl_large,tmp2)
+        !    call spline_integrate(TimeSteps%points(jstart),tmp,tmp2, RedWin%WinF(jstart),ninterp)
+        end if
     end do
 
     deallocate(int_tmp,back_count_tmp)
@@ -3838,13 +3752,12 @@
     end subroutine interp_window
 
 
-    !cccccccccccccc
     subroutine DoThermoSpline(j2,tau)
-    integer j2,i, RW_i
+    integer j2,i
     real(dl) d,ddopac,tau
     Type(TRedWin), pointer :: W
     Type(CalWIns), pointer :: C
-
+    integer RW_i
 
     !     Cubic-spline interpolation.
     d=log(tau/tauminn)/dlntau+1._dl
@@ -3892,7 +3805,6 @@
                 -2._dl*C%dawin_lens(i)-C%dawin_lens(i+1)+d*(C%dawin_lens(i)+C%dawin_lens(i+1) &
                 +2._dl*(C%awin_lens(i)-C%awin_lens(i+1)))))
             end if
-
         end do
 
         vis(j2)=opac(j2)*expmmu(j2)

@@ -30,7 +30,7 @@
 
     !     This code evolves the linearized perturbation equations of general relativity,
     !     the Boltzmann equations and the fluid equations for perturbations
-    !     of a Friedmann-Robertson-Walker universe with a supplied system of gauge-dependent
+    !     of a Friedmann-Robertson-Walker universe with a supplied system of gauge-dependent equation
     !     in a modules called GaugeInterface.  The sources for the line of sight integral are
     !     computed at sampled times during the evolution for various of wavenumbers. The sources
     !     are then interpolated to a denser wavenumber sampling for computing the line of
@@ -150,6 +150,7 @@
         call initlval(lSamp, maximum_l)
     end if
 
+
     if (DebugMsgs .and. Feedbacklevel > 0) then
         actual=GetTestTime()
         starttime=actual !times don't include reading the Bessel file
@@ -177,7 +178,6 @@
 
     if (CP%WantTransfer) call InitTransfer
 
-
     !      ***note that !$ is the prefix for conditional multi-processor compilation***
     !$ if (ThreadNum /=0) call OMP_SET_NUM_THREADS(ThreadNum)
 
@@ -197,8 +197,7 @@
         ThisCT%NumSources = SourceNum
         ThisCT%ls = lSamp
 
-
-        !$OMP PARAllEl DO DEFAUlT(SHARED),SCHEDUlE(STATIC,4) &
+        !$OMP PARAllEl DO DEFAUlT(SHARED),SCHEDUlE(DYNAMIC) &
         !$OMP & PRIVATE(EV, q_ix)
         do q_ix= 1,Evolve_q%npoints
             if (global_error_flag==0) call DoSourcek(EV,q_ix)
@@ -237,7 +236,6 @@
     call Transfer_Get_sigma8(MT,8._dl)
     !Can call with other arguments if need different size
 
-
     !     if CMB calculations are requested, calculate the Cl by
     !     integrating the sources over time and over k.
 
@@ -262,7 +260,6 @@
             do q_ix=1,ThisCT%q%npoints
                 call SourceToTransfers(q_ix)
             end do !q loop
-
             !$OMP END PARAllEl DO
 
             if (DebugMsgs .and. Feedbacklevel > 0) then
@@ -403,7 +400,7 @@
 
     call Init_Limber(ThisCT)
 
-    if (.not. limber_windows .or. num_redshiftwindows==0 .or. .not. CP%WantScalars) then
+    if (.not. limber_windows .or. num_redshiftwindows==0 .and. limber_phiphi==0.or. .not. CP%WantScalars) then
         max_bessels_l_index = ThisCT%ls%l0
         max_bessels_etak  = CP%Max_eta_k
         return
@@ -499,16 +496,12 @@
 
     end  subroutine GetLimberTransfers
 
-
     subroutine SourceToTransfers(q_ix)
     integer q_ix
     type(IntegrationVars) :: IV
 
     allocate(IV%Source_q(TimeSteps%npoints,SourceNum))
-
-    if (.not.CP%flat) then
-        allocate(IV%ddSource_q(TimeSteps%npoints,SourceNum))
-    end if
+    if (.not.CP%flat) allocate(IV%ddSource_q(TimeSteps%npoints,SourceNum))
 
     call IntegrationVars_init(IV)
 
@@ -520,11 +513,8 @@
 
     call DoSourceIntegration(IV)
 
-    if (.not.CP%flat) then
-        deallocate(IV%ddSource_q)
-    end if
+    if (.not.CP%flat) deallocate(IV%ddSource_q)
     deallocate(IV%Source_q)
-
 
     end subroutine SourceToTransfers
 
@@ -659,13 +649,11 @@
 
     function GetTauStart(q)
     real(dl), intent(IN) :: q
-
     real(dl) taustart, GetTauStart
 
     !     Begin when wave is far outside horizon.
     !     Conformal time (in Mpc) in the radiation era, for photons plus 3 species
     !     of relativistic neutrinos.
-
     if (CP%flat) then
         taustart=0.001_dl/q
     else
@@ -693,6 +681,7 @@
     type(EvolutionVars) EV
 
     EV%q=Evolve_q%points(q_ix)
+
     if (fixq/=0._dl) then
         EV%q= min(500._dl,fixq) !for testing
     end if
@@ -700,11 +689,6 @@
 
     EV%q_ix = q_ix
     EV%TransferOnly=.false.
-
-    if (plot_evolve) then
-        EV%q= min(500._dl,plot_evolve_k)
-        EV%q2=EV%q**2
-    end if
 
     taustart = GetTauStart(EV%q)
 
@@ -744,6 +728,7 @@
 
 
     subroutine FreeSourceMem
+
     if (allocated(Src))deallocate(Src, ddSrc)
     call Ranges_Free(Evolve_q)
 
@@ -771,7 +756,6 @@
         qmax=maximum_qeta/CP%r/CP%chi0
         qmin=qmin0/CP%r/CP%chi0/initAccuracyBoost
     end if
-
     !     Timesteps during recombination (tentative, the actual
     !     timestep is the minimum between this value and taurst/40,
     !     where taurst is the time when recombination starts - see inithermo
@@ -795,14 +779,13 @@
         maxq=CP%Transfer%kmax
     end if
 
-    taumin=GetTauStart(maxq)
 
+    taumin=GetTauStart(maxq)
 
     !     Initialize baryon temperature and ionization fractions vs. time.
     !     This subroutine also fixes the timesteps where the sources are
     !     saved in order to do the integration. So TimeSteps is set here.
     !These routines in ThermoData (modules.f90)
-
     call inithermo(taumin,CP%tau0)
     if (global_error_flag/=0) return
 
@@ -854,6 +837,7 @@
     end if
 
     if (CP%AccurateReionization) dlnk0 = dlnk0/2
+
     dkn1=0.6_dl/taurst/SourceAccuracyBoost
     dkn2=0.9_dl/taurst/SourceAccuracyBoost
     if (HighAccuracyDefault) dkn2=dkn2/1.2
@@ -999,9 +983,6 @@
     end if
 
     !     Begin timestep loop.
-    !
-    !     d contains the sources for the anisotropy and dp
-    !     for the polarization. t means tensor.
 
     itf=1
     tol1=tol/exp(AccuracyBoost-1)
@@ -1009,6 +990,7 @@
 
     do j=2,TimeSteps%npoints
         tauend=TimeSteps%points(j)
+
         if (.not. DebugEvolution .and. (EV%q*tauend > max_etak_scalar .and. tauend > taurend) &
         .and. .not. CP%Dolensing .and. (.not.CP%WantTransfer.or.tau > tautf(CP%Transfer%num_redshifts))) then
             Src(EV%q_ix,1:SourceNum,j)=0
@@ -1019,6 +1001,7 @@
 
             call output(EV,y,j,tau,sources)
             Src(EV%q_ix,1:SourceNum,j)=sources
+
             !     Calculation of transfer functions.
 101         if (CP%WantTransfer.and.itf <= CP%Transfer%num_redshifts) then
                 if (j < TimeSteps%npoints) then
@@ -1034,7 +1017,7 @@
 
                     itf=itf+1
                     if (j < TimeSteps%npoints) then
-                        if (j < TimeSteps%npoints.and.itf <= CP%Transfer%num_redshifts.and. &
+                        if (itf <= CP%Transfer%num_redshifts.and. &
                         TimeSteps%points(j+1) > tautf(itf)) goto 101
                     end if
                 endif
@@ -1189,7 +1172,6 @@
     integer tf_lo, tf_hi
     type(MatterPowerData) :: CAMB_Pk
 
-    call MatterPowerdata_Nullify(CAMB_Pk)
     call Transfer_GetMatterPowerData(MT, CAMB_PK, 1)
 
     call NonLinear_GetNonLinRatios(CAMB_PK)
@@ -1200,7 +1182,6 @@
     do while(TimeSteps%points(first_step) < tautf(1))
         first_step = first_step + 1
     end do
-
     !$OMP PARAllEl DO DEFAUlT(SHARED), SCHEDUlE(STATIC), &
     !$OMP & PRIVATE(ik, i,scaling,ddScaling, tf_lo,tf_hi,tau,ho,a0,b0,ascale)
     do ik=1, Evolve_q%npoints
@@ -1260,6 +1241,7 @@
     !$OMP END PARAllEl DO
     end subroutine InitSourceInterpolation
 
+
     subroutine SetkValuesForInt
     use RedshiftSpaceData
     implicit none
@@ -1272,8 +1254,11 @@
 
     qmax_int = min(qmax,max_bessels_etak/CP%tau0)
 
-
     IntSampleBoost=AccuracyBoost
+    if (do_bispectrum) then
+        IntSampleBoost = IntSampleBoost * 2
+        if (hard_bispectrum) IntSampleBoost = IntSampleBoost * 2
+    end if
 
     !     Fixing the # of k for the integration.
 
@@ -1297,14 +1282,11 @@
 
         k_max_log = lognum*dk0
         k_max_0  = no*dk0
-        if (num_redshiftwindows>0) then
-            dk2 = dk  !very small scales
-        else
-            dk2 = 0.04/IntSampleBoost !very small scales
-        end if
 
         if (do_bispectrum) k_max_0 = max(10.d0,k_max_0)
 
+        dk2 = 0.04/IntSampleBoost  !very small scales
+        if (num_redshiftwindows>0) dk2 = dk  !very small scales
 
         call Ranges_Add_delta(ThisCT%q, qmin, k_max_log, dlnk1, IsLog = .true.)
         call Ranges_Add_delta(ThisCT%q, k_max_log, min(qmax_int,k_max_0), dk0)
@@ -1356,6 +1338,7 @@
 
     khi=klo+1
 
+
     ho=Evolve_q%points(khi)-Evolve_q%points(klo)
     a0=(Evolve_q%points(khi)-IV%q)/ho
     b0=(IV%q-Evolve_q%points(klo))/ho
@@ -1404,9 +1387,11 @@
     end do
     IV%SourceSteps = step
 
+
     if (.not.CP%flat) then
         do i=1, SourceNum
-            call spline(TimeSteps%points,IV%Source_q(1,i),TimeSteps%npoints,spl_large,spl_large,IV%ddSource_q(1,i))
+            call spline(TimeSteps%points,IV%Source_q(1,i),TimeSteps%npoints,&
+            spl_large,spl_large,IV%ddSource_q(1,i))
         end do
     end if
 
@@ -1438,12 +1423,12 @@
             llmax=nint(nu)-1
         else
             llmax=nint(nu*rofChi(CP%tau0/CP%r + 6*pi/nu))
-            llmax=min(llmax,nint(nu)-1)  !nu >= lSamp%l+1
+            llmax=min(llmax,nint(nu)-1)  !nu >= l+1
         end if
     else
         llmax=nint(nu*CP%chi0)
         if (llmax<15) then
-            llmax=15
+            llmax=17 !AL Sept2010 changed from 15 to get l=16 smooth
         else
             llmax=nint(nu*rofChi(CP%tau0/CP%r + 6*pi/nu))
         end if
@@ -1462,7 +1447,6 @@
     end subroutine DoSourceIntegration
 
     function UseLimber(l,k)
-    use RedshiftSpaceData
     !Calculate lensing potential power using Limber rather than j_l integration
     !even when sources calculated as part of temperature calculation
     !(Limber better on small scales unless step sizes made much smaller)
@@ -1485,16 +1469,18 @@
     implicit none
     type(IntegrationVars) IV
     integer llmax
-    integer j, s_ix
+    integer j
     logical DoInt
     real(dl) xlim,xlmax1
-    real(dl) tmin, tmax, limberfac
+    real(dl) tmin, tmax
     real(dl) a2, J_l, aa(IV%SourceSteps), fac(IV%SourceSteps)
     real(dl) xf, sums(SourceNum)
     real(dl) qmax_int
     integer bes_ix,n, bes_index(IV%SourceSteps)
     !Sources
-    integer nwin
+    integer nwin, s_ix
+    real(dl) limberfac
+
     !     Find the position in the xx table for the x correponding to each
     !     timestep
 
@@ -1513,10 +1499,13 @@
         xlim=xlimfrac*lSamp%l(j)
         xlim=max(xlim,xlimmin)
         xlim=lSamp%l(j)-xlim
-        if (num_redshiftwindows>0) then
-            xlmax1=80*lSamp%l(j)*8*AccuracyBoost !Have to be careful if sharp spikes due to late time sources
+        if (full_bessel_integration .or. do_bispectrum) then
+            tmin = TimeSteps%points(2)
         else
             xlmax1=80*lSamp%l(j)*AccuracyBoost
+            if (num_redshiftwindows>0) then
+                xlmax1=80*lSamp%l(j)*8*AccuracyBoost !Have to be careful if sharp spikes due to late time sources
+            end if
             tmin=CP%tau0-xlmax1/IV%q
             tmin=max(TimeSteps%points(2),tmin)
         end if
@@ -1541,14 +1530,12 @@
                 *ajlpr(bes_ix,j)+(2-a2)*ajlpr(bes_ix+1,j))* fac(n)) !cubic spline
 
                 J_l = J_l*TimeSteps%dpoints(n)
-
                 sums(1) = sums(1) + IV%Source_q(n,1)*J_l
                 sums(2) = sums(2) + IV%Source_q(n,2)*J_l
             end do
         else
             qmax_int= max(850,lSamp%l(j))*3*AccuracyBoost/CP%tau0
             if (HighAccuracyDefault) qmax_int=qmax_int*1.2
-
             DoInt = .not. CP%WantScalars .or.  IV%q < qmax_int
             !Do integral if any useful contribution to the CMB, or large scale effects
             !Sources
@@ -1559,9 +1546,6 @@
                 else
                     nwin = TimeSteps%npoints+1
                 end if
-
-                !                   tmin = max(tmin,Redshift_w(1)%tau_start)
-                !                  tmax = min(tmax,Redshift_w(1)%tau_end)
 
                 do n= Ranges_IndexOf(TimeSteps,tmin),min(IV%SourceSteps,Ranges_IndexOf(TimeSteps,tmax))
                     !Full Bessel integration
@@ -1597,11 +1581,6 @@
             end if
         end if
 
-
-        !            n=Ranges_IndexOf(TimeSteps,Redshift_W(1)%tau)
-        !             sums(4) = IV%Source_q(n,4) / (IV%q*(CP%tau0-Redshift_W(1)%tau))/sqrt(2.)
-
-
         ThisCT%Delta_p_l_k(1:SourceNum,j,IV%q_ix) = ThisCT%Delta_p_l_k(1:SourceNum,j,IV%q_ix) + sums(1:SourceNum)
     end do
 
@@ -1612,6 +1591,7 @@
     !non-flat source integration
 
     subroutine IntegrateSourcesBessels(IV,j,l,nu)
+    use SpherBessels
     type(IntegrationVars) IV
     logical DoInt
     integer l,j, nstart,nDissipative,ntop,nbot,nrange,nnow
@@ -1794,6 +1774,7 @@
 
     IntAccuracyBoost=AccuracyBoost
 
+    ! atau0 is the array with the time where the sources are stored.
     if (nend==nstart) then
         out = 0
         return
@@ -1990,6 +1971,7 @@
     sourcep => IV%Source_q(:,1:)
     ddsourcep => IV%ddSource_q(:,1:)
 
+
     if (nend==nstart) then
         out=0
         return
@@ -2145,7 +2127,6 @@
 
     end subroutine DoRangeIntTensor
 
-
     subroutine GetInitPowerArrayVec(pows,ks, numks,pix)
     integer, intent(in) :: numks, pix
     real(dl) pows(numks), ks(numks)
@@ -2174,6 +2155,7 @@
 
 
     subroutine CalcScalCls(CTrans)
+    use Bispectrum
     implicit none
     Type(ClTransferData) :: CTrans
     integer pix,j, q_ix, w_ix, w_ix2
@@ -2202,7 +2184,6 @@
         do j=1,CTrans%ls%l0
             !Integrate dk/k Delta_l_q**2 * Power(k)
             ell = real(CTrans%ls%l(j),dl)
-
             if (j<= max_bessels_l_index)  then
                 do q_ix = 1, CTrans%q%npoints
                     if (.not.(CP%closed.and.nint(CTrans%q%points(q_ix)*CP%r)<=CTrans%ls%l(j))) then
@@ -2479,19 +2460,15 @@
 
 
     subroutine InterpolateCls(CTransS,CTransT,CTransV)
-    use AMLutils
     implicit none
     Type(ClTransferData) :: CTransS, CTransT, CTransV
     integer in,i,j
     integer, dimension(2,2), parameter :: ind = reshape( (/ 1,3,3,2 /), shape(ind))
     !use verbose form above for gfortran consistency  [[1,3],[3,2]]
 
-    !$OMP PARALLEL DO DEFAULT(SHARED), PRIVATE(i,j,in), SHARED(CTransS,CTransT),IF(CP%InitPower%nn > 1)
+    !Note using log interpolation is worse
 
-    !!      do i=1,CTransS%ls%l0
-    !        write (*,trim(numcat('(1I8,',C_last-C_temp+1))//'E15.5)') CTransS%ls%l(i), iCl_scalar(i,C_Temp:C_last,1)
-    !      end do
-    !      return
+    !$OMP PARALLEL DO DEFAULT(SHARED), PRIVATE(i,j,in), SHARED(CTransS,CTransT),IF(CP%InitPower%nn > 1)
     do in=1,CP%InitPower%nn
         if (CP%WantScalars) then
             do i = C_Temp, C_last
@@ -2528,5 +2505,6 @@
     end do
     !$OMP END PARALLEL DO
     end subroutine InterpolateCls
+
 
     end module CAMBmain

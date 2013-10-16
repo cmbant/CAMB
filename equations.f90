@@ -99,13 +99,10 @@
     implicit none
     public
 
-
     !Description of this file. Change if you make modifications.
     character(LEN=*), parameter :: Eqns_name = 'gauge_inv'
 
     logical, parameter :: plot_evolve = .false. !for outputing time evolution
-    real(dl), parameter :: plot_evolve_k = 1_dl
-    !note may need to set k_eta_max_scalar  large enough if k for evole is large
 
     integer, parameter :: basic_num_eqns = 5
 
@@ -147,6 +144,7 @@
 
         integer r_ix !Index of the massless neutrino hierarchy
         integer g_ix !Index of the photon neutrino hierarchy
+
         integer q_ix !index into q_evolve array that gives the value q
         logical TransferOnly
 
@@ -409,8 +407,8 @@
             call CopyScalarVariableArray(y,yout, EV, EVout)
             y=yout
             EV=EVout
-            !Sources
         else if (next_switch==tau_switch_saha) then
+            !Sources
             ind=1
             EVout%saha = .false.
             call SetupScalarArrayIndices(EVout)
@@ -455,12 +453,12 @@
 
     call dverk(EV,EV%TensEqsToPropagate, derivst,tau,y,tauend,tol1,ind,c,EV%nvart,w)
 
+
     end subroutine GaugeInterface_EvolveTens
 
     function DeltaTimeMaxed(a1,a2, tol) result(t)
     real(dl) a1,a2,t
     real(dl), optional :: tol
-
     if (a1>1._dl) then
         t=0
     elseif (a2 > 1._dl) then
@@ -596,27 +594,26 @@
         end if
 
         do nu_i=1, CP%Nu_Mass_eigenstates
-
-        if (EV%high_ktau_neutrino_approx) then
-            if (HighAccuracyDefault .and. CP%WantTransfer .and. EV%q < 1.d0) then
-                EV%lmaxnu_tau(nu_i)=max(4,lmaxnu_high_ktau)
+            if (EV%high_ktau_neutrino_approx) then
+                if (HighAccuracyDefault .and. CP%WantTransfer .and. EV%q < 1.d0) then
+                    EV%lmaxnu_tau(nu_i)=max(4,lmaxnu_high_ktau)
+                else
+                    EV%lmaxnu_tau(nu_i)=lmaxnu_high_ktau
+                end if
             else
-                EV%lmaxnu_tau(nu_i)=lmaxnu_high_ktau
+                EV%lmaxnu_tau(nu_i) =max(min(nint(0.8_dl*EV%q*nu_tau_nonrelativistic(nu_i)*lAccuracyBoost),EV%lmaxnu),3)
+                !!!Feb13tweak
+                if (EV%nu_nonrelativistic(nu_i)) EV%lmaxnu_tau(nu_i)=min(EV%lmaxnu_tau(nu_i),nint(4*lAccuracyBoost))
             end if
-        else
-            EV%lmaxnu_tau(nu_i) =max(min(nint(0.8_dl*EV%q*nu_tau_nonrelativistic(nu_i)*lAccuracyBoost),EV%lmaxnu),3)
-            !!!Feb13tweak
-            if (EV%nu_nonrelativistic(nu_i)) EV%lmaxnu_tau(nu_i)=min(EV%lmaxnu_tau(nu_i),nint(4*lAccuracyBoost))
-        end if
-        EV%lmaxnu_tau(nu_i)=min(EV%lmaxnu,EV%lmaxnu_tau(nu_i))
+            EV%lmaxnu_tau(nu_i)=min(EV%lmaxnu,EV%lmaxnu_tau(nu_i))
 
-        EV%nu_ix(nu_i)=neq+1
-        if (EV%MassiveNuApprox(nu_i)) then
-            neq = neq+4
-        else
-            neq = neq+ EV%nq(nu_i)*(EV%lmaxnu_tau(nu_i)+1)
-        endif
-        maxeq = maxeq + nqmax*(EV%lmaxnu+1)
+            EV%nu_ix(nu_i)=neq+1
+            if (EV%MassiveNuApprox(nu_i)) then
+                neq = neq+4
+            else
+                neq = neq+ EV%nq(nu_i)*(EV%lmaxnu_tau(nu_i)+1)
+            endif
+            maxeq = maxeq + nqmax*(EV%lmaxnu+1)
         end do
     else
         EV%has_nu_relativistic = .false.
@@ -692,7 +689,6 @@
                     lmax = min(lmax,EV%lmaxnu_pert)
                     yout(ind2:ind2+lmax) = yout(ind2:ind2+lmax) &
                     + y(EV%nu_pert_ix:EV%nu_pert_ix+lmax)*pert_scale
-
                 end do
             end if
         end do
@@ -1021,45 +1017,43 @@
     real(dl) dtauda
 
     do nu_i = 1, CP%Nu_mass_eigenstates
+        grhormass_t=grhormass(nu_i)/a**2
 
-    grhormass_t=grhormass(nu_i)/a**2
+        !Get density and pressure as ratio to massless by interpolation from table
+        call Nu_background(a*nu_masses(nu_i),rhonu,pnu)
 
-    !Get density and pressure as ratio to massless by interpolation from table
-    call Nu_background(a*nu_masses(nu_i),rhonu,pnu)
+        if (EV%MassiveNuApprox(nu_i)) then
+            clxnu=y(EV%nu_ix(nu_i))
+            !dpnu = y(EV%iq0+1+off_ix)
+            qnu=y(EV%nu_ix(nu_i)+2)
+            pinu=y(EV%nu_ix(nu_i)+3)
+            pinudot=yprime(EV%nu_ix(nu_i)+3)
+        else
+            !Integrate over q
+            call Nu_Integrate_L012(EV, y, a, nu_i, clxnu,qnu,dpnu,pinu)
+            !clxnu_here  = rhonu*clxnu, qnu_here = qnu*rhonu
+            !dpnu=dpnu/rhonu
+            qnu=qnu/rhonu
+            clxnu = clxnu/rhonu
+            pinu=pinu/rhonu
+            adotoa = 1/(a*dtauda(a))
+            rhonudot = Nu_drho(a*nu_masses(nu_i),adotoa,rhonu)
 
-    if (EV%MassiveNuApprox(nu_i)) then
-        clxnu=y(EV%nu_ix(nu_i))
-        !dpnu = y(EV%iq0+1+off_ix)
-        qnu=y(EV%nu_ix(nu_i)+2)
-        pinu=y(EV%nu_ix(nu_i)+3)
-        pinudot=yprime(EV%nu_ix(nu_i)+3)
-    else
-        !Integrate over q
-        call Nu_Integrate_L012(EV, y, a, nu_i, clxnu,qnu,dpnu,pinu)
-        !clxnu_here  = rhonu*clxnu, qnu_here = qnu*rhonu
-        !dpnu=dpnu/rhonu
-        qnu=qnu/rhonu
-        clxnu = clxnu/rhonu
-        pinu=pinu/rhonu
-        adotoa = 1/(a*dtauda(a))
-        rhonudot = Nu_drho(a*nu_masses(nu_i),adotoa,rhonu)
+            call Nu_pinudot(EV,y, yprime, a,adotoa, nu_i,pinudot)
+            pinudot=pinudot/rhonu - rhonudot/rhonu*pinu
+        endif
 
-        call Nu_pinudot(EV,y, yprime, a,adotoa, nu_i,pinudot)
-        pinudot=pinudot/rhonu - rhonudot/rhonu*pinu
-    endif
+        grhonu_t=grhormass_t*rhonu
+        gpnu_t=grhormass_t*pnu
 
-    grhonu_t=grhormass_t*rhonu
-    gpnu_t=grhormass_t*pnu
+        grho = grho  + grhonu_t
+        gpres= gpres + gpnu_t
 
-    grho = grho  + grhonu_t
-    gpres= gpres + gpnu_t
-
-    dgrho= dgrho + grhonu_t*clxnu
-    dgq  = dgq   + grhonu_t*qnu
-    dgpi = dgpi  + grhonu_t*pinu
-    gdpi_diff = gdpi_diff + pinu*(3*gpnu_t-grhonu_t)
-    pidot_sum = pidot_sum + grhonu_t*pinudot
-
+        dgrho= dgrho + grhonu_t*clxnu
+        dgq  = dgq   + grhonu_t*qnu
+        dgpi = dgpi  + grhonu_t*pinu
+        gdpi_diff = gdpi_diff + pinu*(3*gpnu_t-grhonu_t)
+        pidot_sum = pidot_sum + grhonu_t*pinudot
     end do
 
     end subroutine MassiveNuVarsOut
@@ -1229,35 +1223,33 @@
     real(dl) grhormass_t, rhonu, qnu, clxnu, grhonu_t, gpnu_t, pnu
 
     do nu_i = 1, CP%Nu_mass_eigenstates
+        grhormass_t=grhormass(nu_i)/a**2
 
-    grhormass_t=grhormass(nu_i)/a**2
+        !Get density and pressure as ratio to massless by interpolation from table
+        call Nu_background(a*nu_masses(nu_i),rhonu,pnu)
 
-    !Get density and pressure as ratio to massless by interpolation from table
-    call Nu_background(a*nu_masses(nu_i),rhonu,pnu)
+        if (EV%MassiveNuApprox(nu_i)) then
+            clxnu=y(EV%nu_ix(nu_i))
+            qnu=y(EV%nu_ix(nu_i)+2)
+        else
+            !Integrate over q
+            call Nu_Integrate_L012(EV, y, a, nu_i, clxnu,qnu)
+            !clxnu_here  = rhonu*clxnu, qnu_here = qnu*rhonu
+            qnu=qnu/rhonu
+            clxnu = clxnu/rhonu
+        endif
 
-    if (EV%MassiveNuApprox(nu_i)) then
-        clxnu=y(EV%nu_ix(nu_i))
-        qnu=y(EV%nu_ix(nu_i)+2)
-    else
-        !Integrate over q
-        call Nu_Integrate_L012(EV, y, a, nu_i, clxnu,qnu)
-        !clxnu_here  = rhonu*clxnu, qnu_here = qnu*rhonu
-        qnu=qnu/rhonu
-        clxnu = clxnu/rhonu
-    endif
+        grhonu_t=grhormass_t*rhonu
+        gpnu_t=grhormass_t*pnu
 
-    grhonu_t=grhormass_t*rhonu
-    gpnu_t=grhormass_t*pnu
+        grho = grho  + grhonu_t
+        gpres= gpres + gpnu_t
+        dgrho= dgrho + grhonu_t*clxnu
+        dgq  = dgq   + grhonu_t*qnu
 
-    grho = grho  + grhonu_t
-    gpres= gpres + gpnu_t
-    dgrho= dgrho + grhonu_t*clxnu
-    dgq  = dgq   + grhonu_t*qnu
-
-    if (present(wnu_arr)) then
-        wnu_arr(nu_i) =pnu/rhonu
-    end if
-
+        if (present(wnu_arr)) then
+            wnu_arr(nu_i) =pnu/rhonu
+        end if
     end do
 
     end subroutine MassiveNuVars
@@ -1517,7 +1509,6 @@
         else
             pigdot = -dopac(j)/opac(j)*pig + 32._dl/45*k/opac(j)*(-2*adotoa*sigma  &
             +etak/EV%Kf(1)-  dgpi/k +vbdot )
-
             ypolprime(2)= pigdot/4
         end if
     end if
@@ -1531,6 +1522,8 @@
     -diff_rhopi/k**2-1.D0/adotoa*dgrho/3.D0+(3.D0*gpres+5.D0*grho)*sigma/k/3.D0 &
     -2.D0/k*adotoa/EV%Kf(1)*etak)*expmmu(j)
 
+    !e.g. to get only late-time ISW
+    !  if (1/a-1 < 30) ISW=0
 
     !The rest, note y(9)->octg, yprime(9)->octgprime (octopoles)
     sources(1)= ISW +  ((-9.D0/160.D0*pig-27.D0/80.D0*ypol(2))/k**2*opac(j)+ &
@@ -1555,11 +1548,11 @@
         sources(2)=0
     end if
 
-
     if (CTransScal%NumSources > 2) then
         !phi_lens = Phi - 1/2 kappa (a/k)^2 sum_i rho_i pi_i
         !Neglect pi contributions because not accurate at late time anyway
         phi = -(dgrho +3*dgq*adotoa/k)/(k2*EV%Kf(1)*2)
+        ! - dgpi/k2/2
 
         !CMB lensing sources
         if (tau>taurend .and. CP%tau0-tau > 0.1_dl) then
@@ -1626,230 +1619,228 @@
 
 
             do w_ix = 1, num_redshiftwindows
+                W => Redshift_W(w_ix)
 
-            W => Redshift_W(w_ix)
+                if (W%kind == window_lensing) then
+                    sources(3+w_ix) =-2*phi*W%win_lens(j)
+                elseif (W%kind == window_counts) then
+                    !assume zero velocity bias and relevant tracer is CDM perturbation
+                    !neglect anisotropic stress in some places
 
-            if (W%kind == window_lensing) then
-                sources(3+w_ix) =-2*phi*W%win_lens(j)
-            elseif (W%kind == window_counts) then
-                !assume zero velocity bias and relevant tracer is CDM perturbation
-                !neglect anisotropic stress in some places
+                    !phidot neglecting anisotropic stress so phi=psi
+                    phidot = ((4.D0/3.D0*k*EV%Kf(1)*sigma+(-2.D0/3.D0*sigma-2.D0/3.D0*etak/adotoa)*k &
+                    -diff_rhopi/k**2-1.D0/adotoa*dgrho/3.D0+(3.D0*gpres+5.D0*grho)*sigma/k/3.D0 &
+                    -2.D0/k*adotoa/EV%Kf(1)*etak)) / 2
 
-                !phidot neglecting anisotropic stress so phi=psi
-                phidot = ((4.D0/3.D0*k*EV%Kf(1)*sigma+(-2.D0/3.D0*sigma-2.D0/3.D0*etak/adotoa)*k &
-                -diff_rhopi/k**2-1.D0/adotoa*dgrho/3.D0+(3.D0*gpres+5.D0*grho)*sigma/k/3.D0 &
-                -2.D0/k*adotoa/EV%Kf(1)*etak)) / 2
-
-                !Main density source
-                if (counts_density) then
-                    counts_density_source= W%wing(j)*(clxc*W%bias + (W%comoving_density_ev(j) - 3*adotoa)*sigma/k)
-                    !Newtonian gauge count density; bias assumed to be on synchronous gauge CDM density
-                else
-                    counts_density_source= 0
-                endif
-
-
-                if (counts_redshift) then
-                    !Main redshift distortion from kV_N/H j'' integrated by parts twice (V_N = sigma in synch gauge)
-                    counts_redshift_source = ((4.D0*adotoa**2+gpres+grho/3.D0)/k*W%wing2(j)+ &
-                    (-4.D0*W%dwing2(j)*adotoa+W%ddwing2(j))/k)*sigma+(-etak/adotoa*k/3.D0-dgrho/ &
-                    adotoa/6.D0+(etak/adotoa*k/3.D0+dgrho/adotoa/6.D0+(dgq/2.D0-2.D0*etak*adotoa)/k) &
-                    /EV%Kf(1))*W%wing2(j)+2.D0*W%dwing2(j)*etak/k/EV%Kf(1)
-                    if (k>0.8e-2) then
-                        !    write(*,'(8E15.5)') 1/a-1, k*sigma/adotoa, W%wing(j)*clxc, source_redshift, ISW, W%wing(j),W%wing2(j),W%wingtau(j)
-                        !    if (1/a-1 < 0.01) stop
-                    end if
-                else
-                    counts_redshift_source= 0
-                end if
-
-                ! 2v j'/(H\chi) geometric term
-                if (CP%tau0-tau > 0.1_dl .and. counts_radial) then
-                    chi =  CP%tau0-tau
-                    counts_radial_source= (1-2.5*W%dlog10Ndm)*((-4.D0*W%wing2(j)/chi*adotoa-2.D0*(-W%dwing2(j)*chi-W%wing2(j))/chi**2)/ &
-                    k*sigma+2.D0*W%wing2(j)*etak/chi/k/EV%Kf(1))
-                else
-                    counts_radial_source = 0
-                end if
-
-                !        if (counts_evolve) then
-                !       !Just source evolution term if window is actual source distribution
-                !         counts_evolve_source =(2.D0*W%dwing2(j)*adotoa-W%ddwing2(j))/k*sigma-W%dwing2(j)*etak/k/EV%Kf(1)
-                !        else
-                !          counts_evolve_source = 0
-                !        end if
-
-                if (counts_timedelay) then
-                    !time delay; WinV is int g/chi
-                    counts_timedelay_source= 2*(1-2.5*W%dlog10Ndm)*W%WinV(j)*2*phi
-                else
-                    counts_timedelay_source = 0
-                end if
-
-                if (counts_ISW) then
-                    !WinF is int wingtau
-                    counts_ISW_source = W%WinF(j)*2*phidot
-                else
-                    counts_ISW_source = 0
-                end if
-
-                if (counts_potential) then
-                    !approx phi = psi
-                    counts_potential_source = ( phidot/adotoa + phi +(5*W%dlog10Ndm-2)*phi ) * W%wing(j) + phi * W%wingtau(j)
-                else
-                    counts_potential_source = 0
-                end if
-
-                if (counts_velocity) then
-                    counts_velocity_source =  (-2.D0*W%wingtau(j)*adotoa+W%dwingtau(j))/k*sigma+W%wingtau(j)*etak/k/EV%Kf(1) &
-                    - counts_radial_source  !don't double count terms; counts_radial is part of counts_velocity with 1/H/chi
-                else
-                    counts_velocity_source = 0
-                end if
-
-                sources(3+w_ix)=  counts_radial_source +  counts_density_source + counts_redshift_source &
-                + counts_timedelay_source + counts_potential_source &
-                + counts_ISW_source + counts_velocity_source
-
-                sources(3+w_ix)=sources(3+w_ix)/W%Fq
-
-                if (DoRedshiftLensing) &
-                sources(3+W%mag_index+num_redshiftwindows) = phi*W%win_lens(j)*(2-5*W%dlog10Ndm)
-            elseif (W%kind == window_21cm) then
-                if (line_basic) then
-                    sources(3+w_ix)= expmmu(j)*(W%wing(j)*Delta_source + W%wing2(j)*Delta_source2 &
-                    - W%Wingtau(j)*(clxb - (Delta_source2+clxg/4)))
-                    !!    sources(3+w_ix)= expmmu(j)*W%wing(j)*phi
-                else
-                    sources(3+w_ix)= 0
-                end if
-
-                if (line_distortions ) then
-                    !With baryon velocity, dropping small terms
-                    s(1) =  (sigma/adotoa/3.D0-etak/adotoa**2/3.D0)*W%wing(j)*expmmu(j)*k
-                    s(2) =  -1.D0/adotoa**2*expmmu(j)*W%wing(j)*dgrho/6.D0+((((4.D0*sigma+ &
-                    vb)*adotoa+(-grho*sigma/2.D0-vb*grho/3.D0)/adotoa+(sigma*grho**2/18.D0+ &
-                    vb*grho**2/18.D0)/adotoa**3)*W%wing(j)-4.D0*W%dwing(j)*sigma+(W%ddwing(j)*sigma+ &
-                    W%ddwing(j)*vb)/adotoa+(W%dwing(j)*sigma*grho/3.D0+W%dwing(j)*vb*grho/3.D0)/ &
-                    adotoa**2-2.D0*W%dwing(j)*vb+((-2.D0*etak+etak*grho/adotoa**2/3.D0)*W%wing(j) &
-                    + 2.D0*W%dwing(j)*etak/adotoa)/EV%Kf(1))*expmmu(j)+&
-                    (-4.D0*vis(j)*sigma- 2.D0*vis(j)*vb+(dvis(j)*sigma+dvis(j)*vb)/adotoa+(vis(j)*grho*sigma/3.D0+ &
-                    vis(j)*vb*grho/3.D0)/adotoa**2)*W%wing(j)+2.D0*vis(j)*etak/adotoa*W%wing(j)/ &
-                    EV%Kf(1)+(2.D0*vis(j)*W%dwing(j)*sigma+2.D0*vis(j)*W%dwing(j)*vb)/adotoa)/k
-                    t(0) =  s(1)+s(2)
-
-                    sources(3+w_ix)= sources(3+w_ix) + t(0)
-                end if
-
-
-                if (line_extra) then
-                    !All sources except below
-                    if (line_basic .and. line_distortions) then
-                        sources(3+w_ix) =  (-2.D0/3.D0*sigma+2.D0/3.D0*etak/adotoa)*W%winV(j)*expmmu(j)*k+ &
-                        (W%wing2(j)*Delta_source2+W%wing(j)*Delta_source+1.D0/adotoa*W%winV(j)*dgrho/3.D0)* &
-                        expmmu(j)+((-W%dwing(j)*vb+(-(3.D0*gpres+grho)*sigma/3.D0 &
-                        - 4.D0*adotoa**2*sigma)*W%winV(j)+4.D0*adotoa*W%dwinV(j)*sigma+(-sigma- &
-                        vb)*W%ddWinV(j)-vbdot*W%wing(j)-W%dwinV(j)*vbdot+(-2.D0*W%dwinV(j)*etak &
-                        + 2.D0*etak*adotoa*W%winV(j))/EV%Kf(1))*expmmu(j)-2.D0*vis(j)*sigma*W%dwinV(j)+ &
-                        (4.D0*vis(j)*sigma*adotoa-dvis(j)*sigma)*W%winV(j)-2.D0*vis(j)*W%winV(j)*etak/ &
-                        EV%Kf(1)-vis(j)*W%dwinV(j)*vb-vis(j)*W%wing(j)*vb)/k+((2.D0*W%dwinV(j)*dgpi+ &
-                        diff_rhopi*W%winV(j))*expmmu(j)+2.D0*vis(j)*W%winV(j)*dgpi)/k**2
+                    !Main density source
+                    if (counts_density) then
+                        counts_density_source= W%wing(j)*(clxc*W%bias + (W%comoving_density_ev(j) - 3*adotoa)*sigma/k)
+                        !Newtonian gauge count density; bias assumed to be on synchronous gauge CDM density
                     else
-                        s(1) =  ((-2.D0/3.D0*sigma+2.D0/3.D0*etak/adotoa)*W%winV(j)+(-sigma/adotoa/3.D0+ &
-                        etak/adotoa**2/3.D0)*W%wing(j))*expmmu(j)*k+(1.D0/adotoa*W%winV(j)*dgrho/3.D0 &
-                        + 1.D0/adotoa**2*W%wing(j)*dgrho/6.D0)*expmmu(j)
+                        counts_density_source= 0
+                    endif
+
+
+                    if (counts_redshift) then
+                        !Main redshift distortion from kV_N/H j'' integrated by parts twice (V_N = sigma in synch gauge)
+                        counts_redshift_source = ((4.D0*adotoa**2+gpres+grho/3.D0)/k*W%wing2(j)+ &
+                        (-4.D0*W%dwing2(j)*adotoa+W%ddwing2(j))/k)*sigma+(-etak/adotoa*k/3.D0-dgrho/ &
+                        adotoa/6.D0+(etak/adotoa*k/3.D0+dgrho/adotoa/6.D0+(dgq/2.D0-2.D0*etak*adotoa)/k) &
+                        /EV%Kf(1))*W%wing2(j)+2.D0*W%dwing2(j)*etak/k/EV%Kf(1)
+                        if (k>0.8e-2) then
+                            !    write(*,'(8E15.5)') 1/a-1, k*sigma/adotoa, W%wing(j)*clxc, source_redshift, ISW, W%wing(j),W%wing2(j),W%wingtau(j)
+                            !    if (1/a-1 < 0.01) stop
+                        end if
+                    else
+                        counts_redshift_source= 0
+                    end if
+
+                    ! 2v j'/(H\chi) geometric term
+                    if (CP%tau0-tau > 0.1_dl .and. counts_radial) then
+                        chi =  CP%tau0-tau
+                        counts_radial_source= (1-2.5*W%dlog10Ndm)*((-4.D0*W%wing2(j)/chi*adotoa-2.D0*(-W%dwing2(j)*chi-W%wing2(j))/chi**2)/ &
+                        k*sigma+2.D0*W%wing2(j)*etak/chi/k/EV%Kf(1))
+                    else
+                        counts_radial_source = 0
+                    end if
+
+                    !        if (counts_evolve) then
+                    !       !Just source evolution term if window is actual source distribution
+                    !         counts_evolve_source =(2.D0*W%dwing2(j)*adotoa-W%ddwing2(j))/k*sigma-W%dwing2(j)*etak/k/EV%Kf(1)
+                    !        else
+                    !          counts_evolve_source = 0
+                    !        end if
+
+                    if (counts_timedelay) then
+                        !time delay; WinV is int g/chi
+                        counts_timedelay_source= 2*(1-2.5*W%dlog10Ndm)*W%WinV(j)*2*phi
+                    else
+                        counts_timedelay_source = 0
+                    end if
+
+                    if (counts_ISW) then
+                        !WinF is int wingtau
+                        counts_ISW_source = W%WinF(j)*2*phidot
+                    else
+                        counts_ISW_source = 0
+                    end if
+
+                    if (counts_potential) then
+                        !approx phi = psi
+                        counts_potential_source = ( phidot/adotoa + phi +(5*W%dlog10Ndm-2)*phi ) * W%wing(j) + phi * W%wingtau(j)
+                    else
+                        counts_potential_source = 0
+                    end if
+
+                    if (counts_velocity) then
+                        counts_velocity_source =  (-2.D0*W%wingtau(j)*adotoa+W%dwingtau(j))/k*sigma+W%wingtau(j)*etak/k/EV%Kf(1) &
+                        - counts_radial_source  !don't double count terms; counts_radial is part of counts_velocity with 1/H/chi
+                    else
+                        counts_velocity_source = 0
+                    end if
+
+                    sources(3+w_ix)=  counts_radial_source +  counts_density_source + counts_redshift_source &
+                    + counts_timedelay_source + counts_potential_source &
+                    + counts_ISW_source + counts_velocity_source
+
+                    sources(3+w_ix)=sources(3+w_ix)/W%Fq
+
+                    if (DoRedshiftLensing) &
+                    sources(3+W%mag_index+num_redshiftwindows) = phi*W%win_lens(j)*(2-5*W%dlog10Ndm)
+                elseif (W%kind == window_21cm) then
+                    if (line_basic) then
+                        sources(3+w_ix)= expmmu(j)*(W%wing(j)*Delta_source + W%wing2(j)*Delta_source2 &
+                        - W%Wingtau(j)*(clxb - (Delta_source2+clxg/4)))
+                        !!    sources(3+w_ix)= expmmu(j)*W%wing(j)*phi
+                    else
+                        sources(3+w_ix)= 0
+                    end if
+
+                    if (line_distortions ) then
+                        !With baryon velocity, dropping small terms
+                        s(1) =  (sigma/adotoa/3.D0-etak/adotoa**2/3.D0)*W%wing(j)*expmmu(j)*k
+                        s(2) =  -1.D0/adotoa**2*expmmu(j)*W%wing(j)*dgrho/6.D0+((((4.D0*sigma+ &
+                        vb)*adotoa+(-grho*sigma/2.D0-vb*grho/3.D0)/adotoa+(sigma*grho**2/18.D0+ &
+                        vb*grho**2/18.D0)/adotoa**3)*W%wing(j)-4.D0*W%dwing(j)*sigma+(W%ddwing(j)*sigma+ &
+                        W%ddwing(j)*vb)/adotoa+(W%dwing(j)*sigma*grho/3.D0+W%dwing(j)*vb*grho/3.D0)/ &
+                        adotoa**2-2.D0*W%dwing(j)*vb+((-2.D0*etak+etak*grho/adotoa**2/3.D0)*W%wing(j) &
+                        + 2.D0*W%dwing(j)*etak/adotoa)/EV%Kf(1))*expmmu(j)+&
+                        (-4.D0*vis(j)*sigma- 2.D0*vis(j)*vb+(dvis(j)*sigma+dvis(j)*vb)/adotoa+(vis(j)*grho*sigma/3.D0+ &
+                        vis(j)*vb*grho/3.D0)/adotoa**2)*W%wing(j)+2.D0*vis(j)*etak/adotoa*W%wing(j)/ &
+                        EV%Kf(1)+(2.D0*vis(j)*W%dwing(j)*sigma+2.D0*vis(j)*W%dwing(j)*vb)/adotoa)/k
+                        t(0) =  s(1)+s(2)
+
+                        sources(3+w_ix)= sources(3+w_ix) + t(0)
+                    end if
+
+
+                    if (line_extra) then
+                        !All sources except below
+                        if (line_basic .and. line_distortions) then
+                            sources(3+w_ix) =  (-2.D0/3.D0*sigma+2.D0/3.D0*etak/adotoa)*W%winV(j)*expmmu(j)*k+ &
+                            (W%wing2(j)*Delta_source2+W%wing(j)*Delta_source+1.D0/adotoa*W%winV(j)*dgrho/3.D0)* &
+                            expmmu(j)+((-W%dwing(j)*vb+(-(3.D0*gpres+grho)*sigma/3.D0 &
+                            - 4.D0*adotoa**2*sigma)*W%winV(j)+4.D0*adotoa*W%dwinV(j)*sigma+(-sigma- &
+                            vb)*W%ddWinV(j)-vbdot*W%wing(j)-W%dwinV(j)*vbdot+(-2.D0*W%dwinV(j)*etak &
+                            + 2.D0*etak*adotoa*W%winV(j))/EV%Kf(1))*expmmu(j)-2.D0*vis(j)*sigma*W%dwinV(j)+ &
+                            (4.D0*vis(j)*sigma*adotoa-dvis(j)*sigma)*W%winV(j)-2.D0*vis(j)*W%winV(j)*etak/ &
+                            EV%Kf(1)-vis(j)*W%dwinV(j)*vb-vis(j)*W%wing(j)*vb)/k+((2.D0*W%dwinV(j)*dgpi+ &
+                            diff_rhopi*W%winV(j))*expmmu(j)+2.D0*vis(j)*W%winV(j)*dgpi)/k**2
+                        else
+                            s(1) =  ((-2.D0/3.D0*sigma+2.D0/3.D0*etak/adotoa)*W%winV(j)+(-sigma/adotoa/3.D0+ &
+                            etak/adotoa**2/3.D0)*W%wing(j))*expmmu(j)*k+(1.D0/adotoa*W%winV(j)*dgrho/3.D0 &
+                            + 1.D0/adotoa**2*W%wing(j)*dgrho/6.D0)*expmmu(j)
+                            s(2) =  s(1)
+                            s(6) =  ((-vb-sigma)*W%ddWinV(j)+(-4.D0*adotoa**2*sigma-&
+                            (18.D0*gpres+ 6.D0*grho)*sigma/18.D0)*W%winV(j)+((-4.D0*sigma-vb)*adotoa-vbdot+&
+                            (grho*sigma/ 2.D0+vb*grho/3.D0)/adotoa+(-grho**2*sigma/18.D0-vb*grho**2/18.D0)/ &
+                            adotoa**3)*W%wing(j)+W%dwing(j)*vb+(-W%ddwing(j)*sigma-W%ddwing(j)*vb)/adotoa &
+                            + 4.D0*W%dwinV(j)*sigma*adotoa+4.D0*W%dwing(j)*sigma+(-W%dwing(j)*grho*sigma/3.D0- &
+                            W%dwing(j)*vb*grho/3.D0)/adotoa**2-W%dwinV(j)*vbdot+((2.D0*etak-etak*grho/ &
+                            adotoa**2/3.D0)*W%wing(j)-2.D0*W%dwing(j)*etak/adotoa-2.D0*W%dwinV(j)*etak &
+                            + 2.D0*etak*adotoa*W%winV(j))/EV%Kf(1))*expmmu(j)-vis(j)*W%dwinV(j)*vb+ &
+                            (4.D0*vis(j)*sigma*adotoa-dvis(j)*sigma)*W%winV(j)
+                            s(5) =  s(6)+(-2.D0*vis(j)*etak/adotoa*W%wing(j)-2.D0*vis(j)*W%winV(j)*etak)/ &
+                            EV%Kf(1)+(4.D0*vis(j)*sigma+(-vis(j)*grho*sigma/3.D0-vis(j)*vb*grho/3.D0)/ &
+                            adotoa**2+vis(j)*vb+(-dvis(j)*sigma-dvis(j)*vb)/adotoa)*W%wing(j)+ &
+                            (-2.D0*vis(j)*W%dwing(j)*sigma-2.D0*vis(j)*W%dwing(j)*vb)/adotoa &
+                            - 2.D0*vis(j)*W%dwinV(j)*sigma
+                            s(6) =  1.D0/k
+                            s(4) =  s(5)*s(6)
+                            s(5) =  ((diff_rhopi*W%winV(j)+2.D0*W%dwinV(j)*dgpi)*expmmu(j) &
+                            + 2.D0*vis(j)*dgpi*W%winV(j))/k**2
+                            s(3) =  s(4)+s(5)
+                            t(0) =  s(2)+s(3)
+
+                            sources(3+w_ix) =   sources(3+w_ix) + t(0)
+                        end if
+                    end if
+
+
+
+                    if (line_reionization) then
+                        if (num_redshiftwindows>1) stop 'reionization only for one window at the mo'
+                        lineoff=EV%line_ix+1
+                        lineoffpol = lineoff+EV%lmaxline-1
+                        polter_line = 0.1_dl*y(lineoff+2)+9._dl/15._dl*y(lineoffpol+2)
+
+                        if (x > 0._dl) then
+                            sources(2)=vis(j)*polter_line*(15._dl/2._dl)/divfac
+                        else
+                            sources(2)=0
+                        end if
+
+                        if (.not. use_mK) sources(2)= sources(2) /W%Fq
+
+
+                        s(1) =  vis(j)*y(lineoff+2)/4.D0+vis(j)*y(lineoff)
                         s(2) =  s(1)
-                        s(6) =  ((-vb-sigma)*W%ddWinV(j)+(-4.D0*adotoa**2*sigma-&
-                        (18.D0*gpres+ 6.D0*grho)*sigma/18.D0)*W%winV(j)+((-4.D0*sigma-vb)*adotoa-vbdot+&
-                        (grho*sigma/ 2.D0+vb*grho/3.D0)/adotoa+(-grho**2*sigma/18.D0-vb*grho**2/18.D0)/ &
-                        adotoa**3)*W%wing(j)+W%dwing(j)*vb+(-W%ddwing(j)*sigma-W%ddwing(j)*vb)/adotoa &
-                        + 4.D0*W%dwinV(j)*sigma*adotoa+4.D0*W%dwing(j)*sigma+(-W%dwing(j)*grho*sigma/3.D0- &
-                        W%dwing(j)*vb*grho/3.D0)/adotoa**2-W%dwinV(j)*vbdot+((2.D0*etak-etak*grho/ &
-                        adotoa**2/3.D0)*W%wing(j)-2.D0*W%dwing(j)*etak/adotoa-2.D0*W%dwinV(j)*etak &
-                        + 2.D0*etak*adotoa*W%winV(j))/EV%Kf(1))*expmmu(j)-vis(j)*W%dwinV(j)*vb+ &
-                        (4.D0*vis(j)*sigma*adotoa-dvis(j)*sigma)*W%winV(j)
-                        s(5) =  s(6)+(-2.D0*vis(j)*etak/adotoa*W%wing(j)-2.D0*vis(j)*W%winV(j)*etak)/ &
-                        EV%Kf(1)+(4.D0*vis(j)*sigma+(-vis(j)*grho*sigma/3.D0-vis(j)*vb*grho/3.D0)/ &
-                        adotoa**2+vis(j)*vb+(-dvis(j)*sigma-dvis(j)*vb)/adotoa)*W%wing(j)+ &
-                        (-2.D0*vis(j)*W%dwing(j)*sigma-2.D0*vis(j)*W%dwing(j)*vb)/adotoa &
-                        - 2.D0*vis(j)*W%dwinV(j)*sigma
-                        s(6) =  1.D0/k
-                        s(4) =  s(5)*s(6)
-                        s(5) =  ((diff_rhopi*W%winV(j)+2.D0*W%dwinV(j)*dgpi)*expmmu(j) &
-                        + 2.D0*vis(j)*dgpi*W%winV(j))/k**2
+                        s(4) =  (-1.D0/EV%Kf(1)*vis(j)*W%winV(j)*etak/10.D0-vis(j)*sigma*W%dwinV(j)/10.D0 &
+                        - 9.D0/20.D0*vis(j)*yprime(lineoff+2)-27.D0/100.D0*vis(j)*opac(j)*y(lineoff+1) &
+                        - 9.D0/10.D0*dvis(j)*y(lineoff+3)-3.D0/20.D0*vis(j)*opac(j)*EV%Kf(2)*y(lineoffpol+3)+ &
+                        vis(j)*W%dwinV(j)*vb+81.D0/200.D0*vis(j)*opac(j)*y(lineoff+3) &
+                        +3.D0/5.D0*dvis(j)*y(lineoff+1)+3.D0/10.D0*vis(j)*yprime(lineoff+1)+ &
+                        (vis(j)*adotoa*sigma/5.D0+(36.D0*vis(j)*opac(j)-80.D0*dvis(j))*sigma/400.D0+ &
+                        dvis(j)*vb+vis(j)*vbdot)*W%winV(j))/k
+                        s(5) =  (vis(j)*W%winV(j)*dgpi/10.D0+9.D0/20.D0*vis(j)*dopac(j)*y(lineoffpol+2) &
+                        + 261.D0/400.D0*vis(j)*opac(j)**2.D0*y(lineoff+2)&
+                        -117.D0/200.D0*vis(j)*opac(j)**2.D0*y(lineoffpol+2)+3.D0/4.D0*ddvis(j)*y(lineoff+2) &
+                        - 27.D0/20.D0*dvis(j)*opac(j)*y(lineoff+2)+9.D0/10.D0*dvis(j)*opac(j)*y(lineoffpol+2)&
+                        -27.D0/40.D0*vis(j)*dopac(j)*y(lineoff+2))/k**2
                         s(3) =  s(4)+s(5)
                         t(0) =  s(2)+s(3)
 
-                        sources(3+w_ix) =   sources(3+w_ix) + t(0)
-                    end if
-                end if
-
-
-
-                if (line_reionization) then
-                    if (num_redshiftwindows>1) stop 'reionization only for one window at the mo'
-                    lineoff=EV%line_ix+1
-                    lineoffpol = lineoff+EV%lmaxline-1
-                    polter_line = 0.1_dl*y(lineoff+2)+9._dl/15._dl*y(lineoffpol+2)
-
-                    if (x > 0._dl) then
-                        sources(2)=vis(j)*polter_line*(15._dl/2._dl)/divfac
-                    else
-                        sources(2)=0
+                        sources(3+w_ix)= sources(3+w_ix) + t(0)
                     end if
 
-                    if (.not. use_mK) sources(2)= sources(2) /W%Fq
+                    if (line_phot_quadrupole) then
+                        s(1) =  (EV%kf(1)*W%wing2(j)*pig/2.D0+(-clxg/4.D0-5.D0/8.D0*pig)*W%wing2(j))*expmmu(j)
+                        s(3) =  ((-1.D0/EV%kf(1)*W%wing2(j)*etak+(-sigma+9.D0/8.D0*EV%kf(2)*y(9) &
+                        -3.D0/4.D0*qg)*W%dwing2(j)+(-opac(j)*vb+2.D0*adotoa*sigma+9.D0/8.D0*EV%kf(2)*yprime(9) &
+                        + 3.D0/8.D0*opac(j)*EV%kf(2)*ypol(3)+3.D0/4.D0*opac(j)*qg)*W%wing2(j))*expmmu(j)+ &
+                        (-3.D0/4.D0*vis(j)*qg-vis(j)*sigma+9.D0/8.D0*vis(j)*EV%kf(2)*y(9))*W%wing2(j))/k
+                        s(4) =  (((27.D0/16.D0*opac(j)*pig-15.D0/8.D0*pigdot &
+                        -9.D0/8.D0*opac(j)*ypol(2))*W%dwing2(j)+(27.D0/16.D0*dopac(j)*pig &
+                        +9.D0/8.D0*opac(j)**2.D0*ypol(2)-9.D0/8.D0*opac(j)**2.D0*polter &
+                        +27.D0/16.D0*opac(j)*pigdot+dgpi-9.D0/8.D0*dopac(j)*ypol(2))*W%wing2(j)&
+                        -15.D0/8.D0*W%ddwing2(j)*pig)*expmmu(j)-15.D0/4.D0*vis(j)*W%dwing2(j)*pig+(- &
+                        (-27.D0*vis(j)*opac(j)+30.D0*dvis(j))*pig/16.D0-9.D0/8.D0*vis(j)*opac(j)*ypol(2) &
+                        - 15.D0/8.D0*vis(j)*pigdot)*W%wing2(j))/k**2
+                        s(2) =  s(3)+s(4)
+                        t(0) =  s(1)+s(2)
+
+                        sources(3+w_ix)= sources(3+w_ix)+ t(0)
+                    end if
 
 
-                    s(1) =  vis(j)*y(lineoff+2)/4.D0+vis(j)*y(lineoff)
-                    s(2) =  s(1)
-                    s(4) =  (-1.D0/EV%Kf(1)*vis(j)*W%winV(j)*etak/10.D0-vis(j)*sigma*W%dwinV(j)/10.D0 &
-                    - 9.D0/20.D0*vis(j)*yprime(lineoff+2)-27.D0/100.D0*vis(j)*opac(j)*y(lineoff+1) &
-                    - 9.D0/10.D0*dvis(j)*y(lineoff+3)-3.D0/20.D0*vis(j)*opac(j)*EV%Kf(2)*y(lineoffpol+3)+ &
-                    vis(j)*W%dwinV(j)*vb+81.D0/200.D0*vis(j)*opac(j)*y(lineoff+3) &
-                    +3.D0/5.D0*dvis(j)*y(lineoff+1)+3.D0/10.D0*vis(j)*yprime(lineoff+1)+ &
-                    (vis(j)*adotoa*sigma/5.D0+(36.D0*vis(j)*opac(j)-80.D0*dvis(j))*sigma/400.D0+ &
-                    dvis(j)*vb+vis(j)*vbdot)*W%winV(j))/k
-                    s(5) =  (vis(j)*W%winV(j)*dgpi/10.D0+9.D0/20.D0*vis(j)*dopac(j)*y(lineoffpol+2) &
-                    + 261.D0/400.D0*vis(j)*opac(j)**2.D0*y(lineoff+2)&
-                    -117.D0/200.D0*vis(j)*opac(j)**2.D0*y(lineoffpol+2)+3.D0/4.D0*ddvis(j)*y(lineoff+2) &
-                    - 27.D0/20.D0*dvis(j)*opac(j)*y(lineoff+2)+9.D0/10.D0*dvis(j)*opac(j)*y(lineoffpol+2)&
-                    -27.D0/40.D0*vis(j)*dopac(j)*y(lineoff+2))/k**2
-                    s(3) =  s(4)+s(5)
-                    t(0) =  s(2)+s(3)
+                    if (line_phot_dipole) then
+                        sources(3+w_ix)=sources(3+w_ix) + (EV%kf(1)*W%wing2(j)*pig/2.D0-W%wing2(j)*clxg/4.D0)*expmmu(j)+(((vbdot- &
+                        opac(j)*vb+3.D0/4.D0*opac(j)*qg)*W%wing2(j)+(vb-3.D0/4.D0*qg)*W%dwing2(j))*expmmu(j)+&
+                        (vis(j)*vb-3.D0/4.D0*vis(j)*qg)*W%wing2(j))/k
+                    end if
 
-                    sources(3+w_ix)= sources(3+w_ix) + t(0)
+                    if (.not. use_mK) sources(3+w_ix)= sources(3+w_ix) /W%Fq
                 end if
-
-                if (line_phot_quadrupole) then
-                    s(1) =  (EV%kf(1)*W%wing2(j)*pig/2.D0+(-clxg/4.D0-5.D0/8.D0*pig)*W%wing2(j))*expmmu(j)
-                    s(3) =  ((-1.D0/EV%kf(1)*W%wing2(j)*etak+(-sigma+9.D0/8.D0*EV%kf(2)*y(9) &
-                    -3.D0/4.D0*qg)*W%dwing2(j)+(-opac(j)*vb+2.D0*adotoa*sigma+9.D0/8.D0*EV%kf(2)*yprime(9) &
-                    + 3.D0/8.D0*opac(j)*EV%kf(2)*ypol(3)+3.D0/4.D0*opac(j)*qg)*W%wing2(j))*expmmu(j)+ &
-                    (-3.D0/4.D0*vis(j)*qg-vis(j)*sigma+9.D0/8.D0*vis(j)*EV%kf(2)*y(9))*W%wing2(j))/k
-                    s(4) =  (((27.D0/16.D0*opac(j)*pig-15.D0/8.D0*pigdot &
-                    -9.D0/8.D0*opac(j)*ypol(2))*W%dwing2(j)+(27.D0/16.D0*dopac(j)*pig &
-                    +9.D0/8.D0*opac(j)**2.D0*ypol(2)-9.D0/8.D0*opac(j)**2.D0*polter &
-                    +27.D0/16.D0*opac(j)*pigdot+dgpi-9.D0/8.D0*dopac(j)*ypol(2))*W%wing2(j)&
-                    -15.D0/8.D0*W%ddwing2(j)*pig)*expmmu(j)-15.D0/4.D0*vis(j)*W%dwing2(j)*pig+(- &
-                    (-27.D0*vis(j)*opac(j)+30.D0*dvis(j))*pig/16.D0-9.D0/8.D0*vis(j)*opac(j)*ypol(2) &
-                    - 15.D0/8.D0*vis(j)*pigdot)*W%wing2(j))/k**2
-                    s(2) =  s(3)+s(4)
-                    t(0) =  s(1)+s(2)
-
-                    sources(3+w_ix)= sources(3+w_ix)+ t(0)
-                end if
-
-
-                if (line_phot_dipole) then
-                    sources(3+w_ix)=sources(3+w_ix) + (EV%kf(1)*W%wing2(j)*pig/2.D0-W%wing2(j)*clxg/4.D0)*expmmu(j)+(((vbdot- &
-                    opac(j)*vb+3.D0/4.D0*opac(j)*qg)*W%wing2(j)+(vb-3.D0/4.D0*qg)*W%dwing2(j))*expmmu(j)+&
-                    (vis(j)*vb-3.D0/4.D0*vis(j)*qg)*W%wing2(j))/k
-                end if
-
-                if (.not. use_mK) sources(3+w_ix)= sources(3+w_ix) /W%Fq
-            end if
-
             end do
         end if
 
@@ -2191,21 +2182,19 @@
     if (CP%Num_Nu_massive == 0) return
 
     do nu_i = 1, CP%Nu_mass_eigenstates
-
-    EV%MassiveNuApproxTime(nu_i) = Nu_tau_massive(nu_i)
-    a_massive =  20000*k/nu_masses(nu_i)*AccuracyBoost*lAccuracyBoost
-    if (a_massive >=0.99) then
-        EV%MassiveNuApproxTime(nu_i)=CP%tau0+1
-    else if (a_massive > 17.d0/nu_masses(nu_i)*AccuracyBoost) then
-        EV%MassiveNuApproxTime(nu_i)=max(EV%MassiveNuApproxTime(nu_i),DeltaTime(0._dl,a_massive, 0.01_dl))
-    end if
-    ind = EV%nu_ix(nu_i)
-    do  i=1,EV%nq(nu_i)
-        y(ind:ind+2)=y(EV%r_ix:EV%r_ix+2)
-        if (EV%lmaxnu_tau(nu_i)>2) y(ind+3)=InitVec(i_aj3r)
-        ind = ind + EV%lmaxnu_tau(nu_i)+1
-    end do
-
+        EV%MassiveNuApproxTime(nu_i) = Nu_tau_massive(nu_i)
+        a_massive =  20000*k/nu_masses(nu_i)*AccuracyBoost*lAccuracyBoost
+        if (a_massive >=0.99) then
+            EV%MassiveNuApproxTime(nu_i)=CP%tau0+1
+        else if (a_massive > 17.d0/nu_masses(nu_i)*AccuracyBoost) then
+            EV%MassiveNuApproxTime(nu_i)=max(EV%MassiveNuApproxTime(nu_i),DeltaTime(0._dl,a_massive, 0.01_dl))
+        end if
+        ind = EV%nu_ix(nu_i)
+        do  i=1,EV%nq(nu_i)
+            y(ind:ind+2)=y(EV%r_ix:EV%r_ix+2)
+            if (EV%lmaxnu_tau(nu_i)>2) y(ind+3)=InitVec(i_aj3r)
+            ind = ind + EV%lmaxnu_tau(nu_i)+1
+        end do
     end do
 
     end subroutine initial
@@ -2397,7 +2386,6 @@
     Arr(Transfer_kh) = k/(CP%h0/100._dl)
     Arr(Transfer_cdm) = clxc/k2
     Arr(Transfer_b) = clxb/k2
-
     Arr(Transfer_g) = clxg/k2
     Arr(Transfer_r) = clxr/k2
 
@@ -2410,7 +2398,6 @@
     else
         Arr(Transfer_nu) = 0
     end if
-
 
     !!!If we want DE perturbations to get \delta\rho/\rho_m
     !       dgrho=dgrho+y(EV%w_ix)*grhov*a**(-1-3*w_lam)
@@ -2490,17 +2477,16 @@
     real(dl) dgq,grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,sigma,polter
     real(dl) qgdot,qrdot,pigdot,pirdot,vbdot,dgrho,adotoa
     real(dl) a,a2,z,clxc,clxb,vb,clxg,qg,pig,clxr,qr,pir
-    real(dl) rhonu,pnu,clxnu,qnu,f
     real(dl) clxq, vq,  E2, dopacity
     integer l,i,ind, ind2, off_ix, ix
+    real(dl) dgs,sigmadot,dz !, ddz
+    !non-flat vars
+    real(dl) cothxor !1/tau in flat case
     real(dl) xe,Trad, Delta_Ts, Delta_TM, Tmat, Delta_TCMB
     real(dl) delta_p, wing_t, wing2_t,winv_t
     real(dl) Delta_source2, polter_line
     real(dl) Delta_xe
     integer lineoff,lineoffpol
-    real(dl) dgs,sigmadot,dz !, ddz
-    !non-flat vars
-    real(dl) cothxor !1/tau in flat case
 
     k=EV%k_buf
     k2=EV%k2_buf
@@ -2529,7 +2515,6 @@
         grhov_t=grhov*a**(-1-3*w_lam)
     end if
 
-
     !  Get sound speed and ionisation fraction.
     if (EV%TightCoupling) then
         call thermo(tau,cs2,opacity,dopacity)
@@ -2549,7 +2534,6 @@
     if (CP%Num_Nu_Massive > 0) then
         call MassiveNuVars(EV,ay,a,grho,gpres,dgrho,dgq, wnu_arr)
     end if
-
 
     if (CP%flat) then
         adotoa=sqrt(grho/3)
@@ -2874,7 +2858,6 @@
                     do  l=3,EV%lmaxline-1
                         ayprime(lineoff+l)=EV%denlk(l)*ay(lineoff+l-1)-EV%denlk2(l)*ay(lineoff+l+1)-opacity*ay(lineoff+l) &
                         - wing2_t * ay(6+l)/4
-
                     end do
                     !truncate
                     ayprime(lineoff+EV%lmaxline)=k*ay(lineoff+EV%lmaxline-1)-(EV%lmaxline+1)*cothxor*ay(lineoff+EV%lmaxline)  &
@@ -3132,6 +3115,8 @@
     end subroutine derivsv
 
 
+
+
     !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
     subroutine derivst(EV,n,tau,ayt,aytprime)
     !  Evaluate the time derivatives of the tensor perturbations.
@@ -3233,10 +3218,8 @@
             EV%denlkt(3,2)*E(3)
 
             do l=3, EV%lmaxpolt-1
-
-            Eprime(l) =(EV%denlkt(1,L)*E(l-1)-EV%denlkt(3,L)*E(l+1) + EV%denlkt(4,L)*B(l)) &
-            -opacity*E(l)
-
+                Eprime(l) =(EV%denlkt(1,L)*E(l-1)-EV%denlkt(3,L)*E(l+1) + EV%denlkt(4,L)*B(l)) &
+                -opacity*E(l)
             end do
             l= EV%lmaxpolt
             !truncate: difficult, but setting l+1 to zero seems to work OK
@@ -3337,6 +3320,8 @@
     aytprime(2)=-k*shear
 
     end subroutine derivst
+
+
 
 
     !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
