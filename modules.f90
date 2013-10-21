@@ -2057,10 +2057,9 @@
     P%k_per_logint  = 0
     maxRedshift = 10
     P%NLL_num_redshifts =  nint(10*AccuracyBoost)
-    if (HighAccuracyDefault) then
+    if (HighAccuracyDefault .and. AccuracyBoost>=2) then
         !only notionally more accuracy, more stable for RS
         maxRedshift =15
-        P%NLL_num_redshifts = P%NLL_num_redshifts *3
     end if
     if (P%NLL_num_redshifts > max_transfer_redshifts) &
     stop 'Transfer_SetForNonlinearLensing: Too many redshifts'

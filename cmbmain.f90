@@ -370,7 +370,7 @@
                                 Cl = Cl + LimbRec%Source(n)*LimbRec2%Source(n) * fac * ScalarPower(LimbRec%k(n) ,pix)
                             end do
 
-                            if(j==0) iCl_scalar(ell,C_Phi,pix) = Cl
+                            if(j==0 .and. i==0) iCl_scalar(ell,C_Phi,pix) = Cl
                             if (has_cl_2D_array) then
                                 dbletmp=(reall*(reall+1))/OutputDenominator*fourpi
                                 iCl_Array(ell,s_ix,s_ix2,pix) = Cl*dbletmp
@@ -426,9 +426,9 @@
         do ell = 1, ThisCT%ls%l0
             if (ThisCT%ls%l(ell) >= ell_limb) then
                 ThisCT%limber_l_min(s_ix) =  ell
-                ell_needed = ell
+                ell_needed = ThisCT%ls%l(ell)
                 max_bessels_l_index = max(max_bessels_l_index,ThisCT%limber_l_min(s_ix)-1)
-                if (FeedbackLevel > 1) write (*,*) i,'Limber switch', ThisCT%ls%l(ell)
+                if (FeedbackLevel > 1) write (*,*) i,'Limber switch', ell_needed
                 exit
             end if
         end do
@@ -1866,12 +1866,12 @@
                 !may save time, and prevents numerical error leading to access violation of IV%Source_q(0)
                 sources = IV%Source_q(is+1,1:SourceNum)
             else
-            a=1._dl-b
-            tmpa=(a**3-a)
-            tmpb=(b**3-b)
-            sources=a*IV%Source_q(is,1:SourceNum)+b*IV%Source_q(is+1,1:SourceNum)+ &
-            (tmpa*IV%ddSource_q(is,1:SourceNum)+ &
-            tmpb*IV%ddSource_q(is+1,1:SourceNum))*dtau2o6
+                a=1._dl-b
+                tmpa=(a**3-a)
+                tmpb=(b**3-b)
+                sources=a*IV%Source_q(is,1:SourceNum)+b*IV%Source_q(is+1,1:SourceNum)+ &
+                (tmpa*IV%ddSource_q(is,1:SourceNum)+ &
+                tmpb*IV%ddSource_q(is+1,1:SourceNum))*dtau2o6
             end if
         else
             sources = IV%Source_q(Startn - i*isgn,1:SourceNum)
@@ -2145,15 +2145,16 @@
                             dbletmp=(ell*(ell+1))/OutputDenominator*fourpi
 
                             do w_ix=1,3 + num_redshiftwindows
-                                if (w_ix>3 .or. limber_phiphi>0 .and. w_ix2==3) then
-                                    if (CTrans%limber_l_min(w_ix)/= 0 .and. j>=CTrans%limber_l_min(w_ix)) cycle
-                                end if
                                 Delta1= CTrans%Delta_p_l_k(w_ix,j,q_ix)
                                 if (w_ix == 2) Delta1=Delta1*ctnorm
 
                                 do w_ix2=1,3 + num_redshiftwindows
-                                    if (w_ix2>3 .or. limber_phiphi>0 .and. w_ix2==3) then
-                                        if (CTrans%limber_l_min(w_ix2)/= 0 .and. j>=CTrans%limber_l_min(w_ix2)) cycle
+                                    if ((w_ix2>3 .or. limber_phiphi>0 .and. w_ix2==3) .and. &
+                                    (w_ix>3 .or. limber_phiphi>0 .and. w_ix==3)) then
+                                        !Skip if the auto or cross-correlation is included in direct Limber result
+                                        !Otherwise we need to include the sources e.g. to get counts-Temperature correct
+                                        if (CTrans%limber_l_min(w_ix2)/= 0 .and. j>=CTrans%limber_l_min(w_ix2) &
+                                        .and. CTrans%limber_l_min(w_ix)/= 0 .and. j>=CTrans%limber_l_min(w_ix)) cycle
                                     end if
                                     Delta2=  CTrans%Delta_p_l_k(w_ix2,j,q_ix)
                                     if (w_ix2 == 2) Delta2=Delta2*ctnorm
