@@ -237,8 +237,12 @@
     Cls = 0
     do l=2, lmax
         if (CP%WantScalars .and. l<= CP%Max_l) then
-            Cls(l,1:2) = Cl_scalar(l, in,  C_Temp:C_E)
-            Cls(l,4) = Cl_scalar(l, in,  C_Cross)
+            if (CP%DoLensing) then
+                if (l<=lmax_lensed) Cls(l,1:4) = Cl_lensed(l, in, CT_Temp:CT_Cross)
+            else
+                Cls(l,1:2) = Cl_scalar(l, in,  C_Temp:C_E)
+                Cls(l,4) = Cl_scalar(l, in,  C_Cross)
+            endif
         end if
         if (CP%WantTensors .and. l <= CP%Max_l_tensor) then
             Cls(l,1:4) = Cls(l,1:4) + Cl_tensor(l, in,  CT_Temp:CT_Cross)
@@ -249,7 +253,7 @@
         Cls(:,4)   = Cls(:,4)/sqrt(2.0)
     end if
 
-    end subroutine CAMB_GetCls
+    end subroutine CAMB_GetCls 
 
     function CAMB_GetAge(P)
     !Return age in gigayears, returns -1 on error
