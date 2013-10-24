@@ -8,8 +8,8 @@
     use CAMB
     use LambdaGeneral
     use Lensing
+    use AMLUtils
     use NonLinear
-    use AMLutils
     use constants
     use Bispectrum
     use CAMBmain
@@ -436,8 +436,8 @@
     end if
 
     if (P%WantCls) then
-        call output_cl_files(ScalarFileName, ScalarCovFileName,TensorFileName, TotalFileName, &
-        LensedFileName, LensedTotFilename,output_factor)
+        call output_cl_files(ScalarFileName, ScalarCovFileName, TensorFileName, TotalFileName, &
+        LensedFileName, LensedTotFilename, output_factor)
 
         call output_lens_pot_files(LensPotentialFileName, output_factor)
 

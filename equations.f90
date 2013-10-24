@@ -2,9 +2,25 @@
     ! allowing for perturbations based on a quintessence model
     ! by Antony Lewis (http://cosmologist.info/)
 
+    ! Dec 2003, fixed (fatal) bug in tensor neutrino setup
+    ! Changes to tight coupling approximation
+    ! June 2004, fixed problem with large scale polarized tensors; support for vector modes
+    ! Generate vector modes on their own. The power spectrum is taken from the scalar parameters.
+    ! August 2004, fixed reionization term in lensing potential
+    ! Nov 2004, change massive neutrino l_max to be consistent with massless if light
+    ! Apr 2005, added DoLateRadTruncation option
+    ! June 2006, added support for arbitary neutrino mass splittings
+    ! Nov 2006, tweak to high_precision transfer function accuracy at lowish k
+    ! June 2011, improved radiation approximations from arXiv: 1104.2933; Some 2nd order tight coupling terms
+    !            merged fderivs and derivs so flat and non-flat use same equations; more precomputed arrays
+    !            optimized neutrino sampling, and reorganised neutrino integration functions
+    ! Feb 2013: fixed various issues with accuracy at larger neutrino masses
+
+	!CAMB Sources:
     ! Feb 2007 changes for 21cm and other power spectra
     ! July 2007 added perturbed recombination, self-absorption, changes to transfer function output
     ! May 2013 update for latest CAMB changes, removed support for tensor 21cm for simplicity
+	! Oct 2013 merge and fix for latest CAMB
 
     module LambdaGeneral
     use precision
@@ -19,6 +35,7 @@
     !If you are tempted to set this = .false. read
     ! http://cosmocoffee.info/viewtopic.php?t=811
     ! http://cosmocoffee.info/viewtopic.php?t=512
+
     contains
 
     subroutine DarkEnergy_ReadParams(Ini)
@@ -866,7 +883,6 @@
                 EV%lmaxgpol=EV%lmaxgpol*2
             end if
         end if
-
         if (EV%TransferOnly) then
             EV%lmaxgpol = min(EV%lmaxgpol,nint(5*lAccuracyBoost))
             EV%lmaxg = min(EV%lmaxg,nint(6*lAccuracyBoost))
@@ -1337,12 +1353,13 @@
     !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
     subroutine output(EV,y, j,tau,sources)
-    use constants, only : barssc0
     use ThermoData
-    use RedshiftSpaceData
-    use Recombination
     use lvalues
     use ModelData
+    use constants, only : barssc0
+    use RedshiftSpaceData
+    use Recombination
+
     implicit none
     integer j
     type(EvolutionVars) EV
@@ -1361,7 +1378,7 @@
     real(dl) k,k2  ,adotoa, grho, gpres,etak,phi,dgpi
     real(dl) clxq, vq, diff_rhopi, octg, octgprime
     real(dl) sources(CTransScal%NumSources)
-    real(dl) t4,t92
+    real(dl) ISW
     !Sources
     real(dl) phidot
     real(dl) Tmat,Trad, Tspin, Delta_source, Delta_source2
@@ -1369,9 +1386,8 @@
     real(dl) polter_line, chi
     integer w_ix, lineoff,lineoffpol
     Type (TRedWin), pointer :: W
-
     real(dl) cs2, xe,opacity, delta_p
-    real(dl) s(0:10), t(0:10), ISW
+    real(dl) s(0:10), t(0:10)
     real(dl) counts_radial_source, counts_velocity_source, counts_density_source, counts_ISW_source, &
     counts_redshift_source, counts_timedelay_source, counts_potential_source
     sources = 0
@@ -1529,7 +1545,7 @@
     sources(1)= ISW +  ((-9.D0/160.D0*pig-27.D0/80.D0*ypol(2))/k**2*opac(j)+ &
     (11.D0/10.D0*sigma- 3.D0/8.D0*EV%Kf(2)*ypol(3)+vb-9.D0/80.D0*EV%Kf(2)*octg+3.D0/40.D0*qg)/k- &
     (-180.D0*ypolprime(2)-30.D0*pigdot)/k**2/160.D0)*dvis(j) + &
-    (-(9.D0*pigdot+ 54.D0*ypolprime(2))/k**2*opac(j)/160.D0+pig/16.D0+clxg/4.D0+3.D0/8.D0*ypol(2)+&
+    (-(9.D0*pigdot+ 54.D0*ypolprime(2))/k**2*opac(j)/160.D0+pig/16.D0+clxg/4.D0+3.D0/8.D0*ypol(2) + &
     (-21.D0/5.D0*adotoa*sigma-3.D0/8.D0*EV%Kf(2)*ypolprime(3) + &
     vbdot+3.D0/40.D0*qgdot- 9.D0/80.D0*EV%Kf(2)*octgprime)/k + &
     (-9.D0/160.D0*dopac(j)*pig-21.D0/10.D0*dgpi-27.D0/80.D0*dopac(j)*ypol(2))/k**2)*vis(j) + &
@@ -1539,6 +1555,22 @@
     ! Doppler term
     !   sources(1)=  (sigma+vb)/k*dvis(j)+((-2.D0*adotoa*sigma+vbdot)/k-1.D0/k**2*dgpi)*vis(j) &
     !         +1.D0/k/EV%Kf(1)*vis(j)*etak
+
+    !Equivalent full result
+    !    t4 = 1.D0/adotoa
+    !    t92 = k**2
+    !   sources(1) = (4.D0/3.D0*EV%Kf(1)*expmmu(j)*sigma+2.D0/3.D0*(-sigma-t4*etak)*expmmu(j))*k+ &
+    !       (3.D0/8.D0*ypol(2)+pig/16.D0+clxg/4.D0)*vis(j)
+    !    sources(1) = sources(1)-t4*expmmu(j)*dgrho/3.D0+((11.D0/10.D0*sigma- &
+    !         3.D0/8.D0*EV%Kf(2)*ypol(3)+vb+ 3.D0/40.D0*qg-9.D0/80.D0*EV%Kf(2)*y(9))*dvis(j)+(5.D0/3.D0*grho+ &
+    !        gpres)*sigma*expmmu(j)+(-2.D0*adotoa*etak*expmmu(j)+21.D0/10.D0*etak*vis(j))/ &
+    !        EV%Kf(1)+(vbdot-3.D0/8.D0*EV%Kf(2)*ypolprime(3)+3.D0/40.D0*qgdot-21.D0/ &
+    !        5.D0*sigma*adotoa-9.D0/80.D0*EV%Kf(2)*yprime(9))*vis(j))/k+(((-9.D0/160.D0*pigdot- &
+    !        27.D0/80.D0*ypolprime(2))*opac(j)-21.D0/10.D0*dgpi -27.D0/80.D0*dopac(j)*ypol(2) &
+    !        -9.D0/160.D0*dopac(j)*pig)*vis(j) - diff_rhopi*expmmu(j)+((-27.D0/80.D0*ypol(2)-9.D0/ &
+    !        160.D0*pig)*opac(j)+3.D0/16.D0*pigdot+9.D0/8.D0*ypolprime(2))*dvis(j)+9.D0/ &
+    !        8.D0*ddvis(j)*ypol(2)+3.D0/16.D0*ddvis(j)*pig)/t92
+
 
     if (x > 0._dl) then
         !E polarization source
@@ -1571,7 +1603,7 @@
             !         sources(3) = 0
             !     end if
         else
-            sources(3)=0
+            sources(3) = 0
         end if
 
         if (line_reionization) sources(2)=0
@@ -2041,6 +2073,7 @@
     if (second_order_tightcoupling) ep=ep*2
     EV%TightSwitchoffTime = min(tight_tau,Thermo_OpacityToTime(EV%k_buf/ep))
 
+
     y=0
 
     !  k*tau, (k*tau)**2, (k*tau)**3
@@ -2053,6 +2086,7 @@
     om = (grhob+grhoc)/sqrt(3*(grhog+grhonu))
     omtau=om*tau
     Rv=grhonu/(grhonu+grhog)
+
     Rg = 1-Rv
     Rc=CP%omegac/(CP%omegac+CP%omegab)
     Rb=1-Rc
@@ -2261,13 +2295,13 @@
 
     yt(2)= tens0
     !commented things are for the compensated mode with magnetic fields; can be neglected
-    ! -15/28._dl*x**2*(bigR-1)/(15+4*bigR)*Magnetic*(1-5./2*omtau/(2*bigR+15))
+    !-15/28._dl*x**2*(bigR-1)/(15+4*bigR)*Magnetic*(1-5./2*omtau/(2*bigR+15))
 
     elec=-tens0*(1+2*CP%curv/k2)*(2*bigR+10)/(4*bigR+15) !elec, with H=1
 
     !shear
     yt(3)=-5._dl/2/(bigR+5)*x*elec
-    !+ 15._dl/14*x*(bigR-1)/(4*bigR+15)*Magnetic*(1 - 15./2*omtau/(2*bigR+15))
+    !          + 15._dl/14*x*(bigR-1)/(4*bigR+15)*Magnetic*(1 - 15./2*omtau/(2*bigR+15))
 
     yt(4:EV%nvart)=0._dl
 
@@ -2401,6 +2435,10 @@
 
     !!!If we want DE perturbations to get \delta\rho/\rho_m
     !       dgrho=dgrho+y(EV%w_ix)*grhov*a**(-1-3*w_lam)
+    !        Arr(Transfer_r) = y(EV%w_ix)/k2
+    !
+    !        dgrho = dgrho+(clxc*grhoc + clxb*grhob)/a
+    !        grho =  grho+(grhoc+grhob)/a + grhov*a**(-1-3*w_lam)
 
     dgrho = dgrho+(clxc*grhoc + clxb*grhob)/a
     grho =  grho+(grhoc+grhob)/a
@@ -2487,6 +2525,7 @@
     real(dl) Delta_source2, polter_line
     real(dl) Delta_xe
     integer lineoff,lineoffpol
+
 
     k=EV%k_buf
     k2=EV%k2_buf
@@ -3116,7 +3155,6 @@
 
 
 
-
     !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
     subroutine derivst(EV,n,tau,ayt,aytprime)
     !  Evaluate the time derivatives of the tensor perturbations.
@@ -3320,7 +3358,6 @@
     aytprime(2)=-k*shear
 
     end subroutine derivst
-
 
 
 

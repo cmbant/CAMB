@@ -1112,10 +1112,14 @@
         Type (Regions) :: q
         real(dl), dimension(:,:,:), pointer :: Delta_p_l_k => NULL()
 
+        !The L index of the lowest L to use for Limber
         integer, dimension(:), pointer :: Limber_l_min => NULL()
         !For each l, the set of k in each limber window
         !indices LimberWindow(SourceNum,l)
         Type(LimberRec), dimension(:,:), pointer :: Limber_windows => NULL()
+
+        !The maximum L needed for non-Limber
+        integer max_index_nonlimber
 
     end Type ClTransferData
 
@@ -1152,7 +1156,7 @@
     deallocate(CTrans%Delta_p_l_k, STAT = st)
     call Ranges_getArray(CTrans%q, .true.)
 
-    allocate(CTrans%Delta_p_l_k(CTrans%NumSources,min(max_bessels_l_index,CTrans%ls%l0), CTrans%q%npoints))
+    allocate(CTrans%Delta_p_l_k(CTrans%NumSources,min(CTrans%max_index_nonlimber,CTrans%ls%l0), CTrans%q%npoints))
     CTrans%Delta_p_l_k = 0
 
     end subroutine Init_ClTransfer
@@ -1293,7 +1297,7 @@
                 outarr=Cl_scalar_array(il,in,1:3+num_redshiftwindows,1:3+num_redshiftwindows)
                 outarr(1:2,:)=sqrt(fact)*outarr(1:2,:)
                 outarr(:,1:2)=sqrt(fact)*outarr(:,1:2)
-                write(fileio_unit,trim(numcat('(1I6,',(3+num_redshiftwindows)**2))//'E15.5)')il, outarr
+                write(fileio_unit,trim(numcat('(1I6,',(3+num_redshiftwindows)**2))//'E15.5)') il, outarr
             end do
             do il=10100,CP%Max_l, 100
                 outarr=Cl_scalar_array(il,in,1:3+num_redshiftwindows,1:3+num_redshiftwindows)
@@ -2335,10 +2339,9 @@
     P%k_per_logint  = 0
     maxRedshift = 10
     P%NLL_num_redshifts =  nint(10*AccuracyBoost)
-    if (HighAccuracyDefault) then
+    if (HighAccuracyDefault .and. AccuracyBoost>=2) then
         !only notionally more accuracy, more stable for RS
         maxRedshift =15
-        P%NLL_num_redshifts = P%NLL_num_redshifts *3
     end if
     if (P%NLL_num_redshifts > max_transfer_redshifts) &
     stop 'Transfer_SetForNonlinearLensing: Too many redshifts'
