@@ -966,6 +966,7 @@
         Type (Regions) :: q
         real(dl), dimension(:,:,:), pointer :: Delta_p_l_k => NULL()
 
+        !The L index of the lowest L to use for Limber
         integer, dimension(:), pointer :: Limber_l_min => NULL()
         !For each l, the set of k in each limber window
         !indices LimberWindow(SourceNum,l)
