@@ -136,9 +136,9 @@
         CP%WantTensors = Params%WantTensors
         CP%WantVectors = Params%WantVectors
         CP%Transfer%num_redshifts = Params%Transfer%num_redshifts
-        !JD 08/13 for nonlinear lensing of CMB + LSS compatibility 
+        !JD 08/13 for nonlinear lensing of CMB + LSS compatibility
         CP%Transfer%PK_redshifts_index=Params%Transfer%PK_redshifts_index
-        CP%Transfer%PK_num_redshifts = Params%Transfer%PK_num_redshifts      
+        CP%Transfer%PK_num_redshifts = Params%Transfer%PK_num_redshifts
         Params = CP
     end if
 
@@ -160,9 +160,9 @@
         CP%WantScalars = Params%WantScalars
         CP%WantVectors = Params%WantVectors
         CP%Transfer%num_redshifts = Params%Transfer%num_redshifts
-        !JD 08/13 for nonlinear lensing of CMB + LSS compatibility 
+        !JD 08/13 for nonlinear lensing of CMB + LSS compatibility
         CP%Transfer%PK_redshifts_index=Params%Transfer%PK_redshifts_index
-        CP%Transfer%PK_num_redshifts = Params%Transfer%PK_num_redshifts 
+        CP%Transfer%PK_num_redshifts = Params%Transfer%PK_num_redshifts
         Params = CP
     end if
 
@@ -184,7 +184,7 @@
         CP%WantTensors = Params%WantTensors
         CP%WantScalars = Params%WantScalars
         CP%Transfer%num_redshifts = Params%Transfer%num_redshifts
-        !JD 08/13 for nonlinear lensing of CMB + LSS compatibility 
+        !JD 08/13 for nonlinear lensing of CMB + LSS compatibility
         CP%Transfer%PK_redshifts_index=Params%Transfer%PK_redshifts_index
         CP%Transfer%PK_num_redshifts = Params%Transfer%PK_num_redshifts
         Params = CP
@@ -253,7 +253,7 @@
         Cls(:,4)   = Cls(:,4)/sqrt(2.0)
     end if
 
-    end subroutine CAMB_GetCls 
+    end subroutine CAMB_GetCls
 
     function CAMB_GetAge(P)
     !Return age in gigayears, returns -1 on error
@@ -450,5 +450,3 @@
     end subroutine CAMB_cleanup
 
     end module CAMB
-
-
