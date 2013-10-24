@@ -1340,7 +1340,7 @@
         end if
 
         if (CP%WantScalars) then
-            if ((DebugEvolution .or. CP%Dolensing .or. IV%q*TimeSteps%points(i) < max_etak_scalar) &
+            if ((DebugEvolution .or. WantLateTime .or. IV%q*TimeSteps%points(i) < max_etak_scalar) &
             .and. xf > 1.e-8_dl) then
                 step=i
                 IV%Source_q(i,1:SourceNum)=a0*Src(klo,1:SourceNum,i)+ &
