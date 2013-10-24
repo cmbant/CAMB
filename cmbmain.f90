@@ -243,7 +243,11 @@
 
             ExactClosedSum = CP%curv > 5e-9_dl .or. scale < 0.93_dl
 
-            call GetLimberTransfers
+            max_bessels_l_index = ThisCT%ls%l0
+            max_bessels_etak  = maximum_qeta
+
+            if (CP%WantScalars) call GetLimberTransfers
+            ThisCT%max_index_nonlimber = max_bessels_l_index
 
             if (CP%flat) call InitSpherBessels
             !This is only slow if not called before with same (or higher) Max_l, Max_eta_k
@@ -296,7 +300,7 @@
             iCl_Array = 0
         end if
 
-        call CalcLImberScalCls(CTransS)
+        call CalcLimberScalCls(CTransS)
         call CalcScalCls(CTransS)
         if (DebugMsgs .and. Feedbacklevel > 0) write (*,*) 'CalcScalCls'
     end if
@@ -397,11 +401,7 @@
 
     call Init_Limber(ThisCT)
 
-    if (num_redshiftwindows==0 .and. limber_phiphi==0 .or. .not. CP%WantScalars) then
-        max_bessels_l_index = ThisCT%ls%l0
-        max_bessels_etak  = CP%Max_eta_k
-        return
-    end if
+    if (num_redshiftwindows==0 .and. limber_phiphi==0) return
 
     if (ThisCT%ls%l(ThisCT%ls%l0) > 5000) then
         max_bessels_l_index = lvalues_indexOf(ThisCT%ls,5000)
@@ -1275,9 +1275,8 @@
             call SetClosedkValuesFromArr(ThisCT%q,.true.)
             call Ranges_Getdpoints(ThisCT%q,half_ends = .false.)
             ThisCT%q%dpoints(1) = 1/CP%r
-            !!!
             deallocate(ThisCT%Delta_p_l_k) !Re-do this from Init_ClTransfer because number of points changed
-            allocate(ThisCT%Delta_p_l_k(ThisCT%NumSources,min(max_bessels_l_index,ThisCT%ls%l0), ThisCT%q%npoints))
+            allocate(ThisCT%Delta_p_l_k(ThisCT%NumSources,min(ThisCT%max_index_nonlimber,ThisCT%ls%l0), ThisCT%q%npoints))
             ThisCT%Delta_p_l_k = 0
         end if
 
@@ -2128,7 +2127,7 @@
         do j=1,CTrans%ls%l0
             !Integrate dk/k Delta_l_q**2 * Power(k)
             ell = real(CTrans%ls%l(j),dl)
-            if (j<= max_bessels_l_index)  then
+            if (j<= CTrans%max_index_nonlimber) then
                 do q_ix = 1, CTrans%q%npoints
                     if (.not.(CP%closed.and.nint(CTrans%q%points(q_ix)*CP%r)<=CTrans%ls%l(j))) then
                         !cut off at nu = l + 1

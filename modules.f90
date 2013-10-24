@@ -35,7 +35,7 @@
     implicit none
     public
 
-    character(LEN=*), parameter :: version = 'Oct13'
+    character(LEN=*), parameter :: version = 'Oct13_23rd'
 
     integer :: FeedbackLevel = 0 !if >0 print out useful information about the model
 
@@ -971,6 +971,9 @@
         !indices LimberWindow(SourceNum,l)
         Type(LimberRec), dimension(:,:), pointer :: Limber_windows => NULL()
 
+        !The maximum L needed for non-Limber
+        integer max_index_nonlimber
+
     end Type ClTransferData
 
     Type(ClTransferData), save, target :: CTransScal, CTransTens, CTransVec
@@ -1006,7 +1009,7 @@
     deallocate(CTrans%Delta_p_l_k, STAT = st)
     call Ranges_getArray(CTrans%q, .true.)
 
-    allocate(CTrans%Delta_p_l_k(CTrans%NumSources,min(max_bessels_l_index,CTrans%ls%l0), CTrans%q%npoints))
+    allocate(CTrans%Delta_p_l_k(CTrans%NumSources,min(CTrans%max_index_nonlimber,CTrans%ls%l0), CTrans%q%npoints))
     CTrans%Delta_p_l_k = 0
 
     end subroutine Init_ClTransfer
