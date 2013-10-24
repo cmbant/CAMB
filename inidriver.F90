@@ -65,11 +65,12 @@
     else
         num_redshiftwindows = 0
     end if
+    limber_windows = Ini_Read_Logical('limber_windows',limber_windows)
+    if (limber_windows) limber_phiphi = Ini_Read_Int('limber_phiphi',limber_phiphi)
     if (num_redshiftwindows>0) then
         DoRedshiftLensing = Ini_Read_Logical('DoRedshiftLensing',.false.)
-        limber_windows = Ini_Read_Logical('limber_windows',.false.)
+        Do21cm = Ini_Read_Logical('Do21cm', .false.)
     end if
-    Do21cm = Ini_Read_Logical('Do21cm', .false.)
     num_extra_redshiftwindows = 0
     do i=1, num_redshiftwindows
         RedWin => Redshift_w(i)
@@ -295,7 +296,8 @@
         P%Transfer%PK_redshifts = 0
     end if
 
-    if ((P%NonLinear==NonLinear_lens .or. P%NonLinear==NonLinear_both) .and. P%DoLensing) then
+    if ((P%NonLinear==NonLinear_lens .or. P%NonLinear==NonLinear_both) .and. &
+        (P%DoLensing .or. num_redshiftwindows > 0)) then
         P%WantTransfer  = .true.
         call Transfer_SetForNonlinearLensing(P%Transfer)
     end if

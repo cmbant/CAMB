@@ -150,7 +150,7 @@
 
     integer :: FeedbackLevel = 0 !if >0 print out useful information about the model
 
-    logical, parameter :: DebugMsgs=.false. !Set to true to view progress and timing
+    logical, parameter :: DebugMsgs=.true. !Set to true to view progress and timing
 
     logical, parameter :: DebugEvolution = .false. !Set to true to do all the evolution for all k
 
@@ -317,7 +317,7 @@
     real(sp) :: lAccuracyBoost=1.
     !Boost number of multipoles integrated in Boltzman heirarchy
 
-    integer :: limber_phiphi = 0 !for l>limber_phiphi use limber approx for lensing potential
+    integer :: limber_phiphi = 400 !for l>limber_phiphi use limber approx for lensing potential
     integer :: num_redshiftwindows = 0
     integer :: num_extra_redshiftwindows = 0
 
@@ -792,7 +792,7 @@
     if (W%kind == window_lensing) then
         res = AccuracyBoost*ell/10.
     elseif  (W%kind == window_counts) then
-        res = AccuracyBoost*30*ell/W%chimin
+        res = AccuracyBoost*5*ell/W%chimin
     else
         res = 1.2*ell/W%chi0
     end if

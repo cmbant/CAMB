@@ -429,7 +429,7 @@
             if (W%kind==window_lensing) then
                 ell_limb = 500*AccuracyBoost
             else
-                ell_limb = nint(AccuracyBoost*max(200, nint(6* W%chi0/W%sigma_tau)))
+                ell_limb = nint(AccuracyBoost*max(limber_phiphi, nint(6* W%chi0/W%sigma_tau)))
             end if
         end if
 
@@ -444,7 +444,11 @@
             end if
         end do
 
-        if (i>0) max_bessels_etak = max(max_bessels_etak, WindowKmaxForL(W,ell_needed)*CP%tau0)
+        if (i==0) then
+            max_bessels_etak = max(max_bessels_etak, min(CP%Max_eta_k,ell_needed*25._dl*AccuracyBoost))
+        else
+            max_bessels_etak = max(max_bessels_etak, WindowKmaxForL(W,ell_needed)*CP%tau0)
+        end if
 
         if (ThisCT%limber_l_min(s_ix)/=0) then
             if (i==0) then
@@ -1374,7 +1378,7 @@
         end if
 
         if (CP%WantScalars) then
-            if ((DebugEvolution .or. CP%Dolensing .or. IV%q*TimeSteps%points(i) < max_etak_scalar) &
+            if ((DebugEvolution .or. WantLateTime .or. IV%q*TimeSteps%points(i) < max_etak_scalar) &
             .and. xf > 1.e-8_dl) then
                 step=i
                 IV%Source_q(i,1:SourceNum)=a0*Src(klo,1:SourceNum,i)+ &
@@ -1458,7 +1462,7 @@
     !note increasing non-limber is not neccessarily more accurate unless AccuracyBoost much higher
     !use **0.5 to at least give some sensitivity to Limber effects
     !Could be lower but care with phi-T correlation at lower L
-    UseLimber = l > 400*AccuracyBoost**0.5
+    UseLimber = limber_windows .and. l >= limber_phiphi !400*AccuracyBoost**0.5
 
     end function UseLimber
 
@@ -1479,7 +1483,6 @@
     integer bes_ix,n, bes_index(IV%SourceSteps)
     !Sources
     integer nwin, s_ix
-    real(dl) limberfac
 
     !     Find the position in the xx table for the x correponding to each
     !     timestep
@@ -1503,7 +1506,7 @@
             tmin = TimeSteps%points(2)
         else
             xlmax1=80*lSamp%l(j)*AccuracyBoost
-            if (num_redshiftwindows>0) then
+            if (num_redshiftwindows>0 .and. CP%WantScalars) then
                 xlmax1=80*lSamp%l(j)*8*AccuracyBoost !Have to be careful if sharp spikes due to late time sources
             end if
             tmin=CP%tau0-xlmax1/IV%q
@@ -1539,7 +1542,6 @@
             DoInt = .not. CP%WantScalars .or.  IV%q < qmax_int
             !Do integral if any useful contribution to the CMB, or large scale effects
             !Sources
-            DoInt = DoInt .or. Do21cm
             if (DoInt) then
                 if (num_redshiftwindows>0) then
                     nwin = Ranges_IndexOf(TimeSteps,tau_start_redshiftwindows)
@@ -1572,11 +1574,30 @@
                 xf = CP%tau0-(lSamp%l(j)+0.5_dl)/IV%q
                 if (xf < TimeSteps%Highest .and. xf > TimeSteps%Lowest) then
                     n=Ranges_IndexOf(TimeSteps,xf)
-                    limberfac = sqrt(pi/2/(lSamp%l(j)+0.5_dl))/IV%q
                     xf= (xf-TimeSteps%points(n))/(TimeSteps%points(n+1)-TimeSteps%points(n))
-                    sums(3:SourceNum) = (IV%Source_q(n,3:SourceNum)*(1-xf) + xf*IV%Source_q(n+1,3:SourceNum))*limberfac
+                    sums(3) = (IV%Source_q(n,3)*(1-xf) + xf*IV%Source_q(n+1,3))*sqrt(pi/2/(lSamp%l(j)+0.5_dl))/IV%q
                 else
-                    sums(3:SourceNum)=0
+                    sums(3)=0
+                end if
+            end if
+            if (.not. DoInt .and. SourceNum>3) then
+                if (any(ThisCT%limber_l_min(4:SourceNum)==0 .or. ThisCT%limber_l_min(4:SourceNum) > j)) then
+                    !When CMB does not need integral but other sources do
+                    do n= Ranges_IndexOf(TimeSteps,tau_start_redshiftwindows), &
+                    min(IV%SourceSteps,Ranges_IndexOf(TimeSteps,tmax))
+                        !Full Bessel integration
+                        a2=aa(n)
+                        bes_ix=bes_index(n)
+
+                        J_l=a2*ajl(bes_ix,j)+(1-a2)*(ajl(bes_ix+1,j) - ((a2+1) &
+                        *ajlpr(bes_ix,j)+(2-a2)*ajlpr(bes_ix+1,j))* fac(n)) !cubic spline
+                        J_l = J_l*TimeSteps%dpoints(n)
+
+                        sums(4) = sums(4) + IV%Source_q(n,4)*J_l
+                        do s_ix = 5, SourceNum
+                            sums(s_ix) = sums(s_ix) + IV%Source_q(n,s_ix)*J_l
+                        end do
+                    end do
                 end if
             end if
         end if
