@@ -26,6 +26,10 @@
     !(otherwise assumed constant, though this is almost certainly unrealistic)
 
     logical :: w_perturb = .true.
+    !If you are tempted to set this = .false. read
+    ! http://cosmocoffee.info/viewtopic.php?t=811
+    ! http://cosmocoffee.info/viewtopic.php?t=512
+
     contains
 
     subroutine DarkEnergy_ReadParams(Ini)
