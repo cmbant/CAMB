@@ -25,6 +25,7 @@
 
     module RedshiftSpaceData
     use precision
+    implicit none
 
     integer, parameter :: window_21cm = 1, window_counts = 2, window_lensing = 3
 
@@ -130,7 +131,6 @@
     Win%mag_index = 0
 
     end subroutine InitRedshiftWindow
-
 
     end module RedshiftSpaceData
 
@@ -374,6 +374,7 @@
     real(dl) nu_massless_degeneracy, neff_i
     external GetOmegak
     real(dl), save :: last_tau0
+    real(dl) eta_k
     !Constants in SI units
 
     global_error_flag = 0
@@ -512,7 +513,8 @@
     end if
 
     !Sources
-    if (CP%WantScalars .and. CP%WantCls) then
+    if (CP%WantScalars .and. CP%WantCls .and. num_redshiftwindows>0) then
+        eta_k = CP%Max_eta_k
         do nu_i=1,num_redshiftwindows
             Redshift_w(nu_i)%tau = TimeOfz(Redshift_w(nu_i)%Redshift)
             Redshift_w(nu_i)%chi0 = CP%tau0-Redshift_w(nu_i)%tau
@@ -520,6 +522,8 @@
             CP%tau0 - TimeOfz(max(0.05_dl,Redshift_w(nu_i)%Redshift - 1.5*Redshift_w(nu_i)%sigma)) )
             CP%Max_eta_k = max(CP%Max_eta_k, CP%tau0*WindowKmaxForL(Redshift_w(nu_i),CP%max_l))
         end do
+        if (eta_k /= CP%Max_eta_k .and. FeedbackLevel>0) &
+        write (*,*) 'source max_eta_k: ', CP%Max_eta_k,'kmax = ', CP%Max_eta_k/CP%tau0
     end if
 
     !JD 08/13 Changes for nonlinear lensing of CMB + MPK compatibility
@@ -1204,6 +1208,23 @@
 
     end subroutine Free_Limber
 
+    function Win_Limber_ell(W,lmax) result(ell_limb)
+    class(TRedWin) :: W
+    integer, intent(in) :: lmax
+    integer ell_limb
+
+    if (limber_windows) then
+        !Turn on limber when k is a scale smaller than window width
+        if (W%kind==window_lensing) then
+            ell_limb = 500*AccuracyBoost
+        else
+            ell_limb = nint(AccuracyBoost*max(limber_phiphi, nint(6* W%chi0/W%sigma_tau)))
+        end if
+    else
+        ell_limb = lmax
+    end if
+    end function Win_Limber_ell
+
     subroutine CheckLoadedHighLTemplate
     integer L
     real(dl) array(7)
@@ -1297,13 +1318,13 @@
                 outarr=Cl_scalar_array(il,in,1:3+num_redshiftwindows,1:3+num_redshiftwindows)
                 outarr(1:2,:)=sqrt(fact)*outarr(1:2,:)
                 outarr(:,1:2)=sqrt(fact)*outarr(:,1:2)
-                write(fileio_unit,trim(numcat('(1I6,',(3+num_redshiftwindows)**2))//'E15.5)') il, outarr
+                write(fileio_unit,trim(numcat('(1I6,',(3+num_redshiftwindows)**2))//'E15.5)') il, real(outarr)
             end do
             do il=10100,CP%Max_l, 100
                 outarr=Cl_scalar_array(il,in,1:3+num_redshiftwindows,1:3+num_redshiftwindows)
                 outarr(1:2,:)=sqrt(fact)*outarr(1:2,:)
                 outarr(:,1:2)=sqrt(fact)*outarr(:,1:2)
-                write(fileio_unit,trim(numcat('(1E15.5,',(3+num_redshiftwindows)**2))//'E15.5)') real(il), outarr
+                write(fileio_unit,trim(numcat('(1E15.5,',(3+num_redshiftwindows)**2))//'E15.5)') real(il), real(outarr)
             end do
         end do
         close(fileio_unit)
@@ -3420,7 +3441,6 @@
 
     !Sources
 
-    !!!redshifts
     tau_start_redshiftwindows = MaxTau
     tau_end_redshiftwindows = 0
     if (CP%WantScalars .or. line_reionization) then
@@ -3439,12 +3459,13 @@
                 !Have to be careful to integrate dwinV as the window tails off
                 tau_end_redshiftwindows = max(Win%tau_end,tau_end_redshiftwindows)
 
-                nwindow = nint(150*AccuracyBoost)
+                nwindow = nint(150*AccuracyBoost) 
 
                 if (Win%kind == window_21cm .and. (line_phot_dipole .or. line_phot_quadrupole)) nwindow = nwindow *3
                 !          nwindow = max(nwindow,nint( (Win%tau_end-Win%tau_start)/(6*Win%Chi0/CP%max_l/10)) )
 
-
+                nwindow = max(nwindow, nint(AccuracyBoost *2* &
+                (Win%tau_end- Win%tau_start)* Win_limber_ell(Win,CP%max_l) / Win%Chi0))
                 if (Feedbacklevel > 1) write (*,*) ix, 'nwindow =', nwindow
 
                 call Ranges_Add(TimeSteps, Win%tau_start, Win%tau_end, nwindow)

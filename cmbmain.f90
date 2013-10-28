@@ -425,12 +425,7 @@
             ell_limb = limber_phiphi
         else
             W => Redshift_w(i)
-            !Turn on limber when k is a scale smaller than window width
-            if (W%kind==window_lensing) then
-                ell_limb = 500*AccuracyBoost
-            else
-                ell_limb = nint(AccuracyBoost*max(limber_phiphi, nint(6* W%chi0/W%sigma_tau)))
-            end if
+            ell_limb = Win_limber_ell(W,ThisCT%ls%l(ThisCT%ls%l0))
         end if
 
         ell_needed = ThisCT%ls%l(ThisCT%ls%l0)
@@ -1705,6 +1700,7 @@
             else
                 sums(3) = 0
             end if
+        if (SourceNum>3) stop 'Non-flat not implemented for extra sources'
         end if
 
         ThisCT%Delta_p_l_k(1:SourceNum,j,IV%q_ix)=ThisCT%Delta_p_l_k(1:SourceNum,j,IV%q_ix)+sums
