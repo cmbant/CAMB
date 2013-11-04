@@ -13,7 +13,7 @@
 Code for Anisotropies in the Microwave Background by <A
 HREF="http://cosmologist.info/">Antony Lewis</A> and Anthony
 Challinor. <P>
-This version October 2013.
+This version November 2013.
 <P>
 <FONT SIZE=-1>
 Originally based on CMBFAST developed by Uros Seljak and Matias
@@ -124,9 +124,11 @@ Some details about what different source code files do are given <A HREF="#FILES
 <A NAME="version">
 <H3>Version history</H3>
 
-<B>xx 2013</B><BR>
+<B>November 2013</B><BR>
 <UL>
+<LI>Fixed issue calling CAMB programmatically, e.g. with tensors and lensing
 <LI>CAMB_GetCls function in camb.f90 now returns total lensed C<sub>l</sub> if DoLensing is true (rather than always unlensed)
+<LI>Code fixes that do not affect results unless code is modified
 </UL>
 
 <B>October 2013</B><BR>
