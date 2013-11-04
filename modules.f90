@@ -2416,7 +2416,7 @@
     print *, 'Doing frequencies: ', phot_freqs
     freq_factors(:,1) = (phot_freqs/ 3125349._dl)**4
     freq_factors(:,2) = (phot_freqs/ 3125349._dl)**6 * 638._dl/243
-    freq_factors(:,3) = (phot_freqs/ 3125349._dl)**8 * 1626820991._dl/136048896._dl
+    freq_factors(:,3) = (phot_freqs/ 3125349._dl)**8 * 1299667._dl/236196 !!Fix 1626820991._dl/136048896._dl
     !These are int q^n q^3*F *(-1/4)*(d log F/dlog q) / int q^3 F
     av_freq_factors(1) = (356.88/ 3125349._dl)**4
     av_freq_factors(2) = (409.22/ 3125349._dl)**6 * 638._dl/243
