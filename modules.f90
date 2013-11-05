@@ -359,7 +359,7 @@
 
     !Sources
     logical :: transfer_21cm_cl = .false.
-
+    real(dl) :: Kmax_Boost = 1._dl
     contains
 
 
@@ -797,10 +797,12 @@
         res = AccuracyBoost*ell/10.
     elseif  (W%kind == window_counts) then
         res = AccuracyBoost*5*ell/W%chimin
+        print *, ell, res, W%chimin
     else
         res = 1.2*ell/W%chi0
     end if
 
+        res = res* Kmax_Boost
     end function WindowKmaxForL
 
     end module ModelParams

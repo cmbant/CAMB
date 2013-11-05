@@ -70,6 +70,7 @@
     if (num_redshiftwindows>0) then
         DoRedshiftLensing = Ini_Read_Logical('DoRedshiftLensing',.false.)
         Do21cm = Ini_Read_Logical('Do21cm', .false.)
+        Kmax_Boost = Ini_Read_Real('Kmax_Boost',Kmax_Boost)
     end if
     num_extra_redshiftwindows = 0
     do i=1, num_redshiftwindows
