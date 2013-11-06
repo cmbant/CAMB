@@ -1161,7 +1161,9 @@
     deallocate(CTrans%Delta_p_l_k, STAT = st)
     call Ranges_getArray(CTrans%q, .true.)
 
-    allocate(CTrans%Delta_p_l_k(CTrans%NumSources,min(CTrans%max_index_nonlimber,CTrans%ls%l0), CTrans%q%npoints))
+    allocate(CTrans%Delta_p_l_k(CTrans%NumSources,&
+    min(CTrans%max_index_nonlimber,CTrans%ls%l0), CTrans%q%npoints),  STAT = st)
+    if (st /= 0) stop 'Init_ClTransfer: Error allocating memory for transfer functions'
     CTrans%Delta_p_l_k = 0
 
     end subroutine Init_ClTransfer
