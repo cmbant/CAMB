@@ -797,7 +797,6 @@
         res = AccuracyBoost*ell/10.
     elseif  (W%kind == window_counts) then
         res = AccuracyBoost*5*ell/W%chimin
-        print *, ell, res, W%chimin
     else
         res = 1.2*ell/W%chi0
     end if
@@ -1211,7 +1210,7 @@
     end subroutine Free_Limber
 
     function Win_Limber_ell(W,lmax) result(ell_limb)
-    class(TRedWin) :: W
+    Type(TRedWin) :: W
     integer, intent(in) :: lmax
     integer ell_limb
 
@@ -2982,6 +2981,7 @@
 
     !Sources
     recombination_saha_tau  = TimeOfZ(recombination_saha_z)
+    transfer_ix =0
 
     Maxtau=taumax
     tight_tau = 0
