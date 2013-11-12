@@ -35,7 +35,7 @@
     implicit none
     public
 
-    character(LEN=*), parameter :: version = 'Jul13_rayleigh'
+    character(LEN=*), parameter :: version = 'Nov13_rayleigh'
 
     integer, parameter  :: num_cmb_freq =  6
     logical :: rayleigh_diff = .true.
@@ -2420,7 +2420,7 @@
     !These are int q^n q^3*F *(-1/4)*(d log F/dlog q) / int q^3 F
     av_freq_factors(1) = (356.88/ 3125349._dl)**4
     av_freq_factors(2) = (409.22/ 3125349._dl)**6 * 638._dl/243
-    av_freq_factors(3) = (459.8/ 3125349._dl)**8 * 1626820991._dl/136048896._dl
+    av_freq_factors(3) = (459.8/ 3125349._dl)**8  * 1299667._dl/236196 !!Fix 1626820991._dl/136048896._dl 
     
     if (.not. rayleigh_pows(1)) freq_factors(:,1)=0
     if (.not. rayleigh_pows(2)) freq_factors(:,2)=0
