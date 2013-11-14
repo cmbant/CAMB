@@ -41,12 +41,14 @@
     logical :: rayleigh_diff = .true.
     logical :: rayleigh_pows(3) = [.true.,.true.,.true.]
     logical :: rayleigh_back_approx = .false.
-    
+
     integer, parameter :: nscatter = num_cmb_freq+1
     real(dl) :: phot_freqs(num_cmb_freq)  !set in equations _Init
     real(dl) :: phot_int_kernel(num_cmb_freq)
     real(dl) :: freq_factors(num_cmb_freq,3) 
     real(dl) :: av_freq_factors(3) 
+
+    real(dl) :: ALens = 1._dl
 
     integer :: FeedbackLevel = 0 !if >0 print out useful information about the model
 
@@ -2345,14 +2347,14 @@
     real(dl) a2,total_scattering_eff
 
     if (rayleigh_back_approx) then
-     a2=a**2
-     total_scattering_eff= Recombination_xe(a) + Recombination_rayleigh_eff(a)*(min(1._dl,&
-                  av_freq_factors(1)/a2**2 + av_freq_factors(2)/a2**3  + av_freq_factors(3)/a2**4))
+        a2=a**2
+        total_scattering_eff= Recombination_xe(a) + Recombination_rayleigh_eff(a)*(min(1._dl,&
+        av_freq_factors(1)/a2**2 + av_freq_factors(2)/a2**3  + av_freq_factors(3)/a2**4))
     else
-       total_scattering_eff= Recombination_xe(a)
+        total_scattering_eff= Recombination_xe(a)
     end if
     end function total_scattering_eff
-    
+
     subroutine inithermo(taumin,taumax)
     !  Compute and save unperturbed baryon temperature and ionization fraction
     !  as a function of time.  With nthermo=10000, xe(tau) has a relative
@@ -2381,7 +2383,7 @@
     real(dl) dq, q, dlfdlq
     logical :: plot_scatter = .false.
     real(dl) elec_fac
-
+    real(dl), parameter :: nu_eff = 3101692._dl !3125349._dl is approx from Yu paper
 
     if (num_cmb_freq<10) then
         phot_freqs(1:6) = [0, 143, 217,353, 545, 857]
@@ -2414,18 +2416,18 @@
         phot_int_kernel=phot_int_kernel/sum(phot_int_kernel) !  (Pi**4/15)
     end if
     print *, 'Doing frequencies: ', phot_freqs
-    freq_factors(:,1) = (phot_freqs/ 3125349._dl)**4
-    freq_factors(:,2) = (phot_freqs/ 3125349._dl)**6 * 638._dl/243
-    freq_factors(:,3) = (phot_freqs/ 3125349._dl)**8 * 1299667._dl/236196 !!Fix 1626820991._dl/136048896._dl
+    freq_factors(:,1) = (phot_freqs/ nu_eff)**4
+    freq_factors(:,2) = (phot_freqs/ nu_eff)**6 * 638._dl/243
+    freq_factors(:,3) = (phot_freqs/ nu_eff)**8 * 1299667._dl/236196 !!Fix 1626820991._dl/136048896._dl
     !These are int q^n q^3*F *(-1/4)*(d log F/dlog q) / int q^3 F
-    av_freq_factors(1) = (356.88/ 3125349._dl)**4
-    av_freq_factors(2) = (409.22/ 3125349._dl)**6 * 638._dl/243
-    av_freq_factors(3) = (459.8/ 3125349._dl)**8  * 1299667._dl/236196 !!Fix 1626820991._dl/136048896._dl 
-    
+    av_freq_factors(1) = (356.88/ nu_eff)**4
+    av_freq_factors(2) = (409.22/ nu_eff)**6 * 638._dl/243
+    av_freq_factors(3) = (459.8/ nu_eff)**8  * 1299667._dl/236196 !!Fix 1626820991._dl/136048896._dl 
+
     if (.not. rayleigh_pows(1)) freq_factors(:,1)=0
     if (.not. rayleigh_pows(2)) freq_factors(:,2)=0
     if (.not. rayleigh_pows(3)) freq_factors(:,3)=0
-    
+
     call Recombination_Init(CP%Recomb, CP%omegac, CP%omegab,CP%Omegan, CP%Omegav, &
     CP%h0,CP%tcmb,CP%yhe,CP%Num_Nu_massless + CP%Num_Nu_massive)
     !almost all the time spent here
@@ -2528,7 +2530,7 @@
         ! Calculation of the visibility function
         dotmu(i,1)=xe(i)*akthom/a2
         if (plot_scatter) then
-            elec_fac=0
+            elec_fac= 0
         else
             elec_fac =1
         end if
@@ -2594,13 +2596,13 @@
     end if
 
     if (plot_scatter) then
-        call CreateTxtFile('c:\tmp\planck\rayleigh\visibilities_tot.txt',1)
+        call CreateTxtFile('c:\tmp\planck\rayleigh\fixed\visibilities_tot.txt',1)
         do j1=1,nthermo !!!!
             tau = tauminn*exp((j1-1)*dlntau)
             write(1,'(9E15.5)') tau, scaleFactor(j1), dotmu(j1,1)*scaleFactor(j1)**2/akthom, real(emmu(j1,1)*dotmu(j1,1)),real(emmu(j1,3:7)*emmu(j1,1)*dotmu(j1,3:7))
         end do
         close(1)
-        call CreateTxtFile('c:\tmp\planck\rayleigh\taudot_tot.txt',1)
+        call CreateTxtFile('c:\tmp\planck\rayleigh\fixed\taudot_tot.txt',1)
         do j1=1,nthermo !!!!
             tau = tauminn*exp((j1-1)*dlntau)
             write(1,'(14E15.5)') tau, scaleFactor(j1), dotmu(j1,1)*scaleFactor(j1)**2/akthom, real(dotmu(j1,1)),real(dotmu(j1,3:7)),real(emmu(j1,3:7))
@@ -2879,7 +2881,7 @@
     a = 1._dl/(1._dl+z)
 
     !ignoring reionisation, not relevant for distance measures
-     doptdepth_dz = total_scattering_eff(a)*akthom*dtauda(a)
+    doptdepth_dz = total_scattering_eff(a)*akthom*dtauda(a)
 
     end function doptdepth_dz
 

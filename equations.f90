@@ -1780,7 +1780,7 @@
            ep=ep0 
          end if
          if (second_order_tightcoupling) ep=ep*2 
-         EV%TightSwitchoffTime = min(tight_tau,Thermo_OpacityToTime(EV%k_buf/ep)) 
+         EV%TightSwitchoffTime = min(tight_tau,Thermo_OpacityToTime(EV%k_buf/ep))
 
          if (num_cmb_freq>0) then
              EV%RayleighSwitchOnTime = EV%TightSwitchoffTime

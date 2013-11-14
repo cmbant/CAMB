@@ -118,8 +118,6 @@
 
     real(dl) :: fixq = 0._dl !Debug output of one q
 
-    real(dl) :: ALens = 1._dl
-
     Type(ClTransferData), pointer :: ThisCT
 
     public cmbmain, ALens, ClTransferToCl, InitVars !InitVars for BAO hack

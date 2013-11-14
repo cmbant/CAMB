@@ -248,6 +248,8 @@ subroutine CorrFuncFullSkyImpl(lmax)
    end if
   lens_contrib=0
 
+  if (Alens>1e-5) then
+      
   !uncomment second line for PGF90 workaround
   !$OMP PARALLEL DO DEFAULT(PRIVATE),  &
   !OMP PRIVATE(P,dP,d11,dm11,d22,d2m2,d20,corrcontribs,ddcontribs),& 
@@ -489,7 +491,7 @@ end if
 
      end do
   !$OMP END PARALLEL DO
-     
+  end if
       
       if (f_i_1>1 .and. f_i_2>1) then
          do l=lmin, lmax_lensed
