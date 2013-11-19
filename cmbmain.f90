@@ -1472,6 +1472,7 @@
             tmin = TimeSteps%points(2)
         else
             xlmax1=80*lSamp%l(j)*AccuracyBoost
+            if (num_cmb_freq>0 .and. lSamp%l(j) <200) xlmax1=xlmax1*8
             tmin=CP%tau0-xlmax1/IV%q
             tmin=max(TimeSteps%points(2),tmin)
         end if
