@@ -312,6 +312,7 @@
     P%Scalar_initial_condition =initial_adiabatic
     P%NonLinear = NonLinear_none
     P%Want_CMB = .true.
+    P%Want_CMB_lensing = .true.
 
     call SetDefPowerParams(P%InitPower)
 

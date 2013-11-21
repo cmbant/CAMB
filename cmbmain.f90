@@ -365,16 +365,28 @@
                         !$OMP PARALLEL DO DEFAUlT(SHARED), SCHEDUlE(STATIC,2), PRIVATE(Cl,ell,reall,fac,dbletmp,n,LimbRec,LimbRec2)
                         do ell =  max(CTrans%limber_l_min(s_ix), CTrans%limber_l_min(s_ix2)), Ctrans%ls%l0
                             Cl = 0
-                            reall = real(CTrans%ls%l(ell),dl)
-                            fac = (2*pi**2)/fourpi/(reall+0.5_dl)**3 !fourpi because multipled by fourpi later
                             LimbRec => CTrans%Limber_windows(s_ix,ell)
                             LimbRec2 => CTrans%Limber_windows(s_ix2,ell)
 
                             do n = max(LimbRec%n1,LimbRec2%n1), min(LimbRec%n2,LimbRec2%n2)
                                 !Actually integral over chi; source has sqrt( chi dchi)
                                 !Same n corresponds to same k since ell fixed here
-                                Cl = Cl + LimbRec%Source(n)*LimbRec2%Source(n) * fac * ScalarPower(LimbRec%k(n) ,pix)
+                                Cl = Cl + LimbRec%Source(n)*LimbRec2%Source(n) * ScalarPower(LimbRec%k(n) ,pix)
                             end do
+
+                            reall = real(CTrans%ls%l(ell),dl)
+                            fac = (2*pi**2)/fourpi/(reall+0.5_dl)**3 !fourpi because multipled by fourpi later
+                            if (j>=1) then
+                                if (Redshift_w(j)%kind == window_lensing) then
+                                    fac=fac/2*reall*(reall+1)
+                                end if
+                            end if
+                            if (i>=1) then
+                                if (Redshift_w(i)%kind == window_lensing) then
+                                    fac=fac/2*reall*(reall+1)
+                                end if
+                            end if
+                            Cl = Cl*fac
 
                             if(j==0 .and. i==0) iCl_scalar(ell,C_Phi,pix) = Cl
                             if (has_cl_2D_array) then
@@ -440,7 +452,7 @@
         end do
 
         if (i==0) then
-            max_bessels_etak = max(max_bessels_etak, min(CP%Max_eta_k,ell_needed*25._dl*AccuracyBoost))
+            if (CP%Want_CMB_lensing) max_bessels_etak = max(max_bessels_etak, min(CP%Max_eta_k,ell_needed*25._dl*AccuracyBoost))
         else
             max_bessels_etak = max(max_bessels_etak, WindowKmaxForL(W,ell_needed)*CP%tau0)
         end if
@@ -1508,7 +1520,7 @@
         tmax=CP%tau0-xlim/IV%q
         tmax=min(CP%tau0,tmax)
         tmin=max(TimeSteps%points(2),tmin)
-        if (.not. CP%Want_CMB) tmin = max(tmin,tau_start_redshiftwindows)
+        if (.not. CP%Want_CMB .and. .not. CP%Want_CMB_lensing) tmin = max(tmin,tau_start_redshiftwindows)
 
         if (tmax < TimeSteps%points(2)) exit
         sums(1:SourceNum) = 0
@@ -1700,7 +1712,7 @@
             else
                 sums(3) = 0
             end if
-        if (SourceNum>3) stop 'Non-flat not implemented for extra sources'
+            if (SourceNum>3) stop 'Non-flat not implemented for extra sources'
         end if
 
         ThisCT%Delta_p_l_k(1:SourceNum,j,IV%q_ix)=ThisCT%Delta_p_l_k(1:SourceNum,j,IV%q_ix)+sums

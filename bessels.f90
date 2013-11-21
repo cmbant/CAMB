@@ -57,13 +57,13 @@
 
  
         if (DebugMsgs .and. FeedbackLevel > 0) write (*,*) 'Generating flat Bessels...'
-      
 
         file_numl= lSamp%l0 
         file_l(1:lSamp%l0) = lSamp%l(1:lSamp%l0)
         kmaxfile = int(min(CP%Max_eta_k,max_bessels_etak))+1
         if (do_bispectrum) kmaxfile = kmaxfile*2
-     
+
+        if (DebugMsgs .and. FeedbackLevel > 0) write (*,*) 'x_max bessels', kmaxfile
 
         call Ranges_Init(BessRanges)
 
@@ -78,7 +78,6 @@
 
 
        max_ix = min(max_bessels_l_index,lSamp%l0)
-
        if (allocated(ajl)) deallocate(ajl)
        if (allocated(ajlpr)) deallocate(ajlpr)
        if (allocated(ddajlpr)) deallocate(ddajlpr)
@@ -86,9 +85,9 @@
        Allocate(ajlpr(1:num_xx,1:max_ix))
        Allocate(ddajlpr(1:num_xx,1:max_ix))
 
-       !$OMP PARALLEL DO DEFAULT(SHARED),SCHEDULE(STATIC), PRIVATE(j,i,x,xlim)
+       !Note: this OMP parallelization seems to cause issues on ifort 13/14 for v large values of kmaxfile
+       !$OMP PARALLEL DO DEFAULT(SHARED),SCHEDULE(STATIC), PRIVATE(j,i,x,xlim), SHARED(ajl)
        do j=1,max_ix
-       
          do  i=1,num_xx
             x=BessRanges%points(i)
             xlim=xlimfrac*lSamp%l(j)

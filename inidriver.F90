@@ -59,6 +59,7 @@
     P%WantTensors = Ini_Read_Logical('get_tensor_cls',.false.)
 
     P%Want_CMB =  Ini_Read_Logical('want_CMB',.true.)
+    P%Want_CMB_lensing =  P%Want_CMB .or. Ini_Read_Logical('want_CMB_lensing',.true.)
 
     if (P%WantScalars) then
         num_redshiftwindows = Ini_Read_Int('num_redshiftwindows',0)

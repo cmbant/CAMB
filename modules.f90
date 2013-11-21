@@ -211,7 +211,7 @@
     logical   :: want_zstar, want_zdrag     !!JH for updated BAO likelihood.
     logical   :: PK_WantTransfer             !JD 08/13 Added so both NL lensing and PK can be run at the same time
     integer   :: NonLinear
-    logical   :: Want_CMB
+    logical   :: Want_CMB, Want_CMB_lensing
 
     integer   :: Max_l, Max_l_tensor
     real(dl)  :: Max_eta_k, Max_eta_k_tensor
@@ -794,14 +794,14 @@
     integer, intent(in)::  ell
 
     if (W%kind == window_lensing) then
-        res = AccuracyBoost*ell/10.
+        res = AccuracyBoost*15*ell/W%chi0  !!!ell/10
     elseif  (W%kind == window_counts) then
         res = AccuracyBoost*5*ell/W%chimin
     else
         res = 1.2*ell/W%chi0
     end if
 
-        res = res* Kmax_Boost
+    res = res* Kmax_Boost
     end function WindowKmaxForL
 
     end module ModelParams
@@ -1219,9 +1219,9 @@
     if (limber_windows) then
         !Turn on limber when k is a scale smaller than window width
         if (W%kind==window_lensing) then
-            ell_limb = 500*AccuracyBoost
+            ell_limb = max(limber_phiphi,nint(50*AccuracyBoost))
         else
-            ell_limb = nint(AccuracyBoost*max(limber_phiphi, nint(6* W%chi0/W%sigma_tau)))
+            ell_limb = max(limber_phiphi, nint(AccuracyBoost *6* W%chi0/W%sigma_tau))
         end if
     else
         ell_limb = lmax
@@ -3486,7 +3486,8 @@
                 ! end if
             else
                 !Lensing along line of sight, so small steps all the way to now
-                call Ranges_Add_delta(TimeSteps, Win%tau_start, CP%tau0, Win%chi0*5/CP%max_l/AccuracyBoost)
+                call Ranges_Add_delta(TimeSteps, Win%tau_start, CP%tau0, &
+                min(Win%chi0/100,Win%chi0/Win_limber_ell(Win,CP%max_l)/(2*AccuracyBoost)))
                 !       call Ranges_Add_delta(TimeSteps, Win%tau_start, CP%tau0, Win%chi0/500)
             end if
         end do
