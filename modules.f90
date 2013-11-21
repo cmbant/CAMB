@@ -2386,7 +2386,8 @@
     real(dl), parameter :: nu_eff = 3101692._dl !3125349._dl is approx from Yu paper
 
     if (num_cmb_freq<10) then
-        phot_freqs(1:6) = [0, 143, 217,353, 545, 857]
+       phot_freqs(1:6) = [0, 143, 217,353, 545, 857]
+        
         !             phot_freqs(1:8) = [220,265,300,320,295,460,555,660]*1.085 !Prism
         do i=1, size(phot_freqs)
             q = phot_freqs(i)/56.8

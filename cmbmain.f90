@@ -327,8 +327,8 @@
     if (CP%WantScalars .and. allocated(iCl_Array)) deallocate(iCl_Array)
     if (CP%WantVectors .and. allocated(iCl_Vector)) deallocate(iCl_vector)
     if (CP%WantTensors .and. allocated(iCl_Tensor)) then
-         deallocate(iCl_tensor)
-         deallocate(iCl_Tensor_array)
+        deallocate(iCl_tensor)
+        deallocate(iCl_Tensor_array)
     end if
     if (global_error_flag/=0) return
 
@@ -824,7 +824,7 @@
 
     q_cmb = 2*l_smooth_sample/CP%chi0*AccuracyBoost  !assume everything is smooth at l > l_smooth_sample
     if (CP%Want_CMB .and. maximum_l > 5000 .and. CP%AccuratePolarization) q_cmb = q_cmb*1.4 
-            !prevent EE going wild in tail
+    !prevent EE going wild in tail
     dksmooth = q_cmb/2/(AccuracyBoost)**2
     if (CP%Want_CMB) dksmooth = dksmooth/6
 
@@ -918,6 +918,7 @@
 
     real(dl) yprime(EV%nvar), ddelta, delta, adotoa,dtauda, growth
     external dtauda
+    integer ix_off, f_i
 
     if (fixq/=0._dl) then
         !evolution output
@@ -936,9 +937,10 @@
     !!Example code for plotting out variable evolution
     if (fixq/=0._dl) then
         tol1=tol/exp(AccuracyBoost-1)
-        call CreateTxtFile('evolve_q005.txt',1)
+        call CreateTxtFile('z:\evolve_q05.txt',1)
+        call CreateTxtFile('z:\evolve_v_q05.txt',2)
         do j=1,1000
-            tauend = taustart+(j-1)*(CP%tau0-taustart)/1000
+            tauend = taustart+(j-1)*(CP%tau0-taustart)/10000
             call GaugeInterface_EvolveScal(EV,tau,y,tauend,tol1,ind,c,w)
             yprime = 0
             call derivs(EV,EV%ScalEqsToPropagate,tau,y,yprime)
@@ -946,9 +948,32 @@
             ddelta= (yprime(3)*grhoc+yprime(4)*grhob)/(grhob+grhoc)
             delta=(grhoc*y(3)+grhob*y(4))/(grhob+grhoc)
             growth= ddelta/delta/adotoa
-            write (1,'(7E15.5)') tau, delta, growth, y(3), y(4), y(EV%g_ix), y(1)
+            if (.not. EV%Rayleigh .or. EV%no_phot_multpoles ) cycle
+            write (1,'(2E15.5)', advance='NO') tau,real(y(1))
+            write (2,'(2E15.5)', advance='NO') tau,real(y(1))
+
+            do f_i = 1, nscatter
+                if (f_i==1) then
+                    ix_off=EV%g_ix
+                else
+                    ix_off=EV%g_ix_freq+(f_i-2)*EV%freq_neq 
+                end if
+                if (f_i==nscatter) then
+                    write (1,'(1E15.5)') real(y(ix_off))
+                else
+                    write (1,'(1E15.5)', advance='NO') real(y(ix_off))
+                end if
+                if (f_i==nscatter) then
+                    write (2,'(1E15.5)') real(y(ix_off+1))
+                else
+                    write (2,'(1E15.5)', advance='NO') real(y(ix_off+1))
+                end if
+
+            end do
+            !            write (1,'(7E15.5)') tau, delta, growth, y(3), y(4), y(EV%g_ix), y(1)
         end do
         close(1)
+        close(2)
         stop
     end if
 
@@ -1024,11 +1049,11 @@
 
             call outputt(EV,yt,EV%nvart,j,tau,outT,outE,outB)
             do f_i=1,nscatter
-             Src(EV%q_ix,1+(f_i-1)*3:3+(f_i-1)*3,j) = [outT(f_i),outE(f_i),outB(f_i)]
+                Src(EV%q_ix,1+(f_i-1)*3:3+(f_i-1)*3,j) = [outT(f_i),outE(f_i),outB(f_i)]
             end do
-            
-!            call outputt(EV,yt,EV%nvart,j,tau,Src(EV%q_ix,CT_Temp,j),&
-!            Src(EV%q_ix,CT_E,j),Src(EV%q_ix,CT_B,j))
+
+            !            call outputt(EV,yt,EV%nvart,j,tau,Src(EV%q_ix,CT_Temp,j),&
+            !            Src(EV%q_ix,CT_E,j),Src(EV%q_ix,CT_B,j))
         end if
     end do
 
@@ -1263,28 +1288,28 @@
         call Ranges_Add_delta(ThisCT%q, qmin, k_max_log, dlnk1, IsLog = .true.)
         call Ranges_Add_delta(ThisCT%q, k_max_log, min(qmax_int,k_max_0), dk0)
 
-    if (qmax_int > k_max_0) then
-        max_k_dk = max(3000, 2*maximum_l)/CP%tau0
+        if (qmax_int > k_max_0) then
+            max_k_dk = max(3000, 2*maximum_l)/CP%tau0
 
-        call Ranges_Add_delta(ThisCT%q, k_max_0, min(qmax_int, max_k_dk), dk)
-        if (qmax_int > max_k_dk) then
-            !This allows inclusion of high k modes for computing BB lensed spectrum accurately
-            !without taking ages to compute.
-            call Ranges_Add_delta(ThisCT%q, max_k_dk, qmax_int, dk2)
+            call Ranges_Add_delta(ThisCT%q, k_max_0, min(qmax_int, max_k_dk), dk)
+            if (qmax_int > max_k_dk) then
+                !This allows inclusion of high k modes for computing BB lensed spectrum accurately
+                !without taking ages to compute.
+                call Ranges_Add_delta(ThisCT%q, max_k_dk, qmax_int, dk2)
+            end if
         end if
-    end if
 
-    call Init_ClTransfer(ThisCT)
+        call Init_ClTransfer(ThisCT)
 
-    if (CP%closed) then
-        call SetClosedkValuesFromArr(ThisCT%q,.true.)
-        call Ranges_Getdpoints(ThisCT%q,half_ends = .false.)
-        ThisCT%q%dpoints(1) = 1/CP%r
-        !!!
-        deallocate(ThisCT%Delta_p_l_k) !Re-do this from Init_ClTransfer because number of points changed
-        allocate(ThisCT%Delta_p_l_k(ThisCT%NumSources,min(max_bessels_l_index,ThisCT%ls%l0), ThisCT%q%npoints))
-        ThisCT%Delta_p_l_k = 0
-    end if
+        if (CP%closed) then
+            call SetClosedkValuesFromArr(ThisCT%q,.true.)
+            call Ranges_Getdpoints(ThisCT%q,half_ends = .false.)
+            ThisCT%q%dpoints(1) = 1/CP%r
+            !!!
+            deallocate(ThisCT%Delta_p_l_k) !Re-do this from Init_ClTransfer because number of points changed
+            allocate(ThisCT%Delta_p_l_k(ThisCT%NumSources,min(max_bessels_l_index,ThisCT%ls%l0), ThisCT%q%npoints))
+            ThisCT%Delta_p_l_k = 0
+        end if
 
     end if !ExactClosedSum
 
@@ -2329,30 +2354,30 @@
         !$OMP & PRIVATE(j,q_ix,measure,apowert,ctnorm,dbletmp)
         do j=1,CTrans%ls%l0
 
-         do q_ix = 1, CTrans%q%npoints
-                if (.not.(CP%closed.and. nint(CTrans%q%points(q_ix)*CP%r)<=CTrans%ls%l(j))) then
-                    !cut off at nu = l+1
-                    apowert = pows(q_ix)
-                    measure = measures(q_ix)
+        do q_ix = 1, CTrans%q%npoints
+            if (.not.(CP%closed.and. nint(CTrans%q%points(q_ix)*CP%r)<=CTrans%ls%l(j))) then
+                !cut off at nu = l+1
+                apowert = pows(q_ix)
+                measure = measures(q_ix)
 
-                    iCl_tensor(j,CT_Temp:CT_B,in) = iCl_tensor(j,CT_Temp:CT_B,in) + &
-                    apowert*CTrans%Delta_p_l_k(CT_Temp:CT_B,j,q_ix)**2*measure
+                iCl_tensor(j,CT_Temp:CT_B,in) = iCl_tensor(j,CT_Temp:CT_B,in) + &
+                apowert*CTrans%Delta_p_l_k(CT_Temp:CT_B,j,q_ix)**2*measure
 
-                    iCl_tensor(j,CT_cross, in ) = iCl_tensor(j,CT_cross, in ) &
-                    +apowert*CTrans%Delta_p_l_k(CT_Temp,j,q_ix)*CTrans%Delta_p_l_k(CT_E,j,q_ix)*measure
-                    
-                    do f1=1,num_cmb_freq
-                        do f2=1,num_cmb_freq
+                iCl_tensor(j,CT_cross, in ) = iCl_tensor(j,CT_cross, in ) &
+                +apowert*CTrans%Delta_p_l_k(CT_Temp,j,q_ix)*CTrans%Delta_p_l_k(CT_E,j,q_ix)*measure
 
-                         iCl_tensor_array(j,CT_Temp:CT_B,in,f1,f2) = iCl_tensor_array(j,CT_Temp:CT_B,in,f1,f2) + &
-                         apowert*CTrans%Delta_p_l_k(CT_Temp+(f1)*3:CT_B+(f1)*3,j,q_ix)*CTrans%Delta_p_l_k(CT_Temp+(f2)*3:CT_B+(f2)*3,j,q_ix)*measure
+                do f1=1,num_cmb_freq
+                    do f2=1,num_cmb_freq
 
-                         iCl_tensor_array(j,CT_cross, in,f1,f2) = iCl_tensor_array(j,CT_cross, in,f1,f2 ) &
-                          +apowert*CTrans%Delta_p_l_k(CT_Temp+f1*3,j,q_ix)*CTrans%Delta_p_l_k(CT_E+f2*3,j,q_ix)*measure
-                        end do
+                    iCl_tensor_array(j,CT_Temp:CT_B,in,f1,f2) = iCl_tensor_array(j,CT_Temp:CT_B,in,f1,f2) + &
+                    apowert*CTrans%Delta_p_l_k(CT_Temp+(f1)*3:CT_B+(f1)*3,j,q_ix)*CTrans%Delta_p_l_k(CT_Temp+(f2)*3:CT_B+(f2)*3,j,q_ix)*measure
+
+                    iCl_tensor_array(j,CT_cross, in,f1,f2) = iCl_tensor_array(j,CT_cross, in,f1,f2 ) &
+                    +apowert*CTrans%Delta_p_l_k(CT_Temp+f1*3,j,q_ix)*CTrans%Delta_p_l_k(CT_E+f2*3,j,q_ix)*measure
                     end do
-                end if
-            end do
+                end do
+            end if
+        end do
 
         ctnorm=(CTrans%ls%l(j)*CTrans%ls%l(j)-1)*real((CTrans%ls%l(j)+2)*CTrans%ls%l(j),dl)
         dbletmp=(CTrans%ls%l(j)*(CTrans%ls%l(j)+1))/OutputDenominator*pi/4
@@ -2363,7 +2388,7 @@
         iCl_tensor(j, CT_Cross, in)  = iCl_tensor(j, CT_Cross, in)*dbletmp*sqrt(ctnorm)
         iCl_tensor_array(j, CT_E:CT_B, in,:,:) = iCl_tensor_array(j, CT_E:CT_B, in,:,:)*dbletmp
         iCl_tensor_array(j, CT_Cross, in,:,:)  = iCl_tensor_array(j, CT_Cross, in,:,:)*dbletmp*sqrt(ctnorm)
-         end do
+        end do
     end do
 
     end subroutine CalcTensCls
@@ -2404,13 +2429,13 @@
                 end if
             end do
 
-        ctnorm=CTrans%ls%l(j)*(CTrans%ls%l(j)+1)
-        dbletmp=(CTrans%ls%l(j)*(CTrans%ls%l(j)+1))/OutputDenominator*pi/8
-        iCl_vector(j, CT_Temp, in)   = iCl_vector(j, CT_Temp, in)*dbletmp*ctnorm
-        lfac = (CTrans%ls%l(j) + 2)*(CTrans%ls%l(j) - 1)
-        iCl_vector(j, CT_E:CT_B, in) = iCl_vector(j, CT_E:CT_B, in)*dbletmp*lfac
-        iCl_vector(j, CT_Cross, in)  = iCl_vector(j, CT_Cross, in)*dbletmp*sqrt(lfac*ctnorm)
-    end do
+            ctnorm=CTrans%ls%l(j)*(CTrans%ls%l(j)+1)
+            dbletmp=(CTrans%ls%l(j)*(CTrans%ls%l(j)+1))/OutputDenominator*pi/8
+            iCl_vector(j, CT_Temp, in)   = iCl_vector(j, CT_Temp, in)*dbletmp*ctnorm
+            lfac = (CTrans%ls%l(j) + 2)*(CTrans%ls%l(j) - 1)
+            iCl_vector(j, CT_E:CT_B, in) = iCl_vector(j, CT_E:CT_B, in)*dbletmp*lfac
+            iCl_vector(j, CT_Cross, in)  = iCl_vector(j, CT_Cross, in)*dbletmp*sqrt(lfac*ctnorm)
+        end do
     end do
 
     end subroutine CalcVecCls
@@ -2440,12 +2465,12 @@
                             Cl_scalar_array(:,in,i,j) = Cl_scalar(:, in, ind(i,j))
                         else
                             if (i<=3+num_cmb_freq*2 .and. j<=3+num_cmb_freq*2 .and. i>3 .and. j>3 .and. (i<=5 .and. j<=5 .or. .not. rayleigh_diff)) then
-                              call InterpolateClArrTemplated(CTransS%ls,iCl_array(1,i,j,in),Cl_scalar_array(lmin, in, i,j), &
+                                call InterpolateClArrTemplated(CTransS%ls,iCl_array(1,i,j,in),Cl_scalar_array(lmin, in, i,j), &
                                 CTransS%ls%l0,ind(1+mod(i-4,2),1+mod(j-4,2)))
 
                             else
-                             call InterpolateClArr(CTransS%ls,iCl_array(1,i,j,in), &
-                             Cl_scalar_array(lmin, in, i,j),CTransS%ls%l0)
+                                call InterpolateClArr(CTransS%ls,iCl_array(1,i,j,in), &
+                                Cl_scalar_array(lmin, in, i,j),CTransS%ls%l0)
                             end if
                         end if
                         if (i/=j) Cl_scalar_array(:,in,j,i) = Cl_scalar_array(:,in,i,j)
@@ -2466,13 +2491,13 @@
             end do
             allocate(Cl_tensor_freqs(lmin:CP%Max_l_tensor,CP%InitPower%nn,1:4,num_cmb_freq,num_cmb_freq))
             do f1=1,num_cmb_freq
-            do f2=1,num_cmb_freq
-            do i = CT_Temp, CT_Cross
-                call InterpolateClArr(CTransT%ls,iCl_tensor_array(1,i,in,f1,f2),Cl_tensor_freqs(lmin, in, i, f1,f2), CTransT%ls%l0)
+                do f2=1,num_cmb_freq
+                    do i = CT_Temp, CT_Cross
+                        call InterpolateClArr(CTransT%ls,iCl_tensor_array(1,i,in,f1,f2),Cl_tensor_freqs(lmin, in, i, f1,f2), CTransT%ls%l0)
+                    end do
+                end do
             end do
-            end do
-            end do
-            
+
         end if
     end do
     !$OMP END PARALLEL DO
