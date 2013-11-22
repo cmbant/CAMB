@@ -376,6 +376,7 @@
 
                             reall = real(CTrans%ls%l(ell),dl)
                             fac = (2*pi**2)/fourpi/(reall+0.5_dl)**3 !fourpi because multipled by fourpi later
+
                             if (j>=1) then
                                 if (Redshift_w(j)%kind == window_lensing) then
                                     fac=fac/2*reall*(reall+1)
@@ -386,6 +387,7 @@
                                     fac=fac/2*reall*(reall+1)
                                 end if
                             end if
+
                             Cl = Cl*fac
 
                             if(j==0 .and. i==0) iCl_scalar(ell,C_Phi,pix) = Cl
