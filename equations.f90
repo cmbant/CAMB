@@ -16,11 +16,11 @@
     !            optimized neutrino sampling, and reorganised neutrino integration functions
     ! Feb 2013: fixed various issues with accuracy at larger neutrino masses
 
-	!CAMB Sources:
+    !CAMB Sources:
     ! Feb 2007 changes for 21cm and other power spectra
     ! July 2007 added perturbed recombination, self-absorption, changes to transfer function output
     ! May 2013 update for latest CAMB changes, removed support for tensor 21cm for simplicity
-	! Oct 2013 merge and fix for latest CAMB
+    ! Oct 2013 merge and fix for latest CAMB
 
     module LambdaGeneral
     use precision
@@ -155,7 +155,9 @@
         real(dl) k_buf,k2_buf ! set in initial
 
         integer w_ix !Index of two quintessence equations
-        integer line_ix !index of matter temerature perturbation
+        integer Tg_ix !index of matter temerature perturbation
+        integer reion_line_ix !index of matter temerature perturbation
+
         integer xe_ix !index of x_e perturbation
         integer Ts_ix !index of Delta_{T_s}
 
@@ -224,6 +226,7 @@
         real(dl) vb_Newt
 
         logical :: saha !still high x_e
+        logical :: evolve_TM !\delta T_g evolved separately
 
     end type EvolutionVars
 
@@ -281,7 +284,7 @@
     real(dl) tau_switch_no_nu_multpoles, tau_switch_no_phot_multpoles,tau_switch_nu_nonrel
     real(dl) noSwitch, smallTime
     !Sources
-    real(dl) tau_switch_saha, Delta_TM, xe,a
+    real(dl) tau_switch_saha, Delta_TM, xe,a,tau_switch_evolve_TM
 
     noSwitch= CP%tau0+1
     smallTime =  min(tau, 1/EV%k_buf)/100
@@ -297,7 +300,9 @@
 
     !Sources
     tau_switch_saha=noSwitch
-    if (Evolve_delta_xe)  tau_switch_saha = recombination_saha_tau
+    if (Evolve_delta_xe .and. EV%saha)  tau_switch_saha = recombination_saha_tau
+    tau_switch_evolve_TM=noSwitch
+    if (Evolve_baryon_cs .and. .not. EV%Evolve_tm) tau_switch_evolve_TM = recombination_Tgas_tau
 
     !Evolve equations from tau to tauend, performing switches in equations if necessary.
 
@@ -326,7 +331,8 @@
     end if
 
     next_switch = min(tau_switch_ktau, tau_switch_nu_massless,EV%TightSwitchoffTime, tau_switch_nu_massive, &
-    tau_switch_no_nu_multpoles, tau_switch_no_phot_multpoles, tau_switch_nu_nonrel,tau_switch_saha,noSwitch)
+    tau_switch_no_nu_multpoles, tau_switch_no_phot_multpoles, tau_switch_nu_nonrel, noSwitch, &
+    tau_switch_saha,tau_switch_evolve_TM)
 
     if (next_switch < tauend) then
         if (next_switch > tau+smallTime) then
@@ -433,9 +439,18 @@
             y=yout
             EV=EVout
             a=y(1)
-            Delta_Tm = y(6)/4 ! assume delta_TM = delta_T_gamma
+            Delta_Tm = y(EV%g_ix)/4 ! assume delta_TM = delta_T_gamma
             xe= Recombination_xe(a)
             y(EV%xe_ix) = (1-xe)/(2-xe)*(-y(4) + (3./2+  CB1/(CP%TCMB/a))*Delta_TM)
+        else if (next_switch==tau_switch_evolve_TM) then
+            !Sources
+            ind=1
+            EVout%evolve_TM = .true.
+            call SetupScalarArrayIndices(EVout)
+            call CopyScalarVariableArray(y,yout, EV, EVout)
+            y=yout
+            EV=EVout
+            y(EV%Tg_ix) =y(EV%g_ix)/4 ! assume delta_TM = delta_T_gamma
         end if
 
         call GaugeInterface_EvolveScal(EV,tau,y,tauend,tol1,ind,c,w)
@@ -582,10 +597,13 @@
     end if
 
     if (Evolve_baryon_cs) then
-        EV%line_ix = neq+1
-        neq=neq+1
+        if (EV%Evolve_TM) then
+            EV%Tg_ix = neq+1
+            neq=neq+1
+        end if
         maxeq=maxeq+1
         if (Do21cm .and. line_reionization) then
+            EV%reion_line_ix = neq+1
             neq=neq+ EV%lmaxline+1 +  EV%lmaxline-1
             maxeq=maxeq+EV%lmaxline+1 +  EV%lmaxline-1
         end if
@@ -720,10 +738,10 @@
         yout(EVOut%xe_ix) =y(EV%xe_ix)
     end if
     if (Evolve_baryon_cs) then
-        yout(EVOut%line_ix) = y(EV%line_ix)
+        if (EV%Evolve_TM .and. EVout%Evolve_TM) yout(EVOut%Tg_ix) = y(EV%Tg_ix)
         if (Do21cm .and. line_reionization) then
-            yout(EVOut%line_ix+1:EVOut%line_ix+EVout%lmaxline+1 +  EVout%lmaxline-1) = &
-            y(EV%line_ix+1:EV%line_ix+EV%lmaxline+1 +  EV%lmaxline-1)
+            yout(EVOut%reion_line_ix:EVOut%reion_line_ix+EVout%lmaxline +  EVout%lmaxline-1) = &
+            y(EV%reion_line_ix:EV%reion_line_ix+EV%lmaxline +  EV%lmaxline-1)
         end if
     end if
     if (Evolve_delta_Ts) then
@@ -855,6 +873,7 @@
         EV%MassiveNuApprox=.false.
         !Sources
         EV%saha = .true.
+        EV%Evolve_TM = .false.
 
         if (HighAccuracyDefault .and. CP%AccuratePolarization) then
             EV%lmaxg  = max(nint(11*lAccuracyBoost),3)
@@ -1619,11 +1638,10 @@
                 xe = Recombination_xe(a)
                 Tmat = Recombination_Tm(a)
 
-                if (a < Do21cm_mina) then
-                    Delta_tm = Delta_TCMB + (1-Tmat/Trad)*4*Delta_TCMB
-                    y(EV%line_ix) = Delta_tm
+                if (EV%Evolve_TM) then
+                    Delta_tm = y(EV%Tg_ix)
                 else
-                    Delta_tm = y(EV%line_ix)
+                    Delta_tm = Delta_TCMB + (1-Tmat/Trad)*4*Delta_TCMB
                 end if
                 if (Evolve_delta_xe .and. .not. EV%Saha) then
                     Delta_xe = y(EV%xe_ix)
@@ -1812,7 +1830,7 @@
 
                     if (line_reionization) then
                         if (num_redshiftwindows>1) stop 'reionization only for one window at the mo'
-                        lineoff=EV%line_ix+1
+                        lineoff=EV%reion_line_ix
                         lineoffpol = lineoff+EV%lmaxline-1
                         polter_line = 0.1_dl*y(lineoff+2)+9._dl/15._dl*y(lineoffpol+2)
 
@@ -2073,7 +2091,6 @@
     if (second_order_tightcoupling) ep=ep*2
     EV%TightSwitchoffTime = min(tight_tau,Thermo_OpacityToTime(EV%k_buf/ep))
 
-
     y=0
 
     !  k*tau, (k*tau)**2, (k*tau)**3
@@ -2195,13 +2212,8 @@
         y(EV%w_ix+1) = InitVec(i_vq)
     end if
 
-    !Sources
-    if (Evolve_baryon_cs) then
-        y(EV%line_ix) = y(6)/4
-    end if
-
     if (Evolve_delta_Ts) then
-        y(EV%Ts_ix) = y(EV%line_ix)
+        y(EV%Ts_ix) = y(EV%g_ix)/4
     end if
 
     !  Neutrinos
@@ -2451,7 +2463,11 @@
         Tspin = Recombination_Ts(a)
         xe = Recombination_xe(a)
         Trad = CP%TCMB/a
-        Delta_TM = y(EV%line_ix)
+        if (EV%Evolve_TM) then
+            Delta_TM = y(EV%Tg_ix)
+        else
+            Delta_TM = clxg/4
+        end if
         vb = y(5)
         H = (1/(a*dtauda(a)))
 
@@ -2672,7 +2688,11 @@
         else
             Tmat = CP%TCMB/a
         end if
-        Delta_TM = ay(EV%line_ix)
+        if (EV%Evolve_TM) then
+            Delta_TM = ay(EV%Tg_ix)
+        else
+            Delta_TM = clxg/4
+        end if
         delta_p = barssc0*(1._dl-0.75d0*CP%yhe+(1._dl-CP%yhe)*opacity*a2/akthom)*Tmat*(clxb + delta_tm)
     else
         Delta_TM = clxg/4
@@ -2838,23 +2858,22 @@
 
 
     if (Evolve_baryon_cs) then
-        if (a > Do21cm_mina) then
+        if (EV%Evolve_TM) then
             Delta_TCMB = clxg/4
             xe = Recombination_xe(a)
             Trad = CP%TCMB/a
 
             !Matter temperature
             !Recfast_CT = (8./3.)*(sigma_T/(m_e*C))*a_R in Mpc [a_R = radiation constant]
-            ayprime(EV%line_ix) = -2*k*(z+vb)/3 - a*  Compton_CT * (Trad**4) * xe / (1._dl+xe+fHe) * &
+            ayprime(EV%Tg_ix) = -2*k*(z+vb)/3 - a*  Compton_CT * (Trad**4) * xe / (1._dl+xe+fHe) * &
             (  (1- Trad/Tmat)*(Delta_TCMB*4 + Delta_xe/(1+xe/(1+fHe))) + Trad/Tmat*(Delta_Tm - Delta_TCMB)  )
 
             if (Evolve_delta_Ts) then
                 ayprime(EV%Ts_ix) =  Get21cm_dTs(a,clxb,ay(EV%Ts_ix),Delta_TCMB,Delta_Tm,Tmat,Trad,xe )
             end if
         else
-            ayprime(EV%line_ix) = -k*(4._dl/3._dl*z+qg)/4  !Assume follows clxg
             if (Evolve_delta_Ts) then
-                ayprime(EV%Ts_ix) = ayprime(EV%line_ix)
+                ayprime(EV%Ts_ix) = -k*(4._dl/3._dl*z+qg)/4  !Assume follows Delta_TM which follows clxg
             end if
         end if
     end if
@@ -2867,7 +2886,7 @@
     if (Do21cm) then
         if (a > Do21cm_mina) then
             if (line_reionization) then
-                lineoff = EV%line_ix+1
+                lineoff = EV%reion_line_ix+1
                 lineoffpol = lineoff+EV%lmaxline-1
 
                 if (tau> tau_start_redshiftwindows) then

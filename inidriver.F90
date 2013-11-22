@@ -70,9 +70,9 @@
     if (limber_windows) limber_phiphi = Ini_Read_Int('limber_phiphi',limber_phiphi)
     if (num_redshiftwindows>0) then
         DoRedshiftLensing = Ini_Read_Logical('DoRedshiftLensing',.false.)
-        Do21cm = Ini_Read_Logical('Do21cm', .false.)
         Kmax_Boost = Ini_Read_Double('Kmax_Boost',Kmax_Boost)
     end if
+    Do21cm = Ini_Read_Logical('Do21cm', .false.)
     num_extra_redshiftwindows = 0
     do i=1, num_redshiftwindows
         RedWin => Redshift_w(i)

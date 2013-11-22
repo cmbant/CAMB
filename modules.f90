@@ -150,7 +150,7 @@
 
     integer :: FeedbackLevel = 0 !if >0 print out useful information about the model
 
-    logical, parameter :: DebugMsgs=.true. !Set to true to view progress and timing
+    logical, parameter :: DebugMsgs=.false. !Set to true to view progress and timing
 
     logical, parameter :: DebugEvolution = .false. !Set to true to do all the evolution for all k
 
@@ -798,7 +798,7 @@
     elseif  (W%kind == window_counts) then
         res = AccuracyBoost*5*ell/W%chimin
     else
-        res = 1.2*ell/W%chi0
+        res = AccuracyBoost*3*ell/W%chi0
     end if
 
     res = res* Kmax_Boost
@@ -2866,7 +2866,8 @@
     real(dl) :: tau_start_redshiftwindows,tau_end_redshiftwindows
     logical :: has_lensing_windows = .false.
     Type(CalWins), dimension(:), allocatable, target :: RW
-    public  tau_start_redshiftwindows,tau_end_redshiftwindows
+    real(dl) recombination_Tgas_tau
+    public  tau_start_redshiftwindows,tau_end_redshiftwindows,recombination_Tgas_tau
 
     public thermo,inithermo,vis,opac,expmmu,dvis,dopac,ddvis,lenswin, tight_tau,interp_window,&
     Thermo_OpacityToTime,matter_verydom_tau, ThermoData_Free,&
@@ -2983,6 +2984,7 @@
 
     !Sources
     recombination_saha_tau  = TimeOfZ(recombination_saha_z)
+    recombination_Tgas_tau = TimeOfz(1/Do21cm_mina-1)
     transfer_ix =0
 
     Maxtau=taumax
@@ -3400,15 +3402,15 @@
         !            end do
         !           stop
 
-        do RW_i=1,CP%Transfer%num_redshifts
-            a=1._dl/(1+CP%Transfer%redshifts(RW_i))
+        do RW_i=1,CP%Transfer%PK_num_redshifts
+            a=1._dl/(1+CP%Transfer%PK_redshifts(RW_i))
             Tspin = Recombination_Ts(a)
             Trad = CP%TCMB/a
             adot = 1/dtauda(a)
             tau_eps = a**2*line21_const*NNow/a**3/adot/Tspin/1000
             Tb21cm = 1000*(1-exp(-tau_eps))*a*(Tspin-Trad)
 
-            outstr = 'z= '//trim(RealToStr(real(CP%Transfer%redshifts(RW_i))))// &
+            outstr = 'z= '//trim(RealToStr(real(CP%Transfer%PK_redshifts(RW_i))))// &
             ': tau_21cm = '//trim(RealToStr(real(tau_eps),5))//'; T_b = '//trim(RealToStr(real(Tb21cm),6))//'mK'
             write (*,*) trim(outstr)
         end do
