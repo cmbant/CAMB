@@ -408,12 +408,13 @@
 
     subroutine GetLimberTransfers
     integer ell, ell_needed
-    integer i,s_ix
+    integer i,s_ix, s_ix_lens
     Type(TRedWin), pointer :: W
     integer n1,n2,n, ell_limb
     real(dl) int,k, chi, chimin
     integer klo, khi
     real(dl) a0,b0,ho2o6,a03,b03,ho
+    real(dl) reall
     Type(LimberRec), pointer :: LimbRec
 
     call Init_Limber(ThisCT)
@@ -460,15 +461,19 @@
         end if
 
         if (ThisCT%limber_l_min(s_ix)/=0) then
+            s_ix_lens=0
             if (i==0) then
                 n1 = Ranges_IndexOf(TimeSteps,tau_maxvis)
                 n2 = TimeSteps%npoints-1
             else
                 n1 = Ranges_IndexOf(TimeSteps, W%tau_start)
-                if (W%kind==window_lensing) then
+                if (W%kind==window_lensing .or. W%kind==window_counts .and. DoRedshiftLensing) then
                     n2 = TimeSteps%npoints-1
                 else
                     n2 = min(TimeSteps%npoints-1,Ranges_IndexOf(TimeSteps, W%tau_end))
+                end if
+                if (W%kind==window_counts .and. DoRedshiftLensing) then
+                    s_ix_lens =3+W%mag_index+num_redshiftwindows
                 end if
             end if
 
@@ -476,6 +481,7 @@
                 LimbRec => ThisCT%Limber_windows(s_ix,ell)
                 LimbRec%n1 = n1
                 LimbRec%n2 = n2
+                reall=ThisCT%ls%l(ell)
 
                 allocate(LimbRec%k(n1:n2))
                 allocate(LimbRec%Source(n1:n2))
@@ -483,7 +489,7 @@
                 int = 0
                 do n = n1,n2
                     chi = (CP%tau0-TimeSteps%points(n))
-                    k = (ThisCT%ls%l(ell)+0.5_dl)/chi
+                    k = (reall+0.5_dl)/chi
                     LimbRec%k(n) = k
                     if (k<=qmax) then
                         klo = Ranges_IndexOf(Evolve_q, k)
@@ -497,6 +503,11 @@
 
                         LimbRec%Source(n)= sqrt(chi*TimeSteps%dpoints(n))* (a0*Src(klo,s_ix,n)+&
                         b0*Src(khi,s_ix,n)+(a03 *ddSrc(klo,s_ix,n)+ b03*ddSrc(khi,s_ix,n)) *ho2o6)
+                        if (s_ix_lens>0) then
+                            LimbRec%Source(n)= LimbRec%Source(n) + reall*(reall+1)* &
+                            sqrt(chi*TimeSteps%dpoints(n))* (a0*Src(klo,s_ix_lens,n)+ &
+                            b0*Src(khi,s_ix_lens,n)+(a03 *ddSrc(klo,s_ix_lens,n)+ b03*ddSrc(khi,s_ix_lens,n)) *ho2o6)
+                        end if
                     else
                         LimbRec%Source(n)=0
                     end if
