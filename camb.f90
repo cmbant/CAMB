@@ -341,7 +341,7 @@
     !JD 08/13 CAMB Fix for for nonlinear lensing of CMB + MPK compatibility
     P%Transfer%PK_num_redshifts=1
     P%Transfer%PK_redshifts=0
-    P%Transfer%NLL_num_redshifts=1
+    P%Transfer%NLL_num_redshifts=0
     P%Transfer%NLL_redshifts=0
     !End JD
 
