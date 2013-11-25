@@ -2174,37 +2174,39 @@
     !of their desired redshifts in the master redshift array.
     !Finally define number of redshifts in master array. This is usually given by:
     !P%num_redshifts = P%PK_num_redshifts + P%NLL_num_redshifts - 1.  The -1 comes
-    !from the fact that z=0 is in both arrays
+    !from the fact that z=0 is in both arrays (when non-linear is on)
     subroutine Transfer_SortAndIndexRedshifts(P)
     Type(TransferParams) :: P
     integer i, iPK, iNLL
+    real(dl), parameter :: tol = 1.d-5
+
     i=0
     iPK=1
     iNLL=1
     do while (iPk<=P%PK_num_redshifts .or. iNLL<=P%NLL_num_redshifts)
         !JD write the next line like this to account for roundoff issues with ==. Preference given to PK_Redshift
-        if(max(P%NLL_redshifts(iNLL),P%PK_redshifts(iPK))-min(P%NLL_redshifts(iNLL),P%PK_redshifts(iPK))<1.d-5)then
-            i=i+1
-            P%redshifts(i)=P%PK_redshifts(iPK)
-            P%PK_redshifts_index(iPK)=i
-            P%NLL_redshifts_index(iNLL)=i
-            iPK=iPK+1
-            iNLL=iNLL+1
-        else if(P%NLL_redshifts(iNLL)>P%PK_redshifts(iPK))then
-            i=i+1
+        i=i+1
+        if (i > max_transfer_redshifts) &
+        call Mpistop('Transfer_SortAndIndexRedshifts: Too many redshifts')
+
+        if(iPK>P%PK_num_redshifts .or. P%NLL_redshifts(iNLL)>P%PK_redshifts(iPK)+tol) then
             P%redshifts(i)=P%NLL_redshifts(iNLL)
             P%NLL_redshifts_index(iNLL)=i
             iNLL=iNLL+1
-        else
-            i=i+1
+        else if(iNLL>P%NLL_num_redshifts .or. P%PK_redshifts(iPK)>P%NLL_redshifts(iNLL)+tol) then
             P%redshifts(i)=P%PK_redshifts(iPK)
             P%PK_redshifts_index(iPK)=i
             iPK=iPK+1
+        else
+            P%redshifts(i)=P%PK_redshifts(iPK)
+            P%PK_redshifts_index(iPK)=i
+            P%NLL_redshifts_index(iNLL)=i
+            iPK=iPK+1
+            iNLL=iNLL+1
         end if
     end do
     P%num_redshifts=i
-    if (P%num_redshifts > max_transfer_redshifts) &
-    call Mpistop('Transfer_SortAndIndexRedshifts: Too many redshifts')
+
     end subroutine Transfer_SortAndIndexRedshifts
 
     end module Transfer
