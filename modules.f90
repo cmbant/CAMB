@@ -794,11 +794,11 @@
     integer, intent(in)::  ell
 
     if (W%kind == window_lensing) then
-        res = AccuracyBoost*15*ell/W%chi0  !!!ell/10
-    elseif  (W%kind == window_counts) then
-        res = AccuracyBoost*5*ell/W%chimin
+        res = AccuracyBoost*18*ell/W%chi0
     else
-        res = AccuracyBoost*3*ell/W%chi0
+        !On large scales power can be aliased from smaller, so make sure k goes up until at least the turnover
+        !in the matter power spectrum
+        res = AccuracyBoost*max(0.05_dl,2.5*ell/W%chimin)
     end if
 
     res = res* Kmax_Boost
@@ -3425,9 +3425,9 @@
     real(dl) dtau0
     integer nri0, nstep
     !Sources
-    integer ix,i,nwindow
+    integer ix,i,nwindow, L_limb
     Type(TRedWin), pointer :: Win
-    real(dl) dtauda
+    real(dl) dtauda, keff, win_end
     external dtauda
 
     call Ranges_Init(TimeSteps)
@@ -3463,37 +3463,39 @@
             end if
 
             tau_start_redshiftwindows = min(Win%tau_start,tau_start_redshiftwindows)
+
             if (Win%kind /= window_lensing) then
                 !Have to be careful to integrate dwinV as the window tails off
                 tau_end_redshiftwindows = max(Win%tau_end,tau_end_redshiftwindows)
-
                 nwindow = nint(150*AccuracyBoost) 
-
-                if (Win%kind == window_21cm .and. (line_phot_dipole .or. line_phot_quadrupole)) nwindow = nwindow *3
-                !          nwindow = max(nwindow,nint( (Win%tau_end-Win%tau_start)/(6*Win%Chi0/CP%max_l/10)) )
-
-                nwindow = max(nwindow, nint(AccuracyBoost *2* &
-                (Win%tau_end- Win%tau_start)* Win_limber_ell(Win,CP%max_l) / Win%Chi0))
-                if (Feedbacklevel > 1) write (*,*) ix, 'nwindow =', nwindow
-
-                call Ranges_Add(TimeSteps, Win%tau_start, Win%tau_end, nwindow)
-                !This should cover whole range where not tiny
-
-                if (Win%tau_end - Win%tau_start > Win%sigma_tau*7) then
-                    call Ranges_Add(TimeSteps, TimeOfZ(Win%Redshift+Win%sigma_z*3), &
-                    max(0._dl,TimeOfZ(Win%Redshift-Win%sigma_z*3)), nwindow)
-                    !This should be over peak
-                end if
-                !Make sure line of sight integral OK too
-                ! if (dtau0 > Win%tau_end/300/AccuracyBoost) then
-                !  call Ranges_Add_delta(TimeSteps, Win%tau_end, CP%tau0,  Win%tau_start/300/AccuracyBoost)
-                ! end if
-            else
-                !Lensing along line of sight, so small steps all the way to now
-                call Ranges_Add_delta(TimeSteps, Win%tau_start, CP%tau0, &
-                min(Win%chi0/100,Win%chi0/Win_limber_ell(Win,CP%max_l)/(2*AccuracyBoost)))
-                !       call Ranges_Add_delta(TimeSteps, Win%tau_start, CP%tau0, Win%chi0/500)
+                win_end = Win%tau_end
+            else !lensing
+                nwindow = nint(AccuracyBoost*Win%chi0/100)
+                win_end = CP%tau0 
             end if
+
+            if (Win%kind == window_21cm .and. (line_phot_dipole .or. line_phot_quadrupole)) nwindow = nwindow *3
+
+            L_limb = Win_limber_ell(Win,CP%max_l)
+            keff = WindowKmaxForL(Win,L_limb)
+
+            !Keep sampling in x better than Nyquist
+            nwindow = max(nwindow, nint(AccuracyBoost *(win_end- Win%tau_start)* keff/3))
+            if (Feedbacklevel > 1) write (*,*) ix, 'nwindow =', nwindow
+
+            call Ranges_Add(TimeSteps, Win%tau_start, win_end, nwindow)
+            !This should cover whole range where not tiny
+
+            if (Win%kind /= window_lensing .and. Win%tau_end - Win%tau_start > Win%sigma_tau*7) then
+                call Ranges_Add(TimeSteps, TimeOfZ(Win%Redshift+Win%sigma_z*3), &
+                max(0._dl,TimeOfZ(Win%Redshift-Win%sigma_z*3)), nwindow)
+                !This should be over peak
+            end if
+            !Make sure line of sight integral OK too
+            ! if (dtau0 > Win%tau_end/300/AccuracyBoost) then
+            !  call Ranges_Add_delta(TimeSteps, Win%tau_end, CP%tau0,  Win%tau_start/300/AccuracyBoost)
+            ! end if
+
         end do
     end if
 
