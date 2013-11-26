@@ -2809,14 +2809,14 @@
         if (i > max_transfer_redshifts) &
         call Mpistop('Transfer_SortAndIndexRedshifts: Too many redshifts')
 
-        if(iPK>P%PK_num_redshifts .or. P%NLL_redshifts(iNLL)>P%PK_redshifts(iPK)+tol) then
-            P%redshifts(i)=P%NLL_redshifts(iNLL)
-            P%NLL_redshifts_index(iNLL)=i
-            iNLL=iNLL+1
-        else if(iNLL>P%NLL_num_redshifts .or. P%PK_redshifts(iPK)>P%NLL_redshifts(iNLL)+tol) then
+        if(iNLL>P%NLL_num_redshifts .or. P%PK_redshifts(iPK)>P%NLL_redshifts(iNLL)+tol) then
             P%redshifts(i)=P%PK_redshifts(iPK)
             P%PK_redshifts_index(iPK)=i
             iPK=iPK+1
+        else if(iPK>P%PK_num_redshifts .or. P%NLL_redshifts(iNLL)>P%PK_redshifts(iPK)+tol) then
+            P%redshifts(i)=P%NLL_redshifts(iNLL)
+            P%NLL_redshifts_index(iNLL)=i
+            iNLL=iNLL+1
         else
             P%redshifts(i)=P%PK_redshifts(iPK)
             P%PK_redshifts_index(iPK)=i
