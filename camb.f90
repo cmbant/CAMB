@@ -101,11 +101,12 @@
     type(CAMBparams) :: Params
     integer, optional :: error !Zero if OK
     type(CAMBparams) P
-    logical :: separate = .true. !whether to do P_k in separate call or not
+    logical :: separate = .false. !whether to do P_k in separate call or not
     logical :: InReionization
 
-    if ((Params%DoLensing .or. num_redshiftwindows>0)&
-    .and. Params%NonLinear==NonLinear_Lens) separate = .false.
+    !JD no longer need to calculate separately PK and Cls separately just slows stuff down
+    !    if ((Params%DoLensing .or. num_redshiftwindows>0)&
+    !    .and. Params%NonLinear==NonLinear_Lens) separate = .false.
     InReionization = Params%Reion%Reionization
     global_error_flag = 0
     call_again = .false.
@@ -135,6 +136,9 @@
         CP%WantTensors = Params%WantTensors
         CP%WantVectors = Params%WantVectors
         CP%Transfer%num_redshifts = Params%Transfer%num_redshifts
+        !JD 08/13 for nonlinear lensing of CMB + LSS compatibility
+        CP%Transfer%PK_redshifts_index=Params%Transfer%PK_redshifts_index
+        CP%Transfer%PK_num_redshifts = Params%Transfer%PK_num_redshifts
         Params = CP
     end if
 
@@ -156,6 +160,9 @@
         CP%WantScalars = Params%WantScalars
         CP%WantVectors = Params%WantVectors
         CP%Transfer%num_redshifts = Params%Transfer%num_redshifts
+        !JD 08/13 for nonlinear lensing of CMB + LSS compatibility
+        CP%Transfer%PK_redshifts_index=Params%Transfer%PK_redshifts_index
+        CP%Transfer%PK_num_redshifts = Params%Transfer%PK_num_redshifts
         Params = CP
     end if
 
@@ -177,6 +184,9 @@
         CP%WantTensors = Params%WantTensors
         CP%WantScalars = Params%WantScalars
         CP%Transfer%num_redshifts = Params%Transfer%num_redshifts
+        !JD 08/13 for nonlinear lensing of CMB + LSS compatibility
+        CP%Transfer%PK_redshifts_index=Params%Transfer%PK_redshifts_index
+        CP%Transfer%PK_num_redshifts = Params%Transfer%PK_num_redshifts
         Params = CP
     end if
 
@@ -227,8 +237,12 @@
     Cls = 0
     do l=2, lmax
         if (CP%WantScalars .and. l<= CP%Max_l) then
-            Cls(l,1:2) = Cl_scalar(l, in,  C_Temp:C_E)
-            Cls(l,4) = Cl_scalar(l, in,  C_Cross)
+            if (CP%DoLensing) then
+                if (l<=lmax_lensed) Cls(l,1:4) = Cl_lensed(l, in, CT_Temp:CT_Cross)
+            else
+                Cls(l,1:2) = Cl_scalar(l, in,  C_Temp:C_E)
+                Cls(l,4) = Cl_scalar(l, in,  C_Cross)
+            endif
         end if
         if (CP%WantTensors .and. l <= CP%Max_l_tensor) then
             Cls(l,1:4) = Cls(l,1:4) + Cl_tensor(l, in,  CT_Temp:CT_Cross)
@@ -291,9 +305,9 @@
     P%YHe     = 0.24
     P%Num_Nu_massless =default_nnu
     P%Num_Nu_massive  =0
-    P%Nu_mass_splittings = .false.
-    P%same_neutrino_Neff = .false.
+    P%share_delta_neff = .false.
     P%Nu_mass_eigenstates = 0
+    P%Nu_mass_numbers=0
 
     P%Scalar_initial_condition =initial_adiabatic
     P%NonLinear = NonLinear_none
@@ -324,6 +338,12 @@
     P%Transfer%k_per_logint=0
     P%Transfer%num_redshifts=1
     P%Transfer%redshifts=0
+    !JD 08/13 CAMB Fix for for nonlinear lensing of CMB + MPK compatibility
+    P%Transfer%PK_num_redshifts=1
+    P%Transfer%PK_redshifts=0
+    P%Transfer%NLL_num_redshifts=0
+    P%Transfer%NLL_redshifts=0
+    !End JD
 
     P%AccuratePolarization = .true.
     P%AccurateReionization = .false.
@@ -364,12 +384,12 @@
         '  Warning: YHe is the Helium fraction of baryons.', &
         '  Your have:', P%yhe
     end if
-    if (P%Num_Nu_massive < 0.or.P%Num_Nu_massive > 3.1) then
+    if (P%Num_Nu_massive < 0) then
         OK = .false.
         write(*,*) &
         'Warning: Num_Nu_massive is strange:',P%Num_Nu_massive
     end if
-    if (P%Num_Nu_massless < 0.or.P%Num_Nu_massless > 3.1) then
+    if (P%Num_Nu_massless < 0) then
         OK = .false.
         write(*,*) &
         'Warning: Num_nu_massless is strange:', P%Num_Nu_massless
@@ -430,5 +450,3 @@
     end subroutine CAMB_cleanup
 
     end module CAMB
-
-

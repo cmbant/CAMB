@@ -1,6 +1,6 @@
     !     This this is the main CAMB program module.
     !
-    !     Code for Anisotropies in the Microwave Backgroundeqma
+    !     Code for Anisotropies in the Microwave Background
     !     by Antony lewis (http://cosmologist.info) and Anthony Challinor
     !     See readme.html for documentation.
 
@@ -164,7 +164,10 @@
         write (*,*) 'r = ',real(CP%r),' scale = ',real(scale), 'age = ', real(CP%tau0)
     end if
 
-    if (.not. CP%OnlyTransfers .or. CP%NonLinear==NonLinear_Lens)call InitializePowers(CP%InitPower,CP%curv)
+    !JD 08/13 for nonlinear lensing of CMB + MPK compatibility
+    !if (.not. CP%OnlyTransfers .or. CP%NonLinear==NonLinear_Lens)  call InitializePowers(CP%InitPower,CP%curv)
+    if (.not. CP%OnlyTransfers .or. CP%NonLinear==NonLinear_Lens .or. CP%NonLinear==NonLinear_both) &
+    call InitializePowers(CP%InitPower,CP%curv)
     if (global_error_flag/=0) return
 
     !Calculation of the CMB sources.
@@ -218,7 +221,7 @@
     end if
 
     if (CP%WantTransfer .and. CP%WantCls .and. WantLateTime &
-    .and. CP%NonLinear==NonLinear_Lens .and. global_error_flag==0) then
+    .and. (CP%NonLinear==NonLinear_Lens .or. CP%NonLinear==NonLinear_both) .and. global_error_flag==0) then
         call MakeNonlinearSources
         if (DebugMsgs .and. Feedbacklevel > 0) then
             timeprev=actual
@@ -240,7 +243,11 @@
 
             ExactClosedSum = CP%curv > 5e-9_dl .or. scale < 0.93_dl
 
-            call GetLimberTransfers
+            max_bessels_l_index = ThisCT%ls%l0
+            max_bessels_etak  = maximum_qeta
+
+            if (CP%WantScalars) call GetLimberTransfers
+            ThisCT%max_index_nonlimber = max_bessels_l_index
 
             if (CP%flat) call InitSpherBessels
             !This is only slow if not called before with same (or higher) Max_l, Max_eta_k
@@ -293,7 +300,7 @@
             iCl_Array = 0
         end if
 
-        call CalcLImberScalCls(CTransS)
+        call CalcLimberScalCls(CTransS)
         call CalcScalCls(CTransS)
         if (DebugMsgs .and. Feedbacklevel > 0) write (*,*) 'CalcScalCls'
     end if
@@ -356,30 +363,32 @@
             s_ix = 3+i
             if (CTrans%limber_l_min(s_ix) /=0) then
                 do j= i, num_redshiftwindows
-                    s_ix2 = 3+j 
+                    s_ix2 = 3+j
                     if (CTrans%limber_l_min(s_ix2) /=0) then
-                        !$OMP PARALLEL DO DEFAUlT(SHARED), SCHEDUlE(STATIC,2), PRIVATE(Cl,ell,reall,fac,dbletmp,n,LimbRec,LimbRec2) 
+                        !$OMP PARALLEL DO DEFAUlT(SHARED), SCHEDUlE(STATIC,2), PRIVATE(Cl,ell,reall,fac,dbletmp,n,LimbRec,LimbRec2)
                         do ell =  max(CTrans%limber_l_min(s_ix), CTrans%limber_l_min(s_ix2)), Ctrans%ls%l0
                             Cl = 0
-                            reall = real(CTrans%ls%l(ell),dl)
-                            fac = (2*pi**2)/fourpi/(reall+0.5_dl)**3 !fourpi because multipled by fourpi later
                             LimbRec => CTrans%Limber_windows(s_ix,ell)
                             LimbRec2 => CTrans%Limber_windows(s_ix2,ell)
 
                             do n = max(LimbRec%n1,LimbRec2%n1), min(LimbRec%n2,LimbRec2%n2)
                                 !Actually integral over chi; source has sqrt( chi dchi)
                                 !Same n corresponds to same k since ell fixed here
-                                Cl = Cl + LimbRec%Source(n)*LimbRec2%Source(n) * fac * ScalarPower(LimbRec%k(n) ,pix)
+                                Cl = Cl + LimbRec%Source(n)*LimbRec2%Source(n) * ScalarPower(LimbRec%k(n) ,pix)
                             end do
 
-                            if(j==0) iCl_scalar(ell,C_Phi,pix) = Cl
+                            reall = real(CTrans%ls%l(ell),dl)
+                            fac = (2*pi**2)/fourpi/(reall+0.5_dl)**3 !fourpi because multipled by fourpi later
+                            Cl = Cl*fac
+
+                            if(j==0 .and. i==0) iCl_scalar(ell,C_Phi,pix) = Cl
                             if (has_cl_2D_array) then
                                 dbletmp=(reall*(reall+1))/OutputDenominator*fourpi
                                 iCl_Array(ell,s_ix,s_ix2,pix) = Cl*dbletmp
                                 if (i/=j) iCl_Array(ell,s_ix2,s_ix,pix)=iCl_Array(ell,s_ix,s_ix2,pix)
                             end if
                         end do
-                        !$OMP END PARAllEl DO 
+                        !$OMP END PARAllEl DO
                     end if
                 end do
             end if
@@ -399,11 +408,7 @@
 
     call Init_Limber(ThisCT)
 
-    if (num_redshiftwindows==0 .and. limber_phiphi==0 .or. .not. CP%WantScalars) then
-        max_bessels_l_index = ThisCT%ls%l0
-        max_bessels_etak  = CP%Max_eta_k
-        return
-    end if
+    if (num_redshiftwindows==0 .and. limber_phiphi==0) return
 
     if (ThisCT%ls%l(ThisCT%ls%l0) > 5000) then
         max_bessels_l_index = lvalues_indexOf(ThisCT%ls,5000)
@@ -417,57 +422,64 @@
         max_bessels_etak = 5000
     end if
 
-    ell_limb= limber_phiphi
+    do i =0, num_redshiftwindows
+        s_ix = 3+i
 
-    s_ix = 3
-    ell_needed = ThisCT%ls%l(ThisCT%ls%l0)
-    do ell = 1, ThisCT%ls%l0
-        if (ThisCT%ls%l(ell) >= ell_limb) then
-            ThisCT%limber_l_min(s_ix) =  ell
-            ell_needed = ell
-            max_bessels_l_index = max(max_bessels_l_index,ThisCT%limber_l_min(s_ix)-1)
-            if (FeedbackLevel > 1) write (*,*) i,'Limber switch', ThisCT%ls%l(ell)
-            exit
+        if (i==0) then
+            ell_limb= limber_phiphi
+        end if
+
+        ell_needed = ThisCT%ls%l(ThisCT%ls%l0)
+        do ell = 1, ThisCT%ls%l0
+            if (ThisCT%ls%l(ell) >= ell_limb) then
+                ThisCT%limber_l_min(s_ix) =  ell
+                ell_needed = ThisCT%ls%l(ell)
+                max_bessels_l_index = max(max_bessels_l_index,ThisCT%limber_l_min(s_ix)-1)
+                if (FeedbackLevel > 1) write (*,*) i,'Limber switch', ell_needed
+                exit
+            end if
+        end do
+
+        if (ThisCT%limber_l_min(s_ix)/=0) then
+            if (i==0) then
+                n1 = Ranges_IndexOf(TimeSteps,tau_maxvis)
+                n2 = TimeSteps%npoints-1
+            end if
+
+            do ell = ThisCT%limber_l_min(s_ix), ThisCT%ls%l0
+                LimbRec => ThisCT%Limber_windows(s_ix,ell)
+                LimbRec%n1 = n1
+                LimbRec%n2 = n2
+
+                allocate(LimbRec%k(n1:n2))
+                allocate(LimbRec%Source(n1:n2))
+
+                int = 0
+                do n = n1,n2
+                    chi = (CP%tau0-TimeSteps%points(n))
+                    k = (ThisCT%ls%l(ell)+0.5_dl)/chi
+                    LimbRec%k(n) = k
+                    if (k<=qmax) then
+                        klo = Ranges_IndexOf(Evolve_q, k)
+                        khi=klo+1
+                        ho=Evolve_q%points(khi)-Evolve_q%points(klo)
+                        a0=(Evolve_q%points(khi)-k)/ho
+                        b0=(k-Evolve_q%points(klo))/ho
+                        ho2o6 = ho**2/6
+                        a03=(a0**3-a0)
+                        b03=(b0**3-b0)
+
+                        LimbRec%Source(n)= sqrt(chi*TimeSteps%dpoints(n))* (a0*Src(klo,s_ix,n)+&
+                        b0*Src(khi,s_ix,n)+(a03 *ddSrc(klo,s_ix,n)+ b03*ddSrc(khi,s_ix,n)) *ho2o6)
+                    else
+                        LimbRec%Source(n)=0
+                    end if
+                end do
+            end do
+        else
+            max_bessels_l_index  = ThisCT%ls%l0
         end if
     end do
-
-    if (ThisCT%limber_l_min(s_ix)/=0) then
-        n1 = Ranges_IndexOf(TimeSteps,tau_maxvis)
-        n2 = TimeSteps%npoints-1
-
-        do ell = ThisCT%limber_l_min(s_ix), ThisCT%ls%l0
-            LimbRec => ThisCT%Limber_windows(s_ix,ell)
-            LimbRec%n1 = n1
-            LimbRec%n2 = n2
-
-            allocate(LimbRec%k(n1:n2))
-            allocate(LimbRec%Source(n1:n2))
-
-            int = 0
-            do n = n1,n2
-                chi = (CP%tau0-TimeSteps%points(n))
-                k = (ThisCT%ls%l(ell)+0.5_dl)/chi
-                LimbRec%k(n) = k
-                if (k<=qmax) then
-                    klo = Ranges_IndexOf(Evolve_q, k)
-                    khi=klo+1
-                    ho=Evolve_q%points(khi)-Evolve_q%points(klo)
-                    a0=(Evolve_q%points(khi)-k)/ho
-                    b0=(k-Evolve_q%points(klo))/ho
-                    ho2o6 = ho**2/6
-                    a03=(a0**3-a0)
-                    b03=(b0**3-b0)
-
-                    LimbRec%Source(n)= sqrt(chi*TimeSteps%dpoints(n))* (a0*Src(klo,s_ix,n)+&
-                    b0*Src(khi,s_ix,n)+(a03 *ddSrc(klo,s_ix,n)+ b03*ddSrc(khi,s_ix,n)) *ho2o6)
-                else
-                    LimbRec%Source(n)=0
-                end if
-            end do 
-        end do
-    else
-        max_bessels_l_index  = ThisCT%ls%l0
-    end if
 
     end subroutine GetLimberTransfers
 
@@ -566,7 +578,6 @@
             end do
             MT%num_q_trans = MT%num_q_trans + nq
         end if
-
     else
         !Fixed spacing
         MT%num_q_trans=int((log(CP%Transfer%kmax)-log(qmin))*CP%Transfer%k_per_logint)+1
@@ -613,7 +624,6 @@
         if (MT%num_q_trans > Evolve_q%npoints) then
             MT%q_trans(Evolve_q%npoints+1:MT%num_q_trans) = q_transfer(first_i:ntodo)
         end if
-
     else
         Evolve_q%npoints = 0
         call Transfer_Allocate(MT)
@@ -823,7 +833,7 @@
     !Could use sound horizon, but for tensors that is not relevant
 
     q_cmb = 2*l_smooth_sample/CP%chi0*AccuracyBoost  !assume everything is smooth at l > l_smooth_sample
-    if (CP%Want_CMB .and. maximum_l > 5000 .and. CP%AccuratePolarization) q_cmb = q_cmb*1.4 
+    if (CP%Want_CMB .and. maximum_l > 5000 .and. CP%AccuratePolarization) q_cmb = q_cmb*1.4
     !prevent EE going wild in tail
     dksmooth = q_cmb/2/(AccuracyBoost)**2
     if (CP%Want_CMB) dksmooth = dksmooth/6
@@ -956,7 +966,7 @@
                 if (f_i==1) then
                     ix_off=EV%g_ix
                 else
-                    ix_off=EV%g_ix_freq+(f_i-2)*EV%freq_neq 
+                    ix_off=EV%g_ix_freq+(f_i-2)*EV%freq_neq
                 end if
                 if (f_i==nscatter) then
                     write (1,'(1E15.5)') real(y(ix_off))
@@ -968,7 +978,6 @@
                 else
                     write (2,'(1E15.5)', advance='NO') real(y(ix_off+1))
                 end if
-
             end do
             !            write (1,'(7E15.5)') tau, delta, growth, y(3), y(4), y(EV%g_ix), y(1)
         end do
@@ -987,7 +996,7 @@
         tauend=TimeSteps%points(j)
 
         if (.not. DebugEvolution .and. (EV%q*tauend > max_etak_scalar .and. tauend > taurend) &
-        .and. .not. CP%Dolensing .and. (.not.CP%WantTransfer.or.tau > tautf(CP%Transfer%num_redshifts))) then
+        .and. .not. WantLateTime .and. (.not.CP%WantTransfer.or.tau > tautf(CP%Transfer%num_redshifts))) then
             Src(EV%q_ix,1:SourceNum,j)=0
         else
             !Integrate over time, calulate end point derivs and calc output
@@ -1016,7 +1025,6 @@
                         TimeSteps%points(j+1) > tautf(itf)) goto 101
                     end if
                 endif
-
             end if
         end if
 
@@ -1102,7 +1110,6 @@
 
             call outputv(EV,yv,EV%nvarv,j,tau,Src(EV%q_ix,CT_Temp,j),&
             Src(EV%q_ix,CT_E,j),Src(EV%q_ix,CT_B,j))
-
         end if
     end do
 
@@ -1305,9 +1312,8 @@
             call SetClosedkValuesFromArr(ThisCT%q,.true.)
             call Ranges_Getdpoints(ThisCT%q,half_ends = .false.)
             ThisCT%q%dpoints(1) = 1/CP%r
-            !!!
             deallocate(ThisCT%Delta_p_l_k) !Re-do this from Init_ClTransfer because number of points changed
-            allocate(ThisCT%Delta_p_l_k(ThisCT%NumSources,min(max_bessels_l_index,ThisCT%ls%l0), ThisCT%q%npoints))
+            allocate(ThisCT%Delta_p_l_k(ThisCT%NumSources,min(ThisCT%max_index_nonlimber,ThisCT%ls%l0), ThisCT%q%npoints))
             ThisCT%Delta_p_l_k = 0
         end if
 
@@ -1371,13 +1377,12 @@
         end if
 
         if (CP%WantScalars) then
-            if ((DebugEvolution .or. CP%Dolensing .or. IV%q*TimeSteps%points(i) < max_etak_scalar) &
+            if ((DebugEvolution .or. WantLateTime .or. IV%q*TimeSteps%points(i) < max_etak_scalar) &
             .and. xf > 1.e-8_dl) then
                 step=i
                 IV%Source_q(i,1:SourceNum)=a0*Src(klo,1:SourceNum,i)+ &
                 b0*Src(khi,1:SourceNum,i) + (a03*ddSrc(klo,1:SourceNum,i) &
                 +b03*ddSrc(khi,1:SourceNum,i))*ho2o6
-
             else
                 IV%Source_q(i,1:SourceNum) = 0
             end if
@@ -1543,7 +1548,6 @@
                     sums(2) = sums(2) + IV%Source_q(n,2)*J_l
                     sums(3) = sums(3) + IV%Source_q(n,3)*J_l
                     sums(4:SourceNum) = sums(4:SourceNum) + IV%Source_q(n,4:SourceNum)*J_l
-
                 end do
             end if
             if (.not. DoInt .or. UseLimber(lsamp%l(j),IV%q) .and. CP%WantScalars) then
@@ -1696,7 +1700,6 @@
                     if (chi==0) exit
                 end if
             end do
-
         end if
 
 
@@ -1718,7 +1721,6 @@
                     if (chi==0) exit !small for remaining region
                 end if
             end do
-
         end if
 
     end if !Do Tensors
@@ -1780,7 +1782,7 @@
     if (HighAccuracyDefault .and. scalel<1500 .and. scalel > 150) &
     IntAccuracyBoost=IntAccuracyBoost*(1+(2000-scalel)*0.6/2000 )
 
-    if (num2*IntAccuracyBoost < dchisource .and. (.not. CP%DoLensing .or. UseLimber(l,IV%q)) &
+    if (num2*IntAccuracyBoost < dchisource .and. (.not. WantLateTime .or. UseLimber(l,IV%q)) &
     .or. (nstart>IV%SourceSteps.and.nend>IV%SourceSteps)) then
         out = 0
         y1=0._dl !So we know to calculate starting y1,y2 if there is next range
@@ -1902,15 +1904,13 @@
                 !may save time, and prevents numerical error leading to access violation of IV%Source_q(0)
                 sources = IV%Source_q(is+1,1:SourceNum)
             else
-
-            a=1._dl-b
-            tmpa=(a**3-a)
-            tmpb=(b**3-b)
-            sources=a*IV%Source_q(is,1:SourceNum)+b*IV%Source_q(is+1,1:SourceNum)+ &
-            (tmpa*IV%ddSource_q(is,1:SourceNum)+ &
-            tmpb*IV%ddSource_q(is+1,1:SourceNum))*dtau2o6
+                a=1._dl-b
+                tmpa=(a**3-a)
+                tmpb=(b**3-b)
+                sources=a*IV%Source_q(is,1:SourceNum)+b*IV%Source_q(is+1,1:SourceNum)+ &
+                (tmpa*IV%ddSource_q(is,1:SourceNum)+ &
+                tmpb*IV%ddSource_q(is+1,1:SourceNum))*dtau2o6
             end if
-
         else
             sources = IV%Source_q(Startn - i*isgn,1:SourceNum)
         end if
@@ -1921,7 +1921,6 @@
             chi=0
             exit !break when getting  exponentially small in dissipative region
         end if
-
     end do
 
     out = (out - sources*ujl/2)*delchi*CP%r
@@ -2167,7 +2166,7 @@
         do j=1,CTrans%ls%l0
             !Integrate dk/k Delta_l_q**2 * Power(k)
             ell = real(CTrans%ls%l(j),dl)
-            if (j<= max_bessels_l_index)  then
+            if (j<= CTrans%max_index_nonlimber) then
                 do q_ix = 1, CTrans%q%npoints
                     if (.not.(CP%closed.and.nint(CTrans%q%points(q_ix)*CP%r)<=CTrans%ls%l(j))) then
                         !cut off at nu = l + 1
@@ -2211,7 +2210,6 @@
                                 apowers*CTrans%Delta_p_l_k(3,j,q_ix)*CTrans%Delta_p_l_k(2,j,q_ix)*dlnk
                             end if
                         end if
-
                     end if
                 end do
 
@@ -2233,7 +2231,6 @@
                 iCl_scalar(j,C_PhiE,pix) = sqrt(ALens)*  iCl_scalar(j,C_PhiE,pix)*fourpi*ell**3*sqrt(ctnorm)
                 !Cross-correlation is CTrans%ls%l^3 C_l^{\phi E}
             end if
-
         end do
         !OMP END PARAllEl DO
     end do
@@ -2284,7 +2281,6 @@
                         apowers*CTrans%Delta_p_l_k(1:2,j,q_ix)*CTrans%Delta_p_l_k(1:2,j2,q_ix)*dlnk
                         iCl_scalar2(j,j2,C_Cross,in) = iCl_scalar2(j,j2,C_Cross,in) + &
                         apowers*CTrans%Delta_p_l_k(1,j,q_ix)*CTrans%Delta_p_l_k(2,j2,q_ix)*dlnk
-
                     end if
                 end do
 
@@ -2300,7 +2296,6 @@
                 iCl_scalar2(j,j2,C_Temp,in)  =  iCl_scalar2(j,j2,C_Temp,in)*dbletmp
                 iCl_scalar2(j,j2,C_E,in)     =  iCl_scalar2(j,j2,C_E,in)*dbletmp*ctnorm
                 iCl_scalar2(j,j2,C_Cross,in) =  iCl_scalar2(j,j2,C_Cross,in)*dbletmp*sqrt(ctnorm)
-
             end do
         end do
     end do
@@ -2353,7 +2348,6 @@
         !$OMP PARAllEl DO DEFAUlT(SHARED),SCHEDUlE(STATIC,4) &
         !$OMP & PRIVATE(j,q_ix,measure,apowert,ctnorm,dbletmp)
         do j=1,CTrans%ls%l0
-
         do q_ix = 1, CTrans%q%npoints
             if (.not.(CP%closed.and. nint(CTrans%q%points(q_ix)*CP%r)<=CTrans%ls%l(j))) then
                 !cut off at nu = l+1
@@ -2368,7 +2362,6 @@
 
                 do f1=1,num_cmb_freq
                     do f2=1,num_cmb_freq
-
                     iCl_tensor_array(j,CT_Temp:CT_B,in,f1,f2) = iCl_tensor_array(j,CT_Temp:CT_B,in,f1,f2) + &
                     apowert*CTrans%Delta_p_l_k(CT_Temp+(f1)*3:CT_B+(f1)*3,j,q_ix)*CTrans%Delta_p_l_k(CT_Temp+(f2)*3:CT_B+(f2)*3,j,q_ix)*measure
 
@@ -2445,12 +2438,14 @@
     implicit none
     Type(ClTransferData) :: CTransS, CTransT, CTransV
     integer in,i,j
-    integer, parameter :: ind(2,2)=[[1,3],[3,2]]
+    integer, dimension(2,2), parameter :: ind = reshape( (/ 1,3,3,2 /), shape(ind))
+
     integer f1,f2
+
 
     !Note using log interpolation is worse
 
-    !$OMP PARALLEL DO DEFAULT(SHARED), PRIVATE(i,in,j), SHARED(CTransS,CTransT),IF(CP%InitPower%nn > 1)
+    !$OMP PARALLEL DO DEFAULT(SHARED), PRIVATE(i,j,in), SHARED(CTransS,CTransT),IF(CP%InitPower%nn > 1)
     do in=1,CP%InitPower%nn
         if (CP%WantScalars) then
             do i = C_Temp, C_last
@@ -2467,7 +2462,6 @@
                             if (i<=3+num_cmb_freq*2 .and. j<=3+num_cmb_freq*2 .and. i>3 .and. j>3 .and. (i<=5 .and. j<=5 .or. .not. rayleigh_diff)) then
                                 call InterpolateClArrTemplated(CTransS%ls,iCl_array(1,i,j,in),Cl_scalar_array(lmin, in, i,j), &
                                 CTransS%ls%l0,ind(1+mod(i-4,2),1+mod(j-4,2)))
-
                             else
                                 call InterpolateClArr(CTransS%ls,iCl_array(1,i,j,in), &
                                 Cl_scalar_array(lmin, in, i,j),CTransS%ls%l0)
@@ -2497,7 +2491,6 @@
                     end do
                 end do
             end do
-
         end if
     end do
     !$OMP END PARALLEL DO

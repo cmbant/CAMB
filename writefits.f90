@@ -26,14 +26,11 @@
   call CAMB_GetCls(clout, lmx, 1, .false.)
   !HealPix 1.2 uses E-B conventions
 
-  if (CP%OutputNormalization == outCOBE) then
-     fac=2*pi*CP%tcmb**2
+
+  if (CP%OutputNormalization >=2) then
+   fac=1
   else
-     if (CP%OutputNormalization >=2) then
-      fac=1
-     else
-      fac=OutputDenominator*CP%tcmb**2
-     end if
+   fac=OutputDenominator*CP%tcmb**2
   end if
 
 !FITS file has Cls without l(l+1)/twopi factors
@@ -47,12 +44,7 @@
   deallocate(clout)
 
   header = ''
-
-  if (CP%OutputNormalization == outCOBE) then
-     unitstr='Kelvin-squared'
-  else
-     unitstr='unknown'
-  end if
+  unitstr='unknown'
 
   call add_card(header,'COMMENT','-----------------------------------------------')
   call add_card(header,'COMMENT','     CMB power spectrum C(l) keywords          ')
@@ -103,7 +95,7 @@
  call add_card(header,'SCALARS',CP%WantScalars, 'includes scalar modes')
  call add_card(header,'TENSORS',CP%WantTensors, 'includes tensor modes')
  call add_card(header,'INITFLAG',CP%Scalar_initial_condition, 'initial condition flag') 
- COBEnorm = CP%outputNormalization==outCOBE
+ COBEnorm = .false.
  call add_card(header,'COBENORM',COBEnorm, 'COBE normalized') 
  call add_card(header,'KETA_MAX',CP%Max_eta_k, 'Max wavenumber') 
  call add_card(header,'PRECIS',AccuracyBoost, 'Relative computation accuracy') 

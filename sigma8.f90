@@ -30,7 +30,10 @@
         P%Transfer%k_per_logint=3
         P%Transfer%num_redshifts=1
         P%Transfer%redshifts(1)=0
-
+        P%Transfer%PK_num_redshifts=1
+        P%Transfer%PK_redshifts(1)=0
+        call Transfer_SortAndIndexRedshifts(P%Transfer)
+        
         do i=1,10
          P%Omegav=P%Omegav-0.05
          P%Omegac=P%Omegac+0.05

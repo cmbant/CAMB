@@ -23,7 +23,7 @@ endif
 #With v4.6+ try -Ofast -march=native -fopenmp
 #On my machine v4.5 is about 20% slower than ifort
 #F90C     = gfortran
-#FFLAGS =  -O3 -fopenmp -ffast-math -march=native -funroll-loops
+#FFLAGS =  -O3 -fopenmp -ffast-math -funroll-loops
 
 
 #Old Intel ifc, add -openmp for multi-processor (some have bugs):

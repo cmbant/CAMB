@@ -64,7 +64,7 @@
 
     P%WantCls= P%WantScalars .or. P%WantTensors .or. P%WantVectors
 
-    P%WantTransfer=Ini_Read_Logical('get_transfer')
+    P%PK_WantTransfer=Ini_Read_Logical('get_transfer')
 
     AccuracyBoost  = Ini_Read_Double('accuracy_boost',AccuracyBoost)
     lAccuracyBoost = Ini_Read_Real('l_accuracy_boost',lAccuracyBoost)
@@ -123,46 +123,55 @@
     P%tcmb   = Ini_Read_Double('temp_cmb',COBE_CMBTemp)
     P%yhe    = Ini_Read_Double('helium_fraction',0.24_dl)
     P%Num_Nu_massless  = Ini_Read_Double('massless_neutrinos')
-    nmassive = Ini_Read_Double('massive_neutrinos')
-    !Store fractional numbers in the massless total
-    P%Num_Nu_massive   = int(nmassive+1e-6)
-    P%Num_Nu_massless  = P%Num_Nu_massless + nmassive-P%Num_Nu_massive
 
-    P%nu_mass_splittings = .true.
     P%Nu_mass_eigenstates = Ini_Read_Int('nu_mass_eigenstates',1)
     if (P%Nu_mass_eigenstates > max_nu) stop 'too many mass eigenstates'
+
+    numstr = Ini_Read_String('massive_neutrinos')
+    read(numstr, *) nmassive
+    if (abs(nmassive-nint(nmassive))>1e-6) stop 'massive_neutrinos should now be integer (or integer array)'
+    read(numstr,*, end=100, err=100) P%Nu_Mass_numbers(1:P%Nu_mass_eigenstates)
+    P%Num_Nu_massive = sum(P%Nu_Mass_numbers(1:P%Nu_mass_eigenstates))
+
+    if (P%Num_Nu_massive>0) then
+        P%share_delta_neff = Ini_Read_Logical('share_delta_neff', .true.)
     numstr = Ini_Read_String('nu_mass_degeneracies')
-    if (numstr=='') then
-        P%Nu_mass_degeneracies(1)= 0
+        if (P%share_delta_neff) then
+            if (numstr/='') write (*,*) 'WARNING: nu_mass_degeneracies ignored when share_delta_neff'
     else
+            if (numstr=='') stop 'must give degeneracies for each eigenstate if share_delta_neff=F'
         read(numstr,*) P%Nu_mass_degeneracies(1:P%Nu_mass_eigenstates)
     end if
-    numstr = Ini_read_String('nu_mass_fractions')
+        numstr = Ini_Read_String('nu_mass_fractions')
     if (numstr=='') then
-        P%Nu_mass_fractions(1)=1
         if (P%Nu_mass_eigenstates >1) stop 'must give nu_mass_fractions for the eigenstates'
+            P%Nu_mass_fractions(1)=1
     else
         read(numstr,*) P%Nu_mass_fractions(1:P%Nu_mass_eigenstates)
     end if
+    end if
 
-    if (P%NonLinear==NonLinear_lens .and. P%DoLensing) then
-        if (P%WantTransfer) &
-        write (*,*) 'overriding transfer settings to get non-linear lensing'
+    !JD 08/13 begin changes for nonlinear lensing of CMB + LSS compatibility
+    !P%Transfer%redshifts -> P%Transfer%PK_redshifts and P%Transfer%num_redshifts -> P%Transfer%PK_num_redshifts
+    !in the P%WantTransfer loop.
+    if (((P%NonLinear==NonLinear_lens .or. P%NonLinear==NonLinear_both) .and. P%DoLensing) &
+    .or. P%PK_WantTransfer) then
+        P%Transfer%high_precision=  Ini_Read_Logical('transfer_high_precision',.false.)
+    else
+        P%transfer%high_precision = .false.
+    endif
+
+    if (P%PK_WantTransfer)  then
         P%WantTransfer  = .true.
-        call Transfer_SetForNonlinearLensing(P%Transfer)
-        P%Transfer%high_precision=  Ini_Read_Logical('transfer_high_precision',.false.)
-
-    else if (P%WantTransfer)  then
-        P%Transfer%high_precision=  Ini_Read_Logical('transfer_high_precision',.false.)
         P%transfer%kmax          =  Ini_Read_Double('transfer_kmax')
         P%transfer%k_per_logint  =  Ini_Read_Int('transfer_k_per_logint')
-        P%transfer%num_redshifts =  Ini_Read_Int('transfer_num_redshifts')
+        P%transfer%PK_num_redshifts =  Ini_Read_Int('transfer_num_redshifts')
 
         transfer_interp_matterpower = Ini_Read_Logical('transfer_interp_matterpower ', transfer_interp_matterpower)
         transfer_power_var = Ini_read_int('transfer_power_var',transfer_power_var)
-        if (P%transfer%num_redshifts > max_transfer_redshifts) stop 'Too many redshifts'
-        do i=1, P%transfer%num_redshifts
-            P%transfer%redshifts(i)  = Ini_Read_Double_Array('transfer_redshift',i,0._dl)
+        if (P%transfer%PK_num_redshifts > max_transfer_redshifts) stop 'Too many redshifts'
+        do i=1, P%transfer%PK_num_redshifts
+            P%transfer%PK_redshifts(i)  = Ini_Read_Double_Array('transfer_redshift',i,0._dl)
             transferFileNames(i)     = Ini_Read_String_Array('transfer_filename',i)
             MatterPowerFilenames(i)  = Ini_Read_String_Array('transfer_matterpower',i)
             if (TransferFileNames(i) == '') then
@@ -176,10 +185,20 @@
             if (MatterPowerFilenames(i) /= '') &
             MatterPowerFilenames(i)=trim(outroot)//MatterPowerFilenames(i)
         end do
-        P%transfer%kmax=P%transfer%kmax*(P%h0/100._dl)
     else
-        P%transfer%high_precision = .false.
+        P%Transfer%PK_num_redshifts = 1
+        P%Transfer%PK_redshifts = 0
     endif
+
+    if ((P%NonLinear==NonLinear_lens .or. P%NonLinear==NonLinear_both) .and. P%DoLensing) then
+        P%WantTransfer  = .true.
+        call Transfer_SetForNonlinearLensing(P%Transfer)
+    end if
+
+    call Transfer_SortAndIndexRedshifts(P%Transfer)
+    !JD 08/13 end changes
+
+    P%transfer%kmax=P%transfer%kmax*(P%h0/100._dl)
 
     Ini_fail_on_not_found = .false.
 
@@ -302,7 +321,7 @@
         stop
     endif
 
-    if (P%WantTransfer .and. .not. (P%NonLinear==NonLinear_lens .and. P%DoLensing)) then
+    if (P%PK_WantTransfer) then
         call Transfer_SaveToFiles(MT,TransferFileNames)
         call Transfer_SaveMatterPower(MT,MatterPowerFileNames)
         call Transfer_output_sig8(MT)
@@ -324,7 +343,9 @@
     end if
 
     call CAMB_cleanup
+    stop
 
+100 stop 'Must give num_massive number of integer physical neutrinos for each eigenstate'
     end program driver
 
 
