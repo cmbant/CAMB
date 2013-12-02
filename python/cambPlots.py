@@ -209,6 +209,8 @@ def plot_compare(clResults, colors=def_colors, ncl=1, x='sqrt', x_lens='log', y=
             if icl <= 3:
                 if (all(cl.cls[:, icl] == 0)): continue
                 cl_plot(ax[0, icl], cl.l, cl.cls[:, icl], color=colors[i], x=x, y=y, **args)
+                if y == 'log': cl_plot(ax[0, icl], cl.l, -cl.cls[:, icl], color=colors[i], ls=':', x=x, y=y, **args)
+
                 if i == 0 and compare is not None:
                     cl_plot(ax[0, icl], cl_base.l, cl_base.cls[:, icl], color='k', ls='--', x=x, **args)
                 if i > 0 or compare is not None:

@@ -6,11 +6,11 @@ from cambPlots import *
 from pylab import *
 
 
-root = r'../test_lensedCls.dat'
-root2 = r'../test2_lensedCls.dat'
+root = r'z:\test3_lensedCls.dat_1_3'
+root2 = r'z:\test_zerosource_lensedCls.dat_1_3'
 
 
-plot_compare([root, root2], ncl=4, x='sqrt')
+plot_compare([root, root2], ncl=2, x='log', y='log')
 
 
 show()

@@ -2270,7 +2270,7 @@
     use ModelData
     implicit none
     private
-    integer,parameter :: nthermo=20000
+    integer,parameter :: nthermo=40000 !Rayleigh, seems to effect R-T at very low L
 
 
     real(dl) tb(nthermo),cs2(nthermo),xe(nthermo)
