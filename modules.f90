@@ -35,7 +35,7 @@
     implicit none
     public
 
-    character(LEN=*), parameter :: version = 'Nov13_rayleigh'
+    character(LEN=*), parameter :: version = 'Dec13_rayleigh'
 
     integer, parameter  :: num_cmb_freq =  6
     logical :: rayleigh_diff = .true.
