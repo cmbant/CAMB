@@ -14,6 +14,8 @@
 
 ! RT12 Oct: update some fitting parameters in the code to enhance
 !           the power spectrum at small scales (arXiv:1208.2701)
+! SPB14 Feb: update the fitting parameters for neutrinos to work with RT12
+!           modifications
 !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
       module NonLinear
@@ -138,7 +140,7 @@
       xnu=10**(5.2105+3.6902*rn)
       alpha=abs(6.0835+1.3373*rn-0.1959*rn*rn-5.5274*rncur)
       beta=2.0379-0.7354*rn+0.3157*rn**2+1.2490*rn**3+ &
-           0.3980*rn**4-0.1682*rncur
+           0.3980*rn**4-0.1682*rncur + fnu*(1.761 + 0.288*rn**2)
 
       if(abs(1-om_m).gt.0.01) then ! omega evolution 
          f1a=om_m**(-0.0732)
@@ -160,8 +162,8 @@
       y=(rk/rknl)
 
       ph=a*y**(f1*3)/(1+b*y**(f2)+(f3*c*y)**(3-gam))
-      ph=ph/(1+xmu*y**(-1)+xnu*y**(-2))*(1+fnu*(2.080-12.39*(omm0-0.3))/(1+1.201e-03*y**3))
-      plinaa=plin*(1+fnu*26.29*rk**2/(1+1.5*rk**2))
+      ph=ph/(1+xmu*y**(-1)+xnu*y**(-2))*(1+fnu*(0.691-12.96*(omm0-0.3))/(1-0.131*y**3))
+      plinaa=plin*(1+fnu*47.49*rk**2/(1+1.5*rk**2))
       pq=plin*(1+plinaa)**beta/(1+plinaa*alpha)*exp(-y/4.0-y**2/8.0)
 
       pnl=pq+ph
