@@ -262,11 +262,11 @@
     public
 
     !Description of this file. Change if you make modifications.
-    character(LEN=*), parameter :: Eqns_name = 'equations_ppf-Oct13'
+    character(LEN=*), parameter :: Eqns_name = 'equations_ppf-Mar14'
 
     integer, parameter :: basic_num_eqns = 5
 
-    logical :: DoTensorNeutrinos = .false.
+    logical :: DoTensorNeutrinos = .true.
 
     logical :: DoLateRadTruncation = .true.
     !if true, use smooth approx to radition perturbations after decoupling on
