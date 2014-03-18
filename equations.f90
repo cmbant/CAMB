@@ -113,7 +113,7 @@
 
     integer, parameter :: basic_num_eqns = 5
 
-    logical :: DoTensorNeutrinos = .false.
+    logical :: DoTensorNeutrinos = .true.
 
     logical :: DoLateRadTruncation = .true.
     !if true, use smooth approx to radition perturbations after decoupling on
