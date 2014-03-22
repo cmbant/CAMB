@@ -14,8 +14,12 @@
 
 ! RT12 Oct: update some fitting parameters in the code to enhance
 !           the power spectrum at small scales (arXiv:1208.2701)
+
+!!JD 08/13: generalized expressions for om(z) and ol(z) to include 
+!           w_0 and w_a
 ! SPB14 Feb: update the fitting parameters for neutrinos to work with RT12
 !           modifications
+
 !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
       module NonLinear
@@ -56,8 +60,8 @@
 ! curvature (rncur) of the power spectrum at the desired redshift, using method 
 ! described in Smith et al (2002).
        a = 1/real(1+CAMB_Pk%Redshifts(itf),dl)
-       om_m = omega_m(a, omm0, CP%omegav, w_lam)  
-       om_v = omega_v(a, omm0, CP%omegav, w_lam)
+       om_m = omega_m(a, omm0, CP%omegav, w_lam,wa_ppf)  
+       om_v = omega_v(a, omm0, CP%omegav, w_lam,wa_ppf)
 
       xlogr1=-2.0
       xlogr2=3.5
@@ -161,6 +165,7 @@
 
       y=(rk/rknl)
 
+      
       ph=a*y**(f1*3)/(1+b*y**(f2)+(f3*c*y)**(3-gam))
       ph=ph/(1+xmu*y**(-1)+xnu*y**(-2))*(1+fnu*(0.977-18.015*(omm0-0.3)))
       plinaa=plin*(1+fnu*47.48*rk**2/(1+1.5*rk**2))
@@ -168,7 +173,7 @@
 
       pnl=pq+ph
 
-      end subroutine halofit       
+      end subroutine halofit
 
 
 !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -217,27 +222,29 @@
       
       end subroutine wint
       
-!!BR09 generalize to constant w
+!!JD 08/13 generalize to variable w
 
-      function omega_m(aa,om_m0,om_v0,wval)
+      function omega_m(aa,om_m0,om_v0,wval,waval)
       implicit none
-      real(dl) omega_m,omega_t,om_m0,om_v0,aa,wval
-      omega_t=1.0+(om_m0+om_v0-1.0)/(1-om_m0-om_v0+om_v0*((aa)**(-1.0-3.0*wval))+om_m0/aa)
-      omega_m=omega_t*om_m0/(om_m0+om_v0*((aa)**(-3.0*wval)))
+      real(dl) omega_m,omega_t,om_m0,om_v0,aa,wval,waval,Qa2
+      Qa2= aa**(-1.0-3.0*(wval+waval))*dexp(-3.0*(1-aa)*waval)
+      omega_t=1.0+(om_m0+om_v0-1.0)/(1-om_m0-om_v0+om_v0*Qa2+om_m0/aa)
+      omega_m=omega_t*om_m0/(om_m0+om_v0*aa*Qa2)
       end function omega_m
 
 !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 ! evolution of omega lambda with expansion factor
 
-      function omega_v(aa,om_m0,om_v0,wval)      
+      function omega_v(aa,om_m0,om_v0,wval,waval)      
       implicit none
-      real(dl) aa,omega_v,om_m0,om_v0,omega_t,wval
-      omega_t=1.0+(om_m0+om_v0-1.0)/(1-om_m0-om_v0+om_v0*((aa)**(-1.0-3.0*wval))+om_m0/aa)
-      omega_v=omega_t*om_v0*((aa)**(-3.0-3.0*wval))/(om_v0*((aa)**(-3.0-3.0*wval))+om_m0/aa/aa/aa)
+      real(dl) aa,omega_v,om_m0,om_v0,omega_t,wval,waval,Qa2
+      Qa2= aa**(-1.0-3.0*(wval+waval))*dexp(-3.0*(1-aa)*waval)
+      omega_t=1.0+(om_m0+om_v0-1.0)/(1-om_m0-om_v0+om_v0*Qa2+om_m0/aa)
+      omega_v=omega_t*om_v0*Qa2/(om_v0*Qa2+om_m0/aa)
       end function omega_v
 
-!!BR09 end generalize to constant w
+!!JD end generalize to variable w
 
 end module NonLinear
 
