@@ -1627,6 +1627,12 @@
             vis(j,f_i)*polter*(k2 -6*cothxor**2))
 
             dtb(f_i)=15._dl/4._dl*EV%q*CP%r/k/prefac*(vis(j,f_i)*(2._dl*cothxor*polter + polterdot) + dvis(j,f_i)*polter)
+            
+            if (rayleigh_diff .and. f_i>2) then
+                dt(f_i)= dt(f_i) - dt(1)
+                dte(f_i)= dte(f_i) - dte(1)
+                dtb(f_i)= dtb(f_i) - dtb(1)
+            end if
         end do
     else
         dt=0._dl
