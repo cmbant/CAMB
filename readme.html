@@ -126,6 +126,13 @@ Some details about what different source code files do are given <A HREF="#FILES
 <P>
 <A NAME="version">
 <H3>Version history</H3>
+<B>April 2014</B><BR>
+<UL>
+<LI>Added two alternative tensor parameterizations (see <A HREF="http://cosmologist.info/notes/CAMB.pdf">CAMB notes</A> section on tensors)
+<LI>Added optional parameters <b>scalar_nrunrun</b> (for running of running of scalar power), and <b>tensor_nrun</b> for running of tensors
+<LI>Start lensing potential integration at tau_maxvis (gets T-phi slightly closer to result from using visibility, very small change to anything else)
+</UL>
+
 <B>March 2014</B><BR>
 <UL>
 <LI>Fixed problem with tensor modes having DoTensorNeutrinos=T and massive neutrinos
