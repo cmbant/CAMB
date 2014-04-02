@@ -11,15 +11,15 @@
     !
     !The tensor spectrum has three different supported parameterizations
     !
-    ! tensor_parameterization_indeptilt (=1) (default, same as CAMB pre-April 2014)
+    ! tensor_param_indeptilt (=1) (default, same as CAMB pre-April 2014)
     !
     ! P_T = r A_s (k/k_0_tensor)^(n_t)
     !
-    ! tensor_parameterization_rpivot (=2)
+    ! tensor_param_rpivot (=2)
     !
     ! P_T = r P_s(k_0_tensor) (k/k_0_tensor)^(n_t)
     !
-    ! tensor_parameterization_AT (=3)
+    ! tensor_param_AT (=3)
     !
     ! P_T = A_t (k/k_0_tensor)^(n_t)
     !
@@ -40,10 +40,10 @@
     integer, parameter :: nnmax= 5
     !Maximum possible number of different power spectra to use
 
-    integer, parameter :: tensor_parameterization_indeptilt=1,  tensor_parameterization_rpivot = 2, tensor_parameterization_AT = 3
+    integer, parameter :: tensor_param_indeptilt=1,  tensor_param_rpivot = 2, tensor_param_AT = 3
 
     Type InitialPowerParams
-        integer :: tensor_parameterization = tensor_parameterization_indeptilt
+        integer :: tensor_parameterization = tensor_param_indeptilt
         integer nn  !Must have this variable
         !The actual number of power spectra to use
 
@@ -56,12 +56,12 @@
         real(dl) rat(nnmax) !ratio of scalar to tensor initial power spectrum amplitudes
         real(dl) k_0_scalar, k_0_tensor !pivot scales
         real(dl) ScalarPowerAmp(nnmax)
-        real(dl) TensorPowerAmp(nnmax) !A_T at k_0_tensor if tensor_parameterization==tensor_parameterization_AT
+        real(dl) TensorPowerAmp(nnmax) !A_T at k_0_tensor if tensor_parameterization==tensor_param_AT
     end Type InitialPowerParams
 
     real(dl) curv  !Curvature contant, set in InitializePowers
 
-    Type(InitialPowerParams) :: P
+    Type(InitialPowerParams), save :: P
 
     !Make things visible as neccessary...
 
@@ -85,7 +85,7 @@
     AP%k_0_tensor = 0.05
     AP%ScalarPowerAmp = 1
     AP%TensorPowerAmp = 1
-    AP%tensor_parameterization = tensor_parameterization_indeptilt
+    AP%tensor_parameterization = tensor_param_indeptilt
 
     end subroutine SetDefPowerParams
 
@@ -155,11 +155,11 @@
 
     lnrat = log(k/P%k_0_tensor)
     k_dep = exp(lnrat*(P%ant(ix) + P%nt_run(ix)/2*lnrat))
-    if (P%tensor_parameterization==tensor_parameterization_indeptilt) then
+    if (P%tensor_parameterization==tensor_param_indeptilt) then
         TensorPower = P%rat(ix)*P%ScalarPowerAmp(ix)*k_dep
-    else if (P%tensor_parameterization==tensor_parameterization_rpivot) then
+    else if (P%tensor_parameterization==tensor_param_rpivot) then
         TensorPower = P%rat(ix)*ScalarPower(P%k_0_tensor,ix) * k_dep
-    else if (P%tensor_parameterization==tensor_parameterization_AT) then
+    else if (P%tensor_parameterization==tensor_param_AT) then
         TensorPower = P%TensorPowerAmp(ix) * k_dep
     end if
     if (curv < 0) TensorPower=TensorPower*tanh(PiByTwo*sqrt(-k**2/curv-3))
@@ -215,9 +215,9 @@
     InitPower%nn = Ini_Read_Int_File(Ini,'initial_power_num',1)
     if (InitPower%nn>nnmax) stop 'Too many initial power spectra - increase nnmax in InitialPower'
     if (WantTensors) then
-        InitPower%tensor_parameterization =  Ini_Read_Int_File(Ini, 'tensor_parameterization',tensor_parameterization_indeptilt)
-        if (InitPower%tensor_parameterization < tensor_parameterization_indeptilt .or. &
-        & InitPower%tensor_parameterization > tensor_parameterization_AT) &
+        InitPower%tensor_parameterization =  Ini_Read_Int_File(Ini, 'tensor_parameterization',tensor_param_indeptilt)
+        if (InitPower%tensor_parameterization < tensor_param_indeptilt .or. &
+        & InitPower%tensor_parameterization > tensor_param_AT) &
         & stop 'InitialPower: unknown tensor_parameterization'
     end if
     InitPower%rat(:) = 1
@@ -229,7 +229,7 @@
         if (WantTensors) then
             InitPower%ant(i) = Ini_Read_Double_Array_File(Ini,'tensor_spectral_index',i)
             InitPower%nt_run(i) = Ini_Read_Double_Array_File(Ini,'tensor_nrun',i,0._dl)
-            if (InitPower%tensor_parameterization == tensor_parameterization_AT) then
+            if (InitPower%tensor_parameterization == tensor_param_AT) then
                 InitPower%TensorPowerAmp(i) = Ini_Read_Double_Array_File(Ini,'tensor_amp',i)
             else
                 InitPower%rat(i) = Ini_Read_Double_Array_File(Ini,'initial_ratio',i)
