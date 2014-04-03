@@ -280,7 +280,12 @@
     else
         DoLateRadTruncation = Ini_Read_Logical('do_late_rad_truncation',.true.)
     end if
-    DoTensorNeutrinos = Ini_Read_Logical('do_tensor_neutrinos',DoTensorNeutrinos )
+
+    if (HighAccuracyDefault) then
+        DoTensorNeutrinos = .true.
+    else
+        DoTensorNeutrinos = Ini_Read_Logical('do_tensor_neutrinos',DoTensorNeutrinos )
+    end if
     FeedbackLevel = Ini_Read_Int('feedback_level',FeedbackLevel)
 
     P%MassiveNuMethod  = Ini_Read_Int('massive_nu_approx',Nu_best)
@@ -288,7 +293,6 @@
     ThreadNum      = Ini_Read_Int('number_of_threads',ThreadNum)
     use_spline_template = Ini_Read_Logical('use_spline_template',use_spline_template)
 
-    DoTensorNeutrinos = DoTensorNeutrinos .or. HighAccuracyDefault
     if (do_bispectrum) then
         lSampleBoost   = 50
     else

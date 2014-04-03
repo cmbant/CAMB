@@ -40,7 +40,7 @@
     integer, parameter :: nnmax= 5
     !Maximum possible number of different power spectra to use
 
-    integer, parameter :: tensor_param_indeptilt=1,  tensor_param_rpivot = 2, tensor_param_AT = 3
+    integer, parameter, public :: tensor_param_indeptilt=1,  tensor_param_rpivot = 2, tensor_param_AT = 3
 
     Type InitialPowerParams
         integer :: tensor_parameterization = tensor_param_indeptilt
@@ -67,7 +67,6 @@
 
     public InitialPowerParams, InitialPower_ReadParams, InitializePowers, ScalarPower, TensorPower
     public nnmax,Power_Descript, Power_Name, SetDefPowerParams
-    !      public
     contains
 
 
