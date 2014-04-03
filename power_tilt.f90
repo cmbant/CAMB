@@ -1,33 +1,35 @@
     !This module provides the initial power spectra, parameterized as an expansion in ln k
     !
-    ! ln P_s = ln A_s + (n_s -1)*ln(k/k_0) + n_{run}/2 * ln(k/k_0)^2 + n_{runrun}/6 * ln(k/k_0)^3
+    ! ln P_s = ln A_s + (n_s -1)*ln(k/k_0_scalar) + n_{run}/2 * ln(k/k_0_scalar)^2 + n_{runrun}/6 * ln(k/k_0_scalar)^3
     !
-    ! so if n_run = 0, n_run_run=0
+    ! so if n_{run} = 0, n_{runrun}=0
     !
     ! P_s = A_s (k/k_0_scalar)^(n_s-1)
     !
-    !for the scalar spectrum, when an(in) is the in'th spectral index. k_0_scalar
+    !for the scalar spectrum, when n_s=an(in) is the in'th spectral index. k_0_scalar
     !is a pivot scale, fixed here to 0.05/Mpc (change it below as desired or via .ini file).
     !
-    !The tensor spectrum has three different supported parameterizations
+    !The tensor spectrum has three different supported parameterizations giving
     !
-    ! tensor_param_indeptilt (=1) (default, same as CAMB pre-April 2014)
+    ! ln P_t = ln A_t + n_t*ln(k/k_0_tensor) + n_{t,run}/2 * ln(k/k_0_tensor)^2
     !
-    ! P_T = r A_s (k/k_0_tensor)^(n_t)
+    ! tensor_parameterization==tensor_param_indeptilt (=1) (default, same as CAMB pre-April 2014)
     !
-    ! tensor_param_rpivot (=2)
+    ! A_t = r A_s
     !
-    ! P_T = r P_s(k_0_tensor) (k/k_0_tensor)^(n_t)
+    ! tensor_parameterization==tensor_param_rpivot (=2)
     !
-    ! tensor_param_AT (=3)
+    ! A_t = r P_s(k_0_tensor)
     !
-    ! P_T = A_t (k/k_0_tensor)^(n_t)
+    ! tensor_parameterization==tensor_param_AT (=3)
+    !
+    ! A_t =  tensor_amp
     !
     !The absolute normalization of the Cls is unimportant here, but the relative ratio
     !of the tensor and scalar Cls generated with this module will be correct for general models
     !
     !December 2003 - changed default tensor pivot to 0.05 (consistent with CMBFAST 4.5)
-    !April 2014 added different tensor parameterizations
+    !April 2014 added different tensor parameterizations, running of running and running of tensors
 
     module InitialPower
     use Precision
