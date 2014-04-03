@@ -13,7 +13,7 @@
 Code for Anisotropies in the Microwave Background by <A
 HREF="http://cosmologist.info/">Antony Lewis</A> and Anthony
 Challinor. <P>
-This version March 2014.
+This version April 2014.
 <P>
 <FONT SIZE=-1>
 Originally based on CMBFAST developed by Uros Seljak and Matias
@@ -128,9 +128,9 @@ Some details about what different source code files do are given <A HREF="#FILES
 <H3>Version history</H3>
 <B>April 2014</B><BR>
 <UL>
-<LI>Added two alternative tensor parameterizations (see <A HREF="http://cosmologist.info/notes/CAMB.pdf">CAMB notes</A> section on tensors)
+<LI>Added two alternative tensor power spectrum parameterizations (see <A HREF="http://cosmologist.info/notes/CAMB.pdf">CAMB notes</A> section on initial power spectra), allowing easy specification of r or tensor amplitude with different scalar/tensor pivot scales
 <LI>Added optional parameters <b>scalar_nrunrun</b> (for running of running of scalar power), and <b>tensor_nrun</b> for running of tensors
-<LI>Start lensing potential integration at tau_maxvis (gets T-phi slightly closer to result from using visibility, very small change to anything else)
+<LI>Start lensing potential integration at tau_maxvis (gets T-phi slightly closer to result from using visibility, very small change to anything else) and added negligible anisotropic stress correction for consistency in extended models.
 </UL>
 
 <B>March 2014</B><BR>

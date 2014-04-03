@@ -1554,11 +1554,9 @@
     if (CTransScal%NumSources > 2) then
         !Get lensing sources
         !Can modify this here if you want to get power spectra for other tracer
-        if (tau>taurend .and. CP%tau0-tau > 0.1_dl) then
+        if (tau > tau_maxvis .and. CP%tau0-tau > 0.1_dl) then
             !phi_lens = Phi - 1/2 kappa (a/k)^2 sum_i rho_i pi_i
-            !Neglect pi contributions because not accurate at late time anyway
-            phi = -(dgrho +3*dgq*adotoa/k)/(k2*EV%Kf(1)*2)
-            ! - dgpi/k2/2
+            phi = -(dgrho +3*dgq*adotoa/k)/(k2*EV%Kf(1)*2) - dgpi/k2/2
 
             sources(3) = -2*phi*f_K(tau-tau_maxvis)/(f_K(CP%tau0-tau_maxvis)*f_K(CP%tau0-tau))
 
