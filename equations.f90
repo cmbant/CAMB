@@ -15,6 +15,7 @@
     !            merged fderivs and derivs so flat and non-flat use same equations; more precomputed arrays
     !            optimized neutrino sampling, and reorganised neutrino integration functions
     ! Feb 2013: fixed various issues with accuracy at larger neutrino masses
+    ! Mar 2014: fixes for tensors with massive neutrinos
 
     module LambdaGeneral
     use precision
@@ -735,7 +736,7 @@
                 q_rel = q_rel + 1
             end do
 
-            if (q_rel>= nqmax-2) then
+            if (q_rel>= nqmax-2 .or. CP%WantTensors) then
                 EV%nq(nu_i)=nqmax
             else
                 EV%nq(nu_i)=q_rel
@@ -1069,15 +1070,15 @@
     end subroutine Nu_pinudot
 
     !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-    function Nu_pi(EV,y, a, nu_i) result(pinu)
+    function Nu_pi(EV, y, a, nu_i) result(pinu)
     type(EvolutionVars) EV
     integer, intent(in) :: nu_i
-    real(dl), intent(in) :: a, y(EV%nvar)
+    real(dl), intent(in) :: a, y(EV%nvart)
     real(dl) :: am
     real(dl) pinu,q,aq,v
     integer iq, ind
 
-    if (EV%nq(nu_i)/=nqmax) stop 'Nu_pi nq/=nqmax0'
+    if (EV%nq(nu_i)/=nqmax) stop 'Nu_pi: nq/=nqmax'
     pinu=0
     ind=EV%nu_ix(nu_i)+2
     am=a*nu_masses(nu_i)
@@ -1385,11 +1386,9 @@
     if (CTransScal%NumSources > 2) then
         !Get lensing sources
         !Can modify this here if you want to get power spectra for other tracer
-        if (tau>taurend .and. CP%tau0-tau > 0.1_dl) then
+        if (tau>tau_maxvis .and. CP%tau0-tau > 0.1_dl) then
             !phi_lens = Phi - 1/2 kappa (a/k)^2 sum_i rho_i pi_i
-            !Neglect pi contributions because not accurate at late time anyway
-            phi = -(dgrho +3*dgq*adotoa/k)/(k2*EV%Kf(1)*2)
-            ! - dgpi/k2/2
+            phi = -(dgrho +3*dgq*adotoa/k)/(k2*EV%Kf(1)*2) - dgpi/k2/2
 
             sources(3) = -2*phi*f_K(tau-tau_maxvis)/(f_K(CP%tau0-tau_maxvis)*f_K(CP%tau0-tau))
             !         sources(3) = -2*phi*(tau-tau_maxvis)/((CP%tau0-tau_maxvis)*(CP%tau0-tau))
@@ -2645,7 +2644,7 @@
         if (EV%lmaxnrt>2) then
             pirdt=-EV%denlkt(2,2)*neut(3) + 8._dl/15._dl*k*shear
             neutprime(2)=pirdt
-            !  And for the moments
+           !  And for the moments
             do  l=3, EV%lmaxnrt-1
                 neutprime(l)= EV%denlkt(1,L)*neut(l-1) -EV%denlkt(2,L)*neut(l+1)
             end do
@@ -2666,7 +2665,7 @@
                 else
                     ind=EV%nu_ix(nu_i)+2
 
-                    pinu= Nu_pi(EV, ayt(ind),a, nu_i)
+                    pinu= Nu_pi(EV, ayt, a, nu_i)
                     rhopi=rhopi+ grhormass(nu_i)/a2*pinu
 
                     do i=1,nqmax
