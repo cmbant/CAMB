@@ -35,7 +35,7 @@
     implicit none
     public
 
-    character(LEN=*), parameter :: version = 'Apr14'
+    character(LEN=*), parameter :: version = 'Jul14'
 
     integer :: FeedbackLevel = 0 !if >0 print out useful information about the model
 
@@ -557,6 +557,15 @@
     AngularDiameterDistance = CP%r/(1+z)*rofchi(ComovingRadialDistance(z) /CP%r)
 
     end function AngularDiameterDistance
+    
+    function AngularDiameterDistance2(z1, z2) ! z1 < z2
+    !From http://www.slac.stanford.edu/~amantz/work/fgas14/#cosmomc
+    real(dl) AngularDiameterDistance2
+    real(dl), intent(in) :: z1, z2
+ 
+    AngularDiameterDistance2 = CP%r/(1+z2)*rofchi(ComovingRadialDistance(z2)/CP%r - ComovingRadialDistance(z1)/CP%r)
+    
+    end function AngularDiameterDistance2
 
     function LuminosityDistance(z)
     real(dl) LuminosityDistance

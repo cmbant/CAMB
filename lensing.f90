@@ -45,6 +45,9 @@ implicit none
  
  integer :: lensing_method = lensing_method_curv_corr
 
+ real(dl) :: ALens_Fiducial = 0._dl 
+ !Change from zero to set lensing smoothing by scaling amplitude of fiducial template
+ 
 private
 
  logical  :: lensing_includes_tensors = .false.
@@ -64,7 +67,7 @@ private
  real(dl), dimension(:), allocatable  :: lnfa
 
 public lens_Cls, lensing_includes_tensors, lensing_method, lensing_method_flat_corr,&
-      lensing_method_curv_corr,lensing_method_harmonic, BessI, bessj0
+      lensing_method_curv_corr,lensing_method_harmonic, BessI, bessj0, ALens_Fiducial
 contains
 
 
@@ -229,7 +232,14 @@ subroutine CorrFuncFullSkyImpl(lmax)
        stop
       end if
      end do
-   end if
+    end if
+    if (ALens_Fiducial > 0) then
+        do l=2, lmax
+          sc = (2*l+1)/(4*pi) * 2*pi/(l*(l+1))
+          Cphil3(l) =  sc * highL_CL_template(l, C_Phi) * ALens_Fiducial
+        end do
+    end if
+    
   lens_contrib=0
 
   !uncomment second line for PGF90 workaround
