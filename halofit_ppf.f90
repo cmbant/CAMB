@@ -5,9 +5,9 @@
     !
     ! The code `halofit' was written by R. E. Smith & J. A. Peacock.
     ! See http://www.astro.upenn.edu/~res,
-    ! Last edited 8/5/2002.
-
-    ! Only tested for plain LCDM models with power law initial power spectra
+    !
+    ! Subsequent updates as below
+    ! Only tested for basic models with power law initial power spectra
 
     ! Adapted for F90 and CAMB, AL March 2005
     !!BR09 Oct 09: generalized expressions for om(z) and ol(z) to include w
@@ -19,6 +19,8 @@
     !           w_0 and w_a
     ! SPB14 Feb: update the fitting parameters for neutrinos to work with RT12
     !           modifications
+    ! AL Sept 14: added halofit_version parameter to change approximation used;
+    !   separate halofit.f90 is no longer needed as equations.f90 defined fixed wa_ppf
 
     !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -31,7 +33,7 @@
 
     real, parameter :: Min_kh_nonlinear = 0.005
     real(dl):: om_m,om_v,fnu,omm0
-   
+
     integer, parameter :: halofit_original = 1, halofit_bird=2, halofit_peacock=3, halofit_takahashi=4
     integer, parameter :: halofit_default = halofit_takahashi
     integer :: halofit_version = halofit_default
@@ -127,8 +129,6 @@
 
     !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-    ! halo model nonlinear fitting formula as described in
-    ! Appendix C of Smith et al. (2002)
 
     subroutine halofit(rk,rn,rncur,rknl,plin,pnl,pq,ph)
     implicit none
@@ -141,6 +141,8 @@
 
     if (halofit_version ==halofit_original .or. halofit_version ==halofit_bird &
         .or. halofit_version == halofit_peacock) then
+    ! halo model nonlinear fitting formula as described in
+    ! Appendix C of Smith et al. (2002)
     !SPB11: Standard halofit underestimates the power on the smallest scales by a
     !factor of two. Add an extra correction from the simulations in Bird, Viel,
     !Haehnelt 2011 which partially accounts for this.
@@ -178,6 +180,8 @@
         alpha=abs(6.0835+1.3373*rn-0.1959*rn*rn-5.5274*rncur)
         beta=2.0379-0.7354*rn+0.3157*rn**2+1.2490*rn**3+ &
             0.3980*rn**4-0.1682*rncur + fnu*(1.081 + 0.395*rn**2)
+    else
+        stop 'Unknown halofit_version'
     end if
 
     if(abs(1-om_m).gt.0.01) then ! omega evolution
