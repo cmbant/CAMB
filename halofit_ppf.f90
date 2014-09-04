@@ -31,11 +31,12 @@
 
     real, parameter :: Min_kh_nonlinear = 0.005
     real(dl):: om_m,om_v,fnu,omm0
+   
     integer, parameter :: halofit_original = 1, halofit_bird=2, halofit_peacock=3, halofit_takahashi=4
     integer, parameter :: halofit_default = halofit_takahashi
     integer :: halofit_version = halofit_default
     public Min_kh_nonlinear,NonLinear_GetNonLinRatios, NonLinear_ReadParams
-
+    public halofit_version,halofit_default, halofit_original, halofit_bird, halofit_peacock, halofit_takahashi
     contains
 
     subroutine NonLinear_ReadParams(Ini)
