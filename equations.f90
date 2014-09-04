@@ -25,6 +25,8 @@
     real(dl) :: cs2_lam = 1_dl
     !comoving sound speed. Always exactly 1 for quintessence
     !(otherwise assumed constant, though this is almost certainly unrealistic)
+    
+    real(dl), parameter :: wa_ppf = 0._dl !Not used here, just for compatibility with e.g. halofit
 
     logical :: w_perturb = .true.
     !If you are tempted to set this = .false. read

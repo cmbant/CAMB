@@ -10,7 +10,7 @@ RECOMBINATION ?= recfast
 BISPECTRUM ?= SeparableBispectrum
 
 #Module doing non-linear scaling
-NONLINEAR     ?= halofit
+NONLINEAR     ?= halofit_ppf
 
 #Driver program
 DRIVER        ?= inidriver.F90
