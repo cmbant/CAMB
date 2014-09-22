@@ -423,7 +423,7 @@
         end if
         if (P%transfer%kmax < 0.01 .or. P%transfer%kmax > 50000 .or. &
         P%transfer%k_per_logint>0 .and.  P%transfer%k_per_logint <1) then
-            OK = .false.
+!            OK = .false.
             write(*,*) 'Strange transfer function settings.'
         end if
         if (P%transfer%num_redshifts > max_transfer_redshifts .or. P%transfer%num_redshifts<1) then
