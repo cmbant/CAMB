@@ -1625,9 +1625,13 @@
     public
     integer, parameter :: Transfer_kh =1, Transfer_cdm=2,Transfer_b=3,Transfer_g=4, &
         Transfer_r=5, Transfer_nu = 6,  & !massless and massive neutrino
-    Transfer_tot=7
-
-    integer, parameter :: Transfer_max = Transfer_tot
+        Transfer_tot=7, Transfer_nonu=8, Transfer_tot_de=9,  & 
+        ! total perturbations with and without neutrinos, with neutrinos and dark energy in the numerator
+        Transfer_Weyl = 10, & ! the Weyl potential, for lensing and ISW
+        Transfer_Newt_vel_cdm=11, Transfer_Newt_vel_baryon=12,   & ! -k v_Newtonian/H
+        Transfer_vel_baryon_cdm = 13 !relative velocity of baryons and CDM
+    
+    integer, parameter :: Transfer_max = Transfer_vel_baryon_cdm
 
     logical :: transfer_interp_matterpower  = .true. !output regular grid in log k
     !set to false to output calculated values for later interpolation
@@ -2120,20 +2124,24 @@
     character(LEN=Ini_max_string_len), intent(IN) :: FileNames(*)
     !JD 08/13 Changes in here to PK arrays and variables
     integer i_PK
-
+    character(len=20) fmt
+    
+    
+    write (fmt,*) Transfer_max
+    fmt = '('//trim(adjustl(fmt))//'E14.6)'
+    
     do i_PK=1, CP%Transfer%PK_num_redshifts
         if (FileNames(i_PK) /= '') then
             i = CP%Transfer%PK_redshifts_index(i_PK)
             open(unit=fileio_unit,file=FileNames(i_PK),form='formatted',status='replace')
             do ik=1,MTrans%num_q_trans
                 if (MTrans%TransferData(Transfer_kh,ik,i)/=0) then
-                    write(fileio_unit,'(7E14.6)') MTrans%TransferData(Transfer_kh:Transfer_max,ik,i)
+                    write(fileio_unit,fmt) MTrans%TransferData(Transfer_kh:Transfer_max,ik,i)
                 end if
             end do
             close(fileio_unit)
         end if
     end do
-
 
     end subroutine Transfer_SaveToFiles
 

@@ -988,7 +988,7 @@
                 !     output transfer functions for this k-value.
 
                 if (abs(tau-tautf(itf)) < 1.e-5_dl) then
-                    call outtransf(EV,y, MT%TransferData(:,EV%q_ix,itf))
+                    call outtransf(EV,y, tau, MT%TransferData(:,EV%q_ix,itf))
 
                     itf=itf+1
                     if (j < TimeSteps%npoints) then
@@ -1131,7 +1131,7 @@
     do i=1,CP%Transfer%num_redshifts
         call GaugeInterface_EvolveScal(EV,tau,y,tautf(i),atol,ind,c,w)
         if (global_error_flag/=0) return
-        call outtransf(EV,y,MT%TransferData(:,EV%q_ix,i))
+        call outtransf(EV,y,tau,MT%TransferData(:,EV%q_ix,i))
     end do
 
     end subroutine GetTransfer

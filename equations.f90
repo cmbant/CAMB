@@ -106,6 +106,7 @@
     use MassiveNu
     use LambdaGeneral
     use Errors
+    use Transfer
     implicit none
     public
 
@@ -198,7 +199,7 @@
 
         integer E_ix, B_ix !tensor polarization indices
         real(dl) denlkt(4,max_l_evolve),Kft(max_l_evolve)
-
+        real, pointer :: OutputTransfer(:) => null()
 
     end type EvolutionVars
 
@@ -913,10 +914,11 @@
 
     end subroutine SwitchToMassiveNuApprox
 
-    subroutine MassiveNuVarsOut(EV,y,yprime,a,grho,gpres,dgrho,dgq,dgpi, gdpi_diff,pidot_sum)
+    subroutine MassiveNuVarsOut(EV,y,yprime,a,grho,gpres,dgrho,dgq,dgpi, gdpi_diff,pidot_sum,clxnu_all)
     implicit none
     type(EvolutionVars) EV
-    real(dl) :: y(EV%nvar), yprime(EV%nvar),a, grho,gpres,dgrho,dgq,dgpi, gdpi_diff,pidot_sum
+    real(dl) :: y(EV%nvar), yprime(EV%nvar),a 
+    real(dl), optional :: grho,gpres,dgrho,dgq,dgpi, gdpi_diff,pidot_sum,clxnu_all
     !grho = a^2 kappa rho
     !gpres = a^2 kappa p
     !dgrho = a^2 kappa \delta\rho
@@ -928,9 +930,11 @@
     integer nu_i
     real(dl) pinudot,grhormass_t, rhonu, pnu,  rhonudot
     real(dl) adotoa, grhonu_t,gpnu_t
-    real(dl) clxnu, qnu, pinu, dpnu
+    real(dl) clxnu, qnu, pinu, dpnu, grhonu, dgrhonu
     real(dl) dtauda
 
+    grhonu=0
+    dgrhonu=0
     do nu_i = 1, CP%Nu_mass_eigenstates
         grhormass_t=grhormass(nu_i)/a**2
 
@@ -961,15 +965,18 @@
         grhonu_t=grhormass_t*rhonu
         gpnu_t=grhormass_t*pnu
 
-        grho = grho  + grhonu_t
-        gpres= gpres + gpnu_t
+        grhonu = grhonu  + grhonu_t
+        if (present(gpres)) gpres= gpres + gpnu_t
 
-        dgrho= dgrho + grhonu_t*clxnu
-        dgq  = dgq   + grhonu_t*qnu
-        dgpi = dgpi  + grhonu_t*pinu
-        gdpi_diff = gdpi_diff + pinu*(3*gpnu_t-grhonu_t)
-        pidot_sum = pidot_sum + grhonu_t*pinudot
+        dgrhonu= dgrhonu + grhonu_t*clxnu
+        if (present(dgq)) dgq  = dgq   + grhonu_t*qnu
+        if (present(dgpi)) dgpi = dgpi  + grhonu_t*pinu
+        if (present(gdpi_diff)) gdpi_diff = gdpi_diff + pinu*(3*gpnu_t-grhonu_t)
+        if (present(pidot_sum)) pidot_sum = pidot_sum + grhonu_t*pinudot
     end do
+    if (present(grho)) grho = grho  + grhonu
+    if (present(dgrho)) dgrho= dgrho + dgrhonu
+    if (present(clxnu_all)) clxnu_all = dgrhonu/grhonu
 
     end subroutine MassiveNuVarsOut
 
@@ -1892,63 +1899,22 @@
     end subroutine initialv
 
 
-    subroutine outtransf(EV, y, Arr)
+    subroutine outtransf(EV, y,tau, Arr)
     !write out clxc, clxb, clxg, clxn
-    use Transfer
     implicit none
     type(EvolutionVars) EV
-
+    real(dl), intent(in) :: tau
     real(dl) clxc, clxb, clxg, clxr, k,k2
     real(dl) grho,gpres,dgrho,dgq,a
-    real Arr(:)
-    real(dl) y(EV%nvar)
+    real, target :: Arr(:)
+    real(dl) y(EV%nvar),yprime(EV%nvar)
+   
+    yprime = 0
+    EV%OutputTransfer =>  Arr
+    call derivs(EV,EV%ScalEqsToPropagate,tau,y,yprime)
+    nullify(EV%OutputTransfer)
 
-    a    = y(1)
-    clxc = y(3)
-    clxb = y(4)
-    if (EV%no_nu_multpoles) then
-        clxr=0
-    else
-        clxr = y(EV%r_ix)
-    end if
-
-    if (EV%no_phot_multpoles) then
-        clxg=0
-    else
-        clxg = y(EV%g_ix)
-    end if
-
-    k    = EV%k_buf
-    k2   = EV%k2_buf
-
-    Arr(Transfer_kh) = k/(CP%h0/100._dl)
-    Arr(Transfer_cdm) = clxc/k2
-    Arr(Transfer_b) = clxb/k2
-    Arr(Transfer_g) = clxg/k2
-    Arr(Transfer_r) = clxr/k2
-
-    dgrho = 0
-    grho =  0
-
-    if (CP%Num_Nu_Massive > 0) then
-        call MassiveNuVars(EV,y,a,grho,gpres,dgrho,dgq)
-        Arr(Transfer_nu) = dgrho/grho/k2
-    else
-        Arr(Transfer_nu) = 0
-    end if
-
-    !!!If we want DE perturbations to get \delta\rho/\rho_m
-    !       dgrho=dgrho+y(EV%w_ix)*grhov*a**(-1-3*w_lam)
-    !        Arr(Transfer_r) = y(EV%w_ix)/k2
-    !
-    !        dgrho = dgrho+(clxc*grhoc + clxb*grhob)/a
-    !        grho =  grho+(grhoc+grhob)/a + grhov*a**(-1-3*w_lam)
-
-    dgrho = dgrho+(clxc*grhoc + clxb*grhob)/a
-    grho =  grho+(grhoc+grhob)/a
-
-    Arr(Transfer_tot) = dgrho/grho/k2
-
+    Arr(Transfer_kh+1:Transfer_max) = Arr(Transfer_kh+1:Transfer_max)/EV%k2_buf
 
     end subroutine outtransf
 
@@ -1980,9 +1946,10 @@
     real(dl) clxq, vq,  E2, dopacity
     integer l,i,ind, ind2, off_ix, ix
     real(dl) dgs,sigmadot,dz !, ddz
+    real(dl) dgpi,dgrho_matter,grho_matter, clxnu_all
     !non-flat vars
     real(dl) cothxor !1/tau in flat case
-
+    
 
     k=EV%k_buf
     k2=EV%k2_buf
@@ -2019,18 +1986,20 @@
     end if
 
     gpres=0
-    grho=grhob_t+grhoc_t+grhor_t+grhog_t+grhov_t
+    grho_matter=grhob_t+grhoc_t
 
     !total perturbations: matter terms first, then add massive nu, de and radiation
     !  8*pi*a*a*SUM[rho_i*clx_i]
-    dgrho=grhob_t*clxb+grhoc_t*clxc
+    dgrho_matter=grhob_t*clxb+grhoc_t*clxc
     !  8*pi*a*a*SUM[(rho_i+p_i)*v_i]
     dgq=grhob_t*vb
 
     if (CP%Num_Nu_Massive > 0) then
-        call MassiveNuVars(EV,ay,a,grho,gpres,dgrho,dgq, wnu_arr)
+        call MassiveNuVars(EV,ay,a,grho_matter,gpres,dgrho_matter,dgq, wnu_arr)
     end if
 
+    grho = grho_matter+grhor_t+grhog_t+grhov_t
+    
     if (CP%flat) then
         adotoa=sqrt(grho/3)
         cothxor=1._dl/tau
@@ -2038,6 +2007,8 @@
         adotoa=sqrt((grho+grhok)/3._dl)
         cothxor=1._dl/tanfunc(tau/CP%r)/CP%r
     end if
+
+    dgrho = dgrho_matter
 
     if (w_lam /= -1 .and. w_Perturb) then
         clxq=ay(EV%w_ix)
@@ -2103,7 +2074,7 @@
         sigma=(z+1.5_dl*dgq/k2)/EV%Kf(1)
         ayprime(2)=0.5_dl*dgq + CP%curv*z
     end if
-
+    
     if (w_lam /= -1 .and. w_Perturb) then
         ayprime(EV%w_ix)= -3*adotoa*(cs2_lam-w_lam)*(clxq+3*adotoa*(1+w_lam)*vq/k) &
         -(1+w_lam)*k*vq -(1+w_lam)*k*z
@@ -2111,6 +2082,27 @@
         ayprime(EV%w_ix+1) = -adotoa*(1-3*cs2_lam)*vq + k*cs2_lam*clxq/(1+w_lam)
     end if
 
+    if (associated(EV%OutputTransfer)) then
+        EV%OutputTransfer(Transfer_kh) = k/(CP%h0/100._dl) 
+        EV%OutputTransfer(Transfer_cdm) = clxc
+        EV%OutputTransfer(Transfer_b) = clxb
+        EV%OutputTransfer(Transfer_g) = clxg
+        EV%OutputTransfer(Transfer_r) = clxr
+        clxnu_all=0
+        dgpi  = grhor_t*pir + grhog_t*pig
+        if (CP%Num_Nu_Massive /= 0) then
+            call MassiveNuVarsOut(EV,ay,ayprime,a, clxnu_all =clxnu_all, dgpi= dgpi)
+        end if
+        EV%OutputTransfer(Transfer_nu) = clxnu_all
+        EV%OutputTransfer(Transfer_tot) =  dgrho_matter/grho_matter !includes neutrinos
+        EV%OutputTransfer(Transfer_nonu) = (grhob_t*clxb+grhoc_t*clxc)/(grhob_t + grhoc_t)
+        EV%OutputTransfer(Transfer_tot_de) =  dgrho/grho_matter
+        EV%OutputTransfer(Transfer_Weyl) = -(dgrho +3*dgq*adotoa/k)/(k2*EV%Kf(1)*2) - dgpi/k2/2
+        EV%OutputTransfer(Transfer_Newt_vel_cdm)= -k*sigma/adotoa
+        EV%OutputTransfer(Transfer_Newt_vel_baryon) = -k*(vb + sigma)/adotoa
+        EV%OutputTransfer(Transfer_vel_baryon_cdm) = vb
+    end if
+    
     !  CDM equation of motion
     clxcdot=-k*z
     ayprime(3)=clxcdot
