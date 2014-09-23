@@ -158,7 +158,7 @@
 
     end type CAMBparams
 
-    type(CAMBparams) CP  !Global collection of parameters
+    type(CAMBparams), save :: CP  !Global collection of parameters
 
     real(dl) scale !relative to CP%flat. e.g. for scaling lSamp%l sampling.
 
@@ -1642,14 +1642,14 @@
 
     logical :: get_growth_sigma8 = .true.
     !gets sigma_vdelta, like sigma8 but using velocity-density cross power,
-    !which is equal to f sigma8 i LCDM
+    !in late LCDM f*sigma8 = sigma_vdelta^2/sigma8
 
     Type MatterTransferData
         !Computed data
         integer   ::  num_q_trans   !    number of steps in k for transfer calculation
         real(dl), dimension (:), pointer :: q_trans => NULL()
         real(dl), dimension (:,:), pointer ::  sigma_8 => NULL()
-        real(dl), dimension (:,:), pointer ::  sigma_vdelta_8 => NULL() !growth from sigma_{v delta}
+        real(dl), dimension (:,:), pointer ::  sigma2_vdelta_8 => NULL() !growth from sigma_{v delta}
         real, dimension(:,:,:), pointer :: TransferData => NULL()
         !TransferData(entry,k_index,z_index) for entry=Tranfer_kh.. Transfer_tot
     end Type MatterTransferData
@@ -1989,7 +1989,7 @@
 
     end subroutine Transfer_GetMatterPowerD
 
-    subroutine Transfer_Get_SigmaR(MTrans, R, outvals, var1, var2, power_ix)
+    subroutine Transfer_Get_SigmaR(MTrans, R, outvals, var1, var2, power_ix, root)
     !Calculate MTrans%sigma_8^2 = int dk/k win**2 T_k**2 P(k), where win is the FT of a spherical top hat
     !of radius R h^{-1} Mpc, for all requested redshifts
     !set va1, var2 e.g. to get the value from some combination of transfer functions rather than total
@@ -1997,6 +1997,7 @@
     real(dl), intent(in) :: R
     integer, intent(in), optional :: var1, var2
     integer, intent(in), optional :: power_ix
+    logical, intent(in), optional :: root !if true, give sigma8, otherwise sigma8^2
     real(dl), intent(out) :: outvals(:)
     integer ik
     real(dl) kh, k, h, x, win
@@ -2047,7 +2048,12 @@
         lnko=lnk
     end do
 
-    outvals(1:CP%Transfer%PK_num_redshifts) = sqrt(sig8)
+    if (present(root)) then
+        if (root) sig8 =sqrt(sig8)
+    else
+        sig8 =sqrt(sig8)
+    end if
+    outvals(1:CP%Transfer%PK_num_redshifts) = sig8
 
     end subroutine Transfer_Get_SigmaR
 
@@ -2090,7 +2096,7 @@
     do ix = 1, CP%InitPower%nn
         call Transfer_Get_SigmaR(MTrans, radius, MTrans%sigma_8(:,ix), s1,s1, ix)
         if (get_growth_sigma8) call Transfer_Get_SigmaR(MTrans, radius, &
-            MTrans%sigma_vdelta_8(:,ix), s1, s2, ix)
+            MTrans%sigma2_vdelta_8(:,ix), s1, s2, ix, root=.false.)
     end do
 
     end subroutine Transfer_Get_sigmas
@@ -2112,7 +2118,7 @@
             do j_PK=1, CP%Transfer%PK_num_redshifts
                 j = CP%Transfer%PK_redshifts_index(j_PK)
                 write(*,'("at z =",f7.3," sigma8^2_vd/sigma8  = ",f6.4)') &
-                    CP%Transfer%redshifts(j), MTrans%sigma_vdelta_8(j_PK,in)**2/MTrans%sigma_8(j_PK,in)
+                    CP%Transfer%redshifts(j), MTrans%sigma2_vdelta_8(j_PK,in)/MTrans%sigma_8(j_PK,in)
             end do
         end if
     end do
@@ -2126,12 +2132,12 @@
     deallocate(MTrans%q_trans, STAT = st)
     deallocate(MTrans%TransferData, STAT = st)
     deallocate(MTrans%sigma_8, STAT = st)
-    if (get_growth_sigma8) deallocate(MTrans%sigma_vdelta_8, STAT = st)
+    if (get_growth_sigma8) deallocate(MTrans%sigma2_vdelta_8, STAT = st)
     allocate(MTrans%q_trans(MTrans%num_q_trans))
     allocate(MTrans%TransferData(Transfer_max,MTrans%num_q_trans,CP%Transfer%num_redshifts))
     !JD 08/13 Changes in here to PK arrays and variables
     allocate(MTrans%sigma_8(CP%Transfer%PK_num_redshifts, CP%InitPower%nn))
-    if (get_growth_sigma8) allocate(MTrans%sigma_vdelta_8(CP%Transfer%PK_num_redshifts, CP%InitPower%nn))
+    if (get_growth_sigma8) allocate(MTrans%sigma2_vdelta_8(CP%Transfer%PK_num_redshifts, CP%InitPower%nn))
 
     end  subroutine Transfer_Allocate
 
@@ -2142,11 +2148,11 @@
     deallocate(MTrans%q_trans, STAT = st)
     deallocate(MTrans%TransferData, STAT = st)
     deallocate(MTrans%sigma_8, STAT = st)
-    if (get_growth_sigma8) deallocate(MTrans%sigma_vdelta_8, STAT = st)
+    if (get_growth_sigma8) deallocate(MTrans%sigma2_vdelta_8, STAT = st)
     nullify(MTrans%q_trans)
     nullify(MTrans%TransferData)
     nullify(MTrans%sigma_8)
-    nullify(MTrans%sigma_vdelta_8)
+    nullify(MTrans%sigma2_vdelta_8)
 
     end subroutine Transfer_Free
 
