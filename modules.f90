@@ -35,7 +35,7 @@
     implicit none
     public
 
-    character(LEN=*), parameter :: version = 'Jul14'
+    character(LEN=*), parameter :: version = 'Sept14'
 
     integer :: FeedbackLevel = 0 !if >0 print out useful information about the model
 
@@ -1649,7 +1649,7 @@
         integer   ::  num_q_trans   !    number of steps in k for transfer calculation
         real(dl), dimension (:), pointer :: q_trans => NULL()
         real(dl), dimension (:,:), pointer ::  sigma_8 => NULL()
-        real(dl), dimension (:,:), pointer ::  sigma_vdelta_8 => NULL() !growth from P_{v delta}
+        real(dl), dimension (:,:), pointer ::  sigma_vdelta_8 => NULL() !growth from sigma_{v delta}
         real, dimension(:,:,:), pointer :: TransferData => NULL()
         !TransferData(entry,k_index,z_index) for entry=Tranfer_kh.. Transfer_tot
     end Type MatterTransferData
@@ -2084,13 +2084,13 @@
     if (present(R)) radius = R
     s1 = transfer_power_var
     if (present(var_delta))  s1 = var_delta
-    s2 = transfer_power_var
+    s2 = Transfer_Newt_vel_cdm
     if (present(var_v))  s2 = var_v
 
     do ix = 1, CP%InitPower%nn
-        call Transfer_Get_SigmaR(MTrans, radius, MTrans%sigma_8(:,ix), var_delta,var_delta, ix)
+        call Transfer_Get_SigmaR(MTrans, radius, MTrans%sigma_8(:,ix), s1,s1, ix)
         if (get_growth_sigma8) call Transfer_Get_SigmaR(MTrans, radius, &
-            MTrans%sigma_vdelta_8(:,ix), var_delta,var_v, ix)
+            MTrans%sigma_vdelta_8(:,ix), s1, s2, ix)
     end do
 
     end subroutine Transfer_Get_sigmas
@@ -2105,13 +2105,14 @@
         if (CP%InitPower%nn>1)  write(*,*) 'Power spectrum : ', in
         do j_PK=1, CP%Transfer%PK_num_redshifts
             j = CP%Transfer%PK_redshifts_index(j_PK)
-            write(*,*) 'at z = ',real(CP%Transfer%redshifts(j)), ' sigma8 (all matter)=', real(MTrans%sigma_8(j_PK,in))
+            write(*,'("at z =",f7.3," sigma8 (all matter) = ",f6.4)') &
+                CP%Transfer%redshifts(j), MTrans%sigma_8(j_PK,in)
         end do
         if (get_growth_sigma8) then
             do j_PK=1, CP%Transfer%PK_num_redshifts
                 j = CP%Transfer%PK_redshifts_index(j_PK)
-                write(*,*) 'at z = ',real(CP%Transfer%redshifts(j)), ' sigma_{v delta_m}  =', &
-                    real(MTrans%sigma_vdelta_8(j_PK,in))
+                write(*,'("at z =",f7.3," sigma8^2_vd/sigma8  = ",f6.4)') &
+                    CP%Transfer%redshifts(j), MTrans%sigma_vdelta_8(j_PK,in)**2/MTrans%sigma_8(j_PK,in)
             end do
         end if
     end do

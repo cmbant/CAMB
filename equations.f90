@@ -2100,7 +2100,7 @@
         EV%OutputTransfer(Transfer_nonu) = (grhob_t*clxb+grhoc_t*clxc)/(grhob_t + grhoc_t)
         EV%OutputTransfer(Transfer_tot_de) =  dgrho/grho_matter
         EV%OutputTransfer(Transfer_Weyl) = -(dgrho +3*dgq*adotoa/k)/(k2*EV%Kf(1)*2) - dgpi/k2/2
-        EV%OutputTransfer(Transfer_Newt_vel_cdm)= -k*sigma/adotoa
+        EV%OutputTransfer(Transfer_Newt_vel_cdm)=  -k*sigma/adotoa
         EV%OutputTransfer(Transfer_Newt_vel_baryon) = -k*(vb + sigma)/adotoa
         EV%OutputTransfer(Transfer_vel_baryon_cdm) = vb
     end if
