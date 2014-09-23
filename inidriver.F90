@@ -13,6 +13,7 @@
     use constants
     use Bispectrum
     use CAMBmain
+    use NonLinear
 #ifdef NAGF95
     use F90_UNIX
 #endif
@@ -155,6 +156,7 @@
     else
         P%transfer%high_precision = .false.
     endif
+    if (P%NonLinear/=NonLinear_none) call NonLinear_ReadParams(DefIni)
 
     if (P%PK_WantTransfer)  then
         P%WantTransfer  = .true.

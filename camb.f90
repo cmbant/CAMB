@@ -87,7 +87,7 @@
         if (CP%DoLensing .and. global_error_flag==0) call lens_Cls
         if (global_error_flag/=0) return
     end if
-    if (CData%Params%WantTransfer) call Transfer_Get_sigma8(Cdata%MTrans,8._dl)
+    if (CData%Params%WantTransfer) call Transfer_Get_sigmas(Cdata%MTrans)
 
     end subroutine CAMB_TransfersToPowers
 

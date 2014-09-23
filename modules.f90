@@ -1625,12 +1625,12 @@
     public
     integer, parameter :: Transfer_kh =1, Transfer_cdm=2,Transfer_b=3,Transfer_g=4, &
         Transfer_r=5, Transfer_nu = 6,  & !massless and massive neutrino
-        Transfer_tot=7, Transfer_nonu=8, Transfer_tot_de=9,  & 
-        ! total perturbations with and without neutrinos, with neutrinos and dark energy in the numerator
+    Transfer_tot=7, Transfer_nonu=8, Transfer_tot_de=9,  &
+        ! total perturbations with and without neutrinos, with neutrinos+dark energy in the numerator
         Transfer_Weyl = 10, & ! the Weyl potential, for lensing and ISW
-        Transfer_Newt_vel_cdm=11, Transfer_Newt_vel_baryon=12,   & ! -k v_Newtonian/H
-        Transfer_vel_baryon_cdm = 13 !relative velocity of baryons and CDM
-    
+    Transfer_Newt_vel_cdm=11, Transfer_Newt_vel_baryon=12,   & ! -k v_Newtonian/H
+    Transfer_vel_baryon_cdm = 13 !relative velocity of baryons and CDM
+
     integer, parameter :: Transfer_max = Transfer_vel_baryon_cdm
 
     logical :: transfer_interp_matterpower  = .true. !output regular grid in log k
@@ -1640,11 +1640,16 @@
     !What to use to calulcate the output matter power spectrum and sigma_8
     !Transfer_tot uses total matter perturbation
 
+    logical :: get_growth_sigma8 = .true.
+    !gets sigma_vdelta, like sigma8 but using velocity-density cross power,
+    !which is equal to f sigma8 i LCDM
+
     Type MatterTransferData
         !Computed data
         integer   ::  num_q_trans   !    number of steps in k for transfer calculation
         real(dl), dimension (:), pointer :: q_trans => NULL()
         real(dl), dimension (:,:), pointer ::  sigma_8 => NULL()
+        real(dl), dimension (:,:), pointer ::  sigma_vdelta_8 => NULL() !growth from P_{v delta}
         real, dimension(:,:,:), pointer :: TransferData => NULL()
         !TransferData(entry,k_index,z_index) for entry=Tranfer_kh.. Transfer_tot
     end Type MatterTransferData
@@ -1668,7 +1673,7 @@
 
     contains
 
-    subroutine Transfer_GetMatterPowerData(MTrans, PK_data, in, itf_only)
+    subroutine Transfer_GetMatterPowerData(MTrans, PK_data, in, itf_only, var1, var2)
     !Does *NOT* include non-linear corrections
     !Get total matter power spectrum in units of (h Mpc^{-1})^3 ready for interpolation.
     !Here there definition is < Delta^2(x) > = 1/(2 pi)^3 int d^3k P_k(k)
@@ -1678,9 +1683,16 @@
     Type(MatterPowerData) :: PK_data
     integer, intent(in) :: in
     integer, intent(in), optional :: itf_only
+    integer, intent(in), optional :: var1, var2
     real(dl) h, kh, k, power
     integer ik
     integer nz,itf, itf_start, itf_end
+    integer :: s1,s2
+
+    s1 = transfer_power_var
+    if (present(var1))  s1 = var1
+    s2 = transfer_power_var
+    if (present(var2))  s2 = var2
 
     if (present(itf_only)) then
         itf_start=itf_only
@@ -1714,7 +1726,8 @@
         end if
         do itf = 1, nz
             PK_data%matpower(ik,itf) = &
-                log(MTrans%TransferData(transfer_power_var,ik,itf_start+itf-1)**2*k &
+                log(MTrans%TransferData(s1,ik,itf_start+itf-1)*&
+                MTrans%TransferData(s2,ik,itf_start+itf-1)*k &
                 *pi*twopi*h**3*power)
         end do
     end do
@@ -1851,16 +1864,17 @@
 
     end function MatterPowerData_k
 
-    subroutine Transfer_GetMatterPowerS(MTrans,outpower, itf, in, minkh, dlnkh, npoints)
+    subroutine Transfer_GetMatterPowerS(MTrans,outpower, itf, in, minkh, dlnkh, npoints, var1, var2)
     Type(MatterTransferData), intent(in) :: MTrans
     integer, intent(in) :: itf, in, npoints
+    integer, intent(in), optional :: var1, var2
     real, intent(out) :: outpower(*)
     real, intent(in) :: minkh, dlnkh
     real(dl) :: outpowerd(npoints)
     real(dl):: minkhd, dlnkhd
 
     minkhd = minkh; dlnkhd = dlnkh
-    call Transfer_GetMatterPowerD(MTrans,outpowerd, itf, in, minkhd, dlnkhd, npoints)
+    call Transfer_GetMatterPowerD(MTrans,outpowerd, itf, in, minkhd, dlnkhd, npoints,var1, var2)
     outpower(1:npoints) = outpowerd(1:npoints)
 
     end subroutine Transfer_GetMatterPowerS
@@ -1871,7 +1885,7 @@
     !array, itf, is given by itf = CP%Transfer%Pk_redshifts_index(itf_PK)
     !Also changed (CP%NonLinear/=NonLinear_None) to
     !CP%NonLinear/=NonLinear_none .and. CP%NonLinear/=NonLinear_Lens)
-    subroutine Transfer_GetMatterPowerD(MTrans,outpower, itf_PK, in, minkh, dlnkh, npoints)
+    subroutine Transfer_GetMatterPowerD(MTrans,outpower, itf_PK, in, minkh, dlnkh, npoints, var1, var2)
     !Allows for non-smooth priordial spectra
     !if CP%Nonlinear/ = NonLinear_none includes non-linear evolution
     !Get total matter power spectrum at logarithmically equal intervals dlnkh of k/h starting at minkh
@@ -1885,11 +1899,19 @@
     integer, intent(in) :: itf_PK, in, npoints
     real(dl), intent(out) :: outpower(npoints)
     real(dl), intent(in) :: minkh, dlnkh
+    integer, intent(in), optional :: var1, var2
+
     real(dl), parameter :: cllo=1.e30_dl,clhi=1.e30_dl
     integer ik, llo,il,lhi,lastix
     real(dl) matpower(MTrans%num_q_trans), kh, kvals(MTrans%num_q_trans), ddmat(MTrans%num_q_trans)
     real(dl) atransfer,xi, a0, b0, ho, logmink,k, h
     integer itf
+    integer :: s1,s2
+
+    s1 = transfer_power_var
+    if (present(var1))  s1 = var1
+    s2 = transfer_power_var
+    if (present(var2))  s2 = var2
 
     itf = CP%Transfer%PK_redshifts_index(itf_PK)
 
@@ -1904,7 +1926,7 @@
 
 
     if (CP%NonLinear/=NonLinear_none .and. CP%NonLinear/=NonLinear_Lens) then
-        call Transfer_GetMatterPowerData(MTrans, PK, in, itf)
+        call Transfer_GetMatterPowerData(MTrans, PK, in, itf, s1,s2)
         call NonLinear_GetRatios(PK)
     end if
 
@@ -1914,10 +1936,10 @@
         kh = MTrans%TransferData(Transfer_kh,ik,itf)
         k = kh*h
         kvals(ik) = log(kh)
-        atransfer=MTrans%TransferData(transfer_power_var,ik,itf)
+        atransfer=MTrans%TransferData(s1,ik,itf)*MTrans%TransferData(s2,ik,itf)
         if (CP%NonLinear/=NonLinear_none .and. CP%NonLinear/=NonLinear_Lens) &
-            atransfer = atransfer* PK%nonlin_ratio(ik,1) !only one element, this itf
-        matpower(ik) = log(atransfer**2*k*pi*twopi*h**3)
+            atransfer = atransfer* PK%nonlin_ratio(ik,1)**2 !only one element, this itf
+        matpower(ik) = log(atransfer*k*pi*twopi*h**3)
         !Put in power spectrum later: transfer functions should be smooth, initial power may not be
     end do
 
@@ -2038,16 +2060,40 @@
     integer, intent(in), optional :: var1, var2
     integer ix
     real(dl) :: radius = 8._dl
-    
-    if (present(R)) radius = R
-    
+
     if (global_error_flag /= 0) return
+
+    if (present(R)) radius = R
 
     do ix = 1, CP%InitPower%nn
         call Transfer_Get_SigmaR(MTrans, radius, MTrans%sigma_8(:,ix), var1,var2, ix)
     end do
 
     end subroutine Transfer_Get_sigma8
+
+    subroutine Transfer_Get_sigmas(MTrans, R, var_delta, var_v)
+    !Get sigma8 and sigma_{delta v} (for growth, like f sigma8 in LCDM)
+    Type(MatterTransferData) :: MTrans
+    real(dl), intent(in), optional :: R
+    integer, intent(in), optional :: var_delta,var_v
+    real(dl) :: radius = 8._dl
+    integer s1, s2, ix
+
+    if (global_error_flag /= 0) return
+
+    if (present(R)) radius = R
+    s1 = transfer_power_var
+    if (present(var_delta))  s1 = var_delta
+    s2 = transfer_power_var
+    if (present(var_v))  s2 = var_v
+
+    do ix = 1, CP%InitPower%nn
+        call Transfer_Get_SigmaR(MTrans, radius, MTrans%sigma_8(:,ix), var_delta,var_delta, ix)
+        if (get_growth_sigma8) call Transfer_Get_SigmaR(MTrans, radius, &
+            MTrans%sigma_vdelta_8(:,ix), var_delta,var_v, ix)
+    end do
+
+    end subroutine Transfer_Get_sigmas
 
     subroutine Transfer_output_Sig8(MTrans)
     Type(MatterTransferData), intent(in) :: MTrans
@@ -2061,6 +2107,13 @@
             j = CP%Transfer%PK_redshifts_index(j_PK)
             write(*,*) 'at z = ',real(CP%Transfer%redshifts(j)), ' sigma8 (all matter)=', real(MTrans%sigma_8(j_PK,in))
         end do
+        if (get_growth_sigma8) then
+            do j_PK=1, CP%Transfer%PK_num_redshifts
+                j = CP%Transfer%PK_redshifts_index(j_PK)
+                write(*,*) 'at z = ',real(CP%Transfer%redshifts(j)), ' sigma_{v delta_m}  =', &
+                    real(MTrans%sigma_vdelta_8(j_PK,in))
+            end do
+        end if
     end do
 
     end subroutine Transfer_output_Sig8
@@ -2072,10 +2125,12 @@
     deallocate(MTrans%q_trans, STAT = st)
     deallocate(MTrans%TransferData, STAT = st)
     deallocate(MTrans%sigma_8, STAT = st)
+    if (get_growth_sigma8) deallocate(MTrans%sigma_vdelta_8, STAT = st)
     allocate(MTrans%q_trans(MTrans%num_q_trans))
     allocate(MTrans%TransferData(Transfer_max,MTrans%num_q_trans,CP%Transfer%num_redshifts))
     !JD 08/13 Changes in here to PK arrays and variables
     allocate(MTrans%sigma_8(CP%Transfer%PK_num_redshifts, CP%InitPower%nn))
+    if (get_growth_sigma8) allocate(MTrans%sigma_vdelta_8(CP%Transfer%PK_num_redshifts, CP%InitPower%nn))
 
     end  subroutine Transfer_Allocate
 
@@ -2086,9 +2141,11 @@
     deallocate(MTrans%q_trans, STAT = st)
     deallocate(MTrans%TransferData, STAT = st)
     deallocate(MTrans%sigma_8, STAT = st)
+    if (get_growth_sigma8) deallocate(MTrans%sigma_vdelta_8, STAT = st)
     nullify(MTrans%q_trans)
     nullify(MTrans%TransferData)
     nullify(MTrans%sigma_8)
+    nullify(MTrans%sigma_vdelta_8)
 
     end subroutine Transfer_Free
 
@@ -2125,11 +2182,11 @@
     !JD 08/13 Changes in here to PK arrays and variables
     integer i_PK
     character(len=20) fmt
-    
-    
+
+
     write (fmt,*) Transfer_max
     fmt = '('//trim(adjustl(fmt))//'E14.6)'
-    
+
     do i_PK=1, CP%Transfer%PK_num_redshifts
         if (FileNames(i_PK) /= '') then
             i = CP%Transfer%PK_redshifts_index(i_PK)

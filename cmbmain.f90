@@ -231,8 +231,7 @@
     end if
 
     if (CP%WantTransfer .and. .not. CP%OnlyTransfers .and. global_error_flag==0) &
-    call Transfer_Get_sigma8(MT,8._dl)
-    !Can call with other arguments if need different size
+    call Transfer_Get_sigmas(MT)
 
     !     if CMB calculations are requested, calculate the Cl by
     !     integrating the sources over time and over k.
