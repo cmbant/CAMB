@@ -1673,6 +1673,42 @@
 
     contains
 
+    subroutine Transfer_GetUnsplinedPower(M,PK,var1,var2, hubble_units)
+    !Get 2pi^2/k^3 T_1 T_2 P_R(k)
+    Type(MatterTransferData) :: M
+    real(dl), intent(inout):: PK(:,:)
+    integer, optional, intent(in) :: var1
+    integer, optional, intent(in) :: var2
+    logical, optional, intent(in) :: hubble_units
+    real(dl) h, k
+    integer nz, nk, zix, ik
+    integer s1, s2
+    logical hnorm
+
+    s1 = transfer_power_var
+    if (present(var1))  s1 = var1
+    s2 = transfer_power_var
+    if (present(var2))  s2 = var2
+    hnorm = .true.
+    if (present(hubble_units)) hnorm = hubble_units
+
+    nk=M%num_q_trans
+    nz=CP%Transfer%PK_num_redshifts
+    if (nk/= size(PK,1) .or. nz/=size(PK,2)) stop 'Trasfer_GetUnsplinedPower wrong size'
+
+    h = CP%H0/100
+
+    do ik=1,nk
+        k = M%TransferData(Transfer_kh,ik,1)*h
+        do zix=1,nz
+            PK(ik,zix) = M%TransferData(s1,ik,CP%Transfer%PK_redshifts_index(nz-zix+1))*&
+                M%TransferData(s2,ik,CP%Transfer%PK_redshifts_index(nz-zix+1))*k*pi*twopi*scalarPower(k,1)
+        end do
+    end do
+    if (hnorm) PK=  PK * h**3
+
+    end subroutine Transfer_GetUnsplinedPower
+
     subroutine Transfer_GetMatterPowerData(MTrans, PK_data, in, itf_only, var1, var2)
     !Does *NOT* include non-linear corrections
     !Get total matter power spectrum in units of (h Mpc^{-1})^3 ready for interpolation.
