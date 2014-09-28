@@ -1709,7 +1709,7 @@
 
     end subroutine Transfer_GetUnsplinedPower
 
-    subroutine Transfer_GetMatterPowerData(MTrans, PK_data, in, itf_only, var1, var2)
+    subroutine Transfer_GetMatterPowerData(MTrans, PK_data, power_ix, itf_only, var1, var2)
     !Does *NOT* include non-linear corrections
     !Get total matter power spectrum in units of (h Mpc^{-1})^3 ready for interpolation.
     !Here there definition is < Delta^2(x) > = 1/(2 pi)^3 int d^3k P_k(k)
@@ -1717,18 +1717,21 @@
     !sepctrum is generated to beyond the CMB k_max
     Type(MatterTransferData), intent(in) :: MTrans
     Type(MatterPowerData) :: PK_data
-    integer, intent(in) :: in
+    integer, intent(in), optional :: power_ix
     integer, intent(in), optional :: itf_only
     integer, intent(in), optional :: var1, var2
     real(dl) h, kh, k, power
     integer ik
     integer nz,itf, itf_start, itf_end
-    integer :: s1,s2
+    integer :: s1,s2, p_ix
+
 
     s1 = transfer_power_var
     if (present(var1))  s1 = var1
     s2 = transfer_power_var
     if (present(var2))  s2 = var2
+    p_ix = 1
+    if (present(power_ix)) p_ix = power_ix
 
     if (present(itf_only)) then
         itf_start=itf_only
@@ -1755,7 +1758,7 @@
         kh = MTrans%TransferData(Transfer_kh,ik,1)
         k = kh*h
         PK_data%log_kh(ik) = log(kh)
-        power = ScalarPower(k,in)
+        power = ScalarPower(k,p_ix)
         if (global_error_flag/=0) then
             call MatterPowerdata_Free(PK_data)
             return
@@ -2093,6 +2096,63 @@
 
     end subroutine Transfer_Get_SigmaR
 
+    subroutine Transfer_GetSigmaRArray(MTrans, R, sigmaR, redshift_ix, var1, var2, power_ix)
+    !Get array of SigmaR at (by default) redshift zero, for all values of R
+    Type(MatterTransferData) :: MTrans
+    real(dl), intent(in) :: R(:)
+    real(dl), intent(out) :: SigmaR(:)
+    integer, intent(in), optional :: redshift_ix, var1, var2, power_ix
+    integer i, red_ix, ik, subk
+    real(dl) kh, k, h, dkh
+    real(dl) lnk, dlnk, lnko, minR
+    real(dl), dimension(size(R)) ::  x, win, dsig8, dsig8o, sig8, sig8o
+    type(MatterPowerData) :: PKspline
+    integer, parameter :: nsub = 5
+
+    minR = minval(R)
+    red_ix =  CP%Transfer%PK_redshifts_index(CP%Transfer%PK_num_redshifts)
+    if (present(redshift_ix)) red_ix = redshift_ix
+
+    call Transfer_GetMatterPowerData(MTrans, PKspline, power_ix, red_ix, var1, var2 )
+
+    H=CP%h0/100._dl
+    lnko=0
+    dsig8o=0
+    sig8=0
+    sig8o=0
+    if (kh==0) stop 'Transfer_GetSigmaRArray kh zero'
+    do ik=1, MTrans%num_q_trans + 2
+        if (ik < MTrans%num_q_trans) then
+            dkh = (MTrans%TransferData(Transfer_kh,ik+1,1)- MTrans%TransferData(Transfer_kh,ik,1))/nsub
+            !after last step just extrapolate a bit with previous size
+        end if
+        if (ik <= MTrans%num_q_trans) kh = MTrans%TransferData(Transfer_kh,ik,1)
+        do subk = 1, nsub
+            k = kh*H
+            lnk=log(k)
+
+            x= kh *R
+            win =3*(sin(x)-x*cos(x))/x**3
+            if (ik==1 .and. subk==1) then
+                dlnk=0.5_dl
+                !Approx for 2._dl/(CP%InitPower%an(in)+3)  [From int_0^k_1 dk/k k^4 P(k)]
+                !Contribution should be very small in any case
+            else
+                dlnk=lnk-lnko
+            end if
+            dsig8=win**2*(MatterPowerData_k(PKspline,  kh, 1)*k**3)
+            sig8=sig8+(dsig8+dsig8o)*dlnk/2
+            dsig8o=dsig8
+            lnko=lnk
+            kh = kh + dkh
+        end do
+    end do
+    call MatterPowerdata_Free(PKspline)
+
+    SigmaR=sqrt(sig8/(pi*twopi*h**3 ))
+
+    end subroutine Transfer_GetSigmaRArray
+
     subroutine Transfer_Get_sigma8(MTrans, R, var1, var2)
     !Calculate MTrans%sigma_8^2 = int dk/k win**2 T_k**2 P(k), where win is the FT of a spherical top hat
     !of radius R h^{-1} Mpc
@@ -2147,13 +2207,13 @@
         if (CP%InitPower%nn>1)  write(*,*) 'Power spectrum : ', in
         do j_PK=1, CP%Transfer%PK_num_redshifts
             j = CP%Transfer%PK_redshifts_index(j_PK)
-            write(*,'("at z =",f7.3," sigma8 (all matter) = ",f6.4)') &
+            write(*,'("at z =",f7.3," sigma8 (all matter) = ",f7.4)') &
                 CP%Transfer%redshifts(j), MTrans%sigma_8(j_PK,in)
         end do
         if (get_growth_sigma8) then
             do j_PK=1, CP%Transfer%PK_num_redshifts
                 j = CP%Transfer%PK_redshifts_index(j_PK)
-                write(*,'("at z =",f7.3," sigma8^2_vd/sigma8  = ",f6.4)') &
+                write(*,'("at z =",f7.3," sigma8^2_vd/sigma8  = ",f7.4)') &
                     CP%Transfer%redshifts(j), MTrans%sigma2_vdelta_8(j_PK,in)/MTrans%sigma_8(j_PK,in)
             end do
         end if
