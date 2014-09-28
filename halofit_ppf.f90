@@ -32,7 +32,7 @@
     private
 
     real, parameter :: Min_kh_nonlinear = 0.005
-    real(dl):: om_m,om_v,fnu,omm0
+    real(dl):: om_m,om_v,fnu,omm0, acur
 
     integer, parameter :: halofit_original = 1, halofit_bird=2, halofit_peacock=3, halofit_takahashi=4
     integer, parameter :: halofit_default = halofit_takahashi
@@ -75,7 +75,7 @@
         a = 1/real(1+CAMB_Pk%Redshifts(itf),dl)
         om_m = omega_m(a, omm0, CP%omegav, w_lam,wa_ppf)
         om_v = omega_v(a, omm0, CP%omegav, w_lam,wa_ppf)
-
+        acur = a
         xlogr1=-2.0
         xlogr2=3.5
         do
@@ -170,10 +170,10 @@
         !cosmological models with constant w.
         gam=0.1971-0.0843*rn+0.8460*rncur
         a=1.5222+2.8553*rn+2.3706*rn*rn+0.9903*rn*rn*rn+ &
-            0.2250*rn*rn*rn*rn-0.6038*rncur+0.1749*om_v*(1.+w_lam)
+            0.2250*rn*rn*rn*rn-0.6038*rncur+0.1749*om_v*(1.+w_lam+wa_ppf*(1-acur))
         a=10**a
         b=10**(-0.5642+0.5864*rn+0.5716*rn*rn-1.5474*rncur+ &
-            0.2279*om_v*(1.+w_lam))
+            0.2279*om_v*(1.+w_lam+wa_ppf*(1-acur)))
         c=10**(0.3698+2.0404*rn+0.8161*rn*rn+0.5869*rncur)
         xmu=0.
         xnu=10**(5.2105+3.6902*rn)
