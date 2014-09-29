@@ -2120,7 +2120,7 @@
     dsig8o=0
     sig8=0
     sig8o=0
-    if (kh==0) stop 'Transfer_GetSigmaRArray kh zero'
+    if (MTrans%TransferData(Transfer_kh,1,1)==0) stop 'Transfer_GetSigmaRArray kh zero'
     do ik=1, MTrans%num_q_trans + 2
         if (ik < MTrans%num_q_trans) then
             dkh = (MTrans%TransferData(Transfer_kh,ik+1,1)- MTrans%TransferData(Transfer_kh,ik,1))/nsub
