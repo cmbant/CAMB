@@ -265,7 +265,7 @@
     public
 
     !Description of this file. Change if you make modifications.
-    character(LEN=*), parameter :: Eqns_name = 'equations_ppf-Mar14'
+    character(LEN=*), parameter :: Eqns_name = 'equations_ppf-Sept14'
 
     integer, parameter :: basic_num_eqns = 5
 
@@ -281,7 +281,8 @@
     !Vector mode anisotropic stress in units of rho_gamma
     real(dl) :: vec_sig0 = 1._dl
     !Vector mode shear
-    integer, parameter :: max_l_evolve = 1024 !Maximum l we are ever likely to propagate
+    integer, parameter :: max_l_evolve = 256 !Maximum l we are ever likely to propagate
+    !Note higher values increase size of Evolution vars, hence memory
 
     !Supported scalar initial condition flags
     integer, parameter :: initial_adiabatic=1, initial_iso_CDM=2, &
@@ -1568,8 +1569,6 @@
             phi = -(dgrho +3*dgq*adotoa/k)/(k2*EV%Kf(1)*2) - dgpi/k2/2
 
             sources(3) = -2*phi*f_K(tau-tau_maxvis)/(f_K(CP%tau0-tau_maxvis)*f_K(CP%tau0-tau))
-
-            !         sources(3) = -2*phi*(tau-tau_maxvis)/((CP%tau0-tau_maxvis)*(CP%tau0-tau))
             !We include the lensing factor of two here
         else
             sources(3) = 0
@@ -2112,16 +2111,16 @@
 
     real(dl) dgq,grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,sigma,polter
     real(dl) qgdot,qrdot,pigdot,pirdot,vbdot,dgrho,adotoa
-    real(dl) a,a2,dz,z,clxc,clxb,vb,clxg,qg,pig,clxr,qr,pir
-    real(dl) E2, dopacity
+    real(dl) a,a2,z,clxc,clxb,vb,clxg,qg,pig,clxr,qr,pir
+    real(dl) clxq, vq,  E2, dopacity
     integer l,i,ind, ind2, off_ix, ix
-    real(dl) dgs,sigmadot !, ddz
+    real(dl) dgs,sigmadot,dz !, ddz
+    real(dl) dgpi,dgrho_matter,grho_matter, clxnu_all
     !non-flat vars
     real(dl) cothxor !1/tau in flat case
     !ppf
     real(dl) Gamma,S_Gamma,ckH,Gammadot,Fa,dgqe,dgrhoe, vT
     real(dl) w_eff, grhoT
-    real(dl) dgpi,dgrho_matter,grho_matter, clxnu_all
 
     k=EV%k_buf
     k2=EV%k2_buf

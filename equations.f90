@@ -21,7 +21,7 @@
     use precision
     implicit none
 
-    real(dl)  :: w_lam = -1 !p/rho for the dark energy (assumed constant)
+    real(dl)  :: w_lam = -1_dl !p/rho for the dark energy (assumed constant)
     real(dl) :: cs2_lam = 1_dl
     !comoving sound speed. Always exactly 1 for quintessence
     !(otherwise assumed constant, though this is almost certainly unrealistic)
@@ -98,6 +98,7 @@
     dtauda=sqrt(3/grhoa2)
 
     end function dtauda
+
     !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
     !Gauge-dependent perturbation equations
@@ -202,7 +203,6 @@
         integer E_ix, B_ix !tensor polarization indices
         real(dl) denlkt(4,max_l_evolve),Kft(max_l_evolve)
         real, pointer :: OutputTransfer(:) => null()
-
     end type EvolutionVars
 
     !precalculated arrays
@@ -796,6 +796,7 @@
                 EV%lmaxgpol=EV%lmaxgpol*2
             end if
         end if
+
         if (EV%TransferOnly) then
             EV%lmaxgpol = min(EV%lmaxgpol,nint(5*lAccuracyBoost))
             EV%lmaxg = min(EV%lmaxg,nint(6*lAccuracyBoost))
@@ -1178,7 +1179,6 @@
 
     end subroutine MassiveNuVars
 
-
     !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
     subroutine output(EV,y, j,tau,sources)
     use ThermoData
@@ -1363,7 +1363,6 @@
     (-9.D0/160.D0*dopac(j)*pig-21.D0/10.D0*dgpi-27.D0/80.D0*dopac(j)*ypol(2))/k**2)*vis(j) + &
     (3.D0/16.D0*ddvis(j)*pig+9.D0/8.D0*ddvis(j)*ypol(2))/k**2+21.D0/10.D0/k/EV%Kf(1)*vis(j)*etak
 
-
     ! Doppler term
     !   sources(1)=  (sigma+vb)/k*dvis(j)+((-2.D0*adotoa*sigma+vbdot)/k-1.D0/k**2*dgpi)*vis(j) &
     !         +1.D0/k/EV%Kf(1)*vis(j)*etak
@@ -1400,7 +1399,6 @@
             phi = -(dgrho +3*dgq*adotoa/k)/(k2*EV%Kf(1)*2) - dgpi/k2/2
 
             sources(3) = -2*phi*f_K(tau-tau_maxvis)/(f_K(CP%tau0-tau_maxvis)*f_K(CP%tau0-tau))
-            !         sources(3) = -2*phi*(tau-tau_maxvis)/((CP%tau0-tau_maxvis)*(CP%tau0-tau))
             !We include the lensing factor of two here
         else
             sources(3) = 0
@@ -1922,7 +1920,7 @@
 
     !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
     subroutine derivs(EV,n,tau,ay,ayprime)
-    !  Evaluate the time derivatives of the perturbations, flat case
+    !  Evaluate the time derivatives of the perturbations
     !  ayprime is not necessarily GaugeInterface.yprime, so keep them distinct
     use ThermoData
     use MassiveNu
@@ -1952,7 +1950,6 @@
     !non-flat vars
     real(dl) cothxor !1/tau in flat case
     
-
     k=EV%k_buf
     k2=EV%k2_buf
 
