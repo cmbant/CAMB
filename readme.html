@@ -80,11 +80,28 @@ where as before C<sub>X</sub> are l(l+1)C<sub>l</sub>/2&pi;, and d is the deflec
 C<sub>dE</sub>=[l(l+1)]<sup>3/2</sup>C<sub>l</sub><sup>&Phi;E</sup>/2&pi;. These are the spectra required for simulating lensed skies using <A HREF="http://cosmologist.info/lenspix">LensPix</A>.
 <P>
 <A NAME="transfer"></A>
-If transfer functions are requested the columns in the <b>output_root</b>_transfer_out.dat output file are
-<BLOCKQUOTE>
-k/h Delta_CDM/k<sup>2</sup> Delta_b/k<sup>2</sup> Delta_g/k<sup>2</sup> Delata_r/k<sup>2</sup> Delta_nu/k<sup>2</sup> Delta_tot/k<sup>2</sup>
-</BLOCKQUOTE>
-where all quantities are in the synchronous gauge and evaluated at the requested redshift, given a unit primordial curvature perturbation on superhorizon scales (for adiabatic modes, chi_0=-1). Here subscripts refer to CDM, baryon, photon, massless neutrino, massive neutrinos, and total (massive) respectively. <b>output_root</b>_matterpower.dat contains the conventionally normalized matter power spectrum (for baryons+cdm+massive neutrinos), in h/Mpc units.
+If transfer functions are requested the columns in the <b>output_root</b>_transfer.dat output file are:
+<p>
+<table border="1" cellpadding="2">
+<tr><td>1     </td><td> k/h    </td><td> wavenumber in h Mpc<sup>-1</sup>     </td></tr>
+<tr><td>2     </td><td> Delta_CDM/k<sup>2</sup>     </td><td> CDM          </td></tr>
+<tr><td>3     </td><td> Delta_b/k<sup>2</sup>     </td><td> baryons          </td></tr>
+<tr><td>4     </td><td> Delta_g/k<sup>2</sup>    </td><td> photons          </td></tr>
+<tr><td>5     </td><td> Delta_r/k<sup>2</sup>    </td><td>  massless neutrinos         </td></tr>
+<tr><td>6     </td><td> Delta_nu/k<sup>2</sup>    </td><td>  massive neutrinos         </td></tr>
+<tr><td>7     </td><td> Delta_tot/k<sup>2</sup>    </td><td> CDM+baryons+massive neutrinos          </td></tr>
+<tr><td>8     </td><td> Delta_nonu/k<sup>2</sup>    </td><td> CDM+baryons           </td></tr>
+<tr><td>9     </td><td> Delta_totde/k<sup>2</sup>    </td><td> CDM+baryons+massive neutrinos+ dark energy(numerator only)</td></tr>
+<tr><td>10    </td><td> &Phi;     </td><td> The Weyl potential (&phi;+&psi;)/2  </td></tr>
+<tr><td>11    </td><td> vel_Newt_cdm/k<sup>2</sup>     </td><td>vel_Newt_cdm is -v<sub>cdm</sub> k/H (Newtonian-gauge CDM velocity v<sub>cdm</sub>) </td></tr>
+<tr><td>12    </td><td> vel_Newt_b/k<sup>2</sup>     </td><td> vel_Newt_b is -v<sub>b</sub> k/H (Newtonian-gauge baryon velocity v<sub>b</sub>)      </td></tr>
+<tr><td>13    </td><td> vel_baryon_cdm/k<sup>2</sup>     </td><td> relative baryon-CDM velocity (v<sub>b</sub>-v<sub>cdm</sub>)   </td></tr>
+</table>
+<br>
+where Delta_X is defined as (delta rho_X)/rho_X  in the synchronous gauge and evaluated at the requested redshift, given a unit primordial curvature perturbation on superhorizon scales (for adiabatic modes, chi_0=-1).
+The column numbers correspond to the Transfer_xx integer constants  defined in the Transfer module (modules.f90).
+<p>
+<b>output_root</b>_matterpower.dat contains the conventionally normalized matter power spectrum (for baryons+cdm+massive neutrinos), in h/Mpc units.
 
 <P>
 <A NAME="coding">
@@ -128,6 +145,9 @@ Some details about what different source code files do are given <A HREF="#FILES
 <H3>Version history</H3>
 <B>xxx 2014</B><BR>
 <UL>
+<LI>Transfer function output now includes more variables, including different total densities and velocities
+<LI>Generalized matter power and sigma8 functions; output of "growth" (from CDM velocity correlation sigma8_vd^2/sigma8)
+<LI>Add <b>halofit_version</b> (=1,2,3,4) to set halofit version (see params.ini)
 <LI>Add tensors when calculating bispectrum Fisher values
 <LI>Add AngularDiameterDistance2 utility function
 <LI>Added internal ALens_Fiducial as alternative to Alens
