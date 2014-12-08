@@ -1730,6 +1730,8 @@
     integer, parameter :: i_max = i_vq
     real(dl) initv(6,1:i_max), initvec(1:i_max)
 
+    nullify(EV%OutputTransfer) !Should not be needed, but avoids issues in ifort 14
+
     if (CP%flat) then
         EV%k_buf=EV%q
         EV%k2_buf=EV%q2

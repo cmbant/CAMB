@@ -96,6 +96,11 @@
             if (xlogr2 < -1.9999) then
                 !is still linear, exit
                 goto 101
+            else if (xlogr2>3.4999) then
+                ! Totally crazy non-linear
+                global_error_flag=349
+                write(*,*) 'Error in halofit'
+                goto 101
             end if
         end do
 
