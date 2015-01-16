@@ -4,7 +4,7 @@
 from pylab import *
 import numpy as np
 
-def_colors = ['b', 'r', 'k', 'm', 'c', 'g', 'y', '0.25', '0.75']
+def_colors = ['b', 'r', 'm', 'c', 'g', 'k', 'y', '0.25', '0.75']
 
 def saveCls(f, ls, vecs):
     np.savetxt(f, hstack([ls.reshape(-1, 1) ] + [x.reshape(-1, 1) for x in vecs]), fmt='%5i ' + '%12.7e ' * len(vecs))
