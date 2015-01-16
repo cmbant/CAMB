@@ -13,7 +13,7 @@
 Code for Anisotropies in the Microwave Background by <A
 HREF="http://cosmologist.info/">Antony Lewis</A> and Anthony
 Challinor. <P>
-This version April 2014.
+This version January 2015.
 <P>
 <FONT SIZE=-1>
 Originally based on CMBFAST developed by Uros Seljak and Matias
@@ -82,7 +82,7 @@ C<sub>dE</sub>=[l(l+1)]<sup>3/2</sup>C<sub>l</sub><sup>&Phi;E</sup>/2&pi;. These
 <A NAME="transfer"></A>
 If transfer functions are requested the columns in the <b>output_root</b>_transfer.dat output file are:
 <p>
-<table border="1" cellpadding="2">
+<table border="1" cellpadding="2" style="font-size:12px">
 <tr><td>1     </td><td> k/h    </td><td> wavenumber in h Mpc<sup>-1</sup>     </td></tr>
 <tr><td>2     </td><td> Delta_CDM/k<sup>2</sup>     </td><td> CDM          </td></tr>
 <tr><td>3     </td><td> Delta_b/k<sup>2</sup>     </td><td> baryons          </td></tr>
@@ -143,11 +143,13 @@ Some details about what different source code files do are given <A HREF="#FILES
 <P>
 <A NAME="version">
 <H3>Version history</H3>
-<B>xxx 2014</B><BR>
+<B>January 2015</B><BR>
 <UL>
-<LI>Transfer function output now includes more variables, including different total densities and velocities
+<LI>Transfer function output now includes more variables, including different total densities and velocities (see <A HREF="#transfer">list</A>)
 <LI>Generalized matter power and sigma8 functions; output of "growth" (from CDM velocity correlation sigma8_vd^2/sigma8)
+<LI>Output of additional derived parameters (k<sub>eq</sub>, D<sub>A</sub>, &theta;<sub>s,eq</sub> - the angular scale of the sound horizon at matter-radiation equality)
 <LI>Add <b>halofit_version</b> (=1,2,3,4) to set halofit version (see params.ini)
+<LI>Halofit tweak to prevent negative values in neutrino models for high &Omega;<sub>m</sub> (thanks Simeon Bird)
 <LI>Add tensors when calculating bispectrum Fisher values
 <LI>Add AngularDiameterDistance2 utility function
 <LI>Added internal ALens_Fiducial as alternative to Alens

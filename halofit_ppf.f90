@@ -21,6 +21,7 @@
     !           modifications
     ! AL Sept 14: added halofit_version parameter to change approximation used;
     !   separate halofit.f90 is no longer needed as equations.f90 defined fixed wa_ppf
+    ! Jan 15: Suggested change from Simeon Bird to avoid issues with very large Omm and neutrinos
 
     !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -210,7 +211,7 @@
 
 
     ph=a*y**(f1*3)/(1+b*y**(f2)+(f3*c*y)**(3-gam))
-    ph=ph/(1+xmu*y**(-1)+xnu*y**(-2))*(1+fnu*(0.977-18.015*(omm0-0.3)))
+    ph=ph/(1+xmu*y**(-1)+xnu*y**(-2))*(1+fnu*0.977)
     plinaa=plin*(1+fnu*47.48*rk**2/(1+1.5*rk**2))
     pq=plin*(1+plinaa)**beta/(1+plinaa*alpha)*exp(-y/4.0-y**2/8.0)
 
