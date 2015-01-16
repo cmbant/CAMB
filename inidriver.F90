@@ -13,6 +13,7 @@
     use constants
     use Bispectrum
     use CAMBmain
+    use NonLinear
 #ifdef NAGF95
     use F90_UNIX
 #endif
@@ -160,6 +161,7 @@
     else
         P%transfer%high_precision = .false.
     endif
+    if (P%NonLinear/=NonLinear_none) call NonLinear_ReadParams(DefIni)
 
     if (P%PK_WantTransfer)  then
         P%WantTransfer  = .true.
@@ -285,7 +287,12 @@
     else
         DoLateRadTruncation = Ini_Read_Logical('do_late_rad_truncation',.true.)
     end if
+
+    if (HighAccuracyDefault) then
+        DoTensorNeutrinos = .true.
+    else
     DoTensorNeutrinos = Ini_Read_Logical('do_tensor_neutrinos',DoTensorNeutrinos )
+    end if
     FeedbackLevel = Ini_Read_Int('feedback_level',FeedbackLevel)
 
     P%MassiveNuMethod  = Ini_Read_Int('massive_nu_approx',Nu_best)
@@ -293,7 +300,6 @@
     ThreadNum      = Ini_Read_Int('number_of_threads',ThreadNum)
     use_spline_template = Ini_Read_Logical('use_spline_template',use_spline_template)
 
-    DoTensorNeutrinos = DoTensorNeutrinos .or. HighAccuracyDefault
     if (do_bispectrum) then
         lSampleBoost   = 50
     else

@@ -21,10 +21,12 @@
     use precision
     implicit none
 
-    real(dl)  :: w_lam = -1 !p/rho for the dark energy (assumed constant)
+    real(dl)  :: w_lam = -1_dl !p/rho for the dark energy (assumed constant)
     real(dl) :: cs2_lam = 1_dl
     !comoving sound speed. Always exactly 1 for quintessence
     !(otherwise assumed constant, though this is almost certainly unrealistic)
+
+    real(dl), parameter :: wa_ppf = 0._dl !Not used here, just for compatibility with e.g. halofit
 
     logical :: w_perturb = .true.
     !If you are tempted to set this = .false. read
@@ -96,6 +98,7 @@
     dtauda=sqrt(3/grhoa2)
 
     end function dtauda
+
     !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
     !Gauge-dependent perturbation equations
@@ -106,6 +109,7 @@
     use MassiveNu
     use LambdaGeneral
     use Errors
+    use Transfer
     implicit none
     public
 
@@ -132,80 +136,80 @@
 
     !Supported scalar initial condition flags
     integer, parameter :: initial_adiabatic=1, initial_iso_CDM=2, &
-    initial_iso_baryon=3,  initial_iso_neutrino=4, initial_iso_neutrino_vel=5, initial_vector = 0
+        initial_iso_baryon=3,  initial_iso_neutrino=4, initial_iso_neutrino_vel=5, initial_vector = 0
     integer, parameter :: initial_nummodes =  initial_iso_neutrino_vel
 
     type EvolutionVars
 
-    real(dl) RayleighSwitchOnTime
-    logical Rayleigh
-    integer g_ix_freq, polind_freq, freq_neq
+        real(dl) RayleighSwitchOnTime
+        logical Rayleigh
+        integer g_ix_freq, polind_freq, freq_neq
 
-    real(dl) q, q2
-    real(dl) k_buf,k2_buf ! set in initial
+        real(dl) q, q2
+        real(dl) k_buf,k2_buf ! set in initial
 
-    integer w_ix !Index of two quintessence equations
-    integer r_ix !Index of the massless neutrino hierarchy
-    integer g_ix !Index of the photon neutrino hierarchy
+        integer w_ix !Index of two quintessence equations
+        integer r_ix !Index of the massless neutrino hierarchy
+        integer g_ix !Index of the photon neutrino hierarchy
 
-    integer q_ix !index into q_evolve array that gives the value q
-    logical TransferOnly
+        integer q_ix !index into q_evolve array that gives the value q
+        logical TransferOnly
 
-    !       nvar  - number of scalar (tensor) equations for this k
-    integer nvar,nvart, nvarv
+        !       nvar  - number of scalar (tensor) equations for this k
+        integer nvar,nvart, nvarv
 
-    !Max_l for the various hierarchies
-    integer lmaxg,lmaxnr,lmaxnu,lmaxgpol,MaxlNeeded
-    integer lmaxnrt, lmaxnut, lmaxt, lmaxpolt, MaxlNeededt
-    logical EvolveTensorMassiveNu(max_nu)
-    integer lmaxnrv, lmaxv, lmaxpolv
+        !Max_l for the various hierarchies
+        integer lmaxg,lmaxnr,lmaxnu,lmaxgpol,MaxlNeeded
+        integer lmaxnrt, lmaxnut, lmaxt, lmaxpolt, MaxlNeededt
+        logical EvolveTensorMassiveNu(max_nu)
+        integer lmaxnrv, lmaxv, lmaxpolv
 
-    integer polind  !index into scalar array of polarization hierarchy
+        integer polind  !index into scalar array of polarization hierarchy
 
-    !array indices for massive neutrino equations
-    integer nu_ix(max_nu), nu_pert_ix
-    integer nq(max_nu), lmaxnu_pert
-    logical has_nu_relativistic
+        !array indices for massive neutrino equations
+        integer nu_ix(max_nu), nu_pert_ix
+        integer nq(max_nu), lmaxnu_pert
+        logical has_nu_relativistic
 
-    !Initial values for massive neutrino v*3 variables calculated when switching
-    !to non-relativistic approx
-    real(dl) G11(max_nu),G30(max_nu)
-    !True when using non-relativistic approximation
-    logical MassiveNuApprox(max_nu)
-    real(dl) MassiveNuApproxTime(max_nu)
+        !Initial values for massive neutrino v*3 variables calculated when switching
+        !to non-relativistic approx
+        real(dl) G11(max_nu),G30(max_nu)
+        !True when using non-relativistic approximation
+        logical MassiveNuApprox(max_nu)
+        real(dl) MassiveNuApproxTime(max_nu)
 
-    !True when truncating at l=2,3 when k*tau>>1 (see arXiv:1104.2933)
-    logical high_ktau_neutrino_approx
+        !True when truncating at l=2,3 when k*tau>>1 (see arXiv:1104.2933)
+        logical high_ktau_neutrino_approx
 
-    !Massive neutrino scheme being used at the moment
-    integer NuMethod
+        !Massive neutrino scheme being used at the moment
+        integer NuMethod
 
-    !True when using tight-coupling approximation (required for stability at early times)
-    logical TightCoupling, TensTightCoupling
-    real(dl) TightSwitchoffTime
+        !True when using tight-coupling approximation (required for stability at early times)
+        logical TightCoupling, TensTightCoupling
+        real(dl) TightSwitchoffTime
 
-    !Numer of scalar equations we are propagating
-    integer ScalEqsToPropagate
-    integer TensEqsToPropagate
-    !beta > l for closed models
-    integer FirstZerolForBeta
-    !Tensor vars
-    real(dl) aux_buf
+        !Numer of scalar equations we are propagating
+        integer ScalEqsToPropagate
+        integer TensEqsToPropagate
+        !beta > l for closed models
+        integer FirstZerolForBeta
+        !Tensor vars
+        real(dl) aux_buf
 
-    real(dl) pig, pigdot !For tight coupling
-    real(dl) poltruncfac
+        real(dl) pig, pigdot !For tight coupling
+        real(dl) poltruncfac
 
-    logical no_nu_multpoles, no_phot_multpoles
-    integer lmaxnu_tau(max_nu)  !lmax for massive neutinos at time being integrated
-    logical nu_nonrelativistic(max_nu)
+        logical no_nu_multpoles, no_phot_multpoles
+        integer lmaxnu_tau(max_nu)  !lmax for massive neutinos at time being integrated
+        logical nu_nonrelativistic(max_nu)
 
-    real(dl) denlk(max_l_evolve),denlk2(max_l_evolve), polfack(max_l_evolve)
-    real(dl) Kf(max_l_evolve)
+        real(dl) denlk(max_l_evolve),denlk2(max_l_evolve), polfack(max_l_evolve)
+        real(dl) Kf(max_l_evolve)
 
-    integer E_ix, B_ix !tensor polarization indices
-    real(dl) denlkt(4,max_l_evolve),Kft(max_l_evolve)
+        integer E_ix, B_ix !tensor polarization indices
+        real(dl) denlkt(4,max_l_evolve),Kft(max_l_evolve)
 
-
+        real, pointer :: OutputTransfer(:) => null()
     end type EvolutionVars
 
     !precalculated arrays
@@ -257,10 +261,10 @@
     call dverk(EV,EV%ScalEqsToPropagate,derivs,tau,y,tauend,tol1,ind,c,EV%nvar,w)
     if (ind==-3) then
         call GlobalError('Dverk error -3: the subroutine was unable  to  satisfy  the  error ' &
-        //'requirement  with a particular step-size that is less than or * ' &
-        //'equal to hmin, which may mean that tol is too small' &
-        //'--- but most likely you''ve messed up the y array indexing; ' &
-        //'compiling with bounds checking may (or may not) help find the problem.',error_evolution)
+            //'requirement  with a particular step-size that is less than or * ' &
+            //'equal to hmin, which may mean that tol is too small' &
+            //'--- but most likely you''ve messed up the y array indexing; ' &
+            //'compiling with bounds checking may (or may not) help find the problem.',error_evolution)
     end if
     end subroutine GaugeInterface_ScalEv
 
@@ -323,15 +327,15 @@
 
     if (DoLateRadTruncation) then
         if (.not. EV%no_nu_multpoles) & !!.and. .not. EV%has_nu_relativistic .and. tau_switch_nu_massless ==noSwitch)  &
-        tau_switch_no_nu_multpoles=max(15/EV%k_buf*AccuracyBoost,min(taurend,matter_verydom_tau))
+            tau_switch_no_nu_multpoles=max(15/EV%k_buf*AccuracyBoost,min(taurend,matter_verydom_tau))
 
         if (.not. EV%no_phot_multpoles .and. (.not.CP%WantCls .or. EV%k_buf>0.03*AccuracyBoost)) &
-        tau_switch_no_phot_multpoles =max(15/EV%k_buf,taurend)*AccuracyBoost
+            tau_switch_no_phot_multpoles =max(15/EV%k_buf,taurend)*AccuracyBoost
     end if
 
     next_switch = min(tau_switch_ktau, tau_switch_nu_massless,EV%TightSwitchoffTime, tau_switch_nu_massive, &
-    tau_switch_no_nu_multpoles, tau_switch_no_phot_multpoles, tau_switch_nu_nonrel, &
-    EV%RayleighSwitchOnTime, noSwitch)
+        tau_switch_no_nu_multpoles, tau_switch_no_phot_multpoles, tau_switch_nu_nonrel, &
+        EV%RayleighSwitchOnTime, noSwitch)
 
     if (next_switch < tauend) then
         if (next_switch > tau+smallTime) then
@@ -358,14 +362,14 @@
                 ! Francis-Yan Cyr-Racine November 2010
 
                 y(EV%g_ix+3) = (3._dl/7._dl)*y(EV%g_ix+2)*(EV%k_buf/opacity)*(1._dl+dopacity/opacity**2) + &
-                (3._dl/7._dl)*EV%pigdot*(EV%k_buf/opacity**2)*(-1._dl)
+                    (3._dl/7._dl)*EV%pigdot*(EV%k_buf/opacity**2)*(-1._dl)
 
                 y(EV%polind+2) = EV%pig/4 + EV%pigdot*(1._dl/opacity)*(-5._dl/8._dl- &
-                (25._dl/16._dl)*dopacity/opacity**2) + &
-                EV%pig*(EV%k_buf/opacity)**2*(-5._dl/56._dl)
+                    (25._dl/16._dl)*dopacity/opacity**2) + &
+                    EV%pig*(EV%k_buf/opacity)**2*(-5._dl/56._dl)
                 y(EV%polind+3) = (3._dl/7._dl)*(EV%k_buf/opacity)*y(EV%polind+2)*(1._dl + &
-                dopacity/opacity**2) + (3._dl/7._dl)*(EV%k_buf/opacity**2)*((EV%pigdot/4._dl)* &
-                (1._dl+(5._dl/2._dl)*dopacity/opacity**2))*(-1._dl)
+                    dopacity/opacity**2) + (3._dl/7._dl)*(EV%k_buf/opacity**2)*((EV%pigdot/4._dl)* &
+                    (1._dl+(5._dl/2._dl)*dopacity/opacity**2))*(-1._dl)
             else
                 y(EV%g_ix+3) = 3./7*y(EV%g_ix+2)*EV%k_buf/opacity
                 y(EV%polind+2) = EV%pig/4
@@ -391,13 +395,13 @@
             !Mass starts to become important, start evolving next momentum mode
             do nu_i = 1, CP%Nu_mass_eigenstates
                 if (EV%nq(nu_i) /= nqmax .and. &
-                next_switch == nu_tau_notmassless(next_nu_nq(EV%nq(nu_i)),nu_i)) then
-                    EVOut%nq(nu_i) = next_nu_nq(EV%nq(nu_i))
-                    call SetupScalarArrayIndices(EVout)
-                    call CopyScalarVariableArray(y,yout, EV, EVout)
-                    EV=EVout
-                    y=yout
-                    exit
+                    next_switch == nu_tau_notmassless(next_nu_nq(EV%nq(nu_i)),nu_i)) then
+                EVOut%nq(nu_i) = next_nu_nq(EV%nq(nu_i))
+                call SetupScalarArrayIndices(EVout)
+                call CopyScalarVariableArray(y,yout, EV, EVout)
+                EV=EVout
+                y=yout
+                exit
                 end if
             end do
         else if (next_switch == tau_switch_nu_nonrel) then
@@ -710,7 +714,7 @@
                     pert_scale=(nu_masses(nu_i)/q)**2/2
                     lmax = min(lmax,EV%lmaxnu_pert)
                     yout(ind2:ind2+lmax) = yout(ind2:ind2+lmax) &
-                    + y(EV%nu_pert_ix:EV%nu_pert_ix+lmax)*pert_scale
+                        + y(EV%nu_pert_ix:EV%nu_pert_ix+lmax)*pert_scale
                 end do
             end if
         end do
@@ -889,6 +893,7 @@
                 EV%lmaxgpol=EV%lmaxgpol*2
             end if
         end if
+
         if (EV%TransferOnly) then
             EV%lmaxgpol = min(EV%lmaxgpol,nint(5*lAccuracyBoost))
             EV%lmaxg = min(EV%lmaxg,nint(6*lAccuracyBoost))
@@ -1009,10 +1014,11 @@
 
     end subroutine SwitchToMassiveNuApprox
 
-    subroutine MassiveNuVarsOut(EV,y,yprime,a,grho,gpres,dgrho,dgq,dgpi, gdpi_diff,pidot_sum)
+    subroutine MassiveNuVarsOut(EV,y,yprime,a,grho,gpres,dgrho,dgq,dgpi, gdpi_diff,pidot_sum,clxnu_all)
     implicit none
     type(EvolutionVars) EV
-    real(dl) :: y(EV%nvar), yprime(EV%nvar),a, grho,gpres,dgrho,dgq,dgpi, gdpi_diff,pidot_sum
+    real(dl) :: y(EV%nvar), yprime(EV%nvar),a
+    real(dl), optional :: grho,gpres,dgrho,dgq,dgpi, gdpi_diff,pidot_sum,clxnu_all
     !grho = a^2 kappa rho
     !gpres = a^2 kappa p
     !dgrho = a^2 kappa \delta\rho
@@ -1024,9 +1030,11 @@
     integer nu_i
     real(dl) pinudot,grhormass_t, rhonu, pnu,  rhonudot
     real(dl) adotoa, grhonu_t,gpnu_t
-    real(dl) clxnu, qnu, pinu, dpnu
+    real(dl) clxnu, qnu, pinu, dpnu, grhonu, dgrhonu
     real(dl) dtauda
 
+    grhonu=0
+    dgrhonu=0
     do nu_i = 1, CP%Nu_mass_eigenstates
         grhormass_t=grhormass(nu_i)/a**2
 
@@ -1057,15 +1065,18 @@
         grhonu_t=grhormass_t*rhonu
         gpnu_t=grhormass_t*pnu
 
-        grho = grho  + grhonu_t
-        gpres= gpres + gpnu_t
+        grhonu = grhonu  + grhonu_t
+        if (present(gpres)) gpres= gpres + gpnu_t
 
-        dgrho= dgrho + grhonu_t*clxnu
-        dgq  = dgq   + grhonu_t*qnu
-        dgpi = dgpi  + grhonu_t*pinu
-        gdpi_diff = gdpi_diff + pinu*(3*gpnu_t-grhonu_t)
-        pidot_sum = pidot_sum + grhonu_t*pinudot
+        dgrhonu= dgrhonu + grhonu_t*clxnu
+        if (present(dgq)) dgq  = dgq   + grhonu_t*qnu
+        if (present(dgpi)) dgpi = dgpi  + grhonu_t*pinu
+        if (present(gdpi_diff)) gdpi_diff = gdpi_diff + pinu*(3*gpnu_t-grhonu_t)
+        if (present(pidot_sum)) pidot_sum = pidot_sum + grhonu_t*pinudot
     end do
+    if (present(grho)) grho = grho  + grhonu
+    if (present(dgrho)) dgrho= dgrho + dgrhonu
+    if (present(clxnu_all)) clxnu_all = dgrhonu/grhonu
 
     end subroutine MassiveNuVarsOut
 
@@ -1265,7 +1276,6 @@
 
     end subroutine MassiveNuVars
 
-
     !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
     subroutine output(EV,yin, j,tau,sources)
     use ThermoData
@@ -1433,7 +1443,7 @@
             ypolprime(2)= (pigdot/4._dl)*(1+(5._dl/2._dl)*(dopac(j,1)/opac(j,1)**2))
         else
             pigdot = -dopac(j,1)/opac(j,1)*pig + 32._dl/45*k/opac(j,1)*(-2*adotoa*sigma  &
-            +etak/EV%Kf(1)-  dgpi/k +vbdot )
+                +etak/EV%Kf(1)-  dgpi/k +vbdot )
             ypolprime(2)= pigdot/4
         end if
     end if
@@ -1445,9 +1455,9 @@
         if (.not. EV%no_phot_multpoles .and. EV%Rayleigh .and. f_i>1) then
             ix_off=EV%g_ix_freq+(f_i-2)*EV%freq_neq
             y(EV%g_ix:EV%g_ix+EV%freq_neq-1) = yin(EV%g_ix:EV%g_ix+EV%freq_neq-1)+ &
-            yin(ix_off:ix_off+EV%freq_neq-1)
+                yin(ix_off:ix_off+EV%freq_neq-1)
             yprime(EV%g_ix:EV%g_ix+EV%freq_neq-1) = yprimein(EV%g_ix:EV%g_ix+EV%freq_neq-1)+ &
-            yprimein(ix_off:ix_off+EV%freq_neq-1)
+                yprimein(ix_off:ix_off+EV%freq_neq-1)
 
             pig =y(EV%g_ix+2)
             polter = 0.1_dl*pig+9._dl/15._dl*ypol(2)
@@ -1462,8 +1472,8 @@
         !Maple's fortran output - see scal_eqs.map
         !2phi' term (\phi' + \psi' in Newtonian gauge)
         ISW = (4.D0/3.D0*k*EV%Kf(1)*sigma+(-2.D0/3.D0*sigma-2.D0/3.D0*etak/adotoa)*k &
-        -diff_rhopi/k**2-1.D0/adotoa*dgrho/3.D0+(3.D0*gpres+5.D0*grho)*sigma/k/3.D0 &
-        -2.D0/k*adotoa/EV%Kf(1)*etak)*expmmu(j,f_i)
+            -diff_rhopi/k**2-1.D0/adotoa*dgrho/3.D0+(3.D0*gpres+5.D0*grho)*sigma/k/3.D0 &
+            -2.D0/k*adotoa/EV%Kf(1)*etak)*expmmu(j,f_i)
 
         !e.g. to get only late-time ISW
         !  if (1/a-1 < 30) ISW=0
@@ -1471,13 +1481,13 @@
         !The rest, note y(9)->octg, yprime(9)->octgprime (octopoles)
 
         sources(s_ix+1)= ISW +  ((-9.D0/160.D0*pig-27.D0/80.D0*ypol(2))/k**2*opac(j,f_i)+ &
-        (11.D0/10.D0*sigma- 3.D0/8.D0*EV%Kf(2)*ypol(3)+vb-9.D0/80.D0*EV%Kf(2)*octg+3.D0/40.D0*qg)/k- &
-        (-180.D0*ypolprime(2)-30.D0*pigdot)/k**2/160.D0)*dvis(j,f_i) + &
-        (-(9.D0*pigdot+ 54.D0*ypolprime(2))/k**2*opac(j,f_i)/160.D0+pig/16.D0+clxg/4.D0+3.D0/8.D0*ypol(2) + &
-        (-21.D0/5.D0*adotoa*sigma-3.D0/8.D0*EV%Kf(2)*ypolprime(3) + &
-        vbdot+3.D0/40.D0*qgdot- 9.D0/80.D0*EV%Kf(2)*octgprime)/k + &
-        (-9.D0/160.D0*dopac(j,f_i)*pig-21.D0/10.D0*dgpi-27.D0/80.D0*dopac(j,f_i)*ypol(2))/k**2)*vis(j,f_i) + &
-        (3.D0/16.D0*ddvis(j,f_i)*pig+9.D0/8.D0*ddvis(j,f_i)*ypol(2))/k**2+21.D0/10.D0/k/EV%Kf(1)*vis(j,f_i)*etak
+            (11.D0/10.D0*sigma- 3.D0/8.D0*EV%Kf(2)*ypol(3)+vb-9.D0/80.D0*EV%Kf(2)*octg+3.D0/40.D0*qg)/k- &
+            (-180.D0*ypolprime(2)-30.D0*pigdot)/k**2/160.D0)*dvis(j,f_i) + &
+            (-(9.D0*pigdot+ 54.D0*ypolprime(2))/k**2*opac(j,f_i)/160.D0+pig/16.D0+clxg/4.D0+3.D0/8.D0*ypol(2) + &
+            (-21.D0/5.D0*adotoa*sigma-3.D0/8.D0*EV%Kf(2)*ypolprime(3) + &
+            vbdot+3.D0/40.D0*qgdot- 9.D0/80.D0*EV%Kf(2)*octgprime)/k + &
+            (-9.D0/160.D0*dopac(j,f_i)*pig-21.D0/10.D0*dgpi-27.D0/80.D0*dopac(j,f_i)*ypol(2))/k**2)*vis(j,f_i) + &
+            (3.D0/16.D0*ddvis(j,f_i)*pig+9.D0/8.D0*ddvis(j,f_i)*ypol(2))/k**2+21.D0/10.D0/k/EV%Kf(1)*vis(j,f_i)*etak
 
         ! Doppler term
         !   sources(1)=  (sigma+vb)/k*dvis(j)+((-2.D0*adotoa*sigma+vbdot)/k-1.D0/k**2*dgpi)*vis(j) &
@@ -1516,8 +1526,7 @@
             if (tau>taurend .and. CP%tau0-tau > 0.1_dl) then
                 !phi_lens = Phi - 1/2 kappa (a/k)^2 sum_i rho_i pi_i
                 !Neglect pi contributions because not accurate at late time anyway
-                phi = -(dgrho +3*dgq*adotoa/k)/(k2*EV%Kf(1)*2)
-            ! - dgpi/k2/2
+                phi = -(dgrho +3*dgq*adotoa/k)/(k2*EV%Kf(1)*2) - dgpi/k2/2
 
                 sources(3) = -2*phi*f_K(tau-tau_maxvis)/(f_K(CP%tau0-tau_maxvis)*f_K(CP%tau0-tau))
                 !         sources(3) = -2*phi*(tau-tau_maxvis)/((CP%tau0-tau_maxvis)*(CP%tau0-tau))
@@ -1600,9 +1609,9 @@
             if (EV%Rayleigh .and. f_i>1) then
                 ix_off=EV%g_ix_freq+2+(f_i-2)*EV%freq_neq
                 yt(EV%g_ix+2:EV%g_ix+2+EV%freq_neq-1) = ytin(EV%g_ix+2:EV%g_ix+2+EV%freq_neq-1)+ &
-                ytin(ix_off:ix_off+EV%freq_neq-1)
+                    ytin(ix_off:ix_off+EV%freq_neq-1)
                 ytprime(EV%g_ix+2:EV%g_ix+2+EV%freq_neq-1) = ytprimein(EV%g_ix+2:EV%g_ix+2+EV%freq_neq-1)+ &
-                ytprimein(ix_off:ix_off+EV%freq_neq-1)
+                    ytprimein(ix_off:ix_off+EV%freq_neq-1)
 
                 pig =yt(EV%g_ix+2)
                 pigdot=ytprime(EV%g_ix+2)
@@ -1615,19 +1624,19 @@
             polter = 0.1_dl*pig + 9._dl/15._dl*E(2)
             polterdot=9._dl/15._dl*Eprime(2) + 0.1_dl*pigdot
             polterddot = 9._dl/15._dl*(-dopac(j,f_i)*(E(2)-polter)-opac(j,f_i)*(  &
-            Eprime(2)-polterdot) + k*(2._dl/3._dl*Bprime(2)*aux - 5._dl/27._dl*Eprime(3)*EV%Kft(2))) &
-            +0.1_dl*(k*(-octg*EV%Kft(2)/3._dl + 8._dl/15._dl*ytprime(3)) - &
-            dopac(j,f_i)*(pig - polter) - opac(j,f_i)*(pigdot-polterdot))
+                Eprime(2)-polterdot) + k*(2._dl/3._dl*Bprime(2)*aux - 5._dl/27._dl*Eprime(3)*EV%Kft(2))) &
+                +0.1_dl*(k*(-octg*EV%Kft(2)/3._dl + 8._dl/15._dl*ytprime(3)) - &
+                dopac(j,f_i)*(pig - polter) - opac(j,f_i)*(pigdot-polterdot))
 
             dt(f_i)=(shear*expmmu(j,f_i) + (15._dl/8._dl)*polter*vis(j,f_i)/k)*CP%r/sinhxr**2/prefac
 
             dte(f_i)=CP%r*15._dl/8._dl/k/prefac* &
-            ((ddvis(j,f_i)*polter + 2._dl*dvis(j,f_i)*polterdot + vis(j,f_i)*polterddot)  &
-            + 4._dl*cothxor*(dvis(j,f_i)*polter + vis(j,f_i)*polterdot) - &
-            vis(j,f_i)*polter*(k2 -6*cothxor**2))
+                ((ddvis(j,f_i)*polter + 2._dl*dvis(j,f_i)*polterdot + vis(j,f_i)*polterddot)  &
+                + 4._dl*cothxor*(dvis(j,f_i)*polter + vis(j,f_i)*polterdot) - &
+                vis(j,f_i)*polter*(k2 -6*cothxor**2))
 
             dtb(f_i)=15._dl/4._dl*EV%q*CP%r/k/prefac*(vis(j,f_i)*(2._dl*cothxor*polter + polterdot) + dvis(j,f_i)*polter)
-            
+
             if (rayleigh_diff .and. f_i>2) then
                 dt(f_i)= dt(f_i) - dt(1)
                 dte(f_i)= dte(f_i) - dte(1)
@@ -1681,7 +1690,7 @@
             dt =0
         end if
         dt= (4*(vb+sigma)*vis(j,1) + 15._dl/2/k*( vis(j,1)*polterdot + dvis(j,1)*polter) &
-        + 4*(expmmu(j,1)*yvprime(2)) )/x
+            + 4*(expmmu(j,1)*yvprime(2)) )/x
 
         dte= 15._dl/2*2*polter/x**2*vis(j,1) + 15._dl/2/k*(dvis(j,1)*polter + vis(j,1)*polterdot)/x
 
@@ -1704,15 +1713,17 @@
     type(EvolutionVars) EV
     real(dl) y(EV%nvar)
     real(dl) Rp15,tau,x,x2,x3,om,omtau, &
-    Rc,Rb,Rv,Rg,grhonu,chi
+        Rc,Rb,Rv,Rg,grhonu,chi
     real(dl) k,k2
     real(dl) a,a2, iqg, rhomass,a_massive, ep
     integer l,i, nu_i, j, ind
     integer, parameter :: i_clxg=1,i_clxr=2,i_clxc=3, i_clxb=4, &
-    i_qg=5,i_qr=6,i_vb=7,i_pir=8, i_eta=9, i_aj3r=10,i_clxq=11,i_vq=12
+        i_qg=5,i_qr=6,i_vb=7,i_pir=8, i_eta=9, i_aj3r=10,i_clxq=11,i_vq=12
     integer, parameter :: i_max = i_vq
     real(dl) initv(6,1:i_max), initvec(1:i_max)
     integer f_i
+
+    nullify(EV%OutputTransfer) !Should not be needed, but avoids issues in ifort 14
 
     if (CP%flat) then
         EV%k_buf=EV%q
@@ -1780,7 +1791,7 @@
     Rp15=4*Rv+15
 
     if (CP%Scalar_initial_condition > initial_nummodes) &
-    stop 'Invalid initial condition for scalar modes'
+        stop 'Invalid initial condition for scalar modes'
 
     a=tau*adotrad*(1+omtau/4)
     a2=a*a
@@ -1988,8 +1999,8 @@
         pir=-2._dl/3._dl/(bigR+5)*x**2*elec
         !           + (bigR-1)/bigR*Magnetic*(1-15./14*x**2/(15+4*bigR))
         aj3r=  -2._dl/21._dl/(bigR+5)*x**3*elec !&
-        !           + 3._dl/7*x*(bigR-1)/bigR*Magnetic
-        yt(EV%r_ix+2)=pir
+            !           + 3._dl/7*x*(bigR-1)/bigR*Magnetic
+            yt(EV%r_ix+2)=pir
         yt(EV%r_ix+3)=aj3r
         !Should set up massive too, but small anyway..
     end if
@@ -2031,8 +2042,8 @@
     yv(2)= vec_sig0*(1- 15._dl/2*omtau/(4*bigR+15)) + 45._dl/14*x*Magnetic*(BigR-1)/(4*BigR+15)
     !qg
     yv(4)= vec_sig0/3* (4*bigR + 5)/(1-BigR)*(1  -0.75_dl*omtau*(Rc-1)/(bigR-1)* &
-    (1 - 0.25_dl*omtau*(3*Rc-2-bigR)/(BigR-1))) &
-    -x/2*Magnetic
+        (1 - 0.25_dl*omtau*(3*Rc-2-bigR)/(BigR-1))) &
+        -x/2*Magnetic
     yv(3)= 3._dl/4*yv(4)
 
     yv(5:EV%nvarv) = 0
@@ -2050,7 +2061,7 @@
     !  Neutrinos
     !q_r
     yv((EV%lmaxv-1+1)+(EV%lmaxpolv-1)*2+3+1) = -1._dl/3*vec_sig0*(4*BigR+5)/bigR &
-    + x**2*vec_sig0/6/BigR +0.5_dl*x*(1/bigR-1)*Magnetic
+        + x**2*vec_sig0/6/BigR +0.5_dl*x*(1/bigR-1)*Magnetic
     !pi_r
     pir=-2._dl/3._dl*x*vec_sig0/BigR - (1/bigR-1)*Magnetic
     yv((EV%lmaxv-1+1)+(EV%lmaxpolv-1)*2+3+1 +1)=pir
@@ -2059,69 +2070,28 @@
     end subroutine initialv
 
 
-    subroutine outtransf(EV, y, Arr)
+    subroutine outtransf(EV, y,tau, Arr)
     !write out clxc, clxb, clxg, clxn
-    use Transfer
     implicit none
     type(EvolutionVars) EV
-
+    real(dl), intent(in) :: tau
     real(dl) clxc, clxb, clxg, clxr, k,k2
     real(dl) grho,gpres,dgrho,dgq,a
-    real Arr(:)
-    real(dl) y(EV%nvar)
+    real, target :: Arr(:)
+    real(dl) y(EV%nvar),yprime(EV%nvar)
 
-    a    = y(1)
-    clxc = y(3)
-    clxb = y(4)
-    if (EV%no_nu_multpoles) then
-        clxr=0
-    else
-        clxr = y(EV%r_ix)
-    end if
+    yprime = 0
+    EV%OutputTransfer =>  Arr
+    call derivs(EV,EV%ScalEqsToPropagate,tau,y,yprime)
+    nullify(EV%OutputTransfer)
 
-    if (EV%no_phot_multpoles) then
-        clxg=0
-    else
-        clxg = y(EV%g_ix)
-    end if
-
-    k    = EV%k_buf
-    k2   = EV%k2_buf
-
-    Arr(Transfer_kh) = k/(CP%h0/100._dl)
-    Arr(Transfer_cdm) = clxc/k2
-    Arr(Transfer_b) = clxb/k2
-    Arr(Transfer_g) = clxg/k2
-    Arr(Transfer_r) = clxr/k2
-
-    dgrho = 0
-    grho =  0
-
-    if (CP%Num_Nu_Massive > 0) then
-        call MassiveNuVars(EV,y,a,grho,gpres,dgrho,dgq)
-        Arr(Transfer_nu) = dgrho/grho/k2
-    else
-        Arr(Transfer_nu) = 0
-    end if
-
-    !!!If we want DE perturbations to get \delta\rho/\rho_m
-    !       dgrho=dgrho+y(EV%w_ix)*grhov*a**(-1-3*w_lam)
-    !        Arr(Transfer_r) = y(EV%w_ix)/k2
-    !
-    !        dgrho = dgrho+(clxc*grhoc + clxb*grhob)/a
-    !        grho =  grho+(grhoc+grhob)/a + grhov*a**(-1-3*w_lam)
-
-    dgrho = dgrho+(clxc*grhoc + clxb*grhob)/a
-    grho =  grho+(grhoc+grhob)/a
-
-    Arr(Transfer_tot) = dgrho/grho/k2
-
+    Arr(Transfer_kh+1:Transfer_max) = Arr(Transfer_kh+1:Transfer_max)/EV%k2_buf
 
     end subroutine outtransf
 
     !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
     subroutine derivs(EV,n,tau,ay,ayprime)
-    !  Evaluate the time derivatives of the perturbations, flat case
+    !  Evaluate the time derivatives of the perturbations
     !  ayprime is not necessarily GaugeInterface.yprime, so keep them distinct
     use ThermoData
     use MassiveNu
@@ -2137,7 +2107,7 @@
 
     real(dl) opacity(nscatter), dopacity(nscatter)
     real(dl) photbar,cs2,pb43,grho,slip,clxgdot, &
-    clxcdot,clxbdot,adotdota,gpres,clxrdot,etak
+        clxcdot,clxbdot,adotdota,gpres,clxrdot,etak
     real(dl) q,aq,v
     real(dl) G11_t,G30_t, wnu_arr(max_nu)
 
@@ -2147,6 +2117,7 @@
     real(dl) clxq, vq,  E2
     integer l,i,ind, ind2, off_ix, ix
     real(dl) dgs,sigmadot,dz !, ddz
+    real(dl) dgpi,dgrho_matter,grho_matter, clxnu_all
     !non-flat vars
     real(dl) cothxor !1/tau in flat case
     integer f_i
@@ -2189,17 +2160,19 @@
     end if
 
     gpres=0
-    grho=grhob_t+grhoc_t+grhor_t+grhog_t+grhov_t
+    grho_matter=grhob_t+grhoc_t
 
     !total perturbations: matter terms first, then add massive nu, de and radiation
     !  8*pi*a*a*SUM[rho_i*clx_i]
-    dgrho=grhob_t*clxb+grhoc_t*clxc
+    dgrho_matter=grhob_t*clxb+grhoc_t*clxc
     !  8*pi*a*a*SUM[(rho_i+p_i)*v_i]
     dgq=grhob_t*vb
 
     if (CP%Num_Nu_Massive > 0) then
-        call MassiveNuVars(EV,ay,a,grho,gpres,dgrho,dgq, wnu_arr)
+        call MassiveNuVars(EV,ay,a,grho_matter,gpres,dgrho_matter,dgq, wnu_arr)
     end if
+
+    grho = grho_matter+grhor_t+grhog_t+grhov_t
 
     if (CP%flat) then
         adotoa=sqrt(grho/3)
@@ -2208,6 +2181,8 @@
         adotoa=sqrt((grho+grhok)/3._dl)
         cothxor=1._dl/tanfunc(tau/CP%r)/CP%r
     end if
+
+    dgrho = dgrho_matter
 
     if (w_lam /= -1 .and. w_Perturb) then
         clxq=ay(EV%w_ix)
@@ -2288,9 +2263,31 @@
 
     if (w_lam /= -1 .and. w_Perturb) then
         ayprime(EV%w_ix)= -3*adotoa*(cs2_lam-w_lam)*(clxq+3*adotoa*(1+w_lam)*vq/k) &
-        -(1+w_lam)*k*vq -(1+w_lam)*k*z
+            -(1+w_lam)*k*vq -(1+w_lam)*k*z
 
         ayprime(EV%w_ix+1) = -adotoa*(1-3*cs2_lam)*vq + k*cs2_lam*clxq/(1+w_lam)
+    end if
+
+    if (associated(EV%OutputTransfer)) then
+        EV%OutputTransfer(Transfer_kh) = k/(CP%h0/100._dl)
+        EV%OutputTransfer(Transfer_cdm) = clxc
+        EV%OutputTransfer(Transfer_b) = clxb
+        EV%OutputTransfer(Transfer_g) = clxg
+        EV%OutputTransfer(Transfer_r) = clxr
+        clxnu_all=0
+        dgpi  = grhor_t*pir + grhog_t*pig
+        if (CP%Num_Nu_Massive /= 0) then
+            call MassiveNuVarsOut(EV,ay,ayprime,a, clxnu_all =clxnu_all, dgpi= dgpi)
+        end if
+        EV%OutputTransfer(Transfer_nu) = clxnu_all
+        EV%OutputTransfer(Transfer_tot) =  dgrho_matter/grho_matter !includes neutrinos
+        EV%OutputTransfer(Transfer_nonu) = (grhob_t*clxb+grhoc_t*clxc)/(grhob_t + grhoc_t)
+        EV%OutputTransfer(Transfer_tot_de) =  dgrho/grho_matter
+        !Transfer_Weyl is k^2Phi, where Phi is the Weyl potential
+        EV%OutputTransfer(Transfer_Weyl) = -(dgrho +3*dgq*adotoa/k)/(EV%Kf(1)*2) - dgpi/2
+        EV%OutputTransfer(Transfer_Newt_vel_cdm)=  -k*sigma/adotoa
+        EV%OutputTransfer(Transfer_Newt_vel_baryon) = -k*(vb + sigma)/adotoa
+        EV%OutputTransfer(Transfer_vel_baryon_cdm) = vb
     end if
 
     !  CDM equation of motion
@@ -2317,7 +2314,7 @@
 
         !  First-order approximation to baryon-photon splip
         slip = - (2*adotoa/(1+pb43) + dopacity(1)/opacity(1))* (vb-3._dl/4*qg) &
-        +(-adotdota*vb-k/2*adotoa*clxg +k*(cs2*clxbdot-clxgdot/4))/(opacity(1)*(1+pb43))
+            +(-adotdota*vb-k/2*adotoa*clxg +k*(cs2*clxbdot-clxgdot/4))/(opacity(1)*(1+pb43))
 
         if (second_order_tightcoupling) then
             ! by Francis-Yan Cyr-Racine simplified (inconsistently) by AL assuming flat
@@ -2333,12 +2330,12 @@
             qgdot = k*(clxg/4._dl-pig/2._dl) +opacity(1)*slip
 
             pig = 32._dl/45/opacity(1)*k*(sigma+3._dl*qg/4._dl)*(1+(dopacity(1)*11._dl/6._dl/opacity(1)**2)) &
-            + (32._dl/45._dl/opacity(1)**2)*k*(sigmadot+3._dl*qgdot/4._dl)*(-11._dl/6._dl)
+                + (32._dl/45._dl/opacity(1)**2)*k*(sigmadot+3._dl*qgdot/4._dl)*(-11._dl/6._dl)
 
             pigdot = -(32._dl/45._dl)*(dopacity(1)/opacity(1)**2)*k*(sigma+3._dl*qg/4._dl)*(1 + &
-            dopacity(1)*11._dl/6._dl/opacity(1)**2 ) &
-            + (32._dl/45._dl/opacity(1))*k*(sigmadot+3._dl*qgdot/4._dl)*(1+(11._dl/6._dl) &
-            *(dopacity(1)/opacity(1)**2))
+                dopacity(1)*11._dl/6._dl/opacity(1)**2 ) &
+                + (32._dl/45._dl/opacity(1))*k*(sigmadot+3._dl*qgdot/4._dl)*(1+(11._dl/6._dl) &
+                *(dopacity(1)/opacity(1)**2))
 
             EV%pigdot = pigdot
         end if
@@ -2346,7 +2343,7 @@
         !  Use tight-coupling approximation for vb
         !  zeroth order approximation to vbdot + the pig term
         vbdot=(-adotoa*vb+cs2*k*clxb  &
-        +k/4*pb43*(clxg-2*EV%Kf(1)*pig))/(1+pb43)
+            +k/4*pb43*(clxg-2*EV%Kf(1)*pig))/(1+pb43)
 
         vbdot=vbdot+pb43/(1+pb43)*slip
 
@@ -2367,10 +2364,10 @@
         ayprime(EV%g_ix)=clxgdot
         if (.not. EV%TightCoupling .and. .not.EV%no_phot_multpoles)  then
             qgdot=4._dl/3*(photbar*opacity(1)*(4._dl/3*vb-qg))/pb43 &
-            +EV%denlk(1)*clxg-EV%denlk2(1)*pig
+                +EV%denlk(1)*clxg-EV%denlk2(1)*pig
         else
             qgdot=4._dl/3*(-vbdot-adotoa*vb+cs2*k*clxb)/pb43 &
-            +EV%denlk(1)*clxg-EV%denlk2(1)*pig
+                +EV%denlk(1)*clxg-EV%denlk2(1)*pig
         end if
         ayprime(EV%g_ix+1)=qgdot
 
@@ -2381,7 +2378,7 @@
             ix= EV%g_ix+2
             if (EV%lmaxg>2) then
                 pigdot=EV%denlk(2)*qg-EV%denlk2(2)*ay(ix+1)-opacity(1)*(pig - polter) &
-                +8._dl/15._dl*k*sigma
+                    +8._dl/15._dl*k*sigma
                 ayprime(ix)=pigdot
                 do  l=3,EV%lmaxg-1
                     ix=ix+1
@@ -2406,7 +2403,7 @@
                 ix=ix+1
                 !truncate
                 ayprime(ix)=-opacity(1)*ay(ix) + &
-                k*EV%poltruncfac*ay(ix-1)-(EV%lmaxgpol+3)*cothxor*ay(ix)
+                    k*EV%poltruncfac*ay(ix-1)-(EV%lmaxgpol+3)*cothxor*ay(ix)
             else !closed case
                 ayprime(ix) = -opacity(1)*(ay(ix) - polter)
             endif
@@ -2416,18 +2413,18 @@
             !assume after tight coupling ended
             do f_i = 1, num_cmb_freq
                 opac_rayleigh = Recombination_rayleigh_eff(a)*akthom/a2*(min(1._dl,&
-                freq_factors(f_i,1)/a2**2 + freq_factors(f_i,2)/a2**3  + freq_factors(f_i,3)/a2**4))
+                    freq_factors(f_i,1)/a2**2 + freq_factors(f_i,2)/a2**3  + freq_factors(f_i,3)/a2**4))
                 !max(0._dl,1-Recombination_xe(a))*akthom/a2**3
                 opac_tot=opac_rayleigh+opacity(1)
                 ind = EV%g_ix_freq + (f_i-1)*EV%freq_neq
                 ayprime(ind)=-k*ay(ind+1)
                 ayprime(ind+1)= EV%denlk(1)*ay(ind)-EV%denlk2(1)*ay(ind+2) &
-                + 4._dl/3*photbar*(-opacity(1)*ay(ind+1) + opac_rayleigh*(4._dl/3*vb-qg-ay(ind+1)))/pb43
+                    + 4._dl/3*photbar*(-opacity(1)*ay(ind+1) + opac_rayleigh*(4._dl/3*vb-qg-ay(ind+1)))/pb43
                 E2=ay(EV%polind_freq + (f_i-1)*EV%freq_neq +2)
                 polter_freq = ay(ind+2)/10+9._dl/15*E2 !2/15*(3/4 pig + 9/2 E2)
                 if (EV%lmaxg>2) then
                     ayprime(ind+2)=EV%denlk(2)*ay(ind+1)-EV%denlk2(2)*ay(ind+3)-opac_tot*(ay(ind+2) - polter_freq) &
-                    -opac_rayleigh*(ay(EV%g_ix+2) - polter)
+                        -opac_rayleigh*(ay(EV%g_ix+2) - polter)
                     ix= ind+2
                     do  l=3,EV%lmaxg-1
                         ix=ix+1
@@ -2451,7 +2448,7 @@
                     ix=ix+1
                     !truncate
                     ayprime(ix)=-opac_tot*ay(ix)-opac_rayleigh*ay(EV%polind+EV%lmaxgpol) + &
-                    k*EV%poltruncfac*ay(ix-1)-(EV%lmaxgpol+3)*cothxor*ay(ix)
+                        k*EV%poltruncfac*ay(ix-1)-(EV%lmaxgpol+3)*cothxor*ay(ix)
                 else !closed case
                     ayprime(ix) = -opac_tot*(ay(ix) - polter_freq)-opac_rayleigh*ay(EV%polind+2)
                 endif
@@ -2534,7 +2531,7 @@
                     ayprime(ind)=-ayprime(ind-2) -3*cothxor*ay(ind)
                 else
                     ayprime(ind)=v*(EV%denlk(2)*ay(ind-1)-EV%denlk2(2)*ay(ind+1)) &
-                    +k*8._dl/15._dl*sigma
+                        +k*8._dl/15._dl*sigma
                     do l=3,EV%lmaxnu_tau(nu_i)-1
                         ind=ind+1
                         ayprime(ind)=v*(EV%denlk(l)*ay(ind-1)-EV%denlk2(l)*ay(ind+1))
@@ -2556,7 +2553,7 @@
             ind=ind+1
             ind2=ind2+1
             ayprime(ind)= -a2*(EV%denlk(l)*ay(ind2-1)-EV%denlk2(l)*ay(ind2+1)) &
-            +   (EV%denlk(l)*ay(ind-1)-EV%denlk2(l)*ay(ind+1))
+                +   (EV%denlk(l)*ay(ind-1)-EV%denlk2(l)*ay(ind+1))
         end do
         ind=ind+1
         ind2=ind2+1
@@ -2610,7 +2607,7 @@
     end if
 
     finished_tightcoupling = &
-    ((k/opacity > ep).or.(1._dl/(opacity*tau) > ep .and. k/opacity > 1d-4))
+        ((k/opacity > ep).or.(1._dl/(opacity*tau) > ep .and. k/opacity > 1d-4))
 
 
     ! Compute expansion rate from: grho=8*pi*rho*a**2
@@ -2658,22 +2655,22 @@
 
         !  Equation for the photon anisotropic stress
         yvprime(5)=k*(2._dl/5*qg -8/15._dl*yv(6))+8._dl/15._dl*k*sigma  &
-        -opacity*(pig - polter)
+            -opacity*(pig - polter)
         ! And for the moments
         do  l=3,EV%lmaxv-1
             yvprime(l+3)=k*denl(l)*l*(yv(l+2)-   &
-            vecfac(l)*yv(l+4))-opacity*yv(l+3)
+                vecfac(l)*yv(l+4))-opacity*yv(l+3)
         end do
         !  Truncate the hierarchy
         yvprime(EV%lmaxv+3)=k*EV%lmaxv/(EV%lmaxv-1._dl)*yv(EV%lmaxv+2)- &
-        (EV%lmaxv+2._dl)*yv(EV%lmaxv+3)/tau-opacity*yv(EV%lmaxv+3)
+            (EV%lmaxv+2._dl)*yv(EV%lmaxv+3)/tau-opacity*yv(EV%lmaxv+3)
 
         !E equations
 
         Eprime(2) = - opacity*(E(2) - polter) + k*(1/3._dl*B(2) - 8._dl/27._dl*E(3))
         do l=3,EV%lmaxpolv-1
             Eprime(l) =-opacity*E(l) + k*(denl(l)*(l*E(l-1) - &
-            vecfacpol(l)*E(l+1)) + 2._dl/(l*(l+1))*B(l))
+                vecfacpol(l)*E(l+1)) + 2._dl/(l*(l+1))*B(l))
         end do
         !truncate
         Eprime(EV%lmaxpolv)=0._dl
@@ -2682,7 +2679,7 @@
 
         do l=2,EV%lmaxpolv-1
             Bprime(l) =-opacity*B(l) + k*(denl(l)*(l*B(l-1) - &
-            vecfacpol(l)*B(l+1)) - 2._dl/(l*(l+1))*E(l))
+                vecfacpol(l)*B(l+1)) - 2._dl/(l*(l+1))*E(l))
         end do
         !truncate
         Bprime(EV%lmaxpolv)=0._dl
@@ -2694,14 +2691,14 @@
         EV%pig = pig
 
         vbdot=(-adotoa*vb  -3._dl/8*pb43*k*Magnetic  -3._dl/8*k*pb43*pig &
-        - pb43/(1+pb43)/opacity*(0.75_dl*k*adotoa*pb43**2/(pb43+1)*Magnetic + vb*&
-        ( 2*pb43*adotoa**2/(1+pb43) + adotdota)) &
-        )/(1+pb43)
+            - pb43/(1+pb43)/opacity*(0.75_dl*k*adotoa*pb43**2/(pb43+1)*Magnetic + vb*&
+            ( 2*pb43*adotoa**2/(1+pb43) + adotdota)) &
+            )/(1+pb43)
 
         !  Equation for the photon heat flux
         ! Get drag from vbdot expression
         yvprime(4)=-0.5_dl*k*pig - &
-        (vbdot+adotoa*vb)/photbar - 0.5_dl*k*Magnetic
+            (vbdot+adotoa*vb)/photbar - 0.5_dl*k*Magnetic
 
         !  Set the derivatives to zero
         yvprime(5:n)=0._dl
@@ -2724,7 +2721,7 @@
 
     !  Truncate the hierarchy
     neutprime(EV%lmaxnrv)=k*EV%lmaxnrv/(EV%lmaxnrv-1._dl)*neut(EV%lmaxnrv-1)-  &
-    (EV%lmaxnrv+2._dl)*neut(EV%lmaxnrv)/tau
+        (EV%lmaxnrv+2._dl)*neut(EV%lmaxnrv)/tau
 
 
     !  Get the propagation equation for the shear
@@ -2823,7 +2820,7 @@
 
         if (EV%lmaxt > 2) then
             aytprime(ind)=-EV%denlkt(2,2)*ayt(ind+1)+k*8._dl/15._dl*shear  &
-            -opacity(1)*(pig - polter)
+                -opacity(1)*(pig - polter)
 
             do l=3, EV%lmaxt -1
                 ind = ind+1
@@ -2833,16 +2830,16 @@
             !Truncate the hierarchy
             ind=ind+1
             aytprime(ind)=k*EV%lmaxt/(EV%lmaxt-2._dl)*ayt(ind-1)- &
-            (EV%lmaxt+3._dl)*cothxor*ayt(ind)-opacity(1)*ayt(ind)
+                (EV%lmaxt+3._dl)*cothxor*ayt(ind)-opacity(1)*ayt(ind)
 
             !E and B-bar equations
 
             Eprime(2) = - opacity(1)*(E(2) - polter) + EV%denlkt(4,2)*B(2) - &
-            EV%denlkt(3,2)*E(3)
+                EV%denlkt(3,2)*E(3)
 
             do l=3, EV%lmaxpolt-1
                 Eprime(l) =(EV%denlkt(1,L)*E(l-1)-EV%denlkt(3,L)*E(l+1) + EV%denlkt(4,L)*B(l)) &
-                -opacity(1)*E(l)
+                    -opacity(1)*E(l)
             end do
             l= EV%lmaxpolt
             !truncate: difficult, but setting l+1 to zero seems to work OK
@@ -2851,7 +2848,7 @@
             Bprime(2) =-EV%denlkt(3,2)*B(3) - EV%denlkt(4,2)*E(2)  -opacity(1)*B(2)
             do l=3, EV%lmaxpolt-1
                 Bprime(l) =(EV%denlkt(1,L)*B(l-1) -EV%denlkt(3,L)*B(l+1) - EV%denlkt(4,L)*E(l)) &
-                -opacity(1)*B(l)
+                    -opacity(1)*B(l)
             end do
             l=EV%lmaxpolt
             !truncate
@@ -2862,7 +2859,7 @@
                 !assume after tight coupling ended
                 do f_i = 1, num_cmb_freq
                     opac_rayleigh = Recombination_rayleigh_eff(a)*akthom/a2*(min(1._dl,&
-                    freq_factors(f_i,1)/a2**2 + freq_factors(f_i,2)/a2**3 + freq_factors(f_i,3)/a2**4))
+                        freq_factors(f_i,1)/a2**2 + freq_factors(f_i,2)/a2**3 + freq_factors(f_i,3)/a2**4))
                     opac_tot=opac_rayleigh+opacity(1)
 
                     ind = EV%g_ix_freq + (f_i-1)*EV%freq_neq
@@ -2876,27 +2873,27 @@
                     polter_freq = 0.1_dl*ayt(ind) + 9._dl/15._dl*Ef(2)
 
                     aytprime(ind)=-EV%denlkt(2,2)*ayt(ind+1) -opac_rayleigh*(pig - polter) &
-                    - opac_tot*(ayt(ind)-polter_freq)
+                        - opac_tot*(ayt(ind)-polter_freq)
 
                     do l=3, EV%lmaxt -1
                         ind = ind+1
                         aytprime(ind)=EV%denlkt(1,L)*ayt(ind-1)-EV%denlkt(2,L)*ayt(ind+1)-opac_rayleigh*ayt(EV%g_ix+l) &
-                        - opac_tot*ayt(ind)
+                            - opac_tot*ayt(ind)
                     end do
 
                     !Truncate the hierarchy
                     ind=ind+1
                     aytprime(ind)=k*EV%lmaxt/(EV%lmaxt-2._dl)*ayt(ind-1)- &
-                    (EV%lmaxt+3._dl)*cothxor*ayt(ind)-opac_tot*ayt(ind)-opac_rayleigh*ayt(EV%g_ix+EV%lmaxt)
+                        (EV%lmaxt+3._dl)*cothxor*ayt(ind)-opac_tot*ayt(ind)-opac_rayleigh*ayt(EV%g_ix+EV%lmaxt)
 
                     !E and B-bar equations
 
                     Efprime(2) = - opac_rayleigh*(E(2) - polter) - opac_tot*(Ef(2)-polter_freq) + EV%denlkt(4,2)*Bf(2) - &
-                    EV%denlkt(3,2)*Ef(3)
+                        EV%denlkt(3,2)*Ef(3)
 
                     do l=3, EV%lmaxpolt-1
                         Efprime(l) =(EV%denlkt(1,L)*Ef(l-1)-EV%denlkt(3,L)*Ef(l+1) + EV%denlkt(4,L)*Bf(l)) &
-                        -opac_rayleigh*E(l) - opac_tot*Ef(l)
+                            -opac_rayleigh*E(l) - opac_tot*Ef(l)
                     end do
                     l= EV%lmaxpolt
                     !truncate: difficult, but setting l+1 to zero seems to work OK
@@ -2905,7 +2902,7 @@
                     Bfprime(2) =-EV%denlkt(3,2)*Bf(3) - EV%denlkt(4,2)*Ef(2) -opac_rayleigh*B(2) -opac_tot*Bf(2)
                     do l=3, EV%lmaxpolt-1
                         Bfprime(l) =(EV%denlkt(1,L)*Bf(l-1) -EV%denlkt(3,L)*Bf(l+1) - EV%denlkt(4,L)*Ef(l)) &
-                        -opac_rayleigh*B(l) - opac_tot*Bf(l)
+                            -opac_rayleigh*B(l) - opac_tot*Bf(l)
                     end do
                     l=EV%lmaxpolt
                     !truncate
@@ -2915,10 +2912,10 @@
 
         else !lmax=2
 
-        stop 'lmax 2 in tensor, no Rayleigh here'
-        aytprime(ind)=k*8._dl/15._dl*shear-opacity(1)*(pig - polter)
-        Eprime(2) = - opacity(1)*(E(2) - polter) + EV%denlkt(4,2)*B(2)
-        Bprime(2) = - EV%denlkt(4,2)*E(2)  -opacity(1)*B(2)
+            stop 'lmax 2 in tensor, no Rayleigh here'
+            aytprime(ind)=k*8._dl/15._dl*shear-opacity(1)*(pig - polter)
+            Eprime(2) = - opacity(1)*(E(2) - polter) + EV%denlkt(4,2)*B(2)
+            Bprime(2) = - EV%denlkt(4,2)*E(2)  -opacity(1)*B(2)
         end if
 
     else  !Tight coupling
@@ -2942,14 +2939,14 @@
         if (EV%lmaxnrt>2) then
             pirdt=-EV%denlkt(2,2)*neut(3) + 8._dl/15._dl*k*shear
             neutprime(2)=pirdt
-           !  And for the moments
+            !  And for the moments
             do  l=3, EV%lmaxnrt-1
                 neutprime(l)= EV%denlkt(1,L)*neut(l-1) -EV%denlkt(2,L)*neut(l+1)
             end do
 
             !  Truncate the hierarchy
             neutprime(EV%lmaxnrt)=k*EV%lmaxnrt/(EV%lmaxnrt-2._dl)*neut(EV%lmaxnrt-1)-  &
-            (EV%lmaxnrt+3._dl)*cothxor*neut(EV%lmaxnrt)
+                (EV%lmaxnrt+3._dl)*cothxor*neut(EV%lmaxnrt)
         else
             pirdt= 8._dl/15._dl*k*shear
             neutprime(2)=pirdt
