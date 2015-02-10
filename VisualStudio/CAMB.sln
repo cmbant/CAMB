@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 2013
-VisualStudioVersion = 12.0.30723.0
+VisualStudioVersion = 12.0.31101.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{6989167D-11E4-40FE-8C1A-2192A86A7E90}") = "CAMB_devel", "CAMB_devel.vfproj", "{207BF71A-E457-49F3-BEC8-B2F9E85F74BA}"
 	ProjectSection(ProjectDependencies) = postProject
@@ -53,7 +53,6 @@ Global
 		{C7D790F6-3574-43A1-A5E1-1E6FC5478F95}.Release|Win32.ActiveCfg = Release|Win32
 		{C7D790F6-3574-43A1-A5E1-1E6FC5478F95}.Release|Win32.Build.0 = Release|Win32
 		{C7D790F6-3574-43A1-A5E1-1E6FC5478F95}.Release|x64.ActiveCfg = Release|x64
-		{C7D790F6-3574-43A1-A5E1-1E6FC5478F95}.Release|x64.Build.0 = Release|x64
 		{9A850B68-FC7B-42F7-BB78-C4C38EF90B25}.Debug|Win32.ActiveCfg = Debug|Win32
 		{9A850B68-FC7B-42F7-BB78-C4C38EF90B25}.Debug|Win32.Build.0 = Debug|Win32
 		{9A850B68-FC7B-42F7-BB78-C4C38EF90B25}.Debug|x64.ActiveCfg = Debug|x64
@@ -61,7 +60,6 @@ Global
 		{9A850B68-FC7B-42F7-BB78-C4C38EF90B25}.Release|Win32.ActiveCfg = Release|Win32
 		{9A850B68-FC7B-42F7-BB78-C4C38EF90B25}.Release|Win32.Build.0 = Release|Win32
 		{9A850B68-FC7B-42F7-BB78-C4C38EF90B25}.Release|x64.ActiveCfg = Release|x64
-		{9A850B68-FC7B-42F7-BB78-C4C38EF90B25}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
