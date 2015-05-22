@@ -3,33 +3,35 @@
 #Set FISHER=Y to compile bispectrum fisher matrix code
 FISHER=
 
-#Edit for your compiler
-#Note there are many old ifort versions, some of which behave oddly
+#Will detect ifort/gfortran or edit for your compiler
+ifortErr = $(shell which ifort >/dev/null; echo $$?)
+ifeq "$(ifortErr)" "0"
 
-
-#Intel , -openmp toggles mutli-processor:
-#note version 10.0 gives wrong result for lensed when compiled with -openmp [fixed in 10.1]
+#Intel compiler
 F90C     = ifort
 FFLAGS = -openmp -fast -W0 -WB -fpp2 -vec_report0
+DEBUGFLAGS =-openmp -g -check all -check noarg_temp_created -traceback -fpp -fpe0
 ## This is flag is passed to the Fortran compiler allowing it to link C++ if required (not usually):
 F90CRLINK = -cxxlib
+MODOUT = -module $(OUTPUT_DIR)
 ifneq ($(FISHER),)
 FFLAGS += -mkl
 endif
 
+else
+gfortErr = $(shell which gfortran >/dev/null; echo $$?)
+ifeq "$(gfortErr)" "0"
+
 #Gfortran compiler:
-#The options here work in v4.5, delete from RHS in earlier versions (15% slower)
-#if pre v4.3 add -D__GFORTRAN__
-#With v4.6+ try -Ofast -march=native -fopenmp
-#On my machine v4.5 is about 20% slower than ifort
-#F90C     = gfortran
-#FFLAGS =  -O3 -fopenmp -ffast-math -funroll-loops
+#The options here work in v4.6+
+F90C     = gfortran
+FFLAGS =  -O3 -fopenmp -march=native -ffast-math -fmax-errors=4
+DEBUGFLAGS = -cpp -g -fbounds-check -fbacktrace -ffree-line-length-none -fmax-errors=4 -ffpe-trap=invalid,overflow,zero
+MODOUT =  -J$(OUTPUT_DIR)
+endif
+endif
 
-
-#Old Intel ifc, add -openmp for multi-processor (some have bugs):
-#F90C     = ifc
-#FFLAGS = -O2 -Vaxlib -ip -W0 -WB -quiet -fpp2
-#some systems can can also add e.g. -tpp7 -xW
+IFLAG = -I
 
 #G95 compiler
 #F90C   = g95
@@ -57,7 +59,7 @@ endif
 
 #Sun V880
 #F90C = mpf90
-#FFLAGS =  -O4 -openmp -ftrap=%none -dalign -DMPI
+#FFLAGS =  -O4 -openmp -ftrap=%none -dalign
 
 #Sun parallel enterprise:
 #F90C     = f95
@@ -70,10 +72,10 @@ endif
 
 #Settings for building camb_fits
 #Location of FITSIO and name of library
-FITSDIR       ?= /home/cpac/cpac-tools/lib
+FITSDIR       ?= /usr/local/lib
 FITSLIB       = cfitsio
 #Location of HEALPIX for building camb_fits
-HEALPIXDIR    ?= /home/cpac/cpac-tools/healpix
+HEALPIXDIR    ?= /usr/local/healpxi
 
 ifneq ($(FISHER),)
 FFLAGS += -DFISHER
@@ -81,5 +83,8 @@ EXTCAMBFILES = Matrix_utils.o
 else
 EXTCAMBFILES =
 endif
+
+DEBUGFLAGS ?= FFLAGS
+Debug: FFLAGS=$(DEBUGFLAGS)
 
 include ./Makefile_main

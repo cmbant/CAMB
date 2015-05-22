@@ -138,7 +138,6 @@
     function grho_de(a)  !8 pi G a^4 rho_de
     real(dl) :: grho_de, al, fint
     real(dl), intent(IN) :: a
-    external rombint
 
     if(.not. use_tabulated_w) then
         grho_de=grhov*a**(1._dl-3.*w_lam-3.*wa_ppf)*exp(-3.*wa_ppf*(1._dl-a))
