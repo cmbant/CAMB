@@ -25,9 +25,14 @@ ifeq "$(gfortErr)" "0"
 #Gfortran compiler:
 #The options here work in v4.6+
 F90C     = gfortran
-FFLAGS =  -O3 -fopenmp -march=native -ffast-math -fmax-errors=4
+FFLAGS =  -O3 -fopenmp -ffast-math -fmax-errors=4
 DEBUGFLAGS = -cpp -g -fbounds-check -fbacktrace -ffree-line-length-none -fmax-errors=4 -ffpe-trap=invalid,overflow,zero
 MODOUT =  -J$(OUTPUT_DIR)
+
+ifneq ($(shell uname -s),Darwin)
+#native optimization does not work on Mac
+FFLAGS+=-march=native
+endif
 endif
 endif
 
@@ -75,7 +80,7 @@ IFLAG = -I
 FITSDIR       ?= /usr/local/lib
 FITSLIB       = cfitsio
 #Location of HEALPIX for building camb_fits
-HEALPIXDIR    ?= /usr/local/healpxi
+HEALPIXDIR    ?= /usr/local/healpix
 
 ifneq ($(FISHER),)
 FFLAGS += -DFISHER
