@@ -22,11 +22,11 @@
     Type(CAMBparams) P
 
     character(LEN=Ini_max_string_len) numstr, VectorFileName, &
-    InputFile, ScalarFileName, TensorFileName, TotalFileName, LensedFileName,&
-    LensedTotFileName, LensPotentialFileName,ScalarCovFileName
+        InputFile, ScalarFileName, TensorFileName, TotalFileName, LensedFileName,&
+        LensedTotFileName, LensPotentialFileName,ScalarCovFileName
     integer i
     character(LEN=Ini_max_string_len) TransferFileNames(max_transfer_redshifts), &
-    MatterPowerFileNames(max_transfer_redshifts), outroot, version_check
+        MatterPowerFileNames(max_transfer_redshifts), outroot, version_check
     real(dl) output_factor, nmassive
 
 #ifdef WRITE_FITS
@@ -151,8 +151,8 @@
     !P%Transfer%redshifts -> P%Transfer%PK_redshifts and P%Transfer%num_redshifts -> P%Transfer%PK_num_redshifts
     !in the P%WantTransfer loop.
     if (((P%NonLinear==NonLinear_lens .or. P%NonLinear==NonLinear_both) .and. P%DoLensing) &
-    .or. P%PK_WantTransfer) then
-        P%Transfer%high_precision=  Ini_Read_Logical('transfer_high_precision',.false.)
+        .or. P%PK_WantTransfer) then
+    P%Transfer%high_precision=  Ini_Read_Logical('transfer_high_precision',.false.)
     else
         P%transfer%high_precision = .false.
     endif
@@ -178,9 +178,9 @@
                 MatterPowerFilenames(i) =  trim(numcat('matterpower_',i))//'.dat'
             end if
             if (TransferFileNames(i)/= '') &
-            TransferFileNames(i) = trim(outroot)//TransferFileNames(i)
+                TransferFileNames(i) = trim(outroot)//TransferFileNames(i)
             if (MatterPowerFilenames(i) /= '') &
-            MatterPowerFilenames(i)=trim(outroot)//MatterPowerFilenames(i)
+                MatterPowerFilenames(i)=trim(outroot)//MatterPowerFilenames(i)
         end do
     else
         P%Transfer%PK_num_redshifts = 1
@@ -330,7 +330,7 @@
 
     if (P%WantCls) then
         call output_cl_files(ScalarFileName, ScalarCovFileName, TensorFileName, TotalFileName, &
-        LensedFileName, LensedTotFilename, output_factor)
+            LensedFileName, LensedTotFilename, output_factor)
 
         call output_lens_pot_files(LensPotentialFileName, output_factor)
 

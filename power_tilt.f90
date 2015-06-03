@@ -218,8 +218,8 @@
     if (WantTensors) then
         InitPower%tensor_parameterization =  Ini_Read_Int_File(Ini, 'tensor_parameterization',tensor_param_indeptilt)
         if (InitPower%tensor_parameterization < tensor_param_indeptilt .or. &
-        & InitPower%tensor_parameterization > tensor_param_AT) &
-        & stop 'InitialPower: unknown tensor_parameterization'
+            & InitPower%tensor_parameterization > tensor_param_AT) &
+            & stop 'InitialPower: unknown tensor_parameterization'
     end if
     InitPower%rat(:) = 1
     do i=1, InitPower%nn
