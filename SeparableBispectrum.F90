@@ -870,7 +870,10 @@ contains
               cl(2,i) = CL_Scalar(i,1,C_E)
               cl(4,i) = CL_Scalar(i,1,C_Cross)
               cl(3,i) = 0              
-             end if 
+             end if
+             if (CP%WantTensors .and. i<= CP%Max_l_tensor .and. i>=2) then
+               cl(:,i) = cl(:,i) + Cl_tensor(i,1,CT_Temp:CT_Cross)
+             end if
           end do
           if (.false.) then
               call OpenTxtFile('CAMBdefault_lensedCls.dat',3)

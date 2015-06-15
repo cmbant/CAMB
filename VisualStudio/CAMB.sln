@@ -1,6 +1,8 @@
 ﻿
-Microsoft Visual Studio Solution File, Format Version 11.00
-# Visual Studio 2010
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 2013
+VisualStudioVersion = 12.0.31101.0
+MinimumVisualStudioVersion = 10.0.40219.1
 Project("{6989167D-11E4-40FE-8C1A-2192A86A7E90}") = "CAMB_devel", "CAMB_devel.vfproj", "{207BF71A-E457-49F3-BEC8-B2F9E85F74BA}"
 	ProjectSection(ProjectDependencies) = postProject
 		{DBB2F5F1-BF96-4AAD-9CE7-15EB2E22E3E7} = {DBB2F5F1-BF96-4AAD-9CE7-15EB2E22E3E7}

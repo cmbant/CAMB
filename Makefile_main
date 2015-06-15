@@ -6,27 +6,35 @@ REIONIZATION ?= reionization
 RECOMBINATION ?= recfast
 
 
-
 BISPECTRUM ?= SeparableBispectrum
 
 #Module doing non-linear scaling
-NONLINEAR     ?= halofit
+NONLINEAR     ?= halofit_ppf
 
 #Driver program
 DRIVER        ?= inidriver.F90
 #DRIVER       ?= sigma8.f90
 #DRIVER       ?= tester.f90
 
+Release: OUTPUT_DIR = Release
+Debug: OUTPUT_DIR = Debug
+OUTPUT_DIR ?= Release
 
-CAMBLIB       = libcamb_$(RECOMBINATION).a
+Release: camb
+Debug: camb
 
-#Shouldn't need to change anything else...
+CAMBLIB       = $(OUTPUT_DIR)/libcamb_$(RECOMBINATION).a
 
 F90FLAGS      = $(FFLAGS)
+F90FLAGS += $(MODOUT) $(IFLAG)$(OUTPUT_DIR)/
+
 HEALPIXLD     = -L$(HEALPIXDIR)/lib -lhealpix -L$(FITSDIR) -l$(FITSLIB)
 
-CAMBOBJ       = constants.o utils.o $(EXTCAMBFILES) subroutines.o inifile.o $(POWERSPECTRUM).o $(RECOMBINATION).o \
-	$(REIONIZATION).o modules.o bessels.o $(EQUATIONS).o $(NONLINEAR).o lensing.o $(BISPECTRUM).o cmbmain.o camb.o
+CAMBOBJ       =  $(OUTPUT_DIR)/constants.o  $(OUTPUT_DIR)/utils.o $(EXTCAMBFILES)  $(OUTPUT_DIR)/subroutines.o  \
+	$(OUTPUT_DIR)/inifile.o  $(OUTPUT_DIR)/$(POWERSPECTRUM).o  $(OUTPUT_DIR)/$(RECOMBINATION).o \
+	$(OUTPUT_DIR)/$(REIONIZATION).o $(OUTPUT_DIR)/modules.o $(OUTPUT_DIR)/bessels.o $(OUTPUT_DIR)/$(EQUATIONS).o \
+	$(OUTPUT_DIR)/$(NONLINEAR).o $(OUTPUT_DIR)/lensing.o $(OUTPUT_DIR)/$(BISPECTRUM).o $(OUTPUT_DIR)/cmbmain.o \
+	$(OUTPUT_DIR)/camb.o
 
 F90CRLINK ?= -lstdc++
 
@@ -47,44 +55,49 @@ $(CAMBLIB): libhyrec.a
 F90CRLINK += -L$(HYREC_PATH) -lhyrec
 endif
 
-
 default: camb
 
-all: camb $(CAMBLIB)
+all: camb libcamb
+
+libcamb: $(CAMBLIB)
 
 
-subroutines.o: constants.o utils.o
-$(POWERSPECTRUM).o: subroutines.o  inifile.o
-$(RECOMBINATION).o: subroutines.o inifile.o
-$(REIONIZATION).o: constants.o inifile.o
-modules.o: $(REIONIZATION).o $(POWERSPECTRUM).o $(RECOMBINATION).o
-bessels.o: modules.o
-$(EQUATIONS).o: bessels.o
-$(NONLINEAR).o:  modules.o
-lensing.o: bessels.o
-$(BISPECTRUM).o: lensing.o modules.o
-cmbmain.o: lensing.o $(NONLINEAR).o $(EQUATIONS).o $(BISPECTRUM).o
-camb.o: cmbmain.o
-Matrix_utils.o: utils.o
-camb: $(CAMBOBJ) $(DRIVER)
+$(OUTPUT_DIR)/subroutines.o: $(OUTPUT_DIR)/constants.o $(OUTPUT_DIR)/utils.o
+$(OUTPUT_DIR)/$(POWERSPECTRUM).o: $(OUTPUT_DIR)/subroutines.o  $(OUTPUT_DIR)/inifile.o
+$(OUTPUT_DIR)/$(RECOMBINATION).o: $(OUTPUT_DIR)/subroutines.o $(OUTPUT_DIR)/inifile.o
+$(OUTPUT_DIR)/$(REIONIZATION).o: $(OUTPUT_DIR)/constants.o $(OUTPUT_DIR)/inifile.o
+$(OUTPUT_DIR)/modules.o: $(OUTPUT_DIR)/$(REIONIZATION).o $(OUTPUT_DIR)/$(POWERSPECTRUM).o $(OUTPUT_DIR)/$(RECOMBINATION).o
+$(OUTPUT_DIR)/bessels.o: $(OUTPUT_DIR)/modules.o
+$(OUTPUT_DIR)/$(EQUATIONS).o: $(OUTPUT_DIR)/bessels.o
+$(OUTPUT_DIR)/$(NONLINEAR).o:  $(OUTPUT_DIR)/modules.o $(OUTPUT_DIR)/$(EQUATIONS).o
+$(OUTPUT_DIR)/lensing.o: $(OUTPUT_DIR)/bessels.o
+$(OUTPUT_DIR)/$(BISPECTRUM).o: $(OUTPUT_DIR)/lensing.o $(OUTPUT_DIR)/modules.o
+$(OUTPUT_DIR)/cmbmain.o: $(OUTPUT_DIR)/lensing.o $(OUTPUT_DIR)/$(NONLINEAR).o $(OUTPUT_DIR)/$(EQUATIONS).o $(OUTPUT_DIR)/$(BISPECTRUM).o
+$(OUTPUT_DIR)/camb.o: $(OUTPUT_DIR)/cmbmain.o
+$(OUTPUT_DIR)/Matrix_utils.o: $(OUTPUT_DIR)/utils.o
+camb: directories $(CAMBOBJ) $(DRIVER)
 	$(F90C) $(F90FLAGS) $(CAMBOBJ) $(DRIVER) $(F90CRLINK) -o $@
 
-$(CAMBLIB): $(CAMBOBJ)
+$(CAMBLIB): directories $(CAMBOBJ)
 	ar -r $@ $(CAMBOBJ)
 
-camb_fits: writefits.f90 $(CAMBOBJ) $(DRIVER)
+camb_fits: directories writefits.f90 $(CAMBOBJ) $(DRIVER)
 	$(F90C) $(F90FLAGS) -I$(HEALPIXDIR)/include $(CAMBOBJ) writefits.f90 $(DRIVER) $(HEALPIXLD) -DWRITE_FITS -o $@
 
-%.o: %.f90
-	$(F90C) $(F90FLAGS) -c $*.f90
+$(OUTPUT_DIR)/%.o: %.f90
+	$(F90C) $(F90FLAGS) -c $*.f90 -o $(OUTPUT_DIR)/$*.o
 
-%.o: %.F90
-	$(F90C) $(F90FLAGS) -c $*.F90
+$(OUTPUT_DIR)/%.o: %.F90
+	$(F90C) $(F90FLAGS) -c $*.F90 -o $(OUTPUT_DIR)/$*.o
 
+
+directories:
+	mkdir -p $(OUTPUT_DIR)
 
 clean:
-	-rm -f *.o *.a *.d core *.mod
-
+	rm -f *.o *.a *.d core *.mod $(OUTPUT_DIR)/*.o $(OUTPUT_DIR)/*.mod
+	rm -rf Release*
+	rm -rf Debug*
 
 ## CosmoRec make parts
 cleanCR:

@@ -233,8 +233,7 @@
     end if
 
     if (CP%WantTransfer .and. .not. CP%OnlyTransfers .and. global_error_flag==0) &
-    call Transfer_Get_sigma8(MT,8._dl)
-    !Can call with other arguments if need different size
+    call Transfer_Get_sigmas(MT)
 
     !     if CMB calculations are requested, calculate the Cl by
     !     integrating the sources over time and over k.
@@ -1037,7 +1036,7 @@
                 !     output transfer functions for this k-value.
 
                 if (abs(tau-tautf(itf)) < 1.e-5_dl) then
-                    call outtransf(EV,y, MT%TransferData(:,EV%q_ix,itf))
+                    call outtransf(EV,y, tau, MT%TransferData(:,EV%q_ix,itf))
 
                     itf=itf+1
                     if (j < TimeSteps%npoints) then
@@ -1180,7 +1179,7 @@
     do i=1,CP%Transfer%num_redshifts
         call GaugeInterface_EvolveScal(EV,tau,y,tautf(i),atol,ind,c,w)
         if (global_error_flag/=0) return
-        call outtransf(EV,y,MT%TransferData(:,EV%q_ix,i))
+        call outtransf(EV,y,tau,MT%TransferData(:,EV%q_ix,i))
     end do
 
     end subroutine GetTransfer
