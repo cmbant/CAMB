@@ -18,8 +18,8 @@
         Type (CAMBparams) :: Params
     end Type CAMBdata
 
-    !         public CAMB_GetTransfers, CAMB_GetResults, CAMB_GetCls, CAMB_SetDefParams, &
-    !                CAMB_ValidateParams, CAMB_GetAge,CAMB_InitCAMBdata,
+    !   public CAMB_GetTransfers, CAMB_GetResults, CAMB_GetCls, CAMB_SetDefParams, &
+    !          CAMB_ValidateParams, CAMB_GetAge,CAMB_InitCAMBdata,
     contains
 
     subroutine CAMB_GetTransfers(Params, OutData, error)
@@ -49,11 +49,6 @@
 
     subroutine CAMB_InitCAMBdata(Dat)
     type (CAMBdata) :: Dat
-
-    !Comment these out to try to avoid intel bugs with status deallocating uninitialized pointers
-    call Ranges_Nullify(Dat%ClTransScal%q)
-    call Ranges_Nullify(Dat%ClTransVec%q)
-    call Ranges_Nullify(Dat%ClTransTens%q)
 
     nullify(Dat%ClTransScal%Delta_p_l_k)
     nullify(Dat%ClTransVec%Delta_p_l_k)
@@ -423,7 +418,7 @@
         end if
         if (P%transfer%kmax < 0.01 .or. P%transfer%kmax > 50000 .or. &
             P%transfer%k_per_logint>0 .and.  P%transfer%k_per_logint <1) then
-        !            OK = .false.
+        !               OK = .false.
         write(*,*) 'Strange transfer function settings.'
         end if
         if (P%transfer%num_redshifts > max_transfer_redshifts .or. P%transfer%num_redshifts<1) then

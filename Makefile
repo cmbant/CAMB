@@ -11,6 +11,8 @@ ifeq "$(ifortErr)" "0"
 F90C     = ifort
 FFLAGS = -openmp -fast -W0 -WB -fpp2 -vec_report0
 DEBUGFLAGS =-openmp -g -check all -check noarg_temp_created -traceback -fpp -fpe0
+# Activate dependency generation by the compiler
+F90DEPFLAGS = --gen-dep
 ## This is flag is passed to the Fortran compiler allowing it to link C++ if required (not usually):
 F90CRLINK = -cxxlib
 MODOUT = -module $(OUTPUT_DIR)
@@ -25,13 +27,20 @@ ifeq "$(gfortErr)" "0"
 #Gfortran compiler:
 #The options here work in v4.6+
 F90C     = gfortran
-FFLAGS =  -O3 -fopenmp -ffast-math -fmax-errors=4
-DEBUGFLAGS = -cpp -g -fbounds-check -fbacktrace -ffree-line-length-none -fmax-errors=4 -ffpe-trap=invalid,overflow,zero
+FFLAGS = -cpp -ffree-line-length-none -fmax-errors=4
+O3FLAGS = -O3 -fopenmp -ffast-math
+DEBUGFLAGS = -g -fbacktrace -ffpe-trap=invalid,overflow,zero -fbounds-check
+# Activate dependency generation by the compiler
+F90DEPFLAGS = -MMD
 MODOUT =  -J$(OUTPUT_DIR)
+Release: FFLAGS += $(O3FLAGS)
 
+ifneq ($(FISHER),)
+F90CRLINK += -lblas -llapack
+endif
 ifneq ($(shell uname -s),Darwin)
 #native optimization does not work on Mac
-FFLAGS+=-march=native
+O3FLAGS += -march=native
 endif
 endif
 endif
@@ -83,13 +92,11 @@ FITSLIB       = cfitsio
 HEALPIXDIR    ?= /usr/local/healpix
 
 ifneq ($(FISHER),)
+# Its dependencies are all meet by the libutils.a which always added.
 FFLAGS += -DFISHER
-EXTCAMBFILES = Matrix_utils.o
-else
-EXTCAMBFILES =
 endif
 
-DEBUGFLAGS ?= FFLAGS
-Debug: FFLAGS=$(DEBUGFLAGS)
+DEBUGFLAGS ?= $(FFLAGS)
+Debug: FFLAGS += $(DEBUGFLAGS)
 
 include ./Makefile_main

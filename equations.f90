@@ -36,11 +36,11 @@
     contains
 
     subroutine DarkEnergy_ReadParams(Ini)
-    use IniFile
+    use IniObjects
     Type(TIniFile) :: Ini
 
-    w_lam = Ini_Read_Double_File(Ini,'w', -1.d0)
-    cs2_lam = Ini_Read_Double_File(Ini,'cs2_lam',1.d0)
+    w_lam = Ini%Read_Double('w', -1.d0)
+    cs2_lam = Ini%Read_Double('cs2_lam', 1.d0)
 
     end subroutine DarkEnergy_ReadParams
 

@@ -256,7 +256,6 @@
 
     module Recombination
     use constants
-    use AMLUtils
     implicit none
     private
 
@@ -331,21 +330,21 @@
 
 
     subroutine Recombination_ReadParams(R, Ini)
-    use IniFile
+    use IniObjects
     Type(RecombinationParams) :: R
     Type(TIniFile) :: Ini
 
 
-    R%RECFAST_fudge_He = Ini_Read_Double_File(Ini,'RECFAST_fudge_He',RECFAST_fudge_He_default)
-    R%RECFAST_Heswitch = Ini_Read_Int_File(Ini, 'RECFAST_Heswitch',RECFAST_Heswitch_default)
-    R%RECFAST_Hswitch = Ini_Read_Logical_File(Ini, 'RECFAST_Hswitch',RECFAST_Hswitch_default)
-    R%RECFAST_fudge = Ini_Read_Double_File(Ini,'RECFAST_fudge',RECFAST_fudge_default)
-    AGauss1 = Ini_REad_Double_File(Ini,'AGauss1',AGauss1)
-    AGauss2 = Ini_REad_Double_File(Ini,'AGauss2',AGauss2)
-    zGauss1 = Ini_REad_Double_File(Ini,'zGauss1',zGauss1)
-    zGauss2 = Ini_REad_Double_File(Ini,'zGauss2',zGauss2)
-    wGauss1 = Ini_REad_Double_File(Ini,'wGauss1',wGauss1)
-    wGauss2 = Ini_REad_Double_File(Ini,'wGauss2',wGauss2)
+    R%RECFAST_fudge_He = Ini%Read_Double('RECFAST_fudge_He', RECFAST_fudge_He_default)
+    R%RECFAST_Heswitch = Ini%Read_Int('RECFAST_Heswitch', RECFAST_Heswitch_default)
+    R%RECFAST_Hswitch = Ini%Read_Logical('RECFAST_Hswitch', RECFAST_Hswitch_default)
+    R%RECFAST_fudge = Ini%Read_Double('RECFAST_fudge', RECFAST_fudge_default)
+    call Ini%Read('AGauss1',AGauss1)
+    call Ini%Read('AGauss2',AGauss2)
+    call Ini%Read('zGauss1',zGauss1)
+    call Ini%Read('zGauss2',zGauss2)
+    call Ini%Read('wGauss1',wGauss1)
+    call Ini%Read('wGauss2',wGauss2)
     if (R%RECFAST_Hswitch) then
         R%RECFAST_fudge = R%RECFAST_fudge - (RECFAST_fudge_default - RECFAST_fudge_default2)
     end if
@@ -463,31 +462,30 @@
     !Note recfast only uses OmegaB, h0inp, tcmb and yp - others used only for Tmat approximation where effect small
     !nnu currently not used here
     use RECDATA
-    use AMLUtils
     implicit none
     Type (RecombinationParams) :: Recomb
 
     real(dl), save :: last_OmB =0, Last_YHe=0, Last_H0=0, Last_dtauda=0, last_fudge, last_fudgeHe
 
-    real(dl) Trad,Tmat,Tspin,d0hi,d0lo
-    integer I
+    real(dl) :: Trad,Tmat,Tspin,d0hi,d0lo
+    integer :: I
 
     real(dl), intent(in) :: OmegaB,OmegaC, Omegan, Omegav, h0inp, yp
     real(dl), intent(in), optional :: nnu
-    real(dl) z,n,x,x0,rhs,x_H,x_He,x_H0,x_He0,H
-    real(dl) zstart,zend,tcmb
-    real(dl) cw(24)
+    real(dl) :: z,n,x,x0,rhs,x_H,x_He,x_H0,x_He0,H
+    real(dl) :: zstart,zend,tcmb
+    real(dl) :: cw(24)
     real(dl), dimension(:,:), allocatable :: w
-    real(dl) y(4)
-    real(dl) C10, tau_21Ts
-    real(dl) fnu
-    integer ind,nw
+    real(dl) :: y(4)
+    real(dl) :: C10, tau_21Ts
+    real(dl) :: fnu
+    integer :: ind, nw
 
     !       --- Parameter statements
     real(dl), parameter :: tol=1.D-5                !Tolerance for R-K
 
-    real(dl) dtauda
-    external dtauda, dverk
+    real(dl) :: dtauda
+    external :: dtauda, dverk
 
     !       ===============================================================
 
@@ -540,12 +538,12 @@
     fHe = Yp/(not4*(1.d0-Yp))       !n_He_tot / n_H_tot
 
 
-    Nnow = 3._dl*HO*HO*OmegaB/(8._dl*Pi*G*mu_H*m_H)
+    Nnow = 3._dl*HO*HO*OmegaB/(const_eightpi*G*mu_H*m_H)
 
     n = Nnow * (1._dl+z)**3
     fnu = (21.d0/8.d0)*(4.d0/11.d0)**(4.d0/3.d0)
     !	(this is explictly for 3 massless neutrinos - change if N_nu.ne.3; but only used for approximation so not critical)
-    z_eq = (3.d0*(HO*C)**2/(8.d0*Pi*G*a_rad*(1.d0+fnu)*Tnow**4))*(OmegaB+OmegaC)
+    z_eq = (3.d0*(HO*C)**2/(const_eightpi*G*a_rad*(1.d0+fnu)*Tnow**4))*(OmegaB+OmegaC)
     z_eq = z_eq - 1.d0
 
 
@@ -559,9 +557,9 @@
     CB1 = h_P*C*L_H_ion/k_B
     CB1_He1 = h_P*C*L_He1_ion/k_B   !ionization for HeI
     CB1_He2 = h_P*C*L_He2_ion/k_B   !ionization for HeII
-    CR = 2.d0*Pi*(m_e/h_P)*(k_B/h_P)
-    CK = Lalpha**3/(8.d0*Pi)
-    CK_He = Lalpha_He**3/(8.d0*Pi)
+    CR = const_twopi*(m_e/h_P)*(k_B/h_P)
+    CK = Lalpha**3/(const_eightpi)
+    CK_He = Lalpha_He**3/(const_eightpi)
     CL = C*h_P/(k_B*Lalpha)
     CL_He = C*h_P/(k_B/L_He_2s) !comes from det.bal. of 2s-1s
     CT = Compton_CT / MPC_in_sec
@@ -887,7 +885,7 @@
             Doppler = 2.D0*k_B*Tmat/(m_H*not4*C*C)
             Doppler = C*L_He_2p*dsqrt(Doppler)
             gamma_2Ps = 3.d0*A2P_s*fHe*(1.d0-x_He)*C*C &
-                /(dsqrt(Pi)*sigma_He_2Ps*8.d0*Pi*Doppler*(1.d0-x_H)) &
+                /(dsqrt(const_pi)*sigma_He_2Ps*const_eightpi*Doppler*(1.d0-x_H)) &
                 /((C*L_He_2p)**2.d0)
             pb = 0.36d0  !value from KIV (2007)
             qb = Recomb%RECFAST_fudge_He
@@ -897,7 +895,7 @@
         end if
         if (Heflag.ge.3) then     !include triplet effects
             tauHe_t = A2P_t*n_He*(1.d0-x_He)*3.d0
-            tauHe_t = tauHe_t /(8.d0*Pi*Hz*L_He_2Pt**(3.d0))
+            tauHe_t = tauHe_t /(const_eightpi*Hz*L_He_2Pt**(3.d0))
             pHe_t = (1.d0 - dexp(-tauHe_t))/tauHe_t
             CL_PSt = h_P*C*(L_He_2Pt - L_He_2st)/k_B
             if ((Heflag.eq.3) .or. (Heflag.eq.5).or.(x_H.gt.0.99999d0)) then !Recfast 1.4.2 (?)
@@ -908,7 +906,7 @@
                 Doppler = 2.d0*k_B*Tmat/(m_H*not4*C*C)
                 Doppler = C*L_He_2Pt*dsqrt(Doppler)
                 gamma_2Pt = 3.d0*A2P_t*fHe*(1.d0-x_He)*C*C &
-                    /(dsqrt(Pi)*sigma_He_2Pt*8.d0*Pi*Doppler*(1.d0-x_H)) &
+                    /(dsqrt(const_pi)*sigma_He_2Pt*const_eightpi*Doppler*(1.d0-x_H)) &
                     /((C*L_He_2Pt)**2.d0)
                 !   use the fitting parameters from KIV (2007) in this case
                 pb = 0.66d0

@@ -1,16 +1,18 @@
     !Matrix utility routines. Uses BLAS/LAPACK. Mostly wrapper routines.
     !Generally (but not always) assumes that all matrix arrays are defined at exactly correct size
     !Not complete
-    !Antony Lewis May 2003-2007
+    !Antony Lewis May 2003-2014
     !http://cosmologist.info/utils/
 
 
     module MatrixUtils
-    use AMLutils
+    use MpiUtils
+    use FileUtils
+    use StringUtils
     implicit none
 
     logical, parameter :: Matrix_runmsgs = .false.
-#ifdef MATRIX_SINGLE 
+#ifdef MATRIX_SINGLE
     integer, parameter :: dm = KIND(1.0)
 #else
     integer, parameter :: dm = KIND(1.d0)
@@ -29,6 +31,8 @@
     complex(dm), parameter :: COne = (1._dm,0._dm), CZero = (0._dm,0._dm)
     real(dm), parameter :: ROne = 1._dm, RZero = 0._dm
     real, parameter :: SOne = 1., SZero = 0.
+
+    character(LEN=*), parameter :: Matrix_IO_fmt= '(*(1E17.7))'
 
     contains
 
@@ -65,10 +69,8 @@
     integer, intent(in) :: aunit
     integer, intent(in) :: n
     real(dm) :: vec(n)
-    character(LEN=50) fmt
 
-    fmt = trim(numcat('(',n))//'E17.7)'
-    write (aunit, fmt) vec(1:n)
+    write (aunit, Matrix_IO_fmt) vec(1:n)
 
     end subroutine Matrix_WriteFileRow
 
@@ -78,33 +80,31 @@
     real(dm), intent(in) :: mat(:,:)
     logical, intent(in), optional :: forcetable
     integer i,k
-    character(LEN=50) fmt
     integer shp(2)
     logical WriteTab
-    integer file_unit
+    Type(TTextFile) :: F
 
     shp = shape(mat)
     WriteTab = shp(2)<=50
     if (present(forcetable)) then
         if (forcetable) WriteTab = .true.
     end if
-    file_unit = new_file_unit()
-    call CreateTxtFile(aname, file_unit)
+    call F%CreateFile(aname)
     if (present(commentline)) then
-        write(file_unit,'(a)') '#'//trim(commentline)
+        call F%Write('#'//commentline)
     end if
-    fmt = trim(numcat('(',shp(2)))//'E15.5)'
     do i=1, shp(1)
         if (.not. WriteTab) then
             do k=1, shp(2)
-                write (file_unit, '(1E17.7)') mat(i,k)
+                call F%Write(mat(i,k))
             end do
         else
-            write (file_unit, fmt) mat(i,1:shp(2))
+            write(F%unit,F%RealFormat) mat(i,1:shp(2))
+            !workaround for ifort 14 bug
+            !call F%Write(mat(i,1:shp(2)))
         end if
     end do
-
-    call CloseFile(file_unit)
+    call F%Close()
 
     end subroutine Matrix_Write
 
@@ -113,30 +113,26 @@
     double precision, intent(in) :: mat(:,:)
     logical, intent(in), optional :: forcetable
     integer i,k
-    character(LEN=50) fmt
     integer shp(2)
     logical WriteTab
-    integer file_unit
+    Type(TTextFile) F
 
     shp = shape(mat)
     WriteTab = shp(2)<=50
     if (present(forcetable)) then
         if (forcetable) WriteTab = .true.
     end if
-    file_unit = new_file_unit()
-    call CreateTxtFile(aname, file_unit)
-    fmt = trim(numcat('(',shp(2)))//'E15.5)'
+    call F%CreateFile(aname)
     do i=1, shp(1)
         if (.not. WriteTab) then
             do k=1, shp(2)
-                write (file_unit, '(1E17.7)') mat(i,k)
+                call F%Write(mat(i,k))
             end do
         else
-            write (file_unit, fmt) mat(i,1:shp(2))
+            call F%Write(mat(i,1:shp(2)))
         end if
     end do
-
-    call CloseFile(file_unit)
+    call F%Close()
 
     end subroutine Matrix_Write_double
 
@@ -144,12 +140,11 @@
     subroutine Matrix_Write_Binary(aname, mat)
     character(LEN=*), intent(in) :: aname
     real(dm), intent(in) :: mat(:,:)
-    integer file_unit
+    Type(TBinaryFile) F
 
-    file_unit = new_file_unit()
-    call CreateFile(aname, file_unit,'unformatted')
-    write (file_unit) mat
-    call CloseFile(file_unit)
+    call F%CreateFile(aname)
+    Write(F%unit) mat
+    call F%Close()
 
     end subroutine Matrix_Write_Binary
 
@@ -159,37 +154,36 @@
     real(dm), intent(in) :: mat(:,:)
     integer i
     integer shp(2)
-    integer file_unit
+    Type(TBinaryFile) F
 
     shp = shape(mat)
     if (shp(1) /= shp(2)) call MpiStop('MatrixSym_Write_Binary: Not square matrix')
     if (shp(1) == 0) return
 
-    file_unit = new_file_unit()
-    call CreateFile(aname, file_unit,'unformatted')
+    call F%CreateFile(aname)
     do i=1,shp(1)
-        write (file_unit) mat(i:shp(2),i)
+        write(F%unit) mat(i:shp(2),i)
     end do
-    call CloseFile(file_unit)
+    call F%Close()
 
     end subroutine MatrixSym_Write_Binary
 
     subroutine MatrixSym_Write_Binary_Single(aname, mat)
     character(LEN=*), intent(in) :: aname
     real(dm), intent(in) :: mat(:,:)
-    integer i,    file_unit
+    integer i
     integer shp(2)
+    Type(TBinaryFile) F
 
     shp = shape(mat)
     if (shp(1) /= shp(2)) call MpiStop('MatrixSym_Write_Binary_Single: Not square matrix')
     if (shp(1) == 0) return
 
-    file_unit = new_file_unit()
-    call CreateFile(aname, file_unit,'unformatted')
+    call F%CreateFile(aname)
     do i=1,shp(1)
-        write (file_unit) real(mat(i:shp(2),i), kind(1.0))
+        write(F%unit) real(mat(i:shp(2),i), kind(1.0))
     end do
-    call CloseFile(file_unit)
+    call F%Close()
 
     end subroutine MatrixSym_Write_Binary_Single
 
@@ -198,14 +192,14 @@
     subroutine Matrix_WriteVec(aname, vec)
     character(LEN=*), intent(in) :: aname
     real(dm), intent(in) :: vec(:)
-    integer i,   file_unit
+    integer i
+    Type(TTextFile) F
 
-    file_unit = new_file_unit()
-    call CreateTxtFile(aname, file_unit)
+    call F%CreateFile(aname)
     do i=1, size(vec)
-        write (file_unit, '(1E17.7)') vec(i)
+        call F%Write(vec(i))
     end do
-    call CloseFile(file_unit)
+    call F%Close()
 
     end subroutine Matrix_WriteVec
 
@@ -213,12 +207,11 @@
     subroutine Matrix_Read_Binary(aname, mat)
     character(LEN=*), intent(in) :: aname
     real(dm), intent(out) :: mat(:,:)
-    integer  file_unit
+    Type(TBinaryFile) F
 
-    file_unit = new_file_unit()
-    call OpenFile(aname, file_unit,'unformatted')
-    read (file_unit) mat
-    call CloseFile(file_unit)
+    call F%Open(aname)
+    read (F%unit) mat
+    call F%Close()
 
     end subroutine Matrix_Read_Binary
 
@@ -226,75 +219,73 @@
     subroutine MatrixSym_Read_Binary(aname, mat)
     character(LEN=*), intent(in) :: aname
     real(dm), intent(out) :: mat(:,:)
-    integer i,    file_unit
+    integer i
     integer shp(2)
+    Type(TBinaryFile) F
 
     shp = shape(mat)
     if (shp(1) /= shp(2)) call MpiStop( 'MatrixSym_Read_Binary: Not square matrix')
     if (shp(1) == 0) return
 
-    file_unit = new_file_unit()
-    call OpenFile(aname, file_unit,'unformatted')
+    call F%Open(aname)
     do i=1,shp(1)
-        read (file_unit) mat(i:shp(1),i)
+        read (F%unit) mat(i:shp(1),i)
         mat(i,i:shp(1)) = mat(i:shp(1),i)
     end do
-    call CloseFile(file_unit)
+    call F%Close()
 
     end subroutine MatrixSym_Read_Binary
 
     subroutine MatrixSym_Read_Binary_Single(aname, mat)
     character(LEN=*), intent(in) :: aname
     real, intent(out) :: mat(:,:)
-    integer i,    file_unit
+    integer i
     integer shp(2)
+    Type(TBinaryFile) F
 
     shp = shape(mat)
     if (shp(1) /= shp(2)) call MpiStop( 'MatrixSym_Read_Binary: Not square matrix')
     if (shp(1) == 0) return
 
-    file_unit = new_file_unit()
-    call OpenFile(aname, file_unit,'unformatted')
+    call F%Open(aname)
     do i=1,shp(1)
-        read (file_unit) mat(i:shp(1),i)
+        read (F%unit) mat(i:shp(1),i)
         mat(i,i:shp(1)) = mat(i:shp(1),i)
     end do
-    call CloseFile(file_unit)
+    call F%Close()
 
     end subroutine MatrixSym_Read_Binary_Single
-
-
 
 
 
     subroutine Matrix_Read(aname, mat)
     character(LEN=*), intent(IN) :: aname
     real(dm), intent(out) :: mat(:,:)
-    integer j,k,    file_unit
+    integer j,k
     integer shp(2)
     real(dm) tmp
+    Type(TTextFile) :: F
 
     shp = shape(mat)
 
-    file_unit = new_file_unit()
-    call OpenTxtFile(aname, file_unit)
+    call F%Open(aname)
 
     do j=1,shp(1)
-        read (file_unit,*, end = 200, err=100) mat(j,1:shp(2))
+        read (F%unit,*, end = 200, err=100) mat(j,1:shp(2))
     end do
     goto 120
 
-100 rewind(file_unit)  !Try other possible format
+100 rewind(F%unit)  !Try other possible format
     do j=1,shp(1)
         do k=1,shp(2)
-            read (file_unit,*, end = 200) mat(j,k)
+            read (F%unit,*, end = 200) mat(j,k)
         end do
     end do
 
-120 read (file_unit,*, err = 150, end =150) tmp
+120 read (F%unit,*, err = 150, end =150) tmp
     goto 200
 
-150 call CloseFile(file_unit)
+150 call F%Close()
     return
 
 200 call MpiStop('Matrix_Read: file '//trim(aname)//' is the wrong size')
@@ -305,31 +296,31 @@
     subroutine Matrix_ReadSingle(aname, mat)
     character(LEN=*), intent(IN) :: aname
     real, intent(out) :: mat(:,:)
-    integer j,k,    file_unit
+    integer j,k
     integer shp(2)
     real tmp
+    Type(TTextFile) :: F
 
     shp = shape(mat)
 
-    file_unit = new_file_unit()
-    call OpenTxtFile(aname, file_unit)
+    call F%Open(aname)
 
     do j=1,shp(1)
-        read (file_unit,*, end = 200, err=100) mat(j,1:shp(2))
+        read (F%unit,*, end = 200, err=100) mat(j,1:shp(2))
     end do
     goto 120
 
-100 rewind(file_unit)  !Try other possible format
+100 rewind(F%unit)  !Try other possible format
     do j=1,shp(1)
         do k=1,shp(2)
-            read (file_unit,*, end = 200) mat(j,k)
+            read (F%unit,*, end = 200) mat(j,k)
         end do
     end do
 
-120 read (file_unit,*, err = 150, end =150) tmp
+120 read (F%unit,*, err = 150, end =150) tmp
     goto 200
 
-150 call CloseFile(file_unit)
+150 call F%Close()
     return
 
 200 call MpiStop('Matrix_Read:Single file '//trim(aname)//' is the wrong size')
@@ -345,9 +336,7 @@
     integer i
 
     do i=1,n
-
         Matrix_Diag(i) = M(i,i)
-
     end do
 
     end function Matrix_Diag
@@ -362,7 +351,7 @@
     !that is a guess at the blocksize
 #ifdef MATRIX_SINGLE
     ILAENV_wrap = 16
-#else 
+#else
     ILAENV_wrap =  ILAENV(i,S1,S2,a,b,c,d)
 #endif
     !!!IFC
@@ -378,7 +367,7 @@
     real(dm), allocatable, dimension(:) :: tmp
 
     call Matrix_Start('Diagonalize')
-#ifdef MATRIX_SINGLE 
+#ifdef MATRIX_SINGLE
     tmpsize =  max( (ILAENV_wrap(1,'SSYTRD','U',n,n,n,n)+2)*N,max(1,3*n-1))  !3*n**2
     allocate(tmp(tmpsize));
     call SSYEV('V','U',n,m,n,diag,tmp,tmpsize,ierr) !evalues and vectors of symmetric matrix
@@ -410,7 +399,7 @@
         isize = 3+5*N
         allocate(tmp(tmpsize))
         allocate(iwork(isize))
-#ifdef MATRIX_SINGLE 
+#ifdef MATRIX_SINGLE
         call SSYEVD('V','U',n,M,n,diag,tmp,tmpsize,iwork,isize,ierr) !evalues and vectors of hermitian matrix
 #else
         call DSYEVD('V','U',n,M,n,diag,tmp,tmpsize,iwork,isize,ierr) !evalues and vectors of hermitian matrix
@@ -474,17 +463,17 @@
     !Query
     WorkSize = -1
     LIWork = -1
-#ifdef MATRIX_SINGLE 
+#ifdef MATRIX_SINGLE
     call SSYEVR('V','V','U',n,M,Size(M,DIM=1),emin,emax,0,0,atol,nfound,diag,tmp,Size(TMP,DIM=1),&
         Supp,WSize,WorkSize,ISize,LIWork,ierr  )
-#else     
+#else
     call DSYEVR('V','V','U',n,M,Size(M,DIM=1),emin,emax,0,0,atol,nfound,diag,tmp,Size(TMP,DIM=1),&
         Supp,WSize,WorkSize,ISize,LIWork,ierr  )
 #endif
     WorkSize = Real(WSize(1))
     LIWork = ISize(1)
     allocate(Work(WorkSize),IWork(LIWork))
-#ifdef MATRIX_SINGLE 
+#ifdef MATRIX_SINGLE
     call SSYEVR('V','V','U',n,M,Size(M,DIM=1),emin,emax,0,0,atol,nfound,diag,tmp,Size(TMP,DIM=1),&
         Supp,Work,WorkSize,IWork,LIWork,ierr )
 #else
@@ -525,10 +514,10 @@
     WorkSize = -1
     LRWork = -1
     LIWork = -1
-#ifdef MATRIX_SINGLE 
+#ifdef MATRIX_SINGLE
     call CHEEVR('V','V','U',n,M,Size(M,DIM=1),emin,emax,0,0,atol,nfound,diag,tmp,Size(TMP,DIM=1),&
         Supp,WSize,WorkSize,RSize,LRWork,ISize,LIWork,ierr  )
-#else     
+#else
     call ZHEEVR('V','V','U',n,M,Size(M,DIM=1),emin,emax,0,0,atol,nfound,diag,tmp,Size(TMP,DIM=1),&
         Supp,WSize,WorkSize,RSize,LRWork,ISize,LIWork,ierr  )
 #endif
@@ -536,7 +525,7 @@
     LRWork = RSize(1)
     LIWork = ISize(1)
     allocate(Work(WorkSize),RWork(LRWork),IWork(LIWork))
-#ifdef MATRIX_SINGLE 
+#ifdef MATRIX_SINGLE
     call CHEEVR('V','V','U',n,M,Size(M,DIM=1),emin,emax,0,0,atol,nfound,diag,tmp,Size(TMP,DIM=1),&
         Supp,Work,WorkSize,RWork,LRWork,IWork,LIWork,ierr )
 #else
@@ -572,17 +561,15 @@
         isize =  (2 + 5*N)*4
         allocate(tmp(tmpsize),rwork(rworksize))
         allocate(iwork(isize))
-#ifdef MATRIX_SINGLE 
+#ifdef MATRIX_SINGLE
         call CHEEVD('V','U',n,M,n,diag,tmp,tmpsize,Rwork,rworksize,iwork,isize,ierr) !evalues and vectors of hermitian matrix
 #else
         call ZHEEVD('V','U',n,M,n,diag,tmp,tmpsize,Rwork,rworksize,iwork,isize,ierr) !evalues and vectors of hermitian matrix
 #endif
         deallocate(iwork)
-
     else
-
         rworksize =  max(1, 3*n-2)
-#ifdef MATRIX_SINGLE 
+#ifdef MATRIX_SINGLE
         tmpsize = max( (ILAENV_wrap(1,'CHETRD','U',n,n,n,n)+1)*N,max(1,2*n-1)) !   3*n**2
         allocate(tmp(tmpsize),rwork(rworksize));
         call CHEEV('V','U',n,m,n,diag,tmp,tmpsize,Rwork,ierr) !evalues and vectors of hermitian matrix
@@ -674,7 +661,7 @@
     if (matrix_method == Mat_F90) then
         Out = matmul(matmul(transpose(conjg(U(1:n,1:m))),Mat),U(1:n,1:m))
     else
-#ifdef MATRIX_SINGLE   
+#ifdef MATRIX_SINGLE
         if (triang) then
             if (m/=n) call MpiStop('Matrix_CRotateSymm: Matrices must be same size')
             call CHEMM('L','U',n,n,COne,Mat,Size(Mat,DIM=1),U,Size(U,DIM=1),CZero,Out,Size(Out,Dim=1))
@@ -731,7 +718,7 @@
     if (matrix_method == Mat_F90) then
         Out = matmul(matmul(transpose(U(1:n,1:m)),Mat),U(1:n,1:m))
     else
-#ifdef MATRIX_SINGLE             
+#ifdef MATRIX_SINGLE
         if (triang) then
             if (m/=n) call MpiStop('Matrix_RotateSymm: Matrices must be same size')
             call SSYMM('L','U',n,n,ROne,Mat,Size(Mat,DIM=1),U,Size(U,DIM=1),RZero,Out,Size(Out,Dim=1))
@@ -783,7 +770,7 @@
     else
         allocate(C(n,m))
         C = U(1:n,1:m)
-#ifdef MATRIX_SINGLE             
+#ifdef MATRIX_SINGLE
         call STRMM('Left','Lower','Not-Transpose','Not-unit',n,m,ROne,Mat,Size(Mat,DIM=1),C,Size(C,Dim=1))
         call SGEMM('T','N',m,m,n,ROne,U,Size(U,DIM=1),C,n,RZero,Out,Size(Out,Dim=1))
 #else
@@ -835,9 +822,9 @@
             if (mult /= COne) Out = Out*mult
         end if
     else
-#ifdef MATRIX_SINGLE 
+#ifdef MATRIX_SINGLE
         call CHEMM('R','U',m,n,mult,U,Size(U,DIM=1),Mat,Size(Mat,DIM=1),beta,Out,Size(Out,DIM=1))
-#else     
+#else
         call ZHEMM('R','U',m,n,mult,U,Size(U,DIM=1),Mat,Size(Mat,DIM=1),beta,Out,Size(Out,DIM=1))
 #endif
     end if
@@ -880,7 +867,7 @@
     else
 #ifdef MATRIX_SINGLE
         call CHEMM('L','U',m,n,mult,Mat,Size(Mat,DIM=1),U,Size(U,DIM=1),beta,Out,Size(Out,DIM=1))
-#else     
+#else
         call ZHEMM('L','U',m,n,mult,Mat,Size(Mat,DIM=1),U,Size(U,DIM=1),beta,Out,Size(Out,DIM=1))
 #endif
     end if
@@ -1031,7 +1018,7 @@
     else
 #ifdef MATRIX_SINGLE
         call SGEMM('N','N',m,n,k,mult,Mat,m,U,k,beta,Out,Size(Out,Dim=1))
-#else     
+#else
         call DGEMM('N','N',m,n,k,mult,Mat,m,U,k,beta,Out,Size(Out,Dim=1))
 #endif
     end if
@@ -1073,7 +1060,7 @@
     else
 #ifdef MATRIX_SINGLE
         call SSYMM('L','U',m,n,mult,Mat,Size(Mat,DIM=1),U,Size(U,DIM=1),beta,Out,Size(Out,DIM=1))
-#else     
+#else
         call DSYMM('L','U',m,n,mult,Mat,Size(Mat,DIM=1),U,Size(U,DIM=1),beta,Out,Size(Out,DIM=1))
 #endif
     end if
@@ -1117,7 +1104,7 @@
     else
 #ifdef MATRIX_SINGLE
         call SSYMM('R','U',m,n,mult,U,Size(U,DIM=1),Mat,Size(Mat,DIM=1),beta,Out,Size(Out,DIM=1))
-#else     
+#else
         call DSYMM('R','U',m,n,mult,U,Size(U,DIM=1),Mat,Size(Mat,DIM=1),beta,Out,Size(Out,DIM=1))
 #endif
     end if
@@ -1212,7 +1199,7 @@
     else
 #ifdef MATRIX_SINGLE
         call CGEMM('N','C',m,n,k,mult,Mat,m,U,n,beta,Out,Size(Out,Dim=1))
-#else     
+#else
         call ZGEMM('N','C',m,n,k,mult,Mat,m,U,n,beta,Out,Size(Out,Dim=1))
 #endif
     end if
@@ -1431,22 +1418,18 @@
     end if
 
     if (trans) then
-
         do i=1,n
             do j=1,i-1
                 M(j,i) = M(i,j)
                 M(i,j) = 0
             end do
         end do
-
     else
-
         do i=1,n
             do j=1,i-1
                 M(j,i) = 0
             end do
         end do
-
     end if
     end subroutine Matrix_CholeskyRootInverse
 
@@ -1476,22 +1459,18 @@
     end if
 
     if (trans) then
-
         do i=1,n
             do j=1,i-1
                 M(j,i) = conjg(M(i,j))
                 M(i,j) = 0
             end do
         end do
-
     else
-
         do i=1,n
             do j=1,i-1
                 M(j,i) = 0
             end do
         end do
-
     end if
     end subroutine Matrix_CCholeskyRootInverse
 
@@ -1613,9 +1592,9 @@
     !Solve for Cov^{-1}d [could use faster symmetric method]
     allocate(tmp(n))
     tmp = d
-#ifdef MATRIX_SINGLE  
+#ifdef MATRIX_SINGLE
     call SPOTRS('L', N, 1, Cov, n, tmp, n, INFO )
-#else 
+#else
     call DPOTRS('L', N, 1, Cov, n, tmp, n, INFO )
 #endif
     if (INFO/=0) call MpiStop('Matrix_GaussianLogLike: error in solving for cov^{-1}d')
@@ -1743,14 +1722,14 @@
         WorkSize= -1 !3*min(M,N)*min(M,N) +max(max(M,N),5*min(M,N)*min(M,N)+4*min(M,N))
 #ifdef MATRIX_SINGLE
         call SGESDD('O',m,n, Mat, m ,D,U,m,Mat,n,OptWk,WorkSize,IWork,ierr)
-#else     
+#else
         call DGESDD('O',m,n, Mat, m ,D,U,m,Mat,n,OptWk,WorkSize,IWork,ierr)
 #endif
         WorkSize = nint(OptWk)
         allocate(rv1(WorkSize))
 #ifdef MATRIX_SINGLE
         call SGESDD('O',m,n, Mat, m ,D,U,m,Mat,n,rv1,WorkSize,IWork,ierr)
-#else     
+#else
         call DGESDD('O',m,n, Mat, m ,D,U,m,Mat,n,rv1,WorkSize,IWork,ierr)
 #endif
         deallocate(IWOrk)
@@ -1793,12 +1772,11 @@
         allocate(IWork(8*MIN(M,N)))
 #ifdef MATRIX_SINGLE
         call CGESDD('O',m,n, Mat, m ,D,U,m,Mat,n,rv1,WorkSize,rwork,IWork,ierr)
-#else     
+#else
         call ZGESDD('O',m,n, Mat, m ,D,U,m,Mat,n,rv1,WorkSize,rwork,IWork,ierr)
 #endif
         deallocate(IWOrk)
     else
-
         allocate(rwork((max(3*min(m,n),5*min(m,n)-4))))
         WorkSize= 3*max(m,n)**2
         allocate(rv1(WorkSize), STAT = ierr)
@@ -1818,7 +1796,7 @@
         else
             call ZGESVD('N','O',m,n, Mat, m , D,Mat,m,Mat,n,rv1,WorkSize,rwork,ierr)
         end if
-#endif       
+#endif
     end if
 
     if (ierr/=0) call MpiStop('error in Matrix_SVD_VT')
@@ -1877,7 +1855,7 @@
         else
             call ZGESVD('O','N',m,n, Mat, m , D,Mat,m,Mat,n,rv1,WorkSize,rwork,ierr)
         end if
-#endif  
+#endif
     end if
     if (ierr/=0) call MpiStop('error in Matrix_SVD_U')
     call Matrix_End('CSVD_U')
@@ -1915,12 +1893,11 @@
         allocate(U(m,m))
 #ifdef MATRIX_SINGLE
         call CGESDD('A',m,n, Mat, m ,D,U,m,VT,n,rv1,WorkSize,rwork,IWork,ierr)
-#else     
+#else
         call ZGESDD('A',m,n, Mat, m ,D,U,m,VT,n,rv1,WorkSize,rwork,IWork,ierr)
 #endif
         deallocate(U)
         deallocate(IWork)
-
     else
         WorkSize=  2*m*n + 2*max(n,m)
         allocate(rwork(5*max(m,n)))
@@ -1931,9 +1908,9 @@
         end if
 #ifdef MATRIX_SINGLE
         call CGESVD('N','A',m,n, Mat, m , D,Mat,m,VT,n,rv1,WorkSize,rwork,ierr)
-#else    
+#else
         call ZGESVD('N','A',m,n, Mat, m , D,Mat,m,VT,n,rv1,WorkSize,rwork,ierr)
-#endif    
+#endif
     end if
 
     if (ierr/=0) call MpiStop('error in Matrix_SVD_AllVT')
@@ -1979,7 +1956,7 @@
     tmp = M
 #ifdef MATRIX_SINGLE
     call SSYTRF('U',n,tmp,n,IPIV, work,WorkSize,info)
-#else     
+#else
     call DSYTRF('U',n,tmp,n,IPIV, work,WorkSize,info)
 #endif
     deallocate(work)
@@ -2040,7 +2017,7 @@
 #ifdef MATRIX_SINGLE
     real(dm) sdot
     external sdot
-#else  
+#else
     real(dm) ddot
     external ddot
 #endif
@@ -2104,7 +2081,7 @@
     else
 #ifdef MATRIX_SINGLE
         call SGEMV('N',m,n,mult,Mat,m,vec, 1,beta, Out,1)
-#else     
+#else
         call DGEMV('N',m,n,mult,Mat,m,vec, 1,beta, Out,1)
 #endif
     end if
@@ -2189,7 +2166,7 @@
     else
 #ifdef MATRIX_SINGLE
         call SSYMV('U',m,mult,Mat,m,vec, 1,beta, Out,1)
-#else     
+#else
         call DSYMV('U',m,mult,Mat,m,vec, 1,beta, Out,1)
 #endif
     end if
@@ -2253,7 +2230,7 @@
     subroutine Matrix_InverseArrayMPI(Arr,nmat)
     !Invert array of matrices by sending each to separate CPU
     integer, intent(in) :: nmat
-#ifdef __GFORTRAN__    
+#ifdef __GFORTRAN__
     Type(TMatrixType), target :: Arr(:)
 #else
     Type(TMatrixType), target :: Arr(*)
@@ -2262,10 +2239,10 @@
     integer n
     integer i,MpiID, MpiSize
     integer sz
-#ifdef MPI        
+#ifdef MPI
     integer j, ierr, sid
     Type(TMatrixType), target :: tmp
-#endif     
+#endif
 
     call MpiStat(MpiID, MpiSize)
     if (MpiId==0) then
@@ -2279,7 +2256,7 @@
     !     end do
     !    end if
     !    return
-#ifdef MPI        
+#ifdef MPI
     if (MpiID==0) print *, 'MatrixInverseArray: starting'
     call MPI_BCAST(n,1,MPI_INTEGER, 0, MPI_COMM_WORLD, ierr)
     call MPI_BCAST(sz,1,MPI_INTEGER, 0, MPI_COMM_WORLD, ierr)
@@ -2291,7 +2268,7 @@
 
     do i= 1,n
         if (MpiID==0) AM => Arr(i)
-#ifdef MPI       
+#ifdef MPI
         if (mod(i,MpiSize)/=MpiID) then
             !Do nothing
             if (MpiId==0) then
@@ -2302,9 +2279,8 @@
             if (MpiId/=0) then
                 !Get from main thread
                 call MPI_RECV(AM%M,size(AM%M),MPI_DOUBLE_PRECISION, 0, 1, MPI_COMM_WORLD,MPI_STATUS_IGNORE, ierr)
-
             end if
-#endif         
+#endif
             call Matrix_Inverse(AM%M)
 
 #ifdef MPI
@@ -2316,7 +2292,6 @@
             else
                 call MPI_SEND(AM%M,size(AM%M),MPI_DOUBLE_PRECISION, 0, 1, MPI_COMM_WORLD, ierr)
             end if
-
         end if
 #endif
     end do
@@ -2331,7 +2306,7 @@
     else
         deallocate(tmp%M)
     end if
-#endif   
+#endif
     if (MpiID==0) print *, 'MatrixInverseArray: Done'
 
 

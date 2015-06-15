@@ -7,13 +7,13 @@
     integer, parameter :: sp = KIND(1.0)
     end module Precision
 
-
     module constants
     use precision
     implicit none
 
     real(dl), parameter :: const_pi = 3.1415926535897932384626433832795_dl
     real(dl), parameter :: const_twopi=2._dl*const_pi, const_fourpi=4._dl*const_pi
+    real(dl), parameter :: const_eightpi=8._dl*const_pi
     real(dl), parameter :: const_sqrt6=2.4494897427831780981972840747059_dl
 
     real(dl), parameter :: c = 2.99792458e8_dl
@@ -55,10 +55,15 @@
     real(dl), parameter :: COBE_CMBTemp = 2.7255_dl !(Fixsen 2009) used as default value
     real(dl), parameter :: default_nnu = 3.046_dl
 
+    !This constant initially was in inifile.f90.
+    !TODO: Find a better place, because this module is intentionally for
+    !scientific constants only.
+    integer, parameter :: Ini_max_string_len = 1024
     end module constants
 
 
     module Errors
+    use MiscUtils, only : PresentDefault
     implicit none
 
     integer :: global_error_flag=0
@@ -75,11 +80,7 @@
     character(LEN=*), intent(IN), optional :: message
     integer, intent(in), optional :: id
 
-    if (present(message)) then
-        global_error_message = message
-    else
-        global_error_message=''
-    end if
+    global_error_message = PresentDefault(message, '')
     if (present(id)) then
         if (id==0) stop 'Error id must be non-zero'
         global_error_flag=id
