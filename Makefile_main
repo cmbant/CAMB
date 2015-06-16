@@ -12,7 +12,7 @@ BISPECTRUM ?= SeparableBispectrum
 NONLINEAR     ?= halofit_ppf
 
 #Driver program
-DRIVER        ?= inidriver.f90
+DRIVER        ?= inidriver.F90
 #DRIVER       ?= sigma8.f90
 #DRIVER       ?= tester.f90
 
@@ -91,8 +91,11 @@ $(CAMBLIB): directories libutils $(CAMBOBJ)
 camb_fits: directories libutils writefits.f90 $(CAMBOBJ) $(DRIVER)
 	$(F90C) $(F90FLAGS) -I$(HEALPIXDIR)/include $(CAMBOBJ) writefits.f90 $(DRIVER) $(HEALPIXLD) -DWRITE_FITS -o $@
 
-$(OUTPUT_DIR)/%.o: %.f90
+$(OUTPUT_DIR)/%.o: %.f90 Makefile
 	$(F90C) $(F90FLAGS) -c $*.f90 -o $(OUTPUT_DIR)/$*.o
+
+$(OUTPUT_DIR)/%.o: %.F90 Makefile
+	$(F90C) $(F90FLAGS) -c $*.F90 -o $(OUTPUT_DIR)/$*.o
 
 directories:
 	mkdir -p $(OUTPUT_DIR)

@@ -2,8 +2,18 @@
 
 libutils: directories
 
+ifortErr = $(shell which ifort >/dev/null; echo $$?)
+ifeq "$(ifortErr)" "0"
+
+#Intel compiler
+F90C     ?= ifort
+F90FLAGS ?=  -O2 -W0 -WB -fpp2 -vec_report0
+
+else
 F90C ?= gfortran
+F90FLAGS ?= -ffree-line-length-none -fmax-errors=4
 F90FLAGS += -cpp
+endif
 AR ?= ar
 
 ifeq ($(F90DEPFLAGS),)
