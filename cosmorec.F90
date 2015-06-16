@@ -39,13 +39,13 @@
     contains
 
     subroutine Recombination_ReadParams(R, Ini)
-    use IniFile
+    use IniObjects
     Type(RecombinationParams) :: R
     Type(TIniFile) :: Ini
 
-    R%runmode = Ini_Read_Int_File(Ini, 'cosmorec_runmode', 0)
-    R%accuracy = Ini_Read_Double_File(Ini, 'cosmorec_accuracy', 0.0D0)
-    R%fdm = Ini_Read_Double_File(Ini, 'cosmorec_fdm', 0.0D0)
+    R%runmode = Ini%Read_Int_File('cosmorec_runmode', 0)
+    R%accuracy = Ini%Read_Double_File('cosmorec_accuracy', 0.0D0)
+    R%fdm = Ini%Read_Double_File('cosmorec_fdm', 0.0D0)
 
     end subroutine Recombination_ReadParams
 
