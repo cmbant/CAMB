@@ -122,6 +122,10 @@ libutils: utils/$(OUTPUT_DIR)/libutils.a
 # Do not propagate F90FLAGS to the slave make, because that one contains
 # include paths that are not available in the utils lib nor needed there.
 utils/$(OUTPUT_DIR)/libutils.a:
-	$(MAKE) -C utils F90FLAGS="$(FFLAGS)" F90DEPFLAGS="$(F90DEPFLAGS)" OUTPUT_DIR="$(OUTPUT_DIR)" libutils
+	$(MAKE) -C utils F90FLAGS="$(FFLAGS)" libutils
+#	$(MAKE) -C utils F90C="$(F90C)" F90FLAGS="$(FFLAGS)" F90DEPFLAGS="$(F90DEPFLAGS)" \
+#		OUTPUT_DIR="$(OUTPUT_DIR)" libutils
+
+export F90C F90DEPFLAGS OUTPUT_DIR
 
 .PHONY: libutils clean directories Release Debug
