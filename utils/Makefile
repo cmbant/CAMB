@@ -2,16 +2,17 @@
 
 libutils: directories
 
-ifortErr = $(shell which ifort >/dev/null; echo $$?)
+ifortErr = $(shell which ifort >/dev/null 2>&1; echo $$?)
 ifeq "$(ifortErr)" "0"
 
 #Intel compiler
-F90C     ?= ifort
-F90FLAGS ?=  -O2 -W0 -WB -fpp2 -vec_report0
+#F90C     ?= ifort
+#F90FLAGS ?=  -O2 -W0 -WB -fpp2 -vec_report0
 
 else
 F90C ?= gfortran
 F90FLAGS ?= -ffree-line-length-none -fmax-errors=4
+# Always need preprocessing so ensure it is there.
 F90FLAGS += -cpp
 endif
 AR ?= ar
@@ -32,10 +33,13 @@ OBJS = $(patsubst %.f90,%.o,$(SRCS))
 	$(F90C) $(F90FLAGS) $(F90DEPFLAGS) -o $*.o -c $<
 
 libutils.a: $(OBJS)
-	ar -r libutils.a $(OBJS)
+	$(AR) -r libutils.a $(OBJS)
 
 clean:
 	-rm -fr Debug Release
+
+# export all variables to the sub-make below
+export
 
 # Build in output dir to get file dependencies correctly and make use
 # of delta builds, where only changed files and their dependents are
