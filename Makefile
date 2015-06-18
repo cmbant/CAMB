@@ -12,7 +12,7 @@ F90C     = ifort
 FFLAGS = -openmp -fast -W0 -WB -fpp2 -vec_report0
 DEBUGFLAGS =-openmp -g -check all -check noarg_temp_created -traceback -fpp -fpe0
 # Activate dependency generation by the compiler
-F90DEPFLAGS = -gen-dep
+F90DEPFLAGS = -gen-dep=$$*.d
 ## This is flag is passed to the Fortran compiler allowing it to link C++ if required (not usually):
 F90CRLINK = -cxxlib
 MODOUT = -module $(OUTPUT_DIR)
