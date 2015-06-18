@@ -4,17 +4,18 @@
 FISHER=
 
 #Will detect ifort/gfortran or edit for your compiler
-ifortErr = $(shell which ifort >/dev/null; echo $$?)
+ifortErr = $(shell which ifort >/dev/null 2>&1; echo $$?)
 ifeq "$(ifortErr)" "0"
 
 #Intel compiler
 F90C     = ifort
-FFLAGS = -openmp -fast -W0 -WB -fpp2 -vec_report0
+FFLAGS = -openmp -fast -W0 -WB -fpp 
+#FFLAGS = -openmp -fast -W0 -WB -fpp2 -vec_report0
 DEBUGFLAGS =-openmp -g -check all -check noarg_temp_created -traceback -fpp -fpe0
 # Activate dependency generation by the compiler
 F90DEPFLAGS = -gen-dep=$$*.d
 ## This is flag is passed to the Fortran compiler allowing it to link C++ if required (not usually):
-F90CRLINK = -cxxlib
+F90CRLINK = -cxxlib -qopt-report=1 -qopt-report-phase=vec
 MODOUT = -module $(OUTPUT_DIR)
 ifneq ($(FISHER),)
 FFLAGS += -mkl
@@ -27,13 +28,12 @@ ifeq "$(gfortErr)" "0"
 #Gfortran compiler:
 #The options here work in v4.6+
 F90C     = gfortran
-FFLAGS = -cpp -ffree-line-length-none -fmax-errors=4
-O3FLAGS = -O3 -fopenmp -ffast-math
-DEBUGFLAGS = -g -fbacktrace -ffpe-trap=invalid,overflow,zero -fbounds-check
+COMMON_FFLAGS = -cpp -ffree-line-length-none -fmax-errors=4
+FFLAGS = -O3 -fopenmp -ffast-math $(COMMON_FFLAGS)
+DEBUGFLAGS = -g -fbacktrace -ffpe-trap=invalid,overflow,zero -fbounds-check $(COMMON_FFLAGS)
 # Activate dependency generation by the compiler
 F90DEPFLAGS = -MMD
 MODOUT =  -J$(OUTPUT_DIR)
-Release: FFLAGS += $(O3FLAGS)
 
 ifneq ($(FISHER),)
 F90CRLINK += -lblas -llapack
@@ -97,6 +97,6 @@ FFLAGS += -DFISHER
 endif
 
 DEBUGFLAGS ?= $(FFLAGS)
-Debug: FFLAGS += $(DEBUGFLAGS)
+Debug: FFLAGS = $(DEBUGFLAGS)
 
 include ./Makefile_main
