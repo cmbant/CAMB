@@ -9,14 +9,25 @@ ifeq "$(ifortErr)" "0"
 
 #Intel compiler
 F90C     = ifort
+ifortVer_major = $(shell ifort -v 2>&1 | cut -d " " -f 3 | cut -d. -f 1)
 FFLAGS = -openmp -fast -W0 -WB -fpp 
 #FFLAGS = -openmp -fast -W0 -WB -fpp2 -vec_report0
 DEBUGFLAGS =-openmp -g -check all -check noarg_temp_created -traceback -fpp -fpe0
 # Activate dependency generation by the compiler
 F90DEPFLAGS = -gen-dep=$$*.d
 ## This is flag is passed to the Fortran compiler allowing it to link C++ if required (not usually):
-F90CRLINK = -cxxlib -qopt-report=1 -qopt-report-phase=vec
+F90CRLINK = -cxxlib
+ifeq "$(ifortVer_major)" "15"
+F90DRLINK += -qopt-report=1 -qopt-report-phase=vec
+else
+ifeq "$(ifortVer_major)" "14"
+F90CRLINK += -vec_report0
+else
+error "Unsupported version of ifort"
+endif
+endif
 MODOUT = -module $(OUTPUT_DIR)
+AR     = xiar
 ifneq ($(FISHER),)
 FFLAGS += -mkl
 endif

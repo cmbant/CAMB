@@ -41,7 +41,7 @@ CAMBOBJ       =  $(OUTPUT_DIR)/constants.o   $(OUTPUT_DIR)/subroutines.o  \
 	$(OUTPUT_DIR)/camb.o
 
 F90CRLINK     ?= -lstdc++
-F90CRLINK     += utils/$(OUTPUT_DIR)/libutils.a
+F90CRLINK     += -Lutils/$(OUTPUT_DIR) -lutils
 
 ## CosmoRec
 ifeq ($(RECOMBINATION),cosmorec)
@@ -83,13 +83,14 @@ $(OUTPUT_DIR)/camb.o: $(OUTPUT_DIR)/cmbmain.o
 #$(OUTPUT_DIR)/Power_tilt_new.o: libutils
 
 camb: directories libutils $(CAMBOBJ) $(DRIVER)
-	$(F90C) $(F90FLAGS) $(CAMBOBJ) $(DRIVER) $(F90CRLINK) -o $@
+	$(F90C) $(F90FLAGS) $(CAMBOBJ) $(F90CRLINK) $(DRIVER) -o $@
 
 $(CAMBLIB): directories libutils $(CAMBOBJ)
-	ar -r $@ $(CAMBOBJ)
+	$(AR) -r $@ $(CAMBOBJ)
 
 camb_fits: directories libutils writefits.f90 $(CAMBOBJ) $(DRIVER)
-	$(F90C) $(F90FLAGS) -I$(HEALPIXDIR)/include $(CAMBOBJ) writefits.f90 $(DRIVER) $(HEALPIXLD) -DWRITE_FITS -o $@
+	$(F90C) $(F90FLAGS) -I$(HEALPIXDIR)/include $(CAMBOBJ) writefits.f90 $(DRIVER) \
+		$(F90CRLINK) $(HEALPIXLD) -DWRITE_FITS -o $@
 
 $(OUTPUT_DIR)/%.o: %.f90 Makefile
 	$(F90C) $(F90FLAGS) -c $*.f90 -o $(OUTPUT_DIR)/$*.o
@@ -101,10 +102,9 @@ directories:
 	mkdir -p $(OUTPUT_DIR)
 
 clean:
-	rm -f *.o *.a *.d core *.mod $(OUTPUT_DIR)/*.o $(OUTPUT_DIR)/*.mod
-	rm -rf Release*
-	rm -rf Debug*
-	make -C utils F90DEPFLAGS="$(F90DEPFLAGS)" OUTPUT_DIR="$(OUTPUT_DIR)" clean
+	-rm -f *.o *.a *.d core *.mod *.optrpt
+	-rm -rf Release* Debug*
+	$(MAKE) -C utils F90FLAGS="$(FFLAGS)" clean
 
 ## CosmoRec make parts
 cleanCR:
@@ -123,9 +123,7 @@ libutils: utils/$(OUTPUT_DIR)/libutils.a
 # include paths that are not available in the utils lib nor needed there.
 utils/$(OUTPUT_DIR)/libutils.a:
 	$(MAKE) -C utils F90FLAGS="$(FFLAGS)" libutils
-#	$(MAKE) -C utils F90C="$(F90C)" F90FLAGS="$(FFLAGS)" F90DEPFLAGS="$(F90DEPFLAGS)" \
-#		OUTPUT_DIR="$(OUTPUT_DIR)" libutils
 
-export F90C F90DEPFLAGS OUTPUT_DIR
+export AR F90C F90DEPFLAGS OUTPUT_DIR
 
 .PHONY: libutils clean directories Release Debug
