@@ -3,6 +3,10 @@
 #Set FISHER=Y to compile bispectrum fisher matrix code
 FISHER=
 
+#Set FORUTILSPATH to the path where the libforutils.a file can be found.
+#The OUTPUT_DIR will be appended.
+FORUTILSPATH = ../forutils
+
 #Will detect ifort/gfortran or edit for your compiler
 ifortErr = $(shell which ifort >/dev/null 2>&1; echo $$?)
 ifeq "$(ifortErr)" "0"
@@ -10,7 +14,7 @@ ifeq "$(ifortErr)" "0"
 #Intel compiler
 F90C     = ifort
 ifortVer_major = $(shell ifort -v 2>&1 | cut -d " " -f 3 | cut -d. -f 1)
-FFLAGS = -openmp -fast -W0 -WB -fpp 
+FFLAGS = -openmp -fast -W0 -WB -fpp
 #FFLAGS = -openmp -fast -W0 -WB -fpp2 -vec_report0
 DEBUGFLAGS =-openmp -g -check all -check noarg_temp_created -traceback -fpp -fpe0
 # Activate dependency generation by the compiler
