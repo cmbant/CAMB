@@ -38,7 +38,7 @@
     module lensing
     use Precision
     use ModelParams
-    use constants, only : const_pi, const_twopi, const_fourpi
+    use AmlUtils
     implicit none
     integer, parameter :: lensing_method_curv_corr=1,lensing_method_flat_corr=2, &
         lensing_method_harmonic=3
@@ -158,10 +158,10 @@
 
     npoints = CP%Max_l  * 2 *AccuracyBoost
     short_integral_range = .not. CP%AccurateBB
-    dtheta = const_pi / npoints
+    dtheta = pi / npoints
     if (CP%Max_l > 3500) dtheta=dtheta/1.3
     apodize_point_width = nint(0.003 / dtheta)
-    npoints = int(const_pi/dtheta)
+    npoints = int(pi/dtheta)
     if (short_integral_range) then
         range_fac= max(1._dl,32/AccuracyBoost) !fraction of range to integrate
         npoints = int(npoints /range_fac)
@@ -203,8 +203,8 @@
 
         do l=lmin,CP%Max_l
             ! (2*l+1)l(l+1)/4pi C_phi_phi: Cl_scalar(l,1,C_Phi) is l^4 C_phi_phi
-            Cphil3(l) = Cl_scalar(l,in,C_Phi)*(2*l+1)*(l+1)/real(l,dl)**3/const_fourpi
-            fac = (2*l+1)/const_fourpi * const_twopi/(l*(l+1))
+            Cphil3(l) = Cl_scalar(l,in,C_Phi)*(2*l+1)*(l+1)/real(l,dl)**3/(4*pi)
+            fac = (2*l+1)/(4*pi) * 2*pi/(l*(l+1))
             CTT(l) =  Cl_scalar(l,in,C_Temp)*fac
             CEE(l) =  Cl_scalar(l,in,C_E)*fac
             CTE(l) =  Cl_scalar(l,in,C_Cross)*fac
@@ -216,12 +216,12 @@
         end if
         if (lmax > CP%Max_l) then
             l=CP%Max_l
-            sc = (2*l+1)/const_fourpi * const_twopi/(l*(l+1))
+            sc = (2*l+1)/(4*pi) * 2*pi/(l*(l+1))
             fac2=CTT(CP%Max_l)/(sc*highL_CL_template(CP%Max_l, C_Temp))
             fac=Cphil3(CP%Max_l)/(sc*highL_CL_template(CP%Max_l, C_Phi))
             do l=CP%Max_l+1, lmax
                 !Fill in tail from template
-                sc = (2*l+1)/const_fourpi * const_twopi/(l*(l+1))
+                sc = (2*l+1)/(4*pi) * 2*pi/(l*(l+1))
                 Cphil3(l) = highL_CL_template(l, C_Phi)*fac*sc
 
                 CTT(l) =  highL_CL_template(l, C_Temp)*fac2*sc
@@ -235,7 +235,7 @@
         end if
         if (ALens_Fiducial > 0) then
             do l=2, lmax
-                sc = (2*l+1)/const_fourpi * const_twopi/(l*(l+1))
+                sc = (2*l+1)/(4*pi) * 2*pi/(l*(l+1))
                 Cphil3(l) =  sc * highL_CL_template(l, C_Phi) * ALens_Fiducial
             end do
         end if
@@ -486,7 +486,7 @@
 
     do l=lmin, lmax_lensed
         !sign from d(cos theta) = -sin theta dtheta
-        fac = l*(l+1)/OutputDenominator*dtheta*const_twopi
+        fac = l*(l+1)/OutputDenominator*dtheta *2*pi
         Cl_lensed(l,in,CT_Temp) = sum(lens_contrib(CT_Temp,l,:))*fac &
             + Cl_scalar(l,in,C_Temp)
         Cl_lensed(l,in,CT_E) = sum(lens_contrib(CT_E,l,:))*fac &
@@ -546,7 +546,7 @@
     npoints = CP%Max_l  * 2
     if (CP%AccurateBB) npoints = npoints * 2
 
-    dtheta = const_pi / npoints
+    dtheta = pi / npoints
     if (.not. CP%AccurateBB) then
         npoints = int(npoints /32 *min(32._dl,AccuracyBoost))
         !OK for TT, EE, TE but inaccurate for low l BB
@@ -567,8 +567,8 @@
 
         do l=lmin,CP%Max_l
             ! l^3 C_phi_phi/2/pi: Cl_scalar(l,1,C_Phi) is l^4 C_phi_phi
-            Cphil3(l) = Cl_scalar(l,in,C_Phi)/l /const_twopi
-            fac = l/const_twopi*const_twopi/(l*(l+1))
+            Cphil3(l) = Cl_scalar(l,in,C_Phi)/l /(2*pi)
+            fac = l/(2*pi)*2*pi/(l*(l+1))
             CTT(l) =  Cl_scalar(l,in,C_Temp)*fac
             CEE(l) =  Cl_scalar(l,in,C_E)*fac
             CTE(l) =  Cl_scalar(l,in,C_Cross)*fac
@@ -655,7 +655,7 @@
         end do
 
 
-        !$              thread_ix = OMP_GET_THREAD_NUM()+1
+        !$   thread_ix = OMP_GET_THREAD_NUM()+1
 
         do l=lmin, lmax_lensed
             !theta factors were put in earlier (already in corr)
@@ -673,7 +673,7 @@
     !$OMP END PARALLEL DO
 
     do l=lmin, lmax_lensed
-        fac = l*(l+1)* const_twopi/OutputDenominator*dtheta
+        fac = l*(l+1)* 2*pi/OutputDenominator*dtheta
         Cl_lensed(l,in,CT_Temp) = sum(lens_contrib(CT_Temp,l,:))*fac &
             + Cl_scalar(l,in,CT_Temp)
         Cl_lensed(l,in,CT_Cross) = sum(lens_contrib(CT_Cross,l,:))*fac &
@@ -744,7 +744,7 @@
         roots(j) = sqrt(real(2*j+1,dl))
     end do
 
-    RR = RR/2/const_fourpi
+    RR = RR/2/fourpi
     if (RR(1) > 1e-5) then
         write (*,*) 'You need to normalize realistically to use lensing.'
         write (*,*) 'see http://cosmocoffee.info/viewtopic.php?t=94'
@@ -786,7 +786,7 @@
     al=lSamp%l(j)
 
     llp_al = al*(al+1)
-    g2l=sqrt((2*al+1)/const_fourpi)
+    g2l=sqrt((2*al+1)/fourpi)
 
     asum = 0
     asum_EE = 0

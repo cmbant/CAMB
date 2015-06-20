@@ -36,11 +36,11 @@
     contains
 
     subroutine DarkEnergy_ReadParams(Ini)
-    use IniObjects
+    use IniFile
     Type(TIniFile) :: Ini
 
-    w_lam = Ini%Read_Double('w', -1.d0)
-    cs2_lam = Ini%Read_Double('cs2_lam', 1.d0)
+    w_lam = Ini_Read_Double_File(Ini,'w', -1.d0)
+    cs2_lam = Ini_Read_Double_File(Ini,'cs2_lam',1.d0)
 
     end subroutine DarkEnergy_ReadParams
 
@@ -2080,6 +2080,28 @@
         ayprime(EV%w_ix+1) = -adotoa*(1-3*cs2_lam)*vq + k*cs2_lam*clxq/(1+w_lam)
     end if
 
+    if (associated(EV%OutputTransfer)) then
+        EV%OutputTransfer(Transfer_kh) = k/(CP%h0/100._dl)
+        EV%OutputTransfer(Transfer_cdm) = clxc
+        EV%OutputTransfer(Transfer_b) = clxb
+        EV%OutputTransfer(Transfer_g) = clxg
+        EV%OutputTransfer(Transfer_r) = clxr
+        clxnu_all=0
+        dgpi  = grhor_t*pir + grhog_t*pig
+        if (CP%Num_Nu_Massive /= 0) then
+            call MassiveNuVarsOut(EV,ay,ayprime,a, clxnu_all =clxnu_all, dgpi= dgpi)
+        end if
+        EV%OutputTransfer(Transfer_nu) = clxnu_all
+        EV%OutputTransfer(Transfer_tot) =  dgrho_matter/grho_matter !includes neutrinos
+        EV%OutputTransfer(Transfer_nonu) = (grhob_t*clxb+grhoc_t*clxc)/(grhob_t + grhoc_t)
+        EV%OutputTransfer(Transfer_tot_de) =  dgrho/grho_matter
+        !Transfer_Weyl is k^2Phi, where Phi is the Weyl potential
+        EV%OutputTransfer(Transfer_Weyl) = -(dgrho +3*dgq*adotoa/k)/(EV%Kf(1)*2) - dgpi/2
+        EV%OutputTransfer(Transfer_Newt_vel_cdm)=  -k*sigma/adotoa
+        EV%OutputTransfer(Transfer_Newt_vel_baryon) = -k*(vb + sigma)/adotoa
+        EV%OutputTransfer(Transfer_vel_baryon_cdm) = vb
+    end if
+
     !  CDM equation of motion
     clxcdot=-k*z
     ayprime(3)=clxcdot
@@ -2234,28 +2256,6 @@
             end if
         end if
     end if ! no_nu_multpoles
-    
-    if (associated(EV%OutputTransfer)) then
-        EV%OutputTransfer(Transfer_kh) = k/(CP%h0/100._dl)
-        EV%OutputTransfer(Transfer_cdm) = clxc
-        EV%OutputTransfer(Transfer_b) = clxb
-        EV%OutputTransfer(Transfer_g) = clxg
-        EV%OutputTransfer(Transfer_r) = clxr
-        clxnu_all=0
-        dgpi  = grhor_t*pir + grhog_t*pig
-        if (CP%Num_Nu_Massive /= 0) then
-            call MassiveNuVarsOut(EV,ay,ayprime,a, clxnu_all =clxnu_all, dgpi= dgpi)
-        end if
-        EV%OutputTransfer(Transfer_nu) = clxnu_all
-        EV%OutputTransfer(Transfer_tot) =  dgrho_matter/grho_matter !includes neutrinos
-        EV%OutputTransfer(Transfer_nonu) = (grhob_t*clxb+grhoc_t*clxc)/(grhob_t + grhoc_t)
-        EV%OutputTransfer(Transfer_tot_de) =  dgrho/grho_matter
-        !Transfer_Weyl is k^2Phi, where Phi is the Weyl potential
-        EV%OutputTransfer(Transfer_Weyl) = -(dgrho +3*dgq*adotoa/k)/(EV%Kf(1)*2) - dgpi/2
-        EV%OutputTransfer(Transfer_Newt_vel_cdm)=  -k*sigma/adotoa
-        EV%OutputTransfer(Transfer_Newt_vel_baryon) = -k*(vb + sigma)/adotoa
-        EV%OutputTransfer(Transfer_vel_baryon_cdm) = vb
-    end if
 
     !  Massive neutrino equations of motion.
     if (CP%Num_Nu_massive == 0) return

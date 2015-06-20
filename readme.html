@@ -32,13 +32,9 @@ To install and compile yourself you will need a Fortran 90 (or higher) compiler 
  Alternatively you can use CAMB in the pre-configured <A HREF="http://cosmologist.info/CosmoBox">CosmoBox</A> virtual machine, using the eclipse integrated development environment. <P>
  To install yourself from the command line:
 <UL>
-<LI>Clone and compile the <A HREF="https://github.com/cmbant/forutils">forutils</A> library.</LI>
-<!--<LI><A HREF="http://camb.info/CAMBsubmit.html">Download</A> CAMB
+<LI><A HREF="http://camb.info/CAMBsubmit.html">Download</A> CAMB
 <LI>Unzip and untar the file (<B>tar xfv CAMB.tar.gz</B>). All files will be extracted to a
-directory called "CAMB".-->
-<LI>Clone this repository by using
-    <blockquote>git clone git@github.com:cmbant/CAMB.git</blockquote>
-</LI>
+directory called "CAMB".
 <LI>Run <B>make</B> to compile everything you will need. (you may need to
 edit the supplied Makefile, see below)
 <LI>Run <B>./camb params.ini</B>, where params.ini is a file
@@ -47,24 +43,7 @@ edit the supplied Makefile, see below)
 </UL>
 </P>
 <P>
-The Makefile comes set up for Intel machines. It cruedly detects whether the
-Intel ifort compiler is present and prefers it. When the ifort is not found, the
-Makefile falls back to gfortran. For other compilers relevant parts are present
-but commented. If you have Intel's Visual Fortran you can use the projects in
-the VisualStudio folder, no need to use the Makefile. To run on multi-processor
-machines add the -openmp (or equivalent) option to the Makefile's FFLAGS
-parameter to compile a parallelized (OPENMP) version.
-</P>
-<P>
-CAMB expects the forutils library in the same directory it was cloned to, i.e.:
-<pre>
-    $ ls .
-    ./camb    ./forutils
-    $
-</pre>
-When you want to store the forutils library in a different place, edit the Makfile's
-FORUTILSPATH variable to point to the correct location (where the forutils sources
-reside).
+The Makefile comes set up for Intel machines using Intel's ifort compiler. Just comment the relevant parts to compile on different systems. If you have Intel's Visual Fortran you can use the projects in the VisualStudio folder, no need to use the Makefile. To run on multi-processor machines add the -openmp (or equivalent) option to the Makefile's FFLAGS parameter to compile a parallelized (OPENMP) version.
 </P>
 <P>
 Martina Schwind has kindly contributed some <A hREF="Work_with_CAMB_V13_for_AL.pdf">introductory slides</A> with details of program running and internal structure. For some further technical details about the algorithms, equations and code see the <A HREF="http://cosmologist.info/notes/CAMB.pdf">CAMB notes</A>.

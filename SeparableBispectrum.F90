@@ -19,7 +19,7 @@
     use ModelData
     use InitialPower
     use SpherBessels
-    use constants
+    use IniFile
     implicit none
 
     integer, parameter :: max_bispectrum_deltas = 5, max_bispectrum_fields=3
@@ -112,7 +112,7 @@
     do q_ix = 1, CTrans%q%npoints
         k = CTrans%q%points(q_ix)
         xf = k*r
-        bes_ix=BessRanges%IndexOf(xf)
+        bes_ix=Ranges_indexOf(BessRanges,xf)
         fac=BessRanges%points(bes_ix+1)-BessRanges%points(bes_ix)
         a2=(BessRanges%points(bes_ix+1)-xf)/fac
         fac=fac**2*a2/6
@@ -145,8 +145,8 @@
             end if
         end do
     end do
-    resP = resP * const_fourpi
-    res = res * 2/const_pi
+    resP = resP * fourpi
+    res = res * 2/pi
 
     end subroutine NonGauss_l_r_localOpt
 
@@ -176,7 +176,7 @@
     do q_ix = 1, CTrans%q%npoints
         k = CTrans%q%points(q_ix)
         xf = k*r
-        bes_ix=BessRanges%IndexOf(xf)
+        bes_ix=Ranges_indexOf(BessRanges,xf)
         fac=BessRanges%points(bes_ix+1)-BessRanges%points(bes_ix)
         a2=(BessRanges%points(bes_ix+1)-xf)/fac
         fac=fac**2*a2/6
@@ -231,8 +231,8 @@
             end if
         end do
     end do
-    resP = resP * const_fourpi
-    res = res * 2/const_pi
+    resP = resP * fourpi
+    res = res * 2/pi
 
     end subroutine NonGauss_l_r
 
@@ -244,15 +244,13 @@
     use lensing
     use lvalues
     use constants
-    use RangeUtils
-    use FileUtils
-    use MiscUtils ! for IndexOf
+    use Ranges
 #ifdef FISHER
     use MatrixUtils
-#endif
+#endif          
     integer, parameter :: max_bispectra = 2  !fnl, lensing
     Type(ClTransferData) :: CTrans
-    type(TRanges) :: TimeStepsNongauss
+    Type(Regions) :: TimeStepsNongauss
     integer, allocatable ::  ind(:), indP(:), indPd(:)
     real(dl), allocatable :: res(:,:,:), resP(:,:,:), resPd(:,:)
     real(dl), allocatable :: res_l(:,:,:), resP_l(:,:,:), resPd_l(:,:)
@@ -306,8 +304,6 @@
     integer ix1,ix2
     real(dl) tmpArr(lmin:CTrans%ls%l(CTrans%ls%l0))
 #endif
-    type(TTextFile) :: file_alpha, file_beta, file_alpha_beta_r
-    type(TTextFile), allocatable, dimension(:) :: bispectrum_files
 
     parities(1)=1  !T
     parities(2)=1  !E
@@ -395,7 +391,7 @@
             if (i<=lmax_lensing_corrE) then
                 CPhi(3,i) = Cl_scalar(i,1,C_PhiE) /real(i,dl)**3 * InternalScale
             end if
-            tmp = i*(i+1)/const_twopi
+            tmp = i*(i+1)/(2*pi)
             CLForLensingIn(:,i) = CL_lensed(i,1,CT_Temp:CT_Cross) * InternalScale/tmp
             ! CForLensing(i)%C=0
             CForLensing(i)%C(1,1)=CLForLensingIn(1,i)
@@ -405,7 +401,7 @@
             ! CForLensing(i)%C(3,3)=CL_lensed(i,1,CT_B) * InternalScale/tmp
         end do
 
-#ifdef FISHER
+#ifdef FISHER             
         allocate(SqueezedLensingKernel(nfields,nfields))
         do field2=1,nfields
             do field3=1,nfields
@@ -453,13 +449,13 @@
                             bi_ix=bi_ix+1
                             tmp3=l3*(l3+1)
                             !bispectrum is the reduced bispectrum
-#ifdef FISHER
+#ifdef FISHER             
                             if (field1==1) then
                                 SqueezedLensingKernel(field2,field3)%b(bi_ix,il1)=  &
                                     (-tmp2+tmp3+tmp1)*(a3j2(l3,2,field2)*CForLensing(l3)%C(field2,field3)) + &
                                     (-tmp3+tmp1+tmp2)*(a3j2(l3,2,field3)*CForLensing(l2)%C(field3,field2))
                             end if
-#endif
+#endif            
 
                             Bispectrum%b(bi_ix,il1)=  &
                                 (-tmp1+tmp2+tmp3) *  &
@@ -626,17 +622,18 @@
         end if
 
         test=0
-        TimeStepsNongauss = TimeSteps
-        call TimeStepsNongauss%Add_delta(-taurst*10*AccuracyBoost, taurst, dtaurec)
-        call TimeStepsNongauss%getArray(.true.)
+        call Ranges_Nullify(TimeStepsNongauss)
+        call Ranges_Assign(TimeStepsNongauss,TimeSteps)
+        call Ranges_Add_delta(TimeStepsNongauss, -taurst*10*AccuracyBoost, taurst, dtaurec)
+        call Ranges_getArray(TimeStepsNongauss, .true.)
 
-        !$          if (BispectrumParams%export_alpha_beta) call OMP_SET_NUM_THREADS(1)
+        !$        if (BispectrumParams%export_alpha_beta) call OMP_SET_NUM_THREADS(1)
         if (BispectrumParams%export_alpha_beta) then
             !Note that all the points outside recombination are not really needed
             !And these are for curvature perturbation, so do not include 3/5 factor
-            call file_alpha%CreateFile(trim(output_root)//'_alpha.txt') ! 100
-            call file_beta%CreateFile(trim(output_root)//'_beta.txt')   ! 101
-            call file_alpha_beta_r%CreateFile(trim(output_root)//'_alpha_beta_r.txt') ! 102
+            call CreateTxtFile(trim(output_root)//'_alpha.txt',100)
+            call CreateTxtFile(trim(output_root)//'_beta.txt',101)
+            call CreateTxtFile(trim(output_root)//'_alpha_beta_r.txt',102)
         end if
 
         if (DebugMsgs) starttime=GetTestTime()
@@ -645,6 +642,7 @@
         !$OMP PRIVATE(i,r,res,resP,resPd,res_l,resP_l,resPd_l,term,j), &
         !$OMP PRIVATE(il1,l1,l2,l3,min_l,max_l,tmp,tmp1,tmp2,Bispectrum), &
         !$OMP PRIVATE(bi_ix,bix,field1,field2,field3,field)
+
         do i= TimeStepsNongauss%npoints-1, 2,-1
         r=(CP%tau0-TimeStepsNongauss%points(i))
 
@@ -672,9 +670,9 @@
         deallocate(res,resP)
 
         if (BispectrumParams%export_alpha_beta) then
-            write(file_alpha%unit, concat('(',lmax-lmin+1 ,'E15.5)')) res_l(lmin:lmax,1,1)
-            write(file_beta%unit, concat('(',lmax-lmin+1 ,'E15.5)')) resP_l(lmin:lmax,1,1)
-            write(file_alpha_beta_r%unit, '(1E15.5)') r
+            write(100,concat('(',lmax-lmin+1 ,'E15.5)')) res_l(lmin:lmax,1,1)
+            write(101,concat('(',lmax-lmin+1 ,'E15.5)')) resP_l(lmin:lmax,1,1)
+            write(102,'(1E15.5)') r
         end if
 
         if (npd>0) then
@@ -721,14 +719,14 @@
         deallocate(res_l,resP_l)
         if (npd>0) deallocate(resPd_l)
     end do !TimeStepsNongauss
-    !$OMP END PARALLEL DO
+    !$OMP END PARAllEl DO
     if (BispectrumParams%export_alpha_beta) then
-        call file_alpha%close()
-        call file_beta%close()
-        call file_alpha_beta_r%close()
+        close(100)
+        close(101)
+        close(102)
     end if
     deallocate(TransferPolFac)
-    call TimeStepsNongauss%Free()
+    call Ranges_Free(TimeStepsNongauss)
 
     if (DebugMsgs) print *,'Time for fnl bispectrum:', GetTestTime()-starttime
 
@@ -736,23 +734,20 @@
 
     if (BispectrumParams%Slice_Base_L>0 .or. BispectrumParams%FullOutputFile/='') then
         !write out slice in (muK)^3 units
-        allocate(bispectrum_files(nbispectra* BispectrumParams%ndelta))
         Bscale=(COBE_CMBTemp*1d6)**3/InternalScale**2;
         do bispectrum_type=1,nbispectra
             if (BispectrumParams%Slice_Base_L>0) then
                 do idelta=1,BispectrumParams%ndelta
                     if (mod(BispectrumParams%Slice_Base_L + BispectrumParams%deltas(idelta),2)==1 &
                         .and. bispectrum_type/=lens_bispectrum_ix) cycle
-                    call bispectrum_files(nbispectra+BispectrumParams%ndelta*(bispectrum_type-1)+idelta)% &
-                        CreateFile(concat(trim(output_root)//'bispectrum_'//&
-                        trim(BispectrumNames(bispectrum_type))//'_base_', &
-                        BispectrumParams%Slice_Base_L,'_delta_',BispectrumParams%deltas(idelta), &
-                        trim(file_tag)//'.dat'))
+                    call CreateTxtFile(concat(trim(output_root)//'bispectrum_'//trim(BispectrumNames(bispectrum_type))//'_base_', &
+                        BispectrumParams%Slice_Base_L,'_delta_',BispectrumParams%deltas(idelta),trim(file_tag)//'.dat'),&
+                        nbispectra +BispectrumParams%ndelta*(bispectrum_type-1)+idelta)
                 end do
             end if
             if (BispectrumParams%FullOutputFile/='') then
-                call bispectrum_files(bispectrum_type)%CreateFile(concat(output_root,BispectrumParams%FullOutputFile, &
-                    '_', BispectrumNames(bispectrum_type), file_tag, '.dat'))
+                call CreateTxtFile(concat(output_root,BispectrumParams%FullOutputFile, &
+                    '_', BispectrumNames(bispectrum_type), file_tag, '.dat'),bispectrum_type)
             end if
         end do
         do il1= 1, SampleL%l0
@@ -771,7 +766,7 @@
                     !Particular slice
                     idelta=IndexOf(l3-l2,BispectrumParams%deltas,BispectrumParams%ndelta)
                     do bispectrum_type=1,nbispectra
-                        fileid=bispectrum_files(nbispectra+BispectrumParams%ndelta*(bispectrum_type-1)+idelta)%unit
+                        fileid=nbispectra +BispectrumParams%ndelta*(bispectrum_type-1)+idelta
                         write (fileid,'(1I5)', advance='NO') L2
                         do field1=1,nfields
                             do field2=1,nfields
@@ -790,16 +785,16 @@
 
                         do bispectrum_type=1,nbispectra
                             if (bispectrum_type==lens_bispectrum_ix .and. L1 > lmax_lensing_corrT) cycle
-                            write(bispectrum_files(bispectrum_type)%unit,'(3I5)', advance='NO') L1, L2, L3
+                            write(bispectrum_type,'(3I5)', advance='NO') L1, L2, L3
                             do field1=1,nfields
                                 do field2=1,nfields
                                     do field3=1,nfields
-                                        write(bispectrum_files(bispectrum_type)%unit,'(1E14.5)', advance='NO') &
+                                        write(bispectrum_type,'(1E14.5)', advance='NO') &
                                             Bispectra(field1,field2,field3,bispectrum_type)%b(bi_ix,il1)*Bscale
                                     end do
                                 end do
                             end do
-                            write (bispectrum_files(bispectrum_type)%unit,'(a)') ''
+                            write (bispectrum_type,'(a)') ''
                         end do
                     end if
 
@@ -824,7 +819,7 @@
                         idelta=IndexOf(l3-l2,BispectrumParams%deltas,BispectrumParams%ndelta)
                         do bispectrum_type=1,nbispectra
                             if (bispectrum_type/=lens_bispectrum_ix) cycle
-                            fileid=bispectrum_files(nbispectra +BispectrumParams%ndelta*(bispectrum_type-1)+idelta)%unit
+                            fileid=nbispectra +BispectrumParams%ndelta*(bispectrum_type-1)+idelta
                             write (fileid,'(1I5)', advance='NO') L2
                             oddix=0
                             do field1=1,3
@@ -845,17 +840,16 @@
             end do
         end if
 
-        deallocate(bispectrum_files)
-        !            do bispectrum_type=1,nbispectra
-        !                if (BispectrumParams%Slice_Base_L>0) then
-        !                    do idelta=1,BispectrumParams%ndelta
-        !                        if (mod(BispectrumParams%Slice_Base_L + BispectrumParams%deltas(idelta),2)==1 &
-        !                            .and. bispectrum_type/=lens_bispectrum_ix) cycle
-        !                        close(nbispectra +BispectrumParams%ndelta*(bispectrum_type-1)+idelta)
-        !                    end do
-        !                end if
-        !                if (BispectrumParams%FullOutputFile/='') close(bispectrum_type)
-        !            end do
+        do bispectrum_type=1,nbispectra
+            if (BispectrumParams%Slice_Base_L>0) then
+                do idelta=1,BispectrumParams%ndelta
+                    if (mod(BispectrumParams%Slice_Base_L + BispectrumParams%deltas(idelta),2)==1 &
+                        .and. bispectrum_type/=lens_bispectrum_ix) cycle
+                    close(nbispectra +BispectrumParams%ndelta*(bispectrum_type-1)+idelta)
+                end do
+            end if
+            if (BispectrumParams%FullOutputFile/='') close(bispectrum_type)
+        end do
 
     end if
 
@@ -899,7 +893,7 @@
         sigma2 = (BispectrumParams%FisherNoiseFwhmArcmin/60/xlc)**2
         allocate(InvC(lmax))
         do l1= lmin, lmax
-            tmp = l1*(l1+1)/const_twopi
+            tmp = l1*(l1+1)/(2*pi)
             Cl(1,l1) = Cl(1,l1)/tmp + Noise*exp(l1*(l1+1)*sigma2)
             Cl(2:3,l1) = Cl(2:3,l1)/tmp + NoiseP*exp(l1*(l1+1)*sigma2)
             Cl(4,l1) = Cl(4,l1)/tmp
@@ -928,10 +922,11 @@
 
             ifish_contribs=0
             lstart = 2 !lmin
-            !$OMP PARALLEL DO DEFAUlT(SHARED),SCHEDULE(STATIC,3) &
+            !$OMP PARAllEl DO DEFAUlT(SHARED),SCHEDULE(STATIC,3) &
             !$OMP PRIVATE(il1,l1,l2,l3,fish_l1,bi_ix,min_l,max_l,a3j_00,a3j), &
             !$OMP PRIVATE(Bispectrum,Bispectrum2,minl2,bix,tmp,tmp1,tmp2,tmpf), &
             !$OMP PRIVATE(field1,field2,field3,f1,f2,f3,bispectrum_type,bispectrum_type2)
+
             do il1= 1,  lmaxcuti !!!SampleL%l0
             allocate(fish_l1(nbispectra,nbispectra,nfields,nfields)) !last indices are field1,f1
             l1 = SampleL%l(il1)
@@ -950,7 +945,7 @@
                     a3j_00(l3)=a3j(l3)**2
                 end do
 
-                tmp1= 1.d0/const_fourpi  !(2l+1) factors included in InvC
+                tmp1= 1.d0/(4*pi)  !(2l+1) factors included in InvC
                 minl2=min_l
                 bix=bi_ix
                 do field1=1,nfields
@@ -1025,7 +1020,7 @@
             deallocate(fish_L1)
 
         end do
-        !$OMP END PARALLEL DO
+        !$OMP END PARAllEl DO
         if (DebugMsgs) print *,'Time for Fisher:', GetTestTime()-starttime
 
 
@@ -1251,7 +1246,7 @@
     end if !DoFIsher
 #else
     if (BispectrumParams%DoFisher) stop 'compile with FISHER defined'
-#endif
+#endif                    
 
     !Tidy up a bit
     do field1=1,nfields
@@ -1301,7 +1296,7 @@
 
         k = CTrans%q%points(q_ix)
         xf = k*r  !kr
-        bes_ix= BessRanges%indexOf(xf)
+        bes_ix=Ranges_indexOf(BessRanges,xf)
         fac=BessRanges%points(bes_ix+1)-BessRanges%points(bes_ix)
         a2=(BessRanges%points(bes_ix+1)-xf)/fac
         fac=fac**2*a2/6
@@ -1322,7 +1317,7 @@
             end if
         end do
     end do
-    resP = resP * const_fourpi
+    resP = resP * fourpi
 
     end subroutine NonGauss_deriv_l_r
 
@@ -1347,7 +1342,7 @@
 
 
     subroutine Bispectrum_ReadParams(B, Ini, outroot)
-    use IniObjects
+    use IniFile
     Type(TBispectrumParams) :: B
     character(LEN=*), intent(in) :: outroot
     Type(TIniFile) :: Ini
@@ -1355,8 +1350,8 @@
 
     call Bispectrum_SetDefParams(B)
 
-    B%do_lensing_bispectrum = Ini%Read_Logical('do_lensing_bispectrum', .false.)
-    B%do_primordial_bispectrum = Ini%Read_Logical('do_primordial_bispectrum', .false.)
+    B%do_lensing_bispectrum = Ini_Read_Logical_File(Ini,'do_lensing_bispectrum',.false.)
+    B%do_primordial_bispectrum = Ini_Read_Logical_File(Ini,'do_primordial_bispectrum',.false.)
 
     do_bispectrum= B%do_lensing_bispectrum .or. B%do_primordial_bispectrum
 
@@ -1364,38 +1359,38 @@
 
         output_root = outroot
 
-        call Ini%Read('bispectrum_nfields', B%nfields)
+        B%nfields = Ini_Read_Int_File(Ini,'bispectrum_nfields',B%nfields)
         if (B%nfields /= 2 .and. B%nfields/=1) stop 'Bispectrum: nfields=1 for T only or 2 for polarization'
-        B%do_parity_odd = Ini%Read_Logical('do_parity_odd', .false.)
+        B%do_parity_odd = Ini_Read_Logical_File(Ini,'do_parity_odd',.false.)
         if (B%do_parity_odd .and. (.not.  B%do_lensing_bispectrum .or. B%nfields==1)) then
             B%do_parity_odd = .false.
             write(*,*) 'Ignoring do_parity_odd since do_lensing_bispectrum=F or no polarization'
         end if
-        call Ini%Read('bispectrum_slice_base_L', B%Slice_Base_L)
+        B%Slice_Base_L = Ini_Read_Int_File(Ini,'bispectrum_slice_base_L',B%Slice_Base_L)
         if (B%Slice_Base_L>0) then
-            call Ini%Read('bispectrum_ndelta', B%ndelta)
+            B%ndelta = Ini_Read_Int_File(Ini,'bispectrum_ndelta',B%ndelta)
             if (B%ndelta > max_bispectrum_deltas) stop 'Bispectrum : increase max_bispectrum_deltas'
             do i=1, B%ndelta
-                B%deltas(i) = Ini%Read_Int_Array('bispectrum_delta', i)
+                B%deltas(i) = Ini_Read_Int_Array_File(Ini,'bispectrum_delta', i)
             end do
             if (.not. B%do_parity_odd .and. B%Slice_Base_L>0 .and. &
                 any(mod(B%Slice_Base_L + B%deltas(1:B%ndelta),2) /= 0)) &
                 stop 'Slice is zero for even parity with L1+L2+L3 odd, i.e. Base+DeltaL3 odd'
 
         end if
-        call Ini%Read('bispectrum_do_fisher', B%DoFisher)
+        B%DoFisher = Ini_Read_Logical_File(Ini,'bispectrum_do_fisher',B%DoFisher)
         if (B%DoFisher) then
-            call Ini%Read('bispectrum_fisher_noise', B%FisherNoise)
-            call Ini%Read('bispectrum_fisher_noise_pol', B%FisherNoisePol)
-            call Ini%Read('bispectrum_fisher_fwhm_arcmin', B%FisherNoiseFwhmArcmin)
+            B%FisherNoise = Ini_Read_Double_File(Ini,'bispectrum_fisher_noise',B%FisherNoise)
+            B%FisherNoisePol = Ini_Read_Double_File(Ini,'bispectrum_fisher_noise_pol',B%FisherNoisePol )
+            B%FisherNoiseFwhmArcmin = Ini_Read_Double_File(Ini,'bispectrum_fisher_fwhm_arcmin',B%FisherNoiseFwhmArcmin)
         end if
-        B%FullOutputFile = Ini%Read_String('bispectrum_full_output_file')
+        B%FullOutputFile = Ini_Read_String_File(Ini,'bispectrum_full_output_file')
         if (B%FullOutputFile /='') then
-            call Ini%Read('bispectrum_full_output_sparse', B%SparseFullOutput)
+            B%SparseFullOutput = Ini_Read_Logical_file(Ini,'bispectrum_full_output_sparse',B%SparseFullOutput)
         end if
 
         if (B%do_primordial_bispectrum) then
-            call Ini%Read('bispectrum_export_alpha_beta', B%export_alpha_beta)
+            B%export_alpha_beta = Ini_Read_Logical_file(Ini,'bispectrum_export_alpha_beta', B%export_alpha_beta)
         end if
 
     end if

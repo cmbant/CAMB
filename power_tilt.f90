@@ -73,7 +73,7 @@
 
 
     subroutine SetDefPowerParams(AP)
-    type (InitialPowerParams) :: AP
+    Type (InitialPowerParams) :: AP
 
     AP%nn     = 1 !number of initial power spectra
     AP%an     = 1 !scalar spectral index
@@ -87,6 +87,7 @@
     AP%ScalarPowerAmp = 1
     AP%TensorPowerAmp = 1
     AP%tensor_parameterization = tensor_param_indeptilt
+
     end subroutine SetDefPowerParams
 
     subroutine InitializePowers(AParamSet,acurv)
@@ -105,10 +106,12 @@
     curv=acurv
 
     !Write implementation specific code here...
+
     end subroutine InitializePowers
 
 
     function ScalarPower(k,ix)
+
     !"ix" gives the index of the power to return for this k
     !ScalarPower = const for scale invariant spectrum
     !The normalization is defined so that for adiabatic perturbations the gradient of the 3-Ricci
@@ -128,14 +131,15 @@
     integer ix
 
     lnrat = log(k/P%k_0_scalar)
-    ScalarPower = P%ScalarPowerAmp(ix) * exp(lnrat * (P%an(ix) - 1 + &
-        &             lnrat * (P%n_run(ix) / 2 + P%n_runrun(ix) / 6 * lnrat)))
+    ScalarPower=P%ScalarPowerAmp(ix)*exp(lnrat*( P%an(ix)-1 + lnrat*(P%n_run(ix)/2 + P%n_runrun(ix)/6*lnrat)))
 
     !         ScalarPower = ScalarPower * (1 + 0.1*cos( lnrat*30 ) )
+
     end function ScalarPower
 
 
     function TensorPower(k,ix)
+
     !TensorPower= const for scale invariant spectrum
     !The normalization is defined so that
     ! < h_{ij}(x) h^{ij}(x) > = \sum_nu nu /(nu^2-1) (nu^2-4)/nu^2 TensorPower(k)
@@ -160,6 +164,7 @@
         TensorPower = P%TensorPowerAmp(ix) * k_dep
     end if
     if (curv < 0) TensorPower=TensorPower*tanh(PiByTwo*sqrt(-k**2/curv-3))
+
     end function TensorPower
 
     !Get parameters describing parameterisation (for FITS file)
@@ -196,44 +201,47 @@
         end if
     end if
     Power_Descript = num
+
     end  function Power_Descript
 
     subroutine InitialPower_ReadParams(InitPower, Ini, WantTensors)
-    use IniObjects
+    use IniFile
     Type(InitialPowerParams) :: InitPower
     Type(TIniFile) :: Ini
     logical, intent(in) :: WantTensors
     integer i
 
-    call Ini%Read('pivot_scalar', InitPower%k_0_scalar)
-    call Ini%Read('pivot_tensor', InitPower%k_0_tensor)
-    InitPower%nn = Ini%Read_Int('initial_power_num', 1)
+    InitPower%k_0_scalar = Ini_Read_Double_File(Ini,'pivot_scalar',InitPower%k_0_scalar)
+    InitPower%k_0_tensor = Ini_Read_Double_File(Ini,'pivot_tensor',InitPower%k_0_tensor)
+    InitPower%nn = Ini_Read_Int_File(Ini,'initial_power_num',1)
     if (InitPower%nn>nnmax) stop 'Too many initial power spectra - increase nnmax in InitialPower'
     if (WantTensors) then
-        InitPower%tensor_parameterization =  Ini%Read_Int('tensor_parameterization', tensor_param_indeptilt)
+        InitPower%tensor_parameterization =  Ini_Read_Int_File(Ini, 'tensor_parameterization',tensor_param_indeptilt)
         if (InitPower%tensor_parameterization < tensor_param_indeptilt .or. &
-            &   InitPower%tensor_parameterization > tensor_param_AT) &
-            &   stop 'InitialPower: unknown tensor_parameterization'
+            & InitPower%tensor_parameterization > tensor_param_AT) &
+            & stop 'InitialPower: unknown tensor_parameterization'
     end if
     InitPower%rat(:) = 1
     do i=1, InitPower%nn
-        InitPower%an(i) = Ini%Read_Double_Array('scalar_spectral_index', i)
-        InitPower%n_run(i) = Ini%Read_Double_Array('scalar_nrun', i, 0._dl)
-        InitPower%n_runrun(i) = Ini%Read_Double_Array('scalar_nrunrun', i, 0._dl)
+        InitPower%an(i) = Ini_Read_Double_Array_File(Ini,'scalar_spectral_index', i)
+        InitPower%n_run(i) = Ini_Read_Double_Array_File(Ini,'scalar_nrun',i,0._dl)
+        InitPower%n_runrun(i) = Ini_Read_Double_Array_File(Ini,'scalar_nrunrun',i,0._dl)
 
         if (WantTensors) then
-            InitPower%ant(i) = Ini%Read_Double_Array('tensor_spectral_index', i)
-            InitPower%nt_run(i) = Ini%Read_Double_Array('tensor_nrun', i, 0._dl)
+            InitPower%ant(i) = Ini_Read_Double_Array_File(Ini,'tensor_spectral_index',i)
+            InitPower%nt_run(i) = Ini_Read_Double_Array_File(Ini,'tensor_nrun',i,0._dl)
             if (InitPower%tensor_parameterization == tensor_param_AT) then
-                InitPower%TensorPowerAmp(i) = Ini%Read_Double_Array('tensor_amp', i)
+                InitPower%TensorPowerAmp(i) = Ini_Read_Double_Array_File(Ini,'tensor_amp',i)
             else
-                InitPower%rat(i) = Ini%Read_Double_Array('initial_ratio', i)
+                InitPower%rat(i) = Ini_Read_Double_Array_File(Ini,'initial_ratio',i)
             end if
         end if
 
-        InitPower%ScalarPowerAmp(i) = Ini%Read_Double_Array('scalar_amp', i, 1._dl)
+        InitPower%ScalarPowerAmp(i) = Ini_Read_Double_Array_File(Ini,'scalar_amp',i,1._dl)
         !Always need this as may want to set tensor amplitude even if scalars not computed
     end do
+
     end  subroutine InitialPower_ReadParams
+
 
     end module InitialPower

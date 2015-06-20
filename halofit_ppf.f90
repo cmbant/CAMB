@@ -43,10 +43,10 @@
     contains
 
     subroutine NonLinear_ReadParams(Ini)
-    use IniObjects
+    use IniFile
     Type(TIniFile) :: Ini
 
-    halofit_version = Ini%Read_Int('halofit_version', halofit_default)
+    halofit_version = Ini_Read_Int_File(Ini, 'halofit_version', halofit_default)
 
     end subroutine NonLinear_ReadParams
 
@@ -115,7 +115,7 @@
                 ! linear power spectrum !! Remeber => plin = k^3 * P(k) * constant
                 ! constant = 4*pi*V/(2*pi)^3
 
-                plin= MatterPowerData_k(CAMB_PK, rk, itf)*(rk**3/(2*const_pi**2))
+                plin= MatterPowerData_k(CAMB_PK, rk, itf)*(rk**3/(2*pi**2))
 
                 ! calculate nonlinear power according to halofit: pnl = pq + ph,
                 ! where pq represents the quasi-linear (halo-halo) power and
@@ -126,7 +126,7 @@
 
             end if
 
-        end do
+        enddo
 
 101     continue
     end do
@@ -248,7 +248,7 @@
     sum1=0.d0
     sum2=0.d0
     sum3=0.d0
-    anorm = 1/(2*const_pi**2)
+    anorm = 1/(2*pi**2)
     do i=1,nint
         t=(i-0.5_dl)/nint
         y=-1.d0+1.d0/t

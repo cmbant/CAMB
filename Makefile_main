@@ -25,23 +25,18 @@ Debug: camb
 
 CAMBLIB       = $(OUTPUT_DIR)/libcamb_$(RECOMBINATION).a
 
-F90WFLAGS     = -Waliasing -Wampersand -Wconversion -Wc-binding-type -Wintrinsics-std \
-        -Wno-tabs -Wintrinsic-shadow -Wline-truncation -Wtarget-lifetime -Wreal-q-constant
-# -Wsurprising -Wunused
-
-F90FLAGS      = $(FFLAGS) $(IFLAG)$(FORUTILSPATH)/$(OUTPUT_DIR)/
-F90FLAGS      += $(MODOUT) $(IFLAG)$(OUTPUT_DIR)/
-#F90FLAGS      += $(F90WFLAGS)
+F90FLAGS      = $(FFLAGS)
+F90FLAGS += $(MODOUT) $(IFLAG)$(OUTPUT_DIR)/
 
 HEALPIXLD     = -L$(HEALPIXDIR)/lib -lhealpix -L$(FITSDIR) -l$(FITSLIB)
-CAMBOBJ       =  $(OUTPUT_DIR)/constants.o   $(OUTPUT_DIR)/subroutines.o  \
-	$(OUTPUT_DIR)/$(POWERSPECTRUM).o  $(OUTPUT_DIR)/$(RECOMBINATION).o \
+
+CAMBOBJ       =  $(OUTPUT_DIR)/constants.o  $(OUTPUT_DIR)/utils.o $(EXTCAMBFILES)  $(OUTPUT_DIR)/subroutines.o  \
+	$(OUTPUT_DIR)/inifile.o  $(OUTPUT_DIR)/$(POWERSPECTRUM).o  $(OUTPUT_DIR)/$(RECOMBINATION).o \
 	$(OUTPUT_DIR)/$(REIONIZATION).o $(OUTPUT_DIR)/modules.o $(OUTPUT_DIR)/bessels.o $(OUTPUT_DIR)/$(EQUATIONS).o \
 	$(OUTPUT_DIR)/$(NONLINEAR).o $(OUTPUT_DIR)/lensing.o $(OUTPUT_DIR)/$(BISPECTRUM).o $(OUTPUT_DIR)/cmbmain.o \
 	$(OUTPUT_DIR)/camb.o
 
-F90CRLINK     ?= -lstdc++
-F90CRLINK     += -L$(FORUTILSPATH)/$(OUTPUT_DIR) -lforutils
+F90CRLINK ?= -lstdc++
 
 ## CosmoRec
 ifeq ($(RECOMBINATION),cosmorec)
@@ -67,42 +62,42 @@ all: camb libcamb
 libcamb: $(CAMBLIB)
 
 
-$(OUTPUT_DIR)/subroutines.o: $(OUTPUT_DIR)/constants.o
-$(OUTPUT_DIR)/$(POWERSPECTRUM).o: $(OUTPUT_DIR)/subroutines.o
-$(OUTPUT_DIR)/$(RECOMBINATION).o: $(OUTPUT_DIR)/subroutines.o
-$(OUTPUT_DIR)/$(REIONIZATION).o: $(OUTPUT_DIR)/constants.o
+$(OUTPUT_DIR)/subroutines.o: $(OUTPUT_DIR)/constants.o $(OUTPUT_DIR)/utils.o
+$(OUTPUT_DIR)/$(POWERSPECTRUM).o: $(OUTPUT_DIR)/subroutines.o  $(OUTPUT_DIR)/inifile.o
+$(OUTPUT_DIR)/$(RECOMBINATION).o: $(OUTPUT_DIR)/subroutines.o $(OUTPUT_DIR)/inifile.o
+$(OUTPUT_DIR)/$(REIONIZATION).o: $(OUTPUT_DIR)/constants.o $(OUTPUT_DIR)/inifile.o
 $(OUTPUT_DIR)/modules.o: $(OUTPUT_DIR)/$(REIONIZATION).o $(OUTPUT_DIR)/$(POWERSPECTRUM).o $(OUTPUT_DIR)/$(RECOMBINATION).o
 $(OUTPUT_DIR)/bessels.o: $(OUTPUT_DIR)/modules.o
 $(OUTPUT_DIR)/$(EQUATIONS).o: $(OUTPUT_DIR)/bessels.o
 $(OUTPUT_DIR)/$(NONLINEAR).o:  $(OUTPUT_DIR)/modules.o $(OUTPUT_DIR)/$(EQUATIONS).o
 $(OUTPUT_DIR)/lensing.o: $(OUTPUT_DIR)/bessels.o
 $(OUTPUT_DIR)/$(BISPECTRUM).o: $(OUTPUT_DIR)/lensing.o $(OUTPUT_DIR)/modules.o
-$(OUTPUT_DIR)/cmbmain.o: $(OUTPUT_DIR)/lensing.o $(OUTPUT_DIR)/$(NONLINEAR).o $(OUTPUT_DIR)/$(EQUATIONS).o \
-    $(OUTPUT_DIR)/$(BISPECTRUM).o
+$(OUTPUT_DIR)/cmbmain.o: $(OUTPUT_DIR)/lensing.o $(OUTPUT_DIR)/$(NONLINEAR).o $(OUTPUT_DIR)/$(EQUATIONS).o $(OUTPUT_DIR)/$(BISPECTRUM).o
 $(OUTPUT_DIR)/camb.o: $(OUTPUT_DIR)/cmbmain.o
-
+$(OUTPUT_DIR)/Matrix_utils.o: $(OUTPUT_DIR)/utils.o
 camb: directories $(CAMBOBJ) $(DRIVER)
-	$(F90C) $(F90FLAGS) $(CAMBOBJ) $(F90CRLINK) $(DRIVER) -o $@
+	$(F90C) $(F90FLAGS) $(CAMBOBJ) $(DRIVER) $(F90CRLINK) -o $@
 
 $(CAMBLIB): directories $(CAMBOBJ)
-	$(AR) -r $@ $(CAMBOBJ)
+	ar -r $@ $(CAMBOBJ)
 
 camb_fits: directories writefits.f90 $(CAMBOBJ) $(DRIVER)
-	$(F90C) $(F90FLAGS) -I$(HEALPIXDIR)/include $(CAMBOBJ) writefits.f90 $(DRIVER) \
-		$(F90CRLINK) $(HEALPIXLD) -DWRITE_FITS -o $@
+	$(F90C) $(F90FLAGS) -I$(HEALPIXDIR)/include $(CAMBOBJ) writefits.f90 $(DRIVER) $(HEALPIXLD) -DWRITE_FITS -o $@
 
-$(OUTPUT_DIR)/%.o: %.f90 Makefile
+$(OUTPUT_DIR)/%.o: %.f90
 	$(F90C) $(F90FLAGS) -c $*.f90 -o $(OUTPUT_DIR)/$*.o
 
-$(OUTPUT_DIR)/%.o: %.F90 Makefile
+$(OUTPUT_DIR)/%.o: %.F90
 	$(F90C) $(F90FLAGS) -c $*.F90 -o $(OUTPUT_DIR)/$*.o
+
 
 directories:
 	mkdir -p $(OUTPUT_DIR)
 
 clean:
-	-rm -f *.o *.a *.d core *.mod *.optrpt
-	-rm -rf Release* Debug*
+	rm -f *.o *.a *.d core *.mod $(OUTPUT_DIR)/*.o $(OUTPUT_DIR)/*.mod
+	rm -rf Release*
+	rm -rf Debug*
 
 ## CosmoRec make parts
 cleanCR:
@@ -111,7 +106,8 @@ cleanCR:
 libCosmoRec.a:
 	cd $(COSMOREC_PATH); make lib;
 
+
 libhyrec.a:
 	cd $(HYREC_PATH); make libhyrec.a;
 
-.PHONY: clean directories Release Debug
+

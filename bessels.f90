@@ -9,26 +9,27 @@
     module SpherBessels
     use Precision
     use ModelParams
-    use RangeUtils
+    use Ranges
     implicit none
     private
 
-    ! Bessel functions and their second derivatives for interpolation
+    !     Bessel functions and their second derivatives for interpolation
 
     real(dl), dimension(:,:), allocatable ::  ajl,ajlpr, ddajlpr
 
     integer  num_xx, kmaxfile, file_numl,  file_l(lmax_arr)
-    ! parameters for working out where the flat Bessel functions are small
-    ! Both should increase for higher accuracy
-    ! real(dl), parameter :: xlimmin=15._dl  , xlimfrac = 0.05_dl
+    !      parameters for working out where the flat Bessel functions are small
+    !      Both should increase for higher accuracy
+    !        real(dl), parameter :: xlimmin=15._dl  , xlimfrac = 0.05_dl
     real(dl), parameter :: xlimmin=35._dl  , xlimfrac = 0.05_dl
 
-    type(TRanges):: BessRanges
+    Type(Regions):: BessRanges
 
     public ajl, ajlpr, ddajlpr, BessRanges, InitSpherBessels, xlimmin, xlimfrac
     public USpherBesselWithDeriv, phi_recurs,phi_langer, bjl, Bessels_Free
 
     contains
+
 
     subroutine InitSpherBessels
     !     This subroutine reads the jl files from disk (or generates them if not on disk)
@@ -64,15 +65,15 @@
     if (do_bispectrum) kmaxfile = kmaxfile*2
 
 
-    call BessRanges%Init()
+    call Ranges_Init(BessRanges)
 
-    call BessRanges%Add_delta(0._dl, 1._dl,0.01_dl/bessel_boost)
-    call BessRanges%Add_delta(1._dl, 5._dl,0.1_dl/bessel_boost)
-    call BessRanges%Add_delta(5._dl, 25._dl,0.2_dl/bessel_boost)
-    call BessRanges%Add_delta(25._dl, 150._dl,0.5_dl/bessel_boost/AccuracyBoost)
-    call BessRanges%Add_delta(150._dl, real(kmaxfile,dl),0.8_dl/bessel_boost/AccuracyBoost)
+    call Ranges_Add_delta(BessRanges,0._dl, 1._dl,0.01_dl/bessel_boost)
+    call Ranges_Add_delta(BessRanges,1._dl, 5._dl,0.1_dl/bessel_boost)
+    call Ranges_Add_delta(BessRanges,5._dl, 25._dl,0.2_dl/bessel_boost)
+    call Ranges_Add_delta(BessRanges,25._dl, 150._dl,0.5_dl/bessel_boost/AccuracyBoost)
+    call Ranges_Add_delta(BessRanges,150._dl, real(kmaxfile,dl),0.8_dl/bessel_boost/AccuracyBoost)
 
-    call BessRanges%GetArray(.false.)
+    call Ranges_GetArray(bessRanges, .false.)
     num_xx = BessRanges%npoints
 
 
@@ -123,7 +124,7 @@
     if (allocated(ajl)) deallocate(ajl)
     if (allocated(ajlpr)) deallocate(ajlpr)
     if (allocated(ddajlpr)) deallocate(ddajlpr)
-    call BessRanges%Free()
+    call Ranges_Free(BessRanges)
 
     end  subroutine Bessels_Free
 
@@ -346,8 +347,8 @@
     sinhChi = sin_K
     cothChi = cot_K
 
-    DoRecurs = ((l<=45*AccuracyBoost).OR.((.not.closed.or.(abs(Chi-const_pi/2)>0.2d0))&
-        .and.(beta*l<750).or.closed.and.(beta*l<4000)))
+    DoRecurs = ((l<=45*AccuracyBoost).OR.((.not.closed.or.(abs(Chi-pi/2)>0.2d0)).and.(beta*l<750) &
+        .or.closed.and.(beta*l<4000)))
 
     !Deep in the tails the closed recursion relation is not stable
     !Added July 2003 to prevent problems with very nearly flat models

@@ -3,35 +3,17 @@
 #Set FISHER=Y to compile bispectrum fisher matrix code
 FISHER=
 
-#Set FORUTILSPATH to the path where the libforutils.a file can be found.
-#The OUTPUT_DIR will be appended.
-FORUTILSPATH = ../forutils
-
 #Will detect ifort/gfortran or edit for your compiler
-ifortErr = $(shell which ifort >/dev/null 2>&1; echo $$?)
+ifortErr = $(shell which ifort >/dev/null; echo $$?)
 ifeq "$(ifortErr)" "0"
 
 #Intel compiler
 F90C     = ifort
-ifortVer_major = $(shell ifort -v 2>&1 | cut -d " " -f 3 | cut -d. -f 1)
-FFLAGS = -openmp -fast -W0 -WB -fpp
-#FFLAGS = -openmp -fast -W0 -WB -fpp2 -vec_report0
+FFLAGS = -openmp -fast -W0 -WB -fpp2 -vec_report0
 DEBUGFLAGS =-openmp -g -check all -check noarg_temp_created -traceback -fpp -fpe0
-# Activate dependency generation by the compiler
-F90DEPFLAGS = -gen-dep=$$*.d
 ## This is flag is passed to the Fortran compiler allowing it to link C++ if required (not usually):
 F90CRLINK = -cxxlib
-ifeq "$(ifortVer_major)" "15"
-F90DRLINK += -qopt-report=1 -qopt-report-phase=vec
-else
-ifeq "$(ifortVer_major)" "14"
-F90CRLINK += -vec_report0
-else
-error "Unsupported version of ifort"
-endif
-endif
 MODOUT = -module $(OUTPUT_DIR)
-AR     = xiar
 ifneq ($(FISHER),)
 FFLAGS += -mkl
 endif
@@ -43,19 +25,13 @@ ifeq "$(gfortErr)" "0"
 #Gfortran compiler:
 #The options here work in v4.6+
 F90C     = gfortran
-COMMON_FFLAGS = -cpp -ffree-line-length-none -fmax-errors=4
-FFLAGS = -O3 -fopenmp -ffast-math $(COMMON_FFLAGS)
-DEBUGFLAGS = -g -fbacktrace -ffpe-trap=invalid,overflow,zero -fbounds-check $(COMMON_FFLAGS)
-# Activate dependency generation by the compiler
-F90DEPFLAGS = -MMD
+FFLAGS =  -O3 -fopenmp -ffast-math -fmax-errors=4
+DEBUGFLAGS = -cpp -g -fbounds-check -fbacktrace -ffree-line-length-none -fmax-errors=4 -ffpe-trap=invalid,overflow,zero
 MODOUT =  -J$(OUTPUT_DIR)
 
-ifneq ($(FISHER),)
-F90CRLINK += -lblas -llapack
-endif
 ifneq ($(shell uname -s),Darwin)
 #native optimization does not work on Mac
-O3FLAGS += -march=native
+FFLAGS+=-march=native
 endif
 endif
 endif
@@ -107,11 +83,13 @@ FITSLIB       = cfitsio
 HEALPIXDIR    ?= /usr/local/healpix
 
 ifneq ($(FISHER),)
-# Its dependencies are all meet by the libutils.a which always added.
 FFLAGS += -DFISHER
+EXTCAMBFILES = Matrix_utils.o
+else
+EXTCAMBFILES =
 endif
 
-DEBUGFLAGS ?= $(FFLAGS)
-Debug: FFLAGS = $(DEBUGFLAGS)
+DEBUGFLAGS ?= FFLAGS
+Debug: FFLAGS=$(DEBUGFLAGS)
 
 include ./Makefile_main

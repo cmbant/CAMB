@@ -21,8 +21,7 @@
 
     module LambdaGeneral
     use precision
-    use ModelParams
-    use RandUtils
+    use  ModelParams
     implicit none
 
     real(dl)  :: w_lam = -1_dl !p/rho for the dark energy (assumed constant)
@@ -46,28 +45,28 @@
     contains
 
     subroutine DarkEnergy_ReadParams(Ini)
-    use IniObjects
+    use IniFile
     Type(TIniFile) :: Ini
-    character(len=:), allocatable :: wafile
+    character(LEN=Ini_max_string_len) wafile
     integer i
 
-    if (Ini%HasKey('usew0wa')) then
+    if (Ini_HasKey_File(Ini,'usew0wa')) then
         stop 'input variables changed from usew0wa: now use_tabulated_w or w, wa'
     end if
 
-    use_tabulated_w = Ini%Read_Logical('use_tabulated_w', .false.)
+    use_tabulated_w = Ini_Read_Logical_File(Ini,'use_tabulated_w',.false.)
     if(.not. use_tabulated_w)then
-        w_lam = Ini%Read_Double('w', -1.d0)
-        wa_ppf = Ini%Read_Double('wa', 0.d0)
-        if (Rand_Feedback >0) write(*,'("(w0, wa) = (", f8.5,", ", f8.5, ")")') w_lam,wa_ppf
+        w_lam = Ini_Read_Double_File(Ini,'w', -1.d0)
+        wa_ppf = Ini_Read_Double_File(Ini,'wa', 0.d0)
+        if (Feedback >0) write(*,'("(w0, wa) = (", f8.5,", ", f8.5, ")")') w_lam,wa_ppf
     else
-        wafile = Ini%Read_String('wafile')
-        open(unit=10, file=wafile, status='old')
+        wafile = Ini_Read_String_File(Ini,'wafile')
+        open(unit=10,file=wafile,status='old')
         nw_ppf=0
         do i=1,nwmax+1
-            read(10, *, end=100) a_ppf(i), w_ppf(i)
-            a_ppf(i) = dlog(a_ppf(i))
-            nw_ppf = nw_ppf + 1
+            read(10,*,end=100)a_ppf(i),w_ppf(i)
+            a_ppf(i)=dlog(a_ppf(i))
+            nw_ppf=nw_ppf+1
         enddo
         write(*,'("Note: ", a, " has more than ", I8, " data points")') trim(wafile), nwmax
         write(*,*)'Increase nwmax in LambdaGeneral'
@@ -77,7 +76,7 @@
         call setddwa
         call interpolrde
     endif
-    cs2_lam = Ini%Read_Double('cs2_lam', 1.d0)
+    cs2_lam = Ini_Read_Double_File(Ini,'cs2_lam',1.d0)
     call setcgammappf
 
     end subroutine DarkEnergy_ReadParams
@@ -2288,6 +2287,29 @@
     !   ayprime(EV%w_ix+1) = -adotoa*(1-3*cs2_lam)*vq + k*cs2_lam*clxq/(1+w_lam)
     !
     !end if
+    !
+
+    if (associated(EV%OutputTransfer)) then
+        EV%OutputTransfer(Transfer_kh) = k/(CP%h0/100._dl)
+        EV%OutputTransfer(Transfer_cdm) = clxc
+        EV%OutputTransfer(Transfer_b) = clxb
+        EV%OutputTransfer(Transfer_g) = clxg
+        EV%OutputTransfer(Transfer_r) = clxr
+        clxnu_all=0
+        dgpi  = grhor_t*pir + grhog_t*pig
+        if (CP%Num_Nu_Massive /= 0) then
+            call MassiveNuVarsOut(EV,ay,ayprime,a, clxnu_all =clxnu_all, dgpi= dgpi)
+        end if
+        EV%OutputTransfer(Transfer_nu) = clxnu_all
+        EV%OutputTransfer(Transfer_tot) =  dgrho_matter/grho_matter !includes neutrinos
+        EV%OutputTransfer(Transfer_nonu) = (grhob_t*clxb+grhoc_t*clxc)/(grhob_t + grhoc_t)
+        EV%OutputTransfer(Transfer_tot_de) =  dgrho/grho_matter
+        !Transfer_Weyl is k^2Phi, where Phi is the Weyl potential
+        EV%OutputTransfer(Transfer_Weyl) = -(dgrho +3*dgq*adotoa/k)/(EV%Kf(1)*2) - dgpi/2
+        EV%OutputTransfer(Transfer_Newt_vel_cdm)=  -k*sigma/adotoa
+        EV%OutputTransfer(Transfer_Newt_vel_baryon) = -k*(vb + sigma)/adotoa
+        EV%OutputTransfer(Transfer_vel_baryon_cdm) = vb
+    end if
 
     !  CDM equation of motion
     clxcdot=-k*z
@@ -2443,28 +2465,6 @@
             end if
         end if
     end if ! no_nu_multpoles
-
-    if (associated(EV%OutputTransfer)) then
-        EV%OutputTransfer(Transfer_kh) = k/(CP%h0/100._dl)
-        EV%OutputTransfer(Transfer_cdm) = clxc
-        EV%OutputTransfer(Transfer_b) = clxb
-        EV%OutputTransfer(Transfer_g) = clxg
-        EV%OutputTransfer(Transfer_r) = clxr
-        clxnu_all=0
-        dgpi  = grhor_t*pir + grhog_t*pig
-        if (CP%Num_Nu_Massive /= 0) then
-            call MassiveNuVarsOut(EV,ay,ayprime,a, clxnu_all =clxnu_all, dgpi= dgpi)
-        end if
-        EV%OutputTransfer(Transfer_nu) = clxnu_all
-        EV%OutputTransfer(Transfer_tot) =  dgrho_matter/grho_matter !includes neutrinos
-        EV%OutputTransfer(Transfer_nonu) = (grhob_t*clxb+grhoc_t*clxc)/(grhob_t + grhoc_t)
-        EV%OutputTransfer(Transfer_tot_de) =  dgrho/grho_matter
-        !Transfer_Weyl is k^2Phi, where Phi is the Weyl potential
-        EV%OutputTransfer(Transfer_Weyl) = -(dgrho +3*dgq*adotoa/k)/(EV%Kf(1)*2) - dgpi/2
-        EV%OutputTransfer(Transfer_Newt_vel_cdm)=  -k*sigma/adotoa
-        EV%OutputTransfer(Transfer_Newt_vel_baryon) = -k*(vb + sigma)/adotoa
-        EV%OutputTransfer(Transfer_vel_baryon_cdm) = vb
-    end if
 
     !  Massive neutrino equations of motion.
     if (CP%Num_Nu_massive == 0) return
