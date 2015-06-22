@@ -1,4 +1,4 @@
-language: c
+language: sh
 
 env:
   global:
@@ -15,7 +15,7 @@ before_install:
 
 install:
   - sudo apt-get -qqy update
-  - sudo apt-get -qqy install lxc lxc-docker-1.2.0 slirp
+  - sudo apt-get -qqy install lxc lxc-docker slirp
   - sudo sudo usermod -aG docker "$USER"
   - git clone git://github.com/cptactionhank/sekexe
 
