@@ -3,7 +3,7 @@ FROM cmbant/docker-gcc-build
 
 MAINTAINER "Antony Lewis" <antony@cosmologist.info>, "Andre Vehreschild" <vehre@gmx.de>
 
-## Set a default user. Available via runtime flag `--user docker` 
+## Create an unprivileged user.
 RUN useradd camb \
   && mkdir /home/camb \
   && chown camb:camb /home/camb
