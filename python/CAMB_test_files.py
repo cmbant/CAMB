@@ -16,6 +16,8 @@ parser.add_argument('--no_run_test', action='store_true', help='don''t run tests
 parser.add_argument('--prog', default='./camb', help='executable to run')
 parser.add_argument('--clean', action='store_true', help='delete output dir before run')
 parser.add_argument('--diff_to', help='output directory to compare to, e.g. test_outputs2')
+parser.add_argument('--diff_tolerance', help='the tolerance for the numerical diff [default: 1e-5]', default=1e-5)
+parser.add_argument('--verbose', action='store_true', help='during diff_to print more error messages')
 
 args = parser.parse_args()
 
@@ -152,22 +154,69 @@ def makeIniFiles():
                     '\nDEFAULT(' + base_ini + ')\n' + '\n'.join(pars[1:]))
     return inis
 
+def num_unequal(filename):
+    # Check whether two files are unequal for the given tolerance
+    import math
+    orig_name = os.path.join(args.ini_dir, args.diff_to, filename)
+    with open(orig_name) as f:
+        origMat = [[float(x) for x in ln.split()] for ln in f]
+    new_name = os.path.join(args.ini_dir, args.out_files_dir, filename)
+    with open(new_name) as f:
+        newMat = [[float(x) for x in ln.split()] for ln in f]
+    if len(origMat) != len(newMat):
+        if args.verbose:
+            print('num rows do not match in %s' % filename)
+        return True
+    row = 0
+    #print(origMat)
+    for o_row, n_row in zip(origMat, newMat):
+        row = row + 1
+        col = 0
+        if len(o_row) != len(n_row):
+            if args.verbose:
+                print('num columns do not match in %s' % filename)
+            return True
+        for o,n in zip(o_row, n_row):
+            col = col + 1
+            if math.fabs(o - n)>= args.diff_tolerance:
+                if args.verbose:
+                    print('value mismatch at %d, %d of %s: |%f - %f| > %f' % (row, col, filename, o, n, args.diff_tolerance))
+                return True
+    return False
+
 if args.diff_to:
     import filecmp
     out_files_dir2 = os.path.join(args.ini_dir, args.diff_to)
-    match, mismatch, errors = filecmp.cmpfiles(out_files_dir, out_files_dir2, 
+    match, mismatch, errors = filecmp.cmpfiles(out_files_dir, out_files_dir2,
          list(set(list_files(out_files_dir)) | set(list_files(out_files_dir2)))   )
-    if len(errors):
+    if len(errors) and len(errors) != 1 and errors[0] != args.diff_to:
+        len_errors = len(errors) - 1
         print('Missing/Extra files:')
         for err in errors:
-            print('  '+err)
+            # Only print files that are not the diff_to
+            if (err != args.diff_to):
+                print('  '+err)
+    else:
+        len_errors = 0
     if len(mismatch):
-        print('Files do not match:')
-        for err in mismatch:
-            print('  '+err)
-    print("Done with %s mismatches and %s extra/missing files"%(len(mismatch), len(errors)))
-    sys.exit()
-    
+        numerical_mismatch = []
+        for f in mismatch:
+            if num_unequal(f):
+                numerical_mismatch.append(f)
+        if len(numerical_mismatch):
+            print('Files do not match:')
+            for err in numerical_mismatch:
+                print('  '+err)
+        len_num_mismatch = len(numerical_mismatch)
+    else:
+        len_num_mismatch = 0
+
+    print("Done with %s mismatches and %s extra/missing files"%(len_num_mismatch, len_errors))
+    if len_errors > 0 or len_num_mismatch > 0:
+       sys.exit(1)
+    else:
+        sys.exit()
+
 if args.make_ini:
     inis = makeIniFiles()
 else:
