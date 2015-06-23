@@ -16,8 +16,9 @@ parser.add_argument('--no_run_test', action='store_true', help='don''t run tests
 parser.add_argument('--prog', default='./camb', help='executable to run')
 parser.add_argument('--clean', action='store_true', help='delete output dir before run')
 parser.add_argument('--diff_to', help='output directory to compare to, e.g. test_outputs2')
-parser.add_argument('--diff_tolerance', help='the tolerance for the numerical diff [default: 1e-5]', default=1e-5)
-parser.add_argument('--verbose', action='store_true', help='during diff_to print more error messages')
+parser.add_argument('--diff_tolerance', type= float, help='the tolerance for the numerical diff [default: 1e-5]', default=1e-4)
+parser.add_argument('--verbose_diff_output', action='store_true', help='during diff_to print more error messages')
+parser.add_argument('--num_diff', action='store_true', help='during diff_to print more error messages')
 
 args = parser.parse_args()
 
@@ -154,41 +155,64 @@ def makeIniFiles():
                     '\nDEFAULT(' + base_ini + ')\n' + '\n'.join(pars[1:]))
     return inis
 
-def num_unequal(filename):
+def num_unequal(filename, cmpFcn):
     # Check whether two files are unequal for the given tolerance
-    import math
     orig_name = os.path.join(args.ini_dir, args.diff_to, filename)
     with open(orig_name) as f:
-        origMat = [[float(x) for x in ln.split()] for ln in f]
+        origMat = [[x for x in ln.split()] for ln in f]
     new_name = os.path.join(args.ini_dir, args.out_files_dir, filename)
     with open(new_name) as f:
-        newMat = [[float(x) for x in ln.split()] for ln in f]
+        newMat = [[x for x in ln.split()] for ln in f]
     if len(origMat) != len(newMat):
-        if args.verbose:
-            print('num rows do not match in %s' % filename)
+        if args.verbose_diff_output:
+            print('num rows do not match in %s: %d != %d' % (filename, len(origMat), len(newMat)))
         return True
     row = 0
-    #print(origMat)
     for o_row, n_row in zip(origMat, newMat):
         row = row + 1
         col = 0
         if len(o_row) != len(n_row):
-            if args.verbose:
-                print('num columns do not match in %s' % filename)
+            if args.verbose_diff_output:
+                print('num columns do not match in %s: %d != %d' % (filename, len(o_row), len(n_row)))
             return True
         for o,n in zip(o_row, n_row):
             col = col + 1
-            if math.fabs(o - n)>= args.diff_tolerance:
-                if args.verbose:
-                    print('value mismatch at %d, %d of %s: |%f - %f| > %f' % (row, col, filename, o, n, args.diff_tolerance))
+            if cmpFcn(o, n):
+                if args.verbose_diff_output:
+                    print('value mismatch at %d, %d of %s: %s != %s' % (row, col, filename, o, n))
                 return True
     return False
 
+# Do a textual comparision for numbers whose exponent is zero or greater.
+# The fortran code writes floating point values, with 5 significant digits
+# after the comma and an exponent. I.e., for numbers with a positive
+# exponent the usual comparison against a delta fails.
+def textualcmp(o, n):
+    os = o.split('E', 1)
+    ns = n.split('E', 1)
+    if len(os) > 1 and len(ns) > 1:
+        o_mantise = float(os[0])
+        o_exp = int(os[1])
+        n_mantise = float(ns[0])
+        n_exp = int(ns[1])
+        if o_exp != n_exp:
+            return True
+        # Check without respect of the exponent, when that is greater zero.
+        if 0 <= o_exp:
+            return math.fabs(float(o_mantise) - float(n_mantise)) >= args.diff_tolerance
+    # In all other cases do a numerical check
+    return math.fabs(float(o) - float(n)) >= args.diff_tolerance
+
 if args.diff_to:
     import filecmp
+    import math
+    if args.num_diff:
+        defCmpFcn = lambda o, n: math.fabs(float(o) - float(n))>= args.diff_tolerance
+    else:
+        defCmpFcn = textualcmp
     out_files_dir2 = os.path.join(args.ini_dir, args.diff_to)
     match, mismatch, errors = filecmp.cmpfiles(out_files_dir, out_files_dir2,
-         list(set(list_files(out_files_dir)) | set(list_files(out_files_dir2)))   )
+         list(set(list_files(out_files_dir)) | set(list_files(out_files_dir2))))
     if len(errors) and len(errors) != 1 and errors[0] != args.diff_to:
         len_errors = len(errors) - 1
         print('Missing/Extra files:')
@@ -199,10 +223,11 @@ if args.diff_to:
     else:
         len_errors = 0
     if len(mismatch):
-        numerical_mismatch = []
-        for f in mismatch:
-            if num_unequal(f):
-                numerical_mismatch.append(f)
+        # f for f in os.listdir(file_dir) if not '.ini' in f
+        numerical_mismatch = [f for f in mismatch if num_unequal(f, defCmpFcn)]
+#        for f in mismatch:
+#            if num_unequal(f):
+#                numerical_mismatch.append(f)
         if len(numerical_mismatch):
             print('Files do not match:')
             for err in numerical_mismatch:
@@ -211,7 +236,7 @@ if args.diff_to:
     else:
         len_num_mismatch = 0
 
-    print("Done with %s mismatches and %s extra/missing files"%(len_num_mismatch, len_errors))
+    print("Done with %d (%d) mismatches and %d extra/missing files"%(len_num_mismatch, len(mismatch), len_errors))
     if len_errors > 0 or len_num_mismatch > 0:
        sys.exit(1)
     else:
