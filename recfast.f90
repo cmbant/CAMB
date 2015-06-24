@@ -317,6 +317,7 @@
 
     real(dl) :: recombination_saha_z !Redshift at which saha OK
     real(dl) :: recombination_saha_tau !set externally
+    real(dl), private, external :: dtauda
 
 
     public RecombinationParams, Recombination_xe, Recombination_tm,Recombination_ts ,Recombination_init,   &
@@ -456,7 +457,7 @@
 
 
 
-    subroutine Recombination_init(Recomb, OmegaC, OmegaB, Omegan, Omegav, h0inp,tcmb,yp, nnu)
+    subroutine Recombination_init(Recomb, OmegaC, OmegaB, Omegan, Omegav, h0inp, tcmb, yp, nnu)
     !Would love to pass structure as arguments, but F90 would give circular reference...
     !hence mess passing parameters explcitly and non-generally
     !Note recfast only uses OmegaB, h0inp, tcmb and yp - others used only for Tmat approximation where effect small
@@ -484,8 +485,7 @@
     !       --- Parameter statements
     real(dl), parameter :: tol=1.D-5                !Tolerance for R-K
 
-    real(dl) :: dtauda
-    external :: dtauda, dverk
+    external :: dverk
 
     !       ===============================================================
 
@@ -495,7 +495,7 @@
     !This takes up most of the single thread time, so cache if at all possible
     !For example if called with different reionization, or tensor rather than scalar
 
-    Last_dtauda =  dtauda(0.2352375823_dl) !Just get it at a random scale factor
+    Last_dtauda = dtauda(0.2352375823_dl) !Just get it at a random scale factor
     Last_OmB = OmegaB
     Last_H0 = h0inp
     Last_YHe=yp
@@ -791,9 +791,7 @@
     real(dl) tauHe_t,pHe_t,CL_PSt,CfHe_t,gamma_2Pt
     real(dl) epsilon
     integer Heflag
-    real(dl) dtauda
     real(dl) C10, dHdz
-    external dtauda
 
     !       the Pequignot, Petitjean & Boisson fitting parameters for Hydrogen
     a_PPB = 4.309d0
@@ -1021,8 +1019,6 @@
     real(dl) Rup,Rdown,K
     real(dl) a_PPB,b_PPB,c_PPB,d_PPB
     real(dl) delta_alpha, delta_beta, delta_K, clh
-    real(dl) dtauda
-    external dtauda
 
 
     Delta_tg =Delta_Tm

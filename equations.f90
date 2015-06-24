@@ -17,36 +17,6 @@
     ! Feb 2013: fixed various issues with accuracy at larger neutrino masses
     ! Mar 2014: fixes for tensors with massive neutrinos
 
-    module LambdaGeneral
-    use precision
-    implicit none
-
-    real(dl)  :: w_lam = -1_dl !p/rho for the dark energy (assumed constant)
-    real(dl) :: cs2_lam = 1_dl
-    !comoving sound speed. Always exactly 1 for quintessence
-    !(otherwise assumed constant, though this is almost certainly unrealistic)
-
-    real(dl), parameter :: wa_ppf = 0._dl !Not used here, just for compatibility with e.g. halofit
-
-    logical :: w_perturb = .true.
-    !If you are tempted to set this = .false. read
-    ! http://cosmocoffee.info/viewtopic.php?t=811
-    ! http://cosmocoffee.info/viewtopic.php?t=512
-
-    contains
-
-    subroutine DarkEnergy_ReadParams(Ini)
-    use IniObjects
-    Type(TIniFile) :: Ini
-
-    w_lam = Ini%Read_Double('w', -1.d0)
-    cs2_lam = Ini%Read_Double('cs2_lam', 1.d0)
-
-    end subroutine DarkEnergy_ReadParams
-
-    end module LambdaGeneral
-
-
 
     !Return OmegaK - modify this if you add extra fluid components
     function GetOmegak()
@@ -57,48 +27,6 @@
 
     end function GetOmegak
 
-
-    subroutine init_background
-    !This is only called once per model, and is a good point to do any extra initialization.
-    !It is called before first call to dtauda, but after
-    !massive neutrinos are initialized and after GetOmegak
-    end  subroutine init_background
-
-
-    !Background evolution
-    function dtauda(a)
-    !get d tau / d a
-    use precision
-    use ModelParams
-    use MassiveNu
-    use LambdaGeneral
-    implicit none
-    real(dl) dtauda
-    real(dl), intent(IN) :: a
-    real(dl) rhonu,grhoa2, a2
-    integer nu_i
-
-    a2=a**2
-
-    !  8*pi*G*rho*a**4.
-    grhoa2=grhok*a2+(grhoc+grhob)*a+grhog+grhornomass
-    if (w_lam == -1._dl) then
-        grhoa2=grhoa2+grhov*a2**2
-    else
-        grhoa2=grhoa2+grhov*a**(1-3*w_lam)
-    end if
-    if (CP%Num_Nu_massive /= 0) then
-        !Get massive neutrino density relative to massless
-        do nu_i = 1, CP%nu_mass_eigenstates
-            call Nu_rho(a*nu_masses(nu_i),rhonu)
-            grhoa2=grhoa2+rhonu*grhormass(nu_i)
-        end do
-    end if
-
-    dtauda=sqrt(3/grhoa2)
-
-    end function dtauda
-
     !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
     !Gauge-dependent perturbation equations
@@ -107,7 +35,7 @@
     use precision
     use ModelParams
     use MassiveNu
-    use LambdaGeneral
+    use DarkEnergyInterface
     use Errors
     use Transfer
     implicit none
@@ -213,6 +141,8 @@
 
     real(dl) epsw
     real(dl) nu_tau_notmassless(nqmax0+1,max_nu), nu_tau_nonrelativistic(max_nu),nu_tau_massive(max_nu)
+
+    real(dl), private, external :: dtauda
     contains
 
 
@@ -523,7 +453,7 @@
     maxeq = maxeq +  (EV%lmaxg+1)+(EV%lmaxnr+1)+EV%lmaxgpol-1
 
     !Dark energy
-    if (w_lam /= -1 .and. w_Perturb) then
+    if (DarkEnergy%w_lam /= -1 .and. DarkEnergy%w_Perturb) then
         EV%w_ix = neq+1
         neq=neq+2
         maxeq=maxeq+2
@@ -583,7 +513,7 @@
 
     yout=0
     yout(1:basic_num_eqns) = y(1:basic_num_eqns)
-    if (w_lam /= -1 .and. w_Perturb) then
+    if (DarkEnergy%w_lam /= -1 .and. DarkEnergy%w_Perturb) then
         yout(EVout%w_ix)=y(EV%w_ix)
         yout(EVout%w_ix+1)=y(EV%w_ix+1)
     end if
@@ -931,7 +861,6 @@
     real(dl) pinudot,grhormass_t, rhonu, pnu,  rhonudot
     real(dl) adotoa, grhonu_t,gpnu_t
     real(dl) clxnu, qnu, pinu, dpnu, grhonu, dgrhonu
-    real(dl) dtauda
 
     grhonu=0
     dgrhonu=0
@@ -1231,9 +1160,9 @@
     grhoc_t=grhoc/a
     grhor_t=grhornomass/a2
     grhog_t=grhog/a2
-    grhov_t=grhov*a**(-1-3*w_lam)
+    grhov_t=grhov*a**(-1-3*DarkEnergy%w_lam)
     grho=grhob_t+grhoc_t+grhor_t+grhog_t+grhov_t
-    gpres=(grhog_t+grhor_t)/3+grhov_t*w_lam
+    gpres=(grhog_t+grhor_t)/3+grhov_t*DarkEnergy%w_lam
 
     !  8*pi*a*a*SUM[rho_i*clx_i] add radiation later
     dgrho=grhob_t*clxb+grhoc_t*clxc
@@ -1249,11 +1178,11 @@
         call MassiveNuVarsOut(EV,y,yprime,a,grho,gpres,dgrho,dgq,dgpi, dgpi_diff,pidot_sum)
     end if
 
-    if (w_lam /= -1 .and. w_Perturb) then
+    if (DarkEnergy%w_lam /= -1 .and. DarkEnergy%w_Perturb) then
         clxq=y(EV%w_ix)
         vq=y(EV%w_ix+1)
         dgrho=dgrho + clxq*grhov_t
-        dgq = dgq + vq*grhov_t*(1+w_lam)
+        dgq = dgq + vq*grhov_t*(1+DarkEnergy%w_lam)
     end if
 
     adotoa=sqrt((grho+grhok)/3)
@@ -1420,7 +1349,6 @@
     real(dl) k,k2
     real(dl), dimension(:),pointer :: E,Bprime,Eprime
     real(dl), target :: pol(3),polEprime(3), polBprime(3)
-    real(dl) dtauda
 
     call derivst(EV,EV%nvart,tau,yt,ytprime)
 
@@ -1716,7 +1644,7 @@
     y(EV%g_ix)=InitVec(i_clxg)
     y(EV%g_ix+1)=InitVec(i_qg)
 
-    if (w_lam /= -1 .and. w_Perturb) then
+    if (DarkEnergy%w_lam /= -1 .and. DarkEnergy%w_Perturb) then
         y(EV%w_ix) = InitVec(i_clxq)
         y(EV%w_ix+1) = InitVec(i_vq)
     end if
@@ -1970,10 +1898,10 @@
     grhoc_t=grhoc/a
     grhor_t=grhornomass/a2
     grhog_t=grhog/a2
-    if (w_lam==-1._dl) then
+    if (DarkEnergy%w_lam==-1._dl) then
         grhov_t=grhov*a2
     else
-        grhov_t=grhov*a**(-1-3*w_lam)
+        grhov_t=grhov*a**(-1-3*DarkEnergy%w_lam)
     end if
 
     !  Get sound speed and ionisation fraction.
@@ -2008,11 +1936,11 @@
 
     dgrho = dgrho_matter
 
-    if (w_lam /= -1 .and. w_Perturb) then
+    if (DarkEnergy%w_lam /= -1 .and. DarkEnergy%w_Perturb) then
         clxq=ay(EV%w_ix)
         vq=ay(EV%w_ix+1)
         dgrho=dgrho + clxq*grhov_t
-        dgq = dgq + vq*grhov_t*(1+w_lam)
+        dgq = dgq + vq*grhov_t*(1+DarkEnergy%w_lam)
     end if
 
     if (EV%no_nu_multpoles) then
@@ -2073,11 +2001,13 @@
         ayprime(2)=0.5_dl*dgq + CP%curv*z
     end if
 
-    if (w_lam /= -1 .and. w_Perturb) then
-        ayprime(EV%w_ix)= -3*adotoa*(cs2_lam-w_lam)*(clxq+3*adotoa*(1+w_lam)*vq/k) &
-            -(1+w_lam)*k*vq -(1+w_lam)*k*z
+    if (DarkEnergy%w_lam /= -1 .and. DarkEnergy%w_Perturb) then
+        ayprime(EV%w_ix)= -3*adotoa*(DarkEnergy%cs2_lam-DarkEnergy%w_lam)* &
+			(clxq+3*adotoa*(1+DarkEnergy%w_lam)*vq/k) &
+            -(1+DarkEnergy%w_lam)*k*vq -(1+DarkEnergy%w_lam)*k*z
 
-        ayprime(EV%w_ix+1) = -adotoa*(1-3*cs2_lam)*vq + k*cs2_lam*clxq/(1+w_lam)
+        ayprime(EV%w_ix+1) = -adotoa*(1-3*DarkEnergy%cs2_lam)*vq + &
+			k*DarkEnergy%cs2_lam*clxq/(1+DarkEnergy%w_lam)
     end if
 
     !  CDM equation of motion
@@ -2097,7 +2027,7 @@
 
     if (EV%TightCoupling) then
         !  ddota/a
-        gpres=gpres+ (grhog_t+grhor_t)/3 +grhov_t*w_lam
+        gpres=gpres+ (grhog_t+grhor_t)/3 +grhov_t*DarkEnergy%w_lam
         adotdota=(adotoa*adotoa-gpres)/2
 
         pig = 32._dl/45/opacity*k*(sigma+vb)
@@ -2234,7 +2164,7 @@
             end if
         end if
     end if ! no_nu_multpoles
-    
+
     if (associated(EV%OutputTransfer)) then
         EV%OutputTransfer(Transfer_kh) = k/(CP%h0/100._dl)
         EV%OutputTransfer(Transfer_cdm) = clxc
@@ -2372,10 +2302,10 @@
     grhoc_t=grhoc/a
     grhor_t=grhornomass/a2
     grhog_t=grhog/a2
-    grhov_t=grhov*a**(-1-3*w_lam)
+    grhov_t=grhov*a**(-1-3*DarkEnergy%w_lam)
 
     grho=grhob_t+grhoc_t+grhor_t+grhog_t+grhov_t
-    gpres=(grhog_t+grhor_t)/3._dl+grhov_t*w_lam
+    gpres=(grhog_t+grhor_t)/3._dl+grhov_t*DarkEnergy%w_lam
 
     adotoa=sqrt(grho/3._dl)
     adotdota=(adotoa*adotoa-gpres)/2
@@ -2526,10 +2456,10 @@
     grhoc_t=grhoc/a
     grhor_t=grhornomass/a2
     grhog_t=grhog/a2
-    if (w_lam==-1._dl) then
+    if (DarkEnergy%w_lam==-1._dl) then
         grhov_t=grhov*a2
     else
-        grhov_t=grhov*a**(-1-3*w_lam)
+        grhov_t=grhov*a**(-1-3*DarkEnergy%w_lam)
     end if
 
     grho=grhob_t+grhoc_t+grhor_t+grhog_t+grhov_t

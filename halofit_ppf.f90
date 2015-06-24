@@ -27,8 +27,8 @@
 
     module NonLinear
     use ModelParams
+    use DarkEnergyInterface
     use transfer
-    use LambdaGeneral
     implicit none
     private
 
@@ -50,11 +50,12 @@
 
     end subroutine NonLinear_ReadParams
 
-    subroutine NonLinear_GetNonLinRatios(CAMB_Pk)
+    subroutine NonLinear_GetNonLinRatios(CAMB_Pk, DarkE)
     !Fill the CAMB_Pk%nonlin_scaling array with sqrt(non-linear power/linear power)
     !for each redshift and wavenumber
     !This implementation uses Halofit
     type(MatterPowerData) :: CAMB_Pk
+    class(TDarkEnergy), intent(in) :: DarkE
     integer itf
     real(dl) a,plin,pq,ph,pnl,rk
     real(dl) sig,rknl,rneff,rncur,d1,d2
@@ -74,8 +75,8 @@
         ! curvature (rncur) of the power spectrum at the desired redshift, using method
         ! described in Smith et al (2002).
         a = 1/real(1+CAMB_Pk%Redshifts(itf),dl)
-        om_m = omega_m(a, omm0, CP%omegav, w_lam,wa_ppf)
-        om_v = omega_v(a, omm0, CP%omegav, w_lam,wa_ppf)
+        om_m = omega_m(a, omm0, CP%omegav, DarkE%w_lam, DarkE%wa_ppf)
+        om_v = omega_v(a, omm0, CP%omegav, DarkE%w_lam, DarkE%wa_ppf)
         acur = a
         xlogr1=-2.0
         xlogr2=3.5
@@ -121,7 +122,7 @@
                 ! where pq represents the quasi-linear (halo-halo) power and
                 ! where ph is represents the self-correlation halo term.
 
-                call halofit(rk,rneff,rncur,rknl,plin,pnl,pq,ph)   ! halo fitting formula
+                call halofit(rk,rneff,rncur,rknl,plin,pnl,pq,ph,DarkE)   ! halo fitting formula
                 CAMB_Pk%nonlin_ratio(i,itf) = sqrt(pnl/plin)
 
             end if
@@ -136,9 +137,10 @@
     !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
-    subroutine halofit(rk,rn,rncur,rknl,plin,pnl,pq,ph)
+    subroutine halofit(rk,rn,rncur,rknl,plin,pnl,pq,ph,DarkE)
     implicit none
 
+	class(TDarkEnergy), intent(in) :: DarkE
     real(dl) gam,a,b,c,xmu,xnu,alpha,beta,f1,f2,f3
     real(dl) rk,rn,plin,pnl,pq,ph,plinaa
     real(dl) rknl,y,rncur
@@ -152,21 +154,21 @@
     !SPB11: Standard halofit underestimates the power on the smallest scales by a
     !factor of two. Add an extra correction from the simulations in Bird, Viel,
     !Haehnelt 2011 which partially accounts for this.
-    if (halofit_version ==halofit_bird) then
-        extragam = 0.3159 -0.0765*rn -0.8350*rncur
-        gam=extragam+0.86485+0.2989*rn+0.1631*rncur
-    else
-        gam=0.86485+0.2989*rn+0.1631*rncur
-    end if
-    a=1.4861+1.83693*rn+1.67618*rn*rn+0.7940*rn*rn*rn+ &
-        0.1670756*rn*rn*rn*rn-0.620695*rncur
-    a=10**a
-    b=10**(0.9463+0.9466*rn+0.3084*rn*rn-0.940*rncur)
-    c=10**(-0.2807+0.6669*rn+0.3214*rn*rn-0.0793*rncur)
-    xmu=10**(-3.54419+0.19086*rn)
-    xnu=10**(0.95897+1.2857*rn)
-    alpha=1.38848+0.3701*rn-0.1452*rn*rn
-    beta=0.8291+0.9854*rn+0.3400*rn**2+fnu*(-6.4868+1.4373*rn**2)
+		if (halofit_version ==halofit_bird) then
+			extragam = 0.3159 -0.0765*rn -0.8350*rncur
+			gam=extragam+0.86485+0.2989*rn+0.1631*rncur
+		else
+			gam=0.86485+0.2989*rn+0.1631*rncur
+		end if
+		a=1.4861+1.83693*rn+1.67618*rn*rn+0.7940*rn*rn*rn+ &
+			0.1670756*rn*rn*rn*rn-0.620695*rncur
+		a=10**a
+		b=10**(0.9463+0.9466*rn+0.3084*rn*rn-0.940*rncur)
+		c=10**(-0.2807+0.6669*rn+0.3214*rn*rn-0.0793*rncur)
+		xmu=10**(-3.54419+0.19086*rn)
+		xnu=10**(0.95897+1.2857*rn)
+		alpha=1.38848+0.3701*rn-0.1452*rn*rn
+		beta=0.8291+0.9854*rn+0.3400*rn**2+fnu*(-6.4868+1.4373*rn**2)
     elseif (halofit_version == halofit_takahashi) then
         !RT12 Oct: the halofit in Smith+ 2003 predicts a smaller power
         !than latest N-body simulations at small scales.
@@ -176,10 +178,11 @@
         !cosmological models with constant w.
         gam=0.1971-0.0843*rn+0.8460*rncur
         a=1.5222+2.8553*rn+2.3706*rn*rn+0.9903*rn*rn*rn+ &
-            0.2250*rn*rn*rn*rn-0.6038*rncur+0.1749*om_v*(1.+w_lam+wa_ppf*(1-acur))
+            0.2250*rn*rn*rn*rn-0.6038*rncur+0.1749*om_v* &
+            (1.+DarkE%w_lam+DarkE%wa_ppf*(1-acur))
         a=10**a
         b=10**(-0.5642+0.5864*rn+0.5716*rn*rn-1.5474*rncur+ &
-            0.2279*om_v*(1.+w_lam+wa_ppf*(1-acur)))
+            0.2279*om_v*(1.+DarkE%w_lam+DarkE%wa_ppf*(1-acur)))
         c=10**(0.3698+2.0404*rn+0.8161*rn*rn+0.5869*rncur)
         xmu=0.
         xnu=10**(5.2105+3.6902*rn)
@@ -304,9 +307,10 @@
     subroutine NonLinear_GetRatios(CAMB_Pk)
     use Transfer
     use NonLinear
+    use DarkEnergyInterface
     type(MatterPowerData) :: CAMB_Pk
 
-    call NonLinear_GetNonLinRatios(CAMB_Pk)
+    call NonLinear_GetNonLinRatios(CAMB_Pk, DarkEnergy)
 
     end subroutine NonLinear_GetRatios
 

@@ -14,11 +14,10 @@ ifeq "$(ifortErr)" "0"
 #Intel compiler
 F90C     = ifort
 ifortVer_major = $(shell ifort -v 2>&1 | cut -d " " -f 3 | cut -d. -f 1)
-FFLAGS = -openmp -fast -W0 -WB -fpp
+COMMON_FFLAGS = -fpp -gen-dep=$$*.d -openmp
+FFLAGS = -fast -W0 -WB $(COMMON_FLAGS)
 #FFLAGS = -openmp -fast -W0 -WB -fpp2 -vec_report0
-DEBUGFLAGS =-openmp -g -check all -check noarg_temp_created -traceback -fpp -fpe0
-# Activate dependency generation by the compiler
-F90DEPFLAGS = -gen-dep=$$*.d
+DEBUGFLAGS =  -g -check all -check noarg_temp_created -traceback -fpe0 $(COMMON_FLAGS)
 ## This is flag is passed to the Fortran compiler allowing it to link C++ if required (not usually):
 F90CRLINK = -cxxlib
 ifeq "$(ifortVer_major)" "15"
@@ -43,11 +42,10 @@ ifeq "$(gfortErr)" "0"
 #Gfortran compiler:
 #The options here work in v4.6+
 F90C     = gfortran
-COMMON_FFLAGS = -cpp -ffree-line-length-none -fmax-errors=4
+COMMON_FFLAGS = -MMD -cpp -ffree-line-length-none
+# -fmax-errors=4
 FFLAGS = -O3 -fopenmp -ffast-math $(COMMON_FFLAGS)
 DEBUGFLAGS = -g -fbacktrace -ffpe-trap=invalid,overflow,zero -fbounds-check $(COMMON_FFLAGS)
-# Activate dependency generation by the compiler
-F90DEPFLAGS = -MMD
 MODOUT =  -J$(OUTPUT_DIR)
 
 ifneq ($(FISHER),)

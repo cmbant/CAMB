@@ -66,6 +66,7 @@
     use Errors
     use RangeUtils
     use constants
+    use DarkEnergyInterface
     implicit none
     private
 
@@ -123,6 +124,8 @@
     Type(ClTransferData), pointer :: ThisCT
 
     public cmbmain, ALens, ClTransferToCl, InitVars !InitVars for BAO hack
+
+    real(dl), private, external :: dtauda
 
     contains
 
@@ -921,9 +924,8 @@
     real(dl) tau,tol1,tauend, taustart
     integer j,ind,itf
     real(dl) c(24),w(EV%nvar,9), y(EV%nvar), sources(SourceNum)
-    real(dl) yprime(EV%nvar), ddelta, delta, adotoa,dtauda, growth
+    real(dl) yprime(EV%nvar), ddelta, delta, adotoa, growth
     type(TTextFile) :: F
-    external dtauda
 
     if (fixq/=0._dl) then
         !evolution output
@@ -1150,7 +1152,7 @@
 
     call Transfer_GetMatterPowerData(MT, CAMB_PK, 1)
 
-    call NonLinear_GetNonLinRatios(CAMB_PK)
+    call NonLinear_GetNonLinRatios(CAMB_PK, DarkEnergy)
 
     if (CP%InitPower%nn > 1) stop 'Non-linear lensing only does one initial power'
 

@@ -247,6 +247,8 @@
 
     Type(TBackgroundOutputs), save :: BackgroundOutputs
 
+    real(dl), private, external :: dtauda
+
     contains
 
 
@@ -382,7 +384,7 @@
 
     if (.not.call_again) then
         call init_massive_nu(CP%omegan /=0)
-        call init_background
+!        call DarkEnergy%Init_Background()
         if (global_error_flag==0) then
             CP%tau0=TimeOfz(0._dl)
             ! print *, 'chi = ',  (CP%tau0 - TimeOfz(0.15_dl)) * CP%h0/100
@@ -512,8 +514,8 @@
     real(dl) DeltaTime, atol
     real(dl), intent(IN) :: a1,a2
     real(dl), optional, intent(in) :: in_tol
-    real(dl) dtauda, rombint !diff of tau w.CP%r.t a and integration
-    external dtauda, rombint
+    real(dl) rombint
+    external rombint
 
     atol = PresentDefault(tol/1000/exp(AccuracyBoost-1), in_tol)
     DeltaTime = rombint(dtauda,a1,a2,atol)
@@ -575,9 +577,8 @@
 
     function Hofz(z)
     !!non-comoving Hubble in MPC units, divide by MPC_in_sec to get in SI units
-    real(dl) Hofz, dtauda,a
+    real(dl) Hofz, a
     real(dl), intent(in) :: z
-    external dtauda
 
     a = 1/(1+z)
     Hofz = 1/(a**2*dtauda(a))
@@ -602,8 +603,7 @@
 
     function dsound_da_exact(a)
     implicit none
-    real(dl) dsound_da_exact,dtauda,a,R,cs
-    external dtauda
+    real(dl) dsound_da_exact,a,R,cs
 
     R = 3*grhob*a / (4*grhog)
     cs=1.0d0/sqrt(3*(1+R))
@@ -614,8 +614,7 @@
     function dsound_da(a)
     !approximate form used e.g. by CosmoMC for theta
     implicit none
-    real(dl) dsound_da,dtauda,a,R,cs
-    external dtauda
+    real(dl) dsound_da,a,R,cs
 
     R=3.0d4*a*CP%omegab*(CP%h0/100.0d0)**2
     !          R = 3*grhob*a / (4*grhog) //above is mostly within 0.2% and used for previous consistency
@@ -625,8 +624,8 @@
     end function dsound_da
 
     function dtda(a)
-    real(dl) dtda,dtauda,a
-    external dtauda
+    real(dl) dtda,a
+
     dtda= dtauda(a)*a
     end function
 
@@ -2401,6 +2400,8 @@
     public thermo,inithermo,vis,opac,expmmu,dvis,dopac,ddvis,lenswin, tight_tau,&
         Thermo_OpacityToTime,matter_verydom_tau, ThermoData_Free,&
         z_star, z_drag  !!JH for updated BAO likelihood.
+
+	real(dl), external, private :: dtauda
     contains
 
     subroutine thermo(tau, cs2b, opacity, dopacity)
@@ -2480,8 +2481,6 @@
     integer ncount,i,j1,j2,iv,ns
     real(dl) spline_data(nthermo)
     real(dl) last_dotmu
-    real(dl) dtauda  !diff of tau w.CP%r.t a and integration
-    external dtauda
     real(dl) a_verydom
     real(dl) awin_lens1p,awin_lens2p,dwing_lens, rs, DA
     real(dl) z_eq, a_eq
@@ -2884,8 +2883,6 @@
     real(dl) :: ddamping_da
     real(dl), intent(in) :: a
     real(dl) :: R
-    real(dl) :: dtauda
-    external dtauda
 
     R=r_drag0*a
     !ignoring reionisation, not relevant for distance measures
@@ -2901,8 +2898,6 @@
     real(dl) :: doptdepth_dz
     real(dl), intent(in) :: z
     real(dl) :: a
-    real(dl) :: dtauda
-    external dtauda
 
     a = 1._dl/(1._dl+z)
 

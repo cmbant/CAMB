@@ -6,7 +6,6 @@
     program driver
     use IniObjects
     use CAMB
-    use LambdaGeneral
     use Lensing
     use Transfer
     use constants
@@ -99,7 +98,9 @@
 
     !  Read initial parameters.
 
-    call DarkEnergy_ReadParams(Ini)
+	allocate (TDarkEnergy::DarkEnergy)
+    call DarkEnergy%ReadParams(Ini)
+    call DarkEnergy%Init_Background()
 
     P%h0 = Ini%Read_Double('hubble')
 
