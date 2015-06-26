@@ -111,9 +111,6 @@
         real(dl) pig, pigdot !For tight coupling
         real(dl) poltruncfac
 
-        !PPF parameters
-        real(dl) dgrho_e_ppf, dgq_e_ppf
-
         logical no_nu_multpoles, no_phot_multpoles
         integer lmaxnu_tau(max_nu)  !lmax for massive neutinos at time being integrated
         logical nu_nonrelativistic(max_nu)
@@ -444,13 +441,7 @@
     maxeq = maxeq +  (EV%lmaxg+1)+(EV%lmaxnr+1)+EV%lmaxgpol-1
 
     !Dark energy
-    if (.not. is_cosmological_constant) then
-        EV%w_ix = neq+1
-        neq=neq+1 !ppf
-        maxeq=maxeq+1
-    else
-        EV%w_ix=0
-    end if
+    call DarkEnergy%SetupIndices(EV%w_ix, neq, maxeq)
 
     !Massive neutrinos
     if (CP%Num_Nu_massive /= 0) then
@@ -504,9 +495,7 @@
 
     yout=0
     yout(1:basic_num_eqns) = y(1:basic_num_eqns)
-    if (.not. is_cosmological_constant) then
-        yout(EVout%w_ix)=y(EV%w_ix)
-    end if
+    call DarkEnergy%PrepYout(EVOut%w_ix, EV%w_ix, yout, y)
 
     if (.not. EV%no_phot_multpoles .and. .not. EVout%no_phot_multpoles) then
         if (EV%TightCoupling .or. EVOut%TightCoupling) then
@@ -851,7 +840,6 @@
     real(dl) pinudot,grhormass_t, rhonu, pnu,  rhonudot
     real(dl) adotoa, grhonu_t,gpnu_t
     real(dl) clxnu, qnu, pinu, dpnu, grhonu, dgrhonu
-    real(dl) dtauda
 
     grhonu=0
     dgrhonu=0
@@ -1117,12 +1105,9 @@
     !dgpi_diff = sum (3*p_nu -rho_nu)*pi_nu
 
     real(dl) k,k2  ,adotoa, grho, gpres,etak,phi,dgpi
-    real(dl)  diff_rhopi, octg, octgprime
+    real(dl) diff_rhopi, octg, octgprime
     real(dl) sources(CTransScal%NumSources)
-    !        real(dl) t4,t92
     real(dl) ISW
-    real(dl) w_eff
-    real(dl) hdotoh,ppiedot
 
     yprime = 0
     call derivs(EV,EV%ScalEqsToPropagate,tau,y,yprime)
@@ -1161,27 +1146,19 @@
     !  8*pi*a*a*SUM[(rho_i+p_i)*v_i]
     dgq=grhob_t*vb
 
-    if (is_cosmological_constant) then
-        w_eff = -1_dl
-        grhov_t=grhov*a2
-    else
-        !ppf
-        w_eff=w_de(a)   !effective de
-        grhov_t=grho_de(a)/a2
-        dgrho=dgrho+EV%dgrho_e_ppf
-        dgq=dgq+EV%dgq_e_ppf
-    end if
-    grho=grhob_t+grhoc_t+grhor_t+grhog_t+grhov_t
-    gpres=(grhog_t+grhor_t)/3+grhov_t*w_eff
+    call DarkEnergy%OutputPreMassiveNu(grhov_t, grho, gpres, dgq, &
+        a, grhov, grhoc_t, grhor_t, grhog_t)
 
-
-    dgpi= 0
+    dgpi = 0
     dgpi_diff = 0
     pidot_sum = 0
 
     if (CP%Num_Nu_Massive /= 0) then
         call MassiveNuVarsOut(EV,y,yprime,a,grho,gpres,dgrho,dgq,dgpi, dgpi_diff,pidot_sum)
     end if
+
+    call DarkEnergy%OutputPostMassiveNu(dgrho, dgq, &
+        grhov_t, y(EV%w_ix), y(EV%w_ix + 1))
 
     adotoa=sqrt((grho+grhok)/3)
 
@@ -1243,15 +1220,6 @@
     z=(0.5_dl*dgrho/k + etak)/adotoa
     sigma=(z+1.5_dl*dgq/k2)/EV%Kf(1)
 
-    if (is_cosmological_constant) then
-        ppiedot=0
-    else
-        hdotoh=(-3._dl*grho-3._dl*gpres -2._dl*grhok)/6._dl/adotoa
-        ppiedot=3._dl*EV%dgrho_e_ppf+EV%dgq_e_ppf*(12._dl/k*adotoa+k/adotoa-3._dl/k*(adotoa+hdotoh))+ &
-            grhov_t*(1+w_eff)*k*z/adotoa -2._dl*k2*EV%Kf(1)*(yprime(EV%w_ix)/adotoa-2._dl*y(EV%w_ix))
-        ppiedot=ppiedot*adotoa/EV%Kf(1)
-    end if
-
     polter = 0.1_dl*pig+9._dl/15._dl*ypol(2)
 
     if (CP%flat) then
@@ -1275,8 +1243,9 @@
     end if
 
     pidot_sum =  pidot_sum + grhog_t*pigdot + grhor_t*pirdot
-    diff_rhopi = pidot_sum - (4*dgpi+ dgpi_diff )*adotoa + ppiedot
-
+    diff_rhopi = pidot_sum - (4 * dgpi + dgpi_diff) * adotoa + &
+        DarkEnergy%diff_rhopi_Add_Term(grho, gpres, grhok, adotoa, &
+            EV, k, grhov_t, z, k2, yprime(EV%w_ix), y(EV%w_ix))
 
     !Maple's fortran output - see scal_eqs.map
     !2phi' term (\phi' + \psi' in Newtonian gauge)
@@ -1357,7 +1326,6 @@
     real(dl) k,k2
     real(dl), dimension(:),pointer :: E,Bprime,Eprime
     real(dl), target :: pol(3),polEprime(3), polBprime(3)
-    real(dl) dtauda
 
     call derivst(EV,EV%nvart,tau,yt,ytprime)
 
@@ -1653,9 +1621,7 @@
     y(EV%g_ix)=InitVec(i_clxg)
     y(EV%g_ix+1)=InitVec(i_qg)
 
-    if (.not. is_cosmological_constant) then
-        y(EV%w_ix) = InitVec(i_clxq) !ppf: Gamma=0, i_clxq stands for i_Gamma
-    end if
+    call DarkEnergy%InitialzeYfromVec(y, EV%w_ix, InitVec(i_clxq), InitVec(i_vq))
 
     !  Neutrinos
     y(EV%r_ix)=InitVec(i_clxr)
@@ -1884,9 +1850,6 @@
     real(dl) dgpi,dgrho_matter,grho_matter, clxnu_all
     !non-flat vars
     real(dl) cothxor !1/tau in flat case
-    !ppf
-    real(dl) Gamma,S_Gamma,ckH,Gammadot,Fa,dgqe,dgrhoe, vT
-    real(dl) w_eff, grhoT
 
     k=EV%k_buf
     k2=EV%k2_buf
@@ -1909,14 +1872,7 @@
     grhoc_t=grhoc/a
     grhor_t=grhornomass/a2
     grhog_t=grhog/a2
-    if (is_cosmological_constant) then
-        grhov_t=grhov*a2
-        w_eff = -1_dl
-    else
-        !ppf
-        w_eff=w_de(a)   !effective de
-        grhov_t=grho_de(a)/a2
-    end if
+    call DarkEnergy%DerivsPrep(grhov_t, gpres, a, grhov)
 
     !  Get sound speed and ionisation fraction.
     if (EV%TightCoupling) then
@@ -1925,7 +1881,6 @@
         call thermo(tau,cs2,opacity)
     end if
 
-    gpres=(grhor_t+grhog_t)/3._dl
     grho_matter=grhob_t+grhoc_t
 
     !total perturbations: matter terms first, then add massive nu, de and radiation
@@ -1949,13 +1904,7 @@
     end if
 
     dgrho = dgrho_matter
-
-    ! if (w_lam /= -1 .and. w_Perturb) then
-    !    clxq=ay(EV%w_ix)
-    !    vq=ay(EV%w_ix+1)
-    !    dgrho=dgrho + clxq*grhov_t
-    !    dgq = dgq + vq*grhov_t*(1+w_lam)
-    !end if
+    call DarkEnergy%DervisPrepDerivs(dgrho, dgq, ay(EV%w_ix), ay(EV%w_ix + 1), grhov_t)
 
     if (EV%no_nu_multpoles) then
         !RSA approximation of arXiv:1104.2933, dropping opactity terms in the velocity
@@ -2002,38 +1951,8 @@
 
     ayprime(1)=adotoa*a
 
-    if (.not. is_cosmological_constant) then
-        !ppf
-        grhoT = grho - grhov_t
-        vT= dgq/(grhoT+gpres)
-        Gamma=ay(EV%w_ix)
-
-        !sigma for ppf
-        sigma = (etak + (dgrho + 3*adotoa/k*dgq)/2._dl/k)/EV%kf(1) - k*Gamma
-        sigma = sigma/adotoa
-
-        S_Gamma=grhov_t*(1+w_eff)*(vT+sigma)*k/adotoa/2._dl/k2
-        ckH=c_Gamma_ppf*k/adotoa
-        Gammadot=S_Gamma/(1+ckH*ckH)- Gamma -ckH*ckH*Gamma
-        Gammadot=Gammadot*adotoa
-        ayprime(EV%w_ix)=Gammadot
-
-        if(ckH*ckH.gt.3.d1)then
-            Gamma=0
-            Gammadot=0.d0
-            ayprime(EV%w_ix)=Gammadot
-        endif
-
-        Fa=1+3*(grhoT+gpres)/2._dl/k2/EV%kf(1)
-        dgqe=S_Gamma - Gammadot/adotoa - Gamma
-        dgqe=-dgqe/Fa*2._dl*k*adotoa + vT*grhov_t*(1+w_eff)
-        dgrhoe=-2*k2*EV%kf(1)*Gamma-3/k*adotoa*dgqe
-        dgrho=dgrho+dgrhoe
-        dgq=dgq+dgqe
-
-        EV%dgrho_e_ppf=dgrhoe
-        EV%dgq_e_ppf=dgqe
-    end if
+    call DarkEnergy%DerivsAddPreSigma(sigma, ayprime(EV%w_ix), dgq, dgrho, &
+        grho, grhov_t, gpres, ay(EV%w_ix), etak, adotoa, k, k2, EV%kf(1))
 
     !  Get sigma (shear) and z from the constraints
     ! have to get z from eta for numerical stability
@@ -2047,14 +1966,8 @@
         ayprime(2)=0.5_dl*dgq + CP%curv*z
     end if
 
-    !if (w_lam /= -1 .and. w_Perturb) then
-    !
-    !   ayprime(EV%w_ix)= -3*adotoa*(cs2_lam-w_lam)*(clxq+3*adotoa*(1+w_lam)*vq/k) &
-    !       -(1+w_lam)*k*vq -(1+w_lam)*k*z
-    !
-    !   ayprime(EV%w_ix+1) = -adotoa*(1-3*cs2_lam)*vq + k*cs2_lam*clxq/(1+w_lam)
-    !
-    !end if
+    call DarkEnergy%DerivsAddPostSigma(ayprime(EV%w_ix), ayprime(EV%w_ix + 1), &
+        adotoa, k, z)
 
     !  CDM equation of motion
     clxcdot=-k*z
@@ -2073,7 +1986,7 @@
 
     if (EV%TightCoupling) then
         !  ddota/a
-        gpres=gpres + grhov_t*w_eff
+        gpres = gpres + DarkEnergy%DerivsAdd2Gpres(grhog_t, grhor_t, grhov_t)
         adotdota=(adotoa*adotoa-gpres)/2
 
         pig = 32._dl/45/opacity*k*(sigma+vb)
@@ -2350,10 +2263,10 @@
     grhoc_t=grhoc/a
     grhor_t=grhornomass/a2
     grhog_t=grhog/a2
-    grhov_t=grhov*a**(-1-3*w_lam)
+    grhov_t=grhov*a**(-1-3*DarkEnergy%w_lam)
 
     grho=grhob_t+grhoc_t+grhor_t+grhog_t+grhov_t
-    gpres=(grhog_t+grhor_t)/3._dl+grhov_t*w_lam
+    gpres=(grhog_t+grhor_t)/3._dl+grhov_t*DarkEnergy%w_lam
 
     adotoa=sqrt(grho/3._dl)
     adotdota=(adotoa*adotoa-gpres)/2
@@ -2504,11 +2417,7 @@
     grhoc_t=grhoc/a
     grhor_t=grhornomass/a2
     grhog_t=grhog/a2
-    if (is_cosmological_constant) then
-        grhov_t=grhov*a2
-    else
-        grhov_t=grho_de(a)/a2
-    end if
+    call DarkEnergy%DervisPrep(grhov_t, gpres, a, grhov, grhov_t, grhog_t)
 
     grho=grhob_t+grhoc_t+grhor_t+grhog_t+grhov_t
 

@@ -1152,7 +1152,7 @@
 
     call Transfer_GetMatterPowerData(MT, CAMB_PK, 1)
 
-    call NonLinear_GetNonLinRatios(CAMB_PK, DarkEnergy)
+    call NonLinear_GetNonLinRatios(CAMB_PK)
 
     if (CP%InitPower%nn > 1) stop 'Non-linear lensing only does one initial power'
 

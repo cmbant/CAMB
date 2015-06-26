@@ -17,6 +17,167 @@
     ! Feb 2013: fixed various issues with accuracy at larger neutrino masses
     ! Mar 2014: fixes for tensors with massive neutrinos
 
+    module DarkEnergyInterface
+    use precision
+    implicit none
+
+    type, abstract :: TDarkEnergyBase
+        real(dl) :: w_lam = -1_dl !p/rho for the dark energy (assumed constant)
+
+        real(dl) :: wa_ppf = 0._dl !Not used here, just for compatibility with e.g. halofit
+    contains
+    procedure :: ReadParams
+    procedure :: Init_Background
+    procedure :: dtauda_Add_Term
+    procedure :: SetupIndices
+    procedure :: PrepYout
+    procedure :: OutputPreMassiveNu
+    procedure :: OutputPostMassiveNu
+    procedure :: diff_rhopi_Add_Term
+    procedure :: InitializeYfromVec
+    procedure :: DerivsPrep
+    procedure :: DerivsPrepDerivs
+    procedure :: DerivsAddPreSigma
+    procedure :: DerivsAddPostSigma
+    procedure :: DerivsAdd2Gpres
+    end type TDarkEnergyBase
+
+   class(TDarkEnergyBase), allocatable :: DarkEnergy
+
+    contains
+
+    subroutine ReadParams(this, Ini)
+    use IniObjects
+    class(TDarkEnergyBase), intent(inout) :: this
+    type(TIniFile), intent(in) :: Ini
+    end subroutine ReadParams
+
+
+    subroutine Init_Background(this)
+    class(TDarkEnergyBase) :: this
+    end subroutine Init_Background
+
+
+    function dtauda_Add_Term(this, a)
+    class(TDarkEnergyBase), intent(in) :: this
+    real(dl), intent(in) :: a
+    real(dl) :: dtauda_Add_Term
+    end function dtauda_Add_Term
+
+
+    subroutine SetupIndices(this, w_ix, neq, maxeq)
+    class(TDarkEnergyBase), intent(in) :: this
+    integer, intent(inout) :: w_ix, neq, maxeq
+    end subroutine SetupIndices
+
+
+    subroutine PrepYout(this, w_ix_out, w_ix, yout, y)
+    class(TDarkEnergyBase), intent(in) :: this
+    integer, intent(in) :: w_ix_out, w_ix
+    real(dl), intent(inout) :: yout(:)
+    real(dl), intent(in) :: y(:)
+    end subroutine PrepYout
+
+
+    subroutine OutputPreMassiveNu(this, grhov_t, grho, gpres, dgq, dgrho, &
+        a, grhov, grhob_t, grhoc_t, grhor_t, grhog_t)
+    class(TDarkEnergyBase), intent(inout) :: this
+    real(dl), intent(inout) :: grhov_t, grho, gpres, dgq, dgrho
+    real(dl), intent(in) :: a, grhov, grhob_t, grhoc_t, grhor_t, grhog_t
+    end subroutine OutputPreMassiveNu
+
+
+    subroutine OutputPostMassiveNu(this, dgrho, dgq, &
+        grhov_t, y, w_ix)
+    class(TDarkEnergyBase), intent(inout) :: this
+    real(dl), intent(inout) :: dgrho, dgq
+    real(dl), intent(in) :: grhov_t, y(:)
+    integer, intent(in) :: w_ix
+    end subroutine OutputPostMassiveNu
+
+
+    function diff_rhopi_Add_Term(this, grho, gpres, grhok, adotoa, &
+        EV_KfAtOne, k, grhov_t, z, k2, yprime, y, w_ix) result(ppiedot)
+    class(TDarkEnergyBase), intent(in) :: this
+    real(dl), intent(in) :: grho, gpres, grhok, adotoa, &
+        k, grhov_t, z, k2, yprime(:), y(:), EV_KfAtOne
+    integer, intent(in) :: w_ix
+    real(dl) :: ppiedot
+    end function diff_rhopi_Add_Term
+
+
+    subroutine InitializeYfromVec(this, y, EV_w_ix, InitVecAti_clxq, InitVecAti_vq)
+    class(TDarkEnergyBase), intent(in) :: this
+    real(dl), intent(inout) :: y(:)
+    integer, intent(in) :: EV_w_ix
+    real(dl), intent(in) :: InitVecAti_clxq, InitVecAti_vq
+    end subroutine InitializeYfromVec
+
+
+    subroutine DerivsPrep(this, grhov_t, &
+        a, grhov, grhor_t, grhog_t, gpres)
+    class(TDarkEnergyBase), intent(inout) :: this
+    real(dl), intent(inout) :: grhov_t
+    real(dl), intent(inout), optional :: gpres
+    real(dl), intent(in) :: a, grhov, grhor_t, grhog_t
+    end subroutine DerivsPrep
+
+
+    subroutine DerivsPrepDerivs(this, dgrho, dgq, &
+        ay, w_ix, grhov_t)
+    class(TDarkEnergyBase), intent(inout) :: this
+    real(dl), intent(inout) :: dgrho, dgq
+    real(dl), intent(in) :: grhov_t
+    real(dl), intent(in) :: ay(:)
+    integer, intent(in) :: w_ix
+    end subroutine DerivsPrepDerivs
+
+
+    subroutine DerivsAddPreSigma(this, sigma, ayprime, dgq, dgrho, &
+        grho, grhov_t,  gpres, ay, w_ix, etak, adotoa, k, k2, EV_kf1)
+    class(TDarkEnergyBase), intent(inout) :: this
+    real(dl), intent(inout) :: sigma, ayprime(:), dgq, dgrho
+    real(dl), intent(in) :: grho, grhov_t, gpres, ay(:), etak
+    real(dl), intent(in) :: adotoa, k, k2, EV_kf1
+    integer, intent(in) :: w_ix
+    end subroutine DerivsAddPreSigma
+
+
+    subroutine DerivsAddPostSigma(this, ayprime, w_ix, &
+        adotoa, k, z)
+    class(TDarkEnergyBase), intent(in) :: this
+    real(dl), intent(inout) :: ayprime(:)
+    real(dl), intent(in) :: adotoa, k, z
+    integer, intent(in) :: w_ix
+    end subroutine DerivsAddPostSigma
+
+
+    function DerivsAdd2Gpres(this, grhog_t, grhor_t, grhov_t) result(gpres)
+    class(TDarkEnergyBase), intent(in) :: this
+    real(dl), intent(in) :: grhog_t, grhor_t, grhov_t
+    real(dl) :: gpres
+    end function DerivsAdd2Gpres
+
+    end module DarkEnergyInterface
+
+    ! cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+
+	! Wrapper to get dtauda of DarkEnergy
+    function dtauda(a)
+    use precision
+    use ModelParams
+	use DarkEnergyInterface
+	implicit none
+	real(dl), intent(in) :: a
+	real(dl) :: dtauda, grhoa2
+
+    !  8*pi*G*rho*a**4.
+    grhoa2 = grhok * a * a + (grhoc + grhob) * a + grhog + grhornomass + &
+        DarkEnergy%dtauda_Add_Term(a)
+
+    dtauda = sqrt(3 / grhoa2)
+
+	end function dtauda
 
     !Return OmegaK - modify this if you add extra fluid components
     function GetOmegak()
@@ -453,13 +614,7 @@
     maxeq = maxeq +  (EV%lmaxg+1)+(EV%lmaxnr+1)+EV%lmaxgpol-1
 
     !Dark energy
-    if (DarkEnergy%w_lam /= -1 .and. DarkEnergy%w_Perturb) then
-        EV%w_ix = neq+1
-        neq=neq+2
-        maxeq=maxeq+2
-    else
-        EV%w_ix=0
-    end if
+    call DarkEnergy%SetupIndices(EV%w_ix, neq, maxeq)
 
     !Massive neutrinos
     if (CP%Num_Nu_massive /= 0) then
@@ -513,10 +668,7 @@
 
     yout=0
     yout(1:basic_num_eqns) = y(1:basic_num_eqns)
-    if (DarkEnergy%w_lam /= -1 .and. DarkEnergy%w_Perturb) then
-        yout(EVout%w_ix)=y(EV%w_ix)
-        yout(EVout%w_ix+1)=y(EV%w_ix+1)
-    end if
+    call DarkEnergy%PrepYout(EVOut%w_ix, EV%w_ix, yout, y)
 
     if (.not. EV%no_phot_multpoles .and. .not. EVout%no_phot_multpoles) then
         if (EV%TightCoupling .or. EVOut%TightCoupling) then
@@ -1126,7 +1278,7 @@
     !dgpi_diff = sum (3*p_nu -rho_nu)*pi_nu
 
     real(dl) k,k2  ,adotoa, grho, gpres,etak,phi,dgpi
-    real(dl) clxq, vq, diff_rhopi, octg, octgprime
+    real(dl) diff_rhopi, octg, octgprime
     real(dl) sources(CTransScal%NumSources)
     real(dl) ISW
 
@@ -1160,9 +1312,6 @@
     grhoc_t=grhoc/a
     grhor_t=grhornomass/a2
     grhog_t=grhog/a2
-    grhov_t=grhov*a**(-1-3*DarkEnergy%w_lam)
-    grho=grhob_t+grhoc_t+grhor_t+grhog_t+grhov_t
-    gpres=(grhog_t+grhor_t)/3+grhov_t*DarkEnergy%w_lam
 
     !  8*pi*a*a*SUM[rho_i*clx_i] add radiation later
     dgrho=grhob_t*clxb+grhoc_t*clxc
@@ -1170,7 +1319,10 @@
     !  8*pi*a*a*SUM[(rho_i+p_i)*v_i]
     dgq=grhob_t*vb
 
-    dgpi=0
+    call DarkEnergy%OutputPreMassiveNu(grhov_t, grho, gpres, dgq, dgrho, &
+        a, grhov, grhob_t, grhoc_t, grhor_t, grhog_t)
+
+    dgpi = 0
     dgpi_diff = 0
     pidot_sum = 0
 
@@ -1178,12 +1330,7 @@
         call MassiveNuVarsOut(EV,y,yprime,a,grho,gpres,dgrho,dgq,dgpi, dgpi_diff,pidot_sum)
     end if
 
-    if (DarkEnergy%w_lam /= -1 .and. DarkEnergy%w_Perturb) then
-        clxq=y(EV%w_ix)
-        vq=y(EV%w_ix+1)
-        dgrho=dgrho + clxq*grhov_t
-        dgq = dgq + vq*grhov_t*(1+DarkEnergy%w_lam)
-    end if
+    call DarkEnergy%OutputPostMassiveNu(dgrho, dgq, grhov_t, y, EV%w_ix)
 
     adotoa=sqrt((grho+grhok)/3)
 
@@ -1268,7 +1415,9 @@
     end if
 
     pidot_sum =  pidot_sum + grhog_t*pigdot + grhor_t*pirdot
-    diff_rhopi = pidot_sum - (4*dgpi+ dgpi_diff )*adotoa
+    diff_rhopi = pidot_sum - (4 * dgpi + dgpi_diff) * adotoa + &
+        DarkEnergy%diff_rhopi_Add_Term(grho, gpres, grhok, adotoa, &
+            EV%kf(1), k, grhov_t, z, k2, yprime, y, EV%w_ix)
 
     !Maple's fortran output - see scal_eqs.map
     !2phi' term (\phi' + \psi' in Newtonian gauge)
@@ -1296,8 +1445,8 @@
     !Equivalent full result
     !    t4 = 1.D0/adotoa
     !    t92 = k**2
-    !   sources(1) = (4.D0/3.D0*EV%Kf(1)*expmmu(j)*sigma+2.D0/3.D0*(-sigma-t4*etak)*expmmu(j))*k+ &
-    !       (3.D0/8.D0*ypol(2)+pig/16.D0+clxg/4.D0)*vis(j)
+    !    sources(1) = (4.D0/3.D0*EV%Kf(1)*expmmu(j)*sigma+2.D0/3.D0*(-sigma-t4*etak)*expmmu(j))*k+ &
+    !        (3.D0/8.D0*ypol(2)+pig/16.D0+clxg/4.D0)*vis(j)
     !    sources(1) = sources(1)-t4*expmmu(j)*dgrho/3.D0+((11.D0/10.D0*sigma- &
     !         3.D0/8.D0*EV%Kf(2)*ypol(3)+vb+ 3.D0/40.D0*qg-9.D0/80.D0*EV%Kf(2)*y(9))*dvis(j)+(5.D0/3.D0*grho+ &
     !        gpres)*sigma*expmmu(j)+(-2.D0*adotoa*etak*expmmu(j)+21.D0/10.D0*etak*vis(j))/ &
@@ -1320,7 +1469,7 @@
     if (CTransScal%NumSources > 2) then
         !Get lensing sources
         !Can modify this here if you want to get power spectra for other tracer
-        if (tau>tau_maxvis .and. CP%tau0-tau > 0.1_dl) then
+        if (tau > tau_maxvis .and. CP%tau0-tau > 0.1_dl) then
             !phi_lens = Phi - 1/2 kappa (a/k)^2 sum_i rho_i pi_i
             phi = -(dgrho +3*dgq*adotoa/k)/(k2*EV%Kf(1)*2) - dgpi/k2/2
 
@@ -1644,10 +1793,7 @@
     y(EV%g_ix)=InitVec(i_clxg)
     y(EV%g_ix+1)=InitVec(i_qg)
 
-    if (DarkEnergy%w_lam /= -1 .and. DarkEnergy%w_Perturb) then
-        y(EV%w_ix) = InitVec(i_clxq)
-        y(EV%w_ix+1) = InitVec(i_vq)
-    end if
+    call DarkEnergy%InitializeYfromVec(y, EV%w_ix, InitVec(i_clxq), InitVec(i_vq))
 
     !  Neutrinos
     y(EV%r_ix)=InitVec(i_clxr)
@@ -1898,11 +2044,7 @@
     grhoc_t=grhoc/a
     grhor_t=grhornomass/a2
     grhog_t=grhog/a2
-    if (DarkEnergy%w_lam==-1._dl) then
-        grhov_t=grhov*a2
-    else
-        grhov_t=grhov*a**(-1-3*DarkEnergy%w_lam)
-    end if
+    call DarkEnergy%DerivsPrep(grhov_t, a, grhov, grhor_t, grhog_t, gpres)
 
     !  Get sound speed and ionisation fraction.
     if (EV%TightCoupling) then
@@ -1911,7 +2053,6 @@
         call thermo(tau,cs2,opacity)
     end if
 
-    gpres=0
     grho_matter=grhob_t+grhoc_t
 
     !total perturbations: matter terms first, then add massive nu, de and radiation
@@ -1935,13 +2076,7 @@
     end if
 
     dgrho = dgrho_matter
-
-    if (DarkEnergy%w_lam /= -1 .and. DarkEnergy%w_Perturb) then
-        clxq=ay(EV%w_ix)
-        vq=ay(EV%w_ix+1)
-        dgrho=dgrho + clxq*grhov_t
-        dgq = dgq + vq*grhov_t*(1+DarkEnergy%w_lam)
-    end if
+    call DarkEnergy%DerivsPrepDerivs(dgrho, dgq, ay, EV%w_ix, grhov_t)
 
     if (EV%no_nu_multpoles) then
         !RSA approximation of arXiv:1104.2933, dropping opactity terms in the velocity
@@ -1988,6 +2123,8 @@
 
     ayprime(1)=adotoa*a
 
+    call DarkEnergy%DerivsAddPreSigma(sigma, ayprime, dgq, dgrho, &
+        grho, grhov_t, gpres, ay, EV%w_ix, etak, adotoa, k, k2, EV%kf(1))
 
     !  Get sigma (shear) and z from the constraints
     ! have to get z from eta for numerical stability
@@ -2001,14 +2138,7 @@
         ayprime(2)=0.5_dl*dgq + CP%curv*z
     end if
 
-    if (DarkEnergy%w_lam /= -1 .and. DarkEnergy%w_Perturb) then
-        ayprime(EV%w_ix)= -3*adotoa*(DarkEnergy%cs2_lam-DarkEnergy%w_lam)* &
-			(clxq+3*adotoa*(1+DarkEnergy%w_lam)*vq/k) &
-            -(1+DarkEnergy%w_lam)*k*vq -(1+DarkEnergy%w_lam)*k*z
-
-        ayprime(EV%w_ix+1) = -adotoa*(1-3*DarkEnergy%cs2_lam)*vq + &
-			k*DarkEnergy%cs2_lam*clxq/(1+DarkEnergy%w_lam)
-    end if
+    call DarkEnergy%DerivsAddPostSigma(ayprime, EV%w_ix, adotoa, k, z)
 
     !  CDM equation of motion
     clxcdot=-k*z
@@ -2027,7 +2157,7 @@
 
     if (EV%TightCoupling) then
         !  ddota/a
-        gpres=gpres+ (grhog_t+grhor_t)/3 +grhov_t*DarkEnergy%w_lam
+        gpres = gpres + DarkEnergy%DerivsAdd2Gpres(grhog_t, grhor_t, grhov_t)
         adotdota=(adotoa*adotoa-gpres)/2
 
         pig = 32._dl/45/opacity*k*(sigma+vb)
@@ -2456,11 +2586,7 @@
     grhoc_t=grhoc/a
     grhor_t=grhornomass/a2
     grhog_t=grhog/a2
-    if (DarkEnergy%w_lam==-1._dl) then
-        grhov_t=grhov*a2
-    else
-        grhov_t=grhov*a**(-1-3*DarkEnergy%w_lam)
-    end if
+    call DarkEnergy%DerivsPrep(grhov_t, a, grhov, grhov_t, grhog_t)
 
     grho=grhob_t+grhoc_t+grhor_t+grhog_t+grhov_t
 

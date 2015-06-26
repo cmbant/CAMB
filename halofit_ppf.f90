@@ -50,12 +50,11 @@
 
     end subroutine NonLinear_ReadParams
 
-    subroutine NonLinear_GetNonLinRatios(CAMB_Pk, DarkE)
+    subroutine NonLinear_GetNonLinRatios(CAMB_Pk)
     !Fill the CAMB_Pk%nonlin_scaling array with sqrt(non-linear power/linear power)
     !for each redshift and wavenumber
     !This implementation uses Halofit
     type(MatterPowerData) :: CAMB_Pk
-    class(TDarkEnergy), intent(in) :: DarkE
     integer itf
     real(dl) a,plin,pq,ph,pnl,rk
     real(dl) sig,rknl,rneff,rncur,d1,d2
@@ -75,8 +74,8 @@
         ! curvature (rncur) of the power spectrum at the desired redshift, using method
         ! described in Smith et al (2002).
         a = 1/real(1+CAMB_Pk%Redshifts(itf),dl)
-        om_m = omega_m(a, omm0, CP%omegav, DarkE%w_lam, DarkE%wa_ppf)
-        om_v = omega_v(a, omm0, CP%omegav, DarkE%w_lam, DarkE%wa_ppf)
+        om_m = omega_m(a, omm0, CP%omegav, DarkEnergy%w_lam, DarkEnergy%wa_ppf)
+        om_v = omega_v(a, omm0, CP%omegav, DarkEnergy%w_lam, DarkEnergy%wa_ppf)
         acur = a
         xlogr1=-2.0
         xlogr2=3.5
@@ -122,7 +121,7 @@
                 ! where pq represents the quasi-linear (halo-halo) power and
                 ! where ph is represents the self-correlation halo term.
 
-                call halofit(rk,rneff,rncur,rknl,plin,pnl,pq,ph,DarkE)   ! halo fitting formula
+                call halofit(rk,rneff,rncur,rknl,plin,pnl,pq,ph,DarkEnergy)   ! halo fitting formula
                 CAMB_Pk%nonlin_ratio(i,itf) = sqrt(pnl/plin)
 
             end if
@@ -140,7 +139,7 @@
     subroutine halofit(rk,rn,rncur,rknl,plin,pnl,pq,ph,DarkE)
     implicit none
 
-	class(TDarkEnergy), intent(in) :: DarkE
+	class(TDarkEnergyBase), intent(in) :: DarkE
     real(dl) gam,a,b,c,xmu,xnu,alpha,beta,f1,f2,f3
     real(dl) rk,rn,plin,pnl,pq,ph,plinaa
     real(dl) rknl,y,rncur
@@ -310,7 +309,7 @@
     use DarkEnergyInterface
     type(MatterPowerData) :: CAMB_Pk
 
-    call NonLinear_GetNonLinRatios(CAMB_Pk, DarkEnergy)
+    call NonLinear_GetNonLinRatios(CAMB_Pk)
 
     end subroutine NonLinear_GetRatios
 
