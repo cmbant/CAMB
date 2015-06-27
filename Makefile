@@ -15,9 +15,9 @@ ifeq "$(ifortErr)" "0"
 F90C     = ifort
 ifortVer_major = $(shell ifort -v 2>&1 | cut -d " " -f 3 | cut -d. -f 1)
 COMMON_FFLAGS = -fpp -gen-dep=$$*.d -openmp
-FFLAGS = -fast -W0 -WB $(COMMON_FLAGS)
+FFLAGS = -fast -W0 -WB $(COMMON_FFLAGS)
 #FFLAGS = -openmp -fast -W0 -WB -fpp2 -vec_report0
-DEBUGFLAGS =  -g -check all -check noarg_temp_created -traceback -fpe0 $(COMMON_FLAGS)
+DEBUGFLAGS =  -g -check all -check noarg_temp_created -traceback -fpe0 $(COMMON_FFLAGS)
 ## This is flag is passed to the Fortran compiler allowing it to link C++ if required (not usually):
 F90CRLINK = -cxxlib
 ifeq "$(ifortVer_major)" "15"
