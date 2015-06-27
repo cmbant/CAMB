@@ -1,5 +1,5 @@
 
-    module DarkEnergySimple
+    module DarkEnergyModule
     use DarkEnergyInterface
     implicit none
 
@@ -14,23 +14,25 @@
         ! http://cosmocoffee.info/viewtopic.php?t=512
 
         ! for output and derivs
-        real(dl), private :: clxq, vq
+        real(dl), private, dimension(:), allocatable :: clxq, vq
     contains
     procedure :: ReadParams => TDarkEnergy_ReadParams
+    procedure :: Init =>TDarkEnergy_Init
     procedure :: Init_Background => TDarkEnergy_Init_Background
     procedure :: dtauda_Add_Term => TDarkEnergy_dtauda_Add_Term
     procedure :: SetupIndices => TDarkEnergy_SetupIndices
     procedure :: PrepYout => TDarkEnergy_PrepYout
     procedure :: OutputPreMassiveNu => TDarkEnergy_OutputPreMassiveNu
-    procedure :: OutputPostMassiveNu => TDarkEnergy_OutputPostMassiveNu
+    procedure :: PrepDerivs => TDarkEnergy_PrepDerivs
     procedure :: InitializeYfromVec => TDarkEnergy_InitializeYfromVec
     procedure :: DerivsPrep => TDarkEnergy_DerivsPrep
-    procedure :: DerivsPrepDerivs => TDarkEnergy_DerivsPrepDerivs
     procedure :: DerivsAddPostSigma => TDarkEnergy_DerivsAddPostSigma
     procedure :: DerivsAdd2Gpres => TDarkEnergy_DerivsAdd2Gpres
+    final :: TDarkEnergy_Finalize
     end type TDarkEnergy
 
     contains
+
 
     subroutine TDarkEnergy_ReadParams(this, Ini)
     use IniObjects
@@ -43,11 +45,29 @@
     end subroutine TDarkEnergy_ReadParams
 
 
+    subroutine TDarkEnergy_Init(this)
+    use ModelParams
+    class(TDarkEnergy), intent(inout) :: this
+    integer :: numThreads
+
+    numThreads = ThreadNum
+    call GetNumThreads(numThreads)
+    if (.not. allocated(this%clxq)) allocate(this%clxq(0:numThreads), &
+        this%vq(0:numThreads))
+
+    end subroutine TDarkEnergy_Init
+
     subroutine TDarkEnergy_Init_Background(this)
+    use GaugeInterface
     class(TDarkEnergy) :: this
+
     !This is only called once per model, and is a good point to do any extra initialization.
     !It is called before first call to dtauda, but after
     !massive neutrinos are initialized and after GetOmegak
+
+    ! Set the name to export for equations.
+    Eqns_name = 'gauge_inv'
+
     end  subroutine TDarkEnergy_Init_Background
 
 
@@ -122,21 +142,25 @@
     end subroutine TDarkEnergy_OutputPreMassiveNu
 
 
-    subroutine TDarkEnergy_OutputPostMassiveNu(this, dgrho, dgq, &
+    subroutine TDarkEnergy_PrepDerivs(this, dgrho, dgq, &
         grhov_t, y, w_ix)
+    use ModelParams
     class(TDarkEnergy), intent(inout) :: this
     real(dl), intent(inout) :: dgrho, dgq
     real(dl), intent(in) :: grhov_t, y(:)
     integer, intent(in) :: w_ix
+    integer :: threadID
 
     if (this%w_lam /= -1 .and. this%w_Perturb) then
-        this%clxq = y(w_ix)
-        this%vq = y(w_ix + 1)
-        dgrho = dgrho + this%clxq * grhov_t
-        dgq = dgq + this%vq * grhov_t * (1 + this%w_lam)
+        threadID = GetThreadID()
+        this%clxq(threadID) = y(w_ix)
+        this%vq(threadID) = y(w_ix + 1)
+        dgrho = dgrho + this%clxq(threadID) * grhov_t
+        dgq = dgq + this%vq(threadID) * grhov_t * (1 + this%w_lam)
     end if
 
-    end subroutine TDarkEnergy_OutputPostMassiveNu
+    end subroutine TDarkEnergy_PrepDerivs
+
 
     subroutine TDarkEnergy_InitializeYfromVec(this, y, EV_w_ix, InitVecAti_clxq, &
         InitVecAti_vq)
@@ -170,38 +194,23 @@
     end subroutine TDarkEnergy_DerivsPrep
 
 
-    subroutine TDarkEnergy_DerivsPrepDerivs(this, dgrho, dgq, &
-        ay, w_ix, grhov_t)
-    class(TDarkEnergy), intent(inout) :: this
-    real(dl), intent(inout) :: dgrho, dgq
-    real(dl), intent(in) :: grhov_t
-    real(dl), intent(in) :: ay(:)
-    integer, intent(in) :: w_ix
-
-    if (this%w_lam /= -1 .and. this%w_Perturb) then
-        this%clxq = ay(w_ix)
-        this%vq = ay(w_ix + 1)
-        dgrho = dgrho + this%clxq * grhov_t
-        dgq = dgq + this%vq * grhov_t * (1 + this%w_lam)
-    end if
-
-    end subroutine TDarkEnergy_DerivsPrepDerivs
-
-
     subroutine TDarkEnergy_DerivsAddPostSigma(this, ayprime, w_ix, &
         adotoa, k, z)
+    use ModelParams
     class(TDarkEnergy), intent(in) :: this
     real(dl), intent(inout) :: ayprime(:)
     real(dl), intent(in) :: adotoa, k, z
     integer, intent(in) :: w_ix
+    integer :: threadID
 
      if (this%w_lam /= -1 .and. this%w_Perturb) then
+        threadID = GetThreadID()
         ayprime(w_ix) = -3 * adotoa * (this%cs2_lam - this%w_lam) * &
-			(this%clxq + 3 * adotoa * (1 + this%w_lam) * this%vq / k) - &
-            (1 + this%w_lam) * k * this%vq - (1 + this%w_lam) * k * z
+			(this%clxq(threadID) + 3 * adotoa * (1 + this%w_lam) * this%vq(threadID) / k) - &
+            (1 + this%w_lam) * k * this%vq(threadID) - (1 + this%w_lam) * k * z
 
-        ayprime(w_ix + 1) = -adotoa * (1 - 3 * this%cs2_lam) * this%vq + &
-			k * this%cs2_lam * this%clxq / (1 + this%w_lam)
+        ayprime(w_ix + 1) = -adotoa * (1 - 3 * this%cs2_lam) * this%vq(threadID) + &
+			k * this%cs2_lam * this%clxq(threadID) / (1 + this%w_lam)
     end if
 
     end subroutine TDarkEnergy_DerivsAddPostSigma
@@ -217,4 +226,10 @@
     end function TDarkEnergy_DerivsAdd2Gpres
 
 
-    end module DarkEnergySimple
+    subroutine TDarkEnergy_Finalize(this)
+    type(TDarkEnergy), intent(inout) :: this
+
+    if (allocated(this%clxq)) deallocate(this%clxq, this%vq)
+    end subroutine TDarkEnergy_Finalize
+
+    end module DarkEnergyModule

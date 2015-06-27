@@ -1408,3 +1408,29 @@
 
     end subroutine GetThreeJs
 
+
+    ! Get the ID of the current thread. Returns 0, when not multi-threading
+    function GetThreadID()
+    integer :: GetThreadID
+#ifdef _OPENMP
+    integer :: OMP_GET_THREAD_NUM
+
+    GetThreadID = OMP_GET_THREAD_NUM()
+#else
+    GetThreadID = 0
+#endif
+
+    end function GetThreadID
+
+
+    ! Get the number of threads when doing OpenMP multi-threading
+    subroutine GetNumThreads(numThreads)
+    integer, intent(inout) :: numThreads
+#ifdef _OPENMP
+    integer :: OMP_GET_MAX_THREADS
+
+    if (numThreads < 1) numThreads = OMP_GET_MAX_THREADS()
+#else
+    numThreads = 1
+#endif
+    end subroutine

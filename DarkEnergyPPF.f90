@@ -1,4 +1,4 @@
-    module DarkEnergyPPF
+    module DarkEnergyModule
     use precision
     use ModelParams
     use RandUtils
@@ -9,7 +9,7 @@
     integer, private, parameter :: nde = 2000
     real(dl), private, parameter :: amin = 1.d-9
 
-    type, extends(TDarkEnergyBase) :: TDarkEnergyPPF
+    type, extends(TDarkEnergyBase) :: TDarkEnergy
         ! w_lam is now w0
         real(dl) :: cs2_lam = 1_dl
         !comoving sound speed. Always exactly 1 for quintessence
@@ -23,12 +23,13 @@
         real(dl), private :: rde(nde),ade(nde),ddrde(nde)
         logical :: is_cosmological_constant
         ! for output and derivs
-        real(dl), private :: w_eff
+        real(dl), private, dimension(:), allocatable :: w_eff
 
         !PPF parameters for dervis
-        real(dl) dgrho_e_ppf, dgq_e_ppf
+        real(dl), private, dimension(:), allocatable :: dgrho_e_ppf, dgq_e_ppf
     contains
     procedure :: ReadParams => TDarkEnergyPPF_ReadParams
+    procedure :: Init => TDarkEnergyPPF_Init
     procedure :: Init_Background => TDarkEnergyPPF_Init_Background
     procedure :: dtauda_Add_Term => TDarkEnergyPPF_dtauda_Add_Term
     procedure :: SetupIndices => TDarkEnergyPPF_SetupIndices
@@ -42,14 +43,15 @@
     procedure, private :: interpolrde
     procedure, private :: grho_de
     procedure, private :: setcgammappf
-    end type TDarkEnergyPPF
+    final :: TDarkEnergyPPF_Finalize
+    end type TDarkEnergy
 
     private w_de, cubicsplint
     contains
 
     subroutine TDarkEnergyPPF_ReadParams(this, Ini)
     use IniObjects
-    class(TDarkEnergyPPF), intent(inout) :: this
+    class(TDarkEnergy), intent(inout) :: this
     type(TIniFile), intent(in) :: Ini
     character(len=:), allocatable :: wafile
     integer i
@@ -89,8 +91,29 @@
     end subroutine TDarkEnergyPPF_ReadParams
 
 
+    subroutine TDarkEnergyPPF_Init(this)
+    class(TDarkEnergy), intent(inout) :: this
+    integer :: numThreads
+
+    numThreads = ThreadNum
+    call GetNumThreads(numThreads)
+    if (.not. allocated(this%w_eff)) allocate(this%w_eff(0:numThreads), &
+        this%dgq_e_ppf(0:numThreads), this%dgrho_e_ppf(0:numThreads))
+
+    end subroutine TDarkEnergyPPF_Init
+
+
+    subroutine TDarkEnergyPPF_Finalize(this)
+    type(TDarkEnergy), intent(inout) :: this
+
+    if (allocated(this%w_eff)) deallocate(this%w_eff, &
+        this%dgq_e_ppf, this%dgrho_e_ppf)
+
+    end subroutine
+
+
     subroutine setddwa(this)
-    class(TDarkEnergyPPF) :: this
+    class(TDarkEnergy) :: this
     real(dl), parameter :: wlo = 1.d30, whi = 1.d30
 
     call spline(this%a_ppf, this%w_ppf, this%nw_ppf, wlo, whi, this%ddw_ppf) !a_ppf is lna here
@@ -99,7 +122,7 @@
 
 
     function w_de(curr, a)
-    type(TDarkEnergyPPF), intent(in) :: curr
+    type(TDarkEnergy), intent(in) :: curr
     real(dl) :: w_de, al
     real(dl), intent(IN) :: a
 
@@ -120,7 +143,7 @@
 
 
     function drdlna_de(curr, al)
-    type(TDarkEnergyPPF), intent(in) :: curr
+    type(TDarkEnergy), intent(in) :: curr
     real(dl) :: drdlna_de, a
     real(dl), intent(IN) :: al
 
@@ -131,7 +154,7 @@
 
 
     subroutine interpolrde(this)
-    class(TDarkEnergyPPF), target :: this
+    class(TDarkEnergy), target :: this
     real(dl), parameter :: rlo=1.d30, rhi=1.d30
     real(dl) :: atol, almin, al, rombint, fint
     integer :: i
@@ -151,7 +174,7 @@
 
 
     function grho_de(this, a)  !8 pi G a^4 rho_de
-    class(TDarkEnergyPPF), target :: this
+    class(TDarkEnergy), target :: this
     real(dl) :: grho_de, al, fint
     real(dl), intent(IN) :: a
 
@@ -204,7 +227,7 @@
 
 
     subroutine setcgammappf(this)
-    class(TDarkEnergyPPF) :: this
+    class(TDarkEnergy) :: this
 
     this%c_Gamma_ppf=0.4d0*sqrt(this%cs2_lam)
 
@@ -212,12 +235,17 @@
 
 
     subroutine TDarkEnergyPPF_Init_Background(this)
-    class(TDarkEnergyPPF) :: this
+    use GaugeInterface
+    class(TDarkEnergy) :: this
     !This is only called once per model, and is a good point to do any extra initialization.
     !It is called before first call to dtauda, but after
     !massive neutrinos are initialized and after GetOmegak
     this%is_cosmological_constant = .not. this%use_tabulated_w .and. &
     &   this%w_lam==-1_dl .and. this%wa_ppf==0._dl
+
+    ! Set the name to export for equations.
+    Eqns_name = 'equations_ppf-Jan15'
+
     end  subroutine TDarkEnergyPPF_Init_Background
 
 
@@ -228,7 +256,7 @@
     use ModelParams
     use MassiveNu
     implicit none
-    class (TDarkEnergyPPF), intent(in) :: this
+    class(TDarkEnergy), intent(in) :: this
     real(dl) dtauda
     real(dl), intent(IN) :: a
     real(dl) rhonu, grhoa2
@@ -253,7 +281,7 @@
 
 
     subroutine TDarkEnergyPPF_SetupIndices(this, w_ix, neq, maxeq)
-    class(TDarkEnergyPPF), intent(in) :: this
+    class(TDarkEnergy), intent(in) :: this
     integer, intent(inout) :: w_ix, neq, maxeq
 
     if (.not. this%is_cosmological_constant) then
@@ -268,7 +296,7 @@
 
 
     subroutine TDarkEnergyPPF_PrepYout(this, w_ix_out, w_ix, yout, y)
-    class(TDarkEnergyPPF), intent(in) :: this
+    class(TDarkEnergy), intent(in) :: this
     integer, intent(in) :: w_ix_out, w_ix
     real(dl), intent(inout) :: yout(:)
     real(dl), intent(in) :: y(:)
@@ -282,44 +310,49 @@
 
     subroutine TDarkEnergyPPF_OutputPreMassiveNu(this, grhov_t, grho, gpres, dgq, dgrho, &
         a, grhov, grhob_t, grhoc_t, grhor_t, grhog_t)
-    class(TDarkEnergyPPF), intent(inout) :: this
+    class(TDarkEnergy), intent(inout) :: this
     real(dl), intent(inout) :: grhov_t, grho, gpres, dgq, dgrho
     real(dl), intent(in) :: a, grhov, grhob_t, grhoc_t, grhor_t, grhog_t
     real(dl) :: a2
+    integer :: tID
 
+    tID = GetThreadID()
     a2 = a * a
 
     if (this%is_cosmological_constant) then
-        this%w_eff = -1_dl
+        this%w_eff(tID) = -1_dl
         grhov_t = grhov * a2
     else
         !ppf
-        this%w_eff = w_de(this, a)   !effective de
+        this%w_eff(tID) = w_de(this, a)   !effective de
         grhov_t = grho_de(this, a) / a2
-        dgrho = dgrho + this%dgrho_e_ppf
-        dgq = dgq + this%dgq_e_ppf
+        dgrho = dgrho + this%dgrho_e_ppf(tID)
+        dgq = dgq + this%dgq_e_ppf(tID)
     end if
     grho = grhob_t + grhoc_t + grhor_t + grhog_t + grhov_t
-    gpres = (grhog_t + grhor_t) / 3 + grhov_t * this%w_eff
+    gpres = (grhog_t + grhor_t) / 3 + grhov_t * this%w_eff(tID)
 
     end subroutine TDarkEnergyPPF_OutputPreMassiveNu
 
 
     function TDarkEnergyPPF_diff_rhopi_Add_Term(this, grho, gpres, grhok, adotoa, &
         EV_KfAtOne, k, grhov_t, z, k2, yprime, y, w_ix) result(ppiedot)
-    class(TDarkEnergyPPF), intent(in) :: this
+    class(TDarkEnergy), intent(in) :: this
     real(dl), intent(in) :: grho, gpres, grhok, adotoa, &
         k, grhov_t, z, k2, yprime(:), y(:), EV_KfAtOne
     integer, intent(in) :: w_ix
     real(dl) :: ppiedot, hdotoh
+    integer :: tID
+
+    tID = GetThreadID()
 
     if (this%is_cosmological_constant) then
         ppiedot = 0
     else
         hdotoh = (-3._dl * grho - 3._dl * gpres - 2._dl * grhok) / 6._dl / adotoa
-        ppiedot = 3._dl * this%dgrho_e_ppf + this%dgq_e_ppf * &
+        ppiedot = 3._dl * this%dgrho_e_ppf(tID) + this%dgq_e_ppf(tID) * &
             (12._dl / k * adotoa + k / adotoa - 3._dl / k * (adotoa + hdotoh)) + &
-            grhov_t * (1 + this%w_eff) * k * z / adotoa - 2._dl * k2 * EV_KfAtOne * &
+            grhov_t * (1 + this%w_eff(tID)) * k * z / adotoa - 2._dl * k2 * EV_KfAtOne * &
             (yprime(w_ix) / adotoa - 2._dl * y(w_ix))
         ppiedot = ppiedot * adotoa / EV_KfAtOne
     end if
@@ -329,7 +362,7 @@
 
     subroutine TDarkEnergyPPF_InitializeYfromVec(this, y, EV_w_ix, InitVecAti_clxq, &
         InitVecAti_vq)
-    class(TDarkEnergyPPF), intent(in) :: this
+    class(TDarkEnergy), intent(in) :: this
     real(dl), intent(inout) :: y(:)
     integer, intent(in) :: EV_w_ix
     real(dl), intent(in) :: InitVecAti_clxq, InitVecAti_vq
@@ -338,41 +371,46 @@
         y(EV_w_ix) = InitVecAti_clxq !ppf: Gamma=0, i_clxq stands for i_Gamma
     end if
 
-    end subroutine TDarkEnergyPPF_InitialzeYfromVec
+    end subroutine TDarkEnergyPPF_InitializeYfromVec
 
 
     subroutine TDarkEnergyPPF_DerivsPrep(this, grhov_t, &
         a, grhov, grhor_t, grhog_t, gpres)
-    class(TDarkEnergyPPF), intent(inout) :: this
+    class(TDarkEnergy), intent(inout) :: this
     real(dl), intent(inout) :: grhov_t
     real(dl), intent(inout), optional :: gpres
     real(dl), intent(in) :: a, grhov, grhor_t, grhog_t
+    integer :: tID
+
+    tID = GetThreadID()
 
     if (this%is_cosmological_constant) then
         grhov_t = grhov * a * a
-        this%w_eff = -1_dl
+        this%w_eff(tID) = -1_dl
     else
         !ppf
-        this%w_eff = w_de(this, a)   !effective de
+        this%w_eff(tID) = w_de(this, a)   !effective de
         grhov_t = grho_de(this, a) / (a * a)
     end if
     if (present(gpres)) gpres = (grhor_t + grhog_t) / 3._dl
 
     end subroutine TDarkEnergyPPF_DerivsPrep
 
+
     subroutine TDarkEnergyPPF_DerivsAddPreSigma(this, sigma, &
         ayprime, dgq, dgrho, &
         grho, grhov_t, gpres, ay, w_ix, etak, adotoa, k, k2, EV_kf1)
-    class(TDarkEnergyPPF), intent(inout) :: this
+    class(TDarkEnergy), intent(inout) :: this
     real(dl), intent(inout) :: sigma, ayprime(:), dgq, dgrho
     real(dl), intent(in) :: grho, grhov_t, gpres, ay(:), etak
     real(dl), intent(in) :: adotoa, k, k2, EV_kf1
     integer, intent(in) :: w_ix
-
     real(dl) :: Gamma, S_Gamma, ckH, Gammadot, Fa, dgqe, dgrhoe
     real(dl) :: vT, grhoT
+    integer :: tID
 
     if (.not. this%is_cosmological_constant) then
+        tID = GetThreadID()
         !ppf
         grhoT = grho - grhov_t
         vT = dgq / (grhoT + gpres)
@@ -383,7 +421,7 @@
             k * Gamma
         sigma = sigma / adotoa
 
-        S_Gamma = grhov_t * (1 + this%w_eff) * (vT + sigma) * k / adotoa / 2._dl / k2
+        S_Gamma = grhov_t * (1 + this%w_eff(tID)) * (vT + sigma) * k / adotoa / 2._dl / k2
         ckH = this%c_Gamma_ppf * k / adotoa
         Gammadot = S_Gamma / (1 + ckH * ckH) - Gamma - ckH * ckH * Gamma
         Gammadot = Gammadot * adotoa
@@ -397,26 +435,26 @@
 
         Fa = 1 + 3 * (grhoT + gpres) / 2._dl / k2 / EV_kf1
         dgqe = S_Gamma - Gammadot / adotoa - Gamma
-        dgqe = -dgqe / Fa * 2._dl * k * adotoa + vT * grhov_t * (1 + this%w_eff)
+        dgqe = -dgqe / Fa * 2._dl * k * adotoa + vT * grhov_t * (1 + this%w_eff(tID))
         dgrhoe = -2 * k2 * EV_kf1 * Gamma - 3 / k * adotoa * dgqe
         dgrho = dgrho + dgrhoe
         dgq = dgq + dgqe
 
-        this%dgrho_e_ppf = dgrhoe
-        this%dgq_e_ppf = dgqe
+        this%dgrho_e_ppf(tID) = dgrhoe
+        this%dgq_e_ppf(tID) = dgqe
     end if
 
     end subroutine TDarkEnergyPPF_DerivsAddPreSigma
 
 
     function TDarkEnergyPPF_DerivsAdd2Gpres(this, grhog_t, grhor_t, grhov_t) result(gpres)
-    class(TDarkEnergyPPF), intent(in) :: this
+    class(TDarkEnergy), intent(in) :: this
     real(dl), intent(in) :: grhog_t, grhor_t, grhov_t
     real(dl) :: gpres
 
-    gpres = grhov_t * this%w_eff
+    gpres = grhov_t * this%w_eff(GetThreadID())
 
     end function TDarkEnergyPPF_DerivsAdd2Gpres
 
 
-    end module DarkEnergyPPF
+    end module DarkEnergyModule

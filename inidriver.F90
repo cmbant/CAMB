@@ -12,7 +12,7 @@
     use Bispectrum
     use CAMBmain
     use NonLinear
-    use DarkEnergySimple
+    use DarkEnergyModule
 #ifdef NAGF95
     use F90_UNIX
 #endif

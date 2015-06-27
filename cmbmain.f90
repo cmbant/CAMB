@@ -203,15 +203,15 @@
         !$OMP PARAllEl DO DEFAUlT(SHARED),SCHEDUlE(DYNAMIC) &
         !$OMP & PRIVATE(EV, q_ix)
         do q_ix= 1,Evolve_q%npoints
-        if (global_error_flag==0) call DoSourcek(EV,q_ix)
-    end do
-    !$OMP END PARAllEl DO
+            if (global_error_flag==0) call DoSourcek(EV,q_ix)
+        end do
+        !$OMP END PARAllEl DO
 
-    if (DebugMsgs .and. Feedbacklevel > 0) then
-        timeprev=actual
-        actual=GetTestTime()
-        write(*,*) actual-timeprev,' Timing for source calculation'
-    end if
+        if (DebugMsgs .and. Feedbacklevel > 0) then
+            timeprev=actual
+            actual=GetTestTime()
+            write(*,*) actual-timeprev,' Timing for source calculation'
+        end if
 
     endif !WantCls
 

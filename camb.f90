@@ -187,24 +187,24 @@
 
     if (Params%WantTransfer .and. &
         .not. (Params%WantCls .and. Params%WantScalars .and. .not. separate)) then
-    P=Params
-    P%WantCls = .false.
-    P%WantScalars = .false.
-    P%WantTensors = .false.
-    P%WantVectors = .false.
-    call CAMBParams_Set(P)
-    if (global_error_flag==0) call cmbmain
-    if (global_error_flag/=0) then
-        if (present(error)) error =global_error_flag
-        return
-    end if
-    !Need to store num redshifts etc
-    CP%WantScalars = Params%WantScalars
-    CP%WantCls =  Params%WantCls
-    CP%WantTensors = Params%WantTensors
-    CP%WantVectors = Params%WantVectors
-    CP%Reion%Reionization = InReionization
-    Params = CP
+        P=Params
+        P%WantCls = .false.
+        P%WantScalars = .false.
+        P%WantTensors = .false.
+        P%WantVectors = .false.
+        call CAMBParams_Set(P)
+        if (global_error_flag==0) call cmbmain
+        if (global_error_flag/=0) then
+            if (present(error)) error =global_error_flag
+            return
+        end if
+        !Need to store num redshifts etc
+        CP%WantScalars = Params%WantScalars
+        CP%WantCls =  Params%WantCls
+        CP%WantTensors = Params%WantTensors
+        CP%WantVectors = Params%WantVectors
+        CP%Reion%Reionization = InReionization
+        Params = CP
     end if
 
     call_again = .false.

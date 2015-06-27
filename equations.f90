@@ -27,23 +27,24 @@
         real(dl) :: wa_ppf = 0._dl !Not used here, just for compatibility with e.g. halofit
     contains
     procedure :: ReadParams
+    procedure :: Init
     procedure :: Init_Background
     procedure :: dtauda_Add_Term
     procedure :: SetupIndices
     procedure :: PrepYout
     procedure :: OutputPreMassiveNu
-    procedure :: OutputPostMassiveNu
+    procedure :: PrepDerivs
     procedure :: diff_rhopi_Add_Term
     procedure :: InitializeYfromVec
     procedure :: DerivsPrep
-    procedure :: DerivsPrepDerivs
     procedure :: DerivsAddPreSigma
     procedure :: DerivsAddPostSigma
     procedure :: DerivsAdd2Gpres
     end type TDarkEnergyBase
 
-   class(TDarkEnergyBase), allocatable :: DarkEnergy
+    class(TDarkEnergyBase), allocatable :: DarkEnergy
 
+    integer, external :: GetThreadID
     contains
 
     subroutine ReadParams(this, Ini)
@@ -51,6 +52,11 @@
     class(TDarkEnergyBase), intent(inout) :: this
     type(TIniFile), intent(in) :: Ini
     end subroutine ReadParams
+
+
+    subroutine Init(this)
+    class(TDarkEnergyBase), intent(inout) :: this
+    end subroutine Init
 
 
     subroutine Init_Background(this)
@@ -62,6 +68,11 @@
     class(TDarkEnergyBase), intent(in) :: this
     real(dl), intent(in) :: a
     real(dl) :: dtauda_Add_Term
+
+    ! Ensure, that the result is set, when the function is not implemented by
+    ! super classes
+    dtauda_Add_Term = 0._dl
+
     end function dtauda_Add_Term
 
 
@@ -87,13 +98,13 @@
     end subroutine OutputPreMassiveNu
 
 
-    subroutine OutputPostMassiveNu(this, dgrho, dgq, &
+    subroutine PrepDerivs(this, dgrho, dgq, &
         grhov_t, y, w_ix)
     class(TDarkEnergyBase), intent(inout) :: this
     real(dl), intent(inout) :: dgrho, dgq
     real(dl), intent(in) :: grhov_t, y(:)
     integer, intent(in) :: w_ix
-    end subroutine OutputPostMassiveNu
+    end subroutine PrepDerivs
 
 
     function diff_rhopi_Add_Term(this, grho, gpres, grhok, adotoa, &
@@ -103,6 +114,11 @@
         k, grhov_t, z, k2, yprime(:), y(:), EV_KfAtOne
     integer, intent(in) :: w_ix
     real(dl) :: ppiedot
+
+    ! Ensure, that the result is set, when the function is not implemented by
+    ! super classes
+    ppiedot = 0._dl
+
     end function diff_rhopi_Add_Term
 
 
@@ -121,16 +137,6 @@
     real(dl), intent(inout), optional :: gpres
     real(dl), intent(in) :: a, grhov, grhor_t, grhog_t
     end subroutine DerivsPrep
-
-
-    subroutine DerivsPrepDerivs(this, dgrho, dgq, &
-        ay, w_ix, grhov_t)
-    class(TDarkEnergyBase), intent(inout) :: this
-    real(dl), intent(inout) :: dgrho, dgq
-    real(dl), intent(in) :: grhov_t
-    real(dl), intent(in) :: ay(:)
-    integer, intent(in) :: w_ix
-    end subroutine DerivsPrepDerivs
 
 
     subroutine DerivsAddPreSigma(this, sigma, ayprime, dgq, dgrho, &
@@ -156,6 +162,11 @@
     class(TDarkEnergyBase), intent(in) :: this
     real(dl), intent(in) :: grhog_t, grhor_t, grhov_t
     real(dl) :: gpres
+
+    ! Ensure, that the result is set, when the function is not implemented by
+    ! super classes
+    gpres = 0._dl
+
     end function DerivsAdd2Gpres
 
     end module DarkEnergyInterface
@@ -203,7 +214,8 @@
     public
 
     !Description of this file. Change if you make modifications.
-    character(LEN=*), parameter :: Eqns_name = 'gauge_inv'
+    !Initialized in DarkEnergy%Init_Background
+    character(LEN=:), allocatable :: Eqns_name
 
     integer, parameter :: basic_num_eqns = 5
 
@@ -539,6 +551,8 @@
     !Precompute various arrays and other things independent of wavenumber
     integer j, nu_i
     real(dl) a_nonrel, a_mass,a_massive, time, nu_mass
+
+    call DarkEnergy%Init()
 
     epsw = 100/CP%tau0
 
@@ -1330,7 +1344,7 @@
         call MassiveNuVarsOut(EV,y,yprime,a,grho,gpres,dgrho,dgq,dgpi, dgpi_diff,pidot_sum)
     end if
 
-    call DarkEnergy%OutputPostMassiveNu(dgrho, dgq, grhov_t, y, EV%w_ix)
+    call DarkEnergy%PrepDerivs(dgrho, dgq, grhov_t, y, EV%w_ix)
 
     adotoa=sqrt((grho+grhok)/3)
 
@@ -2076,7 +2090,7 @@
     end if
 
     dgrho = dgrho_matter
-    call DarkEnergy%DerivsPrepDerivs(dgrho, dgq, ay, EV%w_ix, grhov_t)
+    call DarkEnergy%PrepDerivs(dgrho, dgq, grhov_t, ay, EV%w_ix)
 
     if (EV%no_nu_multpoles) then
         !RSA approximation of arXiv:1104.2933, dropping opactity terms in the velocity
