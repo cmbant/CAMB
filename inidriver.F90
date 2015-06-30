@@ -12,7 +12,8 @@
     use Bispectrum
     use CAMBmain
     use NonLinear
-    use DarkEnergyModule
+    use DarkEnergyFluidModule
+    use DarkEnergyPPFModule
 #ifdef NAGF95
     use F90_UNIX
 #endif
@@ -22,7 +23,9 @@
 
     character(len=:), allocatable :: numstr, outroot, VectorFileName, &
         InputFile, ScalarFileName, TensorFileName, TotalFileName, LensedFileName,&
-        LensedTotFileName, LensPotentialFileName, ScalarCovFileName, version_check
+        LensedTotFileName, LensPotentialFileName, ScalarCovFileName, &
+        version_check, DarkEneryModel
+
     integer :: i
     ! max_transfer_redshifts
     character(len=Ini_max_string_len), allocatable :: TransferFileNames(:), MatterPowerFileNames(:)
@@ -98,10 +101,15 @@
     endif
 
     !  Read initial parameters.
-
-	allocate (TDarkEnergy::DarkEnergy)
-    call DarkEnergy%ReadParams(Ini)
-    call DarkEnergy%Init_Background()
+    DarkEneryModel = Ini%Read_String_Default('dark_energy_model', 'fluid')
+    if (DarkEneryModel == 'fluid') then
+        allocate (TDarkEnergyFluid::P%DarkEnergy)
+    else if (DarkEneryModel == 'PPF') then
+        allocate (TDarkEnergyPPF::P%DarkEnergy)
+    else
+        stop 'Unknown dark energy model'
+    end if
+    call P%DarkEnergy%ReadParams(Ini)
 
     P%h0 = Ini%Read_Double('hubble')
 

@@ -1,4 +1,4 @@
-    module DarkEnergyModule
+    module DarkEnergyPPFModule
     use precision
     use ModelParams
     use RandUtils
@@ -9,7 +9,7 @@
     integer, private, parameter :: nde = 2000
     real(dl), private, parameter :: amin = 1.d-9
 
-    type, extends(TDarkEnergyBase) :: TDarkEnergy
+    type, extends(TDarkEnergyBase) :: TDarkEnergyPPF
         ! w_lam is now w0
         real(dl) :: cs2_lam = 1_dl
         !comoving sound speed. Always exactly 1 for quintessence
@@ -21,7 +21,6 @@
         real(dl) w_ppf(nwmax), a_ppf(nwmax)
         real(dl), private :: ddw_ppf(nwmax)
         real(dl), private :: rde(nde),ade(nde),ddrde(nde)
-        logical :: is_cosmological_constant
         ! for output and derivs
         real(dl), private, dimension(:), allocatable :: w_eff
 
@@ -31,27 +30,24 @@
     procedure :: ReadParams => TDarkEnergyPPF_ReadParams
     procedure :: Init => TDarkEnergyPPF_Init
     procedure :: Init_Background => TDarkEnergyPPF_Init_Background
-    procedure :: dtauda_Add_Term => TDarkEnergyPPF_dtauda_Add_Term
-    procedure :: SetupIndices => TDarkEnergyPPF_SetupIndices
-    procedure :: PrepYout => TDarkEnergyPPF_PrepYout
-    procedure :: OutputPreMassiveNu => TDarkEnergyPPF_OutputPreMassiveNu
+    procedure :: BackgroundDensity => TDarkEnergyPPF_BackgroundDensity
+    procedure :: AddStressEnergy => TDarkEnergyPPF_AddStressEnergy
     procedure :: diff_rhopi_Add_Term => TDarkEnergyPPF_diff_rhopi_Add_Term
-    procedure :: InitializeYfromVec => TDarkEnergyPPF_InitializeYfromVec
-    procedure :: DerivsPrep => TDarkEnergyPPF_DerivsPrep
+    procedure :: BackgroundDensityAndPressure => TDarkEnergyPPF_BackgroundDensityAndPressure
     procedure :: DerivsAddPreSigma => TDarkEnergyPPF_DerivsAddPreSigma
     procedure, private :: setddwa
     procedure, private :: interpolrde
     procedure, private :: grho_de
     procedure, private :: setcgammappf
     final :: TDarkEnergyPPF_Finalize
-    end type TDarkEnergy
+    end type TDarkEnergyPPF
 
     private w_de, cubicsplint
     contains
 
     subroutine TDarkEnergyPPF_ReadParams(this, Ini)
     use IniObjects
-    class(TDarkEnergy), intent(inout) :: this
+    class(TDarkEnergyPPF), intent(inout) :: this
     type(TIniFile), intent(in) :: Ini
     character(len=:), allocatable :: wafile
     integer i
@@ -88,11 +84,13 @@
     this%cs2_lam = Ini%Read_Double('cs2_lam', 1.d0)
     call this%setcgammappf
 
+    call this%Init()
+
     end subroutine TDarkEnergyPPF_ReadParams
 
 
     subroutine TDarkEnergyPPF_Init(this)
-    class(TDarkEnergy), intent(inout) :: this
+    class(TDarkEnergyPPF), intent(inout) :: this
     integer :: numThreads
 
     numThreads = ThreadNum
@@ -100,11 +98,21 @@
     if (.not. allocated(this%w_eff)) allocate(this%w_eff(0:numThreads), &
         this%dgq_e_ppf(0:numThreads), this%dgrho_e_ppf(0:numThreads))
 
+    this%is_cosmological_constant = .not. this%use_tabulated_w .and. &
+    &   this%w_lam==-1_dl .and. this%wa_ppf==0._dl
+
+    ! Set both cases to be always on the safe side.
+    if (this%is_cosmological_constant) then
+        this%num_perturb_equations = 0
+    else
+        this%num_perturb_equations = 1
+    end if
+
     end subroutine TDarkEnergyPPF_Init
 
 
     subroutine TDarkEnergyPPF_Finalize(this)
-    type(TDarkEnergy), intent(inout) :: this
+    type(TDarkEnergyPPF), intent(inout) :: this
 
     if (allocated(this%w_eff)) deallocate(this%w_eff, &
         this%dgq_e_ppf, this%dgrho_e_ppf)
@@ -113,7 +121,7 @@
 
 
     subroutine setddwa(this)
-    class(TDarkEnergy) :: this
+    class(TDarkEnergyPPF) :: this
     real(dl), parameter :: wlo = 1.d30, whi = 1.d30
 
     call spline(this%a_ppf, this%w_ppf, this%nw_ppf, wlo, whi, this%ddw_ppf) !a_ppf is lna here
@@ -122,7 +130,7 @@
 
 
     function w_de(curr, a)
-    type(TDarkEnergy), intent(in) :: curr
+    type(TDarkEnergyPPF), intent(in) :: curr
     real(dl) :: w_de, al
     real(dl), intent(IN) :: a
 
@@ -143,7 +151,7 @@
 
 
     function drdlna_de(curr, al)
-    type(TDarkEnergy), intent(in) :: curr
+    type(TDarkEnergyPPF), intent(in) :: curr
     real(dl) :: drdlna_de, a
     real(dl), intent(IN) :: al
 
@@ -154,7 +162,7 @@
 
 
     subroutine interpolrde(this)
-    class(TDarkEnergy), target :: this
+    class(TDarkEnergyPPF), target :: this
     real(dl), parameter :: rlo=1.d30, rhi=1.d30
     real(dl) :: atol, almin, al, rombint, fint
     integer :: i
@@ -174,7 +182,7 @@
 
 
     function grho_de(this, a)  !8 pi G a^4 rho_de
-    class(TDarkEnergy), target :: this
+    class(TDarkEnergyPPF), target :: this
     real(dl) :: grho_de, al, fint
     real(dl), intent(IN) :: a
 
@@ -227,21 +235,16 @@
 
 
     subroutine setcgammappf(this)
-    class(TDarkEnergy) :: this
+    class(TDarkEnergyPPF) :: this
 
-    this%c_Gamma_ppf=0.4d0*sqrt(this%cs2_lam)
+    this%c_Gamma_ppf = 0.4_dl * sqrt(this%cs2_lam)
 
     end subroutine setcgammappf
 
 
     subroutine TDarkEnergyPPF_Init_Background(this)
     use GaugeInterface
-    class(TDarkEnergy) :: this
-    !This is only called once per model, and is a good point to do any extra initialization.
-    !It is called before first call to dtauda, but after
-    !massive neutrinos are initialized and after GetOmegak
-    this%is_cosmological_constant = .not. this%use_tabulated_w .and. &
-    &   this%w_lam==-1_dl .and. this%wa_ppf==0._dl
+    class(TDarkEnergyPPF) :: this
 
     ! Set the name to export for equations.
     Eqns_name = 'equations_ppf-Jan15'
@@ -250,69 +253,29 @@
 
 
     !Background evolution
-    function TDarkEnergyPPF_dtauda_Add_Term(this, a) result(grhoa2)
+    function TDarkEnergyPPF_BackgroundDensity(this, a) result(grhoa2)
     !get d tau / d a
     use precision
-    use ModelParams
-    use MassiveNu
     implicit none
-    class(TDarkEnergy), intent(in) :: this
-    real(dl) dtauda
+    class(TDarkEnergyPPF), intent(in) :: this
     real(dl), intent(IN) :: a
-    real(dl) rhonu, grhoa2
-    integer nu_i
+    real(dl) :: grhoa2
 
-    grhoa2 = 0._dl
     if (this%is_cosmological_constant) then
-        grhoa2 = grhov * (a * a) ** 2
+        grhoa2 = grhov * a ** 4
     else
         grhoa2 = grho_de(this, a)
     end if
 
-    if (CP%Num_Nu_massive /= 0) then
-        !Get massive neutrino density relative to massless
-        do nu_i = 1, CP%nu_mass_eigenstates
-            call Nu_rho(a * nu_masses(nu_i), rhonu)
-            grhoa2 = grhoa2 + rhonu * grhormass(nu_i)
-        end do
-    end if
-
-    end function TDarkEnergyPPF_dtauda_Add_Term
+    end function TDarkEnergyPPF_BackgroundDensity
 
 
-    subroutine TDarkEnergyPPF_SetupIndices(this, w_ix, neq, maxeq)
-    class(TDarkEnergy), intent(in) :: this
-    integer, intent(inout) :: w_ix, neq, maxeq
-
-    if (.not. this%is_cosmological_constant) then
-        w_ix = neq+1
-        neq = neq+1 !ppf
-        maxeq = maxeq+1
-    else
-        w_ix=0
-    end if
-
-    end subroutine TDarkEnergyPPF_SetupIndices
-
-
-    subroutine TDarkEnergyPPF_PrepYout(this, w_ix_out, w_ix, yout, y)
-    class(TDarkEnergy), intent(in) :: this
-    integer, intent(in) :: w_ix_out, w_ix
-    real(dl), intent(inout) :: yout(:)
-    real(dl), intent(in) :: y(:)
-
-    if (.not. this%is_cosmological_constant) then
-        yout(w_ix_out) = y(w_ix)
-    end if
-
-    end subroutine TDarkEnergyPPF_PrepYout
-
-
-    subroutine TDarkEnergyPPF_OutputPreMassiveNu(this, grhov_t, grho, gpres, dgq, dgrho, &
-        a, grhov, grhob_t, grhoc_t, grhor_t, grhog_t)
-    class(TDarkEnergy), intent(inout) :: this
-    real(dl), intent(inout) :: grhov_t, grho, gpres, dgq, dgrho
-    real(dl), intent(in) :: a, grhov, grhob_t, grhoc_t, grhor_t, grhog_t
+    function TDarkEnergyPPF_AddStressEnergy(this, gpres, dgq, dgrho, &
+        a, grhov) result (grhov_t)
+    class(TDarkEnergyPPF), intent(inout) :: this
+    real(dl), intent(inout) :: gpres, dgq, dgrho
+    real(dl) :: grhov_t
+    real(dl), intent(in) :: a, grhov
     real(dl) :: a2
     integer :: tID
 
@@ -329,15 +292,14 @@
         dgrho = dgrho + this%dgrho_e_ppf(tID)
         dgq = dgq + this%dgq_e_ppf(tID)
     end if
-    grho = grhob_t + grhoc_t + grhor_t + grhog_t + grhov_t
-    gpres = (grhog_t + grhor_t) / 3 + grhov_t * this%w_eff(tID)
+    gpres = gpres + grhov_t * this%w_eff(tID)
 
-    end subroutine TDarkEnergyPPF_OutputPreMassiveNu
+    end function TDarkEnergyPPF_AddStressEnergy
 
 
     function TDarkEnergyPPF_diff_rhopi_Add_Term(this, grho, gpres, grhok, adotoa, &
         EV_KfAtOne, k, grhov_t, z, k2, yprime, y, w_ix) result(ppiedot)
-    class(TDarkEnergy), intent(in) :: this
+    class(TDarkEnergyPPF), intent(in) :: this
     real(dl), intent(in) :: grho, gpres, grhok, adotoa, &
         k, grhov_t, z, k2, yprime(:), y(:), EV_KfAtOne
     integer, intent(in) :: w_ix
@@ -360,29 +322,23 @@
     end function TDarkEnergyPPF_diff_rhopi_Add_Term
 
 
-    subroutine TDarkEnergyPPF_InitializeYfromVec(this, y, EV_w_ix, InitVecAti_clxq, &
-        InitVecAti_vq)
-    class(TDarkEnergy), intent(in) :: this
-    real(dl), intent(inout) :: y(:)
-    integer, intent(in) :: EV_w_ix
-    real(dl), intent(in) :: InitVecAti_clxq, InitVecAti_vq
-
-    if (.not. this%is_cosmological_constant) then
-        y(EV_w_ix) = InitVecAti_clxq !ppf: Gamma=0, i_clxq stands for i_Gamma
-    end if
-
-    end subroutine TDarkEnergyPPF_InitializeYfromVec
-
-
-    subroutine TDarkEnergyPPF_DerivsPrep(this, grhov_t, &
+    subroutine TDarkEnergyPPF_BackgroundDensityAndPressure(this, grhov_t, &
         a, grhov, grhor_t, grhog_t, gpres)
-    class(TDarkEnergy), intent(inout) :: this
+    class(TDarkEnergyPPF), intent(inout) :: this
     real(dl), intent(inout) :: grhov_t
     real(dl), intent(inout), optional :: gpres
     real(dl), intent(in) :: a, grhov, grhor_t, grhog_t
     integer :: tID
 
     tID = GetThreadID()
+
+
+! From BackgroundDensity
+!    if (this%is_cosmological_constant) then
+!        grhoa2 = grhov * a ** 4
+!    else
+!        grhoa2 = grho_de(this, a)
+!    end if
 
     if (this%is_cosmological_constant) then
         grhov_t = grhov * a * a
@@ -394,13 +350,13 @@
     end if
     if (present(gpres)) gpres = (grhor_t + grhog_t) / 3._dl
 
-    end subroutine TDarkEnergyPPF_DerivsPrep
+    end subroutine TDarkEnergyPPF_BackgroundDensityAndPressure
 
 
     subroutine TDarkEnergyPPF_DerivsAddPreSigma(this, sigma, &
         ayprime, dgq, dgrho, &
         grho, grhov_t, gpres, ay, w_ix, etak, adotoa, k, k2, EV_kf1)
-    class(TDarkEnergy), intent(inout) :: this
+    class(TDarkEnergyPPF), intent(inout) :: this
     real(dl), intent(inout) :: sigma, ayprime(:), dgq, dgrho
     real(dl), intent(in) :: grho, grhov_t, gpres, ay(:), etak
     real(dl), intent(in) :: adotoa, k, k2, EV_kf1
@@ -448,7 +404,7 @@
 
 
     function TDarkEnergyPPF_DerivsAdd2Gpres(this, grhog_t, grhor_t, grhov_t) result(gpres)
-    class(TDarkEnergy), intent(in) :: this
+    class(TDarkEnergyPPF), intent(in) :: this
     real(dl), intent(in) :: grhog_t, grhor_t, grhov_t
     real(dl) :: gpres
 
@@ -457,4 +413,4 @@
     end function TDarkEnergyPPF_DerivsAdd2Gpres
 
 
-    end module DarkEnergyModule
+    end module DarkEnergyPPFModule

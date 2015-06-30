@@ -32,6 +32,7 @@
     use Recombination
     use Errors
     use MiscUtils
+    use DarkEnergyInterface
     use constants, only : const_pi, const_twopi, const_eightpi
     implicit none
     public
@@ -140,6 +141,7 @@
         type(ReionizationParams) :: Reion
         type(RecombinationParams):: Recomb
         type(TransferParams)     :: Transfer
+        class(TDarkEnergyBase), allocatable :: DarkEnergy
 
         real(dl) ::  InitialConditionVector(1:10) !Allow up to 10 for future extensions
         !ignored unless Scalar_initial_condition == initial_vector
@@ -250,6 +252,15 @@
     real(dl), private, external :: dtauda
 
     contains
+
+    subroutine Init_Backgrounds
+    !This is only called once per model, and is a good point to do any extra initialization.
+    !It is called before first call to dtauda, but after
+    !massive neutrinos are initialized and after GetOmegak
+
+    call CP%DarkEnergy%Init_Background()
+
+    end  subroutine Init_Backgrounds
 
 
     subroutine CAMBParams_Set(P, error, DoReion)
@@ -384,7 +395,7 @@
 
     if (.not.call_again) then
         call init_massive_nu(CP%omegan /=0)
-!        call DarkEnergy%Init_Background()
+        call Init_Backgrounds()
         if (global_error_flag==0) then
             CP%tau0=TimeOfz(0._dl)
             ! print *, 'chi = ',  (CP%tau0 - TimeOfz(0.15_dl)) * CP%h0/100
@@ -405,6 +416,10 @@
 
     if (CP%closed .and. CP%tau0/CP%r >3.14) then
         call GlobalError('chi >= pi in closed model not supported',error_unsupported_params)
+    end if
+
+    if (.not. allocated(CP%DarkEnergy)) then
+        call GlobalError('DarkEnergy not initialized', error_darkenergy)
     end if
 
     if (global_error_flag/=0) then

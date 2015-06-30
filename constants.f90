@@ -73,6 +73,7 @@
     integer, parameter :: error_inital_power=3
     integer, parameter :: error_evolution=4
     integer, parameter :: error_unsupported_params=5
+    integer, parameter :: error_darkenergy=6
 
     contains
 

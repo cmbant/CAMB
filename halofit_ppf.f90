@@ -74,8 +74,8 @@
         ! curvature (rncur) of the power spectrum at the desired redshift, using method
         ! described in Smith et al (2002).
         a = 1/real(1+CAMB_Pk%Redshifts(itf),dl)
-        om_m = omega_m(a, omm0, CP%omegav, DarkEnergy%w_lam, DarkEnergy%wa_ppf)
-        om_v = omega_v(a, omm0, CP%omegav, DarkEnergy%w_lam, DarkEnergy%wa_ppf)
+        om_m = omega_m(a, omm0, CP%omegav, CP%DarkEnergy%w_lam, CP%DarkEnergy%wa_ppf)
+        om_v = omega_v(a, omm0, CP%omegav, CP%DarkEnergy%w_lam, CP%DarkEnergy%wa_ppf)
         acur = a
         xlogr1=-2.0
         xlogr2=3.5
@@ -121,7 +121,7 @@
                 ! where pq represents the quasi-linear (halo-halo) power and
                 ! where ph is represents the self-correlation halo term.
 
-                call halofit(rk,rneff,rncur,rknl,plin,pnl,pq,ph,DarkEnergy)   ! halo fitting formula
+                call halofit(rk,rneff,rncur,rknl,plin,pnl,pq,ph)   ! halo fitting formula
                 CAMB_Pk%nonlin_ratio(i,itf) = sqrt(pnl/plin)
 
             end if
@@ -136,10 +136,9 @@
     !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
-    subroutine halofit(rk,rn,rncur,rknl,plin,pnl,pq,ph,DarkE)
+    subroutine halofit(rk,rn,rncur,rknl,plin,pnl,pq,ph)
     implicit none
 
-	class(TDarkEnergyBase), intent(in) :: DarkE
     real(dl) gam,a,b,c,xmu,xnu,alpha,beta,f1,f2,f3
     real(dl) rk,rn,plin,pnl,pq,ph,plinaa
     real(dl) rknl,y,rncur
@@ -178,10 +177,10 @@
         gam=0.1971-0.0843*rn+0.8460*rncur
         a=1.5222+2.8553*rn+2.3706*rn*rn+0.9903*rn*rn*rn+ &
             0.2250*rn*rn*rn*rn-0.6038*rncur+0.1749*om_v* &
-            (1.+DarkE%w_lam+DarkE%wa_ppf*(1-acur))
+            (1.+CP%DarkEnergy%w_lam+CP%DarkEnergy%wa_ppf*(1-acur))
         a=10**a
         b=10**(-0.5642+0.5864*rn+0.5716*rn*rn-1.5474*rncur+ &
-            0.2279*om_v*(1.+DarkE%w_lam+DarkE%wa_ppf*(1-acur)))
+            0.2279*om_v*(1.+CP%DarkEnergy%w_lam+CP%DarkEnergy%wa_ppf*(1-acur)))
         c=10**(0.3698+2.0404*rn+0.8161*rn*rn+0.5869*rncur)
         xmu=0.
         xnu=10**(5.2105+3.6902*rn)
