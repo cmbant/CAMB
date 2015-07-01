@@ -29,6 +29,18 @@
     end function GetOmegak
 
 
+    subroutine Init_Backgrounds
+    use ModelParams
+    use DarkEnergyInterface
+    !This is only called once per model, and is a good point to do any extra initialization.
+    !It is called before first call to dtauda, but after
+    !massive neutrinos are initialized and after GetOmegak
+
+    call CP%DarkEnergy%Init_Background()
+
+    end  subroutine Init_Backgrounds
+
+
 	! Wrapper to get dtauda of DarkEnergy
     function dtauda(a)
     use precision
