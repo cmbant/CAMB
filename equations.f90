@@ -54,7 +54,7 @@
 
     !  8*pi*G*rho*a**4.
     grhoa2 = grhok * a * a + (grhoc + grhob) * a + grhog + grhornomass + &
-        CP%DarkEnergy%BackgroundDensity(a)
+        CP%DarkEnergy%BackgroundDensityAndPressure(a)*a**2
 
     if (CP%Num_Nu_massive /= 0) then
         !Get massive neutrino density relative to massless
@@ -1164,7 +1164,8 @@
     real(dl) dgq,grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,sigma,polter
     real(dl) qgdot,pigdot,pirdot,vbdot,dgrho
     real(dl) a,a2,dz,z,clxc,clxb,vb,clxg,qg,pig,clxr,qr,pir
-
+    real(dl) w_dark_energy_t
+    
     real(dl) tau,x,divfac
     real(dl) dgpi_diff, pidot_sum
     real(dl), target :: pol(3),polprime(3)
@@ -1205,6 +1206,7 @@
     grhoc_t=grhoc/a
     grhor_t=grhornomass/a2
     grhog_t=grhog/a2
+    call CP%DarkEnergy%BackgroundDensityAndPressure(a, grhov_t, w_dark_energy_t)
 
     !  8*pi*a*a*SUM[rho_i*clx_i] add radiation later
     dgrho=grhob_t*clxb+grhoc_t*clxc
@@ -1212,8 +1214,10 @@
     !  8*pi*a*a*SUM[(rho_i+p_i)*v_i]
     dgq=grhob_t*vb
 
-    gpres = (grhog_t + grhor_t) / 3
-    grhov_t = CP%DarkEnergy%AddStressEnergy(gpres, dgq, dgrho, a, grhov)
+    if (.not. CP%DarkEnergy%is_cosmological_constant) &
+        call CP%DarkEnergy%AddStressEnergy(dgrho, dgq, grhov_t, ay, EV%w_ix, .true.)    
+    
+    gpres = (grhog_t + grhor_t) / 3 + w_dark_energy_t*grhov_t
     grho = grhob_t + grhoc_t + grhor_t + grhog_t + grhov_t
 
     dgpi = 0
@@ -1223,8 +1227,6 @@
     if (CP%Num_Nu_Massive /= 0) then
         call MassiveNuVarsOut(EV,y,yprime,a,grho,gpres,dgrho,dgq,dgpi, dgpi_diff,pidot_sum)
     end if
-
-    call CP%DarkEnergy%PrepDerivs(dgrho, dgq, grhov_t, y, EV%w_ix)
 
     adotoa=sqrt((grho+grhok)/3)
 
@@ -1310,7 +1312,7 @@
 
     pidot_sum =  pidot_sum + grhog_t*pigdot + grhor_t*pirdot
     diff_rhopi = pidot_sum - (4 * dgpi + dgpi_diff) * adotoa + &
-        CP%DarkEnergy%diff_rhopi_Add_Term(grho, gpres, grhok, adotoa, &
+        CP%DarkEnergy%diff_rhopi_Add_Term(grho, gpres, w_dark_energy_t, grhok, adotoa, &
             EV%kf(1), k, grhov_t, z, k2, yprime, y, EV%w_ix)
 
     !Maple's fortran output - see scal_eqs.map
@@ -1912,6 +1914,9 @@
     real(dl) G11_t,G30_t, wnu_arr(max_nu)
 
     real(dl) dgq,grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,sigma,polter
+    real(dl) w_dark_energy_t !equation of state of dark energy
+    real(dl) gpres_matter !pressure from massive neutrinos
+    real(dl) gpres_noDE !Pressure with matter and radiation, no dark energy
     real(dl) qgdot,qrdot,pigdot,pirdot,vbdot,dgrho,adotoa
     real(dl) a,a2,z,clxc,clxb,vb,clxg,qg,pig,clxr,qr,pir
     real(dl) clxq, vq,  E2, dopacity
@@ -1942,7 +1947,8 @@
     grhoc_t=grhoc/a
     grhor_t=grhornomass/a2
     grhog_t=grhog/a2
-    call CP%DarkEnergy%BackgroundDensityAndPressure(grhov_t, a, grhov, grhor_t, grhog_t, gpres)
+    gpres_matter = 0
+    call CP%DarkEnergy%BackgroundDensityAndPressure(a, grhov_t, w_dark_energy_t)
 
     !  Get sound speed and ionisation fraction.
     if (EV%TightCoupling) then
@@ -1960,10 +1966,11 @@
     dgq=grhob_t*vb
 
     if (CP%Num_Nu_Massive > 0) then
-        call MassiveNuVars(EV,ay,a,grho_matter,gpres,dgrho_matter,dgq, wnu_arr)
+        call MassiveNuVars(EV,ay,a,grho_matter,gpres_matter,dgrho_matter,dgq, wnu_arr)
     end if
 
     grho = grho_matter+grhor_t+grhog_t+grhov_t
+    gpres_noDE = gpres_matter + (grhor_t + grhog_t)/3
 
     if (CP%flat) then
         adotoa=sqrt(grho/3)
@@ -1974,7 +1981,8 @@
     end if
 
     dgrho = dgrho_matter
-    call CP%DarkEnergy%PrepDerivs(dgrho, dgq, grhov_t, ay, EV%w_ix)
+    if (.not. CP%DarkEnergy%is_cosmological_constant) &
+        call CP%DarkEnergy%AddStressEnergy(dgrho, dgq, grhov_t, ay, EV%w_ix, .false.)
 
     if (EV%no_nu_multpoles) then
         !RSA approximation of arXiv:1104.2933, dropping opactity terms in the velocity
@@ -2022,7 +2030,7 @@
     ayprime(1)=adotoa*a
 
     call CP%DarkEnergy%DerivsAddPreSigma(sigma, ayprime, dgq, dgrho, &
-        grho, grhov_t, gpres, ay, EV%w_ix, etak, adotoa, k, k2, EV%kf(1))
+        grho, grhov_t, w_dark_energy_t, gpres_noDE, ay, EV%w_ix, etak, adotoa, k, k2, EV%kf(1))
 
     !  Get sigma (shear) and z from the constraints
     ! have to get z from eta for numerical stability
@@ -2055,7 +2063,7 @@
 
     if (EV%TightCoupling) then
         !  ddota/a
-        gpres = gpres + CP%DarkEnergy%DerivsAdd2Gpres(grhog_t, grhor_t, grhov_t)
+        gpres = gpres_noDE + w_dark_energy_t*grhov_t
         adotdota=(adotoa*adotoa-gpres)/2
 
         pig = 32._dl/45/opacity*k*(sigma+vb)
@@ -2293,6 +2301,7 @@
     real(dl) sigma, qg,pig, qr, vb, rhoq, vbdot, photbar, pb43
     real(dl) k,k2,a,a2, adotdota
     real(dl) pir,adotoa
+    real(dl) w_dark_energy_t
 
     k2=EV%k2_buf
     k=EV%k_buf
@@ -2330,10 +2339,10 @@
     grhoc_t=grhoc/a
     grhor_t=grhornomass/a2
     grhog_t=grhog/a2
-    grhov_t=grhov*a**(-1-3*CP%DarkEnergy%w_lam)
+    call CP%DarkEnergy%BackgroundDensityAndPressure(a, grhov_t, w_dark_energy_t)
 
     grho=grhob_t+grhoc_t+grhor_t+grhog_t+grhov_t
-    gpres=(grhog_t+grhor_t)/3._dl+grhov_t*CP%DarkEnergy%w_lam
+    gpres=(grhog_t+grhor_t)/3._dl+grhov_t*w_dark_energy_t
 
     adotoa=sqrt(grho/3._dl)
     adotdota=(adotoa*adotoa-gpres)/2
@@ -2484,7 +2493,7 @@
     grhoc_t=grhoc/a
     grhor_t=grhornomass/a2
     grhog_t=grhog/a2
-    call CP%DarkEnergy%BackgroundDensityAndPressure(grhov_t, a, grhov, grhov_t, grhog_t)
+    call CP%DarkEnergy%BackgroundDensityAndPressure(a, grhov_t)
 
     grho=grhob_t+grhoc_t+grhor_t+grhog_t+grhov_t
 
