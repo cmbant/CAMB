@@ -117,26 +117,30 @@ def getTestParams():
     for etamax in [10000, 14000, 20000, 40000]:
         params.append(['acclensBB_ketamax%s' % etamax, 'do_nonlinear = 2', 'l_max_scalar = 2500', 'k_eta_max_scalar  = %s' % etamax, 'accurate_BB = T'])
 
-    for wa in [-0.3, - 0.01,  0.5]:
+    for wa in [-0.3, -0.01,  0.5]:
         for w in [-1.2, -0.998, -0.7]:
             params.append(['ppf_w%s_wa%s'%(w,wa), 'w = %s' % w, 'wa =%s'%wa, 'do_nonlinear = 2', 'get_transfer= T', 'dark_energy_model=PPF'])
 
     pars = {
-     'ombh2':[ 0.0219, 0.0226, 0.0253],
-     'omch2':[ 0.1, 0.08, 0.15],
-     'omk':[ 0, -0.03, 0.04, 0.001, -0.001],
-     'hubble':[ 62, 67, 71, 78],
-     'w':[ -1.2, -1, -0.98, -0.75],
-     'helium_fraction':[ 0.21, 0.23, 0.27],
-     'scalar_spectral_index(1)' :[0.94, 0.98],
-     'scalar_nrun(1)' :[-0.015, 0, 0.03],
-      're_optical_depth': [0.03, 0.05, 0.08, 0.11],
+        'ombh2':[ 0.0219, 0.0226, 0.0253],
+        'omch2':[ 0.1, 0.08, 0.15],
+        'omk':[ 0, -0.03, 0.04, 0.001, -0.001],
+        'hubble':[ 62, 67, 71, 78],
+        'w':[ -1.2, -1, -0.98, -0.75],
+        'helium_fraction':[ 0.21, 0.23, 0.27],
+        'scalar_spectral_index(1)' :[0.94, 0.98],
+        'scalar_nrun(1)' :[-0.015, 0, 0.03],
+        're_optical_depth': [0.03, 0.05, 0.08, 0.11],
     }
 
     for par, vals in pars.iteritems():
         for val in vals:
             params.append(['%s_%.3f' % (par, val), 'get_transfer= T', 'do_nonlinear=1', 'transfer_high_precision = T',
                            '%s = %s' % (par, val)])
+
+    params.append(['ppf_w-1.000_wa0.000', 'w = -1.0', 'wa = 0.0', 'do_nonlinear = 1', 'get_transfer= T',
+                   'transfer_high_precision = T', 'dark_energy_model=PPF'])
+
     return params
 
 def list_files(file_dir):
@@ -227,11 +231,7 @@ if args.diff_to:
     else:
         len_errors = 0
     if len(mismatch):
-        # f for f in os.listdir(file_dir) if not '.ini' in f
         numerical_mismatch = [f for f in mismatch if num_unequal(f, defCmpFcn)]
-#        for f in mismatch:
-#            if num_unequal(f):
-#                numerical_mismatch.append(f)
         if len(numerical_mismatch):
             print('Files do not match:')
             for err in numerical_mismatch:

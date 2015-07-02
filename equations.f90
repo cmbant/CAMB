@@ -49,12 +49,15 @@
 	use DarkEnergyInterface
 	implicit none
 	real(dl), intent(in) :: a
-	real(dl) :: dtauda, rhonu, grhoa2
+	real(dl) :: dtauda, rhonu, grhoa2, a2, grhov_t
     integer :: nu_i
 
+    a2 = a ** 2
+    call CP%DarkEnergy%BackgroundDensityAndPressure(a, grhov_t)
+
     !  8*pi*G*rho*a**4.
-    grhoa2 = grhok * a * a + (grhoc + grhob) * a + grhog + grhornomass + &
-        CP%DarkEnergy%BackgroundDensityAndPressure(a)*a**2
+    grhoa2 = grhok * a2 + (grhoc + grhob) * a + grhog + grhornomass + &
+        grhov_t * a2
 
     if (CP%Num_Nu_massive /= 0) then
         !Get massive neutrino density relative to massless
@@ -1165,7 +1168,7 @@
     real(dl) qgdot,pigdot,pirdot,vbdot,dgrho
     real(dl) a,a2,dz,z,clxc,clxb,vb,clxg,qg,pig,clxr,qr,pir
     real(dl) w_dark_energy_t
-    
+
     real(dl) tau,x,divfac
     real(dl) dgpi_diff, pidot_sum
     real(dl), target :: pol(3),polprime(3)
@@ -1215,8 +1218,8 @@
     dgq=grhob_t*vb
 
     if (.not. CP%DarkEnergy%is_cosmological_constant) &
-        call CP%DarkEnergy%AddStressEnergy(dgrho, dgq, grhov_t, ay, EV%w_ix, .true.)    
-    
+        call CP%DarkEnergy%AddStressEnergy(dgrho, dgq, grhov_t, y, EV%w_ix, .true.)
+
     gpres = (grhog_t + grhor_t) / 3 + w_dark_energy_t*grhov_t
     grho = grhob_t + grhoc_t + grhor_t + grhog_t + grhov_t
 

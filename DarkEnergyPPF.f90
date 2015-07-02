@@ -18,7 +18,7 @@
         logical :: use_tabulated_w = .false.
         real(dl) :: c_Gamma_ppf = 0.4_dl
         integer :: nw_ppf
-        real(dl) w_ppf(nwmax), a_ppf(nwmax)
+        real(dl) :: w_ppf(nwmax), a_ppf(nwmax)
         real(dl), private :: ddw_ppf(nwmax)
         real(dl), private :: rde(nde),ade(nde),ddrde(nde)
 
@@ -92,6 +92,8 @@
 
     numThreads = ThreadNum
     call GetNumThreads(numThreads)
+    write (*, '("DarkEnergyPPF_Init() with ",I2," #threads.")') numThreads
+    numThreads = numThreads - 1
     if (.not. allocated(this%dgq_e_ppf)) &
         allocate(this%dgq_e_ppf(0:numThreads), this%dgrho_e_ppf(0:numThreads))
 
@@ -159,7 +161,7 @@
 
 
     subroutine interpolrde(this)
-    class(TDarkEnergyPPF), target :: this
+    class(TDarkEnergyPPF) :: this
     real(dl), parameter :: rlo=1.d30, rhi=1.d30
     real(dl) :: atol, almin, al, rombint, fint
     integer :: i
@@ -179,7 +181,7 @@
 
 
     function grho_de(this, a)  !8 pi G a^4 rho_de
-    class(TDarkEnergyPPF), target :: this
+    class(TDarkEnergyPPF) :: this
     real(dl) :: grho_de, al, fint
     real(dl), intent(IN) :: a
 
@@ -247,7 +249,7 @@
     Eqns_name = 'equations_ppf-Jan15'
 
     end subroutine TDarkEnergyPPF_Init_Background
-    
+
     subroutine TDarkEnergyPPF_BackgroundDensityAndPressure(this, a, grhov_t, w)
     !Get grhov_t = 8*pi*rho_de*a**2 and (optionally) equation of state at scale factor a
     class(TDarkEnergyPPF), intent(inout) :: this
@@ -259,13 +261,17 @@
         grhov_t = grhov * a * a
         if (present(w)) w = -1_dl
     else
-        !ppf
-        grhov_t = grho_de(this, a) / (a * a)
+        ! Ensure a valid result
+        if (a /= 0._dl) then
+            grhov_t = grho_de(this, a) / (a * a)
+        else
+            grhov_t = 0._dl
+        end if
         if (present(w)) w = w_de(this, a)
     end if
 
     end subroutine TDarkEnergyPPF_BackgroundDensityAndPressure
-    
+
 
 
     subroutine TDarkEnergyPPF_AddStressEnergy(this, dgrho, dgq, &
@@ -311,7 +317,7 @@
 
     end function TDarkEnergyPPF_diff_rhopi_Add_Term
 
-    
+
     subroutine TDarkEnergyPPF_DerivsAddPreSigma(this, sigma, &
         ayprime, dgq, dgrho, &
         grho, grhov_t, w, gpres_noDE, ay, w_ix, etak, adotoa, k, k2, EV_kf1)
