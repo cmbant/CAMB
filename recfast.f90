@@ -383,7 +383,7 @@
     real(dl) zst,a,z,az,bz,Recombination_tm
     integer ilo,ihi
 
-    if (.not. doTmatTspin) stop 'RECFAST: Recombination_tm not stored'
+    if (.not. doTmatTspin) call MpiStop('RECFAST: Recombination_tm not stored')
     z=1/a-1
     if (z >= zrec(1)) then
         Recombination_tm=Tnow/a

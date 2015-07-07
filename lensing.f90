@@ -83,7 +83,7 @@
     elseif (lensing_method == lensing_method_harmonic) then
         call BadHarmonic
     else
-        stop 'Unknown lensing method'
+        error stop 'Unknown lensing method'
     end if
     end subroutine lens_Cls
 
@@ -144,7 +144,7 @@
     !$ integer  OMP_GET_THREAD_NUM, OMP_GET_MAX_THREADS
     !$ external OMP_GET_THREAD_NUM, OMP_GET_MAX_THREADS
 
-    if (lensing_includes_tensors) stop 'Haven''t implemented tensor lensing'
+    if (lensing_includes_tensors) call MpiStop('Haven''t implemented tensor lensing')
 
     max_lensed_ix = lSamp%l0-1
     do while(lSamp%l(max_lensed_ix) > CP%Max_l - lensed_convolution_margin)
@@ -212,7 +212,7 @@
         if (Cphil3(10) > 1e-7) then
             write (*,*) 'You need to normalize realistically to use lensing.'
             write (*,*) 'see http://cosmocoffee.info/viewtopic.php?t=94'
-            stop
+            call MpiStop()
         end if
         if (lmax > CP%Max_l) then
             l=CP%Max_l
@@ -228,8 +228,7 @@
                 CEE(l) =  highL_CL_template(l, C_E)*fac2 *sc
                 CTE(l) =  highL_CL_template(l, C_Cross)*fac2*sc
                 if (Cphil3(CP%Max_l+1) > 1e-7) then
-                    write (*,*) 'You need to normalize the high-L template so it is dimensionless'
-                    stop
+                    call MpiStop('You need to normalize the high-L template so it is dimensionless')
                 end if
             end do
         end if
@@ -531,7 +530,7 @@
     !$ integer OMP_GET_THREAD_NUM, OMP_GET_MAX_THREADS
     !$ external OMP_GET_THREAD_NUM, OMP_GET_MAX_THREADS
 
-    if (lensing_includes_tensors) stop 'Haven''t implemented tensor lensing'
+    if (lensing_includes_tensors) call MpiStop('Haven''t implemented tensor lensing')
 
     max_lensed_ix = lSamp%l0-1
     do while(lSamp%l(max_lensed_ix) > CP%Max_l -250)
@@ -578,7 +577,7 @@
         if (Cphil3(10) > 1e-7) then
             write (*,*) 'You need to normalize realistically to use lensing.'
             write (*,*) 'see http://cosmocoffee.info/viewtopic.php?t=94'
-            stop
+            call MpiStop()
         end if
 
         lens_contrib=0
@@ -748,7 +747,7 @@
     if (RR(1) > 1e-5) then
         write (*,*) 'You need to normalize realistically to use lensing.'
         write (*,*) 'see http://cosmocoffee.info/viewtopic.php?t=94'
-        stop
+        call MpiStop()
     end if
     if (maxl > lmax_donelnfa) then
         !Get ln factorials

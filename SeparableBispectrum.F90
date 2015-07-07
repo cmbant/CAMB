@@ -323,13 +323,13 @@
         nbispectra=nbispectra+1
         BispectrumNames(lens_bispectrum_ix)='lensing'
     end if
-    if (nbispectra>max_bispectra) stop 'check max_bispectra'
+    if (nbispectra>max_bispectra) call MpiStop('check max_bispectra')
 
-    if (CP%InitPower%nn>1) stop 'Bispectrum: multiple initial power spectra not supported'
+    if (CP%InitPower%nn>1) call MpiStop('Bispectrum: multiple initial power spectra not supported')
 
     nfields=BispectrumParams%nfields
 
-    if (lSampleBoost <50) stop 'Bispectrum assumes lSampleBoost=50 (all L sampled)'
+    if (lSampleBoost <50) call MpiStop('Bispectrum assumes lSampleBoost=50 (all L sampled)')
 
     if (lens_bispectrum_approx == first_order_unlensed) file_tag='_unlens'
 
@@ -376,7 +376,7 @@
 
     if (BispectrumParams%do_lensing_bispectrum) then
 
-        if (.not. CP%DoLensing) stop 'Must turn on lensing to get lensing bispectra'
+        if (.not. CP%DoLensing) call MpiStop('Must turn on lensing to get lensing bispectra')
         print *,'Getting lensing reduced bispectra'
 
         allocate(CForLensing(lmax))
@@ -577,7 +577,7 @@
             TransferPolFac(i) =sqrt( real((i+1)*i,dl)*(i+2)*(i-1))
         end do
 
-        if (shape /= shape_local) stop 'Non-local shapes not working'
+        if (shape /= shape_local) call MpiStop('Non-local shapes not working')
 
         if (shape == shape_local) then
             n=1
@@ -592,7 +592,7 @@
             np=2
             npd=2
         else
-            stop 'unknown shape'
+            call MpiStop('unknown shape')
         end if
 
         allocate(ind(n))
@@ -898,7 +898,7 @@
             Cl(2:3,l1) = Cl(2:3,l1)/tmp + NoiseP*exp(l1*(l1+1)*sigma2)
             Cl(4,l1) = Cl(4,l1)/tmp
             allocate(InvC(l1)%C(nfields,nfields))
-            if (nfields > 2) stop 'Not implemented nfields>2 in detail'
+            if (nfields > 2) call MpiStop('Not implemented nfields>2 in detail')
             if (nfields==1) then
                 InvC(l1)%C(1,1)=(2*l1+1)/cl(1,l1)/InternalScale
             else
@@ -1245,7 +1245,7 @@
 
     end if !DoFIsher
 #else
-    if (BispectrumParams%DoFisher) stop 'compile with FISHER defined'
+    if (BispectrumParams%DoFisher) call MpiStop('compile with FISHER defined')
 #endif                    
 
     !Tidy up a bit
@@ -1360,7 +1360,7 @@
         output_root = outroot
 
         B%nfields = Ini_Read_Int_File(Ini,'bispectrum_nfields',B%nfields)
-        if (B%nfields /= 2 .and. B%nfields/=1) stop 'Bispectrum: nfields=1 for T only or 2 for polarization'
+        if (B%nfields /= 2 .and. B%nfields/=1) call MpiStop('Bispectrum: nfields=1 for T only or 2 for polarization')
         B%do_parity_odd = Ini_Read_Logical_File(Ini,'do_parity_odd',.false.)
         if (B%do_parity_odd .and. (.not.  B%do_lensing_bispectrum .or. B%nfields==1)) then
             B%do_parity_odd = .false.
@@ -1369,13 +1369,13 @@
         B%Slice_Base_L = Ini_Read_Int_File(Ini,'bispectrum_slice_base_L',B%Slice_Base_L)
         if (B%Slice_Base_L>0) then
             B%ndelta = Ini_Read_Int_File(Ini,'bispectrum_ndelta',B%ndelta)
-            if (B%ndelta > max_bispectrum_deltas) stop 'Bispectrum : increase max_bispectrum_deltas'
+            if (B%ndelta > max_bispectrum_deltas) call MpiStop('Bispectrum : increase max_bispectrum_deltas')
             do i=1, B%ndelta
                 B%deltas(i) = Ini_Read_Int_Array_File(Ini,'bispectrum_delta', i)
             end do
             if (.not. B%do_parity_odd .and. B%Slice_Base_L>0 .and. &
                 any(mod(B%Slice_Base_L + B%deltas(1:B%ndelta),2) /= 0)) &
-                stop 'Slice is zero for even parity with L1+L2+L3 odd, i.e. Base+DeltaL3 odd'
+                call MpiStop('Slice is zero for even parity with L1+L2+L3 odd, i.e. Base+DeltaL3 odd')
 
         end if
         B%DoFisher = Ini_Read_Logical_File(Ini,'bispectrum_do_fisher',B%DoFisher)

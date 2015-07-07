@@ -37,10 +37,10 @@
 
     InputFile = ''
     if (GetParamCount() /= 0)  InputFile = GetParam(1)
-    if (InputFile == '') stop 'No parameter input file'
+    if (InputFile == '') error stop 'No parameter input file'
 
     call Ini_Open(InputFile, 1, bad, .false.)
-    if (bad) stop 'Error opening parameter file'
+    if (bad) error stop 'Error opening parameter file'
 
     Ini_fail_on_not_found = .false.
 
@@ -78,7 +78,7 @@
                 if (P%DoLensing) lensing_method = Ini_Read_Int('lensing_method',1)
             end if
             if (P%WantVectors) then
-                if (P%WantScalars .or. P%WantTensors) stop 'Must generate vector modes on their own'
+                if (P%WantScalars .or. P%WantTensors) error stop 'Must generate vector modes on their own'
                 i = Ini_Read_Int('vector_mode')
                 if (i==0) then
                     vec_sig0 = 1
@@ -87,7 +87,7 @@
                     Magnetic = -1
                     vec_sig0 = 0
                 else
-                    stop 'vector_mode must be 0 (regular) or 1 (magnetic)'
+                    error stop 'vector_mode must be 0 (regular) or 1 (magnetic)'
                 end if
             end if
         end if
@@ -121,11 +121,11 @@
     P%Num_Nu_massless  = Ini_Read_Double('massless_neutrinos')
 
     P%Nu_mass_eigenstates = Ini_Read_Int('nu_mass_eigenstates',1)
-    if (P%Nu_mass_eigenstates > max_nu) stop 'too many mass eigenstates'
+    if (P%Nu_mass_eigenstates > max_nu) error stop 'too many mass eigenstates'
 
     numstr = Ini_Read_String('massive_neutrinos')
     read(numstr, *) nmassive
-    if (abs(nmassive-nint(nmassive))>1e-6) stop 'massive_neutrinos should now be integer (or integer array)'
+    if (abs(nmassive-nint(nmassive))>1e-6) error stop 'massive_neutrinos should now be integer (or integer array)'
     read(numstr,*, end=100, err=100) P%Nu_Mass_numbers(1:P%Nu_mass_eigenstates)
     P%Num_Nu_massive = sum(P%Nu_Mass_numbers(1:P%Nu_mass_eigenstates))
 
@@ -135,12 +135,12 @@
         if (P%share_delta_neff) then
             if (numstr/='') write (*,*) 'WARNING: nu_mass_degeneracies ignored when share_delta_neff'
         else
-            if (numstr=='') stop 'must give degeneracies for each eigenstate if share_delta_neff=F'
+            if (numstr=='') error stop 'must give degeneracies for each eigenstate if share_delta_neff=F'
             read(numstr,*) P%Nu_mass_degeneracies(1:P%Nu_mass_eigenstates)
         end if
         numstr = Ini_Read_String('nu_mass_fractions')
         if (numstr=='') then
-            if (P%Nu_mass_eigenstates >1) stop 'must give nu_mass_fractions for the eigenstates'
+            if (P%Nu_mass_eigenstates >1) error stop 'must give nu_mass_fractions for the eigenstates'
             P%Nu_mass_fractions(1)=1
         else
             read(numstr,*) P%Nu_mass_fractions(1:P%Nu_mass_eigenstates)
@@ -166,7 +166,7 @@
 
         transfer_interp_matterpower = Ini_Read_Logical('transfer_interp_matterpower ', transfer_interp_matterpower)
         transfer_power_var = Ini_read_int('transfer_power_var',transfer_power_var)
-        if (P%transfer%PK_num_redshifts > max_transfer_redshifts) stop 'Too many redshifts'
+        if (P%transfer%PK_num_redshifts > max_transfer_redshifts) error stop 'Too many redshifts'
         do i=1, P%transfer%PK_num_redshifts
             P%transfer%PK_redshifts(i)  = Ini_Read_Double_Array('transfer_redshift',i,0._dl)
             transferFileNames(i)     = Ini_Read_String_Array('transfer_filename',i)
@@ -207,7 +207,7 @@
     call Recombination_ReadParams(P%Recomb, DefIni)
     if (Ini_HasKey('recombination')) then
         i = Ini_Read_Int('recombination',1)
-        if (i/=1) stop 'recombination option deprecated'
+        if (i/=1) error stop 'recombination option deprecated'
     end if
 
     call Bispectrum_ReadParams(BispectrumParams, DefIni, outroot)
@@ -278,7 +278,7 @@
     !Mess here to fix typo with backwards compatibility
     if (Ini_HasKey('do_late_rad_trunction')) then
         DoLateRadTruncation = Ini_Read_Logical('do_late_rad_trunction',.true.)
-        if (Ini_HasKey('do_late_rad_truncation')) stop 'check do_late_rad_xxxx'
+        if (Ini_HasKey('do_late_rad_truncation')) error stop 'check do_late_rad_xxxx'
     else
         DoLateRadTruncation = Ini_Read_Logical('do_late_rad_truncation',.true.)
     end if
@@ -310,7 +310,7 @@
 
     call Ini_Close
 
-    if (.not. CAMB_ValidateParams(P)) stop 'Stopped due to parameter error'
+    if (.not. CAMB_ValidateParams(P)) error stop 'Stopped due to parameter error'
 
 #ifdef RUNIDLE
     call SetIdle
@@ -318,8 +318,8 @@
 
     if (global_error_flag==0) call CAMB_GetResults(P)
     if (global_error_flag/=0) then
-        write (*,*) 'Error result '//trim(global_error_message)
-        stop
+        write(*,*) 'Error result '//trim(global_error_message)
+        error stop
     endif
 
     if (P%PK_WantTransfer) then

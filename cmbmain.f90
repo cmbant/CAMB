@@ -134,7 +134,7 @@
     WantLateTime =  CP%DoLensing .or. num_redshiftwindows > 0
 
     if (CP%WantCls) then
-        if (CP%WantTensors .and. CP%WantScalars) stop 'CMBMAIN cannot generate tensors and scalars'
+        if (CP%WantTensors .and. CP%WantScalars) call MpiStop('CMBMAIN cannot generate tensors and scalars')
         !Use CAMB_GetResults instead
 
         if (CP%WantTensors) then
@@ -784,7 +784,7 @@
             tautf(itf)=min(TimeOfz(CP%Transfer%redshifts(itf)),CP%tau0)
             if (itf>1) then
                 if (tautf(itf) <= tautf(itf-1)) then
-                    stop 'Transfer redshifts not set or out of order'
+                    call MpiStop('Transfer redshifts not set or out of order')
                 end if
             end if
         end do
@@ -1150,7 +1150,7 @@
 
     call NonLinear_GetNonLinRatios(CAMB_PK)
 
-    if (CP%InitPower%nn > 1) stop 'Non-linear lensing only does one initial power'
+    if (CP%InitPower%nn > 1) call MpiStop('Non-linear lensing only does one initial power')
 
     first_step=1
     do while(TimeSteps%points(first_step) < tautf(1))

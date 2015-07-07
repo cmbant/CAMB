@@ -153,8 +153,7 @@
     real(dl) trigarg,expterm,L3
 
     IF(L.LT.0)THEN
-        write(*,*) 'Can not evaluate Spherical Bessel Function with index l<0'
-        STOP
+        error stop 'Can not evaluate Spherical Bessel Function with index l<0'
     ENDIF
     AX=DABS(X)
     AX2=AX**2
@@ -554,27 +553,22 @@
     ! Test input values
 
     if(l<0) then
-        write(*,*) "Bessel function index ell < 0"
-        stop
+        call MpiStop("Bessel function index ell < 0")
     endif
     if(beta<0._dl) then
-        write(*,*) "Wavenumber beta < 0"
-        stop
+        call MpiStop("Wavenumber beta < 0")
     endif
     if ((abs(K)/=1).and.(K/=0)) then
-        write(*,*) "K must be 1, 0 or -1"
-        stop
+        call MpiStop("K must be 1, 0 or -1")
     end if
 
     if(K==1) then
         ibeta=nint(beta)
         if(ibeta<3) then
-            write(*,*) "Wavenumber beta < 3 for K=1"
-            stop
+            call MpiStop("Wavenumber beta < 3 for K=1")
         endif
         if(ibeta<=l) then
-            write(*,*) "Wavenumber beta <= l"
-            stop
+            call MpiStop("Wavenumber beta <= l")
         endif
     endif
 
@@ -779,30 +773,17 @@
     !
     ! Test input values
     !
-    if(l<0) then
-        write(*,*) "Bessel function index ell < 0"
-        stop
-    endif
-    if(beta<0._dl) then
-        write(*,*) "Wavenumber beta < 0"
-        stop
-    endif
+    if(l<0) call MpiStop("Bessel function index ell < 0")
+    if(beta<0._dl) call MpiStop("Wavenumber beta < 0")
     if ((abs(K)/=1).and.(K/=0)) then
-        write(*,*) "K must be 1, 0 or -1"
-        stop
+        call MpiStop("K must be 1, 0 or -1")
     end if
 
 
     if(K == 1) then
         ibeta=nint(beta)
-        if(ibeta<3) then
-            write(*,*) "Wavenumber beta < 3 for K=1"
-            stop
-        endif
-        if(ibeta<=l) then
-            write(*,*) "Wavenumber beta <= l"
-            stop
-        endif
+        if(ibeta<3) call MpiStop("Wavenumber beta < 3 for K=1")
+        if(ibeta<=l) call MpiStop("Wavenumber beta <= l")
     endif
 
     kay=K
