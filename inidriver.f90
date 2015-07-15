@@ -24,11 +24,12 @@
     character(len=:), allocatable :: numstr, outroot, VectorFileName, &
         InputFile, ScalarFileName, TensorFileName, TotalFileName, LensedFileName,&
         LensedTotFileName, LensPotentialFileName, ScalarCovFileName, &
-        version_check, DarkEneryModel
+        version_check, DarkEneryModel, S
 
     integer :: i
     ! max_transfer_redshifts
-    character(len=Ini_max_string_len), allocatable :: TransferFileNames(:), MatterPowerFileNames(:)
+    character(len=Ini_max_string_len), allocatable :: TransferFileNames(:), &
+        MatterPowerFileNames(:), TransferClFileNames(:)
     real(dl) :: output_factor, nmassive
 
 #ifdef WRITE_FITS
@@ -36,6 +37,7 @@
 #endif
     type(TIniFile) :: Ini
     logical bad
+    logical :: DoCounts = .false.
 
     InputFile = ''
     if (GetParamCount() /= 0)  InputFile = GetParam(1)
@@ -56,6 +58,97 @@
     P%WantScalars = Ini%Read_Logical('get_scalar_cls')
     P%WantVectors = Ini%Read_Logical('get_vector_cls', .false.)
     P%WantTensors = Ini%Read_Logical('get_tensor_cls', .false.)
+
+    P%Want_CMB =  Ini_Read_Logical('want_CMB',.true.)
+    P%Want_CMB_lensing =  P%Want_CMB .or. Ini_Read_Logical('want_CMB_lensing',.true.)
+
+    if (P%WantScalars) then
+        num_redshiftwindows = Ini%Read_Int('num_redshiftwindows',0)
+    else
+        num_redshiftwindows = 0
+    end if
+    call Ini%Read('limber_windows', limber_windows)
+    if (limber_windows) call Ini%Read('limber_phiphi', limber_phiphi)
+    if (num_redshiftwindows > 0) then
+        DoRedshiftLensing = Ini%Read_Logical('DoRedshiftLensing', .false.)
+        call Ini%Read('Kmax_Boost', Kmax_Boost)
+    end if
+    Do21cm = Ini%Read_Logical('Do21cm', .false.)
+    num_extra_redshiftwindows = 0
+    do i=1, num_redshiftwindows
+        associate (RedWin => Redshift_w(i))
+            call InitRedshiftWindow(RedWin)
+            write (numstr,*) i
+            numstr=adjustl(numstr)
+            RedWin%Redshift = Ini%Read_Double_Array('redshift', i)
+            S = Ini%Read_String_Array('redshift_kind', i)
+            if (S == '21cm') then
+                RedWin%kind = window_21cm
+            elseif (S == 'counts') then
+                RedWin%kind = window_counts
+            elseif (S == 'lensing') then
+                RedWin%kind = window_lensing
+            else
+                write (*,*) i, 'Error: unknown type of window '//trim(S)
+                stop
+            end if
+            RedWin%a = 1 / (1 + RedWin%Redshift)
+            if (RedWin%kind /= window_21cm) then
+                RedWin%sigma = Ini%Read_Double_Array('redshift_sigma', i)
+                RedWin%sigma_z = RedWin%sigma
+            else
+                Do21cm = .true.
+                RedWin%sigma = Ini%Read_Double_Array('redshift_sigma_Mhz', i)
+                if (RedWin%sigma < 0.003) then
+                    write(*,*) 'WARNING:Window very narrow.'
+                    write(*,*) ' --> use transfer functions and transfer_21cm_cl =T ?'
+                end if
+                !with 21cm widths are in Mhz, make dimensionless scale factor
+                RedWin%sigma = RedWin%sigma / (f_21cm / 1e6)
+                RedWin%sigma_z = RedWin%sigma * (1 + RedWin%RedShift) ** 2
+                write(*,*) i,'delta_z = ', RedWin%sigma_z
+            end if
+            if (RedWin%kind == window_counts) then
+                DoCounts = .true.
+                RedWin%bias = Ini%Read_Double_Array('redshift_bias', i)
+                RedWin%dlog10Ndm = Ini%Read_Double_Array('redshift_dlog10Ndm', i ,0.d0)
+                if (DoRedshiftLensing) then
+                    num_extra_redshiftwindows = num_extra_redshiftwindows + 1
+                    RedWin%mag_index = num_extra_redshiftwindows
+                end if
+            end if
+        end associate
+    end do
+
+
+    if (Do21cm) then
+        line_basic = Ini%Read_Logical('line_basic')
+        line_distortions = Ini%read_Logical('line_distortions')
+        line_extra = Ini%Read_Logical('line_extra')
+
+        line_phot_dipole = Ini%Read_Logical('line_phot_dipole')
+        line_phot_quadrupole = Ini%Read_Logical('line_phot_quadrupole')
+        line_reionization = Ini%Read_Logical('line_reionization')
+
+        use_mK = Ini%Read_Logical('use_mK')
+        if (DebugMsgs) then
+            write (*,*) 'Doing 21cm'
+            write (*,*) 'dipole = ',line_phot_dipole, ' quadrupole =', line_phot_quadrupole
+        end if
+    else
+        line_extra = .false.
+    end if
+
+    if (DoCounts) then
+        counts_density = Ini%Read_Logical('counts_density')
+        counts_redshift = Ini%Read_Logical('counts_redshift')
+        counts_radial = Ini%Read_Logical('counts_radial')
+        counts_evolve = Ini%Read_Logical('counts_evolve')
+        counts_timedelay = Ini%Read_Logical('counts_timedelay')
+        counts_ISW = Ini%Read_Logical('counts_ISW')
+        counts_potential = Ini%Read_Logical('counts_potential')
+        counts_velocity = Ini%Read_Logical('counts_velocity')
+    end if
 
     P%OutputNormalization=outNone
     output_factor = Ini%Read_Double('CMB_outputscale', 1.d0)
@@ -173,11 +266,19 @@
         P%transfer%k_per_logint = Ini%Read_Int('transfer_k_per_logint')
         P%transfer%PK_num_redshifts = Ini%Read_Int('transfer_num_redshifts')
 
+        if (Do21cm) transfer_21cm_cl = Ini%Read_Logical('transfer_21cm_cl',.false.)
+        if (transfer_21cm_cl .and. P%transfer%kmax > 800) then
+            !Actually line widths are important at significantly larger scales too
+            write (*,*) 'WARNING: kmax very large. '
+            write(*,*) ' -- Neglected line width effects will dominate'
+        end if
+
         call Ini%Read('transfer_interp_matterpower ', transfer_interp_matterpower)
         call Ini%Read('transfer_power_var', transfer_power_var)
         !        if (P%transfer%PK_num_redshifts > max_transfer_redshifts) stop 'Too many redshifts'
         allocate (TransferFileNames(P%Transfer%PK_num_redshifts))
         allocate (MatterPowerFileNames(P%Transfer%PK_num_redshifts))
+        allocate (TransferClFileNames(P%Transfer%PK_num_redshifts))
         do i=1, P%transfer%PK_num_redshifts
             P%transfer%PK_redshifts(i)  = Ini%Read_Double_Array('transfer_redshift', i, 0._dl)
             transferFileNames(i)     = Ini%Read_String_Array('transfer_filename', i)
@@ -192,13 +293,23 @@
                 TransferFileNames(i) = trim(outroot)//TransferFileNames(i)
             if (MatterPowerFilenames(i) /= '') &
                 MatterPowerFilenames(i)=trim(outroot)//MatterPowerFilenames(i)
+
+            if (Do21cm) then
+                TransferClFileNames(i) = Ini%Read_String_Array('transfer_cl_filename',i)
+                if (TransferClFileNames(i) == '') &
+                    TransferClFileNames(i) =  trim(numcat('sharp_cl_',i))//'.dat'
+            end if
+
+            if (TransferClFileNames(i)/= '') &
+                TransferClFileNames(i) = trim(outroot)//TransferClFileNames(i)
         end do
     else
         P%Transfer%PK_num_redshifts = 1
         P%Transfer%PK_redshifts = 0
     end if
 
-    if ((P%NonLinear==NonLinear_lens .or. P%NonLinear==NonLinear_both) .and. P%DoLensing) then
+    if ((P%NonLinear==NonLinear_lens .or. P%NonLinear==NonLinear_both) .and. &
+             (P%DoLensing .or. num_redshiftwindows > 0)) then
         P%WantTransfer  = .true.
         call Transfer_SetForNonlinearLensing(P%Transfer)
     end if
@@ -337,6 +448,7 @@
         call Transfer_SaveToFiles(MT,TransferFileNames)
         call Transfer_SaveMatterPower(MT,MatterPowerFileNames)
         call Transfer_output_sig8(MT)
+        if (do21cm .and. transfer_21cm_cl) call Transfer_Get21cmCls(MT, TransferClFileNames)
     end if
 
     if (P%WantCls) then
@@ -354,7 +466,8 @@
 #endif
     end if
 
-    if (allocated(MatterPowerFileNames)) deallocate (MatterPowerFileNames, TransferFileNames)
+    if (allocated(MatterPowerFileNames)) deallocate (MatterPowerFileNames, &
+        TransferFileNames, TransferClFileNames)
     call CAMB_cleanup
     stop
 

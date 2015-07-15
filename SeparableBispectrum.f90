@@ -845,17 +845,8 @@
             end do
         end if
 
+        ! The finalizer closes the files.
         deallocate(bispectrum_files)
-        !            do bispectrum_type=1,nbispectra
-        !                if (BispectrumParams%Slice_Base_L>0) then
-        !                    do idelta=1,BispectrumParams%ndelta
-        !                        if (mod(BispectrumParams%Slice_Base_L + BispectrumParams%deltas(idelta),2)==1 &
-        !                            .and. bispectrum_type/=lens_bispectrum_ix) cycle
-        !                        close(nbispectra +BispectrumParams%ndelta*(bispectrum_type-1)+idelta)
-        !                    end do
-        !                end if
-        !                if (BispectrumParams%FullOutputFile/='') close(bispectrum_type)
-        !            end do
 
     end if
 

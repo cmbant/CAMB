@@ -54,15 +54,14 @@
     integer max_ix
     real(dl), parameter :: bessel_boost =1._dl
 
-
     if (DebugMsgs .and. FeedbackLevel > 0) write (*,*) 'Generating flat Bessels...'
-
 
     file_numl= lSamp%l0
     file_l(1:lSamp%l0) = lSamp%l(1:lSamp%l0)
     kmaxfile = int(min(CP%Max_eta_k,max_bessels_etak))+1
     if (do_bispectrum) kmaxfile = kmaxfile*2
 
+    if (DebugMsgs .and. FeedbackLevel > 0) write (*,*) 'x_max bessels', kmaxfile
 
     call BessRanges%Init()
 

@@ -63,6 +63,8 @@
     use lvalues
     use MassiveNu
     use InitialPower
+    use RedshiftSpaceData
+    use Recombination
     use Errors
     use RangeUtils
     use constants
@@ -226,13 +228,13 @@
     end if
 
     if (CP%WantTransfer .and. CP%WantCls .and. WantLateTime &
-        .and. (CP%NonLinear==NonLinear_Lens .or. CP%NonLinear==NonLinear_both) .and. global_error_flag==0) then
-    call MakeNonlinearSources
-    if (DebugMsgs .and. Feedbacklevel > 0) then
-        timeprev=actual
-        actual=GetTestTime()
-        write(*,*) actual-timeprev,' Timing for NonLinear sources'
-    end if
+        	.and. (CP%NonLinear==NonLinear_Lens .or. CP%NonLinear==NonLinear_both) .and. global_error_flag==0) then
+	    call MakeNonlinearSources
+    	if (DebugMsgs .and. Feedbacklevel > 0) then
+    	    timeprev=actual
+    	    actual=GetTestTime()
+    	    write(*,*) actual-timeprev,' Timing for NonLinear sources'
+    	end if
     end if
 
     if (CP%WantTransfer .and. .not. CP%OnlyTransfers .and. global_error_flag==0) &
@@ -378,6 +380,14 @@
 
                             reall = real(CTrans%ls%l(ell),dl)
                             fac = (const_twopi**2)/const_fourpi/(reall+0.5_dl)**3 !fourpi because multipled by fourpi later
+                            if (num_redshiftwindows > 0) then
+                                if (j >= 1 .and. Redshift_w(j)%kind == window_lensing) then
+                                    fac = fac / 2 * reall * (reall + 1)
+                                end if
+                                if (i >= 1 .and. Redshift_w(i)%kind == window_lensing) then
+                                    fac = fac / 2 * reall * (reall + 1)
+                                end if
+                            end if
                             Cl = Cl*fac
 
                             if(j==0 .and. i==0) iCl_scalar(ell,C_Phi,pix) = Cl
@@ -398,16 +408,17 @@
 
     subroutine GetLimberTransfers
     integer ell, ell_needed
-    integer i,s_ix
+    integer i, s_ix, s_ix_lens
+    type(TRedWin), pointer :: W
     integer n1,n2,n, ell_limb
     real(dl) int,k, chi, chimin
     integer klo, khi
-    real(dl) a0,b0,ho2o6,a03,b03,ho
+    real(dl) a0,b0,ho2o6,a03,b03,ho,reall
     Type(LimberRec), pointer :: LimbRec
 
     call Init_Limber(ThisCT)
 
-    if (num_redshiftwindows==0 .and. limber_phiphi==0) return
+    if (.not. limber_windows .or. num_redshiftwindows==0 .and. limber_phiphi==0) return
 
     if (ThisCT%ls%l(ThisCT%ls%l0) > 5000) then
         max_bessels_l_index = lvalues_indexOf(ThisCT%ls,5000)
@@ -421,11 +432,14 @@
         max_bessels_etak = 5000
     end if
 
-    do i =0, num_redshiftwindows
+    do i = 0, num_redshiftwindows
         s_ix = 3+i
 
         if (i==0) then
             ell_limb = limber_phiphi
+        else
+            W => Redshift_w(i)
+            ell_limb = Win_limber_ell(W, ThisCT%ls%l(ThisCT%ls%l0))
         end if
 
         ell_needed = ThisCT%ls%l(ThisCT%ls%l0)
@@ -439,16 +453,38 @@
             end if
         end do
 
+        if (i==0) then
+            if (CP%Want_CMB_lensing) then
+                max_bessels_etak = max(max_bessels_etak, min(CP%Max_eta_k, &
+                    ell_needed * 25._dl * AccuracyBoost))
+            end if
+        else
+            max_bessels_etak = max(max_bessels_etak, WindowKmaxForL(W,ell_needed)*CP%tau0)
+        end if
+
         if (ThisCT%limber_l_min(s_ix)/=0) then
-            if (i==0) then
+            s_ix_lens = 0
+            if (i == 0) then
                 n1 = TimeSteps%IndexOf(tau_maxvis)
-                n2 = TimeSteps%npoints-1
+                n2 = TimeSteps%npoints - 1
+            else
+                n1 = TimeSteps%IndexOf(W%tau_start)
+                if (W%kind == window_lensing .or. W%kind == window_counts &
+                        .and. DoRedshiftLensing) then
+                    n2 = TimeSteps%npoints - 1
+                else
+                    n2 = min(TimeSteps%npoints - 1, TimeSteps%IndexOf(W%tau_end))
+                end if
+                if (W%kind == window_counts .and. DoRedshiftLensing) then
+                    s_ix_lens = 3 + W%mag_index + num_redshiftwindows
+                end if
             end if
 
             do ell = ThisCT%limber_l_min(s_ix), ThisCT%ls%l0
                 LimbRec => ThisCT%Limber_windows(s_ix,ell)
                 LimbRec%n1 = n1
                 LimbRec%n2 = n2
+                reall = ThisCT%ls%l(ell)
 
                 allocate(LimbRec%k(n1:n2))
                 allocate(LimbRec%Source(n1:n2))
@@ -456,7 +492,7 @@
                 int = 0
                 do n = n1,n2
                     chi = (CP%tau0-TimeSteps%points(n))
-                    k = (ThisCT%ls%l(ell)+0.5_dl)/chi
+                    k = (reall + 0.5_dl) / chi
                     LimbRec%k(n) = k
                     if (k<=qmax) then
                         klo = Evolve_q%IndexOf(k)
@@ -470,6 +506,12 @@
 
                         LimbRec%Source(n)= sqrt(chi*TimeSteps%dpoints(n))* (a0*Src(klo,s_ix,n)+&
                             b0*Src(khi,s_ix,n)+(a03 *ddSrc(klo,s_ix,n)+ b03*ddSrc(khi,s_ix,n)) *ho2o6)
+                        if (s_ix_lens>0) then
+                            LimbRec%Source(n) = LimbRec%Source(n) + reall * (reall + 1) * &
+                                sqrt(chi * TimeSteps%dpoints(n)) * (a0 * Src(klo, s_ix_lens, n) + &
+                                b0 * Src(khi, s_ix_lens, n) + (a03 * ddSrc(klo, s_ix_lens, n) + &
+                                b03 * ddSrc(khi, s_ix_lens, n)) * ho2o6)
+                        end if
                     else
                         LimbRec%Source(n)=0
                     end if
@@ -726,10 +768,11 @@
     use ThermoData
     use precision
     use ModelParams
-
+    use RedshiftSpaceData
     implicit none
     real(dl) taumin, maxq, initAccuracyBoost
     integer itf
+    Type(TRedWin), pointer :: Win
 
     initAccuracyBoost = AccuracyBoost
 
@@ -782,6 +825,12 @@
     if (Feedbacklevel > 0)  &
         write(*,'("tau_recomb/Mpc       = ",f7.2,"  tau_now/Mpc = ",f8.1)') tau_maxvis,CP%tau0
 
+    do itf=1, num_redshiftwindows
+        Win => Redshift_w(itf)
+        if (Feedbacklevel > 0) write(*,'("z = ", f7.2,"  tau = ",f8.1,"  chi = ",f8.1, " tau_min =",f7.1, " tau_max =",f7.1)') &
+        Win%Redshift, Win%tau,Win%chi0, Win%tau_start,Win%tau_end
+    end do
+
     !     Calculating the times for the outputs of the transfer functions.
     !
     if (CP%WantTransfer) then
@@ -798,6 +847,7 @@
     end subroutine InitVars
 
     subroutine SetkValuesForSources
+    implicit none
     real(dl) dlnk0, dkn1, dkn2, q_switch, q_cmb, dksmooth
     real(dl) qmax_log
     real(dl) SourceAccuracyBoost
@@ -970,8 +1020,8 @@
         tauend=TimeSteps%points(j)
 
         if (.not. DebugEvolution .and. (EV%q*tauend > max_etak_scalar .and. tauend > taurend) &
-            .and. .not. WantLateTime .and. (.not.CP%WantTransfer.or.tau > tautf(CP%Transfer%num_redshifts))) then
-        Src(EV%q_ix,1:SourceNum,j)=0
+            	.and. .not. WantLateTime .and. (.not.CP%WantTransfer.or.tau > tautf(CP%Transfer%num_redshifts))) then
+        	Src(EV%q_ix,1:SourceNum,j)=0
         else
             !Integrate over time, calulate end point derivs and calc output
             call GaugeInterface_EvolveScal(EV,tau,y,tauend,tol1,ind,c,w)
@@ -1100,18 +1150,18 @@
 
     !     loop over wavenumbers.
     do q_ix=Evolve_q%npoints+1,MT%num_q_trans
-    EV%TransferOnly=.true. !in case we want to do something to speed it up
+	    EV%TransferOnly=.true. !in case we want to do something to speed it up
 
-    EV%q= MT%q_trans(q_ix)
+	    EV%q= MT%q_trans(q_ix)
 
-    EV%q2=EV%q**2
-    EV%q_ix = q_ix
+	    EV%q2=EV%q**2
+	    EV%q_ix = q_ix
 
-    tau = GetTauStart(EV%q)
+	    tau = GetTauStart(EV%q)
 
-    call GetNumEqns(EV)
+	    call GetNumEqns(EV)
 
-    call GetTransfer(EV, tau)
+	    call GetTransfer(EV, tau)
     end do
     !$OMP END PARAllEl DO
 
@@ -1163,37 +1213,40 @@
     !$OMP PARAllEl DO DEFAUlT(SHARED), SCHEDUlE(STATIC), &
     !$OMP & PRIVATE(ik, i,scaling,ddScaling, tf_lo,tf_hi,tau,ho,a0,b0,ascale)
     do ik=1, Evolve_q%npoints
-    if (Evolve_q%points(ik)/(CP%H0/100) >  Min_kh_nonlinear) then
-        !Interpolate non-linear scaling in conformal time
-        do i = 1, CP%Transfer%num_redshifts
-            scaling(i) = CAMB_Pk%nonlin_ratio(ik,i)
-        end do
-        if (all(abs(scaling-1) < 5e-4)) cycle
-        call spline(tautf(1),scaling(1),CP%Transfer%num_redshifts,&
-            spl_large,spl_large,ddScaling(1))
-
-        tf_lo=1
-        tf_hi=tf_lo+1
-
-        do i=first_step,TimeSteps%npoints-1
-            tau = TimeSteps%points(i)
-
-            do while (tau > tautf(tf_hi))
-                tf_lo = tf_lo + 1
-                tf_hi = tf_hi + 1
+        if (Do21cm) then
+            Src(ik, 4:SourceNum, :) = Src(ik, 4:SourceNum, :) * &
+                CAMB_Pk%nonlin_ratio(ik,1)
+        elseif (Evolve_q%points(ik)/(CP%H0/100) >  Min_kh_nonlinear) then
+            !Interpolate non-linear scaling in conformal time
+            do i = 1, CP%Transfer%num_redshifts
+                scaling(i) = CAMB_Pk%nonlin_ratio(ik,i)
             end do
+            if (all(abs(scaling-1) < 5e-4)) cycle
+            call spline(tautf(1),scaling(1),CP%Transfer%num_redshifts,&
+                spl_large,spl_large,ddScaling(1))
 
-            ho=tautf(tf_hi)-tautf(tf_lo)
-            a0=(tautf(tf_hi)-tau)/ho
-            b0=1-a0
+            tf_lo=1
+            tf_hi=tf_lo+1
 
-            ascale = a0*scaling(tf_lo)+ b0*scaling(tf_hi)+&
-                ((a0**3-a0)* ddscaling(tf_lo) &
-                +(b0**3-b0)*ddscaling(tf_hi))*ho**2/6
+            do i=first_step,TimeSteps%npoints-1
+                tau = TimeSteps%points(i)
 
-            Src(ik,3:SourceNum,i) = Src(ik,3:SourceNum,i) * ascale
-        end  do
-    end if
+                do while (tau > tautf(tf_hi))
+                    tf_lo = tf_lo + 1
+                    tf_hi = tf_hi + 1
+                end do
+
+                ho=tautf(tf_hi)-tautf(tf_lo)
+                a0=(tautf(tf_hi)-tau)/ho
+                b0=1-a0
+
+                ascale = a0*scaling(tf_lo)+ b0*scaling(tf_hi)+&
+                    ((a0**3-a0)* ddscaling(tf_lo) &
+                    +(b0**3-b0)*ddscaling(tf_hi))*ho**2/6
+
+                Src(ik,3:SourceNum,i) = Src(ik,3:SourceNum,i) * ascale
+            end  do
+        end if
     end do
     !$OMP END PARAllEl DO
 
@@ -1217,6 +1270,7 @@
 
 
     subroutine SetkValuesForInt
+    use RedshiftSpaceData
     implicit none
 
     integer no
@@ -1259,6 +1313,7 @@
         if (do_bispectrum) k_max_0 = max(10.d0,k_max_0)
 
         dk2 = 0.04/IntSampleBoost  !very small scales
+        if (num_redshiftwindows>0) dk2 = dk  !very small scales
 
         call ThisCT%q%Add_delta(qmin, k_max_log, dlnk1, IsLog = .true.)
         call ThisCT%q%Add_delta(k_max_log, min(qmax_int,k_max_0), dk0)
@@ -1346,11 +1401,11 @@
 
         if (CP%WantScalars) then
             if ((DebugEvolution .or. WantLateTime .or. IV%q*TimeSteps%points(i) < max_etak_scalar) &
-                .and. xf > 1.e-8_dl) then
-            step=i
-            IV%Source_q(i,1:SourceNum)=a0*Src(klo,1:SourceNum,i)+ &
-                b0*Src(khi,1:SourceNum,i) + (a03*ddSrc(klo,1:SourceNum,i) &
-                +b03*ddSrc(khi,1:SourceNum,i))*ho2o6
+                	.and. xf > 1.e-8_dl) then
+	            step=i
+    	        IV%Source_q(i,1:SourceNum) = a0 * Src(klo,1:SourceNum,i) + &
+    	            b0 * Src(khi,1:SourceNum,i) + (a03*ddSrc(klo,1:SourceNum,i) + &
+    	            b03 * ddSrc(khi,1:SourceNum,i)) * ho2o6
             else
                 IV%Source_q(i,1:SourceNum) = 0
             end if
@@ -1431,13 +1486,18 @@
     !note increasing non-limber is not neccessarily more accurate unless AccuracyBoost much higher
     !use **0.5 to at least give some sensitivity to Limber effects
     !Could be lower but care with phi-T correlation at lower L
-    UseLimber = l > 400*AccuracyBoost**0.5
+	if (limber_windows) then
+		UseLimber = l >= limber_phiphi
+	else
+	    UseLimber = l > 400 * AccuracyBoost ** 0.5
+	end if
 
     end function UseLimber
 
     !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
     !flat source integration
     subroutine DoFlatIntegration(IV, llmax)
+    use ThermoData
     implicit none
     type(IntegrationVars) IV
     integer llmax
@@ -1449,6 +1509,8 @@
     real(dl) xf, sums(SourceNum)
     real(dl) qmax_int
     integer bes_ix,n, bes_index(IV%SourceSteps)
+    !Sources
+    integer nwin, s_ix
 
     !     Find the position in the xx table for the x correponding to each
     !     timestep
@@ -1472,12 +1534,18 @@
             tmin = TimeSteps%points(2)
         else
             xlmax1=80*lSamp%l(j)*AccuracyBoost
+            if (num_redshiftwindows>0 .and. CP%WantScalars) then
+                xlmax1=80*lSamp%l(j)*8*AccuracyBoost !Have to be careful if sharp spikes due to late time sources
+            end if
             tmin=CP%tau0-xlmax1/IV%q
             tmin=max(TimeSteps%points(2),tmin)
         end if
         tmax=CP%tau0-xlim/IV%q
         tmax=min(CP%tau0,tmax)
         tmin=max(TimeSteps%points(2),tmin)
+        if (.not. CP%Want_CMB .and. .not. CP%Want_CMB_lensing) &
+            tmin = max(tmin, tau_start_redshiftwindows)
+
 
         if (tmax < TimeSteps%points(2)) exit
         sums(1:SourceNum) = 0
@@ -1502,7 +1570,14 @@
             qmax_int= max(850,lSamp%l(j))*3*AccuracyBoost/CP%tau0
             if (HighAccuracyDefault) qmax_int=qmax_int*1.2
             DoInt = .not. CP%WantScalars .or. IV%q < qmax_int
+            !Do integral if any useful contribution to the CMB, or large scale effects
+            !Sources
             if (DoInt) then
+                if (num_redshiftwindows>0) then
+                    nwin = TimeSteps%IndexOf(tau_start_redshiftwindows)
+                else
+                    nwin = TimeSteps%npoints+1
+                end if
                 do n= TimeSteps%IndexOf(tmin),min(IV%SourceSteps,TimeSteps%IndexOf(tmax))
                     !Full Bessel integration
                     a2=aa(n)
@@ -1516,6 +1591,11 @@
                     sums(1) = sums(1) + IV%Source_q(n,1)*J_l
                     sums(2) = sums(2) + IV%Source_q(n,2)*J_l
                     sums(3) = sums(3) + IV%Source_q(n,3)*J_l
+                    if (n >= nwin) then
+                        do s_ix = 4, SourceNum
+                            sums(s_ix) = sums(s_ix) + IV%Source_q(n,s_ix)*J_l
+                        end do
+                    end if
                 end do
             end if
             if (.not. DoInt .or. UseLimber(lsamp%l(j),IV%q) .and. CP%WantScalars) then
@@ -1528,6 +1608,28 @@
                         sqrt(const_pi/2/(lSamp%l(j)+0.5_dl))/IV%q
                 else
                     sums(3)=0
+                end if
+            end if
+            if (.not. DoInt .and. SourceNum>3) then
+                if (any(ThisCT%limber_l_min(4:SourceNum)==0 .or. &
+                        ThisCT%limber_l_min(4:SourceNum) > j)) then
+                    !When CMB does not need integral but other sources do
+                    do n= TimeSteps%IndexOf(tau_start_redshiftwindows), &
+                            min(IV%SourceSteps, TimeSteps%IndexOf(tmax))
+                        !Full Bessel integration
+                        a2 = aa(n)
+                        bes_ix = bes_index(n)
+
+                        J_l = a2 * ajl(bes_ix, j) + (1 - a2) * (ajl(bes_ix + 1, j) -&
+                            ((a2 + 1) * ajlpr(bes_ix, j) + (2 - a2) * &
+                            ajlpr(bes_ix + 1, j)) * fac(n)) !cubic spline
+                        J_l = J_l * TimeSteps%dpoints(n)
+
+                        sums(4) = sums(4) + IV%Source_q(n, 4) * J_l
+                        do s_ix = 5, SourceNum
+                            sums(s_ix) = sums(s_ix) + IV%Source_q(n, s_ix) * J_l
+                        end do
+                    end do
                 end if
             end if
         end if
@@ -1637,6 +1739,9 @@
             else
                 sums(3) = 0
             end if
+            ! TODO: The following line is unreachable. Should it have been
+            ! after the surrounding if?
+            !if (SourceNum>3) stop 'Non-flat not implemented for extra sources'
         end if
 
         ThisCT%Delta_p_l_k(1:SourceNum,j,IV%q_ix)=ThisCT%Delta_p_l_k(1:SourceNum,j,IV%q_ix)+sums
@@ -1752,12 +1857,12 @@
         IntAccuracyBoost=IntAccuracyBoost*(1+(2000-scalel)*0.6/2000 )
 
     if (num2*IntAccuracyBoost < dchisource .and. (.not. WantLateTime .or. UseLimber(l,IV%q)) &
-        .or. (nstart>IV%SourceSteps.and.nend>IV%SourceSteps)) then
-    out = 0
-    y1=0._dl !So we know to calculate starting y1,y2 if there is next range
-    y2=0._dl
-    chi=(CP%tau0-TimeSteps%points(nend))/CP%r
-    return
+            .or. (nstart>IV%SourceSteps.and.nend>IV%SourceSteps)) then
+        out = 0
+        y1=0._dl !So we know to calculate starting y1,y2 if there is next range
+        y2=0._dl
+        chi=(CP%tau0-TimeSteps%points(nend))/CP%r
+        return
     end if
 
     Startn=nstart
@@ -2129,7 +2234,7 @@
             if (global_error_flag/=0) return
         end do
 
-        !Seems not to OMP well.. comment
+        !TODO: Analyze: Seems not to OMP well.. comment
         !OMP PARAllEl DO DEFAUlT(SHARED),SCHEDUlE(STATIC,4) &
         !OMP & PRIVATE(j,q_ix,dlnk,apowers,ctnorm,dbletmp)
         do j=1,CTrans%ls%l0
@@ -2155,15 +2260,42 @@
                                 Delta1= CTrans%Delta_p_l_k(w_ix,j,q_ix)
                                 if (w_ix == 2) Delta1=Delta1*ctnorm
 
-                                do w_ix2=1,3 + num_redshiftwindows
+                                if (w_ix>3) then
+                                    associate (Win => Redshift_w(w_ix - 3))
+                                        if (Win%kind == window_lensing) &
+                                            Delta1 = Delta1 / 2 * ell * (ell + 1)
+                                        if (Win%kind == window_counts .and. DoRedshiftLensing) then
+                                            !want delta f/f - 2kappa;
+                                            ! grad^2 = -l(l+1);
+                                            Delta1 = Delta1 + ell * (ell + 1) * &
+                                                CTrans%Delta_p_l_k(3 + Win%mag_index + &
+                                                    num_redshiftwindows, j, q_ix)
+                                        end if
+                                    end associate
+                                end if
+
+                                do w_ix2 = 1, 3 + num_redshiftwindows
                                     if (w_ix2>= 3.and. w_ix>=3) then
                                         !Skip if the auto or cross-correlation is included in direct Limber result
                                         !Otherwise we need to include the sources e.g. to get counts-Temperature correct
                                         if (CTrans%limber_l_min(w_ix2)/= 0 .and. j>=CTrans%limber_l_min(w_ix2) &
                                             .and. CTrans%limber_l_min(w_ix)/= 0 .and. j>=CTrans%limber_l_min(w_ix)) cycle
                                     end if
-                                    Delta2=  CTrans%Delta_p_l_k(w_ix2,j,q_ix)
-                                    if (w_ix2 == 2) Delta2=Delta2*ctnorm
+                                    Delta2 = CTrans%Delta_p_l_k(w_ix2, j, q_ix)
+                                    if (w_ix2 == 2) Delta2 = Delta2 * ctnorm
+                                    if (w_ix2 > 3) then
+                                        associate (Win => Redshift_w(w_ix2 - 3))
+                                            if (Win%kind == window_lensing) &
+                                                Delta2 = Delta2 / 2 * ell * (ell + 1)
+                                            if (Win%kind == window_counts .and. DoRedshiftLensing) then
+                                                !want delta f/f - 2kappa;
+                                                ! grad^2 = -l(l+1);
+                                                Delta2 = Delta2 + ell * (ell + 1) * &
+                                                    CTrans%Delta_p_l_k(3 + Win%mag_index + &
+                                                        num_redshiftwindows, j, q_ix)
+                                            end if
+                                        end associate
+                                    end if
                                     iCl_Array(j,w_ix,w_ix2,pix) = iCl_Array(j,w_ix,w_ix2,pix)+Delta1*Delta2*apowers*dlnk*dbletmp
                                 end do
                             end do
@@ -2315,6 +2447,7 @@
 
         call GetInitPowers(pows,ks,CTrans%q%npoints,in)
 
+        !TODO: Analyse OMP-statement
         !$OMP PARAllEl DO DEFAUlT(SHARED),SCHEDUlE(STATIC,4) &
         !$OMP & PRIVATE(j,q_ix,measure,apowert,ctnorm,dbletmp)
         do j=1,CTrans%ls%l0
