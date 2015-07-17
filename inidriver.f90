@@ -59,8 +59,8 @@
     P%WantVectors = Ini%Read_Logical('get_vector_cls', .false.)
     P%WantTensors = Ini%Read_Logical('get_tensor_cls', .false.)
 
-    P%Want_CMB =  Ini_Read_Logical('want_CMB',.true.)
-    P%Want_CMB_lensing =  P%Want_CMB .or. Ini_Read_Logical('want_CMB_lensing',.true.)
+    P%Want_CMB =  Ini%Read_Logical('want_CMB',.true.)
+    P%Want_CMB_lensing =  P%Want_CMB .or. Ini%Read_Logical('want_CMB_lensing',.true.)
 
     if (P%WantScalars) then
         num_redshiftwindows = Ini%Read_Int('num_redshiftwindows',0)
@@ -298,6 +298,8 @@
                 TransferClFileNames(i) = Ini%Read_String_Array('transfer_cl_filename',i)
                 if (TransferClFileNames(i) == '') &
                     TransferClFileNames(i) =  trim(numcat('sharp_cl_',i))//'.dat'
+            else
+                TransferClFileNames(i) = ''
             end if
 
             if (TransferClFileNames(i)/= '') &
