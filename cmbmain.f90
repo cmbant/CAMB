@@ -383,9 +383,11 @@
                             if (num_redshiftwindows > 0) then
                                 if (j >= 1 .and. Redshift_w(j)%kind == window_lensing) then
                                     fac = fac / 2 * reall * (reall + 1)
+                                    print *, "Redshift_w(",j,")%kind == window_lensing"
                                 end if
                                 if (i >= 1 .and. Redshift_w(i)%kind == window_lensing) then
                                     fac = fac / 2 * reall * (reall + 1)
+                                    print *, "Redshift_w(",i,")%kind == window_lensing"
                                 end if
                             end if
                             Cl = Cl*fac
@@ -438,6 +440,7 @@
         if (i==0) then
             ell_limb = limber_phiphi
         else
+            print *, "cmbmain.f90:GetLimberTransfer: in else part"
             W => Redshift_w(i)
             ell_limb = Win_limber_ell(W, ThisCT%ls%l(ThisCT%ls%l0))
         end if
@@ -492,6 +495,7 @@
                 int = 0
                 do n = n1,n2
                     chi = (CP%tau0-TimeSteps%points(n))
+!                    k = (ThisCT%ls%l(ell)+0.5_dl)/chi
                     k = (reall + 0.5_dl) / chi
                     LimbRec%k(n) = k
                     if (k<=qmax) then
@@ -772,7 +776,6 @@
     implicit none
     real(dl) taumin, maxq, initAccuracyBoost
     integer itf
-    Type(TRedWin), pointer :: Win
 
     initAccuracyBoost = AccuracyBoost
 
@@ -826,9 +829,10 @@
         write(*,'("tau_recomb/Mpc       = ",f7.2,"  tau_now/Mpc = ",f8.1)') tau_maxvis,CP%tau0
 
     do itf=1, num_redshiftwindows
-        Win => Redshift_w(itf)
-        if (Feedbacklevel > 0) write(*,'("z = ", f7.2,"  tau = ",f8.1,"  chi = ",f8.1, " tau_min =",f7.1, " tau_max =",f7.1)') &
-        Win%Redshift, Win%tau,Win%chi0, Win%tau_start,Win%tau_end
+        associate (Win => Redshift_w(itf))
+            if (Feedbacklevel > 0) write(*,'("z = ", f7.2,"  tau = ",f8.1,"  chi = ",f8.1, " tau_min =",f7.1, " tau_max =",f7.1)') &
+                Win%Redshift, Win%tau,Win%chi0, Win%tau_start,Win%tau_end
+        end associate
     end do
 
     !     Calculating the times for the outputs of the transfer functions.
@@ -1150,18 +1154,18 @@
 
     !     loop over wavenumbers.
     do q_ix=Evolve_q%npoints+1,MT%num_q_trans
-	    EV%TransferOnly=.true. !in case we want to do something to speed it up
+        EV%TransferOnly=.true. !in case we want to do something to speed it up
 
-	    EV%q= MT%q_trans(q_ix)
+        EV%q= MT%q_trans(q_ix)
 
-	    EV%q2=EV%q**2
-	    EV%q_ix = q_ix
+        EV%q2=EV%q**2
+        EV%q_ix = q_ix
 
-	    tau = GetTauStart(EV%q)
+        tau = GetTauStart(EV%q)
 
-	    call GetNumEqns(EV)
+        call GetNumEqns(EV)
 
-	    call GetTransfer(EV, tau)
+        call GetTransfer(EV, tau)
     end do
     !$OMP END PARAllEl DO
 
@@ -1210,6 +1214,7 @@
     do while(TimeSteps%points(first_step) < tautf(1))
         first_step = first_step + 1
     end do
+    print *, "cmbmain.f90:MakeNonlinearSources: Do21cm:", Do21cm
     !$OMP PARAllEl DO DEFAUlT(SHARED), SCHEDUlE(STATIC), &
     !$OMP & PRIVATE(ik, i,scaling,ddScaling, tf_lo,tf_hi,tau,ho,a0,b0,ascale)
     do ik=1, Evolve_q%npoints
@@ -2234,7 +2239,7 @@
             if (global_error_flag/=0) return
         end do
 
-        !TODO: Analyze: Seems not to OMP well.. comment
+        !TODO: OMP: Analyze: Seems not to OMP well.. comment
         !OMP PARAllEl DO DEFAUlT(SHARED),SCHEDUlE(STATIC,4) &
         !OMP & PRIVATE(j,q_ix,dlnk,apowers,ctnorm,dbletmp)
         do j=1,CTrans%ls%l0
@@ -2447,7 +2452,7 @@
 
         call GetInitPowers(pows,ks,CTrans%q%npoints,in)
 
-        !TODO: Analyse OMP-statement
+        !TODO: OMP: Analyse OMP-statement
         !$OMP PARAllEl DO DEFAUlT(SHARED),SCHEDUlE(STATIC,4) &
         !$OMP & PRIVATE(j,q_ix,measure,apowert,ctnorm,dbletmp)
         do j=1,CTrans%ls%l0

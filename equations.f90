@@ -97,10 +97,12 @@
 
     logical :: DoTensorNeutrinos = .true.
 
-    logical :: Evolve_baryon_cs = .true.
+	!TODO: SOURCE: Figure what these flags depend on. They should be .false. for regular camb function.
+    logical :: Evolve_baryon_cs = .false. ! .true.
     !if true, evolves equation for Delta_{T_m} to get cs_2 = \delta p /\delta\rho for perfect gas
 
-    logical :: Evolve_delta_xe =.true.
+	!TODO: SOURCE: Figure what these flags depend on. They should be .false. for regular camb function.
+    logical :: Evolve_delta_xe = .false. ! .true.
 
     logical :: Evolve_delta_Ts =.false. !Equilibrium result agree to sub-percent level
 
@@ -586,7 +588,6 @@
         neq=neq+1
         maxeq=maxeq+1
     end if
-
 
     !Massive neutrinos
     if (CP%Num_Nu_massive /= 0) then
@@ -1577,10 +1578,10 @@
 
     if (CTransScal%NumSources > 2) then
         !Get lensing sources
-        phi = -(dgrho +3*dgq*adotoa/k)/(k2*EV%Kf(1)*2)- dgpi/k2/2
+        phi = -(dgrho +3*dgq*adotoa/k)/(k2*EV%Kf(1)*2) - dgpi/k2/2
         !Can modify this here if you want to get power spectra for other tracer
         !CMB lensing sources
-        !TODO: Camb_source uses:
+        !TODO: SOURCE: Camb_source uses:
         !if (tau>taurend .and. CP%tau0-tau > 0.1_dl) then
         if (tau > tau_maxvis .and. CP%tau0-tau > 0.1_dl) then
             !phi_lens = Phi - 1/2 kappa (a/k)^2 sum_i rho_i pi_i
@@ -1871,7 +1872,6 @@
                 end if
             end do
         end if
-
     end if !num sources > 2
 
     end subroutine output
@@ -2490,7 +2490,6 @@
     end if
 
     dgrho = dgrho_matter
-
     if (.not. CP%DarkEnergy%is_cosmological_constant) &
         call CP%DarkEnergy%AddStressEnergy(dgrho, dgq, grhov_t, ay, EV%w_ix, .false.)
 
@@ -2644,7 +2643,7 @@
 
         EV%pig = pig
     else
-        !TODO: camb_sources:
+        !TODO: SOURCE: camb_sources:
         !vbdot=-adotoa*vb+k*delta_p-photbar*opacity*(4._dl/3*vb-qg)
         vbdot=-adotoa*vb+cs2*k*clxb-photbar*opacity*(4._dl/3*vb-qg)
     end if
@@ -2845,7 +2844,6 @@
             end if
         end if
     end if
-
     if (associated(EV%OutputTransfer)) then
         EV%OutputTransfer(Transfer_kh) = k/(CP%h0/100._dl)
         EV%OutputTransfer(Transfer_cdm) = clxc

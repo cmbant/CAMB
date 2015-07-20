@@ -320,8 +320,8 @@
     real(sp) :: lAccuracyBoost=1.
     !Boost number of multipoles integrated in Boltzman heirarchy
 
-    !TODO: camb sets 0 for limber_phiphi, camb_sources 400
-    integer :: limber_phiphi = 400 !for l>limber_phiphi use limber approx for lensing potential
+    !TODO: SOURCE: camb sets 0 for limber_phiphi, camb_sources 400
+    integer :: limber_phiphi = 0 !400 !for l>limber_phiphi use limber approx for lensing potential
     integer :: num_redshiftwindows = 0
     integer :: num_extra_redshiftwindows = 0
 
@@ -337,7 +337,8 @@
 
     integer, parameter:: l0max=4000
 
-    !TODO: camb_sources uses lmax_arr = 100+l0max/7
+    !TODO: SOURCE: camb_sources uses lmax_arr = 100+l0max/7
+    !      Taking l0max, because that one includes camb_sources
     !     lmax is max possible number of l's evaluated
     integer, parameter :: lmax_arr = l0max
 
@@ -403,7 +404,7 @@
         CP%WantScalars=.true.
         if (.not. CP%WantCls) then
             CP%AccuratePolarization = .false.
-            CP%Reion%Reionization = transfer_21cm_cl
+            CP%Reion%Reionization = .false. ! transfer_21cm_cl
         end if
     else
         CP%transfer%num_redshifts=0
@@ -2594,8 +2595,6 @@
         ncol = 1
     end if
 
-    ncol=1
-
     write (fmt,*) CP%InitPower%nn+1
     fmt = '('//trim(adjustl(fmt))//'E15.5)'
     do itf=1, CP%Transfer%PK_num_redshifts
@@ -2614,22 +2613,22 @@
                         call MatterPowerdata_MakeNonlinear(PK_Data)
 
                     !Sources
-                    if (all21) then
-                        call Transfer_Get21cmPowerData(MTrans, PK_data, in, itf)
-                    else
-                        call Transfer_GetPowerDataNonlin(MTrans, PK_data, in, itf)
-                    end if
+!                    if (all21) then
+!                        call Transfer_Get21cmPowerData(MTrans, PK_data, in, itf)
+!                    else
+!                        call Transfer_GetPowerDataNonlin(MTrans, PK_data, in, itf)
+!                    end if
 
                     outpower(:,in,1) = exp(PK_data%matpower(:,1))
-                    !Sources
-                    if (all21) then
-                        outpower(:,in,3) = exp(PK_data%vvpower(:,1))
-                        outpower(:,in,2) = exp(PK_data%vdpower(:,1))
+!                    !Sources
+!                    if (all21) then
+!                        outpower(:,in,3) = exp(PK_data%vvpower(:,1))
+!                        outpower(:,in,2) = exp(PK_data%vdpower(:,1))
 
-                        outpower(:,in,1) = outpower(:,in,1)/1d10*const_pi*const_twopi/MTrans%TransferData(Transfer_kh,:,1)**3
-                        outpower(:,in,2) = outpower(:,in,2)/1d10*const_pi*const_twopi/MTrans%TransferData(Transfer_kh,:,1)**3
-                        outpower(:,in,3) = outpower(:,in,3)/1d10*const_pi*const_twopi/MTrans%TransferData(Transfer_kh,:,1)**3
-                    end if
+!                        outpower(:,in,1) = outpower(:,in,1)/1d10*const_pi*const_twopi/MTrans%TransferData(Transfer_kh,:,1)**3
+!                        outpower(:,in,2) = outpower(:,in,2)/1d10*const_pi*const_twopi/MTrans%TransferData(Transfer_kh,:,1)**3
+!                        outpower(:,in,3) = outpower(:,in,3)/1d10*const_pi*const_twopi/MTrans%TransferData(Transfer_kh,:,1)**3
+!                    end if
 
                     call MatterPowerdata_Free(PK_Data)
                 end do
@@ -3008,8 +3007,9 @@
     use ModelData
     implicit none
     private
-    !TODO: camb nthermo=20000
-    integer,parameter :: nthermo=40000
+    !TODO: SOURCE: camb nthermo=20000, camb_source: 40000
+    !      Differences in results.
+    integer,parameter :: nthermo=20000
     !Sources
     Type CalWIns
         real(dl) awin_lens(nthermo),  dawin_lens(nthermo)
@@ -3138,13 +3138,12 @@
     real(dl) Tspin, Trad, rho_fac, window, tau_eps
     integer transfer_ix(max_transfer_redshifts)
     integer RW_i
-    Type(CalWins), pointer :: Win
-    Type(TRedWin), pointer :: RedWin
     real(dl) Tb21cm, dip, winamp, z
     character(len=:), allocatable :: outstr
 
     !Sources
-    doTmatTspin = .true.
+	!TODO: SOURCE: Initial value from camb_source was .true.
+    doTmatTspin = .false. !.true.
     allocate(RW(num_redshiftwindows))
     allocate(arhos_fac(nthermo), darhos_fac(nthermo), ddarhos_fac(nthermo))
 
@@ -3198,10 +3197,10 @@
     awin_lens2=0
 
     do RW_i = 1, num_redshiftwindows
-        Win => RW(RW_i)
-        RedWin => Redshift_w(RW_i)
-        RedWin%tau_start = 0
-        RedWin%tau_end = Maxtau
+        associate (Win => RW(RW_i), RedWin => Redshift_w(RW_i))
+    	    RedWin%tau_start = 0
+    	    RedWin%tau_end = Maxtau
+		end associate
     end do
 
     do i=2,nthermo
@@ -3235,32 +3234,31 @@
 
 
         do RW_i = 1, num_redshiftwindows
-            Win => RW(RW_i)
-            RedWin => Redshift_w(RW_i)
+            associate (Win => RW(RW_i), RedWin => Redshift_w(RW_i))
+		        if (a > 1d-4) then
+		            window = Window_f_a(RedWin,a, winamp)
 
-            if (a > 1d-4) then
-                window = Window_f_a(RedWin,a, winamp)
+		            if  (RedWin%kind == window_lensing .or.  RedWin%kind == window_counts .and. DoRedshiftLensing) then
+		                if (CP%tau0 - tau > 2) then
+		                    dwing_lens =  adot * window *dtau
+		                    awin_lens1(RW_i) = awin_lens1(RW_i) + dwing_lens
+		                    awin_lens2(RW_i) = awin_lens2(RW_i) + dwing_lens/(CP%tau0-tau)
+		                    Win%awin_lens(i) = awin_lens1(RW_i)/(CP%tau0-tau) - awin_lens2(RW_i)
+		                else
+		                    Win%awin_lens(i) = 0
+		                end if
+		            end if
 
-                if  (RedWin%kind == window_lensing .or.  RedWin%kind == window_counts .and. DoRedshiftLensing) then
-                    if (CP%tau0 - tau > 2) then
-                        dwing_lens =  adot * window *dtau
-                        awin_lens1(RW_i) = awin_lens1(RW_i) + dwing_lens
-                        awin_lens2(RW_i) = awin_lens2(RW_i) + dwing_lens/(CP%tau0-tau)
-                        Win%awin_lens(i) = awin_lens1(RW_i)/(CP%tau0-tau) - awin_lens2(RW_i)
-                    else
-                        Win%awin_lens(i) = 0
-                    end if
-                end if
-
-                if (RedWin%tau_start ==0 .and. winamp > 1e-8) then
-                    RedWin%tau_start = tau01
-                else if (RedWin%tau_start /=0 .and. RedWin%tau_end==MaxTau .and. winamp < 1e-8) then
-                    RedWin%tau_end = min(CP%tau0,tau + dtau)
-                    if (DebugMsgs) print *,'time window = ', RedWin%tau_start, RedWin%tau_end
-                end if
-            else
-                Win%awin_lens(i)=0
-            end if
+		            if (RedWin%tau_start ==0 .and. winamp > 1e-8) then
+		                RedWin%tau_start = tau01
+		            else if (RedWin%tau_start /=0 .and. RedWin%tau_end==MaxTau .and. winamp < 1e-8) then
+		                RedWin%tau_end = min(CP%tau0,tau + dtau)
+		                if (DebugMsgs) print *,'time window = ', RedWin%tau_start, RedWin%tau_end
+		            end if
+		        else
+		            Win%awin_lens(i)=0
+		        end if
+			end associate
         end do
         !End sources
 
@@ -3451,18 +3449,19 @@
 
     !Sources
     do RW_i = 1, num_redshiftwindows
-        Win => RW(RW_i)
-        if (Redshift_w(RW_i)%kind == window_lensing .or. &
-                Redshift_w(RW_i)%kind == window_counts .and. DoRedshiftLensing) then
-            has_lensing_windows = .true.
-            Redshift_w(RW_i)%has_lensing_window = .true.
-            if (FeedbackLevel>0) &
-                write(*,'(I1," Int W              = ",f9.6)') RW_i, awin_lens1(RW_i)
+        associate(Win => RW(RW_i))
+		    if (Redshift_w(RW_i)%kind == window_lensing .or. &
+		            Redshift_w(RW_i)%kind == window_counts .and. DoRedshiftLensing) then
+		        has_lensing_windows = .true.
+		        Redshift_w(RW_i)%has_lensing_window = .true.
+		        if (FeedbackLevel>0) &
+		            write(*,'(I1," Int W              = ",f9.6)') RW_i, awin_lens1(RW_i)
 
-            Win%awin_lens=Win%awin_lens/awin_lens1(RW_i)
-        else
-            Redshift_w(RW_i)%has_lensing_window = .false.
-        end if
+		        Win%awin_lens=Win%awin_lens/awin_lens1(RW_i)
+		    else
+		        Redshift_w(RW_i)%has_lensing_window = .false.
+		    end if
+		end associate
     end do
 
     call splini(spline_data,nthermo)
@@ -3557,12 +3556,13 @@
     deallocate(arhos_fac, darhos_fac, ddarhos_fac)
 
     do RW_i = 1, num_redshiftwindows
-        RedWin => Redshift_W(RW_i)
-        if (RedWin%kind == window_21cm) then
-            outstr = 'z= '//trim(RealToStr(real(RedWin%Redshift),4))//': T_b = '//trim(RealToStr(real(RedWin%Fq),6))// &
-                'mK; tau21 = '//trim(RealToStr(real(RedWin%optical_depth_21),5))
-            write (*,*) RW_i,trim(outstr)
-        end if
+        associate (RedWin => Redshift_W(RW_i))
+		    if (RedWin%kind == window_21cm) then
+		        outstr = 'z= '//trim(RealToStr(real(RedWin%Redshift),4))//': T_b = '//trim(RealToStr(real(RedWin%Fq),6))// &
+		            'mK; tau21 = '//trim(RealToStr(real(RedWin%optical_depth_21),5))
+		        write (*,*) RW_i,trim(outstr)
+		    end if
+		end associate
     end do
 
     if (Do21cm .and. transfer_21cm_cl) then
