@@ -1838,8 +1838,8 @@
         real(dl), dimension(:,:), pointer :: nonlin_ratio => NULL()
         !Sources
         real(dl), dimension(:), pointer :: log_k => NULL()
-        real(dl), dimension(:,:), pointer :: vvpower, ddvvpower
-        real(dl), dimension(:,:), pointer :: vdpower, ddvdpower
+        real(dl), dimension(:,:), pointer :: vvpower => NULL(), ddvvpower => NULL()
+        real(dl), dimension(:,:), pointer :: vdpower => NULL(), ddvdpower => NULL()
 
         real(dl), dimension(:,:), pointer :: nonlin_ratio_vv => NULL()
         real(dl), dimension(:,:), pointer :: nonlin_ratio_vd => NULL()
@@ -2535,7 +2535,7 @@
     !Sources
     deallocate(MTrans%optical_depths, STAT = st)
     nullify(MTrans%optical_depths)
- 
+
     end subroutine Transfer_Free
 
     !JD 08/13 Changes for nonlinear lensing of CMB + MPK compatibility
