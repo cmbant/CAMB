@@ -2397,17 +2397,17 @@
     end subroutine initialv
 
 
-    subroutine outtransf(EV, y,tau, Arr)
+    subroutine outtransf(EVars, y,tau, Arr)
     !write out clxc, clxb, clxg, clxn
     use Transfer
     use constants
     implicit none
-    type(EvolutionVars) EV
+    type(EvolutionVars) EVars
     real(dl), intent(in) :: tau
     real(dl) clxc, clxb, clxg, clxr, k,k2
     real(dl) grho,gpres,dgrho,dgq,a
     real, target :: Arr(:)
-    real(dl) y(EV%nvar),yprime(EV%nvar)
+    real(dl) y(EVars%nvar),yprime(EVars%nvar)
     !Sources
     real(dl) Tb, tau_fac
     real(dl) Delta_TM,Tmat, Trad,xe, Tspin, delta_source2, Delta_xe,vb
@@ -2416,11 +2416,11 @@
     external dtauda
 
     yprime = 0
-    EV%OutputTransfer =>  Arr
-    call derivs(EV,EV%ScalEqsToPropagate,tau,y,yprime)
-    nullify(EV%OutputTransfer)
+    EVars%OutputTransfer =>  Arr
+    call derivs(EVars,EVars%ScalEqsToPropagate,tau,y,yprime)
+    nullify(EVars%OutputTransfer)
 
-    Arr(Transfer_kh+1:Transfer_max) = Arr(Transfer_kh+1:Transfer_max)/EV%k2_buf
+    Arr(Transfer_kh+1:Transfer_max) = Arr(Transfer_kh+1:Transfer_max)/EVars%k2_buf
 
     end subroutine outtransf
 

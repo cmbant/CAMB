@@ -2218,7 +2218,7 @@
             if (global_error_flag/=0) return
         end do
 
-        !$OMP PARALLEL DO DEFAULT(SHARED),SCHEDULE(STATIC,2) &
+        !$OMP PARAllEl DO DEFAULT(SHARED),SCHEDULE(STATIC,2) &
         !$OMP& PRIVATE(j,ell,q_ix,dlnk,apowers,ctnorm,dbletmp,Delta1,Delta2,w_ix,w_ix2,Win)
         do j=1,CTrans%ls%l0
             !Integrate dk/k Delta_l_q**2 * Power(k)
@@ -2311,7 +2311,7 @@
                 !Cross-correlation is CTrans%ls%l^3 C_l^{\phi E}
             end if
         end do
-        !$OMP END PARALLEL DO
+        !$OMP END PARAllEl DO
     end do
     deallocate(ks,pows,dlnks)
 
