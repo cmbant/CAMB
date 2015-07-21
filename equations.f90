@@ -1710,7 +1710,8 @@
                     ! 2v j'/(H\chi) geometric term
                     if (CP%tau0-tau > 0.1_dl .and. counts_radial) then
                         chi =  CP%tau0-tau
-                        counts_radial_source= (1-2.5*W%dlog10Ndm)*((-4.D0*W%wing2(j)/chi*adotoa-2.D0*(-W%dwing2(j)*chi-W%wing2(j))/chi**2)/ &
+                        counts_radial_source= (1-2.5*W%dlog10Ndm)*((-4.D0*W%wing2(j)/chi*adotoa &
+                            -2.D0*(-W%dwing2(j)*chi-W%wing2(j))/chi**2)/ &
                             k*sigma+2.D0*W%wing2(j)*etak/chi/k/EV%Kf(1))
                     else
                         counts_radial_source = 0
@@ -2400,7 +2401,6 @@
     subroutine outtransf(EVars, y,tau, Arr)
     !write out clxc, clxb, clxg, clxn
     use Transfer
-    use constants
     implicit none
     type(EvolutionVars) EVars
     real(dl), intent(in) :: tau
