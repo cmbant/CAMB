@@ -228,13 +228,13 @@
     end if
 
     if (CP%WantTransfer .and. CP%WantCls .and. WantLateTime &
-        	.and. (CP%NonLinear==NonLinear_Lens .or. CP%NonLinear==NonLinear_both) .and. global_error_flag==0) then
-	    call MakeNonlinearSources
-    	if (DebugMsgs .and. Feedbacklevel > 0) then
-    	    timeprev=actual
-    	    actual=GetTestTime()
-    	    write(*,*) actual-timeprev,' Timing for NonLinear sources'
-    	end if
+            .and. (CP%NonLinear==NonLinear_Lens .or. CP%NonLinear==NonLinear_both) .and. global_error_flag==0) then
+        call MakeNonlinearSources
+        if (DebugMsgs .and. Feedbacklevel > 0) then
+            timeprev=actual
+            actual=GetTestTime()
+            write(*,*) actual-timeprev,' Timing for NonLinear sources'
+        end if
     end if
 
     if (CP%WantTransfer .and. .not. CP%OnlyTransfers .and. global_error_flag==0) &
@@ -380,15 +380,13 @@
 
                             reall = real(CTrans%ls%l(ell),dl)
                             fac = (const_twopi**2)/const_fourpi/(reall+0.5_dl)**3 !fourpi because multipled by fourpi later
-                            if (num_redshiftwindows > 0) then
-                                if (j >= 1 .and. Redshift_w(j)%kind == window_lensing) then
+                            if (j >= 1) then
+                                if (Redshift_w(j)%kind == window_lensing) &
                                     fac = fac / 2 * reall * (reall + 1)
-                                    print *, "Redshift_w(",j,")%kind == window_lensing"
-                                end if
-                                if (i >= 1 .and. Redshift_w(i)%kind == window_lensing) then
+                            end if
+                            if (i >= 1) then
+                                if (Redshift_w(i)%kind == window_lensing) &
                                     fac = fac / 2 * reall * (reall + 1)
-                                    print *, "Redshift_w(",i,")%kind == window_lensing"
-                                end if
                             end if
                             Cl = Cl*fac
 
@@ -440,7 +438,6 @@
         if (i==0) then
             ell_limb = limber_phiphi
         else
-            print *, "cmbmain.f90:GetLimberTransfer: in else part"
             W => Redshift_w(i)
             ell_limb = Win_limber_ell(W, ThisCT%ls%l(ThisCT%ls%l0))
         end if
@@ -457,10 +454,9 @@
         end do
 
         if (i==0) then
-            if (CP%Want_CMB_lensing) then
+            if (CP%Want_CMB_lensing) &
                 max_bessels_etak = max(max_bessels_etak, min(CP%Max_eta_k, &
                     ell_needed * 25._dl * AccuracyBoost))
-            end if
         else
             max_bessels_etak = max(max_bessels_etak, WindowKmaxForL(W,ell_needed)*CP%tau0)
         end if
@@ -495,7 +491,6 @@
                 int = 0
                 do n = n1,n2
                     chi = (CP%tau0-TimeSteps%points(n))
-!                    k = (ThisCT%ls%l(ell)+0.5_dl)/chi
                     k = (reall + 0.5_dl) / chi
                     LimbRec%k(n) = k
                     if (k<=qmax) then
@@ -1024,8 +1019,8 @@
         tauend=TimeSteps%points(j)
 
         if (.not. DebugEvolution .and. (EV%q*tauend > max_etak_scalar .and. tauend > taurend) &
-            	.and. .not. WantLateTime .and. (.not.CP%WantTransfer.or.tau > tautf(CP%Transfer%num_redshifts))) then
-        	Src(EV%q_ix,1:SourceNum,j)=0
+                .and. .not. WantLateTime .and. (.not.CP%WantTransfer.or.tau > tautf(CP%Transfer%num_redshifts))) then
+            Src(EV%q_ix,1:SourceNum,j)=0
         else
             !Integrate over time, calulate end point derivs and calc output
             call GaugeInterface_EvolveScal(EV,tau,y,tauend,tol1,ind,c,w)
@@ -1149,6 +1144,7 @@
     if (DebugMsgs .and. Feedbacklevel > 0) &
         write(*,*) MT%num_q_trans-Evolve_q%npoints, 'transfer k values'
 
+	!TODO: OMP
     !$OMP PARAllEl DO DEFAUlT(SHARED),SCHEDUlE(DYNAMIC) &
     !$OMP & PRIVATE(EV, tau, q_ix)
 
@@ -1214,7 +1210,6 @@
     do while(TimeSteps%points(first_step) < tautf(1))
         first_step = first_step + 1
     end do
-    print *, "cmbmain.f90:MakeNonlinearSources: Do21cm:", Do21cm
     !$OMP PARAllEl DO DEFAUlT(SHARED), SCHEDUlE(STATIC), &
     !$OMP & PRIVATE(ik, i,scaling,ddScaling, tf_lo,tf_hi,tau,ho,a0,b0,ascale)
     do ik=1, Evolve_q%npoints
@@ -1406,11 +1401,11 @@
 
         if (CP%WantScalars) then
             if ((DebugEvolution .or. WantLateTime .or. IV%q*TimeSteps%points(i) < max_etak_scalar) &
-                	.and. xf > 1.e-8_dl) then
-	            step=i
-    	        IV%Source_q(i,1:SourceNum) = a0 * Src(klo,1:SourceNum,i) + &
-    	            b0 * Src(khi,1:SourceNum,i) + (a03*ddSrc(klo,1:SourceNum,i) + &
-    	            b03 * ddSrc(khi,1:SourceNum,i)) * ho2o6
+                    .and. xf > 1.e-8_dl) then
+                step=i
+                IV%Source_q(i,1:SourceNum) = a0 * Src(klo,1:SourceNum,i) + &
+                    b0 * Src(khi,1:SourceNum,i) + (a03*ddSrc(klo,1:SourceNum,i) + &
+                    b03 * ddSrc(khi,1:SourceNum,i)) * ho2o6
             else
                 IV%Source_q(i,1:SourceNum) = 0
             end if
@@ -1491,11 +1486,11 @@
     !note increasing non-limber is not neccessarily more accurate unless AccuracyBoost much higher
     !use **0.5 to at least give some sensitivity to Limber effects
     !Could be lower but care with phi-T correlation at lower L
-	if (limber_windows) then
-		UseLimber = l >= limber_phiphi
-	else
-	    UseLimber = l > 400 * AccuracyBoost ** 0.5
-	end if
+    if (limber_windows) then
+        UseLimber = l >= limber_phiphi
+    else
+        UseLimber = l > 400 * AccuracyBoost ** 0.5
+    end if
 
     end function UseLimber
 
@@ -2456,27 +2451,27 @@
         !$OMP PARAllEl DO DEFAUlT(SHARED),SCHEDUlE(STATIC,4) &
         !$OMP & PRIVATE(j,q_ix,measure,apowert,ctnorm,dbletmp)
         do j=1,CTrans%ls%l0
-        do q_ix = 1, CTrans%q%npoints
-            if (.not.(CP%closed.and. nint(CTrans%q%points(q_ix)*CP%r)<=CTrans%ls%l(j))) then
-                !cut off at nu = l+1
-                apowert = pows(q_ix)
-                measure = measures(q_ix)
+            do q_ix = 1, CTrans%q%npoints
+                if (.not.(CP%closed.and. nint(CTrans%q%points(q_ix)*CP%r)<=CTrans%ls%l(j))) then
+                    !cut off at nu = l+1
+                    apowert = pows(q_ix)
+                    measure = measures(q_ix)
 
-                iCl_tensor(j,CT_Temp:CT_B,in) = iCl_tensor(j,CT_Temp:CT_B,in) + &
-                    apowert*CTrans%Delta_p_l_k(CT_Temp:CT_B,j,q_ix)**2*measure
+                    iCl_tensor(j,CT_Temp:CT_B,in) = iCl_tensor(j,CT_Temp:CT_B,in) + &
+                        apowert*CTrans%Delta_p_l_k(CT_Temp:CT_B,j,q_ix)**2*measure
 
-                iCl_tensor(j,CT_cross, in ) = iCl_tensor(j,CT_cross, in ) &
-                    +apowert*CTrans%Delta_p_l_k(CT_Temp,j,q_ix)*CTrans%Delta_p_l_k(CT_E,j,q_ix)*measure
-            end if
+                    iCl_tensor(j,CT_cross, in ) = iCl_tensor(j,CT_cross, in ) &
+                        +apowert*CTrans%Delta_p_l_k(CT_Temp,j,q_ix)*CTrans%Delta_p_l_k(CT_E,j,q_ix)*measure
+                end if
+            end do
+
+            ctnorm=(CTrans%ls%l(j)*CTrans%ls%l(j)-1)*real((CTrans%ls%l(j)+2)*CTrans%ls%l(j),dl)
+            dbletmp=(CTrans%ls%l(j)*(CTrans%ls%l(j)+1))/OutputDenominator*const_pi/4
+            iCl_tensor(j, CT_Temp, in) = iCl_tensor(j, CT_Temp, in)*dbletmp*ctnorm
+            if (CTrans%ls%l(j)==1) dbletmp=0
+            iCl_tensor(j, CT_E:CT_B, in) = iCl_tensor(j, CT_E:CT_B, in)*dbletmp
+            iCl_tensor(j, CT_Cross, in)  = iCl_tensor(j, CT_Cross, in)*dbletmp*sqrt(ctnorm)
         end do
-
-        ctnorm=(CTrans%ls%l(j)*CTrans%ls%l(j)-1)*real((CTrans%ls%l(j)+2)*CTrans%ls%l(j),dl)
-        dbletmp=(CTrans%ls%l(j)*(CTrans%ls%l(j)+1))/OutputDenominator*const_pi/4
-        iCl_tensor(j, CT_Temp, in) = iCl_tensor(j, CT_Temp, in)*dbletmp*ctnorm
-        if (CTrans%ls%l(j)==1) dbletmp=0
-        iCl_tensor(j, CT_E:CT_B, in) = iCl_tensor(j, CT_E:CT_B, in)*dbletmp
-        iCl_tensor(j, CT_Cross, in)  = iCl_tensor(j, CT_Cross, in)*dbletmp*sqrt(ctnorm)
-    end do
     end do
 
     end subroutine CalcTensCls
@@ -2500,30 +2495,31 @@
 
         call GetInitPowers(pows,ks,CTrans%q%npoints,in)
 
+		! TODO: OMP
         !$OMP PARAllEl DO DEFAUlT(SHARED),SCHEDUlE(STATIC,4) &
         !$OMP & PRIVATE(j,q_ix,measure,power,ctnorm,dbletmp,lfac)
         do j=1,CTrans%ls%l0
-        do q_ix = 1, CTrans%q%npoints
-            if (.not.(CP%closed.and. nint(CTrans%q%points(q_ix)*CP%r)<=CTrans%ls%l(j))) then
-                !cut off at nu = l+1
-                power = pows(q_ix)
-                measure = measures(q_ix)
+            do q_ix = 1, CTrans%q%npoints
+                if (.not.(CP%closed.and. nint(CTrans%q%points(q_ix)*CP%r)<=CTrans%ls%l(j))) then
+                    !cut off at nu = l+1
+                    power = pows(q_ix)
+                    measure = measures(q_ix)
 
-                iCl_vector(j,CT_Temp:CT_B,in) = iCl_vector(j,CT_Temp:CT_B,in) + &
-                    power*CTrans%Delta_p_l_k(CT_Temp:CT_B,j,q_ix)**2*measure
+                    iCl_vector(j,CT_Temp:CT_B,in) = iCl_vector(j,CT_Temp:CT_B,in) + &
+                        power*CTrans%Delta_p_l_k(CT_Temp:CT_B,j,q_ix)**2*measure
 
-                iCl_vector(j,CT_cross, in ) = iCl_vector(j,CT_cross, in ) &
-                    +power*CTrans%Delta_p_l_k(CT_Temp,j,q_ix)*CTrans%Delta_p_l_k(CT_E,j,q_ix)*measure
-            end if
+                    iCl_vector(j,CT_cross, in ) = iCl_vector(j,CT_cross, in ) &
+                        +power*CTrans%Delta_p_l_k(CT_Temp,j,q_ix)*CTrans%Delta_p_l_k(CT_E,j,q_ix)*measure
+                end if
+            end do
+
+            ctnorm=CTrans%ls%l(j)*(CTrans%ls%l(j)+1)
+            dbletmp=(CTrans%ls%l(j)*(CTrans%ls%l(j)+1))/OutputDenominator*const_pi/8
+            iCl_vector(j, CT_Temp, in)   = iCl_vector(j, CT_Temp, in)*dbletmp*ctnorm
+            lfac = (CTrans%ls%l(j) + 2)*(CTrans%ls%l(j) - 1)
+            iCl_vector(j, CT_E:CT_B, in) = iCl_vector(j, CT_E:CT_B, in)*dbletmp*lfac
+            iCl_vector(j, CT_Cross, in)  = iCl_vector(j, CT_Cross, in)*dbletmp*sqrt(lfac*ctnorm)
         end do
-
-        ctnorm=CTrans%ls%l(j)*(CTrans%ls%l(j)+1)
-        dbletmp=(CTrans%ls%l(j)*(CTrans%ls%l(j)+1))/OutputDenominator*const_pi/8
-        iCl_vector(j, CT_Temp, in)   = iCl_vector(j, CT_Temp, in)*dbletmp*ctnorm
-        lfac = (CTrans%ls%l(j) + 2)*(CTrans%ls%l(j) - 1)
-        iCl_vector(j, CT_E:CT_B, in) = iCl_vector(j, CT_E:CT_B, in)*dbletmp*lfac
-        iCl_vector(j, CT_Cross, in)  = iCl_vector(j, CT_Cross, in)*dbletmp*sqrt(lfac*ctnorm)
-    end do
     end do
 
     end subroutine CalcVecCls

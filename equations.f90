@@ -41,15 +41,15 @@
     end  subroutine Init_Backgrounds
 
 
-	! Wrapper to get dtauda of DarkEnergy
+    ! Background evolution
     function dtauda(a)
     use precision
     use ModelParams
     use MassiveNu
-	use DarkEnergyInterface
-	implicit none
-	real(dl), intent(in) :: a
-	real(dl) :: dtauda, rhonu, grhoa2, a2, grhov_t
+    use DarkEnergyInterface
+    implicit none
+    real(dl), intent(in) :: a
+    real(dl) :: dtauda, rhonu, grhoa2, a2, grhov_t
     integer :: nu_i
 
     a2 = a ** 2
@@ -69,7 +69,7 @@
 
     dtauda = sqrt(3 / grhoa2)
 
-	end function dtauda
+    end function dtauda
 
 
 
@@ -97,12 +97,10 @@
 
     logical :: DoTensorNeutrinos = .true.
 
-	!TODO: SOURCE: Figure what these flags depend on. They should be .false. for regular camb function.
-    logical :: Evolve_baryon_cs = .false. ! .true.
+    logical :: Evolve_baryon_cs = .false.
     !if true, evolves equation for Delta_{T_m} to get cs_2 = \delta p /\delta\rho for perfect gas
 
-	!TODO: SOURCE: Figure what these flags depend on. They should be .false. for regular camb function.
-    logical :: Evolve_delta_xe = .false. ! .true.
+    logical :: Evolve_delta_xe = .false.
 
     logical :: Evolve_delta_Ts =.false. !Equilibrium result agree to sub-percent level
 
@@ -305,8 +303,8 @@
     end if
 
     next_switch = min(tau_switch_ktau, tau_switch_nu_massless,EV%TightSwitchoffTime, tau_switch_nu_massive, &
-	    tau_switch_no_nu_multpoles, tau_switch_no_phot_multpoles, tau_switch_nu_nonrel, noSwitch, &
-	    tau_switch_saha,tau_switch_evolve_TM)
+        tau_switch_no_nu_multpoles, tau_switch_no_phot_multpoles, tau_switch_nu_nonrel, noSwitch, &
+        tau_switch_saha, tau_switch_evolve_TM)
 
     if (next_switch < tauend) then
         if (next_switch > tau+smallTime) then
@@ -358,13 +356,13 @@
             !Mass starts to become important, start evolving next momentum mode
             do nu_i = 1, CP%Nu_mass_eigenstates
                 if (EV%nq(nu_i) /= nqmax .and. &
-	                    next_switch == nu_tau_notmassless(next_nu_nq(EV%nq(nu_i)),nu_i)) then
-    	            EVOut%nq(nu_i) = next_nu_nq(EV%nq(nu_i))
-    	            call SetupScalarArrayIndices(EVout)
-    	            call CopyScalarVariableArray(y,yout, EV, EVout)
-    	            EV=EVout
-    	            y=yout
-    	            exit
+                        next_switch == nu_tau_notmassless(next_nu_nq(EV%nq(nu_i)),nu_i)) then
+                    EVOut%nq(nu_i) = next_nu_nq(EV%nq(nu_i))
+                    call SetupScalarArrayIndices(EVout)
+                    call CopyScalarVariableArray(y,yout, EV, EVout)
+                    EV=EVout
+                    y=yout
+                    exit
                 end if
             end do
         else if (next_switch == tau_switch_nu_nonrel) then
@@ -712,7 +710,7 @@
         if (EV%Evolve_TM .and. EVout%Evolve_TM) yout(EVOut%Tg_ix) = y(EV%Tg_ix)
         if (Do21cm .and. line_reionization) then
             yout(EVOut%reion_line_ix:EVOut%reion_line_ix+EVout%lmaxline +  EVout%lmaxline-1) = &
-            y(EV%reion_line_ix:EV%reion_line_ix+EV%lmaxline +  EV%lmaxline-1)
+                y(EV%reion_line_ix:EV%reion_line_ix+EV%lmaxline +  EV%lmaxline-1)
         end if
     end if
     if (Evolve_delta_Ts) then
@@ -1581,8 +1579,6 @@
         phi = -(dgrho +3*dgq*adotoa/k)/(k2*EV%Kf(1)*2) - dgpi/k2/2
         !Can modify this here if you want to get power spectra for other tracer
         !CMB lensing sources
-        !TODO: SOURCE: Camb_source uses:
-        !if (tau>taurend .and. CP%tau0-tau > 0.1_dl) then
         if (tau > tau_maxvis .and. CP%tau0-tau > 0.1_dl) then
             !phi_lens = Phi - 1/2 kappa (a/k)^2 sum_i rho_i pi_i
             sources(3) = -2* phi *f_K(tau-tau_maxvis)/ &
@@ -1687,7 +1683,8 @@
                     ! 2v j'/(H\chi) geometric term
                     if (CP%tau0-tau > 0.1_dl .and. counts_radial) then
                         chi =  CP%tau0-tau
-                        counts_radial_source= (1-2.5*W%dlog10Ndm)*((-4.D0*W%wing2(j)/chi*adotoa-2.D0*(-W%dwing2(j)*chi-W%wing2(j))/chi**2)/ &
+                        counts_radial_source= (1-2.5*W%dlog10Ndm)*((-4.D0*W%wing2(j)/chi*adotoa &
+                            -2.D0*(-W%dwing2(j)*chi-W%wing2(j))/chi**2)/ &
                             k*sigma+2.D0*W%wing2(j)*etak/chi/k/EV%Kf(1))
                     else
                         counts_radial_source = 0
@@ -1735,7 +1732,7 @@
                     sources(3+w_ix)=sources(3+w_ix)/W%Fq
 
                     if (DoRedshiftLensing) &
-                    sources(3+W%mag_index+num_redshiftwindows) = phi*W%win_lens(j)*(2-5*W%dlog10Ndm)
+                        sources(3+W%mag_index+num_redshiftwindows) = phi*W%win_lens(j)*(2-5*W%dlog10Ndm)
                 elseif (W%kind == window_21cm) then
                     if (line_basic) then
                         sources(3+w_ix)= expmmu(j)*(W%wing(j)*Delta_source + W%wing2(j)*Delta_source2 &
@@ -1820,7 +1817,6 @@
                         end if
 
                         if (.not. use_mK) sources(2)= sources(2) /W%Fq
-
 
                         s(1) =  vis(j)*y(lineoff+2)/4.D0+vis(j)*y(lineoff)
                         s(2) =  s(1)
@@ -2069,7 +2065,6 @@
     end if
     if (second_order_tightcoupling) ep=ep*2
     EV%TightSwitchoffTime = min(tight_tau,Thermo_OpacityToTime(EV%k_buf/ep))
-
 
     y=0
 
@@ -2643,9 +2638,7 @@
 
         EV%pig = pig
     else
-        !TODO: SOURCE: camb_sources:
-        !vbdot=-adotoa*vb+k*delta_p-photbar*opacity*(4._dl/3*vb-qg)
-        vbdot=-adotoa*vb+cs2*k*clxb-photbar*opacity*(4._dl/3*vb-qg)
+        vbdot=-adotoa*vb+k*delta_p-photbar*opacity*(4._dl/3*vb-qg)
     end if
 
     ayprime(5)=vbdot
@@ -2741,28 +2734,6 @@
         end if
     end if ! no_nu_multpoles
 
-    if (associated(EV%OutputTransfer)) then
-        EV%OutputTransfer(Transfer_kh) = k/(CP%h0/100._dl)
-        EV%OutputTransfer(Transfer_cdm) = clxc
-        EV%OutputTransfer(Transfer_b) = clxb
-        EV%OutputTransfer(Transfer_g) = clxg
-        EV%OutputTransfer(Transfer_r) = clxr
-        clxnu_all=0
-        dgpi  = grhor_t*pir + grhog_t*pig
-        if (CP%Num_Nu_Massive /= 0) then
-            call MassiveNuVarsOut(EV,ay,ayprime,a, clxnu_all =clxnu_all, dgpi= dgpi)
-        end if
-        EV%OutputTransfer(Transfer_nu) = clxnu_all
-        EV%OutputTransfer(Transfer_tot) =  dgrho_matter/grho_matter !includes neutrinos
-        EV%OutputTransfer(Transfer_nonu) = (grhob_t*clxb+grhoc_t*clxc)/(grhob_t + grhoc_t)
-        EV%OutputTransfer(Transfer_tot_de) =  dgrho/grho_matter
-        !Transfer_Weyl is k^2Phi, where Phi is the Weyl potential
-        EV%OutputTransfer(Transfer_Weyl) = -(dgrho +3*dgq*adotoa/k)/(EV%Kf(1)*2) - dgpi/2
-        EV%OutputTransfer(Transfer_Newt_vel_cdm)=  -k*sigma/adotoa
-        EV%OutputTransfer(Transfer_Newt_vel_baryon) = -k*(vb + sigma)/adotoa
-        EV%OutputTransfer(Transfer_vel_baryon_cdm) = vb
-    end if
-
     if (Evolve_baryon_cs) then
         if (EV%Evolve_TM) then
             Delta_TCMB = clxg/4
@@ -2844,6 +2815,7 @@
             end if
         end if
     end if
+
     if (associated(EV%OutputTransfer)) then
         EV%OutputTransfer(Transfer_kh) = k/(CP%h0/100._dl)
         EV%OutputTransfer(Transfer_cdm) = clxc
@@ -3327,3 +3299,11 @@
     !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
     end module GaugeInterface
+
+    function isTmNeeded()
+    use GaugeInterface
+    logical :: isTmNeeded
+
+    isTmNeeded = Evolve_baryon_cs .or. Evolve_delta_xe
+
+    end function isTmNeeded

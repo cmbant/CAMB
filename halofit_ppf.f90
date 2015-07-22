@@ -152,21 +152,21 @@
     !SPB11: Standard halofit underestimates the power on the smallest scales by a
     !factor of two. Add an extra correction from the simulations in Bird, Viel,
     !Haehnelt 2011 which partially accounts for this.
-		if (halofit_version ==halofit_bird) then
-			extragam = 0.3159 -0.0765*rn -0.8350*rncur
-			gam=extragam+0.86485+0.2989*rn+0.1631*rncur
-		else
-			gam=0.86485+0.2989*rn+0.1631*rncur
-		end if
-		a=1.4861+1.83693*rn+1.67618*rn*rn+0.7940*rn*rn*rn+ &
-			0.1670756*rn*rn*rn*rn-0.620695*rncur
-		a=10**a
-		b=10**(0.9463+0.9466*rn+0.3084*rn*rn-0.940*rncur)
-		c=10**(-0.2807+0.6669*rn+0.3214*rn*rn-0.0793*rncur)
-		xmu=10**(-3.54419+0.19086*rn)
-		xnu=10**(0.95897+1.2857*rn)
-		alpha=1.38848+0.3701*rn-0.1452*rn*rn
-		beta=0.8291+0.9854*rn+0.3400*rn**2+fnu*(-6.4868+1.4373*rn**2)
+        if (halofit_version ==halofit_bird) then
+            extragam = 0.3159 -0.0765*rn -0.8350*rncur
+            gam=extragam+0.86485+0.2989*rn+0.1631*rncur
+        else
+            gam=0.86485+0.2989*rn+0.1631*rncur
+        end if
+        a=1.4861+1.83693*rn+1.67618*rn*rn+0.7940*rn*rn*rn+ &
+            0.1670756*rn*rn*rn*rn-0.620695*rncur
+        a=10**a
+        b=10**(0.9463+0.9466*rn+0.3084*rn*rn-0.940*rncur)
+        c=10**(-0.2807+0.6669*rn+0.3214*rn*rn-0.0793*rncur)
+        xmu=10**(-3.54419+0.19086*rn)
+        xnu=10**(0.95897+1.2857*rn)
+        alpha=1.38848+0.3701*rn-0.1452*rn*rn
+        beta=0.8291+0.9854*rn+0.3400*rn**2+fnu*(-6.4868+1.4373*rn**2)
     elseif (halofit_version == halofit_takahashi) then
         !RT12 Oct: the halofit in Smith+ 2003 predicts a smaller power
         !than latest N-body simulations at small scales.

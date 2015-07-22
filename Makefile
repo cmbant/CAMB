@@ -45,7 +45,7 @@ F90C     = gfortran
 COMMON_FFLAGS = -MMD -cpp -ffree-line-length-none
 # -fmax-errors=4
 FFLAGS = -O3 -fopenmp -ffast-math $(COMMON_FFLAGS)
-DEBUGFLAGS = -g -fbacktrace -ffpe-trap=invalid,overflow,zero -fbounds-check $(COMMON_FFLAGS)
+DEBUGFLAGS = -g -fopenmp -ffast-math -O2 -fbacktrace -ffpe-trap=invalid,overflow,zero -fbounds-check $(COMMON_FFLAGS)
 MODOUT =  -J$(OUTPUT_DIR)
 
 ifneq ($(FISHER),)
@@ -53,7 +53,7 @@ F90CRLINK += -lblas -llapack
 endif
 ifneq ($(shell uname -s),Darwin)
 #native optimization does not work on Mac
-O3FLAGS += -march=native
+FFLAGS += -march=native
 endif
 endif
 endif

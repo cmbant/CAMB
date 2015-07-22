@@ -78,8 +78,6 @@
     do i=1, num_redshiftwindows
         associate (RedWin => Redshift_w(i))
             call InitRedshiftWindow(RedWin)
-            write (numstr,*) i
-            numstr=adjustl(numstr)
             RedWin%Redshift = Ini%Read_Double_Array('redshift', i)
             S = Ini%Read_String_Array('redshift_kind', i)
             if (S == '21cm') then
@@ -162,6 +160,10 @@
     call Ini%Read('high_accuracy_default', HighAccuracyDefault)
 
     P%NonLinear = Ini%Read_Int('do_nonlinear', NonLinear_none)
+
+    Evolve_baryon_cs = Ini%Read_Logical('evolve_baryon_cs', .false.)
+    Evolve_delta_xe = Ini%Read_Logical('evolve_delta_xe', .false.)
+    Evolve_delta_Ts = Ini%Read_Logical('evolve_delta_ts', .false.)
 
     P%DoLensing = .false.
     if (P%WantCls) then

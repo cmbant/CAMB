@@ -37,15 +37,15 @@
     !CD     Description: Solves for ionisation history since recombination
     !CD     using the equations in Seager, Sasselov & Scott (ApJ, 1999).
     !CD     The Cosmological model can be flat or open.
-    !CD	 The matter temperature is also followed, with an update from
-    !CD	 Scott & Scott (2009).
-    !CD	 The values for \alpha_B for H are from Hummer (1994).
-    !CD	 The singlet HeI coefficient is a fit from the full code.
-    !CD	 Additional He "fudge factors" are as described in Wong, Moss
-    !CD	 and Scott (2008).
-    !CD	 Extra fitting function included (in optical depth) to account
-    !CD	 for extra H physics described in Rubino-Martin et al. (2010).
-    !CD	 Care is taken to use the most accurate constants.
+    !CD  The matter temperature is also followed, with an update from
+    !CD  Scott & Scott (2009).
+    !CD  The values for \alpha_B for H are from Hummer (1994).
+    !CD  The singlet HeI coefficient is a fit from the full code.
+    !CD  Additional He "fudge factors" are as described in Wong, Moss
+    !CD  and Scott (2008).
+    !CD  Extra fitting function included (in optical depth) to account
+    !CD  for extra H physics described in Rubino-Martin et al. (2010).
+    !CD  Care is taken to use the most accurate constants.
     !C
     !CA     Arguments:
     !CA     Name, Description
@@ -72,12 +72,12 @@
     !CA     Yp is the primordial helium abundace
     !CA     fHe is He/H number ratio = Yp/4(1-Yp)
     !CA     Trad and Tmat are radiation and matter temperatures
-    !CA	    epsilon is the approximate difference (=Trad-Tmat) at high z
+    !CA     epsilon is the approximate difference (=Trad-Tmat) at high z
     !CA     OmegaB is Omega in baryons today
     !CA     H is Hubble constant in units of 100 km/s/Mpc
     !CA     HO is Hubble constant in SI units
     !CA     bigH is 100 km/s/Mpc in SI units
-    !CA	    Hz is the value of H at the specific z (in ION)
+    !CA     Hz is the value of H at the specific z (in ION)
     !CA     G is grvitational constant
     !CA     n is number density of hydrogen
     !CA     Nnow is number density today
@@ -135,13 +135,13 @@
     !CA sigma_He_2Pt: H ionization x-section at HeI 23P1-11S0 freq. in m^2
     !CA CL_PSt = h_P*C*(L_He_2Pt - L_He_2st)/k_B
     !CA CfHe_t: triplet statistical correction
-    !CA	Hswitch is an boolean for modifying the H recombination
-    !CA	AGauss1 is the amplitude of the 1st Gaussian for the H fudging
-    !CA	AGauss2 is the amplitude of the 2nd Gaussian for the H fudging
-    !CA	zGauss1 is the ln(1+z) central value of the 1st Gaussian
-    !CA	zGauss2 is the ln(1+z) central value of the 2nd Gaussian
-    !CA	wGauss1 is the width of the 1st Gaussian
-    !CA	wGauss2 is the width of the 2nd Gaussian
+    !CA Hswitch is an boolean for modifying the H recombination
+    !CA AGauss1 is the amplitude of the 1st Gaussian for the H fudging
+    !CA AGauss2 is the amplitude of the 2nd Gaussian for the H fudging
+    !CA zGauss1 is the ln(1+z) central value of the 1st Gaussian
+    !CA zGauss2 is the ln(1+z) central value of the 2nd Gaussian
+    !CA wGauss1 is the width of the 1st Gaussian
+    !CA wGauss2 is the width of the 2nd Gaussian
 
 
     !CA     tol: tolerance for the integrator
@@ -194,11 +194,11 @@
     !CH                       including HeI rec. fudge factor)
     !                Feb 2008   Recfast 1.4 changes above added (AML)
     !                           removed Dubrovich option (wrong anyway)
-    !CH   			 Sept 2008 (added extra term to make transition, smoother for Tmat evolution)
+    !CH              Sept 2008 (added extra term to make transition, smoother for Tmat evolution)
     !                Sept 2008 Recfast 1.4.2 changes above added (AML)
     !                          General recombination module structure, fix to make He x_e smooth also in recfast (AML)
-    !CH		 Jan 2010 (added fitting function to modify K
-    !CH			 	 to match x_e(z) for new H physics)
+    !CH      Jan 2010 (added fitting function to modify K
+    !CH              to match x_e(z) for new H physics)
     !AL             June 2012 updated fudge parameters to match HyRec and CosmoRec (AML)
     !AL             Sept 2012 changes now in public recfast, version number changed to match Recfast 1.5.2.
 
@@ -542,7 +542,7 @@
 
     n = Nnow * (1._dl+z)**3
     fnu = (21.d0/8.d0)*(4.d0/11.d0)**(4.d0/3.d0)
-    !	(this is explictly for 3 massless neutrinos - change if N_nu.ne.3; but only used for approximation so not critical)
+    !   (this is explictly for 3 massless neutrinos - change if N_nu.ne.3; but only used for approximation so not critical)
     z_eq = (3.d0*(HO*C)**2/(const_eightpi*G*a_rad*(1.d0+fnu)*Tnow**4))*(OmegaB+OmegaC)
     z_eq = z_eq - 1.d0
 
@@ -844,11 +844,11 @@
     else
         He_Boltz = exp(Bfact/Tmat)
     end if
-    !	now deal with H and its fudges
+    !   now deal with H and its fudges
     if (.not. Recomb%RECFAST_Hswitch) then
         K = CK/Hz !Peebles coefficient K=lambda_a^3/8piH
     else
-        !c	fit a double Gaussian correction function
+        !c  fit a double Gaussian correction function
         K = CK/Hz*(1.0d0 &
             +AGauss1*exp(-((log(1.0d0+z)-zGauss1)/wGauss1)**2.d0) &
             +AGauss2*exp(-((log(1.0d0+z)-zGauss2)/wGauss2)**2.d0))
@@ -967,8 +967,8 @@
 
     if (timeTh < H_frac*timeH) then
         !                f(3)=Tmat/(1._dl+z)      !Tmat follows Trad
-        !	additional term to smooth transition to Tmat evolution,
-        !	(suggested by Adam Moss)
+        !   additional term to smooth transition to Tmat evolution,
+        !   (suggested by Adam Moss)
         dHdz = (HO**2/2.d0/Hz)*(4.d0*(1.d0+z)**3/(1.d0+z_eq)*OmegaT &
             + 3.d0*OmegaT*(1.d0+z)**2 + 2.d0*OmegaK*(1.d0+z) )
 

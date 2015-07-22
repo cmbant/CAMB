@@ -320,8 +320,7 @@
     real(sp) :: lAccuracyBoost=1.
     !Boost number of multipoles integrated in Boltzman heirarchy
 
-    !TODO: SOURCE: camb sets 0 for limber_phiphi, camb_sources 400
-    integer :: limber_phiphi = 0 !400 !for l>limber_phiphi use limber approx for lensing potential
+    integer :: limber_phiphi = 0 !for l>limber_phiphi use limber approx for lensing potential
     integer :: num_redshiftwindows = 0
     integer :: num_extra_redshiftwindows = 0
 
@@ -337,8 +336,6 @@
 
     integer, parameter:: l0max=4000
 
-    !TODO: SOURCE: camb_sources uses lmax_arr = 100+l0max/7
-    !      Taking l0max, because that one includes camb_sources
     !     lmax is max possible number of l's evaluated
     integer, parameter :: lmax_arr = l0max
 
@@ -404,7 +401,7 @@
         CP%WantScalars=.true.
         if (.not. CP%WantCls) then
             CP%AccuratePolarization = .false.
-            CP%Reion%Reionization = .false. ! transfer_21cm_cl
+            CP%Reion%Reionization = transfer_21cm_cl
         end if
     else
         CP%transfer%num_redshifts=0
@@ -1783,7 +1780,7 @@
     !Alternatively for 21cm
     integer, parameter :: Transfer_monopole=4, Transfer_vnewt=5, Transfer_Tmat = 6
 
-    integer, parameter :: Transfer_max = Transfer_vel_baryon_cdm ! Transfer_Tmat
+    integer, parameter :: Transfer_max = Transfer_vel_baryon_cdm
 
     logical :: transfer_interp_matterpower  = .true. !output regular grid in log k
     !set to false to output calculated values for later interpolation
@@ -1803,9 +1800,9 @@
         real(dl), dimension (:,:), pointer ::  sigma_8 => NULL()
         real(dl), dimension (:,:), pointer ::  sigma2_vdelta_8 => NULL() !growth from sigma_{v delta}
         real, dimension(:,:,:), pointer :: TransferData => NULL()
-        !TransferData(entry,k_index,z_index) for entry=Tranfer_kh.. Transfer_tot
         !Sources
         real(dl), dimension(:), pointer :: optical_depths => NULL()
+        !TransferData(entry,k_index,z_index) for entry=Tranfer_kh.. Transfer_tot
     end Type MatterTransferData
 
     Type MatterPowerData
@@ -2613,22 +2610,22 @@
                         call MatterPowerdata_MakeNonlinear(PK_Data)
 
                     !Sources
-!                    if (all21) then
-!                        call Transfer_Get21cmPowerData(MTrans, PK_data, in, itf)
-!                    else
-!                        call Transfer_GetPowerDataNonlin(MTrans, PK_data, in, itf)
-!                    end if
+                    if (all21) then
+                        call Transfer_Get21cmPowerData(MTrans, PK_data, in, itf)
+                    else
+                        call Transfer_GetPowerDataNonlin(MTrans, PK_data, in, itf)
+                    end if
 
                     outpower(:,in,1) = exp(PK_data%matpower(:,1))
-!                    !Sources
-!                    if (all21) then
-!                        outpower(:,in,3) = exp(PK_data%vvpower(:,1))
-!                        outpower(:,in,2) = exp(PK_data%vdpower(:,1))
+                    !Sources
+                    if (all21) then
+                        outpower(:,in,3) = exp(PK_data%vvpower(:,1))
+                        outpower(:,in,2) = exp(PK_data%vdpower(:,1))
 
-!                        outpower(:,in,1) = outpower(:,in,1)/1d10*const_pi*const_twopi/MTrans%TransferData(Transfer_kh,:,1)**3
-!                        outpower(:,in,2) = outpower(:,in,2)/1d10*const_pi*const_twopi/MTrans%TransferData(Transfer_kh,:,1)**3
-!                        outpower(:,in,3) = outpower(:,in,3)/1d10*const_pi*const_twopi/MTrans%TransferData(Transfer_kh,:,1)**3
-!                    end if
+                        outpower(:,in,1) = outpower(:,in,1)/1d10*const_pi*const_twopi/MTrans%TransferData(Transfer_kh,:,1)**3
+                        outpower(:,in,2) = outpower(:,in,2)/1d10*const_pi*const_twopi/MTrans%TransferData(Transfer_kh,:,1)**3
+                        outpower(:,in,3) = outpower(:,in,3)/1d10*const_pi*const_twopi/MTrans%TransferData(Transfer_kh,:,1)**3
+                    end if
 
                     call MatterPowerdata_Free(PK_Data)
                 end do
@@ -2755,12 +2752,12 @@
         pow = ScalarPower(k,in)*1d10
 
         PK_data%matpower(ik,1) = &
-        log( (MTrans%TransferData(Transfer_monopole,ik,z_ix)*k**2)**2 * pow)
+           log( (MTrans%TransferData(Transfer_monopole,ik,z_ix)*k**2)**2 * pow)
         PK_data%vvpower(ik,1) = &
-        log( (MTrans%TransferData(Transfer_vnewt ,ik,z_ix)*k**2)**2 * pow)
+           log( (MTrans%TransferData(Transfer_vnewt ,ik,z_ix)*k**2)**2 * pow)
         PK_data%vdpower(ik,1) = &
-        log( abs((MTrans%TransferData(Transfer_vnewt ,ik,z_ix)*k**2)*&
-        (MTrans%TransferData(Transfer_monopole,ik,z_ix)*k**2))* pow)
+           log( abs((MTrans%TransferData(Transfer_vnewt ,ik,z_ix)*k**2)*&
+           (MTrans%TransferData(Transfer_monopole,ik,z_ix)*k**2))* pow)
 
         if (CP%NonLinear/=NonLinear_None) then
             PK_data%matpower(ik,1) = PK_data%matpower(ik,1) + 2*log(PK_cdm%nonlin_ratio(ik,z_ix))
@@ -3007,10 +3004,9 @@
     use ModelData
     implicit none
     private
-    !TODO: SOURCE: camb nthermo=20000, camb_source: 40000
-    !      Differences in results.
-    integer,parameter :: nthermo=20000
+
     !Sources
+    integer,parameter :: nthermo=40000
     Type CalWIns
         real(dl) awin_lens(nthermo),  dawin_lens(nthermo)
     end Type CalWIns
@@ -3045,7 +3041,7 @@
         Thermo_OpacityToTime,matter_verydom_tau, ThermoData_Free,&
         z_star, z_drag, interp_window  !!JH for updated BAO likelihood.
 
-	real(dl), external, private :: dtauda
+    real(dl), external, private :: dtauda
     contains
 
     subroutine thermo(tau, cs2b, opacity, dopacity)
@@ -3131,7 +3127,8 @@
     real(dl) z_eq, a_eq
     real(dl) rombint
     integer noutput
-    external rombint
+    logical :: isTmNeeded
+    external :: rombint, isTmNeeded
 
     !Sources
     real(dl) awin_lens1(num_redshiftwindows),awin_lens2(num_redshiftwindows)
@@ -3142,8 +3139,7 @@
     character(len=:), allocatable :: outstr
 
     !Sources
-	!TODO: SOURCE: Initial value from camb_source was .true.
-    doTmatTspin = .false. !.true.
+    doTmatTspin = isTmNeeded() .or. Do21cm
     allocate(RW(num_redshiftwindows))
     allocate(arhos_fac(nthermo), darhos_fac(nthermo), ddarhos_fac(nthermo))
 
@@ -3197,10 +3193,10 @@
     awin_lens2=0
 
     do RW_i = 1, num_redshiftwindows
-        associate (Win => RW(RW_i), RedWin => Redshift_w(RW_i))
-    	    RedWin%tau_start = 0
-    	    RedWin%tau_end = Maxtau
-		end associate
+        associate (RedWin => Redshift_w(RW_i))
+            RedWin%tau_start = 0
+            RedWin%tau_end = Maxtau
+        end associate
     end do
 
     do i=2,nthermo
@@ -3235,30 +3231,30 @@
 
         do RW_i = 1, num_redshiftwindows
             associate (Win => RW(RW_i), RedWin => Redshift_w(RW_i))
-		        if (a > 1d-4) then
-		            window = Window_f_a(RedWin,a, winamp)
+                if (a > 1d-4) then
+                    window = Window_f_a(RedWin,a, winamp)
 
-		            if  (RedWin%kind == window_lensing .or.  RedWin%kind == window_counts .and. DoRedshiftLensing) then
-		                if (CP%tau0 - tau > 2) then
-		                    dwing_lens =  adot * window *dtau
-		                    awin_lens1(RW_i) = awin_lens1(RW_i) + dwing_lens
-		                    awin_lens2(RW_i) = awin_lens2(RW_i) + dwing_lens/(CP%tau0-tau)
-		                    Win%awin_lens(i) = awin_lens1(RW_i)/(CP%tau0-tau) - awin_lens2(RW_i)
-		                else
-		                    Win%awin_lens(i) = 0
-		                end if
-		            end if
+                    if  (RedWin%kind == window_lensing .or.  RedWin%kind == window_counts .and. DoRedshiftLensing) then
+                        if (CP%tau0 - tau > 2) then
+                            dwing_lens =  adot * window *dtau
+                            awin_lens1(RW_i) = awin_lens1(RW_i) + dwing_lens
+                            awin_lens2(RW_i) = awin_lens2(RW_i) + dwing_lens/(CP%tau0-tau)
+                            Win%awin_lens(i) = awin_lens1(RW_i)/(CP%tau0-tau) - awin_lens2(RW_i)
+                        else
+                            Win%awin_lens(i) = 0
+                        end if
+                    end if
 
-		            if (RedWin%tau_start ==0 .and. winamp > 1e-8) then
-		                RedWin%tau_start = tau01
-		            else if (RedWin%tau_start /=0 .and. RedWin%tau_end==MaxTau .and. winamp < 1e-8) then
-		                RedWin%tau_end = min(CP%tau0,tau + dtau)
-		                if (DebugMsgs) print *,'time window = ', RedWin%tau_start, RedWin%tau_end
-		            end if
-		        else
-		            Win%awin_lens(i)=0
-		        end if
-			end associate
+                    if (RedWin%tau_start ==0 .and. winamp > 1e-8) then
+                        RedWin%tau_start = tau01
+                    else if (RedWin%tau_start /=0 .and. RedWin%tau_end==MaxTau .and. winamp < 1e-8) then
+                        RedWin%tau_end = min(CP%tau0,tau + dtau)
+                        if (DebugMsgs) print *,'time window = ', RedWin%tau_start, RedWin%tau_end
+                    end if
+                else
+                    Win%awin_lens(i)=0
+                end if
+            end associate
         end do
         !End sources
 
@@ -3361,6 +3357,7 @@
 
     !Sources
     if (CP%WantTransfer) then
+		!TODO: Implement memory reuse
         deallocate(MT%optical_depths, stat = RW_i)
         allocate(MT%optical_depths(CP%Transfer%num_redshifts))
         do RW_i = 1, CP%Transfer%num_redshifts
@@ -3450,18 +3447,18 @@
     !Sources
     do RW_i = 1, num_redshiftwindows
         associate(Win => RW(RW_i))
-		    if (Redshift_w(RW_i)%kind == window_lensing .or. &
-		            Redshift_w(RW_i)%kind == window_counts .and. DoRedshiftLensing) then
-		        has_lensing_windows = .true.
-		        Redshift_w(RW_i)%has_lensing_window = .true.
-		        if (FeedbackLevel>0) &
-		            write(*,'(I1," Int W              = ",f9.6)') RW_i, awin_lens1(RW_i)
+            if (Redshift_w(RW_i)%kind == window_lensing .or. &
+                    Redshift_w(RW_i)%kind == window_counts .and. DoRedshiftLensing) then
+                has_lensing_windows = .true.
+                Redshift_w(RW_i)%has_lensing_window = .true.
+                if (FeedbackLevel>0) &
+                    write(*,'(I1," Int W              = ",f9.6)') RW_i, awin_lens1(RW_i)
 
-		        Win%awin_lens=Win%awin_lens/awin_lens1(RW_i)
-		    else
-		        Redshift_w(RW_i)%has_lensing_window = .false.
-		    end if
-		end associate
+                Win%awin_lens=Win%awin_lens/awin_lens1(RW_i)
+            else
+                Redshift_w(RW_i)%has_lensing_window = .false.
+            end if
+        end associate
     end do
 
     call splini(spline_data,nthermo)
@@ -3557,12 +3554,12 @@
 
     do RW_i = 1, num_redshiftwindows
         associate (RedWin => Redshift_W(RW_i))
-		    if (RedWin%kind == window_21cm) then
-		        outstr = 'z= '//trim(RealToStr(real(RedWin%Redshift),4))//': T_b = '//trim(RealToStr(real(RedWin%Fq),6))// &
-		            'mK; tau21 = '//trim(RealToStr(real(RedWin%optical_depth_21),5))
-		        write (*,*) RW_i,trim(outstr)
-		    end if
-		end associate
+            if (RedWin%kind == window_21cm) then
+                outstr = 'z= '//trim(RealToStr(real(RedWin%Redshift),4))//': T_b = '//trim(RealToStr(real(RedWin%Fq),6))// &
+                    'mK; tau21 = '//trim(RealToStr(real(RedWin%optical_depth_21),5))
+                write (*,*) RW_i,trim(outstr)
+            end if
+        end associate
     end do
 
     if (Do21cm .and. transfer_21cm_cl) then
@@ -3688,6 +3685,7 @@
     call TimeSteps%GetArray()
     nstep = TimeSteps%npoints
 
+	!TODO: Check for memory reuse
     if (allocated(vis)) then
         deallocate(vis,dvis,ddvis,expmmu,dopac, opac)
         if (dowinlens) deallocate(lenswin)
@@ -3903,7 +3901,13 @@
                         if (RedWin%Wing(ix)==0._dl) then
                             RedWin%comoving_density_ev(ix) = 0
                         else
+                            !TODO: Remove this check again.
+                            if (RedWin%comoving_density_ev(ix) == 0) then
+                                print *, "Zero for ix =", ix
+                                RedWin%comoving_density_ev(ix) = 0
+                            else
                             RedWin%comoving_density_ev(ix) =   tmp2(ix) / RedWin%comoving_density_ev(ix)
+                            end if
                         end if
                     end do
                 else
@@ -3964,7 +3968,7 @@
 
     !cccccccccccccc
     subroutine DoThermoSpline(j2,tau)
-    integer j2,i
+    integer j2, i, RW_i
     real(dl) d,ddopac,tau
 
     !     Cubic-spline interpolation.
@@ -3989,6 +3993,31 @@
             -2._dl*demmu(i)-demmu(i+1)+d*(demmu(i)+demmu(i+1) &
             +2._dl*(emmu(i)-emmu(i+1)))))
 
+        step_redshift(j2) = redshift_time(i)+d*(dredshift_time(i)+d*(3._dl*(redshift_time(i+1)-redshift_time(i)) &
+            -2._dl*dredshift_time(i)-dredshift_time(i+1)+d*(dredshift_time(i)+dredshift_time(i+1) &
+            +2._dl*(redshift_time(i)-redshift_time(i+1)))))
+
+
+        rhos_fac(j2) = arhos_fac(i)+d*(darhos_fac(i)+d*(3._dl*(arhos_fac(i+1)-arhos_fac(i)) &
+            -2._dl*darhos_fac(i)-darhos_fac(i+1)+d*(darhos_fac(i)+darhos_fac(i+1) &
+            +2._dl*(arhos_fac(i)-arhos_fac(i+1)))))
+        drhos_fac(j2) = (darhos_fac(i)+d*(ddarhos_fac(i)+d*(3._dl*(darhos_fac(i+1)  &
+            -darhos_fac(i))-2._dl*ddarhos_fac(i)-ddarhos_fac(i+1)+d*(ddarhos_fac(i) &
+            +ddarhos_fac(i+1)+2._dl*(darhos_fac(i)-darhos_fac(i+1))))))/(tau &
+            *dlntau)
+
+
+        do RW_i=1, num_redshiftwindows
+            if (Redshift_w(RW_i)%has_lensing_window) then
+                associate(W => Redshift_W(RW_i), C=> RW(RW_i))
+
+                    W%win_lens(j2) = C%awin_lens(i)+d*(C%dawin_lens(i)+d*(3._dl*(C%awin_lens(i+1)-C%awin_lens(i)) &
+                        -2._dl*C%dawin_lens(i)-C%dawin_lens(i+1)+d*(C%dawin_lens(i)+C%dawin_lens(i+1) &
+                        +2._dl*(C%awin_lens(i)-C%awin_lens(i+1)))))
+                end associate
+            end if
+        end do
+
         if (dowinlens) then
             lenswin(j2)=winlens(i)+d*(dwinlens(i)+d*(3._dl*(winlens(i+1)-winlens(i)) &
                 -2._dl*dwinlens(i)-dwinlens(i+1)+d*(dwinlens(i)+dwinlens(i+1) &
@@ -4005,7 +4034,21 @@
         vis(j2)=opac(j2)*expmmu(j2)
         dvis(j2)=expmmu(j2)*(opac(j2)**2+dopac(j2))
         ddvis(j2)=expmmu(j2)*(opac(j2)**3+3._dl*opac(j2)*dopac(j2)+ddopac)
+        step_redshift(j2) = 0
+        rhos_fac(j2)=0
+        drhos_fac(j2)=0
+
+
+        do RW_i=1, num_redshiftwindows
+            associate (W => Redshift_W(RW_i))
+                W%win_lens(j2)=0
+            end associate
+        end do
     end if
+
+
+    !          write (*,'(7e15.5)') tau, wing(j2), winV(j2), dwing(j2), dwinV(j2),ddwinV(j2),dopac(j2)
+
     end subroutine DoThermoSpline
 
 

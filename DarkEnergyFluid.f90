@@ -57,8 +57,8 @@
     Eqns_name = 'gauge_inv'
 
     end  subroutine TDarkEnergyFluid_Init_Background
-    
-    
+
+
     subroutine TDarkEnergyFluid_BackgroundDensityAndPressure(this, a, grhov_t, w)
     use ModelParams
     class(TDarkEnergyFluid), intent(inout) :: this
@@ -73,7 +73,7 @@
         grhov_t = grhov * a ** (-1 - 3 * this%w_lam)
     end if
     if (present(w)) w = this%w_lam
- 
+
     end subroutine TDarkEnergyFluid_BackgroundDensityAndPressure
 
     subroutine TDarkEnergyFluid_AddStressEnergy(this, dgrho, dgq, &
@@ -84,10 +84,10 @@
     real(dl), intent(in) :: grhov_t, y(:)
     integer, intent(in) :: w_ix
     logical, intent(in) :: output
-    
+
     dgrho = dgrho + y(w_ix) * grhov_t
     dgq = dgq + y(w_ix + 1) * grhov_t * (1 + this%w_lam)
-    
+
     end subroutine TDarkEnergyFluid_AddStressEnergy
 
 
@@ -101,11 +101,11 @@
 
      if (.not. this%is_cosmological_constant) then
         ayprime(w_ix) = -3 * adotoa * (this%cs2_lam - this%w_lam) * &
-			(y(w_ix) + 3 * adotoa * (1 + this%w_lam) * y(w_ix + 1) / k) - &
+            (y(w_ix) + 3 * adotoa * (1 + this%w_lam) * y(w_ix + 1) / k) - &
             (1 + this%w_lam) * k * y(w_ix + 1) - (1 + this%w_lam) * k * z
 
         ayprime(w_ix + 1) = -adotoa * (1 - 3 * this%cs2_lam) * y(w_ix + 1) + &
-			k * this%cs2_lam * y(w_ix) / (1 + this%w_lam)
+            k * this%cs2_lam * y(w_ix) / (1 + this%w_lam)
     end if
 
     end subroutine TDarkEnergyFluid_PerturbationEvolve
