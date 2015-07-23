@@ -14,7 +14,10 @@ ifeq "$(ifortErr)" "0"
 #Intel compiler
 F90C     = ifort
 ifortVer_major = $(shell ifort -v 2>&1 | cut -d " " -f 3 | cut -d. -f 1)
-COMMON_FFLAGS = -fpp -gen-dep=$$*.d -openmp
+COMMON_FFLAGS = -fpp -openmp
+ifeq "$(ifortVer_major)" "15"
+COMMON_FFLAGS += -gen-dep=$$*.d
+endif
 FFLAGS = -fast -W0 -WB $(COMMON_FFLAGS)
 #FFLAGS = -openmp -fast -W0 -WB -fpp2 -vec_report0
 DEBUGFLAGS =  -g -check all -check noarg_temp_created -traceback -fpe0 $(COMMON_FFLAGS)
