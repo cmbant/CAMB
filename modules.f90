@@ -401,6 +401,7 @@
         CP%WantScalars=.true.
         if (.not. CP%WantCls) then
             CP%AccuratePolarization = .false.
+            !Sources
             CP%Reion%Reionization = transfer_21cm_cl
         end if
     else
@@ -1346,7 +1347,7 @@
         do in=1,CP%InitPower%nn
             do il=lmin,CP%Max_l_tensor
                 write(fileio_unit,'(1I6,4E15.5)')il, fact*(Cl_scalar(il, in, C_Temp:C_E)+ Cl_tensor(il,in, C_Temp:C_E)), &
-                    fact*Cl_tensor(il,in, CT_B), fact*(Cl_scalar(il, in, c_cROSS) + Cl_tensor(il, in, CT_Cross))
+                    fact*Cl_tensor(il,in, CT_B), fact*(Cl_scalar(il, in, C_Cross) + Cl_tensor(il, in, CT_Cross))
             end do
             do il=CP%Max_l_tensor+1,CP%Max_l
                 write(fileio_unit,'(1I6,4E15.5)')il ,fact*Cl_scalar(il,in,C_Temp:C_E), 0._dl, fact*Cl_scalar(il,in,C_Cross)
@@ -3908,13 +3909,7 @@
                         if (RedWin%Wing(ix)==0._dl) then
                             RedWin%comoving_density_ev(ix) = 0
                         else
-                            !TODO: Remove this check again.
-                            if (RedWin%comoving_density_ev(ix) == 0) then
-                                print *, "Zero for ix =", ix
-                                RedWin%comoving_density_ev(ix) = 0
-                            else
                             RedWin%comoving_density_ev(ix) =   tmp2(ix) / RedWin%comoving_density_ev(ix)
-                            end if
                         end if
                     end do
                 else

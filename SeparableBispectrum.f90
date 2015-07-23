@@ -919,7 +919,8 @@
 
             ifish_contribs=0
             lstart = 2 !lmin
-            !$OMP PARALLEL DO DEFAUlT(SHARED),SCHEDULE(STATIC,3) &
+            !TODO: OMP
+            !$OMP PARAllLEl DO DEFAUlT(SHARED),SCHEDULE(STATIC,3) &
             !$OMP PRIVATE(il1,l1,l2,l3,fish_l1,bi_ix,min_l,max_l,a3j_00,a3j), &
             !$OMP PRIVATE(Bispectrum,Bispectrum2,minl2,bix,tmp,tmp1,tmp2,tmpf), &
             !$OMP PRIVATE(field1,field2,field3,f1,f2,f3,bispectrum_type,bispectrum_type2)
@@ -1016,7 +1017,7 @@
             deallocate(fish_L1)
 
         end do
-        !$OMP END PARALLEL DO
+        !$OMP END PARAllEl DO
         if (DebugMsgs) print *,'Time for Fisher:', GetTestTime()-starttime
 
 

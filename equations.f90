@@ -1384,7 +1384,6 @@
     real(dl) s(0:10), t(0:10)
     real(dl) counts_radial_source, counts_velocity_source, counts_density_source, counts_ISW_source, &
         counts_redshift_source, counts_timedelay_source, counts_potential_source
-    real(dl) help
 
     sources = 0
     yprime = 0
@@ -2188,6 +2187,10 @@
     if (CP%DarkEnergy%num_perturb_equations > 0) &
         y(EV%w_ix:EV%w_ix + CP%DarkEnergy%num_perturb_equations - 1) = &
             InitVec(i_clxq:i_clxq + CP%DarkEnergy%num_perturb_equations - 1)
+
+    if (Evolve_delta_Ts) then
+        y(EV%Ts_ix) = y(EV%g_ix)/4
+    end if
 
     !  Neutrinos
     y(EV%r_ix)=InitVec(i_clxr)

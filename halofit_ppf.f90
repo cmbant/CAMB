@@ -305,7 +305,6 @@
     subroutine NonLinear_GetRatios(CAMB_Pk)
     use Transfer
     use NonLinear
-    use DarkEnergyInterface
     type(MatterPowerData) :: CAMB_Pk
 
     call NonLinear_GetNonLinRatios(CAMB_Pk)
