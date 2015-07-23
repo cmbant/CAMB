@@ -137,6 +137,7 @@
     type(EvolutionVars) EV
     !     Timing variables for testing purposes. Used if DebugMsgs=.true. in ModelParams
     real(sp) actual,timeprev,starttime
+    integer :: tn = 0
 
     WantLateTime =  CP%DoLensing .or. num_redshiftwindows > 0
 
@@ -185,6 +186,10 @@
 
     !***note that !$ is the prefix for conditional multi-processor compilation***
     !$ if (ThreadNum /=0) call OMP_SET_NUM_THREADS(ThreadNum)
+
+    ! Get the number of threads
+    call GetNumThreads(tn)
+    print *, "number of threads :", tn
 
     if (CP%WantCls) then
         if (DebugMsgs .and. Feedbacklevel > 0) write(*,*) 'Set ',Evolve_q%npoints,' source k values'
@@ -411,7 +416,7 @@
     integer i, s_ix, s_ix_lens
     type(TRedWin), pointer :: W
     integer n1,n2,n, ell_limb
-    real(dl) int,k, chi, chimin
+    real(dl) int,k, chi
     integer klo, khi
     real(dl) a0,b0,ho2o6,a03,b03,ho,reall
     Type(LimberRec), pointer :: LimbRec
@@ -2236,7 +2241,7 @@
 
         !TODO: OMP: Analyze: Seems not to OMP well.. comment
         !OMP PARAllEl DO DEFAUlT(SHARED),SCHEDUlE(STATIC,4) &
-        !OMP & PRIVATE(j,q_ix,dlnk,apowers,ctnorm,dbletmp)
+        !OMP & PRIVATE(j,ell,q_ix,dlnk,apowers,ctnorm,dbletmp,Delta1,Delta2,w_ix,w_ix2,Win)
         do j=1,CTrans%ls%l0
             !Integrate dk/k Delta_l_q**2 * Power(k)
             ell = real(CTrans%ls%l(j),dl)

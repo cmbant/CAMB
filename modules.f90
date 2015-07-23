@@ -2349,7 +2349,7 @@
     real(dl), intent(in) :: R(:)
     real(dl), intent(out) :: SigmaR(:)
     integer, intent(in), optional :: redshift_ix, var1, var2, power_ix
-    integer i, red_ix, ik, subk
+    integer red_ix, ik, subk
     real(dl) kh, k, h, dkh
     real(dl) lnk, dlnk, lnko, minR
     real(dl), dimension(size(R)) ::  x, win, dsig8, dsig8o, sig8, sig8o
@@ -2363,6 +2363,7 @@
     call Transfer_GetMatterPowerData(MTrans, PKspline, power_ix, red_ix, var1, var2 )
 
     H=CP%h0/100._dl
+    dkh = 0._dl
     lnko=0
     dsig8o=0
     sig8=0
@@ -3135,7 +3136,7 @@
     real(dl) Tspin, Trad, rho_fac, window, tau_eps
     integer transfer_ix(max_transfer_redshifts)
     integer RW_i
-    real(dl) Tb21cm, dip, winamp, z
+    real(dl) Tb21cm, winamp, z
     character(len=:), allocatable :: outstr
 
     !Sources
@@ -3742,6 +3743,12 @@
     integer ninterp
     real(dl) dtauda !diff of tau w.r.t a and integration
     external dtauda
+
+    ! Prevent false positive warnings for uninitialized
+    Tspin = 0._dl
+    Trad = 0._dl
+    tau_eps = 0._dl
+    exp_fac = 0._dl
 
     jstart = TimeSteps%IndexOf(tau_start_redshiftwindows)
     ninterp = TimeSteps%npoints - jstart + 1

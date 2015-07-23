@@ -92,7 +92,6 @@
 
     numThreads = ThreadNum
     call GetNumThreads(numThreads)
-    write (*, '("DarkEnergyPPF_Init() with ",I2," #threads.")') numThreads
     numThreads = numThreads - 1
     if (.not. allocated(this%dgq_e_ppf)) &
         allocate(this%dgq_e_ppf(0:numThreads), this%dgrho_e_ppf(0:numThreads))
