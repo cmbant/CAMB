@@ -366,10 +366,19 @@
             TotalFileName = trim(outroot) // Ini%Read_String('total_output_file')
             LensedTotFileName = Ini%Read_String('lensed_total_output_file')
             if (LensedTotFileName /= '') LensedTotFileName = trim(outroot) // trim(LensedTotFileName)
+        else
+            TotalFileName = ''
+            LensedTotFileName = ''
         end if
+    else
+        TensorFileName = ''
+        TotalFileName = ''
+        LensedTotFileName = ''
     end if
     if (P%WantVectors) then
         VectorFileName = trim(outroot) // Ini%Read_String('vector_output_file')
+    else
+        VectorFileName = ''
     end if
 
 #ifdef WRITE_FITS
