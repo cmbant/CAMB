@@ -3908,7 +3908,8 @@
                         if (RedWin%Wing(ix)==0._dl) then
                             RedWin%comoving_density_ev(ix) = 0
                         else
-                            RedWin%comoving_density_ev(ix) =   tmp2(ix) / RedWin%comoving_density_ev(ix)
+                            if (RedWin%comoving_density_ev(ix) /= 0._dl) &
+                                RedWin%comoving_density_ev(ix) = tmp2(ix) / RedWin%comoving_density_ev(ix)
                         end if
                     end do
                 else
