@@ -1591,7 +1591,7 @@
 
 
     !$OMP PARALLEL DO DEFAULT(SHARED),SCHEDULE(STATIC) &
-    !$OMP & PRIVATE(am, rhonu,pnu)
+    !$OMP& PRIVATE(am,rhonu,pnu), SHARED(r1, p1)
     do i=1,nrhopn
         am=am_min*exp((i-1)*dlnam)
         call nuRhoPres(am,rhonu,pnu)
@@ -3487,7 +3487,6 @@
     do j2=1,TimeSteps%npoints
         call DoThermoSpline(j2,TimeSteps%points(j2))
     end do
-    !$OMP END PARALLEL DO
 
 
     if ((CP%want_zstar .or. CP%DerivedParameters) .and. z_star==0.d0) call find_z(optdepth,z_star)

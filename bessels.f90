@@ -77,14 +77,15 @@
 
     max_ix = min(max_bessels_l_index,lSamp%l0)
 
+    !TODO: Check for memory reuse
     if (allocated(ajl)) deallocate(ajl)
     if (allocated(ajlpr)) deallocate(ajlpr)
     if (allocated(ddajlpr)) deallocate(ddajlpr)
-    Allocate(ajl(1:num_xx,1:max_ix))
-    Allocate(ajlpr(1:num_xx,1:max_ix))
-    Allocate(ddajlpr(1:num_xx,1:max_ix))
+    allocate(ajl(1:num_xx,1:max_ix))
+    allocate(ajlpr(1:num_xx,1:max_ix))
+    allocate(ddajlpr(1:num_xx,1:max_ix))
 
-    !$OMP PARALLEL DO DEFAULT(SHARED),SCHEDULE(STATIC), PRIVATE(j,i,x,xlim)
+    !$OMP PARALLEL DO DEFAULT(SHARED), SCHEDULE(STATIC), PRIVATE(i, x, xlim)
     do j=1,max_ix
 
         do  i=1,num_xx
@@ -94,8 +95,8 @@
             xlim=lSamp%l(j)-xlim
             if (x > xlim) then
                 if ((lSamp%l(j)==3).and.(x <=0.2) .or. (lSamp%l(j) > 3).and.(x < 0.5) .or. &
-                    (lSamp%l(j)>5).and.(x < 1.0)) then
-                ajl(i,j)=0
+                        (lSamp%l(j)>5).and.(x < 1.0)) then
+                    ajl(i,j)=0
                 else
                     !if ( lSamp%l(j) > 40000) then
                     ! ajl(i,j) = phi_langer(lSamp%l(j),0,1._dl,x)
@@ -111,9 +112,7 @@
         !     get the interpolation matrix for bessel functions
         call spline(BessRanges%points,ajl(1,j),num_xx,spl_large,spl_large,ajlpr(1,j))
         call spline(BessRanges%points,ajlpr(1,j),num_xx,spl_large,spl_large,ddajlpr(1,j))
-
     end do
-    !$OMP END PARALLEL DO
 
     end subroutine GenerateBessels
 

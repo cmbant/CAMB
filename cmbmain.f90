@@ -212,7 +212,6 @@
         do q_ix= 1,Evolve_q%npoints
             if (global_error_flag==0) call DoSourcek(EV,q_ix)
         end do
-        !$OMP END PARAllEl DO
 
         if (DebugMsgs .and. Feedbacklevel > 0) then
             timeprev=actual
@@ -273,7 +272,6 @@
             do q_ix=1,ThisCT%q%npoints
                 call SourceToTransfers(q_ix)
             end do !q loop
-            !$OMP END PARAllEl DO
 
             if (DebugMsgs .and. Feedbacklevel > 0) then
                 timeprev=actual
@@ -355,7 +353,6 @@
     integer ell, i, s_ix, pix
     real(dl) CL, reall,fac, dbletmp
     integer s_ix2,j,n
-    Type(LimberRec), pointer :: LimbRec,LimbRec2
     integer winmin
 
     if (limber_phiphi>0) then
@@ -371,38 +368,38 @@
                 do j= i, num_redshiftwindows
                     s_ix2 = 3+j
                     if (CTrans%limber_l_min(s_ix2) /=0) then
-                        !$OMP PARALLEL DO DEFAUlT(SHARED), SCHEDUlE(STATIC,2), PRIVATE(Cl,ell,reall,fac,dbletmp,n,LimbRec,LimbRec2)
-                        do ell =  max(CTrans%limber_l_min(s_ix), CTrans%limber_l_min(s_ix2)), Ctrans%ls%l0
-                            Cl = 0
-                            LimbRec => CTrans%Limber_windows(s_ix,ell)
-                            LimbRec2 => CTrans%Limber_windows(s_ix2,ell)
+                        !$OMP PARALLEL DO DEFAUlT(SHARED), SCHEDUlE(STATIC,2), PRIVATE(Cl,ell,reall,fac,dbletmp,n)
+                        do ell = max(CTrans%limber_l_min(s_ix), CTrans%limber_l_min(s_ix2)), Ctrans%ls%l0
+                            associate (LimbRec => CTrans%Limber_windows(s_ix,ell), &
+                                LimbRec2 => CTrans%Limber_windows(s_ix2,ell))
+                                Cl = 0
 
-                            do n = max(LimbRec%n1,LimbRec2%n1), min(LimbRec%n2,LimbRec2%n2)
-                                !Actually integral over chi; source has sqrt( chi dchi)
-                                !Same n corresponds to same k since ell fixed here
-                                Cl = Cl + LimbRec%Source(n)*LimbRec2%Source(n) * ScalarPower(LimbRec%k(n) ,pix)
-                            end do
+                                do n = max(LimbRec%n1,LimbRec2%n1), min(LimbRec%n2,LimbRec2%n2)
+                                    !Actually integral over chi; source has sqrt( chi dchi)
+                                    !Same n corresponds to same k since ell fixed here
+                                    Cl = Cl + LimbRec%Source(n)*LimbRec2%Source(n) * ScalarPower(LimbRec%k(n) ,pix)
+                                end do
 
-                            reall = real(CTrans%ls%l(ell),dl)
-                            fac = (const_twopi**2)/const_fourpi/(reall+0.5_dl)**3 !fourpi because multipled by fourpi later
-                            if (j >= 1) then
-                                if (Redshift_w(j)%kind == window_lensing) &
-                                    fac = fac / 2 * reall * (reall + 1)
-                            end if
-                            if (i >= 1) then
-                                if (Redshift_w(i)%kind == window_lensing) &
-                                    fac = fac / 2 * reall * (reall + 1)
-                            end if
-                            Cl = Cl*fac
+                                reall = real(CTrans%ls%l(ell),dl)
+                                fac = (const_twopi**2)/const_fourpi/(reall+0.5_dl)**3 !fourpi because multipled by fourpi later
+                                if (j >= 1) then
+                                    if (Redshift_w(j)%kind == window_lensing) &
+                                        fac = fac / 2 * reall * (reall + 1)
+                                end if
+                                if (i >= 1) then
+                                    if (Redshift_w(i)%kind == window_lensing) &
+                                        fac = fac / 2 * reall * (reall + 1)
+                                end if
+                                Cl = Cl*fac
 
-                            if(j==0 .and. i==0) iCl_scalar(ell,C_Phi,pix) = Cl
-                            if (has_cl_2D_array) then
-                                dbletmp=(reall*(reall+1))/OutputDenominator*const_fourpi
-                                iCl_Array(ell,s_ix,s_ix2,pix) = Cl*dbletmp
-                                if (i/=j) iCl_Array(ell,s_ix2,s_ix,pix)=iCl_Array(ell,s_ix,s_ix2,pix)
-                            end if
+                                if(j==0 .and. i==0) iCl_scalar(ell,C_Phi,pix) = Cl
+                                if (has_cl_2D_array) then
+                                    dbletmp=(reall*(reall+1))/OutputDenominator*const_fourpi
+                                    iCl_Array(ell,s_ix,s_ix2,pix) = Cl*dbletmp
+                                    if (i/=j) iCl_Array(ell,s_ix2,s_ix,pix)=iCl_Array(ell,s_ix,s_ix2,pix)
+                                end if
+                            end associate
                         end do
-                        !$OMP END PARAllEl DO
                     end if
                 end do
             end if
@@ -1149,11 +1146,9 @@
     if (DebugMsgs .and. Feedbacklevel > 0) &
         write(*,*) MT%num_q_trans-Evolve_q%npoints, 'transfer k values'
 
-	!TODO: OMP
-    !$OMP PARAllEl DO DEFAUlT(SHARED),SCHEDUlE(DYNAMIC) &
-    !$OMP & PRIVATE(EV, tau, q_ix)
-
     !     loop over wavenumbers.
+    !$OMP PARALLEL DO DEFAUlT(SHARED), SCHEDULE(DYNAMIC), &
+    !$OMP & PRIVATE(EV, tau, q_ix)
     do q_ix=Evolve_q%npoints+1,MT%num_q_trans
         EV%TransferOnly=.true. !in case we want to do something to speed it up
 
@@ -1168,7 +1163,6 @@
 
         call GetTransfer(EV, tau)
     end do
-    !$OMP END PARAllEl DO
 
     end subroutine TransferOut
 
@@ -1215,25 +1209,24 @@
     do while(TimeSteps%points(first_step) < tautf(1))
         first_step = first_step + 1
     end do
-    !$OMP PARAllEl DO DEFAUlT(SHARED), SCHEDUlE(STATIC), &
-    !$OMP & PRIVATE(ik, i,scaling,ddScaling, tf_lo,tf_hi,tau,ho,a0,b0,ascale)
+    !$OMP PARALLEL DO DEFAULT(SHARED), SCHEDULE(STATIC), &
+    !$OMP & PRIVATE(i, scaling, ddScaling, tf_lo, tf_hi, tau, ho, a0, b0, ascale)
     do ik=1, Evolve_q%npoints
         if (Do21cm) then
             Src(ik, 4:SourceNum, :) = Src(ik, 4:SourceNum, :) * &
                 CAMB_Pk%nonlin_ratio(ik,1)
         elseif (Evolve_q%points(ik)/(CP%H0/100) >  Min_kh_nonlinear) then
             !Interpolate non-linear scaling in conformal time
-            do i = 1, CP%Transfer%num_redshifts
-                scaling(i) = CAMB_Pk%nonlin_ratio(ik,i)
-            end do
+            !Do not use an associate for scaling. It does not work.
+            scaling = CAMB_Pk%nonlin_ratio(ik,1:CP%Transfer%num_redshifts)
             if (all(abs(scaling-1) < 5e-4)) cycle
-            call spline(tautf(1),scaling(1),CP%Transfer%num_redshifts,&
-                spl_large,spl_large,ddScaling(1))
+            call spline(tautf(1), scaling(1), CP%Transfer%num_redshifts,&
+                spl_large, spl_large, ddScaling(1))
 
             tf_lo=1
             tf_hi=tf_lo+1
 
-            do i=first_step,TimeSteps%npoints-1
+            do i= first_step, TimeSteps%npoints-1
                 tau = TimeSteps%points(i)
 
                 do while (tau > tautf(tf_hi))
@@ -1253,7 +1246,6 @@
             end  do
         end if
     end do
-    !$OMP END PARAllEl DO
 
     call MatterPowerdata_Free(CAMB_pk)
 
@@ -1264,14 +1256,15 @@
     integer i,j
     !     get the interpolation matrix for the sources to interpolate them
     !     for other k-values
-	!TODO: OMP
-    !$OMP PARAllEl DO DEFAUlT(SHARED), SCHEDUlE(STATIC), PRIVATE(i,j) , SHARED(Evolve_q)
+
+    !$OMP PARALLEL DO DEFAULT(SHARED), SCHEDULE(STATIC), PRIVATE(i,j) , SHARED(Evolve_q)
     do  i=1,TimeSteps%npoints
         do j=1, SourceNum
-            call spline(Evolve_q%points,Src(1,j,i),Evolve_q%npoints,spl_large,spl_large,ddSrc(1,j,i))
+            call spline(Evolve_q%points,Src(1,j,i),Evolve_q%npoints,spl_large, &
+                spl_large, ddSrc(1,j,i))
         end do
     end do
-    !$OMP END PARAllEl DO
+
     end subroutine InitSourceInterpolation
 
 
@@ -2453,9 +2446,8 @@
 
         call GetInitPowers(pows,ks,CTrans%q%npoints,in)
 
-        !TODO: OMP: Analyse OMP-statement
-        !$OMP PARAllEl DO DEFAUlT(SHARED),SCHEDUlE(STATIC,4) &
-        !$OMP & PRIVATE(j,q_ix,measure,apowert,ctnorm,dbletmp)
+        !$OMP PARALLEL DO DEFAULT(SHARED),SCHEDULE(STATIC,4) &
+        !$OMP & PRIVATE(q_ix, measure, apowert, ctnorm, dbletmp)
         do j=1,CTrans%ls%l0
             do q_ix = 1, CTrans%q%npoints
                 if (.not.(CP%closed.and. nint(CTrans%q%points(q_ix)*CP%r)<=CTrans%ls%l(j))) then
@@ -2501,8 +2493,7 @@
 
         call GetInitPowers(pows,ks,CTrans%q%npoints,in)
 
-		! TODO: OMP
-        !$OMP PARAllEl DO DEFAUlT(SHARED),SCHEDUlE(STATIC,4) &
+        !$OMP PARALLEL DO DEFAULT(SHARED),SCHEDULE(STATIC,4), &
         !$OMP & PRIVATE(j,q_ix,measure,power,ctnorm,dbletmp,lfac)
         do j=1,CTrans%ls%l0
             do q_ix = 1, CTrans%q%npoints
@@ -2540,7 +2531,7 @@
 
     !Note using log interpolation is worse
 
-    !$OMP PARALLEL DO DEFAULT(SHARED), PRIVATE(i,j,in), SHARED(CTransS,CTransT),IF(CP%InitPower%nn > 1)
+    !$OMP PARALLEL DO DEFAULT(SHARED), PRIVATE(i,j), SHARED(CTransS,CTransT),IF(CP%InitPower%nn > 1)
     do in=1,CP%InitPower%nn
         if (CP%WantScalars) then
             do i = C_Temp, C_last
@@ -2575,7 +2566,6 @@
             end do
         end if
     end do
-    !$OMP END PARALLEL DO
     end subroutine InterpolateCls
 
 
