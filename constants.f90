@@ -81,7 +81,7 @@
     character(LEN=*), intent(IN), optional :: message
     integer, intent(in), optional :: id
 
-    global_error_message = PresentDefault(message, '')
+    global_error_message = PresentDefault('', message)
     if (present(id)) then
         if (id==0) stop 'Error id must be non-zero'
         global_error_flag=id

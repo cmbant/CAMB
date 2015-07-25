@@ -207,7 +207,7 @@
         ThisCT%NumSources = SourceNum
         ThisCT%ls = lSamp
 
-        !$OMP PARAllEl DO DEFAUlT(SHARED),SCHEDUlE(DYNAMIC) &
+        !$OMP PARALLEL DO DEFAULT(SHARED),SCHEDULE(DYNAMIC) &
         !$OMP & PRIVATE(EV, q_ix)
         do q_ix= 1,Evolve_q%npoints
             if (global_error_flag==0) call DoSourcek(EV,q_ix)
@@ -268,7 +268,7 @@
             if (DebugMsgs .and. Feedbacklevel > 0) write(*,*) 'Set ',ThisCT%q%npoints,' integration k values'
 
             !Begin k-loop and integrate Sources*Bessels over time
-            !$OMP PARAllEl DO DEFAUlT(SHARED),SHARED(TimeSteps), SCHEDUlE(STATIC,4)
+            !$OMP PARALLEL DO DEFAULT(SHARED), SCHEDULE(STATIC,4)
             do q_ix=1,ThisCT%q%npoints
                 call SourceToTransfers(q_ix)
             end do !q loop
@@ -381,7 +381,7 @@
                                 end do
 
                                 reall = real(CTrans%ls%l(ell),dl)
-                                fac = (const_twopi**2)/const_fourpi/(reall+0.5_dl)**3 !fourpi because multipled by fourpi later
+                                fac = (2 * const_pi ** 2)/const_fourpi/(reall+0.5_dl)**3 !fourpi because multipled by fourpi later
                                 if (j >= 1) then
                                     if (Redshift_w(j)%kind == window_lensing) &
                                         fac = fac / 2 * reall * (reall + 1)
