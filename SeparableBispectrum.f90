@@ -477,6 +477,7 @@
                 end do
             end do
         end do
+        !$OMP END PARALLEL DO
 
         if (DebugMsgs) print *,'Time for lensing:', GetTestTime()-starttime
 
@@ -561,6 +562,7 @@
                     end do
                 end do
             end do
+            !$OMP END PARALLEL DO
         end if
     end if
 
@@ -713,6 +715,7 @@
             deallocate(res_l,resP_l)
             if (npd>0) deallocate(resPd_l)
         end do !TimeStepsNongauss
+        !$OMP END PARALLEL DO
 
         if (BispectrumParams%export_alpha_beta) then
             call file_alpha%close()
@@ -1007,9 +1010,10 @@
                 ifish_contribs(il1,:,:,:,:)=fish_l1(1:nbispectra,1:nbispectra,:,:) /InternalScale
                 deallocate(fish_L1)
 
-            end do !OMP PARAllEl
-            if (DebugMsgs) print *,'Time for Fisher:', GetTestTime()-starttime
+            end do
+            !$OMP END PARALLEL DO
 
+            if (DebugMsgs) print *,'Time for Fisher:', GetTestTime()-starttime
 
             allocate(fish_contribs(lmin:CTrans%ls%l(CTrans%ls%l0),nfields,nfields))
             allocate(Fisher(nbispectra,nbispectra))

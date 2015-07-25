@@ -479,7 +479,8 @@
 
             end do
 
-        end do ! OMP PARALLEL
+        end do
+        !$OMP END PARALLEL DO
 
         do l=lmin, lmax_lensed
             !sign from d(cos theta) = -sin theta dtheta
@@ -895,7 +896,8 @@
             iCl_lensed(j,:,CT_E:CT_Cross) = bare_cls(:,al,CT_E:CT_Cross)
         end if
 
-    end do ! OMP PARALLEL
+    end do
+    !$OMP END PARALLEL DO
 
     deallocate(bare_cls)
 

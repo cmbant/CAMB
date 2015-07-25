@@ -212,6 +212,7 @@
         do q_ix= 1,Evolve_q%npoints
             if (global_error_flag==0) call DoSourcek(EV,q_ix)
         end do
+        !$OMP END PARALLEL DO
 
         if (DebugMsgs .and. Feedbacklevel > 0) then
             timeprev=actual
@@ -272,6 +273,7 @@
             do q_ix=1,ThisCT%q%npoints
                 call SourceToTransfers(q_ix)
             end do !q loop
+            !$OMP END PARALLEL DO
 
             if (DebugMsgs .and. Feedbacklevel > 0) then
                 timeprev=actual
@@ -400,6 +402,7 @@
                                 end if
                             end associate
                         end do
+                        !$OMP END PARALLEL DO
                     end if
                 end do
             end if
@@ -1163,6 +1166,7 @@
 
         call GetTransfer(EV, tau)
     end do
+    !$OMP END PARALLEL DO
 
     end subroutine TransferOut
 
@@ -1246,6 +1250,7 @@
             end  do
         end if
     end do
+    !$OMP END PARALLEL DO
 
     call MatterPowerdata_Free(CAMB_pk)
 
@@ -1264,6 +1269,7 @@
                 spl_large, ddSrc(1,j,i))
         end do
     end do
+    !$OMP END PARALLEL DO
 
     end subroutine InitSourceInterpolation
 
@@ -2470,6 +2476,7 @@
             iCl_tensor(j, CT_E:CT_B, in) = iCl_tensor(j, CT_E:CT_B, in)*dbletmp
             iCl_tensor(j, CT_Cross, in)  = iCl_tensor(j, CT_Cross, in)*dbletmp*sqrt(ctnorm)
         end do
+        !$OMP END PARALLEL DO
     end do
 
     end subroutine CalcTensCls
@@ -2517,6 +2524,7 @@
             iCl_vector(j, CT_E:CT_B, in) = iCl_vector(j, CT_E:CT_B, in)*dbletmp*lfac
             iCl_vector(j, CT_Cross, in)  = iCl_vector(j, CT_Cross, in)*dbletmp*sqrt(lfac*ctnorm)
         end do
+        !$OMP END PARALLEL DO
     end do
 
     end subroutine CalcVecCls
@@ -2566,6 +2574,8 @@
             end do
         end if
     end do
+    !$OMP END PARALLEL DO
+
     end subroutine InterpolateCls
 
 

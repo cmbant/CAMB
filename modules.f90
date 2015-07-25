@@ -3487,6 +3487,7 @@
     do j2=1,TimeSteps%npoints
         call DoThermoSpline(j2,TimeSteps%points(j2))
     end do
+    !$OMP END PARALLEL DO
 
 
     if ((CP%want_zstar .or. CP%DerivedParameters) .and. z_star==0.d0) call find_z(optdepth,z_star)

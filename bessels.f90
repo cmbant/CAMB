@@ -113,6 +113,7 @@
         call spline(BessRanges%points,ajl(1,j),num_xx,spl_large,spl_large,ajlpr(1,j))
         call spline(BessRanges%points,ajlpr(1,j),num_xx,spl_large,spl_large,ddajlpr(1,j))
     end do
+    !$OMP END PARALLEL DO
 
     end subroutine GenerateBessels
 
