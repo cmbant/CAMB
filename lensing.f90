@@ -665,7 +665,8 @@
                     corr(4)*Bessel2(l)
             end do
 
-        end do ! OMP PARALLEL
+        end do
+        !$OMP END PARALLEL DO
 
         do l=lmin, lmax_lensed
             fac = l*(l+1)* const_twopi/OutputDenominator*dtheta
