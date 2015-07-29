@@ -23,7 +23,7 @@
     ! real(dl), parameter :: xlimmin=15._dl  , xlimfrac = 0.05_dl
     real(dl), parameter :: xlimmin=35._dl  , xlimfrac = 0.05_dl
 
-    type(TRanges):: BessRanges
+    type(TRanges), save:: BessRanges
 
     public ajl, ajlpr, ddajlpr, BessRanges, InitSpherBessels, xlimmin, xlimfrac
     public USpherBesselWithDeriv, phi_recurs,phi_langer, bjl, Bessels_Free

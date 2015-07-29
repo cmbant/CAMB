@@ -181,7 +181,7 @@
     real(dl), parameter ::  OutputDenominator = const_twopi
     !When using outNone the output is l(l+1)Cl/OutputDenominator
 
-    type(TRanges) :: TimeSteps
+    type(TRanges), save :: TimeSteps
 
     type TransferParams
         logical     ::  high_precision

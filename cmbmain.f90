@@ -102,7 +102,7 @@
     !Full covariance at each L (alternative more general arrangement to above)
 
     ! values of q to evolve the propagation equations to compute the sources
-    type(TRanges) :: Evolve_q
+    type(TRanges), save :: Evolve_q
 
     real(dl),parameter :: qmin0=0.1_dl
 
