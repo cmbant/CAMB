@@ -24,7 +24,7 @@ DEBUGFLAGS =  -g -check all -check noarg_temp_created -traceback -fpe0 $(COMMON_
 ## This is flag is passed to the Fortran compiler allowing it to link C++ if required (not usually):
 F90CRLINK = -cxxlib
 ifeq "$(ifortVer_major)" "15"
-F90DRLINK += -qopt-report=1 -qopt-report-phase=vec
+F90CRLINK += -qopt-report=1 -qopt-report-phase=vec
 else
 ifeq "$(ifortVer_major)" "14"
 F90CRLINK += -vec_report0
@@ -47,7 +47,8 @@ ifeq "$(gfortErr)" "0"
 F90C     = gfortran
 COMMON_FFLAGS = -MMD -cpp -ffree-line-length-none
 # -fmax-errors=4
-FFLAGS = -O3 -fopenmp -ffast-math $(COMMON_FFLAGS)
+# Using -ffast-math causes differences between Debug and Release configurations.
+FFLAGS = -O3 -fopenmp $(COMMON_FFLAGS)
 DEBUGFLAGS = -g -fbacktrace -ffpe-trap=invalid,overflow,zero -fbounds-check $(COMMON_FFLAGS)
 MODOUT =  -J$(OUTPUT_DIR)
 

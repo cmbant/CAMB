@@ -1589,8 +1589,7 @@
 
     dlnam=-(log(am_min/am_max))/(nrhopn-1)
 
-
-    !$OMP PARALLEL DO DEFAULT(SHARED),SCHEDULE(STATIC) &
+    !$OMP PARALLEL DO DEFAULT(SHARED), SCHEDULE(STATIC), &
     !$OMP& PRIVATE(am,rhonu,pnu), SHARED(r1, p1)
     do i=1,nrhopn
         am=am_min*exp((i-1)*dlnam)
