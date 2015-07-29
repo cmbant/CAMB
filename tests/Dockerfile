@@ -33,7 +33,7 @@ CMD git clone https://github.com/cmbant/forutils.git forutils \
   && cd /home/camb/CAMB && make Release \
   && python python/CAMB_test_files.py testfiles --make_ini \
   && cd testfiles \
-  && ln -s ../Expected_Results/test_outputs expected_outputs \
+  && ln -s ../Expected_Results/40000_expected_outputs expected_outputs \
   && cd .. \
   && python python/CAMB_test_files.py testfiles --diff_to expected_outputs --verbose
 

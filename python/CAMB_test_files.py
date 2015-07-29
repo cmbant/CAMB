@@ -225,23 +225,36 @@ def num_unequal(filename, cmpFcn):
                 return True
     return False
 
+# Need to implement our own split, because for exponents of three digits
+# the 'E' marking the exponent is dropped, which is not supported by python.
+def customsplit(s):
+    n = len(s)
+    i = n - 1
+    # Split the exponent from the string by looking for ['E']('+'|'-')D+
+    while (i > 4):
+        if (s[i] == '+' or s[i] == '-'):
+            return [ s[0: i -1], s[i: n] ]
+        i = i - 1
+    return [ s ]
+
 # Do a textual comparision for numbers whose exponent is zero or greater.
 # The fortran code writes floating point values, with 5 significant digits
 # after the comma and an exponent. I.e., for numbers with a positive
 # exponent the usual comparison against a delta fails.
 def textualcmp(o, n):
-    os = o.split('E', 1)
-    ns = n.split('E', 1)
+    os = customsplit(o)
+    ns = customsplit(n)
     if len(os) > 1 and len(ns) > 1:
         o_mantise = float(os[0])
         o_exp = int(os[1])
         n_mantise = float(ns[0])
         n_exp = int(ns[1])
-        if o_exp != n_exp:
-            return True
         # Check without respect of the exponent, when that is greater zero.
         if 0 <= o_exp:
+            if o_exp != n_exp:
+                return True
             return math.fabs(float(o_mantise) - float(n_mantise)) >= args.diff_tolerance
+        return math.fabs(float(os[0]+'E'+os[1]) - float(ns[0]+'E'+ns[1])) >= args.diff_tolerance
     # In all other cases do a numerical check
     return math.fabs(float(o) - float(n)) >= args.diff_tolerance
 
