@@ -244,258 +244,256 @@
 
         !uncomment second line for PGF90 workaround
         !$OMP PARALLEL DO DEFAULT(PRIVATE),  &
-        !OMP PRIVATE(P,dP,d11,dm11,d22,d2m2,d20,corrcontribs,ddcontribs),&
+        !$OMP PRIVATE(P,dP,d11,dm11,d22,d2m2,d20,corrcontribs,ddcontribs,thread_ix),&
         !$OMP SHARED(lfacs,lfacs2,lrootfacs,Cphil3,CTT,CTE,CEE,lens_contrib, lmax), &
         !$OMP SHARED(dtheta,CP,lmax_lensed,roots, npoints,interp_fac,jmax,ls,xl,short_integral_range,apodize_point_width)
         do i=1,npoints-1
 
-        theta = i * dtheta
-        x = cos(theta)
-        sinth = sin(theta)
-        halfsinth = sinth/2
+            theta = i * dtheta
+            x = cos(theta)
+            sinth = sin(theta)
+            halfsinth = sinth/2
 
-        pmm=1
-        pmmp1=x
+            pmm=1
+            pmmp1=x
 
-        Cg2=0
-        sigmasq=0
-        if (lmin==1) then
-            d_11(1) = cos(theta/2)**2
-            d_m11(1) = sin(theta/2)**2
-            sigmasq = sigmasq  +  (1-d_11(1))*Cphil3(lmin)
-            Cg2 = Cg2  + d_m11(1)*Cphil3(lmin)
-            P(1) = x
-            d_22(1)=0
-            d_2m2(1)=0
-            d_20(1)=0
-        end if
-        do l=2,lmax
-
-            P(l)= ((2*l-1)* x *pmmp1 - (l-1)*Pmm)/ l
-            dP(l) = l*(pmmp1-x*P(l))/sinth**2
-            Pmm=pmmp1
-            pmmp1=P(l)
-            llp1 = lfacs(l)
-
-            fac1 = (1-x)
-            fac2 = (1+x)
-            fac = fac1/fac2
-
-            d_11(l) =  fac1*dP(l)/llp1 + P(l)
-            d_m11(l) = fac2*dP(l)/llp1 - P(l)
-
-            sigmasq = sigmasq  +  (1-d_11(l))*Cphil3(l)
-            Cg2 = Cg2  + d_m11(l)*Cphil3(l)
-
-            d_22(l) = ( ((4*x-8)/fac2 + llp1)*P(l) &
-                + 4*fac*( fac2 + (x - 2)/llp1)*dP(l) )/ lfacs2(l)
-
-            d_2m2(l) = ( (llp1- (4*x+8)/fac1) *P(l) &
-                +4/fac*( -fac1 + (x+2)/llp1) *dP(l) )/lfacs2(l)
-
-            d_20(l) = (2*x*dP(l) - llp1*P(l) ) / lrootfacs(l)
-
-        end do
-
-        do j=1,jmax
-            l =ls(j)
-
-            fac1 = (1-x)
-            fac2 = (1+x)
-            llp1 = lfacs(l)
-
-            rootllp1 = roots(l)*roots(l+1)
-            rootfac1 = roots(l+2)*roots(l-1)
-            rootfac2 = roots(l+3)*roots(l-2)
-
-            llp1=lfacs(l)
-            dm11=d_m11(l)
-            d11=d_11(l)
-            if (l<2) then
-                d2m2=0
-                d22=0
-                d20=0
-                d1m2 = 0
-                d12 =  0
-            else
-                d2m2=d_2m2(l)
-                d22=d_22(l)
-                d20=d_20(l)
-                d1m2 = sinth/rootfac1*(dP(l) -2/fac1*dm11)
-                d12 =  sinth/rootfac1*(dP(l) -2/fac2*d11)
+            Cg2=0
+            sigmasq=0
+            if (lmin==1) then
+                d_11(1) = cos(theta/2)**2
+                d_m11(1) = sin(theta/2)**2
+                sigmasq = sigmasq  +  (1-d_11(1))*Cphil3(lmin)
+                Cg2 = Cg2  + d_m11(1)*Cphil3(lmin)
+                P(1) = x
+                d_22(1)=0
+                d_2m2(1)=0
+                d_20(1)=0
             end if
-            if (l<3) then
-                d1m3=0
-                d2m3=0
-                d3m3=0
-                d13 =0
-                d23 =0
-                d33 =0
-            else
-                sinfac=4/sinth
-                d1m3 = (-(x+0.5_dl)*d1m2*sinfac - lfacs2(l)*dm11/rootfac1 )/rootfac2
-                d2m3 = (-fac2*d2m2*sinfac - rootfac1*d1m2)/rootfac2
-                d3m3 = (-(x+1.5_dl)*d2m3*sinfac - rootfac1*d1m3)/rootfac2
-                d13  =  ((x-0.5_dl)*d12*sinfac - lfacs2(l)*d11/rootfac1 ) /rootfac2
-                d23  = (-fac1*d22*sinfac + rootfac1*d12 ) / rootfac2
-                d33  = (-(x-1.5_dl)*d23*sinfac - rootfac1*d13)/rootfac2
-            end if
-            if (l<4) then
-                d04=0
-                d2m4=0
-                d4m4=0
-                rootfac3=0
-            else
-                rootfac3=roots(l-3)*roots(l+4)
-                d04=( (-llp1 + (18*x**2 + 6)/sinth**2 )*d20  -&
-                    6*x*lfacs2(l)*dP(l)/lrootfacs(l) ) / (rootfac2*rootfac3)
-                d2m4= (-(6*x+4)*d2m3/sinth - rootfac2*d2m2 ) / rootfac3
-                d4m4 = (-7/5._dl*(llp1-6)*d2m2 + &
-                    12/5._dl*( -llp1+(9*x+26)/fac1)*d3m3 ) / (llp1-12)
-            end if
+            do l=2,lmax
 
-            !Non perturbative isotropic integrals
-            !these are approx, but extremely good approximations
-            X000 = exp(-llp1*sigmasq/4)
-            if (approx) then
+                P(l)= ((2*l-1)* x *pmmp1 - (l-1)*Pmm)/ l
+                dP(l) = l*(pmmp1-x*P(l))/sinth**2
+                Pmm=pmmp1
+                pmmp1=P(l)
+                llp1 = lfacs(l)
 
-                X022 = X000
-                X220 = rootllp1**2/4*X000
-                X121 = -0.5_dl*rootllp1*X000
-                X132 = -0.5_dl*rootllp1*X000
-                X242 = 0.25_dl*rootllp1**2*X022
+                fac1 = (1-x)
+                fac2 = (1+x)
+                fac = fac1/fac2
 
-                dX000 = -llp1/4*X000
-                dX022 = -llp1/4*X022
+                d_11(l) =  fac1*dP(l)/llp1 + P(l)
+                d_m11(l) = fac2*dP(l)/llp1 - P(l)
 
+                sigmasq = sigmasq  +  (1-d_11(l))*Cphil3(l)
+                Cg2 = Cg2  + d_m11(l)*Cphil3(l)
 
-            else
-                X022 = X000*(1+sigmasq)   !exp(-(llp1-4)*sigmasq/4)
-                X220 = lrootfacs(l)/4*X000
-                X121 = -0.5_dl*rootfac1*X000
-                X132 = -0.5_dl*rootfac2*X000
-                X242 = 0.25_dl*rootfac2*rootfac3*X022
+                d_22(l) = ( ((4*x-8)/fac2 + llp1)*P(l) &
+                    + 4*fac*( fac2 + (x - 2)/llp1)*dP(l) )/ lfacs2(l)
 
-                dX000 = -llp1/4*X000
-                dX022 = (1-llp1/4)*X022
-            end if
-            !second order
-            !TT
-            fac1 = dX000**2
-            fac3 = X220**2
-            Cg2sq = Cg2**2
+                d_2m2(l) = ( (llp1- (4*x+8)/fac1) *P(l) &
+                    +4/fac*( -fac1 + (x+2)/llp1) *dP(l) )/lfacs2(l)
 
-            !Here we drop terms in Cgt which are down by powers of l
-            !Approx good to 1e-4 level
-            fac = ( (X000**2-1) + Cg2sq*fac1)*P(l)+ Cg2sq*fac3*d2m2 &
-                + 8/llp1* fac1*Cg2*dm11
+                d_20(l) = (2*x*dP(l) - llp1*P(l) ) / lrootfacs(l)
 
-            corrcontribs(j,1)=  CTT(l) * fac
-
-            fac2=(Cg2*dX022)**2+(X022**2-1)
-            !Q+U
-            fac = 2*Cg2*X121*X132*d13 + fac2*d22 +Cg2sq*X242*X220*d04
-
-            corrcontribs(j,2)= CEE(l) * fac
-
-            !Q-U
-            fac = ( fac3*P(l) + X242**2*d4m4)*Cg2sq/2 &
-                + Cg2*(X121**2*dm11+ X132**2*d3m3) + fac2*d2m2
-
-            corrcontribs(j,3)= CEE(l) * fac
-
-            !TE
-            fac = (X000*X022-1)*d20+ &
-                2*dX000*Cg2*(X121*d11 + X132*d1m3)/rootllp1 &
-                + Cg2sq*(X220/2*d2m4*X242 +( fac3/2 + dX022*dX000)*d20)
-
-            corrcontribs(j,4)= CTE(l) * fac
-
-        end do
-
-        do j=1,4
-            corr(j) = sum(corrcontribs(1:14,j))+interp_fac*sum(corrcontribs(15:jmax,j))
-        end do
-
-        !if (short_integral_range .and. i>npoints-20) &
-        !        corr=corr*exp(-(i-npoints+20)**2/150.0) !taper the end to help prevent ringing
-
-        if (short_integral_range .and. i>npoints-apodize_point_width*3) &
-            corr=corr*exp(-(i-npoints+apodize_point_width*3)**2/real(2*apodize_point_width**2))
-        !taper the end to help prevent ringing
-
-
-        !Interpolate contributions
-        !Increasing interp_fac and using this seems to be slower than above
-        if (.false.) then
-            if (abs(sum(corrcontribs(1:jmax,1)))>1e-11) print *,i,sum(corrcontribs(1:jmax,1))
-            do j=1,4
-                call spline(xl,corrcontribs(1,j),jmax,1d30,1d30,ddcontribs(1,j))
             end do
-            corr=0
-            llo=1
-            do l=lmin,lmax
-                if ((l > ls(llo+1)).and.(llo < jmax)) then
-                    llo=llo+1
+
+            do j=1,jmax
+                l =ls(j)
+
+                fac1 = (1-x)
+                fac2 = (1+x)
+                llp1 = lfacs(l)
+
+                rootllp1 = roots(l)*roots(l+1)
+                rootfac1 = roots(l+2)*roots(l-1)
+                rootfac2 = roots(l+3)*roots(l-2)
+
+                llp1=lfacs(l)
+                dm11=d_m11(l)
+                d11=d_11(l)
+                if (l<2) then
+                    d2m2=0
+                    d22=0
+                    d20=0
+                    d1m2 = 0
+                    d12 =  0
+                else
+                    d2m2=d_2m2(l)
+                    d22=d_22(l)
+                    d20=d_20(l)
+                    d1m2 = sinth/rootfac1*(dP(l) -2/fac1*dm11)
+                    d12 =  sinth/rootfac1*(dP(l) -2/fac2*d11)
                 end if
-                lhi=llo+1
-                ho=ls(lhi)-ls(llo)
-                a0=(ls(lhi)-l)/ho
-                b0=(l-ls(llo))/ho
-                fac1 = ho**2/6
-                fac2 = (b0**3-b0)*fac1
-                fac1 = (a0**3-a0)*fac1
+                if (l<3) then
+                    d1m3=0
+                    d2m3=0
+                    d3m3=0
+                    d13 =0
+                    d23 =0
+                    d33 =0
+                else
+                    sinfac=4/sinth
+                    d1m3 = (-(x+0.5_dl)*d1m2*sinfac - lfacs2(l)*dm11/rootfac1 )/rootfac2
+                    d2m3 = (-fac2*d2m2*sinfac - rootfac1*d1m2)/rootfac2
+                    d3m3 = (-(x+1.5_dl)*d2m3*sinfac - rootfac1*d1m3)/rootfac2
+                    d13  =  ((x-0.5_dl)*d12*sinfac - lfacs2(l)*d11/rootfac1 ) /rootfac2
+                    d23  = (-fac1*d22*sinfac + rootfac1*d12 ) / rootfac2
+                    d33  = (-(x-1.5_dl)*d23*sinfac - rootfac1*d13)/rootfac2
+                end if
+                if (l<4) then
+                    d04=0
+                    d2m4=0
+                    d4m4=0
+                    rootfac3=0
+                else
+                    rootfac3=roots(l-3)*roots(l+4)
+                    d04=( (-llp1 + (18*x**2 + 6)/sinth**2 )*d20  -&
+                        6*x*lfacs2(l)*dP(l)/lrootfacs(l) ) / (rootfac2*rootfac3)
+                    d2m4= (-(6*x+4)*d2m3/sinth - rootfac2*d2m2 ) / rootfac3
+                    d4m4 = (-7/5._dl*(llp1-6)*d2m2 + &
+                        12/5._dl*( -llp1+(9*x+26)/fac1)*d3m3 ) / (llp1-12)
+                end if
 
-                corr(1) = Corr(1)+ a0*corrcontribs(llo,1)+ b0*corrcontribs(lhi,1)+ &
-                    fac1* ddcontribs(llo,1) +fac2*ddcontribs(lhi,1)
-                corr(2) = Corr(2)+ a0*corrcontribs(llo,2)+ b0*corrcontribs(lhi,2)+ &
-                    fac1* ddcontribs(llo,2) +fac2*ddcontribs(lhi,2)
-                corr(3) = Corr(3)+ a0*corrcontribs(llo,3)+ b0*corrcontribs(lhi,3)+ &
-                    fac1* ddcontribs(llo,3) +fac2*ddcontribs(lhi,3)
-                corr(4) = Corr(4)+ a0*corrcontribs(llo,4)+ b0*corrcontribs(lhi,4)+ &
-                    fac1* ddcontribs(llo,4) +fac2*ddcontribs(lhi,4)
+                !Non perturbative isotropic integrals
+                !these are approx, but extremely good approximations
+                X000 = exp(-llp1*sigmasq/4)
+                if (approx) then
+
+                    X022 = X000
+                    X220 = rootllp1**2/4*X000
+                    X121 = -0.5_dl*rootllp1*X000
+                    X132 = -0.5_dl*rootllp1*X000
+                    X242 = 0.25_dl*rootllp1**2*X022
+
+                    dX000 = -llp1/4*X000
+                    dX022 = -llp1/4*X022
+                else
+                    X022 = X000*(1+sigmasq)   !exp(-(llp1-4)*sigmasq/4)
+                    X220 = lrootfacs(l)/4*X000
+                    X121 = -0.5_dl*rootfac1*X000
+                    X132 = -0.5_dl*rootfac2*X000
+                    X242 = 0.25_dl*rootfac2*rootfac3*X022
+
+                    dX000 = -llp1/4*X000
+                    dX022 = (1-llp1/4)*X022
+                end if
+                !second order
+                !TT
+                fac1 = dX000**2
+                fac3 = X220**2
+                Cg2sq = Cg2**2
+
+                !Here we drop terms in Cgt which are down by powers of l
+                !Approx good to 1e-4 level
+                fac = ( (X000**2-1) + Cg2sq*fac1)*P(l)+ Cg2sq*fac3*d2m2 &
+                    + 8/llp1* fac1*Cg2*dm11
+
+                corrcontribs(j,1)=  CTT(l) * fac
+
+                fac2=(Cg2*dX022)**2+(X022**2-1)
+                !Q+U
+                fac = 2*Cg2*X121*X132*d13 + fac2*d22 +Cg2sq*X242*X220*d04
+
+                corrcontribs(j,2)= CEE(l) * fac
+
+                !Q-U
+                fac = ( fac3*P(l) + X242**2*d4m4)*Cg2sq/2 &
+                    + Cg2*(X121**2*dm11+ X132**2*d3m3) + fac2*d2m2
+
+                corrcontribs(j,3)= CEE(l) * fac
+
+                !TE
+                fac = (X000*X022-1)*d20+ &
+                    2*dX000*Cg2*(X121*d11 + X132*d1m3)/rootllp1 &
+                    + Cg2sq*(X220/2*d2m4*X242 +( fac3/2 + dX022*dX000)*d20)
+
+                corrcontribs(j,4)= CTE(l) * fac
 
             end do
-        end if
 
-        !$   thread_ix = OMP_GET_THREAD_NUM()+1
+            do j=1,4
+                corr(j) = sum(corrcontribs(1:14,j))+interp_fac*sum(corrcontribs(15:jmax,j))
+            end do
+
+            !if (short_integral_range .and. i>npoints-20) &
+            !        corr=corr*exp(-(i-npoints+20)**2/150.0) !taper the end to help prevent ringing
+
+            if (short_integral_range .and. i>npoints-apodize_point_width*3) &
+                corr=corr*exp(-(i-npoints+apodize_point_width*3)**2/real(2*apodize_point_width**2))
+            !taper the end to help prevent ringing
+
+
+            !Interpolate contributions
+            !Increasing interp_fac and using this seems to be slower than above
+            if (.false.) then
+                if (abs(sum(corrcontribs(1:jmax,1)))>1e-11) print *,i,sum(corrcontribs(1:jmax,1))
+                do j=1,4
+                    call spline(xl,corrcontribs(1,j),jmax,1d30,1d30,ddcontribs(1,j))
+                end do
+                corr=0
+                llo=1
+                do l=lmin,lmax
+                    if ((l > ls(llo+1)).and.(llo < jmax)) then
+                        llo=llo+1
+                    end if
+                    lhi=llo+1
+                    ho=ls(lhi)-ls(llo)
+                    a0=(ls(lhi)-l)/ho
+                    b0=(l-ls(llo))/ho
+                    fac1 = ho**2/6
+                    fac2 = (b0**3-b0)*fac1
+                    fac1 = (a0**3-a0)*fac1
+
+                    corr(1) = Corr(1)+ a0*corrcontribs(llo,1)+ b0*corrcontribs(lhi,1)+ &
+                        fac1* ddcontribs(llo,1) +fac2*ddcontribs(lhi,1)
+                    corr(2) = Corr(2)+ a0*corrcontribs(llo,2)+ b0*corrcontribs(lhi,2)+ &
+                        fac1* ddcontribs(llo,2) +fac2*ddcontribs(lhi,2)
+                    corr(3) = Corr(3)+ a0*corrcontribs(llo,3)+ b0*corrcontribs(lhi,3)+ &
+                        fac1* ddcontribs(llo,3) +fac2*ddcontribs(lhi,3)
+                    corr(4) = Corr(4)+ a0*corrcontribs(llo,4)+ b0*corrcontribs(lhi,4)+ &
+                        fac1* ddcontribs(llo,4) +fac2*ddcontribs(lhi,4)
+
+                end do
+            end if
+
+!$          thread_ix = OMP_GET_THREAD_NUM()+1
+
+            do l=lmin, lmax_lensed
+                !theta factors were put in earlier (already in corr)
+
+
+                lens_contrib(C_Temp, l, thread_ix)= lens_contrib(C_Temp,l, thread_ix) + &
+                    corr(1)*P(l)*sinth
+
+                T2 = corr(2)* d_22(l)
+                T4 = corr(3)* d_2m2(l)
+
+
+                lens_contrib(CT_E, l, thread_ix)= lens_contrib(CT_E,l, thread_ix) + &
+                    (T2+T4)*halfsinth
+                lens_contrib(CT_B, l, thread_ix)= lens_contrib(CT_B,l, thread_ix) + &
+                    (T2-T4)*halfsinth
+
+                lens_contrib(CT_Cross, l, thread_ix)= lens_contrib(CT_Cross,l, thread_ix) + &
+                    corr(4)*d_20(l)*sinth
+
+            end do
+
+        end do
+        !$OMP END PARALLEL DO
 
         do l=lmin, lmax_lensed
-            !theta factors were put in earlier (already in corr)
-
-
-            lens_contrib(C_Temp, l, thread_ix)= lens_contrib(C_Temp,l, thread_ix) + &
-                corr(1)*P(l)*sinth
-
-            T2 = corr(2)* d_22(l)
-            T4 = corr(3)* d_2m2(l)
-
-
-            lens_contrib(CT_E, l, thread_ix)= lens_contrib(CT_E,l, thread_ix) + &
-                (T2+T4)*halfsinth
-            lens_contrib(CT_B, l, thread_ix)= lens_contrib(CT_B,l, thread_ix) + &
-                (T2-T4)*halfsinth
-
-            lens_contrib(CT_Cross, l, thread_ix)= lens_contrib(CT_Cross,l, thread_ix) + &
-                corr(4)*d_20(l)*sinth
+            !sign from d(cos theta) = -sin theta dtheta
+            fac = l*(l+1)/OutputDenominator*dtheta*const_twopi
+            Cl_lensed(l,in,CT_Temp) = sum(lens_contrib(CT_Temp,l,:))*fac &
+                + Cl_scalar(l,in,C_Temp)
+            Cl_lensed(l,in,CT_E) = sum(lens_contrib(CT_E,l,:))*fac &
+                + Cl_scalar(l,in,C_E)
+            Cl_lensed(l,in,CT_B) = sum(lens_contrib(CT_B,l,:))*fac
+            Cl_lensed(l,in,CT_Cross) = sum(lens_contrib(CT_Cross,l,:))*fac &
+                + Cl_scalar(l,in,C_Cross)
 
         end do
-
-    end do
-    !$OMP END PARALLEL DO
-
-    do l=lmin, lmax_lensed
-        !sign from d(cos theta) = -sin theta dtheta
-        fac = l*(l+1)/OutputDenominator*dtheta*const_twopi
-        Cl_lensed(l,in,CT_Temp) = sum(lens_contrib(CT_Temp,l,:))*fac &
-            + Cl_scalar(l,in,C_Temp)
-        Cl_lensed(l,in,CT_E) = sum(lens_contrib(CT_E,l,:))*fac &
-            + Cl_scalar(l,in,C_E)
-        Cl_lensed(l,in,CT_B) = sum(lens_contrib(CT_B,l,:))*fac
-        Cl_lensed(l,in,CT_Cross) = sum(lens_contrib(CT_Cross,l,:))*fac &
-            + Cl_scalar(l,in,C_Cross)
-
-    end do
 
     end do !loop over different initial power spectra
     deallocate(ddcontribs,corrcontribs)
@@ -560,7 +558,7 @@
     dbessfac = dbessel**2/6
 
     thread_ix = 1
-    !$ thread_ix = OMP_GET_MAX_THREADS()
+!$  thread_ix = OMP_GET_MAX_THREADS()
     allocate(lens_contrib(4,lmax_lensed,thread_ix))
 
     do in = 1, CP%InitPower%nn
@@ -583,106 +581,104 @@
 
         lens_contrib=0
 
-        !$OMP PARALLEL DO DEFAULT(SHARED),  &
+        !$OMP PARALLEL DO DEFAULT(SHARED), &
         !$OMP PRIVATE(theta, sigmasq,cgl2,b_lo,a0,b0,fac,fac1,fac2), &
         !$OMP PRIVATE(Bessel0,Bessel2,Bessel4,Bessel6), &
         !$OMP PRIVATE(corr,expsig,C2term,T2,T4,i,l, thread_ix)
-
         do i=1,npoints-1
 
-        theta = i * dtheta
-        sigmasq =0
-        Cgl2=0
-        fac = theta /dbessel
+            theta = i * dtheta
+            sigmasq =0
+            Cgl2=0
+            fac = theta /dbessel
 
-        do l=lmin,CP%Max_l
+            do l=lmin,CP%Max_l
 
-            !Interpolate the Bessel functions, and compute sigma^2 and C_{gl,2}
-            b0 = l*fac
-            b_lo = int(b0) +1
-            a0=  b_lo - b0
-            b0=  1._dl - a0
-            fac1 = a0*b0*dbessfac
-            fac2 = fac1*(a0-2)
-            fac1 = fac1*(b0-2)
+                !Interpolate the Bessel functions, and compute sigma^2 and C_{gl,2}
+                b0 = l*fac
+                b_lo = int(b0) +1
+                a0=  b_lo - b0
+                b0=  1._dl - a0
+                fac1 = a0*b0*dbessfac
+                fac2 = fac1*(a0-2)
+                fac1 = fac1*(b0-2)
 
-            Bessel0(l) = a0*Bess0(b_lo)+ b0*Bess0(b_lo+1) +fac1*ddBess0(b_lo) &
-                +fac2*ddBess0(b_lo+1)
-            sigmasq = sigmasq + (1-Bessel0(l))*Cphil3(l)
+                Bessel0(l) = a0*Bess0(b_lo)+ b0*Bess0(b_lo+1) +fac1*ddBess0(b_lo) &
+                    +fac2*ddBess0(b_lo+1)
+                sigmasq = sigmasq + (1-Bessel0(l))*Cphil3(l)
 
 
-            Bessel2(l) = a0*Bess2(b_lo)+ b0*Bess2(b_lo+1) +fac1*ddBess2(b_lo) &
-                +fac2*ddBess2(b_lo+1)
-            Cgl2 =  Cgl2 + Bessel2(l)*Cphil3(l)
+                Bessel2(l) = a0*Bess2(b_lo)+ b0*Bess2(b_lo+1) +fac1*ddBess2(b_lo) &
+                    +fac2*ddBess2(b_lo+1)
+                Cgl2 =  Cgl2 + Bessel2(l)*Cphil3(l)
 
-            Bessel4(l) = a0*Bess4(b_lo)+ b0*Bess4(b_lo+1) +fac1*ddBess4(b_lo) &
-                +fac2*ddBess4(b_lo+1)
-            Bessel6(l) = a0*Bess6(b_lo)+ b0*Bess6(b_lo+1) +fac1*ddBess6(b_lo) &
-                +fac2*ddBess6(b_lo+1)
+                Bessel4(l) = a0*Bess4(b_lo)+ b0*Bess4(b_lo+1) +fac1*ddBess4(b_lo) &
+                    +fac2*ddBess4(b_lo+1)
+                Bessel6(l) = a0*Bess6(b_lo)+ b0*Bess6(b_lo+1) +fac1*ddBess6(b_lo) &
+                    +fac2*ddBess6(b_lo+1)
+
+            end do
+
+            !Get difference between lensed and unlensed correlation function
+            corr = 0
+            do l=lmin,CP%Max_l
+                !For 2nd order perturbative result use
+                !         expsig = 1 -sigmasq*l**2/2._dl
+                !         C2term = l**2*Cgl2/2._dl
+                fac = sigmasq*lfacs(l)
+                expsig = exp(-fac)
+                C2term = Cgl2*lfacs(l)
+                !Put theta factor later  in here
+                fac1 = expsig*theta
+                fac2 = C2term*fac1
+                fac1 = fac1 - theta  !we want expsig-1 to get lensing difference
+
+                fac = fac1*Bessel0(l) + fac2*Bessel2(l)
+
+                !TT
+                corr(1) = corr(1) + CTT(l) * fac
+
+                !Q + U
+                corr(2) = corr(2) + CEE(l) * fac
+                fac2 = fac2*0.5_dl
+                !Q-U
+                corr(3) = corr(3) + CEE(l) * &
+                    (fac1*Bessel4(l) + fac2*(Bessel2(l)+Bessel6(l)))
+                !Cross
+                corr(4) = corr(4) + CTE(l) * &
+                    (fac1*Bessel2(l) + fac2*(Bessel0(l)+Bessel4(l)))
+
+
+            end do
+
+!$          thread_ix = OMP_GET_THREAD_NUM()+1
+
+            do l=lmin, lmax_lensed
+                !theta factors were put in earlier (already in corr)
+                lens_contrib(C_Temp, l, thread_ix)= lens_contrib(C_Temp,l, thread_ix) + &
+                    corr(1)*Bessel0(l)
+                T2 = corr(2)*Bessel0(l)
+                T4 = corr(3)*Bessel4(l)
+                lens_contrib(CT_E,l,thread_ix)  = lens_contrib(CT_E,l, thread_ix) + T2+T4
+                lens_contrib(CT_B,l,thread_ix)  = lens_contrib(CT_B,l, thread_ix) + T2-T4
+                lens_contrib(CT_Cross,l, thread_ix) = lens_contrib(CT_Cross,l, thread_ix) + &
+                    corr(4)*Bessel2(l)
+            end do
 
         end do
-
-        !Get difference between lensed and unlensed correlation function
-        corr = 0
-        do l=lmin,CP%Max_l
-            !For 2nd order perturbative result use
-            !         expsig = 1 -sigmasq*l**2/2._dl
-            !         C2term = l**2*Cgl2/2._dl
-            fac = sigmasq*lfacs(l)
-            expsig = exp(-fac)
-            C2term = Cgl2*lfacs(l)
-            !Put theta factor later  in here
-            fac1 = expsig*theta
-            fac2 = C2term*fac1
-            fac1 = fac1 - theta  !we want expsig-1 to get lensing difference
-
-            fac = fac1*Bessel0(l) + fac2*Bessel2(l)
-
-            !TT
-            corr(1) = corr(1) + CTT(l) * fac
-
-            !Q + U
-            corr(2) = corr(2) + CEE(l) * fac
-            fac2 = fac2*0.5_dl
-            !Q-U
-            corr(3) = corr(3) + CEE(l) * &
-                (fac1*Bessel4(l) + fac2*(Bessel2(l)+Bessel6(l)))
-            !Cross
-            corr(4) = corr(4) + CTE(l) * &
-                (fac1*Bessel2(l) + fac2*(Bessel0(l)+Bessel4(l)))
-
-
-        end do
-
-
-        !$              thread_ix = OMP_GET_THREAD_NUM()+1
+        !$OMP END PARALLEL DO
 
         do l=lmin, lmax_lensed
-            !theta factors were put in earlier (already in corr)
-            lens_contrib(C_Temp, l, thread_ix)= lens_contrib(C_Temp,l, thread_ix) + &
-                corr(1)*Bessel0(l)
-            T2 = corr(2)*Bessel0(l)
-            T4 = corr(3)*Bessel4(l)
-            lens_contrib(CT_E,l,thread_ix)  = lens_contrib(CT_E,l, thread_ix) + T2+T4
-            lens_contrib(CT_B,l,thread_ix)  = lens_contrib(CT_B,l, thread_ix) + T2-T4
-            lens_contrib(CT_Cross,l, thread_ix) = lens_contrib(CT_Cross,l, thread_ix) + &
-                corr(4)*Bessel2(l)
+            fac = l*(l+1)* const_twopi/OutputDenominator*dtheta
+            Cl_lensed(l,in,CT_Temp) = sum(lens_contrib(CT_Temp,l,:))*fac &
+                + Cl_scalar(l,in,CT_Temp)
+            Cl_lensed(l,in,CT_Cross) = sum(lens_contrib(CT_Cross,l,:))*fac &
+                +Cl_scalar(l,in,C_Cross)
+            fac = fac /2 !(factor of 1/2 should have been in T2+/-T4 above
+            Cl_lensed(l,in,CT_E) = sum(lens_contrib(CT_E,l,:))*fac &
+                + Cl_scalar(l,in,CT_E)
+            Cl_lensed(l,in,CT_B) = sum(lens_contrib(CT_B,l,:))*fac
         end do
-
-    end do
-    !$OMP END PARALLEL DO
-
-    do l=lmin, lmax_lensed
-        fac = l*(l+1)* const_twopi/OutputDenominator*dtheta
-        Cl_lensed(l,in,CT_Temp) = sum(lens_contrib(CT_Temp,l,:))*fac &
-            + Cl_scalar(l,in,CT_Temp)
-        Cl_lensed(l,in,CT_Cross) = sum(lens_contrib(CT_Cross,l,:))*fac &
-            +Cl_scalar(l,in,C_Cross)
-        fac = fac /2 !(factor of 1/2 should have been in T2+/-T4 above
-        Cl_lensed(l,in,CT_E) = sum(lens_contrib(CT_E,l,:))*fac &
-            + Cl_scalar(l,in,CT_E)
-        Cl_lensed(l,in,CT_B) = sum(lens_contrib(CT_B,l,:))*fac
-    end do
 
     end do !loop over different initial power spectra
     deallocate(lens_contrib)
@@ -781,125 +777,125 @@
     !$OMP PRIVATE(al,g1,llp_al,llp_1,g2l,asum,l1,g2l1,l2,k,hk,F,fct,almin), &
     !$OMP PRIVATE(asum_EE,asum_BB,asum_TE,expF,tF, a3j, iContribs,in,intcontrib)
     do j=max_lensed_ix,1,-1
-    !Only compute lensed spectra at lSamp%l(j). Start with slow ones.
+        !Only compute lensed spectra at lSamp%l(j). Start with slow ones.
 
-    al=lSamp%l(j)
+        al=lSamp%l(j)
 
-    llp_al = al*(al+1)
-    g2l=sqrt((2*al+1)/const_fourpi)
+        llp_al = al*(al+1)
+        g2l=sqrt((2*al+1)/const_fourpi)
 
-    asum = 0
-    asum_EE = 0
-    asum_BB = 0
-    asum_TE = 0
-
-
-    do j1 = 1, max_j_contribs
-        !  Contributions to C_al are a smooth function of l_1 - so interpolate
-        l1=lSamp%l(j1)
-
-        llp_1 = l1*(l1+1)
-        g2l1=roots(l1)
-
-        almin = max(abs(al-l1),2)
-
-        if (DoPol) then
-            call GetThreeJs(a3j(almin),l1,al,0,2)
-            do l2= almin, min(maxl,al+l1)
-                g1 = llp_1+l2*(l2+1)-llp_al
-                if (g1 == 0 ) cycle
-
-                k=al+l1+l2
-                fct=g1*g2l*g2l1*roots(l2)/2
-                tF = fct*a3j(l2)
-
-                if (mod(k,2)==0) then
-
-                    hk = k/2
-                    F = lnfa(hk)-lnfa(hk-al)-lnfa(hk-l1)-lnfa(hk-l2)+(lnfa(k-2*al)+lnfa(k-2*l1)&
-                        & +lnfa(k-2*l2)-lnfa(k+1))/2
-
-                    expF = exp(F)
-
-                    asum=asum + bare_cls(:,l2,C_Temp)*(expF*fct)**2
-
-                    asum_EE = asum_EE + bare_cls(:,l2,CT_E)*tF**2
-                    asum_BB = asum_BB + bare_cls(:,l2,CT_B)*tF**2
-                    if (mod(hk,2)/=0) tF=-tF
-                    asum_TE = asum_TE + bare_cls(:,l2,CT_Cross)*expF*fct*tF
-
-                else
-
-                    asum_BB = asum_BB + bare_cls(:,l2,CT_E)*tF**2
-                    asum_EE = asum_EE +bare_cls(:,l2,CT_B)*tF**2
-
-                end if
-
-            end do
-
-        else !No polarization
-            do l2= almin +mod(al+l1+almin,2),min(maxl,al+l1), 2
-                !Only do lSamp%l's where al + l1 + l2 is even
-
-                g1 = llp_1+l2*(l2+1)-llp_al
-
-                if (g1 == 0 ) cycle  !Contribution is zero
-
-                k=al+l1+l2
-                hk=k/2
-
-                fct=g1*g2l*g2l1*roots(l2)/2
-                expF = exp(2*(lnfa(hk)-lnfa(hk-al)-lnfa(hk-l1)-lnfa(hk-l2))+lnfa(k-2*al)+lnfa(k-2*l1)&
-                    & +lnfa(k-2*l2)-lnfa(k+1))
-                asum=asum + bare_cls(:,l2,CT_Temp)*expF *fct**2
-
-            end do
-        end if !No polarization
-
-
-        iContribs(j1,:,CT_Temp) = asum*pp(:,l1)
-        if (DoPol) then
-            iContribs(j1,:,CT_E) = asum_EE*pp(:,l1)
-            iContribs(j1,:,CT_B) = asum_BB*pp(:,l1)
-            iContribs(j1,:,CT_Cross) = asum_TE*pp(:,l1)
-        end if
         asum = 0
         asum_EE = 0
         asum_BB = 0
         asum_TE = 0
 
 
-    end do
+        do j1 = 1, max_j_contribs
+            !  Contributions to C_al are a smooth function of l_1 - so interpolate
+            l1=lSamp%l(j1)
+
+            llp_1 = l1*(l1+1)
+            g2l1=roots(l1)
+
+            almin = max(abs(al-l1),2)
+
+            if (DoPol) then
+                call GetThreeJs(a3j(almin),l1,al,0,2)
+                do l2= almin, min(maxl,al+l1)
+                    g1 = llp_1+l2*(l2+1)-llp_al
+                    if (g1 == 0 ) cycle
+
+                    k=al+l1+l2
+                    fct=g1*g2l*g2l1*roots(l2)/2
+                    tF = fct*a3j(l2)
+
+                    if (mod(k,2)==0) then
+
+                        hk = k/2
+                        F = lnfa(hk)-lnfa(hk-al)-lnfa(hk-l1)-lnfa(hk-l2)+(lnfa(k-2*al)+lnfa(k-2*l1)&
+                            & +lnfa(k-2*l2)-lnfa(k+1))/2
+
+                        expF = exp(F)
+
+                        asum=asum + bare_cls(:,l2,C_Temp)*(expF*fct)**2
+
+                        asum_EE = asum_EE + bare_cls(:,l2,CT_E)*tF**2
+                        asum_BB = asum_BB + bare_cls(:,l2,CT_B)*tF**2
+                        if (mod(hk,2)/=0) tF=-tF
+                        asum_TE = asum_TE + bare_cls(:,l2,CT_Cross)*expF*fct*tF
+
+                    else
+
+                        asum_BB = asum_BB + bare_cls(:,l2,CT_E)*tF**2
+                        asum_EE = asum_EE +bare_cls(:,l2,CT_B)*tF**2
+
+                    end if
+
+                end do
+
+            else !No polarization
+                do l2= almin +mod(al+l1+almin,2),min(maxl,al+l1), 2
+                    !Only do lSamp%l's where al + l1 + l2 is even
+
+                    g1 = llp_1+l2*(l2+1)-llp_al
+
+                    if (g1 == 0 ) cycle  !Contribution is zero
+
+                    k=al+l1+l2
+                    hk=k/2
+
+                    fct=g1*g2l*g2l1*roots(l2)/2
+                    expF = exp(2*(lnfa(hk)-lnfa(hk-al)-lnfa(hk-l1)-lnfa(hk-l2))+lnfa(k-2*al)+lnfa(k-2*l1)&
+                        & +lnfa(k-2*l2)-lnfa(k+1))
+                    asum=asum + bare_cls(:,l2,CT_Temp)*expF *fct**2
+
+                end do
+            end if !No polarization
 
 
-    !Interpolate contributions to sum and add up
-    do in=1, CP%InitPower%nn
+            iContribs(j1,:,CT_Temp) = asum*pp(:,l1)
+            if (DoPol) then
+                iContribs(j1,:,CT_E) = asum_EE*pp(:,l1)
+                iContribs(j1,:,CT_B) = asum_BB*pp(:,l1)
+                iContribs(j1,:,CT_Cross) = asum_TE*pp(:,l1)
+            end if
+            asum = 0
+            asum_EE = 0
+            asum_BB = 0
+            asum_TE = 0
 
-        call InterpolateClArr(lSamp,iContribs(1,in,CT_Temp),intcontrib,max_j_contribs)
-        asum(in) = sum(intcontrib(lmin:lSamp%l(max_j_contribs)))
+
+        end do
+
+
+        !Interpolate contributions to sum and add up
+        do in=1, CP%InitPower%nn
+
+            call InterpolateClArr(lSamp,iContribs(1,in,CT_Temp),intcontrib,max_j_contribs)
+            asum(in) = sum(intcontrib(lmin:lSamp%l(max_j_contribs)))
+            if (DoPol) then
+                call InterpolateClArr(lSamp,iContribs(1,in,CT_E),intcontrib,max_j_contribs)
+                asum_EE(in) = sum(intcontrib(lmin:lSamp%l(max_j_contribs)))
+                call InterpolateClArr(lSamp,iContribs(1,in,CT_B),intcontrib,max_j_contribs)
+                asum_BB(in) = sum(intcontrib(lmin:lSamp%l(max_j_contribs)))
+                call InterpolateClArr(lSamp,iContribs(1,in,CT_Cross),intcontrib,max_j_contribs)
+                asum_TE(in) = sum(intcontrib(lmin:lSamp%l(max_j_contribs)))
+            end if
+        end do
+
+        iCl_lensed(j,:,CT_Temp) =  ((1-al*(al+1)*RR)*bare_cls(:,al,CT_Temp)  & !Linear part
+        + asum/(2*al+1))*llp_al/OutputDenominator !add quadratic part and *l(l+1)/2pi
         if (DoPol) then
-            call InterpolateClArr(lSamp,iContribs(1,in,CT_E),intcontrib,max_j_contribs)
-            asum_EE(in) = sum(intcontrib(lmin:lSamp%l(max_j_contribs)))
-            call InterpolateClArr(lSamp,iContribs(1,in,CT_B),intcontrib,max_j_contribs)
-            asum_BB(in) = sum(intcontrib(lmin:lSamp%l(max_j_contribs)))
-            call InterpolateClArr(lSamp,iContribs(1,in,CT_Cross),intcontrib,max_j_contribs)
-            asum_TE(in) = sum(intcontrib(lmin:lSamp%l(max_j_contribs)))
+            iCl_lensed(j,:,CT_E) = ((1-(al**2+al-4)*RR)*bare_cls(:,al,CT_E)  &
+                + asum_EE/(2*al+1))*llp_al/OutputDenominator
+            iCl_lensed(j,:,CT_B) = ((1-(al**2+al-4)*RR)*bare_cls(:,al,CT_B)  &
+                + asum_BB/(2*al+1))*llp_al/OutputDenominator
+            iCl_lensed(j,:,CT_Cross) =  ((1-(al**2+al-2)*RR)*bare_cls(:,al,CT_Cross) &
+                + asum_TE/(2*al+1))*llp_al/OutputDenominator
+
+        else
+            iCl_lensed(j,:,CT_E:CT_Cross) = bare_cls(:,al,CT_E:CT_Cross)
         end if
-    end do
-
-    iCl_lensed(j,:,CT_Temp) =  ((1-al*(al+1)*RR)*bare_cls(:,al,CT_Temp)  & !Linear part
-    + asum/(2*al+1))*llp_al/OutputDenominator !add quadratic part and *l(l+1)/2pi
-    if (DoPol) then
-        iCl_lensed(j,:,CT_E) = ((1-(al**2+al-4)*RR)*bare_cls(:,al,CT_E)  &
-            + asum_EE/(2*al+1))*llp_al/OutputDenominator
-        iCl_lensed(j,:,CT_B) = ((1-(al**2+al-4)*RR)*bare_cls(:,al,CT_B)  &
-            + asum_BB/(2*al+1))*llp_al/OutputDenominator
-        iCl_lensed(j,:,CT_Cross) =  ((1-(al**2+al-2)*RR)*bare_cls(:,al,CT_Cross) &
-            + asum_TE/(2*al+1))*llp_al/OutputDenominator
-
-    else
-        iCl_lensed(j,:,CT_E:CT_Cross) = bare_cls(:,al,CT_E:CT_Cross)
-    end if
 
     end do
     !$OMP END PARALLEL DO

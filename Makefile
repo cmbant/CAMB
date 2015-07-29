@@ -48,8 +48,7 @@ F90C     = gfortran
 COMMON_FFLAGS = -MMD -cpp -ffree-line-length-none
 # -fmax-errors=4
 FFLAGS = -O3 -fopenmp -ffast-math $(COMMON_FFLAGS)
-DEBUGFLAGS = -g -ffast-math -O2 -fbacktrace -ffpe-trap=zero -fbounds-check $(COMMON_FFLAGS)
-# invalid,overflow,
+DEBUGFLAGS = -g -fbacktrace -ffpe-trap=invalid,overflow,zero -fbounds-check $(COMMON_FFLAGS)
 MODOUT =  -J$(OUTPUT_DIR)
 
 ifneq ($(FISHER),)
