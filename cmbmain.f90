@@ -370,10 +370,10 @@
                 do j= i, num_redshiftwindows
                     s_ix2 = 3+j
                     if (CTrans%limber_l_min(s_ix2) /=0) then
-                        !$OMP PARALLEL DO DEFAUlT(SHARED), SCHEDUlE(STATIC,2), PRIVATE(Cl,ell,reall,fac,dbletmp,n)
+                        !$OMP PARALLEL DO DEFAUlT(SHARED), PRIVATE(Cl,ell,reall,fac,dbletmp,n)
                         do ell = max(CTrans%limber_l_min(s_ix), CTrans%limber_l_min(s_ix2)), Ctrans%ls%l0
                             associate (LimbRec => CTrans%Limber_windows(s_ix,ell), &
-                                LimbRec2 => CTrans%Limber_windows(s_ix2,ell))
+                                    LimbRec2 => CTrans%Limber_windows(s_ix2,ell))
                                 Cl = 0
 
                                 do n = max(LimbRec%n1,LimbRec2%n1), min(LimbRec%n2,LimbRec2%n2)
@@ -394,11 +394,21 @@
                                 end if
                                 Cl = Cl*fac
 
-                                if(j==0 .and. i==0) iCl_scalar(ell,C_Phi,pix) = Cl
+                                if(j==0 .and. i==0) then
+                                    !$OMP CRITICAL
+                                    iCl_scalar(ell,C_Phi,pix) = Cl
+                                    !$OMP END CRITICAL
+                                end if
                                 if (has_cl_2D_array) then
                                     dbletmp=(reall*(reall+1))/OutputDenominator*const_fourpi
+                                    !$OMP CRITICAL
                                     iCl_Array(ell,s_ix,s_ix2,pix) = Cl*dbletmp
-                                    if (i/=j) iCl_Array(ell,s_ix2,s_ix,pix)=iCl_Array(ell,s_ix,s_ix2,pix)
+                                    !$OMP END CRITICAL
+                                    if (i/=j) then
+                                        !$OMP CRITICAL
+                                        iCl_Array(ell,s_ix2,s_ix,pix)=iCl_Array(ell,s_ix,s_ix2,pix)
+                                        !$OMP END CRITICAL
+                                    end if
                                 end if
                             end associate
                         end do
