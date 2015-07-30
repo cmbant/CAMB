@@ -23,6 +23,36 @@ parser.add_argument('--num_diff', action='store_true', help='during diff_to prin
 
 args = parser.parse_args()
 
+# The tolerance matrix gives the tolerances for comparing two values of the actual results with
+# results given in a diff_to. An asterisk is used as a glob character matching parts or whole names.
+# Globing can be prefix or postfix, but not infix. The first index of the map is the filename matcher.
+# The second the column name matcher.
+class ColTol(dict):
+    def __getitem__(self, item):
+        return args.diff_tolerance
+
+class FileTolMat(dict):
+    def __missing__(self, item):
+        keys = self.keys()
+        cands = []
+        for key in keys:
+            if fnmatch.fnmatch(item, key):
+                cands += [key]
+        if (len(cands) == 0):
+            return args.diff_tolerance
+        best = ""
+        for c in cands:
+            if (len(c)> len(best)):
+                best = c
+        return self[c]
+
+global filetolmatrix
+filetolmatrix = FileTolMat({"*": ColTol({"*": args.diff_tolerance}),
+                            "params_21*": ColTol({"#L": 1e10, "TT": args.diff_tolerance,
+                                                  "TE": args.diff_tolerance, "*": 1e10}),
+                            "params_mu_massless*": ColTol({"*": args.diff_tolerance})})
+
+
 prog = os.path.abspath(args.prog)
 if not os.path.exists(args.ini_dir):
     os.mkdir(args.ini_dir)
@@ -197,6 +227,12 @@ def makeIniFiles():
                     + '\n'.join(pars[1:]) + '\nDEFAULT(' + base_ini + ')\n')
     return inis
 
+tolerances = []
+
+def getToleranceVector(filename, cols):
+    filetols = filetolmatrix[filename]
+    return [filetols[t] for t in cols]
+
 def num_unequal(filename, cmpFcn):
     # Check whether two files are unequal for the given tolerance
     orig_name = os.path.join(args.ini_dir, args.diff_to, filename)
@@ -209,17 +245,27 @@ def num_unequal(filename, cmpFcn):
         if args.verbose_diff_output:
             print('num rows do not match in %s: %d != %d' % (filename, len(origMat), len(newMat)))
         return True
+    try:
+        fl = float(origMat[0][0])
+    except:
+        cols = origMat[0]
+        base = 0
+    else:
+        cols = range(len(origMat[0]))
+        base = 1
+
+    tolerances = getToleranceVector(filename, cols)
     row = 0
-    for o_row, n_row in zip(origMat, newMat):
-        row = row + 1
+    for o_row, n_row in zip(origMat[base:], newMat[base:]):
+        row += 1
         col = 0
         if len(o_row) != len(n_row):
             if args.verbose_diff_output:
                 print('num columns do not match in %s: %d != %d' % (filename, len(o_row), len(n_row)))
             return True
         for o, n in zip(o_row, n_row):
-            col = col + 1
-            if cmpFcn(o, n):
+            col += 1
+            if cmpFcn(o, n, tolerances[col- 1]):
                 if args.verbose_diff_output:
                     print('value mismatch at %d, %d of %s: %s != %s' % (row, col, filename, o, n))
                 return True
@@ -234,14 +280,14 @@ def customsplit(s):
     while (i > 4):
         if (s[i] == '+' or s[i] == '-'):
             return [ s[0: i -1], s[i: n] ]
-        i = i - 1
+        i -= 1
     return [ s ]
 
-# Do a textual comparision for numbers whose exponent is zero or greater.
+# Do a textual comparison for numbers whose exponent is zero or greater.
 # The fortran code writes floating point values, with 5 significant digits
 # after the comma and an exponent. I.e., for numbers with a positive
 # exponent the usual comparison against a delta fails.
-def textualcmp(o, n):
+def textualcmp(o, n, tolerance):
     os = customsplit(o)
     ns = customsplit(n)
     if len(os) > 1 and len(ns) > 1:
@@ -252,17 +298,23 @@ def textualcmp(o, n):
         # Check without respect of the exponent, when that is greater zero.
         if 0 <= o_exp:
             if o_exp != n_exp:
-                return True
-            return math.fabs(float(o_mantise) - float(n_mantise)) >= args.diff_tolerance
-        return math.fabs(float(os[0]+'E'+os[1]) - float(ns[0]+'E'+ns[1])) >= args.diff_tolerance
+                # Quit when exponent difference is significantly larger
+                if (abs(o_exp - n_exp) > 1):
+                    return True
+                if (o_exp > n_exp):
+                    o_mantise *= 10.0
+                else:
+                    n_mantise *= 10.0
+            return math.fabs(float(o_mantise) - float(n_mantise)) >= tolerance
+        return math.fabs(float(os[0]+'E'+os[1]) - float(ns[0]+'E'+ns[1])) >= tolerance
     # In all other cases do a numerical check
-    return math.fabs(float(o) - float(n)) >= args.diff_tolerance
+    return math.fabs(float(o) - float(n)) >= tolerance
 
 if args.diff_to:
     import filecmp
     import math
     if args.num_diff:
-        defCmpFcn = lambda o, n: math.fabs(float(o) - float(n)) >= args.diff_tolerance
+        defCmpFcn = lambda o, n, t: math.fabs(float(o) - float(n)) >= t
     else:
         defCmpFcn = textualcmp
     out_files_dir2 = os.path.join(args.ini_dir, args.diff_to)
