@@ -290,6 +290,8 @@
     end if
     FeedbackLevel = Ini_Read_Int('feedback_level',FeedbackLevel)
 
+    output_file_headers = Ini_Read_Logical('output_file_headers',output_file_headers)
+
     P%MassiveNuMethod  = Ini_Read_Int('massive_nu_approx',Nu_best)
 
     ThreadNum      = Ini_Read_Int('number_of_threads',ThreadNum)
