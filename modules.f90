@@ -252,7 +252,7 @@
         type(ReionizationParams) :: Reion
         type(RecombinationParams):: Recomb
         type(TransferParams)     :: Transfer
-        class(TDarkEnergyBase), allocatable :: DarkEnergy
+        class(TDarkEnergyBase), pointer :: DarkEnergy
 
         real(dl) ::  InitialConditionVector(1:10) !Allow up to 10 for future extensions
         !ignored unless Scalar_initial_condition == initial_vector
@@ -538,7 +538,7 @@
         call GlobalError('chi >= pi in closed model not supported',error_unsupported_params)
     end if
 
-    if (.not. allocated(CP%DarkEnergy)) then
+    if (.not. associated(CP%DarkEnergy)) then
         call GlobalError('DarkEnergy not initialized', error_darkenergy)
     end if
 
@@ -3905,11 +3905,10 @@
                     call spline(TimeSteps%points(jstart),RedWin%comoving_density_ev(jstart),ninterp,spl_large,spl_large,tmp)
                     call spline_deriv(TimeSteps%points(jstart),RedWin%comoving_density_ev(jstart),tmp,tmp2(jstart),ninterp)
                     do ix = jstart, TimeSteps%npoints
-                        if (RedWin%Wing(ix)==0._dl) then
+                        if (RedWin%Wing(ix)==0._dl .or. RedWin%comoving_density_ev(ix) == 0._dl) then
                             RedWin%comoving_density_ev(ix) = 0
                         else
-                            if (RedWin%comoving_density_ev(ix) /= 0._dl) &
-                                RedWin%comoving_density_ev(ix) = tmp2(ix) / RedWin%comoving_density_ev(ix)
+                            RedWin%comoving_density_ev(ix) = tmp2(ix) / RedWin%comoving_density_ev(ix)
                         end if
                     end do
                 else
