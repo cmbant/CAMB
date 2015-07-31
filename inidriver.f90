@@ -425,6 +425,8 @@
     end if
     call Ini%Read('feedback_level', FeedbackLevel)
 
+    call Ini%Read('output_file_headers', output_file_headers)
+
     P%MassiveNuMethod = Ini%Read_Int('massive_nu_approx', Nu_best)
 
     call Ini%Read('number_of_threads', ThreadNum)
