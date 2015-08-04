@@ -59,99 +59,77 @@ class Ignore():
     pass
 
 
-def normsqrt(v):
+def normsqrt(v, c1, c2):
     """
-    Implement TE/ sqrt(EE * TT).
+    Implement AxB/ sqrt(AxA * BxB).
     :param v: The current row of values.
-    :return: The quotient of TE/ sqrt(EE *TT)
+    :param c1: The name of the first component.
+    :param c2: The name of the second component.
+    :return: The quotient of AxB/ sqrt(AxA * BxB).
     :rtype : float
     """
-    return v["TE"] / math.sqrt(v["EE"] * v["TT"])
+    return v[c1+'x'+c2] / math.sqrt(v[c1+'x'+c2] * v[c1+'x'+c2])
 
-def normsqrtx(v):
+def diffnsqrt(old, new, tol, c1, c2):
     """
-    Implement TxE/ sqrt(ExE * TxT).
-    :param v: The current row of values.
-    :return: The quotient of TxE/ sqrt(ExE *TxT)
-    :rtype : float
-    """
-    return v["TxE"] / math.sqrt(v["ExE"] * v["TxT"])
-
-def diffnsqrt(old, new, tol, f):
-    """
-    Implement |f(old) - f(new)| < tol.
+    Implement |normsqrt(old, c1, c2) - normsqrt(new, c1, c2)| < tol.
     :param old: The row of the old values.
     :param new: The row of the new values.
     :param tol: The tolerance to match.
-    :param f: The function to apply to old and new.
-    :return: True, when |f(old) - f(new)| < tol, false else.
+    :param c1: The name of the first component.
+    :param c2: The name of the second component.
+    :return: True, when |normsqrt(old, c1, c2) - normsqrt(new, c1, c2)| < tol, false else.
     :rtype : bool
     """
-    return math.fabs(f(old) - f(new)) < tol
+    return math.fabs(normsqrt(old, c1, c2) - normsqrt(new, c1, c2)) < tol
 
 # A value large enough to make the |old- new| < ignore always be true.
 ignore = 1e10
 
 # A short cut for lensedCls and lenspotentialCls files.
 coltol1 = ColTol({"L": ignore,
-                  "TT": [(   0, 3e-3),
-                         ( 600, 1e-3),
-                         (2500, 3e-3)],
-                  "EE": [(   0, 3e-3),
-                         ( 600, 1e-3),
-                         (2500, 3e-3)],
-                  "BB": [(   0, 5e-3),
-                         (1000, 1e-2)],
-                  "TE": [(   0, lambda o, n: diffnsqrt(o, n, 3e-3, normsqrt)),
-                         ( 600, lambda o, n: diffnsqrt(o, n, 1e-3, normsqrt)),
-                         (2500, lambda o, n: diffnsqrt(o, n, 3e-3, normsqrt))],
-                  "PP": [(   0, 5e-3),
-                         (1000, 1e-2)],
-                  "TP": [(   0, 0.01),
-                         ( 100, ignore)],
-                  "EP": [(   0, 0.02),
-                         (  60, ignore)],
+                  "TxT": [(   0, 3e-3),
+                          ( 600, 1e-3),
+                          (2500, 3e-3)],
+                  "ExE": [(   0, 3e-3),
+                          ( 600, 1e-3),
+                          (2500, 3e-3)],
+                  "BxB": [(   0, 5e-3),
+                          (1000, 1e-2)],
+                  "TxE": [(   0, lambda o, n: diffnsqrt(o, n, 3e-3, 'T', 'E')),
+                          ( 600, lambda o, n: diffnsqrt(o, n, 1e-3, 'T', 'E')),
+                          (2500, lambda o, n: diffnsqrt(o, n, 3e-3, 'T', 'E'))],
+                  "PxP": [(   0, 5e-3),
+                          (1000, 1e-2)],
+                  "TxP": [(   0, lambda o, n: diffnsqrt(o, n, 0.01, 'T', 'P')),
+                          ( 100, ignore)],
+                  "ExP": [(   0, lambda o, n: diffnsqrt(o, n, 0.02, 'E', 'P')),
+                          (  60, ignore)],
+                  "TxW1": lambda o, n: diffnsqrt(o, n, 5e-3, 'T', 'W1'),
+                  "ExW1": lambda o, n: diffnsqrt(o, n, 5e-3, 'E', 'W1'),
+                  "PxW1": lambda o, n: diffnsqrt(o, n, 5e-3, 'P', 'W1'),
+                  "W1xT": lambda o, n: diffnsqrt(o, n, 5e-3, 'W1', 'T'),
+                  "W1xE": lambda o, n: diffnsqrt(o, n, 5e-3, 'W1', 'E'),
+                  "W1xP": lambda o, n: diffnsqrt(o, n, 5e-3, 'W1', 'P'),
+                  "W1xW1": 5e-3,
+                  "PxW2": lambda o, n: diffnsqrt(o, n, 5e-3, 'P', 'W2'),
+                  "W1xW2": lambda o, n: diffnsqrt(o, n, 5e-3, 'W1', 'W2'),
+                  "W2xT": lambda o, n: diffnsqrt(o, n, 5e-3, 'W2', 'T'),
+                  "W2xE": lambda o, n: diffnsqrt(o, n, 5e-3, 'W2', 'E'),
+                  "W2xP": lambda o, n: diffnsqrt(o, n, 5e-3, 'W2', 'P'),
+                  "W2xW1": lambda o, n: diffnsqrt(o, n, 5e-3, 'W2', 'W1'),
+                  "W2xW2": 5e-3,
                   "*" : ignore})
 
 # The filetolmatrix as described above.
 global filetolmatrix
 filetolmatrix = [["*scalCls.dat", Ignore()], # Ignore all scalCls.dat files.
                  ["*lensedCls.dat", coltol1], # lensed and lenspotential files both use coltol1 given above
+                 ["*lensedtotCls.dat", coltol1],
                  ["*lenspotentialCls.dat", coltol1],
-                 ["*scalCovCls.dat", ColTol({"L": ignore, # This is like lensed with some add. columns and an x in the names
-                                             "TxT": [(   0, 3e-3),
-                                                     ( 600, 1e-3),
-                                                     (2500, 3e-3)],
-                                             "ExE": [(   0, 3e-3),
-                                                     ( 600, 1e-3),
-                                                     (2500, 3e-3)],
-                                             "BxB": [(   0, 5e-3),
-                                                     (1000, 1e-2)],
-                                             "TxE": [(   0, lambda o, n: diffnsqrt(o, n, 3e-3, normsqrtx)),
-                                                     ( 600, lambda o, n: diffnsqrt(o, n, 1e-3, normsqrtx)),
-                                                     (2500, lambda o, n: diffnsqrt(o, n, 3e-3, normsqrtx))],
-                                             "PxP": [(   0, 5e-3),
-                                                     (1000, 1e-2)],
-                                             "TxP": [(   0, 0.01),
-                                                     ( 100, ignore)],
-                                             "ExP": [(   0, 0.02),
-                                                     (  60, ignore)],
-                                             "TxW1": 5e-3,
-                                             "ExW1": 5e-3,
-                                             "PxW1": 5e-3,
-                                             "W1xT": 5e-3,
-                                             "W1xE": 5e-3,
-                                             "W1xP": 5e-3,
-                                             "W1xW1": 5e-3,
-                                             "PxW2": 5e-3,
-                                             "W1xW2": 5e-3,
-                                             "W2xT": 5e-3,
-                                             "W2xE": 5e-3,
-                                             "W2xP": 5e-3,
-                                             "W2xW1": 5e-3,
-                                             "W2xW2": 5e-3,
-                                             "*" : ignore})],
-                 ["*tensCls.dat", ColTol({"*": [(  0, 1e-2),
+                 ["*scalCovCls.dat", coltol1],
+                 ["*tensCls.dat", ColTol({"TE": lambda o, n: diffnsqrt(o, n, 1e-2, 'T', 'E'),
+                                          "*": [(  0, 1e-2),
                                                 (600, ignore)]})],
                  ["*matterpower.dat", ColTol({"P": lambda o, n: math.fabs(o["P"]- n["P"]) < (1e-3 if n["k/h"]< 1 else 3e-3),
                                               "*": ignore})],
@@ -384,7 +362,7 @@ def num_unequal(filename, cmpFcn):
             print('num rows do not match in %s: %d != %d' % (filename, len(origMat), len(newMat)))
         return True
     if newBase == 1:
-        cols = newMat[0]
+        cols = [s[0]+'x'+s[1] if len(s) == 2 and s != 'nu' else s for s in newMat[0]]
     else:
         cols = range(len(newMat[0]))
 
@@ -437,8 +415,8 @@ def num_unequal(filename, cmpFcn):
                     col += 1
             return False
         else:
-            if args.verbose_diff_output:
-                print("Skipped file %s" % (filename))
+#            if args.verbose_diff_output:
+#                print("Skipped file %s" % (filename))
             return False
     except ValueError as e:
         print("ValueError: '%s' at %d, %d in file: %s" % (e.message, row, col + 1, filename))
