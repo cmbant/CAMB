@@ -27,16 +27,16 @@
     real(dl) :: Rionization_zexp = 1.5_dl
 
     logical :: include_helium_fullreion = .true.
-    real(dl) :: helium_fullreion_redshift  = 3.5_dl
-    real(dl) :: helium_fullreion_deltaredshift  = 0.5
-    real(dl) :: helium_fullreion_redshiftstart  = 5._dl
-
 
     type ReionizationParams
         logical    :: Reionization
         logical    :: use_optical_depth
         real(dl)   :: redshift, delta_redshift, fraction
         real(dl)   :: optical_depth
+        !Parameters for the second reionization of Helium
+        real(dl)   :: helium_redshift  = 3.5_dl
+        real(dl)   :: helium_delta_redshift  = 0.5
+        real(dl)   :: helium_redshiftstart  = 5._dl
     end type ReionizationParams
 
     type ReionizationHistory
@@ -85,10 +85,10 @@
     end if
     Reionization_xe =(ThisReion%fraction-xstart)*(tgh+1._dl)/2._dl+xstart
 
-    if (include_helium_fullreion .and. a > (1/(1+ helium_fullreion_redshiftstart))) then
+    if (include_helium_fullreion .and. a > (1/(1+ ThisReion%helium_redshiftstart))) then
 
-        !Effect of Helium becoming fully ionized at z <~ 3.5 is very small so details not important
-        xod = (1+helium_fullreion_redshift - 1._dl/a)/helium_fullreion_deltaredshift
+        !Effect of Helium becoming fully ionized is small so details not important
+        xod = (1+ThisReion%helium_redshift - 1._dl/a)/ThisReion%helium_delta_redshift
         if (xod > 100) then
             tgh=1.d0
         else
@@ -130,6 +130,11 @@
 
         Reion%delta_redshift = Ini_Read_Double_File(Ini,'re_delta_redshift', 0.5_dl) !default similar to CMBFAST original
         Reion%fraction = Ini_Read_Double_File(Ini,'re_ionization_frac',Reionization_DefFraction)
+
+        Reion%helium_redshift  = Ini_Read_Double_File(Ini,'re_helium_redshift', 3.5_dl)
+        Reion%helium_delta_redshift  = Ini_Read_Double_File(Ini,'re_helium_delta_redshift', 0.5_dl)
+        Reion%helium_redshiftstart  = Ini_Read_Double_File(Ini,'re_helium_redshiftstart', &
+            Reion%helium_redshift + 3*Reion%helium_delta_redshift)
 
     end if
 
@@ -214,6 +219,10 @@
     Reion%fraction = Reionization_DefFraction
     Reion%delta_redshift = 0.5_dl
 
+    Reion%helium_redshift  = 3.5_dl
+    Reion%helium_delta_redshift  = 0.5
+    Reion%helium_redshiftstart  = 5._dl
+
     end subroutine Reionization_SetDefParams
 
     subroutine Reionization_Validate(Reion, OK)
@@ -229,7 +238,7 @@
             end if
         else
             if (Reion%redshift < 0 .or. Reion%Redshift +Reion%delta_redshift*3 > Reionization_maxz .or. &
-                include_helium_fullreion .and. Reion%redshift < helium_fullreion_redshift) then
+                include_helium_fullreion .and. Reion%redshift < Reion%helium_redshift) then
             OK = .false.
             write(*,*) 'Reionization redshift strange. You have: ',Reion%Redshift
             end if
@@ -240,12 +249,10 @@
         end if
         if (Reion%delta_redshift > 3 .or. Reion%delta_redshift<0.1 ) then
             !Very narrow windows likely to cause problems in interpolation etc.
-            !Very broad likely to conflic with quasar data at z=6
+            !Very broad likely to conflict with quasar data at z=6
             OK = .false.
             write(*,*) 'Reionization delta_redshift is strange. You have: ',Reion%delta_redshift
         end if
-
-
     end if
 
     end  subroutine Reionization_Validate
@@ -276,7 +283,6 @@
 
     subroutine Reionization_zreFromOptDepth(Reion, ReionHist)
     !General routine to find zre parameter given optical depth
-    !Not used for Rionization_zexp = 1.5
     Type(ReionizationParams) :: Reion
     Type(ReionizationHistory) :: ReionHist
     real(dl) try_b, try_t
@@ -306,6 +312,7 @@
         write (*,*) 'Reionization_zreFromOptDepth: Did not converge to optical depth'
         write (*,*) 'tau =',tau, 'optical_depth = ', Reion%optical_depth
         write (*,*) try_t, try_b
+        write (*,*) '(If running a chain, have you put a constraint on tau?)'
         call mpiStop()
     end if
 
@@ -343,7 +350,7 @@
             z=0
             do while (optd < Reion%optical_depth)
                 z=na*dz
-                if (include_helium_fullreion .and. z < helium_fullreion_redshift) then
+                if (include_helium_fullreion .and. z < Reion%helium_redshift) then
                     optd=optd+ tmpHe*dtauda(1._dl/(1._dl+z))
                 else
                     optd=optd+tmp*dtauda(1._dl/(1._dl+z))
