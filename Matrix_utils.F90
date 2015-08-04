@@ -39,7 +39,7 @@
 
     call cpu_time(atime)
 
-    GetMatrixTime = atime  
+    GetMatrixTime = atime
 
 
     end function GetMatrixTime
@@ -74,7 +74,7 @@
 
     subroutine Matrix_Write(aname, mat, forcetable, commentline)
     character(LEN=*), intent(in) :: aname
-    character(LEN=*), intent(in), optional :: commentline   
+    character(LEN=*), intent(in), optional :: commentline
     real(dm), intent(in) :: mat(:,:)
     logical, intent(in), optional :: forcetable
     integer i,k
@@ -167,9 +167,9 @@
 
     file_unit = new_file_unit()
     call CreateFile(aname, file_unit,'unformatted')
-    do i=1,shp(1) 
+    do i=1,shp(1)
         write (file_unit) mat(i:shp(2),i)
-    end do 
+    end do
     call CloseFile(file_unit)
 
     end subroutine MatrixSym_Write_Binary
@@ -177,7 +177,7 @@
     subroutine MatrixSym_Write_Binary_Single(aname, mat)
     character(LEN=*), intent(in) :: aname
     real(dm), intent(in) :: mat(:,:)
-    integer i,    file_unit 
+    integer i,    file_unit
     integer shp(2)
 
     shp = shape(mat)
@@ -186,9 +186,9 @@
 
     file_unit = new_file_unit()
     call CreateFile(aname, file_unit,'unformatted')
-    do i=1,shp(1) 
+    do i=1,shp(1)
         write (file_unit) real(mat(i:shp(2),i), kind(1.0))
-    end do 
+    end do
     call CloseFile(file_unit)
 
     end subroutine MatrixSym_Write_Binary_Single
@@ -198,7 +198,7 @@
     subroutine Matrix_WriteVec(aname, vec)
     character(LEN=*), intent(in) :: aname
     real(dm), intent(in) :: vec(:)
-    integer i,   file_unit 
+    integer i,   file_unit
 
     file_unit = new_file_unit()
     call CreateTxtFile(aname, file_unit)
@@ -285,7 +285,7 @@
     goto 120
 
 100 rewind(file_unit)  !Try other possible format
-    do j=1,shp(1) 
+    do j=1,shp(1)
         do k=1,shp(2)
             read (file_unit,*, end = 200) mat(j,k)
         end do
@@ -305,7 +305,7 @@
     subroutine Matrix_ReadSingle(aname, mat)
     character(LEN=*), intent(IN) :: aname
     real, intent(out) :: mat(:,:)
-    integer j,k,    file_unit 
+    integer j,k,    file_unit
     integer shp(2)
     real tmp
 
@@ -320,7 +320,7 @@
     goto 120
 
 100 rewind(file_unit)  !Try other possible format
-    do j=1,shp(1) 
+    do j=1,shp(1)
         do k=1,shp(2)
             read (file_unit,*, end = 200) mat(j,k)
         end do
@@ -346,7 +346,7 @@
 
     do i=1,n
 
-    Matrix_Diag(i) = M(i,i)
+        Matrix_Diag(i) = M(i,i)
 
     end do
 
@@ -365,7 +365,7 @@
 #else 
     ILAENV_wrap =  ILAENV(i,S1,S2,a,b,c,d)
 #endif
-    !!!IFC 
+    !!!IFC
     end  function ILAENV_wrap
 
 
@@ -377,7 +377,7 @@
     integer ierr, tmpsize
     real(dm), allocatable, dimension(:) :: tmp
 
-    call Matrix_Start('Diagonalize')      
+    call Matrix_Start('Diagonalize')
 #ifdef MATRIX_SINGLE 
     tmpsize =  max( (ILAENV_wrap(1,'SSYTRD','U',n,n,n,n)+2)*N,max(1,3*n-1))  !3*n**2
     allocate(tmp(tmpsize));
@@ -406,7 +406,7 @@
 
     if (matrix_method == Mat_DC) then
         !Divide and conquer
-        tmpsize = 1 + 6*N + 2*N**2 
+        tmpsize = 1 + 6*N + 2*N**2
         isize = 3+5*N
         allocate(tmp(tmpsize))
         allocate(iwork(isize))
@@ -476,23 +476,23 @@
     LIWork = -1
 #ifdef MATRIX_SINGLE 
     call SSYEVR('V','V','U',n,M,Size(M,DIM=1),emin,emax,0,0,atol,nfound,diag,tmp,Size(TMP,DIM=1),&
-    Supp,WSize,WorkSize,ISize,LIWork,ierr  )
+        Supp,WSize,WorkSize,ISize,LIWork,ierr  )
 #else     
     call DSYEVR('V','V','U',n,M,Size(M,DIM=1),emin,emax,0,0,atol,nfound,diag,tmp,Size(TMP,DIM=1),&
-    Supp,WSize,WorkSize,ISize,LIWork,ierr  )
+        Supp,WSize,WorkSize,ISize,LIWork,ierr  )
 #endif
     WorkSize = Real(WSize(1))
     LIWork = ISize(1)
     allocate(Work(WorkSize),IWork(LIWork))
 #ifdef MATRIX_SINGLE 
     call SSYEVR('V','V','U',n,M,Size(M,DIM=1),emin,emax,0,0,atol,nfound,diag,tmp,Size(TMP,DIM=1),&
-    Supp,Work,WorkSize,IWork,LIWork,ierr )
+        Supp,Work,WorkSize,IWork,LIWork,ierr )
 #else
     call DSYEVR('V','V','U',n,M,Size(M,DIM=1),emin,emax,0,0,atol,nfound,diag,tmp,Size(TMP,DIM=1),&
-    Supp,Work,WorkSize,IWork,LIWork,ierr )
+        Supp,Work,WorkSize,IWork,LIWork,ierr )
 #endif
     deallocate(Supp,Work,IWork)
-    if (ierr /= 0) call MpiStop('Matrix_Diagonalize_Partial: Error') 
+    if (ierr /= 0) call MpiStop('Matrix_Diagonalize_Partial: Error')
     M(1:n,1:nfound) = tmp(1:n,1:nfound)  !nfound now different
     deallocate(tmp)
     call Matrix_End('Matrix_Diagonalize_Partial')
@@ -527,10 +527,10 @@
     LIWork = -1
 #ifdef MATRIX_SINGLE 
     call CHEEVR('V','V','U',n,M,Size(M,DIM=1),emin,emax,0,0,atol,nfound,diag,tmp,Size(TMP,DIM=1),&
-    Supp,WSize,WorkSize,RSize,LRWork,ISize,LIWork,ierr  )
+        Supp,WSize,WorkSize,RSize,LRWork,ISize,LIWork,ierr  )
 #else     
     call ZHEEVR('V','V','U',n,M,Size(M,DIM=1),emin,emax,0,0,atol,nfound,diag,tmp,Size(TMP,DIM=1),&
-    Supp,WSize,WorkSize,RSize,LRWork,ISize,LIWork,ierr  )
+        Supp,WSize,WorkSize,RSize,LRWork,ISize,LIWork,ierr  )
 #endif
     WorkSize = Real(WSize(1))
     LRWork = RSize(1)
@@ -538,13 +538,13 @@
     allocate(Work(WorkSize),RWork(LRWork),IWork(LIWork))
 #ifdef MATRIX_SINGLE 
     call CHEEVR('V','V','U',n,M,Size(M,DIM=1),emin,emax,0,0,atol,nfound,diag,tmp,Size(TMP,DIM=1),&
-    Supp,Work,WorkSize,RWork,LRWork,IWork,LIWork,ierr )
+        Supp,Work,WorkSize,RWork,LRWork,IWork,LIWork,ierr )
 #else
     call ZHEEVR('V','V','U',n,M,Size(M,DIM=1),emin,emax,0,0,atol,nfound,diag,tmp,Size(TMP,DIM=1),&
-    Supp,Work,WorkSize,RWork,LRWork,IWork,LIWork,ierr )
+        Supp,Work,WorkSize,RWork,LRWork,IWork,LIWork,ierr )
 #endif
     deallocate(Supp,Work,RWork,IWork)
-    if (ierr /= 0) call MpiStop('Matrix_CDiagonalize_Partial: Error') 
+    if (ierr /= 0) call MpiStop('Matrix_CDiagonalize_Partial: Error')
     M(1:n,1:nfound) = tmp(1:n,1:nfound)  !nfound now different
     deallocate(tmp)
     call Matrix_End('Matrix_CDiagonalize_Partial')
@@ -567,7 +567,7 @@
 
     if (matrix_method == Mat_DC) then
         !Divide and conquer
-        tmpsize = 2*N + N**2 
+        tmpsize = 2*N + N**2
         rworksize =  1 + 4*N + 2*N*int(log(real(N))/log(2.)+1) + 3*N**2
         isize =  (2 + 5*N)*4
         allocate(tmp(tmpsize),rwork(rworksize))
@@ -581,15 +581,15 @@
 
     else
 
-    rworksize =  max(1, 3*n-2)
+        rworksize =  max(1, 3*n-2)
 #ifdef MATRIX_SINGLE 
-    tmpsize = max( (ILAENV_wrap(1,'CHETRD','U',n,n,n,n)+1)*N,max(1,2*n-1)) !   3*n**2
-    allocate(tmp(tmpsize),rwork(rworksize));
-    call CHEEV('V','U',n,m,n,diag,tmp,tmpsize,Rwork,ierr) !evalues and vectors of hermitian matrix
+        tmpsize = max( (ILAENV_wrap(1,'CHETRD','U',n,n,n,n)+1)*N,max(1,2*n-1)) !   3*n**2
+        allocate(tmp(tmpsize),rwork(rworksize));
+        call CHEEV('V','U',n,m,n,diag,tmp,tmpsize,Rwork,ierr) !evalues and vectors of hermitian matrix
 #else
-    tmpsize = max( (ILAENV_wrap(1,'ZHETRD','U',n,n,n,n)+1)*N,max(1,2*n-1)) !   3*n**2
-    allocate(tmp(tmpsize),rwork(rworksize));
-    call ZHEEV('V','U',n,m,n,diag,tmp,tmpsize,Rwork,ierr) !evalues and vectors of hermitian matrix
+        tmpsize = max( (ILAENV_wrap(1,'ZHETRD','U',n,n,n,n)+1)*N,max(1,2*n-1)) !   3*n**2
+        allocate(tmp(tmpsize),rwork(rworksize));
+        call ZHEEV('V','U',n,m,n,diag,tmp,tmpsize,Rwork,ierr) !evalues and vectors of hermitian matrix
 #endif
     end if
 
@@ -608,7 +608,7 @@
     if (size(M,dim=1) /= size(M,dim=2)) call MpiStop('Matrix_CTrace: non-square matrix')
     tmp =0
     do i=1,size(M,dim=1)
-        tmp = tmp + M(i,i)  
+        tmp = tmp + M(i,i)
     end do
     Matrix_CTrace = tmp
 
@@ -622,7 +622,7 @@
     if (size(M,dim=1) /= size(M,dim=2)) call mpiStop('Matrix_Trace: non-square matrix')
     tmp =0
     do i=1,size(M,dim=1)
-        tmp = tmp + M(i,i)  
+        tmp = tmp + M(i,i)
     end do
     Matrix_Trace = tmp
 
@@ -651,7 +651,7 @@
     !Gets U^dag Mat U
     integer, intent(in) ::m
     complex(dm), intent(in) :: Mat(:,:),U(:,:)
-    complex(dm) Out(:,:) 
+    complex(dm) Out(:,:)
     complex(dm), dimension(:,:), allocatable :: C
     integer n
     logical, intent(in), optional :: triangular
@@ -669,7 +669,7 @@
     if (n /= Size(Mat,DIM=2)) call mpiStop('Matrix_CRotateSymm: Need square matrix')
     if (n /= Size(U,DIM=1)) call MpiStop('Matrix_CRotateSymm: Matrix size mismatch')
     if (Size(Out,DIM=1) < m .or. Size(Out,DIM=2) < m) &
-    call MpiStop('Matrix_CRotateSymm: Wrong output size')
+        call MpiStop('Matrix_CRotateSymm: Wrong output size')
 
     if (matrix_method == Mat_F90) then
         Out = matmul(matmul(transpose(conjg(U(1:n,1:m))),Mat),U(1:n,1:m))
@@ -679,7 +679,7 @@
             if (m/=n) call MpiStop('Matrix_CRotateSymm: Matrices must be same size')
             call CHEMM('L','U',n,n,COne,Mat,Size(Mat,DIM=1),U,Size(U,DIM=1),CZero,Out,Size(Out,Dim=1))
             call CTRMM('Left','Upper','Complex-Transpose','Not-unit',n,n,COne,U,Size(U,DIM=1),Out,Size(Out,Dim=1))
-        else       
+        else
             allocate(C(n,m))
             call CHEMM('L','U',n,m,COne,Mat,Size(Mat,DIM=1),U,Size(U,DIM=1),CZero,C,n)
             call CGEMM('C','N',m,m,n,COne,U,Size(U,DIM=1),C,n,CZero,Out,Size(Out,Dim=1))
@@ -690,7 +690,7 @@
             if (m/=n) call MpiStop('Matrix_CRotateSymm: Matrices must be same size')
             call ZHEMM('L','U',n,n,COne,Mat,Size(Mat,DIM=1),U,Size(U,DIM=1),CZero,Out,Size(Out,Dim=1))
             call ZTRMM('Left','Upper','Complex-Transpose','Not-unit',n,n,COne,U,Size(U,DIM=1),Out,Size(Out,Dim=1))
-        else 
+        else
             allocate(C(n,m))
             call ZHEMM('L','U',n,m,COne,Mat,Size(Mat,DIM=1),U,Size(U,DIM=1),CZero,C,n)
             call ZGEMM('C','N',m,m,n,COne,U,Size(U,DIM=1),C,n,CZero,Out,Size(Out,Dim=1))
@@ -708,7 +708,7 @@
     !If triangular U = Upper triangular (U^T lower triangular)
     integer, intent(in) ::m
     real(dm), intent(in) :: Mat(:,:),U(:,:)
-    real(dm) Out(:,:) 
+    real(dm) Out(:,:)
     real(dm), dimension(:,:), allocatable :: C
     logical, intent(in), optional :: triangular
     logical triang
@@ -726,7 +726,7 @@
     if (n /= Size(Mat,DIM=2)) call MpiStop('Matrix_RotateSymm: Need square matrix')
     if (n /= Size(U,DIM=1)) call MpiStop('Matrix_RotateSymm: Matrix size mismatch')
     if (Size(Out,DIM=1) < m .or. Size(Out,DIM=2) < m) &
-    call MpiStop('Matrix_RotateSymm: Wrong output size')
+        call MpiStop('Matrix_RotateSymm: Wrong output size')
 
     if (matrix_method == Mat_F90) then
         Out = matmul(matmul(transpose(U(1:n,1:m)),Mat),U(1:n,1:m))
@@ -766,7 +766,7 @@
     !Where Mat = -Mat^T
     integer, intent(in) ::m
     real(dm), intent(in) :: Mat(:,:),U(:,:)
-    real(dm) Out(:,:) 
+    real(dm) Out(:,:)
     real(dm), dimension(:,:), allocatable :: C
     integer i,j,n
 
@@ -776,7 +776,7 @@
     if (n /= Size(Mat,DIM=2)) call MpiStop('Matrix_RotateAntiSymm: Need square matrix')
     if (n /= Size(U,DIM=1)) call MpiStop('Matrix_RotateAntiSymm: Matrix size mismatch')
     if (Size(Out,DIM=1) < m .or. Size(Out,DIM=2) < m) &
-    call MpiStop('Matrix_RotateAntiSymm: Wrong output size')
+        call MpiStop('Matrix_RotateAntiSymm: Wrong output size')
 
     if (matrix_method == Mat_F90) then
         Out = matmul(matmul(transpose(U(1:n,1:m)),Mat),U(1:n,1:m))
@@ -798,7 +798,7 @@
             Out(j,i) = Out(j,i) - Out(i,j)
             out(i,j) = -Out(j,i)
         end do
-    end do  
+    end do
 
     call Matrix_End('RotateAntiSymm')
 
@@ -806,9 +806,9 @@
 
     subroutine Matrix_CMult_SymmRight(Mat,U,Out,a,b)
     complex(dm), intent(in) :: Mat(:,:),U(:,:)
-    complex(dm) Out(:,:) 
+    complex(dm) Out(:,:)
     complex(dm), intent(in), optional :: a,b
-    complex(dm)  mult, beta 
+    complex(dm)  mult, beta
     integer n,m
 
     call Matrix_Start('CMult_SymmRight')
@@ -816,14 +816,14 @@
     m = Size(Mat,DIM=1)
     n = Size(U,DIM=2)
     if (n /= Size(Mat,DIM=2) .or. n/=Size(U,DIM=1)) &
-    call MpiStop('Matrix_CMult_SymmRight: Size mismatch')
+        call MpiStop('Matrix_CMult_SymmRight: Size mismatch')
     if (present(a)) then
         mult = a
     else
         mult = COne
     end if
     if (present(b)) then
-        beta = b    
+        beta = b
     else
         beta = CZero
     end if
@@ -833,8 +833,8 @@
         else
             out = MatMul(Mat,U)
             if (mult /= COne) Out = Out*mult
-        end if     
-    else 
+        end if
+    else
 #ifdef MATRIX_SINGLE 
         call CHEMM('R','U',m,n,mult,U,Size(U,DIM=1),Mat,Size(Mat,DIM=1),beta,Out,Size(Out,DIM=1))
 #else     
@@ -849,9 +849,9 @@
 
     subroutine Matrix_CMult_SymmLeft(Mat,U,Out,a,b)
     complex(dm), intent(in) :: Mat(:,:),U(:,:)
-    complex(dm) Out(:,:) 
+    complex(dm) Out(:,:)
     complex(dm), intent(in), optional :: a,b
-    complex(dm)  mult, beta 
+    complex(dm)  mult, beta
     integer n,m
 
     call Matrix_Start('CMult_SymmLeft')
@@ -859,14 +859,14 @@
     m = Size(Mat,DIM=1)
     n = Size(U,DIM=2)
     if (m /= Size(U,DIM=1) .or. m/=Size(Mat,DIM=2)) &
-    call MpiStop('Matrix_CMult_SymmLeft: Size mismatch')
+        call MpiStop('Matrix_CMult_SymmLeft: Size mismatch')
     if (present(a)) then
         mult = a
     else
         mult = COne
     end if
     if (present(b)) then
-        beta = b    
+        beta = b
     else
         beta = CZero
     end if
@@ -876,8 +876,8 @@
         else
             out = MatMul(Mat,U)
             if (mult /= COne) Out = Out*mult
-        end if     
-    else 
+        end if
+    else
 #ifdef MATRIX_SINGLE
         call CHEMM('L','U',m,n,mult,Mat,Size(Mat,DIM=1),U,Size(U,DIM=1),beta,Out,Size(Out,DIM=1))
 #else     
@@ -893,9 +893,9 @@
     subroutine Matrix_CMult(Mat,U,Out,a,b)
     ! Out = a*Mat U + b*out
     complex(dm), intent(in) :: Mat(:,:),U(:,:)
-    complex(dm) Out(:,:) 
+    complex(dm) Out(:,:)
     complex(dm), intent(in), optional :: a,b
-    complex(dm)  mult, beta 
+    complex(dm)  mult, beta
     integer m,n,k
 
     call Matrix_Start('CMult')
@@ -910,7 +910,7 @@
         mult = COne
     end if
     if (present(b)) then
-        beta = b    
+        beta = b
     else
         beta = CZero
     end if
@@ -921,7 +921,7 @@
         else
             out = MatMul(Mat,U)
             if (mult /= COne) Out = Out*mult
-        end if     
+        end if
     else
 #ifdef MATRIX_SINGLE
         call CGEMM('N','N',m,n,k,mult,Mat,m,U,k,beta,Out,Size(Out,Dim=1))
@@ -957,7 +957,7 @@
         aa=a
     else
         aa=ROne
-    end if 
+    end if
 
     call Matrix_Mult(Mat,U,tmp,aa)
     U = tmp
@@ -968,7 +968,7 @@
     subroutine Matrix_MultTri(Mat,L, side)
     ! Mat -> L Mat or Mat L where L is lower triangular
     real(dm), intent(inout) :: Mat(:,:)
-    real(dm), intent(in) :: L(:,:) 
+    real(dm), intent(in) :: L(:,:)
     character(LEN=*), intent(in) :: side
     integer m,n
 
@@ -996,9 +996,9 @@
     subroutine Matrix_Mult(Mat,U,Out,a,b)
     ! Out = a*Mat U + b*out
     real(dm), intent(in) :: Mat(:,:),U(:,:)
-    real(dm) :: Out(:,:) 
+    real(dm) :: Out(:,:)
     real(dm), intent(in), optional :: a,b
-    real(dm)  mult, beta 
+    real(dm)  mult, beta
     integer m,n,k
 
     call Matrix_Start('Mult')
@@ -1016,7 +1016,7 @@
         mult = ROne
     end if
     if (present(b)) then
-        beta = b    
+        beta = b
     else
         beta = RZero
     end if
@@ -1027,7 +1027,7 @@
         else
             out = MatMul(Mat,U)
             if (mult /= ROne) Out = Out*mult
-        end if     
+        end if
     else
 #ifdef MATRIX_SINGLE
         call SGEMM('N','N',m,n,k,mult,Mat,m,U,k,beta,Out,Size(Out,Dim=1))
@@ -1042,9 +1042,9 @@
 
     subroutine Matrix_Mult_SymmLeft(Mat,U,Out,a,b)
     real(dm), intent(in) :: Mat(:,:),U(:,:)
-    real(dm) Out(:,:) 
+    real(dm) Out(:,:)
     real(dm), intent(in), optional :: a,b
-    real(dm)  mult, beta 
+    real(dm)  mult, beta
     integer n,m
 
     call Matrix_Start('Mult_SymmLeft')
@@ -1052,14 +1052,14 @@
     m = Size(Mat,DIM=1)
     n = Size(U,DIM=2)
     if (m /= Size(U,DIM=1) .or. m/=Size(Mat,DIM=2)) &
-    call MpiStop('Matrix_Mult_SymmLeft: Size mismatch')
+        call MpiStop('Matrix_Mult_SymmLeft: Size mismatch')
     if (present(a)) then
         mult = a
     else
         mult = ROne
     end if
     if (present(b)) then
-        beta = b    
+        beta = b
     else
         beta = RZero
     end if
@@ -1069,8 +1069,8 @@
         else
             out = MatMul(Mat,U)
             if (mult /= COne) Out = Out*mult
-        end if     
-    else 
+        end if
+    else
 #ifdef MATRIX_SINGLE
         call SSYMM('L','U',m,n,mult,Mat,Size(Mat,DIM=1),U,Size(U,DIM=1),beta,Out,Size(Out,DIM=1))
 #else     
@@ -1086,9 +1086,9 @@
     subroutine Matrix_Mult_SymmRight(Mat,U,Out,a,b)
     ! Out = a*Mat U + b*out
     real(dm), intent(in) :: Mat(:,:),U(:,:)
-    real(dm) Out(:,:) 
+    real(dm) Out(:,:)
     real(dm), intent(in), optional :: a,b
-    real(dm)  mult, beta 
+    real(dm)  mult, beta
     integer n,m
 
     call Matrix_Start('Mult_SymmRight')
@@ -1096,14 +1096,14 @@
     m = Size(Mat,DIM=1)
     n = Size(U,DIM=2)
     if (n /= Size(Mat,DIM=2) .or. n/=Size(U,DIM=1)) &
-    call MpiStop('Matrix_Mult_SymmRight: Size mismatch')
+        call MpiStop('Matrix_Mult_SymmRight: Size mismatch')
     if (present(a)) then
         mult = a
     else
         mult = ROne
     end if
     if (present(b)) then
-        beta = b    
+        beta = b
     else
         beta = RZero
     end if
@@ -1113,8 +1113,8 @@
         else
             out = MatMul(Mat,U)
             if (mult /= ROne) Out = Out*mult
-        end if     
-    else 
+        end if
+    else
 #ifdef MATRIX_SINGLE
         call SSYMM('R','U',m,n,mult,U,Size(U,DIM=1),Mat,Size(Mat,DIM=1),beta,Out,Size(Out,DIM=1))
 #else     
@@ -1131,7 +1131,7 @@
     !     out(1:m,1:n) = MatMul(Mat(1:m,1:k),U(1:k,1:n))
     integer, intent(in) :: m,k,n
     complex(dm), intent(in) :: Mat(:,:),U(:,:)
-    complex(dm) Out(:,:) 
+    complex(dm) Out(:,:)
 
     call Matrix_Start('CMultGen')
 
@@ -1157,7 +1157,7 @@
     !     out(1:m,1:n) = MatMul(Mat(1:m,1:k),U(1:k,1:n))
     integer, intent(in) :: m,k,n
     real(dm), intent(in) :: Mat(:,:),U(:,:)
-    real(dm) Out(:,:) 
+    real(dm) Out(:,:)
 
     call Matrix_Start('MultGen')
 
@@ -1181,9 +1181,9 @@
     subroutine Matrix_CMult_NT(Mat,U,Out,a,b)
     ! Out = a*Mat U^dag + b*out
     complex(dm), intent(in) :: Mat(:,:),U(:,:)
-    complex(dm) Out(:,:) 
+    complex(dm) Out(:,:)
     complex(dm), intent(in), optional :: a,b
-    complex(dm)  mult, beta 
+    complex(dm)  mult, beta
     integer m,n,k
 
     m = Size(Mat,DIM=1)
@@ -1197,16 +1197,16 @@
         mult = COne
     end if
     if (present(b)) then
-        beta = b    
+        beta = b
     else
         beta = CZero
     end if
 
     if (matrix_method == Mat_F90) then
         if (beta /= CZero) then
-            Out = beta*Out + mult*matmul(Mat,conjg(transpose(U))) 
+            Out = beta*Out + mult*matmul(Mat,conjg(transpose(U)))
         else
-            Out = matmul(Mat,conjg(transpose(U))) 
+            Out = matmul(Mat,conjg(transpose(U)))
             if (mult/= COne) Out=Out*mult
         end if
     else
@@ -1224,9 +1224,9 @@
     subroutine Matrix_Mult_NT(Mat,U,Out,a,b)
     ! Out = a*Mat U^T + b*out
     real(dm), intent(in) :: Mat(:,:),U(:,:)
-    real(dm) Out(:,:) 
+    real(dm) Out(:,:)
     real(dm), intent(in), optional :: a,b
-    real(dm)  mult, beta 
+    real(dm)  mult, beta
     integer m,n,k
 
     m = Size(Mat,DIM=1)
@@ -1240,16 +1240,16 @@
         mult = ROne
     end if
     if (present(b)) then
-        beta = b    
+        beta = b
     else
         beta = RZero
     end if
 
     if (matrix_method == Mat_F90) then
         if (beta /= RZero) then
-            Out = beta*Out + mult*matmul(Mat,transpose(U)) 
+            Out = beta*Out + mult*matmul(Mat,transpose(U))
         else
-            Out = matmul(Mat,transpose(U)) 
+            Out = matmul(Mat,transpose(U))
             if (mult/= ROne) Out=Out*mult
         end if
     else
@@ -1270,7 +1270,7 @@
     complex(dm), intent(in) :: Mat(:,:),U(:,:)
     complex(dm) Out(:,:)
     complex(dm), intent(in), optional :: a,b
-    complex(dm)  mult, beta 
+    complex(dm)  mult, beta
     integer m,n,k
 
     m = Size(Mat,DIM=2)
@@ -1285,7 +1285,7 @@
         mult = COne
     end if
     if (present(b)) then
-        beta = b    
+        beta = b
     else
         beta = CZero
     end if
@@ -1312,7 +1312,7 @@
     real(dm), intent(in) :: Mat(:,:),U(:,:)
     real(dm) Out(:,:)
     real(dm), intent(in), optional :: a,b
-    real(dm)  mult, beta 
+    real(dm)  mult, beta
     integer m,n,k
 
     m = Size(Mat,DIM=2)
@@ -1327,7 +1327,7 @@
         mult = ROne
     end if
     if (present(b)) then
-        beta = b    
+        beta = b
     else
         beta = RZero
     end if
@@ -1370,7 +1370,7 @@
         err = info
     else
         if (info/=0) &
-        call MpiStop('Matrix_Cholesky: not positive definite '//trim(IntToStr(info))) 
+            call MpiStop('Matrix_Cholesky: not positive definite '//trim(IntToStr(info)))
     end if
 
     if (info==0 .and. present(zeroed)) then
@@ -1395,7 +1395,7 @@
     call zpotrf ('L', n, M, n, info)
 #endif
 
-    if (info/=0) call MpiStop('Matrix_CCholesky: not positive definite '//trim(IntToStr(info))) 
+    if (info/=0) call MpiStop('Matrix_CCholesky: not positive definite '//trim(IntToStr(info)))
 
     end subroutine Matrix_CCholesky
 
@@ -1405,11 +1405,11 @@
     real(dm), intent(inout):: M(:,:)
     integer n, info
     integer i,j
-    logical, intent(in), optional :: transpose 
+    logical, intent(in), optional :: transpose
     integer, intent(out), optional :: error
     logical trans
 
-    call Matrix_Cholesky(M, info) 
+    call Matrix_Cholesky(M, info)
     if (info==0) then
         n=size(M,dim=1)
 #ifdef MATRIX_SINGLE
@@ -1432,20 +1432,20 @@
 
     if (trans) then
 
-    do i=1,n
-        do j=1,i-1
-            M(j,i) = M(i,j)
-            M(i,j) = 0
+        do i=1,n
+            do j=1,i-1
+                M(j,i) = M(i,j)
+                M(i,j) = 0
+            end do
         end do
-    end do 
 
     else
 
-    do i=1,n
-        do j=1,i-1
-            M(j,i) = 0
+        do i=1,n
+            do j=1,i-1
+                M(j,i) = 0
+            end do
         end do
-    end do 
 
     end if
     end subroutine Matrix_CholeskyRootInverse
@@ -1455,10 +1455,10 @@
     complex(dm), intent(inout):: M(:,:)
     integer n, info
     integer i,j
-    logical, intent(in), optional :: dagger 
+    logical, intent(in), optional :: dagger
     logical trans
 
-    call Matrix_CCholesky(M) 
+    call Matrix_CCholesky(M)
     n=size(M,dim=1)
 
 #ifdef MATRIX_SINGLE
@@ -1467,7 +1467,7 @@
     call ZTRTRI( 'L', 'N', n, M, n, INFO )
 #endif
 
-    if (info/=0) call MpiStop('Matrix_CCholeskyRootInverse: not positive definite '//trim(IntToStr(info))) 
+    if (info/=0) call MpiStop('Matrix_CCholeskyRootInverse: not positive definite '//trim(IntToStr(info)))
 
     if (present(dagger)) then
         trans = dagger
@@ -1477,20 +1477,20 @@
 
     if (trans) then
 
-    do i=1,n
-        do j=1,i-1
-            M(j,i) = conjg(M(i,j))
-            M(i,j) = 0
+        do i=1,n
+            do j=1,i-1
+                M(j,i) = conjg(M(i,j))
+                M(i,j) = 0
+            end do
         end do
-    end do 
 
     else
 
-    do i=1,n
-        do j=1,i-1
-            M(j,i) = 0
+        do i=1,n
+            do j=1,i-1
+                M(j,i) = 0
+            end do
         end do
-    end do 
 
     end if
     end subroutine Matrix_CCholeskyRootInverse
@@ -1501,7 +1501,7 @@
     !This should not be used in real situations, but useful for quick testing
     real(dm), intent(inout):: M(:,:)
     integer i,j,n
-    integer info  
+    integer info
     integer, optional :: err
 
     n=Size(M,DIM=1)
@@ -1520,15 +1520,15 @@
 #endif
     if (present(err)) then
         err = info
-        if (err/=0) return    
+        if (err/=0) return
     else
-        if (info/=0) call MpiStop('Matrix_inverse: error '//trim(IntToStr(info))) 
+        if (info/=0) call MpiStop('Matrix_inverse: error '//trim(IntToStr(info)))
     end if
     do i=1,n
         do j=1,i-1
             M(j,i) = M(i,j)
         end do
-    end do 
+    end do
     call Matrix_End('Inverse')
 
     end   subroutine Matrix_inverse_chol
@@ -1551,12 +1551,12 @@
     call Matrix_Inverse_Chol(M)
     !
     !     allocate(tmp(Size(M,DIM=1),Size(M,DIM=1)))
-    !   
+    !
     !     n=Size(M,DIM=1)
     !     if (n<=1) return
     !     if (Size(M,DIM=2)/=n) call MpiStop('Matrix_Inverse: non-square matrix')
     !     call Matrix_Start('Inverse')
-    !          
+    !
     !
     !     allocate(norm(n))
     !     do i=1, n
@@ -1567,23 +1567,23 @@
     !        M(:,i) = M(:,i)/norm(i)
     !     end do
     !
-    !     call Matrix_Diagonalize(M,w,n)    
+    !     call Matrix_Diagonalize(M,w,n)
     !     write (*,*), 'min/max eigenvalues = ', minval(w), maxval(w)
     !     if (any(w<=0)) then
     !          write (*,*), 'min/max eigenvalues = ', minval(w), maxval(w)
-    !          call MpiStop('Matrix_Inverse: negative or zero eigenvalues')  
+    !          call MpiStop('Matrix_Inverse: negative or zero eigenvalues')
     !     end if
     !     do i=1, n
     !        tmp(i,:) = M(:,i)/w(i)
     !     end do
     !     allocate(tmp2(Size(M,DIM=1),Size(M,DIM=1)))
-    !     call Matrix_Mult(M,tmp,tmp2)     
+    !     call Matrix_Mult(M,tmp,tmp2)
     !     M = tmp2
     !     do i=1, n
     !        M(i,:) = M(i,:)/norm(i)
     !        M(:,i) = M(:,i)/norm(i)
     !     end do
-    !     deallocate(tmp, tmp2) 
+    !     deallocate(tmp, tmp2)
     !     deallocate(norm)
     !     call Matrix_End('Inverse')
 
@@ -1643,7 +1643,7 @@
     if (Size(d)/=n) call MpiStop('Matrix_GaussianLogLikeDouble: covariance and d different size')
 
     call dpotrf ('L', n, Cov, n, info)
-    if (info/=0) call MpiStop('Matrix_GaussianLogLikeDouble: not positive definite '//trim(IntToStr(info))) 
+    if (info/=0) call MpiStop('Matrix_GaussianLogLikeDouble: not positive definite '//trim(IntToStr(info)))
 
     LogLike = 0
     !Log Det term:
@@ -1678,29 +1678,29 @@
 
     allocate(tmp(n,n),VT(n,n))
 
-    call Matrix_SVD(M,n,n,w,VT)      
+    call Matrix_SVD(M,n,n,w,VT)
 
     do i=1, n
         tmp(i,:) = M(:,i)/w(i)
     end do
 
     call Matrix_Mult_TN(VT,tmp,M,1._dm,0._dm)
-    !  M = matmul(transpose(VT),tmp)   //Changed for HPCF prob Sept 07  
+    !  M = matmul(transpose(VT),tmp)   //Changed for HPCF prob Sept 07
 
-    deallocate(tmp,VT) 
+    deallocate(tmp,VT)
 
     end subroutine Matrix_InverseAsymm
 
     subroutine Matrix_SVD(Mat,m, n, D, VT)
     !Do singular value decomposition of m x n matrix Mat
     !Mat =  U D V^T
-    !returns U in Mat, vector D of diagonal elements of, orthogonal matrix VT= V^T  
+    !returns U in Mat, vector D of diagonal elements of, orthogonal matrix VT= V^T
     integer, intent(in) :: m,n
     real(dm), intent(inout) :: Mat(m,n)
     real(dm), intent(out) :: D(n), VT(n,n)
 
     integer WorkSize, ierr
-    real(dm), allocatable, dimension (:) :: rv1 
+    real(dm), allocatable, dimension (:) :: rv1
 
 
     WorkSize=3*n**2
@@ -1708,9 +1708,9 @@
     allocate(rv1(WorkSize))
     call Matrix_Start('SVD')
 #ifdef MATRIX_SINGLE
-    call SGESVD('O','A',m,n, Mat, m , D,Mat,m,VT,n,rv1,WorkSize,ierr) 
+    call SGESVD('O','A',m,n, Mat, m , D,Mat,m,VT,n,rv1,WorkSize,ierr)
 #else
-    call DGESVD('O','A',m,n, Mat, m , D,Mat,m,VT,n,rv1,WorkSize,ierr) 
+    call DGESVD('O','A',m,n, Mat, m , D,Mat,m,VT,n,rv1,WorkSize,ierr)
 #endif
     if (ierr/=0) call MpiStop('error in Matrix_SVD')
     call Matrix_End('SVD')
@@ -1722,7 +1722,7 @@
     subroutine Matrix_SVD_VT(Mat,m, n, D, U)
     !Do singular value decomposition of m x n matrix Mat
     !Mat =  U D V^dag
-    !returns V^dag in Mat, vector D of diagonal elements of, unitary matrix U  
+    !returns V^dag in Mat, vector D of diagonal elements of, unitary matrix U
     integer, intent(in) :: m,n
     real(dm), intent(inout) :: Mat(m,n)
     real(dm), intent(out),optional :: U(m,m)
@@ -1731,7 +1731,7 @@
     integer WorkSize, ierr
     integer,allocatable, dimension (:) :: IWork
     real(dm), allocatable, dimension (:) :: rv1
-    real(dm) OptWk 
+    real(dm) OptWk
 
     if (n<=m) call MpiStop('Matrix_SVD_VT assumed n>m. ')
 
@@ -1739,19 +1739,19 @@
 
     if (present(U) .and. Matrix_method == Mat_DC) then
         !Use divide and conquer
-        allocate(IWork(8*MIN(M,N))) 
+        allocate(IWork(8*MIN(M,N)))
         WorkSize= -1 !3*min(M,N)*min(M,N) +max(max(M,N),5*min(M,N)*min(M,N)+4*min(M,N))
 #ifdef MATRIX_SINGLE
-        call SGESDD('O',m,n, Mat, m ,D,U,m,Mat,n,OptWk,WorkSize,IWork,ierr) 
+        call SGESDD('O',m,n, Mat, m ,D,U,m,Mat,n,OptWk,WorkSize,IWork,ierr)
 #else     
-        call DGESDD('O',m,n, Mat, m ,D,U,m,Mat,n,OptWk,WorkSize,IWork,ierr) 
+        call DGESDD('O',m,n, Mat, m ,D,U,m,Mat,n,OptWk,WorkSize,IWork,ierr)
 #endif
         WorkSize = nint(OptWk)
-        allocate(rv1(WorkSize))   
+        allocate(rv1(WorkSize))
 #ifdef MATRIX_SINGLE
-        call SGESDD('O',m,n, Mat, m ,D,U,m,Mat,n,rv1,WorkSize,IWork,ierr) 
+        call SGESDD('O',m,n, Mat, m ,D,U,m,Mat,n,rv1,WorkSize,IWork,ierr)
 #else     
-        call DGESDD('O',m,n, Mat, m ,D,U,m,Mat,n,rv1,WorkSize,IWork,ierr) 
+        call DGESDD('O',m,n, Mat, m ,D,U,m,Mat,n,rv1,WorkSize,IWork,ierr)
 #endif
         deallocate(IWOrk)
     else
@@ -1769,7 +1769,7 @@
     subroutine Matrix_CSVD_VT(Mat,m, n, D, U)
     !Do singular value decomposition of m x n matrix Mat
     !Mat =  U D V^dag
-    !returns V^dag in Mat, vector D of diagonal elements of, unitary matrix U  
+    !returns V^dag in Mat, vector D of diagonal elements of, unitary matrix U
     integer, intent(in) :: m,n
     complex(dm), intent(inout) :: Mat(m,n)
     complex(dm), intent(out),optional :: U(m,m)
@@ -1777,7 +1777,7 @@
 
     integer WorkSize, ierr
     integer,allocatable, dimension (:) :: IWork
-    complex(dm), allocatable, dimension (:) :: rv1 
+    complex(dm), allocatable, dimension (:) :: rv1
     real(dm), allocatable, dimension (:) :: rwork
 
     if (n<=m) call MpiStop('Matrix_CSVD_VT assumed n>m. If equal use SVD_U.')
@@ -1787,37 +1787,37 @@
 
     if (present(U) .and. Matrix_method == Mat_DC) then
         !Use divide and conquer
-        WorkSize= 2*min(M,N)*min(M,N)+2*min(M,N)+max(M,N) + 5*N !Add on 5N.. 
-        allocate(rv1(WorkSize))   
+        WorkSize= 2*min(M,N)*min(M,N)+2*min(M,N)+max(M,N) + 5*N !Add on 5N..
+        allocate(rv1(WorkSize))
         allocate(rwork(5*min(M,N)*min(M,N) + 5*min(M,N) ))
-        allocate(IWork(8*MIN(M,N))) 
+        allocate(IWork(8*MIN(M,N)))
 #ifdef MATRIX_SINGLE
-        call CGESDD('O',m,n, Mat, m ,D,U,m,Mat,n,rv1,WorkSize,rwork,IWork,ierr) 
+        call CGESDD('O',m,n, Mat, m ,D,U,m,Mat,n,rv1,WorkSize,rwork,IWork,ierr)
 #else     
-        call ZGESDD('O',m,n, Mat, m ,D,U,m,Mat,n,rv1,WorkSize,rwork,IWork,ierr) 
+        call ZGESDD('O',m,n, Mat, m ,D,U,m,Mat,n,rv1,WorkSize,rwork,IWork,ierr)
 #endif
         deallocate(IWOrk)
     else
 
-    allocate(rwork((max(3*min(m,n),5*min(m,n)-4))))
-    WorkSize= 3*max(m,n)**2
-    allocate(rv1(WorkSize), STAT = ierr)
-    if (ierr /=0) then
-        WorkSize= MAX(3*MIN(M,N)+MAX(M,N),5*MIN(M,N))
-        allocate(rv1(WorkSize))
-    end if
+        allocate(rwork((max(3*min(m,n),5*min(m,n)-4))))
+        WorkSize= 3*max(m,n)**2
+        allocate(rv1(WorkSize), STAT = ierr)
+        if (ierr /=0) then
+            WorkSize= MAX(3*MIN(M,N)+MAX(M,N),5*MIN(M,N))
+            allocate(rv1(WorkSize))
+        end if
 #ifdef MATRIX_SINGLE
-    if (present(U)) then
-        call CGESVD('S','O',m,n, Mat, m , D,U,m,Mat,n,rv1,WorkSize,rwork,ierr) 
-    else
-        call CGESVD('N','O',m,n, Mat, m , D,Mat,m,Mat,n,rv1,WorkSize,rwork,ierr) 
-    end if
+        if (present(U)) then
+            call CGESVD('S','O',m,n, Mat, m , D,U,m,Mat,n,rv1,WorkSize,rwork,ierr)
+        else
+            call CGESVD('N','O',m,n, Mat, m , D,Mat,m,Mat,n,rv1,WorkSize,rwork,ierr)
+        end if
 #else
-    if (present(U)) then
-        call ZGESVD('S','O',m,n, Mat, m , D,U,m,Mat,n,rv1,WorkSize,rwork,ierr) 
-    else
-        call ZGESVD('N','O',m,n, Mat, m , D,Mat,m,Mat,n,rv1,WorkSize,rwork,ierr) 
-    end if
+        if (present(U)) then
+            call ZGESVD('S','O',m,n, Mat, m , D,U,m,Mat,n,rv1,WorkSize,rwork,ierr)
+        else
+            call ZGESVD('N','O',m,n, Mat, m , D,Mat,m,Mat,n,rv1,WorkSize,rwork,ierr)
+        end if
 #endif       
     end if
 
@@ -1831,14 +1831,14 @@
     subroutine Matrix_CSVD_U(Mat,m, n, D, VT)
     !Do singular value decomposition of m x n matrix Mat
     !Mat =  U D VT
-    !returns U in Mat, vector D of diagonal elements of, unitary matrix V  
+    !returns U in Mat, vector D of diagonal elements of, unitary matrix V
     integer, intent(in) :: m,n
     complex(dm), intent(inout) :: Mat(m,n)
     complex(dm), intent(out),optional :: VT(n,n)
     real(dm), intent(out) :: D(*)
     integer WorkSize, ierr
     integer,allocatable, dimension (:) :: IWork
-    complex(dm), allocatable, dimension (:) :: rv1 
+    complex(dm), allocatable, dimension (:) :: rv1
     real(dm), allocatable, dimension (:) :: rwork
 
     call Matrix_Start('CSVD_U')
@@ -1846,14 +1846,14 @@
     if (m<n) call MpiStop('Matrix_CSVD_U assumed m>=n')
 
     if (present(VT) .and. Matrix_method == Mat_DC) then
-        WorkSize= 2*min(M,N)*min(M,N)+2*min(M,N)+max(M,N) + 5*N !Add on 5N.. 
-        allocate(rv1(WorkSize))   
+        WorkSize= 2*min(M,N)*min(M,N)+2*min(M,N)+max(M,N) + 5*N !Add on 5N..
+        allocate(rv1(WorkSize))
         allocate(rwork(5*min(M,N)*min(M,N) + 5*min(M,N) ))
-        allocate(IWork(8*MIN(M,N))) 
+        allocate(IWork(8*MIN(M,N)))
 #ifdef MATRIX_SINGLE
-        call CGESDD('O',m,n, Mat, m ,D,Mat,m,VT,n,rv1,WorkSize,rwork,IWork,ierr) 
+        call CGESDD('O',m,n, Mat, m ,D,Mat,m,VT,n,rv1,WorkSize,rwork,IWork,ierr)
 #else
-        call ZGESDD('O',m,n, Mat, m ,D,Mat,m,VT,n,rv1,WorkSize,rwork,IWork,ierr) 
+        call ZGESDD('O',m,n, Mat, m ,D,Mat,m,VT,n,rv1,WorkSize,rwork,IWork,ierr)
 #endif
         deallocate(IWOrk)
     else
@@ -1867,15 +1867,15 @@
         end if
 #ifdef MATRIX_SINGLE
         if (present(VT)) then
-            call CGESVD('O','S',m,n, Mat, m , D,Mat,m,VT,n,rv1,WorkSize,rwork,ierr) 
+            call CGESVD('O','S',m,n, Mat, m , D,Mat,m,VT,n,rv1,WorkSize,rwork,ierr)
         else
-            call CGESVD('O','N',m,n, Mat, m , D,Mat,m,Mat,n,rv1,WorkSize,rwork,ierr) 
+            call CGESVD('O','N',m,n, Mat, m , D,Mat,m,Mat,n,rv1,WorkSize,rwork,ierr)
         end if
 #else
         if (present(VT)) then
-            call ZGESVD('O','S',m,n, Mat, m , D,Mat,m,VT,n,rv1,WorkSize,rwork,ierr) 
+            call ZGESVD('O','S',m,n, Mat, m , D,Mat,m,VT,n,rv1,WorkSize,rwork,ierr)
         else
-            call ZGESVD('O','N',m,n, Mat, m , D,Mat,m,Mat,n,rv1,WorkSize,rwork,ierr) 
+            call ZGESVD('O','N',m,n, Mat, m , D,Mat,m,Mat,n,rv1,WorkSize,rwork,ierr)
         end if
 #endif  
     end if
@@ -1898,7 +1898,7 @@
     real(dm), intent(out) :: D(m)
 
     integer WorkSize, ierr
-    complex(dm), allocatable, dimension (:) :: rv1 
+    complex(dm), allocatable, dimension (:) :: rv1
     complex(dm), allocatable, dimension (:,:) :: U
     integer, allocatable, dimension(:) :: IWork
     real(dm), allocatable, dimension (:) :: rwork
@@ -1908,15 +1908,15 @@
 
     if (Matrix_method == Mat_DC) then
         !Divide and conquer doesn't seem to provide outputs we want here
-        WorkSize= 2*min(M,N)*min(M,N)+2*min(M,N)+max(M,N) + 5*N !Add on 5N.. 
-        allocate(rv1(WorkSize))   
+        WorkSize= 2*min(M,N)*min(M,N)+2*min(M,N)+max(M,N) + 5*N !Add on 5N..
+        allocate(rv1(WorkSize))
         allocate(rwork(5*min(M,N)*min(M,N) + 5*min(M,N) ))
-        allocate(IWork(8*MIN(M,N))) 
+        allocate(IWork(8*MIN(M,N)))
         allocate(U(m,m))
 #ifdef MATRIX_SINGLE
-        call CGESDD('A',m,n, Mat, m ,D,U,m,VT,n,rv1,WorkSize,rwork,IWork,ierr) 
+        call CGESDD('A',m,n, Mat, m ,D,U,m,VT,n,rv1,WorkSize,rwork,IWork,ierr)
 #else     
-        call ZGESDD('A',m,n, Mat, m ,D,U,m,VT,n,rv1,WorkSize,rwork,IWork,ierr) 
+        call ZGESDD('A',m,n, Mat, m ,D,U,m,VT,n,rv1,WorkSize,rwork,IWork,ierr)
 #endif
         deallocate(U)
         deallocate(IWork)
@@ -1930,9 +1930,9 @@
             allocate(rv1(WorkSize))
         end if
 #ifdef MATRIX_SINGLE
-        call CGESVD('N','A',m,n, Mat, m , D,Mat,m,VT,n,rv1,WorkSize,rwork,ierr) 
+        call CGESVD('N','A',m,n, Mat, m , D,Mat,m,VT,n,rv1,WorkSize,rwork,ierr)
 #else    
-        call ZGESVD('N','A',m,n, Mat, m , D,Mat,m,VT,n,rv1,WorkSize,rwork,ierr) 
+        call ZGESVD('N','A',m,n, Mat, m , D,Mat,m,VT,n,rv1,WorkSize,rwork,ierr)
 #endif    
     end if
 
@@ -2027,7 +2027,7 @@
     call DGETRS('N',n,1,tmp,n,IPIV,Soln,n,info)
 #endif
     if (info/=0) call MpiStop('error (2) in SolveASymm')
-    deallocate(tmp) 
+    deallocate(tmp)
 
     call Matrix_End('SolveASymm')
 
@@ -2073,9 +2073,9 @@
     ! Out = a*Mat*vec + b*out
     real(dm), intent(in) :: Mat(:,:)
     real(dm) vec(:)
-    real(dm) Out(:) 
+    real(dm) Out(:)
     real(dm), intent(in), optional :: a,b
-    real(dm)  mult, beta 
+    real(dm)  mult, beta
     integer m,n
 
     call Matrix_Start('MulVec')
@@ -2089,7 +2089,7 @@
         mult = ROne
     end if
     if (present(b)) then
-        beta = b    
+        beta = b
     else
         beta = RZero
     end if
@@ -2100,7 +2100,7 @@
         else
             out = MatMul(Mat,Vec)
             if (mult /= ROne) Out = Out*mult
-        end if     
+        end if
     else
 #ifdef MATRIX_SINGLE
         call SGEMV('N',m,n,mult,Mat,m,vec, 1,beta, Out,1)
@@ -2116,9 +2116,9 @@
     ! Out = a*Mat*vec + b*out
     real, intent(in) :: Mat(:,:)
     real vec(:)
-    real Out(:) 
+    real Out(:)
     real, intent(in), optional :: a,b
-    real  mult, beta 
+    real  mult, beta
     integer m,n
 
     call Matrix_Start('MulVecSingle')
@@ -2132,7 +2132,7 @@
         mult = SOne
     end if
     if (present(b)) then
-        beta = b    
+        beta = b
     else
         beta = SZero
     end if
@@ -2143,7 +2143,7 @@
         else
             out = MatMul(Mat,Vec)
             if (mult /= SOne) Out = Out*mult
-        end if     
+        end if
     else
         call SGEMV('N',m,n,mult,Mat,m,vec, 1,beta, Out,1)
     end if
@@ -2158,9 +2158,9 @@
     ! Out = a*Mat*vec + b*out
     real(dm), intent(in) :: Mat(:,:)
     real(dm) vec(:)
-    real(dm) Out(:) 
+    real(dm) Out(:)
     real(dm), intent(in), optional :: a,b
-    real(dm)  mult, beta 
+    real(dm)  mult, beta
     integer m,n
 
     call Matrix_Start('MulVecSymm')
@@ -2174,7 +2174,7 @@
         mult = ROne
     end if
     if (present(b)) then
-        beta = b    
+        beta = b
     else
         beta = RZero
     end if
@@ -2185,7 +2185,7 @@
         else
             out = MatMul(Mat,Vec)
             if (mult /= ROne) Out = Out*mult
-        end if     
+        end if
     else
 #ifdef MATRIX_SINGLE
         call SSYMV('U',m,mult,Mat,m,vec, 1,beta, Out,1)
@@ -2201,9 +2201,9 @@
     ! Out = a*Mat*vec + b*out
     real, intent(in) :: Mat(:,:)
     real vec(:)
-    real Out(:) 
+    real Out(:)
     real, intent(in), optional :: a,b
-    real  mult, beta 
+    real  mult, beta
     integer m,n
 
     call Matrix_Start('MulVecSymm')
@@ -2217,7 +2217,7 @@
         mult = SOne
     end if
     if (present(b)) then
-        beta = b    
+        beta = b
     else
         beta = SZero
     end if
@@ -2228,7 +2228,7 @@
         else
             out = MatMul(Mat,Vec)
             if (mult /= ROne) Out = Out*mult
-        end if     
+        end if
     else
         call SSYMV('U',m,mult,Mat,m,vec, 1,beta, Out,1)
     end if
@@ -2271,7 +2271,7 @@
     if (MpiId==0) then
         n=nmat
         sz = Size(Arr(1)%M,DIM=1)
-    end if 
+    end if
     !    if (MpiID==0) then
     !     do i=1,nmat
     !      print *,'inverting',i
@@ -2281,10 +2281,10 @@
     !    return
 #ifdef MPI        
     if (MpiID==0) print *, 'MatrixInverseArray: starting'
-    call MPI_BCAST(n,1,MPI_INTEGER, 0, MPI_COMM_WORLD, ierr) 
-    call MPI_BCAST(sz,1,MPI_INTEGER, 0, MPI_COMM_WORLD, ierr) 
+    call MPI_BCAST(n,1,MPI_INTEGER, 0, MPI_COMM_WORLD, ierr)
+    call MPI_BCAST(sz,1,MPI_INTEGER, 0, MPI_COMM_WORLD, ierr)
     if (MpiID/=0) then
-        allocate(tmp%M(sz,sz))           
+        allocate(tmp%M(sz,sz))
         AM => tmp
     end if
 #endif
@@ -2296,12 +2296,12 @@
             !Do nothing
             if (MpiId==0) then
                 j=mod(i,MpiSize)
-                call MPI_SEND(AM%M,size(AM%M),MPI_DOUBLE_PRECISION, j, 1, MPI_COMM_WORLD, ierr) 
+                call MPI_SEND(AM%M,size(AM%M),MPI_DOUBLE_PRECISION, j, 1, MPI_COMM_WORLD, ierr)
             end if
         else
             if (MpiId/=0) then
                 !Get from main thread
-                call MPI_RECV(AM%M,size(AM%M),MPI_DOUBLE_PRECISION, 0, 1, MPI_COMM_WORLD,MPI_STATUS_IGNORE, ierr) 
+                call MPI_RECV(AM%M,size(AM%M),MPI_DOUBLE_PRECISION, 0, 1, MPI_COMM_WORLD,MPI_STATUS_IGNORE, ierr)
 
             end if
 #endif         
@@ -2309,15 +2309,15 @@
 
 #ifdef MPI
             if (MpiID==0) then
-                do j = max(1,i-MpiSize+1),i-1 
+                do j = max(1,i-MpiSize+1),i-1
                     sid = mod(j,MpiSize)
-                    call MPI_RECV(Arr(j)%M,size(Arr(j)%M),MPI_DOUBLE_PRECISION, sid, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE, ierr) 
+                    call MPI_RECV(Arr(j)%M,size(Arr(j)%M),MPI_DOUBLE_PRECISION, sid, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE, ierr)
                 end do
             else
-                call MPI_SEND(AM%M,size(AM%M),MPI_DOUBLE_PRECISION, 0, 1, MPI_COMM_WORLD, ierr) 
+                call MPI_SEND(AM%M,size(AM%M),MPI_DOUBLE_PRECISION, 0, 1, MPI_COMM_WORLD, ierr)
             end if
 
-        end if 
+        end if
 #endif
     end do
 
@@ -2326,10 +2326,10 @@
     if (MpiID==0) then
         do j=n - mod(n,MpiSize) +1 ,n
             sid= mod(j,MpiSize)
-            call MPI_RECV(ARr(j)%M,Size(ARr(j)%M),MPI_DOUBLE_PRECISION, sid, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE, ierr) 
+            call MPI_RECV(ARr(j)%M,Size(ARr(j)%M),MPI_DOUBLE_PRECISION, sid, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE, ierr)
         end do
     else
-        deallocate(tmp%M)           
+        deallocate(tmp%M)
     end if
 #endif   
     if (MpiID==0) print *, 'MatrixInverseArray: Done'

@@ -16,8 +16,8 @@
     character(LEN=*), parameter :: Recombination_Name = 'HyRec'
 
     public RecombinationParams, Recombination_xe, Recombination_tm, Recombination_init,   &
-    Recombination_ReadParams, Recombination_SetDefParams, &
-    Recombination_Validate, Recombination_Name
+        Recombination_ReadParams, Recombination_SetDefParams, &
+        Recombination_Validate, Recombination_Name
 
 
     contains

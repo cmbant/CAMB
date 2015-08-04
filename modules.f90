@@ -146,9 +146,12 @@
     implicit none
     public
 
-    character(LEN=*), parameter :: version = 'Sources_Jun_15'
+    character(LEN=*), parameter :: version = 'Sources_Aug15'
 
     integer :: FeedbackLevel = 0 !if >0 print out useful information about the model
+
+    logical :: output_file_headers = .true.
+
 
     logical, parameter :: DebugMsgs=.false. !Set to true to view progress and timing
 
@@ -409,7 +412,7 @@
     end if
 
     if (CP%Num_Nu_Massive /= sum(CP%Nu_mass_numbers(1:CP%Nu_mass_eigenstates))) then
-        if (sum(CP%Nu_mass_numbers(1:CP%Nu_mass_eigenstates))/=0) stop 'Num_Nu_Massive is not sum of Nu_mass_numbers'
+        if (sum(CP%Nu_mass_numbers(1:CP%Nu_mass_eigenstates))/=0) call MpiStop('Num_Nu_Massive is not sum of Nu_mass_numbers')
     end if
     if (CP%Omegan == 0 .and. CP%Num_Nu_Massive /=0) then
         if (CP%share_delta_neff) then
@@ -423,7 +426,7 @@
 
     nu_massless_degeneracy = CP%Num_Nu_massless !N_eff for massless neutrinos
     if (CP%Num_nu_massive > 0) then
-        if (CP%Nu_mass_eigenstates==0) stop 'Have Num_nu_massive>0 but no nu_mass_eigenstates'
+        if (CP%Nu_mass_eigenstates==0) call MpiStop('Have Num_nu_massive>0 but no nu_mass_eigenstates')
         if (CP%Nu_mass_eigenstates==1 .and. CP%Nu_mass_numbers(1)==0) CP%Nu_mass_numbers(1) = CP%Num_Nu_Massive
         if (all(CP%Nu_mass_numbers(1:CP%Nu_mass_eigenstates)==0)) CP%Nu_mass_numbers=1 !just assume one for all
         if (CP%share_delta_neff) then
@@ -435,7 +438,7 @@
             CP%Nu_mass_degeneracies(1:CP%Nu_mass_eigenstates) = CP%Nu_mass_numbers(1:CP%Nu_mass_eigenstates)*neff_i
         end if
         if (abs(sum(CP%Nu_mass_fractions(1:CP%Nu_mass_eigenstates))-1) > 1e-4) &
-            stop 'Nu_mass_fractions do not add up to 1'
+            call MpiStop('Nu_mass_fractions do not add up to 1')
     else
         CP%Nu_mass_eigenstates = 0
     end if
@@ -1024,7 +1027,7 @@
     real(dl) a0,b0,ho
     real(dl), parameter :: cllo=1.e30_dl,clhi=1.e30_dl
 
-    if (max_ind > lSet%l0) stop 'Wrong max_ind in InterpolateClArr'
+    if (max_ind > lSet%l0) call MpiStop('Wrong max_ind in InterpolateClArr')
 
     xl = real(lSet%l(1:lSet%l0),dl)
     call spline(xl,iCL(1),max_ind,cllo,clhi,ddCl(1))
@@ -1056,7 +1059,7 @@
     real(dl) DeltaCL(lSet%l0)
     real(dl), allocatable :: tmpall(:)
 
-    if (max_ind > lSet%l0) stop 'Wrong max_ind in InterpolateClArrTemplated'
+    if (max_ind > lSet%l0) call MpiStop('Wrong max_ind in InterpolateClArrTemplated')
 
     if (use_spline_template .and. present(template_index)) then
         if (template_index<=3) then
@@ -1144,6 +1147,11 @@
     integer, parameter :: C_Temp = 1, C_E = 2, C_Cross =3, C_Phi = 4, C_PhiTemp = 5, C_PhiE=6
     integer :: C_last = C_PhiE
     integer, parameter :: CT_Temp =1, CT_E = 2, CT_B = 3, CT_Cross=  4
+    integer, parameter :: name_tag_len = 12
+    character(LEN=name_tag_len), dimension(C_PhiE), parameter :: C_name_tags = ['TT','EE','TE','PP','TP','EP']
+    character(LEN=name_tag_len), dimension(CT_Cross), parameter :: CT_name_tags = ['TT','EE','BB','TE']
+    character(LEN=name_tag_len), dimension(7), parameter :: lens_pot_name_tags = ['TT','EE','BB','TE','PP','TP','EP']
+
 
     logical :: has_cl_2D_array = .false.
 
@@ -1172,7 +1180,7 @@
 
     allocate(CTrans%Delta_p_l_k(CTrans%NumSources,&
         min(CTrans%max_index_nonlimber,CTrans%ls%l0), CTrans%q%npoints),  STAT = st)
-    if (st /= 0) stop 'Init_ClTransfer: Error allocating memory for transfer functions'
+    if (st /= 0) call MpiStop('Init_ClTransfer: Error allocating memory for transfer functions')
     CTrans%Delta_p_l_k = 0
 
     end subroutine Init_ClTransfer
@@ -1255,7 +1263,7 @@
         end do
 
 500     if (L< lmax_extrap_highl) &
-            stop 'CheckLoadedHighLTemplate: template file does not go up to lmax_extrap_highl'
+            call MpiStop('CheckLoadedHighLTemplate: template file does not go up to lmax_extrap_highl')
         close(fileio_unit)
     end if
 
@@ -1291,14 +1299,49 @@
 
     end subroutine Init_Cls
 
+    function open_file_header(filename, Col1, Columns, n) result(unit)
+    character(LEN=*), intent(in) :: filename
+    character(LEN=*), intent(in) :: col1
+    character(LEN=name_tag_len), intent(in) :: Columns(:)
+    integer, intent(in), optional :: n
+    integer :: unit, nn
+
+    if (present(n)) then
+        nn = n
+    else
+        nn = 6
+    end if
+    open(newunit=unit,file=filename,form='formatted',status='replace')
+    if (output_file_headers) then
+        write(unit,'("#",1A'//Trim(IntToStr(nn-1))//'," ",*(A15))') Col1,Columns
+    end if
+
+    end function open_file_header
+
+    function scalar_fieldname(i)
+    integer, intent(in) :: i
+    character(LEN=5) :: scalar_fieldname
+    character(LEN=3), parameter :: scalar_fieldnames = 'TEP'
+
+    if (i<=3) then
+        scalar_fieldname = scalar_fieldnames(i:i)
+    else
+        scalar_fieldname = 'W'//trim(IntToStr(i-3))
+    end if
+
+    end function scalar_fieldname
+
     subroutine output_cl_files(ScalFile,ScalCovFile,TensFile, TotFile, LensFile, LensTotFile, factor)
     implicit none
-    integer in,il
+    integer in,il, i, j
+    character(LEN=4) :: F1, F2
     character(LEN=*) ScalFile, TensFile, TotFile, LensFile, LensTotFile,ScalCovfile
     real(dl), intent(in), optional :: factor
     real(dl) fact
     integer last_C
     real(dl), allocatable :: outarr(:,:)
+    integer unit
+    character(LEN=name_tag_len) :: cov_names((3+num_redshiftwindows)**2)
 
 
     if (present(factor)) then
@@ -1309,85 +1352,93 @@
 
     if (CP%WantScalars .and. ScalFile /= '') then
         last_C=min(C_PhiTemp,C_last)
-        open(unit=fileio_unit,file=ScalFile,form='formatted',status='replace')
+        unit = open_file_header(ScalFile, 'L', C_name_tags(:last_C))
         do in=1,CP%InitPower%nn
             do il=lmin,min(10000,CP%Max_l)
-                write(fileio_unit,trim(numcat('(1I6,',last_C))//'E15.5)')il ,fact*Cl_scalar(il,in,C_Temp:last_C)
+                write(unit,trim(numcat('(1I6,',last_C))//'E15.5)')il ,fact*Cl_scalar(il,in,C_Temp:last_C)
             end do
             do il=10100,CP%Max_l, 100
-                write(fileio_unit,trim(numcat('(1E15.5,',last_C))//'E15.5)') real(il),&
+                write(unit,trim(numcat('(1E15.5,',last_C))//'E15.5)') real(il),&
                     fact*Cl_scalar(il,in,C_Temp:last_C)
             end do
         end do
-        close(fileio_unit)
+        close(unit)
     end if
 
     if (CP%WantScalars .and. has_cl_2D_array .and. ScalCovFile /= '' .and. CTransScal%NumSources>2) then
         allocate(outarr(1:3+num_redshiftwindows,1:3+num_redshiftwindows))
-        open(unit=fileio_unit,file=ScalCovFile,form='formatted',status='replace')
+        do i=1, 3+num_redshiftwindows
+            do j=1, 3+num_redshiftwindows
+                cov_names(j + (i-1)*(3+num_redshiftwindows)) = trim(scalar_fieldname(i))//'x'//trim(scalar_fieldname(j))
+            end do
+        end do
+        unit = open_file_header(ScalCovFile, 'L', cov_names)
+
         do in=1,CP%InitPower%nn
             do il=lmin,min(10000,CP%Max_l)
                 outarr=Cl_scalar_array(il,in,1:3+num_redshiftwindows,1:3+num_redshiftwindows)
                 outarr(1:2,:)=sqrt(fact)*outarr(1:2,:)
                 outarr(:,1:2)=sqrt(fact)*outarr(:,1:2)
-                write(fileio_unit,trim(numcat('(1I6,',(3+num_redshiftwindows)**2))//'E15.5)') il, real(outarr)
+
+                write(unit,trim(numcat('(1I6,',(3+num_redshiftwindows)**2))//'E15.5)') il, real(outarr)
             end do
             do il=10100,CP%Max_l, 100
                 outarr=Cl_scalar_array(il,in,1:3+num_redshiftwindows,1:3+num_redshiftwindows)
                 outarr(1:2,:)=sqrt(fact)*outarr(1:2,:)
                 outarr(:,1:2)=sqrt(fact)*outarr(:,1:2)
-                write(fileio_unit,trim(numcat('(1E15.5,',(3+num_redshiftwindows)**2))//'E15.5)') real(il), real(outarr)
+                write(unit,trim(numcat('(1E15.5,',(3+num_redshiftwindows)**2))//'E15.5)') real(il), real(outarr)
             end do
         end do
-        close(fileio_unit)
+        close(unit)
         deallocate(outarr)
     end if
 
     if (CP%WantTensors .and. TensFile /= '') then
-        open(unit=fileio_unit,file=TensFile,form='formatted',status='replace')
+        unit = open_file_header(TensFile, 'L', CT_name_tags)
         do in=1,CP%InitPower%nn
             do il=lmin,CP%Max_l_tensor
-                write(fileio_unit,'(1I6,4E15.5)')il, fact*Cl_tensor(il, in, CT_Temp:CT_Cross)
+                write(unit,'(1I6,4E15.5)')il, fact*Cl_tensor(il, in, CT_Temp:CT_Cross)
             end do
         end do
-        close(fileio_unit)
+        close(unit)
     end if
 
     if (CP%WantTensors .and. CP%WantScalars .and. TotFile /= '') then
-        open(unit=fileio_unit,file=TotFile,form='formatted',status='replace')
+        unit = open_file_header(TotFile, 'L', CT_name_tags)
         do in=1,CP%InitPower%nn
             do il=lmin,CP%Max_l_tensor
-                write(fileio_unit,'(1I6,4E15.5)')il, fact*(Cl_scalar(il, in, C_Temp:C_E)+ Cl_tensor(il,in, C_Temp:C_E)), &
+                write(unit,'(1I6,4E15.5)')il, fact*(Cl_scalar(il, in, C_Temp:C_E)+ Cl_tensor(il,in, C_Temp:C_E)), &
                     fact*Cl_tensor(il,in, CT_B), fact*(Cl_scalar(il, in, C_Cross) + Cl_tensor(il, in, CT_Cross))
             end do
             do il=CP%Max_l_tensor+1,CP%Max_l
-                write(fileio_unit,'(1I6,4E15.5)')il ,fact*Cl_scalar(il,in,C_Temp:C_E), 0._dl, fact*Cl_scalar(il,in,C_Cross)
+                write(unit,'(1I6,4E15.5)')il ,fact*Cl_scalar(il,in,C_Temp:C_E), 0._dl, fact*Cl_scalar(il,in,C_Cross)
             end do
         end do
-        close(fileio_unit)
+        close(unit)
     end if
 
     if (CP%WantScalars .and. CP%DoLensing .and. LensFile /= '') then
-        open(unit=fileio_unit,file=LensFile,form='formatted',status='replace')
+        unit = open_file_header(LensFile, 'L', CT_name_tags)
         do in=1,CP%InitPower%nn
             do il=lmin, lmax_lensed
-                write(fileio_unit,'(1I6,4E15.5)')il, fact*Cl_lensed(il, in, CT_Temp:CT_Cross)
+                write(unit,'(1I6,4E15.5)')il, fact*Cl_lensed(il, in, CT_Temp:CT_Cross)
             end do
         end do
-        close(fileio_unit)
+        close(unit)
     end if
 
 
     if (CP%WantScalars .and. CP%WantTensors .and. CP%DoLensing .and. LensTotFile /= '') then
-        open(unit=fileio_unit,file=LensTotFile,form='formatted',status='replace')
+        unit = open_file_header(LensTotFile, 'L', CT_name_tags)
         do in=1,CP%InitPower%nn
             do il=lmin,min(CP%Max_l_tensor,lmax_lensed)
-                write(fileio_unit,'(1I6,4E15.5)')il, fact*(Cl_lensed(il, in, CT_Temp:CT_Cross)+ Cl_tensor(il,in, CT_Temp:CT_Cross))
+                write(unit,'(1I6,4E15.5)')il, fact*(Cl_lensed(il, in, CT_Temp:CT_Cross)+ Cl_tensor(il,in, CT_Temp:CT_Cross))
             end do
             do il=min(CP%Max_l_tensor,lmax_lensed)+1,lmax_lensed
-                write(fileio_unit,'(1I6,4E15.5)')il, fact*Cl_lensed(il, in, CT_Temp:CT_Cross)
+                write(unit,'(1I6,4E15.5)')il, fact*Cl_lensed(il, in, CT_Temp:CT_Cross)
             end do
         end do
+        close(unit)
     end if
     end subroutine output_cl_files
 
@@ -1399,6 +1450,7 @@
     real(dl), intent(in), optional :: factor
     real(dl) fact, scale, BB, TT, TE, EE
     character(LEN=*) LensPotFile
+    integer unit
     !output file of dimensionless [l(l+1)]^2 C_phi_phi/2pi and [l(l+1)]^(3/2) C_phi_T/2pi
     !This is the format used by Planck_like but original LensPix uses scalar_output_file.
 
@@ -1412,7 +1464,7 @@
     end if
 
     if (CP%WantScalars .and. CP%DoLensing .and. LensPotFile/='') then
-        open(unit=fileio_unit,file=LensPotFile,form='formatted',status='replace')
+        unit =  open_file_header(LensPotFile, 'L', lens_pot_name_tags)
         do in=1,CP%InitPower%nn
             do il=lmin,min(10000,CP%Max_l)
                 TT = Cl_scalar(il, in, C_Temp)
@@ -1428,17 +1480,17 @@
                 end if
                 scale = (real(il+1)/il)**2/OutputDenominator !Factor to go from old l^4 factor to new
 
-                write(fileio_unit,'(1I6,7E15.5)') il , fact*TT, fact*EE, fact*BB, fact*TE, scale*Cl_scalar(il,in,C_Phi),&
+                write(unit,'(1I6,7E15.5)') il , fact*TT, fact*EE, fact*BB, fact*TE, scale*Cl_scalar(il,in,C_Phi),&
                     (real(il+1)/il)**1.5/OutputDenominator*sqrt(fact)*Cl_scalar(il,in,C_PhiTemp:C_PhiE)
             end do
             do il=10100,CP%Max_l, 100
                 scale = (real(il+1)/il)**2/OutputDenominator
-                write(fileio_unit,'(1E15.5,7E15.5)') real(il), fact*Cl_scalar(il,in,C_Temp:C_E),0.,fact*Cl_scalar(il,in,C_Cross), &
+                write(unit,'(1E15.5,7E15.5)') real(il), fact*Cl_scalar(il,in,C_Temp:C_E),0.,fact*Cl_scalar(il,in,C_Cross), &
                     scale*Cl_scalar(il,in,C_Phi),&
                     (real(il+1)/il)**1.5/OutputDenominator*sqrt(fact)*Cl_scalar(il,in,C_PhiTemp:C_PhiE)
             end do
         end do
-        close(fileio_unit)
+        close(unit)
     end if
     end subroutine output_lens_pot_files
 
@@ -1449,7 +1501,7 @@
     character(LEN=*) VecFile
     real(dl), intent(in), optional :: factor
     real(dl) fact
-
+    integer unit
 
     if (present(factor)) then
         fact = factor
@@ -1459,14 +1511,13 @@
 
 
     if (CP%WantVectors .and. VecFile /= '') then
-        open(unit=fileio_unit,file=VecFile,form='formatted',status='replace')
+        unit =  open_file_header(VecFile, 'L', CT_name_tags)
         do in=1,CP%InitPower%nn
             do il=lmin,CP%Max_l
-                write(fileio_unit,'(1I5,4E15.5)')il, fact*Cl_vector(il, in, CT_Temp:CT_Cross)
+                write(unit,'(1I6,4E15.5)')il, fact*Cl_vector(il, in, CT_Temp:CT_Cross)
             end do
         end do
-
-        close(fileio_unit)
+        close(unit)
     end if
 
     end subroutine output_veccl_files
@@ -1803,6 +1854,10 @@
     integer, parameter :: Transfer_monopole=4, Transfer_vnewt=5, Transfer_Tmat = 6
 
     integer, parameter :: Transfer_max = Transfer_vel_baryon_cdm
+    character(LEN=name_tag_len) :: Transfer_name_tags(Transfer_max-1) = &
+        ['CDM','baryon','photon','nu','mass_nu','total', 'no_nu','total_de', 'Weyl', 'v_CDM','v_b','v_b-v_c']
+    character(LEN=name_tag_len) :: Transfer21cn_name_tags(Transfer_max-1) = &
+        ['CDM','baryon','photon','monopole','v_newt','delta_T_g', 'no_nu','total_de', 'Weyl', 'v_CDM','v_b','v_b-v_c']
 
     logical :: transfer_interp_matterpower  = .true. !output regular grid in log k
     !set to false to output calculated values for later interpolation
@@ -1883,7 +1938,7 @@
 
     nk=M%num_q_trans
     nz=CP%Transfer%PK_num_redshifts
-    if (nk/= size(PK,1) .or. nz/=size(PK,2)) stop 'Trasfer_GetUnsplinedPower wrong size'
+    if (nk/= size(PK,1) .or. nz/=size(PK,2)) call MpiStop('Trasfer_GetUnsplinedPower wrong size')
 
     h = CP%H0/100
 
@@ -2237,7 +2292,7 @@
 
     itf = CP%Transfer%PK_redshifts_index(itf_PK)
 
-    if (npoints < 2) stop 'Need at least 2 points in Transfer_GetMatterPower'
+    if (npoints < 2) call MpiStop('Need at least 2 points in Transfer_GetMatterPower')
 
     !         if (minkh < MTrans%TransferData(Transfer_kh,1,itf)) then
     !            stop 'Transfer_GetMatterPower: kh out of computed region'
@@ -2403,7 +2458,7 @@
     dsig8o=0
     sig8=0
     sig8o=0
-    if (MTrans%TransferData(Transfer_kh,1,1)==0) stop 'Transfer_GetSigmaRArray kh zero'
+    if (MTrans%TransferData(Transfer_kh,1,1)==0) call MpiStop('Transfer_GetSigmaRArray kh zero')
     do ik=1, MTrans%num_q_trans + 2
         if (ik < MTrans%num_q_trans) then
             dkh = (MTrans%TransferData(Transfer_kh,ik+1,1)- MTrans%TransferData(Transfer_kh,ik,1))/nsub
@@ -2568,7 +2623,7 @@
         maxRedshift =15
     end if
     if (P%NLL_num_redshifts > max_transfer_redshifts) &
-        stop 'Transfer_SetForNonlinearLensing: Too many redshifts'
+        call MpiStop('Transfer_SetForNonlinearLensing: Too many redshifts')
     do i=1,P%NLL_num_redshifts
         P%NLL_redshifts(i) = real(P%NLL_num_redshifts-i)/(P%NLL_num_redshifts/maxRedshift)
     end do
@@ -2584,22 +2639,22 @@
     character(LEN=Ini_max_string_len), intent(IN) :: FileNames(*)
     !JD 08/13 Changes in here to PK arrays and variables
     integer i_PK
-    character(len=20) fmt
-
-
-    write (fmt,*) Transfer_max
-    fmt = '('//trim(adjustl(fmt))//'E14.6)'
+    integer unit
 
     do i_PK=1, CP%Transfer%PK_num_redshifts
         if (FileNames(i_PK) /= '') then
             i = CP%Transfer%PK_redshifts_index(i_PK)
-            open(unit=fileio_unit,file=FileNames(i_PK),form='formatted',status='replace')
+            if (do21cm) then
+                unit = open_file_header(FileNames(i_PK), 'k/h', Transfer21cn_name_tags, 14)
+            else
+                unit = open_file_header(FileNames(i_PK), 'k/h', transfer_name_tags, 14)
+            end if
             do ik=1,MTrans%num_q_trans
                 if (MTrans%TransferData(Transfer_kh,ik,i)/=0) then
-                    write(fileio_unit,fmt) MTrans%TransferData(Transfer_kh:Transfer_max,ik,i)
+                    write(unit,'(*(E15.6))') MTrans%TransferData(Transfer_kh:Transfer_max,ik,i)
                 end if
             end do
-            close(fileio_unit)
+            close(unit)
         end if
     end do
 
@@ -2613,7 +2668,6 @@
     integer itf,in,i
     integer points
     real, dimension(:,:,:), allocatable :: outpower
-    character(LEN=80) fmt
     real minkh,dlnkh
     Type(MatterPowerData) :: PK_data
     integer ncol
@@ -2621,6 +2675,8 @@
     logical all21
     !JD 08/13 Changes in here to PK arrays and variables
     integer itf_PK
+    integer unit
+    character(name_tag_len) :: columns(3)
 
     if (present(all21cm)) then
         all21 = all21cm
@@ -2633,8 +2689,8 @@
         ncol = 1
     end if
 
-    write (fmt,*) CP%InitPower%nn+1
-    fmt = '('//trim(adjustl(fmt))//'E15.5)'
+    if (CP%InitPower%nn>1 .and. output_file_headers) error stop 'InitPower%nn>1 deprecated'
+
     do itf=1, CP%Transfer%PK_num_redshifts
         if (FileNames(itf) /= '') then
             if (.not. transfer_interp_matterpower ) then
@@ -2670,12 +2726,12 @@
 
                     call MatterPowerdata_Free(PK_Data)
                 end do
-
-                open(unit=fileio_unit,file=FileNames(itf),form='formatted',status='replace')
+                columns = ['P', 'P_vd','P_vv']
+                unit = open_file_header(FileNames(itf), 'k/h', columns(:ncol), 15)
                 do i=1,points
-                    write (fileio_unit, fmt) MTrans%TransferData(Transfer_kh,i,1),outpower(i,1:CP%InitPower%nn,:)
+                    write (unit, '(*(E15.5))') MTrans%TransferData(Transfer_kh,i,1),outpower(i,1:CP%InitPower%nn,:)
                 end do
-                close(fileio_unit)
+                close(unit)
             else
                 if (all21) stop 'Transfer_SaveMatterPower: if output all assume not interpolated'
                 minkh = 1e-4
@@ -2687,11 +2743,13 @@
                     call Transfer_GetMatterPowerS(MTrans,outpower(1,in,1), itf, in, minkh,dlnkh, points)
                 end do
 
-                open(unit=fileio_unit,file=FileNames(itf),form='formatted',status='replace')
+                columns(1) = 'P'
+                unit = open_file_header(FileNames(itf), 'k/h', columns(:1), 15)
+
                 do i=1,points
-                    write (fileio_unit, fmt) minkh*exp((i-1)*dlnkh),outpower(i,1:CP%InitPower%nn,1)
+                    write (unit, '(*(E15.5))') minkh*exp((i-1)*dlnkh),outpower(i,1:CP%InitPower%nn,1)
                 end do
-                close(fileio_unit)
+                close(unit)
             end if
 
             deallocate(outpower)
@@ -2884,7 +2942,7 @@
     character(LEN=Ini_max_string_len), intent(IN) :: FileNames(*)
     integer itf,in,ik
     integer points
-    character(LEN=80) fmt
+    integer unit
 
     Type(MatterPowerData), target ::PK_data
     real(dl) rombint_obj, tol,atol, chi, Cl
@@ -2895,8 +2953,6 @@
 
 
     tol = 1e-5/exp(AccuracyBoost-1)
-    write (fmt,*) CP%InitPower%nn+1
-    fmt = '('//trim(adjustl(fmt))//'E15.5)'
     do itf=1, CP%Transfer%num_redshifts
         if (FileNames(itf) /= '') then
             !print *, 'tau = ', MTrans%optical_depths(itf)
@@ -2911,7 +2967,7 @@
 
             call Transfer_Get21cmPowerData(MTrans, PK_data, in, itf)
 
-            open(unit=fileio_unit,file=FileNames(itf),form='formatted',status='replace')
+            unit = open_file_header(FileNames(itf), 'L', ['CL','P','P_vv'])
 
             do ik =1, points-1
                 k =exp(PK_data%log_k(ik))
@@ -2979,11 +3035,11 @@
 
                     Cl=exp(-2*MTrans%optical_depths(itf))*fourpi*Cl*real(l,dl)*(l+1)/twopi/1d10
 
-                    write (fileio_unit, '(1I12,3E15.6)') l, Cl, exp(PK_data%matpower(ik,1)/1d10), exp(PK_data%vvpower(ik,1)/1d10)
+                    write (unit, '(1I12,3E15.6)') l, Cl, exp(PK_data%matpower(ik,1)/1d10), exp(PK_data%vvpower(ik,1)/1d10)
                 end if
             end do
 
-            close(fileio_unit)
+            close(unit)
 
             call MatterPowerdata_Free(PK_Data)
         end if
@@ -3098,13 +3154,13 @@
         !Linear interpolation if out of bounds (should not occur).
         cs2b=cs2(1)+(d+i-1)*dcs2(1)
         opacity=dotmu(1)+(d-1)*ddotmu(1)
-        stop 'thermo out of bounds'
+        call MpiStop('thermo out of bounds')
     else if (i >= nthermo) then
         cs2b=cs2(nthermo)+(d+i-nthermo)*dcs2(nthermo)
         opacity=dotmu(nthermo)+(d-nthermo)*ddotmu(nthermo)
         if (present(dopacity)) then
             dopacity = 0
-            stop 'thermo: shouldn''t happen'
+            call MpiStop('thermo: shouldn''t happen')
         end if
     else
         !Cubic spline interpolation.
