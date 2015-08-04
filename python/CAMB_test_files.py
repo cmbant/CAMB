@@ -17,40 +17,151 @@ parser.add_argument('--no_run_test', action='store_true', help='don''t run tests
 parser.add_argument('--prog', default='./camb', help='executable to run')
 parser.add_argument('--clean', action='store_true', help='delete output dir before run')
 parser.add_argument('--diff_to', help='output directory to compare to, e.g. test_outputs2')
-parser.add_argument('--diff_tolerance', type=float, help='the tolerance for the numerical diff [default: 1e-4]', default=1e-4)
+parser.add_argument('--diff_tolerance', type=float, help='the tolerance for the numerical diff when no explicit '+
+                                                         'diff is given [default: 1e-4]', default=1e-4)
 parser.add_argument('--verbose_diff_output', action='store_true', help='during diff_to print more error messages')
 parser.add_argument('--num_diff', action='store_true', help='during diff_to print more error messages')
 
 args = parser.parse_args()
 
 # The tolerance matrix gives the tolerances for comparing two values of the actual results with
-# results given in a diff_to. An asterisk is used as a glob character matching parts or whole names.
-# Globing can be prefix or postfix, but not infix. The first index of the map is the filename matcher.
-# The second the column name matcher.
+# results given in a diff_to. Filename globing is supported by fnmatch. The first glob matching
+# is the winner and its tolerances will be used. To implement a first match order, a regular array
+# had to be used instead of a dictionary for the filetolmatrix. The first match is then implemented
+# in the routine getToleranceVector().
+
 class ColTol(dict):
-    def __getitem__(self, item):
-        return args.diff_tolerance
-
-class FileTolMat(dict):
+    """
+    Specify the column tolerances for all columns in a file.
+     This class is inherited from the dict class and overrides the missing
+     method to return the tolerance of the asterisk key, which is denoting
+     the tolerances for all not explicitly specified columns. The
+     tolerance for a column can be ignored be using the <b>ignore</b> value.
+     A tolerance for the |old-new| < tol can be specified by giving the
+     scalar tolerance or a function of two vectors. The first vector contains
+     all columns of the old values the second all values of the new values.
+     The values are addressed by the columns names taken from the newer
+     file. The function has to return true, when the new value is ok, false
+     else.
+     Additionally ranges of tolerances or functions can be given as a sorted
+     list of 2-tupples. The first value is lower bound of the column "L" for
+     which the second value/function is applicable. The lists is traversed as
+     long as "L" is smaller then first value or the list ends. The second
+     value is then taken for the comparison.
+    """
     def __missing__(self, item):
-        keys = self.keys()
-        cands = []
-        for key in keys:
-            if fnmatch.fnmatch(item, key):
-                cands += [key]
-        if (len(cands) == 0):
-            return args.diff_tolerance
-        best = ""
-        for c in cands:
-            if (len(c)> len(best)):
-                best = c
-        return self[c]
+        return self["*"]
 
+class Ignore():
+    """
+    Ignore files of this class completely.
+    """
+    pass
+
+
+def normsqrt(v):
+    """
+    Implement TE/ sqrt(EE * TT).
+    :param v: The current row of values.
+    :return: The quotient of TE/ sqrt(EE *TT)
+    :rtype : float
+    """
+    return v["TE"] / math.sqrt(v["EE"] * v["TT"])
+
+def normsqrtx(v):
+    """
+    Implement TxE/ sqrt(ExE * TxT).
+    :param v: The current row of values.
+    :return: The quotient of TxE/ sqrt(ExE *TxT)
+    :rtype : float
+    """
+    return v["TxE"] / math.sqrt(v["ExE"] * v["TxT"])
+
+def diffnsqrt(old, new, tol, f):
+    """
+    Implement |f(old) - f(new)| < tol.
+    :param old: The row of the old values.
+    :param new: The row of the new values.
+    :param tol: The tolerance to match.
+    :param f: The function to apply to old and new.
+    :return: True, when |f(old) - f(new)| < tol, false else.
+    :rtype : bool
+    """
+    return math.fabs(f(old) - f(new)) < tol
+
+# A value large enough to make the |old- new| < ignore always be true.
+ignore = 1e10
+
+# A short cut for lensedCls and lenspotentialCls files.
+coltol1 = ColTol({"L": ignore,
+                  "TT": [(   0, 3e-3),
+                         ( 600, 1e-3),
+                         (2500, 3e-3)],
+                  "EE": [(   0, 3e-3),
+                         ( 600, 1e-3),
+                         (2500, 3e-3)],
+                  "BB": [(   0, 5e-3),
+                         (1000, 1e-2)],
+                  "TE": [(   0, lambda o, n: diffnsqrt(o, n, 3e-3, normsqrt)),
+                         ( 600, lambda o, n: diffnsqrt(o, n, 1e-3, normsqrt)),
+                         (2500, lambda o, n: diffnsqrt(o, n, 3e-3, normsqrt))],
+                  "PP": [(   0, 5e-3),
+                         (1000, 1e-2)],
+                  "TP": [(   0, 0.01),
+                         ( 100, ignore)],
+                  "EP": [(   0, 0.02),
+                         (  60, ignore)],
+                  "*" : ignore})
+
+# The filetolmatrix as described above.
 global filetolmatrix
-filetolmatrix = FileTolMat({"*": ColTol({"*": args.diff_tolerance}),
-                            "params_21*": ColTol({"#L": 1e10, "TT": args.diff_tolerance,
-                                                  "TE": args.diff_tolerance, "*": 1e10}),
-                            "params_mu_massless*": ColTol({"*": args.diff_tolerance})})
+filetolmatrix = [["*scalCls.dat", Ignore()], # Ignore all scalCls.dat files.
+                 ["*lensedCls.dat", coltol1], # lensed and lenspotential files both use coltol1 given above
+                 ["*lenspotentialCls.dat", coltol1],
+                 ["*scalCovCls.dat", ColTol({"L": ignore, # This is like lensed with some add. columns and an x in the names
+                                             "TxT": [(   0, 3e-3),
+                                                     ( 600, 1e-3),
+                                                     (2500, 3e-3)],
+                                             "ExE": [(   0, 3e-3),
+                                                     ( 600, 1e-3),
+                                                     (2500, 3e-3)],
+                                             "BxB": [(   0, 5e-3),
+                                                     (1000, 1e-2)],
+                                             "TxE": [(   0, lambda o, n: diffnsqrt(o, n, 3e-3, normsqrtx)),
+                                                     ( 600, lambda o, n: diffnsqrt(o, n, 1e-3, normsqrtx)),
+                                                     (2500, lambda o, n: diffnsqrt(o, n, 3e-3, normsqrtx))],
+                                             "PxP": [(   0, 5e-3),
+                                                     (1000, 1e-2)],
+                                             "TxP": [(   0, 0.01),
+                                                     ( 100, ignore)],
+                                             "ExP": [(   0, 0.02),
+                                                     (  60, ignore)],
+                                             "TxW1": 5e-3,
+                                             "ExW1": 5e-3,
+                                             "PxW1": 5e-3,
+                                             "W1xT": 5e-3,
+                                             "W1xE": 5e-3,
+                                             "W1xP": 5e-3,
+                                             "W1xW1": 5e-3,
+                                             "PxW2": 5e-3,
+                                             "W1xW2": 5e-3,
+                                             "W2xT": 5e-3,
+                                             "W2xE": 5e-3,
+                                             "W2xP": 5e-3,
+                                             "W2xW1": 5e-3,
+                                             "W2xW2": 5e-3,
+                                             "*" : ignore})],
+                 ["*tensCls.dat", ColTol({"*": [(  0, 1e-2),
+                                                (600, ignore)]})],
+                 ["*matterpower.dat", ColTol({"P": lambda o, n: math.fabs(o["P"]- n["P"]) < (1e-3 if n["k/h"]< 1 else 3e-3),
+                                              "*": ignore})],
+                 ["*transfer_out.dat", ColTol({"baryon": lambda o, n: math.fabs(o["baryon"]- n["baryon"]) < (1e-3 if n["k/h"]< 1 else 3e-3),
+                                               "CDM": lambda o, n: math.fabs(o["CDM"]- n["CDM"]) < (1e-3 if n["k/h"]< 1 else 3e-3),
+                                               "v_CDM": lambda o, n: math.fabs(o["v_CDM"]- n["v_CDM"]) < (1e-3 if n["k/h"]< 1 else 3e-3),
+                                               "v_b": lambda o, n: math.fabs(o["v_b"]- n["v_b"]) < (1e-3 if n["k/h"]< 1 else 3e-3),
+                                               "*": ignore})],
+                 ["*", ColTol({"*": args.diff_tolerance})],
+                ]
 
 
 prog = os.path.abspath(args.prog)
@@ -227,53 +338,119 @@ def makeIniFiles():
                     + '\n'.join(pars[1:]) + '\nDEFAULT(' + base_ini + ')\n')
     return inis
 
-tolerances = []
-
-def getToleranceVector(filename, cols):
-    filetols = filetolmatrix[filename]
-    return [filetols[t] for t in cols]
+def get_tolerance_vector(filename, cols):
+    """
+    Get the tolerances for the given filename.
+    :param filename: The name of the file to retrieve the tolerances for.
+    :param cols: Gives the column names.
+    :returns: False, when the file is to be ignored completely;
+    the vector of tolerances when a pattern in the filetolmatrix matched;
+    an empty ColTol when no match was found.
+    """
+    for key, val in filetolmatrix:
+        if fnmatch.fnmatch(filename, key):
+            if isinstance(val, Ignore):
+                return False
+            else:
+                return [val[t] for t in cols]
+    return ColTol()
 
 def num_unequal(filename, cmpFcn):
-    # Check whether two files are unequal for the given tolerance
+    """
+    Check whether two files are numerically unequal for the given compare function.
+    :param filename: The base name of the files to check.
+    :param cmpFcn: The default comparison function. Can be overriden by the filetolmatrix.
+    :return: True, when the files do not match, false else.
+    """
     orig_name = os.path.join(args.ini_dir, args.diff_to, filename)
     with open(orig_name) as f:
         origMat = [[x for x in ln.split()] for ln in f]
+        # Check if the first row has one more column, which is the #
+        if len(origMat[0]) == len(origMat[1]) + 1:
+            origBase = 1
+            origMat[0] = origMat[0][1:]
+        else:
+            origBase = 0
     new_name = os.path.join(args.ini_dir, args.out_files_dir, filename)
     with open(new_name) as f:
         newMat = [[x for x in ln.split()] for ln in f]
-    if len(origMat) != len(newMat):
+        if len(newMat[0]) == len(newMat[1]) + 1:
+            newBase = 1
+            newMat[0] = newMat[0][1:]
+        else:
+            newBase = 0
+    if len(origMat) - origBase != len(newMat) - newBase:
         if args.verbose_diff_output:
             print('num rows do not match in %s: %d != %d' % (filename, len(origMat), len(newMat)))
         return True
-    try:
-        fl = float(origMat[0][0])
-    except:
-        cols = origMat[0]
-        base = 0
+    if newBase == 1:
+        cols = newMat[0]
     else:
-        cols = range(len(origMat[0]))
-        base = 1
+        cols = range(len(newMat[0]))
 
-    tolerances = getToleranceVector(filename, cols)
+    tolerances = get_tolerance_vector(filename, cols)
     row = 0
-    for o_row, n_row in zip(origMat[base:], newMat[base:]):
-        row += 1
-        col = 0
-        if len(o_row) != len(n_row):
+    col = 0
+    try:
+        if tolerances:
+            for o_row, n_row in zip(origMat[origBase:], newMat[newBase:]):
+                row += 1
+                if len(o_row) != len(n_row):
+                    if args.verbose_diff_output:
+                        print('num columns do not match in %s: %d != %d' % (filename, len(o_row), len(n_row)))
+                    return True
+                col = 0
+                oldrow = False
+                newrow = False
+                for o, n in zip(o_row, n_row):
+                    if isinstance(tolerances[col], float):
+                        if cmpFcn(o, n, tolerances[col]):
+                            if args.verbose_diff_output:
+                                print('value mismatch at %d, %d ("%s") of %s: %s != %s' % (row, col + 1, cols[col], filename, o, n))
+                            return True
+                    else:
+                        if not oldrow:
+                            oldrow = dict(zip(cols, [float(f) for f in o_row]))
+                            newrow = dict(zip(cols, [float(f) for f in n_row]))
+                        if isinstance(tolerances[col], list):
+                            cand = False
+                            for lim, rhs in tolerances[col]:
+                                if lim < newrow["L"]:
+                                    cand = rhs
+                                else:
+                                    break
+                            if isinstance(cand, float):
+                                if cmpFcn(o, n, cand):
+                                    if args.verbose_diff_output:
+                                        print('value mismatch at %d, %d ("%s") of %s: %s != %s' % (row, col + 1, cols[col], filename, o, n))
+                                    return True
+                            else:
+                                if not cand(oldrow, newrow):
+                                    if args.verbose_diff_output:
+                                        print('value mismatch at %d, %d ("%s") of %s: %s != %s' % (row, col+ 1, cols[col], filename, o, n))
+                                    return True
+                        else:
+                            if not tolerances[col](oldrow, newrow):
+                                if args.verbose_diff_output:
+                                    print('value mismatch at %d, %d ("%s") of %s: %s != %s' % (row, col+ 1, cols[col], filename, o, n))
+                                return True
+                    col += 1
+            return False
+        else:
             if args.verbose_diff_output:
-                print('num columns do not match in %s: %d != %d' % (filename, len(o_row), len(n_row)))
-            return True
-        for o, n in zip(o_row, n_row):
-            col += 1
-            if cmpFcn(o, n, tolerances[col- 1]):
-                if args.verbose_diff_output:
-                    print('value mismatch at %d, %d of %s: %s != %s' % (row, col, filename, o, n))
-                return True
-    return False
+                print("Skipped file %s" % (filename))
+            return False
+    except ValueError as e:
+        print("ValueError: '%s' at %d, %d in file: %s" % (e.message, row, col + 1, filename))
+        return True
 
-# Need to implement our own split, because for exponents of three digits
-# the 'E' marking the exponent is dropped, which is not supported by python.
 def customsplit(s):
+    """
+    Need to implement our own split, because for exponents of three digits
+    the 'E' marking the exponent is dropped, which is not supported by python.
+    :param s: The string to split.
+    :return: An array containing the mantissa and the exponent, or the value, when no split was possible.
+    """
     n = len(s)
     i = n - 1
     # Split the exponent from the string by looking for ['E']('+'|'-')D+
@@ -283,11 +460,17 @@ def customsplit(s):
         i -= 1
     return [ s ]
 
-# Do a textual comparison for numbers whose exponent is zero or greater.
-# The fortran code writes floating point values, with 5 significant digits
-# after the comma and an exponent. I.e., for numbers with a positive
-# exponent the usual comparison against a delta fails.
 def textualcmp(o, n, tolerance):
+    """
+    Do a textual comparison for numbers whose exponent is zero or greater.
+    The fortran code writes floating point values, with 5 significant digits
+    after the comma and an exponent. I.e., for numbers with a positive
+    exponent the usual comparison against a delta fails.
+    :param o: The old value.
+    :param n: The new value.
+    :param tolerance: The allowed tolerance.
+    :return: True, when |o - n| is greater then the tolerance allows, false else.
+    """
     os = customsplit(o)
     ns = customsplit(n)
     if len(os) > 1 and len(ns) > 1:
@@ -320,15 +503,13 @@ if args.diff_to:
     out_files_dir2 = os.path.join(args.ini_dir, args.diff_to)
     match, mismatch, errors = filecmp.cmpfiles(out_files_dir, out_files_dir2,
          list(set(list_files(out_files_dir)) | set(list_files(out_files_dir2))))
-    if len(errors) and len(errors) != 1 and errors[0] != args.diff_to:
-        len_errors = len(errors) - 1
+    len_errors = len(errors)
+    if len_errors and len_errors != 1 and errors[0] != args.diff_to:
         print('Missing/Extra files:')
         for err in errors:
             # Only print files that are not the diff_to
             if (err != args.diff_to):
                 print('  ' + err)
-    else:
-        len_errors = 0
     if len(mismatch):
         numerical_mismatch = [f for f in mismatch if num_unequal(f, defCmpFcn)]
         if len(numerical_mismatch):

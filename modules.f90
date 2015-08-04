@@ -1295,7 +1295,6 @@
     function open_file_header(filename, Col1, Columns, n) result(unit)
     character(LEN=*), intent(in) :: filename
     character(LEN=*), intent(in) :: col1
-    character(LEN=:), allocatable :: temp
     character(LEN=name_tag_len), intent(in) :: Columns(:)
     integer, intent(in), optional :: n
     integer :: unit, nn
@@ -1304,8 +1303,7 @@
 
     open(newunit=unit,file=filename,form='formatted',status='replace')
     if (output_file_headers) then
-        temp = '#'//Col1
-        write(unit,'(1A'//Trim(IntToStr(nn-1))//'," ",*(A15))') temp,Columns
+        write(unit,'("#",1A'//Trim(IntToStr(nn-1))//'," ",*(A15))') Col1, Columns
     end if
 
     end function open_file_header

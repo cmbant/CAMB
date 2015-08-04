@@ -50,7 +50,7 @@
     integer i
 
     if (Ini%HasKey('usew0wa')) then
-        stop 'input variables changed from usew0wa: now use_tabulated_w or w, wa'
+        error stop 'input variables changed from usew0wa: now use_tabulated_w or w, wa'
     end if
 
     this%use_tabulated_w = Ini%Read_Logical('use_tabulated_w', .false.)
@@ -70,8 +70,7 @@
         enddo
         write(*,'("Note: ", a, " has more than ", I8, " data points")') &
         &   trim(wafile), nwmax
-        write(*,*)'Increase nwmax in LambdaGeneral'
-        stop
+        error stop 'Increase nwmax in DarkEnergyPPFModule'
 100     close(10)
         write(*,'("read in ", I8, " (a, w) data points from ", a)') &
         &   this%nw_ppf, trim(wafile)
@@ -223,7 +222,7 @@
         goto 1
     endif
     h=xa(khi)-xa(klo)
-    if (h.eq.0.) stop 'bad xa input in splint'
+    if (h.eq.0.) error stop 'bad xa input in splint'
     a=(xa(khi)-x)/h
     b=(x-xa(klo))/h
     y=a*ya(klo)+b*ya(khi)+&
