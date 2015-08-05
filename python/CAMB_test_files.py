@@ -36,7 +36,7 @@ class ColTol(dict):
      This class is inherited from the dict class and overrides the missing
      method to return the tolerance of the asterisk key, which is denoting
      the tolerances for all not explicitly specified columns. The
-     tolerance for a column can be ignored be using the <b>ignore</b> value.
+     tolerance for a column can be Ignore()d be using the <b>Ignore()</b> value.
      A tolerance for the |old-new| < tol can be specified by giving the
      scalar tolerance or a function of two vectors. The first vector contains
      all columns of the old values the second all values of the new values.
@@ -54,7 +54,7 @@ class ColTol(dict):
 
 class Ignore():
     """
-    Ignore files of this class completely.
+    Ignore() files of this class completely.
     """
     pass
 
@@ -69,7 +69,7 @@ def diffnsqrt(old, new, tol, c1, c2):
     :return: True, when |C1'x'C2_{new} - C1'x'C2_{old}| / sqrt(C1'x'C1_{old} * C2'x'C2_{old}) < tol, false else.
     :rtype : bool
     """
-    res = math.fabs(new[c1+'x'+c2]- old[c1+'x'+c2])/ math.sqrt(old[c1+'x'+c1] * old[c2+'x'+c2]) < tol
+    res = math.fabs(new[c1+'x'+c2]- old[c1+'x'+c2])/ math.sqrt(math.fabs(old[c1+'x'+c1] * old[c2+'x'+c2])) < tol
     if args.verbose_diff_output and not res:
         print("diffnsqrt: |%g - %g|/sqrt(%g * %g) = %g > %g" % (new[c1+'x'+c2], old[c1+'x'+c2],
                                                                 old[c1+'x'+c1], old[c2+'x'+c2],
@@ -89,17 +89,15 @@ def normabs(o, n, tol):
         print("normabs: |%g - %g| / |%g| = %g > %g" % (o, n, o, math.fabs(o- n)/ math.fabs(o) if o != 0.0 else math.fabs(o- n), tol))
     return res
 
-# A value large enough to make the |old- new| < ignore always be true.
-ignore = 1e10
-
 # A short cut for lensedCls and lenspotentialCls files.
-coltol1 = ColTol({"L": ignore,
+coltol1 = ColTol({"L": Ignore(),
                   "TxT": [(   0, 3e-3),
                           ( 600, 1e-3),
                           (2500, 3e-3)],
                   "ExE": [(   0, 3e-3),
                           ( 600, 1e-3),
-                          (2500, 3e-3)],
+                          (2500, 3e-3),
+                          (6000, 1e-2)],
                   "BxB": [(   0, 5e-3),
                           (1000, 1e-2)],
                   "TxE": [(   0, lambda o, n: diffnsqrt(o, n, 3e-3, 'T', 'E')),
@@ -108,9 +106,9 @@ coltol1 = ColTol({"L": ignore,
                   "PxP": [(   0, 5e-3),
                           (1000, 1e-2)],
                   "TxP": [(   0, lambda o, n: diffnsqrt(o, n, 0.01, 'T', 'P')),
-                          ( 100, ignore)],
+                          ( 100, Ignore())],
                   "ExP": [(   0, lambda o, n: diffnsqrt(o, n, 0.02, 'E', 'P')),
-                          (  60, ignore)],
+                          (  60, Ignore())],
                   "TxW1": lambda o, n: diffnsqrt(o, n, 5e-3, 'T', 'W1'),
                   "ExW1": lambda o, n: diffnsqrt(o, n, 5e-3, 'E', 'W1'),
                   "PxW1": lambda o, n: diffnsqrt(o, n, 5e-3, 'P', 'W1'),
@@ -125,25 +123,25 @@ coltol1 = ColTol({"L": ignore,
                   "W2xP": lambda o, n: diffnsqrt(o, n, 5e-3, 'W2', 'P'),
                   "W2xW1": lambda o, n: diffnsqrt(o, n, 5e-3, 'W2', 'W1'),
                   "W2xW2": 5e-3,
-                  "*" : ignore})
+                  "*" : Ignore()})
 
 # The filetolmatrix as described above.
 global filetolmatrix
-filetolmatrix = [["*scalCls.dat", Ignore()], # Ignore all scalCls.dat files.
+filetolmatrix = [["*scalCls.dat", Ignore()], # Ignore() all scalCls.dat files.
                  ["*lensedCls.dat", coltol1], # lensed and lenspotential files both use coltol1 given above
                  ["*lensedtotCls.dat", coltol1],
                  ["*lenspotentialCls.dat", coltol1],
                  ["*scalCovCls.dat", coltol1],
                  ["*tensCls.dat", ColTol({"TE": lambda o, n: diffnsqrt(o, n, 1e-2, 'T', 'E'),
                                           "*": [(  0, 1e-2),
-                                                (600, ignore)]})],
+                                                (600, Ignore())]})],
                  ["*matterpower.dat", ColTol({"P": lambda o, n: normabs(o["P"], n["P"], 1e-3 if n["k/h"]< 1 else 3e-3),
-                                              "*": ignore})],
+                                              "*": Ignore()})],
                  ["*transfer_out.dat", ColTol({"baryon": lambda o, n: normabs(o["baryon"], n["baryon"], 1e-3 if n["k/h"]< 1 else 3e-3),
                                                "CDM": lambda o, n: normabs(o["CDM"], n["CDM"], 1e-3 if n["k/h"]< 1 else 3e-3),
                                                "v_CDM": lambda o, n: normabs(o["v_CDM"], n["v_CDM"], 1e-3 if n["k/h"]< 1 else 3e-3),
                                                "v_b": lambda o, n: normabs(o["v_b"], n["v_b"], 1e-3 if n["k/h"]< 1 else 3e-3),
-                                               "*": ignore})],
+                                               "*": Ignore()})],
                  ["*", ColTol({"*": args.diff_tolerance})],
                 ]
 
@@ -327,7 +325,7 @@ def get_tolerance_vector(filename, cols):
     Get the tolerances for the given filename.
     :param filename: The name of the file to retrieve the tolerances for.
     :param cols: Gives the column names.
-    :returns: False, when the file is to be ignored completely;
+    :returns: False, when the file is to be Ignore()d completely;
     the vector of tolerances when a pattern in the filetolmatrix matched;
     an empty ColTol when no match was found.
     """
@@ -400,7 +398,7 @@ def num_unequal(filename, cmpFcn):
                             if args.verbose_diff_output:
                                 print('value mismatch at %d, %d ("%s") of %s: %s != %s' % (row, col + 1, cols[col], filename, o, n))
                             return True
-                    else:
+                    elif not isinstance(tolerances[col], Ignore):
                         if not oldrowdict:
                             oldrowdict = dict(zip(cols, of_row))
                             newrowdict = dict(zip(cols, nf_row))
@@ -416,7 +414,7 @@ def num_unequal(filename, cmpFcn):
                                     if args.verbose_diff_output:
                                         print('value mismatch at %d, %d ("%s") of %s: %s != %s' % (row, col + 1, cols[col], filename, o, n))
                                     return True
-                            else:
+                            elif not isinstance(cand, Ignore):
                                 if not cand(oldrowdict, newrowdict):
                                     if args.verbose_diff_output:
                                         print('value mismatch at %d, %d ("%s") of %s: %s != %s' % (row, col+ 1, cols[col], filename, o, n))
