@@ -1479,7 +1479,11 @@
     !note increasing non-limber is not neccessarily more accurate unless AccuracyBoost much higher
     !use **0.5 to at least give some sensitivity to Limber effects
     !Could be lower but care with phi-T correlation at lower L
-    UseLimber = limber_windows .and. l >= limber_phiphi !400*AccuracyBoost**0.5
+    if (limber_windows) then
+        UseLimber = l >= limber_phiphi
+    else
+        UseLimber = l > 400*AccuracyBoost**0.5
+    end if
 
     end function UseLimber
 
@@ -2424,28 +2428,28 @@
         !$OMP PARAllEl DO DEFAUlT(SHARED),SCHEDUlE(STATIC,4) &
         !$OMP & PRIVATE(j,q_ix,measure,apowert,ctnorm,dbletmp)
         do j=1,CTrans%ls%l0
-        do q_ix = 1, CTrans%q%npoints
-            if (.not.(CP%closed.and. nint(CTrans%q%points(q_ix)*CP%r)<=CTrans%ls%l(j))) then
-                !cut off at nu = l+1
-                apowert = pows(q_ix)
-                measure = measures(q_ix)
+            do q_ix = 1, CTrans%q%npoints
+                if (.not.(CP%closed.and. nint(CTrans%q%points(q_ix)*CP%r)<=CTrans%ls%l(j))) then
+                    !cut off at nu = l+1
+                    apowert = pows(q_ix)
+                    measure = measures(q_ix)
 
-                iCl_tensor(j,CT_Temp:CT_B,in) = iCl_tensor(j,CT_Temp:CT_B,in) + &
-                    apowert*CTrans%Delta_p_l_k(CT_Temp:CT_B,j,q_ix)**2*measure
+                    iCl_tensor(j,CT_Temp:CT_B,in) = iCl_tensor(j,CT_Temp:CT_B,in) + &
+                        apowert*CTrans%Delta_p_l_k(CT_Temp:CT_B,j,q_ix)**2*measure
 
-                iCl_tensor(j,CT_cross, in ) = iCl_tensor(j,CT_cross, in ) &
-                    +apowert*CTrans%Delta_p_l_k(CT_Temp,j,q_ix)*CTrans%Delta_p_l_k(CT_E,j,q_ix)*measure
-            end if
+                    iCl_tensor(j,CT_cross, in ) = iCl_tensor(j,CT_cross, in ) &
+                        +apowert*CTrans%Delta_p_l_k(CT_Temp,j,q_ix)*CTrans%Delta_p_l_k(CT_E,j,q_ix)*measure
+                end if
+            end do
+
+            ctnorm=(CTrans%ls%l(j)*CTrans%ls%l(j)-1)*real((CTrans%ls%l(j)+2)*CTrans%ls%l(j),dl)
+            dbletmp=(CTrans%ls%l(j)*(CTrans%ls%l(j)+1))/OutputDenominator*pi/4
+            iCl_tensor(j, CT_Temp, in) = iCl_tensor(j, CT_Temp, in)*dbletmp*ctnorm
+            if (CTrans%ls%l(j)==1) dbletmp=0
+            iCl_tensor(j, CT_E:CT_B, in) = iCl_tensor(j, CT_E:CT_B, in)*dbletmp
+            iCl_tensor(j, CT_Cross, in)  = iCl_tensor(j, CT_Cross, in)*dbletmp*sqrt(ctnorm)
         end do
-        !$OMP END PARALLEL DO
-
-        ctnorm=(CTrans%ls%l(j)*CTrans%ls%l(j)-1)*real((CTrans%ls%l(j)+2)*CTrans%ls%l(j),dl)
-        dbletmp=(CTrans%ls%l(j)*(CTrans%ls%l(j)+1))/OutputDenominator*pi/4
-        iCl_tensor(j, CT_Temp, in) = iCl_tensor(j, CT_Temp, in)*dbletmp*ctnorm
-        if (CTrans%ls%l(j)==1) dbletmp=0
-        iCl_tensor(j, CT_E:CT_B, in) = iCl_tensor(j, CT_E:CT_B, in)*dbletmp
-        iCl_tensor(j, CT_Cross, in)  = iCl_tensor(j, CT_Cross, in)*dbletmp*sqrt(ctnorm)
-    end do
+        !$OMP END PARAllEl DO
     end do
 
     end subroutine CalcTensCls
@@ -2472,28 +2476,28 @@
         !$OMP PARAllEl DO DEFAUlT(SHARED),SCHEDUlE(STATIC,4) &
         !$OMP & PRIVATE(j,q_ix,measure,power,ctnorm,dbletmp,lfac)
         do j=1,CTrans%ls%l0
-        do q_ix = 1, CTrans%q%npoints
-            if (.not.(CP%closed.and. nint(CTrans%q%points(q_ix)*CP%r)<=CTrans%ls%l(j))) then
-                !cut off at nu = l+1
-                power = pows(q_ix)
-                measure = measures(q_ix)
+            do q_ix = 1, CTrans%q%npoints
+                if (.not.(CP%closed.and. nint(CTrans%q%points(q_ix)*CP%r)<=CTrans%ls%l(j))) then
+                    !cut off at nu = l+1
+                    power = pows(q_ix)
+                    measure = measures(q_ix)
 
-                iCl_vector(j,CT_Temp:CT_B,in) = iCl_vector(j,CT_Temp:CT_B,in) + &
-                    power*CTrans%Delta_p_l_k(CT_Temp:CT_B,j,q_ix)**2*measure
+                    iCl_vector(j,CT_Temp:CT_B,in) = iCl_vector(j,CT_Temp:CT_B,in) + &
+                        power*CTrans%Delta_p_l_k(CT_Temp:CT_B,j,q_ix)**2*measure
 
-                iCl_vector(j,CT_cross, in ) = iCl_vector(j,CT_cross, in ) &
-                    +power*CTrans%Delta_p_l_k(CT_Temp,j,q_ix)*CTrans%Delta_p_l_k(CT_E,j,q_ix)*measure
-            end if
+                    iCl_vector(j,CT_cross, in ) = iCl_vector(j,CT_cross, in ) &
+                        +power*CTrans%Delta_p_l_k(CT_Temp,j,q_ix)*CTrans%Delta_p_l_k(CT_E,j,q_ix)*measure
+                end if
+            end do
+
+            ctnorm=CTrans%ls%l(j)*(CTrans%ls%l(j)+1)
+            dbletmp=(CTrans%ls%l(j)*(CTrans%ls%l(j)+1))/OutputDenominator*pi/8
+            iCl_vector(j, CT_Temp, in)   = iCl_vector(j, CT_Temp, in)*dbletmp*ctnorm
+            lfac = (CTrans%ls%l(j) + 2)*(CTrans%ls%l(j) - 1)
+            iCl_vector(j, CT_E:CT_B, in) = iCl_vector(j, CT_E:CT_B, in)*dbletmp*lfac
+            iCl_vector(j, CT_Cross, in)  = iCl_vector(j, CT_Cross, in)*dbletmp*sqrt(lfac*ctnorm)
         end do
-        !$OMP END PARALLEL DO
-
-        ctnorm=CTrans%ls%l(j)*(CTrans%ls%l(j)+1)
-        dbletmp=(CTrans%ls%l(j)*(CTrans%ls%l(j)+1))/OutputDenominator*pi/8
-        iCl_vector(j, CT_Temp, in)   = iCl_vector(j, CT_Temp, in)*dbletmp*ctnorm
-        lfac = (CTrans%ls%l(j) + 2)*(CTrans%ls%l(j) - 1)
-        iCl_vector(j, CT_E:CT_B, in) = iCl_vector(j, CT_E:CT_B, in)*dbletmp*lfac
-        iCl_vector(j, CT_Cross, in)  = iCl_vector(j, CT_Cross, in)*dbletmp*sqrt(lfac*ctnorm)
-    end do
+        !$OMP END PARAllEl DO
     end do
 
     end subroutine CalcVecCls
