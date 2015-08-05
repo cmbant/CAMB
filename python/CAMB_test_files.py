@@ -58,30 +58,36 @@ class Ignore():
     """
     pass
 
-
-def normsqrt(v, c1, c2):
-    """
-    Implement AxB/ sqrt(AxA * BxB).
-    :param v: The current row of values.
-    :param c1: The name of the first component.
-    :param c2: The name of the second component.
-    :return: The quotient of AxB/ sqrt(AxA * BxB).
-    :rtype : float
-    """
-    return v[c1+'x'+c2] / math.sqrt(v[c1+'x'+c2] * v[c1+'x'+c2])
-
 def diffnsqrt(old, new, tol, c1, c2):
     """
-    Implement |normsqrt(old, c1, c2) - normsqrt(new, c1, c2)| < tol.
+    Implement |C1'x'C2_{new} - C1'x'C2_{old}| / sqrt(C1'x'C1_{old} * C2'x'C2_{old}) < tol.
     :param old: The row of the old values.
     :param new: The row of the new values.
     :param tol: The tolerance to match.
     :param c1: The name of the first component.
     :param c2: The name of the second component.
-    :return: True, when |normsqrt(old, c1, c2) - normsqrt(new, c1, c2)| < tol, false else.
+    :return: True, when |C1'x'C2_{new} - C1'x'C2_{old}| / sqrt(C1'x'C1_{old} * C2'x'C2_{old}) < tol, false else.
     :rtype : bool
     """
-    return math.fabs(normsqrt(old, c1, c2) - normsqrt(new, c1, c2)) < tol
+    res = math.fabs(new[c1+'x'+c2]- old[c1+'x'+c2])/ math.sqrt(old[c1+'x'+c1] * old[c2+'x'+c2]) < tol
+    if args.verbose_diff_output and not res:
+        print("diffnsqrt: |%g - %g|/sqrt(%g * %g) = %g > %g" % (new[c1+'x'+c2], old[c1+'x'+c2],
+                                                                old[c1+'x'+c1], old[c2+'x'+c2],
+                                                                math.fabs(new[c1+'x'+c2]- old[c1+'x'+c2])/ math.sqrt(old[c1+'x'+c1] * old[c2+'x'+c2]),
+                                                                tol))
+    return res
+
+def normabs(o, n, tol):
+    """
+    Compute |o - n| / |o| < tol
+    :param o: The old value
+    :param n: The new value
+    :return: True when |o - n| / |o| < tol, false else
+    """
+    res = (math.fabs(o- n)/ math.fabs(o) if o != 0.0 else math.fabs(o- n)) < tol
+    if args.verbose_diff_output and not res:
+        print("normabs: |%g - %g| / |%g| = %g > %g" % (o, n, o, math.fabs(o- n)/ math.fabs(o) if o != 0.0 else math.fabs(o- n), tol))
+    return res
 
 # A value large enough to make the |old- new| < ignore always be true.
 ignore = 1e10
@@ -131,12 +137,12 @@ filetolmatrix = [["*scalCls.dat", Ignore()], # Ignore all scalCls.dat files.
                  ["*tensCls.dat", ColTol({"TE": lambda o, n: diffnsqrt(o, n, 1e-2, 'T', 'E'),
                                           "*": [(  0, 1e-2),
                                                 (600, ignore)]})],
-                 ["*matterpower.dat", ColTol({"P": lambda o, n: math.fabs(o["P"]- n["P"]) < (1e-3 if n["k/h"]< 1 else 3e-3),
+                 ["*matterpower.dat", ColTol({"P": lambda o, n: normabs(o["P"], n["P"], 1e-3 if n["k/h"]< 1 else 3e-3),
                                               "*": ignore})],
-                 ["*transfer_out.dat", ColTol({"baryon": lambda o, n: math.fabs(o["baryon"]- n["baryon"]) < (1e-3 if n["k/h"]< 1 else 3e-3),
-                                               "CDM": lambda o, n: math.fabs(o["CDM"]- n["CDM"]) < (1e-3 if n["k/h"]< 1 else 3e-3),
-                                               "v_CDM": lambda o, n: math.fabs(o["v_CDM"]- n["v_CDM"]) < (1e-3 if n["k/h"]< 1 else 3e-3),
-                                               "v_b": lambda o, n: math.fabs(o["v_b"]- n["v_b"]) < (1e-3 if n["k/h"]< 1 else 3e-3),
+                 ["*transfer_out.dat", ColTol({"baryon": lambda o, n: normabs(o["baryon"], n["baryon"], 1e-3 if n["k/h"]< 1 else 3e-3),
+                                               "CDM": lambda o, n: normabs(o["CDM"], n["CDM"], 1e-3 if n["k/h"]< 1 else 3e-3),
+                                               "v_CDM": lambda o, n: normabs(o["v_CDM"], n["v_CDM"], 1e-3 if n["k/h"]< 1 else 3e-3),
+                                               "v_b": lambda o, n: normabs(o["v_b"], n["v_b"], 1e-3 if n["k/h"]< 1 else 3e-3),
                                                "*": ignore})],
                  ["*", ColTol({"*": args.diff_tolerance})],
                 ]
@@ -378,37 +384,45 @@ def num_unequal(filename, cmpFcn):
                         print('num columns do not match in %s: %d != %d' % (filename, len(o_row), len(n_row)))
                     return True
                 col = 0
-                oldrow = False
-                newrow = False
-                for o, n in zip(o_row, n_row):
+                of_row = [float(f) for f in o_row]
+                nf_row = []
+                for f in n_row:
+                    try:
+                        nf_row += [float(f)]
+                    except (ValueError):
+                        sp = customsplit(f)
+                        nf_row += [ float(sp[0]+'E'+sp[1]) ]
+                oldrowdict = False
+                newrowdict = False
+                for o, n in zip(of_row, nf_row):
                     if isinstance(tolerances[col], float):
-                        if cmpFcn(o, n, tolerances[col]):
+                        if not cmpFcn(o, n, tolerances[col]):
                             if args.verbose_diff_output:
                                 print('value mismatch at %d, %d ("%s") of %s: %s != %s' % (row, col + 1, cols[col], filename, o, n))
                             return True
                     else:
-                        if not oldrow:
-                            oldrow = dict(zip(cols, [float(f) for f in o_row]))
-                            newrow = dict(zip(cols, [float(f) for f in n_row]))
+                        if not oldrowdict:
+                            oldrowdict = dict(zip(cols, of_row))
+                            newrowdict = dict(zip(cols, nf_row))
                         if isinstance(tolerances[col], list):
                             cand = False
                             for lim, rhs in tolerances[col]:
-                                if lim < newrow["L"]:
+                                if lim < newrowdict["L"]:
                                     cand = rhs
                                 else:
                                     break
                             if isinstance(cand, float):
-                                if cmpFcn(o, n, cand):
+                                if not cmpFcn(o, n, cand):
                                     if args.verbose_diff_output:
                                         print('value mismatch at %d, %d ("%s") of %s: %s != %s' % (row, col + 1, cols[col], filename, o, n))
                                     return True
                             else:
-                                if not cand(oldrow, newrow):
+                                if not cand(oldrowdict, newrowdict):
                                     if args.verbose_diff_output:
                                         print('value mismatch at %d, %d ("%s") of %s: %s != %s' % (row, col+ 1, cols[col], filename, o, n))
                                     return True
                         else:
-                            if not tolerances[col](oldrow, newrow):
+                            if not tolerances[col](oldrowdict, newrowdict):
                                 if args.verbose_diff_output:
                                     print('value mismatch at %d, %d ("%s") of %s: %s != %s' % (row, col+ 1, cols[col], filename, o, n))
                                 return True
@@ -477,7 +491,7 @@ if args.diff_to:
     if args.num_diff:
         defCmpFcn = lambda o, n, t: math.fabs(float(o) - float(n)) >= t
     else:
-        defCmpFcn = textualcmp
+        defCmpFcn = normabs
     out_files_dir2 = os.path.join(args.ini_dir, args.diff_to)
     match, mismatch, errors = filecmp.cmpfiles(out_files_dir, out_files_dir2,
          list(set(list_files(out_files_dir)) | set(list_files(out_files_dir2))))

@@ -145,6 +145,7 @@
     use DarkEnergyInterface
     use RedshiftSpaceData
     use constants, only : const_pi, const_twopi, const_fourpi, const_eightpi
+    use MpiUtils, only : MpiStop
     implicit none
     public
 
@@ -410,7 +411,7 @@
     end if
 
     if (CP%Num_Nu_Massive /= sum(CP%Nu_mass_numbers(1:CP%Nu_mass_eigenstates))) then
-        if (sum(CP%Nu_mass_numbers(1:CP%Nu_mass_eigenstates))/=0) stop 'Num_Nu_Massive is not sum of Nu_mass_numbers'
+        if (sum(CP%Nu_mass_numbers(1:CP%Nu_mass_eigenstates))/=0) call MpiStop('Num_Nu_Massive is not sum of Nu_mass_numbers')
     end if
     if (CP%Omegan == 0 .and. CP%Num_Nu_Massive /=0) then
         if (CP%share_delta_neff) then
@@ -424,7 +425,7 @@
 
     nu_massless_degeneracy = CP%Num_Nu_massless !N_eff for massless neutrinos
     if (CP%Num_nu_massive > 0) then
-        if (CP%Nu_mass_eigenstates==0) stop 'Have Num_nu_massive>0 but no nu_mass_eigenstates'
+        if (CP%Nu_mass_eigenstates==0) call MpiStop('Have Num_nu_massive>0 but no nu_mass_eigenstates')
         if (CP%Nu_mass_eigenstates==1 .and. CP%Nu_mass_numbers(1)==0) CP%Nu_mass_numbers(1) = CP%Num_Nu_Massive
         if (all(CP%Nu_mass_numbers(1:CP%Nu_mass_eigenstates)==0)) CP%Nu_mass_numbers=1 !just assume one for all
         if (CP%share_delta_neff) then
@@ -436,7 +437,7 @@
             CP%Nu_mass_degeneracies(1:CP%Nu_mass_eigenstates) = CP%Nu_mass_numbers(1:CP%Nu_mass_eigenstates)*neff_i
         end if
         if (abs(sum(CP%Nu_mass_fractions(1:CP%Nu_mass_eigenstates))-1) > 1e-4) &
-            stop 'Nu_mass_fractions do not add up to 1'
+            call MpiStop('Nu_mass_fractions do not add up to 1')
     else
         CP%Nu_mass_eigenstates = 0
     end if
@@ -1016,7 +1017,7 @@
     real(dl) a0,b0,ho
     real(dl), parameter :: cllo=1.e30_dl,clhi=1.e30_dl
 
-    if (max_ind > lSet%l0) stop 'Wrong max_ind in InterpolateClArr'
+    if (max_ind > lSet%l0) call MpiStop('Wrong max_ind in InterpolateClArr')
 
     xl = real(lSet%l(1:lSet%l0),dl)
     call spline(xl,iCL(1),max_ind,cllo,clhi,ddCl(1))
@@ -1048,7 +1049,7 @@
     real(dl) DeltaCL(lSet%l0)
     real(dl), allocatable :: tmpall(:)
 
-    if (max_ind > lSet%l0) stop 'Wrong max_ind in InterpolateClArrTemplated'
+    if (max_ind > lSet%l0) call MpiStop('Wrong max_ind in InterpolateClArrTemplated')
 
     if (use_spline_template .and. present(template_index)) then
         if (template_index<=3) then
@@ -1169,7 +1170,7 @@
 
     allocate(CTrans%Delta_p_l_k(CTrans%NumSources,&
         min(CTrans%max_index_nonlimber,CTrans%ls%l0), CTrans%q%npoints),  STAT = st)
-    if (st /= 0) stop 'Init_ClTransfer: Error allocating memory for transfer functions'
+    if (st /= 0) call MpiStop('Init_ClTransfer: Error allocating memory for transfer functions')
     CTrans%Delta_p_l_k = 0
 
     end subroutine Init_ClTransfer
@@ -1256,7 +1257,7 @@
         end do
 
 500     if (L< lmax_extrap_highl) &
-            stop 'CheckLoadedHighLTemplate: template file does not go up to lmax_extrap_highl'
+            call MpiStop('CheckLoadedHighLTemplate: template file does not go up to lmax_extrap_highl')
         call infile%Close()
     end if
 
@@ -1905,7 +1906,7 @@
 
     nk=M%num_q_trans
     nz=CP%Transfer%PK_num_redshifts
-    if (nk/= size(PK,1) .or. nz/=size(PK,2)) stop 'Trasfer_GetUnsplinedPower wrong size'
+    if (nk/= size(PK,1) .or. nz/=size(PK,2)) call MpiStop('Trasfer_GetUnsplinedPower wrong size')
 
     h = CP%H0/100
 
@@ -2255,7 +2256,7 @@
 
     itf = CP%Transfer%PK_redshifts_index(itf_PK)
 
-    if (npoints < 2) stop 'Need at least 2 points in Transfer_GetMatterPower'
+    if (npoints < 2) call MpiStop('Need at least 2 points in Transfer_GetMatterPower')
 
     !         if (minkh < MTrans%TransferData(Transfer_kh,1,itf)) then
     !            stop 'Transfer_GetMatterPower: kh out of computed region'
@@ -2416,7 +2417,7 @@
     dsig8o=0
     sig8=0
     sig8o=0
-    if (MTrans%TransferData(Transfer_kh,1,1)==0) stop 'Transfer_GetSigmaRArray kh zero'
+    if (MTrans%TransferData(Transfer_kh,1,1)==0) call MpiStop('Transfer_GetSigmaRArray kh zero')
     do ik=1, MTrans%num_q_trans + 2
         if (ik < MTrans%num_q_trans) then
             dkh = (MTrans%TransferData(Transfer_kh,ik+1,1)- MTrans%TransferData(Transfer_kh,ik,1))/nsub
@@ -2580,7 +2581,7 @@
         maxRedshift =15
     end if
     if (P%NLL_num_redshifts > max_transfer_redshifts) &
-        stop 'Transfer_SetForNonlinearLensing: Too many redshifts'
+        call MpiStop('Transfer_SetForNonlinearLensing: Too many redshifts')
     do i=1,P%NLL_num_redshifts
         P%NLL_redshifts(i) = real(P%NLL_num_redshifts-i)/(P%NLL_num_redshifts/maxRedshift)
     end do
@@ -2638,6 +2639,7 @@
     end if
 
     if (CP%InitPower%nn>1 .and. output_file_headers) error stop 'InitPower%nn>1 deprecated'
+
     do itf=1, CP%Transfer%PK_num_redshifts
         if (FileNames(itf) /= '') then
             if (.not. transfer_interp_matterpower ) then
@@ -3108,13 +3110,13 @@
         !Linear interpolation if out of bounds (should not occur).
         cs2b=cs2(1)+(d+i-1)*dcs2(1)
         opacity=dotmu(1)+(d-1)*ddotmu(1)
-        stop 'thermo out of bounds'
+        call MpiStop('thermo out of bounds')
     else if (i >= nthermo) then
         cs2b=cs2(nthermo)+(d+i-nthermo)*dcs2(nthermo)
         opacity=dotmu(nthermo)+(d-nthermo)*ddotmu(nthermo)
         if (present(dopacity)) then
             dopacity = 0
-            stop 'thermo: shouldn''t happen'
+            call MpiStop('thermo: shouldn''t happen')
         end if
     else
         !Cubic spline interpolation.
@@ -3723,7 +3725,7 @@
 
     !Sources
     if (.not. CP%Want_CMB .and. CP%WantCls) then
-        if (num_redshiftwindows==0) stop 'Want_CMB=false, but not redshift windows either'
+        if (num_redshiftwindows==0) call MpiStop('Want_CMB=false, but not redshift windows either')
         call TimeSteps%Add_delta(tau_start_redshiftwindows, CP%tau0, dtau0)
     end if
 

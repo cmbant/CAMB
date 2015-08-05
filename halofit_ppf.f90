@@ -188,7 +188,7 @@
         beta=2.0379-0.7354*rn+0.3157*rn**2+1.2490*rn**3+ &
             0.3980*rn**4-0.1682*rncur + fnu*(1.081 + 0.395*rn**2)
     else
-        stop 'Unknown halofit_version'
+        call MpiStop('Unknown halofit_version')
     end if
 
     if(abs(1-om_m).gt.0.01) then ! omega evolution
@@ -318,7 +318,7 @@
     use NonLinear
     type(MatterPowerData) :: CAMB_Pk
 
-    stop 'Halofit module doesn''t support non-linear velocities'
+    call MpiStop('Halofit module doesn''t support non-linear velocities')
 
     end subroutine NonLinear_GetRatios_All
 

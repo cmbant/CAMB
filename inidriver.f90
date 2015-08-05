@@ -41,10 +41,10 @@
 
     InputFile = ''
     if (GetParamCount() /= 0)  InputFile = GetParam(1)
-    if (InputFile == '') stop 'No parameter input file'
+    if (InputFile == '') error stop 'No parameter input file'
 
     call Ini%Open(InputFile, bad, .false.)
-    if (bad) stop 'Error opening parameter file'
+    if (bad) error stop 'Error opening parameter file'
 
     Ini%Fail_on_not_found = .false.
 
@@ -88,7 +88,7 @@
                 RedWin%kind = window_lensing
             else
                 write (*,*) i, 'Error: unknown type of window '//trim(S)
-                stop
+                error stop
             end if
             RedWin%a = 1 / (1 + RedWin%Redshift)
             if (RedWin%kind /= window_21cm) then
@@ -184,7 +184,7 @@
                     Magnetic = -1
                     vec_sig0 = 0
                 else
-                    stop 'vector_mode must be 0 (regular) or 1 (magnetic)'
+                    error stop 'vector_mode must be 0 (regular) or 1 (magnetic)'
                 end if
             end if
         end if
@@ -202,7 +202,7 @@
     else if (DarkEneryModel == 'PPF') then
         allocate (TDarkEnergyPPF::P%DarkEnergy)
     else
-        stop 'Unknown dark energy model'
+        error stop 'Unknown dark energy model'
     end if
     call P%DarkEnergy%ReadParams(Ini)
 
@@ -229,7 +229,7 @@
 
     numstr = Ini%Read_String('massive_neutrinos')
     read(numstr, *) nmassive
-    if (abs(nmassive - nint(nmassive))>1e-6) stop 'massive_neutrinos should now be integer (or integer array)'
+    if (abs(nmassive-nint(nmassive))>1e-6) error stop 'massive_neutrinos should now be integer (or integer array)'
     read(numstr,*, end=100, err=100) P%Nu_Mass_numbers(1:P%Nu_mass_eigenstates)
     P%Num_Nu_massive = sum(P%Nu_Mass_numbers(1:P%Nu_mass_eigenstates))
 
@@ -239,12 +239,12 @@
         if (P%share_delta_neff) then
             if (numstr/='') write (*,*) 'WARNING: nu_mass_degeneracies ignored when share_delta_neff'
         else
-            if (numstr=='') stop 'must give degeneracies for each eigenstate if share_delta_neff=F'
+            if (numstr=='') error stop 'must give degeneracies for each eigenstate if share_delta_neff=F'
             read(numstr,*) P%Nu_mass_degeneracies(1:P%Nu_mass_eigenstates)
         end if
         numstr = Ini%Read_String('nu_mass_fractions')
         if (numstr=='') then
-            if (P%Nu_mass_eigenstates >1) stop 'must give nu_mass_fractions for the eigenstates'
+            if (P%Nu_mass_eigenstates >1) error stop 'must give nu_mass_fractions for the eigenstates'
             P%Nu_mass_fractions(1)=1
         else
             read(numstr,*) P%Nu_mass_fractions(1:P%Nu_mass_eigenstates)
@@ -333,7 +333,7 @@
     call Recombination_ReadParams(P%Recomb, Ini)
     if (Ini%HasKey('recombination')) then
         i = Ini%Read_Int('recombination', 1)
-        if (i/=1) stop 'recombination option deprecated'
+        if (i/=1) error stop 'recombination option deprecated'
     end if
 
     call Bispectrum_ReadParams(BispectrumParams, Ini, outroot)
@@ -447,7 +447,7 @@
 
     call Ini%Close()
 
-    if (.not. CAMB_ValidateParams(P)) stop 'Stopped due to parameter error'
+    if (.not. CAMB_ValidateParams(P)) error stop 'Stopped due to parameter error'
 
 #ifdef RUNIDLE
     call SetIdle
@@ -456,7 +456,7 @@
     if (global_error_flag==0) call CAMB_GetResults(P)
     if (global_error_flag/=0) then
         write (*,*) 'Error result '//trim(global_error_message)
-        stop
+        error stop
     endif
 
     if (P%PK_WantTransfer) then
@@ -486,7 +486,7 @@
     call CAMB_cleanup
     stop
 
-100 stop 'Must give num_massive number of integer physical neutrinos for each eigenstate'
+100 error stop 'Must give num_massive number of integer physical neutrinos for each eigenstate'
     end program driver
 
 

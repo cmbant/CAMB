@@ -10,6 +10,7 @@
     use Precision
     use ModelParams
     use RangeUtils
+	use MpiUtils
     implicit none
     private
 
@@ -29,6 +30,7 @@
     public USpherBesselWithDeriv, phi_recurs,phi_langer, bjl, Bessels_Free
 
     contains
+
 
     subroutine InitSpherBessels
     !     This subroutine reads the jl files from disk (or generates them if not on disk)
@@ -151,8 +153,7 @@
     real(dl) trigarg,expterm,L3
 
     IF(L.LT.0)THEN
-        write(*,*) 'Can not evaluate Spherical Bessel Function with index l<0'
-        STOP
+        error stop 'Can not evaluate Spherical Bessel Function with index l<0'
     ENDIF
     AX=DABS(X)
     AX2=AX**2
@@ -551,29 +552,14 @@
 
     ! Test input values
 
-    if(l<0) then
-        write(*,*) "Bessel function index ell < 0"
-        stop
-    endif
-    if(beta<0._dl) then
-        write(*,*) "Wavenumber beta < 0"
-        stop
-    endif
-    if ((abs(K)/=1).and.(K/=0)) then
-        write(*,*) "K must be 1, 0 or -1"
-        stop
-    end if
+    if(l<0) call MpiStop("Bessel function index ell < 0")
+    if(beta<0._dl) call MpiStop("Wavenumber beta < 0")
+    if ((abs(K)/=1).and.(K/=0)) call MpiStop("K must be 1, 0 or -1")
 
     if(K==1) then
         ibeta=nint(beta)
-        if(ibeta<3) then
-            write(*,*) "Wavenumber beta < 3 for K=1"
-            stop
-        endif
-        if(ibeta<=l) then
-            write(*,*) "Wavenumber beta <= l"
-            stop
-        endif
+        if(ibeta<3) call MpiStop("Wavenumber beta < 3 for K=1")
+        if(ibeta<=l) call MpiStop("Wavenumber beta <= l")
     endif
 
     if (chi<1/BIG) then
@@ -777,30 +763,15 @@
     !
     ! Test input values
     !
-    if(l<0) then
-        write(*,*) "Bessel function index ell < 0"
-        stop
-    endif
-    if(beta<0._dl) then
-        write(*,*) "Wavenumber beta < 0"
-        stop
-    endif
-    if ((abs(K)/=1).and.(K/=0)) then
-        write(*,*) "K must be 1, 0 or -1"
-        stop
-    end if
+    if(l<0) call MpiStop("Bessel function index ell < 0")
+    if(beta<0._dl) call MpiStop("Wavenumber beta < 0")
+    if ((abs(K)/=1).and.(K/=0)) call MpiStop("K must be 1, 0 or -1")
 
 
     if(K == 1) then
         ibeta=nint(beta)
-        if(ibeta<3) then
-            write(*,*) "Wavenumber beta < 3 for K=1"
-            stop
-        endif
-        if(ibeta<=l) then
-            write(*,*) "Wavenumber beta <= l"
-            stop
-        endif
+        if(ibeta<3) call MpiStop("Wavenumber beta < 3 for K=1")
+        if(ibeta<=l) call MpiStop("Wavenumber beta <= l")
     endif
 
     kay=K

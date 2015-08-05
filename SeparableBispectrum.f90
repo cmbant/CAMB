@@ -20,6 +20,7 @@
     use InitialPower
     use SpherBessels
     use constants
+    use MpiUtils
     implicit none
 
     integer, parameter :: max_bispectrum_deltas = 5, max_bispectrum_fields=3
@@ -327,13 +328,13 @@
         nbispectra=nbispectra+1
         BispectrumNames(lens_bispectrum_ix)='lensing'
     end if
-    if (nbispectra>max_bispectra) stop 'check max_bispectra'
+    if (nbispectra>max_bispectra) call MpiStop('check max_bispectra')
 
-    if (CP%InitPower%nn>1) stop 'Bispectrum: multiple initial power spectra not supported'
+    if (CP%InitPower%nn>1) call MpiStop('Bispectrum: multiple initial power spectra not supported')
 
     nfields=BispectrumParams%nfields
 
-    if (lSampleBoost <50) stop 'Bispectrum assumes lSampleBoost=50 (all L sampled)'
+    if (lSampleBoost <50) call MpiStop('Bispectrum assumes lSampleBoost=50 (all L sampled)')
 
     if (lens_bispectrum_approx == first_order_unlensed) file_tag='_unlens'
 
@@ -380,7 +381,7 @@
 
     if (BispectrumParams%do_lensing_bispectrum) then
 
-        if (.not. CP%DoLensing) stop 'Must turn on lensing to get lensing bispectra'
+        if (.not. CP%DoLensing) call MpiStop('Must turn on lensing to get lensing bispectra')
         print *,'Getting lensing reduced bispectra'
 
         allocate(CForLensing(lmax))
@@ -575,7 +576,7 @@
             TransferPolFac(i) =sqrt( real((i+1)*i,dl)*(i+2)*(i-1))
         end do
 
-        if (shape /= shape_local) stop 'Non-local shapes not working'
+        if (shape /= shape_local) call MpiStop('Non-local shapes not working')
 
         if (shape == shape_local) then
             n=1
@@ -590,7 +591,7 @@
             np=2
             npd=2
         else
-            stop 'unknown shape'
+            call MpiStop('unknown shape')
         end if
 
         allocate(ind(n))
@@ -624,6 +625,7 @@
         call TimeStepsNongauss%Add_delta(-taurst*10*AccuracyBoost, taurst, dtaurec)
         call TimeStepsNongauss%getArray(.true.)
 
+! TODO: Check whether setting num threads to 1 can be solved more elegantly.
 !$      if (BispectrumParams%export_alpha_beta) call OMP_SET_NUM_THREADS(1)
         if (BispectrumParams%export_alpha_beta) then
             !Note that all the points outside recombination are not really needed
@@ -890,7 +892,7 @@
             Cl(2:3,l1) = Cl(2:3,l1)/tmp + NoiseP*exp(l1*(l1+1)*sigma2)
             Cl(4,l1) = Cl(4,l1)/tmp
             allocate(InvC(l1)%C(nfields,nfields))
-            if (nfields > 2) stop 'Not implemented nfields>2 in detail'
+            if (nfields > 2) call MpiStop('Not implemented nfields>2 in detail')
             if (nfields==1) then
                 InvC(l1)%C(1,1)=(2*l1+1)/cl(1,l1)/InternalScale
             else
@@ -1236,7 +1238,7 @@
 
     end if !DoFIsher
 #else
-    if (BispectrumParams%DoFisher) stop 'compile with FISHER defined'
+    if (BispectrumParams%DoFisher) call MpiStop('compile with FISHER defined')
 #endif
 
     !Tidy up a bit
@@ -1351,7 +1353,7 @@
         output_root = outroot
 
         call Ini%Read('bispectrum_nfields', B%nfields)
-        if (B%nfields /= 2 .and. B%nfields/=1) stop 'Bispectrum: nfields=1 for T only or 2 for polarization'
+        if (B%nfields /= 2 .and. B%nfields/=1) call MpiStop('Bispectrum: nfields=1 for T only or 2 for polarization')
         B%do_parity_odd = Ini%Read_Logical('do_parity_odd', .false.)
         if (B%do_parity_odd .and. (.not.  B%do_lensing_bispectrum .or. B%nfields==1)) then
             B%do_parity_odd = .false.
@@ -1360,7 +1362,7 @@
         call Ini%Read('bispectrum_slice_base_L', B%Slice_Base_L)
         if (B%Slice_Base_L>0) then
             call Ini%Read('bispectrum_ndelta', B%ndelta)
-            if (B%ndelta > max_bispectrum_deltas) stop 'Bispectrum : increase max_bispectrum_deltas'
+            if (B%ndelta > max_bispectrum_deltas) call MpiStop('Bispectrum : increase max_bispectrum_deltas')
             do i=1, B%ndelta
                 B%deltas(i) = Ini%Read_Int_Array('bispectrum_delta', i)
             end do

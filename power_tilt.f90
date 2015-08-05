@@ -33,6 +33,7 @@
 
     module InitialPower
     use Precision
+    use MpiUtils, only : MpiStop
     implicit none
 
     private
@@ -208,12 +209,12 @@
     call Ini%Read('pivot_scalar', InitPower%k_0_scalar)
     call Ini%Read('pivot_tensor', InitPower%k_0_tensor)
     InitPower%nn = Ini%Read_Int('initial_power_num', 1)
-    if (InitPower%nn>nnmax) stop 'Too many initial power spectra - increase nnmax in InitialPower'
+    if (InitPower%nn>nnmax) call MpiStop('Too many initial power spectra - increase nnmax in InitialPower')
     if (WantTensors) then
         InitPower%tensor_parameterization =  Ini%Read_Int('tensor_parameterization', tensor_param_indeptilt)
         if (InitPower%tensor_parameterization < tensor_param_indeptilt .or. &
             &   InitPower%tensor_parameterization > tensor_param_AT) &
-            &   stop 'InitialPower: unknown tensor_parameterization'
+            &   call MpiStop('InitialPower: unknown tensor_parameterization')
     end if
     InitPower%rat(:) = 1
     do i=1, InitPower%nn
