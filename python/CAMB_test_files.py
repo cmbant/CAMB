@@ -69,11 +69,15 @@ def diffnsqrt(old, new, tol, c1, c2):
     :return: True, when |C1'x'C2_{new} - C1'x'C2_{old}| / sqrt(C1'x'C1_{old} * C2'x'C2_{old}) < tol, false else.
     :rtype : bool
     """
-    res = math.fabs(new[c1+'x'+c2]- old[c1+'x'+c2])/ math.sqrt(math.fabs(old[c1+'x'+c1] * old[c2+'x'+c2])) < tol
+    oc1c1 = old[c1+'x'+c1]
+    oc2c2 = old[c2+'x'+c2]
+    # Skip the test when exactly one variable is negative, but not both.
+    if (oc1c1 < 0 or oc2c2 < 0) and (oc1c1 >= 0 or oc2c2 >= 0):
+        return True
+    res = math.fabs(new[c1+'x'+c2]- old[c1+'x'+c2])/ math.sqrt(oc1c1 * oc2c2) < tol
     if args.verbose_diff_output and not res:
-        print("diffnsqrt: |%g - %g|/sqrt(%g * %g) = %g > %g" % (new[c1+'x'+c2], old[c1+'x'+c2],
-                                                                old[c1+'x'+c1], old[c2+'x'+c2],
-                                                                math.fabs(new[c1+'x'+c2]- old[c1+'x'+c2])/ math.sqrt(old[c1+'x'+c1] * old[c2+'x'+c2]),
+        print("diffnsqrt: |%g - %g|/sqrt(%g * %g) = %g > %g" % (new[c1+'x'+c2], old[c1+'x'+c2], oc1c1, oc2c2,
+                                                                math.fabs(new[c1+'x'+c2]- old[c1+'x'+c2])/ math.sqrt(oc1c1 * oc2c2),
                                                                 tol))
     return res
 
