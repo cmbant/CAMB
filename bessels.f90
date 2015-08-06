@@ -79,17 +79,16 @@
 
     max_ix = min(max_bessels_l_index,lSamp%l0)
 
-    !TODO: Check for memory reuse
-    if (allocated(ajl)) deallocate(ajl)
-    if (allocated(ajlpr)) deallocate(ajlpr)
-    if (allocated(ddajlpr)) deallocate(ddajlpr)
-    allocate(ajl(1:num_xx,1:max_ix))
-    allocate(ajlpr(1:num_xx,1:max_ix))
-    allocate(ddajlpr(1:num_xx,1:max_ix))
+    ! The three arrays are always (de-)allocated together. Therefore checking
+    ! one of them for allocation is sufficient.
+    if (.not. allocated(ajl) .or. any(ubound(ajl) < [num_xx, max_ix])) then
+        if (allocated(ajl)) deallocate(ajl, ajlpr, ddajlpr)
+        allocate(ajl(1:num_xx,1:max_ix), ajlpr(1:num_xx,1:max_ix), &
+                 ddajlpr(1:num_xx,1:max_ix))
+    end if
 
     !$OMP PARALLEL DO DEFAULT(SHARED), SCHEDULE(STATIC), PRIVATE(i, x, xlim)
     do j=1,max_ix
-
         do  i=1,num_xx
             x=BessRanges%points(i)
             xlim=xlimfrac*lSamp%l(j)

@@ -3405,9 +3405,12 @@
 
     !Sources
     if (CP%WantTransfer) then
-		!TODO: Implement memory reuse
-        deallocate(MT%optical_depths, stat = RW_i)
-        allocate(MT%optical_depths(CP%Transfer%num_redshifts))
+		! Reuse already allocated memory, when it is large enough, else alloc.
+		if (.not. associated(MT%optical_depths) .or. &
+                ubound(MT%optical_depths, 1) < CP%Transfer%num_redshifts) then
+            if (associated(MT%optical_depths)) deallocate(MT%optical_depths)
+            allocate(MT%optical_depths(CP%Transfer%num_redshifts))
+        end if
         do RW_i = 1, CP%Transfer%num_redshifts
             if (CP%Transfer%Redshifts(RW_i) < 1e-3) then
                 MT%optical_depths(RW_i) = 0 !zero may not be set correctly in transfer_ix
@@ -3733,17 +3736,18 @@
     call TimeSteps%GetArray()
     nstep = TimeSteps%npoints
 
-	!TODO: Check for memory reuse
-    if (allocated(vis)) then
-        deallocate(vis,dvis,ddvis,expmmu,dopac, opac)
-        if (dowinlens) deallocate(lenswin)
-        !Sources
-        deallocate(step_redshift, rhos_fac, drhos_fac)
+	!Reuse memory already allocated.
+    if (.not. allocated(vis) .or. ubound(vis, 1) < nstep) then
+        if (allocated(vis)) deallocate(vis,dvis,ddvis,expmmu,dopac, opac, &
+            step_redshift, rhos_fac, drhos_fac)
+        if (dowinlens) then
+            if (allocated(lenswin)) deallocate(lenswin)
+            allocate(lenswin(nstep))
+        end if
+        allocate(vis(nstep),dvis(nstep),ddvis(nstep),expmmu(nstep),dopac(nstep),opac(nstep))
+        !Source
+        allocate(step_redshift(nstep), rhos_fac(nstep), drhos_fac(nstep))
     end if
-    allocate(vis(nstep),dvis(nstep),ddvis(nstep),expmmu(nstep),dopac(nstep),opac(nstep))
-    if (dowinlens) allocate(lenswin(nstep))
-    !Source
-    allocate(step_redshift(nstep), rhos_fac(nstep), drhos_fac(nstep))
 
     if (DebugMsgs .and. FeedbackLevel > 0) write(*,*) 'Set ',nstep, ' time steps'
 

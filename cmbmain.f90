@@ -2236,8 +2236,8 @@
         end do
 
         !TODO: OMP: Analyze: Seems not to OMP well.. comment
-        !OMP PARAllEl DO DEFAUlT(SHARED),SCHEDUlE(STATIC,4) &
-        !OMP & PRIVATE(j,ell,q_ix,dlnk,apowers,ctnorm,dbletmp,Delta1,Delta2,w_ix,w_ix2,Win)
+        !$OMP PARALLEL DO DEFAULT(SHARED), SCHEDULE(STATIC,4) &
+        !$OMP PRIVATE(ell,q_ix,dlnk,apowers,ctnorm,dbletmp,Delta1,Delta2,w_ix,w_ix2)
         do j=1,CTrans%ls%l0
             !Integrate dk/k Delta_l_q**2 * Power(k)
             ell = real(CTrans%ls%l(j),dl)
@@ -2334,7 +2334,7 @@
                 !Cross-correlation is CTrans%ls%l^3 C_l^{\phi E}
             end if
         end do
-        !OMP END PARAllEl DO
+        !$OMP END PARAllEl DO
     end do
     deallocate(ks,pows,dlnks)
 

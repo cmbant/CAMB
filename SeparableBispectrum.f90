@@ -625,8 +625,6 @@
         call TimeStepsNongauss%Add_delta(-taurst*10*AccuracyBoost, taurst, dtaurec)
         call TimeStepsNongauss%getArray(.true.)
 
-! TODO: Check whether setting num threads to 1 can be solved more elegantly.
-!$      if (BispectrumParams%export_alpha_beta) call OMP_SET_NUM_THREADS(1)
         if (BispectrumParams%export_alpha_beta) then
             !Note that all the points outside recombination are not really needed
             !And these are for curvature perturbation, so do not include 3/5 factor
@@ -637,7 +635,10 @@
 
         if (DebugMsgs) starttime=GetTestTime()
 
+        !When writing to the files is requested, then do not OMP. This is done
+        !by the IF(.not. ...).
         !$OMP PARALLEL DO DEFAUlT(SHARED), SCHEDULE(STATIC,3), &
+        !$OMP IF(.not. BispectrumParams%export_alpha_beta) &
         !$OMP PRIVATE(r, res, resP, resPd, res_l, resP_l, resPd_l, term, j), &
         !$OMP PRIVATE(il1, l1, l2, l3, min_l, max_l, tmp, tmp1, tmp2, Bispectrum), &
         !$OMP PRIVATE(bi_ix, bix, field1, field2, field3, field)
