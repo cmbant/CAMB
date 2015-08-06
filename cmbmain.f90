@@ -1682,7 +1682,8 @@
     nstart=nDissipative
     chi=ChiStart
 
-    if ((CP%WantScalars)) then !Do Scalars
+    if (CP%WantScalars) then !Do Scalars
+        if (SourceNum > 3) call MpiStop('Non-flat not implemented for extra sources')
         !Integrate chi down in dissipative region
         ! cuts off when ujl gets small
         miny1= 0.5d-4/l/AccuracyBoost
@@ -1740,9 +1741,6 @@
             else
                 sums(3) = 0
             end if
-            ! TODO: The following line is unreachable. Should it have been
-            ! after the surrounding if?
-            !if (SourceNum>3) stop 'Non-flat not implemented for extra sources'
         end if
 
         ThisCT%Delta_p_l_k(1:SourceNum,j,IV%q_ix)=ThisCT%Delta_p_l_k(1:SourceNum,j,IV%q_ix)+sums
@@ -2231,13 +2229,15 @@
                 ks(q_ix) = sqrt(CTrans%q%points(q_ix)**2 - CP%curv)
                 dlnks(q_ix) = CTrans%q%dpoints(q_ix)*CTrans%q%points(q_ix)/ks(q_ix)**2
             end if
-            pows(q_ix) =  ScalarPower(ks(q_ix) ,pix)
+            pows(q_ix) = ScalarPower(ks(q_ix) ,pix)
             if (global_error_flag/=0) return
         end do
 
-        !TODO: OMP: Analyze: Seems not to OMP well.. comment
-        !$OMP PARALLEL DO DEFAULT(SHARED), SCHEDULE(STATIC,4) &
+#ifndef __INTEL_COMPILER
+        !Can't use OpenMP here on ifort. Does not terminate.
+        !$OMP PARALLEL DO DEFAULT(SHARED), SCHEDULE(STATIC,4), &
         !$OMP PRIVATE(ell,q_ix,dlnk,apowers,ctnorm,dbletmp,Delta1,Delta2,w_ix,w_ix2)
+#endif
         do j=1,CTrans%ls%l0
             !Integrate dk/k Delta_l_q**2 * Power(k)
             ell = real(CTrans%ls%l(j),dl)
@@ -2334,7 +2334,9 @@
                 !Cross-correlation is CTrans%ls%l^3 C_l^{\phi E}
             end if
         end do
+#ifndef __INTEL_COMPILER
         !$OMP END PARAllEl DO
+#endif
     end do
     deallocate(ks,pows,dlnks)
 

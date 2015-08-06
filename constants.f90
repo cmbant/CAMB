@@ -56,8 +56,6 @@
     real(dl), parameter :: default_nnu = 3.046_dl
 
     !This constant initially was in inifile.f90.
-    !TODO: Find a better place, because this module is intentionally for
-    !scientific constants only.
     integer, parameter :: Ini_max_string_len = 1024
     end module constants
 
