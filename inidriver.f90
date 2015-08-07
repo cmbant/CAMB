@@ -175,7 +175,7 @@
                 if (P%DoLensing) lensing_method = Ini%Read_Int('lensing_method', 1)
             end if
             if (P%WantVectors) then
-                if (P%WantScalars .or. P%WantTensors) stop 'Must generate vector modes on their own'
+                if (P%WantScalars .or. P%WantTensors) error stop 'Must generate vector modes on their own'
                 i = Ini%Read_Int('vector_mode')
                 if (i==0) then
                     vec_sig0 = 1
@@ -225,7 +225,7 @@
     P%Num_Nu_massless = Ini%Read_Double('massless_neutrinos')
 
     P%Nu_mass_eigenstates = Ini%Read_Int('nu_mass_eigenstates', 1)
-    if (P%Nu_mass_eigenstates > max_nu) stop 'too many mass eigenstates'
+    if (P%Nu_mass_eigenstates > max_nu) error stop 'too many mass eigenstates'
 
     numstr = Ini%Read_String('massive_neutrinos')
     read(numstr, *) nmassive
@@ -359,6 +359,11 @@
             has_cl_2D_array = .true.
             ScalarCovFileName = concat(outroot, ScalarCovFileName)
         end if
+    else
+        ScalarFileName = ''
+        LensedFileName = ''
+        LensPotentialFileName = ''
+        ScalarCovFileName = ''
     end if
     if (P%WantTensors) then
         TensorFileName = trim(outroot) // Ini%Read_String('tensor_output_file')
@@ -413,7 +418,7 @@
     !Mess here to fix typo with backwards compatibility
     if (Ini%HasKey('do_late_rad_trunction')) then
         DoLateRadTruncation = Ini%Read_Logical('do_late_rad_trunction', .true.)
-        if (Ini%HasKey('do_late_rad_truncation')) stop 'check do_late_rad_xxxx'
+        if (Ini%HasKey('do_late_rad_truncation')) error stop 'check do_late_rad_xxxx'
     else
         DoLateRadTruncation = Ini%Read_Logical('do_late_rad_truncation', .true.)
     end if
