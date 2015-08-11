@@ -18,8 +18,7 @@ COMMON_FFLAGS = -fpp -openmp
 ifeq "$(ifortVer_major)" "15"
 COMMON_FFLAGS += -gen-dep=$$*.d
 endif
-FFLAGS = -fast -W0 -WB $(COMMON_FFLAGS)
-#FFLAGS = -openmp -fast -W0 -WB -fpp2 -vec_report0
+FFLAGS = -fast -fp-model precise -W0 -WB $(COMMON_FFLAGS)
 DEBUGFLAGS =  -g -check all -check noarg_temp_created -traceback -fpe0 $(COMMON_FFLAGS)
 ## This is flag is passed to the Fortran compiler allowing it to link C++ if required (not usually):
 F90CRLINK = -cxxlib

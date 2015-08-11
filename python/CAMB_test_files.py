@@ -7,6 +7,7 @@ import time
 import sys
 import shutil
 import copy
+from iniFile import iniFile
 
 parser = argparse.ArgumentParser(description='Run CAMB tests')
 parser.add_argument('ini_dir', help='ini file directory')
@@ -93,22 +94,47 @@ def normabs(o, n, tol):
         print("normabs: |%g - %g| / |%g| = %g > %g" % (o, n, o, math.fabs(o- n)/ math.fabs(o) if o != 0.0 else math.fabs(o- n), tol))
     return res
 
+def lmaxscalarlt2000forBxB(o,n):
+    """
+    Implement special behaviour for l_max_scalar < 2000.
+    When l_max_scalar is less than 2000, this function is always true.
+    :param o: The dictionary of all old values of the current row.
+    :param n: The dictionary of all new values of the current row.
+    :return: True, when the row is to be ignored or when depending on L the tolerance
+        as given by the array in the for is meat, else False.
+    """
+    global l_max_scalar_lt_2000
+    if l_max_scalar_lt_2000:
+        return True
+    else:
+        cand = False
+        for lim, rhs in [(   0, 5e-3),
+                          (1000, 1e-2),
+                          (6000, 0.02)]:
+            if lim < n["L"]:
+                cand = rhs
+            else:
+                break
+        return False if not cand else normabs(o['BxB'], n['BxB'], cand)
+
 # A short cut for lensedCls and lenspotentialCls files.
 coltol1 = ColTol({"L": Ignore(),
                   "TxT": [(   0, 3e-3),
                           ( 600, 1e-3),
-                          (2500, 3e-3)],
+                          (2500, 3e-3),
+                          (6000, 0.02)],
                   "ExE": [(   0, 3e-3),
                           ( 600, 1e-3),
                           (2500, 3e-3),
-                          (6000, 1e-2)],
-                  "BxB": [(   0, 5e-3),
-                          (1000, 1e-2)],
+                          (6000, 0.02)],
+                  "BxB": lmaxscalarlt2000forBxB,
                   "TxE": [(   0, lambda o, n: diffnsqrt(o, n, 3e-3, 'T', 'E')),
                           ( 600, lambda o, n: diffnsqrt(o, n, 1e-3, 'T', 'E')),
-                          (2500, lambda o, n: diffnsqrt(o, n, 3e-3, 'T', 'E'))],
+                          (2500, lambda o, n: diffnsqrt(o, n, 3e-3, 'T', 'E')),
+                          (6000, lambda o, n: diffnsqrt(o, n, 3e-2, 'T', 'E'))],
                   "PxP": [(   0, 5e-3),
-                          (1000, 1e-2)],
+                          (1000, 1e-2),
+                          (6000, 0.02)],
                   "TxP": [(   0, lambda o, n: diffnsqrt(o, n, 0.01, 'T', 'P')),
                           ( 100, Ignore())],
                   "ExP": [(   0, lambda o, n: diffnsqrt(o, n, 0.02, 'E', 'P')),
@@ -348,6 +374,7 @@ def num_unequal(filename, cmpFcn):
     :param cmpFcn: The default comparison function. Can be overriden by the filetolmatrix.
     :return: True, when the files do not match, false else.
     """
+    global l_max_scalar_lt_2000
     orig_name = os.path.join(args.ini_dir, args.diff_to, filename)
     with open(orig_name) as f:
         origMat = [[x for x in ln.split()] for ln in f]
@@ -379,6 +406,15 @@ def num_unequal(filename, cmpFcn):
     col = 0
     try:
         if tolerances:
+            try:
+                # The following split fails for *_transfer_out.* files where it not needed anyway.
+                inifilename = filename.rsplit('_', 1)[0]+"_params.ini"
+                inifilename = os.path.join(args.ini_dir, args.out_files_dir, inifilename)
+                inifile = iniFile()
+                inifile.readFile(inifilename)
+                l_max_scalar_lt_2000 = inifile.int("l_max_scalar") < 2000
+            except:
+                l_max_scalar_lt_2000 = False
             for o_row, n_row in zip(origMat[origBase:], newMat[newBase:]):
                 row += 1
                 if len(o_row) != len(n_row):
