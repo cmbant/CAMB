@@ -37,18 +37,24 @@ class ColTol(dict):
      This class is inherited from the dict class and overrides the missing
      method to return the tolerance of the asterisk key, which is denoting
      the tolerances for all not explicitly specified columns. The
-     tolerance for a column can be Ignore()d be using the <b>Ignore()</b> value.
+     tolerance for a column can be Ignore()d be using the <b>Ignore()</b> value or
+     has to be a tupple, where the first item tells whether the second is to
+     be evaluated. The first item can be a bool (value does not matter), to always
+     select the second item for evaluation, or a function accepting the
+     dictionary of inifile setting. The function then has to return true,
+     when the second item of the tupple has to be evaluated.
      A tolerance for the |old-new| < tol can be specified by giving the
-     scalar tolerance or a function of two vectors. The first vector contains
-     all columns of the old values the second all values of the new values.
-     The values are addressed by the columns names taken from the newer
-     file. The function has to return true, when the new value is ok, false
-     else.
+     scalar tolerance or a function of two vectors for the second item of
+     the tupple. The first vector contains all columns of the old values
+     the second all values of the new values. The values are addressed by
+     the columns names taken from the newer file. The function has to return
+     true, when the new value is ok, false else.
      Additionally ranges of tolerances or functions can be given as a sorted
-     list of 2-tupples. The first value is lower bound of the column "L" for
+     list of 2-tupples. The first value is the lower bound of the column "L" for
      which the second value/function is applicable. The lists is traversed as
-     long as "L" is smaller then first value or the list ends. The second
-     value is then taken for the comparison.
+     long as "L" is smaller then the first value or the list ends. The second
+     value is then taken for the comparison. That value also can be an Ignore()
+     object, denoting that the value is to always accepted.
     """
     def __missing__(self, item):
         return self["*"]
@@ -94,38 +100,41 @@ def normabs(o, n, tol):
         print("normabs: |%g - %g| / |%g| = %g > %g" % (o, n, o, math.fabs(o- n)/ math.fabs(o) if o != 0.0 else math.fabs(o- n), tol))
     return res
 
-def wantCMBFandlmaxscalarlt2000(ini):
+def wantCMBTandlmaxscalarge2000(ini):
     """
-    Implement special behaviour for l_max_scalar < 2000.
-    When l_max_scalar is less than 2000, this function is always true.
-    :param o: The dictionary of all old values of the current row.
-    :return: True, when the row is to be ignored or when depending on L the tolerance
-        as given by the array in the for is meat, else False.
+    Return true when want_CMB is set in the ini file and l_max_scalar is >= 2000.
+    :param ini: The dictionary all inifile settings.
+    :return: True, when want_CMB and l_max_scalar >= 2000, false else.
     """
     return ini.int("l_max_scalar") >= 2000 and ini.bool("want_CMB")
 
-def wantCMBF(ini):
+def wantCMBT(ini):
+    """
+    Return true when want_CMB is set.
+    :param ini: The dictionary all inifile settings.
+    :return: True, when want_CMB is set.
+    """
     return ini.bool("want_CMB")
 
 # A short cut for lensedCls and lenspotentialCls files.
 coltol1 = ColTol({"L": Ignore(),
-                  "TxT": (wantCMBF ,
+                  "TxT": (wantCMBT ,
                           [(   0, 3e-3),
                            ( 600, 1e-3),
                            (2500, 3e-3),
                            (6000, 0.02)]),
-                  "ExE": (wantCMBF,
+                  "ExE": (wantCMBT,
                           [(   0, 3e-3),
                            ( 600, 1e-3),
                            (2500, 3e-3),
                            (6000, 0.02),
                            (8000, 0.1)]),
-                  "BxB": (wantCMBFandlmaxscalarlt2000,
+                  "BxB": (wantCMBTandlmaxscalarge2000,
                           [(   0, 5e-3),
                            (1000, 1e-2),
                            (6000, 0.02),
                            (8000, 0.1)]),
-                  "TxE": (wantCMBF,
+                  "TxE": (wantCMBT,
                           [(   0, lambda o, n: diffnsqrt(o, n, 3e-3, 'T', 'E')),
                            ( 600, lambda o, n: diffnsqrt(o, n, 1e-3, 'T', 'E')),
                            (2500, lambda o, n: diffnsqrt(o, n, 3e-3, 'T', 'E')),
@@ -134,23 +143,23 @@ coltol1 = ColTol({"L": Ignore(),
                           [(   0, 5e-3),
                            (1000, 1e-2),
                            (6000, 0.02)]),
-                  "TxP": (wantCMBF,
+                  "TxP": (wantCMBT,
                           [(   0, lambda o, n: diffnsqrt(o, n, 0.01, 'T', 'P')),
                            ( 100, Ignore())]),
-                  "ExP": (wantCMBF,
+                  "ExP": (wantCMBT,
                           [(   0, lambda o, n: diffnsqrt(o, n, 0.02, 'E', 'P')),
                            (  60, Ignore())]),
-                  "TxW1": (wantCMBF, lambda o, n: diffnsqrt(o, n, 5e-3, 'T', 'W1')),
-                  "ExW1": (wantCMBF, lambda o, n: diffnsqrt(o, n, 5e-3, 'E', 'W1')),
+                  "TxW1": (wantCMBT, lambda o, n: diffnsqrt(o, n, 5e-3, 'T', 'W1')),
+                  "ExW1": (wantCMBT, lambda o, n: diffnsqrt(o, n, 5e-3, 'E', 'W1')),
                   "PxW1": (True, lambda o, n: diffnsqrt(o, n, 5e-3, 'P', 'W1')),
-                  "W1xT": (wantCMBF, lambda o, n: diffnsqrt(o, n, 5e-3, 'W1', 'T')),
-                  "W1xE": (wantCMBF, lambda o, n: diffnsqrt(o, n, 5e-3, 'W1', 'E')),
+                  "W1xT": (wantCMBT, lambda o, n: diffnsqrt(o, n, 5e-3, 'W1', 'T')),
+                  "W1xE": (wantCMBT, lambda o, n: diffnsqrt(o, n, 5e-3, 'W1', 'E')),
                   "W1xP": (True, lambda o, n: diffnsqrt(o, n, 5e-3, 'W1', 'P')),
                   "W1xW1": (True, 5e-3),
                   "PxW2": (True, lambda o, n: diffnsqrt(o, n, 5e-3, 'P', 'W2')),
                   "W1xW2": (True, lambda o, n: diffnsqrt(o, n, 5e-3, 'W1', 'W2')),
-                  "W2xT": (wantCMBF, lambda o, n: diffnsqrt(o, n, 5e-3, 'W2', 'T')),
-                  "W2xE": (wantCMBF, lambda o, n: diffnsqrt(o, n, 5e-3, 'W2', 'E')),
+                  "W2xT": (wantCMBT, lambda o, n: diffnsqrt(o, n, 5e-3, 'W2', 'T')),
+                  "W2xE": (wantCMBT, lambda o, n: diffnsqrt(o, n, 5e-3, 'W2', 'E')),
                   "W2xP": (True, lambda o, n: diffnsqrt(o, n, 5e-3, 'W2', 'P')),
                   "W2xW1": (True, lambda o, n: diffnsqrt(o, n, 5e-3, 'W2', 'W1')),
                   "W2xW2": (True, 5e-3),
