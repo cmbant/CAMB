@@ -10,7 +10,7 @@
     use Precision
     use ModelParams
     use RangeUtils
-	use MpiUtils
+    use MpiUtils
     implicit none
     private
 
@@ -84,7 +84,7 @@
     if (.not. allocated(ajl) .or. any(ubound(ajl) < [num_xx, max_ix])) then
         if (allocated(ajl)) deallocate(ajl, ajlpr, ddajlpr)
         allocate(ajl(1:num_xx,1:max_ix), ajlpr(1:num_xx,1:max_ix), &
-                 ddajlpr(1:num_xx,1:max_ix))
+            ddajlpr(1:num_xx,1:max_ix))
     end if
 
     !$OMP PARALLEL DO DEFAULT(SHARED), SCHEDULE(STATIC), PRIVATE(i, x, xlim)
@@ -96,8 +96,8 @@
             xlim=lSamp%l(j)-xlim
             if (x > xlim) then
                 if ((lSamp%l(j)==3).and.(x <=0.2) .or. (lSamp%l(j) > 3).and.(x < 0.5) .or. &
-                        (lSamp%l(j)>5).and.(x < 1.0)) then
-                    ajl(i,j)=0
+                    (lSamp%l(j)>5).and.(x < 1.0)) then
+                ajl(i,j)=0
                 else
                     !if ( lSamp%l(j) > 40000) then
                     ! ajl(i,j) = phi_langer(lSamp%l(j),0,1._dl,x)

@@ -361,13 +361,13 @@
             !Mass starts to become important, start evolving next momentum mode
             do nu_i = 1, CP%Nu_mass_eigenstates
                 if (EV%nq(nu_i) /= nqmax .and. &
-                        next_switch == nu_tau_notmassless(next_nu_nq(EV%nq(nu_i)),nu_i)) then
-                    EVOut%nq(nu_i) = next_nu_nq(EV%nq(nu_i))
-                    call SetupScalarArrayIndices(EVout)
-                    call CopyScalarVariableArray(y,yout, EV, EVout)
-                    EV=EVout
-                    y=yout
-                    exit
+                    next_switch == nu_tau_notmassless(next_nu_nq(EV%nq(nu_i)),nu_i)) then
+                EVOut%nq(nu_i) = next_nu_nq(EV%nq(nu_i))
+                call SetupScalarArrayIndices(EVout)
+                call CopyScalarVariableArray(y,yout, EV, EVout)
+                EV=EVout
+                y=yout
+                exit
                 end if
             end do
         else if (next_switch == tau_switch_nu_nonrel) then
@@ -648,7 +648,7 @@
     ! DarkEnergy
     if (CP%DarkEnergy%num_perturb_equations > 0) &
         yout(EVOut%w_ix:EVOut%w_ix + CP%DarkEnergy%num_perturb_equations - 1) = &
-            y(EV%w_ix:EV%w_ix + CP%DarkEnergy%num_perturb_equations - 1)
+        y(EV%w_ix:EV%w_ix + CP%DarkEnergy%num_perturb_equations - 1)
 
     if (.not. EV%no_phot_multpoles .and. .not. EVout%no_phot_multpoles) then
         if (EV%TightCoupling .or. EVOut%TightCoupling) then
@@ -1529,7 +1529,7 @@
     pidot_sum =  pidot_sum + grhog_t*pigdot + grhor_t*pirdot
     diff_rhopi = pidot_sum - (4 * dgpi + dgpi_diff) * adotoa + &
         CP%DarkEnergy%diff_rhopi_Add_Term(grho, gpres, w_dark_energy_t, grhok, adotoa, &
-            EV%kf(1), k, grhov_t, z, k2, yprime, y, EV%w_ix)
+        EV%kf(1), k, grhov_t, z, k2, yprime, y, EV%w_ix)
 
     !Maple's fortran output - see scal_eqs.map
     !2phi' term (\phi' + \psi' in Newtonian gauge)
@@ -2191,7 +2191,7 @@
     !             to 2.
     if (CP%DarkEnergy%num_perturb_equations > 0) &
         y(EV%w_ix:EV%w_ix + CP%DarkEnergy%num_perturb_equations - 1) = &
-            InitVec(i_clxq:i_clxq + CP%DarkEnergy%num_perturb_equations - 1)
+        InitVec(i_clxq:i_clxq + CP%DarkEnergy%num_perturb_equations - 1)
 
     if (Evolve_delta_Ts) then
         y(EV%Ts_ix) = y(EV%g_ix)/4
@@ -2304,7 +2304,7 @@
         !           + (bigR-1)/bigR*Magnetic*(1-15./14*x**2/(15+4*bigR))
         aj3r=  -2._dl/21._dl/(bigR+5)*x**3*elec !&
             !           + 3._dl/7*x*(bigR-1)/bigR*Magnetic
-        yt(EV%r_ix+2)=pir
+            yt(EV%r_ix+2)=pir
         yt(EV%r_ix+3)=aj3r
         !Should set up massive too, but small anyway..
     end if

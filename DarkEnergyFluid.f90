@@ -99,7 +99,7 @@
     real(dl), intent(in) :: adotoa, k, z, y(:)
     integer, intent(in) :: w_ix
 
-     if (.not. this%is_cosmological_constant) then
+    if (.not. this%is_cosmological_constant) then
         ayprime(w_ix) = -3 * adotoa * (this%cs2_lam - this%w_lam) * &
             (y(w_ix) + 3 * adotoa * (1 + this%w_lam) * y(w_ix + 1) / k) - &
             (1 + this%w_lam) * k * y(w_ix + 1) - (1 + this%w_lam) * k * z

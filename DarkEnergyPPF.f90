@@ -58,7 +58,7 @@
         this%w_lam = Ini%Read_Double('w', -1.d0)
         this%wa_ppf = Ini%Read_Double('wa', 0.d0)
         if (Rand_Feedback >0) write(*,'("(w0, wa) = (", f8.5,", ", f8.5, ")")') &
-        &   this%w_lam, this%wa_ppf
+            &   this%w_lam, this%wa_ppf
     else
         wafile = Ini%Read_String('wafile')
         open(unit=10, file=wafile, status='old')
@@ -69,11 +69,11 @@
             this%nw_ppf = this%nw_ppf + 1
         enddo
         write(*,'("Note: ", a, " has more than ", I8, " data points")') &
-        &   trim(wafile), nwmax
+            &   trim(wafile), nwmax
         error stop 'Increase nwmax in DarkEnergyPPFModule'
 100     close(10)
         write(*,'("read in ", I8, " (a, w) data points from ", a)') &
-        &   this%nw_ppf, trim(wafile)
+            &   this%nw_ppf, trim(wafile)
         call this%setddwa
         call this%interpolrde
     endif
@@ -96,7 +96,7 @@
         allocate(this%dgq_e_ppf(0:numThreads), this%dgrho_e_ppf(0:numThreads))
 
     this%is_cosmological_constant = .not. this%use_tabulated_w .and. &
-    &   this%w_lam==-1_dl .and. this%wa_ppf==0._dl
+        &   this%w_lam==-1_dl .and. this%wa_ppf==0._dl
 
     ! Set both cases to be always on the safe side.
     if (this%is_cosmological_constant) then
@@ -141,7 +141,7 @@
             w_de= curr%w_ppf(curr%nw_ppf)         !if a > maximus a from wa.dat
         else
             call cubicsplint(curr%a_ppf, curr%w_ppf, curr%ddw_ppf, &
-            &   curr%nw_ppf, al, w_de)
+                &   curr%nw_ppf, al, w_de)
         endif
     endif
     end function w_de  ! equation of state of the PPF DE
@@ -192,7 +192,7 @@
         else
             al = dlog(a)
             if(al .lt. this%ade(1))then
-                        !if a<amin, assume here w=w_de(amin)
+                !if a<amin, assume here w=w_de(amin)
                 fint = this%rde(1) * (a / amin) ** (1. - 3. * w_de(this, amin))
             else        !if amin is small enough, this extrapolation will be unnecessary.
                 call cubicsplint(this%ade, this%rde, this%ddrde, nde, al, fint)
@@ -275,7 +275,7 @@
     subroutine TDarkEnergyPPF_AddStressEnergy(this, dgrho, dgq, &
         grhov_t, y, w_ix, output)
     class(TDarkEnergyPPF), intent(inout) :: this
-        real(dl), intent(inout) :: dgrho, dgq
+    real(dl), intent(inout) :: dgrho, dgq
     real(dl), intent(in) :: grhov_t, y(:)
     integer, intent(in) :: w_ix
     logical, intent(in) :: output

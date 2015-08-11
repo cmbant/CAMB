@@ -255,8 +255,8 @@
     !P%Transfer%redshifts -> P%Transfer%PK_redshifts and P%Transfer%num_redshifts -> P%Transfer%PK_num_redshifts
     !in the P%WantTransfer loop.
     if (((P%NonLinear==NonLinear_lens .or. P%NonLinear==NonLinear_both) .and. P%DoLensing) &
-            .or. P%PK_WantTransfer) then
-        P%Transfer%high_precision = Ini%Read_Logical('transfer_high_precision', .false.)
+        .or. P%PK_WantTransfer) then
+    P%Transfer%high_precision = Ini%Read_Logical('transfer_high_precision', .false.)
     else
         P%transfer%high_precision = .false.
     endif
@@ -313,9 +313,9 @@
     end if
 
     if ((P%NonLinear==NonLinear_lens .or. P%NonLinear==NonLinear_both) .and. &
-             (P%DoLensing .or. num_redshiftwindows > 0)) then
-        P%WantTransfer  = .true.
-        call Transfer_SetForNonlinearLensing(P%Transfer)
+        (P%DoLensing .or. num_redshiftwindows > 0)) then
+    P%WantTransfer  = .true.
+    call Transfer_SetForNonlinearLensing(P%Transfer)
     end if
 
     call Transfer_SortAndIndexRedshifts(P%Transfer)

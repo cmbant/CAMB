@@ -1638,10 +1638,10 @@
     !$OMP PARALLEL DO DEFAULT(SHARED), SCHEDULE(STATIC), &
     !$OMP& PRIVATE(am,rhonu,pnu), SHARED(r1, p1)
     do i=1,nrhopn
-        am=am_min*exp((i-1)*dlnam)
-        call nuRhoPres(am,rhonu,pnu)
-        r1(i)=log(rhonu)
-        p1(i)=log(pnu)
+    am=am_min*exp((i-1)*dlnam)
+    call nuRhoPres(am,rhonu,pnu)
+    r1(i)=log(rhonu)
+    p1(i)=log(pnu)
     end do
     !$OMP END PARALLEL DO
 
@@ -1817,11 +1817,11 @@
     public
     integer, parameter :: Transfer_kh =1, Transfer_cdm=2,Transfer_b=3,Transfer_g=4, &
         Transfer_r=5, Transfer_nu = 6,  & !massless and massive neutrino
-        Transfer_tot=7, Transfer_nonu=8, Transfer_tot_de=9,  &
+    Transfer_tot=7, Transfer_nonu=8, Transfer_tot_de=9,  &
         ! total perturbations with and without neutrinos, with neutrinos+dark energy in the numerator
         Transfer_Weyl = 10, & ! the Weyl potential, for lensing and ISW
-        Transfer_Newt_vel_cdm=11, Transfer_Newt_vel_baryon=12,   & ! -k v_Newtonian/H
-        Transfer_vel_baryon_cdm = 13 !relative velocity of baryons and CDM
+    Transfer_Newt_vel_cdm=11, Transfer_Newt_vel_baryon=12,   & ! -k v_Newtonian/H
+    Transfer_vel_baryon_cdm = 13 !relative velocity of baryons and CDM
     !Sources
     !Alternatively for 21cm
     integer, parameter :: Transfer_monopole=4, Transfer_vnewt=5, Transfer_Tmat = 6
@@ -1829,7 +1829,7 @@
     integer, parameter :: Transfer_max = Transfer_vel_baryon_cdm
     character(LEN=name_tag_len) :: Transfer_name_tags(Transfer_max-1) = &
         ['CDM     ', 'baryon  ', 'photon  ', 'nu      ', 'mass_nu ', 'total   ', &
-         'no_nu   ', 'total_de', 'Weyl    ', 'v_CDM   ', 'v_b     ', 'v_b-v_c ']
+        'no_nu   ', 'total_de', 'Weyl    ', 'v_CDM   ', 'v_b     ', 'v_b-v_c ']
 
     logical :: transfer_interp_matterpower  = .true. !output regular grid in log k
     !set to false to output calculated values for later interpolation
@@ -1941,9 +1941,9 @@
     p_ix = PresentDefault (1, power_ix)
 
     if (present(itf_only)) then
-    itf_start=itf_only
-    itf_end = itf_only
-    nz = 1
+        itf_start=itf_only
+        itf_end = itf_only
+        nz = 1
     else
         itf_start=1
         nz= size(MTrans%TransferData,3)
@@ -2262,7 +2262,7 @@
     !            stop 'Transfer_GetMatterPower: kh out of computed region'
     !          end if
     if (minkh*exp((npoints-1)*dlnkh) > MTrans%TransferData(Transfer_kh,MTrans%num_q_trans,itf) &
-            .and. FeedbackLevel > 0 ) &
+        .and. FeedbackLevel > 0 ) &
         write(*,*) 'Warning: extrapolating matter power in Transfer_GetMatterPower'
 
 
@@ -2746,7 +2746,7 @@
         PK_data%log_kh(ik) = log(kh)
         PK_data%matpower(ik,z_ix) = &
             log(MTrans%TransferData(Transfer_tot,ik,z_ix)**2*k &
-                *const_pi*const_twopi*h**3*ScalarPower(k,in))
+            *const_pi*const_twopi*h**3*ScalarPower(k,in))
 
         if (CP%NonLinear/=NonLinear_None) then
             PK_data%matpower(ik,1) = PK_data%matpower(ik,1) + 2*log(PK_cdm%nonlin_ratio(ik,z_ix))
@@ -2800,12 +2800,12 @@
         pow = ScalarPower(k,in)*1d10
 
         PK_data%matpower(ik,1) = &
-           log( (MTrans%TransferData(Transfer_monopole,ik,z_ix)*k**2)**2 * pow)
+            log( (MTrans%TransferData(Transfer_monopole,ik,z_ix)*k**2)**2 * pow)
         PK_data%vvpower(ik,1) = &
-           log( (MTrans%TransferData(Transfer_vnewt ,ik,z_ix)*k**2)**2 * pow)
+            log( (MTrans%TransferData(Transfer_vnewt ,ik,z_ix)*k**2)**2 * pow)
         PK_data%vdpower(ik,1) = &
-           log( abs((MTrans%TransferData(Transfer_vnewt ,ik,z_ix)*k**2)*&
-           (MTrans%TransferData(Transfer_monopole,ik,z_ix)*k**2))* pow)
+            log( abs((MTrans%TransferData(Transfer_vnewt ,ik,z_ix)*k**2)*&
+            (MTrans%TransferData(Transfer_monopole,ik,z_ix)*k**2))* pow)
 
         if (CP%NonLinear/=NonLinear_None) then
             PK_data%matpower(ik,1) = PK_data%matpower(ik,1) + 2*log(PK_cdm%nonlin_ratio(ik,z_ix))
@@ -3390,8 +3390,8 @@
         else
             emmu(j1)=exp(sdotmu(j1)-sdotmu(nthermo))
             if (.not. CP%AccurateReionization .and. &
-                    actual_opt_depth==0 .and. xe(j1) < 1e-3) then
-                actual_opt_depth = -sdotmu(j1)+sdotmu(nthermo)
+                actual_opt_depth==0 .and. xe(j1) < 1e-3) then
+            actual_opt_depth = -sdotmu(j1)+sdotmu(nthermo)
             end if
             if (CP%AccurateReionization .and. CP%DerivedParameters .and. z_star==0.d0) then
                 if (sdotmu(nthermo)-sdotmu(j1) - actual_opt_depth < 1) then
@@ -3405,11 +3405,11 @@
 
     !Sources
     if (CP%WantTransfer) then
-		! Reuse already allocated memory, when it is large enough, else alloc.
-		if (.not. associated(MT%optical_depths) .or. &
-                ubound(MT%optical_depths, 1) < CP%Transfer%num_redshifts) then
-            if (associated(MT%optical_depths)) deallocate(MT%optical_depths)
-            allocate(MT%optical_depths(CP%Transfer%num_redshifts))
+        ! Reuse already allocated memory, when it is large enough, else alloc.
+        if (.not. associated(MT%optical_depths) .or. &
+            ubound(MT%optical_depths, 1) < CP%Transfer%num_redshifts) then
+        if (associated(MT%optical_depths)) deallocate(MT%optical_depths)
+        allocate(MT%optical_depths(CP%Transfer%num_redshifts))
         end if
         do RW_i = 1, CP%Transfer%num_redshifts
             if (CP%Transfer%Redshifts(RW_i) < 1e-3) then
@@ -3499,13 +3499,13 @@
     do RW_i = 1, num_redshiftwindows
         associate(Win => RW(RW_i))
             if (Redshift_w(RW_i)%kind == window_lensing .or. &
-                    Redshift_w(RW_i)%kind == window_counts .and. DoRedshiftLensing) then
-                has_lensing_windows = .true.
-                Redshift_w(RW_i)%has_lensing_window = .true.
-                if (FeedbackLevel>0) &
-                    write(*,'(I1," Int W              = ",f9.6)') RW_i, awin_lens1(RW_i)
+                Redshift_w(RW_i)%kind == window_counts .and. DoRedshiftLensing) then
+            has_lensing_windows = .true.
+            Redshift_w(RW_i)%has_lensing_window = .true.
+            if (FeedbackLevel>0) &
+                write(*,'(I1," Int W              = ",f9.6)') RW_i, awin_lens1(RW_i)
 
-                Win%awin_lens=Win%awin_lens/awin_lens1(RW_i)
+            Win%awin_lens=Win%awin_lens/awin_lens1(RW_i)
             else
                 Redshift_w(RW_i)%has_lensing_window = .false.
             end if
@@ -3636,7 +3636,7 @@
             Tb21cm = 1000*(1-exp(-tau_eps))*a*(Tspin-Trad)
 
             outstr = 'z= '//trim(RealToStr(real(CP%Transfer%PK_redshifts(RW_i))))// &
-                 ': tau_21cm = '//trim(RealToStr(real(tau_eps),5))//'; T_b = '//trim(RealToStr(real(Tb21cm),6))//'mK'
+                ': tau_21cm = '//trim(RealToStr(real(tau_eps),5))//'; T_b = '//trim(RealToStr(real(Tb21cm),6))//'mK'
             write (*,*) trim(outstr)
         end do
     end if
@@ -3736,7 +3736,7 @@
     call TimeSteps%GetArray()
     nstep = TimeSteps%npoints
 
-	!Reuse memory already allocated.
+    !Reuse memory already allocated.
     if (.not. allocated(vis) .or. ubound(vis, 1) < nstep) then
         if (allocated(vis)) deallocate(vis,dvis,ddvis,expmmu,dopac, opac, &
             step_redshift, rhos_fac, drhos_fac)

@@ -45,13 +45,13 @@
     real(dl), intent(in) :: a
     real(dl), intent(out) :: grhov_t
     real(dl), intent(out), optional :: w
-    
+
     grhov_t  =0
-    
+
     end subroutine BackgroundDensityAndPressure
 
 
-    subroutine AddStressEnergy(this, dgrho, dgq, grhov_t, y, w_ix, output) 
+    subroutine AddStressEnergy(this, dgrho, dgq, grhov_t, y, w_ix, output)
     class(TDarkEnergyBase), intent(inout) :: this
     real(dl), intent(inout) :: dgrho, dgq
     real(dl), intent(in) :: grhov_t, y(:)
