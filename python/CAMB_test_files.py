@@ -94,65 +94,66 @@ def normabs(o, n, tol):
         print("normabs: |%g - %g| / |%g| = %g > %g" % (o, n, o, math.fabs(o- n)/ math.fabs(o) if o != 0.0 else math.fabs(o- n), tol))
     return res
 
-def lmaxscalarlt2000forBxB(o,n):
+def wantCMBFandlmaxscalarlt2000(ini):
     """
     Implement special behaviour for l_max_scalar < 2000.
     When l_max_scalar is less than 2000, this function is always true.
     :param o: The dictionary of all old values of the current row.
-    :param n: The dictionary of all new values of the current row.
     :return: True, when the row is to be ignored or when depending on L the tolerance
         as given by the array in the for is meat, else False.
     """
-    global l_max_scalar_lt_2000
-    if l_max_scalar_lt_2000:
-        return True
-    else:
-        cand = False
-        for lim, rhs in [(   0, 5e-3),
-                          (1000, 1e-2),
-                          (6000, 0.02)]:
-            if lim < n["L"]:
-                cand = rhs
-            else:
-                break
-        return False if not cand else normabs(o['BxB'], n['BxB'], cand)
+    return ini.int("l_max_scalar") >= 2000 and ini.bool("want_CMB")
+
+def wantCMBF(ini):
+    return ini.bool("want_CMB")
 
 # A short cut for lensedCls and lenspotentialCls files.
 coltol1 = ColTol({"L": Ignore(),
-                  "TxT": [(   0, 3e-3),
-                          ( 600, 1e-3),
-                          (2500, 3e-3),
-                          (6000, 0.02)],
-                  "ExE": [(   0, 3e-3),
-                          ( 600, 1e-3),
-                          (2500, 3e-3),
-                          (6000, 0.02)],
-                  "BxB": lmaxscalarlt2000forBxB,
-                  "TxE": [(   0, lambda o, n: diffnsqrt(o, n, 3e-3, 'T', 'E')),
-                          ( 600, lambda o, n: diffnsqrt(o, n, 1e-3, 'T', 'E')),
-                          (2500, lambda o, n: diffnsqrt(o, n, 3e-3, 'T', 'E')),
-                          (6000, lambda o, n: diffnsqrt(o, n, 3e-2, 'T', 'E'))],
-                  "PxP": [(   0, 5e-3),
-                          (1000, 1e-2),
-                          (6000, 0.02)],
-                  "TxP": [(   0, lambda o, n: diffnsqrt(o, n, 0.01, 'T', 'P')),
-                          ( 100, Ignore())],
-                  "ExP": [(   0, lambda o, n: diffnsqrt(o, n, 0.02, 'E', 'P')),
-                          (  60, Ignore())],
-                  "TxW1": lambda o, n: diffnsqrt(o, n, 5e-3, 'T', 'W1'),
-                  "ExW1": lambda o, n: diffnsqrt(o, n, 5e-3, 'E', 'W1'),
-                  "PxW1": lambda o, n: diffnsqrt(o, n, 5e-3, 'P', 'W1'),
-                  "W1xT": lambda o, n: diffnsqrt(o, n, 5e-3, 'W1', 'T'),
-                  "W1xE": lambda o, n: diffnsqrt(o, n, 5e-3, 'W1', 'E'),
-                  "W1xP": lambda o, n: diffnsqrt(o, n, 5e-3, 'W1', 'P'),
-                  "W1xW1": 5e-3,
-                  "PxW2": lambda o, n: diffnsqrt(o, n, 5e-3, 'P', 'W2'),
-                  "W1xW2": lambda o, n: diffnsqrt(o, n, 5e-3, 'W1', 'W2'),
-                  "W2xT": lambda o, n: diffnsqrt(o, n, 5e-3, 'W2', 'T'),
-                  "W2xE": lambda o, n: diffnsqrt(o, n, 5e-3, 'W2', 'E'),
-                  "W2xP": lambda o, n: diffnsqrt(o, n, 5e-3, 'W2', 'P'),
-                  "W2xW1": lambda o, n: diffnsqrt(o, n, 5e-3, 'W2', 'W1'),
-                  "W2xW2": 5e-3,
+                  "TxT": (wantCMBF ,
+                          [(   0, 3e-3),
+                           ( 600, 1e-3),
+                           (2500, 3e-3),
+                           (6000, 0.02)]),
+                  "ExE": (wantCMBF,
+                          [(   0, 3e-3),
+                           ( 600, 1e-3),
+                           (2500, 3e-3),
+                           (6000, 0.02),
+                           (8000, 0.1)]),
+                  "BxB": (wantCMBFandlmaxscalarlt2000,
+                          [(   0, 5e-3),
+                           (1000, 1e-2),
+                           (6000, 0.02),
+                           (8000, 0.1)]),
+                  "TxE": (wantCMBF,
+                          [(   0, lambda o, n: diffnsqrt(o, n, 3e-3, 'T', 'E')),
+                           ( 600, lambda o, n: diffnsqrt(o, n, 1e-3, 'T', 'E')),
+                           (2500, lambda o, n: diffnsqrt(o, n, 3e-3, 'T', 'E')),
+                           (6000, lambda o, n: diffnsqrt(o, n, 3e-2, 'T', 'E'))]),
+                  "PxP": (True,
+                          [(   0, 5e-3),
+                           (1000, 1e-2),
+                           (6000, 0.02)]),
+                  "TxP": (wantCMBF,
+                          [(   0, lambda o, n: diffnsqrt(o, n, 0.01, 'T', 'P')),
+                           ( 100, Ignore())]),
+                  "ExP": (wantCMBF,
+                          [(   0, lambda o, n: diffnsqrt(o, n, 0.02, 'E', 'P')),
+                           (  60, Ignore())]),
+                  "TxW1": (wantCMBF, lambda o, n: diffnsqrt(o, n, 5e-3, 'T', 'W1')),
+                  "ExW1": (wantCMBF, lambda o, n: diffnsqrt(o, n, 5e-3, 'E', 'W1')),
+                  "PxW1": (True, lambda o, n: diffnsqrt(o, n, 5e-3, 'P', 'W1')),
+                  "W1xT": (wantCMBF, lambda o, n: diffnsqrt(o, n, 5e-3, 'W1', 'T')),
+                  "W1xE": (wantCMBF, lambda o, n: diffnsqrt(o, n, 5e-3, 'W1', 'E')),
+                  "W1xP": (True, lambda o, n: diffnsqrt(o, n, 5e-3, 'W1', 'P')),
+                  "W1xW1": (True, 5e-3),
+                  "PxW2": (True, lambda o, n: diffnsqrt(o, n, 5e-3, 'P', 'W2')),
+                  "W1xW2": (True, lambda o, n: diffnsqrt(o, n, 5e-3, 'W1', 'W2')),
+                  "W2xT": (wantCMBF, lambda o, n: diffnsqrt(o, n, 5e-3, 'W2', 'T')),
+                  "W2xE": (wantCMBF, lambda o, n: diffnsqrt(o, n, 5e-3, 'W2', 'E')),
+                  "W2xP": (True, lambda o, n: diffnsqrt(o, n, 5e-3, 'W2', 'P')),
+                  "W2xW1": (True, lambda o, n: diffnsqrt(o, n, 5e-3, 'W2', 'W1')),
+                  "W2xW2": (True, 5e-3),
                   "*" : Ignore()})
 
 # The filetolmatrix as described above.
@@ -162,17 +163,17 @@ filetolmatrix = [["*scalCls.dat", Ignore()], # Ignore() all scalCls.dat files.
                  ["*lensedtotCls.dat", coltol1],
                  ["*lenspotentialCls.dat", coltol1],
                  ["*scalCovCls.dat", coltol1],
-                 ["*tensCls.dat", ColTol({"TE": lambda o, n: diffnsqrt(o, n, 1e-2, 'T', 'E'),
-                                          "*": [(  0, 1e-2),
-                                                (600, Ignore())]})],
-                 ["*matterpower.dat", ColTol({"P": lambda o, n: normabs(o["P"], n["P"], 1e-3 if n["k/h"]< 1 else 3e-3),
+                 ["*tensCls.dat", ColTol({"TE": (True, lambda o, n: diffnsqrt(o, n, 1e-2, 'T', 'E')),
+                                          "*": (True, [(  0, 1e-2),
+                                                (600, Ignore())])})],
+                 ["*matterpower.dat", ColTol({"P": (True, lambda o, n: normabs(o["P"], n["P"], 1e-3 if n["k/h"]< 1 else 3e-3)),
                                               "*": Ignore()})],
-                 ["*transfer_out.dat", ColTol({"baryon": lambda o, n: normabs(o["baryon"], n["baryon"], 1e-3 if n["k/h"]< 1 else 3e-3),
-                                               "CDM": lambda o, n: normabs(o["CDM"], n["CDM"], 1e-3 if n["k/h"]< 1 else 3e-3),
-                                               "v_CDM": lambda o, n: normabs(o["v_CDM"], n["v_CDM"], 1e-3 if n["k/h"]< 1 else 3e-3),
-                                               "v_b": lambda o, n: normabs(o["v_b"], n["v_b"], 1e-3 if n["k/h"]< 1 else 3e-3),
+                 ["*transfer_out.dat", ColTol({"baryon": (True, lambda o, n: normabs(o["baryon"], n["baryon"], 1e-3 if n["k/h"]< 1 else 3e-3)),
+                                               "CDM": (True, lambda o, n: normabs(o["CDM"], n["CDM"], 1e-3 if n["k/h"]< 1 else 3e-3)),
+                                               "v_CDM": (True, lambda o, n: normabs(o["v_CDM"], n["v_CDM"], 1e-3 if n["k/h"]< 1 else 3e-3)),
+                                               "v_b": (True, lambda o, n: normabs(o["v_b"], n["v_b"], 1e-3 if n["k/h"]< 1 else 3e-3)),
                                                "*": Ignore()})],
-                 ["*", ColTol({"*": args.diff_tolerance})],
+                 ["*", ColTol({"*": (True, args.diff_tolerance)})],
                 ]
 
 
@@ -374,7 +375,6 @@ def num_unequal(filename, cmpFcn):
     :param cmpFcn: The default comparison function. Can be overriden by the filetolmatrix.
     :return: True, when the files do not match, false else.
     """
-    global l_max_scalar_lt_2000
     orig_name = os.path.join(args.ini_dir, args.diff_to, filename)
     with open(orig_name) as f:
         origMat = [[x for x in ln.split()] for ln in f]
@@ -406,15 +406,16 @@ def num_unequal(filename, cmpFcn):
     col = 0
     try:
         if tolerances:
+            inifilenameparts = filename.rsplit('_', 2)
+            inifilename = '_'.join(inifilenameparts[0:2]) if inifilenameparts[1] != 'transfer' else inifilenameparts[0]
+            inifilename += "_params.ini"
+            inifilename = os.path.join(args.ini_dir, args.out_files_dir, inifilename)
             try:
                 # The following split fails for *_transfer_out.* files where it not needed anyway.
-                inifilename = filename.rsplit('_', 1)[0]+"_params.ini"
-                inifilename = os.path.join(args.ini_dir, args.out_files_dir, inifilename)
                 inifile = iniFile()
                 inifile.readFile(inifilename)
-                l_max_scalar_lt_2000 = inifile.int("l_max_scalar") < 2000
             except:
-                l_max_scalar_lt_2000 = False
+                print("Could not open inifilename: %s" % (inifilename))
             for o_row, n_row in zip(origMat[origBase:], newMat[newBase:]):
                 row += 1
                 if len(o_row) != len(n_row):
@@ -433,37 +434,46 @@ def num_unequal(filename, cmpFcn):
                 oldrowdict = False
                 newrowdict = False
                 for o, n in zip(of_row, nf_row):
-                    if isinstance(tolerances[col], float):
-                        if not cmpFcn(o, n, tolerances[col]):
-                            if args.verbose_diff_output:
-                                print('value mismatch at %d, %d ("%s") of %s: %s != %s' % (row, col + 1, cols[col], filename, o, n))
-                            return True
-                    elif not isinstance(tolerances[col], Ignore):
-                        if not oldrowdict:
-                            oldrowdict = dict(zip(cols, of_row))
-                            newrowdict = dict(zip(cols, nf_row))
-                        if isinstance(tolerances[col], list):
-                            cand = False
-                            for lim, rhs in tolerances[col]:
-                                if lim < newrowdict["L"]:
-                                    cand = rhs
-                                else:
-                                    break
-                            if isinstance(cand, float):
-                                if not cmpFcn(o, n, cand):
+                    if isinstance(tolerances[col], Ignore):
+                        pass
+                    else:
+                        cond, tols = tolerances[col]
+                        # When the column condition is bool (True or False) or a function
+                        # returning False, then skip this column.
+                        if isinstance(cond, bool) or not cond(inifile):
+                            pass
+                        else:
+                            if isinstance(tols, float):
+                                if not cmpFcn(o, n, tols):
                                     if args.verbose_diff_output:
                                         print('value mismatch at %d, %d ("%s") of %s: %s != %s' % (row, col + 1, cols[col], filename, o, n))
                                     return True
-                            elif not isinstance(cand, Ignore):
-                                if not cand(oldrowdict, newrowdict):
-                                    if args.verbose_diff_output:
-                                        print('value mismatch at %d, %d ("%s") of %s: %s != %s' % (row, col+ 1, cols[col], filename, o, n))
-                                    return True
-                        else:
-                            if not tolerances[col](oldrowdict, newrowdict):
-                                if args.verbose_diff_output:
-                                    print('value mismatch at %d, %d ("%s") of %s: %s != %s' % (row, col+ 1, cols[col], filename, o, n))
-                                return True
+                            elif not isinstance(tols, Ignore):
+                                if not oldrowdict:
+                                    oldrowdict = dict(zip(cols, of_row))
+                                    newrowdict = dict(zip(cols, nf_row))
+                                if isinstance(tols, list):
+                                    cand = False
+                                    for lim, rhs in tols:
+                                        if lim < newrowdict["L"]:
+                                            cand = rhs
+                                        else:
+                                            break
+                                    if isinstance(cand, float):
+                                        if not cmpFcn(o, n, cand):
+                                            if args.verbose_diff_output:
+                                                print('value mismatch at %d, %d ("%s") of %s: %s != %s' % (row, col + 1, cols[col], filename, o, n))
+                                            return True
+                                    elif not isinstance(cand, Ignore):
+                                        if not cand(oldrowdict, newrowdict):
+                                            if args.verbose_diff_output:
+                                                print('value mismatch at %d, %d ("%s") of %s: %s != %s' % (row, col+ 1, cols[col], filename, o, n))
+                                            return True
+                                else:
+                                    if not tols(oldrowdict, newrowdict):
+                                        if args.verbose_diff_output:
+                                            print('value mismatch at %d, %d ("%s") of %s: %s != %s' % (row, col+ 1, cols[col], filename, o, n))
+                                        return True
                     col += 1
             return False
         else:
