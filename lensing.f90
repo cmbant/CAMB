@@ -241,11 +241,10 @@
 
         lens_contrib=0
 
-        !uncomment second line for PGF90 workaround
         !$OMP PARALLEL DO DEFAULT(PRIVATE),  &
-        !$OMP PRIVATE(P,dP,d11,dm11,d22,d2m2,d20,corrcontribs,ddcontribs,thread_ix),&
-        !$OMP SHARED(lfacs,lfacs2,lrootfacs,Cphil3,CTT,CTE,CEE,lens_contrib, lmax), &
-        !$OMP SHARED(dtheta,CP,lmax_lensed,roots, npoints,interp_fac,jmax,ls,xl,short_integral_range,apodize_point_width)
+        !$OMP SHARED(lfacs,lfacs2,lrootfacs,Cphil3,CTT,CTE,CEE,lens_contrib), &
+        !$OMP SHARED(lmax,dtheta,CP,lmax_lensed,roots, npoints,interp_fac), &
+        !$OMP SHARED(jmax,ls,xl,short_integral_range,apodize_point_width)
         do i=1,npoints-1
 
             theta = i * dtheta
