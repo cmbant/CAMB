@@ -2917,7 +2917,7 @@
 
             call Transfer_Get21cmPowerData(MTrans, PK_data, in, itf)
 
-            unit = open_file_header(FileNames(itf), 'L', Transfer_21cm_name_tags)
+            unit = open_file_header(FileNames(itf), 'L', Transfer_21cm_name_tags, 8)
 
             do ik =1, points-1
                 k =exp(PK_data%log_k(ik))
@@ -2986,7 +2986,7 @@
                     Cl=exp(-2*MTrans%optical_depths(itf))*const_fourpi*Cl* &
                         real(l,dl)*(l+1)/const_twopi/1d10
 
-                    write (unit, '(1I12,3E15.6)') l, Cl, exp(PK_data%matpower(ik,1)/1d10), exp(PK_data%vvpower(ik,1)/1d10)
+                    write (unit, '(1I8,3E15.5)') l, Cl, exp(PK_data%matpower(ik,1)/1d10), exp(PK_data%vvpower(ik,1)/1d10)
                 end if
             end do
 
