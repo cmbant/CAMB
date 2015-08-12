@@ -203,18 +203,17 @@
         ThisCT%NumSources = SourceNum
         ThisCT%ls = lSamp
 
-        !$OMP PARALLEL DO DEFAULT(SHARED),SCHEDULE(DYNAMIC) &
-        !$OMP & PRIVATE(EV, q_ix)
+        !$OMP PARAllEl DO DEFAUlT(SHARED),SCHEDUlE(DYNAMIC), PRIVATE(EV, q_ix)
         do q_ix= 1,Evolve_q%npoints
-        if (global_error_flag==0) call DoSourcek(EV,q_ix)
-    end do
-    !$OMP END PARALLEL DO
+            if (global_error_flag==0) call DoSourcek(EV,q_ix)
+        end do
+        !$OMP END PARAllEl DO
 
-    if (DebugMsgs .and. Feedbacklevel > 0) then
-        timeprev=actual
-        actual=GetTestTime()
-        write(*,*) actual-timeprev,' Timing for source calculation'
-    end if
+        if (DebugMsgs .and. Feedbacklevel > 0) then
+            timeprev=actual
+            actual=GetTestTime()
+            write(*,*) actual-timeprev,' Timing for source calculation'
+        end if
 
     endif !WantCls
 
@@ -1146,21 +1145,20 @@
         write(*,*) MT%num_q_trans-Evolve_q%npoints, 'transfer k values'
 
     !     loop over wavenumbers.
-    !$OMP PARALLEL DO DEFAUlT(SHARED), SCHEDULE(DYNAMIC), &
-    !$OMP & PRIVATE(EV, tau, q_ix)
+    !$OMP PARALLEL DO DEFAUlT(SHARED),SCHEDUlE(DYNAMIC), PRIVATE(EV, tau, q_ix)
     do q_ix=Evolve_q%npoints+1,MT%num_q_trans
-    EV%TransferOnly=.true. !in case we want to do something to speed it up
+        EV%TransferOnly=.true. !in case we want to do something to speed it up
 
-    EV%q= MT%q_trans(q_ix)
+        EV%q= MT%q_trans(q_ix)
 
-    EV%q2=EV%q**2
-    EV%q_ix = q_ix
+        EV%q2=EV%q**2
+        EV%q_ix = q_ix
 
-    tau = GetTauStart(EV%q)
+        tau = GetTauStart(EV%q)
 
-    call GetNumEqns(EV)
+        call GetNumEqns(EV)
 
-    call GetTransfer(EV, tau)
+        call GetTransfer(EV, tau)
     end do
     !$OMP END PARALLEL DO
 
