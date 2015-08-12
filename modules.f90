@@ -1684,7 +1684,8 @@
 
     integer, parameter :: Transfer_max = Transfer_vel_baryon_cdm
     character(LEN=name_tag_len) :: Transfer_name_tags(Transfer_max-1) = &
-        ['CDM','baryon','photon','nu','mass_nu','total', 'no_nu','total_de', 'Weyl', 'v_CDM','v_b','v_b-v_c']
+        ['CDM     ', 'baryon  ', 'photon  ', 'nu      ', 'mass_nu ', 'total   ', &
+         'no_nu   ', 'total_de', 'Weyl    ', 'v_CDM   ', 'v_b     ', 'v_b-v_c ']
 
     logical :: transfer_interp_matterpower  = .true. !output regular grid in log k
     !set to false to output calculated values for later interpolation
@@ -2391,7 +2392,7 @@
                     outpower(:,in,1) = exp(PK_data%matpower(:,1))
                     call MatterPowerdata_Free(PK_Data)
                 end do
-                columns = ['P', 'P_vd','P_vv']
+                columns = ['P   ', 'P_vd','P_vv']
                 unit = open_file_header(FileNames(itf), 'k/h', columns(:ncol), 15)
                 do i=1,points
                     write (unit, '(*(E15.5))') MTrans%TransferData(Transfer_kh,i,1),outpower(i,1:CP%InitPower%nn,:)
