@@ -1855,9 +1855,11 @@
 
     integer, parameter :: Transfer_max = Transfer_vel_baryon_cdm
     character(LEN=name_tag_len) :: Transfer_name_tags(Transfer_max-1) = &
-        ['CDM','baryon','photon','nu','mass_nu','total', 'no_nu','total_de', 'Weyl', 'v_CDM','v_b','v_b-v_c']
-    character(LEN=name_tag_len) :: Transfer21cn_name_tags(Transfer_max-1) = &
-        ['CDM','baryon','photon','monopole','v_newt','delta_T_g', 'no_nu','total_de', 'Weyl', 'v_CDM','v_b','v_b-v_c']
+        ['CDM     ', 'baryon  ', 'photon  ', 'nu      ', 'mass_nu ', 'total   ', &
+        'no_nu   ', 'total_de', 'Weyl    ', 'v_CDM   ', 'v_b     ', 'v_b-v_c ']
+    character(LEN=name_tag_len) :: Transfer21cm_name_tags(Transfer_max-1) = &
+        ['CDM      ', 'baryon   ', 'photon   ', 'monopole ', 'v_newt   ', 'delta_T_g', &
+        'no_nu    ', 'total_de ', 'Weyl     ', 'v_CDM    ', 'v_b      ', 'v_b-v_c  ']
 
     logical :: transfer_interp_matterpower  = .true. !output regular grid in log k
     !set to false to output calculated values for later interpolation
@@ -2645,7 +2647,7 @@
         if (FileNames(i_PK) /= '') then
             i = CP%Transfer%PK_redshifts_index(i_PK)
             if (do21cm) then
-                unit = open_file_header(FileNames(i_PK), 'k/h', Transfer21cn_name_tags, 14)
+                unit = open_file_header(FileNames(i_PK), 'k/h', Transfer21cm_name_tags, 14)
             else
                 unit = open_file_header(FileNames(i_PK), 'k/h', transfer_name_tags, 14)
             end if
@@ -2726,7 +2728,7 @@
 
                     call MatterPowerdata_Free(PK_Data)
                 end do
-                columns = ['P', 'P_vd','P_vv']
+                columns = ['P   ', 'P_vd','P_vv']
                 unit = open_file_header(FileNames(itf), 'k/h', columns(:ncol), 15)
                 do i=1,points
                     write (unit, '(*(E15.5))') MTrans%TransferData(Transfer_kh,i,1),outpower(i,1:CP%InitPower%nn,:)
@@ -3431,7 +3433,7 @@
 
     if (CP%Reion%Reionization .and. (xe(nthermo) < 0.999d0)) then
         write(*,*)'Warning: xe at redshift zero is < 1'
-        write(*,*) 'Check input parameters an Reionization_xe'
+        write(*,*) 'Check input parameters and Reionization_xe'
         write(*,*) 'function in the Reionization module'
     end if
 
