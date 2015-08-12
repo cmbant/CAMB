@@ -2969,7 +2969,7 @@
 
             call Transfer_Get21cmPowerData(MTrans, PK_data, in, itf)
 
-            unit = open_file_header(FileNames(itf), 'L', ['CL','P','P_vv'])
+            unit = open_file_header(FileNames(itf), 'L', ['CL  ','P   ','P_vv'])
 
             do ik =1, points-1
                 k =exp(PK_data%log_k(ik))

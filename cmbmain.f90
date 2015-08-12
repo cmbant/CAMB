@@ -1476,7 +1476,11 @@
     !note increasing non-limber is not neccessarily more accurate unless AccuracyBoost much higher
     !use **0.5 to at least give some sensitivity to Limber effects
     !Could be lower but care with phi-T correlation at lower L
-    UseLimber = limber_windows .and. l >= limber_phiphi !400*AccuracyBoost**0.5
+    if (limber_windows) then
+        UseLimber = l >= limber_phiphi
+    else
+        UseLimber = l > 400*AccuracyBoost**0.5
+    end if
 
     end function UseLimber
 
@@ -2215,100 +2219,99 @@
             if (global_error_flag/=0) return
         end do
 
-        !$OMP PARALLEL DO DEFAULT(SHARED),SCHEDULE(STATIC,2) &
+        !$OMP PARAllEl DO DEFAULT(SHARED),SCHEDULE(STATIC,2) &
         !$OMP& PRIVATE(j,ell,q_ix,dlnk,apowers,ctnorm,dbletmp,Delta1,Delta2,w_ix,w_ix2,Win)
         do j=1,CTrans%ls%l0
-        !Integrate dk/k Delta_l_q**2 * Power(k)
-        ell = real(CTrans%ls%l(j),dl)
-        if (j<= CTrans%max_index_nonlimber) then
-            do q_ix = 1, CTrans%q%npoints
-                if (.not.(CP%closed.and.nint(CTrans%q%points(q_ix)*CP%r)<=CTrans%ls%l(j))) then
-                    !cut off at nu = l + 1
-                    dlnk = dlnks(q_ix)
-                    apowers = pows(q_ix)
+            !Integrate dk/k Delta_l_q**2 * Power(k)
+            ell = real(CTrans%ls%l(j),dl)
+            if (j<= CTrans%max_index_nonlimber) then
+                do q_ix = 1, CTrans%q%npoints
+                    if (.not.(CP%closed.and.nint(CTrans%q%points(q_ix)*CP%r)<=CTrans%ls%l(j))) then
+                        !cut off at nu = l + 1
+                        dlnk = dlnks(q_ix)
+                        apowers = pows(q_ix)
 
-                    iCl_scalar(j,C_Temp:C_E,pix) = iCl_scalar(j,C_Temp:C_E,pix) +  &
-                        apowers*CTrans%Delta_p_l_k(1:2,j,q_ix)**2*dlnk
-                    iCl_scalar(j,C_Cross,pix) = iCl_scalar(j,C_Cross,pix) + &
-                        apowers*CTrans%Delta_p_l_k(1,j,q_ix)*CTrans%Delta_p_l_k(2,j,q_ix)*dlnk
+                        iCl_scalar(j,C_Temp:C_E,pix) = iCl_scalar(j,C_Temp:C_E,pix) +  &
+                            apowers*CTrans%Delta_p_l_k(1:2,j,q_ix)**2*dlnk
+                        iCl_scalar(j,C_Cross,pix) = iCl_scalar(j,C_Cross,pix) + &
+                            apowers*CTrans%Delta_p_l_k(1,j,q_ix)*CTrans%Delta_p_l_k(2,j,q_ix)*dlnk
 
-                    if (CTrans%NumSources>2 .and. has_cl_2D_array) then
-                        ctnorm=sqrt((ell*ell-1)*(ell+2)*ell)
-                        dbletmp=(ell*(ell+1))/OutputDenominator*fourpi
+                        if (CTrans%NumSources>2 .and. has_cl_2D_array) then
+                            ctnorm=sqrt((ell*ell-1)*(ell+2)*ell)
+                            dbletmp=(ell*(ell+1))/OutputDenominator*fourpi
 
-                        do w_ix=1,3 + num_redshiftwindows
-                            Delta1= CTrans%Delta_p_l_k(w_ix,j,q_ix)
-                            if (w_ix == 2) Delta1=Delta1*ctnorm
+                            do w_ix=1,3 + num_redshiftwindows
+                                Delta1= CTrans%Delta_p_l_k(w_ix,j,q_ix)
+                                if (w_ix == 2) Delta1=Delta1*ctnorm
 
-                            if (w_ix>3) then
-                                Win => Redshift_w(w_ix-3)
-                                if (Win%kind == window_lensing) Delta1=Delta1/2*ell*(ell+1)
-                                if (Win%kind==window_counts .and. DoRedshiftLensing) then
-                                    !want delta f/f - 2kappa;
-                                    ! grad^2 = -l(l+1);
-                                    Delta1 = Delta1 +  ell*(ell+1)* &
-                                        CTrans%Delta_p_l_k(3+Win%mag_index+num_redshiftwindows,j,q_ix)
-                                end if
-                            end if
-
-                            do w_ix2=1,3 + num_redshiftwindows
-                                if (w_ix2>= 3.and. w_ix>=3) then
-                                    !Skip if the auto or cross-correlation is included in direct Limber result
-                                    !Otherwise we need to include the sources e.g. to get counts-Temperature correct
-                                    if (CTrans%limber_l_min(w_ix2)/= 0 .and. j>=CTrans%limber_l_min(w_ix2) &
-                                        .and. CTrans%limber_l_min(w_ix)/= 0 .and. j>=CTrans%limber_l_min(w_ix)) cycle
-                                end if
-                                Delta2=  CTrans%Delta_p_l_k(w_ix2,j,q_ix)
-                                if (w_ix2 == 2) Delta2=Delta2*ctnorm
-                                if (w_ix2>3) then
-                                    Win => Redshift_w(w_ix2-3)
-                                    if (Win%kind == window_lensing) Delta2=Delta2/2*ell*(ell+1)
+                                if (w_ix>3) then
+                                    Win => Redshift_w(w_ix-3)
+                                    if (Win%kind == window_lensing) Delta1=Delta1/2*ell*(ell+1)
                                     if (Win%kind==window_counts .and. DoRedshiftLensing) then
                                         !want delta f/f - 2kappa;
                                         ! grad^2 = -l(l+1);
-                                        Delta2 = Delta2 +  ell*(ell+1)* &
+                                        Delta1 = Delta1 +  ell*(ell+1)* &
                                             CTrans%Delta_p_l_k(3+Win%mag_index+num_redshiftwindows,j,q_ix)
                                     end if
                                 end if
 
-                                iCl_Array(j,w_ix,w_ix2,pix) = iCl_Array(j,w_ix,w_ix2,pix)+Delta1*Delta2*apowers*dlnk*dbletmp
-                            end do
-                        end do
-                    end if
+                                do w_ix2=1,3 + num_redshiftwindows
+                                    if (w_ix2>= 3.and. w_ix>=3) then
+                                        !Skip if the auto or cross-correlation is included in direct Limber result
+                                        !Otherwise we need to include the sources e.g. to get counts-Temperature correct
+                                        if (CTrans%limber_l_min(w_ix2)/= 0 .and. j>=CTrans%limber_l_min(w_ix2) &
+                                            .and. CTrans%limber_l_min(w_ix)/= 0 .and. j>=CTrans%limber_l_min(w_ix)) cycle
+                                    end if
+                                    Delta2=  CTrans%Delta_p_l_k(w_ix2,j,q_ix)
+                                    if (w_ix2 == 2) Delta2=Delta2*ctnorm
+                                    if (w_ix2>3) then
+                                        Win => Redshift_w(w_ix2-3)
+                                        if (Win%kind == window_lensing) Delta2=Delta2/2*ell*(ell+1)
+                                        if (Win%kind==window_counts .and. DoRedshiftLensing) then
+                                            !want delta f/f - 2kappa;
+                                            ! grad^2 = -l(l+1);
+                                            Delta2 = Delta2 +  ell*(ell+1)* &
+                                                CTrans%Delta_p_l_k(3+Win%mag_index+num_redshiftwindows,j,q_ix)
+                                        end if
+                                    end if
 
-                    if (CTrans%NumSources>2 ) then
-                        if (limber_phiphi==0 .or.  CTrans%limber_l_min(3)== 0 .or. j<CTrans%limber_l_min(3)) then
-                            iCl_scalar(j,C_Phi,pix) = iCl_scalar(j,C_Phi,pix) +  &
-                                apowers*CTrans%Delta_p_l_k(3,j,q_ix)**2*dlnk
-                            iCl_scalar(j,C_PhiTemp,pix) = iCl_scalar(j,C_PhiTemp,pix) +  &
-                                apowers*CTrans%Delta_p_l_k(3,j,q_ix)*CTrans%Delta_p_l_k(1,j,q_ix)*dlnk
-                            iCl_scalar(j,C_PhiE,pix) = iCl_scalar(j,C_PhiE,pix) +  &
-                                apowers*CTrans%Delta_p_l_k(3,j,q_ix)*CTrans%Delta_p_l_k(2,j,q_ix)*dlnk
+                                    iCl_Array(j,w_ix,w_ix2,pix) = iCl_Array(j,w_ix,w_ix2,pix)+Delta1*Delta2*apowers*dlnk*dbletmp
+                                end do
+                            end do
+                        end if
+
+                        if (CTrans%NumSources>2 ) then
+                            if (limber_phiphi==0 .or.  CTrans%limber_l_min(3)== 0 .or. j<CTrans%limber_l_min(3)) then
+                                iCl_scalar(j,C_Phi,pix) = iCl_scalar(j,C_Phi,pix) +  &
+                                    apowers*CTrans%Delta_p_l_k(3,j,q_ix)**2*dlnk
+                                iCl_scalar(j,C_PhiTemp,pix) = iCl_scalar(j,C_PhiTemp,pix) +  &
+                                    apowers*CTrans%Delta_p_l_k(3,j,q_ix)*CTrans%Delta_p_l_k(1,j,q_ix)*dlnk
+                                iCl_scalar(j,C_PhiE,pix) = iCl_scalar(j,C_PhiE,pix) +  &
+                                    apowers*CTrans%Delta_p_l_k(3,j,q_ix)*CTrans%Delta_p_l_k(2,j,q_ix)*dlnk
+                            end if
                         end if
                     end if
-                end if
-            end do
+                end do
+            end if !limber (j<= max_bessels_l_index)
 
-        end if !limber (j<= max_bessels_l_index)
+            !Output l(l+1)C_l/OutputDenominator
+            ctnorm=(ell*ell-1)*(ell+2)*ell
+            dbletmp=(ell*(ell+1))/OutputDenominator*fourpi
 
-        !Output l(l+1)C_l/OutputDenominator
-        ctnorm=(ell*ell-1)*(ell+2)*ell
-        dbletmp=(ell*(ell+1))/OutputDenominator*fourpi
-
-        iCl_scalar(j,C_Temp,pix)  =  iCl_scalar(j,C_Temp,pix)*dbletmp
-        iCl_scalar(j,C_E,pix)     =  iCl_scalar(j,C_E,pix)*dbletmp*ctnorm
-        iCl_scalar(j,C_Cross,pix) =  iCl_scalar(j,C_Cross,pix)*dbletmp*sqrt(ctnorm)
-        if (CTrans%NumSources>2) then
-            iCl_scalar(j,C_Phi,pix) = ALens*iCl_scalar(j,C_Phi,pix)*fourpi*ell**4
-            !The lensing power spectrum computed is l^4 C_l^{\phi\phi}
-            !We put pix extra factors of l here to improve interpolation in CTrans%ls%l
-            iCl_scalar(j,C_PhiTemp,pix) = sqrt(ALens)*  iCl_scalar(j,C_PhiTemp,pix)*fourpi*ell**3
-            !Cross-correlation is CTrans%ls%l^3 C_l^{\phi T}
-            iCl_scalar(j,C_PhiE,pix) = sqrt(ALens)*  iCl_scalar(j,C_PhiE,pix)*fourpi*ell**3*sqrt(ctnorm)
-            !Cross-correlation is CTrans%ls%l^3 C_l^{\phi E}
-        end if
-    end do
-    !$OMP END PARALLEL DO
+            iCl_scalar(j,C_Temp,pix)  =  iCl_scalar(j,C_Temp,pix)*dbletmp
+            iCl_scalar(j,C_E,pix)     =  iCl_scalar(j,C_E,pix)*dbletmp*ctnorm
+            iCl_scalar(j,C_Cross,pix) =  iCl_scalar(j,C_Cross,pix)*dbletmp*sqrt(ctnorm)
+            if (CTrans%NumSources>2) then
+                iCl_scalar(j,C_Phi,pix) = ALens*iCl_scalar(j,C_Phi,pix)*fourpi*ell**4
+                !The lensing power spectrum computed is l^4 C_l^{\phi\phi}
+                !We put pix extra factors of l here to improve interpolation in CTrans%ls%l
+                iCl_scalar(j,C_PhiTemp,pix) = sqrt(ALens)*  iCl_scalar(j,C_PhiTemp,pix)*fourpi*ell**3
+                !Cross-correlation is CTrans%ls%l^3 C_l^{\phi T}
+                iCl_scalar(j,C_PhiE,pix) = sqrt(ALens)*  iCl_scalar(j,C_PhiE,pix)*fourpi*ell**3*sqrt(ctnorm)
+                !Cross-correlation is CTrans%ls%l^3 C_l^{\phi E}
+            end if
+        end do
+        !$OMP END PARAllEl DO
     end do
     deallocate(ks,pows,dlnks)
 
@@ -2422,27 +2425,28 @@
         !$OMP PARAllEl DO DEFAUlT(SHARED),SCHEDUlE(STATIC,4) &
         !$OMP & PRIVATE(j,q_ix,measure,apowert,ctnorm,dbletmp)
         do j=1,CTrans%ls%l0
-        do q_ix = 1, CTrans%q%npoints
-            if (.not.(CP%closed.and. nint(CTrans%q%points(q_ix)*CP%r)<=CTrans%ls%l(j))) then
-                !cut off at nu = l+1
-                apowert = pows(q_ix)
-                measure = measures(q_ix)
+            do q_ix = 1, CTrans%q%npoints
+                if (.not.(CP%closed.and. nint(CTrans%q%points(q_ix)*CP%r)<=CTrans%ls%l(j))) then
+                    !cut off at nu = l+1
+                    apowert = pows(q_ix)
+                    measure = measures(q_ix)
 
-                iCl_tensor(j,CT_Temp:CT_B,in) = iCl_tensor(j,CT_Temp:CT_B,in) + &
-                    apowert*CTrans%Delta_p_l_k(CT_Temp:CT_B,j,q_ix)**2*measure
+                    iCl_tensor(j,CT_Temp:CT_B,in) = iCl_tensor(j,CT_Temp:CT_B,in) + &
+                        apowert*CTrans%Delta_p_l_k(CT_Temp:CT_B,j,q_ix)**2*measure
 
-                iCl_tensor(j,CT_cross, in ) = iCl_tensor(j,CT_cross, in ) &
-                    +apowert*CTrans%Delta_p_l_k(CT_Temp,j,q_ix)*CTrans%Delta_p_l_k(CT_E,j,q_ix)*measure
-            end if
+                    iCl_tensor(j,CT_cross, in ) = iCl_tensor(j,CT_cross, in ) &
+                        +apowert*CTrans%Delta_p_l_k(CT_Temp,j,q_ix)*CTrans%Delta_p_l_k(CT_E,j,q_ix)*measure
+                end if
+            end do
+
+            ctnorm=(CTrans%ls%l(j)*CTrans%ls%l(j)-1)*real((CTrans%ls%l(j)+2)*CTrans%ls%l(j),dl)
+            dbletmp=(CTrans%ls%l(j)*(CTrans%ls%l(j)+1))/OutputDenominator*pi/4
+            iCl_tensor(j, CT_Temp, in) = iCl_tensor(j, CT_Temp, in)*dbletmp*ctnorm
+            if (CTrans%ls%l(j)==1) dbletmp=0
+            iCl_tensor(j, CT_E:CT_B, in) = iCl_tensor(j, CT_E:CT_B, in)*dbletmp
+            iCl_tensor(j, CT_Cross, in)  = iCl_tensor(j, CT_Cross, in)*dbletmp*sqrt(ctnorm)
         end do
-
-        ctnorm=(CTrans%ls%l(j)*CTrans%ls%l(j)-1)*real((CTrans%ls%l(j)+2)*CTrans%ls%l(j),dl)
-        dbletmp=(CTrans%ls%l(j)*(CTrans%ls%l(j)+1))/OutputDenominator*pi/4
-        iCl_tensor(j, CT_Temp, in) = iCl_tensor(j, CT_Temp, in)*dbletmp*ctnorm
-        if (CTrans%ls%l(j)==1) dbletmp=0
-        iCl_tensor(j, CT_E:CT_B, in) = iCl_tensor(j, CT_E:CT_B, in)*dbletmp
-        iCl_tensor(j, CT_Cross, in)  = iCl_tensor(j, CT_Cross, in)*dbletmp*sqrt(ctnorm)
-    end do
+        !$OMP END PARAllEl DO
     end do
 
     end subroutine CalcTensCls
@@ -2469,27 +2473,28 @@
         !$OMP PARAllEl DO DEFAUlT(SHARED),SCHEDUlE(STATIC,4) &
         !$OMP & PRIVATE(j,q_ix,measure,power,ctnorm,dbletmp,lfac)
         do j=1,CTrans%ls%l0
-        do q_ix = 1, CTrans%q%npoints
-            if (.not.(CP%closed.and. nint(CTrans%q%points(q_ix)*CP%r)<=CTrans%ls%l(j))) then
-                !cut off at nu = l+1
-                power = pows(q_ix)
-                measure = measures(q_ix)
+            do q_ix = 1, CTrans%q%npoints
+                if (.not.(CP%closed.and. nint(CTrans%q%points(q_ix)*CP%r)<=CTrans%ls%l(j))) then
+                    !cut off at nu = l+1
+                    power = pows(q_ix)
+                    measure = measures(q_ix)
 
-                iCl_vector(j,CT_Temp:CT_B,in) = iCl_vector(j,CT_Temp:CT_B,in) + &
-                    power*CTrans%Delta_p_l_k(CT_Temp:CT_B,j,q_ix)**2*measure
+                    iCl_vector(j,CT_Temp:CT_B,in) = iCl_vector(j,CT_Temp:CT_B,in) + &
+                        power*CTrans%Delta_p_l_k(CT_Temp:CT_B,j,q_ix)**2*measure
 
-                iCl_vector(j,CT_cross, in ) = iCl_vector(j,CT_cross, in ) &
-                    +power*CTrans%Delta_p_l_k(CT_Temp,j,q_ix)*CTrans%Delta_p_l_k(CT_E,j,q_ix)*measure
-            end if
+                    iCl_vector(j,CT_cross, in ) = iCl_vector(j,CT_cross, in ) &
+                        +power*CTrans%Delta_p_l_k(CT_Temp,j,q_ix)*CTrans%Delta_p_l_k(CT_E,j,q_ix)*measure
+                end if
+            end do
+
+            ctnorm=CTrans%ls%l(j)*(CTrans%ls%l(j)+1)
+            dbletmp=(CTrans%ls%l(j)*(CTrans%ls%l(j)+1))/OutputDenominator*pi/8
+            iCl_vector(j, CT_Temp, in)   = iCl_vector(j, CT_Temp, in)*dbletmp*ctnorm
+            lfac = (CTrans%ls%l(j) + 2)*(CTrans%ls%l(j) - 1)
+            iCl_vector(j, CT_E:CT_B, in) = iCl_vector(j, CT_E:CT_B, in)*dbletmp*lfac
+            iCl_vector(j, CT_Cross, in)  = iCl_vector(j, CT_Cross, in)*dbletmp*sqrt(lfac*ctnorm)
         end do
-
-        ctnorm=CTrans%ls%l(j)*(CTrans%ls%l(j)+1)
-        dbletmp=(CTrans%ls%l(j)*(CTrans%ls%l(j)+1))/OutputDenominator*pi/8
-        iCl_vector(j, CT_Temp, in)   = iCl_vector(j, CT_Temp, in)*dbletmp*ctnorm
-        lfac = (CTrans%ls%l(j) + 2)*(CTrans%ls%l(j) - 1)
-        iCl_vector(j, CT_E:CT_B, in) = iCl_vector(j, CT_E:CT_B, in)*dbletmp*lfac
-        iCl_vector(j, CT_Cross, in)  = iCl_vector(j, CT_Cross, in)*dbletmp*sqrt(lfac*ctnorm)
-    end do
+        !$OMP END PARAllEl DO
     end do
 
     end subroutine CalcVecCls
