@@ -17,5 +17,10 @@ Release/
 
 # ignore the executables:
 camb
+camb_benchmark
+
 # ignore MAC OS X files:
-.DS_Store
+*.DS_Store
+
+# ignore profiler output:
+gmon.out

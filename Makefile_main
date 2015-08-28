@@ -13,6 +13,7 @@ NONLINEAR     ?= halofit_ppf
 
 #Driver program
 DRIVER        ?= inidriver.F90
+TBPDRIVER     ?= inibenchmark.F90
 #DRIVER       ?= sigma8.f90
 #DRIVER       ?= tester.f90
 
@@ -75,8 +76,12 @@ $(OUTPUT_DIR)/$(BISPECTRUM).o: $(OUTPUT_DIR)/lensing.o $(OUTPUT_DIR)/modules.o
 $(OUTPUT_DIR)/cmbmain.o: $(OUTPUT_DIR)/lensing.o $(OUTPUT_DIR)/$(NONLINEAR).o $(OUTPUT_DIR)/$(EQUATIONS).o $(OUTPUT_DIR)/$(BISPECTRUM).o
 $(OUTPUT_DIR)/camb.o: $(OUTPUT_DIR)/cmbmain.o
 $(OUTPUT_DIR)/Matrix_utils.o: $(OUTPUT_DIR)/utils.o
+
 camb: directories $(CAMBOBJ) $(DRIVER)
 	$(F90C) $(F90FLAGS) $(CAMBOBJ) $(DRIVER) $(F90CRLINK) -o $@
+
+camb_benchmark: directories $(CAMBOBJ) $(TBPDRIVER)
+	$(F90C) $(F90FLAGS) $(CAMBOBJ) $(TBPDRIVER) $(F90CRLINK) -o $@
 
 $(CAMBLIB): directories $(CAMBOBJ)
 	ar -r $@ $(CAMBOBJ)
@@ -109,5 +114,3 @@ libCosmoRec.a:
 
 libhyrec.a:
 	cd $(HYREC_PATH); make libhyrec.a;
-
-
