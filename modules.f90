@@ -3990,19 +3990,25 @@
                     if (RedWin%Wing(ix)==0._dl) then
                         RedWin%Wingtau(ix) = 0
                     else
+						!evo bias is computed with total derivative
                         RedWin%Wingtau(ix) =  -tmp2(ix) * RedWin%Wing(ix) / (back_count_tmp(ix,i)*hubble_tmp(ix)) &
-                            + 5*RedWin%dlog10Ndm * ( RedWin%Wing(ix)- int_tmp(ix,i)/hubble_tmp(ix))
+                            !+ 5*RedWin%dlog10Ndm * ( RedWin%Wing(ix)- int_tmp(ix,i)/hubble_tmp(ix))
+							!The correction from total to partial derivative takes 1/adot(tau0-tau) cancels
+							+ 10*RedWin%dlog10Ndm * RedWin%Wing(ix)
                     end if
                 end do
 
-                !comoving_density_ev is d log(a^3 n_s)/d eta * window
+                !comoving_density_ev is d log(a^3 n_s)/d eta
+				
                 call spline(TimeSteps%points(jstart),RedWin%comoving_density_ev(jstart),ninterp,spl_large,spl_large,tmp)
                 call spline_deriv(TimeSteps%points(jstart),RedWin%comoving_density_ev(jstart),tmp,tmp2(jstart),ninterp)
                 do ix = jstart, TimeSteps%npoints
                     if (RedWin%Wing(ix)==0._dl) then
                         RedWin%comoving_density_ev(ix) = 0
                     else
-                        RedWin%comoving_density_ev(ix) =   tmp2(ix) / RedWin%comoving_density_ev(ix)
+						!correction needs to be introduced from total derivative to parcial derivative
+                        RedWin%comoving_density_ev(ix) =   tmp2(ix) / RedWin%comoving_density_ev(ix) &
+						          -5*RedWin%dlog10Ndm * ( hubble_tmp(ix) + 1/(CP%tau0 - tau))
                     end if
                 end do
             else
