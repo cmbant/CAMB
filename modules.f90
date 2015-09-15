@@ -3998,7 +3998,7 @@
                     end if
                 end do
 
-                !comoving_density_ev is d log(a^3 n_s)/d eta
+                !comoving_density_ev is d log(a^3 n_s)/d eta * window
 				
                 call spline(TimeSteps%points(jstart),RedWin%comoving_density_ev(jstart),ninterp,spl_large,spl_large,tmp)
                 call spline_deriv(TimeSteps%points(jstart),RedWin%comoving_density_ev(jstart),tmp,tmp2(jstart),ninterp)
