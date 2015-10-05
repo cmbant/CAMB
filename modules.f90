@@ -208,7 +208,6 @@
 
     ! Main parameters type
     type CAMBparams
-
         logical   :: WantCls, WantTransfer
         logical   :: WantScalars, WantTensors, WantVectors
         logical   :: DoLensing
@@ -338,8 +337,9 @@
 
     integer, parameter:: l0max=4000
 
+    integer, parameter :: lmax_arr = 100+l0max/7
     !     lmax is max possible number of l's evaluated
-    integer, parameter :: lmax_arr = l0max
+    !    integer, parameter :: lmax_arr = l0max
 
     character(LEN=1024) :: highL_unlensed_cl_template = 'HighLExtrapTemplate_lenspotentialCls.dat'
     !fiducial high-accuracy high-L C_L used for making small cosmology-independent numerical corrections
@@ -789,7 +789,6 @@
     !       print *,'z* = ',zstar, 'r_s = ',rs, 'DA = ',DA, rs/DA
 
     end function CosmomcTheta
-
 
     !Sources
     function WindowKmaxForL(W,ell) result(res)
@@ -1365,13 +1364,14 @@
                 outarr=Cl_scalar_array(il,in,1:3+num_redshiftwindows,1:3+num_redshiftwindows)
                 outarr(1:2,:)=sqrt(fact)*outarr(1:2,:)
                 outarr(:,1:2)=sqrt(fact)*outarr(:,1:2)
-                write(unit,trim(numcat('(1I6,',(3+num_redshiftwindows)**2))//'E15.5)') il, outarr
+
+                write(unit,trim(numcat('(1I6,',(3+num_redshiftwindows)**2))//'E15.5)') il, real(outarr)
             end do
             do il=10100,CP%Max_l, 100
                 outarr=Cl_scalar_array(il,in,1:3+num_redshiftwindows,1:3+num_redshiftwindows)
                 outarr(1:2,:)=sqrt(fact)*outarr(1:2,:)
                 outarr(:,1:2)=sqrt(fact)*outarr(:,1:2)
-                write(unit,trim(numcat('(1E15.5,',(3+num_redshiftwindows)**2))//'E15.5)') real(il), outarr
+                write(unit,trim(numcat('(1E15.5,',(3+num_redshiftwindows)**2))//'E15.5)') real(il), real(outarr)
             end do
         end do
         close(unit)
@@ -1829,7 +1829,10 @@
     integer, parameter :: Transfer_max = Transfer_vel_baryon_cdm
     character(LEN=name_tag_len) :: Transfer_name_tags(Transfer_max-1) = &
         ['CDM     ', 'baryon  ', 'photon  ', 'nu      ', 'mass_nu ', 'total   ', &
-         'no_nu   ', 'total_de', 'Weyl    ', 'v_CDM   ', 'v_b     ', 'v_b-v_c ']
+        'no_nu   ', 'total_de', 'Weyl    ', 'v_CDM   ', 'v_b     ', 'v_b-v_c ']
+    character(LEN=name_tag_len) :: Transfer21cm_name_tags(Transfer_max-1) = &
+        ['CDM      ', 'baryon   ', 'photon   ', 'monopole ', 'v_newt   ', 'delta_T_g', &
+        'no_nu    ', 'total_de ', 'Weyl     ', 'v_CDM    ', 'v_b      ', 'v_b-v_c  ']
 
     logical :: transfer_interp_matterpower  = .true. !output regular grid in log k
     !set to false to output calculated values for later interpolation
@@ -2602,7 +2605,11 @@
     do i_PK=1, CP%Transfer%PK_num_redshifts
         if (FileNames(i_PK) /= '') then
             i = CP%Transfer%PK_redshifts_index(i_PK)
-            unit = open_file_header(FileNames(i_PK), 'k/h', transfer_name_tags, 14)
+            if (do21cm) then
+                unit = open_file_header(FileNames(i_PK), 'k/h', Transfer21cm_name_tags, 14)
+            else
+                unit = open_file_header(FileNames(i_PK), 'k/h', transfer_name_tags, 14)
+            end if
             do ik=1,MTrans%num_q_trans
                 if (MTrans%TransferData(Transfer_kh,ik,i)/=0) then
                     write(unit,'(*(E15.6))') MTrans%TransferData(Transfer_kh:Transfer_max,ik,i)
@@ -3160,7 +3167,6 @@
     use Transfer
     real(dl) taumin,taumax
 
-
     real(dl) tau01,adot0,a0,a02,x1,x2,barssc,dtau
     real(dl) xe0,tau,a,a2
     real(dl) adot,tg0,ahalf,adothalf,fe,thomc,thomc0,etc,a2t
@@ -3403,12 +3409,8 @@
 
     !Sources
     if (CP%WantTransfer) then
-        ! Reuse already allocated memory, when it is large enough, else alloc.
-        if (.not. associated(MT%optical_depths) .or. &
-            ubound(MT%optical_depths, 1) < CP%Transfer%num_redshifts) then
-        if (associated(MT%optical_depths)) deallocate(MT%optical_depths)
+        if (associated(associated(MT%optical_depths))) deallocate(MT%optical_depths, stat = RW_i)
         allocate(MT%optical_depths(CP%Transfer%num_redshifts))
-        end if
         do RW_i = 1, CP%Transfer%num_redshifts
             if (CP%Transfer%Redshifts(RW_i) < 1e-3) then
                 MT%optical_depths(RW_i) = 0 !zero may not be set correctly in transfer_ix
@@ -3597,6 +3599,7 @@
 
     !Sources
     deallocate(RW)
+
     if (num_redshiftwindows>0) call SetTimeStepWindows
 
     deallocate(arhos_fac, darhos_fac, ddarhos_fac)
@@ -3718,6 +3721,58 @@
         end do
     end if
 
+    !Sources
+
+    tau_start_redshiftwindows = MaxTau
+    tau_end_redshiftwindows = 0
+    if (CP%WantScalars .or. line_reionization) then
+        do ix=1, num_redshiftwindows
+            Win => Redshift_W(ix)
+
+            Win%sigma_tau = Win%sigma_z*dtauda(1/(1+Win%Redshift))/(1+Win%Redshift)**2
+
+            if (Win%tau_start==0) then
+                Win%tau_start = max(Win%tau - Win%sigma_tau*7,taurst)
+                Win%tau_end = min(CP%tau0,Win%tau + Win%sigma_tau*7)
+            end if
+
+            tau_start_redshiftwindows = min(Win%tau_start,tau_start_redshiftwindows)
+
+            if (Win%kind /= window_lensing) then
+                !Have to be careful to integrate dwinV as the window tails off
+                tau_end_redshiftwindows = max(Win%tau_end,tau_end_redshiftwindows)
+                nwindow = nint(150*AccuracyBoost)
+                win_end = Win%tau_end
+            else !lensing
+                nwindow = nint(AccuracyBoost*Win%chi0/100)
+                win_end = CP%tau0
+            end if
+
+            if (Win%kind == window_21cm .and. (line_phot_dipole .or. line_phot_quadrupole)) nwindow = nwindow *3
+
+            L_limb = Win_limber_ell(Win,CP%max_l)
+            keff = WindowKmaxForL(Win,L_limb)
+
+            !Keep sampling in x better than Nyquist
+            nwindow = max(nwindow, nint(AccuracyBoost *(win_end- Win%tau_start)* keff/3))
+            if (Feedbacklevel > 1) write (*,*) ix, 'nwindow =', nwindow
+
+            call Ranges_Add(TimeSteps, Win%tau_start, win_end, nwindow)
+            !This should cover whole range where not tiny
+
+            if (Win%kind /= window_lensing .and. Win%tau_end - Win%tau_start > Win%sigma_tau*7) then
+                call Ranges_Add(TimeSteps, TimeOfZ(Win%Redshift+Win%sigma_z*3), &
+                    max(0._dl,TimeOfZ(Win%Redshift-Win%sigma_z*3)), nwindow)
+                !This should be over peak
+            end if
+            !Make sure line of sight integral OK too
+            ! if (dtau0 > Win%tau_end/300/AccuracyBoost) then
+            !  call Ranges_Add_delta(TimeSteps, Win%tau_end, CP%tau0,  Win%tau_start/300/AccuracyBoost)
+            ! end if
+
+        end do
+    end if
+
     if (CP%Reion%Reionization) then
         nri0=int(Reionization_timesteps(CP%ReionHist)*AccuracyBoost)
         !Steps while reionization going from zero to maximum
@@ -3728,6 +3783,12 @@
     if (.not. CP%Want_CMB .and. CP%WantCls) then
         if (num_redshiftwindows==0) call MpiStop('Want_CMB=false, but not redshift windows either')
         call TimeSteps%Add_delta(tau_start_redshiftwindows, CP%tau0, dtau0)
+    end if
+
+    !Sources
+    if (.not. CP%Want_CMB .and. CP%WantCls) then
+        if (num_redshiftwindows==0) stop 'Want_CMB=false, but not redshift windows either'
+        call Ranges_Add_delta(TimeSteps,tau_start_redshiftwindows, CP%tau0, dtau0)
     end if
 
     !Create arrays out of the region information.
@@ -4016,10 +4077,12 @@
     end subroutine interp_window
 
 
-    !cccccccccccccc
     subroutine DoThermoSpline(j2,tau)
     integer j2, i, RW_i
     real(dl) d,ddopac,tau
+    Type(TRedWin), pointer :: W
+    Type(CalWIns), pointer :: C
+    integer RW_i
 
     !     Cubic-spline interpolation.
     d=log(tau/tauminn)/dlntau+1._dl
