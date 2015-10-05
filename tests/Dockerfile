@@ -8,7 +8,7 @@ RUN useradd camb \
   && mkdir /home/camb \
   && chown camb:camb /home/camb
 
-RUN apt-get update \ 
+RUN apt-get update \
   && apt-get install -y --no-install-recommends \
     python \
   && rm -rf /var/lib/apt/lists/*
@@ -27,7 +27,7 @@ WORKDIR /home/camb
 
 ### Get forutils and CAMB from github
 CMD git clone https://github.com/cmbant/forutils.git forutils \
-  && git clone -b vehre_formatted https://github.com/cmbant/CAMB.git CAMB \
+  && git clone -b devel https://github.com/cmbant/CAMB.git CAMB \
   && git clone https://github.com/vehre/CAMB_expected.git CAMB/Expected_Results \
   && cd forutils && make Release \
   && cd /home/camb/CAMB && make Release \
@@ -37,5 +37,5 @@ CMD git clone https://github.com/cmbant/forutils.git forutils \
   && cd .. \
   && python python/CAMB_test_files.py testfiles --diff_to expected_outputs --verbose
 
-   
+
 
