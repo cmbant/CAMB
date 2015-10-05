@@ -3409,7 +3409,7 @@
 
     !Sources
     if (CP%WantTransfer) then
-        if (associated(associated(MT%optical_depths))) deallocate(MT%optical_depths, stat = RW_i)
+        if (associated(MT%optical_depths)) deallocate(MT%optical_depths, stat = RW_i)
         allocate(MT%optical_depths(CP%Transfer%num_redshifts))
         do RW_i = 1, CP%Transfer%num_redshifts
             if (CP%Transfer%Redshifts(RW_i) < 1e-3) then
