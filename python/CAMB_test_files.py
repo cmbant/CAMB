@@ -182,6 +182,10 @@ filetolmatrix = [["*scalCls.dat", Ignore()], # Ignore() all scalCls.dat files.
                                                "v_CDM": (True, lambda o, n: normabs(o["v_CDM"], n["v_CDM"], 1e-3 if n["k/h"]< 1 else 3e-3)),
                                                "v_b": (True, lambda o, n: normabs(o["v_b"], n["v_b"], 1e-3 if n["k/h"]< 1 else 3e-3)),
                                                "*": Ignore()})],
+                 ["*sharp_cl_*.dat", ColTol({"CL": (True, 1e-3),
+                                             "P": (True, 1e-3),
+                                             "P_vv": (True, 1e-3),
+                                             "*": Ignore()})],
                  ["*", ColTol({"*": (True, args.diff_tolerance)})],
                 ]
 
@@ -335,6 +339,7 @@ def getTestParams():
                   + ['num_redshiftwindows = 2'] + make_win(1, 0.17, 'counts', 1.2, 0.04, -0.2) + make_win(2, 0.2, 'counts', 1.2, 0.04, -0.2))
     params.append(['lensing_base', 'DEFAULT(params_lensing.ini)'])
     params.append(['21cm_base', 'DEFAULT(params_21cm.ini)'])
+    params.append(['21cm_base2', 'DEFAULT(params_21cm.ini)', 'get_transfer = T'])
     params.append(['counts_lens', 'DEFAULT(params_counts.ini)']
                   + ['num_redshiftwindows = 2'] + make_win(1, 0.17, 'counts', 1.2, 0.04, -0.2) + make_win(2, 0.5, 'lensing', 0, 0.07, 0.2))
 
