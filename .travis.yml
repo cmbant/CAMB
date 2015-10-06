@@ -17,5 +17,5 @@ install:
   - git clone --depth=1 https://github.com/cmbant/forutils.git forutils
       
 script:
-  - docker run -v $(pwd):/camb -t cmbant/cosmobox -e TRAVIS_BRANCH /bin/bash -c "/camb/tests/run_tests.sh"
+  - docker run -v $(pwd):/camb -e TRAVIS_BRANCH -t cmbant/cosmobox /bin/bash -c "/camb/tests/run_tests.sh"
 
