@@ -5,7 +5,15 @@ FISHER=
 
 #Set FORUTILSPATH to the path where the libforutils.a file can be found.
 #The OUTPUT_DIR will be appended.
-FORUTILSPATH = ../forutils
+if [ -d "./forutils" ]; then \
+FORUTILSPATH ?= ./forutils \
+fi
+if [ -d "../forutils" ]; then \
+FORUTILSPATH ?= ../forutils \
+fi
+ifeq ($(FORUTILSPATH),)
+error "must install forutils first (https://github.com/cmbant/forutils; or set FORUTILSPATH variable)"
+endif
 
 #Will detect ifort/gfortran or edit for your compiler
 ifortErr = $(shell which ifort >/dev/null 2>&1; echo $$?)
@@ -15,21 +23,17 @@ ifeq "$(ifortErr)" "0"
 F90C     = ifort
 ifortVer_major = $(shell ifort -v 2>&1 | cut -d " " -f 3 | cut -d. -f 1)
 COMMON_FFLAGS = -fpp -openmp
-ifeq "$(ifortVer_major)" "15"
+ifneq "$(ifortVer_major)" "14"
 COMMON_FFLAGS += -gen-dep=$$*.d
 endif
 FFLAGS = -fast -fp-model precise -W0 -WB $(COMMON_FFLAGS)
 DEBUGFLAGS =  -g -check all -check noarg_temp_created -traceback -fpe0 $(COMMON_FFLAGS)
 ## This is flag is passed to the Fortran compiler allowing it to link C++ if required (not usually):
 F90CRLINK = -cxxlib
-ifeq "$(ifortVer_major)" "15"
+ifneq "$(ifortVer_major)" "14"
 F90CRLINK += -qopt-report=1 -qopt-report-phase=vec
 else
-ifeq "$(ifortVer_major)" "14"
 F90CRLINK += -vec_report0
-else
-error "Unsupported version of ifort"
-endif
 endif
 MODOUT = -module $(OUTPUT_DIR)
 AR     = xiar
@@ -42,7 +46,6 @@ gfortErr = $(shell which gfortran >/dev/null; echo $$?)
 ifeq "$(gfortErr)" "0"
 
 #Gfortran compiler:
-#The options here work in v4.6+
 F90C     = gfortran
 COMMON_FFLAGS = -MMD -cpp -ffree-line-length-none
 # -fmax-errors=4

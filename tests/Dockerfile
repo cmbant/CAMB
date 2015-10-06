@@ -26,14 +26,14 @@ USER camb
 WORKDIR /home/camb
 
 ### Get forutils and CAMB from github
-CMD git clone https://github.com/cmbant/forutils.git forutils \
-  && git clone -b devel https://github.com/cmbant/CAMB.git CAMB \
-  && git clone https://github.com/vehre/CAMB_expected.git CAMB/Expected_Results \
+CMD git clone --depth=1 https://github.com/cmbant/forutils.git forutils \
+  && git clone -b $(TRAVIS_BRANCH) --depth=1 https://github.com/cmbant/CAMB.git CAMB \
+  && git clone -b $(TRAVIS_BRANCH) --depth=1 https://github.com/cmbant/CAMB_test_outputs.git CAMB/Expected_Results \
   && cd forutils && make Release \
   && cd /home/camb/CAMB && make Release \
   && python python/CAMB_test_files.py testfiles --make_ini \
   && cd testfiles \
-  && ln -s ../Expected_Results/40000_expected_outputs expected_outputs \
+  && ln -s ../Expected_Results/expected_outputs expected_outputs \
   && cd .. \
   && python python/CAMB_test_files.py testfiles --diff_to expected_outputs --verbose
 
