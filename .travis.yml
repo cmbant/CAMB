@@ -2,14 +2,12 @@ language: sh
 
 sudo: required
 
-branches:
-  only:
-    - master
-    - devel
-
 services:
   - docker
-    
+
+env:
+  - secure: "slXmqyKKIQ0eA21iLjptTCdlBaSMtjl2E/Gg+PVgHfc7DZ/O0LFCxV+IzSdnsYXsjhp9e8NN866/CVSHaT/DeLXfBQNHt7m0zp0Y1rnsGUvpG57Qp7czSI5JZw0Xy4sdXDw4YOyRsDspVGL23LNukTiHKEq8my5QjYFCBLycVCi7iXC4dGNOwY/PY8wFaDE1NwkH8ZtCD85jqKZhavYrGabDHpGbTaQNgkjwRSujGJG1tIi+pCsj3txWJxOPktwoL9zMOHC80GKb3UaDk3s0OorCMCQc0CW1cmetJUutvzd4fB3Zf6XQ4RForLi1V+hExObNHBrhB5U/Ot68eWVYoW9tFWOE99HTMzlsHp2RAiq2pxHj39TIJZF7ndZLa2ig/ms9Q2kRSSKQiLH41HV1yDmVDshDtw/9TRHGvnBuTAomL6CDH7/WKXsP1pMmEE6BhNpRbajm8Xb+P08bcpFlrHi1YRLPNv2Z5MF974Hc8jsYY3DX+co2DqMHz6sLIcmdYswAhIu5cgprLeomTlWraVkGjSBvVklMKF7H3KGMa64Jv6jljBgQIyc2fjmQLSiEyUqT7RkaJmz3DPEPekvbEEfJyxqlu2Is9hqSb//oYsiZdYSTIfbxU+3fZh5MSfPdooG3+w7x4LdFqjqP84XoDN/OymE8kRlkfxErS6hXJZY="    
+
 before_install:
   - docker pull cmbant/cosmobox
 
@@ -18,5 +16,15 @@ install:
   - chmod +x tests/run_tests.sh
       
 script:
-  - docker run -v $(pwd):/camb -e TRAVIS_BRANCH -t cmbant/cosmobox /bin/bash -c "/camb/tests/run_tests.sh"
+  - docker run -v $(pwd):/camb -e TRAVIS_BRANCH -e CAMB_TESTS_NO_SOURCES=1 -t cmbant/cosmobox /bin/bash -c "/camb/tests/run_tests.sh"
 
+after_script:
+  - cd testfiles
+  - rm -Rf CAMB_test_outputs
+  - git init
+  - git config user.name "Travis CI"
+  - git config user.email "antony@cosmologist.info"
+  - git add --all
+  - git commit -m "Travis output for build $TRAVIS_BUILD_NUMBER"
+  - git push --force --quiet "https://$GH_TOKEN@github.com/cmbant/CAMB_test_outputs" master:$(TRAVIS_BRANCH)_travis > /dev/null 2>&1
+	

@@ -18,7 +18,7 @@ parser.add_argument('--no_run_test', action='store_true', help='don''t run tests
 parser.add_argument('--prog', default='./camb', help='executable to run')
 parser.add_argument('--clean', action='store_true', help='delete output dir before run')
 parser.add_argument('--diff_to', help='output directory to compare to, e.g. test_outputs2')
-parser.add_argument('--diff_tolerance', type=float, help='the tolerance for the numerical diff when no explicit '+
+parser.add_argument('--diff_tolerance', type=float, help='the tolerance for the numerical diff when no explicit ' +
                                                          'diff is given [default: 1e-4]', default=1e-4)
 parser.add_argument('--verbose_diff_output', action='store_true', help='during diff_to print more error messages')
 parser.add_argument('--num_diff', action='store_true', help='during diff_to print more error messages')
@@ -76,15 +76,15 @@ def diffnsqrt(old, new, tol, c1, c2):
     :return: True, when |C1'x'C2_{new} - C1'x'C2_{old}| / sqrt(C1'x'C1_{old} * C2'x'C2_{old}) < tol, false else.
     :rtype : bool
     """
-    oc1c1 = old[c1+'x'+c1]
-    oc2c2 = old[c2+'x'+c2]
+    oc1c1 = old[c1 + 'x' + c1]
+    oc2c2 = old[c2 + 'x' + c2]
     # Skip the test when exactly one variable is negative, but not both.
     if (oc1c1 < 0 or oc2c2 < 0) and (oc1c1 >= 0 or oc2c2 >= 0):
         return True
-    res = math.fabs(new[c1+'x'+c2]- old[c1+'x'+c2])/ math.sqrt(oc1c1 * oc2c2) < tol
+    res = math.fabs(new[c1 + 'x' + c2] - old[c1 + 'x' + c2]) / math.sqrt(oc1c1 * oc2c2) < tol
     if args.verbose_diff_output and not res:
-        print("diffnsqrt: |%g - %g|/sqrt(%g * %g) = %g > %g" % (new[c1+'x'+c2], old[c1+'x'+c2], oc1c1, oc2c2,
-                                                                math.fabs(new[c1+'x'+c2]- old[c1+'x'+c2])/ math.sqrt(oc1c1 * oc2c2),
+        print("diffnsqrt: |%g - %g|/sqrt(%g * %g) = %g > %g" % (new[c1 + 'x' + c2], old[c1 + 'x' + c2], oc1c1, oc2c2,
+                                                                math.fabs(new[c1 + 'x' + c2] - old[c1 + 'x' + c2]) / math.sqrt(oc1c1 * oc2c2),
                                                                 tol))
     return res
 
@@ -95,9 +95,9 @@ def normabs(o, n, tol):
     :param n: The new value
     :return: True when |o - n| / |o| < tol, false else
     """
-    res = (math.fabs(o- n)/ math.fabs(o) if o != 0.0 else math.fabs(o- n)) < tol
+    res = (math.fabs(o - n) / math.fabs(o) if o != 0.0 else math.fabs(o - n)) < tol
     if args.verbose_diff_output and not res:
-        print("normabs: |%g - %g| / |%g| = %g > %g" % (o, n, o, math.fabs(o- n)/ math.fabs(o) if o != 0.0 else math.fabs(o- n), tol))
+        print("normabs: |%g - %g| / |%g| = %g > %g" % (o, n, o, math.fabs(o - n) / math.fabs(o) if o != 0.0 else math.fabs(o - n), tol))
     return res
 
 def wantCMBTandlmaxscalarge2000(ini):
@@ -119,36 +119,36 @@ def wantCMBT(ini):
 # A short cut for lensedCls and lenspotentialCls files.
 coltol1 = ColTol({"L": Ignore(),
                   "TxT": (wantCMBT ,
-                          [(   0, 3e-3),
-                           ( 600, 1e-3),
+                          [(0, 3e-3),
+                           (600, 1e-3),
                            (2500, 3e-3),
                            (6000, 0.02)]),
                   "ExE": (wantCMBT,
-                          [(   0, 3e-3),
-                           ( 600, 1e-3),
+                          [(0, 3e-3),
+                           (600, 1e-3),
                            (2500, 3e-3),
                            (6000, 0.02),
                            (8000, 0.1)]),
                   "BxB": (wantCMBTandlmaxscalarge2000,
-                          [(   0, 5e-3),
+                          [(0, 5e-3),
                            (1000, 1e-2),
                            (6000, 0.02),
                            (8000, 0.1)]),
                   "TxE": (wantCMBT,
-                          [(   0, lambda o, n: diffnsqrt(o, n, 3e-3, 'T', 'E')),
-                           ( 600, lambda o, n: diffnsqrt(o, n, 1e-3, 'T', 'E')),
+                          [(0, lambda o, n: diffnsqrt(o, n, 3e-3, 'T', 'E')),
+                           (600, lambda o, n: diffnsqrt(o, n, 1e-3, 'T', 'E')),
                            (2500, lambda o, n: diffnsqrt(o, n, 3e-3, 'T', 'E')),
                            (6000, lambda o, n: diffnsqrt(o, n, 3e-2, 'T', 'E'))]),
                   "PxP": (True,
-                          [(   0, 5e-3),
+                          [(0, 5e-3),
                            (1000, 1e-2),
                            (6000, 0.02)]),
                   "TxP": (wantCMBT,
-                          [(   0, lambda o, n: diffnsqrt(o, n, 0.01, 'T', 'P')),
-                           ( 100, Ignore())]),
+                          [(0, lambda o, n: diffnsqrt(o, n, 0.01, 'T', 'P')),
+                           (100, Ignore())]),
                   "ExP": (wantCMBT,
-                          [(   0, lambda o, n: diffnsqrt(o, n, 0.02, 'E', 'P')),
-                           (  60, Ignore())]),
+                          [(0, lambda o, n: diffnsqrt(o, n, 0.02, 'E', 'P')),
+                           (60, Ignore())]),
                   "TxW1": (wantCMBT, lambda o, n: diffnsqrt(o, n, 5e-3, 'T', 'W1')),
                   "ExW1": (wantCMBT, lambda o, n: diffnsqrt(o, n, 5e-3, 'E', 'W1')),
                   "PxW1": (True, lambda o, n: diffnsqrt(o, n, 5e-3, 'P', 'W1')),
@@ -167,20 +167,20 @@ coltol1 = ColTol({"L": Ignore(),
 
 # The filetolmatrix as described above.
 global filetolmatrix
-filetolmatrix = [["*scalCls.dat", Ignore()], # Ignore() all scalCls.dat files.
-                 ["*lensedCls.dat", coltol1], # lensed and lenspotential files both use coltol1 given above
+filetolmatrix = [["*scalCls.dat", Ignore()],  # Ignore() all scalCls.dat files.
+                 ["*lensedCls.dat", coltol1],  # lensed and lenspotential files both use coltol1 given above
                  ["*lensedtotCls.dat", coltol1],
                  ["*lenspotentialCls.dat", coltol1],
                  ["*scalCovCls.dat", coltol1],
                  ["*tensCls.dat", ColTol({"TE": (True, lambda o, n: diffnsqrt(o, n, 1e-2, 'T', 'E')),
-                                          "*": (True, [(  0, 1e-2),
+                                          "*": (True, [(0, 1e-2),
                                                 (600, Ignore())])})],
-                 ["*matterpower.dat", ColTol({"P": (True, lambda o, n: normabs(o["P"], n["P"], 1e-3 if n["k/h"]< 1 else 3e-3)),
+                 ["*matterpower.dat", ColTol({"P": (True, lambda o, n: normabs(o["P"], n["P"], 1e-3 if n["k/h"] < 1 else 3e-3)),
                                               "*": Ignore()})],
-                 ["*transfer_out.dat", ColTol({"baryon": (True, lambda o, n: normabs(o["baryon"], n["baryon"], 1e-3 if n["k/h"]< 1 else 3e-3)),
-                                               "CDM": (True, lambda o, n: normabs(o["CDM"], n["CDM"], 1e-3 if n["k/h"]< 1 else 3e-3)),
-                                               "v_CDM": (True, lambda o, n: normabs(o["v_CDM"], n["v_CDM"], 1e-3 if n["k/h"]< 1 else 3e-3)),
-                                               "v_b": (True, lambda o, n: normabs(o["v_b"], n["v_b"], 1e-3 if n["k/h"]< 1 else 3e-3)),
+                 ["*transfer_out.dat", ColTol({"baryon": (True, lambda o, n: normabs(o["baryon"], n["baryon"], 1e-3 if n["k/h"] < 1 else 3e-3)),
+                                               "CDM": (True, lambda o, n: normabs(o["CDM"], n["CDM"], 1e-3 if n["k/h"] < 1 else 3e-3)),
+                                               "v_CDM": (True, lambda o, n: normabs(o["v_CDM"], n["v_CDM"], 1e-3 if n["k/h"] < 1 else 3e-3)),
+                                               "v_b": (True, lambda o, n: normabs(o["v_b"], n["v_b"], 1e-3 if n["k/h"] < 1 else 3e-3)),
                                                "*": Ignore()})],
                  ["*sharp_cl_*.dat", ColTol({"CL": (True, 1e-3),
                                              "P": (True, 1e-3),
@@ -301,48 +301,51 @@ def getTestParams():
         're_optical_depth': [0.03, 0.05, 0.08, 0.11],
     }
 
-    for par, vals in pars.iteritems():
-        for val in vals:
-            params.append(['%s_%.3f' % (par, val), 'get_transfer= T', 'do_nonlinear=1', 'transfer_high_precision = T',
-                           '%s = %s' % (par, val)])
+    if not os.environ.get('CAMB_TESTS_NO_DE'):
+        for par, vals in pars.iteritems():
+            for val in vals:
+                params.append(['%s_%.3f' % (par, val), 'get_transfer= T', 'do_nonlinear=1', 'transfer_high_precision = T',
+                               '%s = %s' % (par, val)])
 
-    params.append(['ppf_w-1.000_wa0.000', 'w = -1.0', 'wa = 0.0', 'do_nonlinear = 1', 'get_transfer= T',
-                   'transfer_high_precision = T', 'dark_energy_model=PPF'])
+        params.append(['ppf_w-1.000_wa0.000', 'w = -1.0', 'wa = 0.0', 'do_nonlinear = 1', 'get_transfer= T',
+                       'transfer_high_precision = T', 'dark_energy_model=PPF'])
 
+    if not os.environ.get('CAMB_TESTS_NO_SOURCES'):
+        # ##CAMB sources options and new outputs
+        params.append(['delta_xe', 'evolve_delta_xe =T', 'get_transfer= T', 'do_nonlinear=2', 'transfer_high_precision = T'])
+    
+        def make_win(i, z, kind, bias, sigma, s):
+            return ['redshift(%s) = %s' % (i, z), 'redshift_kind(%s) = %s' % (i, kind), 'redshift_bias(%s) = %s' % (i, bias),
+                    'redshift_sigma(%s) = %s' % (i, sigma), 'redshift_dlog10Ndm(%s) = %s' % (i, s)]
+    
+        counts_def = ['DEFAULT(params_counts.ini)']
+        source_counts = ['num_redshiftwindows = 2'] + make_win(1, 0.3, 'counts', 1.5, 0.06, 0.42) + make_win(2, 1, 'counts', 2, 0.3, 0)
+        bool_options = ['counts_evolve', 'DoRedshiftLensing', 'counts_redshift', 'evolve_delta_xe']
+        for b1 in ['T', 'F']:
+            for b2 in ['T', 'F']:
+                for b3 in ['T', 'F']:
+                    for b4 in ['T', 'F']:
+                        bs = [b1, b2, b3, b4]
+                        pars = copy.copy(source_counts)
+                        for opt, b in zip(bool_options, bs):
+                            pars += [opt + ' = ' + b]
+                        params.append(['counts_opts_' + '_'.join(bs)] + counts_def + pars)
+        params.append(['counts_1bin'] + counts_def
+                      + ['num_redshiftwindows = 1'] + make_win(1, 0.15, 'counts', 1.2, 0.04, -0.2))
+        params.append(['counts_lmax1', 'l_max_scalar = 400', 'want_CMB = F'] + counts_def + source_counts)
+        params.append(['counts_lmax2', 'l_max_scalar = 1200'] + counts_def + source_counts)
+    
+        params.append(['counts_overlap'] + counts_def
+                      + ['num_redshiftwindows = 2'] + make_win(1, 0.17, 'counts', 1.2, 0.04, -0.2) + make_win(2, 0.2, 'counts', 1.2, 0.04, -0.2))
+        params.append(['lensing_base', 'DEFAULT(params_lensing.ini)'])
+        params.append(['21cm_base', 'DEFAULT(params_21cm.ini)'])
+        params.append(['21cm_base2', 'DEFAULT(params_21cm.ini)', 'get_transfer = T'])
+        params.append(['counts_lens', 'DEFAULT(params_counts.ini)']
+                      + ['num_redshiftwindows = 2'] + make_win(1, 0.17, 'counts', 1.2, 0.04, -0.2) + make_win(2, 0.5, 'lensing', 0, 0.07, 0.2))
 
-
-    ###CAMB sources options and new outputs
-    params.append(['delta_xe', 'evolve_delta_xe =T', 'get_transfer= T', 'do_nonlinear=2', 'transfer_high_precision = T'])
-
-    def make_win(i, z, kind, bias, sigma, s):
-        return ['redshift(%s) = %s' % (i, z), 'redshift_kind(%s) = %s' % (i, kind), 'redshift_bias(%s) = %s' % (i, bias),
-                'redshift_sigma(%s) = %s' % (i, sigma), 'redshift_dlog10Ndm(%s) = %s' % (i, s)]
-
-    counts_def = ['DEFAULT(params_counts.ini)']
-    source_counts = ['num_redshiftwindows = 2'] + make_win(1, 0.3, 'counts', 1.5, 0.06, 0.42) + make_win(2, 1, 'counts', 2, 0.3, 0)
-    bool_options = ['counts_evolve', 'DoRedshiftLensing', 'counts_redshift', 'evolve_delta_xe']
-    for b1 in ['T', 'F']:
-        for b2 in ['T', 'F']:
-            for b3 in ['T', 'F']:
-                for b4 in ['T', 'F']:
-                    bs = [b1, b2, b3, b4]
-                    pars = copy.copy(source_counts)
-                    for opt, b in zip(bool_options, bs):
-                        pars += [opt + ' = ' + b]
-                    params.append(['counts_opts_' + '_'.join(bs)] + counts_def + pars)
-    params.append(['counts_1bin'] + counts_def
-                  + ['num_redshiftwindows = 1'] + make_win(1, 0.15, 'counts', 1.2, 0.04, -0.2))
-    params.append(['counts_lmax1', 'l_max_scalar = 400', 'want_CMB = F'] + counts_def + source_counts)
-    params.append(['counts_lmax2', 'l_max_scalar = 1200'] + counts_def + source_counts)
-
-    params.append(['counts_overlap'] + counts_def
-                  + ['num_redshiftwindows = 2'] + make_win(1, 0.17, 'counts', 1.2, 0.04, -0.2) + make_win(2, 0.2, 'counts', 1.2, 0.04, -0.2))
-    params.append(['lensing_base', 'DEFAULT(params_lensing.ini)'])
-    params.append(['21cm_base', 'DEFAULT(params_21cm.ini)'])
-    params.append(['21cm_base2', 'DEFAULT(params_21cm.ini)', 'get_transfer = T'])
-    params.append(['counts_lens', 'DEFAULT(params_counts.ini)']
-                  + ['num_redshiftwindows = 2'] + make_win(1, 0.17, 'counts', 1.2, 0.04, -0.2) + make_win(2, 0.5, 'lensing', 0, 0.07, 0.2))
-
+    max_tests =  os.environ.get('CAMB_TESTS_MAX')
+    if max_tests:
+        params = params[:max_tests]
     return params
 
 def list_files(file_dir):
@@ -411,7 +414,7 @@ def num_unequal(filename, cmpFcn):
             print('num rows do not match in %s: %d != %d' % (filename, len(origMat), len(newMat)))
         return True
     if newBase == 1:
-        cols = [s[0]+'x'+s[1] if len(s) == 2 and s != 'nu' else s for s in newMat[0]]
+        cols = [s[0] + 'x' + s[1] if len(s) == 2 and s != 'nu' else s for s in newMat[0]]
     else:
         cols = range(len(newMat[0]))
 
@@ -444,7 +447,7 @@ def num_unequal(filename, cmpFcn):
                         nf_row += [float(f)]
                     except (ValueError):
                         sp = customsplit(f)
-                        nf_row += [ float(sp[0]+'E'+sp[1]) ]
+                        nf_row += [ float(sp[0] + 'E' + sp[1]) ]
                 oldrowdict = False
                 newrowdict = False
                 for o, n in zip(of_row, nf_row):
@@ -481,12 +484,12 @@ def num_unequal(filename, cmpFcn):
                                     elif not isinstance(cand, Ignore):
                                         if not cand(oldrowdict, newrowdict):
                                             if args.verbose_diff_output:
-                                                print('value mismatch at %d, %d ("%s") of %s: %s != %s' % (row, col+ 1, cols[col], filename, o, n))
+                                                print('value mismatch at %d, %d ("%s") of %s: %s != %s' % (row, col + 1, cols[col], filename, o, n))
                                             return True
                                 else:
                                     if not tols(oldrowdict, newrowdict):
                                         if args.verbose_diff_output:
-                                            print('value mismatch at %d, %d ("%s") of %s: %s != %s' % (row, col+ 1, cols[col], filename, o, n))
+                                            print('value mismatch at %d, %d ("%s") of %s: %s != %s' % (row, col + 1, cols[col], filename, o, n))
                                         return True
                     col += 1
             return False
@@ -510,7 +513,7 @@ def customsplit(s):
     # Split the exponent from the string by looking for ['E']('+'|'-')D+
     while (i > 4):
         if (s[i] == '+' or s[i] == '-'):
-            return [ s[0: i -1], s[i: n] ]
+            return [ s[0: i - 1], s[i: n] ]
         i -= 1
     return [ s ]
 
@@ -543,7 +546,7 @@ def textualcmp(o, n, tolerance):
                 else:
                     n_mantise *= 10.0
             return math.fabs(float(o_mantise) - float(n_mantise)) >= tolerance
-        return math.fabs(float(os[0]+'E'+os[1]) - float(ns[0]+'E'+ns[1])) >= tolerance
+        return math.fabs(float(os[0] + 'E' + os[1]) - float(ns[0] + 'E' + ns[1])) >= tolerance
     # In all other cases do a numerical check
     return math.fabs(float(o) - float(n)) >= tolerance
 
@@ -578,7 +581,7 @@ if args.diff_to:
     if len_errors > 0 or len_num_mismatch > 0:
        sys.exit(1)
     else:
-        sys.exit()
+       sys.exit()
 
 if args.make_ini:
     inis = makeIniFiles()
