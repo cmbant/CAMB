@@ -345,7 +345,7 @@ def getTestParams():
 
     max_tests =  os.environ.get('CAMB_TESTS_MAX')
     if max_tests:
-        params = params[:max_tests]
+        params = params[:int(max_tests)]
     return params
 
 def list_files(file_dir):
