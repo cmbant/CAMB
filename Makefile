@@ -5,15 +5,17 @@ FISHER=
 
 #Set FORUTILSPATH to the path where the libforutils.a file can be found.
 #The OUTPUT_DIR will be appended.
-if [ -d "./forutils" ]; then \
-FORUTILSPATH ?= ./forutils \
-fi
-if [ -d "../forutils" ]; then \
-FORUTILSPATH ?= ../forutils \
-fi
-ifeq ($(FORUTILSPATH),)
-error "must install forutils first (https://github.com/cmbant/forutils; or set FORUTILSPATH variable)"
+
+ifneq "$(wildcard ./forutils)" ""
+FORUTILSPATH ?= ./forutils
+else
+ifneq "$(wildcard ../forutils)" ""
+FORUTILSPATH ?= ../forutils
+else
+$(error First install forutils from https://github.com/cmbant/forutils; or set FORUTILSPATH variable)
 endif
+endif
+
 
 #Will detect ifort/gfortran or edit for your compiler
 ifortErr = $(shell which ifort >/dev/null 2>&1; echo $$?)
