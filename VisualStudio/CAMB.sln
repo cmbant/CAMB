@@ -16,8 +16,6 @@ Project("{6989167D-11E4-40FE-8C1A-2192A86A7E90}") = "CAMBLib", "CAMBLib.vfproj",
 EndProject
 Project("{6989167D-11E4-40FE-8C1A-2192A86A7E90}") = "ForUtils", "..\..\forutils\ForUtils\ForUtils.vfproj", "{F7C12681-233A-4C5A-9639-1EF3573BCE64}"
 EndProject
-Project("{6989167D-11E4-40FE-8C1A-2192A86A7E90}") = "BugTest", "BugTest\BugTest.vfproj", "{9E8B8601-0CF4-4E7C-A335-717A41D7E1A9}"
-EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -34,8 +32,6 @@ Global
 		{C7D790F6-3574-43A1-A5E1-1E6FC5478F95}.Release|x64.Build.0 = Release|x64
 		{F7C12681-233A-4C5A-9639-1EF3573BCE64}.Debug|x64.ActiveCfg = Debug|x64
 		{F7C12681-233A-4C5A-9639-1EF3573BCE64}.Release|x64.ActiveCfg = Release|x64
-		{9E8B8601-0CF4-4E7C-A335-717A41D7E1A9}.Debug|x64.ActiveCfg = Debug|x64
-		{9E8B8601-0CF4-4E7C-A335-717A41D7E1A9}.Release|x64.ActiveCfg = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
