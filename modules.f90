@@ -4007,7 +4007,7 @@
                     else
 						!correction needs to be introduced from total derivative to parcial derivative
                         RedWin%comoving_density_ev(ix) =   tmp2(ix) / RedWin%comoving_density_ev(ix) &
-						          -5*RedWin%dlog10Ndm * ( hubble_tmp(ix) + 1/(CP%tau0 - tau))
+						          -5*RedWin%dlog10Ndm * ( hubble_tmp(ix) + int_tmp(ix,i)/RedWin%Wing(ix))
                     end if
                 end do
             else
