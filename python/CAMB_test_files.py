@@ -25,6 +25,14 @@ parser.add_argument('--num_diff', action='store_true', help='during diff_to prin
 
 args = parser.parse_args()
 
+logfile = None
+
+def printlog(text):
+    print(text)
+    if logfile is None:
+        logfile = open(os.path.join(args.ini_dir,'test_results.log'), 'a')
+    logfile.write(text)
+    
 # The tolerance matrix gives the tolerances for comparing two values of the actual results with
 # results given in a diff_to. Filename globing is supported by fnmatch. The first glob matching
 # is the winner and its tolerances will be used. To implement a first match order, a regular array
@@ -83,7 +91,7 @@ def diffnsqrt(old, new, tol, c1, c2):
         return True
     res = math.fabs(new[c1 + 'x' + c2] - old[c1 + 'x' + c2]) / math.sqrt(oc1c1 * oc2c2) < tol
     if args.verbose_diff_output and not res:
-        print("diffnsqrt: |%g - %g|/sqrt(%g * %g) = %g > %g" % (new[c1 + 'x' + c2], old[c1 + 'x' + c2], oc1c1, oc2c2,
+        printlog("diffnsqrt: |%g - %g|/sqrt(%g * %g) = %g > %g" % (new[c1 + 'x' + c2], old[c1 + 'x' + c2], oc1c1, oc2c2,
                                                                 math.fabs(new[c1 + 'x' + c2] - old[c1 + 'x' + c2]) / math.sqrt(oc1c1 * oc2c2),
                                                                 tol))
     return res
@@ -97,7 +105,7 @@ def normabs(o, n, tol):
     """
     res = (math.fabs(o - n) / math.fabs(o) if o != 0.0 else math.fabs(o - n)) < tol
     if args.verbose_diff_output and not res:
-        print("normabs: |%g - %g| / |%g| = %g > %g" % (o, n, o, math.fabs(o - n) / math.fabs(o) if o != 0.0 else math.fabs(o - n), tol))
+        printlog("normabs: |%g - %g| / |%g| = %g > %g" % (o, n, o, math.fabs(o - n) / math.fabs(o) if o != 0.0 else math.fabs(o - n), tol))
     return res
 
 def wantCMBTandlmaxscalarge2000(ini):
@@ -411,7 +419,7 @@ def num_unequal(filename, cmpFcn):
             newBase = 0
     if len(origMat) - origBase != len(newMat) - newBase:
         if args.verbose_diff_output:
-            print('num rows do not match in %s: %d != %d' % (filename, len(origMat), len(newMat)))
+            printlog('num rows do not match in %s: %d != %d' % (filename, len(origMat), len(newMat)))
         return True
     if newBase == 1:
         cols = [s[0] + 'x' + s[1] if len(s) == 2 and s != 'nu' else s for s in newMat[0]]
@@ -432,12 +440,12 @@ def num_unequal(filename, cmpFcn):
                 inifile = iniFile()
                 inifile.readFile(inifilename)
             except:
-                print("Could not open inifilename: %s" % (inifilename))
+                printlog("Could not open inifilename: %s" % (inifilename))
             for o_row, n_row in zip(origMat[origBase:], newMat[newBase:]):
                 row += 1
                 if len(o_row) != len(n_row):
                     if args.verbose_diff_output:
-                        print('num columns do not match in %s: %d != %d' % (filename, len(o_row), len(n_row)))
+                        printlog('num columns do not match in %s: %d != %d' % (filename, len(o_row), len(n_row)))
                     return True
                 col = 0
                 of_row = [float(f) for f in o_row]
@@ -463,7 +471,7 @@ def num_unequal(filename, cmpFcn):
                             if isinstance(tols, float):
                                 if not cmpFcn(o, n, tols):
                                     if args.verbose_diff_output:
-                                        print('value mismatch at %d, %d ("%s") of %s: %s != %s' % (row, col + 1, cols[col], filename, o, n))
+                                        printlog('value mismatch at %d, %d ("%s") of %s: %s != %s' % (row, col + 1, cols[col], filename, o, n))
                                     return True
                             elif not isinstance(tols, Ignore):
                                 if not oldrowdict:
@@ -479,26 +487,26 @@ def num_unequal(filename, cmpFcn):
                                     if isinstance(cand, float):
                                         if not cmpFcn(o, n, cand):
                                             if args.verbose_diff_output:
-                                                print('value mismatch at %d, %d ("%s") of %s: %s != %s' % (row, col + 1, cols[col], filename, o, n))
+                                                printlog('value mismatch at %d, %d ("%s") of %s: %s != %s' % (row, col + 1, cols[col], filename, o, n))
                                             return True
                                     elif not isinstance(cand, Ignore):
                                         if not cand(oldrowdict, newrowdict):
                                             if args.verbose_diff_output:
-                                                print('value mismatch at %d, %d ("%s") of %s: %s != %s' % (row, col + 1, cols[col], filename, o, n))
+                                                printlog('value mismatch at %d, %d ("%s") of %s: %s != %s' % (row, col + 1, cols[col], filename, o, n))
                                             return True
                                 else:
                                     if not tols(oldrowdict, newrowdict):
                                         if args.verbose_diff_output:
-                                            print('value mismatch at %d, %d ("%s") of %s: %s != %s' % (row, col + 1, cols[col], filename, o, n))
+                                            printlog('value mismatch at %d, %d ("%s") of %s: %s != %s' % (row, col + 1, cols[col], filename, o, n))
                                         return True
                     col += 1
             return False
         else:
 #            if args.verbose_diff_output:
-#                print("Skipped file %s" % (filename))
+#                printlog("Skipped file %s" % (filename))
             return False
     except ValueError as e:
-        print("ValueError: '%s' at %d, %d in file: %s" % (e.message, row, col + 1, filename))
+        printlog("ValueError: '%s' at %d, %d in file: %s" % (e.message, row, col + 1, filename))
         return True
 
 def customsplit(s):
@@ -562,22 +570,22 @@ if args.diff_to:
          list(set(list_files(out_files_dir)) | set(list_files(out_files_dir2))))
     len_errors = len(errors)
     if len_errors and len_errors != 1 and errors[0] != args.diff_to:
-        print('Missing/Extra files:')
+        printlog('Missing/Extra files:')
         for err in errors:
             # Only print files that are not the diff_to
             if (err != args.diff_to):
-                print('  ' + err)
+                printlog('  ' + err)
     if len(mismatch):
         numerical_mismatch = [f for f in mismatch if num_unequal(f, defCmpFcn)]
         if len(numerical_mismatch):
-            print('Files do not match:')
+            printlog('Files do not match:')
             for err in numerical_mismatch:
-                print('  ' + err)
+                printlog('  ' + err)
         len_num_mismatch = len(numerical_mismatch)
     else:
         len_num_mismatch = 0
 
-    print("Done with %d (%d) mismatches and %d extra/missing files" % (len_num_mismatch, len(mismatch), len_errors))
+    printlog("Done with %d (%d) mismatches and %d extra/missing files" % (len_num_mismatch, len(mismatch), len_errors))
     if len_errors > 0 or len_num_mismatch > 0:
        sys.exit(1)
     else:
@@ -591,15 +599,15 @@ if not args.no_run_test:
     errors = 0
     files = output_file_num(out_files_dir)
     if files:
-        print('Output directory is not empty (run with --clean to force delete): %s' % out_files_dir)
+        printlog('Output directory is not empty (run with --clean to force delete): %s' % out_files_dir)
         sys.exit()
     start = time.time()
     error_list = []
     for ini in inis:
-        print(os.path.basename(ini) + '...')
+        printlog(os.path.basename(ini) + '...')
         timing, output, return_code = runScript(ini)
         if return_code:
-            print('error %s' % return_code)
+            printlog('error %s' % return_code)
         nfiles = output_file_num(out_files_dir)
         if nfiles > files:
             msg = '..OK, produced %s files in %.2fs' % (nfiles - files, timing)
@@ -607,8 +615,8 @@ if not args.no_run_test:
             errors += 1
             error_list.append(os.path.basename(ini))
             msg = '..no files in %.2fs' % (timing)
-        print(msg)
+        printlog(msg)
         files = nfiles
-    print('Done, %s errors in %.2fs (outputs not checked)' % (errors, time.time() - start))
+    printlog('Done, %s errors in %.2fs (outputs not checked)' % (errors, time.time() - start))
     if errors:
-        print('Fails in : %s' % error_list)
+        printlog('Fails in : %s' % error_list)
