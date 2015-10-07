@@ -299,10 +299,6 @@ def getTestParams():
     for etamax in [10000, 14000, 20000, 40000]:
         params.append(['acclensBB_ketamax%s' % etamax, 'do_nonlinear = 2', 'l_max_scalar = 2500', 'k_eta_max_scalar  = %s' % etamax, 'accurate_BB = T'])
 
-    for wa in [-0.3, -0.01, 0.5]:
-        for w in [-1.2, -0.998, -0.7]:
-            params.append(['ppf_w%s_wa%s' % (w, wa), 'w = %s' % w, 'wa =%s' % wa, 'do_nonlinear = 2', 'get_transfer= T', 'dark_energy_model=PPF'])
-
     pars = {
         'ombh2':[ 0.0219, 0.0226, 0.0253],
         'omch2':[ 0.1, 0.08, 0.15],
@@ -315,11 +311,15 @@ def getTestParams():
         're_optical_depth': [0.03, 0.05, 0.08, 0.11],
     }
 
+    for par, vals in pars.iteritems():
+        for val in vals:
+            params.append(['%s_%.3f' % (par, val), 'get_transfer= T', 'do_nonlinear=1', 'transfer_high_precision = T',
+                           '%s = %s' % (par, val)])
+
     if not args.no_de and not os.environ.get('CAMB_TESTS_NO_DE'):
-        for par, vals in pars.iteritems():
-            for val in vals:
-                params.append(['%s_%.3f' % (par, val), 'get_transfer= T', 'do_nonlinear=1', 'transfer_high_precision = T',
-                               '%s = %s' % (par, val)])
+        for wa in [-0.3, -0.01, 0.5]:
+            for w in [-1.2, -0.998, -0.7]:
+                params.append(['ppf_w%s_wa%s' % (w, wa), 'w = %s' % w, 'wa =%s' % wa, 'do_nonlinear = 2', 'get_transfer= T', 'dark_energy_model=PPF'])
 
         params.append(['ppf_w-1.000_wa0.000', 'w = -1.0', 'wa = 0.0', 'do_nonlinear = 1', 'get_transfer= T',
                        'transfer_high_precision = T', 'dark_energy_model=PPF'])

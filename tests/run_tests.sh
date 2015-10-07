@@ -1,8 +1,5 @@
-cd /camb/forutils
-make Release
 cd /camb
 make Release
-
 
 python python/CAMB_test_files.py testfiles --make_ini
 cd testfiles

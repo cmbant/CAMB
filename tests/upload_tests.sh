@@ -4,13 +4,14 @@ if [ $? -ne 0 ]; then
 mkdir CAMB_test_outputs
 cd CAMB_test_outputs
 git init
+git checkout -b ${TRAVIS_BRANCH}_travis
 git remote add origin https://$GH_TOKEN@github.com/cmbant/CAMB_test_outputs 
 else
 cd CAMB_test_outputs
 fi
 
 git config user.name "Travis CI"
-git config user.email "antony@cosmologist.info"
+git config user.email "none@travis"
 git rm -r * > /dev/null 2>&1
 cp -r ../testfiles/* .
 git add --all .
