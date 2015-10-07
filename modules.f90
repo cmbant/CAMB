@@ -149,7 +149,7 @@
     implicit none
     public
 
-    character(LEN=*), parameter :: version = 'Aug15'
+    character(LEN=*), parameter :: version = 'Oct15'
 
     integer :: FeedbackLevel = 0 !if >0 print out useful information about the model
 
@@ -3966,7 +3966,7 @@
                         else
                             !correction needs to be introduced from total derivative to partial derivative
                             RedWin%comoving_density_ev(ix) =   tmp2(ix) / RedWin%comoving_density_ev(ix) &
-                                -5*RedWin%dlog10Ndm * ( hubble_tmp(ix) + int_tmp(ix)/RedWin%Wing(ix))
+                                -5*RedWin%dlog10Ndm * ( hubble_tmp(ix) + int_tmp(ix,i)/RedWin%Wing(ix))
                         end if
                     end do
                 else
