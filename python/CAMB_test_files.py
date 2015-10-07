@@ -28,6 +28,7 @@ args = parser.parse_args()
 logfile = None
 
 def printlog(text):
+    global logfile
     print(text)
     if logfile is None:
         logfile = open(os.path.join(args.ini_dir,'test_results.log'), 'a')
