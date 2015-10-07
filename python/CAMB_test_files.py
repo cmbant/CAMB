@@ -22,6 +22,11 @@ parser.add_argument('--diff_tolerance', type=float, help='the tolerance for the 
                                                          'diff is given [default: 1e-4]', default=1e-4)
 parser.add_argument('--verbose_diff_output', action='store_true', help='during diff_to print more error messages')
 parser.add_argument('--num_diff', action='store_true', help='during diff_to print more error messages')
+parser.add_argument('--no_sources', action='store_true', help='turn off CAMB sources (counts/lensing/21cm) tests')
+parser.add_argument('--no_de', action='store_true', help='don''t run dark energy tests')
+parser.add_argument('--max_tests', type=int, help='maximum tests to run (for quick testing of pipeline)')
+
+
 
 args = parser.parse_args()
 
@@ -294,10 +299,6 @@ def getTestParams():
     for etamax in [10000, 14000, 20000, 40000]:
         params.append(['acclensBB_ketamax%s' % etamax, 'do_nonlinear = 2', 'l_max_scalar = 2500', 'k_eta_max_scalar  = %s' % etamax, 'accurate_BB = T'])
 
-    for wa in [-0.3, -0.01, 0.5]:
-        for w in [-1.2, -0.998, -0.7]:
-            params.append(['ppf_w%s_wa%s' % (w, wa), 'w = %s' % w, 'wa =%s' % wa, 'do_nonlinear = 2', 'get_transfer= T', 'dark_energy_model=PPF'])
-
     pars = {
         'ombh2':[ 0.0219, 0.0226, 0.0253],
         'omch2':[ 0.1, 0.08, 0.15],
@@ -310,16 +311,20 @@ def getTestParams():
         're_optical_depth': [0.03, 0.05, 0.08, 0.11],
     }
 
-    if not os.environ.get('CAMB_TESTS_NO_DE'):
-        for par, vals in pars.iteritems():
-            for val in vals:
-                params.append(['%s_%.3f' % (par, val), 'get_transfer= T', 'do_nonlinear=1', 'transfer_high_precision = T',
-                               '%s = %s' % (par, val)])
+    for par, vals in pars.iteritems():
+        for val in vals:
+            params.append(['%s_%.3f' % (par, val), 'get_transfer= T', 'do_nonlinear=1', 'transfer_high_precision = T',
+                           '%s = %s' % (par, val)])
+
+    if not args.no_de and not os.environ.get('CAMB_TESTS_NO_DE'):
+        for wa in [-0.3, -0.01, 0.5]:
+            for w in [-1.2, -0.998, -0.7]:
+                params.append(['ppf_w%s_wa%s' % (w, wa), 'w = %s' % w, 'wa =%s' % wa, 'do_nonlinear = 2', 'get_transfer= T', 'dark_energy_model=PPF'])
 
         params.append(['ppf_w-1.000_wa0.000', 'w = -1.0', 'wa = 0.0', 'do_nonlinear = 1', 'get_transfer= T',
                        'transfer_high_precision = T', 'dark_energy_model=PPF'])
 
-    if not os.environ.get('CAMB_TESTS_NO_SOURCES'):
+    if not args.no_sources and not os.environ.get('CAMB_TESTS_NO_SOURCES'):
         # ##CAMB sources options and new outputs
         params.append(['delta_xe', 'evolve_delta_xe =T', 'get_transfer= T', 'do_nonlinear=2', 'transfer_high_precision = T'])
     
@@ -352,7 +357,7 @@ def getTestParams():
         params.append(['counts_lens', 'DEFAULT(params_counts.ini)']
                       + ['num_redshiftwindows = 2'] + make_win(1, 0.17, 'counts', 1.2, 0.04, -0.2) + make_win(2, 0.5, 'lensing', 0, 0.07, 0.2))
 
-    max_tests =  os.environ.get('CAMB_TESTS_MAX')
+    max_tests =  args.max_tests or os.environ.get('CAMB_TESTS_MAX')
     if max_tests:
         params = params[:int(max_tests)]
     return params
