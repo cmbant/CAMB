@@ -586,7 +586,7 @@ if args.diff_to:
     else:
         len_num_mismatch = 0
 
-    printlog("Done with %d (%d) mismatches and %d extra/missing files" % (len_num_mismatch, len(mismatch), len_errors))
+    printlog("Done with %d numerical accuracy mismatches and %d extra/missing files" % (len_num_mismatch, len_errors))
     if len_errors > 0 or len_num_mismatch > 0:
        sys.exit(1)
     else:
