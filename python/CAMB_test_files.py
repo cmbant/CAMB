@@ -32,7 +32,7 @@ def printlog(text):
     print(text)
     if logfile is None:
         logfile = open(os.path.join(args.ini_dir,'test_results.log'), 'a')
-    logfile.write(text)
+    logfile.write(text+"\n")
     
 # The tolerance matrix gives the tolerances for comparing two values of the actual results with
 # results given in a diff_to. Filename globing is supported by fnmatch. The first glob matching
