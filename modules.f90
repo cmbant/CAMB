@@ -3855,7 +3855,6 @@
 
 
     do i = 1, num_redshiftwindows
-<<<<<<< HEAD
         associate (RedWin => Redshift_W(i))
 
             ! int (a*rho_s/H)' a W_f(a) d\eta, or for counts int g/chi deta
@@ -3942,92 +3941,6 @@
                 !    call spline_integrate(TimeSteps%points(jstart),tmp,tmp2, RedWin%WinF(jstart),ninterp)
             end if
         end associate
-=======
-        RedWin => Redshift_W(i)
-
-        ! int (a*rho_s/H)' a W_f(a) d\eta, or for counts int g/chi deta
-        call spline(TimeSteps%points(jstart),int_tmp(jstart,i),ninterp,spl_large,spl_large,tmp)
-        call spline_integrate(TimeSteps%points(jstart),int_tmp(jstart,i),tmp, tmp2(jstart),ninterp)
-        RedWin%WinV(jstart:TimeSteps%npoints) =  &
-            RedWin%WinV(jstart:TimeSteps%npoints) + tmp2(jstart:TimeSteps%npoints)
-
-        call spline(TimeSteps%points(jstart),RedWin%WinV(jstart),ninterp,spl_large,spl_large,RedWin%ddWinV(jstart))
-        call spline_deriv(TimeSteps%points(jstart),RedWin%WinV(jstart),RedWin%ddWinV(jstart), RedWin%dWinV(jstart), ninterp)
-
-        call spline(TimeSteps%points(jstart),RedWin%Wing(jstart),ninterp,spl_large,spl_large,RedWin%ddWing(jstart))
-        call spline_deriv(TimeSteps%points(jstart),RedWin%Wing(jstart),RedWin%ddWing(jstart), RedWin%dWing(jstart), ninterp)
-
-        call spline(TimeSteps%points(jstart),RedWin%Wing2(jstart),ninterp,spl_large,spl_large,RedWin%ddWing2(jstart))
-        call spline_deriv(TimeSteps%points(jstart),RedWin%Wing2(jstart),RedWin%ddWing2(jstart), &
-            RedWin%dWing2(jstart), ninterp)
-
-        call spline_integrate(TimeSteps%points(jstart),RedWin%Wing(jstart),RedWin%ddWing(jstart), RedWin%WinF(jstart),ninterp)
-        RedWin%Fq = RedWin%WinF(TimeSteps%npoints)
-
-        if (RedWin%kind == window_21cm) then
-            call spline_integrate(TimeSteps%points(jstart),RedWin%Wing2(jstart),&
-                RedWin%ddWing2(jstart), tmp(jstart),ninterp)
-            RedWin%optical_depth_21 = tmp(TimeSteps%npoints) / (CP%TCMB*1000)
-            !WinF not used.. replaced below
-
-            call spline(TimeSteps%points(jstart),RedWin%Wingtau(jstart),ninterp,spl_large,spl_large,RedWin%ddWingtau(jstart))
-            call spline_deriv(TimeSteps%points(jstart),RedWin%Wingtau(jstart),RedWin%ddWingtau(jstart), &
-                RedWin%dWingtau(jstart), ninterp)
-        elseif (RedWin%kind == window_counts) then
-
-            if (counts_evolve) then
-                call spline(TimeSteps%points(jstart),back_count_tmp(jstart,i),ninterp,spl_large,spl_large,tmp)
-                call spline_deriv(TimeSteps%points(jstart),back_count_tmp(jstart,i),tmp,tmp2(jstart),ninterp)
-                do ix = jstart, TimeSteps%npoints
-                    if (RedWin%Wing(ix)==0._dl) then
-                        RedWin%Wingtau(ix) = 0
-                    else
-                        !evo bias is computed with total derivative
-                        RedWin%Wingtau(ix) =  -tmp2(ix) * RedWin%Wing(ix) / (back_count_tmp(ix,i)*hubble_tmp(ix)) &
-                            !+ 5*RedWin%dlog10Ndm * ( RedWin%Wing(ix)- int_tmp(ix,i)/hubble_tmp(ix))
-                            !The correction from total to partial derivative takes 1/adot(tau0-tau) cancels
-                            + 10*RedWin%dlog10Ndm * RedWin%Wing(ix)
-                    end if
-                end do
-
-                !comoving_density_ev is d log(a^3 n_s)/d eta * window
-                call spline(TimeSteps%points(jstart),RedWin%comoving_density_ev(jstart),ninterp,spl_large,spl_large,tmp)
-                call spline_deriv(TimeSteps%points(jstart),RedWin%comoving_density_ev(jstart),tmp,tmp2(jstart),ninterp)
-                do ix = jstart, TimeSteps%npoints
-                    if (RedWin%Wing(ix)==0._dl) then
-                        RedWin%comoving_density_ev(ix) = 0
-                    else
-                        !correction needs to be introduced from total derivative to parcial derivative
-                        RedWin%comoving_density_ev(ix) =   tmp2(ix) / RedWin%comoving_density_ev(ix) &
-                            -5*RedWin%dlog10Ndm * ( hubble_tmp(ix) + int_tmp(ix,i)/RedWin%Wing(ix))
-                    end if
-                end do
-            else
-                RedWin%comoving_density_ev=0
-                call spline(TimeSteps%points(jstart),hubble_tmp(jstart),ninterp,spl_large,spl_large,tmp)
-                call spline_deriv(TimeSteps%points(jstart),hubble_tmp(jstart),tmp, tmp2(jstart), ninterp)
-
-                !assume d( a^3 n_s) of background population is zero, so remaining terms are
-                !wingtau =  g*(2/H\chi + Hdot/H^2)  when s=0; int_tmp = window/chi
-                RedWin%Wingtau(jstart:TimeSteps%npoints) = &
-                    2           *(1-2.5*RedWin%dlog10Ndm)*int_tmp(jstart:TimeSteps%npoints,i)/hubble_tmp(jstart:TimeSteps%npoints)&
-                    + 5*RedWin%dlog10Ndm*RedWin%Wing(jstart:TimeSteps%npoints) &
-                    + tmp2(jstart:TimeSteps%npoints)/hubble_tmp(jstart:TimeSteps%npoints)**2*RedWin%Wing(jstart:TimeSteps%npoints)
-            endif
-
-            call spline(TimeSteps%points(jstart),RedWin%Wingtau(jstart),ninterp, &
-                spl_large,spl_large,RedWin%ddWingtau(jstart))
-            call spline_deriv(TimeSteps%points(jstart),RedWin%Wingtau(jstart),RedWin%ddWingtau(jstart), &
-                RedWin%dWingtau(jstart), ninterp)
-
-            !WinF is int[ g*(...)]
-            call spline_integrate(TimeSteps%points(jstart),RedWin%Wingtau(jstart),&
-                RedWin%ddWingtau(jstart), RedWin%WinF(jstart),ninterp)
-            !    tmp(jstart:TimeSteps%npoints) = int_tmp(jstart:TimeSteps%npoints,i)/RedWin%Wingtau(jstart:TimeSteps%npoints)
-            !    call spline(TimeSteps%points(jstart),tmp(jstart),ninterp,spl_large,spl_large,tmp2)
-            !    call spline_integrate(TimeSteps%points(jstart),tmp,tmp2, RedWin%WinF(jstart),ninterp)
-        end if
->>>>>>> CAMB_sources
     end do
 
     deallocate(int_tmp,back_count_tmp)
