@@ -4,6 +4,7 @@ CAMB
 :CAMB:  Code for Anisotropies in the Microwave Background, Fortran 95 code
 :Homepage: http://camb.info/
 
+  
 Description and installation
 =============================
 
@@ -16,8 +17,13 @@ Branches
 =============================
 
 The master branch contains latest changes to the main release version.
-
-CAMB_sources is the updated public `CAMB Sources <http://camb.info/sources/>`_ code.
+.. image:: https://secure.travis-ci.org/cmbant/CAMB.png?branch=master
+  :target: https://secure.travis-ci.org/cmbant/CAMB
 
 The devel branch is a developement version, which integrates CAMB and CAMB sources, and uses Fortran 2008 (and hence requires ifort 14+ or gfortran 6+).
+.. image:: https://secure.travis-ci.org/cmbant/CAMB.png?branch=devel
+  :target: https://secure.travis-ci.org/cmbant/CAMB
+
+
+CAMB_sources is the updated public `CAMB Sources <http://camb.info/sources/>`_ code.
 
