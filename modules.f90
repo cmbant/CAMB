@@ -2656,17 +2656,15 @@
                 allocate(outpower(points,CP%InitPower%nn,ncol))
 
                 do in = 1, CP%InitPower%nn
-                    call Transfer_GetMatterPowerData(MTrans, PK_data, in, itf_PK)
-                    !JD 08/13 for nonlinear lensing of CMB + LSS compatibility
-                    !Changed (CP%NonLinear/=NonLinear_None) to CP%NonLinear/=NonLinear_none .and. CP%NonLinear/=NonLinear_Lens)
-                    if(CP%NonLinear/=NonLinear_none .and. CP%NonLinear/=NonLinear_Lens)&
-                        call MatterPowerdata_MakeNonlinear(PK_Data)
-
                     !Sources
                     if (all21) then
-                        call Transfer_Get21cmPowerData(MTrans, PK_data, in, itf)
+                        call Transfer_Get21cmPowerData(MTrans, PK_data, in, itf_PK)
                     else
-                        call Transfer_GetPowerDataNonlin(MTrans, PK_data, in, itf)
+                        call Transfer_GetMatterPowerData(MTrans, PK_data, in, itf_PK)
+                        !JD 08/13 for nonlinear lensing of CMB + LSS compatibility
+                        !Changed (CP%NonLinear/=NonLinear_None) to CP%NonLinear/=NonLinear_none .and. CP%NonLinear/=NonLinear_Lens)
+                        if(CP%NonLinear/=NonLinear_none .and. CP%NonLinear/=NonLinear_Lens)&
+                            call MatterPowerdata_MakeNonlinear(PK_Data)
                     end if
 
                     outpower(:,in,1) = exp(PK_data%matpower(:,1))
@@ -2715,59 +2713,6 @@
     end subroutine Transfer_SaveMatterPower
 
 
-    !Sources
-    subroutine Transfer_GetPowerDataNonlin(MTrans, PK_data, in, z_ix)
-    Type(MatterTransferData), intent(in) :: MTrans
-    Type(MatterPowerData) :: PK_data, PK_cdm
-    integer, intent(in) :: in
-    real(dl) h, k,kh
-    integer ik, nz
-    integer z_ix
-
-    nz = 1
-    PK_data%num_k = MTrans%num_q_trans
-    PK_Data%num_z = nz
-
-    allocate(PK_data%matpower(PK_data%num_k,nz))
-    allocate(PK_data%ddmat(PK_data%num_k,nz))
-    allocate(PK_data%nonlin_ratio(PK_data%num_k,nz))
-    allocate(PK_data%log_kh(PK_data%num_k))
-    allocate(PK_data%redshifts(nz))
-
-    call MatterPowerdata_Nullify(PK_cdm)
-
-    PK_data%redshifts = CP%Transfer%Redshifts(z_ix)
-
-    h = CP%H0/100
-
-    if (CP%NonLinear/=NonLinear_None) then
-        if (z_ix>1) stop 'not tested more than one redshift with Nonlinear matter power'
-        call Transfer_GetMatterPowerData(MTrans, PK_cdm, in, z_ix)
-        call NonLinear_GetRatios(PK_cdm)
-    end if
-
-
-    do ik=1,MTrans%num_q_trans
-        kh = MTrans%TransferData(Transfer_kh,ik,1)
-        k = kh*h
-        PK_data%log_kh(ik) = log(kh)
-        PK_data%matpower(ik,z_ix) = &
-            log(MTrans%TransferData(Transfer_tot,ik,z_ix)**2*k &
-            *const_pi*const_twopi*h**3*ScalarPower(k,in))
-
-        if (CP%NonLinear/=NonLinear_None) then
-            PK_data%matpower(ik,1) = PK_data%matpower(ik,1) + 2*log(PK_cdm%nonlin_ratio(ik,z_ix))
-        end if
-    end do
-
-    if (CP%NonLinear/=NonLinear_None)  call MatterPowerdata_Free(PK_cdm)
-
-    call MatterPowerdata_getsplines(PK_data)
-
-    end subroutine Transfer_GetPowerDataNonlin
-
-
-
     subroutine Transfer_Get21cmPowerData(MTrans, PK_data, in, z_ix)
     !In terms of k, not k/h, and k^3 P_k /2pi rather than P_k
     Type(MatterTransferData), intent(in) :: MTrans
@@ -2795,7 +2740,7 @@
 
     h = CP%H0/100
 
-    if (CP%NonLinear/=NonLinear_None) then
+    if (CP%NonLinear/=NonLinear_None .and. CP%NonLinear/=NonLinear_Lens) then
         if (z_ix>1) stop 'not tested more than one redshift with Nonlinear 21cm'
         call Transfer_GetMatterPowerData(MTrans, PK_cdm, in, z_ix)
         call NonLinear_GetRatios_All(PK_cdm)
@@ -3910,6 +3855,7 @@
 
 
     do i = 1, num_redshiftwindows
+<<<<<<< HEAD
         associate (RedWin => Redshift_W(i))
 
             ! int (a*rho_s/H)' a W_f(a) d\eta, or for counts int g/chi deta
@@ -3996,6 +3942,92 @@
                 !    call spline_integrate(TimeSteps%points(jstart),tmp,tmp2, RedWin%WinF(jstart),ninterp)
             end if
         end associate
+=======
+        RedWin => Redshift_W(i)
+
+        ! int (a*rho_s/H)' a W_f(a) d\eta, or for counts int g/chi deta
+        call spline(TimeSteps%points(jstart),int_tmp(jstart,i),ninterp,spl_large,spl_large,tmp)
+        call spline_integrate(TimeSteps%points(jstart),int_tmp(jstart,i),tmp, tmp2(jstart),ninterp)
+        RedWin%WinV(jstart:TimeSteps%npoints) =  &
+            RedWin%WinV(jstart:TimeSteps%npoints) + tmp2(jstart:TimeSteps%npoints)
+
+        call spline(TimeSteps%points(jstart),RedWin%WinV(jstart),ninterp,spl_large,spl_large,RedWin%ddWinV(jstart))
+        call spline_deriv(TimeSteps%points(jstart),RedWin%WinV(jstart),RedWin%ddWinV(jstart), RedWin%dWinV(jstart), ninterp)
+
+        call spline(TimeSteps%points(jstart),RedWin%Wing(jstart),ninterp,spl_large,spl_large,RedWin%ddWing(jstart))
+        call spline_deriv(TimeSteps%points(jstart),RedWin%Wing(jstart),RedWin%ddWing(jstart), RedWin%dWing(jstart), ninterp)
+
+        call spline(TimeSteps%points(jstart),RedWin%Wing2(jstart),ninterp,spl_large,spl_large,RedWin%ddWing2(jstart))
+        call spline_deriv(TimeSteps%points(jstart),RedWin%Wing2(jstart),RedWin%ddWing2(jstart), &
+            RedWin%dWing2(jstart), ninterp)
+
+        call spline_integrate(TimeSteps%points(jstart),RedWin%Wing(jstart),RedWin%ddWing(jstart), RedWin%WinF(jstart),ninterp)
+        RedWin%Fq = RedWin%WinF(TimeSteps%npoints)
+
+        if (RedWin%kind == window_21cm) then
+            call spline_integrate(TimeSteps%points(jstart),RedWin%Wing2(jstart),&
+                RedWin%ddWing2(jstart), tmp(jstart),ninterp)
+            RedWin%optical_depth_21 = tmp(TimeSteps%npoints) / (CP%TCMB*1000)
+            !WinF not used.. replaced below
+
+            call spline(TimeSteps%points(jstart),RedWin%Wingtau(jstart),ninterp,spl_large,spl_large,RedWin%ddWingtau(jstart))
+            call spline_deriv(TimeSteps%points(jstart),RedWin%Wingtau(jstart),RedWin%ddWingtau(jstart), &
+                RedWin%dWingtau(jstart), ninterp)
+        elseif (RedWin%kind == window_counts) then
+
+            if (counts_evolve) then
+                call spline(TimeSteps%points(jstart),back_count_tmp(jstart,i),ninterp,spl_large,spl_large,tmp)
+                call spline_deriv(TimeSteps%points(jstart),back_count_tmp(jstart,i),tmp,tmp2(jstart),ninterp)
+                do ix = jstart, TimeSteps%npoints
+                    if (RedWin%Wing(ix)==0._dl) then
+                        RedWin%Wingtau(ix) = 0
+                    else
+                        !evo bias is computed with total derivative
+                        RedWin%Wingtau(ix) =  -tmp2(ix) * RedWin%Wing(ix) / (back_count_tmp(ix,i)*hubble_tmp(ix)) &
+                            !+ 5*RedWin%dlog10Ndm * ( RedWin%Wing(ix)- int_tmp(ix,i)/hubble_tmp(ix))
+                            !The correction from total to partial derivative takes 1/adot(tau0-tau) cancels
+                            + 10*RedWin%dlog10Ndm * RedWin%Wing(ix)
+                    end if
+                end do
+
+                !comoving_density_ev is d log(a^3 n_s)/d eta * window
+                call spline(TimeSteps%points(jstart),RedWin%comoving_density_ev(jstart),ninterp,spl_large,spl_large,tmp)
+                call spline_deriv(TimeSteps%points(jstart),RedWin%comoving_density_ev(jstart),tmp,tmp2(jstart),ninterp)
+                do ix = jstart, TimeSteps%npoints
+                    if (RedWin%Wing(ix)==0._dl) then
+                        RedWin%comoving_density_ev(ix) = 0
+                    else
+                        !correction needs to be introduced from total derivative to parcial derivative
+                        RedWin%comoving_density_ev(ix) =   tmp2(ix) / RedWin%comoving_density_ev(ix) &
+                            -5*RedWin%dlog10Ndm * ( hubble_tmp(ix) + int_tmp(ix,i)/RedWin%Wing(ix))
+                    end if
+                end do
+            else
+                RedWin%comoving_density_ev=0
+                call spline(TimeSteps%points(jstart),hubble_tmp(jstart),ninterp,spl_large,spl_large,tmp)
+                call spline_deriv(TimeSteps%points(jstart),hubble_tmp(jstart),tmp, tmp2(jstart), ninterp)
+
+                !assume d( a^3 n_s) of background population is zero, so remaining terms are
+                !wingtau =  g*(2/H\chi + Hdot/H^2)  when s=0; int_tmp = window/chi
+                RedWin%Wingtau(jstart:TimeSteps%npoints) = &
+                    2           *(1-2.5*RedWin%dlog10Ndm)*int_tmp(jstart:TimeSteps%npoints,i)/hubble_tmp(jstart:TimeSteps%npoints)&
+                    + 5*RedWin%dlog10Ndm*RedWin%Wing(jstart:TimeSteps%npoints) &
+                    + tmp2(jstart:TimeSteps%npoints)/hubble_tmp(jstart:TimeSteps%npoints)**2*RedWin%Wing(jstart:TimeSteps%npoints)
+            endif
+
+            call spline(TimeSteps%points(jstart),RedWin%Wingtau(jstart),ninterp, &
+                spl_large,spl_large,RedWin%ddWingtau(jstart))
+            call spline_deriv(TimeSteps%points(jstart),RedWin%Wingtau(jstart),RedWin%ddWingtau(jstart), &
+                RedWin%dWingtau(jstart), ninterp)
+
+            !WinF is int[ g*(...)]
+            call spline_integrate(TimeSteps%points(jstart),RedWin%Wingtau(jstart),&
+                RedWin%ddWingtau(jstart), RedWin%WinF(jstart),ninterp)
+            !    tmp(jstart:TimeSteps%npoints) = int_tmp(jstart:TimeSteps%npoints,i)/RedWin%Wingtau(jstart:TimeSteps%npoints)
+            !    call spline(TimeSteps%points(jstart),tmp(jstart),ninterp,spl_large,spl_large,tmp2)
+            !    call spline_integrate(TimeSteps%points(jstart),tmp,tmp2, RedWin%WinF(jstart),ninterp)
+        end if
+>>>>>>> CAMB_sources
     end do
 
     deallocate(int_tmp,back_count_tmp)
