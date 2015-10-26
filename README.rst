@@ -21,7 +21,7 @@ The master branch contains latest changes to the main release version.
 .. image:: https://secure.travis-ci.org/cmbant/CAMB.png?branch=master
   :target: https://secure.travis-ci.org/cmbant/CAMB/branches
 
-The devel branch is a developement version, which integrates CAMB and CAMB sources, and uses Fortran 2008 (and hence requires ifort 14+ or gfortran 6+).
+The devel branch is a development version, which integrates CAMB and CAMB sources, and uses Fortran 2008 (and hence requires ifort 14+ or gfortran 6+).
 
 .. image:: https://secure.travis-ci.org/cmbant/CAMB.png?branch=devel
   :target: https://secure.travis-ci.org/cmbant/CAMB/branches
