@@ -959,7 +959,16 @@
 
     itf=1
     tol1=tol/exp(AccuracyBoost-1)
-    if (CP%WantTransfer .and. CP%Transfer%high_precision) tol1=tol1/100
+    if (CP%WantTransfer) then
+        if  (CP%Transfer%high_precision) tol1=tol1/100
+        do while (itf <= CP%Transfer%num_redshifts .and. TimeSteps%points(2) > tautf(itf))
+            !Just in case someone wants to get the transfer outputs well before recombination
+            call GaugeInterface_EvolveScal(EV,tau,y,tautf(itf),tol1,ind,c,w)
+            if (global_error_flag/=0) return
+            call outtransf(EV,y, tau, MT%TransferData(:,EV%q_ix,itf))
+            itf = itf+1
+        end do
+    end if
 
     do j=2,TimeSteps%npoints
         tauend=TimeSteps%points(j)
