@@ -84,7 +84,10 @@
 
     dz = z-Win%Redshift
     winamp =  exp(-(dz/Win%sigma)**2/2)
-    count_obs_window_z =winamp/Win%sigma/root2pi
+    count_obs_window_z =winamp/Win%sigma/root2pi*counts_background_z(Win, z)
+	!The observational window function comes multiplied by dN/dz
+	!in effect dN/dz is a probability distribution function inside the observational window function. 
+	!for narrow windows this is irrelevant
     !!!
     !         winamp =  z**3*exp(-(z/3.35821)**13)/20
     !         count_obs_window_z = winamp*20/28.49261877
@@ -98,9 +101,10 @@
     real(dl), intent(in) :: z
     real(dl) counts_background_z, winamp
 
-    counts_background_z = count_obs_window_z(Win, z, winamp)
-    !This is the special case where you observe all of the sources
-
+    counts_background_z = 1
+	!A specific redshift dependence of the background counts needs to be input here 
+    !In this case there is a contanst distribution of sources with redshift (but unphysical)
+	
     end function counts_background_z
 
     function Window_f_a(Win, a, winamp)
