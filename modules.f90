@@ -194,7 +194,7 @@
     !Parameters for checking/changing overall accuracy
     !If HighAccuracyDefault=.false., the other parameters equal to 1 corresponds to ~0.3% scalar C_l accuracy
     !If HighAccuracyDefault=.true., the other parameters equal to 1 corresponds to ~0.1% scalar C_l accuracy (at L>600)
-    logical :: HighAccuracyDefault = .false.
+    logical :: HighAccuracyDefault = .true.
 
     real(dl) :: lSampleBoost=1._dl
     !Increase lSampleBoost to increase sampling in lSamp%l for Cl interpolation
