@@ -29,7 +29,7 @@
         double precision Lowest, Highest
         Type(Region) :: R(Max_ranges)
         logical :: has_dpoints
-        double precision, dimension(:), pointer :: points, dpoints
+        double precision, dimension(:), pointer :: points => null(), dpoints => null()
         !dpoints is (points(i+1)-points(i-1))/2
 
     end Type Regions

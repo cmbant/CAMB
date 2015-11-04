@@ -964,8 +964,8 @@
 
     Type LimberRec
         integer n1,n2 !corresponding time step array indices
-        real(dl), dimension(:), pointer :: k
-        real(dl), dimension(:), pointer :: Source
+        real(dl), dimension(:), pointer :: k  => NULL()
+        real(dl), dimension(:), pointer :: Source  => NULL()
     end Type LimberRec
 
     Type ClTransferData
@@ -1685,7 +1685,7 @@
     integer, parameter :: Transfer_max = Transfer_vel_baryon_cdm
     character(LEN=name_tag_len) :: Transfer_name_tags(Transfer_max-1) = &
         ['CDM     ', 'baryon  ', 'photon  ', 'nu      ', 'mass_nu ', 'total   ', &
-         'no_nu   ', 'total_de', 'Weyl    ', 'v_CDM   ', 'v_b     ', 'v_b-v_c ']
+        'no_nu   ', 'total_de', 'Weyl    ', 'v_CDM   ', 'v_b     ', 'v_b-v_c ']
 
     logical :: transfer_interp_matterpower  = .true. !output regular grid in log k
     !set to false to output calculated values for later interpolation
@@ -1788,9 +1788,9 @@
     if (present(power_ix)) p_ix = power_ix
 
     if (present(itf_only)) then
-    itf_start=itf_only
-    itf_end = itf_only
-    nz = 1
+        itf_start=itf_only
+        itf_end = itf_only
+        nz = 1
     else
         itf_start=1
         nz= size(MTrans%TransferData,3)
@@ -1809,20 +1809,20 @@
     h = CP%H0/100
 
     do ik=1,MTrans%num_q_trans
-    kh = MTrans%TransferData(Transfer_kh,ik,1)
-    k = kh*h
-    PK_data%log_kh(ik) = log(kh)
-    power = ScalarPower(k,p_ix)
-    if (global_error_flag/=0) then
-        call MatterPowerdata_Free(PK_data)
-        return
-    end if
-    do itf = 1, nz
-        PK_data%matpower(ik,itf) = &
-            log(MTrans%TransferData(s1,ik,itf_start+itf-1)*&
-            MTrans%TransferData(s2,ik,itf_start+itf-1)*k &
-            *pi*twopi*h**3*power)
-    end do
+        kh = MTrans%TransferData(Transfer_kh,ik,1)
+        k = kh*h
+        PK_data%log_kh(ik) = log(kh)
+        power = ScalarPower(k,p_ix)
+        if (global_error_flag/=0) then
+            call MatterPowerdata_Free(PK_data)
+            return
+        end if
+        do itf = 1, nz
+            PK_data%matpower(ik,itf) = &
+                log(MTrans%TransferData(s1,ik,itf_start+itf-1)*&
+                MTrans%TransferData(s2,ik,itf_start+itf-1)*k &
+                *pi*twopi*h**3*power)
+        end do
     end do
 
     call MatterPowerdata_getsplines(PK_data)
@@ -2291,6 +2291,17 @@
 
     end  subroutine Transfer_Allocate
 
+    subroutine Transfer_Nullify(Mtrans)
+    Type(MatterTransferData):: MTrans
+
+    Mtrans%num_q_trans = 0
+    nullify(MTrans%q_trans)
+    nullify(MTrans%TransferData)
+    nullify(MTrans%sigma_8)
+    nullify(MTrans%sigma2_vdelta_8)
+
+    end subroutine Transfer_Nullify
+
     subroutine Transfer_Free(MTrans)
     Type(MatterTransferData):: MTrans
     integer st
@@ -2299,10 +2310,7 @@
     deallocate(MTrans%TransferData, STAT = st)
     deallocate(MTrans%sigma_8, STAT = st)
     if (get_growth_sigma8) deallocate(MTrans%sigma2_vdelta_8, STAT = st)
-    nullify(MTrans%q_trans)
-    nullify(MTrans%TransferData)
-    nullify(MTrans%sigma_8)
-    nullify(MTrans%sigma2_vdelta_8)
+    call Transfer_Nullify(MTrans)
 
     end subroutine Transfer_Free
 

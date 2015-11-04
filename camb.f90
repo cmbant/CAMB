@@ -28,6 +28,8 @@
     type(CAMBparams) :: Params
     type (CAMBdata)  :: OutData
     integer :: error !Zero if OK
+    Type(MatterTransferData) :: emptyMT
+    Type(ClTransferData) :: emptyCl
 
     !Set internal types from OutData so it always 'owns' the memory, prevent leaks
 
@@ -41,9 +43,13 @@
     call CAMB_GetResults(Params, error)
     OutData%Params = Params
     OutData%MTrans = MT
+    MT = emptyMT
     OutData%ClTransScal = CTransScal
     OutData%ClTransVec  = CTransVec
     OutData%ClTransTens = CTransTens
+    CTransScal = emptyCl
+    CTransVec  = emptyCl
+    CTransTens = emptyCl
 
     end subroutine CAMB_GetTransfers
 
