@@ -1,0 +1,5 @@
+# CAMB TBP suite gitignore. This prevents from loading results to git.
+
+legacy_results
+logs
+results
