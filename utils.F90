@@ -1540,7 +1540,6 @@
         character(LEN=*), intent(IN) :: aname,mode
         integer, intent(in) :: aunit
 
-
         open(unit=aunit,file=aname,form=mode,status='old', action='read', err=500)
         return
 

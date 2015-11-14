@@ -562,6 +562,23 @@
 
     end function AngularDiameterDistance
 
+    subroutine AngularDiameterDistanceArr(arr, z, n)
+    !This is the physical (non-comoving) angular diameter distance in Mpc for array of z
+    integer,intent(in) :: n
+    real(dl), intent(out) :: arr(n)
+    real(dl), intent(in) :: z(n)
+    integer i
+    !dumb version that just calls each z in turn independently
+
+    !$OMP PARALLEL DO DEFAULT(SHARED),SCHEDULE(STATIC)
+    do i=1, n
+        arr(i) = AngularDiameterDistance(z(i))
+    end do
+    !$OMP END PARALLEL DO
+
+    end subroutine AngularDiameterDistanceArr
+
+
     function AngularDiameterDistance2(z1, z2) ! z1 < z2
     !From http://www.slac.stanford.edu/~amantz/work/fgas14/#cosmomc
     real(dl) AngularDiameterDistance2
@@ -1084,7 +1101,9 @@
 
     if (.not. allocated(highL_CL_template)) then
         allocate(highL_CL_template(lmin:lmax_extrap_highl, C_Temp:C_Phi))
+
         call OpenTxtFile(highL_unlensed_cl_template,fileio_unit)
+
         if (lmin==1) highL_CL_template(lmin,:)=0
         do
             read(fileio_unit,*, end=500) L , array
@@ -1094,7 +1113,6 @@
             highL_CL_template(L, C_Cross) =array(4)
             highL_CL_template(L, C_Phi) =array(5)
         end do
-
 500     if (L< lmax_extrap_highl) &
             call MpiStop('CheckLoadedHighLTemplate: template file does not go up to lmax_extrap_highl')
         close(fileio_unit)
@@ -2472,7 +2490,7 @@
     P%num_redshifts=i
 
     end subroutine Transfer_SortAndIndexRedshifts
-
+	
     end module Transfer
 
 

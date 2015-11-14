@@ -8,12 +8,15 @@ ifortErr = $(shell which ifort >/dev/null; echo $$?)
 ifeq "$(ifortErr)" "0"
 
 #Intel compiler
+# For OSX replace shared by dynamiclib
 F90C     = ifort
 FFLAGS = -openmp -fast -W0 -WB -fpp2 -vec_report0
-DEBUGFLAGS =-openmp -g -check all -check noarg_temp_created -traceback -fpp -fpe0
+SFFLAGS = -shared -fpic
+DEBUGFLAGS = -openmp -g -check all -check noarg_temp_created -traceback -fpp -fpe0
 ## This is flag is passed to the Fortran compiler allowing it to link C++ if required (not usually):
 F90CRLINK = -cxxlib
 MODOUT = -module $(OUTPUT_DIR)
+SMODOUT = -module $(DLL_DIR)
 ifneq ($(FISHER),)
 FFLAGS += -mkl
 endif
@@ -25,9 +28,12 @@ ifeq "$(gfortErr)" "0"
 #Gfortran compiler:
 #The options here work in v4.6+
 F90C     = gfortran
+SFFLAGS =  -shared -fPIC
+
 FFLAGS =  -O3 -fopenmp -ffast-math -fmax-errors=4
 DEBUGFLAGS = -cpp -g -fbounds-check -fbacktrace -ffree-line-length-none -fmax-errors=4 -ffpe-trap=invalid,overflow,zero
 MODOUT =  -J$(OUTPUT_DIR)
+SMODOUT = -J$(DLL_DIR)
 
 ifneq ($(shell uname -s),Darwin)
 #native optimization does not work on Mac

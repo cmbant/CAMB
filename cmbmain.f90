@@ -319,11 +319,14 @@
     end if
 
     if (global_error_flag==0) then
+        print *, 'here1'
         call Init_Cls
+        print *, 'here2'
         !     Calculating Cls for every l.
         call InterpolateCls(CTransS,CTransT, CTransV)
         if (DebugMsgs .and. Feedbacklevel > 0) write (*,*) 'InterplolateCls'
     end if
+        print *, 'here3'
 
     if (CP%WantScalars .and. allocated(iCl_Scalar)) deallocate(iCl_scalar)
     if (CP%WantScalars .and. allocated(iCl_Array)) deallocate(iCl_Array)

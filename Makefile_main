@@ -18,15 +18,24 @@ DRIVER        ?= inidriver.F90
 
 Release: OUTPUT_DIR = Release
 Debug: OUTPUT_DIR = Debug
-OUTPUT_DIR ?= Release
 
-Release: camb
-Debug: camb
+Release: DLL_DIR = Releaselib
+Debug: DLL_DIR = Debuglib
+
+OUTPUT_DIR ?= Release
+DLL_DIR ?= Releaselib
+
+Release: camb camblib.so
+Debug: camb camblib.so
+
 
 CAMBLIB       = $(OUTPUT_DIR)/libcamb_$(RECOMBINATION).a
 
 F90FLAGS      = $(FFLAGS)
 F90FLAGS += $(MODOUT) $(IFLAG)$(OUTPUT_DIR)/
+
+SF90FLAGS      = $(SFFLAGS) $(FFLAGS)
+SF90FLAGS += $(SMODOUT) $(IFLAG)$(DLL_DIR)/
 
 HEALPIXLD     = -L$(HEALPIXDIR)/lib -lhealpix -L$(FITSDIR) -l$(FITSLIB)
 
@@ -35,6 +44,12 @@ CAMBOBJ       =  $(OUTPUT_DIR)/constants.o  $(OUTPUT_DIR)/utils.o $(EXTCAMBFILES
 	$(OUTPUT_DIR)/$(REIONIZATION).o $(OUTPUT_DIR)/modules.o $(OUTPUT_DIR)/bessels.o $(OUTPUT_DIR)/$(EQUATIONS).o \
 	$(OUTPUT_DIR)/$(NONLINEAR).o $(OUTPUT_DIR)/lensing.o $(OUTPUT_DIR)/$(BISPECTRUM).o $(OUTPUT_DIR)/cmbmain.o \
 	$(OUTPUT_DIR)/camb.o
+
+CAMBSO       =  $(DLL_DIR)/constants.o  $(DLL_DIR)/utils.o $(EXTCAMBFILES)  $(DLL_DIR)/subroutines.o  \
+	$(DLL_DIR)/inifile.o  $(DLL_DIR)/$(POWERSPECTRUM).o  $(DLL_DIR)/$(RECOMBINATION).o \
+	$(DLL_DIR)/$(REIONIZATION).o $(DLL_DIR)/modules.o $(DLL_DIR)/bessels.o $(DLL_DIR)/$(EQUATIONS).o \
+	$(DLL_DIR)/$(NONLINEAR).o $(DLL_DIR)/lensing.o $(DLL_DIR)/$(BISPECTRUM).o $(DLL_DIR)/cmbmain.o \
+	$(DLL_DIR)/camb.o $(DLL_DIR)/camb_python.o
 
 F90CRLINK ?= -lstdc++
 
@@ -57,7 +72,7 @@ endif
 
 default: camb
 
-all: camb libcamb
+all: camb camblib.so libcamb
 
 libcamb: $(CAMBLIB)
 
@@ -75,6 +90,25 @@ $(OUTPUT_DIR)/$(BISPECTRUM).o: $(OUTPUT_DIR)/lensing.o $(OUTPUT_DIR)/modules.o
 $(OUTPUT_DIR)/cmbmain.o: $(OUTPUT_DIR)/lensing.o $(OUTPUT_DIR)/$(NONLINEAR).o $(OUTPUT_DIR)/$(EQUATIONS).o $(OUTPUT_DIR)/$(BISPECTRUM).o
 $(OUTPUT_DIR)/camb.o: $(OUTPUT_DIR)/cmbmain.o
 $(OUTPUT_DIR)/Matrix_utils.o: $(OUTPUT_DIR)/utils.o
+
+$(DLL_DIR)/subroutines.o: $(DLL_DIR)/constants.o $(DLL_DIR)/utils.o
+$(DLL_DIR)/$(POWERSPECTRUM).o: $(DLL_DIR)/subroutines.o  $(DLL_DIR)/inifile.o
+$(DLL_DIR)/$(RECOMBINATION).o: $(DLL_DIR)/subroutines.o $(DLL_DIR)/inifile.o
+$(DLL_DIR)/$(REIONIZATION).o: $(DLL_DIR)/constants.o $(DLL_DIR)/inifile.o
+$(DLL_DIR)/modules.o: $(DLL_DIR)/$(REIONIZATION).o $(DLL_DIR)/$(POWERSPECTRUM).o $(DLL_DIR)/$(RECOMBINATION).o
+$(DLL_DIR)/bessels.o: $(DLL_DIR)/modules.o
+$(DLL_DIR)/$(EQUATIONS).o: $(DLL_DIR)/bessels.o
+$(DLL_DIR)/$(NONLINEAR).o:  $(DLL_DIR)/modules.o $(DLL_DIR)/$(EQUATIONS).o
+$(DLL_DIR)/lensing.o: $(DLL_DIR)/bessels.o
+$(DLL_DIR)/$(BISPECTRUM).o: $(DLL_DIR)/lensing.o $(DLL_DIR)/modules.o
+$(DLL_DIR)/cmbmain.o: $(DLL_DIR)/lensing.o $(DLL_DIR)/$(NONLINEAR).o $(DLL_DIR)/$(EQUATIONS).o $(DLL_DIR)/$(BISPECTRUM).o
+$(DLL_DIR)/camb.o: $(DLL_DIR)/cmbmain.o
+$(DLL_DIR)/Matrix_utils.o: $(DLL_DIR)/utils.o
+$(DLL_DIR)/camb_python.o: $(DLL_DIR)/camb.o
+
+camblib.so: folders $(CAMBSO)
+	$(F90C) $(SF90FLAGS) $(CAMBSO) -o pycamb/camb/camblib.so
+
 camb: directories $(CAMBOBJ) $(DRIVER)
 	$(F90C) $(F90FLAGS) $(CAMBOBJ) $(DRIVER) $(F90CRLINK) -o $@
 
@@ -84,6 +118,12 @@ $(CAMBLIB): directories $(CAMBOBJ)
 camb_fits: directories writefits.f90 $(CAMBOBJ) $(DRIVER)
 	$(F90C) $(F90FLAGS) -I$(HEALPIXDIR)/include $(CAMBOBJ) writefits.f90 $(DRIVER) $(HEALPIXLD) -DWRITE_FITS -o $@
 
+$(DLL_DIR)/%.o: %.f90
+	$(F90C) $(SF90FLAGS) -c $*.f90 -o $(DLL_DIR)/$*.o
+
+$(DLL_DIR)/%.o: %.F90
+	$(F90C) $(SF90FLAGS) -c $*.F90 -o $(DLL_DIR)/$*.o
+
 $(OUTPUT_DIR)/%.o: %.f90
 	$(F90C) $(F90FLAGS) -c $*.f90 -o $(OUTPUT_DIR)/$*.o
 
@@ -91,10 +131,15 @@ $(OUTPUT_DIR)/%.o: %.F90
 	$(F90C) $(F90FLAGS) -c $*.F90 -o $(OUTPUT_DIR)/$*.o
 
 
+folders:
+	mkdir -p $(DLL_DIR)
+
 directories:
 	mkdir -p $(OUTPUT_DIR)
 
+
 clean:
+	rm -f *.o *.a *.d core *.mod $(DLL_DIR)/*.o $(DLL_DIR)/*.mod
 	rm -f *.o *.a *.d core *.mod $(OUTPUT_DIR)/*.o $(OUTPUT_DIR)/*.mod
 	rm -rf Release*
 	rm -rf Debug*
