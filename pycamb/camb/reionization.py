@@ -47,6 +47,12 @@ class ReionizationParams(CAMB_Structure):
         ("helium_redshiftstart", c_double)  # helium_redshiftstart  = 5._dl
     ]
 
+    def set_tau(self, tau, delta_redshift = None):
+        self.use_optical_depth = True
+        self.optical_depth = tau
+        if delta_redshift is not None:
+            self.delta_redshift = delta_redshift
+
 
 class ReionizationHistory(CAMB_Structure):
     _fields_ = [

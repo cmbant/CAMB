@@ -216,7 +216,7 @@ class CAMBparams(CAMB_Structure):
         self.YHe = bbn.ypBBN_to_yhe(Yp)
 
     def set_cosmology(self, H0=67, ombh2=0.022, omch2=0.12, omk=0.0, num_massive_neutrinos=1, mnu=0.06, nnu=3.046,
-                      YHe=None, meffsterile=0, standard_neutrino_neff=3.046, TCMB=constants.COBE_CMBTemp,
+                      YHe=None, meffsterile=0, standard_neutrino_neff=3.046, TCMB=constants.COBE_CMBTemp,tau = None,
                       tau_neutron=bbn.tau_n):
 
         if YHe is None:
@@ -271,11 +271,14 @@ class CAMBparams(CAMB_Structure):
             self.nu_mass_degeneracies[self.nu_mass_eigenstates - 1] = max(1e-6, nnu - standard_neutrino_neff)
             self.nu_mass_fractions[self.nu_mass_eigenstates - 1] = omnuh2_sterile / omnuh2
 
+        if tau is not None:
+            self.Reion.set_tau(tau)
+
     def set_dark_energy(self, w=-1.0, sound_speed=1.0, dark_energy_model='fluid'):
         # Variables from module LambdaGeneral
         if dark_energy_model != 'fluid':
             raise CAMBError('This version only supports the fluid energy model')
-        if (w != -1 or sound_speed != 1):
+        if w != -1 or sound_speed != 1:
             print('Warning: currently dark energy parameters are changed globally, not per parameter set')
         w_lam = c_double.in_dll(camblib, "__lambdageneral_MOD_w_lam")
         w_lam.value = w
