@@ -218,7 +218,7 @@
     if (CP%WantScalars) then
         lmx = min(CP%Max_l, lmax)
         scalar_Cls(1:2,lmin:lmx) = transpose(Cl_Scalar(lmin:lmx, in,C_Temp:C_E))
-        scalar_Cls(3,lmin:lmx) = Cl_Scalar(lmin:lmx, in,C_Cross)
+        scalar_Cls(4,lmin:lmx) = Cl_Scalar(lmin:lmx, in,C_Cross)
     end if
 
     end subroutine CAMB_SetUnlensedScalCls
