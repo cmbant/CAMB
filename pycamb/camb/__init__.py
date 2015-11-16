@@ -9,7 +9,7 @@ __contact__ = "antony at cosmologist dot info"
 __status__ = "alpha"
 __version__ = "0.1.0"
 
-from camb import CAMBdata, get_results, get_age, get_zre_from_tau, set_z_outputs, set_feedback_level
+from camb import CAMBdata, get_results, get_age, get_zre_from_tau, set_z_outputs, set_feedback_level,get_transfer_functions
 from model import CAMBparams, TransferParams
 from reionization import ReionizationParams
 from initialpower import InitialPowerParams
