@@ -164,11 +164,15 @@ def set_default_params(P):
 
 
 def fortran_array(cP, shape, dtype=np.float64):
-    # this seems to make a copy, should change to something that doesn't.
-    # as_array().reshape() might work, but doesn't allow non-default types...
+    # this often seems to make a copy anway, so enforce that for consistency
+    # for non-copy as_array().reshape() might work, but doesn't allow non-default types...
     # return nplib.as_array(cP, tuple(shape[::-1])).reshape(shape, order='F')
-    return np.ndarray(tuple(shape), dtype, np.core.multiarray.int_asbuffer(
+    arr= np.ndarray(tuple(shape), dtype, np.core.multiarray.int_asbuffer(
         ctypes.addressof(cP.contents), np.prod(shape) * np.dtype(dtype).itemsize), order='F')
+    if not arr.flags.owndata:
+        print 'copying data'
+        arr = arr.copy()
+    return arr
 
 
 def set_z_outputs(z_outputs):
@@ -265,6 +269,8 @@ class CAMBdata(object):
             CAMBdata_transferstopowers(self._key)
 
     def power_spectra_from_transfer(self, initial_power_params):
+        if initial_power_params.has_tensors() and not self.Params.WantTensors:
+            raise CAMBError('r>0 but Params.WantTensors = F')
         self.get_params().set_initial_power(initial_power_params)
         CAMBdata_transferstopowers(self._key)
 
@@ -273,7 +279,7 @@ class CAMBdata(object):
         P = {}
         if Params is not None:
             self.calc_power_spectra(Params)
-        if self.Params.InitPower.has_tensors() and not Params.WantTensors:
+        if self.Params.InitPower.has_tensors() and not self.Params.WantTensors:
             raise CAMBError('r>0 but Params.WantTensors = F')
 
         if lmax is None:
@@ -332,7 +338,7 @@ class CAMBdata(object):
 
     def get_sigma8(self):
         mtrans = self.get_matter_transfer_data()
-        return mtrans.sigma_8[:, 0]
+        return np.array(mtrans.sigma_8[:, 0])
 
     def get_matter_power_spectrum(self, minkh=1e-4, maxkh=1.0, npoints=100,
                                   var1=model.transfer_power_var.value, var2=model.transfer_power_var.value,
@@ -466,6 +472,10 @@ def get_results(Params):
     res.calc_power_spectra(Params)
     return res
 
+def get_transfer_functions(Params):
+    res = CAMBdata()
+    res.calc_transfers(Params)
+    return res
 
 def get_age(P):
     return CAMB_GetAge(ctypes.byref(P))
