@@ -28,8 +28,8 @@ Transfer_vel_baryon_cdm = 13
 Transfer_max = Transfer_vel_baryon_cdm
 
 NonLinear_none = 0
-NonLinear_Pk = 1
-NonLinear_Lens = 2
+NonLinear_pk = 1
+NonLinear_lens = 2
 NonLinear_both = 3
 
 derived_names = ['age', 'zstar', 'rstar', 'thetastar', 'DAstar', 'zdrag',
@@ -308,7 +308,7 @@ class CAMBparams(CAMB_Structure):
             self.max_l = lmax
         self.max_eta_k = max_eta_k or np.min(self.max_l, 3000) * k_eta_fac
         if lens_potential_accuracy:
-            if self.NonLinear = NonLinear_none:
+            if self.NonLinear == NonLinear_none:
                 self.NonLinear = NonLinear_lens
             else:
                 self.NonLinear = NonLinear_both
