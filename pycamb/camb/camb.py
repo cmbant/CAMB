@@ -170,7 +170,6 @@ def fortran_array(cP, shape, dtype=np.float64):
     arr= np.ndarray(tuple(shape), dtype, np.core.multiarray.int_asbuffer(
         ctypes.addressof(cP.contents), np.prod(shape) * np.dtype(dtype).itemsize), order='F')
     if not arr.flags.owndata:
-        print 'copying data'
         arr = arr.copy()
     return arr
 

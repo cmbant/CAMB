@@ -35,7 +35,6 @@ NonLinear_both = 3
 derived_names = ['age', 'zstar', 'rstar', 'thetastar', 'DAstar', 'zdrag',
                  'rdrag', 'kd', 'thetad', 'zeq', 'keq', 'thetaeq', 'thetarseq']
 
-
 # ---Variables in modules.f90
 # To set the value please just put 
 # variable_name.value = new_value
@@ -271,17 +270,16 @@ class CAMBparams(CAMB_Structure):
             self.nu_mass_degeneracies[self.nu_mass_eigenstates - 1] = max(1e-6, nnu - standard_neutrino_neff)
             self.nu_mass_fractions[self.nu_mass_eigenstates - 1] = omnuh2_sterile / omnuh2
 
-    def set_dark_energy(self, w = -1.0, sound_speed = 1.0, dark_energy_model='fluid'):
+    def set_dark_energy(self, w=-1.0, sound_speed=1.0, dark_energy_model='fluid'):
         # Variables from module LambdaGeneral
         if dark_energy_model != 'fluid':
             raise CAMBError('This version only supports the fluid energy model')
-        if (w != -1 or sound_speed !=1):
+        if (w != -1 or sound_speed != 1):
             print('Warning: currently dark energy parameters are changed globally, not per parameter set')
         w_lam = c_double.in_dll(camblib, "__lambdageneral_MOD_w_lam")
         w_lam.value = w
         cs2_lam = c_double.in_dll(camblib, "__lambdageneral_MOD_cs2_lam")
         cs2_lam.value = sound_speed
-
 
     def get_omega_k(self):
         return 1 - self.omegab - self.omegac - self.omegan - self.omegav
@@ -301,6 +299,20 @@ class CAMBparams(CAMB_Structure):
         self.Transfer.PK_num_redshifts = len(redshifts)
         for i, z in enumerate(zs):
             self.Transfer.PK_redshifts[i] = z
+
+    def set_for_lmax(self, lmax, max_eta_k=None, lens_potential_accuracy=0,
+                     lens_margin=150, k_eta_fac=2.5, lens_k_eta_reference=18000.0):
+        if self.DoLensing:
+            self.max_l = lmax + lens_margin
+        else:
+            self.max_l = lmax
+        self.max_eta_k = max_eta_k or np.min(self.max_l, 3000) * k_eta_fac
+        if lens_potential_accuracy:
+            if self.NonLinear = NonLinear_none:
+                self.NonLinear = NonLinear_lens
+            else:
+                self.NonLinear = NonLinear_both
+            self.max_eta_k = np.max(self.max_eta_k, lens_k_eta_reference * lens_potential_accuracy)
 
 
 def Transfer_SetForNonlinearLensing(P):
