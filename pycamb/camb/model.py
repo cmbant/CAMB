@@ -6,6 +6,7 @@ import initialpower as ipow
 import constants
 import numpy as np
 import bbn
+import math
 
 # ---Parameters
 
@@ -306,13 +307,13 @@ class CAMBparams(CAMB_Structure):
             self.max_l = lmax + lens_margin
         else:
             self.max_l = lmax
-        self.max_eta_k = max_eta_k or np.min(self.max_l, 3000) * k_eta_fac
+        self.max_eta_k = max_eta_k or math.min(self.max_l, 3000) * k_eta_fac
         if lens_potential_accuracy:
             if self.NonLinear == NonLinear_none:
                 self.NonLinear = NonLinear_lens
             else:
                 self.NonLinear = NonLinear_both
-            self.max_eta_k = np.max(self.max_eta_k, lens_k_eta_reference * lens_potential_accuracy)
+            self.max_eta_k = math.max(self.max_eta_k, lens_k_eta_reference * lens_potential_accuracy)
 
 
 def Transfer_SetForNonlinearLensing(P):
