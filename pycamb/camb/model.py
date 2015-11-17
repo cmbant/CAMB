@@ -130,6 +130,17 @@ CAMB_setinitialpower = camblib.__handles_MOD_camb_setinitialpower
 # ---Derived Types in modules.f90
 
 class TransferParams(CAMB_Structure):
+    """
+    Object storing parameters for the matter power spectrum calculation. PK variables are for setting main ouputs.
+    Other entries are used internally, e.g. for sampling to get correct non-linear corrections and lensing.
+
+    :ivar high_precision: True for more accuracy
+    :ivar kmax: k_max to output
+    :ivar k_per_logint: number of points per log k interval. If zero, set an irregular optimized spacing.
+    :ivar: PK_num_redshifts number of redshifts to calculate
+    :ivar: PK_redshifts: number of redshifts to output for the matter transfer and power
+
+    """
     _fields_ = [
         ("high_precision", c_int),  # logical
         ("num_redshifts", c_int),
@@ -146,6 +157,10 @@ class TransferParams(CAMB_Structure):
 
 
 class CAMBparams(CAMB_Structure):
+    """
+    Object storing the parameters for a CAMB calculation, including cosmological parameters and
+    settings for what to calculate. When a new object is instantiated, default parameters are set automatically.
+    """
     def __init__(self):
         getattr(camblib, '__camb_MOD_camb_setdefparams')(byref(self))
 
@@ -205,19 +220,57 @@ class CAMBparams(CAMB_Structure):
     ]
 
     def validate(self):
+        """
+        Do some quick tests for sanity
+        :return: True if OK
+        """
         return CAMB_validateparams(byref(self))
 
     def set_initial_power(self, initial_power_params):
+        """
+        Set the InitialPower primordial power spectrum parameters
+        :param initial_power_params: :class:`.initialpower.InitialPowerParams` intstance
+        :return: self
+        """
         assert (isinstance(initial_power_params, ipow.InitialPowerParams))
         CAMB_setinitialpower(byref(self), byref(initial_power_params))
+        return self
 
-    def set_bbn_helium(self, ombh2, delta_nnu, tau_neutron):
+    def set_bbn_helium(self, ombh2, delta_nnu, tau_neutron=bbn.tau_n):
+        """
+        Set the Helium abundance parameter YHe using BBN consistency (using fitting formula as Planck 2015 papers)
+        :param ombh2: physical density of baryons
+        :param delta_nnu: additional relativistic Delta_Neff = N_eff - 3.046
+        :param tau_neutron: neutron half life in seconds
+        :return: self
+        """
         Yp = bbn.yhe_fit(ombh2, delta_nnu, tau_neutron)
         self.YHe = bbn.ypBBN_to_yhe(Yp)
+        return self
 
     def set_cosmology(self, H0=67, ombh2=0.022, omch2=0.12, omk=0.0, num_massive_neutrinos=1, mnu=0.06, nnu=3.046,
                       YHe=None, meffsterile=0, standard_neutrino_neff=3.046, TCMB=constants.COBE_CMBTemp,tau = None,
                       tau_neutron=bbn.tau_n):
+        """
+        Sets cosmological parameters in terms of physcial densities and parameters used in Planck 2015 analysis.
+        Assumees a single distinct neutrino mass eigenstate, by default one neutrino with mnu = 0.06eV.
+        If you require more fine-grained control can set the neutrino parameters directly rather than using this funciton.
+
+        :param H0: Hubble parameter (in km/s/Mpc)
+        :param ombh2: physiscal density in baryons
+        :param omch2:  physical density in cold dark matter
+        :param omk: Omega_K curvature parameter
+        :param num_massive_neutrinos:  number of massive neutrinos
+        :param mnu: sum of neutrino masses (in eV)
+        :param nnu: N_eff, effective relativistic degrees of freedom
+        :param YHe: Helium mass fraction. If None, set from BBN consistency.
+        :param meffsterile: effective mass of sterile netrinos
+        :param standard_neutrino_neff:  default value for N_eff in standard cosmology (non-integer to allow for partial
+                heating of neutrinos at electron-positron annihilation and QED effects)
+        :param TCMB: CMB temperature (in Kelvin)
+        :param tau: optical depth; if None, current Reion settings are not changed
+        :param tau_neutron: neutron lifetime, for setting YHe using BBN consistency
+        """
 
         if YHe is None:
             # use BBN prediction
@@ -273,8 +326,18 @@ class CAMBparams(CAMB_Structure):
 
         if tau is not None:
             self.Reion.set_tau(tau)
+        return self
 
     def set_dark_energy(self, w=-1.0, sound_speed=1.0, dark_energy_model='fluid'):
+        """
+        Set dark energy parameters. Not that in this version these are not actually stored in
+        the CAMBparams variable but set globally. So be careful!
+
+        :param w: p_de/rho_de, assumed constant
+        :param sound_speed: rest-frame sound speed of dark energy fluid
+        :param dark_energy_model: model to use, default is 'fluid'
+        :return: self
+        """
         # Variables from module LambdaGeneral
         if dark_energy_model != 'fluid':
             raise CAMBError('This version only supports the fluid energy model')
@@ -284,12 +347,24 @@ class CAMBparams(CAMB_Structure):
         w_lam.value = w
         cs2_lam = c_double.in_dll(camblib, "__lambdageneral_MOD_cs2_lam")
         cs2_lam.value = sound_speed
+        return self
 
     def get_omega_k(self):
+        """
+        Get curvature parameter Omega_k
+        :return: Omega_k
+        """
         return 1 - self.omegab - self.omegac - self.omegan - self.omegav
 
     def set_matter_power(self, redshifts=[0.], kmax=1.2, k_per_logint=None):
+        """
+        Set parameters for calculating matter power spectra and transfer functions.
 
+        :param redshifts: array of redshifts to calculate
+        :param kmax: maximum k to calculate
+        :param k_per_logint: number of k steps per log k. Set to zero to use default optimized spacing.
+        :return:  self
+        """
         self.WantTransfer = True
         self.Transfer.high_precision = True
         self.Transfer.kmax = kmax
@@ -303,9 +378,21 @@ class CAMBparams(CAMB_Structure):
         self.Transfer.PK_num_redshifts = len(redshifts)
         for i, z in enumerate(zs):
             self.Transfer.PK_redshifts[i] = z
+        return self
 
     def set_for_lmax(self, lmax, max_eta_k=None, lens_potential_accuracy=0,
                      lens_margin=150, k_eta_fac=2.5, lens_k_eta_reference=18000.0):
+        """
+        Set parameters to get CMB power spectra to specific l_lmax.
+
+        :param lmax: l_max you want
+        :param max_eta_k: maximum value of k*eta_* to use, which indirectly sets k_max. If None, sensible value set automatically.
+        :param lens_potential_accuracy: Set to 1 or higher if you want to get the lensing potential accurate
+        :param lens_margin: the delta l_max to use to ensure lensed C_L are correct at l_max
+        :param k_eta_fac:  k_eta_fac default factor for setting max_eta_k = k_eta_fac*lmax if max_eta_k=None
+        :param lens_k_eta_reference:  value of max_eta_k to use when lens_potential_accuracy>0; use k_eta_max = lens_k_eta_reference*lens_potential_accuracy
+        :return: self
+        """
         if self.DoLensing:
             self.max_l = lmax + lens_margin
         else:
@@ -317,6 +404,7 @@ class CAMBparams(CAMB_Structure):
             else:
                 self.NonLinear = NonLinear_both
             self.max_eta_k = max(self.max_eta_k, lens_k_eta_reference * lens_potential_accuracy)
+        return self
 
 
 def Transfer_SetForNonlinearLensing(P):

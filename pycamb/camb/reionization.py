@@ -35,6 +35,9 @@ Rionization_zexp = c_bool.in_dll(camblib, "__reionization_MOD_rionization_zexp")
 # ---Derived Types in reionization.f90
 
 class ReionizationParams(CAMB_Structure):
+    """
+    Hold sparameters for the reionization model.
+    """
     _fields_ = [
         ("Reionization", c_int),  # logical
         ("use_optical_depth", c_int),  # logical
@@ -48,13 +51,23 @@ class ReionizationParams(CAMB_Structure):
     ]
 
     def set_tau(self, tau, delta_redshift = None):
+        """
+        Set the optical depth
+        :param tau: optical depth
+        :param delta_redshift: delta z for reionization
+        :return: self
+        """
         self.use_optical_depth = True
         self.optical_depth = tau
         if delta_redshift is not None:
             self.delta_redshift = delta_redshift
+        return self
 
 
 class ReionizationHistory(CAMB_Structure):
+    """
+    Internally calculated parameters.
+    """
     _fields_ = [
         ("tau_start", c_double),
         ("tau_complete", c_double),

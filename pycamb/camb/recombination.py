@@ -17,6 +17,9 @@ recombination_saha_tau = c_double.in_dll(camblib, "__recombination_MOD_recombina
 # ---Derived Types in recombination.f90
 
 class RecombinationParams(CAMB_Structure):
+    """
+    Hold parametes for the RECFAST recombination model.
+    """
     _fields_ = [
         ("RECFAST_fudge", c_double),
         ("RECFAST_fudge_He", c_double),
