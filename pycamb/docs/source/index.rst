@@ -1,4 +1,4 @@
-CAMB Python Documentation
+CAMB Python
 ==================================
 
 CAMB is Code for Anisotropies in the Microwave Background, a cosmology code for calculating CMB and matter power spectra,

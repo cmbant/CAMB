@@ -10,11 +10,12 @@ else:
     DLLNAME = 'camblib.so'
 
 CAMBL = osp.join(BASEDIR, DLLNAME)
-#CAMBL = r'C:\Work\Dist\git\camb\VisualStudio\CAMBdll\x64\Release\cambdll.dll'
-#CAMBL = r'C:\Work\Dist\git\camb\VisualStudio\CAMBdll\Release\cambdll.dll'
+# CAMBL = r'C:\Work\Dist\git\camb\VisualStudio\CAMBdll\x64\Release\cambdll.dll'
+# CAMBL = r'C:\Work\Dist\git\camb\VisualStudio\CAMBdll\Release\cambdll.dll'
 
 if not osp.isfile(CAMBL): sys.exit('camblib.so does not exist.\nPlease remove any old installation and install again.')
 camblib = ctypes.cdll.LoadLibrary(CAMBL)
+
 
 def set_filelocs():
     HighLExtrapTemplate = osp.join(BASEDIR, "HighLExtrapTemplate_lenspotentialCls.dat")
@@ -26,7 +27,9 @@ def set_filelocs():
     s = ctypes.create_string_buffer(HighLExtrapTemplate)
     func(s, ctypes.c_long(len(HighLExtrapTemplate)))
 
+
 set_filelocs()
+
 
 class CAMBError(Exception):
     pass

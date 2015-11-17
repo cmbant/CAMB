@@ -9,7 +9,6 @@ from numpy.ctypeslib import ndpointer
 import constants
 import logging
 
-
 # Use FeedbackLevel.value to read and set
 FeedbackLevel = ctypes.c_int.in_dll(camblib, "__modelparams_MOD_feedbacklevel")
 
@@ -129,7 +128,6 @@ ComovingRadialDistance = camblib.__modelparams_MOD_comovingradialdistance
 ComovingRadialDistance.argtyes = [d_arg]
 ComovingRadialDistance.restype = ctypes.c_double
 
-
 Hofz = camblib.__modelparams_MOD_hofz
 Hofz.argtyes = [d_arg]
 Hofz.restype = ctypes.c_double
@@ -151,9 +149,9 @@ class MatterTransferData(object):
     MatterTransferData is the base class for storing matter power transfer function data for various q values.
     In a flat universe q=k, in a closed universe q is quantised.
 
-    Got get an instance of this data, call `CAMBdata.get_matter_power_spectrum`
+    To get an instance of this data, call :meth:`camb.CAMBdata.get_matter_power_spectrum`
 
-    :ivar num_q_trans:  number of q modes calcualted
+    :ivar num_q_trans:  number of q modes calculated
     :ivar q_trans: array of q values calculated
     :ivar sigma_8: array of sigma8 values for each redshift for each power spectrum
     :ivar sigma2_vdelta_8: array of v-delta8 correlation, so sigma2_vdelta_8/sigma_8 can define growth
@@ -196,10 +194,10 @@ def set_default_params(P):
 
 
 def fortran_array(cP, shape, dtype=np.float64):
-    # this often seems to make a copy anway, so enforce that for consistency
+    # this often seems to make a copy anyway, so enforce that for consistency
     # for non-copy as_array().reshape() might work, but doesn't allow non-default types...
     # return nplib.as_array(cP, tuple(shape[::-1])).reshape(shape, order='F')
-    arr= np.ndarray(tuple(shape), dtype, np.core.multiarray.int_asbuffer(
+    arr = np.ndarray(tuple(shape), dtype, np.core.multiarray.int_asbuffer(
         ctypes.addressof(cP.contents), np.prod(shape) * np.dtype(dtype).itemsize), order='F')
     if not arr.flags.owndata:
         arr = arr.copy()
@@ -216,17 +214,20 @@ def set_z_outputs(z_outputs):
 
 
 class CAMBdata(object):
+    """
+    An object for storing transfer function data and parameters for CAMB.
+    Not that it *only* stores transfer functions. If you want to get power spectra or background functions,
+    you must have called one of the calculation functions for the parameters of interest more recently than
+    any other call to these functions. You can can make multiple instances of CAMBdata and then later call
+    `power_spectra_from_transfer` to calculate other quantities.
+
+    To quickly make a fully calculated CAMBdata instance for a set of parameters you can call :func:`get_results`.
+
+    :ivar Params: the :class:`.model.CAMBparams` parameters being used
+
+    """
+
     def __init__(self):
-        """
-        Makes an object for storing transfer function data and parameters for CAMB.
-        Not that it *only* stores transfer functions. If you want to get power spectra or background functions,
-        you must have called one of the calculation functions for the parametes of interest more recently than
-        any other call to these functions. You can can make multiple instances of CAMBdata and then later call
-        `power_spectra_from_transfer` to calculate other quantities.
-
-        To quickly make a fully calculated CAMBdata instance for a set of parameters you can call `get_results`.
-
-        """
         self._key = None
         self._key = CAMBdata_new()
         self.Params = self.get_params()
@@ -256,8 +257,10 @@ class CAMBdata(object):
 
     def get_params(self):
         """
+        Get the parameters currently set. Returned object references stored data, so elements can be modified without
+        calling set_params again.
+
         :return: :class:`.model.CAMBparams` instance pointing to the underlying parameters used by CAMB.
-        Elemenets can be modified without calling set_params again.
         """
         return CAMBdata_getparams(self._key).contents
 
@@ -302,6 +305,7 @@ class CAMBdata(object):
         """
         Calculate the background evolution without calculating thermal history.
         e.g. call this if you want to just use `angular_diameter_distance` and similar background functions
+
         :param params:  :class:`.model.CAMBparams` instance to use
         """
         CAMB_SetParamsForBackground(self._key, ctypes.byref(params))
@@ -321,7 +325,7 @@ class CAMBdata(object):
         Calculate the transfer functions (for CMB and matter power, as determined by params.WantCls, params.WantTransfer)
 
         :param params: :class:`.model.CAMBparams` instance with parameters to use
-        :param only_transfers: only calcualte transfer functions, no power spectra
+        :param only_transfers: only calculate transfer functions, no power spectra
         :return: non-zero if error, zero if OK
         """
         opt = ctypes.c_bool()
@@ -344,11 +348,11 @@ class CAMBdata(object):
 
     def power_spectra_from_transfer(self, initial_power_params):
         """
-        Assuming `calc_transfers` or `calc_power_spectra` have already been used, re-calcualte the power spectra
-        using a new set of initial power spectrum parameters with otherwise the same cosmologiy.
+        Assuming `calc_transfers` or `calc_power_spectra` have already been used, re-calculate the power spectra
+        using a new set of initial power spectrum parameters with otherwise the same cosmology.
         This is typically much faster that re-calculating everything, as the transfer functions can be re-used.
 
-        :param initial_power_params: :class:`initialpower.InitialPowerParams` instance with new primordial power spectrum parameters
+        :param initial_power_params: :class:`.initialpower.InitialPowerParams` instance with new primordial power spectrum parameters
         """
         if initial_power_params.has_tensors() and not self.Params.WantTensors:
             raise CAMBError('r>0 but params.WantTensors = F')
@@ -358,14 +362,14 @@ class CAMBdata(object):
     def get_cmb_power_spectra(self, params=None, lmax=None,
                               spectra=['total', 'unlensed_scalar', 'lensed_scalar', 'tensor', 'lens_potential']):
         """
-        return a dictionary of CMB power spectra, as requested by the 'spectra' argument. All power spectra are self-owned
+        Get CMB power spectra, as requested by the 'spectra' argument. All power spectra are l(l+1)C_l/2pi self-owned
         numpy arrays (0..lmax, 0..3), where 0..3 index are TT, EE, BB TT.
 
         :param params: optional :class:`.model.CAMBparams` instance with parameters to use. If None, must have
-        previously set parameters and called `calc_power_spectra` (e.g. if you got this instance using `camb.get_results`),
+          previously set parameters and called `calc_power_spectra` (e.g. if you got this instance using `camb.get_results`),
         :param lmax: maximum l
-        :param spectra:
-        :return:
+        :param spectra: list of names of spectra to get
+        :return: dictionary of power spectrum arrays, indexed by names of requested spectra
         """
         P = {}
         if params is not None:
@@ -407,7 +411,7 @@ class CAMBdata(object):
     def get_linear_matter_power_spectrum(self, var1=model.transfer_power_var.value, var2=model.transfer_power_var.value,
                                          hubble_units=True, have_power_spectra=False, params=None):
         """
-        Calculates P_{xy}(k/h), where x, y are one of model.Transfer_cdm, model.Transfer_xx etc defined in ModelParams.
+        Calculates P_{xy}(k/h), where x, y are one of model.Transfer_cdm, model.Transfer_xx etc.
         The output k values are not regularly spaced, and not interpolated.
 
         :param var1: variable i
@@ -437,7 +441,7 @@ class CAMBdata(object):
 
     def get_sigma8(self):
         """
-        Get sigma_8 values (must previous have calculated power spectra)
+        Get sigma_8 values (must previously have calculated power spectra)
 
         :return: array of sigma_8 values, in order of increasing time (decreasing redshift)
         """
@@ -450,6 +454,7 @@ class CAMBdata(object):
         """
         Calculates P_{xy}(k/h), where x, y are one of Transfer_cdm, Transfer_xx etc defined in ModelParams.
         The output k values are regularly log spaced and interpolated. If NonLinear is set, the result is non-linear.
+
         :param minkh: minimum value of k/h for output grid (very low values < 1e-4 may not be calculated)
         :param maxkh: maximum value of k/h (check consistent with input params.Transfer.kmax)
         :param npoints: number of points equally spaced in log k
@@ -518,6 +523,16 @@ class CAMBdata(object):
         CAMB_SetUnlensedScalCls(ctypes.byref(opt), res, ctypes.byref(self._one))
         return res
 
+    def get_unlensed_total_cls(self, lmax):
+        """
+        Get unlensed CMB power spectra, including tensors if relevant. Must have already calculated power spectra.
+
+        :param lmax: lmax to output to
+        :return: numpy array CL[0:lmax+1,0:4], where 0..3 indexes TT, EE, BB, TE.
+        """
+
+        return self.get_unlensed_scalar_cls(lmax) + self.get_tensor_cls(lmax)
+
     def get_lensed_scalar_cls(self, lmax):
         """
         Get lensed scalar CMB power spectra. Must have already calculated power spectra.
@@ -534,6 +549,7 @@ class CAMBdata(object):
     def get_lens_potential_cls(self, lmax):
         """
         Get lensing deflection angle potential power spectrum, and cross-correlation with T and E. Must have already calculated power spectra.
+        Power spectra are [l(l+1)]^2C_l^{phi phi}/2/pi and corresponding deflection cross-correlations.
 
         :param lmax: lmax to output to
         :return: numpy array CL[0:lmax+1,0:3], where 0..2 indexes PP, PT, PE.
@@ -572,7 +588,7 @@ class CAMBdata(object):
         if np.isscalar(z):
             return AngularDiameterDistance(ctypes.byref(ctypes.c_double(z)))
         else:
-            z=np.asarray(z)
+            z = np.asarray(z)
             arr = np.empty(z.shape)
             AngularDiameterDistanceArr(arr, z, ctypes.byref(ctypes.c_int(z.shape[0])))
             return arr
@@ -612,7 +628,7 @@ class CAMBdata(object):
         :return: luminosity distance (matches rank of z)
         """
 
-        return self.angular_diameter_distance(z)*(1.0+np.asarray(z))**2
+        return self.angular_diameter_distance(z) * (1.0 + np.asarray(z)) ** 2
 
     def h_of_z(self, z):
         """
@@ -620,7 +636,7 @@ class CAMBdata(object):
 
         Must have called calc_background, calc_background_no_thermo or calculated transfer functions or power spectra.
 
-        :param z: reshift
+        :param z: redshift
         :return: H(z)
         """
         if not np.isscalar(z):
@@ -633,7 +649,7 @@ class CAMBdata(object):
 
         Must have called calc_background, calc_background_no_thermo or calculated transfer functions or power spectra.
 
-        :param z: reshift
+        :param z: redshift
         :return: H(z)/[km/s/Mpc]
         """
         return constants.c * self.h_of_z(z) / 1e3
@@ -653,6 +669,7 @@ class CAMBdata(object):
     def physical_time_z(self, z):
         """
         Get physical time from hot big bang to redshift z in Gigayears.
+
         :param z:  redshift
         :return: t(z)/Gigayear
         """
@@ -662,7 +679,8 @@ class CAMBdata(object):
 
     def conformal_time(self, a1, a2):
         """
-        Get conformal time between two scale facors (=comoving radial distance travelled by light on light cone)
+        Get conformal time between two scale factors (=comoving radial distance travelled by light on light cone)
+
         :param a1: scale factor 1
         :param a2: scale factor 2
         :return: eta(a2)-eta(a1) = chi(a1)-chi(a2) in Megaparsec
@@ -683,7 +701,8 @@ class CAMBdata(object):
 
     def cosmomc_theta(self):
         """
-        Get theta_MC, an approximation of the radio of the sound horizon to the angular diameter distance at recombination
+        Get theta_MC, an approximation of the radio of the sound horizon to the angular diameter distance at recombination.
+
         :return: theta_MC
         """
         return CosmomcTheta()
@@ -700,10 +719,11 @@ def get_results(params):
     res.calc_power_spectra(params)
     return res
 
+
 def get_transfer_functions(params):
     """
     Calculate transfer functions for specified parameters and return :class:`CAMBdata` instance for getting results
-    and subsequently calcualating power spectra.
+    and subsequently calculating power spectra.
 
     :param params: :class:`.model.CAMBparams` instance
     :return: :class:`CAMBdata` instance

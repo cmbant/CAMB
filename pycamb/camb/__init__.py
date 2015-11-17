@@ -1,7 +1,7 @@
-#coding: utf8
+# coding: utf8
 """
 
-python CAMB interface (http://camb.info)
+Python CAMB interface (http://camb.info)
 
 """
 __author__ = "Antony Lewis"
@@ -9,7 +9,8 @@ __contact__ = "antony at cosmologist dot info"
 __status__ = "alpha"
 __version__ = "0.1.0"
 
-from camb import CAMBdata, get_results, get_transfer_functions, get_age, get_zre_from_tau, set_z_outputs, set_feedback_level
+from camb import CAMBdata, MatterTransferData, get_results, get_transfer_functions, get_age, get_zre_from_tau, \
+    set_z_outputs, set_feedback_level
 import model
 import initialpower
 import reionization

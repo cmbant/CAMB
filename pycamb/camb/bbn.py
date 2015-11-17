@@ -53,7 +53,7 @@ def dh_fit(omegab, dneff, taun):
                18.754 - 1534.4 * omegab + 48656. * omegab * omegab - 552670. * omegab * omegab * omegab
                + dneff * (2.4914 - 208.11 * omegab + 6760.9 * omegab * omegab - 78007. * omegab * omegab * omegab)
                + dneff * dneff * (
-               0.012907 - 1.3653 * omegab + 37.388 * omegab * omegab - 267.78 * omegab * omegab * omegab)
+                   0.012907 - 1.3653 * omegab + 37.388 * omegab * omegab - 267.78 * omegab * omegab * omegab)
            ) * pow(taun / 880.3, 0.418)
 
 
@@ -65,7 +65,7 @@ def runBBN(eta, DeltaN=0, tau=tau_n, prog='./alter_etannutau.x'):
 def ypBBN_Parthenope(omegab, neff):
     # neff here is including 0.046 factor
     return 0.1817 + 0.9020 * omegab - 10.33 * omegab * omegab + (
-                                                                0.01948 + 0.02440 * omegab - 0.4404 * omegab * omegab) * neff + \
+                                                                    0.01948 + 0.02440 * omegab - 0.4404 * omegab * omegab) * neff + \
            (-0.001002 - 0.002778 * omegab + 0.04719 * omegab * omegab) * neff * neff;
 
 
@@ -122,7 +122,7 @@ if __name__ == "__main__":
                 Yp_fid = Yp
                 #        print ombh2, DeltaN, eta, YBBN, actual_ombh2, Yp
                 line = (('%12.5f ') * 6 + ('%12.3e %12.2e') * 3) % (
-                actual_ombh2, eta * 1e10, DeltaN, Yp, YBBN, sigYBBN, D, sigdD, He3, sigHe3, Li7, sigLi7)
+                    actual_ombh2, eta * 1e10, DeltaN, Yp, YBBN, sigYBBN, D, sigdD, He3, sigHe3, Li7, sigLi7)
                 lines += [line]
             else:
                 D = dh_fit(ombh2, DeltaN, tau_n) * 1e-5

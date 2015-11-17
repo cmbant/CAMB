@@ -50,7 +50,7 @@ class ReionizationParams(CAMB_Structure):
         ("helium_redshiftstart", c_double)  # helium_redshiftstart  = 5._dl
     ]
 
-    def set_tau(self, tau, delta_redshift = None):
+    def set_tau(self, tau, delta_redshift=None):
         """
         Set the optical depth
         :param tau: optical depth

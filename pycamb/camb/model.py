@@ -6,7 +6,6 @@ import initialpower as ipow
 import constants
 import numpy as np
 import bbn
-import math
 
 # ---Parameters
 
@@ -131,14 +130,14 @@ CAMB_setinitialpower = camblib.__handles_MOD_camb_setinitialpower
 
 class TransferParams(CAMB_Structure):
     """
-    Object storing parameters for the matter power spectrum calculation. PK variables are for setting main ouputs.
+    Object storing parameters for the matter power spectrum calculation. PK variables are for setting main outputs.
     Other entries are used internally, e.g. for sampling to get correct non-linear corrections and lensing.
 
     :ivar high_precision: True for more accuracy
     :ivar kmax: k_max to output
     :ivar k_per_logint: number of points per log k interval. If zero, set an irregular optimized spacing.
-    :ivar: PK_num_redshifts number of redshifts to calculate
-    :ivar: PK_redshifts: number of redshifts to output for the matter transfer and power
+    :ivar PK_num_redshifts: number of redshifts to calculate
+    :ivar PK_redshifts: redshifts to output for the matter transfer and power
 
     """
     _fields_ = [
@@ -161,6 +160,7 @@ class CAMBparams(CAMB_Structure):
     Object storing the parameters for a CAMB calculation, including cosmological parameters and
     settings for what to calculate. When a new object is instantiated, default parameters are set automatically.
     """
+
     def __init__(self):
         getattr(camblib, '__camb_MOD_camb_setdefparams')(byref(self))
 
@@ -222,6 +222,7 @@ class CAMBparams(CAMB_Structure):
     def validate(self):
         """
         Do some quick tests for sanity
+
         :return: True if OK
         """
         return CAMB_validateparams(byref(self))
@@ -229,7 +230,8 @@ class CAMBparams(CAMB_Structure):
     def set_initial_power(self, initial_power_params):
         """
         Set the InitialPower primordial power spectrum parameters
-        :param initial_power_params: :class:`.initialpower.InitialPowerParams` intstance
+
+        :param initial_power_params: :class:`.initialpower.InitialPowerParams` instance
         :return: self
         """
         assert (isinstance(initial_power_params, ipow.InitialPowerParams))
@@ -239,6 +241,7 @@ class CAMBparams(CAMB_Structure):
     def set_bbn_helium(self, ombh2, delta_nnu, tau_neutron=bbn.tau_n):
         """
         Set the Helium abundance parameter YHe using BBN consistency (using fitting formula as Planck 2015 papers)
+
         :param ombh2: physical density of baryons
         :param delta_nnu: additional relativistic Delta_Neff = N_eff - 3.046
         :param tau_neutron: neutron half life in seconds
@@ -249,22 +252,22 @@ class CAMBparams(CAMB_Structure):
         return self
 
     def set_cosmology(self, H0=67, ombh2=0.022, omch2=0.12, omk=0.0, num_massive_neutrinos=1, mnu=0.06, nnu=3.046,
-                      YHe=None, meffsterile=0, standard_neutrino_neff=3.046, TCMB=constants.COBE_CMBTemp,tau = None,
+                      YHe=None, meffsterile=0, standard_neutrino_neff=3.046, TCMB=constants.COBE_CMBTemp, tau=None,
                       tau_neutron=bbn.tau_n):
         """
-        Sets cosmological parameters in terms of physcial densities and parameters used in Planck 2015 analysis.
-        Assumees a single distinct neutrino mass eigenstate, by default one neutrino with mnu = 0.06eV.
-        If you require more fine-grained control can set the neutrino parameters directly rather than using this funciton.
+        Sets cosmological parameters in terms of physical densities and parameters used in Planck 2015 analysis.
+        Assumes a single distinct neutrino mass eigenstate, by default one neutrino with mnu = 0.06eV.
+        If you require more fine-grained control can set the neutrino parameters directly rather than using this function.
 
         :param H0: Hubble parameter (in km/s/Mpc)
-        :param ombh2: physiscal density in baryons
+        :param ombh2: physical density in baryons
         :param omch2:  physical density in cold dark matter
         :param omk: Omega_K curvature parameter
         :param num_massive_neutrinos:  number of massive neutrinos
         :param mnu: sum of neutrino masses (in eV)
         :param nnu: N_eff, effective relativistic degrees of freedom
         :param YHe: Helium mass fraction. If None, set from BBN consistency.
-        :param meffsterile: effective mass of sterile netrinos
+        :param meffsterile: effective mass of sterile neutrinos
         :param standard_neutrino_neff:  default value for N_eff in standard cosmology (non-integer to allow for partial
                 heating of neutrinos at electron-positron annihilation and QED effects)
         :param TCMB: CMB temperature (in Kelvin)
@@ -352,6 +355,7 @@ class CAMBparams(CAMB_Structure):
     def get_omega_k(self):
         """
         Get curvature parameter Omega_k
+
         :return: Omega_k
         """
         return 1 - self.omegab - self.omegac - self.omegan - self.omegav
