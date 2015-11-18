@@ -41,7 +41,7 @@ class CAMB_Structure(ctypes.Structure):
         for field_name, field_type in self._fields_:
             obj = getattr(self, field_name)
             if isinstance(obj, CAMB_Structure):
-                s += field_name + ':\n  ' + str(obj).replace('\n', '\n  ')
+                s += field_name + ':\n  ' + str(obj).replace('\n', '\n  ').strip()+'\n'
             else:
                 if isinstance(obj, ctypes.Array):
                     s += field_name + ' = ' + str(obj[:min(7, len(obj))]) + '\n'
