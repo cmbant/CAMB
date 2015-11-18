@@ -92,7 +92,7 @@ setup(name= package_name,
       author='Antony Lewis',
       url="http://camb.info/",
       cmdclass={'install': SharedLibrary},
-      packages=['camb'],
+      packages=['camb', 'camb_tests'],
       package_data = {'camb':[DLLNAME,'HighLExtrapTemplate_lenspotentialCls.dat']},
       classifiers=[
         "Programming Language :: Python :: 2",

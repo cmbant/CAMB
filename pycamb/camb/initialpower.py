@@ -54,7 +54,7 @@ class InitialPowerParams(CAMB_Structure):
         """
 
         if not parameterization in [tensor_param_rpivot, tensor_param_indeptilt]:
-            raise CAMBError('Initial power paramterization not supported here')
+            raise CAMBError('Initial power parameterization not supported here')
         self.tensor_parameterization = parameterization
         self.ScalarPowerAmp[0] = As
         self.nn = 1  # number of different power spectra
