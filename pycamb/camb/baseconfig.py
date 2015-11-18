@@ -1,6 +1,7 @@
 import ctypes
 import os.path as osp
 import sys
+import os
 import platform
 
 BASEDIR = osp.abspath(osp.dirname(__file__))
@@ -9,13 +10,19 @@ if platform.system() == "Windows":
 else:
     DLLNAME = 'camblib.so'
 
-CAMBL = osp.join(BASEDIR, DLLNAME)
-# CAMBL = r'C:\Work\Dist\git\camb\VisualStudio\CAMBdll\x64\Release\cambdll.dll'
-# CAMBL = r'C:\Work\Dist\git\camb\VisualStudio\CAMBdll\Release\cambdll.dll'
 
-if not osp.isfile(CAMBL): sys.exit('camblib.so does not exist.\nPlease remove any old installation and install again.')
-camblib = ctypes.cdll.LoadLibrary(CAMBL)
+mock_load = os.environ.get('READTHEDOCS', None)
 
+class Mock(object):
+    def __getattr__(cls, name):
+            return Mock()
+
+if mock_load:
+    CAMBL = osp.join(BASEDIR, DLLNAME)
+    if not osp.isfile(CAMBL): sys.exit('camblib.so does not exist.\nPlease remove any old installation and install again.')
+    camblib = ctypes.cdll.LoadLibrary(CAMBL)
+else:
+    camblib = Mock()
 
 def set_filelocs():
     HighLExtrapTemplate = osp.join(BASEDIR, "HighLExtrapTemplate_lenspotentialCls.dat")
@@ -28,7 +35,8 @@ def set_filelocs():
     func(s, ctypes.c_long(len(HighLExtrapTemplate)))
 
 
-set_filelocs()
+if not mock_load:
+    set_filelocs()
 
 
 class CAMBError(Exception):
