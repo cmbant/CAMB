@@ -15,14 +15,17 @@ mock_load = os.environ.get('READTHEDOCS', None)
 if not mock_load:
     import ctypes
     from ctypes import Structure
-    if not osp.isfile(CAMBL): sys.exit('%s does not exist.\nPlease remove any old installation and install again.'%DLLNAME)
+
+    if not osp.isfile(CAMBL): sys.exit(
+        '%s does not exist.\nPlease remove any old installation and install again.' % DLLNAME)
     camblib = ctypes.cdll.LoadLibrary(CAMBL)
 else:
-    #This is just so readthedocs build will work without CAMB binary library
+    # This is just so readthedocs build will work without CAMB binary library
     try:
         from unittest.mock import MagicMock
     except ImportError:
         from mock import Mock as MagicMock
+
 
     class Mock(MagicMock):
         @classmethod
@@ -32,14 +35,14 @@ else:
             else:
                 return Mock()
 
-        def __mul__(self,other):
+        def __mul__(self, other):
             return Mock()
 
-        def __pow__(self,other):
+        def __pow__(self, other):
             return 1
 
 
-    MOCK_MODULES = ['numpy','numpy.ctypeslib', 'ctypes']
+    MOCK_MODULES = ['numpy', 'numpy.ctypeslib', 'ctypes']
     sys.modules.update((mod_name, Mock()) for mod_name in MOCK_MODULES)
     camblib = Mock()
     Structure = object

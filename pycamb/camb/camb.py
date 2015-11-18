@@ -7,6 +7,7 @@ from numpy.ctypeslib import ndpointer
 import constants
 import logging
 
+
 class _CAMBdata(CAMB_Structure):
     # contains complex types with pointers, so just set up dummy
     _fields_ = []
@@ -357,7 +358,8 @@ class CAMBdata(object):
         CAMBdata_transferstopowers(self._key)
 
     def get_cmb_power_spectra(self, params=None, lmax=None,
-                              spectra=['total', 'unlensed_scalar', 'unlensed_total', 'lensed_scalar', 'tensor', 'lens_potential']):
+                              spectra=['total', 'unlensed_scalar', 'unlensed_total', 'lensed_scalar', 'tensor',
+                                       'lens_potential']):
         """
         Get CMB power spectra, as requested by the 'spectra' argument. All power spectra are l(l+1)C_l/2pi self-owned
         numpy arrays (0..lmax, 0..3), where 0..3 index are TT, EE, BB TT.
@@ -730,6 +732,7 @@ def get_transfer_functions(params):
     res.calc_transfers(params)
     return res
 
+
 def get_background(params):
     """
     Calculate background cosmology for specified parameters and return :class:`CAMBdata`, ready to get derived
@@ -742,7 +745,6 @@ def get_background(params):
     res = CAMBdata()
     res.calc_background(params)
     return res
-
 
 
 def get_age(params):

@@ -15,6 +15,7 @@ Reionization_AccuracyBoost = c_bool.in_dll(camblib, "__reionization_MOD_reioniza
 
 Rionization_zexp = c_bool.in_dll(camblib, "__reionization_MOD_rionization_zexp")
 
+
 # ---Derived Types in reionization.f90
 
 class ReionizationParams(CAMB_Structure):

@@ -6,6 +6,7 @@ branches:
   only:
     - master
     - devel
+    - CAMB_python
     
 services:
   - docker

@@ -9,6 +9,7 @@ import io
 import re
 import os
 from distutils.command.install import install
+import struct
 
 try:
     from setuptools import setup
@@ -22,6 +23,8 @@ if platform.system() == "Windows":
 else:
     DLLNAME = 'camblib.so'
 file_dir = os.path.abspath(os.path.dirname(__file__))
+
+is32Bit = struct.calcsize("P")==4
 
 def find_version():
     version_file = io.open(os.path.join(file_dir, '%s/__init__.py'%package_name)).read()
@@ -47,6 +50,7 @@ class SharedLibrary(install):
             COMPILER = "gfortran"
             # note that TDM-GCC MingW 5.1 does not work due go general fortran bug.
             FFLAGS = "-shared -static -cpp -fopenmp -O3 -ffast-math -fmax-errors=4"
+            if is32Bit: FFLAGS = "-m32 "+ FFLAGS
             SOURCES = "constants.f90 utils.f90 subroutines.f90 inifile.f90 power_tilt.f90 recfast.f90 reionization.f90"\
              " modules.f90 bessels.f90 equations.f90 halofit_ppf.f90 lensing.f90 SeparableBispectrum.f90 cmbmain.f90"\
              " camb.f90 camb_python.f90"
@@ -94,6 +98,7 @@ setup(name= package_name,
       cmdclass={'install': SharedLibrary},
       packages=['camb', 'camb_tests'],
       package_data = {'camb':[DLLNAME,'HighLExtrapTemplate_lenspotentialCls.dat']},
+      test_suite='camb_tests',
       classifiers=[
         "Programming Language :: Python :: 2",
         'Programming Language :: Python :: 2.7',

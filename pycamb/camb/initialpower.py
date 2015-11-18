@@ -79,6 +79,7 @@ class InitialPowerParams(CAMB_Structure):
     def has_tensors(self):
         """
         Do these settings have non-zero tensors?
+
         :return: True of non-zero tensor amplitude
         """
         return self.rat[0]
