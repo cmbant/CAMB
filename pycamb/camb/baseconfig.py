@@ -11,7 +11,7 @@ else:
     DLLNAME = 'camblib.so'
 
 
-mock_load = os.environ.get('READTHEDOCS', None)
+mock_load = True or os.environ.get('READTHEDOCS', None)
 
 class Mock(object):
     def __getattr__(cls, name):
