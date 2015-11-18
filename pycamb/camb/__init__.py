@@ -9,6 +9,7 @@ __contact__ = "antony at cosmologist dot info"
 __status__ = "alpha"
 __version__ = "0.1.0"
 
+from baseconfig import camblib
 from camb import CAMBdata, MatterTransferData, get_results, get_transfer_functions, get_age, get_zre_from_tau, \
     set_z_outputs, set_feedback_level
 import model
@@ -17,8 +18,7 @@ import reionization
 from model import CAMBparams, TransferParams
 from reionization import ReionizationParams
 from initialpower import InitialPowerParams
-from baseconfig import camblib
-from ctypes import *
+from ctypes import POINTER, c_int, c_double, c_float, c_bool
 
 ThreadNum = c_int.in_dll(camblib, "__modelparams_MOD_threadnum")
 # ThreadNum.value = 0

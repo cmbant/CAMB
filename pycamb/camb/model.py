@@ -1,5 +1,5 @@
-from ctypes import *
 from baseconfig import camblib, CAMB_Structure, CAMBError
+from ctypes import c_bool, c_int, c_double, byref
 import reionization as ion
 import recombination as recomb
 import initialpower as ipow

@@ -1,4 +1,3 @@
-import ctypes
 import os.path as osp
 import sys
 import os
@@ -9,20 +8,42 @@ if platform.system() == "Windows":
     DLLNAME = 'cambdll.dll'
 else:
     DLLNAME = 'camblib.so'
+CAMBL = osp.join(BASEDIR, DLLNAME)
 
+mock_load = os.environ.get('READTHEDOCS', None)
 
-mock_load = True or os.environ.get('READTHEDOCS', None)
-
-class Mock(object):
-    def __getattr__(cls, name):
-            return Mock()
-
-if mock_load:
-    CAMBL = osp.join(BASEDIR, DLLNAME)
-    if not osp.isfile(CAMBL): sys.exit('camblib.so does not exist.\nPlease remove any old installation and install again.')
+if not mock_load:
+    import ctypes
+    from ctypes import Structure
+    if not osp.isfile(CAMBL): sys.exit('%s does not exist.\nPlease remove any old installation and install again.'%DLLNAME)
     camblib = ctypes.cdll.LoadLibrary(CAMBL)
 else:
+    try:
+        from unittest.mock import MagicMock
+    except ImportError:
+        from mock import Mock as MagicMock
+
+    class Mock(MagicMock):
+        @classmethod
+        def __getattr__(cls, name):
+            if name == 'pi':
+                return 1
+            else:
+                return Mock()
+
+        def __mul__(self,other):
+            return Mock()
+
+        def __pow__(self,other):
+            return 1
+
+
+    MOCK_MODULES = ['numpy','numpy.ctypeslib', 'ctypes']
+    sys.modules.update((mod_name, Mock()) for mod_name in MOCK_MODULES)
     camblib = Mock()
+    Structure = object
+    import ctypes
+
 
 def set_filelocs():
     HighLExtrapTemplate = osp.join(BASEDIR, "HighLExtrapTemplate_lenspotentialCls.dat")
@@ -43,7 +64,7 @@ class CAMBError(Exception):
     pass
 
 
-class CAMB_Structure(ctypes.Structure):
+class CAMB_Structure(Structure):
     def __str__(self):
         s = ''
         for field_name, field_type in self._fields_:

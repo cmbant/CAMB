@@ -1,5 +1,5 @@
-from ctypes import *
 from baseconfig import camblib
+from ctypes import c_int
 
 global_error_flag = c_int.in_dll(camblib, "__errors_MOD_global_error_flag")
 

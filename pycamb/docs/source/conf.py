@@ -16,6 +16,19 @@ import sys
 import os
 import shlex
 
+try:
+    from unittest.mock import MagicMock
+except ImportError:
+    from mock import Mock as MagicMock
+
+class Mock(MagicMock):
+    @classmethod
+    def __getattr__(cls, name):
+            return Mock()
+
+MOCK_MODULES = ['ctypes']
+sys.modules.update((mod_name, Mock()) for mod_name in MOCK_MODULES)
+
 # autoclass_content = 'both'
 
 # If extensions (or modules to document with autodoc) are in another directory,

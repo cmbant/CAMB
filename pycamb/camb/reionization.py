@@ -1,19 +1,5 @@
-'''
-
-In order to get access to functions in the shared library
-you will need to use the following pattern by using the construction
-
-camblib.__modulename_MOD_functionname(args)
-
-set the data type for the functions
-camblib.__modulename_MOD_functionname.restype = ctype
-
-The arguments are passed by reference
-
-'''
-
-from ctypes import *
 from baseconfig import camblib, CAMB_Structure
+from ctypes import c_bool, c_int, c_double
 
 # ---Variables in reionization.f90
 # To set the value please just put 
@@ -28,9 +14,6 @@ Reionization_AccuracyBoost = c_bool.in_dll(camblib, "__reionization_MOD_reioniza
 # Reionization_AccuracyBoost.value = 1.
 
 Rionization_zexp = c_bool.in_dll(camblib, "__reionization_MOD_rionization_zexp")
-
-
-# Rionization_zexp.value = 1.5
 
 # ---Derived Types in reionization.f90
 

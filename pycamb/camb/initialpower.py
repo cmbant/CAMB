@@ -1,7 +1,7 @@
 # Initial power spectrum parameters
 
-from ctypes import *
 from baseconfig import CAMB_Structure, CAMBError
+from ctypes import c_int, c_double
 
 nnmax = 5
 

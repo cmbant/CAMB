@@ -1,5 +1,5 @@
-from ctypes import *
 from baseconfig import camblib, CAMB_Structure
+from ctypes import c_bool, c_int, c_double
 
 # logical
 Do21cm = c_double.in_dll(camblib, "__recombination_MOD_do21cm")

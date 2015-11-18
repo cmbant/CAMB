@@ -1,68 +1,65 @@
-import ctypes
-from baseconfig import CAMBL, camblib, CAMBError
+from baseconfig import camblib, CAMBError, CAMB_Structure
+from ctypes import c_float, c_int, c_double, c_bool, POINTER, byref, addressof
 import model as model
-import os
-import os.path as osp
 import numpy as np
 from numpy import ctypeslib as nplib
 from numpy.ctypeslib import ndpointer
 import constants
 import logging
 
-# Use FeedbackLevel.value to read and set
-FeedbackLevel = ctypes.c_int.in_dll(camblib, "__modelparams_MOD_feedbacklevel")
-
-model.has_cl_2D_array.value = True
-
-
-class _CAMBdata(ctypes.Structure):
+class _CAMBdata(CAMB_Structure):
     # contains complex types with pointers, so just set up dummy
     _fields_ = []
 
 
-class _MatterTransferData(ctypes.Structure):
+class _MatterTransferData(CAMB_Structure):
     # contains complex types with pointers, so just set up dummy
-    _fields_ = [('num_q_trans', ctypes.c_int),
-                ('q_trans', ctypes.POINTER(ctypes.c_double)),
-                ('sigma_8', ctypes.POINTER(ctypes.c_double)),
-                ('sigma2_vdelta_8', ctypes.POINTER(ctypes.c_double)),
-                ('TransferData', ctypes.POINTER(ctypes.c_float)),
-                ('sigma_8_size', ctypes.c_int * 2),
-                ('sigma2_vdelta_8_size', ctypes.c_int * 2),
-                ('TransferData_size', ctypes.c_int * 3)
+    _fields_ = [('num_q_trans', c_int),
+                ('q_trans', POINTER(c_double)),
+                ('sigma_8', POINTER(c_double)),
+                ('sigma2_vdelta_8', POINTER(c_double)),
+                ('TransferData', POINTER(c_float)),
+                ('sigma_8_size', c_int * 2),
+                ('sigma2_vdelta_8_size', c_int * 2),
+                ('TransferData_size', c_int * 3)
                 ]
 
 
-int_arg = ctypes.POINTER(ctypes.c_int)
-d_arg = ctypes.POINTER(ctypes.c_double)
+# Use FeedbackLevel.value to read and set
+FeedbackLevel = c_int.in_dll(camblib, "__modelparams_MOD_feedbacklevel")
+
+model.has_cl_2D_array.value = True
+
+int_arg = POINTER(c_int)
+d_arg = POINTER(c_double)
 
 # for the case where CAMB wrapper functions do the F-C conversion, so use C here
-numpy_2d = ndpointer(ctypes.c_double, flags='C_CONTIGUOUS', ndim=2)
-numpy_1d = ndpointer(ctypes.c_double, flags='C_CONTIGUOUS')
+numpy_2d = ndpointer(c_double, flags='C_CONTIGUOUS', ndim=2)
+numpy_1d = ndpointer(c_double, flags='C_CONTIGUOUS')
 
 CAMBdata_new = camblib.__handles_MOD_cambdata_new
-CAMBdata_new.restype = ctypes.POINTER(_CAMBdata)
+CAMBdata_new.restype = POINTER(_CAMBdata)
 
 CAMBdata_free = camblib.__handles_MOD_cambdata_free
-CAMBdata_free.argtypes = [ctypes.POINTER(ctypes.POINTER(_CAMBdata))]
+CAMBdata_free.argtypes = [POINTER(POINTER(_CAMBdata))]
 
 CAMBdata_getparams = camblib.__handles_MOD_cambdata_getparams
-CAMBdata_getparams.restype = ctypes.POINTER(model.CAMBparams)
-CAMBdata_getparams.argtypes = [ctypes.POINTER(_CAMBdata)]
+CAMBdata_getparams.restype = POINTER(model.CAMBparams)
+CAMBdata_getparams.argtypes = [POINTER(_CAMBdata)]
 
 CAMBdata_setparams = camblib.__handles_MOD_cambdata_setparams
-CAMBdata_setparams.argtypes = [ctypes.POINTER(_CAMBdata), ctypes.POINTER(model.CAMBparams)]
+CAMBdata_setparams.argtypes = [POINTER(_CAMBdata), POINTER(model.CAMBparams)]
 
 CAMBdata_gettransfers = camblib.__handles_MOD_cambdata_gettransfers
-CAMBdata_gettransfers.argtypes = [ctypes.POINTER(_CAMBdata), ctypes.POINTER(model.CAMBparams),
-                                  ctypes.POINTER(ctypes.c_bool)]
-CAMBdata_gettransfers.restype = ctypes.c_int
+CAMBdata_gettransfers.argtypes = [POINTER(_CAMBdata), POINTER(model.CAMBparams),
+                                  POINTER(c_bool)]
+CAMBdata_gettransfers.restype = c_int
 
 CAMBdata_transferstopowers = camblib.__camb_MOD_camb_transferstopowers
-CAMBdata_transferstopowers.argtypes = [ctypes.POINTER(_CAMBdata)]
+CAMBdata_transferstopowers.argtypes = [POINTER(_CAMBdata)]
 
 CAMBdata_mattertransferdata = camblib.__handles_MOD_cambdata_mattertransferdata
-CAMBdata_mattertransferdata.argtypes = [ctypes.POINTER(_CAMBdata), ctypes.POINTER(_MatterTransferData)]
+CAMBdata_mattertransferdata.argtypes = [POINTER(_CAMBdata), POINTER(_MatterTransferData)]
 
 CAMB_SetTotCls = camblib.__handles_MOD_camb_settotcls
 CAMB_SetUnlensedCls = camblib.__handles_MOD_camb_setunlensedcls
@@ -72,7 +69,7 @@ CAMB_SetLensedScalCls = camblib.__handles_MOD_camb_setlensedscalcls
 CAMB_SetTensorCls = camblib.__handles_MOD_camb_settensorcls
 CAMB_SetUnlensedScalarArray = camblib.__handles_MOD_camb_setunlensedscalararray
 
-_set_cl_args = [ctypes.POINTER(ctypes.c_int), numpy_1d, int_arg]
+_set_cl_args = [POINTER(c_int), numpy_1d, int_arg]
 
 CAMB_SetTotCls.argtypes = _set_cl_args
 CAMB_SetUnlensedCls.argtypes = _set_cl_args
@@ -89,59 +86,59 @@ CAMB_SetBackgroundOutputs_z.argtypes = [numpy_1d, int_arg]
 CAMB_GetBackgroundOutputs = camblib.__handles_MOD_camb_getbackgroundoutputs
 CAMB_GetBackgroundOutputs.argtypes = [numpy_1d, int_arg]
 CAMB_GetNumBackgroundOutputs = camblib.__handles_MOD_camb_getnumbackgroundoutputs
-CAMB_GetNumBackgroundOutputs.restype = ctypes.c_int
+CAMB_GetNumBackgroundOutputs.restype = c_int
 
 CAMB_GetAge = camblib.__camb_MOD_camb_getage
-CAMB_GetAge.restype = ctypes.c_double
-CAMB_GetAge.argtypes = [ctypes.POINTER(model.CAMBparams)]
+CAMB_GetAge.restype = c_double
+CAMB_GetAge.argtypes = [POINTER(model.CAMBparams)]
 
 CAMB_GetZreFromTau = camblib.__camb_MOD_camb_getzrefromtau
-CAMB_GetZreFromTau.restype = ctypes.c_double
-CAMB_GetZreFromTau.argtypes = [ctypes.POINTER(model.CAMBparams), d_arg]
+CAMB_GetZreFromTau.restype = c_double
+CAMB_GetZreFromTau.argtypes = [POINTER(model.CAMBparams), d_arg]
 
 CAMB_SetParamsForBackground = camblib.__handles_MOD_cambdata_setparamsforbackground
-CAMB_SetParamsForBackground.argtypes = [ctypes.POINTER(_CAMBdata), ctypes.POINTER(model.CAMBparams)]
+CAMB_SetParamsForBackground.argtypes = [POINTER(_CAMBdata), POINTER(model.CAMBparams)]
 
 CAMB_CalcBackgroundTheory = camblib.__handles_MOD_cambdata_calcbackgroundtheory
-CAMB_CalcBackgroundTheory.argtypes = [ctypes.POINTER(_CAMBdata), ctypes.POINTER(model.CAMBparams)]
-CAMB_CalcBackgroundTheory.restype = ctypes.c_int
+CAMB_CalcBackgroundTheory.argtypes = [POINTER(_CAMBdata), POINTER(model.CAMBparams)]
+CAMB_CalcBackgroundTheory.restype = c_int
 
 CAMBdata_GetLinearMatterPower = camblib.__handles_MOD_cambdata_getlinearmatterpower
-CAMBdata_GetLinearMatterPower.argtypes = [ctypes.POINTER(_CAMBdata), numpy_2d, int_arg, int_arg, int_arg]
+CAMBdata_GetLinearMatterPower.argtypes = [POINTER(_CAMBdata), numpy_2d, int_arg, int_arg, int_arg]
 
 CAMBdata_GetMatterPower = camblib.__handles_MOD_cambdata_getmatterpower
-CAMBdata_GetMatterPower.argtypes = [ctypes.POINTER(_CAMBdata), numpy_2d,
+CAMBdata_GetMatterPower.argtypes = [POINTER(_CAMBdata), numpy_2d,
                                     d_arg, d_arg, int_arg, int_arg, int_arg]
 
 AngularDiameterDistance = camblib.__modelparams_MOD_angulardiameterdistance
 AngularDiameterDistance.argtyes = [d_arg]
-AngularDiameterDistance.restype = ctypes.c_double
+AngularDiameterDistance.restype = c_double
 
 AngularDiameterDistanceArr = camblib.__modelparams_MOD_angulardiameterdistancearr
 AngularDiameterDistanceArr.argtypes = [numpy_1d, numpy_1d, int_arg]
 
 AngularDiameterDistance2 = camblib.__modelparams_MOD_angulardiameterdistance2
 AngularDiameterDistance2.argtyes = [d_arg]
-AngularDiameterDistance2.restype = ctypes.c_double
+AngularDiameterDistance2.restype = c_double
 
 ComovingRadialDistance = camblib.__modelparams_MOD_comovingradialdistance
 ComovingRadialDistance.argtyes = [d_arg]
-ComovingRadialDistance.restype = ctypes.c_double
+ComovingRadialDistance.restype = c_double
 
 Hofz = camblib.__modelparams_MOD_hofz
 Hofz.argtyes = [d_arg]
-Hofz.restype = ctypes.c_double
+Hofz.restype = c_double
 
 DeltaPhysicalTimeGyr = camblib.__modelparams_MOD_deltaphysicaltimegyr
 DeltaPhysicalTimeGyr.argtypes = [d_arg, d_arg, d_arg]
-DeltaPhysicalTimeGyr.restype = ctypes.c_double
+DeltaPhysicalTimeGyr.restype = c_double
 
 DeltaTime = camblib.__modelparams_MOD_deltatime
 DeltaTime.argtypes = [d_arg, d_arg, d_arg]
-DeltaTime.restype = ctypes.c_double
+DeltaTime.restype = c_double
 
 CosmomcTheta = camblib.__modelparams_MOD_cosmomctheta
-CosmomcTheta.restype = ctypes.c_double
+CosmomcTheta.restype = c_double
 
 
 class MatterTransferData(object):
@@ -189,7 +186,7 @@ def set_default_params(P):
     :return: P
     """
     assert (isinstance(P, model.CAMBparams))
-    camblib.__camb_MOD_camb_setdefparams(ctypes.byref(P))
+    camblib.__camb_MOD_camb_setdefparams(byref(P))
     return P
 
 
@@ -198,7 +195,7 @@ def fortran_array(cP, shape, dtype=np.float64):
     # for non-copy as_array().reshape() might work, but doesn't allow non-default types...
     # return nplib.as_array(cP, tuple(shape[::-1])).reshape(shape, order='F')
     arr = np.ndarray(tuple(shape), dtype, np.core.multiarray.int_asbuffer(
-        ctypes.addressof(cP.contents), np.prod(shape) * np.dtype(dtype).itemsize), order='F')
+        addressof(cP.contents), np.prod(shape) * np.dtype(dtype).itemsize), order='F')
     if not arr.flags.owndata:
         arr = arr.copy()
     return arr
@@ -210,7 +207,7 @@ def set_z_outputs(z_outputs):
     :param z_outputs: array of redshifts
     """
     z_outputs = np.array(z_outputs)
-    CAMB_SetBackgroundOutputs_z(z_outputs, ctypes.byref(ctypes.c_int(len(z_outputs))))
+    CAMB_SetBackgroundOutputs_z(z_outputs, byref(c_int(len(z_outputs))))
 
 
 class CAMBdata(object):
@@ -231,7 +228,7 @@ class CAMBdata(object):
         self._key = None
         self._key = CAMBdata_new()
         self.Params = self.get_params()
-        self._one = ctypes.c_int(1)
+        self._one = c_int(1)
 
     def __enter__(self):
         return self
@@ -244,7 +241,7 @@ class CAMBdata(object):
 
     def free(self):
         if self._key:
-            CAMBdata_free(ctypes.byref(self._key))
+            CAMBdata_free(byref(self._key))
             self._key = None
 
     def set_params(self, params):
@@ -253,7 +250,7 @@ class CAMBdata(object):
 
         :param params: a :class:`.model.CAMBparams` instance
         """
-        CAMBdata_setparams(self._key, ctypes.byref(params))
+        CAMBdata_setparams(self._key, byref(params))
 
     def get_params(self):
         """
@@ -284,7 +281,7 @@ class CAMBdata(object):
             raise CAMBError(
                 'Call camb.set_z_outputs with required redshifts (and then calculate transfers/results) before calling get_background_outputs')
         outputs = np.empty((n, 4))
-        CAMB_GetBackgroundOutputs(outputs, ctypes.byref(ctypes.c_int(n)))
+        CAMB_GetBackgroundOutputs(outputs, byref(c_int(n)))
         return outputs
 
     def get_BAO(self, redshifts, params):
@@ -308,7 +305,7 @@ class CAMBdata(object):
 
         :param params:  :class:`.model.CAMBparams` instance to use
         """
-        CAMB_SetParamsForBackground(self._key, ctypes.byref(params))
+        CAMB_SetParamsForBackground(self._key, byref(params))
 
     def calc_background(self, params):
         """
@@ -316,7 +313,7 @@ class CAMBdata(object):
         e.g. call this if you want to get derived parameters and call background functions
         :param params:  :class:`.model.CAMBparams` instance to use
         """
-        res = CAMB_CalcBackgroundTheory(self._key, ctypes.byref(params))
+        res = CAMB_CalcBackgroundTheory(self._key, byref(params))
         if res:
             raise CAMBError('Error %s in calc_background' % res)
 
@@ -328,9 +325,9 @@ class CAMBdata(object):
         :param only_transfers: only calculate transfer functions, no power spectra
         :return: non-zero if error, zero if OK
         """
-        opt = ctypes.c_bool()
+        opt = c_bool()
         opt.value = only_transfers
-        return CAMBdata_gettransfers(self._key, ctypes.byref(params), ctypes.byref(opt))
+        return CAMBdata_gettransfers(self._key, byref(params), byref(opt))
 
     def calc_power_spectra(self, params=None):
         """
@@ -399,7 +396,7 @@ class CAMBdata(object):
             raise CAMBError("must have Params.WantTransfer to get matter transfers and power")
 
         cdata = _MatterTransferData()
-        CAMBdata_mattertransferdata(self._key, ctypes.byref(cdata))
+        CAMBdata_mattertransferdata(self._key, byref(cdata))
         data = MatterTransferData()
         data.num_q_trans = cdata.num_q_trans
         data.q_trans = nplib.as_array(cdata.q_trans, shape=(data.num_q_trans,))
@@ -429,11 +426,11 @@ class CAMBdata(object):
         nz = self.Params.Transfer.PK_num_redshifts
         kh = data.TransferData[model.Transfer_kh - 1, :, 0]
 
-        var1 = ctypes.c_int(var1)
-        var2 = ctypes.c_int(var2)
-        hubble_units = ctypes.c_int(hubble_units)
+        var1 = c_int(var1)
+        var2 = c_int(var2)
+        hubble_units = c_int(hubble_units)
         PK = np.empty((nz, nk))
-        CAMBdata_GetLinearMatterPower(self._key, PK, ctypes.byref(var1), ctypes.byref(var2), ctypes.byref(hubble_units))
+        CAMBdata_GetLinearMatterPower(self._key, PK, byref(var1), byref(var2), byref(hubble_units))
 
         z = self.Params.Transfer.PK_redshifts[:nz]
         z.reverse()
@@ -477,10 +474,10 @@ class CAMBdata(object):
         nz = self.Params.Transfer.PK_num_redshifts
         PK = np.empty((nz, npoints))
         dlnkh = (np.log(maxkh) - np.log(minkh)) / (npoints - 1)
-        CAMBdata_GetMatterPower(self._key, PK, ctypes.byref(ctypes.c_double(minkh)),
-                                ctypes.byref(ctypes.c_double(dlnkh)),
-                                ctypes.byref(ctypes.c_int(npoints)), ctypes.byref(ctypes.c_int(var1)),
-                                ctypes.byref(ctypes.c_int(var2)))
+        CAMBdata_GetMatterPower(self._key, PK, byref(c_double(minkh)),
+                                byref(c_double(dlnkh)),
+                                byref(c_int(npoints)), byref(c_int(var1)),
+                                byref(c_int(var2)))
         z = self.Params.Transfer.PK_redshifts[:nz]
         z.reverse()
         return minkh * np.exp(np.arange(npoints) * dlnkh), z, PK
@@ -493,8 +490,8 @@ class CAMBdata(object):
         :return: numpy array CL[0:lmax+1,0:4], where 0..3 indexes TT, EE, BB, TE
         """
         res = np.empty((lmax + 1, 4))
-        opt = ctypes.c_int(lmax)
-        CAMB_SetTotCls(ctypes.byref(opt), res, ctypes.byref(self._one))
+        opt = c_int(lmax)
+        CAMB_SetTotCls(byref(opt), res, byref(self._one))
         return res
 
     def get_tensor_cls(self, lmax):
@@ -506,8 +503,8 @@ class CAMBdata(object):
         """
 
         res = np.empty((lmax + 1, 4))
-        opt = ctypes.c_int(lmax)
-        CAMB_SetTensorCls(ctypes.byref(opt), res, ctypes.byref(self._one))
+        opt = c_int(lmax)
+        CAMB_SetTensorCls(byref(opt), res, byref(self._one))
         return res
 
     def get_unlensed_scalar_cls(self, lmax):
@@ -519,8 +516,8 @@ class CAMBdata(object):
         """
 
         res = np.empty((lmax + 1, 4))
-        opt = ctypes.c_int(lmax)
-        CAMB_SetUnlensedScalCls(ctypes.byref(opt), res, ctypes.byref(self._one))
+        opt = c_int(lmax)
+        CAMB_SetUnlensedScalCls(byref(opt), res, byref(self._one))
         return res
 
     def get_unlensed_total_cls(self, lmax):
@@ -542,8 +539,8 @@ class CAMBdata(object):
         """
 
         res = np.empty((lmax + 1, 4))
-        opt = ctypes.c_int(lmax)
-        CAMB_SetLensedScalCls(ctypes.byref(opt), res, ctypes.byref(self._one))
+        opt = c_int(lmax)
+        CAMB_SetLensedScalCls(byref(opt), res, byref(self._one))
         return res
 
     def get_lens_potential_cls(self, lmax):
@@ -556,8 +553,8 @@ class CAMBdata(object):
         """
 
         res = np.empty((lmax + 1, 3))
-        opt = ctypes.c_int(lmax)
-        CAMB_SetLensPotentialCls(ctypes.byref(opt), res, ctypes.byref(self._one))
+        opt = c_int(lmax)
+        CAMB_SetLensPotentialCls(byref(opt), res, byref(self._one))
         return res
 
     def get_unlensed_scalar_array_cls(self, lmax):
@@ -572,8 +569,8 @@ class CAMBdata(object):
             raise CAMBError('unlensed_scalar_array not calculated')
         n = 3 + model.num_redshiftwindows.value
         res = np.empty((lmax + 1, n, n))
-        opt = ctypes.c_int(lmax)
-        CAMB_SetUnlensedScalarArray(ctypes.byref(opt), res, ctypes.byref(self._one), ctypes.byref(ctypes.c_int(n)))
+        opt = c_int(lmax)
+        CAMB_SetUnlensedScalarArray(byref(opt), res, byref(self._one), byref(c_int(n)))
         return res
 
     def angular_diameter_distance(self, z):
@@ -586,11 +583,11 @@ class CAMBdata(object):
         :return: angular diameter distances, matching rank of z
         """
         if np.isscalar(z):
-            return AngularDiameterDistance(ctypes.byref(ctypes.c_double(z)))
+            return AngularDiameterDistance(byref(c_double(z)))
         else:
             z = np.asarray(z)
             arr = np.empty(z.shape)
-            AngularDiameterDistanceArr(arr, z, ctypes.byref(ctypes.c_int(z.shape[0])))
+            AngularDiameterDistanceArr(arr, z, byref(c_int(z.shape[0])))
             return arr
 
     def angular_diameter_distance2(self, z1, z2):
@@ -605,7 +602,7 @@ class CAMBdata(object):
         :param z2: redshift 2
         :return: result
         """
-        return AngularDiameterDistance2(ctypes.byref(ctypes.c_double(z1)), ctypes.byref(ctypes.c_double(z2)))
+        return AngularDiameterDistance2(byref(c_double(z1)), byref(c_double(z2)))
 
     def comoving_radial_distance(self, z):
         """
@@ -616,7 +613,7 @@ class CAMBdata(object):
         :param z: redshift
         :return: comoving radial distance
         """
-        return ComovingRadialDistance(ctypes.byref(ctypes.c_double(z)))
+        return ComovingRadialDistance(byref(c_double(z)))
 
     def luminosity_distance(self, z):
         """
@@ -641,7 +638,7 @@ class CAMBdata(object):
         """
         if not np.isscalar(z):
             raise CAMBError('vector z not supported yet')
-        return Hofz(ctypes.byref(ctypes.c_double(z)))
+        return Hofz(byref(c_double(z)))
 
     def h_of_z_hunit(self, z):
         """
@@ -664,7 +661,7 @@ class CAMBdata(object):
         :param a2: scale factor 2
         :return: (age(a2)-age(a1))/Gigayear
         """
-        return DeltaPhysicalTimeGyr(ctypes.byref(ctypes.c_double(a1)), ctypes.byref(ctypes.c_double(a2)), None)
+        return DeltaPhysicalTimeGyr(byref(c_double(a1)), byref(c_double(a2)), None)
 
     def physical_time_z(self, z):
         """
@@ -688,7 +685,7 @@ class CAMBdata(object):
 
         if not np.isscalar(a1) or not np.isscalar(a2):
             raise CAMBError('vector z not supported yet')
-        return DeltaTime(ctypes.byref(ctypes.c_double(a1)), ctypes.byref(ctypes.c_double(a2)), None)
+        return DeltaTime(byref(c_double(a1)), byref(c_double(a2)), None)
 
     def conformal_time_z(self, z):
         """
@@ -741,7 +738,7 @@ def get_age(params):
     :param params:  :class:`.model.CAMBparams` instance
     :return: age of universe in gigayears
     """
-    return CAMB_GetAge(ctypes.byref(params))
+    return CAMB_GetAge(byref(params))
 
 
 def get_zre_from_tau(params, tau):
@@ -752,8 +749,8 @@ def get_zre_from_tau(params, tau):
     :param tau: optical depth
     :return: reionization redshift
     """
-    cTau = ctypes.c_double(tau)
-    return CAMB_GetZreFromTau(ctypes.byref(params), ctypes.byref(cTau))
+    cTau = c_double(tau)
+    return CAMB_GetZreFromTau(byref(params), byref(cTau))
 
 
 def cleanup():
