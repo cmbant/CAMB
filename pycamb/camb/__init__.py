@@ -10,8 +10,8 @@ __status__ = "alpha"
 __version__ = "0.1.0"
 
 from baseconfig import camblib
-from camb import CAMBdata, MatterTransferData, get_results, get_transfer_functions, get_age, get_zre_from_tau, \
-    set_z_outputs, set_feedback_level
+from camb import CAMBdata, MatterTransferData, get_results, get_transfer_functions, get_background, \
+    get_age, get_zre_from_tau, set_z_outputs, set_feedback_level
 import model
 import initialpower
 import reionization
