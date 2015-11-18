@@ -684,7 +684,7 @@ class CAMBdata(object):
         """
 
         if not np.isscalar(a1) or not np.isscalar(a2):
-            raise CAMBError('vector z not supported yet')
+            raise CAMBError('vector scale factor not supported yet')
         return DeltaTime(byref(c_double(a1)), byref(c_double(a2)), None)
 
     def conformal_time_z(self, z):
@@ -729,6 +729,20 @@ def get_transfer_functions(params):
     res = CAMBdata()
     res.calc_transfers(params)
     return res
+
+def get_background(params):
+    """
+    Calculate background cosmology for specified parameters and return :class:`CAMBdata`, ready to get derived
+     parameters and use background functions like angular_diameter_distance.
+
+    :param params: :class:`.model.CAMBparams` instance
+    :return: :class:`CAMBdata` instance
+    """
+
+    res = CAMBdata()
+    res.calc_background(params)
+    return res
+
 
 
 def get_age(params):
