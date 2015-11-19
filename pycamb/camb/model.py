@@ -53,7 +53,7 @@ max_bessels_etak = dll_import(c_double, "modelparams", "max_bessels_etak")
 # max_bessels_etak.value = 1000000*2
 
 # logical
-call_again = dll_import(c_bool, "modelparams", "call_again")
+call_again = dll_import(c_int, "modelparams", "call_again")
 # call_again.value = False
 
 

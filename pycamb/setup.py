@@ -61,12 +61,12 @@ class SharedLibrary(install):
             if not has_win_gfortran():
                 print('WARNING: gfortran not in path (if you just installed may need to log off and on again).')
                 print('Using pre-compiled binaries instead... any local changes will be ignored')
-                COPY = 'copy pycamb/dlls/%s pycamb/camb/%s'%(('camblib_x64.dll', DLLNAME)[is32Bit],DLLNAME)
+                COPY = 'copy /y pycamb/dlls/%s pycamb/camb/%s'%(('camblib_x64.dll', DLLNAME)[is32Bit],DLLNAME)
                 subprocess.call(COPY,shell=True)
             else:
                 print COMPILER+' '+FFLAGS+' '+SOURCES+' '+OUTPUT
                 subprocess.call(COMPILER+' '+FFLAGS+' '+SOURCES+' '+OUTPUT,shell=True)
-            COPY = r"copy HighLExtrapTemplate_lenspotentialCls.dat cambpy\camb"
+            COPY = r"copy /y HighLExtrapTemplate_lenspotentialCls.dat cambpy\camb"
             subprocess.call(COPY,shell=True)
             scrs.append(DLLNAME)
             if not osp.isfile('pycamb/camb/'+DLLNAME) : sys.exit('Compilation failed')

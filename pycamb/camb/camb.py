@@ -8,6 +8,7 @@ import constants
 import logging
 
 
+
 class _CAMBdata(CAMB_Structure):
     # contains complex types with pointers, so just set up dummy
     _fields_ = []
@@ -39,7 +40,7 @@ numpy_2d = ndpointer(c_double, flags='C_CONTIGUOUS', ndim=2)
 numpy_1d = ndpointer(c_double, flags='C_CONTIGUOUS')
 
 CAMBdata_new = camblib.__handles_MOD_cambdata_new
-CAMBdata_new.restype = POINTER(_CAMBdata)
+CAMBdata_new.argtypes = [ POINTER(POINTER(_CAMBdata))]
 
 CAMBdata_free = camblib.__handles_MOD_cambdata_free
 CAMBdata_free.argtypes = [POINTER(POINTER(_CAMBdata))]
@@ -226,8 +227,8 @@ class CAMBdata(object):
     """
 
     def __init__(self):
-        self._key = None
-        self._key = CAMBdata_new()
+        self._key = POINTER(_CAMBdata)()
+        CAMBdata_new(byref(self._key))
         self.Params = self.get_params()
         self._one = c_int(1)
 
@@ -604,6 +605,8 @@ class CAMBdata(object):
         :param z2: redshift 2
         :return: result
         """
+        if not np.isscalar(z1) or not np.isscalar(z2):
+            raise CAMBError('vector z not supported yet')
         return AngularDiameterDistance2(byref(c_double(z1)), byref(c_double(z2)))
 
     def comoving_radial_distance(self, z):
@@ -615,6 +618,8 @@ class CAMBdata(object):
         :param z: redshift
         :return: comoving radial distance
         """
+        if not np.isscalar(z):
+            raise CAMBError('vector z not supported yet')
         return ComovingRadialDistance(byref(c_double(z)))
 
     def luminosity_distance(self, z):
@@ -642,7 +647,7 @@ class CAMBdata(object):
             raise CAMBError('vector z not supported yet')
         return Hofz(byref(c_double(z)))
 
-    def h_of_z_hunit(self, z):
+    def hubble_parameter(self, z):
         """
         Get Huuble rate at redshift z, in km/s/Mpc units.
 
@@ -653,7 +658,7 @@ class CAMBdata(object):
         """
         return constants.c * self.h_of_z(z) / 1e3
 
-    def physical_time_gyr(self, a1, a2):
+    def physical_time_a1_a2(self, a1, a2):
         """
         Get physical time between two scalar factors in Gigayears
 
@@ -663,20 +668,20 @@ class CAMBdata(object):
         :param a2: scale factor 2
         :return: (age(a2)-age(a1))/Gigayear
         """
+        if not np.isscalar(a1) or not np.isscalar(a2):
+            raise CAMBError('vector inputs not supported yet')
         return DeltaPhysicalTimeGyr(byref(c_double(a1)), byref(c_double(a2)), None)
 
-    def physical_time_z(self, z):
+    def physical_time(self, z):
         """
         Get physical time from hot big bang to redshift z in Gigayears.
 
         :param z:  redshift
         :return: t(z)/Gigayear
         """
-        if not np.isscalar(z):
-            raise CAMBError('vector z not supported yet')
-        return self.physical_time_gyr(0, 1.0 / (1 + z))
+        return self.physical_time_a1_a2(0, 1.0 / (1 + z))
 
-    def conformal_time(self, a1, a2):
+    def conformal_time_a1_a2(self, a1, a2):
         """
         Get conformal time between two scale factors (=comoving radial distance travelled by light on light cone)
 
@@ -686,17 +691,17 @@ class CAMBdata(object):
         """
 
         if not np.isscalar(a1) or not np.isscalar(a2):
-            raise CAMBError('vector scale factor not supported yet')
+            raise CAMBError('vector inputs not supported yet')
         return DeltaTime(byref(c_double(a1)), byref(c_double(a2)), None)
 
-    def conformal_time_z(self, z):
+    def conformal_time(self, z):
         """
         Conformal time from hot big bang to redshift z in Megaparsec.
 
         :param z: redshift
         :return: eta(z)/Mpc
         """
-        return self.conformal_time(0, 1.0 / (1 + z))
+        return self.conformal_time_a1_a2(0, 1.0 / (1 + z))
 
     def cosmomc_theta(self):
         """

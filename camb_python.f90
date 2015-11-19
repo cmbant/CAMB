@@ -18,8 +18,8 @@
 
     !SPECIAL BRIDGE ROUTINES FOR PYTHON
 
-    function CAMBdata_new() result(handle)
-    type(c_ptr) :: handle
+    subroutine CAMBdata_new(handle)
+    type(c_ptr), intent(out) :: handle
     Type (CAMBdata), pointer :: pCAMBdata
 
     allocate(pCAMBdata)
@@ -27,7 +27,7 @@
     call CAMB_setDefParams(pCAMBdata%Params)
     handle = c_loc(pCAMBdata)
 
-    end function CAMBdata_new
+    end subroutine CAMBdata_new
 
     subroutine CAMBdata_free(cptr)
     type(c_ptr)  :: cptr
