@@ -261,7 +261,9 @@ class CAMBdata(object):
 
         :return: :class:`.model.CAMBparams` instance pointing to the underlying parameters used by CAMB.
         """
-        return CAMBdata_getparams(self._key).contents
+        p = POINTER(model.CAMBparams)()
+        CAMBdata_getparams(self._key, byref(p))
+        return p.contents
 
     def get_derived_params(self):
         """

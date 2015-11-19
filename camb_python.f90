@@ -47,13 +47,13 @@
 
     end subroutine CAMBdata_setParams
 
-    function CAMBdata_getParams(data) result(handle)
+    subroutine CAMBdata_getParams(data, handle) 
     Type (CAMBdata), target :: data
-    type(c_ptr)  ::  handle
+    type(c_ptr), intent(out)  ::  handle
 
     handle = c_loc(data%Params)
 
-    end function CAMBdata_getParams
+    end subroutine CAMBdata_getParams
 
     function CAMBdata_GetTransfers(data, Params, onlytransfer) result(error)
     Type (CAMBdata):: data

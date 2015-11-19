@@ -83,8 +83,10 @@ class CambTest(unittest.TestCase):
         pars.InitPower.set_params(ns=0.965)
         pars.set_matter_power(redshifts=[0., 0.17, 3.1])
         pars.NonLinear = model.NonLinear_none
-
+        print(pars)
         data = camb.get_results(pars)
+        print(data.Params)
+
         kh, z, pk = data.get_matter_power_spectrum(1e-4, 1, 20)
 
         kh2, z2, pk2 = data.get_linear_matter_power_spectrum()
