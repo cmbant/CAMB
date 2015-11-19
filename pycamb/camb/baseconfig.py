@@ -16,9 +16,19 @@ if not mock_load:
     import ctypes
     from ctypes import Structure
 
+    class ifort_gfortran_loader(ctypes.CDLL):
+
+        def __getitem__(self, name_or_ordinal):
+            res = super(ifort_gfortran_loader, self).__getitem__(name_or_ordinal)
+            if res is None:
+                #ifort style exports instead
+                res = super(ifort_gfortran_loader, self).__getitem__(name_or_ordinal.replace('_MOD_','_mp_'))
+            return res
+
     if not osp.isfile(CAMBL): sys.exit(
         '%s does not exist.\nPlease remove any old installation and install again.' % DLLNAME)
-    camblib = ctypes.cdll.LoadLibrary(CAMBL)
+    camblib = ctypes.LibraryLoader(ifort_gfortran_loader).LoadLibrary(CAMBL)
+#    camblib = ctypes.cdll.LoadLibrary(CAMBL)
 else:
     # This is just so readthedocs build will work without CAMB binary library
     try:

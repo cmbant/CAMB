@@ -49,6 +49,8 @@ class SharedLibrary(install):
         if platform.system() == "Windows":
             COMPILER = "gfortran"
             # note that TDM-GCC MingW 5.1 does not work due go general fortran bug.
+            # This works: http://sourceforge.net/projects/mingw-w64/?source=typ_redirect
+            # but need to use 32bit compiler to build 32 bit dll (contrary to what is implied)
             FFLAGS = "-shared -static -cpp -fopenmp -O3 -ffast-math -fmax-errors=4"
             if is32Bit: FFLAGS = "-m32 "+ FFLAGS
             SOURCES = "constants.f90 utils.f90 subroutines.f90 inifile.f90 power_tilt.f90 recfast.f90 reionization.f90"\
@@ -57,9 +59,13 @@ class SharedLibrary(install):
             OUTPUT = r"-o pycamb\camb\%s"%DLLNAME
             scrs = os.listdir(os.getcwd())
             if not has_win_gfortran():
-                print('WARNING: gfortran not in path. If you just installed may need to log off and on again.')
-            print COMPILER+' '+FFLAGS+' '+SOURCES+' '+OUTPUT
-            subprocess.call(COMPILER+' '+FFLAGS+' '+SOURCES+' '+OUTPUT,shell=True)
+                print('WARNING: gfortran not in path (if you just installed may need to log off and on again).')
+                print('Using pre-compiled binaries instead... any local changes will be ignored')
+                COPY = 'copy pycamb/dlls/%s pycamb/camb/%s'%(('camblib_x64.dll', DLLNAME)[is32Bit],DLLNAME)
+                subprocess.call(COPY,shell=True)
+            else:
+                print COMPILER+' '+FFLAGS+' '+SOURCES+' '+OUTPUT
+                subprocess.call(COMPILER+' '+FFLAGS+' '+SOURCES+' '+OUTPUT,shell=True)
             COPY = r"copy HighLExtrapTemplate_lenspotentialCls.dat cambpy\camb"
             subprocess.call(COPY,shell=True)
             scrs.append(DLLNAME)
