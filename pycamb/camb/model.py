@@ -57,68 +57,66 @@ call_again = dll_import(c_bool,"modelparams","call_again")
 # call_again.value = False
 
 
-grhom = c_double.in_dll(camblib, "__modelparams_MOD_grhom")
-grhog = c_double.in_dll(camblib, "__modelparams_MOD_grhog")
-grhor = c_double.in_dll(camblib, "__modelparams_MOD_grhor")
-grhob = c_double.in_dll(camblib, "__modelparams_MOD_grhob")
-grhoc = c_double.in_dll(camblib, "__modelparams_MOD_grhoc")
-grhov = c_double.in_dll(camblib, "__modelparams_MOD_grhov")
-grhornomass = c_double.in_dll(camblib, "__modelparams_MOD_grhornomass")
-grhok = c_double.in_dll(camblib, "__modelparams_MOD_grhok")
+grhom = dll_import(c_double,"modelparams", "grhom")
+grhog = dll_import(c_double,"modelparams", "grhog")
+grhor = dll_import(c_double,"modelparams", "grhor")
+grhob = dll_import(c_double,"modelparams", "grhob")
+grhoc = dll_import(c_double,"modelparams", "grhoc")
+grhov = dll_import(c_double,"modelparams", "grhov")
+grhornomass = dll_import(c_double,"modelparams", "grhornomass")
+grhok = dll_import(c_double,"modelparams", "grhok")
 
-taurst = c_double.in_dll(camblib, "__modelparams_MOD_taurst")
-dtaurec = c_double.in_dll(camblib, "__modelparams_MOD_dtaurec")
-taurend = c_double.in_dll(camblib, "__modelparams_MOD_taurend")
-tau_maxvis = c_double.in_dll(camblib, "__modelparams_MOD_tau_maxvis")
-adotrad = c_double.in_dll(camblib, "__modelparams_MOD_adotrad")
+taurst = dll_import(c_double,"modelparams", "taurst")
+dtaurec = dll_import(c_double,"modelparams", "dtaurec")
+taurend = dll_import(c_double,"modelparams", "taurend")
+tau_maxvis = dll_import(c_double,"modelparams", "tau_maxvis")
+adotrad = dll_import(c_double,"modelparams", "adotrad")
 
-c_array = c_double * max_nu
-grhormass = c_array.in_dll(camblib, "__modelparams_MOD_grhormass")
-nu_masses = c_array.in_dll(camblib, "__modelparams_MOD_nu_masses")
+grhormass = dll_import(c_double * max_nu, "modelparams", "grhormass")
+nu_masses = dll_import(c_double * max_nu,"modelparams", "nu_masses")
 
-akthom = c_double.in_dll(camblib, "__modelparams_MOD_akthom")
-fHe = c_double.in_dll(camblib, "__modelparams_MOD_fhe")
-Nnow = c_double.in_dll(camblib, "__modelparams_MOD_nnow")
+akthom = dll_import(c_double,"modelparams", "akthom")
+fHe = dll_import(c_double,"modelparams", "fhe")
+Nnow = dll_import(c_double,"modelparams", "nnow")
 
-limber_phiphi = c_int.in_dll(camblib, "__modelparams_MOD_limber_phiphi")
+limber_phiphi = dll_import(c_int,"modelparams", "limber_phiphi")
 # limber_phiphi.value = 0
 
-num_extra_redshiftwindows = c_int.in_dll(camblib, "__modelparams_MOD_num_extra_redshiftwindows")
+num_extra_redshiftwindows = dll_import(c_int,"modelparams", "num_extra_redshiftwindows")
 # num_extra_redshiftwindows.value = 0
 
-num_redshiftwindows = c_int.in_dll(camblib, "__modelparams_MOD_num_redshiftwindows")
+num_redshiftwindows = dll_import(c_int,"modelparams", "num_redshiftwindows")
 
 # logical
-use_spline_template = c_bool.in_dll(camblib, "__modelparams_MOD_use_spline_template")
+use_spline_template = dll_import(c_bool,"modelparams", "use_spline_template")
 # use_spline_template.value = True
 
-c_array2 = c_double * nthermo_derived
-ThermoDerivedParams = c_array2.in_dll(camblib, "__modelparams_MOD_thermoderivedparams")
+ThermoDerivedParams = dll_import(c_double * nthermo_derived, "modelparams", "thermoderivedparams")
 # ThermoDerivedParams.value = 1.
 
 # logical
-Log_lvalues = c_bool.in_dll(camblib, "__lvalues_MOD_log_lvalues")
+Log_lvalues = dll_import(c_bool,"lvalues", "log_lvalues")
 # Log_lvalues.value = False
 
 # Variables from module ModelData
 
 # logical
-has_cl_2D_array = c_bool.in_dll(camblib, "__modeldata_MOD_has_cl_2d_array")
+has_cl_2D_array = dll_import(c_bool,"modeldata", "has_cl_2d_array")
 # has_cl_2D_array.value = False
 
 
-lmax_lensed = c_int.in_dll(camblib, "__modeldata_MOD_lmax_lensed")
+lmax_lensed = dll_import(c_int,"modeldata", "lmax_lensed")
 
 # Variable from module Transfer
 # logical
-transfer_interp_matterpower = c_bool.in_dll(camblib, "__transfer_MOD_transfer_interp_matterpower")
+transfer_interp_matterpower = dll_import(c_bool,"transfer", "transfer_interp_matterpower")
 # transfer_interp_matterpower.value = False
 
-transfer_power_var = c_int.in_dll(camblib, "__transfer_MOD_transfer_power_var")
+transfer_power_var = dll_import(c_int,"transfer", "transfer_power_var")
 # transfer_power_var.value = Transfer_tot
 
 # logical
-get_growth_sigma8 = c_bool.in_dll(camblib, "__transfer_MOD_get_growth_sigma8")
+get_growth_sigma8 = dll_import(c_bool,"transfer", "get_growth_sigma8")
 # get_growth_sigma8.value = True
 
 CAMB_validateparams = camblib.__camb_MOD_camb_validateparams
@@ -347,9 +345,9 @@ class CAMBparams(CAMB_Structure):
             raise CAMBError('This version only supports the fluid energy model')
         if w != -1 or sound_speed != 1:
             print('Warning: currently dark energy parameters are changed globally, not per parameter set')
-        w_lam = c_double.in_dll(camblib, "__lambdageneral_MOD_w_lam")
+        w_lam = dll_import(c_double,"lambdageneral", "w_lam")
         w_lam.value = w
-        cs2_lam = c_double.in_dll(camblib, "__lambdageneral_MOD_cs2_lam")
+        cs2_lam = dll_import(c_double,"lambdageneral", "cs2_lam")
         cs2_lam.value = sound_speed
         return self
 

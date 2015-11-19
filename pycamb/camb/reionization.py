@@ -1,4 +1,4 @@
-from baseconfig import camblib, CAMB_Structure
+from baseconfig import CAMB_Structure, dll_import
 from ctypes import c_bool, c_int, c_double
 
 # ---Variables in reionization.f90
@@ -6,14 +6,14 @@ from ctypes import c_bool, c_int, c_double
 # variablename.value = newvalue
 
 # logical
-include_helium_fullreion = c_bool.in_dll(camblib, "__reionization_MOD_include_helium_fullreion")
+include_helium_fullreion = dll_import(c_bool,"reionization", "include_helium_fullreion")
 # include_helium_fullreion.value = True
 
 # logical
-Reionization_AccuracyBoost = c_bool.in_dll(camblib, "__reionization_MOD_reionization_accuracyboost")
+Reionization_AccuracyBoost = dll_import(c_bool,"reionization", "reionization_accuracyboost")
 # Reionization_AccuracyBoost.value = 1.
 
-Rionization_zexp = c_bool.in_dll(camblib, "__reionization_MOD_rionization_zexp")
+Rionization_zexp = dll_import(c_bool,"reionization", "rionization_zexp")
 
 
 # ---Derived Types in reionization.f90

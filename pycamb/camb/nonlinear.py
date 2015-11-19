@@ -1,5 +1,5 @@
-from ctypes import *
-from baseconfig import camblib
+from baseconfig import dll_import
+from ctypes import c_int
 
 # ---Parameters in halofit_ppf.f90
 
@@ -9,5 +9,5 @@ halofit_peacock = 3
 halofit_takahashi = 4
 halofit_default = halofit_takahashi
 
-halofit_version = c_int.in_dll(camblib, "__nonlinear_MOD_halofit_version")
+halofit_version = dll_import(c_int,"nonlinear", "halofit_version")
 # halofit_version.value = halofit_default

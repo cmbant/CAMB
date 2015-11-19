@@ -1,4 +1,4 @@
-from baseconfig import camblib, CAMBError, CAMB_Structurel, dll_import
+from baseconfig import camblib, CAMBError, CAMB_Structure, dll_import
 from ctypes import c_float, c_int, c_double, c_bool, POINTER, byref, addressof
 import model as model
 import numpy as np

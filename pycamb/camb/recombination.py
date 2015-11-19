@@ -1,4 +1,4 @@
-from baseconfig import camblib, CAMB_Structure, dll_import
+from baseconfig import CAMB_Structure, dll_import
 from ctypes import c_bool, c_int, c_double
 
 # logical
