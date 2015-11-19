@@ -1,4 +1,5 @@
 from baseconfig import camblib, CAMBError, CAMB_Structure, dll_import
+from baseconfig import camblib, CAMBError, CAMB_Structure, dll_import
 from ctypes import c_float, c_int, c_double, c_bool, POINTER, byref, addressof
 import model as model
 import numpy as np
@@ -196,8 +197,8 @@ def fortran_array(cP, shape, dtype=np.float64):
     # this often seems to make a copy anyway, so enforce that for consistency
     # for non-copy as_array().reshape() might work, but doesn't allow non-default types...
     # return nplib.as_array(cP, tuple(shape[::-1])).reshape(shape, order='F')
-    arr = np.ndarray(tuple(shape), dtype, np.core.multiarray.int_asbuffer(
-        addressof(cP.contents), np.prod(shape) * np.dtype(dtype).itemsize), order='F')
+    arr = np.ndarray(tuple(shape[:]), dtype, np.core.multiarray.int_asbuffer(
+        addressof(cP.contents), np.prod(shape[:]) * np.dtype(dtype).itemsize), order='F')
     if not arr.flags.owndata:
         arr = arr.copy()
     return arr
