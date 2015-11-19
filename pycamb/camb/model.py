@@ -39,84 +39,84 @@ derived_names = ['age', 'zstar', 'rstar', 'thetastar', 'DAstar', 'zdrag',
 # To set the value please just put 
 # variable_name.value = new_value
 
-DebugParam = dll_import(c_double,"modelparams","debugparam")
+DebugParam = dll_import(c_double, "modelparams", "debugparam")
 # DebugParam.value = 1000000*2
 
 # logical
-do_bispectrum = dll_import(c_int, "modelparams","do_bispectrum")
+do_bispectrum = dll_import(c_int, "modelparams", "do_bispectrum")
 # do_bispectrum.value = False
 
-max_bessels_l_index = dll_import(c_int, "modelparams","max_bessels_l_index")
+max_bessels_l_index = dll_import(c_int, "modelparams", "max_bessels_l_index")
 # max_bessels_l_index.value = 1000000
 
-max_bessels_etak = dll_import(c_double,"modelparams", "max_bessels_etak")
+max_bessels_etak = dll_import(c_double, "modelparams", "max_bessels_etak")
 # max_bessels_etak.value = 1000000*2
 
 # logical
-call_again = dll_import(c_bool,"modelparams","call_again")
+call_again = dll_import(c_bool, "modelparams", "call_again")
 # call_again.value = False
 
 
-grhom = dll_import(c_double,"modelparams", "grhom")
-grhog = dll_import(c_double,"modelparams", "grhog")
-grhor = dll_import(c_double,"modelparams", "grhor")
-grhob = dll_import(c_double,"modelparams", "grhob")
-grhoc = dll_import(c_double,"modelparams", "grhoc")
-grhov = dll_import(c_double,"modelparams", "grhov")
-grhornomass = dll_import(c_double,"modelparams", "grhornomass")
-grhok = dll_import(c_double,"modelparams", "grhok")
+grhom = dll_import(c_double, "modelparams", "grhom")
+grhog = dll_import(c_double, "modelparams", "grhog")
+grhor = dll_import(c_double, "modelparams", "grhor")
+grhob = dll_import(c_double, "modelparams", "grhob")
+grhoc = dll_import(c_double, "modelparams", "grhoc")
+grhov = dll_import(c_double, "modelparams", "grhov")
+grhornomass = dll_import(c_double, "modelparams", "grhornomass")
+grhok = dll_import(c_double, "modelparams", "grhok")
 
-taurst = dll_import(c_double,"modelparams", "taurst")
-dtaurec = dll_import(c_double,"modelparams", "dtaurec")
-taurend = dll_import(c_double,"modelparams", "taurend")
-tau_maxvis = dll_import(c_double,"modelparams", "tau_maxvis")
-adotrad = dll_import(c_double,"modelparams", "adotrad")
+taurst = dll_import(c_double, "modelparams", "taurst")
+dtaurec = dll_import(c_double, "modelparams", "dtaurec")
+taurend = dll_import(c_double, "modelparams", "taurend")
+tau_maxvis = dll_import(c_double, "modelparams", "tau_maxvis")
+adotrad = dll_import(c_double, "modelparams", "adotrad")
 
 grhormass = dll_import(c_double * max_nu, "modelparams", "grhormass")
-nu_masses = dll_import(c_double * max_nu,"modelparams", "nu_masses")
+nu_masses = dll_import(c_double * max_nu, "modelparams", "nu_masses")
 
-akthom = dll_import(c_double,"modelparams", "akthom")
-fHe = dll_import(c_double,"modelparams", "fhe")
-Nnow = dll_import(c_double,"modelparams", "nnow")
+akthom = dll_import(c_double, "modelparams", "akthom")
+fHe = dll_import(c_double, "modelparams", "fhe")
+Nnow = dll_import(c_double, "modelparams", "nnow")
 
-limber_phiphi = dll_import(c_int,"modelparams", "limber_phiphi")
+limber_phiphi = dll_import(c_int, "modelparams", "limber_phiphi")
 # limber_phiphi.value = 0
 
-num_extra_redshiftwindows = dll_import(c_int,"modelparams", "num_extra_redshiftwindows")
+num_extra_redshiftwindows = dll_import(c_int, "modelparams", "num_extra_redshiftwindows")
 # num_extra_redshiftwindows.value = 0
 
-num_redshiftwindows = dll_import(c_int,"modelparams", "num_redshiftwindows")
+num_redshiftwindows = dll_import(c_int, "modelparams", "num_redshiftwindows")
 
 # logical
-use_spline_template = dll_import(c_bool,"modelparams", "use_spline_template")
+use_spline_template = dll_import(c_bool, "modelparams", "use_spline_template")
 # use_spline_template.value = True
 
 ThermoDerivedParams = dll_import(c_double * nthermo_derived, "modelparams", "thermoderivedparams")
 # ThermoDerivedParams.value = 1.
 
 # logical
-Log_lvalues = dll_import(c_bool,"lvalues", "log_lvalues")
+Log_lvalues = dll_import(c_bool, "lvalues", "log_lvalues")
 # Log_lvalues.value = False
 
 # Variables from module ModelData
 
 # logical
-has_cl_2D_array = dll_import(c_bool,"modeldata", "has_cl_2d_array")
+has_cl_2D_array = dll_import(c_bool, "modeldata", "has_cl_2d_array")
 # has_cl_2D_array.value = False
 
 
-lmax_lensed = dll_import(c_int,"modeldata", "lmax_lensed")
+lmax_lensed = dll_import(c_int, "modeldata", "lmax_lensed")
 
 # Variable from module Transfer
 # logical
-transfer_interp_matterpower = dll_import(c_bool,"transfer", "transfer_interp_matterpower")
+transfer_interp_matterpower = dll_import(c_bool, "transfer", "transfer_interp_matterpower")
 # transfer_interp_matterpower.value = False
 
-transfer_power_var = dll_import(c_int,"transfer", "transfer_power_var")
+transfer_power_var = dll_import(c_int, "transfer", "transfer_power_var")
 # transfer_power_var.value = Transfer_tot
 
 # logical
-get_growth_sigma8 = dll_import(c_bool,"transfer", "get_growth_sigma8")
+get_growth_sigma8 = dll_import(c_bool, "transfer", "get_growth_sigma8")
 # get_growth_sigma8.value = True
 
 CAMB_validateparams = camblib.__camb_MOD_camb_validateparams
@@ -345,9 +345,9 @@ class CAMBparams(CAMB_Structure):
             raise CAMBError('This version only supports the fluid energy model')
         if w != -1 or sound_speed != 1:
             print('Warning: currently dark energy parameters are changed globally, not per parameter set')
-        w_lam = dll_import(c_double,"lambdageneral", "w_lam")
+        w_lam = dll_import(c_double, "lambdageneral", "w_lam")
         w_lam.value = w
-        cs2_lam = dll_import(c_double,"lambdageneral", "cs2_lam")
+        cs2_lam = dll_import(c_double, "lambdageneral", "cs2_lam")
         cs2_lam.value = sound_speed
         return self
 

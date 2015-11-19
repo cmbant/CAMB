@@ -16,20 +16,23 @@ if not mock_load:
     import ctypes
     from ctypes import Structure
 
+
     class ifort_gfortran_loader(ctypes.CDLL):
 
         def __getitem__(self, name_or_ordinal):
             try:
                 res = super(ifort_gfortran_loader, self).__getitem__(name_or_ordinal)
             except:
-                #ifort style exports instead
-                res = super(ifort_gfortran_loader, self).__getitem__(name_or_ordinal.replace('_MOD_','_mp_').replace('__',''))
+                # ifort style exports instead
+                res = super(ifort_gfortran_loader, self).__getitem__(
+                    name_or_ordinal.replace('_MOD_', '_mp_').replace('__', '') + '_')
             return res
+
 
     if not osp.isfile(CAMBL): sys.exit(
         '%s does not exist.\nPlease remove any old installation and install again.' % DLLNAME)
     camblib = ctypes.LibraryLoader(ifort_gfortran_loader).LoadLibrary(CAMBL)
-#    camblib = ctypes.cdll.LoadLibrary(CAMBL)
+# camblib = ctypes.cdll.LoadLibrary(CAMBL)
 else:
     # This is just so readthedocs build will work without CAMB binary library
     try:
@@ -62,11 +65,12 @@ else:
 
 def dll_import(tp, module, func):
     try:
-        #gfortran
-        return tp.in_dll(camblib, "__%s_MOD_%s"%(module,func))
+        # gfortran
+        return tp.in_dll(camblib, "__%s_MOD_%s" % (module, func))
     except:
-        #ifort
-        return tp.in_dll(camblib, "%s_mp_%s_"%(module,func))
+        # ifort
+        return tp.in_dll(camblib, "%s_mp_%s_" % (module, func))
+
 
 def set_filelocs():
     HighLExtrapTemplate = osp.join(BASEDIR, "HighLExtrapTemplate_lenspotentialCls.dat")

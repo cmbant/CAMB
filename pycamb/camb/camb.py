@@ -27,7 +27,7 @@ class _MatterTransferData(CAMB_Structure):
 
 
 # Use FeedbackLevel.value to read and set
-FeedbackLevel = dll_import(c_int, "modelparams","feedbacklevel")
+FeedbackLevel = dll_import(c_int, "modelparams", "feedbacklevel")
 
 model.has_cl_2D_array.value = True
 

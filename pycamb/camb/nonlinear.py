@@ -9,5 +9,5 @@ halofit_peacock = 3
 halofit_takahashi = 4
 halofit_default = halofit_takahashi
 
-halofit_version = dll_import(c_int,"nonlinear", "halofit_version")
+halofit_version = dll_import(c_int, "nonlinear", "halofit_version")
 # halofit_version.value = halofit_default

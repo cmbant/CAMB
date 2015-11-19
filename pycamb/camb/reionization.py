@@ -6,14 +6,14 @@ from ctypes import c_bool, c_int, c_double
 # variablename.value = newvalue
 
 # logical
-include_helium_fullreion = dll_import(c_bool,"reionization", "include_helium_fullreion")
+include_helium_fullreion = dll_import(c_bool, "reionization", "include_helium_fullreion")
 # include_helium_fullreion.value = True
 
 # logical
-Reionization_AccuracyBoost = dll_import(c_bool,"reionization", "reionization_accuracyboost")
+Reionization_AccuracyBoost = dll_import(c_bool, "reionization", "reionization_accuracyboost")
 # Reionization_AccuracyBoost.value = 1.
 
-Rionization_zexp = dll_import(c_bool,"reionization", "rionization_zexp")
+Rionization_zexp = dll_import(c_bool, "reionization", "rionization_zexp")
 
 
 # ---Derived Types in reionization.f90
