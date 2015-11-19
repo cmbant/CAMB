@@ -1,4 +1,4 @@
-from baseconfig import camblib, CAMB_Structure, CAMBError
+from baseconfig import camblib, CAMB_Structure, CAMBError, dll_import
 from ctypes import c_bool, c_int, c_double, byref
 import reionization as ion
 import recombination as recomb
@@ -39,22 +39,23 @@ derived_names = ['age', 'zstar', 'rstar', 'thetastar', 'DAstar', 'zdrag',
 # To set the value please just put 
 # variable_name.value = new_value
 
-DebugParam = c_double.in_dll(camblib, "__modelparams_MOD_debugparam")
+DebugParam = dll_import(c_double,"modelparams","debugparam")
 # DebugParam.value = 1000000*2
 
 # logical
-do_bispectrum = c_bool.in_dll(camblib, "__modelparams_MOD_do_bispectrum")
+do_bispectrum = dll_import(c_int, "modelparams","do_bispectrum")
 # do_bispectrum.value = False
 
-max_bessels_l_index = c_int.in_dll(camblib, "__modelparams_MOD_max_bessels_l_index")
+max_bessels_l_index = dll_import(c_int, "modelparams","max_bessels_l_index")
 # max_bessels_l_index.value = 1000000
 
-max_bessels_etak = c_double.in_dll(camblib, "__modelparams_MOD_max_bessels_etak")
+max_bessels_etak = dll_import(c_double,"modelparams", "max_bessels_etak")
 # max_bessels_etak.value = 1000000*2
 
 # logical
-call_again = c_bool.in_dll(camblib, "__modelparams_MOD_call_again")
+call_again = dll_import(c_bool,"modelparams","call_again")
 # call_again.value = False
+
 
 grhom = c_double.in_dll(camblib, "__modelparams_MOD_grhom")
 grhog = c_double.in_dll(camblib, "__modelparams_MOD_grhog")

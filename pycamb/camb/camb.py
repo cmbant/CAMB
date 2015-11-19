@@ -1,4 +1,4 @@
-from baseconfig import camblib, CAMBError, CAMB_Structure
+from baseconfig import camblib, CAMBError, CAMB_Structurel, dll_import
 from ctypes import c_float, c_int, c_double, c_bool, POINTER, byref, addressof
 import model as model
 import numpy as np
@@ -27,7 +27,7 @@ class _MatterTransferData(CAMB_Structure):
 
 
 # Use FeedbackLevel.value to read and set
-FeedbackLevel = c_int.in_dll(camblib, "__modelparams_MOD_feedbacklevel")
+FeedbackLevel = dll_import(c_int, "modelparams","feedbacklevel")
 
 model.has_cl_2D_array.value = True
 

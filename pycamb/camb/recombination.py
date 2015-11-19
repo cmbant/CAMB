@@ -1,17 +1,17 @@
-from baseconfig import camblib, CAMB_Structure
+from baseconfig import camblib, CAMB_Structure, dll_import
 from ctypes import c_bool, c_int, c_double
 
 # logical
-Do21cm = c_double.in_dll(camblib, "__recombination_MOD_do21cm")
+Do21cm = dll_import(c_double,"recombination","do21cm")
 # Do21cm.value = False
 
 # logical
-doTmatTspin = c_bool.in_dll(camblib, "__recombination_MOD_dotmattspin")
+doTmatTspin = dll_import(c_bool,"recombination","dotmattspin")
 # doTmatTspin.value = False
 
-recombination_saha_z = c_double.in_dll(camblib, "__recombination_MOD_recombination_saha_z")
+recombination_saha_z = dll_import(c_double, "recombination","recombination_saha_z")
 
-recombination_saha_tau = c_double.in_dll(camblib, "__recombination_MOD_recombination_saha_tau")
+recombination_saha_tau = dll_import(c_double,"recombination", "recombination_saha_tau")
 
 
 # ---Derived Types in recombination.f90
