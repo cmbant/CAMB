@@ -1,5 +1,5 @@
-from __future__ import absolute_import
-from __future__ import print_function
+
+
 import os
 import sys
 import unittest
@@ -58,8 +58,8 @@ class CambTest(unittest.TestCase):
 
         # test massive sterile models as in Planck papers
         pars.set_cosmology(H0=68.0, ombh2=0.022305, omch2=0.11873, mnu=0.06, nnu=3.073, omk=0, meffsterile=0.013)
-        self.assertAlmostEquals(pars.omegan * (pars.H0 / 100) ** 2, 0.00078, 5)
-        self.assertAlmostEquals(pars.YHe, 0.24573, 5)
+        self.assertAlmostEqual(pars.omegan * (pars.H0 / 100) ** 2, 0.00078, 5)
+        self.assertAlmostEqual(pars.YHe, 0.24573, 5)
 
         data.calc_background(pars)
         self.assertAlmostEqual(data.get_derived_params()['age'], 13.773, 2)
@@ -95,9 +95,9 @@ class CambTest(unittest.TestCase):
         pars.NonLinear = model.NonLinear_both
         data.calc_power_spectra(pars)
         kh3, z3, pk3 = data.get_matter_power_spectrum(1e-4, 1, 20)
-        self.assertAlmostEquals(pk[-1][-3], 51.909, 2)
-        self.assertAlmostEquals(pk3[-1][-3], 57.697, 2)
-        self.assertAlmostEquals(pk2[-2][-4], 53.47, 2)
+        self.assertAlmostEqual(pk[-1][-3], 51.909, 2)
+        self.assertAlmostEqual(pk3[-1][-3], 57.697, 2)
+        self.assertAlmostEqual(pk2[-2][-4], 53.47, 2)
 
         camb.set_feedback_level(0)
         cls = data.get_cmb_power_spectra(pars)

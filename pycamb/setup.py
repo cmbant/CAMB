@@ -64,20 +64,20 @@ class SharedLibrary(install):
                 COPY = 'copy /y pycamb/dlls/%s pycamb/camb/%s'%(('camblib_x64.dll', DLLNAME)[is32Bit],DLLNAME)
                 subprocess.call(COPY,shell=True)
             else:
-                print COMPILER+' '+FFLAGS+' '+SOURCES+' '+OUTPUT
+                print(COMPILER+' '+FFLAGS+' '+SOURCES+' '+OUTPUT)
                 subprocess.call(COMPILER+' '+FFLAGS+' '+SOURCES+' '+OUTPUT,shell=True)
             COPY = r"copy /y HighLExtrapTemplate_lenspotentialCls.dat cambpy\camb"
             subprocess.call(COPY,shell=True)
             scrs.append(DLLNAME)
             if not osp.isfile('pycamb/camb/'+DLLNAME) : sys.exit('Compilation failed')
-            print "Removing temp files"
+            print("Removing temp files")
             nscrs = os.listdir(os.getcwd())
             for file in nscrs:
                 if not file in scrs:
                     os.remove(file)
 
         else:
-            print "Compiling source..."
+            print("Compiling source...")
             MAKE = "make camblib.so"
             subprocess.call(MAKE,shell=True)
             if not osp.isfile('pycamb/camb/camblib.so') : sys.exit('Compilation failed')
@@ -88,7 +88,7 @@ class SharedLibrary(install):
 
         os.chdir(file_dir)
         install.run(self)
-        print "Cleaning intermediate files..."
+        print("Cleaning intermediate files...")
         if platform.system() == "Windows":              
             DELETE = 'rmdir /s /q build'
         else:
