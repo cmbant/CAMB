@@ -196,16 +196,16 @@ def fortran_array(cP, shape, dtype=np.float64):
     if sys.version_info.major >= 3:
         buffer_from_memory = ctypes.pythonapi.PyMemoryView_FromMemory
         buffer_from_memory.restype = ctypes.py_object
-        buffer_from_memory.argtypes = ( ctypes.c_void_p, ctypes.c_int, ctypes.c_int)
-        buffer = buffer_from_memory(cP,  np.prod(shape[:]) * np.dtype(dtype).itemsize, 0x100)
+        buffer_from_memory.argtypes = (ctypes.c_void_p, ctypes.c_int, ctypes.c_int)
+        buffer = buffer_from_memory(cP, np.prod(shape[:]) * np.dtype(dtype).itemsize, 0x100)
     else:
         buffer_from_memory = ctypes.pythonapi.PyBuffer_FromMemory
         buffer_from_memory.restype = ctypes.py_object
-        buffer = buffer_from_memory(cP,  np.prod(shape[:]) * np.dtype(dtype).itemsize)
+        buffer = buffer_from_memory(cP, np.prod(shape[:]) * np.dtype(dtype).itemsize)
     arr = np.ndarray(tuple(shape[:]), dtype, buffer, order='F')
-# this doesn't work in python 3
-#    arr = np.ndarray(tuple(shape[:]), dtype, np.core.multiarray.int_asbuffer(
-#        addressof(cP.contents), np.prod(shape[:]) * np.dtype(dtype).itemsize), order='F')
+    # this doesn't work in python 3
+    #    arr = np.ndarray(tuple(shape[:]), dtype, np.core.multiarray.int_asbuffer(
+    #        addressof(cP.contents), np.prod(shape[:]) * np.dtype(dtype).itemsize), order='F')
     if not arr.flags.owndata:
         arr = arr.copy()
     return arr
