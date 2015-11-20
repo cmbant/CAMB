@@ -1,6 +1,7 @@
 import os.path as osp
 import sys
 import os
+import six
 import platform
 
 BASEDIR = osp.abspath(osp.dirname(__file__))
@@ -76,7 +77,7 @@ def set_filelocs():
     HighLExtrapTemplate = osp.join(BASEDIR, "HighLExtrapTemplate_lenspotentialCls.dat")
     if not osp.exists(HighLExtrapTemplate):
         HighLExtrapTemplate = osp.abspath(osp.join(BASEDIR, "../..", "HighLExtrapTemplate_lenspotentialCls.dat"))
-
+    HighLExtrapTemplate = six.b(HighLExtrapTemplate)
     func = camblib.__handles_MOD_set_cls_template
     func.argtypes = [ctypes.c_char_p, ctypes.c_long]
     s = ctypes.create_string_buffer(HighLExtrapTemplate)

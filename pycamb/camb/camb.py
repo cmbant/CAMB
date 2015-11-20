@@ -1,10 +1,12 @@
 from .baseconfig import camblib, CAMBError, CAMB_Structure, dll_import
+import ctypes
 from ctypes import c_float, c_int, c_double, c_bool, POINTER, byref, addressof
 from . import model, constants
 import numpy as np
 from numpy import ctypeslib as nplib
 from numpy.ctypeslib import ndpointer
 import logging
+import sys
 
 
 class _CAMBdata(CAMB_Structure):
@@ -191,11 +193,19 @@ def set_default_params(P):
 
 
 def fortran_array(cP, shape, dtype=np.float64):
-    # this often seems to make a copy anyway, so enforce that for consistency
-    # for non-copy as_array().reshape() might work, but doesn't allow non-default types...
-    # return nplib.as_array(cP, tuple(shape[::-1])).reshape(shape, order='F')
-    arr = np.ndarray(tuple(shape[:]), dtype, np.core.multiarray.int_asbuffer(
-        addressof(cP.contents), np.prod(shape[:]) * np.dtype(dtype).itemsize), order='F')
+    if sys.version_info.major >= 3:
+        buffer_from_memory = ctypes.pythonapi.PyMemoryView_FromMemory
+        buffer_from_memory.restype = ctypes.py_object
+        buffer_from_memory.argtypes = ( ctypes.c_void_p, ctypes.c_int, ctypes.c_int)
+        buffer = buffer_from_memory(cP,  np.prod(shape[:]) * np.dtype(dtype).itemsize, 0x100)
+    else:
+        buffer_from_memory = ctypes.pythonapi.PyBuffer_FromMemory
+        buffer_from_memory.restype = ctypes.py_object
+        buffer = buffer_from_memory(cP,  np.prod(shape[:]) * np.dtype(dtype).itemsize)
+    arr = np.ndarray(tuple(shape[:]), dtype, buffer, order='F')
+# this doesn't work in python 3
+#    arr = np.ndarray(tuple(shape[:]), dtype, np.core.multiarray.int_asbuffer(
+#        addressof(cP.contents), np.prod(shape[:]) * np.dtype(dtype).itemsize), order='F')
     if not arr.flags.owndata:
         arr = arr.copy()
     return arr
