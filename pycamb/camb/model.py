@@ -1,11 +1,11 @@
-from baseconfig import camblib, CAMB_Structure, CAMBError, dll_import
+from .baseconfig import camblib, CAMB_Structure, CAMBError, dll_import
 from ctypes import c_bool, c_int, c_double, byref
-import reionization as ion
-import recombination as recomb
-import initialpower as ipow
-import constants
+from . import reionization as ion
+from . import recombination as recomb
+from . import initialpower as ipow
+from . import constants
 import numpy as np
-import bbn
+from . import bbn
 
 # ---Parameters
 
@@ -377,7 +377,7 @@ class CAMBparams(CAMB_Structure):
             self.Transfer.k_per_logint = k_per_logint
         zs = sorted(redshifts, reverse=True)
         if np.any(np.array(zs) - np.array(redshifts) != 0):
-            print "Note: redshifts have been re-sorted (earliest first)"
+            print("Note: redshifts have been re-sorted (earliest first)")
         self.Transfer.PK_num_redshifts = len(redshifts)
         for i, z in enumerate(zs):
             self.Transfer.PK_redshifts[i] = z

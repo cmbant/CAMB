@@ -1,13 +1,10 @@
-from baseconfig import camblib, CAMBError, CAMB_Structure, dll_import
-from baseconfig import camblib, CAMBError, CAMB_Structure, dll_import
+from .baseconfig import camblib, CAMBError, CAMB_Structure, dll_import
 from ctypes import c_float, c_int, c_double, c_bool, POINTER, byref, addressof
-import model as model
+from . import model, constants
 import numpy as np
 from numpy import ctypeslib as nplib
 from numpy.ctypeslib import ndpointer
-import constants
 import logging
-
 
 
 class _CAMBdata(CAMB_Structure):
@@ -41,7 +38,7 @@ numpy_2d = ndpointer(c_double, flags='C_CONTIGUOUS', ndim=2)
 numpy_1d = ndpointer(c_double, flags='C_CONTIGUOUS')
 
 CAMBdata_new = camblib.__handles_MOD_cambdata_new
-CAMBdata_new.argtypes = [ POINTER(POINTER(_CAMBdata))]
+CAMBdata_new.argtypes = [POINTER(POINTER(_CAMBdata))]
 
 CAMBdata_free = camblib.__handles_MOD_cambdata_free
 CAMBdata_free.argtypes = [POINTER(POINTER(_CAMBdata))]

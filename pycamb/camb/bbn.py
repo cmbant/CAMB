@@ -81,7 +81,7 @@ def runBBNplot():
         outtxt = runBBN(eta, prog='./main.x')
         (YBBN, D, He3, Li7, Li6, Be7) = [float(s.strip()) for s in outtxt.split('\n')[0].split()]
         line = ('%12.5e' * 7) % (eta, YBBN, D, He3, Li7, Li6, Be7)
-        print line
+        print(line)
         lines += [line]
     f = open('bbn_abundance_eta.dat', 'w')
     f.write("\n".join(lines))
@@ -132,7 +132,7 @@ if __name__ == "__main__":
                 sigYBBN = 0.0003  # np.sqrt(0.0003**2 + ((yhe_fit(ombh2,DeltaN,tau_n+1.1)-yhe_fit(ombh2,DeltaN,tau_n-1.1))/2)**2 + (0.002*Yp)**2)
                 line = (('%12.5f ') * 6 + ('%12.3e %12.2e')) % (ombh2, eta * 1e10, DeltaN, Yp, YBBN, sigYBBN, D, sigdD)
                 lines += [line]
-            print line
+            print(line)
         lines += ['']
 
     if alterBBN:

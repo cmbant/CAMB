@@ -1,5 +1,5 @@
 from ctypes import c_int, c_double, c_bool
-from baseconfig import dll_import
+from .baseconfig import dll_import
 
 # ---Variables in modules.f90
 # To set the value please just put 

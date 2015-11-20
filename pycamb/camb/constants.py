@@ -1,7 +1,7 @@
-from baseconfig import dll_import
+from .baseconfig import dll_import
 from ctypes import c_int
 
-global_error_flag = dll_import(c_int,"errors", "global_error_flag")
+global_error_flag = dll_import(c_int, "errors", "global_error_flag")
 
 const_pi = 3.1415926535897932384626433832795
 const_twopi = 2. * const_pi

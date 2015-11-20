@@ -1,4 +1,4 @@
-from ctypes import *
+from ctypes import c_int, c_double, c_char
 
 # ---Parameters
 Ini_max_string_len = 1024

@@ -9,15 +9,15 @@ __contact__ = "antony at cosmologist dot info"
 __status__ = "alpha"
 __version__ = "0.1.0"
 
-from baseconfig import dll_import
-from camb import CAMBdata, MatterTransferData, get_results, get_transfer_functions, get_background, \
+from .baseconfig import dll_import
+from .camb import CAMBdata, MatterTransferData, get_results, get_transfer_functions, get_background, \
     get_age, get_zre_from_tau, set_z_outputs, set_feedback_level
-import model
-import initialpower
-import reionization
-from model import CAMBparams, TransferParams
-from reionization import ReionizationParams
-from initialpower import InitialPowerParams
+from . import model
+from . import initialpower
+from . import reionization
+from .model import CAMBparams, TransferParams
+from .reionization import ReionizationParams
+from .initialpower import InitialPowerParams
 from ctypes import POINTER, c_int, c_double, c_float, c_bool
 
 ThreadNum = dll_import(c_int, "modelparams", "threadnum")

@@ -1,4 +1,4 @@
-from baseconfig import dll_import
+from .baseconfig import dll_import
 from ctypes import c_int
 
 # ---Parameters in halofit_ppf.f90
