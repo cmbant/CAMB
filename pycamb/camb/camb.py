@@ -861,6 +861,7 @@ def set_params(cp=None, verbose=False, **params):
                 model.CAMBparams.set_dark_energy,
                 model.CAMBparams.set_matter_power,
                 model.CAMBparams.set_for_lmax,
+                model.CAMBparams.set_accuracy,
                 initialpower.InitialPowerParams.set_params]]
 
     globs = {'ALens': lensing.ALens}

@@ -6,6 +6,7 @@ from . import initialpower as ipow
 from . import constants
 import numpy as np
 from . import bbn
+import logging
 
 # ---Parameters
 
@@ -256,7 +257,7 @@ class CAMBparams(CAMB_Structure):
         _lAccuracyBoost.value = lAccuracyBoost
         _HighAccuracyDefault.value = HighAccuracyDefault
         _DoLateRadTruncation.value = DoLateRadTruncation
-        print('Warning: accuracy parameters are changed globally, not yet per parameter set')
+        logging.warning('accuracy parameters are changed globally, not yet per parameter set')
         return self
 
     def set_initial_power(self, initial_power_params):
@@ -377,7 +378,7 @@ class CAMBparams(CAMB_Structure):
         if dark_energy_model != 'fluid':
             raise CAMBError('This version only supports the fluid energy model')
         if w != -1 or sound_speed != 1:
-            print('Warning: currently dark energy parameters are changed globally, not per parameter set')
+            logging.warning('Currently dark energy parameters are changed globally, not per parameter set')
         w_lam = dll_import(c_double, "lambdageneral", "w_lam")
         w_lam.value = w
         cs2_lam = dll_import(c_double, "lambdageneral", "cs2_lam")
