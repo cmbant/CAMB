@@ -18,30 +18,14 @@ from . import reionization
 from .model import CAMBparams, TransferParams
 from .reionization import ReionizationParams
 from .initialpower import InitialPowerParams
-from ctypes import POINTER, c_int, c_double, c_float, c_bool
+from ctypes import c_int, c_double, c_bool
 
 ThreadNum = dll_import(c_int, "modelparams", "threadnum")
 # ThreadNum.value = 0
 
-# logical
-HighAccuracyDefault = dll_import(POINTER(c_bool), "modelparams", "highaccuracydefault")
-HighAccuracyDefault.value = True
-
-lSampleBoost = dll_import(c_double, "modelparams", "lsampleboost")
-# lSampleBoost.value = 1.
-
-AccuracyBoost = dll_import(c_double, "modelparams", "accuracyboost")
-# AccuracyBoost.value = 1.
-
-lAccuracyBoost = dll_import(c_float, "modelparams", "laccuracyboost")
-# lAccuracyBoost.value = 1.
-
 # Variables from module GaugeInterface
 DoTensorNeutrinos = dll_import(c_bool, "gaugeinterface", "dotensorneutrinos")
 # DoTensorNeutrinos.value = True
-
-DoLateRadTruncation = dll_import(c_bool, "gaugeinterface", "dolateradtruncation")
-# DoLateRadTruncation.value = True
 
 Magnetic = dll_import(c_double, "gaugeinterface", "magnetic")
 # Magnetic.value = 0.

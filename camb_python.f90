@@ -14,9 +14,21 @@
         integer :: TransferData_size(3)
     end Type c_MatterTransferData
 
+
+    Type c_ClTransferData
+        integer :: NumSources
+        integer :: q_size
+        type(c_ptr) :: q
+        integer delta_size(3)
+        type(c_ptr) Delta_p_l_k
+        integer l_size
+        type(c_ptr) ls
+        !skip limber for now...
+    end Type c_ClTransferData
+
     contains
 
-    !SPECIAL BRIDGE ROUTINES FOR PYTHON
+    !SPECIAL BRIDGE ROUTINES FOR PYTHONset
 
     subroutine CAMBdata_new(handle)
     type(c_ptr), intent(out) :: handle
@@ -47,7 +59,7 @@
 
     end subroutine CAMBdata_setParams
 
-    subroutine CAMBdata_getParams(data, handle) 
+    subroutine CAMBdata_getParams(data, handle)
     Type (CAMBdata), target :: data
     type(c_ptr), intent(out)  ::  handle
 
@@ -99,7 +111,7 @@
 
 
     subroutine CAMBdata_MatterTransferData(data, cData)
-    Type(CAMBdata) :: data
+    Type(CAMBdata), target :: data
     Type(c_MatterTransferData) :: cData
 
     cData%num_q_trans = data%MTrans%num_q_trans
@@ -108,15 +120,51 @@
     cData%sigma2_vdelta_8 = c_loc(data%MTrans%sigma2_vdelta_8)
     cData%TransferData = c_loc(data%MTrans%TransferData)
     cData%q_trans = c_loc(data%MTrans%q_trans)
-    cData%sigma_8_size(1) = size(data%MTrans%sigma_8,1)
-    cData%sigma_8_size(2) = size(data%MTrans%sigma_8,2)
-    cData%sigma2_vdelta_8_size(1) = size(data%MTrans%sigma2_vdelta_8,1)
-    cData%sigma2_vdelta_8_size(2) = size(data%MTrans%sigma2_vdelta_8,2)
-    cData%TransferData_size(1) = size(data%MTrans%TransferData,1)
-    cData%TransferData_size(2) = size(data%MTrans%TransferData,2)
-    cData%TransferData_size(3) = size(data%MTrans%TransferData,3)
+    cData%sigma_8_size = shape(data%MTrans%sigma_8)
+    cData%sigma2_vdelta_8_size = shape(data%MTrans%sigma2_vdelta_8)
+    cData%TransferData_size = shape(data%MTrans%TransferData)
 
     end subroutine CAMBdata_MatterTransferData
+
+    subroutine CAMBdata_ClTransferData(data, cData, i)
+    Type(CAMBdata), target :: data
+    Type(c_ClTransferData) :: cData
+    integer, intent(in) :: i
+
+    if (i==0) then
+        call Convert_ClTransferData(data%ClTransScal, cData)
+    else if (i==1) then
+        call Convert_ClTransferData(data%ClTransVec, cData)
+    else if (i==2) then
+        call Convert_ClTransferData(data%ClTransTens, cData)
+    else
+        error stop 'Unknown ClTransferData index'
+    end if
+
+    end subroutine CAMBdata_ClTransferData
+
+    subroutine Convert_ClTransferData(data, cData)
+    Type(ClTransferData), target :: data
+    Type(c_ClTransferData) :: cData
+
+    cData%NumSources = data%NumSources
+    if (associated(Data%q%points)) then
+        cData%q_size = size(data%q%points)
+        cData%q = c_loc(data%q%points)
+    else
+        cData%q_size = 0
+    end if
+    if (associated(data%Delta_p_l_k)) then
+        cData%delta_size = shape(Data%Delta_p_l_k)
+        cData%delta_p_l_k = c_loc(Data%Delta_p_l_k)
+    else
+        cData%delta_size = 0
+    end if
+    cdata%l_size = Data%ls%l0
+    cdata%ls = c_loc(Data%ls%l)
+
+    end subroutine Convert_ClTransferData
+
 
     subroutine CAMBdata_GetLinearMatterPower(data, PK, var1, var2, hubble_units)
     Type(CAMBdata) :: data
@@ -314,6 +362,34 @@
     highL_unlensed_cl_template = trim(cls_template)
 
     end subroutine set_cls_template
+
+    function CAMB_PrimordialPower(Params, k, powers, n,  i) result(err)
+    use constants
+    type(CAMBparams) :: Params
+    integer, intent(in) :: i,n
+    real(dl), intent(in) :: k(n)
+    real(dl), intent(out) :: powers(n)
+    real(dl) curv
+    integer err,ix
+
+    global_error_flag = 0
+    curv =-Params%omegak/((c/1000)/Params%h0)**2
+    call InitializePowers(Params%InitPower,curv)
+    if (global_error_flag==0) then
+        do ix =1, n
+            if (i==0) then
+                powers(ix) = ScalarPower(k(ix),1)
+            elseif (i==2) then
+                powers(ix) = TensorPower(k(ix),1)
+            else
+                error stop 'Unknown power type index'
+            end if
+            if (global_error_flag /= 0) exit
+        end do
+    end if
+    err= global_error_flag
+
+    end function CAMB_PrimordialPower
 
 
     ! END BRIDGE FOR PYTHON

@@ -1,5 +1,5 @@
 from .baseconfig import camblib, CAMB_Structure, CAMBError, dll_import
-from ctypes import c_bool, c_int, c_double, byref
+from ctypes import c_bool, c_int, c_double, c_float, byref, POINTER
 from . import reionization as ion
 from . import recombination as recomb
 from . import initialpower as ipow
@@ -38,6 +38,16 @@ derived_names = ['age', 'zstar', 'rstar', 'thetastar', 'DAstar', 'zdrag',
 # ---Variables in modules.f90
 # To set the value please just put 
 # variable_name.value = new_value
+
+
+# logical
+_HighAccuracyDefault = dll_import(POINTER(c_bool), "modelparams", "highaccuracydefault")
+_HighAccuracyDefault.value = True
+
+_lSampleBoost = dll_import(c_double, "modelparams", "lsampleboost")
+_AccuracyBoost = dll_import(c_double, "modelparams", "accuracyboost")
+_lAccuracyBoost = dll_import(c_float, "modelparams", "laccuracyboost")
+_DoLateRadTruncation = dll_import(c_bool, "gaugeinterface", "dolateradtruncation")
 
 DebugParam = dll_import(c_double, "modelparams", "debugparam")
 # DebugParam.value = 1000000*2
@@ -124,8 +134,10 @@ CAMB_validateparams.restype = c_bool
 
 CAMB_setinitialpower = camblib.__handles_MOD_camb_setinitialpower
 
+numpy_1d = np.ctypeslib.ndpointer(c_double, flags='C_CONTIGUOUS')
+CAMB_primordialpower = camblib.__handles_MOD_camb_primordialpower
+CAMB_primordialpower.restype = c_bool
 
-# ---Derived Types in modules.f90
 
 class TransferParams(CAMB_Structure):
     """
@@ -225,6 +237,27 @@ class CAMBparams(CAMB_Structure):
         :return: True if OK
         """
         return CAMB_validateparams(byref(self))
+
+    def set_accuracy(self, AccuracyBoost=1., lSampleBoost=1., lAccuracyBoost=1.,
+                     HighAccuracyDefault=True, DoLateRadTruncation=True):
+        """
+        Set parameters determining calculation accuracy (large values may give big slow down).
+        Note curently these are set globally, not just per parameter set.
+
+        :param AccuracyBoost: increase AccuracyBoost to decrease integration step size, increase density of k sampling, etc.
+        :param lSampleBoost: increase lSampleBoost to increase density of L sampling for CMB
+        :param lAccuracyBoost: increase lAccuracyBoost to increase the maximum L included in the Boltzmann hierarchies
+        :param HighAccuracyDefault: True for Planck-level accuracy (False is WMAP)
+        :param DoLateRadTruncation: If True, use approximation to radiation perturbation evolution at late times
+        :return: self
+        """
+        _lSampleBoost.value = lSampleBoost
+        _AccuracyBoost.value = AccuracyBoost
+        _lAccuracyBoost.value = lAccuracyBoost
+        _HighAccuracyDefault.value = HighAccuracyDefault
+        _DoLateRadTruncation.value = DoLateRadTruncation
+        print('Warning: accuracy parameters are changed globally, not yet per parameter set')
+        return self
 
     def set_initial_power(self, initial_power_params):
         """
@@ -409,6 +442,25 @@ class CAMBparams(CAMB_Structure):
             self.max_eta_k = max(self.max_eta_k, lens_k_eta_reference * lens_potential_accuracy)
         return self
 
+    def scalar_power(self, k):
+        return self.primordial_power(k, 0)
+
+    def tensor_power(self, k):
+        return self.primordial_power(k, 2)
+
+    def primordial_power(self, k, ix):
+        if np.isscalar(k):
+            karr = np.array([float(k)])
+        else:
+            karr = np.array(k)
+        n = karr.shape[0]
+        powers = np.empty(n)
+        CAMB_primordialpower(byref(self), karr, powers, byref(c_int(n)), byref(c_int(ix)))
+        if np.isscalar(k):
+            return powers[0]
+        else:
+            return powers
+
 
 def Transfer_SetForNonlinearLensing(P):
     camblib.__transfer_MOD_transfer_setfornonlinearlensing(byref(P))
@@ -416,3 +468,6 @@ def Transfer_SetForNonlinearLensing(P):
 
 def Transfer_SortAndIndexRedshifts(P):
     camblib.__transfer_MOD_transfer_sortandindexredshifts(byref(P))
+
+
+CAMB_primordialpower.argtypes = [POINTER(CAMBparams), numpy_1d, numpy_1d, POINTER(c_int), POINTER(c_int)]

@@ -939,7 +939,7 @@
     !!Example code for plotting out variable evolution
     if (fixq/=0._dl) then
         tol1=tol/exp(AccuracyBoost-1)
-        call CreateTxtFile('evolve_q005.txt',1)
+        call CreateTxtFile('evolve.txt',1)
         do j=1,1000
             tauend = taustart+(j-1)*(CP%tau0-taustart)/1000
             call GaugeInterface_EvolveScal(EV,tau,y,tauend,tol1,ind,c,w)

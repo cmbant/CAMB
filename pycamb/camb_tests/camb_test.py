@@ -1,5 +1,3 @@
-
-
 import os
 import sys
 import unittest
@@ -80,10 +78,16 @@ class CambTest(unittest.TestCase):
         pars = camb.CAMBparams()
         pars.set_cosmology(H0=67.5, ombh2=0.022, omch2=0.122, mnu=0.07, omk=0)
         pars.set_dark_energy() #re-set defaults
-        pars.InitPower.set_params(ns=0.965)
+        pars.InitPower.set_params(ns=0.965, As=2e-9)
+
+        self.assertAlmostEqual(pars.scalar_power(1),1.801e-9,4)
+        self.assertAlmostEqual(pars.scalar_power([1, 1.5])[0],1.801e-9,4)
+
         pars.set_matter_power(redshifts=[0., 0.17, 3.1])
         pars.NonLinear = model.NonLinear_none
         data = camb.get_results(pars)
+
+#        transfer = data.get_cmb_transfer_data()
 
         kh, z, pk = data.get_matter_power_spectrum(1e-4, 1, 20)
 

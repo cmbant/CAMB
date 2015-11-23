@@ -59,8 +59,10 @@ class SharedLibrary(install):
             OUTPUT = r"-o pycamb\camb\%s" % DLLNAME
             scrs = os.listdir(os.getcwd())
             if not has_win_gfortran():
-                print('WARNING: gfortran not in path (if you just installed may need to log off and on again).')
-                print('Using pre-compiled binaries instead... any local changes will be ignored')
+                print('WARNING: gfortran not in path (if you just installed you may need to log off and on again).')
+                print('         You can get a Windows gfortan build from http://sourceforge.net/projects/mingw-w64/')
+                print('         (get the %s version to match this python installation)'%(('x86_64','i686')[is32Bit]))
+                print('Using pre-compiled binaries instead - any local changes will be ignored...')
                 COPY = r'copy /Y pycamb\dlls\%s pycamb\camb\%s' % (('cambdll_x64.dll', DLLNAME)[is32Bit], DLLNAME)
                 subprocess.call(COPY, shell=True)
             else:

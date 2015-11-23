@@ -1,10 +1,11 @@
 from .baseconfig import camblib, CAMBError, CAMB_Structure, dll_import
 import ctypes
-from ctypes import c_float, c_int, c_double, c_bool, POINTER, byref, addressof
+from ctypes import c_float, c_int, c_double, c_bool, POINTER, byref
 from . import model, constants
 import numpy as np
 from numpy import ctypeslib as nplib
 from numpy.ctypeslib import ndpointer
+import initialpower
 import logging
 import sys
 
@@ -24,6 +25,17 @@ class _MatterTransferData(CAMB_Structure):
                 ('sigma_8_size', c_int * 2),
                 ('sigma2_vdelta_8_size', c_int * 2),
                 ('TransferData_size', c_int * 3)
+                ]
+
+
+class _ClTransferData(CAMB_Structure):
+    _fields_ = [('NumSources', c_int),
+                ('q_size', c_int),
+                ('q', POINTER(c_double)),
+                ('delta_size', c_int * 3),
+                ('delta_p_l_k', POINTER(c_double)),
+                ('l_size', c_int),
+                ('l', POINTER(c_int))
                 ]
 
 
@@ -62,6 +74,9 @@ CAMBdata_transferstopowers.argtypes = [POINTER(_CAMBdata)]
 
 CAMBdata_mattertransferdata = camblib.__handles_MOD_cambdata_mattertransferdata
 CAMBdata_mattertransferdata.argtypes = [POINTER(_CAMBdata), POINTER(_MatterTransferData)]
+
+CAMBdata_cltransferdata = camblib.__handles_MOD_cambdata_cltransferdata
+CAMBdata_cltransferdata.argtypes = [POINTER(_CAMBdata), POINTER(_ClTransferData), int_arg]
 
 CAMB_SetTotCls = camblib.__handles_MOD_camb_settotcls
 CAMB_SetUnlensedCls = camblib.__handles_MOD_camb_setunlensedcls
@@ -148,7 +163,7 @@ class MatterTransferData(object):
     MatterTransferData is the base class for storing matter power transfer function data for various q values.
     In a flat universe q=k, in a closed universe q is quantised.
 
-    To get an instance of this data, call :meth:`camb.CAMBdata.get_matter_power_spectrum`
+    To get an instance of this data, call :meth:`camb.CAMBdata.get_matter_transfer_data`
 
     :ivar num_q_trans:  number of q modes calculated
     :ivar q_trans: array of q values calculated
@@ -173,6 +188,19 @@ class MatterTransferData(object):
     pass
 
 
+class ClTransferData(object):
+    """
+    ClTransferData is the base class for storing CMB power transfer functions, as a function of q and l.
+    To get an instance of this data, call :meth:`camb.CAMBdata.get_cmb_transfer_data`
+
+    :ivar NumSources:  number of sources calculated (size of p index)
+    :ivar q: array of q values calculated (=k in flat universe)
+    :ivar l: int array of l values calculated
+    :ivar delta_p_l_k: transfer functions, indexed by source, l, k
+    """
+    pass
+
+
 def set_feedback_level(level=1):
     """
     Set the feedback level for internal CAMB calls
@@ -192,23 +220,23 @@ def set_default_params(P):
     return P
 
 
-def fortran_array(cP, shape, dtype=np.float64):
+def fortran_array(c_pointer, shape, dtype=np.float64, order='F', own_data=True):
+    shape = np.atleast_1d(shape)
+    arr_size = np.prod(shape[:]) * np.dtype(dtype).itemsize
     if sys.version_info.major >= 3:
-        buffer_from_memory = ctypes.pythonapi.PyMemoryView_FromMemory
-        buffer_from_memory.restype = ctypes.py_object
-        buffer_from_memory.argtypes = (ctypes.c_void_p, ctypes.c_int, ctypes.c_int)
-        buffer = buffer_from_memory(cP, np.prod(shape[:]) * np.dtype(dtype).itemsize, 0x100)
+        buf_from_mem = ctypes.pythonapi.PyMemoryView_FromMemory
+        buf_from_mem.restype = ctypes.py_object
+        buf_from_mem.argtypes = (ctypes.c_void_p, ctypes.c_int, ctypes.c_int)
+        buffer = buf_from_mem(c_pointer, arr_size, 0x100)
     else:
         buffer_from_memory = ctypes.pythonapi.PyBuffer_FromMemory
         buffer_from_memory.restype = ctypes.py_object
-        buffer = buffer_from_memory(cP, np.prod(shape[:]) * np.dtype(dtype).itemsize)
-    arr = np.ndarray(tuple(shape[:]), dtype, buffer, order='F')
-    # this doesn't work in python 3
-    #    arr = np.ndarray(tuple(shape[:]), dtype, np.core.multiarray.int_asbuffer(
-    #        addressof(cP.contents), np.prod(shape[:]) * np.dtype(dtype).itemsize), order='F')
-    if not arr.flags.owndata:
-        arr = arr.copy()
-    return arr
+        buffer = buffer_from_memory(c_pointer, arr_size)
+    arr = np.ndarray(tuple(shape[:]), dtype, buffer, order=order)
+    if own_data and not arr.flags.owndata:
+        return arr.copy()
+    else:
+        return arr
 
 
 def set_z_outputs(z_outputs):
@@ -398,6 +426,21 @@ class CAMBdata(object):
         for spectrum in spectra:
             P[spectrum] = getattr(self, 'get_' + spectrum + '_cls')(lmax)
         return P
+
+    def get_cmb_transfer_data(self, tp='scalar'):
+        """
+        Get C_l transfer functions
+
+        :return: class:`.ClTransferData` instance holding output arrays (copies, not pointers)
+        """
+        cdata = _ClTransferData()
+        CAMBdata_cltransferdata(self._key, byref(cdata), byref(c_int(['scalar', 'vector', 'tensor'].index(tp))))
+        data = ClTransferData()
+        data.NumSources = cdata.NumSources
+        data.q = fortran_array(cdata.q, cdata.q_size)
+        data.l = fortran_array(cdata.l, cdata.l_size, dtype=c_int)
+        data.delta_p_l_k = fortran_array(cdata.delta_p_l_k, cdata.delta_size)
+        return data
 
     def get_matter_transfer_data(self):
         """
