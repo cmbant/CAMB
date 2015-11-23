@@ -425,6 +425,7 @@ class CAMBdata(object):
         for spectrum in spectra:
             P[spectrum] = getattr(self, 'get_' + spectrum + '_cls')(lmax)
         return P
+
     def get_cmb_transfer_data(self, tp='scalar'):
         """
         Get C_l transfer functions
@@ -829,7 +830,7 @@ def cleanup():
     camblib.__camb_MOD_camb_cleanup()
 
 
-def set_params(cp=None,verbose=False,**params):
+def set_params(cp=None, verbose=False, **params):
     """
 
     Set all CAMB parameters at once, including parameters which are part of the 
@@ -854,48 +855,48 @@ def set_params(cp=None,verbose=False,**params):
 
     """
 
-    setters = [s.__func__ if hasattr(s,'__func__') else s for s in  #in python3 no need for __func__ here
+    setters = [s.__func__ if hasattr(s, '__func__') else s for s in  # in python3 no need for __func__ here
                [model.CAMBparams.set_cosmology,
                 model.CAMBparams.set_initial_power,
                 model.CAMBparams.set_dark_energy,
                 model.CAMBparams.set_matter_power,
                 model.CAMBparams.set_for_lmax,
-                initialpower.InitialPowerParams.set_params]]  
+                initialpower.InitialPowerParams.set_params]]
 
-    globs = {'ALens':lensing.ALens}
+    globs = {'ALens': lensing.ALens}
 
     if cp is None:
-        cp=model.CAMBparams()
+        cp = model.CAMBparams()
     else:
-        assert isinstance(cp,model.CAMBparams), "cp should be an instance of CAMBparams"
+        assert isinstance(cp, model.CAMBparams), "cp should be an instance of CAMBparams"
 
-    _used_params=set()
-    for k,v in globs.items():
+    _used_params = set()
+    for k, v in globs.items():
         if k in params:
             if verbose:
-                logging.warning('Setting %s=%s'%(k,v))
+                logging.warning('Setting %s=%s' % (k, v))
             _used_params.add(k)
-            v.value=params[k]
+            v.value = params[k]
 
     def crawl_params(cp):
         for k in dir(cp):
-            if k[0]!='_':
-                v = getattr(cp,k)
+            if k[0] != '_':
+                v = getattr(cp, k)
                 if ismethod(v):
                     if v.__func__ in setters:
-                        kwargs={k:params[k] for k in getargspec(v).args[1:] if k in params}
+                        kwargs = {k: params[k] for k in getargspec(v).args[1:] if k in params}
                         _used_params.update(kwargs.keys())
                         if kwargs:
                             if verbose:
-                                logging.warning('Calling %s(**%s)'%(v.__name__,kwargs))
+                                logging.warning('Calling %s(**%s)' % (v.__name__, kwargs))
                             v(**kwargs)
-                elif isinstance(v,CAMB_Structure):
+                elif isinstance(v, CAMB_Structure):
                     crawl_params(v)
-    
+
     crawl_params(cp)
 
     unused_params = set(params) - set(_used_params)
     if unused_params:
-        raise Exception("Unrecognized parameters: %s"%unused_params)
+        raise Exception("Unrecognized parameters: %s" % unused_params)
 
     return cp
