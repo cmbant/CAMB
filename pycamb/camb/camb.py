@@ -1,13 +1,13 @@
 from .baseconfig import camblib, CAMBError, CAMB_Structure, dll_import
 import ctypes
 from ctypes import c_float, c_int, c_double, c_bool, POINTER, byref
-from . import model, constants
+from . import model, constants, initialpower, lensing
 import numpy as np
 from numpy import ctypeslib as nplib
 from numpy.ctypeslib import ndpointer
-import initialpower
 import logging
 import sys
+from inspect import ismethod, getargspec
 
 
 class _CAMBdata(CAMB_Structure):
@@ -77,7 +77,6 @@ CAMBdata_mattertransferdata.argtypes = [POINTER(_CAMBdata), POINTER(_MatterTrans
 
 CAMBdata_cltransferdata = camblib.__handles_MOD_cambdata_cltransferdata
 CAMBdata_cltransferdata.argtypes = [POINTER(_CAMBdata), POINTER(_ClTransferData), int_arg]
-
 CAMB_SetTotCls = camblib.__handles_MOD_camb_settotcls
 CAMB_SetUnlensedCls = camblib.__handles_MOD_camb_setunlensedcls
 CAMB_SetLensPotentialCls = camblib.__handles_MOD_camb_setlenspotentialcls
@@ -426,7 +425,6 @@ class CAMBdata(object):
         for spectrum in spectra:
             P[spectrum] = getattr(self, 'get_' + spectrum + '_cls')(lmax)
         return P
-
     def get_cmb_transfer_data(self, tp='scalar'):
         """
         Get C_l transfer functions
@@ -829,3 +827,75 @@ def get_zre_from_tau(params, tau):
 
 def cleanup():
     camblib.__camb_MOD_camb_cleanup()
+
+
+def set_params(cp=None,verbose=False,**params):
+    """
+
+    Set all CAMB parameters at once, including parameters which are part of the 
+    CAMBparams structure, as well as global parameters.
+
+    E.g. 
+
+    cp = camb.set_params(ns=1, omch2=0.1, ALens=1.2, lmax=2000)
+
+    This is equivalent to:
+
+    cp = model.CAMBparams()
+    cp.set_cosmology(omch2=0.1)
+    cp.set_for_lmax(lmax=2000)
+    cp.InitPower.set_params(ns=1)
+    lensing.ALens.value = 1.2
+
+
+    :param **params: the values of the parameters
+    :param cp: use this CAMBparams instead of creating a new one
+    :param verbose: print out the equivalent set of commands 
+
+    """
+
+    setters = [s.__func__ if hasattr(s,'__func__') else s for s in  #in python3 no need for __func__ here
+               [model.CAMBparams.set_cosmology,
+                model.CAMBparams.set_initial_power,
+                model.CAMBparams.set_dark_energy,
+                model.CAMBparams.set_matter_power,
+                model.CAMBparams.set_for_lmax,
+                initialpower.InitialPowerParams.set_params]]  
+
+    globs = {'ALens':lensing.ALens}
+
+    if cp is None:
+        cp=model.CAMBparams()
+    else:
+        assert isinstance(cp,model.CAMBparams), "cp should be an instance of CAMBparams"
+
+    _used_params=set()
+    for k,v in globs.items():
+        if k in params:
+            if verbose:
+                logging.warning('Setting %s=%s'%(k,v))
+            _used_params.add(k)
+            v.value=params[k]
+
+    def crawl_params(cp):
+        for k in dir(cp):
+            if k[0]!='_':
+                v = getattr(cp,k)
+                if ismethod(v):
+                    if v.__func__ in setters:
+                        kwargs={k:params[k] for k in getargspec(v).args[1:] if k in params}
+                        _used_params.update(kwargs.keys())
+                        if kwargs:
+                            if verbose:
+                                logging.warning('Calling %s(**%s)'%(v.__name__,kwargs))
+                            v(**kwargs)
+                elif isinstance(v,CAMB_Structure):
+                    crawl_params(v)
+    
+    crawl_params(cp)
+
+    unused_params = set(params) - set(_used_params)
+    if unused_params:
+        raise Exception("Unrecognized parameters: %s"%unused_params)
+
+    return cp
