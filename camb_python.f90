@@ -391,8 +391,90 @@
 
     end function CAMB_PrimordialPower
 
+    subroutine GetOutputEvolutionFork(EV, times, outputs)
+    use Transfer
+    use CAMBmain
+    implicit none
+    type(EvolutionVars) EV
+    real(dl), intent(in) :: times(:)
+    real(dl), intent(out) :: outputs(:,:,:)
+    real(dl) tau,tol1,tauend, taustart
+    integer j,ind,itf
+    real(dl) c(24),w(EV%nvar,9), y(EV%nvar)
+    real(dl) yprime(EV%nvar), ddelta, delta, adotoa,dtauda, growth, x_e, a, x_e_recomb
+    external dtauda
+    real, target :: Arr(Transfer_max)
+
+    w=0
+    y=0
+    taustart = GetTauStart(min(500._dl,EV%q))
+    call initial(EV,y, taustart)
+
+    tau=taustart
+    ind=1
+    tol1=tol/exp(AccuracyBoost-1)
+    do j=1,size(times)
+        tauend = times(j)
+        if (tauend<taustart) cycle
+             
+        call GaugeInterface_EvolveScal(EV,tau,y,tauend,tol1,ind,c,w)
+        yprime = 0
+        EV%OutputTransfer =>  Arr
+        call derivs(EV,EV%ScalEqsToPropagate,tau,y,yprime)
+        nullify(EV%OutputTransfer)
+        a = y(1)
+        outputs(1:Transfer_Max, j, EV%q_ix) = Arr
+        outputs(Transfer_Max+1, j, EV%q_ix) = a
+        outputs(Transfer_Max+2, j, EV%q_ix) = y(2) !etak
+        adotoa = 1/(y(1)*dtauda(y(1)))
+        ddelta= (yprime(3)*grhoc+yprime(4)*grhob)/(grhob+grhoc)
+        delta=(grhoc*y(3)+grhob*y(4))/(grhob+grhoc)
+        growth= ddelta/delta/adotoa
+        outputs(Transfer_Max+3, j, EV%q_ix) = adotoa !hubble
+        outputs(Transfer_Max+4, j, EV%q_ix) = growth
+        if (.not. EV%no_phot_multpoles) then
+            outputs(Transfer_Max+5, j, EV%q_ix) = y(EV%g_ix+1) !v_g
+            if (EV%TightCoupling) then
+                outputs(Transfer_Max+6, j, EV%q_ix) = EV%pig
+                outputs(Transfer_Max+7, j, EV%q_ix) = EV%pig/4 !just first order result
+            else
+                outputs(Transfer_Max+6, j, EV%q_ix) = y(EV%g_ix+2) !pi_g
+                outputs(Transfer_Max+7, j, EV%q_ix) = y(EV%polind+2) !E_2
+            end if
+        end if
+        if (.not. EV%no_nu_multpoles) then
+            outputs(Transfer_Max+8, j, EV%q_ix) = y(EV%r_ix+1) !v_r
+        end if
+
+        if (global_error_flag/=0) return
+    end do
+    end subroutine GetOutputEvolutionFork
+
+    function CAMB_TimeEvolution(nq, q, ntimes, times, noutputs, outputs) result(err)
+    integer, intent(in) :: nq, ntimes, noutputs
+    real(dl), intent(in) :: q(nq), times(ntimes)
+    real(dl), intent(out) :: outputs(Transfer_Max+8, ntimes, nq)
+    integer err
+    integer q_ix
+    Type(EvolutionVars) :: Ev
+
+    global_error_flag = 0
+    outputs = 0
+    !$OMP PARALLEL DO DEFAUlT(SHARED),SCHEDUlE(DYNAMIC), PRIVATE(EV, q_ix)
+    do q_ix= 1, nq
+        if (global_error_flag==0) then
+            EV%q_ix = q_ix
+            EV%q = q(q_ix)
+            EV%TransferOnly=.false.
+            EV%q2=EV%q**2
+            call GetNumEqns(EV)
+            call GetOutputEvolutionFork(EV, times, outputs)
+        end if
+    end do
+    !$OMP END PARALLEL DO
+    err = global_error_flag
+    end function CAMB_TimeEvolution
 
     ! END BRIDGE FOR PYTHON
-
 
     end module handles

@@ -518,7 +518,7 @@
     real(dl) DeltaTime, atol
     real(dl), intent(IN) :: a1,a2
     real(dl), optional, intent(in) :: in_tol
-    real(dl) dtauda, rombint !diff of tau w.CP%r.t a and integration
+    real(dl) dtauda, rombint !diff of tau w.r.t a and integration
     external dtauda, rombint
 
     if (present(in_tol)) then
@@ -537,6 +537,21 @@
 
     TimeOfz=DeltaTime(0._dl,1._dl/(z+1._dl))
     end function TimeOfz
+
+    subroutine TimeOfzArr(nz, redshifts, outputs)
+    integer, intent(in) :: nz
+    real(dl), intent(in) :: redshifts(nz)
+    real(dl), intent(out) :: outputs(nz)
+    integer i
+
+    !Dumb slow version
+    !$OMP PARALLEL DO DEFAUlT(SHARED)
+    do i=1, nz
+        outputs(i) = timeOfZ(redshifts(i))
+    end do
+    !$OMP END PARALLEL DO
+
+    end subroutine TimeOfzArr
 
     function DeltaPhysicalTimeGyr(a1,a2, in_tol)
     use constants
@@ -2490,7 +2505,7 @@
     P%num_redshifts=i
 
     end subroutine Transfer_SortAndIndexRedshifts
-	
+    
     end module Transfer
 
 
@@ -2520,7 +2535,7 @@
 
     public thermo,inithermo,vis,opac,expmmu,dvis,dopac,ddvis,lenswin, tight_tau,&
         Thermo_OpacityToTime,matter_verydom_tau, ThermoData_Free,&
-        z_star, z_drag  !!JH for updated BAO likelihood.
+        z_star, z_drag, GetBackgroundEvolution
     contains
 
     subroutine thermo(tau,cs2b,opacity, dopacity)
@@ -3100,4 +3115,43 @@
 
     !!!!!!!!!!!!!!!!!!! end JH
 
+    subroutine GetBackgroundEvolution(ntimes, times, outputs)
+    integer, intent(in) :: ntimes
+    real(dl), intent(in) :: times(ntimes)
+    real(dl) :: outputs(4, ntimes)
+    real(dl) spline_data(nthermo), ddxe(nthermo)
+    real(dl) :: d, tau, cs2b, opacity, vis
+    integer i, ix
+
+    call splini(spline_data,nthermo)
+    call splder(xe,ddxe,nthermo,spline_data)
+    outputs = 0
+    do ix = 1, ntimes
+        tau = times(ix)
+        if (tau < tauminn) cycle
+        d=log(tau/tauminn)/dlntau+1._dl
+        i=int(d)
+        d=d-i
+        call thermo(tau,cs2b, opacity)
+
+        if (i < nthermo) then
+            outputs(1,ix)=xe(i)+d*(ddxe(i)+d*(3._dl*(xe(i+1)-xe(i)) &
+                -2._dl*ddxe(i)-ddxe(i+1)+d*(ddxe(i)+ddxe(i+1) &
+                +2._dl*(xe(i)-xe(i+1)))))
+            vis=emmu(i)+d*(demmu(i)+d*(3._dl*(emmu(i+1)-emmu(i)) &
+                -2._dl*demmu(i)-demmu(i+1)+d*(demmu(i)+demmu(i+1) &
+                +2._dl*(emmu(i)-emmu(i+1)))))
+
+        else
+            outputs(1,ix)=xe(nthermo)
+            vis = emmu(nthermo)
+        end if
+
+        outputs(2, ix) = opacity
+        outputs(3, ix) = opacity*vis
+        outputs(4, ix) = cs2b
+    end do
+
+    end subroutine GetBackgroundEvolution
+    
     end module ThermoData

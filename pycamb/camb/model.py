@@ -36,6 +36,13 @@ NonLinear_both = 3
 derived_names = ['age', 'zstar', 'rstar', 'thetastar', 'DAstar', 'zdrag',
                  'rdrag', 'kd', 'thetad', 'zeq', 'keq', 'thetaeq', 'thetarseq']
 
+transfer_names = ['k/h', 'delta_cdm', 'delta_baryon', 'delta_photon', 'delta_neutrino', 'delta_nu', 'delta_tot',
+                  'delta_nonu', 'delta_tot_de', 'Weyl', 'v_newtonian_cdm', 'v_newtonian_baryon', 'v_baryon_cdm']
+
+evolve_names = transfer_names + ['a', 'etak', 'H', 'growth', 'v_photon', 'pi_photon', 'E_2', 'v_neutrino']
+
+background_names = ['x_e', 'opacity', 'visibility', 'cs2b']
+
 # ---Variables in modules.f90
 # To set the value please just put 
 # variable_name.value = new_value
@@ -412,6 +419,8 @@ class CAMBparams(CAMB_Structure):
         zs = sorted(redshifts, reverse=True)
         if np.any(np.array(zs) - np.array(redshifts) != 0):
             print("Note: redshifts have been re-sorted (earliest first)")
+        if len(redshifts) > max_transfer_redshifts:
+            raise CAMBError('You can have at most %s redshifts' % max_transfer_redshifts)
         self.Transfer.PK_num_redshifts = len(redshifts)
         for i, z in enumerate(zs):
             self.Transfer.PK_redshifts[i] = z

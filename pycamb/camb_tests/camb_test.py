@@ -1,6 +1,7 @@
 import os
 import sys
 import unittest
+import numpy as np
 
 try:
     import camb
@@ -68,26 +69,45 @@ class CambTest(unittest.TestCase):
         pars.set_dark_energy(w=-1.0226, dark_energy_model='fluid')
         data.calc_background(pars)
         self.assertAlmostEqual(data.get_derived_params()['age'], 13.789, 2)
-        scal= data.luminosity_distance(1.4)
+        scal = data.luminosity_distance(1.4)
         vec = data.luminosity_distance([1.2, 1.4, 0.1, 1.9])
-        self.assertAlmostEqual(scal,vec[1],5)
-        pars.set_dark_energy() #re-set defaults
+        self.assertAlmostEqual(scal, vec[1], 5)
+        pars.set_dark_energy()  # re-set defaults
 
+    def testEvolution(self):
+        redshifts = [0.4, 31.5]
+        pars = camb.set_params(H0=67.5, ombh2=0.022, omch2=0.122, As=2e-9, ns=0.95,
+                               redshifts=redshifts, kmax=0.1)
+        pars.WantCls = False
+
+        # check transfer function routines and evolution code agree
+        # Note transfer function redshifts are re-sorted in outputs
+        data = camb.get_transfer_functions(pars)
+        mtrans = data.get_matter_transfer_data()
+        transfer_k = mtrans.transfer_z('delta_cdm', z_index=1)
+        transfer_k2 = mtrans.transfer_z('delta_baryon', z_index=0)
+
+        kh = mtrans.transfer_z('k/h', z_index=1)
+        ev = data.get_redshift_evolution(mtrans.q, redshifts, ['delta_baryon', 'delta_cdm', 'delta_photon'],
+                                         lAccuracyBoost=1)
+        self.assertTrue(np.all(np.abs(transfer_k * kh ** 2 * (pars.H0 / 100) ** 2 / ev[:, 0, 1] - 1) < 1e-3))
+        ix = 1
+        self.assertAlmostEqual(transfer_k2[ix] * kh[ix] ** 2 * (pars.H0 / 100) ** 2, ev[ix, 1, 0], 4)
 
     def testPowers(self):
         pars = camb.CAMBparams()
         pars.set_cosmology(H0=67.5, ombh2=0.022, omch2=0.122, mnu=0.07, omk=0)
-        pars.set_dark_energy() #re-set defaults
+        pars.set_dark_energy()  # re-set defaults
         pars.InitPower.set_params(ns=0.965, As=2e-9)
 
-        self.assertAlmostEqual(pars.scalar_power(1),1.801e-9,4)
-        self.assertAlmostEqual(pars.scalar_power([1, 1.5])[0],1.801e-9,4)
+        self.assertAlmostEqual(pars.scalar_power(1), 1.801e-9, 4)
+        self.assertAlmostEqual(pars.scalar_power([1, 1.5])[0], 1.801e-9, 4)
 
         pars.set_matter_power(redshifts=[0., 0.17, 3.1])
         pars.NonLinear = model.NonLinear_none
         data = camb.get_results(pars)
 
-#        transfer = data.get_cmb_transfer_data()
+        #        transfer = data.get_cmb_transfer_data()
 
         kh, z, pk = data.get_matter_power_spectrum(1e-4, 1, 20)
 
@@ -105,8 +125,6 @@ class CambTest(unittest.TestCase):
 
         camb.set_feedback_level(0)
         cls = data.get_cmb_power_spectra(pars)
-
-        MTrans = data.get_matter_transfer_data()
 
         cls_tot = data.get_total_cls(2000)
         cls_scal = data.get_unlensed_scalar_cls(2000)

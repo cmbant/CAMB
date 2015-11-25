@@ -141,6 +141,9 @@ ComovingRadialDistance = camblib.__modelparams_MOD_comovingradialdistance
 ComovingRadialDistance.argtyes = [d_arg]
 ComovingRadialDistance.restype = c_double
 
+TimeOfzArr = camblib.__modelparams_MOD_timeofzarr
+TimeOfzArr.argtypes = [int_arg, numpy_1d, numpy_1d]
+
 Hofz = camblib.__modelparams_MOD_hofz
 Hofz.argtyes = [d_arg]
 Hofz.restype = c_double
@@ -156,6 +159,14 @@ DeltaTime.restype = c_double
 CosmomcTheta = camblib.__modelparams_MOD_cosmomctheta
 CosmomcTheta.restype = c_double
 
+CAMB_TimeEvolution = camblib.__handles_MOD_camb_timeevolution
+CAMB_TimeEvolution.restype = c_bool
+CAMB_TimeEvolution.argtypes = [int_arg, numpy_1d, int_arg, numpy_1d,
+                               int_arg, ndpointer(c_double, flags='C_CONTIGUOUS', ndim=3)]
+
+CAMB_BackgroundEvolution = camblib.__thermodata_MOD_getbackgroundevolution
+CAMB_BackgroundEvolution.argtypes = [int_arg, numpy_1d, numpy_2d]
+
 
 class MatterTransferData(object):
     """
@@ -164,11 +175,11 @@ class MatterTransferData(object):
 
     To get an instance of this data, call :meth:`camb.CAMBdata.get_matter_transfer_data`
 
-    :ivar num_q_trans:  number of q modes calculated
-    :ivar q_trans: array of q values calculated
+    :ivar nq:  number of q modes calculated
+    :ivar q: array of q values calculated
     :ivar sigma_8: array of sigma8 values for each redshift for each power spectrum
     :ivar sigma2_vdelta_8: array of v-delta8 correlation, so sigma2_vdelta_8/sigma_8 can define growth
-    :ivar TransferData: numpy array T[entry, q_index, z_index] storing transfer functions for each redshift and q; entry+1 can be
+    :ivar transfer_data: numpy array T[entry, q_index, z_index] storing transfer functions for each redshift and q; entry+1 can be
 
             - Transfer_kh = 1 (k/h)
             - Transfer_cdm = 2 (cdm)
@@ -185,6 +196,19 @@ class MatterTransferData(object):
             - Transfer_vel_baryon_cdm = 13 (relative baryon-cdm velocity)
     """
     pass
+
+    def transfer_z(self, name, z_index=0):
+        """
+        Get transfer function (function of q, for each q in self.q_trans) by name for given redshift index
+
+        :param name:  parameter name
+        :param z_index: which redshift
+        :return: array of transfer function values for each calculated k
+        """
+
+        if not name in model.transfer_names:
+            raise CAMBError('Unknown name %s; must be one of %s' % (name, model.transfer_names))
+        return self.transfer_data[model.transfer_names.index(name), :, z_index]
 
 
 class ClTransferData(object):
@@ -441,6 +465,98 @@ class CAMBdata(object):
         data.delta_p_l_k = fortran_array(cdata.delta_p_l_k, cdata.delta_size)
         return data
 
+    def get_time_evolution(self, q, eta, vars=model.evolve_names, lAccuracyBoost=4):
+        """
+        Get the mode evolution as a function of conformal time for some k values.
+
+        :param q: wavenumber values to calculate (or array of k values)
+        :param eta: array of requested conformal times to output
+        :param vars: list of variable names to output
+        :return: nd array, A_{qti}, size(q) x size(times) x len(vars), or 2d array if q is scalar
+        """
+
+        try:
+            old_boost = model._lAccuracyBoost.value
+            model._lAccuracyBoost.value = lAccuracyBoost
+            unknown = set(vars) - set(model.evolve_names)
+            if unknown:
+                raise CAMBError('Unknown names %s; valid names are %s' % (unknown, model.evolve_names))
+            if np.isscalar(q):
+                k = np.array([q], dtype=np.float64)
+            else:
+                k = np.array(q, dtype=np.float64)
+            if not isinstance(vars, (tuple, list)):
+                variables = [vars]
+            else:
+                variables = vars
+            times = np.array(eta, dtype=np.float64)
+            indices = np.argsort(times)  # times must be in increasing order
+            nvars = model.Transfer_max + 8
+            outputs = np.empty((k.shape[0], times.shape[0], nvars))
+
+            if CAMB_TimeEvolution(byref(c_int(k.shape[0])), k, byref(c_int(times.shape[0])), times[indices],
+                                  byref(c_int(nvars)), outputs): raise CAMBError('Error in evolution')
+            ix = np.array([model.evolve_names.index(var) for var in variables])
+            i_rev = np.zeros(times.shape, dtype=int)
+            i_rev[indices] = np.arange(times.shape[0])
+            outputs = outputs[:, i_rev, :]
+        finally:
+            model._lAccuracyBoost.value = old_boost
+        if np.isscalar(q):
+            return outputs[0, :, :][:, ix]
+        else:
+            return outputs[:, :, ix]
+
+    def get_redshift_evolution(self, q, z, vars=model.evolve_names, lAccuracyBoost=4):
+        """
+        Get the mode evolution as a function of redshift for some k values.
+
+        :param q: wavenumber values to calculate (or array of k values)
+        :param z: array of redshifts to output
+        :param vars: list of variable names to output
+        :return: nd array, A_{qti}, size(q) x size(times) x len(vars), or 2d array if q is scalar
+        """
+        return self.get_time_evolution(q, self.conformal_time(z), vars, lAccuracyBoost)
+
+    def get_background_time_evolution(self, eta, vars=model.background_names, format='dict'):
+        """
+        Get the evolution of background variables a function of conformal time.
+        For the moment a and H are rather perversely only available via :meth:`get_time_evolution`
+
+        :param eta: array of requested conformal times to output
+        :param vars: list of variable names to output
+        :param format: 'dict' or 'array', for either dict of 1D arrays indexed by name, or 2D array
+        :return: n_eta x len(vars) 2D numpy array of outputs or dict of 1D arrays
+        """
+
+        unknown = set(vars) - set(model.background_names)
+        if unknown:
+            raise CAMBError('Unknown names %s; valid names are %s' % (unknown, model.background_names))
+        outputs = np.zeros((eta.shape[0], 4))
+        CAMB_BackgroundEvolution(byref(c_int(eta.shape[0])), eta, outputs)
+        indices = [model.background_names.index(var) for var in vars]
+        if format == 'dict':
+            res = {}
+            for var, index in zip(vars, indices):
+                res[var] = outputs[:, index]
+            return res
+        else:
+            assert format == 'array', "format must be dict or array"
+            return outputs[:, np.array(indices)]
+
+    def get_background_redshift_evolution(self, z, vars=model.background_names, format='dict'):
+        """
+        Get the evolution of background variables a function of redshift.
+        For the moment a and H are rather perversely only available via :meth:`get_time_evolution`
+
+        :param eta: array of requested conformal times to output
+        :param vars: list of variable names to output
+        :param format: 'dict' or 'array', for either dict of 1D arrays indexed by name, or 2D array
+        :return: n_eta x len(vars) 2D numpy array of outputs or dict of 1D arrays
+        """
+
+        return self.get_background_time_evolution(self.conformal_time(z), vars, format)
+
     def get_matter_transfer_data(self):
         """
         Get matter transfer function data and sigma8 for calculated results.
@@ -453,11 +569,11 @@ class CAMBdata(object):
         cdata = _MatterTransferData()
         CAMBdata_mattertransferdata(self._key, byref(cdata))
         data = MatterTransferData()
-        data.num_q_trans = cdata.num_q_trans
-        data.q_trans = nplib.as_array(cdata.q_trans, shape=(data.num_q_trans,))
+        data.nq = cdata.num_q_trans
+        data.q = nplib.as_array(cdata.q_trans, shape=(data.nq,))
         data.sigma_8 = fortran_array(cdata.sigma_8, cdata.sigma_8_size)
         data.sigma2_vdelta_8 = fortran_array(cdata.sigma2_vdelta_8, cdata.sigma2_vdelta_8_size)
-        data.TransferData = fortran_array(cdata.TransferData, cdata.TransferData_size, dtype=np.float32)
+        data.transfer_data = fortran_array(cdata.TransferData, cdata.TransferData_size, dtype=np.float32)
         return data
 
     def get_linear_matter_power_spectrum(self, var1=model.transfer_power_var.value, var2=model.transfer_power_var.value,
@@ -477,9 +593,9 @@ class CAMBdata(object):
             self.calc_power_spectra(params)
         data = self.get_matter_transfer_data()
 
-        nk = data.num_q_trans
+        nk = data.nq
         nz = self.Params.Transfer.PK_num_redshifts
-        kh = data.TransferData[model.Transfer_kh - 1, :, 0]
+        kh = data.transfer_data[model.Transfer_kh - 1, :, 0]
 
         var1 = c_int(var1)
         var2 = c_int(var2)
@@ -750,10 +866,19 @@ class CAMBdata(object):
         """
         Conformal time from hot big bang to redshift z in Megaparsec.
 
-        :param z: redshift
+        :param z: redshift or array of redshifts
         :return: eta(z)/Mpc
         """
-        return self.conformal_time_a1_a2(0, 1.0 / (1 + z))
+        if np.isscalar(z):
+            redshifts = np.array([z], dtype=np.float64)
+        else:
+            redshifts = np.array(z, dtype=np.float64)
+        eta = np.empty(redshifts.shape)
+        TimeOfzArr(byref(c_int(eta.shape[0])), redshifts, eta)
+        if np.isscalar(z):
+            return eta[0]
+        else:
+            return eta
 
     def cosmomc_theta(self):
         """
