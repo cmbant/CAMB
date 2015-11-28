@@ -28,23 +28,33 @@
     type(CAMBparams) :: Params
     type (CAMBdata)  :: OutData
     integer :: error !Zero if OK
+    Type(MatterTransferData) :: emptyMT
+    Type(ClTransferData) :: emptyCl
 
     !Set internal types from OutData so it always 'owns' the memory, prevent leaks
 
+    call Transfer_Free(MT)
     MT =  OutData%MTrans
 
+    call Free_ClTransfer(CTransScal)
+    call Free_ClTransfer(CTransVec)
+    call Free_ClTransfer(CTransTens)
     CTransScal = OutData%ClTransScal
     CTransVec  = OutData%ClTransVec
     CTransTens = OutData%ClTransTens
 
-
     call CAMB_GetResults(Params, error)
+
     OutData%Params = Params
     OutData%MTrans = MT
+    MT = emptyMT
     OutData%ClTransScal = CTransScal
     OutData%ClTransVec  = CTransVec
     OutData%ClTransTens = CTransTens
-
+    CTransScal = emptyCl
+    CTransVec  = emptyCl
+    CTransTens = emptyCl
+    
     end subroutine CAMB_GetTransfers
 
     subroutine CAMB_InitCAMBdata(Dat)
@@ -330,10 +340,10 @@
     P%want_zstar = .false.  !!JH
     P%want_zdrag = .false.  !!JH
 
-    P%Max_l=1500
-    P%Max_eta_k=3000
-    P%Max_l_tensor=400
-    P%Max_eta_k_tensor=800
+    P%Max_l=2500
+    P%Max_eta_k=5000
+    P%Max_l_tensor=600
+    P%Max_eta_k_tensor=1200
     !Set up transfer just enough to get sigma_8 OK
     P%Transfer%kmax=0.9
     P%Transfer%k_per_logint=0
@@ -350,7 +360,7 @@
     P%AccurateReionization = .false.
     P%AccurateBB = .false.
 
-    P%DoLensing = .false.
+    P%DoLensing = .true.
 
     P%MassiveNuMethod = Nu_best
     P%OnlyTransfers = .false.

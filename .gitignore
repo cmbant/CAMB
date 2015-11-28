@@ -14,3 +14,7 @@ Release/
 *.asv
 *.u2d
 *.user
+.DS_Store
+*egg*
+build
+inspectionProfiles

@@ -146,7 +146,7 @@
     implicit none
     public
 
-    character(LEN=*), parameter :: version = 'Sources_Aug15'
+    character(LEN=*), parameter :: version = 'Sources_Nov15'
 
     integer :: FeedbackLevel = 0 !if >0 print out useful information about the model
 
@@ -304,7 +304,7 @@
     !Parameters for checking/changing overall accuracy
     !If HighAccuracyDefault=.false., the other parameters equal to 1 corresponds to ~0.3% scalar C_l accuracy
     !If HighAccuracyDefault=.true., the other parameters equal to 1 corresponds to ~0.1% scalar C_l accuracy (at L>600)
-    logical :: HighAccuracyDefault = .false.
+    logical :: HighAccuracyDefault = .true.
 
     real(dl) :: lSampleBoost=1._dl
     !Increase lSampleBoost to increase sampling in lSamp%l for Cl interpolation
@@ -648,7 +648,7 @@
     real(dl) DeltaTime, atol
     real(dl), intent(IN) :: a1,a2
     real(dl), optional, intent(in) :: in_tol
-    real(dl) dtauda, rombint !diff of tau w.CP%r.t a and integration
+    real(dl) dtauda, rombint !diff of tau w.r.t a and integration
     external dtauda, rombint
 
     if (present(in_tol)) then
@@ -667,6 +667,21 @@
 
     TimeOfz=DeltaTime(0._dl,1._dl/(z+1._dl))
     end function TimeOfz
+
+    subroutine TimeOfzArr(nz, redshifts, outputs)
+    integer, intent(in) :: nz
+    real(dl), intent(in) :: redshifts(nz)
+    real(dl), intent(out) :: outputs(nz)
+    integer i
+
+    !Dumb slow version
+    !$OMP PARALLEL DO DEFAUlT(SHARED)
+    do i=1, nz
+        outputs(i) = timeOfZ(redshifts(i))
+    end do
+    !$OMP END PARALLEL DO
+
+    end subroutine TimeOfzArr
 
     function DeltaPhysicalTimeGyr(a1,a2, in_tol)
     use constants
@@ -691,6 +706,23 @@
     AngularDiameterDistance = CP%r/(1+z)*rofchi(ComovingRadialDistance(z) /CP%r)
 
     end function AngularDiameterDistance
+
+    subroutine AngularDiameterDistanceArr(arr, z, n)
+    !This is the physical (non-comoving) angular diameter distance in Mpc for array of z
+    integer,intent(in) :: n
+    real(dl), intent(out) :: arr(n)
+    real(dl), intent(in) :: z(n)
+    integer i
+    !dumb version that just calls each z in turn independently
+
+    !$OMP PARALLEL DO DEFAULT(SHARED),SCHEDULE(STATIC)
+    do i=1, n
+        arr(i) = AngularDiameterDistance(z(i))
+    end do
+    !$OMP END PARALLEL DO
+
+    end subroutine AngularDiameterDistanceArr
+
 
     function AngularDiameterDistance2(z1, z2) ! z1 < z2
     !From http://www.slac.stanford.edu/~amantz/work/fgas14/#cosmomc
@@ -1114,8 +1146,8 @@
 
     Type LimberRec
         integer n1,n2 !corresponding time step array indices
-        real(dl), dimension(:), pointer :: k
-        real(dl), dimension(:), pointer :: Source
+        real(dl), dimension(:), pointer :: k  => NULL()
+        real(dl), dimension(:), pointer :: Source  => NULL()
     end Type LimberRec
 
     Type ClTransferData
@@ -1251,7 +1283,9 @@
 
     if (.not. allocated(highL_CL_template)) then
         allocate(highL_CL_template(lmin:lmax_extrap_highl, C_Temp:C_Phi))
+
         call OpenTxtFile(highL_unlensed_cl_template,fileio_unit)
+
         if (lmin==1) highL_CL_template(lmin,:)=0
         do
             read(fileio_unit,*, end=500) L , array
@@ -1261,7 +1295,6 @@
             highL_CL_template(L, C_Cross) =array(4)
             highL_CL_template(L, C_Phi) =array(5)
         end do
-
 500     if (L< lmax_extrap_highl) &
             call MpiStop('CheckLoadedHighLTemplate: template file does not go up to lmax_extrap_highl')
         close(fileio_unit)
@@ -2577,6 +2610,18 @@
 
     end  subroutine Transfer_Allocate
 
+    subroutine Transfer_Nullify(Mtrans)
+    Type(MatterTransferData):: MTrans
+
+    Mtrans%num_q_trans = 0
+    nullify(MTrans%q_trans)
+    nullify(MTrans%TransferData)
+    nullify(MTrans%sigma_8)
+    nullify(MTrans%sigma2_vdelta_8)
+    nullify(MTrans%optical_depths)
+
+    end subroutine Transfer_Nullify
+
     subroutine Transfer_Free(MTrans)
     Type(MatterTransferData):: MTrans
     integer st
@@ -2585,13 +2630,7 @@
     deallocate(MTrans%TransferData, STAT = st)
     deallocate(MTrans%sigma_8, STAT = st)
     if (get_growth_sigma8) deallocate(MTrans%sigma2_vdelta_8, STAT = st)
-    nullify(MTrans%q_trans)
-    nullify(MTrans%TransferData)
-    nullify(MTrans%sigma_8)
-    nullify(MTrans%sigma2_vdelta_8)
-    !Sources
     deallocate(MTrans%optical_depths, STAT = st)
-    nullify(MTrans%optical_depths)
 
     end subroutine Transfer_Free
 
@@ -3037,7 +3076,7 @@
     P%num_redshifts=i
 
     end subroutine Transfer_SortAndIndexRedshifts
-
+    
     end module Transfer
 
 
@@ -3082,7 +3121,7 @@
 
     public thermo,inithermo,vis,opac,expmmu,dvis,dopac,ddvis,lenswin, tight_tau,interp_window,&
         Thermo_OpacityToTime,matter_verydom_tau, ThermoData_Free,&
-        z_star, z_drag  !!JH for updated BAO likelihood.
+        z_star, z_drag, GetBackgroundEvolution
     contains
 
     subroutine thermo(tau,cs2b,opacity, dopacity)
@@ -4198,4 +4237,43 @@
 
     !!!!!!!!!!!!!!!!!!! end JH
 
+    subroutine GetBackgroundEvolution(ntimes, times, outputs)
+    integer, intent(in) :: ntimes
+    real(dl), intent(in) :: times(ntimes)
+    real(dl) :: outputs(4, ntimes)
+    real(dl) spline_data(nthermo), ddxe(nthermo)
+    real(dl) :: d, tau, cs2b, opacity, vis
+    integer i, ix
+
+    call splini(spline_data,nthermo)
+    call splder(xe,ddxe,nthermo,spline_data)
+    outputs = 0
+    do ix = 1, ntimes
+        tau = times(ix)
+        if (tau < tauminn) cycle
+        d=log(tau/tauminn)/dlntau+1._dl
+        i=int(d)
+        d=d-i
+        call thermo(tau,cs2b, opacity)
+
+        if (i < nthermo) then
+            outputs(1,ix)=xe(i)+d*(ddxe(i)+d*(3._dl*(xe(i+1)-xe(i)) &
+                -2._dl*ddxe(i)-ddxe(i+1)+d*(ddxe(i)+ddxe(i+1) &
+                +2._dl*(xe(i)-xe(i+1)))))
+            vis=emmu(i)+d*(demmu(i)+d*(3._dl*(emmu(i+1)-emmu(i)) &
+                -2._dl*demmu(i)-demmu(i+1)+d*(demmu(i)+demmu(i+1) &
+                +2._dl*(emmu(i)-emmu(i+1)))))
+
+        else
+            outputs(1,ix)=xe(nthermo)
+            vis = emmu(nthermo)
+        end if
+
+        outputs(2, ix) = opacity
+        outputs(3, ix) = opacity*vis
+        outputs(4, ix) = cs2b
+    end do
+
+    end subroutine GetBackgroundEvolution
+    
     end module ThermoData
