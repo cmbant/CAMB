@@ -149,7 +149,7 @@
     implicit none
     public
 
-    character(LEN=*), parameter :: version = 'Oct15'
+    character(LEN=*), parameter :: version = 'Nov15'
 
     integer :: FeedbackLevel = 0 !if >0 print out useful information about the model
 
@@ -306,7 +306,7 @@
     !Parameters for checking/changing overall accuracy
     !If HighAccuracyDefault=.false., the other parameters equal to 1 corresponds to ~0.3% scalar C_l accuracy
     !If HighAccuracyDefault=.true., the other parameters equal to 1 corresponds to ~0.1% scalar C_l accuracy (at L>600)
-    logical :: HighAccuracyDefault = .false.
+    logical :: HighAccuracyDefault = .true.
 
     real(dl) :: lSampleBoost=1._dl
     !Increase lSampleBoost to increase sampling in lSamp%l for Cl interpolation
@@ -362,7 +362,7 @@
 
     Type(TBackgroundOutputs), save :: BackgroundOutputs
 
-    real(dl), private, external :: dtauda
+    real(dl), private, external :: dtauda, rombint
 
     !Sources
     logical :: transfer_21cm_cl = .false.
@@ -651,8 +651,6 @@
     real(dl) DeltaTime, atol
     real(dl), intent(IN) :: a1,a2
     real(dl), optional, intent(in) :: in_tol
-    real(dl) rombint
-    external rombint
 
     atol = PresentDefault(tol/1000/exp(AccuracyBoost-1), in_tol)
     DeltaTime = rombint(dtauda,a1,a2,atol)
@@ -667,12 +665,26 @@
     TimeOfz=DeltaTime(0._dl,1._dl/(z+1._dl))
     end function TimeOfz
 
+    subroutine TimeOfzArr(nz, redshifts, outputs)
+    integer, intent(in) :: nz
+    real(dl), intent(in) :: redshifts(nz)
+    real(dl), intent(out) :: outputs(nz)
+    integer i
+
+    !Dumb slow version
+    !$OMP PARALLEL DO DEFAUlT(SHARED)
+    do i=1, nz
+        outputs(i) = timeOfZ(redshifts(i))
+    end do
+    !$OMP END PARALLEL DO
+
+    end subroutine TimeOfzArr
+
     function DeltaPhysicalTimeGyr(a1,a2, in_tol)
     use constants
     real(dl), intent(in) :: a1, a2
     real(dl), optional, intent(in) :: in_tol
-    real(dl) rombint,DeltaPhysicalTimeGyr, atol
-    external rombint
+    real(dl) DeltaPhysicalTimeGyr, atol
 
     atol = PresentDefault(1d-4/exp(AccuracyBoost-1), in_tol)
     DeltaPhysicalTimeGyr = rombint(dtda,a1,a2,atol)*Mpc/c/Gyr
@@ -686,6 +698,23 @@
     AngularDiameterDistance = CP%r/(1+z)*rofchi(ComovingRadialDistance(z) /CP%r)
 
     end function AngularDiameterDistance
+
+    subroutine AngularDiameterDistanceArr(arr, z, n)
+    !This is the physical (non-comoving) angular diameter distance in Mpc for array of z
+    integer,intent(in) :: n
+    real(dl), intent(out) :: arr(n)
+    real(dl), intent(in) :: z(n)
+    integer i
+    !dumb version that just calls each z in turn independently
+
+    !$OMP PARALLEL DO DEFAULT(SHARED),SCHEDULE(STATIC)
+    do i=1, n
+        arr(i) = AngularDiameterDistance(z(i))
+    end do
+    !$OMP END PARALLEL DO
+
+    end subroutine AngularDiameterDistanceArr
+
 
     function AngularDiameterDistance2(z1, z2) ! z1 < z2
     !From http://www.slac.stanford.edu/~amantz/work/fgas14/#cosmomc
@@ -770,8 +799,6 @@
     real(dl) zstar, astar, atol, rs, DA
     real(dl) CosmomcTheta
     real(dl) ombh2, omdmh2
-    real(dl) rombint
-    external rombint
 
     ombh2 = CP%omegab*(CP%h0/100.0d0)**2
     omdmh2 = (CP%omegac+CP%omegan)*(CP%h0/100.0d0)**2
@@ -1103,8 +1130,8 @@
 
     Type LimberRec
         integer n1,n2 !corresponding time step array indices
-        real(dl), dimension(:), pointer :: k
-        real(dl), dimension(:), pointer :: Source
+        real(dl), dimension(:), pointer :: k  => NULL()
+        real(dl), dimension(:), pointer :: Source  => NULL()
     end Type LimberRec
 
     Type ClTransferData
@@ -1254,7 +1281,6 @@
             highL_CL_template(L, C_Cross) =array(4)
             highL_CL_template(L, C_Phi) =array(5)
         end do
-
 500     if (L< lmax_extrap_highl) &
             call MpiStop('CheckLoadedHighLTemplate: template file does not go up to lmax_extrap_highl')
         call infile%Close()
@@ -1890,6 +1916,9 @@
     module procedure Transfer_GetMatterPowerD,Transfer_GetMatterPowerS
     end interface
 
+
+    real(dl), private, external :: rombint_obj
+    
     contains
 
     subroutine Transfer_GetUnsplinedPower(M,PK,var1,var2, hubble_units)
@@ -2535,6 +2564,18 @@
 
     end  subroutine Transfer_Allocate
 
+    subroutine Transfer_Nullify(Mtrans)
+    Type(MatterTransferData):: MTrans
+
+    Mtrans%num_q_trans = 0
+    nullify(MTrans%q_trans)
+    nullify(MTrans%TransferData)
+    nullify(MTrans%sigma_8)
+    nullify(MTrans%sigma2_vdelta_8)
+    nullify(MTrans%optical_depths)
+
+    end subroutine Transfer_Nullify
+
     subroutine Transfer_Free(MTrans)
     Type(MatterTransferData):: MTrans
     integer st
@@ -2543,13 +2584,7 @@
     deallocate(MTrans%TransferData, STAT = st)
     deallocate(MTrans%sigma_8, STAT = st)
     if (get_growth_sigma8) deallocate(MTrans%sigma2_vdelta_8, STAT = st)
-    nullify(MTrans%q_trans)
-    nullify(MTrans%TransferData)
-    nullify(MTrans%sigma_8)
-    nullify(MTrans%sigma2_vdelta_8)
-    !Sources
     deallocate(MTrans%optical_depths, STAT = st)
-    nullify(MTrans%optical_depths)
 
     end subroutine Transfer_Free
 
@@ -2847,10 +2882,9 @@
     character(LEN=name_tag_len), dimension(3), parameter :: Transfer_21cm_name_tags = &
         ['CL  ','P   ','P_vv']
     Type(MatterPowerData), target ::PK_data
-    real(dl) rombint_obj, tol,atol, chi, Cl
+    real(dl)  tol,atol, chi, Cl
     integer l, lastl, unit
     real(dl) k_min, k_max,k, avg_fac
-    external rombint_obj
     Type(Cl21cmVars) vars
 
 
@@ -2992,7 +3026,7 @@
     P%num_redshifts=i
 
     end subroutine Transfer_SortAndIndexRedshifts
-
+    
     end module Transfer
 
 
@@ -3037,9 +3071,11 @@
 
     public thermo,inithermo,vis,opac,expmmu,dvis,dopac,ddvis,lenswin, tight_tau,&
         Thermo_OpacityToTime,matter_verydom_tau, ThermoData_Free,&
-        z_star, z_drag, interp_window  !!JH for updated BAO likelihood.
+        z_star, z_drag, GetBackgroundEvolution, interp_window  !!JH for updated BAO likelihood.
 
-    real(dl), external, private :: dtauda
+    real(dl), private, external :: dtauda, rombint, rombint2
+    logical, private, external :: isTmNeeded
+
     contains
 
     subroutine thermo(tau, cs2b, opacity, dopacity)
@@ -3122,10 +3158,7 @@
     real(dl) a_verydom
     real(dl) awin_lens1p,awin_lens2p,dwing_lens, rs, DA
     real(dl) z_eq, a_eq
-    real(dl) rombint
     integer noutput
-    logical :: isTmNeeded
-    external :: rombint, isTmNeeded
 
     !Sources
     real(dl) awin_lens1(num_redshiftwindows),awin_lens2(num_redshiftwindows)
@@ -3739,8 +3772,6 @@
 
     real(dl), allocatable , dimension(:,:) :: int_tmp, back_count_tmp
     integer ninterp
-    real(dl) dtauda !diff of tau w.r.t a and integration
-    external dtauda
 
     ! Prevent false positive warnings for uninitialized
     Tspin = 0._dl
@@ -4083,8 +4114,6 @@
     end function doptdepth_dz
 
     function optdepth(z)
-    real(dl) :: rombint2
-    external rombint2
     real(dl) optdepth
     real(dl),intent(in) :: z
 
@@ -4097,8 +4126,6 @@
     real(dl) :: ddragoptdepth_dz
     real(dl), intent(in) :: z
     real(dl) :: a
-    real(dl) :: dtauda
-    external dtauda
 
     a = 1._dl/(1._dl+z)
     ddragoptdepth_dz = doptdepth_dz(z)/r_drag0/a
@@ -4107,8 +4134,6 @@
 
 
     function dragoptdepth(z)
-    real(dl) :: rombint2
-    external rombint2
     real(dl) dragoptdepth
     real(dl),intent(in) :: z
 
@@ -4151,4 +4176,43 @@
 
     !!!!!!!!!!!!!!!!!!! end JH
 
+    subroutine GetBackgroundEvolution(ntimes, times, outputs)
+    integer, intent(in) :: ntimes
+    real(dl), intent(in) :: times(ntimes)
+    real(dl) :: outputs(4, ntimes)
+    real(dl) spline_data(nthermo), ddxe(nthermo)
+    real(dl) :: d, tau, cs2b, opacity, vis
+    integer i, ix
+
+    call splini(spline_data,nthermo)
+    call splder(xe,ddxe,nthermo,spline_data)
+    outputs = 0
+    do ix = 1, ntimes
+        tau = times(ix)
+        if (tau < tauminn) cycle
+        d=log(tau/tauminn)/dlntau+1._dl
+        i=int(d)
+        d=d-i
+        call thermo(tau,cs2b, opacity)
+
+        if (i < nthermo) then
+            outputs(1,ix)=xe(i)+d*(ddxe(i)+d*(3._dl*(xe(i+1)-xe(i)) &
+                -2._dl*ddxe(i)-ddxe(i+1)+d*(ddxe(i)+ddxe(i+1) &
+                +2._dl*(xe(i)-xe(i+1)))))
+            vis=emmu(i)+d*(demmu(i)+d*(3._dl*(emmu(i+1)-emmu(i)) &
+                -2._dl*demmu(i)-demmu(i+1)+d*(demmu(i)+demmu(i+1) &
+                +2._dl*(emmu(i)-emmu(i+1)))))
+
+        else
+            outputs(1,ix)=xe(nthermo)
+            vis = emmu(nthermo)
+        end if
+
+        outputs(2, ix) = opacity
+        outputs(3, ix) = opacity*vis
+        outputs(4, ix) = cs2b
+    end do
+
+    end subroutine GetBackgroundEvolution
+    
     end module ThermoData

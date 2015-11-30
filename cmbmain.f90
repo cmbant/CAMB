@@ -125,7 +125,7 @@
 
     Type(ClTransferData), pointer :: ThisCT
 
-    public cmbmain, ALens, ClTransferToCl, InitVars !InitVars for BAO hack
+    public cmbmain, ALens, ClTransferToCl, InitVars, GetTauStart !InitVars for BAO hack
 
     real(dl), private, external :: dtauda
 
@@ -993,7 +993,7 @@
     !!Example code for plotting out variable evolution
     if (fixq/=0._dl) then
         tol1=tol/exp(AccuracyBoost-1)
-        call F%CreateFile('evolve_q005.txt')
+        call F%CreateFile('evolve.txt')
         do j=1,1000
             tauend = taustart+(j-1)*(CP%tau0-taustart)/1000
             call GaugeInterface_EvolveScal(EV,tau,y,tauend,tol1,ind,c,w)

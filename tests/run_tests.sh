@@ -3,6 +3,10 @@ make Release
 cd /camb
 make Release
 
+cd pycamb
+python setup.py install
+python setup.py test
+cd ..
 
 python python/CAMB_test_files.py testfiles --make_ini
 cd testfiles

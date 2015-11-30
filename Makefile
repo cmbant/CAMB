@@ -22,14 +22,16 @@ ifortErr = $(shell which ifort >/dev/null 2>&1; echo $$?)
 ifeq "$(ifortErr)" "0"
 
 #Intel compiler
+# For OSX replace shared by dynamiclib
 F90C     = ifort
 ifortVer_major = $(shell ifort -v 2>&1 | cut -d " " -f 3 | cut -d. -f 1)
 COMMON_FFLAGS = -fpp -openmp
 ifneq "$(ifortVer_major)" "14"
 COMMON_FFLAGS += -gen-dep=$$*.d
 endif
-FFLAGS = -fast -fp-model precise -W0 -WB $(COMMON_FFLAGS)
+FFLAGS = -openmp -fast -fp-model precise -W0 -WB $(COMMON_FFLAGS)
 DEBUGFLAGS =  -g -check all -check noarg_temp_created -traceback -fpe0 $(COMMON_FFLAGS)
+SFFLAGS = -shared -fpic
 ## This is flag is passed to the Fortran compiler allowing it to link C++ if required (not usually):
 F90CRLINK = -cxxlib
 ifneq "$(ifortVer_major)" "14"
@@ -39,6 +41,7 @@ F90CRLINK += -vec_report0
 endif
 MODOUT = -module $(OUTPUT_DIR)
 AR     = xiar
+SMODOUT = -module $(DLL_DIR)
 ifneq ($(FISHER),)
 FFLAGS += -mkl
 endif
@@ -49,12 +52,14 @@ ifeq "$(gfortErr)" "0"
 
 #Gfortran compiler:
 F90C     = gfortran
-COMMON_FFLAGS = -MMD -cpp -ffree-line-length-none
+COMMON_FFLAGS = -MMD -cpp -ffree-line-length-none -fmax-errors=4
 # -fmax-errors=4
 # Using -ffast-math causes differences between Debug and Release configurations.
 FFLAGS = -O3 -fopenmp $(COMMON_FFLAGS)
 DEBUGFLAGS = -g -fbacktrace -ffpe-trap=invalid,overflow,zero -fbounds-check $(COMMON_FFLAGS)
+SFFLAGS =  -shared -fPIC
 MODOUT =  -J$(OUTPUT_DIR)
+SMODOUT = -J$(DLL_DIR)
 
 ifneq ($(FISHER),)
 F90CRLINK += -lblas -llapack

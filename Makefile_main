@@ -17,10 +17,16 @@ DRIVER        ?= inidriver.f90
 
 Release: OUTPUT_DIR = Release
 Debug: OUTPUT_DIR = Debug
-OUTPUT_DIR ?= Release
 
-Release: camb
-Debug: camb
+Release: DLL_DIR = Releaselib
+Debug: DLL_DIR = Debuglib
+
+OUTPUT_DIR ?= Release
+DLL_DIR ?= Releaselib
+
+Release: camb camblib.so
+Debug: camb camblib.so
+
 
 CAMBLIB       = libcamb_$(RECOMBINATION).a
 
@@ -31,13 +37,17 @@ F90WFLAGS     = -Waliasing -Wampersand -Wconversion -Wc-binding-type -Wintrinsic
 F90FLAGS      = $(FFLAGS)
 #F90FLAGS      += $(F90WFLAGS)
 
+SF90FLAGS      = $(SFFLAGS) $(FFLAGS)
+
 HEALPIXLD     = -L$(HEALPIXDIR)/lib -lhealpix -L$(FITSDIR) -l$(FITSLIB)
 CAMBSRCS      = constants.f90 subroutines.f90 $(POWERSPECTRUM).f90 \
         $(RECOMBINATION).f90 $(REIONIZATION).f90 DarkEnergyInterface.f90 \
         modules.f90 bessels.f90 equations.f90 DarkEnergyFluid.f90 \
         DarkEnergyPPF.f90 $(NONLINEAR).f90 lensing.f90 \
         $(BISPECTRUM).f90 cmbmain.f90 camb.f90
+
 CAMBOBJ       = $(patsubst %.f90,%.o,$(CAMBSRCS))
+CAMBSO        = camb_python.f90
 
 F90CRLINK     ?= -lstdc++
 F90CRLINK     += -L$(FORUTILSPATH)/$(OUTPUT_DIR) -lforutils
@@ -61,14 +71,22 @@ endif
 
 default: camb
 
-all: camb libcamb
+all: camb camblib.so libcamb
 
 libcamb: directories
 	$(MAKE) -C $(OUTPUT_DIR) -f ../Makefile_main $(CAMBLIB)
 
+libcambso: directories_so
+	$(MAKE) -C $(DLL_DIR) -f ../Makefile_main $(CAMBLIB)
+
 camb: libcamb $(DRIVER)
 	$(F90C) $(F90FLAGS) $(MODOUT) $(IFLAG)$(OUTPUT_DIR)/ $(IFLAG)$(FORUTILSPATH)/$(OUTPUT_DIR)/ \
 		$(DRIVER) $(OUTPUT_DIR)/$(CAMBLIB) $(F90CRLINK) -o $@
+
+camblib.so: libcambso $(CAMBSO)
+	$(F90C) $(SF90FLAGS) $(SMODOUT) $(IFLAG)$(DLL_DIR)/ $(IFLAG)$(FORUTILSPATH)/$(OUTPUT_DIR)/  \
+		$(CAMBSO) $(DLL_DIR)/$(CAMBLIB) $(F90CRLINK) -o pycamb/camb/camblib.so
+
 
 $(CAMBLIB): $(CAMBOBJ)
 	$(AR) -r $@ $(CAMBOBJ)
@@ -80,8 +98,13 @@ camb_fits: directories writefits.f90 $(CAMBOBJ) $(DRIVER)
 %.o: ../%.f90
 	$(F90C) $(F90FLAGS) $(IFLAG)../$(FORUTILSPATH)/$(OUTPUT_DIR)/ -c $< -o $*.o
 
+
 directories:
 	mkdir -p $(OUTPUT_DIR)
+
+directories_so:
+	mkdir -p $(DLL_DIR)
+
 
 clean:
 	-rm -f *.o *.a *.d core *.mod *.optrpt *.d camb

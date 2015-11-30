@@ -1,14 +1,20 @@
 ===================
 CAMB
 ===================
-:CAMB:  Code for Anisotropies in the Microwave Background, Fortran 95 code
+:CAMB:  Code for Anisotropies in the Microwave Background, Fortran 95 code and python module
 :Homepage: http://camb.info/
 
   
 Description and installation
 =============================
 
-For full details see the `ReadMe <http://camb.info/readme.html>`_.
+For full details of the Fortran code see the `ReadMe <http://camb.info/readme.html>`_.
+
+The python wrapper provides a module called "camb", souce in the "pycamb" folder and documented on ReadTheDocs.
+
+.. image:: https://readthedocs.org/projects/camb/badge/?version=latest
+   :target: https://camb.readthedocs.org/en/latest
+
 
 The master and devel branches have an integrated test suite, which runs automatically on `Travis <http://travis-ci.org>`_  for new commits and pull requests.
 Reference results and test outputs are stored in the `test outputs repository <https://github.com/cmbant/CAMB_test_outputs/>`_. Tests can also be run locally.

@@ -16,6 +16,11 @@ Project("{6989167D-11E4-40FE-8C1A-2192A86A7E90}") = "CAMBLib", "CAMBLib.vfproj",
 EndProject
 Project("{6989167D-11E4-40FE-8C1A-2192A86A7E90}") = "ForUtils", "..\..\forutils\ForUtils\ForUtils.vfproj", "{F7C12681-233A-4C5A-9639-1EF3573BCE64}"
 EndProject
+Project("{6989167D-11E4-40FE-8C1A-2192A86A7E90}") = "CAMBdll", "CAMBdll\CAMBdll.vfproj", "{3D16E5E9-506C-4D70-BC44-BA32F6DF7122}"
+	ProjectSection(ProjectDependencies) = postProject
+		{C7D790F6-3574-43A1-A5E1-1E6FC5478F95} = {C7D790F6-3574-43A1-A5E1-1E6FC5478F95}
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -32,6 +37,10 @@ Global
 		{C7D790F6-3574-43A1-A5E1-1E6FC5478F95}.Release|x64.Build.0 = Release|x64
 		{F7C12681-233A-4C5A-9639-1EF3573BCE64}.Debug|x64.ActiveCfg = Debug|x64
 		{F7C12681-233A-4C5A-9639-1EF3573BCE64}.Release|x64.ActiveCfg = Release|x64
+		{3D16E5E9-506C-4D70-BC44-BA32F6DF7122}.Debug|x64.ActiveCfg = Debug|x64
+		{3D16E5E9-506C-4D70-BC44-BA32F6DF7122}.Debug|x64.Build.0 = Debug|x64
+		{3D16E5E9-506C-4D70-BC44-BA32F6DF7122}.Release|x64.ActiveCfg = Release|x64
+		{3D16E5E9-506C-4D70-BC44-BA32F6DF7122}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
