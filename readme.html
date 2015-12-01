@@ -13,7 +13,7 @@
 Code for Anisotropies in the Microwave Background by <A
 HREF="http://cosmologist.info/">Antony Lewis</A> and Anthony
 Challinor. <P>
-This version February 2015.
+This version November 2015.
 <P>
 <FONT SIZE=-1>
 Originally based on CMBFAST developed by Uros Seljak and Matias
@@ -28,8 +28,8 @@ CAMB is also supplied as part of the <A HREF="http://cosmologist.info/cosmomc/">
 <A NAME="compiling">
 <B>Compiling and running</B>
 </P>
-To install and compile yourself you will need a Fortran 90 (or higher) compiler - you can get the free <A HREF="http://g95.sourceforge.net/">G95</A> or <A HREF="http://gcc.gnu.org/wiki/GFortran">GFortran</A> compilers, or the optimized Intel compiler <em>ifort</em> is installed on many academic clusters and also supports integrated development and debugging in Visual Studio under Windows.
- Alternatively you can use CAMB in the pre-configured <A HREF="http://cosmologist.info/CosmoBox">CosmoBox</A> virtual machine, using the eclipse integrated development environment. <P>
+To install and compile yourself you will need a Fortran 90 (or higher) compiler - you can get the free <A HREF="http://gcc.gnu.org/wiki/GFortran">GFortran</A> compiler, or the optimized Intel compiler <em>ifort</em> is installed on many academic clusters and also supports integrated development and debugging in Visual Studio under Windows.
+ Alternatively you can use CAMB in the pre-configured <A HREF="http://cosmologist.info/CosmoBox">CosmoBox</A> virtual machine. <P>
  To install yourself from the command line:
 <UL>
 <LI><A HREF="http://camb.info/CAMBsubmit.html">Download</A> CAMB
@@ -40,13 +40,15 @@ edit the supplied Makefile, see below)
 <LI>Run <B>./camb params.ini</B>, where params.ini is a file
  of parameter values (sample supplied). The params.ini file should be
  fairly self-explanatory.
+<LI>To install and use the Python CAMB wrapper see the <A HREF="https://camb.readthedocs.org/en/latest">Python CAMB</A> documentation.
 </UL>
 </P>
 <P>
-The Makefile comes set up for Intel machines using Intel's ifort compiler. Just comment the relevant parts to compile on different systems. If you have Intel's Visual Fortran you can use the projects in the VisualStudio folder, no need to use the Makefile. To run on multi-processor machines add the -openmp (or equivalent) option to the Makefile's FFLAGS parameter to compile a parallelized (OPENMP) version.
+The Makefile comes set up for gfortran and  ifort compilers. Edit the relevant parts of the Makefile to compile on other systems. If you have Intel's Visual Fortran you can use the projects in the VisualStudio folder, no need to use the Makefile. To run on multi-processor machines add the -openmp (or equivalent) option to the Makefile's FFLAGS parameter to compile a parallelized (OPENMP) version.
 </P>
 <P>
-Martina Schwind has kindly contributed some <A hREF="Work_with_CAMB_V13_for_AL.pdf">introductory slides</A> with details of program running and internal structure. For some further technical details about the algorithms, equations and code see the <A HREF="http://cosmologist.info/notes/CAMB.pdf">CAMB notes</A>.
+Martina Schwind has kindly contributed some <A hREF="Work_with_CAMB_V13_for_AL.pdf">introductory slides</A> with details of program running and internal structure. For some further technical details about the algorithms, equations and code see the <A HREF="http://cosmologist.info/notes/CAMB.pdf">CAMB notes</A>. For a demo of how to use CAMB with the python wrapper see the <A HREF="http://camb.readthedocs.org/en/latest/CAMBdemo.html">demo notebook</A>.
+
 </P>
 <A NAME="inputs">
 <H3>Input parameters</H3>
@@ -144,8 +146,9 @@ Some details about what different source code files do are given <A HREF="#FILES
 <A NAME="version">
 <H3>Version history</H3>
 
-<B>xx 2015</B><BR>
+<B>November 2015</B><BR>
 <UL>
+<LI>New <A HREF="https://camb.readthedocs.org/en/latest">Python CAMB wrapper</A>
 <LI>Option to add comment headers to output files giving column names (output_file_headers = T)
 <LI>New input parameters to change the default second helium reionization redshift and duration
 <LI>Output of transfer functions will now also work at very early times
