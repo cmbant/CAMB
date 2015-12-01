@@ -107,7 +107,7 @@ $(DLL_DIR)/Matrix_utils.o: $(DLL_DIR)/utils.o
 $(DLL_DIR)/camb_python.o: $(DLL_DIR)/camb.o
 
 camblib.so: folders $(CAMBSO)
-	$(F90C) $(SF90FLAGS) $(CAMBSO) -o pycamb/camb/camblib.so
+	$(F90C) $(SF90FLAGS) $(CAMBSO) -o $(DLL_DIR)/camblib.so
 
 camb: directories $(CAMBOBJ) $(DRIVER)
 	$(F90C) $(F90FLAGS) $(CAMBOBJ) $(DRIVER) $(F90CRLINK) -o $@

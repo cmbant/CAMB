@@ -23,6 +23,8 @@ else:
     DLLNAME = 'camblib.so'
 file_dir = os.path.abspath(os.path.dirname(__file__))
 
+os.chdir(file_dir)
+
 is32Bit = struct.calcsize("P") == 4
 
 
@@ -45,6 +47,11 @@ def has_win_gfortran():
 class SharedLibrary(install):
     def run(self):
         CAMBDIR = os.path.join(file_dir, '..')
+        if not os.path.exists(os.path.join(CAMBDIR,'lensing.f90')):
+            CAMBDIR = os.path.join(file_dir, 'fortran')  # pypi install
+            pycamb_path = '..'
+        else:
+            pycamb_path = 'pycamb'
         os.chdir(CAMBDIR)
         if platform.system() == "Windows":
             COMPILER = "gfortran"
@@ -56,22 +63,23 @@ class SharedLibrary(install):
             SOURCES = "constants.f90 utils.f90 subroutines.f90 inifile.f90 power_tilt.f90 recfast.f90 reionization.f90" \
                       " modules.f90 bessels.f90 equations.f90 halofit_ppf.f90 lensing.f90 SeparableBispectrum.f90 cmbmain.f90" \
                       " camb.f90 camb_python.f90"
-            OUTPUT = r"-o pycamb\camb\%s" % DLLNAME
+            OUTPUT = r"-o %s\camb\%s" % (pycamb_path, DLLNAME)
             scrs = os.listdir(os.getcwd())
             if not has_win_gfortran():
                 print('WARNING: gfortran not in path (if you just installed you may need to log off and on again).')
                 print('         You can get a Windows gfortan build from http://sourceforge.net/projects/mingw-w64/')
-                print('         (get the %s version to match this python installation)'%(('x86_64','i686')[is32Bit]))
+                print('         (get the %s version to match this python installation)' % (('x86_64', 'i686')[is32Bit]))
                 print('Using pre-compiled binaries instead - any local changes will be ignored...')
-                COPY = r'copy /Y pycamb\dlls\%s pycamb\camb\%s' % (('cambdll_x64.dll', DLLNAME)[is32Bit], DLLNAME)
+                COPY = r'copy /Y %s\dlls\%s %s\camb\%s' % (
+                    pycamb_path, ('cambdll_x64.dll', DLLNAME)[is32Bit], pycamb_path, DLLNAME)
                 subprocess.call(COPY, shell=True)
             else:
                 print(COMPILER + ' ' + FFLAGS + ' ' + SOURCES + ' ' + OUTPUT)
                 subprocess.call(COMPILER + ' ' + FFLAGS + ' ' + SOURCES + ' ' + OUTPUT, shell=True)
-            COPY = r"copy /Y HighLExtrapTemplate_lenspotentialCls.dat pycamb\camb"
+            COPY = r"copy /Y HighLExtrapTemplate_lenspotentialCls.dat %s\camb" % (pycamb_path)
             subprocess.call(COPY, shell=True)
             scrs.append(DLLNAME)
-            if not osp.isfile('pycamb/camb/' + DLLNAME): sys.exit('Compilation failed')
+            if not osp.isfile(os.path.join(pycamb_path, 'camb', DLLNAME)): sys.exit('Compilation failed')
             print("Removing temp files")
             nscrs = os.listdir(os.getcwd())
             for file in nscrs:
@@ -80,13 +88,11 @@ class SharedLibrary(install):
 
         else:
             print("Compiling source...")
-            MAKE = "make camblib.so"
-            subprocess.call(MAKE, shell=True)
-            if not osp.isfile('pycamb/camb/camblib.so'): sys.exit('Compilation failed')
-            CHOWN = "chmod 755 pycamb/camb/camblib.so"
-            subprocess.call(CHOWN, shell=True)
-            COPY = "cp HighLExtrapTemplate_lenspotentialCls.dat pycamb/camb"
-            subprocess.call(COPY, shell=True)
+            subprocess.call("make camblib.so", shell=True)
+            if not osp.isfile(os.path.join('Releaselib', 'camblib.so')): sys.exit('Compilation failed')
+            subprocess.call("chmod 755 Releaselib/camblib.so", shell=True)
+            subprocess.call(r"cp Releaselib/camblib.so %s/camb" % (pycamb_path), shell=True)
+            subprocess.call("cp HighLExtrapTemplate_lenspotentialCls.dat %s/camb" % (pycamb_path), shell=True)
 
         os.chdir(file_dir)
         install.run(self)
@@ -100,8 +106,9 @@ class SharedLibrary(install):
 
 setup(name=package_name,
       version=find_version(),
-      description='CAMB library for python',
+      description='Code for Anisotropies in the Microwave Background',
       author='Antony Lewis',
+      author_email='http://cosmologist.info/',
       url="http://camb.info/",
       cmdclass={'install': SharedLibrary},
       packages=['camb', 'camb_tests'],
@@ -112,6 +119,7 @@ setup(name=package_name,
           'Programming Language :: Python :: 2.7',
           'Programming Language :: Python :: 3',
           'Programming Language :: Python :: 3.4',
+          'Programming Language :: Python :: 3.5',
       ],
       keywords=['cosmology', 'CAMB']
       )

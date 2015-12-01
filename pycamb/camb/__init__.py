@@ -7,7 +7,7 @@ Python CAMB interface (http://camb.info)
 __author__ = "Antony Lewis"
 __contact__ = "antony at cosmologist dot info"
 __status__ = "alpha"
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 from .baseconfig import dll_import
 from .camb import CAMBdata, MatterTransferData, get_results, get_transfer_functions, get_background, \
