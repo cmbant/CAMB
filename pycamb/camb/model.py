@@ -429,7 +429,9 @@ class CAMBparams(CAMB_Structure):
     def set_for_lmax(self, lmax, max_eta_k=None, lens_potential_accuracy=0,
                      lens_margin=150, k_eta_fac=2.5, lens_k_eta_reference=18000.0):
         """
-        Set parameters to get CMB power spectra to specific l_lmax.
+        Set parameters to get CMB power spectra accurate to specific a l_lmax.
+        Note this does not fix the actual output L range, spectra may be calculated above l_max (but may not be accurate there).
+        To fix the l_max for output arrays use the optional input argument to :meth:`.camb.get_cmb_power_spectra` etc.
 
         :param lmax: l_max you want
         :param max_eta_k: maximum value of k*eta_* to use, which indirectly sets k_max. If None, sensible value set automatically.
