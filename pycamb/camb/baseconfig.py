@@ -105,3 +105,9 @@ class CAMB_Structure(Structure):
                 else:
                     s += field_name + ' = ' + str(obj) + '\n'
         return s
+
+
+from ctypes import c_byte, c_int
+_get_allocatable_size = camblib.__handles_MOD_getallocatablesize
+_get_allocatable_size.restype=c_int
+f_allocatable = c_byte*(_get_allocatable_size()//8)

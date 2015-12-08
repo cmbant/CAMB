@@ -26,6 +26,12 @@
         !skip limber for now...
     end Type c_ClTransferData
 
+    Type dummyAllocatable
+    class(c_ClTransferData), allocatable :: P
+    end Type dummyAllocatable
+
+    private dummyAllocatable
+
     contains
 
     !SPECIAL BRIDGE ROUTINES FOR PYTHONset
@@ -148,7 +154,7 @@
     Type(c_ClTransferData) :: cData
 
     cData%NumSources = data%NumSources
-    if (associated(Data%q%points)) then
+    if (allocated(Data%q%points)) then
         cData%q_size = size(data%q%points)
         cData%q = c_loc(data%q%points)
     else
@@ -474,6 +480,31 @@
     !$OMP END PARALLEL DO
     err = global_error_flag
     end function CAMB_TimeEvolution
+
+    function GetAllocatableSize() result(sz)
+    Type(dummyAllocatable) :: T
+    integer sz
+
+    sz = storage_size(T)
+
+    end function GetAllocatableSize
+
+    subroutine CAMBparams_SetDarkEnergy(P, i)
+    use DarkEnergyPPFModule
+    use DarkEnergyFluidModule
+    Type(CAMBparams) :: P
+    integer, intent(in) :: i
+
+    if (allocated(P%DarkEnergy)) deallocate(P%DarkEnergy)
+    if (i==0) then
+      allocate(TDarkEnergyFluid::P%DarkEnergy)
+    else if (i==1) then
+      allocate(TDarkEnergyPPF::P%DarkEnergy)
+    else
+      error stop 'Unknown dark energy model'
+    end if
+
+    end subroutine CAMBparams_SetDarkEnergy
 
     ! END BRIDGE FOR PYTHON
 

@@ -253,7 +253,6 @@
         type(ReionizationParams) :: Reion
         type(RecombinationParams):: Recomb
         type(TransferParams)     :: Transfer
-        class(TDarkEnergyBase), pointer :: DarkEnergy
 
         real(dl) ::  InitialConditionVector(1:10) !Allow up to 10 for future extensions
         !ignored unless Scalar_initial_condition == initial_vector
@@ -262,6 +261,8 @@
         !If true, sigma_8 is not calculated either
 
         logical DerivedParameters !calculate various derived parameters  (ThermoDerivedParams)
+
+        class(TDarkEnergyBase), allocatable :: DarkEnergy
 
         !Derived parameters, not set initially
         type(ReionizationHistory) :: ReionHist
@@ -540,7 +541,7 @@
         call GlobalError('chi >= pi in closed model not supported',error_unsupported_params)
     end if
 
-    if (.not. associated(CP%DarkEnergy)) then
+    if (.not. allocated(CP%DarkEnergy)) then
         call GlobalError('DarkEnergy not initialized', error_darkenergy)
     end if
 
@@ -1918,7 +1919,7 @@
 
 
     real(dl), private, external :: rombint_obj
-    
+
     contains
 
     subroutine Transfer_GetUnsplinedPower(M,PK,var1,var2, hubble_units)
@@ -3026,7 +3027,7 @@
     P%num_redshifts=i
 
     end subroutine Transfer_SortAndIndexRedshifts
-    
+
     end module Transfer
 
 
@@ -4214,5 +4215,5 @@
     end do
 
     end subroutine GetBackgroundEvolution
-    
+
     end module ThermoData

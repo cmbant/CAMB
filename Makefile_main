@@ -77,7 +77,7 @@ libcamb: directories
 	$(MAKE) -C $(OUTPUT_DIR) -f ../Makefile_main $(CAMBLIB)
 
 libcambso: directories_so
-	$(MAKE) -C $(DLL_DIR) -f ../Makefile_main $(CAMBLIB)
+	$(MAKE) -C $(DLL_DIR) -f ../Makefile_main $(CAMBLIB) F90FLAGS="$(SF90FLAGS)"
 
 camb: libcamb $(DRIVER)
 	$(F90C) $(F90FLAGS) $(MODOUT) $(IFLAG)$(OUTPUT_DIR)/ $(IFLAG)$(FORUTILSPATH)/$(OUTPUT_DIR)/ \

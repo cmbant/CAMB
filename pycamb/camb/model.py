@@ -1,5 +1,5 @@
-from .baseconfig import camblib, CAMB_Structure, CAMBError, dll_import
-from ctypes import c_bool, c_int, c_double, c_float, byref, POINTER
+from .baseconfig import camblib, CAMB_Structure, CAMBError, dll_import, f_allocatable
+from ctypes import c_bool, c_int, c_double, c_float, c_byte, byref, POINTER
 from . import reionization as ion
 from . import recombination as recomb
 from . import initialpower as ipow
@@ -226,6 +226,7 @@ class CAMBparams(CAMB_Structure):
         ("InitialConditionVector", c_double * 10),
         ("OnlyTransfers", c_int),  # logical
         ("DerivedParameters", c_int),  # logical
+        ("_DarkEnergy", f_allocatable),
         ("ReionHist", ion.ReionizationHistory),
         ("flat", c_int),  # logical
         ("closed", c_int),  # logical
@@ -371,21 +372,21 @@ class CAMBparams(CAMB_Structure):
             self.Reion.set_tau(tau)
         return self
 
-    def set_dark_energy(self, w=-1.0, sound_speed=1.0, dark_energy_model='fluid'):
+    def set_dark_energy(self, w=-1.0, sound_speed=1.0, wa=0, dark_energy_model='fluid'):
         """
-        Set dark energy parameters. Not that in this version these are not actually stored in
-        the CAMBparams variable but set globally. So be careful!
+        Set dark energy parameters.
 
         :param w: p_de/rho_de, assumed constant
+        :param wa: evoluation of w (for dark_energy_model=ppf)
         :param sound_speed: rest-frame sound speed of dark energy fluid
-        :param dark_energy_model: model to use, default is 'fluid'
+        :param dark_energy_model: model to use ('fluid' or 'ppf'), default is 'fluid'
         :return: self
         """
         # Variables from module LambdaGeneral
-        if dark_energy_model != 'fluid':
-            raise CAMBError('This version only supports the fluid energy model')
-        if w != -1 or sound_speed != 1:
-            logging.warning('Currently dark energy parameters are changed globally, not per parameter set')
+        if dark_energy_model != 'fluid' and wa:
+            raise CAMBError('fluid dark energy model does not support wa<>0')
+
+
         w_lam = dll_import(c_double, "lambdageneral", "w_lam")
         w_lam.value = w
         cs2_lam = dll_import(c_double, "lambdageneral", "cs2_lam")
