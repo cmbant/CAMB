@@ -179,11 +179,11 @@ div#notebook {
     <div class="input_area">
 <div class=" highlight hl-ipython2"><pre><span class="o">%</span><span class="k">matplotlib</span> inline
 <span class="kn">import</span> <span class="nn">sys</span><span class="o">,</span> <span class="nn">platform</span><span class="o">,</span> <span class="nn">os</span>
-<span class="k">if</span> <span class="n">platform</span><span class="o">.</span><span class="n">system</span><span class="p">()</span><span class="o">!=</span><span class="s">&#39;Windows&#39;</span><span class="p">:</span>
-    <span class="o">!</span><span class="nb">cd</span> <span class="nv">$HOME</span>/git/camb<span class="p">;</span> git pull github master<span class="p">;</span> git log -1
-<span class="kn">import</span> <span class="nn">os</span>
 <span class="kn">from</span> <span class="nn">matplotlib</span> <span class="kn">import</span> <span class="n">pyplot</span> <span class="k">as</span> <span class="n">plt</span>
 <span class="kn">import</span> <span class="nn">numpy</span> <span class="kn">as</span> <span class="nn">np</span>
+<span class="c">#uncomment this if you are running remotely and want to keep in synch with repo changes</span>
+<span class="c">#if platform.system()!=&#39;Windows&#39;:</span>
+<span class="c">#    !cd $HOME/git/camb; git pull github master; git log -1</span>
 <span class="k">print</span><span class="p">(</span><span class="s">&#39;Using CAMB installed at &#39;</span><span class="o">+</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">realpath</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">getcwd</span><span class="p">(),</span><span class="s">&#39;..&#39;</span><span class="p">)))</span>
 <span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">realpath</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">getcwd</span><span class="p">(),</span><span class="s">&#39;..&#39;</span><span class="p">)))</span>
 <span class="kn">import</span> <span class="nn">camb</span>
