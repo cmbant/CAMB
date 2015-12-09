@@ -26,7 +26,7 @@ gfortErr = $(shell which gfortran >/dev/null; echo $$?)
 ifeq "$(gfortErr)" "0"
 
 #Gfortran compiler:
-#The options here work in v4.6+
+#The options here work in v4.6+. Python wrapper needs v4.9+.
 F90C     = gfortran
 SFFLAGS =  -shared -fPIC
 

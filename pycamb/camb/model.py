@@ -431,7 +431,7 @@ class CAMBparams(CAMB_Structure):
         """
         Set parameters to get CMB power spectra accurate to specific a l_lmax.
         Note this does not fix the actual output L range, spectra may be calculated above l_max (but may not be accurate there).
-        To fix the l_max for output arrays use the optional input argument to :meth:`.camb.get_cmb_power_spectra` etc.
+        To fix the l_max for output arrays use the optional input argument to :meth:`.camb.CAMBdata.get_cmb_power_spectra` etc.
 
         :param lmax: l_max you want
         :param max_eta_k: maximum value of k*eta_* to use, which indirectly sets k_max. If None, sensible value set automatically.
