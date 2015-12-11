@@ -107,14 +107,13 @@ class CambTest(unittest.TestCase):
         pars.NonLinear = model.NonLinear_none
         data = camb.get_results(pars)
 
-        #        transfer = data.get_cmb_transfer_data()
-
         kh, z, pk = data.get_matter_power_spectrum(1e-4, 1, 20)
 
         kh2, z2, pk2 = data.get_linear_matter_power_spectrum()
 
         s8 = data.get_sigma8()
-        self.assertAlmostEqual(s8[0], 0.247, 3)
+        self.assertAlmostEqual(s8[0], 0.24686, 4)
+        self.assertAlmostEqual(s8[2], 0.80044, 4)
 
         pars.NonLinear = model.NonLinear_both
         data.calc_power_spectra(pars)

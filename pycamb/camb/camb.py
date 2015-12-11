@@ -58,8 +58,7 @@ CAMBdata_free = camblib.__handles_MOD_cambdata_free
 CAMBdata_free.argtypes = [POINTER(POINTER(_CAMBdata))]
 
 CAMBdata_getparams = camblib.__handles_MOD_cambdata_getparams
-CAMBdata_getparams.restype = POINTER(model.CAMBparams)
-CAMBdata_getparams.argtypes = [POINTER(_CAMBdata)]
+CAMBdata_getparams.argtypes = [POINTER(_CAMBdata), POINTER(POINTER(model.CAMBparams))]
 
 CAMBdata_setparams = camblib.__handles_MOD_cambdata_setparams
 CAMBdata_setparams.argtypes = [POINTER(_CAMBdata), POINTER(model.CAMBparams)]
@@ -320,6 +319,7 @@ class CAMBdata(object):
 
         :return: :class:`.model.CAMBparams` instance pointing to the underlying parameters used by CAMB.
         """
+
         p = POINTER(model.CAMBparams)()
         CAMBdata_getparams(self._key, byref(p))
         return p.contents
