@@ -50,10 +50,9 @@ else
 gfortErr = $(shell which gfortran >/dev/null; echo $$?)
 ifeq "$(gfortErr)" "0"
 
-#Gfortran compiler:
+#Gfortran compiler (version 6+):
 F90C     = gfortran
 COMMON_FFLAGS = -MMD -cpp -ffree-line-length-none -fmax-errors=4
-# -fmax-errors=4
 # Using -ffast-math causes differences between Debug and Release configurations.
 FFLAGS = -O3 -fopenmp $(COMMON_FFLAGS)
 DEBUGFLAGS = -g -fbacktrace -ffpe-trap=invalid,overflow,zero -fbounds-check $(COMMON_FFLAGS)
