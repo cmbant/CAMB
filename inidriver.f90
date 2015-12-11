@@ -197,6 +197,7 @@
 
     !  Read initial parameters.
     DarkEneryModel = Ini%Read_String_Default('dark_energy_model', 'fluid')
+    if (allocated(P%DarkEnergy)) deallocate(P%DarkEnergy)
     if (DarkEneryModel == 'fluid') then
         allocate (TDarkEnergyFluid::P%DarkEnergy)
     else if (DarkEneryModel == 'PPF') then
