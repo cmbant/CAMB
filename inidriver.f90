@@ -12,8 +12,8 @@
     use Bispectrum
     use CAMBmain
     use NonLinear
-    use DarkEnergyFluidModule
-    use DarkEnergyPPFModule
+    use DarkEnergyFluid
+    use DarkEnergyPPF
 #ifdef NAGF95
     use F90_UNIX
 #endif

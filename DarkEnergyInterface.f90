@@ -4,14 +4,13 @@
 
     type, abstract :: TDarkEnergyBase
         real(dl) :: w_lam = -1_dl !p/rho for the dark energy (an effective value, used e.g. for halofit)
-
         real(dl) :: wa_ppf = 0._dl !Not used here, just for compatibility with e.g. halofit
+        real(dl) :: cs2_lam = 1_dl !rest-frame sound speed
         integer :: num_perturb_equations = 0
-        logical :: is_cosmological_constant
+        logical :: is_cosmological_constant = .true.
     contains
     procedure :: ReadParams
     procedure :: Init
-    procedure :: Init_Background
     procedure :: BackgroundDensityAndPressure
     procedure :: AddStressEnergy !Get density perturbation and heat flux for sources
     procedure :: diff_rhopi_Add_Term
@@ -34,10 +33,6 @@
     class(TDarkEnergyBase), intent(inout) :: this
     end subroutine Init
 
-
-    subroutine Init_Background(this)
-    class(TDarkEnergyBase) :: this
-    end subroutine Init_Background
 
     subroutine BackgroundDensityAndPressure(this, a, grhov_t, w)
     !Get grhov_t = 8*pi*rho_de*a**2 and (optionally) equation of state at scale factor a

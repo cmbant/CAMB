@@ -1,16 +1,14 @@
 
-    module DarkEnergyFluidModule
+    module DarkEnergyFluid
     use DarkEnergyInterface
     implicit none
 
     type, extends(TDarkEnergyBase) :: TDarkEnergyFluid
-        real(dl) :: cs2_lam = 1_dl
         !comoving sound speed. Always exactly 1 for quintessence
         !(otherwise assumed constant, though this is almost certainly unrealistic)
     contains
     procedure :: ReadParams => TDarkEnergyFluid_ReadParams
     procedure :: Init =>TDarkEnergyFluid_Init
-    procedure :: Init_Background => TDarkEnergyFluid_Init_Background
     procedure :: BackgroundDensityAndPressure => TDarkEnergyFluid_BackgroundDensityAndPressure
     procedure :: AddStressEnergy => TDarkEnergyFluid_AddStressEnergy
     procedure :: PerturbationEvolve => TDarkEnergyFluid_PerturbationEvolve
@@ -48,15 +46,6 @@
     end if
 
     end subroutine TDarkEnergyFluid_Init
-
-    subroutine TDarkEnergyFluid_Init_Background(this)
-    use GaugeInterface
-    class(TDarkEnergyFluid) :: this
-
-    ! Set the name to export for equations.
-    Eqns_name = 'gauge_inv'
-
-    end  subroutine TDarkEnergyFluid_Init_Background
 
 
     subroutine TDarkEnergyFluid_BackgroundDensityAndPressure(this, a, grhov_t, w)
@@ -117,4 +106,4 @@
 
     end subroutine TDarkEnergyFluid_Finalize
 
-    end module DarkEnergyFluidModule
+    end module DarkEnergyFluid

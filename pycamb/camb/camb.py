@@ -322,7 +322,9 @@ class CAMBdata(object):
         """
         p = POINTER(model.CAMBparams)()
         CAMBdata_getparams(self._key, byref(p))
-        return p.contents
+        pars = p.contents
+        pars._set_allocatables()
+        return pars
 
     def get_derived_params(self):
         """

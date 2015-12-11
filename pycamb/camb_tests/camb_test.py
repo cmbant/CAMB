@@ -15,7 +15,6 @@ class CambTest(unittest.TestCase):
     def testBackground(self):
         pars = camb.CAMBparams()
         pars.set_cosmology(H0=68.5, ombh2=0.022, omch2=0.122, YHe=0.2453, mnu=0.07, omk=0)
-
         zre = camb.get_zre_from_tau(pars, 0.06)
         age = camb.get_age(pars)
         self.assertAlmostEqual(zre, 8.39, 2)
@@ -26,6 +25,7 @@ class CambTest(unittest.TestCase):
 
         data = camb.CAMBdata()
         data.calc_background(pars)
+
         DA = data.angular_diameter_distance(0.57)
         H = data.hubble_parameter(0.27)
         self.assertAlmostEqual(DA, bao[0][2], 3)
@@ -104,17 +104,17 @@ class CambTest(unittest.TestCase):
         self.assertAlmostEqual(pars.scalar_power([1, 1.5])[0], 1.801e-9, 4)
 
         pars.set_matter_power(redshifts=[0., 0.17, 3.1])
+
         pars.NonLinear = model.NonLinear_none
         data = camb.get_results(pars)
-
-        #        transfer = data.get_cmb_transfer_data()
 
         kh, z, pk = data.get_matter_power_spectrum(1e-4, 1, 20)
 
         kh2, z2, pk2 = data.get_linear_matter_power_spectrum()
 
         s8 = data.get_sigma8()
-        self.assertAlmostEqual(s8[0], 0.247, 3)
+        self.assertAlmostEqual(s8[0], 0.24686, 4)
+        self.assertAlmostEqual(s8[2], 0.80044, 4)
 
         pars.NonLinear = model.NonLinear_both
         data.calc_power_spectra(pars)
@@ -122,7 +122,6 @@ class CambTest(unittest.TestCase):
         self.assertAlmostEqual(pk[-1][-3], 51.909, 2)
         self.assertAlmostEqual(pk3[-1][-3], 57.697, 2)
         self.assertAlmostEqual(pk2[-2][-4], 53.47, 2)
-
         camb.set_feedback_level(0)
         cls = data.get_cmb_power_spectra(pars)
 

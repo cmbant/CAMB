@@ -1,4 +1,4 @@
-    module DarkEnergyPPFModule
+    module DarkEnergyPPF
     use precision
     use ModelParams
     use RandUtils
@@ -11,7 +11,6 @@
 
     type, extends(TDarkEnergyBase) :: TDarkEnergyPPF
         ! w_lam is now w0
-        real(dl) :: cs2_lam = 1_dl
         !comoving sound speed. Always exactly 1 for quintessence
         !(otherwise assumed constant, though this is almost certainly unrealistic)
 
@@ -27,7 +26,6 @@
     contains
     procedure :: ReadParams => TDarkEnergyPPF_ReadParams
     procedure :: Init => TDarkEnergyPPF_Init
-    procedure :: Init_Background => TDarkEnergyPPF_Init_Background
     procedure :: BackgroundDensityAndPressure => TDarkEnergyPPF_BackgroundDensityAndPressure
     procedure :: AddStressEnergy => TDarkEnergyPPF_AddStressEnergy
     procedure :: diff_rhopi_Add_Term => TDarkEnergyPPF_diff_rhopi_Add_Term
@@ -239,15 +237,6 @@
     end subroutine setcgammappf
 
 
-    subroutine TDarkEnergyPPF_Init_Background(this)
-    use GaugeInterface
-    class(TDarkEnergyPPF) :: this
-
-    ! Set the name to export for equations.
-    Eqns_name = 'equations_ppf-Jan15'
-
-    end subroutine TDarkEnergyPPF_Init_Background
-
     subroutine TDarkEnergyPPF_BackgroundDensityAndPressure(this, a, grhov_t, w)
     !Get grhov_t = 8*pi*rho_de*a**2 and (optionally) equation of state at scale factor a
     class(TDarkEnergyPPF), intent(inout) :: this
@@ -366,4 +355,4 @@
     end subroutine TDarkEnergyPPF_DerivsAddPreSigma
 
 
-    end module DarkEnergyPPFModule
+    end module DarkEnergyPPF

@@ -10,6 +10,7 @@
     use Reionization
     use Recombination
     use lensing
+    use DarkEnergyFluid
     implicit none
 
     Type CAMBdata
@@ -318,6 +319,9 @@
     P%NonLinear = NonLinear_none
     P%Want_CMB = .true.
     P%Want_CMB_lensing = .true.
+
+    if (allocated(P%DarkEnergy)) deallocate(P%DarkEnergy)
+    allocate(TDarkEnergyFluid::P%DarkEnergy)
 
     call SetDefPowerParams(P%InitPower)
 

@@ -4,6 +4,8 @@
     use ModelParams
     use Transfer
     use iso_c_binding
+    use DarkEnergyFluid
+    use DarkEnergyPPF
     implicit none
 
     Type c_MatterTransferData
@@ -489,11 +491,10 @@
 
     end function GetAllocatableSize
 
-    subroutine CAMBparams_SetDarkEnergy(P, i)
-    use DarkEnergyPPFModule
-    use DarkEnergyFluidModule
-    Type(CAMBparams) :: P
+    subroutine CAMBparams_SetDarkEnergy(P, i, handle)
+    Type(CAMBparams), target :: P
     integer, intent(in) :: i
+    type(c_ptr), intent(out)  ::  handle
 
     if (allocated(P%DarkEnergy)) deallocate(P%DarkEnergy)
     if (i==0) then
@@ -504,7 +505,38 @@
       error stop 'Unknown dark energy model'
     end if
 
+    !can't reference polymorphic type, but can reference first data entry (which is same thing here)
+    handle = c_loc(P%DarkEnergy%w_lam)
+
     end subroutine CAMBparams_SetDarkEnergy
+
+    subroutine CAMBparams_GetDarkEnergy(P, i,handle)
+    Type(CAMBparams), target :: P
+    integer, intent(out) :: i
+    type(c_ptr), intent(out)  ::  handle
+
+    if (allocated(P%DarkEnergy)) then
+        select type (point => P%DarkEnergy)
+        class is (TDarkEnergyFluid)
+            i =0
+        class is (TDarkEnergyPPF)
+            i =1
+        class default
+            i = -1
+        end select
+        handle = c_loc(P%DarkEnergy%w_lam)
+    else
+        handle = c_null_ptr
+    end if
+
+    end subroutine CAMBparams_GetDarkEnergy
+
+    subroutine CAMBParams_Free(P)
+    Type(CAMBparams) :: P
+
+    if (allocated(P%DarkEnergy)) deallocate(P%DarkEnergy)
+
+    end subroutine CAMBParams_Free
 
     ! END BRIDGE FOR PYTHON
 

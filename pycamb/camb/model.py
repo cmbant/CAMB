@@ -1,5 +1,5 @@
 from .baseconfig import camblib, CAMB_Structure, CAMBError, dll_import, f_allocatable
-from ctypes import c_bool, c_int, c_double, c_float, c_byte, byref, POINTER
+from ctypes import c_bool, c_int, c_double, c_float, byref, POINTER
 from . import reionization as ion
 from . import recombination as recomb
 from . import initialpower as ipow
@@ -146,6 +146,10 @@ numpy_1d = np.ctypeslib.ndpointer(c_double, flags='C_CONTIGUOUS')
 CAMB_primordialpower = camblib.__handles_MOD_camb_primordialpower
 CAMB_primordialpower.restype = c_bool
 
+CAMBparams_SetDarkEnergy = camblib.__handles_MOD_cambparams_setdarkenergy
+CAMBparams_GetDarkEnergy = camblib.__handles_MOD_cambparams_getdarkenergy
+
+CAMBParams_Free = camblib.__handles_MOD_cambparams_free
 
 class TransferParams(CAMB_Structure):
     """
@@ -174,6 +178,15 @@ class TransferParams(CAMB_Structure):
     ]
 
 
+class DarkEnergyParams(CAMB_Structure):
+        _fields_ = [
+            ("w", c_double),
+            ("wa", c_double),
+            ("cs2", c_double)
+            ]
+
+
+
 class CAMBparams(CAMB_Structure):
     """
     Object storing the parameters for a CAMB calculation, including cosmological parameters and
@@ -182,6 +195,17 @@ class CAMBparams(CAMB_Structure):
 
     def __init__(self):
         getattr(camblib, '__camb_MOD_camb_setdefparams')(byref(self))
+        self._set_allocatables()
+
+    def _set_allocatables(self):
+        de = POINTER(DarkEnergyParams)()
+        i = c_int(0)
+        CAMBparams_GetDarkEnergy(byref(self),byref(i), byref(de))
+        self.DarkEnergy = de.contents
+
+    def __del__(self):
+        if self._b_needsfree_:
+            CAMBParams_Free(byref(self))
 
     _fields_ = [
         ("WantCls", c_int),  # logical
@@ -195,6 +219,7 @@ class CAMBparams(CAMB_Structure):
         ("PK_WantTransfer", c_int),  # logical
         ("NonLinear", c_int),
         ("Want_CMB", c_int),  # logical
+        ("Want_CMB_lensing", c_int),  # logical
         ("max_l", c_int),
         ("max_l_tensor", c_int),
         ("max_eta_k", c_double),
@@ -226,7 +251,7 @@ class CAMBparams(CAMB_Structure):
         ("InitialConditionVector", c_double * 10),
         ("OnlyTransfers", c_int),  # logical
         ("DerivedParameters", c_int),  # logical
-        ("_DarkEnergy", f_allocatable),
+        ("_DarkEnergy", f_allocatable), #resolved class accessed as self.DarkEnergy
         ("ReionHist", ion.ReionizationHistory),
         ("flat", c_int),  # logical
         ("closed", c_int),  # logical
@@ -372,13 +397,13 @@ class CAMBparams(CAMB_Structure):
             self.Reion.set_tau(tau)
         return self
 
-    def set_dark_energy(self, w=-1.0, sound_speed=1.0, wa=0, dark_energy_model='fluid'):
+    def set_dark_energy(self, w=-1.0, cs2=1.0, wa=0, dark_energy_model='fluid'):
         """
         Set dark energy parameters.
 
         :param w: p_de/rho_de, assumed constant
-        :param wa: evoluation of w (for dark_energy_model=ppf)
-        :param sound_speed: rest-frame sound speed of dark energy fluid
+        :param wa: evolution of w (for dark_energy_model=ppf)
+        :param cs2: rest-frame sound speed squared of dark energy fluid
         :param dark_energy_model: model to use ('fluid' or 'ppf'), default is 'fluid'
         :return: self
         """
@@ -386,11 +411,13 @@ class CAMBparams(CAMB_Structure):
         if dark_energy_model != 'fluid' and wa:
             raise CAMBError('fluid dark energy model does not support wa<>0')
 
+        de = POINTER(DarkEnergyParams)()
+        CAMBparams_SetDarkEnergy(byref(self),byref(c_int(['fluid', 'pff'].index(dark_energy_model))), byref(de))
+        self.DarkEnergy = de.contents
+        self.DarkEnergy.w =w
+        self.DarkEnergy.wa = wa
+        self.DarkEnergy.cs2 = cs2
 
-        w_lam = dll_import(c_double, "lambdageneral", "w_lam")
-        w_lam.value = w
-        cs2_lam = dll_import(c_double, "lambdageneral", "cs2_lam")
-        cs2_lam.value = sound_speed
         return self
 
     def get_omega_k(self):
@@ -484,3 +511,7 @@ def Transfer_SortAndIndexRedshifts(P):
 
 
 CAMB_primordialpower.argtypes = [POINTER(CAMBparams), numpy_1d, numpy_1d, POINTER(c_int), POINTER(c_int)]
+CAMBparams_SetDarkEnergy.argtypes =  [POINTER(CAMBparams), POINTER(c_int), POINTER(POINTER(DarkEnergyParams))]
+CAMBparams_GetDarkEnergy.argtypes =  CAMBparams_SetDarkEnergy.argtypes
+
+CAMBParams_Free.argtypes = [POINTER(CAMBparams)]

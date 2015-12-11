@@ -88,6 +88,12 @@ if not mock_load:
     set_filelocs()
 
 
+
+from ctypes import c_byte, c_int
+_get_allocatable_size = camblib.__handles_MOD_getallocatablesize
+_get_allocatable_size.restype=c_int
+f_allocatable = c_byte*(_get_allocatable_size()//8)
+
 class CAMBError(Exception):
     pass
 
@@ -97,6 +103,9 @@ class CAMB_Structure(Structure):
         s = ''
         for field_name, field_type in self._fields_:
             obj = getattr(self, field_name)
+            if field_name[0]=='_':
+                field_name = field_name[1:]
+                obj = getattr(self, field_name)
             if isinstance(obj, CAMB_Structure):
                 s += field_name + ':\n  ' + str(obj).replace('\n', '\n  ').strip(' ')
             else:
@@ -107,7 +116,3 @@ class CAMB_Structure(Structure):
         return s
 
 
-from ctypes import c_byte, c_int
-_get_allocatable_size = camblib.__handles_MOD_getallocatablesize
-_get_allocatable_size.restype=c_int
-f_allocatable = c_byte*(_get_allocatable_size()//8)

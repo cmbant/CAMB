@@ -41,7 +41,7 @@
     !It is called before first call to dtauda, but after
     !massive neutrinos are initialized and after GetOmegak
 
-    call CP%DarkEnergy%Init_Background()
+    call CP%DarkEnergy%Init()
 
     end  subroutine Init_Backgrounds
 
@@ -93,8 +93,7 @@
     public
 
     !Description of this file. Change if you make modifications.
-    !Initialized in DarkEnergy%Init_Background
-    character(LEN=:), allocatable :: Eqns_name
+    character(LEN=*), parameter :: Eqns_name = 'cdm_gauge'
 
     logical, parameter :: plot_evolve = .false. !for outputing time evolution
 
@@ -2386,7 +2385,6 @@
     EV%OutputTransfer =>  Arr
     call derivs(EV,EV%ScalEqsToPropagate,tau,y,yprime)
     nullify(EV%OutputTransfer)
-
     Arr(Transfer_kh+1:Transfer_max) = Arr(Transfer_kh+1:Transfer_max)/EV%k2_buf
 
     end subroutine outtransf
