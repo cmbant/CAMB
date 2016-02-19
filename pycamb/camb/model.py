@@ -291,7 +291,7 @@ class CAMBparams(CAMB_Structure):
         self.YHe = bbn.ypBBN_to_yhe(Yp)
         return self
 
-    def set_cosmology(self, H0=67, ombh2=0.022, omch2=0.12, omk=0.0, num_massive_neutrinos=1, mnu=0.06, nnu=3.046,
+    def set_cosmology(self, H0=67, cosmomc_theta=None, ombh2=0.022, omch2=0.12, omk=0.0, num_massive_neutrinos=1, mnu=0.06, nnu=3.046,
                       YHe=None, meffsterile=0, standard_neutrino_neff=3.046, TCMB=constants.COBE_CMBTemp, tau=None,
                       tau_neutron=bbn.tau_n):
         """
@@ -300,6 +300,7 @@ class CAMBparams(CAMB_Structure):
         If you require more fine-grained control can set the neutrino parameters directly rather than using this function.
 
         :param H0: Hubble parameter (in km/s/Mpc)
+        :param cosmomc_theta The CosmoMC theta parameter
         :param ombh2: physical density in baryons
         :param omch2:  physical density in cold dark matter
         :param omk: Omega_K curvature parameter
@@ -315,13 +316,36 @@ class CAMBparams(CAMB_Structure):
         :param tau_neutron: neutron lifetime, for setting YHe using BBN consistency
         """
 
+
+        if cosmomc_theta is not None:
+            kw=locals(); [kw.pop(x) for x in ['self','H0','cosmomc_theta']]
+
+            if H0 is not None: 
+                raise CAMBError('Set H0=None when setting cosmomc_theta.')
+            
+            try:
+                from scipy.optimize import brentq
+            except ImportError:
+                raise CAMBError('You need SciPy to set cosmomc_theta.')
+
+            import camb
+
+            def f(H0):
+                self.set_cosmology(H0=H0,**kw)
+                return camb.get_background(self).cosmomc_theta() - cosmomc_theta
+
+            self.H0 = brentq(f,10,100,rtol=1e-4)
+        else:
+            self.H0 = H0
+
+
+
         if YHe is None:
             # use BBN prediction
             self.set_bbn_helium(ombh2, nnu - standard_neutrino_neff, tau_neutron)
         else:
             self.YHe = YHe
         self.TCMB = TCMB
-        self.H0 = H0
         fac = (self.H0 / 100.0) ** 2
         self.omegab = ombh2 / fac
         self.omegac = omch2 / fac
@@ -369,6 +393,9 @@ class CAMBparams(CAMB_Structure):
 
         if tau is not None:
             self.Reion.set_tau(tau)
+
+
+
         return self
 
     def set_dark_energy(self, w=-1.0, sound_speed=1.0, dark_energy_model='fluid'):
