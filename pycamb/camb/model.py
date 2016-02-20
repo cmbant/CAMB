@@ -317,6 +317,14 @@ class CAMBparams(CAMB_Structure):
         """
 
 
+        if YHe is None:
+            # use BBN prediction
+            self.set_bbn_helium(ombh2, nnu - standard_neutrino_neff, tau_neutron)
+            YHe = self.YHe
+        else:
+            self.YHe = YHe
+
+
         if cosmomc_theta is not None:
             kw=locals(); [kw.pop(x) for x in ['self','H0','cosmomc_theta']]
 
@@ -332,7 +340,7 @@ class CAMBparams(CAMB_Structure):
 
             def f(H0):
                 self.set_cosmology(H0=H0,**kw)
-                return camb.get_background(self).cosmomc_theta() - cosmomc_theta
+                return camb.get_background(self,no_thermo=True).cosmomc_theta() - cosmomc_theta
 
             self.H0 = brentq(f,10,100,rtol=1e-4)
         else:
@@ -340,11 +348,7 @@ class CAMBparams(CAMB_Structure):
 
 
 
-        if YHe is None:
-            # use BBN prediction
-            self.set_bbn_helium(ombh2, nnu - standard_neutrino_neff, tau_neutron)
-        else:
-            self.YHe = YHe
+
         self.TCMB = TCMB
         fac = (self.H0 / 100.0) ** 2
         self.omegab = ombh2 / fac
