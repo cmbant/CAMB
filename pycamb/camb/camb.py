@@ -915,17 +915,21 @@ def get_transfer_functions(params):
     return res
 
 
-def get_background(params):
+def get_background(params,no_thermo=False):
     """
     Calculate background cosmology for specified parameters and return :class:`CAMBdata`, ready to get derived
      parameters and use background functions like angular_diameter_distance.
 
     :param params: :class:`.model.CAMBparams` instance
+    :params no_thermo: Use calc_background_no_thermo instead
     :return: :class:`CAMBdata` instance
     """
 
     res = CAMBdata()
-    res.calc_background(params)
+    if no_thermo:
+        res.calc_background_no_thermo(params)
+    else:
+        res.calc_background(params)
     return res
 
 
