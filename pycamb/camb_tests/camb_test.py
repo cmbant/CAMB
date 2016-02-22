@@ -67,12 +67,18 @@ class CambTest(unittest.TestCase):
         # test dark energy
         pars.set_cosmology(H0=68.26, ombh2=0.022271, omch2=0.11914, mnu=0.06, omk=0)
         pars.set_dark_energy(w=-1.0226, dark_energy_model='fluid')
+
         data.calc_background(pars)
         self.assertAlmostEqual(data.get_derived_params()['age'], 13.789, 2)
         scal = data.luminosity_distance(1.4)
         vec = data.luminosity_distance([1.2, 1.4, 0.1, 1.9])
         self.assertAlmostEqual(scal, vec[1], 5)
         pars.set_dark_energy()  # re-set defaults
+
+        # test theta
+        pars.set_cosmology(cosmomc_theta=0.0104085, H0=None, ombh2=0.022271, omch2=0.11914, mnu=0.06, omk=0)
+        self.assertAlmostEqual(pars.H0, 67.5512,2)
+
 
     def testEvolution(self):
         redshifts = [0.4, 31.5]

@@ -300,7 +300,7 @@ class CAMBparams(CAMB_Structure):
         If you require more fine-grained control can set the neutrino parameters directly rather than using this function.
 
         :param H0: Hubble parameter (in km/s/Mpc)
-        :param cosmomc_theta The CosmoMC theta parameter
+        :param cosmomc_theta The CosmoMC theta parameter. You must set H0=None to solve for H0 given cosmomc_theta
         :param ombh2: physical density in baryons
         :param omch2:  physical density in cold dark matter
         :param omk: Omega_K curvature parameter
@@ -316,7 +316,6 @@ class CAMBparams(CAMB_Structure):
         :param tau_neutron: neutron lifetime, for setting YHe using BBN consistency
         """
 
-
         if YHe is None:
             # use BBN prediction
             self.set_bbn_helium(ombh2, nnu - standard_neutrino_neff, tau_neutron)
@@ -326,6 +325,9 @@ class CAMBparams(CAMB_Structure):
 
 
         if cosmomc_theta is not None:
+            if not (0.001 < cosmomc_theta < 0.1):
+                raise CAMBError('cosmomc_theta looks wrong (parameter is just theta, not 100*theta)')
+
             kw=locals(); [kw.pop(x) for x in ['self','H0','cosmomc_theta']]
 
             if H0 is not None: 
@@ -336,7 +338,7 @@ class CAMBparams(CAMB_Structure):
             except ImportError:
                 raise CAMBError('You need SciPy to set cosmomc_theta.')
 
-            import camb
+            from . import camb
 
             def f(H0):
                 self.set_cosmology(H0=H0,**kw)
@@ -345,8 +347,6 @@ class CAMBparams(CAMB_Structure):
             self.H0 = brentq(f,10,100,rtol=1e-4)
         else:
             self.H0 = H0
-
-
 
 
         self.TCMB = TCMB
@@ -397,8 +397,6 @@ class CAMBparams(CAMB_Structure):
 
         if tau is not None:
             self.Reion.set_tau(tau)
-
-
 
         return self
 
