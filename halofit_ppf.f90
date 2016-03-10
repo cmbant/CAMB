@@ -1,58 +1,80 @@
-    !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    ! The `halofit' code models the nonlinear evolution of cold matter
-    ! cosmological power spectra. The full details of the way in which
-    ! this is done are presented in Smith et al. (2002), MNRAS, ?, ?.
-    !
-    ! The code `halofit' was written by R. E. Smith & J. A. Peacock.
-    ! See http://www.astro.upenn.edu/~res,
-    !
-    ! Subsequent updates as below
-    ! Only tested for basic models with power law initial power spectra
+!%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+! The `halofit' code models the nonlinear evolution of cold matter
+! cosmological power spectra. The full details of the way in which
+! this is done are presented in Smith et al. (2002), MNRAS, ?, ?.
+!
+! The code `halofit' was written by R. E. Smith & J. A. Peacock.
+! See http://www.astro.upenn.edu/~res,
+!
+! Subsequent updates as below
+! Only tested for basic models with power law initial power spectra
 
-    ! Adapted for F90 and CAMB, AL March 2005
-    !!BR09 Oct 09: generalized expressions for om(z) and ol(z) to include w
+! Adapted for F90 and CAMB, AL March 2005
+!!BR09 Oct 09: generalized expressions for om(z) and ol(z) to include w
 
-    ! RT12 Oct: update some fitting parameters in the code to enhance
-    !           the power spectrum at small scales (arXiv:1208.2701)
+! RT12 Oct: update some fitting parameters in the code to enhance
+!           the power spectrum at small scales (arXiv:1208.2701)
 
-    !!JD 08/13: generalized expressions for om(z) and ol(z) to include
-    !           w_0 and w_a
-    ! SPB14 Feb: update the fitting parameters for neutrinos to work with RT12
-    !           modifications
-    ! AL Sept 14: added halofit_version parameter to change approximation used;
-    !   separate halofit.f90 is no longer needed as equations.f90 defined fixed wa_ppf
+!!JD 08/13: generalized expressions for om(z) and ol(z) to include
+!           w_0 and w_a
+! SPB14 Feb: update the fitting parameters for neutrinos to work with RT12
+!           modifications
+! AL Sept 14: added halofit_version parameter to change approximation used;
+!   separate halofit.f90 is no longer needed as equations.f90 defined fixed wa_ppf
 ! Jan 15: Suggested change from Simeon Bird to avoid issues with very large Omm and neutrinos
 !AM Mar 16: Added in HMcode
 
-    !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+!%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-    module NonLinear
-    use ModelParams
-    use transfer
-    use LambdaGeneral
-    implicit none
-    private
+module NonLinear
+  use ModelParams
+  use transfer
+  use LambdaGeneral
+  implicit none
+  private
 
-    real, parameter :: Min_kh_nonlinear = 0.005
-    real(dl):: om_m,om_v,fnu,omm0, acur
+  real, parameter :: Min_kh_nonlinear = 0.005
+  real(dl):: om_m,om_v,fnu,omm0, acur
 
-    integer, parameter :: halofit_original = 1, halofit_bird=2, halofit_peacock=3, halofit_takahashi=4, meadfit=5
-    integer, parameter :: halofit_default = halofit_takahashi
-    integer :: halofit_version = halofit_default
-    INTEGER :: imead, ihm !!AM - added these for HMcode
-    public Min_kh_nonlinear,NonLinear_GetNonLinRatios, NonLinear_ReadParams
-    public halofit_version,halofit_default, halofit_original, halofit_bird, halofit_peacock, halofit_takahashi
-    contains
+  integer, parameter :: halofit_original = 1, halofit_bird=2, halofit_peacock=3, halofit_takahashi=4
+  integer, parameter :: halofit_mead=5, halofit_halomodel=6
+  integer, parameter :: halofit_default = halofit_takahashi
+  integer :: halofit_version = halofit_default
+  INTEGER :: imead, ihm !!AM - added these for HMcode
+  public Min_kh_nonlinear, NonLinear_GetNonLinRatios, NonLinear_ReadParams
+  public halofit_version, halofit_default, halofit_original, halofit_bird, halofit_peacock, halofit_takahashi
+  public halofit_mead, halofit_halomodel
 
-    subroutine NonLinear_ReadParams(Ini)
+  !!AM - Added these types for HMcode
+  TYPE cosmology
+     !Contains only things that do not need to be recalculated with each new z
+     !REAL :: om_m, om_b, om_v, h, n, sig8, w, wa, f_nu, gamma
+     REAL :: om_m, om_v, w, wa, f_nu, ns
+     !INTEGER :: itk
+     REAL, ALLOCATABLE :: r_sigma(:), sigma(:)
+     REAL, ALLOCATABLE :: growth(:), a_growth(:)
+     REAL, ALLOCATABLE :: k_plin(:), plin(:)
+  END TYPE cosmology
+
+  TYPE tables
+     !Stuff that needs to be recalculated for each new z
+     REAL, ALLOCATABLE :: c(:), rv(:), nu(:), sig(:), zc(:), m(:), rr(:), sigf(:)
+     REAL :: sigv, sigv100, c3, knl, rnl, neff, sig8z
+     INTEGER :: n
+  END TYPE tables
+  !!AM - End of my additions
+  
+contains
+
+  subroutine NonLinear_ReadParams(Ini)
     use IniFile
     Type(TIniFile) :: Ini
 
     halofit_version = Ini_Read_Int_File(Ini, 'halofit_version', halofit_default)
 
-    end subroutine NonLinear_ReadParams
+  end subroutine NonLinear_ReadParams
 
-    subroutine NonLinear_GetNonLinRatios(CAMB_Pk)
+  subroutine NonLinear_GetNonLinRatios(CAMB_Pk)
     !Fill the CAMB_Pk%nonlin_scaling array with sqrt(non-linear power/linear power)
     !for each redshift and wavenumber
     !This implementation uses Halofit
@@ -63,63 +85,63 @@
     real(dl) diff,xlogr1,xlogr2,rmid
     integer i
 
-    IF(halofit_version==meadfit) THEN
+    IF(halofit_version==halofit_mead .OR. halofit_version==halofit_halomodel) THEN
 
        !AM - Call HMcode here
        CALL HMcode(CAMB_Pk)
 
     ELSE
 
-    !!BR09 putting neutrinos into the matter as well, not sure if this is correct, but at least one will get a consisent omk.
-    omm0 = CP%omegac+CP%omegab+CP%omegan
-    fnu = CP%omegan/omm0
+       !!BR09 putting neutrinos into the matter as well, not sure if this is correct, but at least one will get a consisent omk.
+       omm0 = CP%omegac+CP%omegab+CP%omegan
+       fnu = CP%omegan/omm0
 
-    CAMB_Pk%nonlin_ratio = 1
+       CAMB_Pk%nonlin_ratio = 1
 
-    do itf = 1, CAMB_Pk%num_z
+       do itf = 1, CAMB_Pk%num_z
 
 
-        ! calculate nonlinear wavenumber (rknl), effective spectral index (rneff) and
-        ! curvature (rncur) of the power spectrum at the desired redshift, using method
-        ! described in Smith et al (2002).
-        a = 1/real(1+CAMB_Pk%Redshifts(itf),dl)
-        om_m = omega_m(a, omm0, CP%omegav, w_lam,wa_ppf)
-        om_v = omega_v(a, omm0, CP%omegav, w_lam,wa_ppf)
-        acur = a
-        xlogr1=-2.0
-        xlogr2=3.5
-        do
-            rmid=(xlogr2+xlogr1)/2.0
-            rmid=10**rmid
-            call wint(CAMB_Pk,itf,rmid,sig,d1,d2)
-            diff=sig-1.0
-            if (abs(diff).le.0.001) then
+          ! calculate nonlinear wavenumber (rknl), effective spectral index (rneff) and
+          ! curvature (rncur) of the power spectrum at the desired redshift, using method
+          ! described in Smith et al (2002).
+          a = 1/real(1+CAMB_Pk%Redshifts(itf),dl)
+          om_m = omega_m(a, omm0, CP%omegav, w_lam,wa_ppf)
+          om_v = omega_v(a, omm0, CP%omegav, w_lam,wa_ppf)
+          acur = a
+          xlogr1=-2.0
+          xlogr2=3.5
+          do
+             rmid=(xlogr2+xlogr1)/2.0
+             rmid=10**rmid
+             call wint(CAMB_Pk,itf,rmid,sig,d1,d2)
+             diff=sig-1.0
+             if (abs(diff).le.0.001) then
                 rknl=1./rmid
                 rneff=-3-d1
                 rncur=-d2
                 exit
-            elseif (diff.gt.0.001) then
+             elseif (diff.gt.0.001) then
                 xlogr1=log10(rmid)
-            elseif (diff.lt.-0.001) then
+             elseif (diff.lt.-0.001) then
                 xlogr2=log10(rmid)
-            endif
-            if (xlogr2 < -1.9999) then
+             endif
+             if (xlogr2 < -1.9999) then
                 !is still linear, exit
                 goto 101
-            else if (xlogr2>3.4999) then
+             else if (xlogr2>3.4999) then
                 ! Totally crazy non-linear
                 global_error_flag=349
                 write(*,*) 'Error in halofit'
                 goto 101
-            end if
-        end do
+             end if
+          end do
 
-        ! now calculate power spectra for a logarithmic range of wavenumbers (rk)
+          ! now calculate power spectra for a logarithmic range of wavenumbers (rk)
 
-        do i=1, CAMB_PK%num_k
-            rk = exp(CAMB_Pk%log_kh(i))
+          do i=1, CAMB_PK%num_k
+             rk = exp(CAMB_Pk%log_kh(i))
 
-            if (rk > Min_kh_nonlinear) then
+             if (rk > Min_kh_nonlinear) then
 
                 ! linear power spectrum !! Remeber => plin = k^3 * P(k) * constant
                 ! constant = 4*pi*V/(2*pi)^3
@@ -133,21 +155,21 @@
                 call halofit(rk,rneff,rncur,rknl,plin,pnl,pq,ph)   ! halo fitting formula
                 CAMB_Pk%nonlin_ratio(i,itf) = sqrt(pnl/plin)
 
-            end if
+             end if
 
-        enddo
+          enddo
 
-101     continue
-     end do
+101       continue
+       end do
 
-     END IF
+    END IF
 
-    end subroutine NonLinear_GetNonLinRatios
+  end subroutine NonLinear_GetNonLinRatios
 
-    !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+  !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
-    subroutine halofit(rk,rn,rncur,rknl,plin,pnl,pq,ph)
+  subroutine halofit(rk,rn,rncur,rknl,plin,pnl,pq,ph)
     implicit none
 
     real(dl) gam,a,b,c,xmu,xnu,alpha,beta,f1,f2,f3
@@ -157,65 +179,65 @@
     real(dl) extragam, peacock_fudge
 
     if (halofit_version ==halofit_original .or. halofit_version ==halofit_bird &
-        .or. halofit_version == halofit_peacock) then
-    ! halo model nonlinear fitting formula as described in
-    ! Appendix C of Smith et al. (2002)
-    !SPB11: Standard halofit underestimates the power on the smallest scales by a
-    !factor of two. Add an extra correction from the simulations in Bird, Viel,
-    !Haehnelt 2011 which partially accounts for this.
-    if (halofit_version ==halofit_bird) then
-        extragam = 0.3159 -0.0765*rn -0.8350*rncur
-        gam=extragam+0.86485+0.2989*rn+0.1631*rncur
-    else
-        gam=0.86485+0.2989*rn+0.1631*rncur
-    end if
-    a=1.4861+1.83693*rn+1.67618*rn*rn+0.7940*rn*rn*rn+ &
-        0.1670756*rn*rn*rn*rn-0.620695*rncur
-    a=10**a
-    b=10**(0.9463+0.9466*rn+0.3084*rn*rn-0.940*rncur)
-    c=10**(-0.2807+0.6669*rn+0.3214*rn*rn-0.0793*rncur)
-    xmu=10**(-3.54419+0.19086*rn)
-    xnu=10**(0.95897+1.2857*rn)
-    alpha=1.38848+0.3701*rn-0.1452*rn*rn
-    beta=0.8291+0.9854*rn+0.3400*rn**2+fnu*(-6.4868+1.4373*rn**2)
+         .or. halofit_version == halofit_peacock) then
+       ! halo model nonlinear fitting formula as described in
+       ! Appendix C of Smith et al. (2002)
+       !SPB11: Standard halofit underestimates the power on the smallest scales by a
+       !factor of two. Add an extra correction from the simulations in Bird, Viel,
+       !Haehnelt 2011 which partially accounts for this.
+       if (halofit_version ==halofit_bird) then
+          extragam = 0.3159 -0.0765*rn -0.8350*rncur
+          gam=extragam+0.86485+0.2989*rn+0.1631*rncur
+       else
+          gam=0.86485+0.2989*rn+0.1631*rncur
+       end if
+       a=1.4861+1.83693*rn+1.67618*rn*rn+0.7940*rn*rn*rn+ &
+            0.1670756*rn*rn*rn*rn-0.620695*rncur
+       a=10**a
+       b=10**(0.9463+0.9466*rn+0.3084*rn*rn-0.940*rncur)
+       c=10**(-0.2807+0.6669*rn+0.3214*rn*rn-0.0793*rncur)
+       xmu=10**(-3.54419+0.19086*rn)
+       xnu=10**(0.95897+1.2857*rn)
+       alpha=1.38848+0.3701*rn-0.1452*rn*rn
+       beta=0.8291+0.9854*rn+0.3400*rn**2+fnu*(-6.4868+1.4373*rn**2)
     elseif (halofit_version == halofit_takahashi) then
-        !RT12 Oct: the halofit in Smith+ 2003 predicts a smaller power
-        !than latest N-body simulations at small scales.
-        !Update the following fitting parameters of gam,a,b,c,xmu,xnu,
-        !alpha & beta from the simulations in Takahashi+ 2012.
-        !The improved halofit accurately provide the power spectra for WMAP
-        !cosmological models with constant w.
-        gam=0.1971-0.0843*rn+0.8460*rncur
-        a=1.5222+2.8553*rn+2.3706*rn*rn+0.9903*rn*rn*rn+ &
+       !RT12 Oct: the halofit in Smith+ 2003 predicts a smaller power
+       !than latest N-body simulations at small scales.
+       !Update the following fitting parameters of gam,a,b,c,xmu,xnu,
+       !alpha & beta from the simulations in Takahashi+ 2012.
+       !The improved halofit accurately provide the power spectra for WMAP
+       !cosmological models with constant w.
+       gam=0.1971-0.0843*rn+0.8460*rncur
+       a=1.5222+2.8553*rn+2.3706*rn*rn+0.9903*rn*rn*rn+ &
             0.2250*rn*rn*rn*rn-0.6038*rncur+0.1749*om_v*(1.+w_lam+wa_ppf*(1-acur))
-        a=10**a
-        b=10**(-0.5642+0.5864*rn+0.5716*rn*rn-1.5474*rncur+ &
+       a=10**a
+       b=10**(-0.5642+0.5864*rn+0.5716*rn*rn-1.5474*rncur+ &
             0.2279*om_v*(1.+w_lam+wa_ppf*(1-acur)))
-        c=10**(0.3698+2.0404*rn+0.8161*rn*rn+0.5869*rncur)
-        xmu=0.
-        xnu=10**(5.2105+3.6902*rn)
-        alpha=abs(6.0835+1.3373*rn-0.1959*rn*rn-5.5274*rncur)
-        beta=2.0379-0.7354*rn+0.3157*rn**2+1.2490*rn**3+ &
+       c=10**(0.3698+2.0404*rn+0.8161*rn*rn+0.5869*rncur)
+       xmu=0.
+       xnu=10**(5.2105+3.6902*rn)
+       alpha=abs(6.0835+1.3373*rn-0.1959*rn*rn-5.5274*rncur)
+       beta=2.0379-0.7354*rn+0.3157*rn**2+1.2490*rn**3+ &
             0.3980*rn**4-0.1682*rncur + fnu*(1.081 + 0.395*rn**2)
     else
-        call MpiStop('Unknown halofit_version')
+       call MpiStop('Unknown halofit_version')
     end if
 
     if(abs(1-om_m).gt.0.01) then ! omega evolution
-        f1a=om_m**(-0.0732)
-        f2a=om_m**(-0.1423)
-        f3a=om_m**(0.0725)
-        f1b=om_m**(-0.0307)
-        f2b=om_m**(-0.0585)
-        f3b=om_m**(0.0743)
-        frac=om_v/(1.-om_m)
-        f1=frac*f1b + (1-frac)*f1a
-        f2=frac*f2b + (1-frac)*f2a
-        f3=frac*f3b + (1-frac)*f3a
+       f1a=om_m**(-0.0732)
+       f2a=om_m**(-0.1423)
+       f3a=om_m**(0.0725)
+       f1b=om_m**(-0.0307)
+       f2b=om_m**(-0.0585)
+       f3b=om_m**(0.0743)
+       frac=om_v/(1.-om_m)
+       f1=frac*f1b + (1-frac)*f1a
+       f2=frac*f2b + (1-frac)*f2a
+       f3=frac*f3b + (1-frac)*f3a
     else
-        f1=1.0
-        f2=1.
-        f3=1.
+       f1=1.0
+       f2=1.
+       f3=1.
     endif
 
     y=(rk/rknl)
@@ -229,25 +251,25 @@
     pnl=pq+ph
 
     if (halofit_version == halofit_peacock) then
-        !From http://www.roe.ac.uk/~jap/haloes/
-        !(P-P_linear) -> (P-P_linear) * (1+2y^2)/(1+y^2), where y = k/10 h Mpc^(-1).
-        peacock_fudge = rk/10
-        pnl = plin + (pnl-plin)*(1+2*peacock_fudge**2)/(1+peacock_fudge**2)
+       !From http://www.roe.ac.uk/~jap/haloes/
+       !(P-P_linear) -> (P-P_linear) * (1+2y^2)/(1+y^2), where y = k/10 h Mpc^(-1).
+       peacock_fudge = rk/10
+       pnl = plin + (pnl-plin)*(1+2*peacock_fudge**2)/(1+peacock_fudge**2)
     end if
 
-    end subroutine halofit
+  end subroutine halofit
 
 
-    !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+  !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-    ! The subroutine wint, finds the effective spectral quantities
-    ! rknl, rneff & rncur. This it does by calculating the radius of
-    ! the Gaussian filter at which the variance is unity = rknl.
-    ! rneff is defined as the first derivative of the variance, calculated
-    ! at the nonlinear wavenumber and similarly the rncur is the second
-    ! derivative at the nonlinear wavenumber.
+  ! The subroutine wint, finds the effective spectral quantities
+  ! rknl, rneff & rncur. This it does by calculating the radius of
+  ! the Gaussian filter at which the variance is unity = rknl.
+  ! rneff is defined as the first derivative of the variance, calculated
+  ! at the nonlinear wavenumber and similarly the rncur is the second
+  ! derivative at the nonlinear wavenumber.
 
-    subroutine wint(CAMB_Pk,itf,r,sig,d1,d2)
+  subroutine wint(CAMB_Pk,itf,r,sig,d1,d2)
     implicit none
     integer, intent(in) :: itf
     type(MatterPowerData) :: CAMB_Pk
@@ -261,19 +283,19 @@
     sum3=0.d0
     anorm = 1/(2*pi**2)
     do i=1,nint
-        t=(i-0.5_dl)/nint
-        y=-1.d0+1.d0/t
-        rk=y
-        d2=MatterPowerData_k(CAMB_PK, rk, itf)*(rk**3*anorm)
-        x=y*r
-        x2=x*x
-        w1=exp(-x2)
-        w2=2*x2*w1
-        w3=4*x2*(1-x2)*w1
-        fac=d2/y/t/t
-        sum1=sum1+w1*fac
-        sum2=sum2+w2*fac
-        sum3=sum3+w3*fac
+       t=(i-0.5_dl)/nint
+       y=-1.d0+1.d0/t
+       rk=y
+       d2=MatterPowerData_k(CAMB_PK, rk, itf)*(rk**3*anorm)
+       x=y*r
+       x2=x*x
+       w1=exp(-x2)
+       w2=2*x2*w1
+       w3=4*x2*(1-x2)*w1
+       fac=d2/y/t/t
+       sum1=sum1+w1*fac
+       sum2=sum2+w2*fac
+       sum3=sum3+w3*fac
     enddo
     sum1=sum1/nint
     sum2=sum2/nint
@@ -282,37 +304,37 @@
     d1=-sum2/sum1
     d2=-sum2*sum2/sum1/sum1 - sum3/sum1
 
-    end subroutine wint
+  end subroutine wint
 
-    !!JD 08/13 generalize to variable w
+  !!JD 08/13 generalize to variable w
 
-    function omega_m(aa,om_m0,om_v0,wval,waval)
+  function omega_m(aa,om_m0,om_v0,wval,waval)
     implicit none
     real(dl) omega_m,omega_t,om_m0,om_v0,aa,wval,waval,Qa2
     Qa2= aa**(-1.0-3.0*(wval+waval))*dexp(-3.0*(1-aa)*waval)
     omega_t=1.0+(om_m0+om_v0-1.0)/(1-om_m0-om_v0+om_v0*Qa2+om_m0/aa)
     omega_m=omega_t*om_m0/(om_m0+om_v0*aa*Qa2)
-    end function omega_m
+  end function omega_m
 
-    !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+  !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-    ! evolution of omega lambda with expansion factor
+  ! evolution of omega lambda with expansion factor
 
-    function omega_v(aa,om_m0,om_v0,wval,waval)
+  function omega_v(aa,om_m0,om_v0,wval,waval)
     implicit none
     real(dl) aa,omega_v,om_m0,om_v0,omega_t,wval,waval,Qa2
     Qa2= aa**(-1.0-3.0*(wval+waval))*dexp(-3.0*(1-aa)*waval)
     omega_t=1.0+(om_m0+om_v0-1.0)/(1-om_m0-om_v0+om_v0*Qa2+om_m0/aa)
     omega_v=omega_t*om_v0*Qa2/(om_v0*Qa2+om_m0/aa)
-    end function omega_v
+  end function omega_v
 
-    !!JD end generalize to variable w
+  !!JD end generalize to variable w
 
-    !!AM Below is for HMcode
-    SUBROUTINE HMcode(CAMB_Pk)         
+  !!AM Below is for HMcode
+  SUBROUTINE HMcode(CAMB_Pk)         
 
     IMPLICIT NONE
-    
+
     !!AM - A CAMB derived type that I need
     TYPE(MatterPowerData) :: CAMB_Pk
     REAL :: z, k
@@ -332,14 +354,15 @@
     !Use imead to switch between the standard and accurate halo-model calcuation
     !0 - Standard
     !1 - Accurate from Mead et al. (2015; arXiv 1505.07833)
-    imead=1
+    IF(halofit_version==halofit_halomodel) imead=0
+    IF(halofit_version==halofit_mead) imead=1
 
     !Use ihm to switch between verbose and non-verbose mode
     !0 - Non-verbose
     !1 - Verbose
     ihm=0
-    
-    WRITE(*,*) 'Running HMcode'
+
+    IF(ihm==1) WRITE(*,*) 'Running HMcode'
 
     !!AM - Translate from CAMB variables to my variables
     nz=CAMB_PK%num_z
@@ -360,18 +383,11 @@
        !Initiliasation for the halomodel calcualtion (needs to be done for each z)
        CALL halomod_init(z,lut,cosi)
 
-       !WRITE(*,*) 'Dv:', Delta_v(z,lut,cosi)
-       !WRITE(*,*) 'dc:', delta_c(z,lut,cosi)
-       !WRITE(*,*) 'eta:', eta(z,lut,cosi)
-       !WRITE(*,*) 'f_damp:', fdamp(z,lut,cosi)
-       !WRITE(*,*) 'k_*:', kstar(z,lut,cosi)
-       !WRITE(*,*) 'alpha:', alpha(z,lut,cosi)
-
        !Loop over k values and calculate P(k)
        DO i=1,nk
 
           k=exp(CAMB_Pk%log_kh(i))
-          
+
           plin=p_lin(k,z,cosi)
 
           CALL halomod(k,z,p1h,p2h,pfull,plin,lut,cosi)
@@ -380,6 +396,7 @@
 
        END DO
 
+101    CONTINUE
     END DO
 
   END SUBROUTINE HMcode
@@ -401,7 +418,7 @@
        Delta_v=418.*(omega_m_hm(z,cosm)**(-0.352))
        Delta_v=Delta_v*(1.+0.916*cosm%f_nu)
     END IF
-    
+
   END FUNCTION Delta_v
 
   FUNCTION delta_c(z,lut,cosm)
@@ -439,11 +456,11 @@
        eta=0.
     ELSE IF(imead==1) THEN
        !The first parameter here is 'eta_0' in Mead et al. (2015; arXiv 1505.07833)
-    eta=0.603-0.3*lut%sig8z
+       eta=0.603-0.3*lut%sig8z
     END IF
 
   END FUNCTION eta
- 
+
   FUNCTION kstar(z,lut,cosm)
 
     !Function k* that cuts off the 1-halo term at large scales
@@ -477,7 +494,7 @@
        !Set to 4 for the standard Bullock value
        As=4.
     ELSE IF(imead==1) THEN
-    !This is the 'A' halo-concentration parameter in Mead et al. (2015; arXiv 1505.07833)
+       !This is the 'A' halo-concentration parameter in Mead et al. (2015; arXiv 1505.07833)
        As=3.13
     END IF
 
@@ -623,7 +640,7 @@
 
     nk=CAMB_PK%num_k
     nz=CAMB_PK%num_z
-    
+
     ALLOCATE(cosm%k_plin(nk),cosm%plin(nk))
 
     !Fill k-table
@@ -640,7 +657,7 @@
     !Calculate the growth factor at the redshift of interest
     z=CAMB_Pk%Redshifts(nz)
     g=grow(z,cosm)
-    
+
     !Get the power at z=0
     cosm%plin=cosm%plin/(g**2.)
 
@@ -660,9 +677,8 @@
     cosm%f_nu=CP%omegan/cosm%om_m
 
     !It would be good to have n_s read in properly here
-    !Still, ns=1 is not that wrong and it is only used in a minor way
-    cosm%n=1.
-
+    cosm%ns=CP%InitPower%an(1)
+    
   END SUBROUTINE assign_cosmology
 
   SUBROUTINE initialise_cosmology(cosm,CAMB_PK)
@@ -719,6 +735,8 @@
 
   SUBROUTINE halomod_init(z,lut,cosm)
 
+    !Halo-model initialisation routine
+    !Computes look-up tables necessary for the halo model calculations
     IMPLICIT NONE
     REAL, INTENT(IN) :: z
     INTEGER :: i, imin, imax, n
@@ -726,9 +744,6 @@
     REAL, ALLOCATABLE :: rg_up(:), rg_dn(:), nu_up(:), nu_dn(:), mg_up(:), mg_dn(:)
     TYPE(cosmology) :: cosm
     TYPE(tables) :: lut
-
-    !Halo-model initialisation routine
-    !Computes other tables necessary for the one-halo integral
 
     !Find value of sigma_v, sig8, etc.
     lut%sigv=sqrt(dispint(z,cosm))
@@ -824,6 +839,7 @@
 
   PURE FUNCTION radius_m(m,cosm)
 
+    !Calculates the co-moving radius that encloses an average mass 'm'
     IMPLICIT NONE
     REAL :: radius_m
     REAL, INTENT(IN) :: m
@@ -836,6 +852,8 @@
 
   FUNCTION neff(lut,cosm)
 
+    !Finds the effective spectral index at the collapse scale r_nl
+    !Where dc/sigma(r_nl)=1.
     IMPLICIT NONE
     REAL :: neff
     REAL :: ns
@@ -847,58 +865,16 @@
 
     !For some bizarre cosmologies r_nl is very small, so almost no collapse has occured
     !In this case the n_eff calculation goes mad and needs to be fixed using this fudge.
-    ns=cosm%n
-    
+    ns=cosm%ns
+
     IF(neff<ns-4.) neff=ns-4.
     IF(neff>ns)    neff=ns
 
   END FUNCTION neff
 
-!!$  SUBROUTINE conc_bull(z,cosm,lut)
-!!$
-!!$    
-!!$    IMPLICIT NONE
-!!$    REAL, INTENT(IN) :: z
-!!$    TYPE(cosmology) :: cosm
-!!$    TYPE(tables) :: lut
-!!$    REAL :: A, zf, g_lcdm, g_wcdm, w
-!!$    INTEGER :: i
-!!$
-!!$    !Calculates the Bullock et al. (2001) mass-concentration relation
-!!$
-!!$    A=As(z,lut,cosm)
-!!$
-!!$    !Fill the collapse z look-up table
-!!$    CALL zcoll_bull(z,cosm,lut)
-!!$
-!!$    !Fill the concentration look-up table
-!!$    DO i=1,lut%n
-!!$
-!!$       zf=lut%zc(i)
-!!$       lut%c(i)=A*(1.+zf)/(1.+z)
-!!$
-!!$       !Dolag2004 prescription for adding DE dependence
-!!$       IF(cosm%w .NE. -1.) THEN
-!!$
-!!$          zf=100.
-!!$
-!!$          g_wcdm=grow(zf,cosm)
-!!$
-!!$          w=cosm%w
-!!$          cosm%w=-1.
-!!$          g_lcdm=grow(zf,cosm)
-!!$          cosm%w=w
-!!$
-!!$          lut%c(i)=lut%c(i)*(g_wcdm/g_lcdm)
-!!$
-!!$       END IF
-!!$
-!!$    END DO
-!!$
-!!$  END SUBROUTINE conc_bull
-
   SUBROUTINE conc_bull(z,cosm,lut)
 
+    !Calculates the Bullock (2001) concentration-mass relation
     IMPLICIT NONE
     REAL, INTENT(IN) :: z
     TYPE(cosmology) :: cosm, cos_lcdm
@@ -924,7 +900,7 @@
     !This is approximately z=infinity
     zinf=10.
     g_wcdm=grow(zinf,cosm)
-    
+
     !Make a LCDM cosmology
     cos_lcdm=cosm
     DEALLOCATE(cos_lcdm%growth)
@@ -934,21 +910,23 @@
 
     ainf=1./(1.+zinf)
 
-    !Needs to use grow_int explicitly in case tabulated values are stored
+    !Needs to use grow_int explicitly here for LCDM model to avoid growth tables
     g_lcdm=grow_int(ainf,0.001,cos_lcdm)
 
     !This is then the Dolag correction
     !lut%c=lut%c*(g_wcdm/g_lcdm)
 
     pow=1.5
-    !This is the Dolag correction
+    !This is the Dolag correction with a 1.5 power rather than 1
     lut%c=lut%c*((g_wcdm/g_lcdm)**pow)
 
   END SUBROUTINE conc_bull
 
   FUNCTION grow_int(b,acc,cosm)
 
-    !Integrates between a and b with nint points until desired accuracy is reached!
+    !Integrates the (very good) approximation for the growth rate (f=\Om^\gamma)
+    !to get the growth function. This only works for wCDM modesls with constant w
+    !but is only used for these models.
     IMPLICIT NONE
     INTEGER :: i, j, jmax
     REAL :: grow_int, a, b, acc, dx
@@ -963,8 +941,6 @@
     jmax=20
 
     a=1.
-    
-    IF(cosm%wa .NE. 0) STOP 'This does not work for w(a)'
 
     IF(a==b) THEN
 
@@ -987,7 +963,8 @@
                 fac=2.
              END IF
 
-             !Insert function here!
+             !Growth rate is \Omega_m(z)^0.55 to a very good approximation
+             !Some small deivations for wCDM are included
              IF(cosm%w<-1.) THEN
                 gam=0.55+0.02*(1.+cosm%w)
              ELSE IF(cosm%w>-1) THEN
@@ -1021,6 +998,7 @@
 
   SUBROUTINE zcoll_bull(z,cosm,lut)
 
+    !Calcuates the halo collapse redshift according to the Bullock (2001) prescription
     IMPLICIT NONE
     REAL, INTENT(IN) :: z
     TYPE(cosmology) :: cosm
@@ -1063,6 +1041,7 @@
 
   FUNCTION mass_r(r,cosm)
 
+    !Calcuates the average mass enclosed at co-moving radius r
     IMPLICIT NONE
     REAL :: mass_r, r
     TYPE(cosmology) :: cosm
@@ -1075,6 +1054,7 @@
 
   PURE FUNCTION cosmic_density(cosm)
 
+    !The z=0 cosmological matter density
     IMPLICIT NONE
     REAL :: cosmic_density
     TYPE(cosmology), INTENT(IN) :: cosm
@@ -1086,7 +1066,7 @@
 
   FUNCTION find_pk(k,cosm)
 
-    
+    !Look-up and interpolation for P(k)
     IMPLICIT NONE
     REAL :: find_pk
     REAL :: kmax, ns
@@ -1094,13 +1074,11 @@
     INTEGER :: n
     TYPE(cosmology), INTENT(IN) :: cosm
 
-    !Look-up and interpolation for P(k)
-
     n=SIZE(cosm%k_plin)
     kmax=cosm%k_plin(n)
 
-    ns=cosm%n
-    
+    ns=cosm%ns
+
     IF(k>kmax) THEN
        !Do some interpolation here based on knowledge of things at high k
        find_pk=cosm%plin(n)*((log(k)/log(kmax))**2.)*((k/kmax)**(ns-1.))
@@ -1122,7 +1100,7 @@
 
     !This gives the linear power spectrum for the model in question
     !P(k) should have been previously normalised to z=0
-    
+
     p_lin=(grow(z,cosm)**2.)*find_pk(k,cosm)
 
   END FUNCTION p_lin
@@ -1138,8 +1116,7 @@
     TYPE(tables), INTENT(IN) :: lut
     TYPE(cosmology), INTENT(IN) :: cosm
 
-    !Produces the 'two-halo' power
-
+    !Damping function
     frac=fdamp(z,lut,cosm)
 
     IF(frac<1e-3) THEN
@@ -1378,12 +1355,12 @@
     REAL*8 :: sum
     INTEGER :: i, n, i1, i2, i3, i4
     INTEGER, INTENT(IN) :: iorder
-    
+
     !Can either use linear, quadratic or cubic methods
 
     n=SIZE(x)
 
-    IF(n .NE. SIZE(y)) STOP 'Tables must be of the same length'
+    IF(n .NE. SIZE(y)) ERROR STOP 'Tables must be of the same length'
 
     sum=0.d0
 
@@ -1573,8 +1550,6 @@
 
           !x is defined on the interval 0 -> 1
           x=float(i-1)/float(n-1)
-
-          !          WRITE(*,*) j, i, x, r, z, f_rapid(r)
           sum2=sum2+sigma_integrand(x,r,f_rapid,z,cosm)
 
        END DO
@@ -1590,10 +1565,12 @@
           EXIT
        ELSE IF(j==jmax) THEN
           WRITE(*,*)
-          WRITE(*,*) 'SIGINT: r:', r
-          WRITE(*,*) 'SIGINT: Integration timed out'
-          WRITE(*,*)
-          STOP
+          WRITE(*,*) 'SIGINT0: r:', r
+          !WRITE(*,*) 'SIGINT0: Integration timed out'
+          !global_error_flag=349
+          !WRITE(*,*) 'Error in HMcode'
+          !GOTO 101
+          ERROR STOP 'SIGINT0: Integration timed out'
        ELSE
           sum1=sum2
           sum2=0.d0
@@ -1655,9 +1632,11 @@
        ELSE IF(j==jmax) THEN
           WRITE(*,*)
           WRITE(*,*) 'SIGINT1: r:', r
-          WRITE(*,*) 'SIGINT1: Integration timed out'
-          WRITE(*,*)
-          STOP
+          !WRITE(*,*) 'SIGINT1: Integration timed out'
+          !global_error_flag=349
+          !WRITE(*,*) 'Error in HMcode'
+          !GOTO 101
+          ERROR STOP 'SIGINT1: Integration timed out'
        ELSE
           sum1=sum2
           sum2=0.d0
@@ -1721,9 +1700,11 @@
        ELSE IF(j==jmax) THEN
           WRITE(*,*)
           WRITE(*,*) 'SIGINT2: r:', r
-          WRITE(*,*) 'SIGINT2: Integration timed out'
-          WRITE(*,*)
-          STOP
+          !WRITE(*,*) 'SIGINT2: Integration timed out'
+          !global_error_flag=349
+          !WRITE(*,*) 'Error in HMcode'
+          !GOTO 101
+          ERROR STOP 'SIGINT2: Integration timed out'
        ELSE
           sum1=sum2
           sum2=0.d0
@@ -1796,10 +1777,14 @@
 
   FUNCTION gst(nu)
 
-    !Sheth Tormen mass function!
+    !Sheth Tormen (1999) mass function!
     IMPLICIT NONE
     REAL :: nu, gst
     REAL :: p, q
+
+    !Note I use nu=dc/sigma whereas ST (1999) use nu=(dc/sigma)^2
+    !This accounts for the different pre-factor and slighly changed nu dependence
+    !f(nu^2)d(nu^2)=2*nu*f(nu)dnu
 
     p=0.3
     q=0.707
@@ -1840,17 +1825,17 @@
 
   END FUNCTION x_de
 
-  FUNCTION w_de(a,cosm)
+  FUNCTION wde(a,cosm)
 
     !The dark energy w(a) function
     IMPLICIT NONE
-    REAL :: w_de
+    REAL :: wde
     REAL, INTENT(IN) :: a
     TYPE(cosmology), INTENT(IN) :: cosm
 
-    w_de=cosm%w+(1.-a)*cosm%wa
-    
-  END FUNCTION w_de
+    wde=cosm%w+(1.-a)*cosm%wa
+
+  END FUNCTION wde
 
   FUNCTION Omega_m_hm(z,cosm)
 
@@ -1860,7 +1845,7 @@
     REAL, INTENT(IN) :: z
     REAL :: om_m, a
     TYPE(cosmology), INTENT(IN) :: cosm
-       
+
     om_m=cosm%om_m
     Omega_m_hm=(om_m*(1.+z)**3.)/Hubble2(z,cosm)
 
@@ -1928,7 +1913,7 @@
           !Values at the end points are 0 so removed for convenience
           theta=float(i-1)/float(n-1)
           k=(-1.+1./theta)          
-          sum=sum+((1.+k)**2.)*p_lin(k,z,cosm)/(k**3.)!((k**3.)*theta**2.)
+          sum=sum+((1.+k)**2.)*p_lin(k,z,cosm)/(k**3.)
 
        END DO
 
@@ -2079,7 +2064,7 @@
     maxmethod=3
 
     n=SIZE(xin)
-    IF(n .NE. SIZE(yin)) STOP 'FIND: Tables not of the same size'
+    IF(n .NE. SIZE(yin)) ERROR STOP 'FIND: Tables not of the same size'
     ALLOCATE(xtab(n),ytab(n))
 
     xtab=xin
@@ -2091,14 +2076,14 @@
        CALL reverse(ytab)
     END IF
 
-    IF(iorder<1) STOP 'FIND: find order not specified correctly'
-    IF(iorder>maxorder) STOP 'FIND: find order not specified correctly'
-    IF(imeth<1) STOP 'FIND: Method of finding within a table not specified correctly'
-    IF(imeth>maxmethod) STOP 'FIND: Method of finding within a table not specified correctly'
+    IF(iorder<1) ERROR STOP 'FIND: find order not specified correctly'
+    IF(iorder>maxorder) ERROR STOP 'FIND: find order not specified correctly'
+    IF(imeth<1) ERROR STOP 'FIND: Method of finding within a table not specified correctly'
+    IF(imeth>maxmethod) ERROR STOP 'FIND: Method of finding within a table not specified correctly'
 
     IF(iorder==1) THEN
 
-       IF(n<2) STOP 'FIND: Not enough points in your table for linear interpolation'
+       IF(n<2) ERROR STOP 'FIND: Not enough points in your table for linear interpolation'
 
        IF(x<=xtab(2)) THEN
 
@@ -2135,7 +2120,7 @@
 
     ELSE IF(iorder==2) THEN
 
-       IF(n<3) STOP 'FIND_QUADRATIC: Not enough points in your table'
+       IF(n<3) ERROR STOP 'FIND_QUADRATIC: Not enough points in your table'
 
        IF(x<=xtab(2) .OR. x>=xtab(n-1)) THEN
 
@@ -2195,7 +2180,7 @@
 
     ELSE IF(iorder==3) THEN
 
-       IF(n<4) STOP 'FIND_CUBIC: Not enough points in your table'
+       IF(n<4) ERROR STOP 'FIND_CUBIC: Not enough points in your table'
 
        IF(x<=xtab(3)) THEN
 
@@ -2280,7 +2265,7 @@
     maxmethod=3
 
     n=SIZE(xin)
-    IF(n .NE. SIZE(yin)) STOP 'FIND: Tables not of the same size'
+    IF(n .NE. SIZE(yin)) ERROR STOP 'FIND: Tables not of the same size'
     ALLOCATE(xtab(n),ytab(n))
 
     xtab=xin
@@ -2292,10 +2277,10 @@
        CALL reverse(ytab)
     END IF
 
-    IF(iorder<1) STOP 'FIND: find order not specified correctly'
-    IF(iorder>maxorder) STOP 'FIND: find order not specified correctly'
-    IF(imeth<1) STOP 'FIND: Method of finding within a table not specified correctly'
-    IF(imeth>maxmethod) STOP 'FIND: Method of finding within a table not specified correctly'
+    IF(iorder<1) ERROR STOP 'FIND: find order not specified correctly'
+    IF(iorder>maxorder) ERROR STOP 'FIND: find order not specified correctly'
+    IF(imeth<1) ERROR STOP 'FIND: Method of finding within a table not specified correctly'
+    IF(imeth>maxmethod) ERROR STOP 'FIND: Method of finding within a table not specified correctly'
 
     IF(x<xtab(1)) THEN
 
@@ -2321,7 +2306,7 @@
 
     ELSE IF(iorder==1) THEN
 
-       IF(n<2) STOP 'FIND: Not enough points in your table for linear interpolation'
+       IF(n<2) ERROR STOP 'FIND: Not enough points in your table for linear interpolation'
 
        IF(x<=xtab(2)) THEN
 
@@ -2358,7 +2343,7 @@
 
     ELSE IF(iorder==2) THEN
 
-       IF(n<3) STOP 'FIND: Not enough points in your table'
+       IF(n<3) ERROR STOP 'FIND: Not enough points in your table'
 
        IF(x<=xtab(2) .OR. x>=xtab(n-1)) THEN
 
@@ -2418,7 +2403,7 @@
 
     ELSE IF(iorder==3) THEN
 
-       IF(n<4) STOP 'FIND: Not enough points in your table'
+       IF(n<4) ERROR STOP 'FIND: Not enough points in your table'
 
        IF(x<=xtab(3)) THEN
 
@@ -2489,8 +2474,8 @@
     !Test for linear table
     acc=0.001
 
-    IF(x1>xn) STOP 'LINEAR_TABLE_INTEGER :: table in the wrong order'
-    IF(ABS(-1.+float(n-1)*(x2-x1)/(xn-x1))>acc) STOP 'LINEAR_TABLE_INTEGER :: table does not seem to be linear'
+    IF(x1>xn) ERROR STOP 'LINEAR_TABLE_INTEGER :: table in the wrong order'
+    IF(ABS(-1.+float(n-1)*(x2-x1)/(xn-x1))>acc) ERROR STOP 'LINEAR_TABLE_INTEGER :: table does not seem to be linear'
 
     linear_table_integer=1+FLOOR(float(n-1)*(x-x1)/(xn-x1))
 
@@ -2509,7 +2494,7 @@
 
     n=SIZE(xtab)
 
-    IF(xtab(1)>xtab(n)) STOP 'SEARCH_INT: table in wrong order'
+    IF(xtab(1)>xtab(n)) ERROR STOP 'SEARCH_INT: table in wrong order'
 
     DO i=1,n
        IF(x>=xtab(i) .AND. x<=xtab(i+1)) EXIT
@@ -2529,7 +2514,7 @@
 
     n=SIZE(xtab)
 
-    IF(xtab(1)>xtab(n)) STOP 'INT_SPLIT: table in wrong order'
+    IF(xtab(1)>xtab(n)) ERROR STOP 'INT_SPLIT: table in wrong order'
 
     i1=1
     i2=n
@@ -2662,7 +2647,6 @@
     IF(ihm==1) WRITE(*,*) 'GROWTH: unnormalised g(a=1):', norm
     d_tab=d_tab/norm
     IF(ihm==1) WRITE(*,*)
-    !    STOP
 
     !Could use some table-interpolation routine here to save time
     IF(ALLOCATED(cosm%a_growth)) DEALLOCATE(cosm%a_growth,cosm%growth)
@@ -2739,9 +2723,6 @@
              kx2=dt*fd(x4+kx1/2.,v4+kv1/2.,kk,t4+dt/2.,cosm)
              kv2=dt*fv(x4+kx1/2.,v4+kv1/2.,kk,t4+dt/2.,cosm)
 
-             !             v8(i+1)=v8(i)+fv(x4+fd(x4,v4,k,t4,cosm)*dt/2.,v4+fv(x4,v4,k,t4,cosm)*dt/2.,k,t4+dt/2.,cosm)*dt
-             !             x8(i+1)=x8(i)+fd(x4+fd(x4,v4,k,t4,cosm)*dt/2.,v4+fv(x4,v4,k,t4,cosm)*dt/2.,k,t4+dt/2.,cosm)*dt
-
              v8(i+1)=v8(i)+kv2*dt
              x8(i+1)=x8(i)+kx2*dt
              t8(i+1)=t8(i)+dt
@@ -2792,8 +2773,6 @@
        END IF
 
        IF(ifail==0) THEN
-          !          WRITE(*,*) 'ODE: Integration complete in steps:', n-1
-          !          WRITE(*,*)
           ALLOCATE(x(n),t(n),v(n))
           x=x8
           v=v8
@@ -2801,7 +2780,6 @@
           EXIT
        END IF
 
-       !       WRITE(*,*) 'ODE: Integration at:', n-1
        ALLOCATE(xh(n),th(n),vh(n))
        xh=x8
        vh=v8
@@ -2852,34 +2830,34 @@
     TYPE(cosmology), INTENT(IN) :: cosm
 
     a=1./(1.+z)
-    AH=cosm%om_m*(a**(-3.))+cosm%om_v*(1.+3.*w_de(a,cosm))*x_de(a,cosm)
+    AH=cosm%om_m*(a**(-3.))+cosm%om_v*(1.+3.*wde(a,cosm))*x_de(a,cosm)
     AH=-AH/2.
 
   END FUNCTION AH
 
   !!AM End HMcode
 
-    end module NonLinear
+end module NonLinear
 
 
-    !workaround for f90 circular-module reference
-    subroutine NonLinear_GetRatios(CAMB_Pk)
-    use Transfer
-    use NonLinear
-    type(MatterPowerData) :: CAMB_Pk
+!workaround for f90 circular-module reference
+subroutine NonLinear_GetRatios(CAMB_Pk)
+  use Transfer
+  use NonLinear
+  type(MatterPowerData) :: CAMB_Pk
 
-    call NonLinear_GetNonLinRatios(CAMB_Pk)
+  call NonLinear_GetNonLinRatios(CAMB_Pk)
 
-    end subroutine NonLinear_GetRatios
+end subroutine NonLinear_GetRatios
 
 
 
-    subroutine NonLinear_GetRatios_all(CAMB_Pk)
-    use Transfer
-    use NonLinear
-    type(MatterPowerData) :: CAMB_Pk
+subroutine NonLinear_GetRatios_all(CAMB_Pk)
+  use Transfer
+  use NonLinear
+  type(MatterPowerData) :: CAMB_Pk
 
-    call MpiStop('Halofit module doesn''t support non-linear velocities')
+  call MpiStop('Halofit module doesn''t support non-linear velocities')
 
-    end subroutine NonLinear_GetRatios_All
+end subroutine NonLinear_GetRatios_All
 
