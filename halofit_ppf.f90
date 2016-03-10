@@ -362,7 +362,9 @@ contains
     !1 - Verbose
     ihm=0
 
+    IF(ihm==1) WRITE(*,*)
     IF(ihm==1) WRITE(*,*) 'Running HMcode'
+    IF(ihm==1) WRITE(*,*)
 
     !!AM - Translate from CAMB variables to my variables
     nz=CAMB_PK%num_z
@@ -638,6 +640,8 @@ contains
     REAL :: z, g
     REAL, PARAMETER :: pi=3.141592654
 
+    IF(ihm==1) WRITE(*,*) 'LINEAR POWER: Filling linear power tables' 
+
     nk=CAMB_PK%num_k
     nz=CAMB_PK%num_z
 
@@ -647,6 +651,9 @@ contains
     DO i=1,nk
        cosm%k_plin(i)=exp(CAMB_Pk%log_kh(i))
     END DO
+
+    IF(ihm==1) WRITE(*,*) 'LINEAR POWER: k_min:', cosm%k_plin(1)
+    IF(ihm==1) WRITE(*,*) 'LINEAR POWER: k_max:', cosm%k_plin(nk)
 
     !Fill power table
     DO i=1,nk
@@ -658,8 +665,13 @@ contains
     z=CAMB_Pk%Redshifts(nz)
     g=grow(z,cosm)
 
+    IF(ihm==1) WRITE(*,*) 'LINEAR POWER: z of input:', z
+
     !Get the power at z=0
     cosm%plin=cosm%plin/(g**2.)
+
+    IF(ihm==1) WRITE(*,*) 'LINEAR POWER: Done'
+    IF(ihm==1) WRITE(*,*)
 
   END SUBROUTINE fill_plintab
 
@@ -769,7 +781,7 @@ contains
     CALL allocate_lut(lut)
 
     !Mass range for halo model calculation
-    mmin=1.e2
+    mmin=1.e0
     mmax=1.e18
 
     IF(ihm==1) WRITE(*,*) 'HALOMOD: Target m_min:', mmin
@@ -824,18 +836,42 @@ contains
 
     IF(ihm==1) WRITE(*,*) 'HALOMOD: n_eff:', lut%neff
 
-    CALL conc_bull(z,cosm,lut)
+    CALL conc_bull(z,lut,cosm)
 
     IF(ihm==1) WRITE(*,*) 'HALOMOD: c tables filled'
     IF(ihm==1) WRITE(*,*) 'HALOMOD: c min [Msun/h]:', lut%c(lut%n)
     IF(ihm==1) WRITE(*,*) 'HALOMOD: c max [Msun/h]:', lut%c(1)
     IF(ihm==1) WRITE(*,*) 'HALOMOD: Done'
-
     IF(ihm==1) WRITE(*,*)
+    IF(ihm==1) CALL write_parameters(z,lut,cosm)
 
     ihm=0
 
   END SUBROUTINE halomod_init
+
+  SUBROUTINE write_parameters(z,lut,cosm)
+
+    IMPLICIT NONE
+    REAL, INTENT(IN) :: z
+    TYPE(cosmology), INTENT(IN) :: cosm
+    TYPE(tables), INTENT(IN) :: lut
+
+    !This subroutine writes out the physical parameters at some redshift 
+    !(e.g. Delta_v) rather than the model parameters
+
+    WRITE(*,*) 'Parameters at your redshift'
+    WRITE(*,*) '==========================='
+    WRITE(*,fmt='(A10,F10.5)') 'z:', z
+    WRITE(*,fmt='(A10,F10.5)') 'Dv:', Delta_v(z,lut,cosm)
+    WRITE(*,fmt='(A10,F10.5)') 'dc:', delta_c(z,lut,cosm)
+    WRITE(*,fmt='(A10,F10.5)') 'eta:', eta(z,lut,cosm)
+    WRITE(*,fmt='(A10,F10.5)') 'k*:', kstar(z,lut,cosm)
+    WRITE(*,fmt='(A10,F10.5)') 'A:', As(z,lut,cosm)
+    WRITE(*,fmt='(A10,F10.5)') 'fdamp:', fdamp(z,lut,cosm)
+    WRITE(*,fmt='(A10,F10.5)') 'alpha:', alpha(z,lut,cosm)
+    WRITE(*,*)
+
+  END SUBROUTINE write_parameters
 
   PURE FUNCTION radius_m(m,cosm)
 
@@ -872,7 +908,7 @@ contains
 
   END FUNCTION neff
 
-  SUBROUTINE conc_bull(z,cosm,lut)
+  SUBROUTINE conc_bull(z,lut,cosm)
 
     !Calculates the Bullock (2001) concentration-mass relation
     IMPLICIT NONE
@@ -2644,9 +2680,8 @@ contains
 
     !Normalise so that g(z=0)=1
     norm=find(1.,a_tab,d_tab,3,3)
-    IF(ihm==1) WRITE(*,*) 'GROWTH: unnormalised g(a=1):', norm
+    IF(ihm==1) WRITE(*,*) 'GROWTH: Unnormalised g(a=1):', norm
     d_tab=d_tab/norm
-    IF(ihm==1) WRITE(*,*)
 
     !Could use some table-interpolation routine here to save time
     IF(ALLOCATED(cosm%a_growth)) DEALLOCATE(cosm%a_growth,cosm%growth)
@@ -2657,6 +2692,9 @@ contains
        cosm%a_growth(i)=a
        cosm%growth(i)=find(a,a_tab,d_tab,3,3)
     END DO
+
+    IF(ihm==1) WRITE(*,*) 'GROWTH: Done'
+    IF(ihm==1) WRITE(*,*)
 
   END SUBROUTINE fill_growtab
 
