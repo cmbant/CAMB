@@ -73,24 +73,6 @@
 
     Type(Regions) :: TimeSteps
 
-    !!AM - Added these types for HMcode
-    TYPE cosmology
-       !Contains only things that do not need to be recalculated with each new z
-       REAL :: om_m, om_b, om_v, h, n, sig8, w, wa, f_nu, gamma
-       INTEGER :: itk
-       REAL, ALLOCATABLE :: r_sigma(:), sigma(:)
-       REAL, ALLOCATABLE :: growth(:), a_growth(:)
-       REAL, ALLOCATABLE :: k_plin(:), plin(:)
-    END TYPE cosmology
-
-    TYPE tables
-       !Stuff that needs to be recalculated for each new z
-       REAL, ALLOCATABLE :: c(:), rv(:), nu(:), sig(:), zc(:), m(:), rr(:), sigf(:)
-       REAL :: sigv, sigv100, c3, knl, rnl, neff, sig8z
-       INTEGER :: n
-    END TYPE tables
-    !!AM - End of my additions
-
     type TransferParams
         logical     ::  high_precision
         integer     ::  num_redshifts
