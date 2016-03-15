@@ -38,10 +38,9 @@ module NonLinear
 
   integer, parameter :: halofit_original = 1, halofit_bird=2, halofit_peacock=3, halofit_takahashi=4
   integer, parameter :: halofit_mead=5, halofit_halomodel=6
-  !integer, parameter :: halofit_default = halofit_takahashi
-  integer, parameter :: halofit_default = halofit_mead
+  integer, parameter :: halofit_default = halofit_takahashi
   integer :: halofit_version = halofit_default
-  INTEGER :: imead, ihm !!AM - added these for HMcode
+  INTEGER :: imead, ihm !!AM - added these for HMcode, need to be visible to all subroutines and functions
   public Min_kh_nonlinear, NonLinear_GetNonLinRatios, NonLinear_ReadParams
   public halofit_version, halofit_default, halofit_original, halofit_bird, halofit_peacock, halofit_takahashi
   public halofit_mead, halofit_halomodel
@@ -342,21 +341,20 @@ contains
     REAL, PARAMETER :: pi=3.141592654
     TYPE(cosmology) :: cosi
     TYPE(tables) :: lut
-    LOGICAL :: lexist
-    CHARACTER(len=64) :: input, output
 
-    !HMcode developed by Alexander Mead
+    !HMcode developed by Alexander Mead (alexander.j.mead@googlemail.com)
+    !Please contact me if you have any questions whatsoever
     !If you use this in your work please cite the original paper: http://arxiv.org/abs/1505.07833
-    !If you use the extensions (DE and massive neutrinos) then please cite: http://arxiv.org/abs/1602.02154
+    !If you use the extensions (w(a) and massive neutrinos) then please cite: http://arxiv.org/abs/1602.02154
     !Also consider citing the source code at ASCL: http://ascl.net/1508.001
 
     !Use imead to switch between the standard and accurate halo-model calcuation
-    !0 - Standard
+    !0 - Standard (this is just a vanilla halo model calculation with no accuracy tweaks)
     !1 - Accurate from Mead et al. (2015; arXiv 1505.07833)
     IF(halofit_version==halofit_halomodel) imead=0
     IF(halofit_version==halofit_mead) imead=1
 
-    !Use ihm to switch between verbose and non-verbose mode
+    !Use ihm to switch between verbose (diagnostic) and non-verbose mode
     !0 - Non-verbose
     !1 - Verbose
     ihm=0
@@ -364,7 +362,6 @@ contains
     IF(ihm==1) WRITE(*,*)
     IF(ihm==1) WRITE(*,*) 'Running HMcode'
     IF(ihm==1) WRITE(*,*)
-    !WRITE(*,*) 'Running HMcode'
 
     !!AM - Translate from CAMB variables to my variables
     nz=CAMB_PK%num_z
@@ -540,10 +537,10 @@ contains
     TYPE(cosmology), INTENT(IN) :: cosm
 
     IF(imead==0) THEN
-       !Set to 1 for the standard halo model sum of one- and two-halo terms
+       !Set to 1 for the standard halomodel sum of one- and two-halo terms
        alpha=1.
     ELSE IF(imead==1) THEN
-       !This uses the top-hat defined neff
+       !This uses the top-hat defined neff (HALOFIT uses Gaussian filtered fields instead)
        !Mead et al. (2016; arXiv 1602.02154) value
        alpha=3.24*1.85**lut%neff
     END IF
@@ -556,13 +553,13 @@ contains
 
   FUNCTION r_nl(lut)
 
-    !Calculates R_nl defined by nu(R_nl)=1., nu=dc/sigma(R)
+    !Calculates R_nl, defined by nu(R_nl)=1., nu=dc/sigma(R)
     IMPLICIT NONE
     TYPE(tables), INTENT(IN) :: lut
     REAL :: r_nl
 
     IF(lut%nu(1)>1.) THEN
-       !This catches some very strange values
+       !This catches some very strange values that appear for odd cosmological models
        r_nl=lut%rr(1)
     ELSE
        r_nl=exp(find(log(1.),log(lut%nu),log(lut%rr),3,3))
@@ -572,7 +569,7 @@ contains
 
   SUBROUTINE halomod(k,z,p1h,p2h,pfull,plin,lut,cosm)
 
-    !Calcuates 1-halo and 2-halo terms and adds them together
+    !Calcuates 1-halo and 2-halo terms and combines them to form the full halomodel power
     IMPLICIT NONE
     REAL, INTENT(OUT) :: p1h, p2h, pfull
     REAL, INTENT(IN) :: plin, k, z
@@ -608,12 +605,14 @@ contains
     !ilog=0 does linear spacing
     !ilog=1 does log spacing
 
+    !Allocate arrays
     IF(ALLOCATED(arr)) DEALLOCATE(arr)
-
     ALLOCATE(arr(n))
 
+    !This is probably unnecessary
     arr=0.
 
+    !Decide on linear or log spacing
     IF(ilog==0) THEN
        a=min
        b=max
@@ -622,7 +621,9 @@ contains
        b=log(max)
     END IF
 
+    !Fill the array
     IF(n==1) THEN
+       !This should not be necessary
        arr(1)=a
     ELSE IF(n>1) THEN
        DO i=1,n
@@ -630,6 +631,7 @@ contains
        END DO
     END IF
 
+    !If your are filling in log
     IF(ilog==1) arr=exp(arr)
 
   END SUBROUTINE fill_table
@@ -647,9 +649,9 @@ contains
 
     IF(ihm==1) WRITE(*,*) 'LINEAR POWER: Filling linear power tables' 
 
+    !Fill arrays
     IF(ALLOCATED(cosm%k_plin)) DEALLOCATE(cosm%k_plin)
     IF(ALLOCATED(cosm%plin)) DEALLOCATE(cosm%plin)
-    
     nk=CAMB_PK%num_k
     ALLOCATE(cosm%k_plin(nk),cosm%plin(nk))
 
@@ -663,7 +665,7 @@ contains
 
     !Fill power table
     DO i=1,nk
-       !Take the power from the last redshift choice, which is the latest in time.
+       !Take the power from the current redshift choice
        cosm%plin(i)=MatterPowerData_k(CAMB_PK,DBLE(cosm%k_plin(i)),iz)*(cosm%k_plin(i)**3/(2.*pi**2))
     END DO
     
@@ -673,9 +675,10 @@ contains
 
     IF(ihm==1) WRITE(*,*) 'LINEAR POWER: z of input:', z
 
-    !Get the power at z=0
+    !Grow the power to z=0
     cosm%plin=cosm%plin/(g**2.)
 
+    !Check sigma_8 value
     IF(ihm==1) WRITE(*,*) 'LINEAR POWER: Sigma_8:', sigma(8.,0.,cosm)
     IF(ihm==1) WRITE(*,*) 'LINEAR POWER: Done'
     IF(ihm==1) WRITE(*,*)
@@ -695,10 +698,11 @@ contains
     cosm%wa=wa_ppf
     cosm%f_nu=CP%omegan/cosm%om_m
 
-    !n_s is read in here. The non-linear module does not work if there is more than
+    !n_s is read in here. The non-linear CAMB module does not work if there is more than
     !one value in this array, so setting '1' here is fine.
     cosm%ns=CP%InitPower%an(1)
 
+    !Write out cosmological parameters if necessary
     IF(ihm==1) WRITE(*,*) 'COSMOLOGY: Om_m:', cosm%om_m
     IF(ihm==1) WRITE(*,*) 'COSMOLOGY: Om_v:', cosm%om_v
     IF(ihm==1) WRITE(*,*) 'COSMOLOGY: w_0:', cosm%w
@@ -733,7 +737,6 @@ contains
     INTEGER :: n
 
     n=lut%n
-
     ALLOCATE(lut%zc(n),lut%m(n),lut%c(n),lut%rv(n))
     ALLOCATE(lut%nu(n),lut%rr(n),lut%sigf(n),lut%sig(n))
 
@@ -764,8 +767,8 @@ contains
     !Computes look-up tables necessary for the halo model calculations
     IMPLICIT NONE
     REAL, INTENT(IN) :: z
-    INTEGER :: i, imin, imax, n
-    REAL :: rin, dr, Dv, dc, f, m, mmin, mmax, nu, r, sig
+    INTEGER :: i, n
+    REAL :: Dv, dc, f, m, mmin, mmax, nu, r, sig
     TYPE(cosmology) :: cosm
     TYPE(tables) :: lut
 
@@ -782,12 +785,14 @@ contains
     
     IF(ALLOCATED(lut%rr)) CALL deallocate_LUT(lut)
 
+    !Number of entries in look-up tables. Could be played with to improve speed or accuracy
     n=256
 
     lut%n=n
     CALL allocate_lut(lut)
 
-    !Mass range for halo model calculation
+    !Sets the mass range for halo model calculation
+    !Default is 1e0 to 1e18, I cannot believe this would ever be insufficient
     mmin=1.e0
     mmax=1.e18
 
@@ -839,10 +844,12 @@ contains
     IF(ihm==1) WRITE(*,*) 'HALOMOD: r_nl [Mpc/h]:', lut%rnl
     IF(ihm==1) WRITE(*,*) 'HALOMOD: k_nl [h/Mpc]:', lut%knl
 
+    !Calcuate the effective spectral index at the collapse scale
     lut%neff=neff(lut,cosm)
 
     IF(ihm==1) WRITE(*,*) 'HALOMOD: n_eff:', lut%neff
 
+    !Get the concentration for all the haloes
     CALL conc_bull(z,lut,cosm)
 
     IF(ihm==1) WRITE(*,*) 'HALOMOD: c tables filled'
@@ -852,37 +859,36 @@ contains
     IF(ihm==1) WRITE(*,*)
     IF(ihm==1) CALL write_parameters(z,lut,cosm)
 
+    !Switch off verbose mode if doing multiple z
     ihm=0
 
   END SUBROUTINE halomod_init
 
   SUBROUTINE write_parameters(z,lut,cosm)
 
+    !This subroutine writes out the halomodel parameters at the current redshift
     IMPLICIT NONE
     REAL, INTENT(IN) :: z
     TYPE(cosmology), INTENT(IN) :: cosm
     TYPE(tables), INTENT(IN) :: lut
 
-    !This subroutine writes out the physical parameters at some redshift 
-    !(e.g. Delta_v) rather than the model parameters
-
-    WRITE(*,*) 'Parameters at your redshift'
-    WRITE(*,*) '==========================='
-    WRITE(*,fmt='(A10,F10.5)') 'z:', z
-    WRITE(*,fmt='(A10,F10.5)') 'Dv:', Delta_v(z,lut,cosm)
-    WRITE(*,fmt='(A10,F10.5)') 'dc:', delta_c(z,lut,cosm)
-    WRITE(*,fmt='(A10,F10.5)') 'eta:', eta(z,lut,cosm)
-    WRITE(*,fmt='(A10,F10.5)') 'k*:', kstar(z,lut,cosm)
-    WRITE(*,fmt='(A10,F10.5)') 'A:', As(z,lut,cosm)
-    WRITE(*,fmt='(A10,F10.5)') 'fdamp:', fdamp(z,lut,cosm)
-    WRITE(*,fmt='(A10,F10.5)') 'alpha:', alpha(z,lut,cosm)
-    WRITE(*,*)
+    IF(ihm==1) WRITE(*,*) 'Parameters at your redshift'
+    IF(ihm==1) WRITE(*,*) '==========================='
+    IF(ihm==1) WRITE(*,fmt='(A10,F10.5)') 'z:', z
+    IF(ihm==1) WRITE(*,fmt='(A10,F10.5)') 'Dv:', Delta_v(z,lut,cosm)
+    IF(ihm==1) WRITE(*,fmt='(A10,F10.5)') 'dc:', delta_c(z,lut,cosm)
+    IF(ihm==1) WRITE(*,fmt='(A10,F10.5)') 'eta:', eta(z,lut,cosm)
+    IF(ihm==1) WRITE(*,fmt='(A10,F10.5)') 'k*:', kstar(z,lut,cosm)
+    IF(ihm==1) WRITE(*,fmt='(A10,F10.5)') 'A:', As(z,lut,cosm)
+    IF(ihm==1) WRITE(*,fmt='(A10,F10.5)') 'fdamp:', fdamp(z,lut,cosm)
+    IF(ihm==1) WRITE(*,fmt='(A10,F10.5)') 'alpha:', alpha(z,lut,cosm)
+    IF(ihm==1) WRITE(*,*)
 
   END SUBROUTINE write_parameters
 
   PURE FUNCTION radius_m(m,cosm)
 
-    !Calculates the co-moving radius that encloses an average mass 'm'
+    !Calculates the co-moving radius that encloses a mass 'm' in the homogeneous Universe
     IMPLICIT NONE
     REAL :: radius_m
     REAL, INTENT(IN) :: m
@@ -906,10 +912,9 @@ contains
     !Numerical differentiation to find effective index at collapse
     neff=-3.-derivative_table(log(lut%rnl),log(lut%rr),log(lut%sig**2.),3,3)
 
-    !For some bizarre cosmologies r_nl is very small, so almost no collapse has occured
+    !For some bizarre cosmological models r_nl is very small, so almost no collapse has occured
     !In this case the n_eff calculation goes mad and needs to be fixed using this fudge.
     ns=cosm%ns
-
     IF(neff<ns-4.) neff=ns-4.
     IF(neff>ns)    neff=ns
 
@@ -917,14 +922,15 @@ contains
 
   SUBROUTINE conc_bull(z,lut,cosm)
 
-    !Calculates the Bullock (2001) concentration-mass relation
+    !Calculates the Bullock et al. (2001) concentration-mass relation
     IMPLICIT NONE
     REAL, INTENT(IN) :: z
     TYPE(cosmology) :: cosm, cos_lcdm
     TYPE(tables) :: lut
-    REAL :: A, ch, be, zf, ainf, zinf, g_lcdm, g_wcdm, pow
+    REAL :: A, zf, ainf, zinf, g_lcdm, g_wcdm, pow
     INTEGER :: i
 
+    !Amplitude of relation (4. in Bullock et al. 2001)
     A=As(z,lut,cosm)
 
     !Fill the collapse time look-up table
@@ -932,10 +938,8 @@ contains
 
     !Fill the concentration look-up table
     DO i=1,lut%n
-
        zf=lut%zc(i)
        lut%c(i)=A*(1.+zf)/(1.+z)
-
     END DO
 
     !Dolag (2004) prescription for adding DE dependence
@@ -956,11 +960,8 @@ contains
     !Needs to use grow_int explicitly here for LCDM model to avoid growth tables
     g_lcdm=grow_int(ainf,0.001,cos_lcdm)
 
-    !This is then the Dolag correction
-    !lut%c=lut%c*(g_wcdm/g_lcdm)
-
     pow=1.5
-    !This is the Dolag correction with a 1.5 power rather than 1
+    !This is the Dolag et al. (2004) correction with a 1.5 power rather than 1
     lut%c=lut%c*((g_wcdm/g_lcdm)**pow)
 
   END SUBROUTINE conc_bull
@@ -1006,8 +1007,9 @@ contains
                 fac=2.
              END IF
 
-             !Growth rate is \Omega_m(z)^0.55 to a very good approximation
+             !Growth rate is Omega_m(z)^0.55 to a very good approximation
              !Some small deivations for wCDM are included
+             !Not calibrated to w(a) models!
              IF(cosm%w<-1.) THEN
                 gam=0.55+0.02*(1.+cosm%w)
              ELSE IF(cosm%w>-1) THEN
@@ -1048,17 +1050,16 @@ contains
     TYPE(tables) :: lut
     REAL :: dc
     REAL :: amin, amax, af, zf, RHS, a, growz
-    INTEGER :: i, j, ntab
+    INTEGER :: i, j
 
     !This fills up the halo formation redshift table as per Bullock relations
 
     !Needs to interpolate g(z) which should be pretty linear for a<0.05 
     !in 'g(a) vs a' space for all standard cosmologies
 
-    ntab=SIZE(cosm%growth)
-
     dc=delta_c(z,lut,cosm)
 
+    !Find the growth function at the current redshift
     a=1./(1.+z)
     growz=find(a,cosm%a_growth,cosm%growth,3,3)
 
@@ -1121,6 +1122,7 @@ contains
     kmin=cosm%k_plin(1)
     kmax=cosm%k_plin(n)
 
+    !Spectral index used in the high-k extrapolation
     ns=cosm%ns
 
     IF(k<kmin) THEN
@@ -1172,7 +1174,7 @@ contains
        p_2h=plin*(1.-frac*(tanh(k*sigv/sqrt(ABS(frac))))**2.)
     END IF
 
-    !For some extreme cosmologies frac>1. so this must be added to prevent p_2h<0.
+    !For some strange cosmologies frac>1. so this must be added to prevent p_2h<0.
     IF(p_2h<0.) p_2h=0.
 
   END FUNCTION p_2h
@@ -1193,6 +1195,7 @@ contains
 
     !Does the one-halo power integral
 
+    !Allocates arrays for the integration tables
     ALLOCATE(integrand(lut%n))
     integrand=0.
 
@@ -1209,8 +1212,10 @@ contains
     !Carries out the integration
     sum=inttab(lut%nu,REAL(integrand),1)
 
+    !Deallocate arrays
     DEALLOCATE(integrand)
 
+    !Virial density
     Dv=Delta_v(z,lut,cosm)
 
     !These are just numerical factors from the 1-halo integral in terms of nu!
@@ -1228,6 +1233,7 @@ contains
        fac=exp(-((k/ks)**2.))
     END IF
 
+    !Damping of the one-halo term at very large scales
     p_1h=p_1h*(1.-fac)
 
   END FUNCTION p_1h
@@ -1242,12 +1248,13 @@ contains
     TYPE(cosmology) :: cosm
 
     !This fills up tables of r vs. sigma(r) across a range in r!
-    !It is used only in look-up for further calculations of sigma(r) and not otherwise!
+    !It is used only in look-up for further calculations of sigmac(r) and not otherwise!
     !and prevents a large number of calls to the sigint functions
     !rmin and rmax need to be decided in advance and are chosen such that
     !R vs. sigma(R) is approximately power-law below and above these values of R   
-    !This wouldn't be appropriate for models with a linear spectrum cut-off (e.g. WDM)
+    !This wouldn't be appropriate for models with a small-scale linear spectrum cut-off (e.g., WDM)
 
+    !Allocate arrays
     IF(ALLOCATED(cosm%r_sigma)) DEALLOCATE(cosm%r_sigma)
     IF(ALLOCATED(cosm%sigma))   DEALLOCATE(cosm%sigma)
 
@@ -1333,7 +1340,7 @@ contains
 
   FUNCTION sigma(r,z,cosm)
 
-    !Chooses how best to do the sigma integrals depending on the R value
+    !Chooses how best to do the sigma(R) integral depending on the R value
     IMPLICIT NONE
     REAL :: sigma
     REAL, INTENT(IN) :: r, z
@@ -1505,7 +1512,7 @@ contains
 
   FUNCTION sigma_integrand(t,R,f,z,cosm)
 
-    !The integrand for the sigma(R) intergals
+    !The integrand for the sigma(R) intergal
     IMPLICIT NONE
     REAL :: sigma_integrand
     REAL, INTENT(IN) :: t, R, z
@@ -1604,10 +1611,6 @@ contains
        ELSE IF(j==jmax) THEN
           WRITE(*,*)
           WRITE(*,*) 'SIGINT0: r:', r
-          !WRITE(*,*) 'SIGINT0: Integration timed out'
-          !global_error_flag=349
-          !WRITE(*,*) 'Error in HMcode'
-          !GOTO 101
           ERROR STOP 'SIGINT0: Integration timed out'
        ELSE
           sum1=sum2
@@ -1670,10 +1673,6 @@ contains
        ELSE IF(j==jmax) THEN
           WRITE(*,*)
           WRITE(*,*) 'SIGINT1: r:', r
-          !WRITE(*,*) 'SIGINT1: Integration timed out'
-          !global_error_flag=349
-          !WRITE(*,*) 'Error in HMcode'
-          !GOTO 101
           ERROR STOP 'SIGINT1: Integration timed out'
        ELSE
           sum1=sum2
@@ -1738,10 +1737,6 @@ contains
        ELSE IF(j==jmax) THEN
           WRITE(*,*)
           WRITE(*,*) 'SIGINT2: r:', r
-          !WRITE(*,*) 'SIGINT2: Integration timed out'
-          !global_error_flag=349
-          !WRITE(*,*) 'Error in HMcode'
-          !GOTO 101
           ERROR STOP 'SIGINT2: Integration timed out'
        ELSE
           sum1=sum2
@@ -1754,10 +1749,11 @@ contains
 
   FUNCTION win(k,rv,c)
 
-    !Selects the window function (k-space halo profile)
+    !Selects the halo window function (k-space halo profile)
     IMPLICIT NONE
     REAL :: win, k, rv, c
 
+    !Choose the NFW analytic form
     win=winnfw(k,rv,c)
 
     !Correct for the case of disasters (a bit sloppy, not sure if this is ever used)
@@ -1775,17 +1771,21 @@ contains
     REAL :: si1, si2, ci1, ci2, ks
     REAL :: p1, p2, p3
 
+    !Define the scale wavenumber
     ks=k*rv/c
 
+    !Sine and cosine integrals
     si1=si(ks)
     si2=si((1.+c)*ks)
     ci1=ci(ks)
     ci2=ci((1.+c)*ks)
 
+    !These three parts sum to give the full W(k)
     p1=cos(ks)*(ci2-ci1)
     p2=sin(ks)*(si2-si1)
     p3=sin(ks*c)/(ks*(1.+c))
 
+    !Create full W(k) and divide out mass factor
     winnfw=p1+p2-p3
     winnfw=winnfw/mass(c)
 
@@ -1795,7 +1795,7 @@ contains
 
     !This calculates the (normalised) mass of a halo of concentration c
     !The 'normalised' mass is that divided by the prefactor r_s^3 4*pi rho_n
-    !where rho_n is the profile normalisation
+    !where rho_n is the profile normalisation [i.e, rho=rho_n/((r/r_s)*(1.+r/r_s)^2]
     IMPLICIT NONE
     REAL :: mass, c
 
@@ -1805,29 +1805,32 @@ contains
 
   FUNCTION gnu(nu)
 
-    !Selec the mass function
+    !Select the mass function
     IMPLICIT NONE
     REAL :: gnu, nu
 
+    !Sheth & Torman (1999)
     gnu=gst(nu)
 
   END FUNCTION gnu
 
   FUNCTION gst(nu)
 
-    !Sheth Tormen (1999) mass function!
+    !Sheth & Tormen (1999) mass function!
     IMPLICIT NONE
     REAL :: nu, gst
-    REAL :: p, q
+    REAL :: p, a
 
     !Note I use nu=dc/sigma whereas ST (1999) use nu=(dc/sigma)^2
     !This accounts for the different pre-factor and slighly changed nu dependence
     !f(nu^2)d(nu^2)=2*nu*f(nu)dnu
 
+    !Sheth & Tormen fitting numbers
     p=0.3
-    q=0.707
+    a=0.707
 
-    gst=0.21616*(1.+((q*nu*nu)**(-p)))*exp(-q*nu*nu/2.)
+    !Full mass function. Note this is normalised such that integral f(nu)dnu = 1
+    gst=0.21616*(1.+((a*nu*nu)**(-p)))*exp(-a*nu*nu/2.)
 
   END FUNCTION gst
 
@@ -1853,7 +1856,7 @@ contains
   FUNCTION x_de(a,cosm)
 
     !The time evolution for dark energy: rho_de=rho_de,0 * X(a)
-    !X(a)=const for LCDM but changes for other models
+    !X(a)=1 for LCDM but changes for other models
     IMPLICIT NONE
     REAL :: x_de
     REAL, INTENT(IN) :: a
@@ -1906,7 +1909,7 @@ contains
 
   FUNCTION grow(z,cosm)
 
-    !Calculates the scale-independent growth fuction at redshift z
+    !Finds the scale-independent growth fuction at redshift z
     IMPLICIT NONE
     REAL :: grow
     REAL, INTENT(IN) :: z
@@ -1925,6 +1928,7 @@ contains
   FUNCTION dispint(z,cosm)
 
     !Calculates the variance in the displacement field over all scales
+    !This converges, unlike the same quantiy for the density field
     IMPLICIT NONE
     REAL :: dispint
     REAL, INTENT(IN) :: z
@@ -1957,7 +1961,8 @@ contains
 
        sum=sum*dtheta
 
-       IF(j>1 .AND. ABS(-1.+sum/oldsum)<acc) THEN  
+       IF(j>1 .AND. ABS(-1.+sum/oldsum)<acc) THEN
+          !Division by 3 because we are interested in 1D, not 3D
           dispint=sum/3.
           EXIT
        ELSE
@@ -1975,8 +1980,8 @@ contains
     REAL :: si, x
     REAL*8 :: x2, y, f, g, si8
     REAL*8, PARAMETER :: pi=3.1415926535897932384626433d0
+    
     !Expansions for high and low x thieved from Wikipedia, two different expansions for above and below 4.
-
     IF(ABS(x)<=4.) THEN
 
        x2=x*x
@@ -2028,7 +2033,6 @@ contains
     REAL*8, PARAMETER :: em_const=0.577215664901532861d0
 
     !Expansions for high and low x thieved from Wikipedia, two different expansions for above and below 4.
-
     IF(ABS(x)<=4.) THEN
 
        x2=x*x
@@ -2710,7 +2714,6 @@ contains
     REAL*8, ALLOCATABLE :: x8(:), t8(:), v8(:), xh(:), th(:), vh(:)
     REAL, ALLOCATABLE :: x(:), v(:), t(:)
     INTEGER :: i, j, k, n, np, ifail, kn, imeth
-    !    REAL, EXTERNAL :: fx, fv
     TYPE(cosmology) :: cosm
 
     !Solves 2nd order ODE x''(t) from ti to tf and writes out array of x, v, t values
