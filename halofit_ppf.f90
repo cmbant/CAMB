@@ -38,7 +38,8 @@ module NonLinear
 
   integer, parameter :: halofit_original = 1, halofit_bird=2, halofit_peacock=3, halofit_takahashi=4
   integer, parameter :: halofit_mead=5, halofit_halomodel=6
-  integer, parameter :: halofit_default = halofit_takahashi
+  !integer, parameter :: halofit_default = halofit_takahashi
+  integer, parameter :: halofit_default = halofit_mead
   integer :: halofit_version = halofit_default
   INTEGER :: imead, ihm !!AM - added these for HMcode
   public Min_kh_nonlinear, NonLinear_GetNonLinRatios, NonLinear_ReadParams
@@ -48,9 +49,7 @@ module NonLinear
   !!AM - Added these types for HMcode
   TYPE cosmology
      !Contains only things that do not need to be recalculated with each new z
-     !REAL :: om_m, om_b, om_v, h, n, sig8, w, wa, f_nu, gamma
      REAL :: om_m, om_v, w, wa, f_nu, ns
-     !INTEGER :: itk
      REAL, ALLOCATABLE :: r_sigma(:), sigma(:)
      REAL, ALLOCATABLE :: growth(:), a_growth(:)
      REAL, ALLOCATABLE :: k_plin(:), plin(:)
@@ -331,7 +330,7 @@ contains
   !!JD end generalize to variable w
 
   !!AM Below is for HMcode
-  SUBROUTINE HMcode(CAMB_Pk)         
+  SUBROUTINE HMcode(CAMB_Pk)
 
     IMPLICIT NONE
 
@@ -365,6 +364,7 @@ contains
     IF(ihm==1) WRITE(*,*)
     IF(ihm==1) WRITE(*,*) 'Running HMcode'
     IF(ihm==1) WRITE(*,*)
+    !WRITE(*,*) 'Running HMcode'
 
     !!AM - Translate from CAMB variables to my variables
     nz=CAMB_PK%num_z
@@ -373,11 +373,16 @@ contains
     !!AM - Assign cosmological parameters for the halo model calculation
     CALL assign_cosmology(cosi)
 
-    !Initialise the specific cosmology (calculate growth rates, sig(R) tables, P_lin tables etc.)
-    CALL initialise_cosmology(cosi,CAMB_PK)
+    !Fill growth function table (only needs to be done once)
+    CALL fill_growtab(cosi)
 
     !Loop over redshifts
     DO j=1,nz
+
+       !Initialise the specific cosmology (fill sigma(R) and P_lin tables)
+       !Currently this needs to be done at each z (mainly because of scale-dependent growth with neutrinos)
+       !For non neutrino models this could only be done once, which would speed things up a bit
+       CALL initialise_cosmology(j,cosi,CAMB_PK)
 
        !Sets the current redshift from the table
        z=CAMB_Pk%Redshifts(j)
@@ -398,7 +403,6 @@ contains
 
        END DO
 
-101    CONTINUE
     END DO
 
   END SUBROUTINE HMcode
@@ -572,7 +576,7 @@ contains
     IMPLICIT NONE
     REAL, INTENT(OUT) :: p1h, p2h, pfull
     REAL, INTENT(IN) :: plin, k, z
-    REAL :: c
+    REAL :: alp
     TYPE(cosmology), INTENT(IN) :: cosm
     TYPE(tables), INTENT(IN) :: lut
 
@@ -586,8 +590,8 @@ contains
        p2h=p_2h(k,z,plin,lut,cosm)
     END IF
 
-    c=alpha(z,lut,cosm)
-    pfull=(p2h**c+p1h**c)**(1./c)
+    alp=alpha(z,lut,cosm)
+    pfull=(p2h**alp+p1h**alp)**(1./alp)
 
   END SUBROUTINE halomod
 
@@ -630,21 +634,23 @@ contains
 
   END SUBROUTINE fill_table
 
-  SUBROUTINE fill_plintab(cosm,CAMB_PK)
+  SUBROUTINE fill_plintab(iz,cosm,CAMB_PK)
 
     !Fills internal HMcode tables for the linear power spectrum at z=0
     IMPLICIT NONE
-    TYPE(MatterPowerData) :: CAMB_PK
+    TYPE(MatterPowerData), INTENT(IN) :: CAMB_PK
+    INTEGER, INTENT(IN) :: iz
     TYPE(cosmology) :: cosm
-    INTEGER :: i, nk, nz
+    INTEGER :: i, nk
     REAL :: z, g
     REAL, PARAMETER :: pi=3.141592654
 
     IF(ihm==1) WRITE(*,*) 'LINEAR POWER: Filling linear power tables' 
 
+    IF(ALLOCATED(cosm%k_plin)) DEALLOCATE(cosm%k_plin)
+    IF(ALLOCATED(cosm%plin)) DEALLOCATE(cosm%plin)
+    
     nk=CAMB_PK%num_k
-    nz=CAMB_PK%num_z
-
     ALLOCATE(cosm%k_plin(nk),cosm%plin(nk))
 
     !Fill k-table
@@ -658,11 +664,11 @@ contains
     !Fill power table
     DO i=1,nk
        !Take the power from the last redshift choice, which is the latest in time.
-       cosm%plin(i)=MatterPowerData_k(CAMB_PK,DBLE(cosm%k_plin(i)),nz)*(cosm%k_plin(i)**3/(2.*pi**2))
+       cosm%plin(i)=MatterPowerData_k(CAMB_PK,DBLE(cosm%k_plin(i)),iz)*(cosm%k_plin(i)**3/(2.*pi**2))
     END DO
-
+    
     !Calculate the growth factor at the redshift of interest
-    z=CAMB_Pk%Redshifts(nz)
+    z=CAMB_Pk%Redshifts(iz)
     g=grow(z,cosm)
 
     IF(ihm==1) WRITE(*,*) 'LINEAR POWER: z of input:', z
@@ -670,6 +676,7 @@ contains
     !Get the power at z=0
     cosm%plin=cosm%plin/(g**2.)
 
+    IF(ihm==1) WRITE(*,*) 'LINEAR POWER: Sigma_8:', sigma(8.,0.,cosm)
     IF(ihm==1) WRITE(*,*) 'LINEAR POWER: Done'
     IF(ihm==1) WRITE(*,*)
 
@@ -688,24 +695,30 @@ contains
     cosm%wa=wa_ppf
     cosm%f_nu=CP%omegan/cosm%om_m
 
-    !It would be good to have n_s read in properly here
+    !n_s is read in here. The non-linear module does not work if there is more than
+    !one value in this array, so setting '1' here is fine.
     cosm%ns=CP%InitPower%an(1)
+
+    IF(ihm==1) WRITE(*,*) 'COSMOLOGY: Om_m:', cosm%om_m
+    IF(ihm==1) WRITE(*,*) 'COSMOLOGY: Om_v:', cosm%om_v
+    IF(ihm==1) WRITE(*,*) 'COSMOLOGY: w_0:', cosm%w
+    IF(ihm==1) WRITE(*,*) 'COSMOLOGY: w_a:', cosm%wa
+    IF(ihm==1) WRITE(*,*) 'COSMOLOGY: f_nu:', cosm%f_nu
+    IF(ihm==1) WRITE(*,*) 'COSMOLOGY: n_s:', cosm%ns
+    IF(ihm==1) WRITE(*,*)
     
   END SUBROUTINE assign_cosmology
 
-  SUBROUTINE initialise_cosmology(cosm,CAMB_PK)
+  SUBROUTINE initialise_cosmology(iz,cosm,CAMB_PK)
 
     !Sets up tables of sigma, growth and linear power for the cosmology
     IMPLICIT NONE
-    TYPE(MatterPowerData) :: CAMB_PK
-    REAL :: sigi
+    TYPE(MatterPowerData), INTENT(IN) :: CAMB_PK
     TYPE(cosmology) :: cosm
+    INTEGER, INTENT(IN) :: iz
 
-    !Fill growth function table
-    CALL fill_growtab(cosm)
-
-    !Fill linear power table 
-    CALL fill_plintab(cosm,CAMB_PK)
+    !Fill linear power table and grows it to z=0
+    CALL fill_plintab(iz,cosm,CAMB_PK)
 
     !Fill sigma(r) table
     CALL fill_sigtab(cosm)
@@ -753,26 +766,20 @@ contains
     REAL, INTENT(IN) :: z
     INTEGER :: i, imin, imax, n
     REAL :: rin, dr, Dv, dc, f, m, mmin, mmax, nu, r, sig
-    REAL, ALLOCATABLE :: rg_up(:), rg_dn(:), nu_up(:), nu_dn(:), mg_up(:), mg_dn(:)
     TYPE(cosmology) :: cosm
     TYPE(tables) :: lut
-
-    !Find value of sigma_v, sig8, etc.
-    lut%sigv=sqrt(dispint(z,cosm))
-    lut%sigv100=sigma_v(100.,z,cosm)
-    lut%sig8z=sigma(8.,z,cosm)
-
-    n=500
-
-    ALLOCATE(rg_up(n),rg_dn(n),nu_up(n),nu_dn(n),mg_up(n),mg_dn(n))
 
     IF(ihm==1) WRITE(*,*) 'HALOMOD: Filling look-up tables'
     IF(ihm==1) WRITE(*,*) 'HALOMOD: Tables being filled at redshift:', z
 
+    !Find value of sigma_v, sig8, etc.
+    lut%sigv=sqrt(dispint(z,cosm))
     IF(ihm==1) WRITE(*,*) 'HALOMOD: sigv [Mpc/h]:', lut%sigv
+    lut%sigv100=sigma_v(100.,z,cosm)
     IF(ihm==1) WRITE(*,*) 'HALOMOD: sigv100 [Mpc/h]:', lut%sigv100
-    IF(ihm==1) WRITE(*,*) 'HALOMOD: sig8(z):', lut%sig8z
-
+    lut%sig8z=sigma(8.,z,cosm)
+    IF(ihm==1) WRITE(*,*) 'HALOMOD: sig8(z):', lut%sig8z  
+    
     IF(ALLOCATED(lut%rr)) CALL deallocate_LUT(lut)
 
     n=256
@@ -790,7 +797,7 @@ contains
     dc=delta_c(z,lut,cosm)
 
     DO i=1,n 
-
+       
        m=exp(log(mmin)+log(mmax/mmin)*float(i-1)/float(n-1))
        r=radius_m(m,cosm)
        sig=sigmac(r,z,cosm)
@@ -1105,17 +1112,20 @@ contains
     !Look-up and interpolation for P(k)
     IMPLICIT NONE
     REAL :: find_pk
-    REAL :: kmax, ns
+    REAL :: kmin, kmax, ns
     REAL, INTENT(IN) :: k
     INTEGER :: n
     TYPE(cosmology), INTENT(IN) :: cosm
 
     n=SIZE(cosm%k_plin)
+    kmin=cosm%k_plin(1)
     kmax=cosm%k_plin(n)
 
     ns=cosm%ns
 
-    IF(k>kmax) THEN
+    IF(k<kmin) THEN
+       find_pk=0.
+    ELSE IF(k>kmax) THEN
        !Do some interpolation here based on knowledge of things at high k
        find_pk=cosm%plin(n)*((log(k)/log(kmax))**2.)*((k/kmax)**(ns-1.))
     ELSE
@@ -1227,7 +1237,6 @@ contains
     !Fills look-up tables for sigma(R)
     IMPLICIT NONE
     REAL :: rmin, rmax
-    REAL, ALLOCATABLE :: rtab(:), sigtab(:)
     REAL :: r, sig
     INTEGER :: i, nsig
     TYPE(cosmology) :: cosm
@@ -1239,38 +1248,31 @@ contains
     !R vs. sigma(R) is approximately power-law below and above these values of R   
     !This wouldn't be appropriate for models with a linear spectrum cut-off (e.g. WDM)
 
+    IF(ALLOCATED(cosm%r_sigma)) DEALLOCATE(cosm%r_sigma)
+    IF(ALLOCATED(cosm%sigma))   DEALLOCATE(cosm%sigma)
+
     !These values of 'r' work fine for any power spectrum of cosmological importance
     !Having nsig as a 2** number is most efficient for the look-up routines
     rmin=1e-4
     rmax=1e3
     nsig=64
+    ALLOCATE(cosm%r_sigma(nsig),cosm%sigma(nsig))  
 
     IF(ihm==1) WRITE(*,*) 'SIGTAB: Filling sigma interpolation table'
     IF(ihm==1) WRITE(*,*) 'SIGTAB: Rmin:', rmin
     IF(ihm==1) WRITE(*,*) 'SIGTAB: Rmax:', rmax
     IF(ihm==1) WRITE(*,*) 'SIGTAB: Values:', nsig
 
-    ALLOCATE(rtab(nsig),sigtab(nsig))
-
     DO i=1,nsig
 
        !Equally spaced r in log
        r=exp(log(rmin)+log(rmax/rmin)*float(i-1)/float(nsig-1))
-
        sig=sigma(r,0.,cosm)
 
-       rtab(i)=r
-       sigtab(i)=sig
-
+       cosm%r_sigma(i)=r
+       cosm%sigma(i)=sig
+       
     END DO
-
-    !Must be allocated after the sigtab calulation above
-    ALLOCATE(cosm%r_sigma(nsig),cosm%sigma(nsig))
-
-    cosm%r_sigma=rtab
-    cosm%sigma=sigtab
-
-    DEALLOCATE(rtab,sigtab)
 
     IF(ihm==1) WRITE(*,*) 'SIGTAB: Done'
     IF(ihm==1) WRITE(*,*)
@@ -1284,7 +1286,7 @@ contains
     REAL :: sigma_v
     REAL, INTENT(IN) :: z, R
     REAL*8 :: sum
-    REAL :: alpha_min, alpha_max, alpha
+    REAL :: alpha
     INTEGER :: l, nmax
     REAL :: dtheta, k, theta, oldsum, acc
     REAL, PARAMETER :: pi=3.141592654
@@ -2684,7 +2686,8 @@ contains
     d_tab=d_tab/norm
 
     !Could use some table-interpolation routine here to save time
-    IF(ALLOCATED(cosm%a_growth)) DEALLOCATE(cosm%a_growth,cosm%growth)
+    IF(ALLOCATED(cosm%a_growth)) DEALLOCATE(cosm%a_growth)
+    IF(ALLOCATED(cosm%growth)) DEALLOCATE(cosm%growth)
     n=64
     ALLOCATE(cosm%a_growth(n),cosm%growth(n))
     DO i=1,n
