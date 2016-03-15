@@ -268,6 +268,10 @@ def getTestParams():
 
     params.append(['tranfer_nonu', 'get_scalar_cls=F', 'get_transfer= T', 'transfer_power_var = 8'])
 
+    #AM - Added HMcode and halomodel tests (halofit_version=5,6)
+    params.append(['HMcode','transfer_kmax=100', 'halofit_version=5', 'do_nonlinear=1', 'get_transfer= T'])
+    params.append(['halomodel','transfer_kmax=100', 'halofit_version=6', 'do_nonlinear=1', 'get_transfer= T'])
+    #AM - End of edits
 
     params.append(['zre', 're_use_optical_depth = F', 're_redshift  = 8.5'])
     params.append(['nolens', 'lensing = F'])
