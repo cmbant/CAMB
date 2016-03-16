@@ -7,6 +7,9 @@ halofit_original = 1
 halofit_bird = 2
 halofit_peacock = 3
 halofit_takahashi = 4
+halofit_mead = 5
+halofit_halomodel = 6
+
 halofit_default = halofit_takahashi
 
 halofit_version = dll_import(c_int, "nonlinear", "halofit_version")
