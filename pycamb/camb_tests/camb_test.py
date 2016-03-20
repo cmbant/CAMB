@@ -41,6 +41,12 @@ class CambTest(unittest.TestCase):
         self.assertAlmostEqual(t2, t0 - t1, 2)
         self.assertAlmostEqual(t1, 4200.78, 2)
 
+        chistar = data.conformal_time(0) - model.tau_maxvis.value
+        chis = np.linspace(0, chistar, 197)
+        zs = data.redshift_at_comoving_radial_distance(chis)
+        chitest = data.comoving_radial_distance(zs)
+        self.assertTrue(np.sum((chitest - chis) ** 2) < 1e-3)
+
         theta = data.cosmomc_theta()
         self.assertAlmostEqual(theta, 0.0104759965, 5)
 
@@ -77,8 +83,7 @@ class CambTest(unittest.TestCase):
 
         # test theta
         pars.set_cosmology(cosmomc_theta=0.0104085, H0=None, ombh2=0.022271, omch2=0.11914, mnu=0.06, omk=0)
-        self.assertAlmostEqual(pars.H0, 67.5512,2)
-
+        self.assertAlmostEqual(pars.H0, 67.5512, 2)
 
     def testEvolution(self):
         redshifts = [0.4, 31.5]
@@ -136,3 +141,11 @@ class CambTest(unittest.TestCase):
         cls_tensor = data.get_tensor_cls(2000)
         cls_lensed = data.get_lensed_scalar_cls(2000)
         cls_phi = data.get_lens_potential_cls(2000)
+
+        PKnonlin = camb.get_matter_power_interpolator(pars, nonlinear=True)
+        pars.set_matter_power(redshifts=[0, 0.09, 0.15, 0.42, 0.76, 1.5, 2.3, 5.5, 8.9], kmax=10, k_per_logint=5)
+        pars.NonLinear = model.NonLinear_both
+        results = camb.get_results(pars)
+        kh, z, pk = results.get_nonlinear_matter_power_spectrum()
+        pk_interp = PKnonlin.P(z, kh)
+        self.assertTrue(np.sum((pk / pk_interp - 1) ** 2) < 0.005)
