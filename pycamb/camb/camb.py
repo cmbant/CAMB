@@ -246,7 +246,8 @@ def set_default_params(P):
 
 
 def fortran_array(c_pointer, shape, dtype=np.float64, order='F', own_data=True):
-    shape = np.atleast_1d(shape)
+    if not hasattr(shape, '__len__'):
+        shape = np.atleast_1d(shape)
     arr_size = np.prod(shape[:]) * np.dtype(dtype).itemsize
     if sys.version_info.major >= 3:
         buf_from_mem = ctypes.pythonapi.PyMemoryView_FromMemory

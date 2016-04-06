@@ -361,6 +361,9 @@ class CAMBparams(CAMB_Structure):
         omnuh2_sterile = meffsterile / neutrino_mass_fac
         if omnuh2_sterile > 0 and nnu < standard_neutrino_neff:
             raise CAMBError('sterile neutrino mass required Neff>3.046')
+        if omnuh2 and not num_massive_neutrinos:
+            raise CAMBError('non-zero mnu with zero num_massive_neutrinos')
+
 
         omnuh2 = omnuh2 + omnuh2_sterile
         self.omegan = omnuh2 / fac
