@@ -1079,7 +1079,7 @@ def set_params(cp=None, verbose=False, **params):
 
 def get_matter_power_interpolator(params, zmin=0, zmax=10, nz_step=100, zs=None, kmax=10, nonlinear=True,
                                   var1=model.transfer_power_var.value, var2=model.transfer_power_var.value,
-                                  hubble_units=True, k_hunit=True, k_per_logint=None):
+                                  hubble_units=True, k_hunit=True, k_per_logint=None, log_interp = True):
     """
     Return a 2D spline interpolation object to evaluate matter power spectrum as function of z and k/h
     e.g.
@@ -1097,6 +1097,7 @@ def get_matter_power_interpolator(params, zmin=0, zmax=10, nz_step=100, zs=None,
     :param var2: variable j (default: total matter)
     :param hubble_units: if true, output power spectrum in (Mpc/h)^{-3} units, otherwise Mpc^{-3}
     :param k_hunit: if true, matter power is a function of k/h, if false, just k (both Mpc^{-1} units)
+    :param log_interp: if true, interpolate log of power spectrum (unless any values are negative in which case ignored)
     :return: kh, z, PK, where kz an z are arrays of k/h and z respectively, and PK[i,j] is value at z[i], (k/h)[j]
 
     :return: RectBivariateSpline object PK, that can be called with PK(z,log(kh)) to get log matter power values
@@ -1112,12 +1113,23 @@ def get_matter_power_interpolator(params, zmin=0, zmax=10, nz_step=100, zs=None,
     results = get_results(pars)
 
     class PKInterpolator(RectBivariateSpline):
+
         def P(self, z, kh, grid=None):
             if grid is None:
                 grid = not np.isscalar(z) and not np.isscalar(kh)
-            return np.exp(self(z, np.log(kh), grid=grid))
+            if self.islog:
+                return np.exp(self(z, np.log(kh), grid=grid))
+            else:
+                return self(z, np.log(kh), grid=grid)
 
     kh, z, pk = results.get_linear_matter_power_spectrum(var1, var2, hubble_units, nonlinear=nonlinear)
     if not k_hunit:
         kh *= pars.H0 / 100
-    return PKInterpolator(z, np.log(kh), np.log(pk))
+    if log_interp and np.any(pk<=0):
+        log_interp = False
+    if log_interp:
+        res = PKInterpolator(z, np.log(kh), np.log(pk))
+    else:
+        res = PKInterpolator(z, np.log(kh), pk)
+    res.islog = log_interp
+    return res
