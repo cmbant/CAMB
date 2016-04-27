@@ -1079,7 +1079,7 @@ def set_params(cp=None, verbose=False, **params):
 
 def get_matter_power_interpolator(params, zmin=0, zmax=10, nz_step=100, zs=None, kmax=10, nonlinear=True,
                                   var1=model.transfer_power_var.value, var2=model.transfer_power_var.value,
-                                  hubble_units=True, k_hunit=True, k_per_logint=None, log_interp = True):
+                                  hubble_units=True, k_hunit=True, return_z_k=False, k_per_logint=None, log_interp = True):
     """
     Return a 2D spline interpolation object to evaluate matter power spectrum as function of z and k/h
     e.g.
@@ -1097,6 +1097,7 @@ def get_matter_power_interpolator(params, zmin=0, zmax=10, nz_step=100, zs=None,
     :param var2: variable j (default: total matter)
     :param hubble_units: if true, output power spectrum in (Mpc/h)^{-3} units, otherwise Mpc^{-3}
     :param k_hunit: if true, matter power is a function of k/h, if false, just k (both Mpc^{-1} units)
+    :param return_z_k: if true, return interpolator, z, k where z, k are the grid used
     :param log_interp: if true, interpolate log of power spectrum (unless any values are negative in which case ignored)
     :return: kh, z, PK, where kz an z are arrays of k/h and z respectively, and PK[i,j] is value at z[i], (k/h)[j]
 
@@ -1132,4 +1133,7 @@ def get_matter_power_interpolator(params, zmin=0, zmax=10, nz_step=100, zs=None,
     else:
         res = PKInterpolator(z, np.log(kh), pk)
     res.islog = log_interp
-    return res
+    if return_z_k:
+        return res, z, kh
+    else:
+        return res
