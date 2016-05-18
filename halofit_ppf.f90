@@ -23,6 +23,7 @@
 !   separate halofit.f90 is no longer needed as equations.f90 defined fixed wa_ppf
 ! Jan 15: Suggested change from Simeon Bird to avoid issues with very large Omm and neutrinos
 !AM Mar 16: Added in HMcode
+!AM May 16: Fixed some small bugs and added better neutrino approximations
 
 !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -48,10 +49,10 @@ module NonLinear
   !!AM - Added these types for HMcode
   TYPE cosmology
      !Contains only things that do not need to be recalculated with each new z
-     REAL :: om_m, om_v, w, wa, f_nu, ns
+     REAL :: om_m, om_v, w, wa, f_nu, ns, h, Tcmb, Nnu
      REAL, ALLOCATABLE :: r_sigma(:), sigma(:)
      REAL, ALLOCATABLE :: growth(:), a_growth(:)
-     REAL, ALLOCATABLE :: k_plin(:), plin(:)
+     REAL, ALLOCATABLE :: k_plin(:), plin(:), plinc(:)
   END TYPE cosmology
 
   TYPE tables
@@ -389,15 +390,10 @@ contains
 
        !Loop over k values and calculate P(k)
        DO i=1,nk
-
           k=exp(CAMB_Pk%log_kh(i))
-
-          plin=p_lin(k,z,cosi)
-
+          plin=p_lin(k,z,0,cosi)
           CALL halomod(k,z,p1h,p2h,pfull,plin,lut,cosi)
-
           CAMB_Pk%nonlin_ratio(i,j)=sqrt(pfull/plin)
-
        END DO
 
     END DO
@@ -414,11 +410,12 @@ contains
     TYPE(tables), INTENT(IN) :: lut
 
     IF(imead==0) THEN
-       !A value that is normally used in halo model predictions
+       !Value that is normally used in halo model predictions
        Delta_v=200.
     ELSE IF(imead==1) THEN
        !Mead et al. (2015; arXiv 1505.07833) value
        Delta_v=418.*(omega_m_hm(z,cosm)**(-0.352))
+       !Mead et al. (2016; arXiv 1602.02154) neutrino addition
        Delta_v=Delta_v*(1.+0.916*cosm%f_nu)
     END IF
 
@@ -438,6 +435,7 @@ contains
     ELSE IF(imead==1) THEN
        !Mead et al. (2015; arXiv 1505.07833) value
        delta_c=1.59+0.0314*log(lut%sig8z)
+       !Mead et al. (2016; arXiv 1602.02154) neutrino addition
        delta_c=delta_c*(1.+0.262*cosm%f_nu)
     END IF
 
@@ -573,7 +571,7 @@ contains
     IMPLICIT NONE
     REAL, INTENT(OUT) :: p1h, p2h, pfull
     REAL, INTENT(IN) :: plin, k, z
-    REAL :: alp
+    REAL :: a
     TYPE(cosmology), INTENT(IN) :: cosm
     TYPE(tables), INTENT(IN) :: lut
 
@@ -587,8 +585,8 @@ contains
        p2h=p_2h(k,z,plin,lut,cosm)
     END IF
 
-    alp=alpha(z,lut,cosm)
-    pfull=(p2h**alp+p1h**alp)**(1./alp)
+    a=alpha(z,lut,cosm)
+    pfull=(p2h**a+p1h**a)**(1./a)
 
   END SUBROUTINE halomod
 
@@ -599,7 +597,7 @@ contains
     INTEGER :: i
     REAL, INTENT(IN) :: min, max
     REAL :: a, b
-    REAL, ALLOCATABLE :: arr(:)
+    REAL, ALLOCATABLE, INTENT(OUT) :: arr(:)
     INTEGER, INTENT(IN) :: ilog, n
 
     !ilog=0 does linear spacing
@@ -644,46 +642,126 @@ contains
     INTEGER, INTENT(IN) :: iz
     TYPE(cosmology) :: cosm
     INTEGER :: i, nk
-    REAL :: z, g
+    INTEGER :: imeth
+    REAL :: z, g, k, kmin, kmax
     REAL, PARAMETER :: pi=3.141592654
 
     IF(ihm==1) WRITE(*,*) 'LINEAR POWER: Filling linear power tables' 
 
     !Fill arrays
     IF(ALLOCATED(cosm%k_plin)) DEALLOCATE(cosm%k_plin)
-    IF(ALLOCATED(cosm%plin)) DEALLOCATE(cosm%plin)
-    nk=CAMB_PK%num_k
-    ALLOCATE(cosm%k_plin(nk),cosm%plin(nk))
+    IF(ALLOCATED(cosm%plin))   DEALLOCATE(cosm%plin)
+    IF(ALLOCATED(cosm%plinc))  DEALLOCATE(cosm%plinc)
 
-    !Fill k-table
-    DO i=1,nk
-       cosm%k_plin(i)=exp(CAMB_Pk%log_kh(i))
-    END DO
+    imeth=2
+    IF(imeth==1) THEN
 
+       !Fill k-table with the same k points as in the CAMB calculation
+       !If a user has specified lots of points this could make the halo-model
+       !calculation chug
+       nk=CAMB_PK%num_k
+       ALLOCATE(cosm%k_plin(nk))
+       DO i=1,nk
+          cosm%k_plin(i)=exp(CAMB_Pk%log_kh(i))
+       END DO
+
+    ELSE IF(imeth==2) THEN
+
+       !Fill a k-table with an equal-log-spaced k range
+       !Note that the minimum should be the same as the CAMB minimum to prevent
+       !horrid things happening with my own interpolation routines
+       kmin=exp(CAMB_Pk%log_kh(1))
+       kmax=1e2
+       nk=128
+       CALL fill_table(kmin,kmax,cosm%k_plin,nk,1)
+       
+    END IF
+       
     IF(ihm==1) WRITE(*,*) 'LINEAR POWER: k_min:', cosm%k_plin(1)
     IF(ihm==1) WRITE(*,*) 'LINEAR POWER: k_max:', cosm%k_plin(nk)
+    IF(ihm==1) WRITE(*,*) 'LINEAR POWER: nk:', nk
 
+    ALLOCATE(cosm%plin(nk),cosm%plinc(nk))
+    
     !Fill power table
     DO i=1,nk
        !Take the power from the current redshift choice
        cosm%plin(i)=MatterPowerData_k(CAMB_PK,DBLE(cosm%k_plin(i)),iz)*(cosm%k_plin(i)**3/(2.*pi**2))
+       cosm%plinc(i)=cosm%plin(i)*(Tcb_Tcbnu_ratio(cosm%k_plin(i),z,cosm))**2.
     END DO
-    
-    !Calculate the growth factor at the redshift of interest
-    z=CAMB_Pk%Redshifts(iz)
-    g=grow(z,cosm)
 
+    !Find the redshift
+    z=CAMB_Pk%Redshifts(iz)
     IF(ihm==1) WRITE(*,*) 'LINEAR POWER: z of input:', z
+
+    !Calculate the growth factor at the redshift of interest
+    g=grow(z,cosm)
 
     !Grow the power to z=0
     cosm%plin=cosm%plin/(g**2.)
+    cosm%plinc=cosm%plinc/(g**2.)
 
     !Check sigma_8 value
-    IF(ihm==1) WRITE(*,*) 'LINEAR POWER: Sigma_8:', sigma(8.,0.,cosm)
+    IF(ihm==1) WRITE(*,*) 'LINEAR POWER: Sigma_8:', sigma(8.,0.,0,cosm)
     IF(ihm==1) WRITE(*,*) 'LINEAR POWER: Done'
     IF(ihm==1) WRITE(*,*)
 
   END SUBROUTINE fill_plintab
+
+  FUNCTION Tcb_Tcbnu_ratio(k,z,cosm)
+
+    !Calculates the ratio of T(k) for cold vs. all matter
+    !Uses approximations in Eisenstein & Hu (1999; arXiv 9710252)
+    !Note that this assumes that there are exactly 3 species of neutrinos with
+    !Nnu<=3 of these being massive, and with the mass split evenly between the number of massive species.
+
+    IMPLICIT NONE
+    REAL :: Tcb_Tcbnu_ratio
+    REAL, INTENT(IN) :: k, z
+    REAL :: D, Dcb, Dcbnu, pcb, zeq, q, yfs
+    REAL :: N_nu, BigT
+    TYPE(cosmology) :: cosm
+
+    IF(cosm%f_nu==0.) THEN
+
+       Tcb_Tcbnu_ratio=1.
+
+    ELSE
+
+       !Growth exponent under the assumption that neutrinos are completely unclustered (equation 11)
+       pcb=(5.-sqrt(1.+24.*(1.-cosm%f_nu)))/4.
+
+       !Theta for temperature (BigT=T/2.7 K)
+       BigT=cosm%Tcmb/2.7
+
+       !The matter-radiation equality redshift
+       zeq=(2.5e4)*cosm%om_m*(cosm%h**2.)*(BigT**(-4.))
+
+       !The growth function normalised such that D=(1.+z_eq)/(1+z) at early times (when Omega_m \approx 1)
+       !For my purpose (just the ratio) seems to work better using the EdS growth function result, \propto a . In any case, can't use grow at the moment because that is normalised by default.
+       !D=(1.+zeq)*grow(z,cosm)
+       D=(1.+zeq)/(1.+z)
+
+       !Wave number relative to the horizon scale at equality (equation 5)
+       !Extra factor of h becauase all my k are in units of h/Mpc
+       q=k*cosm%h*BigT**2./(cosm%om_m*cosm%h**2.)
+
+       !Free streaming scale (equation 14)
+       !Note that Eisenstein & Hu (1999) only consider the case of 3 neutrinos
+       !with Nnu of these being massve with the mass split evenly between Nnu species.
+       yfs=17.2*cosm%f_nu*(1.+0.488*cosm%f_nu**(-7./6.))*(cosm%Nnu*q/cosm%f_nu)**2.
+
+       !These are (almost) the scale-dependent growth functions for each component in Eisenstein & Hu (1999)
+       !Some part is missing, but this cancels when they are divided by each other, which is all I need them for.
+       !Equations (12) and (13)
+       Dcb=(1.+(D/(1.+yfs))**0.7)**(pcb/0.7)
+       Dcbnu=((1.-cosm%f_nu)**(0.7/pcb)+(D/(1.+yfs))**0.7)**(pcb/0.7)
+
+       Tcb_Tcbnu_ratio=Dcb/Dcbnu
+
+    END IF
+    
+  END FUNCTION Tcb_Tcbnu_ratio
 
   SUBROUTINE assign_cosmology(cosm)
 
@@ -697,9 +775,12 @@ contains
     cosm%w=w_lam
     cosm%wa=wa_ppf
     cosm%f_nu=CP%omegan/cosm%om_m
+    cosm%h=CP%H0/100.
+    cosm%Tcmb=CP%tcmb
+    cosm%Nnu=CP%Num_Nu_massive
 
     !n_s is read in here. The non-linear CAMB module does not work if there is more than
-    !one value in this array, so setting '1' here is fine.
+    !one value in this array, so explicitly setting '1' here is fine.
     cosm%ns=CP%InitPower%an(1)
 
     !Write out cosmological parameters if necessary
@@ -709,6 +790,9 @@ contains
     IF(ihm==1) WRITE(*,*) 'COSMOLOGY: w_a:', cosm%wa
     IF(ihm==1) WRITE(*,*) 'COSMOLOGY: f_nu:', cosm%f_nu
     IF(ihm==1) WRITE(*,*) 'COSMOLOGY: n_s:', cosm%ns
+    IF(ihm==1) WRITE(*,*) 'COSMOLOGY: h:', cosm%h
+    IF(ihm==1) WRITE(*,*) 'COSMOLOGY: T_cmb:', cosm%Tcmb
+    IF(ihm==1) WRITE(*,*) 'COSMOLOGY: N_nu (massive):', cosm%Nnu
     IF(ihm==1) WRITE(*,*)
     
   END SUBROUTINE assign_cosmology
@@ -780,7 +864,7 @@ contains
     IF(ihm==1) WRITE(*,*) 'HALOMOD: sigv [Mpc/h]:', lut%sigv
     lut%sigv100=sigma_v(100.,z,cosm)
     IF(ihm==1) WRITE(*,*) 'HALOMOD: sigv100 [Mpc/h]:', lut%sigv100
-    lut%sig8z=sigma(8.,z,cosm)
+    lut%sig8z=sigma(8.,z,0,cosm)
     IF(ihm==1) WRITE(*,*) 'HALOMOD: sig8(z):', lut%sig8z  
     
     IF(ALLOCATED(lut%rr)) CALL deallocate_LUT(lut)
@@ -796,8 +880,8 @@ contains
     mmin=1.e0
     mmax=1.e18
 
-    IF(ihm==1) WRITE(*,*) 'HALOMOD: Target m_min:', mmin
-    IF(ihm==1) WRITE(*,*) 'HALOMOD: Target m_max:', mmax
+    IF(ihm==1) WRITE(*,*) 'HALOMOD: M_min:', mmin
+    IF(ihm==1) WRITE(*,*) 'HALOMOD: M_max:', mmax
 
     dc=delta_c(z,lut,cosm)
 
@@ -902,7 +986,7 @@ contains
   FUNCTION neff(lut,cosm)
 
     !Finds the effective spectral index at the collapse scale r_nl
-    !Where dc/sigma(r_nl)=1.
+    !Where nu(r_nl)=1. 
     IMPLICIT NONE
     REAL :: neff
     REAL :: ns
@@ -1108,16 +1192,19 @@ contains
 
   END FUNCTION cosmic_density
 
-  FUNCTION find_pk(k,cosm)
+  FUNCTION find_pk(k,itype,cosm)
 
-    !Look-up and interpolation for P(k)
+    !Look-up and interpolation for P(k,z=0)
     IMPLICIT NONE
     REAL :: find_pk
     REAL :: kmin, kmax, ns
     REAL, INTENT(IN) :: k
+    INTEGER, INTENT(IN) :: itype
     INTEGER :: n
     TYPE(cosmology), INTENT(IN) :: cosm
 
+    !Set number of k points as well as min and max k values
+    !Note that the min k value should be set to the same as the CAMB min k value
     n=SIZE(cosm%k_plin)
     kmin=cosm%k_plin(1)
     kmax=cosm%k_plin(n)
@@ -1125,31 +1212,43 @@ contains
     !Spectral index used in the high-k extrapolation
     ns=cosm%ns
 
-    IF(k<kmin) THEN
+    IF(k<1e-8) THEN
        find_pk=0.
     ELSE IF(k>kmax) THEN
        !Do some interpolation here based on knowledge of things at high k
-       find_pk=cosm%plin(n)*((log(k)/log(kmax))**2.)*((k/kmax)**(ns-1.))
+       IF(itype==0) THEN
+          find_pk=cosm%plin(n)*((log(k)/log(kmax))**2.)*((k/kmax)**(ns-1.))
+       ELSE IF(itype==1) THEN
+          find_pk=cosm%plinc(n)*((log(k)/log(kmax))**2.)*((k/kmax)**(ns-1.))
+       END IF
     ELSE
        !Otherwise use the standard find algorithm
-       find_pk=exp(find(log(k),log(cosm%k_plin),log(cosm%plin),3,3))
+       IF(itype==0) THEN
+          find_pk=exp(find(log(k),log(cosm%k_plin),log(cosm%plin),3,3))
+       ELSE IF(itype==1) THEN
+          find_pk=exp(find(log(k),log(cosm%k_plin),log(cosm%plinc),3,3))
+       END IF
     END IF
+
+    !Old method, works fine for m_nu<0.5 eV
+    !IF(itype==1) find_pk=find_pk/(1.-cosm%f_nu)**2.
 
   END FUNCTION find_pk
 
-  FUNCTION p_lin(k,z,cosm)
+  FUNCTION p_lin(k,z,itype,cosm)
 
     !Looks up the value for the linear power spectrum
     IMPLICIT NONE
     REAL :: p_lin
     REAL, INTENT (IN) :: k, z
     REAL :: g, g1, z1
+    INTEGER, INTENT(IN) :: itype
     TYPE(cosmology), INTENT(IN) :: cosm
 
     !This gives the linear power spectrum for the model in question
     !P(k) should have been previously normalised to z=0
 
-    p_lin=(grow(z,cosm)**2.)*find_pk(k,cosm)
+    p_lin=(grow(z,cosm)**2.)*find_pk(k,itype,cosm)
 
   END FUNCTION p_lin
 
@@ -1266,21 +1365,23 @@ contains
     ALLOCATE(cosm%r_sigma(nsig),cosm%sigma(nsig))  
 
     IF(ihm==1) WRITE(*,*) 'SIGTAB: Filling sigma interpolation table'
-    IF(ihm==1) WRITE(*,*) 'SIGTAB: Rmin:', rmin
-    IF(ihm==1) WRITE(*,*) 'SIGTAB: Rmax:', rmax
+    IF(ihm==1) WRITE(*,*) 'SIGTAB: R_min:', rmin
+    IF(ihm==1) WRITE(*,*) 'SIGTAB: R_max:', rmax
     IF(ihm==1) WRITE(*,*) 'SIGTAB: Values:', nsig
 
     DO i=1,nsig
 
        !Equally spaced r in log
        r=exp(log(rmin)+log(rmax/rmin)*float(i-1)/float(nsig-1))
-       sig=sigma(r,0.,cosm)
+       sig=sigma(r,0.,1,cosm)
 
        cosm%r_sigma(i)=r
        cosm%sigma(i)=sig
        
     END DO
-
+    
+    IF(ihm==1) WRITE(*,*) 'SIGTAB: sigma_min:', cosm%sigma(nsig)
+    IF(ihm==1) WRITE(*,*) 'SIGTAB: sigma_max:', cosm%sigma(1)
     IF(ihm==1) WRITE(*,*) 'SIGTAB: Done'
     IF(ihm==1) WRITE(*,*)
 
@@ -1320,7 +1421,7 @@ contains
           !Values at the end points are 0 so removed for convenience
           theta=float(i-1)/float(n-1)
           k=(-1.+1./theta)/r**alpha
-          sum=sum+p_lin(k,z,cosm)*(wk_tophat(k*r)**2.)/((k**2.)*theta*(1.-theta))
+          sum=sum+p_lin(k,z,0,cosm)*(wk_tophat(k*r)**2.)/((k**2.)*theta*(1.-theta))
 
        END DO
 
@@ -1338,18 +1439,19 @@ contains
 
   END FUNCTION sigma_v
 
-  FUNCTION sigma(r,z,cosm)
+  FUNCTION sigma(r,z,itype,cosm)
 
     !Chooses how best to do the sigma(R) integral depending on the R value
     IMPLICIT NONE
     REAL :: sigma
     REAL, INTENT(IN) :: r, z
+    INTEGER, INTENT(IN) :: itype
     TYPE(cosmology), INTENT(IN) :: cosm
 
     IF(r>=1.e-2) THEN
-       sigma=sigint0(r,z,cosm)
+       sigma=sigint0(r,z,itype,cosm)
     ELSE IF(r<1.e-2) THEN
-       sigma=sqrt(sigint1(r,z,cosm)+sigint2(r,z,cosm))
+       sigma=sqrt(sigint1(r,z,itype,cosm)+sigint2(r,z,itype,cosm))
     END IF
 
   END FUNCTION sigma
@@ -1369,7 +1471,7 @@ contains
     !between the perturbation of cold matter to all matter (assumes delta_nu=0)
     !This works remarkably well (error <1% in P(k) for standard LCDM for m_nu<0.3eV)
 
-    sigmac=grow(z,cosm)*exp(find(log(r),log(cosm%r_sigma),log(cosm%sigma),3,3))/(1.-cosm%f_nu)
+    sigmac=grow(z,cosm)*exp(find(log(r),log(cosm%r_sigma),log(cosm%sigma),3,3))!/(1.-cosm%f_nu)
 
   END FUNCTION sigmac
 
@@ -1510,7 +1612,7 @@ contains
 
   END FUNCTION inttab
 
-  FUNCTION sigma_integrand(t,R,f,z,cosm)
+  FUNCTION sigma_integrand(t,R,f,z,itype,cosm)
 
     !The integrand for the sigma(R) intergal
     IMPLICIT NONE
@@ -1518,6 +1620,7 @@ contains
     REAL, INTENT(IN) :: t, R, z
     REAL :: k, y, w_hat
     TYPE(cosmology), INTENT(IN) :: cosm
+    INTEGER, INTENT(IN) :: itype
 
     INTERFACE
        REAL FUNCTION f(x)
@@ -1538,7 +1641,7 @@ contains
        k=(-1.+1./t)/f(R)
        y=k*R
        w_hat=wk_tophat(y)
-       sigma_integrand=p_lin(k,z,cosm)*(w_hat**2.)/(t*(1.-t))
+       sigma_integrand=p_lin(k,z,itype,cosm)*(w_hat**2.)/(t*(1.-t))
     END IF
 
   END FUNCTION sigma_integrand
@@ -1566,7 +1669,7 @@ contains
 
   END FUNCTION f_rapid
 
-  FUNCTION sigint0(r,z,cosm)
+  FUNCTION sigint0(r,z,itype,cosm)
 
     !One form of the sigma(R) integral
     IMPLICIT NONE
@@ -1577,6 +1680,7 @@ contains
     REAL :: x
     REAL*8 :: sum1, sum2
     TYPE(cosmology), INTENT(IN) :: cosm
+    INTEGER, INTENT(IN) :: itype
 
     acc=0.001
 
@@ -1595,7 +1699,7 @@ contains
 
           !x is defined on the interval 0 -> 1
           x=float(i-1)/float(n-1)
-          sum2=sum2+sigma_integrand(x,r,f_rapid,z,cosm)
+          sum2=sum2+sigma_integrand(x,r,f_rapid,z,itype,cosm)
 
        END DO
 
@@ -1621,7 +1725,7 @@ contains
 
   END FUNCTION sigint0
 
-  FUNCTION sigint1(r,z,cosm)
+  FUNCTION sigint1(r,z,itype,cosm)
 
     !One form of the sigma(R) integral
     IMPLICIT NONE
@@ -1632,6 +1736,7 @@ contains
     REAL :: x, fac, xmin, xmax, k
     REAL*8 :: sum1, sum2
     TYPE(cosmology), INTENT(IN) :: cosm
+    INTEGER, INTENT(IN) :: itype
 
     acc=0.001
 
@@ -1660,7 +1765,7 @@ contains
           END IF
 
           k=(-1.+1./x)/r**.5
-          sum2=sum2+fac*p_lin(k,z,cosm)*(wk_tophat(k*r)**2.)/(x*(1.-x))
+          sum2=sum2+fac*p_lin(k,z,itype,cosm)*(wk_tophat(k*r)**2.)/(x*(1.-x))
 
        END DO
 
@@ -1683,7 +1788,7 @@ contains
 
   END FUNCTION sigint1
 
-  FUNCTION sigint2(r,z,cosm)
+  FUNCTION sigint2(r,z,itype,cosm)
 
     !One form of the sigma(R) integral
     IMPLICIT NONE
@@ -1694,6 +1799,7 @@ contains
     REAL :: x, fac, xmin, xmax, A
     REAL*8 :: sum1, sum2
     TYPE(cosmology), INTENT(IN) :: cosm
+    INTEGER, INTENT(IN) :: itype
 
     acc=0.001
 
@@ -1724,7 +1830,7 @@ contains
           END IF
 
           !Integrate linearly in k for the rapidly oscillating part
-          sum2=sum2+fac*p_lin(x,z,cosm)*(wk_tophat(x*r)**2.)/x
+          sum2=sum2+fac*p_lin(x,z,itype,cosm)*(wk_tophat(x*r)**2.)/x
 
        END DO
 
@@ -1955,7 +2061,7 @@ contains
           !Values at the end points are 0 so removed for convenience
           theta=float(i-1)/float(n-1)
           k=(-1.+1./theta)          
-          sum=sum+((1.+k)**2.)*p_lin(k,z,cosm)/(k**3.)
+          sum=sum+((1.+k)**2.)*p_lin(k,z,0,cosm)/(k**3.)
 
        END DO
 
