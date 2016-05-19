@@ -33,6 +33,5 @@ Other modules:
    reionization
    recombination
 
-
 * :ref:`genindex`
 

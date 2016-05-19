@@ -15,6 +15,7 @@ from .camb import CAMBdata, MatterTransferData, get_results, get_transfer_functi
 from . import model
 from . import initialpower
 from . import reionization
+from .nonlinear import set_halofit_version
 from .model import CAMBparams, TransferParams
 from .reionization import ReionizationParams
 from .initialpower import InitialPowerParams

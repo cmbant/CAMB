@@ -13,7 +13,7 @@
 Code for Anisotropies in the Microwave Background by <A
 HREF="http://cosmologist.info/">Antony Lewis</A> and Anthony
 Challinor. <P>
-This version November 2015.
+This version May 2016.
 <P>
 <FONT SIZE=-1>
 Originally based on CMBFAST developed by Uros Seljak and Matias
@@ -145,6 +145,17 @@ Some details about what different source code files do are given <A HREF="#FILES
 <P>
 <A NAME="version">
 <H3>Version history</H3>
+
+<B>May 2016</B><BR>
+<UL>
+<LI>Added support for <A HREF="http://arxiv.org/abs/1505.07833">HMCODE</A> Halofit version (halofit_version=5); Takahashi remains the default as before
+<LI><A HREF="https://camb.readthedocs.org/en/latest">Python CAMB wrapper</A>
+<UL>
+<LI>  <b>camb.get_matter_power_interpolator</b> function get 2D spline object for evaluating P(k,z); 
+<LI><b>camb.set_halofit_version</b> to set halofit version;
+<LI> Wigner 3j function for convenience (<b>camb.bispectrum.threej</b>).
+</UL>
+</UL>
 
 <B>November 2015</B><BR>
 <UL>
