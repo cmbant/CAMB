@@ -668,9 +668,8 @@ contains
     ELSE IF(imeth==2) THEN
 
        !Fill a k-table with an equal-log-spaced k range
-       !Note that the minimum should be the same as the CAMB minimum to prevent
-       !horrid things happening with my own interpolation routines
-       kmin=exp(CAMB_Pk%log_kh(1))
+       !Note that the minimum should be such that the spectrum is accurately a power-law below this wavenumber
+       kmin=1e-3
        kmax=1e2
        nk=128
        CALL fill_table(kmin,kmax,cosm%k_plin,nk,1)
@@ -1197,7 +1196,7 @@ contains
     !Look-up and interpolation for P(k,z=0)
     IMPLICIT NONE
     REAL :: find_pk
-    REAL :: kmin, kmax, ns
+    REAL :: kmax, ns
     REAL, INTENT(IN) :: k
     INTEGER, INTENT(IN) :: itype
     INTEGER :: n
@@ -1206,15 +1205,12 @@ contains
     !Set number of k points as well as min and max k values
     !Note that the min k value should be set to the same as the CAMB min k value
     n=SIZE(cosm%k_plin)
-    kmin=cosm%k_plin(1)
     kmax=cosm%k_plin(n)
 
     !Spectral index used in the high-k extrapolation
     ns=cosm%ns
 
-    IF(k<1e-8) THEN
-       find_pk=0.
-    ELSE IF(k>kmax) THEN
+    IF(k>kmax) THEN
        !Do some interpolation here based on knowledge of things at high k
        IF(itype==0) THEN
           find_pk=cosm%plin(n)*((log(k)/log(kmax))**2.)*((k/kmax)**(ns-1.))
