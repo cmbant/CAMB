@@ -26,8 +26,8 @@ def set_halofit_version(version = 'takahashi'):
             - original: `astro-ph/0207664 <http://arxiv.org/abs/astro-ph/0207664>`_
             - bird: `arXiv:1109.4416 <http://arxiv.org/abs/1109.4416>`_
             - peacock: `Peacock fit <http://www.roe.ac.uk/~jap/haloes/>`_
-            - takahashi: `arXiv:1208.2701<http://arxiv.org/abs/1208.2701>`_
-            - mead: `arXiv:1505.07833<http://arxiv.org/abs/1505.07833>`_
+            - takahashi: `arXiv:1208.2701 <http://arxiv.org/abs/1208.2701>`_
+            - mead: `arXiv:1505.07833 <http://arxiv.org/abs/1505.07833>`_
             - halomodel: basic halomodel
 
     """

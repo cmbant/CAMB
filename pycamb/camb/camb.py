@@ -10,6 +10,7 @@ import sys
 from inspect import ismethod, getargspec
 import six
 
+
 class _CAMBdata(CAMB_Structure):
     # contains complex types with pointers, so just set up dummy
     _fields_ = []
@@ -581,19 +582,20 @@ class CAMBdata(object):
         return data
 
     def _transfer_var(self, var1, var2):
+        if var1 is None: var1 = model.transfer_power_var.value
+        if var2 is None: var2 = model.transfer_power_var.value
         if isinstance(var1, six.string_types): var1 = model.transfer_names.index(var1) + 1
         if isinstance(var2, six.string_types): var2 = model.transfer_names.index(var2) + 1
         return c_int(var1), c_int(var2)
 
-
-    def get_linear_matter_power_spectrum(self, var1=model.transfer_power_var.value, var2=model.transfer_power_var.value,
+    def get_linear_matter_power_spectrum(self, var1=None, var2=None,
                                          hubble_units=True, have_power_spectra=False, params=None, nonlinear=False):
         """
         Calculates P_{xy}(k/h), where x, y are one of model.Transfer_cdm, model.Transfer_xx etc.
         The output k values are not regularly spaced, and not interpolated.
 
-        :param var1: variable i (index, or name of variable)
-        :param var2: variable j (index, or name of variable)
+        :param var1: variable i (index, or name of variable; default delta_tot)
+        :param var2: variable j (index, or name of variable; default delta_tot)
         :param hubble_units: if true, output power spectrum in (Mpc/h)^{-3} units, otherwise Mpc^{-3}
         :param have_power_spectra: set to True if already computed power spectra
         :param params: if have_power_spectra=False, optional :class:`.model.CAMBparams` instance to specify new parameters
@@ -608,7 +610,7 @@ class CAMBdata(object):
         nz = self.Params.Transfer.PK_num_redshifts
         kh = data.transfer_data[model.Transfer_kh - 1, :, 0]
 
-        var1, var2 = self._transfer_var(var1,var2)
+        var1, var2 = self._transfer_var(var1, var2)
 
         hubble_units = c_int(hubble_units)
         PK = np.empty((nz, nk))
@@ -626,8 +628,8 @@ class CAMBdata(object):
         Calculates P_{xy}(k/h), where x, y are one of model.Transfer_cdm, model.Transfer_xx etc.
         The output k values are not regularly spaced, and not interpolated.
 
-        :param var1: variable i (index, or name of variable)
-        :param var2: variable j (index, or name of variable)
+        :param var1: variable i (index, or name of variable; default delta_tot)
+        :param var2: variable j (index, or name of variable; default delta_tot)
         :param hubble_units: if true, output power spectrum in (Mpc/h)^{-3} units, otherwise Mpc^{-3}
         :param have_power_spectra: set to True if already computed power spectra
         :param params: if have_power_spectra=False, optional :class:`.model.CAMBparams` instance to specify new parameters
@@ -646,7 +648,7 @@ class CAMBdata(object):
         return mtrans.sigma_8[:, 0]
 
     def get_matter_power_spectrum(self, minkh=1e-4, maxkh=1.0, npoints=100,
-                                  var1=model.transfer_power_var.value, var2=model.transfer_power_var.value,
+                                  var1=None, var2=None,
                                   have_power_spectra=False, params=None):
         """
         Calculates P_{xy}(k/h), where x, y are one of Transfer_cdm, Transfer_xx etc defined in ModelParams.
@@ -655,8 +657,8 @@ class CAMBdata(object):
         :param minkh: minimum value of k/h for output grid (very low values < 1e-4 may not be calculated)
         :param maxkh: maximum value of k/h (check consistent with input params.Transfer.kmax)
         :param npoints: number of points equally spaced in log k
-        :param var1: variable i (index or name of variable)
-        :param var2: variable j (index or name of variable)
+        :param var1: variable i (index, or name of variable; default delta_tot)
+        :param var2: variable j (index, or name of variable; default delta_tot)
         :param have_power_spectra: set to True if already computed power spectra
         :param params: if have_power_spectra=False and want to specify new parameters, a :class:`.model.CAMBparams` instance
         :return: kh, z, PK, where kz an z are arrays of k/h and z respectively, and PK[i,j] is value at z[i], k/h[j]
@@ -673,11 +675,11 @@ class CAMBdata(object):
 
         nz = self.Params.Transfer.PK_num_redshifts
         PK = np.empty((nz, npoints))
-        var1, var2 = self._transfer_var(var1,var2)
+        var1, var2 = self._transfer_var(var1, var2)
 
         dlnkh = (np.log(maxkh) - np.log(minkh)) / (npoints - 1)
         CAMBdata_GetMatterPower(self._key, PK, byref(c_double(minkh)),
-                                byref(c_double(dlnkh)), byref(c_int(npoints)), byref(var1),byref(var2))
+                                byref(c_double(dlnkh)), byref(c_int(npoints)), byref(var1), byref(var2))
         z = self.Params.Transfer.PK_redshifts[:nz]
         z.reverse()
         return minkh * np.exp(np.arange(npoints) * dlnkh), z, PK
@@ -1084,8 +1086,8 @@ def set_params(cp=None, verbose=False, **params):
 
 
 def get_matter_power_interpolator(params, zmin=0, zmax=10, nz_step=100, zs=None, kmax=10, nonlinear=True,
-                                  var1=model.transfer_power_var.value, var2=model.transfer_power_var.value,
-                                  hubble_units=True, k_hunit=True, return_z_k=False, k_per_logint=None, log_interp = True):
+                                  var1=None, var2=None, hubble_units=True, k_hunit=True,
+                                  return_z_k=False, k_per_logint=None, log_interp=True):
     """
     Return a 2D spline interpolation object to evaluate matter power spectrum as function of z and k/h
     e.g.
@@ -1099,8 +1101,8 @@ def get_matter_power_interpolator(params, zmin=0, zmax=10, nz_step=100, zs=None,
     :param zs: instead of zmin,zmax, nz_step, can specific explicit array of z values to spline from
     :param kmax: maximum k
     :param nonlinear: include non-linear correction from halo model
-    :param var1: variable i (default: total matter)
-    :param var2: variable j (default: total matter)
+    :param var1: variable i (index, or name of variable; default delta_tot)
+    :param var2: variable j (index, or name of variable; default delta_tot)
     :param hubble_units: if true, output power spectrum in (Mpc/h)^{-3} units, otherwise Mpc^{-3}
     :param k_hunit: if true, matter power is a function of k/h, if false, just k (both Mpc^{-1} units)
     :param return_z_k: if true, return interpolator, z, k where z, k are the grid used
@@ -1132,7 +1134,7 @@ def get_matter_power_interpolator(params, zmin=0, zmax=10, nz_step=100, zs=None,
     kh, z, pk = results.get_linear_matter_power_spectrum(var1, var2, hubble_units, nonlinear=nonlinear)
     if not k_hunit:
         kh *= pars.H0 / 100
-    if log_interp and np.any(pk<=0):
+    if log_interp and np.any(pk <= 0):
         log_interp = False
     if log_interp:
         res = PKInterpolator(z, np.log(kh), np.log(pk))

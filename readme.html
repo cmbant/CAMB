@@ -138,10 +138,9 @@ After modifying any of the source code run <B>make clean</B> before running <B>m
 Run <B>make all</B> to build a library libcamb.a that you can use when
 linking to other programs. (You will also need to include the module files using -I/cambfolder).
 <P>
-You can <A HREF="http://camb.info/test_suite.tar.gz">download</A> a test suite for comparing accuracy with different parameters and code versions. Just extract the file to your CAMB directory and read the readme.
-<P>
 Some details about what different source code files do are given <A HREF="#FILES">below</A>, see also the <A HREF="http://cosmologist.info/notes/CAMB.pdf">CAMB notes</A>.
-
+<P>
+A test suite is included, and will run automatically on <A HREF="https://travis-ci.org/">Travis</A> when committing or making pull requests on the <A HREF="https://github.com/cmbant/CAMB">GitHub repository</A>. Python unit tests are in the pycamb/camb_tests directory, and scripts for comparing outputs for a variety of models (as run on Travis) are in the tests directory.
 <P>
 <A NAME="version">
 <H3>Version history</H3>
@@ -152,6 +151,7 @@ Some details about what different source code files do are given <A HREF="#FILES
 <LI><A HREF="https://camb.readthedocs.org/en/latest">Python CAMB wrapper</A>
 <UL>
 <LI>  <b>camb.get_matter_power_interpolator</b> function get 2D spline object for evaluating P(k,z); 
+<br>See the <A HREF="http://camb.readthedocs.io/en/latest/CAMBdemo.html">sample notebook</A> for an example of how to use this to calculate a lensing spectrum
 <LI><b>camb.set_halofit_version</b> to set halofit version;
 <LI> Wigner 3j function for convenience (<b>camb.bispectrum.threej</b>).
 </UL>
