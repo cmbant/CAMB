@@ -147,12 +147,15 @@ A test suite is included, and will run automatically on <A HREF="https://travis-
 
 <B>May 2016</B><BR>
 <UL>
-<LI>Added support for <A HREF="http://arxiv.org/abs/1505.07833">HMCODE</A> Halofit version (halofit_version=5); Takahashi remains the default as before
+<LI>Added support for <A HREF="http://arxiv.org/abs/1505.07833">HMCODE</A> Halofit version (halofit_version=5; thanks Alex Mead); Takahashi remains the default as before
 <LI><A HREF="https://camb.readthedocs.org/en/latest">Python CAMB wrapper</A>
 <UL>
 <LI>  <b>camb.get_matter_power_interpolator</b> function get 2D spline object for evaluating P(k,z); 
 <br>See the <A HREF="http://camb.readthedocs.io/en/latest/CAMBdemo.html">sample notebook</A> for an example of how to use this to calculate a lensing spectrum
+<LI>Result object functions to get unsplined matter power (<b>get_linear_matter_power_spectrum</b>,<b>get_nonlinear_matter_power_spectrum</b>)
+<LI>Result object function to get redshift from conformal time (<b>redshift_at_comoving_radial_distance</b>)
 <LI><b>camb.set_halofit_version</b> to set halofit version;
+<LI>Option to set cosmomc_theta rather than H_0 (thanks Marius Millea)
 <LI> Wigner 3j function for convenience (<b>camb.bispectrum.threej</b>).
 </UL>
 </UL>
