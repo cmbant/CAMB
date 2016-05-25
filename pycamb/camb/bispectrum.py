@@ -26,7 +26,7 @@ class TBispectrumParams:
     ]
 
 int_arg = POINTER(c_int)
-utils_3j = camblib.__amlutils_MOD_getthreejs
+utils_3j = camblib.__getthreejs
 utils_3j.argtypes = [ndpointer(c_double, flags='C_CONTIGUOUS'), int_arg,int_arg,int_arg,int_arg]
 
 def threej(l2,l3,m2,m3):
