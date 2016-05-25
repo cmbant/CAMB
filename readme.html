@@ -13,7 +13,7 @@
 Code for Anisotropies in the Microwave Background by <A
 HREF="http://cosmologist.info/">Antony Lewis</A> and Anthony
 Challinor. <P>
-This version November 2015.
+This version May 2016.
 <P>
 <FONT SIZE=-1>
 Originally based on CMBFAST developed by Uros Seljak and Matias
@@ -28,13 +28,13 @@ CAMB is also supplied as part of the <A HREF="http://cosmologist.info/cosmomc/">
 <A NAME="compiling">
 <B>Compiling and running</B>
 </P>
-To install and compile yourself you will need a Fortran 90 (or higher) compiler - you can get the free <A HREF="http://gcc.gnu.org/wiki/GFortran">GFortran</A> compiler, or the optimized Intel compiler <em>ifort</em> is installed on many academic clusters and also supports integrated development and debugging in Visual Studio under Windows.
+To install and compile yourself you will need a Fortran 90 (or higher) compiler - you can get the free <A HREF="https://gcc.gnu.org/wiki/GFortranBinaries">gfortran</A> compiler, or the optimized Intel compiler <em>ifort</em> is installed on many academic clusters and also supports integrated development and debugging in Visual Studio under Windows.
  Alternatively you can use CAMB in the pre-configured <A HREF="http://cosmologist.info/CosmoBox">CosmoBox</A> virtual machine. <P>
  To install yourself from the command line:
 <UL>
 <LI><A HREF="http://camb.info/CAMBsubmit.html">Download</A> CAMB
-<LI>Unzip and untar the file (<B>tar xfv CAMB.tar.gz</B>). All files will be extracted to a
-directory called "CAMB".
+<LI>Unzip the file (<B>tar xfv filename </B> for tar.gz). All files will be extracted to a
+directory called "CAMB-xxx".
 <LI>Run <B>make</B> to compile everything you will need. (you may need to
 edit the supplied Makefile, see below)
 <LI>Run <B>./camb params.ini</B>, where params.ini is a file
@@ -138,13 +138,27 @@ After modifying any of the source code run <B>make clean</B> before running <B>m
 Run <B>make all</B> to build a library libcamb.a that you can use when
 linking to other programs. (You will also need to include the module files using -I/cambfolder).
 <P>
-You can <A HREF="http://camb.info/test_suite.tar.gz">download</A> a test suite for comparing accuracy with different parameters and code versions. Just extract the file to your CAMB directory and read the readme.
-<P>
 Some details about what different source code files do are given <A HREF="#FILES">below</A>, see also the <A HREF="http://cosmologist.info/notes/CAMB.pdf">CAMB notes</A>.
-
+<P>
+A test suite is included, and will run automatically on <A HREF="https://travis-ci.org/">Travis</A> when committing or making pull requests on the <A HREF="https://github.com/cmbant/CAMB">GitHub repository</A>. Python unit tests are in the pycamb/camb_tests directory, and scripts for comparing outputs for a variety of models (as run on Travis) are in the tests directory.
 <P>
 <A NAME="version">
 <H3>Version history</H3>
+
+<B>May 2016</B><BR>
+<UL>
+<LI>Added support for <A HREF="http://arxiv.org/abs/1505.07833">HMCODE</A> Halofit version (halofit_version=5; thanks Alex Mead); Takahashi remains the default as before
+<LI><A HREF="https://camb.readthedocs.org/en/latest">Python CAMB wrapper</A>
+<UL>
+<LI>  <b>camb.get_matter_power_interpolator</b> function get 2D spline object for evaluating P(k,z);
+<br>See the <A HREF="http://camb.readthedocs.io/en/latest/CAMBdemo.html">sample notebook</A> for an example of how to use this to calculate a lensing spectrum
+<LI>Result object functions to get unsplined matter power (<b>get_linear_matter_power_spectrum</b>,<b>get_nonlinear_matter_power_spectrum</b>)
+<LI>Result object function to get redshift from conformal time (<b>redshift_at_comoving_radial_distance</b>)
+<LI><b>camb.set_halofit_version</b> to set halofit version;
+<LI>Option to set cosmomc_theta rather than H_0 (thanks Marius Millea)
+<LI> Wigner 3j function for convenience (<b>camb.bispectrum.threej</b>).
+</UL>
+</UL>
 
 <B>November 2015</B><BR>
 <UL>

@@ -317,7 +317,8 @@ class CAMBparams(CAMB_Structure):
         self.YHe = bbn.ypBBN_to_yhe(Yp)
         return self
 
-    def set_cosmology(self, H0=67, ombh2=0.022, omch2=0.12, omk=0.0, num_massive_neutrinos=1, mnu=0.06, nnu=3.046,
+    def set_cosmology(self, H0=67, cosmomc_theta=None, ombh2=0.022, omch2=0.12, omk=0.0, num_massive_neutrinos=1,
+                      mnu=0.06, nnu=3.046,
                       YHe=None, meffsterile=0, standard_neutrino_neff=3.046, TCMB=constants.COBE_CMBTemp, tau=None,
                       tau_neutron=bbn.tau_n):
         """
@@ -326,6 +327,7 @@ class CAMBparams(CAMB_Structure):
         If you require more fine-grained control can set the neutrino parameters directly rather than using this function.
 
         :param H0: Hubble parameter (in km/s/Mpc)
+        :param cosmomc_theta The CosmoMC theta parameter. You must set H0=None to solve for H0 given cosmomc_theta
         :param ombh2: physical density in baryons
         :param omch2:  physical density in cold dark matter
         :param omk: Omega_K curvature parameter
@@ -344,10 +346,36 @@ class CAMBparams(CAMB_Structure):
         if YHe is None:
             # use BBN prediction
             self.set_bbn_helium(ombh2, nnu - standard_neutrino_neff, tau_neutron)
+            YHe = self.YHe
         else:
             self.YHe = YHe
+
+        if cosmomc_theta is not None:
+            if not (0.001 < cosmomc_theta < 0.1):
+                raise CAMBError('cosmomc_theta looks wrong (parameter is just theta, not 100*theta)')
+
+            kw = locals();
+            [kw.pop(x) for x in ['self', 'H0', 'cosmomc_theta']]
+
+            if H0 is not None:
+                raise CAMBError('Set H0=None when setting cosmomc_theta.')
+
+            try:
+                from scipy.optimize import brentq
+            except ImportError:
+                raise CAMBError('You need SciPy to set cosmomc_theta.')
+
+            from . import camb
+
+            def f(H0):
+                self.set_cosmology(H0=H0, **kw)
+                return camb.get_background(self, no_thermo=True).cosmomc_theta() - cosmomc_theta
+
+            self.H0 = brentq(f, 10, 100, rtol=1e-4)
+        else:
+            self.H0 = H0
+
         self.TCMB = TCMB
-        self.H0 = H0
         fac = (self.H0 / 100.0) ** 2
         self.omegab = ombh2 / fac
         self.omegac = omch2 / fac
@@ -359,6 +387,9 @@ class CAMBparams(CAMB_Structure):
         omnuh2_sterile = meffsterile / neutrino_mass_fac
         if omnuh2_sterile > 0 and nnu < standard_neutrino_neff:
             raise CAMBError('sterile neutrino mass required Neff>3.046')
+        if omnuh2 and not num_massive_neutrinos:
+            raise CAMBError('non-zero mnu with zero num_massive_neutrinos')
+
 
         omnuh2 = omnuh2 + omnuh2_sterile
         self.omegan = omnuh2 / fac
@@ -395,6 +426,7 @@ class CAMBparams(CAMB_Structure):
 
         if tau is not None:
             self.Reion.set_tau(tau)
+
         return self
 
     def set_dark_energy(self, w=-1.0, cs2=1.0, wa=0, dark_energy_model='fluid'):
@@ -428,13 +460,14 @@ class CAMBparams(CAMB_Structure):
         """
         return 1 - self.omegab - self.omegac - self.omegan - self.omegav
 
-    def set_matter_power(self, redshifts=[0.], kmax=1.2, k_per_logint=None):
+    def set_matter_power(self, redshifts=[0.], kmax=1.2, k_per_logint=None, silent=False):
         """
         Set parameters for calculating matter power spectra and transfer functions.
 
         :param redshifts: array of redshifts to calculate
         :param kmax: maximum k to calculate
         :param k_per_logint: number of k steps per log k. Set to zero to use default optimized spacing.
+        :param silent: if True, don't give warnings about sort order
         :return:  self
         """
         self.WantTransfer = True
@@ -445,7 +478,7 @@ class CAMBparams(CAMB_Structure):
         else:
             self.Transfer.k_per_logint = k_per_logint
         zs = sorted(redshifts, reverse=True)
-        if np.any(np.array(zs) - np.array(redshifts) != 0):
+        if not silent and np.any(np.array(zs) - np.array(redshifts) != 0):
             print("Note: redshifts have been re-sorted (earliest first)")
         if len(redshifts) > max_transfer_redshifts:
             raise CAMBError('You can have at most %s redshifts' % max_transfer_redshifts)

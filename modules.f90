@@ -149,7 +149,7 @@
     implicit none
     public
 
-    character(LEN=*), parameter :: version = 'Nov15'
+    character(LEN=*), parameter :: version = 'May16'
 
     integer :: FeedbackLevel = 0 !if >0 print out useful information about the model
 
@@ -1955,12 +1955,33 @@
 
     end subroutine Transfer_GetUnsplinedPower
 
+    subroutine Transfer_GetUnsplinedNonlinearPower(M,PK,var1,var2, hubble_units)
+    !Get 2pi^2/k^3 T_1 T_2 P_R(k) after re-scaling for non-linear evolution (if turned on)
+    Type(MatterTransferData), intent(in) :: M
+    real(dl), intent(inout):: PK(:,:)
+    integer, optional, intent(in) :: var1
+    integer, optional, intent(in) :: var2
+    logical, optional, intent(in) :: hubble_units
+    Type(MatterPowerData) :: PKdata
+    integer zix
+
+    call Transfer_GetUnsplinedPower(M,PK,var1,var2, hubble_units)
+    do zix=1, CP%Transfer%PK_num_redshifts
+        call Transfer_GetMatterPowerData(M, PKdata, 1, &
+            CP%Transfer%PK_redshifts_index(CP%Transfer%PK_num_redshifts-zix+1))
+        call NonLinear_GetRatios(PKdata)
+        PK(:,zix) =  PK(:,zix) *PKdata%nonlin_ratio(:,1)**2
+        call MatterPowerdata_Free(PKdata)
+    end do
+
+    end subroutine Transfer_GetUnsplinedNonlinearPower
+
     subroutine Transfer_GetMatterPowerData(MTrans, PK_data, power_ix, itf_only, var1, var2)
     !Does *NOT* include non-linear corrections
     !Get total matter power spectrum in units of (h Mpc^{-1})^3 ready for interpolation.
     !Here there definition is < Delta^2(x) > = 1/(2 pi)^3 int d^3k P_k(k)
     !We are assuming that Cls are generated so any baryonic wiggles are well sampled and that matter power
-    !sepctrum is generated to beyond the CMB k_max
+    !spectrum is generated to beyond the CMB k_max
     Type(MatterTransferData), intent(in) :: MTrans
     Type(MatterPowerData) :: PK_data
     integer, intent(in), optional :: power_ix
@@ -2300,7 +2321,7 @@
 
 
     if (CP%NonLinear/=NonLinear_none .and. CP%NonLinear/=NonLinear_Lens) then
-        call Transfer_GetMatterPowerData(MTrans, PK, in, itf, s1,s2)
+        call Transfer_GetMatterPowerData(MTrans, PK, in, itf) ! Mar 16, changed to use default variable
         call NonLinear_GetRatios(PK)
     end if
 
