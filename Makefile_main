@@ -19,10 +19,12 @@ DRIVER        ?= inidriver.F90
 Release: OUTPUT_DIR = Release
 Debug: OUTPUT_DIR = Debug
 
+Release: PYCAMB_OUTPUT_DIR = pycamb/camb
 Release: DLL_DIR = Releaselib
 Debug: DLL_DIR = Debuglib
 
 OUTPUT_DIR ?= Release
+PYCAMB_OUTPUT_DIR ?= pycamb/camb
 DLL_DIR ?= Releaselib
 
 Release: camb camblib.so
@@ -108,6 +110,7 @@ $(DLL_DIR)/camb_python.o: $(DLL_DIR)/camb.o
 
 camblib.so: folders $(CAMBSO)
 	$(F90C) $(SF90FLAGS) $(CAMBSO) -o $(DLL_DIR)/camblib.so
+	cp $(DLL_DIR)/camblib.so $(PYCAMB_OUTPUT_DIR)
 
 camb: directories $(CAMBOBJ) $(DRIVER)
 	$(F90C) $(F90FLAGS) $(CAMBOBJ) $(DRIVER) $(F90CRLINK) -o $@
@@ -140,7 +143,7 @@ directories:
 
 clean:
 	rm -f *.o *.a *.d core *.mod $(DLL_DIR)/*.o $(DLL_DIR)/*.mod
-	rm -f *.o *.a *.d core *.mod $(OUTPUT_DIR)/*.o $(OUTPUT_DIR)/*.mod
+	rm -f *.o *.a *.d core *.mod $(OUTPUT_DIR)/*.o $(OUTPUT_DIR)/*.mod $(PYCAMB_OUTPUT_DIR)/*.so
 	rm -rf Release*
 	rm -rf Debug*
 
