@@ -2007,7 +2007,7 @@
             +(b0**3-b0)*PK%ddmat(lhi,itf))*ho**2/6
     end if
 
-    outpower = exp(max(-30._dl,outpower))
+    outpower = exp(outpower)
 
     end function MatterPowerData_k
 
