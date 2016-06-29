@@ -30,6 +30,7 @@
     ! Jan 15: Suggested change from Simeon Bird to avoid issues with very large Omm and neutrinos
     !AM Mar 16: Added in HMcode
     !AM May 16: Fixed some small bugs and added better neutrino approximations
+    !AL Jun16: put in partial openmp for HMcode (needs restructure to do properly)
 
     !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -390,20 +391,21 @@
         CALL halomod_init(z,lut,cosi)
 
         !Loop over k values and calculate P(k)
+        !$OMP PARALLEL DO DEFAULT(SHARED), private(k,plin, pfull,p1h,p2h)
         DO i=1,nk
             k=exp(CAMB_Pk%log_kh(i))
             plin=p_lin(k,z,0,cosi)
             CALL halomod(k,z,p1h,p2h,pfull,plin,lut,cosi)
             CAMB_Pk%nonlin_ratio(i,j)=sqrt(pfull/plin)
         END DO
-
+        !$OMP END PARALLEL DO
     END DO
 
     END SUBROUTINE HMcode
 
     FUNCTION Delta_v(z,lut,cosm)
 
-    !Funciton for the virialised overdensity
+    !Function for the virialised overdensity
     REAL :: Delta_v
     REAL, INTENT(IN) :: z
     TYPE(HM_cosmology), INTENT(IN) :: cosm
@@ -869,6 +871,7 @@
 
     dc=delta_c(z,lut,cosm)
 
+    !$OMP PARALLEL DO default(shared), private(m,r,sig,nu)
     DO i=1,n
 
         m=exp(log(mmin)+log(mmax/mmin)*float(i-1)/float(n-1))
@@ -882,6 +885,7 @@
         lut%nu(i)=nu
 
     END DO
+    !$OMP END PARALLEL DO
 
     IF(ihm==1) WRITE(*,*) 'HALOMOD: m, r, nu, sig HM_tables filled'
 
@@ -1336,6 +1340,7 @@
     IF(ihm==1) WRITE(*,*) 'SIGTAB: R_max:', rmax
     IF(ihm==1) WRITE(*,*) 'SIGTAB: Values:', nsig
 
+    !$OMP PARALLEL DO default(shared), private(sig, r)
     DO i=1,nsig
 
         !Equally spaced r in log
@@ -1346,6 +1351,7 @@
         cosm%sigma(i)=sig
 
     END DO
+    !$OMP END PARALLEL DO
 
     IF(ihm==1) WRITE(*,*) 'SIGTAB: sigma_min:', cosm%sigma(nsig)
     IF(ihm==1) WRITE(*,*) 'SIGTAB: sigma_max:', cosm%sigma(1)

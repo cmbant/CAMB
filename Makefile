@@ -25,13 +25,18 @@ ifeq "$(ifortErr)" "0"
 # For OSX replace shared by dynamiclib
 F90C     = ifort
 ifortVer_major = $(shell ifort -v 2>&1 | cut -d " " -f 3 | cut -d. -f 1)
+ifeq ($(shell test $(ifortVer_major) -gt 15; echo $$?),0)
+COMMON_FFLAGS = -fpp -qopenmp
+else
 COMMON_FFLAGS = -fpp -openmp
+endif
 ifneq "$(ifortVer_major)" "14"
 COMMON_FFLAGS += -gen-dep=$$*.d
 endif
-FFLAGS = -openmp -fast -fp-model precise -W0 -WB $(COMMON_FFLAGS)
+FFLAGS = -fast -fp-model precise -W0 -WB $(COMMON_FFLAGS)
 DEBUGFLAGS =  -g -check all -check noarg_temp_created -traceback -fpe0 $(COMMON_FFLAGS)
 SFFLAGS = -shared -fpic
+
 ## This is flag is passed to the Fortran compiler allowing it to link C++ if required (not usually):
 F90CRLINK = -cxxlib
 ifneq "$(ifortVer_major)" "14"

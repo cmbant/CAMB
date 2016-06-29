@@ -18,10 +18,12 @@ DRIVER        ?= inidriver.f90
 Release: OUTPUT_DIR = Release
 Debug: OUTPUT_DIR = Debug
 
+Release: PYCAMB_OUTPUT_DIR = pycamb/camb
 Release: DLL_DIR = Releaselib
 Debug: DLL_DIR = Debuglib
 
 OUTPUT_DIR ?= Release
+PYCAMB_OUTPUT_DIR ?= pycamb/camb
 DLL_DIR ?= Releaselib
 
 Release: camb camblib.so
@@ -107,7 +109,7 @@ directories_so:
 
 
 clean:
-	-rm -f *.o *.a *.d core *.mod *.optrpt *.d camb
+	-rm -f *.o *.a *.d core *.mod *.optrpt *.d camb $(PYCAMB_OUTPUT_DIR)/*.so
 	-rm -rf Release* Debug*
 
 ## CosmoRec make parts
