@@ -2,6 +2,7 @@ cd /camb
 make Release
 
 cd pycamb
+pip install setuptools
 python setup.py install
 python setup.py test
 cd ..
