@@ -7,10 +7,10 @@ FISHER=
 #The OUTPUT_DIR will be appended.
 
 ifneq "$(wildcard ./forutils)" ""
-FORUTILSPATH ?= ./forutils
+FORUTILSPATH ?= $(shell pwd)/forutils
 else
 ifneq "$(wildcard ../forutils)" ""
-FORUTILSPATH ?= ../forutils
+FORUTILSPATH ?= $(shell pwd)/../forutils
 else
 $(error First install forutils from https://github.com/cmbant/forutils; or set FORUTILSPATH variable)
 endif
@@ -30,9 +30,7 @@ COMMON_FFLAGS = -fpp -qopenmp
 else
 COMMON_FFLAGS = -fpp -openmp
 endif
-ifneq "$(ifortVer_major)" "14"
 COMMON_FFLAGS += -gen-dep=$$*.d
-endif
 FFLAGS = -fast -fp-model precise -W0 -WB $(COMMON_FFLAGS)
 DEBUGFLAGS =  -g -check all -check noarg_temp_created -traceback -fpe0 $(COMMON_FFLAGS)
 SFFLAGS = -shared -fpic
