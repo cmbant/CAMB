@@ -1126,3 +1126,58 @@
     !  end abort action
     !
     end subroutine dverk
+
+    function Newton_Raphson(xxl,xxh,funcs, param, param2) result(xm)
+    use Precision
+    implicit none
+    real(dl), intent(in) :: xxl     ! root bracket 1
+    real(dl), intent(in) :: xxh     ! root bracket 2
+    real(dl)  :: xl,xh, xm     ! root
+    external funcs        ! subroutine for non-linear equation
+    real(dl), intent(in) :: param, param2 !parameters for function
+    integer  :: k                      ! iteration count
+    real(dl) :: xn, f,f2,df, error
+    real(dl), parameter :: half=0.5_dl
+    integer, parameter :: ITERMAX=1000 ! max number of iteration
+    real(dl), parameter :: tol=1.e-8_dl ! tolerance for error
+
+    xl =xxl
+    xh = xxh
+    call funcs(f,df,xl, param, param2)  ! Set xm=f(xl)
+    call funcs(f2,df,xh, param, param2)  ! Set xn=f(xh)
+    if (f*f2 > 0._dl) then           ! check if function changes sign
+        error stop 'Newton_Raphson: root is not bracketed'
+    endif
+    if (f > 0._dl) then               ! Rearrange so that f(xl)< 0.d0 < f(xh)
+        xm = xl
+        xl = xh
+        xh = xm
+    endif
+
+    error = abs(xh-xl)                ! error is width of bracketing interval
+    xm = half*(xl+xh)                 ! Initialize guess for root
+    k = 0                             ! initialize iteration count
+    do while (error > tol .and. k < ITERMAX) ! iterate
+        k = k+1                         ! increment iteration count
+        call funcs(f,df,xm, param, param2) ! calculate f(xm), df(xm)
+        if (f > 0._dl) then              ! Update root bracketing
+            xh = xm                       ! update high
+        else
+            xl = xm                       ! update low
+        endif
+        xn = xm - f/df                  ! Tentative newton-Raphson step
+        if ( (xn-xl)*(xn-xh) > 0._dl ) then ! check if new root falls within bracket
+            xm = half* (xh+xl)            ! if no use a Bisection step
+            error = abs(xh-xl)            ! error is width of interval
+        else
+            error = abs(xn-xm)            ! if within bracket: error is change in root
+            xm = xn                       ! update successful Newton-Raphson step
+        endif
+    enddo
+
+    if (error > tol) then       ! Check if solution converged
+        write(*,*) 'Newton_Raphson:solution did not converge, xn, funcs(xn),D(xn)'
+        write(*,*) xn, f, error
+    endif
+
+    end function Newton_Raphson
