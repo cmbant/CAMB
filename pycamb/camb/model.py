@@ -7,6 +7,7 @@ from . import constants
 import numpy as np
 from . import bbn
 import logging
+import six
 
 # ---Parameters
 
@@ -42,6 +43,11 @@ transfer_names = ['k/h', 'delta_cdm', 'delta_baryon', 'delta_photon', 'delta_neu
 evolve_names = transfer_names + ['a', 'etak', 'H', 'growth', 'v_photon', 'pi_photon', 'E_2', 'v_neutrino']
 
 background_names = ['x_e', 'opacity', 'visibility', 'cs2b']
+
+neutrino_hierarchies = ['normal','inverted','degenerate']
+neutrino_hierarchy_normal = 1
+neutrino_hierarchy_inverted = 2
+neutrino_hierarchy_degenerate = 3
 
 # ---Variables in modules.f90
 # To set the value please just put 
@@ -140,7 +146,9 @@ get_growth_sigma8 = dll_import(c_bool, "transfer", "get_growth_sigma8")
 CAMB_validateparams = camblib.__camb_MOD_camb_validateparams
 CAMB_validateparams.restype = c_bool
 
+#args for these set below after CAMBparams defined
 CAMB_setinitialpower = camblib.__handles_MOD_camb_setinitialpower
+CAMB_SetNeutrinoHierarchy = camblib.__camb_MOD_camb_setneutrinohierarchy
 
 numpy_1d = np.ctypeslib.ndpointer(c_double, flags='C_CONTIGUOUS')
 CAMB_primordialpower = camblib.__handles_MOD_camb_primordialpower
@@ -291,21 +299,25 @@ class CAMBparams(CAMB_Structure):
         self.YHe = bbn.ypBBN_to_yhe(Yp)
         return self
 
-    def set_cosmology(self, H0=67, cosmomc_theta=None, ombh2=0.022, omch2=0.12, omk=0.0, num_massive_neutrinos=1,
+    def set_cosmology(self, H0=67, cosmomc_theta=None, ombh2=0.022, omch2=0.12, omk=0.0,
+                      neutrino_hierarchy = 'degenerate', num_massive_neutrinos=1,
                       mnu=0.06, nnu=3.046,
                       YHe=None, meffsterile=0, standard_neutrino_neff=3.046, TCMB=constants.COBE_CMBTemp, tau=None,
                       tau_neutron=bbn.tau_n):
         """
         Sets cosmological parameters in terms of physical densities and parameters used in Planck 2015 analysis.
-        Assumes a single distinct neutrino mass eigenstate, by default one neutrino with mnu = 0.06eV.
-        If you require more fine-grained control can set the neutrino parameters directly rather than using this function.
+        Default settings give a single distinct neutrino mass eigenstate, by default one neutrino with mnu = 0.06eV.
+        Set the neutrino_hierarchy parameter to normal or inverted to use a two-eigenstate model that is a good
+        approximation to the known mass splittings seen in oscillation measurements.
+        If you require more fine-grained control you can set the neutrino parameters directly rather than using this function.
 
         :param H0: Hubble parameter (in km/s/Mpc)
-        :param cosmomc_theta The CosmoMC theta parameter. You must set H0=None to solve for H0 given cosmomc_theta
+        :param cosmomc_theta: The CosmoMC theta parameter. You must set H0=None to solve for H0 given cosmomc_theta
         :param ombh2: physical density in baryons
         :param omch2:  physical density in cold dark matter
         :param omk: Omega_K curvature parameter
-        :param num_massive_neutrinos:  number of massive neutrinos
+        :param neutrino_hierarchy: 'degenerate', 'normal', or 'inverted' (1 or 2 eigenstate approximation)
+        :param num_massive_neutrinos:  number of massive neutrinos (ignored unless hierarchy == 'degenerate')
         :param mnu: sum of neutrino masses (in eV)
         :param nnu: N_eff, effective relativistic degrees of freedom
         :param YHe: Helium mass fraction. If None, set from BBN consistency.
@@ -364,39 +376,46 @@ class CAMBparams(CAMB_Structure):
         if omnuh2 and not num_massive_neutrinos:
             raise CAMBError('non-zero mnu with zero num_massive_neutrinos')
 
+        if isinstance(neutrino_hierarchy,six.string_types):
+            if not neutrino_hierarchy in neutrino_hierarchies:
+                raise CAMBError('Unknown neutrino_hierarchy {0:s}'.format(neutrino_hierarchy))
+            neutrino_hierarchy = neutrino_hierarchies.index(neutrino_hierarchy) + 1
 
         omnuh2 = omnuh2 + omnuh2_sterile
         self.omegan = omnuh2 / fac
         self.omegav = 1 - omk - self.omegab - self.omegac - self.omegan
-        self.share_delta_neff = False
-        self.nu_mass_eigenstates = 0
-        self.num_nu_massless = nnu
-        self.nu_mass_numbers[0] = 0
-        self.num_nu_massive = 0
-        if omnuh2 > omnuh2_sterile:
-            neff_massive_standard = num_massive_neutrinos * standard_neutrino_neff / 3.0
-            self.num_nu_massive = num_massive_neutrinos
-            self.nu_mass_eigenstates = self.nu_mass_eigenstates + 1
-            if nnu > neff_massive_standard:
-                self.num_nu_massless = nnu - neff_massive_standard
-            else:
-                self.num_nu_massless = 0
-                neff_massive_standard = nnu
-
-            self.nu_mass_numbers[self.nu_mass_eigenstates - 1] = num_massive_neutrinos
-            self.nu_mass_degeneracies[self.nu_mass_eigenstates - 1] = neff_massive_standard
-            self.nu_mass_fractions[self.nu_mass_eigenstates - 1] = (omnuh2 - omnuh2_sterile) / omnuh2
-        else:
-            neff_massive_standard = 0
+        # self.share_delta_neff = False
+        # self.nu_mass_eigenstates = 0
+        # self.num_nu_massless = nnu
+        # self.nu_mass_numbers[0] = 0
+        # self.num_nu_massive = 0
+        # if omnuh2 > omnuh2_sterile:
+        #     neff_massive_standard = num_massive_neutrinos * standard_neutrino_neff / 3.0
+        #     self.num_nu_massive = num_massive_neutrinos
+        #     self.nu_mass_eigenstates = self.nu_mass_eigenstates + 1
+        #     if nnu > neff_massive_standard:
+        #         self.num_nu_massless = nnu - neff_massive_standard
+        #     else:
+        #         self.num_nu_massless = 0
+        #         neff_massive_standard = nnu
+        #
+        #     self.nu_mass_numbers[self.nu_mass_eigenstates - 1] = num_massive_neutrinos
+        #     self.nu_mass_degeneracies[self.nu_mass_eigenstates - 1] = neff_massive_standard
+        #     self.nu_mass_fractions[self.nu_mass_eigenstates - 1] = (omnuh2 - omnuh2_sterile) / omnuh2
+        # else:
+        #     neff_massive_standard = 0
         if omnuh2_sterile > 0:
-            if nnu < standard_neutrino_neff:
-                raise CAMBError('nnu < 3.046 with massive sterile')
-            self.num_nu_massless = standard_neutrino_neff - neff_massive_standard
-            self.num_nu_massive = self.num_nu_massive + 1
-            self.nu_mass_eigenstates = self.nu_mass_eigenstates + 1
-            self.nu_mass_numbers[self.nu_mass_eigenstates - 1] = 1
-            self.nu_mass_degeneracies[self.nu_mass_eigenstates - 1] = max(1e-6, nnu - standard_neutrino_neff)
-            self.nu_mass_fractions[self.nu_mass_eigenstates - 1] = omnuh2_sterile / omnuh2
+             if nnu < standard_neutrino_neff:
+                 raise CAMBError('nnu < 3.046 with massive sterile')
+        #     self.num_nu_massless = standard_neutrino_neff - neff_massive_standard
+        #     self.num_nu_massive = self.num_nu_massive + 1
+        #     self.nu_mass_eigenstates = self.nu_mass_eigenstates + 1
+        #     self.nu_mass_numbers[self.nu_mass_eigenstates - 1] = 1
+        #     self.nu_mass_degeneracies[self.nu_mass_eigenstates - 1] = max(1e-6, nnu - standard_neutrino_neff)
+        #     self.nu_mass_fractions[self.nu_mass_eigenstates - 1] = omnuh2_sterile / omnuh2
+
+        CAMB_SetNeutrinoHierarchy(byref(self), byref(c_double(omnuh2)), byref(c_double(omnuh2_sterile)),
+                byref(c_double(nnu)), byref(c_int(neutrino_hierarchy)), byref(c_int(num_massive_neutrinos)))
 
         if tau is not None:
             self.Reion.set_tau(tau)
@@ -516,3 +535,6 @@ def Transfer_SortAndIndexRedshifts(P):
 
 
 CAMB_primordialpower.argtypes = [POINTER(CAMBparams), numpy_1d, numpy_1d, POINTER(c_int), POINTER(c_int)]
+
+CAMB_SetNeutrinoHierarchy.argtypes = [POINTER(CAMBparams),POINTER(c_double), POINTER(c_double),
+                                      POINTER(c_double), POINTER(c_int), POINTER(c_int)]
