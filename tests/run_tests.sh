@@ -3,6 +3,7 @@ cd /Users/Mead/Physics/CAMB
 make Release
 
 cd pycamb
+pip install setuptools
 python setup.py install
 python setup.py test
 cd ..

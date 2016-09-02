@@ -35,7 +35,7 @@
     implicit none
     public
 
-    character(LEN=*), parameter :: version = 'Nov15'
+    character(LEN=*), parameter :: version = 'July16'
 
     integer :: FeedbackLevel = 0 !if >0 print out useful information about the model
 
@@ -1439,6 +1439,9 @@
     real(dl), parameter  :: zeta5  = 1.0369277551433699263313_dl
     real(dl), parameter  :: zeta7  = 1.0083492773819228268397_dl
 
+    ! zeta3*3/2/pi^2*4/11*((k_B*COBE_CMBTemp/hbar/c)^3* 8*pi*G/3/(100*km/s/megaparsec)^2/(c^2/eV)
+    real(dl), parameter :: neutrino_mass_fac= 94.07_dl !converts omnuh2 into sum m_nu in eV
+
     integer, parameter  :: nrhopn=2000
     real(dl), parameter :: am_min = 0.01_dl  !0.02_dl
     !smallest a*m_nu to integrate distribution function rather than using series
@@ -1460,15 +1463,26 @@
     integer nqmax !actual number of q modes evolves
 
     public const,Nu_Init,Nu_background, Nu_rho, Nu_drho,  nqmax0, nqmax, &
-        nu_int_kernel, nu_q
+        nu_int_kernel, nu_q, sum_mnu_for_m1, neutrino_mass_fac
     contains
     !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
-    subroutine Nu_init
+    subroutine sum_mnu_for_m1(summnu,dsummnu, m1, targ, sgn)
+    use constants
+    real(dl), intent(in) :: m1, targ, sgn
+    real(dl), intent(out) :: summnu, dsummnu
+    real(dl) :: m2,m3
 
+    m2 = sqrt(m1**2 + delta_mnu21)
+    m3 = sqrt(m1**2 + sgn*delta_mnu31)
+    summnu = m1 + m2 + m3 - targ
+    dsummnu = m1/m2+m1/m3 + 1
+
+    end subroutine sum_mnu_for_m1
+
+    subroutine Nu_init
     !  Initialize interpolation tables for massive neutrinos.
     !  Use cubic splines interpolation of log rhonu and pnu vs. log a*m.
-
     integer i
     real(dl) dq,dlfdlq, q, am, rhonu,pnu
     real(dl) spline_data(nrhopn)
@@ -1796,12 +1810,33 @@
 
     end subroutine Transfer_GetUnsplinedPower
 
+    subroutine Transfer_GetUnsplinedNonlinearPower(M,PK,var1,var2, hubble_units)
+    !Get 2pi^2/k^3 T_1 T_2 P_R(k) after re-scaling for non-linear evolution (if turned on)
+    Type(MatterTransferData), intent(in) :: M
+    real(dl), intent(inout):: PK(:,:)
+    integer, optional, intent(in) :: var1
+    integer, optional, intent(in) :: var2
+    logical, optional, intent(in) :: hubble_units
+    Type(MatterPowerData) :: PKdata
+    integer zix
+
+    call Transfer_GetUnsplinedPower(M,PK,var1,var2, hubble_units)
+    do zix=1, CP%Transfer%PK_num_redshifts
+        call Transfer_GetMatterPowerData(M, PKdata, 1, &
+            CP%Transfer%PK_redshifts_index(CP%Transfer%PK_num_redshifts-zix+1))
+        call NonLinear_GetRatios(PKdata)
+        PK(:,zix) =  PK(:,zix) *PKdata%nonlin_ratio(:,1)**2
+        call MatterPowerdata_Free(PKdata)
+    end do
+
+    end subroutine Transfer_GetUnsplinedNonlinearPower
+
     subroutine Transfer_GetMatterPowerData(MTrans, PK_data, power_ix, itf_only, var1, var2)
     !Does *NOT* include non-linear corrections
     !Get total matter power spectrum in units of (h Mpc^{-1})^3 ready for interpolation.
     !Here there definition is < Delta^2(x) > = 1/(2 pi)^3 int d^3k P_k(k)
     !We are assuming that Cls are generated so any baryonic wiggles are well sampled and that matter power
-    !sepctrum is generated to beyond the CMB k_max
+    !spectrum is generated to beyond the CMB k_max
     Type(MatterTransferData), intent(in) :: MTrans
     Type(MatterPowerData) :: PK_data
     integer, intent(in), optional :: power_ix
@@ -1986,7 +2021,7 @@
             +(b0**3-b0)*PK%ddmat(lhi,itf))*ho**2/6
     end if
 
-    outpower = exp(max(-30._dl,outpower))
+    outpower = exp(outpower)
 
     end function MatterPowerData_k
 
@@ -2052,7 +2087,7 @@
 
 
     if (CP%NonLinear/=NonLinear_none .and. CP%NonLinear/=NonLinear_Lens) then
-        call Transfer_GetMatterPowerData(MTrans, PK, in, itf, s1,s2)
+        call Transfer_GetMatterPowerData(MTrans, PK, in, itf) ! Mar 16, changed to use default variable
         call NonLinear_GetRatios(PK)
     end if
 
@@ -2505,7 +2540,7 @@
     P%num_redshifts=i
 
     end subroutine Transfer_SortAndIndexRedshifts
-    
+
     end module Transfer
 
 
@@ -3153,5 +3188,5 @@
     end do
 
     end subroutine GetBackgroundEvolution
-    
+
     end module ThermoData

@@ -18,6 +18,7 @@
 
     real(dl), parameter :: c = 2.99792458e8_dl
     real(dl), parameter :: h_P = 6.62606896e-34_dl
+    real(dl), parameter :: hbar = h_P/const_twopi
 
     real(dl), parameter :: G=6.6738e-11_dl !data book 2012, last digit +/-8
     real(dl), parameter :: sigma_thomson = 6.6524616e-29_dl
@@ -54,6 +55,11 @@
     !1000 to get in MiliKelvin
     real(dl), parameter :: COBE_CMBTemp = 2.7255_dl !(Fixsen 2009) used as default value
     real(dl), parameter :: default_nnu = 3.046_dl
+    !Neutrino mass splittings
+    real(dl), parameter :: delta_mnu21 = 7.54e-5_dl !eV^2 Particle Data Group 2015 (-0.22, + 0.26)
+    real(dl), parameter :: delta_mnu31 = 2.46e-3_dl !eV^2 Particle Data Group 2015 (+- 0.06)
+    !Round up to 0.06, so consistent with cosmomc's 1 neutrino default
+    real(dl), parameter :: mnu_min_normal = 0.06_dl ! sqrt(delta_mnu31)+sqrt(delta_mnu21)
 
     end module constants
 

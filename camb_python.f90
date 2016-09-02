@@ -176,6 +176,16 @@
 
     end subroutine CAMBdata_GetLinearMatterPower
 
+    subroutine CAMBdata_GetNonLinearMatterPower(data, PK, var1, var2, hubble_units)
+    Type(CAMBdata) :: data
+    real(dl) :: PK(data%MTrans%num_q_trans,data%Params%Transfer%PK_num_redshifts)
+    integer, intent(in) :: var1, var2
+    logical :: hubble_units
+
+    call Transfer_GetUnsplinedNonlinearPower(data%MTrans, PK, var1, var2, hubble_units)
+
+    end subroutine CAMBdata_GetNonLinearMatterPower
+
 
     subroutine CAMBdata_GetMatterPower(data, outpower, minkh, dlnkh, npoints, var1, var2)
     Type(CAMBdata) :: data
@@ -416,7 +426,7 @@
     do j=1,size(times)
         tauend = times(j)
         if (tauend<taustart) cycle
-             
+
         call GaugeInterface_EvolveScal(EV,tau,y,tauend,tol1,ind,c,w)
         yprime = 0
         EV%OutputTransfer =>  Arr

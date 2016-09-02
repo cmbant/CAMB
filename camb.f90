@@ -54,7 +54,7 @@
     CTransScal = emptyCl
     CTransVec  = emptyCl
     CTransTens = emptyCl
-    
+
     end subroutine CAMB_GetTransfers
 
     subroutine CAMB_InitCAMBdata(Dat)
@@ -367,6 +367,95 @@
     P%DerivedParameters = .true.
 
     end subroutine CAMB_SetDefParams
+
+    subroutine CAMB_SetNeutrinoHierarchy(P, omnuh2, omnuh2_sterile, nnu, neutrino_hierarchy, num_massive_neutrinos)
+    use constants
+    type(CAMBparams), intent(inout) :: P
+    real(dl), intent(in) :: omnuh2, omnuh2_sterile, nnu
+    integer, intent(in) :: neutrino_hierarchy
+    integer, intent(in), optional :: num_massive_neutrinos  !for degenerate hierarchy
+    integer, parameter :: neutrino_hierarchy_normal = 1, neutrino_hierarchy_inverted = 2, neutrino_hierarchy_degenerate = 3
+    real(dl) normal_frac, m3, neff_massive_standard, mnu, m1
+    real(dl), external :: Newton_Raphson
+
+    if (omnuh2==0) return
+    P%Nu_mass_eigenstates=0
+    if ( omnuh2 > omnuh2_sterile) then
+        normal_frac =  (omnuh2-omnuh2_sterile)/omnuh2
+        if (neutrino_hierarchy == neutrino_hierarchy_degenerate) then
+            neff_massive_standard = num_massive_neutrinos*default_nnu/3
+            P%Num_Nu_Massive = num_massive_neutrinos
+            P%Nu_mass_eigenstates=P%Nu_mass_eigenstates+1
+            if (nnu > neff_massive_standard) then
+                P%Num_Nu_Massless = nnu - neff_massive_standard
+            else
+                P%Num_Nu_Massless = 0
+                neff_massive_standard=nnu
+            end if
+            P%Nu_mass_numbers(P%Nu_mass_eigenstates) = num_massive_neutrinos
+            P%Nu_mass_degeneracies(P%Nu_mass_eigenstates) = neff_massive_standard
+            P%Nu_mass_fractions(P%Nu_mass_eigenstates) = normal_frac
+        else
+            !Use normal or inverted hierarchy, approximated as two eigenstates in physical regime, 1 at minimum an below
+            mnu = (omnuh2 - omnuh2_sterile)*neutrino_mass_fac / (default_nnu / 3) ** 0.75_dl
+            if (neutrino_hierarchy == neutrino_hierarchy_normal) then
+                if (mnu > mnu_min_normal + 1e-4_dl) then
+                    !Two eigenstate approximation.
+                    m1=Newton_Raphson(0._dl, mnu, sum_mnu_for_m1, mnu, 1._dl)
+                    P%Num_Nu_Massive = 3
+                else
+                    !One eigenstate
+                    P%Num_Nu_Massive = 1
+                end if
+            else if (neutrino_hierarchy == neutrino_hierarchy_inverted) then
+                if (mnu > sqrt(delta_mnu31)+sqrt(delta_mnu31+delta_mnu21) + 1e-4_dl ) then
+                    !Valid case, two eigenstates
+                    m1=Newton_Raphson(sqrt(delta_mnu31), mnu, sum_mnu_for_m1, mnu, -1._dl)
+                    P%Num_Nu_Massive = 3
+                else
+                    !Unphysical low mass case: take one (2-degenerate) eigenstate
+                    P%Num_Nu_Massive = 2
+                end if
+            else
+                error stop 'Unknown neutrino_hierarchy setting'
+            end if
+            neff_massive_standard = P%Num_Nu_Massive *default_nnu/3
+            if (nnu > neff_massive_standard) then
+                P%Num_Nu_Massless = nnu - neff_massive_standard
+            else
+                P%Num_Nu_Massless = 0
+                neff_massive_standard=nnu
+            end if
+            if (P%Num_Nu_Massive==3) then
+                !two with mass m1, one with m3
+                P%Nu_mass_eigenstates = 2
+                P%Nu_mass_degeneracies(1) = neff_massive_standard*2/3._dl
+                P%Nu_mass_degeneracies(2) = neff_massive_standard*1/3._dl
+                m3 = mnu - 2*m1
+                P%Nu_mass_fractions(1) = 2*m1/mnu*normal_frac
+                P%Nu_mass_fractions(2) = m3/mnu*normal_frac
+                P%Nu_mass_numbers(1) = 2
+                P%Nu_mass_numbers(2) = 1
+            else
+                P%Nu_mass_degeneracies(1) = neff_massive_standard
+                P%Nu_mass_numbers(1) = P%Num_Nu_Massive
+                P%Nu_mass_eigenstates = 1
+                P%Nu_mass_fractions(1) = normal_frac
+            end if
+        end if
+    else
+        neff_massive_standard=0
+    end if
+    if (omnuh2_sterile>0) then
+        if (nnu<default_nnu) call MpiStop('nnu < 3.046 with massive sterile')
+        P%Num_Nu_Massless = default_nnu - neff_massive_standard
+        P%Num_Nu_Massive=P%Num_Nu_Massive+1
+        P%Nu_mass_eigenstates=P%Nu_mass_eigenstates+1
+        P%Nu_mass_numbers(P%Nu_mass_eigenstates) = 1
+        P%Nu_mass_degeneracies(P%Nu_mass_eigenstates) = max(1d-6,nnu - default_nnu)
+        P%Nu_mass_fractions(P%Nu_mass_eigenstates) = omnuh2_sterile/omnuh2
+    end if
+    end subroutine CAMB_SetNeutrinoHierarchy
 
 
     !Stop with error is not good
