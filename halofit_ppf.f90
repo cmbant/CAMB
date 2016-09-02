@@ -358,7 +358,7 @@ contains
     !Use ihm to switch between verbose (diagnostic) and non-verbose mode
     !0 - Non-verbose
     !1 - Verbose
-    ihm=0
+    ihm=1
 
     IF(ihm==1) WRITE(*,*)
     IF(ihm==1) WRITE(*,*) 'Running HMcode'
@@ -517,11 +517,10 @@ contains
     ELSE IF(imead==1) THEN
        !Mead et al. (2016; arXiv 1602.02154) value
        fdamp=0.0095*lut%sigv100**1.37
+       !Catches extreme values of fdamp
+       IF(fdamp<1.e-3) fdamp=1.e-3
+       IF(fdamp>0.99)  fdamp=0.99
     END IF
-
-    !Catches extreme values of fdamp
-    IF(fdamp<1.e-3) fdamp=1.e-3
-    IF(fdamp>0.99)  fdamp=0.99
 
   END FUNCTION fdamp
 
@@ -1262,7 +1261,7 @@ contains
     !Damping function
     frac=fdamp(z,lut,cosm)
 
-    IF(frac<1e-3) THEN
+    IF(imead==0 .OR. frac<1.e-3) THEN
        p_2h=plin
     ELSE
        sigv=lut%sigv
