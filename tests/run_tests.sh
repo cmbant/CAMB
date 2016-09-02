@@ -1,4 +1,5 @@
-cd /camb
+#cd /camb
+cd /Users/Mead/Physics/CAMB
 make Release
 
 cd pycamb
