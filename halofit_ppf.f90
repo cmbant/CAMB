@@ -31,6 +31,7 @@
 !AM Mar 16: Added in HMcode
 !AM May 16: Fixed some small bugs and added better neutrino approximations
 !AL Jun16: put in partial openmp for HMcode (needs restructure to do properly)
+!AM Sep 16: Attempted fix of strange bug. No more modules with unallocated arrays as inputs
 
 !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -584,46 +585,28 @@ contains
 
   END SUBROUTINE halomod
 
-  SUBROUTINE fill_table(min,max,arr,n,ilog)
+  SUBROUTINE fill_table(min,max,arr,n)
 
     !Fills array 'arr' in equally spaced intervals
+    !I'm not sure if inputting an array like this is okay
+    IMPLICIT NONE
     INTEGER :: i
     REAL, INTENT(IN) :: min, max
-    REAL :: a, b
-    REAL, ALLOCATABLE, INTENT(OUT) :: arr(:)
-    INTEGER, INTENT(IN) :: ilog, n
+    REAL, ALLOCATABLE :: arr(:)
+    INTEGER, INTENT(IN) :: n
 
-    !ilog=0 does linear spacing
-    !ilog=1 does log spacing
-
-    !Allocate arrays
+    !Allocate the array, and deallocate it if it is full
     IF(ALLOCATED(arr)) DEALLOCATE(arr)
     ALLOCATE(arr(n))
-
-    !This is probably unnecessary
     arr=0.
 
-    !Decide on linear or log spacing
-    IF(ilog==0) THEN
-       a=min
-       b=max
-    ELSE IF(ilog==1) THEN
-       a=log(min)
-       b=log(max)
-    END IF
-
-    !Fill the array
     IF(n==1) THEN
-       !This should not be necessary
-       arr(1)=a
+       arr(1)=min
     ELSE IF(n>1) THEN
        DO i=1,n
-          arr(i)=a+(b-a)*float(i-1)/float(n-1)
+          arr(i)=min+(max-min)*float(i-1)/float(n-1)
        END DO
     END IF
-
-    !If your are filling in log
-    IF(ilog==1) arr=exp(arr)
 
   END SUBROUTINE fill_table
 
@@ -665,7 +648,8 @@ contains
        kmax=1e2
        nk=128
        cosm%nk=nk
-       CALL fill_table(kmin,kmax,cosm%k_plin,nk,1)
+       CALL fill_table(log(kmin),log(kmax),cosm%k_plin,nk)
+       cosm%k_plin=exp(cosm%k_plin)
 
     END IF
 
@@ -708,7 +692,6 @@ contains
     !Uses approximations in Eisenstein & Hu (1999; arXiv 9710252)
     !Note that this assumes that there are exactly 3 species of neutrinos with
     !Nnu<=3 of these being massive, and with the mass split evenly between the number of massive species.
-
     REAL :: Tcb_Tcbnu_ratio
     REAL, INTENT(IN) :: k, z
     REAL :: D, Dcb, Dcbnu, pcb, zeq, q, yfs
@@ -733,7 +716,6 @@ contains
        !The growth function normalised such that D=(1.+z_eq)/(1+z) at early times (when Omega_m \approx 1)
        !For my purpose (just the ratio) seems to work better using the EdS growth function result, \propto a .
        !In any case, can't use grow at the moment because that is normalised by default.
-       !D=(1.+zeq)*grow(z,cosm)
        D=(1.+zeq)/(1.+z)
 
        !Wave number relative to the horizon scale at equality (equation 5)
@@ -1437,11 +1419,8 @@ contains
     REAL, INTENT(IN) :: r, z
     TYPE(HM_cosmology), INTENT(IN) :: cosm
 
+    !Assumes scale-independet growth for the cold matter
     !Uses the approximation sigma(R,z)=g(z)*sigma(R,z=0)
-
-    !Approximate the effect of massive neutrinos using the small-scale limit of the ratio
-    !between the perturbation of cold matter to all matter (assumes delta_nu=0)
-    !This works remarkably well (error <1% in P(k) for standard LCDM for m_nu<0.3eV)
 
     sigmac=grow(z,cosm)*exp(find(log(r),log(cosm%r_sigma),log(cosm%sigma),cosm%nsig,3,3))
 
@@ -1464,7 +1443,6 @@ contains
   FUNCTION inttab(x,y,n,iorder)
 
     !Integrates tables y(x)dx
-    
     REAL :: inttab
     INTEGER, INTENT(IN) :: n
     REAL, INTENT(IN) :: x(n), y(n)
@@ -1572,132 +1550,15 @@ contains
 
        END DO
 
+    ELSE
+
+       ERROR STOP 'INTTAB: Error, order not specified correctly'
+
     END IF
 
-    inttab=sum
+    inttab=REAL(sum)
 
   END FUNCTION inttab
-
-!!$  FUNCTION inttab(x,y,iorder)
-!!$
-!!$    !Routine to integrate HM_tables of data using the trapezium rule
-!!$    REAL :: inttab
-!!$    REAL, INTENT(IN) :: x(:), y(:)
-!!$    REAL :: a, b, c, d, h
-!!$    REAL :: q1, q2, q3, qi, qf
-!!$    REAL :: x1, x2, x3, x4, y1, y2, y3, y4, xi, xf
-!!$    REAL(dl) :: sum
-!!$    INTEGER :: i, n, i1, i2, i3, i4
-!!$    INTEGER, INTENT(IN) :: iorder
-!!$
-!!$    !Can either use linear, quadratic or cubic methods
-!!$
-!!$    n=SIZE(x)
-!!$
-!!$    IF(n .NE. SIZE(y)) ERROR STOP 'HM_tables must be of the same length'
-!!$
-!!$    sum=0.d0
-!!$
-!!$    IF(iorder==1) THEN
-!!$
-!!$       !Sums over all Trapezia (a+b)*h/2
-!!$       DO i=1,n-1
-!!$          a=y(i+1)
-!!$          b=y(i)
-!!$          h=x(i+1)-x(i)
-!!$          sum=sum+(a+b)*h/2.d0
-!!$       END DO
-!!$
-!!$    ELSE IF(iorder==2) THEN
-!!$
-!!$       DO i=1,n-2
-!!$
-!!$          x1=x(i)
-!!$          x2=x(i+1)
-!!$          x3=x(i+2)
-!!$
-!!$          y1=y(i)
-!!$          y2=y(i+1)
-!!$          y3=y(i+2)
-!!$
-!!$          CALL fit_quadratic(a,b,c,x1,y1,x2,y2,x3,y3)
-!!$
-!!$          q1=a*(x1**3.)/3.+b*(x1**2.)/2.+c*x1
-!!$          q2=a*(x2**3.)/3.+b*(x2**2.)/2.+c*x2
-!!$          q3=a*(x3**3.)/3.+b*(x3**2.)/2.+c*x3
-!!$
-!!$          !Takes value for first and last sections but averages over sections where you
-!!$          !have two independent estimates of the area
-!!$          IF(n==3) THEN
-!!$             sum=sum+q3-q1
-!!$          ELSE IF(i==1) THEN
-!!$             sum=sum+(q2-q1)+(q3-q2)/2.d0
-!!$          ELSE IF(i==n-2) THEN
-!!$             sum=sum+(q2-q1)/2.d0+(q3-q2)
-!!$          ELSE
-!!$             sum=sum+(q3-q1)/2.
-!!$          END IF
-!!$
-!!$       END DO
-!!$
-!!$    ELSE IF(iorder==3) THEN
-!!$
-!!$       DO i=1,n-1
-!!$
-!!$          !First choose the integers used for defining cubics for each section
-!!$          !First and last are different because the section does not lie in the *middle* of a cubic
-!!$
-!!$          IF(i==1) THEN
-!!$
-!!$             i1=1
-!!$             i2=2
-!!$             i3=3
-!!$             i4=4
-!!$
-!!$          ELSE IF(i==n-1) THEN
-!!$
-!!$             i1=n-3
-!!$             i2=n-2
-!!$             i3=n-1
-!!$             i4=n
-!!$
-!!$          ELSE
-!!$
-!!$             i1=i-1
-!!$             i2=i
-!!$             i3=i+1
-!!$             i4=i+2
-!!$
-!!$          END IF
-!!$
-!!$          x1=x(i1)
-!!$          x2=x(i2)
-!!$          x3=x(i3)
-!!$          x4=x(i4)
-!!$
-!!$          y1=y(i1)
-!!$          y2=y(i2)
-!!$          y3=y(i3)
-!!$          y4=y(i4)
-!!$
-!!$          CALL fit_cubic(a,b,c,d,x1,y1,x2,y2,x3,y3,x4,y4)
-!!$
-!!$          !These are the limits of the particular section of integral
-!!$          xi=x(i)
-!!$          xf=x(i+1)
-!!$
-!!$          qi=a*(xi**4.)/4.+b*(xi**3.)/3.+c*(xi**2.)/2.+d*xi
-!!$          qf=a*(xf**4.)/4.+b*(xf**3.)/3.+c*(xf**2.)/2.+d*xf
-!!$
-!!$          sum=sum+qf-qi
-!!$
-!!$       END DO
-!!$
-!!$    END IF
-!!$
-!!$    inttab=sum
-!!$
-!!$  END FUNCTION inttab
 
   FUNCTION sigma_integrand(t,R,f,z,itype,cosm)
 
@@ -1938,7 +1799,8 @@ contains
   FUNCTION win(k,rv,c)
 
     !Selects the halo window function (k-space halo profile)
-    REAL :: win, k, rv, c
+    REAL :: win
+    REAL, INTENT(IN) :: k, rv, c
 
     !Choose the NFW analytic form
     win=winnfw(k,rv,c)
@@ -1982,7 +1844,8 @@ contains
     !This calculates the (normalised) mass of a halo of concentration c
     !The 'normalised' mass is that divided by the prefactor r_s^3 4*pi rho_n
     !where rho_n is the profile normalisation [i.e, rho=rho_n/((r/r_s)*(1.+r/r_s)^2]
-    REAL :: mass, c
+    REAL :: mass
+    REAL, INTENT(IN) :: c
 
     mass=log(1.+c)-c/(1.+c)
 
@@ -1991,7 +1854,8 @@ contains
   FUNCTION gnu(nu)
 
     !Select the mass function
-    REAL :: gnu, nu
+    REAL :: gnu
+    REAL, INTENT(IN) :: nu
 
     !Sheth & Torman (1999)
     gnu=gst(nu)
@@ -2001,7 +1865,8 @@ contains
   FUNCTION gst(nu)
 
     !Sheth & Tormen (1999) mass function!
-    REAL :: nu, gst
+    REAL :: gst
+    REAL, INTENT(IN) :: nu
     REAL :: p, a
 
     !Note I use nu=dc/sigma whereas ST (1999) use nu=(dc/sigma)^2
@@ -2071,20 +1936,6 @@ contains
 
   END FUNCTION Omega_m_hm
 
-!!$    FUNCTION Omega_v_hm(z,cosm)
-!!$
-!!$    !This calculates omega_v variations with z!
-!!$    REAL :: Omega_v_hm
-!!$    REAL, INTENT(IN) :: z
-!!$    REAL :: om_v, a
-!!$    TYPE(HM_cosmology), INTENT(IN) :: cosm
-!!$
-!!$    om_v=cosm%om_v
-!!$    a=1./(1.+z)
-!!$    Omega_v_hm=om_v*X_de(a,cosm)/Hubble2(z,cosm)
-!!$
-!!$    END FUNCTION Omega_v_hm
-
   FUNCTION grow(z,cosm)
 
     !Finds the scale-independent growth fuction at redshift z
@@ -2152,7 +2003,8 @@ contains
   FUNCTION si(x)
 
     !Calculates the 'sine integral' function Si(x)
-    REAL :: si, x
+    REAL :: si
+    REAL, INTENT(IN) :: x
     REAL(dl) :: x2, y, f, g, si8
     REAL(dl), PARAMETER :: pi=3.1415926535897932384626433d0
 
@@ -2202,7 +2054,8 @@ contains
   FUNCTION ci(x)
 
     !Calculates the 'cosine integral' function Ci(x)
-    REAL :: ci, x
+    REAL :: ci
+    REAL, INTENT(IN) :: x
     REAL(dl) :: x2, y, f, g, ci8
     REAL(dl), PARAMETER :: em_const=0.577215664901532861d0
 
@@ -2248,7 +2101,7 @@ contains
 
   FUNCTION derivative_table(x,xin,yin,n,iorder,imeth)
 
-    
+    !Takes the derivative y'(x) at point x
     REAL :: derivative_table
     INTEGER, INTENT(IN) :: n
     REAL, INTENT(IN) :: x, xin(n), yin(n)
@@ -2258,7 +2111,6 @@ contains
     REAL :: y1, y2, y3, y4
     INTEGER :: i
     INTEGER, INTENT(IN) :: imeth, iorder
-    INTEGER :: maxorder, maxmethod
 
     !This version interpolates if the value is off either end of the array!
     !Care should be chosen to insert x, xtab, ytab as log if this might give better!
@@ -2271,9 +2123,6 @@ contains
     !iorder = 1 => linear interpolation
     !iorder = 2 => quadratic interpolation
     !iorder = 3 => cubic interpolation
-
-    maxorder=3
-    maxmethod=3
     
     ALLOCATE(xtab(n),ytab(n))
 
@@ -2286,14 +2135,9 @@ contains
        CALL reverse(ytab,n)
     END IF
 
-    IF(iorder<1) STOP 'FIND: find order not specified correctly'
-    IF(iorder>maxorder) STOP 'FIND: find order not specified correctly'
-    IF(imeth<1) STOP 'FIND: Method of finding within a table not specified correctly'
-    IF(imeth>maxmethod) STOP 'FIND: Method of finding within a table not specified correctly'
-
     IF(iorder==1) THEN
 
-       IF(n<2) STOP 'FIND: Not enough points in your table for linear interpolation'
+       IF(n<2) ERROR STOP 'DERIVATIVE_TABLE: Not enough points in your table for linear interpolation'
 
        IF(x<=xtab(2)) THEN
 
@@ -2328,7 +2172,7 @@ contains
 
     ELSE IF(iorder==2) THEN
 
-       IF(n<3) STOP 'FIND_QUADRATIC: Not enough points in your table'
+       IF(n<3) ERROR STOP 'DERIVATIVE_TABLE_QUADRATIC: Not enough points in your table'
 
        IF(x<=xtab(2) .OR. x>=xtab(n-1)) THEN
 
@@ -2386,7 +2230,7 @@ contains
 
     ELSE IF(iorder==3) THEN
 
-       IF(n<4) STOP 'FIND_CUBIC: Not enough points in your table'
+       IF(n<4) ERROR STOP 'DERIVATIVE_TABLE_CUBIC: Not enough points in your table'
 
        IF(x<=xtab(3)) THEN
 
@@ -2431,13 +2275,17 @@ contains
        CALL fit_cubic(a,b,c,d,x1,y1,x2,y2,x3,y3,x4,y4)
        derivative_table=3.*a*(x**2.)+2.*b*x+c
 
+    ELSE
+
+       ERROR STOP 'DERIVATIVE_TABLE: Error, order not specified correctly'
+
     END IF
 
   END FUNCTION derivative_table
 
   FUNCTION find(x,xin,yin,n,iorder,imeth)
 
-    
+    !Interpolates to find y(x) at x
     REAL :: find
     INTEGER, INTENT(IN) :: n
     REAL, INTENT(IN) :: x, xin(n), yin(n)
@@ -2502,7 +2350,7 @@ contains
 
     ELSE IF(iorder==1) THEN
 
-       IF(n<2) STOP 'FIND: Not enough points in your table for linear interpolation'
+       IF(n<2) ERROR STOP 'FIND: Not enough points in your table for linear interpolation'
 
        IF(x<=xtab(2)) THEN
 
@@ -2537,7 +2385,7 @@ contains
 
     ELSE IF(iorder==2) THEN
 
-       IF(n<3) STOP 'FIND: Not enough points in your table'
+       IF(n<3) ERROR STOP 'FIND: Not enough points in your table'
 
        IF(x<=xtab(2) .OR. x>=xtab(n-1)) THEN
 
@@ -2595,7 +2443,7 @@ contains
 
     ELSE IF(iorder==3) THEN
 
-       IF(n<4) STOP 'FIND: Not enough points in your table'
+       IF(n<4) ERROR STOP 'FIND: Not enough points in your table'
 
        IF(x<=xtab(3)) THEN
 
@@ -2642,7 +2490,7 @@ contains
 
     ELSE
 
-       STOP 'FIND: Error, interpolation order specified incorrectly'
+       ERROR STOP 'FIND: Error, interpolation order specified incorrectly'
 
     END IF
 
@@ -2650,7 +2498,7 @@ contains
 
   FUNCTION table_integer(x,xtab,n,imeth)
 
-    
+    !Chooses between different ways of finding the position in a table xtab nearest to x
     INTEGER :: table_integer
     INTEGER, INTENT(IN) :: n
     REAL, INTENT(IN) :: x, xtab(n)
@@ -2663,7 +2511,7 @@ contains
     ELSE IF(imeth==3) THEN
        table_integer=int_split(x,xtab,n)
     ELSE
-       STOP 'TABLE INTEGER: Method specified incorrectly'
+       ERROR STOP 'TABLE INTEGER: Method specified incorrectly'
     END IF
 
   END FUNCTION table_integer
@@ -2686,8 +2534,8 @@ contains
     !Test for linear table
     acc=0.001
 
-    IF(x1>xn) STOP 'LINEAR_TABLE_INTEGER :: table in the wrong order'
-    IF(ABS(-1.+float(n-1)*(x2-x1)/(xn-x1))>acc) STOP 'LINEAR_TABLE_INTEGER :: table does not seem to be linear'
+    IF(x1>xn) ERROR STOP 'LINEAR_TABLE_INTEGER :: table in the wrong order'
+    IF(ABS(-1.+float(n-1)*(x2-x1)/(xn-x1))>acc) ERROR STOP 'LINEAR_TABLE_INTEGER :: table does not seem to be linear'
 
     linear_table_integer=1+FLOOR(float(n-1)*(x-x1)/(xn-x1))
 
@@ -2701,7 +2549,7 @@ contains
     REAL, INTENT(IN) :: x, xtab(n)
     INTEGER :: i
 
-    IF(xtab(1)>xtab(n)) STOP 'SEARCH_INT: table in wrong order'
+    IF(xtab(1)>xtab(n)) ERROR STOP 'SEARCH_INT: table in wrong order'
 
     DO i=1,n
        IF(x>=xtab(i) .AND. x<=xtab(i+1)) EXIT
@@ -2719,7 +2567,7 @@ contains
     REAL, INTENT(IN) :: x, xtab(n)
     INTEGER :: i1, i2, imid   
 
-    IF(xtab(1)>xtab(n)) STOP 'INT_SPLIT: table in wrong order'
+    IF(xtab(1)>xtab(n)) ERROR STOP 'INT_SPLIT: table in wrong order'
 
     i1=1
     i2=n
@@ -3038,7 +2886,6 @@ contains
 
 end module NonLinear
 
-
 !workaround for f90 circular-module reference
 subroutine NonLinear_GetRatios(CAMB_Pk)
   use Transfer
@@ -3048,8 +2895,6 @@ subroutine NonLinear_GetRatios(CAMB_Pk)
   call NonLinear_GetNonLinRatios(CAMB_Pk)
 
 end subroutine NonLinear_GetRatios
-
-
 
 subroutine NonLinear_GetRatios_all(CAMB_Pk)
   use Transfer
