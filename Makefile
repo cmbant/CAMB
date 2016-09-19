@@ -3,9 +3,6 @@
 #Set FISHER=Y to compile bispectrum fisher matrix code
 FISHER=
 
-#Use equations_ppf.f90 instead of equations.f90
-EQUATIONS=equations
-
 #Will detect ifort/gfortran or edit for your compiler
 ifortErr = $(shell which ifort >/dev/null; echo $$?)
 ifeq "$(ifortErr)" "0"
