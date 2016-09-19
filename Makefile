@@ -4,7 +4,7 @@
 FISHER=
 
 #Use equations_ppf.f90 instead of equations.f90
-EQUATIONS=equations_ppf
+EQUATIONS=equations
 
 #Will detect ifort/gfortran or edit for your compiler
 ifortErr = $(shell which ifort >/dev/null; echo $$?)
