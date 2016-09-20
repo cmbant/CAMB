@@ -587,99 +587,99 @@
 
     SUBROUTINE fill_table(min,max,arr,n)
 
-      !Fills array 'arr' in equally spaced intervals
-      IMPLICIT NONE
-      INTEGER :: i
-      REAL, INTENT(IN) :: min, max
-      REAL, ALLOCATABLE :: arr(:)
-      INTEGER, INTENT(IN) :: n
+    !Fills array 'arr' in equally spaced intervals
+    IMPLICIT NONE
+    INTEGER :: i
+    REAL, INTENT(IN) :: min, max
+    REAL, ALLOCATABLE :: arr(:)
+    INTEGER, INTENT(IN) :: n
 
-      !Allocate the array, and deallocate it if it is full
-      IF(ALLOCATED(arr)) DEALLOCATE(arr)
-      ALLOCATE(arr(n))
-      arr=0.
+    !Allocate the array, and deallocate it if it is full
+    IF(ALLOCATED(arr)) DEALLOCATE(arr)
+    ALLOCATE(arr(n))
+    arr=0.
 
-      IF(n==1) THEN
-         arr(1)=min
-      ELSE IF(n>1) THEN
-         DO i=1,n
+    IF(n==1) THEN
+        arr(1)=min
+    ELSE IF(n>1) THEN
+        DO i=1,n
             arr(i)=min+(max-min)*float(i-1)/float(n-1)
-         END DO
-      END IF
+        END DO
+    END IF
 
     END SUBROUTINE fill_table
 
     SUBROUTINE fill_plintab(iz,cosm,CAMB_PK)
 
-      !Fills internal HMcode HM_tables for the linear power spectrum at z=0
-      TYPE(MatterPowerData), INTENT(IN) :: CAMB_PK
-      INTEGER, INTENT(IN) :: iz
-      TYPE(HM_cosmology) :: cosm
-      INTEGER :: i, nk
-      INTEGER, PARAMETER :: imeth=2
-      REAL :: z, g, kmin, kmax
-      REAL, PARAMETER :: pi=3.141592654
+    !Fills internal HMcode HM_tables for the linear power spectrum at z=0
+    TYPE(MatterPowerData), INTENT(IN) :: CAMB_PK
+    INTEGER, INTENT(IN) :: iz
+    TYPE(HM_cosmology) :: cosm
+    INTEGER :: i, nk
+    INTEGER, PARAMETER :: imeth=2
+    REAL :: z, g, kmin, kmax
+    REAL, PARAMETER :: pi=3.141592654
 
-      IF(ihm==1) WRITE(*,*) 'LINEAR POWER: Filling linear power HM_tables'
+    IF(ihm==1) WRITE(*,*) 'LINEAR POWER: Filling linear power HM_tables'
 
-      !Fill arrays
-      IF(ALLOCATED(cosm%k_plin)) DEALLOCATE(cosm%k_plin)
-      IF(ALLOCATED(cosm%plin))   DEALLOCATE(cosm%plin)
-      IF(ALLOCATED(cosm%plinc))  DEALLOCATE(cosm%plinc)
+    !Fill arrays
+    IF(ALLOCATED(cosm%k_plin)) DEALLOCATE(cosm%k_plin)
+    IF(ALLOCATED(cosm%plin))   DEALLOCATE(cosm%plin)
+    IF(ALLOCATED(cosm%plinc))  DEALLOCATE(cosm%plinc)
 
-      IF(imeth==1) THEN
+    IF(imeth==1) THEN
 
-         !Fill k-table with the same k points as in the CAMB calculation
-         !If a user has specified lots of points this could make the halo-model
-         !calculation chug
-         nk=CAMB_PK%num_k
-         cosm%nk=nk
-         ALLOCATE(cosm%k_plin(nk))
-         DO i=1,nk
+        !Fill k-table with the same k points as in the CAMB calculation
+        !If a user has specified lots of points this could make the halo-model
+        !calculation chug
+        nk=CAMB_PK%num_k
+        cosm%nk=nk
+        ALLOCATE(cosm%k_plin(nk))
+        DO i=1,nk
             cosm%k_plin(i)=exp(CAMB_Pk%log_kh(i))
-         END DO
+        END DO
 
-      ELSE IF(imeth==2) THEN
+    ELSE IF(imeth==2) THEN
 
-         !Fill a k-table with an equal-log-spaced k range
-         !Note that the minimum should be such that the spectrum is accurately a power-law below this wavenumber
-         kmin=1e-3
-         kmax=1e2
-         nk=128
-         cosm%nk=nk
-         CALL fill_table(log(kmin),log(kmax),cosm%k_plin,nk)
-         cosm%k_plin=exp(cosm%k_plin)
+        !Fill a k-table with an equal-log-spaced k range
+        !Note that the minimum should be such that the spectrum is accurately a power-law below this wavenumber
+        kmin=1e-3
+        kmax=1e2
+        nk=128
+        cosm%nk=nk
+        CALL fill_table(log(kmin),log(kmax),cosm%k_plin,nk)
+        cosm%k_plin=exp(cosm%k_plin)
 
-      END IF
+    END IF
 
-      IF(ihm==1) WRITE(*,*) 'LINEAR POWER: k_min:', cosm%k_plin(1)
-      IF(ihm==1) WRITE(*,*) 'LINEAR POWER: k_max:', cosm%k_plin(nk)
-      IF(ihm==1) WRITE(*,*) 'LINEAR POWER: nk:', nk
+    IF(ihm==1) WRITE(*,*) 'LINEAR POWER: k_min:', cosm%k_plin(1)
+    IF(ihm==1) WRITE(*,*) 'LINEAR POWER: k_max:', cosm%k_plin(nk)
+    IF(ihm==1) WRITE(*,*) 'LINEAR POWER: nk:', nk
 
-      ALLOCATE(cosm%plin(nk),cosm%plinc(nk))
+    ALLOCATE(cosm%plin(nk),cosm%plinc(nk))
 
-      !Fill power table
-      DO i=1,nk
-         !Take the power from the current redshift choice
-         cosm%plin(i)=MatterPowerData_k(CAMB_PK,DBLE(cosm%k_plin(i)),iz)*(cosm%k_plin(i)**3/(2.*pi**2))
-         cosm%plinc(i)=cosm%plin(i)*(Tcb_Tcbnu_ratio(cosm%k_plin(i),z,cosm))**2.
-      END DO
+    !Fill power table
+    DO i=1,nk
+        !Take the power from the current redshift choice
+        cosm%plin(i)=MatterPowerData_k(CAMB_PK,DBLE(cosm%k_plin(i)),iz)*(cosm%k_plin(i)**3/(2.*pi**2))
+        cosm%plinc(i)=cosm%plin(i)*(Tcb_Tcbnu_ratio(cosm%k_plin(i),z,cosm))**2.
+    END DO
 
-      !Find the redshift
-      z=CAMB_Pk%Redshifts(iz)
-      IF(ihm==1) WRITE(*,*) 'LINEAR POWER: z of input:', z
+    !Find the redshift
+    z=CAMB_Pk%Redshifts(iz)
+    IF(ihm==1) WRITE(*,*) 'LINEAR POWER: z of input:', z
 
-      !Calculate the growth factor at the redshift of interest
-      g=grow(z,cosm)
+    !Calculate the growth factor at the redshift of interest
+    g=grow(z,cosm)
 
-      !Grow the power to z=0
-      cosm%plin=cosm%plin/(g**2.)
-      cosm%plinc=cosm%plinc/(g**2.)
+    !Grow the power to z=0
+    cosm%plin=cosm%plin/(g**2.)
+    cosm%plinc=cosm%plinc/(g**2.)
 
-      !Check sigma_8 value
-      IF(ihm==1) WRITE(*,*) 'LINEAR POWER: sigma_8:', sigma(8.,0.,0,cosm)
-      IF(ihm==1) WRITE(*,*) 'LINEAR POWER: Done'
-      IF(ihm==1) WRITE(*,*)
+    !Check sigma_8 value
+    IF(ihm==1) WRITE(*,*) 'LINEAR POWER: sigma_8:', sigma(8.,0.,0,cosm)
+    IF(ihm==1) WRITE(*,*) 'LINEAR POWER: Done'
+    IF(ihm==1) WRITE(*,*)
 
     END SUBROUTINE fill_plintab
 
@@ -856,7 +856,6 @@
 
     !$OMP PARALLEL DO default(shared), private(m,r,sig,nu)
     DO i=1,n
-
         m=exp(log(mmin)+log(mmax/mmin)*float(i-1)/float(n-1))
         r=radius_m(m,cosm)
         sig=sigmac(r,z,cosm)
@@ -866,7 +865,6 @@
         lut%rr(i)=r
         lut%sig(i)=sig
         lut%nu(i)=nu
-
     END DO
     !$OMP END PARALLEL DO
 
@@ -1041,7 +1039,6 @@
         grow_int=1.
 
     ELSE
-
         DO j=1,jmax
 
             nint=10*(2**j)
@@ -1154,43 +1151,43 @@
     cosmic_density=(2.775e11)*cosm%om_m
 
     END FUNCTION cosmic_density
-    
+
     FUNCTION find_pk(k,itype,cosm)
 
-      !Look-up and interpolation for P(k,z=0)
-      REAL :: find_pk
-      REAL :: kmax, ns
-      REAL, INTENT(IN) :: k
-      INTEGER, INTENT(IN) :: itype
-      INTEGER :: n
-      TYPE(HM_cosmology), INTENT(IN) :: cosm
+    !Look-up and interpolation for P(k,z=0)
+    REAL :: find_pk
+    REAL :: kmax, ns
+    REAL, INTENT(IN) :: k
+    INTEGER, INTENT(IN) :: itype
+    INTEGER :: n
+    TYPE(HM_cosmology), INTENT(IN) :: cosm
 
-      !Set number of k points as well as min and max k values
-      !Note that the min k value should be set to the same as the CAMB min k value
-      n=SIZE(cosm%k_plin)
-      kmax=cosm%k_plin(n)
+    !Set number of k points as well as min and max k values
+    !Note that the min k value should be set to the same as the CAMB min k value
+    n=SIZE(cosm%k_plin)
+    kmax=cosm%k_plin(n)
 
-      !Spectral index used in the high-k extrapolation
-      ns=cosm%ns
+    !Spectral index used in the high-k extrapolation
+    ns=cosm%ns
 
-      IF(k>kmax) THEN
-         !Do some interpolation here based on knowledge of things at high k
-         IF(itype==0) THEN
+    IF(k>kmax) THEN
+        !Do some interpolation here based on knowledge of things at high k
+        IF(itype==0) THEN
             find_pk=cosm%plin(n)*((log(k)/log(kmax))**2.)*((k/kmax)**(ns-1.))
-         ELSE IF(itype==1) THEN
+        ELSE IF(itype==1) THEN
             find_pk=cosm%plinc(n)*((log(k)/log(kmax))**2.)*((k/kmax)**(ns-1.))
-         END IF
-      ELSE
-         !Otherwise use the standard find algorithm
-         IF(itype==0) THEN
+        END IF
+    ELSE
+        !Otherwise use the standard find algorithm
+        IF(itype==0) THEN
             find_pk=exp(find(log(k),log(cosm%k_plin),log(cosm%plin),cosm%nk,3,3))
-         ELSE IF(itype==1) THEN
+        ELSE IF(itype==1) THEN
             find_pk=exp(find(log(k),log(cosm%k_plin),log(cosm%plinc),cosm%nk,3,3))
-         END IF
-      END IF
+        END IF
+    END IF
 
-      !Old method, works fine for m_nu<0.5 eV
-      !IF(itype==1) find_pk=find_pk/(1.-cosm%f_nu)**2.
+    !Old method, works fine for m_nu<0.5 eV
+    !IF(itype==1) find_pk=find_pk/(1.-cosm%f_nu)**2.
 
     END FUNCTION find_pk
 
@@ -1223,7 +1220,7 @@
     frac=fdamp(z,lut,cosm)
 
     IF(imead==0 .OR. frac<1.e-3) THEN
-       p_2h=plin
+        p_2h=plin
     ELSE
         sigv=lut%sigv
         p_2h=plin*(1.-frac*(tanh(k*sigv/sqrt(ABS(frac))))**2.)
@@ -1294,54 +1291,54 @@
 
     SUBROUTINE fill_sigtab(cosm)
 
-      !Fills look-up HM_tables for sigma(R)
-      REAL :: rmin, rmax
-      REAL :: r, sig
-      INTEGER :: i
-      INTEGER, PARAMETER :: nsig=64
-      TYPE(HM_cosmology) :: cosm
+    !Fills look-up HM_tables for sigma(R)
+    REAL :: rmin, rmax
+    REAL :: r, sig
+    INTEGER :: i
+    INTEGER, PARAMETER :: nsig=64
+    TYPE(HM_cosmology) :: cosm
 
-      !This fills up HM_tables of r vs. sigma(r) across a range in r!
-      !It is used only in look-up for further calculations of sigmac(r) and not otherwise!
-      !and prevents a large number of calls to the sigint functions
-      !rmin and rmax need to be decided in advance and are chosen such that
-      !R vs. sigma(R) is approximately power-law below and above these values of R
-      !This wouldn't be appropriate for models with a small-scale linear spectrum cut-off (e.g., WDM)
+    !This fills up HM_tables of r vs. sigma(r) across a range in r!
+    !It is used only in look-up for further calculations of sigmac(r) and not otherwise!
+    !and prevents a large number of calls to the sigint functions
+    !rmin and rmax need to be decided in advance and are chosen such that
+    !R vs. sigma(R) is approximately power-law below and above these values of R
+    !This wouldn't be appropriate for models with a small-scale linear spectrum cut-off (e.g., WDM)
 
-      !Allocate arrays
-      IF(ALLOCATED(cosm%r_sigma)) DEALLOCATE(cosm%r_sigma)
-      IF(ALLOCATED(cosm%sigma))   DEALLOCATE(cosm%sigma)
+    !Allocate arrays
+    IF(ALLOCATED(cosm%r_sigma)) DEALLOCATE(cosm%r_sigma)
+    IF(ALLOCATED(cosm%sigma))   DEALLOCATE(cosm%sigma)
 
-      !These values of 'r' work fine for any power spectrum of cosmological importance
-      !Having nsig as a 2** number is most efficient for the look-up routines
-      rmin=1e-4
-      rmax=1e3
-      cosm%nsig=nsig
-      ALLOCATE(cosm%r_sigma(nsig),cosm%sigma(nsig))
+    !These values of 'r' work fine for any power spectrum of cosmological importance
+    !Having nsig as a 2** number is most efficient for the look-up routines
+    rmin=1e-4
+    rmax=1e3
+    cosm%nsig=nsig
+    ALLOCATE(cosm%r_sigma(nsig),cosm%sigma(nsig))
 
-      IF(ihm==1) WRITE(*,*) 'SIGTAB: Filling sigma interpolation table'
-      IF(ihm==1) WRITE(*,*) 'SIGTAB: R_min:', rmin
-      IF(ihm==1) WRITE(*,*) 'SIGTAB: R_max:', rmax
-      IF(ihm==1) WRITE(*,*) 'SIGTAB: Values:', nsig
+    IF(ihm==1) WRITE(*,*) 'SIGTAB: Filling sigma interpolation table'
+    IF(ihm==1) WRITE(*,*) 'SIGTAB: R_min:', rmin
+    IF(ihm==1) WRITE(*,*) 'SIGTAB: R_max:', rmax
+    IF(ihm==1) WRITE(*,*) 'SIGTAB: Values:', nsig
 
-      !$OMP PARALLEL DO default(shared), private(sig, r)
-      DO i=1,nsig
+    !$OMP PARALLEL DO default(shared), private(sig, r)
+    DO i=1,nsig
 
-         !Equally spaced r in log
-         r=exp(log(rmin)+log(rmax/rmin)*float(i-1)/float(nsig-1))
+        !Equally spaced r in log
+        r=exp(log(rmin)+log(rmax/rmin)*float(i-1)/float(nsig-1))
 
-         sig=sigma(r,0.,1,cosm)
+        sig=sigma(r,0.,1,cosm)
 
-         cosm%r_sigma(i)=r
-         cosm%sigma(i)=sig
+        cosm%r_sigma(i)=r
+        cosm%sigma(i)=sig
 
-      END DO
-      !$OMP END PARALLEL DO
+    END DO
+    !$OMP END PARALLEL DO
 
-      IF(ihm==1) WRITE(*,*) 'SIGTAB: sigma_min:', cosm%sigma(nsig)
-      IF(ihm==1) WRITE(*,*) 'SIGTAB: sigma_max:', cosm%sigma(1)
-      IF(ihm==1) WRITE(*,*) 'SIGTAB: Done'
-      IF(ihm==1) WRITE(*,*)
+    IF(ihm==1) WRITE(*,*) 'SIGTAB: sigma_min:', cosm%sigma(nsig)
+    IF(ihm==1) WRITE(*,*) 'SIGTAB: sigma_max:', cosm%sigma(1)
+    IF(ihm==1) WRITE(*,*) 'SIGTAB: Done'
+    IF(ihm==1) WRITE(*,*)
 
     END SUBROUTINE fill_sigtab
 
@@ -1365,7 +1362,6 @@
     alpha=1.65
 
     DO j=1,jmax
-
         n=ninit*(2**(j-1))
 
         sum=0.d0
@@ -1375,6 +1371,7 @@
 
             !theta converts integral to 0->1 range
             !Values at the end points are 0 so removed for convenience
+
             theta=float(i-1)/float(n-1)
             k=(-1.+1./theta)/r**alpha
             sum=sum+p_lin(k,z,0,cosm)*(wk_tophat(k*r)**2.)/((k**2.)*theta*(1.-theta))
@@ -1456,102 +1453,102 @@
 
     IF(iorder==1) THEN
 
-       !Sums over all Trapezia (a+b)*h/2
-       DO i=1,n-1
-          a=y(i+1)
-          b=y(i)
-          h=x(i+1)-x(i)
-          sum=sum+(a+b)*h/2.d0
-       END DO
+        !Sums over all Trapezia (a+b)*h/2
+        DO i=1,n-1
+            a=y(i+1)
+            b=y(i)
+            h=x(i+1)-x(i)
+            sum=sum+(a+b)*h/2.d0
+        END DO
 
     ELSE IF(iorder==2) THEN
 
-       DO i=1,n-2
+        DO i=1,n-2
 
-          x1=x(i)
-          x2=x(i+1)
-          x3=x(i+2)
+            x1=x(i)
+            x2=x(i+1)
+            x3=x(i+2)
 
-          y1=y(i)
-          y2=y(i+1)
-          y3=y(i+2)
+            y1=y(i)
+            y2=y(i+1)
+            y3=y(i+2)
 
-          CALL fit_quadratic(a,b,c,x1,y1,x2,y2,x3,y3)
+            CALL fit_quadratic(a,b,c,x1,y1,x2,y2,x3,y3)
 
-          q1=a*(x1**3.)/3.+b*(x1**2.)/2.+c*x1
-          q2=a*(x2**3.)/3.+b*(x2**2.)/2.+c*x2
-          q3=a*(x3**3.)/3.+b*(x3**2.)/2.+c*x3
+            q1=a*(x1**3.)/3.+b*(x1**2.)/2.+c*x1
+            q2=a*(x2**3.)/3.+b*(x2**2.)/2.+c*x2
+            q3=a*(x3**3.)/3.+b*(x3**2.)/2.+c*x3
 
-          !Takes value for first and last sections but averages over sections where you
-          !have two independent estimates of the area
-          IF(n==3) THEN
-             sum=sum+q3-q1
-          ELSE IF(i==1) THEN
-             sum=sum+(q2-q1)+(q3-q2)/2.d0
-          ELSE IF(i==n-2) THEN
-             sum=sum+(q2-q1)/2.d0+(q3-q2)
-          ELSE
-             sum=sum+(q3-q1)/2.
-          END IF
+            !Takes value for first and last sections but averages over sections where you
+            !have two independent estimates of the area
+            IF(n==3) THEN
+                sum=sum+q3-q1
+            ELSE IF(i==1) THEN
+                sum=sum+(q2-q1)+(q3-q2)/2.d0
+            ELSE IF(i==n-2) THEN
+                sum=sum+(q2-q1)/2.d0+(q3-q2)
+            ELSE
+                sum=sum+(q3-q1)/2.
+            END IF
 
-       END DO
+        END DO
 
     ELSE IF(iorder==3) THEN
 
-       DO i=1,n-1
+        DO i=1,n-1
 
-          !First choose the integers used for defining cubics for each section
-          !First and last are different because the section does not lie in the *middle* of a cubic
+            !First choose the integers used for defining cubics for each section
+            !First and last are different because the section does not lie in the *middle* of a cubic
 
-          IF(i==1) THEN
+            IF(i==1) THEN
 
-             i1=1
-             i2=2
-             i3=3
-             i4=4
+                i1=1
+                i2=2
+                i3=3
+                i4=4
 
-          ELSE IF(i==n-1) THEN
+            ELSE IF(i==n-1) THEN
 
-             i1=n-3
-             i2=n-2
-             i3=n-1
-             i4=n
+                i1=n-3
+                i2=n-2
+                i3=n-1
+                i4=n
 
-          ELSE
+            ELSE
 
-             i1=i-1
-             i2=i
-             i3=i+1
-             i4=i+2
+                i1=i-1
+                i2=i
+                i3=i+1
+                i4=i+2
 
-          END IF
+            END IF
 
-          x1=x(i1)
-          x2=x(i2)
-          x3=x(i3)
-          x4=x(i4)
+            x1=x(i1)
+            x2=x(i2)
+            x3=x(i3)
+            x4=x(i4)
 
-          y1=y(i1)
-          y2=y(i2)
-          y3=y(i3)
-          y4=y(i4)
+            y1=y(i1)
+            y2=y(i2)
+            y3=y(i3)
+            y4=y(i4)
 
-          CALL fit_cubic(a,b,c,d,x1,y1,x2,y2,x3,y3,x4,y4)
+            CALL fit_cubic(a,b,c,d,x1,y1,x2,y2,x3,y3,x4,y4)
 
-          !These are the limits of the particular section of integral
-          xi=x(i)
-          xf=x(i+1)
+            !These are the limits of the particular section of integral
+            xi=x(i)
+            xf=x(i+1)
 
-          qi=a*(xi**4.)/4.+b*(xi**3.)/3.+c*(xi**2.)/2.+d*xi
-          qf=a*(xf**4.)/4.+b*(xf**3.)/3.+c*(xf**2.)/2.+d*xf
+            qi=a*(xi**4.)/4.+b*(xi**3.)/3.+c*(xi**2.)/2.+d*xi
+            qf=a*(xf**4.)/4.+b*(xf**3.)/3.+c*(xf**2.)/2.+d*xf
 
-          sum=sum+qf-qi
+            sum=sum+qf-qi
 
-       END DO
+        END DO
 
     ELSE
 
-       ERROR STOP 'INTTAB: Error, order not specified correctly'
+        ERROR STOP 'INTTAB: Error, order not specified correctly'
 
     END IF
 
@@ -1635,7 +1632,6 @@
     jmax=20
 
     DO j=1,jmax
-
         n=ninit*2**(j-1)
 
         !Avoids the end-points where the integrand is 0 anyway
@@ -1664,7 +1660,6 @@
             sum1=sum2
             sum2=0.d0
         END IF
-
     END DO
 
     END FUNCTION sigint0
@@ -1698,7 +1693,6 @@
 
         !Avoids the end-point where the integrand is 0 anyway
         DO i=1,n-1
-
             x=xmin+(xmax-xmin)*float(i-1)/float(n-1)
 
             IF(i==1 .OR. i==n) THEN
@@ -2099,7 +2093,7 @@
 
     END FUNCTION Ci
 
-   FUNCTION derivative_table(x,xin,yin,n,iorder,imeth)
+    FUNCTION derivative_table(x,xin,yin,n,iorder,imeth)
 
     !Takes the derivative y'(x) at point x
     REAL :: derivative_table
@@ -2123,167 +2117,167 @@
     !iorder = 1 => linear interpolation
     !iorder = 2 => quadratic interpolation
     !iorder = 3 => cubic interpolation
-    
+
     ALLOCATE(xtab(n),ytab(n))
 
     xtab=xin
     ytab=yin
 
     IF(xtab(1)>xtab(n)) THEN
-       !Reverse the arrays in this case
-       CALL reverse(xtab,n)
-       CALL reverse(ytab,n)
+        !Reverse the arrays in this case
+        CALL reverse(xtab,n)
+        CALL reverse(ytab,n)
     END IF
 
     IF(iorder==1) THEN
 
-       IF(n<2) ERROR STOP 'DERIVATIVE_TABLE: Not enough points in your table for linear interpolation'
+        IF(n<2) ERROR STOP 'DERIVATIVE_TABLE: Not enough points in your table for linear interpolation'
 
-       IF(x<=xtab(2)) THEN
+        IF(x<=xtab(2)) THEN
 
-          x2=xtab(2)
-          x1=xtab(1)
+            x2=xtab(2)
+            x1=xtab(1)
 
-          y2=ytab(2)
-          y1=ytab(1)
+            y2=ytab(2)
+            y1=ytab(1)
 
-       ELSE IF (x>=xtab(n-1)) THEN
+        ELSE IF (x>=xtab(n-1)) THEN
 
-          x2=xtab(n)
-          x1=xtab(n-1)
+            x2=xtab(n)
+            x1=xtab(n-1)
 
-          y2=ytab(n)
-          y1=ytab(n-1)
+            y2=ytab(n)
+            y1=ytab(n-1)
 
-       ELSE
+        ELSE
 
-          i=table_integer(x,xtab,n,imeth)
+            i=table_integer(x,xtab,n,imeth)
 
-          x2=xtab(i+1)
-          x1=xtab(i)
+            x2=xtab(i+1)
+            x1=xtab(i)
 
-          y2=ytab(i+1)
-          y1=ytab(i)
+            y2=ytab(i+1)
+            y1=ytab(i)
 
-       END IF
+        END IF
 
-       CALL fit_line(a,b,x1,y1,x2,y2)
-       derivative_table=a
+        CALL fit_line(a,b,x1,y1,x2,y2)
+        derivative_table=a
 
     ELSE IF(iorder==2) THEN
 
-       IF(n<3) ERROR STOP 'DERIVATIVE_TABLE_QUADRATIC: Not enough points in your table'
+        IF(n<3) ERROR STOP 'DERIVATIVE_TABLE_QUADRATIC: Not enough points in your table'
 
-       IF(x<=xtab(2) .OR. x>=xtab(n-1)) THEN
+        IF(x<=xtab(2) .OR. x>=xtab(n-1)) THEN
 
-          IF(x<=xtab(2)) THEN
+            IF(x<=xtab(2)) THEN
 
-             x3=xtab(3)
-             x2=xtab(2)
-             x1=xtab(1)
+                x3=xtab(3)
+                x2=xtab(2)
+                x1=xtab(1)
 
-             y3=ytab(3)
-             y2=ytab(2)
-             y1=ytab(1)
+                y3=ytab(3)
+                y2=ytab(2)
+                y1=ytab(1)
 
-          ELSE IF (x>=xtab(n-1)) THEN
+            ELSE IF (x>=xtab(n-1)) THEN
 
-             x3=xtab(n)
-             x2=xtab(n-1)
-             x1=xtab(n-2)
+                x3=xtab(n)
+                x2=xtab(n-1)
+                x1=xtab(n-2)
 
-             y3=ytab(n)
-             y2=ytab(n-1)
-             y1=ytab(n-2)
+                y3=ytab(n)
+                y2=ytab(n-1)
+                y1=ytab(n-2)
 
-          END IF
+            END IF
 
-          CALL fit_quadratic(a,b,c,x1,y1,x2,y2,x3,y3)
+            CALL fit_quadratic(a,b,c,x1,y1,x2,y2,x3,y3)
 
-          derivative_table=2.*a*x+b
+            derivative_table=2.*a*x+b
 
-       ELSE
+        ELSE
 
-          i=table_integer(x,xtab,n,imeth)
+            i=table_integer(x,xtab,n,imeth)
 
-          x1=xtab(i-1)
-          x2=xtab(i)
-          x3=xtab(i+1)
-          x4=xtab(i+2)
+            x1=xtab(i-1)
+            x2=xtab(i)
+            x3=xtab(i+1)
+            x4=xtab(i+2)
 
-          y1=ytab(i-1)
-          y2=ytab(i)
-          y3=ytab(i+1)
-          y4=ytab(i+2)
+            y1=ytab(i-1)
+            y2=ytab(i)
+            y3=ytab(i+1)
+            y4=ytab(i+2)
 
-          !In this case take the average of two separate quadratic spline values
+            !In this case take the average of two separate quadratic spline values
 
-          derivative_table=0.
+            derivative_table=0.
 
-          CALL fit_quadratic(a,b,c,x1,y1,x2,y2,x3,y3)
-          derivative_table=derivative_table+(2.*a*x+b)/2.
+            CALL fit_quadratic(a,b,c,x1,y1,x2,y2,x3,y3)
+            derivative_table=derivative_table+(2.*a*x+b)/2.
 
-          CALL fit_quadratic(a,b,c,x2,y2,x3,y3,x4,y4)
-          derivative_table=derivative_table+(2.*a*x+b)/2.
+            CALL fit_quadratic(a,b,c,x2,y2,x3,y3,x4,y4)
+            derivative_table=derivative_table+(2.*a*x+b)/2.
 
-       END IF
+        END IF
 
     ELSE IF(iorder==3) THEN
 
-       IF(n<4) ERROR STOP 'DERIVATIVE_TABLE_CUBIC: Not enough points in your table'
+        IF(n<4) ERROR STOP 'DERIVATIVE_TABLE_CUBIC: Not enough points in your table'
 
-       IF(x<=xtab(3)) THEN
+        IF(x<=xtab(3)) THEN
 
-          x4=xtab(4)
-          x3=xtab(3)
-          x2=xtab(2)
-          x1=xtab(1)
+            x4=xtab(4)
+            x3=xtab(3)
+            x2=xtab(2)
+            x1=xtab(1)
 
-          y4=ytab(4)
-          y3=ytab(3)
-          y2=ytab(2)
-          y1=ytab(1)
+            y4=ytab(4)
+            y3=ytab(3)
+            y2=ytab(2)
+            y1=ytab(1)
 
-       ELSE IF (x>=xtab(n-2)) THEN
+        ELSE IF (x>=xtab(n-2)) THEN
 
-          x4=xtab(n)
-          x3=xtab(n-1)
-          x2=xtab(n-2)
-          x1=xtab(n-3)
+            x4=xtab(n)
+            x3=xtab(n-1)
+            x2=xtab(n-2)
+            x1=xtab(n-3)
 
-          y4=ytab(n)
-          y3=ytab(n-1)
-          y2=ytab(n-2)
-          y1=ytab(n-3)
+            y4=ytab(n)
+            y3=ytab(n-1)
+            y2=ytab(n-2)
+            y1=ytab(n-3)
 
-       ELSE
+        ELSE
 
-          i=table_integer(x,xtab,n,imeth)
+            i=table_integer(x,xtab,n,imeth)
 
-          x1=xtab(i-1)
-          x2=xtab(i)
-          x3=xtab(i+1)
-          x4=xtab(i+2)
+            x1=xtab(i-1)
+            x2=xtab(i)
+            x3=xtab(i+1)
+            x4=xtab(i+2)
 
-          y1=ytab(i-1)
-          y2=ytab(i)
-          y3=ytab(i+1)
-          y4=ytab(i+2)
+            y1=ytab(i-1)
+            y2=ytab(i)
+            y3=ytab(i+1)
+            y4=ytab(i+2)
 
-       END IF
+        END IF
 
-       CALL fit_cubic(a,b,c,d,x1,y1,x2,y2,x3,y3,x4,y4)
-       derivative_table=3.*a*(x**2.)+2.*b*x+c
+        CALL fit_cubic(a,b,c,d,x1,y1,x2,y2,x3,y3,x4,y4)
+        derivative_table=3.*a*(x**2.)+2.*b*x+c
 
     ELSE
 
-       ERROR STOP 'DERIVATIVE_TABLE: Error, order not specified correctly'
+        ERROR STOP 'DERIVATIVE_TABLE: Error, order not specified correctly'
 
     END IF
 
-  END FUNCTION derivative_table
+    END FUNCTION derivative_table
 
-  FUNCTION find(x,xin,yin,n,iorder,imeth)
+    FUNCTION find(x,xin,yin,n,iorder,imeth)
 
     !Interpolates to find y(x) at x
     REAL :: find
@@ -2317,186 +2311,186 @@
     ytab=yin
 
     IF(xtab(1)>xtab(n)) THEN
-       !Reverse the arrays in this case
-       CALL reverse(xtab,n)
-       CALL reverse(ytab,n)
+        !Reverse the arrays in this case
+        CALL reverse(xtab,n)
+        CALL reverse(ytab,n)
     END IF
 
     IF(x<xtab(1)) THEN
 
-       !Do a linear interpolation beyond the table boundary
+        !Do a linear interpolation beyond the table boundary
 
-       x1=xtab(1)
-       x2=xtab(2)
+        x1=xtab(1)
+        x2=xtab(2)
 
-       y1=ytab(1)
-       y2=ytab(2)
+        y1=ytab(1)
+        y2=ytab(2)
 
-       CALL fit_line(a,b,x1,y1,x2,y2)
-       find=a*x+b
-       
+        CALL fit_line(a,b,x1,y1,x2,y2)
+        find=a*x+b
+
     ELSE IF(x>xtab(n)) THEN
 
-       !Do a linear interpolation beyond the table boundary
-       
-       x1=xtab(n-1)
-       x2=xtab(n)
+        !Do a linear interpolation beyond the table boundary
 
-       y1=ytab(n-1)
-       y2=ytab(n)
+        x1=xtab(n-1)
+        x2=xtab(n)
 
-       CALL fit_line(a,b,x1,y1,x2,y2)
-       find=a*x+b
+        y1=ytab(n-1)
+        y2=ytab(n)
+
+        CALL fit_line(a,b,x1,y1,x2,y2)
+        find=a*x+b
 
     ELSE IF(iorder==1) THEN
 
-       IF(n<2) ERROR STOP 'FIND: Not enough points in your table for linear interpolation'
+        IF(n<2) ERROR STOP 'FIND: Not enough points in your table for linear interpolation'
 
-       IF(x<=xtab(2)) THEN
+        IF(x<=xtab(2)) THEN
 
-          x1=xtab(1)
-          x2=xtab(2)
+            x1=xtab(1)
+            x2=xtab(2)
 
-          y1=ytab(1)
-          y2=ytab(2)
+            y1=ytab(1)
+            y2=ytab(2)
 
-       ELSE IF (x>=xtab(n-1)) THEN
+        ELSE IF (x>=xtab(n-1)) THEN
 
-          x1=xtab(n-1)
-          x2=xtab(n)
+            x1=xtab(n-1)
+            x2=xtab(n)
 
-          y1=ytab(n-1)
-          y2=ytab(n)
+            y1=ytab(n-1)
+            y2=ytab(n)
 
-       ELSE
+        ELSE
 
-          i=table_integer(x,xtab,n,imeth)
-          
-          x1=xtab(i)
-          x2=xtab(i+1)
+            i=table_integer(x,xtab,n,imeth)
 
-          y1=ytab(i)
-          y2=ytab(i+1)
+            x1=xtab(i)
+            x2=xtab(i+1)
 
-       END IF
+            y1=ytab(i)
+            y2=ytab(i+1)
 
-       CALL fit_line(a,b,x1,y1,x2,y2)
-       find=a*x+b
+        END IF
+
+        CALL fit_line(a,b,x1,y1,x2,y2)
+        find=a*x+b
 
     ELSE IF(iorder==2) THEN
 
-       IF(n<3) ERROR STOP 'FIND: Not enough points in your table'
+        IF(n<3) ERROR STOP 'FIND: Not enough points in your table'
 
-       IF(x<=xtab(2) .OR. x>=xtab(n-1)) THEN
+        IF(x<=xtab(2) .OR. x>=xtab(n-1)) THEN
 
-          IF(x<=xtab(2)) THEN
+            IF(x<=xtab(2)) THEN
 
-             x1=xtab(1)
-             x2=xtab(2)
-             x3=xtab(3)
+                x1=xtab(1)
+                x2=xtab(2)
+                x3=xtab(3)
 
-             y1=ytab(1)
-             y2=ytab(2)
-             y3=ytab(3)
+                y1=ytab(1)
+                y2=ytab(2)
+                y3=ytab(3)
 
-          ELSE IF (x>=xtab(n-1)) THEN
+            ELSE IF (x>=xtab(n-1)) THEN
 
-             x1=xtab(n-2)
-             x2=xtab(n-1)
-             x3=xtab(n)
+                x1=xtab(n-2)
+                x2=xtab(n-1)
+                x3=xtab(n)
 
-             y1=ytab(n-2)
-             y2=ytab(n-1)
-             y3=ytab(n)
+                y1=ytab(n-2)
+                y2=ytab(n-1)
+                y3=ytab(n)
 
-          END IF
+            END IF
 
-          CALL fit_quadratic(a,b,c,x1,y1,x2,y2,x3,y3)
+            CALL fit_quadratic(a,b,c,x1,y1,x2,y2,x3,y3)
 
-          find=a*(x**2.)+b*x+c
+            find=a*(x**2.)+b*x+c
 
-       ELSE
+        ELSE
 
-          i=table_integer(x,xtab,n,imeth)
+            i=table_integer(x,xtab,n,imeth)
 
-          x1=xtab(i-1)
-          x2=xtab(i)
-          x3=xtab(i+1)
-          x4=xtab(i+2)
+            x1=xtab(i-1)
+            x2=xtab(i)
+            x3=xtab(i+1)
+            x4=xtab(i+2)
 
-          y1=ytab(i-1)
-          y2=ytab(i)
-          y3=ytab(i+1)
-          y4=ytab(i+2)
+            y1=ytab(i-1)
+            y2=ytab(i)
+            y3=ytab(i+1)
+            y4=ytab(i+2)
 
-          !In this case take the average of two separate quadratic spline values
+            !In this case take the average of two separate quadratic spline values
 
-          find=0.
+            find=0.
 
-          CALL fit_quadratic(a,b,c,x1,y1,x2,y2,x3,y3)
-          find=find+(a*(x**2.)+b*x+c)/2.
+            CALL fit_quadratic(a,b,c,x1,y1,x2,y2,x3,y3)
+            find=find+(a*(x**2.)+b*x+c)/2.
 
-          CALL fit_quadratic(a,b,c,x2,y2,x3,y3,x4,y4)
-          find=find+(a*(x**2.)+b*x+c)/2.
+            CALL fit_quadratic(a,b,c,x2,y2,x3,y3,x4,y4)
+            find=find+(a*(x**2.)+b*x+c)/2.
 
-       END IF
+        END IF
 
     ELSE IF(iorder==3) THEN
 
-       IF(n<4) ERROR STOP 'FIND: Not enough points in your table'
+        IF(n<4) ERROR STOP 'FIND: Not enough points in your table'
 
-       IF(x<=xtab(3)) THEN
+        IF(x<=xtab(3)) THEN
 
-          x1=xtab(1)
-          x2=xtab(2)
-          x3=xtab(3)
-          x4=xtab(4)        
+            x1=xtab(1)
+            x2=xtab(2)
+            x3=xtab(3)
+            x4=xtab(4)
 
-          y1=ytab(1)
-          y2=ytab(2)
-          y3=ytab(3)
-          y4=ytab(4)
+            y1=ytab(1)
+            y2=ytab(2)
+            y3=ytab(3)
+            y4=ytab(4)
 
-       ELSE IF (x>=xtab(n-2)) THEN
+        ELSE IF (x>=xtab(n-2)) THEN
 
-          x1=xtab(n-3)
-          x2=xtab(n-2)
-          x3=xtab(n-1)
-          x4=xtab(n)
+            x1=xtab(n-3)
+            x2=xtab(n-2)
+            x3=xtab(n-1)
+            x4=xtab(n)
 
-          y1=ytab(n-3)
-          y2=ytab(n-2)
-          y3=ytab(n-1)
-          y4=ytab(n)
+            y1=ytab(n-3)
+            y2=ytab(n-2)
+            y3=ytab(n-1)
+            y4=ytab(n)
 
-       ELSE
+        ELSE
 
-          i=table_integer(x,xtab,n,imeth)
+            i=table_integer(x,xtab,n,imeth)
 
-          x1=xtab(i-1)
-          x2=xtab(i)
-          x3=xtab(i+1)
-          x4=xtab(i+2)
+            x1=xtab(i-1)
+            x2=xtab(i)
+            x3=xtab(i+1)
+            x4=xtab(i+2)
 
-          y1=ytab(i-1)
-          y2=ytab(i)
-          y3=ytab(i+1)
-          y4=ytab(i+2)
+            y1=ytab(i-1)
+            y2=ytab(i)
+            y3=ytab(i+1)
+            y4=ytab(i+2)
 
-       END IF
+        END IF
 
-       CALL fit_cubic(a,b,c,d,x1,y1,x2,y2,x3,y3,x4,y4)
-       find=a*x**3.+b*x**2.+c*x+d
+        CALL fit_cubic(a,b,c,d,x1,y1,x2,y2,x3,y3,x4,y4)
+        find=a*x**3.+b*x**2.+c*x+d
 
     ELSE
 
-       ERROR STOP 'FIND: Error, interpolation order specified incorrectly'
+        ERROR STOP 'FIND: Error, interpolation order specified incorrectly'
 
     END IF
 
-  END FUNCTION find
+    END FUNCTION find
 
-  FUNCTION table_integer(x,xtab,n,imeth)
+    FUNCTION table_integer(x,xtab,n,imeth)
 
     !Chooses between different ways of finding the position in a table xtab nearest to x
     INTEGER :: table_integer
@@ -2505,18 +2499,18 @@
     INTEGER, INTENT(IN) :: imeth
 
     IF(imeth==1) THEN
-       table_integer=linear_table_integer(x,xtab,n)
+        table_integer=linear_table_integer(x,xtab,n)
     ELSE IF(imeth==2) THEN
-       table_integer=search_int(x,xtab,n)
+        table_integer=search_int(x,xtab,n)
     ELSE IF(imeth==3) THEN
-       table_integer=int_split(x,xtab,n)
+        table_integer=int_split(x,xtab,n)
     ELSE
-       ERROR STOP 'TABLE INTEGER: Method specified incorrectly'
+        ERROR STOP 'TABLE INTEGER: Method specified incorrectly'
     END IF
 
-  END FUNCTION table_integer
+    END FUNCTION table_integer
 
-  FUNCTION linear_table_integer(x,xtab,n)
+    FUNCTION linear_table_integer(x,xtab,n)
 
     !Returns the integer (table position) below the value of x
     !eg. if x(3)=6. and x(4)=7. and x=6.5 this will return 6
@@ -2539,9 +2533,9 @@
 
     linear_table_integer=1+FLOOR(float(n-1)*(x-x1)/(xn-x1))
 
-  END FUNCTION linear_table_integer
+    END FUNCTION linear_table_integer
 
-  FUNCTION search_int(x,xtab,n)
+    FUNCTION search_int(x,xtab,n)
 
     !Does a stupid search through the table from beginning to end to find integer
     INTEGER :: search_int
@@ -2552,20 +2546,20 @@
     IF(xtab(1)>xtab(n)) ERROR STOP 'SEARCH_INT: table in wrong order'
 
     DO i=1,n
-       IF(x>=xtab(i) .AND. x<=xtab(i+1)) EXIT
+        IF(x>=xtab(i) .AND. x<=xtab(i+1)) EXIT
     END DO
 
     search_int=i
 
-  END FUNCTION search_int
+    END FUNCTION search_int
 
-  FUNCTION int_split(x,xtab,n)
+    FUNCTION int_split(x,xtab,n)
 
     !Finds the position of the value in the table by continually splitting it in half
     INTEGER :: int_split
     INTEGER, INTENT(IN) :: n
     REAL, INTENT(IN) :: x, xtab(n)
-    INTEGER :: i1, i2, imid   
+    INTEGER :: i1, i2, imid
 
     IF(xtab(1)>xtab(n)) ERROR STOP 'INT_SPLIT: table in wrong order'
 
@@ -2573,35 +2567,35 @@
     i2=n
 
     DO
-       
-       imid=NINT((i1+i2)/2.)
 
-       IF(x<xtab(imid)) THEN
-          i2=imid
-       ELSE
-          i1=imid
-       END IF
+        imid=NINT((i1+i2)/2.)
 
-       IF(i2==i1+1) EXIT
+        IF(x<xtab(imid)) THEN
+            i2=imid
+        ELSE
+            i1=imid
+        END IF
+
+        IF(i2==i1+1) EXIT
 
     END DO
-    
+
     int_split=i1
 
-  END FUNCTION int_split
+    END FUNCTION int_split
 
-  SUBROUTINE fit_line(a1,a0,x1,y1,x2,y2)
+    SUBROUTINE fit_line(a1,a0,x1,y1,x2,y2)
 
-    !Given xi, yi i=1,2 fits a line between these points    
+    !Given xi, yi i=1,2 fits a line between these points
     REAL, INTENT(OUT) :: a0, a1
     REAL, INTENT(IN) :: x1, y1, x2, y2
 
     a1=(y2-y1)/(x2-x1)
     a0=y1-a1*x1
 
-  END SUBROUTINE fit_line
+    END SUBROUTINE fit_line
 
-  SUBROUTINE fit_quadratic(a2,a1,a0,x1,y1,x2,y2,x3,y3)
+    SUBROUTINE fit_quadratic(a2,a1,a0,x1,y1,x2,y2,x3,y3)
 
     !Given xi, yi i=1,2,3 fits a quadratic between these points
     REAL, INTENT(OUT) :: a0, a1, a2
@@ -2611,14 +2605,14 @@
     a1=(y2-y1)/(x2-x1)-a2*(x2+x1)
     a0=y1-a2*(x1**2.)-a1*x1
 
-  END SUBROUTINE fit_quadratic
+    END SUBROUTINE fit_quadratic
 
-  SUBROUTINE fit_cubic(a,b,c,d,x1,y1,x2,y2,x3,y3,x4,y4)
+    SUBROUTINE fit_cubic(a,b,c,d,x1,y1,x2,y2,x3,y3,x4,y4)
 
     !Given xi, yi i=1,2,3,4 fits a cubic between these points
     REAL, INTENT(OUT) :: a, b, c, d
     REAL, INTENT(IN) :: x1, y1, x2, y2, x3, y3, x4, y4
-    REAL :: f1, f2, f3    
+    REAL :: f1, f2, f3
 
     f1=(y4-y1)/((x4-x2)*(x4-x1)*(x4-x3))
     f2=(y3-y1)/((x3-x2)*(x3-x1)*(x4-x3))
@@ -2640,29 +2634,29 @@
 
     d=y1-a*x1**3.-b*x1**2.-c*x1
 
-  END SUBROUTINE fit_cubic
+    END SUBROUTINE fit_cubic
 
-  SUBROUTINE reverse(arry,n)
+    SUBROUTINE reverse(arry,n)
 
-    !This reverses the contents of arry! 
+    !This reverses the contents of arry!
     INTEGER, INTENT(IN) :: n
     REAL, INTENT(INOUT) :: arry(n)
     INTEGER :: i
-    REAL, ALLOCATABLE :: hold(:) 
+    REAL, ALLOCATABLE :: hold(:)
 
     ALLOCATE(hold(n))
 
     hold=arry
 
     DO i=1,n
-       arry(i)=hold(n-i+1)
+        arry(i)=hold(n-i+1)
     END DO
 
     DEALLOCATE(hold)
 
-  END SUBROUTINE reverse
+    END SUBROUTINE reverse
 
-   SUBROUTINE fill_growtab(cosm)
+    SUBROUTINE fill_growtab(cosm)
 
     !Fills a table of values of the scale-independent growth function
     TYPE(HM_cosmology) :: cosm
@@ -2702,15 +2696,15 @@
     cosm%ng=n
     ALLOCATE(cosm%a_growth(n),cosm%growth(n))
     DO i=1,n
-       a=ainit+(amax-ainit)*float(i-1)/float(n-1)
-       cosm%a_growth(i)=a
-       cosm%growth(i)=find(a,a_tab,d_tab,SIZE(a_tab),3,3)
+        a=ainit+(amax-ainit)*float(i-1)/float(n-1)
+        cosm%a_growth(i)=a
+        cosm%growth(i)=find(a,a_tab,d_tab,SIZE(a_tab),3,3)
     END DO
 
     IF(ihm==1) WRITE(*,*) 'GROWTH: Done'
     IF(ihm==1) WRITE(*,*)
 
-  END SUBROUTINE fill_growtab
+    END SUBROUTINE fill_growtab
 
     SUBROUTINE ode_growth(x,v,t,kk,ti,tf,xi,vi,acc,imeth,cosm)
 
