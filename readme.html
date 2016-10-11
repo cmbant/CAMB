@@ -13,7 +13,7 @@
 Code for Anisotropies in the Microwave Background by <A
 HREF="http://cosmologist.info/">Antony Lewis</A> and Anthony
 Challinor. <P>
-This version January 2015.
+This version May 2016.
 <P>
 <FONT SIZE=-1>
 Originally based on CMBFAST developed by Uros Seljak and Matias
@@ -28,25 +28,27 @@ CAMB is also supplied as part of the <A HREF="http://cosmologist.info/cosmomc/">
 <A NAME="compiling">
 <B>Compiling and running</B>
 </P>
-To install and compile yourself you will need a Fortran 90 (or higher) compiler - you can get the free <A HREF="http://g95.sourceforge.net/">G95</A> or <A HREF="http://gcc.gnu.org/wiki/GFortran">GFortran</A> compilers, or the optimized Intel compiler <em>ifort</em> is installed on many academic clusters and also supports integrated development and debugging in Visual Studio under Windows.
- Alternatively you can use CAMB in the pre-configured <A HREF="http://cosmologist.info/CosmoBox">CosmoBox</A> virtual machine, using the eclipse integrated development environment. <P>
+To install and compile yourself you will need a Fortran 90 (or higher) compiler - you can get the free <A HREF="https://gcc.gnu.org/wiki/GFortranBinaries">gfortran</A> compiler, or the optimized Intel compiler <em>ifort</em> is installed on many academic clusters and also supports integrated development and debugging in Visual Studio under Windows.
+ Alternatively you can use CAMB in the pre-configured <A HREF="http://cosmologist.info/CosmoBox">CosmoBox</A> virtual machine. <P>
  To install yourself from the command line:
 <UL>
 <LI><A HREF="http://camb.info/CAMBsubmit.html">Download</A> CAMB
-<LI>Unzip and untar the file (<B>tar xfv CAMB.tar.gz</B>). All files will be extracted to a
-directory called "CAMB".
+<LI>Unzip the file (<B>tar xfv filename </B> for tar.gz). All files will be extracted to a
+directory called "CAMB-xxx".
 <LI>Run <B>make</B> to compile everything you will need. (you may need to
 edit the supplied Makefile, see below)
 <LI>Run <B>./camb params.ini</B>, where params.ini is a file
  of parameter values (sample supplied). The params.ini file should be
  fairly self-explanatory.
+<LI>To install and use the Python CAMB wrapper see the <A HREF="https://camb.readthedocs.org/en/latest">Python CAMB</A> documentation.
 </UL>
 </P>
 <P>
-The Makefile comes set up for Intel machines using Intel's ifort compiler. Just comment the relevant parts to compile on different systems. If you have Intel's Visual Fortran you can use the projects in the VisualStudio folder, no need to use the Makefile. To run on multi-processor machines add the -openmp (or equivalent) option to the Makefile's FFLAGS parameter to compile a parallelized (OPENMP) version.
+The Makefile comes set up for gfortran and  ifort compilers. Edit the relevant parts of the Makefile to compile on other systems. If you have Intel's Visual Fortran you can use the projects in the VisualStudio folder, no need to use the Makefile. To run on multi-processor machines add the -openmp (or equivalent) option to the Makefile's FFLAGS parameter to compile a parallelized (OPENMP) version. The code is also available from GitHub.
 </P>
 <P>
-Martina Schwind has kindly contributed some <A hREF="Work_with_CAMB_V13_for_AL.pdf">introductory slides</A> with details of program running and internal structure. For some further technical details about the algorithms, equations and code see the <A HREF="http://cosmologist.info/notes/CAMB.pdf">CAMB notes</A>.
+Martina Schwind has kindly contributed some <A hREF="Work_with_CAMB_V13_for_AL.pdf">introductory slides</A> with details of program running and internal structure. For some further technical details about the algorithms, equations and code see the <A HREF="http://cosmologist.info/notes/CAMB.pdf">CAMB notes</A>. For a demo of how to use CAMB with the python wrapper see the <A HREF="http://camb.readthedocs.org/en/latest/CAMBdemo.html">demo notebook</A>.
+
 </P>
 <A NAME="inputs">
 <H3>Input parameters</H3>
@@ -136,13 +138,43 @@ After modifying any of the source code run <B>make clean</B> before running <B>m
 Run <B>make all</B> to build a library libcamb.a that you can use when
 linking to other programs. (You will also need to include the module files using -I/cambfolder).
 <P>
-You can <A HREF="http://camb.info/test_suite.tar.gz">download</A> a test suite for comparing accuracy with different parameters and code versions. Just extract the file to your CAMB directory and read the readme.
-<P>
 Some details about what different source code files do are given <A HREF="#FILES">below</A>, see also the <A HREF="http://cosmologist.info/notes/CAMB.pdf">CAMB notes</A>.
-
+<P>
+A test suite is included, and will run automatically on <A HREF="https://travis-ci.org/">Travis</A> when committing or making pull requests on the <A HREF="https://github.com/cmbant/CAMB">GitHub repository</A>. Python unit tests are in the pycamb/camb_tests directory, and scripts for comparing outputs for a variety of models (as run on Travis) are in the tests directory.
 <P>
 <A NAME="version">
 <H3>Version history</H3>
+
+<B>May 2016</B><BR>
+<UL>
+<LI>Added support for <A HREF="http://arxiv.org/abs/1505.07833">HMCODE</A> Halofit version (halofit_version=5; thanks Alex Mead); Takahashi remains the default as before
+<LI><A HREF="https://camb.readthedocs.org/en/latest">Python CAMB wrapper</A>
+<UL>
+<LI>  <b>camb.get_matter_power_interpolator</b> function get 2D spline object for evaluating P(k,z);
+<br>See the <A HREF="http://camb.readthedocs.io/en/latest/CAMBdemo.html">sample notebook</A> for an example of how to use this to calculate a lensing spectrum
+<LI>Result object functions to get unsplined matter power (<b>get_linear_matter_power_spectrum</b>,<b>get_nonlinear_matter_power_spectrum</b>)
+<LI>Result object function to get redshift from conformal time (<b>redshift_at_comoving_radial_distance</b>)
+<LI><b>camb.set_halofit_version</b> to set halofit version;
+<LI>Option to set cosmomc_theta rather than H_0 (thanks Marius Millea)
+<LI> Wigner 3j function for convenience (<b>camb.bispectrum.threej</b>).
+</UL>
+</UL>
+
+<B>November 2015</B><BR>
+<UL>
+<LI>New <A HREF="https://camb.readthedocs.org/en/latest">Python CAMB wrapper</A>
+<LI>Option to add comment headers to output files giving column names (output_file_headers = T)
+<LI>New input parameters to change the default second helium reionization redshift and duration
+<LI>Output of transfer functions will now also work at very early times
+</UL>
+
+<B>February 2015</B><BR>
+<UL>
+<LI>Tidied up Makefile (auto-detect gfortran/ifort, release/debug builds)
+<LI>Small tweak for accuracy with higher neutrino masses
+<LI>A CodeBlocks project file is provided (camb.cbp), which can also be used to run and debug from the cross-platform <A hREF="http://darmar.vgtu.lt/">CodeBlocks IDE</A>
+</UL>
+
 <B>January 2015</B><BR>
 <UL>
 <LI>Transfer function output now includes more variables, including different total densities and velocities (see <A HREF="#transfer">list</A>)
@@ -686,7 +718,7 @@ from <A HREF="http://arxiv.org/abs/1208.2701">arXiv:1208.2701</A> (thanks Ryuich
 Scalar numerical errors should rarely exceed 0.3% for min(2500, L well into the damping tail) at default accuracy setting, and 0.1% for 500&lt;L&lt;2000 with <b>high_accuracy_default=T</b>. Matter power spectrum errors are usually dominated by interpolation in the acoustic oscillations, with about 0.2% accuracy with high_accuracy_default (but much better rms accuracy). For a detailed study of numerical accuracy as of January 2012 see <A HREF="http://arxiv.org/abs/1201.3654">arXiv:1201.3654</A>.
 
 
-See also <A HREF="#COMPARE">comparison</A> with CMBFAST. Accuracy of course assumes the model is correct, and is dependent on RECFAST being the correct ionization history. Lensed C_l TT, TE and EE are accurate at the same level  (to within the approximation that the lensing potential is linear, or the accuracy of the the HALOFIT non-linear model).
+See also <A HREF="#COMPARE">comparison</A> with CMBFAST. Accuracy of course assumes the model is correct, and is dependent on RECFAST being the correct ionization history. Lensed C_l TT, TE and EE are accurate at the same level  (to within the approximation that the lensing potential is linear, or the accuracy of the HALOFIT non-linear model).
 <P>
  Extreme models (e.g. scale &gt; 4, h&gt;1) may give errors of 5% or more.
 <P>

@@ -216,7 +216,7 @@
     real(dl) polfac(max_l_evolve),denl(max_l_evolve),vecfac(max_l_evolve),vecfacpol(max_l_evolve)
 
     real(dl), parameter :: ep0=1.0d-2
-    integer, parameter :: lmaxnu_high_ktau=3
+    integer, parameter :: lmaxnu_high_ktau=4 !Jan2015, increased from 3 to fix mpk for mnu~6eV
 
     real(dl) epsw
     real(dl) nu_tau_notmassless(nqmax0+1,max_nu), nu_tau_nonrelativistic(max_nu),nu_tau_massive(max_nu)
@@ -606,16 +606,13 @@
 
         do nu_i=1, CP%Nu_Mass_eigenstates
             if (EV%high_ktau_neutrino_approx) then
-                if (HighAccuracyDefault .and. CP%WantTransfer .and. EV%q < 1.d0) then
-                    EV%lmaxnu_tau(nu_i)=max(4,lmaxnu_high_ktau)
-                else
-                    EV%lmaxnu_tau(nu_i)=lmaxnu_high_ktau
-                end if
+                EV%lmaxnu_tau(nu_i) = lmaxnu_high_ktau *lAccuracyBoost
             else
                 EV%lmaxnu_tau(nu_i) =max(min(nint(0.8_dl*EV%q*nu_tau_nonrelativistic(nu_i)*lAccuracyBoost),EV%lmaxnu),3)
                 !!!Feb13tweak
                 if (EV%nu_nonrelativistic(nu_i)) EV%lmaxnu_tau(nu_i)=min(EV%lmaxnu_tau(nu_i),nint(4*lAccuracyBoost))
             end if
+            if (nu_masses(nu_i) > 5000 .and. CP%Transfer%high_precision) EV%lmaxnu_tau(nu_i) = EV%lmaxnu_tau(nu_i)*2 !megadamping
             EV%lmaxnu_tau(nu_i)=min(EV%lmaxnu,EV%lmaxnu_tau(nu_i))
 
             EV%nu_ix(nu_i)=neq+1
@@ -918,7 +915,7 @@
 
         EV%poltruncfac=real(EV%lmaxgpol,dl)/max(1,(EV%lmaxgpol-2))
         EV%MaxlNeeded=max(EV%lmaxg,EV%lmaxnr,EV%lmaxgpol,EV%lmaxnu)
-        if (EV%MaxlNeeded > max_l_evolve) stop 'Need to increase max_l_evolve'
+        if (EV%MaxlNeeded > max_l_evolve) call MpiStop('Need to increase max_l_evolve')
         call SetupScalarArrayIndices(EV,EV%nvar)
         if (CP%closed) EV%nvar=EV%nvar+1 !so can reference lmax+1 with zero coefficient
         EV%lmaxt=0
@@ -945,7 +942,7 @@
             EV%lmaxnut=min(EV%FirstZerolForBeta-1,EV%lmaxnut)
         end if
         EV%MaxlNeededt=max(EV%lmaxpolt,EV%lmaxt, EV%lmaxnrt, EV%lmaxnut)
-        if (EV%MaxlNeededt > max_l_evolve) stop 'Need to increase max_l_evolve'
+        if (EV%MaxlNeededt > max_l_evolve) call MpiStop('Need to increase max_l_evolve')
         call SetupTensorArrayIndices(EV, EV%nvart)
     else
         EV%nvart=0
@@ -962,7 +959,7 @@
 
         EV%nvarv=EV%nvarv+EV%lmaxnrv
         if (CP%Num_Nu_massive /= 0 ) then
-            stop 'massive neutrinos not supported for vector modes'
+            call MpiStop('massive neutrinos not supported for vector modes')
         end if
     else
         EV%nvarv=0
@@ -1185,7 +1182,7 @@
     real(dl) pinu,q,aq,v
     integer iq, ind
 
-    if (EV%nq(nu_i)/=nqmax) stop 'Nu_pi: nq/=nqmax'
+    if (EV%nq(nu_i)/=nqmax) call MpiStop('Nu_pi: nq/=nqmax')
     pinu=0
     ind=EV%nu_ix(nu_i)+2
     am=a*nu_masses(nu_i)
@@ -1216,7 +1213,7 @@
     ind=EV%nu_ix(nu_i)
     G11=0._dl
     G30=0._dl
-    if (EV%nq(nu_i)/=nqmax) stop 'Nu_Intvsq nq/=nqmax0'
+    if (EV%nq(nu_i)/=nqmax) call MpiStop('Nu_Intvsq nq/=nqmax0')
     do iq=1, EV%nq(nu_i)
         q=nu_q(iq)
         aq=am/q
@@ -1791,7 +1788,7 @@
     Rp15=4*Rv+15
 
     if (CP%Scalar_initial_condition > initial_nummodes) &
-        stop 'Invalid initial condition for scalar modes'
+        call MpiStop('Invalid initial condition for scalar modes')
 
     a=tau*adotrad*(1+omtau/4)
     a2=a*a
@@ -1826,7 +1823,7 @@
         initv(2,i_eta)= Rc*omtau*(1._dl/3 - omtau/8)*EV%Kf(1)
         initv(2,i_aj3r)=0
         !Baryon isocurvature
-        if (Rc==0) stop 'Isocurvature initial conditions assume non-zero dark matter'
+        if (Rc==0) call MpiStop('Isocurvature initial conditions assume non-zero dark matter')
 
         initv(3,:) = initv(2,:)*(Rb/Rc)
         initv(3,i_clxc) = initv(3,i_clxb)
@@ -2021,7 +2018,7 @@
         EV%k2_buf=EV%q2
         EV%k_buf=EV%q
     else
-        stop 'Vectors not supported in non-flat models'
+        call MpiStop('Vectors not supported in non-flat models')
     endif
 
     k=EV%k_buf

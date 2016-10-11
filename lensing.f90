@@ -1,45 +1,45 @@
-!Lensing the C_l using the deflection angle from the computed lensing potential
-!power spectrum. 
-!lensing_method=1: using an accurate curved-sky correlation function method
-!lensing_method=2: using the flat-sky lower order result of astro-ph/9505109 
-!                  and astro-ph/9803150 as in CMBFAST 
-!lensing_method=3: using inaccurate full sky harmonic method of astro-ph/0001303
+    !Lensing the C_l using the deflection angle from the computed lensing potential
+    !power spectrum.
+    !lensing_method=1: using an accurate curved-sky correlation function method
+    !lensing_method=2: using the flat-sky lower order result of astro-ph/9505109
+    !                  and astro-ph/9803150 as in CMBFAST
+    !lensing_method=3: using inaccurate full sky harmonic method of astro-ph/0001303
 
-!The flat sky result is accurate to about 0.1% in TT, and 0.4% in EE and is
-!about a factor of two faster than lensing_method=1.
-!lensing_method=3 is only present for comparison and is not recommended in any regime
+    !The flat sky result is accurate to about 0.1% in TT, and 0.4% in EE and is
+    !about a factor of two faster than lensing_method=1.
+    !lensing_method=3 is only present for comparison and is not recommended in any regime
 
-!Set accurate_BB=T if you want BB accurately by integrating the full angular range
-!otherwise it saves a large amount of time by only integrating the small scales
-!accute_BB only does *not* include any non-linear corrections or ensure you have
-!chosen sufficiently high l_max and k_max, so does not neccessarily give an accurate
-!result
+    !Set accurate_BB=T if you want BB accurately by integrating the full angular range
+    !otherwise it saves a large amount of time by only integrating the small scales
+    !accute_BB only does *not* include any non-linear corrections or ensure you have
+    !chosen sufficiently high l_max and k_max, so does not neccessarily give an accurate
+    !result
 
-!Uses the un-lensed Cls and the computed lensing potential power spectrum.
-!Usual values of k_max are fine for all but the lensed BB Cls
-!To get the lensed BB accurate around l=1000 you need to go to l_max >2000, and
-!higher for higher l. Since this probes small scales in the lensing power spectrum you
-!also need to go to higher k_max - for concordance models something like 
-!k_eta_max_scalar=10000. At l>1000 you can expect to need higher k_max, and for 
-!non-linear evolution to cause a significant error.
+    !Uses the un-lensed Cls and the computed lensing potential power spectrum.
+    !Usual values of k_max are fine for all but the lensed BB Cls
+    !To get the lensed BB accurate around l=1000 you need to go to l_max >2000, and
+    !higher for higher l. Since this probes small scales in the lensing power spectrum you
+    !also need to go to higher k_max - for concordance models something like
+    !k_eta_max_scalar=10000. At l>1000 you can expect to need higher k_max, and for
+    !non-linear evolution to cause a significant error.
 
-!Correlation function routines by AL+AC Nov 2004 with flat-sky borrowings from CMBFAST
-!Curved sky results use the method of astro-ph/xxx.
+    !Correlation function routines by AL+AC Nov 2004 with flat-sky borrowings from CMBFAST
+    !Curved sky results use the method of astro-ph/xxx.
 
-!Full sky harmonic lensing routines by Gayoung Chon and AC.
-!Ref: astro-ph/0001303 by W. Hu. 
-!For better derivations see also astro-ph/0301064 and astro-ph/0301031
-!Adapted for CAMB and optimized by AL.
-!Uses f90 version of "J1-RECURSION OF 3J-COEFFICIENTS" by K. Schulten and R.G. Gordon 
-!obtainable from the CPC program library (www.cpc.cs.qub.ac.uk).
+    !Full sky harmonic lensing routines by Gayoung Chon and AC.
+    !Ref: astro-ph/0001303 by W. Hu.
+    !For better derivations see also astro-ph/0301064 and astro-ph/0301031
+    !Adapted for CAMB and optimized by AL.
+    !Uses f90 version of "J1-RECURSION OF 3J-COEFFICIENTS" by K. Schulten and R.G. Gordon
+    !obtainable from the CPC program library (www.cpc.cs.qub.ac.uk).
 
-!March 2006: fixed problem with l_max when generating with tensors (thanks Chad Fendt)
+    !March 2006: fixed problem with l_max when generating with tensors (thanks Chad Fendt)
 
-module lensing
-use Precision
-use ModelParams
-use AmlUtils
-implicit none
+    module lensing
+    use Precision
+    use ModelParams
+    use AmlUtils
+    implicit none
  integer, parameter :: lensing_method_curv_corr=1,lensing_method_flat_corr=2, &
                        lensing_method_harmonic=3
  
@@ -48,11 +48,11 @@ implicit none
  real(dl) :: ALens_Fiducial = 0._dl 
  !Change from zero to set lensing smoothing by scaling amplitude of fiducial template
  
-private
+    private
 
  logical  :: lensing_includes_tensors = .false.
 
-!flat method stores
+    !flat method stores
  real(dl), parameter :: dbessel = 0.05_dl 
  real(dl), dimension(:), allocatable :: Bess0, ddBess0
  real(dl), dimension(:), allocatable :: Bess2, ddBess2
@@ -62,16 +62,16 @@ private
  integer, parameter :: lensed_convolution_margin = 100
    !Number of L less than L max at which the lensed power spectrum is calculated 
 
-!Harmonic method stores
+    !Harmonic method stores
  integer :: lmax_donelnfa = 0
  real(dl), dimension(:), allocatable  :: lnfa
 
-public lens_Cls, lensing_includes_tensors, lensing_method, lensing_method_flat_corr,&
+    public lens_Cls, lensing_includes_tensors, lensing_method, lensing_method_flat_corr,&
       lensing_method_curv_corr,lensing_method_harmonic, BessI, bessj0, ALens_Fiducial
-contains
+    contains
 
 
-subroutine lens_Cls
+    subroutine lens_Cls
  use lvalues
 
  !Must set l again in case computed tessors (thanks to Chad)
@@ -83,12 +83,12 @@ subroutine lens_Cls
   elseif (lensing_method == lensing_method_harmonic) then 
     call BadHarmonic
   else
-    stop 'Unknown lensing method'
+        error stop 'Unknown lensing method'
  end if
-end subroutine lens_Cls
+    end subroutine lens_Cls
 
 
-subroutine CorrFuncFullSky
+    subroutine CorrFuncFullSky
 
   integer :: lmax_extrap 
   
@@ -97,10 +97,10 @@ subroutine CorrFuncFullSky
   lmax_extrap = min(lmax_extrap_highl,lmax_extrap)
   call CorrFuncFullSkyImpl(max(lmax_extrap,CP%max_l))
 
-end subroutine CorrFuncFullSky
+    end subroutine CorrFuncFullSky
 
 
-subroutine CorrFuncFullSkyImpl(lmax)
+    subroutine CorrFuncFullSkyImpl(lmax)
  !Accurate curved sky correlation function method
  !Uses non-perturbative isotropic term with 2nd order expansion in C_{gl,2}
  !Neglects C_{gl}(theta) terms (very good approx)
@@ -142,10 +142,10 @@ subroutine CorrFuncFullSkyImpl(lmax)
   logical, parameter :: approx = .false.
   integer f_i_1,f_i_2
 
-!$ integer  OMP_GET_THREAD_NUM, OMP_GET_MAX_THREADS
-!$ external OMP_GET_THREAD_NUM, OMP_GET_MAX_THREADS
+    !$ integer  OMP_GET_THREAD_NUM, OMP_GET_MAX_THREADS
+    !$ external OMP_GET_THREAD_NUM, OMP_GET_MAX_THREADS
 
-    if (lensing_includes_tensors) stop 'Haven''t implemented tensor lensing'
+    if (lensing_includes_tensors) call MpiStop('Haven''t implemented tensor lensing')
 
     max_lensed_ix = lSamp%l0-1
     do while(lSamp%l(max_lensed_ix) > CP%Max_l - lensed_convolution_margin) 
@@ -228,7 +228,7 @@ subroutine CorrFuncFullSkyImpl(lmax)
     if (Cphil3(10) > 1e-7) then
      write (*,*) 'You need to normalize realistically to use lensing.'
      write (*,*) 'see http://cosmocoffee.info/viewtopic.php?t=94'
-     stop
+            call MpiStop()
     end if
     if (lmax > CP%Max_l) then
      l=CP%Max_l
@@ -244,8 +244,7 @@ subroutine CorrFuncFullSkyImpl(lmax)
        CEE(l) =  highL_CL_template(l, C_E)*fac2 *sc
        CTE(l) =  highL_CL_template(l, C_Cross)*fac2*sc 
       if (Cphil3(CP%Max_l+1) > 1e-7) then
-       write (*,*) 'You need to normalize the high-L template so it is dimensionless'
-       stop
+                    call MpiStop('You need to normalize the high-L template so it is dimensionless')
       end if
      end do
    end if
@@ -397,32 +396,32 @@ subroutine CorrFuncFullSkyImpl(lmax)
          dX000 = -llp1/4*X000
          dX022 = (1-llp1/4)*X022
          end if  
-!second order
+            !second order
          !TT
          fac1 = dX000**2
          fac3 = X220**2
          Cg2sq = Cg2**2
 
-!Here we drop terms in Cgt which are down by powers of l
-!Approx good to 1e-4 level
+            !Here we drop terms in Cgt which are down by powers of l
+            !Approx good to 1e-4 level
          fac = ( (X000**2-1) + Cg2sq*fac1)*P(l)+ Cg2sq*fac3*d2m2 &
                     + 8/llp1* fac1*Cg2*dm11 
      
          corrcontribs(j,1)=  CTT(l) * fac 
 
          fac2=(Cg2*dX022)**2+(X022**2-1)
-!Q+U
+            !Q+U
          fac = 2*Cg2*X121*X132*d13 + fac2*d22 +Cg2sq*X242*X220*d04 
 
          corrcontribs(j,2)= CEE(l) * fac 
 
-!Q-U 
+            !Q-U
          fac = ( fac3*P(l) + X242**2*d4m4)*Cg2sq/2 &
               + Cg2*(X121**2*dm11+ X132**2*d3m3) + fac2*d2m2 
 
          corrcontribs(j,3)= CEE(l) * fac 
 
-!TE
+            !TE
         fac = (X000*X022-1)*d20+ &
           2*dX000*Cg2*(X121*d11 + X132*d1m3)/rootllp1 &
              + Cg2sq*(X220/2*d2m4*X242 +( fac3/2 + dX022*dX000)*d20) 
@@ -431,21 +430,21 @@ subroutine CorrFuncFullSkyImpl(lmax)
 
       end do
 
-do j=1,4
+        do j=1,4
   corr(j) = sum(corrcontribs(1:14,j))+interp_fac*sum(corrcontribs(15:jmax,j))
-end do
+        end do
 
-!if (short_integral_range .and. i>npoints-20) &
-!        corr=corr*exp(-(i-npoints+20)**2/150.0) !taper the end to help prevent ringing
+        !if (short_integral_range .and. i>npoints-20) &
+        !        corr=corr*exp(-(i-npoints+20)**2/150.0) !taper the end to help prevent ringing
 
-if (short_integral_range .and. i>npoints-apodize_point_width*3) &
+        if (short_integral_range .and. i>npoints-apodize_point_width*3) &
         corr=corr*exp(-(i-npoints+apodize_point_width*3)**2/real(2*apodize_point_width**2))
             !taper the end to help prevent ringing
 
 
-!Interpolate contributions
-!Increasing interp_fac and using this seems to be slower than above
-if (.false.) then
+        !Interpolate contributions
+        !Increasing interp_fac and using this seems to be slower than above
+        if (.false.) then
       if (abs(sum(corrcontribs(1:jmax,1)))>1e-11) print *,i,sum(corrcontribs(1:jmax,1))
       do j=1,4
        call spline(xl,corrcontribs(1,j),jmax,1d30,1d30,ddcontribs(1,j))
@@ -474,7 +473,7 @@ if (.false.) then
             fac1* ddcontribs(llo,4) +fac2*ddcontribs(lhi,4)
          
       end do
-end if 
+        end if
       
  !$   thread_ix = OMP_GET_THREAD_NUM()+1
 
@@ -539,11 +538,11 @@ end if
 
      if (DebugMsgs) write(*,*) GetTestTime()-timeprev, 'Time for corr lensing'
 
-end subroutine CorrFuncFullSkyImpl
+    end subroutine CorrFuncFullSkyImpl
 
 
 
-subroutine CorrFuncFlatSky
+    subroutine CorrFuncFlatSky
  !Do flat sky approx partially non-perturbative lensing, lensing_method=2
    use ModelParams
   use ModelData
@@ -552,10 +551,11 @@ subroutine CorrFuncFlatSky
   integer :: npoints 
   real(dl) Cgl2,  sigmasq, theta
   real(dl) dtheta
-  real(dl) dbessfac, fac, fac1,fac2,  C2term, expsig, corr(4)
+    real(dl) dbessfac, fac, fac1,fac2,  C2term, expsig, corr(10)
   real(sp) timeprev
   real(dl) Bessel0(lmin:CP%Max_l),Bessel2(lmin:CP%Max_l)
   real(dl) Bessel4(lmin:CP%Max_l),Bessel6(lmin:CP%Max_l)
+    real(dl) Bessel1(lmin:CP%Max_l),Bessel3(lmin:CP%Max_l),Bessel5(lmin:CP%Max_l)
   real(dl) Cphil3(lmin:CP%Max_l), CTT(lmin:CP%Max_l), CTE(lmin:CP%Max_l),CEE(lmin:CP%Max_l)
   integer max_lensed_ix
   integer b_lo
@@ -564,10 +564,10 @@ subroutine CorrFuncFlatSky
   real(dl) lfacs(CP%Max_l)
   real(dl), allocatable, dimension(:,:,:) :: lens_contrib(:,:,:)
   integer thread_ix
-!$ integer OMP_GET_THREAD_NUM, OMP_GET_MAX_THREADS
-!$ external OMP_GET_THREAD_NUM, OMP_GET_MAX_THREADS
+    !$ integer OMP_GET_THREAD_NUM, OMP_GET_MAX_THREADS
+    !$ external OMP_GET_THREAD_NUM, OMP_GET_MAX_THREADS
 
-    if (lensing_includes_tensors) stop 'Haven''t implemented tensor lensing'
+    if (lensing_includes_tensors) call MpiStop('Haven''t implemented tensor lensing')
 
     max_lensed_ix = lSamp%l0-1
     do while(lSamp%l(max_lensed_ix) > CP%Max_l -250)
@@ -575,7 +575,7 @@ subroutine CorrFuncFlatSky
     end do
     lmax_lensed = lSamp%l(max_lensed_ix)
     if (allocated(Cl_lensed)) deallocate(Cl_lensed)
-    allocate(Cl_lensed(lmin:lmax_lensed,CP%InitPower%nn,1:4))
+    allocate(Cl_lensed(lmin:lmax_lensed,CP%InitPower%nn,1:10))
     
     Cl_Lensed = 0
    
@@ -597,7 +597,7 @@ subroutine CorrFuncFlatSky
 
     thread_ix = 1
     !$ thread_ix = OMP_GET_MAX_THREADS()  
-    allocate(lens_contrib(4,lmax_lensed,thread_ix))
+    allocate(lens_contrib(10,lmax_lensed,thread_ix))
 
     do in = 1, CP%InitPower%nn
 
@@ -614,14 +614,14 @@ subroutine CorrFuncFlatSky
     if (Cphil3(10) > 1e-7) then
      write (*,*) 'You need to normalize realistically to use lensing.'
      write (*,*) 'see http://cosmocoffee.info/viewtopic.php?t=94'
-     stop
+            call MpiStop()
     end if
 
   lens_contrib=0
 
   !$OMP PARALLEL DO DEFAULT(SHARED),  &
   !$OMP PRIVATE(theta, sigmasq,cgl2,b_lo,a0,b0,fac,fac1,fac2), &
-  !$OMP PRIVATE(Bessel0,Bessel2,Bessel4,Bessel6), &
+        !$OMP PRIVATE(Bessel0,Bessel2,Bessel4,Bessel6,Bessel1,Bessel3,Bessel5), &
   !$OMP PRIVATE(corr,expsig,C2term,T2,T4,i,l, thread_ix)     
 
     do i=1,npoints-1
@@ -633,7 +633,7 @@ subroutine CorrFuncFlatSky
      
       do l=lmin,CP%Max_l
 
-!Interpolate the Bessel functions, and compute sigma^2 and C_{gl,2} 
+            !Interpolate the Bessel functions, and compute sigma^2 and C_{gl,2}
         b0 = l*fac
         b_lo = int(b0) +1 
         a0=  b_lo - b0                
@@ -656,18 +656,22 @@ subroutine CorrFuncFlatSky
         Bessel6(l) = a0*Bess6(b_lo)+ b0*Bess6(b_lo+1) +fac1*ddBess6(b_lo) &
                       +fac2*ddBess6(b_lo+1)
 
+            Bessel1(l) = Bessj0(theta*l)
+            Bessel3(l) = Bessj(3,theta*l)
+            Bessel5(l) = Bessj(5,theta*l)            
+            
       end do
 
-!Get difference between lensed and unlensed correlation function
+        !Get difference between lensed and unlensed correlation function
      corr = 0
       do l=lmin,CP%Max_l
-!For 2nd order perturbative result use 
-!         expsig = 1 -sigmasq*l**2/2._dl
-!         C2term = l**2*Cgl2/2._dl
+            !For 2nd order perturbative result use
+            !         expsig = 1 -sigmasq*l**2/2._dl
+            !         C2term = l**2*Cgl2/2._dl
           fac = sigmasq*lfacs(l)
           expsig = exp(-fac) 
           C2term = Cgl2*lfacs(l)
-!Put theta factor later  in here
+            !Put theta factor later  in here
           fac1 = expsig*theta
           fac2 = C2term*fac1
           fac1 = fac1 - theta  !we want expsig-1 to get lensing difference
@@ -687,6 +691,18 @@ subroutine CorrFuncFlatSky
           corr(4) = corr(4) + CTE(l) * &
               (fac1*Bessel2(l) + fac2*(Bessel0(l)+Bessel4(l)))                               
  
+            !chi1
+            corr(5) = corr(5) - CTT(l) * real(l,dl)**3*(fac1*Bessel1(l) + fac2*(Bessel3(l)-Bessel1(l)))
+            !chi3
+            corr(6) = corr(6) + CTT(l) * real(l,dl)**3*(fac1*Bessel3(l) + fac2*(Bessel1(l)+Bessel5(l)))
+            !chi1
+            corr(7) = corr(7) - CEE(l) * real(l,dl)**3*(fac1*Bessel1(l) + fac2*(Bessel3(l)-Bessel1(l)))
+            !chi3
+            corr(8) = corr(8) + CEE(l) * real(l,dl)**3*(fac1*Bessel3(l) + fac2*(Bessel1(l)+Bessel5(l)))
+            !chi1
+            corr(9) = corr(9) - CTE(l) * real(l,dl)**3*(fac1*Bessel1(l) + fac2*(Bessel3(l)-Bessel1(l)))
+            !chi3
+            corr(10) = corr(10) + CTE(l) * real(l,dl)**3*(fac1*Bessel3(l) + fac2*(Bessel1(l)+Bessel5(l)))
 
       end do
 
@@ -703,31 +719,57 @@ subroutine CorrFuncFlatSky
        lens_contrib(CT_B,l,thread_ix)  = lens_contrib(CT_B,l, thread_ix) + T2-T4
        lens_contrib(CT_Cross,l, thread_ix) = lens_contrib(CT_Cross,l, thread_ix) + &
                                               corr(4)*Bessel2(l)
+
+            lens_contrib(5, l, thread_ix)= lens_contrib(5,l, thread_ix) - &
+                corr(5)*Bessel1(l)
+            lens_contrib(6, l, thread_ix)= lens_contrib(6,l, thread_ix) + &
+                corr(6)*Bessel3(l)
+            lens_contrib(7, l, thread_ix)= lens_contrib(7,l, thread_ix) - &
+                corr(7)*Bessel1(l)
+            lens_contrib(8, l, thread_ix)= lens_contrib(8,l, thread_ix) + &
+                corr(8)*Bessel3(l)
+            lens_contrib(9, l, thread_ix)= lens_contrib(9,l, thread_ix) - &
+                corr(9)*Bessel1(l)
+            lens_contrib(10, l, thread_ix)= lens_contrib(10,l, thread_ix) + &
+                corr(10)*Bessel3(l)
+
       end do
 
      end do
   !$OMP END PARALLEL DO
      
+    open(unit=3,file='C:\Work\F90\LensingBiases\LensPostBorn\Cgrads2_outputs.txt', status='replace')
       do l=lmin, lmax_lensed
        fac = l*(l+1)* 2*pi/OutputDenominator*dtheta
        Cl_lensed(l,in,CT_Temp) = sum(lens_contrib(CT_Temp,l,:))*fac &
-                 + Cl_scalar(l,in,CT_Temp) 
+            + Cl_scalar(l,in,C_Temp)
        Cl_lensed(l,in,CT_Cross) = sum(lens_contrib(CT_Cross,l,:))*fac &
                  +Cl_scalar(l,in,C_Cross)
+        Cl_lensed(l,in,5) = sum(lens_contrib(5,l,:))*fac/real(l,dl)**3 + Cl_scalar(l,in,C_Temp)
+        Cl_lensed(l,in,6) = sum(lens_contrib(6,l,:))*fac/real(l,dl)**3+ Cl_scalar(l,in,C_Temp)
+        Cl_lensed(l,in,7) = sum(lens_contrib(7,l,:))*fac/real(l,dl)**3 + Cl_scalar(l,in,CT_E)
+        Cl_lensed(l,in,8) = sum(lens_contrib(8,l,:))*fac/real(l,dl)**3+ Cl_scalar(l,in,CT_E)
+        Cl_lensed(l,in,9) = sum(lens_contrib(9,l,:))*fac/real(l,dl)**3 + Cl_scalar(l,in,C_Cross)
+        Cl_lensed(l,in,10) = sum(lens_contrib(10,l,:))*fac/real(l,dl)**3+ Cl_scalar(l,in,C_Cross)
+
        fac = fac /2 !(factor of 1/2 should have been in T2+/-T4 above           
        Cl_lensed(l,in,CT_E) = sum(lens_contrib(CT_E,l,:))*fac &
                  + Cl_scalar(l,in,CT_E) 
        Cl_lensed(l,in,CT_B) = sum(lens_contrib(CT_B,l,:))*fac
+
+        write(3,'(1I4, 10E15.5)') l, Cl_lensed(l,in,:)*7.42835025e+12
+
       end do
+    close(3)
 
       end do !loop over different initial power spectra
      deallocate(lens_contrib)
 
      if (DebugMsgs) write(*,*) GetTestTime()-timeprev, 'Time for corr lensing'
 
-end subroutine CorrFuncFlatSky
+    end subroutine CorrFuncFlatSky
 
-subroutine BadHarmonic
+    subroutine BadHarmonic
   use ModelParams
   use ModelData
   use lvalues
@@ -748,7 +790,7 @@ subroutine BadHarmonic
 
   real(sp) timeprev
     
-!Otherwise use second order perturbative harmonic method
+    !Otherwise use second order perturbative harmonic method
 
   if (DebugMsgs) timeprev=GetTestTime()
 
@@ -784,7 +826,7 @@ subroutine BadHarmonic
   if (RR(1) > 1e-5) then
      write (*,*) 'You need to normalize realistically to use lensing.'
      write (*,*) 'see http://cosmocoffee.info/viewtopic.php?t=94'
-   stop
+        call MpiStop()
   end if
   if (maxl > lmax_donelnfa) then 
    !Get ln factorials
@@ -957,7 +999,7 @@ subroutine BadHarmonic
         if (FeedbackLevel>0) write(*,*) GetTestTime()-timeprev,' Timing for lensing'
    end if
 
-end subroutine BadHarmonic
+    end subroutine BadHarmonic
 
       subroutine GetBessels(MaxArg)
        real(dl), intent(in):: MaxArg
@@ -976,6 +1018,7 @@ end subroutine BadHarmonic
              deallocate(Bess6,ddBess6)
            end if
            allocate(Bess0(max_bes_ix),ddBess0(max_bes_ix))
+
            allocate(Bess2(max_bes_ix),ddBess2(max_bes_ix))
            allocate(Bess4(max_bes_ix),ddBess4(max_bes_ix))
            allocate(Bess6(max_bes_ix),ddBess6(max_bes_ix))
@@ -1001,7 +1044,7 @@ end subroutine BadHarmonic
 
       end subroutine GetBessels
 
-!Wrap standard built-in F2008 funcitons (appear OK for ifort and gfortran)
+    !Wrap standard built-in F2008 funcitons (appear OK for ifort and gfortran)
 
       FUNCTION bessj0(x)
       real(dl) bessj0,x
@@ -1018,8 +1061,8 @@ end subroutine BadHarmonic
 
       END FUNCTION bessj
 
-! ----------------------------------------------------------------------
-! Auxiliary Bessel functions for N=0, N=1
+    ! ----------------------------------------------------------------------
+    ! Auxiliary Bessel functions for N=0, N=1
       FUNCTION BESSI0(X)
       double precision X,BESSI0,Y,P1,P2,P3,P4,P5,P6,P7,  &
       Q1,Q2,Q3,Q4,Q5,Q6,Q7,Q8,Q9,AX,BX
@@ -1040,7 +1083,7 @@ end subroutine BadHarmonic
       ENDIF
       RETURN
       END FUNCTION BESSI0
-! ----------------------------------------------------------------------
+    ! ----------------------------------------------------------------------
       FUNCTION BESSI1(X)
       double precision X,BESSI1,Y,P1,P2,P3,P4,P5,P6,P7,  &
       Q1,Q2,Q3,Q4,Q5,Q6,Q7,Q8,Q9,AX,BX
@@ -1065,14 +1108,14 @@ end subroutine BadHarmonic
 
       FUNCTION BESSI(N,X)
       !from http://perso.orange.fr/jean-pierre.moreau/Fortran/tbessi_f90.txt
-!
-!     This subroutine calculates the first kind modified Bessel function
-!     of integer order N, for any REAL X. We use here the classical
-!     recursion formula, when X > N. For X < N, the Miller's algorithm
-!     is used to avoid overflows. 
-!     REFERENCE:
-!     C.W.CLENSHAW, CHEBYSHEV SERIES FOR MATHEMATICAL FUNCTIONS,
-!     MATHEMATICAL TABLES, VOL.5, 1962.
+    !
+    !     This subroutine calculates the first kind modified Bessel function
+    !     of integer order N, for any REAL X. We use here the classical
+    !     recursion formula, when X > N. For X < N, the Miller's algorithm
+    !     is used to avoid overflows.
+    !     REFERENCE:
+    !     C.W.CLENSHAW, CHEBYSHEV SERIES FOR MATHEMATICAL FUNCTIONS,
+    !     MATHEMATICAL TABLES, VOL.5, 1962.
       integer, intent(in) :: N
       integer, PARAMETER :: IACC = 40
       integer m,j
@@ -1111,5 +1154,5 @@ end subroutine BadHarmonic
       END FUNCTION BESSI
 
 
-end module lensing
+    end module lensing
 

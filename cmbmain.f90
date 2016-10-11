@@ -120,7 +120,7 @@
 
     Type(ClTransferData), pointer :: ThisCT
 
-    public cmbmain, ALens, ClTransferToCl, InitVars !InitVars for BAO hack
+    public cmbmain, ALens, ClTransferToCl, InitVars, GetTauStart
 
     contains
 
@@ -134,7 +134,7 @@
     WantLateTime =  CP%DoLensing .or. num_redshiftwindows > 0
 
     if (CP%WantCls) then
-        if (CP%WantTensors .and. CP%WantScalars) stop 'CMBMAIN cannot generate tensors and scalars'
+        if (CP%WantTensors .and. CP%WantScalars) call MpiStop('CMBMAIN cannot generate tensors and scalars')
         !Use CAMB_GetResults instead
 
         if (CP%WantTensors) then
@@ -195,8 +195,7 @@
         ThisCT%NumSources = SourceNum
         ThisCT%ls = lSamp
 
-        !$OMP PARAllEl DO DEFAUlT(SHARED),SCHEDUlE(DYNAMIC) &
-        !$OMP & PRIVATE(EV, q_ix)
+        !$OMP PARAllEl DO DEFAUlT(SHARED),SCHEDUlE(DYNAMIC), PRIVATE(EV, q_ix)
         do q_ix= 1,Evolve_q%npoints
             if (global_error_flag==0) call DoSourcek(EV,q_ix)
         end do
@@ -789,7 +788,7 @@
             tautf(itf)=min(TimeOfz(CP%Transfer%redshifts(itf)),CP%tau0)
             if (itf>1) then
                 if (tautf(itf) <= tautf(itf-1)) then
-                    stop 'Transfer redshifts not set or out of order'
+                    call MpiStop('Transfer redshifts not set or out of order')
                 end if
             end if
         end do
@@ -989,7 +988,16 @@
 
     itf=1
     tol1=tol/exp(AccuracyBoost-1)
-    if (CP%WantTransfer .and. CP%Transfer%high_precision) tol1=tol1/100
+    if (CP%WantTransfer) then
+        if  (CP%Transfer%high_precision) tol1=tol1/100
+        do while (itf <= CP%Transfer%num_redshifts .and. TimeSteps%points(2) > tautf(itf))
+            !Just in case someone wants to get the transfer outputs well before recombination
+            call GaugeInterface_EvolveScal(EV,tau,y,tautf(itf),tol1,ind,c,w)
+            if (global_error_flag/=0) return
+            call outtransf(EV,y, tau, MT%TransferData(:,EV%q_ix,itf))
+            itf = itf+1
+        end do
+    end if
 
     do j=2,TimeSteps%npoints
         tauend=TimeSteps%points(j)
@@ -1126,10 +1134,8 @@
     if (DebugMsgs .and. Feedbacklevel > 0) &
     write(*,*) MT%num_q_trans-Evolve_q%npoints, 'transfer k values'
 
-    !$OMP PARAllEl DO DEFAUlT(SHARED),SCHEDUlE(DYNAMIC) &
-    !$OMP & PRIVATE(EV, tau, q_ix)
-
     !     loop over wavenumbers.
+    !$OMP PARALLEL DO DEFAUlT(SHARED),SCHEDUlE(DYNAMIC), PRIVATE(EV, tau, q_ix)
     do q_ix=Evolve_q%npoints+1,MT%num_q_trans
         EV%TransferOnly=.true. !in case we want to do something to speed it up
 
@@ -1185,7 +1191,7 @@
 
     call NonLinear_GetNonLinRatios(CAMB_PK)
 
-    if (CP%InitPower%nn > 1) stop 'Non-linear lensing only does one initial power'
+    if (CP%InitPower%nn > 1) call MpiStop('Non-linear lensing only does one initial power')
 
     first_step=1
     do while(TimeSteps%points(first_step) < tautf(1))
