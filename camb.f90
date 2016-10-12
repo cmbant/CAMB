@@ -441,7 +441,6 @@
                 P%Nu_mass_numbers(1) = P%Num_Nu_Massive
                 P%Nu_mass_eigenstates = 1
                 P%Nu_mass_fractions(1) = normal_frac
-                P%Nu_mass_numbers(1) = 1                
             end if
         end if
     else
