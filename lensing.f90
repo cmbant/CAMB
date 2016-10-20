@@ -190,7 +190,7 @@
     end do
     do l=2,lmax
         theta_cut(l) = 0.244949_dl/sqrt(3._dl*lfacs(l) - 8._dl)
-    end if
+    end do
 
     roots(-1)=0 !just so dipole doesn't screw up
     do l=0,lmax+4
