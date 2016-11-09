@@ -525,11 +525,10 @@
     integer :: npoints
     real(dl) Cgl2,  sigmasq, theta
     real(dl) dtheta
-    real(dl) dbessfac, fac, fac1,fac2,  C2term, expsig, corr(10)
+    real(dl) dbessfac, fac, fac1,fac2,  C2term, expsig, corr(4)
     real(sp) timeprev
     real(dl) Bessel0(lmin:CP%Max_l),Bessel2(lmin:CP%Max_l)
     real(dl) Bessel4(lmin:CP%Max_l),Bessel6(lmin:CP%Max_l)
-    real(dl) Bessel1(lmin:CP%Max_l),Bessel3(lmin:CP%Max_l),Bessel5(lmin:CP%Max_l)
     real(dl) Cphil3(lmin:CP%Max_l), CTT(lmin:CP%Max_l), CTE(lmin:CP%Max_l),CEE(lmin:CP%Max_l)
     integer max_lensed_ix
     integer b_lo
@@ -541,7 +540,7 @@
     !$ integer OMP_GET_THREAD_NUM, OMP_GET_MAX_THREADS
     !$ external OMP_GET_THREAD_NUM, OMP_GET_MAX_THREADS
 
-    if (lensing_includes_tensors) call MpiStop('Haven''t implemented tensor lensing')
+    if (lensing_includes_tensors) stop 'Haven''t implemented tensor lensing'
 
     max_lensed_ix = lSamp%l0-1
     do while(lSamp%l(max_lensed_ix) > CP%Max_l -250)
@@ -549,7 +548,7 @@
     end do
     lmax_lensed = lSamp%l(max_lensed_ix)
     if (allocated(Cl_lensed)) deallocate(Cl_lensed)
-    allocate(Cl_lensed(lmin:lmax_lensed,CP%InitPower%nn,1:10))
+    allocate(Cl_lensed(lmin:lmax_lensed,CP%InitPower%nn,1:4))
 
     Cl_Lensed = 0
 
@@ -571,7 +570,7 @@
 
     thread_ix = 1
     !$ thread_ix = OMP_GET_MAX_THREADS()
-    allocate(lens_contrib(10,lmax_lensed,thread_ix))
+    allocate(lens_contrib(4,lmax_lensed,thread_ix))
 
     do in = 1, CP%InitPower%nn
 
@@ -588,14 +587,14 @@
         if (Cphil3(10) > 1e-7) then
             write (*,*) 'You need to normalize realistically to use lensing.'
             write (*,*) 'see http://cosmocoffee.info/viewtopic.php?t=94'
-            call MpiStop()
+            stop
         end if
 
         lens_contrib=0
 
         !$OMP PARALLEL DO DEFAULT(SHARED),  &
         !$OMP PRIVATE(theta, sigmasq,cgl2,b_lo,a0,b0,fac,fac1,fac2), &
-        !$OMP PRIVATE(Bessel0,Bessel2,Bessel4,Bessel6,Bessel1,Bessel3,Bessel5), &
+        !$OMP PRIVATE(Bessel0,Bessel2,Bessel4,Bessel6), &
         !$OMP PRIVATE(corr,expsig,C2term,T2,T4,i,l, thread_ix)
 
         do i=1,npoints-1
@@ -630,10 +629,6 @@
             Bessel6(l) = a0*Bess6(b_lo)+ b0*Bess6(b_lo+1) +fac1*ddBess6(b_lo) &
                 +fac2*ddBess6(b_lo+1)
 
-            Bessel1(l) = Bessj0(theta*l)
-            Bessel3(l) = Bessj(3,theta*l)
-            Bessel5(l) = Bessj(5,theta*l)
-
         end do
 
         !Get difference between lensed and unlensed correlation function
@@ -665,18 +660,6 @@
             corr(4) = corr(4) + CTE(l) * &
                 (fac1*Bessel2(l) + fac2*(Bessel0(l)+Bessel4(l)))
 
-            !chi1
-            corr(5) = corr(5) - CTT(l) * real(l,dl)**3*(fac1*Bessel1(l) + fac2*(Bessel3(l)-Bessel1(l)))
-            !chi3
-            corr(6) = corr(6) + CTT(l) * real(l,dl)**3*(fac1*Bessel3(l) + fac2*(Bessel1(l)+Bessel5(l)))
-            !chi1
-            corr(7) = corr(7) - CEE(l) * real(l,dl)**3*(fac1*Bessel1(l) + fac2*(Bessel3(l)-Bessel1(l)))
-            !chi3
-            corr(8) = corr(8) + CEE(l) * real(l,dl)**3*(fac1*Bessel3(l) + fac2*(Bessel1(l)+Bessel5(l)))
-            !chi1
-            corr(9) = corr(9) - CTE(l) * real(l,dl)**3*(fac1*Bessel1(l) + fac2*(Bessel3(l)-Bessel1(l)))
-            !chi3
-            corr(10) = corr(10) + CTE(l) * real(l,dl)**3*(fac1*Bessel3(l) + fac2*(Bessel1(l)+Bessel5(l)))
 
         end do
 
@@ -693,48 +676,22 @@
             lens_contrib(CT_B,l,thread_ix)  = lens_contrib(CT_B,l, thread_ix) + T2-T4
             lens_contrib(CT_Cross,l, thread_ix) = lens_contrib(CT_Cross,l, thread_ix) + &
                 corr(4)*Bessel2(l)
-
-            lens_contrib(5, l, thread_ix)= lens_contrib(5,l, thread_ix) - &
-                corr(5)*Bessel1(l)
-            lens_contrib(6, l, thread_ix)= lens_contrib(6,l, thread_ix) + &
-                corr(6)*Bessel3(l)
-            lens_contrib(7, l, thread_ix)= lens_contrib(7,l, thread_ix) - &
-                corr(7)*Bessel1(l)
-            lens_contrib(8, l, thread_ix)= lens_contrib(8,l, thread_ix) + &
-                corr(8)*Bessel3(l)
-            lens_contrib(9, l, thread_ix)= lens_contrib(9,l, thread_ix) - &
-                corr(9)*Bessel1(l)
-            lens_contrib(10, l, thread_ix)= lens_contrib(10,l, thread_ix) + &
-                corr(10)*Bessel3(l)
-
         end do
 
     end do
     !$OMP END PARALLEL DO
 
-    open(unit=3,file='C:\Work\F90\LensingBiases\LensPostBorn\Cgrads2_outputs.txt', status='replace')
     do l=lmin, lmax_lensed
         fac = l*(l+1)* 2*pi/OutputDenominator*dtheta
         Cl_lensed(l,in,CT_Temp) = sum(lens_contrib(CT_Temp,l,:))*fac &
-            + Cl_scalar(l,in,C_Temp)
+            + Cl_scalar(l,in,CT_Temp)
         Cl_lensed(l,in,CT_Cross) = sum(lens_contrib(CT_Cross,l,:))*fac &
             +Cl_scalar(l,in,C_Cross)
-        Cl_lensed(l,in,5) = sum(lens_contrib(5,l,:))*fac/real(l,dl)**3 + Cl_scalar(l,in,C_Temp)
-        Cl_lensed(l,in,6) = sum(lens_contrib(6,l,:))*fac/real(l,dl)**3+ Cl_scalar(l,in,C_Temp)
-        Cl_lensed(l,in,7) = sum(lens_contrib(7,l,:))*fac/real(l,dl)**3 + Cl_scalar(l,in,CT_E)
-        Cl_lensed(l,in,8) = sum(lens_contrib(8,l,:))*fac/real(l,dl)**3+ Cl_scalar(l,in,CT_E)
-        Cl_lensed(l,in,9) = sum(lens_contrib(9,l,:))*fac/real(l,dl)**3 + Cl_scalar(l,in,C_Cross)
-        Cl_lensed(l,in,10) = sum(lens_contrib(10,l,:))*fac/real(l,dl)**3+ Cl_scalar(l,in,C_Cross)
-
         fac = fac /2 !(factor of 1/2 should have been in T2+/-T4 above
         Cl_lensed(l,in,CT_E) = sum(lens_contrib(CT_E,l,:))*fac &
             + Cl_scalar(l,in,CT_E)
         Cl_lensed(l,in,CT_B) = sum(lens_contrib(CT_B,l,:))*fac
-
-        write(3,'(1I4, 10E15.5)') l, Cl_lensed(l,in,:)*7.42835025e+12
-
     end do
-    close(3)
 
     end do !loop over different initial power spectra
     deallocate(lens_contrib)
