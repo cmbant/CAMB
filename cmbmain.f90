@@ -2199,7 +2199,8 @@
                                         if (CTrans%limber_l_min(w_ix2)/= 0 .and. j>=CTrans%limber_l_min(w_ix2)) cycle
                                     end if
                                     Delta2=  CTrans%Delta_p_l_k(w_ix2,j,q_ix)
-                                    if (w_ix2 == 2.or. w_ix2<=nscatter*2+1 .and. w_ix2>3 .and. mod(w_ix2-3,2)==0 ) Delta2=Delta2*ctnorm
+                                    if (w_ix2 == 2.or. w_ix2<=nscatter*2+1 .and. w_ix2>3 .and. mod(w_ix2-3,2)==0 ) &
+                                     Delta2=Delta2*ctnorm
                                     iCl_Array(j,w_ix,w_ix2,pix) = iCl_Array(j,w_ix,w_ix2,pix)+Delta1*Delta2*apowers*dlnk*dbletmp
                                 end do
                             end do
@@ -2368,7 +2369,8 @@
                 do f1=1,num_cmb_freq
                     do f2=1,num_cmb_freq
                     iCl_tensor_array(j,CT_Temp:CT_B,in,f1,f2) = iCl_tensor_array(j,CT_Temp:CT_B,in,f1,f2) + &
-                    apowert*CTrans%Delta_p_l_k(CT_Temp+(f1)*3:CT_B+(f1)*3,j,q_ix)*CTrans%Delta_p_l_k(CT_Temp+(f2)*3:CT_B+(f2)*3,j,q_ix)*measure
+                    apowert*CTrans%Delta_p_l_k(CT_Temp+(f1)*3:CT_B+(f1)*3,j,q_ix)* &
+                        CTrans%Delta_p_l_k(CT_Temp+(f2)*3:CT_B+(f2)*3,j,q_ix)*measure
 
                     iCl_tensor_array(j,CT_cross, in,f1,f2) = iCl_tensor_array(j,CT_cross, in,f1,f2 ) &
                     +apowert*CTrans%Delta_p_l_k(CT_Temp+f1*3,j,q_ix)*CTrans%Delta_p_l_k(CT_E+f2*3,j,q_ix)*measure
@@ -2464,7 +2466,8 @@
                         if (i<3 .and. j<3) then
                             Cl_scalar_array(:,in,i,j) = Cl_scalar(:, in, ind(i,j))
                         else
-                            if (i<=3+num_cmb_freq*2 .and. j<=3+num_cmb_freq*2 .and. i>3 .and. j>3 .and. (i<=5 .and. j<=5 .or. .not. rayleigh_diff)) then
+                            if (i<=3+num_cmb_freq*2 .and. j<=3+num_cmb_freq*2 .and. i>3 .and. j>3 &
+                                .and. (i<=5 .and. j<=5 .or. .not. rayleigh_diff)) then
                                 call InterpolateClArrTemplated(CTransS%ls,iCl_array(1,i,j,in),Cl_scalar_array(lmin, in, i,j), &
                                 CTransS%ls%l0,ind(1+mod(i-4,2),1+mod(j-4,2)))
                             else
@@ -2492,7 +2495,8 @@
             do f1=1,num_cmb_freq
                 do f2=1,num_cmb_freq
                     do i = CT_Temp, CT_Cross
-                        call InterpolateClArr(CTransT%ls,iCl_tensor_array(1,i,in,f1,f2),Cl_tensor_freqs(lmin, in, i, f1,f2), CTransT%ls%l0)
+                        call InterpolateClArr(CTransT%ls,iCl_tensor_array(1,i,in,f1,f2), &
+                          Cl_tensor_freqs(lmin, in, i, f1,f2), CTransT%ls%l0)
                     end do
                 end do
             end do

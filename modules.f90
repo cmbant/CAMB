@@ -1159,7 +1159,8 @@
         Cl_scalar = 0
         if (has_cl_2D_array) then
             if (allocated(Cl_scalar_array)) deallocate(Cl_scalar_array)
-            allocate(Cl_scalar_Array(lmin:CP%Max_l, CP%InitPower%nn, 3+num_redshiftwindows+num_cmb_freq*2,3+num_redshiftwindows+num_cmb_freq*2))
+            allocate(Cl_scalar_Array(lmin:CP%Max_l, CP%InitPower%nn, 3+num_redshiftwindows+num_cmb_freq*2,&
+                3+num_redshiftwindows+num_cmb_freq*2))
             Cl_scalar_array = 0
         end if
     end if
@@ -1290,12 +1291,12 @@
         end do
         close(unit)
         if (num_cmb_freq>0) then
-            open(unit=unit,file=trim(TensFile)//'_freqs',form='formatted',status='replace')
+            open(newunit=unit,file=trim(TensFile)//'_freqs',form='formatted',status='replace')
             write(unit,'('//trim(IntToStr(num_cmb_freq))//'E15.5)') phot_freqs
             close(unit)
             do f_i_1=1,num_cmb_freq
                 do f_i_2=1,num_cmb_freq
-                    open(unit=unit,file=trim(TensFile)//trim(concat('_',f_i_1,'_',f_i_2)),form='formatted',status='replace')
+                    open(newunit=unit,file=trim(TensFile)//trim(concat('_',f_i_1,'_',f_i_2)),form='formatted',status='replace')
                     do in=1,CP%InitPower%nn
                         do il=lmin, CP%Max_l_tensor
                             write(unit,'(1I6,4E15.5)')il, fact*Cl_tensor_freqs(il, in, CT_Temp:CT_Cross,f_i_1,f_i_2)
@@ -2991,13 +2992,15 @@
         call CreateTxtFile('c:\tmp\planck\rayleigh\fixed\visibilities_tot.txt',1)
         do j1=1,nthermo !!!!
             tau = tauminn*exp((j1-1)*dlntau)
-            write(1,'(9E15.5)') tau, scaleFactor(j1), dotmu(j1,1)*scaleFactor(j1)**2/akthom, real(emmu(j1,1)*dotmu(j1,1)),real(emmu(j1,3:7)*emmu(j1,1)*dotmu(j1,3:7))
+            write(1,'(9E15.5)') tau, scaleFactor(j1), dotmu(j1,1)*scaleFactor(j1)**2/akthom, &
+                 real(emmu(j1,1)*dotmu(j1,1)),real(emmu(j1,3:7)*emmu(j1,1)*dotmu(j1,3:7))
         end do
         close(1)
         call CreateTxtFile('c:\tmp\planck\rayleigh\fixed\taudot_tot.txt',1)
         do j1=1,nthermo !!!!
             tau = tauminn*exp((j1-1)*dlntau)
-            write(1,'(14E15.5)') tau, scaleFactor(j1), dotmu(j1,1)*scaleFactor(j1)**2/akthom, real(dotmu(j1,1)),real(dotmu(j1,3:7)),real(emmu(j1,3:7))
+            write(1,'(14E15.5)') tau, scaleFactor(j1), dotmu(j1,1)*scaleFactor(j1)**2/akthom, &
+             real(dotmu(j1,1)),real(dotmu(j1,3:7)),real(emmu(j1,3:7))
         end do
         close(1)
         stop
@@ -3187,7 +3190,8 @@
         deallocate(vis,dvis,ddvis,expmmu,dopac, opac)
         if (dowinlens) deallocate(lenswin)
     end if
-    allocate(vis(nstep,nscatter),dvis(nstep,nscatter),ddvis(nstep,nscatter),expmmu(nstep,nscatter),dopac(nstep,nscatter),opac(nstep,nscatter))
+    allocate(vis(nstep,nscatter),dvis(nstep,nscatter),ddvis(nstep,nscatter),expmmu(nstep,nscatter),&
+        dopac(nstep,nscatter),opac(nstep,nscatter))
     if (dowinlens) allocate(lenswin(nstep))
 
     if (DebugMsgs .and. FeedbackLevel > 0) write(*,*) 'Set ',nstep, ' time steps'
