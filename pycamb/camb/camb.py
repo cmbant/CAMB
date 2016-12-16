@@ -456,7 +456,7 @@ class CAMBdata(object):
         return P
 
     def get_cmb_correlation_functions(self, params=None, lmax=None, spectrum='lensed_scalar',
-                                      xvals=None, accuracy_factor=1):
+                                      xvals=None, sampling_factor=1):
         """
         Get the CMB correlation functions from the power spectra.
         By default evaluated at points cos(theta) = xvals that are roots of Legendre polynomials,
@@ -469,8 +469,8 @@ class CAMBdata(object):
         :param spectrum: type of CMB power spectrum to get; default 'lensed_scalar', one of
           ['total', 'unlensed_scalar', 'unlensed_total', 'lensed_scalar', 'tensor']
         :param xvals: optional array of cos(theta) values at which to calculate correlation function.
-        :param accuracy_factor: multiple of lmax for the Gauss-Legendre order if xvals not given (default 1)
-        :return: if xvals=None, corrs, vals, weights; if xvals specified, just corrs
+        :param sampling_factor: multiple of lmax for the Gauss-Legendre order if xvals not given (default 1)
+        :return: if xvals not given: corrs, xvals, weights; if xvals specified, just corrs.
           corrs is 2D array corrs[i, ix], where ix=0,1,2,3 are T, Q+U, Q-U and cross, and i indexes xvals
         """
 
@@ -478,9 +478,9 @@ class CAMBdata(object):
             raise ValueError('Can only get CMB correlation functions for known CMB spectrum')
         from . import correlations
 
-        cls = self.get_cmb_power_spectra(params,lmax, spectra=[spectrum])[spectrum]
+        cls = self.get_cmb_power_spectra(params, lmax, spectra=[spectrum])[spectrum]
         if xvals is None:
-            return correlations.gauss_legendre_correlation(cls, accuracy_factor=accuracy_factor)
+            return correlations.gauss_legendre_correlation(cls, sampling_factor=sampling_factor)
         else:
             return correlations.cl2corr(cls, xvals, lmax=lmax)
 

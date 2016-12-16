@@ -84,7 +84,7 @@ def cl2corr(cls, xvals, lmax=None):
     return corrs
 
 
-def gauss_legendre_correlation(cls, lmax=None, accuracy_factor=1):
+def gauss_legendre_correlation(cls, lmax=None, sampling_factor=1):
     """
     Transform power specturm cls into correlation functions evaluated at the
     roots of the Legendre polynomials for Gauss-Legendre quadrature. Returns correlation function array,
@@ -93,12 +93,12 @@ def gauss_legendre_correlation(cls, lmax=None, accuracy_factor=1):
 
     :param cls: 2D array cls(L,ix), with L starting at zero and ix-0,1,2,3 in order TT, EE, BB, TE.
     :param lmax: optional maximum L to use
-    :param accuracy_factor: uses Gauss-Legendre with degree lmax*accuracy_factor+1
+    :param sampling_factor: uses Gauss-Legendre with degree lmax*sampling_factor+1
     :return: corrs, xvals, weights; corrs[i, ix] is 2D array where ix=0,1,2,3 are T, Q+U, Q-U and cross
     """
 
     if lmax is None: lmax = cls.shape[0] - 1
-    xvals, weights = np.polynomial.legendre.leggauss(accuracy_factor * lmax + 1)
+    xvals, weights = np.polynomial.legendre.leggauss(sampling_factor * lmax + 1)
     return cl2corr(cls, xvals, lmax), xvals, weights
 
 
