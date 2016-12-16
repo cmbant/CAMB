@@ -4,7 +4,10 @@ and vice versa (corr2cl). These are all pure python/scipy.
 """
 
 import numpy as np
-from scipy.special import lpn as legendreP
+import os
+
+if not os.environ.get('READTHEDOCS', None):
+    from scipy.special import lpn as legendreP
 
 
 def legendre_funcs(lmax, x, lfacs=None, lfacs2=None, lrootfacs=None):
