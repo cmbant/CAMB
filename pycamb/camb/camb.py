@@ -455,6 +455,35 @@ class CAMBdata(object):
             P[spectrum] = getattr(self, 'get_' + spectrum + '_cls')(lmax)
         return P
 
+    def get_cmb_correlation_functions(self, params=None, lmax=None, spectrum='lensed_scalar',
+                                      xvals=None, accuracy_factor=1):
+        """
+        Get the CMB correlation functions from the power spectra.
+        By default evaluated at points cos(theta) = xvals that are roots of Legendre polynomials,
+        for accurate back integration with :func:`.correlations.corr2cl`.
+        If xvals is explicitly given, instead calculates correlations at provided cos(theta) values.
+
+        :param params: optional :class:`.model.CAMBparams` instance with parameters to use. If None, must have
+          previously set parameters and called `calc_power_spectra` (e.g. if you got this instance using `camb.get_results`),
+        :param lmax: optional maximum L to use from the cls arrays
+        :param spectrum: type of CMB power spectrum to get; default 'lensed_scalar', one of
+          ['total', 'unlensed_scalar', 'unlensed_total', 'lensed_scalar', 'tensor']
+        :param xvals: optional array of cos(theta) values at which to calculate correlation function.
+        :param accuracy_factor: multiple of lmax for the Gauss-Legendre order if xvals not given (default 1)
+        :return: if xvals=None, corrs, vals, weights; if xvals specified, just corrs
+          corrs is 2D array corrs[i, ix], where ix=0,1,2,3 are T, Q+U, Q-U and cross, and i indexes xvals
+        """
+
+        if not spectrum in ['total', 'unlensed_scalar', 'unlensed_total', 'lensed_scalar', 'tensor']:
+            raise ValueError('Can only get CMB correlation functions for known CMB spectrum')
+        from . import correlations
+
+        cls = self.get_cmb_power_spectra(params,lmax, spectra=[spectrum])[spectrum]
+        if xvals is None:
+            return correlations.gauss_legendre_correlation(cls, accuracy_factor=accuracy_factor)
+        else:
+            return correlations.cl2corr(cls, xvals, lmax=lmax)
+
     def get_cmb_transfer_data(self, tp='scalar'):
         """
         Get C_l transfer functions
