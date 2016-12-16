@@ -57,7 +57,7 @@ else:
             return 1
 
 
-    MOCK_MODULES = ['numpy', 'numpy.ctypeslib', 'ctypes']
+    MOCK_MODULES = ['numpy', 'numpy.ctypeslib', 'ctypes', 'scipy']
     sys.modules.update((mod_name, Mock()) for mod_name in MOCK_MODULES)
     camblib = Mock()
     Structure = object
