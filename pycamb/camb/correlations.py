@@ -55,6 +55,7 @@ def cl2corr(cls, xvals, lmax=None):
     Note currently does not work at xvals=1 (can easily calculate that as special case!).
 
     :param cls: 2D array cls(L,ix), with L starting at zero and ix-0,1,2,3 in order TT, EE, BB, TE.
+        cls should include l(l+1)/2pi factors.
     :param xvals: array of cos(theta) values at which to calculate correlation function.
     :param lmax: optional maximum L to use from the cls arrays
     :return: 2D array of corrs[i, ix], where ix=0,1,2,3 are T, Q+U, Q-U and cross
@@ -64,14 +65,17 @@ def cl2corr(cls, xvals, lmax=None):
     xvals = np.asarray(xvals)
     ls = np.arange(0, lmax + 1, dtype=np.float64)
     corrs = np.zeros((len(xvals), 4))
-    facs = (2 * ls + 1) / (4 * np.pi)
+    lfacs = ls * (ls + 1)
+    lfacs[0] = 1
+    facs = (2 * ls + 1) / (4 * np.pi) * 2 * np.pi / lfacs
+
     ct = facs * cls[:lmax + 1, 0]
     # For polarization, all arrays start at 2
     cp = facs[2:] * (cls[2:lmax + 1, 1] + cls[2:lmax + 1, 2])
     cm = facs[2:] * (cls[2:lmax + 1, 1] - cls[2:lmax + 1, 2])
     cc = facs[2:] * cls[2:lmax + 1, 3]
     ls = ls[2:]
-    lfacs = ls * (ls + 1)
+    lfacs = lfacs[2:]
     lfacs2 = (ls + 2) * (ls - 1)
     lrootfacs = np.sqrt(lfacs * lfacs2)
     for i, x in enumerate(xvals):
@@ -89,9 +93,10 @@ def gauss_legendre_correlation(cls, lmax=None, sampling_factor=1):
     Transform power specturm cls into correlation functions evaluated at the
     roots of the Legendre polynomials for Gauss-Legendre quadrature. Returns correlation function array,
     evaluation points and weights.
-    Result can be passed to corr2cl for accurate back transform (except possibly low L BB)
+    Result can be passed to corr2cl for accurate back transform.
 
     :param cls: 2D array cls(L,ix), with L starting at zero and ix-0,1,2,3 in order TT, EE, BB, TE.
+     Should include l*(l+1)/2pi factors.
     :param lmax: optional maximum L to use
     :param sampling_factor: uses Gauss-Legendre with degree lmax*sampling_factor+1
     :return: corrs, xvals, weights; corrs[i, ix] is 2D array where ix=0,1,2,3 are T, Q+U, Q-U and cross
@@ -107,13 +112,13 @@ def corr2cl(corrs, xvals, weights, lmax):
     Transform from correlation functions to power spectra.
     Note that using cl2corr followed by corr2cl is generally very accurate (< 1e-5 relative error) if
     xvals, weights = np.polynomial.legendre.leggauss(lmax+1)
-    But may be much larger errors in BB at very low L. Use np.polynomial.legendre.leggauss(>=2*lmax) for good accuracy there.
 
     :param corrs: 2D array, corrs[i, ix], where ix=0,1,2,3 are T, Q+U, Q-U and cross
     :param xvals: values of cos(theta) at which corrs stores values
     :param weights: weights for integrating each point in xvals. Typically from np.polynomial.legendre.leggauss
     :param lmax: maximum L to calculate CL
     :return: array of power spectra, cl[L, ix], where L starts at zero and ix-0,1,2,3 in order TT, EE, BB, TE.
+      They include l(l+1)/2pi factors.
     """
     # For polarization, all arrays start at 2
     ls = np.arange(2, lmax + 1, dtype=np.float64)
@@ -130,5 +135,7 @@ def corr2cl(corrs, xvals, weights, lmax):
         cls[2:, 2] += T2 - T4
         cls[2:, 3] += (weight * corrs[i, 3]) * d20
 
-    cls *= 2 * np.pi
+    cls[1, :] *= 2
+    cls[2:,:] = (cls[2:, :].T * lfacs).T
+
     return cls
