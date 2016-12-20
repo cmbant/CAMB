@@ -129,7 +129,7 @@ def gauss_legendre_correlation(cls, lmax=None, sampling_factor=1):
     """
 
     if lmax is None: lmax = cls.shape[0] - 1
-    xvals, weights = np.polynomial.legendre.leggauss(sampling_factor * lmax + 1)
+    xvals, weights = np.polynomial.legendre.leggauss(int(sampling_factor * lmax) + 1)
     return cl2corr(cls, xvals, lmax), xvals, weights
 
 
@@ -194,7 +194,8 @@ def lensing_correlations(clpp, xvals, lmax=None):
     return sigmasq, Cg2
 
 
-def lensed_correlations(cls, clpp, xvals, weights=None, lmax=None, delta=False):
+def lensed_correlations(cls, clpp, xvals, weights=None, lmax=None, delta=False, theta_max=None,
+                        apodize_point_width=10):
     """
     Get the lensed correlation function from the unlensed power spectra, evaluated at points cos(theta) = xvals.
     Use roots of Legendre polynomials (np.polynomial.legendre.leggauss) for accurate back integration with corr2cl.
@@ -212,6 +213,7 @@ def lensed_correlations(cls, clpp, xvals, weights=None, lmax=None, delta=False):
     :param weights: if given also return lensed Cls, otherwise just lensed correlations
     :param lmax: optional maximum L to use from the cls arrays
     :param delta: if true, calculate the difference between lensed and unlensed (default False)
+    :param theta_max: maximum angle (in radians) to keep in the correlation functions
     :return: 2D array of corrs[i, ix], where ix=0,1,2,3 are T, Q+U, Q-U and cross;
         if weights is not None, then return corrs, lensed_cls
     """
@@ -219,11 +221,10 @@ def lensed_correlations(cls, clpp, xvals, weights=None, lmax=None, delta=False):
     if lmax is None: lmax = cls.shape[0] - 1
     xvals = np.asarray(xvals)
     ls = np.arange(0, lmax + 1, dtype=np.float64)
-    corrs = np.zeros((len(xvals), 4))
     lfacs = ls * (ls + 1)
     lfacsall = lfacs.copy()
     lfacs[0] = 1
-    cldd = clpp[1:] / lfacs[1:]
+    cldd = clpp[1:lmax + 1] / lfacs[1:]
     cphil3 = (2 * ls[1:] + 1) * cldd / 2  # (2*l+1)l(l+1)/4pi C_phi_phi
     facs = (2 * ls + 1) / (4 * np.pi) * 2 * np.pi / lfacs
 
@@ -247,7 +248,15 @@ def lensed_correlations(cls, clpp, xvals, weights=None, lmax=None, delta=False):
     else:
         delta_diff = 0
 
-    for i, x in enumerate(xvals):
+    if theta_max is not None:
+        xmin = np.cos(theta_max)
+        imin = np.searchsorted(xvals, xmin)  # assume xvals sorted
+    else:
+        imin = 0
+
+    corrs = np.zeros((len(xvals[imin:]), 4))
+
+    for i, x in enumerate(xvals[imin:]):
         (P, dP), (d11, dm11), (d20, d22, d2m2) = legendre_funcs(lmax, x, [0, 1, 2], lfacs, lfacs2,
                                                                 lrootfacs)
         sigma2 = np.dot(1 - d11, cphil3)
@@ -292,7 +301,10 @@ def lensed_correlations(cls, clpp, xvals, weights=None, lmax=None, delta=False):
                                                        + np.dot(f[1:], c2fac[2:] * d1m3)) / 2 \
                       + (3 * np.dot(f, c2fac2 * d20) + np.dot(f[2:], c2fac2[2:] * d2m4)) / 8
         if weights is not None:
-            weight = weights[i]
+            weight = weights[i + imin]
+            if theta_max is not None and i < apodize_point_width * 4:
+                weight *= 1 - np.exp(-((i + 1.) / apodize_point_width) ** 2 / 2)
+
             lensedcls[:, 0] += (weight * corrs[i, 0]) * P
             T2 = (corrs[i, 1] * weight / 2) * d22
             T4 = (corrs[i, 2] * weight / 2) * d2m2
@@ -308,26 +320,59 @@ def lensed_correlations(cls, clpp, xvals, weights=None, lmax=None, delta=False):
         return corrs
 
 
-def lensed_cls(cls, clpp, lmax=None, lmax_lensed=None, sampling_factor=1, delta_cls=False):
+_gauss_legendre_cache = {}
+
+
+def lensed_cls(cls, clpp, lmax=None, lmax_lensed=None, sampling_factor=1.4, delta_cls=False,
+               theta_max=np.pi / 32, apodize_point_width=10, leggaus=True, cache=True):
     """
     Get the lensed power spectra from the unlensed power spectra and the lensing potential power.
     Uses the non-perturbative curved-sky results from Eqs 9.12 and 9.16-9.18 of astro-ph/0601594, to second order in C_{gl,2}.
-    Correlations are calculated for Gauss-Legendre integration, function is reasonably fast but intended to be
-    reference implementation rather than optimized (getting lensed cls directly from CAMB is much faster).
+
+    Correlations are calculated for Gauss-Legendre integration if leggaus=True; this slows it by several seconds,
+    but will be must faster on subsequent calls with the same lmax*sampling_factor.
+    If Gauss-Legendre is not used, sampling_factor needs to be about 2 times larger for same accuracy.
+
+    For a reference implementation with the full integral range and no apodization set theta_max=None.
+
+    Note that this function does not pad high L with a smooth fit (like CAMB's main functions); for accurate results
+    should be called with lmax high enough that input cls are effectively band limited
+    (lmax >= 2500, or higher for accurate BB to small scales).
+    Usually lmax truncation errors are far larger than other numerical errors for lmax<4000.
 
     :param cls: 2D array of unlensed cls(L,ix), with L starting at zero and ix-0,1,2,3 in order TT, EE, BB, TE.
         cls should include l(l+1)/2pi factors.
     :param clpp: array of [l(l+1)]^2 C_phi_phi/2/pi lensing potential power spectrum (zero based)
     :param lmax: optional maximum L to use from the cls arrays
     :param lmax_lensed: optional maximum L for the returned cl array (lmax_lensed <= lmax)
-    :param sampling_factor: factor by which to oversample Gauss-Legendre points, default 1 (which is very accurate)
+    :param sampling_factor: npoints = int(sampling_factor*lmax)+1
     :param delta_cls: if true, return the difference between lensed and unlensed (optional, default False)
+    :param theta_max: maximum angle (in radians) to keep in the correlation functions
+    :param apodize_point_width: if theta_max is set, apodize around the cut using half Gaussian of approx
+        width apodize_point_width/lmax*pi
+    :param leggaus: whether to use Gauss-Legendre integration (default True)
+    :param cache: if leggaus = True, set cache to save the points and x values between calls (most of the time)
     :return: 2D array of cls[L, ix], with L starting at zero and ix-0,1,2,3 in order TT, EE, BB, TE.
         cls include l(l+1)/2pi factors.
     """
     if lmax is None: lmax = cls.shape[0] - 1
-    xvals, weights = np.polynomial.legendre.leggauss(sampling_factor * lmax + 1)
-    _, lensedcls = lensed_correlations(cls, clpp, xvals, weights, lmax, delta=delta_cls)
+    npoints = int(sampling_factor * lmax) + 1
+    if leggaus:
+        if cache and npoints in _gauss_legendre_cache:
+            xvals, weights = _gauss_legendre_cache[npoints]
+        else:
+            xvals, weights = np.polynomial.legendre.leggauss(npoints)
+            if cache:
+                _gauss_legendre_cache[npoints] = xvals, weights
+    else:
+        theta = np.arange(1, npoints + 1) * np.pi / (npoints + 1)
+        xvals = np.cos(theta[::-1])
+        weights = np.pi / npoints * np.sin(theta)
+    _, lensedcls = lensed_correlations(cls, clpp, xvals, weights, lmax, delta=True,
+                                       theta_max=theta_max,
+                                       apodize_point_width=int(apodize_point_width * sampling_factor))
+    if not delta_cls:
+        lensedcls += cls[:lmax + 1, :]
     if lmax_lensed is not None:
         return lensedcls[:lmax_lensed + 1, :]
     else:
