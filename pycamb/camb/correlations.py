@@ -16,10 +16,8 @@ import os
 
 if not os.environ.get('READTHEDOCS', None):
     from scipy.special import lpn as legendreP
-
-    _pi = np.pi
 else:
-    _pi = "np.pi"
+    np.pi = 3.1415927
 
 
 def legendre_funcs(lmax, x, m=[0, 2], lfacs=None, lfacs2=None, lrootfacs=None):
@@ -328,7 +326,7 @@ _gauss_legendre_cache = {}
 
 
 def lensed_cls(cls, clpp, lmax=None, lmax_lensed=None, sampling_factor=1.4, delta_cls=False,
-               theta_max=_pi / 32, apodize_point_width=10, leggaus=True, cache=True):
+               theta_max= np.pi / 32, apodize_point_width=10, leggaus=True, cache=True):
     """
     Get the lensed power spectra from the unlensed power spectra and the lensing potential power.
     Uses the non-perturbative curved-sky results from Eqs 9.12 and 9.16-9.18 of astro-ph/0601594, to second order in C_{gl,2}.
