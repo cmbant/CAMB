@@ -1,11 +1,12 @@
 """
 Functions to transform CMB angular power spectra into correlation functions (cl2corr)
-and vice versa (corr2cl), and calculated lensed power spectrum from unlensed ones.
+and vice versa (corr2cl), and calculate lensed power spectra from unlensed ones.
 
-The lensed power spectrum functions are not intended to replace those in CAMB, but may be useful for tests, e.g.
-using different lensing potential power spectra, partially-delensed lensing power spectra, etc.
+The lensed power spectrum functions are not intended to replace those calculated by default when getting CAMB results,
+but may be useful for tests, e.g. using different lensing potential power spectra, partially-delensed
+lensing power spectra, etc.
 
-These functions are all pure python/scipy, and operate and return cls including L(L+1)/2pi and [L(L+1)]^2/2pi factors
+These functions are all pure python/scipy, and operate and return cls including L(L+1)/2pi and [L(L+1)]^2/2pi factors.
 
 A. Lewis December 2016
 """
@@ -19,12 +20,12 @@ if not os.environ.get('READTHEDOCS', None):
 
 def legendre_funcs(lmax, x, m=[0, 2], lfacs=None, lfacs2=None, lrootfacs=None):
     """
-    Utility function to return array of Legendre and d_{2m} functions for all L up to lmax.
+    Utility function to return array of Legendre and d_{mn} functions for all L up to lmax.
     Note that d_{mn} arrays start at L_min = max(m,n), so returned arrays are different sizes
 
     :param lmax: maximum L
     :param x: scalar value of cos(theta) at which to evaluate
-    :param m: m values to calculate d_{m,-m}, etc as relevant
+    :param m: m values to calculate d_{m,n}, etc as relevant
     :param lfacs: optional pre-computed L(L+1) float array
     :param lfacs2: optional pre-computed (L+2)*(L-1) float array
     :param lrootfacs: optional pre-computed sqrt(lfacs*lfacs2) array
@@ -173,7 +174,7 @@ def lensing_correlations(clpp, xvals, lmax=None):
     :params clpp: array of [l(l+1)]^2 C_phi_phi/2/pi lensing potential power spectrum
     :param xvals: array of cos(theta) values at which to calculate correlation function.
     :param lmax: optional maximum L to use from the cls arrays
-    :return sigmasq, Cg2
+    :return: sigmasq, Cg2
     """
     if lmax is None: lmax = clpp.shape[0] - 1
     ls = np.arange(1, lmax + 1, dtype=np.float64)
@@ -199,7 +200,7 @@ def lensed_correlations(cls, clpp, xvals, weights=None, lmax=None, delta=False):
     Use roots of Legendre polynomials (np.polynomial.legendre.leggauss) for accurate back integration with corr2cl.
     Note currently does not work at xvals=1 (can easily calculate that as special case!).
 
-    To get the lensed cls efficiently, set weights to the integrals weights for each x value, then function returns
+    To get the lensed cls efficiently, set weights to the integral weights for each x value, then function returns
     lensed correlations and lensed cls.
 
     Uses the non-perturbative curved-sky results from Eqs 9.12 and 9.16-9.18 of astro-ph/0601594, to second order in C_{gl,2}
@@ -309,8 +310,8 @@ def lensed_correlations(cls, clpp, xvals, weights=None, lmax=None, delta=False):
 
 def lensed_cls(cls, clpp, lmax=None, lmax_lensed=None, sampling_factor=1, delta_cls=False):
     """
-    Get the lensed power spectrum from the unlensed power spectra and the lensed potential power.
-    Uses the non-perturbative curved-sky results from Eqs 9.12 and 9.16-9.18 of astro-ph/0601594, to second order in C_{gl,2}
+    Get the lensed power spectra from the unlensed power spectra and the lensing potential power.
+    Uses the non-perturbative curved-sky results from Eqs 9.12 and 9.16-9.18 of astro-ph/0601594, to second order in C_{gl,2}.
     Correlations are calculated for Gauss-Legendre integration, function is reasonably fast but intended to be
     reference implementation rather than optimized (getting lensed cls directly from CAMB is much faster).
 
@@ -322,7 +323,7 @@ def lensed_cls(cls, clpp, lmax=None, lmax_lensed=None, sampling_factor=1, delta_
     :param sampling_factor: factor by which to oversample Gauss-Legendre points, default 1 (which is very accurate)
     :param delta_cls: if true, return the difference between lensed and unlensed (optional, default False)
     :return: 2D array of cls[L, ix], with L starting at zero and ix-0,1,2,3 in order TT, EE, BB, TE.
-        cls should include l(l+1)/2pi factors.
+        cls include l(l+1)/2pi factors.
     """
     if lmax is None: lmax = cls.shape[0] - 1
     xvals, weights = np.polynomial.legendre.leggauss(sampling_factor * lmax + 1)
