@@ -16,8 +16,10 @@ import os
 
 if not os.environ.get('READTHEDOCS', None):
     from scipy.special import lpn as legendreP
+
+    _pi = np.pi
 else:
-    np.pi = "np.pi"
+    _pi = "np.pi"
 
 
 def legendre_funcs(lmax, x, m=[0, 2], lfacs=None, lfacs2=None, lrootfacs=None):
@@ -123,7 +125,7 @@ def gauss_legendre_correlation(cls, lmax=None, sampling_factor=1):
     evaluation points and weights.
     Result can be passed to corr2cl for accurate back transform.
 
-    :param cls: 2D array cls(L,ix), with L starting at zero and ix-0,1,2,3 in order TT, EE, BB, TE.
+    :param cls: 2D array cls(L,ix), with L starting at zero and ix=0,1,2,3 in order TT, EE, BB, TE.
      Should include l*(l+1)/2pi factors.
     :param lmax: optional maximum L to use
     :param sampling_factor: uses Gauss-Legendre with degree lmax*sampling_factor+1
@@ -145,7 +147,7 @@ def corr2cl(corrs, xvals, weights, lmax):
     :param xvals: values of cos(theta) at which corrs stores values
     :param weights: weights for integrating each point in xvals. Typically from np.polynomial.legendre.leggauss
     :param lmax: maximum L to calculate CL
-    :return: array of power spectra, cl[L, ix], where L starts at zero and ix-0,1,2,3 in order TT, EE, BB, TE.
+    :return: array of power spectra, cl[L, ix], where L starts at zero and ix=0,1,2,3 in order TT, EE, BB, TE.
       They include l(l+1)/2pi factors.
     """
     # For polarization, all arrays start at 2
@@ -208,7 +210,7 @@ def lensed_correlations(cls, clpp, xvals, weights=None, lmax=None, delta=False, 
 
     Uses the non-perturbative curved-sky results from Eqs 9.12 and 9.16-9.18 of astro-ph/0601594, to second order in C_{gl,2}
 
-    :param cls: 2D array of unlensed cls(L,ix), with L starting at zero and ix-0,1,2,3 in order TT, EE, BB, TE.
+    :param cls: 2D array of unlensed cls(L,ix), with L starting at zero and ix=0,1,2,3 in order TT, EE, BB, TE.
         cls should include l(l+1)/2pi factors.
     :param clpp: array of [l(l+1)]^2 C_phi_phi/2/pi lensing potential power spectrum
     :param xvals: array of cos(theta) values at which to calculate correlation function.
@@ -326,7 +328,7 @@ _gauss_legendre_cache = {}
 
 
 def lensed_cls(cls, clpp, lmax=None, lmax_lensed=None, sampling_factor=1.4, delta_cls=False,
-               theta_max=np.pi / 32, apodize_point_width=10, leggaus=True, cache=True):
+               theta_max=_pi / 32, apodize_point_width=10, leggaus=True, cache=True):
     """
     Get the lensed power spectra from the unlensed power spectra and the lensing potential power.
     Uses the non-perturbative curved-sky results from Eqs 9.12 and 9.16-9.18 of astro-ph/0601594, to second order in C_{gl,2}.
@@ -342,19 +344,19 @@ def lensed_cls(cls, clpp, lmax=None, lmax_lensed=None, sampling_factor=1.4, delt
     (lmax >= 2500, or higher for accurate BB to small scales).
     Usually lmax truncation errors are far larger than other numerical errors for lmax<4000.
 
-    :param cls: 2D array of unlensed cls(L,ix), with L starting at zero and ix-0,1,2,3 in order TT, EE, BB, TE.
+    :param cls: 2D array of unlensed cls(L,ix), with L starting at zero and ix=0,1,2,3 in order TT, EE, BB, TE.
         cls should include l(l+1)/2pi factors.
     :param clpp: array of [l(l+1)]^2 C_phi_phi/2/pi lensing potential power spectrum (zero based)
     :param lmax: optional maximum L to use from the cls arrays
     :param lmax_lensed: optional maximum L for the returned cl array (lmax_lensed <= lmax)
     :param sampling_factor: npoints = int(sampling_factor*lmax)+1
     :param delta_cls: if true, return the difference between lensed and unlensed (optional, default False)
-    :param theta_max: maximum angle (in radians) to keep in the correlation functions
+    :param theta_max: maximum angle (in radians) to keep in the correlation functions; default: pi/32
     :param apodize_point_width: if theta_max is set, apodize around the cut using half Gaussian of approx
         width apodize_point_width/lmax*pi
     :param leggaus: whether to use Gauss-Legendre integration (default True)
     :param cache: if leggaus = True, set cache to save the x values and weights between calls (most of the time)
-    :return: 2D array of cls[L, ix], with L starting at zero and ix-0,1,2,3 in order TT, EE, BB, TE.
+    :return: 2D array of cls[L, ix], with L starting at zero and ix=0,1,2,3 in order TT, EE, BB, TE.
         cls include l(l+1)/2pi factors.
     """
     if lmax is None: lmax = cls.shape[0] - 1
