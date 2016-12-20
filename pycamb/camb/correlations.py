@@ -171,7 +171,7 @@ def lensing_correlations(clpp, xvals, lmax=None):
     """
     Get the sigma^2(x) and C_{gl,2}(x) functions from the lensing power spectrum
 
-    :params clpp: array of [l(l+1)]^2 C_phi_phi/2/pi lensing potential power spectrum
+    :param clpp: array of [l(l+1)]^2 C_phi_phi/2/pi lensing potential power spectrum
     :param xvals: array of cos(theta) values at which to calculate correlation function.
     :param lmax: optional maximum L to use from the cls arrays
     :return: sigmasq, Cg2
