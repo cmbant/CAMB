@@ -16,6 +16,8 @@ import os
 
 if not os.environ.get('READTHEDOCS', None):
     from scipy.special import lpn as legendreP
+else:
+    np.pi = "np.pi"
 
 
 def legendre_funcs(lmax, x, m=[0, 2], lfacs=None, lfacs2=None, lrootfacs=None):
@@ -351,7 +353,7 @@ def lensed_cls(cls, clpp, lmax=None, lmax_lensed=None, sampling_factor=1.4, delt
     :param apodize_point_width: if theta_max is set, apodize around the cut using half Gaussian of approx
         width apodize_point_width/lmax*pi
     :param leggaus: whether to use Gauss-Legendre integration (default True)
-    :param cache: if leggaus = True, set cache to save the points and x values between calls (most of the time)
+    :param cache: if leggaus = True, set cache to save the x values and weights between calls (most of the time)
     :return: 2D array of cls[L, ix], with L starting at zero and ix-0,1,2,3 in order TT, EE, BB, TE.
         cls include l(l+1)/2pi factors.
     """
