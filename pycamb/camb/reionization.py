@@ -37,6 +37,7 @@ class ReionizationParams(CAMB_Structure):
     def set_tau(self, tau, delta_redshift=None):
         """
         Set the optical depth
+
         :param tau: optical depth
         :param delta_redshift: delta z for reionization
         :return: self

@@ -17,7 +17,7 @@ import os
 if not os.environ.get('READTHEDOCS', None):
     from scipy.special import lpn as legendreP
 else:
-    np.pi = 3.1415927
+    np.pi = 3.1415927 #needed to get docs right for np.pi/32 default argument
 
 
 def legendre_funcs(lmax, x, m=[0, 2], lfacs=None, lfacs2=None, lrootfacs=None):

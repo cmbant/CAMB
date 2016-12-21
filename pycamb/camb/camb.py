@@ -269,6 +269,7 @@ def fortran_array(c_pointer, shape, dtype=np.float64, order='F', own_data=True):
 def set_z_outputs(z_outputs):
     """
     Set the redshifts for calculating BAO parameters at
+
     :param z_outputs: array of redshifts
     """
     z_outputs = np.array(z_outputs)
@@ -1119,8 +1120,8 @@ def get_matter_power_interpolator(params, zmin=0, zmax=10, nz_step=100, zs=None,
                                   return_z_k=False, k_per_logint=None, log_interp=True):
     """
     Return a 2D spline interpolation object to evaluate matter power spectrum as function of z and k/h
-    e.g.
-      PK = get_matter_power_evaluator(params)
+    e.g::
+      PK = get_matter_power_evaluator(params);
       print 'Power spectrum at z=0.5, k/h=0.1 is %s (Mpc/h)^{-3} '%(PK.P(0.5, 0.1))
 
     :param params: :class:`.model.CAMBparams` instance
@@ -1136,9 +1137,8 @@ def get_matter_power_interpolator(params, zmin=0, zmax=10, nz_step=100, zs=None,
     :param k_hunit: if true, matter power is a function of k/h, if false, just k (both Mpc^{-1} units)
     :param return_z_k: if true, return interpolator, z, k where z, k are the grid used
     :param log_interp: if true, interpolate log of power spectrum (unless any values are negative in which case ignored)
-    :return: kh, z, PK, where kz an z are arrays of k/h and z respectively, and PK[i,j] is value at z[i], (k/h)[j]
-
-    :return: RectBivariateSpline object PK, that can be called with PK(z,log(kh)) to get log matter power values
+    :return: RectBivariateSpline object PK, that can be called with PK(z,log(kh)) to get log matter power values.
+        if return_z_k=True, instead return interpolator, z, k where z, k are the grid used
     """
     import copy
     from scipy.interpolate import RectBivariateSpline
