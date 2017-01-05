@@ -195,6 +195,19 @@ def lensing_correlations(clpp, xvals, lmax=None):
         Cg2[i] = np.dot(d_m11, cphil3)
     return sigmasq, Cg2
 
+def lensing_R(clpp, lmax=None):
+    """
+    Get R = 1/2 <|grad phi|^2>
+
+    :param clpp: array of [l(l+1)]^2 C_phi_phi/2/pi lensing potential power spectrum
+    :param lmax: optional maximum L to use from the cls arrays
+    :return: R
+    """
+    if lmax is None: lmax = clpp.shape[0] - 1
+    ls = np.arange(1, lmax + 1, dtype=np.float64)
+    cldd = clpp[1:] / (ls * (ls + 1))
+    cphil3 = (2 * ls + 1) * cldd / 4
+    return np.sum(cphil3)
 
 def lensed_correlations(cls, clpp, xvals, weights=None, lmax=None, delta=False, theta_max=None,
                         apodize_point_width=10):
@@ -515,6 +528,134 @@ def lensed_cl_derivatives(cls, clpp, lmax=None, theta_max=np.pi / 32,
         dcl[1, 2:, :] += T2 + T4
         dcl[2, 2:, :] += T2 - T4
         dcl[3, 2:, :] += np.outer(d20, (weight * corrs[3, :]))
+
+    # put into ell(ell+1)C_ell/2pi units [two pi cancels from correlation integral]
+    dcl[:, 1, :] *= 2
+    for i in range(dcl.shape[0]):
+        dcl[i, 2:, :] = (dcl[i, 2:, :].T * lfacs).T
+    return dcl
+
+
+def lensed_cl_derivative_unlensed(clpp, lmax=None, theta_max=np.pi / 32,
+                                  apodize_point_width=10, sampling_factor=1.4):
+    """
+    Get derivative dcl of lensed minus unlensed power ell(ell+1)Delta C_ell/2pi with respect to L(L+1)C^unlens_L/2pi
+
+    The difference in power in the lensed spectrum is given by dCL[ix, :, :].dot(cl),
+    where cl is the appropriate L(L+1)C^unlens_L/2pi.
+
+    Uses the non-perturbative curved-sky results from Eqs 9.12 and 9.16-9.18 of astro-ph/0601594, to second order in C_{gl,2}
+
+    :param clpp: array of [l(l+1)]^2 C_phi_phi/2/pi lensing potential power spectrum
+    :param lmax: optional maximum L to use from the cls arrays
+    :param theta_max: maximum angle (in radians) to keep in the correlation functions
+    :param apodize_point_width: if theta_max is set, apodize around the cut using half Gaussian of approx
+        width apodize_point_width/lmax*pi
+    :param sampling_factor: npoints = int(sampling_factor*lmax)+1
+    :return: array dCL[ix, ell, L], where ix=0,1,2,3 are TT, EE, BB, TE and result is
+         d[ell(ell+1)Delta C^ix_ell/2pi]/ d C^{unlens,j}_L where j[ix] are TT, EE, EE, TE
+
+    """
+
+    if lmax is None: lmax = clpp.shape[0] - 1
+    npoints = int(sampling_factor * lmax) + 1
+    if npoints in _gauss_legendre_cache:
+        xvals, weights = _gauss_legendre_cache[npoints]
+    else:
+        xvals, weights = np.polynomial.legendre.leggauss(npoints)
+        _gauss_legendre_cache[npoints] = xvals, weights
+
+    ls = np.arange(0, lmax + 1, dtype=np.float64)
+    lfacs = ls * (ls + 1)
+    lfacsall = lfacs.copy()
+    lfacs[0] = 1
+    cldd = clpp[1:lmax + 1] / lfacs[1:]
+    cphil3 = (2 * ls[1:] + 1) * cldd / 2  # (2*l+1)l(l+1)/4pi C_phi_phi
+    facs = (2 * ls + 1) / (4 * np.pi) * 2 * np.pi / lfacs
+
+    ct = facs
+    # For polarization, all arrays start at 2
+    cp = facs[2:]
+    cm = facs[2:]
+    cc = facs[2:]
+    ls = ls[2:]
+    lfacs = lfacs[2:]
+    lfacs2 = (ls + 2) * (ls - 1)
+    lrootfacs = np.sqrt(lfacs * lfacs2)
+    rootfac1 = np.sqrt(lfacs2)
+    rootfac2 = np.sqrt((ls[1:] + 3) * (ls[1:] - 2))
+    rootrat = lfacs2[1:] / rootfac1[1:] / rootfac2
+    rootfac3 = np.sqrt((ls[2:] - 3) * (ls[2:] + 4))
+    dcl = np.zeros((4, lmax + 1, lmax + 1))
+
+    if theta_max is not None:
+        xmin = np.cos(theta_max)
+        imin = np.searchsorted(xvals, xmin)  # assume xvals sorted
+    else:
+        imin = 0
+
+    corr = np.zeros((4, lmax + 1))
+
+    for i, x in enumerate(xvals[imin:]):
+        (P, dP), (d11, dm11), (d20, d22, d2m2) = legendre_funcs(lmax, x, [0, 1, 2], lfacs, lfacs2,
+                                                                lrootfacs)
+        sigma2 = np.dot(1 - d11, cphil3)
+        Cg2 = np.dot(dm11, cphil3)
+
+        c2fac = lfacsall[1:] * Cg2 / 2
+        c2fac2 = c2fac[1:] ** 2
+        fac = np.exp(-lfacsall * sigma2 / 2)
+        difffac = fac - 1
+        f = ct * fac
+        # T (don't really need the term second order Cg2 here, but include for consistency)
+        corr[0, :] = ct * difffac * P
+        corr[0, 1:] += f[1:] * c2fac * (dm11 + c2fac * P[1:] / 4)
+        corr[0, 2:] += f[2:] * c2fac2 * d2m2 / 4
+
+        sinth = np.sqrt(1 - x ** 2)
+        sinfac = 4 / sinth
+        fac1 = 1 - x
+        fac2 = 1 + x
+        d1m2 = sinth / rootfac1 * (dP[2:] - 2 / fac1 * dm11[1:])
+        d12 = sinth / rootfac1 * (dP[2:] - 2 / fac2 * d11[1:])
+        d1m3 = (-(x + 0.5) * sinfac * d1m2[1:] / rootfac2 - rootrat * dm11[2:])
+        d2m3 = (-fac2 * d2m2[1:] * sinfac - rootfac1[1:] * d1m2[1:]) / rootfac2
+        d3m3 = (-(x + 1.5) * d2m3 * sinfac - rootfac1[1:] * d1m3) / rootfac2
+        d13 = ((x - 0.5) * sinfac * d12[1:] / rootfac2 - rootrat * d11[2:])
+        d04 = ((-lfacs[2:] + (18 * x ** 2 + 6) / sinth ** 2) * d20[2:] -
+               6 * x * lfacs2[2:] * dP[4:] / lrootfacs[2:]) / (rootfac2[1:] * rootfac3)
+        d2m4 = (-(6 * x + 4) / sinth * d2m3[1:] - rootfac2[1:] * d2m2[2:]) / rootfac3
+        d4m4 = (-7 / 5.0 * (lfacs2[2:] - 6) * d2m2[2:] +
+                12 / 5.0 * (-lfacs2[2:] + (9 * x + 26) / fac1) * d3m3[1:]) / (lfacs2[2:] - 12)
+        # + (second order Cg2 terms are needed for <1% accuracy on BB)
+
+        f = cp * fac[2:]
+        corr[1, 2:] = cp * difffac[2:] * d22 + f * c2fac2 * d22 / 4
+        corr[1, 3:] += f[1:] * c2fac[2:] * d13
+        corr[1, 4:] += f[2:] * c2fac2[2:] * d04 / 4
+
+        # -
+        f = cm * fac[2:]
+        corr[2, 2:] = cm * difffac[2:] * d2m2 + f * c2fac[1:] * dm11[1:] / 2 + f * c2fac2 * (2 * d2m2 + P[2:]) / 8
+        corr[2, 3:] += f[1:] * c2fac[2:] * d3m3 / 2
+        corr[2, 4:] += f[2:] * c2fac2[2:] * d4m4 / 8
+
+        # cross
+        f = cc * fac[2:]
+        corr[3, 2:] = cc * difffac[2:] * d20 + f * c2fac[1:] * d11[1:] / 2 + 3 / 8. * f * c2fac2 * d20
+        corr[3, 3:] += f[1:] * c2fac[2:] * d1m3 / 2
+        corr[3, 4:] += f[2:] * c2fac2[2:] * d2m4 / 8
+
+        weight = weights[i + imin]
+        if theta_max is not None and i < apodize_point_width * 4:
+            weight *= 1 - np.exp(-((i + 1.) / apodize_point_width) ** 2 / 2)
+
+        dcl[0, :, :] += np.outer(P, (weight * corr[0, :]))
+        T2 = np.outer(d22, (corr[1, :] * weight / 2))
+        T4 = np.outer(d2m2, (corr[2, :] * weight / 2))
+        dcl[1, 2:, :] += T2 + T4
+        dcl[2, 2:, :] += T2 - T4
+        dcl[3, 2:, :] += np.outer(d20, (weight * corr[3, :]))
 
     # put into ell(ell+1)C_ell/2pi units [two pi cancels from correlation integral]
     dcl[:, 1, :] *= 2
