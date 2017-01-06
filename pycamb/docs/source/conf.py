@@ -70,7 +70,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = u'Code for Anisotropies in the Microwave Background (CAMB)'
-copyright = u'2015, Antony Lewis'
+copyright = u'Antony Lewis'
 author = u'Antony Lewis'
 
 import camb

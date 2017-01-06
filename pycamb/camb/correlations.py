@@ -14,6 +14,20 @@ A. Lewis December 2016
 import numpy as np
 import os
 
+try:
+    from .baseconfig import camblib
+    from numpy.ctypeslib import ndpointer
+    import ctypes
+
+    gauss_legendre = camblib.__gauss_legendre
+    gauss_legendre.argtypes = [ndpointer(ctypes.c_double, flags='C_CONTIGUOUS'),
+                               ndpointer(ctypes.c_double, flags='C_CONTIGUOUS'),
+                               ctypes.POINTER(ctypes.c_int)]
+except:
+    # use np.polynomial.legendre if can't load fast native (so can use module without compiling camb)
+    # Fortran version is much faster than current np.polynomial
+    gauss_legendre = None
+
 if not os.environ.get('READTHEDOCS', None):
     from scipy.special import lpn as legendreP
 else:
@@ -195,6 +209,7 @@ def lensing_correlations(clpp, xvals, lmax=None):
         Cg2[i] = np.dot(d_m11, cphil3)
     return sigmasq, Cg2
 
+
 def lensing_R(clpp, lmax=None):
     """
     Get R = 1/2 <|grad phi|^2>
@@ -208,6 +223,7 @@ def lensing_R(clpp, lmax=None):
     cldd = clpp[1:] / (ls * (ls + 1))
     cphil3 = (2 * ls + 1) * cldd / 4
     return np.sum(cphil3)
+
 
 def lensed_correlations(cls, clpp, xvals, weights=None, lmax=None, delta=False, theta_max=None,
                         apodize_point_width=10):
@@ -338,6 +354,21 @@ def lensed_correlations(cls, clpp, xvals, weights=None, lmax=None, delta=False, 
 _gauss_legendre_cache = {}
 
 
+def _cached_gauss_legendre(npoints, cache=True):
+    if cache and npoints in _gauss_legendre_cache:
+        return _gauss_legendre_cache[npoints]
+    else:
+        if gauss_legendre is not None:
+            xvals = np.empty(npoints)
+            weights = np.empty(npoints)
+            gauss_legendre(xvals, weights, ctypes.c_int(npoints))
+        else:
+            xvals, weights = np.polynomial.legendre.leggauss(npoints)
+        if cache:
+            _gauss_legendre_cache[npoints] = xvals, weights
+        return xvals, weights
+
+
 def lensed_cls(cls, clpp, lmax=None, lmax_lensed=None, sampling_factor=1.4, delta_cls=False,
                theta_max=np.pi / 32, apodize_point_width=10, leggaus=True, cache=True):
     """
@@ -373,12 +404,7 @@ def lensed_cls(cls, clpp, lmax=None, lmax_lensed=None, sampling_factor=1.4, delt
     if lmax is None: lmax = cls.shape[0] - 1
     npoints = int(sampling_factor * lmax) + 1
     if leggaus:
-        if cache and npoints in _gauss_legendre_cache:
-            xvals, weights = _gauss_legendre_cache[npoints]
-        else:
-            xvals, weights = np.polynomial.legendre.leggauss(npoints)
-            if cache:
-                _gauss_legendre_cache[npoints] = xvals, weights
+        xvals, weights = _cached_gauss_legendre(npoints, cache)
     else:
         theta = np.arange(1, npoints + 1) * np.pi / (npoints + 1)
         xvals = np.cos(theta[::-1])
@@ -417,11 +443,7 @@ def lensed_cl_derivatives(cls, clpp, lmax=None, theta_max=np.pi / 32,
 
     if lmax is None: lmax = cls.shape[0] - 1
     npoints = int(sampling_factor * lmax) + 1
-    if npoints in _gauss_legendre_cache:
-        xvals, weights = _gauss_legendre_cache[npoints]
-    else:
-        xvals, weights = np.polynomial.legendre.leggauss(npoints)
-        _gauss_legendre_cache[npoints] = xvals, weights
+    xvals, weights = _cached_gauss_legendre(npoints)
 
     ls = np.arange(0, lmax + 1, dtype=np.float64)
     lfacs = ls * (ls + 1)
@@ -559,11 +581,7 @@ def lensed_cl_derivative_unlensed(clpp, lmax=None, theta_max=np.pi / 32,
 
     if lmax is None: lmax = clpp.shape[0] - 1
     npoints = int(sampling_factor * lmax) + 1
-    if npoints in _gauss_legendre_cache:
-        xvals, weights = _gauss_legendre_cache[npoints]
-    else:
-        xvals, weights = np.polynomial.legendre.leggauss(npoints)
-        _gauss_legendre_cache[npoints] = xvals, weights
+    xvals, weights = _cached_gauss_legendre(npoints)
 
     ls = np.arange(0, lmax + 1, dtype=np.float64)
     lfacs = ls * (ls + 1)
