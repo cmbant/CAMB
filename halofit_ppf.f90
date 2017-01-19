@@ -14,6 +14,7 @@
     !   halofit_bird: arXiv: 1109.4416
     !   halofit_takahashi: arXiv: 1208.2701
     !   halofit_mead: arXiv:1505.07833,1602.02154
+    !   halofit_casarini: arXiv:0810.0190, arXiv:1601.07230
 
     ! Adapted for F90 and CAMB, AL March 2005
     !!BR09 Oct 09: generalized expressions for om(z) and ol(z) to include w
@@ -32,6 +33,9 @@
     !AM May 16: Fixed some small bugs and added better neutrino approximations
     !AL Jun16: put in partial openmp for HMcode (needs restructure to do properly)
     !AM Sep 16: Attempted fix of strange bug. No more modules with unallocated arrays as inputs
+    
+    !LC Oct 16: extended Halofit from w=const. models to w=w(a) with PKequal  
+	
 
     !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -43,15 +47,15 @@
     private
 
     real, parameter :: Min_kh_nonlinear = 0.005
-    real(dl):: om_m,om_v,fnu,omm0, acur
+    real(dl):: om_m,om_v,fnu,omm0, acur, w_hf,wa_hf
 
     integer, parameter :: halofit_original = 1, halofit_bird=2, halofit_peacock=3, halofit_takahashi=4
-    integer, parameter :: halofit_mead=5, halofit_halomodel=6
+    integer, parameter :: halofit_mead=5, halofit_halomodel=6, halofit_casarini=7
     integer, parameter :: halofit_default = halofit_takahashi
     integer :: halofit_version = halofit_default
     public Min_kh_nonlinear, NonLinear_GetNonLinRatios, NonLinear_ReadParams
     public halofit_version, halofit_default, halofit_original, halofit_bird, halofit_peacock, halofit_takahashi
-    public halofit_mead, halofit_halomodel
+    public halofit_mead, halofit_halomodel, halofit_casarini
 
     !!AM - Added these types for HMcode
     INTEGER :: imead, ihm !!AM - added these for HMcode, need to be visible to all subroutines and functions
@@ -109,13 +113,20 @@
 
         do itf = 1, CAMB_Pk%num_z
 
+            w_hf=w_lam
+            wa_hf=wa_ppf
+            if (halofit_version == halofit_casarini) then
+               ! calculate equivalent w-constant models (w_hf,0) for w_lam+wa_ppf(1-a) models 
+               ! [Casarini+ (2009,2016)]. 
+               call PKequal(CAMB_Pk%Redshifts(itf),w_lam,wa_ppf,w_hf,wa_hf)
+            endif
 
             ! calculate nonlinear wavenumber (rknl), effective spectral index (rneff) and
             ! curvature (rncur) of the power spectrum at the desired redshift, using method
             ! described in Smith et al (2002).
             a = 1/real(1+CAMB_Pk%Redshifts(itf),dl)
-            om_m = omega_m(a, omm0, CP%omegav, w_lam,wa_ppf)
-            om_v = omega_v(a, omm0, CP%omegav, w_lam,wa_ppf)
+            om_m = omega_m(a, omm0, CP%omegav, w_hf,wa_hf)
+            om_v = omega_v(a, omm0, CP%omegav, w_hf,wa_hf)
             acur = a
             xlogr1=-2.0
             xlogr2=3.5
@@ -208,19 +219,20 @@
     xnu=10**(0.95897+1.2857*rn)
     alpha=1.38848+0.3701*rn-0.1452*rn*rn
     beta=0.8291+0.9854*rn+0.3400*rn**2+fnu*(-6.4868+1.4373*rn**2)
-    elseif (halofit_version == halofit_takahashi) then
+    elseif (halofit_version == halofit_takahashi .or. halofit_version == halofit_casarini) then
         !RT12 Oct: the halofit in Smith+ 2003 predicts a smaller power
         !than latest N-body simulations at small scales.
         !Update the following fitting parameters of gam,a,b,c,xmu,xnu,
         !alpha & beta from the simulations in Takahashi+ 2012.
         !The improved halofit accurately provide the power spectra for WMAP
         !cosmological models with constant w.
+        !LC16 Jun: Casarini+ 2009,2016 extended constant w prediction for w(a).
         gam=0.1971-0.0843*rn+0.8460*rncur
         a=1.5222+2.8553*rn+2.3706*rn*rn+0.9903*rn*rn*rn+ &
-            0.2250*rn*rn*rn*rn-0.6038*rncur+0.1749*om_v*(1.+w_lam+wa_ppf*(1-acur))
+            0.2250*rn*rn*rn*rn-0.6038*rncur+0.1749*om_v*(1.+w_hf+wa_hf*(1-acur))
         a=10**a
         b=10**(-0.5642+0.5864*rn+0.5716*rn*rn-1.5474*rncur+ &
-            0.2279*om_v*(1.+w_lam+wa_ppf*(1-acur)))
+            0.2279*om_v*(1.+w_hf+wa_hf*(1-acur)))
         c=10**(0.3698+2.0404*rn+0.8161*rn*rn+0.5869*rncur)
         xmu=0.
         xnu=10**(5.2105+3.6902*rn)
@@ -2878,6 +2890,34 @@
     END FUNCTION AH
 
     !!AM End HMcode
+    
+    subroutine PKequal(redshift,w_lam,wa_ppf,w_hf,wa_hf)
+    implicit none
+    real(dl) :: redshift,w_lam,wa_ppf,w_hf,wa_hf
+    real(dl) :: z_star,tau_star,dlsb,dlsb_eq,w_true,wa_true,error 
+    z_star=ThermoDerivedParams( derived_zstar )
+    tau_star=TimeOfz(z_star)
+    dlsb=TimeOfz(redshift)-tau_star
+    w_true=w_lam
+    wa_true=wa_ppf
+    wa_ppf=0._dl
+    do 
+       z_star=ThermoDerivedParams( derived_zstar )
+       tau_star=TimeOfz(z_star)
+       dlsb_eq=TimeOfz(redshift)-tau_star
+       error=1.d0-dlsb_eq/dlsb
+       if (abs(error).le.1e-7) goto 78
+       w_lam=w_lam*(1+error)**10.d0
+    enddo
+ 78 continue   
+    w_hf=w_lam
+    wa_hf=0._dl 
+    w_lam=w_true
+    wa_ppf=wa_true 
+    write(*,*)'at z = ',real(redshift),' equivalent w_const =', real(w_hf) 
+    end subroutine PKequal
+    
+    
 
     end module NonLinear
 
