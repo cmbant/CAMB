@@ -33,9 +33,9 @@
     !AM May 16: Fixed some small bugs and added better neutrino approximations
     !AL Jun16: put in partial openmp for HMcode (needs restructure to do properly)
     !AM Sep 16: Attempted fix of strange bug. No more modules with unallocated arrays as inputs
-    
-    !LC Oct 16: extended Halofit from w=const. models to w=w(a) with PKequal  
-	
+
+    !LC Oct 16: extended Halofit from w=const. models to w=w(a) with PKequal
+
 
     !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -116,9 +116,9 @@
             w_hf=w_lam
             wa_hf=wa_ppf
             if (halofit_version == halofit_casarini) then
-               ! calculate equivalent w-constant models (w_hf,0) for w_lam+wa_ppf(1-a) models 
-               ! [Casarini+ (2009,2016)]. 
-               call PKequal(CAMB_Pk%Redshifts(itf),w_lam,wa_ppf,w_hf,wa_hf)
+                ! calculate equivalent w-constant models (w_hf,0) for w_lam+wa_ppf(1-a) models
+                ! [Casarini+ (2009,2016)].
+                call PKequal(CAMB_Pk%Redshifts(itf),w_lam,wa_ppf,w_hf,wa_hf)
             endif
 
             ! calculate nonlinear wavenumber (rknl), effective spectral index (rneff) and
@@ -2890,34 +2890,35 @@
     END FUNCTION AH
 
     !!AM End HMcode
-    
+
     subroutine PKequal(redshift,w_lam,wa_ppf,w_hf,wa_hf)
+    !used by halofit_casarini: arXiv:0810.0190, arXiv:1601.07230
     implicit none
     real(dl) :: redshift,w_lam,wa_ppf,w_hf,wa_hf
-    real(dl) :: z_star,tau_star,dlsb,dlsb_eq,w_true,wa_true,error 
+    real(dl) :: z_star,tau_star,dlsb,dlsb_eq,w_true,wa_true,error
+
     z_star=ThermoDerivedParams( derived_zstar )
     tau_star=TimeOfz(z_star)
     dlsb=TimeOfz(redshift)-tau_star
     w_true=w_lam
     wa_true=wa_ppf
     wa_ppf=0._dl
-    do 
-       z_star=ThermoDerivedParams( derived_zstar )
-       tau_star=TimeOfz(z_star)
-       dlsb_eq=TimeOfz(redshift)-tau_star
-       error=1.d0-dlsb_eq/dlsb
-       if (abs(error).le.1e-7) goto 78
-       w_lam=w_lam*(1+error)**10.d0
+    do
+        z_star=ThermoDerivedParams( derived_zstar )
+        tau_star=TimeOfz(z_star)
+        dlsb_eq=TimeOfz(redshift)-tau_star
+        error=1.d0-dlsb_eq/dlsb
+        if (abs(error).le.1e-7) exit
+        w_lam=w_lam*(1+error)**10.d0
     enddo
- 78 continue   
     w_hf=w_lam
-    wa_hf=0._dl 
+    wa_hf=0._dl
     w_lam=w_true
-    wa_ppf=wa_true 
-    write(*,*)'at z = ',real(redshift),' equivalent w_const =', real(w_hf) 
+    wa_ppf=wa_true
+    write(*,*)'at z = ',real(redshift),' equivalent w_const =', real(w_hf)
+
     end subroutine PKequal
-    
-    
+
 
     end module NonLinear
 
