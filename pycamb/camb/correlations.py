@@ -34,6 +34,25 @@ else:
     np.pi = 3.1415927  # needed to get docs right for np.pi/32 default argument
 
 
+_gauss_legendre_cache = {}
+
+def _cached_gauss_legendre(npoints, cache=True):
+    if cache and npoints in _gauss_legendre_cache:
+        return _gauss_legendre_cache[npoints]
+    else:
+        if gauss_legendre is not None:
+            xvals = np.empty(npoints)
+            weights = np.empty(npoints)
+            gauss_legendre(xvals, weights, ctypes.c_int(npoints))
+            xvals.flags.writeable = False
+            weights.flags.writeable = False
+        else:
+            xvals, weights = np.polynomial.legendre.leggauss(npoints)
+        if cache:
+            _gauss_legendre_cache[npoints] = xvals, weights
+        return xvals, weights
+
+
 def legendre_funcs(lmax, x, m=[0, 2], lfacs=None, lfacs2=None, lrootfacs=None):
     """
     Utility function to return array of Legendre and d_{mn} functions for all L up to lmax.
@@ -145,7 +164,7 @@ def gauss_legendre_correlation(cls, lmax=None, sampling_factor=1):
     """
 
     if lmax is None: lmax = cls.shape[0] - 1
-    xvals, weights = np.polynomial.legendre.leggauss(int(sampling_factor * lmax) + 1)
+    xvals, weights = _cached_gauss_legendre(int(sampling_factor * lmax) + 1)
     return cl2corr(cls, xvals, lmax), xvals, weights
 
 
@@ -349,25 +368,6 @@ def lensed_correlations(cls, clpp, xvals, weights=None, lmax=None, delta=False, 
         return corrs, lensedcls
     else:
         return corrs
-
-
-_gauss_legendre_cache = {}
-
-
-def _cached_gauss_legendre(npoints, cache=True):
-    if cache and npoints in _gauss_legendre_cache:
-        return _gauss_legendre_cache[npoints]
-    else:
-        if gauss_legendre is not None:
-            xvals = np.empty(npoints)
-            weights = np.empty(npoints)
-            gauss_legendre(xvals, weights, ctypes.c_int(npoints))
-        else:
-            xvals, weights = np.polynomial.legendre.leggauss(npoints)
-        if cache:
-            _gauss_legendre_cache[npoints] = xvals, weights
-        return xvals, weights
-
 
 def lensed_cls(cls, clpp, lmax=None, lmax_lensed=None, sampling_factor=1.4, delta_cls=False,
                theta_max=np.pi / 32, apodize_point_width=10, leggaus=True, cache=True):
