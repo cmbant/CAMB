@@ -5,6 +5,7 @@ cd pycamb
 pip install setuptools
 python setup.py install
 python setup.py test
+rc=$?; if [[ $rc != 0 ]]; then exit $rc; fi
 cd ..
 
 python python/CAMB_test_files.py testfiles --make_ini
