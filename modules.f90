@@ -149,7 +149,7 @@
     implicit none
     public
 
-    character(LEN=*), parameter :: version = 'Nov16'
+    character(LEN=*), parameter :: version = 'Jan17'
 
     integer :: FeedbackLevel = 0 !if >0 print out useful information about the model
 
@@ -3992,7 +3992,8 @@
                         2*(1-2.5*RedWin%dlog10Ndm)*int_tmp(jstart:TimeSteps%npoints,i)/&
                         hubble_tmp(jstart:TimeSteps%npoints)&
                         + 5*RedWin%dlog10Ndm*RedWin%Wing(jstart:TimeSteps%npoints) &
-                        + tmp2(jstart:TimeSteps%npoints)/hubble_tmp(jstart:TimeSteps%npoints)**2*RedWin%Wing(jstart:TimeSteps%npoints)
+                        + tmp2(jstart:TimeSteps%npoints)/hubble_tmp(jstart:TimeSteps%npoints)**2 &
+                        *RedWin%Wing(jstart:TimeSteps%npoints)
                 endif
 
                 call spline(TimeSteps%points(jstart),RedWin%Wingtau(jstart),ninterp, &

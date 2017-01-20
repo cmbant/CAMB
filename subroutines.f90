@@ -1489,3 +1489,41 @@
     endif
 
     end function Newton_Raphson
+
+
+    subroutine Gauss_Legendre(x,w,n)
+    !Get Gauss-Legendre points x and weights w, for n points
+    use constants
+    implicit none
+    integer, intent(in) :: n
+    real(dl), intent(out) :: x(n), w(n)
+    real(dl), parameter :: eps=1.d-15
+    integer i, j, m
+    real(dl) p1, p2, p3, pp, z, z1
+
+    m=(n+1)/2
+    !$OMP PARALLEL DO DEFAULT(PRIVATE), SHARED(x,w,n,m)
+    do i=1,m
+        z=cos(const_pi*(i-0.25_dl)/(n+0.5_dl))
+        z1 = 0._dl
+        do while (abs(z-z1) > eps)
+            p1=1._dl
+            p2=0._dl
+            do j=1,n
+                p3=p2
+                p2=p1
+                p1=((2*j-1)*z*p2-(j-1)*p3)/j
+            end do
+            pp=n*(z*p1-p2)/(z**2-1._dl)
+            z1=z
+            z=z1-p1/pp
+        end do
+        x(i)=-z
+        x(n+1-i)=z
+        w(i)=2/((1._dl-z**2)*pp**2)
+        w(n+1-i)=w(i)
+    end do
+    !$OMP END PARALLEL DO
+
+    end subroutine Gauss_Legendre
+

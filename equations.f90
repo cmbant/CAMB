@@ -1716,13 +1716,15 @@
 
                         if (counts_potential) then
                             !approx phi = psi
-                            counts_potential_source = ( phidot/adotoa + phi +(5*W%dlog10Ndm-2)*phi ) * W%wing(j) + phi * W%wingtau(j)
+                            counts_potential_source = ( phidot/adotoa + phi +(5*W%dlog10Ndm-2)*phi ) * W%wing(j) &
+                                + phi * W%wingtau(j)
                         else
                             counts_potential_source = 0
                         end if
 
                         if (counts_velocity) then
-                            counts_velocity_source =  (-2.D0*W%wingtau(j)*adotoa+W%dwingtau(j))/k*sigma+W%wingtau(j)*etak/k/EV%Kf(1) &
+                            counts_velocity_source =  (-2.D0*W%wingtau(j)*adotoa+W%dwingtau(j))/k*sigma &
+                                +W%wingtau(j)*etak/k/EV%Kf(1) &
                                 - counts_radial_source  !don't double count terms; counts_radial is part of counts_velocity with 1/H/chi
                         else
                             counts_velocity_source = 0
@@ -1862,8 +1864,9 @@
 
 
                         if (line_phot_dipole) then
-                            sources(3+w_ix)=sources(3+w_ix) + (EV%kf(1)*W%wing2(j)*pig/2.D0-W%wing2(j)*clxg/4.D0)*expmmu(j)+(((vbdot- &
-                                opac(j)*vb+3.D0/4.D0*opac(j)*qg)*W%wing2(j)+(vb-3.D0/4.D0*qg)*W%dwing2(j))*expmmu(j)+&
+                            sources(3+w_ix)=sources(3+w_ix) + (EV%kf(1)*W%wing2(j)*pig/2.D0-W%wing2(j)*clxg/4.D0)*expmmu(j) &
+                                +(((vbdot- opac(j)*vb+3.D0/4.D0*opac(j)*qg)*&
+                                W%wing2(j)+(vb-3.D0/4.D0*qg)*W%dwing2(j))*expmmu(j)+&
                                 (vis(j)*vb-3.D0/4.D0*vis(j)*qg)*W%wing2(j))/k
                         end if
 

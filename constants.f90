@@ -87,7 +87,7 @@
 
     global_error_message = PresentDefault('', message)
     if (present(id)) then
-        if (id==0) error stop('Error id must be non-zero')
+        if (id==0) error stop 'Error id must be non-zero'
         global_error_flag=id
     else
         global_error_flag=-1
