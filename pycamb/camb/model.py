@@ -1,5 +1,5 @@
 from .baseconfig import camblib, CAMB_Structure, CAMBError, dll_import, f_allocatable
-from ctypes import c_bool, c_int, c_double, c_float, byref, POINTER
+from ctypes import c_bool, c_int, c_double, c_float, c_byte, byref, POINTER
 from . import reionization as ion
 from . import recombination as recomb
 from . import initialpower as ipow
@@ -8,6 +8,7 @@ import numpy as np
 from . import bbn
 import logging
 import six
+import copy
 
 # ---Parameters
 
@@ -44,11 +45,12 @@ evolve_names = transfer_names + ['a', 'etak', 'H', 'growth', 'v_photon', 'pi_pho
 
 background_names = ['x_e', 'opacity', 'visibility', 'cs2b']
 
-neutrino_hierarchies = ['normal','inverted','degenerate']
+dark_energy_models = ['fluid', 'pff']
+
+neutrino_hierarchies = ['normal', 'inverted', 'degenerate']
 neutrino_hierarchy_normal = 1
 neutrino_hierarchy_inverted = 2
 neutrino_hierarchy_degenerate = 3
-
 
 # ---Variables in modules.f90
 # To set the value please just put 
@@ -159,6 +161,7 @@ CAMBparams_GetDarkEnergy = camblib.__handles_MOD_cambparams_getdarkenergy
 
 CAMBParams_Free = camblib.__handles_MOD_cambparams_free
 
+
 class TransferParams(CAMB_Structure):
     """
     Object storing parameters for the matter power spectrum calculation. PK variables are for setting main outputs.
@@ -187,12 +190,11 @@ class TransferParams(CAMB_Structure):
 
 
 class DarkEnergyParams(CAMB_Structure):
-        _fields_ = [
-            ("w", c_double),
-            ("wa", c_double),
-            ("cs2", c_double)
-            ]
-
+    _fields_ = [
+        ("w", c_double),
+        ("wa", c_double),
+        ("cs2", c_double)
+    ]
 
 
 class CAMBparams(CAMB_Structure):
@@ -208,7 +210,7 @@ class CAMBparams(CAMB_Structure):
     def _set_allocatables(self):
         de = POINTER(DarkEnergyParams)()
         i = c_int(0)
-        CAMBparams_GetDarkEnergy(byref(self),byref(i), byref(de))
+        CAMBparams_GetDarkEnergy(byref(self), byref(i), byref(de))
         self.DarkEnergy = de.contents
 
     def __del__(self):
@@ -259,7 +261,7 @@ class CAMBparams(CAMB_Structure):
         ("InitialConditionVector", c_double * 10),
         ("OnlyTransfers", c_int),  # logical
         ("DerivedParameters", c_int),  # logical
-        ("_DarkEnergy", f_allocatable), #resolved class accessed as self.DarkEnergy
+        ("_DarkEnergy", f_allocatable),  # resolved class accessed as self.DarkEnergy
         ("ReionHist", ion.ReionizationHistory),
         ("flat", c_int),  # logical
         ("closed", c_int),  # logical
@@ -271,6 +273,21 @@ class CAMBparams(CAMB_Structure):
         ("tau0", c_double),
         ("chi0", c_double)
     ]
+
+    def copy(self):
+        """
+        Make independent copy. Since it contains allocatables, these have to be newly allocated and then values copied.
+
+        :return: copy of self
+        """
+        cp = copy.deepcopy(self)
+        cp._DarkEnergy[:] = np.zeros(len(cp._DarkEnergy), dtype=c_byte)  ##null allocatable
+        de = POINTER(DarkEnergyParams)()
+        i = c_int(0)
+        CAMBparams_GetDarkEnergy(byref(self), byref(i), byref(de))
+        cp.set_dark_energy(w=self.DarkEnergy.w, cs2=self.DarkEnergy.cs2, wa=self.DarkEnergy.wa,
+                           dark_energy_model=dark_energy_models[i.value])
+        return cp
 
     def validate(self):
         """
@@ -325,8 +342,9 @@ class CAMBparams(CAMB_Structure):
         self.YHe = bbn.ypBBN_to_yhe(Yp)
         return self
 
-    def set_cosmology(self, H0=67, cosmomc_theta=None, ombh2=0.022, omch2=0.12, omk=0.0, neutrino_hierarchy = 'degenerate',
-                      num_massive_neutrinos=1,mnu=0.06, nnu=3.046,
+    def set_cosmology(self, H0=67, cosmomc_theta=None, ombh2=0.022, omch2=0.12, omk=0.0,
+                      neutrino_hierarchy='degenerate',
+                      num_massive_neutrinos=1, mnu=0.06, nnu=3.046,
                       YHe=None, meffsterile=0, standard_neutrino_neff=3.046, TCMB=constants.COBE_CMBTemp, tau=None,
                       tau_neutron=bbn.tau_n):
         """
@@ -401,7 +419,7 @@ class CAMBparams(CAMB_Structure):
         if omnuh2 and not num_massive_neutrinos:
             raise CAMBError('non-zero mnu with zero num_massive_neutrinos')
 
-        if isinstance(neutrino_hierarchy,six.string_types):
+        if isinstance(neutrino_hierarchy, six.string_types):
             if not neutrino_hierarchy in neutrino_hierarchies:
                 raise CAMBError('Unknown neutrino_hierarchy {0:s}'.format(neutrino_hierarchy))
             neutrino_hierarchy = neutrino_hierarchies.index(neutrino_hierarchy) + 1
@@ -430,9 +448,9 @@ class CAMBparams(CAMB_Structure):
         # else:
         #     neff_massive_standard = 0
         if omnuh2_sterile > 0:
-             if nnu < standard_neutrino_neff:
-                 raise CAMBError('nnu < 3.046 with massive sterile')
-        #     self.num_nu_massless = standard_neutrino_neff - neff_massive_standard
+            if nnu < standard_neutrino_neff:
+                raise CAMBError('nnu < 3.046 with massive sterile')
+        # self.num_nu_massless = standard_neutrino_neff - neff_massive_standard
         #     self.num_nu_massive = self.num_nu_massive + 1
         #     self.nu_mass_eigenstates = self.nu_mass_eigenstates + 1
         #     self.nu_mass_numbers[self.nu_mass_eigenstates - 1] = 1
@@ -440,7 +458,8 @@ class CAMBparams(CAMB_Structure):
         #     self.nu_mass_fractions[self.nu_mass_eigenstates - 1] = omnuh2_sterile / omnuh2
 
         CAMB_SetNeutrinoHierarchy(byref(self), byref(c_double(omnuh2)), byref(c_double(omnuh2_sterile)),
-                byref(c_double(nnu)), byref(c_int(neutrino_hierarchy)), byref(c_int(num_massive_neutrinos)))
+                                  byref(c_double(nnu)), byref(c_int(neutrino_hierarchy)),
+                                  byref(c_int(num_massive_neutrinos)))
 
         if tau is not None:
             self.Reion.set_tau(tau)
@@ -462,9 +481,9 @@ class CAMBparams(CAMB_Structure):
             raise CAMBError('fluid dark energy model does not support wa<>0')
 
         de = POINTER(DarkEnergyParams)()
-        CAMBparams_SetDarkEnergy(byref(self),byref(c_int(['fluid', 'pff'].index(dark_energy_model))), byref(de))
+        CAMBparams_SetDarkEnergy(byref(self), byref(c_int(dark_energy_models.index(dark_energy_model))), byref(de))
         self.DarkEnergy = de.contents
-        self.DarkEnergy.w =w
+        self.DarkEnergy.w = w
         self.DarkEnergy.wa = wa
         self.DarkEnergy.cs2 = cs2
 
@@ -562,10 +581,10 @@ def Transfer_SortAndIndexRedshifts(P):
 
 
 CAMB_primordialpower.argtypes = [POINTER(CAMBparams), numpy_1d, numpy_1d, POINTER(c_int), POINTER(c_int)]
-CAMBparams_SetDarkEnergy.argtypes =  [POINTER(CAMBparams), POINTER(c_int), POINTER(POINTER(DarkEnergyParams))]
-CAMBparams_GetDarkEnergy.argtypes =  CAMBparams_SetDarkEnergy.argtypes
+CAMBparams_SetDarkEnergy.argtypes = [POINTER(CAMBparams), POINTER(c_int), POINTER(POINTER(DarkEnergyParams))]
+CAMBparams_GetDarkEnergy.argtypes = CAMBparams_SetDarkEnergy.argtypes
 
-CAMB_SetNeutrinoHierarchy.argtypes = [POINTER(CAMBparams),POINTER(c_double), POINTER(c_double),
-                                     POINTER(c_double), POINTER(c_int), POINTER(c_int)]
+CAMB_SetNeutrinoHierarchy.argtypes = [POINTER(CAMBparams), POINTER(c_double), POINTER(c_double),
+                                      POINTER(c_double), POINTER(c_int), POINTER(c_int)]
 
 CAMBParams_Free.argtypes = [POINTER(CAMBparams)]

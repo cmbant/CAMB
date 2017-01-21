@@ -1142,10 +1142,11 @@ def get_matter_power_interpolator(params, zmin=0, zmax=10, nz_step=100, zs=None,
     :return: RectBivariateSpline object PK, that can be called with PK(z,log(kh)) to get log matter power values.
         if return_z_k=True, instead return interpolator, z, k where z, k are the grid used
     """
-    import copy
+
     from scipy.interpolate import RectBivariateSpline
 
-    pars = copy.deepcopy(params)
+    pars = params.copy()
+
     if zs is None:
         zs = zmin + np.exp(np.log(zmax - zmin + 1) * np.linspace(0, 1, nz_step)) - 1
     pars.set_matter_power(redshifts=zs, kmax=kmax, k_per_logint=k_per_logint, silent=True)
