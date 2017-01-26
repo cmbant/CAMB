@@ -144,7 +144,6 @@ class CambTest(unittest.TestCase):
         self.assertTrue(np.sum((pk / pk_interp - 1) ** 2) < 0.005)
         camb.set_halofit_version('mead')
         _, _, pk = results.get_nonlinear_matter_power_spectrum(params=pars, var1='delta_cdm', var2='delta_cdm')
-        print pk[0][160], kh[160]
         self.assertTrue(np.abs(pk[0][160] / 232.08 - 1) < 1e-3)
 
         lmax = 4000
