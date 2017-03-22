@@ -38,7 +38,7 @@ def threej(l2,l3,m2,m3):
     :param m3: M_3
     :return: array of 3j from  max(abs(l2-l3),abs(m2+m3)) .. l2+l3
     """
-    l1min = np.max(np.abs(l2-l3),np.abs(m2+m3))
+    l1min = max(np.abs(l2-l3),np.abs(m2+m3))
     result = np.zeros(int(l3+l2 -l1min+1))
     l2in, l3in, m2in, m3in = c_int(l2),c_int(l3),c_int(m2),c_int(m3)
     utils_3j(result, l2in, l3in, m2in, m3in)

@@ -628,7 +628,7 @@ class CAMBdata(object):
 
         :param var1: variable i (index, or name of variable; default delta_tot)
         :param var2: variable j (index, or name of variable; default delta_tot)
-        :param hubble_units: if true, output power spectrum in (Mpc/h)^{-3} units, otherwise Mpc^{-3}
+        :param hubble_units: if true, output power spectrum in (Mpc/h) units, otherwise Mpc
         :param have_power_spectra: set to True if already computed power spectra
         :param params: if have_power_spectra=False, optional :class:`.model.CAMBparams` instance to specify new parameters
         :param nonlinear: include non-linear correction from halo model
@@ -662,7 +662,7 @@ class CAMBdata(object):
 
         :param var1: variable i (index, or name of variable; default delta_tot)
         :param var2: variable j (index, or name of variable; default delta_tot)
-        :param hubble_units: if true, output power spectrum in (Mpc/h)^{-3} units, otherwise Mpc^{-3}
+        :param hubble_units: if true, output power spectrum in (Mpc/h)^{3} units, otherwise Mpc^{3}
         :param have_power_spectra: set to True if already computed power spectra
         :param params: if have_power_spectra=False, optional :class:`.model.CAMBparams` instance to specify new parameters
         :return: kh, z, PK, where kz an z are arrays of k/h and z respectively, and PK[i,j] is value at z[i], k/h[j]
@@ -1124,7 +1124,7 @@ def get_matter_power_interpolator(params, zmin=0, zmax=10, nz_step=100, zs=None,
     Return a 2D spline interpolation object to evaluate matter power spectrum as function of z and k/h
     e.g::
       PK = get_matter_power_evaluator(params);
-      print 'Power spectrum at z=0.5, k/h=0.1 is %s (Mpc/h)^{-3} '%(PK.P(0.5, 0.1))
+      print 'Power spectrum at z=0.5, k/h=0.1 is %s (Mpc/h)^3 '%(PK.P(0.5, 0.1))
 
     :param params: :class:`.model.CAMBparams` instance
     :param zmin: minimum z (use 0 or smaller than you want for good interpolation)
@@ -1135,7 +1135,7 @@ def get_matter_power_interpolator(params, zmin=0, zmax=10, nz_step=100, zs=None,
     :param nonlinear: include non-linear correction from halo model
     :param var1: variable i (index, or name of variable; default delta_tot)
     :param var2: variable j (index, or name of variable; default delta_tot)
-    :param hubble_units: if true, output power spectrum in (Mpc/h)^{-3} units, otherwise Mpc^{-3}
+    :param hubble_units: if true, output power spectrum in (Mpc/h)^{3} units, otherwise Mpc^{33}
     :param k_hunit: if true, matter power is a function of k/h, if false, just k (both Mpc^{-1} units)
     :param return_z_k: if true, return interpolator, z, k where z, k are the grid used
     :param log_interp: if true, interpolate log of power spectrum (unless any values are negative in which case ignored)
