@@ -45,7 +45,7 @@ evolve_names = transfer_names + ['a', 'etak', 'H', 'growth', 'v_photon', 'pi_pho
 
 background_names = ['x_e', 'opacity', 'visibility', 'cs2b']
 
-dark_energy_models = ['fluid', 'pff']
+dark_energy_models = ['fluid', 'ppf']
 
 neutrino_hierarchies = ['normal', 'inverted', 'degenerate']
 neutrino_hierarchy_normal = 1
@@ -477,7 +477,7 @@ class CAMBparams(CAMB_Structure):
         :return: self
         """
         # Variables from module LambdaGeneral
-        if dark_energy_model != 'fluid' and wa:
+        if dark_energy_model == 'fluid' and wa:
             raise CAMBError('fluid dark energy model does not support wa<>0')
 
         de = POINTER(DarkEnergyParams)()
