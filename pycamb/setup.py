@@ -89,9 +89,9 @@ class SharedLibrary(install):
         else:
             print("Compiling source...")
             subprocess.call("make camblib.so", shell=True)
-            if not osp.isfile(os.path.join('Releaselib', 'camblib.so')): sys.exit('Compilation failed')
-            subprocess.call("chmod 755 Releaselib/camblib.so", shell=True)
-            subprocess.call(r"cp Releaselib/camblib.so %s/camb" % (pycamb_path), shell=True)
+            #if not osp.isfile(os.path.join('Releaselib', 'camblib.so')): sys.exit('Compilation failed')
+            #subprocess.call("chmod 755 Releaselib/camblib.so", shell=True)
+            #subprocess.call(r"cp Releaselib/camblib.so %s/camb" % (pycamb_path), shell=True)
             subprocess.call("cp HighLExtrapTemplate_lenspotentialCls.dat %s/camb" % (pycamb_path), shell=True)
 
         os.chdir(file_dir)
