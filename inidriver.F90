@@ -164,7 +164,7 @@
         P%transfer%k_per_logint  =  Ini_Read_Int('transfer_k_per_logint')
         P%transfer%PK_num_redshifts =  Ini_Read_Int('transfer_num_redshifts')
 
-        transfer_interp_matterpower = Ini_Read_Logical('transfer_interp_matterpower ', transfer_interp_matterpower)
+        transfer_interp_matterpower = Ini_Read_Logical('transfer_interp_matterpower', transfer_interp_matterpower)
         transfer_power_var = Ini_read_int('transfer_power_var',transfer_power_var)
         if (P%transfer%PK_num_redshifts > max_transfer_redshifts) error stop 'Too many redshifts'
         do i=1, P%transfer%PK_num_redshifts
