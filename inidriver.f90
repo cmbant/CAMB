@@ -276,7 +276,7 @@
             write(*,*) ' -- Neglected line width effects will dominate'
         end if
 
-        call Ini%Read('transfer_interp_matterpower ', transfer_interp_matterpower)
+        call Ini%Read('transfer_interp_matterpower', transfer_interp_matterpower)
         call Ini%Read('transfer_power_var', transfer_power_var)
         !        if (P%transfer%PK_num_redshifts > max_transfer_redshifts) stop 'Too many redshifts'
         allocate (TransferFileNames(P%Transfer%PK_num_redshifts))
