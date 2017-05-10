@@ -269,6 +269,7 @@ def fortran_array(c_pointer, shape, dtype=np.float64, order='F', own_data=True):
 def set_z_outputs(z_outputs):
     """
     Set the redshifts for calculating BAO parameters at
+
     :param z_outputs: array of redshifts
     """
     z_outputs = np.array(z_outputs)
@@ -455,6 +456,35 @@ class CAMBdata(object):
             P[spectrum] = getattr(self, 'get_' + spectrum + '_cls')(lmax)
         return P
 
+    def get_cmb_correlation_functions(self, params=None, lmax=None, spectrum='lensed_scalar',
+                                      xvals=None, sampling_factor=1):
+        """
+        Get the CMB correlation functions from the power spectra.
+        By default evaluated at points cos(theta) = xvals that are roots of Legendre polynomials,
+        for accurate back integration with :func:`.correlations.corr2cl`.
+        If xvals is explicitly given, instead calculates correlations at provided cos(theta) values.
+
+        :param params: optional :class:`.model.CAMBparams` instance with parameters to use. If None, must have
+          previously set parameters and called `calc_power_spectra` (e.g. if you got this instance using `camb.get_results`),
+        :param lmax: optional maximum L to use from the cls arrays
+        :param spectrum: type of CMB power spectrum to get; default 'lensed_scalar', one of
+          ['total', 'unlensed_scalar', 'unlensed_total', 'lensed_scalar', 'tensor']
+        :param xvals: optional array of cos(theta) values at which to calculate correlation function.
+        :param sampling_factor: multiple of lmax for the Gauss-Legendre order if xvals not given (default 1)
+        :return: if xvals not given: corrs, xvals, weights; if xvals specified, just corrs.
+          corrs is 2D array corrs[i, ix], where ix=0,1,2,3 are T, Q+U, Q-U and cross, and i indexes xvals
+        """
+
+        if not spectrum in ['total', 'unlensed_scalar', 'unlensed_total', 'lensed_scalar', 'tensor']:
+            raise ValueError('Can only get CMB correlation functions for known CMB spectrum')
+        from . import correlations
+
+        cls = self.get_cmb_power_spectra(params, lmax, spectra=[spectrum])[spectrum]
+        if xvals is None:
+            return correlations.gauss_legendre_correlation(cls, sampling_factor=sampling_factor)
+        else:
+            return correlations.cl2corr(cls, xvals, lmax=lmax)
+
     def get_cmb_transfer_data(self, tp='scalar'):
         """
         Get C_l transfer functions
@@ -596,7 +626,7 @@ class CAMBdata(object):
 
         :param var1: variable i (index, or name of variable; default delta_tot)
         :param var2: variable j (index, or name of variable; default delta_tot)
-        :param hubble_units: if true, output power spectrum in (Mpc/h)^{-3} units, otherwise Mpc^{-3}
+        :param hubble_units: if true, output power spectrum in (Mpc/h) units, otherwise Mpc
         :param have_power_spectra: set to True if already computed power spectra
         :param params: if have_power_spectra=False, optional :class:`.model.CAMBparams` instance to specify new parameters
         :param nonlinear: include non-linear correction from halo model
@@ -630,7 +660,7 @@ class CAMBdata(object):
 
         :param var1: variable i (index, or name of variable; default delta_tot)
         :param var2: variable j (index, or name of variable; default delta_tot)
-        :param hubble_units: if true, output power spectrum in (Mpc/h)^{-3} units, otherwise Mpc^{-3}
+        :param hubble_units: if true, output power spectrum in (Mpc/h)^{3} units, otherwise Mpc^{3}
         :param have_power_spectra: set to True if already computed power spectra
         :param params: if have_power_spectra=False, optional :class:`.model.CAMBparams` instance to specify new parameters
         :return: kh, z, PK, where kz an z are arrays of k/h and z respectively, and PK[i,j] is value at z[i], k/h[j]
@@ -1090,9 +1120,9 @@ def get_matter_power_interpolator(params, zmin=0, zmax=10, nz_step=100, zs=None,
                                   return_z_k=False, k_per_logint=None, log_interp=True):
     """
     Return a 2D spline interpolation object to evaluate matter power spectrum as function of z and k/h
-    e.g.
-      PK = get_matter_power_evaluator(params)
-      print 'Power spectrum at z=0.5, k/h=0.1 is %s (Mpc/h)^{-3} '%(PK.P(0.5, 0.1))
+    e.g::
+      PK = get_matter_power_evaluator(params);
+      print 'Power spectrum at z=0.5, k/h=0.1 is %s (Mpc/h)^3 '%(PK.P(0.5, 0.1))
 
     :param params: :class:`.model.CAMBparams` instance
     :param zmin: minimum z (use 0 or smaller than you want for good interpolation)
@@ -1103,13 +1133,12 @@ def get_matter_power_interpolator(params, zmin=0, zmax=10, nz_step=100, zs=None,
     :param nonlinear: include non-linear correction from halo model
     :param var1: variable i (index, or name of variable; default delta_tot)
     :param var2: variable j (index, or name of variable; default delta_tot)
-    :param hubble_units: if true, output power spectrum in (Mpc/h)^{-3} units, otherwise Mpc^{-3}
+    :param hubble_units: if true, output power spectrum in (Mpc/h)^{3} units, otherwise Mpc^{33}
     :param k_hunit: if true, matter power is a function of k/h, if false, just k (both Mpc^{-1} units)
     :param return_z_k: if true, return interpolator, z, k where z, k are the grid used
     :param log_interp: if true, interpolate log of power spectrum (unless any values are negative in which case ignored)
-    :return: kh, z, PK, where kz an z are arrays of k/h and z respectively, and PK[i,j] is value at z[i], (k/h)[j]
-
-    :return: RectBivariateSpline object PK, that can be called with PK(z,log(kh)) to get log matter power values
+    :return: RectBivariateSpline object PK, that can be called with PK(z,log(kh)) to get log matter power values.
+        if return_z_k=True, instead return interpolator, z, k where z, k are the grid used
     """
     import copy
     from scipy.interpolate import RectBivariateSpline

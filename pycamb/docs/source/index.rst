@@ -32,6 +32,7 @@ Other modules:
    initialpower
    reionization
    recombination
+   correlations
 
 * :ref:`genindex`
 

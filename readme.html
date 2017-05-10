@@ -13,7 +13,7 @@
 Code for Anisotropies in the Microwave Background by <A
 HREF="http://cosmologist.info/">Antony Lewis</A> and Anthony
 Challinor. <P>
-This version May 2016.
+This version January 2017.
 <P>
 <FONT SIZE=-1>
 Originally based on CMBFAST developed by Uros Seljak and Matias
@@ -144,6 +144,21 @@ A test suite is included, and will run automatically on <A HREF="https://travis-
 <P>
 <A NAME="version">
 <H3>Version history</H3>
+
+<B>January 2017</B><BR>
+<UL>
+<LI><A HREF="http://camb.readthedocs.io/en/latest/correlations.html">Python CAMB wrapper correlations module</A>:
+ Transform between C<sub>L</sub> and CMB correlation functions; calculate lensed power spectra and correlation functions from unlensed spectra and lensing power spectrum (useful for delensing); calculate matrix of derivatives of lensed power spectra with respect to lensing power and unlensed C<sub>L</sub>.
+<LI>Added halofit_casarini=7 for PKequal dark energy fitting (thanks Luciano Casarini; arXiv:0810.0190, arXiv:1601.07230)
+<LI>Fixed compilation issue with gfortran 6.3
+</UL>
+
+<B>November 2016</B><BR>
+<UL>
+<LI><b>CAMB_SetNeutrinoHierarchy</b> function and python wrapper <b>neutrino_hierarchy</b> option for set_cosmology function (to configure to use two eigenstate approximation to normal or inverted hierarchies)
+<LI>Various misc small bug fixes, improvements and compiler compatibility changes
+</UL>
+
 
 <B>May 2016</B><BR>
 <UL>
