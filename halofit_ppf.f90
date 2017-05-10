@@ -63,6 +63,9 @@ module NonLinear
      REAL, ALLOCATABLE :: growth(:), a_growth(:)
      REAL, ALLOCATABLE :: k_plin(:), plin(:), plinc(:)
      INTEGER :: nk, ng, nsig
+     !AM - Added feedback parameters below at fixed fiducial (DMONLY) values
+     REAL :: A_baryon=3.13
+     REAL :: eta_baryon=0.603
   END TYPE HM_cosmology
 
   TYPE HM_tables
@@ -455,12 +458,17 @@ contains
     REAL, INTENT(IN) :: z
     TYPE(HM_cosmology), INTENT(IN) :: cosm
     TYPE(HM_tables), INTENT(IN) :: lut
+    REAL :: eta0
 
     IF(imead==0) THEN
        eta=0.
     ELSE IF(imead==1) THEN
        !The first parameter here is 'eta_0' in Mead et al. (2015; arXiv 1505.07833)
-       eta=0.603-0.3*lut%sig8z
+       !eta=0.603-0.3*lut%sig8z
+       !AM - added for easy modification of feedback parameter
+       eta0=cosm%eta_baryon
+       !eta0=0.95-0.11*cosm%A_baryon !This is an (updated) one-parameter relation
+       eta=eta0-0.3*lut%sig8z
     END IF
 
   END FUNCTION eta
@@ -497,7 +505,9 @@ contains
        As=4.
     ELSE IF(imead==1) THEN
        !This is the 'A' halo-concentration parameter in Mead et al. (2015; arXiv 1505.07833)
-       As=3.13
+       !As=3.13
+       !AM - added for easy modification of feedback parameter
+       As=cosm%A_baryon
     END IF
 
   END FUNCTION As
