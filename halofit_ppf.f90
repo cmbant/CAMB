@@ -33,8 +33,8 @@
     !AM May 16: Fixed some small bugs and added better neutrino approximations
     !AL Jun16: put in partial openmp for HMcode (needs restructure to do properly)
     !AM Sep 16: Attempted fix of strange bug. No more modules with unallocated arrays as inputs
-
     !LC Oct 16: extended Halofit from w=const. models to w=w(a) with PKequal
+    !AM May 17: Made the baryon feedback parameters more obvious in HMcode
 
 
     !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -67,6 +67,9 @@
         REAL, ALLOCATABLE :: growth(:), a_growth(:)
         REAL, ALLOCATABLE :: k_plin(:), plin(:), plinc(:)
         INTEGER :: nk, ng, nsig
+        !AM - Added feedback parameters below at fixed fiducial (DMONLY) values
+        REAL :: A_baryon=3.13
+        REAL :: eta_baryon=0.603
     END TYPE HM_cosmology
 
     TYPE HM_tables
@@ -373,10 +376,14 @@
     !Use ihm to switch between verbose (diagnostic) and non-verbose mode
     !0 - Non-verbose
     !1 - Verbose
-    ihm=0
+    IF(feedback>0) THEN
+       ihm=1
+    ELSE
+       ihm=0
+    END IF
 
     IF(ihm==1) WRITE(*,*)
-    IF(ihm==1) WRITE(*,*) 'Running HMcode'
+    IF(ihm==1) WRITE(*,*) 'HMcode: Running HMcode'
     IF(ihm==1) WRITE(*,*)
 
     !!AM - Translate from CAMB variables to my variables
@@ -465,12 +472,17 @@
     REAL, INTENT(IN) :: z
     TYPE(HM_cosmology), INTENT(IN) :: cosm
     TYPE(HM_tables), INTENT(IN) :: lut
+    REAL :: eta0
 
     IF(imead==0) THEN
         eta=0.
     ELSE IF(imead==1) THEN
         !The first parameter here is 'eta_0' in Mead et al. (2015; arXiv 1505.07833)
-        eta=0.603-0.3*lut%sig8z
+        !eta=0.603-0.3*lut%sig8z
+        !AM - made baryon feedback parameter obvious
+        eta0=cosm%eta_baryon
+        !eta0=0.95-0.11*cosm%A_baryon !This is an (updated) one-parameter relation that could be used
+        eta=eta0-0.3*lut%sig8z
     END IF
 
     END FUNCTION eta
@@ -507,7 +519,9 @@
         As=4.
     ELSE IF(imead==1) THEN
         !This is the 'A' halo-concentration parameter in Mead et al. (2015; arXiv 1505.07833)
-        As=3.13
+        !As=3.13
+        !AM - made baryon feedback parameter obvious
+        As=cosm%A_baryon
     END IF
 
     END FUNCTION As
@@ -778,6 +792,8 @@
     IF(ihm==1) WRITE(*,*) 'HM_cosmology: h:', cosm%h
     IF(ihm==1) WRITE(*,*) 'HM_cosmology: T_CMB [K]:', cosm%Tcmb
     IF(ihm==1) WRITE(*,*) 'HM_cosmology: N_nu (massive):', cosm%Nnu
+    IF(ihm==1) WRITE(*,*) 'HM_cosmology: A_baryon:', cosm%A_baryon
+    IF(ihm==1) WRITE(*,*) 'HM_cosmology: eta_baryon:', cosm%eta_baryon
     IF(ihm==1) WRITE(*,*)
 
     END SUBROUTINE assign_HM_cosmology
@@ -936,8 +952,8 @@
     TYPE(HM_cosmology), INTENT(IN) :: cosm
     TYPE(HM_tables), INTENT(IN) :: lut
 
-    IF(ihm==1) WRITE(*,*) 'Parameters at your redshift'
-    IF(ihm==1) WRITE(*,*) '==========================='
+    IF(ihm==1) WRITE(*,*) 'WRITE_PARAMETERS: at this redshift'
+    IF(ihm==1) WRITE(*,*) '=================================='
     IF(ihm==1) WRITE(*,fmt='(A10,F10.5)') 'z:', z
     IF(ihm==1) WRITE(*,fmt='(A10,F10.5)') 'Dv:', Delta_v(z,lut,cosm)
     IF(ihm==1) WRITE(*,fmt='(A10,F10.5)') 'dc:', delta_c(z,lut,cosm)
@@ -946,6 +962,7 @@
     IF(ihm==1) WRITE(*,fmt='(A10,F10.5)') 'A:', As(z,lut,cosm)
     IF(ihm==1) WRITE(*,fmt='(A10,F10.5)') 'fdamp:', fdamp(z,lut,cosm)
     IF(ihm==1) WRITE(*,fmt='(A10,F10.5)') 'alpha:', alpha(z,lut,cosm)
+    IF(ihm==1) WRITE(*,*) '=================================='
     IF(ihm==1) WRITE(*,*)
 
     END SUBROUTINE write_parameters
@@ -2943,4 +2960,3 @@
     call MpiStop('Halofit module doesn''t support non-linear velocities')
 
     end subroutine NonLinear_GetRatios_All
-
