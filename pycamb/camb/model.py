@@ -45,7 +45,7 @@ evolve_names = transfer_names + ['a', 'etak', 'H', 'growth', 'v_photon', 'pi_pho
 
 background_names = ['x_e', 'opacity', 'visibility', 'cs2b']
 
-neutrino_hierarchies = ['normal','inverted','degenerate']
+neutrino_hierarchies = ['normal', 'inverted', 'degenerate']
 neutrino_hierarchy_normal = 1
 neutrino_hierarchy_inverted = 2
 neutrino_hierarchy_degenerate = 3
@@ -147,7 +147,7 @@ get_growth_sigma8 = dll_import(c_bool, "transfer", "get_growth_sigma8")
 CAMB_validateparams = camblib.__camb_MOD_camb_validateparams
 CAMB_validateparams.restype = c_bool
 
-#args for these set below after CAMBparams defined
+# args for these set below after CAMBparams defined
 CAMB_setinitialpower = camblib.__handles_MOD_camb_setinitialpower
 CAMB_SetNeutrinoHierarchy = camblib.__camb_MOD_camb_setneutrinohierarchy
 
@@ -307,10 +307,11 @@ class CAMBparams(CAMB_Structure):
         self.YHe = bbn.ypBBN_to_yhe(Yp)
         return self
 
-    def set_cosmology(self, H0=67, cosmomc_theta=None, ombh2=0.022, omch2=0.12, omk=0.0,
-                      neutrino_hierarchy = 'degenerate', num_massive_neutrinos=1,
+    def set_cosmology(self, H0=67.0, cosmomc_theta=None, ombh2=0.022, omch2=0.12, omk=0.0,
+                      neutrino_hierarchy='degenerate', num_massive_neutrinos=1,
                       mnu=0.06, nnu=3.046,
-                      YHe=None, meffsterile=0, standard_neutrino_neff=3.046, TCMB=constants.COBE_CMBTemp, tau=None,
+                      YHe=None, meffsterile=0.0, standard_neutrino_neff=3.046, TCMB=constants.COBE_CMBTemp,
+                      tau=None, deltazrei=None,
                       tau_neutron=bbn.tau_n):
         """
         Sets cosmological parameters in terms of physical densities and parameters used in Planck 2015 analysis.
@@ -334,6 +335,7 @@ class CAMBparams(CAMB_Structure):
                 heating of neutrinos at electron-positron annihilation and QED effects)
         :param TCMB: CMB temperature (in Kelvin)
         :param tau: optical depth; if None, current Reion settings are not changed
+        :param deltazrei: redshift width of reionization; if None, uses default
         :param tau_neutron: neutron lifetime, for setting YHe using BBN consistency
         """
 
@@ -384,7 +386,7 @@ class CAMBparams(CAMB_Structure):
         if omnuh2 and not num_massive_neutrinos:
             raise CAMBError('non-zero mnu with zero num_massive_neutrinos')
 
-        if isinstance(neutrino_hierarchy,six.string_types):
+        if isinstance(neutrino_hierarchy, six.string_types):
             if not neutrino_hierarchy in neutrino_hierarchies:
                 raise CAMBError('Unknown neutrino_hierarchy {0:s}'.format(neutrino_hierarchy))
             neutrino_hierarchy = neutrino_hierarchies.index(neutrino_hierarchy) + 1
@@ -413,9 +415,9 @@ class CAMBparams(CAMB_Structure):
         # else:
         #     neff_massive_standard = 0
         if omnuh2_sterile > 0:
-             if nnu < standard_neutrino_neff:
-                 raise CAMBError('nnu < 3.046 with massive sterile')
-        #     self.num_nu_massless = standard_neutrino_neff - neff_massive_standard
+            if nnu < standard_neutrino_neff:
+                raise CAMBError('nnu < 3.046 with massive sterile')
+        # self.num_nu_massless = standard_neutrino_neff - neff_massive_standard
         #     self.num_nu_massive = self.num_nu_massive + 1
         #     self.nu_mass_eigenstates = self.nu_mass_eigenstates + 1
         #     self.nu_mass_numbers[self.nu_mass_eigenstates - 1] = 1
@@ -423,10 +425,13 @@ class CAMBparams(CAMB_Structure):
         #     self.nu_mass_fractions[self.nu_mass_eigenstates - 1] = omnuh2_sterile / omnuh2
 
         CAMB_SetNeutrinoHierarchy(byref(self), byref(c_double(omnuh2)), byref(c_double(omnuh2_sterile)),
-                byref(c_double(nnu)), byref(c_int(neutrino_hierarchy)), byref(c_int(num_massive_neutrinos)))
+                                  byref(c_double(nnu)), byref(c_int(neutrino_hierarchy)),
+                                  byref(c_int(num_massive_neutrinos)))
 
         if tau is not None:
-            self.Reion.set_tau(tau)
+            self.Reion.set_tau(tau, delta_redshift=deltazrei)
+        elif deltazrei:
+            raise CAMBError('must set tau if setting deltazrei')
 
         return self
 
@@ -544,5 +549,5 @@ def Transfer_SortAndIndexRedshifts(P):
 
 CAMB_primordialpower.argtypes = [POINTER(CAMBparams), numpy_1d, numpy_1d, POINTER(c_int), POINTER(c_int)]
 
-CAMB_SetNeutrinoHierarchy.argtypes = [POINTER(CAMBparams),POINTER(c_double), POINTER(c_double),
+CAMB_SetNeutrinoHierarchy.argtypes = [POINTER(CAMBparams), POINTER(c_double), POINTER(c_double),
                                       POINTER(c_double), POINTER(c_int), POINTER(c_int)]

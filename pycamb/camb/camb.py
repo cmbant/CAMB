@@ -151,6 +151,9 @@ Hofz = camblib.__modelparams_MOD_hofz
 Hofz.argtyes = [d_arg]
 Hofz.restype = c_double
 
+HofzArr = camblib.__modelparams_MOD_hofzarr
+HofzArr.argtypes = [numpy_1d, numpy_1d, int_arg]
+
 DeltaPhysicalTimeGyr = camblib.__modelparams_MOD_deltaphysicaltimegyr
 DeltaPhysicalTimeGyr.argtypes = [d_arg, d_arg, d_arg]
 DeltaPhysicalTimeGyr.restype = c_double
@@ -887,20 +890,26 @@ class CAMBdata(object):
 
     def h_of_z(self, z):
         """
-        Get Hubble rate at redshift z, in Mpc^{-1} units.
+        Get Hubble rate at redshift z, in Mpc^{-1} units, scalar or array
 
         Must have called calc_background, calc_background_no_thermo or calculated transfer functions or power spectra.
+
+        Use hubble_parameter instead if you want in [km/s/Mpc] units.
 
         :param z: redshift
         :return: H(z)
         """
         if not np.isscalar(z):
-            raise CAMBError('vector z not supported yet')
-        return Hofz(byref(c_double(z)))
+            z = np.asarray(z)
+            arr = np.empty(z.shape)
+            HofzArr(arr, z, byref(c_int(z.shape[0])))
+            return arr
+        else:
+            return Hofz(byref(c_double(z)))
 
     def hubble_parameter(self, z):
         """
-        Get Huuble rate at redshift z, in km/s/Mpc units.
+        Get Hubble rate at redshift z, in km/s/Mpc units. Scalar or array.
 
         Must have called calc_background, calc_background_no_thermo or calculated transfer functions or power spectra.
 
