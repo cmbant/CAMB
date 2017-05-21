@@ -680,6 +680,17 @@ class CAMBdata(object):
         mtrans = self.get_matter_transfer_data()
         return mtrans.sigma_8[:, 0]
 
+    def get_fsigma8(self):
+        """
+        Get f*sigma_8 growth values (must previously have calculated power spectra).
+        For general models f*sigma_8 is defined as in the Planck 2015 parameter paper in terms of
+        the velocity-density correlation: sigma^2_{vd}/sigma_{dd} for 8 h^{-1} Mpc spheres.
+
+        :return: array of f*sigma_8 values, in order of increasing time (decreasing redshift)
+        """
+        mtrans = self.get_matter_transfer_data()
+        return mtrans.sigma2_vdelta_8[:, 0] / mtrans.sigma_8[:, 0]
+
     def get_matter_power_spectrum(self, minkh=1e-4, maxkh=1.0, npoints=100,
                                   var1=None, var2=None,
                                   have_power_spectra=False, params=None):
