@@ -1,11 +1,12 @@
-# Make BBN interpolation table from AlterBBN or Parthenelope
-# Used AlterBBN 1.4, compiled after changing exit code to 0, and increasing sf of the text output in alter_etannutau
+# Classes to produce BBN predictions for helium mass fraction and D/H given other parameters
 # Fitting formula for Parthenelope via Julien Lesourges Dec 2014
+# General interpolation tables, with defaults from Parthenope May 2017 (thanks Ofelia Pesanti)
 
 import numpy as np
-import subprocess
-import sys
+import os
+import io
 
+# Various useful constants
 hbar = 1.05457e-34
 c = 299792458.
 kB = 1.380650e-23
@@ -22,13 +23,9 @@ not4 = 3.9715
 m_He = m_H * not4
 
 zeta3 = 1.202056903
-tau_n = 880.3
 
 n_photon = (kB * TCMB / hbar / c) ** 3 * zeta3 * 2 / np.pi ** 2
-
 omegafac = (1e5 / Mpc) ** 2 / (8 * np.pi * G) * 3
-
-alterBBN = False
 
 
 def yhe_to_ypBBN(Yp):
@@ -39,128 +36,148 @@ def ypBBN_to_yhe(YBBN):
     return -YBBN * m_He / (-YBBN * m_He + 4 * YBBN * m_H - 4 * m_H)
 
 
-# Parthenelope fits, from Julien 3 Dec 2014
-def yhe_fit(omegab, dneff, taun):
-    return (
-               0.2311 + 0.9502 * omegab - 11.27 * omegab * omegab
-               + dneff * (0.01356 + 0.008581 * omegab - 0.1810 * omegab * omegab)
-               + dneff * dneff * (-0.0009795 - 0.001370 * omegab + 0.01746 * omegab * omegab)
-           ) * pow(taun / 880.3, 0.728)
+class BBNPredictor(object):
+    def Y_p(self, ombh2, delta_neff=0.):
+        """
+        Get BBN helium nucleon fraction. Must be implemented by extensions.
+
+        :param ombh2: Omega_b h^2
+        :param delta_neff:  additional N_eff relative to standard value (of 3.046)
+        :return:  Y_p helium nucleon fraction predicted by BBN
+        """
+        raise Exception('Not implemented')
+
+    def Y_He(self, ombh2, delta_neff=0.):
+        """
+        Get BBN helium mass fraction for CMB code.
+
+        :param ombh2: Omega_b h^2
+        :param delta_neff:  additional N_eff relative to standard value (of 3.046)
+        :return: Y_He helium mass fraction predicted by BBN
+        """
+        return ypBBN_to_yhe(self.Y_p(ombh2, delta_neff))
 
 
-def dh_fit(omegab, dneff, taun):
-    return (
-               18.754 - 1534.4 * omegab + 48656. * omegab * omegab - 552670. * omegab * omegab * omegab
-               + dneff * (2.4914 - 208.11 * omegab + 6760.9 * omegab * omegab - 78007. * omegab * omegab * omegab)
-               + dneff * dneff * (
-                   0.012907 - 1.3653 * omegab + 37.388 * omegab * omegab - 267.78 * omegab * omegab * omegab)
-           ) * pow(taun / 880.3, 0.418)
+class BBN_table_interpolator(BBNPredictor):
+    """
+    BBN predictor based on interpolation on a table calculated from BBN code
+    """
+
+    def __init__(self, interpolation_table='PArthENoPE_880.2_standard.dat'):
+        """
+        Load table file and initialize interpolation
+
+        :param interpolation_table: filename of interpolation table to use.
+        """
+        from scipy.interpolate import RectBivariateSpline
+
+        if not os.sep in interpolation_table:
+            interpolation_table = os.path.join(os.path.dirname(__file__), interpolation_table)
+        self.interpolation_table = interpolation_table
+
+        comment = None
+        with io.open(interpolation_table) as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    if line[0] == '#':
+                        comment = line[1:]
+                    else:
+                        break
+        assert (comment)
+        columns = comment.split()
+        ombh2_i = columns.index('ombh2')
+        DeltaN_i = columns.index('DeltaN')
+        Yp_i = columns.index('Yp^BBN')
+        dh_i = columns.index('D/H')
+        table = np.loadtxt(interpolation_table, usecols=[ombh2_i, DeltaN_i, Yp_i, dh_i])
+        deltans = list(np.unique(table[:, 1]))
+        ombh2s = list(np.unique(table[:, 0]))
+        assert (table.shape[0] == len(ombh2s) * len(deltans))
+        grid = np.zeros((len(ombh2s), len(deltans)))
+        dh_grid = np.zeros(grid.shape)
+        for i in range(table.shape[0]):
+            grid[ombh2s.index(table[i, 0]), deltans.index(table[i, 1])] = table[i, 2]
+            dh_grid[ombh2s.index(table[i, 0]), deltans.index(table[i, 1])] = table[i, 3]
+
+        self.interpolator_Yp = RectBivariateSpline(ombh2s, deltans, grid)
+        self.interpolator_DH = RectBivariateSpline(ombh2s, deltans, dh_grid)
+
+    def Y_p(self, ombh2, delta_neff=0.):
+        """
+        Get BBN helium nucleon fraction by intepolation in table.
+
+        :param ombh2: Omega_b h^2
+        :param delta_neff:  additional N_eff relative to standard value (of 3.046)
+        :return:  Y_p helium nucleon fraction predicted by BBN. Call Y_He() to get mass fraction instead.
+        """
+        return self.interpolator_Yp(ombh2, delta_neff)[0][0]
+
+    def DH(self, ombh2, delta_neff=0.):
+        """
+        Get deuterium ration D/H by interpolation in table
+
+        :param ombh2: Omega_b h^2
+        :param delta_neff:  additional N_eff relative to standard value (of 3.046)
+        :return: D/H
+        """
+        return self.interpolator_DH(ombh2, delta_neff)[0][0]
 
 
-def runBBN(eta, DeltaN=0, tau=tau_n, prog='./alter_etannutau.x'):
-    return subprocess.check_output([prog, str(eta), str(3 + DeltaN), str(tau)], shell=False, stderr=subprocess.STDOUT)
+class BBN_fitting_parthenope(BBNPredictor):
+    """
+    BBN predictions for Helium abundance using fitting formulae based on Parthenope (pre 2015)
+    """
+
+    def __init__(self, tau_neutron=None):
+        """
+        :param tau_neutron: fitting formula can use different neutron lifetime, defaults to 880.3s if not specified.
+        """
+        if tau_neutron is None:
+            self.taun = 880.3  # Planck 2015 default
+        else:
+            self.taun = tau_neutron
+
+    def Y_p(self, ombh2, delta_neff=0., tau_neutron=None):
+        """
+        Get BBN helium nucleon fraction.
+        # Parthenope fits, as in Planck 2015 papers
+
+        :param ombh2: Omega_b h^2
+        :param delta_neff:  additional N_eff relative to standard value (of 3.046)
+        :return:  Y_p helium nucleon fraction predicted by BBN
+        """
+        return (
+                   0.2311 + 0.9502 * ombh2 - 11.27 * ombh2 * ombh2
+                   + delta_neff * (0.01356 + 0.008581 * ombh2 - 0.1810 * ombh2 * ombh2)
+                   + delta_neff * delta_neff * (-0.0009795 - 0.001370 * ombh2 + 0.01746 * ombh2 * ombh2)
+               ) * pow((tau_neutron or self.taun) / 880.3, 0.728)
+
+    def DH(self, ombh2, delta_neff, tau_neutron=None):
+        return (
+                   18.754 - 1534.4 * ombh2 + 48656. * ombh2 * ombh2 - 552670. * ombh2 ** 3
+                   + delta_neff * (2.4914 - 208.11 * ombh2 + 6760.9 * ombh2 ** 2 - 78007. * ombh2 ** 3)
+                   + delta_neff * delta_neff * (
+                       0.012907 - 1.3653 * ombh2 + 37.388 * ombh2 ** 2 - 267.78 * ombh2 ** 3)
+               ) * pow((tau_neutron or self.taun) / 880.3, 0.418) * 1e-5
 
 
-# BBN predictions from Parthenope
-def ypBBN_Parthenope(omegab, neff):
-    # neff here is including 0.046 factor
-    return 0.1817 + 0.9020 * omegab - 10.33 * omegab * omegab + (
-                                                                    0.01948 + 0.02440 * omegab - 0.4404 * omegab * omegab) * neff + \
-           (-0.001002 - 0.002778 * omegab + 0.04719 * omegab * omegab) * neff * neff;
+_default_predictor = None
 
 
-def yhe_to_ypBBN(Yp, ombh2):
-    return -4 * m_H * Yp / (Yp * m_He - 4 * Yp * m_H - m_He)
-
-
-def runBBNplot():
-    # standard BBN plot
-    etas = 10 ** np.linspace(-12, -8, num=50, endpoint=True)
-    lines = []
-    for eta in etas:
-        outtxt = runBBN(eta, prog='./main.x')
-        (YBBN, D, He3, Li7, Li6, Be7) = [float(s.strip()) for s in outtxt.split('\n')[0].split()]
-        line = ('%12.5e' * 7) % (eta, YBBN, D, He3, Li7, Li6, Be7)
-        print(line)
-        lines += [line]
-    f = open('bbn_abundance_eta.dat', 'w')
-    f.write("\n".join(lines))
-    f.close()
-    sys.exit()
+def get_default_predictor():
+    """
+    Get instance of default BBNPredictor class. Currently fitting formula to match Planck 2015 analysis.
+    """
+    global _default_predictor
+    if _default_predictor is None:
+        _default_predictor = BBN_fitting_parthenope()
+    return _default_predictor
 
 
 if __name__ == "__main__":
-    # Make interpolation table
-
-    ombh2s = np.hstack((np.linspace(0.005, 0.02, num=int((0.02 - 0.005) / 0.001), endpoint=False),
-                        np.linspace(0.020, 0.024, num=16, endpoint=False),
-                        np.linspace(0.024, 0.04, num=int((0.04 - 0.024) / 0.001) + 1, endpoint=True)))
-
-    DeltaNs = [-3, -2, -1, -0.5, 0, 0.5, 1, 2, 3, 4, 5, 6, 7]
-
-    lines = []
-    for DeltaN in DeltaNs:
-        # this is fiducial mass fraction. For low ombh2 has no effect, for subsequent steps use previous value
-        Yp_fid = 0.2;
-        for ombh2 in ombh2s:
-            rho_b = ombh2 * omegafac;
-            if not alterBBN:
-                YBBN = yhe_fit(ombh2, DeltaN, tau_n)
-                Yp_fid = ypBBN_to_yhe(YBBN)
-            n_baryon = (4 * Yp_fid / m_He + (1 - Yp_fid) / m_H) * rho_b
-            eta = n_baryon / n_photon
-            if alterBBN:
-
-                outtxt = runBBN(eta, DeltaN)
-
-                (YBBN, D, He3, Li7, Li6, Be7) = [float(s.strip()) for s in outtxt.split('\n')[7].split()[1:]]
-                (sigYBBN, sigdD, sigHe3, sigLi7, sigLi6, sigBe7) = [float(s.strip()) for s in
-                                                                    outtxt.split('\n')[8].split()[2:]]
-
-                actual_ombh2 = eta * n_photon * (YBBN * m_He / 4 + (1 - YBBN) * m_H) / omegafac
-                Yp = (eta * n_photon / actual_ombh2 / omegafac - 1 / m_H) / (4 / m_He - 1 / m_H)
-                Yp_fid = Yp
-                #        print ombh2, DeltaN, eta, YBBN, actual_ombh2, Yp
-                line = (('%12.5f ') * 6 + ('%12.3e %12.2e') * 3) % (
-                    actual_ombh2, eta * 1e10, DeltaN, Yp, YBBN, sigYBBN, D, sigdD, He3, sigHe3, Li7, sigLi7)
-                lines += [line]
-            else:
-                D = dh_fit(ombh2, DeltaN, tau_n) * 1e-5
-                Yp = Yp_fid
-                # Yp error already includes tau_n error??
-                sigdD = 6e-7  # np.sqrt(4.e-07**2 + ((dh_fit(ombh2,DeltaN,tau_n+1.1)-dh_fit(ombh2,DeltaN,tau_n-1.1))/2*1e-5)**2 +  (0.002*D)**2)
-                sigYBBN = 0.0003  # np.sqrt(0.0003**2 + ((yhe_fit(ombh2,DeltaN,tau_n+1.1)-yhe_fit(ombh2,DeltaN,tau_n-1.1))/2)**2 + (0.002*Yp)**2)
-                line = (('%12.5f ') * 6 + ('%12.3e %12.2e')) % (ombh2, eta * 1e10, DeltaN, Yp, YBBN, sigYBBN, D, sigdD)
-                lines += [line]
-            print(line)
-        lines += ['']
-
-    if alterBBN:
-        f = open('BBN_full_alterBBN_' + str(tau_n) + '.dat', 'w')
-        f.write('''#BBN prediction of the primordial Helium abundance $Y_p$ as 
-#function of the baryon density $\omega_b h^2$ and number of 
-#extra radiation degrees of freedom $\Delta N$.
-#Calculated with AlterBBN v1.4 [http://superiso.in2p3.fr/relic/alterbbn/] for a 
-#neutron lifetime of %.1f s and CMB temperature %.4f K
-#Yp^BBN is the BBN-standard nucleon number fraction, Yp is the mass fraction for CMB codes
-    
-#      ombh2        eta10       DeltaN           Yp       Yp^BBN     sigma_Yp          D/H     err D/H       He3/H    err He3/H         Li7      sig Li7
-     
-    ''' % (tau_n, TCMB))
-        f.write("\n".join(lines))
-        f.close()
-
-    else:
-        f = open('BBN_full_Parthenelope_' + str(tau_n) + '.dat', 'w')
-        f.write('''#BBN prediction of the primordial Helium abundance $Y_p$ as 
-#function of the baryon density $\omega_b h^2$ and number of 
-#extra radiation degrees of freedom $\Delta N$.
-#Calculated from Parthenelope fitting function Dec 2014. Errors are guesstimates. 
-#neutron lifetime of %.1f s and CMB temperature %.4f K
-#Yp^BBN is the BBN-standard nucleon number fraction, Yp is the mass fraction for CMB codes
-    
-#      ombh2        eta10       DeltaN           Yp       Yp^BBN     sigma_Yp          D/H     err D/H
-
-''' % (tau_n, TCMB))
-        f.write("\n".join(lines))
-        f.close()
+    print(BBN_table_interpolator().Y_He(0.01897, 1.2))
+    print(BBN_fitting_parthenope().Y_He(0.01897, 1.2))
+    print(BBN_table_interpolator().DH(0.02463, -0.6))
+    print(BBN_fitting_parthenope().DH(0.02463, -0.6))
+    print(BBN_table_interpolator('PArthENoPE_880.2_marcucci.dat').DH(0.02463, -0.6))

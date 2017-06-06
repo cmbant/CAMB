@@ -51,7 +51,7 @@ neutrino_hierarchy_inverted = 2
 neutrino_hierarchy_degenerate = 3
 
 # ---Variables in modules.f90
-# To set the value please just put 
+# To set the value please just put
 # variable_name.value = new_value
 
 
@@ -294,25 +294,12 @@ class CAMBparams(CAMB_Structure):
         CAMB_setinitialpower(byref(self), byref(initial_power_params))
         return self
 
-    def set_bbn_helium(self, ombh2, delta_nnu, tau_neutron=bbn.tau_n):
-        """
-        Set the Helium abundance parameter YHe using BBN consistency (using fitting formula as Planck 2015 papers)
-
-        :param ombh2: physical density of baryons
-        :param delta_nnu: additional relativistic Delta_Neff = N_eff - 3.046
-        :param tau_neutron: neutron half life in seconds
-        :return: self
-        """
-        Yp = bbn.yhe_fit(ombh2, delta_nnu, tau_neutron)
-        self.YHe = bbn.ypBBN_to_yhe(Yp)
-        return self
-
     def set_cosmology(self, H0=67.0, cosmomc_theta=None, ombh2=0.022, omch2=0.12, omk=0.0,
                       neutrino_hierarchy='degenerate', num_massive_neutrinos=1,
                       mnu=0.06, nnu=3.046,
                       YHe=None, meffsterile=0.0, standard_neutrino_neff=3.046, TCMB=constants.COBE_CMBTemp,
                       tau=None, deltazrei=None,
-                      tau_neutron=bbn.tau_n):
+                      bbn_predictor=None):
         """
         Sets cosmological parameters in terms of physical densities and parameters used in Planck 2015 analysis.
         Default settings give a single distinct neutrino mass eigenstate, by default one neutrino with mnu = 0.06eV.
@@ -336,15 +323,14 @@ class CAMBparams(CAMB_Structure):
         :param TCMB: CMB temperature (in Kelvin)
         :param tau: optical depth; if None, current Reion settings are not changed
         :param deltazrei: redshift width of reionization; if None, uses default
-        :param tau_neutron: neutron lifetime, for setting YHe using BBN consistency
+        :param bbn_predictor: :class:`.bbn.BBNPredictor` instance used to get YHe from BBN consistency if YHe is None
         """
 
         if YHe is None:
             # use BBN prediction
-            self.set_bbn_helium(ombh2, nnu - standard_neutrino_neff, tau_neutron)
-            YHe = self.YHe
-        else:
-            self.YHe = YHe
+            bbn_predictor = bbn_predictor or bbn.get_default_predictor()
+            YHe = bbn_predictor.Y_He(ombh2, nnu - standard_neutrino_neff)
+        self.YHe = YHe
 
         if cosmomc_theta is not None:
             if not (0.001 < cosmomc_theta < 0.1):
