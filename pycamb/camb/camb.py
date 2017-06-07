@@ -428,17 +428,44 @@ class CAMBdata(object):
         self.get_params().set_initial_power(initial_power_params)
         CAMBdata_transferstopowers(self._key)
 
+    def _scale_cls(self, cls, CMB_outputscale=None, raw_cl=False, lens_potential=False):
+        if raw_cl:
+            ls = np.arange(1, cls.shape[0])[..., np.newaxis]
+            ls = np.float64(ls * (ls + 1))
+            if lens_potential:
+                cls[1:, 0:] /= ls ** 2 / (2 * np.pi)
+                cls[1:, 1:] /= ls ** (3. / 2) / (2 * np.pi)
+            else:
+                cls[1:, :] /= ls / (2 * np.pi)
+
+        if CMB_outputscale is not None:
+            if isinstance(CMB_outputscale, six.string_types):
+                if CMB_outputscale in ['muK', 'K']:
+                    CMB_outputscale = self.Params.TCMB
+                    if CMB_outputscale == 'muK':
+                        CMB_outputscale *= 1e6
+                else:
+                    raise ValueError('Unknown CMB_outputscale: %s' % CMB_outputscale)
+            if lens_potential:
+                cls[:, 1:] *= CMB_outputscale
+            else:
+                cls *= CMB_outputscale ** 2
+        return cls
+
     def get_cmb_power_spectra(self, params=None, lmax=None,
                               spectra=['total', 'unlensed_scalar', 'unlensed_total', 'lensed_scalar', 'tensor',
-                                       'lens_potential']):
+                                       'lens_potential'], CMB_outputscale=None, raw_cl=False):
         """
         Get CMB power spectra, as requested by the 'spectra' argument. All power spectra are l(l+1)C_l/2pi self-owned
-        numpy arrays (0..lmax, 0..3), where 0..3 index are TT, EE, BB TT.
+        numpy arrays (0..lmax, 0..3), where 0..3 index are TT, EE, BB TT, unless raw_cl is True in which case return just C_l.
+        For the lens_potential the power spectrum returned is that of the deflection.
 
         :param params: optional :class:`.model.CAMBparams` instance with parameters to use. If None, must have
           previously set parameters and called `calc_power_spectra` (e.g. if you got this instance using `camb.get_results`),
         :param lmax: maximum l
         :param spectra: list of names of spectra to get
+        :param CMB_outputscale: scale results from dimensionless. Use 'muK' for muK^2 units for CMB CL and muK units for lensing cross.
+        :param raw_cl: return C_L rather than L(L+1)C_L/2pi
         :return: dictionary of power spectrum arrays, indexed by names of requested spectra
         """
         P = {}
@@ -456,7 +483,8 @@ class CAMBdata(object):
         elif lmax > lmax_calc:
             logging.warning('getting CMB power spectra to higher L than calculated, may be innacurate/zeroed.')
         for spectrum in spectra:
-            P[spectrum] = getattr(self, 'get_' + spectrum + '_cls')(lmax)
+            P[spectrum] = getattr(self, 'get_' + spectrum + '_cls')(lmax, CMB_outputscale=CMB_outputscale,
+                                                                    raw_cl=raw_cl)
         return P
 
     def get_cmb_correlation_functions(self, params=None, lmax=None, spectrum='lensed_scalar',
@@ -728,84 +756,103 @@ class CAMBdata(object):
         z.reverse()
         return minkh * np.exp(np.arange(npoints) * dlnkh), z, PK
 
-    def get_total_cls(self, lmax):
+    def get_total_cls(self, lmax, CMB_outputscale=None, raw_cl=False):
         """
         Get lensed-scalar + tensor CMB power spectra. Must have already calculated power spectra.
 
         :param lmax: lmax to output to
+        :param CMB_outputscale: scale results from dimensionless. Use 'muK' for muK^2 units for CMB CL and muK units for lensing cross.
+        :param raw_cl: return C_L rather than L(L+1)C_L/2pi
         :return: numpy array CL[0:lmax+1,0:4], where 0..3 indexes TT, EE, BB, TE
         """
         res = np.empty((lmax + 1, 4))
         opt = c_int(lmax)
         CAMB_SetTotCls(byref(opt), res, byref(self._one))
+        self._scale_cls(res, CMB_outputscale, raw_cl)
         return res
 
-    def get_tensor_cls(self, lmax):
+    def get_tensor_cls(self, lmax, CMB_outputscale=None, raw_cl=False):
         """
         Get tensor CMB power spectra. Must have already calculated power spectra.
 
         :param lmax: lmax to output to
+        :param CMB_outputscale: scale results from dimensionless. Use 'muK' for muK^2 units for CMB CL and muK units for lensing cross.
+        :param raw_cl: return C_L rather than L(L+1)C_L/2pi
         :return: numpy array CL[0:lmax+1,0:4], where 0..3 indexes TT, EE, BB, TE
         """
 
         res = np.empty((lmax + 1, 4))
         opt = c_int(lmax)
         CAMB_SetTensorCls(byref(opt), res, byref(self._one))
+        self._scale_cls(res, CMB_outputscale, raw_cl)
         return res
 
-    def get_unlensed_scalar_cls(self, lmax):
+    def get_unlensed_scalar_cls(self, lmax, CMB_outputscale=None, raw_cl=False):
         """
         Get unlensed scalar CMB power spectra. Must have already calculated power spectra.
 
         :param lmax: lmax to output to
+        :param CMB_outputscale: scale results from dimensionless. Use 'muK' for muK^2 units for CMB CL and muK units for lensing cross.
+        :param raw_cl: return C_L rather than L(L+1)C_L/2pi
         :return: numpy array CL[0:lmax+1,0:4], where 0..3 indexes TT, EE, BB, TE. CL[:,2] will be zero.
         """
 
         res = np.empty((lmax + 1, 4))
         opt = c_int(lmax)
         CAMB_SetUnlensedScalCls(byref(opt), res, byref(self._one))
+        self._scale_cls(res, CMB_outputscale, raw_cl)
         return res
 
-    def get_unlensed_total_cls(self, lmax):
+    def get_unlensed_total_cls(self, lmax, CMB_outputscale=None, raw_cl=False):
         """
         Get unlensed CMB power spectra, including tensors if relevant. Must have already calculated power spectra.
 
         :param lmax: lmax to output to
+        :param CMB_outputscale: scale results from dimensionless. Use 'muK' for muK^2 units for CMB CL and muK units for lensing cross.
+        :param raw_cl: return C_L rather than L(L+1)C_L/2pi
         :return: numpy array CL[0:lmax+1,0:4], where 0..3 indexes TT, EE, BB, TE.
         """
 
-        return self.get_unlensed_scalar_cls(lmax) + self.get_tensor_cls(lmax)
+        return self.get_unlensed_scalar_cls(lmax, CMB_outputscale, raw_cl) + \
+               self.get_tensor_cls(lmax, CMB_outputscale, raw_cl)
 
-    def get_lensed_scalar_cls(self, lmax):
+    def get_lensed_scalar_cls(self, lmax, CMB_outputscale=None, raw_cl=False):
         """
         Get lensed scalar CMB power spectra. Must have already calculated power spectra.
 
         :param lmax: lmax to output to
+        :param CMB_outputscale: scale results from dimensionless. Use 'muK' for muK^2 units for CMB CL and muK units for lensing cross.
+        :param raw_cl: return C_L rather than L(L+1)C_L/2pi
         :return: numpy array CL[0:lmax+1,0:4], where 0..3 indexes TT, EE, BB, TE.
         """
 
         res = np.empty((lmax + 1, 4))
         opt = c_int(lmax)
         CAMB_SetLensedScalCls(byref(opt), res, byref(self._one))
+        self._scale_cls(res, CMB_outputscale, raw_cl)
         return res
 
-    def get_lens_potential_cls(self, lmax):
+    def get_lens_potential_cls(self, lmax, CMB_outputscale=None, raw_cl=False):
         """
         Get lensing deflection angle potential power spectrum, and cross-correlation with T and E. Must have already calculated power spectra.
         Power spectra are [l(l+1)]^2C_l^{phi phi}/2/pi and corresponding deflection cross-correlations.
 
         :param lmax: lmax to output to
+        :param CMB_outputscale: scale results from dimensionless. Use 'muK' for muK^2 units for CMB CL and muK units for lensing cross.
+        :param raw_cl: return lensing potential C_L rather than [L(L+1)]^2C_L/2pi
         :return: numpy array CL[0:lmax+1,0:3], where 0..2 indexes PP, PT, PE.
         """
 
         res = np.empty((lmax + 1, 3))
         opt = c_int(lmax)
         CAMB_SetLensPotentialCls(byref(opt), res, byref(self._one))
+        self._scale_cls(res, CMB_outputscale, raw_cl, lens_potential=True)
         return res
 
     def get_unlensed_scalar_array_cls(self, lmax):
         """
         Get array of all cross power spectra. Must have already calculated power spectra.
+        Results are dimensionless.
 
         :param lmax: lmax to output to
         :return: numpy array CL[0:lmax+1,0:, 0:], where 0.. index T, E, deflection angle, source window functions
@@ -1065,10 +1112,10 @@ def cleanup():
 def set_params(cp=None, verbose=False, **params):
     """
 
-    Set all CAMB parameters at once, including parameters which are part of the 
+    Set all CAMB parameters at once, including parameters which are part of the
     CAMBparams structure, as well as global parameters.
 
-    E.g. 
+    E.g.
 
     cp = camb.set_params(ns=1, omch2=0.1, ALens=1.2, lmax=2000)
 
@@ -1083,7 +1130,7 @@ def set_params(cp=None, verbose=False, **params):
 
     :param **params: the values of the parameters
     :param cp: use this CAMBparams instead of creating a new one
-    :param verbose: print out the equivalent set of commands 
+    :param verbose: print out the equivalent set of commands
 
     """
 

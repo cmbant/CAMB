@@ -296,10 +296,8 @@ class CAMBparams(CAMB_Structure):
 
     def set_cosmology(self, H0=67.0, cosmomc_theta=None, ombh2=0.022, omch2=0.12, omk=0.0,
                       neutrino_hierarchy='degenerate', num_massive_neutrinos=1,
-                      mnu=0.06, nnu=3.046,
-                      YHe=None, meffsterile=0.0, standard_neutrino_neff=3.046, TCMB=constants.COBE_CMBTemp,
-                      tau=None, deltazrei=None,
-                      bbn_predictor=None):
+                      mnu=0.06, nnu=3.046, YHe=None, meffsterile=0.0, standard_neutrino_neff=3.046,
+                      TCMB=constants.COBE_CMBTemp, tau=None, deltazrei=None, bbn_predictor=None):
         """
         Sets cosmological parameters in terms of physical densities and parameters used in Planck 2015 analysis.
         Default settings give a single distinct neutrino mass eigenstate, by default one neutrino with mnu = 0.06eV.
@@ -496,7 +494,7 @@ class CAMBparams(CAMB_Structure):
             self.max_l = lmax + lens_margin
         else:
             self.max_l = lmax
-        self.max_eta_k = max_eta_k or min(self.max_l, 3000) * k_eta_fac
+        self.max_eta_k = max_eta_k or self.max_l * k_eta_fac
         if lens_potential_accuracy:
             if self.NonLinear == NonLinear_none:
                 self.NonLinear = NonLinear_lens
