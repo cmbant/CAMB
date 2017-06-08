@@ -34,6 +34,7 @@ Other modules:
    reionization
    recombination
    correlations
+   postborn
 
 * :ref:`genindex`
 
