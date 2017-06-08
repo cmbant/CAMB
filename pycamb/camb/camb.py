@@ -440,16 +440,17 @@ class CAMBdata(object):
 
         if CMB_outputscale is not None:
             if isinstance(CMB_outputscale, six.string_types):
-                if CMB_outputscale in ['muK', 'K']:
+                if CMB_outputscale == 'muK':
+                    CMB_outputscale = self.Params.TCMB * 1e6
+                elif CMB_outputscale == 'K':
                     CMB_outputscale = self.Params.TCMB
-                    if CMB_outputscale == 'muK':
-                        CMB_outputscale *= 1e6
                 else:
                     raise ValueError('Unknown CMB_outputscale: %s' % CMB_outputscale)
             if lens_potential:
                 cls[:, 1:] *= CMB_outputscale
             else:
                 cls *= CMB_outputscale ** 2
+
         return cls
 
     def get_cmb_power_spectra(self, params=None, lmax=None,
@@ -1178,7 +1179,6 @@ def set_params(cp=None, verbose=False, **params):
     unused_params = set(params) - set(_used_params)
     if unused_params:
         raise Exception("Unrecognized parameters: %s" % unused_params)
-
     return cp
 
 
