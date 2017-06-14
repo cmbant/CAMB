@@ -47,7 +47,7 @@ def has_win_gfortran():
 class SharedLibrary(install):
     def run(self):
         CAMBDIR = os.path.join(file_dir, '..')
-        if not os.path.exists(os.path.join(CAMBDIR,'lensing.f90')):
+        if not os.path.exists(os.path.join(CAMBDIR, 'lensing.f90')):
             CAMBDIR = os.path.join(file_dir, 'fortran')  # pypi install
             pycamb_path = '..'
         else:
@@ -76,7 +76,7 @@ class SharedLibrary(install):
             else:
                 print(COMPILER + ' ' + FFLAGS + ' ' + SOURCES + ' ' + OUTPUT)
                 subprocess.call(COMPILER + ' ' + FFLAGS + ' ' + SOURCES + ' ' + OUTPUT, shell=True)
-            COPY = r"copy /Y HighLExtrapTemplate_lenspotentialCls.dat %s\camb" % (pycamb_path)
+            COPY = r"copy /Y *.dat %s\camb" % (pycamb_path)
             subprocess.call(COPY, shell=True)
             scrs.append(DLLNAME)
             if not osp.isfile(os.path.join(pycamb_path, 'camb', DLLNAME)): sys.exit('Compilation failed')
@@ -92,7 +92,7 @@ class SharedLibrary(install):
             so_file = os.path.join(pycamb_path, 'camb', 'camblib.so')
             if not osp.isfile(so_file): sys.exit('Compilation failed')
             subprocess.call("chmod 755 %s"%so_file, shell=True)
-            subprocess.call("cp HighLExtrapTemplate_lenspotentialCls.dat %s/camb" % (pycamb_path), shell=True)
+            subprocess.call("cp *.dat %s/camb" % (pycamb_path), shell=True)
 
         os.chdir(file_dir)
         install.run(self)
@@ -112,7 +112,8 @@ setup(name=package_name,
       url="http://camb.info/",
       cmdclass={'install': SharedLibrary},
       packages=['camb', 'camb_tests'],
-      package_data={'camb': [DLLNAME, 'HighLExtrapTemplate_lenspotentialCls.dat']},
+      package_data={'camb': [DLLNAME, 'HighLExtrapTemplate_lenspotentialCls.dat',
+                             'PArthENoPE_880.2_marcucci.dat', 'PArthENoPE_880.2_standard.dat']},
       test_suite='camb_tests',
       classifiers=[
           "Programming Language :: Python :: 2",

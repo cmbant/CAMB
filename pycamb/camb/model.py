@@ -53,7 +53,7 @@ neutrino_hierarchy_inverted = 2
 neutrino_hierarchy_degenerate = 3
 
 # ---Variables in modules.f90
-# To set the value please just put 
+# To set the value please just put
 # variable_name.value = new_value
 
 
@@ -149,6 +149,7 @@ get_growth_sigma8 = dll_import(c_bool, "transfer", "get_growth_sigma8")
 CAMB_validateparams = camblib.__camb_MOD_camb_validateparams
 CAMB_validateparams.restype = c_bool
 
+# args for these set below after CAMBparams defined
 CAMB_setinitialpower = camblib.__handles_MOD_camb_setinitialpower
 CAMB_SetNeutrinoHierarchy = camblib.__camb_MOD_camb_setneutrinohierarchy
 
@@ -329,24 +330,11 @@ class CAMBparams(CAMB_Structure):
         CAMB_setinitialpower(byref(self), byref(initial_power_params))
         return self
 
-    def set_bbn_helium(self, ombh2, delta_nnu, tau_neutron=bbn.tau_n):
-        """
-        Set the Helium abundance parameter YHe using BBN consistency (using fitting formula as Planck 2015 papers)
 
-        :param ombh2: physical density of baryons
-        :param delta_nnu: additional relativistic Delta_Neff = N_eff - 3.046
-        :param tau_neutron: neutron half life in seconds
-        :return: self
-        """
-        Yp = bbn.yhe_fit(ombh2, delta_nnu, tau_neutron)
-        self.YHe = bbn.ypBBN_to_yhe(Yp)
-        return self
-
-    def set_cosmology(self, H0=67, cosmomc_theta=None, ombh2=0.022, omch2=0.12, omk=0.0,
-                      neutrino_hierarchy='degenerate',
-                      num_massive_neutrinos=1, mnu=0.06, nnu=3.046,
-                      YHe=None, meffsterile=0, standard_neutrino_neff=3.046, TCMB=constants.COBE_CMBTemp, tau=None,
-                      tau_neutron=bbn.tau_n):
+    def set_cosmology(self, H0=67.0, cosmomc_theta=None, ombh2=0.022, omch2=0.12, omk=0.0,
+                      neutrino_hierarchy='degenerate', num_massive_neutrinos=1,
+                      mnu=0.06, nnu=3.046, YHe=None, meffsterile=0.0, standard_neutrino_neff=3.046,
+                      TCMB=constants.COBE_CMBTemp, tau=None, deltazrei=None, bbn_predictor=None):
         """
         Sets cosmological parameters in terms of physical densities and parameters used in Planck 2015 analysis.
         Default settings give a single distinct neutrino mass eigenstate, by default one neutrino with mnu = 0.06eV.
@@ -369,15 +357,15 @@ class CAMBparams(CAMB_Structure):
                 heating of neutrinos at electron-positron annihilation and QED effects)
         :param TCMB: CMB temperature (in Kelvin)
         :param tau: optical depth; if None, current Reion settings are not changed
-        :param tau_neutron: neutron lifetime, for setting YHe using BBN consistency
+        :param deltazrei: redshift width of reionization; if None, uses default
+        :param bbn_predictor: :class:`.bbn.BBNPredictor` instance used to get YHe from BBN consistency if YHe is None
         """
 
         if YHe is None:
             # use BBN prediction
-            self.set_bbn_helium(ombh2, nnu - standard_neutrino_neff, tau_neutron)
-            YHe = self.YHe
-        else:
-            self.YHe = YHe
+            bbn_predictor = bbn_predictor or bbn.get_default_predictor()
+            YHe = bbn_predictor.Y_He(ombh2, nnu - standard_neutrino_neff)
+        self.YHe = YHe
 
         if cosmomc_theta is not None:
             if not (0.001 < cosmomc_theta < 0.1):
@@ -462,7 +450,9 @@ class CAMBparams(CAMB_Structure):
                                   byref(c_int(num_massive_neutrinos)))
 
         if tau is not None:
-            self.Reion.set_tau(tau)
+            self.Reion.set_tau(tau, delta_redshift=deltazrei)
+        elif deltazrei:
+            raise CAMBError('must set tau if setting deltazrei')
 
         return self
 
@@ -543,7 +533,7 @@ class CAMBparams(CAMB_Structure):
             self.max_l = lmax + lens_margin
         else:
             self.max_l = lmax
-        self.max_eta_k = max_eta_k or min(self.max_l, 3000) * k_eta_fac
+        self.max_eta_k = max_eta_k or self.max_l * k_eta_fac
         if lens_potential_accuracy:
             if self.NonLinear == NonLinear_none:
                 self.NonLinear = NonLinear_lens
@@ -588,3 +578,6 @@ CAMB_SetNeutrinoHierarchy.argtypes = [POINTER(CAMBparams), POINTER(c_double), PO
                                       POINTER(c_double), POINTER(c_int), POINTER(c_int)]
 
 CAMBParams_Free.argtypes = [POINTER(CAMBparams)]
+
+CAMB_SetNeutrinoHierarchy.argtypes = [POINTER(CAMBparams), POINTER(c_double), POINTER(c_double),
+                                      POINTER(c_double), POINTER(c_int), POINTER(c_int)]
