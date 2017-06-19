@@ -1190,7 +1190,6 @@
     real(dl) dgq,grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,sigma,polter
     real(dl) qgdot,pigdot,pirdot,vbdot,dgrho
     real(dl) a,a2,dz,z,clxc,clxb,vb,clxg,qg,pig,clxr,qr,pir
-
     real(dl) tau,x,divfac
     real(dl) dgpi_diff, pidot_sum
     real(dl), target :: pol(3),polprime(3)
@@ -1199,7 +1198,8 @@
     real(dl) k,k2  ,adotoa, grho, gpres,etak,phi,dgpi
     real(dl) clxq, vq, diff_rhopi, octg, octgprime
     real(dl) sources(CTransScal%NumSources)
-    real(dl) ISW
+    real(dl) ISW, quadrupole_source, sachs_wolfe, doppler, monopole_source
+    real(dl) comoving_dgrho, sigmadot, phidot, polterdot, polterddot, new_source
 
     yprime = 0
     call derivs(EV,EV%ScalEqsToPropagate,tau,y,yprime)
@@ -1341,12 +1341,53 @@
     pidot_sum =  pidot_sum + grhog_t*pigdot + grhor_t*pirdot
     diff_rhopi = pidot_sum - (4*dgpi+ dgpi_diff )*adotoa
 
+    comoving_dgrho = dgrho +3*dgq*adotoa/k
+    phi = -comoving_dgrho/(k2*EV%Kf(1)*2) - dgpi/k2/2
+    phidot = (-adotoa*dgpi - 2*adotoa*k**2*phi + dgq*k - diff_rhopi + k*sigma*(gpres + grho))/(2*k**2)
+    sigmadot = -adotoa*sigma - 1.0d0/2.0d0*dgpi/k + k*phi
+    
+    polterdot = (1.0d0/10.0d0)*pigdot + (3.0d0/5.0d0)*ypolprime(2)
+    polterddot = -2.0d0/25.0d0*adotoa*dgq/(k*EV%Kf(1.0)) - 4.0d0/75.0d0*adotoa* &
+      k*sigma - 4.0d0/75.0d0*dgpi - 2.0d0/75.0d0*dgrho/EV%Kf(1.0) - 3.0d0/ &
+      50.0d0*k*octgprime*EV%Kf(2.0) + (1.0d0/25.0d0)*k*qgdot - 1.0d0/5.0d0 &
+      *k*EV%Kf(2.0)*ypolprime(3.0) + (-1.0d0/10.0d0*pig + (7.0d0/10.0d0)* &
+      polter - 3.0d0/5.0d0*ypol(2.0))*dopac(j) + (-1.0d0/10.0d0*pigdot &
+      + (7.0d0/10.0d0)*polterdot - 3.0d0/5.0d0*ypolprime(2.0))*opac(j)
+    
+    ISW = 2*phidot*expmmu(j)
+    sachs_wolfe = (- etak/(k*EV%Kf(1)) + 2*phi)*vis(j)
+    monopole_source = (1.0d0/4.0d0)*clxg*vis(j)
+    doppler = ((sigma + vb)*dvis(j) + (sigmadot + vbdot)*vis(j))/k
+    quadrupole_source = (5.0d0/8.0d0)*(3*polter*ddvis(j) + 6*polterdot*dvis( &
+      j) + (k**2*polter + 3*polterddot)*vis(j))/k**2
+    
+    phidot = (1.0d0/2.0d0)*(-adotoa*dgpi - 2*adotoa*k**2*phi + dgq*k - &
+          diff_rhopi + k*sigma*(gpres + grho))/k**2
+    sigmadot = -adotoa*sigma - 1.0d0/2.0d0*dgpi/k + k*phi
+    polterdot = (1.0d0/10.0d0)*pigdot + (3.0d0/5.0d0)*ypolprime(2)
+    polterddot = -2.0d0/25.0d0*adotoa*dgq/(k*EV%Kf(1)) - 4.0d0/75.0d0*adotoa* &
+          k*sigma - 4.0d0/75.0d0*dgpi - 2.0d0/75.0d0*dgrho/EV%Kf(1) - 3.0d0/ &
+          50.0d0*k*octgprime*EV%Kf(2) + (1.0d0/25.0d0)*k*qgdot - 1.0d0/5.0d0 &
+          *k*EV%Kf(2)*ypolprime(3) + (-1.0d0/10.0d0*pig + (7.0d0/10.0d0)* &
+          polter - 3.0d0/5.0d0*ypol(2))*dopac(j) + (-1.0d0/10.0d0*pigdot &
+          + (7.0d0/10.0d0)*polterdot - 3.0d0/5.0d0*ypolprime(2))*opac(j)
+    ISW = 2*phidot*expmmu(j)
+    sachs_wolfe = (-etak/(k*EV%Kf(1)) + 2*phi)*vis(j)
+    monopole_source = (1.0d0/4.0d0)*clxg*vis(j)
+    doppler = ((sigma + vb)*dvis(j) + (sigmadot + vbdot)*vis(j))/k
+    quadrupole_source = (5.0d0/8.0d0)*(3*polter*ddvis(j) + 6*polterdot*dvis( &
+          j) + (k**2*polter + 3*polterddot)*vis(j))/k**2
+    
+    new_source = ISW + doppler + sachs_wolfe + monopole_source + quadrupole_source
+ 
+    
     !Maple's fortran output - see scal_eqs.map
     !2phi' term (\phi' + \psi' in Newtonian gauge)
     ISW = (4.D0/3.D0*k*EV%Kf(1)*sigma+(-2.D0/3.D0*sigma-2.D0/3.D0*etak/adotoa)*k &
         -diff_rhopi/k**2-1.D0/adotoa*dgrho/3.D0+(3.D0*gpres+5.D0*grho)*sigma/k/3.D0 &
         -2.D0/k*adotoa/EV%Kf(1)*etak)*expmmu(j)
 
+    
     !e.g. to get only late-time ISW
     !  if (1/a-1 > 30) ISW=0
 
@@ -1359,6 +1400,8 @@
         vbdot+3.D0/40.D0*qgdot- 9.D0/80.D0*EV%Kf(2)*octgprime)/k + &
         (-9.D0/160.D0*dopac(j)*pig-21.D0/10.D0*dgpi-27.D0/80.D0*dopac(j)*ypol(2))/k**2)*vis(j) + &
         (3.D0/16.D0*ddvis(j)*pig+9.D0/8.D0*ddvis(j)*ypol(2))/k**2+21.D0/10.D0/k/EV%Kf(1)*vis(j)*etak
+    
+    print *, new_source, sources(1)
 
     ! Doppler term
     !   sources(1)=  (sigma+vb)/k*dvis(j)+((-2.D0*adotoa*sigma+vbdot)/k-1.D0/k**2*dgpi)*vis(j) &
