@@ -1342,86 +1342,37 @@
     diff_rhopi = pidot_sum - (4*dgpi+ dgpi_diff )*adotoa
 
     comoving_dgrho = dgrho +3*dgq*adotoa/k
+
+   !Weyl potential phi = Phi - 1/2 kappa (a/k)^2 sum_i rho_i pi_i in Newtonian gauge
     phi = -comoving_dgrho/(k2*EV%Kf(1)*2) - dgpi/k2/2
-    phidot = (-adotoa*dgpi - 2*adotoa*k**2*phi + dgq*k - diff_rhopi + k*sigma*(gpres + grho))/(2*k**2)
-    sigmadot = -adotoa*sigma - 1.0d0/2.0d0*dgpi/k + k*phi
-    
-    polterdot = (1.0d0/10.0d0)*pigdot + (3.0d0/5.0d0)*ypolprime(2)
-    polterddot = -2.0d0/25.0d0*adotoa*dgq/(k*EV%Kf(1.0)) - 4.0d0/75.0d0*adotoa* &
-      k*sigma - 4.0d0/75.0d0*dgpi - 2.0d0/75.0d0*dgrho/EV%Kf(1.0) - 3.0d0/ &
-      50.0d0*k*octgprime*EV%Kf(2.0) + (1.0d0/25.0d0)*k*qgdot - 1.0d0/5.0d0 &
-      *k*EV%Kf(2.0)*ypolprime(3.0) + (-1.0d0/10.0d0*pig + (7.0d0/10.0d0)* &
-      polter - 3.0d0/5.0d0*ypol(2.0))*dopac(j) + (-1.0d0/10.0d0*pigdot &
-      + (7.0d0/10.0d0)*polterdot - 3.0d0/5.0d0*ypolprime(2.0))*opac(j)
-    
-    ISW = 2*phidot*expmmu(j)
-    sachs_wolfe = (- etak/(k*EV%Kf(1)) + 2*phi)*vis(j)
-    monopole_source = (1.0d0/4.0d0)*clxg*vis(j)
-    doppler = ((sigma + vb)*dvis(j) + (sigmadot + vbdot)*vis(j))/k
-    quadrupole_source = (5.0d0/8.0d0)*(3*polter*ddvis(j) + 6*polterdot*dvis( &
-      j) + (k**2*polter + 3*polterddot)*vis(j))/k**2
-    
     phidot = (1.0d0/2.0d0)*(-adotoa*dgpi - 2*adotoa*k**2*phi + dgq*k - &
           diff_rhopi + k*sigma*(gpres + grho))/k**2
+    !time derivative of shear
     sigmadot = -adotoa*sigma - 1.0d0/2.0d0*dgpi/k + k*phi
+    !quadrupole source derivatives; polter = pi_g/10 + 3/5 E_2
     polterdot = (1.0d0/10.0d0)*pigdot + (3.0d0/5.0d0)*ypolprime(2)
+    ! note y(9)->octg, yprime(9)->octgprime (octopoles)
     polterddot = -2.0d0/25.0d0*adotoa*dgq/(k*EV%Kf(1)) - 4.0d0/75.0d0*adotoa* &
           k*sigma - 4.0d0/75.0d0*dgpi - 2.0d0/75.0d0*dgrho/EV%Kf(1) - 3.0d0/ &
           50.0d0*k*octgprime*EV%Kf(2) + (1.0d0/25.0d0)*k*qgdot - 1.0d0/5.0d0 &
           *k*EV%Kf(2)*ypolprime(3) + (-1.0d0/10.0d0*pig + (7.0d0/10.0d0)* &
           polter - 3.0d0/5.0d0*ypol(2))*dopac(j) + (-1.0d0/10.0d0*pigdot &
           + (7.0d0/10.0d0)*polterdot - 3.0d0/5.0d0*ypolprime(2))*opac(j)
+
+    !Temperature source terms, after integrating by parts in conformal time 
+
+    !2phi' term (\phi' + \psi' in Newtonian gauge), phi is the Weyl potential
     ISW = 2*phidot*expmmu(j)
+    !e.g. to get only late-time ISW
+    !  if (1/a-1 > 30) ISW=0
     sachs_wolfe = (-etak/(k*EV%Kf(1)) + 2*phi)*vis(j)
     monopole_source = (1.0d0/4.0d0)*clxg*vis(j)
     doppler = ((sigma + vb)*dvis(j) + (sigmadot + vbdot)*vis(j))/k
     quadrupole_source = (5.0d0/8.0d0)*(3*polter*ddvis(j) + 6*polterdot*dvis( &
           j) + (k**2*polter + 3*polterddot)*vis(j))/k**2
     
-    new_source = ISW + doppler + sachs_wolfe + monopole_source + quadrupole_source
+    sources(1) = ISW + doppler + sachs_wolfe + monopole_source + quadrupole_source
  
-    
-    !Maple's fortran output - see scal_eqs.map
-    !2phi' term (\phi' + \psi' in Newtonian gauge)
-    ISW = (4.D0/3.D0*k*EV%Kf(1)*sigma+(-2.D0/3.D0*sigma-2.D0/3.D0*etak/adotoa)*k &
-        -diff_rhopi/k**2-1.D0/adotoa*dgrho/3.D0+(3.D0*gpres+5.D0*grho)*sigma/k/3.D0 &
-        -2.D0/k*adotoa/EV%Kf(1)*etak)*expmmu(j)
-
-    
-    !e.g. to get only late-time ISW
-    !  if (1/a-1 > 30) ISW=0
-
-    !The rest, note y(9)->octg, yprime(9)->octgprime (octopoles)
-    sources(1)= ISW +  ((-9.D0/160.D0*pig-27.D0/80.D0*ypol(2))/k**2*opac(j)+ &
-        (11.D0/10.D0*sigma- 3.D0/8.D0*EV%Kf(2)*ypol(3)+vb-9.D0/80.D0*EV%Kf(2)*octg+3.D0/40.D0*qg)/k- &
-        (-180.D0*ypolprime(2)-30.D0*pigdot)/k**2/160.D0)*dvis(j) + &
-        (-(9.D0*pigdot+ 54.D0*ypolprime(2))/k**2*opac(j)/160.D0+pig/16.D0+clxg/4.D0+3.D0/8.D0*ypol(2) + &
-        (-21.D0/5.D0*adotoa*sigma-3.D0/8.D0*EV%Kf(2)*ypolprime(3) + &
-        vbdot+3.D0/40.D0*qgdot- 9.D0/80.D0*EV%Kf(2)*octgprime)/k + &
-        (-9.D0/160.D0*dopac(j)*pig-21.D0/10.D0*dgpi-27.D0/80.D0*dopac(j)*ypol(2))/k**2)*vis(j) + &
-        (3.D0/16.D0*ddvis(j)*pig+9.D0/8.D0*ddvis(j)*ypol(2))/k**2+21.D0/10.D0/k/EV%Kf(1)*vis(j)*etak
-    
-    print *, new_source, sources(1)
-
-    ! Doppler term
-    !   sources(1)=  (sigma+vb)/k*dvis(j)+((-2.D0*adotoa*sigma+vbdot)/k-1.D0/k**2*dgpi)*vis(j) &
-    !         +1.D0/k/EV%Kf(1)*vis(j)*etak
-
-    !Equivalent full result
-    !    t4 = 1.D0/adotoa
-    !    t92 = k**2
-    !   sources(1) = (4.D0/3.D0*EV%Kf(1)*expmmu(j)*sigma+2.D0/3.D0*(-sigma-t4*etak)*expmmu(j))*k+ &
-    !       (3.D0/8.D0*ypol(2)+pig/16.D0+clxg/4.D0)*vis(j)
-    !    sources(1) = sources(1)-t4*expmmu(j)*dgrho/3.D0+((11.D0/10.D0*sigma- &
-    !         3.D0/8.D0*EV%Kf(2)*ypol(3)+vb+ 3.D0/40.D0*qg-9.D0/80.D0*EV%Kf(2)*y(9))*dvis(j)+(5.D0/3.D0*grho+ &
-    !        gpres)*sigma*expmmu(j)+(-2.D0*adotoa*etak*expmmu(j)+21.D0/10.D0*etak*vis(j))/ &
-    !        EV%Kf(1)+(vbdot-3.D0/8.D0*EV%Kf(2)*ypolprime(3)+3.D0/40.D0*qgdot-21.D0/ &
-    !        5.D0*sigma*adotoa-9.D0/80.D0*EV%Kf(2)*yprime(9))*vis(j))/k+(((-9.D0/160.D0*pigdot- &
-    !        27.D0/80.D0*ypolprime(2))*opac(j)-21.D0/10.D0*dgpi -27.D0/80.D0*dopac(j)*ypol(2) &
-    !        -9.D0/160.D0*dopac(j)*pig)*vis(j) - diff_rhopi*expmmu(j)+((-27.D0/80.D0*ypol(2)-9.D0/ &
-    !        160.D0*pig)*opac(j)+3.D0/16.D0*pigdot+9.D0/8.D0*ypolprime(2))*dvis(j)+9.D0/ &
-    !        8.D0*ddvis(j)*ypol(2)+3.D0/16.D0*ddvis(j)*pig)/t92
-
 
     if (x > 0._dl) then
         !E polarization source
@@ -1435,9 +1386,6 @@
         !Get lensing sources
         !Can modify this here if you want to get power spectra for other tracer
         if (tau>tau_maxvis .and. CP%tau0-tau > 0.1_dl) then
-            !phi_lens = Phi - 1/2 kappa (a/k)^2 sum_i rho_i pi_i
-            phi = -(dgrho +3*dgq*adotoa/k)/(k2*EV%Kf(1)*2) - dgpi/k2/2
-
             sources(3) = -2*phi*f_K(tau-tau_maxvis)/(f_K(CP%tau0-tau_maxvis)*f_K(CP%tau0-tau))
             !We include the lensing factor of two here
         else
