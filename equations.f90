@@ -190,7 +190,7 @@
         !Tensor vars
         real(dl) aux_buf
 
-        real(dl) pig, pigdot !For tight coupling
+        real(dl) pig, pigdot
         real(dl) poltruncfac
 
         logical no_nu_multpoles, no_phot_multpoles
@@ -200,9 +200,10 @@
         real(dl) denlk(max_l_evolve),denlk2(max_l_evolve), polfack(max_l_evolve)
         real(dl) Kf(max_l_evolve)
 
-        integer E_ix, B_ix !tensor polarization indices
+        integer E_ix, B_ix !tensor polarizatisdon indices
         real(dl) denlkt(4,max_l_evolve),Kft(max_l_evolve)
         real, pointer :: OutputTransfer(:) => null()
+        real(dl), pointer :: OutputSources(:) => null()
     end type EvolutionVars
 
     !precalculated arrays
@@ -914,11 +915,11 @@
 
     end subroutine SwitchToMassiveNuApprox
 
-    subroutine MassiveNuVarsOut(EV,y,yprime,a,grho,gpres,dgrho,dgq,dgpi, gdpi_diff,pidot_sum,clxnu_all)
+    subroutine MassiveNuVarsOut(EV,y,yprime,a,grho,gpres,dgrho,dgq,dgpi, dgpi_diff,pidot_sum,clxnu_all)
     implicit none
     type(EvolutionVars) EV
     real(dl) :: y(EV%nvar), yprime(EV%nvar),a
-    real(dl), optional :: grho,gpres,dgrho,dgq,dgpi, gdpi_diff,pidot_sum,clxnu_all
+    real(dl), optional :: grho,gpres,dgrho,dgq,dgpi, dgpi_diff,pidot_sum,clxnu_all
     !grho = a^2 kappa rho
     !gpres = a^2 kappa p
     !dgrho = a^2 kappa \delta\rho
@@ -971,7 +972,7 @@
         dgrhonu= dgrhonu + grhonu_t*clxnu
         if (present(dgq)) dgq  = dgq   + grhonu_t*qnu
         if (present(dgpi)) dgpi = dgpi  + grhonu_t*pinu
-        if (present(gdpi_diff)) gdpi_diff = gdpi_diff + pinu*(3*gpnu_t-grhonu_t)
+        if (present(dgpi_diff)) dgpi_diff = dgpi_diff + pinu*(3*gpnu_t-grhonu_t)
         if (present(pidot_sum)) pidot_sum = pidot_sum + grhonu_t*pinudot
     end do
     if (present(grho)) grho = grho  + grhonu
@@ -1179,6 +1180,23 @@
     !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
     subroutine output(EV,y, j,tau,sources)
     use ThermoData
+    type(EvolutionVars) EV
+    integer j
+    real(dl), target :: y(EV%nvar), yprime(EV%nvar)
+    real(dl) tau
+    real(dl), target :: sources(CTransScal%NumSources)
+
+    EV%OutputSources => Sources
+    call derivs(EV,EV%ScalEqsToPropagate,tau,y,yprime)
+    nullify(EV%OutputSources)
+
+    !    call output_sources(Ev, y, tau, opac(j), dopac(j), vis(j), dvis(j), ddvis(j), expmmu(j), sources)
+
+    end subroutine output
+
+    subroutine output_sources(EV,y, tau, &
+        opacity, dopacity, visibility, dvisibility, ddvisibility, exptau, sources)
+    use ThermoData
     use lvalues
     use ModelData
     implicit none
@@ -1186,6 +1204,7 @@
     type(EvolutionVars) EV
     real(dl), target :: y(EV%nvar),yprime(EV%nvar)
     real(dl), dimension(:),pointer :: ypol,ypolprime
+    real(dl) opacity, dopacity, visibility, dvisibility, ddvisibility, exptau
 
     real(dl) dgq,grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,sigma,polter
     real(dl) qgdot,pigdot,pirdot,vbdot,dgrho
@@ -1275,7 +1294,7 @@
     if (EV%no_phot_multpoles) then
         z=(0.5_dl*dgrho/k + etak)/adotoa
         dz= -adotoa*z - 0.5_dl*dgrho/k
-        clxg=-4*dz/k -4/k*opac(j)*(vb+z)
+        clxg=-4*dz/k -4/k*opacity*(vb+z)
         qg=-4._dl/3*z
         pig=0
         pigdot=0
@@ -1287,9 +1306,9 @@
             pig = EV%pig
             !pigdot=EV%pigdot
             if (second_order_tightcoupling) then
-                octg = (3._dl/7._dl)*pig*(EV%k_buf/opac(j))
-                ypol(2) = EV%pig/4 + EV%pigdot*(1._dl/opac(j))*(-5._dl/8._dl)
-                ypol(3) = (3._dl/7._dl)*(EV%k_buf/opac(j))*ypol(2)
+                octg = (3._dl/7._dl)*pig*(EV%k_buf/opacity)
+                ypol(2) = EV%pig/4 + EV%pigdot*(1._dl/opacity)*(-5._dl/8._dl)
+                ypol(3) = (3._dl/7._dl)*(EV%k_buf/opacity)*ypol(2)
             else
                 ypol(2) = EV%pig/4
                 octg=0
@@ -1330,9 +1349,9 @@
     if (EV%TightCoupling) then
         if (second_order_tightcoupling) then
             pigdot = EV%pigdot
-            ypolprime(2)= (pigdot/4._dl)*(1+(5._dl/2._dl)*(dopac(j)/opac(j)**2))
+            ypolprime(2)= (pigdot/4._dl)*(1+(5._dl/2._dl)*(dopacity/opacity**2))
         else
-            pigdot = -dopac(j)/opac(j)*pig + 32._dl/45*k/opac(j)*(-2*adotoa*sigma  &
+            pigdot = -dopacity/opacity*pig + 32._dl/45*k/opacity*(-2*adotoa*sigma  &
                 +etak/EV%Kf(1)-  dgpi/k +vbdot )
             ypolprime(2)= pigdot/4
         end if
@@ -1343,40 +1362,40 @@
 
     comoving_dgrho = dgrho +3*dgq*adotoa/k
 
-   !Weyl potential phi = Phi - 1/2 kappa (a/k)^2 sum_i rho_i pi_i in Newtonian gauge
+    !Weyl potential phi = Phi - 1/2 kappa (a/k)^2 sum_i rho_i pi_i in Newtonian gauge
     phi = -comoving_dgrho/(k2*EV%Kf(1)*2) - dgpi/k2/2
     phidot = (1.0d0/2.0d0)*(-adotoa*dgpi - 2*adotoa*k**2*phi + dgq*k - &
-          diff_rhopi + k*sigma*(gpres + grho))/k**2
+        diff_rhopi + k*sigma*(gpres + grho))/k**2
     !time derivative of shear
     sigmadot = -adotoa*sigma - 1.0d0/2.0d0*dgpi/k + k*phi
     !quadrupole source derivatives; polter = pi_g/10 + 3/5 E_2
     polterdot = (1.0d0/10.0d0)*pigdot + (3.0d0/5.0d0)*ypolprime(2)
     ! note y(9)->octg, yprime(9)->octgprime (octopoles)
     polterddot = -2.0d0/25.0d0*adotoa*dgq/(k*EV%Kf(1)) - 4.0d0/75.0d0*adotoa* &
-          k*sigma - 4.0d0/75.0d0*dgpi - 2.0d0/75.0d0*dgrho/EV%Kf(1) - 3.0d0/ &
-          50.0d0*k*octgprime*EV%Kf(2) + (1.0d0/25.0d0)*k*qgdot - 1.0d0/5.0d0 &
-          *k*EV%Kf(2)*ypolprime(3) + (-1.0d0/10.0d0*pig + (7.0d0/10.0d0)* &
-          polter - 3.0d0/5.0d0*ypol(2))*dopac(j) + (-1.0d0/10.0d0*pigdot &
-          + (7.0d0/10.0d0)*polterdot - 3.0d0/5.0d0*ypolprime(2))*opac(j)
+        k*sigma - 4.0d0/75.0d0*dgpi - 2.0d0/75.0d0*dgrho/EV%Kf(1) - 3.0d0/ &
+        50.0d0*k*octgprime*EV%Kf(2) + (1.0d0/25.0d0)*k*qgdot - 1.0d0/5.0d0 &
+        *k*EV%Kf(2)*ypolprime(3) + (-1.0d0/10.0d0*pig + (7.0d0/10.0d0)* &
+        polter - 3.0d0/5.0d0*ypol(2))*dopacity + (-1.0d0/10.0d0*pigdot &
+        + (7.0d0/10.0d0)*polterdot - 3.0d0/5.0d0*ypolprime(2))*opacity
 
-    !Temperature source terms, after integrating by parts in conformal time 
+    !Temperature source terms, after integrating by parts in conformal time
 
     !2phi' term (\phi' + \psi' in Newtonian gauge), phi is the Weyl potential
-    ISW = 2*phidot*expmmu(j)
+    ISW = 2*phidot*exptau
     !e.g. to get only late-time ISW
     !  if (1/a-1 > 30) ISW=0
-    sachs_wolfe = (-etak/(k*EV%Kf(1)) + 2*phi)*vis(j)
-    monopole_source = (1.0d0/4.0d0)*clxg*vis(j)
-    doppler = ((sigma + vb)*dvis(j) + (sigmadot + vbdot)*vis(j))/k
-    quadrupole_source = (5.0d0/8.0d0)*(3*polter*ddvis(j) + 6*polterdot*dvis( &
-          j) + (k**2*polter + 3*polterddot)*vis(j))/k**2
-    
+    sachs_wolfe = (-etak/(k*EV%Kf(1)) + 2*phi)*visibility
+    monopole_source = (1.0d0/4.0d0)*clxg*visibility
+    doppler = ((sigma + vb)*dvisibility + (sigmadot + vbdot)*visibility)/k
+    quadrupole_source = (5.0d0/8.0d0)*(3*polter*ddvisibility + 6*polterdot*dvisibility &
+        + (k**2*polter + 3*polterddot)*visibility)/k**2
+
     sources(1) = ISW + doppler + sachs_wolfe + monopole_source + quadrupole_source
- 
+
 
     if (x > 0._dl) then
         !E polarization source
-        sources(2)=vis(j)*polter*(15._dl/8._dl)/divfac
+        sources(2)=visibility*polter*(15._dl/8._dl)/divfac
         !factor of four because no 1/16 later
     else
         sources(2)=0
@@ -1393,7 +1412,7 @@
         end if
     end if
 
-    end subroutine output
+    end subroutine output_sources
 
 
     !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
@@ -1930,15 +1949,21 @@
     real(dl) q,aq,v
     real(dl) G11_t,G30_t, wnu_arr(max_nu)
 
-    real(dl) dgq,grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,sigma,polter
+    real(dl) dgq,grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,grhonu_t,sigma,polter
     real(dl) qgdot,qrdot,pigdot,pirdot,vbdot,dgrho,adotoa
     real(dl) a,a2,z,clxc,clxb,vb,clxg,qg,pig,clxr,qr,pir
     real(dl) clxq, vq,  E2, dopacity
     integer l,i,ind, ind2, off_ix, ix
     real(dl) dgs,sigmadot,dz !, ddz
-    real(dl) dgpi,dgrho_matter,grho_matter, clxnu_all
+    real(dl) dgpi,dgrho_matter,grho_matter, clxnu
     !non-flat vars
     real(dl) cothxor !1/tau in flat case
+    !Variables for source calculation
+    real(dl) diff_rhopi, pidot_sum, dgpi_diff, phi
+    real(dl) :: E(2:3), Edot(2:3)
+    real(dl) phidot, polterdot, polterddot, octg, octgdot
+    real(dl) ddopacity, visibility, dvisibility, ddvisibility, exptau, lenswindow
+    real(dl) ISW, quadrupole_source, sachs_wolfe, doppler, monopole_source, tau0
 
     k=EV%k_buf
     k2=EV%k2_buf
@@ -1975,7 +2000,7 @@
     end if
 
     gpres=0
-    grho_matter=grhob_t+grhoc_t
+    grhonu_t=0
 
     !total perturbations: matter terms first, then add massive nu, de and radiation
     !  8*pi*a*a*SUM[rho_i*clx_i]
@@ -1984,9 +2009,10 @@
     dgq=grhob_t*vb
 
     if (CP%Num_Nu_Massive > 0) then
-        call MassiveNuVars(EV,ay,a,grho_matter,gpres,dgrho_matter,dgq, wnu_arr)
+        call MassiveNuVars(EV,ay,a,grhonu_t,gpres,dgrho_matter,dgq, wnu_arr)
     end if
 
+    grho_matter=grhonu_t+grhob_t+grhoc_t
     grho = grho_matter+grhor_t+grhog_t+grhov_t
 
     if (CP%flat) then
@@ -2071,28 +2097,6 @@
         ayprime(EV%w_ix+1) = -adotoa*(1-3*cs2_lam)*vq + k*cs2_lam*clxq/(1+w_lam)
     end if
 
-    if (associated(EV%OutputTransfer)) then
-        EV%OutputTransfer(Transfer_kh) = k/(CP%h0/100._dl)
-        EV%OutputTransfer(Transfer_cdm) = clxc
-        EV%OutputTransfer(Transfer_b) = clxb
-        EV%OutputTransfer(Transfer_g) = clxg
-        EV%OutputTransfer(Transfer_r) = clxr
-        clxnu_all=0
-        dgpi  = grhor_t*pir + grhog_t*pig
-        if (CP%Num_Nu_Massive /= 0) then
-            call MassiveNuVarsOut(EV,ay,ayprime,a, clxnu_all =clxnu_all, dgpi= dgpi)
-        end if
-        EV%OutputTransfer(Transfer_nu) = clxnu_all
-        EV%OutputTransfer(Transfer_tot) =  dgrho_matter/grho_matter !includes neutrinos
-        EV%OutputTransfer(Transfer_nonu) = (grhob_t*clxb+grhoc_t*clxc)/(grhob_t + grhoc_t)
-        EV%OutputTransfer(Transfer_tot_de) =  dgrho/grho_matter
-        !Transfer_Weyl is k^2Phi, where Phi is the Weyl potential
-        EV%OutputTransfer(Transfer_Weyl) = -(dgrho +3*dgq*adotoa/k)/(EV%Kf(1)*2) - dgpi/2
-        EV%OutputTransfer(Transfer_Newt_vel_cdm)=  -k*sigma/adotoa
-        EV%OutputTransfer(Transfer_Newt_vel_baryon) = -k*(vb + sigma)/adotoa
-        EV%OutputTransfer(Transfer_vel_baryon_cdm) = vb
-    end if
-
     !  CDM equation of motion
     clxcdot=-k*z
     ayprime(3)=clxcdot
@@ -2134,13 +2138,14 @@
 
             pig = 32._dl/45/opacity*k*(sigma+3._dl*qg/4._dl)*(1+(dopacity*11._dl/6._dl/opacity**2)) &
                 + (32._dl/45._dl/opacity**2)*k*(sigmadot+3._dl*qgdot/4._dl)*(-11._dl/6._dl)
-
+            
             pigdot = -(32._dl/45._dl)*(dopacity/opacity**2)*k*(sigma+3._dl*qg/4._dl)*(1 + &
                 dopacity*11._dl/6._dl/opacity**2 ) &
                 + (32._dl/45._dl/opacity)*k*(sigmadot+3._dl*qgdot/4._dl)*(1+(11._dl/6._dl) &
                 *(dopacity/opacity**2))
 
             EV%pigdot = pigdot
+
         end if
 
         !  Use tight-coupling approximation for vb
@@ -2149,8 +2154,8 @@
             +k/4*pb43*(clxg-2*EV%Kf(1)*pig))/(1+pb43)
 
         vbdot=vbdot+pb43/(1+pb43)*slip
-
         EV%pig = pig
+
     else
         vbdot=-adotoa*vb+cs2*k*clxb-photbar*opacity*(4._dl/3*vb-qg)
     end if
@@ -2247,6 +2252,125 @@
             end if
         end if
     end if ! no_nu_multpoles
+
+    if (associated(EV%OutputTransfer) .or. associated(EV%OutputSources)) then
+        if (EV%TightCoupling .or. EV%no_phot_multpoles) then
+            E=0
+            Edot=0
+        else
+            E = ay(EV%polind+2:3)
+            Edot = ayprime(EV%polind+2:3)
+        end if
+        if (EV%no_nu_multpoles) pirdot=0
+        if (EV%no_phot_multpoles) then
+            pigdot=0
+            octg=0
+            octgdot=0
+            qgdot = -4*dz/3
+        else
+            if (EV%TightCoupling) then
+                if (second_order_tightcoupling) then
+                    octg = (3._dl/7._dl)*pig*(EV%k_buf/opacity)
+                    E(2) = EV%pig/4 + EV%pigdot*(1._dl/opacity)*(-5._dl/8._dl)
+                    E(3) = (3._dl/7._dl)*(EV%k_buf/opacity)*E(2)
+                    Edot(2)= (pigdot/4._dl)*(1+(5._dl/2._dl)*(dopacity/opacity**2))
+                else
+                    pigdot = -dopacity/opacity*pig + 32._dl/45*k/opacity*(-2*adotoa*sigma  &
+                        +etak/EV%Kf(1)-  dgpi/k +vbdot )
+                    Edot(2) = pigdot/4
+                    E(2) = pig/4
+                    octg=0
+                end if
+                octgdot=0
+            else
+                octg=ay(EV%g_ix+3)
+                octgdot=ayprime(EV%g_ix+3)
+            end if
+        end if
+
+        dgpi  = grhor_t*pir + grhog_t*pig
+        dgpi_diff = 0  !sum (3*p_nu -rho_nu)*pi_nu
+        pidot_sum = grhog_t*pigdot + grhor_t*pirdot
+        clxnu =0
+        if (CP%Num_Nu_Massive /= 0) then
+            call MassiveNuVarsOut(EV,ay,ayprime,a, dgpi=dgpi, clxnu_all=clxnu, &
+                dgpi_diff=dgpi_diff, pidot_sum=pidot_sum)
+        end if
+        diff_rhopi = pidot_sum - (4*dgpi+ dgpi_diff)*adotoa
+        phi = -((dgrho +3*dgq*adotoa/k)/EV%Kf(1) - dgpi)/(2*k2)
+
+        if (associated(EV%OutputTransfer)) then
+            EV%OutputTransfer(Transfer_kh) = k/(CP%h0/100._dl)
+            EV%OutputTransfer(Transfer_cdm) = clxc
+            EV%OutputTransfer(Transfer_b) = clxb
+            EV%OutputTransfer(Transfer_g) = clxg
+            EV%OutputTransfer(Transfer_r) = clxr
+            EV%OutputTransfer(Transfer_nu) = clxnu
+            EV%OutputTransfer(Transfer_tot) =  dgrho_matter/grho_matter !includes neutrinos
+            EV%OutputTransfer(Transfer_nonu) = (grhob_t*clxb+grhoc_t*clxc)/(grhob_t + grhoc_t)
+            EV%OutputTransfer(Transfer_tot_de) =  dgrho/grho_matter
+            !Transfer_Weyl is k^2Phi, where Phi is the Weyl potential
+            EV%OutputTransfer(Transfer_Weyl) = k2*phi
+            EV%OutputTransfer(Transfer_Newt_vel_cdm)=  -k*sigma/adotoa
+            EV%OutputTransfer(Transfer_Newt_vel_baryon) = -k*(vb + sigma)/adotoa
+            EV%OutputTransfer(Transfer_vel_baryon_cdm) = vb
+        end if
+        if (associated(EV%OutputSources)) then
+
+            call IonizationFunctionsAtTime(tau, opacity, dopacity, ddopacity, &
+                visibility, dvisibility, ddvisibility, exptau, lenswindow)
+
+            tau0 = CP%tau0
+            phidot = (1.0d0/2.0d0)*(-adotoa*dgpi - 2*adotoa*k**2*phi + dgq*k - &
+                diff_rhopi + k*sigma*(gpres + grho))/k**2
+            !time derivative of shear
+            sigmadot = -adotoa*sigma - 1.0d0/2.0d0*dgpi/k + k*phi
+            !quadrupole source derivatives; polter = pi_g/10 + 3/5 E_2
+            polter = pig/10+9._dl/15*E(2)
+            polterdot = (1.0d0/10.0d0)*pigdot + (3.0d0/5.0d0)*Edot(2)
+            polterddot = -2.0d0/25.0d0*adotoa*dgq/(k*EV%Kf(1)) - 4.0d0/75.0d0*adotoa* &
+                k*sigma - 4.0d0/75.0d0*dgpi - 2.0d0/75.0d0*dgrho/EV%Kf(1) - 3.0d0/ &
+                50.0d0*k*octgdot*EV%Kf(2) + (1.0d0/25.0d0)*k*qgdot - 1.0d0/5.0d0 &
+                *k*EV%Kf(2)*Edot(3) + (-1.0d0/10.0d0*pig + (7.0d0/10.0d0)* &
+                polter - 3.0d0/5.0d0*E(2))*dopacity + (-1.0d0/10.0d0*pigdot &
+                + (7.0d0/10.0d0)*polterdot - 3.0d0/5.0d0*Edot(2))*opacity
+            !Temperature source terms, after integrating by parts in conformal time
+
+            !2phi' term (\phi' + \psi' in Newtonian gauge), phi is the Weyl potential
+            ISW = 2*phidot*exptau
+            !e.g. to get only late-time ISW
+            !  if (1/a-1 > 30) ISW=0
+            sachs_wolfe = (-etak/(k*EV%Kf(1)) + 2*phi)*visibility
+            monopole_source = (1.0d0/4.0d0)*clxg*visibility
+            doppler = ((sigma + vb)*dvisibility + (sigmadot + vbdot)*visibility)/k
+            quadrupole_source = (5.0d0/8.0d0)*(3*polter*ddvisibility + 6*polterdot*dvisibility &
+                + (k**2*polter + 3*polterddot)*visibility)/k**2
+
+            EV%OutputSources(1) = ISW + doppler + sachs_wolfe + monopole_source + quadrupole_source
+
+            if (tau < tau0) then
+                !E polarization source
+                EV%OutputSources(2)=visibility*polter*(15._dl/8._dl)/(f_K(tau0-tau)**2*k2)
+                !factor of four because no 1/16 later
+            else
+                EV%OutputSources(2)=0
+            end if
+
+            if (CTransScal%NumSources > 2) then
+                !Get lensing sources
+                !Can modify this here if you want to get power spectra for other tracer
+                if (tau>tau_maxvis .and. tau0-tau > 0.1_dl) then
+                    EV%OutputSources(3) = -2*phi*f_K(tau-tau_maxvis)/(f_K(tau0-tau_maxvis)*f_K(tau0-tau))
+                    !We include the lensing factor of two here
+                else
+                    EV%OutputSources(3) = 0
+                end if
+            end if
+
+            !!!PYCAMB: Extra Sources from pycamb go here
+
+        end if
+    end if
 
     !  Massive neutrino equations of motion.
     if (CP%Num_Nu_massive == 0) return

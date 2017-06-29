@@ -936,7 +936,7 @@
     tau=taustart
     ind=1
 
-    !!Example code for plotting out variable evolution
+    !!Example code for plotting out variable evolution (can now do this better via python)
     if (fixq/=0._dl) then
         tol1=tol/exp(AccuracyBoost-1)
         call CreateTxtFile('evolve.txt',1)

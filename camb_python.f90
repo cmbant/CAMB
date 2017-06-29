@@ -485,6 +485,15 @@
     err = global_error_flag
     end function CAMB_TimeEvolution
 
+    
+    function CAMB_TestFunction(f, x) result(y)
+    real(dl), external :: f
+    real(dl), intent(in) :: x
+    real(dl) y
+    Type(EvolutionVars) :: Ev
+    
+     y = 10._dl * f(x)
+    end function
     ! END BRIDGE FOR PYTHON
 
     end module handles

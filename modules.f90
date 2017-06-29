@@ -2585,7 +2585,7 @@
 
     public thermo,inithermo,vis,opac,expmmu,dvis,dopac,ddvis,lenswin, tight_tau,&
         Thermo_OpacityToTime,matter_verydom_tau, ThermoData_Free,&
-        z_star, z_drag, GetBackgroundEvolution
+        z_star, z_drag, GetBackgroundEvolution, IonizationFunctionsAtTime
     contains
 
     subroutine thermo(tau,cs2b,opacity, dopacity)
@@ -3019,49 +3019,63 @@
     end subroutine ThermoData_Free
 
     !cccccccccccccc
-    subroutine DoThermoSpline(j2,tau)
-    integer j2,i
-    real(dl) d,ddopac,tau
 
-    !     Cubic-spline interpolation.
+    subroutine IonizationFunctionsAtTime(tau, opac, dopac, ddopac, &
+         vis, dvis, ddvis, expmmu, lenswin)
+    real(dl), intent(in) :: tau
+    real(dl), intent(out):: opac, dopac, ddopac, vis, dvis, ddvis, expmmu, lenswin
+    real(dl) d    
+    integer i
+
     d=log(tau/tauminn)/dlntau+1._dl
     i=int(d)
-
     d=d-i
+
     if (i < nthermo) then
-        opac(j2)=dotmu(i)+d*(ddotmu(i)+d*(3._dl*(dotmu(i+1)-dotmu(i)) &
+        opac=dotmu(i)+d*(ddotmu(i)+d*(3._dl*(dotmu(i+1)-dotmu(i)) &
             -2._dl*ddotmu(i)-ddotmu(i+1)+d*(ddotmu(i)+ddotmu(i+1) &
             +2._dl*(dotmu(i)-dotmu(i+1)))))
-        dopac(j2)=(ddotmu(i)+d*(dddotmu(i)+d*(3._dl*(ddotmu(i+1)  &
+        dopac=(ddotmu(i)+d*(dddotmu(i)+d*(3._dl*(ddotmu(i+1)  &
             -ddotmu(i))-2._dl*dddotmu(i)-dddotmu(i+1)+d*(dddotmu(i) &
             +dddotmu(i+1)+2._dl*(ddotmu(i)-ddotmu(i+1))))))/(tau &
             *dlntau)
         ddopac=(dddotmu(i)+d*(ddddotmu(i)+d*(3._dl*(dddotmu(i+1) &
             -dddotmu(i))-2._dl*ddddotmu(i)-ddddotmu(i+1)  &
             +d*(ddddotmu(i)+ddddotmu(i+1)+2._dl*(dddotmu(i) &
-            -dddotmu(i+1)))))-(dlntau**2)*tau*dopac(j2)) &
+            -dddotmu(i+1)))))-(dlntau**2)*tau*dopac) &
             /(tau*dlntau)**2
-        expmmu(j2)=emmu(i)+d*(demmu(i)+d*(3._dl*(emmu(i+1)-emmu(i)) &
+        expmmu=emmu(i)+d*(demmu(i)+d*(3._dl*(emmu(i+1)-emmu(i)) &
             -2._dl*demmu(i)-demmu(i+1)+d*(demmu(i)+demmu(i+1) &
             +2._dl*(emmu(i)-emmu(i+1)))))
 
         if (dowinlens) then
-            lenswin(j2)=winlens(i)+d*(dwinlens(i)+d*(3._dl*(winlens(i+1)-winlens(i)) &
+            lenswin=winlens(i)+d*(dwinlens(i)+d*(3._dl*(winlens(i+1)-winlens(i)) &
                 -2._dl*dwinlens(i)-dwinlens(i+1)+d*(dwinlens(i)+dwinlens(i+1) &
                 +2._dl*(winlens(i)-winlens(i+1)))))
         end if
-        vis(j2)=opac(j2)*expmmu(j2)
-        dvis(j2)=expmmu(j2)*(opac(j2)**2+dopac(j2))
-        ddvis(j2)=expmmu(j2)*(opac(j2)**3+3*opac(j2)*dopac(j2)+ddopac)
+        vis=opac*expmmu
+        dvis=expmmu*(opac**2+dopac)
+        ddvis=expmmu*(opac**3+3*opac*dopac+ddopac)
     else
-        opac(j2)=dotmu(nthermo)
-        dopac(j2)=ddotmu(nthermo)
+        opac=dotmu(nthermo)
+        dopac=ddotmu(nthermo)
         ddopac=dddotmu(nthermo)
-        expmmu(j2)=emmu(nthermo)
-        vis(j2)=opac(j2)*expmmu(j2)
-        dvis(j2)=expmmu(j2)*(opac(j2)**2+dopac(j2))
-        ddvis(j2)=expmmu(j2)*(opac(j2)**3+3._dl*opac(j2)*dopac(j2)+ddopac)
+        expmmu=emmu(nthermo)
+        vis=opac*expmmu
+        dvis=expmmu*(opac**2+dopac)
+        ddvis=expmmu*(opac**3+3._dl*opac*dopac+ddopac)
     end if
+
+    end subroutine IonizationFunctionsAtTime
+
+    subroutine DoThermoSpline(j,tau)
+    !At timesteps for output
+    integer j
+    real(dl) ddopac,tau
+
+    call IonizationFunctionsAtTime(tau, opac(j), dopac(j), ddopac, &
+        vis(j), dvis(j), ddvis(j), expmmu(j), lenswin(j))
+
     end subroutine DoThermoSpline
 
 
