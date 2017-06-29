@@ -1186,6 +1186,7 @@
     real(dl) tau
     real(dl), target :: sources(CTransScal%NumSources)
 
+    yprime = 0
     EV%OutputSources => Sources
     call derivs(EV,EV%ScalEqsToPropagate,tau,y,yprime)
     nullify(EV%OutputSources)
@@ -2287,7 +2288,7 @@
                 octgdot=ayprime(EV%g_ix+3)
             end if
         end if
-
+        
         dgpi  = grhor_t*pir + grhog_t*pig
         dgpi_diff = 0  !sum (3*p_nu -rho_nu)*pi_nu
         pidot_sum = grhog_t*pigdot + grhor_t*pirdot
@@ -2338,8 +2339,6 @@
 
             !2phi' term (\phi' + \psi' in Newtonian gauge), phi is the Weyl potential
             ISW = 2*phidot*exptau
-            !e.g. to get only late-time ISW
-            !  if (1/a-1 > 30) ISW=0
             sachs_wolfe = (-etak/(k*EV%Kf(1)) + 2*phi)*visibility
             monopole_source = (1.0d0/4.0d0)*clxg*visibility
             doppler = ((sigma + vb)*dvisibility + (sigmadot + vbdot)*visibility)/k
