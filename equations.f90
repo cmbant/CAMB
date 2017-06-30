@@ -1695,8 +1695,6 @@
     implicit none
     type(EvolutionVars) EV
     real(dl), intent(in) :: tau
-    real(dl) clxc, clxb, clxg, clxr, k,k2
-    real(dl) grho,gpres,dgrho,dgq,a
     real, target :: Arr(:)
     real(dl) y(EV%nvar),yprime(EV%nvar)
 
@@ -2113,7 +2111,7 @@
             if (EV%TightCoupling) then
                 if (second_order_tightcoupling) then
                     octg = (3._dl/7._dl)*pig*(EV%k_buf/opacity)
-                    E(2) = EV%pig/4 + EV%pigdot*(1._dl/opacity)*(-5._dl/8._dl)
+                    E(2) = pig/4 + pigdot*(1._dl/opacity)*(-5._dl/8._dl)
                     E(3) = (3._dl/7._dl)*(EV%k_buf/opacity)*E(2)
                     Edot(2)= (pigdot/4._dl)*(1+(5._dl/2._dl)*(dopacity/opacity**2))
                 else
@@ -2163,8 +2161,10 @@
                 visibility, dvisibility, ddvisibility, exptau, lenswindow)
 
             tau0 = CP%tau0
-            phidot = (1.0d0/2.0d0)*(-adotoa*dgpi - 2*adotoa*k**2*phi + dgq*k - &
-                diff_rhopi + k*sigma*(gpres + grho))/k**2
+            phidot = -adotoa*etak/(k*EV%Kf(1)) - 1.0d0/2.0d0*diff_rhopi/k**2 + &
+                sigma*((1.0d0/2.0d0)*gpres/k + (5.0d0/6.0d0)*grho/k + &
+                (2.0d0/3.0d0)*k*EV%Kf(1) - 1.0d0/3.0d0*k) + (-1.0d0/6.0d0*dgrho - &
+                1.0d0/3.0d0*etak*k)/adotoa
             !time derivative of shear
             sigmadot = -adotoa*sigma - 1.0d0/2.0d0*dgpi/k + k*phi
             !quadrupole source derivatives; polter = pi_g/10 + 3/5 E_2
@@ -2187,12 +2187,6 @@
                 + (k**2*polter + 3*polterddot)*visibility)/k**2
 
             EV%OutputSources(1) = ISW + doppler + sachs_wolfe + monopole_source + quadrupole_source
-            if (k > 1e-3  .and. tau > 300) then
-                print *, k, tau, ISW, dgq, diff_rhopi, dgpi, pig
-                print *, dgrho, etak, adotoa, pigdot, sigma
-                print *, pidot_sum, dgpi_diff, pirdot, exptau
-                stop
-            end if
 
             if (tau < tau0) then
                 !E polarization source
