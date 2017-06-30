@@ -2166,7 +2166,7 @@
                 (2.0d0/3.0d0)*k*EV%Kf(1) - 1.0d0/3.0d0*k) + (-1.0d0/6.0d0*dgrho - &
                 1.0d0/3.0d0*etak*k)/adotoa
             !time derivative of shear
-            sigmadot = -adotoa*sigma - 1.0d0/2.0d0*dgpi/k + k*phi
+            sigmadot = -2*adotoa*sigma - dgpi/k + etak/EV%Kf(1)
             !quadrupole source derivatives; polter = pi_g/10 + 3/5 E_2
             polter = pig/10+9._dl/15*E(2)
             polterdot = (1.0d0/10.0d0)*pigdot + (3.0d0/5.0d0)*Edot(2)
@@ -2187,7 +2187,7 @@
                 + (k**2*polter + 3*polterddot)*visibility)/k**2
 
             EV%OutputSources(1) = ISW + doppler + sachs_wolfe + monopole_source + quadrupole_source
-
+            
             if (tau < tau0) then
                 !E polarization source
                 EV%OutputSources(2)=visibility*polter*(15._dl/8._dl)/(f_K(tau0-tau)**2*k2)
