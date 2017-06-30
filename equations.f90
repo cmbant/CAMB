@@ -1735,7 +1735,7 @@
     real(dl) clxq, vq,  E2, dopacity
     integer l,i,ind, ind2, off_ix, ix
     real(dl) dgs,sigmadot,dz !, ddz
-    real(dl) dgpi,dgrho_matter,grho_matter, clxnu
+    real(dl) dgpi,dgrho_matter,grho_matter, clxnu, gpres_nu
     !non-flat vars
     real(dl) cothxor !1/tau in flat case
     !Variables for source calculation
@@ -1779,7 +1779,7 @@
         call thermo(tau,cs2,opacity)
     end if
 
-    gpres=0
+    gpres_nu=0
     grhonu_t=0
 
     !total perturbations: matter terms first, then add massive nu, de and radiation
@@ -1789,7 +1789,7 @@
     dgq=grhob_t*vb
 
     if (CP%Num_Nu_Massive > 0) then
-        call MassiveNuVars(EV,ay,a,grhonu_t,gpres,dgrho_matter,dgq, wnu_arr)
+        call MassiveNuVars(EV,ay,a,grhonu_t,gpres_nu,dgrho_matter,dgq, wnu_arr)
     end if
 
     grho_matter=grhonu_t+grhob_t+grhoc_t
@@ -1894,7 +1894,7 @@
 
     if (EV%TightCoupling) then
         !  ddota/a
-        gpres=gpres+ (grhog_t+grhor_t)/3 +grhov_t*w_lam
+        gpres=gpres_nu+ (grhog_t+grhor_t)/3 +grhov_t*w_lam
         adotdota=(adotoa*adotoa-gpres)/2
 
         pig = 32._dl/45/opacity*k*(sigma+vb)
@@ -2137,7 +2137,9 @@
                 dgpi_diff=dgpi_diff, pidot_sum=pidot_sum)
         end if
         diff_rhopi = pidot_sum - (4*dgpi+ dgpi_diff)*adotoa
-        phi = -((dgrho +3*dgq*adotoa/k)/EV%Kf(1) - dgpi)/(2*k2)
+        gpres=gpres_nu+ (grhog_t+grhor_t)/3 +grhov_t*w_lam
+
+        phi = -((dgrho +3*dgq*adotoa/k)/EV%Kf(1) + dgpi)/(2*k2)
 
         if (associated(EV%OutputTransfer)) then
             EV%OutputTransfer(Transfer_kh) = k/(CP%h0/100._dl)
@@ -2161,12 +2163,10 @@
                 visibility, dvisibility, ddvisibility, exptau, lenswindow)
 
             tau0 = CP%tau0
-            phidot = -adotoa*etak/(k*EV%Kf(1)) - 1.0d0/2.0d0*diff_rhopi/k**2 + &
-                sigma*((1.0d0/2.0d0)*gpres/k + (5.0d0/6.0d0)*grho/k + &
-                (2.0d0/3.0d0)*k*EV%Kf(1) - 1.0d0/3.0d0*k) + (-1.0d0/6.0d0*dgrho - &
-                1.0d0/3.0d0*etak*k)/adotoa
+            phidot = (1.0d0/2.0d0)*(adotoa*(-dgpi - 2*k2*phi) + dgq*k - &
+                diff_rhopi+ k*sigma*(gpres + grho))/k2
             !time derivative of shear
-            sigmadot = -2*adotoa*sigma - dgpi/k + etak/EV%Kf(1)
+            sigmadot = -adotoa*sigma - 1.0d0/2.0d0*dgpi/k + k*phi
             !quadrupole source derivatives; polter = pi_g/10 + 3/5 E_2
             polter = pig/10+9._dl/15*E(2)
             polterdot = (1.0d0/10.0d0)*pigdot + (3.0d0/5.0d0)*Edot(2)
@@ -2187,7 +2187,7 @@
                 + (k**2*polter + 3*polterddot)*visibility)/k**2
 
             EV%OutputSources(1) = ISW + doppler + sachs_wolfe + monopole_source + quadrupole_source
-            
+
             if (tau < tau0) then
                 !E polarization source
                 EV%OutputSources(2)=visibility*polter*(15._dl/8._dl)/(f_K(tau0-tau)**2*k2)
@@ -2324,17 +2324,17 @@
             Eprime(l) =-opacity*E(l) + k*(denl(l)*(l*E(l-1) - &
                 vecfacpol(l)*E(l+1)) + 2._dl/(l*(l+1))*B(l))
         end do
-        !truncate
-        Eprime(EV%lmaxpolv)=0._dl
+    !truncate
+    Eprime(EV%lmaxpolv)=0._dl
 
-        !B-bar equations
+    !B-bar equations
 
-        do l=2,EV%lmaxpolv-1
-            Bprime(l) =-opacity*B(l) + k*(denl(l)*(l*B(l-1) - &
-                vecfacpol(l)*B(l+1)) - 2._dl/(l*(l+1))*E(l))
-        end do
-        !truncate
-        Bprime(EV%lmaxpolv)=0._dl
+    do l=2,EV%lmaxpolv-1
+    Bprime(l) =-opacity*B(l) + k*(denl(l)*(l*B(l-1) - &
+        vecfacpol(l)*B(l+1)) - 2._dl/(l*(l+1))*E(l))
+    end do
+    !truncate
+    Bprime(EV%lmaxpolv)=0._dl
     else
         !Tight coupling expansion results
 
