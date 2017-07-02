@@ -13,8 +13,6 @@ import subprocess
 import tempfile
 import textwrap
 
-_source_file_count = 1
-
 # Background variables
 
 tau0 = sympy.Symbol('tau0', description='conformal time today')
@@ -501,11 +499,9 @@ for l in range(2, 5):
 def get_scalar_temperature_sources(checks=False):
     """
     Derives terms in line of sight source, after integration by parts.
-    The way it is split up into sachs_wolfe and monopole_source is to some extent arbitary, but
-    natural this way in the synchronous gauge
 
     :param checks:  True to do consistency checks on result
-    :return: monopole_source, sachs_wolfe, ISW, doppler, quadrupole_source
+    :return: monopole_source, ISW, doppler, quadrupole_source
     """
 
     # Line of sight temperature anisotropy source, by integrating by parts so only integrated against j_l
@@ -536,6 +532,18 @@ _camb_cache = {}
 
 
 def camb_fortran(expr, name='camb_function', expand=False):
+    """
+    Convert symbolic expression to CAMB fortran code, using CAMB variable notation.
+    This is not completely general, but it will handle conversion of Newtoanian gauge
+    variables like Psi_N, and most derivatives up to second order.
+
+    :param expr: symbolic sympy expression using camb.symbolic variables and functions (plus any
+    standard general functions that CAMB can convert to fortran).
+    :param name: lhs variable string to assign result to
+    :param expand: do a sympy expand before generating code
+    :return: fortran code snippet
+    """
+
     camb_diff_vars = 'etakdot qgdot qrdot vbdot pigdot pirdot pinudot ' + \
                      'octg octgdot polterdot polterddot diff_rhopi sigmadot phidot  ' + \
                      'ddvisibility dvisibility dopacity ddopacity'
@@ -570,9 +578,9 @@ def camb_fortran(expr, name='camb_function', expand=False):
         raise Exception(
             'Unknown derivatives, generally can only handle up to second.\nRemaining derivatives: ' + str(res))
 
-    res = subs(K_sub, res)
+    res = cdm_gauge(subs([K_sub, hdot_sub, z_sub], res))
     var_subs = []
-    for var in expr.atoms(Function):
+    for var in res.atoms(Function):
         camb_var = getattr(var, 'camb_var', None)
         if camb_var:
             camb_var = define_variable(camb_var)
@@ -582,11 +590,9 @@ def camb_fortran(expr, name='camb_function', expand=False):
             var_subs.append((var, camb_sub))
 
     camb_subs = var_subs + [(p_b, 0), (E_2, E[2]), (E_3, E[3]), (J_3, octg), (K_fac, Kf[1])]
-
     res = res.subs(camb_subs).simplify()
-    if True:
-        no_arg_funcs = [f for f in res.atoms(Function) if f.args[0] == t]
-        res = res.subs(zip(no_arg_funcs, [sympy.Symbol(str(x.func)) for x in no_arg_funcs]))
+    no_arg_funcs = [f for f in res.atoms(Function) if f.args[0] == t and not f is f_K]
+    res = res.subs(zip(no_arg_funcs, [sympy.Symbol(str(x.func)) for x in no_arg_funcs]))
     res = res.subs(t, tau)
     if expand: res = res.expand()
     res = res.collect([sympy.Symbol(str(x.func)) for x in
@@ -611,10 +617,31 @@ def _get_temp_dir():
     return _temp_dir
 
 
-def compile_source_function_code(code_body, declarations='', file_path='',
+_func_cache = {}
+_source_file_count = 1
+
+
+def compile_source_function_code(code_body, file_path='',
                                  compiler='gfortran',
-                                 fflags="-shared -static -O1 -ffast-math -fmax-errors=4"):
+                                 fflags="-shared -static -O1 -ffast-math -fmax-errors=4",
+                                 cache=True):
+    """
+    Compile fortran code into function pointer in compiled shared library.
+    The function is not intended to be called from but for passing back to compiled CAMB.
+
+    :param code_body: fortran code to do calculation and assign sources(i) output array.
+     Can start with declarations of temporary variables if needed.
+    :param file_path: optional output path for generated f90 code
+    :param compiler: compiler, usually on path
+    :param fflags: options for compiler
+    :param cache: whether to cache the result
+    :return: function pointer for compiled code
+    """
+
+    if cache and code_body in _func_cache: return _func_cache[code_body]
+
     global _source_file_count
+
     template = """
     REAL*8 function source_func(sources, tau, a, adotoa, grho, gpres,w_lam, cs2_lam,  &
         grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,grhonu_t, &
@@ -629,7 +656,7 @@ def compile_source_function_code(code_body, declarations='', file_path='',
     real*8, intent(out) :: sources(:)
     REAL*8, intent(in) ::  tau, a, adotoa, grho, gpres,w_lam, cs2_lam,  &
             grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,grhonu_t, &
-            k,  etak, etakdot, phi, phidot, sigma, sigmadot, &  
+            k,  etak, etakdot, phi, phidot, sigma, sigmadot, &
             dgrho, clxg,clxb,clxc,clxnu, clxq, cs2, &
             dgq, qg, qr, vq, vb, qgdot, qrdot, vbdot, &
             dgpi, pig, pir,  pigdot, pirdot, diff_rhopi, &
@@ -637,7 +664,6 @@ def compile_source_function_code(code_body, declarations='', file_path='',
             opacity, dopacity, ddopacity, visibility, dvisibility, ddvisibility, exptau, &
             tau0, tau_maxvis, Kf(*)
     real*8, external :: f_K
-    %s
 
     %s
     end function
@@ -660,14 +686,14 @@ def compile_source_function_code(code_body, declarations='', file_path='',
 
     source_file = os.path.join(workdir, 'code.f90')
     with open(source_file, 'w') as f:
-        f.write(template % (declarations, code_body))
+        f.write(template % code_body)
 
     output = r"-o %s" % (dll_name)
+    command = compiler + ' ' + fflags + ' code.f90 ' + output
     try:
-        subprocess.check_output(compiler + ' ' + fflags + ' code.f90 ' + output,
-                                stderr=subprocess.STDOUT)
+        subprocess.check_output(command, stderr=subprocess.STDOUT)
     except subprocess.CalledProcessError as E:
-        print(compiler + ' ' + fflags + ' code.f90 ' + output)
+        print(command)
         print('Error compiling generated code:')
         print(E.output)
         print('Source is:\n %s' % code_body)
@@ -677,6 +703,8 @@ def compile_source_function_code(code_body, declarations='', file_path='',
     if not file_path:
         # won't work on Windows while DLL in use
         shutil.rmtree(workdir, ignore_errors=True)
+    if cache:
+        _func_cache[code_body] = func_lib.source_func_
     return func_lib.source_func_
 
 

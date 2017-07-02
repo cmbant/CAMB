@@ -168,5 +168,21 @@ class CambTest(unittest.TestCase):
         self.assertTrue(np.all(np.abs(clout[2:2300, 2] / cls['lensed_scalar'][2:2300, 2] - 1) < 1e-3))
 
     def testSymbolic(self):
-        from camb import symbolic
-        symbolic.internal_consistency_checks()
+        from camb.symbolic import *
+        internal_consistency_checks()
+        pars = camb.set_params(H0=67.5, ombh2=0.022, omch2=0.122, As=2e-9, ns=0.95)
+        data = camb.get_background(pars)
+        tau = np.linspace(1, 1200, 300)
+        ks = [0.001, 0.05, 1]
+        monopole_source, ISW, doppler, quadrupole_source = get_scalar_temperature_sources()
+        monopole2 = make_gauge_invariant(newtonian_gauge(monopole_source), 'Newtonian')
+        Delta_c_N = make_gauge_invariant(Delta_c, 'Newtonian')
+        Delta_c_N2 = make_gauge_invariant(synchronous_gauge(Delta_c_N), 'CDM')
+        temp_source = monopole_source + ISW + doppler + quadrupole_source
+        ev = data.get_time_evolution(ks, tau, ['delta_photon', Delta_g, Delta_c_N, Delta_c_N2,
+                                               monopole_source, monopole2,
+                                               temp_source, 'T_source'])
+        self.assertTrue(np.allclose(ev[:, :, 0], ev[:, :, 1]))
+        self.assertTrue(np.allclose(ev[:, :, 2], ev[:, :, 3]))
+        self.assertTrue(np.allclose(ev[:, :, 4], ev[:, :, 5]))
+        self.assertTrue(np.allclose(ev[:, :, 6], ev[:, :, 7]))
