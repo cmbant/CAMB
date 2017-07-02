@@ -41,7 +41,8 @@ derived_names = ['age', 'zstar', 'rstar', 'thetastar', 'DAstar', 'zdrag',
 transfer_names = ['k/h', 'delta_cdm', 'delta_baryon', 'delta_photon', 'delta_neutrino', 'delta_nu', 'delta_tot',
                   'delta_nonu', 'delta_tot_de', 'Weyl', 'v_newtonian_cdm', 'v_newtonian_baryon', 'v_baryon_cdm']
 
-evolve_names = transfer_names + ['a', 'etak', 'H', 'growth', 'v_photon', 'pi_photon', 'E_2', 'v_neutrino']
+evolve_names = transfer_names + ['a', 'etak', 'H', 'growth', 'v_photon', 'pi_photon', \
+                                 'E_2', 'v_neutrino', 'T_source', 'E_source', 'lens_potential_source']
 
 background_names = ['x_e', 'opacity', 'visibility', 'cs2b']
 

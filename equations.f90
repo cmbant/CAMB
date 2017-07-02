@@ -131,7 +131,7 @@
     real(dl) :: vec_sig0 = 1._dl
     !Vector mode shear
     integer, parameter :: max_l_evolve = 256 !Maximum l we are ever likely to propagate
-    !Note higher values increase size of Evolution vars, hence memory
+    !Note higher values increase size of Evolution vars, hence memoryWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW
 
     !Supported scalar initial condition flags
     integer, parameter :: initial_adiabatic=1, initial_iso_CDM=2, &
@@ -204,7 +204,36 @@
         real(dl) denlkt(4,max_l_evolve),Kft(max_l_evolve)
         real, pointer :: OutputTransfer(:) => null()
         real(dl), pointer :: OutputSources(:) => null()
+        real(dl), pointer :: CustomSources(:) => null()
+
     end type EvolutionVars
+
+    ABSTRACT INTERFACE
+    SUBROUTINE TSource_func(sources, tau, a, adotoa, grho, gpres,w_lam, cs2_lam,  &
+        grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,grhonu_t, &
+        k,etak, etakdot, phi, phidot, sigma, sigmadot, &
+        dgrho, clxg,clxb,clxc,clxnu, clxq, cs2, &
+        dgq, qg, qr, vq, vb, qgdot, qrdot, vbdot, &
+        dgpi, pig, pir, pigdot, pirdot, diff_rhopi, &
+        polter, polterdot, polterddot, octg, octgdot, E, Edot, &
+        opacity, dopacity, ddopacity, visibility, dvisibility, ddvisibility, exptau, &
+        tau0, tau_maxvis, Kf, f_K)
+    real*8, intent(out) :: sources(:)
+    real*8, intent(in) :: tau, a, adotoa, grho, gpres,w_lam, cs2_lam,  &
+        grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,grhonu_t, &
+        k,etak, etakdot, phi, phidot, sigma, sigmadot, &
+        dgrho, clxg,clxb,clxc,clxnu, clxq, cs2, &
+        dgq, qg, qr, vq, vb, qgdot, qrdot, vbdot, &
+        dgpi, pig, pir, pigdot, pirdot, diff_rhopi, &
+        polter, polterdot, polterddot, octg, octgdot, E(2:3), Edot(2:3), &
+        opacity, dopacity, ddopacity, visibility, dvisibility, ddvisibility, exptau, &
+        tau0, tau_maxvis
+    REAL*8, intent(in) :: Kf(*)
+    real*8, external :: f_K
+    END SUBROUTINE TSource_func
+    END INTERFACE
+    
+    procedure(TSource_func), pointer :: custom_sources_func => null()
 
     !precalculated arrays
     real(dl) polfac(max_l_evolve),denl(max_l_evolve),vecfac(max_l_evolve),vecfacpol(max_l_evolve)
@@ -1191,8 +1220,6 @@
     call derivs(EV,EV%ScalEqsToPropagate,tau,y,yprime)
     nullify(EV%OutputSources)
 
-    !    call output_sources(Ev, y, tau, opac(j), dopac(j), vis(j), dvis(j), ddvis(j), expmmu(j), sources)
-
     end subroutine output
 
 
@@ -1350,6 +1377,8 @@
     real(dl) initv(6,1:i_max), initvec(1:i_max)
 
     nullify(EV%OutputTransfer) !Should not be needed, but avoids issues in ifort 14
+    nullify(EV%OutputSources)
+    nullify(EV%CustomSources)
 
     if (CP%flat) then
         EV%k_buf=EV%q
@@ -1740,7 +1769,7 @@
     real(dl) cothxor !1/tau in flat case
     !Variables for source calculation
     real(dl) diff_rhopi, pidot_sum, dgpi_diff, phi
-    real(dl) :: E(2:3), Edot(2:3)
+    real(dl) E(2:3), Edot(2:3)
     real(dl) phidot, polterdot, polterddot, octg, octgdot
     real(dl) ddopacity, visibility, dvisibility, ddvisibility, exptau, lenswindow
     real(dl) ISW, quadrupole_source, sachs_wolfe, doppler, monopole_source, tau0
@@ -2101,7 +2130,10 @@
             E = ay(EV%polind+2:3)
             Edot = ayprime(EV%polind+2:3)
         end if
-        if (EV%no_nu_multpoles) pirdot=0
+        if (EV%no_nu_multpoles) then
+            pirdot=0
+            qrdot = ayprime(EV%r_ix+1)
+        end if
         if (EV%no_phot_multpoles) then
             pigdot=0
             octg=0
@@ -2196,7 +2228,7 @@
                 EV%OutputSources(2)=0
             end if
 
-            if (CTransScal%NumSources > 2) then
+            if (size(EV%OutputSources) > 2) then
                 !Get lensing sources
                 !Can modify this here if you want to get power spectra for other tracer
                 if (tau>tau_maxvis .and. tau0-tau > 0.1_dl) then
@@ -2206,9 +2238,17 @@
                     EV%OutputSources(3) = 0
                 end if
             end if
-
-            !!!PYCAMB: Extra Sources from pycamb go here
-
+            if (associated(EV%CustomSources)) then
+                call custom_sources_func(EV%CustomSources, tau, a, adotoa, grho, gpres,w_lam, cs2_lam, &
+                        grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,grhonu_t, &
+                        k, etak, ayprime(2), phi, phidot, sigma, sigmadot, &
+                        dgrho, clxg,clxb,clxc,clxnu, clxq, cs2, &
+                        dgq, qg, qr, vq, vb, qgdot, qrdot, vbdot, &
+                        dgpi, pig, pir, pigdot, pirdot, diff_rhopi, &
+                        polter, polterdot, polterddot, octg, octgdot, E, Edot, &
+                        opacity, dopacity, ddopacity, visibility, dvisibility, ddvisibility, exptau, &
+                        tau0, tau_maxvis, EV%Kf,f_K)
+            end if
         end if
     end if
 
@@ -2324,17 +2364,17 @@
             Eprime(l) =-opacity*E(l) + k*(denl(l)*(l*E(l-1) - &
                 vecfacpol(l)*E(l+1)) + 2._dl/(l*(l+1))*B(l))
         end do
-    !truncate
-    Eprime(EV%lmaxpolv)=0._dl
+        !truncate
+        Eprime(EV%lmaxpolv)=0._dl
 
-    !B-bar equations
+        !B-bar equations
 
-    do l=2,EV%lmaxpolv-1
-    Bprime(l) =-opacity*B(l) + k*(denl(l)*(l*B(l-1) - &
-        vecfacpol(l)*B(l+1)) - 2._dl/(l*(l+1))*E(l))
-    end do
-    !truncate
-    Bprime(EV%lmaxpolv)=0._dl
+        do l=2,EV%lmaxpolv-1
+            Bprime(l) =-opacity*B(l) + k*(denl(l)*(l*B(l-1) - &
+                vecfacpol(l)*B(l+1)) - 2._dl/(l*(l+1))*E(l))
+        end do
+        !truncate
+        Bprime(EV%lmaxpolv)=0._dl
     else
         !Tight coupling expansion results
 

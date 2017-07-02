@@ -166,3 +166,7 @@ class CambTest(unittest.TestCase):
         corr, xvals, weights = correlations.gauss_legendre_correlation(cls['lensed_scalar'])
         clout = correlations.corr2cl(corr, xvals, weights, 2500)
         self.assertTrue(np.all(np.abs(clout[2:2300, 2] / cls['lensed_scalar'][2:2300, 2] - 1) < 1e-3))
+
+    def testSymbolic(self):
+        from camb import symbolic
+        symbolic.internal_consistency_checks()

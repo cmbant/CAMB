@@ -168,7 +168,8 @@ CosmomcTheta.restype = c_double
 CAMB_TimeEvolution = camblib.__handles_MOD_camb_timeevolution
 CAMB_TimeEvolution.restype = c_bool
 CAMB_TimeEvolution.argtypes = [int_arg, numpy_1d, int_arg, numpy_1d,
-                               int_arg, ndpointer(c_double, flags='C_CONTIGUOUS', ndim=3)]
+                               int_arg, ndpointer(c_double, flags='C_CONTIGUOUS', ndim=3),
+                               int_arg, POINTER(ctypes.c_void_p)]
 
 CAMB_BackgroundEvolution = camblib.__thermodata_MOD_getbackgroundevolution
 CAMB_BackgroundEvolution.argtypes = [int_arg, numpy_1d, numpy_2d]
@@ -532,38 +533,65 @@ class CAMBdata(object):
         data.delta_p_l_k = fortran_array(cdata.delta_p_l_k, cdata.delta_size)
         return data
 
-    def get_time_evolution(self, q, eta, vars=model.evolve_names, lAccuracyBoost=4):
+    def get_time_evolution(self, q, eta, vars=model.evolve_names, lAccuracyBoost=4, frame=None):
         """
         Get the mode evolution as a function of conformal time for some k values.
 
         :param q: wavenumber values to calculate (or array of k values)
         :param eta: array of requested conformal times to output
-        :param vars: list of variable names to output
+        :param vars: list of variable names or sympy symbolic expressions to output
+        :param frame: for symbolic expressions, can specify frame name if the variable is not gauge invariant.
+            e.g. specifying Delta_g and frame='Newtonian' would give the Newtonian gauge photon density perturbation.
         :return: nd array, A_{qti}, size(q) x size(times) x len(vars), or 2d array if q is scalar
         """
 
         try:
             old_boost = model._lAccuracyBoost.value
             model._lAccuracyBoost.value = lAccuracyBoost
-            unknown = set(vars) - set(model.evolve_names)
+            if not isinstance(vars, (tuple, list)):
+                vars = [vars]
+            import sympy
+            named_vars = [var for var in vars if isinstance(var, six.string_types)]
+
+            unknown = set(named_vars) - set(model.evolve_names)
             if unknown:
                 raise CAMBError('Unknown names %s; valid names are %s' % (unknown, model.evolve_names))
+
+            num_standard_names = len(model.evolve_names)
+
+            custom_vars = []
+            ix = np.empty(len(vars), dtype=int)
+            for i, var in enumerate(vars):
+                if var in model.evolve_names:
+                    ix[i] = model.evolve_names.index(var)
+                elif isinstance(var, sympy.Expr):
+                    custom_vars.append(var)
+                    ix[i] = num_standard_names + len(custom_vars) - 1
+                else:
+                    raise CAMBError(
+                        'Variables must be variable names, or a sympy expression (using camb.symbolic variables)')
+
             if np.isscalar(q):
                 k = np.array([q], dtype=np.float64)
             else:
                 k = np.array(q, dtype=np.float64)
-            if not isinstance(vars, (tuple, list)):
-                variables = [vars]
-            else:
-                variables = vars
             times = np.array(eta, dtype=np.float64)
             indices = np.argsort(times)  # times must be in increasing order
-            nvars = model.Transfer_max + 8
+            ncustom = len(custom_vars)
+            if ncustom:
+                from . import symbolic
+                if frame:
+                    custom_vars = symbolic.make_gauge_invariant(custom_vars, frame)
+                funcPtr = symbolic.compile_sympy_to_camb_source_func(custom_vars)
+                custom_source_func = ctypes.cast(funcPtr, ctypes.c_voidp)
+            else:
+                custom_source_func = ctypes.c_voidp(0)
+            nvars = num_standard_names + ncustom
             outputs = np.empty((k.shape[0], times.shape[0], nvars))
-
             if CAMB_TimeEvolution(byref(c_int(k.shape[0])), k, byref(c_int(times.shape[0])), times[indices],
-                                  byref(c_int(nvars)), outputs): raise CAMBError('Error in evolution')
-            ix = np.array([model.evolve_names.index(var) for var in variables])
+                                  byref(c_int(nvars)), outputs,
+                                  byref(c_int(ncustom)), byref(custom_source_func)):
+                raise CAMBError('Error in evolution')
             i_rev = np.zeros(times.shape, dtype=int)
             i_rev[indices] = np.arange(times.shape[0])
             outputs = outputs[:, i_rev, :]
