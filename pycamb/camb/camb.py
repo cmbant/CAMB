@@ -1339,7 +1339,7 @@ def get_matter_power_interpolator(params, zmin=0, zmax=10, nz_step=100, zs=None,
 
 
 custom_source_names = []
-
+_current_source_func = None
 
 def set_custom_scalar_sources(custom_sources, source_names=None, source_ell_scales=None,
                               frame='CDM', code_path=None):
@@ -1355,6 +1355,7 @@ def set_custom_scalar_sources(custom_sources, source_names=None, source_ell_scal
     """
 
     from . import symbolic
+    global _current_source_func
 
     if isinstance(custom_sources, dict):
         assert (not source_names)
@@ -1381,11 +1382,13 @@ def set_custom_scalar_sources(custom_sources, source_names=None, source_ell_scal
         else:
             scales[:] = source_ell_scales
 
-    func_ptr = symbolic.compile_sympy_to_camb_source_func(custom_sources, frame=frame, code_path=code_path)
-    custom_source_func = ctypes.cast(func_ptr, ctypes.c_voidp)
+    _current_source_func = symbolic.compile_sympy_to_camb_source_func(custom_sources, frame=frame, code_path=code_path)
+    custom_source_func = ctypes.cast(_current_source_func, ctypes.c_voidp)
     CAMB_SetCustomSourcesFunc(byref(c_int(len(custom_sources))), byref(custom_source_func), scales)
 
 
 def clear_custom_scalar_sources():
+    global _current_source_func
     custom_source_names[:] = []
     CAMB_SetCustomSourcesFunc(byref(c_int(0)), byref(ctypes.c_void_p(0)), np.zeros(0, dtype=np.int))
+    _current_source_func = None

@@ -5,7 +5,7 @@
     !     See readme.html for documentation.
 
     !     Note that though the code is internally parallelised, it is not thread-safe
-    !     so you cannot generate more than one model at the same time in different write(threads.
+    !     so you cannot generate more than one model at the same time in different threads.
     !
     !     Based on CMBFAST  by  Uros Seljak and Matias Zaldarriaga, itself based
     !     on Boltzmann code written by Edmund Bertschinger, Chung-Pei Ma and Paul Bode.
@@ -197,11 +197,9 @@
 
         !$OMP PARAllEl DO DEFAUlT(SHARED),SCHEDUlE(DYNAMIC), PRIVATE(EV, q_ix)
         do q_ix= 1,Evolve_q%npoints
-            write(1,*) 'qix', q_ix
             if (global_error_flag==0) call DoSourcek(EV,q_ix)
         end do
         !$OMP END PARAllEl DO
-            write(1,*) 'done qix'
 
         if (DebugMsgs .and. Feedbacklevel > 0) then
             timeprev=actual
@@ -759,7 +757,7 @@
     else
         maxq=CP%Transfer%kmax
     end if
-
+    
 
     taumin=GetTauStart(maxq)
 
@@ -771,7 +769,7 @@
     if (global_error_flag/=0) return
 
     if (DebugMsgs .and. Feedbacklevel > 0) write (*,*) 'inithermo'
-
+    
     !Do any array initialization for propagation equations
     call GaugeInterface_Init
 
@@ -971,8 +969,7 @@
             itf = itf+1
         end do
     end if
-    write(1,*) 20
-    flush(1)
+
     do j=2,TimeSteps%npoints
         tauend=TimeSteps%points(j)
 
@@ -1010,8 +1007,6 @@
         end if
 
     end do !time step loop
-    write(1,*) 21
-    flush(1)
 
     end subroutine
 
@@ -2145,8 +2140,6 @@
     real(dl) fac(3 + num_redshiftwindows + num_custom_sources)
     integer nscal, i
     
-    write(1,*) 'CalcScalCls', shape(CTrans%Delta_p_l_k)
-    flush(1)    
     allocate(ks(CTrans%q%npoints),dlnks(CTrans%q%npoints), pows(CTrans%q%npoints))
     do pix=1,CP%InitPower%nn
         do q_ix = 1, CTrans%q%npoints
@@ -2251,9 +2244,8 @@
             end if
 
             iCl_scalar(j,C_Temp,pix)  =  iCl_scalar(j,C_Temp,pix)*dbletmp
-            iCl_scalar(j,C_Cross,pix) =  iCl_scalar(j,C_Cross,pix)*dbletmp*sqrt(ctnorm)
             iCl_scalar(j,C_E,pix) =  iCl_scalar(j,C_E,pix)*dbletmp*ctnorm
-            
+            iCl_scalar(j,C_Cross,pix) =  iCl_scalar(j,C_Cross,pix)*dbletmp*sqrt(ctnorm)
             if (CTrans%NumSources>2) then
                 iCl_scalar(j,C_Phi,pix) = ALens*iCl_scalar(j,C_Phi,pix)*fourpi*ell**4
                 !The lensing power spectrum computed is l^4 C_l^{\phi\phi}
@@ -2268,9 +2260,6 @@
     end do
 
     deallocate(ks,pows,dlnks)
-
-     write(1,*) 'end CalcScalCls'
-    flush(1)    
 
     end subroutine CalcScalCls
 

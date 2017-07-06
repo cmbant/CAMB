@@ -28,7 +28,7 @@
 
     contains
 
-    !SPECIAL BRIDGE ROUTINES FOR PYTHONset
+    !SPECIAL BRIDGE ROUTINES FOR PYTHON
 
     subroutine CAMBdata_new(handle)
     type(c_ptr), intent(out) :: handle
@@ -513,16 +513,12 @@
     TYPE(C_FUNPTR), INTENT(IN) :: c_source_func
 
     num_custom_sources = ncustomsources
-    close(1)
-    open (unit=1, file='z:\test.out', status='replace', form = 'formatted')
     if (allocated(custom_source_ell_scales)) deallocate(custom_source_ell_scales)
     if (ncustomsources > 0) then
         ! Convert C to Fortran procedure pointer.
         CALL C_F_PROCPOINTER (c_source_func, custom_sources_func)
         allocate(custom_source_ell_scales(num_custom_sources))
         custom_source_ell_scales=ell_scales
-    write(1,*) 1, 'start', custom_source_ell_scales
-    flush(1)
     else
         nullify(custom_sources_func)
     end if

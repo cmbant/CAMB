@@ -625,15 +625,6 @@ def camb_fortran(expr, name='camb_function', frame='CDM', expand=False):
     return res
 
 
-_temp_dir = None
-
-
-def _get_temp_dir():
-    global _temp_dir
-    _temp_dir = _temp_dir or tempfile.mkdtemp("_camb_compile")
-    return _temp_dir
-
-
 _func_cache = {}
 _source_file_count = 1
 
@@ -687,41 +678,55 @@ def compile_source_function_code(code_body, file_path='',
     """
 
     if struct.calcsize("P") == 4: fflags = "-m32 " + fflags
-    workdir = file_path or _get_temp_dir()
+
+    workdir = file_path or tempfile.gettempdir()
     if not os.access(workdir, os.F_OK):
         os.mkdir(workdir)
 
     oldwork = os.getcwd()
-    os.chdir(workdir)
-    dll_name = 'tester%s.dll' % _source_file_count
-    while os.path.exists(dll_name):
+    try:
+        os.chdir(workdir)
+        while True:
+            name_tag = 'camb_source%s' % _source_file_count
+            dll_name = name_tag + '.dll'
+            if not os.path.exists(dll_name):
+                break
+            try:
+                os.remove(dll_name)
+            except:
+                _source_file_count += 1
+
+        source_file = name_tag + '.f90'
+        with open(source_file, 'w') as f:
+            f.write(template % code_body)
+
+        output = r"-o %s" % (dll_name)
+        command = " ".join([compiler, fflags, source_file, output])
+        try:
+            subprocess.check_output(command, stderr=subprocess.STDOUT)
+        except subprocess.CalledProcessError as E:
+            print(command)
+            print('Error compiling generated code:')
+            print(E.output)
+            print('Source is:\n %s' % code_body)
+            raise
+    finally:
+        if not file_path: os.remove(source_file)
+        os.chdir(oldwork)
+
+    # Had weird crashes when LoadLibrary path was relative to current dir
+    dll_name = os.path.join(workdir, dll_name)
+    func_lib = ctypes.LibraryLoader(ctypes.CDLL).LoadLibrary(dll_name)
+    if cache:
+        _func_cache[code_body] = func_lib
+
+    if not file_path:
+        # won't work on Windows while DLL in use
         try:
             os.remove(dll_name)
         except:
-            _source_file_count += 1
-            dll_name = 'tester%s.dll' % _source_file_count
+            pass
 
-    source_file = os.path.join(workdir, 'code.f90')
-    with open(source_file, 'w') as f:
-        f.write(template % code_body)
-
-    output = r"-o %s" % (dll_name)
-    command = compiler + ' ' + fflags + ' code.f90 ' + output
-    try:
-        subprocess.check_output(command, stderr=subprocess.STDOUT)
-    except subprocess.CalledProcessError as E:
-        print(command)
-        print('Error compiling generated code:')
-        print(E.output)
-        print('Source is:\n %s' % code_body)
-        raise
-    func_lib = ctypes.LibraryLoader(ctypes.CDLL).LoadLibrary(dll_name)
-    os.chdir(oldwork)
-    if not file_path:
-        # won't work on Windows while DLL in use
-        shutil.rmtree(workdir, ignore_errors=True)
-    if cache:
-        _func_cache[code_body] = func_lib
     return func_lib.source_func_
 
 
