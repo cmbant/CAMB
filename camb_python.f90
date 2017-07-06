@@ -476,16 +476,18 @@
     integer, intent(in) :: nq, ntimes, noutputs, ncustomsources
     real(dl), intent(in) :: q(nq), times(ntimes)
     real(dl), intent(out) :: outputs(noutputs, ntimes, nq)
+    TYPE(C_FUNPTR), INTENT(IN) :: c_source_func
     integer err
     integer q_ix, i
     Type(EvolutionVars) :: Ev
-    TYPE(C_FUNPTR), INTENT(IN) :: c_source_func
+    procedure(TSource_func), pointer :: old_sources
 
     if (ncustomsources > 0) then
         ! Convert C to Fortran procedure pointer.
+        old_sources => custom_sources_func
         CALL C_F_PROCPOINTER (c_source_func, custom_sources_func)
     end if
-  
+
     global_error_flag = 0
     outputs = 0
     !$OMP PARALLEL DO DEFAUlT(SHARED),SCHEDUlE(DYNAMIC), PRIVATE(EV, q_ix)
@@ -500,9 +502,32 @@
         end if
     end do
     !$OMP END PARALLEL DO
-    if (ncustomsources>0) nullify(custom_sources_func)
+    if (ncustomsources>0) custom_sources_func => old_sources
     err = global_error_flag
     end function CAMB_TimeEvolution
+
+    subroutine CAMB_SetCustomSourcesFunc(ncustomsources, c_source_func, ell_scales)
+    use GaugeInterface
+    integer, intent(in) :: ncustomsources
+    integer, intent(in) :: ell_scales(ncustomsources)
+    TYPE(C_FUNPTR), INTENT(IN) :: c_source_func
+
+    num_custom_sources = ncustomsources
+    close(1)
+    open (unit=1, file='z:\test.out', status='replace', form = 'formatted')
+    if (allocated(custom_source_ell_scales)) deallocate(custom_source_ell_scales)
+    if (ncustomsources > 0) then
+        ! Convert C to Fortran procedure pointer.
+        CALL C_F_PROCPOINTER (c_source_func, custom_sources_func)
+        allocate(custom_source_ell_scales(num_custom_sources))
+        custom_source_ell_scales=ell_scales
+    write(1,*) 1, 'start', custom_source_ell_scales
+    flush(1)
+    else
+        nullify(custom_sources_func)
+    end if
+
+    end subroutine CAMB_SetCustomSourcesFunc
 
 
     end module handles

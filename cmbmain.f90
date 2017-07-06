@@ -5,7 +5,7 @@
     !     See readme.html for documentation.
 
     !     Note that though the code is internally parallelised, it is not thread-safe
-    !     so you cannot generate more than one model at the same time in different threads.
+    !     so you cannot generate more than one model at the same time in different write(threads.
     !
     !     Based on CMBFAST  by  Uros Seljak and Matias Zaldarriaga, itself based
     !     on Boltzmann code written by Edmund Bertschinger, Chung-Pei Ma and Paul Bode.
@@ -121,7 +121,7 @@
     Type(ClTransferData), pointer :: ThisCT
 
     public cmbmain, ALens, ClTransferToCl, InitVars, GetTauStart
-    
+
     contains
 
 
@@ -131,7 +131,7 @@
     !     Timing variables for testing purposes. Used if DebugMsgs=.true. in ModelParams
     real(sp) actual,timeprev,starttime
 
-    WantLateTime =  CP%DoLensing .or. num_redshiftwindows > 0
+    WantLateTime =  CP%DoLensing .or. num_redshiftwindows > 0 .or. num_custom_sources>0
 
     if (CP%WantCls) then
         if (CP%WantTensors .and. CP%WantScalars) call MpiStop('CMBMAIN cannot generate tensors and scalars')
@@ -197,9 +197,11 @@
 
         !$OMP PARAllEl DO DEFAUlT(SHARED),SCHEDUlE(DYNAMIC), PRIVATE(EV, q_ix)
         do q_ix= 1,Evolve_q%npoints
+            write(1,*) 'qix', q_ix
             if (global_error_flag==0) call DoSourcek(EV,q_ix)
         end do
         !$OMP END PARAllEl DO
+            write(1,*) 'done qix'
 
         if (DebugMsgs .and. Feedbacklevel > 0) then
             timeprev=actual
@@ -376,8 +378,7 @@
 
                             if(j==0 .and. i==0) iCl_scalar(ell,C_Phi,pix) = Cl
                             if (has_cl_2D_array) then
-                                dbletmp=(reall*(reall+1))/OutputDenominator*fourpi
-                                iCl_Array(ell,s_ix,s_ix2,pix) = Cl*dbletmp
+                                iCl_Array(ell,s_ix,s_ix2,pix) = Cl
                                 if (i/=j) iCl_Array(ell,s_ix2,s_ix,pix)=iCl_Array(ell,s_ix,s_ix2,pix)
                             end if
                         end do
@@ -691,7 +692,8 @@
         if (WantLateTime) then
             SourceNum=3
             C_last = C_PhiE
-            SourceNum=SourceNum + num_redshiftwindows + num_extra_redshiftwindows
+            SourceNum=SourceNum + num_redshiftwindows + &
+                num_extra_redshiftwindows + num_custom_sources
         else
             SourceNum=2
             C_last = C_Cross
@@ -969,7 +971,8 @@
             itf = itf+1
         end do
     end if
-
+    write(1,*) 20
+    flush(1)
     do j=2,TimeSteps%npoints
         tauend=TimeSteps%points(j)
 
@@ -981,7 +984,7 @@
             call GaugeInterface_EvolveScal(EV,tau,y,tauend,tol1,ind,c,w)
             if (global_error_flag/=0) return
 
-            call output(EV,y,j,tau,sources)
+            call output(EV,y,tau,sources, num_custom_sources)
             Src(EV%q_ix,1:SourceNum,j)=sources
 
             !     Calculation of transfer functions.
@@ -1007,6 +1010,8 @@
         end if
 
     end do !time step loop
+    write(1,*) 21
+    flush(1)
 
     end subroutine
 
@@ -1449,6 +1454,9 @@
     real(dl) xf, sums(SourceNum)
     real(dl) qmax_int
     integer bes_ix,n, bes_index(IV%SourceSteps)
+    integer custom_source_off, s_ix
+
+    custom_source_off = num_redshiftwindows + num_extra_redshiftwindows + 4
 
     !     Find the position in the xx table for the x correponding to each
     !     timestep
@@ -1503,20 +1511,42 @@
             if (HighAccuracyDefault) qmax_int=qmax_int*1.2
             DoInt = .not. CP%WantScalars .or. IV%q < qmax_int
             if (DoInt) then
-                do n= Ranges_IndexOf(TimeSteps,tmin),min(IV%SourceSteps,Ranges_IndexOf(TimeSteps,tmax))
-                    !Full Bessel integration
-                    a2=aa(n)
-                    bes_ix=bes_index(n)
+                if (num_custom_sources==0) then
+                    do n= Ranges_IndexOf(TimeSteps,tmin),min(IV%SourceSteps,Ranges_IndexOf(TimeSteps,tmax))
+                        !Full Bessel integration
+                        a2=aa(n)
+                        bes_ix=bes_index(n)
 
-                    J_l=a2*ajl(bes_ix,j)+(1-a2)*(ajl(bes_ix+1,j) - ((a2+1) &
-                        *ajlpr(bes_ix,j)+(2-a2)*ajlpr(bes_ix+1,j))* fac(n)) !cubic spline
-                    J_l = J_l*TimeSteps%dpoints(n)
+                        J_l=a2*ajl(bes_ix,j)+(1-a2)*(ajl(bes_ix+1,j) - ((a2+1) &
+                            *ajlpr(bes_ix,j)+(2-a2)*ajlpr(bes_ix+1,j))* fac(n)) !cubic spline
+                        J_l = J_l*TimeSteps%dpoints(n)
 
-                    !The unwrapped form is faster
-                    sums(1) = sums(1) + IV%Source_q(n,1)*J_l
-                    sums(2) = sums(2) + IV%Source_q(n,2)*J_l
-                    sums(3) = sums(3) + IV%Source_q(n,3)*J_l
-                end do
+                        !The unwrapped form is faster
+                        sums(1) = sums(1) + IV%Source_q(n,1)*J_l
+                        sums(2) = sums(2) + IV%Source_q(n,2)*J_l
+                        sums(3) = sums(3) + IV%Source_q(n,3)*J_l
+                    end do
+                else
+                    do n= Ranges_IndexOf(TimeSteps,tmin),min(IV%SourceSteps,Ranges_IndexOf(TimeSteps,tmax))
+                        !Full Bessel integration
+                        a2=aa(n)
+                        bes_ix=bes_index(n)
+
+                        J_l=a2*ajl(bes_ix,j)+(1-a2)*(ajl(bes_ix+1,j) - ((a2+1) &
+                            *ajlpr(bes_ix,j)+(2-a2)*ajlpr(bes_ix+1,j))* fac(n)) !cubic spline
+                        J_l = J_l*TimeSteps%dpoints(n)
+
+                        !The unwrapped form is faster
+                        sums(1) = sums(1) + IV%Source_q(n,1)*J_l
+                        sums(2) = sums(2) + IV%Source_q(n,2)*J_l
+                        sums(3) = sums(3) + IV%Source_q(n,3)*J_l
+                        sums(custom_source_off) = sums(custom_source_off) + IV%Source_q(n,custom_source_off)*J_l
+                        do s_ix = custom_source_off+1, custom_source_off+num_custom_sources -1
+                            sums(s_ix) = sums(s_ix)  + IV%Source_q(n,s_ix)*J_l
+                        end do
+                    end do
+
+                end if
             end if
             if (.not. DoInt .or. UseLimber(lsamp%l(j),IV%q) .and. CP%WantScalars) then
                 !Limber approximation for small scale lensing (better than poor version of above integral)
@@ -2112,9 +2142,12 @@
     real(dl) apowers
     real(dl) dlnk, ell, ctnorm, dbletmp, Delta1, Delta2
     real(dl), allocatable :: ks(:), dlnks(:), pows(:)
-
+    real(dl) fac(3 + num_redshiftwindows + num_custom_sources)
+    integer nscal, i
+    
+    write(1,*) 'CalcScalCls', shape(CTrans%Delta_p_l_k)
+    flush(1)    
     allocate(ks(CTrans%q%npoints),dlnks(CTrans%q%npoints), pows(CTrans%q%npoints))
-
     do pix=1,CP%InitPower%nn
         do q_ix = 1, CTrans%q%npoints
             if (CP%flat) then
@@ -2130,10 +2163,11 @@
 
         !Seems not to OMP well.. comment
         !OMP PARAllEl DO DEFAUlT(SHARED),SCHEDUlE(STATIC,4) &
-        !OMP & PRIVATE(j,q_ix,dlnk,apowers,ctnorm,dbletmp)
+        !OMP & PRIVATE(j,q_ix,dlnk,apowers,ctnorm,dbletmp,Delta1,Delta2,w_ix,w_ix2,fac, nscal, i)
         do j=1,CTrans%ls%l0
             !Integrate dk/k Delta_l_q**2 * Power(k)
             ell = real(CTrans%ls%l(j),dl)
+
             if (j<= CTrans%max_index_nonlimber) then
                 do q_ix = 1, CTrans%q%npoints
                     if (.not.(CP%closed.and.nint(CTrans%q%points(q_ix)*CP%r)<=CTrans%ls%l(j))) then
@@ -2147,25 +2181,34 @@
                             apowers*CTrans%Delta_p_l_k(1,j,q_ix)*CTrans%Delta_p_l_k(2,j,q_ix)*dlnk
 
                         if (CTrans%NumSources>2 .and. has_cl_2D_array) then
-                            ctnorm=sqrt((ell*ell-1)*(ell+2)*ell)
-                            dbletmp=(ell*(ell+1))/OutputDenominator*fourpi
-
                             do w_ix=1,3 + num_redshiftwindows
                                 Delta1= CTrans%Delta_p_l_k(w_ix,j,q_ix)
-                                if (w_ix == 2) Delta1=Delta1*ctnorm
-
-                                do w_ix2=1,3 + num_redshiftwindows
+                                do w_ix2=w_ix,3 + num_redshiftwindows
                                     if (w_ix2>= 3.and. w_ix>=3) then
                                         !Skip if the auto or cross-correlation is included in direct Limber result
                                         !Otherwise we need to include the sources e.g. to get counts-Temperature correct
                                         if (CTrans%limber_l_min(w_ix2)/= 0 .and. j>=CTrans%limber_l_min(w_ix2) &
                                             .and. CTrans%limber_l_min(w_ix)/= 0 .and. j>=CTrans%limber_l_min(w_ix)) cycle
+
                                     end if
                                     Delta2=  CTrans%Delta_p_l_k(w_ix2,j,q_ix)
-                                    if (w_ix2 == 2) Delta2=Delta2*ctnorm
-                                    iCl_Array(j,w_ix,w_ix2,pix) = iCl_Array(j,w_ix,w_ix2,pix)+Delta1*Delta2*apowers*dlnk*dbletmp
+                                    iCl_Array(j,w_ix,w_ix2,pix) = iCl_Array(j,w_ix,w_ix2,pix)+Delta1*Delta2*apowers*dlnk
                                 end do
                             end do
+                            if (num_custom_sources >0) then
+                                do w_ix=1,3 + num_redshiftwindows + num_custom_sources
+                                    if (w_ix > 3 + num_redshiftwindows) then
+                                        Delta1= CTrans%Delta_p_l_k(w_ix+num_extra_redshiftwindows,j,q_ix)
+                                    else
+                                        Delta1= CTrans%Delta_p_l_k(w_ix,j,q_ix)
+                                    end if
+                                    do w_ix2=max(w_ix,3 + num_redshiftwindows +1), 3 + num_redshiftwindows +num_custom_sources
+                                        Delta2=  CTrans%Delta_p_l_k(w_ix2+num_extra_redshiftwindows,j,q_ix)
+                                        iCl_Array(j,w_ix,w_ix2,pix) = iCl_Array(j,w_ix,w_ix2,pix) &
+                                            +Delta1*Delta2*apowers*dlnk
+                                    end do
+                                end do
+                            end if
                         end if
 
                         if (CTrans%NumSources>2 ) then
@@ -2186,10 +2229,31 @@
             !Output l(l+1)C_l/OutputDenominator
             ctnorm=(ell*ell-1)*(ell+2)*ell
             dbletmp=(ell*(ell+1))/OutputDenominator*fourpi
+            if (CTrans%NumSources>2 .and. has_cl_2D_array) then
+                fac=1
+                fac(2) = sqrt(ctnorm)
+                fac(3) = sqrt(ell*(ell+1)*ALens)
+                do w_ix=3 + num_redshiftwindows+1,3 + num_redshiftwindows + num_custom_sources
+                    nscal= custom_source_ell_scales(w_ix - num_redshiftwindows -3)
+                    do i=1, nscal
+                        fac(w_ix) = fac(w_ix)*(ell+i)*(ell-i+1)
+                    end do
+                    fac(w_ix) = sqrt(fac(w_ix))
+                end do
+
+                do w_ix=1,3 + num_redshiftwindows + num_custom_sources
+                    do w_ix2=w_ix,3 + num_redshiftwindows + num_custom_sources
+                        iCl_Array(j,w_ix,w_ix2,pix) =iCl_Array(j,w_ix,w_ix2,pix) &
+                            *fac(w_ix)*fac(w_ix2)*dbletmp
+                        iCl_Array(j,w_ix2,w_ix,pix) = iCl_Array(j,w_ix,w_ix2,pix)
+                    end do
+                end do
+            end if
 
             iCl_scalar(j,C_Temp,pix)  =  iCl_scalar(j,C_Temp,pix)*dbletmp
-            iCl_scalar(j,C_E,pix)     =  iCl_scalar(j,C_E,pix)*dbletmp*ctnorm
             iCl_scalar(j,C_Cross,pix) =  iCl_scalar(j,C_Cross,pix)*dbletmp*sqrt(ctnorm)
+            iCl_scalar(j,C_E,pix) =  iCl_scalar(j,C_E,pix)*dbletmp*ctnorm
+            
             if (CTrans%NumSources>2) then
                 iCl_scalar(j,C_Phi,pix) = ALens*iCl_scalar(j,C_Phi,pix)*fourpi*ell**4
                 !The lensing power spectrum computed is l^4 C_l^{\phi\phi}
@@ -2202,7 +2266,11 @@
         end do
         !OMP END PARAllEl DO
     end do
+
     deallocate(ks,pows,dlnks)
+
+     write(1,*) 'end CalcScalCls'
+    flush(1)    
 
     end subroutine CalcScalCls
 
@@ -2405,8 +2473,8 @@
             end do
 
             if (CTransScal%NumSources>2 .and. has_cl_2D_array) then
-                do i=1,3+num_redshiftwindows
-                    do j=i,3+num_redshiftwindows
+                do i=1,3+num_redshiftwindows + num_custom_sources
+                    do j=i,3+num_redshiftwindows + num_custom_sources
                         if (i<3 .and. j<3) then
                             Cl_scalar_array(:,in,i,j) = Cl_scalar(:, in, ind(i,j))
                         else

@@ -168,21 +168,40 @@ class CambTest(unittest.TestCase):
         self.assertTrue(np.all(np.abs(clout[2:2300, 2] / cls['lensed_scalar'][2:2300, 2] - 1) < 1e-3))
 
     def testSymbolic(self):
-        from camb.symbolic import *
-        internal_consistency_checks()
-        pars = camb.set_params(H0=67.5, ombh2=0.022, omch2=0.122, As=2e-9, ns=0.95)
+        import camb.symbolic as s
+        s.internal_consistency_checks()
+        pars = camb.set_params(H0=67.5, ombh2=0.022, omch2=0.122, As=2e-9, ns=0.95, omk=0.1)
         data = camb.get_background(pars)
         tau = np.linspace(1, 1200, 300)
         ks = [0.001, 0.05, 1]
-        monopole_source, ISW, doppler, quadrupole_source = get_scalar_temperature_sources()
-        monopole2 = make_gauge_invariant(newtonian_gauge(monopole_source), 'Newtonian')
-        Delta_c_N = make_gauge_invariant(Delta_c, 'Newtonian')
-        Delta_c_N2 = make_gauge_invariant(synchronous_gauge(Delta_c_N), 'CDM')
+        monopole_source, ISW, doppler, quadrupole_source = s.get_scalar_temperature_sources()
+        monopole2 = s.make_frame_invariant(s.newtonian_gauge(monopole_source), 'Newtonian')
+        Delta_c_N = s.make_frame_invariant(s.Delta_c, 'Newtonian')
+        Delta_c_N2 = s.make_frame_invariant(s.synchronous_gauge(Delta_c_N), 'CDM')
         temp_source = monopole_source + ISW + doppler + quadrupole_source
-        ev = data.get_time_evolution(ks, tau, ['delta_photon', Delta_g, Delta_c_N, Delta_c_N2,
+        ev = data.get_time_evolution(ks, tau, ['delta_photon', s.Delta_g, Delta_c_N, Delta_c_N2,
                                                monopole_source, monopole2,
                                                temp_source, 'T_source'])
         self.assertTrue(np.allclose(ev[:, :, 0], ev[:, :, 1]))
         self.assertTrue(np.allclose(ev[:, :, 2], ev[:, :, 3]))
         self.assertTrue(np.allclose(ev[:, :, 4], ev[:, :, 5]))
         self.assertTrue(np.allclose(ev[:, :, 6], ev[:, :, 7]))
+
+        pars = camb.set_params(H0=67.5, ombh2=0.022, omch2=0.122, As=2e-9, ns=0.95)
+        pars.set_accuracy(lSampleBoost=2)
+        try:
+            camb.set_custom_scalar_sources([monopole_source + ISW + doppler + quadrupole_source,
+                                            s.scalar_E_source], source_names=['T2', 'E2'],
+                                           source_ell_scales={'E2': 2})
+            data = camb.get_results(pars)
+            dic = data.get_cmb_unlensed_scalar_array_dict(CMB_unit='muK')
+            self.assertTrue(np.all(np.abs(dic['T2xT2'][2:2000] / dic['TxT'][2:2000] - 1) < 1e-3))
+            self.assertTrue(np.all(np.abs(dic['TxT2'][2:2000] / dic['TxT'][2:2000] - 1) < 1e-3))
+            # default interpolation errors much worse for E
+            self.assertTrue(np.all(np.abs(dic['E2xE2'][70:2000] / dic['ExE'][70:2000] - 1) < 2e-3))
+            self.assertTrue(np.all(np.abs(dic['E2xE'][70:2000] / dic['ExE'][70:2000] - 1) < 2e-3))
+            dic1 = data.get_cmb_power_spectra(CMB_unit='muK')
+            self.assertTrue(np.allclose(dic1['unlensed_scalar'][2:2000, 1], dic['ExE'][2:2000]))
+        finally:
+            pars.set_accuracy(lSampleBoost=1)
+            camb.clear_custom_scalar_sources()

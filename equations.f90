@@ -1207,19 +1207,21 @@
     end subroutine MassiveNuVars
 
     !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-    subroutine output(EV,y, j,tau,sources)
+    subroutine output(EV,y, tau,sources, num_custom_sources)
     use ThermoData
     type(EvolutionVars) EV
-    integer j
     real(dl), target :: y(EV%nvar), yprime(EV%nvar)
     real(dl) tau
     real(dl), target :: sources(CTransScal%NumSources)
+    integer, intent(in) :: num_custom_sources
 
-    yprime = 0
+     yprime = 0
     EV%OutputSources => Sources
+    if (num_custom_sources>0) &
+        EV%CustomSources => sources(CTransScal%NumSources - num_custom_sources+1:)
     call derivs(EV,EV%ScalEqsToPropagate,tau,y,yprime)
-    nullify(EV%OutputSources)
-
+    nullify(EV%OutputSources, EV%CustomSources)
+  
     end subroutine output
 
 
@@ -1772,7 +1774,7 @@
     real(dl) E(2:3), Edot(2:3)
     real(dl) phidot, polterdot, polterddot, octg, octgdot
     real(dl) ddopacity, visibility, dvisibility, ddvisibility, exptau, lenswindow
-    real(dl) ISW, quadrupole_source, sachs_wolfe, doppler, monopole_source, tau0
+    real(dl) ISW, quadrupole_source, doppler, monopole_source, tau0
 
     k=EV%k_buf
     k2=EV%k2_buf
@@ -2212,13 +2214,12 @@
 
             !2phi' term (\phi' + \psi' in Newtonian gauge), phi is the Weyl potential
             ISW = 2*phidot*exptau
-            sachs_wolfe = (-etak/(k*EV%Kf(1)) + 2*phi)*visibility
-            monopole_source = (1.0d0/4.0d0)*clxg*visibility
+            monopole_source =  (-etak/(k*EV%Kf(1)) + 2*phi + clxg/4)*visibility
             doppler = ((sigma + vb)*dvisibility + (sigmadot + vbdot)*visibility)/k
             quadrupole_source = (5.0d0/8.0d0)*(3*polter*ddvisibility + 6*polterdot*dvisibility &
                 + (k**2*polter + 3*polterddot)*visibility)/k**2
 
-            EV%OutputSources(1) = ISW + doppler + sachs_wolfe + monopole_source + quadrupole_source
+            EV%OutputSources(1) = ISW + doppler + monopole_source + quadrupole_source
 
             if (tau < tau0) then
                 !E polarization source

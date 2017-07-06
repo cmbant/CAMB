@@ -11,7 +11,8 @@ __version__ = "0.1.5"
 
 from .baseconfig import dll_import
 from .camb import CAMBdata, MatterTransferData, get_results, get_transfer_functions, get_background, \
-    get_age, get_zre_from_tau, set_z_outputs, set_feedback_level, set_params, get_matter_power_interpolator
+    get_age, get_zre_from_tau, set_z_outputs, set_feedback_level, set_params, get_matter_power_interpolator, \
+    set_custom_scalar_sources, clear_custom_scalar_sources
 from . import model
 from . import initialpower
 from . import reionization

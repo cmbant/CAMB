@@ -113,6 +113,8 @@ num_extra_redshiftwindows = dll_import(c_int, "modelparams", "num_extra_redshift
 
 num_redshiftwindows = dll_import(c_int, "modelparams", "num_redshiftwindows")
 
+num_custom_sources = dll_import(c_int, "modelparams", "num_custom_sources")
+
 # logical
 use_spline_template = dll_import(c_bool, "modelparams", "use_spline_template")
 # use_spline_template.value = True

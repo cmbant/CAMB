@@ -212,6 +212,8 @@
     integer :: limber_phiphi = 0 !for l>limber_phiphi use limber approx for lensing potential
     integer :: num_redshiftwindows = 0
     integer :: num_extra_redshiftwindows = 0
+    integer :: num_custom_sources = 0
+    integer, allocatable :: custom_source_ell_scales(:)
 
     integer, parameter :: lmin = 2
     !must be either 1 or 2
@@ -978,7 +980,7 @@
             end do
 
             if (maxdelta < max_ind) then
-                !directly interpolate high L where no template (doesn't effect lensing spectrum much anyway)
+                !directly interpolate high L where no t  emplate (doesn't effect lensing spectrum much anyway)
                 allocate(tmpall(lmin:lSet%l(max_ind)))
                 call InterpolateClArr(lSet,iCl, tmpall, max_ind)
                 !overlap to reduce interpolation artefacts
@@ -1160,7 +1162,8 @@
         Cl_scalar = 0
         if (has_cl_2D_array) then
             if (allocated(Cl_scalar_array)) deallocate(Cl_scalar_array)
-            allocate(Cl_scalar_Array(lmin:CP%Max_l, CP%InitPower%nn, 3+num_redshiftwindows,3+num_redshiftwindows))
+            allocate(Cl_scalar_Array(lmin:CP%Max_l, CP%InitPower%nn, &
+                3+num_redshiftwindows+num_custom_sources,3+num_redshiftwindows+num_custom_sources))
             Cl_scalar_array = 0
         end if
     end if

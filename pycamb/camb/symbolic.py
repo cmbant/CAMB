@@ -1,8 +1,5 @@
 import ctypes
-import sys
-import platform
 import os
-import numpy as np
 import six
 import sympy
 from sympy import diff, Eq, simplify, Function, Symbol
@@ -15,8 +12,8 @@ import textwrap
 
 # Background variables
 
-tau0 = sympy.Symbol('tau0', description='conformal time today')
-tau_maxvis = sympy.Symbol('tau_maxvis', description='conformal time of peak visibility')
+tau0 = Symbol('tau0', description='conformal time today')
+tau_maxvis = Symbol('tau_maxvis', description='conformal time of peak visibility')
 
 f_K = Function('f_K', description='comoving angular diameter distance')
 
@@ -51,7 +48,7 @@ def subs(eqs, expr):
     # lists are substituted irrespective of order, so no RHS variables are substituted by other elements
     if isinstance(expr, (list, tuple)):
         res = [subs(eqs, ex) for ex in expr]
-        return [x for x in res if x != True]
+        return [x for x in res if x is not True]
     if not isinstance(expr, sympy.Expr): return expr
     if isinstance(eqs, dict):
         return expr.subs(eqs)
@@ -74,7 +71,7 @@ def solve(eq, x):
 half = sympy.Rational(1, 2)
 third = sympy.Rational(1, 3)
 Kf = sympy.IndexedBase('Kf', shape=(sympy.oo,))
-K_fac = sympy.Symbol('Kf_1')  # currently sympy bugs just using Kf[1], so treat as separate symbol
+K_fac = Symbol('Kf_1')  # currently sympy bugs just using Kf[1], so treat as separate symbol
 K_fac_sub = 1 - 3 * K / k ** 2
 K_sub = Eq(K, solve(K_fac_sub - K_fac, K))
 
@@ -84,9 +81,7 @@ Friedmann = Eq(H ** 2, a ** 2 * kappa * rho / 3 - K)
 Friedmann_subs = [Friedmann, Eq(diff(H, t), dH), Eq(diff(a, t), a * H)]
 Friedmann_Kfac_subs = subs(K_sub, Friedmann_subs)
 
-sympy.init_printing()
-
-delta_frame = sympy.Symbol('uprime')(t)
+delta_frame = Symbol('uprime')(t)
 
 
 def LinearPerturbation(name, species=None, camb_var=None, camb_sub=None, frame_dependence=None, description=None):
@@ -97,7 +92,7 @@ def LinearPerturbation(name, species=None, camb_var=None, camb_sub=None, frame_d
 
 def list_perturbations(expr, lst=None):
     if lst is None: lst = []
-    if getattr(expr, 'perturbation_order', None) and not expr in lst:
+    if getattr(expr, 'perturbation_order', None) and expr not in lst:
         lst.append(expr)
     for arg in expr.args:
         list_perturbations(arg, lst)
@@ -173,7 +168,7 @@ q = LinearPerturbation('q', camb_var='dgq', camb_sub='dgq/kappa/a**2', descripti
 Pi = LinearPerturbation('Pi', camb_var='dgpi', camb_sub='dgpi/a**2/kappa', description='total anisotropic stress')
 
 # quadrupole source
-polter = sympy.Symbol('polter')(t)
+polter = Symbol('polter')(t)
 
 # Newtonian gauge variables (in general equal to gauge invariant potentials)
 Phi_N = LinearPerturbation('Phi_N', description='Newtonian gauge curvature potential')
@@ -254,15 +249,15 @@ cons4 = hdot - k / 3 * z + H * A
 constraints = [cons1, cons2, cons3, cons4]
 
 
-def constraint_subs_for_variable_set(vars=[z, sigma, phi, hdot]):
-    return solve(constraints, vars)
+def constraint_subs_for_variable_set(variables=[z, sigma, phi, hdot]):
+    return solve(constraints, variables)
 
 
 # Various substitutions for variables in terms of other variables (using constaints)
 
 var_subs = constraint_subs_for_variable_set()
 
-hdot_sub, phi_sub, sigma_sub, z_sub = [Eq(x, subs(var_subs, x)) for x in [hdot, phi, sigma, z]]
+hdot_sub, phi_sub, sigma_sub, z_sub = [Eq(variable, subs(var_subs, variable)) for variable in [hdot, phi, sigma, z]]
 q_sub = Eq(q, subs(Eq(z, subs(var_subs, z)), solve(cons3, q)))
 
 # Evoluation equations
@@ -296,21 +291,21 @@ frame_names = {'CDM': v_c, 'Newtonian': sigma, 'comoving': q,
                'flat': eta, 'constant density': delta}
 
 
-def make_gauge_invariant(expr, frame='CDM'):
+def make_frame_invariant(expr, frame='CDM'):
     """
     Makes the quantity gauge invariant, assuming currently evaluated in frame 'frame'.
     frame can either be a string frame name, or a variable that is zero in the current frame,
 
     e.g. frame = Delta_g gives the constant photon density frame.
-    So make_gauge_invariant(sigma, frame=Delta_g) will return the combination of sigma and Delta_g
+    So make_frame_invariant(sigma, frame=Delta_g) will return the combination of sigma and Delta_g
     that is frame invariant (and equal to just sigma when Delta_g=0).
     """
     if isinstance(frame, six.string_types):
         if not frame in frame_names: raise ValueError('Unknown frame names: %s' % frame)
         frame = frame_names[frame]
     if isinstance(expr, Eq): return simplify(
-        Eq(make_gauge_invariant(expr.lhs, frame), make_gauge_invariant(expr.rhs, frame)))
-    if isinstance(expr, (list, tuple)): return [make_gauge_invariant(x, frame) for x in expr]
+        Eq(make_frame_invariant(expr.lhs, frame), make_frame_invariant(expr.rhs, frame)))
+    if isinstance(expr, (list, tuple)): return [make_frame_invariant(x, frame) for x in expr]
     # do frame change to make frame variable zero
     # special case of frame=A, equivalent to v_c frame by evolution equation
     if frame == A: frame = v_c
@@ -362,7 +357,7 @@ def cdm_gauge(x):
     return simplify(subs(cdm_subs, x))
 
 
-synchronous_vars = [Eq(eta_s, -make_gauge_invariant(eta, v_c) / 2 / K_fac),
+synchronous_vars = [Eq(eta_s, -make_frame_invariant(eta, v_c) / 2 / K_fac),
                     Eq(hdot_s, 6 * (hdot + H * A + v_c / k * (k ** 2 / 3 * K_fac + kappa * a ** 2 / 2 * (rho + P))))]
 
 synchronous_subs = [Eq(eta, -2 * K_fac * eta_s), Eq(hdot, hdot_s / 6), Eq(phi, subs(var_subs, phi))]
@@ -425,7 +420,6 @@ tot_subs = [
     Eq(rho, rho_t),
     Eq(P, P_t)
 ]
-tot_subs
 
 # Note that csqhat_de is defined in the dark energy rest-frame, so this is general-gauge result for pressure perturbation:
 Delta_P_de = (
@@ -451,7 +445,7 @@ def define_variables(names, namespace=globals(), order=1):
     return [define_variable(name, namespace, order) for name in names.split()]
 
 
-def make_index_func(name, l, namespace=globals()):
+def _make_index_func(name, l, namespace=globals()):
     name += '_' + str(l)
     return define_variable(name, namespace)
 
@@ -460,9 +454,9 @@ def make_index_func(name, l, namespace=globals()):
 def J_eq(l):
     # photons
     assert (l > 1)
-    Gl = make_index_func('J', l)
-    Glp = make_index_func('J', l + 1)
-    Glm = make_index_func('J', l - 1)
+    Gl = _make_index_func('J', l)
+    Glp = _make_index_func('J', l + 1)
+    Glm = _make_index_func('J', l - 1)
     eq = -k / (2 * l + 1) * ((l + 1) * Kf[l] * Glp - l * Glm) - opacity * Gl
     if l == 2: eq = eq + 8 * k / 15 * sigma + opacity * polter
     return Eq(diff(Gl, t), eq).subs({'J_2(t)': pi_g, 'J_1(t)': q_g})
@@ -471,9 +465,9 @@ def J_eq(l):
 def G_eq(l):
     # massless neutrinos
     assert (l > 1)
-    Gl = make_index_func('G', l)
-    Glp = make_index_func('G', l + 1)
-    Glm = make_index_func('G', l - 1)
+    Gl = _make_index_func('G', l)
+    Glp = _make_index_func('G', l + 1)
+    Glm = _make_index_func('G', l - 1)
     eq = -k / (2 * l + 1) * ((l + 1) * Kf[l] * Glp - l * Glm);
     if l == 2: eq = eq + 8 * k / 15 * sigma
     return Eq(diff(Gl, t), eq).subs({'G_2(t)': pi_r, 'G_1(t)': q_r})
@@ -482,23 +476,38 @@ def G_eq(l):
 def E_eq(l):
     # E polarization
     assert (l > 1)
-    El = make_index_func('E', l)
-    Elp = make_index_func('E', l + 1)
-    Elm = make_index_func('E', l - 1)
+    El = _make_index_func('E', l)
+    Elp = _make_index_func('E', l + 1)
+    Elm = _make_index_func('E', l - 1)
     eq = -k / (2 * l + 1) * ((l + 3) * (l - 1) * Kf[l] * Elp / (l + 1) - l * Elm) - opacity * El;
     if l == 2:
         eq = eq + polter * opacity
     return Eq(diff(El, t), eq).subs('E_1(t)', 0)
 
 
-hierarchies = []
-for l in range(2, 5):
-    hierarchies += [J_eq(l), G_eq(l), E_eq(l)]
+def get_hierarchies(lmax=5):
+    """
+    Get Bolztmann hierarchies up to lmax for photons (J), E polarization and massless neutrinos (G).
+
+    :param lmax:
+    :return: list of equations
+    """
+
+    eqs = []
+    for l in range(2, lmax):
+        eqs += [J_eq(l), G_eq(l), E_eq(l)]
+    return eqs
+
+
+hierarchies = get_hierarchies()
+
+scalar_E_source = visibility * 15 * polter / 8 / (f_K(tau0 - t) * k) ** 2
 
 
 def get_scalar_temperature_sources(checks=False):
     """
-    Derives terms in line of sight source, after integration by parts.
+    Derives terms in line of sight source, after integration by parts so that only integrated against
+    a Bessel function (no derivatives).
 
     :param checks:  True to do consistency checks on result
     :return: monopole_source, ISW, doppler, quadrupole_source
@@ -519,11 +528,13 @@ def get_scalar_temperature_sources(checks=False):
     doppler1 = subs(var_subs, subs(pert_eqs, diff(visibility * (v_b + sigma), t) / k)).simplify().collect(visibility)
     remainder = src - ISW - doppler1
     remainder = remainder.simplify().collect(visibility).subs(delta, solve(phi_sub, delta)).simplify()
+    ISW = 2 * diff(phi, t) * exptau
     monopole_source = (Delta_g / 4 + (2 * phi + eta / (2 * K_fac))) * visibility
     quadrupole_source = (remainder - monopole_source).simplify()
     doppler = diff((v_b + sigma) * visibility, t) / k
     if checks:
         assert (subs(var_subs, subs(pert_eqs, (doppler - doppler1))).simplify() == 0)
+
     return monopole_source, ISW, doppler, quadrupole_source
 
 
@@ -531,7 +542,7 @@ def get_scalar_temperature_sources(checks=False):
 _camb_cache = {}
 
 
-def camb_fortran(expr, name='camb_function', expand=False):
+def camb_fortran(expr, name='camb_function', frame='CDM', expand=False):
     """
     Convert symbolic expression to CAMB fortran code, using CAMB variable notation.
     This is not completely general, but it will handle conversion of Newtoanian gauge
@@ -540,6 +551,8 @@ def camb_fortran(expr, name='camb_function', expand=False):
     :param expr: symbolic sympy expression using camb.symbolic variables and functions (plus any
     standard general functions that CAMB can convert to fortran).
     :param name: lhs variable string to assign result to
+    :param frame: frame in which to interret non gauge-invariant expressions.
+     By default uses CDM frame (synchronous gauge), as used natively by CAMB.
     :param expand: do a sympy expand before generating code
     :return: fortran code snippet
     """
@@ -550,7 +563,7 @@ def camb_fortran(expr, name='camb_function', expand=False):
     camb_arr_vars = 'Edot E'
 
     j = _camb_cache.setdefault('j', sympy.Idx('j'))
-    tau = _camb_cache.setdefault('tau', sympy.Symbol('tau'))
+    tau = _camb_cache.setdefault('tau', Symbol('tau'))
 
     etakdot, qgdot, qrdot, vbdot, pigdot, pirdot, pinudot, octg, octgdot, \
     polterdot, polterddot, diff_rhopi, sigmadot, phidot, \
@@ -569,6 +582,9 @@ def camb_fortran(expr, name='camb_function', expand=False):
                       (diff(eta, t), -2 * etakdot / k), (diff(Pi, t), diff_rhopi / kappa / a ** 2),
                       (diff(polter, t, t), polterddot), (diff(polter, t), polterdot),
                       (diff(sigma, t), sigmadot), (diff(phi, t), phidot), (diff(p_b, t), 0)]
+
+    if frame != 'CDM':
+        expr = make_frame_invariant(expr, frame)
 
     # substitute for variables not available in CAMB function
     expr = cdm_gauge(subs(Newt_vars + synchronous_vars + [hdot_sub, z_sub], expr)).doit().simplify()
@@ -592,19 +608,20 @@ def camb_fortran(expr, name='camb_function', expand=False):
     camb_subs = var_subs + [(p_b, 0), (E_2, E[2]), (E_3, E[3]), (J_3, octg), (K_fac, Kf[1])]
     res = res.subs(camb_subs).simplify()
     no_arg_funcs = [f for f in res.atoms(Function) if f.args[0] == t and not f is f_K]
-    res = res.subs(zip(no_arg_funcs, [sympy.Symbol(str(x.func)) for x in no_arg_funcs]))
+    res = res.subs(zip(no_arg_funcs, [Symbol(str(x.func)) for x in no_arg_funcs]))
     res = res.subs(t, tau)
     if expand: res = res.expand()
-    res = res.collect([sympy.Symbol(str(x.func)) for x in
+    res = res.collect([Symbol(str(x.func)) for x in
                        [k, sigma, opacity, visibility, dopacity, dvisibility, ddvisibility]])
     res = sympy.fcode(res, source_format='free', standard=95, assign_to=name, contract=False)
-    lines = res.split('\n')
-    for i, line in enumerate(lines):
-        if '=' in line:
-            res = '\n'.join(lines[i:])
-            break
-    res = ''.join([x.strip() for x in res.split('&')])
-    res = ' &\n    '.join(textwrap.wrap(res))
+    if not 'if ' in res:
+        lines = res.split('\n')
+        for i, line in enumerate(lines):
+            if '=' in line:
+                res = '\n'.join(lines[i:])
+                break
+        res = ''.join([x.strip() for x in res.split('&')])
+        res = ' &\n    '.join(textwrap.wrap(res))
     return res
 
 
@@ -627,7 +644,7 @@ def compile_source_function_code(code_body, file_path='',
                                  cache=True):
     """
     Compile fortran code into function pointer in compiled shared library.
-    The function is not intended to be called from but for passing back to compiled CAMB.
+    The function is not intended to be called from python, but for passing back to compiled CAMB.
 
     :param code_body: fortran code to do calculation and assign sources(i) output array.
      Can start with declarations of temporary variables if needed.
@@ -638,7 +655,7 @@ def compile_source_function_code(code_body, file_path='',
     :return: function pointer for compiled code
     """
 
-    if cache and code_body in _func_cache: return _func_cache[code_body]
+    if cache and code_body in _func_cache: return _func_cache[code_body].source_func_
 
     global _source_file_count
 
@@ -704,23 +721,23 @@ def compile_source_function_code(code_body, file_path='',
         # won't work on Windows while DLL in use
         shutil.rmtree(workdir, ignore_errors=True)
     if cache:
-        _func_cache[code_body] = func_lib.source_func_
+        _func_cache[code_body] = func_lib
     return func_lib.source_func_
 
 
-def compile_sympy_to_camb_source_func(sources, code_path="z:\\"):
+def compile_sympy_to_camb_source_func(sources, code_path=None, frame='CDM'):
     code = ''
     if not isinstance(sources, (list, tuple)):
         sources = [sources]
     for i, source in enumerate(sources):
-        code += camb_fortran(source, 'sources(%s)' % (i + 1)) + '\n'
+        code += camb_fortran(source, 'sources(%s)' % (i + 1), frame=frame) + '\n'
     return compile_source_function_code(code, file_path=code_path)
 
 
 def internal_consistency_checks():
     ##All equations should be gauge invariant
     for cons in constraints:
-        assert (simplify(subs(Friedmann_Kfac_subs, make_gauge_invariant(cons)) - cons) == 0)
+        assert (simplify(subs(Friedmann_Kfac_subs, make_frame_invariant(cons)) - cons) == 0)
 
     # Check deta equations consistent
     assert (subs(K_sub, subs(var_subs, subs(q_sub, deta).simplify() -
@@ -743,8 +760,8 @@ def internal_consistency_checks():
 
     # check all equations are gauge invariant
     for eq in delta_eqs + vel_eqs:
-        assert (simplify(subs(component_eqs + background_eqs, make_gauge_invariant(eq.lhs).doit()
-                              - make_gauge_invariant(eq.rhs))) == 0)
+        assert (simplify(subs(component_eqs + background_eqs, make_frame_invariant(eq.lhs).doit()
+                              - make_frame_invariant(eq.rhs))) == 0)
 
     # Check consistency of fluid equations with equations from total stress-energy conservation
     for eq in total_eqs:
