@@ -194,6 +194,8 @@ class CAMBparams(CAMB_Structure):
 
     def __init__(self):
         getattr(camblib, '__camb_MOD_camb_setdefparams')(byref(self))
+        if _HighAccuracyDefault.value:
+            self.AccurateReionization = True
 
     _fields_ = [
         ("WantCls", c_int),  # logical
