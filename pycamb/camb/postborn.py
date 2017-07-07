@@ -26,8 +26,8 @@ def cl_kappa_limber(results, PK, ls, nz, chi_source, chi_source2=None):
     return cl
 
 
-def get_field_rotation_power(params, kmax=100, lmax=20000, non_linear=True, z_source=None, k_per_logint=None, acc=1,
-                             lsamp=None):
+def get_field_rotation_power(params, kmax=100, lmax=20000, non_linear=True, z_source=None,
+                             k_per_logint=None, acc=1, lsamp=None):
     """
     Get field rotation power spectrum, C_L^{\omega\omega}, following `arXiv:1605.05662 <http://arxiv.org/abs/1605.05662>`_
     Uses lowest Limber approximation.
@@ -160,7 +160,7 @@ def get_field_rotation_power_from_PK(params, PK, chi_source, lmax=20000, acc=1, 
     return lsamp, clcurl
 
 
-def get_field_rotation_BB(params, lmax=None, acc=1, CMB_unit='muK', raw_cl=False):
+def get_field_rotation_BB(params, lmax=None, acc=1, CMB_unit='muK', raw_cl=False, spline=True):
     """
     Get the B-mode power spectrum from field post-born field rotation, based on perturbative and Limber approximations.
     See `arXiv:1605.05662 <http://arxiv.org/abs/1605.05662>`_.
@@ -170,7 +170,8 @@ def get_field_rotation_BB(params, lmax=None, acc=1, CMB_unit='muK', raw_cl=False
     :param acc: accuracy
     :param CMB_unit: units for CMB output relative to dimensionless
     :param raw_cl: return C_L rather than L(L+1)C_L/2/pi
-    :return: arrays of sampled L, L^2 C_L^{BB}/(2 pi) (unless raw_cl, in which case just C_L^{BB})
+    :param spline: return UnivariateSpline, otherwise return tuple of lists of L and C_L
+    :return: UnivariateSpline (or arrays of sampled L and) L^2 C_L^{BB}/(2 pi) (unless raw_cl, in which case just C_L^{BB})
     """
     from scipy.interpolate import UnivariateSpline
 
@@ -184,10 +185,14 @@ def get_field_rotation_BB(params, lmax=None, acc=1, CMB_unit='muK', raw_cl=False
     CEsp = UnivariateSpline(np.arange(CE.shape[0]), CE, s=0)
     lsamp, clcurl = get_field_rotation_power(params, acc=acc)
     lsamp, BB = get_field_rotation_BB_integral(lsamp, clcurl, CEsp, lmax, acc=acc, raw_cl=raw_cl)
-    return lsamp, BB
+    if spline:
+        return UnivariateSpline(lsamp, BB, s=0)
+    else:
+        return lsamp, BB
 
 
-def get_field_rotation_BB_integral(lsamp, clcurl, cl_E_unlensed_sp, lmax=None, lsamp_out=None, acc=1, raw_cl=False):
+def get_field_rotation_BB_integral(lsamp, clcurl, cl_E_unlensed_sp, lmax=None, lsamp_out=None,
+                                   acc=1, raw_cl=False):
     from scipy.interpolate import UnivariateSpline
 
     CurlSp = UnivariateSpline(lsamp, clcurl, s=0)
@@ -220,5 +225,5 @@ def get_field_rotation_BB_integral(lsamp, clcurl, cl_E_unlensed_sp, lmax=None, l
             Bcurl[i] += np.dot(w, curls * (crossterm * sin2phi) ** 2) * dCEs
 
     Bcurl *= 4 / (2 * np.pi) ** 2
-    if not raw_cl: Bcurl *= lsamp * (lsamp + 1) / (2 * np.pi)
+    if not raw_cl: Bcurl *= lsamp_out * (lsamp_out + 1) / (2 * np.pi)
     return lsamp_out, Bcurl

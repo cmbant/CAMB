@@ -453,6 +453,13 @@ class CAMBparams(CAMB_Structure):
         """
         return 1 - self.omegab - self.omegac - self.omegan - self.omegav
 
+    def get_zre(self):
+        if self.Reion.use_optical_depth:
+            from . import camb
+            return camb.get_zre_from_tau(self, self.Reion.optical_depth)
+        else:
+            return self.Reion.redshift
+
     def set_matter_power(self, redshifts=[0.], kmax=1.2, k_per_logint=None, silent=False):
         """
         Set parameters for calculating matter power spectra and transfer functions.

@@ -2,7 +2,7 @@ from .baseconfig import CAMB_Structure, dll_import
 from ctypes import c_bool, c_int, c_double
 
 # ---Variables in reionization.f90
-# To set the value please just put 
+# To set the value please just put
 # variablename.value = newvalue
 
 # logical

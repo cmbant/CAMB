@@ -1341,6 +1341,7 @@ def get_matter_power_interpolator(params, zmin=0, zmax=10, nz_step=100, zs=None,
 custom_source_names = []
 _current_source_func = None
 
+
 def set_custom_scalar_sources(custom_sources, source_names=None, source_ell_scales=None,
                               frame='CDM', code_path=None):
     """
@@ -1359,6 +1360,8 @@ def set_custom_scalar_sources(custom_sources, source_names=None, source_ell_scal
 
     if isinstance(custom_sources, dict):
         assert (not source_names)
+        if source_ell_scales and not isinstance(source_ell_scales, dict):
+            raise ValueError('source_ell_scales must be a dictionary if custom_sources is')
         lst = []
         source_names = []
         for name in custom_sources.keys():

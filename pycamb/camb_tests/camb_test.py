@@ -123,8 +123,8 @@ class CambTest(unittest.TestCase):
         kh2, z2, pk2 = data.get_linear_matter_power_spectrum()
 
         s8 = data.get_sigma8()
-        self.assertAlmostEqual(s8[0], 0.24686, 4)
-        self.assertAlmostEqual(s8[2], 0.80044, 4)
+        self.assertAlmostEqual(s8[0], 0.24686, 3)
+        self.assertAlmostEqual(s8[2], 0.80044, 3)
 
         pars.NonLinear = model.NonLinear_both
         data.calc_power_spectra(pars)
@@ -144,7 +144,7 @@ class CambTest(unittest.TestCase):
         self.assertTrue(np.sum((pk / pk_interp - 1) ** 2) < 0.005)
         camb.set_halofit_version('mead')
         _, _, pk = results.get_nonlinear_matter_power_spectrum(params=pars, var1='delta_cdm', var2='delta_cdm')
-        self.assertTrue(np.abs(pk[0][160] / 232.08 - 1) < 1e-3)
+        self.assertAlmostEqual(pk[0][160], 824.6, delta=0.5)
 
         lmax = 4000
         pars.set_for_lmax(lmax)
@@ -198,10 +198,19 @@ class CambTest(unittest.TestCase):
             self.assertTrue(np.all(np.abs(dic['T2xT2'][2:2000] / dic['TxT'][2:2000] - 1) < 1e-3))
             self.assertTrue(np.all(np.abs(dic['TxT2'][2:2000] / dic['TxT'][2:2000] - 1) < 1e-3))
             # default interpolation errors much worse for E
-            self.assertTrue(np.all(np.abs(dic['E2xE2'][70:2000] / dic['ExE'][70:2000] - 1) < 2e-3))
-            self.assertTrue(np.all(np.abs(dic['E2xE'][70:2000] / dic['ExE'][70:2000] - 1) < 2e-3))
+            self.assertTrue(np.all(np.abs(dic['E2xE2'][10:2000] / dic['ExE'][10:2000] - 1) < 2e-3))
+            self.assertTrue(np.all(np.abs(dic['E2xE'][10:2000] / dic['ExE'][10:2000] - 1) < 2e-3))
             dic1 = data.get_cmb_power_spectra(CMB_unit='muK')
             self.assertTrue(np.allclose(dic1['unlensed_scalar'][2:2000, 1], dic['ExE'][2:2000]))
         finally:
             pars.set_accuracy(lSampleBoost=1)
             camb.clear_custom_scalar_sources()
+
+    def testEmissionAnglePostBorn(self):
+        from camb import emission_angle, postborn
+        pars = camb.set_params(H0=67.5, ombh2=0.022, omch2=0.122, As=2e-9, ns=0.95, tau=0.055)
+        BB = emission_angle.get_emission_delay_BB(pars, lmax=3500)
+        self.assertAlmostEqual(BB(80) * 2 * np.pi / 80 / 81., 1.1e-10, delta=1e-11)
+
+        Bom = postborn.get_field_rotation_BB(pars, lmax=3500)
+        self.assertAlmostEqual(Bom(100) * 2 * np.pi / 100 / 101., 1.65e-11, delta=1e-12)
