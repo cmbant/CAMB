@@ -1,6 +1,5 @@
 from . import camb, model
 import numpy as np
-from scipy.interpolate import UnivariateSpline
 from .bispectrum import threej
 
 
@@ -40,6 +39,8 @@ def get_emission_angle_powers(camb_background, PK, chi_source, lmax=3000, acc=1,
     :return: a UnivariateSpline object containing L(L+1) C_L
     """
 
+    from scipy.interpolate import UnivariateSpline
+
     assert (isinstance(camb_background, camb.CAMBdata) and not camb_background.Params.omegak)
     nz = int(100 * acc)
     ls = lsamp or np.hstack((np.arange(2, 60, 2), np.arange(60, 400, 10),
@@ -69,6 +70,8 @@ def get_emission_delay_BB(params, kmax=100, lmax=3000, non_linear=True, CMB_unit
     :param include_reionization: approximately include reionization terms by second scattering surface
     :return: C_L^{BB}, the L sample values and corresponding rotation power
     """
+
+    from scipy.interpolate import UnivariateSpline
 
     assert (not params.omegak)
     camb_background = camb.get_background(params)
