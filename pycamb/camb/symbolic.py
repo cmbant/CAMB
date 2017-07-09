@@ -95,6 +95,19 @@ delta_frame = Symbol('uprime')(t)
 
 
 def LinearPerturbation(name, species=None, camb_var=None, camb_sub=None, frame_dependence=None, description=None):
+    """
+    Returns as linear perturbation variable, a function of conformal time t.
+    Use help(x) to quickly view all quantities defined for the result.
+
+    :param name: sympy name for the Function
+    :param species: tag for the species if relevant (not used)
+    :param camb_var: relevant CAMB fortran variable
+    :param camb_sub:  if not equal to camb_var, and string giving the expression in CAMB variables
+    :param frame_dependence: the change in the perturbation when the frame 4-velocity u change
+             from u to u + delta_frame. Should be a sumpy expression involving delta_frame.
+    :param description: string describing variable
+    :return:
+    """
     f = sympy.Function(name, species=species, camb_var=camb_var, camb_sub=camb_sub, perturbation_order=1,
                        frame_dependence=frame_dependence, description=description)
     return f(t)
@@ -310,6 +323,7 @@ def make_frame_invariant(expr, frame='CDM'):
     So make_frame_invariant(sigma, frame=Delta_g) will return the combination of sigma and Delta_g
     that is frame invariant (and equal to just sigma when Delta_g=0).
     """
+
     if isinstance(frame, six.string_types):
         if not frame in frame_names: raise ValueError('Unknown frame names: %s' % frame)
         frame = frame_names[frame]
@@ -341,6 +355,16 @@ Newtonian_subs += [Eq(z, subs(Newtonian_subs, solve(cons4, z)))]
 
 
 def newtonian_gauge(x):
+    """
+    Evaluates an expression in the Newtonian gauge. (shear sigma=9).
+    Converts to using conventional metric perturbation variables for metric
+
+    $$ds^2 = a(\eta)^2\left( (1+2\Psi_N)d\eta^2 - (1-2\Phi_N)\delta_{ij}dx^idx^j\right)$$
+
+    :param x: expression
+    :return: expression evaluated in the Newtonian gauge
+    """
+
     if isinstance(x, (list, tuple)):
         res = [newtonian_gauge(y) for y in x]
         return [x for x in res if x != True]
@@ -362,6 +386,14 @@ cdm_subs = [Eq(diff(A, t), 0), Eq(A, 0), Eq(diff(v_c, t), 0), Eq(v_c, 0)]
 
 
 def cdm_gauge(x):
+    """
+    Evaluates an expression in the CDM frame (v_c=0, A=0). Equivalent to the synchronous gauge
+    but using the covariant variable names.
+
+    :param x: expression
+    :return: expression evaluated in CDM frame.
+    """
+
     if isinstance(x, (list, tuple)):
         return [cdm_gauge(y) for y in x]
     return simplify(subs(cdm_subs, x))
@@ -377,7 +409,13 @@ synchronous_subs += [subs(synchronous_subs, Eq(z, solve(cons4, z))),
 synchronous_subs = cdm_gauge(synchronous_subs) + cdm_subs
 
 
-def synchronous_gauge(x, convention=1):
+def synchronous_gauge(x):
+    """
+    evaluates an expression in the synchronous gauge, using conventional synchronous-gauge variables.
+
+    :param x: expression
+    :return: synchronous gauge variable expression
+    """
     if isinstance(x, (list, tuple)):
         res = [synchronous_gauge(y) for y in x]
         return [x for x in res if x != True]
