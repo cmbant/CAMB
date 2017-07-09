@@ -1,14 +1,24 @@
+"""
+
+This module defines the scalar linear perturbation equations for standard LCDM cosmology, using sympy.
+It uses the covariant perturbation notation, but includes functions to project into the
+Newtonian or synchronous gauge, as well as constructing general gauge invariant quantities.
+It uses "t" as the conformal time variable (=tau in the fortran code).
+
+For a guide to usage and content see the `ScalEqs notebook <http://camb.readthedocs.org/en/latest/ScalEqs.html>`_
+
+As well as defining standard quantities, and how they map to CAMB variables, there are also functions for
+converting a symbolic expression to CAMB source code, and building a custom sources for use with CAMB
+(as used by :func:`.camb.set_custom_scalar_sources`, :func:`.camb.CAMBdata.get_time_evolution`)
+
+"""
+
 import ctypes
 import os
 import six
 import sympy
 from sympy import diff, Eq, simplify, Function, Symbol
 from sympy.abc import t, kappa, K, k
-import shutil
-import struct
-import subprocess
-import tempfile
-import textwrap
 
 # Background variables
 
@@ -614,6 +624,8 @@ def camb_fortran(expr, name='camb_function', frame='CDM', expand=False):
     res = res.collect([Symbol(str(x.func)) for x in
                        [k, sigma, opacity, visibility, dopacity, dvisibility, ddvisibility]])
     res = sympy.fcode(res, source_format='free', standard=95, assign_to=name, contract=False)
+    import textwrap
+
     if not 'if ' in res:
         lines = res.split('\n')
         for i, line in enumerate(lines):
@@ -676,6 +688,8 @@ def compile_source_function_code(code_body, file_path='',
     %s
     end function
     """
+
+    import subprocess, tempfile, struct
 
     if struct.calcsize("P") == 4: fflags = "-m32 " + fflags
 

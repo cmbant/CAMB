@@ -562,7 +562,7 @@ class CAMBdata(object):
 
         try:
             old_boost = model._lAccuracyBoost.value
-            model._lAccuracyBoost.value = lAccuracyBoost
+            if lAccuracyBoost: model._lAccuracyBoost.value = lAccuracyBoost
             if not isinstance(vars, (tuple, list)):
                 vars = [vars]
             import sympy
@@ -590,7 +590,7 @@ class CAMBdata(object):
                 k = np.array([q], dtype=np.float64)
             else:
                 k = np.array(q, dtype=np.float64)
-            times = np.array(eta, dtype=np.float64)
+            times = np.array(np.atleast_1d(eta), dtype=np.float64)
             indices = np.argsort(times)  # times must be in increasing order
             ncustom = len(custom_vars)
             if ncustom:
@@ -621,7 +621,7 @@ class CAMBdata(object):
 
         :param q: wavenumber values to calculate (or array of k values)
         :param z: array of redshifts to output
-        :param vars: list of variable names to output
+        :param vars: list of variable names or camb.symbolic sympy expressions to output
         :return: nd array, A_{qti}, size(q) x size(times) x len(vars), or 2d array if q is scalar
         """
         return self.get_time_evolution(q, self.conformal_time(z), vars, lAccuracyBoost)

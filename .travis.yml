@@ -3,9 +3,9 @@ language: sh
 sudo: required
 
 branches:
-  only:
-    - master
-    - devel
+  except:
+    - CAMB_sources
+    - rayleigh
     
 services:
   - docker

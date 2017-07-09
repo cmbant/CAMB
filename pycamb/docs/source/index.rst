@@ -35,6 +35,7 @@ Other modules:
    recombination
    correlations
    postborn
+   emission_angle
 
 * :ref:`genindex`
 
