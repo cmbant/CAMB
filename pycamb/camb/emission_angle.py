@@ -55,8 +55,8 @@ def get_emission_angle_powers(camb_background, PK, chi_source, lmax=3000, acc=1,
 def get_emission_delay_BB(params, kmax=100, lmax=3000, non_linear=True, CMB_unit='muK', raw_cl=False,
                           acc=1, lsamp=None, return_terms=False, include_reionization=True):
     """
-    Get B modes from emission angle and time delay effects, using full-sky result from appendix of
-   `arXiv:1706.02673 <http://arxiv.org/abs/1706.02673>`_
+    Get B modes from emission angle and time delay effects.
+    Uses full-sky result from appendix of `arXiv:1706.02673 <http://arxiv.org/abs/1706.02673>`_
 
     :param params: :class:`.model.CAMBparams` instance with cosmological parameters etc.
     :param kmax: maximum k (in Mpc^{-1} units)

@@ -23,6 +23,7 @@ Main high-level modules:
 
    camb
    model
+   symbolic
 
 Other modules:
 
