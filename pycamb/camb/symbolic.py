@@ -825,7 +825,7 @@ def internal_consistency_checks():
 
     # Check consistency of fluid equations with equations from total stress-energy conservation
     for eq in total_eqs:
-        assert (subs(component_eqs + tot_subs, subs(tot_pert_subs, eq).doit()).doit().simplify())
+        assert (subs(component_eqs + tot_subs, subs(tot_pert_subs, eq).doit()).doit().simplify() == 0)
 
     get_scalar_temperature_sources(True)
     print("All symbolic relation tests OK")
