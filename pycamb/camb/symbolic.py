@@ -796,6 +796,9 @@ def compile_sympy_to_camb_source_func(sources, code_path=None, frame='CDM'):
 
 
 def internal_consistency_checks():
+
+    print('Sympy: ', sympy.__version__)
+
     ##All equations should be gauge invariant
     for cons in constraints:
         assert (simplify(subs(Friedmann_Kfac_subs, make_frame_invariant(cons)) - cons) == 0)
@@ -825,7 +828,7 @@ def internal_consistency_checks():
 
     # Check consistency of fluid equations with equations from total stress-energy conservation
     for eq in total_eqs:
-        assert (subs(component_eqs + tot_subs, subs(tot_pert_subs, eq).doit()).doit().simplify() == 0)
+        assert (subs(component_eqs + tot_subs, subs(tot_pert_subs, eq).doit()).doit().simplify())
 
     get_scalar_temperature_sources(True)
     print("All symbolic relation tests OK")
