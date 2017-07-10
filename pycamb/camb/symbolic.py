@@ -356,11 +356,13 @@ Newtonian_subs += [Eq(z, subs(Newtonian_subs, solve(cons4, z)))]
 
 
 def newtonian_gauge(x):
-    """
+    r"""
     Evaluates an expression in the Newtonian gauge. (shear sigma=9).
     Converts to using conventional metric perturbation variables for metric
 
-    :math:`ds^2 = a(\eta)^2\left( (1+2\Psi_N)d\eta^2 - (1-2\Phi_N)\delta_{ij}dx^idx^j\right)`
+    .. math::
+
+    ds^2 = a(\eta)^2\left( (1+2\Psi_N)d\eta^2 - (1-2\Phi_N)\delta_{ij}dx^idx^j\right)
 
     :param x: expression
     :return: expression evaluated in the Newtonian gauge
