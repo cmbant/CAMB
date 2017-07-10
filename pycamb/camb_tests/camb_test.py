@@ -124,7 +124,7 @@ class CambTest(unittest.TestCase):
 
         s8 = data.get_sigma8()
         self.assertAlmostEqual(s8[0], 0.24686, 4)
-        self.assertAlmostEqual(s8[2], 0.80044, 4)
+        self.assertAlmostEqual(s8[2], 0.80044, 3)
 
         pars.NonLinear = model.NonLinear_both
         data.calc_power_spectra(pars)
@@ -144,7 +144,7 @@ class CambTest(unittest.TestCase):
         self.assertTrue(np.sum((pk / pk_interp - 1) ** 2) < 0.005)
         camb.set_halofit_version('mead')
         _, _, pk = results.get_nonlinear_matter_power_spectrum(params=pars, var1='delta_cdm', var2='delta_cdm')
-        self.assertTrue(np.abs(pk[0][160] / 232.08 - 1) < 1e-3)
+        self.assertAlmostEqual(pk[0][160], 824.6, delta=0.5)
 
         lmax = 4000
         pars.set_for_lmax(lmax)
