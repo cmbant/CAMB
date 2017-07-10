@@ -8,7 +8,7 @@ It uses "t" as the conformal time variable (=tau in the fortran code).
 For a guide to usage and content see the `ScalEqs notebook <http://camb.readthedocs.org/en/latest/ScalEqs.html>`_
 
 As well as defining standard quantities, and how they map to CAMB variables, there are also functions for
-converting a symbolic expression to CAMB source code, and building a custom sources for use with CAMB
+converting a symbolic expression to CAMB source code, and compiling custom sources for use with CAMB
 (as used by :func:`.camb.set_custom_scalar_sources`, :meth:`.camb.CAMBdata.get_time_evolution`)
 
 A Lewis July 2017
@@ -357,7 +357,7 @@ Newtonian_subs += [Eq(z, subs(Newtonian_subs, solve(cons4, z)))]
 
 def newtonian_gauge(x):
     r"""
-    Evaluates an expression in the Newtonian gauge. (shear sigma=9).
+    Evaluates an expression in the Newtonian gauge (zero shear, sigma=0).
     Converts to using conventional metric perturbation variables for metric
 
     .. math:: ds^2 = a^2\left( (1+2\Psi_N)d t^2 - (1-2\Phi_N)\delta_{ij}dx^idx^j\right)
