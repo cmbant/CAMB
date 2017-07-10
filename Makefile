@@ -42,7 +42,6 @@ SFFLAGS =  -shared -fPIC
 
 FFLAGS =  -O3 -fopenmp -ffast-math -fmax-errors=4
 DEBUGFLAGS = -cpp -g -fbounds-check -fbacktrace -ffree-line-length-none -fmax-errors=4 -ffpe-trap=invalid,overflow,zero
-FFLAGS = $(DEBUGFLAGS)
 MODOUT =  -J$(OUTPUT_DIR)
 SMODOUT = -J$(DLL_DIR)
 

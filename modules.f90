@@ -2578,7 +2578,6 @@
     real(dl) dddotmu(nthermo),ddddotmu(nthermo)
     real(dl) winlens(nthermo),dwinlens(nthermo), scalefactor(nthermo)
     real(dl) tauminn,dlntau,Maxtau
-    !real(dl), dimension(:), allocatable :: vis,dvis,ddvis,expmmu,dopac, opac, lenswin
     logical, parameter :: dowinlens = .false.
 
     real(dl) :: tight_tau, actual_opt_depth
@@ -2586,9 +2585,9 @@
     real(dl) :: matter_verydom_tau
     real(dl) :: r_drag0, z_star, z_drag  !!JH for updated BAO likelihood.
 
-    public thermo,inithermo, tight_tau,&
+    public thermo,inithermo, tight_tau, IonizationFunctionsAtTime, &
         Thermo_OpacityToTime,matter_verydom_tau, ThermoData_Free,&
-        z_star, z_drag, GetBackgroundEvolution, IonizationFunctionsAtTime
+        z_star, z_drag, GetBackgroundEvolution
     contains
 
     subroutine thermo(tau,cs2b,opacity, dopacity)

@@ -148,6 +148,7 @@
         call initlval(lSamp, maximum_l)
     end if
 
+
     if (DebugMsgs .and. Feedbacklevel > 0) then
         actual=GetTestTime()
         starttime=actual !times don't include reading the Bessel file
@@ -199,8 +200,6 @@
             if (global_error_flag==0) call DoSourcek(EV,q_ix)
         end do
         !$OMP END PARAllEl DO
-        write(1,*) 'start7'
-        flush(1)
 
         if (DebugMsgs .and. Feedbacklevel > 0) then
             timeprev=actual

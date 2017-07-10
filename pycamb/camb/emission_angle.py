@@ -1,3 +1,12 @@
+"""
+This module calculates the corrections to the standard lensed CMB power spectra results due to time delay and
+emission angle, following `arXiv:1706.02673 <http://arxiv.org/abs/1706.02673>`_. This can be combined with the result
+from the postborn module to estimate the leading corrections to the standard lensing B modes.
+
+Corrections to T and E are negligible, and not calculated. The result for BB includes approximately contributions
+from reionization, but this can optionally be turned off.
+"""
+
 from . import camb, model
 import numpy as np
 from .bispectrum import threej

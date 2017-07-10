@@ -361,7 +361,6 @@ def newtonian_gauge(x):
     Converts to using conventional metric perturbation variables for metric
 
     .. math::
-
     ds^2 = a(\eta)^2\left( (1+2\Psi_N)d\eta^2 - (1-2\Phi_N)\delta_{ij}dx^idx^j\right)
 
     :param x: expression
@@ -679,12 +678,12 @@ def camb_fortran(expr, name='camb_function', frame='CDM', expand=False):
 
 
 _func_cache = {}
-_source_file_count = 1
+_source_file_count = 0
 
 
 def compile_source_function_code(code_body, file_path='',
                                  compiler='gfortran',
-                                 # fflags="-shared -static -fPIC -O1 -ffast-math -fmax-errors=4",
+                                 # fflags="-shared -fPIC -g -fbounds-check -fbacktrace -ffpe-trap=invalid,overflow,zero",
                                  fflags="-shared -fPIC -O1 -ffast-math -fmax-errors=4",
                                  cache=True):
     """
@@ -743,6 +742,7 @@ def compile_source_function_code(code_body, file_path='',
     oldwork = os.getcwd()
     try:
         os.chdir(workdir)
+        _source_file_count += 1
         while True:
             name_tag = 'camb_source%s' % _source_file_count
             dll_name = name_tag + '.dll'

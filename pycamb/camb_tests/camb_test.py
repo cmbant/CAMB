@@ -105,7 +105,7 @@ class CambTest(unittest.TestCase):
         ix = 1
         self.assertAlmostEqual(transfer_k2[ix] * kh[ix] ** 2 * (pars.H0 / 100) ** 2, ev[ix, 1, 0], 4)
 
-    def atestPowers(self):
+    def testPowers(self):
         pars = camb.CAMBparams()
         pars.set_cosmology(H0=67.5, ombh2=0.022, omch2=0.122, mnu=0.07, omk=0)
         pars.set_dark_energy()  # re-set defaults
@@ -169,15 +169,17 @@ class CambTest(unittest.TestCase):
 
     def testSymbolic(self):
         import camb.symbolic as s
+
+        monopole_source, ISW, doppler, quadrupole_source = s.get_scalar_temperature_sources()
+        temp_source = monopole_source + ISW + doppler + quadrupole_source
+
         pars = camb.set_params(H0=67.5, ombh2=0.022, omch2=0.122, As=2e-9, ns=0.95, omk=0.1)
         data = camb.get_background(pars)
         tau = np.linspace(1, 1200, 300)
         ks = [0.001, 0.05, 1]
-        monopole_source, ISW, doppler, quadrupole_source = s.get_scalar_temperature_sources()
         monopole2 = s.make_frame_invariant(s.newtonian_gauge(monopole_source), 'Newtonian')
         Delta_c_N = s.make_frame_invariant(s.Delta_c, 'Newtonian')
         Delta_c_N2 = s.make_frame_invariant(s.synchronous_gauge(Delta_c_N), 'CDM')
-        temp_source = monopole_source + ISW + doppler + quadrupole_source
 
         ev = data.get_time_evolution(ks, tau, ['delta_photon', s.Delta_g, Delta_c_N, Delta_c_N2,
                                                monopole_source, monopole2,
@@ -205,10 +207,11 @@ class CambTest(unittest.TestCase):
         finally:
             pars.set_accuracy(lSampleBoost=1)
             camb.clear_custom_scalar_sources()
+
         s.internal_consistency_checks()
 
 
-def atestEmissionAnglePostBorn(self):
+def testEmissionAnglePostBorn(self):
     from camb import emission_angle, postborn
     pars = camb.set_params(H0=67.5, ombh2=0.022, omch2=0.122, As=2e-9, ns=0.95, tau=0.055)
     BB = emission_angle.get_emission_delay_BB(pars, lmax=3500)
