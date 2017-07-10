@@ -11,6 +11,7 @@ As well as defining standard quantities, and how they map to CAMB variables, the
 converting a symbolic expression to CAMB source code, and building a custom sources for use with CAMB
 (as used by :func:`.camb.set_custom_scalar_sources`, :func:`.camb.CAMBdata.get_time_evolution`)
 
+A Lewis July 2017
 """
 
 import ctypes
@@ -681,7 +682,8 @@ _source_file_count = 1
 
 def compile_source_function_code(code_body, file_path='',
                                  compiler='gfortran',
-                                 fflags="-shared -static -O1 -ffast-math -fmax-errors=4",
+                                 # fflags="-shared -static -fPIC -O1 -ffast-math -fmax-errors=4",
+                                 fflags="-shared -fPIC -O1 -ffast-math -fmax-errors=4",
                                  cache=True):
     """
     Compile fortran code into function pointer in compiled shared library.
@@ -727,9 +729,10 @@ def compile_source_function_code(code_body, file_path='',
     end function
     """
 
-    import subprocess, tempfile, struct
+    import subprocess, tempfile, struct, platform
 
     if struct.calcsize("P") == 4: fflags = "-m32 " + fflags
+    if platform.system() == "Windows": fflags += ' -static'
 
     workdir = file_path or tempfile.gettempdir()
     if not os.access(workdir, os.F_OK):
@@ -752,10 +755,9 @@ def compile_source_function_code(code_body, file_path='',
         with open(source_file, 'w') as f:
             f.write(template % code_body)
 
-        output = r"-o %s" % (dll_name)
-        command = " ".join([compiler, fflags, source_file, output])
+        command = " ".join([compiler, fflags, source_file, "-o", dll_name])
         try:
-            subprocess.check_output(command, stderr=subprocess.STDOUT)
+            subprocess.check_output(command, stderr=subprocess.STDOUT, shell=True, cwd=workdir)
         except subprocess.CalledProcessError as E:
             print(command)
             print('Error compiling generated code:')
@@ -769,6 +771,7 @@ def compile_source_function_code(code_body, file_path='',
     # Had weird crashes when LoadLibrary path was relative to current dir
     dll_name = os.path.join(workdir, dll_name)
     func_lib = ctypes.LibraryLoader(ctypes.CDLL).LoadLibrary(dll_name)
+
     if cache:
         _func_cache[code_body] = func_lib
 
@@ -808,12 +811,11 @@ def internal_consistency_checks():
     # Check Weyl potential from Newtonian gauge vars
     assert (subs(var_subs, subs(pert_eqs, subs(Newt_vars, Phi_N + Psi_N - 2 * phi))).simplify() == 0)
 
-    # Gauge functionc checks
+    # Gauge functions checks
     assert (newtonian_gauge(dsigma) == 0)
-    assert (subs(K_sub, subs(var_subs, subs(pert_eqs, \
-                                            subs(cdm_gauge(synchronous_vars),
-                                                 subs(synchronous_subs, sigma) - sigma).doit())).simplify().collect(
-        eta)).simplify() == 0)
+    assert (subs(K_sub, subs(var_subs, subs(pert_eqs, subs(cdm_gauge(synchronous_vars), \
+                                                           subs(synchronous_subs, sigma) - sigma).doit())) \
+                 .simplify().collect(eta)).simplify() == 0)
 
     # check all equations are gauge invariant
     for eq in delta_eqs + vel_eqs:

@@ -1374,7 +1374,7 @@ def set_custom_scalar_sources(custom_sources, source_names=None, source_ell_scal
     custom_source_names[:] = source_names or ["C%s" % (i + 1) for i in range(len(custom_sources))]
     if len(custom_source_names) != len(custom_sources):
         raise ValueError('Number of custom source names does not match number of sources')
-    scales = np.zeros(len(custom_sources), dtype=np.int)
+    scales = np.zeros(len(custom_sources), dtype=np.int32)
     if source_ell_scales:
         if isinstance(source_ell_scales, dict):
             if set(source_ell_scales.keys()) - set(custom_source_names):
@@ -1393,5 +1393,5 @@ def set_custom_scalar_sources(custom_sources, source_names=None, source_ell_scal
 def clear_custom_scalar_sources():
     global _current_source_func
     custom_source_names[:] = []
-    CAMB_SetCustomSourcesFunc(byref(c_int(0)), byref(ctypes.c_void_p(0)), np.zeros(0, dtype=np.int))
+    CAMB_SetCustomSourcesFunc(byref(c_int(0)), byref(ctypes.c_void_p(0)), np.zeros(0, dtype=np.int32))
     _current_source_func = None

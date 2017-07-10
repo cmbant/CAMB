@@ -148,7 +148,6 @@
         call initlval(lSamp, maximum_l)
     end if
 
-
     if (DebugMsgs .and. Feedbacklevel > 0) then
         actual=GetTestTime()
         starttime=actual !times don't include reading the Bessel file
@@ -200,6 +199,8 @@
             if (global_error_flag==0) call DoSourcek(EV,q_ix)
         end do
         !$OMP END PARAllEl DO
+        write(1,*) 'start7'
+        flush(1)
 
         if (DebugMsgs .and. Feedbacklevel > 0) then
             timeprev=actual
@@ -660,7 +661,7 @@
     type(EvolutionVars) EV
 
     EV%q=Evolve_q%points(q_ix)
-
+    
     if (fixq/=0._dl) then
         EV%q= min(500._dl,fixq) !for testing
     end if
@@ -757,7 +758,7 @@
     else
         maxq=CP%Transfer%kmax
     end if
-    
+
 
     taumin=GetTauStart(maxq)
 
@@ -769,7 +770,7 @@
     if (global_error_flag/=0) return
 
     if (DebugMsgs .and. Feedbacklevel > 0) write (*,*) 'inithermo'
-    
+
     !Do any array initialization for propagation equations
     call GaugeInterface_Init
 
@@ -1032,7 +1033,7 @@
         else
             call GaugeInterface_EvolveTens(EV,tau,yt,tauend,tol1,ind,c,wt)
 
-            call outputt(EV,yt,EV%nvart,j,tau,Src(EV%q_ix,CT_Temp,j),&
+            call outputt(EV,yt,EV%nvart,tau,Src(EV%q_ix,CT_Temp,j),&
                 Src(EV%q_ix,CT_E,j),Src(EV%q_ix,CT_B,j))
         end if
     end do
@@ -1080,7 +1081,7 @@
         else
             call dverk(EV,EV%nvarv,derivsv,tau,yv,tauend,tol1,ind,c,EV%nvarv,wt) !tauend
 
-            call outputv(EV,yv,EV%nvarv,j,tau,Src(EV%q_ix,CT_Temp,j),&
+            call outputv(EV,yv,EV%nvarv,tau,Src(EV%q_ix,CT_Temp,j),&
                 Src(EV%q_ix,CT_E,j),Src(EV%q_ix,CT_B,j))
         end if
     end do
@@ -2139,7 +2140,7 @@
     real(dl), allocatable :: ks(:), dlnks(:), pows(:)
     real(dl) fac(3 + num_redshiftwindows + num_custom_sources)
     integer nscal, i
-    
+
     allocate(ks(CTrans%q%npoints),dlnks(CTrans%q%npoints), pows(CTrans%q%npoints))
     do pix=1,CP%InitPower%nn
         do q_ix = 1, CTrans%q%npoints

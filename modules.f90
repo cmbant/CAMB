@@ -2578,7 +2578,7 @@
     real(dl) dddotmu(nthermo),ddddotmu(nthermo)
     real(dl) winlens(nthermo),dwinlens(nthermo), scalefactor(nthermo)
     real(dl) tauminn,dlntau,Maxtau
-    real(dl), dimension(:), allocatable :: vis,dvis,ddvis,expmmu,dopac, opac, lenswin
+    !real(dl), dimension(:), allocatable :: vis,dvis,ddvis,expmmu,dopac, opac, lenswin
     logical, parameter :: dowinlens = .false.
 
     real(dl) :: tight_tau, actual_opt_depth
@@ -2586,7 +2586,7 @@
     real(dl) :: matter_verydom_tau
     real(dl) :: r_drag0, z_star, z_drag  !!JH for updated BAO likelihood.
 
-    public thermo,inithermo,vis,opac,expmmu,dvis,dopac,ddvis,lenswin, tight_tau,&
+    public thermo,inithermo, tight_tau,&
         Thermo_OpacityToTime,matter_verydom_tau, ThermoData_Free,&
         z_star, z_drag, GetBackgroundEvolution, IonizationFunctionsAtTime
     contains
@@ -2901,13 +2901,6 @@
 
     call SetTimeSteps
 
-    !$OMP PARALLEL DO DEFAULT(SHARED),SCHEDULE(STATIC)
-    do j2=1,TimeSteps%npoints
-        call DoThermoSpline(j2,TimeSteps%points(j2))
-    end do
-    !$OMP END PARALLEL DO
-
-
     if ((CP%want_zstar .or. CP%DerivedParameters) .and. z_star==0.d0) call find_z(optdepth,z_star)
     if (CP%want_zdrag .or. CP%DerivedParameters) call find_z(dragoptdepth,z_drag)
 
@@ -3000,34 +2993,23 @@
     call Ranges_GetArray(TimeSteps)
     nstep = TimeSteps%npoints
 
-    if (allocated(vis)) then
-        deallocate(vis,dvis,ddvis,expmmu,dopac, opac)
-        if (dowinlens) deallocate(lenswin)
-    end if
-    allocate(vis(nstep),dvis(nstep),ddvis(nstep),expmmu(nstep),dopac(nstep),opac(nstep))
-    if (dowinlens) allocate(lenswin(nstep))
-
     if (DebugMsgs .and. FeedbackLevel > 0) write(*,*) 'Set ',nstep, ' time steps'
 
     end subroutine SetTimeSteps
 
 
     subroutine ThermoData_Free
-    if (allocated(vis)) then
-        deallocate(vis,dvis,ddvis,expmmu,dopac, opac)
-        if (dowinlens) deallocate(lenswin)
-    end if
+
     call Ranges_Free(TimeSteps)
 
     end subroutine ThermoData_Free
 
-    !cccccccccccccc
 
     subroutine IonizationFunctionsAtTime(tau, opac, dopac, ddopac, &
-         vis, dvis, ddvis, expmmu, lenswin)
+        vis, dvis, ddvis, expmmu, lenswin)
     real(dl), intent(in) :: tau
     real(dl), intent(out):: opac, dopac, ddopac, vis, dvis, ddvis, expmmu, lenswin
-    real(dl) d    
+    real(dl) d
     integer i
 
     d=log(tau/tauminn)/dlntau+1._dl
@@ -3070,16 +3052,6 @@
     end if
 
     end subroutine IonizationFunctionsAtTime
-
-    subroutine DoThermoSpline(j,tau)
-    !At timesteps for output
-    integer j
-    real(dl) ddopac,tau
-
-    call IonizationFunctionsAtTime(tau, opac(j), dopac(j), ddopac, &
-        vis(j), dvis(j), ddvis(j), expmmu(j), lenswin(j))
-
-    end subroutine DoThermoSpline
 
 
     function ddamping_da(a)

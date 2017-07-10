@@ -516,6 +516,8 @@
     num_custom_sources = ncustomsources
     if (allocated(custom_source_ell_scales)) deallocate(custom_source_ell_scales)
     if (ncustomsources > 0) then
+        open(unit=1,file='/tmp/test.out', status='replace', form='formatted')
+
         ! Convert C to Fortran procedure pointer.
         CALL C_F_PROCPOINTER (c_source_func, custom_sources_func)
         allocate(custom_source_ell_scales(num_custom_sources))

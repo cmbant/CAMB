@@ -232,7 +232,7 @@
     real*8, external :: f_K
     END SUBROUTINE TSource_func
     END INTERFACE
-    
+
     procedure(TSource_func), pointer :: custom_sources_func => null()
 
     !precalculated arrays
@@ -1214,25 +1214,25 @@
     real(dl) tau
     real(dl), target :: sources(CTransScal%NumSources)
     integer, intent(in) :: num_custom_sources
- 
-     yprime = 0
+
+    yprime = 0
     EV%OutputSources => Sources
     if (num_custom_sources>0) &
         EV%CustomSources => sources(CTransScal%NumSources - num_custom_sources+1:)
     call derivs(EV,EV%ScalEqsToPropagate,tau,y,yprime)
     nullify(EV%OutputSources, EV%CustomSources)
-  
+
     end subroutine output
 
 
 
     !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-    subroutine outputt(EV,yt,n,j,tau,dt,dte,dtb)
+    subroutine outputt(EV,yt,n,tau,dt,dte,dtb)
     !calculate the tensor sources for open and closed case
     use ThermoData
 
     implicit none
-    integer j,n
+    integer n
     type(EvolutionVars) :: EV
     real(dl), target :: yt(n), ytprime(n)
     real(dl) tau,dt,dte,dtb,x,polterdot,polterddot,prefac
@@ -1242,6 +1242,8 @@
     real(dl), dimension(:),pointer :: E,Bprime,Eprime
     real(dl), target :: pol(3),polEprime(3), polBprime(3)
     real(dl) dtauda
+    real(dl) opacity, dopacity, ddopacity, &
+        visibility, dvisibility, ddvisibility, exptau, lenswindow
 
     call derivst(EV,EV%nvart,tau,yt,ytprime)
 
@@ -1251,6 +1253,8 @@
     shear = yt(3)
 
     x=(CP%tau0-tau)/CP%r
+    call IonizationFunctionsAtTime(tau, opacity, dopacity, ddopacity, &
+        visibility, dvisibility, ddvisibility, exptau, lenswindow)
 
     !  And the electric part of the Weyl.
     if (.not. EV%TensTightCoupling) then
@@ -1265,8 +1269,8 @@
         !  Use the tight-coupling approximation
         a =yt(1)
         adotoa = 1/(a*dtauda(a))
-        pigdot=32._dl/45._dl*k/opac(j)*(2._dl*adotoa*shear+ytprime(3))
-        pig = 32._dl/45._dl*k/opac(j)*shear
+        pigdot=32._dl/45._dl*k/opacity*(2._dl*adotoa*shear+ytprime(3))
+        pig = 32._dl/45._dl*k/opacity*shear
         pol=0
         polEprime=0
         polBprime=0
@@ -1286,19 +1290,19 @@
 
         polter = 0.1_dl*pig + 9._dl/15._dl*E(2)
         polterdot=9._dl/15._dl*Eprime(2) + 0.1_dl*pigdot
-        polterddot = 9._dl/15._dl*(-dopac(j)*(E(2)-polter)-opac(j)*(  &
+        polterddot = 9._dl/15._dl*(-dopacity*(E(2)-polter)-opacity*(  &
             Eprime(2)-polterdot) + k*(2._dl/3._dl*Bprime(2)*aux - 5._dl/27._dl*Eprime(3)*EV%Kft(2))) &
             +0.1_dl*(k*(-octg*EV%Kft(2)/3._dl + 8._dl/15._dl*ytprime(3)) - &
-            dopac(j)*(pig - polter) - opac(j)*(pigdot-polterdot))
+            dopacity*(pig - polter) - opacity*(pigdot-polterdot))
 
-        dt=(shear*expmmu(j) + (15._dl/8._dl)*polter*vis(j)/k)*CP%r/sinhxr**2/prefac
+        dt=(shear*exptau + (15._dl/8._dl)*polter*visibility/k)*CP%r/sinhxr**2/prefac
 
         dte=CP%r*15._dl/8._dl/k/prefac* &
-            ((ddvis(j)*polter + 2._dl*dvis(j)*polterdot + vis(j)*polterddot)  &
-            + 4._dl*cothxor*(dvis(j)*polter + vis(j)*polterdot) - &
-            vis(j)*polter*(k2 -6*cothxor**2))
+            ((ddvisibility*polter + 2._dl*dvisibility*polterdot + visibility*polterddot)  &
+            + 4._dl*cothxor*(dvisibility*polter + visibility*polterdot) - &
+            visibility*polter*(k2 -6*cothxor**2))
 
-        dtb=15._dl/4._dl*EV%q*CP%r/k/prefac*(vis(j)*(2._dl*cothxor*polter + polterdot) + dvis(j)*polter)
+        dtb=15._dl/4._dl*EV%q*CP%r/k/prefac*(visibility*(2._dl*cothxor*polter + polterdot) + dvisibility*polter)
     else
         dt=0._dl
         dte=0._dl
@@ -1308,18 +1312,21 @@
     end subroutine outputt
 
     !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-    subroutine outputv(EV,yv,n,j,tau,dt,dte,dtb)
+    subroutine outputv(EV,yv,n,tau,dt,dte,dtb)
     !calculate the vector sources
     use ThermoData
 
     implicit none
-    integer j,n
+    integer n
     type(EvolutionVars) :: EV
     real(dl), target :: yv(n), yvprime(n)
     real(dl) tau,dt,dte,dtb,x,polterdot
     real(dl) vb,qg, pig, polter, sigma
     real(dl) k,k2
     real(dl), dimension(:),pointer :: E,Eprime
+    real(dl) opacity, dopacity, ddopacity, &
+        visibility, dvisibility, ddvisibility, exptau, lenswindow
+
 
     call derivsv(EV,EV%nvarv,tau,yv,yvprime)
 
@@ -1340,17 +1347,20 @@
         polter = 0.1_dl*pig + 9._dl/15._dl*E(2)
         polterdot=9._dl/15._dl*Eprime(2) + 0.1_dl*yvprime(5)
 
+        call IonizationFunctionsAtTime(tau, opacity, dopacity, ddopacity, &
+            visibility, dvisibility, ddvisibility, exptau, lenswindow)
+
         if (yv(1) < 1e-3) then
             dt = 1
         else
             dt =0
         end if
-        dt= (4*(vb+sigma)*vis(j) + 15._dl/2/k*( vis(j)*polterdot + dvis(j)*polter) &
-            + 4*(expmmu(j)*yvprime(2)) )/x
+        dt= (4*(vb+sigma)*visibility + 15._dl/2/k*( visibility*polterdot + dvisibility*polter) &
+            + 4*(exptau*yvprime(2)) )/x
 
-        dte= 15._dl/2*2*polter/x**2*vis(j) + 15._dl/2/k*(dvis(j)*polter + vis(j)*polterdot)/x
+        dte= 15._dl/2*2*polter/x**2*visibility + 15._dl/2/k*(dvisibility*polter + visibility*polterdot)/x
 
-        dtb= -15._dl/2*polter/x*vis(j)
+        dtb= -15._dl/2*polter/x*visibility
     else
         dt=0
         dte=0
@@ -2129,12 +2139,12 @@
             E=0
             Edot=0
         else
-            E = ay(EV%polind+2:3)
-            Edot = ayprime(EV%polind+2:3)
+            E = ay(EV%polind+2:EV%polind+3)
+            Edot = ayprime(EV%polind+2:EV%polind+3)
         end if
         if (EV%no_nu_multpoles) then
             pirdot=0
-            qrdot = ayprime(EV%r_ix+1)
+            qrdot = -4*dz/3 
         end if
         if (EV%no_phot_multpoles) then
             pigdot=0
@@ -2240,15 +2250,15 @@
                 end if
             end if
             if (associated(EV%CustomSources)) then
-                call custom_sources_func(EV%CustomSources, tau, a, adotoa, grho, gpres,w_lam, cs2_lam, & 
-                        grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,grhonu_t, &
-                        k, etak, ayprime(2), phi, phidot, sigma, sigmadot, &
-                        dgrho, clxg,clxb,clxc,clxnu, clxq, cs2, &
-                        dgq, qg, qr, vq, vb, qgdot, qrdot, vbdot, &
-                        dgpi, pig, pir, pigdot, pirdot, diff_rhopi, &
-                        polter, polterdot, polterddot, octg, octgdot, E, Edot, &
-                        opacity, dopacity, ddopacity, visibility, dvisibility, ddvisibility, exptau, &
-                        tau0, tau_maxvis, EV%Kf,f_K)
+                call custom_sources_func(EV%CustomSources, tau, a, adotoa, grho, gpres,w_lam, cs2_lam, &
+                    grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,grhonu_t, &
+                    k, etak, ayprime(2), phi, phidot, sigma, sigmadot, &
+                    dgrho, clxg,clxb,clxc,clxnu, clxq, cs2, &
+                    dgq, qg, qr, vq, vb, qgdot, qrdot, vbdot, &
+                    dgpi, pig, pir, pigdot, pirdot, diff_rhopi, &
+                    polter, polterdot, polterddot, octg, octgdot, E, Edot, &
+                    opacity, dopacity, ddopacity, visibility, dvisibility, ddvisibility, exptau, &
+                    tau0, tau_maxvis, EV%Kf,f_K)
             end if
         end if
     end if
