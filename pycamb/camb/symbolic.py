@@ -9,7 +9,7 @@ For a guide to usage and content see the `ScalEqs notebook <http://camb.readthed
 
 As well as defining standard quantities, and how they map to CAMB variables, there are also functions for
 converting a symbolic expression to CAMB source code, and building a custom sources for use with CAMB
-(as used by :func:`.camb.set_custom_scalar_sources`, :func:`.camb.CAMBdata.get_time_evolution`)
+(as used by :func:`.camb.set_custom_scalar_sources`, :meth:`.camb.CAMBdata.get_time_evolution`)
 
 A Lewis July 2017
 """
@@ -360,8 +360,7 @@ def newtonian_gauge(x):
     Evaluates an expression in the Newtonian gauge. (shear sigma=9).
     Converts to using conventional metric perturbation variables for metric
 
-    .. math::
-    ds^2 = a(\eta)^2\left( (1+2\Psi_N)d\eta^2 - (1-2\Phi_N)\delta_{ij}dx^idx^j\right)
+    .. math:: ds^2 = a^2\left( (1+2\Psi_N)d t^2 - (1-2\Phi_N)\delta_{ij}dx^idx^j\right)
 
     :param x: expression
     :return: expression evaluated in the Newtonian gauge
@@ -539,7 +538,7 @@ def get_hierarchies(lmax=5):
     """
     Get Boltzmann hierarchies up to lmax for photons (J), E polarization and massless neutrinos (G).
 
-    :param lmax:
+    :param lmax: maxmimum multipole
     :return: list of equations
     """
 

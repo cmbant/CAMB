@@ -210,12 +210,11 @@ class CambTest(unittest.TestCase):
 
         s.internal_consistency_checks()
 
+    def testEmissionAnglePostBorn(self):
+        from camb import emission_angle, postborn
+        pars = camb.set_params(H0=67.5, ombh2=0.022, omch2=0.122, As=2e-9, ns=0.95, tau=0.055)
+        BB = emission_angle.get_emission_delay_BB(pars, lmax=3500)
+        self.assertAlmostEqual(BB(80) * 2 * np.pi / 80 / 81., 1.1e-10, delta=1e-11)
 
-def testEmissionAnglePostBorn(self):
-    from camb import emission_angle, postborn
-    pars = camb.set_params(H0=67.5, ombh2=0.022, omch2=0.122, As=2e-9, ns=0.95, tau=0.055)
-    BB = emission_angle.get_emission_delay_BB(pars, lmax=3500)
-    self.assertAlmostEqual(BB(80) * 2 * np.pi / 80 / 81., 1.1e-10, delta=1e-11)
-
-    Bom = postborn.get_field_rotation_BB(pars, lmax=3500)
-    self.assertAlmostEqual(Bom(100) * 2 * np.pi / 100 / 101., 1.65e-11, delta=1e-12)
+        Bom = postborn.get_field_rotation_BB(pars, lmax=3500)
+        self.assertAlmostEqual(Bom(100) * 2 * np.pi / 100 / 101., 1.65e-11, delta=1e-12)
