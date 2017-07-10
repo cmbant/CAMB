@@ -107,7 +107,7 @@ def LinearPerturbation(name, species=None, camb_var=None, camb_sub=None, frame_d
     :param frame_dependence: the change in the perturbation when the frame 4-velocity u change
              from u to u + delta_frame. Should be a sumpy expression involving delta_frame.
     :param description: string describing variable
-    :return:
+    :return: sympy Function instance (function of t), with attributes set to the arguments above.
     """
     f = sympy.Function(name, species=species, camb_var=camb_var, camb_sub=camb_sub, perturbation_order=1,
                        frame_dependence=frame_dependence, description=description)
@@ -360,7 +360,7 @@ def newtonian_gauge(x):
     Evaluates an expression in the Newtonian gauge. (shear sigma=9).
     Converts to using conventional metric perturbation variables for metric
 
-    $$ds^2 = a(\eta)^2\left( (1+2\Psi_N)d\eta^2 - (1-2\Phi_N)\delta_{ij}dx^idx^j\right)$$
+    :math:`ds^2 = a(\eta)^2\left( (1+2\Psi_N)d\eta^2 - (1-2\Phi_N)\delta_{ij}dx^idx^j\right)`
 
     :param x: expression
     :return: expression evaluated in the Newtonian gauge
@@ -536,7 +536,7 @@ def E_eq(l):
 
 def get_hierarchies(lmax=5):
     """
-    Get Bolztmann hierarchies up to lmax for photons (J), E polarization and massless neutrinos (G).
+    Get Boltzmann hierarchies up to lmax for photons (J), E polarization and massless neutrinos (G).
 
     :param lmax:
     :return: list of equations
@@ -594,14 +594,14 @@ _camb_cache = {}
 def camb_fortran(expr, name='camb_function', frame='CDM', expand=False):
     """
     Convert symbolic expression to CAMB fortran code, using CAMB variable notation.
-    This is not completely general, but it will handle conversion of Newtoanian gauge
+    This is not completely general, but it will handle conversion of Newtonian gauge
     variables like Psi_N, and most derivatives up to second order.
 
     :param expr: symbolic sympy expression using camb.symbolic variables and functions (plus any
-    standard general functions that CAMB can convert to fortran).
+                 standard general functions that CAMB can convert to fortran).
     :param name: lhs variable string to assign result to
     :param frame: frame in which to interret non gauge-invariant expressions.
-     By default uses CDM frame (synchronous gauge), as used natively by CAMB.
+                  By default uses CDM frame (synchronous gauge), as used natively by CAMB.
     :param expand: do a sympy expand before generating code
     :return: fortran code snippet
     """
