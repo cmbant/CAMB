@@ -1,4 +1,4 @@
-from .baseconfig import camblib, CAMB_Structure, CAMBError, dll_import
+from .baseconfig import camblib, CAMB_Structure, CAMBError, CAMBParamRangeError, dll_import
 from ctypes import c_bool, c_int, c_double, c_float, byref, POINTER
 from . import reionization as ion
 from . import recombination as recomb
@@ -299,7 +299,8 @@ class CAMBparams(CAMB_Structure):
     def set_cosmology(self, H0=67.0, cosmomc_theta=None, ombh2=0.022, omch2=0.12, omk=0.0,
                       neutrino_hierarchy='degenerate', num_massive_neutrinos=1,
                       mnu=0.06, nnu=3.046, YHe=None, meffsterile=0.0, standard_neutrino_neff=3.046,
-                      TCMB=constants.COBE_CMBTemp, tau=None, deltazrei=None, bbn_predictor=None):
+                      TCMB=constants.COBE_CMBTemp, tau=None, deltazrei=None, bbn_predictor=None,
+                      theta_H0_range=[10, 100]):
         """
         Sets cosmological parameters in terms of physical densities and parameters used in Planck 2015 analysis.
         Default settings give a single distinct neutrino mass eigenstate, by default one neutrino with mnu = 0.06eV.
@@ -324,6 +325,9 @@ class CAMBparams(CAMB_Structure):
         :param tau: optical depth; if None, current Reion settings are not changed
         :param deltazrei: redshift width of reionization; if None, uses default
         :param bbn_predictor: :class:`.bbn.BBNPredictor` instance used to get YHe from BBN consistency if YHe is None
+        :param theta_H0_range: if cosmomc_theta is specified, the min, max interval of H0 values to map to; outside this range
+                 it will raise an exception.
+
         """
 
         if YHe is None:
@@ -334,7 +338,7 @@ class CAMBparams(CAMB_Structure):
 
         if cosmomc_theta is not None:
             if not (0.001 < cosmomc_theta < 0.1):
-                raise CAMBError('cosmomc_theta looks wrong (parameter is just theta, not 100*theta)')
+                raise CAMBParamRangeError('cosmomc_theta looks wrong (parameter is just theta, not 100*theta)')
 
             kw = locals();
             [kw.pop(x) for x in ['self', 'H0', 'cosmomc_theta']]
@@ -353,7 +357,10 @@ class CAMBparams(CAMB_Structure):
                 self.set_cosmology(H0=H0, **kw)
                 return camb.get_background(self, no_thermo=True).cosmomc_theta() - cosmomc_theta
 
-            self.H0 = brentq(f, 10, 100, rtol=1e-4)
+            try:
+                self.H0 = brentq(f, theta_H0_range[0], theta_H0_range[1], rtol=1e-4)
+            except ValueError:
+                raise CAMBParamRangeError('No solution for H0 inside of theta_H0_range')
         else:
             self.H0 = H0
 

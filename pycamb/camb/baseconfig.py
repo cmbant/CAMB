@@ -91,6 +91,8 @@ if not mock_load:
 class CAMBError(Exception):
     pass
 
+class CAMBParamRangeError(CAMBError):
+    pass
 
 class CAMB_Structure(Structure):
     def __str__(self):
