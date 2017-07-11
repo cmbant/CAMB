@@ -796,7 +796,6 @@ def compile_sympy_to_camb_source_func(sources, code_path=None, frame='CDM'):
 
 
 def internal_consistency_checks():
-
     print('Sympy: ', sympy.__version__)
 
     ##All equations should be gauge invariant
@@ -826,9 +825,13 @@ def internal_consistency_checks():
         assert (simplify(subs(component_eqs + background_eqs, make_frame_invariant(eq.lhs).doit()
                               - make_frame_invariant(eq.rhs))) == 0)
 
-    # Check consistency of fluid equations with equations from total stress-energy conservation
-    for eq in total_eqs:
-        assert (subs(component_eqs + tot_subs, subs(tot_pert_subs, eq).doit()).doit().simplify())
+    try:
+        # Check consistency of fluid equations with equations from total stress-energy conservation
+        for eq in total_eqs:
+            assert (subs(component_eqs + tot_subs, subs(tot_pert_subs, eq).doit()).doit().simplify())
+    except TypeError:
+        print('If this test fails, you probably have an old sympy version. You need version 1 or higher.')
+        raise
 
     get_scalar_temperature_sources(True)
     print("All symbolic relation tests OK")
