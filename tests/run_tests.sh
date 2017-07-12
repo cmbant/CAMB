@@ -1,6 +1,6 @@
 cd /camb
 
-make Release EQUATIONS=equations_ppf.f90 || exit $?
+make camb EQUATIONS=equations_ppf || exit $?
 make clean || exit $?
 make Release || exit $?
 make libcamb || exit $?

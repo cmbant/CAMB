@@ -356,6 +356,7 @@
         integer E_ix, B_ix !tensor polarization indices
         real(dl) denlkt(4,max_l_evolve),Kft(max_l_evolve)
         real, pointer :: OutputTransfer(:) => null()
+
     end type EvolutionVars
 
     !precalculated arrays
