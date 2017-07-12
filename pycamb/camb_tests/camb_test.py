@@ -34,7 +34,7 @@ class CambTest(unittest.TestCase):
         age2 = data.physical_time(0)
         self.assertAlmostEqual(age, age2, 4)
 
-        r = data.comoving_radial_distance(0.48)
+        data.comoving_radial_distance(0.48)
         t0 = data.conformal_time(0)
         t1 = data.conformal_time(11.5)
         t2 = data.comoving_radial_distance(11.5)
@@ -152,11 +152,11 @@ class CambTest(unittest.TestCase):
         lmax = 4000
         pars.set_for_lmax(lmax)
         cls = data.get_cmb_power_spectra(pars)
-        cls_tot = data.get_total_cls(2000)
-        cls_scal = data.get_unlensed_scalar_cls(2500)
-        cls_tensor = data.get_tensor_cls(2000)
+        data.get_total_cls(2000)
+        data.get_unlensed_scalar_cls(2500)
+        data.get_tensor_cls(2000)
         cls_lensed = data.get_lensed_scalar_cls(3000)
-        cls_phi = data.get_lens_potential_cls(2000)
+        data.get_lens_potential_cls(2000)
 
         # check lensed CL against python; will only agree well for high lmax as python has no extrapolation template
         cls_lensed2 = correlations.lensed_cls(cls['unlensed_scalar'], cls['lens_potential'][:, 0], delta_cls=False)

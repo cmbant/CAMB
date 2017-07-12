@@ -429,9 +429,9 @@ def synchronous_gauge(x):
 # Fluid components
 density_eqs = [
     Eq(diff(rho_b, t), -3 * H * (rho_b + p_b)),
-    Eq(diff(rho_c, t), -3 * H * (rho_c)),
-    Eq(diff(rho_g, t), -4 * H * (rho_g)),
-    Eq(diff(rho_r, t), -4 * H * (rho_r)),
+    Eq(diff(rho_c, t), -3 * H * rho_c),
+    Eq(diff(rho_g, t), -4 * H * rho_g),
+    Eq(diff(rho_r, t), -4 * H * rho_r),
     Eq(diff(rho_nu, t), -3 * H * (rho_nu + p_nu)),
     Eq(diff(rho_de, t), -3 * H * (rho_de * (1 + w_de)))
 ]
@@ -517,7 +517,7 @@ def G_eq(l):
     Gl = _make_index_func('G', l)
     Glp = _make_index_func('G', l + 1)
     Glm = _make_index_func('G', l - 1)
-    eq = -k / (2 * l + 1) * ((l + 1) * Kf[l] * Glp - l * Glm);
+    eq = -k / (2 * l + 1) * ((l + 1) * Kf[l] * Glp - l * Glm)
     if l == 2: eq = eq + 8 * k / 15 * sigma
     return Eq(diff(Gl, t), eq).subs({'G_2(t)': pi_r, 'G_1(t)': q_r})
 
@@ -528,7 +528,7 @@ def E_eq(l):
     El = _make_index_func('E', l)
     Elp = _make_index_func('E', l + 1)
     Elm = _make_index_func('E', l - 1)
-    eq = -k / (2 * l + 1) * ((l + 3) * (l - 1) * Kf[l] * Elp / (l + 1) - l * Elm) - opacity * El;
+    eq = -k / (2 * l + 1) * ((l + 3) * (l - 1) * Kf[l] * Elp / (l + 1) - l * Elm) - opacity * El
     if l == 2:
         eq = eq + polter * opacity
     return Eq(diff(El, t), eq).subs('E_1(t)', 0)
@@ -611,7 +611,6 @@ def camb_fortran(expr, name='camb_function', frame='CDM', expand=False):
                      'ddvisibility dvisibility dopacity ddopacity'
     camb_arr_vars = 'Edot E'
 
-    j = _camb_cache.setdefault('j', sympy.Idx('j'))
     tau = _camb_cache.setdefault('tau', Symbol('tau'))
 
     etakdot, qgdot, qrdot, vbdot, pigdot, pirdot, pinudot, octg, octgdot, \
@@ -644,7 +643,7 @@ def camb_fortran(expr, name='camb_function', frame='CDM', expand=False):
             'Unknown derivatives, generally can only handle up to second.\nRemaining derivatives: ' + str(res))
 
     res = cdm_gauge(subs([K_sub, hdot_sub, z_sub], res))
-    var_subs = []
+    camb_var_subs = []
     for var in res.atoms(Function):
         camb_var = getattr(var, 'camb_var', None)
         if camb_var:
@@ -652,9 +651,9 @@ def camb_fortran(expr, name='camb_function', frame='CDM', expand=False):
         camb_sub = getattr(var, 'camb_sub', None) or camb_var
         if camb_sub:
             if isinstance(camb_sub, six.string_types): camb_sub = eval(camb_sub)
-            var_subs.append((var, camb_sub))
+            camb_var_subs.append((var, camb_sub))
 
-    camb_subs = var_subs + [(p_b, 0), (E_2, E[2]), (E_3, E[3]), (J_3, octg), (K_fac, Kf[1])]
+    camb_subs = camb_var_subs + [(p_b, 0), (E_2, E[2]), (E_3, E[3]), (J_3, octg), (K_fac, Kf[1])]
     res = res.subs(camb_subs).simplify()
     no_arg_funcs = [f for f in res.atoms(Function) if f.args[0] == t and not f is f_K]
     res = res.subs(zip(no_arg_funcs, [Symbol(str(x.func)) for x in no_arg_funcs]))
@@ -739,6 +738,7 @@ def compile_source_function_code(code_body, file_path='',
         os.mkdir(workdir)
 
     oldwork = os.getcwd()
+    source_file = None
     try:
         os.chdir(workdir)
         _source_file_count += 1
@@ -766,7 +766,7 @@ def compile_source_function_code(code_body, file_path='',
             print('Source is:\n %s' % code_body)
             raise
     finally:
-        if not file_path: os.remove(source_file)
+        if not file_path and source_file: os.remove(source_file)
         os.chdir(oldwork)
 
     # Had weird crashes when LoadLibrary path was relative to current dir

@@ -560,8 +560,8 @@ class CAMBdata(object):
         :return: nd array, A_{qti}, size(q) x size(times) x len(vars), or 2d array if q is scalar
         """
 
+        old_boost = model._lAccuracyBoost.value
         try:
-            old_boost = model._lAccuracyBoost.value
             if lAccuracyBoost: model._lAccuracyBoost.value = lAccuracyBoost
             if not isinstance(vars, (tuple, list)):
                 vars = [vars]
@@ -622,6 +622,7 @@ class CAMBdata(object):
         :param q: wavenumber values to calculate (or array of k values)
         :param z: array of redshifts to output
         :param vars: list of variable names or camb.symbolic sympy expressions to output
+        :param lAccuracyBoost: boost factor for ell accuracy (e.g. to get nice smooth curves for plotting)
         :return: nd array, A_{qti}, size(q) x size(times) x len(vars), or 2d array if q is scalar
         """
         return self.get_time_evolution(q, self.conformal_time(z), vars, lAccuracyBoost)
@@ -657,7 +658,7 @@ class CAMBdata(object):
         Get the evolution of background variables a function of redshift.
         For the moment a and H are rather perversely only available via :meth:`get_time_evolution`
 
-        :param eta: array of requested conformal times to output
+        :param z: array of requested redshifts to output
         :param vars: list of variable names to output
         :param format: 'dict' or 'array', for either dict of 1D arrays indexed by name, or 2D array
         :return: n_eta x len(vars) 2D numpy array of outputs or dict of 1D arrays
@@ -781,7 +782,7 @@ class CAMBdata(object):
         if not have_power_spectra:
             self.calc_power_spectra(params)
 
-        assert (self.Params.WantTransfer)
+        assert self.Params.WantTransfer
         if self.Params.Transfer.kmax < maxkh:
             logging.warning("get_matter_power_spectrum using larger k_max than input parameter Transfer.kmax")
         if self.Params.NonLinear == model.NonLinear_none and self.Params.Transfer.kmax < 1:
@@ -1163,7 +1164,7 @@ def get_background(params, no_thermo=False):
      parameters and use background functions like angular_diameter_distance.
 
     :param params: :class:`.model.CAMBparams` instance
-    :params no_thermo: Use calc_background_no_thermo instead
+    :param no_thermo: Use calc_background_no_thermo instead
     :return: :class:`CAMBdata` instance
     """
 
@@ -1294,6 +1295,7 @@ def get_matter_power_interpolator(params, zmin=0, zmax=10, nz_step=100, zs=None,
     :param hubble_units: if true, output power spectrum in (Mpc/h)^{3} units, otherwise Mpc^{3}
     :param k_hunit: if true, matter power is a function of k/h, if false, just k (both Mpc^{-1} units)
     :param return_z_k: if true, return interpolator, z, k where z, k are the grid used
+    :param k_per_logint: specific uniform sampling over log k (if not set, uses optimized irregular sampling)
     :param log_interp: if true, interpolate log of power spectrum (unless any values are negative in which case ignored)
     :return: RectBivariateSpline object PK, that can be called with PK(z,log(kh)) to get log matter power values.
         if return_z_k=True, instead return interpolator, z, k where z, k are the grid used

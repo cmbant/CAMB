@@ -76,7 +76,7 @@ class SharedLibrary(install):
             else:
                 print(COMPILER + ' ' + FFLAGS + ' ' + SOURCES + ' ' + OUTPUT)
                 subprocess.call(COMPILER + ' ' + FFLAGS + ' ' + SOURCES + ' ' + OUTPUT, shell=True)
-            COPY = r"copy /Y *.dat %s\camb" % (pycamb_path)
+            COPY = r"copy /Y *.dat %s\camb" % pycamb_path
             subprocess.call(COPY, shell=True)
             scrs.append(DLLNAME)
             if not osp.isfile(os.path.join(pycamb_path, 'camb', DLLNAME)): sys.exit('Compilation failed')
@@ -91,8 +91,8 @@ class SharedLibrary(install):
             subprocess.call("make camblib.so", shell=True)
             if not osp.isfile(os.path.join('Releaselib', 'camblib.so')): sys.exit('Compilation failed')
             subprocess.call("chmod 755 Releaselib/camblib.so", shell=True)
-            subprocess.call(r"cp Releaselib/camblib.so %s/camb" % (pycamb_path), shell=True)
-            subprocess.call("cp *.dat %s/camb" % (pycamb_path), shell=True)
+            subprocess.call(r"cp Releaselib/camblib.so %s/camb" % pycamb_path, shell=True)
+            subprocess.call("cp *.dat %s/camb" % pycamb_path, shell=True)
 
         os.chdir(file_dir)
         install.run(self)

@@ -264,6 +264,7 @@ def lensed_correlations(cls, clpp, xvals, weights=None, lmax=None, delta=False, 
     :param lmax: optional maximum L to use from the cls arrays
     :param delta: if true, calculate the difference between lensed and unlensed (default False)
     :param theta_max: maximum angle (in radians) to keep in the correlation functions
+    :param apodize_point_width: smoothing scale for apodization at truncation of correlation function
     :return: 2D array of corrs[i, ix], where ix=0,1,2,3 are T, Q+U, Q-U and cross;
         if weights is not None, then return corrs, lensed_cls
     """

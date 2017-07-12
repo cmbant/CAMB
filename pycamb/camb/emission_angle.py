@@ -101,6 +101,10 @@ def get_emission_delay_BB(params, kmax=100, lmax=3000, non_linear=True, CMB_unit
     pars.set_for_lmax(lmax_e, lens_potential_accuracy=1)
     cmb = get_source_cmb_cl(pars, CMB_unit=CMB_unit)
 
+    totautoB = np.zeros(lsampvelcl.shape)
+    totBEterm = np.zeros(lsampvelcl.shape)
+    totBxterm = np.zeros(lsampvelcl.shape)
+
     for reion in [False, True]:
         if reion:
             if not include_reionization: break
@@ -116,11 +120,6 @@ def get_emission_delay_BB(params, kmax=100, lmax=3000, non_linear=True, CMB_unit
             lstep = 5
 
         cl_psi_d_sp, cl_psi_d_x_lens_sp = get_emission_angle_powers(camb_background, PK, chi_source, lmax_e, acc, lsamp)
-
-        if not reion:
-            totautoB = np.zeros(lsampvelcl.shape)
-            totBEterm = np.zeros(lsampvelcl.shape)
-            totBxterm = np.zeros(lsampvelcl.shape)
 
         lsarr = np.arange(2, lmax_e + 1, dtype=np.float64)
         llp1 = lsarr * (lsarr + 1.)
@@ -180,8 +179,10 @@ def get_source_cmb_cl(params, CMB_unit='muK'):
     Note that this function destroys any custom sources currently configured.
 
     :param params: :class:`.model.CAMBparams` instance with cosmological parameters etc.
+    :param CMB_unit: scale results from dimensionless, use 'muK' for muK^2 units
     :return: dictionary of power spectra, with L(L+1)/2pi factors.
     """
+
     import sympy
     from sympy import diff
     from . import symbolic as cs

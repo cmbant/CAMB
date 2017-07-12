@@ -84,7 +84,7 @@ class BBN_table_interpolator(BBNPredictor):
                         comment = line[1:]
                     else:
                         break
-        assert (comment)
+        assert comment
         columns = comment.split()
         ombh2_i = columns.index('ombh2')
         DeltaN_i = columns.index('DeltaN')
@@ -145,6 +145,7 @@ class BBN_fitting_parthenope(BBNPredictor):
 
         :param ombh2: Omega_b h^2
         :param delta_neff:  additional N_eff relative to standard value (of 3.046)
+        :param tau_neutron: neutron lifetime
         :return:  Y_p helium nucleon fraction predicted by BBN
         """
         return (

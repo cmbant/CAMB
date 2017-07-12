@@ -343,7 +343,7 @@ class CAMBparams(CAMB_Structure):
             if not (0.001 < cosmomc_theta < 0.1):
                 raise CAMBParamRangeError('cosmomc_theta looks wrong (parameter is just theta, not 100*theta)')
 
-            kw = locals();
+            kw = locals()
             [kw.pop(x) for x in ['self', 'H0', 'cosmomc_theta']]
 
             if H0 is not None:
