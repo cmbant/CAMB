@@ -1,5 +1,9 @@
 cd /camb
-make Release
+
+make Release EQUATIONS=equations_ppf.f90 || exit $?
+make clean || exit $?
+make Release || exit $?
+make libcamb || exit $?
 
 cd pycamb
 

@@ -1329,12 +1329,11 @@
     end subroutine MassiveNuVars
 
     !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-    subroutine output(EV,y, j,tau,sources)
+    subroutine output(EV,y, tau,sources, notused_custom_sources)
     use ThermoData
     use lvalues
     use ModelData
     implicit none
-    integer j
     type(EvolutionVars) EV
     real(dl), target :: y(EV%nvar),yprime(EV%nvar)
     real(dl), dimension(:),pointer :: ypol,ypolprime
@@ -1355,6 +1354,13 @@
     real(dl) ISW
     real(dl) w_eff
     real(dl) hdotoh,ppiedot
+    integer, intent(in) :: notused_custom_sources !must be zero in _ppf version
+    real(dl) opacity, dopacity, ddopacity, visibility, dvisibility, ddvisibility, exptau, lenswindow
+
+
+    call IonizationFunctionsAtTime(tau, opacity, dopacity, ddopacity, &
+        visibility, dvisibility, ddvisibility, exptau, lenswindow)
+
 
     yprime = 0
     call derivs(EV,EV%ScalEqsToPropagate,tau,y,yprime)
@@ -1434,7 +1440,7 @@
     if (EV%no_phot_multpoles) then
         z=(0.5_dl*dgrho/k + etak)/adotoa
         dz= -adotoa*z - 0.5_dl*dgrho/k
-        clxg=-4*dz/k -4/k*opac(j)*(vb+z)
+        clxg=-4*dz/k -4/k*opacity*(vb+z)
         qg=-4._dl/3*z
         pig=0
         pigdot=0
@@ -1446,9 +1452,9 @@
             pig = EV%pig
             !pigdot=EV%pigdot
             if (second_order_tightcoupling) then
-                octg = (3._dl/7._dl)*pig*(EV%k_buf/opac(j))
-                ypol(2) = EV%pig/4 + EV%pigdot*(1._dl/opac(j))*(-5._dl/8._dl)
-                ypol(3) = (3._dl/7._dl)*(EV%k_buf/opac(j))*ypol(2)
+                octg = (3._dl/7._dl)*pig*(EV%k_buf/opacity)
+                ypol(2) = EV%pig/4 + EV%pigdot*(1._dl/opacity)*(-5._dl/8._dl)
+                ypol(3) = (3._dl/7._dl)*(EV%k_buf/opacity)*ypol(2)
             else
                 ypol(2) = EV%pig/4
                 octg=0
@@ -1498,9 +1504,9 @@
     if (EV%TightCoupling) then
         if (second_order_tightcoupling) then
             pigdot = EV%pigdot
-            ypolprime(2)= (pigdot/4._dl)*(1+(5._dl/2._dl)*(dopac(j)/opac(j)**2))
+            ypolprime(2)= (pigdot/4._dl)*(1+(5._dl/2._dl)*(dopacity/opacity**2))
         else
-            pigdot = -dopac(j)/opac(j)*pig + 32._dl/45*k/opac(j)*(-2*adotoa*sigma  &
+            pigdot = -dopacity/opacity*pig + 32._dl/45*k/opacity*(-2*adotoa*sigma  &
                 +etak/EV%Kf(1)-  dgpi/k +vbdot )
             ypolprime(2)= pigdot/4
         end if
@@ -1514,44 +1520,44 @@
     !2phi' term (\phi' + \psi' in Newtonian gauge)
     ISW = (4.D0/3.D0*k*EV%Kf(1)*sigma+(-2.D0/3.D0*sigma-2.D0/3.D0*etak/adotoa)*k &
         -diff_rhopi/k**2-1.D0/adotoa*dgrho/3.D0+(3.D0*gpres+5.D0*grho)*sigma/k/3.D0 &
-        -2.D0/k*adotoa/EV%Kf(1)*etak)*expmmu(j)
+        -2.D0/k*adotoa/EV%Kf(1)*etak)*exptau
 
     !e.g. to get only late-time ISW
     !  if (1/a-1 < 30) ISW=0
 
     !The rest, note y(9)->octg, yprime(9)->octgprime (octopoles)
-    sources(1)= ISW +  ((-9.D0/160.D0*pig-27.D0/80.D0*ypol(2))/k**2*opac(j)+ &
+    sources(1)= ISW +  ((-9.D0/160.D0*pig-27.D0/80.D0*ypol(2))/k**2*opacity+ &
         (11.D0/10.D0*sigma- 3.D0/8.D0*EV%Kf(2)*ypol(3)+vb-9.D0/80.D0*EV%Kf(2)*octg+3.D0/40.D0*qg)/k- &
-        (-180.D0*ypolprime(2)-30.D0*pigdot)/k**2/160.D0)*dvis(j) + &
-        (-(9.D0*pigdot+ 54.D0*ypolprime(2))/k**2*opac(j)/160.D0+pig/16.D0+clxg/4.D0+3.D0/8.D0*ypol(2) + &
+        (-180.D0*ypolprime(2)-30.D0*pigdot)/k**2/160.D0)*dvisibility + &
+        (-(9.D0*pigdot+ 54.D0*ypolprime(2))/k**2*opacity/160.D0+pig/16.D0+clxg/4.D0+3.D0/8.D0*ypol(2) + &
         (-21.D0/5.D0*adotoa*sigma-3.D0/8.D0*EV%Kf(2)*ypolprime(3) + &
         vbdot+3.D0/40.D0*qgdot- 9.D0/80.D0*EV%Kf(2)*octgprime)/k + &
-        (-9.D0/160.D0*dopac(j)*pig-21.D0/10.D0*dgpi-27.D0/80.D0*dopac(j)*ypol(2))/k**2)*vis(j) + &
-        (3.D0/16.D0*ddvis(j)*pig+9.D0/8.D0*ddvis(j)*ypol(2))/k**2+21.D0/10.D0/k/EV%Kf(1)*vis(j)*etak
+        (-9.D0/160.D0*dopacity*pig-21.D0/10.D0*dgpi-27.D0/80.D0*dopacity*ypol(2))/k**2)*visibility + &
+        (3.D0/16.D0*ddvisibility*pig+9.D0/8.D0*ddvisibility*ypol(2))/k**2+21.D0/10.D0/k/EV%Kf(1)*visibility*etak
 
     ! Doppler term
-    !   sources(1)=  (sigma+vb)/k*dvis(j)+((-2.D0*adotoa*sigma+vbdot)/k-1.D0/k**2*dgpi)*vis(j) &
-    !         +1.D0/k/EV%Kf(1)*vis(j)*etak
+    !   sources(1)=  (sigma+vb)/k*dvisibility+((-2.D0*adotoa*sigma+vbdot)/k-1.D0/k**2*dgpi)*visibility &
+    !         +1.D0/k/EV%Kf(1)*visibility*etak
 
     !Equivalent full result
     !    t4 = 1.D0/adotoa
     !    t92 = k**2
-    !    sources(1) = (4.D0/3.D0*EV%Kf(1)*expmmu(j)*sigma+2.D0/3.D0*(-sigma-t4*etak)*expmmu(j))*k+ &
-    !        (3.D0/8.D0*ypol(2)+pig/16.D0+clxg/4.D0)*vis(j)
-    !    sources(1) = sources(1)-t4*expmmu(j)*dgrho/3.D0+((11.D0/10.D0*sigma- &
-    !         3.D0/8.D0*EV%Kf(2)*ypol(3)+vb+ 3.D0/40.D0*qg-9.D0/80.D0*EV%Kf(2)*y(9))*dvis(j)+(5.D0/3.D0*grho+ &
-    !        gpres)*sigma*expmmu(j)+(-2.D0*adotoa*etak*expmmu(j)+21.D0/10.D0*etak*vis(j))/ &
+    !    sources(1) = (4.D0/3.D0*EV%Kf(1)*exptau*sigma+2.D0/3.D0*(-sigma-t4*etak)*exptau)*k+ &
+    !        (3.D0/8.D0*ypol(2)+pig/16.D0+clxg/4.D0)*visibility
+    !    sources(1) = sources(1)-t4*exptau*dgrho/3.D0+((11.D0/10.D0*sigma- &
+    !         3.D0/8.D0*EV%Kf(2)*ypol(3)+vb+ 3.D0/40.D0*qg-9.D0/80.D0*EV%Kf(2)*y(9))*dvisibility+(5.D0/3.D0*grho+ &
+    !        gpres)*sigma*exptau+(-2.D0*adotoa*etak*exptau+21.D0/10.D0*etak*visibility)/ &
     !        EV%Kf(1)+(vbdot-3.D0/8.D0*EV%Kf(2)*ypolprime(3)+3.D0/40.D0*qgdot-21.D0/ &
-    !        5.D0*sigma*adotoa-9.D0/80.D0*EV%Kf(2)*yprime(9))*vis(j))/k+(((-9.D0/160.D0*pigdot- &
-    !        27.D0/80.D0*ypolprime(2))*opac(j)-21.D0/10.D0*dgpi -27.D0/80.D0*dopac(j)*ypol(2) &
-    !        -9.D0/160.D0*dopac(j)*pig)*vis(j) - diff_rhopi*expmmu(j)+((-27.D0/80.D0*ypol(2)-9.D0/ &
-    !        160.D0*pig)*opac(j)+3.D0/16.D0*pigdot+9.D0/8.D0*ypolprime(2))*dvis(j)+9.D0/ &
-    !        8.D0*ddvis(j)*ypol(2)+3.D0/16.D0*ddvis(j)*pig)/t92
+    !        5.D0*sigma*adotoa-9.D0/80.D0*EV%Kf(2)*yprime(9))*visibility)/k+(((-9.D0/160.D0*pigdot- &
+    !        27.D0/80.D0*ypolprime(2))*opacity-21.D0/10.D0*dgpi -27.D0/80.D0*dopacity*ypol(2) &
+    !        -9.D0/160.D0*dopacity*pig)*visibility - diff_rhopi*exptau+((-27.D0/80.D0*ypol(2)-9.D0/ &
+    !        160.D0*pig)*opacity+3.D0/16.D0*pigdot+9.D0/8.D0*ypolprime(2))*dvisibility+9.D0/ &
+    !        8.D0*ddvisibility*ypol(2)+3.D0/16.D0*ddvisibility*pig)/t92
 
 
     if (x > 0._dl) then
         !E polarization source
-        sources(2)=vis(j)*polter*(15._dl/8._dl)/divfac
+        sources(2)=visibility*polter*(15._dl/8._dl)/divfac
         !factor of four because no 1/16 later
     else
         sources(2)=0
@@ -1575,12 +1581,12 @@
 
 
     !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-    subroutine outputt(EV,yt,n,j,tau,dt,dte,dtb)
+    subroutine outputt(EV,yt,n,tau,dt,dte,dtb)
     !calculate the tensor sources for open and closed case
     use ThermoData
 
     implicit none
-    integer j,n
+    integer n
     type(EvolutionVars) :: EV
     real(dl), target :: yt(n), ytprime(n)
     real(dl) tau,dt,dte,dtb,x,polterdot,polterddot,prefac
@@ -1590,6 +1596,11 @@
     real(dl), dimension(:),pointer :: E,Bprime,Eprime
     real(dl), target :: pol(3),polEprime(3), polBprime(3)
     real(dl) dtauda
+    real(dl) opacity, dopacity, ddopacity, visibility, dvisibility, ddvisibility, exptau, lenswindow
+
+
+    call IonizationFunctionsAtTime(tau, opacity, dopacity, ddopacity, &
+        visibility, dvisibility, ddvisibility, exptau, lenswindow)
 
     call derivst(EV,EV%nvart,tau,yt,ytprime)
 
@@ -1613,8 +1624,8 @@
         !  Use the tight-coupling approximation
         a =yt(1)
         adotoa = 1/(a*dtauda(a))
-        pigdot=32._dl/45._dl*k/opac(j)*(2._dl*adotoa*shear+ytprime(3))
-        pig = 32._dl/45._dl*k/opac(j)*shear
+        pigdot=32._dl/45._dl*k/opacity*(2._dl*adotoa*shear+ytprime(3))
+        pig = 32._dl/45._dl*k/opacity*shear
         pol=0
         polEprime=0
         polBprime=0
@@ -1634,19 +1645,19 @@
 
         polter = 0.1_dl*pig + 9._dl/15._dl*E(2)
         polterdot=9._dl/15._dl*Eprime(2) + 0.1_dl*pigdot
-        polterddot = 9._dl/15._dl*(-dopac(j)*(E(2)-polter)-opac(j)*(  &
+        polterddot = 9._dl/15._dl*(-dopacity*(E(2)-polter)-opacity*(  &
             Eprime(2)-polterdot) + k*(2._dl/3._dl*Bprime(2)*aux - 5._dl/27._dl*Eprime(3)*EV%Kft(2))) &
             +0.1_dl*(k*(-octg*EV%Kft(2)/3._dl + 8._dl/15._dl*ytprime(3)) - &
-            dopac(j)*(pig - polter) - opac(j)*(pigdot-polterdot))
+            dopacity*(pig - polter) - opacity*(pigdot-polterdot))
 
-        dt=(shear*expmmu(j) + (15._dl/8._dl)*polter*vis(j)/k)*CP%r/sinhxr**2/prefac
+        dt=(shear*exptau + (15._dl/8._dl)*polter*visibility/k)*CP%r/sinhxr**2/prefac
 
         dte=CP%r*15._dl/8._dl/k/prefac* &
-            ((ddvis(j)*polter + 2._dl*dvis(j)*polterdot + vis(j)*polterddot)  &
-            + 4._dl*cothxor*(dvis(j)*polter + vis(j)*polterdot) - &
-            vis(j)*polter*(k2 -6*cothxor**2))
+            ((ddvisibility*polter + 2._dl*dvisibility*polterdot + visibility*polterddot)  &
+            + 4._dl*cothxor*(dvisibility*polter + visibility*polterdot) - &
+            visibility*polter*(k2 -6*cothxor**2))
 
-        dtb=15._dl/4._dl*EV%q*CP%r/k/prefac*(vis(j)*(2._dl*cothxor*polter + polterdot) + dvis(j)*polter)
+        dtb=15._dl/4._dl*EV%q*CP%r/k/prefac*(visibility*(2._dl*cothxor*polter + polterdot) + dvisibility*polter)
     else
         dt=0._dl
         dte=0._dl
@@ -1656,18 +1667,24 @@
     end subroutine outputt
 
     !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-    subroutine outputv(EV,yv,n,j,tau,dt,dte,dtb)
+    subroutine outputv(EV,yv,n,tau,dt,dte,dtb)
     !calculate the vector sources
     use ThermoData
 
     implicit none
-    integer j,n
+    integer n
     type(EvolutionVars) :: EV
     real(dl), target :: yv(n), yvprime(n)
     real(dl) tau,dt,dte,dtb,x,polterdot
     real(dl) vb,qg, pig, polter, sigma
     real(dl) k,k2
     real(dl), dimension(:),pointer :: E,Eprime
+    real(dl) opacity, dopacity, ddopacity, visibility, dvisibility, ddvisibility, exptau, lenswindow
+
+
+    call IonizationFunctionsAtTime(tau, opacity, dopacity, ddopacity, &
+        visibility, dvisibility, ddvisibility, exptau, lenswindow)
+
 
     call derivsv(EV,EV%nvarv,tau,yv,yvprime)
 
@@ -1693,12 +1710,12 @@
         else
             dt =0
         end if
-        dt= (4*(vb+sigma)*vis(j) + 15._dl/2/k*( vis(j)*polterdot + dvis(j)*polter) &
-            + 4*(expmmu(j)*yvprime(2)) )/x
+        dt= (4*(vb+sigma)*visibility + 15._dl/2/k*( visibility*polterdot + dvisibility*polter) &
+            + 4*(exptau*yvprime(2)) )/x
 
-        dte= 15._dl/2*2*polter/x**2*vis(j) + 15._dl/2/k*(dvis(j)*polter + vis(j)*polterdot)/x
+        dte= 15._dl/2*2*polter/x**2*visibility + 15._dl/2/k*(dvisibility*polter + visibility*polterdot)/x
 
-        dtb= -15._dl/2*polter/x*vis(j)
+        dtb= -15._dl/2*polter/x*visibility
     else
         dt=0
         dte=0
