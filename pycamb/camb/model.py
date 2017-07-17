@@ -1,4 +1,4 @@
-from .baseconfig import camblib, CAMB_Structure, CAMBError, dll_import, f_allocatable
+from .baseconfig import camblib, CAMB_Structure, CAMBError, CAMBParamRangeError, dll_import, f_allocatable
 from ctypes import c_bool, c_int, c_double, c_float, c_byte, byref, POINTER
 from . import reionization as ion
 from . import recombination as recomb
@@ -41,7 +41,8 @@ derived_names = ['age', 'zstar', 'rstar', 'thetastar', 'DAstar', 'zdrag',
 transfer_names = ['k/h', 'delta_cdm', 'delta_baryon', 'delta_photon', 'delta_neutrino', 'delta_nu', 'delta_tot',
                   'delta_nonu', 'delta_tot_de', 'Weyl', 'v_newtonian_cdm', 'v_newtonian_baryon', 'v_baryon_cdm']
 
-evolve_names = transfer_names + ['a', 'etak', 'H', 'growth', 'v_photon', 'pi_photon', 'E_2', 'v_neutrino']
+evolve_names = transfer_names + ['a', 'etak', 'H', 'growth', 'v_photon', 'pi_photon', \
+                                 'E_2', 'v_neutrino', 'T_source', 'E_source', 'lens_potential_source']
 
 background_names = ['x_e', 'opacity', 'visibility', 'cs2b']
 
@@ -113,6 +114,8 @@ num_extra_redshiftwindows = dll_import(c_int, "modelparams", "num_extra_redshift
 # num_extra_redshiftwindows.value = 0
 
 num_redshiftwindows = dll_import(c_int, "modelparams", "num_redshiftwindows")
+
+num_custom_sources = dll_import(c_int, "modelparams", "num_custom_sources")
 
 # logical
 use_spline_template = dll_import(c_bool, "modelparams", "use_spline_template")
@@ -207,6 +210,8 @@ class CAMBparams(CAMB_Structure):
     def __init__(self):
         getattr(camblib, '__camb_MOD_camb_setdefparams')(byref(self))
         self._set_allocatables()
+        if _HighAccuracyDefault.value:
+            self.AccurateReionization = True
 
     def _set_allocatables(self):
         de = POINTER(DarkEnergyParams)()
@@ -330,11 +335,11 @@ class CAMBparams(CAMB_Structure):
         CAMB_setinitialpower(byref(self), byref(initial_power_params))
         return self
 
-
     def set_cosmology(self, H0=67.0, cosmomc_theta=None, ombh2=0.022, omch2=0.12, omk=0.0,
                       neutrino_hierarchy='degenerate', num_massive_neutrinos=1,
                       mnu=0.06, nnu=3.046, YHe=None, meffsterile=0.0, standard_neutrino_neff=3.046,
-                      TCMB=constants.COBE_CMBTemp, tau=None, deltazrei=None, bbn_predictor=None):
+                      TCMB=constants.COBE_CMBTemp, tau=None, deltazrei=None, bbn_predictor=None,
+                      theta_H0_range=[10, 100]):
         """
         Sets cosmological parameters in terms of physical densities and parameters used in Planck 2015 analysis.
         Default settings give a single distinct neutrino mass eigenstate, by default one neutrino with mnu = 0.06eV.
@@ -359,6 +364,9 @@ class CAMBparams(CAMB_Structure):
         :param tau: optical depth; if None, current Reion settings are not changed
         :param deltazrei: redshift width of reionization; if None, uses default
         :param bbn_predictor: :class:`.bbn.BBNPredictor` instance used to get YHe from BBN consistency if YHe is None
+        :param theta_H0_range: if cosmomc_theta is specified, the min, max interval of H0 values to map to; outside this range
+                 it will raise an exception.
+
         """
 
         if YHe is None:
@@ -369,9 +377,9 @@ class CAMBparams(CAMB_Structure):
 
         if cosmomc_theta is not None:
             if not (0.001 < cosmomc_theta < 0.1):
-                raise CAMBError('cosmomc_theta looks wrong (parameter is just theta, not 100*theta)')
+                raise CAMBParamRangeError('cosmomc_theta looks wrong (parameter is just theta, not 100*theta)')
 
-            kw = locals();
+            kw = locals()
             [kw.pop(x) for x in ['self', 'H0', 'cosmomc_theta']]
 
             if H0 is not None:
@@ -388,7 +396,10 @@ class CAMBparams(CAMB_Structure):
                 self.set_cosmology(H0=H0, **kw)
                 return camb.get_background(self, no_thermo=True).cosmomc_theta() - cosmomc_theta
 
-            self.H0 = brentq(f, 10, 100, rtol=1e-4)
+            try:
+                self.H0 = brentq(f, theta_H0_range[0], theta_H0_range[1], rtol=1e-4)
+            except ValueError:
+                raise CAMBParamRangeError('No solution for H0 inside of theta_H0_range')
         else:
             self.H0 = H0
 
@@ -486,6 +497,13 @@ class CAMBparams(CAMB_Structure):
         :return: Omega_k
         """
         return 1 - self.omegab - self.omegac - self.omegan - self.omegav
+
+    def get_zre(self):
+        if self.Reion.use_optical_depth:
+            from . import camb
+            return camb.get_zre_from_tau(self, self.Reion.optical_depth)
+        else:
+            return self.Reion.redshift
 
     def set_matter_power(self, redshifts=[0.], kmax=1.2, k_per_logint=None, silent=False):
         """

@@ -34,7 +34,7 @@ class CambTest(unittest.TestCase):
         age2 = data.physical_time(0)
         self.assertAlmostEqual(age, age2, 4)
 
-        r = data.comoving_radial_distance(0.48)
+        data.comoving_radial_distance(0.48)
         t0 = data.conformal_time(0)
         t1 = data.conformal_time(11.5)
         t2 = data.comoving_radial_distance(11.5)
@@ -84,6 +84,9 @@ class CambTest(unittest.TestCase):
         # test theta
         pars.set_cosmology(cosmomc_theta=0.0104085, H0=None, ombh2=0.022271, omch2=0.11914, mnu=0.06, omk=0)
         self.assertAlmostEqual(pars.H0, 67.5512, 2)
+        from camb.baseconfig import CAMBParamRangeError
+        with self.assertRaises(CAMBParamRangeError):
+            pars.set_cosmology(cosmomc_theta=0.0204085, H0=None, ombh2=0.022271, omch2=0.11914, mnu=0.06, omk=0)
 
     def testEvolution(self):
         redshifts = [0.4, 31.5]
@@ -124,8 +127,8 @@ class CambTest(unittest.TestCase):
         kh2, z2, pk2 = data.get_linear_matter_power_spectrum()
 
         s8 = data.get_sigma8()
-        self.assertAlmostEqual(s8[0], 0.24686, 4)
-        self.assertAlmostEqual(s8[2], 0.80044, 4)
+        self.assertAlmostEqual(s8[0], 0.24686, 3)
+        self.assertAlmostEqual(s8[2], 0.80044, 3)
 
         pars.NonLinear = model.NonLinear_both
         data.calc_power_spectra(pars)
@@ -144,16 +147,16 @@ class CambTest(unittest.TestCase):
         self.assertTrue(np.sum((pk / pk_interp - 1) ** 2) < 0.005)
         camb.set_halofit_version('mead')
         _, _, pk = results.get_nonlinear_matter_power_spectrum(params=pars, var1='delta_cdm', var2='delta_cdm')
-        self.assertTrue(np.abs(pk[0][160] / 232.08 - 1) < 1e-3)
+        self.assertAlmostEqual(pk[0][160], 824.6, delta=0.5)
 
         lmax = 4000
         pars.set_for_lmax(lmax)
         cls = data.get_cmb_power_spectra(pars)
-        cls_tot = data.get_total_cls(2000)
-        cls_scal = data.get_unlensed_scalar_cls(2500)
-        cls_tensor = data.get_tensor_cls(2000)
+        data.get_total_cls(2000)
+        data.get_unlensed_scalar_cls(2500)
+        data.get_tensor_cls(2000)
         cls_lensed = data.get_lensed_scalar_cls(3000)
-        cls_phi = data.get_lens_potential_cls(2000)
+        data.get_lens_potential_cls(2000)
 
         # check lensed CL against python; will only agree well for high lmax as python has no extrapolation template
         cls_lensed2 = correlations.lensed_cls(cls['unlensed_scalar'], cls['lens_potential'][:, 0], delta_cls=False)
@@ -166,3 +169,55 @@ class CambTest(unittest.TestCase):
         corr, xvals, weights = correlations.gauss_legendre_correlation(cls['lensed_scalar'])
         clout = correlations.corr2cl(corr, xvals, weights, 2500)
         self.assertTrue(np.all(np.abs(clout[2:2300, 2] / cls['lensed_scalar'][2:2300, 2] - 1) < 1e-3))
+
+    def testSymbolic(self):
+        import camb.symbolic as s
+
+        monopole_source, ISW, doppler, quadrupole_source = s.get_scalar_temperature_sources()
+        temp_source = monopole_source + ISW + doppler + quadrupole_source
+
+        pars = camb.set_params(H0=67.5, ombh2=0.022, omch2=0.122, As=2e-9, ns=0.95, omk=0.1)
+        data = camb.get_background(pars)
+        tau = np.linspace(1, 1200, 300)
+        ks = [0.001, 0.05, 1]
+        monopole2 = s.make_frame_invariant(s.newtonian_gauge(monopole_source), 'Newtonian')
+        Delta_c_N = s.make_frame_invariant(s.Delta_c, 'Newtonian')
+        Delta_c_N2 = s.make_frame_invariant(s.synchronous_gauge(Delta_c_N), 'CDM')
+
+        ev = data.get_time_evolution(ks, tau, ['delta_photon', s.Delta_g, Delta_c_N, Delta_c_N2,
+                                               monopole_source, monopole2,
+                                               temp_source, 'T_source'])
+        self.assertTrue(np.allclose(ev[:, :, 0], ev[:, :, 1]))
+        self.assertTrue(np.allclose(ev[:, :, 2], ev[:, :, 3]))
+        self.assertTrue(np.allclose(ev[:, :, 4], ev[:, :, 5]))
+        self.assertTrue(np.allclose(ev[:, :, 6], ev[:, :, 7]))
+
+        pars = camb.set_params(H0=67.5, ombh2=0.022, omch2=0.122, As=2e-9, ns=0.95)
+        pars.set_accuracy(lSampleBoost=2)
+        try:
+            camb.set_custom_scalar_sources([monopole_source + ISW + doppler + quadrupole_source,
+                                            s.scalar_E_source], source_names=['T2', 'E2'],
+                                           source_ell_scales={'E2': 2})
+            data = camb.get_results(pars)
+            dic = data.get_cmb_unlensed_scalar_array_dict(CMB_unit='muK')
+            self.assertTrue(np.all(np.abs(dic['T2xT2'][2:2000] / dic['TxT'][2:2000] - 1) < 1e-3))
+            self.assertTrue(np.all(np.abs(dic['TxT2'][2:2000] / dic['TxT'][2:2000] - 1) < 1e-3))
+            # default interpolation errors much worse for E
+            self.assertTrue(np.all(np.abs(dic['E2xE2'][10:2000] / dic['ExE'][10:2000] - 1) < 2e-3))
+            self.assertTrue(np.all(np.abs(dic['E2xE'][10:2000] / dic['ExE'][10:2000] - 1) < 2e-3))
+            dic1 = data.get_cmb_power_spectra(CMB_unit='muK')
+            self.assertTrue(np.allclose(dic1['unlensed_scalar'][2:2000, 1], dic['ExE'][2:2000]))
+        finally:
+            pars.set_accuracy(lSampleBoost=1)
+            camb.clear_custom_scalar_sources()
+
+        s.internal_consistency_checks()
+
+    def testEmissionAnglePostBorn(self):
+        from camb import emission_angle, postborn
+        pars = camb.set_params(H0=67.5, ombh2=0.022, omch2=0.122, As=2e-9, ns=0.95, tau=0.055)
+        BB = emission_angle.get_emission_delay_BB(pars, lmax=3500)
+        self.assertAlmostEqual(BB(80) * 2 * np.pi / 80 / 81., 1.1e-10, delta=1e-11)
+
+        Bom = postborn.get_field_rotation_BB(pars, lmax=3500)
+        self.assertAlmostEqual(Bom(100) * 2 * np.pi / 100 / 101., 1.65e-11, delta=1e-12)

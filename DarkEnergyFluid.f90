@@ -10,7 +10,7 @@
     procedure :: ReadParams => TDarkEnergyFluid_ReadParams
     procedure :: Init =>TDarkEnergyFluid_Init
     procedure :: BackgroundDensityAndPressure => TDarkEnergyFluid_BackgroundDensityAndPressure
-    procedure :: AddStressEnergy => TDarkEnergyFluid_AddStressEnergy
+    procedure :: PerturbedStressEnergy => TDarkEnergyFluid_PerturbedStressEnergy
     procedure :: PerturbationEvolve => TDarkEnergyFluid_PerturbationEvolve
     final :: TDarkEnergyFluid_Finalize
     end type TDarkEnergyFluid
@@ -53,7 +53,7 @@
     class(TDarkEnergyFluid), intent(inout) :: this
     real(dl), intent(in) :: a
     real(dl), intent(out) :: grhov_t
-    real(dl), intent(out), optional :: w
+    real(dl), optional, intent(out) :: w
 
 
     if (this%is_cosmological_constant) then
@@ -65,19 +65,19 @@
 
     end subroutine TDarkEnergyFluid_BackgroundDensityAndPressure
 
-    subroutine TDarkEnergyFluid_AddStressEnergy(this, dgrho, dgq, &
-        grhov_t, y, w_ix, output)
-    use ModelParams
+    subroutine TDarkEnergyFluid_PerturbedStressEnergy(this, dgrhoe, dgqe, &
+        dgq, dgrho, grho, grhov_t, w, gpres_noDE, etak, adotoa, k, kf1, ay, ayprime, w_ix)
     class(TDarkEnergyFluid), intent(inout) :: this
-    real(dl), intent(inout) :: dgrho, dgq
-    real(dl), intent(in) :: grhov_t, y(:)
+    real(dl), intent(out) :: dgrhoe, dgqe
+    real(dl), intent(in) ::  dgq, dgrho, grho, grhov_t, w, gpres_noDE, etak, adotoa, k, kf1
+    real(dl), intent(in) :: ay(*)
+    real(dl), intent(inout) :: ayprime(*)
     integer, intent(in) :: w_ix
-    logical, intent(in) :: output
 
-    dgrho = dgrho + y(w_ix) * grhov_t
-    dgq = dgq + y(w_ix + 1) * grhov_t * (1 + this%w_lam)
+    dgrhoe = ay(w_ix) * grhov_t
+    dgqe = ay(w_ix + 1) * grhov_t * (1 + this%w_lam)
 
-    end subroutine TDarkEnergyFluid_AddStressEnergy
+    end subroutine TDarkEnergyFluid_PerturbedStressEnergy
 
 
     subroutine TDarkEnergyFluid_PerturbationEvolve(this, ayprime, w_ix, &
@@ -88,14 +88,12 @@
     real(dl), intent(in) :: adotoa, k, z, y(:)
     integer, intent(in) :: w_ix
 
-    if (.not. this%is_cosmological_constant) then
-        ayprime(w_ix) = -3 * adotoa * (this%cs2_lam - this%w_lam) * &
-            (y(w_ix) + 3 * adotoa * (1 + this%w_lam) * y(w_ix + 1) / k) - &
-            (1 + this%w_lam) * k * y(w_ix + 1) - (1 + this%w_lam) * k * z
+    ayprime(w_ix) = -3 * adotoa * (this%cs2_lam - this%w_lam) * &
+        (y(w_ix) + 3 * adotoa * (1 + this%w_lam) * y(w_ix + 1) / k) - &
+        (1 + this%w_lam) * k * y(w_ix + 1) - (1 + this%w_lam) * k * z
 
-        ayprime(w_ix + 1) = -adotoa * (1 - 3 * this%cs2_lam) * y(w_ix + 1) + &
-            k * this%cs2_lam * y(w_ix) / (1 + this%w_lam)
-    end if
+    ayprime(w_ix + 1) = -adotoa * (1 - 3 * this%cs2_lam) * y(w_ix + 1) + &
+        k * this%cs2_lam * y(w_ix) / (1 + this%w_lam)
 
     end subroutine TDarkEnergyFluid_PerturbationEvolve
 

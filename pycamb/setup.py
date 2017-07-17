@@ -1,8 +1,6 @@
 #!/usr/bin/env python
 
-import os
 import sys
-import os.path as osp
 import platform
 import subprocess
 import io
@@ -76,10 +74,10 @@ class SharedLibrary(install):
             else:
                 print(COMPILER + ' ' + FFLAGS + ' ' + SOURCES + ' ' + OUTPUT)
                 subprocess.call(COMPILER + ' ' + FFLAGS + ' ' + SOURCES + ' ' + OUTPUT, shell=True)
-            COPY = r"copy /Y *.dat %s\camb" % (pycamb_path)
+            COPY = r"copy /Y *.dat %s\camb" % pycamb_path
             subprocess.call(COPY, shell=True)
             scrs.append(DLLNAME)
-            if not osp.isfile(os.path.join(pycamb_path, 'camb', DLLNAME)): sys.exit('Compilation failed')
+            if not os.path.isfile(os.path.join(pycamb_path, 'camb', DLLNAME)): sys.exit('Compilation failed')
             print("Removing temp files")
             nscrs = os.listdir(os.getcwd())
             for file in nscrs:
@@ -88,11 +86,11 @@ class SharedLibrary(install):
 
         else:
             print("Compiling source...")
-            subprocess.call("make camblib.so", shell=True)
+            subprocess.call("make camblib.so PYCAMB_OUTPUT_DIR=..", shell=True)
             so_file = os.path.join(pycamb_path, 'camb', 'camblib.so')
-            if not osp.isfile(so_file): sys.exit('Compilation failed')
-            subprocess.call("chmod 755 %s"%so_file, shell=True)
-            subprocess.call("cp *.dat %s/camb" % (pycamb_path), shell=True)
+            if not os.path.isfile(so_file): sys.exit('Compilation failed')
+            subprocess.call("chmod 755 %s" % so_file, shell=True)
+            subprocess.call("cp *.dat %s/camb" % pycamb_path, shell=True)
 
         os.chdir(file_dir)
         install.run(self)
@@ -108,7 +106,6 @@ setup(name=package_name,
       version=find_version(),
       description='Code for Anisotropies in the Microwave Background',
       author='Antony Lewis',
-      author_email='http://cosmologist.info/',
       url="http://camb.info/",
       cmdclass={'install': SharedLibrary},
       packages=['camb', 'camb_tests'],
@@ -121,6 +118,7 @@ setup(name=package_name,
           'Programming Language :: Python :: 3',
           'Programming Language :: Python :: 3.4',
           'Programming Language :: Python :: 3.5',
+          'Programming Language :: Python :: 3.6',
       ],
       keywords=['cosmology', 'CAMB']
       )

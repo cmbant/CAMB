@@ -149,7 +149,7 @@
     implicit none
     public
 
-    character(LEN=*), parameter :: version = 'Jun17'
+    character(LEN=*), parameter :: version = 'July17'
 
     integer :: FeedbackLevel = 0 !if >0 print out useful information about the model
 
@@ -325,6 +325,8 @@
     integer :: limber_phiphi = 0 !for l>limber_phiphi use limber approx for lensing potential
     integer :: num_redshiftwindows = 0
     integer :: num_extra_redshiftwindows = 0
+    integer :: num_custom_sources = 0
+    integer, allocatable :: custom_source_ell_scales(:)
 
     integer, parameter :: lmin = 2
     !must be either 1 or 2
@@ -1110,7 +1112,7 @@
             end do
 
             if (maxdelta < max_ind) then
-                !directly interpolate high L where no template (doesn't effect lensing spectrum much anyway)
+                !directly interpolate high L where no t  emplate (doesn't effect lensing spectrum much anyway)
                 allocate(tmpall(lmin:lSet%l(max_ind)))
                 call InterpolateClArr(lSet,iCl, tmpall, max_ind)
                 !overlap to reduce interpolation artefacts
@@ -1314,7 +1316,8 @@
         Cl_scalar = 0
         if (has_cl_2D_array) then
             if (allocated(Cl_scalar_array)) deallocate(Cl_scalar_array)
-            allocate(Cl_scalar_Array(lmin:CP%Max_l, CP%InitPower%nn, 3+num_redshiftwindows,3+num_redshiftwindows))
+            allocate(Cl_scalar_Array(lmin:CP%Max_l, CP%InitPower%nn, &
+                3+num_redshiftwindows+num_custom_sources,3+num_redshiftwindows+num_custom_sources))
             Cl_scalar_array = 0
         end if
     end if
@@ -3102,7 +3105,6 @@
     real(dl) dddotmu(nthermo),ddddotmu(nthermo)
     real(dl) winlens(nthermo),dwinlens(nthermo), scalefactor(nthermo)
     real(dl) tauminn,dlntau,Maxtau
-    real(dl), dimension(:), allocatable :: vis,dvis,ddvis,expmmu,dopac, opac, lenswin
     logical, parameter :: dowinlens = .false.
 
     real(dl) :: tight_tau, actual_opt_depth
@@ -3110,7 +3112,7 @@
     real(dl) :: matter_verydom_tau
     real(dl) :: r_drag0, z_star, z_drag  !!JH for updated BAO likelihood.
 
-    !Sources
+
     real(dl) redshift_time(nthermo), dredshift_time(nthermo)
     real(dl), dimension(:), allocatable :: arhos_fac, darhos_fac, ddarhos_fac
     real(dl), dimension(:), allocatable ::step_redshift, rhos_fac, drhos_fac
@@ -3119,10 +3121,10 @@
     Type(CalWins), dimension(:), allocatable, target :: RW
     real(dl) recombination_Tgas_tau
     public  tau_start_redshiftwindows,tau_end_redshiftwindows,recombination_Tgas_tau
-
-    public thermo,inithermo,vis,opac,expmmu,dvis,dopac,ddvis,lenswin, tight_tau,&
+    public thermo,inithermo, tight_tau, IonizationFunctionsAtTime, &
         Thermo_OpacityToTime,matter_verydom_tau, ThermoData_Free,&
         z_star, z_drag, GetBackgroundEvolution, interp_window  !!JH for updated BAO likelihood.
+
 
     real(dl), private, external :: dtauda, rombint, rombint2
     logical, private, external :: isTmNeeded
@@ -3561,12 +3563,13 @@
 
     call SetTimeSteps
 
-    !$OMP PARALLEL DO DEFAULT(SHARED),SCHEDULE(STATIC)
-    do j2=1,TimeSteps%npoints
-        call DoThermoSpline(j2,TimeSteps%points(j2))
-    end do
-    !$OMP END PARALLEL DO
-
+    if (num_redshiftwindows>0) then
+        !$OMP PARALLEL DO DEFAULT(SHARED),SCHEDULE(STATIC)
+        do j2=1,TimeSteps%npoints
+            call DoWindowSpline(j2,TimeSteps%points(j2))
+        end do
+        !$OMP END PARALLEL DO
+    end if
 
     if ((CP%want_zstar .or. CP%DerivedParameters) .and. z_star==0.d0) call find_z(optdepth,z_star)
     if (CP%want_zdrag .or. CP%DerivedParameters) call find_z(dragoptdepth,z_drag)
@@ -3767,45 +3770,18 @@
     call TimeSteps%GetArray()
     nstep = TimeSteps%npoints
 
-    !Reuse memory already allocated.
-    if (.not. allocated(vis) .or. ubound(vis, 1) < nstep) then
-        if (allocated(vis)) deallocate(vis,dvis,ddvis,expmmu,dopac, opac, &
-            step_redshift, rhos_fac, drhos_fac)
-        if (dowinlens) then
-            if (allocated(lenswin)) deallocate(lenswin)
-            allocate(lenswin(nstep))
-        end if
-        allocate(vis(nstep),dvis(nstep),ddvis(nstep),expmmu(nstep),dopac(nstep),opac(nstep))
-        !Source
+    if (num_redshiftwindows > 0) then
+        if (allocated(step_redshift)) deallocate(step_redshift, rhos_fac, drhos_fac)
         allocate(step_redshift(nstep), rhos_fac(nstep), drhos_fac(nstep))
     end if
 
     if (DebugMsgs .and. FeedbackLevel > 0) write(*,*) 'Set ',nstep, ' time steps'
 
-    !Sources
-    do i=1,num_redshiftwindows
-        associate (Win => Redshift_W(i))
-            !  if (allocated(Win%Wing)) then
-            !   deallocate(Win%wing,Win%dwing,Win%ddwing,Win%winV,Win%dwinV,Win%ddwinV)
-            !  end if
-            allocate(Win%winF(nstep),Win%wing(nstep),Win%dwing(nstep),Win%ddwing(nstep), &
-                Win%winV(nstep),Win%dwinV(nstep),Win%ddwinV(nstep))
-            allocate(Win%win_lens(nstep),Win%wing2(nstep),Win%dwing2(nstep),Win%ddwing2(nstep))
-            allocate(Win%wingtau(nstep),Win%dwingtau(nstep),Win%ddwingtau(nstep))
-            if (Win%kind == window_counts) then
-                allocate(Win%comoving_density_ev(nstep))
-            end if
-        end associate
-    end do
-
     end subroutine SetTimeSteps
 
 
     subroutine ThermoData_Free
-    if (allocated(vis)) then
-        deallocate(vis,dvis,ddvis,expmmu,dopac, opac)
-        if (dowinlens) deallocate(lenswin)
-    end if
+
     call TimeSteps%Free()
 
     end subroutine ThermoData_Free
@@ -3820,9 +3796,22 @@
     real(dl) window, winamp
     real(dl) z,rhos, adot, exp_fac
     real(dl) tmp(TimeSteps%npoints), tmp2(TimeSteps%npoints), hubble_tmp(TimeSteps%npoints)
-
     real(dl), allocatable , dimension(:,:) :: int_tmp, back_count_tmp
-    integer ninterp
+    integer ninterp, nstep
+
+    nstep = TimeSteps%npoints
+
+    do i=1,num_redshiftwindows
+        associate (Win => Redshift_W(i))
+            allocate(Win%winF(nstep),Win%wing(nstep),Win%dwing(nstep),Win%ddwing(nstep), &
+                Win%winV(nstep),Win%dwinV(nstep),Win%ddwinV(nstep))
+            allocate(Win%win_lens(nstep),Win%wing2(nstep),Win%dwing2(nstep),Win%ddwing2(nstep))
+            allocate(Win%wingtau(nstep),Win%dwingtau(nstep),Win%ddwingtau(nstep))
+            if (Win%kind == window_counts) then
+                allocate(Win%comoving_density_ev(nstep))
+            end if
+        end associate
+    end do
 
     ! Prevent false positive warnings for uninitialized
     Tspin = 0._dl
@@ -3907,8 +3896,6 @@
                     !window is n(a) where n is TOTAL not fractional number
                     !delta = int wing(eta) delta(eta) deta
                     RedWin%wing(j) = adot *window
-                    !old like 21cm
-                    !                 RedWin%wing(j) = a2*rho_fac*window
 
                     !Window with 1/H in
                     RedWin%wing2(j) = RedWin%wing(j)/(adot/a)
@@ -4052,8 +4039,7 @@
 
     end subroutine interp_window
 
-
-    subroutine DoThermoSpline(j2,tau)
+    subroutine DoWindowSpline(j2,tau)
     integer j2, i, RW_i
     real(dl) d,ddopac,tau
 
@@ -4063,21 +4049,6 @@
 
     d=d-i
     if (i < nthermo) then
-        opac(j2)=dotmu(i)+d*(ddotmu(i)+d*(3._dl*(dotmu(i+1)-dotmu(i)) &
-            -2._dl*ddotmu(i)-ddotmu(i+1)+d*(ddotmu(i)+ddotmu(i+1) &
-            +2._dl*(dotmu(i)-dotmu(i+1)))))
-        dopac(j2)=(ddotmu(i)+d*(dddotmu(i)+d*(3._dl*(ddotmu(i+1)  &
-            -ddotmu(i))-2._dl*dddotmu(i)-dddotmu(i+1)+d*(dddotmu(i) &
-            +dddotmu(i+1)+2._dl*(ddotmu(i)-ddotmu(i+1))))))/(tau &
-            *dlntau)
-        ddopac=(dddotmu(i)+d*(ddddotmu(i)+d*(3._dl*(dddotmu(i+1) &
-            -dddotmu(i))-2._dl*ddddotmu(i)-ddddotmu(i+1)  &
-            +d*(ddddotmu(i)+ddddotmu(i+1)+2._dl*(dddotmu(i) &
-            -dddotmu(i+1)))))-(dlntau**2)*tau*dopac(j2)) &
-            /(tau*dlntau)**2
-        expmmu(j2)=emmu(i)+d*(demmu(i)+d*(3._dl*(emmu(i+1)-emmu(i)) &
-            -2._dl*demmu(i)-demmu(i+1)+d*(demmu(i)+demmu(i+1) &
-            +2._dl*(emmu(i)-emmu(i+1)))))
 
         step_redshift(j2) = redshift_time(i)+d*(dredshift_time(i)+d*(3._dl*(redshift_time(i+1)-redshift_time(i)) &
             -2._dl*dredshift_time(i)-dredshift_time(i+1)+d*(dredshift_time(i)+dredshift_time(i+1) &
@@ -4104,22 +4075,7 @@
             end if
         end do
 
-        if (dowinlens) then
-            lenswin(j2)=winlens(i)+d*(dwinlens(i)+d*(3._dl*(winlens(i+1)-winlens(i)) &
-                -2._dl*dwinlens(i)-dwinlens(i+1)+d*(dwinlens(i)+dwinlens(i+1) &
-                +2._dl*(winlens(i)-winlens(i+1)))))
-        end if
-        vis(j2)=opac(j2)*expmmu(j2)
-        dvis(j2)=expmmu(j2)*(opac(j2)**2+dopac(j2))
-        ddvis(j2)=expmmu(j2)*(opac(j2)**3+3*opac(j2)*dopac(j2)+ddopac)
     else
-        opac(j2)=dotmu(nthermo)
-        dopac(j2)=ddotmu(nthermo)
-        ddopac=dddotmu(nthermo)
-        expmmu(j2)=emmu(nthermo)
-        vis(j2)=opac(j2)*expmmu(j2)
-        dvis(j2)=expmmu(j2)*(opac(j2)**2+dopac(j2))
-        ddvis(j2)=expmmu(j2)*(opac(j2)**3+3._dl*opac(j2)*dopac(j2)+ddopac)
         step_redshift(j2) = 0
         rhos_fac(j2)=0
         drhos_fac(j2)=0
@@ -4132,11 +4088,55 @@
         end do
     end if
 
+    end subroutine DoWindowSpline
 
-    !          write (*,'(7e15.5)') tau, wing(j2), winV(j2), dwing(j2), dwinV(j2),ddwinV(j2),dopac(j2)
+    subroutine IonizationFunctionsAtTime(tau, opac, dopac, ddopac, &
+        vis, dvis, ddvis, expmmu, lenswin)
+    real(dl), intent(in) :: tau
+    real(dl), intent(out):: opac, dopac, ddopac, vis, dvis, ddvis, expmmu, lenswin
+    real(dl) d
+    integer i
 
-    end subroutine DoThermoSpline
+    d=log(tau/tauminn)/dlntau+1._dl
+    i=int(d)
+    d=d-i
 
+    if (i < nthermo) then
+        opac=dotmu(i)+d*(ddotmu(i)+d*(3._dl*(dotmu(i+1)-dotmu(i)) &
+            -2._dl*ddotmu(i)-ddotmu(i+1)+d*(ddotmu(i)+ddotmu(i+1) &
+            +2._dl*(dotmu(i)-dotmu(i+1)))))
+        dopac=(ddotmu(i)+d*(dddotmu(i)+d*(3._dl*(ddotmu(i+1)  &
+            -ddotmu(i))-2._dl*dddotmu(i)-dddotmu(i+1)+d*(dddotmu(i) &
+            +dddotmu(i+1)+2._dl*(ddotmu(i)-ddotmu(i+1))))))/(tau &
+            *dlntau)
+        ddopac=(dddotmu(i)+d*(ddddotmu(i)+d*(3._dl*(dddotmu(i+1) &
+            -dddotmu(i))-2._dl*ddddotmu(i)-ddddotmu(i+1)  &
+            +d*(ddddotmu(i)+ddddotmu(i+1)+2._dl*(dddotmu(i) &
+            -dddotmu(i+1)))))-(dlntau**2)*tau*dopac) &
+            /(tau*dlntau)**2
+        expmmu=emmu(i)+d*(demmu(i)+d*(3._dl*(emmu(i+1)-emmu(i)) &
+            -2._dl*demmu(i)-demmu(i+1)+d*(demmu(i)+demmu(i+1) &
+            +2._dl*(emmu(i)-emmu(i+1)))))
+
+        if (dowinlens) then
+            lenswin=winlens(i)+d*(dwinlens(i)+d*(3._dl*(winlens(i+1)-winlens(i)) &
+                -2._dl*dwinlens(i)-dwinlens(i+1)+d*(dwinlens(i)+dwinlens(i+1) &
+                +2._dl*(winlens(i)-winlens(i+1)))))
+        end if
+        vis=opac*expmmu
+        dvis=expmmu*(opac**2+dopac)
+        ddvis=expmmu*(opac**3+3*opac*dopac+ddopac)
+    else
+        opac=dotmu(nthermo)
+        dopac=ddotmu(nthermo)
+        ddopac=dddotmu(nthermo)
+        expmmu=emmu(nthermo)
+        vis=opac*expmmu
+        dvis=expmmu*(opac**2+dopac)
+        ddvis=expmmu*(opac**3+3._dl*opac*dopac+ddopac)
+    end if
+
+    end subroutine IonizationFunctionsAtTime
 
     function ddamping_da(a)
     real(dl) :: ddamping_da

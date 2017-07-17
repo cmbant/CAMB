@@ -12,10 +12,9 @@
     procedure :: ReadParams
     procedure :: Init
     procedure :: BackgroundDensityAndPressure
-    procedure :: AddStressEnergy !Get density perturbation and heat flux for sources
+    procedure :: PerturbedStressEnergy !Get density perturbation and heat flux for sources
     procedure :: diff_rhopi_Add_Term
     procedure :: InitializeYfromVec
-    procedure :: DerivsAddPreSigma
     procedure :: PerturbationEvolve
     end type TDarkEnergyBase
 
@@ -39,27 +38,34 @@
     class(TDarkEnergyBase), intent(inout) :: this
     real(dl), intent(in) :: a
     real(dl), intent(out) :: grhov_t
-    real(dl), intent(out), optional :: w
+    real(dl), optional, intent(out) :: w
 
     grhov_t  =0
+    if (present(w)) w=-1
 
     end subroutine BackgroundDensityAndPressure
 
 
-    subroutine AddStressEnergy(this, dgrho, dgq, grhov_t, y, w_ix, output)
+    subroutine PerturbedStressEnergy(this, dgrhoe, dgqe, &
+        dgq, dgrho, grho, grhov_t, w, gpres_noDE, etak, adotoa, k, kf1, ay, ayprime, w_ix)
     class(TDarkEnergyBase), intent(inout) :: this
-    real(dl), intent(inout) :: dgrho, dgq
-    real(dl), intent(in) :: grhov_t, y(:)
+    real(dl), intent(out) :: dgrhoe, dgqe
+    real(dl), intent(in) ::  dgq, dgrho, grho, grhov_t, w, gpres_noDE, etak, adotoa, k, kf1
+    real(dl), intent(in) :: ay(*)
+    real(dl), intent(inout) :: ayprime(*)
     integer, intent(in) :: w_ix
-    logical, intent(in) :: output
-    end subroutine AddStressEnergy
+
+    dgrhoe=0
+    dgqe=0
+
+    end subroutine PerturbedStressEnergy
 
 
-    function diff_rhopi_Add_Term(this, grho, gpres, w, grhok, adotoa, &
-        EV_KfAtOne, k, grhov_t, z, k2, yprime, y, w_ix) result(ppiedot)
+    function diff_rhopi_Add_Term(this, dgrhoe, dgqe,grho, gpres, w, grhok, adotoa, &
+        Kf1, k, grhov_t, z, k2, yprime, y, w_ix) result(ppiedot)
     class(TDarkEnergyBase), intent(in) :: this
-    real(dl), intent(in) :: grho, gpres, grhok, w, adotoa, &
-        k, grhov_t, z, k2, yprime(:), y(:), EV_KfAtOne
+    real(dl), intent(in) :: dgrhoe, dgqe, grho, gpres, grhok, w, adotoa, &
+        k, grhov_t, z, k2, yprime(:), y(:), Kf1
     integer, intent(in) :: w_ix
     real(dl) :: ppiedot
 
@@ -76,16 +82,6 @@
     integer, intent(in) :: EV_w_ix
     real(dl), intent(in) :: InitVecAti_clxq, InitVecAti_vq
     end subroutine InitializeYfromVec
-
-
-    subroutine DerivsAddPreSigma(this, sigma, ayprime, dgq, dgrho, &
-        grho, grhov_t, w, gpres_noDE, ay, w_ix, etak, adotoa, k, k2, EV_kf1)
-    class(TDarkEnergyBase), intent(inout) :: this
-    real(dl), intent(inout) :: sigma, ayprime(:), dgq, dgrho
-    real(dl), intent(in) :: grho, grhov_t, w, gpres_noDE, ay(:), etak
-    real(dl), intent(in) :: adotoa, k, k2, EV_kf1
-    integer, intent(in) :: w_ix
-    end subroutine DerivsAddPreSigma
 
 
     subroutine PerturbationEvolve(this, ayprime, w_ix, &

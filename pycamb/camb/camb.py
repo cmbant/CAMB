@@ -83,9 +83,8 @@ CAMB_SetLensPotentialCls = camblib.__handles_MOD_camb_setlenspotentialcls
 CAMB_SetUnlensedScalCls = camblib.__handles_MOD_camb_setunlensedscalcls
 CAMB_SetLensedScalCls = camblib.__handles_MOD_camb_setlensedscalcls
 CAMB_SetTensorCls = camblib.__handles_MOD_camb_settensorcls
-CAMB_SetUnlensedScalarArray = camblib.__handles_MOD_camb_setunlensedscalararray
 
-_set_cl_args = [POINTER(c_int), numpy_1d, int_arg]
+_set_cl_args = [int_arg, numpy_1d, int_arg]
 
 CAMB_SetTotCls.argtypes = _set_cl_args
 CAMB_SetUnlensedCls.argtypes = _set_cl_args
@@ -93,7 +92,10 @@ CAMB_SetLensPotentialCls.argtypes = _set_cl_args
 CAMB_SetUnlensedScalCls.argtypes = _set_cl_args
 CAMB_SetTensorCls.argtypes = _set_cl_args
 CAMB_SetLensedScalCls.argtypes = _set_cl_args
-CAMB_SetUnlensedScalarArray.argtypes = _set_cl_args + [int_arg]
+
+CAMB_SetUnlensedScalarArray = camblib.__handles_MOD_camb_setunlensedscalararray
+CAMB_SetUnlensedScalarArray.argtypes = [int_arg, ndpointer(c_double, flags='F_CONTIGUOUS', ndim=3),
+                                        int_arg, int_arg]
 
 del _set_cl_args
 
@@ -168,7 +170,11 @@ CosmomcTheta.restype = c_double
 CAMB_TimeEvolution = camblib.__handles_MOD_camb_timeevolution
 CAMB_TimeEvolution.restype = c_bool
 CAMB_TimeEvolution.argtypes = [int_arg, numpy_1d, int_arg, numpy_1d,
-                               int_arg, ndpointer(c_double, flags='C_CONTIGUOUS', ndim=3)]
+                               int_arg, ndpointer(c_double, flags='C_CONTIGUOUS', ndim=3),
+                               int_arg, POINTER(ctypes.c_void_p)]
+
+CAMB_SetCustomSourcesFunc = camblib.__handles_MOD_camb_setcustomsourcesfunc
+CAMB_SetCustomSourcesFunc.argtypes = [int_arg, POINTER(ctypes.c_void_p), ndpointer(c_int, flags='C_CONTIGUOUS')]
 
 CAMB_BackgroundEvolution = camblib.__thermodata_MOD_getbackgroundevolution
 CAMB_BackgroundEvolution.argtypes = [int_arg, numpy_1d, numpy_2d]
@@ -430,6 +436,16 @@ class CAMBdata(object):
         self.get_params().set_initial_power(initial_power_params)
         CAMBdata_transferstopowers(self._key)
 
+    def _CMB_unit(self, CMB_unit):
+        if isinstance(CMB_unit, six.string_types):
+            if CMB_unit == 'muK':
+                CMB_unit = self.Params.TCMB * 1e6
+            elif CMB_unit == 'K':
+                CMB_unit = self.Params.TCMB
+            else:
+                raise ValueError('Unknown CMB_unit: %s' % CMB_unit)
+        return CMB_unit
+
     def _scale_cls(self, cls, CMB_unit=None, raw_cl=False, lens_potential=False):
         if raw_cl:
             ls = np.arange(1, cls.shape[0])[..., np.newaxis]
@@ -441,19 +457,24 @@ class CAMBdata(object):
                 cls[1:, :] /= ls / (2 * np.pi)
 
         if CMB_unit is not None:
-            if isinstance(CMB_unit, six.string_types):
-                if CMB_unit == 'muK':
-                    CMB_unit = self.Params.TCMB * 1e6
-                elif CMB_unit == 'K':
-                    CMB_unit = self.Params.TCMB
-                else:
-                    raise ValueError('Unknown CMB_unit: %s' % CMB_unit)
+            CMB_unit = self._CMB_unit(CMB_unit)
             if lens_potential:
                 cls[:, 1:] *= CMB_unit
             else:
                 cls *= CMB_unit ** 2
 
         return cls
+
+    def _lmax_setting(self, lmax=None):
+        if self.Params.DoLensing:
+            lmax_calc = model.lmax_lensed.value
+        else:
+            lmax_calc = self.Params.max_l
+        if lmax is None:
+            lmax = lmax_calc
+        elif lmax > lmax_calc:
+            logging.warning('getting CMB power spectra to higher L than calculated, may be innacurate/zeroed.')
+        return lmax
 
     def get_cmb_power_spectra(self, params=None, lmax=None,
                               spectra=['total', 'unlensed_scalar', 'unlensed_total', 'lensed_scalar', 'tensor',
@@ -477,14 +498,7 @@ class CAMBdata(object):
         if self.Params.InitPower.has_tensors() and not self.Params.WantTensors:
             raise CAMBError('r>0 but params.WantTensors = F')
 
-        if self.Params.DoLensing:
-            lmax_calc = model.lmax_lensed.value
-        else:
-            lmax_calc = self.Params.Max_l
-        if lmax is None:
-            lmax = lmax_calc
-        elif lmax > lmax_calc:
-            logging.warning('getting CMB power spectra to higher L than calculated, may be innacurate/zeroed.')
+        lmax = self._lmax_setting(lmax)
         for spectrum in spectra:
             P[spectrum] = getattr(self, 'get_' + spectrum + '_cls')(lmax, CMB_unit=CMB_unit,
                                                                     raw_cl=raw_cl)
@@ -534,38 +548,65 @@ class CAMBdata(object):
         data.delta_p_l_k = fortran_array(cdata.delta_p_l_k, cdata.delta_size)
         return data
 
-    def get_time_evolution(self, q, eta, vars=model.evolve_names, lAccuracyBoost=4):
+    def get_time_evolution(self, q, eta, vars=model.evolve_names, lAccuracyBoost=4, frame='CDM'):
         """
         Get the mode evolution as a function of conformal time for some k values.
 
         :param q: wavenumber values to calculate (or array of k values)
         :param eta: array of requested conformal times to output
-        :param vars: list of variable names to output
+        :param vars: list of variable names or sympy symbolic expressions to output (using camb.symbolic)
+        :param lAccuracyBoost: factor by which to increase l_max in hierarchies compared to default - often
+          needed to get nice smooth curves of acoustic oscillations for plotting.
+        :param frame: for symbolic expressions, can specify frame name if the variable is not gauge invariant.
+            e.g. specifying Delta_g and frame='Newtonian' would give the Newtonian gauge photon density perturbation.
         :return: nd array, A_{qti}, size(q) x size(times) x len(vars), or 2d array if q is scalar
         """
 
+        old_boost = model._lAccuracyBoost.value
         try:
-            old_boost = model._lAccuracyBoost.value
-            model._lAccuracyBoost.value = lAccuracyBoost
-            unknown = set(vars) - set(model.evolve_names)
+            if lAccuracyBoost: model._lAccuracyBoost.value = lAccuracyBoost
+            if not isinstance(vars, (tuple, list)):
+                vars = [vars]
+            import sympy
+            named_vars = [var for var in vars if isinstance(var, six.string_types)]
+
+            unknown = set(named_vars) - set(model.evolve_names)
             if unknown:
                 raise CAMBError('Unknown names %s; valid names are %s' % (unknown, model.evolve_names))
+
+            num_standard_names = len(model.evolve_names)
+
+            custom_vars = []
+            ix = np.empty(len(vars), dtype=int)
+            for i, var in enumerate(vars):
+                if var in model.evolve_names:
+                    ix[i] = model.evolve_names.index(var)
+                elif isinstance(var, sympy.Expr):
+                    custom_vars.append(var)
+                    ix[i] = num_standard_names + len(custom_vars) - 1
+                else:
+                    raise CAMBError(
+                        'Variables must be variable names, or a sympy expression (using camb.symbolic variables)')
+
             if np.isscalar(q):
                 k = np.array([q], dtype=np.float64)
             else:
                 k = np.array(q, dtype=np.float64)
-            if not isinstance(vars, (tuple, list)):
-                variables = [vars]
-            else:
-                variables = vars
-            times = np.array(eta, dtype=np.float64)
+            times = np.array(np.atleast_1d(eta), dtype=np.float64)
             indices = np.argsort(times)  # times must be in increasing order
-            nvars = model.Transfer_max + 8
+            ncustom = len(custom_vars)
+            if ncustom:
+                from . import symbolic
+                funcPtr = symbolic.compile_sympy_to_camb_source_func(custom_vars, frame=frame)
+                custom_source_func = ctypes.cast(funcPtr, ctypes.c_voidp)
+            else:
+                custom_source_func = ctypes.c_voidp(0)
+            nvars = num_standard_names + ncustom
             outputs = np.empty((k.shape[0], times.shape[0], nvars))
-
             if CAMB_TimeEvolution(byref(c_int(k.shape[0])), k, byref(c_int(times.shape[0])), times[indices],
-                                  byref(c_int(nvars)), outputs): raise CAMBError('Error in evolution')
-            ix = np.array([model.evolve_names.index(var) for var in variables])
+                                  byref(c_int(nvars)), outputs,
+                                  byref(c_int(ncustom)), byref(custom_source_func)):
+                raise CAMBError('Error in evolution')
             i_rev = np.zeros(times.shape, dtype=int)
             i_rev[indices] = np.arange(times.shape[0])
             outputs = outputs[:, i_rev, :]
@@ -582,7 +623,8 @@ class CAMBdata(object):
 
         :param q: wavenumber values to calculate (or array of k values)
         :param z: array of redshifts to output
-        :param vars: list of variable names to output
+        :param vars: list of variable names or camb.symbolic sympy expressions to output
+        :param lAccuracyBoost: boost factor for ell accuracy (e.g. to get nice smooth curves for plotting)
         :return: nd array, A_{qti}, size(q) x size(times) x len(vars), or 2d array if q is scalar
         """
         return self.get_time_evolution(q, self.conformal_time(z), vars, lAccuracyBoost)
@@ -618,7 +660,7 @@ class CAMBdata(object):
         Get the evolution of background variables a function of redshift.
         For the moment a and H are rather perversely only available via :meth:`get_time_evolution`
 
-        :param eta: array of requested conformal times to output
+        :param z: array of requested redshifts to output
         :param vars: list of variable names to output
         :param format: 'dict' or 'array', for either dict of 1D arrays indexed by name, or 2D array
         :return: n_eta x len(vars) 2D numpy array of outputs or dict of 1D arrays
@@ -742,7 +784,7 @@ class CAMBdata(object):
         if not have_power_spectra:
             self.calc_power_spectra(params)
 
-        assert (self.Params.WantTransfer)
+        assert self.Params.WantTransfer
         if self.Params.Transfer.kmax < maxkh:
             logging.warning("get_matter_power_spectrum using larger k_max than input parameter Transfer.kmax")
         if self.Params.NonLinear == model.NonLinear_none and self.Params.Transfer.kmax < 1:
@@ -855,19 +897,69 @@ class CAMBdata(object):
     def get_unlensed_scalar_array_cls(self, lmax):
         """
         Get array of all cross power spectra. Must have already calculated power spectra.
-        Results are dimensionless.
+        Results are dimensionless, and not scaled by custom_scaled_ell_fac.
 
         :param lmax: lmax to output to
-        :return: numpy array CL[0:lmax+1,0:, 0:], where 0.. index T, E, deflection angle, source window functions
+        :return: numpy array CL[0:, 0:,0:lmax+1], where 0.. index T, E, deflection angle, source window functions
         """
 
         if not model.has_cl_2D_array.value:
-            raise CAMBError('unlensed_scalar_array not calculated')
-        n = 3 + model.num_redshiftwindows.value
-        res = np.empty((lmax + 1, n, n))
-        opt = c_int(lmax)
-        CAMB_SetUnlensedScalarArray(byref(opt), res, byref(self._one), byref(c_int(n)))
+            raise CAMBError('unlensed_scalar_array not calculated (set model.has_cl_2D_array)')
+        n = 3 + model.num_redshiftwindows.value + len(custom_source_names)
+        res = np.empty((n, n, lmax + 1), order='F')
+        CAMB_SetUnlensedScalarArray(byref(c_int(lmax)), res, byref(self._one), byref(c_int(n)))
         return res
+
+    def get_cmb_unlensed_scalar_array_dict(self, params=None, lmax=None, CMB_unit=None, raw_cl=False):
+        """
+        Get all unlensed auto and cross power spectra, including any custom source functions set using :func:`set_custom_scalar_sources`.
+
+        :param params: optional :class:`.model.CAMBparams` instance with parameters to use. If None, must have
+          previously set parameters and called `calc_power_spectra` (e.g. if you got this instance using `camb.get_results`),
+        :param lmax: maximum l
+        :param CMB_unit: scale results from dimensionless. Use 'muK' for muK^2 units for CMB CL and muK units for lensing cross.
+        :param raw_cl: return C_L rather than L(L+1)C_L/2pi
+        :return: dictionary of power spectrum arrays, index as TxT, TxE, W1xW2, custom_name_1xT... etc.
+        """
+
+        old_val = model.has_cl_2D_array.value
+        try:
+            nwindows = model.num_redshiftwindows.value
+            if params is not None:
+                model.has_cl_2D_array.value = True
+                self.calc_power_spectra(params)
+            elif not model.has_cl_2D_array:
+                raise ValueError('model.has_cl_2D_array must be true to have array C_L')
+            lmax = lmax or self.Params.max_l
+            arr = self.get_unlensed_scalar_array_cls(lmax)
+            names = ['T', 'E', 'P'] + ["W%s" % (i + 1) for
+                                       i in range(nwindows)] + custom_source_names
+            CMB_unit = self._CMB_unit(CMB_unit) or 1
+            CMB_units = [CMB_unit, CMB_unit, 1] + [1] * nwindows + [CMB_unit] * len(custom_source_names)
+
+            result = {}
+            for i, name in enumerate(names):
+                for j, name2 in enumerate(names):
+                    tag = name + 'x' + name2
+                    if j < i:
+                        result[tag] = result[name2 + 'x' + name]
+                    else:
+                        cls = arr[i, j, :]
+                        if raw_cl:
+                            ls = np.arange(1, cls.shape[0])[..., np.newaxis]
+                            fac = np.float64(ls * (ls + 1))
+                            if i == 3 and j == 3:
+                                fac *= fac
+                            elif i == 3 or j == 3:
+                                fac *= np.sqrt(fac)
+                            cls[1:] /= (fac / (2 * np.pi))
+
+                        if CMB_unit is not None:
+                            cls *= CMB_units[i] * CMB_units[j]
+                        result[tag] = cls
+        finally:
+            model.has_cl_2D_array.value = old_val
+        return result
 
     def angular_diameter_distance(self, z):
         """
@@ -1074,7 +1166,7 @@ def get_background(params, no_thermo=False):
      parameters and use background functions like angular_diameter_distance.
 
     :param params: :class:`.model.CAMBparams` instance
-    :params no_thermo: Use calc_background_no_thermo instead
+    :param no_thermo: Use calc_background_no_thermo instead
     :return: :class:`CAMBdata` instance
     """
 
@@ -1205,6 +1297,7 @@ def get_matter_power_interpolator(params, zmin=0, zmax=10, nz_step=100, zs=None,
     :param hubble_units: if true, output power spectrum in (Mpc/h)^{3} units, otherwise Mpc^{3}
     :param k_hunit: if true, matter power is a function of k/h, if false, just k (both Mpc^{-1} units)
     :param return_z_k: if true, return interpolator, z, k where z, k are the grid used
+    :param k_per_logint: specific uniform sampling over log k (if not set, uses optimized irregular sampling)
     :param log_interp: if true, interpolate log of power spectrum (unless any values are negative in which case ignored)
     :return: RectBivariateSpline object PK, that can be called with PK(z,log(kh)) to get log matter power values.
         if return_z_k=True, instead return interpolator, z, k where z, k are the grid used
@@ -1248,3 +1341,62 @@ def get_matter_power_interpolator(params, zmin=0, zmax=10, nz_step=100, zs=None,
         return res, z, kh
     else:
         return res
+
+
+custom_source_names = []
+_current_source_func = None
+
+
+def set_custom_scalar_sources(custom_sources, source_names=None, source_ell_scales=None,
+                              frame='CDM', code_path=None):
+    """
+    Set custom sources for angular power spectrum using camb.symbolic sympy expressions.
+
+    :param custom_sources: list of sympy expressions for the angular power spectrum sources
+    :param source_names: optional list of string naes for the sources
+    :param source_ell_scales: list or dictionary of scalings for each source name, where for integer entry n, the source for
+     multipole ell is scalled by sqrt((ell+n)!/(ell-n)!), i.e. n=2 for a new polarization-like source.
+    :param frame: if the source is not gauge invariant, frame in which to interpret result
+    :param code_path: optional path for output of source code for CAMB f90 source function
+    """
+
+    from . import symbolic
+    global _current_source_func
+
+    if isinstance(custom_sources, dict):
+        assert (not source_names)
+        if source_ell_scales and not isinstance(source_ell_scales, dict):
+            raise ValueError('source_ell_scales must be a dictionary if custom_sources is')
+        lst = []
+        source_names = []
+        for name in custom_sources.keys():
+            source_names.append(name)
+            lst.append(custom_sources[name])
+        custom_sources = lst
+    elif not isinstance(custom_sources, (list, tuple)):
+        custom_sources = [custom_sources]
+        if source_names: source_names = [source_names]
+    custom_source_names[:] = source_names or ["C%s" % (i + 1) for i in range(len(custom_sources))]
+    if len(custom_source_names) != len(custom_sources):
+        raise ValueError('Number of custom source names does not match number of sources')
+    scales = np.zeros(len(custom_sources), dtype=np.int32)
+    if source_ell_scales:
+        if isinstance(source_ell_scales, dict):
+            if set(source_ell_scales.keys()) - set(custom_source_names):
+                raise ValueError('scale dict key not in source names list')
+            for i, name in enumerate(custom_source_names):
+                if name in source_ell_scales:
+                    scales[i] = source_ell_scales[name]
+        else:
+            scales[:] = source_ell_scales
+
+    _current_source_func = symbolic.compile_sympy_to_camb_source_func(custom_sources, frame=frame, code_path=code_path)
+    custom_source_func = ctypes.cast(_current_source_func, ctypes.c_voidp)
+    CAMB_SetCustomSourcesFunc(byref(c_int(len(custom_sources))), byref(custom_source_func), scales)
+
+
+def clear_custom_scalar_sources():
+    global _current_source_func
+    custom_source_names[:] = []
+    CAMB_SetCustomSourcesFunc(byref(c_int(0)), byref(ctypes.c_void_p(0)), np.zeros(0, dtype=np.int32))
+    _current_source_func = None

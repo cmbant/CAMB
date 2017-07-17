@@ -36,7 +36,7 @@
 
     contains
 
-    !SPECIAL BRIDGE ROUTINES FOR PYTHONset
+    !SPECIAL BRIDGE ROUTINES FOR PYTHON
 
     subroutine CAMBdata_new(handle)
     type(c_ptr), intent(out) :: handle
@@ -409,17 +409,19 @@
 
     end function CAMB_PrimordialPower
 
-    subroutine GetOutputEvolutionFork(EV, times, outputs)
+    subroutine GetOutputEvolutionFork(EV, times, outputs, nsources,ncustomsources)
     use Transfer
     use CAMBmain
     implicit none
     type(EvolutionVars) EV
     real(dl), intent(in) :: times(:)
     real(dl), intent(out) :: outputs(:,:,:)
+    integer, intent(in) :: nsources, ncustomsources
     real(dl) tau,tol1,tauend, taustart
-    integer j,ind,itf
+    integer j,ind
     real(dl) c(24),w(EV%nvar,9), y(EV%nvar)
-    real(dl) yprime(EV%nvar), ddelta, delta, adotoa,dtauda, growth, x_e, a, x_e_recomb
+    real(dl) yprime(EV%nvar), ddelta, delta, adotoa,dtauda, growth, a
+    real(dl), target :: sources(nsources), custom_sources(ncustomsources)
     external dtauda
     real, target :: Arr(Transfer_max)
 
@@ -438,8 +440,12 @@
         call GaugeInterface_EvolveScal(EV,tau,y,tauend,tol1,ind,c,w)
         yprime = 0
         EV%OutputTransfer =>  Arr
+        EV%OutputSources => sources
+        EV%OutputStep = 0
+        if (ncustomsources>0) EV%CustomSources => custom_sources
         call derivs(EV,EV%ScalEqsToPropagate,tau,y,yprime)
-        nullify(EV%OutputTransfer)
+        nullify(EV%OutputTransfer, EV%OutputSources, EV%CustomSources)
+
         a = y(1)
         outputs(1:Transfer_Max, j, EV%q_ix) = Arr
         outputs(Transfer_Max+1, j, EV%q_ix) = a
@@ -463,18 +469,33 @@
         if (.not. EV%no_nu_multpoles) then
             outputs(Transfer_Max+8, j, EV%q_ix) = y(EV%r_ix+1) !v_r
         end if
+        outputs(Transfer_max + 9:Transfer_max + 9 + nsources-1, j, EV%q_ix) = sources
+        if (ncustomsources > 0) then
+            outputs(Transfer_max + 9+nsources: &
+                Transfer_max + 9 + nsources + ncustomsources-1, j, EV%q_ix) = custom_sources
+        end if
 
         if (global_error_flag/=0) return
     end do
     end subroutine GetOutputEvolutionFork
 
-    function CAMB_TimeEvolution(nq, q, ntimes, times, noutputs, outputs) result(err)
-    integer, intent(in) :: nq, ntimes, noutputs
+    function CAMB_TimeEvolution(nq, q, ntimes, times, noutputs, outputs, &
+        ncustomsources,c_source_func) result(err)
+    use GaugeInterface
+    integer, intent(in) :: nq, ntimes, noutputs, ncustomsources
     real(dl), intent(in) :: q(nq), times(ntimes)
-    real(dl), intent(out) :: outputs(Transfer_Max+8, ntimes, nq)
+    real(dl), intent(out) :: outputs(noutputs, ntimes, nq)
+    TYPE(C_FUNPTR), INTENT(IN) :: c_source_func
     integer err
-    integer q_ix
+    integer q_ix, i
     Type(EvolutionVars) :: Ev
+    procedure(TSource_func), pointer :: old_sources
+
+    if (ncustomsources > 0) then
+        ! Convert C to Fortran procedure pointer.
+        old_sources => custom_sources_func
+        CALL C_F_PROCPOINTER (c_source_func, custom_sources_func)
+    end if
 
     global_error_flag = 0
     outputs = 0
@@ -486,10 +507,11 @@
             EV%TransferOnly=.false.
             EV%q2=EV%q**2
             call GetNumEqns(EV)
-            call GetOutputEvolutionFork(EV, times, outputs)
+            call GetOutputEvolutionFork(EV, times, outputs, 3, ncustomsources)
         end if
     end do
     !$OMP END PARALLEL DO
+    if (ncustomsources>0) custom_sources_func => old_sources
     err = global_error_flag
     end function CAMB_TimeEvolution
 
@@ -547,6 +569,25 @@
     if (allocated(P%DarkEnergy)) deallocate(P%DarkEnergy)
 
     end subroutine CAMBParams_Free
+
+    subroutine CAMB_SetCustomSourcesFunc(ncustomsources, c_source_func, ell_scales)
+    use GaugeInterface
+    integer, intent(in) :: ncustomsources
+    integer, intent(in) :: ell_scales(ncustomsources)
+    TYPE(C_FUNPTR), INTENT(IN) :: c_source_func
+
+    num_custom_sources = ncustomsources
+    if (allocated(custom_source_ell_scales)) deallocate(custom_source_ell_scales)
+    if (ncustomsources > 0) then
+        ! Convert C to Fortran procedure pointer.
+        CALL C_F_PROCPOINTER (c_source_func, custom_sources_func)
+        allocate(custom_source_ell_scales(num_custom_sources))
+        custom_source_ell_scales=ell_scales
+    else
+        nullify(custom_sources_func)
+    end if
+
+    end subroutine CAMB_SetCustomSourcesFunc
 
     ! END BRIDGE FOR PYTHON
 

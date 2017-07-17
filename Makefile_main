@@ -17,7 +17,6 @@ DRIVER        ?= inidriver.f90
 Release: OUTPUT_DIR = Release
 Debug: OUTPUT_DIR = Debug
 
-Release: PYCAMB_OUTPUT_DIR = pycamb/camb
 Release: DLL_DIR = Releaselib
 Debug: DLL_DIR = Debuglib
 
@@ -86,7 +85,8 @@ camb: libcamb $(DRIVER)
 
 camblib.so: libcambso $(CAMBSO)
 	$(F90C) $(SF90FLAGS) $(SMODOUT) $(IFLAG)$(DLL_DIR)/ $(IFLAG)$(FORUTILSPATH)/$(OUTPUT_DIR)/  \
-		$(CAMBSO) $(DLL_DIR)/$(CAMBLIB) $(F90CRLINK) -o pycamb/camb/camblib.so
+		$(CAMBSO) $(DLL_DIR)/$(CAMBLIB) $(F90CRLINK) -o $(DLL_DIR)/camblib.so
+    cp $(DLL_DIR)/camblib.so $(PYCAMB_OUTPUT_DIR)  >/dev/null || :
 
 
 $(CAMBLIB): $(CAMBOBJ)
@@ -110,7 +110,7 @@ directories_so:
 
 
 clean:
-	-rm -f *.o *.a *.d core *.mod *.optrpt *.d camb $(PYCAMB_OUTPUT_DIR)/*.so
+	-rm -f *.o *.a *.d core *.mod *.optrpt *.d
 	-rm -rf Release* Debug*
 
 ## CosmoRec make parts

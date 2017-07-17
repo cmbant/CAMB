@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 2013
-VisualStudioVersion = 12.0.40629.0
+# Visual Studio 14
+VisualStudioVersion = 14.0.25420.1
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{6989167D-11E4-40FE-8C1A-2192A86A7E90}") = "CAMB_devel", "CAMB_devel.vfproj", "{207BF71A-E457-49F3-BEC8-B2F9E85F74BA}"
 	ProjectSection(ProjectDependencies) = postProject
@@ -38,7 +38,6 @@ Global
 		{F7C12681-233A-4C5A-9639-1EF3573BCE64}.Debug|x64.ActiveCfg = Debug|x64
 		{F7C12681-233A-4C5A-9639-1EF3573BCE64}.Release|x64.ActiveCfg = Release|x64
 		{3D16E5E9-506C-4D70-BC44-BA32F6DF7122}.Debug|x64.ActiveCfg = Debug|x64
-		{3D16E5E9-506C-4D70-BC44-BA32F6DF7122}.Debug|x64.Build.0 = Debug|x64
 		{3D16E5E9-506C-4D70-BC44-BA32F6DF7122}.Release|x64.ActiveCfg = Release|x64
 		{3D16E5E9-506C-4D70-BC44-BA32F6DF7122}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection

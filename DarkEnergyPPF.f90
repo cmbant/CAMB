@@ -21,15 +21,12 @@
         real(dl), private :: ddw_ppf(nwmax)
         real(dl), private :: rde(nde),ade(nde),ddrde(nde)
 
-        !PPF parameters for dervis
-        real(dl), private, dimension(:), allocatable :: dgrho_e_ppf, dgq_e_ppf
     contains
     procedure :: ReadParams => TDarkEnergyPPF_ReadParams
     procedure :: Init => TDarkEnergyPPF_Init
     procedure :: BackgroundDensityAndPressure => TDarkEnergyPPF_BackgroundDensityAndPressure
-    procedure :: AddStressEnergy => TDarkEnergyPPF_AddStressEnergy
+    procedure :: PerturbedStressEnergy => TDarkEnergyPPF_PerturbedStressEnergy
     procedure :: diff_rhopi_Add_Term => TDarkEnergyPPF_diff_rhopi_Add_Term
-    procedure :: DerivsAddPreSigma => TDarkEnergyPPF_DerivsAddPreSigma
     procedure, private :: setddwa
     procedure, private :: interpolrde
     procedure, private :: grho_de
@@ -85,13 +82,7 @@
 
     subroutine TDarkEnergyPPF_Init(this)
     class(TDarkEnergyPPF), intent(inout) :: this
-    integer :: numThreads
 
-    numThreads = ThreadNum
-    call GetNumThreads(numThreads)
-    numThreads = numThreads - 1
-    if (.not. allocated(this%dgq_e_ppf)) &
-        allocate(this%dgq_e_ppf(0:numThreads), this%dgrho_e_ppf(0:numThreads))
 
     this%is_cosmological_constant = .not. this%use_tabulated_w .and. &
         &   this%w_lam==-1_dl .and. this%wa_ppf==0._dl
@@ -108,9 +99,6 @@
 
     subroutine TDarkEnergyPPF_Finalize(this)
     type(TDarkEnergyPPF), intent(inout) :: this
-
-    if (allocated(this%dgq_e_ppf)) deallocate(&
-        this%dgq_e_ppf, this%dgrho_e_ppf)
 
     end subroutine
 
@@ -242,8 +230,8 @@
     class(TDarkEnergyPPF), intent(inout) :: this
     real(dl), intent(in) :: a
     real(dl), intent(out) :: grhov_t
-    real(dl), intent(out), optional :: w
-
+    real(dl), optional, intent(out) :: w
+    
     if (this%is_cosmological_constant) then
         grhov_t = grhov * a * a
         if (present(w)) w = -1_dl
@@ -261,98 +249,70 @@
 
 
 
-    subroutine TDarkEnergyPPF_AddStressEnergy(this, dgrho, dgq, &
-        grhov_t, y, w_ix, output)
-    class(TDarkEnergyPPF), intent(inout) :: this
-    real(dl), intent(inout) :: dgrho, dgq
-    real(dl), intent(in) :: grhov_t, y(:)
-    integer, intent(in) :: w_ix
-    logical, intent(in) :: output
-    integer :: tID
-
-    if (output) then
-        !If not in output, this is calculated in DerivsAddPreSigma
-        tID = GetThreadID()
-        dgrho = dgrho + this%dgrho_e_ppf(tID)
-        dgq = dgq + this%dgq_e_ppf(tID)
-    end if
-
-    end subroutine TDarkEnergyPPF_AddStressEnergy
-
-
-    function TDarkEnergyPPF_diff_rhopi_Add_Term(this, grho, gpres, w,  grhok, adotoa, &
-        EV_KfAtOne, k, grhov_t, z, k2, yprime, y, w_ix) result(ppiedot)
+    function TDarkEnergyPPF_diff_rhopi_Add_Term(this, dgrhoe, dgqe, grho, gpres, w,  grhok, adotoa, &
+        Kf1, k, grhov_t, z, k2, yprime, y, w_ix) result(ppiedot)
     !Get derivative of anisotropic stress
     class(TDarkEnergyPPF), intent(in) :: this
-    real(dl), intent(in) :: grho, gpres, w, grhok, adotoa, &
-        k, grhov_t, z, k2, yprime(:), y(:), EV_KfAtOne
+    real(dl), intent(in) :: dgrhoe, dgqe, grho, gpres, w, grhok, adotoa, &
+        k, grhov_t, z, k2, yprime(:), y(:), Kf1
     integer, intent(in) :: w_ix
     real(dl) :: ppiedot, hdotoh
-    integer :: tID
 
     if (this%is_cosmological_constant) then
         ppiedot = 0
     else
-        tID = GetThreadID()
         hdotoh = (-3._dl * grho - 3._dl * gpres - 2._dl * grhok) / 6._dl / adotoa
-        ppiedot = 3._dl * this%dgrho_e_ppf(tID) + this%dgq_e_ppf(tID) * &
+        ppiedot = 3._dl * dgrhoe + dgqe * &
             (12._dl / k * adotoa + k / adotoa - 3._dl / k * (adotoa + hdotoh)) + &
-            grhov_t * (1 + w) * k * z / adotoa - 2._dl * k2 * EV_KfAtOne * &
+            grhov_t * (1 + w) * k * z / adotoa - 2._dl * k2 * Kf1 * &
             (yprime(w_ix) / adotoa - 2._dl * y(w_ix))
-        ppiedot = ppiedot * adotoa / EV_KfAtOne
+        ppiedot = ppiedot * adotoa / Kf1
     end if
 
     end function TDarkEnergyPPF_diff_rhopi_Add_Term
 
 
-    subroutine TDarkEnergyPPF_DerivsAddPreSigma(this, sigma, &
-        ayprime, dgq, dgrho, &
-        grho, grhov_t, w, gpres_noDE, ay, w_ix, etak, adotoa, k, k2, EV_kf1)
+    subroutine TDarkEnergyPPF_PerturbedStressEnergy(this, dgrhoe, dgqe, &
+        dgq, dgrho, grho, grhov_t, w, gpres_noDE, etak, adotoa, k, kf1, ay, ayprime, w_ix)
     class(TDarkEnergyPPF), intent(inout) :: this
-    real(dl), intent(inout) :: sigma, ayprime(:), dgq, dgrho
-    real(dl), intent(in) :: grho, grhov_t, w, gpres_noDE, ay(:), etak
-    real(dl), intent(in) :: adotoa, k, k2, EV_kf1
+    real(dl), intent(out) :: dgrhoe, dgqe
+    real(dl), intent(in) ::  dgq, dgrho, grho, grhov_t, w, gpres_noDE, etak, adotoa, k, kf1
+    real(dl), intent(in) :: ay(*)
+    real(dl), intent(inout) :: ayprime(*)
     integer, intent(in) :: w_ix
-    real(dl) :: Gamma, S_Gamma, ckH, Gammadot, Fa, dgqe, dgrhoe
-    real(dl) :: vT, grhoT
-    integer :: tID
+    real(dl) :: Gamma, S_Gamma, ckH, Gammadot, Fa, sigma
+    real(dl) :: vT, grhoT, k2
+    
+    k2=k**2
+    !ppf
+    grhoT = grho - grhov_t
+    vT = dgq / (grhoT + gpres_noDE)
+    Gamma = ay(w_ix)
 
-    if (.not. this%is_cosmological_constant) then
-        tID = GetThreadID()
-        !ppf
-        grhoT = grho - grhov_t
-        vT = dgq / (grhoT + gpres_noDE)
-        Gamma = ay(w_ix)
+    !sigma for ppf
+    sigma = (etak + (dgrho + 3 * adotoa / k * dgq) / 2._dl / k) / kf1 - &
+        k * Gamma
+    sigma = sigma / adotoa
 
-        !sigma for ppf
-        sigma = (etak + (dgrho + 3 * adotoa / k * dgq) / 2._dl / k) / EV_kf1 - &
-            k * Gamma
-        sigma = sigma / adotoa
+    S_Gamma = grhov_t * (1 + w) * (vT + sigma) * k / adotoa / 2._dl / k2
+    ckH = this%c_Gamma_ppf * k / adotoa
 
-        S_Gamma = grhov_t * (1 + w) * (vT + sigma) * k / adotoa / 2._dl / k2
-        ckH = this%c_Gamma_ppf * k / adotoa
+    if (ckH * ckH .gt. 3.d1) then ! ckH^2 > 30 ?????????
+        Gamma = 0
+        Gammadot = 0.d0
+    else
         Gammadot = S_Gamma / (1 + ckH * ckH) - Gamma - ckH * ckH * Gamma
         Gammadot = Gammadot * adotoa
-        ayprime(w_ix) = Gammadot
+    endif
+    ayprime(w_ix) = Gammadot !Set this here, and don't use PerturbationEvolve
 
-        if (ckH * ckH .gt. 3.d1) then ! ckH^2 > 30 ?????????
-            Gamma = 0
-            Gammadot = 0.d0
-            ayprime(w_ix) = Gammadot
-        endif
+    Fa = 1 + 3 * (grhoT + gpres_noDE) / 2._dl / k2 / kf1
+    dgqe = S_Gamma - Gammadot / adotoa - Gamma
+    dgqe = -dgqe / Fa * 2._dl * k * adotoa + vT * grhov_t * (1 + w)
+    dgrhoe = -2 * k2 * kf1 * Gamma - 3 / k * adotoa * dgqe
 
-        Fa = 1 + 3 * (grhoT + gpres_noDE) / 2._dl / k2 / EV_kf1
-        dgqe = S_Gamma - Gammadot / adotoa - Gamma
-        dgqe = -dgqe / Fa * 2._dl * k * adotoa + vT * grhov_t * (1 + w)
-        dgrhoe = -2 * k2 * EV_kf1 * Gamma - 3 / k * adotoa * dgqe
-        dgrho = dgrho + dgrhoe
-        dgq = dgq + dgqe
+    end subroutine TDarkEnergyPPF_PerturbedStressEnergy
 
-        this%dgrho_e_ppf(tID) = dgrhoe
-        this%dgq_e_ppf(tID) = dgqe
-    end if
-
-    end subroutine TDarkEnergyPPF_DerivsAddPreSigma
 
 
     end module DarkEnergyPPF

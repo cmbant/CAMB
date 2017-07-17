@@ -14,69 +14,240 @@
     ! June 2011, improved radiation approximations from arXiv: 1104.2933; Some 2nd order tight coupling terms
     !            merged fderivs and derivs so flat and non-flat use same equations; more precomputed arrays
     !            optimized neutrino sampling, and reorganised neutrino integration functions
+    ! Feb 2012, updated PPF version but now only simple case for w, w_a (no anisotropic stresses etc)
     ! Feb 2013: fixed various issues with accuracy at larger neutrino masses
+    ! Oct 2013: fix PPF, consistent with updated equations_cross
     ! Mar 2014: fixes for tensors with massive neutrinos
 
-    !CAMB Sources:
-    ! Feb 2007 changes for 21cm and other power spectra
-    ! July 2007 added perturbed recombination, self-absorption, changes to transfer function output
-    ! May 2013 update for latest CAMB changes, removed support for tensor 21cm for simplicity
-    ! Oct 2013 merge and fix for latest CAMB
+    module LambdaGeneral
+    use precision
+    use  ModelParams
+    implicit none
+
+    real(dl)  :: w_lam = -1_dl !p/rho for the dark energy (assumed constant)
+    ! w_lam is now w0
+    !comoving sound speed. Always exactly 1 for quintessence
+    !(otherwise assumed constant, though this is almost certainly unrealistic)
+    real(dl) :: cs2_lam = 1_dl
+    !cs2_lam now is ce^2
+
+    logical :: use_tabulated_w = .false.
+    real(dl) :: wa_ppf = 0._dl
+    real(dl) :: c_Gamma_ppf = 0.4_dl
+    integer, parameter :: nwmax = 5000, nde = 2000
+    integer :: nw_ppf
+    real(dl) w_ppf(nwmax), a_ppf(nwmax), ddw_ppf(nwmax)
+    real(dl) rde(nde),ade(nde),ddrde(nde)
+    real(dl), parameter :: amin = 1.d-9
+    logical :: is_cosmological_constant
+    private nde,ddw_ppf,rde,ade,ddrde,amin
+
+    contains
+
+    subroutine DarkEnergy_ReadParams(Ini)
+    use IniFile
+    Type(TIniFile) :: Ini
+    character(LEN=Ini_max_string_len) wafile
+    integer i
+
+    if (Ini_HasKey_File(Ini,'usew0wa')) then
+        stop 'input variables changed from usew0wa: now use_tabulated_w or w, wa'
+    end if
+
+    use_tabulated_w = Ini_Read_Logical_File(Ini,'use_tabulated_w',.false.)
+    if(.not. use_tabulated_w)then
+        w_lam = Ini_Read_Double_File(Ini,'w', -1.d0)
+        wa_ppf = Ini_Read_Double_File(Ini,'wa', 0.d0)
+        if (Feedback >0) write(*,'("(w0, wa) = (", f8.5,", ", f8.5, ")")') w_lam,wa_ppf
+    else
+        wafile = Ini_Read_String_File(Ini,'wafile')
+        open(unit=10,file=wafile,status='old')
+        nw_ppf=0
+        do i=1,nwmax+1
+            read(10,*,end=100)a_ppf(i),w_ppf(i)
+            a_ppf(i)=dlog(a_ppf(i))
+            nw_ppf=nw_ppf+1
+        enddo
+        write(*,'("Note: ", a, " has more than ", I8, " data points")') trim(wafile), nwmax
+        write(*,*)'Increase nwmax in LambdaGeneral'
+        stop
+100     close(10)
+        write(*,'("read in ", I8, " (a, w) data points from ", a)') nw_ppf, trim(wafile)
+        call setddwa
+        call interpolrde
+    endif
+    cs2_lam = Ini_Read_Double_File(Ini,'cs2_lam',1.d0)
+    call setcgammappf
+
+    end subroutine DarkEnergy_ReadParams
+
+
+    subroutine setddwa
+    real(dl), parameter :: wlo=1.d30, whi=1.d30
+
+    call spline(a_ppf,w_ppf,nw_ppf,wlo,whi,ddw_ppf) !a_ppf is lna here
+
+    end subroutine setddwa
+
+
+    function w_de(a)
+    real(dl) :: w_de, al
+    real(dl), intent(IN) :: a
+
+    if(.not. use_tabulated_w) then
+        w_de=w_lam+wa_ppf*(1._dl-a)
+    else
+        al=dlog(a)
+        if(al.lt.a_ppf(1)) then
+            w_de=w_ppf(1)                   !if a < minimum a from wa.dat
+        elseif(al.gt.a_ppf(nw_ppf)) then
+            w_de=w_ppf(nw_ppf)              !if a > maximus a from wa.dat
+        else
+            call cubicsplint(a_ppf,w_ppf,ddw_ppf,nw_ppf,al,w_de)
+        endif
+    endif
+    end function w_de  ! equation of state of the PPF DE
+
+
+    function drdlna_de(al)
+    real(dl) :: drdlna_de, a
+    real(dl), intent(IN) :: al
+
+    a=dexp(al)
+    drdlna_de=3._dl*(1._dl+w_de(a))
+
+    end function drdlna_de
+
+
+    subroutine interpolrde
+    real(dl), parameter :: rlo=1.d30, rhi=1.d30
+    real(dl) :: atol, almin, al, rombint, fint
+    integer :: i
+    external rombint
+    atol=1.d-5
+    almin=dlog(amin)
+    do i=1,nde
+        al=almin-almin/(nde-1)*(i-1)    !interpolate between amin and today
+        fint=rombint(drdlna_de, al, 0._dl, atol)+4._dl*al
+        ade(i)=al
+        rde(i)=dexp(fint) !rho_de*a^4 normalize to its value at today
+    enddo
+    call spline(ade,rde,nde,rlo,rhi,ddrde)
+    end subroutine interpolrde
+
+    function grho_de(a)  !8 pi G a^4 rho_de
+    real(dl) :: grho_de, al, fint
+    real(dl), intent(IN) :: a
+
+    if(.not. use_tabulated_w) then
+        grho_de=grhov*a**(1._dl-3.*w_lam-3.*wa_ppf)*exp(-3.*wa_ppf*(1._dl-a))
+    else
+        if(a.eq.0.d0)then
+            grho_de=0.d0      !assume rho_de*a^4-->0, when a-->0, OK if w_de always <0.
+        else
+            al=dlog(a)
+            if(al.lt.ade(1))then
+                fint=rde(1)*(a/amin)**(1.-3.*w_de(amin))    !if a<amin, assume here w=w_de(amin)
+            else              !if amin is small enough, this extrapolation will be unnecessary.
+                call cubicsplint(ade,rde,ddrde,nde,al,fint)
+            endif
+            grho_de=grhov*fint
+        endif
+    endif
+    end function grho_de
+
+    !-------------------------------------------------------------------
+    SUBROUTINE cubicsplint(xa,ya,y2a,n,x,y)
+    INTEGER n
+    real(dl)x,y,xa(n),y2a(n),ya(n)
+    INTEGER k,khi,klo
+    real(dl)a,b,h
+    klo=1
+    khi=n
+1   if (khi-klo.gt.1) then
+        k=(khi+klo)/2
+        if(xa(k).gt.x)then
+            khi=k
+        else
+            klo=k
+        endif
+        goto 1
+    endif
+    h=xa(khi)-xa(klo)
+    if (h.eq.0.) stop 'bad xa input in splint'
+    a=(xa(khi)-x)/h
+    b=(x-xa(klo))/h
+    y=a*ya(klo)+b*ya(khi)+&
+        ((a**3-a)*y2a(klo)+(b**3-b)*y2a(khi))*(h**2)/6.d0
+    END SUBROUTINE cubicsplint
+    !--------------------------------------------------------------------
+
+
+    subroutine setcgammappf
+
+    c_Gamma_ppf=0.4d0*sqrt(cs2_lam)
+
+    end subroutine setcgammappf
+
+
+    end module LambdaGeneral
+
+    !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+
 
     !Return OmegaK - modify this if you add extra fluid components
     function GetOmegak()
     use precision
     use ModelParams
     real(dl)  GetOmegak
-
     GetOmegak = 1 - (CP%omegab+CP%omegac+CP%omegav+CP%omegan)
 
     end function GetOmegak
 
 
-    subroutine Init_Backgrounds
-    use ModelParams
-    use DarkEnergyInterface
+    subroutine init_background
+    use LambdaGeneral
     !This is only called once per model, and is a good point to do any extra initialization.
     !It is called before first call to dtauda, but after
     !massive neutrinos are initialized and after GetOmegak
-
-    call CP%DarkEnergy%Init()
-
-    end  subroutine Init_Backgrounds
+    is_cosmological_constant = .not. use_tabulated_w .and. w_lam==-1_dl .and. wa_ppf==0._dl
+    end  subroutine init_background
 
 
-    ! Background evolution
+    !Background evolution
     function dtauda(a)
+    !get d tau / d a
     use precision
     use ModelParams
     use MassiveNu
-    use DarkEnergyInterface
+    use LambdaGeneral
     implicit none
-    real(dl), intent(in) :: a
-    real(dl) :: dtauda, rhonu, grhoa2, a2, grhov_t
-    integer :: nu_i
+    real(dl) dtauda
+    real(dl), intent(IN) :: a
+    real(dl) rhonu,grhoa2, a2
+    integer nu_i
 
-    a2 = a ** 2
-    call CP%DarkEnergy%BackgroundDensityAndPressure(a, grhov_t)
+    a2=a**2
 
     !  8*pi*G*rho*a**4.
-    grhoa2 = grhok * a2 + (grhoc + grhob) * a + grhog + grhornomass + &
-        grhov_t * a2
+    grhoa2=grhok*a2+(grhoc+grhob)*a+grhog+grhornomass
+    if (is_cosmological_constant) then
+        grhoa2=grhoa2+grhov*a2**2
+    else
+        grhoa2=grhoa2+ grho_de(a)
+    end if
 
     if (CP%Num_Nu_massive /= 0) then
         !Get massive neutrino density relative to massless
         do nu_i = 1, CP%nu_mass_eigenstates
-            call Nu_rho(a * nu_masses(nu_i), rhonu)
-            grhoa2 = grhoa2 + rhonu * grhormass(nu_i)
+            call Nu_rho(a*nu_masses(nu_i),rhonu)
+            grhoa2=grhoa2+rhonu*grhormass(nu_i)
         end do
     end if
 
-    dtauda = sqrt(3 / grhoa2)
+    dtauda=sqrt(3/grhoa2)
 
     end function dtauda
-
-
 
     !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
@@ -86,27 +257,18 @@
     use precision
     use ModelParams
     use MassiveNu
-    use DarkEnergyInterface
+    use LambdaGeneral
     use Errors
     use Transfer
     implicit none
     public
 
     !Description of this file. Change if you make modifications.
-    character(LEN=*), parameter :: Eqns_name = 'cdm_gauge'
-
-    logical, parameter :: plot_evolve = .false. !for outputing time evolution
+    character(LEN=*), parameter :: Eqns_name = 'equations_ppf-Jan15'
 
     integer, parameter :: basic_num_eqns = 5
 
     logical :: DoTensorNeutrinos = .true.
-
-    logical :: Evolve_baryon_cs = .false.
-    !if true, evolves equation for Delta_{T_m} to get cs_2 = \delta p /\delta\rho for perfect gas
-
-    logical :: Evolve_delta_xe = .false.
-
-    logical :: Evolve_delta_Ts =.false. !Equilibrium result agree to sub-percent level
 
     logical :: DoLateRadTruncation = .true.
     !if true, use smooth approx to radition perturbations after decoupling on
@@ -119,7 +281,7 @@
     real(dl) :: vec_sig0 = 1._dl
     !Vector mode shear
     integer, parameter :: max_l_evolve = 256 !Maximum l we are ever likely to propagate
-    !Note higher values increase size of Evolution vars, hence memoryWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW
+    !Note higher values increase size of Evolution vars, hence memory
 
     !Supported scalar initial condition flags
     integer, parameter :: initial_adiabatic=1, initial_iso_CDM=2, &
@@ -131,12 +293,6 @@
         real(dl) k_buf,k2_buf ! set in initial
 
         integer w_ix !Index of two quintessence equations
-        integer Tg_ix !index of matter temerature perturbation
-        integer reion_line_ix !index of matter temerature perturbation
-
-        integer xe_ix !index of x_e perturbation
-        integer Ts_ix !index of Delta_{T_s}
-
         integer r_ix !Index of the massless neutrino hierarchy
         integer g_ix !Index of the photon neutrino hierarchy
 
@@ -151,7 +307,6 @@
         integer lmaxnrt, lmaxnut, lmaxt, lmaxpolt, MaxlNeededt
         logical EvolveTensorMassiveNu(max_nu)
         integer lmaxnrv, lmaxv, lmaxpolv
-        integer lmaxline !21cm multipoles for getting reionization effect
 
         integer polind  !index into scalar array of polarization hierarchy
 
@@ -185,8 +340,11 @@
         !Tensor vars
         real(dl) aux_buf
 
-        real(dl) pig, pigdot
+        real(dl) pig, pigdot !For tight coupling
         real(dl) poltruncfac
+
+        !PPF parameters
+        real(dl) dgrho_e_ppf, dgq_e_ppf
 
         logical no_nu_multpoles, no_phot_multpoles
         integer lmaxnu_tau(max_nu)  !lmax for massive neutinos at time being integrated
@@ -195,45 +353,11 @@
         real(dl) denlk(max_l_evolve),denlk2(max_l_evolve), polfack(max_l_evolve)
         real(dl) Kf(max_l_evolve)
 
-        integer E_ix, B_ix !tensor polarizatisdon indices
+        integer E_ix, B_ix !tensor polarization indices
         real(dl) denlkt(4,max_l_evolve),Kft(max_l_evolve)
-
-        logical :: saha !still high x_e
-        logical :: evolve_TM !\delta T_g evolved separately
-
         real, pointer :: OutputTransfer(:) => null()
-        real(dl), pointer :: OutputSources(:) => null()
-        real(dl), pointer :: CustomSources(:) => null()
-        integer :: OutputStep = 0
 
     end type EvolutionVars
-
-    ABSTRACT INTERFACE
-    SUBROUTINE TSource_func(sources, tau, a, adotoa, grho, gpres,w_lam, cs2_lam,  &
-        grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,grhonu_t, &
-        k,etak, etakdot, phi, phidot, sigma, sigmadot, &
-        dgrho, clxg,clxb,clxc,clxnu, clxq, cs2, &
-        dgq, qg, qr, vq, vb, qgdot, qrdot, vbdot, &
-        dgpi, pig, pir, pigdot, pirdot, diff_rhopi, &
-        polter, polterdot, polterddot, octg, octgdot, E, Edot, &
-        opacity, dopacity, ddopacity, visibility, dvisibility, ddvisibility, exptau, &
-        tau0, tau_maxvis, Kf, f_K)
-    real*8, intent(out) :: sources(:)
-    real*8, intent(in) :: tau, a, adotoa, grho, gpres,w_lam, cs2_lam,  &
-        grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,grhonu_t, &
-        k,etak, etakdot, phi, phidot, sigma, sigmadot, &
-        dgrho, clxg,clxb,clxc,clxnu, clxq, cs2, &
-        dgq, qg, qr, vq, vb, qgdot, qrdot, vbdot, &
-        dgpi, pig, pir, pigdot, pirdot, diff_rhopi, &
-        polter, polterdot, polterddot, octg, octgdot, E(2:3), Edot(2:3), &
-        opacity, dopacity, ddopacity, visibility, dvisibility, ddvisibility, exptau, &
-        tau0, tau_maxvis
-    REAL*8, intent(in) :: Kf(*)
-    real*8, external :: f_K
-    END SUBROUTINE TSource_func
-    END INTERFACE
-
-    procedure(TSource_func), pointer :: custom_sources_func => null()
 
     !precalculated arrays
     real(dl) polfac(max_l_evolve),denl(max_l_evolve),vecfac(max_l_evolve),vecfacpol(max_l_evolve)
@@ -243,8 +367,6 @@
 
     real(dl) epsw
     real(dl) nu_tau_notmassless(nqmax0+1,max_nu), nu_tau_nonrelativistic(max_nu),nu_tau_massive(max_nu)
-
-    real(dl), private, external :: dtauda
     contains
 
 
@@ -270,7 +392,7 @@
     if (nq==0) then
         next_nq=1
     else
-        q = int(nu_q(nq))
+        q = nu_q(nq)
         if (q>=10) then
             next_nq = nqmax
         else
@@ -282,7 +404,6 @@
 
     recursive subroutine GaugeInterface_EvolveScal(EV,tau,y,tauend,tol1,ind,c,w)
     use ThermoData
-    use RECDATA, only : CB1
     type(EvolutionVars) EV, EVout
     real(dl) c(24),w(EV%nvar,9), y(EV%nvar), yout(EV%nvar), tol1, tau, tauend
     integer ind, nu_i
@@ -290,8 +411,6 @@
     real(dl) tau_switch_ktau, tau_switch_nu_massless, tau_switch_nu_massive, next_switch
     real(dl) tau_switch_no_nu_multpoles, tau_switch_no_phot_multpoles,tau_switch_nu_nonrel
     real(dl) noSwitch, smallTime
-    !Sources
-    real(dl) tau_switch_saha, Delta_TM, xe,a,tau_switch_evolve_TM
 
     noSwitch= CP%tau0+1
     smallTime =  min(tau, 1/EV%k_buf)/100
@@ -304,12 +423,6 @@
     tau_switch_nu_massless = noSwitch
     tau_switch_nu_nonrel = noSwitch
     tau_switch_nu_massive= noSwitch
-
-    !Sources
-    tau_switch_saha=noSwitch
-    if (Evolve_delta_xe .and. EV%saha)  tau_switch_saha = recombination_saha_tau
-    tau_switch_evolve_TM=noSwitch
-    if (Evolve_baryon_cs .and. .not. EV%Evolve_tm) tau_switch_evolve_TM = recombination_Tgas_tau
 
     !Evolve equations from tau to tauend, performing switches in equations if necessary.
 
@@ -338,8 +451,7 @@
     end if
 
     next_switch = min(tau_switch_ktau, tau_switch_nu_massless,EV%TightSwitchoffTime, tau_switch_nu_massive, &
-        tau_switch_no_nu_multpoles, tau_switch_no_phot_multpoles, tau_switch_nu_nonrel, noSwitch, &
-        tau_switch_saha, tau_switch_evolve_TM)
+        tau_switch_no_nu_multpoles, tau_switch_no_phot_multpoles, tau_switch_nu_nonrel,noSwitch)
 
     if (next_switch < tauend) then
         if (next_switch > tau+smallTime) then
@@ -437,27 +549,6 @@
             call CopyScalarVariableArray(y,yout, EV, EVout)
             y=yout
             EV=EVout
-        else if (next_switch==tau_switch_saha) then
-            !Sources
-            ind=1
-            EVout%saha = .false.
-            call SetupScalarArrayIndices(EVout)
-            call CopyScalarVariableArray(y,yout, EV, EVout)
-            y=yout
-            EV=EVout
-            a=y(1)
-            Delta_Tm = y(EV%g_ix)/4 ! assume delta_TM = delta_T_gamma
-            xe= Recombination_xe(a)
-            y(EV%xe_ix) = (1-xe)/(2-xe)*(-y(4) + (3./2+  CB1/(CP%TCMB/a))*Delta_TM)
-        else if (next_switch==tau_switch_evolve_TM) then
-            !Sources
-            ind=1
-            EVout%evolve_TM = .true.
-            call SetupScalarArrayIndices(EVout)
-            call CopyScalarVariableArray(y,yout, EV, EVout)
-            y=yout
-            EV=EVout
-            y(EV%Tg_ix) =y(EV%g_ix)/4 ! assume delta_TM = delta_T_gamma
         end if
 
         call GaugeInterface_EvolveScal(EV,tau,y,tauend,tol1,ind,c,w)
@@ -586,40 +677,12 @@
     maxeq = maxeq +  (EV%lmaxg+1)+(EV%lmaxnr+1)+EV%lmaxgpol-1
 
     !Dark energy
-    if (.not. CP%DarkEnergy%is_cosmological_constant) then
-        EV%w_ix = neq + 1
-        neq = neq + CP%DarkEnergy%num_perturb_equations
-        maxeq = maxeq + CP%DarkEnergy%num_perturb_equations
+    if (.not. is_cosmological_constant) then
+        EV%w_ix = neq+1
+        neq=neq+1 !ppf
+        maxeq=maxeq+1
     else
-        EV%w_ix = 0
-    end if
-
-    !Sources
-    if (Evolve_delta_xe) then
-        if (.not. EV%saha) then
-            EV%xe_ix = neq+1
-            neq=neq+1
-        end if
-        maxeq=maxeq+1
-    end if
-
-    if (Evolve_baryon_cs) then
-        if (EV%Evolve_TM) then
-            EV%Tg_ix = neq+1
-            neq=neq+1
-        end if
-        maxeq=maxeq+1
-        if (Do21cm .and. line_reionization) then
-            EV%reion_line_ix = neq+1
-            neq=neq+ EV%lmaxline+1 +  EV%lmaxline-1
-            maxeq=maxeq+EV%lmaxline+1 +  EV%lmaxline-1
-        end if
-    end if
-
-    if (Evolve_delta_Ts) then
-        EV%Ts_ix = neq+1
-        neq=neq+1
-        maxeq=maxeq+1
+        EV%w_ix=0
     end if
 
     !Massive neutrinos
@@ -636,7 +699,7 @@
 
         do nu_i=1, CP%Nu_Mass_eigenstates
             if (EV%high_ktau_neutrino_approx) then
-                EV%lmaxnu_tau(nu_i) = int(lmaxnu_high_ktau *lAccuracyBoost)
+                EV%lmaxnu_tau(nu_i) = lmaxnu_high_ktau *lAccuracyBoost
             else
                 EV%lmaxnu_tau(nu_i) =max(min(nint(0.8_dl*EV%q*nu_tau_nonrelativistic(nu_i)*lAccuracyBoost),EV%lmaxnu),3)
                 !!!Feb13tweak
@@ -674,11 +737,9 @@
 
     yout=0
     yout(1:basic_num_eqns) = y(1:basic_num_eqns)
-
-    ! DarkEnergy
-    if (CP%DarkEnergy%num_perturb_equations > 0) &
-        yout(EVOut%w_ix:EVOut%w_ix + CP%DarkEnergy%num_perturb_equations - 1) = &
-        y(EV%w_ix:EV%w_ix + CP%DarkEnergy%num_perturb_equations - 1)
+    if (.not. is_cosmological_constant) then
+        yout(EVout%w_ix)=y(EV%w_ix)
+    end if
 
     if (.not. EV%no_phot_multpoles .and. .not. EVout%no_phot_multpoles) then
         if (EV%TightCoupling .or. EVOut%TightCoupling) then
@@ -736,20 +797,6 @@
             lmax = min(EVOut%lmaxnu_pert, EV%lmaxnu_pert)
             yout(EVout%nu_pert_ix:EVout%nu_pert_ix+lmax)=  y(EV%nu_pert_ix:EV%nu_pert_ix+lmax)
         end if
-    end if
-    !Sources
-    if (.not. EV%saha .and. .not. EVOut%saha) then
-        yout(EVOut%xe_ix) =y(EV%xe_ix)
-    end if
-    if (Evolve_baryon_cs) then
-        if (EV%Evolve_TM .and. EVout%Evolve_TM) yout(EVOut%Tg_ix) = y(EV%Tg_ix)
-        if (Do21cm .and. line_reionization) then
-            yout(EVOut%reion_line_ix:EVOut%reion_line_ix+EVout%lmaxline +  EVout%lmaxline-1) = &
-                y(EV%reion_line_ix:EV%reion_line_ix+EV%lmaxline +  EV%lmaxline-1)
-        end if
-    end if
-    if (Evolve_delta_Ts) then
-        yout(EVOut%Ts_ix) = y(EV%Ts_ix)
     end if
 
     end subroutine CopyScalarVariableArray
@@ -875,9 +922,6 @@
         EV%no_phot_multpoles =.false.
         EV%no_nu_multpoles =.false.
         EV%MassiveNuApprox=.false.
-        !Sources
-        EV%saha = .true.
-        EV%Evolve_TM = .false.
 
         if (HighAccuracyDefault .and. CP%AccuratePolarization) then
             EV%lmaxg  = max(nint(11*lAccuracyBoost),3)
@@ -897,11 +941,7 @@
             EV%lmaxgpol=max(3,nint(min(8,nint(scal* 150* EV%q))*lAccuracyBoost))
             EV%lmaxnr=max(3,nint(min(7,nint(sqrt(scal)* 150 * EV%q))*lAccuracyBoost))
             EV%lmaxg=max(3,nint(min(8,nint(sqrt(scal) *300 * EV%q))*lAccuracyBoost))
-            !Sources
-            if (line_phot_quadrupole) then
-                EV%lmaxg=EV%lmaxg*8
-                EV%lmaxgpol=EV%lmaxgpol*4
-            elseif (CP%AccurateReionization) then
+            if (CP%AccurateReionization) then
                 EV%lmaxg=EV%lmaxg*4
                 EV%lmaxgpol=EV%lmaxgpol*2
             end if
@@ -911,7 +951,7 @@
             EV%lmaxgpol = min(EV%lmaxgpol,nint(5*lAccuracyBoost))
             EV%lmaxg = min(EV%lmaxg,nint(6*lAccuracyBoost))
         end if
-        if (CP%Transfer%high_precision .or. Do21cm) then
+        if (CP%Transfer%high_precision) then
             if (HighAccuracyDefault) then
                 EV%lmaxnr=max(nint(45*lAccuracyBoost),3)
             else
@@ -920,17 +960,6 @@
             if (EV%q > 0.04 .and. EV%q < 0.5) then !baryon oscillation scales
                 EV%lmaxg=max(EV%lmaxg,10)
             end if
-        end if
-
-        if (Do21cm .and. line_reionization) then
-            EV%lmaxg =  EV%lmaxg*8
-            EV%lmaxgpol = EV%lmaxgpol*3
-        end if
-
-        if (Do21cm .or.Evolve_delta_xe .or. Evolve_delta_Ts) Evolve_baryon_cs = .true.
-
-        if (Do21cm .and. line_reionization) then
-            EV%lmaxline  = EV%lmaxg
         end if
 
         if (CP%closed) then
@@ -942,7 +971,7 @@
 
         EV%poltruncfac=real(EV%lmaxgpol,dl)/max(1,(EV%lmaxgpol-2))
         EV%MaxlNeeded=max(EV%lmaxg,EV%lmaxnr,EV%lmaxgpol,EV%lmaxnu)
-        if (EV%MaxlNeeded > max_l_evolve) call MpiStop('Need to increase max_l_evolve')
+        if (EV%MaxlNeeded > max_l_evolve) stop 'Need to increase max_l_evolve'
         call SetupScalarArrayIndices(EV,EV%nvar)
         if (CP%closed) EV%nvar=EV%nvar+1 !so can reference lmax+1 with zero coefficient
         EV%lmaxt=0
@@ -969,7 +998,7 @@
             EV%lmaxnut=min(EV%FirstZerolForBeta-1,EV%lmaxnut)
         end if
         EV%MaxlNeededt=max(EV%lmaxpolt,EV%lmaxt, EV%lmaxnrt, EV%lmaxnut)
-        if (EV%MaxlNeededt > max_l_evolve) call MpiStop('Need to increase max_l_evolve')
+        if (EV%MaxlNeededt > max_l_evolve) stop 'Need to increase max_l_evolve'
         call SetupTensorArrayIndices(EV, EV%nvart)
     else
         EV%nvart=0
@@ -986,7 +1015,7 @@
 
         EV%nvarv=EV%nvarv+EV%lmaxnrv
         if (CP%Num_Nu_massive /= 0 ) then
-            call MpiStop('massive neutrinos not supported for vector modes')
+            stop 'massive neutrinos not supported for vector modes'
         end if
     else
         EV%nvarv=0
@@ -1038,11 +1067,11 @@
 
     end subroutine SwitchToMassiveNuApprox
 
-    subroutine MassiveNuVarsOut(EV,y,yprime,a,grho,gpres,dgrho,dgq,dgpi, dgpi_diff,pidot_sum,clxnu_all)
+    subroutine MassiveNuVarsOut(EV,y,yprime,a,grho,gpres,dgrho,dgq,dgpi, gdpi_diff,pidot_sum,clxnu_all)
     implicit none
     type(EvolutionVars) EV
     real(dl) :: y(EV%nvar), yprime(EV%nvar),a
-    real(dl), optional :: grho,gpres,dgrho,dgq,dgpi, dgpi_diff,pidot_sum,clxnu_all
+    real(dl), optional :: grho,gpres,dgrho,dgq,dgpi, gdpi_diff,pidot_sum,clxnu_all
     !grho = a^2 kappa rho
     !gpres = a^2 kappa p
     !dgrho = a^2 kappa \delta\rho
@@ -1055,6 +1084,7 @@
     real(dl) pinudot,grhormass_t, rhonu, pnu,  rhonudot
     real(dl) adotoa, grhonu_t,gpnu_t
     real(dl) clxnu, qnu, pinu, dpnu, grhonu, dgrhonu
+    real(dl) dtauda
 
     grhonu=0
     dgrhonu=0
@@ -1094,7 +1124,7 @@
         dgrhonu= dgrhonu + grhonu_t*clxnu
         if (present(dgq)) dgq  = dgq   + grhonu_t*qnu
         if (present(dgpi)) dgpi = dgpi  + grhonu_t*pinu
-        if (present(dgpi_diff)) dgpi_diff = dgpi_diff + pinu*(3*gpnu_t-grhonu_t)
+        if (present(gdpi_diff)) gdpi_diff = gdpi_diff + pinu*(3*gpnu_t-grhonu_t)
         if (present(pidot_sum)) pidot_sum = pidot_sum + grhonu_t*pinudot
     end do
     if (present(grho)) grho = grho  + grhonu
@@ -1208,7 +1238,7 @@
     real(dl) pinu,q,aq,v
     integer iq, ind
 
-    if (EV%nq(nu_i)/=nqmax) call MpiStop('Nu_pi: nq/=nqmax')
+    if (EV%nq(nu_i)/=nqmax) stop 'Nu_pi: nq/=nqmax'
     pinu=0
     ind=EV%nu_ix(nu_i)+2
     am=a*nu_masses(nu_i)
@@ -1239,7 +1269,7 @@
     ind=EV%nu_ix(nu_i)
     G11=0._dl
     G30=0._dl
-    if (EV%nq(nu_i)/=nqmax) call MpiStop('Nu_Intvsq nq/=nqmax0')
+    if (EV%nq(nu_i)/=nqmax) stop 'Nu_Intvsq nq/=nqmax0'
     do iq=1, EV%nq(nu_i)
         q=nu_q(iq)
         aq=am/q
@@ -1299,369 +1329,254 @@
 
     end subroutine MassiveNuVars
 
-
     !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-
-    function Get21cm_source2(a,Delta_source,Delta_TCMB,Delta_Tm,Delta_xe,Tmat,Trad,xe, vterm )
-    !Delta_Tspin - Delta_TCMB
-    use constants
-    !vterm = hdot/clh + k*n/3/clh
-    real(dl), intent(in) :: a,Delta_source,Delta_TCMB,Delta_Tm,Tmat,Trad,xe, Delta_xe, vterm
-    real(dl) :: Get21cm_source2
-    real(dl) Rgamma,Rm
-    real(dl) dC10, n_H,C10, C10_HH, C10_eH
-    real(dl) kappa_HH,kappa_eH
-    real(dl) tau_eps
-    real(dl) dtauda, H
-    external dtauda
-    real(dl) TSpin
-    n_H = NNow/a**3
-    kappa_HH = kappa_HH_21cm(Tmat, .false.)
-    kappa_eH = kappa_eH_21cm(Tmat, .false.)
-    C10_HH = n_H*kappa_HH* (1- xe)
-    C10_eH = n_H*kappa_eH*xe
-    C10 = C10_HH + C10_eH    !only relevant when He ionization is negligible
-    Rgamma = 1._dl/(C10+A10*Trad/T_21cm)
-    Rm = 1._dl/(C10+A10*Tmat/T_21cm)
-
-    !          TSpin=TsRecfast(a)
-    !          write(*,'(9e15.5)') 1/a-1,Tmat,Tspin, Trad,C10_HH,C10_eH,A10*Trad/T_21cm,xe,&
-    !                  n_H*kappa_pH_21cm(Tmat, .false.)*xe
-    !          if (a>0.5) stop
-
-    dC10 = (C10*Delta_source + &
-        (C10_HH*kappa_HH_21cm(Tmat, .true.)+C10_eH*kappa_eH_21cm(Tmat, .true.)) * &
-        Delta_Tm + (kappa_eH-kappa_HH)*xe*n_H*Delta_xe)
-
-
-
-    Get21cm_source2 =  dC10*(Rgamma-Rm) +  C10*(Rm*Delta_tm - Delta_TCMB*Rgamma)
-
-    TSpin=Recombination_Ts(a)
-    H = (1/(a*dtauda(a)))
-    tau_eps = a*line21_const*NNow/a**3/H/Tspin/1000
-
-    Get21cm_source2 = Get21cm_source2 + &
-        tau_eps/2*A10*( 1/(C10*T_21cm/Tmat+A10) -  1/(C10*T_21cm/Trad+A10) ) * &
-        (Delta_source -vterm + dC10/C10 + 2*( - Rgamma*dC10 + Delta_TCMB*(C10*Rgamma-1)) &
-        + Trad/(Tmat-Trad)*(Delta_tm-Delta_TCMB)   )
-
-    end function Get21cm_source2
-
-
-
-    !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-
-    function Get21cm_dTs(a,Delta_n,Delta_Ts,Delta_TCMB,Delta_Tm,Tmat,Trad,xe )
-    !d Delta T_s / d eta dropping small \Delta_xe terms
-    use constants
-    real(dl), intent(in) :: a,Delta_n,Delta_Ts,Delta_TCMB,Delta_Tm,Tmat,Trad,xe
-    real(dl) :: Get21cm_dTs
-    real(dl) n_H,C10, C10_HH, C10_eH, delta_C10
-    real(dl) kappa_HH,kappa_eH, TSpin
-
-    n_H = NNow/a**3
-    kappa_HH = kappa_HH_21cm(Tmat, .false.)
-    kappa_eH = kappa_eH_21cm(Tmat, .false.)
-    C10_HH = n_H*kappa_HH* (1- xe)
-    C10_eH = n_H*kappa_eH*xe
-    C10 = C10_HH + C10_eH    !only relevant when He ionization is negligible
-    TSpin=Recombination_ts(a)
-    delta_C10 = C10*Delta_n + (C10_HH*kappa_HH_21cm(Tmat, .true.)+C10_eH*kappa_eH_21cm(Tmat, .true.))*Delta_Tm
-
-    !          write(*,'(9e15.5)') 1/a-1,Tmat,Tspin, Trad,C10_HH,C10_eH,A10*Trad/T_21cm,xe,&
-    !                  n_H*kappa_pH_21cm(Tmat, .false.)*xe
-
-    Get21cm_dTs =  4*a*( TSpin/TMat*(Delta_Tm-Delta_ts)*C10 + (1-TSpin/TMat)*delta_C10 + &
-        (Trad*Delta_TCMB - Tspin*Delta_Ts)*A10/T_21cm ) * MPC_in_sec
-
-    end function Get21cm_dTs
-
-
-    !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-
-    subroutine output_window_sources(EV, sources, y, yprime, &
-                    tau, a, adotoa, grho, gpres,w_dark_energy_t,  &
-                    grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,grhonu_t, &
-                    k, etak, z, etakdot, phi, phidot, sigma, sigmadot, &
-                    dgrho, clxg,clxb,clxc,clxnu, Delta_TM, Delta_xe, cs2, &
-                    dgq, qg, qr, vb, qgdot, vbdot, &
-                    dgpi, pig, pir, pigdot, diff_rhopi, &
-                    polter, polterdot, polterddot, octg, octgdot, E, Edot, &
-                    opacity, dopacity, ddopacity, visibility, dvisibility, ddvisibility, exptau)
-    !Line of sight sources for number counts, lensing and 21cm redshift windows
+    subroutine output(EV,y, tau,sources, notused_custom_sources)
     use ThermoData
+    use lvalues
+    use ModelData
+    implicit none
     type(EvolutionVars) EV
-    real(dl) y(EV%nvar), yprime(EV%nvar)
-    real(dL), intent(out) :: sources(:)
-    real(dL), intent(in) :: tau, a, adotoa, grho, gpres,w_dark_energy_t, &
-        grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,grhonu_t, &
-        k,etak, z, etakdot, phi, phidot, sigma, sigmadot, &
-        dgrho, clxg,clxb,clxc,clxnu, cs2, &
-        dgq, qg, qr,vb, qgdot, vbdot, &
-        dgpi, pig, pir, pigdot, diff_rhopi, &
-        polter, polterdot, polterddot, octg, octgdot, E(2:3), Edot(2:3), &
-        opacity, dopacity, ddopacity, visibility, dvisibility, ddvisibility, exptau
-    real(dl), intent(in) :: Delta_TM, Delta_xe
-    real(dl) s(0:10), t(0:10)
-    real(dl) counts_radial_source, counts_velocity_source, counts_density_source, counts_ISW_source, &
-        counts_redshift_source, counts_timedelay_source, counts_potential_source
-    integer w_ix, lineoff,lineoffpol
-    real(dl) Delta_TCMB
-    integer j
-    real(dl) Tmat,Trad, Tspin, Delta_source, Delta_source2
-    real(dl) xe, chi, polter_line
-    
-    j = EV%OutputStep
-    if (line_reionization) sources(2)=0
+    real(dl), target :: y(EV%nvar),yprime(EV%nvar)
+    real(dl), dimension(:),pointer :: ypol,ypolprime
 
-    if (tau <= tau_start_redshiftwindows) return
+    real(dl) dgq,grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,sigma,polter
+    real(dl) qgdot,pigdot,pirdot,vbdot,dgrho
+    real(dl) a,a2,dz,z,clxc,clxb,vb,clxg,qg,pig,clxr,qr,pir
 
-    !There are line of sight contributions...
-    if (Do21cm) then
-        Delta_TCMB = clxg/4
-        Delta_source = clxb
-        Trad = CP%TCMB/a
+    real(dl) tau,x,divfac
+    real(dl) dgpi_diff, pidot_sum
+    real(dl), target :: pol(3),polprime(3)
+    !dgpi_diff = sum (3*p_nu -rho_nu)*pi_nu
 
-        xe = Recombination_xe(a)
-        Tmat = Recombination_Tm(a)
-
-        Delta_source2 = Get21cm_source2(a,Delta_source,Delta_TCMB,Delta_Tm,Delta_xe,Tmat,Trad,xe, &
-            k*(z+vb)/adotoa/3)
-    end if
-
-    do w_ix = 1, num_redshiftwindows
-        associate (W => Redshift_W(w_ix))
-
-            if (W%kind == window_lensing) then
-                sources(3+w_ix) =-2*phi*W%win_lens(j)
-            elseif (W%kind == window_counts) then
-                !assume zero velocity bias and relevant tracer is CDM perturbation
-                !neglect anisotropic stress in some places
-
-                !Main density source
-                if (counts_density) then
-                    counts_density_source= W%wing(j)*(clxc*W%bias + (W%comoving_density_ev(j) - 3*adotoa)*sigma/k)
-                    !Newtonian gauge count density; bias assumed to be on synchronous gauge CDM density
-                else
-                    counts_density_source= 0
-                endif
+    real(dl) k,k2  ,adotoa, grho, gpres,etak,phi,dgpi
+    real(dl)  diff_rhopi, octg, octgprime
+    real(dl) sources(CTransScal%NumSources)
+    !        real(dl) t4,t92
+    real(dl) ISW
+    real(dl) w_eff
+    real(dl) hdotoh,ppiedot
+    integer, intent(in) :: notused_custom_sources !must be zero in _ppf version
+    real(dl) opacity, dopacity, ddopacity, visibility, dvisibility, ddvisibility, exptau, lenswindow
 
 
-                if (counts_redshift) then
-                    !Main redshift distortion from kV_N/H j'' integrated by parts twice (V_N = sigma in synch gauge)
-                    counts_redshift_source = ((4.D0*adotoa**2+gpres+grho/3.D0)/k*W%wing2(j)+ &
-                        (-4.D0*W%dwing2(j)*adotoa+W%ddwing2(j))/k)*sigma+(-etak/adotoa*k/3.D0-dgrho/ &
-                        adotoa/6.D0+(etak/adotoa*k/3.D0+dgrho/adotoa/6.D0+(dgq/2.D0-2.D0*etak*adotoa)/k) &
-                        /EV%Kf(1))*W%wing2(j)+2.D0*W%dwing2(j)*etak/k/EV%Kf(1)
-                else
-                    counts_redshift_source= 0
-                end if
+    call IonizationFunctionsAtTime(tau, opacity, dopacity, ddopacity, &
+        visibility, dvisibility, ddvisibility, exptau, lenswindow)
 
-                ! 2v j'/(H\chi) geometric term
-                if (CP%tau0-tau > 0.1_dl .and. counts_radial) then
-                    chi =  CP%tau0-tau
-                    counts_radial_source= (1-2.5*W%dlog10Ndm)*((-4.D0*W%wing2(j)/chi*adotoa &
-                        -2.D0*(-W%dwing2(j)*chi-W%wing2(j))/chi**2)/ &
-                        k*sigma+2.D0*W%wing2(j)*etak/chi/k/EV%Kf(1))
-                else
-                    counts_radial_source = 0
-                end if
-
-                if (counts_timedelay) then
-                    !time delay; WinV is int g/chi
-                    counts_timedelay_source= 2*(1-2.5*W%dlog10Ndm)*W%WinV(j)*2*phi
-                else
-                    counts_timedelay_source = 0
-                end if
-
-                if (counts_ISW) then
-                    !WinF is int wingtau
-                    counts_ISW_source = W%WinF(j)*2*phidot
-                else
-                    counts_ISW_source = 0
-                end if
-
-                if (counts_potential) then
-                    !approx phi = psi
-                    counts_potential_source = ( phidot/adotoa + phi +(5*W%dlog10Ndm-2)*phi ) * W%wing(j) &
-                        + phi * W%wingtau(j)
-                else
-                    counts_potential_source = 0
-                end if
-
-                if (counts_velocity) then
-                    counts_velocity_source =  (-2.D0*W%wingtau(j)*adotoa+W%dwingtau(j))/k*sigma &
-                        +W%wingtau(j)*etak/k/EV%Kf(1) &
-                        - counts_radial_source  !don't double count terms; counts_radial is part of counts_velocity with 1/H/chi
-                else
-                    counts_velocity_source = 0
-                end if
-
-                sources(3+w_ix)=  counts_radial_source +  counts_density_source + counts_redshift_source &
-                    + counts_timedelay_source + counts_potential_source &
-                    + counts_ISW_source + counts_velocity_source
-
-                sources(3+w_ix)=sources(3+w_ix)/W%Fq
-
-                if (DoRedshiftLensing) &
-                    sources(3+W%mag_index+num_redshiftwindows) = phi*W%win_lens(j)*(2-5*W%dlog10Ndm)
-            elseif (W%kind == window_21cm) then
-                if (line_basic) then
-                    sources(3+w_ix)= exptau*(W%wing(j)*Delta_source + W%wing2(j)*Delta_source2 &
-                        - W%Wingtau(j)*(clxb - (Delta_source2+clxg/4)))
-                    !!    sources(3+w_ix)= exptau*W%wing(j)*phi
-                else
-                    sources(3+w_ix)= 0
-                end if
-
-                if (line_distortions ) then
-                    !With baryon velocity, dropping small terms
-                    s(1) =  (sigma/adotoa/3.D0-etak/adotoa**2/3.D0)*W%wing(j)*exptau*k
-                    s(2) =  -1.D0/adotoa**2*exptau*W%wing(j)*dgrho/6.D0+((((4.D0*sigma+ &
-                        vb)*adotoa+(-grho*sigma/2.D0-vb*grho/3.D0)/adotoa+(sigma*grho**2/18.D0+ &
-                        vb*grho**2/18.D0)/adotoa**3)*W%wing(j)-4.D0*W%dwing(j)*sigma+(W%ddwing(j)*sigma+ &
-                        W%ddwing(j)*vb)/adotoa+(W%dwing(j)*sigma*grho/3.D0+W%dwing(j)*vb*grho/3.D0)/ &
-                        adotoa**2-2.D0*W%dwing(j)*vb+((-2.D0*etak+etak*grho/adotoa**2/3.D0)*W%wing(j) &
-                        + 2.D0*W%dwing(j)*etak/adotoa)/EV%Kf(1))*exptau+&
-                        (-4.D0*visibility*sigma- 2.D0*visibility*vb+(dvisibility*sigma+dvisibility*vb)/adotoa+(visibility*grho*sigma/3.D0+ &
-                        visibility*vb*grho/3.D0)/adotoa**2)*W%wing(j)+2.D0*visibility*etak/adotoa*W%wing(j)/ &
-                        EV%Kf(1)+(2.D0*visibility*W%dwing(j)*sigma+2.D0*visibility*W%dwing(j)*vb)/adotoa)/k
-                    t(0) =  s(1)+s(2)
-
-                    sources(3+w_ix)= sources(3+w_ix) + t(0)
-                end if
-
-
-                if (line_extra) then
-                    !All sources except below
-                    if (line_basic .and. line_distortions) then
-                        sources(3+w_ix) =  (-2.D0/3.D0*sigma+2.D0/3.D0*etak/adotoa)*W%winV(j)*exptau*k+ &
-                            (W%wing2(j)*Delta_source2+W%wing(j)*Delta_source+1.D0/adotoa*W%winV(j)*dgrho/3.D0)* &
-                            exptau+((-W%dwing(j)*vb+(-(3.D0*gpres+grho)*sigma/3.D0 &
-                            - 4.D0*adotoa**2*sigma)*W%winV(j)+4.D0*adotoa*W%dwinV(j)*sigma+(-sigma- &
-                            vb)*W%ddWinV(j)-vbdot*W%wing(j)-W%dwinV(j)*vbdot+(-2.D0*W%dwinV(j)*etak &
-                            + 2.D0*etak*adotoa*W%winV(j))/EV%Kf(1))*exptau-2.D0*visibility*sigma*W%dwinV(j)+ &
-                            (4.D0*visibility*sigma*adotoa-dvisibility*sigma)*W%winV(j)-2.D0*visibility*W%winV(j)*etak/ &
-                            EV%Kf(1)-visibility*W%dwinV(j)*vb-visibility*W%wing(j)*vb)/k+((2.D0*W%dwinV(j)*dgpi+ &
-                            diff_rhopi*W%winV(j))*exptau+2.D0*visibility*W%winV(j)*dgpi)/k**2
-                    else
-                        s(1) =  ((-2.D0/3.D0*sigma+2.D0/3.D0*etak/adotoa)*W%winV(j)+(-sigma/adotoa/3.D0+ &
-                            etak/adotoa**2/3.D0)*W%wing(j))*exptau*k+(1.D0/adotoa*W%winV(j)*dgrho/3.D0 &
-                            + 1.D0/adotoa**2*W%wing(j)*dgrho/6.D0)*exptau
-                        s(2) =  s(1)
-                        s(6) =  ((-vb-sigma)*W%ddWinV(j)+(-4.D0*adotoa**2*sigma-&
-                            (18.D0*gpres+ 6.D0*grho)*sigma/18.D0)*W%winV(j)+((-4.D0*sigma-vb)*adotoa-vbdot+&
-                            (grho*sigma/ 2.D0+vb*grho/3.D0)/adotoa+(-grho**2*sigma/18.D0-vb*grho**2/18.D0)/ &
-                            adotoa**3)*W%wing(j)+W%dwing(j)*vb+(-W%ddwing(j)*sigma-W%ddwing(j)*vb)/adotoa &
-                            + 4.D0*W%dwinV(j)*sigma*adotoa+4.D0*W%dwing(j)*sigma+(-W%dwing(j)*grho*sigma/3.D0- &
-                            W%dwing(j)*vb*grho/3.D0)/adotoa**2-W%dwinV(j)*vbdot+((2.D0*etak-etak*grho/ &
-                            adotoa**2/3.D0)*W%wing(j)-2.D0*W%dwing(j)*etak/adotoa-2.D0*W%dwinV(j)*etak &
-                            + 2.D0*etak*adotoa*W%winV(j))/EV%Kf(1))*exptau-visibility*W%dwinV(j)*vb+ &
-                            (4.D0*visibility*sigma*adotoa-dvisibility*sigma)*W%winV(j)
-                        s(5) =  s(6)+(-2.D0*visibility*etak/adotoa*W%wing(j)-2.D0*visibility*W%winV(j)*etak)/ &
-                            EV%Kf(1)+(4.D0*visibility*sigma+(-visibility*grho*sigma/3.D0-visibility*vb*grho/3.D0)/ &
-                            adotoa**2+visibility*vb+(-dvisibility*sigma-dvisibility*vb)/adotoa)*W%wing(j)+ &
-                            (-2.D0*visibility*W%dwing(j)*sigma-2.D0*visibility*W%dwing(j)*vb)/adotoa &
-                            - 2.D0*visibility*W%dwinV(j)*sigma
-                        s(6) =  1.D0/k
-                        s(4) =  s(5)*s(6)
-                        s(5) =  ((diff_rhopi*W%winV(j)+2.D0*W%dwinV(j)*dgpi)*exptau &
-                            + 2.D0*visibility*dgpi*W%winV(j))/k**2
-                        s(3) =  s(4)+s(5)
-                        t(0) =  s(2)+s(3)
-
-                        sources(3+w_ix) =   sources(3+w_ix) + t(0)
-                    end if
-                end if
-
-
-
-                if (line_reionization) then
-                    if (num_redshiftwindows>1) stop 'reionization only for one window at the mo'
-                    lineoff=EV%reion_line_ix
-                    lineoffpol = lineoff+EV%lmaxline-1
-
-                    if (tau  < CP%tau0) then
-                        polter_line = 0.1_dl*y(lineoff+2)+9._dl/15._dl*y(lineoffpol+2)
-                        sources(2)=visibility*polter_line*(15._dl/2._dl)/(f_K(CP%tau0-tau)*k)**2
-                    else
-                        sources(2)=0
-                    end if
-
-                    if (.not. use_mK) sources(2)= sources(2) /W%Fq
-
-                    s(1) =  visibility*y(lineoff+2)/4.D0+visibility*y(lineoff)
-                    s(2) =  s(1)
-                    s(4) =  (-1.D0/EV%Kf(1)*visibility*W%winV(j)*etak/10.D0-visibility*sigma*W%dwinV(j)/10.D0 &
-                        - 9.D0/20.D0*visibility*yprime(lineoff+2)-27.D0/100.D0*visibility*opacity*y(lineoff+1) &
-                        - 9.D0/10.D0*dvisibility*y(lineoff+3)-3.D0/20.D0*visibility*opacity*EV%Kf(2)*y(lineoffpol+3)+ &
-                        visibility*W%dwinV(j)*vb+81.D0/200.D0*visibility*opacity*y(lineoff+3) &
-                        +3.D0/5.D0*dvisibility*y(lineoff+1)+3.D0/10.D0*visibility*yprime(lineoff+1)+ &
-                        (visibility*adotoa*sigma/5.D0+(36.D0*visibility*opacity-80.D0*dvisibility)*sigma/400.D0+ &
-                        dvisibility*vb+visibility*vbdot)*W%winV(j))/k
-                    s(5) =  (visibility*W%winV(j)*dgpi/10.D0+9.D0/20.D0*visibility*dopacity*y(lineoffpol+2) &
-                        + 261.D0/400.D0*visibility*opacity**2.D0*y(lineoff+2)&
-                        -117.D0/200.D0*visibility*opacity**2.D0*y(lineoffpol+2)+3.D0/4.D0*ddvisibility*y(lineoff+2) &
-                        - 27.D0/20.D0*dvisibility*opacity*y(lineoff+2)+9.D0/10.D0*dvisibility*opacity*y(lineoffpol+2)&
-                        -27.D0/40.D0*visibility*dopacity*y(lineoff+2))/k**2
-                    s(3) =  s(4)+s(5)
-                    t(0) =  s(2)+s(3)
-
-                    sources(3+w_ix)= sources(3+w_ix) + t(0)
-                end if
-
-                if (line_phot_quadrupole) then
-                    s(1) =  (EV%kf(1)*W%wing2(j)*pig/2.D0+(-clxg/4.D0-5.D0/8.D0*pig)*W%wing2(j))*exptau
-                    s(3) =  ((-1.D0/EV%kf(1)*W%wing2(j)*etak+(-sigma+9.D0/8.D0*EV%kf(2)*y(9) &
-                        -3.D0/4.D0*qg)*W%dwing2(j)+(-opacity*vb+2.D0*adotoa*sigma+9.D0/8.D0*EV%kf(2)*yprime(9) &
-                        + 3.D0/8.D0*opacity*EV%kf(2)*E(3)+3.D0/4.D0*opacity*qg)*W%wing2(j))*exptau+ &
-                        (-3.D0/4.D0*visibility*qg-visibility*sigma+9.D0/8.D0*visibility*EV%kf(2)*y(9))*W%wing2(j))/k
-                    s(4) =  (((27.D0/16.D0*opacity*pig-15.D0/8.D0*pigdot &
-                        -9.D0/8.D0*opacity*E(2))*W%dwing2(j)+(27.D0/16.D0*dopacity*pig &
-                        +9.D0/8.D0*opacity**2.D0*E(2)-9.D0/8.D0*opacity**2.D0*polter &
-                        +27.D0/16.D0*opacity*pigdot+dgpi-9.D0/8.D0*dopacity*E(2))*W%wing2(j)&
-                        -15.D0/8.D0*W%ddwing2(j)*pig)*exptau-15.D0/4.D0*visibility*W%dwing2(j)*pig+(- &
-                        (-27.D0*visibility*opacity+30.D0*dvisibility)*pig/16.D0-9.D0/8.D0*visibility*opacity*E(2) &
-                        - 15.D0/8.D0*visibility*pigdot)*W%wing2(j))/k**2
-                    s(2) =  s(3)+s(4)
-                    t(0) =  s(1)+s(2)
-
-                    sources(3+w_ix)= sources(3+w_ix)+ t(0)
-                end if
-
-
-                if (line_phot_dipole) then
-                    sources(3+w_ix)=sources(3+w_ix) + (EV%kf(1)*W%wing2(j)*pig/2.D0-W%wing2(j)*clxg/4.D0)*exptau &
-                        +(((vbdot- opacity*vb+3.D0/4.D0*opacity*qg)*&
-                        W%wing2(j)+(vb-3.D0/4.D0*qg)*W%dwing2(j))*exptau+&
-                        (visibility*vb-3.D0/4.D0*visibility*qg)*W%wing2(j))/k
-                end if
-
-                if (.not. use_mK) sources(3+w_ix)= sources(3+w_ix) /W%Fq
-            end if
-        end associate
-    end do
-    end subroutine output_window_sources
-
-    !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-
-    subroutine output(EV, y, j, tau,sources, num_custom_sources)
-    use ThermoData
-    type(EvolutionVars) EV
-    real(dl) y(EV%nvar), yprime(EV%nvar)
-    integer, intent(in) :: j
-    real(dl) tau
-    real(dl), target :: sources(CTransScal%NumSources)
-    integer, intent(in) :: num_custom_sources
 
     yprime = 0
-    EV%OutputSources => Sources
-    EV%OutputStep = j
-    if (num_custom_sources>0) &
-        EV%CustomSources => sources(CTransScal%NumSources - num_custom_sources+1:)
     call derivs(EV,EV%ScalEqsToPropagate,tau,y,yprime)
-    nullify(EV%OutputSources, EV%CustomSources)
+
+    if (EV%TightCoupling .or. EV%no_phot_multpoles) then
+        pol=0
+        polprime=0
+        ypolprime => polprime
+        ypol => pol
+    else
+        ypolprime => yprime(EV%polind+1:)
+        ypol => y(EV%polind+1:)
+    end if
+
+    k=EV%k_buf
+    k2=EV%k2_buf
+
+    a   =y(1)
+    a2  =a*a
+    etak=y(2)
+    clxc=y(3)
+    clxb=y(4)
+    vb  =y(5)
+    vbdot =yprime(5)
+
+    !  Compute expansion rate from: grho 8*pi*rho*a**2
+
+    grhob_t=grhob/a
+    grhoc_t=grhoc/a
+    grhor_t=grhornomass/a2
+    grhog_t=grhog/a2
+
+    !  8*pi*a*a*SUM[rho_i*clx_i] add radiation later
+    dgrho=grhob_t*clxb+grhoc_t*clxc
+
+    !  8*pi*a*a*SUM[(rho_i+p_i)*v_i]
+    dgq=grhob_t*vb
+
+    if (is_cosmological_constant) then
+        w_eff = -1_dl
+        grhov_t=grhov*a2
+    else
+        !ppf
+        w_eff=w_de(a)   !effective de
+        grhov_t=grho_de(a)/a2
+        dgrho=dgrho+EV%dgrho_e_ppf
+        dgq=dgq+EV%dgq_e_ppf
+    end if
+    grho=grhob_t+grhoc_t+grhor_t+grhog_t+grhov_t
+    gpres=(grhog_t+grhor_t)/3+grhov_t*w_eff
+
+
+    dgpi= 0
+    dgpi_diff = 0
+    pidot_sum = 0
+
+    if (CP%Num_Nu_Massive /= 0) then
+        call MassiveNuVarsOut(EV,y,yprime,a,grho,gpres,dgrho,dgq,dgpi, dgpi_diff,pidot_sum)
+    end if
+
+    adotoa=sqrt((grho+grhok)/3)
+
+    if (EV%no_nu_multpoles) then
+        z=(0.5_dl*dgrho/k + etak)/adotoa
+        dz= -adotoa*z - 0.5_dl*dgrho/k
+        clxr=-4*dz/k
+        qr=-4._dl/3*z
+        pir=0
+        pirdot=0
+    else
+        clxr=y(EV%r_ix)
+        qr  =y(EV%r_ix+1)
+        pir =y(EV%r_ix+2)
+        pirdot=yprime(EV%r_ix+2)
+    end if
+
+    if (EV%no_phot_multpoles) then
+        z=(0.5_dl*dgrho/k + etak)/adotoa
+        dz= -adotoa*z - 0.5_dl*dgrho/k
+        clxg=-4*dz/k -4/k*opacity*(vb+z)
+        qg=-4._dl/3*z
+        pig=0
+        pigdot=0
+        octg=0
+        octgprime=0
+        qgdot = -4*dz/3
+    else
+        if (EV%TightCoupling) then
+            pig = EV%pig
+            !pigdot=EV%pigdot
+            if (second_order_tightcoupling) then
+                octg = (3._dl/7._dl)*pig*(EV%k_buf/opacity)
+                ypol(2) = EV%pig/4 + EV%pigdot*(1._dl/opacity)*(-5._dl/8._dl)
+                ypol(3) = (3._dl/7._dl)*(EV%k_buf/opacity)*ypol(2)
+            else
+                ypol(2) = EV%pig/4
+                octg=0
+            end if
+            octgprime=0
+        else
+            pig =y(EV%g_ix+2)
+            pigdot=yprime(EV%g_ix+2)
+            octg=y(EV%g_ix+3)
+            octgprime=yprime(EV%g_ix+3)
+        end if
+        clxg=y(EV%g_ix)
+        qg  =y(EV%g_ix+1)
+        qgdot =yprime(EV%g_ix+1)
+    end if
+
+    dgrho = dgrho + grhog_t*clxg+grhor_t*clxr
+    dgq   = dgq   + grhog_t*qg+grhor_t*qr
+    dgpi  = dgpi  + grhor_t*pir + grhog_t*pig
+
+
+    !  Get sigma (shear) and z from the constraints
+    !  have to get z from eta for numerical stability
+    z=(0.5_dl*dgrho/k + etak)/adotoa
+    sigma=(z+1.5_dl*dgq/k2)/EV%Kf(1)
+
+    if (is_cosmological_constant) then
+        ppiedot=0
+    else
+        hdotoh=(-3._dl*grho-3._dl*gpres -2._dl*grhok)/6._dl/adotoa
+        ppiedot=3._dl*EV%dgrho_e_ppf+EV%dgq_e_ppf*(12._dl/k*adotoa+k/adotoa-3._dl/k*(adotoa+hdotoh))+ &
+            grhov_t*(1+w_eff)*k*z/adotoa -2._dl*k2*EV%Kf(1)*(yprime(EV%w_ix)/adotoa-2._dl*y(EV%w_ix))
+        ppiedot=ppiedot*adotoa/EV%Kf(1)
+    end if
+
+    polter = 0.1_dl*pig+9._dl/15._dl*ypol(2)
+
+    if (CP%flat) then
+        x=k*(CP%tau0-tau)
+        divfac=x*x
+    else
+        x=(CP%tau0-tau)/CP%r
+        divfac=(CP%r*rofChi(x))**2*k2
+    end if
+
+
+    if (EV%TightCoupling) then
+        if (second_order_tightcoupling) then
+            pigdot = EV%pigdot
+            ypolprime(2)= (pigdot/4._dl)*(1+(5._dl/2._dl)*(dopacity/opacity**2))
+        else
+            pigdot = -dopacity/opacity*pig + 32._dl/45*k/opacity*(-2*adotoa*sigma  &
+                +etak/EV%Kf(1)-  dgpi/k +vbdot )
+            ypolprime(2)= pigdot/4
+        end if
+    end if
+
+    pidot_sum =  pidot_sum + grhog_t*pigdot + grhor_t*pirdot
+    diff_rhopi = pidot_sum - (4*dgpi+ dgpi_diff )*adotoa + ppiedot
+
+
+    !Maple's fortran output - see scal_eqs.map
+    !2phi' term (\phi' + \psi' in Newtonian gauge)
+    ISW = (4.D0/3.D0*k*EV%Kf(1)*sigma+(-2.D0/3.D0*sigma-2.D0/3.D0*etak/adotoa)*k &
+        -diff_rhopi/k**2-1.D0/adotoa*dgrho/3.D0+(3.D0*gpres+5.D0*grho)*sigma/k/3.D0 &
+        -2.D0/k*adotoa/EV%Kf(1)*etak)*exptau
+
+    !e.g. to get only late-time ISW
+    !  if (1/a-1 < 30) ISW=0
+
+    !The rest, note y(9)->octg, yprime(9)->octgprime (octopoles)
+    sources(1)= ISW +  ((-9.D0/160.D0*pig-27.D0/80.D0*ypol(2))/k**2*opacity+ &
+        (11.D0/10.D0*sigma- 3.D0/8.D0*EV%Kf(2)*ypol(3)+vb-9.D0/80.D0*EV%Kf(2)*octg+3.D0/40.D0*qg)/k- &
+        (-180.D0*ypolprime(2)-30.D0*pigdot)/k**2/160.D0)*dvisibility + &
+        (-(9.D0*pigdot+ 54.D0*ypolprime(2))/k**2*opacity/160.D0+pig/16.D0+clxg/4.D0+3.D0/8.D0*ypol(2) + &
+        (-21.D0/5.D0*adotoa*sigma-3.D0/8.D0*EV%Kf(2)*ypolprime(3) + &
+        vbdot+3.D0/40.D0*qgdot- 9.D0/80.D0*EV%Kf(2)*octgprime)/k + &
+        (-9.D0/160.D0*dopacity*pig-21.D0/10.D0*dgpi-27.D0/80.D0*dopacity*ypol(2))/k**2)*visibility + &
+        (3.D0/16.D0*ddvisibility*pig+9.D0/8.D0*ddvisibility*ypol(2))/k**2+21.D0/10.D0/k/EV%Kf(1)*visibility*etak
+
+    ! Doppler term
+    !   sources(1)=  (sigma+vb)/k*dvisibility+((-2.D0*adotoa*sigma+vbdot)/k-1.D0/k**2*dgpi)*visibility &
+    !         +1.D0/k/EV%Kf(1)*visibility*etak
+
+    !Equivalent full result
+    !    t4 = 1.D0/adotoa
+    !    t92 = k**2
+    !    sources(1) = (4.D0/3.D0*EV%Kf(1)*exptau*sigma+2.D0/3.D0*(-sigma-t4*etak)*exptau)*k+ &
+    !        (3.D0/8.D0*ypol(2)+pig/16.D0+clxg/4.D0)*visibility
+    !    sources(1) = sources(1)-t4*exptau*dgrho/3.D0+((11.D0/10.D0*sigma- &
+    !         3.D0/8.D0*EV%Kf(2)*ypol(3)+vb+ 3.D0/40.D0*qg-9.D0/80.D0*EV%Kf(2)*y(9))*dvisibility+(5.D0/3.D0*grho+ &
+    !        gpres)*sigma*exptau+(-2.D0*adotoa*etak*exptau+21.D0/10.D0*etak*visibility)/ &
+    !        EV%Kf(1)+(vbdot-3.D0/8.D0*EV%Kf(2)*ypolprime(3)+3.D0/40.D0*qgdot-21.D0/ &
+    !        5.D0*sigma*adotoa-9.D0/80.D0*EV%Kf(2)*yprime(9))*visibility)/k+(((-9.D0/160.D0*pigdot- &
+    !        27.D0/80.D0*ypolprime(2))*opacity-21.D0/10.D0*dgpi -27.D0/80.D0*dopacity*ypol(2) &
+    !        -9.D0/160.D0*dopacity*pig)*visibility - diff_rhopi*exptau+((-27.D0/80.D0*ypol(2)-9.D0/ &
+    !        160.D0*pig)*opacity+3.D0/16.D0*pigdot+9.D0/8.D0*ypolprime(2))*dvisibility+9.D0/ &
+    !        8.D0*ddvisibility*ypol(2)+3.D0/16.D0*ddvisibility*pig)/t92
+
+
+    if (x > 0._dl) then
+        !E polarization source
+        sources(2)=visibility*polter*(15._dl/8._dl)/divfac
+        !factor of four because no 1/16 later
+    else
+        sources(2)=0
+    end if
+
+    if (CTransScal%NumSources > 2) then
+        !Get lensing sources
+        !Can modify this here if you want to get power spectra for other tracer
+        if (tau > tau_maxvis .and. CP%tau0-tau > 0.1_dl) then
+            !phi_lens = Phi - 1/2 kappa (a/k)^2 sum_i rho_i pi_i
+            phi = -(dgrho +3*dgq*adotoa/k)/(k2*EV%Kf(1)*2) - dgpi/k2/2
+
+            sources(3) = -2*phi*f_K(tau-tau_maxvis)/(f_K(CP%tau0-tau_maxvis)*f_K(CP%tau0-tau))
+            !We include the lensing factor of two here
+        else
+            sources(3) = 0
+        end if
+    end if
 
     end subroutine output
 
@@ -1682,8 +1597,11 @@
     real(dl), dimension(:),pointer :: E,Bprime,Eprime
     real(dl), target :: pol(3),polEprime(3), polBprime(3)
     real(dl) dtauda
-    real(dl) opacity, dopacity, ddopacity, &
-        visibility, dvisibility, ddvisibility, exptau, lenswindow
+    real(dl) opacity, dopacity, ddopacity, visibility, dvisibility, ddvisibility, exptau, lenswindow
+
+
+    call IonizationFunctionsAtTime(tau, opacity, dopacity, ddopacity, &
+        visibility, dvisibility, ddvisibility, exptau, lenswindow)
 
     call derivst(EV,EV%nvart,tau,yt,ytprime)
 
@@ -1693,8 +1611,6 @@
     shear = yt(3)
 
     x=(CP%tau0-tau)/CP%r
-    call IonizationFunctionsAtTime(tau, opacity, dopacity, ddopacity, &
-        visibility, dvisibility, ddvisibility, exptau, lenswindow)
 
     !  And the electric part of the Weyl.
     if (.not. EV%TensTightCoupling) then
@@ -1764,8 +1680,11 @@
     real(dl) vb,qg, pig, polter, sigma
     real(dl) k,k2
     real(dl), dimension(:),pointer :: E,Eprime
-    real(dl) opacity, dopacity, ddopacity, &
-        visibility, dvisibility, ddvisibility, exptau, lenswindow
+    real(dl) opacity, dopacity, ddopacity, visibility, dvisibility, ddvisibility, exptau, lenswindow
+
+
+    call IonizationFunctionsAtTime(tau, opacity, dopacity, ddopacity, &
+        visibility, dvisibility, ddvisibility, exptau, lenswindow)
 
 
     call derivsv(EV,EV%nvarv,tau,yv,yvprime)
@@ -1786,9 +1705,6 @@
 
         polter = 0.1_dl*pig + 9._dl/15._dl*E(2)
         polterdot=9._dl/15._dl*Eprime(2) + 0.1_dl*yvprime(5)
-
-        call IonizationFunctionsAtTime(tau, opacity, dopacity, ddopacity, &
-            visibility, dvisibility, ddvisibility, exptau, lenswindow)
 
         if (yv(1) < 1e-3) then
             dt = 1
@@ -1829,8 +1745,6 @@
     real(dl) initv(6,1:i_max), initvec(1:i_max)
 
     nullify(EV%OutputTransfer) !Should not be needed, but avoids issues in ifort 14
-    nullify(EV%OutputSources)
-    nullify(EV%CustomSources)
 
     if (CP%flat) then
         EV%k_buf=EV%q
@@ -1872,6 +1786,7 @@
     if (second_order_tightcoupling) ep=ep*2
     EV%TightSwitchoffTime = min(tight_tau,Thermo_OpacityToTime(EV%k_buf/ep))
 
+
     y=0
 
     !  k*tau, (k*tau)**2, (k*tau)**3
@@ -1891,7 +1806,7 @@
     Rp15=4*Rv+15
 
     if (CP%Scalar_initial_condition > initial_nummodes) &
-        call MpiStop('Invalid initial condition for scalar modes')
+        stop 'Invalid initial condition for scalar modes'
 
     a=tau*adotrad*(1+omtau/4)
     a2=a*a
@@ -1926,7 +1841,7 @@
         initv(2,i_eta)= Rc*omtau*(1._dl/3 - omtau/8)*EV%Kf(1)
         initv(2,i_aj3r)=0
         !Baryon isocurvature
-        if (Rc==0) call MpiStop('Isocurvature initial conditions assume non-zero dark matter')
+        if (Rc==0) stop 'Isocurvature initial conditions assume non-zero dark matter'
 
         initv(3,:) = initv(2,:)*(Rb/Rc)
         initv(3,i_clxc) = initv(3,i_clxb)
@@ -1988,14 +1903,8 @@
     y(EV%g_ix)=InitVec(i_clxg)
     y(EV%g_ix+1)=InitVec(i_qg)
 
-    ! DarkEnergy: This initializes also i_vq, when num_perturb_equations is set
-    !             to 2.
-    if (CP%DarkEnergy%num_perturb_equations > 0) &
-        y(EV%w_ix:EV%w_ix + CP%DarkEnergy%num_perturb_equations - 1) = &
-        InitVec(i_clxq:i_clxq + CP%DarkEnergy%num_perturb_equations - 1)
-
-    if (Evolve_delta_Ts) then
-        y(EV%Ts_ix) = y(EV%g_ix)/4
+    if (.not. is_cosmological_constant) then
+        y(EV%w_ix) = InitVec(i_clxq) !ppf: Gamma=0, i_clxq stands for i_Gamma
     end if
 
     !  Neutrinos
@@ -2126,7 +2035,7 @@
         EV%k2_buf=EV%q2
         EV%k_buf=EV%q
     else
-        call MpiStop('Vectors not supported in non-flat models')
+        stop 'Vectors not supported in non-flat models'
     endif
 
     k=EV%k_buf
@@ -2180,6 +2089,8 @@
     implicit none
     type(EvolutionVars) EV
     real(dl), intent(in) :: tau
+    real(dl) clxc, clxb, clxg, clxr, k,k2
+    real(dl) grho,gpres,dgrho,dgq,a
     real, target :: Arr(:)
     real(dl) y(EV%nvar),yprime(EV%nvar)
 
@@ -2187,21 +2098,17 @@
     EV%OutputTransfer =>  Arr
     call derivs(EV,EV%ScalEqsToPropagate,tau,y,yprime)
     nullify(EV%OutputTransfer)
+
     Arr(Transfer_kh+1:Transfer_max) = Arr(Transfer_kh+1:Transfer_max)/EV%k2_buf
 
     end subroutine outtransf
-
 
     !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
     subroutine derivs(EV,n,tau,ay,ayprime)
     !  Evaluate the time derivatives of the perturbations
     !  ayprime is not necessarily GaugeInterface.yprime, so keep them distinct
-    use constants, only : barssc0, Compton_CT, line21_const
     use ThermoData
     use MassiveNu
-    use Recombination
-    use RECDATA, only : CB1
-
     implicit none
     type(EvolutionVars) EV
 
@@ -2218,30 +2125,19 @@
     real(dl) q,aq,v
     real(dl) G11_t,G30_t, wnu_arr(max_nu)
 
-    real(dl) dgq,grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,grhonu_t,sigma,polter
-    real(dl) w_dark_energy_t !equation of state of dark energy
-    real(dl) gpres_noDE !Pressure with matter and radiation, no dark energy
+    real(dl) dgq,grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,sigma,polter
     real(dl) qgdot,qrdot,pigdot,pirdot,vbdot,dgrho,adotoa
     real(dl) a,a2,z,clxc,clxb,vb,clxg,qg,pig,clxr,qr,pir
-    real(dl) E2, dopacity
+    real(dl) clxq, vq,  E2, dopacity
     integer l,i,ind, ind2, off_ix, ix
     real(dl) dgs,sigmadot,dz !, ddz
-    real(dl) dgpi,dgrho_matter,grho_matter, clxnu, gpres_nu
+    real(dl) dgpi,dgrho_matter,grho_matter, clxnu_all
     !non-flat vars
     real(dl) cothxor !1/tau in flat case
-    real(dl) xe,Trad, Delta_TM, Tmat, Delta_TCMB
-    real(dl) delta_p, wing_t, wing2_t,winv_t
-    real(dl) Delta_source2, polter_line
-    real(dl) Delta_xe, Tspin, tau_eps, tau_fac, Tb
-    integer lineoff,lineoffpol
-    !Variables for source calculation
-    real(dl) diff_rhopi, pidot_sum, dgpi_diff, phi
-    real(dl) E(2:3), Edot(2:3)
-    real(dl) phidot, polterdot, polterddot, octg, octgdot
-    real(dl) ddopacity, visibility, dvisibility, ddvisibility, exptau, lenswindow
-    real(dl) ISW, quadrupole_source, doppler, monopole_source, tau0, ang_dist
-    real(dl) dgrho_de, dgq_de
-    
+    !ppf
+    real(dl) Gamma,S_Gamma,ckH,Gammadot,Fa,dgqe,dgrhoe, vT
+    real(dl) w_eff, grhoT
+
     k=EV%k_buf
     k2=EV%k2_buf
 
@@ -2263,7 +2159,14 @@
     grhoc_t=grhoc/a
     grhor_t=grhornomass/a2
     grhog_t=grhog/a2
-    call CP%DarkEnergy%BackgroundDensityAndPressure(a, grhov_t, w_dark_energy_t)
+    if (is_cosmological_constant) then
+        grhov_t=grhov*a2
+        w_eff = -1_dl
+    else
+        !ppf
+        w_eff=w_de(a)   !effective de
+        grhov_t=grho_de(a)/a2
+    end if
 
     !  Get sound speed and ionisation fraction.
     if (EV%TightCoupling) then
@@ -2272,8 +2175,8 @@
         call thermo(tau,cs2,opacity)
     end if
 
-    gpres_nu=0
-    grhonu_t=0
+    gpres=(grhor_t+grhog_t)/3._dl
+    grho_matter=grhob_t+grhoc_t
 
     !total perturbations: matter terms first, then add massive nu, de and radiation
     !  8*pi*a*a*SUM[rho_i*clx_i]
@@ -2282,12 +2185,10 @@
     dgq=grhob_t*vb
 
     if (CP%Num_Nu_Massive > 0) then
-        call MassiveNuVars(EV,ay,a,grhonu_t,gpres_nu,dgrho_matter,dgq, wnu_arr)
+        call MassiveNuVars(EV,ay,a,grho_matter,gpres,dgrho_matter,dgq, wnu_arr)
     end if
 
-    grho_matter=grhonu_t+grhob_t+grhoc_t
     grho = grho_matter+grhor_t+grhog_t+grhov_t
-    gpres_noDE = gpres_nu + (grhor_t + grhog_t)/3
 
     if (CP%flat) then
         adotoa=sqrt(grho/3)
@@ -2298,6 +2199,13 @@
     end if
 
     dgrho = dgrho_matter
+
+    ! if (w_lam /= -1 .and. w_Perturb) then
+    !    clxq=ay(EV%w_ix)
+    !    vq=ay(EV%w_ix+1)
+    !    dgrho=dgrho + clxq*grhov_t
+    !    dgq = dgq + vq*grhov_t*(1+w_lam)
+    !end if
 
     if (EV%no_nu_multpoles) then
         !RSA approximation of arXiv:1104.2933, dropping opactity terms in the velocity
@@ -2314,7 +2222,6 @@
         pir =ay(EV%r_ix+2)
     endif
 
-    pig=0
     if (EV%no_phot_multpoles) then
         if (.not. EV%no_nu_multpoles) then
             z=(0.5_dl*dgrho/k + etak)/adotoa
@@ -2325,6 +2232,7 @@
             clxg=clxr-4/k*opacity*(vb+z)
             qg=qr
         end if
+        pig=0
     else
         !  Photons
         clxg=ay(EV%g_ix)
@@ -2344,11 +2252,37 @@
 
     ayprime(1)=adotoa*a
 
-    if (.not. CP%DarkEnergy%is_cosmological_constant) then
-        call CP%DarkEnergy%PerturbedStressEnergy(dgrho_de, dgq_de, &
-            dgq, dgrho, grho, grhov_t, w, gpres_noDE, etak, adotoa, k, EV%Kf(1), ay, ayprime, EV%w_ix)
-        dgrho = dgrho + dgrho_de
-        dgq = dgq + dgq_de
+    if (.not. is_cosmological_constant) then
+        !ppf
+        grhoT = grho - grhov_t
+        vT= dgq/(grhoT+gpres)
+        Gamma=ay(EV%w_ix)
+
+        !sigma for ppf
+        sigma = (etak + (dgrho + 3*adotoa/k*dgq)/2._dl/k)/EV%kf(1) - k*Gamma
+        sigma = sigma/adotoa
+
+        S_Gamma=grhov_t*(1+w_eff)*(vT+sigma)*k/adotoa/2._dl/k2
+        ckH=c_Gamma_ppf*k/adotoa
+        Gammadot=S_Gamma/(1+ckH*ckH)- Gamma -ckH*ckH*Gamma
+        Gammadot=Gammadot*adotoa
+        ayprime(EV%w_ix)=Gammadot
+
+        if(ckH*ckH.gt.3.d1)then
+            Gamma=0
+            Gammadot=0.d0
+            ayprime(EV%w_ix)=Gammadot
+        endif
+
+        Fa=1+3*(grhoT+gpres)/2._dl/k2/EV%kf(1)
+        dgqe=S_Gamma - Gammadot/adotoa - Gamma
+        dgqe=-dgqe/Fa*2._dl*k*adotoa + vT*grhov_t*(1+w_eff)
+        dgrhoe=-2*k2*EV%kf(1)*Gamma-3/k*adotoa*dgqe
+        dgrho=dgrho+dgrhoe
+        dgq=dgq+dgqe
+
+        EV%dgrho_e_ppf=dgrhoe
+        EV%dgq_e_ppf=dgqe
     end if
 
     !  Get sigma (shear) and z from the constraints
@@ -2363,8 +2297,37 @@
         ayprime(2)=0.5_dl*dgq + CP%curv*z
     end if
 
-    if (.not. CP%DarkEnergy%is_cosmological_constant) &
-        call CP%DarkEnergy%PerturbationEvolve(ayprime, EV%w_ix, adotoa, k, z, ay)
+    !if (w_lam /= -1 .and. w_Perturb) then
+    !
+    !   ayprime(EV%w_ix)= -3*adotoa*(cs2_lam-w_lam)*(clxq+3*adotoa*(1+w_lam)*vq/k) &
+    !       -(1+w_lam)*k*vq -(1+w_lam)*k*z
+    !
+    !   ayprime(EV%w_ix+1) = -adotoa*(1-3*cs2_lam)*vq + k*cs2_lam*clxq/(1+w_lam)
+    !
+    !end if
+    !
+
+    if (associated(EV%OutputTransfer)) then
+        EV%OutputTransfer(Transfer_kh) = k/(CP%h0/100._dl)
+        EV%OutputTransfer(Transfer_cdm) = clxc
+        EV%OutputTransfer(Transfer_b) = clxb
+        EV%OutputTransfer(Transfer_g) = clxg
+        EV%OutputTransfer(Transfer_r) = clxr
+        clxnu_all=0
+        dgpi  = grhor_t*pir + grhog_t*pig
+        if (CP%Num_Nu_Massive /= 0) then
+            call MassiveNuVarsOut(EV,ay,ayprime,a, clxnu_all =clxnu_all, dgpi= dgpi)
+        end if
+        EV%OutputTransfer(Transfer_nu) = clxnu_all
+        EV%OutputTransfer(Transfer_tot) =  dgrho_matter/grho_matter !includes neutrinos
+        EV%OutputTransfer(Transfer_nonu) = (grhob_t*clxb+grhoc_t*clxc)/(grhob_t + grhoc_t)
+        EV%OutputTransfer(Transfer_tot_de) =  dgrho/grho_matter
+        !Transfer_Weyl is k^2Phi, where Phi is the Weyl potential
+        EV%OutputTransfer(Transfer_Weyl) = -(dgrho +3*dgq*adotoa/k)/(EV%Kf(1)*2) - dgpi/2
+        EV%OutputTransfer(Transfer_Newt_vel_cdm)=  -k*sigma/adotoa
+        EV%OutputTransfer(Transfer_Newt_vel_baryon) = -k*(vb + sigma)/adotoa
+        EV%OutputTransfer(Transfer_vel_baryon_cdm) = vb
+    end if
 
     !  CDM equation of motion
     clxcdot=-k*z
@@ -2376,43 +2339,14 @@
     !  Photon equation of motion
     clxgdot=-k*(4._dl/3._dl*z+qg)
 
-    !Sources
-    if (Evolve_baryon_cs) then
-        if (a > Do21cm_mina) then
-            Tmat = Recombination_Tm(a)
-        else
-            Tmat = CP%TCMB/a
-        end if
-        if (EV%Evolve_TM) then
-            Delta_TM = ay(EV%Tg_ix)
-        else
-            Delta_TM = clxg/4
-        end if
-        delta_p = barssc0*(1._dl-0.75d0*CP%yhe+(1._dl-CP%yhe)*opacity*a2/akthom)*Tmat*(clxb + delta_tm)
-    else
-        Delta_TM = clxg/4
-        delta_p = cs2*clxb
-    end if
-
-
-    if (Evolve_delta_xe) then
-        if (EV%saha) then
-            xe=Recombination_xe(a)
-            Delta_xe = (1-xe)/(2-xe)*(-clxb + (3._dl/2+  CB1/Tmat)*Delta_TM)
-        else
-            Delta_xe = ay(EV%xe_ix)
-        end if
-    else
-        Delta_xe = 0
-    end if
-
+    ! old comment:Small k: potential problem with stability, using full equations earlier is NOT more accurate in general
     ! Easy to see instability in k \sim 1e-3 by tracking evolution of vb
 
     !  Use explicit equation for vb if appropriate
 
     if (EV%TightCoupling) then
         !  ddota/a
-        gpres = gpres_noDE + w_dark_energy_t*grhov_t
+        gpres=gpres + grhov_t*w_eff
         adotdota=(adotoa*adotoa-gpres)/2
 
         pig = 32._dl/45/opacity*k*(sigma+vb)
@@ -2443,7 +2377,6 @@
                 *(dopacity/opacity**2))
 
             EV%pigdot = pigdot
-
         end if
 
         !  Use tight-coupling approximation for vb
@@ -2452,10 +2385,10 @@
             +k/4*pb43*(clxg-2*EV%Kf(1)*pig))/(1+pb43)
 
         vbdot=vbdot+pb43/(1+pb43)*slip
-        EV%pig = pig
 
+        EV%pig = pig
     else
-        vbdot=-adotoa*vb+k*delta_p-photbar*opacity*(4._dl/3*vb-qg)
+        vbdot=-adotoa*vb+cs2*k*clxb-photbar*opacity*(4._dl/3*vb-qg)
     end if
 
     ayprime(5)=vbdot
@@ -2551,314 +2484,63 @@
         end if
     end if ! no_nu_multpoles
 
-    if (Evolve_baryon_cs) then
-        if (EV%Evolve_TM) then
-            Delta_TCMB = clxg/4
-            xe = Recombination_xe(a)
-            Trad = CP%TCMB/a
-
-            !Matter temperature
-            !Recfast_CT = (8./3.)*(sigma_T/(m_e*C))*a_R in Mpc [a_R = radiation constant]
-            ayprime(EV%Tg_ix) = -2*k*(z+vb)/3 - a*  Compton_CT * (Trad**4) * xe / (1._dl+xe+fHe) * &
-                ((1- Trad/Tmat)*(Delta_TCMB*4 + Delta_xe/(1+xe/(1+fHe))) + Trad/Tmat*(Delta_Tm - Delta_TCMB)  )
-
-            if (Evolve_delta_Ts) then
-                ayprime(EV%Ts_ix) =  Get21cm_dTs(a,clxb,ay(EV%Ts_ix),Delta_TCMB,Delta_Tm,Tmat,Trad,xe )
-            end if
-        else
-            if (Evolve_delta_Ts) then
-                ayprime(EV%Ts_ix) = -k*(4._dl/3._dl*z+qg)/4  !Assume follows Delta_TM which follows clxg
-            end if
-        end if
-    end if
-
-    if (Evolve_delta_xe .and. .not. EV%saha) then
-        ayprime(EV%xe_ix) = dDeltaxe_dtau(a, Delta_xe,clxb, Delta_Tm, k*z/3,k*vb)
-    end if
-
-    if (Do21cm) then
-        if (a > Do21cm_mina) then
-            if (line_reionization) then
-                lineoff = EV%reion_line_ix+1
-                lineoffpol = lineoff+EV%lmaxline-1
-
-                if (tau> tau_start_redshiftwindows) then
-                    !Multipoles of 21cm
-
-                    polter_line = ay(lineoff+2)/10+9._dl/15*ay(lineoffpol+2)
-
-                    call interp_window(Redshift_W(1),tau,wing_t,wing2_t,winv_t)
-
-                    delta_source2 = Get21cm_source2(a,clxb,Delta_TCMB,Delta_Tm,Delta_xe,Tmat,Trad,xe,k*(z+vb)/adotoa/3)
-
-
-                    !Drop some small terms since mulipoles only enter into reionzation anyway
-                    !monopole
-                    ayprime(lineoff) = -k*ay(lineoff+1) +  wing_t * clxb + wing2_t*delta_source2 + k*z/3*winV_t
-
-
-                    !dipole
-                    ayprime(lineoff+1)= EV%denlk(1)*ay(lineoff)-EV%denlk2(1)*ay(lineoff+2) - opacity*ay(lineoff+1) &
-                        -wing2_t * ( qg/4 - vb/3)   ! vb/3*WinV_t)
-
-                    !quadrupole
-                    ayprime(lineoff+2)= EV%denlk(2)*ay(lineoff+1)-EV%denlk2(2)*ay(lineoff+3) &
-                        +opacity*(polter_line -ay(lineoff+2) ) -   2._dl/15*k*sigma*winV_t &
-                        - wing2_t * ay(6+2)/4
-
-                    do  l=3,EV%lmaxline-1
-                        ayprime(lineoff+l)=EV%denlk(l)*ay(lineoff+l-1)-EV%denlk2(l)*ay(lineoff+l+1)-opacity*ay(lineoff+l) &
-                            - wing2_t * ay(6+l)/4
-                    end do
-                    !truncate
-                    ayprime(lineoff+EV%lmaxline)=k*ay(lineoff+EV%lmaxline-1)-(EV%lmaxline+1)*cothxor*ay(lineoff+EV%lmaxline)  &
-                        -opacity*ay(lineoff+EV%lmaxline) - wing2_t * ay(6+EV%lmaxline)/4
-
-                    !  21cm Polarization
-                    !l=2
-                    ayprime(lineoffpol+2) = -opacity*(ay(lineoffpol+2) - polter_line) - k/3._dl*ay(lineoffpol+3)
-                    !and the rest
-                    do l=3,EV%lmaxline-1
-                        ayprime(lineoffpol+l)=-opacity*ay(lineoffpol+l) + EV%denlk(l)*ay(lineoffpol+l-1) -&
-                            EV%polfack(l)*ay(lineoffpol+l+1)
-                    end do
-
-                    !truncate
-                    ayprime(lineoffpol+EV%lmaxline)=-opacity*ay(lineoffpol+EV%lmaxline) + &
-                        k*EV%poltruncfac*ay(lineoffpol+EV%lmaxline-1)-(EV%lmaxline+3)*cothxor*ay(lineoffpol+EV%lmaxline)
-                else
-                    ayprime(lineoff:lineoffpol+EV%lmaxline)=0
-                end if
-            end if
-        end if
-    end if
-
-
-
     !  Massive neutrino equations of motion.
-    if (CP%Num_Nu_massive >0) then
+    if (CP%Num_Nu_massive == 0) return
 
-        do nu_i = 1, CP%Nu_mass_eigenstates
-            if (EV%MassiveNuApprox(nu_i)) then
-                !Now EV%iq0 = clx, EV%iq0+1 = clxp, EV%iq0+2 = G_1, EV%iq0+3=G_2=pinu
-                !see astro-ph/0203507
-                G11_t=EV%G11(nu_i)/a/a2
-                G30_t=EV%G30(nu_i)/a/a2
-                off_ix = EV%nu_ix(nu_i)
-                w=wnu_arr(nu_i)
-                ayprime(off_ix)=-k*z*(w+1) + 3*adotoa*(w*ay(off_ix) - ay(off_ix+1))-k*ay(off_ix+2)
-                ayprime(off_ix+1)=(3*w-2)*adotoa*ay(off_ix+1) - 5._dl/3*k*z*w - k/3*G11_t
-                ayprime(off_ix+2)=(3*w-1)*adotoa*ay(off_ix+2) - k*(2._dl/3*EV%Kf(1)*ay(off_ix+3)-ay(off_ix+1))
-                ayprime(off_ix+3)=(3*w-2)*adotoa*ay(off_ix+3) + 2*w*k*sigma - k/5*(3*EV%Kf(2)*G30_t-2*G11_t)
-            else
-                ind=EV%nu_ix(nu_i)
-                do i=1,EV%nq(nu_i)
-                    q=nu_q(i)
-                    aq=a*nu_masses(nu_i)/q
-                    v=1._dl/sqrt(1._dl+aq*aq)
+    do nu_i = 1, CP%Nu_mass_eigenstates
+        if (EV%MassiveNuApprox(nu_i)) then
+            !Now EV%iq0 = clx, EV%iq0+1 = clxp, EV%iq0+2 = G_1, EV%iq0+3=G_2=pinu
+            !see astro-ph/0203507
+            G11_t=EV%G11(nu_i)/a/a2
+            G30_t=EV%G30(nu_i)/a/a2
+            off_ix = EV%nu_ix(nu_i)
+            w=wnu_arr(nu_i)
+            ayprime(off_ix)=-k*z*(w+1) + 3*adotoa*(w*ay(off_ix) - ay(off_ix+1))-k*ay(off_ix+2)
+            ayprime(off_ix+1)=(3*w-2)*adotoa*ay(off_ix+1) - 5._dl/3*k*z*w - k/3*G11_t
+            ayprime(off_ix+2)=(3*w-1)*adotoa*ay(off_ix+2) - k*(2._dl/3*EV%Kf(1)*ay(off_ix+3)-ay(off_ix+1))
+            ayprime(off_ix+3)=(3*w-2)*adotoa*ay(off_ix+3) + 2*w*k*sigma - k/5*(3*EV%Kf(2)*G30_t-2*G11_t)
+        else
+            ind=EV%nu_ix(nu_i)
+            do i=1,EV%nq(nu_i)
+                q=nu_q(i)
+                aq=a*nu_masses(nu_i)/q
+                v=1._dl/sqrt(1._dl+aq*aq)
 
-                    ayprime(ind)=-k*(4._dl/3._dl*z + v*ay(ind+1))
-                    ind=ind+1
-                    ayprime(ind)=v*(EV%denlk(1)*ay(ind-1)-EV%denlk2(1)*ay(ind+1))
-                    ind=ind+1
-                    if (EV%lmaxnu_tau(nu_i)==2) then
-                        ayprime(ind)=-ayprime(ind-2) -3*cothxor*ay(ind)
-                    else
-                        ayprime(ind)=v*(EV%denlk(2)*ay(ind-1)-EV%denlk2(2)*ay(ind+1)) &
-                            +k*8._dl/15._dl*sigma
-                        do l=3,EV%lmaxnu_tau(nu_i)-1
-                            ind=ind+1
-                            ayprime(ind)=v*(EV%denlk(l)*ay(ind-1)-EV%denlk2(l)*ay(ind+1))
-                        end do
-                        !  Truncate moment expansion.
-                        ind = ind+1
-                        ayprime(ind)=k*v*ay(ind-1)-(EV%lmaxnu_tau(nu_i)+1)*cothxor*ay(ind)
-                    end if
-                    ind = ind+1
-                end do
-            end if
-        end do
-
-        if (EV%has_nu_relativistic) then
-            ind=EV%nu_pert_ix
-            ayprime(ind)=+k*a2*qr -k*ay(ind+1)
-            ind2= EV%r_ix
-            do l=1,EV%lmaxnu_pert-1
+                ayprime(ind)=-k*(4._dl/3._dl*z + v*ay(ind+1))
                 ind=ind+1
-                ind2=ind2+1
-                ayprime(ind)= -a2*(EV%denlk(l)*ay(ind2-1)-EV%denlk2(l)*ay(ind2+1)) &
-                    +   (EV%denlk(l)*ay(ind-1)-EV%denlk2(l)*ay(ind+1))
+                ayprime(ind)=v*(EV%denlk(1)*ay(ind-1)-EV%denlk2(1)*ay(ind+1))
+                ind=ind+1
+                if (EV%lmaxnu_tau(nu_i)==2) then
+                    ayprime(ind)=-ayprime(ind-2) -3*cothxor*ay(ind)
+                else
+                    ayprime(ind)=v*(EV%denlk(2)*ay(ind-1)-EV%denlk2(2)*ay(ind+1)) &
+                        +k*8._dl/15._dl*sigma
+                    do l=3,EV%lmaxnu_tau(nu_i)-1
+                        ind=ind+1
+                        ayprime(ind)=v*(EV%denlk(l)*ay(ind-1)-EV%denlk2(l)*ay(ind+1))
+                    end do
+                    !  Truncate moment expansion.
+                    ind = ind+1
+                    ayprime(ind)=k*v*ay(ind-1)-(EV%lmaxnu_tau(nu_i)+1)*cothxor*ay(ind)
+                end if
+                ind = ind+1
             end do
+        end if
+    end do
+
+    if (EV%has_nu_relativistic) then
+        ind=EV%nu_pert_ix
+        ayprime(ind)=+k*a2*qr -k*ay(ind+1)
+        ind2= EV%r_ix
+        do l=1,EV%lmaxnu_pert-1
             ind=ind+1
             ind2=ind2+1
-            ayprime(ind)= k*(ay(ind-1) -a2*ay(ind2-1)) -(EV%lmaxnu_pert+1)*cothxor*ay(ind)
-        end if
-    end if
-
-    if (associated(EV%OutputTransfer) .or. associated(EV%OutputSources)) then
-        if (EV%TightCoupling .or. EV%no_phot_multpoles) then
-            E=0
-            Edot=0
-        else
-            E = ay(EV%polind+2:EV%polind+3)
-            Edot = ayprime(EV%polind+2:EV%polind+3)
-        end if
-        if (EV%no_nu_multpoles) then
-            pirdot=0
-            qrdot = -4*dz/3
-        end if
-        if (EV%no_phot_multpoles) then
-            pigdot=0
-            octg=0
-            octgdot=0
-            qgdot = -4*dz/3
-        else
-            if (EV%TightCoupling) then
-                if (second_order_tightcoupling) then
-                    octg = (3._dl/7._dl)*pig*(EV%k_buf/opacity)
-                    E(2) = pig/4 + pigdot*(1._dl/opacity)*(-5._dl/8._dl)
-                    E(3) = (3._dl/7._dl)*(EV%k_buf/opacity)*E(2)
-                    Edot(2)= (pigdot/4._dl)*(1+(5._dl/2._dl)*(dopacity/opacity**2))
-                else
-                    pigdot = -dopacity/opacity*pig + 32._dl/45*k/opacity*(-2*adotoa*sigma  &
-                        +etak/EV%Kf(1)-  dgpi/k +vbdot )
-                    Edot(2) = pigdot/4
-                    E(2) = pig/4
-                    octg=0
-                end if
-                octgdot=0
-            else
-                octg=ay(EV%g_ix+3)
-                octgdot=ayprime(EV%g_ix+3)
-            end if
-        end if
-        if (CP%DarkEnergy%is_cosmological_constant) then
-            dgrho_de=0
-            dgq_de=0
-        end if
-
-        dgpi  = grhor_t*pir + grhog_t*pig
-        dgpi_diff = 0  !sum (3*p_nu -rho_nu)*pi_nu
-        pidot_sum = grhog_t*pigdot + grhor_t*pirdot
-        clxnu =0
-        if (CP%Num_Nu_Massive /= 0) then
-            call MassiveNuVarsOut(EV,ay,ayprime,a, dgpi=dgpi, clxnu_all=clxnu, &
-                dgpi_diff=dgpi_diff, pidot_sum=pidot_sum)
-        end if
-        diff_rhopi = pidot_sum - (4*dgpi+ dgpi_diff)*adotoa + &
-            CP%DarkEnergy%diff_rhopi_Add_Term(dgrho_de, dgq_de, grho, gpres, w_dark_energy_t, grhok, adotoa, &
-            EV%kf(1), k, grhov_t, z, k2, ayprime, ay, EV%w_ix)
-        gpres = gpres_noDE + w_dark_energy_t*grhov_t
-        phi = -((dgrho +3*dgq*adotoa/k)/EV%Kf(1) + dgpi)/(2*k2)
-
-        if (associated(EV%OutputTransfer)) then
-            EV%OutputTransfer(Transfer_kh) = k/(CP%h0/100._dl)
-            EV%OutputTransfer(Transfer_cdm) = clxc
-            EV%OutputTransfer(Transfer_b) = clxb
-            EV%OutputTransfer(Transfer_g) = clxg
-            EV%OutputTransfer(Transfer_r) = clxr
-            EV%OutputTransfer(Transfer_nu) = clxnu
-            EV%OutputTransfer(Transfer_tot) =  dgrho_matter/grho_matter !includes neutrinos
-            EV%OutputTransfer(Transfer_nonu) = (grhob_t*clxb+grhoc_t*clxc)/(grhob_t + grhoc_t)
-            EV%OutputTransfer(Transfer_tot_de) =  dgrho/grho_matter
-            !Transfer_Weyl is k^2Phi, where Phi is the Weyl potential
-            EV%OutputTransfer(Transfer_Weyl) = k2*phi
-            EV%OutputTransfer(Transfer_Newt_vel_cdm)=  -k*sigma/adotoa
-            EV%OutputTransfer(Transfer_Newt_vel_baryon) = -k*(vb + sigma)/adotoa
-            EV%OutputTransfer(Transfer_vel_baryon_cdm) = vb
-            if (do21cm) then
-                Tspin = Recombination_Ts(a)
-                xe = Recombination_xe(a)
-
-                tau_eps = a*line21_const*NNow/a**3/adotoa/Tspin/1000
-                delta_source2 = Get21cm_source2(a,clxb,clxg/4,Delta_Tm,Delta_xe,Tmat,&
-                    CP%TCMB/a,xe,k*(z+vb)/adotoa/3)
-                tau_fac = tau_eps/(exp(tau_eps)-1)
-                EV%OutputTransfer(Transfer_monopole) = ( clxb + Trad/(Tspin-Trad)*delta_source2 ) /k2 &
-                    + (tau_fac-1)*(clxb - (delta_source2 + clxg/4)  ) / k2
-
-                EV%OutputTransfer(Transfer_vnewt) = tau_fac*k*(vb+sigma)/adotoa/k2
-                EV%OutputTransfer(Transfer_Tmat) =  delta_TM/k2
-                if (use_mK) then
-                    Tb = (1-exp(-tau_eps))*a*(Tspin-Trad)*1000
-
-                    EV%OutputTransfer(Transfer_monopole) = EV%OutputTransfer(Transfer_monopole)*Tb
-                    EV%OutputTransfer(Transfer_vnewt) = EV%OutputTransfer(Transfer_vnewt)*Tb
-                    EV%OutputTransfer(Transfer_Tmat) = EV%OutputTransfer(Transfer_Tmat)*Tb
-                end if
-            end if
-        end if
-        if (associated(EV%OutputSources)) then
-
-            call IonizationFunctionsAtTime(tau, opacity, dopacity, ddopacity, &
-                visibility, dvisibility, ddvisibility, exptau, lenswindow)
-
-            tau0 = CP%tau0
-            phidot = (1.0d0/2.0d0)*(adotoa*(-dgpi - 2*k2*phi) + dgq*k - &
-                diff_rhopi+ k*sigma*(gpres + grho))/k2
-            !time derivative of shear
-            sigmadot = -adotoa*sigma - 1.0d0/2.0d0*dgpi/k + k*phi
-            !quadrupole source derivatives; polter = pi_g/10 + 3/5 E_2
-            polter = pig/10+9._dl/15*E(2)
-            polterdot = (1.0d0/10.0d0)*pigdot + (3.0d0/5.0d0)*Edot(2)
-            polterddot = -2.0d0/25.0d0*adotoa*dgq/(k*EV%Kf(1)) - 4.0d0/75.0d0*adotoa* &
-                k*sigma - 4.0d0/75.0d0*dgpi - 2.0d0/75.0d0*dgrho/EV%Kf(1) - 3.0d0/ &
-                50.0d0*k*octgdot*EV%Kf(2) + (1.0d0/25.0d0)*k*qgdot - 1.0d0/5.0d0 &
-                *k*EV%Kf(2)*Edot(3) + (-1.0d0/10.0d0*pig + (7.0d0/10.0d0)* &
-                polter - 3.0d0/5.0d0*E(2))*dopacity + (-1.0d0/10.0d0*pigdot &
-                + (7.0d0/10.0d0)*polterdot - 3.0d0/5.0d0*Edot(2))*opacity
-            !Temperature source terms, after integrating by parts in conformal time
-
-            !2phi' term (\phi' + \psi' in Newtonian gauge), phi is the Weyl potential
-            ISW = 2*phidot*exptau
-            monopole_source =  (-etak/(k*EV%Kf(1)) + 2*phi + clxg/4)*visibility
-            doppler = ((sigma + vb)*dvisibility + (sigmadot + vbdot)*visibility)/k
-            quadrupole_source = (5.0d0/8.0d0)*(3*polter*ddvisibility + 6*polterdot*dvisibility &
-                + (k**2*polter + 3*polterddot)*visibility)/k**2
-
-            EV%OutputSources(1) = ISW + doppler + monopole_source + quadrupole_source
-            ang_dist = f_K(tau0-tau)
-            if (tau < tau0) then
-                !E polarization source
-                EV%OutputSources(2)=visibility*polter*(15._dl/8._dl)/(ang_dist**2*k2)
-                !factor of four because no 1/16 later
-            else
-                EV%OutputSources(2)=0
-            end if
-
-            if (size(EV%OutputSources) > 2) then
-                !Get lensing sources
-                !Can modify this here if you want to get power spectra for other tracer
-                if (tau>tau_maxvis .and. tau0-tau > 0.1_dl) then
-                    EV%OutputSources(3) = -2*phi*f_K(tau-tau_maxvis)/(f_K(tau0-tau_maxvis)*ang_dist)
-                    !We include the lensing factor of two here
-                else
-                    EV%OutputSources(3) = 0
-                end if
-            end if
-            if (num_redshiftwindows > 0) then
-                call output_window_sources(EV, EV%OutputSources, ay, ayprime, &
-                    tau, a, adotoa, grho, gpres,w_dark_energy_t,  &
-                    grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,grhonu_t, &
-                    k, etak, z, ayprime(2), phi, phidot, sigma, sigmadot, &
-                    dgrho, clxg,clxb,clxc,clxnu, Delta_TM, Delta_xe, cs2, &
-                    dgq, qg, qr, vb, qgdot, vbdot, &
-                    dgpi, pig, pir, pigdot, diff_rhopi, &
-                    polter, polterdot, polterddot, octg, octgdot, E, Edot, &
-                    opacity, dopacity, ddopacity, visibility, dvisibility, ddvisibility, exptau)
-            end if
-            if (associated(EV%CustomSources)) then
-                call custom_sources_func(EV%CustomSources, tau, a, adotoa, grho, gpres,w_dark_energy_t, delta_p/dgrho_de, &
-                    grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,grhonu_t, &
-                    k, etak, ayprime(2), phi, phidot, sigma, sigmadot, &
-                    dgrho, clxg,clxb,clxc,clxnu, dgrho_de/grhov_t, cs2, &
-                    dgq, qg, qr, dgq_de/grhov_t, vb, qgdot, qrdot, vbdot, &
-                    dgpi, pig, pir, pigdot, pirdot, diff_rhopi, &
-                    polter, polterdot, polterddot, octg, octgdot, E, Edot, &
-                    opacity, dopacity, ddopacity, visibility, dvisibility, ddvisibility, exptau, &
-                    tau0, tau_maxvis, EV%Kf,f_K)
-            end if
-        end if
+            ayprime(ind)= -a2*(EV%denlk(l)*ay(ind2-1)-EV%denlk2(l)*ay(ind2+1)) &
+                +   (EV%denlk(l)*ay(ind-1)-EV%denlk2(l)*ay(ind+1))
+        end do
+        ind=ind+1
+        ind2=ind2+1
+        ayprime(ind)= k*(ay(ind-1) -a2*ay(ind2-1)) -(EV%lmaxnu_pert+1)*cothxor*ay(ind)
     end if
 
     end subroutine derivs
@@ -2880,7 +2562,8 @@
     real(dl) sigma, qg,pig, qr, vb, rhoq, vbdot, photbar, pb43
     real(dl) k,k2,a,a2, adotdota
     real(dl) pir,adotoa
-    real(dl) w_dark_energy_t
+
+    stop 'ppf not implemented for vectors'
 
     k2=EV%k2_buf
     k=EV%k_buf
@@ -2918,10 +2601,10 @@
     grhoc_t=grhoc/a
     grhor_t=grhornomass/a2
     grhog_t=grhog/a2
-    call CP%DarkEnergy%BackgroundDensityAndPressure(a, grhov_t, w_dark_energy_t)
+    grhov_t=grhov*a**(-1-3*w_lam)
 
     grho=grhob_t+grhoc_t+grhor_t+grhog_t+grhov_t
-    gpres=(grhog_t+grhor_t)/3._dl+grhov_t*w_dark_energy_t
+    gpres=(grhog_t+grhor_t)/3._dl+grhov_t*w_lam
 
     adotoa=sqrt(grho/3._dl)
     adotdota=(adotoa*adotoa-gpres)/2
@@ -3072,7 +2755,11 @@
     grhoc_t=grhoc/a
     grhor_t=grhornomass/a2
     grhog_t=grhog/a2
-    call CP%DarkEnergy%BackgroundDensityAndPressure(a, grhov_t)
+    if (is_cosmological_constant) then
+        grhov_t=grhov*a2
+    else
+        grhov_t=grho_de(a)/a2
+    end if
 
     grho=grhob_t+grhoc_t+grhor_t+grhog_t+grhov_t
 
@@ -3241,11 +2928,3 @@
     !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
     end module GaugeInterface
-
-    function isTmNeeded()
-    use GaugeInterface
-    logical :: isTmNeeded
-
-    isTmNeeded = Evolve_baryon_cs .or. Evolve_delta_xe
-
-    end function isTmNeeded
