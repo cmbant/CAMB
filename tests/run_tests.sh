@@ -17,6 +17,7 @@ python python/CAMB_test_files.py testfiles --make_ini
 cd testfiles
 case "$TRAVIS_BRANCH" in
  devel) BRANCH="devel" ;;
+ devel_scal_eqs) BRANCH="devel" ;;
     *) BRANCH="master" ;;
 esac
 git clone -b $BRANCH --depth=1 https://github.com/cmbant/CAMB_test_outputs.git
