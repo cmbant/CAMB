@@ -212,8 +212,8 @@
     SUBROUTINE TSource_func(sources, tau, a, adotoa, grho, gpres,w_lam, cs2_lam,  &
         grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,grhonu_t, &
         k,etak, etakdot, phi, phidot, sigma, sigmadot, &
-        dgrho, clxg,clxb,clxc,clxnu, clxq, cs2, &
-        dgq, qg, qr, vq, vb, qgdot, qrdot, vbdot, &
+        dgrho, clxg,clxb,clxc,clxr, clxnu, clxde, delta_p_b, &
+        dgq, qg, qr, qde, vb, qgdot, qrdot, vbdot, &
         dgpi, pig, pir, pigdot, pirdot, diff_rhopi, &
         polter, polterdot, polterddot, octg, octgdot, E, Edot, &
         opacity, dopacity, ddopacity, visibility, dvisibility, ddvisibility, exptau, &
@@ -222,8 +222,8 @@
     real*8, intent(in) :: tau, a, adotoa, grho, gpres,w_lam, cs2_lam,  &
         grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,grhonu_t, &
         k,etak, etakdot, phi, phidot, sigma, sigmadot, &
-        dgrho, clxg,clxb,clxc,clxnu, clxq, cs2, &
-        dgq, qg, qr, vq, vb, qgdot, qrdot, vbdot, &
+        dgrho, clxg,clxb,clxc, clxr, clxnu, clxde, delta_p_b, &
+        dgq, qg, qr, qde, vb, qgdot, qrdot, vbdot, &
         dgpi, pig, pir, pigdot, pirdot, diff_rhopi, &
         polter, polterdot, polterddot, octg, octgdot, E(2:3), Edot(2:3), &
         opacity, dopacity, ddopacity, visibility, dvisibility, ddvisibility, exptau, &
@@ -1383,7 +1383,7 @@
     subroutine output_window_sources(EV, sources, y, yprime, &
                     tau, a, adotoa, grho, gpres, &
                     k, etak, z, etakdot, phi, phidot, sigma, sigmadot, &
-                    dgrho, clxg,clxb,clxc,clxnu, Delta_TM, Delta_xe, cs2, &
+                    dgrho, clxg,clxb,clxc,clxnu, Delta_TM, Delta_xe,  &
                     dgq, qg,  vb, qgdot, vbdot, &
                     dgpi, pig, pigdot, diff_rhopi, &
                     polter, polterdot, polterddot, octg, octgdot, E, Edot, &
@@ -1395,7 +1395,7 @@
     real(dL), intent(out) :: sources(:)
     real(dL), intent(in) :: tau, a, adotoa, grho, gpres, &
         k,etak, z, etakdot, phi, phidot, sigma, sigmadot, &
-        dgrho, clxg,clxb,clxc,clxnu, cs2, &
+        dgrho, clxg,clxb,clxc,clxnu,  &
         dgq, qg, vb, qgdot, vbdot, &
         dgpi, pig, pigdot, diff_rhopi, &
         polter, polterdot, polterddot, octg, octgdot, E(2:3), Edot(2:3), &
@@ -1407,7 +1407,7 @@
     integer w_ix, lineoff,lineoffpol
     real(dl) Delta_TCMB
     integer j
-    real(dl) Tmat,Trad, Tspin, Delta_source, Delta_source2
+    real(dl) Tmat,Trad, Delta_source, Delta_source2
     real(dl) xe, chi, polter_line
     
     j = EV%OutputStep
@@ -1823,8 +1823,8 @@
     real(dl) a,a2, iqg, rhomass,a_massive, ep
     integer l,i, nu_i, j, ind
     integer, parameter :: i_clxg=1,i_clxr=2,i_clxc=3, i_clxb=4, &
-        i_qg=5,i_qr=6,i_vb=7,i_pir=8, i_eta=9, i_aj3r=10,i_clxq=11,i_vq=12
-    integer, parameter :: i_max = i_vq
+        i_qg=5,i_qr=6,i_vb=7,i_pir=8, i_eta=9, i_aj3r=10,i_clxde=11,i_vde=12
+    integer, parameter :: i_max = i_vde
     real(dl) initv(6,1:i_max), initvec(1:i_max)
 
     nullify(EV%OutputTransfer) !Should not be needed, but avoids issues in ifort 14
@@ -1991,7 +1991,7 @@
     !             to 2.
     if (CP%DarkEnergy%num_perturb_equations > 0) &
         y(EV%w_ix:EV%w_ix + CP%DarkEnergy%num_perturb_equations - 1) = &
-        InitVec(i_clxq:i_clxq + CP%DarkEnergy%num_perturb_equations - 1)
+        InitVec(i_clxde:i_clxde + CP%DarkEnergy%num_perturb_equations - 1)
 
     if (Evolve_delta_Ts) then
         y(EV%Ts_ix) = y(EV%g_ix)/4
@@ -2229,7 +2229,7 @@
     !non-flat vars
     real(dl) cothxor !1/tau in flat case
     real(dl) xe,Trad, Delta_TM, Tmat, Delta_TCMB
-    real(dl) delta_p, wing_t, wing2_t,winv_t
+    real(dl) delta_p_b, wing_t, wing2_t,winv_t
     real(dl) Delta_source2, polter_line
     real(dl) Delta_xe, Tspin, tau_eps, tau_fac, Tb
     integer lineoff,lineoffpol
@@ -2387,10 +2387,10 @@
         else
             Delta_TM = clxg/4
         end if
-        delta_p = barssc0*(1._dl-0.75d0*CP%yhe+(1._dl-CP%yhe)*opacity*a2/akthom)*Tmat*(clxb + delta_tm)
+        delta_p_b = barssc0*(1._dl-0.75d0*CP%yhe+(1._dl-CP%yhe)*opacity*a2/akthom)*Tmat*(clxb + delta_tm)
     else
         Delta_TM = clxg/4
-        delta_p = cs2*clxb
+        delta_p_b = cs2*clxb
     end if
 
 
@@ -2454,7 +2454,7 @@
         EV%pig = pig
 
     else
-        vbdot=-adotoa*vb+k*delta_p-photbar*opacity*(4._dl/3*vb-qg)
+        vbdot=-adotoa*vb+k*delta_p_b-photbar*opacity*(4._dl/3*vb-qg)
     end if
 
     ayprime(5)=vbdot
@@ -2462,7 +2462,7 @@
     if (.not. EV%no_phot_multpoles) then
         !  Photon equations of motion
         ayprime(EV%g_ix)=clxgdot
-        qgdot=4._dl/3*(-vbdot-adotoa*vb+cs2*k*clxb)/pb43 &
+        qgdot=4._dl/3*(-vbdot-adotoa*vb+delta_p_b*k)/pb43 &
             +EV%denlk(1)*clxg-EV%denlk2(1)*pig
         ayprime(EV%g_ix+1)=qgdot
 
@@ -2839,17 +2839,17 @@
                 call output_window_sources(EV, EV%OutputSources, ay, ayprime, &
                     tau, a, adotoa, grho, gpres, &
                     k, etak, z, ayprime(2), phi, phidot, sigma, sigmadot, &
-                    dgrho, clxg,clxb,clxc,clxnu, Delta_TM, Delta_xe, cs2, &
+                    dgrho, clxg,clxb,clxc,clxnu, Delta_TM, Delta_xe, &
                     dgq, qg, vb, qgdot, vbdot, &
                     dgpi, pig, pigdot, diff_rhopi, &
                     polter, polterdot, polterddot, octg, octgdot, E, Edot, &
                     opacity, dopacity, ddopacity, visibility, dvisibility, ddvisibility, exptau)
             end if
             if (associated(EV%CustomSources)) then
-                call custom_sources_func(EV%CustomSources, tau, a, adotoa, grho, gpres,w_dark_energy_t, delta_p/dgrho_de, &
+                call custom_sources_func(EV%CustomSources, tau, a, adotoa, grho, gpres,w_dark_energy_t, CP%DarkEnergy%cs2_lam, &
                     grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,grhonu_t, &
                     k, etak, ayprime(2), phi, phidot, sigma, sigmadot, &
-                    dgrho, clxg,clxb,clxc,clxnu, dgrho_de/grhov_t, cs2, &
+                    dgrho, clxg,clxb,clxc,clxr,clxnu, dgrho_de/grhov_t, delta_p_b, &
                     dgq, qg, qr, dgq_de/grhov_t, vb, qgdot, qrdot, vbdot, &
                     dgpi, pig, pir, pigdot, pirdot, diff_rhopi, &
                     polter, polterdot, polterddot, octg, octgdot, E, Edot, &
