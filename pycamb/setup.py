@@ -88,7 +88,7 @@ class SharedLibrary(install):
 
         else:
             print("Compiling source...")
-            subprocess.call("make camblib.so", shell=True)
+            subprocess.call("make camblib.so COMPILER=gfortran", shell=True)
             if not osp.isfile(os.path.join('Releaselib', 'camblib.so')): sys.exit('Compilation failed')
             subprocess.call("chmod 755 Releaselib/camblib.so", shell=True)
             subprocess.call(r"cp Releaselib/camblib.so %s/camb" % (pycamb_path), shell=True)
