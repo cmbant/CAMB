@@ -88,6 +88,14 @@ class SharedLibrary(install):
 
         else:
             print("Compiling source...")
+            try:
+                from pkg_resources import parse_version
+                gfortran_version = subprocess.check_output('gfortran --version | grep GCC | sed ''s/^.* //g''')
+                if parse_version(gfortran_version) < parse_version('4.9'):
+                    raise Exception('You need gfortran 4.9 or higher to compile the python CAMB wrapper')
+            except ImportError:
+                pass
+
             subprocess.call("make camblib.so COMPILER=gfortran", shell=True)
             if not osp.isfile(os.path.join('Releaselib', 'camblib.so')): sys.exit('Compilation failed')
             subprocess.call("chmod 755 Releaselib/camblib.so", shell=True)
