@@ -18,7 +18,12 @@ endif
 
 
 #Will detect ifort/gfortran or edit for your compiler
+ifneq ($(COMPILER),gfortran)
 ifortErr = $(shell which ifort >/dev/null 2>&1; echo $$?)
+else
+ifortErr = 1
+endif
+
 ifeq "$(ifortErr)" "0"
 
 #Intel compiler
@@ -52,8 +57,8 @@ endif
 else
 gfortErr = $(shell which gfortran >/dev/null; echo $$?)
 ifeq "$(gfortErr)" "0"
-
 #Gfortran compiler (version 6+):
+COMPILER = gfortran
 F90C     = gfortran
 COMMON_FFLAGS = -MMD -cpp -ffree-line-length-none -fmax-errors=4
 # Using -ffast-math causes differences between Debug and Release configurations.

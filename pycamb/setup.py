@@ -86,7 +86,19 @@ class SharedLibrary(install):
 
         else:
             print("Compiling source...")
-            subprocess.call("make camblib.so PYCAMB_OUTPUT_DIR=..", shell=True)
+            try:
+                from pkg_resources import parse_version
+                try:
+                    gfortran_version = subprocess.check_output("gfortran --version | grep GCC | sed 's/^.* //g'",
+                                                               shell=True)
+                except subprocess.CalledProcessError:
+                    gfortran_version = '0.0'
+                if parse_version(gfortran_version) < parse_version('6.0'):
+                    raise Exception('You need gfortran 6 or higher to compile the python CAMB wrapper.')
+            except ImportError:
+                pass
+
+            subprocess.call("make camblib.so COMPILER=gfortran PYCAMB_OUTPUT_DIR=..", shell=True)
             so_file = os.path.join(pycamb_path, 'camb', 'camblib.so')
             if not os.path.isfile(so_file): sys.exit('Compilation failed')
             subprocess.call("chmod 755 %s" % so_file, shell=True)

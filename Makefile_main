@@ -24,8 +24,6 @@ OUTPUT_DIR ?= Release
 PYCAMB_OUTPUT_DIR ?= pycamb/camb
 DLL_DIR ?= Releaselib
 
-Release: camb camblib.so
-Debug: camb camblib.so
 
 
 CAMBLIB       = libcamb_$(RECOMBINATION).a
@@ -71,7 +69,16 @@ endif
 
 default: camb
 
+## python wrapper library only works with gfortran
+ifeq ($(COMPILER),gfortran)
 all: camb camblib.so libcamb
+Release: camb camblib.so
+Debug: camb camblib.so
+else
+all: camb libcamb
+Release: camb
+Debug: camb
+endif
 
 libcamb: directories
 	$(MAKE) -C $(OUTPUT_DIR) -f ../Makefile_main $(CAMBLIB)
