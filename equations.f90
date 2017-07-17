@@ -119,8 +119,8 @@
     real(dl) :: vec_sig0 = 1._dl
     !Vector mode shear
     integer, parameter :: max_l_evolve = 256 !Maximum l we are ever likely to propagate
-    !Note higher values increase size of Evolution vars, hence memoryWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW
-
+    !Note higher values increase size of Evolution vars, hence memory
+    
     !Supported scalar initial condition flags
     integer, parameter :: initial_adiabatic=1, initial_iso_CDM=2, &
         initial_iso_baryon=3,  initial_iso_neutrino=4, initial_iso_neutrino_vel=5, initial_vector = 0
@@ -1381,12 +1381,11 @@
     !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
     subroutine output_window_sources(EV, sources, y, yprime, &
-                    tau, a, adotoa, grho, gpres,w_dark_energy_t,  &
-                    grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,grhonu_t, &
+                    tau, a, adotoa, grho, gpres, &
                     k, etak, z, etakdot, phi, phidot, sigma, sigmadot, &
                     dgrho, clxg,clxb,clxc,clxnu, Delta_TM, Delta_xe, cs2, &
-                    dgq, qg, qr, vb, qgdot, vbdot, &
-                    dgpi, pig, pir, pigdot, diff_rhopi, &
+                    dgq, qg,  vb, qgdot, vbdot, &
+                    dgpi, pig, pigdot, diff_rhopi, &
                     polter, polterdot, polterddot, octg, octgdot, E, Edot, &
                     opacity, dopacity, ddopacity, visibility, dvisibility, ddvisibility, exptau)
     !Line of sight sources for number counts, lensing and 21cm redshift windows
@@ -1394,12 +1393,11 @@
     type(EvolutionVars) EV
     real(dl) y(EV%nvar), yprime(EV%nvar)
     real(dL), intent(out) :: sources(:)
-    real(dL), intent(in) :: tau, a, adotoa, grho, gpres,w_dark_energy_t, &
-        grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,grhonu_t, &
+    real(dL), intent(in) :: tau, a, adotoa, grho, gpres, &
         k,etak, z, etakdot, phi, phidot, sigma, sigmadot, &
         dgrho, clxg,clxb,clxc,clxnu, cs2, &
-        dgq, qg, qr,vb, qgdot, vbdot, &
-        dgpi, pig, pir, pigdot, diff_rhopi, &
+        dgq, qg, vb, qgdot, vbdot, &
+        dgpi, pig, pigdot, diff_rhopi, &
         polter, polterdot, polterddot, octg, octgdot, E(2:3), Edot(2:3), &
         opacity, dopacity, ddopacity, visibility, dvisibility, ddvisibility, exptau
     real(dl), intent(in) :: Delta_TM, Delta_xe
@@ -1523,8 +1521,9 @@
                         vb*grho**2/18.D0)/adotoa**3)*W%wing(j)-4.D0*W%dwing(j)*sigma+(W%ddwing(j)*sigma+ &
                         W%ddwing(j)*vb)/adotoa+(W%dwing(j)*sigma*grho/3.D0+W%dwing(j)*vb*grho/3.D0)/ &
                         adotoa**2-2.D0*W%dwing(j)*vb+((-2.D0*etak+etak*grho/adotoa**2/3.D0)*W%wing(j) &
-                        + 2.D0*W%dwing(j)*etak/adotoa)/EV%Kf(1))*exptau+&
-                        (-4.D0*visibility*sigma- 2.D0*visibility*vb+(dvisibility*sigma+dvisibility*vb)/adotoa+(visibility*grho*sigma/3.D0+ &
+                        + 2.D0*W%dwing(j)*etak/adotoa)/EV%Kf(1))*exptau+ &
+                        (-4.D0*visibility*sigma- 2.D0*visibility*vb+ &
+                        (dvisibility*sigma+dvisibility*vb)/adotoa+(visibility*grho*sigma/3.D0+ &
                         visibility*vb*grho/3.D0)/adotoa**2)*W%wing(j)+2.D0*visibility*etak/adotoa*W%wing(j)/ &
                         EV%Kf(1)+(2.D0*visibility*W%dwing(j)*sigma+2.D0*visibility*W%dwing(j)*vb)/adotoa)/k
                     t(0) =  s(1)+s(2)
@@ -2838,12 +2837,11 @@
             end if
             if (num_redshiftwindows > 0) then
                 call output_window_sources(EV, EV%OutputSources, ay, ayprime, &
-                    tau, a, adotoa, grho, gpres,w_dark_energy_t,  &
-                    grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,grhonu_t, &
+                    tau, a, adotoa, grho, gpres, &
                     k, etak, z, ayprime(2), phi, phidot, sigma, sigmadot, &
                     dgrho, clxg,clxb,clxc,clxnu, Delta_TM, Delta_xe, cs2, &
-                    dgq, qg, qr, vb, qgdot, vbdot, &
-                    dgpi, pig, pir, pigdot, diff_rhopi, &
+                    dgq, qg, vb, qgdot, vbdot, &
+                    dgpi, pig, pigdot, diff_rhopi, &
                     polter, polterdot, polterddot, octg, octgdot, E, Edot, &
                     opacity, dopacity, ddopacity, visibility, dvisibility, ddvisibility, exptau)
             end if

@@ -126,7 +126,7 @@
     Type(ClTransferData), pointer :: ThisCT
 
     real(dl), private, external :: dtauda
-    
+
     public cmbmain, ALens, ClTransferToCl, InitVars, GetTauStart !InitVars for BAO hack
 
 
@@ -138,7 +138,6 @@
     type(EvolutionVars) EV
     !     Timing variables for testing purposes. Used if DebugMsgs=.true. in ModelParams
     real(sp) actual,timeprev,starttime
-    integer :: tn = 0
 
     WantLateTime =  CP%DoLensing .or. num_redshiftwindows > 0 .or. num_custom_sources>0
 
@@ -349,7 +348,7 @@
     subroutine CalcLimberScalCls(CTrans)
     Type(ClTransferData) :: CTrans
     integer ell, i, s_ix, pix
-    real(dl) CL, reall,fac, dbletmp
+    real(dl) CL, reall,fac
     integer s_ix2,j,n
     integer winmin
 
@@ -366,7 +365,7 @@
                 do j= i, num_redshiftwindows
                     s_ix2 = 3+j
                     if (CTrans%limber_l_min(s_ix2) /=0) then
-                        !$OMP PARALLEL DO DEFAUlT(SHARED), PRIVATE(Cl,ell,reall,fac,dbletmp,n)
+                        !$OMP PARALLEL DO DEFAUlT(SHARED), PRIVATE(Cl,ell,reall,fac,n)
                         do ell = max(CTrans%limber_l_min(s_ix), CTrans%limber_l_min(s_ix2)), Ctrans%ls%l0
                             associate (LimbRec => CTrans%Limber_windows(s_ix,ell), &
                                 LimbRec2 => CTrans%Limber_windows(s_ix2,ell))
@@ -1640,7 +1639,7 @@
                             sums(1) = sums(1) + IV%Source_q(n,1)*J_l
                             sums(2) = sums(2) + IV%Source_q(n,2)*J_l
                             sums(3) = sums(3) + IV%Source_q(n,3)*J_l
-                            sums(custom_source_off) = sums(custom_source_off) +  + IV%Source_q(n,custom_source_off)*J_l
+                            sums(custom_source_off) = sums(custom_source_off) +  IV%Source_q(n,custom_source_off)*J_l
                             if (n >= nwin) then
                                 do s_ix = 4, SourceNum
                                     sums(s_ix) = sums(s_ix) + IV%Source_q(n,s_ix)*J_l
