@@ -17,6 +17,8 @@ endif
 endif
 
 
+camblib.so: COMPILER ?= gfortran
+
 #Will detect ifort/gfortran or edit for your compiler
 ifneq ($(COMPILER),gfortran)
 ifortErr = $(shell which ifort >/dev/null 2>&1; echo $$?)
