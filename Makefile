@@ -16,8 +16,9 @@ $(error First install forutils from https://github.com/cmbant/forutils; or set F
 endif
 endif
 
-
-camblib.so: COMPILER ?= gfortran
+ifeq ($(MAKECMDGOALS),camblib.so)
+COMPILER ?= gfortran
+endif
 
 #Will detect ifort/gfortran or edit for your compiler
 ifneq ($(COMPILER),gfortran)
