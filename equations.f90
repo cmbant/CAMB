@@ -212,8 +212,8 @@
     SUBROUTINE TSource_func(sources, tau, a, adotoa, grho, gpres,w_lam, cs2_lam,  &
         grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,grhonu_t, &
         k,etak, etakdot, phi, phidot, sigma, sigmadot, &
-        dgrho, clxg,clxb,clxc,clxnu, clxq, cs2, &
-        dgq, qg, qr, vq, vb, qgdot, qrdot, vbdot, &
+        dgrho, clxg,clxb,clxc,clxr, clxnu, clxde, delta_p_b, &
+        dgq, qg, qr, qde, vb, qgdot, qrdot, vbdot, &
         dgpi, pig, pir, pigdot, pirdot, diff_rhopi, &
         polter, polterdot, polterddot, octg, octgdot, E, Edot, &
         opacity, dopacity, ddopacity, visibility, dvisibility, ddvisibility, exptau, &
@@ -222,8 +222,8 @@
     real*8, intent(in) :: tau, a, adotoa, grho, gpres,w_lam, cs2_lam,  &
         grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,grhonu_t, &
         k,etak, etakdot, phi, phidot, sigma, sigmadot, &
-        dgrho, clxg,clxb,clxc,clxnu, clxq, cs2, &
-        dgq, qg, qr, vq, vb, qgdot, qrdot, vbdot, &
+        dgrho, clxg,clxb,clxc, clxr, clxnu, clxde, delta_p_b, &
+        dgq, qg, qr, qde, vb, qgdot, qrdot, vbdot, &
         dgpi, pig, pir, pigdot, pirdot, diff_rhopi, &
         polter, polterdot, polterddot, octg, octgdot, E(2:3), Edot(2:3), &
         opacity, dopacity, ddopacity, visibility, dvisibility, ddvisibility, exptau, &
@@ -1384,8 +1384,8 @@
     real(dl) a,a2, iqg, rhomass,a_massive, ep
     integer l,i, nu_i, j, ind
     integer, parameter :: i_clxg=1,i_clxr=2,i_clxc=3, i_clxb=4, &
-        i_qg=5,i_qr=6,i_vb=7,i_pir=8, i_eta=9, i_aj3r=10,i_clxq=11,i_vq=12
-    integer, parameter :: i_max = i_vq
+        i_qg=5,i_qr=6,i_vb=7,i_pir=8, i_eta=9, i_aj3r=10,i_clxde=11,i_vde=12
+    integer, parameter :: i_max = i_vde
     real(dl) initv(6,1:i_max), initvec(1:i_max)
 
     nullify(EV%OutputTransfer) !Should not be needed, but avoids issues in ifort 14
@@ -1550,8 +1550,8 @@
     y(EV%g_ix+1)=InitVec(i_qg)
 
     if (w_lam /= -1 .and. w_Perturb) then
-        y(EV%w_ix) = InitVec(i_clxq)
-        y(EV%w_ix+1) = InitVec(i_vq)
+        y(EV%w_ix) = InitVec(i_clxde)
+        y(EV%w_ix+1) = InitVec(i_vde)
     end if
 
     !  Neutrinos
@@ -1773,7 +1773,7 @@
     real(dl) dgq,grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,grhonu_t,sigma,polter
     real(dl) qgdot,qrdot,pigdot,pirdot,vbdot,dgrho,adotoa
     real(dl) a,a2,z,clxc,clxb,vb,clxg,qg,pig,clxr,qr,pir
-    real(dl) clxq, vq,  E2, dopacity
+    real(dl) clxde, qde,  E2, dopacity
     integer l,i,ind, ind2, off_ix, ix
     real(dl) dgs,sigmadot,dz !, ddz
     real(dl) dgpi,dgrho_matter,grho_matter, clxnu, gpres_nu
@@ -1847,10 +1847,10 @@
     dgrho = dgrho_matter
 
     if (w_lam /= -1 .and. w_Perturb) then
-        clxq=ay(EV%w_ix)
-        vq=ay(EV%w_ix+1)
-        dgrho=dgrho + clxq*grhov_t
-        dgq = dgq + vq*grhov_t*(1+w_lam)
+        clxde=ay(EV%w_ix)
+        qde=ay(EV%w_ix+1)*(1+w_lam)
+        dgrho=dgrho + clxde*grhov_t
+        dgq = dgq + qde*grhov_t
     end if
 
     if (EV%no_nu_multpoles) then
@@ -1912,10 +1912,10 @@
     end if
 
     if (w_lam /= -1 .and. w_Perturb) then
-        ayprime(EV%w_ix)= -3*adotoa*(cs2_lam-w_lam)*(clxq+3*adotoa*(1+w_lam)*vq/k) &
-            -(1+w_lam)*k*vq -(1+w_lam)*k*z
+        ayprime(EV%w_ix)= -3*adotoa*(cs2_lam-w_lam)*(clxde+3*adotoa*qde/k) &
+            - k*qde -(1+w_lam)*k*z
 
-        ayprime(EV%w_ix+1) = -adotoa*(1-3*cs2_lam)*vq + k*cs2_lam*clxq/(1+w_lam)
+        ayprime(EV%w_ix+1) = (-adotoa*(1-3*cs2_lam)*qde + k*cs2_lam*clxde)/(1+w_lam)
     end if
 
     !  CDM equation of motion
@@ -2144,7 +2144,7 @@
         end if
         if (EV%no_nu_multpoles) then
             pirdot=0
-            qrdot = -4*dz/3 
+            qrdot = -4*dz/3
         end if
         if (EV%no_phot_multpoles) then
             pigdot=0
@@ -2253,8 +2253,8 @@
                 call custom_sources_func(EV%CustomSources, tau, a, adotoa, grho, gpres,w_lam, cs2_lam, &
                     grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,grhonu_t, &
                     k, etak, ayprime(2), phi, phidot, sigma, sigmadot, &
-                    dgrho, clxg,clxb,clxc,clxnu, clxq, cs2, &
-                    dgq, qg, qr, vq, vb, qgdot, qrdot, vbdot, &
+                    dgrho, clxg,clxb,clxc,clxr, clxnu, clxde, cs2*clxb, &
+                    dgq, qg, qr, qde, vb, qgdot, qrdot, vbdot, &
                     dgpi, pig, pir, pigdot, pirdot, diff_rhopi, &
                     polter, polterdot, polterddot, octg, octgdot, E, Edot, &
                     opacity, dopacity, ddopacity, visibility, dvisibility, ddvisibility, exptau, &

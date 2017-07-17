@@ -1218,7 +1218,6 @@
     subroutine output_cl_files(ScalFile,ScalCovFile,TensFile, TotFile, LensFile, LensTotFile, factor)
     implicit none
     integer in,il, i, j
-    character(LEN=4) :: F1, F2
     character(LEN=*) ScalFile, TensFile, TotFile, LensFile, LensTotFile,ScalCovfile
     real(dl), intent(in), optional :: factor
     real(dl) fact
@@ -2242,7 +2241,7 @@
     real(dl), intent(in) :: R(:)
     real(dl), intent(out) :: SigmaR(:)
     integer, intent(in), optional :: redshift_ix, var1, var2, power_ix
-    integer i, red_ix, ik, subk
+    integer red_ix, ik, subk
     real(dl) kh, k, h, dkh
     real(dl) lnk, dlnk, lnko, minR
     real(dl), dimension(size(R)) ::  x, win, dsig8, dsig8o, sig8, sig8o

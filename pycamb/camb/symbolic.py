@@ -215,11 +215,15 @@ v_c = LinearPerturbation('v_c', species='c', description='CDM velocity',
                          frame_dependence=-delta_frame)
 v_b = LinearPerturbation('v_b', species='b', camb_var='vb', description='baryon velocity',
                          frame_dependence=-delta_frame)
-v_de = LinearPerturbation('v_de', species='de', camb_var='vq', description='dark energy velocity',
-                          frame_dependence=-delta_frame)
+v_de = LinearPerturbation('v_de', species='de', camb_var=['qde', 'w_lam'], camb_sub='qde/(1+w_lam)',
+                          description='dark energy velocity', frame_dependence=-delta_frame)
 Delta_b = LinearPerturbation('Delta_b', species='b', camb_var='clxb',
                              description='fractional baryon density perturbation',
                              frame_dependence=3 * H * (1 + p_b / rho_b) * delta_frame / k)
+Delta_P_b = LinearPerturbation('Delta_P_b', camb_sub='delta_p_b',
+                               description='fractional baryon pressure perturbation',
+                               frame_dependence=-diff(p_b, t) / rho_b * delta_frame / k)
+
 Delta_c = LinearPerturbation('Delta_c', species='c', camb_var='clxc', description='fractional CDM density perturbation',
                              frame_dependence=3 * H * delta_frame / k)
 Delta_r = LinearPerturbation('Delta_r', species='r', camb_var='clxr',
@@ -235,11 +239,12 @@ Delta_P_nu = LinearPerturbation('Delta_P_nu', camb_sub='error',
 
 Delta_g = LinearPerturbation('Delta_g', species='g', camb_var='clxg', description='fractional CDM density perturbation',
                              frame_dependence=4 * H * delta_frame / k)
-Delta_de = LinearPerturbation('Delta_de', species='de', camb_var='clxq',
+Delta_de = LinearPerturbation('Delta_de', species='de', camb_var='clxde',
                               description='fractional dark energy density perturbation',
                               frame_dependence=3 * H * (1 + w_de) * delta_frame / k)
 # Sound speeds
-csq_b = LinearPerturbation('c_sb^2', species='b', camb_var='cs2', description='baryon sound speed')
+csq_b = LinearPerturbation('c_sb^2', species='b', camb_var=['delta_p_b', 'clxb'], camb_sub='delta_p_b/clxb',
+                           description='baryon sound speed')
 csq_b.frame_dependence = (csq_b * Delta_b - diff(p_b, t) / rho_b * delta_frame / k) / (
     Delta_b + 3 * H * (1 + p_b / rho_b) * delta_frame / k) - csq_b
 
@@ -647,11 +652,18 @@ def camb_fortran(expr, name='camb_function', frame='CDM', expand=False):
     for var in res.atoms(Function):
         camb_var = getattr(var, 'camb_var', None)
         if camb_var:
-            camb_var = define_variable(camb_var)
-        camb_sub = getattr(var, 'camb_sub', None) or camb_var
-        if camb_sub:
-            if isinstance(camb_sub, six.string_types): camb_sub = eval(camb_sub)
-            camb_var_subs.append((var, camb_sub))
+            if isinstance(camb_var, (list, tuple)):
+                for x in camb_var:
+                    define_variable(x)
+                camb_sub = getattr(var, 'camb_sub', None)
+                if not camb_sub:
+                    raise Exception('must have camb_sub if camb_var has more than one variable')
+            else:
+                camb_var = define_variable(camb_var)
+                camb_sub = getattr(var, 'camb_sub', None) or camb_var
+            if camb_sub:
+                if isinstance(camb_sub, six.string_types): camb_sub = eval(camb_sub)
+                camb_var_subs.append((var, camb_sub))
 
     camb_subs = camb_var_subs + [(p_b, 0), (E_2, E[2]), (E_3, E[3]), (J_3, octg), (K_fac, Kf[1])]
     res = res.subs(camb_subs).simplify()
@@ -705,8 +717,8 @@ def compile_source_function_code(code_body, file_path='',
     REAL*8 function source_func(sources, tau, a, adotoa, grho, gpres,w_lam, cs2_lam,  &
         grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,grhonu_t, &
         k,etak, etakdot, phi, phidot, sigma, sigmadot, &
-        dgrho, clxg,clxb,clxc,clxnu, clxq, cs2, &
-        dgq, qg, qr, vq, vb, qgdot, qrdot, vbdot, &
+        dgrho, clxg,clxb,clxc,clxr,clxnu, clxde, delta_p_b, &
+        dgq, qg, qr, qde, vb, qgdot, qrdot, vbdot, &
         dgpi, pig, pir, pigdot, pirdot, diff_rhopi, &
         polter, polterdot, polterddot, octg, octgdot, E, Edot, &
         opacity, dopacity, ddopacity, visibility, dvisibility, ddvisibility, exptau, &
@@ -716,8 +728,8 @@ def compile_source_function_code(code_body, file_path='',
     REAL*8, intent(in) ::  tau, a, adotoa, grho, gpres,w_lam, cs2_lam,  &
             grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,grhonu_t, &
             k,  etak, etakdot, phi, phidot, sigma, sigmadot, &
-            dgrho, clxg,clxb,clxc,clxnu, clxq, cs2, &
-            dgq, qg, qr, vq, vb, qgdot, qrdot, vbdot, &
+            dgrho, clxg,clxb,clxc,clxr,clxnu, clxde, delta_p_b, &
+            dgq, qg, qr, qde, vb, qgdot, qrdot, vbdot, &
             dgpi, pig, pir,  pigdot, pirdot, diff_rhopi, &
             polter, polterdot, polterddot, octg, octgdot, E(2:3), Edot(2:3), &
             opacity, dopacity, ddopacity, visibility, dvisibility, ddvisibility, exptau, &
