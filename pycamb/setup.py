@@ -90,7 +90,7 @@ class SharedLibrary(install):
             print("Compiling source...")
             try:
                 from pkg_resources import parse_version
-                gfortran_version = subprocess.check_output('gfortran --version | grep GCC | sed ''s/^.* //g''')
+                gfortran_version = subprocess.check_output('gfortran --version | grep GCC | sed ''s/^.* //g''', shell=True)
                 if parse_version(gfortran_version) < parse_version('4.9'):
                     raise Exception('You need gfortran 4.9 or higher to compile the python CAMB wrapper')
             except ImportError:
