@@ -10,10 +10,6 @@
     real(dl), private, parameter :: amin = 1.d-9
 
     type, extends(TDarkEnergyBase) :: TDarkEnergyPPF
-        ! w_lam is now w0
-        !comoving sound speed. Always exactly 1 for quintessence
-        !(otherwise assumed constant, though this is almost certainly unrealistic)
-
         logical :: use_tabulated_w = .false.
         real(dl) :: c_Gamma_ppf = 0.4_dl
         integer :: nw_ppf
@@ -73,6 +69,7 @@
         call this%interpolrde
     endif
     this%cs2_lam = Ini%Read_Double('cs2_lam', 1.d0)
+    if (this%cs2_lam /= 1.d0) error stop 'cs2_lam not supported by PPF model'
     call this%setcgammappf
 
     call this%Init()
@@ -85,9 +82,8 @@
 
 
     this%is_cosmological_constant = .not. this%use_tabulated_w .and. &
-        &   this%w_lam==-1_dl .and. this%wa_ppf==0._dl
+        &  abs(this%w_lam + 1._dl) < 1.e-6_dl .and. this%wa_ppf==0._dl
 
-    ! Set both cases to be always on the safe side.
     if (this%is_cosmological_constant) then
         this%num_perturb_equations = 0
     else
@@ -101,7 +97,6 @@
     type(TDarkEnergyPPF), intent(inout) :: this
 
     end subroutine
-
 
     subroutine setddwa(this)
     class(TDarkEnergyPPF) :: this
@@ -231,7 +226,7 @@
     real(dl), intent(in) :: a
     real(dl), intent(out) :: grhov_t
     real(dl), optional, intent(out) :: w
-    
+
     if (this%is_cosmological_constant) then
         grhov_t = grhov * a * a
         if (present(w)) w = -1_dl
@@ -310,7 +305,7 @@
     dgqe = S_Gamma - Gammadot / adotoa - Gamma
     dgqe = -dgqe / Fa * 2._dl * k * adotoa + vT * grhov_t * (1 + w)
     dgrhoe = -2 * k2 * kf1 * Gamma - 3 / k * adotoa * dgqe
-
+    
     end subroutine TDarkEnergyPPF_PerturbedStressEnergy
 
 

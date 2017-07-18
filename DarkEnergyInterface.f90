@@ -4,8 +4,8 @@
 
     type, abstract :: TDarkEnergyBase
         real(dl) :: w_lam = -1_dl !p/rho for the dark energy (an effective value, used e.g. for halofit)
-        real(dl) :: wa_ppf = 0._dl !Not used here, just for compatibility with e.g. halofit
-        real(dl) :: cs2_lam = 1_dl !rest-frame sound speed
+        real(dl) :: wa_ppf = 0._dl !may not be used, just for compatibility with e.g. halofit
+        real(dl) :: cs2_lam = 1_dl !rest-frame sound speed, though may not be used
         integer :: num_perturb_equations = 0
         logical :: is_cosmological_constant = .true.
     contains

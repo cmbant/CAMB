@@ -120,7 +120,7 @@
     !Vector mode shear
     integer, parameter :: max_l_evolve = 256 !Maximum l we are ever likely to propagate
     !Note higher values increase size of Evolution vars, hence memory
-    
+
     !Supported scalar initial condition flags
     integer, parameter :: initial_adiabatic=1, initial_iso_CDM=2, &
         initial_iso_baryon=3,  initial_iso_neutrino=4, initial_iso_neutrino_vel=5, initial_vector = 0
@@ -1381,13 +1381,13 @@
     !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
     subroutine output_window_sources(EV, sources, y, yprime, &
-                    tau, a, adotoa, grho, gpres, &
-                    k, etak, z, etakdot, phi, phidot, sigma, sigmadot, &
-                    dgrho, clxg,clxb,clxc,clxnu, Delta_TM, Delta_xe,  &
-                    dgq, qg,  vb, qgdot, vbdot, &
-                    dgpi, pig, pigdot, diff_rhopi, &
-                    polter, polterdot, polterddot, octg, octgdot, E, Edot, &
-                    opacity, dopacity, ddopacity, visibility, dvisibility, ddvisibility, exptau)
+        tau, a, adotoa, grho, gpres, &
+        k, etak, z, etakdot, phi, phidot, sigma, sigmadot, &
+        dgrho, clxg,clxb,clxc,clxnu, Delta_TM, Delta_xe,  &
+        dgq, qg,  vb, qgdot, vbdot, &
+        dgpi, pig, pigdot, diff_rhopi, &
+        polter, polterdot, polterddot, octg, octgdot, E, Edot, &
+        opacity, dopacity, ddopacity, visibility, dvisibility, ddvisibility, exptau)
     !Line of sight sources for number counts, lensing and 21cm redshift windows
     use ThermoData
     type(EvolutionVars) EV
@@ -1409,7 +1409,7 @@
     integer j
     real(dl) Tmat,Trad, Delta_source, Delta_source2
     real(dl) xe, chi, polter_line
-    
+
     j = EV%OutputStep
     if (line_reionization) sources(2)=0
 
@@ -2206,7 +2206,7 @@
 
     integer n,nu_i
     real(dl) ay(n),ayprime(n)
-    real(dl) tau,w
+    real(dl) tau, w
     real(dl) k,k2
 
     !  Internal variables.
@@ -2240,7 +2240,7 @@
     real(dl) ddopacity, visibility, dvisibility, ddvisibility, exptau, lenswindow
     real(dl) ISW, quadrupole_source, doppler, monopole_source, tau0, ang_dist
     real(dl) dgrho_de, dgq_de
-    
+
     k=EV%k_buf
     k2=EV%k2_buf
 
@@ -2345,7 +2345,8 @@
 
     if (.not. CP%DarkEnergy%is_cosmological_constant) then
         call CP%DarkEnergy%PerturbedStressEnergy(dgrho_de, dgq_de, &
-            dgq, dgrho, grho, grhov_t, w, gpres_noDE, etak, adotoa, k, EV%Kf(1), ay, ayprime, EV%w_ix)
+            dgq, dgrho, grho, grhov_t, w_dark_energy_t, gpres_noDE, etak, & 
+            adotoa, k, EV%Kf(1), ay, ayprime, EV%w_ix)
         dgrho = dgrho + dgrho_de
         dgq = dgq + dgq_de
     end if
@@ -2744,10 +2745,11 @@
             call MassiveNuVarsOut(EV,ay,ayprime,a, dgpi=dgpi, clxnu_all=clxnu, &
                 dgpi_diff=dgpi_diff, pidot_sum=pidot_sum)
         end if
-        diff_rhopi = pidot_sum - (4*dgpi+ dgpi_diff)*adotoa + &
-            CP%DarkEnergy%diff_rhopi_Add_Term(dgrho_de, dgq_de, grho, gpres, w_dark_energy_t, grhok, adotoa, &
-            EV%kf(1), k, grhov_t, z, k2, ayprime, ay, EV%w_ix)
         gpres = gpres_noDE + w_dark_energy_t*grhov_t
+        diff_rhopi = pidot_sum - (4*dgpi+ dgpi_diff)*adotoa + &
+            CP%DarkEnergy%diff_rhopi_Add_Term(dgrho_de, dgq_de, grho, &
+            gpres, w_dark_energy_t, grhok, adotoa, &
+            EV%kf(1), k, grhov_t, z, k2, ayprime, ay, EV%w_ix)
         phi = -((dgrho +3*dgq*adotoa/k)/EV%Kf(1) + dgpi)/(2*k2)
 
         if (associated(EV%OutputTransfer)) then
@@ -2789,7 +2791,7 @@
         end if
         if (associated(EV%OutputSources)) then
 
-			EV%OutputSources = 0
+            EV%OutputSources = 0
             call IonizationFunctionsAtTime(tau, opacity, dopacity, ddopacity, &
                 visibility, dvisibility, ddvisibility, exptau, lenswindow)
 

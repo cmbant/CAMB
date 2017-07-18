@@ -25,8 +25,9 @@
 
     this%w_lam = Ini%Read_Double('w', -1.d0)
     this%cs2_lam = Ini%Read_Double('cs2_lam', 1.d0)
-
+    if (Ini%Read_Double('wa', 0.d0) /= 0) error stop 'wa not supported by fluid model'
     call this%Init()
+
     end subroutine TDarkEnergyFluid_ReadParams
 
 
