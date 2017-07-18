@@ -3563,6 +3563,8 @@
 
     call SetTimeSteps
 
+    if (num_redshiftwindows>0) call SetTimeStepWindows
+
     if (num_redshiftwindows>0) then
         !$OMP PARALLEL DO DEFAULT(SHARED),SCHEDULE(STATIC)
         do j2=1,TimeSteps%npoints
@@ -3631,8 +3633,6 @@
 
     !Sources
     deallocate(RW)
-
-    if (num_redshiftwindows>0) call SetTimeStepWindows
 
     deallocate(arhos_fac, darhos_fac, ddarhos_fac)
 
