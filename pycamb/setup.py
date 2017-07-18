@@ -98,7 +98,7 @@ class SharedLibrary(install):
             except ImportError:
                 pass
 
-            subprocess.call("make camblib.so COMPILER=gfortran PYCAMB_OUTPUT_DIR=%s/camb" % pycamb_path, shell=True)
+            subprocess.call("make camblib.so COMPILER=gfortran PYCAMB_OUTPUT_DIR=%s/camb/" % pycamb_path, shell=True)
             so_file = os.path.join(pycamb_path, 'camb', 'camblib.so')
             if not os.path.isfile(so_file): sys.exit('Compilation failed')
             subprocess.call("chmod 755 %s" % so_file, shell=True)

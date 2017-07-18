@@ -93,7 +93,7 @@ camb: libcamb $(DRIVER)
 camblib.so: libcambso $(CAMBSO)
 	$(F90C) $(SF90FLAGS) $(SMODOUT) $(IFLAG)$(DLL_DIR)/ $(IFLAG)$(FORUTILSPATH)/$(OUTPUT_DIR)/  \
 		$(CAMBSO) $(DLL_DIR)/$(CAMBLIB) $(F90CRLINK) -o $(DLL_DIR)/camblib.so
-    cp $(DLL_DIR)/camblib.so $(PYCAMB_OUTPUT_DIR)  >/dev/null || :
+	cp $(DLL_DIR)/camblib.so $(PYCAMB_OUTPUT_DIR)
 
 
 $(CAMBLIB): $(CAMBOBJ)
