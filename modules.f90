@@ -3563,14 +3563,13 @@
 
     call SetTimeSteps
 
-    if (num_redshiftwindows>0) call SetTimeStepWindows
-
     if (num_redshiftwindows>0) then
         !$OMP PARALLEL DO DEFAULT(SHARED),SCHEDULE(STATIC)
         do j2=1,TimeSteps%npoints
             call DoWindowSpline(j2,TimeSteps%points(j2))
         end do
         !$OMP END PARALLEL DO
+        call SetTimeStepWindows
     end if
 
     if ((CP%want_zstar .or. CP%DerivedParameters) .and. z_star==0.d0) call find_z(optdepth,z_star)
@@ -3773,6 +3772,17 @@
     if (num_redshiftwindows > 0) then
         if (allocated(step_redshift)) deallocate(step_redshift, rhos_fac, drhos_fac)
         allocate(step_redshift(nstep), rhos_fac(nstep), drhos_fac(nstep))
+        do i=1,num_redshiftwindows
+            associate (Win => Redshift_W(i))
+                allocate(Win%winF(nstep),Win%wing(nstep),Win%dwing(nstep),Win%ddwing(nstep), &
+                    Win%winV(nstep),Win%dwinV(nstep),Win%ddwinV(nstep))
+                allocate(Win%win_lens(nstep),Win%wing2(nstep),Win%dwing2(nstep),Win%ddwing2(nstep))
+                allocate(Win%wingtau(nstep),Win%dwingtau(nstep),Win%ddwingtau(nstep))
+                if (Win%kind == window_counts) then
+                    allocate(Win%comoving_density_ev(nstep))
+                end if
+            end associate
+        end do
     end if
 
     if (DebugMsgs .and. FeedbackLevel > 0) write(*,*) 'Set ',nstep, ' time steps'
@@ -3797,21 +3807,7 @@
     real(dl) z,rhos, adot, exp_fac
     real(dl) tmp(TimeSteps%npoints), tmp2(TimeSteps%npoints), hubble_tmp(TimeSteps%npoints)
     real(dl), allocatable , dimension(:,:) :: int_tmp, back_count_tmp
-    integer ninterp, nstep
-
-    nstep = TimeSteps%npoints
-
-    do i=1,num_redshiftwindows
-        associate (Win => Redshift_W(i))
-            allocate(Win%winF(nstep),Win%wing(nstep),Win%dwing(nstep),Win%ddwing(nstep), &
-                Win%winV(nstep),Win%dwinV(nstep),Win%ddwinV(nstep))
-            allocate(Win%win_lens(nstep),Win%wing2(nstep),Win%dwing2(nstep),Win%ddwing2(nstep))
-            allocate(Win%wingtau(nstep),Win%dwingtau(nstep),Win%ddwingtau(nstep))
-            if (Win%kind == window_counts) then
-                allocate(Win%comoving_density_ev(nstep))
-            end if
-        end associate
-    end do
+    integer ninterp
 
     ! Prevent false positive warnings for uninitialized
     Tspin = 0._dl
@@ -4006,9 +4002,6 @@
                 !WinF is int[ g*(...)]
                 call spline_integrate(TimeSteps%points(jstart),RedWin%Wingtau(jstart),&
                     RedWin%ddWingtau(jstart), RedWin%WinF(jstart),ninterp)
-                !    tmp(jstart:TimeSteps%npoints) = int_tmp(jstart:TimeSteps%npoints,i)/RedWin%Wingtau(jstart:TimeSteps%npoints)
-                !    call spline(TimeSteps%points(jstart),tmp(jstart),ninterp,spl_large,spl_large,tmp2)
-                !    call spline_integrate(TimeSteps%points(jstart),tmp,tmp2, RedWin%WinF(jstart),ninterp)
             end if
         end associate
     end do
@@ -4041,7 +4034,7 @@
 
     subroutine DoWindowSpline(j2,tau)
     integer j2, i, RW_i
-    real(dl) d,ddopac,tau
+    real(dl) d, tau
 
     !     Cubic-spline interpolation.
     d=log(tau/tauminn)/dlntau+1._dl
@@ -4054,7 +4047,6 @@
             -2._dl*dredshift_time(i)-dredshift_time(i+1)+d*(dredshift_time(i)+dredshift_time(i+1) &
             +2._dl*(redshift_time(i)-redshift_time(i+1)))))
 
-
         rhos_fac(j2) = arhos_fac(i)+d*(darhos_fac(i)+d*(3._dl*(arhos_fac(i+1)-arhos_fac(i)) &
             -2._dl*darhos_fac(i)-darhos_fac(i+1)+d*(darhos_fac(i)+darhos_fac(i+1) &
             +2._dl*(arhos_fac(i)-arhos_fac(i+1)))))
@@ -4062,7 +4054,6 @@
             -darhos_fac(i))-2._dl*ddarhos_fac(i)-ddarhos_fac(i+1)+d*(ddarhos_fac(i) &
             +ddarhos_fac(i+1)+2._dl*(darhos_fac(i)-darhos_fac(i+1))))))/(tau &
             *dlntau)
-
 
         do RW_i=1, num_redshiftwindows
             if (Redshift_w(RW_i)%has_lensing_window) then
@@ -4079,8 +4070,6 @@
         step_redshift(j2) = 0
         rhos_fac(j2)=0
         drhos_fac(j2)=0
-
-
         do RW_i=1, num_redshiftwindows
             associate (W => Redshift_W(RW_i))
                 W%win_lens(j2)=0

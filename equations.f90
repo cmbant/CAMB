@@ -2789,6 +2789,7 @@
         end if
         if (associated(EV%OutputSources)) then
 
+			EV%OutputSources = 0
             call IonizationFunctionsAtTime(tau, opacity, dopacity, ddopacity, &
                 visibility, dvisibility, ddvisibility, exptau, lenswindow)
 
@@ -2821,8 +2822,6 @@
                 !E polarization source
                 EV%OutputSources(2)=visibility*polter*(15._dl/8._dl)/(ang_dist**2*k2)
                 !factor of four because no 1/16 later
-            else
-                EV%OutputSources(2)=0
             end if
 
             if (size(EV%OutputSources) > 2) then
@@ -2831,8 +2830,6 @@
                 if (tau>tau_maxvis .and. tau0-tau > 0.1_dl) then
                     EV%OutputSources(3) = -2*phi*f_K(tau-tau_maxvis)/(f_K(tau0-tau_maxvis)*ang_dist)
                     !We include the lensing factor of two here
-                else
-                    EV%OutputSources(3) = 0
                 end if
             end if
             if (num_redshiftwindows > 0) then

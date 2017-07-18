@@ -392,7 +392,7 @@
                             if(j==0 .and. i==0) iCl_scalar(ell,C_Phi,pix) = Cl
                             if (has_cl_2D_array) then
                                 iCl_Array(ell,s_ix,s_ix2,pix) = Cl
-                                if (i/=j) iCl_Array(ell,s_ix2,s_ix,pix)=iCl_Array(ell,s_ix,s_ix2,pix)
+                                if (i/=j) iCl_Array(ell,s_ix2,s_ix,pix) = Cl
                             end if
                             end associate
                         end do
@@ -2384,7 +2384,7 @@
             !Output l(l+1)C_l/OutputDenominator
             ctnorm=(ell*ell-1)*(ell+2)*ell
             dbletmp=(ell*(ell+1))/OutputDenominator*const_fourpi
-            if (CTrans%NumSources>2 .and. has_cl_2D_array) then
+            if (has_cl_2D_array) then
                 fac=1
                 fac(2) = sqrt(ctnorm)
                 fac(3) = sqrt(ell*(ell+1)*ALens)
