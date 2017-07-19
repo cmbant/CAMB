@@ -2345,7 +2345,7 @@
 
     if (.not. CP%DarkEnergy%is_cosmological_constant) then
         call CP%DarkEnergy%PerturbedStressEnergy(dgrho_de, dgq_de, &
-            dgq, dgrho, grho, grhov_t, w_dark_energy_t, gpres_noDE, etak, & 
+            dgq, dgrho, grho, grhov_t, w_dark_energy_t, gpres_noDE, etak, &
             adotoa, k, EV%Kf(1), ay, ayprime, EV%w_ix)
         dgrho = dgrho + dgrho_de
         dgq = dgq + dgq_de

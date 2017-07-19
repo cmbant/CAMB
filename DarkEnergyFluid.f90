@@ -4,7 +4,7 @@
     implicit none
 
     type, extends(TDarkEnergyBase) :: TDarkEnergyFluid
-        !comoving sound speed. Always exactly 1 for quintessence
+        !comoving sound speed is always exactly 1 for quintessence
         !(otherwise assumed constant, though this is almost certainly unrealistic)
     contains
     procedure :: ReadParams => TDarkEnergyFluid_ReadParams
@@ -35,11 +35,8 @@
     use ModelParams
     class(TDarkEnergyFluid), intent(inout) :: this
 
-    ! is_cosmological_constant = this%w_lam == -1.dl
-    ! to prevent issues with fp comparision:
     this%is_cosmological_constant = abs(this%w_lam + 1._dl) < 1.e-6_dl
 
-    ! Set in both cases to be on the safe side.
     if (this%is_cosmological_constant) then
         this%num_perturb_equations = 0
     else
