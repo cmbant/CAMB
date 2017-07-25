@@ -27,6 +27,9 @@ os.chdir(file_dir)
 
 is32Bit = struct.calcsize("P") == 4
 
+with open('README.rst') as f:
+    long_description = f.read()
+
 
 def find_version():
     version_file = io.open(os.path.join(file_dir, '%s/__init__.py' % package_name)).read()
@@ -47,7 +50,7 @@ def has_win_gfortran():
 class SharedLibrary(install):
     def run(self):
         CAMBDIR = os.path.join(file_dir, '..')
-        if not os.path.exists(os.path.join(CAMBDIR,'lensing.f90')):
+        if not os.path.exists(os.path.join(CAMBDIR, 'lensing.f90')):
             CAMBDIR = os.path.join(file_dir, 'fortran')  # pypi install
             pycamb_path = '..'
         else:
@@ -76,7 +79,7 @@ class SharedLibrary(install):
             else:
                 print(COMPILER + ' ' + FFLAGS + ' ' + SOURCES + ' ' + OUTPUT)
                 subprocess.call(COMPILER + ' ' + FFLAGS + ' ' + SOURCES + ' ' + OUTPUT, shell=True)
-            COPY = r"copy /Y HighLExtrapTemplate_lenspotentialCls.dat %s\camb" % (pycamb_path)
+            COPY = r"copy /Y *.dat %s\camb" % (pycamb_path)
             subprocess.call(COPY, shell=True)
             scrs.append(DLLNAME)
             if not osp.isfile(os.path.join(pycamb_path, 'camb', DLLNAME)): sys.exit('Compilation failed')
@@ -88,31 +91,38 @@ class SharedLibrary(install):
 
         else:
             print("Compiling source...")
-            subprocess.call("make camblib.so", shell=True)
+            try:
+                from pkg_resources import parse_version
+                try:
+                    gfortran_version = subprocess.check_output("gfortran -dumpversion", shell=True).decode()
+                except subprocess.CalledProcessError:
+                    gfortran_version = '0.0'
+                if parse_version(gfortran_version) < parse_version('4.9'):
+                    raise Exception(
+                        'You need gfortran 4.9 or higher to compile the python CAMB wrapper (%s).' % gfortran_version)
+            except ImportError:
+                pass
+
+            subprocess.call("make camblib.so COMPILER=gfortran", shell=True)
             if not osp.isfile(os.path.join('Releaselib', 'camblib.so')): sys.exit('Compilation failed')
             subprocess.call("chmod 755 Releaselib/camblib.so", shell=True)
             subprocess.call(r"cp Releaselib/camblib.so %s/camb" % (pycamb_path), shell=True)
-            subprocess.call("cp HighLExtrapTemplate_lenspotentialCls.dat %s/camb" % (pycamb_path), shell=True)
+            subprocess.call("cp *.dat %s/camb" % (pycamb_path), shell=True)
 
         os.chdir(file_dir)
         install.run(self)
-        print("Cleaning intermediate files...")
-        if platform.system() == "Windows":
-            DELETE = 'rmdir /s /q build'
-        else:
-            DELETE = 'rm -rf build'
-        subprocess.call(DELETE, shell=True)
 
 
 setup(name=package_name,
       version=find_version(),
       description='Code for Anisotropies in the Microwave Background',
+      long_description=long_description,
       author='Antony Lewis',
-      author_email='http://cosmologist.info/',
       url="http://camb.info/",
       cmdclass={'install': SharedLibrary},
       packages=['camb', 'camb_tests'],
-      package_data={'camb': [DLLNAME, 'HighLExtrapTemplate_lenspotentialCls.dat']},
+      package_data={'camb': [DLLNAME, 'HighLExtrapTemplate_lenspotentialCls.dat',
+                             'PArthENoPE_880.2_marcucci.dat', 'PArthENoPE_880.2_standard.dat']},
       test_suite='camb_tests',
       classifiers=[
           "Programming Language :: Python :: 2",
@@ -120,6 +130,7 @@ setup(name=package_name,
           'Programming Language :: Python :: 3',
           'Programming Language :: Python :: 3.4',
           'Programming Language :: Python :: 3.5',
+          'Programming Language :: Python :: 3.6'
       ],
       keywords=['cosmology', 'CAMB']
       )

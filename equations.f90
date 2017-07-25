@@ -1348,7 +1348,7 @@
         -2.D0/k*adotoa/EV%Kf(1)*etak)*expmmu(j)
 
     !e.g. to get only late-time ISW
-    !  if (1/a-1 < 30) ISW=0
+    !  if (1/a-1 > 30) ISW=0
 
     !The rest, note y(9)->octg, yprime(9)->octgprime (octopoles)
     sources(1)= ISW +  ((-9.D0/160.D0*pig-27.D0/80.D0*ypol(2))/k**2*opac(j)+ &
