@@ -35,7 +35,7 @@
     !AM Sep 16: Attempted fix of strange bug. No more modules with unallocated arrays as inputs
     !LC Oct 16: extended Halofit from w=const. models to w=w(a) with PKequal
     !AM May 17: Made the baryon feedback parameters more obvious in HMcode
-
+    !AL Jul 17: fixed undefined z calling Tcb_Tcbnu_ratio
 
     !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -678,16 +678,16 @@
 
     ALLOCATE(cosm%plin(nk),cosm%plinc(nk))
 
+    !Find the redshift
+    z=CAMB_Pk%Redshifts(iz)
+    IF(HM_verbose) WRITE(*,*) 'LINEAR POWER: z of input:', z
+
     !Fill power table
     DO i=1,nk
         !Take the power from the current redshift choice
         cosm%plin(i)=MatterPowerData_k(CAMB_PK,DBLE(cosm%k_plin(i)),iz)*(cosm%k_plin(i)**3/(2.*pi**2))
         cosm%plinc(i)=cosm%plin(i)*(Tcb_Tcbnu_ratio(cosm%k_plin(i),z,cosm))**2.
     END DO
-
-    !Find the redshift
-    z=CAMB_Pk%Redshifts(iz)
-    IF(HM_verbose) WRITE(*,*) 'LINEAR POWER: z of input:', z
 
     !Calculate the growth factor at the redshift of interest
     g=grow(z,cosm)
