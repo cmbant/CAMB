@@ -92,7 +92,7 @@ class SharedLibrary(install):
                 from pkg_resources import parse_version
                 try:
                     gfortran_version = subprocess.check_output("gfortran --version | grep GCC | sed 's/^.* //g'",
-                                                               shell=True)
+                                                               shell=True).decode()
                 except subprocess.CalledProcessError:
                     gfortran_version = '0.0'
                 if parse_version(gfortran_version) < parse_version('4.9'):
