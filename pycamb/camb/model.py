@@ -8,6 +8,7 @@ import numpy as np
 from . import bbn
 import logging
 import six
+import copy
 
 # ---Parameters
 
@@ -245,6 +246,13 @@ class CAMBparams(CAMB_Structure):
         ("tau0", c_double),
         ("chi0", c_double)
     ]
+
+    def copy(self):
+        """
+        Make independent copy.
+         :return: copy of self
+        """
+        return copy.deepcopy(self)
 
     def validate(self):
         """

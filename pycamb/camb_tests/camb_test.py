@@ -8,7 +8,7 @@ try:
 except ImportError:
     sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../')))
     import camb
-from camb import model
+from camb import model, correlations
 
 
 class CambTest(unittest.TestCase):
@@ -134,13 +134,6 @@ class CambTest(unittest.TestCase):
         self.assertAlmostEqual(pk2[-2][-4], 53.47, 2)
 
         camb.set_feedback_level(0)
-        cls = data.get_cmb_power_spectra(pars)
-
-        cls_tot = data.get_total_cls(2000)
-        cls_scal = data.get_unlensed_scalar_cls(2000)
-        cls_tensor = data.get_tensor_cls(2000)
-        cls_lensed = data.get_lensed_scalar_cls(2000)
-        cls_phi = data.get_lens_potential_cls(2000)
 
         PKnonlin = camb.get_matter_power_interpolator(pars, nonlinear=True)
         pars.set_matter_power(redshifts=[0, 0.09, 0.15, 0.42, 0.76, 1.5, 2.3, 5.5, 8.9], kmax=10, k_per_logint=5)
@@ -151,4 +144,25 @@ class CambTest(unittest.TestCase):
         self.assertTrue(np.sum((pk / pk_interp - 1) ** 2) < 0.005)
         camb.set_halofit_version('mead')
         _, _, pk = results.get_nonlinear_matter_power_spectrum(params=pars, var1='delta_cdm', var2='delta_cdm')
-        self.assertAlmostEqual(pk[0][160], 232.08,1)
+        self.assertTrue(np.abs(pk[0][160] / 232.08 - 1) < 1e-3)
+
+        lmax = 4000
+        pars.set_for_lmax(lmax)
+        cls = data.get_cmb_power_spectra(pars)
+        cls_tot = data.get_total_cls(2000)
+        cls_scal = data.get_unlensed_scalar_cls(2500)
+        cls_tensor = data.get_tensor_cls(2000)
+        cls_lensed = data.get_lensed_scalar_cls(3000)
+        cls_phi = data.get_lens_potential_cls(2000)
+
+        # check lensed CL against python; will only agree well for high lmax as python has no extrapolation template
+        cls_lensed2 = correlations.lensed_cls(cls['unlensed_scalar'], cls['lens_potential'][:, 0], delta_cls=False)
+        self.assertTrue(np.all(np.abs(cls_lensed2[2:2000, 2] / cls_lensed[2:2000, 2] - 1) < 1e-3))
+        self.assertTrue(np.all(np.abs(cls_lensed2[2:3000, 0] / cls_lensed[2:3000, 0] - 1) < 1e-3))
+        self.assertTrue(np.all(np.abs(cls_lensed2[2:3000, 1] / cls_lensed[2:3000, 1] - 1) < 1e-3))
+        self.assertTrue(np.all(np.abs((cls_lensed2[2:3000, 3] - cls_lensed[2:3000, 3]) /
+                                      np.sqrt(cls_lensed2[2:3000, 0] * cls_lensed2[2:3000, 1])) < 1e-4))
+
+        corr, xvals, weights = correlations.gauss_legendre_correlation(cls['lensed_scalar'])
+        clout = correlations.corr2cl(corr, xvals, weights, 2500)
+        self.assertTrue(np.all(np.abs(clout[2:2300, 2] / cls['lensed_scalar'][2:2300, 2] - 1) < 1e-3))
