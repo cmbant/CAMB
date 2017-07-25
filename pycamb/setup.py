@@ -108,12 +108,12 @@ class SharedLibrary(install):
 
         os.chdir(file_dir)
         install.run(self)
-        print("Cleaning intermediate files...")
-        if platform.system() == "Windows":
-            DELETE = 'rmdir /s /q build'
-        else:
-            DELETE = 'rm -rf build'
-        subprocess.call(DELETE, shell=True)
+#        print("Cleaning intermediate files...")
+#        if platform.system() == "Windows":
+#            DELETE = 'rmdir /s /q build'
+#        else:
+#            DELETE = 'rm -rf build'
+#        subprocess.call(DELETE, shell=True)
 
 
 setup(name=package_name,
