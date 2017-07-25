@@ -27,6 +27,8 @@ os.chdir(file_dir)
 
 is32Bit = struct.calcsize("P") == 4
 
+with open('README.rst') as f:
+    long_description = f.read()
 
 def find_version():
     version_file = io.open(os.path.join(file_dir, '%s/__init__.py' % package_name)).read()
@@ -119,6 +121,7 @@ class SharedLibrary(install):
 setup(name=package_name,
       version=find_version(),
       description='Code for Anisotropies in the Microwave Background',
+      long_description=long_description,
       author='Antony Lewis',
       url="http://camb.info/",
       cmdclass={'install': SharedLibrary},
@@ -132,6 +135,7 @@ setup(name=package_name,
           'Programming Language :: Python :: 3',
           'Programming Language :: Python :: 3.4',
           'Programming Language :: Python :: 3.5',
+          'Programming Language :: Python :: 3.6'
       ],
       keywords=['cosmology', 'CAMB']
       )
