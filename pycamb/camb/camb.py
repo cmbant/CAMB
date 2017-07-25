@@ -7,8 +7,13 @@ from numpy import ctypeslib as nplib
 from numpy.ctypeslib import ndpointer
 import logging
 import sys
-from inspect import ismethod, getargspec
 import six
+from inspect import ismethod
+
+if six.PY3:
+    from inspect import getfullargspec as getargspec
+else:
+    from inspect import getargspec
 
 
 class _CAMBdata(CAMB_Structure):
