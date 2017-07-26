@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-import os
 import sys
 import os.path as osp
 import platform
