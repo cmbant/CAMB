@@ -9,7 +9,7 @@ try:
 except ImportError:
     sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../')))
     import camb
-from camb import model, correlations
+from camb import model, correlations, bbn
 from camb.baseconfig import CAMBParamRangeError
 
 
@@ -61,6 +61,10 @@ class CambTest(unittest.TestCase):
         data.calc_background(pars)
         self.assertAlmostEqual(data.cosmomc_theta(), 0.01040862, 7)
         self.assertAlmostEqual(data.get_derived_params()['kd'], 0.14055, 4)
+
+        pars.set_cosmology(H0=67.31, ombh2=0.022242, omch2=0.11977, mnu=0.06, omk=0,
+                           bbn_predictor=bbn.BBN_table_interpolator())
+        self.assertAlmostEqual(pars.YHe, 0.2453469, 5)
 
         # test massive sterile models as in Planck papers
         pars.set_cosmology(H0=68.0, ombh2=0.022305, omch2=0.11873, mnu=0.06, nnu=3.073, omk=0, meffsterile=0.013)

@@ -4,3 +4,5 @@ recursive-include camb_tests *.py
 recursive-exclude camb *.dll *.dat
 recursive-include fortran Makefile* *.dat *.?90
 recursive-include dlls *.dll
+include camb/PArthENoPE_880.2_marcucci.dat
+include camb/PArthENoPE_880.2_standard.dat
