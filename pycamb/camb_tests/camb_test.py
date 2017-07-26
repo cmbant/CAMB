@@ -2,6 +2,7 @@ import os
 import sys
 import unittest
 import numpy as np
+import logging
 
 try:
     import camb
@@ -9,7 +10,7 @@ except ImportError:
     sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../')))
     import camb
 from camb import model, correlations
-
+from camb.baseconfig import CAMBParamRangeError
 
 class CambTest(unittest.TestCase):
     def testBackground(self):
@@ -40,7 +41,6 @@ class CambTest(unittest.TestCase):
         t2 = data.comoving_radial_distance(11.5)
         self.assertAlmostEqual(t2, t0 - t1, 2)
         self.assertAlmostEqual(t1, 4200.78, 2)
-
         chistar = data.conformal_time(0) - model.tau_maxvis.value
         chis = np.linspace(0, chistar, 197)
         zs = data.redshift_at_comoving_radial_distance(chis)
@@ -84,7 +84,6 @@ class CambTest(unittest.TestCase):
         # test theta
         pars.set_cosmology(cosmomc_theta=0.0104085, H0=None, ombh2=0.022271, omch2=0.11914, mnu=0.06, omk=0)
         self.assertAlmostEqual(pars.H0, 67.5512, 2)
-        from camb.baseconfig import CAMBParamRangeError
         with self.assertRaises(CAMBParamRangeError):
             pars.set_cosmology(cosmomc_theta=0.0204085, H0=None, ombh2=0.022271, omch2=0.11914, mnu=0.06, omk=0)
 

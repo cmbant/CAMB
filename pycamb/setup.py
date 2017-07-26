@@ -27,6 +27,9 @@ os.chdir(file_dir)
 
 is32Bit = struct.calcsize("P") == 4
 
+with open('README.rst') as f:
+    long_description = f.read()
+
 
 def find_version():
     version_file = io.open(os.path.join(file_dir, '%s/__init__.py' % package_name)).read()
@@ -91,12 +94,12 @@ class SharedLibrary(install):
             try:
                 from pkg_resources import parse_version
                 try:
-                    gfortran_version = subprocess.check_output("gfortran --version | grep GCC | sed 's/^.* //g'",
-                                                               shell=True).decode()
+                    gfortran_version = subprocess.check_output("gfortran -dumpversion", shell=True).decode()
                 except subprocess.CalledProcessError:
                     gfortran_version = '0.0'
                 if parse_version(gfortran_version) < parse_version('4.9'):
-                    raise Exception('You need gfortran 4.9 or higher to compile the python CAMB wrapper.')
+                    raise Exception(
+                        'You need gfortran 4.9 or higher to compile the python CAMB wrapper (%s).' % gfortran_version)
             except ImportError:
                 pass
 
@@ -108,17 +111,12 @@ class SharedLibrary(install):
 
         os.chdir(file_dir)
         install.run(self)
-        print("Cleaning intermediate files...")
-        if platform.system() == "Windows":
-            DELETE = 'rmdir /s /q build'
-        else:
-            DELETE = 'rm -rf build'
-        subprocess.call(DELETE, shell=True)
 
 
 setup(name=package_name,
       version=find_version(),
       description='Code for Anisotropies in the Microwave Background',
+      long_description=long_description,
       author='Antony Lewis',
       url="http://camb.info/",
       cmdclass={'install': SharedLibrary},
@@ -132,7 +130,7 @@ setup(name=package_name,
           'Programming Language :: Python :: 3',
           'Programming Language :: Python :: 3.4',
           'Programming Language :: Python :: 3.5',
-          'Programming Language :: Python :: 3.6',
+          'Programming Language :: Python :: 3.6'
       ],
       keywords=['cosmology', 'CAMB']
       )
