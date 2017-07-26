@@ -1,5 +1,9 @@
 from . import camb, model
 import numpy as np
+from .baseconfig import mock_load
+
+if not mock_load:
+    from scipy.interpolate import RectBivariateSpline, UnivariateSpline
 
 
 def cl_kappa_limber(results, PK, ls, nz, chi_source, chi_source2=None):
@@ -56,8 +60,6 @@ def get_field_rotation_power(params, kmax=100, lmax=20000, non_linear=True, z_so
 
 
 def get_field_rotation_power_from_PK(params, PK, chi_source, lmax=20000, acc=1, lsamp=None):
-    from scipy.interpolate import RectBivariateSpline, UnivariateSpline
-
     results = camb.get_background(params)
     nz = int(100 * acc)
     if lmax < 3000:
@@ -172,7 +174,6 @@ def get_field_rotation_BB(params, lmax=None, acc=1, CMB_unit='muK', raw_cl=False
     :param raw_cl: return C_L rather than L(L+1)C_L/2/pi
     :return: arrays of sampled L, L^2 C_L^{BB}/(2 pi) (unless raw_cl, in which case just C_L^{BB})
     """
-    from scipy.interpolate import UnivariateSpline
 
     par_CMB = params.copy()
     lmax = (lmax or 10000) * 2
@@ -188,8 +189,6 @@ def get_field_rotation_BB(params, lmax=None, acc=1, CMB_unit='muK', raw_cl=False
 
 
 def get_field_rotation_BB_integral(lsamp, clcurl, cl_E_unlensed_sp, lmax=None, lsamp_out=None, acc=1, raw_cl=False):
-    from scipy.interpolate import UnivariateSpline
-
     CurlSp = UnivariateSpline(lsamp, clcurl, s=0)
     lmax = lmax or lsamp[-1]
     if lsamp_out is None: lsamp_out = np.array([L for L in lsamp if L <= lmax // 2])
