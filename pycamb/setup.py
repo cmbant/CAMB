@@ -1,8 +1,6 @@
 #!/usr/bin/env python
 
-import os
 import sys
-import os.path as osp
 import platform
 import subprocess
 import io
@@ -82,7 +80,7 @@ class SharedLibrary(install):
             COPY = r"copy /Y *.dat %s\camb" % (pycamb_path)
             subprocess.call(COPY, shell=True)
             scrs.append(DLLNAME)
-            if not osp.isfile(os.path.join(pycamb_path, 'camb', DLLNAME)): sys.exit('Compilation failed')
+            if not os.path.isfile(os.path.join(pycamb_path, 'camb', DLLNAME)): sys.exit('Compilation failed')
             print("Removing temp files")
             nscrs = os.listdir(os.getcwd())
             for file in nscrs:
@@ -104,7 +102,7 @@ class SharedLibrary(install):
                 pass
 
             subprocess.call("make camblib.so COMPILER=gfortran", shell=True)
-            if not osp.isfile(os.path.join('Releaselib', 'camblib.so')): sys.exit('Compilation failed')
+            if not os.path.isfile(os.path.join('Releaselib', 'camblib.so')): sys.exit('Compilation failed')
             subprocess.call("chmod 755 Releaselib/camblib.so", shell=True)
             subprocess.call(r"cp Releaselib/camblib.so %s/camb" % (pycamb_path), shell=True)
             subprocess.call("cp *.dat %s/camb" % (pycamb_path), shell=True)
