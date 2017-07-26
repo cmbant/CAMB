@@ -117,9 +117,9 @@ class CambTest(unittest.TestCase):
         self.assertAlmostEqual(pars.scalar_power(1), 1.801e-9, 4)
         self.assertAlmostEqual(pars.scalar_power([1, 1.5])[0], 1.801e-9, 4)
 
-        pars.set_matter_power(redshifts=[0., 0.17, 3.1], nonlinear=model.NonLinear_both)
-        self.assertEqual(pars.NonLinear, model.NonLinear_both)
-        pars.set_matter_power(redshifts=[0., 0.17, 3.1], nonlinear=model.NonLinear_none)
+        pars.set_matter_power(nonlinear=True)
+        self.assertEqual(pars.NonLinear, model.NonLinear_pk)
+        pars.set_matter_power(redshifts=[0., 0.17, 3.1], nonlinear=False)
         data = camb.get_results(pars)
 
         kh, z, pk = data.get_matter_power_spectrum(1e-4, 1, 20)
