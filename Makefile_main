@@ -19,14 +19,12 @@ DRIVER        ?= inidriver.F90
 Release: OUTPUT_DIR = Release
 Debug: OUTPUT_DIR = Debug
 
-Release: PYCAMB_OUTPUT_DIR = pycamb/camb
 Release: DLL_DIR = Releaselib
 Debug: DLL_DIR = Debuglib
 
 OUTPUT_DIR ?= Release
 PYCAMB_OUTPUT_DIR ?= pycamb/camb
 DLL_DIR ?= Releaselib
-
 
 
 CAMBLIB       = $(OUTPUT_DIR)/libcamb_$(RECOMBINATION).a
