@@ -487,7 +487,7 @@ class CAMBdata(object):
         if self.Params.DoLensing:
             lmax_calc = model.lmax_lensed.value
         else:
-            lmax_calc = self.Params.Max_l
+            lmax_calc = self.Params.max_l
         if lmax is None:
             lmax = lmax_calc
         elif lmax > lmax_calc:
