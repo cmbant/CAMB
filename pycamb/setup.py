@@ -1,13 +1,14 @@
 #!/usr/bin/env python
 
 import sys
-import os.path as osp
 import platform
 import subprocess
 import io
 import re
 import os
+from distutils.command.build import build
 from distutils.command.install import install
+
 import struct
 
 try:
@@ -46,7 +47,7 @@ def has_win_gfortran():
     return False
 
 
-class SharedLibrary(install):
+class SharedLibrary(build):
     def run(self):
         CAMBDIR = os.path.join(file_dir, '..')
         if not os.path.exists(os.path.join(CAMBDIR, 'lensing.f90')):
@@ -78,10 +79,10 @@ class SharedLibrary(install):
             else:
                 print(COMPILER + ' ' + FFLAGS + ' ' + SOURCES + ' ' + OUTPUT)
                 subprocess.call(COMPILER + ' ' + FFLAGS + ' ' + SOURCES + ' ' + OUTPUT, shell=True)
-            COPY = r"copy /Y *.dat %s\camb" % pycamb_path
+            COPY = r"copy /Y HighLExtrapTemplate_lenspotentialCls.dat %s\camb" % pycamb_path
             subprocess.call(COPY, shell=True)
             scrs.append(DLLNAME)
-            if not osp.isfile(os.path.join(pycamb_path, 'camb', DLLNAME)): sys.exit('Compilation failed')
+            if not os.path.isfile(os.path.join(pycamb_path, 'camb', DLLNAME)): sys.exit('Compilation failed')
             print("Removing temp files")
             nscrs = os.listdir(os.getcwd())
             for file in nscrs:
@@ -103,12 +104,18 @@ class SharedLibrary(install):
                 pass
 
             subprocess.call("make camblib.so COMPILER=gfortran", shell=True)
-            if not osp.isfile(os.path.join('Releaselib', 'camblib.so')): sys.exit('Compilation failed')
+            if not os.path.isfile(os.path.join('Releaselib', 'camblib.so')): sys.exit('Compilation failed')
             subprocess.call("chmod 755 Releaselib/camblib.so", shell=True)
             subprocess.call(r"cp Releaselib/camblib.so %s/camb" % pycamb_path, shell=True)
-            subprocess.call("cp *.dat %s/camb" % pycamb_path, shell=True)
+            subprocess.call("cp HighLExtrapTemplate_lenspotentialCls.dat %s/camb" % pycamb_path, shell=True)
 
         os.chdir(file_dir)
+        build.run(self)
+
+
+class CustomInstall(install):
+    def run(self):
+        self.run_command('build')
         install.run(self)
 
 
@@ -118,7 +125,7 @@ setup(name=package_name,
       long_description=long_description,
       author='Antony Lewis',
       url="http://camb.info/",
-      cmdclass={'install': SharedLibrary},
+      cmdclass={'build': SharedLibrary, 'install': CustomInstall},
       packages=['camb', 'camb_tests'],
       package_data={'camb': [DLLNAME, 'HighLExtrapTemplate_lenspotentialCls.dat',
                              'PArthENoPE_880.2_marcucci.dat', 'PArthENoPE_880.2_standard.dat']},
