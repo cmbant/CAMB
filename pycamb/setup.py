@@ -63,7 +63,10 @@ def find_version():
     version_file = io.open(os.path.join(file_dir, '%s/__init__.py' % package_name)).read()
     version_match = re.search(r"^__version__ = ['\"]([^'\"]*)['\"]", version_file, re.M)
     if version_match:
-        return version_match.group(1)
+        version = version_match.group(1)
+        commit = os.getenv('TRAVIS_COMMIT')
+        if commit: version += '.' + commit
+        return version
     raise RuntimeError("Unable to find version string.")
 
 
