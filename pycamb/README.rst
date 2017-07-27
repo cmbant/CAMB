@@ -2,7 +2,6 @@
 CAMB
 ===================
 :CAMB: Code for Anisotropies in the Microwave Background
-:Version: 0.1.1
 :Author: Antony Lewis and Anthony Challinor
 :Homepage: https://camb.info/
 
@@ -24,7 +23,7 @@ introduction to how to use the CAMB Python package.
 
 To install the CAMB python package on your computer run::
 
-    pip install --egg camb
+    pip install camb
   
 You will need gfortran 4.9 or higher installed to compile. Binary files for Windows are also provided, so these are used instead if no
 gfortran installation is found on Windows machines.

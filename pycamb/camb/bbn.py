@@ -5,6 +5,10 @@
 import numpy as np
 import os
 import io
+from .baseconfig import mock_load
+
+if not mock_load:
+    from scipy.interpolate import RectBivariateSpline
 
 # Various useful constants
 hbar = 1.05457e-34
@@ -69,7 +73,6 @@ class BBN_table_interpolator(BBNPredictor):
 
         :param interpolation_table: filename of interpolation table to use.
         """
-        from scipy.interpolate import RectBivariateSpline
 
         if not os.sep in interpolation_table:
             interpolation_table = os.path.join(os.path.dirname(__file__), interpolation_table)

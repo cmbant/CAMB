@@ -505,19 +505,32 @@ class CAMBparams(CAMB_Structure):
         else:
             return self.Reion.redshift
 
-    def set_matter_power(self, redshifts=[0.], kmax=1.2, k_per_logint=None, silent=False):
+    def set_matter_power(self, redshifts=[0.], kmax=1.2, k_per_logint=None, nonlinear=None, silent=False):
         """
         Set parameters for calculating matter power spectra and transfer functions.
 
         :param redshifts: array of redshifts to calculate
         :param kmax: maximum k to calculate
         :param k_per_logint: number of k steps per log k. Set to zero to use default optimized spacing.
+        :param nonlinear: if None, uses existing setting, otherwise boolean for whether to use non-linear matter power.
         :param silent: if True, don't give warnings about sort order
-        :return:  self
+        :return: self
         """
+
         self.WantTransfer = True
         self.Transfer.high_precision = True
         self.Transfer.kmax = kmax
+        if nonlinear is not None:
+            if nonlinear:
+                if self.NonLinear in [NonLinear_lens, NonLinear_both]:
+                    self.NonLinear = NonLinear_both
+                else:
+                    self.NonLinear = NonLinear_pk
+            else:
+                if self.NonLinear in [NonLinear_lens, NonLinear_both]:
+                    self.NonLinear = NonLinear_lens
+                else:
+                    self.NonLinear = NonLinear_none
         if not k_per_logint:
             self.Transfer.k_per_logint = 0
         else:
@@ -531,6 +544,24 @@ class CAMBparams(CAMB_Structure):
         for i, z in enumerate(zs):
             self.Transfer.PK_redshifts[i] = z
         return self
+
+    def set_nonlinear_lensing(self, nonlinear):
+        """
+        Settings for whether or not to use non-linear corrections for the CMB lensing potential.
+        Note that set_for_lmax also sets lensing to be non-linear if lens_potential_accuracy>0
+
+        :param nonlinear: true to use non-linear corrections
+        """
+        if nonlinear:
+            if self.NonLinear in [NonLinear_pk, NonLinear_both]:
+                self.NonLinear = NonLinear_both
+            else:
+                self.NonLinear = NonLinear_lens
+        else:
+            if self.NonLinear in [NonLinear_pk, NonLinear_both]:
+                self.NonLinear = NonLinear_pk
+            else:
+                self.NonLinear = NonLinear_none
 
     def set_for_lmax(self, lmax, max_eta_k=None, lens_potential_accuracy=0,
                      lens_margin=150, k_eta_fac=2.5, lens_k_eta_reference=18000.0):
@@ -553,10 +584,7 @@ class CAMBparams(CAMB_Structure):
             self.max_l = lmax
         self.max_eta_k = max_eta_k or self.max_l * k_eta_fac
         if lens_potential_accuracy:
-            if self.NonLinear == NonLinear_none:
-                self.NonLinear = NonLinear_lens
-            else:
-                self.NonLinear = NonLinear_both
+            self.set_nonlinear_lensing(True)
             self.max_eta_k = max(self.max_eta_k, lens_k_eta_reference * lens_potential_accuracy)
         return self
 
