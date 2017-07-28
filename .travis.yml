@@ -1,28 +1,81 @@
-language: sh
+language: python
+python:
+  - 2.7
+ 
+dist: trusty
 
-sudo: required
+sudo: false
 
 branches:
   except:
     - CAMB_sources
     - rayleigh
     
-services:
-  - docker
+addons:
+  apt:
+    sources:
+    - ubuntu-toolchain-r-test
+    packages:
+    - gfortran-5
 
-env:
-  global:
-    - secure: "slXmqyKKIQ0eA21iLjptTCdlBaSMtjl2E/Gg+PVgHfc7DZ/O0LFCxV+IzSdnsYXsjhp9e8NN866/CVSHaT/DeLXfBQNHt7m0zp0Y1rnsGUvpG57Qp7czSI5JZw0Xy4sdXDw4YOyRsDspVGL23LNukTiHKEq8my5QjYFCBLycVCi7iXC4dGNOwY/PY8wFaDE1NwkH8ZtCD85jqKZhavYrGabDHpGbTaQNgkjwRSujGJG1tIi+pCsj3txWJxOPktwoL9zMOHC80GKb3UaDk3s0OorCMCQc0CW1cmetJUutvzd4fB3Zf6XQ4RForLi1V+hExObNHBrhB5U/Ot68eWVYoW9tFWOE99HTMzlsHp2RAiq2pxHj39TIJZF7ndZLa2ig/ms9Q2kRSSKQiLH41HV1yDmVDshDtw/9TRHGvnBuTAomL6CDH7/WKXsP1pMmEE6BhNpRbajm8Xb+P08bcpFlrHi1YRLPNv2Z5MF974Hc8jsYY3DX+co2DqMHz6sLIcmdYswAhIu5cgprLeomTlWraVkGjSBvVklMKF7H3KGMa64Jv6jljBgQIyc2fjmQLSiEyUqT7RkaJmz3DPEPekvbEEfJyxqlu2Is9hqSb//oYsiZdYSTIfbxU+3fZh5MSfPdooG3+w7x4LdFqjqP84XoDN/OymE8kRlkfxErS6hXJZY="    
-
-before_install:
-  - docker pull cmbant/cosmobox
-
+#before_install:
+#  - sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
+#  - sudo apt-get update -qq
+#  - sudo apt-get install -qq gfortran-5
+#  - sudo update-alternatives --install /usr/bin/gfortran gfortran /usr/bin/gfortran-5 90
+  
 install:
+  - mkdir -p gfortran-symlinks
+  - ln -s /usr/bin/gfortran-5 gfortran-symlinks/gfortran
+  - export PATH=$PWD/gfortran-symlinks:$PATH
+  - gfortran --version
+  # Setup anaconda following http://conda.pydata.org/docs/travis.html
+  - wget https://repo.continuum.io/miniconda/Miniconda2-latest-Linux-x86_64.sh -O miniconda.sh;
+  - bash miniconda.sh -b -p $HOME/miniconda
+  - export PATH="$HOME/miniconda/bin:$PATH"
+  - hash -r
+  - conda config --set always_yes yes --set changeps1 no
+  - conda update -q conda
+  - conda info -a
+  - conda create -q -n py2-environment python=2 numpy scipy sympy six
+  - conda create -q -n py3-environment python=3 numpy scipy sympy six
   - chmod +x tests/run_tests.sh
-  - mkdir testfiles
-      
-script:
-  - docker run -v $(pwd):/camb -e TRAVIS_BRANCH -e CAMB_TESTS_NO_SOURCES=1 -e CAMB_TESTS_NO_DE=1 -t cmbant/cosmobox /bin/bash -c "/camb/tests/run_tests.sh"
 
-after_script:
- - test $TRAVIS_PULL_REQUEST == "false" && test $TRAVIS_REPO_SLUG == "cmbant/CAMB" && bash tests/upload_tests.sh
+script: tests/run_tests.sh
+  
+after_failure:
+  - test $TRAVIS_PULL_REQUEST == "false" && test $TRAVIS_REPO_SLUG == "cmbant/CAMB" && bash tests/upload_tests.sh
+
+before_deploy:
+  - cd pycamb
+ 
+deploy:
+  - provider: pypi
+    skip_cleanup: true
+    distributions: sdist
+    server: https://test.pypi.org/legacy/
+    user: "cmbant"
+    password:
+      secure: "UA+nTWbEND3R/KVodbAG/2xXcCibpotNO+PHBIokR8fm7KmYdjSnXF3OXBDNvFPYEQg2KY7L/JviCbUM9yfZmtekvMg7aKP/2fuHcayByNy5VJ4mUgcA48ft6LKp/sLS/8fn7nCzHbclT/Ye/Wo3PmGK1mQqbu9oxXGidY8C7pbXB9ZYnssdMH9DHXSqjIAL23yN95G8U1n9bVLI0dZB0ORFHro/f7XeIPrzJEdEgql33BSq5YArf7WK/2Vlo8Zk0vPNT1xRJvEdNaJ/VZ5Nk31yuym04ZekmWlBmi+kTsO0zwD4wQrkCFGm9qb31JRHjuRTpxrHUTkiXwTvYutmwNtHqJ3SYkQgoTmb6qi9f4Nha3mtAbRviTDxgVi8Dv4gWp59iXVcOQMhRM9hxiCK7QwMkHJsvss4XuL149eLFLP7TfNw6PwHo/tpMMyRyDBdwgT+Vz0wNUyncEKwsgunxgvct9sy4TKNs96NJ90cTee3ditq/ZmrLjzp0xjQkBW5nA1AiW/9g3KkozkWh0Q74qGR1qrSlKInM7na64zLnp8seRb71Ki+2Ad+gx+fREnTmmgBSTIav4AjQCc+hnEIYnZ57DyNqIaqON25jiL1i85oaAdWLDR5pctWlebmzRcS2PvuvgqB76bvgLnIoHPg8pRm4Li7wvYCQhi9fo9RvR4="
+    on:
+      all_branches: true
+      repo: cmbant/CAMB
+      tags: false
+  - provider: pypi
+    skip_cleanup: true
+    distributions: sdist
+    user: "cmbant"
+    password:
+      secure: "UA+nTWbEND3R/KVodbAG/2xXcCibpotNO+PHBIokR8fm7KmYdjSnXF3OXBDNvFPYEQg2KY7L/JviCbUM9yfZmtekvMg7aKP/2fuHcayByNy5VJ4mUgcA48ft6LKp/sLS/8fn7nCzHbclT/Ye/Wo3PmGK1mQqbu9oxXGidY8C7pbXB9ZYnssdMH9DHXSqjIAL23yN95G8U1n9bVLI0dZB0ORFHro/f7XeIPrzJEdEgql33BSq5YArf7WK/2Vlo8Zk0vPNT1xRJvEdNaJ/VZ5Nk31yuym04ZekmWlBmi+kTsO0zwD4wQrkCFGm9qb31JRHjuRTpxrHUTkiXwTvYutmwNtHqJ3SYkQgoTmb6qi9f4Nha3mtAbRviTDxgVi8Dv4gWp59iXVcOQMhRM9hxiCK7QwMkHJsvss4XuL149eLFLP7TfNw6PwHo/tpMMyRyDBdwgT+Vz0wNUyncEKwsgunxgvct9sy4TKNs96NJ90cTee3ditq/ZmrLjzp0xjQkBW5nA1AiW/9g3KkozkWh0Q74qGR1qrSlKInM7na64zLnp8seRb71Ki+2Ad+gx+fREnTmmgBSTIav4AjQCc+hnEIYnZ57DyNqIaqON25jiL1i85oaAdWLDR5pctWlebmzRcS2PvuvgqB76bvgLnIoHPg8pRm4Li7wvYCQhi9fo9RvR4="
+    on:
+      branch: master
+      repo: cmbant/CAMB
+      tags: true
+
+after_deploy:
+  - mkdir -p test_dir
+  - pushd test_dir   
+  - pip install -i https://testpypi.python.org/pypi camb
+  - python -c "import camb; print(camb.__version__)"
+  - python -m unittest camb_tests.camb_test
+  - popd

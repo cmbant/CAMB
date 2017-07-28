@@ -49,7 +49,7 @@ CAMBSO       =  $(DLL_DIR)/constants.o  $(DLL_DIR)/utils.o $(EXTCAMBFILES)  $(DL
 	$(DLL_DIR)/$(NONLINEAR).o $(DLL_DIR)/lensing.o $(DLL_DIR)/$(BISPECTRUM).o $(DLL_DIR)/cmbmain.o \
 	$(DLL_DIR)/camb.o $(DLL_DIR)/camb_python.o
 
-F90CRLINK ?= -lstdc++
+#F90CRLINK ?= -lstdc++
 
 ## CosmoRec
 ifeq ($(RECOMBINATION),cosmorec)
@@ -57,7 +57,7 @@ COSMOREC_PATH ?=../CosmoRec/
 GSL_LINK ?=-lgsl -lgslcblas
 camb: libCosmoRec.a
 $(CAMBLIB): libCosmoRec.a
-F90CRLINK += -L$(COSMOREC_PATH) -lCosmoRec $(GSL_LINK)
+F90CRLINK += -L$(COSMOREC_PATH) -lCosmoRec $(GSL_LINK) -lstdc++
 endif
 
 
@@ -151,6 +151,10 @@ clean:
 	rm -f *.o *.a *.d core *.mod $(OUTPUT_DIR)/*.o $(OUTPUT_DIR)/*.mod
 	rm -rf Release*
 	rm -rf Debug*
+
+delete:
+	rm -f camb	
+	rm -f pycamb/camb/*.so
 
 ## CosmoRec make parts
 cleanCR:

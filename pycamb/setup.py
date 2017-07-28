@@ -64,8 +64,9 @@ def find_version():
     version_match = re.search(r"^__version__ = ['\"]([^'\"]*)['\"]", version_file, re.M)
     if version_match:
         version = version_match.group(1)
-        commit = os.getenv('TRAVIS_COMMIT')
-        if commit: version += '.' + commit
+        commit = os.getenv('TRAVIS_BUILD_NUMBER')
+        if commit and not os.getenv('TRAVIS_TAG'):
+            version += '.' + commit
         return version
     raise RuntimeError("Unable to find version string.")
 

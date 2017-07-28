@@ -4,4 +4,5 @@ python setup.py bdist_wheel --plat-name win_amd64 --universal
 mkdir -p fortran
 cp  ../* fortran
 python setup.py sdist upload -r pypi
+#twine upload dist/* -r testpypi
 rm -Rf fortran
