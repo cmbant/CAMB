@@ -28,7 +28,7 @@ then
  pip install -i https://testpypi.python.org/pypi camb
  python -c "import camb; print(camb.__version__)"
  python -m unittest camb_tests.camb_test
- pip uninstall camb
+ pip uninstall -y camb
  popd
 fi
 

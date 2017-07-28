@@ -31,6 +31,11 @@ is32Bit = struct.calcsize("P") == 4
 gfortran_min = '4.9'
 
 
+def get_long_description():
+    with open('README.rst') as f:
+        return f.read()
+
+
 def get_gfortran_version():
     try:
         return subprocess.check_output("gfortran -dumpversion", shell=True).decode().strip()
@@ -135,6 +140,7 @@ if __name__ == "__main__":
     setup(name=package_name,
           version=find_version(),
           description='Code for Anisotropies in the Microwave Background',
+          long_description=get_long_description(),
           author='Antony Lewis',
           url="http://camb.info/",
           cmdclass={'build': SharedLibrary, 'install': CustomInstall},
