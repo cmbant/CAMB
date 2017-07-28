@@ -32,7 +32,7 @@ def cl_kappa_limber(results, PK, ls, nz, chi_source, chi_source2=None):
 
 def get_field_rotation_power(params, kmax=100, lmax=20000, non_linear=True, z_source=None,
                              k_per_logint=None, acc=1, lsamp=None):
-    """
+    r"""
     Get field rotation power spectrum, C_L^{\omega\omega}, following `arXiv:1605.05662 <http://arxiv.org/abs/1605.05662>`_
     Uses lowest Limber approximation.
 
@@ -46,6 +46,7 @@ def get_field_rotation_power(params, kmax=100, lmax=20000, non_linear=True, z_so
     :param lsamp: array of L values to compute output at. If not set, set to sampling good for interpolation
     :return: L, C_L^{\omega\omega}, the L sample values and corresponding rotation power
     """
+
     results = camb.get_background(params)
     if z_source:
         chi_source = results.comoving_radial_distance(z_source)
