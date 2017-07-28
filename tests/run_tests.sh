@@ -25,7 +25,7 @@ python setup.py test
 pip uninstall -y camb
 rm -Rf dist/*
 rm -Rf build/*
-make delete
+rm -f camb/*.so
 
 if [[ $TRAVIS_REPO_SLUG == "cmbant/CAMB" ]] 
  python setup.py sdist
