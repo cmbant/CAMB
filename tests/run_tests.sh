@@ -15,7 +15,7 @@ python setup.py test
 pip uninstall -y camb
 rm -Rf dist/*
 rm -Rf build/*
-make delete
+rm -f camb/*.so
 
 source activate py3-environment
 python --version
