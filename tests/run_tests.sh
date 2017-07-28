@@ -7,15 +7,6 @@ pushd pycamb
 mkdir -p fortran
 find ../ -maxdepth 1 -type f | xargs cp -t fortran
 
-source activate py3-environment
-python --version
-python setup.py install
-python -c "import camb; print(camb.__version__)"
-python setup.py test
-pip uninstall -y camb
-rm -Rf dist/*
-rm -Rf build/*
-
 source activate py2-environment
 python --version
 python setup.py install
@@ -24,6 +15,30 @@ python setup.py test
 pip uninstall -y camb
 rm -Rf dist/*
 rm -Rf build/*
+make delete
+
+source activate py3-environment
+python --version
+python setup.py install
+python -c "import camb; print(camb.__version__)"
+python setup.py test
+pip uninstall -y camb
+rm -Rf dist/*
+rm -Rf build/*
+make delete
+
+if [[ $TRAVIS_REPO_SLUG == "cmbant/CAMB" ]] 
+ python setup.py sdist
+ pip install -y twine
+ twine upload -r https://test.pypi.org/legacy/ -u cmbant -p $PYPIPASS dist/*
+ mkdir -p test_dir
+ pushd test_dir   
+ pip install -i https://testpypi.python.org/pypi camb
+ python -c "import camb; print(camb.__version__)"
+ python -m unittest camb_tests.camb_test
+ pip uninstall camb
+ popd
+fi
 
 popd
 

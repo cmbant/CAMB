@@ -17,6 +17,11 @@ addons:
     - ubuntu-toolchain-r-test
     packages:
     - gfortran-5
+    
+env:
+  global:
+    secure: Rl/YRrQbrsaSE52E1oFLfCp49Yxn/DpZcREvwLRXqK/FmECOasatBq9AVSLSEzCIYJ4Yp1FQQFrn0uJfvYst5CDRuECoM4WNiE3fNoiKBeY/+G8GPRQRwBFgqCtdZ4X0RA3BH97EFXTWI5O5TfP3+bf23YJ5HlSYTYrla1dzJYN+W/nOS8BTZ0zO6af5S/s6/AO1LobN/tLyS1Rv1b4TcN8B2yfYPXZSXbdVjahZu8yU6BEmTiWzj726s8UZ4jFvLqR1c8h9a7wX4u3+30BMJ2fuh9jI+rSKEM05pPIXo27lmqLYyBr5iatI8rWSpSfzWo0Ns8KCVS08smyCQyFEw65LDbzRA/BdNqItHlX+UlrorKw2V5IcnljscoTnEDZcTjdPpqG30Obx0olpINR3P6/JPVd6LN570WDEwkHKO14HnG30hqYEugKm2G4dC9oYyZTBgAapHyz6a82z8BllzFLj8xf9U1+2C8sLl/NNFjpgj2PpvcOm39bDtso+/IhezxmaqbmKhHns6vyTLdH27WqyGLGOXUjvnKRtVuoR/yIiDt2CmVCLEcKwXwUDFiTScjy+JshKNewgpwqINwMU2q0QJlrb4gAdC0ANewRAJ6gwcYvKNUZR1NSptjodzpa6JLZDStRTpVvvJWAw6J33KtjhQSVrr8B/kkA/dpxfyIA=
+     
 
 #before_install:
 #  - sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
@@ -41,27 +46,17 @@ install:
   - conda create -q -n py2-environment python=2 numpy scipy sympy six
   - conda create -q -n py3-environment python=3 numpy scipy sympy six
   - chmod +x tests/run_tests.sh
-
+  
 script: tests/run_tests.sh
   
 after_failure:
   - test $TRAVIS_PULL_REQUEST == "false" && test $TRAVIS_REPO_SLUG == "cmbant/CAMB" && bash tests/upload_tests.sh
 
 before_deploy:
+  - make clean delete
   - cd pycamb
  
 deploy:
-  - provider: pypi
-    skip_cleanup: true
-    distributions: sdist
-    server: https://test.pypi.org/legacy/
-    user: "cmbant"
-    password:
-      secure: "UA+nTWbEND3R/KVodbAG/2xXcCibpotNO+PHBIokR8fm7KmYdjSnXF3OXBDNvFPYEQg2KY7L/JviCbUM9yfZmtekvMg7aKP/2fuHcayByNy5VJ4mUgcA48ft6LKp/sLS/8fn7nCzHbclT/Ye/Wo3PmGK1mQqbu9oxXGidY8C7pbXB9ZYnssdMH9DHXSqjIAL23yN95G8U1n9bVLI0dZB0ORFHro/f7XeIPrzJEdEgql33BSq5YArf7WK/2Vlo8Zk0vPNT1xRJvEdNaJ/VZ5Nk31yuym04ZekmWlBmi+kTsO0zwD4wQrkCFGm9qb31JRHjuRTpxrHUTkiXwTvYutmwNtHqJ3SYkQgoTmb6qi9f4Nha3mtAbRviTDxgVi8Dv4gWp59iXVcOQMhRM9hxiCK7QwMkHJsvss4XuL149eLFLP7TfNw6PwHo/tpMMyRyDBdwgT+Vz0wNUyncEKwsgunxgvct9sy4TKNs96NJ90cTee3ditq/ZmrLjzp0xjQkBW5nA1AiW/9g3KkozkWh0Q74qGR1qrSlKInM7na64zLnp8seRb71Ki+2Ad+gx+fREnTmmgBSTIav4AjQCc+hnEIYnZ57DyNqIaqON25jiL1i85oaAdWLDR5pctWlebmzRcS2PvuvgqB76bvgLnIoHPg8pRm4Li7wvYCQhi9fo9RvR4="
-    on:
-      all_branches: true
-      repo: cmbant/CAMB
-      tags: false
   - provider: pypi
     skip_cleanup: true
     distributions: sdist
@@ -73,10 +68,4 @@ deploy:
       repo: cmbant/CAMB
       tags: true
 
-after_deploy:
-  - mkdir -p test_dir
-  - pushd test_dir   
-  - pip install -i https://testpypi.python.org/pypi camb
-  - python -c "import camb; print(camb.__version__)"
-  - python -m unittest camb_tests.camb_test
-  - popd
+
