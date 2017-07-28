@@ -17,17 +17,9 @@ rm -Rf dist/*
 rm -Rf build/*
 rm -f camb/*.so
 
-source activate py3-environment
-python --version
-python setup.py install
-python -c "import camb; print(camb.__version__)"
-python setup.py test
-pip uninstall -y camb
-rm -Rf dist/*
-rm -Rf build/*
-rm -f camb/*.so
 
 if [[ $TRAVIS_REPO_SLUG == "cmbant/CAMB" ]] 
+then
  python setup.py sdist
  pip install -y twine
  twine upload -r https://test.pypi.org/legacy/ -u cmbant -p $PYPIPASS dist/*
@@ -39,6 +31,16 @@ if [[ $TRAVIS_REPO_SLUG == "cmbant/CAMB" ]]
  pip uninstall camb
  popd
 fi
+
+source activate py3-environment
+python --version
+python setup.py install
+python -c "import camb; print(camb.__version__)"
+python setup.py test
+pip uninstall -y camb
+rm -Rf dist/*
+rm -Rf build/*
+rm -f camb/*.so
 
 popd
 
