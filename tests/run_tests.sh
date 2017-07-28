@@ -22,7 +22,7 @@ if [[ $TRAVIS_REPO_SLUG == "cmbant/CAMB" ]]
 then
  python setup.py sdist
  pip install twine
- twine upload -r https://test.pypi.org/legacy/ -u cmbant -p $PYPIPASS dist/*
+ twine upload -r pypitest --repository-url https://test.pypi.org/legacy/ -u cmbant -p $PYPIPASS dist/*
  mkdir -p test_dir
  pushd test_dir   
  pip install -i https://testpypi.python.org/pypi camb
