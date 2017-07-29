@@ -1,6 +1,6 @@
 set -e
 
-make camblib.so VERBOSE=1
+make -d camblib.so
 
 pushd pycamb
 
