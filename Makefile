@@ -12,8 +12,14 @@ else
 ifneq "$(wildcard ../forutils)" ""
 FORUTILSPATH ?= $(shell pwd)/../forutils
 else
-$(error First install forutils from https://github.com/cmbant/forutils; or set FORUTILSPATH variable)
+ifneq "$(wildcard ../../forutils)" ""
+FORUTILSPATH ?= $(shell pwd)/../../forutils
 endif
+endif
+endif
+
+ifeq ($(FORUTILSPATH),)
+$(error First install forutils from https://github.com/cmbant/forutils; or set FORUTILSPATH variable)
 endif
 
 ifeq ($(MAKECMDGOALS),camblib.so)

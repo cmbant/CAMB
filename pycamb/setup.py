@@ -79,33 +79,25 @@ def find_version():
     raise RuntimeError("Unable to find version string.")
 
 
-def get_forutils(camb_path):
+def get_forutils():
     fpath = os.getenv('FORUTILSPATH')
     if not fpath:
-        dirs = ['', '..', '../..']
+        dirs = ['.', '..', '../..']
         for dir in dirs:
-            path = os.path.join(camb_path, dir, 'forutils')
+            path = os.path.join(dir, 'forutils')
             if os.path.isdir(path):
                 fpath = path
                 break
         if not fpath:
             try:
-                oldwork = os.getcwd()
-                try:
-                    os.chdir(camb_path)
-                    print('forutils not found, attempting to install using git')
-                    if subprocess.call("git clone --depth=1 https://github.com/cmbant/forutils", shell=True) == 0:
-                        fpath = os.path.join(camb_path, 'forutils')
-                finally:
-                    os.chdir(oldwork)
+                print('forutils not found, attempting to install using git')
+                if subprocess.call("git clone --depth=1 https://github.com/cmbant/forutils", shell=True) == 0:
+                    fpath = os.path.join('.', 'forutils')
             except Exception:
                 print('Failed to install using git')
-            raise Exception(
-                'Install forutils from https://github.com/cmbant/forutils; or set FORUTILSPATH variable')
-    if fpath:
-        return os.path.relpath(fpath)
-    else:
-        return None
+    if not path:
+        raise Exception('Install forutils from https://github.com/cmbant/forutils; or set FORUTILSPATH variable')
+    return fpath
 
 
 class SharedLibrary(build):
@@ -142,7 +134,7 @@ class SharedLibrary(build):
                           " bessels.f90 equations.f90 DarkEnergyFluid.f90 DarkEnergyPPF.f90 halofit_ppf.f90 lensing.f90 SeparableBispectrum.f90" \
                           " cmbmain.f90 camb.f90 camb_python.f90"
                 OUTPUT = r"-o %s\camb\%s" % (pycamb_path, DLLNAME)
-                fpath = get_forutils(CAMBDIR)
+                fpath = get_forutils()
                 FORUTILS = " ".join([os.path.join(fpath, p) for p in FORUTILS.split()])
                 print('Compiling sources...')
                 cmd = COMPILER + ' ' + FFLAGS + ' ' + FORUTILS + ' ' + SOURCES + ' ' + OUTPUT
@@ -157,7 +149,7 @@ class SharedLibrary(build):
                 if not file in scrs:
                     os.remove(file)
         else:
-            get_forutils(CAMBDIR)
+            get_forutils()
             print("Compiling source...")
             subprocess.call("make camblib.so COMPILER=gfortran PYCAMB_OUTPUT_DIR=%s/camb/" % pycamb_path, shell=True)
             so_file = os.path.join(pycamb_path, 'camb', 'camblib.so')
