@@ -17,7 +17,7 @@ rm -Rf dist/*
 rm -Rf build/*
 rm -f camb/*.so
 
-if [[ $TRAVIS_REPO_SLUG == "cmbant/CAMB" && "$TRAVIS_PULL_REQUEST" == "false"]] 
+if [[ $TRAVIS_REPO_SLUG == "cmbant/CAMB" && "$TRAVIS_PULL_REQUEST" == "false" ]] 
 then
  python setup.py sdist
  pip install twine
