@@ -46,7 +46,6 @@ CAMBSRCS      = constants.f90 subroutines.f90 $(POWERSPECTRUM).f90 \
 CAMBOBJ       = $(patsubst %.f90,%.o,$(CAMBSRCS))
 CAMBSO        = camb_python.f90
 
-F90CRLINK     ?= -lstdc++
 F90CRLINK     += -L$(FORUTILSPATH)/$(OUTPUT_DIR) -lforutils
 
 ## CosmoRec
@@ -55,7 +54,7 @@ COSMOREC_PATH ?=../CosmoRec/
 GSL_LINK ?=-lgsl -lgslcblas
 camb: libCosmoRec.a
 $(CAMBLIB): libCosmoRec.a
-F90CRLINK += -L$(COSMOREC_PATH) -lCosmoRec $(GSL_LINK)
+F90CRLINK += -L$(COSMOREC_PATH) -lCosmoRec $(GSL_LINK) -lstdc++
 endif
 
 
@@ -118,6 +117,10 @@ directories_so:
 clean:
 	-rm -f *.o *.a *.d core *.mod *.optrpt *.d
 	-rm -rf Release* Debug*
+
+delete:
+	rm -f camb	
+	rm -f pycamb/camb/*.so
 
 ## CosmoRec make parts
 cleanCR:

@@ -31,6 +31,11 @@ is32Bit = struct.calcsize("P") == 4
 gfortran_min = '6'
 
 
+def get_long_description():
+    with open('README.rst') as f:
+        return f.read()
+
+
 def get_gfortran_version():
     try:
         return subprocess.check_output("gfortran -dumpversion", shell=True).decode().strip()
@@ -63,7 +68,11 @@ def find_version():
     version_file = io.open(os.path.join(file_dir, '%s/__init__.py' % package_name)).read()
     version_match = re.search(r"^__version__ = ['\"]([^'\"]*)['\"]", version_file, re.M)
     if version_match:
-        return version_match.group(1)
+        version = version_match.group(1)
+        commit = os.getenv('TRAVIS_BUILD_NUMBER')
+        if commit and not os.getenv('TRAVIS_TAG'):
+            version += '.' + commit
+        return version
     raise RuntimeError("Unable to find version string.")
 
 
@@ -131,6 +140,7 @@ if __name__ == "__main__":
     setup(name=package_name,
           version=find_version(),
           description='Code for Anisotropies in the Microwave Background',
+          long_description=get_long_description(),
           author='Antony Lewis',
           url="http://camb.info/",
           cmdclass={'build': SharedLibrary, 'install': CustomInstall},
