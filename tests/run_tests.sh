@@ -1,14 +1,16 @@
 set -e
 
+#copy clean files to fortran folder
+mkdir -p pycamb/fortran
+mkdir -p pycamb/fortran/forutils
+find ./ -maxdepth 1 -type f | xargs cp -t pycamb/fortran
+find ./forutils/ -maxdepth 1 -type f | xargs cp -t pycamb/fortran/forutils
+
 pushd forutils
 make Release
 popd
 
 pushd pycamb
-
-#copy clean files to fortran folder
-mkdir -p fortran
-find ../ -maxdepth 1 -type f | xargs cp -t fortran
 
 source activate py2-environment
 python --version

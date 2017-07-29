@@ -93,10 +93,6 @@ class SharedLibrary(build):
             # but need to use 32bit compiler to build 32 bit dll (contrary to what is implied)
             FFLAGS = "-shared -static -cpp -fopenmp -O3 -ffast-math -fmax-errors=4"
             if is32Bit: FFLAGS = "-m32 " + FFLAGS
-            SOURCES = "constants.f90 utils.f90 subroutines.f90 inifile.f90 power_tilt.f90 recfast.f90 reionization.f90" \
-                      " modules.f90 bessels.f90 equations.f90 halofit_ppf.f90 lensing.f90 SeparableBispectrum.f90 cmbmain.f90" \
-                      " camb.f90 camb_python.f90"
-            OUTPUT = r"-o %s\camb\%s" % (pycamb_path, DLLNAME)
             scrs = os.listdir(os.getcwd())
             if not ok:
                 print(
@@ -108,8 +104,27 @@ class SharedLibrary(build):
                 subprocess.call(r'copy /Y %s\dlls\%s %s\camb\%s' % (
                     pycamb_path, ('cambdll_x64.dll', DLLNAME)[is32Bit], pycamb_path, DLLNAME), shell=True)
             else:
-                print(COMPILER + ' ' + FFLAGS + ' ' + SOURCES + ' ' + OUTPUT)
-                subprocess.call(COMPILER + ' ' + FFLAGS + ' ' + SOURCES + ' ' + OUTPUT, shell=True)
+                FORUTILS = "MiscUtils.f90 StringUtils.f90 ArrayUtils.f90 MpiUtils.f90 FileUtils.f90 " \
+                           "IniObjects.f90 RandUtils.f90 ObjectLists.f90 RangeUtils.f90 Interpolation.f90"
+                SOURCES = " constants.f90 subroutines.f90 power_tilt.f90 recfast.f90 reionization.f90 DarkEnergyInterface.f90  modules.f90" \
+                          " bessels.f90 equations.f90 DarkEnergyFluid.f90 DarkEnergyPPF.f90 halofit_ppf.f90 lensing.f90 SeparableBispectrum.f90" \
+                          " cmbmain.f90 camb.f90 camb_python.f90"
+                OUTPUT = r"-o %s\camb\%s" % (pycamb_path, DLLNAME)
+                fpath = os.getenv('FORUTILSPATH')
+                if not fpath:
+                    dirs = ['', "..\\", "..\\..\\"]
+                    for dir in dirs:
+                        if os.path.isdir(dir + 'forutils'):
+                            fpath = dir + 'forutils'
+                            break
+                    if not fpath:
+                        raise Exception(
+                            'First install forutils from https://github.com/cmbant/forutils; or set FORUTILSPATH variable')
+                FORUTILS = " ".join([os.path.join(fpath, p) for p in FORUTILS.split()])
+                print('Compiling sources...')
+                cmd = COMPILER + ' ' + FFLAGS + ' ' + FORUTILS + ' ' + SOURCES + ' ' + OUTPUT
+                print(cmd)
+                subprocess.call(cmd, shell=True)
             subprocess.call(r"copy /Y HighLExtrapTemplate_lenspotentialCls.dat %s\camb" % pycamb_path, shell=True)
             scrs.append(DLLNAME)
             if not os.path.isfile(os.path.join(pycamb_path, 'camb', DLLNAME)): sys.exit('Compilation failed')
