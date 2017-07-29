@@ -1,5 +1,7 @@
 set -e
 
+make camblib.so
+
 pushd pycamb
 
 #copy clean files to fortran folder for pypi build
