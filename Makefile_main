@@ -70,7 +70,7 @@ default: camb
 ## python wrapper library only works with gfortran
 ifeq ($(COMPILER),gfortran)
 all: camb camblib.so libcamb
-Release: camb camblib.so
+Release: camb camblib.sos
 Debug: camb camblib.so
 else
 all: camb libcamb
@@ -88,7 +88,7 @@ camb: libcamb $(DRIVER)
 	$(F90C) $(F90FLAGS) $(MODOUT) $(IFLAG)$(OUTPUT_DIR)/ $(IFLAG)$(FORUTILSPATH)/$(OUTPUT_DIR)/ \
 		$(DRIVER) $(OUTPUT_DIR)/$(CAMBLIB) $(F90CRLINK) -o $@
 
-camblib.so: libcambso forutils $(CAMBSO)
+camblib.so: libcambso $(CAMBSO)
 	$(F90C) $(SF90FLAGS) $(SMODOUT) $(IFLAG)$(DLL_DIR)/ $(IFLAG)$(FORUTILSPATH)/$(OUTPUT_DIR)/  \
 		$(CAMBSO) $(DLL_DIR)/$(CAMBLIB) $(F90CRLINK) -o $(DLL_DIR)/camblib.so
 	cp $(DLL_DIR)/camblib.so $(PYCAMB_OUTPUT_DIR)
