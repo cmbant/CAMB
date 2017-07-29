@@ -1,16 +1,12 @@
 set -e
 
-#copy clean files to fortran folder
-mkdir -p pycamb/fortran
-mkdir -p pycamb/fortran/forutils
-find ./ -maxdepth 1 -type f | xargs cp -t pycamb/fortran
-find ./forutils/ -maxdepth 1 -type f | xargs cp -t pycamb/fortran/forutils
-
-pushd forutils
-make Release
-popd
-
 pushd pycamb
+
+#copy clean files to fortran folder for pypi build
+mkdir -p fortran
+mkdir -p fortran/forutils
+find ../ -maxdepth 1 -type f | xargs cp -t fortran
+find ../forutils/ -maxdepth 1 -type f | xargs cp -t fortran/forutils
 
 source activate py2-environment
 python --version
@@ -22,7 +18,7 @@ rm -Rf dist/*
 rm -Rf build/*
 rm -f camb/*.so
 
-if [[ $TRAVIS_REPO_SLUG == "cmbant/CAMB" && "$TRAVIS_PULL_REQUEST" == "false" && "$TRAVIS_BRANCH" != "devel_scal_eqs" ]] 
+if [[ $TRAVIS_REPO_SLUG == "cmbant/CAMB" && "$TRAVIS_PULL_REQUEST" == "false" ]] 
 then
  python setup.py sdist
  pip install twine

@@ -88,7 +88,7 @@ camb: libcamb $(DRIVER)
 	$(F90C) $(F90FLAGS) $(MODOUT) $(IFLAG)$(OUTPUT_DIR)/ $(IFLAG)$(FORUTILSPATH)/$(OUTPUT_DIR)/ \
 		$(DRIVER) $(OUTPUT_DIR)/$(CAMBLIB) $(F90CRLINK) -o $@
 
-camblib.so: libcambso $(CAMBSO)
+camblib.so: forutils libcambso $(CAMBSO)
 	$(F90C) $(SF90FLAGS) $(SMODOUT) $(IFLAG)$(DLL_DIR)/ $(IFLAG)$(FORUTILSPATH)/$(OUTPUT_DIR)/  \
 		$(CAMBSO) $(DLL_DIR)/$(CAMBLIB) $(F90CRLINK) -o $(DLL_DIR)/camblib.so
 	cp $(DLL_DIR)/camblib.so $(PYCAMB_OUTPUT_DIR)
@@ -113,6 +113,9 @@ directories:
 directories_so:
 	mkdir -p $(DLL_DIR)
 
+forutils:
+	cd $(FORUTILSPATH) && \
+	$(MAKE) Release COMPILER=$(COMPILER)
 
 clean:
 	-rm -f *.o *.a *.d core *.mod *.optrpt *.d
