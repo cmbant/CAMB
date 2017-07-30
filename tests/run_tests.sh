@@ -14,7 +14,7 @@ rm -f camb/*.so
 
 if [[ $TRAVIS_REPO_SLUG == "cmbant/CAMB" && "$TRAVIS_PULL_REQUEST" == "false" ]] 
 then
- python setup.py sdist --formats zip,gztar
+ python setup.py sdist
  case "$TRAVIS_BRANCH" in
  devel*) export CAMB_PACKAGE_NAME=camb_devel ;;
     *) export CAMB_PACKAGE_NAME=camb
