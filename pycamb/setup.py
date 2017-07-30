@@ -56,7 +56,7 @@ def check_gfortran(version=gfortran_min, msg=True, exit=False, import_fail_ok=Tr
     else:
         ok = False
     if ok and is_windows:
-        version_str = str(subprocess.check_output("gfortran --version", shell=True))
+        version_str = str(subprocess.check_output("gfortran -dumpmachine", shell=True))
         ok = is32Bit and 'i686' in version_str or not is32Bit and 'x86_64' in version_str
     if not ok and msg:
         raise Exception(
@@ -165,7 +165,6 @@ class CustomInstall(install):
     def run(self):
         self.run_command('build')
         install.run(self)
-
 
 if __name__ == "__main__":
     setup(name=package_name,

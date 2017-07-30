@@ -46,7 +46,10 @@ CAMBSRCS      = constants.f90 subroutines.f90 $(POWERSPECTRUM).f90 \
 CAMBOBJ       = $(patsubst %.f90,%.o,$(CAMBSRCS))
 CAMBSO        = camb_python.f90
 
-F90CRLINK     += -L$(FORUTILSPATH)/$(OUTPUT_DIR) -lforutils
+
+FORUTILS_DIR = $(FORUTILSPATH)/$(OUTPUT_DIR)/
+camblib.so: FORUTILS_DIR=$(FORUTILSPATH)/$(DLL_DIR)/
+F90CRLINK     += -L$(FORUTILS_DIR) -lforutils
 
 ## CosmoRec
 ifeq ($(RECOMBINATION),cosmorec)
@@ -70,7 +73,7 @@ default: camb
 ## python wrapper library only works with gfortran
 ifeq ($(COMPILER),gfortran)
 all: camb camblib.so libcamb
-Release: camb camblib.sos
+Release: camb camblib.so
 Debug: camb camblib.so
 else
 all: camb libcamb
@@ -79,17 +82,17 @@ Debug: camb
 endif
 
 libcamb: directories
-	$(MAKE) -C $(OUTPUT_DIR) -f ../Makefile_main $(CAMBLIB)
+	$(MAKE) -C $(OUTPUT_DIR) -r -f ../Makefile_main $(CAMBLIB)
 
-libcambso: forutils directories_so
-	$(MAKE) -C $(DLL_DIR) -f ../Makefile_main $(CAMBLIB) F90FLAGS="$(SF90FLAGS)"
+libcambso: libforutils directories_so
+	$(MAKE) -C $(DLL_DIR) -r -f ../Makefile_main $(CAMBLIB) F90FLAGS="$(SF90FLAGS)" OUTPUT_DIR=$(DLL_DIR)
 
 camb: libcamb $(DRIVER)
-	$(F90C) $(F90FLAGS) $(MODOUT) $(IFLAG)$(OUTPUT_DIR)/ $(IFLAG)$(FORUTILSPATH)/$(OUTPUT_DIR)/ \
+	$(F90C) $(F90FLAGS) $(MODOUT) $(IFLAG)$(OUTPUT_DIR)/ $(IFLAG)$(FORUTILS_DIR) \
 		$(DRIVER) $(OUTPUT_DIR)/$(CAMBLIB) $(F90CRLINK) -o $@
 
 camblib.so: libcambso $(CAMBSO)
-	$(F90C) $(SF90FLAGS) $(SMODOUT) $(IFLAG)$(DLL_DIR)/ $(IFLAG)$(FORUTILSPATH)/$(OUTPUT_DIR)/  \
+	$(F90C) $(SF90FLAGS) $(SMODOUT) $(IFLAG)$(DLL_DIR)/ $(IFLAG)$(FORUTILS_DIR)  \
 		$(CAMBSO) $(DLL_DIR)/$(CAMBLIB) $(F90CRLINK) -o $(DLL_DIR)/camblib.so
 	cp $(DLL_DIR)/camblib.so $(PYCAMB_OUTPUT_DIR)
 
@@ -102,10 +105,7 @@ camb_fits: directories writefits.f90 $(CAMBOBJ) $(DRIVER)
 		$(F90CRLINK) $(HEALPIXLD) -DWRITE_FITS -o $@
 
 %.o: ../%.f90
-	$(F90C) $(F90FLAGS) $(IFLAG)$(FORUTILSPATH)/$(OUTPUT_DIR)/ -c $< -o $*.o
-
-%.o: ../%.F90
-	$(F90C) $(F90FLAGS) $(IFLAG)$(FORUTILSPATH)/$(OUTPUT_DIR)/ -c $< -o $*.o
+	$(F90C) $(F90FLAGS) $(IFLAG)$(FORUTILS_DIR) -c $< -o $*.o
 
 directories:
 	mkdir -p $(OUTPUT_DIR)
@@ -113,9 +113,9 @@ directories:
 directories_so:
 	mkdir -p $(DLL_DIR)
 
-forutils:
+libforutils:
 	cd $(FORUTILSPATH) && \
-	$(MAKE) Release COMPILER=$(COMPILER)
+	$(MAKE) $(DLL_DIR)
 
 clean:
 	-rm -f *.o *.a *.d core *.mod *.optrpt *.d
