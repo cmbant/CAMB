@@ -15,13 +15,17 @@ rm -f camb/*.so
 if [[ $TRAVIS_REPO_SLUG == "cmbant/CAMB" && "$TRAVIS_PULL_REQUEST" == "false" ]] 
 then
  python setup.py sdist --formats zip,gztar
+ case "$TRAVIS_BRANCH" in
+ devel*) export CAMB_PACKAGE_NAME=camb_devel ;;
+    *) export CAMB_PACKAGE_NAME=camb
+ esac
  pip install twine
  twine upload -r pypitest --repository-url https://test.pypi.org/legacy/ -u cmbant -p $PYPIPASS dist/*
  source activate py3-environment
  python --version
  mkdir -p test_dir
  pushd test_dir   
- pip install -i https://testpypi.python.org/pypi camb
+ pip install -i https://testpypi.python.org/pypi $CAMB_PACKAGE_NAME
  python -c "import camb; print(camb.__version__)"
  python -m unittest camb_tests.camb_test
  pip uninstall -y camb

@@ -16,8 +16,6 @@ try:
 except ImportError:
     from distutils.core import setup
 
-package_name = 'camb'
-
 is_windows = platform.system() == "Windows"
 if is_windows:
     DLLNAME = 'cambdll.dll'
@@ -69,7 +67,7 @@ def check_gfortran(version=gfortran_min, msg=True, exit=False, import_fail_ok=Tr
 
 
 def find_version():
-    version_file = io.open(os.path.join(file_dir, '%s/__init__.py' % package_name)).read()
+    version_file = io.open(os.path.join(file_dir, 'camb', '__init__.py')).read()
     version_match = re.search(r"^__version__ = ['\"]([^'\"]*)['\"]", version_file, re.M)
     if version_match:
         version = version_match.group(1)
@@ -167,6 +165,7 @@ class CustomInstall(install):
         self.run_command('build')
         install.run(self)
 
+
 class CustomSdist(sdist):
     def run(self):
         if not os.path.exists('fortran'):
@@ -187,7 +186,7 @@ class CustomSdist(sdist):
 
 
 if __name__ == "__main__":
-    setup(name=package_name,
+    setup(name=os.getenv('CAMB_PACKAGE_NAME', 'camb'),
           version=find_version(),
           description='Code for Anisotropies in the Microwave Background',
           long_description=get_long_description(),
