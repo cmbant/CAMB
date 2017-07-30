@@ -8,6 +8,7 @@ import re
 import os
 from distutils.command.build import build
 from distutils.command.install import install
+from distutils.command.sdist import sdist
 import struct
 
 try:
@@ -136,6 +137,24 @@ class CustomInstall(install):
         install.run(self)
 
 
+class CustomSdist(sdist):
+    def run(self):
+        if not os.path.exists('fortran'):
+            import shutil, glob
+            os.mkdir('fortran')
+            try:
+                for file in glob.glob('..' + os.sep + '*.*90'):
+                    shutil.copy(file, 'fortran')
+                shutil.copy('..' + os.sep + 'Makefile', 'fortran')
+                shutil.copy('..' + os.sep + 'Makefile_main', 'fortran')
+                shutil.copy('..' + os.sep + 'HighLExtrapTemplate_lenspotentialCls.dat', 'fortran')
+                sdist.run(self)
+            finally:
+                shutil.rmtree('fortran')
+        else:
+            sdist.run(self)
+
+
 if __name__ == "__main__":
     setup(name=package_name,
           version=find_version(),
@@ -143,7 +162,7 @@ if __name__ == "__main__":
           long_description=get_long_description(),
           author='Antony Lewis',
           url="http://camb.info/",
-          cmdclass={'build': SharedLibrary, 'install': CustomInstall},
+          cmdclass={'build': SharedLibrary, 'install': CustomInstall, 'sdist': CustomSdist},
           packages=['camb', 'camb_tests'],
           package_data={'camb': [DLLNAME, 'HighLExtrapTemplate_lenspotentialCls.dat',
                                  'PArthENoPE_880.2_marcucci.dat', 'PArthENoPE_880.2_standard.dat']},

@@ -3,10 +3,6 @@ set -e
 
 pushd pycamb
 
-#copy clean files to fortran folder
-mkdir -p fortran
-find ../ -maxdepth 1 -type f | xargs cp -t fortran
-
 source activate py2-environment
 python --version
 python setup.py install
@@ -19,7 +15,7 @@ rm -f camb/*.so
 
 if [[ $TRAVIS_REPO_SLUG == "cmbant/CAMB" && "$TRAVIS_PULL_REQUEST" == "false" ]] 
 then
- python setup.py sdist
+ python setup.py sdist --formats zip,gztar
  pip install twine
  twine upload -r pypitest --repository-url https://test.pypi.org/legacy/ -u cmbant -p $PYPIPASS dist/*
  source activate py3-environment
