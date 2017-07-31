@@ -131,12 +131,6 @@ class SharedLibrary(build):
         build.run(self)
 
 
-class CustomInstall(install):
-    def run(self):
-        self.run_command('build')
-        install.run(self)
-
-
 class CustomSdist(sdist):
     def read_template(self):
         sdist.read_template(self)
