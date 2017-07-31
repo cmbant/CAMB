@@ -138,6 +138,10 @@ class CustomInstall(install):
 
 
 class CustomSdist(sdist):
+    def read_template(self):
+        sdist.read_template(self)
+        self.filelist.process_template_line('recursive-include fortran Makefile* *.dat *.?90')
+
     def run(self):
         if not os.path.exists('fortran'):
             import shutil, glob
