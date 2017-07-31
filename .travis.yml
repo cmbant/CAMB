@@ -50,7 +50,7 @@ install:
 script: tests/run_tests.sh
   
 after_failure:
-  - test $TRAVIS_PULL_REQUEST == "false" && test $TRAVIS_REPO_SLUG == "cmbant/CAMB" && bash tests/upload_tests.sh
+  - test $TRAVIS_PULL_REQUEST == "false" && test $TRAVIS_REPO_SLUG == "cmbant/CAMB" && [ -d testfiles ] && bash tests/upload_tests.sh
 
 before_deploy:
   - make clean delete
