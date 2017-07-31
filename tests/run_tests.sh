@@ -14,11 +14,11 @@ rm -f camb/*.so
 
 if [[ $TRAVIS_REPO_SLUG == "cmbant/CAMB" && "$TRAVIS_PULL_REQUEST" == "false" ]] 
 then
- python setup.py sdist
  case "$TRAVIS_BRANCH" in
  devel*) export CAMB_PACKAGE_NAME=camb_devel ;;
     *) export CAMB_PACKAGE_NAME=camb
  esac
+ python setup.py sdist
  pip install twine
  twine upload -r pypitest --repository-url https://test.pypi.org/legacy/ -u cmbant -p $PYPIPASS dist/*
  source activate py3-environment
