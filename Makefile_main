@@ -81,10 +81,10 @@ Release: camb
 Debug: camb
 endif
 
-libcamb: directories
+libcamb: libforutils directories
 	$(MAKE) -C $(OUTPUT_DIR) -r -f ../Makefile_main $(CAMBLIB)
 
-libcambso: libforutils directories_so
+libcambso: libforutils_so directories_so
 	$(MAKE) -C $(DLL_DIR) -r -f ../Makefile_main $(CAMBLIB) F90FLAGS="$(SF90FLAGS)" OUTPUT_DIR=$(DLL_DIR)
 
 camb: libcamb $(DRIVER)
@@ -100,7 +100,7 @@ camblib.so: libcambso $(CAMBSO)
 $(CAMBLIB): $(CAMBOBJ)
 	$(AR) -r $@ $(CAMBOBJ)
 
-camb_fits: directories writefits.f90 $(CAMBOBJ) $(DRIVER)
+camb_fits: libforutils directories writefits.f90 $(CAMBOBJ) $(DRIVER)
 	$(F90C) $(F90FLAGS) -I$(HEALPIXDIR)/include $(CAMBOBJ) writefits.f90 $(DRIVER) \
 		$(F90CRLINK) $(HEALPIXLD) -DWRITE_FITS -o $@
 
@@ -113,9 +113,14 @@ directories:
 directories_so:
 	mkdir -p $(DLL_DIR)
 
-libforutils:
+libforutils_so:
 	cd $(FORUTILSPATH) && \
 	$(MAKE) $(DLL_DIR)
+
+libforutils:
+	cd $(FORUTILSPATH) && \
+	$(MAKE) $(OUTPUT_DIR)
+
 
 clean:
 	-rm -f *.o *.a *.d core *.mod *.optrpt *.d
