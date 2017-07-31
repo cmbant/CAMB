@@ -17,11 +17,6 @@ addons:
     - ubuntu-toolchain-r-test
     packages:
     - gfortran-6
-    
-env:
-  global:
-    secure: Rl/YRrQbrsaSE52E1oFLfCp49Yxn/DpZcREvwLRXqK/FmECOasatBq9AVSLSEzCIYJ4Yp1FQQFrn0uJfvYst5CDRuECoM4WNiE3fNoiKBeY/+G8GPRQRwBFgqCtdZ4X0RA3BH97EFXTWI5O5TfP3+bf23YJ5HlSYTYrla1dzJYN+W/nOS8BTZ0zO6af5S/s6/AO1LobN/tLyS1Rv1b4TcN8B2yfYPXZSXbdVjahZu8yU6BEmTiWzj726s8UZ4jFvLqR1c8h9a7wX4u3+30BMJ2fuh9jI+rSKEM05pPIXo27lmqLYyBr5iatI8rWSpSfzWo0Ns8KCVS08smyCQyFEw65LDbzRA/BdNqItHlX+UlrorKw2V5IcnljscoTnEDZcTjdPpqG30Obx0olpINR3P6/JPVd6LN570WDEwkHKO14HnG30hqYEugKm2G4dC9oYyZTBgAapHyz6a82z8BllzFLj8xf9U1+2C8sLl/NNFjpgj2PpvcOm39bDtso+/IhezxmaqbmKhHns6vyTLdH27WqyGLGOXUjvnKRtVuoR/yIiDt2CmVCLEcKwXwUDFiTScjy+JshKNewgpwqINwMU2q0QJlrb4gAdC0ANewRAJ6gwcYvKNUZR1NSptjodzpa6JLZDStRTpVvvJWAw6J33KtjhQSVrr8B/kkA/dpxfyIA=
-     
 
 #before_install:
 #  - sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
@@ -35,7 +30,7 @@ install:
   - export PATH=$PWD/gfortran-symlinks:$PATH
   - gfortran --version
   # Setup anaconda following http://conda.pydata.org/docs/travis.html
-  - wget https://repo.continuum.io/miniconda/Miniconda2-latest-Linux-x86_64.sh -O miniconda.sh;
+  - wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh;
   - bash miniconda.sh -b -p $HOME/miniconda
   - export PATH="$HOME/miniconda/bin:$PATH"
   - hash -r
@@ -51,7 +46,7 @@ install:
 script: tests/run_tests.sh
   
 after_failure:
-  - test $TRAVIS_PULL_REQUEST == "false" && test $TRAVIS_REPO_SLUG == "cmbant/CAMB" && bash tests/upload_tests.sh
+  - test $TRAVIS_PULL_REQUEST == "false" && test $TRAVIS_REPO_SLUG == "cmbant/CAMB" && [ -d testfiles ] && bash tests/upload_tests.sh
 
 before_deploy:
   - make clean delete

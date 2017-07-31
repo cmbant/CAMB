@@ -20,7 +20,7 @@ then
  esac
  python setup.py sdist
  pip install twine
- twine upload -r pypitest --repository-url https://test.pypi.org/legacy/ -u cmbant -p $PYPIPASS dist/*
+ twine upload -r pypitest --repository-url https://test.pypi.org/legacy/ dist/*
  source activate py3-environment
  python --version
  mkdir -p test_dir
