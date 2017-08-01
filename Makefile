@@ -4,7 +4,11 @@
 FISHER=
 
 #Will detect ifort/gfortran or edit for your compiler
+ifneq ($(COMPILER),gfortran)
 ifortErr = $(shell which ifort >/dev/null; echo $$?)
+else
+ifortErr = 1
+endif
 ifeq "$(ifortErr)" "0"
 
 #Intel compiler
@@ -34,7 +38,7 @@ endif
 else
 gfortErr = $(shell which gfortran >/dev/null; echo $$?)
 ifeq "$(gfortErr)" "0"
-
+COMPILER = gfortran
 #Gfortran compiler:
 #The options here work in v4.6+. Python wrapper needs v4.9+.
 F90C     = gfortran

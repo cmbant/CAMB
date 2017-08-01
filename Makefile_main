@@ -27,8 +27,6 @@ OUTPUT_DIR ?= Release
 PYCAMB_OUTPUT_DIR ?= pycamb/camb
 DLL_DIR ?= Releaselib
 
-Release: camb camblib.so
-Debug: camb camblib.so
 
 
 CAMBLIB       = $(OUTPUT_DIR)/libcamb_$(RECOMBINATION).a
@@ -74,7 +72,16 @@ endif
 
 default: camb
 
+## python wrapper library only works with gfortran
+ifeq ($(COMPILER),gfortran)
 all: camb camblib.so libcamb
+Release: camb camblib.so
+Debug: camb camblib.so
+else
+all: camb libcamb
+Release: camb
+Debug: camb
+endif
 
 libcamb: $(CAMBLIB)
 
@@ -110,7 +117,7 @@ $(DLL_DIR)/camb_python.o: $(DLL_DIR)/camb.o
 
 camblib.so: folders $(CAMBSO)
 	$(F90C) $(SF90FLAGS) $(CAMBSO) -o $(DLL_DIR)/camblib.so
-	cp $(DLL_DIR)/camblib.so $(PYCAMB_OUTPUT_DIR)
+	cp $(DLL_DIR)/camblib.so $(PYCAMB_OUTPUT_DIR)  >/dev/null || :
 
 camb: directories $(CAMBOBJ) $(DRIVER)
 	$(F90C) $(F90FLAGS) $(CAMBOBJ) $(DRIVER) $(F90CRLINK) -o $@
@@ -143,7 +150,7 @@ directories:
 
 clean:
 	rm -f *.o *.a *.d core *.mod $(DLL_DIR)/*.o $(DLL_DIR)/*.mod
-	rm -f *.o *.a *.d core *.mod $(OUTPUT_DIR)/*.o $(OUTPUT_DIR)/*.mod $(PYCAMB_OUTPUT_DIR)/*.so
+	rm -f *.o *.a *.d core *.mod $(OUTPUT_DIR)/*.o $(OUTPUT_DIR)/*.mod
 	rm -rf Release*
 	rm -rf Debug*
 
@@ -157,5 +164,3 @@ libCosmoRec.a:
 
 libhyrec.a:
 	cd $(HYREC_PATH); make libhyrec.a;
-
-

@@ -35,6 +35,8 @@
     !AM Sep 16: Attempted fix of strange bug. No more modules with unallocated arrays as inputs
     !LC Oct 16: extended Halofit from w=const. models to w=w(a) with PKequal
     !AM May 17: Made the baryon feedback parameters more obvious in HMcode
+    !AL Jul 17: fixed undefined z calling Tcb_Tcbnu_ratio
+    !AM Jul 17: sped-up HMcode integration routines
 
 
     !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -58,8 +60,9 @@
     public halofit_mead, halofit_halomodel, halofit_casarini
 
     !!AM - Added these types for HMcode
-    INTEGER :: imead, ihm !!AM - added these for HMcode, need to be visible to all subroutines and functions
-
+    INTEGER :: imead !!AM - added these for HMcode, need to be visible to all subroutines and functions
+    logical :: HM_verbose = .false.
+    
     TYPE HM_cosmology
         !Contains only things that do not need to be recalculated with each new z
         REAL :: om_m, om_v, w, wa, f_nu, ns, h, Tcmb, Nnu
@@ -373,18 +376,11 @@
     IF(halofit_version==halofit_halomodel) imead=0
     IF(halofit_version==halofit_mead) imead=1
 
-    !Use ihm to switch between verbose (diagnostic) and non-verbose mode
-    !0 - Non-verbose
-    !1 - Verbose
-    IF(feedback>0) THEN
-       ihm=1
-    ELSE
-       ihm=0
-    END IF
-
-    IF(ihm==1) WRITE(*,*)
-    IF(ihm==1) WRITE(*,*) 'HMcode: Running HMcode'
-    IF(ihm==1) WRITE(*,*)
+    IF(FeedbackLevel>0) HM_verbose = .true.
+  
+    IF(HM_verbose) WRITE(*,*)
+    IF(HM_verbose) WRITE(*,*) 'HMcode: Running HMcode'
+    IF(HM_verbose) WRITE(*,*)
 
     !!AM - Translate from CAMB variables to my variables
     nz=CAMB_PK%num_z
@@ -671,7 +667,7 @@
     REAL :: z, g, kmin, kmax
     REAL, PARAMETER :: pi=3.141592654
 
-    IF(ihm==1) WRITE(*,*) 'LINEAR POWER: Filling linear power HM_tables'
+    IF(HM_verbose) WRITE(*,*) 'LINEAR POWER: Filling linear power HM_tables'
 
     !Fill arrays
     IF(ALLOCATED(cosm%k_plin)) DEALLOCATE(cosm%k_plin)
@@ -703,15 +699,15 @@
 
     END IF
 
-    IF(ihm==1) WRITE(*,*) 'LINEAR POWER: k_min:', cosm%k_plin(1)
-    IF(ihm==1) WRITE(*,*) 'LINEAR POWER: k_max:', cosm%k_plin(nk)
-    IF(ihm==1) WRITE(*,*) 'LINEAR POWER: nk:', nk
+    IF(HM_verbose) WRITE(*,*) 'LINEAR POWER: k_min:', cosm%k_plin(1)
+    IF(HM_verbose) WRITE(*,*) 'LINEAR POWER: k_max:', cosm%k_plin(nk)
+    IF(HM_verbose) WRITE(*,*) 'LINEAR POWER: nk:', nk
 
     ALLOCATE(cosm%plin(nk),cosm%plinc(nk))
 
     !Find the redshift
     z=CAMB_Pk%Redshifts(iz)
-    IF(ihm==1) WRITE(*,*) 'LINEAR POWER: z of input:', z
+    IF(HM_verbose) WRITE(*,*) 'LINEAR POWER: z of input:', z
 
     !Fill power table
     DO i=1,nk
@@ -719,7 +715,7 @@
         cosm%plin(i)=MatterPowerData_k(CAMB_PK,DBLE(cosm%k_plin(i)),iz)*(cosm%k_plin(i)**3/(2.*pi**2))
         cosm%plinc(i)=cosm%plin(i)*(Tcb_Tcbnu_ratio(cosm%k_plin(i),z,cosm))**2
     END DO
-    
+
     !Calculate the growth factor at the redshift of interest
     g=grow(z,cosm)
 
@@ -728,9 +724,9 @@
     cosm%plinc=cosm%plinc/(g**2.)
 
     !Check sigma_8 value
-    IF(ihm==1) WRITE(*,*) 'LINEAR POWER: sigma_8:', sigma(8.,0.,0,cosm)
-    IF(ihm==1) WRITE(*,*) 'LINEAR POWER: Done'
-    IF(ihm==1) WRITE(*,*)
+    IF(HM_verbose) WRITE(*,*) 'LINEAR POWER: sigma_8:', sigma(8.,0.,0,cosm)
+    IF(HM_verbose) WRITE(*,*) 'LINEAR POWER: Done'
+    IF(HM_verbose) WRITE(*,*)
 
     END SUBROUTINE fill_plintab
 
@@ -808,18 +804,18 @@
     cosm%ns=CP%InitPower%an(1)
 
     !Write out cosmological parameters if necessary
-    IF(ihm==1) WRITE(*,*) 'HM_cosmology: Om_m:', cosm%om_m
-    IF(ihm==1) WRITE(*,*) 'HM_cosmology: Om_v:', cosm%om_v
-    IF(ihm==1) WRITE(*,*) 'HM_cosmology: w_0:', cosm%w
-    IF(ihm==1) WRITE(*,*) 'HM_cosmology: w_a:', cosm%wa
-    IF(ihm==1) WRITE(*,*) 'HM_cosmology: f_nu:', cosm%f_nu
-    IF(ihm==1) WRITE(*,*) 'HM_cosmology: n_s:', cosm%ns
-    IF(ihm==1) WRITE(*,*) 'HM_cosmology: h:', cosm%h
-    IF(ihm==1) WRITE(*,*) 'HM_cosmology: T_CMB [K]:', cosm%Tcmb
-    IF(ihm==1) WRITE(*,*) 'HM_cosmology: N_nu (massive):', cosm%Nnu
-    IF(ihm==1) WRITE(*,*) 'HM_cosmology: A_baryon:', cosm%A_baryon
-    IF(ihm==1) WRITE(*,*) 'HM_cosmology: eta_baryon:', cosm%eta_baryon
-    IF(ihm==1) WRITE(*,*)
+    IF(HM_verbose) WRITE(*,*) 'HM_cosmology: Om_m:', cosm%om_m
+    IF(HM_verbose) WRITE(*,*) 'HM_cosmology: Om_v:', cosm%om_v
+    IF(HM_verbose) WRITE(*,*) 'HM_cosmology: w_0:', cosm%w
+    IF(HM_verbose) WRITE(*,*) 'HM_cosmology: w_a:', cosm%wa
+    IF(HM_verbose) WRITE(*,*) 'HM_cosmology: f_nu:', cosm%f_nu
+    IF(HM_verbose) WRITE(*,*) 'HM_cosmology: n_s:', cosm%ns
+    IF(HM_verbose) WRITE(*,*) 'HM_cosmology: h:', cosm%h
+    IF(HM_verbose) WRITE(*,*) 'HM_cosmology: T_CMB [K]:', cosm%Tcmb
+    IF(HM_verbose) WRITE(*,*) 'HM_cosmology: N_nu (massive):', cosm%Nnu
+    IF(HM_verbose) WRITE(*,*) 'HM_cosmology: A_baryon:', cosm%A_baryon
+    IF(HM_verbose) WRITE(*,*) 'HM_cosmology: eta_baryon:', cosm%eta_baryon
+    IF(HM_verbose) WRITE(*,*)
 
     END SUBROUTINE assign_HM_cosmology
 
@@ -881,24 +877,25 @@
     REAL, PARAMETER :: mmax=1e18 !Upper mass limit
     INTEGER, PARAMETER :: n=256 !Number of entries in look-up HM_tables.
 
-    IF(ihm==1) WRITE(*,*) 'HALOMOD: Filling look-up HM_tables'
-    IF(ihm==1) WRITE(*,*) 'HALOMOD: HM_tables being filled at redshift:', z
+    IF(HM_verbose) WRITE(*,*) 'HALOMOD: Filling look-up HM_tables'
+    IF(HM_verbose) WRITE(*,*) 'HALOMOD: HM_tables being filled at redshift:', z
 
     !Find value of sigma_v, sig8, etc.
+
     lut%sigv=sqrt(dispint(0.,z,cosm)/3.)
-    IF(ihm==1) WRITE(*,*) 'HALOMOD: sigv [Mpc/h]:', lut%sigv
+    IF(HM_verbose) WRITE(*,*) 'HALOMOD: sigv [Mpc/h]:', lut%sigv
     lut%sigv100=sqrt(dispint(100.,z,cosm)/3.)
-    IF(ihm==1) WRITE(*,*) 'HALOMOD: sigv100 [Mpc/h]:', lut%sigv100
+    IF(HM_verbose) WRITE(*,*) 'HALOMOD: sigv100 [Mpc/h]:', lut%sigv100
     lut%sig8z=sigma(8.,z,0,cosm)
-    IF(ihm==1) WRITE(*,*) 'HALOMOD: sig8(z):', lut%sig8z
+    IF(HM_verbose) WRITE(*,*) 'HALOMOD: sig8(z):', lut%sig8z
 
     IF(ALLOCATED(lut%rr)) CALL deallocate_LUT(lut)
 
     lut%n=n
     CALL allocate_lut(lut)
 
-    IF(ihm==1) WRITE(*,*) 'HALOMOD: M_min:', mmin
-    IF(ihm==1) WRITE(*,*) 'HALOMOD: M_max:', mmax
+    IF(HM_verbose) WRITE(*,*) 'HALOMOD: M_min:', mmin
+    IF(HM_verbose) WRITE(*,*) 'HALOMOD: M_max:', mmax
 
     dc=delta_c(z,lut,cosm)
 
@@ -918,7 +915,7 @@
     END DO
     !$OMP END PARALLEL DO
 
-    IF(ihm==1) WRITE(*,*) 'HALOMOD: m, r, nu, sig HM_tables filled'
+    IF(HM_verbose) WRITE(*,*) 'HALOMOD: m, r, nu, sig HM_tables filled'
 
     !Fills up a table for sigma(fM) for Bullock c(m) relation
     !This is the f=0.01 parameter in the Bullock realtion sigma(fM,z)
@@ -926,44 +923,44 @@
     DO i=1,lut%n
         lut%sigf(i)=sigmac(lut%rr(i)*f,z,cosm)
     END DO
-    IF(ihm==1) WRITE(*,*) 'HALOMOD: sigf HM_tables filled'
+    IF(HM_verbose) WRITE(*,*) 'HALOMOD: sigf HM_tables filled'
 
     !Fill virial radius table using real radius table
     Dv=Delta_v(z,lut,cosm)
     lut%rv=lut%rr/(Dv**(1./3.))
 
-    IF(ihm==1) WRITE(*,*) 'HALOMOD: rv HM_tables filled'
-    IF(ihm==1) WRITE(*,*) 'HALOMOD: nu min:', lut%nu(1)
-    IF(ihm==1) WRITE(*,*) 'HALOMOD: nu max:', lut%nu(lut%n)
-    IF(ihm==1) WRITE(*,*) 'HALOMOD: R_v min [Mpc/h]:', lut%rv(1)
-    IF(ihm==1) WRITE(*,*) 'HALOMOD: R_v max [Mpc/h]:', lut%rv(lut%n)
-    IF(ihm==1) WRITE(*,*) 'HALOMOD: M min [Msun/h]:', lut%m(1)
-    IF(ihm==1) WRITE(*,*) 'HALOMOD: M max [Msun/h]:', lut%m(lut%n)
+    IF(HM_verbose) WRITE(*,*) 'HALOMOD: rv HM_tables filled'
+    IF(HM_verbose) WRITE(*,*) 'HALOMOD: nu min:', lut%nu(1)
+    IF(HM_verbose) WRITE(*,*) 'HALOMOD: nu max:', lut%nu(lut%n)
+    IF(HM_verbose) WRITE(*,*) 'HALOMOD: R_v min [Mpc/h]:', lut%rv(1)
+    IF(HM_verbose) WRITE(*,*) 'HALOMOD: R_v max [Mpc/h]:', lut%rv(lut%n)
+    IF(HM_verbose) WRITE(*,*) 'HALOMOD: M min [Msun/h]:', lut%m(1)
+    IF(HM_verbose) WRITE(*,*) 'HALOMOD: M max [Msun/h]:', lut%m(lut%n)
 
     !Find non-linear radius and scale
     lut%rnl=r_nl(lut)
     lut%knl=1./lut%rnl
 
-    IF(ihm==1) WRITE(*,*) 'HALOMOD: r_nl [Mpc/h]:', lut%rnl
-    IF(ihm==1) WRITE(*,*) 'HALOMOD: k_nl [h/Mpc]:', lut%knl
+    IF(HM_verbose) WRITE(*,*) 'HALOMOD: r_nl [Mpc/h]:', lut%rnl
+    IF(HM_verbose) WRITE(*,*) 'HALOMOD: k_nl [h/Mpc]:', lut%knl
 
     !Calcuate the effective spectral index at the collapse scale
     lut%neff=neff(lut,cosm)
 
-    IF(ihm==1) WRITE(*,*) 'HALOMOD: n_eff:', lut%neff
+    IF(HM_verbose) WRITE(*,*) 'HALOMOD: n_eff:', lut%neff
 
     !Get the concentration for all the haloes
     CALL conc_bull(z,lut,cosm)
 
-    IF(ihm==1) WRITE(*,*) 'HALOMOD: c HM_tables filled'
-    IF(ihm==1) WRITE(*,*) 'HALOMOD: c min [Msun/h]:', lut%c(lut%n)
-    IF(ihm==1) WRITE(*,*) 'HALOMOD: c max [Msun/h]:', lut%c(1)
-    IF(ihm==1) WRITE(*,*) 'HALOMOD: Done'
-    IF(ihm==1) WRITE(*,*)
-    IF(ihm==1) CALL write_parameters(z,lut,cosm)
+    IF(HM_verbose) WRITE(*,*) 'HALOMOD: c HM_tables filled'
+    IF(HM_verbose) WRITE(*,*) 'HALOMOD: c min [Msun/h]:', lut%c(lut%n)
+    IF(HM_verbose) WRITE(*,*) 'HALOMOD: c max [Msun/h]:', lut%c(1)
+    IF(HM_verbose) WRITE(*,*) 'HALOMOD: Done'
+    IF(HM_verbose) WRITE(*,*)
+    IF(HM_verbose) CALL write_parameters(z,lut,cosm)
 
     !Switch off verbose mode if doing multiple z
-    ihm=0
+    HM_verbose= .false.
 
     END SUBROUTINE halomod_init
 
@@ -974,18 +971,18 @@
     TYPE(HM_cosmology), INTENT(IN) :: cosm
     TYPE(HM_tables), INTENT(IN) :: lut
 
-    IF(ihm==1) WRITE(*,*) 'WRITE_PARAMETERS: at this redshift'
-    IF(ihm==1) WRITE(*,*) '=================================='
-    IF(ihm==1) WRITE(*,fmt='(A10,F10.5)') 'z:', z
-    IF(ihm==1) WRITE(*,fmt='(A10,F10.5)') 'Dv:', Delta_v(z,lut,cosm)
-    IF(ihm==1) WRITE(*,fmt='(A10,F10.5)') 'dc:', delta_c(z,lut,cosm)
-    IF(ihm==1) WRITE(*,fmt='(A10,F10.5)') 'eta:', eta(z,lut,cosm)
-    IF(ihm==1) WRITE(*,fmt='(A10,F10.5)') 'k*:', kstar(z,lut,cosm)
-    IF(ihm==1) WRITE(*,fmt='(A10,F10.5)') 'A:', As(z,lut,cosm)
-    IF(ihm==1) WRITE(*,fmt='(A10,F10.5)') 'fdamp:', fdamp(z,lut,cosm)
-    IF(ihm==1) WRITE(*,fmt='(A10,F10.5)') 'alpha:', alpha(z,lut,cosm)
-    IF(ihm==1) WRITE(*,*) '=================================='
-    IF(ihm==1) WRITE(*,*)
+    IF(HM_verbose) WRITE(*,*) 'WRITE_PARAMETERS: at this redshift'
+    IF(HM_verbose) WRITE(*,*) '=================================='
+    IF(HM_verbose) WRITE(*,fmt='(A10,F10.5)') 'z:', z
+    IF(HM_verbose) WRITE(*,fmt='(A10,F10.5)') 'Dv:', Delta_v(z,lut,cosm)
+    IF(HM_verbose) WRITE(*,fmt='(A10,F10.5)') 'dc:', delta_c(z,lut,cosm)
+    IF(HM_verbose) WRITE(*,fmt='(A10,F10.5)') 'eta:', eta(z,lut,cosm)
+    IF(HM_verbose) WRITE(*,fmt='(A10,F10.5)') 'k*:', kstar(z,lut,cosm)
+    IF(HM_verbose) WRITE(*,fmt='(A10,F10.5)') 'A:', As(z,lut,cosm)
+    IF(HM_verbose) WRITE(*,fmt='(A10,F10.5)') 'fdamp:', fdamp(z,lut,cosm)
+    IF(HM_verbose) WRITE(*,fmt='(A10,F10.5)') 'alpha:', alpha(z,lut,cosm)
+    IF(HM_verbose) WRITE(*,*) '=================================='
+    IF(HM_verbose) WRITE(*,*)
 
     END SUBROUTINE write_parameters
 
@@ -1406,10 +1403,10 @@
     cosm%nsig=nsig
     ALLOCATE(cosm%r_sigma(nsig),cosm%sigma(nsig))
 
-    IF(ihm==1) WRITE(*,*) 'SIGTAB: Filling sigma interpolation table'
-    IF(ihm==1) WRITE(*,*) 'SIGTAB: R_min:', rmin
-    IF(ihm==1) WRITE(*,*) 'SIGTAB: R_max:', rmax
-    IF(ihm==1) WRITE(*,*) 'SIGTAB: Values:', nsig
+    IF(HM_verbose) WRITE(*,*) 'SIGTAB: Filling sigma interpolation table'
+    IF(HM_verbose) WRITE(*,*) 'SIGTAB: R_min:', rmin
+    IF(HM_verbose) WRITE(*,*) 'SIGTAB: R_max:', rmax
+    IF(HM_verbose) WRITE(*,*) 'SIGTAB: Values:', nsig
 
     !$OMP PARALLEL DO default(shared), private(sig, r)
     DO i=1,nsig
@@ -1425,10 +1422,10 @@
     END DO
     !$OMP END PARALLEL DO
 
-    IF(ihm==1) WRITE(*,*) 'SIGTAB: sigma_min:', cosm%sigma(nsig)
-    IF(ihm==1) WRITE(*,*) 'SIGTAB: sigma_max:', cosm%sigma(1)
-    IF(ihm==1) WRITE(*,*) 'SIGTAB: Done'
-    IF(ihm==1) WRITE(*,*)
+    IF(HM_verbose) WRITE(*,*) 'SIGTAB: sigma_min:', cosm%sigma(nsig)
+    IF(HM_verbose) WRITE(*,*) 'SIGTAB: sigma_max:', cosm%sigma(1)
+    IF(HM_verbose) WRITE(*,*) 'SIGTAB: Done'
+    IF(HM_verbose) WRITE(*,*)
 
     END SUBROUTINE fill_sigtab
 
@@ -2998,13 +2995,13 @@
     !Overall accuracy for the ODE solver
     acc=1d-3
 
-    IF(ihm==1) WRITE(*,*) 'GROWTH: Solving growth equation'
+    IF(HM_verbose) WRITE(*,*) 'GROWTH: Solving growth equation'
     CALL ode_growth(d_tab,v_tab,a_tab,0.,ainit,amax,dinit,vinit,acc,3,cosm)
-    IF(ihm==1) WRITE(*,*) 'GROWTH: ODE done'
+    IF(HM_verbose) WRITE(*,*) 'GROWTH: ODE done'
 
     !Normalise so that g(z=0)=1
     norm=find(1.,a_tab,d_tab,SIZE(a_tab),3,3,2)
-    IF(ihm==1) WRITE(*,*) 'GROWTH: Unnormalised g(a=1):', norm
+    IF(HM_verbose) WRITE(*,*) 'GROWTH: Unnormalised g(a=1):', norm
     d_tab=d_tab/norm
 
     !Could use some table-interpolation routine here to save time
@@ -3019,8 +3016,8 @@
         cosm%growth(i)=find(a,a_tab,d_tab,SIZE(a_tab),3,3,2)
     END DO
 
-    IF(ihm==1) WRITE(*,*) 'GROWTH: Done'
-    IF(ihm==1) WRITE(*,*)
+    IF(HM_verbose) WRITE(*,*) 'GROWTH: Done'
+    IF(HM_verbose) WRITE(*,*)
 
     END SUBROUTINE fill_growtab
 

@@ -620,7 +620,8 @@
     end function ComovingRadialDistance
 
     function Hofz(z)
-    !!non-comoving Hubble in MPC units, divide by MPC_in_sec to get in SI units
+    !non-comoving Hubble in MPC units, divide by MPC_in_sec to get in SI units
+    !multiply by c/1e3 to get in km/s/Mpc units
     real(dl) Hofz, dtauda,a
     real(dl), intent(in) :: z
     external dtauda
@@ -629,6 +630,20 @@
     Hofz = 1/(a**2*dtauda(a))
 
     end function Hofz
+
+    subroutine HofzArr(arr, z, n)
+    !non-comoving Hubble in MPC units, divide by MPC_in_sec to get in SI units
+    !multiply by c/1e3 to get in km/s/Mpc units
+    integer,intent(in) :: n
+    real(dl), intent(out) :: arr(n)
+    real(dl), intent(in) :: z(n)
+    integer i
+
+    do i=1, n
+        arr(i) = Hofz(z(i))
+    end do
+
+    end subroutine HofzArr
 
     real(dl) function BAO_D_v_from_DA_H(z, DA, Hz)
     real(dl), intent(in) :: z, DA, Hz

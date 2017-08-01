@@ -33,7 +33,7 @@ class InitialPowerParams(CAMB_Structure):
         ("TensorPowerAmp", c_double * nnmax)
     ]
 
-    def set_params(self, As=2e-9, ns=0.96, nrun=0, nrunrun=0, r=0, nt=None, ntrun=0,
+    def set_params(self, As=2e-9, ns=0.96, nrun=0, nrunrun=0.0, r=0.0, nt=None, ntrun=0.0,
                    pivot_scalar=0.05, pivot_tensor=0.05, parameterization=tensor_param_rpivot):
         """
         Set parameters using standard power law parameterization. If nt=None, uses inflation consistency relation.
