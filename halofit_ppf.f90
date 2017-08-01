@@ -1082,8 +1082,8 @@
     REAL*8 :: sum_n, sum_2n, sum_new, sum_old
     INTEGER, PARAMETER :: jmin=5
     INTEGER, PARAMETER :: jmax=30
-    REAL*8, PARAMETER :: acc=1d-3
-    INTEGER, PARAMETER :: iorder=3   
+    REAL*8, PARAMETER :: acc=1d-4
+    INTEGER, PARAMETER :: iorder=3
 
     !Integration range for integration parameter
     !Note a -> 1
@@ -1590,7 +1590,7 @@
     REAL, INTENT(IN) :: r, z
     INTEGER, INTENT(IN) :: itype
     TYPE(HM_cosmology), INTENT(IN) :: cosm
-    REAL, PARAMETER :: acc=1d-3
+    REAL, PARAMETER :: acc=1d-4
     INTEGER, PARAMETER :: iorder=3
     REAL, PARAMETER :: rsplit=1d-2
 
@@ -2142,7 +2142,7 @@
     REAL*8 :: sum_n, sum_2n, sum_new, sum_old
     INTEGER, PARAMETER :: jmin=5
     INTEGER, PARAMETER :: jmax=30
-    REAL, PARAMETER :: acc=1e-3
+    REAL, PARAMETER :: acc=1e-4
     INTEGER, PARAMETER :: iorder=3   
 
     !Integration range for integration parameter
@@ -2807,7 +2807,7 @@
     INTEGER, INTENT(IN) :: n
     REAL, INTENT(IN) :: x, xtab(n)
     REAL :: x1, x2, xn
-    REAL, PARAMETER :: acc=0.001 !Test for linear table
+    REAL, PARAMETER :: acc=1d-4 !Test for linear table
 
     !Returns the integer (table position) below the value of x
     !eg. if x(3)=6. and x(4)=7. and x=6.5 this will return 6
@@ -2998,7 +2998,7 @@
     vinit=1.
 
     !Overall accuracy for the ODE solver
-    acc=0.001
+    acc=1d-4
 
     IF(ihm==1) WRITE(*,*) 'GROWTH: Solving growth equation'
     CALL ode_growth(d_tab,v_tab,a_tab,0.,ainit,amax,dinit,vinit,acc,3,cosm)
