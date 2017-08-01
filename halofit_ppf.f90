@@ -879,7 +879,7 @@
     TYPE(HM_tables) :: lut
     REAL, PARAMETER :: mmin=1e0 !Lower mass limit
     REAL, PARAMETER :: mmax=1e18 !Upper mass limit
-    INTEGER, PARAMETER :: n=128 !Number of entries in look-up HM_tables.
+    INTEGER, PARAMETER :: n=256 !Number of entries in look-up HM_tables.
 
     IF(ihm==1) WRITE(*,*) 'HALOMOD: Filling look-up HM_tables'
     IF(ihm==1) WRITE(*,*) 'HALOMOD: HM_tables being filled at redshift:', z
@@ -1082,7 +1082,7 @@
     REAL*8 :: sum_n, sum_2n, sum_new, sum_old
     INTEGER, PARAMETER :: jmin=5
     INTEGER, PARAMETER :: jmax=30
-    REAL*8, PARAMETER :: acc=1d-4
+    REAL*8, PARAMETER :: acc=1d-3
     INTEGER, PARAMETER :: iorder=3
 
     !Integration range for integration parameter
@@ -1382,13 +1382,13 @@
 
     SUBROUTINE fill_sigtab(cosm)
 
-    !UPDATE
     !Fills look-up HM_tables for sigma(R)
-    REAL :: rmin, rmax
     REAL :: r, sig
-    INTEGER :: i
-    INTEGER, PARAMETER :: nsig=64
+    INTEGER :: i    
     TYPE(HM_cosmology) :: cosm
+    REAL, PARAMETER :: rmin=1e-4
+    REAL, PARAMETER :: rmax=1e3
+    INTEGER, PARAMETER :: nsig=64
 
     !This fills up HM_tables of r vs. sigma(r) across a range in r!
     !It is used only in look-up for further calculations of sigmac(r) and not otherwise!
@@ -1403,8 +1403,6 @@
 
     !These values of 'r' work fine for any power spectrum of cosmological importance
     !Having nsig as a 2** number is most efficient for the look-up routines
-    rmin=1e-4
-    rmax=1e3
     cosm%nsig=nsig
     ALLOCATE(cosm%r_sigma(nsig),cosm%sigma(nsig))
 
@@ -1590,7 +1588,7 @@
     REAL, INTENT(IN) :: r, z
     INTEGER, INTENT(IN) :: itype
     TYPE(HM_cosmology), INTENT(IN) :: cosm
-    REAL, PARAMETER :: acc=1d-4
+    REAL, PARAMETER :: acc=1d-3
     INTEGER, PARAMETER :: iorder=3
     REAL, PARAMETER :: rsplit=1d-2
 
@@ -2142,7 +2140,7 @@
     REAL*8 :: sum_n, sum_2n, sum_new, sum_old
     INTEGER, PARAMETER :: jmin=5
     INTEGER, PARAMETER :: jmax=30
-    REAL, PARAMETER :: acc=1e-4
+    REAL, PARAMETER :: acc=1d-3
     INTEGER, PARAMETER :: iorder=3   
 
     !Integration range for integration parameter
@@ -2807,7 +2805,7 @@
     INTEGER, INTENT(IN) :: n
     REAL, INTENT(IN) :: x, xtab(n)
     REAL :: x1, x2, xn
-    REAL, PARAMETER :: acc=1d-4 !Test for linear table
+    REAL, PARAMETER :: acc=1d-3 !Test for linear table
 
     !Returns the integer (table position) below the value of x
     !eg. if x(3)=6. and x(4)=7. and x=6.5 this will return 6
@@ -2998,7 +2996,7 @@
     vinit=1.
 
     !Overall accuracy for the ODE solver
-    acc=1d-4
+    acc=1d-3
 
     IF(ihm==1) WRITE(*,*) 'GROWTH: Solving growth equation'
     CALL ode_growth(d_tab,v_tab,a_tab,0.,ainit,amax,dinit,vinit,acc,3,cosm)
