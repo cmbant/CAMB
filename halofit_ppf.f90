@@ -36,6 +36,8 @@
     !LC Oct 16: extended Halofit from w=const. models to w=w(a) with PKequal
     !AM May 17: Made the baryon feedback parameters more obvious in HMcode
     !AL Jul 17: fixed undefined z calling Tcb_Tcbnu_ratio
+    !AM Jul 17: sped-up HMcode integration routines
+
 
     !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -413,6 +415,7 @@
             CAMB_Pk%nonlin_ratio(i,j)=sqrt(pfull/plin)
         END DO
         !$OMP END PARALLEL DO
+        
     END DO
 
     END SUBROUTINE HMcode
@@ -475,7 +478,7 @@
         !eta=0.603-0.3*lut%sig8z
         !AM - made baryon feedback parameter obvious
         eta0=cosm%eta_baryon
-        !eta0=0.95-0.11*cosm%A_baryon !This is an (updated) one-parameter relation that could be used
+        !eta0=0.98-0.12*cosm%A_baryon !This is an (updated) one-parameter relation that could be used
         eta=eta0-0.3*lut%sig8z
     END IF
 
@@ -512,10 +515,10 @@
         !Set to 4 for the standard Bullock value
         As=4.
     ELSE IF(imead==1) THEN
-        !This is the 'A' halo-concentration parameter in Mead et al. (2015; arXiv 1505.07833)
-        !As=3.13
-        !AM - made baryon feedback parameter obvious
-        As=cosm%A_baryon
+       !This is the 'A' halo-concentration parameter in Mead et al. (2015; arXiv 1505.07833)
+       !As=3.13
+       !AM - added for easy modification of feedback parameter
+       As=cosm%A_baryon
     END IF
 
     END FUNCTION As
@@ -576,7 +579,7 @@
         !This catches some very strange values that appear for odd cosmological models
         r_nl=lut%rr(1)
     ELSE
-        r_nl=exp(find(log(1.),log(lut%nu),log(lut%rr),lut%n,3,3))
+        r_nl=exp(find(log(1.),log(lut%nu),log(lut%rr),lut%n,3,3,2))
     END IF
 
     END FUNCTION r_nl
@@ -629,6 +632,30 @@
 
     END SUBROUTINE fill_table
 
+    SUBROUTINE fill_table8(min,max,arr,n)
+
+    !Fills array 'arr' in equally spaced intervals
+    IMPLICIT NONE
+    INTEGER :: i
+    REAL*8, INTENT(IN) :: min, max
+    REAL*8, ALLOCATABLE :: arr(:)
+    INTEGER, INTENT(IN) :: n
+
+    !Allocate the array, and deallocate it if it is full
+    IF(ALLOCATED(arr)) DEALLOCATE(arr)
+    ALLOCATE(arr(n))
+    arr=0.
+
+    IF(n==1) THEN
+        arr(1)=min
+    ELSE IF(n>1) THEN
+        DO i=1,n
+            arr(i)=min+(max-min)*float(i-1)/float(n-1)
+        END DO
+    END IF
+
+    END SUBROUTINE fill_table8
+
     SUBROUTINE fill_plintab(iz,cosm,CAMB_PK)
 
     !Fills internal HMcode HM_tables for the linear power spectrum at z=0
@@ -662,7 +689,7 @@
     ELSE IF(imeth==2) THEN
 
         !Fill a k-table with an equal-log-spaced k range
-        !Note that the minimum should be such that the spectrum is accurately a power-law below this wavenumber
+        !Note that the minimum should be such that the linear spectrum is accurately a power-law below this wavenumber
         kmin=1e-3
         kmax=1e2
         nk=128
@@ -686,7 +713,7 @@
     DO i=1,nk
         !Take the power from the current redshift choice
         cosm%plin(i)=MatterPowerData_k(CAMB_PK,DBLE(cosm%k_plin(i)),iz)*(cosm%k_plin(i)**3/(2.*pi**2))
-        cosm%plinc(i)=cosm%plin(i)*(Tcb_Tcbnu_ratio(cosm%k_plin(i),z,cosm))**2.
+        cosm%plinc(i)=cosm%plin(i)*(Tcb_Tcbnu_ratio(cosm%k_plin(i),z,cosm))**2
     END DO
 
     !Calculate the growth factor at the redshift of interest
@@ -842,34 +869,30 @@
     !Halo-model initialisation routine
     !Computes look-up HM_tables necessary for the halo model calculations
     REAL, INTENT(IN) :: z
-    INTEGER :: i, n
-    REAL :: Dv, dc, f, m, mmin, mmax, nu, r, sig
+    INTEGER :: i
+    REAL :: Dv, dc, f, m, nu, r, sig
     TYPE(HM_cosmology) :: cosm
     TYPE(HM_tables) :: lut
+    REAL, PARAMETER :: mmin=1e0 !Lower mass limit
+    REAL, PARAMETER :: mmax=1e18 !Upper mass limit
+    INTEGER, PARAMETER :: n=256 !Number of entries in look-up HM_tables.
 
     IF(HM_verbose) WRITE(*,*) 'HALOMOD: Filling look-up HM_tables'
     IF(HM_verbose) WRITE(*,*) 'HALOMOD: HM_tables being filled at redshift:', z
 
     !Find value of sigma_v, sig8, etc.
-    lut%sigv=sqrt(dispint(z,cosm))
+
+    lut%sigv=sqrt(dispint(0.,z,cosm)/3.)
     IF(HM_verbose) WRITE(*,*) 'HALOMOD: sigv [Mpc/h]:', lut%sigv
-    lut%sigv100=sigma_v(100.,z,cosm)
+    lut%sigv100=sqrt(dispint(100.,z,cosm)/3.)
     IF(HM_verbose) WRITE(*,*) 'HALOMOD: sigv100 [Mpc/h]:', lut%sigv100
     lut%sig8z=sigma(8.,z,0,cosm)
     IF(HM_verbose) WRITE(*,*) 'HALOMOD: sig8(z):', lut%sig8z
 
     IF(ALLOCATED(lut%rr)) CALL deallocate_LUT(lut)
 
-    !Number of entries in look-up HM_tables. Could be played with to improve speed or accuracy
-    n=256
-
     lut%n=n
     CALL allocate_lut(lut)
-
-    !Sets the mass range for halo model calculation
-    !Default is 1e0 to 1e18, I cannot believe this would ever be insufficient
-    mmin=1.e0
-    mmax=1.e18
 
     IF(HM_verbose) WRITE(*,*) 'HALOMOD: M_min:', mmin
     IF(HM_verbose) WRITE(*,*) 'HALOMOD: M_max:', mmax
@@ -878,6 +901,7 @@
 
     !$OMP PARALLEL DO default(shared), private(m,r,sig,nu)
     DO i=1,n
+       
         m=exp(log(mmin)+log(mmax/mmin)*float(i-1)/float(n-1))
         r=radius_m(m,cosm)
         sig=sigmac(r,z,cosm)
@@ -887,6 +911,7 @@
         lut%rr(i)=r
         lut%sig(i)=sig
         lut%nu(i)=nu
+        
     END DO
     !$OMP END PARALLEL DO
 
@@ -1030,7 +1055,7 @@
     ainf=1./(1.+zinf)
 
     !Needs to use grow_int explicitly here for LCDM model to avoid growth HM_tables
-    g_lcdm=grow_int(ainf,0.001,cos_lcdm)
+    g_lcdm=growint(ainf,cos_lcdm)
 
     pow=1.5
     !This is the Dolag et al. (2004) correction with a 1.5 power rather than 1
@@ -1038,78 +1063,118 @@
 
     END SUBROUTINE conc_bull
 
-    FUNCTION grow_int(b,acc,cosm)
+    FUNCTION growint(a,cosm)
 
-    !Integrates the (very good) approximation for the growth rate (f=\Om^\gamma)
-    !to get the growth function. This only works for wCDM modesls with constant w
-    !but is only used for these models.
-    INTEGER :: i, j, jmax
-    REAL :: grow_int, a, b, acc, dx
-    INTEGER :: nint
-    REAL :: x, fac, func, gam
-    REAL(dl) :: sum1, sum2
-    TYPE(HM_cosmology) :: cosm
+    !Integrates between a and b until desired accuracy is reached
+    !Stores information to reduce function calls
+    IMPLICIT NONE
+    REAL :: growint
+    REAL, INTENT(IN) :: a
+    TYPE(HM_cosmology), INTENT(IN) :: cosm
+    REAL :: b
+    INTEGER :: i, j
+    INTEGER :: n
+    REAL :: x, dx
+    REAL :: f1, f2, fx
+    REAL*8 :: sum_n, sum_2n, sum_new, sum_old
+    INTEGER, PARAMETER :: jmin=5
+    INTEGER, PARAMETER :: jmax=30
+    REAL*8, PARAMETER :: acc=1d-3
+    INTEGER, PARAMETER :: iorder=3
 
-    sum1=0.d0
-    sum2=0.d0
-
-    jmax=20
-
-    a=1.
+    !Integration range for integration parameter
+    !Note a -> 1
+    b=1.d0
 
     IF(a==b) THEN
 
-        grow_int=1.
+       !Fix the answer to zero if the integration limits are identical
+       growint=exp(0.d0)
 
     ELSE
-        DO j=1,jmax
 
-            nint=10*(2**j)
+       !Reset the sum variable for the integration
+       sum_2n=0.d0
 
-            DO i=1,nint
+       DO j=1,jmax
 
-                x=a+(b-a)*((float(i)-1)/(float(nint)-1))
+          !Note, you need this to be 1+2**n for some integer n
+          !j=1 n=2; j=2 n=3; j=3 n=5; j=4 n=9; ...'
+          n=1+2**(j-1)
 
-                IF(i==1 .OR. i==nint) THEN
-                    !multiple of 1 for beginning and end and multiple of 2 for middle points!
-                    fac=1.
-                ELSE
-                    fac=2.
-                END IF
+          !Calculate the dx interval for this value of 'n'
+          dx=(b-a)/REAL(n-1)
 
-                !Growth rate is Omega_m(z)^0.55 to a very good approximation
-                !Some small deivations for wCDM are included
-                !Not calibrated to w(a) models!
-                IF(cosm%w<-1.) THEN
-                    gam=0.55+0.02*(1.+cosm%w)
-                ELSE IF(cosm%w>-1) THEN
-                    gam=0.55+0.05*(1.+cosm%w)
-                ELSE
-                    gam=0.55
-                END IF
+          IF(j==1) THEN
 
-                func=(Omega_m_hm(-1.+1./x,cosm)**gam)/x
+             !The first go is just the trapezium of the end points
+             f1=growint_integrand(a,cosm)
+             f2=growint_integrand(b,cosm)
+             sum_2n=0.5d0*(f1+f2)*dx
 
-                sum2=sum2+fac*func
+          ELSE
 
-            END DO
+             !Loop over only new even points to add these to the integral
+             DO i=2,n,2
+                x=a+(b-a)*REAL(i-1)/REAL(n-1)
+                fx=growint_integrand(x,cosm)
+                sum_2n=sum_2n+fx
+             END DO
 
-            dx=((b-a)/(float(nint)-1.))
-            sum2=sum2*dx/2.
+             !Now create the total using the old and new parts
+             sum_2n=sum_n/2.d0+sum_2n*dx
 
-            IF(j .NE. 1 .AND. ABS(-1.+sum2/sum1)<acc) THEN
-                grow_int=exp(sum2)
-                EXIT
-            ELSE
-                sum1=sum2
-                sum2=0.d0
-            END IF
+             !Now calculate the new sum depending on the integration order
+             IF(iorder==1) THEN  
+                sum_new=sum_2n
+             ELSE IF(iorder==3) THEN         
+                sum_new=(4.d0*sum_2n-sum_n)/3.d0 !This is Simpson's rule and cancels error
+             ELSE
+                STOP 'GROWINT: Error, iorder specified incorrectly'
+             END IF
 
-        END DO
+          END IF
+
+          IF((j>=jmin) .AND. (ABS(-1.d0+sum_new/sum_old)<acc)) THEN
+             !jmin avoids spurious early convergence
+             growint=exp(sum_new)
+             EXIT
+          ELSE IF(j==jmax) THEN
+             STOP 'GROWINT: Integration timed out'
+          ELSE
+             !Integral has not converged so store old sums and reset sum variables
+             sum_old=sum_new
+             sum_n=sum_2n
+             sum_2n=0.d0
+          END IF
+
+       END DO
 
     END IF
 
-    END FUNCTION grow_int
+    END FUNCTION growint
+
+    FUNCTION growint_integrand(a,cosm)
+
+    !Integrand for the approximate growth integral
+    IMPLICIT NONE
+    REAL :: growint_integrand
+    REAL, INTENT(IN) :: a
+    TYPE(HM_cosmology), INTENT(IN) :: cosm
+    REAL :: gam
+
+    IF(cosm%w<-1.) THEN
+       gam=0.55+0.02*(1.+cosm%w)
+    ELSE IF(cosm%w>-1) THEN
+       gam=0.55+0.05*(1.+cosm%w)
+    ELSE
+       gam=0.55
+    END IF
+
+    !Note the minus sign here
+    growint_integrand=-(Omega_m_hm(-1.+1./a,cosm)**gam)/a
+
+  END FUNCTION growint_integrand
 
     SUBROUTINE zcoll_bull(z,cosm,lut)
 
@@ -1130,7 +1195,7 @@
 
     !Find the growth function at the current redshift
     a=1./(1.+z)
-    growz=find(a,cosm%a_growth,cosm%growth,cosm%ng,3,3)
+    growz=find(a,cosm%a_growth,cosm%growth,cosm%ng,3,3,2)
 
     !Do numerical inversion
     DO i=1,lut%n
@@ -1142,7 +1207,7 @@
             !in this case set formation redshift to current redshift
             zf=z
         ELSE
-            af=find(RHS,cosm%growth,cosm%a_growth,cosm%ng,3,3)
+            af=find(RHS,cosm%growth,cosm%a_growth,cosm%ng,3,3,2)
             zf=-1.+1./af
         END IF
 
@@ -1203,9 +1268,9 @@
     ELSE
         !Otherwise use the standard find algorithm
         IF(itype==0) THEN
-            find_pk=exp(find(log(k),log(cosm%k_plin),log(cosm%plin),cosm%nk,3,3))
+            find_pk=exp(find(log(k),log(cosm%k_plin),log(cosm%plin),cosm%nk,3,3,2))
         ELSE IF(itype==1) THEN
-            find_pk=exp(find(log(k),log(cosm%k_plin),log(cosm%plinc),cosm%nk,3,3))
+            find_pk=exp(find(log(k),log(cosm%k_plin),log(cosm%plinc),cosm%nk,3,3,2))
         END IF
     END IF
 
@@ -1315,11 +1380,12 @@
     SUBROUTINE fill_sigtab(cosm)
 
     !Fills look-up HM_tables for sigma(R)
-    REAL :: rmin, rmax
     REAL :: r, sig
-    INTEGER :: i
-    INTEGER, PARAMETER :: nsig=64
+    INTEGER :: i    
     TYPE(HM_cosmology) :: cosm
+    REAL, PARAMETER :: rmin=1e-4
+    REAL, PARAMETER :: rmax=1e3
+    INTEGER, PARAMETER :: nsig=64
 
     !This fills up HM_tables of r vs. sigma(r) across a range in r!
     !It is used only in look-up for further calculations of sigmac(r) and not otherwise!
@@ -1334,8 +1400,6 @@
 
     !These values of 'r' work fine for any power spectrum of cosmological importance
     !Having nsig as a 2** number is most efficient for the look-up routines
-    rmin=1e-4
-    rmax=1e3
     cosm%nsig=nsig
     ALLOCATE(cosm%r_sigma(nsig),cosm%sigma(nsig))
 
@@ -1365,72 +1429,6 @@
 
     END SUBROUTINE fill_sigtab
 
-    FUNCTION sigma_v(R,z,cosm)
-
-    !Calcuates the RMS in the displacement field at scale R
-    REAL :: sigma_v
-    REAL, INTENT(IN) :: z, R
-    REAL(dl) :: sum
-    REAL :: alpha
-    REAL :: dtheta, k, theta, oldsum, acc
-    REAL, PARAMETER :: pi=3.141592654
-    INTEGER :: i, j, n, ninit, jmax
-    TYPE(HM_cosmology), INTENT(IN) :: cosm
-
-    acc=0.001
-    ninit=100
-    jmax=30
-
-    !Rapidising integral
-    alpha=1.65
-
-    DO j=1,jmax
-        n=ninit*(2**(j-1))
-
-        sum=0.d0
-        dtheta=1./float(n)
-
-        DO i=2,n-1
-
-            !theta converts integral to 0->1 range
-            !Values at the end points are 0 so removed for convenience
-
-            theta=float(i-1)/float(n-1)
-            k=(-1.+1./theta)/r**alpha
-            sum=sum+p_lin(k,z,0,cosm)*(wk_tophat(k*r)**2.)/((k**2.)*theta*(1.-theta))
-
-        END DO
-
-        sum=sum*dtheta
-
-        IF(j>1 .AND. ABS(-1.+sum/oldsum)<acc) THEN
-            !Convert from sigma_v^2 and to 1D dispersion
-            sigma_v=sqrt(sum/3.)
-            EXIT
-        ELSE
-            oldsum=sum
-        END IF
-
-    END DO
-
-    END FUNCTION sigma_v
-
-    FUNCTION sigma(r,z,itype,cosm)
-
-    !Chooses how best to do the sigma(R) integral depending on the R value
-    REAL :: sigma
-    REAL, INTENT(IN) :: r, z
-    INTEGER, INTENT(IN) :: itype
-    TYPE(HM_cosmology), INTENT(IN) :: cosm
-
-    IF(r>=1.e-2) THEN
-        sigma=sigint0(r,z,itype,cosm)
-    ELSE IF(r<1.e-2) THEN
-        sigma=sqrt(sigint1(r,z,itype,cosm)+sigint2(r,z,itype,cosm))
-    END IF
-
-    END FUNCTION sigma
-
     FUNCTION sigmac(r,z,cosm)
 
     !Finds sigma_cold(R) from look-up table
@@ -1441,7 +1439,7 @@
     !Assumes scale-independet growth for the cold matter
     !Uses the approximation sigma(R,z)=g(z)*sigma(R,z=0)
 
-    sigmac=grow(z,cosm)*exp(find(log(r),log(cosm%r_sigma),log(cosm%sigma),cosm%nsig,3,3))
+    sigmac=grow(z,cosm)*exp(find(log(r),log(cosm%r_sigma),log(cosm%sigma),cosm%nsig,3,3,2))
 
     END FUNCTION sigmac
 
@@ -1579,236 +1577,389 @@
 
     END FUNCTION inttab
 
-    FUNCTION sigma_integrand(t,R,f,z,itype,cosm)
+    FUNCTION sigma(r,z,itype,cosm)
 
-    !The integrand for the sigma(R) intergal
-    REAL :: sigma_integrand
-    REAL, INTENT(IN) :: t, R, z
-    REAL :: k, y, w_hat
-    TYPE(HM_cosmology), INTENT(IN) :: cosm
+    !Gets sigma(R)
+    IMPLICIT NONE
+    REAL :: sigma
+    REAL, INTENT(IN) :: r, z
     INTEGER, INTENT(IN) :: itype
+    TYPE(HM_cosmology), INTENT(IN) :: cosm
+    REAL, PARAMETER :: acc=1d-3
+    INTEGER, PARAMETER :: iorder=3
+    REAL, PARAMETER :: rsplit=1d-2
 
-    INTERFACE
-    REAL FUNCTION f(x)
-    REAL, INTENT(IN) :: x
-    END FUNCTION f
-    END INTERFACE
-
-    !Integrand to the sigma integral in terms of t. Defined by k=(1/t-1)/f(R) where f(R) is *any* function
-
-    IF(t==0.) THEN
-        !t=0 corresponds to k=infintiy when W(kR)=0.
-        sigma_integrand=0.
-    ELSE IF(t==1.) THEN
-        !t=1 corresponds to k=0. when P(k)=0.
-        sigma_integrand=0.
+    IF(r>=rsplit) THEN
+       sigma=sqrt(sigint0(r,z,itype,cosm,acc,iorder))
+    ELSE IF(r<rsplit) THEN
+       sigma=sqrt(sigint1(r,z,itype,cosm,acc,iorder)+sigint2(r,z,itype,cosm,acc,iorder))
     ELSE
-        !f(R) can be *any* function of R here to improve integration speed
-        k=(-1.+1./t)/f(R)
-        y=k*R
-        w_hat=wk_tophat(y)
-        sigma_integrand=p_lin(k,z,itype,cosm)*(w_hat**2.)/(t*(1.-t))
+       STOP 'SIGMA: Error, something went wrong'
+    END IF
+
+    END FUNCTION sigma
+
+    FUNCTION sigma_integrand(k,R,z,itype,cosm)
+
+    !The integrand for the sigma(R) integrals
+    IMPLICIT NONE
+    REAL :: sigma_integrand
+    REAL, INTENT(IN) :: k, R, z
+    INTEGER, INTENT(IN) :: itype
+    TYPE(HM_cosmology), INTENT(IN) :: cosm
+    REAL :: y, w_hat
+
+    IF(k==0.d0) THEN
+       sigma_integrand=0.d0
+    ELSE
+       y=k*R
+       w_hat=wk_tophat(y)
+       sigma_integrand=p_lin(k,z,itype,cosm)*(w_hat**2)/k
     END IF
 
     END FUNCTION sigma_integrand
 
-    FUNCTION f_rapid(r)
+    FUNCTION sigma_integrand_transformed(t,R,f,z,itype,cosm)
 
-    !Rapidizing function for the sigma(R) integrals
-    REAL :: f_rapid
-    REAL, INTENT(IN) :: r
-    REAL :: alpha
+    !The integrand for the sigma(R) integrals
+    IMPLICIT NONE
+    REAL :: sigma_integrand_transformed
+    REAL, INTENT(IN) :: t, R, z
+    INTEGER, INTENT(IN) :: itype
+    TYPE(HM_cosmology), INTENT(IN) :: cosm
+    REAL :: k, y, w_hat   
 
-    !This is the 'rapidising' function to increase integration speed
-    !for sigma(R). Found by trial-and-error
+    INTERFACE
+       FUNCTION f(x)
+         REAL :: f
+         REAL, INTENT(IN) :: x
+       END FUNCTION f
+    END INTERFACE
 
-    IF(r>1.e-2) THEN
-        !alpha 0.3-0.5 works well
-        alpha=0.5
+    !Integrand to the sigma integral in terms of t. Defined by k=(1/t-1)/f(R) where f(R) is *any* function
+
+    IF(t==0.d0) THEN
+       !t=0 corresponds to k=infintiy when W(kR)=0.
+       sigma_integrand_transformed=0.d0
+    ELSE IF(t==1.d0) THEN
+       !t=1 corresponds to k=0. when P(k)=0.
+       sigma_integrand_transformed=0.d0
     ELSE
-        !alpha 0.7-0.9 works well
-        alpha=0.8
+       !f(R) can be *any* function of R here to improve integration speed
+       k=(-1.d0+1.d0/t)/f(R)
+       y=k*R
+       w_hat=wk_tophat(y)
+       sigma_integrand_transformed=p_lin(k,z,itype,cosm)*(w_hat**2)/(t*(1.d0-t))
     END IF
 
-    f_rapid=r**alpha
+    END FUNCTION sigma_integrand_transformed
 
-    END FUNCTION f_rapid
+    FUNCTION sigint0(r,z,itype,cosm,acc,iorder)
 
-    FUNCTION sigint0(r,z,itype,cosm)
-
-    !One form of the sigma(R) integral
+    !Integrates between a and b until desired accuracy is reached
+    !Stores information to reduce function calls
+    IMPLICIT NONE
+    REAL :: sigint0
     REAL, INTENT(IN) :: r, z
-    INTEGER :: i, j, jmax
-    REAL :: sigint0, acc, dx
-    INTEGER :: ninit, n
-    REAL :: x
-    REAL(dl) :: sum1, sum2
-    TYPE(HM_cosmology), INTENT(IN) :: cosm
     INTEGER, INTENT(IN) :: itype
+    TYPE(HM_cosmology), INTENT(IN) :: cosm
+    REAL, INTENT(IN) :: acc
+    INTEGER, INTENT(IN) :: iorder
+    INTEGER :: i, j
+    INTEGER :: n
+    REAL :: x, dx
+    REAL :: f1, f2, fx
+    REAL*8 :: sum_n, sum_2n, sum_new, sum_old
+    INTEGER, PARAMETER :: jmin=5
+    INTEGER, PARAMETER :: jmax=30
+    REAL, PARAMETER :: a=0.d0 !Integration lower limit (corresponts to k=inf)
+    REAL, PARAMETER :: b=1.d0 !Integration upper limit (corresponds to k=0)
 
-    acc=0.001
+    IF(a==b) THEN
 
-    sum1=0.d0
-    sum2=0.d0
+       !Fix the answer to zero if the integration limits are identical
+       sigint0=0.d0
 
-    ninit=50
-    jmax=20
+    ELSE
 
-    DO j=1,jmax
-        n=ninit*2**(j-1)
+       !Reset the sum variable for the integration
+       sum_2n=0.d0
 
-        !Avoids the end-points where the integrand is 0 anyway
-        DO i=2,n-1
+       DO j=1,jmax
 
-            !x is defined on the interval 0 -> 1
-            x=float(i-1)/float(n-1)
-            sum2=sum2+sigma_integrand(x,r,f_rapid,z,itype,cosm)
+          !Note, you need this to be 1+2**n for some integer n
+          !j=1 n=2; j=2 n=3; j=3 n=5; j=4 n=9; ...'
+          n=1+2**(j-1)
 
-        END DO
+          !Calculate the dx interval for this value of 'n'
+          dx=(b-a)/REAL(n-1)
 
-        dx=1./float(n-1)
-        sum2=sum2*dx
-        sum2=sqrt(sum2)
+          IF(j==1) THEN
 
-        IF(j==1) THEN
-            sum1=sum2
-        ELSE IF(ABS(-1.+sum2/sum1)<acc) THEN
-            sigint0=sum2
-            EXIT
-        ELSE IF(j==jmax) THEN
-            WRITE(*,*)
-            WRITE(*,*) 'SIGINT0: r:', r
-            ERROR STOP 'SIGINT0: Integration timed out'
-        ELSE
-            sum1=sum2
-            sum2=0.d0
-        END IF
-    END DO
+             !The first go is just the trapezium of the end points
+             f1=sigma_integrand_transformed(a,r,f0_rapid,z,itype,cosm)
+             f2=sigma_integrand_transformed(b,r,f0_rapid,z,itype,cosm)
+             sum_2n=0.5d0*(f1+f2)*dx
+
+          ELSE
+
+             !Loop over only new even points to add these to the integral
+             DO i=2,n,2
+                x=a+(b-a)*REAL(i-1)/REAL(n-1)
+                fx=sigma_integrand_transformed(x,r,f0_rapid,z,itype,cosm)
+                sum_2n=sum_2n+fx
+             END DO
+
+             !Now create the total using the old and new parts
+             sum_2n=sum_n/2.d0+sum_2n*dx
+
+             !Now calculate the new sum depending on the integration order
+             IF(iorder==1) THEN  
+                sum_new=sum_2n
+             ELSE IF(iorder==3) THEN         
+                sum_new=(4.d0*sum_2n-sum_n)/3.d0 !This is Simpson's rule and cancels error
+             ELSE
+                STOP 'SIGINT0: Error, iorder specified incorrectly'
+             END IF
+
+          END IF
+
+          IF((j>=jmin) .AND. (ABS(-1.d0+sum_new/sum_old)<acc)) THEN
+             !jmin avoids spurious early convergence
+             sigint0=REAL(sum_new)
+             EXIT
+          ELSE IF(j==jmax) THEN
+             STOP 'SIGINT0: Integration timed out'
+          ELSE
+             !Integral has not converged so store old sums and reset sum variables
+             sum_old=sum_new
+             sum_n=sum_2n
+             sum_2n=0.d0
+          END IF
+
+       END DO
+
+    END IF
 
     END FUNCTION sigint0
 
-    FUNCTION sigint1(r,z,itype,cosm)
+    FUNCTION f0_rapid(r)
 
-    !One form of the sigma(R) integral
+    !This is the 'rapidising' function to increase integration speed
+    !for sigma(R). Found by trial-and-error
+    IMPLICIT NONE
+    REAL :: f0_rapid
+    REAL, INTENT(IN) :: r
+    REAL :: alpha
+    REAL, PARAMETER :: rsplit=1d-2
+
+    IF(r>rsplit) THEN
+       !alpha 0.3-0.5 works well
+       alpha=0.5d0
+    ELSE
+       !If alpha=1 this goes tits up
+       !alpha 0.7-0.9 works well
+       alpha=0.8d0
+    END IF
+
+    f0_rapid=r**alpha
+
+    END FUNCTION f0_rapid
+
+    FUNCTION sigint1(r,z,itype,cosm,acc,iorder)
+
+    !Integrates between a and b until desired accuracy is reached
+    !Stores information to reduce function calls
+    IMPLICIT NONE
+    REAL :: sigint1
     REAL, INTENT(IN) :: r, z
-    INTEGER :: i, j, jmax
-    REAL :: sigint1, acc, dx
-    INTEGER :: ninit, n
-    REAL :: x, fac, xmin, xmax, k
-    REAL(dl) :: sum1, sum2
-    TYPE(HM_cosmology), INTENT(IN) :: cosm
     INTEGER, INTENT(IN) :: itype
+    TYPE(HM_cosmology), INTENT(IN) :: cosm
+    REAL, INTENT(IN) :: acc
+    INTEGER, INTENT(IN) :: iorder
+    REAL :: a, b
+    INTEGER :: i, j
+    INTEGER :: n
+    REAL :: x, dx
+    REAL :: f1, f2, fx
+    REAL*8 :: sum_n, sum_2n, sum_new, sum_old
+    INTEGER, PARAMETER :: jmin=5
+    INTEGER, PARAMETER :: jmax=30
 
-    acc=0.001
+    a=r/(r+r**.5d0)
+    b=1.d0
 
-    sum1=0.d0
-    sum2=0.d0
+    IF(a==b) THEN
 
-    ninit=50
-    jmax=20
+       !Fix the answer to zero if the integration limits are identical
+       sigint1=0.d0
 
-    xmin=r/(r+r**.5)
-    xmax=1.
+    ELSE
 
-    DO j=1,jmax
+       !Reset the sum variable for the integration
+       sum_2n=0.d0
 
-        n=ninit*2**(j-1)
+       DO j=1,jmax
 
-        !Avoids the end-point where the integrand is 0 anyway
-        DO i=1,n-1
-            x=xmin+(xmax-xmin)*float(i-1)/float(n-1)
+          !Note, you need this to be 1+2**n for some integer n
+          !j=1 n=2; j=2 n=3; j=3 n=5; j=4 n=9; ...'
+          n=1+2**(j-1)
 
-            IF(i==1 .OR. i==n) THEN
-                fac=0.5
-            ELSE
-                fac=1.
-            END IF
+          !Calculate the dx interval for this value of 'n'
+          dx=(b-a)/REAL(n-1)
 
-            k=(-1.+1./x)/r**.5
-            sum2=sum2+fac*p_lin(k,z,itype,cosm)*(wk_tophat(k*r)**2.)/(x*(1.-x))
+          IF(j==1) THEN
 
-        END DO
+             !The first go is just the trapezium of the end points
+             f1=sigma_integrand_transformed(a,r,f1_rapid,z,itype,cosm)
+             f2=sigma_integrand_transformed(b,r,f1_rapid,z,itype,cosm)
+             sum_2n=0.5d0*(f1+f2)*dx
 
-        dx=(xmax-xmin)/float(n-1)
-        sum2=sum2*dx
+          ELSE
 
-        IF(j .NE. 1 .AND. ABS(-1.+sum2/sum1)<acc) THEN
-            sigint1=sum2
-            EXIT
-        ELSE IF(j==jmax) THEN
-            WRITE(*,*)
-            WRITE(*,*) 'SIGINT1: r:', r
-            ERROR STOP 'SIGINT1: Integration timed out'
-        ELSE
-            sum1=sum2
-            sum2=0.d0
-        END IF
+             !Loop over only new even points to add these to the integral
+             DO i=2,n,2
+                x=a+(b-a)*REAL(i-1)/REAL(n-1)
+                fx=sigma_integrand_transformed(x,r,f1_rapid,z,itype,cosm)
+                sum_2n=sum_2n+fx
+             END DO
 
-    END DO
+             !Now create the total using the old and new parts
+             sum_2n=sum_n/2.d0+sum_2n*dx
+
+             !Now calculate the new sum depending on the integration order
+             IF(iorder==1) THEN  
+                sum_new=REAL(sum_2n)
+             ELSE IF(iorder==3) THEN         
+                sum_new=(4.d0*sum_2n-sum_n)/3.d0 !This is Simpson's rule and cancels error
+             ELSE
+                STOP 'SIGINT1: Error, iorder specified incorrectly'
+             END IF
+
+          END IF
+
+          IF((j>=jmin) .AND. (ABS(-1.d0+sum_new/sum_old)<acc)) THEN
+             !jmin avoids spurious early convergence
+             sigint1=REAL(sum_new)
+             EXIT
+          ELSE IF(j==jmax) THEN
+             STOP 'SIGINT1: Integration timed out'
+          ELSE
+             !Integral has not converged so store old sums and reset sum variables
+             sum_old=sum_new
+             sum_n=sum_2n
+             sum_2n=0.d0
+          END IF
+
+       END DO
+
+    END IF
 
     END FUNCTION sigint1
 
-    FUNCTION sigint2(r,z,itype,cosm)
+    FUNCTION f1_rapid(r)
 
-    !One form of the sigma(R) integral
+    !This is the 'rapidising' function to increase integration speed
+    !for sigma(R). Found by trial-and-error
+    IMPLICIT NONE
+    REAL :: f1_rapid
+    REAL, INTENT(IN) :: r
+    REAL, PARAMETER :: alpha=0.5d0
+
+    f1_rapid=r**alpha
+
+    END FUNCTION f1_rapid
+
+    FUNCTION sigint2(r,z,itype,cosm,acc,iorder)
+
+    !Integrates between a and b until desired accuracy is reached
+    !Stores information to reduce function calls
+    IMPLICIT NONE
+    REAL :: sigint2
     REAL, INTENT(IN) :: r, z
-    INTEGER :: i, j, jmax
-    REAL :: sigint2, acc, dx
-    INTEGER :: ninit, n
-    REAL :: x, fac, xmin, xmax, A
-    REAL(dl) :: sum1, sum2
-    TYPE(HM_cosmology), INTENT(IN) :: cosm
     INTEGER, INTENT(IN) :: itype
+    TYPE(HM_cosmology), INTENT(IN) :: cosm
+    REAL, INTENT(IN) :: acc
+    INTEGER, INTENT(IN) :: iorder
+    REAL :: a, b
+    INTEGER :: i, j
+    INTEGER :: n
+    REAL :: x, dx
+    REAL :: f1, f2, fx
+    REAL*8 :: sum_n, sum_2n, sum_new, sum_old
+    INTEGER, PARAMETER :: jmin=5
+    INTEGER, PARAMETER :: jmax=30
+    REAL, PARAMETER :: C=10.d0 !How far to go out in 1/r units for integral
 
-    acc=0.001
+    a=1.d0/r
+    b=C/r
 
-    sum1=0.d0
-    sum2=0.d0
+    IF(a==b) THEN
 
-    ninit=50
-    jmax=20
+       !Fix the answer to zero if the integration limits are identical
+       sigint2=0.d0
 
-    !How far to go out in 1/r units for integral
-    A=10.
+    ELSE
 
-    xmin=1./r
-    xmax=A/r
+       !Reset the sum variable for the integration
+       sum_2n=0.d0
 
-    DO j=1,jmax
+       DO j=1,jmax
 
-        n=ninit*2**(j-1)
+          !Note, you need this to be 1+2**n for some integer n
+          !j=1 n=2; j=2 n=3; j=3 n=5; j=4 n=9; ...'
+          n=1+2**(j-1)
 
-        DO i=1,n
+          !Calculate the dx interval for this value of 'n'
+          dx=(b-a)/REAL(n-1)
 
-            x=xmin+(xmax-xmin)*float(i-1)/float(n-1)
+          IF(j==1) THEN
 
-            IF(i==1 .OR. i==n) THEN
-                fac=0.5
-            ELSE
-                fac=1.
-            END IF
+             !The first go is just the trapezium of the end points
+             f1=sigma_integrand(a,r,z,itype,cosm)
+             f2=sigma_integrand(b,r,z,itype,cosm)
+             sum_2n=0.5d0*(f1+f2)*dx
 
-            !Integrate linearly in k for the rapidly oscillating part
-            sum2=sum2+fac*p_lin(x,z,itype,cosm)*(wk_tophat(x*r)**2.)/x
+          ELSE
 
-        END DO
+             !Loop over only new even points to add these to the integral
+             DO i=2,n,2
+                x=a+(b-a)*REAL(i-1)/REAL(n-1)
+                fx=sigma_integrand(x,r,z,itype,cosm)
+                sum_2n=sum_2n+fx
+             END DO
 
-        dx=(xmax-xmin)/float(n-1)
-        sum2=sum2*dx
+             !Now create the total using the old and new parts
+             sum_2n=sum_n/2.d0+sum_2n*dx
 
-        IF(j .NE. 1 .AND. ABS(-1.+sum2/sum1)<acc) THEN
-            sigint2=sum2
-            EXIT
-        ELSE IF(j==jmax) THEN
-            WRITE(*,*)
-            WRITE(*,*) 'SIGINT2: r:', r
-            ERROR STOP 'SIGINT2: Integration timed out'
-        ELSE
-            sum1=sum2
-            sum2=0.d0
-        END IF
+             !Now calculate the new sum depending on the integration order
+             IF(iorder==1) THEN  
+                sum_new=sum_2n
+             ELSE IF(iorder==3) THEN         
+                sum_new=(4.d0*sum_2n-sum_n)/3.d0 !This is Simpson's rule and cancels error
+             ELSE
+                STOP 'SIGINT2: Error, iorder specified incorrectly'
+             END IF
 
-    END DO
+          END IF
+
+          IF((j>=jmin) .AND. (ABS(-1.d0+sum_new/sum_old)<acc)) THEN
+             !jmin avoids spurious early convergence
+             sigint2=REAL(sum_new)
+             !WRITE(*,*) 'INTEGRATE_STORE: Nint:', n
+             EXIT
+          ELSE IF(j==jmax) THEN
+             STOP 'SIGINT2: Integration timed out'
+          ELSE
+             !Integral has not converged so store old sums and reset sum variables
+             sum_old=sum_new
+             sum_n=sum_2n
+             sum_2n=0.d0
+          END IF
+
+       END DO
+
+    END IF
 
     END FUNCTION sigint2
 
@@ -1965,58 +2116,132 @@
         grow=1.
     ELSE
         a=1./(1.+z)
-        grow=find(a,cosm%a_growth,cosm%growth,cosm%ng,3,3)
+        grow=find(a,cosm%a_growth,cosm%growth,cosm%ng,3,3,2)
     END IF
 
     END FUNCTION grow
 
-    FUNCTION dispint(z,cosm)
+    FUNCTION dispint(R,z,cosm)
 
-    !Calculates the variance in the displacement field over all scales
-    !This converges, unlike the same quantiy for the density field
+    !Integrates between a and b until desired accuracy is reached
+    !Stores information to reduce function calls
+    IMPLICIT NONE
     REAL :: dispint
-    REAL, INTENT(IN) :: z
-    REAL(dl) :: sum
-    REAL :: dtheta, k, theta, oldsum, acc
-    REAL, PARAMETER :: pi=3.141592654
-    INTEGER :: i, j, n, ninit, jmax
+    REAL, INTENT(IN) :: z, R
     TYPE(HM_cosmology), INTENT(IN) :: cosm
+    REAL :: a, b
+    INTEGER :: i, j
+    INTEGER :: n
+    REAL :: x, dx
+    REAL :: f1, f2, fx
+    REAL*8 :: sum_n, sum_2n, sum_new, sum_old
+    INTEGER, PARAMETER :: jmin=5
+    INTEGER, PARAMETER :: jmax=30
+    REAL, PARAMETER :: acc=1d-3
+    INTEGER, PARAMETER :: iorder=3   
 
-    acc=0.001
-    ninit=100
-    jmax=30
+    !Integration range for integration parameter
+    !Note 0 -> infinity in k has changed to 0 -> 1 in x
+    a=0.d0
+    b=1.d0
 
-    DO j=1,jmax
+    IF(a==b) THEN
 
-        n=ninit*(2**(j-1))
+       !Fix the answer to zero if the integration limits are identical
+       dispint=0.
 
-        sum=0.d0
-        dtheta=1./float(n)
+    ELSE
 
-        DO i=2,n-1
+       !Reset the sum variable for the integration
+       sum_2n=0.d0
 
-            !theta converts integral to 0->1 range
-            !Values at the end points are 0 so removed for convenience
-            theta=float(i-1)/float(n-1)
-            k=(-1.+1./theta)
-            sum=sum+((1.+k)**2.)*p_lin(k,z,0,cosm)/(k**3.)
+       DO j=1,jmax
 
-        END DO
+          !Note, you need this to be 1+2**n for some integer n
+          !j=1 n=2; j=2 n=3; j=3 n=5; j=4 n=9; ...'
+          n=1+2**(j-1)
 
-        sum=sum*dtheta
+          !Calculate the dx interval for this value of 'n'
+          dx=(b-a)/REAL(n-1)
 
-        IF(j>1 .AND. ABS(-1.+sum/oldsum)<acc) THEN
-            !Division by 3 because we are interested in 1D, not 3D
-            dispint=sum/3.
-            EXIT
-        ELSE
-            oldsum=sum
-        END IF
+          IF(j==1) THEN
 
-    END DO
+             !The first go is just the trapezium of the end points
+             f1=dispint_integrand(a,R,z,cosm)
+             f2=dispint_integrand(b,R,z,cosm)
+             sum_2n=0.5d0*(f1+f2)*dx
+
+          ELSE
+
+             !Loop over only new even points to add these to the integral
+             DO i=2,n,2
+                x=a+(b-a)*REAL(i-1)/REAL(n-1)
+                fx=dispint_integrand(x,R,z,cosm)
+                sum_2n=sum_2n+fx
+             END DO
+
+             !Now create the total using the old and new parts
+             sum_2n=sum_n/2.d0+sum_2n*dx
+
+             !Now calculate the new sum depending on the integration order
+             IF(iorder==1) THEN  
+                sum_new=sum_2n
+             ELSE IF(iorder==3) THEN         
+                sum_new=(4.d0*sum_2n-sum_n)/3.d0 !This is Simpson's rule and cancels error
+             ELSE
+                STOP 'DISPINT: Error, iorder specified incorrectly'
+             END IF
+
+          END IF
+
+          IF((j>=jmin) .AND. (ABS(-1.d0+sum_new/sum_old)<acc)) THEN
+             !jmin avoids spurious early convergence
+             dispint=REAL(sum_new)
+             EXIT
+          ELSE IF(j==jmax) THEN
+             STOP 'DISPINT: Integration timed out'
+          ELSE
+             !Integral has not converged so store old sums and reset sum variables
+             sum_old=sum_new
+             sum_n=sum_2n
+             sum_2n=0.d0
+          END IF
+
+       END DO
+
+    END IF
 
     END FUNCTION dispint
 
+    FUNCTION dispint_integrand(theta,R,z,cosm)
+
+    !This is the integrand for the velocity dispersion integral
+    IMPLICIT NONE
+    REAL :: dispint_integrand
+    REAL, INTENT(IN) :: theta, z, R
+    TYPE(HM_cosmology), INTENT(IN) :: cosm
+    REAL :: k
+    REAL, PARAMETER :: alpha=1.65 !Speeds up integral for large 'R'
+    REAL, PARAMETER :: Rsplit=10. !Value to impliment speed up
+
+    !Note that I have not included the speed up alpha and Rsplit
+    !The choice of alpha=1.65 seemed to work well for R=100.
+    !Rsplit=10 is thoughlessly chosen (only because 100.>10.)
+    !Including this seems to make things slower (faster integration but slower IF statements?)
+
+    IF(theta==0. .OR. theta==1.) THEN
+       dispint_integrand=0.
+    ELSE
+       !IF(r>Rsplit) THEN
+       !   k=(-1.d0+1.d0/theta)/r**alpha
+       !ELSE
+       k=(-1.+1./theta)
+       !END IF
+       dispint_integrand=(p_lin(k,z,0,cosm)/k**2)*(wk_tophat(k*r)**2)/(theta*(1.-theta))
+    END IF
+
+    END FUNCTION dispint_integrand
+    
     FUNCTION Si(x)
 
     !Calculates the 'sine integral' function Si(x)
@@ -2300,9 +2525,10 @@
 
     END FUNCTION derivative_table
 
-    FUNCTION find(x,xin,yin,n,iorder,imeth)
+    FUNCTION find(x,xin,yin,n,iorder,ifind,imeth)
 
-    !Interpolates to find y(x) at x
+    !Given two arrays x and y this routine interpolates to find the y_i value at position x_i
+    IMPLICIT NONE
     REAL :: find
     INTEGER, INTENT(IN) :: n
     REAL, INTENT(IN) :: x, xin(n), yin(n)
@@ -2311,8 +2537,7 @@
     REAL :: x1, x2, x3, x4
     REAL :: y1, y2, y3, y4
     INTEGER :: i
-    INTEGER, INTENT(IN) :: imeth, iorder
-    INTEGER :: maxorder, maxmethod
+    INTEGER, INTENT(IN) :: iorder, ifind, imeth
 
     !This version interpolates if the value is off either end of the array!
     !Care should be chosen to insert x, xtab, ytab as log if this might give better!
@@ -2320,13 +2545,16 @@
 
     !If the value required is off the table edge the interpolation is always linear
 
-    !imeth = 1 => find x in xtab by crudely searching from x(1) to x(n)
-    !imeth = 2 => find x in xtab quickly assuming the table is linearly spaced
-    !imeth = 3 => find x in xtab using midpoint splitting (iterations=CEILING(log2(n)))
-
     !iorder = 1 => linear interpolation
     !iorder = 2 => quadratic interpolation
     !iorder = 3 => cubic interpolation
+
+    !ifind = 1 => find x in xtab quickly assuming the table is linearly spaced
+    !ifind = 2 => find x in xtab by crudely searching from x(1) to x(n)
+    !ifind = 3 => find x in xtab using midpoint splitting (iterations=CEILING(log2(n)))
+
+    !imeth = 1 => Uses cubic polynomials for interpolation
+    !imeth = 2 => Uses Lagrange polynomials for interpolation
 
     ALLOCATE(xtab(n),ytab(n))
 
@@ -2334,180 +2562,212 @@
     ytab=yin
 
     IF(xtab(1)>xtab(n)) THEN
-        !Reverse the arrays in this case
-        CALL reverse(xtab,n)
-        CALL reverse(ytab,n)
+       !Reverse the arrays in this case
+       CALL reverse(xtab,n)
+       CALL reverse(ytab,n)
     END IF
 
     IF(x<xtab(1)) THEN
 
-        !Do a linear interpolation beyond the table boundary
+       !Do a linear interpolation beyond the table boundary
 
-        x1=xtab(1)
-        x2=xtab(2)
+       x1=xtab(1)
+       x2=xtab(2)
 
-        y1=ytab(1)
-        y2=ytab(2)
+       y1=ytab(1)
+       y2=ytab(2)
 
-        CALL fit_line(a,b,x1,y1,x2,y2)
-        find=a*x+b
-
+       IF(imeth==1) THEN
+          CALL fit_line(a,b,x1,y1,x2,y2)
+          find=a*x+b
+       ELSE IF(imeth==2) THEN
+          find=Lagrange_polynomial(x,1,(/x1,x2/),(/y1,y2/))
+       ELSE
+          STOP 'FIND: Error, method not specified correctly'
+       END IF
+       
     ELSE IF(x>xtab(n)) THEN
 
-        !Do a linear interpolation beyond the table boundary
+       !Do a linear interpolation beyond the table boundary
+       
+       x1=xtab(n-1)
+       x2=xtab(n)
 
-        x1=xtab(n-1)
-        x2=xtab(n)
+       y1=ytab(n-1)
+       y2=ytab(n)
 
-        y1=ytab(n-1)
-        y2=ytab(n)
-
-        CALL fit_line(a,b,x1,y1,x2,y2)
-        find=a*x+b
+       IF(imeth==1) THEN
+          CALL fit_line(a,b,x1,y1,x2,y2)
+          find=a*x+b
+       ELSE IF(imeth==2) THEN
+          find=Lagrange_polynomial(x,1,(/x1,x2/),(/y1,y2/))
+       ELSE
+          STOP 'FIND: Error, method not specified correctly'
+       END IF
 
     ELSE IF(iorder==1) THEN
 
-        IF(n<2) ERROR STOP 'FIND: Not enough points in your table for linear interpolation'
+       IF(n<2) STOP 'FIND: Not enough points in your table for linear interpolation'
 
-        IF(x<=xtab(2)) THEN
+       IF(x<=xtab(2)) THEN
 
-            x1=xtab(1)
-            x2=xtab(2)
+          x1=xtab(1)
+          x2=xtab(2)
 
-            y1=ytab(1)
-            y2=ytab(2)
+          y1=ytab(1)
+          y2=ytab(2)
 
-        ELSE IF (x>=xtab(n-1)) THEN
+       ELSE IF (x>=xtab(n-1)) THEN
 
-            x1=xtab(n-1)
-            x2=xtab(n)
+          x1=xtab(n-1)
+          x2=xtab(n)
 
-            y1=ytab(n-1)
-            y2=ytab(n)
+          y1=ytab(n-1)
+          y2=ytab(n)
 
-        ELSE
+       ELSE
 
-            i=table_integer(x,xtab,n,imeth)
+          i=table_integer(x,xtab,n,ifind)
+          
+          x1=xtab(i)
+          x2=xtab(i+1)
 
-            x1=xtab(i)
-            x2=xtab(i+1)
+          y1=ytab(i)
+          y2=ytab(i+1)
 
-            y1=ytab(i)
-            y2=ytab(i+1)
+       END IF
 
-        END IF
-
-        CALL fit_line(a,b,x1,y1,x2,y2)
-        find=a*x+b
+       IF(imeth==1) THEN
+          CALL fit_line(a,b,x1,y1,x2,y2)
+          find=a*x+b
+       ELSE IF(imeth==2) THEN
+          find=Lagrange_polynomial(x,1,(/x1,x2/),(/y1,y2/))
+       ELSE
+          STOP 'FIND: Error, method not specified correctly'
+       END IF
 
     ELSE IF(iorder==2) THEN
 
-        IF(n<3) ERROR STOP 'FIND: Not enough points in your table'
+       IF(n<3) STOP 'FIND: Not enough points in your table'
 
-        IF(x<=xtab(2) .OR. x>=xtab(n-1)) THEN
+       IF(x<=xtab(2) .OR. x>=xtab(n-1)) THEN
 
-            IF(x<=xtab(2)) THEN
+          IF(x<=xtab(2)) THEN
 
-                x1=xtab(1)
-                x2=xtab(2)
-                x3=xtab(3)
+             x1=xtab(1)
+             x2=xtab(2)
+             x3=xtab(3)
 
-                y1=ytab(1)
-                y2=ytab(2)
-                y3=ytab(3)
+             y1=ytab(1)
+             y2=ytab(2)
+             y3=ytab(3)
 
-            ELSE IF (x>=xtab(n-1)) THEN
+          ELSE IF (x>=xtab(n-1)) THEN
 
-                x1=xtab(n-2)
-                x2=xtab(n-1)
-                x3=xtab(n)
+             x1=xtab(n-2)
+             x2=xtab(n-1)
+             x3=xtab(n)
 
-                y1=ytab(n-2)
-                y2=ytab(n-1)
-                y3=ytab(n)
+             y1=ytab(n-2)
+             y2=ytab(n-1)
+             y3=ytab(n)
 
-            END IF
+          END IF
 
-            CALL fit_quadratic(a,b,c,x1,y1,x2,y2,x3,y3)
+          IF(imeth==1) THEN
+             CALL fit_quadratic(a,b,c,x1,y1,x2,y2,x3,y3)
+             find=a*(x**2)+b*x+c
+          ELSE IF(imeth==2) THEN
+             find=Lagrange_polynomial(x,2,(/x1,x2,x3/),(/y1,y2,y3/))
+          ELSE
+             STOP 'FIND: Error, method not specified correctly'
+          END IF
+             
+       ELSE
 
-            find=a*(x**2.)+b*x+c
+          i=table_integer(x,xtab,n,ifind)
 
-        ELSE
+          x1=xtab(i-1)
+          x2=xtab(i)
+          x3=xtab(i+1)
+          x4=xtab(i+2)
 
-            i=table_integer(x,xtab,n,imeth)
+          y1=ytab(i-1)
+          y2=ytab(i)
+          y3=ytab(i+1)
+          y4=ytab(i+2)
 
-            x1=xtab(i-1)
-            x2=xtab(i)
-            x3=xtab(i+1)
-            x4=xtab(i+2)
+          IF(imeth==1) THEN
+             !In this case take the average of two separate quadratic spline values
+             CALL fit_quadratic(a,b,c,x1,y1,x2,y2,x3,y3)
+             find=(a*x**2+b*x+c)/2.
+             CALL fit_quadratic(a,b,c,x2,y2,x3,y3,x4,y4)
+             find=find+(a*x**2+b*x+c)/2.
+          ELSE IF(imeth==2) THEN
+             !In this case take the average of two quadratic Lagrange polynomials
+             find=(Lagrange_polynomial(x,2,(/x1,x2,x3/),(/y1,y2,y3/))+Lagrange_polynomial(x,2,(/x2,x3,x4/),(/y2,y3,y4/)))/2.
+          ELSE
+             STOP 'FIND: Error, method not specified correctly'
+          END IF
 
-            y1=ytab(i-1)
-            y2=ytab(i)
-            y3=ytab(i+1)
-            y4=ytab(i+2)
-
-            !In this case take the average of two separate quadratic spline values
-
-            find=0.
-
-            CALL fit_quadratic(a,b,c,x1,y1,x2,y2,x3,y3)
-            find=find+(a*(x**2.)+b*x+c)/2.
-
-            CALL fit_quadratic(a,b,c,x2,y2,x3,y3,x4,y4)
-            find=find+(a*(x**2.)+b*x+c)/2.
-
-        END IF
+       END IF
 
     ELSE IF(iorder==3) THEN
 
-        IF(n<4) ERROR STOP 'FIND: Not enough points in your table'
+       IF(n<4) STOP 'FIND: Not enough points in your table'
 
-        IF(x<=xtab(3)) THEN
+       IF(x<=xtab(3)) THEN
 
-            x1=xtab(1)
-            x2=xtab(2)
-            x3=xtab(3)
-            x4=xtab(4)
+          x1=xtab(1)
+          x2=xtab(2)
+          x3=xtab(3)
+          x4=xtab(4)        
 
-            y1=ytab(1)
-            y2=ytab(2)
-            y3=ytab(3)
-            y4=ytab(4)
+          y1=ytab(1)
+          y2=ytab(2)
+          y3=ytab(3)
+          y4=ytab(4)
 
-        ELSE IF (x>=xtab(n-2)) THEN
+       ELSE IF (x>=xtab(n-2)) THEN
 
-            x1=xtab(n-3)
-            x2=xtab(n-2)
-            x3=xtab(n-1)
-            x4=xtab(n)
+          x1=xtab(n-3)
+          x2=xtab(n-2)
+          x3=xtab(n-1)
+          x4=xtab(n)
 
-            y1=ytab(n-3)
-            y2=ytab(n-2)
-            y3=ytab(n-1)
-            y4=ytab(n)
+          y1=ytab(n-3)
+          y2=ytab(n-2)
+          y3=ytab(n-1)
+          y4=ytab(n)
 
-        ELSE
+       ELSE
 
-            i=table_integer(x,xtab,n,imeth)
+          i=table_integer(x,xtab,n,ifind)
 
-            x1=xtab(i-1)
-            x2=xtab(i)
-            x3=xtab(i+1)
-            x4=xtab(i+2)
+          x1=xtab(i-1)
+          x2=xtab(i)
+          x3=xtab(i+1)
+          x4=xtab(i+2)
 
-            y1=ytab(i-1)
-            y2=ytab(i)
-            y3=ytab(i+1)
-            y4=ytab(i+2)
+          y1=ytab(i-1)
+          y2=ytab(i)
+          y3=ytab(i+1)
+          y4=ytab(i+2)
 
-        END IF
+       END IF
 
-        CALL fit_cubic(a,b,c,d,x1,y1,x2,y2,x3,y3,x4,y4)
-        find=a*x**3.+b*x**2.+c*x+d
+       IF(imeth==1) THEN
+          CALL fit_cubic(a,b,c,d,x1,y1,x2,y2,x3,y3,x4,y4)
+          find=a*x**3+b*x**2+c*x+d
+       ELSE IF(imeth==2) THEN
+          find=Lagrange_polynomial(x,3,(/x1,x2,x3,x4/),(/y1,y2,y3,y4/))
+       ELSE
+          STOP 'FIND: Error, method not specified correctly'
+       END IF
 
     ELSE
 
-        ERROR STOP 'FIND: Error, interpolation order specified incorrectly'
+       STOP 'FIND: Error, interpolation order specified incorrectly'
 
     END IF
 
@@ -2515,44 +2775,46 @@
 
     FUNCTION table_integer(x,xtab,n,imeth)
 
-    !Chooses between different ways of finding the position in a table xtab nearest to x
+    !Chooses between ways to find the integer location below some value in an array
+    IMPLICIT NONE
     INTEGER :: table_integer
     INTEGER, INTENT(IN) :: n
     REAL, INTENT(IN) :: x, xtab(n)
     INTEGER, INTENT(IN) :: imeth
 
     IF(imeth==1) THEN
-        table_integer=linear_table_integer(x,xtab,n)
+       table_integer=linear_table_integer(x,xtab,n)
     ELSE IF(imeth==2) THEN
-        table_integer=search_int(x,xtab,n)
+       table_integer=search_int(x,xtab,n)
     ELSE IF(imeth==3) THEN
-        table_integer=int_split(x,xtab,n)
+       table_integer=int_split(x,xtab,n)
     ELSE
-        ERROR STOP 'TABLE INTEGER: Method specified incorrectly'
+       STOP 'TABLE INTEGER: Method specified incorrectly'
     END IF
 
     END FUNCTION table_integer
 
     FUNCTION linear_table_integer(x,xtab,n)
 
-    !Returns the integer (table position) below the value of x
-    !eg. if x(3)=6. and x(4)=7. and x=6.5 this will return 6
-    !Assumes table is organised linearly (care for logs)
+    !Assuming the table is exactly linear this gives you the integer position
+    IMPLICIT NONE
     INTEGER :: linear_table_integer
     INTEGER, INTENT(IN) :: n
     REAL, INTENT(IN) :: x, xtab(n)
     REAL :: x1, x2, xn
-    REAL :: acc
+    REAL, PARAMETER :: acc=1d-3 !Test for linear table
 
+    !Returns the integer (table position) below the value of x
+    !eg. if x(3)=6. and x(4)=7. and x=6.5 this will return 6
+    !Assumes table is organised linearly (care for logs)
+
+    !n=SIZE(xtab)
     x1=xtab(1)
     x2=xtab(2)
     xn=xtab(n)
 
-    !Test for linear table
-    acc=0.001
-
-    IF(x1>xn) ERROR STOP 'LINEAR_TABLE_INTEGER :: table in the wrong order'
-    IF(ABS(-1.+float(n-1)*(x2-x1)/(xn-x1))>acc) ERROR STOP 'LINEAR_TABLE_INTEGER :: table does not seem to be linear'
+    IF(x1>xn) STOP 'LINEAR_TABLE_INTEGER :: table in the wrong order'
+    IF(ABS(-1.+float(n-1)*(x2-x1)/(xn-x1))>acc) STOP 'LINEAR_TABLE_INTEGER :: table does not seem to be linear'
 
     linear_table_integer=1+FLOOR(float(n-1)*(x-x1)/(xn-x1))
 
@@ -2561,15 +2823,16 @@
     FUNCTION search_int(x,xtab,n)
 
     !Does a stupid search through the table from beginning to end to find integer
+    IMPLICIT NONE
     INTEGER :: search_int
     INTEGER, INTENT(IN) :: n
     REAL, INTENT(IN) :: x, xtab(n)
     INTEGER :: i
 
-    IF(xtab(1)>xtab(n)) ERROR STOP 'SEARCH_INT: table in wrong order'
+    IF(xtab(1)>xtab(n)) STOP 'SEARCH_INT: table in wrong order'
 
     DO i=1,n
-        IF(x>=xtab(i) .AND. x<=xtab(i+1)) EXIT
+       IF(x>=xtab(i) .AND. x<=xtab(i+1)) EXIT
     END DO
 
     search_int=i
@@ -2579,30 +2842,31 @@
     FUNCTION int_split(x,xtab,n)
 
     !Finds the position of the value in the table by continually splitting it in half
+    IMPLICIT NONE
     INTEGER :: int_split
     INTEGER, INTENT(IN) :: n
     REAL, INTENT(IN) :: x, xtab(n)
     INTEGER :: i1, i2, imid
 
-    IF(xtab(1)>xtab(n)) ERROR STOP 'INT_SPLIT: table in wrong order'
+    IF(xtab(1)>xtab(n)) STOP 'INT_SPLIT: table in wrong order'
 
     i1=1
     i2=n
 
     DO
+       
+       imid=NINT((i1+i2)/2.)
 
-        imid=NINT((i1+i2)/2.)
+       IF(x<xtab(imid)) THEN
+          i2=imid
+       ELSE
+          i1=imid
+       END IF
 
-        IF(x<xtab(imid)) THEN
-            i2=imid
-        ELSE
-            i1=imid
-        END IF
-
-        IF(i2==i1+1) EXIT
+       IF(i2==i1+1) EXIT
 
     END DO
-
+    
     int_split=i1
 
     END FUNCTION int_split
@@ -2610,8 +2874,9 @@
     SUBROUTINE fit_line(a1,a0,x1,y1,x2,y2)
 
     !Given xi, yi i=1,2 fits a line between these points
+    IMPLICIT NONE
     REAL, INTENT(OUT) :: a0, a1
-    REAL, INTENT(IN) :: x1, y1, x2, y2
+    REAL, INTENT(IN) :: x1, y1, x2, y2   
 
     a1=(y2-y1)/(x2-x1)
     a0=y1-a1*x1
@@ -2621,21 +2886,23 @@
     SUBROUTINE fit_quadratic(a2,a1,a0,x1,y1,x2,y2,x3,y3)
 
     !Given xi, yi i=1,2,3 fits a quadratic between these points
+    IMPLICIT NONE
     REAL, INTENT(OUT) :: a0, a1, a2
-    REAL, INTENT(IN) :: x1, y1, x2, y2, x3, y3
+    REAL, INTENT(IN) :: x1, y1, x2, y2, x3, y3   
 
     a2=((y2-y1)/(x2-x1)-(y3-y1)/(x3-x1))/(x2-x3)
     a1=(y2-y1)/(x2-x1)-a2*(x2+x1)
-    a0=y1-a2*(x1**2.)-a1*x1
+    a0=y1-a2*(x1**2)-a1*x1
 
     END SUBROUTINE fit_quadratic
 
     SUBROUTINE fit_cubic(a,b,c,d,x1,y1,x2,y2,x3,y3,x4,y4)
 
     !Given xi, yi i=1,2,3,4 fits a cubic between these points
+    IMPLICIT NONE
     REAL, INTENT(OUT) :: a, b, c, d
     REAL, INTENT(IN) :: x1, y1, x2, y2, x3, y3, x4, y4
-    REAL :: f1, f2, f3
+    REAL :: f1, f2, f3    
 
     f1=(y4-y1)/((x4-x2)*(x4-x1)*(x4-x3))
     f2=(y3-y1)/((x3-x2)*(x3-x1)*(x4-x3))
@@ -2650,29 +2917,54 @@
     b=f1-f2-f3
 
     f1=(y4-y1)/(x4-x1)
-    f2=a*(x4**2.+x4*x1+x1**2.)
+    f2=a*(x4**2+x4*x1+x1**2)
     f3=b*(x4+x1)
 
     c=f1-f2-f3
 
-    d=y1-a*x1**3.-b*x1**2.-c*x1
+    d=y1-a*x1**3-b*x1**2-c*x1
 
     END SUBROUTINE fit_cubic
+
+    FUNCTION Lagrange_polynomial(x,n,xv,yv)
+
+    !Computes the result of the nth order Lagrange polynomial at point x, L(x)
+    IMPLICIT NONE
+    REAL :: Lagrange_polynomial
+    REAL, INTENT(IN) :: x, xv(n+1), yv(n+1)
+    REAL :: l(n+1)
+    INTEGER, INTENT(IN) :: n
+    INTEGER :: i, j
+
+    !Initialise variables, one for sum and one for multiplication
+    Lagrange_polynomial=0.
+    l=1.
+
+    !Loops to find the polynomials, one is a sum and one is a multiple
+    DO i=0,n
+       DO j=0,n
+          IF(i .NE. j) l(i+1)=l(i+1)*(x-xv(j+1))/(xv(i+1)-xv(j+1))
+       END DO
+       Lagrange_polynomial=Lagrange_polynomial+l(i+1)*yv(i+1)
+    END DO
+    
+    END FUNCTION Lagrange_polynomial
 
     SUBROUTINE reverse(arry,n)
 
     !This reverses the contents of arry!
+    IMPLICIT NONE
     INTEGER, INTENT(IN) :: n
     REAL, INTENT(INOUT) :: arry(n)
     INTEGER :: i
-    REAL, ALLOCATABLE :: hold(:)
+    REAL, ALLOCATABLE :: hold(:) 
 
     ALLOCATE(hold(n))
 
     hold=arry
 
     DO i=1,n
-        arry(i)=hold(n-i+1)
+       arry(i)=hold(n-i+1)
     END DO
 
     DEALLOCATE(hold)
@@ -2701,14 +2993,14 @@
     vinit=1.
 
     !Overall accuracy for the ODE solver
-    acc=0.001
+    acc=1d-3
 
     IF(HM_verbose) WRITE(*,*) 'GROWTH: Solving growth equation'
     CALL ode_growth(d_tab,v_tab,a_tab,0.,ainit,amax,dinit,vinit,acc,3,cosm)
     IF(HM_verbose) WRITE(*,*) 'GROWTH: ODE done'
 
     !Normalise so that g(z=0)=1
-    norm=find(1.,a_tab,d_tab,SIZE(a_tab),3,3)
+    norm=find(1.,a_tab,d_tab,SIZE(a_tab),3,3,2)
     IF(HM_verbose) WRITE(*,*) 'GROWTH: Unnormalised g(a=1):', norm
     d_tab=d_tab/norm
 
@@ -2721,7 +3013,7 @@
     DO i=1,n
         a=ainit+(amax-ainit)*float(i-1)/float(n-1)
         cosm%a_growth(i)=a
-        cosm%growth(i)=find(a,a_tab,d_tab,SIZE(a_tab),3,3)
+        cosm%growth(i)=find(a,a_tab,d_tab,SIZE(a_tab),3,3,2)
     END DO
 
     IF(HM_verbose) WRITE(*,*) 'GROWTH: Done'
@@ -2731,7 +3023,7 @@
 
     SUBROUTINE ode_growth(x,v,t,kk,ti,tf,xi,vi,acc,imeth,cosm)
 
-    !ODE solver used for growth equations
+    !Solves 2nd order ODE x''(t) from ti to tf and writes out array of x, v, t values 
     IMPLICIT NONE
     REAL :: xi, ti, tf, dt, acc, vi, x4, v4, t4, kk
     REAL :: kx1, kx2, kx3, kx4, kv1, kv2, kv3, kv4
@@ -2739,8 +3031,9 @@
     REAL, ALLOCATABLE :: x(:), v(:), t(:)
     INTEGER :: i, j, k, n, np, ifail, kn, imeth
     TYPE(HM_cosmology) :: cosm
+    INTEGER, PARAMETER :: jmax=30
+    INTEGER, PARAMETER :: ninit=100
 
-    !Solves 2nd order ODE x''(t) from ti to tf and writes out array of x, v, t values
     !xi and vi are the initial values of x and v (i.e. x(ti), v(ti))
     !fx is what x' is equal to
     !fv is what v' is equal to
@@ -2751,108 +3044,119 @@
     IF(ALLOCATED(v)) DEALLOCATE(v)
     IF(ALLOCATED(t)) DEALLOCATE(t)
 
-    DO j=1,30
+    DO j=1,jmax
 
-        n=100*(2**(j-1))
-        n=n+1
+       !Set the number of points for the forward integration
+       n=ninit*(2**(j-1))
+       n=n+1  
 
-        ALLOCATE(x8(n),t8(n),v8(n))
+       !Allocate arrays
+       ALLOCATE(x8(n),t8(n),v8(n))
 
-        x8=0.d0
-        t8=0.d0
-        v8=0.d0
+       !Set the arrays to initialy be zeroes (is this neceseary?)
+       x8=0.d0
+       t8=0.d0
+       v8=0.d0
 
-        dt=(tf-ti)/float(n-1)
+       !Set the intial conditions at the intial time
+       x8(1)=xi
+       v8(1)=vi
 
-        x8(1)=xi
-        v8(1)=vi
-        t8(1)=ti
+       !Fill up a table for the time values
+       CALL fill_table8(DBLE(ti),DBLE(tf),t8,n)
 
-        ifail=0
+       !Set the time interval
+       dt=(tf-ti)/float(n-1)
 
-        DO i=1,n-1
+       !Intially fix this to zero. It will change to 1 if method is a 'failure'
+       ifail=0
 
-            x4=real(x8(i))
-            v4=real(v8(i))
-            t4=real(t8(i))
+       DO i=1,n-1
 
-            IF(imeth==1) THEN
+          x4=real(x8(i))
+          v4=real(v8(i))
+          t4=real(t8(i))
 
-                !Crude method!
-                v8(i+1)=v8(i)+fv(x4,v4,kk,t4,cosm)*dt
-                x8(i+1)=x8(i)+fd(x4,v4,kk,t4,cosm)*dt
-                t8(i+1)=t8(i)+dt
+          IF(imeth==1) THEN
 
-            ELSE IF(imeth==2) THEN
+             !Crude method
+             kx1=dt*fd(x4,v4,kk,t4,cosm)
+             kv1=dt*fv(x4,v4,kk,t4,cosm)
 
-                !Mid-point method!
-                kx1=dt*fd(x4,v4,kk,t4,cosm)
-                kv1=dt*fv(x4,v4,kk,t4,cosm)
-                kx2=dt*fd(x4+kx1/2.,v4+kv1/2.,kk,t4+dt/2.,cosm)
-                kv2=dt*fv(x4+kx1/2.,v4+kv1/2.,kk,t4+dt/2.,cosm)
+             x8(i+1)=x8(i)+kx1
+             v8(i+1)=v8(i)+kv1
+                  
+          ELSE IF(imeth==2) THEN
 
-                v8(i+1)=v8(i)+kv2*dt
-                x8(i+1)=x8(i)+kx2*dt
-                t8(i+1)=t8(i)+dt
+             !Mid-point method
+             !2017/06/18 - There was a bug in this part before. Luckily it was not used. Thanks Dipak Munshi.
+             kx1=dt*fd(x4,v4,kk,t4,cosm)
+             kv1=dt*fv(x4,v4,kk,t4,cosm)
+             kx2=dt*fd(x4+kx1/2.,v4+kv1/2.,kk,t4+dt/2.,cosm)
+             kv2=dt*fv(x4+kx1/2.,v4+kv1/2.,kk,t4+dt/2.,cosm)
 
-            ELSE IF(imeth==3) THEN
+             x8(i+1)=x8(i)+kx2
+             v8(i+1)=v8(i)+kv2
+             
+          ELSE IF(imeth==3) THEN
 
-                !RK4 (Holy Christ, this is so fast compared to above methods)!
-                kx1=dt*fd(x4,v4,kk,t4,cosm)
-                kv1=dt*fv(x4,v4,kk,t4,cosm)
-                kx2=dt*fd(x4+kx1/2.,v4+kv1/2.,kk,t4+dt/2.,cosm)
-                kv2=dt*fv(x4+kx1/2.,v4+kv1/2.,kk,t4+dt/2.,cosm)
-                kx3=dt*fd(x4+kx2/2.,v4+kv2/2.,kk,t4+dt/2.,cosm)
-                kv3=dt*fv(x4+kx2/2.,v4+kv2/2.,kk,t4+dt/2.,cosm)
-                kx4=dt*fd(x4+kx3,v4+kv3,kk,t4+dt,cosm)
-                kv4=dt*fv(x4+kx3,v4+kv3,kk,t4+dt,cosm)
+             !4th order Runge-Kutta method (fast!)
+             kx1=dt*fd(x4,v4,kk,t4,cosm)
+             kv1=dt*fv(x4,v4,kk,t4,cosm)
+             kx2=dt*fd(x4+kx1/2.,v4+kv1/2.,kk,t4+dt/2.,cosm)
+             kv2=dt*fv(x4+kx1/2.,v4+kv1/2.,kk,t4+dt/2.,cosm)
+             kx3=dt*fd(x4+kx2/2.,v4+kv2/2.,kk,t4+dt/2.,cosm)
+             kv3=dt*fv(x4+kx2/2.,v4+kv2/2.,kk,t4+dt/2.,cosm)
+             kx4=dt*fd(x4+kx3,v4+kv3,kk,t4+dt,cosm)
+             kv4=dt*fv(x4+kx3,v4+kv3,kk,t4+dt,cosm)
 
-                x8(i+1)=x8(i)+(kx1+(2.*kx2)+(2.*kx3)+kx4)/6.
-                v8(i+1)=v8(i)+(kv1+(2.*kv2)+(2.*kv3)+kv4)/6.
-                t8(i+1)=t8(i)+dt
+             x8(i+1)=x8(i)+(kx1+(2.*kx2)+(2.*kx3)+kx4)/6.
+             v8(i+1)=v8(i)+(kv1+(2.*kv2)+(2.*kv3)+kv4)/6.
 
-            END IF
+          END IF
 
-        END DO
+          !t8(i+1)=t8(i)+dt
 
-        IF(j==1) ifail=1
+       END DO
 
-        IF(j .NE. 1) THEN
+       IF(j==1) ifail=1
 
-            np=1+(n-1)/2
+       IF(j .NE. 1) THEN
 
-            DO k=1,1+(n-1)/2
+          np=1+(n-1)/2
 
-                kn=2*k-1
+          DO k=1,1+(n-1)/2
 
-                IF(ifail==0) THEN
+             kn=2*k-1
 
-                    IF(xh(k)>acc .AND. x8(kn)>acc .AND. (ABS(xh(k)/x8(kn))-1.)>acc) ifail=1
-                    IF(vh(k)>acc .AND. v8(kn)>acc .AND. (ABS(vh(k)/v8(kn))-1.)>acc) ifail=1
+             IF(ifail==0) THEN
 
-                    IF(ifail==1) THEN
-                        DEALLOCATE(xh,th,vh)
-                        EXIT
-                    END IF
+                IF(xh(k)>acc .AND. x8(kn)>acc .AND. (ABS(xh(k)/x8(kn))-1.)>acc) ifail=1
+                IF(vh(k)>acc .AND. v8(kn)>acc .AND. (ABS(vh(k)/v8(kn))-1.)>acc) ifail=1
 
+                IF(ifail==1) THEN
+                   DEALLOCATE(xh,th,vh)
+                   EXIT
                 END IF
-            END DO
 
-        END IF
+             END IF
+          END DO
 
-        IF(ifail==0) THEN
-            ALLOCATE(x(n),t(n),v(n))
-            x=x8
-            v=v8
-            t=t8
-            EXIT
-        END IF
+       END IF
 
-        ALLOCATE(xh(n),th(n),vh(n))
-        xh=x8
-        vh=v8
-        th=t8
-        DEALLOCATE(x8,t8,v8)
+       IF(ifail==0) THEN
+          ALLOCATE(x(n),t(n),v(n))
+          x=real(x8)
+          v=real(v8)
+          t=real(t8)
+          EXIT
+       END IF
+
+       ALLOCATE(xh(n),th(n),vh(n))
+       xh=x8
+       vh=v8
+       th=t8
+       DEALLOCATE(x8,t8,v8)
 
     END DO
 
