@@ -62,7 +62,7 @@
     !!AM - Added these types for HMcode
     INTEGER :: imead !!AM - added these for HMcode, need to be visible to all subroutines and functions
     logical :: HM_verbose = .false.
-    
+
     TYPE HM_cosmology
         !Contains only things that do not need to be recalculated with each new z
         REAL :: om_m, om_v, w, wa, f_nu, ns, h, Tcmb, Nnu
@@ -377,7 +377,7 @@
     IF(halofit_version==halofit_mead) imead=1
 
     IF(FeedbackLevel>0) HM_verbose = .true.
-  
+
     IF(HM_verbose) WRITE(*,*)
     IF(HM_verbose) WRITE(*,*) 'HMcode: Running HMcode'
     IF(HM_verbose) WRITE(*,*)
@@ -415,7 +415,7 @@
             CAMB_Pk%nonlin_ratio(i,j)=sqrt(pfull/plin)
         END DO
         !$OMP END PARALLEL DO
-        
+
     END DO
 
     END SUBROUTINE HMcode
@@ -515,10 +515,10 @@
         !Set to 4 for the standard Bullock value
         As=4.
     ELSE IF(imead==1) THEN
-       !This is the 'A' halo-concentration parameter in Mead et al. (2015; arXiv 1505.07833)
-       !As=3.13
-       !AM - added for easy modification of feedback parameter
-       As=cosm%A_baryon
+        !This is the 'A' halo-concentration parameter in Mead et al. (2015; arXiv 1505.07833)
+        !As=3.13
+        !AM - added for easy modification of feedback parameter
+        As=cosm%A_baryon
     END IF
 
     END FUNCTION As
@@ -637,8 +637,8 @@
     !Fills array 'arr' in equally spaced intervals
     IMPLICIT NONE
     INTEGER :: i
-    REAL*8, INTENT(IN) :: min, max
-    REAL*8, ALLOCATABLE :: arr(:)
+    real(dl), INTENT(IN) :: min, max
+    real(dl), ALLOCATABLE :: arr(:)
     INTEGER, INTENT(IN) :: n
 
     !Allocate the array, and deallocate it if it is full
@@ -901,7 +901,7 @@
 
     !$OMP PARALLEL DO default(shared), private(m,r,sig,nu)
     DO i=1,n
-       
+
         m=exp(log(mmin)+log(mmax/mmin)*float(i-1)/float(n-1))
         r=radius_m(m,cosm)
         sig=sigmac(r,z,cosm)
@@ -911,7 +911,7 @@
         lut%rr(i)=r
         lut%sig(i)=sig
         lut%nu(i)=nu
-        
+
     END DO
     !$OMP END PARALLEL DO
 
@@ -1076,10 +1076,10 @@
     INTEGER :: n
     REAL :: x, dx
     REAL :: f1, f2, fx
-    REAL*8 :: sum_n, sum_2n, sum_new, sum_old
+    real(dl) :: sum_n, sum_2n, sum_new, sum_old
     INTEGER, PARAMETER :: jmin=5
     INTEGER, PARAMETER :: jmax=30
-    REAL*8, PARAMETER :: acc=1d-3
+    real(dl), PARAMETER :: acc=1d-3
     INTEGER, PARAMETER :: iorder=3
 
     !Integration range for integration parameter
@@ -1088,67 +1088,67 @@
 
     IF(a==b) THEN
 
-       !Fix the answer to zero if the integration limits are identical
-       growint=exp(0.d0)
+        !Fix the answer to zero if the integration limits are identical
+        growint=exp(0.d0)
 
     ELSE
 
-       !Reset the sum variable for the integration
-       sum_2n=0.d0
+        !Reset the sum variable for the integration
+        sum_2n=0.d0
 
-       DO j=1,jmax
+        DO j=1,jmax
 
-          !Note, you need this to be 1+2**n for some integer n
-          !j=1 n=2; j=2 n=3; j=3 n=5; j=4 n=9; ...'
-          n=1+2**(j-1)
+            !Note, you need this to be 1+2**n for some integer n
+            !j=1 n=2; j=2 n=3; j=3 n=5; j=4 n=9; ...'
+            n=1+2**(j-1)
 
-          !Calculate the dx interval for this value of 'n'
-          dx=(b-a)/REAL(n-1)
+            !Calculate the dx interval for this value of 'n'
+            dx=(b-a)/REAL(n-1)
 
-          IF(j==1) THEN
+            IF(j==1) THEN
 
-             !The first go is just the trapezium of the end points
-             f1=growint_integrand(a,cosm)
-             f2=growint_integrand(b,cosm)
-             sum_2n=0.5d0*(f1+f2)*dx
+                !The first go is just the trapezium of the end points
+                f1=growint_integrand(a,cosm)
+                f2=growint_integrand(b,cosm)
+                sum_2n=0.5d0*(f1+f2)*dx
 
-          ELSE
+            ELSE
 
-             !Loop over only new even points to add these to the integral
-             DO i=2,n,2
-                x=a+(b-a)*REAL(i-1)/REAL(n-1)
-                fx=growint_integrand(x,cosm)
-                sum_2n=sum_2n+fx
-             END DO
+                !Loop over only new even points to add these to the integral
+                DO i=2,n,2
+                    x=a+(b-a)*REAL(i-1)/REAL(n-1)
+                    fx=growint_integrand(x,cosm)
+                    sum_2n=sum_2n+fx
+                END DO
 
-             !Now create the total using the old and new parts
-             sum_2n=sum_n/2.d0+sum_2n*dx
+                !Now create the total using the old and new parts
+                sum_2n=sum_n/2.d0+sum_2n*dx
 
-             !Now calculate the new sum depending on the integration order
-             IF(iorder==1) THEN  
-                sum_new=sum_2n
-             ELSE IF(iorder==3) THEN         
-                sum_new=(4.d0*sum_2n-sum_n)/3.d0 !This is Simpson's rule and cancels error
-             ELSE
-                STOP 'GROWINT: Error, iorder specified incorrectly'
-             END IF
+                !Now calculate the new sum depending on the integration order
+                IF(iorder==1) THEN
+                    sum_new=sum_2n
+                ELSE IF(iorder==3) THEN
+                    sum_new=(4.d0*sum_2n-sum_n)/3.d0 !This is Simpson's rule and cancels error
+                ELSE
+                    STOP 'GROWINT: Error, iorder specified incorrectly'
+                END IF
 
-          END IF
+            END IF
 
-          IF((j>=jmin) .AND. (ABS(-1.d0+sum_new/sum_old)<acc)) THEN
-             !jmin avoids spurious early convergence
-             growint=exp(sum_new)
-             EXIT
-          ELSE IF(j==jmax) THEN
-             STOP 'GROWINT: Integration timed out'
-          ELSE
-             !Integral has not converged so store old sums and reset sum variables
-             sum_old=sum_new
-             sum_n=sum_2n
-             sum_2n=0.d0
-          END IF
+            IF((j>=jmin) .AND. (ABS(-1.d0+sum_new/sum_old)<acc)) THEN
+                !jmin avoids spurious early convergence
+                growint=exp(sum_new)
+                EXIT
+            ELSE IF(j==jmax) THEN
+                STOP 'GROWINT: Integration timed out'
+            ELSE
+                !Integral has not converged so store old sums and reset sum variables
+                sum_old=sum_new
+                sum_n=sum_2n
+                sum_2n=0.d0
+            END IF
 
-       END DO
+        END DO
 
     END IF
 
@@ -1164,17 +1164,17 @@
     REAL :: gam
 
     IF(cosm%w<-1.) THEN
-       gam=0.55+0.02*(1.+cosm%w)
+        gam=0.55+0.02*(1.+cosm%w)
     ELSE IF(cosm%w>-1) THEN
-       gam=0.55+0.05*(1.+cosm%w)
+        gam=0.55+0.05*(1.+cosm%w)
     ELSE
-       gam=0.55
+        gam=0.55
     END IF
 
     !Note the minus sign here
     growint_integrand=-(Omega_m_hm(-1.+1./a,cosm)**gam)/a
 
-  END FUNCTION growint_integrand
+    END FUNCTION growint_integrand
 
     SUBROUTINE zcoll_bull(z,cosm,lut)
 
@@ -1381,7 +1381,7 @@
 
     !Fills look-up HM_tables for sigma(R)
     REAL :: r, sig
-    INTEGER :: i    
+    INTEGER :: i
     TYPE(HM_cosmology) :: cosm
     REAL, PARAMETER :: rmin=1e-4
     REAL, PARAMETER :: rmax=1e3
@@ -1466,7 +1466,7 @@
     REAL :: a, b, c, d, h
     REAL :: q1, q2, q3, qi, qf
     REAL :: x1, x2, x3, x4, y1, y2, y3, y4, xi, xf
-    REAL*8 :: sum
+    real(dl) :: sum
     INTEGER :: i, i1, i2, i3, i4
     INTEGER, INTENT(IN) :: iorder
 
@@ -1590,11 +1590,11 @@
     REAL, PARAMETER :: rsplit=1d-2
 
     IF(r>=rsplit) THEN
-       sigma=sqrt(sigint0(r,z,itype,cosm,acc,iorder))
+        sigma=sqrt(sigint0(r,z,itype,cosm,acc,iorder))
     ELSE IF(r<rsplit) THEN
-       sigma=sqrt(sigint1(r,z,itype,cosm,acc,iorder)+sigint2(r,z,itype,cosm,acc,iorder))
+        sigma=sqrt(sigint1(r,z,itype,cosm,acc,iorder)+sigint2(r,z,itype,cosm,acc,iorder))
     ELSE
-       STOP 'SIGMA: Error, something went wrong'
+        STOP 'SIGMA: Error, something went wrong'
     END IF
 
     END FUNCTION sigma
@@ -1610,11 +1610,11 @@
     REAL :: y, w_hat
 
     IF(k==0.d0) THEN
-       sigma_integrand=0.d0
+        sigma_integrand=0.d0
     ELSE
-       y=k*R
-       w_hat=wk_tophat(y)
-       sigma_integrand=p_lin(k,z,itype,cosm)*(w_hat**2)/k
+        y=k*R
+        w_hat=wk_tophat(y)
+        sigma_integrand=p_lin(k,z,itype,cosm)*(w_hat**2)/k
     END IF
 
     END FUNCTION sigma_integrand
@@ -1627,29 +1627,29 @@
     REAL, INTENT(IN) :: t, R, z
     INTEGER, INTENT(IN) :: itype
     TYPE(HM_cosmology), INTENT(IN) :: cosm
-    REAL :: k, y, w_hat   
+    REAL :: k, y, w_hat
 
     INTERFACE
-       FUNCTION f(x)
-         REAL :: f
-         REAL, INTENT(IN) :: x
-       END FUNCTION f
+    FUNCTION f(x)
+    REAL :: f
+    REAL, INTENT(IN) :: x
+    END FUNCTION f
     END INTERFACE
 
     !Integrand to the sigma integral in terms of t. Defined by k=(1/t-1)/f(R) where f(R) is *any* function
 
     IF(t==0.d0) THEN
-       !t=0 corresponds to k=infintiy when W(kR)=0.
-       sigma_integrand_transformed=0.d0
+        !t=0 corresponds to k=infintiy when W(kR)=0.
+        sigma_integrand_transformed=0.d0
     ELSE IF(t==1.d0) THEN
-       !t=1 corresponds to k=0. when P(k)=0.
-       sigma_integrand_transformed=0.d0
+        !t=1 corresponds to k=0. when P(k)=0.
+        sigma_integrand_transformed=0.d0
     ELSE
-       !f(R) can be *any* function of R here to improve integration speed
-       k=(-1.d0+1.d0/t)/f(R)
-       y=k*R
-       w_hat=wk_tophat(y)
-       sigma_integrand_transformed=p_lin(k,z,itype,cosm)*(w_hat**2)/(t*(1.d0-t))
+        !f(R) can be *any* function of R here to improve integration speed
+        k=(-1.d0+1.d0/t)/f(R)
+        y=k*R
+        w_hat=wk_tophat(y)
+        sigma_integrand_transformed=p_lin(k,z,itype,cosm)*(w_hat**2)/(t*(1.d0-t))
     END IF
 
     END FUNCTION sigma_integrand_transformed
@@ -1669,7 +1669,7 @@
     INTEGER :: n
     REAL :: x, dx
     REAL :: f1, f2, fx
-    REAL*8 :: sum_n, sum_2n, sum_new, sum_old
+    real(dl) :: sum_n, sum_2n, sum_new, sum_old
     INTEGER, PARAMETER :: jmin=5
     INTEGER, PARAMETER :: jmax=30
     REAL, PARAMETER :: a=0.d0 !Integration lower limit (corresponts to k=inf)
@@ -1677,67 +1677,67 @@
 
     IF(a==b) THEN
 
-       !Fix the answer to zero if the integration limits are identical
-       sigint0=0.d0
+        !Fix the answer to zero if the integration limits are identical
+        sigint0=0.d0
 
     ELSE
 
-       !Reset the sum variable for the integration
-       sum_2n=0.d0
+        !Reset the sum variable for the integration
+        sum_2n=0.d0
 
-       DO j=1,jmax
+        DO j=1,jmax
 
-          !Note, you need this to be 1+2**n for some integer n
-          !j=1 n=2; j=2 n=3; j=3 n=5; j=4 n=9; ...'
-          n=1+2**(j-1)
+            !Note, you need this to be 1+2**n for some integer n
+            !j=1 n=2; j=2 n=3; j=3 n=5; j=4 n=9; ...'
+            n=1+2**(j-1)
 
-          !Calculate the dx interval for this value of 'n'
-          dx=(b-a)/REAL(n-1)
+            !Calculate the dx interval for this value of 'n'
+            dx=(b-a)/REAL(n-1)
 
-          IF(j==1) THEN
+            IF(j==1) THEN
 
-             !The first go is just the trapezium of the end points
-             f1=sigma_integrand_transformed(a,r,f0_rapid,z,itype,cosm)
-             f2=sigma_integrand_transformed(b,r,f0_rapid,z,itype,cosm)
-             sum_2n=0.5d0*(f1+f2)*dx
+                !The first go is just the trapezium of the end points
+                f1=sigma_integrand_transformed(a,r,f0_rapid,z,itype,cosm)
+                f2=sigma_integrand_transformed(b,r,f0_rapid,z,itype,cosm)
+                sum_2n=0.5d0*(f1+f2)*dx
 
-          ELSE
+            ELSE
 
-             !Loop over only new even points to add these to the integral
-             DO i=2,n,2
-                x=a+(b-a)*REAL(i-1)/REAL(n-1)
-                fx=sigma_integrand_transformed(x,r,f0_rapid,z,itype,cosm)
-                sum_2n=sum_2n+fx
-             END DO
+                !Loop over only new even points to add these to the integral
+                DO i=2,n,2
+                    x=a+(b-a)*REAL(i-1)/REAL(n-1)
+                    fx=sigma_integrand_transformed(x,r,f0_rapid,z,itype,cosm)
+                    sum_2n=sum_2n+fx
+                END DO
 
-             !Now create the total using the old and new parts
-             sum_2n=sum_n/2.d0+sum_2n*dx
+                !Now create the total using the old and new parts
+                sum_2n=sum_n/2.d0+sum_2n*dx
 
-             !Now calculate the new sum depending on the integration order
-             IF(iorder==1) THEN  
-                sum_new=sum_2n
-             ELSE IF(iorder==3) THEN         
-                sum_new=(4.d0*sum_2n-sum_n)/3.d0 !This is Simpson's rule and cancels error
-             ELSE
-                STOP 'SIGINT0: Error, iorder specified incorrectly'
-             END IF
+                !Now calculate the new sum depending on the integration order
+                IF(iorder==1) THEN
+                    sum_new=sum_2n
+                ELSE IF(iorder==3) THEN
+                    sum_new=(4.d0*sum_2n-sum_n)/3.d0 !This is Simpson's rule and cancels error
+                ELSE
+                    STOP 'SIGINT0: Error, iorder specified incorrectly'
+                END IF
 
-          END IF
+            END IF
 
-          IF((j>=jmin) .AND. (ABS(-1.d0+sum_new/sum_old)<acc)) THEN
-             !jmin avoids spurious early convergence
-             sigint0=REAL(sum_new)
-             EXIT
-          ELSE IF(j==jmax) THEN
-             STOP 'SIGINT0: Integration timed out'
-          ELSE
-             !Integral has not converged so store old sums and reset sum variables
-             sum_old=sum_new
-             sum_n=sum_2n
-             sum_2n=0.d0
-          END IF
+            IF((j>=jmin) .AND. (ABS(-1.d0+sum_new/sum_old)<acc)) THEN
+                !jmin avoids spurious early convergence
+                sigint0=REAL(sum_new)
+                EXIT
+            ELSE IF(j==jmax) THEN
+                STOP 'SIGINT0: Integration timed out'
+            ELSE
+                !Integral has not converged so store old sums and reset sum variables
+                sum_old=sum_new
+                sum_n=sum_2n
+                sum_2n=0.d0
+            END IF
 
-       END DO
+        END DO
 
     END IF
 
@@ -1754,12 +1754,12 @@
     REAL, PARAMETER :: rsplit=1d-2
 
     IF(r>rsplit) THEN
-       !alpha 0.3-0.5 works well
-       alpha=0.5d0
+        !alpha 0.3-0.5 works well
+        alpha=0.5d0
     ELSE
-       !If alpha=1 this goes tits up
-       !alpha 0.7-0.9 works well
-       alpha=0.8d0
+        !If alpha=1 this goes tits up
+        !alpha 0.7-0.9 works well
+        alpha=0.8d0
     END IF
 
     f0_rapid=r**alpha
@@ -1782,7 +1782,7 @@
     INTEGER :: n
     REAL :: x, dx
     REAL :: f1, f2, fx
-    REAL*8 :: sum_n, sum_2n, sum_new, sum_old
+    real(dl) :: sum_n, sum_2n, sum_new, sum_old
     INTEGER, PARAMETER :: jmin=5
     INTEGER, PARAMETER :: jmax=30
 
@@ -1791,67 +1791,67 @@
 
     IF(a==b) THEN
 
-       !Fix the answer to zero if the integration limits are identical
-       sigint1=0.d0
+        !Fix the answer to zero if the integration limits are identical
+        sigint1=0.d0
 
     ELSE
 
-       !Reset the sum variable for the integration
-       sum_2n=0.d0
+        !Reset the sum variable for the integration
+        sum_2n=0.d0
 
-       DO j=1,jmax
+        DO j=1,jmax
 
-          !Note, you need this to be 1+2**n for some integer n
-          !j=1 n=2; j=2 n=3; j=3 n=5; j=4 n=9; ...'
-          n=1+2**(j-1)
+            !Note, you need this to be 1+2**n for some integer n
+            !j=1 n=2; j=2 n=3; j=3 n=5; j=4 n=9; ...'
+            n=1+2**(j-1)
 
-          !Calculate the dx interval for this value of 'n'
-          dx=(b-a)/REAL(n-1)
+            !Calculate the dx interval for this value of 'n'
+            dx=(b-a)/REAL(n-1)
 
-          IF(j==1) THEN
+            IF(j==1) THEN
 
-             !The first go is just the trapezium of the end points
-             f1=sigma_integrand_transformed(a,r,f1_rapid,z,itype,cosm)
-             f2=sigma_integrand_transformed(b,r,f1_rapid,z,itype,cosm)
-             sum_2n=0.5d0*(f1+f2)*dx
+                !The first go is just the trapezium of the end points
+                f1=sigma_integrand_transformed(a,r,f1_rapid,z,itype,cosm)
+                f2=sigma_integrand_transformed(b,r,f1_rapid,z,itype,cosm)
+                sum_2n=0.5d0*(f1+f2)*dx
 
-          ELSE
+            ELSE
 
-             !Loop over only new even points to add these to the integral
-             DO i=2,n,2
-                x=a+(b-a)*REAL(i-1)/REAL(n-1)
-                fx=sigma_integrand_transformed(x,r,f1_rapid,z,itype,cosm)
-                sum_2n=sum_2n+fx
-             END DO
+                !Loop over only new even points to add these to the integral
+                DO i=2,n,2
+                    x=a+(b-a)*REAL(i-1)/REAL(n-1)
+                    fx=sigma_integrand_transformed(x,r,f1_rapid,z,itype,cosm)
+                    sum_2n=sum_2n+fx
+                END DO
 
-             !Now create the total using the old and new parts
-             sum_2n=sum_n/2.d0+sum_2n*dx
+                !Now create the total using the old and new parts
+                sum_2n=sum_n/2.d0+sum_2n*dx
 
-             !Now calculate the new sum depending on the integration order
-             IF(iorder==1) THEN  
-                sum_new=REAL(sum_2n)
-             ELSE IF(iorder==3) THEN         
-                sum_new=(4.d0*sum_2n-sum_n)/3.d0 !This is Simpson's rule and cancels error
-             ELSE
-                STOP 'SIGINT1: Error, iorder specified incorrectly'
-             END IF
+                !Now calculate the new sum depending on the integration order
+                IF(iorder==1) THEN
+                    sum_new=REAL(sum_2n)
+                ELSE IF(iorder==3) THEN
+                    sum_new=(4.d0*sum_2n-sum_n)/3.d0 !This is Simpson's rule and cancels error
+                ELSE
+                    STOP 'SIGINT1: Error, iorder specified incorrectly'
+                END IF
 
-          END IF
+            END IF
 
-          IF((j>=jmin) .AND. (ABS(-1.d0+sum_new/sum_old)<acc)) THEN
-             !jmin avoids spurious early convergence
-             sigint1=REAL(sum_new)
-             EXIT
-          ELSE IF(j==jmax) THEN
-             STOP 'SIGINT1: Integration timed out'
-          ELSE
-             !Integral has not converged so store old sums and reset sum variables
-             sum_old=sum_new
-             sum_n=sum_2n
-             sum_2n=0.d0
-          END IF
+            IF((j>=jmin) .AND. (ABS(-1.d0+sum_new/sum_old)<acc)) THEN
+                !jmin avoids spurious early convergence
+                sigint1=REAL(sum_new)
+                EXIT
+            ELSE IF(j==jmax) THEN
+                STOP 'SIGINT1: Integration timed out'
+            ELSE
+                !Integral has not converged so store old sums and reset sum variables
+                sum_old=sum_new
+                sum_n=sum_2n
+                sum_2n=0.d0
+            END IF
 
-       END DO
+        END DO
 
     END IF
 
@@ -1886,7 +1886,7 @@
     INTEGER :: n
     REAL :: x, dx
     REAL :: f1, f2, fx
-    REAL*8 :: sum_n, sum_2n, sum_new, sum_old
+    real(dl) :: sum_n, sum_2n, sum_new, sum_old
     INTEGER, PARAMETER :: jmin=5
     INTEGER, PARAMETER :: jmax=30
     REAL, PARAMETER :: C=10.d0 !How far to go out in 1/r units for integral
@@ -1896,68 +1896,68 @@
 
     IF(a==b) THEN
 
-       !Fix the answer to zero if the integration limits are identical
-       sigint2=0.d0
+        !Fix the answer to zero if the integration limits are identical
+        sigint2=0.d0
 
     ELSE
 
-       !Reset the sum variable for the integration
-       sum_2n=0.d0
+        !Reset the sum variable for the integration
+        sum_2n=0.d0
 
-       DO j=1,jmax
+        DO j=1,jmax
 
-          !Note, you need this to be 1+2**n for some integer n
-          !j=1 n=2; j=2 n=3; j=3 n=5; j=4 n=9; ...'
-          n=1+2**(j-1)
+            !Note, you need this to be 1+2**n for some integer n
+            !j=1 n=2; j=2 n=3; j=3 n=5; j=4 n=9; ...'
+            n=1+2**(j-1)
 
-          !Calculate the dx interval for this value of 'n'
-          dx=(b-a)/REAL(n-1)
+            !Calculate the dx interval for this value of 'n'
+            dx=(b-a)/REAL(n-1)
 
-          IF(j==1) THEN
+            IF(j==1) THEN
 
-             !The first go is just the trapezium of the end points
-             f1=sigma_integrand(a,r,z,itype,cosm)
-             f2=sigma_integrand(b,r,z,itype,cosm)
-             sum_2n=0.5d0*(f1+f2)*dx
+                !The first go is just the trapezium of the end points
+                f1=sigma_integrand(a,r,z,itype,cosm)
+                f2=sigma_integrand(b,r,z,itype,cosm)
+                sum_2n=0.5d0*(f1+f2)*dx
 
-          ELSE
+            ELSE
 
-             !Loop over only new even points to add these to the integral
-             DO i=2,n,2
-                x=a+(b-a)*REAL(i-1)/REAL(n-1)
-                fx=sigma_integrand(x,r,z,itype,cosm)
-                sum_2n=sum_2n+fx
-             END DO
+                !Loop over only new even points to add these to the integral
+                DO i=2,n,2
+                    x=a+(b-a)*REAL(i-1)/REAL(n-1)
+                    fx=sigma_integrand(x,r,z,itype,cosm)
+                    sum_2n=sum_2n+fx
+                END DO
 
-             !Now create the total using the old and new parts
-             sum_2n=sum_n/2.d0+sum_2n*dx
+                !Now create the total using the old and new parts
+                sum_2n=sum_n/2.d0+sum_2n*dx
 
-             !Now calculate the new sum depending on the integration order
-             IF(iorder==1) THEN  
-                sum_new=sum_2n
-             ELSE IF(iorder==3) THEN         
-                sum_new=(4.d0*sum_2n-sum_n)/3.d0 !This is Simpson's rule and cancels error
-             ELSE
-                STOP 'SIGINT2: Error, iorder specified incorrectly'
-             END IF
+                !Now calculate the new sum depending on the integration order
+                IF(iorder==1) THEN
+                    sum_new=sum_2n
+                ELSE IF(iorder==3) THEN
+                    sum_new=(4.d0*sum_2n-sum_n)/3.d0 !This is Simpson's rule and cancels error
+                ELSE
+                    STOP 'SIGINT2: Error, iorder specified incorrectly'
+                END IF
 
-          END IF
+            END IF
 
-          IF((j>=jmin) .AND. (ABS(-1.d0+sum_new/sum_old)<acc)) THEN
-             !jmin avoids spurious early convergence
-             sigint2=REAL(sum_new)
-             !WRITE(*,*) 'INTEGRATE_STORE: Nint:', n
-             EXIT
-          ELSE IF(j==jmax) THEN
-             STOP 'SIGINT2: Integration timed out'
-          ELSE
-             !Integral has not converged so store old sums and reset sum variables
-             sum_old=sum_new
-             sum_n=sum_2n
-             sum_2n=0.d0
-          END IF
+            IF((j>=jmin) .AND. (ABS(-1.d0+sum_new/sum_old)<acc)) THEN
+                !jmin avoids spurious early convergence
+                sigint2=REAL(sum_new)
+                !WRITE(*,*) 'INTEGRATE_STORE: Nint:', n
+                EXIT
+            ELSE IF(j==jmax) THEN
+                STOP 'SIGINT2: Integration timed out'
+            ELSE
+                !Integral has not converged so store old sums and reset sum variables
+                sum_old=sum_new
+                sum_n=sum_2n
+                sum_2n=0.d0
+            END IF
 
-       END DO
+        END DO
 
     END IF
 
@@ -2134,11 +2134,11 @@
     INTEGER :: n
     REAL :: x, dx
     REAL :: f1, f2, fx
-    REAL*8 :: sum_n, sum_2n, sum_new, sum_old
+    real(dl) :: sum_n, sum_2n, sum_new, sum_old
     INTEGER, PARAMETER :: jmin=5
     INTEGER, PARAMETER :: jmax=30
     REAL, PARAMETER :: acc=1d-3
-    INTEGER, PARAMETER :: iorder=3   
+    INTEGER, PARAMETER :: iorder=3
 
     !Integration range for integration parameter
     !Note 0 -> infinity in k has changed to 0 -> 1 in x
@@ -2147,67 +2147,67 @@
 
     IF(a==b) THEN
 
-       !Fix the answer to zero if the integration limits are identical
-       dispint=0.
+        !Fix the answer to zero if the integration limits are identical
+        dispint=0.
 
     ELSE
 
-       !Reset the sum variable for the integration
-       sum_2n=0.d0
+        !Reset the sum variable for the integration
+        sum_2n=0.d0
 
-       DO j=1,jmax
+        DO j=1,jmax
 
-          !Note, you need this to be 1+2**n for some integer n
-          !j=1 n=2; j=2 n=3; j=3 n=5; j=4 n=9; ...'
-          n=1+2**(j-1)
+            !Note, you need this to be 1+2**n for some integer n
+            !j=1 n=2; j=2 n=3; j=3 n=5; j=4 n=9; ...'
+            n=1+2**(j-1)
 
-          !Calculate the dx interval for this value of 'n'
-          dx=(b-a)/REAL(n-1)
+            !Calculate the dx interval for this value of 'n'
+            dx=(b-a)/REAL(n-1)
 
-          IF(j==1) THEN
+            IF(j==1) THEN
 
-             !The first go is just the trapezium of the end points
-             f1=dispint_integrand(a,R,z,cosm)
-             f2=dispint_integrand(b,R,z,cosm)
-             sum_2n=0.5d0*(f1+f2)*dx
+                !The first go is just the trapezium of the end points
+                f1=dispint_integrand(a,R,z,cosm)
+                f2=dispint_integrand(b,R,z,cosm)
+                sum_2n=0.5d0*(f1+f2)*dx
 
-          ELSE
+            ELSE
 
-             !Loop over only new even points to add these to the integral
-             DO i=2,n,2
-                x=a+(b-a)*REAL(i-1)/REAL(n-1)
-                fx=dispint_integrand(x,R,z,cosm)
-                sum_2n=sum_2n+fx
-             END DO
+                !Loop over only new even points to add these to the integral
+                DO i=2,n,2
+                    x=a+(b-a)*REAL(i-1)/REAL(n-1)
+                    fx=dispint_integrand(x,R,z,cosm)
+                    sum_2n=sum_2n+fx
+                END DO
 
-             !Now create the total using the old and new parts
-             sum_2n=sum_n/2.d0+sum_2n*dx
+                !Now create the total using the old and new parts
+                sum_2n=sum_n/2.d0+sum_2n*dx
 
-             !Now calculate the new sum depending on the integration order
-             IF(iorder==1) THEN  
-                sum_new=sum_2n
-             ELSE IF(iorder==3) THEN         
-                sum_new=(4.d0*sum_2n-sum_n)/3.d0 !This is Simpson's rule and cancels error
-             ELSE
-                STOP 'DISPINT: Error, iorder specified incorrectly'
-             END IF
+                !Now calculate the new sum depending on the integration order
+                IF(iorder==1) THEN
+                    sum_new=sum_2n
+                ELSE IF(iorder==3) THEN
+                    sum_new=(4.d0*sum_2n-sum_n)/3.d0 !This is Simpson's rule and cancels error
+                ELSE
+                    STOP 'DISPINT: Error, iorder specified incorrectly'
+                END IF
 
-          END IF
+            END IF
 
-          IF((j>=jmin) .AND. (ABS(-1.d0+sum_new/sum_old)<acc)) THEN
-             !jmin avoids spurious early convergence
-             dispint=REAL(sum_new)
-             EXIT
-          ELSE IF(j==jmax) THEN
-             STOP 'DISPINT: Integration timed out'
-          ELSE
-             !Integral has not converged so store old sums and reset sum variables
-             sum_old=sum_new
-             sum_n=sum_2n
-             sum_2n=0.d0
-          END IF
+            IF((j>=jmin) .AND. (ABS(-1.d0+sum_new/sum_old)<acc)) THEN
+                !jmin avoids spurious early convergence
+                dispint=REAL(sum_new)
+                EXIT
+            ELSE IF(j==jmax) THEN
+                STOP 'DISPINT: Integration timed out'
+            ELSE
+                !Integral has not converged so store old sums and reset sum variables
+                sum_old=sum_new
+                sum_n=sum_2n
+                sum_2n=0.d0
+            END IF
 
-       END DO
+        END DO
 
     END IF
 
@@ -2230,18 +2230,18 @@
     !Including this seems to make things slower (faster integration but slower IF statements?)
 
     IF(theta==0. .OR. theta==1.) THEN
-       dispint_integrand=0.
+        dispint_integrand=0.
     ELSE
-       !IF(r>Rsplit) THEN
-       !   k=(-1.d0+1.d0/theta)/r**alpha
-       !ELSE
-       k=(-1.+1./theta)
-       !END IF
-       dispint_integrand=(p_lin(k,z,0,cosm)/k**2)*(wk_tophat(k*r)**2)/(theta*(1.-theta))
+        !IF(r>Rsplit) THEN
+        !   k=(-1.d0+1.d0/theta)/r**alpha
+        !ELSE
+        k=(-1.+1./theta)
+        !END IF
+        dispint_integrand=(p_lin(k,z,0,cosm)/k**2)*(wk_tophat(k*r)**2)/(theta*(1.-theta))
     END IF
 
     END FUNCTION dispint_integrand
-    
+
     FUNCTION Si(x)
 
     !Calculates the 'sine integral' function Si(x)
@@ -2562,212 +2562,212 @@
     ytab=yin
 
     IF(xtab(1)>xtab(n)) THEN
-       !Reverse the arrays in this case
-       CALL reverse(xtab,n)
-       CALL reverse(ytab,n)
+        !Reverse the arrays in this case
+        CALL reverse(xtab,n)
+        CALL reverse(ytab,n)
     END IF
 
     IF(x<xtab(1)) THEN
 
-       !Do a linear interpolation beyond the table boundary
+        !Do a linear interpolation beyond the table boundary
 
-       x1=xtab(1)
-       x2=xtab(2)
+        x1=xtab(1)
+        x2=xtab(2)
 
-       y1=ytab(1)
-       y2=ytab(2)
+        y1=ytab(1)
+        y2=ytab(2)
 
-       IF(imeth==1) THEN
-          CALL fit_line(a,b,x1,y1,x2,y2)
-          find=a*x+b
-       ELSE IF(imeth==2) THEN
-          find=Lagrange_polynomial(x,1,(/x1,x2/),(/y1,y2/))
-       ELSE
-          STOP 'FIND: Error, method not specified correctly'
-       END IF
-       
+        IF(imeth==1) THEN
+            CALL fit_line(a,b,x1,y1,x2,y2)
+            find=a*x+b
+        ELSE IF(imeth==2) THEN
+            find=Lagrange_polynomial(x,1,(/x1,x2/),(/y1,y2/))
+        ELSE
+            STOP 'FIND: Error, method not specified correctly'
+        END IF
+
     ELSE IF(x>xtab(n)) THEN
 
-       !Do a linear interpolation beyond the table boundary
-       
-       x1=xtab(n-1)
-       x2=xtab(n)
+        !Do a linear interpolation beyond the table boundary
 
-       y1=ytab(n-1)
-       y2=ytab(n)
+        x1=xtab(n-1)
+        x2=xtab(n)
 
-       IF(imeth==1) THEN
-          CALL fit_line(a,b,x1,y1,x2,y2)
-          find=a*x+b
-       ELSE IF(imeth==2) THEN
-          find=Lagrange_polynomial(x,1,(/x1,x2/),(/y1,y2/))
-       ELSE
-          STOP 'FIND: Error, method not specified correctly'
-       END IF
+        y1=ytab(n-1)
+        y2=ytab(n)
+
+        IF(imeth==1) THEN
+            CALL fit_line(a,b,x1,y1,x2,y2)
+            find=a*x+b
+        ELSE IF(imeth==2) THEN
+            find=Lagrange_polynomial(x,1,(/x1,x2/),(/y1,y2/))
+        ELSE
+            STOP 'FIND: Error, method not specified correctly'
+        END IF
 
     ELSE IF(iorder==1) THEN
 
-       IF(n<2) STOP 'FIND: Not enough points in your table for linear interpolation'
+        IF(n<2) STOP 'FIND: Not enough points in your table for linear interpolation'
 
-       IF(x<=xtab(2)) THEN
+        IF(x<=xtab(2)) THEN
 
-          x1=xtab(1)
-          x2=xtab(2)
+            x1=xtab(1)
+            x2=xtab(2)
 
-          y1=ytab(1)
-          y2=ytab(2)
+            y1=ytab(1)
+            y2=ytab(2)
 
-       ELSE IF (x>=xtab(n-1)) THEN
+        ELSE IF (x>=xtab(n-1)) THEN
 
-          x1=xtab(n-1)
-          x2=xtab(n)
+            x1=xtab(n-1)
+            x2=xtab(n)
 
-          y1=ytab(n-1)
-          y2=ytab(n)
+            y1=ytab(n-1)
+            y2=ytab(n)
 
-       ELSE
+        ELSE
 
-          i=table_integer(x,xtab,n,ifind)
-          
-          x1=xtab(i)
-          x2=xtab(i+1)
+            i=table_integer(x,xtab,n,ifind)
 
-          y1=ytab(i)
-          y2=ytab(i+1)
+            x1=xtab(i)
+            x2=xtab(i+1)
 
-       END IF
+            y1=ytab(i)
+            y2=ytab(i+1)
 
-       IF(imeth==1) THEN
-          CALL fit_line(a,b,x1,y1,x2,y2)
-          find=a*x+b
-       ELSE IF(imeth==2) THEN
-          find=Lagrange_polynomial(x,1,(/x1,x2/),(/y1,y2/))
-       ELSE
-          STOP 'FIND: Error, method not specified correctly'
-       END IF
+        END IF
+
+        IF(imeth==1) THEN
+            CALL fit_line(a,b,x1,y1,x2,y2)
+            find=a*x+b
+        ELSE IF(imeth==2) THEN
+            find=Lagrange_polynomial(x,1,(/x1,x2/),(/y1,y2/))
+        ELSE
+            STOP 'FIND: Error, method not specified correctly'
+        END IF
 
     ELSE IF(iorder==2) THEN
 
-       IF(n<3) STOP 'FIND: Not enough points in your table'
+        IF(n<3) STOP 'FIND: Not enough points in your table'
 
-       IF(x<=xtab(2) .OR. x>=xtab(n-1)) THEN
+        IF(x<=xtab(2) .OR. x>=xtab(n-1)) THEN
 
-          IF(x<=xtab(2)) THEN
+            IF(x<=xtab(2)) THEN
 
-             x1=xtab(1)
-             x2=xtab(2)
-             x3=xtab(3)
+                x1=xtab(1)
+                x2=xtab(2)
+                x3=xtab(3)
 
-             y1=ytab(1)
-             y2=ytab(2)
-             y3=ytab(3)
+                y1=ytab(1)
+                y2=ytab(2)
+                y3=ytab(3)
 
-          ELSE IF (x>=xtab(n-1)) THEN
+            ELSE IF (x>=xtab(n-1)) THEN
 
-             x1=xtab(n-2)
-             x2=xtab(n-1)
-             x3=xtab(n)
+                x1=xtab(n-2)
+                x2=xtab(n-1)
+                x3=xtab(n)
 
-             y1=ytab(n-2)
-             y2=ytab(n-1)
-             y3=ytab(n)
+                y1=ytab(n-2)
+                y2=ytab(n-1)
+                y3=ytab(n)
 
-          END IF
+            END IF
 
-          IF(imeth==1) THEN
-             CALL fit_quadratic(a,b,c,x1,y1,x2,y2,x3,y3)
-             find=a*(x**2)+b*x+c
-          ELSE IF(imeth==2) THEN
-             find=Lagrange_polynomial(x,2,(/x1,x2,x3/),(/y1,y2,y3/))
-          ELSE
-             STOP 'FIND: Error, method not specified correctly'
-          END IF
-             
-       ELSE
+            IF(imeth==1) THEN
+                CALL fit_quadratic(a,b,c,x1,y1,x2,y2,x3,y3)
+                find=a*(x**2)+b*x+c
+            ELSE IF(imeth==2) THEN
+                find=Lagrange_polynomial(x,2,(/x1,x2,x3/),(/y1,y2,y3/))
+            ELSE
+                STOP 'FIND: Error, method not specified correctly'
+            END IF
 
-          i=table_integer(x,xtab,n,ifind)
+        ELSE
 
-          x1=xtab(i-1)
-          x2=xtab(i)
-          x3=xtab(i+1)
-          x4=xtab(i+2)
+            i=table_integer(x,xtab,n,ifind)
 
-          y1=ytab(i-1)
-          y2=ytab(i)
-          y3=ytab(i+1)
-          y4=ytab(i+2)
+            x1=xtab(i-1)
+            x2=xtab(i)
+            x3=xtab(i+1)
+            x4=xtab(i+2)
 
-          IF(imeth==1) THEN
-             !In this case take the average of two separate quadratic spline values
-             CALL fit_quadratic(a,b,c,x1,y1,x2,y2,x3,y3)
-             find=(a*x**2+b*x+c)/2.
-             CALL fit_quadratic(a,b,c,x2,y2,x3,y3,x4,y4)
-             find=find+(a*x**2+b*x+c)/2.
-          ELSE IF(imeth==2) THEN
-             !In this case take the average of two quadratic Lagrange polynomials
-             find=(Lagrange_polynomial(x,2,(/x1,x2,x3/),(/y1,y2,y3/))+Lagrange_polynomial(x,2,(/x2,x3,x4/),(/y2,y3,y4/)))/2.
-          ELSE
-             STOP 'FIND: Error, method not specified correctly'
-          END IF
+            y1=ytab(i-1)
+            y2=ytab(i)
+            y3=ytab(i+1)
+            y4=ytab(i+2)
 
-       END IF
+            IF(imeth==1) THEN
+                !In this case take the average of two separate quadratic spline values
+                CALL fit_quadratic(a,b,c,x1,y1,x2,y2,x3,y3)
+                find=(a*x**2+b*x+c)/2.
+                CALL fit_quadratic(a,b,c,x2,y2,x3,y3,x4,y4)
+                find=find+(a*x**2+b*x+c)/2.
+            ELSE IF(imeth==2) THEN
+                !In this case take the average of two quadratic Lagrange polynomials
+                find=(Lagrange_polynomial(x,2,(/x1,x2,x3/),(/y1,y2,y3/))+Lagrange_polynomial(x,2,(/x2,x3,x4/),(/y2,y3,y4/)))/2.
+            ELSE
+                STOP 'FIND: Error, method not specified correctly'
+            END IF
+
+        END IF
 
     ELSE IF(iorder==3) THEN
 
-       IF(n<4) STOP 'FIND: Not enough points in your table'
+        IF(n<4) STOP 'FIND: Not enough points in your table'
 
-       IF(x<=xtab(3)) THEN
+        IF(x<=xtab(3)) THEN
 
-          x1=xtab(1)
-          x2=xtab(2)
-          x3=xtab(3)
-          x4=xtab(4)        
+            x1=xtab(1)
+            x2=xtab(2)
+            x3=xtab(3)
+            x4=xtab(4)
 
-          y1=ytab(1)
-          y2=ytab(2)
-          y3=ytab(3)
-          y4=ytab(4)
+            y1=ytab(1)
+            y2=ytab(2)
+            y3=ytab(3)
+            y4=ytab(4)
 
-       ELSE IF (x>=xtab(n-2)) THEN
+        ELSE IF (x>=xtab(n-2)) THEN
 
-          x1=xtab(n-3)
-          x2=xtab(n-2)
-          x3=xtab(n-1)
-          x4=xtab(n)
+            x1=xtab(n-3)
+            x2=xtab(n-2)
+            x3=xtab(n-1)
+            x4=xtab(n)
 
-          y1=ytab(n-3)
-          y2=ytab(n-2)
-          y3=ytab(n-1)
-          y4=ytab(n)
+            y1=ytab(n-3)
+            y2=ytab(n-2)
+            y3=ytab(n-1)
+            y4=ytab(n)
 
-       ELSE
+        ELSE
 
-          i=table_integer(x,xtab,n,ifind)
+            i=table_integer(x,xtab,n,ifind)
 
-          x1=xtab(i-1)
-          x2=xtab(i)
-          x3=xtab(i+1)
-          x4=xtab(i+2)
+            x1=xtab(i-1)
+            x2=xtab(i)
+            x3=xtab(i+1)
+            x4=xtab(i+2)
 
-          y1=ytab(i-1)
-          y2=ytab(i)
-          y3=ytab(i+1)
-          y4=ytab(i+2)
+            y1=ytab(i-1)
+            y2=ytab(i)
+            y3=ytab(i+1)
+            y4=ytab(i+2)
 
-       END IF
+        END IF
 
-       IF(imeth==1) THEN
-          CALL fit_cubic(a,b,c,d,x1,y1,x2,y2,x3,y3,x4,y4)
-          find=a*x**3+b*x**2+c*x+d
-       ELSE IF(imeth==2) THEN
-          find=Lagrange_polynomial(x,3,(/x1,x2,x3,x4/),(/y1,y2,y3,y4/))
-       ELSE
-          STOP 'FIND: Error, method not specified correctly'
-       END IF
+        IF(imeth==1) THEN
+            CALL fit_cubic(a,b,c,d,x1,y1,x2,y2,x3,y3,x4,y4)
+            find=a*x**3+b*x**2+c*x+d
+        ELSE IF(imeth==2) THEN
+            find=Lagrange_polynomial(x,3,(/x1,x2,x3,x4/),(/y1,y2,y3,y4/))
+        ELSE
+            STOP 'FIND: Error, method not specified correctly'
+        END IF
 
     ELSE
 
-       STOP 'FIND: Error, interpolation order specified incorrectly'
+        STOP 'FIND: Error, interpolation order specified incorrectly'
 
     END IF
 
@@ -2783,13 +2783,13 @@
     INTEGER, INTENT(IN) :: imeth
 
     IF(imeth==1) THEN
-       table_integer=linear_table_integer(x,xtab,n)
+        table_integer=linear_table_integer(x,xtab,n)
     ELSE IF(imeth==2) THEN
-       table_integer=search_int(x,xtab,n)
+        table_integer=search_int(x,xtab,n)
     ELSE IF(imeth==3) THEN
-       table_integer=int_split(x,xtab,n)
+        table_integer=int_split(x,xtab,n)
     ELSE
-       STOP 'TABLE INTEGER: Method specified incorrectly'
+        STOP 'TABLE INTEGER: Method specified incorrectly'
     END IF
 
     END FUNCTION table_integer
@@ -2832,7 +2832,7 @@
     IF(xtab(1)>xtab(n)) STOP 'SEARCH_INT: table in wrong order'
 
     DO i=1,n
-       IF(x>=xtab(i) .AND. x<=xtab(i+1)) EXIT
+        IF(x>=xtab(i) .AND. x<=xtab(i+1)) EXIT
     END DO
 
     search_int=i
@@ -2854,19 +2854,19 @@
     i2=n
 
     DO
-       
-       imid=NINT((i1+i2)/2.)
 
-       IF(x<xtab(imid)) THEN
-          i2=imid
-       ELSE
-          i1=imid
-       END IF
+        imid=NINT((i1+i2)/2.)
 
-       IF(i2==i1+1) EXIT
+        IF(x<xtab(imid)) THEN
+            i2=imid
+        ELSE
+            i1=imid
+        END IF
+
+        IF(i2==i1+1) EXIT
 
     END DO
-    
+
     int_split=i1
 
     END FUNCTION int_split
@@ -2876,7 +2876,7 @@
     !Given xi, yi i=1,2 fits a line between these points
     IMPLICIT NONE
     REAL, INTENT(OUT) :: a0, a1
-    REAL, INTENT(IN) :: x1, y1, x2, y2   
+    REAL, INTENT(IN) :: x1, y1, x2, y2
 
     a1=(y2-y1)/(x2-x1)
     a0=y1-a1*x1
@@ -2888,7 +2888,7 @@
     !Given xi, yi i=1,2,3 fits a quadratic between these points
     IMPLICIT NONE
     REAL, INTENT(OUT) :: a0, a1, a2
-    REAL, INTENT(IN) :: x1, y1, x2, y2, x3, y3   
+    REAL, INTENT(IN) :: x1, y1, x2, y2, x3, y3
 
     a2=((y2-y1)/(x2-x1)-(y3-y1)/(x3-x1))/(x2-x3)
     a1=(y2-y1)/(x2-x1)-a2*(x2+x1)
@@ -2902,7 +2902,7 @@
     IMPLICIT NONE
     REAL, INTENT(OUT) :: a, b, c, d
     REAL, INTENT(IN) :: x1, y1, x2, y2, x3, y3, x4, y4
-    REAL :: f1, f2, f3    
+    REAL :: f1, f2, f3
 
     f1=(y4-y1)/((x4-x2)*(x4-x1)*(x4-x3))
     f2=(y3-y1)/((x3-x2)*(x3-x1)*(x4-x3))
@@ -2942,12 +2942,12 @@
 
     !Loops to find the polynomials, one is a sum and one is a multiple
     DO i=0,n
-       DO j=0,n
-          IF(i .NE. j) l(i+1)=l(i+1)*(x-xv(j+1))/(xv(i+1)-xv(j+1))
-       END DO
-       Lagrange_polynomial=Lagrange_polynomial+l(i+1)*yv(i+1)
+        DO j=0,n
+            IF(i .NE. j) l(i+1)=l(i+1)*(x-xv(j+1))/(xv(i+1)-xv(j+1))
+        END DO
+        Lagrange_polynomial=Lagrange_polynomial+l(i+1)*yv(i+1)
     END DO
-    
+
     END FUNCTION Lagrange_polynomial
 
     SUBROUTINE reverse(arry,n)
@@ -2957,14 +2957,14 @@
     INTEGER, INTENT(IN) :: n
     REAL, INTENT(INOUT) :: arry(n)
     INTEGER :: i
-    REAL, ALLOCATABLE :: hold(:) 
+    REAL, ALLOCATABLE :: hold(:)
 
     ALLOCATE(hold(n))
 
     hold=arry
 
     DO i=1,n
-       arry(i)=hold(n-i+1)
+        arry(i)=hold(n-i+1)
     END DO
 
     DEALLOCATE(hold)
@@ -3023,7 +3023,7 @@
 
     SUBROUTINE ode_growth(x,v,t,kk,ti,tf,xi,vi,acc,imeth,cosm)
 
-    !Solves 2nd order ODE x''(t) from ti to tf and writes out array of x, v, t values 
+    !Solves 2nd order ODE x''(t) from ti to tf and writes out array of x, v, t values
     IMPLICIT NONE
     REAL :: xi, ti, tf, dt, acc, vi, x4, v4, t4, kk
     REAL :: kx1, kx2, kx3, kx4, kv1, kv2, kv3, kv4
@@ -3046,117 +3046,117 @@
 
     DO j=1,jmax
 
-       !Set the number of points for the forward integration
-       n=ninit*(2**(j-1))
-       n=n+1  
+        !Set the number of points for the forward integration
+        n=ninit*(2**(j-1))
+        n=n+1
 
-       !Allocate arrays
-       ALLOCATE(x8(n),t8(n),v8(n))
+        !Allocate arrays
+        ALLOCATE(x8(n),t8(n),v8(n))
 
-       !Set the arrays to initialy be zeroes (is this neceseary?)
-       x8=0.d0
-       t8=0.d0
-       v8=0.d0
+        !Set the arrays to initialy be zeroes (is this neceseary?)
+        x8=0.d0
+        t8=0.d0
+        v8=0.d0
 
-       !Set the intial conditions at the intial time
-       x8(1)=xi
-       v8(1)=vi
+        !Set the intial conditions at the intial time
+        x8(1)=xi
+        v8(1)=vi
 
-       !Fill up a table for the time values
-       CALL fill_table8(DBLE(ti),DBLE(tf),t8,n)
+        !Fill up a table for the time values
+        CALL fill_table8(DBLE(ti),DBLE(tf),t8,n)
 
-       !Set the time interval
-       dt=(tf-ti)/float(n-1)
+        !Set the time interval
+        dt=(tf-ti)/float(n-1)
 
-       !Intially fix this to zero. It will change to 1 if method is a 'failure'
-       ifail=0
+        !Intially fix this to zero. It will change to 1 if method is a 'failure'
+        ifail=0
 
-       DO i=1,n-1
+        DO i=1,n-1
 
-          x4=real(x8(i))
-          v4=real(v8(i))
-          t4=real(t8(i))
+            x4=real(x8(i))
+            v4=real(v8(i))
+            t4=real(t8(i))
 
-          IF(imeth==1) THEN
+            IF(imeth==1) THEN
 
-             !Crude method
-             kx1=dt*fd(x4,v4,kk,t4,cosm)
-             kv1=dt*fv(x4,v4,kk,t4,cosm)
+                !Crude method
+                kx1=dt*fd(x4,v4,kk,t4,cosm)
+                kv1=dt*fv(x4,v4,kk,t4,cosm)
 
-             x8(i+1)=x8(i)+kx1
-             v8(i+1)=v8(i)+kv1
-                  
-          ELSE IF(imeth==2) THEN
+                x8(i+1)=x8(i)+kx1
+                v8(i+1)=v8(i)+kv1
 
-             !Mid-point method
-             !2017/06/18 - There was a bug in this part before. Luckily it was not used. Thanks Dipak Munshi.
-             kx1=dt*fd(x4,v4,kk,t4,cosm)
-             kv1=dt*fv(x4,v4,kk,t4,cosm)
-             kx2=dt*fd(x4+kx1/2.,v4+kv1/2.,kk,t4+dt/2.,cosm)
-             kv2=dt*fv(x4+kx1/2.,v4+kv1/2.,kk,t4+dt/2.,cosm)
+            ELSE IF(imeth==2) THEN
 
-             x8(i+1)=x8(i)+kx2
-             v8(i+1)=v8(i)+kv2
-             
-          ELSE IF(imeth==3) THEN
+                !Mid-point method
+                !2017/06/18 - There was a bug in this part before. Luckily it was not used. Thanks Dipak Munshi.
+                kx1=dt*fd(x4,v4,kk,t4,cosm)
+                kv1=dt*fv(x4,v4,kk,t4,cosm)
+                kx2=dt*fd(x4+kx1/2.,v4+kv1/2.,kk,t4+dt/2.,cosm)
+                kv2=dt*fv(x4+kx1/2.,v4+kv1/2.,kk,t4+dt/2.,cosm)
 
-             !4th order Runge-Kutta method (fast!)
-             kx1=dt*fd(x4,v4,kk,t4,cosm)
-             kv1=dt*fv(x4,v4,kk,t4,cosm)
-             kx2=dt*fd(x4+kx1/2.,v4+kv1/2.,kk,t4+dt/2.,cosm)
-             kv2=dt*fv(x4+kx1/2.,v4+kv1/2.,kk,t4+dt/2.,cosm)
-             kx3=dt*fd(x4+kx2/2.,v4+kv2/2.,kk,t4+dt/2.,cosm)
-             kv3=dt*fv(x4+kx2/2.,v4+kv2/2.,kk,t4+dt/2.,cosm)
-             kx4=dt*fd(x4+kx3,v4+kv3,kk,t4+dt,cosm)
-             kv4=dt*fv(x4+kx3,v4+kv3,kk,t4+dt,cosm)
+                x8(i+1)=x8(i)+kx2
+                v8(i+1)=v8(i)+kv2
 
-             x8(i+1)=x8(i)+(kx1+(2.*kx2)+(2.*kx3)+kx4)/6.
-             v8(i+1)=v8(i)+(kv1+(2.*kv2)+(2.*kv3)+kv4)/6.
+            ELSE IF(imeth==3) THEN
 
-          END IF
+                !4th order Runge-Kutta method (fast!)
+                kx1=dt*fd(x4,v4,kk,t4,cosm)
+                kv1=dt*fv(x4,v4,kk,t4,cosm)
+                kx2=dt*fd(x4+kx1/2.,v4+kv1/2.,kk,t4+dt/2.,cosm)
+                kv2=dt*fv(x4+kx1/2.,v4+kv1/2.,kk,t4+dt/2.,cosm)
+                kx3=dt*fd(x4+kx2/2.,v4+kv2/2.,kk,t4+dt/2.,cosm)
+                kv3=dt*fv(x4+kx2/2.,v4+kv2/2.,kk,t4+dt/2.,cosm)
+                kx4=dt*fd(x4+kx3,v4+kv3,kk,t4+dt,cosm)
+                kv4=dt*fv(x4+kx3,v4+kv3,kk,t4+dt,cosm)
 
-          !t8(i+1)=t8(i)+dt
+                x8(i+1)=x8(i)+(kx1+(2.*kx2)+(2.*kx3)+kx4)/6.
+                v8(i+1)=v8(i)+(kv1+(2.*kv2)+(2.*kv3)+kv4)/6.
 
-       END DO
+            END IF
 
-       IF(j==1) ifail=1
+            !t8(i+1)=t8(i)+dt
 
-       IF(j .NE. 1) THEN
+        END DO
 
-          np=1+(n-1)/2
+        IF(j==1) ifail=1
 
-          DO k=1,1+(n-1)/2
+        IF(j .NE. 1) THEN
 
-             kn=2*k-1
+            np=1+(n-1)/2
 
-             IF(ifail==0) THEN
+            DO k=1,1+(n-1)/2
 
-                IF(xh(k)>acc .AND. x8(kn)>acc .AND. (ABS(xh(k)/x8(kn))-1.)>acc) ifail=1
-                IF(vh(k)>acc .AND. v8(kn)>acc .AND. (ABS(vh(k)/v8(kn))-1.)>acc) ifail=1
+                kn=2*k-1
 
-                IF(ifail==1) THEN
-                   DEALLOCATE(xh,th,vh)
-                   EXIT
+                IF(ifail==0) THEN
+
+                    IF(xh(k)>acc .AND. x8(kn)>acc .AND. (ABS(xh(k)/x8(kn))-1.)>acc) ifail=1
+                    IF(vh(k)>acc .AND. v8(kn)>acc .AND. (ABS(vh(k)/v8(kn))-1.)>acc) ifail=1
+
+                    IF(ifail==1) THEN
+                        DEALLOCATE(xh,th,vh)
+                        EXIT
+                    END IF
+
                 END IF
+            END DO
 
-             END IF
-          END DO
+        END IF
 
-       END IF
+        IF(ifail==0) THEN
+            ALLOCATE(x(n),t(n),v(n))
+            x=real(x8)
+            v=real(v8)
+            t=real(t8)
+            EXIT
+        END IF
 
-       IF(ifail==0) THEN
-          ALLOCATE(x(n),t(n),v(n))
-          x=real(x8)
-          v=real(v8)
-          t=real(t8)
-          EXIT
-       END IF
-
-       ALLOCATE(xh(n),th(n),vh(n))
-       xh=x8
-       vh=v8
-       th=t8
-       DEALLOCATE(x8,t8,v8)
+        ALLOCATE(xh(n),th(n),vh(n))
+        xh=x8
+        vh=v8
+        th=t8
+        DEALLOCATE(x8,t8,v8)
 
     END DO
 
