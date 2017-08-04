@@ -875,7 +875,7 @@
     TYPE(HM_tables) :: lut
     REAL, PARAMETER :: mmin=1e0 !Lower mass limit
     REAL, PARAMETER :: mmax=1e18 !Upper mass limit
-    INTEGER, PARAMETER :: n=256 !Number of entries in look-up HM_tables.
+    INTEGER, PARAMETER :: n=256 !Number of entries in look-up HM_tables
 
     IF(HM_verbose) WRITE(*,*) 'HALOMOD: Filling look-up HM_tables'
     IF(HM_verbose) WRITE(*,*) 'HALOMOD: HM_tables being filled at redshift:', z
@@ -1054,7 +1054,7 @@
 
     ainf=1./(1.+zinf)
 
-    !Needs to use grow_int explicitly here for LCDM model to avoid growth HM_tables
+    !Needs to use growint explicitly here for LCDM model to avoid growth HM_tables
     g_lcdm=growint(ainf,cos_lcdm)
 
     pow=1.5
@@ -1111,6 +1111,7 @@
              f1=growint_integrand(a,cosm)
              f2=growint_integrand(b,cosm)
              sum_2n=0.5d0*(f1+f2)*dx
+             sum_new=sum_2n
 
           ELSE
 
@@ -1700,6 +1701,7 @@
              f1=sigma_integrand_transformed(a,r,f0_rapid,z,itype,cosm)
              f2=sigma_integrand_transformed(b,r,f0_rapid,z,itype,cosm)
              sum_2n=0.5d0*(f1+f2)*dx
+             sum_new=sum_2n
 
           ELSE
 
@@ -1814,6 +1816,7 @@
              f1=sigma_integrand_transformed(a,r,f1_rapid,z,itype,cosm)
              f2=sigma_integrand_transformed(b,r,f1_rapid,z,itype,cosm)
              sum_2n=0.5d0*(f1+f2)*dx
+             sum_new=sum_2n
 
           ELSE
 
@@ -1919,6 +1922,7 @@
              f1=sigma_integrand(a,r,z,itype,cosm)
              f2=sigma_integrand(b,r,z,itype,cosm)
              sum_2n=0.5d0*(f1+f2)*dx
+             sum_new=sum_2n
 
           ELSE
 
@@ -2170,6 +2174,7 @@
              f1=dispint_integrand(a,R,z,cosm)
              f2=dispint_integrand(b,R,z,cosm)
              sum_2n=0.5d0*(f1+f2)*dx
+             sum_new=sum_2n
 
           ELSE
 
