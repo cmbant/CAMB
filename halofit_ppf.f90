@@ -1131,7 +1131,7 @@
              ELSE IF(iorder==3) THEN         
                 sum_new=(4.d0*sum_2n-sum_n)/3.d0 !This is Simpson's rule and cancels error
              ELSE
-                STOP 'GROWINT: Error, iorder specified incorrectly'
+                ERROR STOP 'GROWINT: Error, iorder specified incorrectly'
              END IF
 
           END IF
@@ -1141,7 +1141,7 @@
              growint=exp(sum_new)
              EXIT
           ELSE IF(j==jmax) THEN
-             STOP 'GROWINT: Integration timed out'
+             ERROR STOP 'GROWINT: Integration timed out'
           ELSE
              !Integral has not converged so store old sums and reset sum variables
              sum_old=sum_new
@@ -1595,7 +1595,7 @@
     ELSE IF(r<rsplit) THEN
        sigma=sqrt(sigint1(r,z,itype,cosm,acc,iorder)+sigint2(r,z,itype,cosm,acc,iorder))
     ELSE
-       STOP 'SIGMA: Error, something went wrong'
+       ERROR STOP 'SIGMA: Error, something went wrong'
     END IF
 
     END FUNCTION sigma
@@ -1721,7 +1721,7 @@
              ELSE IF(iorder==3) THEN         
                 sum_new=(4.d0*sum_2n-sum_n)/3.d0 !This is Simpson's rule and cancels error
              ELSE
-                STOP 'SIGINT0: Error, iorder specified incorrectly'
+                ERROR STOP 'SIGINT0: Error, iorder specified incorrectly'
              END IF
 
           END IF
@@ -1731,7 +1731,7 @@
              sigint0=REAL(sum_new)
              EXIT
           ELSE IF(j==jmax) THEN
-             STOP 'SIGINT0: Integration timed out'
+             ERROR STOP 'SIGINT0: Integration timed out'
           ELSE
              !Integral has not converged so store old sums and reset sum variables
              sum_old=sum_new
@@ -1836,7 +1836,7 @@
              ELSE IF(iorder==3) THEN         
                 sum_new=(4.d0*sum_2n-sum_n)/3.d0 !This is Simpson's rule and cancels error
              ELSE
-                STOP 'SIGINT1: Error, iorder specified incorrectly'
+                ERROR STOP 'SIGINT1: Error, iorder specified incorrectly'
              END IF
 
           END IF
@@ -1846,7 +1846,7 @@
              sigint1=REAL(sum_new)
              EXIT
           ELSE IF(j==jmax) THEN
-             STOP 'SIGINT1: Integration timed out'
+             ERROR STOP 'SIGINT1: Integration timed out'
           ELSE
              !Integral has not converged so store old sums and reset sum variables
              sum_old=sum_new
@@ -1942,7 +1942,7 @@
              ELSE IF(iorder==3) THEN         
                 sum_new=(4.d0*sum_2n-sum_n)/3.d0 !This is Simpson's rule and cancels error
              ELSE
-                STOP 'SIGINT2: Error, iorder specified incorrectly'
+                ERROR STOP 'SIGINT2: Error, iorder specified incorrectly'
              END IF
 
           END IF
@@ -1953,7 +1953,7 @@
              !WRITE(*,*) 'INTEGRATE_STORE: Nint:', n
              EXIT
           ELSE IF(j==jmax) THEN
-             STOP 'SIGINT2: Integration timed out'
+             ERROR STOP 'SIGINT2: Integration timed out'
           ELSE
              !Integral has not converged so store old sums and reset sum variables
              sum_old=sum_new
@@ -2194,7 +2194,7 @@
              ELSE IF(iorder==3) THEN         
                 sum_new=(4.d0*sum_2n-sum_n)/3.d0 !This is Simpson's rule and cancels error
              ELSE
-                STOP 'DISPINT: Error, iorder specified incorrectly'
+                ERROR STOP 'DISPINT: Error, iorder specified incorrectly'
              END IF
 
           END IF
@@ -2204,7 +2204,7 @@
              dispint=REAL(sum_new)
              EXIT
           ELSE IF(j==jmax) THEN
-             STOP 'DISPINT: Integration timed out'
+             ERROR STOP 'DISPINT: Integration timed out'
           ELSE
              !Integral has not converged so store old sums and reset sum variables
              sum_old=sum_new
@@ -2588,7 +2588,7 @@
        ELSE IF(imeth==2) THEN
           find=Lagrange_polynomial(x,1,(/x1,x2/),(/y1,y2/))
        ELSE
-          STOP 'FIND: Error, method not specified correctly'
+          ERROR STOP 'FIND: Error, method not specified correctly'
        END IF
        
     ELSE IF(x>xtab(n)) THEN
@@ -2607,12 +2607,12 @@
        ELSE IF(imeth==2) THEN
           find=Lagrange_polynomial(x,1,(/x1,x2/),(/y1,y2/))
        ELSE
-          STOP 'FIND: Error, method not specified correctly'
+          ERROR STOP 'FIND: Error, method not specified correctly'
        END IF
 
     ELSE IF(iorder==1) THEN
 
-       IF(n<2) STOP 'FIND: Not enough points in your table for linear interpolation'
+       IF(n<2) ERROR STOP 'FIND: Not enough points in your table for linear interpolation'
 
        IF(x<=xtab(2)) THEN
 
@@ -2648,12 +2648,12 @@
        ELSE IF(imeth==2) THEN
           find=Lagrange_polynomial(x,1,(/x1,x2/),(/y1,y2/))
        ELSE
-          STOP 'FIND: Error, method not specified correctly'
+          ERROR STOP 'FIND: Error, method not specified correctly'
        END IF
 
     ELSE IF(iorder==2) THEN
 
-       IF(n<3) STOP 'FIND: Not enough points in your table'
+       IF(n<3) ERROR STOP 'FIND: Not enough points in your table'
 
        IF(x<=xtab(2) .OR. x>=xtab(n-1)) THEN
 
@@ -2685,7 +2685,7 @@
           ELSE IF(imeth==2) THEN
              find=Lagrange_polynomial(x,2,(/x1,x2,x3/),(/y1,y2,y3/))
           ELSE
-             STOP 'FIND: Error, method not specified correctly'
+             ERROR STOP 'FIND: Error, method not specified correctly'
           END IF
              
        ELSE
@@ -2712,14 +2712,14 @@
              !In this case take the average of two quadratic Lagrange polynomials
              find=(Lagrange_polynomial(x,2,(/x1,x2,x3/),(/y1,y2,y3/))+Lagrange_polynomial(x,2,(/x2,x3,x4/),(/y2,y3,y4/)))/2.
           ELSE
-             STOP 'FIND: Error, method not specified correctly'
+             ERROR STOP 'FIND: Error, method not specified correctly'
           END IF
 
        END IF
 
     ELSE IF(iorder==3) THEN
 
-       IF(n<4) STOP 'FIND: Not enough points in your table'
+       IF(n<4) ERROR STOP 'FIND: Not enough points in your table'
 
        IF(x<=xtab(3)) THEN
 
@@ -2767,12 +2767,12 @@
        ELSE IF(imeth==2) THEN
           find=Lagrange_polynomial(x,3,(/x1,x2,x3,x4/),(/y1,y2,y3,y4/))
        ELSE
-          STOP 'FIND: Error, method not specified correctly'
+          ERROR STOP 'FIND: Error, method not specified correctly'
        END IF
 
     ELSE
 
-       STOP 'FIND: Error, interpolation order specified incorrectly'
+       ERROR STOP 'FIND: Error, interpolation order specified incorrectly'
 
     END IF
 
@@ -2794,7 +2794,7 @@
     ELSE IF(imeth==3) THEN
        table_integer=int_split(x,xtab,n)
     ELSE
-       STOP 'TABLE INTEGER: Method specified incorrectly'
+       ERROR STOP 'TABLE INTEGER: Method specified incorrectly'
     END IF
 
     END FUNCTION table_integer
@@ -2818,8 +2818,8 @@
     x2=xtab(2)
     xn=xtab(n)
 
-    IF(x1>xn) STOP 'LINEAR_TABLE_INTEGER :: table in the wrong order'
-    IF(ABS(-1.+float(n-1)*(x2-x1)/(xn-x1))>acc) STOP 'LINEAR_TABLE_INTEGER :: table does not seem to be linear'
+    IF(x1>xn) ERROR STOP 'LINEAR_TABLE_INTEGER :: table in the wrong order'
+    IF(ABS(-1.+float(n-1)*(x2-x1)/(xn-x1))>acc) ERROR STOP 'LINEAR_TABLE_INTEGER :: table does not seem to be linear'
 
     linear_table_integer=1+FLOOR(float(n-1)*(x-x1)/(xn-x1))
 
@@ -2834,7 +2834,7 @@
     REAL, INTENT(IN) :: x, xtab(n)
     INTEGER :: i
 
-    IF(xtab(1)>xtab(n)) STOP 'SEARCH_INT: table in wrong order'
+    IF(xtab(1)>xtab(n)) ERROR STOP 'SEARCH_INT: table in wrong order'
 
     DO i=1,n
        IF(x>=xtab(i) .AND. x<=xtab(i+1)) EXIT
@@ -2853,7 +2853,7 @@
     REAL, INTENT(IN) :: x, xtab(n)
     INTEGER :: i1, i2, imid
 
-    IF(xtab(1)>xtab(n)) STOP 'INT_SPLIT: table in wrong order'
+    IF(xtab(1)>xtab(n)) ERROR STOP 'INT_SPLIT: table in wrong order'
 
     i1=1
     i2=n
