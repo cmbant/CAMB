@@ -1111,7 +1111,8 @@
                 f1=growint_integrand(a,cosm)
                 f2=growint_integrand(b,cosm)
                 sum_2n=0.5d0*(f1+f2)*dx
-
+                sum_new=sum_2n
+                
             ELSE
 
                 !Loop over only new even points to add these to the integral
@@ -1700,7 +1701,8 @@
                 f1=sigma_integrand_transformed(a,r,f0_rapid,z,itype,cosm)
                 f2=sigma_integrand_transformed(b,r,f0_rapid,z,itype,cosm)
                 sum_2n=0.5d0*(f1+f2)*dx
-
+                sum_new=sum_2n
+                
             ELSE
 
                 !Loop over only new even points to add these to the integral
@@ -1814,6 +1816,7 @@
                 f1=sigma_integrand_transformed(a,r,f1_rapid,z,itype,cosm)
                 f2=sigma_integrand_transformed(b,r,f1_rapid,z,itype,cosm)
                 sum_2n=0.5d0*(f1+f2)*dx
+                sum_new=sum_2n
 
             ELSE
 
@@ -1829,7 +1832,7 @@
 
                 !Now calculate the new sum depending on the integration order
                 IF(iorder==1) THEN
-                    sum_new=REAL(sum_2n)
+                    sum_new=sum_2n
                 ELSE IF(iorder==3) THEN
                     sum_new=(4.d0*sum_2n-sum_n)/3.d0 !This is Simpson's rule and cancels error
                 ELSE
@@ -1919,6 +1922,7 @@
                 f1=sigma_integrand(a,r,z,itype,cosm)
                 f2=sigma_integrand(b,r,z,itype,cosm)
                 sum_2n=0.5d0*(f1+f2)*dx
+                sum_new=sum_2n
 
             ELSE
 
@@ -2170,6 +2174,7 @@
                 f1=dispint_integrand(a,R,z,cosm)
                 f2=dispint_integrand(b,R,z,cosm)
                 sum_2n=0.5d0*(f1+f2)*dx
+                sum_new=sum_2n
 
             ELSE
 
