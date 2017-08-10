@@ -1,11 +1,23 @@
 cd /camb
+
+gfortran -dumpversion
+
 make Release
 
-cd pycamb
-pip install setuptools
-python setup.py install
+pushd pycamb
+python setup.py install || exit $?
 python setup.py test || exit $?
-cd ..
+
+conda create -q -y -n py3-environment python=3 numpy scipy sympy six
+source activate py3-environment 
+mkdir -p fortran
+find ../ -maxdepth 1 -type f | xargs cp -t fortran
+mv ../lensing.f90 ../lensing.f90_tmp
+python setup.py install || exit $?
+python -c "import camb; print(camb.__version__)"
+python setup.py test || exit $?
+mv ../lensing.f90_tmp ../lensing.f90
+popd
 
 python python/CAMB_test_files.py testfiles --make_ini
 cd testfiles

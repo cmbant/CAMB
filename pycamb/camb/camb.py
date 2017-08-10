@@ -1,4 +1,4 @@
-from .baseconfig import camblib, CAMBError, CAMB_Structure, dll_import
+from .baseconfig import camblib, CAMBError, CAMB_Structure, dll_import, mock_load
 import ctypes
 from ctypes import c_float, c_int, c_double, c_bool, POINTER, byref
 from . import model, constants, initialpower, lensing
@@ -7,8 +7,17 @@ from numpy import ctypeslib as nplib
 from numpy.ctypeslib import ndpointer
 import logging
 import sys
-from inspect import ismethod, getargspec
 import six
+import copy
+from inspect import ismethod
+
+if not mock_load:
+    from scipy.interpolate import UnivariateSpline, RectBivariateSpline
+
+if six.PY3:
+    from inspect import getfullargspec as getargspec
+else:
+    from inspect import getargspec
 
 
 class _CAMBdata(CAMB_Structure):
@@ -478,7 +487,7 @@ class CAMBdata(object):
         if self.Params.DoLensing:
             lmax_calc = model.lmax_lensed.value
         else:
-            lmax_calc = self.Params.Max_l
+            lmax_calc = self.Params.max_l
         if lmax is None:
             lmax = lmax_calc
         elif lmax > lmax_calc:
@@ -928,7 +937,6 @@ class CAMBdata(object):
 
         zs = np.exp(np.log(zmax + 1) * np.linspace(0, 1, nz_step)) - 1
         chis = self.conformal_time(0) - self.conformal_time(zs)
-        from scipy.interpolate import UnivariateSpline
         f = UnivariateSpline(chis, zs, s=0)
         if np.isscalar(chi):
             return np.asscalar(f(chi))
@@ -1207,8 +1215,6 @@ def get_matter_power_interpolator(params, zmin=0, zmax=10, nz_step=100, zs=None,
     :return: RectBivariateSpline object PK, that can be called with PK(z,log(kh)) to get log matter power values.
         if return_z_k=True, instead return interpolator, z, k where z, k are the grid used
     """
-    import copy
-    from scipy.interpolate import RectBivariateSpline
 
     pars = copy.deepcopy(params)
     if zs is None:

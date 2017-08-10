@@ -38,7 +38,7 @@ def printlog(text):
     if logfile is None:
         logfile = open(os.path.join(args.ini_dir,'test_results.log'), 'a')
     logfile.write(text+"\n")
-    
+
 # The tolerance matrix gives the tolerances for comparing two values of the actual results with
 # results given in a diff_to. Filename globing is supported by fnmatch. The first glob matching
 # is the winner and its tolerances will be used. To implement a first match order, a regular array
@@ -73,7 +73,7 @@ class ColTol(dict):
     def __missing__(self, item):
         return self["*"]
 
-class Ignore():
+class Ignore:
     """
     Ignore() files of this class completely.
     """
@@ -107,6 +107,7 @@ def normabs(o, n, tol):
     Compute |o - n| / |o| < tol
     :param o: The old value
     :param n: The new value
+    :param tol: toleranace
     :return: True when |o - n| / |o| < tol, false else
     """
     res = (math.fabs(o - n) / math.fabs(o) if o != 0.0 else math.fabs(o - n)) < tol
@@ -180,7 +181,6 @@ coltol1 = ColTol({"L": Ignore(),
                   "*" : Ignore()})
 
 # The filetolmatrix as described above.
-global filetolmatrix
 filetolmatrix = [["*scalCls.dat", Ignore()],  # Ignore() all scalCls.dat files.
                  ["*lensedCls.dat", coltol1],  # lensed and lenspotential files both use coltol1 given above
                  ["*lensedtotCls.dat", coltol1],
@@ -235,9 +235,7 @@ def getInis(ini_dir):
 
 
 def getTestParams():
-    params = []
-
-    params.append(['base'])
+    params = [['base']]
 
     for lmax in [1000, 2000, 2500, 3000, 4500, 6000]:
         params.append(['lmax%s' % lmax, 'l_max_scalar = %s' % lmax, 'k_eta_max_scalar  = %s' % (lmax * 2.5)])
@@ -315,7 +313,7 @@ def getTestParams():
         're_optical_depth': [0.03, 0.05, 0.08, 0.11],
     }
 
-    for par, vals in pars.iteritems():
+    for par, vals in pars.items():
         for val in vals:
             params.append(['%s_%.3f' % (par, val), 'get_transfer= T', 'do_nonlinear=1', 'transfer_high_precision = T',
                            '%s = %s' % (par, val)])
@@ -331,11 +329,11 @@ def getTestParams():
     if not args.no_sources and not os.environ.get('CAMB_TESTS_NO_SOURCES'):
         # ##CAMB sources options and new outputs
         params.append(['delta_xe', 'evolve_delta_xe =T', 'get_transfer= T', 'do_nonlinear=2', 'transfer_high_precision = T'])
-    
+
         def make_win(i, z, kind, bias, sigma, s):
             return ['redshift(%s) = %s' % (i, z), 'redshift_kind(%s) = %s' % (i, kind), 'redshift_bias(%s) = %s' % (i, bias),
                     'redshift_sigma(%s) = %s' % (i, sigma), 'redshift_dlog10Ndm(%s) = %s' % (i, s)]
-    
+
         counts_def = ['DEFAULT(params_counts.ini)']
         source_counts = ['num_redshiftwindows = 2'] + make_win(1, 0.3, 'counts', 1.5, 0.06, 0.42) + make_win(2, 1, 'counts', 2, 0.3, 0)
         bool_options = ['counts_evolve', 'DoRedshiftLensing', 'counts_redshift', 'evolve_delta_xe']
@@ -352,7 +350,7 @@ def getTestParams():
                       + ['num_redshiftwindows = 1'] + make_win(1, 0.15, 'counts', 1.2, 0.04, -0.2))
         params.append(['counts_lmax1', 'l_max_scalar = 400', 'want_CMB = F'] + counts_def + source_counts)
         params.append(['counts_lmax2', 'l_max_scalar = 1200'] + counts_def + source_counts)
-    
+
         params.append(['counts_overlap'] + counts_def
                       + ['num_redshiftwindows = 2'] + make_win(1, 0.17, 'counts', 1.2, 0.04, -0.2) + make_win(2, 0.2, 'counts', 1.2, 0.04, -0.2))
         params.append(['lensing_base', 'DEFAULT(params_lensing.ini)'])
@@ -450,7 +448,7 @@ def num_unequal(filename, cmpFcn):
                 inifile = iniFile()
                 inifile.readFile(inifilename)
             except:
-                printlog("Could not open inifilename: %s" % (inifilename))
+                printlog("Could not open inifilename: %s" % inifilename)
             for o_row, n_row in zip(origMat[origBase:], newMat[newBase:]):
                 row += 1
                 if len(o_row) != len(n_row):
@@ -463,7 +461,7 @@ def num_unequal(filename, cmpFcn):
                 for f in n_row:
                     try:
                         nf_row += [float(f)]
-                    except (ValueError):
+                    except ValueError:
                         sp = customsplit(f)
                         nf_row += [ float(sp[0] + 'E' + sp[1]) ]
                 oldrowdict = False
@@ -529,8 +527,8 @@ def customsplit(s):
     n = len(s)
     i = n - 1
     # Split the exponent from the string by looking for ['E']('+'|'-')D+
-    while (i > 4):
-        if (s[i] == '+' or s[i] == '-'):
+    while i > 4:
+        if s[i] == '+' or s[i] == '-':
             return [ s[0: i - 1], s[i: n] ]
         i -= 1
     return [ s ]
@@ -557,9 +555,9 @@ def textualcmp(o, n, tolerance):
         if 0 <= o_exp:
             if o_exp != n_exp:
                 # Quit when exponent difference is significantly larger
-                if (abs(o_exp - n_exp) > 1):
+                if abs(o_exp - n_exp) > 1:
                     return True
-                if (o_exp > n_exp):
+                if o_exp > n_exp:
                     o_mantise *= 10.0
                 else:
                     n_mantise *= 10.0
@@ -583,7 +581,7 @@ if args.diff_to:
         printlog('Missing/Extra files:')
         for err in errors:
             # Only print files that are not the diff_to
-            if (err != args.diff_to):
+            if err != args.diff_to:
                 printlog('  ' + err)
     if len(mismatch):
         numerical_mismatch = [f for f in mismatch if num_unequal(f, defCmpFcn)]
@@ -624,7 +622,7 @@ if not args.no_run_test:
         else:
             errors += 1
             error_list.append(os.path.basename(ini))
-            msg = '..no files in %.2fs' % (timing)
+            msg = '..no files in %.2fs' % timing
         printlog(msg)
         files = nfiles
     printlog('Done, %s errors in %.2fs (outputs not checked)' % (errors, time.time() - start))

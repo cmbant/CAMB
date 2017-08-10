@@ -2,13 +2,15 @@ import os
 import sys
 import unittest
 import numpy as np
+import logging
 
 try:
     import camb
 except ImportError:
     sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../')))
     import camb
-from camb import model, correlations
+from camb import model, correlations, bbn
+from camb.baseconfig import CAMBParamRangeError
 
 
 class CambTest(unittest.TestCase):
@@ -40,7 +42,6 @@ class CambTest(unittest.TestCase):
         t2 = data.comoving_radial_distance(11.5)
         self.assertAlmostEqual(t2, t0 - t1, 2)
         self.assertAlmostEqual(t1, 4200.78, 2)
-
         chistar = data.conformal_time(0) - model.tau_maxvis.value
         chis = np.linspace(0, chistar, 197)
         zs = data.redshift_at_comoving_radial_distance(chis)
@@ -60,6 +61,10 @@ class CambTest(unittest.TestCase):
         data.calc_background(pars)
         self.assertAlmostEqual(data.cosmomc_theta(), 0.01040862, 7)
         self.assertAlmostEqual(data.get_derived_params()['kd'], 0.14055, 4)
+
+        pars.set_cosmology(H0=67.31, ombh2=0.022242, omch2=0.11977, mnu=0.06, omk=0,
+                           bbn_predictor=bbn.BBN_table_interpolator())
+        self.assertAlmostEqual(pars.YHe, 0.2453469, 5)
 
         # test massive sterile models as in Planck papers
         pars.set_cosmology(H0=68.0, ombh2=0.022305, omch2=0.11873, mnu=0.06, nnu=3.073, omk=0, meffsterile=0.013)
@@ -84,7 +89,6 @@ class CambTest(unittest.TestCase):
         # test theta
         pars.set_cosmology(cosmomc_theta=0.0104085, H0=None, ombh2=0.022271, omch2=0.11914, mnu=0.06, omk=0)
         self.assertAlmostEqual(pars.H0, 67.5512, 2)
-        from camb.baseconfig import CAMBParamRangeError
         with self.assertRaises(CAMBParamRangeError):
             pars.set_cosmology(cosmomc_theta=0.0204085, H0=None, ombh2=0.022271, omch2=0.11914, mnu=0.06, omk=0)
 
@@ -117,8 +121,9 @@ class CambTest(unittest.TestCase):
         self.assertAlmostEqual(pars.scalar_power(1), 1.801e-9, 4)
         self.assertAlmostEqual(pars.scalar_power([1, 1.5])[0], 1.801e-9, 4)
 
-        pars.set_matter_power(redshifts=[0., 0.17, 3.1])
-        pars.NonLinear = model.NonLinear_none
+        pars.set_matter_power(nonlinear=True)
+        self.assertEqual(pars.NonLinear, model.NonLinear_pk)
+        pars.set_matter_power(redshifts=[0., 0.17, 3.1], nonlinear=False)
         data = camb.get_results(pars)
 
         kh, z, pk = data.get_matter_power_spectrum(1e-4, 1, 20)
