@@ -1922,6 +1922,7 @@
                 f1=sigma_integrand(a,r,z,itype,cosm)
                 f2=sigma_integrand(b,r,z,itype,cosm)
                 sum_2n=0.5d0*(f1+f2)*dx
+                sum_new=sum_2n
 
             ELSE
 
