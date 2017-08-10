@@ -62,7 +62,7 @@
     !!AM - Added these types for HMcode
     INTEGER :: imead !!AM - added these for HMcode, need to be visible to all subroutines and functions
     logical :: HM_verbose = .false.
-    
+
     TYPE HM_cosmology
         !Contains only things that do not need to be recalculated with each new z
         REAL :: om_m, om_v, w, wa, f_nu, ns, h, Tcmb, Nnu
@@ -377,7 +377,7 @@
     IF(halofit_version==halofit_mead) imead=1
 
     IF(FeedbackLevel>0) HM_verbose = .true.
-  
+
     IF(HM_verbose) WRITE(*,*)
     IF(HM_verbose) WRITE(*,*) 'HMcode: Running HMcode'
     IF(HM_verbose) WRITE(*,*)
@@ -415,7 +415,7 @@
             CAMB_Pk%nonlin_ratio(i,j)=sqrt(pfull/plin)
         END DO
         !$OMP END PARALLEL DO
-        
+
     END DO
 
     END SUBROUTINE HMcode
@@ -637,8 +637,8 @@
     !Fills array 'arr' in equally spaced intervals
     IMPLICIT NONE
     INTEGER :: i
-    REAL*8, INTENT(IN) :: min, max
-    REAL*8, ALLOCATABLE :: arr(:)
+    REAL(dl), INTENT(IN) :: min, max
+    REAL(dl), ALLOCATABLE :: arr(:)
     INTEGER, INTENT(IN) :: n
 
     !Allocate the array, and deallocate it if it is full
@@ -901,7 +901,7 @@
 
     !$OMP PARALLEL DO default(shared), private(m,r,sig,nu)
     DO i=1,n
-       
+
         m=exp(log(mmin)+log(mmax/mmin)*float(i-1)/float(n-1))
         r=radius_m(m,cosm)
         sig=sigmac(r,z,cosm)
@@ -911,7 +911,7 @@
         lut%rr(i)=r
         lut%sig(i)=sig
         lut%nu(i)=nu
-        
+
     END DO
     !$OMP END PARALLEL DO
 
@@ -1076,10 +1076,10 @@
     INTEGER :: n
     REAL :: x, dx
     REAL :: f1, f2, fx
-    REAL*8 :: sum_n, sum_2n, sum_new, sum_old
+    REAL(dl) :: sum_n, sum_2n, sum_new, sum_old
     INTEGER, PARAMETER :: jmin=5
     INTEGER, PARAMETER :: jmax=30
-    REAL*8, PARAMETER :: acc=1d-3
+    REAL(dl), PARAMETER :: acc=1d-3
     INTEGER, PARAMETER :: iorder=3
 
     !Integration range for integration parameter
@@ -1112,7 +1112,7 @@
              f2=growint_integrand(b,cosm)
              sum_2n=0.5d0*(f1+f2)*dx
              sum_new=sum_2n
-
+             
           ELSE
 
              !Loop over only new even points to add these to the integral
@@ -1126,12 +1126,12 @@
              sum_2n=sum_n/2.d0+sum_2n*dx
 
              !Now calculate the new sum depending on the integration order
-             IF(iorder==1) THEN  
+             IF(iorder==1) THEN
                 sum_new=sum_2n
-             ELSE IF(iorder==3) THEN         
+             ELSE IF(iorder==3) THEN
                 sum_new=(4.d0*sum_2n-sum_n)/3.d0 !This is Simpson's rule and cancels error
              ELSE
-                ERROR STOP 'GROWINT: Error, iorder specified incorrectly'
+                STOP 'GROWINT: Error, iorder specified incorrectly'
              END IF
 
           END IF
@@ -1141,7 +1141,7 @@
              growint=exp(sum_new)
              EXIT
           ELSE IF(j==jmax) THEN
-             ERROR STOP 'GROWINT: Integration timed out'
+             STOP 'GROWINT: Integration timed out'
           ELSE
              !Integral has not converged so store old sums and reset sum variables
              sum_old=sum_new
@@ -1165,17 +1165,17 @@
     REAL :: gam
 
     IF(cosm%w<-1.) THEN
-       gam=0.55+0.02*(1.+cosm%w)
+        gam=0.55+0.02*(1.+cosm%w)
     ELSE IF(cosm%w>-1) THEN
-       gam=0.55+0.05*(1.+cosm%w)
+        gam=0.55+0.05*(1.+cosm%w)
     ELSE
-       gam=0.55
+        gam=0.55
     END IF
 
     !Note the minus sign here
     growint_integrand=-(Omega_m_hm(-1.+1./a,cosm)**gam)/a
 
-  END FUNCTION growint_integrand
+    END FUNCTION growint_integrand
 
     SUBROUTINE zcoll_bull(z,cosm,lut)
 
@@ -1382,7 +1382,7 @@
 
     !Fills look-up HM_tables for sigma(R)
     REAL :: r, sig
-    INTEGER :: i    
+    INTEGER :: i
     TYPE(HM_cosmology) :: cosm
     REAL, PARAMETER :: rmin=1e-4
     REAL, PARAMETER :: rmax=1e3
@@ -1467,7 +1467,7 @@
     REAL :: a, b, c, d, h
     REAL :: q1, q2, q3, qi, qf
     REAL :: x1, x2, x3, x4, y1, y2, y3, y4, xi, xf
-    REAL*8 :: sum
+    REAL(dl) :: sum
     INTEGER :: i, i1, i2, i3, i4
     INTEGER, INTENT(IN) :: iorder
 
@@ -1628,13 +1628,13 @@
     REAL, INTENT(IN) :: t, R, z
     INTEGER, INTENT(IN) :: itype
     TYPE(HM_cosmology), INTENT(IN) :: cosm
-    REAL :: k, y, w_hat   
+    REAL :: k, y, w_hat
 
     INTERFACE
-       FUNCTION f(x)
-         REAL :: f
-         REAL, INTENT(IN) :: x
-       END FUNCTION f
+    FUNCTION f(x)
+    REAL :: f
+    REAL, INTENT(IN) :: x
+    END FUNCTION f
     END INTERFACE
 
     !Integrand to the sigma integral in terms of t. Defined by k=(1/t-1)/f(R) where f(R) is *any* function
@@ -1670,7 +1670,7 @@
     INTEGER :: n
     REAL :: x, dx
     REAL :: f1, f2, fx
-    REAL*8 :: sum_n, sum_2n, sum_new, sum_old
+    REAL(dl) :: sum_n, sum_2n, sum_new, sum_old
     INTEGER, PARAMETER :: jmin=5
     INTEGER, PARAMETER :: jmax=30
     REAL, PARAMETER :: a=0.d0 !Integration lower limit (corresponts to k=inf)
@@ -1756,12 +1756,12 @@
     REAL, PARAMETER :: rsplit=1d-2
 
     IF(r>rsplit) THEN
-       !alpha 0.3-0.5 works well
-       alpha=0.5d0
+        !alpha 0.3-0.5 works well
+        alpha=0.5d0
     ELSE
-       !If alpha=1 this goes tits up
-       !alpha 0.7-0.9 works well
-       alpha=0.8d0
+        !If alpha=1 this goes tits up
+        !alpha 0.7-0.9 works well
+        alpha=0.8d0
     END IF
 
     f0_rapid=r**alpha
@@ -1784,7 +1784,7 @@
     INTEGER :: n
     REAL :: x, dx
     REAL :: f1, f2, fx
-    REAL*8 :: sum_n, sum_2n, sum_new, sum_old
+    REAL(dl) :: sum_n, sum_2n, sum_new, sum_old
     INTEGER, PARAMETER :: jmin=5
     INTEGER, PARAMETER :: jmax=30
 
@@ -1831,9 +1831,9 @@
              sum_2n=sum_n/2.d0+sum_2n*dx
 
              !Now calculate the new sum depending on the integration order
-             IF(iorder==1) THEN  
+             IF(iorder==1) THEN
                 sum_new=REAL(sum_2n)
-             ELSE IF(iorder==3) THEN         
+             ELSE IF(iorder==3) THEN
                 sum_new=(4.d0*sum_2n-sum_n)/3.d0 !This is Simpson's rule and cancels error
              ELSE
                 ERROR STOP 'SIGINT1: Error, iorder specified incorrectly'
@@ -1856,7 +1856,7 @@
 
        END DO
 
-    END IF
+       END IF
 
     END FUNCTION sigint1
 
@@ -1889,7 +1889,7 @@
     INTEGER :: n
     REAL :: x, dx
     REAL :: f1, f2, fx
-    REAL*8 :: sum_n, sum_2n, sum_new, sum_old
+    REAL(dl) :: sum_n, sum_2n, sum_new, sum_old
     INTEGER, PARAMETER :: jmin=5
     INTEGER, PARAMETER :: jmax=30
     REAL, PARAMETER :: C=10.d0 !How far to go out in 1/r units for integral
@@ -1899,69 +1899,68 @@
 
     IF(a==b) THEN
 
-       !Fix the answer to zero if the integration limits are identical
-       sigint2=0.d0
+        !Fix the answer to zero if the integration limits are identical
+        sigint2=0.d0
 
     ELSE
 
-       !Reset the sum variable for the integration
-       sum_2n=0.d0
+        !Reset the sum variable for the integration
+        sum_2n=0.d0
 
-       DO j=1,jmax
+        DO j=1,jmax
 
-          !Note, you need this to be 1+2**n for some integer n
-          !j=1 n=2; j=2 n=3; j=3 n=5; j=4 n=9; ...'
-          n=1+2**(j-1)
+            !Note, you need this to be 1+2**n for some integer n
+            !j=1 n=2; j=2 n=3; j=3 n=5; j=4 n=9; ...'
+            n=1+2**(j-1)
 
-          !Calculate the dx interval for this value of 'n'
-          dx=(b-a)/REAL(n-1)
+            !Calculate the dx interval for this value of 'n'
+            dx=(b-a)/REAL(n-1)
 
-          IF(j==1) THEN
+            IF(j==1) THEN
 
-             !The first go is just the trapezium of the end points
-             f1=sigma_integrand(a,r,z,itype,cosm)
-             f2=sigma_integrand(b,r,z,itype,cosm)
-             sum_2n=0.5d0*(f1+f2)*dx
-             sum_new=sum_2n
+                !The first go is just the trapezium of the end points
+                f1=sigma_integrand(a,r,z,itype,cosm)
+                f2=sigma_integrand(b,r,z,itype,cosm)
+                sum_2n=0.5d0*(f1+f2)*dx
 
-          ELSE
+            ELSE
 
-             !Loop over only new even points to add these to the integral
-             DO i=2,n,2
-                x=a+(b-a)*REAL(i-1)/REAL(n-1)
-                fx=sigma_integrand(x,r,z,itype,cosm)
-                sum_2n=sum_2n+fx
-             END DO
+                !Loop over only new even points to add these to the integral
+                DO i=2,n,2
+                    x=a+(b-a)*REAL(i-1)/REAL(n-1)
+                    fx=sigma_integrand(x,r,z,itype,cosm)
+                    sum_2n=sum_2n+fx
+                END DO
 
-             !Now create the total using the old and new parts
-             sum_2n=sum_n/2.d0+sum_2n*dx
+                !Now create the total using the old and new parts
+                sum_2n=sum_n/2.d0+sum_2n*dx
 
-             !Now calculate the new sum depending on the integration order
-             IF(iorder==1) THEN  
-                sum_new=sum_2n
-             ELSE IF(iorder==3) THEN         
-                sum_new=(4.d0*sum_2n-sum_n)/3.d0 !This is Simpson's rule and cancels error
-             ELSE
-                ERROR STOP 'SIGINT2: Error, iorder specified incorrectly'
-             END IF
+                !Now calculate the new sum depending on the integration order
+                IF(iorder==1) THEN
+                    sum_new=sum_2n
+                ELSE IF(iorder==3) THEN
+                    sum_new=(4.d0*sum_2n-sum_n)/3.d0 !This is Simpson's rule and cancels error
+                ELSE
+                    STOP 'SIGINT2: Error, iorder specified incorrectly'
+                END IF
 
-          END IF
+            END IF
 
-          IF((j>=jmin) .AND. (ABS(-1.d0+sum_new/sum_old)<acc)) THEN
-             !jmin avoids spurious early convergence
-             sigint2=REAL(sum_new)
-             !WRITE(*,*) 'INTEGRATE_STORE: Nint:', n
-             EXIT
-          ELSE IF(j==jmax) THEN
-             ERROR STOP 'SIGINT2: Integration timed out'
-          ELSE
-             !Integral has not converged so store old sums and reset sum variables
-             sum_old=sum_new
-             sum_n=sum_2n
-             sum_2n=0.d0
-          END IF
+            IF((j>=jmin) .AND. (ABS(-1.d0+sum_new/sum_old)<acc)) THEN
+                !jmin avoids spurious early convergence
+                sigint2=REAL(sum_new)
+                !WRITE(*,*) 'INTEGRATE_STORE: Nint:', n
+                EXIT
+            ELSE IF(j==jmax) THEN
+                STOP 'SIGINT2: Integration timed out'
+            ELSE
+                !Integral has not converged so store old sums and reset sum variables
+                sum_old=sum_new
+                sum_n=sum_2n
+                sum_2n=0.d0
+            END IF
 
-       END DO
+        END DO
 
     END IF
 
@@ -2138,11 +2137,11 @@
     INTEGER :: n
     REAL :: x, dx
     REAL :: f1, f2, fx
-    REAL*8 :: sum_n, sum_2n, sum_new, sum_old
+    REAL(dl) :: sum_n, sum_2n, sum_new, sum_old
     INTEGER, PARAMETER :: jmin=5
     INTEGER, PARAMETER :: jmax=30
     REAL, PARAMETER :: acc=1d-3
-    INTEGER, PARAMETER :: iorder=3   
+    INTEGER, PARAMETER :: iorder=3
 
     !Integration range for integration parameter
     !Note 0 -> infinity in k has changed to 0 -> 1 in x
@@ -2834,7 +2833,7 @@
     REAL, INTENT(IN) :: x, xtab(n)
     INTEGER :: i
 
-    IF(xtab(1)>xtab(n)) ERROR STOP 'SEARCH_INT: table in wrong order'
+    IF(xtab(1)>xtab(n)) STOP 'SEARCH_INT: table in wrong order'
 
     DO i=1,n
        IF(x>=xtab(i) .AND. x<=xtab(i+1)) EXIT
@@ -2853,7 +2852,7 @@
     REAL, INTENT(IN) :: x, xtab(n)
     INTEGER :: i1, i2, imid
 
-    IF(xtab(1)>xtab(n)) ERROR STOP 'INT_SPLIT: table in wrong order'
+    IF(xtab(1)>xtab(n)) STOP 'INT_SPLIT: table in wrong order'
 
     i1=1
     i2=n
