@@ -13,7 +13,7 @@
 Code for Anisotropies in the Microwave Background by <A
 HREF="http://cosmologist.info/">Antony Lewis</A> and Anthony
 Challinor. <P>
-This version January 2017.
+This version August 2017.
 <P>
 <FONT SIZE=-1>
 Originally based on CMBFAST developed by Uros Seljak and Matias
@@ -22,7 +22,7 @@ Edmund Bertschinger, Chung-Pei Ma and Paul Bode.
 For latest information on this program see <A HREF="http://camb.info">camb.info</A>.
 </FONT>
 <P>
-CAMB is also supplied as part of the <A HREF="http://cosmologist.info/cosmomc/">CosmoMC</A> parameter estimation package. For an extension including perturbed recombination, 21cm, lensing and number count sources see <A HREF="http://camb.info/sources">CAMB sources</A>.
+CAMB is also supplied as part of the <A HREF="http://cosmologist.info/cosmomc/">CosmoMC</A> parameter estimation package. For an extension including perturbed recombination, 21cm, lensing and number count sources see <A HREF="http://camb.info/sources">CAMB sources</A> (latest in the devel branch on github).
 <P>
 
 <A NAME="compiling">
@@ -144,6 +144,30 @@ A test suite is included, and will run automatically on <A HREF="https://travis-
 <P>
 <A NAME="version">
 <H3>Version history</H3>
+
+<B>August 2017</B><BR>
+<UL>
+<LI>HMCode bug fix and speed up (thanks Alex Mead)</LI>
+<li>Refactoring in equations.f90 so all scalar source outputs now computed in derivs function; support for custom source functions (as used by python camb.symbolic module)
+<LI><A HREF="https://camb.readthedocs.org/en/latest">Python CAMB wrapper</A>:
+<ul>
+  <li>Added <A href="http://camb.readthedocs.io/en/latest/symbolic.html">camb.symbolic</a> module using sympy, to get equations, convert between gauges, and produce and compile CAMB code from analytic results in different gauges. See the <A hREf="http://nbviewer.jupyter.org/github/cmbant/CAMB/blob/master/pycamb/docs/ScalEqs.ipynb">demo notebook</a> demonstrating how to use this, set custom sources, plot perturbation evolution and calculate angular power spectra of different things.
+  <li>Add <a href="http://camb.readthedocs.io/en/latest/emission_angle.html">camb.emission_angle</a> module to get BB power from emission angle and time delay (<a href="http://arxiv.org/abs/1706.02673">1706.02673</a>)</li>
+  <li>Added <a href="http://camb.readthedocs.io/en/latest/postborn.html">camb.postborn</a> module to get the field rotation power spectrum and associated BB power (<a href="http://arxiv.org/abs/1605.05662">1605.05662</a>)
+  <li>Support for BBN-consistency values of Y<sub>He</sub> by interpolation from table; new tables from Parthenope supplied (thanks Ofelia Pisanti)</li>
+  <li>H_of_z functions now support arrays of redshifts</li>
+  <li>Add nonlinear parameter to model.set_matter_power</li>
+  <li>AccurateReionization is now switched on by default</li>
+  <li>CMB_outputscale and raw_cl options to python CMB power spectra output functions to get CL or DL, and use different units</li>
+  <li>Added get_fsigma8() function</li>
+  <li>Python 3.6 compatibility</li>
+  <li>"pip install camb" now working cleanly</li>
+  <li>Makefile improvements to build pycamb using gfortran even if ifort present (can use "make COMPILER=gfortran" to force gfortran)</li>
+  <li>Bug fixes</li>
+</ul>
+</li>
+</UL>
+
 
 <B>January 2017</B><BR>
 <UL>
