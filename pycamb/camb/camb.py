@@ -1059,7 +1059,7 @@ class CAMBdata(object):
         :return: H(z)
         """
         if not np.isscalar(z):
-            z = np.asarray(z)
+            z = np.array(z, dtype=np.float64)
             arr = np.empty(z.shape)
             HofzArr(arr, z, byref(c_int(z.shape[0])))
             return arr
