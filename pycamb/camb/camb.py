@@ -1284,7 +1284,7 @@ def set_params(cp=None, verbose=False, **params):
 
 def get_matter_power_interpolator(params, zmin=0, zmax=10, nz_step=100, zs=None, kmax=10, nonlinear=True,
                                   var1=None, var2=None, hubble_units=True, k_hunit=True,
-                                  return_z_k=False, k_per_logint=None, log_interp=True):
+                                  return_z_k=False, k_per_logint=None, log_interp=True, extrap_kmax=None):
     """
     Return a 2D spline interpolation object to evaluate matter power spectrum as function of z and k/h
     e.g::
@@ -1305,6 +1305,7 @@ def get_matter_power_interpolator(params, zmin=0, zmax=10, nz_step=100, zs=None,
     :param return_z_k: if true, return interpolator, z, k where z, k are the grid used
     :param k_per_logint: specific uniform sampling over log k (if not set, uses optimized irregular sampling)
     :param log_interp: if true, interpolate log of power spectrum (unless any values are negative in which case ignored)
+    :param extrap_kmax: if set, use power law extrapolation beyond kmax to extrap_kmax (useful for tails of integrals)
     :return: RectBivariateSpline object PK, that can be called with PK(z,log(kh)) to get log matter power values.
         if return_z_k=True, instead return interpolator, z, k where z, k are the grid used
     """
@@ -1331,13 +1332,28 @@ def get_matter_power_interpolator(params, zmin=0, zmax=10, nz_step=100, zs=None,
         kh *= pars.H0 / 100
     if log_interp and np.any(pk <= 0):
         log_interp = False
-    if log_interp:
-        res = PKInterpolator(z, np.log(kh), np.log(pk))
+    logkh = np.log(kh)
+    if extrap_kmax and extrap_kmax > kmax:
+        logextrap = np.log(extrap_kmax)
+        logpknew = np.empty((pk.shape[0], pk.shape[1] + 1))
+        logpknew[:, :-1] = np.log(pk)
+        logpknew[:, -1] = logpknew[:, -2] + (logpknew[:, -2] - logpknew[:, -3]) / (logkh[-2] - logkh[-3]) * (
+            logextrap - logkh[-1])
+        logkhnew = np.hstack((logkh, logextrap))
+        if log_interp:
+            res = PKInterpolator(z, logkhnew, logpknew)
+        else:
+            res = PKInterpolator(z, logkhnew, np.exp(logpknew))
+        res.kmax = extrap_kmax
     else:
-        res = PKInterpolator(z, np.log(kh), pk)
-    res.islog = log_interp
-    res.kmax = np.max(kh)
+        if log_interp:
+            res = PKInterpolator(z, logkh, np.log(pk))
+        else:
+            res = PKInterpolator(z, logkh, pk)
+        res.kmax = np.max(kh)
+
     res.kmin = np.min(kh)
+    res.islog = log_interp
     res.zmin = np.min(z)
     res.zmax = np.max(z)
     if return_z_k:
