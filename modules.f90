@@ -632,8 +632,8 @@
     !$OMP PARALLEL DO DEFAULT(SHARED),SCHEDULE(STATIC)
     do i = 1, n
         if (i==1) then
-            if (z(i) < tol) then
-                arr(i) =0
+            if (z(i) < 1e-6_dl) then
+                arr(i) = 0
             else
                 arr(i) = DeltaTime(1/(1+z(i)),1._dl, tol)
             end if
@@ -647,7 +647,7 @@
         arr(i) = arr(i)  + arr(i-1)
     end do
 
-    end subroutine
+    end subroutine ComovingRadialDistanceArr
 
     function Hofz(z)
     !non-comoving Hubble in MPC units, divide by MPC_in_sec to get in SI units
