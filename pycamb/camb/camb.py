@@ -155,6 +155,9 @@ ComovingRadialDistance = camblib.__modelparams_MOD_comovingradialdistance
 ComovingRadialDistance.argtyes = [d_arg]
 ComovingRadialDistance.restype = c_double
 
+ComovingRadialDistanceArr = camblib.__modelparams_MOD_comovingradialdistancearr
+ComovingRadialDistanceArr.argtypes = [numpy_1d, numpy_1d, int_arg, d_arg]
+
 TimeOfzArr = camblib.__modelparams_MOD_timeofzarr
 TimeOfzArr.argtypes = [int_arg, numpy_1d, numpy_1d]
 
@@ -1001,9 +1004,9 @@ class CAMBdata(object):
             raise CAMBError('vector z not supported yet')
         return AngularDiameterDistance2(byref(c_double(z1)), byref(c_double(z2)))
 
-    def comoving_radial_distance(self, z):
+    def comoving_radial_distance(self, z, tol=1e-4):
         """
-        Get comoving radial distance from us to redshift z in Mpc
+        Get comoving radial distance from us to redshift z in Mpc. This is efficient for arrays.
 
         Must have called calc_background, calc_background_no_thermo or calculated transfer functions or power spectra.
 
@@ -1011,7 +1014,12 @@ class CAMBdata(object):
         :return: comoving radial distance (Mpc)
         """
         if not np.isscalar(z):
-            return self.conformal_time(0) - self.conformal_time(z)
+            indices = np.argsort(z)
+            redshifts = np.array(z[indices], dtype=np.float64)
+            chis = np.empty(redshifts.shape)
+            ComovingRadialDistanceArr(chis, redshifts, byref(c_int(chis.shape[0])), byref(c_double(tol)))
+            chis[indices] = chis.copy()
+            return chis
         else:
             return ComovingRadialDistance(byref(c_double(z)))
 
@@ -1028,7 +1036,7 @@ class CAMBdata(object):
         """
 
         zs = np.exp(np.log(zmax + 1) * np.linspace(0, 1, nz_step)) - 1
-        chis = self.conformal_time(0) - self.conformal_time(zs)
+        chis = self.comoving_radial_distance(zs, tol=1e-5)
         f = UnivariateSpline(chis, zs, s=0)
         if np.isscalar(chi):
             return np.asscalar(f(chi))
@@ -1116,6 +1124,7 @@ class CAMBdata(object):
     def conformal_time(self, z):
         """
         Conformal time from hot big bang to redshift z in Megaparsec.
+        Use comoving_radial_distance for faster result for arrays.
 
         :param z: redshift or array of redshifts
         :return: eta(z)/Mpc

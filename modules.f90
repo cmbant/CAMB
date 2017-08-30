@@ -621,6 +621,34 @@
 
     end function ComovingRadialDistance
 
+    subroutine ComovingRadialDistanceArr(arr, z, n, tol)
+    !z array but be monotonically increasing
+    integer, intent(in) :: n
+    real(dl), intent(out) :: arr(n)
+    real(dl), intent(in) :: z(n)
+    real(dl), intent(in) :: tol
+    integer i
+
+    !$OMP PARALLEL DO DEFAULT(SHARED),SCHEDULE(STATIC)
+    do i = 1, n
+        if (i==1) then
+            if (z(i) < tol) then
+                arr(i) =0
+            else
+                arr(i) = DeltaTime(1/(1+z(i)),1._dl, tol)
+            end if
+        else
+            if (z(i) < z(i-1)) error stop 'ComovingRadialDistanceArr redshifts out of order'
+            arr(i) = DeltaTime(1/(1+z(i)),1/(1+z(i-1)),tol)
+        end if
+    end do
+    !$OMP END PARALLEL DO
+    do i = 2, n
+        arr(i) = arr(i)  + arr(i-1)
+    end do
+
+    end subroutine
+
     function Hofz(z)
     !non-comoving Hubble in MPC units, divide by MPC_in_sec to get in SI units
     !multiply by c/1e3 to get in km/s/Mpc units
