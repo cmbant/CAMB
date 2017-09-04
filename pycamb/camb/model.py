@@ -475,7 +475,7 @@ class CAMBparams(CAMB_Structure):
 
     def get_Y_p(self, ombh2=None, delta_neff=None):
         """
-        Get BBN helium nucleon fraction by intepolation using the
+        Get BBN helium nucleon fraction (NOT the same as the mass fraction Y_He) by intepolation using the
         :class:`.bbn.BBNPredictor` instance passed to :meth:`.model.CAMBparams.set_cosmology`
         (or the default one, if `Y_He` has not been set).
 
@@ -484,7 +484,7 @@ class CAMBparams(CAMB_Structure):
         :return:  Y_p helium nucleon fraction predicted by BBN.
         """
         try:
-            ombh2 = ombh2 if ombh2 != None else self.omegab*(self.H0/100.)**2
+            ombh2 = ombh2 if ombh2 != None else self.omegab * (self.H0 / 100.) ** 2
             delta_neff = delta_neff if delta_neff != None else self.N_eff() - 3.046
             return self.bbn_predictor.Y_p(ombh2, delta_neff)
         except AttributeError:
@@ -501,7 +501,7 @@ class CAMBparams(CAMB_Structure):
         :return: BBN helium nucleon fraction D/H
         """
         try:
-            ombh2 = ombh2 if ombh2 != None else self.omegab*(self.H0/100.)**2
+            ombh2 = ombh2 if ombh2 != None else self.omegab * (self.H0 / 100.) ** 2
             delta_neff = delta_neff if delta_neff != None else self.N_eff() - 3.046
             return self.bbn_predictor.DH(ombh2, delta_neff)
         except AttributeError:

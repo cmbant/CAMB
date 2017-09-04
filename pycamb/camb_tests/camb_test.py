@@ -66,11 +66,13 @@ class CambTest(unittest.TestCase):
         pars.set_cosmology(H0=67.31, ombh2=0.022242, omch2=0.11977, mnu=0.06, omk=0,
                            bbn_predictor=bbn.BBN_table_interpolator())
         self.assertAlmostEqual(pars.YHe, 0.2453469, 5)
+        self.assertAlmostEqual(pars.get_Y_p(), bbn.BBN_table_interpolator().Y_p(0.02242, 0), 5)
 
         # test massive sterile models as in Planck papers
         pars.set_cosmology(H0=68.0, ombh2=0.022305, omch2=0.11873, mnu=0.06, nnu=3.073, omk=0, meffsterile=0.013)
         self.assertAlmostEqual(pars.omegan * (pars.H0 / 100) ** 2, 0.00078, 5)
         self.assertAlmostEqual(pars.YHe, 0.24573, 5)
+        self.assertAlmostEqual(pars.N_eff(), 3.073, 4)
 
         data.calc_background(pars)
         self.assertAlmostEqual(data.get_derived_params()['age'], 13.773, 2)
