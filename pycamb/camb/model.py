@@ -469,7 +469,7 @@ class CAMBparams(CAMB_Structure):
 
     def N_eff(self):
         """
-        :return: Effective number of degrees of freedom.
+        :return: Effective number of degrees of freedom in relativistic species at early times.
         """
         return sum(self.nu_mass_degeneracies[:self.nu_mass_eigenstates]) + self.num_nu_massless
 
