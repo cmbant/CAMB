@@ -985,7 +985,10 @@ class CAMBdata(object):
         else:
             z = np.asarray(z)
             arr = np.empty(z.shape)
-            AngularDiameterDistanceArr(arr, z, byref(c_int(z.shape[0])))
+            indices = np.argsort(z)
+            redshifts = np.array(z[indices], dtype=np.float64)
+            AngularDiameterDistanceArr(arr, redshifts, byref(c_int(z.shape[0])))
+            arr[indices] = arr.copy()
             return arr
 
     def angular_diameter_distance2(self, z1, z2):
@@ -1053,7 +1056,8 @@ class CAMBdata(object):
         :return: luminosity distance (matches rank of z)
         """
 
-        return self.angular_diameter_distance(z) * (1.0 + np.asarray(z)) ** 2
+        if not np.isscalar(z): z = np.asarray(z)
+        return self.angular_diameter_distance(z) * (1.0 + z) ** 2
 
     def h_of_z(self, z):
         """

@@ -35,7 +35,7 @@
     implicit none
     public
 
-    character(LEN=*), parameter :: version = 'Aug17'
+    character(LEN=*), parameter :: version = 'Sept17'
 
     integer :: FeedbackLevel = 0 !if >0 print out useful information about the model
 
@@ -581,17 +581,20 @@
 
     subroutine AngularDiameterDistanceArr(arr, z, n)
     !This is the physical (non-comoving) angular diameter distance in Mpc for array of z
+    !z array must be monotonically increasing
     integer,intent(in) :: n
     real(dl), intent(out) :: arr(n)
     real(dl), intent(in) :: z(n)
     integer i
-    !dumb version that just calls each z in turn independently
 
-    !$OMP PARALLEL DO DEFAULT(SHARED),SCHEDULE(STATIC)
-    do i=1, n
-        arr(i) = AngularDiameterDistance(z(i))
-    end do
-    !$OMP END PARALLEL DO
+    call ComovingRadialDistanceArr(arr, z, n, 1e-4_dl)
+    if (CP%flat) then
+        arr = arr/(1+z)
+    else
+        do i=1, n
+            arr(i) =  CP%r/(1+z(i))*rofchi(arr(i)/CP%r)
+        end do
+    end if
 
     end subroutine AngularDiameterDistanceArr
 
@@ -622,7 +625,7 @@
     end function ComovingRadialDistance
 
     subroutine ComovingRadialDistanceArr(arr, z, n, tol)
-    !z array but be monotonically increasing
+    !z array must be monotonically increasing
     integer, intent(in) :: n
     real(dl), intent(out) :: arr(n)
     real(dl), intent(in) :: z(n)
@@ -2691,7 +2694,7 @@
     real(dl) xe0,tau,a,a2
     real(dl) adot,tg0,ahalf,adothalf,fe,thomc,thomc0,etc,a2t
     real(dl) dtbdla,vfi,cf1,maxvis, vis
-    integer ncount,i,j1,j2,iv,ns
+    integer ncount,i,j1,iv,ns
     real(dl) spline_data(nthermo)
     real(dl) last_dotmu
     real(dl) dtauda  !diff of tau w.CP%r.t a and integration
