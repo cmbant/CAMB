@@ -1213,7 +1213,7 @@ def get_zre_from_tau(params, tau):
 
     :param params: :class:`.model.CAMBparams` instance
     :param tau: optical depth
-    :return: reionization redshift
+    :return: reionization redshift (or negative number if error)
     """
     cTau = c_double(tau)
     return CAMB_GetZreFromTau(byref(params), byref(cTau))
