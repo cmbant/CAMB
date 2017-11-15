@@ -3248,7 +3248,7 @@
     real(dl) awin_lens1(num_redshiftwindows),awin_lens2(num_redshiftwindows)
     real(dl) Tspin, Trad, rho_fac, window, tau_eps
     integer transfer_ix(max_transfer_redshifts)
-    integer RW_i
+    integer RW_i, j2
     real(dl) Tb21cm, winamp, z
     character(len=:), allocatable :: outstr
 
