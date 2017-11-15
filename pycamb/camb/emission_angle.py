@@ -55,6 +55,7 @@ def get_emission_angle_powers(camb_background, PK, chi_source, lmax=3000, acc=1,
     ls = lsamp or np.hstack((np.arange(2, 60, 2), np.arange(60, 400, 10),
                              np.arange(400, lmax, int(50. / acc)),
                              np.arange(lmax, lmax + 1))).astype(np.float64)
+    print(ls)
     cl_psi_d = cl_deflection_limber(camb_background, PK, ls, nz, chi_source, emit_pow=2, lens_pow=0)
     cl_psi_d_cross = cl_deflection_limber(camb_background, PK, ls, nz, chi_source, emit_pow=1, lens_pow=1)
 
