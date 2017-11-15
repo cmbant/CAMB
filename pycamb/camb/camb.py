@@ -154,6 +154,9 @@ ComovingRadialDistance = camblib.__modelparams_MOD_comovingradialdistance
 ComovingRadialDistance.argtyes = [d_arg]
 ComovingRadialDistance.restype = c_double
 
+ComovingRadialDistanceArr = camblib.__modelparams_MOD_comovingradialdistancearr
+ComovingRadialDistanceArr.argtypes = [numpy_1d, numpy_1d, int_arg, d_arg]
+
 TimeOfzArr = camblib.__modelparams_MOD_timeofzarr
 TimeOfzArr.argtypes = [int_arg, numpy_1d, numpy_1d]
 
@@ -983,7 +986,10 @@ class CAMBdata(object):
         else:
             z = np.asarray(z)
             arr = np.empty(z.shape)
-            AngularDiameterDistanceArr(arr, z, byref(c_int(z.shape[0])))
+            indices = np.argsort(z)
+            redshifts = np.array(z[indices], dtype=np.float64)
+            AngularDiameterDistanceArr(arr, redshifts, byref(c_int(z.shape[0])))
+            arr[indices] = arr.copy()
             return arr
 
     def angular_diameter_distance2(self, z1, z2):
@@ -1002,9 +1008,9 @@ class CAMBdata(object):
             raise CAMBError('vector z not supported yet')
         return AngularDiameterDistance2(byref(c_double(z1)), byref(c_double(z2)))
 
-    def comoving_radial_distance(self, z):
+    def comoving_radial_distance(self, z, tol=1e-4):
         """
-        Get comoving radial distance from us to redshift z in Mpc
+        Get comoving radial distance from us to redshift z in Mpc. This is efficient for arrays.
 
         Must have called calc_background, calc_background_no_thermo or calculated transfer functions or power spectra.
 
@@ -1012,7 +1018,12 @@ class CAMBdata(object):
         :return: comoving radial distance (Mpc)
         """
         if not np.isscalar(z):
-            return self.conformal_time(0) - self.conformal_time(z)
+            indices = np.argsort(z)
+            redshifts = np.array(z[indices], dtype=np.float64)
+            chis = np.empty(redshifts.shape)
+            ComovingRadialDistanceArr(chis, redshifts, byref(c_int(chis.shape[0])), byref(c_double(tol)))
+            chis[indices] = chis.copy()
+            return chis
         else:
             return ComovingRadialDistance(byref(c_double(z)))
 
@@ -1029,7 +1040,7 @@ class CAMBdata(object):
         """
 
         zs = np.exp(np.log(zmax + 1) * np.linspace(0, 1, nz_step)) - 1
-        chis = self.conformal_time(0) - self.conformal_time(zs)
+        chis = self.comoving_radial_distance(zs, tol=1e-5)
         f = UnivariateSpline(chis, zs, s=0)
         if np.isscalar(chi):
             return np.asscalar(f(chi))
@@ -1046,7 +1057,8 @@ class CAMBdata(object):
         :return: luminosity distance (matches rank of z)
         """
 
-        return self.angular_diameter_distance(z) * (1.0 + np.asarray(z)) ** 2
+        if not np.isscalar(z): z = np.asarray(z)
+        return self.angular_diameter_distance(z) * (1.0 + z) ** 2
 
     def h_of_z(self, z):
         """
@@ -1060,7 +1072,7 @@ class CAMBdata(object):
         :return: H(z)
         """
         if not np.isscalar(z):
-            z = np.asarray(z)
+            z = np.array(z, dtype=np.float64)
             arr = np.empty(z.shape)
             HofzArr(arr, z, byref(c_int(z.shape[0])))
             return arr
@@ -1117,6 +1129,7 @@ class CAMBdata(object):
     def conformal_time(self, z):
         """
         Conformal time from hot big bang to redshift z in Megaparsec.
+        Use comoving_radial_distance for faster result for arrays.
 
         :param z: redshift or array of redshifts
         :return: eta(z)/Mpc
@@ -1201,7 +1214,7 @@ def get_zre_from_tau(params, tau):
 
     :param params: :class:`.model.CAMBparams` instance
     :param tau: optical depth
-    :return: reionization redshift
+    :return: reionization redshift (or negative number if error)
     """
     cTau = c_double(tau)
     return CAMB_GetZreFromTau(byref(params), byref(cTau))
@@ -1285,7 +1298,7 @@ def set_params(cp=None, verbose=False, **params):
 
 def get_matter_power_interpolator(params, zmin=0, zmax=10, nz_step=100, zs=None, kmax=10, nonlinear=True,
                                   var1=None, var2=None, hubble_units=True, k_hunit=True,
-                                  return_z_k=False, k_per_logint=None, log_interp=True):
+                                  return_z_k=False, k_per_logint=None, log_interp=True, extrap_kmax=None):
     """
     Return a 2D spline interpolation object to evaluate matter power spectrum as function of z and k/h
     e.g::
@@ -1306,6 +1319,7 @@ def get_matter_power_interpolator(params, zmin=0, zmax=10, nz_step=100, zs=None,
     :param return_z_k: if true, return interpolator, z, k where z, k are the grid used
     :param k_per_logint: specific uniform sampling over log k (if not set, uses optimized irregular sampling)
     :param log_interp: if true, interpolate log of power spectrum (unless any values are negative in which case ignored)
+    :param extrap_kmax: if set, use power law extrapolation beyond kmax to extrap_kmax (useful for tails of integrals)
     :return: RectBivariateSpline object PK, that can be called with PK(z,log(kh)) to get log matter power values.
         if return_z_k=True, instead return interpolator, z, k where z, k are the grid used
     """
@@ -1333,13 +1347,28 @@ def get_matter_power_interpolator(params, zmin=0, zmax=10, nz_step=100, zs=None,
         kh *= pars.H0 / 100
     if log_interp and np.any(pk <= 0):
         log_interp = False
-    if log_interp:
-        res = PKInterpolator(z, np.log(kh), np.log(pk))
+    logkh = np.log(kh)
+    if extrap_kmax and extrap_kmax > kmax:
+        logextrap = np.log(extrap_kmax)
+        logpknew = np.empty((pk.shape[0], pk.shape[1] + 1))
+        logpknew[:, :-1] = np.log(pk)
+        logpknew[:, -1] = logpknew[:, -2] + (logpknew[:, -2] - logpknew[:, -3]) / (logkh[-2] - logkh[-3]) * (
+            logextrap - logkh[-1])
+        logkhnew = np.hstack((logkh, logextrap))
+        if log_interp:
+            res = PKInterpolator(z, logkhnew, logpknew)
+        else:
+            res = PKInterpolator(z, logkhnew, np.exp(logpknew))
+        res.kmax = extrap_kmax
     else:
-        res = PKInterpolator(z, np.log(kh), pk)
-    res.islog = log_interp
-    res.kmax = np.max(kh)
+        if log_interp:
+            res = PKInterpolator(z, logkh, np.log(pk))
+        else:
+            res = PKInterpolator(z, logkh, pk)
+        res.kmax = np.max(kh)
+
     res.kmin = np.min(kh)
+    res.islog = log_interp
     res.zmin = np.min(z)
     res.zmax = np.max(z)
     if return_z_k:

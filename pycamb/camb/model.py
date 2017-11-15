@@ -371,8 +371,8 @@ class CAMBparams(CAMB_Structure):
 
         if YHe is None:
             # use BBN prediction
-            bbn_predictor = bbn_predictor or bbn.get_default_predictor()
-            YHe = bbn_predictor.Y_He(ombh2, nnu - standard_neutrino_neff)
+            self.bbn_predictor = bbn_predictor or bbn.get_default_predictor()
+            YHe = self.bbn_predictor.Y_He(ombh2, nnu - standard_neutrino_neff)
         self.YHe = YHe
 
         if cosmomc_theta is not None:
@@ -504,6 +504,46 @@ class CAMBparams(CAMB_Structure):
             return camb.get_zre_from_tau(self, self.Reion.optical_depth)
         else:
             return self.Reion.redshift
+
+    def N_eff(self):
+        """
+        :return: Effective number of degrees of freedom in relativistic species at early times.
+        """
+        return sum(self.nu_mass_degeneracies[:self.nu_mass_eigenstates]) + self.num_nu_massless
+
+    def get_Y_p(self, ombh2=None, delta_neff=None):
+        """
+        Get BBN helium nucleon fraction (NOT the same as the mass fraction Y_He) by intepolation using the
+        :class:`.bbn.BBNPredictor` instance passed to :meth:`.model.CAMBparams.set_cosmology`
+        (or the default one, if `Y_He` has not been set).
+
+        :param ombh2:  Omega_b h^2 (default: value passed to :meth:`.model.CAMBparams.set_cosmology`)
+        :param delta_neff:  additional N_eff relative to standard value (of 3.046) (default: from values passed to :meth:`.model.CAMBparams.set_cosmology`)
+        :return:  Y_p helium nucleon fraction predicted by BBN.
+        """
+        try:
+            ombh2 = ombh2 if ombh2 != None else self.omegab * (self.H0 / 100.) ** 2
+            delta_neff = delta_neff if delta_neff != None else self.N_eff() - 3.046
+            return self.bbn_predictor.Y_p(ombh2, delta_neff)
+        except AttributeError:
+            raise CAMBError('Not able to compute Y_p: not using an interpolation table for BBN abundances.')
+
+    def get_DH(self, ombh2=None, delta_neff=None):
+        """
+        Get deuterium ration D/H by intepolation using the
+        :class:`.bbn.BBNPredictor` instance passed to :meth:`.model.CAMBparams.set_cosmology`
+        (or the default one, if `Y_He` has not been set).
+
+        :param ombh2:  Omega_b h^2 (default: value passed to :meth:`.model.CAMBparams.set_cosmology`)
+        :param delta_neff:  additional N_eff relative to standard value (of 3.046) (default: from values passed to :meth:`.model.CAMBparams.set_cosmology`)
+        :return: BBN helium nucleon fraction D/H
+        """
+        try:
+            ombh2 = ombh2 if ombh2 != None else self.omegab * (self.H0 / 100.) ** 2
+            delta_neff = delta_neff if delta_neff != None else self.N_eff() - 3.046
+            return self.bbn_predictor.DH(ombh2, delta_neff)
+        except AttributeError:
+            raise CAMBError('Not able to compute DH: not using an interpolation table for BBN abundances.')
 
     def set_matter_power(self, redshifts=[0.], kmax=1.2, k_per_logint=None, nonlinear=None, silent=False):
         """

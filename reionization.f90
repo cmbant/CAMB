@@ -148,6 +148,7 @@
 
     subroutine Reionization_Init(Reion, ReionHist, Yhe, akthom, tau0, FeedbackLevel)
     use constants
+    use errors
     Type(ReionizationParams), target :: Reion
     Type(ReionizationHistory), target :: ReionHist
     real(dl), intent(in) :: akthom, tau0, Yhe
@@ -183,6 +184,7 @@
 
         if (Reion%use_optical_depth) then
             call Reionization_SetFromOptDepth(Reion,ReionHist)
+            if (global_error_flag/=0) return
             if (FeedbackLevel > 0) write(*,'("Reion redshift       =  ",f6.3)') Reion%redshift
         end if
 
@@ -279,7 +281,7 @@
 
     subroutine Reionization_zreFromOptDepth(Reion, ReionHist)
     !General routine to find zre parameter given optical depth
-    use MpiUtils
+    use Errors
     Type(ReionizationParams) :: Reion
     Type(ReionizationHistory) :: ReionHist
     real(dl) try_b, try_t
@@ -301,16 +303,16 @@
             try_b = Reion%redshift
         end if
         if (abs(try_b - try_t) < 2e-3/Reionization_AccuracyBoost) exit
-        if (i>100) call mpiStop('Reionization_zreFromOptDepth: failed to converge')
+        if (i>100) call GlobalError('Reionization_zreFromOptDepth: failed to converge',error_reionization)
     end do
 
 
-    if (abs(tau - Reion%optical_depth) > 0.002) then
+    if (abs(tau - Reion%optical_depth) > 0.002 .and. global_error_flag==0) then
         write (*,*) 'Reionization_zreFromOptDepth: Did not converge to optical depth'
         write (*,*) 'tau =',tau, 'optical_depth = ', Reion%optical_depth
         write (*,*) try_t, try_b
         write (*,*) '(If running a chain, have you put a constraint on tau?)'
-        call mpiStop()
+        call GlobalError('Reionization did not converge to optical depth',error_reionization)
     end if
 
     end subroutine Reionization_zreFromOptDepth

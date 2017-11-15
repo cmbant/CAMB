@@ -112,7 +112,7 @@
     global_error_flag = 0
     data%Params = P
     call CAMBParams_Set(data%Params)
-    call InitVars !calculate thermal history, e.g. z_drag etc.
+    if (global_error_flag==0) call InitVars !calculate thermal history, e.g. z_drag etc.
     error=global_error_flag
 
     end function CAMBdata_CalcBackgroundTheory

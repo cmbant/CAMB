@@ -41,6 +41,10 @@ def ypBBN_to_yhe(YBBN):
 
 
 class BBNPredictor(object):
+    """
+    The base class for making BBN predictions for Helium abundance
+    """
+
     def Y_p(self, ombh2, delta_neff=0.):
         """
         Get BBN helium nucleon fraction. Must be implemented by extensions.

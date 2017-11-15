@@ -45,7 +45,7 @@
     CTransTens = OutData%ClTransTens
 
     call CAMB_GetResults(Params, error)
- 
+
     OutData%Params = Params
     OutData%MTrans = MT
     MT = emptyMT
@@ -287,8 +287,11 @@
     P%Reion%use_optical_depth = .true.
     P%Reion%optical_depth = tau
     call CAMBParams_Set(P,error)
-
-    CAMB_GetZreFromTau = CP%Reion%redshift
+    if (error/=0)  then
+        CAMB_GetZreFromTau = -1
+    else
+        CAMB_GetZreFromTau = CP%Reion%redshift
+    end if
 
     end function CAMB_GetZreFromTau
 

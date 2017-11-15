@@ -149,7 +149,7 @@
     implicit none
     public
 
-    character(LEN=*), parameter :: version = 'July17'
+    character(LEN=*), parameter :: version = 'Sept17'
 
     integer :: FeedbackLevel = 0 !if >0 print out useful information about the model
 
@@ -704,17 +704,20 @@
 
     subroutine AngularDiameterDistanceArr(arr, z, n)
     !This is the physical (non-comoving) angular diameter distance in Mpc for array of z
+    !z array must be monotonically increasing
     integer,intent(in) :: n
     real(dl), intent(out) :: arr(n)
     real(dl), intent(in) :: z(n)
     integer i
-    !dumb version that just calls each z in turn independently
 
-    !$OMP PARALLEL DO DEFAULT(SHARED),SCHEDULE(STATIC)
-    do i=1, n
-        arr(i) = AngularDiameterDistance(z(i))
-    end do
-    !$OMP END PARALLEL DO
+    call ComovingRadialDistanceArr(arr, z, n, 1e-4_dl)
+    if (CP%flat) then
+        arr = arr/(1+z)
+    else
+        do i=1, n
+            arr(i) =  CP%r/(1+z(i))*rofchi(arr(i)/CP%r)
+        end do
+    end if
 
     end subroutine AngularDiameterDistanceArr
 
@@ -743,6 +746,34 @@
     ComovingRadialDistance = DeltaTime(1/(1+z),1._dl)
 
     end function ComovingRadialDistance
+
+    subroutine ComovingRadialDistanceArr(arr, z, n, tol)
+    !z array must be monotonically increasing
+    integer, intent(in) :: n
+    real(dl), intent(out) :: arr(n)
+    real(dl), intent(in) :: z(n)
+    real(dl), intent(in) :: tol
+    integer i
+
+    !$OMP PARALLEL DO DEFAULT(SHARED),SCHEDULE(STATIC)
+    do i = 1, n
+        if (i==1) then
+            if (z(i) < 1e-6_dl) then
+                arr(i) = 0
+            else
+                arr(i) = DeltaTime(1/(1+z(i)),1._dl, tol)
+            end if
+        else
+            if (z(i) < z(i-1)) error stop 'ComovingRadialDistanceArr redshifts out of order'
+            arr(i) = DeltaTime(1/(1+z(i)),1/(1+z(i-1)),tol)
+        end if
+    end do
+    !$OMP END PARALLEL DO
+    do i = 2, n
+        arr(i) = arr(i)  + arr(i-1)
+    end do
+
+    end subroutine ComovingRadialDistanceArr
 
     function Hofz(z)
     !non-comoving Hubble in MPC units, divide by MPC_in_sec to get in SI units
@@ -3205,7 +3236,7 @@
     real(dl) xe0,tau,a,a2
     real(dl) adot,tg0,ahalf,adothalf,fe,thomc,thomc0,etc,a2t
     real(dl) dtbdla,vfi,cf1,maxvis, vis
-    integer ncount,i,j1,j2,iv,ns
+    integer ncount,i,j1,iv,ns
     real(dl) spline_data(nthermo)
     real(dl) last_dotmu
     real(dl) a_verydom
