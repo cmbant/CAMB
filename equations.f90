@@ -2604,15 +2604,15 @@
                     !quadrupole
                     ayprime(lineoff+2)= EV%denlk(2)*ay(lineoff+1)-EV%denlk2(2)*ay(lineoff+3) &
                         +opacity*(polter_line -ay(lineoff+2) ) -   2._dl/15*k*sigma*winV_t &
-                        - wing2_t * ay(6+2)/4
+                        - wing2_t * ay(EV%g_ix+2)/4
 
                     do  l=3,EV%lmaxline-1
                         ayprime(lineoff+l)=EV%denlk(l)*ay(lineoff+l-1)-EV%denlk2(l)*ay(lineoff+l+1)-opacity*ay(lineoff+l) &
-                            - wing2_t * ay(6+l)/4
+                            - wing2_t * ay(EV%g_ix+l)/4
                     end do
                     !truncate
                     ayprime(lineoff+EV%lmaxline)=k*ay(lineoff+EV%lmaxline-1)-(EV%lmaxline+1)*cothxor*ay(lineoff+EV%lmaxline)  &
-                        -opacity*ay(lineoff+EV%lmaxline) - wing2_t * ay(6+EV%lmaxline)/4
+                        -opacity*ay(lineoff+EV%lmaxline) - wing2_t * ay(EV%g_ix+EV%lmaxline)/4
 
                     !  21cm Polarization
                     !l=2

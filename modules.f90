@@ -4019,17 +4019,21 @@
     real(dl) a0,b0,ho
 
     i = TimeSteps%IndexOf(tau)
-
-    ho=TimeSteps%points(i+1)-TimeSteps%points(i)
-    a0=(TimeSteps%points(i+1)-tau)/ho
-    b0=1-a0
-    wing_t = a0*RedWin%wing(i)+ b0*RedWin%wing(i+1)+((a0**3-a0)* RedWin%ddwing(i) &
-        +(b0**3-b0)*RedWin%ddwing(i+1))*ho**2/6
-    wing2_t = a0*RedWin%wing2(i)+ b0*RedWin%wing2(i+1)+((a0**3-a0)* RedWin%ddwing2(i) &
-        +(b0**3-b0)*RedWin%ddwing2(i+1))*ho**2/6
-    winv_t = a0*RedWin%winv(i)+ b0*RedWin%winv(i+1)+((a0**3-a0)* RedWin%ddwinv(i) &
-        +(b0**3-b0)*RedWin%ddwinv(i+1))*ho**2/6
-
+    if (i< TimeSteps%npoints) then
+        ho=TimeSteps%points(i+1)-TimeSteps%points(i)
+        a0=(TimeSteps%points(i+1)-tau)/ho
+        b0=1-a0
+        wing_t = a0*RedWin%wing(i)+ b0*RedWin%wing(i+1)+((a0**3-a0)* RedWin%ddwing(i) &
+            +(b0**3-b0)*RedWin%ddwing(i+1))*ho**2/6
+        wing2_t = a0*RedWin%wing2(i)+ b0*RedWin%wing2(i+1)+((a0**3-a0)* RedWin%ddwing2(i) &
+            +(b0**3-b0)*RedWin%ddwing2(i+1))*ho**2/6
+        winv_t = a0*RedWin%winv(i)+ b0*RedWin%winv(i+1)+((a0**3-a0)* RedWin%ddwinv(i) &
+            +(b0**3-b0)*RedWin%ddwinv(i+1))*ho**2/6
+    else
+        wing_t = 0
+        wing2_t = 0
+        winv_t = 0
+    end if
     end subroutine interp_window
 
     subroutine DoWindowSpline(j2,tau)
