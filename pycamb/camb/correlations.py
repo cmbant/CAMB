@@ -14,6 +14,8 @@ A. Lewis December 2016
 import numpy as np
 import os
 
+from .baseconfig import needs_scipy
+
 try:
     from .baseconfig import camblib
     from numpy.ctypeslib import ndpointer
@@ -28,9 +30,7 @@ except:
     # Fortran version is much faster than current np.polynomial
     gauss_legendre = None
 
-if not os.environ.get('READTHEDOCS', None):
-    from scipy.special import lpn as legendreP
-else:
+if os.environ.get('READTHEDOCS', None):
     np.pi = 3.1415927  # needed to get docs right for np.pi/32 default argument
 
 
@@ -66,6 +66,10 @@ def legendre_funcs(lmax, x, m=[0, 2], lfacs=None, lfacs2=None, lrootfacs=None):
     :param lrootfacs: optional pre-computed sqrt(lfacs*lfacs2) array
     :return: (P,dP),(d11,dm11), (d20, d22, d2m2) as requested, where P starts at L=0, but spin functions start at L=Lmin
     """
+
+    needs_scipy()
+    from scipy.special import lpn as legendreP
+    
     allP, alldP = legendreP(lmax, x)
     # Polarization functions all start at L=2
     fac1 = 1 - x
@@ -211,6 +215,10 @@ def lensing_correlations(clpp, xvals, lmax=None):
     :param lmax: optional maximum L to use from the cls arrays
     :return: sigmasq, Cg2
     """
+    
+    needs_scipy()
+    from scipy.special import lpn as legendreP
+
     if lmax is None: lmax = clpp.shape[0] - 1
     ls = np.arange(1, lmax + 1, dtype=np.float64)
     cldd = clpp[1:] / (ls * (ls + 1))

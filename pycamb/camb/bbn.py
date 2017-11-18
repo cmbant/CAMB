@@ -5,10 +5,7 @@
 import numpy as np
 import os
 import io
-from .baseconfig import mock_load
-
-if not mock_load:
-    from scipy.interpolate import RectBivariateSpline
+from .baseconfig import mock_load, needs_scipy
 
 # Various useful constants
 hbar = 1.05457e-34
@@ -103,6 +100,9 @@ class BBN_table_interpolator(BBNPredictor):
             grid[ombh2s.index(table[i, 0]), deltans.index(table[i, 1])] = table[i, 2]
             dh_grid[ombh2s.index(table[i, 0]), deltans.index(table[i, 1])] = table[i, 3]
 
+        needs_scipy()
+        from scipy.integrate import RectBivariateSpline
+        
         self.interpolator_Yp = RectBivariateSpline(ombh2s, deltans, grid)
         self.interpolator_DH = RectBivariateSpline(ombh2s, deltans, dh_grid)
 

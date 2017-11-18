@@ -1,4 +1,4 @@
-from .baseconfig import camblib, CAMB_Structure, CAMBError, CAMBParamRangeError, dll_import
+from .baseconfig import camblib, CAMB_Structure, CAMBError, CAMBParamRangeError, dll_import, needs_scipy
 from ctypes import c_bool, c_int, c_double, c_float, byref, POINTER
 from . import reionization as ion
 from . import recombination as recomb
@@ -349,10 +349,8 @@ class CAMBparams(CAMB_Structure):
             if H0 is not None:
                 raise CAMBError('Set H0=None when setting cosmomc_theta.')
 
-            try:
-                from scipy.optimize import brentq
-            except ImportError:
-                raise CAMBError('You need SciPy to set cosmomc_theta.')
+            needs_scipy()
+            from scipy.optimize import brentq
 
             from . import camb
 

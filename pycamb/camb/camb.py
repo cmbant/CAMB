@@ -1,4 +1,4 @@
-from .baseconfig import camblib, CAMBError, CAMB_Structure, dll_import, mock_load
+from .baseconfig import camblib, CAMBError, CAMB_Structure, dll_import, mock_load, needs_scipy
 import ctypes
 from ctypes import c_float, c_int, c_double, c_bool, POINTER, byref
 from . import model, constants, initialpower, lensing
@@ -10,9 +10,6 @@ import sys
 import six
 import copy
 from inspect import ismethod
-
-if not mock_load:
-    from scipy.interpolate import UnivariateSpline, RectBivariateSpline
 
 if six.PY3:
     from inspect import getfullargspec as getargspec
@@ -1027,8 +1024,13 @@ class CAMBdata(object):
         :return: redshift at chi, scalar or array
         """
 
+        
         zs = np.exp(np.log(zmax + 1) * np.linspace(0, 1, nz_step)) - 1
         chis = self.conformal_time(0) - self.conformal_time(zs)
+
+        needs_scipy()
+        from scipy.interpolate import UnivariateSpline
+
         f = UnivariateSpline(chis, zs, s=0)
         if np.isscalar(chi):
             return np.asscalar(f(chi))
@@ -1315,6 +1317,9 @@ def get_matter_power_interpolator(params, zmin=0, zmax=10, nz_step=100, zs=None,
     pars.set_matter_power(redshifts=zs, kmax=kmax, k_per_logint=k_per_logint, silent=True)
     pars.NonLinear = model.NonLinear_none
     results = get_results(pars)
+
+    needs_scipy()
+    from scipy.interpolate import RectBivariateSpline
 
     class PKInterpolator(RectBivariateSpline):
 

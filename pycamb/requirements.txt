@@ -3,4 +3,3 @@ matplotlib
 six
 mock
 sympy>=1.0
-scipy

@@ -107,3 +107,15 @@ class CAMB_Structure(Structure):
                 else:
                     s += field_name + ' = ' + str(obj) + '\n'
         return s
+
+
+try:
+    import scipy
+except ImportError:
+    has_scipy = False
+else:
+    has_scipy = True
+
+def needs_scipy():
+    if not has_scipy:
+        raise Exception("You need scipy installed to use this functionality of CAMB.")

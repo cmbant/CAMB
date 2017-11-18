@@ -1,8 +1,9 @@
 from . import camb, model
 import numpy as np
-from .baseconfig import mock_load
+from .baseconfig import mock_load, needs_scipy
 
 if not mock_load:
+    needs_scipy()
     from scipy.interpolate import RectBivariateSpline, UnivariateSpline
 
 
