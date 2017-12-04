@@ -12,7 +12,7 @@ Description and installation
 
 For full details of the Fortran code see the `ReadMe <http://camb.info/readme.html>`_.
 
-The python wrapper provides a module called "camb", souce in the "pycamb" folder and documented on ReadTheDocs.
+The python wrapper provides a module called "camb", source in the "pycamb" folder and documented in the `Python CAMB documentation <http://camb.readthedocs.io/en/latest/>`_.
 
 .. image:: https://readthedocs.org/projects/camb/badge/?version=latest
    :target: https://camb.readthedocs.org/en/latest
