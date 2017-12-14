@@ -1,4 +1,5 @@
 #Dockerfile for running pycamb notebooks with binder
+#https://mybinder.org/v2/gh/cmbant/camb/master?filepath=pycamb%2Fdocs%2FCAMBdemo.ipynb
 
 FROM cmbant/cosmobox:gcc6
 
@@ -16,5 +17,5 @@ USER root
 RUN chown -R ${NB_UID} ${HOME}
 USER ${NB_USER}
 
-RUN cd pycamb; python setup.py install; cd ..
-CMD jupyter-notebook --ip=* --no-browser
+WORKDIR ${HOME}/pycamb
+RUN python setup.py install
