@@ -28,7 +28,7 @@ The master branch contains latest changes to the main release version.
 .. image:: https://secure.travis-ci.org/cmbant/CAMB.png?branch=master
   :target: https://secure.travis-ci.org/cmbant/CAMB/builds
 
-The devel branch is a development version, which integrates CAMB and CAMB sources, and uses Fortran 2008 (and hence requires ifort 14+ or gfortran 6+).
+The devel branch is a development version, which integrates CAMB and CAMB sources, and uses Fortran 2008 (and hence requires ifort 14+ or gfortran 6+). It also allows runtime switching of the dark energy model.
 
 .. image:: https://secure.travis-ci.org/cmbant/CAMB.png?branch=devel
   :target: https://secure.travis-ci.org/cmbant/CAMB/builds
@@ -36,3 +36,9 @@ The devel branch is a development version, which integrates CAMB and CAMB source
 
 CAMB_sources is the updated public `CAMB Sources <http://camb.info/sources/>`_ code.
 
+=============
+
+.. raw:: html
+
+    <a href="http://www.sussex.ac.uk/astronomy/"><img src="https://cdn.cosmologist.info/antony/Sussex.png" height="170px"></a>
+    <a href="http://erc.europa.eu/"><img src="https://erc.europa.eu/sites/default/files/content/erc_banner-vertical.jpg" height="200px"></a>
