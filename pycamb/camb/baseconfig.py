@@ -90,6 +90,8 @@ if not mock_load:
     _get_allocatable_size = camblib.__handles_MOD_getallocatablesize
     _get_allocatable_size.restype=c_int
     f_allocatable = c_byte*(_get_allocatable_size()//8)
+else:
+    f_allocatable = None
 
 class CAMBError(Exception):
     pass
