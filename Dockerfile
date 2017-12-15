@@ -3,6 +3,8 @@
 
 FROM cmbant/cosmobox:gcc6
 
+RUN pip install --no-cache-dir notebook==5.*
+
 ENV NB_USER jovyan
 ENV NB_UID 1000
 ENV HOME /home/${NB_USER}
@@ -20,4 +22,3 @@ USER ${NB_USER}
 WORKDIR ${HOME}/pycamb
 RUN python setup.py install --user
 
-RUN pip install --no-cache-dir notebook==5.*
