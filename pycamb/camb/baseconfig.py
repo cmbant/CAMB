@@ -86,13 +86,10 @@ def set_filelocs():
 
 if not mock_load:
     set_filelocs()
-
-
-
-from ctypes import c_byte, c_int
-_get_allocatable_size = camblib.__handles_MOD_getallocatablesize
-_get_allocatable_size.restype=c_int
-f_allocatable = c_byte*(_get_allocatable_size()//8)
+    from ctypes import c_byte, c_int
+    _get_allocatable_size = camblib.__handles_MOD_getallocatablesize
+    _get_allocatable_size.restype=c_int
+    f_allocatable = c_byte*(_get_allocatable_size()//8)
 
 class CAMBError(Exception):
     pass
