@@ -27,11 +27,13 @@ The master branch contains latest changes to the main release version.
 
 .. image:: https://secure.travis-ci.org/cmbant/CAMB.png?branch=master
   :target: https://secure.travis-ci.org/cmbant/CAMB/builds
+.. image:: https://mybinder.org/badge.svg :target: https://mybinder.org/v2/gh/cmbant/camb/master?filepath=pycamb%2Fdocs%2FCAMBdemo.ipynb
 
 The devel branch is a development version, which integrates CAMB and CAMB sources, and uses Fortran 2008 (and hence requires ifort 14+ or gfortran 6+). It also allows runtime switching of the dark energy model.
 
 .. image:: https://secure.travis-ci.org/cmbant/CAMB.png?branch=devel
   :target: https://secure.travis-ci.org/cmbant/CAMB/builds
+.. image:: https://mybinder.org/badge.svg :target: https://mybinder.org/v2/gh/cmbant/camb/devel?filepath=pycamb%2Fdocs%2FCAMBdemo.ipynb
 
 
 CAMB_sources is the updated public `CAMB Sources <http://camb.info/sources/>`_ code.
