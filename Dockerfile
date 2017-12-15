@@ -18,7 +18,7 @@ RUN chown -R ${NB_UID} ${HOME}
 USER ${NB_USER}
 
 WORKDIR ${HOME}/pycamb
-RUN python setup.py build --user
+RUN python setup.py build
 
 WORKDIR ${HOME}
 
