@@ -20,4 +20,3 @@ USER ${NB_USER}
 WORKDIR ${HOME}/pycamb
 RUN python setup.py install --user
 
-CMD jupyter-notebook --ip=* --no-browser
