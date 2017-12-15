@@ -513,7 +513,7 @@ def J_eq(l):
     Glm = _make_index_func('J', l - 1)
     eq = -k / (2 * l + 1) * ((l + 1) * Kf[l] * Glp - l * Glm) - opacity * Gl
     if l == 2: eq = eq + 8 * k / 15 * sigma + opacity * polter
-    return Eq(diff(Gl, t), eq).subs({'J_2(t)': pi_g, 'J_1(t)': q_g})
+    return Eq(diff(Gl, t), eq).subs({sympy.sympify('J_2(t)'): pi_g, sympy.sympify('J_1(t)'): q_g})
 
 
 def G_eq(l):
@@ -524,7 +524,7 @@ def G_eq(l):
     Glm = _make_index_func('G', l - 1)
     eq = -k / (2 * l + 1) * ((l + 1) * Kf[l] * Glp - l * Glm)
     if l == 2: eq = eq + 8 * k / 15 * sigma
-    return Eq(diff(Gl, t), eq).subs({'G_2(t)': pi_r, 'G_1(t)': q_r})
+    return Eq(diff(Gl, t), eq).subs({sympy.sympify('G_2(t)'): pi_r, sympy.sympify('G_1(t)'): q_r})
 
 
 def E_eq(l):
@@ -536,7 +536,7 @@ def E_eq(l):
     eq = -k / (2 * l + 1) * ((l + 3) * (l - 1) * Kf[l] * Elp / (l + 1) - l * Elm) - opacity * El
     if l == 2:
         eq = eq + polter * opacity
-    return Eq(diff(El, t), eq).subs('E_1(t)', 0)
+    return Eq(diff(El, t), eq).subs(sympy.sympify('E_1(t)'), 0)
 
 
 def get_hierarchies(lmax=5):

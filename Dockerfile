@@ -1,9 +1,7 @@
 #Dockerfile for running pycamb notebooks with binder
 #https://mybinder.org/v2/gh/cmbant/camb/master?filepath=pycamb%2Fdocs%2FCAMBdemo.ipynb
 
-FROM cmbant/cosmobox:gcc6
-
-RUN pip install --no-cache-dir notebook==5.*
+FROM cmbant/cosmobox:python3
 
 ENV NB_USER jovyan
 ENV NB_UID 1000
@@ -20,7 +18,7 @@ RUN chown -R ${NB_UID} ${HOME}
 USER ${NB_USER}
 
 WORKDIR ${HOME}/pycamb
-RUN python setup.py install --user
+RUN python setup.py build
 
 WORKDIR ${HOME}
 
