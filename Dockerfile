@@ -20,3 +20,4 @@ USER ${NB_USER}
 WORKDIR ${HOME}/pycamb
 RUN python setup.py install --user
 
+RUN pip install --no-cache-dir notebook==5.*
