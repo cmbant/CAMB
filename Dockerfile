@@ -22,3 +22,5 @@ USER ${NB_USER}
 WORKDIR ${HOME}/pycamb
 RUN python setup.py install --user
 
+WORKDIR ${HOME}
+
