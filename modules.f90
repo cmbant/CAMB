@@ -75,6 +75,7 @@
 
     type TransferParams
         logical     ::  high_precision
+        logical     ::  accurate_massive_neutrinos 
         integer     ::  num_redshifts
         real(dl)    ::  kmax         !these are acutally q values, but same as k for flat
         integer     ::  k_per_logint ! ..

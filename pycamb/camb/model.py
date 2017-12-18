@@ -173,6 +173,7 @@ class TransferParams(CAMB_Structure):
     """
     _fields_ = [
         ("high_precision", c_int),  # logical
+        ("accurate_massive_neutrinos", c_int),  # logical
         ("num_redshifts", c_int),
         ("kmax", c_double),
         ("k_per_logint", c_int),
@@ -507,7 +508,8 @@ class CAMBparams(CAMB_Structure):
         except AttributeError:
             raise CAMBError('Not able to compute DH: not using an interpolation table for BBN abundances.')
 
-    def set_matter_power(self, redshifts=[0.], kmax=1.2, k_per_logint=None, nonlinear=None, silent=False):
+    def set_matter_power(self, redshifts=[0.], kmax=1.2, k_per_logint=None, nonlinear=None,
+                         accurate_massive_neutrino_transfers=False, silent=False):
         """
         Set parameters for calculating matter power spectra and transfer functions.
 
@@ -515,12 +517,14 @@ class CAMBparams(CAMB_Structure):
         :param kmax: maximum k to calculate
         :param k_per_logint: number of k steps per log k. Set to zero to use default optimized spacing.
         :param nonlinear: if None, uses existing setting, otherwise boolean for whether to use non-linear matter power.
+        :param accurate_massive_neutrino_transfers: if you want the massive neutrino transfers accurately
         :param silent: if True, don't give warnings about sort order
         :return: self
         """
 
         self.WantTransfer = True
         self.Transfer.high_precision = True
+        self.Transfer.accurate_massive_neutrinos = accurate_massive_neutrino_transfers
         self.Transfer.kmax = kmax
         if nonlinear is not None:
             if nonlinear:
