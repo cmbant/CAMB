@@ -410,7 +410,7 @@
             write (*,*) 'max_eta_k changed to ', CP%Max_eta_k
     end if
 
-    if (CP%closed .and. CP%tau0/CP%r >3.14) then
+    if (CP%closed .and. CP%tau0/CP%r >3.14159265358979_dl) then
         call GlobalError('chi >= pi in closed model not supported',error_unsupported_params)
     end if
 
