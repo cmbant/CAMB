@@ -488,7 +488,7 @@ class CAMBdata(object):
 
     def save_cmb_power_spectra(self, filename, lmax, CMB_unit='muK'):
         """
-        Save CMB power to a plain text file. Output is lensed total CL then lensing potential and cross: L TT EE BB TE PP PT PE.
+        Save CMB power to a plain text file. Output is lensed total L(L+1)C_L/2pi then lensing potential and cross: L TT EE BB TE PP PT PE.
         :param filename: filename to save
         :param lmax: lmax to save
         :param CMB_unit: scale results from dimensionless. Use 'muK' for muK^2 units for CMB CL and muK units for lensing cross.
