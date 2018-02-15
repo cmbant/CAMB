@@ -486,6 +486,19 @@ class CAMBdata(object):
             logging.warning('getting CMB power spectra to higher L than calculated, may be innacurate/zeroed.')
         return lmax
 
+    def save_cmb_power_spectra(self, filename, lmax, CMB_unit='muK'):
+        """
+        Save CMB power to a plain text file. Output is lensed total CL then lensing potential and cross: L TT EE BB TE PP PT PE.
+        :param filename: filename to save
+        :param lmax: lmax to save
+        :param CMB_unit: scale results from dimensionless. Use 'muK' for muK^2 units for CMB CL and muK units for lensing cross.
+        """
+        cmb = self.get_total_cls(lmax, CMB_unit=CMB_unit)
+        lens = self.get_lens_potential_cls(lmax, CMB_unit=CMB_unit)
+        ls = np.atleast_2d(np.arange(lmax + 1)).T
+        np.savetxt(filename, np.hstack((ls, cmb, lens)), fmt=['%4u'] + ['%12.7e'] * 7,
+                   header=' L ' + 'TT EE BB TE PP PT PE'.replace(' ', ' ' * 12))
+
     def get_cmb_power_spectra(self, params=None, lmax=None,
                               spectra=['total', 'unlensed_scalar', 'unlensed_total', 'lensed_scalar', 'tensor',
                                        'lens_potential'], CMB_unit=None, raw_cl=False):
@@ -1351,7 +1364,7 @@ def get_matter_power_interpolator(params, zmin=0, zmax=10, nz_step=100, zs=None,
         logpknew = np.empty((pk.shape[0], pk.shape[1] + 1))
         logpknew[:, :-1] = np.log(pk)
         logpknew[:, -1] = logpknew[:, -2] + (logpknew[:, -2] - logpknew[:, -3]) / (logkh[-2] - logkh[-3]) * (
-            logextrap - logkh[-1])
+                logextrap - logkh[-1])
         logkhnew = np.hstack((logkh, logextrap))
         if log_interp:
             res = PKInterpolator(z, logkhnew, logpknew)
