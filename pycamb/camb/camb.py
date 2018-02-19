@@ -1409,7 +1409,9 @@ def get_matter_power_interpolator(params, zmin=0, zmax=10, nz_step=100, zs=None,
     pars.NonLinear = model.NonLinear_none
     results = get_results(pars)
 
-    return results.get_matter_power_interpolator()
+    return results.get_matter_power_interpolator(nonlinear=nonlinear, var1=var1, var2=var2, hubble_units=hubble_units,
+                                                 k_hunit=k_hunit, return_z_k=return_z_k, log_interp=log_interp,
+                                                 extrap_kmax=extrap_kmax)
 
 
 custom_source_names = []
