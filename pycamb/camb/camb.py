@@ -824,6 +824,72 @@ class CAMBdata(object):
         z.reverse()
         return minkh * np.exp(np.arange(npoints) * dlnkh), z, PK
 
+    def get_matter_power_interpolator(self, nonlinear=True, var1=None, var2=None, hubble_units=True, k_hunit=True,
+                                      return_z_k=False, log_interp=True, extrap_kmax=None):
+        """
+        Assuming transfers have been calculated, return a 2D spline interpolation object to evaluate matter
+        power spectrum as function of z and k/h (or k)
+        e.g::
+          PK = results.get_matter_power_evaluator();
+          print 'Power spectrum at z=0.5, k/h=0.1 is %s (Mpc/h)^3 '%(PK.P(0.5, 0.1))
+
+        :param nonlinear: include non-linear correction from halo model
+        :param var1: variable i (index, or name of variable; default delta_tot)
+        :param var2: variable j (index, or name of variable; default delta_tot)
+        :param hubble_units: if true, output power spectrum in (Mpc/h)^{3} units, otherwise Mpc^{3}
+        :param k_hunit: if true, matter power is a function of k/h, if false, just k (both Mpc^{-1} units)
+        :param return_z_k: if true, return interpolator, z, k where z, k are the grid used
+        :param log_interp: if true, interpolate log of power spectrum (unless any values are negative in which case ignored)
+        :param extrap_kmax: if set, use power law extrapolation beyond kmax to extrap_kmax (useful for tails of integrals)
+        :return: RectBivariateSpline object PK, that can be called with PK(z,log(kh)) to get log matter power values.
+            if return_z_k=True, instead return interpolator, z, k where z, k are the grid used
+        """
+
+        class PKInterpolator(RectBivariateSpline):
+
+            def P(self, z, kh, grid=None):
+                if grid is None:
+                    grid = not np.isscalar(z) and not np.isscalar(kh)
+                if self.islog:
+                    return np.exp(self(z, np.log(kh), grid=grid))
+                else:
+                    return self(z, np.log(kh), grid=grid)
+
+        assert self.Params.WantTransfer
+        kh, z, pk = self.get_linear_matter_power_spectrum(var1, var2, hubble_units, nonlinear=nonlinear)
+        if not k_hunit:
+            kh *= self.Params.H0 / 100
+        if log_interp and np.any(pk <= 0):
+            log_interp = False
+        logkh = np.log(kh)
+        if extrap_kmax and extrap_kmax > kh[-1]:
+            logextrap = np.log(extrap_kmax)
+            logpknew = np.empty((pk.shape[0], pk.shape[1] + 1))
+            logpknew[:, :-1] = np.log(pk)
+            logpknew[:, -1] = logpknew[:, -2] + (logpknew[:, -2] - logpknew[:, -3]) / (logkh[-2] - logkh[-3]) * (
+                    logextrap - logkh[-1])
+            logkhnew = np.hstack((logkh, logextrap))
+            if log_interp:
+                res = PKInterpolator(z, logkhnew, logpknew)
+            else:
+                res = PKInterpolator(z, logkhnew, np.exp(logpknew))
+            res.kmax = extrap_kmax
+        else:
+            if log_interp:
+                res = PKInterpolator(z, logkh, np.log(pk))
+            else:
+                res = PKInterpolator(z, logkh, pk)
+            res.kmax = np.max(kh)
+
+        res.kmin = np.min(kh)
+        res.islog = log_interp
+        res.zmin = np.min(z)
+        res.zmax = np.max(z)
+        if return_z_k:
+            return res, z, kh
+        else:
+            return res
+
     def get_total_cls(self, lmax, CMB_unit=None, raw_cl=False):
         """
         Get lensed-scalar + tensor CMB power spectra. Must have already calculated power spectra.
@@ -1343,49 +1409,7 @@ def get_matter_power_interpolator(params, zmin=0, zmax=10, nz_step=100, zs=None,
     pars.NonLinear = model.NonLinear_none
     results = get_results(pars)
 
-    class PKInterpolator(RectBivariateSpline):
-
-        def P(self, z, kh, grid=None):
-            if grid is None:
-                grid = not np.isscalar(z) and not np.isscalar(kh)
-            if self.islog:
-                return np.exp(self(z, np.log(kh), grid=grid))
-            else:
-                return self(z, np.log(kh), grid=grid)
-
-    kh, z, pk = results.get_linear_matter_power_spectrum(var1, var2, hubble_units, nonlinear=nonlinear)
-    if not k_hunit:
-        kh *= pars.H0 / 100
-    if log_interp and np.any(pk <= 0):
-        log_interp = False
-    logkh = np.log(kh)
-    if extrap_kmax and extrap_kmax > kmax:
-        logextrap = np.log(extrap_kmax)
-        logpknew = np.empty((pk.shape[0], pk.shape[1] + 1))
-        logpknew[:, :-1] = np.log(pk)
-        logpknew[:, -1] = logpknew[:, -2] + (logpknew[:, -2] - logpknew[:, -3]) / (logkh[-2] - logkh[-3]) * (
-                logextrap - logkh[-1])
-        logkhnew = np.hstack((logkh, logextrap))
-        if log_interp:
-            res = PKInterpolator(z, logkhnew, logpknew)
-        else:
-            res = PKInterpolator(z, logkhnew, np.exp(logpknew))
-        res.kmax = extrap_kmax
-    else:
-        if log_interp:
-            res = PKInterpolator(z, logkh, np.log(pk))
-        else:
-            res = PKInterpolator(z, logkh, pk)
-        res.kmax = np.max(kh)
-
-    res.kmin = np.min(kh)
-    res.islog = log_interp
-    res.zmin = np.min(z)
-    res.zmax = np.max(z)
-    if return_z_k:
-        return res, z, kh
-    else:
-        return res
+    return results.get_matter_power_interpolator()
 
 
 custom_source_names = []
