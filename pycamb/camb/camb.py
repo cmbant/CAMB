@@ -663,10 +663,11 @@ class CAMBdata(object):
         :return: n_eta x len(vars) 2D numpy array of outputs or dict of 1D arrays
         """
 
+        if isinstance(vars, six.string_types): vars = [vars]
         unknown = set(vars) - set(model.background_names)
         if unknown:
             raise CAMBError('Unknown names %s; valid names are %s' % (unknown, model.background_names))
-        outputs = np.zeros((eta.shape[0], 4))
+        outputs = np.zeros((eta.shape[0], 5))
         CAMB_BackgroundEvolution(byref(c_int(eta.shape[0])), eta, outputs)
         indices = [model.background_names.index(var) for var in vars]
         if format == 'dict':

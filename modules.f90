@@ -2663,8 +2663,7 @@
         end if
     end if
     end subroutine thermo
-
-
+    
     function Thermo_OpacityToTime(opacity)
     real(dl), intent(in) :: opacity
     integer j
@@ -3187,13 +3186,15 @@
     subroutine GetBackgroundEvolution(ntimes, times, outputs)
     integer, intent(in) :: ntimes
     real(dl), intent(in) :: times(ntimes)
-    real(dl) :: outputs(4, ntimes)
-    real(dl) spline_data(nthermo), ddxe(nthermo)
-    real(dl) :: d, tau, cs2b, opacity, vis
+    real(dl) :: outputs(5, ntimes)
+    real(dl) spline_data(nthermo), ddxe(nthermo), ddTb(nthermo)
+    real(dl) :: d, tau, cs2b, opacity, vis, Tbaryon
     integer i, ix
 
     call splini(spline_data,nthermo)
     call splder(xe,ddxe,nthermo,spline_data)
+    call splder(Tb,ddTb,nthermo,spline_data)
+    
     outputs = 0
     do ix = 1, ntimes
         tau = times(ix)
@@ -3210,15 +3211,19 @@
             vis=emmu(i)+d*(demmu(i)+d*(3._dl*(emmu(i+1)-emmu(i)) &
                 -2._dl*demmu(i)-demmu(i+1)+d*(demmu(i)+demmu(i+1) &
                 +2._dl*(emmu(i)-emmu(i+1)))))
-
+            Tbaryon = tb(i)+d*(ddtb(i)+d*(3._dl*(tb(i+1)-tb(i)) &
+                -2._dl*ddtb(i)-ddtb(i+1)+d*(ddtb(i)+ddtb(i+1) &
+                +2._dl*(tb(i)-tb(i+1)))))
         else
             outputs(1,ix)=xe(nthermo)
             vis = emmu(nthermo)
+            Tbaryon = Tb(nthermo)
         end if
 
         outputs(2, ix) = opacity
         outputs(3, ix) = opacity*vis
         outputs(4, ix) = cs2b
+        outputs(5, ix) = Tbaryon        
     end do
 
     end subroutine GetBackgroundEvolution
