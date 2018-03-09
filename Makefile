@@ -104,7 +104,7 @@ HEALPIXDIR    ?= /usr/local/healpix
 
 ifneq ($(FISHER),)
 FFLAGS += -DFISHER
-EXTCAMBFILES = Matrix_utils.o
+EXTCAMBFILES = $(OUTPUT_DIR)/Matrix_utils.o
 else
 EXTCAMBFILES =
 endif
