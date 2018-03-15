@@ -526,5 +526,21 @@
 
     end subroutine CAMB_SetCustomSourcesFunc
 
+    function Utils_GetChiSquared(c_inv, Y, n) result(chi2)
+    !get dot_product(matmul(C_inv,Y), Y) efficiently assuming c_inv symmetric
+    integer, intent(in) :: n
+    real(dl), intent(in) :: Y(n)
+    real(dl), intent(in) :: c_inv(n,n)
+    integer j
+    real(dl) ztemp, chi2
+
+    chi2 = 0
+    !$OMP parallel do private(j,ztemp) reduction(+:chi2) schedule(static,16)
+    do  j = 1, n
+        ztemp= dot_product(Y(j+1:n), c_inv(j+1:n, j))
+        chi2=chi2+ (ztemp*2 +c_inv(j, j)*Y(j))*Y(j)
+    end do
+    
+    end function Utils_GetChiSquared
 
     end module handles
