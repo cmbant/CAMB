@@ -390,7 +390,8 @@ class CAMBparams(CAMB_Structure):
 
         omnuh2 = omnuh2 + omnuh2_sterile
         self.omegan = omnuh2 / fac
-        self.omegav = 1 - omk - self.omegab - self.omegac - self.omegan
+        self.omegam = self.omegab + self.omegac + self.omegan
+        self.omegav = 1 - omk - self.omegam
         # self.share_delta_neff = False
         # self.nu_mass_eigenstates = 0
         # self.num_nu_massless = nnu
