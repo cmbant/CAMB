@@ -1369,7 +1369,7 @@ def set_params(cp=None, verbose=False, **params):
 
     crawl_params(cp)
 
-    if cp.InitialPowerParams.has_tensors():
+    if cp.InitPower.has_tensors():
         cp.WantTensors = True
 
     unused_params = set(params) - set(_used_params)
