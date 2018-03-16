@@ -1369,6 +1369,9 @@ def set_params(cp=None, verbose=False, **params):
 
     crawl_params(cp)
 
+    if cp.InitialPowerParams.has_tensors():
+        cp.WantTensors = True
+
     unused_params = set(params) - set(_used_params)
     if unused_params:
         raise Exception("Unrecognized parameters: %s" % unused_params)
