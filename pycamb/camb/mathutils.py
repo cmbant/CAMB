@@ -1,8 +1,9 @@
-from ctypes import c_int, c_double, POINTER
+from ctypes import c_int, c_double, c_bool, POINTER
 from .baseconfig import camblib
 import numpy as np
 from numpy.ctypeslib import ndpointer
 
+numpy_3d = ndpointer(c_double, flags='C_CONTIGUOUS', ndim=3)
 numpy_2d = ndpointer(c_double, flags='C_CONTIGUOUS', ndim=2)
 numpy_1d = ndpointer(c_double, flags='C_CONTIGUOUS')
 int_arg = POINTER(c_int)
@@ -43,6 +44,42 @@ def threej(l2, l3, m2, m3):
     l2in, l3in, m2in, m3in = c_int(l2), c_int(l3), c_int(m2), c_int(m3)
     _3j(result, l2in, l3in, m2in, m3in)
     return result
+
+
+# Utils_3j_integrate(W,lmax_w, n, dopol, M, lmax)
+_coupling_3j = camblib.__handles_MOD_utils_3j_integrate
+_coupling_3j.argtypes = [numpy_2d, POINTER(c_int), POINTER(c_int), POINTER(c_bool), numpy_3d, POINTER(c_int)]
+
+
+def threej_coupling(W, lmax, pol=False):
+    """
+    Calculate symmetric coupling matrix for given weights W (e.g. mask power)
+    :param W: !d array of Weights for each L, or array of weights
+    :param lmax: lmax for the output matrix (assumed symmetric, though not in principle)
+    :param pol: if pol, produce TT, TE, EE, EB couplings for three input mask weights
+    :return: coupling matrix or array of matrices
+    """
+    if not isinstance(W, (list, tuple)):
+        W = [W]
+    if pol:
+        n = 4
+        if len(W) == 1: W = W * 3
+        assert len(W) == 3
+    else:
+        n = len(W)
+    M = np.empty((n, lmax + 1, lmax + 1))
+    nW = len(W)
+    lmax_w = len(W[0]) - 1
+    for m in W[1:]:
+        assert lmax_w == len(m) - 1
+    Wmat = np.empty((nW, lmax_w + 1))
+    for i, m in enumerate(W):
+        Wmat[i, :] = m
+    _coupling_3j(Wmat, c_int(lmax_w), c_int(nW), c_bool(pol), M, c_int(lmax))
+    if n == 1:
+        return M[0, :, :]
+    else:
+        return [M[i, :, :] for i in range(n)]
 
 
 _gauss_legendre = camblib.__gauss_legendre
