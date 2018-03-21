@@ -563,10 +563,10 @@
         allocate(threejj2(0:2*lmax,thread_ix))
     end if
 
-    !$OMP parallel do private(l1,l2,lminus, lplus,thread_ix,ix), schedule(dynamic)
+    !$OMP parallel do private(l1,l2,lminus,lplus,thread_ix,ix), schedule(dynamic)
     do l1 = 0, lmax
         thread_ix =1
-        !$thread_ix = OMP_GET_THREAD_NUM()+1
+        !$ thread_ix = OMP_GET_THREAD_NUM()+1
         do l2 = 0, l1
             lplus =  min(lmax_w,l1+l2)
             lminus = abs(l1-l2)

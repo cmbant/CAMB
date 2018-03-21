@@ -69,12 +69,12 @@ def threej_coupling(W, lmax, pol=False):
         n = len(W)
     M = np.empty((n, lmax + 1, lmax + 1))
     nW = len(W)
-    lmax_w = len(W[0]) - 1
+    lmax_w = min(2 * lmax, len(W[0]) - 1)
     for m in W[1:]:
-        assert lmax_w == len(m) - 1
+        assert lmax_w == min(2 * lmax, len(m) - 1)
     Wmat = np.empty((nW, lmax_w + 1))
     for i, m in enumerate(W):
-        Wmat[i, :] = m
+        Wmat[i, :] = m[:lmax_w + 1]
     _coupling_3j(Wmat, c_int(lmax_w), c_int(nW), c_bool(pol), M, c_int(lmax))
     if n == 1:
         return M[0, :, :]
