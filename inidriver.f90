@@ -261,7 +261,7 @@
         P%transfer%high_precision = .false.
     endif
     if (P%PK_WantTransfer) then
-        P%Transfer%accurate_massive_neutrinos = Ini_Read_Logical('accurate_massive_neutrino_transfers',.false.)
+        P%Transfer%accurate_massive_neutrinos = Ini%Read_Logical('accurate_massive_neutrino_transfers',.false.)
     else
         P%Transfer%accurate_massive_neutrinos = .false.
     end if
