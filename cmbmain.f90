@@ -35,13 +35,13 @@
     !     computed at sampled times during the evolution for various of wavenumbers. The sources
     !     are then interpolated to a denser wavenumber sampling for computing the line of
     !     sight integrals of the form Integral d(conformal time) source_k * bessel_k_l.
-    !     For CP%flat models the bessel functions are interpolated from a pre-computed table, for
-    !     non-CP%flat models the hyperspherical Bessel functions are computed by integrating their
+    !     For flat models the bessel functions are interpolated from a pre-computed table, for
+    !     non-flat models the hyperspherical Bessel functions are computed by integrating their
     !     differential equation. Both phases ('Evolution' and 'Integration') can do separate
     !     wavenumbers in parallel.
 
     !     The time variable is conformal  time dtau=dt/a(t) and the spatial dependence is Fourier transformed
-    !     with q=sqrt(k**2 + (|m|+1)K), comoving distances are x=CP%r/a(t), with a(t)=1 today.
+    !     with q=sqrt(k**2 + (|m|+1)K), comoving distances are x=r/a(t), with a(t)=1 today.
     !     The units of both length and time are Mpc.
 
     !    Many elements are part of derived types (to make thread safe or to allow non-sequential code use
@@ -121,13 +121,11 @@
 
     real(dl) :: fixq = 0._dl !Debug output of one q
 
-    real(dl) :: ALens = 1._dl
-
     Type(ClTransferData), pointer :: ThisCT
 
     real(dl), private, external :: dtauda
 
-    public cmbmain, ALens, ClTransferToCl, InitVars, GetTauStart !InitVars for BAO hack
+    public cmbmain, ClTransferToCl, InitVars, GetTauStart !InitVars for BAO hack
 
 
     contains
@@ -2409,12 +2407,12 @@
             iCl_scalar(j,C_E,pix) =  iCl_scalar(j,C_E,pix)*dbletmp*ctnorm
             iCl_scalar(j,C_Cross,pix) =  iCl_scalar(j,C_Cross,pix)*dbletmp*sqrt(ctnorm)
             if (CTrans%NumSources>2) then
-                iCl_scalar(j,C_Phi,pix) = ALens*iCl_scalar(j,C_Phi,pix)*const_fourpi*ell**4
+                iCl_scalar(j,C_Phi,pix) = CP%ALens*iCl_scalar(j,C_Phi,pix)*const_fourpi*ell**4
                 !The lensing power spectrum computed is l^4 C_l^{\phi\phi}
                 !We put pix extra factors of l here to improve interpolation in CTrans%ls%l
-                iCl_scalar(j,C_PhiTemp,pix) = sqrt(ALens)*  iCl_scalar(j,C_PhiTemp,pix)*const_fourpi*ell**3
+                iCl_scalar(j,C_PhiTemp,pix) = sqrt(CP%ALens)*  iCl_scalar(j,C_PhiTemp,pix)*const_fourpi*ell**3
                 !Cross-correlation is CTrans%ls%l^3 C_l^{\phi T}
-                iCl_scalar(j,C_PhiE,pix) = sqrt(ALens)*  iCl_scalar(j,C_PhiE,pix)*const_fourpi*ell**3*sqrt(ctnorm)
+                iCl_scalar(j,C_PhiE,pix) = sqrt(CP%ALens)*  iCl_scalar(j,C_PhiE,pix)*const_fourpi*ell**3*sqrt(ctnorm)
                 !Cross-correlation is CTrans%ls%l^3 C_l^{\phi E}
             end if
         end do
