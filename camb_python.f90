@@ -589,6 +589,77 @@
 
     end subroutine CAMB_SetCustomSourcesFunc
 
-    ! END BRIDGE FOR PYTHON
+    function Utils_GetChiSquared(c_inv, Y, n) result(chi2)
+    !get dot_product(matmul(C_inv,Y), Y) efficiently assuming c_inv symmetric
+    integer, intent(in) :: n
+    real(dl), intent(in) :: Y(n)
+    real(dl), intent(in) :: c_inv(n,n)
+    integer j
+    real(dl) ztemp, chi2
+
+    chi2 = 0
+    !$OMP parallel do private(j,ztemp) reduction(+:chi2) schedule(static,16)
+    do  j = 1, n
+        ztemp= dot_product(Y(j+1:n), c_inv(j+1:n, j))
+        chi2=chi2+ (ztemp*2 +c_inv(j, j)*Y(j))*Y(j)
+    end do
+
+    end function Utils_GetChiSquared
+
+    subroutine Utils_3j_integrate(W,lmax_w, n, dopol, M, lmax)
+    !Get coupling matrix, eg for pesudo-CL
+    integer, intent(in) :: lmax, lmax_w, n
+    real(dl), intent(in) :: W(0:lmax_w,n)
+    logical, intent(in) :: dopol
+    real(dl), intent(out) :: M(0:lmax,0:lmax, n)
+    integer l1, l2, lplus, lminus, thread_ix, ix
+    real(dl), allocatable :: threejj0(:,:), threejj2(:,:)
+
+    !$ integer  OMP_GET_THREAD_NUM, OMP_GET_MAX_THREADS
+    !$ external OMP_GET_THREAD_NUM, OMP_GET_MAX_THREADS
+
+    thread_ix = 1
+    !$ thread_ix = OMP_GET_MAX_THREADS()
+
+    allocate(threejj0(0:2*lmax,thread_ix))
+    if (dopol) then
+        allocate(threejj2(0:2*lmax,thread_ix))
+    end if
+
+    !$OMP parallel do private(l1,l2,lminus,lplus,thread_ix,ix), schedule(dynamic)
+    do l1 = 0, lmax
+        thread_ix =1
+        !$ thread_ix = OMP_GET_THREAD_NUM()+1
+        do l2 = 0, l1
+            lplus =  min(lmax_w,l1+l2)
+            lminus = abs(l1-l2)
+
+            call GetThreeJs(threejj0(lminus:,thread_ix),l1,l2,0,0)
+
+            if (dopol) then
+                !note that lminus is correct, want max(abs(l1-l2),abs(m1)) where m1=0 here
+                call GetThreeJs(threejj2(lminus:,thread_ix),l1,l2,-2,2)
+                M(l2,l1,2) = sum(W(lminus:lplus:2,2)*threejj0(lminus:lplus:2,thread_ix) &
+                    *threejj2(lminus:lplus:2,thread_ix)) !TE
+                M(l2,l1,3) = sum(W(lminus:lplus:2,3)*threejj2(lminus:lplus:2,thread_ix)**2) !EE
+                M(l2,l1,4) = sum(W(lminus+1:lplus:2,3)*threejj2(lminus+1:lplus:2,thread_ix)**2) !EB
+            end if
+            if (n>1) then
+                threejj0(lminus:lplus,thread_ix) = threejj0(lminus:lplus,thread_ix)**2
+                do ix=1,n
+                    M(l2,l1,ix) = sum(W(lminus:lplus,ix)* threejj0(lminus:lplus,thread_ix))
+                end do
+            else
+                M(l2,l1,1) = sum(W(lminus:lplus,1)* threejj0(lminus:lplus,thread_ix)**2)
+            end if
+        end do
+    end do
+
+    do l1=0, lmax
+        do l2 = l1+1,lmax
+            M(l2,l1,:) = M(l1,l2,:)
+        end do
+    end do
+    end subroutine Utils_3j_integrate
 
     end module handles

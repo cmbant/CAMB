@@ -4,7 +4,7 @@ CAMB
 :CAMB:  Code for Anisotropies in the Microwave Background, Fortran 95 code and python module
 :Homepage: http://camb.info/
 
-.. image:: http://img.shields.io/pypi/v/camb.svg?style=flat
+.. image:: https://img.shields.io/pypi/v/camb.svg?style=flat
         :target: https://pypi.python.org/pypi/camb/
   
 Description and installation
@@ -12,7 +12,7 @@ Description and installation
 
 For full details of the Fortran code see the `ReadMe <http://camb.info/readme.html>`_.
 
-The python wrapper provides a module called "camb", source in the "pycamb" folder and documented in the `Python CAMB documentation <http://camb.readthedocs.io/en/latest/>`_.
+The python wrapper provides a module called "camb", source in the "pycamb" folder and documented in the `Python CAMB documentation <https://camb.readthedocs.io/en/latest/>`_.
 
 .. image:: https://readthedocs.org/projects/camb/badge/?version=latest
    :target: https://camb.readthedocs.org/en/latest

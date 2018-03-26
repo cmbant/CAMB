@@ -260,7 +260,7 @@ CAMB version: 0.1.6.1
     <div class="input_area">
 <div class=" highlight hl-ipython2"><pre><span></span><span class="c1">#get dictionary of CAMB power spectra</span>
 <span class="n">powers</span> <span class="o">=</span><span class="n">results</span><span class="o">.</span><span class="n">get_cmb_power_spectra</span><span class="p">(</span><span class="n">pars</span><span class="p">,</span> <span class="n">CMB_unit</span><span class="o">=</span><span class="s1">&#39;muK&#39;</span><span class="p">)</span>
-<span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">powers</span><span class="p">:</span> <span class="k">print</span> <span class="n">name</span>
+<span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">powers</span><span class="p">:</span> <span class="k">print</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
 </pre></div>
 
 </div>
@@ -3484,6 +3484,17 @@ EZEuUzIREZEu+//kGMeoHje4ngAAAABJRU5ErkJggg==
 </div>
 </div>
 
+</div>
+<div class="cell border-box-sizing text_cell rendered">
+<div class="prompt input_prompt">
+</div>
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p><strong>Note</strong>: when using calculation functions like angular_diameter_distance, you cannot mix different 
+instances of the result objects: always calculate the background/transfer functions for the parameters of interest directly before calling the calculation function. CAMB result objects do not store the full calculational state of the code.</p>
+
+</div>
+</div>
 </div>
 <div class="cell border-box-sizing code_cell rendered">
 <div class="input">

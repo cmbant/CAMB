@@ -487,6 +487,19 @@ class CAMBdata(object):
             logging.warning('getting CMB power spectra to higher L than calculated, may be innacurate/zeroed.')
         return lmax
 
+    def save_cmb_power_spectra(self, filename, lmax, CMB_unit='muK'):
+        """
+        Save CMB power to a plain text file. Output is lensed total L(L+1)C_L/2pi then lensing potential and cross: L TT EE BB TE PP PT PE.
+        :param filename: filename to save
+        :param lmax: lmax to save
+        :param CMB_unit: scale results from dimensionless. Use 'muK' for muK^2 units for CMB CL and muK units for lensing cross.
+        """
+        cmb = self.get_total_cls(lmax, CMB_unit=CMB_unit)
+        lens = self.get_lens_potential_cls(lmax, CMB_unit=CMB_unit)
+        ls = np.atleast_2d(np.arange(lmax + 1)).T
+        np.savetxt(filename, np.hstack((ls, cmb, lens)), fmt=['%4u'] + ['%12.7e'] * 7,
+                   header=' L ' + 'TT EE BB TE PP PT PE'.replace(' ', ' ' * 12))
+
     def get_cmb_power_spectra(self, params=None, lmax=None,
                               spectra=['total', 'unlensed_scalar', 'unlensed_total', 'lensed_scalar', 'tensor',
                                        'lens_potential'], CMB_unit=None, raw_cl=False):
@@ -651,10 +664,11 @@ class CAMBdata(object):
         :return: n_eta x len(vars) 2D numpy array of outputs or dict of 1D arrays
         """
 
+        if isinstance(vars, six.string_types): vars = [vars]
         unknown = set(vars) - set(model.background_names)
         if unknown:
             raise CAMBError('Unknown names %s; valid names are %s' % (unknown, model.background_names))
-        outputs = np.zeros((eta.shape[0], 4))
+        outputs = np.zeros((eta.shape[0], 5))
         CAMB_BackgroundEvolution(byref(c_int(eta.shape[0])), eta, outputs)
         indices = [model.background_names.index(var) for var in vars]
         if format == 'dict':
@@ -811,6 +825,72 @@ class CAMBdata(object):
         z = self.Params.Transfer.PK_redshifts[:nz]
         z.reverse()
         return minkh * np.exp(np.arange(npoints) * dlnkh), z, PK
+
+    def get_matter_power_interpolator(self, nonlinear=True, var1=None, var2=None, hubble_units=True, k_hunit=True,
+                                      return_z_k=False, log_interp=True, extrap_kmax=None):
+        """
+        Assuming transfers have been calculated, return a 2D spline interpolation object to evaluate matter
+        power spectrum as function of z and k/h (or k)
+        e.g::
+          PK = results.get_matter_power_evaluator();
+          print 'Power spectrum at z=0.5, k/h=0.1 is %s (Mpc/h)^3 '%(PK.P(0.5, 0.1))
+
+        :param nonlinear: include non-linear correction from halo model
+        :param var1: variable i (index, or name of variable; default delta_tot)
+        :param var2: variable j (index, or name of variable; default delta_tot)
+        :param hubble_units: if true, output power spectrum in (Mpc/h)^{3} units, otherwise Mpc^{3}
+        :param k_hunit: if true, matter power is a function of k/h, if false, just k (both Mpc^{-1} units)
+        :param return_z_k: if true, return interpolator, z, k where z, k are the grid used
+        :param log_interp: if true, interpolate log of power spectrum (unless any values are negative in which case ignored)
+        :param extrap_kmax: if set, use power law extrapolation beyond kmax to extrap_kmax (useful for tails of integrals)
+        :return: RectBivariateSpline object PK, that can be called with PK(z,log(kh)) to get log matter power values.
+            if return_z_k=True, instead return interpolator, z, k where z, k are the grid used
+        """
+
+        class PKInterpolator(RectBivariateSpline):
+
+            def P(self, z, kh, grid=None):
+                if grid is None:
+                    grid = not np.isscalar(z) and not np.isscalar(kh)
+                if self.islog:
+                    return np.exp(self(z, np.log(kh), grid=grid))
+                else:
+                    return self(z, np.log(kh), grid=grid)
+
+        assert self.Params.WantTransfer
+        kh, z, pk = self.get_linear_matter_power_spectrum(var1, var2, hubble_units, nonlinear=nonlinear)
+        if not k_hunit:
+            kh *= self.Params.H0 / 100
+        if log_interp and np.any(pk <= 0):
+            log_interp = False
+        logkh = np.log(kh)
+        if extrap_kmax and extrap_kmax > kh[-1]:
+            logextrap = np.log(extrap_kmax)
+            logpknew = np.empty((pk.shape[0], pk.shape[1] + 1))
+            logpknew[:, :-1] = np.log(pk)
+            logpknew[:, -1] = logpknew[:, -2] + (logpknew[:, -2] - logpknew[:, -3]) / (logkh[-2] - logkh[-3]) * (
+                    logextrap - logkh[-1])
+            logkhnew = np.hstack((logkh, logextrap))
+            if log_interp:
+                res = PKInterpolator(z, logkhnew, logpknew)
+            else:
+                res = PKInterpolator(z, logkhnew, np.exp(logpknew))
+            res.kmax = extrap_kmax
+        else:
+            if log_interp:
+                res = PKInterpolator(z, logkh, np.log(pk))
+            else:
+                res = PKInterpolator(z, logkh, pk)
+            res.kmax = np.max(kh)
+
+        res.kmin = np.min(kh)
+        res.islog = log_interp
+        res.zmin = np.min(z)
+        res.zmax = np.max(z)
+        if return_z_k:
+            return res, z, kh
+        else:
+            return res
 
     def get_total_cls(self, lmax, CMB_unit=None, raw_cl=False):
         """
@@ -1232,7 +1312,7 @@ def set_params(cp=None, verbose=False, **params):
 
     E.g.
 
-    cp = camb.set_params(ns=1, omch2=0.1, ALens=1.2, lmax=2000)
+    cp = camb.set_params(ns=1, omch2=0.1, Alens=1.2, lmax=2000)
 
     This is equivalent to:
 
@@ -1249,6 +1329,9 @@ def set_params(cp=None, verbose=False, **params):
 
     """
 
+    if 'ALens' in params:
+        raise ValueError('Use Alens not ALens')
+
     setters = [s.__func__ if hasattr(s, '__func__') else s for s in  # in python3 no need for __func__ here
                [model.CAMBparams.set_cosmology,
                 model.CAMBparams.set_initial_power,
@@ -1258,7 +1341,7 @@ def set_params(cp=None, verbose=False, **params):
                 model.CAMBparams.set_accuracy,
                 initialpower.InitialPowerParams.set_params]]
 
-    globs = {'ALens': lensing.ALens}
+    globs = {}
 
     if cp is None:
         cp = model.CAMBparams()
@@ -1290,10 +1373,42 @@ def set_params(cp=None, verbose=False, **params):
 
     crawl_params(cp)
 
+    if cp.InitPower.has_tensors():
+        cp.WantTensors = True
+
     unused_params = set(params) - set(_used_params)
     if unused_params:
         raise Exception("Unrecognized parameters: %s" % unused_params)
     return cp
+
+
+def set_params_cosmomc(p, num_massive_neutrinos=1, neutrino_hierarchy='degenerate',
+                       dark_energy_model='ppf', lmax=2500, lens_potential_accuracy=1, inpars=None):
+    """
+    get CAMBParams for dictionary of cosmomc-named parameters assuming Planck 2018 defaults
+    :param p: dictionary of cosmomc parameters (e.g. from getdist.types.BestFit's getParamDict() function)
+    :param num_massive_neutrinos: usually 1 if fixed mnu=0.06 eV, three if mnu varying
+    :param neutrino_hierarchy: hierarchy
+    :param dark_energy_model: ppf or fluid dark energy model
+    :param lmax: lmax for accuracy settings
+    :param lens_potential_accuracy: lensing accuracy parameter
+    :param inpars: optional input CAMBParams to set
+    :return:
+    """
+    pars = inpars or model.CAMBparams()
+    if p.get('alpha1', 0) or p.get('Aphiphi', 1) != 1:
+        raise ValueError('Parameter not currrently supported by set_params_cosmomc')
+    pars.set_cosmology(H0=p['H0'], ombh2=p['omegabh2'], omch2=p['omegach2'], mnu=p.get('mnu', 0.06),
+                       omk=p.get('omegak', 0), tau=p['tau'], deltazrei=p.get('deltazrei', None),
+                       nnu=p.get('nnu', 3.046), Alens=p.get('Alens', 1.0),
+                       YHe=p.get('yheused', None), meffsterile=p.get('meffsterile', 0),
+                       num_massive_neutrinos=num_massive_neutrinos, neutrino_hierarchy=neutrino_hierarchy)
+    pars.InitPower.set_params(ns=p['ns'], r=p.get('r', 0), As=p['A'] * 1e-9, nrun=p.get('nrun', 0),
+                              nrunrun=p.get('nrunrun', 0))
+    pars.set_dark_energy(w=p.get('w', -1), wa=p.get('wa', 0), dark_energy_model=dark_energy_model)
+    pars.set_for_lmax(lmax, lens_potential_accuracy=lens_potential_accuracy)
+    pars.WantTensors = pars.InitPower.has_tensors()
+    return pars
 
 
 def get_matter_power_interpolator(params, zmin=0, zmax=10, nz_step=100, zs=None, kmax=10, nonlinear=True,
@@ -1332,49 +1447,9 @@ def get_matter_power_interpolator(params, zmin=0, zmax=10, nz_step=100, zs=None,
     pars.NonLinear = model.NonLinear_none
     results = get_results(pars)
 
-    class PKInterpolator(RectBivariateSpline):
-
-        def P(self, z, kh, grid=None):
-            if grid is None:
-                grid = not np.isscalar(z) and not np.isscalar(kh)
-            if self.islog:
-                return np.exp(self(z, np.log(kh), grid=grid))
-            else:
-                return self(z, np.log(kh), grid=grid)
-
-    kh, z, pk = results.get_linear_matter_power_spectrum(var1, var2, hubble_units, nonlinear=nonlinear)
-    if not k_hunit:
-        kh *= pars.H0 / 100
-    if log_interp and np.any(pk <= 0):
-        log_interp = False
-    logkh = np.log(kh)
-    if extrap_kmax and extrap_kmax > kmax:
-        logextrap = np.log(extrap_kmax)
-        logpknew = np.empty((pk.shape[0], pk.shape[1] + 1))
-        logpknew[:, :-1] = np.log(pk)
-        logpknew[:, -1] = logpknew[:, -2] + (logpknew[:, -2] - logpknew[:, -3]) / (logkh[-2] - logkh[-3]) * (
-            logextrap - logkh[-1])
-        logkhnew = np.hstack((logkh, logextrap))
-        if log_interp:
-            res = PKInterpolator(z, logkhnew, logpknew)
-        else:
-            res = PKInterpolator(z, logkhnew, np.exp(logpknew))
-        res.kmax = extrap_kmax
-    else:
-        if log_interp:
-            res = PKInterpolator(z, logkh, np.log(pk))
-        else:
-            res = PKInterpolator(z, logkh, pk)
-        res.kmax = np.max(kh)
-
-    res.kmin = np.min(kh)
-    res.islog = log_interp
-    res.zmin = np.min(z)
-    res.zmax = np.max(z)
-    if return_z_k:
-        return res, z, kh
-    else:
-        return res
+    return results.get_matter_power_interpolator(nonlinear=nonlinear, var1=var1, var2=var2, hubble_units=hubble_units,
+                                                 k_hunit=k_hunit, return_z_k=return_z_k, log_interp=log_interp,
+                                                 extrap_kmax=extrap_kmax)
 
 
 custom_source_names = []

@@ -106,7 +106,10 @@ class BBN_table_interpolator(BBNPredictor):
         for i in range(table.shape[0]):
             grid[ombh2s.index(table[i, 0]), deltans.index(table[i, 1])] = table[i, 2]
             dh_grid[ombh2s.index(table[i, 0]), deltans.index(table[i, 1])] = table[i, 3]
-
+        self.ombh2s = ombh2s
+        self.deltans = deltans
+        self.grid = grid
+        self.dh_grid = dh_grid
         self.interpolator_Yp = RectBivariateSpline(ombh2s, deltans, grid)
         self.interpolator_DH = RectBivariateSpline(ombh2s, deltans, dh_grid)
 

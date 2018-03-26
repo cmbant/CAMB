@@ -126,6 +126,7 @@
         if (separate) then
             P%WantTransfer = .false.
             P%Transfer%high_precision = .false.
+            P%Transfer%accurate_massive_neutrinos = .false.            
         end if
         P%WantTensors = .false.
         P%WantVectors = .false.
@@ -138,6 +139,7 @@
         call_again = .true.
         !Need to store CP%flat etc, but must keep original P_k settings
         CP%Transfer%high_precision = Params%Transfer%high_precision
+        CP%Transfer%accurate_massive_neutrinos = Params%Transfer%accurate_massive_neutrinos        
         CP%WantTransfer = Params%WantTransfer
         CP%WantTensors = Params%WantTensors
         CP%WantVectors = Params%WantVectors
@@ -317,6 +319,7 @@
     P%share_delta_neff = .false.
     P%Nu_mass_eigenstates = 0
     P%Nu_mass_numbers=0
+    P%Alens = 1
 
     P%Scalar_initial_condition =initial_adiabatic
     P%NonLinear = NonLinear_none
@@ -333,6 +336,7 @@
     call Reionization_SetDefParams(P%Reion)
 
     P%Transfer%high_precision=.false.
+    P%Transfer%accurate_massive_neutrinos = .false.
 
     P%OutputNormalization = outNone
 

@@ -15,14 +15,7 @@ import numpy as np
 import os
 
 try:
-    from .baseconfig import camblib
-    from numpy.ctypeslib import ndpointer
-    import ctypes
-
-    gauss_legendre = camblib.__gauss_legendre
-    gauss_legendre.argtypes = [ndpointer(ctypes.c_double, flags='C_CONTIGUOUS'),
-                               ndpointer(ctypes.c_double, flags='C_CONTIGUOUS'),
-                               ctypes.POINTER(ctypes.c_int)]
+    from .mathutils import gauss_legendre
 except:
     # use np.polynomial.legendre if can't load fast native (so can use module without compiling camb)
     # Fortran version is much faster than current np.polynomial
@@ -33,8 +26,8 @@ if not os.environ.get('READTHEDOCS', None):
 else:
     np.pi = 3.1415927  # needed to get docs right for np.pi/32 default argument
 
-
 _gauss_legendre_cache = {}
+
 
 def _cached_gauss_legendre(npoints, cache=True):
     if cache and npoints in _gauss_legendre_cache:
@@ -43,7 +36,7 @@ def _cached_gauss_legendre(npoints, cache=True):
         if gauss_legendre is not None:
             xvals = np.empty(npoints)
             weights = np.empty(npoints)
-            gauss_legendre(xvals, weights, ctypes.c_int(npoints))
+            gauss_legendre(xvals, weights, npoints)
             xvals.flags.writeable = False
             weights.flags.writeable = False
         else:
@@ -369,6 +362,7 @@ def lensed_correlations(cls, clpp, xvals, weights=None, lmax=None, delta=False, 
         return corrs, lensedcls
     else:
         return corrs
+
 
 def lensed_cls(cls, clpp, lmax=None, lmax_lensed=None, sampling_factor=1.4, delta_cls=False,
                theta_max=np.pi / 32, apodize_point_width=10, leggaus=True, cache=True):

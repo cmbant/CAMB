@@ -44,7 +44,7 @@ transfer_names = ['k/h', 'delta_cdm', 'delta_baryon', 'delta_photon', 'delta_neu
 evolve_names = transfer_names + ['a', 'etak', 'H', 'growth', 'v_photon', 'pi_photon', \
                                  'E_2', 'v_neutrino', 'T_source', 'E_source', 'lens_potential_source']
 
-background_names = ['x_e', 'opacity', 'visibility', 'cs2b']
+background_names = ['x_e', 'opacity', 'visibility', 'cs2b', 'T_b']
 
 dark_energy_models = ['fluid', 'ppf']
 
@@ -180,6 +180,7 @@ class TransferParams(CAMB_Structure):
     """
     _fields_ = [
         ("high_precision", c_int),  # logical
+        ("accurate_massive_neutrinos", c_int),  # logical
         ("num_redshifts", c_int),
         ("kmax", c_double),
         ("k_per_logint", c_int),
@@ -256,6 +257,7 @@ class CAMBparams(CAMB_Structure):
         ("nu_mass_numbers", c_int * max_nu),
         ("scalar_initial_condition", c_int),
         ("OutputNormalization", c_int),
+        ("Alens", c_double),
         ("AccuratePolarization", c_int),  # logical
         ("AccurateBB", c_int),  # logical
         ("AccurateReionization", c_int),  # logical
@@ -338,8 +340,8 @@ class CAMBparams(CAMB_Structure):
     def set_cosmology(self, H0=67.0, cosmomc_theta=None, ombh2=0.022, omch2=0.12, omk=0.0,
                       neutrino_hierarchy='degenerate', num_massive_neutrinos=1,
                       mnu=0.06, nnu=3.046, YHe=None, meffsterile=0.0, standard_neutrino_neff=3.046,
-                      TCMB=constants.COBE_CMBTemp, tau=None, deltazrei=None, bbn_predictor=None,
-                      theta_H0_range=[10, 100]):
+                      TCMB=constants.COBE_CMBTemp, tau=None, deltazrei=None, Alens=1.0,
+                      bbn_predictor=None, theta_H0_range=[10, 100]):
         """
         Sets cosmological parameters in terms of physical densities and parameters used in Planck 2015 analysis.
         Default settings give a single distinct neutrino mass eigenstate, by default one neutrino with mnu = 0.06eV.
@@ -363,6 +365,7 @@ class CAMBparams(CAMB_Structure):
         :param TCMB: CMB temperature (in Kelvin)
         :param tau: optical depth; if None, current Reion settings are not changed
         :param deltazrei: redshift width of reionization; if None, uses default
+        :param Alens: (non-physical) scaling of the lensing potential compared to prediction
         :param bbn_predictor: :class:`.bbn.BBNPredictor` instance used to get YHe from BBN consistency if YHe is None
         :param theta_H0_range: if cosmomc_theta is specified, the min, max interval of H0 values to map to; outside this range
                  it will raise an exception.
@@ -407,6 +410,7 @@ class CAMBparams(CAMB_Structure):
         fac = (self.H0 / 100.0) ** 2
         self.omegab = ombh2 / fac
         self.omegac = omch2 / fac
+        self.Alens = Alens
 
         neutrino_mass_fac = 94.07
         # conversion factor for thermal with Neff=3 TCMB=2.7255
@@ -425,7 +429,8 @@ class CAMBparams(CAMB_Structure):
 
         omnuh2 = omnuh2 + omnuh2_sterile
         self.omegan = omnuh2 / fac
-        self.omegav = 1 - omk - self.omegab - self.omegac - self.omegan
+        self.omegam = self.omegab + self.omegac + self.omegan
+        self.omegav = 1 - omk - self.omegam
         # self.share_delta_neff = False
         # self.nu_mass_eigenstates = 0
         # self.num_nu_massless = nnu
@@ -545,7 +550,8 @@ class CAMBparams(CAMB_Structure):
         except AttributeError:
             raise CAMBError('Not able to compute DH: not using an interpolation table for BBN abundances.')
 
-    def set_matter_power(self, redshifts=[0.], kmax=1.2, k_per_logint=None, nonlinear=None, silent=False):
+    def set_matter_power(self, redshifts=[0.], kmax=1.2, k_per_logint=None, nonlinear=None,
+                         accurate_massive_neutrino_transfers=False, silent=False):
         """
         Set parameters for calculating matter power spectra and transfer functions.
 
@@ -553,12 +559,14 @@ class CAMBparams(CAMB_Structure):
         :param kmax: maximum k to calculate
         :param k_per_logint: number of k steps per log k. Set to zero to use default optimized spacing.
         :param nonlinear: if None, uses existing setting, otherwise boolean for whether to use non-linear matter power.
+        :param accurate_massive_neutrino_transfers: if you want the massive neutrino transfers accurately
         :param silent: if True, don't give warnings about sort order
         :return: self
         """
 
         self.WantTransfer = True
         self.Transfer.high_precision = True
+        self.Transfer.accurate_massive_neutrinos = accurate_massive_neutrino_transfers
         self.Transfer.kmax = kmax
         if nonlinear is not None:
             if nonlinear:

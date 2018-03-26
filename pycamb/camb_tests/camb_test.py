@@ -142,7 +142,7 @@ class CambTest(unittest.TestCase):
         kh3, z3, pk3 = data.get_matter_power_spectrum(1e-4, 1, 20)
         self.assertAlmostEqual(pk[-1][-3], 51.909, 2)
         self.assertAlmostEqual(pk3[-1][-3], 57.697, 2)
-        self.assertAlmostEqual(pk2[-2][-4], 53.47, 2)
+        self.assertAlmostEqual(pk2[-2][-4], 53.476, 2)
         camb.set_feedback_level(0)
 
         PKnonlin = camb.get_matter_power_interpolator(pars, nonlinear=True)
@@ -152,6 +152,10 @@ class CambTest(unittest.TestCase):
         kh, z, pk = results.get_nonlinear_matter_power_spectrum()
         pk_interp = PKnonlin.P(z, kh)
         self.assertTrue(np.sum((pk / pk_interp - 1) ** 2) < 0.005)
+        PKnonlin2 = results.get_matter_power_interpolator(nonlinear=True, extrap_kmax=500)
+        pk_interp2 = PKnonlin2.P(z, kh)
+        self.assertTrue(np.sum((pk_interp / pk_interp2 - 1) ** 2) < 0.005)
+
         camb.set_halofit_version('mead')
         _, _, pk = results.get_nonlinear_matter_power_spectrum(params=pars, var1='delta_cdm', var2='delta_cdm')
         self.assertAlmostEqual(pk[0][160], 824.6, delta=0.5)

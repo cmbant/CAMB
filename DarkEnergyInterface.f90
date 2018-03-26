@@ -14,7 +14,6 @@
     procedure :: BackgroundDensityAndPressure
     procedure :: PerturbedStressEnergy !Get density perturbation and heat flux for sources
     procedure :: diff_rhopi_Add_Term
-    procedure :: InitializeYfromVec
     procedure :: PerturbationEvolve
     end type TDarkEnergyBase
 
@@ -74,15 +73,6 @@
     ppiedot = 0._dl
 
     end function diff_rhopi_Add_Term
-
-
-    subroutine InitializeYfromVec(this, y, EV_w_ix, InitVecAti_clxq, InitVecAti_vq)
-    class(TDarkEnergyBase), intent(in) :: this
-    real(dl), intent(inout) :: y(:)
-    integer, intent(in) :: EV_w_ix
-    real(dl), intent(in) :: InitVecAti_clxq, InitVecAti_vq
-    end subroutine InitializeYfromVec
-
 
     subroutine PerturbationEvolve(this, ayprime, w_ix, &
         adotoa, k, z, y)
