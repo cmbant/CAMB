@@ -2385,7 +2385,7 @@
             if (has_cl_2D_array) then
                 fac=1
                 fac(2) = sqrt(ctnorm)
-                fac(3) = sqrt(ALens) !sqrt(ell*(ell+1)*ALens) change if want [l(l+1)]^2 C_L^phi
+                fac(3) = sqrt(CP%ALens) !sqrt(ell*(ell+1)*ALens) change if want [l(l+1)]^2 C_L^phi
                 do w_ix=3 + num_redshiftwindows+1,3 + num_redshiftwindows + num_custom_sources
                     nscal= custom_source_ell_scales(w_ix - num_redshiftwindows -3)
                     do i=1, nscal
