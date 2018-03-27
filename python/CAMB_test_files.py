@@ -202,7 +202,7 @@ coltolunlensed['TxE'] = (wantCMBT,
                          [(0, lambda o, n: diffnsqrt(o, n, 3e-3, 'T', 'E')),
                           (600, lambda o, n: diffnsqrt(o, n, 1e-3, 'T', 'E')),
                           (2500, lambda o, n: diffnsqrt(o, n, 3e-3, 'T', 'E')),
-                          (6000, gnore())])
+                          (6000, Ignore())])
 
 # The filetolmatrix as described above.
 filetolmatrix = [["*scalCls.dat", Ignore()],  # Ignore() all scalCls.dat files.
@@ -241,6 +241,7 @@ if args.clean:
 
 if not os.path.exists(out_files_dir):
     os.mkdir(out_files_dir)
+
 
 def runScript(fname):
     now = time.time()
