@@ -119,8 +119,8 @@ class SharedLibrary(build):
             scrs = os.listdir(os.getcwd())
             if not ok:
                 print(
-                    'WARNING: gfortran %s or higher not in path (if you just installed you may need to log off and on again).' %
-                    gfortran_min)
+                        'WARNING: gfortran %s or higher not in path (if you just installed you may need to log off and on again).' %
+                        gfortran_min)
                 print('         You can get a Windows gfortran build from http://sourceforge.net/projects/mingw-w64/')
                 print('         (get the %s version to match this python installation)' % (('x86_64', 'i686')[is32Bit]))
                 print('Using pre-compiled binaries instead - any local changes will be ignored...')
@@ -199,7 +199,8 @@ if __name__ == "__main__":
           cmdclass={'build': SharedLibrary, 'install': CustomInstall, 'sdist': CustomSdist},
           packages=['camb', 'camb_tests'],
           package_data={'camb': [DLLNAME, 'HighLExtrapTemplate_lenspotentialCls.dat',
-                                 'PArthENoPE_880.2_marcucci.dat', 'PArthENoPE_880.2_standard.dat', 'PRIMAT_Yp_DH_Error.dat]},
+                                 'PArthENoPE_880.2_marcucci.dat', 'PArthENoPE_880.2_standard.dat',
+                                 'PRIMAT_Yp_DH_Error.dat']},
           test_suite='camb_tests',
           classifiers=[
               "Programming Language :: Python :: 2",
