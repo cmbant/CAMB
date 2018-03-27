@@ -197,6 +197,7 @@ for x in ['TxT', 'ExE']:
                           (600, 1e-3),
                           (2500, 3e-3),
                           (6000, Ignore())])
+
 coltolunlensed['TxE'] = (wantCMBT,
                          [(0, lambda o, n: diffnsqrt(o, n, 3e-3, 'T', 'E')),
                           (600, lambda o, n: diffnsqrt(o, n, 1e-3, 'T', 'E')),
@@ -236,12 +237,10 @@ if not os.path.exists(args.ini_dir):
 out_files_dir = os.path.join(args.ini_dir, args.out_files_dir)
 
 if args.clean:
-    if
-os.path.exists(out_files_dir): shutil.rmtree(out_files_dir)
+    if os.path.exists(out_files_dir): shutil.rmtree(out_files_dir)
 
 if not os.path.exists(out_files_dir):
     os.mkdir(out_files_dir)
-
 
 def runScript(fname):
     now = time.time()
