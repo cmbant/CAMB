@@ -167,7 +167,7 @@ class CambTest(unittest.TestCase):
         data.get_unlensed_scalar_cls(2500)
         data.get_tensor_cls(2000)
         cls_lensed = data.get_lensed_scalar_cls(3000)
-        data.get_lens_potential_cls(2000)
+        cphi = data.get_lens_potential_cls(2000)
 
         # check lensed CL against python; will only agree well for high lmax as python has no extrapolation template
         cls_lensed2 = correlations.lensed_cls(cls['unlensed_scalar'], cls['lens_potential'][:, 0], delta_cls=False)
