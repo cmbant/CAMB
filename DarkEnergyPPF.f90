@@ -3,18 +3,18 @@
     use ModelParams
     use RandUtils
     use DarkEnergyInterface
-    use interpolation
     implicit none
-    
-    private
 
+    integer, parameter :: nwmax = 5000
     integer, private, parameter :: nde = 2000
     real(dl), private, parameter :: amin = 1.d-9
 
     type, extends(TDarkEnergyBase) :: TDarkEnergyPPF
         logical :: use_tabulated_w = .false.
         real(dl) :: c_Gamma_ppf = 0.4_dl
-        Type(TCubicSpline) :: equation_of_state
+        integer :: nw_ppf
+        real(dl) :: w_ppf(nwmax), a_ppf(nwmax)
+        real(dl), private :: ddw_ppf(nwmax)
         real(dl), private :: rde(nde),ade(nde),ddrde(nde)
 
     contains
@@ -23,23 +23,21 @@
     procedure :: BackgroundDensityAndPressure => TDarkEnergyPPF_BackgroundDensityAndPressure
     procedure :: PerturbedStressEnergy => TDarkEnergyPPF_PerturbedStressEnergy
     procedure :: diff_rhopi_Add_Term => TDarkEnergyPPF_diff_rhopi_Add_Term
-    procedure :: w_de
-    procedure :: grho_de
+    procedure, private :: setddwa
     procedure, private :: interpolrde
+    procedure, private :: grho_de
     procedure, private :: setcgammappf
     final :: TDarkEnergyPPF_Finalize
     end type TDarkEnergyPPF
 
-    public TDarkEnergyPPF
+    private w_de, cubicsplint
     contains
 
     subroutine TDarkEnergyPPF_ReadParams(this, Ini)
     use IniObjects
-    use FileUtils
     class(TDarkEnergyPPF), intent(inout) :: this
     type(TIniFile), intent(in) :: Ini
     character(len=:), allocatable :: wafile
-    real(dl), allocatable :: table(:,:)
     integer i
 
     if (Ini%HasKey('usew0wa')) then
@@ -53,8 +51,21 @@
         if (Rand_Feedback >0) write(*,'("(w0, wa) = (", f8.5,", ", f8.5, ")")') &
             &   this%w_lam, this%wa_ppf
     else
-        wafile = Ini%Read_String('loga_w_file')
-        call this%equation_of_state%InitFromFile(wafile) 
+        wafile = Ini%Read_String('wafile')
+        open(unit=10, file=wafile, status='old')
+        this%nw_ppf=0
+        do i=1, nwmax + 1
+            read(10, *, end=100) this%a_ppf(i), this%w_ppf(i)
+            this%a_ppf(i) = dlog(this%a_ppf(i))
+            this%nw_ppf = this%nw_ppf + 1
+        enddo
+        write(*,'("Note: ", a, " has more than ", I8, " data points")') &
+            &   trim(wafile), nwmax
+        error stop 'Increase nwmax in DarkEnergyPPFModule'
+100     close(10)
+        write(*,'("read in ", I8, " (a, w) data points from ", a)') &
+            &   this%nw_ppf, trim(wafile)
+        call this%setddwa
         call this%interpolrde
     endif
     this%cs2_lam = Ini%Read_Double('cs2_lam', 1.d0)
@@ -64,9 +75,11 @@
     call this%Init()
 
     end subroutine TDarkEnergyPPF_ReadParams
-    
+
+
     subroutine TDarkEnergyPPF_Init(this)
     class(TDarkEnergyPPF), intent(inout) :: this
+
 
     this%is_cosmological_constant = .not. this%use_tabulated_w .and. &
         &  abs(this%w_lam + 1._dl) < 1.e-6_dl .and. this%wa_ppf==0._dl
@@ -85,34 +98,43 @@
 
     end subroutine
 
+    subroutine setddwa(this)
+    class(TDarkEnergyPPF) :: this
+    real(dl), parameter :: wlo = 1.d30, whi = 1.d30
 
-    function w_de(this, a)
-    type(TDarkEnergyPPF) :: this
+    call spline(this%a_ppf, this%w_ppf, this%nw_ppf, wlo, whi, this%ddw_ppf) !a_ppf is lna here
+
+    end subroutine setddwa
+
+
+    function w_de(curr, a)
+    type(TDarkEnergyPPF), intent(in) :: curr
     real(dl) :: w_de, al
     real(dl), intent(IN) :: a
 
-    if(.not. this%use_tabulated_w) then
-        w_de= this%w_lam+ this%wa_ppf*(1._dl-a)
+    if(.not. curr%use_tabulated_w) then
+        w_de= curr%w_lam+ curr%wa_ppf*(1._dl-a)
     else
         al=dlog(a)
-        if(al <= this%equation_of_state%Xmin_interp) then
-            w_de= this%equation_of_state%X(1)                  
-        elseif(al >= this%equation_of_state%Xmax_interp) then
-            w_de= this%equation_of_state%X(this%equation_of_state%n)        
+        if(al .lt. curr%a_ppf(1)) then
+            w_de= curr%w_ppf(1)                   !if a < minimum a from wa.dat
+        elseif(al .gt. curr%a_ppf(curr%nw_ppf)) then
+            w_de= curr%w_ppf(curr%nw_ppf)         !if a > maximus a from wa.dat
         else
-            w_de = this%equation_of_state%Value(al)      
+            call cubicsplint(curr%a_ppf, curr%w_ppf, curr%ddw_ppf, &
+                &   curr%nw_ppf, al, w_de)
         endif
     endif
-    
     end function w_de  ! equation of state of the PPF DE
 
 
-    function drdlna_de(this, a)
-    type(TDarkEnergyPPF) :: this
-    real(dl) :: drdlna_de
-    real(dl), intent(IN) :: a
+    function drdlna_de(curr, al)
+    type(TDarkEnergyPPF), intent(in) :: curr
+    real(dl) :: drdlna_de, a
+    real(dl), intent(IN) :: al
 
-    drdlna_de = 3._dl * (1._dl + this%w_de(log(a)))
+    a = dexp(al)
+    drdlna_de = 3._dl * (1._dl + w_de(curr, a))
 
     end function drdlna_de
 
@@ -152,7 +174,7 @@
             al = dlog(a)
             if(al .lt. this%ade(1))then
                 !if a<amin, assume here w=w_de(amin)
-                fint = this%rde(1) * (a / amin) ** (1. - 3. * this%w_de(amin))
+                fint = this%rde(1) * (a / amin) ** (1. - 3. * w_de(this, amin))
             else        !if amin is small enough, this extrapolation will be unnecessary.
                 call cubicsplint(this%ade, this%rde, this%ddrde, nde, al, fint)
             endif
@@ -211,11 +233,11 @@
     else
         ! Ensure a valid result
         if (a /= 0._dl) then
-            grhov_t = this%grho_de(a) / (a * a)
+            grhov_t = grho_de(this, a) / (a * a)
         else
             grhov_t = 0._dl
         end if
-        if (present(w)) w = this%w_de(a)
+        if (present(w)) w = w_de(this, a)
     end if
 
     end subroutine TDarkEnergyPPF_BackgroundDensityAndPressure
