@@ -209,7 +209,7 @@ filetolmatrix = [["*scalCls.dat", Ignore()],  # Ignore() all scalCls.dat files.
                  ["*lensedCls.dat", coltol1],  # lensed and lenspotential files both use coltol1 given above
                  ["*lensedtotCls.dat", coltol1],
                  ["*lenspotentialCls.dat", coltolunlensed],
-                 ["*scalCovCls.dat", coltol1],
+                 ["*scalCovCls.dat", coltolunlensed],
                  ["*tensCls.dat", ColTol({"TE": (True, lambda o, n: diffnsqrt(o, n, 1e-2, 'T', 'E')),
                                           "*": (True, [(0, 1e-2),
                                                        (600, Ignore())])})],
@@ -499,7 +499,7 @@ def num_unequal(filename, cmpFcn):
                 inifile = iniFile()
                 inifile.readFile(inifilename)
             except:
-                printlog("Could not open inifilename: %s" % inifilename)
+                printlog("Could not open ini filename: %s" % inifilename)
             for o_row, n_row in zip(origMat[origBase:], newMat[newBase:]):
                 row += 1
                 if len(o_row) != len(n_row):
@@ -684,6 +684,6 @@ if not args.no_run_test:
             msg = '..no files in %.2fs' % timing
         printlog(msg)
         files = nfiles
-    printlog('Done, %s errors in %.2fs (outputs not checked)' % (errors, time.time() - start))
+    printlog('Done, %s errors in %.2fs (outputs not checked yet)' % (errors, time.time() - start))
     if errors:
         printlog('Fails in : %s' % error_list)
