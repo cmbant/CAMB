@@ -439,7 +439,7 @@ def get_tolerance_vector(filename, cols):
     Get the tolerances for the given filename.
     :param filename: The name of the file to retrieve the tolerances for.
     :param cols: Gives the column names.
-    :returns: False, when the file is to be Ignore()d completely;
+    :returns: False, when the file is to be Ignored completely;
     the vector of tolerances when a pattern in the filetolmatrix matched;
     an empty ColTol when no match was found.
     """
@@ -448,7 +448,7 @@ def get_tolerance_vector(filename, cols):
             if isinstance(val, Ignore):
                 return False
             else:
-                return [val[t] for t in cols]
+                return [val.get(t, Ignore) for t in cols]
     return ColTol()
 
 
