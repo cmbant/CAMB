@@ -16,7 +16,6 @@
         real(dl) :: w_ppf(nwmax), a_ppf(nwmax)
         real(dl), private :: ddw_ppf(nwmax)
         real(dl), private :: rde(nde),ade(nde),ddrde(nde)
-
     contains
     procedure :: ReadParams => TDarkEnergyPPF_ReadParams
     procedure :: Init => TDarkEnergyPPF_Init
@@ -145,6 +144,8 @@
     real(dl) :: atol, almin, al, rombint, fint
     integer :: i
     external rombint
+    
+    TRegularCubicSpline
 
     atol = 1.d-5
     almin = dlog(amin)
@@ -168,7 +169,7 @@
         grho_de = grhov * a ** (1._dl - 3. * this%w_lam - 3. * this%wa_ppf) * &
             exp(-3. * this%wa_ppf * (1._dl - a))
     else
-        if(a .eq. 0.d0)then
+        if(a == 0.d0)then
             grho_de = 0.d0      !assume rho_de*a^4-->0, when a-->0, OK if w_de always <0.
         else
             al = dlog(a)
