@@ -448,7 +448,7 @@ def get_tolerance_vector(filename, cols):
             if isinstance(val, Ignore):
                 return False
             else:
-                return [val.get(t, Ignore) for t in cols]
+                return [val.get(t, (False, False)) for t in cols]
     return ColTol()
 
 
