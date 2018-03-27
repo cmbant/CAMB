@@ -5,7 +5,7 @@
 #neutron lifetime of 880.2 s and CMB temperature 2.7255 K
 #Yp^BBN is the BBN-standard nucleon number fraction, Yp is the mass fraction for CMB codes
 #Mapping between ombh2, Yp and eta10 is not quite consistent to 0.1% level except at DeltaN=0
-#      ombh2        eta10       DeltaN           Yp       Yp^BBN     sigma_Yp          D/H     err D/H
+#      ombh2        eta10       DeltaN           Yp       Yp^BBN     sigma_Yp          D/H     err_D/H
 
      0.00499      1.36640     -3.00000      0.17643      0.17747      0.00000    1.605e-04     0.00e+00
      0.00599      1.63967     -3.00000      0.17896      0.18001      0.00000    1.209e-04     0.00e+00

@@ -199,7 +199,7 @@ if __name__ == "__main__":
           cmdclass={'build': SharedLibrary, 'install': CustomInstall, 'sdist': CustomSdist},
           packages=['camb', 'camb_tests'],
           package_data={'camb': [DLLNAME, 'HighLExtrapTemplate_lenspotentialCls.dat',
-                                 'PArthENoPE_880.2_marcucci.dat', 'PArthENoPE_880.2_standard.dat']},
+                                 'PArthENoPE_880.2_marcucci.dat', 'PArthENoPE_880.2_standard.dat', 'PRIMAT_Yp_DH_Error.dat]},
           test_suite='camb_tests',
           classifiers=[
               "Programming Language :: Python :: 2",

@@ -1,13 +1,18 @@
 # Classes to produce BBN predictions for helium mass fraction and D/H given other parameters
 # Fitting formula for Parthenelope via Julien Lesourges Dec 2014
 # General interpolation tables, with defaults from Parthenope May 2017 (thanks Ofelia Pesanti)
+# Use PRIMAT_Yp_DH_Error.dat table for latest from the PRIMAT code (arXiv: 1801.08023, thanks Cyril Pitrou)
 
 import numpy as np
 import os
 import io
-from .baseconfig import mock_load
 
-if not mock_load:
+try:
+    from .baseconfig import mock_load
+
+    if not mock_load:
+        from scipy.interpolate import RectBivariateSpline
+except:
     from scipy.interpolate import RectBivariateSpline
 
 # Various useful constants
@@ -95,23 +100,24 @@ class BBN_table_interpolator(BBNPredictor):
         columns = comment.split()
         ombh2_i = columns.index('ombh2')
         DeltaN_i = columns.index('DeltaN')
-        Yp_i = columns.index('Yp^BBN')
-        dh_i = columns.index('D/H')
-        table = np.loadtxt(interpolation_table, usecols=[ombh2_i, DeltaN_i, Yp_i, dh_i])
-        deltans = list(np.unique(table[:, 1]))
-        ombh2s = list(np.unique(table[:, 0]))
+
+        table = np.loadtxt(interpolation_table)
+        deltans = list(np.unique(table[:, DeltaN_i]))
+        ombh2s = list(np.unique(table[:, ombh2_i]))
         assert (table.shape[0] == len(ombh2s) * len(deltans))
-        grid = np.zeros((len(ombh2s), len(deltans)))
-        dh_grid = np.zeros(grid.shape)
-        for i in range(table.shape[0]):
-            grid[ombh2s.index(table[i, 0]), deltans.index(table[i, 1])] = table[i, 2]
-            dh_grid[ombh2s.index(table[i, 0]), deltans.index(table[i, 1])] = table[i, 3]
+        self.interpolators = {}
+        for i, col in enumerate(columns):
+            if i != ombh2_i and i != DeltaN_i and np.count_nonzero(table[:, i]):
+                grid = np.zeros((len(ombh2s), len(deltans)))
+                for ix in range(table.shape[0]):
+                    grid[ombh2s.index(table[ix, ombh2_i]), deltans.index(table[ix, DeltaN_i])] = table[ix, i]
+                self.interpolators[col] = RectBivariateSpline(ombh2s, deltans, grid)
+
         self.ombh2s = ombh2s
         self.deltans = deltans
-        self.grid = grid
-        self.dh_grid = dh_grid
-        self.interpolator_Yp = RectBivariateSpline(ombh2s, deltans, grid)
-        self.interpolator_DH = RectBivariateSpline(ombh2s, deltans, dh_grid)
+
+        self.interpolator_Yp = self.interpolators['Yp^BBN']
+        self.interpolator_DH = self.interpolators['D/H']
 
     def Y_p(self, ombh2, delta_neff=0.):
         """
@@ -132,6 +138,17 @@ class BBN_table_interpolator(BBNPredictor):
         :return: D/H
         """
         return self.interpolator_DH(ombh2, delta_neff)[0][0]
+
+    def get(self, name, ombh2, delta_neff):
+        """
+        Get value for variable "name" by intepolation from table (where name is given in the column header comment)
+        For example get('sig(D/H)',0.0222,0) to get the error on D/H
+
+        :param ombh2: Omega_b h^2
+        :param delta_neff:  additional N_eff relative to standard value (of 3.046)
+        :return:  Interpolated value
+        """
+        return self.interpolators[name](ombh2, delta_neff)[0][0]
 
 
 class BBN_fitting_parthenope(BBNPredictor):
@@ -159,17 +176,17 @@ class BBN_fitting_parthenope(BBNPredictor):
         :return:  Y_p helium nucleon fraction predicted by BBN
         """
         return (
-                   0.2311 + 0.9502 * ombh2 - 11.27 * ombh2 * ombh2
-                   + delta_neff * (0.01356 + 0.008581 * ombh2 - 0.1810 * ombh2 * ombh2)
-                   + delta_neff * delta_neff * (-0.0009795 - 0.001370 * ombh2 + 0.01746 * ombh2 * ombh2)
+                       0.2311 + 0.9502 * ombh2 - 11.27 * ombh2 * ombh2
+                       + delta_neff * (0.01356 + 0.008581 * ombh2 - 0.1810 * ombh2 * ombh2)
+                       + delta_neff * delta_neff * (-0.0009795 - 0.001370 * ombh2 + 0.01746 * ombh2 * ombh2)
                ) * pow((tau_neutron or self.taun) / 880.3, 0.728)
 
     def DH(self, ombh2, delta_neff, tau_neutron=None):
         return (
-                   18.754 - 1534.4 * ombh2 + 48656. * ombh2 * ombh2 - 552670. * ombh2 ** 3
-                   + delta_neff * (2.4914 - 208.11 * ombh2 + 6760.9 * ombh2 ** 2 - 78007. * ombh2 ** 3)
-                   + delta_neff * delta_neff * (
-                       0.012907 - 1.3653 * ombh2 + 37.388 * ombh2 ** 2 - 267.78 * ombh2 ** 3)
+                       18.754 - 1534.4 * ombh2 + 48656. * ombh2 * ombh2 - 552670. * ombh2 ** 3
+                       + delta_neff * (2.4914 - 208.11 * ombh2 + 6760.9 * ombh2 ** 2 - 78007. * ombh2 ** 3)
+                       + delta_neff * delta_neff * (
+                               0.012907 - 1.3653 * ombh2 + 37.388 * ombh2 ** 2 - 267.78 * ombh2 ** 3)
                ) * pow((tau_neutron or self.taun) / 880.3, 0.418) * 1e-5
 
 
@@ -189,6 +206,8 @@ def get_default_predictor():
 if __name__ == "__main__":
     print(BBN_table_interpolator().Y_He(0.01897, 1.2))
     print(BBN_fitting_parthenope().Y_He(0.01897, 1.2))
+    print(BBN_table_interpolator('PRIMAT_Yp_DH_Error.dat').Y_He(0.01897, 1.2))
     print(BBN_table_interpolator().DH(0.02463, -0.6))
     print(BBN_fitting_parthenope().DH(0.02463, -0.6))
     print(BBN_table_interpolator('PArthENoPE_880.2_marcucci.dat').DH(0.02463, -0.6))
+    print(BBN_table_interpolator('PRIMAT_Yp_DH_Error.dat').DH(0.02463, -0.6))
