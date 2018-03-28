@@ -58,7 +58,7 @@
     integer :: nu_i
 
     a2 = a ** 2
-    call CP%DarkEnergy%BackgroundDensityAndPressure(a, grhov_t)
+    call CP%DarkEnergy%BackgroundDensityAndPressure(grhov, a, grhov_t)
 
     !  8*pi*G*rho*a**4.
     grhoa2 = grhok * a2 + (grhoc + grhob) * a + grhog + grhornomass + &
@@ -2263,7 +2263,7 @@
     grhoc_t=grhoc/a
     grhor_t=grhornomass/a2
     grhog_t=grhog/a2
-    call CP%DarkEnergy%BackgroundDensityAndPressure(a, grhov_t, w_dark_energy_t)
+    call CP%DarkEnergy%BackgroundDensityAndPressure(grhov, a, grhov_t, w_dark_energy_t)
 
     !  Get sound speed and ionisation fraction.
     if (EV%TightCoupling) then
@@ -2365,7 +2365,8 @@
     end if
 
     if (.not. CP%DarkEnergy%is_cosmological_constant) &
-        call CP%DarkEnergy%PerturbationEvolve(ayprime, EV%w_ix, adotoa, k, z, ay)
+        call CP%DarkEnergy%PerturbationEvolve(ayprime, w_dark_energy_t, &
+        EV%w_ix, a, adotoa, k, z, ay)
 
     !  CDM equation of motion
     clxcdot=-k*z
@@ -2916,7 +2917,7 @@
     grhoc_t=grhoc/a
     grhor_t=grhornomass/a2
     grhog_t=grhog/a2
-    call CP%DarkEnergy%BackgroundDensityAndPressure(a, grhov_t, w_dark_energy_t)
+    call CP%DarkEnergy%BackgroundDensityAndPressure(grhov, a, grhov_t, w_dark_energy_t)
 
     grho=grhob_t+grhoc_t+grhor_t+grhog_t+grhov_t
     gpres=(grhog_t+grhor_t)/3._dl+grhov_t*w_dark_energy_t
@@ -3070,7 +3071,7 @@
     grhoc_t=grhoc/a
     grhor_t=grhornomass/a2
     grhog_t=grhog/a2
-    call CP%DarkEnergy%BackgroundDensityAndPressure(a, grhov_t)
+    call CP%DarkEnergy%BackgroundDensityAndPressure(grhov, a, grhov_t)
 
     grho=grhob_t+grhoc_t+grhor_t+grhog_t+grhov_t
 

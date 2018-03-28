@@ -177,7 +177,7 @@
 
 
     !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-    function rombint_obj(obj,f,a,b,tol, maxit)
+    function rombint_obj(obj,f,a,b,tol, MAXITER)
     use Precision
     use MiscUtils
     !  Rombint returns the integral from a to b of using Romberg integration.
@@ -186,8 +186,7 @@
     !  routine.  tol indicates the desired relative accuracy in the integral.
     !
     implicit none
-    integer, intent(in), optional :: maxit
-    integer :: MAXITER
+    integer, intent(in) :: MAXITER
     integer, parameter :: MAXJ=5
     dimension g(MAXJ+1)
     real :: obj !dummy
@@ -198,7 +197,7 @@
     integer :: nint, i, k, jmax, j
     real(dl) :: h, gmax, error, g, g0, g1, fourj
     !
-    MAXITER = PresentDefault (20, maxit)
+
     h=0.5d0*(b-a)
     gmax=h*(f(obj,a)+f(obj,b))
     g(1)=gmax

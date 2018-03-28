@@ -163,6 +163,10 @@ CAMB_primordialpower.restype = c_bool
 CAMBparams_SetDarkEnergy = camblib.__handles_MOD_cambparams_setdarkenergy
 CAMBparams_GetDarkEnergy = camblib.__handles_MOD_cambparams_getdarkenergy
 
+CAMBparams_DE_SetTable = camblib.__handles_MOD_cambparams_setdarkenergytable
+CAMBparams_DE_SetEqual = camblib.__handles_MOD_cambparams_setdarkenergyequal
+CAMBparams_DE_GetStressEnergy = camblib.__handles_MOD_cambparams_darkenergystressenergy
+
 CAMBParams_Free = camblib.__handles_MOD_cambparams_free
 
 
@@ -198,8 +202,40 @@ class DarkEnergyParams(CAMB_Structure):
     _fields_ = [
         ("w", c_double),
         ("wa", c_double),
-        ("cs2", c_double)
+        ("cs2", c_double),
+        ("use_tabulated_w", c_int)
     ]
+
+    def set_w_a_table(self, a, w):
+        """
+        Set w(a) from numerical values (used as cublic spline)
+
+        :param a: array of scale factors
+        :param w: array of w(a)
+        :return: self
+        """
+        if len(a) != len(w): raise ValueError('Dark energy w(a) table non-equal sized arrays')
+        if not np.isclose(a[-1], 1):  raise ValueError('Dark energy w(a) arrays must end at a=1')
+        CAMBparams_DE_SetTable(byref(self), a, w, byref(c_int(len(a))))
+        return self
+
+    def get_rho_w(self, a):
+        """
+        get dark energy density in units of the dark energy density today, and w=P/rho
+        :param a: scalar factor or array of scale factors
+        :return: rho, w arrays at redshifts 1/a-1 [or scalars if a is scalar]
+        """
+        if np.isscalar(a):
+            scales = np.array([a])
+        else:
+            scales = np.asarray(a)
+        rho = np.zeros(scales.shape)
+        w = np.zeros(scales.shape)
+        CAMBparams_DE_GetStressEnergy(byref(self), scales, rho, w, byref(c_int(len(scales))))
+        if np.isscalar(a):
+            return rho[0], w[0]
+        else:
+            return rho, w
 
 
 class CAMBparams(CAMB_Structure):
@@ -285,17 +321,15 @@ class CAMBparams(CAMB_Structure):
 
     def copy(self):
         """
-        Make independent copy. Since it contains allocatables, these have to be newly allocated and then values copied.
+        Make independent copy. Since it contains allocatables, these have to be newly allocated.
 
         :return: copy of self
         """
         cp = copy.deepcopy(self)
         cp._DarkEnergy[:] = np.zeros(len(cp._DarkEnergy), dtype=c_byte)  ##null allocatable
         de = POINTER(DarkEnergyParams)()
-        i = c_int(0)
-        CAMBparams_GetDarkEnergy(byref(self), byref(i), byref(de))
-        cp.set_dark_energy(w=self.DarkEnergy.w, cs2=self.DarkEnergy.cs2, wa=self.DarkEnergy.wa,
-                           dark_energy_model=dark_energy_models[i.value])
+        CAMBparams_DE_SetEqual(byref(cp), byref(self), byref(de))
+        cp.DarkEnergy = de.contents
         return cp
 
     def validate(self):
@@ -475,7 +509,7 @@ class CAMBparams(CAMB_Structure):
 
     def set_dark_energy(self, w=-1.0, cs2=1.0, wa=0, dark_energy_model='fluid'):
         """
-        Set dark energy parameters.
+        Set dark energy parameters (use set_dark_energy_w_a to set w(a) from numerical table instead)
 
         :param w: p_de/rho_de, assumed constant
         :param wa: evolution of w (for dark_energy_model=ppf)
@@ -483,9 +517,9 @@ class CAMBparams(CAMB_Structure):
         :param dark_energy_model: model to use ('fluid' or 'ppf'), default is 'fluid'
         :return: self
         """
-        # Variables from module LambdaGeneral
-        if dark_energy_model == 'fluid' and wa:
-            raise CAMBError('fluid dark energy model does not support wa<>0')
+
+        if dark_energy_model == 'fluid' and wa and (w < -1 - 1e-6 or 1 + w + wa < -1 - 1e-6):
+            raise CAMBError('fluid dark energy model does not support w crossing -1')
 
         de = POINTER(DarkEnergyParams)()
         CAMBparams_SetDarkEnergy(byref(self), byref(c_int(dark_energy_models.index(dark_energy_model))), byref(de))
@@ -493,8 +527,25 @@ class CAMBparams(CAMB_Structure):
         self.DarkEnergy.w = w
         self.DarkEnergy.wa = wa
         self.DarkEnergy.cs2 = cs2
+        self.DarkEnergy.use_tabulated_w = False
 
         return self
+
+    def set_dark_energy_w_a(self, a, w, dark_energy_model='fluid'):
+        """
+        Set the dark energy equation of state from tabulated values (which are cubic spline interpolated).
+
+        :param a: array of sampled a = 1/(1+z) values
+        :param w: array of w(a)
+        :param dark_energy_model:  model to use ('fluid' or 'ppf'), default is 'fluid'
+        :return: self
+        """
+        if dark_energy_model == 'fluid' and np.any(w < -1):
+            raise CAMBError('fluid dark energy model does not support w crossing -1')
+        de = POINTER(DarkEnergyParams)()
+        CAMBparams_SetDarkEnergy(byref(self), byref(c_int(dark_energy_models.index(dark_energy_model))), byref(de))
+        self.DarkEnergy = de.contents
+        self.DarkEnergy.set_w_a_table(a, w)
 
     def get_omega_k(self):
         """
@@ -668,6 +719,11 @@ def Transfer_SortAndIndexRedshifts(P):
 CAMB_primordialpower.argtypes = [POINTER(CAMBparams), numpy_1d, numpy_1d, POINTER(c_int), POINTER(c_int)]
 CAMBparams_SetDarkEnergy.argtypes = [POINTER(CAMBparams), POINTER(c_int), POINTER(POINTER(DarkEnergyParams))]
 CAMBparams_GetDarkEnergy.argtypes = CAMBparams_SetDarkEnergy.argtypes
+
+CAMBparams_DE_SetTable.argtypes = [POINTER(DarkEnergyParams), numpy_1d, numpy_1d, POINTER(c_int)]
+CAMBparams_DE_SetEqual.argtypes = [POINTER(CAMBparams), POINTER(CAMBparams), POINTER(POINTER(DarkEnergyParams))]
+
+CAMBparams_DE_GetStressEnergy.argtypes = [POINTER(DarkEnergyParams), numpy_1d, numpy_1d, numpy_1d, POINTER(c_int)]
 
 CAMB_SetNeutrinoHierarchy.argtypes = [POINTER(CAMBparams), POINTER(c_double), POINTER(c_double),
                                       POINTER(c_double), POINTER(c_int), POINTER(c_int)]

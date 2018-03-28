@@ -87,6 +87,7 @@ class CambTest(unittest.TestCase):
         scal = data.luminosity_distance(1.4)
         vec = data.luminosity_distance([1.2, 1.4, 0.1, 1.9])
         self.assertAlmostEqual(scal, vec[1], 5)
+
         pars.set_dark_energy()  # re-set defaults
 
         # test theta
@@ -180,6 +181,24 @@ class CambTest(unittest.TestCase):
         corr, xvals, weights = correlations.gauss_legendre_correlation(cls['lensed_scalar'])
         clout = correlations.corr2cl(corr, xvals, weights, 2500)
         self.assertTrue(np.all(np.abs(clout[2:2300, 2] / cls['lensed_scalar'][2:2300, 2] - 1) < 1e-3))
+
+    def testDarkEnergy(self):
+        pars = camb.CAMBparams()
+        pars.InitPower.set_params(ns=0.965, r=0)
+        for m in model.dark_energy_models:
+            pars.set_dark_energy(w=-0.7, wa=0.2, dark_energy_model=m)
+            C1 = camb.get_results(pars).get_cmb_power_spectra()
+            a = np.logspace(-5, 0, 1000)
+            w = -0.7 + 0.2 * (1 - a)
+            pars2 = pars.copy()
+            pars2.set_dark_energy_w_a(a, w, dark_energy_model=m)
+            C2 = camb.get_results(pars2).get_cmb_power_spectra()
+            for f in ['lens_potential', 'lensed_scalar']:
+                self.assertTrue(np.allclose(C1[f][2:, 0], C2[f][2:, 0]))
+            pars3 = pars2.copy()
+            self.assertAlmostEqual(-0.7, pars3.DarkEnergy.w)
+
+        pars.set_dark_energy()  # re-set defaults
 
     def testSymbolic(self):
         import camb.symbolic as s

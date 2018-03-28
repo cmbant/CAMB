@@ -29,7 +29,7 @@
     end Type c_ClTransferData
 
     Type dummyAllocatable
-    class(c_ClTransferData), allocatable :: P
+        class(c_ClTransferData), allocatable :: P
     end Type dummyAllocatable
 
     private dummyAllocatable
@@ -530,11 +530,11 @@
 
     if (allocated(P%DarkEnergy)) deallocate(P%DarkEnergy)
     if (i==0) then
-      allocate(TDarkEnergyFluid::P%DarkEnergy)
+        allocate(TDarkEnergyFluid::P%DarkEnergy)
     else if (i==1) then
-      allocate(TDarkEnergyPPF::P%DarkEnergy)
+        allocate(TDarkEnergyPPF::P%DarkEnergy)
     else
-      error stop 'Unknown dark energy model'
+        error stop 'Unknown dark energy model'
     end if
 
     !can't reference polymorphic type, but can reference first data entry (which is same thing here)
@@ -553,7 +553,7 @@
             i =0
         class is (TDarkEnergyPPF)
             i =1
-        class default
+            class default
             i = -1
         end select
         handle = c_loc(P%DarkEnergy%w_lam)
@@ -563,6 +563,46 @@
 
     end subroutine CAMBparams_GetDarkEnergy
 
+    subroutine CAMBparams_SetDarkEnergyTable(DE, a, w, n)
+    Type(TDarkEnergyBase) :: DE
+    integer, intent(in) :: n
+    real(dl), intent(in) :: a(n), w(n)
+
+    call DE%SetwTable(a,w)
+
+    end subroutine CAMBparams_SetDarkEnergyTable
+
+    subroutine CAMBparams_SetDarkEnergyEqual(P, P2, handle)
+    Type(CAMBparams), target :: P, P2
+    type(c_ptr), intent(out)  ::  handle
+
+    if (allocated(P%DarkEnergy)) deallocate(P%DarkEnergy)
+    if (allocated(P2%DarkEnergy)) then
+        allocate(P%DarkEnergy, source = P2%DarkEnergy)
+        handle = c_loc(P%DarkEnergy%w_lam)
+    else
+        handle = c_null_ptr
+    end if
+
+    end subroutine CAMBparams_SetDarkEnergyEqual
+
+    subroutine CAMBparams_DarkEnergyStressEnergy(DE, a, grhov_t, w, n)
+    Type(TDarkEnergyBase) :: DE
+    integer, intent(in) :: n
+    real(dl), intent(in) :: a(n)
+    real(dl), intent(out) :: grhov_t(n), w(n)
+    real(dl) grhov 
+    integer i
+    
+    call DE%Init()
+    do i=1, n
+        call DE%BackgroundDensityAndPressure(1._dl, a(i), grhov_t(i), w(i))
+    end do
+    grhov_t = grhov_t/a**2
+    
+    end subroutine CAMBparams_DarkEnergyStressEnergy
+
+    
     subroutine CAMBParams_Free(P)
     Type(CAMBparams) :: P
 

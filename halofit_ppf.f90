@@ -120,11 +120,11 @@
         do itf = 1, CAMB_Pk%num_z
 
             w_hf=CP%DarkEnergy%w_lam
-            wa_hf=CP%DarkEnergy%wa_ppf
+            wa_hf=CP%DarkEnergy%wa
             if (halofit_version == halofit_casarini) then
                 ! calculate equivalent w-constant models (w_hf,0) for w_lam+wa_ppf(1-a) models
                 ! [Casarini+ (2009,2016)].
-                call PKequal(CAMB_Pk%Redshifts(itf),CP%DarkEnergy%w_lam,CP%DarkEnergy%wa_ppf,w_hf,wa_hf)
+                call PKequal(CAMB_Pk%Redshifts(itf),CP%DarkEnergy%w_lam,CP%DarkEnergy%wa,w_hf,wa_hf)
             endif
 
             ! calculate nonlinear wavenumber (rknl), effective spectral index (rneff) and
@@ -793,7 +793,7 @@
     cosm%om_m=CP%omegac+CP%omegab+CP%omegan
     cosm%om_v=CP%omegav
     cosm%w=CP%DarkEnergy%w_lam
-    cosm%wa=CP%DarkEnergy%wa_ppf
+    cosm%wa=CP%DarkEnergy%wa
     cosm%f_nu=CP%omegan/cosm%om_m
     cosm%h=CP%H0/100.
     cosm%Tcmb=CP%tcmb
@@ -2936,9 +2936,9 @@
     !Computes the result of the nth order Lagrange polynomial at point x, L(x)
     IMPLICIT NONE
     REAL :: Lagrange_polynomial
+    INTEGER, INTENT(IN) :: n
     REAL, INTENT(IN) :: x, xv(n+1), yv(n+1)
     REAL :: l(n+1)
-    INTEGER, INTENT(IN) :: n
     INTEGER :: i, j
 
     !Initialise variables, one for sum and one for multiplication
