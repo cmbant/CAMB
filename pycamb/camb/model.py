@@ -213,6 +213,7 @@ class CAMBparams(CAMB_Structure):
         self._set_allocatables()
         if _HighAccuracyDefault.value:
             self.AccurateReionization = True
+        self.InitPower.set_params()
 
     def _set_allocatables(self):
         de = POINTER(DarkEnergyParams)()

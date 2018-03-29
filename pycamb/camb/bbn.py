@@ -7,14 +7,6 @@ import numpy as np
 import os
 import io
 
-try:
-    from .baseconfig import mock_load
-
-    if not mock_load:
-        from scipy.interpolate import RectBivariateSpline
-except:
-    from scipy.interpolate import RectBivariateSpline
-
 # Various useful constants
 hbar = 1.05457e-34
 c = 299792458.
@@ -105,6 +97,7 @@ class BBN_table_interpolator(BBNPredictor):
         deltans = list(np.unique(table[:, DeltaN_i]))
         ombh2s = list(np.unique(table[:, ombh2_i]))
         assert (table.shape[0] == len(ombh2s) * len(deltans))
+        from scipy.interpolate import RectBivariateSpline
         self.interpolators = {}
         for i, col in enumerate(columns):
             if i != ombh2_i and i != DeltaN_i and np.count_nonzero(table[:, i]):

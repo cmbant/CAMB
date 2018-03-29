@@ -224,7 +224,7 @@ class CambTest(unittest.TestCase):
 
         s.internal_consistency_checks()
 
-    def testEmissionAnglePostBorn(self):
+    def test_extra_EmissionAnglePostBorn(self):
         from camb import emission_angle, postborn
         pars = camb.set_params(H0=67.5, ombh2=0.022, omch2=0.122, As=2e-9, ns=0.95, tau=0.055)
         BB = emission_angle.get_emission_delay_BB(pars, lmax=3500)
