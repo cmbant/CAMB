@@ -149,7 +149,7 @@
     implicit none
     public
 
-    character(LEN=*), parameter :: version = 'Sept17'
+    character(LEN=*), parameter :: version = 'Mar18'
 
     integer :: FeedbackLevel = 0 !if >0 print out useful information about the model
 
@@ -187,7 +187,7 @@
 
     type TransferParams
         logical     ::  high_precision
-        logical     ::  accurate_massive_neutrinos 
+        logical     ::  accurate_massive_neutrinos
         integer     ::  num_redshifts
         real(dl)    ::  kmax         !these are acutally q values, but same as k for flat
         integer     ::  k_per_logint ! ..
@@ -201,6 +201,55 @@
         integer     ::  NLL_num_redshifts
 
     end type TransferParams
+
+    type AccuracyParams
+        !Parameters for checking/changing overall accuracy
+        !parameters equal to 1 corresponds to ~0.1% scalar C_l accuracy (at L>600)
+
+        real(dl) :: lSampleBoost=1._dl
+        !Increase lSampleBoost to increase sampling in lSamp%l for Cl interpolation
+
+        real(dl) :: AccuracyBoost =1._dl
+
+        !Decrease step sizes, etc. by this parameter. Useful for checking accuracy.
+        !Can also be used to improve speed significantly if less accuracy is required.
+        !or improving accuracy for extreme models.
+        !Note this does not increase lSamp%l sampling or massive neutrino q-sampling
+
+        real(dl) :: lAccuracyBoost=1._dl
+        !Boost number of multipoles integrated in Boltzman heirarchy
+
+        logical   :: AccuratePolarization = .true.
+        !Do you care about the accuracy of the polarization Cls?
+
+        logical   :: AccurateBB = .false.
+        !Do you care about BB accuracy (e.g. in lensing)
+
+        !Reionization settings - used if Reion%Reionization=.true.
+        logical   :: AccurateReionization = .true.
+        !Do you care about pecent level accuracy on EE signal from reionization?
+
+        !The following allow separate tweaking (all also affected by AccuracyBoost above)
+
+        real(dl) :: TimeStepBoost = 1._dl !sampling of timesteps during recombination
+
+        real(dl) :: IntTolBoost = 1._dl !Tolerances for integrating differential equations
+
+        real(dl) :: SourcekAccuracyBoost = 1._dl !Accuracy of k sampling for source time integration
+
+        real(dl) :: IntkAccuracyBoost = 1._dl !Accuracy of k sampling for integration
+
+        real(dl) :: TransferkBoost = 1._dl !Accuracy of k sampling for transfer functions
+
+        real(dl) :: NonFlatIntAccuracyBoost = 1._dl !Accuracy of non-flat time integration
+
+        real(dl) :: BessIntBoost = 1._dl !Accuracy of bessel integration truncation
+
+        real(dl) :: BesselBoost = 1._dl !accuracy of bessel pre-computation sampling
+
+        real(dl) :: LimberBoost = 1._dl !Accuracy of Limber approximation use
+
+    end type AccuracyParams
 
     !other variables, options, derived variables, etc.
 
@@ -237,18 +286,8 @@
 
         integer   :: OutputNormalization
         !outNone, or C_OutputNormalization=1 if > 1
-        
+
         real(dl)  :: Alens = 1._dl
-
-        logical   :: AccuratePolarization
-        !Do you care about the accuracy of the polarization Cls?
-
-        logical   :: AccurateBB
-        !Do you care about BB accuracy (e.g. in lensing)
-
-        !Reionization settings - used if Reion%Reionization=.true.
-        logical   :: AccurateReionization
-        !Do you care about pecent level accuracy on EE signal from reionization?
 
         integer   :: MassiveNuMethod
 
@@ -256,6 +295,18 @@
         type(ReionizationParams) :: Reion
         type(RecombinationParams):: Recomb
         type(TransferParams)     :: Transfer
+        type(AccuracyParams)     :: Accuracy
+
+        logical :: DoLateRadTruncation = .true.
+        !if true, use smooth approx to radition perturbations after decoupling on
+        !small scales, saving evolution of irrelevant osciallatory multipole equations
+
+        logical :: Evolve_baryon_cs = .false.
+        !if true, evolves equation for Delta_{T_m} to get cs_2 = \delta p /\delta\rho for perfect gas
+
+        logical :: Evolve_delta_xe = .false. !Include ionization fraction perturbations
+
+        logical :: Evolve_delta_Ts =.false. !Equilibrium result agrees to sub-percent level
 
         real(dl) ::  InitialConditionVector(1:10) !Allow up to 10 for future extensions
         !ignored unless Scalar_initial_condition == initial_vector
@@ -307,24 +358,6 @@
     integer :: ThreadNum = 0
     !If zero assigned automatically, obviously only used if parallelised
 
-    !Parameters for checking/changing overall accuracy
-    !If HighAccuracyDefault=.false., the other parameters equal to 1 corresponds to ~0.3% scalar C_l accuracy
-    !If HighAccuracyDefault=.true., the other parameters equal to 1 corresponds to ~0.1% scalar C_l accuracy (at L>600)
-    logical :: HighAccuracyDefault = .true.
-
-    real(dl) :: lSampleBoost=1._dl
-    !Increase lSampleBoost to increase sampling in lSamp%l for Cl interpolation
-
-    real(dl) :: AccuracyBoost =1._dl
-
-    !Decrease step sizes, etc. by this parameter. Useful for checking accuracy.
-    !Can also be used to improve speed significantly if less accuracy is required.
-    !or improving accuracy for extreme models.
-    !Note this does not increase lSamp%l sampling or massive neutrino q-sampling
-
-    real(sp) :: lAccuracyBoost=1.
-    !Boost number of multipoles integrated in Boltzman heirarchy
-
     integer :: limber_phiphi = 0 !for l>limber_phiphi use limber approx for lensing potential
     integer :: num_redshiftwindows = 0
     integer :: num_extra_redshiftwindows = 0
@@ -336,7 +369,7 @@
 
     real(dl), parameter :: OmegaKFlat = 5e-7_dl !Value at which to use flat code
 
-    real(dl),parameter :: tol=1.0d-4 !Base tolerance for integrations
+    real(dl), parameter :: tol=1.0d-4 !Base tolerance for integrations
 
     !     used as parameter for spline - tells it to use 'natural' end values
     real(dl), parameter :: spl_large=1.e40_dl
@@ -408,7 +441,7 @@
     if (CP%WantTransfer) then
         CP%WantScalars=.true.
         if (.not. CP%WantCls) then
-            CP%AccuratePolarization = .false.
+            CP%Accuracy%AccuratePolarization = .false.
             !Sources
             CP%Reion%Reionization = transfer_21cm_cl
         end if
@@ -658,7 +691,7 @@
     real(dl), intent(IN) :: a1,a2
     real(dl), optional, intent(in) :: in_tol
 
-    atol = PresentDefault(tol/1000/exp(AccuracyBoost-1), in_tol)
+    atol = PresentDefault(tol/1000/exp(CP%Accuracy%AccuracyBoost*CP%Accuracy%IntTolBoost-1), in_tol)
     DeltaTime = rombint(dtauda,a1,a2,atol)
 
     end function DeltaTime
@@ -692,7 +725,7 @@
     real(dl), optional, intent(in) :: in_tol
     real(dl) DeltaPhysicalTimeGyr, atol
 
-    atol = PresentDefault(1d-4/exp(AccuracyBoost-1), in_tol)
+    atol = PresentDefault(1d-4/exp(CP%Accuracy%AccuracyBoost-1), in_tol)
     DeltaPhysicalTimeGyr = rombint(dtda,a1,a2,atol)*Mpc/c/Gyr
     end function DeltaPhysicalTimeGyr
 
@@ -876,11 +909,11 @@
     integer, intent(in)::  ell
 
     if (W%kind == window_lensing) then
-        res = AccuracyBoost*18*ell/W%chi0
+        res = CP%Accuracy%AccuracyBoost*18*ell/W%chi0
     else
         !On large scales power can be aliased from smaller, so make sure k goes up until at least the turnover
         !in the matter power spectrum
-        res = AccuracyBoost*max(0.05_dl,2.5*ell/W%chimin)
+        res = CP%Accuracy%AccuracyBoost*max(0.05_dl,2.5*ell/W%chimin)
     end if
 
     res = res* Kmax_Boost
@@ -933,9 +966,9 @@
     integer lind, lvar, step,top,bot,ls(lmax_arr)
     real(dl) AScale
 
-    Ascale=scale/lSampleBoost
+    Ascale=scale/CP%Accuracy%lSampleBoost
 
-    if (lSampleBoost >=50) then
+    if (CP%Accuracy%lSampleBoost >=50) then
         !just do all of them
         lind=0
         do lvar=lmin, max_l
@@ -953,8 +986,8 @@
         ls(lind)=lvar
     end do
 
-    if (CP%AccurateReionization) then
-        if (lSampleBoost > 1) then
+    if (CP%Accuracy%AccurateReionization) then
+        if (CP%Accuracy%lSampleBoost > 1) then
             do lvar=11, 37,1
                 lind=lind+1
                 ls(lind)=lvar
@@ -970,7 +1003,7 @@
         bot=40
         top=bot + step*10
     else
-        if (lSampleBoost >1) then
+        if (CP%Accuracy%lSampleBoost >1) then
             do lvar=11, 15
                 lind=lind+1
                 ls(lind)=lvar
@@ -1042,7 +1075,7 @@
                     ls(lind)=max_l
                 end if
             else
-                if (HighAccuracyDefault .and. .not. use_spline_template) then
+                if (.not. use_spline_template) then
                     step=max(nint(42*Ascale),7)
                 else
                     step=max(nint(50*Ascale),7)
@@ -1305,9 +1338,9 @@
     if (limber_windows) then
         !Turn on limber when k is a scale smaller than window width
         if (W%kind==window_lensing) then
-            ell_limb = max(limber_phiphi,nint(50*AccuracyBoost))
+            ell_limb = max(limber_phiphi,nint(50*CP%Accuracy%AccuracyBoost))
         else
-            ell_limb = max(limber_phiphi, nint(AccuracyBoost *6* W%chi0/W%sigma_tau))
+            ell_limb = max(limber_phiphi, nint(CP%Accuracy%AccuracyBoost *6* W%chi0/W%sigma_tau))
         end if
     else
         ell_limb = lmax
@@ -1691,9 +1724,9 @@
 
 
     nqmax=3
-    if (AccuracyBoost >1) nqmax=4
-    if (AccuracyBoost >2) nqmax=5
-    if (AccuracyBoost >3) nqmax=nint(AccuracyBoost*10)
+    if (CP%Accuracy%AccuracyBoost >1) nqmax=4
+    if (CP%Accuracy%AccuracyBoost >2) nqmax=5
+    if (CP%Accuracy%AccuracyBoost >3) nqmax=nint(CP%Accuracy%AccuracyBoost*10)
     !note this may well be worse than the 5 optimized points
 
     if (nqmax > nqmax0) call MpiStop('Nu_Init: qmax > nqmax0')
@@ -2697,11 +2730,11 @@
         return
     end if
 
-    P%kmax = max(P%kmax,5*AccuracyBoost)
+    P%kmax = max(P%kmax,5*CP%Accuracy%AccuracyBoost)
     P%k_per_logint  = 0
     maxRedshift = 10
-    P%NLL_num_redshifts =  nint(10*AccuracyBoost)
-    if (HighAccuracyDefault .and. AccuracyBoost>=2) then
+    P%NLL_num_redshifts =  nint(10*CP%Accuracy%AccuracyBoost)
+    if (CP%Accuracy%AccuracyBoost>=2) then
         !only notionally more accuracy, more stable for RS
         maxRedshift =15
     end if
@@ -2975,7 +3008,7 @@
     Type(Cl21cmVars) vars
 
 
-    tol = 1e-5/exp(AccuracyBoost-1)
+    tol = 1e-5/exp(CP%Accuracy%AccuracyBoost*CP%Accuracy%IntTolBoost-1)
     do itf=1, CP%Transfer%num_redshifts
         if (FileNames(itf) /= '') then
             !print *, 'tau = ', MTrans%optical_depths(itf)
@@ -3006,8 +3039,8 @@
                     Cl=0
                     atol = tol
                     avg_fac = 200
-                    k_min = max(exp(PK_data%log_k(1)), k*(1-20*AccuracyBoost/chi))
-                    k_max = AccuracyBoost*max(k*(1+avg_fac/chi), k*(1._dl+real(l,dl)**(-0.666_dl)))
+                    k_min = max(exp(PK_data%log_k(1)), k*(1-20*CP%Accuracy%AccuracyBoost/chi))
+                    k_max = CP%Accuracy%AccuracyBoost*max(k*(1+avg_fac/chi), k*(1._dl+real(l,dl)**(-0.666_dl)))
 
                     if (k_max*chi < l+10) k_max = (l+10)/chi
 
@@ -3042,10 +3075,10 @@
                             Vars%logs = .false.
                             k_min = k_max
 
-                            k_max = min(k*35*AccuracyBoost, exp(PK_data%log_k(points)))
+                            k_max = min(k*35*CP%Accuracy%AccuracyBoost, exp(PK_data%log_k(points)))
                         else
                             !In white noise regime
-                            k_max = min(log(max(0.3_dl,k)*18*AccuracyBoost), PK_data%log_k(points))
+                            k_max = min(log(max(0.3_dl,k)*18*CP%Accuracy%AccuracyBoost), PK_data%log_k(points))
                         end if
 
                         Cl = Cl+rombint_obj(Vars,Get21cmCl_l_avg,k_min,k_max, atol, 25)
@@ -3206,7 +3239,7 @@
         end if
     end if
     end subroutine thermo
-    
+
     function Thermo_OpacityToTime(opacity)
     real(dl), intent(in) :: opacity
     integer j
@@ -3283,7 +3316,7 @@
     last_dotmu = 0
 
     matter_verydom_tau = 0
-    a_verydom = AccuracyBoost*5*(grhog+grhornomass)/(grhoc+grhob)
+    a_verydom = CP%Accuracy%AccuracyBoost*5*(grhog+grhornomass)/(grhoc+grhob)
 
     !  Initial conditions: assume radiation-dominated universe.
     tau01=tauminn
@@ -3410,7 +3443,7 @@
             end if
             xe(i) = Reionization_xe(a, tau, xe(ncount))
             !print *,1/a-1,xe(i)
-            if (CP%AccurateReionization .and. CP%DerivedParameters) then
+            if (CP%Accuracy%AccurateReionization .and. CP%DerivedParameters) then
                 dotmu(i)=(Recombination_xe(a) - xe(i))*akthom/a2
 
                 if (last_dotmu /=0) then
@@ -3456,11 +3489,11 @@
             emmu(j1)=1.d-30
         else
             emmu(j1)=exp(sdotmu(j1)-sdotmu(nthermo))
-            if (.not. CP%AccurateReionization .and. &
+            if (.not. CP%Accuracy%AccurateReionization .and. &
                 actual_opt_depth==0 .and. xe(j1) < 1e-3) then
             actual_opt_depth = -sdotmu(j1)+sdotmu(nthermo)
             end if
-            if (CP%AccurateReionization .and. CP%DerivedParameters .and. z_star==0.d0) then
+            if (CP%ACcuracy%AccurateReionization .and. CP%DerivedParameters .and. z_star==0.d0) then
                 if (sdotmu(nthermo)-sdotmu(j1) - actual_opt_depth < 1) then
                     tau01=1-(sdotmu(nthermo)-sdotmu(j1) - actual_opt_depth)
                     tau01=tau01*(1._dl/dotmu(j1)+1._dl/dotmu(j1-1))/2
@@ -3483,7 +3516,7 @@
         end do
     end if
 
-    if (CP%AccurateReionization .and. FeedbackLevel > 0 .and. CP%DerivedParameters) then
+    if (CP%Accuracy%AccurateReionization .and. FeedbackLevel > 0 .and. CP%DerivedParameters) then
         write(*,'("Reion opt depth      = ",f7.4)') actual_opt_depth
     end if
 
@@ -3503,7 +3536,7 @@
         vis = emmu(j1)*dotmu(j1)
         tau = tauminn*exp((j1-1)*dlntau)
         vfi=vfi+vis*cf1*dlntau*tau
-        if ((iv == 0).and.(vfi > 1.0d-7/AccuracyBoost)) then
+        if ((iv == 0).and.(vfi > 1.0d-7/CP%Accuracy%AccuracyBoost)) then
             taurst=9._dl/10._dl*tau
             iv=1
         elseif (iv == 1) then
@@ -3546,9 +3579,9 @@
     ! Calculating the timesteps during recombination.
 
     if (CP%WantTensors) then
-        dtaurec=min(dtaurec,taurst/160)/AccuracyBoost
+        dtaurec=min(dtaurec,taurst/160)/CP%Accuracy%AccuracyBoost
     else
-        dtaurec=min(dtaurec,taurst/40)/AccuracyBoost
+        dtaurec=min(dtaurec,taurst/40)/CP%Accuracy%AccuracyBoost
         if (do_bispectrum .and. hard_bispectrum) dtaurec = dtaurec / 4
     end if
 
@@ -3721,9 +3754,9 @@
 
     ! Calculating the timesteps after recombination
     if (CP%WantTensors) then
-        dtau0=max(taurst/40,Maxtau/2000._dl/AccuracyBoost)
+        dtau0=max(taurst/40,Maxtau/2000._dl/CP%Accuracy%AccuracyBoost)
     else
-        dtau0=Maxtau/500._dl/AccuracyBoost
+        dtau0=Maxtau/500._dl/CP%Accuracy%AccuracyBoost
         if (do_bispectrum) dtau0 = dtau0/3
         !Don't need this since adding in Limber on small scales
         !  if (CP%DoLensing) dtau0=dtau0/2
@@ -3752,10 +3785,10 @@
                 if (Win%kind /= window_lensing) then
                     !Have to be careful to integrate dwinV as the window tails off
                     tau_end_redshiftwindows = max(Win%tau_end,tau_end_redshiftwindows)
-                    nwindow = nint(150*AccuracyBoost)
+                    nwindow = nint(150*CP%Accuracy%AccuracyBoost)
                     win_end = Win%tau_end
                 else !lensing
-                    nwindow = nint(AccuracyBoost*Win%chi0/100)
+                    nwindow = nint(CP%Accuracy%AccuracyBoost*Win%chi0/100)
                     win_end = CP%tau0
                 end if
 
@@ -3765,7 +3798,7 @@
                 keff = WindowKmaxForL(Win,L_limb)
 
                 !Keep sampling in x better than Nyquist
-                nwindow = max(nwindow, nint(AccuracyBoost *(win_end- Win%tau_start)* keff/3))
+                nwindow = max(nwindow, nint(CP%Accuracy%AccuracyBoost *(win_end- Win%tau_start)* keff/3))
                 if (Feedbacklevel > 1) write (*,*) ix, 'nwindow =', nwindow
 
                 call TimeSteps%Add(Win%tau_start, win_end, nwindow)
@@ -3786,7 +3819,7 @@
 
 
     if (CP%Reion%Reionization) then
-        nri0=int(Reionization_timesteps(CP%ReionHist)*AccuracyBoost)
+        nri0=int(Reionization_timesteps(CP%ReionHist)*CP%Accuracy%AccuracyBoost)
         !Steps while reionization going from zero to maximum
         call TimeSteps%Add(CP%ReionHist%tau_start,CP%ReionHist%tau_complete,nri0)
     end if
@@ -4264,7 +4297,7 @@
     call splini(spline_data,nthermo)
     call splder(xe,ddxe,nthermo,spline_data)
     call splder(Tb,ddTb,nthermo,spline_data)
-    
+
     outputs = 0
     do ix = 1, ntimes
         tau = times(ix)
@@ -4293,7 +4326,7 @@
         outputs(2, ix) = opacity
         outputs(3, ix) = opacity*vis
         outputs(4, ix) = cs2b
-        outputs(5, ix) = Tbaryon        
+        outputs(5, ix) = Tbaryon
     end do
 
     end subroutine GetBackgroundEvolution

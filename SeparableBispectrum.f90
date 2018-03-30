@@ -120,7 +120,7 @@
         dlnk = CTrans%q%dpoints(q_ix) /k
         P = ScalarPower(k, 1)*InternalScale  !!only first index for now
 
-        ellmax = max(xf/(1-xlimfrac), xf + xlimmin) * AccuracyBoost
+        ellmax = max(xf/(1-xlimfrac), xf + xlimmin) * CP%Accuracy%AccuracyBoost
         kpow =  k**(ind(1)+3)
         kpowP = k**indP(1) * P
         do j=1,CTrans%ls%l0
@@ -184,7 +184,7 @@
         dlnk = CTrans%q%dpoints(q_ix) /k
         P = ScalarPower(k, 1)*InternalScale  !!only first index for now
 
-        ellmax = max(xf/(1-xlimfrac), xf + xlimmin) * AccuracyBoost
+        ellmax = max(xf/(1-xlimfrac), xf + xlimmin) * CP%Accuracy%AccuracyBoost
         do i=1,n
             kpow(i)=k**(ind(i)+3)
         end do
@@ -334,7 +334,7 @@
 
     nfields=BispectrumParams%nfields
 
-    if (lSampleBoost <50) call MpiStop('Bispectrum assumes lSampleBoost=50 (all L sampled)')
+    if (CP%Accuracy%lSampleBoost <50) call MpiStop('Bispectrum assumes lSampleBoost=50 (all L sampled)')
 
     if (lens_bispectrum_approx == first_order_unlensed) file_tag='_unlens'
 
@@ -346,9 +346,9 @@
         if (l1<=lmax_lensing_corrE) then
             l1 = l1+1
         else if (l1<120) then
-            l1 =l1+nint(7/AccuracyBoost)
+            l1 =l1+nint(7/CP%Accuracy%AccuracyBoost)
         else
-            l1 =l1+nint(50/AccuracyBoost)
+            l1 =l1+nint(50/CP%Accuracy%AccuracyBoost)
         end if
         if (l1>lmax) then
             l1 =lmax
@@ -622,7 +622,7 @@
 
         test=0
         TimeStepsNongauss = TimeSteps
-        call TimeStepsNongauss%Add_delta(-taurst*10*AccuracyBoost, taurst, dtaurec)
+        call TimeStepsNongauss%Add_delta(-taurst*10*CP%Accuracy%AccuracyBoost, taurst, dtaurec)
         call TimeStepsNongauss%getArray(.true.)
 
         if (BispectrumParams%export_alpha_beta) then
@@ -1296,7 +1296,7 @@
         fac=fac**2*a2/6
         dlnk = CTrans%q%dpoints(q_ix) /k
         P = ScalarPower(k, 1)  !!only first index for now
-        ellmax = max(xf/(1-xlimfrac), xf + xlimmin) * AccuracyBoost
+        ellmax = max(xf/(1-xlimfrac), xf + xlimmin) * CP%Accuracy%AccuracyBoost
 
         do j=1,CTrans%ls%l0
             if (CTrans%ls%l(j) <= ellmax) then

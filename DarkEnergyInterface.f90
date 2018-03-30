@@ -11,6 +11,7 @@
         real(dl) :: wa = 0._dl !may not be used, just for compatibility with e.g. halofit
         real(dl) :: cs2_lam = 1_dl !rest-frame sound speed, though may not be used
         logical :: use_tabulated_w = .false.
+        logical :: no_perturbations = .false. !Don't change this, no perturbations is unphysical
         logical :: is_cosmological_constant = .true.
         integer :: num_perturb_equations = 0
         !Interpolations if use_tabulated_w=.true.

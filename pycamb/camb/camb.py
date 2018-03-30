@@ -585,9 +585,9 @@ class CAMBdata(object):
         :return: nd array, A_{qti}, size(q) x size(times) x len(vars), or 2d array if q is scalar
         """
 
-        old_boost = model._lAccuracyBoost.value
+        old_boost = self.Params.Accuracy.lAccuracyBoost
         try:
-            if lAccuracyBoost: model._lAccuracyBoost.value = lAccuracyBoost
+            if lAccuracyBoost: self.Params.Accuracy.lAccuracyBoost = lAccuracyBoost
             if not isinstance(vars, (tuple, list)):
                 vars = [vars]
             import sympy
@@ -634,7 +634,7 @@ class CAMBdata(object):
             i_rev[indices] = np.arange(times.shape[0])
             outputs = outputs[:, i_rev, :]
         finally:
-            model._lAccuracyBoost.value = old_boost
+            self.Params.Accuracy.lAccuracyBoost = old_boost
         if np.isscalar(q):
             return outputs[0, :, :][:, ix]
         else:

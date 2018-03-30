@@ -62,7 +62,7 @@
     integer, intent(in) :: w_ix
     real(dl) :: ppiedot, hdotoh
 
-    if (this%is_cosmological_constant) then
+    if (this%is_cosmological_constant .or. this%no_perturbations) then
         ppiedot = 0
     else
         hdotoh = (-3._dl * grho - 3._dl * gpres - 2._dl * grhok) / 6._dl / adotoa

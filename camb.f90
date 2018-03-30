@@ -119,9 +119,7 @@
 
     if (Params%WantCls .and. Params%WantScalars) then
         P = Params
-        if (HighAccuracyDefault) then
-            P%Max_eta_k=max(min(P%max_l,3000)*2.5_dl,P%Max_eta_k)
-        end if
+        P%Max_eta_k=max(min(P%max_l,3000)*2.5_dl,P%Max_eta_k)
 
         if (separate) then
             P%WantTransfer = .false.
@@ -361,10 +359,6 @@
     P%Transfer%NLL_num_redshifts=0 !AL 11/13, def to zero
     P%Transfer%NLL_redshifts=0
     !End JD
-
-    P%AccuratePolarization = .true.
-    P%AccurateReionization = .false.
-    P%AccurateBB = .false.
 
     P%DoLensing = .true.
 

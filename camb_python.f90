@@ -432,7 +432,7 @@
 
     tau=taustart
     ind=1
-    tol1=tol/exp(AccuracyBoost-1)
+    tol1=tol/exp(CP%Accuracy%AccuracyBoost*CP%Accuracy%IntTolBoost-1)
     do j=1,size(times)
         tauend = times(j)
         if (tauend<taustart) cycle

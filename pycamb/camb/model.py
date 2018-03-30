@@ -58,15 +58,6 @@ neutrino_hierarchy_degenerate = 3
 # variable_name.value = new_value
 
 
-# logical
-_HighAccuracyDefault = dll_import(POINTER(c_bool), "modelparams", "highaccuracydefault")
-_HighAccuracyDefault.value = True
-
-_lSampleBoost = dll_import(c_double, "modelparams", "lsampleboost")
-_AccuracyBoost = dll_import(c_double, "modelparams", "accuracyboost")
-_lAccuracyBoost = dll_import(c_float, "modelparams", "laccuracyboost")
-_DoLateRadTruncation = dll_import(c_bool, "gaugeinterface", "dolateradtruncation")
-
 DebugParam = dll_import(c_double, "modelparams", "debugparam")
 # DebugParam.value = 1000000*2
 
@@ -176,6 +167,7 @@ class TransferParams(CAMB_Structure):
     Other entries are used internally, e.g. for sampling to get correct non-linear corrections and lensing.
 
     :ivar high_precision: True for more accuracy
+    :ivar accurate_massive_neutrinos: True if you want neutrino transfer functions accurate (false by default)
     :ivar kmax: k_max to output
     :ivar k_per_logint: number of points per log k interval. If zero, set an irregular optimized spacing.
     :ivar PK_num_redshifts: number of redshifts to calculate
@@ -199,11 +191,23 @@ class TransferParams(CAMB_Structure):
 
 
 class DarkEnergyParams(CAMB_Structure):
+    """
+    Object storing dark energy parameters. Set w and wa to use w(a) = w + (1-a)*wa parameterization,
+    or call set_w_a_table to set another tabulated w(a). If tabulated w(a) is used, w and wa are set
+    to approximate values at z=0.
+
+    :ivar w: equation of state parameter at z=0
+    :ivar wa: evolution of w, using default parameterization with  w(a) = w + (1-a)*wa
+    :ivar cs2: rest-frame sound speed of dark energy perturbations
+    :ivar use_tabulated_w: if using an explicitly set w(a) function rather than default w + (1-a)*wa
+
+    """
     _fields_ = [
         ("w", c_double),
         ("wa", c_double),
         ("cs2", c_double),
-        ("use_tabulated_w", c_int)
+        ("use_tabulated_w", c_int),
+        ("no_perturbations", c_int)
     ]
 
     def set_w_a_table(self, a, w):
@@ -238,6 +242,26 @@ class DarkEnergyParams(CAMB_Structure):
             return rho, w
 
 
+class AccuracyParams(CAMB_Structure):
+    _fields_ = [
+        ("lSampleBoost", c_double),
+        ("AccuracyBoost", c_double),
+        ("lAccuracyBoost", c_double),
+        ("AccuratePolarization", c_int),  # logical
+        ("AccurateBB", c_int),  # logical
+        ("AccurateReionization", c_int),  # logical
+        ("TimeStepBoost", c_double),
+        ("IntTolBoost", c_double),
+        ("SourcekAccuracyBoost", c_double),
+        ("IntkAccuracyBoost", c_double),
+        ("TransferkBoost", c_double),
+        ("NonFlatIntAccuracyBoost", c_double),
+        ("BessIntBoost", c_double),
+        ("BesselBoost", c_double),
+        ("LimberBoost", c_double)
+    ]
+
+
 class CAMBparams(CAMB_Structure):
     """
     Object storing the parameters for a CAMB calculation, including cosmological parameters and
@@ -247,8 +271,6 @@ class CAMBparams(CAMB_Structure):
     def __init__(self):
         getattr(camblib, '__camb_MOD_camb_setdefparams')(byref(self))
         self._set_allocatables()
-        if _HighAccuracyDefault.value:
-            self.AccurateReionization = True
         self.InitPower.set_params()
 
     def _set_allocatables(self):
@@ -295,14 +317,16 @@ class CAMBparams(CAMB_Structure):
         ("scalar_initial_condition", c_int),
         ("OutputNormalization", c_int),
         ("Alens", c_double),
-        ("AccuratePolarization", c_int),  # logical
-        ("AccurateBB", c_int),  # logical
-        ("AccurateReionization", c_int),  # logical
         ("MassiveNuMethod", c_int),
         ("InitPower", ipow.InitialPowerParams),
         ("Reion", ion.ReionizationParams),
         ("Recomb", recomb.RecombinationParams),
         ("Transfer", TransferParams),
+        ("Accuracy", AccuracyParams),
+        ("DoLateRadTruncation", c_int),
+        ("Evolve_baryon_cs", c_int),
+        ("Evolve_delta_xe", c_int),
+        ("Evolve_delta_Ts", c_int),
         ("InitialConditionVector", c_double * 10),
         ("OnlyTransfers", c_int),  # logical
         ("DerivedParameters", c_int),  # logical
@@ -340,8 +364,7 @@ class CAMBparams(CAMB_Structure):
         """
         return CAMB_validateparams(byref(self))
 
-    def set_accuracy(self, AccuracyBoost=1., lSampleBoost=1., lAccuracyBoost=1.,
-                     HighAccuracyDefault=True, DoLateRadTruncation=True):
+    def set_accuracy(self, AccuracyBoost=1., lSampleBoost=1., lAccuracyBoost=1., DoLateRadTruncation=True):
         """
         Set parameters determining calculation accuracy (large values may give big slow down).
         Note curently these are set globally, not just per parameter set.
@@ -349,16 +372,13 @@ class CAMBparams(CAMB_Structure):
         :param AccuracyBoost: increase AccuracyBoost to decrease integration step size, increase density of k sampling, etc.
         :param lSampleBoost: increase lSampleBoost to increase density of L sampling for CMB
         :param lAccuracyBoost: increase lAccuracyBoost to increase the maximum L included in the Boltzmann hierarchies
-        :param HighAccuracyDefault: True for Planck-level accuracy (False is WMAP)
         :param DoLateRadTruncation: If True, use approximation to radiation perturbation evolution at late times
         :return: self
         """
-        _lSampleBoost.value = lSampleBoost
-        _AccuracyBoost.value = AccuracyBoost
-        _lAccuracyBoost.value = lAccuracyBoost
-        _HighAccuracyDefault.value = HighAccuracyDefault
-        _DoLateRadTruncation.value = DoLateRadTruncation
-        logging.warning('accuracy parameters are changed globally, not yet per parameter set')
+        self.Accuracy.lSampleBoost = lSampleBoost
+        self.Accuracy.AccuracyBoost = AccuracyBoost
+        self.Accuracy.lAccuracyBoost = lAccuracyBoost
+        self.DoLateRadTruncation = DoLateRadTruncation
         return self
 
     def set_initial_power(self, initial_power_params):

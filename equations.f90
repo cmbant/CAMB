@@ -100,18 +100,7 @@
     integer, parameter :: basic_num_eqns = 5
 
     logical :: DoTensorNeutrinos = .true.
-
-    logical :: Evolve_baryon_cs = .false.
-    !if true, evolves equation for Delta_{T_m} to get cs_2 = \delta p /\delta\rho for perfect gas
-
-    logical :: Evolve_delta_xe = .false.
-
-    logical :: Evolve_delta_Ts =.false. !Equilibrium result agree to sub-percent level
-
-    logical :: DoLateRadTruncation = .true.
-    !if true, use smooth approx to radition perturbations after decoupling on
-    !small scales, saving evolution of irrelevant osciallatory multipole equations
-
+ 
     logical, parameter :: second_order_tightcoupling = .true.
 
     real(dl) :: Magnetic = 0._dl
@@ -307,9 +296,9 @@
 
     !Sources
     tau_switch_saha=noSwitch
-    if (Evolve_delta_xe .and. EV%saha)  tau_switch_saha = recombination_saha_tau
+    if (CP%Evolve_delta_xe .and. EV%saha)  tau_switch_saha = recombination_saha_tau
     tau_switch_evolve_TM=noSwitch
-    if (Evolve_baryon_cs .and. .not. EV%Evolve_tm) tau_switch_evolve_TM = recombination_Tgas_tau
+    if (CP%Evolve_baryon_cs .and. .not. EV%Evolve_tm) tau_switch_evolve_TM = recombination_Tgas_tau
 
     !Evolve equations from tau to tauend, performing switches in equations if necessary.
 
@@ -329,12 +318,12 @@
         end do
     end if
 
-    if (DoLateRadTruncation) then
+    if (CP%DoLateRadTruncation) then
         if (.not. EV%no_nu_multpoles) & !!.and. .not. EV%has_nu_relativistic .and. tau_switch_nu_massless ==noSwitch)  &
-            tau_switch_no_nu_multpoles=max(15/EV%k_buf*AccuracyBoost,min(taurend,matter_verydom_tau))
+            tau_switch_no_nu_multpoles=max(15/EV%k_buf*CP%Accuracy%AccuracyBoost,min(taurend,matter_verydom_tau))
 
-        if (.not. EV%no_phot_multpoles .and. (.not.CP%WantCls .or. EV%k_buf>0.03*AccuracyBoost)) &
-            tau_switch_no_phot_multpoles =max(15/EV%k_buf,taurend)*AccuracyBoost
+        if (.not. EV%no_phot_multpoles .and. (.not.CP%WantCls .or. EV%k_buf>0.03*CP%Accuracy%AccuracyBoost)) &
+            tau_switch_no_phot_multpoles =max(15/EV%k_buf,taurend)*CP%Accuracy%AccuracyBoost
     end if
 
     next_switch = min(tau_switch_ktau, tau_switch_nu_massless,EV%TightSwitchoffTime, tau_switch_nu_massive, &
@@ -533,8 +522,7 @@
 
     do nu_i=1, CP%Nu_Mass_eigenstates
         nu_mass = max(0.1_dl,nu_masses(nu_i))
-        a_mass =  1.e-1_dl/nu_mass/lAccuracyBoost
-        !if (HighAccuracyDefault) a_mass=a_mass/4
+        a_mass =  1.e-1_dl/nu_mass/CP%Accuracy%lAccuracyBoost
         time=DeltaTime(0._dl,nu_q(1)*a_mass)
         nu_tau_notmassless(1, nu_i) = time
         do j=2,nqmax
@@ -543,9 +531,9 @@
             nu_tau_notmassless(j, nu_i) = time
         end do
 
-        a_nonrel =  2.5d0/nu_mass*AccuracyBoost !!!Feb13tweak
+        a_nonrel =  2.5d0/nu_mass*CP%Accuracy%AccuracyBoost !!!Feb13tweak
         nu_tau_nonrelativistic(nu_i) =DeltaTimeMaxed(0._dl,a_nonrel)
-        a_massive =  17.d0/nu_mass*AccuracyBoost
+        a_massive =  17.d0/nu_mass*CP%Accuracy%AccuracyBoost
         nu_tau_massive(nu_i) =nu_tau_nonrelativistic(nu_i) + DeltaTimeMaxed(a_nonrel,a_massive)
     end do
 
@@ -595,7 +583,7 @@
     end if
 
     !Sources
-    if (Evolve_delta_xe) then
+    if (CP%Evolve_delta_xe) then
         if (.not. EV%saha) then
             EV%xe_ix = neq+1
             neq=neq+1
@@ -603,7 +591,7 @@
         maxeq=maxeq+1
     end if
 
-    if (Evolve_baryon_cs) then
+    if (CP%Evolve_baryon_cs) then
         if (EV%Evolve_TM) then
             EV%Tg_ix = neq+1
             neq=neq+1
@@ -616,7 +604,7 @@
         end if
     end if
 
-    if (Evolve_delta_Ts) then
+    if (CP%Evolve_delta_Ts) then
         EV%Ts_ix = neq+1
         neq=neq+1
         maxeq=maxeq+1
@@ -636,14 +624,17 @@
 
         do nu_i=1, CP%Nu_Mass_eigenstates
             if (EV%high_ktau_neutrino_approx) then
-                EV%lmaxnu_tau(nu_i) = int(lmaxnu_high_ktau *lAccuracyBoost)
+                EV%lmaxnu_tau(nu_i) = int(lmaxnu_high_ktau *CP%Accuracy%lAccuracyBoost)
                 if (CP%Transfer%accurate_massive_neutrinos) EV%lmaxnu_tau(nu_i) = EV%lmaxnu_tau(nu_i) *3
             else
-                EV%lmaxnu_tau(nu_i) =max(min(nint(0.8_dl*EV%q*nu_tau_nonrelativistic(nu_i)*lAccuracyBoost),EV%lmaxnu),3)
+                EV%lmaxnu_tau(nu_i) =max(min(nint(0.8_dl*EV%q*nu_tau_nonrelativistic(nu_i) &
+                    *CP%Accuracy%lAccuracyBoost),EV%lmaxnu),3)
                 !!!Feb13tweak
-                if (EV%nu_nonrelativistic(nu_i)) EV%lmaxnu_tau(nu_i)=min(EV%lmaxnu_tau(nu_i),nint(4*lAccuracyBoost))
+                if (EV%nu_nonrelativistic(nu_i)) EV%lmaxnu_tau(nu_i)= &
+                    min(EV%lmaxnu_tau(nu_i),nint(4*CP%Accuracy%lAccuracyBoost))
             end if
-            if (nu_masses(nu_i) > 5000 .and. CP%Transfer%high_precision) EV%lmaxnu_tau(nu_i) = EV%lmaxnu_tau(nu_i)*2 !megadamping
+            if (nu_masses(nu_i) > 5000 .and. CP%Transfer%high_precision) &
+                EV%lmaxnu_tau(nu_i) = EV%lmaxnu_tau(nu_i)*2 !megadamping
             EV%lmaxnu_tau(nu_i)=min(EV%lmaxnu,EV%lmaxnu_tau(nu_i))
 
             EV%nu_ix(nu_i)=neq+1
@@ -742,14 +733,14 @@
     if (.not. EV%saha .and. .not. EVOut%saha) then
         yout(EVOut%xe_ix) =y(EV%xe_ix)
     end if
-    if (Evolve_baryon_cs) then
+    if (CP%Evolve_baryon_cs) then
         if (EV%Evolve_TM .and. EVout%Evolve_TM) yout(EVOut%Tg_ix) = y(EV%Tg_ix)
         if (Do21cm .and. line_reionization) then
             yout(EVOut%reion_line_ix:EVOut%reion_line_ix+EVout%lmaxline +  EVout%lmaxline-1) = &
                 y(EV%reion_line_ix:EV%reion_line_ix+EV%lmaxline +  EV%lmaxline-1)
         end if
     end if
-    if (Evolve_delta_Ts) then
+    if (CP%Evolve_delta_Ts) then
         yout(EVOut%Ts_ix) = y(EV%Ts_ix)
     end if
 
@@ -776,7 +767,7 @@
         if (present(maxeq)) maxeq = maxeq+EV%lmaxnrt-1
         if (CP%Num_Nu_massive /= 0 ) then
             do nu_i=1, CP%nu_mass_eigenstates
-                EV%EvolveTensorMassiveNu(nu_i) = nu_tau_nonrelativistic(nu_i) < 0.8*tau_maxvis*AccuracyBoost
+                EV%EvolveTensorMassiveNu(nu_i) = nu_tau_nonrelativistic(nu_i) < 0.8*tau_maxvis*CP%Accuracy%AccuracyBoost
                 if (EV%EvolveTensorMassiveNu(nu_i)) then
                     EV%nu_ix(nu_i)=neq-1
                     neq = neq+ nqmax*(EV%lmaxnut-1)
@@ -857,10 +848,10 @@
         if (EV%NuMethod == Nu_Best) EV%NuMethod = Nu_Trunc
         !l_max for massive neutrinos
         if (CP%Transfer%high_precision) then
-            EV%lmaxnu=nint(25*lAccuracyBoost)
+            EV%lmaxnu=nint(25*CP%Accuracy%lAccuracyBoost)
         else
-            EV%lmaxnu=max(3,nint(10*lAccuracyBoost))
-            if (max_nu_mass>700) EV%lmaxnu=max(3,nint(15*lAccuracyBoost)) !Feb13 tweak
+            EV%lmaxnu=max(3,nint(10*CP%Accuracy%lAccuracyBoost))
+            if (max_nu_mass>700) EV%lmaxnu=max(3,nint(15*CP%Accuracy%lAccuracyBoost)) !Feb13 tweak
         endif
     end if
 
@@ -880,44 +871,40 @@
         EV%saha = .true.
         EV%Evolve_TM = .false.
 
-        if (HighAccuracyDefault .and. CP%AccuratePolarization) then
-            EV%lmaxg  = max(nint(11*lAccuracyBoost),3)
+        if (CP%Accuracy%AccuratePolarization) then
+            EV%lmaxg  = max(nint(11*CP%Accuracy%lAccuracyBoost),3)
         else
-            EV%lmaxg  = max(nint(8*lAccuracyBoost),3)
+            EV%lmaxg  = max(nint(8*CP%Accuracy%lAccuracyBoost),3)
         end if
-        EV%lmaxnr = max(nint(14*lAccuracyBoost),3)
-        if (max_nu_mass>700 .and. HighAccuracyDefault) EV%lmaxnr = max(nint(32*lAccuracyBoost),3) !Feb13 tweak
+        EV%lmaxnr = max(nint(14*CP%Accuracy%lAccuracyBoost),3)
+        if (max_nu_mass>700) EV%lmaxnr = max(nint(32*CP%Accuracy%lAccuracyBoost),3) !Feb13 tweak
 
         EV%lmaxgpol = EV%lmaxg
-        if (.not.CP%AccuratePolarization) EV%lmaxgpol=max(nint(4*lAccuracyBoost),3)
+        if (.not.CP%Accuracy%AccuratePolarization) EV%lmaxgpol=max(nint(4*CP%Accuracy%lAccuracyBoost),3)
 
         if (EV%q < 0.05) then
             !Large scales need fewer equations
             scal  = 1
-            if (CP%AccuratePolarization) scal = 4  !But need more to get polarization right
-            EV%lmaxgpol=max(3,nint(min(8,nint(scal* 150* EV%q))*lAccuracyBoost))
-            EV%lmaxnr=max(3,nint(min(7,nint(sqrt(scal)* 150 * EV%q))*lAccuracyBoost))
-            EV%lmaxg=max(3,nint(min(8,nint(sqrt(scal) *300 * EV%q))*lAccuracyBoost))
+            if (CP%Accuracy%AccuratePolarization) scal = 4  !But need more to get polarization right
+            EV%lmaxgpol=max(3,nint(min(8,nint(scal* 150* EV%q))*CP%Accuracy%lAccuracyBoost))
+            EV%lmaxnr=max(3,nint(min(7,nint(sqrt(scal)* 150 * EV%q))*CP%Accuracy%lAccuracyBoost))
+            EV%lmaxg=max(3,nint(min(8,nint(sqrt(scal) *300 * EV%q))*CP%Accuracy%lAccuracyBoost))
             !Sources
             if (line_phot_quadrupole) then
                 EV%lmaxg=EV%lmaxg*8
                 EV%lmaxgpol=EV%lmaxgpol*4
-            elseif (CP%AccurateReionization) then
+            elseif (CP%Accuracy%AccurateReionization) then
                 EV%lmaxg=EV%lmaxg*4
                 EV%lmaxgpol=EV%lmaxgpol*2
             end if
         end if
 
         if (EV%TransferOnly) then
-            EV%lmaxgpol = min(EV%lmaxgpol,nint(5*lAccuracyBoost))
-            EV%lmaxg = min(EV%lmaxg,nint(6*lAccuracyBoost))
+            EV%lmaxgpol = min(EV%lmaxgpol,nint(5*CP%Accuracy%lAccuracyBoost))
+            EV%lmaxg = min(EV%lmaxg,nint(6*CP%Accuracy%lAccuracyBoost))
         end if
         if (CP%Transfer%high_precision .or. Do21cm) then
-            if (HighAccuracyDefault) then
-                EV%lmaxnr=max(nint(45*lAccuracyBoost),3)
-            else
-                EV%lmaxnr=max(nint(30*lAccuracyBoost),3)
-            endif
+            EV%lmaxnr=max(nint(45*CP%Accuracy%lAccuracyBoost),3)
             if (EV%q > 0.04 .and. EV%q < 0.5) then !baryon oscillation scales
                 EV%lmaxg=max(EV%lmaxg,10)
             end if
@@ -928,7 +915,7 @@
             EV%lmaxgpol = EV%lmaxgpol*3
         end if
 
-        if (Do21cm .or.Evolve_delta_xe .or. Evolve_delta_Ts) Evolve_baryon_cs = .true.
+        if (Do21cm .or.CP%Evolve_delta_xe .or. CP%Evolve_delta_Ts) CP%Evolve_baryon_cs = .true.
 
         if (Do21cm .and. line_reionization) then
             EV%lmaxline  = EV%lmaxg
@@ -953,11 +940,11 @@
 
     if (CP%WantTensors) then
         EV%TensTightCoupling = .true.
-        EV%lmaxt=max(3,nint(8*lAccuracyBoost))
-        EV%lmaxpolt = max(3,nint(4*lAccuracyBoost))
+        EV%lmaxt=max(3,nint(8*CP%Accuracy%lAccuracyBoost))
+        EV%lmaxpolt = max(3,nint(4*CP%Accuracy%lAccuracyBoost))
         ! if (EV%q < 1e-3) EV%lmaxpolt=EV%lmaxpolt+1
         if (DoTensorNeutrinos) then
-            EV%lmaxnrt=nint(6*lAccuracyBoost)
+            EV%lmaxnrt=nint(6*CP%Accuracy%lAccuracyBoost)
             EV%lmaxnut=EV%lmaxnrt
         else
             EV%lmaxnut=0
@@ -978,12 +965,12 @@
 
 
     if (CP%WantVectors) then
-        EV%lmaxv=max(10,nint(8*lAccuracyBoost))
-        EV%lmaxpolv = max(5,nint(5*lAccuracyBoost))
+        EV%lmaxv=max(10,nint(8*CP%Accuracy%lAccuracyBoost))
+        EV%lmaxpolv = max(5,nint(5*CP%Accuracy%lAccuracyBoost))
 
         EV%nvarv=(EV%lmaxv)+(EV%lmaxpolv-1)*2+3
 
-        EV%lmaxnrv=nint(30*lAccuracyBoost)
+        EV%lmaxnrv=nint(30*CP%Accuracy%lAccuracyBoost)
 
         EV%nvarv=EV%nvarv+EV%lmaxnrv
         if (CP%Num_Nu_massive /= 0 ) then
@@ -1861,8 +1848,7 @@
     !as ensuring tight coupling is accurate enough
     if (EV%k_buf > epsw) then
         if (EV%k_buf > epsw*5) then
-            ep=ep0*5/AccuracyBoost
-            if (HighAccuracyDefault) ep = ep*0.65
+            ep=ep0*5/CP%Accuracy%AccuracyBoost*0.65
         else
             ep=ep0
         end if
@@ -1994,7 +1980,7 @@
         y(EV%w_ix:EV%w_ix + CP%DarkEnergy%num_perturb_equations - 1) = &
         InitVec(i_clxde:i_clxde + CP%DarkEnergy%num_perturb_equations - 1)
 
-    if (Evolve_delta_Ts) then
+    if (CP%Evolve_delta_Ts) then
         y(EV%Ts_ix) = y(EV%g_ix)/4
     end if
 
@@ -2011,10 +1997,10 @@
 
     do nu_i = 1, CP%Nu_mass_eigenstates
         EV%MassiveNuApproxTime(nu_i) = Nu_tau_massive(nu_i)
-        a_massive =  20000*k/nu_masses(nu_i)*AccuracyBoost*lAccuracyBoost
+        a_massive =  20000*k/nu_masses(nu_i)*CP%Accuracy%AccuracyBoost*CP%Accuracy%lAccuracyBoost
         if (a_massive >=0.99) then
             EV%MassiveNuApproxTime(nu_i)=CP%tau0+1
-        else if (a_massive > 17.d0/nu_masses(nu_i)*AccuracyBoost) then
+        else if (a_massive > 17.d0/nu_masses(nu_i)*CP%Accuracy%AccuracyBoost) then
             EV%MassiveNuApproxTime(nu_i)=max(EV%MassiveNuApproxTime(nu_i),DeltaTime(0._dl,a_massive, 0.01_dl))
         end if
         ind = EV%nu_ix(nu_i)
@@ -2344,7 +2330,7 @@
 
     ayprime(1)=adotoa*a
 
-    if (.not. CP%DarkEnergy%is_cosmological_constant) then
+    if (.not. CP%DarkEnergy%is_cosmological_constant .and. .not. CP%DarkEnergy%no_perturbations) then
         call CP%DarkEnergy%PerturbedStressEnergy(dgrho_de, dgq_de, &
             dgq, dgrho, grho, grhov_t, w_dark_energy_t, gpres_noDE, etak, &
             adotoa, k, EV%Kf(1), ay, ayprime, EV%w_ix)
@@ -2379,7 +2365,7 @@
     clxgdot=-k*(4._dl/3._dl*z+qg)
 
     !Sources
-    if (Evolve_baryon_cs) then
+    if (CP%Evolve_baryon_cs) then
         if (a > Do21cm_mina) then
             Tmat = Recombination_Tm(a)
         else
@@ -2397,7 +2383,7 @@
     end if
 
 
-    if (Evolve_delta_xe) then
+    if (CP%Evolve_delta_xe) then
         if (EV%saha) then
             xe=Recombination_xe(a)
             Delta_xe = (1-xe)/(2-xe)*(-clxb + (3._dl/2+  CB1/Tmat)*Delta_TM)
@@ -2553,7 +2539,7 @@
         end if
     end if ! no_nu_multpoles
 
-    if (Evolve_baryon_cs) then
+    if (CP%Evolve_baryon_cs) then
         if (EV%Evolve_TM) then
             Delta_TCMB = clxg/4
             xe = Recombination_xe(a)
@@ -2564,17 +2550,17 @@
             ayprime(EV%Tg_ix) = -2*k*(z+vb)/3 - a*  Compton_CT * (Trad**4) * xe / (1._dl+xe+fHe) * &
                 ((1- Trad/Tmat)*(Delta_TCMB*4 + Delta_xe/(1+xe/(1+fHe))) + Trad/Tmat*(Delta_Tm - Delta_TCMB)  )
 
-            if (Evolve_delta_Ts) then
+            if (CP%Evolve_delta_Ts) then
                 ayprime(EV%Ts_ix) =  Get21cm_dTs(a,clxb,ay(EV%Ts_ix),Delta_TCMB,Delta_Tm,Tmat,Trad,xe )
             end if
         else
-            if (Evolve_delta_Ts) then
+            if (CP%Evolve_delta_Ts) then
                 ayprime(EV%Ts_ix) = -k*(4._dl/3._dl*z+qg)/4  !Assume follows Delta_TM which follows clxg
             end if
         end if
     end if
 
-    if (Evolve_delta_xe .and. .not. EV%saha) then
+    if (CP%Evolve_delta_xe .and. .not. EV%saha) then
         ayprime(EV%xe_ix) = dDeltaxe_dtau(a, Delta_xe,clxb, Delta_Tm, k*z/3,k*vb)
     end if
 
@@ -3245,6 +3231,6 @@
     use GaugeInterface
     logical :: isTmNeeded
 
-    isTmNeeded = Evolve_baryon_cs .or. Evolve_delta_xe
+    isTmNeeded = CP%Evolve_baryon_cs .or. CP%Evolve_delta_xe
 
     end function isTmNeeded

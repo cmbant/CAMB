@@ -424,7 +424,7 @@
     end if
 
     if (CP%Want_CMB) then
-        max_bessels_etak= min(ThisCT%ls%l(ThisCT%ls%l0),3000)*2.5_dl*AccuracyBoost
+        max_bessels_etak= min(ThisCT%ls%l(ThisCT%ls%l0),3000)*2.5_dl*CP%Accuracy%AccuracyBoost
     else
         max_bessels_etak = 5000
     end if
@@ -453,7 +453,7 @@
         if (i==0) then
             if (CP%Want_CMB_lensing) &
                 max_bessels_etak = max(max_bessels_etak, min(CP%Max_eta_k, &
-                ell_needed * 25._dl * AccuracyBoost))
+                ell_needed * 25._dl * CP%Accuracy%AccuracyBoost))
         else
             max_bessels_etak = max(max_bessels_etak, WindowKmaxForL(W,ell_needed)*CP%tau0)
         end if
@@ -556,23 +556,20 @@
         !Log spacing for last few oscillations
         !large log spacing for small scales
 
-        boost = AccuracyBoost
+        boost = CP%Accuracy%AccuracyBoost * CP%Accuracy%TransferkBoost
         if (CP%Transfer%high_precision) boost = boost*1.5
 
         q_switch_lowk1 = 0.7/taurst
         dlog_lowk1=2*boost
 
         q_switch_lowk = 8/taurst
-        dlog_lowk=8*boost
-        if (HighAccuracyDefault) dlog_lowk = dlog_lowk*2.5
+        dlog_lowk=8*boost*2.5
 
         q_switch_osc = min(CP%Transfer%kmax,30/taurst)
-        d_osc= 200*boost
-        if (HighAccuracyDefault) d_osc = d_osc*1.8
+        d_osc= 200*boost*1.8
 
-        q_switch_highk = min(CP%Transfer%kmax,60/taurst)
         dlog_osc = 17*boost
-        if (HighAccuracyDefault) q_switch_highk = min(CP%Transfer%kmax,90/taurst)
+        q_switch_highk = min(CP%Transfer%kmax,90/taurst)
 
         !Then up to kmax
         dlog_highk = 3*boost
@@ -770,7 +767,7 @@
     real(dl) taumin, maxq, initAccuracyBoost
     integer itf
 
-    initAccuracyBoost = AccuracyBoost
+    initAccuracyBoost = CP%Accuracy%AccuracyBoost * CP%Accuracy%TimeStepBoost
 
     ! Maximum and minimum k-values.
     if (CP%flat) then
@@ -792,7 +789,7 @@
 
     max_etak_tensor = initAccuracyBoost*maximum_qeta /10
     max_etak_scalar = initAccuracyBoost*max(1700._dl,maximum_qeta) /20
-    if (maximum_qeta <3500 .and. AccuracyBoost < 2) max_etak_scalar = max_etak_scalar * 1.5
+    if (maximum_qeta <3500 .and. CP%Accuracy%AccuracyBoost < 2) max_etak_scalar = max_etak_scalar * 1.5
     !tweak to get large scales right
     max_etak_vector = max_etak_scalar
 
@@ -852,8 +849,8 @@
     !     polarization will be calculated. For low values of k we
     !     use a logarithmic spacing. closed case dealt with by SetClosedkValues
 
-    SourceAccuracyBoost = AccuracyBoost
-    if (CP%WantScalars .and. CP%Reion%Reionization .and. CP%AccuratePolarization) then
+    SourceAccuracyBoost = CP%Accuracy%AccuracyBoost * CP%Accuracy%SourcekAccuracyBoost
+    if (CP%WantScalars .and. CP%Reion%Reionization .and. CP%Accuracy%AccuratePolarization) then
         dlnk0=2._dl/10/SourceAccuracyBoost
         !Need this to get accurate low l polarization
     else
@@ -861,11 +858,10 @@
         if (CP%closed) dlnk0=dlnk0/2
     end if
 
-    if (CP%AccurateReionization) dlnk0 = dlnk0/2
+    if (CP%Accuracy%AccurateReionization) dlnk0 = dlnk0/2
 
     dkn1=0.6_dl/taurst/SourceAccuracyBoost
-    dkn2=0.9_dl/taurst/SourceAccuracyBoost
-    if (HighAccuracyDefault) dkn2=dkn2/1.2
+    dkn2=0.9_dl/taurst/SourceAccuracyBoost/1.2
     if (CP%WantTensors .or. CP%WantVectors) then
         dkn1=dkn1  *0.8_dl
         dlnk0=dlnk0/2 !*0.3_dl
@@ -877,10 +873,10 @@
     !Want linear spacing for wavenumbers which come inside horizon
     !Could use sound horizon, but for tensors that is not relevant
 
-    q_cmb = 2*l_smooth_sample/CP%chi0*AccuracyBoost  !assume everything is smooth at l > l_smooth_sample
-    if (CP%Want_CMB .and. maximum_l > 5000 .and. CP%AccuratePolarization) q_cmb = q_cmb*1.4
+    q_cmb = 2*l_smooth_sample/CP%chi0*CP%Accuracy%AccuracyBoost  !assume everything is smooth at l > l_smooth_sample
+    if (CP%Want_CMB .and. maximum_l > 5000 .and. CP%Accuracy%AccuratePolarization) q_cmb = q_cmb*1.4
     !prevent EE going wild in tail
-    dksmooth = q_cmb/2/(AccuracyBoost)**2
+    dksmooth = q_cmb/2/(CP%Accuracy%AccuracyBoost)**2
     if (CP%Want_CMB) dksmooth = dksmooth/6
 
     call Evolve_q%Init()
@@ -990,7 +986,7 @@
 
     !!Example code for plotting out variable evolution (can now do this better via python)
     if (fixq/=0._dl) then
-        tol1=tol/exp(AccuracyBoost-1)
+        tol1=tol/exp(CP%Accuracy%AccuracyBoost*CP%Accuracy%IntTolBoost-1)
         call F%CreateFile('evolve.txt')
         do j=1,1000
             tauend = taustart+(j-1)*(CP%tau0-taustart)/1000
@@ -1010,7 +1006,7 @@
     !     Begin timestep loop.
 
     itf=1
-    tol1=tol/exp(AccuracyBoost-1)
+    tol1=tol/exp(CP%Accuracy%AccuracyBoost*CP%Accuracy%IntTolBoost-1)
     if (CP%WantTransfer) then
         if  (CP%Transfer%high_precision) tol1=tol1/100
         do while (itf <= CP%Transfer%num_redshifts .and. TimeSteps%points(2) > tautf(itf))
@@ -1074,7 +1070,7 @@
 
     tau=taustart
     ind=1
-    tol1=tol/exp(AccuracyBoost-1)
+    tol1=tol/exp(CP%Accuracy%AccuracyBoost*CP%Accuracy%IntTolBoost-1)
 
     !     Begin timestep loop.
     do j=2,TimeSteps%npoints
@@ -1093,7 +1089,6 @@
 
 
     subroutine CalcVectorSources(EV,taustart)
-
     implicit none
     type(EvolutionVars) EV
     real(dl) tau,tol1,tauend, taustart
@@ -1107,7 +1102,7 @@
 
     tau=taustart
     ind=1
-    tol1=tol*0.01/exp(AccuracyBoost-1)
+    tol1=tol*0.01/exp(CP%Accuracy%AccuracyBoost*CP%Accuracy%IntTolBoost-1)
 
     !!Example code for plotting out variable evolution
     !if (.false.) then
@@ -1178,8 +1173,8 @@
     real(dl) c(24),w(EV%nvar,9), y(EV%nvar)
     real(dl) atol
 
-    atol=tol/exp(AccuracyBoost-1)
-    if (CP%Transfer%high_precision) atol=atol/10000
+    atol=tol/exp(CP%Accuracy%AccuracyBoost*CP%Accuracy%IntTolBoost-1)
+    if (CP%Transfer%high_precision) atol=atol/10000 !CHECKTHIS
 
     ind=1
     call initial(EV,y, tau)
@@ -1287,7 +1282,7 @@
 
     qmax_int = min(qmax,max_bessels_etak/CP%tau0)
 
-    IntSampleBoost=AccuracyBoost
+    IntSampleBoost=CP%Accuracy%AccuracyBoost*CP%Accuracy%IntkAccuracyBoost
     if (do_bispectrum) then
         IntSampleBoost = IntSampleBoost * 2
         if (hard_bispectrum) IntSampleBoost = IntSampleBoost * 2
@@ -1309,9 +1304,7 @@
         dlnk1=1._dl/lognum
         no=nint(600*IntSampleBoost)
         dk0=1.8_dl/CP%r/CP%chi0/IntSampleBoost
-        dk=3._dl/CP%r/CP%chi0/IntSampleBoost
-
-        if (HighAccuracyDefault) dk=dk/1.6
+        dk=3._dl/CP%r/CP%chi0/IntSampleBoost/1.6
 
         k_max_log = lognum*dk0
         k_max_0  = no*dk0
@@ -1342,7 +1335,8 @@
             call ThisCT%q%Getdpoints(half_ends = .false.)
             ThisCT%q%dpoints(1) = 1/CP%r
             deallocate(ThisCT%Delta_p_l_k) !Re-do this from Init_ClTransfer because number of points changed
-            allocate(ThisCT%Delta_p_l_k(ThisCT%NumSources,min(ThisCT%max_index_nonlimber,ThisCT%ls%l0), ThisCT%q%npoints))
+            allocate(ThisCT%Delta_p_l_k(ThisCT%NumSources, &
+                min(ThisCT%max_index_nonlimber,ThisCT%ls%l0), ThisCT%q%npoints))
             ThisCT%Delta_p_l_k = 0
         end if
 
@@ -1495,7 +1489,7 @@
     if (limber_windows) then
         UseLimber = l >= limber_phiphi
     else
-        UseLimber = l > 400 * AccuracyBoost ** 0.5
+        UseLimber = l > 400 * (CP%Accuracy%AccuracyBoost * CP%Accuracy%LimberBoost)** 0.5
     end if
 
     end function UseLimber
@@ -1517,7 +1511,9 @@
     integer bes_ix,n, bes_index(IV%SourceSteps)
     integer custom_source_off, s_ix
     integer nwin
-
+    real(dl) :: BessIntBoost
+    
+    BessIntBoost = CP%Accuracy%AccuracyBoost*CP%Accuracy%BessIntBoost
     custom_source_off = num_redshiftwindows + num_extra_redshiftwindows + 4
 
     !     Find the position in the xx table for the x correponding to each
@@ -1541,9 +1537,9 @@
         if (full_bessel_integration .or. do_bispectrum) then
             tmin = TimeSteps%points(2)
         else
-            xlmax1=80*lSamp%l(j)*AccuracyBoost
+            xlmax1=80*lSamp%l(j)*BessIntBoost
             if (num_redshiftwindows>0 .and. CP%WantScalars) then
-                xlmax1=80*lSamp%l(j)*8*AccuracyBoost !Have to be careful if sharp spikes due to late time sources
+                xlmax1=80*lSamp%l(j)*8*BessIntBoost !Have to be careful if sharp spikes due to late time sources
             end if
             tmin=CP%tau0-xlmax1/IV%q
             tmin=max(TimeSteps%points(2),tmin)
@@ -1575,8 +1571,7 @@
                 sums(2) = sums(2) + IV%Source_q(n,2)*J_l
             end do
         else
-            qmax_int= max(850,lSamp%l(j))*3*AccuracyBoost/CP%tau0
-            if (HighAccuracyDefault) qmax_int=qmax_int*1.2
+            qmax_int= max(850,lSamp%l(j))*3*BessIntBoost/CP%tau0*1.2
             DoInt = .not. CP%WantScalars .or. IV%q < qmax_int
             !Do integral if any useful contribution to the CMB, or large scale effects
             !Sources
@@ -1703,6 +1698,9 @@
     real(dl) nu,ChiDissipative,ChiStart,tDissipative,y1,y2,y1dis,y2dis
     real(dl) xf,x,chi, miny1
     real(dl) sums(SourceNum),out_arr(SourceNum), qmax_int
+    real(dl) BessIntBoost
+    
+    BessIntBoost = CP%Accuracy%AccuracyBoost*CP%Accuracy%BessIntBoost
 
     !Calculate chi where for smaller chi it is dissipative
     x=sqrt(real(l*(l+1),dl))/nu
@@ -1737,10 +1735,9 @@
         if (SourceNum > 3) call MpiStop('Non-flat not implemented for extra sources')
         !Integrate chi down in dissipative region
         ! cuts off when ujl gets small
-        miny1= 0.5d-4/l/AccuracyBoost
+        miny1= 0.5d-4/l/BessIntBoost
         sums=0
-        qmax_int= max(850,lSamp%l(j))*3*AccuracyBoost/(CP%chi0*CP%r)
-        if (HighAccuracyDefault) qmax_int=qmax_int*1.2
+        qmax_int= max(850,lSamp%l(j))*3*BessIntBoost/(CP%chi0*CP%r)*1.2
         DoInt =  SourceNum/=3 .or. IV%q < qmax_int
         if (DoInt) then
             if ((nstart < min(TimeSteps%npoints-1,IV%SourceSteps)).and.(y1dis > miny1)) then
@@ -1803,7 +1800,7 @@
 
         !Integrate chi down in dissipative region
         !DoRangeInt cuts off when ujl gets small
-        miny1= 1.d-6/l/AccuracyBoost
+        miny1= 1.d-6/l/BessIntBoost
         if ((nstart < TimeSteps%npoints-1).and.(y1dis>miny1)) then
             y1=y1dis
             y2=y2dis
@@ -1878,7 +1875,7 @@
     real(dl) IntAccuracyBoost
     real(dl) sources(SourceNum), out(SourceNum)
 
-    IntAccuracyBoost=AccuracyBoost
+    IntAccuracyBoost=CP%Accuracy%AccuracyBoost*CP%Accuracy%NonFlatIntAccuracyBoost
 
     ! atau0 is the array with the time where the sources are stored.
     if (nend==nstart) then
@@ -1903,7 +1900,7 @@
         num2=num2/4
     end if
 
-    if (HighAccuracyDefault .and. scalel<1500 .and. scalel > 150) &
+    if (scalel<1500 .and. scalel > 150) &
         IntAccuracyBoost=IntAccuracyBoost*(1+(2000-scalel)*0.6/2000 )
 
     if (num2*IntAccuracyBoost < dchisource .and. (.not. WantLateTime .or. UseLimber(l,IV%q)) &
@@ -2073,6 +2070,7 @@
     logical Interpolate
     real(dl) out(SourceNum), source(SourceNum)
     real(dl), dimension(:,:), pointer :: sourcep, ddsourcep
+    real(dl) IntAccuracyBoost
 
     sourcep => IV%Source_q(:,1:)
     ddsourcep => IV%ddSource_q(:,1:)
@@ -2082,7 +2080,9 @@
         out=0
         return
     end if
-    minujl=MINUJL1*AccuracyBoost/l
+    
+    IntAccuracyBoost=CP%Accuracy%AccuracyBoost*CP%Accuracy%NonFlatIntAccuracyBoost
+    minujl=MINUJL1*IntAccuracyBoost/l
     isgn=sign(1,nstart-nend)!direction of chi integration
     !higher n, later time, smaller chi
 
@@ -2111,7 +2111,7 @@
         num2=num1
     end if
 
-    if ((isgn==1).and.(num2*AccuracyBoost < dchisource)) then  !Oscillating fast
+    if ((isgn==1).and.(num2*IntAccuracyBoost < dchisource)) then  !Oscillating fast
         out = 0
         y1=0._dl !!So we know to calculate starting y1,y2 if there is next range
         y2=0._dl
@@ -2140,7 +2140,7 @@
         dchimax=0.35_dl*num1
     end if
 
-    dchimax=dchimax/AccuracyBoost
+    dchimax=dchimax/IntAccuracyBoost
 
     ujl=y1/sh
     out = ujl * sourcep(nstart,1:SourceNum)/2

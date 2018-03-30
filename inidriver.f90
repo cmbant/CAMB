@@ -155,15 +155,14 @@
 
     P%PK_WantTransfer = Ini%Read_Logical('get_transfer')
 
-    call Ini%Read('accuracy_boost', AccuracyBoost)
-    call Ini%Read('l_accuracy_boost', lAccuracyBoost)
-    call Ini%Read('high_accuracy_default', HighAccuracyDefault)
+    call Ini%Read('accuracy_boost', P%Accuracy%AccuracyBoost)
+    call Ini%Read('l_accuracy_boost', P%Accuracy%lAccuracyBoost)
 
     P%NonLinear = Ini%Read_Int('do_nonlinear', NonLinear_none)
 
-    Evolve_baryon_cs = Ini%Read_Logical('evolve_baryon_cs', .false.)
-    Evolve_delta_xe = Ini%Read_Logical('evolve_delta_xe', .false.)
-    Evolve_delta_Ts = Ini%Read_Logical('evolve_delta_ts', .false.)
+    P%Evolve_baryon_cs = Ini%Read_Logical('evolve_baryon_cs', .false.)
+    P%Evolve_delta_xe = Ini%Read_Logical('evolve_delta_xe', .false.)
+    P%Evolve_delta_Ts = Ini%Read_Logical('evolve_delta_ts', .false.)
 
     P%DoLensing = .false.
     if (P%WantCls) then
@@ -408,9 +407,9 @@
 
     !optional parameters controlling the computation
 
-    P%AccuratePolarization = Ini%Read_Logical('accurate_polarization', .true.)
-    P%AccurateReionization = Ini%Read_Logical('accurate_reionization', .false.)
-    P%AccurateBB = Ini%Read_Logical('accurate_BB', .false.)
+    P%Accuracy%AccuratePolarization = Ini%Read_Logical('accurate_polarization', .true.)
+    P%Accuracy%AccurateReionization = Ini%Read_Logical('accurate_reionization', .true.)
+    P%Accuracy%AccurateBB = Ini%Read_Logical('accurate_BB', .false.)
     P%DerivedParameters = Ini%Read_Logical('derived_parameters', .true.)
 
     version_check = Ini%Read_String('version_check')
@@ -422,17 +421,12 @@
     end if
     !Mess here to fix typo with backwards compatibility
     if (Ini%HasKey('do_late_rad_trunction')) then
-        DoLateRadTruncation = Ini%Read_Logical('do_late_rad_trunction', .true.)
+        P%DoLateRadTruncation = Ini%Read_Logical('do_late_rad_trunction', .true.)
         if (Ini%HasKey('do_late_rad_truncation')) error stop 'check do_late_rad_xxxx'
     else
-        DoLateRadTruncation = Ini%Read_Logical('do_late_rad_truncation', .true.)
+        P%DoLateRadTruncation = Ini%Read_Logical('do_late_rad_truncation', .true.)
     end if
 
-    if (HighAccuracyDefault) then
-        DoTensorNeutrinos = .true.
-    else
-        call Ini%Read('do_tensor_neutrinos', DoTensorNeutrinos )
-    end if
     call Ini%Read('feedback_level', FeedbackLevel)
 
     call Ini%Read('output_file_headers', output_file_headers)
@@ -443,9 +437,9 @@
     call Ini%Read('use_spline_template', use_spline_template)
 
     if (do_bispectrum) then
-        lSampleBoost   = 50
+        P%Accuracy%lSampleBoost   = 50
     else
-        call Ini%Read('l_sample_boost', lSampleBoost)
+        call Ini%Read('l_sample_boost', P%Accuracy%lSampleBoost)
     end if
     if (outroot /= '') then
         if (InputFile /= trim(outroot) // 'params.ini') then
