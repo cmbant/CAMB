@@ -99,7 +99,9 @@ def get_forutils():
     return fpath
 
 
-class SharedLibrary(build):
+class SharedLibrary(build, object):
+    cluster = False
+
     def run(self):
         CAMBDIR = os.path.join(file_dir, '..')
         if not os.path.exists(os.path.join(CAMBDIR, 'lensing.f90')):
@@ -150,7 +152,8 @@ class SharedLibrary(build):
         else:
             get_forutils()
             print("Compiling source...")
-            subprocess.call("make camblib.so COMPILER=gfortran PYCAMB_OUTPUT_DIR=%s/camb/" % pycamb_path, shell=True)
+            subprocess.call("make camblib.so COMPILER=gfortran PYCAMB_OUTPUT_DIR=%s/camb/ CLUSTER_SAFE=%d" %
+                            (pycamb_path, int(self.cluster)) , shell=True)
             so_file = os.path.join(pycamb_path, 'camb', 'camblib.so')
             if not os.path.isfile(so_file): sys.exit('Compilation failed')
             subprocess.call("chmod 755 %s" % so_file, shell=True)
@@ -158,6 +161,13 @@ class SharedLibrary(build):
 
         os.chdir(file_dir)
         build.run(self)
+
+
+class SharedLibraryCluster(SharedLibrary):
+    cluster = True
+    def run(self):
+        super(SharedLibraryCluster, self).run()
+
 
 
 class CustomInstall(install):
@@ -196,7 +206,8 @@ if __name__ == "__main__":
           long_description=get_long_description(),
           author='Antony Lewis',
           url="http://camb.info/",
-          cmdclass={'build': SharedLibrary, 'install': CustomInstall, 'sdist': CustomSdist},
+          cmdclass={'build': SharedLibrary, 'build_cluster': SharedLibraryCluster,
+                    'install': CustomInstall, 'sdist': CustomSdist},
           packages=['camb', 'camb_tests'],
           package_data={'camb': [DLLNAME, 'HighLExtrapTemplate_lenspotentialCls.dat',
                                  'PArthENoPE_880.2_marcucci.dat', 'PArthENoPE_880.2_standard.dat',

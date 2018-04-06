@@ -80,9 +80,16 @@ SMODOUT = -J$(DLL_DIR)
 ifneq ($(FISHER),)
 F90CRLINK += -lblas -llapack
 endif
-ifneq ($(shell uname -s),Darwin)
-#native optimization does not work on Mac
-FFLAGS += -march=native
+#native optimization does not work on Mac or heterogeneous clusters
+CLUSTER_SAFE ?= 0
+ifneq ($(CLUSTER_SAFE), 0)
+NONNATIVE = 1
+endif
+ifeq ($(shell uname -s),Darwin)
+NONNATIVE = 1
+endif
+ifndef NONNATIVE
+FFLAGS+=-march=native
 endif
 endif
 endif
