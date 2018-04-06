@@ -49,8 +49,15 @@ DEBUGFLAGS = -cpp -g -fbounds-check -fbacktrace -ffree-line-length-none -fmax-er
 MODOUT =  -J$(OUTPUT_DIR)
 SMODOUT = -J$(DLL_DIR)
 
-ifneq ($(shell uname -s),Darwin)
-#native optimization does not work on Mac
+#native optimization does not work on Mac or heterogeneous clusters
+CLUSTER_SAFE = 0
+ifneq ($(CLUSTER_SAFE), 0)
+NONNATIVE = 1
+endif
+ifeq ($(shell uname -s),Darwin)
+NONNATIVE = 1
+endif
+ifndef NONNATIVE
 FFLAGS+=-march=native
 endif
 endif
