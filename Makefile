@@ -50,7 +50,7 @@ MODOUT =  -J$(OUTPUT_DIR)
 SMODOUT = -J$(DLL_DIR)
 
 #native optimization does not work on Mac or heterogeneous clusters
-CLUSTER_SAFE = 0
+CLUSTER_SAFE ?= 0
 ifneq ($(CLUSTER_SAFE), 0)
 NONNATIVE = 1
 endif
