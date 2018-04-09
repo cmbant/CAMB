@@ -31,6 +31,7 @@ args = parser.parse_args()
 
 logfile = None
 
+sys.stdout = os.fdopen(sys.stdout.fileno(), 'w', 0) # write progress, no cacheing
 
 def printlog(text):
     global logfile
@@ -420,6 +421,7 @@ def output_file_num(file_dir):
 
 
 def makeIniFiles():
+    printlog('Making test ini files...')
     params = getTestParams()
     inis = []
     base_ini = 'inheritbase_' + os.path.basename(args.base_settings)
@@ -431,6 +433,7 @@ def makeIniFiles():
         with open(fname, 'w') as f:
             f.write('output_root=' + os.path.join(out_files_dir, name) + '\n'
                     + '\n'.join(pars[1:]) + '\nDEFAULT(' + base_ini + ')\n')
+    printlog('Made test ini files.')
     return inis
 
 
@@ -628,6 +631,7 @@ if args.diff_to:
     import filecmp
     import math
 
+    printlog('Running diff_to...')
     if args.num_diff:
         defCmpFcn = lambda o, n, t: math.fabs(float(o) - float(n)) >= t
     else:
