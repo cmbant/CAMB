@@ -18,11 +18,12 @@
 
     real(dl), dimension(:,:), allocatable ::  ajl,ajlpr, ddajlpr
 
-    integer  num_xx, kmaxfile, file_numl,  file_l(lmax_arr), file_acc
+    integer  num_xx, kmaxfile, file_numl,  file_l(lmax_arr)
     ! parameters for working out where the flat Bessel functions are small
     ! Both should increase for higher accuracy
     ! real(dl), parameter :: xlimmin=15._dl  , xlimfrac = 0.05_dl
     real(dl), parameter :: xlimmin=35._dl  , xlimfrac = 0.05_dl
+    real(dl) file_acc
     
     type(TRanges), save:: BessRanges
 
