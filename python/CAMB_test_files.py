@@ -31,11 +31,10 @@ args = parser.parse_args()
 
 logfile = None
 
-sys.stdout = os.fdopen(sys.stdout.fileno(), 'w', 0) # write progress, no cacheing
-
 def printlog(text):
     global logfile
     print(text)
+    sys.stdout.flush()
     if logfile is None:
         logfile = open(os.path.join(args.ini_dir, 'test_results.log'), 'a')
     logfile.write(text + "\n")
