@@ -4038,7 +4038,7 @@
                     do ix = jstart, TimeSteps%npoints
                         if (RedWin%Wing(ix)==0._dl) then
                             RedWin%comoving_density_ev(ix) = 0
-                        elseif (RedWin%comoving_density_ev(ix)/=0._cl) then
+                        elseif (RedWin%comoving_density_ev(ix)/=0._dl) then
                             !correction needs to be introduced from total derivative to partial derivative
                             RedWin%comoving_density_ev(ix) =   tmp2(ix) / RedWin%comoving_density_ev(ix) &
                                 -5*RedWin%dlog10Ndm * ( hubble_tmp(ix) + int_tmp(ix,i)/RedWin%Wing(ix))
