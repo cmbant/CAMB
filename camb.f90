@@ -18,9 +18,7 @@
         Type (MatterTransferData) :: MTrans
         Type (CAMBparams) :: Params
     end Type CAMBdata
-
-    !   public CAMB_GetTransfers, CAMB_GetResults, CAMB_GetCls, CAMB_SetDefParams, &
-    !          CAMB_ValidateParams, CAMB_GetAge,CAMB_InitCAMBdata,
+ 
     contains
 
     subroutine CAMB_GetTransfers(Params, OutData, error)
@@ -299,6 +297,7 @@
     subroutine CAMB_SetDefParams(P)
     use Bispectrum
     use constants
+    use NonLinear
     type(CAMBparams), intent(out) :: P
 
     P%WantTransfer= .false.
@@ -324,6 +323,9 @@
     P%Want_CMB = .true.
     P%Want_CMB_lensing = .true.
 
+    if (allocated(P%NonLinearModel)) deallocate(P%NonLinearModel)
+    allocate(THalofit::P%NonLinearModel)
+    
     if (allocated(P%DarkEnergy)) deallocate(P%DarkEnergy)
     allocate(TDarkEnergyFluid::P%DarkEnergy)
 

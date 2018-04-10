@@ -1323,10 +1323,9 @@ def set_params(cp=None, verbose=False, **params):
     This is equivalent to:
 
     cp = model.CAMBparams()
-    cp.set_cosmology(omch2=0.1)
+    cp.set_cosmology(omch2=0.1, Alens=1.2)
     cp.set_for_lmax(lmax=2000)
     cp.InitPower.set_params(ns=1)
-    lensing.ALens.value = 1.2
 
 
     :param **params: the values of the parameters

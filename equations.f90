@@ -1,27 +1,6 @@
-    ! Equations module for dark energy with constant equation of state parameter w
-    ! allowing for perturbations based on a quintessence model
-    ! by Antony Lewis (http://cosmologist.info/)
+    ! Equations module for background and perturbations
+    ! To avoid circular module issues, some things are not part of module
 
-    ! Dec 2003, fixed (fatal) bug in tensor neutrino setup
-    ! Changes to tight coupling approximation
-    ! June 2004, fixed problem with large scale polarized tensors; support for vector modes
-    ! Generate vector modes on their own. The power spectrum is taken from the scalar parameters.
-    ! August 2004, fixed reionization term in lensing potential
-    ! Nov 2004, change massive neutrino l_max to be consistent with massless if light
-    ! Apr 2005, added DoLateRadTruncation option
-    ! June 2006, added support for arbitary neutrino mass splittings
-    ! Nov 2006, tweak to high_precision transfer function accuracy at lowish k
-    ! June 2011, improved radiation approximations from arXiv: 1104.2933; Some 2nd order tight coupling terms
-    !            merged fderivs and derivs so flat and non-flat use same equations; more precomputed arrays
-    !            optimized neutrino sampling, and reorganised neutrino integration functions
-    ! Feb 2013: fixed various issues with accuracy at larger neutrino masses
-    ! Mar 2014: fixes for tensors with massive neutrinos
-
-    !CAMB Sources:
-    ! Feb 2007 changes for 21cm and other power spectra
-    ! July 2007 added perturbed recombination, self-absorption, changes to transfer function output
-    ! May 2013 update for latest CAMB changes, removed support for tensor 21cm for simplicity
-    ! Oct 2013 merge and fix for latest CAMB
 
     !Return OmegaK - modify this if you add extra fluid components
     function GetOmegak()
@@ -100,7 +79,7 @@
     integer, parameter :: basic_num_eqns = 5
 
     logical :: DoTensorNeutrinos = .true.
- 
+
     logical, parameter :: second_order_tightcoupling = .true.
 
     real(dl) :: Magnetic = 0._dl
@@ -189,6 +168,7 @@
 
         logical :: saha !still high x_e
         logical :: evolve_TM !\delta T_g evolved separately
+        logical :: evolve_baryon_cs !evolving sound speed rather than using background approx
 
         real, pointer :: OutputTransfer(:) => null()
         real(dl), pointer :: OutputSources(:) => null()
@@ -298,7 +278,7 @@
     tau_switch_saha=noSwitch
     if (CP%Evolve_delta_xe .and. EV%saha)  tau_switch_saha = recombination_saha_tau
     tau_switch_evolve_TM=noSwitch
-    if (CP%Evolve_baryon_cs .and. .not. EV%Evolve_tm) tau_switch_evolve_TM = recombination_Tgas_tau
+    if (EV%Evolve_baryon_cs .and. .not. EV%Evolve_tm) tau_switch_evolve_TM = recombination_Tgas_tau
 
     !Evolve equations from tau to tauend, performing switches in equations if necessary.
 
@@ -591,7 +571,7 @@
         maxeq=maxeq+1
     end if
 
-    if (CP%Evolve_baryon_cs) then
+    if (EV%Evolve_baryon_cs) then
         if (EV%Evolve_TM) then
             EV%Tg_ix = neq+1
             neq=neq+1
@@ -733,7 +713,7 @@
     if (.not. EV%saha .and. .not. EVOut%saha) then
         yout(EVOut%xe_ix) =y(EV%xe_ix)
     end if
-    if (CP%Evolve_baryon_cs) then
+    if (EV%Evolve_baryon_cs) then
         if (EV%Evolve_TM .and. EVout%Evolve_TM) yout(EVOut%Tg_ix) = y(EV%Tg_ix)
         if (Do21cm .and. line_reionization) then
             yout(EVOut%reion_line_ix:EVOut%reion_line_ix+EVout%lmaxline +  EVout%lmaxline-1) = &
@@ -915,7 +895,7 @@
             EV%lmaxgpol = EV%lmaxgpol*3
         end if
 
-        if (Do21cm .or.CP%Evolve_delta_xe .or. CP%Evolve_delta_Ts) CP%Evolve_baryon_cs = .true.
+        EV%Evolve_baryon_cs = Do21cm .or.CP%Evolve_delta_xe .or. CP%Evolve_delta_Ts
 
         if (Do21cm .and. line_reionization) then
             EV%lmaxline  = EV%lmaxg
@@ -2365,7 +2345,7 @@
     clxgdot=-k*(4._dl/3._dl*z+qg)
 
     !Sources
-    if (CP%Evolve_baryon_cs) then
+    if (EV%Evolve_baryon_cs) then
         if (a > Do21cm_mina) then
             Tmat = Recombination_Tm(a)
         else
@@ -2539,7 +2519,7 @@
         end if
     end if ! no_nu_multpoles
 
-    if (CP%Evolve_baryon_cs) then
+    if (EV%Evolve_baryon_cs) then
         if (EV%Evolve_TM) then
             Delta_TCMB = clxg/4
             xe = Recombination_xe(a)
@@ -3221,16 +3201,4 @@
 
     end subroutine derivst
 
-
-
-    !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-
     end module GaugeInterface
-
-    function isTmNeeded()
-    use GaugeInterface
-    logical :: isTmNeeded
-
-    isTmNeeded = CP%Evolve_baryon_cs .or. CP%Evolve_delta_xe
-
-    end function isTmNeeded

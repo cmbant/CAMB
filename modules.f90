@@ -40,7 +40,7 @@
         real(dl) sigma_tau !width in conformal time (set by code)
         real(dl) chi0, chimin
         integer mag_index !The index into the extra sources using for adding magnification to counts
-        real(dl), dimension(:), pointer :: winF, wing,wing2,wingtau,dwing,dwing2,dwingtau,ddwing,ddwing2,ddwingtau,&
+        real(dl), dimension(:), allocatable :: winF, wing,wing2,wingtau,dwing,dwing2,dwingtau,ddwing,ddwing2,ddwingtau,&
             winV,dwinV,ddwinV, win_lens, comoving_density_ev
         real(dl) Fq, optical_depth_21
         logical has_lensing_window
@@ -136,6 +136,7 @@
 
     module ModelParams
     use precision
+    use classes
     use RangeUtils
     use InitialPower
     use Reionization
@@ -186,11 +187,11 @@
     type(TRanges), save :: TimeSteps
 
     type TransferParams
-        logical     ::  high_precision
-        logical     ::  accurate_massive_neutrinos
-        integer     ::  num_redshifts
+        logical     ::  high_precision = .true.
+        logical     ::  accurate_massive_neutrinos = .false.
+        integer     ::  num_redshifts = 1
         real(dl)    ::  kmax         !these are acutally q values, but same as k for flat
-        integer     ::  k_per_logint ! ..
+        integer     ::  k_per_logint =0
         real(dl)    ::  redshifts(max_transfer_redshifts)
         !JD 08/13 Added so both NL lensing and PK can be run at the same time
         real(dl)    ::  PK_redshifts(max_transfer_redshifts)
@@ -199,7 +200,6 @@
         integer     ::  NLL_redshifts_index(max_transfer_redshifts)
         integer     ::  PK_num_redshifts
         integer     ::  NLL_num_redshifts
-
     end type TransferParams
 
     type AccuracyParams
@@ -249,6 +249,8 @@
 
         real(dl) :: LimberBoost = 1._dl !Accuracy of Limber approximation use
 
+        real(dl) :: Kmax_Boost = 1._dl !Boost max k for source window functions
+
     end type AccuracyParams
 
     !other variables, options, derived variables, etc.
@@ -264,6 +266,7 @@
         logical   :: want_zstar, want_zdrag     !!JH for updated BAO likelihood.
         logical   :: PK_WantTransfer             !JD 08/13 Added so both NL lensing and PK can be run at the same time
         integer   :: NonLinear
+
         logical   :: Want_CMB, Want_CMB_lensing
 
         integer   :: Max_l, Max_l_tensor
@@ -317,6 +320,7 @@
         logical DerivedParameters !calculate various derived parameters  (ThermoDerivedParams)
 
         class(TDarkEnergyBase), allocatable :: DarkEnergy
+        class(TNonLinearModel), allocatable :: NonLinearModel
 
         !Derived parameters, not set initially
         type(ReionizationHistory) :: ReionHist
@@ -405,7 +409,6 @@
 
     !Sources
     logical :: transfer_21cm_cl = .false.
-    real(dl) :: Kmax_Boost = 1._dl
     contains
 
 
@@ -916,8 +919,9 @@
         res = CP%Accuracy%AccuracyBoost*max(0.05_dl,2.5*ell/W%chimin)
     end if
 
-    res = res* Kmax_Boost
+    res = res* CP%Accuracy%Kmax_Boost
     end function WindowKmaxForL
+
 
     end module ModelParams
 
@@ -1210,9 +1214,6 @@
     implicit none
     public
 
-    !Sources
-    integer num_k
-
     Type LimberRec
         integer n1,n2 !corresponding time step array indices
         real(dl), dimension(:), pointer :: k  => NULL()
@@ -1289,6 +1290,7 @@
     subroutine Init_Limber(CTrans)
     Type(ClTransferData) :: CTrans
 
+    call Free_Limber(Ctrans)
     allocate(CTrans%Limber_l_min(CTrans%NumSources))
     CTrans%Limber_l_min = 0
     if (num_redshiftwindows>0 .or. limber_phiphi>0) then
@@ -1970,36 +1972,6 @@
     !gets sigma_vdelta, like sigma8 but using velocity-density cross power,
     !in late LCDM f*sigma8 = sigma_vdelta^2/sigma8
 
-    Type MatterTransferData
-        !Computed data
-        integer   ::  num_q_trans   !    number of steps in k for transfer calculation
-        real(dl), dimension (:), pointer :: q_trans => NULL()
-        real(dl), dimension (:,:), pointer ::  sigma_8 => NULL()
-        real(dl), dimension (:,:), pointer ::  sigma2_vdelta_8 => NULL() !growth from sigma_{v delta}
-        real, dimension(:,:,:), pointer :: TransferData => NULL()
-        !Sources
-        real(dl), dimension(:), pointer :: optical_depths => NULL()
-        !TransferData(entry,k_index,z_index) for entry=Tranfer_kh.. Transfer_tot
-    end Type MatterTransferData
-
-    Type MatterPowerData
-        !everything is a function of k/h
-        integer   ::  num_k, num_z
-        real(dl), dimension(:), pointer :: log_kh => NULL(), redshifts => NULL()
-        !matpower is log(P_k)
-        real(dl), dimension(:,:), allocatable :: matpower, ddmat
-        !if NonLinear, nonlin_ratio =  sqrt(P_nonlinear/P_linear)
-        !function of k and redshift NonLinearScaling(k_index,z_index)
-        real(dl), dimension(:,:), pointer :: nonlin_ratio => NULL()
-        !Sources
-        real(dl), dimension(:), pointer :: log_k => NULL()
-        real(dl), dimension(:,:), pointer :: vvpower => NULL(), ddvvpower => NULL()
-        real(dl), dimension(:,:), pointer :: vdpower => NULL(), ddvdpower => NULL()
-
-        real(dl), dimension(:,:), pointer :: nonlin_ratio_vv => NULL()
-        real(dl), dimension(:,:), pointer :: nonlin_ratio_vd => NULL()
-
-    end Type MatterPowerData
 
     Type (MatterTransferData), save :: MT
 
@@ -2067,7 +2039,7 @@
     do zix=1, CP%Transfer%PK_num_redshifts
         call Transfer_GetMatterPowerData(M, PKdata, 1, &
             CP%Transfer%PK_redshifts_index(CP%Transfer%PK_num_redshifts-zix+1))
-        call NonLinear_GetRatios(PKdata)
+        call CP%NonLinearModel%GetNonLinRatios(PKdata)
         PK(:,zix) =  PK(:,zix) *PKdata%nonlin_ratio(:,1)**2
         call MatterPowerdata_Free(PKdata)
     end do
@@ -2209,7 +2181,7 @@
     subroutine MatterPowerdata_MakeNonlinear(PK_data)
     Type(MatterPowerData) :: PK_data
 
-    call NonLinear_GetRatios(PK_data)
+    call CP%NonLinearModel%GetNonLinRatios(PK_data)
     PK_data%matpower = PK_data%matpower +  2*log(PK_data%nonlin_ratio)
     call MatterPowerdata_getsplines(PK_data)
 
@@ -2218,7 +2190,7 @@
     subroutine MatterPowerdata_Free(PK_data)
     Type(MatterPowerData) :: PK_data
     integer i
-
+    !this shouldn't be needed. But need to check for compiler bugs..
     deallocate(PK_data%log_kh,stat=i)
     deallocate(PK_data%matpower,stat=i)
     deallocate(PK_data%ddmat,stat=i)
@@ -2234,7 +2206,6 @@
     deallocate(PK_data%ddvdpower,stat=i)
 
     call MatterPowerdata_Nullify(PK_data)
-
     end subroutine MatterPowerdata_Free
 
     subroutine MatterPowerdata_Nullify(PK_data)
@@ -2420,7 +2391,7 @@
 
     if (CP%NonLinear/=NonLinear_none .and. CP%NonLinear/=NonLinear_Lens) then
         call Transfer_GetMatterPowerData(MTrans, PK, in, itf) ! Mar 16, changed to use default variable
-        call NonLinear_GetRatios(PK)
+        call CP%NonLinearModel%GetNonLinRatios(PK)
     end if
 
     h = CP%H0/100
@@ -2682,7 +2653,7 @@
     allocate(MTrans%sigma_8(CP%Transfer%PK_num_redshifts, CP%InitPower%nn))
     if (get_growth_sigma8) allocate(MTrans%sigma2_vdelta_8(CP%Transfer%PK_num_redshifts, CP%InitPower%nn))
 
-    end  subroutine Transfer_Allocate
+    end subroutine Transfer_Allocate
 
     subroutine Transfer_Nullify(Mtrans)
     Type(MatterTransferData):: MTrans
@@ -2898,7 +2869,7 @@
     if (CP%NonLinear/=NonLinear_None .and. CP%NonLinear/=NonLinear_Lens) then
         if (z_ix>1) stop 'not tested more than one redshift with Nonlinear 21cm'
         call Transfer_GetMatterPowerData(MTrans, PK_cdm, in, z_ix)
-        call NonLinear_GetRatios_All(PK_cdm)
+        call CP%NonLinearModel%GetNonLinRatios_All(PK_cdm)
     end if
 
     do ik=1,MTrans%num_q_trans
@@ -3020,7 +2991,6 @@
             lastl=0
 
             call MatterPowerdata_Nullify(PK_data)
-
             call Transfer_Get21cmPowerData(MTrans, PK_data, in, itf)
 
             unit = open_file_header(FileNames(itf), 'L', Transfer_21cm_name_tags, 8)
@@ -3193,7 +3163,6 @@
 
 
     real(dl), private, external :: dtauda, rombint, rombint2
-    logical, private, external :: isTmNeeded
 
     contains
 
@@ -3287,7 +3256,7 @@
     character(len=:), allocatable :: outstr
 
     !Sources
-    doTmatTspin = isTmNeeded() .or. Do21cm
+    doTmatTspin = CP%Evolve_baryon_cs .or. CP%Evolve_delta_xe .or. Do21cm
     allocate(RW(num_redshiftwindows))
     allocate(arhos_fac(nthermo), darhos_fac(nthermo), ddarhos_fac(nthermo))
 
@@ -3297,8 +3266,9 @@
     if (global_error_flag/=0) return
 
     !Sources
-    recombination_saha_tau  = TimeOfZ(recombination_saha_z)
-    recombination_Tgas_tau = TimeOfz(1/Do21cm_mina-1)
+    if (CP%Evolve_delta_xe) recombination_saha_tau  = TimeOfZ(recombination_saha_z)
+    if (CP%Evolve_baryon_cs .or. CP%Evolve_delta_xe .or. CP%Evolve_delta_Ts .or. Do21cm) &
+        recombination_Tgas_tau = TimeOfz(1/Do21cm_mina-1)
     transfer_ix =0
 
     Maxtau=taumax

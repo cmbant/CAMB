@@ -4,6 +4,7 @@ from . import reionization as ion
 from . import recombination as recomb
 from . import initialpower as ipow
 from . import constants
+from .nonlinear import NonLinearModel
 import numpy as np
 from . import bbn
 import logging
@@ -152,10 +153,10 @@ CAMB_primordialpower = camblib.__handles_MOD_camb_primordialpower
 CAMB_primordialpower.restype = c_bool
 
 CAMBparams_SetDarkEnergy = camblib.__handles_MOD_cambparams_setdarkenergy
-CAMBparams_GetDarkEnergy = camblib.__handles_MOD_cambparams_getdarkenergy
+CAMBparams_GetAllocatables = camblib.__handles_MOD_cambparams_getallocatables
+CAMBparams_SetEqual = camblib.__handles_MOD_cambparams_setequal
 
 CAMBparams_DE_SetTable = camblib.__handles_MOD_cambparams_setdarkenergytable
-CAMBparams_DE_SetEqual = camblib.__handles_MOD_cambparams_setdarkenergyequal
 CAMBparams_DE_GetStressEnergy = camblib.__handles_MOD_cambparams_darkenergystressenergy
 
 CAMBParams_Free = camblib.__handles_MOD_cambparams_free
@@ -258,7 +259,8 @@ class AccuracyParams(CAMB_Structure):
         ("NonFlatIntAccuracyBoost", c_double),
         ("BessIntBoost", c_double),
         ("BesselBoost", c_double),
-        ("LimberBoost", c_double)
+        ("LimberBoost", c_double),
+        ("Kmax_Boost", c_double)
     ]
 
 
@@ -275,9 +277,11 @@ class CAMBparams(CAMB_Structure):
 
     def _set_allocatables(self):
         de = POINTER(DarkEnergyParams)()
+        nonlin = POINTER(NonLinearModel)()
         i = c_int(0)
-        CAMBparams_GetDarkEnergy(byref(self), byref(i), byref(de))
+        CAMBparams_GetAllocatables(byref(self), byref(i), byref(de), byref(nonlin))
         self.DarkEnergy = de.contents
+        self.NonLinearModel = nonlin.contents
 
     def __del__(self):
         if self._b_needsfree_:
@@ -331,6 +335,7 @@ class CAMBparams(CAMB_Structure):
         ("OnlyTransfers", c_int),  # logical
         ("DerivedParameters", c_int),  # logical
         ("_DarkEnergy", f_allocatable),  # resolved class accessed as self.DarkEnergy
+        ("_NonLinearModel", f_allocatable),  # resolved class accessed as self.NonLinearModel
         ("ReionHist", ion.ReionizationHistory),
         ("flat", c_int),  # logical
         ("closed", c_int),  # logical
@@ -351,9 +356,9 @@ class CAMBparams(CAMB_Structure):
         """
         cp = copy.deepcopy(self)
         cp._DarkEnergy[:] = np.zeros(len(cp._DarkEnergy), dtype=c_byte)  ##null allocatable
-        de = POINTER(DarkEnergyParams)()
-        CAMBparams_DE_SetEqual(byref(cp), byref(self), byref(de))
-        cp.DarkEnergy = de.contents
+        cp._NonLinearModel[:] = np.zeros(len(cp._NonLinearModel), dtype=c_byte)
+        CAMBparams_SetEqual(byref(cp), byref(self))
+        cp._set_allocatables()
         return cp
 
     def validate(self):
@@ -738,10 +743,10 @@ def Transfer_SortAndIndexRedshifts(P):
 
 CAMB_primordialpower.argtypes = [POINTER(CAMBparams), numpy_1d, numpy_1d, POINTER(c_int), POINTER(c_int)]
 CAMBparams_SetDarkEnergy.argtypes = [POINTER(CAMBparams), POINTER(c_int), POINTER(POINTER(DarkEnergyParams))]
-CAMBparams_GetDarkEnergy.argtypes = CAMBparams_SetDarkEnergy.argtypes
+CAMBparams_GetAllocatables.argtypes = CAMBparams_SetDarkEnergy.argtypes + [POINTER(POINTER(NonLinearModel))]
+CAMBparams_SetEqual.argtypes = [POINTER(CAMBparams), POINTER(CAMBparams)]
 
 CAMBparams_DE_SetTable.argtypes = [POINTER(DarkEnergyParams), numpy_1d, numpy_1d, POINTER(c_int)]
-CAMBparams_DE_SetEqual.argtypes = [POINTER(CAMBparams), POINTER(CAMBparams), POINTER(POINTER(DarkEnergyParams))]
 
 CAMBparams_DE_GetStressEnergy.argtypes = [POINTER(DarkEnergyParams), numpy_1d, numpy_1d, numpy_1d, POINTER(c_int)]
 

@@ -1201,7 +1201,7 @@
 
     call Transfer_GetMatterPowerData(MT, CAMB_PK, 1)
 
-    call NonLinear_GetNonLinRatios(CAMB_PK)
+    call CP%NonLinearModel%GetNonLinRatios(CAMB_PK)
 
     if (CP%InitPower%nn > 1) call MpiStop('Non-linear lensing only does one initial power')
 
@@ -1215,7 +1215,7 @@
     if (Do21cm) then
         Src(ik, 4:SourceNum, :) = Src(ik, 4:SourceNum, :) * &
             CAMB_Pk%nonlin_ratio(ik,1)
-    elseif (Evolve_q%points(ik)/(CP%H0/100) >  Min_kh_nonlinear) then
+    elseif (Evolve_q%points(ik)/(CP%H0/100) >  CP%NonLinearModel%Min_kh_nonlinear) then
         !Interpolate non-linear scaling in conformal time
         !Do not use an associate for scaling. It does not work.
         scaling = CAMB_Pk%nonlin_ratio(ik,1:CP%Transfer%num_redshifts)

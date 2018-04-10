@@ -27,6 +27,7 @@
 		<Filter Name="Source Files" Filter="f90;for;f;fpp;ftn;def;odl;idl">
 		<File RelativePath="..\bessels.f90"/>
 		<File RelativePath="..\camb.f90"/>
+		<File RelativePath="..\classes.f90"/>
 		<File RelativePath="..\cmbmain.f90"/>
 		<File RelativePath="..\constants.f90"/>
 		<File RelativePath="..\DarkEnergyFluid.f90"/>

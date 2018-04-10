@@ -310,7 +310,7 @@ def getTestParams():
     params.append(['noderived', 'derived_parameters = F'])
     params.append(['no_rad_trunc', 'do_late_rad_truncation   = F'])
 
-    for acc in [0.95, 1.1, 1.5, 2.2]:
+    for acc in [1.1, 1.5, 2.2]:
         params.append(['accuracy_boost%s' % acc, 'accuracy_boost = %s' % acc])
 
     for acc in [1, 1.5, 2]:

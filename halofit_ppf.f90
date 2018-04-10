@@ -45,23 +45,33 @@
     use ModelParams
     use DarkEnergyInterface
     use transfer
+    use classes
     implicit none
     private
-
-    real, parameter :: Min_kh_nonlinear = 0.005
-    real(dl):: om_m,om_v,fnu,omm0, acur, w_hf,wa_hf
 
     integer, parameter :: halofit_original = 1, halofit_bird=2, halofit_peacock=3, halofit_takahashi=4
     integer, parameter :: halofit_mead=5, halofit_halomodel=6, halofit_casarini=7
     integer, parameter :: halofit_default = halofit_takahashi
-    integer :: halofit_version = halofit_default
-    public Min_kh_nonlinear, NonLinear_GetNonLinRatios, NonLinear_ReadParams
-    public halofit_version, halofit_default, halofit_original, halofit_bird, halofit_peacock, halofit_takahashi
-    public halofit_mead, halofit_halomodel, halofit_casarini
 
-    !!AM - Added these types for HMcode
-    INTEGER :: imead !!AM - added these for HMcode, need to be visible to all subroutines and functions
     logical :: HM_verbose = .false.
+
+    type, extends(TNonLinearModel) :: THalofit
+        integer :: halofit_version = halofit_default
+        !!AM - Added these types for HMcode
+        integer, private :: imead !!AM - added these for HMcode, need to be visible to all subroutines and functions
+        real(dl), private :: om_m,om_v,fnu,omm0, acur, w_hf, wa_hf
+    contains
+    procedure :: ReadParams => THalofit_ReadParams
+    procedure :: GetNonLinRatios => THalofit_GetNonLinRatios
+    procedure :: halofit
+    procedure :: HMcode
+    procedure, private :: Delta_v, delta_c, eta, kstar, As, conc_bull, &
+        fdamp, p_1h,p_2h, alpha, halomod, halomod_init, write_parameters, zcoll_bull
+    end type
+
+    public THalofit, HM_verbose
+    public halofit_default, halofit_original, halofit_bird, halofit_peacock, halofit_takahashi
+    public halofit_mead, halofit_halomodel, halofit_casarini
 
     TYPE HM_cosmology
         !Contains only things that do not need to be recalculated with each new z
@@ -85,18 +95,20 @@
 
     contains
 
-    subroutine NonLinear_ReadParams(Ini)
+    subroutine THalofit_ReadParams(this,Ini)
     use IniObjects
-    Type(TIniFile) :: Ini
+    class(THalofit), intent(inout) :: this
+    class(TIniFile), intent(in) :: Ini
 
-    halofit_version = Ini%Read_Int('halofit_version', halofit_default)
+    this%halofit_version = Ini%Read_Int('halofit_version', halofit_default)
 
-    end subroutine NonLinear_ReadParams
+    end subroutine THalofit_ReadParams
 
-    subroutine NonLinear_GetNonLinRatios(CAMB_Pk)
+    subroutine THalofit_GetNonLinRatios(this,CAMB_Pk)
     !Fill the CAMB_Pk%nonlin_scaling array with sqrt(non-linear power/linear power)
     !for each redshift and wavenumber
     !This implementation uses Halofit
+    class(THalofit) :: this
     type(MatterPowerData) :: CAMB_Pk
     integer itf
     real(dl) a,plin,pq,ph,pnl,rk
@@ -104,36 +116,34 @@
     real(dl) diff,xlogr1,xlogr2,rmid
     integer i
 
-    IF(halofit_version==halofit_mead .OR. halofit_version==halofit_halomodel) THEN
-
+    IF(this%halofit_version==halofit_mead .OR. this%halofit_version==halofit_halomodel) THEN
         !AM - Call HMcode here
-        CALL HMcode(CAMB_Pk)
-
+        CALL this%HMcode(CAMB_Pk)
     ELSE
 
         !!BR09 putting neutrinos into the matter as well, not sure if this is correct, but at least one will get a consisent omk.
-        omm0 = CP%omegac+CP%omegab+CP%omegan
-        fnu = CP%omegan/omm0
+        this%omm0 = CP%omegac+CP%omegab+CP%omegan
+        this%fnu = CP%omegan/this%omm0
 
         CAMB_Pk%nonlin_ratio = 1
 
         do itf = 1, CAMB_Pk%num_z
 
-            w_hf=CP%DarkEnergy%w_lam
-            wa_hf=CP%DarkEnergy%wa
-            if (halofit_version == halofit_casarini) then
+            this%w_hf=CP%DarkEnergy%w_lam
+            this%wa_hf=CP%DarkEnergy%wa
+            if (this%halofit_version == halofit_casarini) then
                 ! calculate equivalent w-constant models (w_hf,0) for w_lam+wa_ppf(1-a) models
                 ! [Casarini+ (2009,2016)].
-                call PKequal(CAMB_Pk%Redshifts(itf),CP%DarkEnergy%w_lam,CP%DarkEnergy%wa,w_hf,wa_hf)
+                call PKequal(CAMB_Pk%Redshifts(itf),CP%DarkEnergy%w_lam,CP%DarkEnergy%wa,this%w_hf,this%wa_hf)
             endif
 
             ! calculate nonlinear wavenumber (rknl), effective spectral index (rneff) and
             ! curvature (rncur) of the power spectrum at the desired redshift, using method
             ! described in Smith et al (2002).
             a = 1/real(1+CAMB_Pk%Redshifts(itf),dl)
-            om_m = omega_m(a, omm0, CP%omegav, w_hf,wa_hf)
-            om_v = omega_v(a, omm0, CP%omegav, w_hf,wa_hf)
-            acur = a
+            this%om_m = omega_m(a, this%omm0, CP%omegav, this%w_hf, this%wa_hf)
+            this%om_v = omega_v(a, this%omm0, CP%omegav, this%w_hf, this%wa_hf)
+            this%acur = a
             xlogr1=-2.0
             xlogr2=3.5
             do
@@ -167,7 +177,7 @@
             do i=1, CAMB_PK%num_k
                 rk = exp(CAMB_Pk%log_kh(i))
 
-                if (rk > Min_kh_nonlinear) then
+                if (rk > this%Min_kh_nonlinear) then
 
                     ! linear power spectrum !! Remeber => plin = k^3 * P(k) * constant
                     ! constant = 4*pi*V/(2*pi)^3
@@ -178,7 +188,7 @@
                     ! where pq represents the quasi-linear (halo-halo) power and
                     ! where ph is represents the self-correlation halo term.
 
-                    call halofit(rk,rneff,rncur,rknl,plin,pnl,pq,ph)   ! halo fitting formula
+                    call this%halofit(rk,rneff,rncur,rknl,plin,pnl,pq,ph)   ! halo fitting formula
                     CAMB_Pk%nonlin_ratio(i,itf) = sqrt(pnl/plin)
 
                 end if
@@ -190,27 +200,27 @@
 
     END IF
 
-    end subroutine NonLinear_GetNonLinRatios
+    end subroutine THalofit_GetNonLinRatios
 
     !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
-    subroutine halofit(rk,rn,rncur,rknl,plin,pnl,pq,ph)
-
+    subroutine halofit(this,rk,rn,rncur,rknl,plin,pnl,pq,ph)
+    class(THalofit) :: this
     real(dl) gam,a,b,c,xmu,xnu,alpha,beta,f1,f2,f3
     real(dl) rk,rn,plin,pnl,pq,ph,plinaa
     real(dl) rknl,y,rncur
     real(dl) f1a,f2a,f3a,f1b,f2b,f3b,frac
     real(dl) extragam, peacock_fudge
 
-    if (halofit_version ==halofit_original .or. halofit_version ==halofit_bird &
-        .or. halofit_version == halofit_peacock) then
+    if (this%halofit_version ==halofit_original .or. this%halofit_version ==halofit_bird &
+        .or. this%halofit_version == halofit_peacock) then
     ! halo model nonlinear fitting formula as described in
     ! Appendix C of Smith et al. (2002)
     !SPB11: Standard halofit underestimates the power on the smallest scales by a
     !factor of two. Add an extra correction from the simulations in Bird, Viel,
     !Haehnelt 2011 which partially accounts for this.
-    if (halofit_version ==halofit_bird) then
+    if (this%halofit_version ==halofit_bird) then
         extragam = 0.3159 -0.0765*rn -0.8350*rncur
         gam=extragam+0.86485+0.2989*rn+0.1631*rncur
     else
@@ -224,8 +234,8 @@
     xmu=10**(-3.54419+0.19086*rn)
     xnu=10**(0.95897+1.2857*rn)
     alpha=1.38848+0.3701*rn-0.1452*rn*rn
-    beta=0.8291+0.9854*rn+0.3400*rn**2+fnu*(-6.4868+1.4373*rn**2)
-    elseif (halofit_version == halofit_takahashi .or. halofit_version == halofit_casarini) then
+    beta=0.8291+0.9854*rn+0.3400*rn**2+this%fnu*(-6.4868+1.4373*rn**2)
+    elseif (this%halofit_version == halofit_takahashi .or. this%halofit_version == halofit_casarini) then
         !RT12 Oct: the halofit in Smith+ 2003 predicts a smaller power
         !than latest N-body simulations at small scales.
         !Update the following fitting parameters of gam,a,b,c,xmu,xnu,
@@ -235,28 +245,28 @@
         !LC16 Jun: Casarini+ 2009,2016 extended constant w prediction for w(a).
         gam=0.1971-0.0843*rn+0.8460*rncur
         a=1.5222+2.8553*rn+2.3706*rn*rn+0.9903*rn*rn*rn+ &
-            0.2250*rn*rn*rn*rn-0.6038*rncur+0.1749*om_v*(1.+w_hf+wa_hf*(1-acur))
+            0.2250*rn*rn*rn*rn-0.6038*rncur+0.1749*this%om_v*(1.+this%w_hf+this%wa_hf*(1-this%acur))
         a=10**a
         b=10**(-0.5642+0.5864*rn+0.5716*rn*rn-1.5474*rncur+ &
-            0.2279*om_v*(1.+w_hf+wa_hf*(1-acur)))
+            0.2279*this%om_v*(1.+this%w_hf+this%wa_hf*(1-this%acur)))
         c=10**(0.3698+2.0404*rn+0.8161*rn*rn+0.5869*rncur)
         xmu=0.
         xnu=10**(5.2105+3.6902*rn)
         alpha=abs(6.0835+1.3373*rn-0.1959*rn*rn-5.5274*rncur)
         beta=2.0379-0.7354*rn+0.3157*rn**2+1.2490*rn**3+ &
-            0.3980*rn**4-0.1682*rncur + fnu*(1.081 + 0.395*rn**2)
+            0.3980*rn**4-0.1682*rncur + this%fnu*(1.081 + 0.395*rn**2)
     else
         call MpiStop('Unknown halofit_version')
     end if
 
-    if(abs(1-om_m).gt.0.01) then ! omega evolution
-        f1a=om_m**(-0.0732)
-        f2a=om_m**(-0.1423)
-        f3a=om_m**(0.0725)
-        f1b=om_m**(-0.0307)
-        f2b=om_m**(-0.0585)
-        f3b=om_m**(0.0743)
-        frac=om_v/(1.-om_m)
+    if(abs(1-this%om_m).gt.0.01) then ! omega evolution
+        f1a=this%om_m**(-0.0732)
+        f2a=this%om_m**(-0.1423)
+        f3a=this%om_m**(0.0725)
+        f1b=this%om_m**(-0.0307)
+        f2b=this%om_m**(-0.0585)
+        f3b=this%om_m**(0.0743)
+        frac=this%om_v/(1.-this%om_m)
         f1=frac*f1b + (1-frac)*f1a
         f2=frac*f2b + (1-frac)*f2a
         f3=frac*f3b + (1-frac)*f3a
@@ -270,13 +280,13 @@
 
 
     ph=a*y**(f1*3)/(1+b*y**(f2)+(f3*c*y)**(3-gam))
-    ph=ph/(1+xmu*y**(-1)+xnu*y**(-2))*(1+fnu*0.977)
-    plinaa=plin*(1+fnu*47.48*rk**2/(1+1.5*rk**2))
+    ph=ph/(1+xmu*y**(-1)+xnu*y**(-2))*(1+this%fnu*0.977)
+    plinaa=plin*(1+this%fnu*47.48*rk**2/(1+1.5*rk**2))
     pq=plin*(1+plinaa)**beta/(1+plinaa*alpha)*exp(-y/4.0-y**2/8.0)
 
     pnl=pq+ph
 
-    if (halofit_version == halofit_peacock) then
+    if (this%halofit_version == halofit_peacock) then
         !From http://www.roe.ac.uk/~jap/haloes/
         !(P-P_linear) -> (P-P_linear) * (1+2y^2)/(1+y^2), where y = k/10 h Mpc^(-1).
         peacock_fudge = rk/10
@@ -354,8 +364,9 @@
     !!JD end generalize to variable w
 
     !!AM Below is for HMcode
-    SUBROUTINE HMcode(CAMB_Pk)
+    SUBROUTINE HMcode(this,CAMB_Pk)
     !!AM - A CAMB derived type that I need
+    class(THalofit) :: this
     TYPE(MatterPowerData) :: CAMB_Pk
     REAL :: z, k
     REAL :: p1h, p2h, pfull, plin
@@ -373,10 +384,10 @@
     !Use imead to switch between the standard and accurate halo-model calcuation
     !0 - Standard (this is just a vanilla halo model calculation with no accuracy tweaks)
     !1 - Accurate from Mead et al. (2015; arXiv 1505.07833)
-    IF(halofit_version==halofit_halomodel) imead=0
-    IF(halofit_version==halofit_mead) imead=1
+    IF(this%halofit_version==halofit_halomodel) this%imead=0
+    IF(this%halofit_version==halofit_mead) this%imead=1
 
-    IF(FeedbackLevel>0) HM_verbose = .true.
+    HM_verbose = (FeedbackLevel>0)
 
     IF(HM_verbose) WRITE(*,*)
     IF(HM_verbose) WRITE(*,*) 'HMcode: Running HMcode'
@@ -404,14 +415,14 @@
         z=CAMB_Pk%Redshifts(j)
 
         !Initiliasation for the halomodel calcualtion (needs to be done for each z)
-        CALL halomod_init(z,lut,cosi)
+        CALL this%halomod_init(z,lut,cosi)
 
         !Loop over k values and calculate P(k)
         !$OMP PARALLEL DO DEFAULT(SHARED), private(k,plin, pfull,p1h,p2h)
         DO i=1,nk
             k=exp(CAMB_Pk%log_kh(i))
             plin=p_lin(k,z,0,cosi)
-            CALL halomod(k,z,p1h,p2h,pfull,plin,lut,cosi)
+            CALL this%halomod(k,z,p1h,p2h,pfull,plin,lut,cosi)
             CAMB_Pk%nonlin_ratio(i,j)=sqrt(pfull/plin)
         END DO
         !$OMP END PARALLEL DO
@@ -420,18 +431,18 @@
 
     END SUBROUTINE HMcode
 
-    FUNCTION Delta_v(z,lut,cosm)
-
+    FUNCTION Delta_v(this,z,lut,cosm)
+    class(THalofit) :: this
     !Function for the virialised overdensity
     REAL :: Delta_v
     REAL, INTENT(IN) :: z
     TYPE(HM_cosmology), INTENT(IN) :: cosm
     TYPE(HM_tables), INTENT(IN) :: lut
 
-    IF(imead==0) THEN
+    IF(this%imead==0) THEN
         !Value that is normally used in halo model predictions
         Delta_v=200.
-    ELSE IF(imead==1) THEN
+    ELSE IF(this%imead==1) THEN
         !Mead et al. (2015; arXiv 1505.07833) value
         Delta_v=418.*(Omega_m_hm(z,cosm)**(-0.352))
         !Mead et al. (2016; arXiv 1602.02154) neutrino addition
@@ -440,17 +451,17 @@
 
     END FUNCTION Delta_v
 
-    FUNCTION delta_c(z,lut,cosm)
-
+    FUNCTION delta_c(this,z,lut,cosm)
+    class(THalofit) :: this
     !Function for the linear collapse density
     REAL :: delta_c
     REAL, INTENT(IN) :: z
     TYPE(HM_cosmology), INTENT(IN) :: cosm
     TYPE(HM_tables), INTENT(IN) :: lut
 
-    IF(imead==0) THEN
+    IF(this%imead==0) THEN
         delta_c=1.686
-    ELSE IF(imead==1) THEN
+    ELSE IF(this%imead==1) THEN
         !Mead et al. (2015; arXiv 1505.07833) value
         delta_c=1.59+0.0314*log(lut%sig8z)
         !Mead et al. (2016; arXiv 1602.02154) neutrino addition
@@ -462,8 +473,8 @@
 
     END FUNCTION delta_c
 
-    FUNCTION eta(z,lut,cosm)
-
+    FUNCTION eta(this,z,lut,cosm)
+    class(THalofit) :: this
     !Function eta that puffs halo profiles
     REAL :: eta
     REAL, INTENT(IN) :: z
@@ -471,9 +482,9 @@
     TYPE(HM_tables), INTENT(IN) :: lut
     REAL :: eta0
 
-    IF(imead==0) THEN
+    IF(this%imead==0) THEN
         eta=0.
-    ELSE IF(imead==1) THEN
+    ELSE IF(this%imead==1) THEN
         !The first parameter here is 'eta_0' in Mead et al. (2015; arXiv 1505.07833)
         !eta=0.603-0.3*lut%sig8z
         !AM - made baryon feedback parameter obvious
@@ -484,18 +495,18 @@
 
     END FUNCTION eta
 
-    FUNCTION kstar(z,lut,cosm)
-
+    FUNCTION kstar(this,z,lut,cosm)
+    class(THalofit) :: this
     !Function k* that cuts off the 1-halo term at large scales
     REAL :: kstar
     REAL, INTENT(IN) :: z
     TYPE(HM_cosmology), INTENT(IN) :: cosm
     TYPE(HM_tables), INTENT(IN) :: lut
 
-    IF(imead==0) THEN
+    IF(this%imead==0) THEN
         !Set to zero for the standard Poisson one-halo term
         kstar=0.
-    ELSE IF(imead==1) THEN
+    ELSE IF(this%imead==1) THEN
         !One-halo cut-off wavenumber
         !Mead et al. (2015; arXiv 1505.07833) value
         kstar=0.584*(lut%sigv)**(-1.)
@@ -503,18 +514,18 @@
 
     END FUNCTION kstar
 
-    FUNCTION As(z,lut,cosm)
-
+    FUNCTION As(this,z,lut,cosm)
+    class(THalofit) :: this
     !Halo concentration pre-factor from Bullock et al. (2001) relation
     REAL :: As
     REAL, INTENT(IN) :: z
     TYPE(HM_cosmology), INTENT(IN) :: cosm
     TYPE(HM_tables), INTENT(IN) :: lut
 
-    IF(imead==0) THEN
+    IF(this%imead==0) THEN
         !Set to 4 for the standard Bullock value
         As=4.
-    ELSE IF(imead==1) THEN
+    ELSE IF(this%imead==1) THEN
         !This is the 'A' halo-concentration parameter in Mead et al. (2015; arXiv 1505.07833)
         !As=3.13
         !AM - added for easy modification of feedback parameter
@@ -523,8 +534,8 @@
 
     END FUNCTION As
 
-    FUNCTION fdamp(z,lut,cosm)
-
+    FUNCTION fdamp(this,z,lut,cosm)
+    class(THalofit) :: this
     !Linear power damping function from Mead et al. (2015; arXiv 1505.07833)
     REAL ::fdamp
     REAL, INTENT(IN) :: z
@@ -532,10 +543,10 @@
     TYPE(HM_tables), INTENT(IN) :: lut
 
     !Linear theory damping factor
-    IF(imead==0) THEN
+    IF(this%imead==0) THEN
         !Set to 0 for the standard linear theory two halo term
         fdamp=0.
-    ELSE IF(imead==1) THEN
+    ELSE IF(this%imead==1) THEN
         !Mead et al. (2016; arXiv 1602.02154) value
         fdamp=0.0095*lut%sigv100**1.37
     END IF
@@ -546,18 +557,18 @@
 
     END FUNCTION fdamp
 
-    FUNCTION alpha(z,lut,cosm)
-
+    FUNCTION alpha(this,z,lut,cosm)
+    class(THalofit) :: this
     !Two- to one-halo transition smoothing from Mead et al. (2015; arXiv 1505.07833)
     REAL :: alpha
     REAL, INTENT(IN) :: z
     TYPE(HM_tables), INTENT(IN) :: lut
     TYPE(HM_cosmology), INTENT(IN) :: cosm
 
-    IF(imead==0) THEN
+    IF(this%imead==0) THEN
         !Set to 1 for the standard halomodel sum of one- and two-halo terms
         alpha=1.
-    ELSE IF(imead==1) THEN
+    ELSE IF(this%imead==1) THEN
         !This uses the top-hat defined neff (HALOFIT uses Gaussian filtered fields instead)
         !Mead et al. (2016; arXiv 1602.02154) value
         alpha=3.24*1.85**lut%neff
@@ -570,7 +581,6 @@
     END FUNCTION alpha
 
     FUNCTION r_nl(lut)
-
     !Calculates R_nl, defined by nu(R_nl)=1., nu=dc/sigma(R)
     TYPE(HM_tables), INTENT(IN) :: lut
     REAL :: r_nl
@@ -584,8 +594,8 @@
 
     END FUNCTION r_nl
 
-    SUBROUTINE halomod(k,z,p1h,p2h,pfull,plin,lut,cosm)
-
+    SUBROUTINE halomod(this,k,z,p1h,p2h,pfull,plin,lut,cosm)
+    class(THalofit) :: this
     !Calcuates 1-halo and 2-halo terms and combines them to form the full halomodel power
     REAL, INTENT(OUT) :: p1h, p2h, pfull
     REAL, INTENT(IN) :: plin, k, z
@@ -599,19 +609,17 @@
         p1h=0.
         p2h=0.
     ELSE
-        p1h=p_1h(k,z,lut,cosm)
-        p2h=p_2h(k,z,plin,lut,cosm)
+        p1h=this%p_1h(k,z,lut,cosm)
+        p2h=this%p_2h(k,z,plin,lut,cosm)
     END IF
 
-    a=alpha(z,lut,cosm)
+    a=this%alpha(z,lut,cosm)
     pfull=(p2h**a+p1h**a)**(1./a)
 
     END SUBROUTINE halomod
 
     SUBROUTINE fill_table(min,max,arr,n)
-
     !Fills array 'arr' in equally spaced intervals
-    IMPLICIT NONE
     INTEGER :: i
     REAL, INTENT(IN) :: min, max
     REAL, ALLOCATABLE :: arr(:)
@@ -864,8 +872,8 @@
 
     END SUBROUTINE deallocate_LUT
 
-    SUBROUTINE halomod_init(z,lut,cosm)
-
+    SUBROUTINE halomod_init(this,z,lut,cosm)
+    class(THalofit) :: this
     !Halo-model initialisation routine
     !Computes look-up HM_tables necessary for the halo model calculations
     REAL, INTENT(IN) :: z
@@ -897,7 +905,7 @@
     IF(HM_verbose) WRITE(*,*) 'HALOMOD: M_min:', mmin
     IF(HM_verbose) WRITE(*,*) 'HALOMOD: M_max:', mmax
 
-    dc=delta_c(z,lut,cosm)
+    dc=this%delta_c(z,lut,cosm)
 
     !$OMP PARALLEL DO default(shared), private(m,r,sig,nu)
     DO i=1,n
@@ -926,7 +934,7 @@
     IF(HM_verbose) WRITE(*,*) 'HALOMOD: sigf HM_tables filled'
 
     !Fill virial radius table using real radius table
-    Dv=Delta_v(z,lut,cosm)
+    Dv=this%Delta_v(z,lut,cosm)
     lut%rv=lut%rr/(Dv**(1./3.))
 
     IF(HM_verbose) WRITE(*,*) 'HALOMOD: rv HM_tables filled'
@@ -950,22 +958,22 @@
     IF(HM_verbose) WRITE(*,*) 'HALOMOD: n_eff:', lut%neff
 
     !Get the concentration for all the haloes
-    CALL conc_bull(z,lut,cosm)
+    CALL this%conc_bull(z,lut,cosm)
 
     IF(HM_verbose) WRITE(*,*) 'HALOMOD: c HM_tables filled'
     IF(HM_verbose) WRITE(*,*) 'HALOMOD: c min [Msun/h]:', lut%c(lut%n)
     IF(HM_verbose) WRITE(*,*) 'HALOMOD: c max [Msun/h]:', lut%c(1)
     IF(HM_verbose) WRITE(*,*) 'HALOMOD: Done'
     IF(HM_verbose) WRITE(*,*)
-    IF(HM_verbose) CALL write_parameters(z,lut,cosm)
+    IF(HM_verbose) CALL this%write_parameters(z,lut,cosm)
 
     !Switch off verbose mode if doing multiple z
     HM_verbose= .false.
 
     END SUBROUTINE halomod_init
 
-    SUBROUTINE write_parameters(z,lut,cosm)
-
+    SUBROUTINE write_parameters(this,z,lut,cosm)
+    class(THalofit) :: this
     !This subroutine writes out the halomodel parameters at the current redshift
     REAL, INTENT(IN) :: z
     TYPE(HM_cosmology), INTENT(IN) :: cosm
@@ -974,13 +982,13 @@
     IF(HM_verbose) WRITE(*,*) 'WRITE_PARAMETERS: at this redshift'
     IF(HM_verbose) WRITE(*,*) '=================================='
     IF(HM_verbose) WRITE(*,fmt='(A10,F10.5)') 'z:', z
-    IF(HM_verbose) WRITE(*,fmt='(A10,F10.5)') 'Dv:', Delta_v(z,lut,cosm)
-    IF(HM_verbose) WRITE(*,fmt='(A10,F10.5)') 'dc:', delta_c(z,lut,cosm)
-    IF(HM_verbose) WRITE(*,fmt='(A10,F10.5)') 'eta:', eta(z,lut,cosm)
-    IF(HM_verbose) WRITE(*,fmt='(A10,F10.5)') 'k*:', kstar(z,lut,cosm)
-    IF(HM_verbose) WRITE(*,fmt='(A10,F10.5)') 'A:', As(z,lut,cosm)
-    IF(HM_verbose) WRITE(*,fmt='(A10,F10.5)') 'fdamp:', fdamp(z,lut,cosm)
-    IF(HM_verbose) WRITE(*,fmt='(A10,F10.5)') 'alpha:', alpha(z,lut,cosm)
+    IF(HM_verbose) WRITE(*,fmt='(A10,F10.5)') 'Dv:', this%Delta_v(z,lut,cosm)
+    IF(HM_verbose) WRITE(*,fmt='(A10,F10.5)') 'dc:', this%delta_c(z,lut,cosm)
+    IF(HM_verbose) WRITE(*,fmt='(A10,F10.5)') 'eta:', this%eta(z,lut,cosm)
+    IF(HM_verbose) WRITE(*,fmt='(A10,F10.5)') 'k*:', this%kstar(z,lut,cosm)
+    IF(HM_verbose) WRITE(*,fmt='(A10,F10.5)') 'A:', this%As(z,lut,cosm)
+    IF(HM_verbose) WRITE(*,fmt='(A10,F10.5)') 'fdamp:', this%fdamp(z,lut,cosm)
+    IF(HM_verbose) WRITE(*,fmt='(A10,F10.5)') 'alpha:', this%alpha(z,lut,cosm)
     IF(HM_verbose) WRITE(*,*) '=================================='
     IF(HM_verbose) WRITE(*,*)
 
@@ -1018,8 +1026,8 @@
 
     END FUNCTION neff
 
-    SUBROUTINE conc_bull(z,lut,cosm)
-
+    SUBROUTINE conc_bull(this,z,lut,cosm)
+    class(THalofit) :: this
     !Calculates the Bullock et al. (2001) concentration-mass relation
     REAL, INTENT(IN) :: z
     TYPE(HM_cosmology) :: cosm, cos_lcdm
@@ -1028,10 +1036,10 @@
     INTEGER :: i
 
     !Amplitude of relation (4. in Bullock et al. 2001)
-    A=As(z,lut,cosm)
+    A=this%As(z,lut,cosm)
 
     !Fill the collapse time look-up table
-    CALL zcoll_bull(z,cosm,lut)
+    CALL this%zcoll_bull(z,cosm,lut)
 
     !Fill the concentration look-up table
     DO i=1,lut%n
@@ -1112,7 +1120,7 @@
                 f2=growint_integrand(b,cosm)
                 sum_2n=0.5d0*(f1+f2)*dx
                 sum_new=sum_2n
-                
+
             ELSE
 
                 !Loop over only new even points to add these to the integral
@@ -1177,8 +1185,8 @@
 
     END FUNCTION growint_integrand
 
-    SUBROUTINE zcoll_bull(z,cosm,lut)
-
+    SUBROUTINE zcoll_bull(this,z,cosm,lut)
+    class(THalofit) :: this
     !Calcuates the halo collapse redshift according to the Bullock (2001) prescription
     REAL, INTENT(IN) :: z
     TYPE(HM_cosmology) :: cosm
@@ -1192,7 +1200,7 @@
     !Needs to interpolate g(z) which should be pretty linear for a<0.05
     !in 'g(a) vs a' space for all standard cosmologies
 
-    dc=delta_c(z,lut,cosm)
+    dc=this%delta_c(z,lut,cosm)
 
     !Find the growth function at the current redshift
     a=1./(1.+z)
@@ -1295,8 +1303,8 @@
 
     END FUNCTION p_lin
 
-    FUNCTION p_2h(k,z,plin,lut,cosm)
-
+    FUNCTION p_2h(this,k,z,plin,lut,cosm)
+    class(THalofit) :: this
     !Calculates the 2-halo term
     REAL :: p_2h
     REAL, INTENT(IN) :: k, plin
@@ -1306,9 +1314,9 @@
     TYPE(HM_cosmology), INTENT(IN) :: cosm
 
     !Damping function
-    frac=fdamp(z,lut,cosm)
+    frac=this%fdamp(z,lut,cosm)
 
-    IF(imead==0 .OR. frac<1.e-3) THEN
+    IF(this%imead==0 .OR. frac<1.e-3) THEN
         p_2h=plin
     ELSE
         sigv=lut%sigv
@@ -1320,8 +1328,8 @@
 
     END FUNCTION p_2h
 
-    FUNCTION p_1h(k,z,lut,cosm)
-
+    FUNCTION p_1h(this,k,z,lut,cosm)
+    class(THalofit) :: this
     !Calculates the 1-halo term
     REAL :: p_1h
     REAL, INTENT(IN) :: k, z
@@ -1340,7 +1348,7 @@
     integrand=0.
 
     !Only call eta once
-    et=eta(z,lut,cosm)
+    et=this%eta(z,lut,cosm)
 
     !Calculates the value of the integrand at all nu values!
     DO i=1,lut%n
@@ -1356,13 +1364,13 @@
     DEALLOCATE(integrand)
 
     !Virial density
-    Dv=Delta_v(z,lut,cosm)
+    Dv=this%Delta_v(z,lut,cosm)
 
     !These are just numerical factors from the 1-halo integral in terms of nu!
     p_1h=sum*2.*Dv*(k**3.)/(3.*pi)
 
     !Damping of the 1-halo term at very large scales
-    ks=kstar(z,lut,cosm)
+    ks=this%kstar(z,lut,cosm)
 
     !Prevents problems if k/ks is very large
     IF(ks==0.) THEN
@@ -1702,7 +1710,7 @@
                 f2=sigma_integrand_transformed(b,r,f0_rapid,z,itype,cosm)
                 sum_2n=0.5d0*(f1+f2)*dx
                 sum_new=sum_2n
-                
+
             ELSE
 
                 !Loop over only new even points to add these to the integral
@@ -2100,7 +2108,7 @@
     !This calculates omega_m variations with z!
     REAL :: Omega_m_hm
     REAL, INTENT(IN) :: z
-    REAL :: om_m, a
+    REAL :: om_m
     TYPE(HM_cosmology), INTENT(IN) :: cosm
 
     om_m=cosm%om_m
@@ -3185,7 +3193,6 @@
     END FUNCTION fv
 
     FUNCTION fd(d,v,k,a,cosm)
-
     !d'=f(d) in ODE solver
     REAL :: fd
     REAL, INTENT(IN) :: d, v, k, a
@@ -3241,25 +3248,3 @@
 
 
     end module NonLinear
-
-
-    !workaround for f90 circular-module reference
-    subroutine NonLinear_GetRatios(CAMB_Pk)
-    use Transfer
-    use NonLinear
-    type(MatterPowerData) :: CAMB_Pk
-
-    call NonLinear_GetNonLinRatios(CAMB_Pk)
-
-    end subroutine NonLinear_GetRatios
-
-
-
-    subroutine NonLinear_GetRatios_all(CAMB_Pk)
-    use Transfer
-    use NonLinear
-    type(MatterPowerData) :: CAMB_Pk
-
-    call MpiStop('Halofit module doesn''t support non-linear velocities')
-
-    end subroutine NonLinear_GetRatios_All

@@ -58,7 +58,7 @@
     deallocate(pCAMBdata)
 
     end subroutine CAMBdata_free
-
+    
     subroutine CAMBdata_setParams(data, Params)
     Type (CAMBdata), target :: data
     type(CAMBparams) :: Params
@@ -542,10 +542,10 @@
 
     end subroutine CAMBparams_SetDarkEnergy
 
-    subroutine CAMBparams_GetDarkEnergy(P, i,handle)
+    subroutine CAMBparams_GetAllocatables(P, i,de_handle, nonlin_handle)
     Type(CAMBparams), target :: P
     integer, intent(out) :: i
-    type(c_ptr), intent(out)  ::  handle
+    type(c_ptr), intent(out)  ::  de_handle, nonlin_handle
 
     if (allocated(P%DarkEnergy)) then
         select type (point => P%DarkEnergy)
@@ -556,12 +556,17 @@
             class default
             i = -1
         end select
-        handle = c_loc(P%DarkEnergy%w_lam)
+        de_handle = c_loc(P%DarkEnergy%w_lam)
     else
-        handle = c_null_ptr
+        de_handle = c_null_ptr
+    end if
+    if (allocated(P%NonLinearModel)) then
+        nonlin_handle = c_loc(P%NonLinearModel%Min_kh_nonlinear)
+    else
+        nonlin_handle = c_null_ptr
     end if
 
-    end subroutine CAMBparams_GetDarkEnergy
+    end subroutine CAMBparams_GetAllocatables
 
     subroutine CAMBparams_SetDarkEnergyTable(DE, a, w, n)
     Type(TDarkEnergyBase) :: DE
@@ -572,19 +577,12 @@
 
     end subroutine CAMBparams_SetDarkEnergyTable
 
-    subroutine CAMBparams_SetDarkEnergyEqual(P, P2, handle)
+    subroutine CAMBparams_SetEqual(P, P2)
     Type(CAMBparams), target :: P, P2
-    type(c_ptr), intent(out)  ::  handle
 
-    if (allocated(P%DarkEnergy)) deallocate(P%DarkEnergy)
-    if (allocated(P2%DarkEnergy)) then
-        allocate(P%DarkEnergy, source = P2%DarkEnergy)
-        handle = c_loc(P%DarkEnergy%w_lam)
-    else
-        handle = c_null_ptr
-    end if
+    P =P2
 
-    end subroutine CAMBparams_SetDarkEnergyEqual
+    end subroutine CAMBparams_SetEqual
 
     subroutine CAMBparams_DarkEnergyStressEnergy(DE, a, grhov_t, w, n)
     Type(TDarkEnergyBase) :: DE
@@ -602,11 +600,11 @@
     
     end subroutine CAMBparams_DarkEnergyStressEnergy
 
-    
     subroutine CAMBParams_Free(P)
     Type(CAMBparams) :: P
 
     if (allocated(P%DarkEnergy)) deallocate(P%DarkEnergy)
+    if (allocated(P%NonLinearModel)) deallocate(P%NonLinearModel)
 
     end subroutine CAMBParams_Free
 

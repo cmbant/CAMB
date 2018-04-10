@@ -71,7 +71,7 @@
     if (limber_windows) call Ini%Read('limber_phiphi', limber_phiphi)
     if (num_redshiftwindows > 0) then
         DoRedshiftLensing = Ini%Read_Logical('DoRedshiftLensing', .false.)
-        call Ini%Read('Kmax_Boost', Kmax_Boost)
+        call Ini%Read('Kmax_Boost', P%Accuracy%Kmax_Boost)
     end if
     Do21cm = Ini%Read_Logical('Do21cm', .false.)
     num_extra_redshiftwindows = 0
@@ -264,7 +264,7 @@
     else
         P%Transfer%accurate_massive_neutrinos = .false.
     end if
-    if (P%NonLinear/=NonLinear_none) call NonLinear_ReadParams(Ini)
+    if (P%NonLinear/=NonLinear_none) call P%NonLinearModel%ReadParams(Ini)
 
     if (P%PK_WantTransfer)  then
         P%WantTransfer  = .true.

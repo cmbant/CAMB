@@ -121,6 +121,7 @@ class CambTest(unittest.TestCase):
         pars.set_cosmology(H0=67.5, ombh2=0.022, omch2=0.122, mnu=0.07, omk=0)
         pars.set_dark_energy()  # re-set defaults
         pars.InitPower.set_params(ns=0.965, As=2e-9)
+        pars.NonLinearModel.set_halofit_version('takahashi')
 
         self.assertAlmostEqual(pars.scalar_power(1), 1.801e-9, 4)
         self.assertAlmostEqual(pars.scalar_power([1, 1.5])[0], 1.801e-9, 4)
@@ -157,7 +158,7 @@ class CambTest(unittest.TestCase):
         pk_interp2 = PKnonlin2.P(z, kh)
         self.assertTrue(np.sum((pk_interp / pk_interp2 - 1) ** 2) < 0.005)
 
-        camb.set_halofit_version('mead')
+        pars.NonLinearModel.set_halofit_version('mead')
         _, _, pk = results.get_nonlinear_matter_power_spectrum(params=pars, var1='delta_cdm', var2='delta_cdm')
         self.assertAlmostEqual(pk[0][160], 824.6, delta=0.5)
 
