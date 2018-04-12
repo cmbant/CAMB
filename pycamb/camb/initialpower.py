@@ -83,4 +83,4 @@ class InitialPowerParams(CAMB_Structure):
 
         :return: True of non-zero tensor amplitude
         """
-        return self.rat[0]
+        return self.rat[0] > 0
