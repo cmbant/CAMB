@@ -417,7 +417,7 @@ class CAMBdata(object):
         """
         opt = c_bool()
         opt.value = only_transfers
-        if not only_transfers: self._check_powers()
+        if not only_transfers: self._check_powers(params)
         return CAMBdata_gettransfers(self._key, byref(params), byref(opt))
 
     def _check_powers(self, params=None):
