@@ -68,14 +68,16 @@ class BBN_table_interpolator(BBNPredictor):
     BBN predictor based on interpolation on a table calculated from BBN code
     """
 
-    def __init__(self, interpolation_table='PArthENoPE_880.2_standard.dat'):
+    def __init__(self, interpolation_table='PArthENoPE_880.2_standard.dat', function_of=['ombh2', 'DeltaN']):
         """
         Load table file and initialize interpolation
 
         :param interpolation_table: filename of interpolation table to use.
+        :param function_of: two variables that determine the interpolation grid (x,y) in the table, matching top column label comment.
+            By default ombh2, DeltaN, and function argument names reflect that, but can also be used more generally.
         """
 
-        if not os.sep in interpolation_table:
+        if os.sep not in interpolation_table and '/' not in interpolation_table:
             interpolation_table = os.path.join(os.path.dirname(__file__), interpolation_table)
         self.interpolation_table = interpolation_table
 
@@ -90,8 +92,8 @@ class BBN_table_interpolator(BBNPredictor):
                         break
         assert comment
         columns = comment.split()
-        ombh2_i = columns.index('ombh2')
-        DeltaN_i = columns.index('DeltaN')
+        ombh2_i = columns.index(function_of[0])
+        DeltaN_i = columns.index(function_of[1])
 
         table = np.loadtxt(interpolation_table)
         deltans = list(np.unique(table[:, DeltaN_i]))
@@ -105,43 +107,44 @@ class BBN_table_interpolator(BBNPredictor):
                 for ix in range(table.shape[0]):
                     grid[ombh2s.index(table[ix, ombh2_i]), deltans.index(table[ix, DeltaN_i])] = table[ix, i]
                 self.interpolators[col] = RectBivariateSpline(ombh2s, deltans, grid)
+                self.interpolators[col].grid = grid
 
         self.ombh2s = ombh2s
         self.deltans = deltans
 
-        self.interpolator_Yp = self.interpolators['Yp^BBN']
-        self.interpolator_DH = self.interpolators['D/H']
-
-    def Y_p(self, ombh2, delta_neff=0.):
+    def Y_p(self, ombh2, delta_neff=0., grid=False):
         """
         Get BBN helium nucleon fraction by intepolation in table.
 
-        :param ombh2: Omega_b h^2
-        :param delta_neff:  additional N_eff relative to standard value (of 3.046)
+        :param ombh2: Omega_b h^2 (or, more generally, value of function_of[0])
+        :param delta_neff:  additional N_eff relative to standard value (of 3.046) (or value of function_of[1])
         :return:  Y_p helium nucleon fraction predicted by BBN. Call Y_He() to get mass fraction instead.
         """
-        return self.interpolator_Yp(ombh2, delta_neff)[0][0]
+        return self.get('Yp^BBN', ombh2, delta_neff, grid)
 
-    def DH(self, ombh2, delta_neff=0.):
+    def DH(self, ombh2, delta_neff=0., grid=False):
         """
-        Get deuterium ration D/H by interpolation in table
+        Get deuterium ratio D/H by interpolation in table
 
-        :param ombh2: Omega_b h^2
-        :param delta_neff:  additional N_eff relative to standard value (of 3.046)
+        :param ombh2: Omega_b h^2 (or, more generally, value of function_of[0])
+        :param delta_neff:  additional N_eff relative to standard value (of 3.046) (or value of function_of[1])
         :return: D/H
         """
-        return self.interpolator_DH(ombh2, delta_neff)[0][0]
+        return self.get('D/H', ombh2, delta_neff, grid)
 
-    def get(self, name, ombh2, delta_neff):
+    def get(self, name, ombh2, delta_neff=0., grid=False):
         """
         Get value for variable "name" by intepolation from table (where name is given in the column header comment)
         For example get('sig(D/H)',0.0222,0) to get the error on D/H
 
-        :param ombh2: Omega_b h^2
-        :param delta_neff:  additional N_eff relative to standard value (of 3.046)
+        :param ombh2: Omega_b h^2 (or, more generally, value of function_of[0])
+        :param delta_neff:  additional N_eff relative to standard value (of 3.046) (or value of function_of[1])
         :return:  Interpolated value
         """
-        return self.interpolators[name](ombh2, delta_neff)[0][0]
+        if name not in self.interpolators:
+            raise ValueError('Unknown BBN table column index "%s"' % name)
+        res = self.interpolators[name](ombh2, delta_neff, grid=grid)
+        return res
 
 
 class BBN_fitting_parthenope(BBNPredictor):

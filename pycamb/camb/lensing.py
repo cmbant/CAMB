@@ -12,6 +12,10 @@ lensing_method_harmonic = 3
 lensing_method = dll_import(c_int, "lensing", "lensing_method")
 # lensing_method.value = lensing_method_curv_corr
 
+lensing_sanity_check_amplitude = dll_import(c_double, "lensing", "lensing_sanity_check_amplitude")
+# lensing_sanity_check_amplitude.value = 1e-7 by default, will error if  (2*l+1)l(l+1)/4pi C_phi_phi > lensing_sanity_check_amplitude at L=10
+# increase to large number to prevent sanity check (but lensing requires realistic amplitude as non-linear)
+
 ALens_Fiducial = dll_import(c_double, "lensing", "alens_fiducial")
 # ALens_Fiducial.value = 0
 

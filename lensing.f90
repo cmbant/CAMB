@@ -45,6 +45,8 @@
 
     integer :: lensing_method = lensing_method_curv_corr
 
+    real(dl) :: lensing_sanity_check_amplitude = 1e-7
+    
     real(dl) :: ALens_Fiducial = 0._dl
     !Change from zero to set lensing smoothing by scaling amplitude of fiducial template
 
@@ -67,7 +69,8 @@
     real(dl), dimension(:), allocatable  :: lnfa
 
     public lens_Cls, lensing_includes_tensors, lensing_method, lensing_method_flat_corr,&
-        lensing_method_curv_corr,lensing_method_harmonic, BessI, bessj0, ALens_Fiducial
+        lensing_method_curv_corr,lensing_method_harmonic, BessI, bessj0, ALens_Fiducial, &
+        lensing_sanity_check_amplitude
     contains
 
 
@@ -212,7 +215,7 @@
             CEE(l) =  Cl_scalar(l,in,C_E)*fac
             CTE(l) =  Cl_scalar(l,in,C_Cross)*fac
         end do
-        if (Cphil3(10) > 1e-7) then
+        if (Cphil3(10) > lensing_sanity_check_amplitude) then
             write (*,*) 'You need to normalize realistically to use lensing.'
             write (*,*) 'see http://cosmocoffee.info/viewtopic.php?t=94'
             stop

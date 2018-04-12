@@ -418,7 +418,15 @@ class CAMBdata(object):
         """
         opt = c_bool()
         opt.value = only_transfers
+        if not only_transfers: self._check_powers(params)
         return CAMBdata_gettransfers(self._key, byref(params), byref(opt))
+
+    def _check_powers(self, params=None):
+        if params is None: params = self.Params
+        if params.InitPower.has_tensors() and not params.WantTensors:
+            raise CAMBError('r>0 but params.WantTensors = F')
+        if params.WantScalars and params.WantCls and params.DoLensing and params.scalar_power(0.05) > 2e-8:
+            raise CAMBError('Lensing requires a realistically normalized spectrum, you have P(k=0.05/Mpc) > 2e-8')
 
     def calc_power_spectra(self, params=None):
         """
@@ -432,6 +440,7 @@ class CAMBdata(object):
             if result != 0:
                 raise CAMBError('Error getting transfer functions: %u' % result)
         else:
+            self._check_powers()
             CAMBdata_transferstopowers(self._key)
 
     def power_spectra_from_transfer(self, initial_power_params):
@@ -442,9 +451,8 @@ class CAMBdata(object):
 
         :param initial_power_params: :class:`.initialpower.InitialPowerParams` instance with new primordial power spectrum parameters
         """
-        if initial_power_params.has_tensors() and not self.Params.WantTensors:
-            raise CAMBError('r>0 but params.WantTensors = F')
-        self.get_params().set_initial_power(initial_power_params)
+        self.Params.set_initial_power(initial_power_params)
+        self._check_powers()
         CAMBdata_transferstopowers(self._key)
 
     def _CMB_unit(self, CMB_unit):
@@ -519,8 +527,6 @@ class CAMBdata(object):
         P = {}
         if params is not None:
             self.calc_power_spectra(params)
-        if self.Params.InitPower.has_tensors() and not self.Params.WantTensors:
-            raise CAMBError('r>0 but params.WantTensors = F')
         lmax = self._lmax_setting(lmax)
         for spectrum in spectra:
             P[spectrum] = getattr(self, 'get_' + spectrum + '_cls')(lmax, CMB_unit=CMB_unit,
