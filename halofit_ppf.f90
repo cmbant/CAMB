@@ -52,7 +52,7 @@
     real(dl):: om_m,om_v,fnu,omm0, acur, w_hf,wa_hf
 
     integer, parameter :: halofit_original = 1, halofit_bird=2, halofit_peacock=3, halofit_takahashi=4
-    integer, parameter :: halofit_mead=5, halofit_halomodel=6, halofit_casarini=7
+    integer, parameter :: halofit_mead=5, halofit_halomodel=6, halofit_casarini=7, halofit_mead2015=8
     integer, parameter :: halofit_default = halofit_takahashi
     integer :: halofit_version = halofit_default
     public Min_kh_nonlinear, NonLinear_GetNonLinRatios, NonLinear_ReadParams
@@ -104,7 +104,7 @@
     real(dl) diff,xlogr1,xlogr2,rmid
     integer i
 
-    IF(halofit_version==halofit_mead .OR. halofit_version==halofit_halomodel) THEN
+    IF(halofit_version==halofit_mead .OR. halofit_version==halofit_halomodel .OR. halofit_version==halofit_mead2015) THEN
 
         !AM - Call HMcode here
         CALL HMcode(CAMB_Pk)
@@ -360,9 +360,9 @@
     REAL :: z, k
     REAL :: p1h, p2h, pfull, plin
     INTEGER :: i, j, nk, nz
-    REAL, PARAMETER :: pi=3.141592654
     TYPE(HM_cosmology) :: cosi
     TYPE(HM_tables) :: lut
+    REAL, PARAMETER :: pi=3.141592654
 
     !HMcode developed by Alexander Mead (alexander.j.mead@googlemail.com)
     !Please contact me if you have any questions whatsoever
@@ -372,9 +372,11 @@
 
     !Use imead to switch between the standard and accurate halo-model calcuation
     !0 - Standard (this is just a vanilla halo model calculation with no accuracy tweaks)
-    !1 - Accurate from Mead et al. (2015; arXiv 1505.07833)
+    !1 - Accurate from Mead et al. (2016; arXiv 1602.02154; covers massive neutrinos)
+    !2 - Accurate from Mead et al. (2015; arXiv 1505.07833; no calibration for massive neutrinos)
     IF(halofit_version==halofit_halomodel) imead=0
     IF(halofit_version==halofit_mead) imead=1
+    IF(halofit_version==halofit_mead2015) imead=2
 
     IF(FeedbackLevel>0) HM_verbose = .true.
 
@@ -397,7 +399,7 @@
 
         !Initialise the specific HM_cosmology (fill sigma(R) and P_lin HM_tables)
         !Currently this needs to be done at each z (mainly because of scale-dependent growth with neutrinos)
-        !For non neutrino models this could only be done once, which would speed things up a bit
+        !For non-massive-neutrino models this could only be done once, which would speed things up a bit
         CALL initialise_HM_cosmology(j,cosi,CAMB_PK)
 
         !Sets the current redshift from the table
@@ -431,11 +433,11 @@
     IF(imead==0) THEN
         !Value that is normally used in halo model predictions
         Delta_v=200.
-    ELSE IF(imead==1) THEN
+    ELSE IF(imead==1 .OR. imead==2) THEN
         !Mead et al. (2015; arXiv 1505.07833) value
         Delta_v=418.*(Omega_m_hm(z,cosm)**(-0.352))
         !Mead et al. (2016; arXiv 1602.02154) neutrino addition
-        Delta_v=Delta_v*(1.+0.916*cosm%f_nu)
+        IF(imead==1) Delta_v=Delta_v*(1.+0.916*cosm%f_nu)
     END IF
 
     END FUNCTION Delta_v
@@ -450,15 +452,14 @@
 
     IF(imead==0) THEN
         delta_c=1.686
-    ELSE IF(imead==1) THEN
+    ELSE IF(imead==1 .OR. imead==2) THEN
         !Mead et al. (2015; arXiv 1505.07833) value
-        delta_c=1.59+0.0314*log(lut%sig8z)
-        !Mead et al. (2016; arXiv 1602.02154) neutrino addition
-        delta_c=delta_c*(1.+0.262*cosm%f_nu)
-    END IF
-
-    !Nakamura & Suto (1997) fitting formula for LCDM models
-    delta_c=delta_c*(1.+0.0123*log10(Omega_m_hm(z,cosm)))
+        delta_c=1.59+0.0314*log(lut%sig8z)        
+        IF(imead==1) THEN
+           delta_c=delta_c*(1.+0.262*cosm%f_nu) !Mead et al. (2016; arXiv 1602.02154) neutrino addition
+           delta_c=delta_c*(1.+0.0123*log10(Omega_m_hm(z,cosm))) !Nakamura & Suto (1997) fitting formula for LCDM
+        END IF
+    END IF    
 
     END FUNCTION delta_c
 
@@ -473,7 +474,7 @@
 
     IF(imead==0) THEN
         eta=0.
-    ELSE IF(imead==1) THEN
+    ELSE IF(imead==1 .OR. imead==2) THEN
         !The first parameter here is 'eta_0' in Mead et al. (2015; arXiv 1505.07833)
         !eta=0.603-0.3*lut%sig8z
         !AM - made baryon feedback parameter obvious
@@ -495,7 +496,7 @@
     IF(imead==0) THEN
         !Set to zero for the standard Poisson one-halo term
         kstar=0.
-    ELSE IF(imead==1) THEN
+    ELSE IF(imead==1 .OR. imead==2) THEN
         !One-halo cut-off wavenumber
         !Mead et al. (2015; arXiv 1505.07833) value
         kstar=0.584*(lut%sigv)**(-1.)
@@ -514,7 +515,7 @@
     IF(imead==0) THEN
         !Set to 4 for the standard Bullock value
         As=4.
-    ELSE IF(imead==1) THEN
+    ELSE IF(imead==1 .OR. imead==2) THEN
         !This is the 'A' halo-concentration parameter in Mead et al. (2015; arXiv 1505.07833)
         !As=3.13
         !AM - added for easy modification of feedback parameter
@@ -538,6 +539,9 @@
     ELSE IF(imead==1) THEN
         !Mead et al. (2016; arXiv 1602.02154) value
         fdamp=0.0095*lut%sigv100**1.37
+    ELSE IF(imead==2) THEN
+        !Mead et al. (2015) value
+        fdamp=0.188*lut%sig8z**4.29
     END IF
 
     !Catches extreme values of fdamp
@@ -560,7 +564,10 @@
     ELSE IF(imead==1) THEN
         !This uses the top-hat defined neff (HALOFIT uses Gaussian filtered fields instead)
         !Mead et al. (2016; arXiv 1602.02154) value
-        alpha=3.24*1.85**lut%neff
+         alpha=3.24*1.85**lut%neff
+    ELSE IF(imead==2) THEN
+        !Mead et al. (2015) value
+        alpha=2.93*1.77**lut%neff
     END IF
 
     !Catches values of alpha that are crazy
@@ -662,10 +669,13 @@
     TYPE(MatterPowerData), INTENT(IN) :: CAMB_PK
     INTEGER, INTENT(IN) :: iz
     TYPE(HM_cosmology) :: cosm
-    INTEGER :: i, nk
+    INTEGER :: i
+    REAL :: z, g
     INTEGER, PARAMETER :: imeth=2
-    REAL :: z, g, kmin, kmax
     REAL, PARAMETER :: pi=3.141592654
+    REAL, PARAMETER :: kmin=1e-3
+    REAL, PARAMETER :: kmax=1e2
+    INTEGER, PARAMETER :: nk=128
 
     IF(HM_verbose) WRITE(*,*) 'LINEAR POWER: Filling linear power HM_tables'
 
@@ -679,10 +689,9 @@
         !Fill k-table with the same k points as in the CAMB calculation
         !If a user has specified lots of points this could make the halo-model
         !calculation chug
-        nk=CAMB_PK%num_k
-        cosm%nk=nk
+        cosm%nk=CAMB_PK%num_k
         ALLOCATE(cosm%k_plin(nk))
-        DO i=1,nk
+        DO i=1,cosm%nk
             cosm%k_plin(i)=exp(CAMB_Pk%log_kh(i))
         END DO
 
@@ -690,11 +699,8 @@
 
         !Fill a k-table with an equal-log-spaced k range
         !Note that the minimum should be such that the linear spectrum is accurately a power-law below this wavenumber
-        kmin=1e-3
-        kmax=1e2
-        nk=128
         cosm%nk=nk
-        CALL fill_table(log(kmin),log(kmax),cosm%k_plin,nk)
+        CALL fill_table(log(kmin),log(kmax),cosm%k_plin,cosm%nk)
         cosm%k_plin=exp(cosm%k_plin)
 
     END IF
@@ -709,7 +715,7 @@
     z=CAMB_Pk%Redshifts(iz)
     IF(HM_verbose) WRITE(*,*) 'LINEAR POWER: z of input:', z
 
-    !Fill power table
+    !Fill power table, both cold- and all-matter
     DO i=1,nk
         !Take the power from the current redshift choice
         cosm%plin(i)=MatterPowerData_k(CAMB_PK,DBLE(cosm%k_plin(i)),iz)*(cosm%k_plin(i)**3/(2.*pi**2))
@@ -1046,19 +1052,26 @@
     g_wcdm=grow(zinf,cosm)
 
     !Make a LCDM HM_cosmology
+    !Only need to make sure model is flat with the same Omega_m and w=-1
+    !This is *only* used for a calculation of the growth function
     cos_lcdm=cosm
     DEALLOCATE(cos_lcdm%growth)
     DEALLOCATE(cos_lcdm%a_growth)
     cos_lcdm%w=-1.
     cos_lcdm%wa=0.
+    cos_lcdm%om_v=1.-cosm%om_m !Added this so that 'making a LCDM cosmology' works for curved models.
 
     ainf=1./(1.+zinf)
 
     !Needs to use grow_int explicitly here for LCDM model to avoid growth HM_tables
     g_lcdm=growint(ainf,cos_lcdm)
 
-    pow=1.5
-    !This is the Dolag et al. (2004) correction with a 1.5 power rather than 1
+    !This is the Dolag et al. (2004) correction for halo concentrations
+    IF(imead==0 .OR. imead==1) THEN
+       pow=1.
+    ELSE IF(imead==2) THEN
+       pow=1.5
+    END IF    
     lut%c=lut%c*((g_wcdm/g_lcdm)**pow)
 
     END SUBROUTINE conc_bull
@@ -1095,6 +1108,9 @@
 
         !Reset the sum variable for the integration
         sum_2n=0.d0
+        sum_n=0.d0
+        sum_old=0.d0
+        sum_new=0.d0
 
         DO j=1,jmax
 
@@ -1685,6 +1701,9 @@
 
         !Reset the sum variable for the integration
         sum_2n=0.d0
+        sum_n=0.d0
+        sum_old=0.d0
+        sum_new=0.d0
 
         DO j=1,jmax
 
@@ -1800,6 +1819,9 @@
 
         !Reset the sum variable for the integration
         sum_2n=0.d0
+        sum_n=0.d0
+        sum_old=0.d0
+        sum_new=0.d0
 
         DO j=1,jmax
 
@@ -1906,6 +1928,9 @@
 
         !Reset the sum variable for the integration
         sum_2n=0.d0
+        sum_n=0.d0
+        sum_old=0.d0
+        sum_new=0.d0
 
         DO j=1,jmax
 
@@ -2060,15 +2085,12 @@
     !Ignores contributions from radiation (not accurate at high z, but consistent with simulations)!
     REAL :: Hubble2
     REAL, INTENT(IN) :: z
-    REAL :: om_m, om_v, a
     TYPE(HM_cosmology), INTENT(IN) :: cosm
-
-    om_m=cosm%om_m
-    om_v=cosm%om_v
+    REAL :: a
 
     a=1./(1.+z)
 
-    Hubble2=(om_m*(1.+z)**3.)+om_v*X_de(a,cosm)+((1.-om_m-om_v)*(1.+z)**2.)
+    Hubble2=cosm%om_m*(1.+z)**3+cosm%om_v*X_de(a,cosm)+(1.-cosm%om_m-cosm%om_v)*(1.+z)**2
 
     END FUNCTION Hubble2
 
@@ -2158,6 +2180,9 @@
 
         !Reset the sum variable for the integration
         sum_2n=0.d0
+        sum_n=0.d0
+        sum_old=0.d0
+        sum_new=0.d0
 
         DO j=1,jmax
 
@@ -2980,12 +3005,12 @@
 
     !Fills a table of values of the scale-independent growth function
     TYPE(HM_cosmology) :: cosm
-    INTEGER :: i
-    INTEGER, PARAMETER :: n=64
+    INTEGER :: i   
     REAL :: a, norm
     REAL, ALLOCATABLE :: d_tab(:), v_tab(:), a_tab(:)
     REAL :: ainit, amax, dinit, vinit
     REAL :: acc
+    INTEGER, PARAMETER :: n=64
 
     !The calculation should start at a z when Om_m(z)=1., so that the assumption
     !of starting in the g\propto a growing mode is valid (this will not work for early DE)
