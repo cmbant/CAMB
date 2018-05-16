@@ -479,7 +479,8 @@
         !eta=0.603-0.3*lut%sig8z
         !AM - made baryon feedback parameter obvious
         eta0=cosm%eta_baryon
-        !eta0=0.98-0.12*cosm%A_baryon !This is an (updated) one-parameter relation that could be used
+        !eta0=1.03-0.11*cosm%A_baryon !This is the original one-parameter relation from 1505.07833
+        !eta0=0.98-0.12*cosm%A_baryon !This is an updated one-parameter relation: Section 4.1.2 of 1707.06627
         eta=eta0-0.3*lut%sig8z
     END IF
 
