@@ -38,8 +38,8 @@ install:
   #skip to save time
   #- conda update -q conda
   - conda info -a
-  - conda create -q -n py2-environment python=2 numpy scipy sympy six
-  - conda create -q -n py3-environment python=3 numpy scipy sympy six
+  - conda create -q -n py2-environment python=2 numpy scipy sympy six cython
+  - conda create -q -n py3-environment python=3 numpy scipy sympy six cython
   - chmod +x tests/run_tests.sh
   
 script: tests/run_tests.sh
