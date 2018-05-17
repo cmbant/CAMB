@@ -57,6 +57,9 @@ def get_emission_angle_powers(camb_background, PK, chi_source, lmax=3000, acc=1,
                              np.arange(lmax, lmax + 1))).astype(np.float64)
     cl_psi_d = cl_deflection_limber(camb_background, PK, ls, nz, chi_source, emit_pow=2, lens_pow=0)
     cl_psi_d_cross = cl_deflection_limber(camb_background, PK, ls, nz, chi_source, emit_pow=1, lens_pow=1)
+    print(ls)
+    import sys
+    sys.stdout.flush()
     return UnivariateSpline(ls, cl_psi_d, s=0), UnivariateSpline(ls, cl_psi_d_cross, s=0)
 
 
