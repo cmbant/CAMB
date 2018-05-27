@@ -25,7 +25,7 @@ then
  python --version
  mkdir -p test_dir
  pushd test_dir   
- pip install -i https://testpypi.python.org/pypi $CAMB_PACKAGE_NAME
+ pip install --index-url https://test.pypi.org/simple/ $CAMB_PACKAGE_NAME
  python -c "import camb; print(camb.__version__)"
  python -m unittest camb_tests.camb_test
  pip uninstall -y $CAMB_PACKAGE_NAME
