@@ -6,7 +6,6 @@ Python CAMB interface (http://camb.info)
 """
 __author__ = "Antony Lewis"
 __contact__ = "antony at cosmologist dot info"
-__status__ = "beta"
 __version__ = "0.1.7"
 
 from .baseconfig import dll_import
