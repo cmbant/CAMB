@@ -117,9 +117,9 @@
     integer i
 
     IF(this%halofit_version==halofit_mead .OR. this%halofit_version==halofit_halomodel &
-               .OR.  this%halofit_version==halofit_mead2015) THEN
-        !AM - Call HMcode here
-        CALL this%HMcode(CAMB_Pk)
+        .OR.  this%halofit_version==halofit_mead2015) THEN
+    !AM - Call HMcode here
+    CALL this%HMcode(CAMB_Pk)
     ELSE
 
         !!BR09 putting neutrinos into the matter as well, not sure if this is correct, but at least one will get a consisent omk.
@@ -449,7 +449,7 @@
         !Mead et al. (2015; arXiv 1505.07833) value
         Delta_v=418.*(Omega_m_hm(z,cosm)**(-0.352))
         !Mead et al. (2016; arXiv 1602.02154) neutrino addition
-        IF(imead==1) Delta_v=Delta_v*(1.+0.916*cosm%f_nu)
+        IF(this%imead==1) Delta_v=Delta_v*(1.+0.916*cosm%f_nu)
     END IF
 
     END FUNCTION Delta_v
@@ -466,12 +466,12 @@
         delta_c=1.686
     ELSE IF(this%imead==1 .or. this%imead==2) THEN
         !Mead et al. (2015; arXiv 1505.07833) value
-        delta_c=1.59+0.0314*log(lut%sig8z)        
-        IF(imead==1) THEN
-           delta_c=delta_c*(1.+0.262*cosm%f_nu) !Mead et al. (2016; arXiv 1602.02154) neutrino addition
-           delta_c=delta_c*(1.+0.0123*log10(Omega_m_hm(z,cosm))) !Nakamura & Suto (1997) fitting formula for LCDM
+        delta_c=1.59+0.0314*log(lut%sig8z)
+        IF(this%imead==1) THEN
+            delta_c=delta_c*(1.+0.262*cosm%f_nu) !Mead et al. (2016; arXiv 1602.02154) neutrino addition
+            delta_c=delta_c*(1.+0.0123*log10(Omega_m_hm(z,cosm))) !Nakamura & Suto (1997) fitting formula for LCDM
         END IF
-    END IF    
+    END IF
 
     END FUNCTION delta_c
 
@@ -551,7 +551,7 @@
     ELSE IF(this%imead==1) THEN
         !Mead et al. (2016; arXiv 1602.02154) value
         fdamp=0.0095*lut%sigv100**1.37
-    ELSE IF(imead==2) THEN
+    ELSE IF(this%imead==2) THEN
         !Mead et al. (2015) value
         fdamp=0.188*lut%sig8z**4.29
     END IF
@@ -576,8 +576,8 @@
     ELSE IF(this%imead==1) THEN
         !This uses the top-hat defined neff (HALOFIT uses Gaussian filtered fields instead)
         !Mead et al. (2016; arXiv 1602.02154) value
-         alpha=3.24*1.85**lut%neff
-    ELSE IF(imead==2) THEN
+        alpha=3.24*1.85**lut%neff
+    ELSE IF(this%imead==2) THEN
         !Mead et al. (2015) value
         alpha=2.93*1.77**lut%neff
     END IF
@@ -1076,11 +1076,11 @@
     g_lcdm=growint(ainf,cos_lcdm)
 
     !This is the Dolag et al. (2004) correction for halo concentrations
-    IF(imead==0 .OR. imead==1) THEN
-       pow=1.
-    ELSE IF(imead==2) THEN
-       pow=1.5
-    END IF    
+    IF(this%imead==0 .OR. this%imead==1) THEN
+        pow=1.
+    ELSE IF(this%imead==2) THEN
+        pow=1.5
+    END IF
     lut%c=lut%c*((g_wcdm/g_lcdm)**pow)
 
     END SUBROUTINE conc_bull
@@ -3014,7 +3014,7 @@
 
     !Fills a table of values of the scale-independent growth function
     TYPE(HM_cosmology) :: cosm
-    INTEGER :: i   
+    INTEGER :: i
     REAL :: a, norm
     REAL, ALLOCATABLE :: d_tab(:), v_tab(:), a_tab(:)
     REAL :: ainit, amax, dinit, vinit
