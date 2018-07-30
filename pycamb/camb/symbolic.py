@@ -109,6 +109,7 @@ def LinearPerturbation(name, species=None, camb_var=None, camb_sub=None, frame_d
     :param description: string describing variable
     :return: sympy Function instance (function of t), with attributes set to the arguments above.
     """
+    if isinstance(camb_var, list): camb_var = tuple(camb_var)
     f = sympy.Function(name, species=species, camb_var=camb_var, camb_sub=camb_sub, perturbation_order=1,
                        frame_dependence=frame_dependence, description=description)
     return f(t)
@@ -174,7 +175,7 @@ A = LinearPerturbation('A', camb_sub=0, description='acceleration',
 z = LinearPerturbation('z', description='expansion rate perturbation',
                        #                        frame_dependence = delta_frame - 3*(dH- H**2)*delta_frame/k**2)
                        frame_dependence=K_fac * delta_frame + 3 * kappa * a ** 2 * (rho + P) * delta_frame / (
-                           2 * k ** 2))
+                               2 * k ** 2))
 
 hdot = LinearPerturbation('hdot', camb_sub=k / 3 * z, description='time derivative of scale factor perturbation',
                           frame_dependence=k * delta_frame / 3 - diff(delta_frame * H, t) / k)
@@ -246,7 +247,7 @@ Delta_de = LinearPerturbation('Delta_de', species='de', camb_var='clxde',
 csq_b = LinearPerturbation('c_sb^2', species='b', camb_var=['delta_p_b', 'clxb'], camb_sub='delta_p_b/clxb',
                            description='baryon sound speed')
 csq_b.frame_dependence = (csq_b * Delta_b - diff(p_b, t) / rho_b * delta_frame / k) / (
-    Delta_b + 3 * H * (1 + p_b / rho_b) * delta_frame / k) - csq_b
+        Delta_b + 3 * H * (1 + p_b / rho_b) * delta_frame / k) - csq_b
 
 # dark energy sound speed defined in rest frame so gauge invariant
 csqhat_de = LinearPerturbation('chat_sde^2', species='de', camb_var='cs2_lam',
@@ -292,7 +293,7 @@ q_sub = Eq(q, subs(Eq(z, subs(var_subs, z)), solve(cons3, q)))
 # Evoluation equations
 
 dz = -H * z - kappa * a ** 2 / k / 2 * (delta + 3 * delta_P) + (3 * kappa * a ** 2 * (
-    rho + P) / 2) * A / k + k * K_fac * A
+        rho + P) / 2) * A / k + k * K_fac * A
 dsigma = -H * sigma + k * (phi + A) - half * kappa * a ** 2 / k * Pi
 deta = -1 / k * (2 * K * z + kappa * a ** 2 * q + 2 * K_fac * k * H * A)
 dphi = -H * phi + half / k ** 2 * kappa * a ** 2 * (k * (rho + P) * sigma + k * q - diff(Pi, t) - H * Pi)
@@ -451,7 +452,7 @@ delta_eqs = [
        - k * q_nu + 3 * H * (-Delta_P_nu + Delta_nu * p_nu / rho_nu)),
     Eq(diff(Delta_de, t),
        -3 * (1 + w_de) * hdot - (1 + w_de) * k * v_de - 3 * H * (csqhat_de - w_de) * (
-           Delta_de + 3 * H * (1 + w_de) * v_de / k)
+               Delta_de + 3 * H * (1 + w_de) * v_de / k)
        - 3 * H * diff(w_de, t) * v_de / k)
 ]
 
@@ -477,7 +478,7 @@ tot_subs = [
 
 # Note that csqhat_de is defined in the dark energy rest-frame, so this is general-gauge result for pressure perturbation:
 Delta_P_de = (
-    csqhat_de * Delta_de + 3 * H * v_de / k * (1 + w_de) * (csqhat_de - w_de + diff(w_de, t) / 3 / H / (1 + w_de)))
+        csqhat_de * Delta_de + 3 * H * v_de / k * (1 + w_de) * (csqhat_de - w_de + diff(w_de, t) / 3 / H / (1 + w_de)))
 tot_pert_subs = [
     Eq(Pi, rho_g * pi_g + rho_r * pi_r + rho_nu * pi_nu),
     Eq(delta, rho_g * Delta_g + rho_r * Delta_r + rho_b * Delta_b + rho_c * Delta_c
