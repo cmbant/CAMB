@@ -1,4 +1,5 @@
-from .baseconfig import camblib, CAMBError, CAMB_Structure, dll_import, mock_load
+from .baseconfig import camblib, CAMBError, CAMBValueError, CAMBUnknownArgumentError, CAMB_Structure, dll_import, \
+    mock_load
 import ctypes
 from ctypes import c_float, c_int, c_double, c_bool, POINTER, byref
 from . import model, constants, initialpower, lensing
@@ -461,7 +462,7 @@ class CAMBdata(object):
             elif CMB_unit == 'K':
                 CMB_unit = self.Params.TCMB
             else:
-                raise ValueError('Unknown CMB_unit: %s' % CMB_unit)
+                raise CAMBValueError('Unknown CMB_unit: %s' % CMB_unit)
         return CMB_unit
 
     def _scale_cls(self, cls, CMB_unit=None, raw_cl=False, lens_potential=False):
@@ -552,7 +553,7 @@ class CAMBdata(object):
         """
 
         if not spectrum in ['total', 'unlensed_scalar', 'unlensed_total', 'lensed_scalar', 'tensor']:
-            raise ValueError('Can only get CMB correlation functions for known CMB spectrum')
+            raise CAMBValueError('Can only get CMB correlation functions for known CMB spectrum')
         from . import correlations
 
         cls = self.get_cmb_power_spectra(params, lmax, spectra=[spectrum])[spectrum]
@@ -1031,7 +1032,7 @@ class CAMBdata(object):
                 model.has_cl_2D_array.value = True
                 self.calc_power_spectra(params)
             elif not model.has_cl_2D_array:
-                raise ValueError('model.has_cl_2D_array must be true to have array C_L')
+                raise CAMBValueError('model.has_cl_2D_array must be true to have array C_L')
             lmax = lmax or self.Params.max_l
             arr = self.get_unlensed_scalar_array_cls(lmax)
             names = ['T', 'E', 'P'] + ["W%s" % (i + 1) for
@@ -1386,7 +1387,7 @@ def set_params(cp=None, verbose=False, **params):
 
     unused_params = set(params) - set(_used_params)
     if unused_params:
-        raise Exception("Unrecognized parameters: %s" % unused_params)
+        raise CAMBUnknownArgumentError("Unrecognized parameters: %s" % unused_params)
     return cp
 
 
@@ -1453,7 +1454,7 @@ def set_custom_scalar_sources(custom_sources, source_names=None, source_ell_scal
     if isinstance(custom_sources, dict):
         assert (not source_names)
         if source_ell_scales and not isinstance(source_ell_scales, dict):
-            raise ValueError('source_ell_scales must be a dictionary if custom_sources is')
+            raise CAMBValueError('source_ell_scales must be a dictionary if custom_sources is')
         lst = []
         source_names = []
         for name in custom_sources.keys():
@@ -1465,12 +1466,12 @@ def set_custom_scalar_sources(custom_sources, source_names=None, source_ell_scal
         if source_names: source_names = [source_names]
     custom_source_names[:] = source_names or ["C%s" % (i + 1) for i in range(len(custom_sources))]
     if len(custom_source_names) != len(custom_sources):
-        raise ValueError('Number of custom source names does not match number of sources')
+        raise CAMBValueError('Number of custom source names does not match number of sources')
     scales = np.zeros(len(custom_sources), dtype=np.int32)
     if source_ell_scales:
         if isinstance(source_ell_scales, dict):
             if set(source_ell_scales.keys()) - set(custom_source_names):
-                raise ValueError('scale dict key not in source names list')
+                raise CAMBValueError('scale dict key not in source names list')
             for i, name in enumerate(custom_source_names):
                 if name in source_ell_scales:
                     scales[i] = source_ell_scales[name]
