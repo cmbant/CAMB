@@ -33,7 +33,7 @@ if not mock_load:
 
     if not osp.isfile(CAMBL):
         if platform.system() == "Windows":
-            #allow local git loading if not installed
+            # allow local git loading if not installed
             import struct
 
             is32Bit = struct.calcsize("P") == 4
@@ -104,6 +104,14 @@ else:
 
 
 class CAMBError(Exception):
+    pass
+
+
+class CAMBValueError(ValueError):
+    pass
+
+
+class CAMBUnknownArgumentError(ValueError):
     pass
 
 
