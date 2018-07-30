@@ -191,6 +191,13 @@ class CAMBparams(CAMB_Structure):
     """
     Object storing the parameters for a CAMB calculation, including cosmological parameters and
     settings for what to calculate. When a new object is instantiated, default parameters are set automatically.
+
+    You can view the set of underlying parameters used by the Fortran code by printing the CAMBparams instance.
+
+    To add a new parameter, add it to the CAMBparams type in modules.f90, then  edit the _fields_ list in the CAMBparams
+    class in model.py to add the new parameter in the corresponding location of the member list. After rebuilding the
+    python version you can then access the parameter by using params.new_parameter where params is a CAMBparams instance.
+    You could also modify the wrapper functions to set the field value less directly.
     """
 
     def __init__(self):
@@ -257,6 +264,7 @@ class CAMBparams(CAMB_Structure):
     def copy(self):
         """
         Make independent copy.
+
          :return: copy of self
         """
         return copy.deepcopy(self)
