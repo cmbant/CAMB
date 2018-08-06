@@ -699,7 +699,7 @@ def get_default_compiler():
     global _default_compiler, _default_flags
     if _default_compiler: return _default_compiler
     from ctypes import c_int
-    from camb import camblib
+    from .baseconfig import camblib
     try:
         c_int.in_dll(camblib, "modelparams_mp_threadnum_")
         import platform
