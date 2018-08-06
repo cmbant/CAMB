@@ -691,12 +691,28 @@ def camb_fortran(expr, name='camb_function', frame='CDM', expand=False):
 _func_cache = {}
 _source_file_count = 0
 
+_default_compiler = None
+_default_flags = None
 
-def compile_source_function_code(code_body, file_path='',
-                                 compiler='gfortran',
-                                 # fflags="-shared -fPIC -g -fbounds-check -fbacktrace -ffpe-trap=invalid,overflow,zero",
-                                 fflags="-shared -fPIC -O1 -ffast-math -fmax-errors=4",
-                                 cache=True):
+
+def get_default_compiler():
+    global _default_compiler, _default_flags
+    if _default_compiler: return _default_compiler
+    from ctypes import c_int
+    from camb import camblib
+    try:
+        c_int.in_dll(camblib, "modelparams_mp_threadnum_")
+        _default_compiler = 'ifort'
+        _default_flags = "-shared -fpic -O1 -W0 -WB"
+    except:
+        _default_compiler = 'gfortran'
+        _default_flags = "-shared -fPIC -O1 -ffast-math -fmax-errors=4"
+    print('compiler:', _default_compiler)
+    # _default_flags="-shared -fPIC -g -fbounds-check -fbacktrace -ffpe-trap=invalid,overflow,zero",
+    return _default_compiler
+
+
+def compile_source_function_code(code_body, file_path='', compiler=None, fflags=None, cache=True):
     """
     Compile fortran code into function pointer in compiled shared library.
     The function is not intended to be called from python, but for passing back to compiled CAMB.
@@ -769,6 +785,8 @@ def compile_source_function_code(code_body, file_path='',
         with open(source_file, 'w') as f:
             f.write(template % code_body)
 
+        compiler = compiler or get_default_compiler()
+        fflags = fflags or _default_flags
         command = " ".join([compiler, fflags, source_file, "-o", dll_name])
         try:
             subprocess.check_output(command, stderr=subprocess.STDOUT, shell=True, cwd=workdir)
