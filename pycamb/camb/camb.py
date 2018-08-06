@@ -20,6 +20,7 @@ if six.PY3:
 else:
     from inspect import getargspec
 
+_debug_params = False
 
 class _CAMBdata(CAMB_Structure):
     # contains complex types with pointers, so just set up dummy
@@ -1254,6 +1255,7 @@ def get_results(params):
     :return: :class:`CAMBdata` instance
     """
     res = CAMBdata()
+    if _debug_params: print(params)
     res.calc_power_spectra(params)
     return res
 

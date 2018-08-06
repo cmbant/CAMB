@@ -78,7 +78,7 @@ class BBN_table_interpolator(BBNPredictor):
         """
 
         if os.sep not in interpolation_table and '/' not in interpolation_table:
-            interpolation_table = os.path.join(os.path.dirname(__file__), interpolation_table)
+            interpolation_table = os.path.normpath(os.path.join(os.path.dirname(__file__), interpolation_table))
         self.interpolation_table = interpolation_table
 
         comment = None
