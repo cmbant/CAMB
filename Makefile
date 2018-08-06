@@ -18,11 +18,16 @@ endif
 ifeq "$(ifortErr)" "0"
 
 #Intel compiler
-# For OSX replace shared by dynamiclib
 F90C     = ifort
 FFLAGS = -W0 -WB -fpp
-SFFLAGS = -shared -fpic
 DEBUGFLAGS = -g -check all -check noarg_temp_created -traceback -fpp -fpe0
+
+ifeq ($(shell uname -s),Darwin)
+SFFLAGS = -dynamiclib -fpic
+else
+SFFLAGS = -shared -fpic
+endif
+
 ifdef NONNATIVE
 FFLAGS+=-O3 -ipo -axCORE-AVX2
 else
