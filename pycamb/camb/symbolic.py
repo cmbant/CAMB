@@ -762,6 +762,9 @@ def compile_source_function_code(code_body, file_path='', compiler=None, fflags=
 
     import subprocess, tempfile, struct, platform
 
+    compiler = compiler or get_default_compiler()
+    fflags = fflags or _default_flags
+
     if struct.calcsize("P") == 4: fflags = "-m32 " + fflags
     if platform.system() == "Windows": fflags += ' -static'
 
@@ -788,8 +791,6 @@ def compile_source_function_code(code_body, file_path='', compiler=None, fflags=
         with open(source_file, 'w') as f:
             f.write(template % code_body)
 
-        compiler = compiler or get_default_compiler()
-        fflags = fflags or _default_flags
         command = " ".join([compiler, fflags, source_file, "-o", dll_name])
         try:
             subprocess.check_output(command, stderr=subprocess.STDOUT, shell=True, cwd=workdir)
