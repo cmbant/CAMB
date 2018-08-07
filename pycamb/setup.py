@@ -152,8 +152,8 @@ class SharedLibrary(build, object):
         else:
             get_forutils()
             print("Compiling source...")
-            subprocess.call("make camblib.so COMPILER=gfortran PYCAMB_OUTPUT_DIR=%s/camb/ CLUSTER_SAFE=%d" %
-                            (pycamb_path, int(self.cluster)) , shell=True)
+            subprocess.call("make camblib.so PYCAMB_OUTPUT_DIR=%s/camb/ CLUSTER_SAFE=%d" %
+                            (pycamb_path, int(self.cluster)), shell=True)
             so_file = os.path.join(pycamb_path, 'camb', 'camblib.so')
             if not os.path.isfile(so_file): sys.exit('Compilation failed')
             subprocess.call("chmod 755 %s" % so_file, shell=True)
@@ -165,9 +165,9 @@ class SharedLibrary(build, object):
 
 class SharedLibraryCluster(SharedLibrary):
     cluster = True
+
     def run(self):
         super(SharedLibraryCluster, self).run()
-
 
 
 class CustomInstall(install):
@@ -205,7 +205,7 @@ if __name__ == "__main__":
           description='Code for Anisotropies in the Microwave Background',
           long_description=get_long_description(),
           author='Antony Lewis',
-          url="http://camb.info/",
+          url="https://camb.info/",
           cmdclass={'build': SharedLibrary, 'build_cluster': SharedLibraryCluster,
                     'install': CustomInstall, 'sdist': CustomSdist},
           packages=['camb', 'camb_tests'],

@@ -22,8 +22,10 @@ ifeq ($(FORUTILSPATH),)
 $(error First install forutils from https://github.com/cmbant/forutils; or set FORUTILSPATH variable)
 endif
 
-ifeq ($(MAKECMDGOALS),camblib.so)
-COMPILER ?= gfortran
+#native optimization does not work on Mac gfortran or heterogeneous clusters
+CLUSTER_SAFE ?= 0
+ifneq ($(CLUSTER_SAFE), 0)
+NONNATIVE = 1
 endif
 
 #Will detect ifort/gfortran or edit for your compiler
@@ -36,8 +38,8 @@ endif
 ifeq "$(ifortErr)" "0"
 
 #Intel compiler
-# For OSX replace shared by dynamiclib
 F90C     = ifort
+
 ifortVer_major = $(shell ifort -v 2>&1 | cut -d " " -f 3 | cut -d. -f 1)
 ifeq ($(shell test $(ifortVer_major) -gt 15; echo $$?),0)
 COMMON_FFLAGS = -fpp -qopenmp
@@ -45,9 +47,21 @@ else
 COMMON_FFLAGS = -fpp -openmp
 endif
 COMMON_FFLAGS += -gen-dep=$$*.d
-FFLAGS = -fast -fp-model precise -W0 -WB $(COMMON_FFLAGS)
+
+FFLAGS = -fp-model precise -W0 -WB $(COMMON_FFLAGS)
 DEBUGFLAGS =  -g -check all -check noarg_temp_created -traceback -fpe0 $(COMMON_FFLAGS)
+
+ifeq ($(shell uname -s),Darwin)
+SFFLAGS = -dynamiclib -fpic
+else
 SFFLAGS = -shared -fpic
+endif
+
+ifdef NONNATIVE
+FFLAGS+=-O3 -ipo -axCORE-AVX2
+else
+FFLAGS+=-fast
+endif
 
 ## This is flag is passed to the Fortran compiler allowing it to link C++ if required (not usually):
 F90CRLINK = -cxxlib
@@ -80,15 +94,12 @@ SMODOUT = -J$(DLL_DIR)
 ifneq ($(FISHER),)
 F90CRLINK += -lblas -llapack
 endif
-#native optimization does not work on Mac or heterogeneous clusters
-CLUSTER_SAFE ?= 0
-ifneq ($(CLUSTER_SAFE), 0)
-NONNATIVE = 1
-endif
+
 ifeq ($(shell uname -s),Darwin)
 NONNATIVE = 1
 endif
 ifndef NONNATIVE
+#Note this seems to make code slightly slower in some cases, use CLUSTER_SAFE=1 to test without
 FFLAGS+=-march=native
 endif
 endif

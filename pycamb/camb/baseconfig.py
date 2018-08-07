@@ -41,7 +41,6 @@ if not mock_load:
         if not osp.isfile(CAMBL):
             sys.exit('%s does not exist.\nPlease remove any old installation and install again.' % DLLNAME)
     camblib = ctypes.LibraryLoader(ifort_gfortran_loader).LoadLibrary(CAMBL)
-# camblib = ctypes.cdll.LoadLibrary(CAMBL)
 else:
     # This is just so readthedocs build will work without CAMB binary library
     try:
