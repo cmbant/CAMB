@@ -361,9 +361,7 @@ class CAMBparams(CAMB_Structure):
 
         :return: copy of self
         """
-        cp = copy.deepcopy(self)
-        cp._DarkEnergy[:] = np.zeros(len(cp._DarkEnergy), dtype=c_byte)  ##null allocatable
-        cp._NonLinearModel[:] = np.zeros(len(cp._NonLinearModel), dtype=c_byte)
+        cp = CAMBparams()
         CAMBparams_SetEqual(byref(cp), byref(self))
         cp._set_allocatables()
         return cp
