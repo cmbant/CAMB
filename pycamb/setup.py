@@ -114,7 +114,7 @@ class SharedLibrary(build, object):
         if not is_windows:
             try:
                 ifort = str(subprocess.check_output("ifort -v", shell=True))
-            except OSError:
+            except Exception:
                 pass
         if not ifort:
             ok, gfortran_version = check_gfortran(msg=not is_windows)
