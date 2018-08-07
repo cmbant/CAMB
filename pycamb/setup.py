@@ -110,7 +110,14 @@ class SharedLibrary(build, object):
         else:
             pycamb_path = 'pycamb'
         os.chdir(CAMBDIR)
-        ok, gfortran_version = check_gfortran(msg=not is_windows)
+        ifort = None
+        if not is_windows:
+            try:
+                ifort = str(subprocess.check_output("ifort -v", shell=True))
+            except OSError:
+                pass
+        if not ifort:
+            ok, gfortran_version = check_gfortran(msg=not is_windows)
         if is_windows:
             COMPILER = "gfortran"
             # note that TDM-GCC MingW 5.1 does not work due go general fortran bug.
