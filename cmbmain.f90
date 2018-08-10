@@ -227,12 +227,12 @@
 
     if (CP%WantTransfer .and. CP%WantCls .and. WantLateTime &
         .and. (CP%NonLinear==NonLinear_Lens .or. CP%NonLinear==NonLinear_both) .and. global_error_flag==0) then
-    call MakeNonlinearSources
-    if (DebugMsgs .and. Feedbacklevel > 0) then
-        timeprev=actual
-        actual=GetTestTime()
-        write(*,*) actual-timeprev,' Timing for NonLinear sources'
-    end if
+        call MakeNonlinearSources
+        if (DebugMsgs .and. Feedbacklevel > 0) then
+            timeprev=actual
+            actual=GetTestTime()
+            write(*,*) actual-timeprev,' Timing for NonLinear sources'
+        end if
     end if
 
     if (CP%WantTransfer .and. .not. CP%OnlyTransfers .and. global_error_flag==0) &
@@ -367,31 +367,31 @@
                         do ell = max(CTrans%limber_l_min(s_ix), CTrans%limber_l_min(s_ix2)), Ctrans%ls%l0
                             associate (LimbRec => CTrans%Limber_windows(s_ix,ell), &
                                 LimbRec2 => CTrans%Limber_windows(s_ix2,ell))
-                            Cl = 0
+                                Cl = 0
 
-                            do n = max(LimbRec%n1,LimbRec2%n1), min(LimbRec%n2,LimbRec2%n2)
-                                !Actually integral over chi; source has sqrt( chi dchi)
-                                !Same n corresponds to same k since ell fixed here
-                                Cl = Cl + LimbRec%Source(n)*LimbRec2%Source(n) * ScalarPower(LimbRec%k(n) ,pix)
-                            end do
+                                do n = max(LimbRec%n1,LimbRec2%n1), min(LimbRec%n2,LimbRec2%n2)
+                                    !Actually integral over chi; source has sqrt( chi dchi)
+                                    !Same n corresponds to same k since ell fixed here
+                                    Cl = Cl + LimbRec%Source(n)*LimbRec2%Source(n) * ScalarPower(LimbRec%k(n) ,pix)
+                                end do
 
-                            reall = real(CTrans%ls%l(ell),dl)
-                            fac = (2 * const_pi ** 2)/const_fourpi/(reall+0.5_dl)**3 !fourpi because multipled by fourpi later
-                            if (j >= 1) then
-                                if (Redshift_w(j)%kind == window_lensing) &
-                                    fac = fac / 2 * reall * (reall + 1)
-                            end if
-                            if (i >= 1) then
-                                if (Redshift_w(i)%kind == window_lensing) &
-                                    fac = fac / 2 * reall * (reall + 1)
-                            end if
-                            Cl = Cl*fac
+                                reall = real(CTrans%ls%l(ell),dl)
+                                fac = (2 * const_pi ** 2)/const_fourpi/(reall+0.5_dl)**3 !fourpi because multipled by fourpi later
+                                if (j >= 1) then
+                                    if (Redshift_w(j)%kind == window_lensing) &
+                                        fac = fac / 2 * reall * (reall + 1)
+                                end if
+                                if (i >= 1) then
+                                    if (Redshift_w(i)%kind == window_lensing) &
+                                        fac = fac / 2 * reall * (reall + 1)
+                                end if
+                                Cl = Cl*fac
 
-                            if(j==0 .and. i==0) iCl_scalar(ell,C_Phi,pix) = Cl
-                            if (has_cl_2D_array) then
-                                iCl_Array(ell,s_ix,s_ix2,pix) = Cl
-                                if (i/=j) iCl_Array(ell,s_ix2,s_ix,pix) = Cl
-                            end if
+                                if(j==0 .and. i==0) iCl_scalar(ell,C_Phi,pix) = Cl
+                                if (has_cl_2D_array) then
+                                    iCl_Array(ell,s_ix,s_ix2,pix) = Cl
+                                    if (i/=j) iCl_Array(ell,s_ix2,s_ix,pix) = Cl
+                                end if
                             end associate
                         end do
                         !$OMP END PARALLEL DO
@@ -467,7 +467,7 @@
                 n1 = TimeSteps%IndexOf(W%tau_start)
                 if (W%kind == window_lensing .or. W%kind == window_counts &
                     .and. DoRedshiftLensing) then
-                n2 = TimeSteps%npoints - 1
+                    n2 = TimeSteps%npoints - 1
                 else
                     n2 = min(TimeSteps%npoints - 1, TimeSteps%IndexOf(W%tau_end))
                 end if
@@ -1023,7 +1023,7 @@
 
         if (.not. DebugEvolution .and. (EV%q*tauend > max_etak_scalar .and. tauend > taurend) &
             .and. .not. WantLateTime .and. (.not.CP%WantTransfer.or.tau > tautf(CP%Transfer%num_redshifts))) then
-        Src(EV%q_ix,1:SourceNum,j)=0
+            Src(EV%q_ix,1:SourceNum,j)=0
         else
             !Integrate over time, calulate end point derivs and calc output
             call GaugeInterface_EvolveScal(EV,tau,y,tauend,tol1,ind,c,w)
@@ -1212,39 +1212,39 @@
     !$OMP PARALLEL DO DEFAULT(SHARED), SCHEDULE(STATIC), &
     !$OMP & PRIVATE(i, scaling, ddScaling, tf_lo, tf_hi, tau, ho, a0, b0, ascale)
     do ik=1, Evolve_q%npoints
-    if (Do21cm) then
-        Src(ik, 4:SourceNum, :) = Src(ik, 4:SourceNum, :) * &
-            CAMB_Pk%nonlin_ratio(ik,1)
-    elseif (Evolve_q%points(ik)/(CP%H0/100) >  CP%NonLinearModel%Min_kh_nonlinear) then
-        !Interpolate non-linear scaling in conformal time
-        !Do not use an associate for scaling. It does not work.
-        scaling = CAMB_Pk%nonlin_ratio(ik,1:CP%Transfer%num_redshifts)
-        if (all(abs(scaling-1) < 5e-4)) cycle
-        call spline(tautf(1), scaling(1), CP%Transfer%num_redshifts,&
-            spl_large, spl_large, ddScaling(1))
+        if (Do21cm) then
+            Src(ik, 4:SourceNum, :) = Src(ik, 4:SourceNum, :) * &
+                CAMB_Pk%nonlin_ratio(ik,1)
+        elseif (Evolve_q%points(ik)/(CP%H0/100) >  CP%NonLinearModel%Min_kh_nonlinear) then
+            !Interpolate non-linear scaling in conformal time
+            !Do not use an associate for scaling. It does not work.
+            scaling = CAMB_Pk%nonlin_ratio(ik,1:CP%Transfer%num_redshifts)
+            if (all(abs(scaling-1) < 5e-4)) cycle
+            call spline(tautf(1), scaling(1), CP%Transfer%num_redshifts,&
+                spl_large, spl_large, ddScaling(1))
 
-        tf_lo=1
-        tf_hi=tf_lo+1
+            tf_lo=1
+            tf_hi=tf_lo+1
 
-        do i= first_step, TimeSteps%npoints-1
-            tau = TimeSteps%points(i)
+            do i= first_step, TimeSteps%npoints-1
+                tau = TimeSteps%points(i)
 
-            do while (tau > tautf(tf_hi))
-                tf_lo = tf_lo + 1
-                tf_hi = tf_hi + 1
-            end do
+                do while (tau > tautf(tf_hi))
+                    tf_lo = tf_lo + 1
+                    tf_hi = tf_hi + 1
+                end do
 
-            ho=tautf(tf_hi)-tautf(tf_lo)
-            a0=(tautf(tf_hi)-tau)/ho
-            b0=1-a0
+                ho=tautf(tf_hi)-tautf(tf_lo)
+                a0=(tautf(tf_hi)-tau)/ho
+                b0=1-a0
 
-            ascale = a0*scaling(tf_lo)+ b0*scaling(tf_hi)+&
-                ((a0**3-a0)* ddscaling(tf_lo) &
-                +(b0**3-b0)*ddscaling(tf_hi))*ho**2/6
+                ascale = a0*scaling(tf_lo)+ b0*scaling(tf_hi)+&
+                    ((a0**3-a0)* ddscaling(tf_lo) &
+                    +(b0**3-b0)*ddscaling(tf_hi))*ho**2/6
 
-            Src(ik,3:SourceNum,i) = Src(ik,3:SourceNum,i) * ascale
-        end  do
-    end if
+                Src(ik,3:SourceNum,i) = Src(ik,3:SourceNum,i) * ascale
+            end  do
+        end if
     end do
     !$OMP END PARALLEL DO
 
@@ -1402,10 +1402,10 @@
         if (CP%WantScalars) then
             if ((DebugEvolution .or. WantLateTime .or. IV%q*TimeSteps%points(i) < max_etak_scalar) &
                 .and. xf > 1.e-8_dl) then
-            step=i
-            IV%Source_q(i,1:SourceNum) = a0 * Src(klo,1:SourceNum,i) + &
-                b0 * Src(khi,1:SourceNum,i) + (a03*ddSrc(klo,1:SourceNum,i) + &
-                b03 * ddSrc(khi,1:SourceNum,i)) * ho2o6
+                step=i
+                IV%Source_q(i,1:SourceNum) = a0 * Src(klo,1:SourceNum,i) + &
+                    b0 * Src(khi,1:SourceNum,i) + (a03*ddSrc(klo,1:SourceNum,i) + &
+                    b03 * ddSrc(khi,1:SourceNum,i)) * ho2o6
             else
                 IV%Source_q(i,1:SourceNum) = 0
             end if
@@ -1512,7 +1512,7 @@
     integer custom_source_off, s_ix
     integer nwin
     real(dl) :: BessIntBoost
-    
+
     BessIntBoost = CP%Accuracy%AccuracyBoost*CP%Accuracy%BessIntBoost
     custom_source_off = num_redshiftwindows + num_extra_redshiftwindows + 4
 
@@ -1660,23 +1660,23 @@
             if (.not. DoInt .and. SourceNum>3) then
                 if (any(ThisCT%limber_l_min(4:SourceNum)==0 .or. &
                     ThisCT%limber_l_min(4:SourceNum) > j)) then
-                !When CMB does not need integral but other sources do
-                do n= TimeSteps%IndexOf(tau_start_redshiftwindows), &
-                    min(IV%SourceSteps, TimeSteps%IndexOf(tmax))
-                !Full Bessel integration
-                a2 = aa(n)
-                bes_ix = bes_index(n)
+                    !When CMB does not need integral but other sources do
+                    do n= TimeSteps%IndexOf(tau_start_redshiftwindows), &
+                        min(IV%SourceSteps, TimeSteps%IndexOf(tmax))
+                        !Full Bessel integration
+                        a2 = aa(n)
+                        bes_ix = bes_index(n)
 
-                J_l = a2 * ajl(bes_ix, j) + (1 - a2) * (ajl(bes_ix + 1, j) -&
-                    ((a2 + 1) * ajlpr(bes_ix, j) + (2 - a2) * &
-                    ajlpr(bes_ix + 1, j)) * fac(n)) !cubic spline
-                J_l = J_l * TimeSteps%dpoints(n)
+                        J_l = a2 * ajl(bes_ix, j) + (1 - a2) * (ajl(bes_ix + 1, j) -&
+                            ((a2 + 1) * ajlpr(bes_ix, j) + (2 - a2) * &
+                            ajlpr(bes_ix + 1, j)) * fac(n)) !cubic spline
+                        J_l = J_l * TimeSteps%dpoints(n)
 
-                sums(4) = sums(4) + IV%Source_q(n, 4) * J_l
-                do s_ix = 5, SourceNum
-                    sums(s_ix) = sums(s_ix) + IV%Source_q(n, s_ix) * J_l
-                end do
-                end do
+                        sums(4) = sums(4) + IV%Source_q(n, 4) * J_l
+                        do s_ix = 5, SourceNum
+                            sums(s_ix) = sums(s_ix) + IV%Source_q(n, s_ix) * J_l
+                        end do
+                    end do
                 end if
             end if
         end if
@@ -1699,7 +1699,7 @@
     real(dl) xf,x,chi, miny1
     real(dl) sums(SourceNum),out_arr(SourceNum), qmax_int
     real(dl) BessIntBoost
-    
+
     BessIntBoost = CP%Accuracy%AccuracyBoost*CP%Accuracy%BessIntBoost
 
     !Calculate chi where for smaller chi it is dissipative
@@ -1905,11 +1905,11 @@
 
     if (num2*IntAccuracyBoost < dchisource .and. (.not. WantLateTime .or. UseLimber(l,IV%q)) &
         .or. (nstart>IV%SourceSteps.and.nend>IV%SourceSteps)) then
-    out = 0
-    y1=0._dl !So we know to calculate starting y1,y2 if there is next range
-    y2=0._dl
-    chi=(CP%tau0-TimeSteps%points(nend))/CP%r
-    return
+        out = 0
+        y1=0._dl !So we know to calculate starting y1,y2 if there is next range
+        y2=0._dl
+        chi=(CP%tau0-TimeSteps%points(nend))/CP%r
+        return
     end if
 
     Startn=nstart
@@ -2080,7 +2080,7 @@
         out=0
         return
     end if
-    
+
     IntAccuracyBoost=CP%Accuracy%AccuracyBoost*CP%Accuracy%NonFlatIntAccuracyBoost
     minujl=MINUJL1*IntAccuracyBoost/l
     isgn=sign(1,nstart-nend)!direction of chi integration
@@ -2536,28 +2536,28 @@
         !$OMP PARALLEL DO DEFAULT(SHARED),SCHEDULE(STATIC,4) &
         !$OMP & PRIVATE(q_ix, measure, apowert, ctnorm, dbletmp)
         do j=1,CTrans%ls%l0
-        do q_ix = 1, CTrans%q%npoints
-            if (.not.(CP%closed.and. nint(CTrans%q%points(q_ix)*CP%r)<=CTrans%ls%l(j))) then
-                !cut off at nu = l+1
-                apowert = pows(q_ix)
-                measure = measures(q_ix)
+            do q_ix = 1, CTrans%q%npoints
+                if (.not.(CP%closed.and. nint(CTrans%q%points(q_ix)*CP%r)<=CTrans%ls%l(j))) then
+                    !cut off at nu = l+1
+                    apowert = pows(q_ix)
+                    measure = measures(q_ix)
 
-                iCl_tensor(j,CT_Temp:CT_B,in) = iCl_tensor(j,CT_Temp:CT_B,in) + &
-                    apowert*CTrans%Delta_p_l_k(CT_Temp:CT_B,j,q_ix)**2*measure
+                    iCl_tensor(j,CT_Temp:CT_B,in) = iCl_tensor(j,CT_Temp:CT_B,in) + &
+                        apowert*CTrans%Delta_p_l_k(CT_Temp:CT_B,j,q_ix)**2*measure
 
-                iCl_tensor(j,CT_cross, in ) = iCl_tensor(j,CT_cross, in ) &
-                    +apowert*CTrans%Delta_p_l_k(CT_Temp,j,q_ix)*CTrans%Delta_p_l_k(CT_E,j,q_ix)*measure
-            end if
+                    iCl_tensor(j,CT_cross, in ) = iCl_tensor(j,CT_cross, in ) &
+                        +apowert*CTrans%Delta_p_l_k(CT_Temp,j,q_ix)*CTrans%Delta_p_l_k(CT_E,j,q_ix)*measure
+                end if
+            end do
+
+            ctnorm=(CTrans%ls%l(j)*CTrans%ls%l(j)-1)*real((CTrans%ls%l(j)+2)*CTrans%ls%l(j),dl)
+            dbletmp=(CTrans%ls%l(j)*(CTrans%ls%l(j)+1))/OutputDenominator*const_pi/4
+            iCl_tensor(j, CT_Temp, in) = iCl_tensor(j, CT_Temp, in)*dbletmp*ctnorm
+            if (CTrans%ls%l(j)==1) dbletmp=0
+            iCl_tensor(j, CT_E:CT_B, in) = iCl_tensor(j, CT_E:CT_B, in)*dbletmp
+            iCl_tensor(j, CT_Cross, in)  = iCl_tensor(j, CT_Cross, in)*dbletmp*sqrt(ctnorm)
         end do
-
-        ctnorm=(CTrans%ls%l(j)*CTrans%ls%l(j)-1)*real((CTrans%ls%l(j)+2)*CTrans%ls%l(j),dl)
-        dbletmp=(CTrans%ls%l(j)*(CTrans%ls%l(j)+1))/OutputDenominator*const_pi/4
-        iCl_tensor(j, CT_Temp, in) = iCl_tensor(j, CT_Temp, in)*dbletmp*ctnorm
-        if (CTrans%ls%l(j)==1) dbletmp=0
-        iCl_tensor(j, CT_E:CT_B, in) = iCl_tensor(j, CT_E:CT_B, in)*dbletmp
-        iCl_tensor(j, CT_Cross, in)  = iCl_tensor(j, CT_Cross, in)*dbletmp*sqrt(ctnorm)
-    end do
-    !$OMP END PARALLEL DO
+        !$OMP END PARALLEL DO
     end do
 
     end subroutine CalcTensCls
@@ -2584,28 +2584,28 @@
         !$OMP PARALLEL DO DEFAULT(SHARED),SCHEDULE(STATIC,4), &
         !$OMP & PRIVATE(j,q_ix,measure,power,ctnorm,dbletmp,lfac)
         do j=1,CTrans%ls%l0
-        do q_ix = 1, CTrans%q%npoints
-            if (.not.(CP%closed.and. nint(CTrans%q%points(q_ix)*CP%r)<=CTrans%ls%l(j))) then
-                !cut off at nu = l+1
-                power = pows(q_ix)
-                measure = measures(q_ix)
+            do q_ix = 1, CTrans%q%npoints
+                if (.not.(CP%closed.and. nint(CTrans%q%points(q_ix)*CP%r)<=CTrans%ls%l(j))) then
+                    !cut off at nu = l+1
+                    power = pows(q_ix)
+                    measure = measures(q_ix)
 
-                iCl_vector(j,CT_Temp:CT_B,in) = iCl_vector(j,CT_Temp:CT_B,in) + &
-                    power*CTrans%Delta_p_l_k(CT_Temp:CT_B,j,q_ix)**2*measure
+                    iCl_vector(j,CT_Temp:CT_B,in) = iCl_vector(j,CT_Temp:CT_B,in) + &
+                        power*CTrans%Delta_p_l_k(CT_Temp:CT_B,j,q_ix)**2*measure
 
-                iCl_vector(j,CT_cross, in ) = iCl_vector(j,CT_cross, in ) &
-                    +power*CTrans%Delta_p_l_k(CT_Temp,j,q_ix)*CTrans%Delta_p_l_k(CT_E,j,q_ix)*measure
-            end if
+                    iCl_vector(j,CT_cross, in ) = iCl_vector(j,CT_cross, in ) &
+                        +power*CTrans%Delta_p_l_k(CT_Temp,j,q_ix)*CTrans%Delta_p_l_k(CT_E,j,q_ix)*measure
+                end if
+            end do
+
+            ctnorm=CTrans%ls%l(j)*(CTrans%ls%l(j)+1)
+            dbletmp=(CTrans%ls%l(j)*(CTrans%ls%l(j)+1))/OutputDenominator*const_pi/8
+            iCl_vector(j, CT_Temp, in)   = iCl_vector(j, CT_Temp, in)*dbletmp*ctnorm
+            lfac = (CTrans%ls%l(j) + 2)*(CTrans%ls%l(j) - 1)
+            iCl_vector(j, CT_E:CT_B, in) = iCl_vector(j, CT_E:CT_B, in)*dbletmp*lfac
+            iCl_vector(j, CT_Cross, in)  = iCl_vector(j, CT_Cross, in)*dbletmp*sqrt(lfac*ctnorm)
         end do
-
-        ctnorm=CTrans%ls%l(j)*(CTrans%ls%l(j)+1)
-        dbletmp=(CTrans%ls%l(j)*(CTrans%ls%l(j)+1))/OutputDenominator*const_pi/8
-        iCl_vector(j, CT_Temp, in)   = iCl_vector(j, CT_Temp, in)*dbletmp*ctnorm
-        lfac = (CTrans%ls%l(j) + 2)*(CTrans%ls%l(j) - 1)
-        iCl_vector(j, CT_E:CT_B, in) = iCl_vector(j, CT_E:CT_B, in)*dbletmp*lfac
-        iCl_vector(j, CT_Cross, in)  = iCl_vector(j, CT_Cross, in)*dbletmp*sqrt(lfac*ctnorm)
-    end do
-    !$OMP END PARALLEL DO
+        !$OMP END PARALLEL DO
     end do
 
     end subroutine CalcVecCls

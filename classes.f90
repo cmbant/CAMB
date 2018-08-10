@@ -60,10 +60,10 @@
     error stop 'GetNonLinRatios Not implemented'
     end subroutine TNonLinearModel_GetNonLinRatios
 
-   subroutine TNonLinearModel_GetNonLinRatios_All(this,CAMB_Pk)
+    subroutine TNonLinearModel_GetNonLinRatios_All(this,CAMB_Pk)
     class(TNonLinearModel) :: this
     type(MatterPowerData) :: CAMB_Pk
     error stop 'GetNonLinRatios_all  not supported (no non-linear velocities)'
-   end subroutine TNonLinearModel_GetNonLinRatios_All
-   
+    end subroutine TNonLinearModel_GetNonLinRatios_All
+
     end module classes

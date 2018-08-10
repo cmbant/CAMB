@@ -58,7 +58,7 @@
     deallocate(pCAMBdata)
 
     end subroutine CAMBdata_free
-    
+
     subroutine CAMBdata_setParams(data, Params)
     Type (CAMBdata), target :: data
     type(CAMBparams) :: Params
@@ -589,15 +589,15 @@
     integer, intent(in) :: n
     real(dl), intent(in) :: a(n)
     real(dl), intent(out) :: grhov_t(n), w(n)
-    real(dl) grhov 
+    real(dl) grhov
     integer i
-    
+
     call DE%Init()
     do i=1, n
         call DE%BackgroundDensityAndPressure(1._dl, a(i), grhov_t(i), w(i))
     end do
     grhov_t = grhov_t/a**2
-    
+
     end subroutine CAMBparams_DarkEnergyStressEnergy
 
     subroutine CAMBParams_Free(P)

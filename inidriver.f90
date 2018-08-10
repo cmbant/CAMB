@@ -318,8 +318,8 @@
 
     if ((P%NonLinear==NonLinear_lens .or. P%NonLinear==NonLinear_both) .and. &
         (P%DoLensing .or. num_redshiftwindows > 0)) then
-    P%WantTransfer  = .true.
-    call Transfer_SetForNonlinearLensing(P%Transfer)
+        P%WantTransfer  = .true.
+        call Transfer_SetForNonlinearLensing(P%Transfer)
     end if
 
     call Transfer_SortAndIndexRedshifts(P%Transfer)

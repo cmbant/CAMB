@@ -361,12 +361,12 @@
             do nu_i = 1, CP%Nu_mass_eigenstates
                 if (EV%nq(nu_i) /= nqmax .and. &
                     next_switch == nu_tau_notmassless(next_nu_nq(EV%nq(nu_i)),nu_i)) then
-                EVOut%nq(nu_i) = next_nu_nq(EV%nq(nu_i))
-                call SetupScalarArrayIndices(EVout)
-                call CopyScalarVariableArray(y,yout, EV, EVout)
-                EV=EVout
-                y=yout
-                exit
+                    EVOut%nq(nu_i) = next_nu_nq(EV%nq(nu_i))
+                    call SetupScalarArrayIndices(EVout)
+                    call CopyScalarVariableArray(y,yout, EV, EVout)
+                    EV=EVout
+                    y=yout
+                    exit
                 end if
             end do
         else if (next_switch == tau_switch_nu_nonrel) then
@@ -2070,8 +2070,8 @@
         pir=-2._dl/3._dl/(bigR+5)*x**2*elec
         !           + (bigR-1)/bigR*Magnetic*(1-15./14*x**2/(15+4*bigR))
         aj3r=  -2._dl/21._dl/(bigR+5)*x**3*elec !&
-            !           + 3._dl/7*x*(bigR-1)/bigR*Magnetic
-            yt(EV%r_ix+2)=pir
+        !           + 3._dl/7*x*(bigR-1)/bigR*Magnetic
+        yt(EV%r_ix+2)=pir
         yt(EV%r_ix+3)=aj3r
         !Should set up massive too, but small anyway..
     end if

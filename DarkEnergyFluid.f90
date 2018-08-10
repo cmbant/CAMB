@@ -42,7 +42,7 @@
                 error stop 'Fluid dark energy model does not allow w crossing -1'
         elseif (this%wa/=0 .and. &
             ((1+this%w_lam < -1.e-6_dl) .or. 1+this%w_lam + this%wa < -1.e-6_dl)) then
-        error stop 'Fluid dark energy model does not allow w crossing -1'
+            error stop 'Fluid dark energy model does not allow w crossing -1'
         end if
         this%num_perturb_equations = 2
     end if

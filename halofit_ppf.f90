@@ -118,8 +118,8 @@
 
     IF(this%halofit_version==halofit_mead .OR. this%halofit_version==halofit_halomodel &
         .OR.  this%halofit_version==halofit_mead2015) THEN
-    !AM - Call HMcode here
-    CALL this%HMcode(CAMB_Pk)
+        !AM - Call HMcode here
+        CALL this%HMcode(CAMB_Pk)
     ELSE
 
         !!BR09 putting neutrinos into the matter as well, not sure if this is correct, but at least one will get a consisent omk.
@@ -216,26 +216,26 @@
 
     if (this%halofit_version ==halofit_original .or. this%halofit_version ==halofit_bird &
         .or. this%halofit_version == halofit_peacock) then
-    ! halo model nonlinear fitting formula as described in
-    ! Appendix C of Smith et al. (2002)
-    !SPB11: Standard halofit underestimates the power on the smallest scales by a
-    !factor of two. Add an extra correction from the simulations in Bird, Viel,
-    !Haehnelt 2011 which partially accounts for this.
-    if (this%halofit_version ==halofit_bird) then
-        extragam = 0.3159 -0.0765*rn -0.8350*rncur
-        gam=extragam+0.86485+0.2989*rn+0.1631*rncur
-    else
-        gam=0.86485+0.2989*rn+0.1631*rncur
-    end if
-    a=1.4861+1.83693*rn+1.67618*rn*rn+0.7940*rn*rn*rn+ &
-        0.1670756*rn*rn*rn*rn-0.620695*rncur
-    a=10**a
-    b=10**(0.9463+0.9466*rn+0.3084*rn*rn-0.940*rncur)
-    c=10**(-0.2807+0.6669*rn+0.3214*rn*rn-0.0793*rncur)
-    xmu=10**(-3.54419+0.19086*rn)
-    xnu=10**(0.95897+1.2857*rn)
-    alpha=1.38848+0.3701*rn-0.1452*rn*rn
-    beta=0.8291+0.9854*rn+0.3400*rn**2+this%fnu*(-6.4868+1.4373*rn**2)
+        ! halo model nonlinear fitting formula as described in
+        ! Appendix C of Smith et al. (2002)
+        !SPB11: Standard halofit underestimates the power on the smallest scales by a
+        !factor of two. Add an extra correction from the simulations in Bird, Viel,
+        !Haehnelt 2011 which partially accounts for this.
+        if (this%halofit_version ==halofit_bird) then
+            extragam = 0.3159 -0.0765*rn -0.8350*rncur
+            gam=extragam+0.86485+0.2989*rn+0.1631*rncur
+        else
+            gam=0.86485+0.2989*rn+0.1631*rncur
+        end if
+        a=1.4861+1.83693*rn+1.67618*rn*rn+0.7940*rn*rn*rn+ &
+            0.1670756*rn*rn*rn*rn-0.620695*rncur
+        a=10**a
+        b=10**(0.9463+0.9466*rn+0.3084*rn*rn-0.940*rncur)
+        c=10**(-0.2807+0.6669*rn+0.3214*rn*rn-0.0793*rncur)
+        xmu=10**(-3.54419+0.19086*rn)
+        xnu=10**(0.95897+1.2857*rn)
+        alpha=1.38848+0.3701*rn-0.1452*rn*rn
+        beta=0.8291+0.9854*rn+0.3400*rn**2+this%fnu*(-6.4868+1.4373*rn**2)
     elseif (this%halofit_version == halofit_takahashi .or. this%halofit_version == halofit_casarini) then
         !RT12 Oct: the halofit in Smith+ 2003 predicts a smaller power
         !than latest N-body simulations at small scales.

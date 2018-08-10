@@ -1765,10 +1765,10 @@
     !$OMP PARALLEL DO DEFAULT(SHARED), SCHEDULE(STATIC), &
     !$OMP& PRIVATE(am,rhonu,pnu), SHARED(r1, p1)
     do i=1,nrhopn
-    am=am_min*exp((i-1)*dlnam)
-    call nuRhoPres(am,rhonu,pnu)
-    r1(i)=log(rhonu)
-    p1(i)=log(pnu)
+        am=am_min*exp((i-1)*dlnam)
+        call nuRhoPres(am,rhonu,pnu)
+        r1(i)=log(rhonu)
+        p1(i)=log(pnu)
     end do
     !$OMP END PARALLEL DO
 
@@ -1944,11 +1944,11 @@
     public
     integer, parameter :: Transfer_kh =1, Transfer_cdm=2,Transfer_b=3,Transfer_g=4, &
         Transfer_r=5, Transfer_nu = 6,  & !massless and massive neutrino
-    Transfer_tot=7, Transfer_nonu=8, Transfer_tot_de=9,  &
+        Transfer_tot=7, Transfer_nonu=8, Transfer_tot_de=9,  &
         ! total perturbations with and without neutrinos, with neutrinos+dark energy in the numerator
         Transfer_Weyl = 10, & ! the Weyl potential, for lensing and ISW
-    Transfer_Newt_vel_cdm=11, Transfer_Newt_vel_baryon=12,   & ! -k v_Newtonian/H
-    Transfer_vel_baryon_cdm = 13 !relative velocity of baryons and CDM
+        Transfer_Newt_vel_cdm=11, Transfer_Newt_vel_baryon=12,   & ! -k v_Newtonian/H
+        Transfer_vel_baryon_cdm = 13 !relative velocity of baryons and CDM
     !Sources
     !Alternatively for 21cm
     integer, parameter :: Transfer_monopole=4, Transfer_vnewt=5, Transfer_Tmat = 6
@@ -3461,7 +3461,7 @@
             emmu(j1)=exp(sdotmu(j1)-sdotmu(nthermo))
             if (.not. CP%Accuracy%AccurateReionization .and. &
                 actual_opt_depth==0 .and. xe(j1) < 1e-3) then
-            actual_opt_depth = -sdotmu(j1)+sdotmu(nthermo)
+                actual_opt_depth = -sdotmu(j1)+sdotmu(nthermo)
             end if
             if (CP%ACcuracy%AccurateReionization .and. CP%DerivedParameters .and. z_star==0.d0) then
                 if (sdotmu(nthermo)-sdotmu(j1) - actual_opt_depth < 1) then
@@ -3566,12 +3566,12 @@
         associate(Win => RW(RW_i))
             if (Redshift_w(RW_i)%kind == window_lensing .or. &
                 Redshift_w(RW_i)%kind == window_counts .and. DoRedshiftLensing) then
-            has_lensing_windows = .true.
-            Redshift_w(RW_i)%has_lensing_window = .true.
-            if (FeedbackLevel>0) &
-                write(*,'(I1," Int W              = ",f9.6)') RW_i, awin_lens1(RW_i)
+                has_lensing_windows = .true.
+                Redshift_w(RW_i)%has_lensing_window = .true.
+                if (FeedbackLevel>0) &
+                    write(*,'(I1," Int W              = ",f9.6)') RW_i, awin_lens1(RW_i)
 
-            Win%awin_lens=Win%awin_lens/awin_lens1(RW_i)
+                Win%awin_lens=Win%awin_lens/awin_lens1(RW_i)
             else
                 Redshift_w(RW_i)%has_lensing_window = .false.
             end if
