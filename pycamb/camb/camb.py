@@ -305,7 +305,7 @@ class CAMBdata(object):
     Not that it *only* stores transfer functions. If you want to get power spectra or background functions,
     you must have called one of the calculation functions for the parameters of interest more recently than
     any other call to these functions. You can can make multiple instances of CAMBdata and then later call
-    :func:`camb.CAMBdata.power_spectra_from_transfer` to calculate other quantities.
+    :func:`~camb.CAMBdata.power_spectra_from_transfer` to calculate other quantities.
 
     To quickly make a fully calculated CAMBdata instance for a set of parameters you can call :func:`get_results`.
 
@@ -336,7 +336,7 @@ class CAMBdata(object):
     def set_params(self, params):
         """
         Set parameters from params. Note that this does not recompute anything;
-        you will need to call :func:`~camb.CAMBdata.calc_transfers` if you change any parameters affecting the
+        you will need to call :meth:`calc_transfers` if you change any parameters affecting the
         background cosmology or the transfer function settings.
 
         :param params: a :class:`.model.CAMBparams` instance
@@ -448,7 +448,7 @@ class CAMBdata(object):
 
     def power_spectra_from_transfer(self, initial_power_params):
         """
-        Assuming :func:`~camb.CAMBdata.calc_transfers` or :func:`~camb.CAMBdata.calc_powers_spectra` have already been used, re-calculate the power spectra
+        Assuming :meth:`calc_transfers` or :meth:`calc_powers_spectra` have already been used, re-calculate the power spectra
         using a new set of initial power spectrum parameters with otherwise the same cosmology.
         This is typically much faster that re-calculating everything, as the transfer functions can be re-used.
 
@@ -499,11 +499,11 @@ class CAMBdata(object):
         return lmax
 
     def save_cmb_power_spectra(self, filename, lmax, CMB_unit='muK'):
-        """
-        Save CMB power to a plain text file. Output is lensed total L(L+1)C_L/2pi then lensing potential and cross: L TT EE BB TE PP PT PE.
+        r"""
+        Save CMB power to a plain text file. Output is lensed total :math:`\ell(\ell+1)C_\ell/2\pi` then lensing potential and cross: L TT EE BB TE PP PT PE.
         :param filename: filename to save
         :param lmax: lmax to save
-        :param CMB_unit: scale results from dimensionless. Use 'muK' for muK^2 units for CMB CL and muK units for lensing cross.
+        :param CMB_unit: scale results from dimensionless. Use 'muK' for :math:`\mu K^2` units for CMB CL and muK units for lensing cross.
         """
         cmb = self.get_total_cls(lmax, CMB_unit=CMB_unit)
         lens = self.get_lens_potential_cls(lmax, CMB_unit=CMB_unit)
@@ -514,9 +514,9 @@ class CAMBdata(object):
     def get_cmb_power_spectra(self, params=None, lmax=None,
                               spectra=['total', 'unlensed_scalar', 'unlensed_total', 'lensed_scalar', 'tensor',
                                        'lens_potential'], CMB_unit=None, raw_cl=False):
-        """
-        Get CMB power spectra, as requested by the 'spectra' argument. All power spectra are l(l+1)C_l/2pi self-owned
-        numpy arrays (0..lmax, 0..3), where 0..3 index are TT, EE, BB TT, unless raw_cl is True in which case return just C_l.
+        r"""
+        Get CMB power spectra, as requested by the 'spectra' argument. All power spectra are :math:`\ell(\ell+1)C_\ell/2\pi` self-owned
+        numpy arrays (0..lmax, 0..3), where 0..3 index are TT, EE, BB TT, unless raw_cl is True in which case return just :math:`C_\ell`.
         For the lens_potential the power spectrum returned is that of the deflection.
 
         :param params: optional :class:`.model.CAMBparams` instance with parameters to use. If None, must have
@@ -524,7 +524,7 @@ class CAMBdata(object):
         :param lmax: maximum l
         :param spectra: list of names of spectra to get
         :param CMB_unit: scale results from dimensionless. Use 'muK' for muK^2 units for CMB CL and muK units for lensing cross.
-        :param raw_cl: return C_L rather than L(L+1)C_L/2pi
+        :param raw_cl: return math:C_\ell` rather than :math:`\ell(\ell+1)C_\ell/2\pi`
         :return: dictionary of power spectrum arrays, indexed by names of requested spectra
         """
         P = {}
@@ -1088,10 +1088,10 @@ class CAMBdata(object):
             return arr
 
     def angular_diameter_distance2(self, z1, z2):
-        """
+        r"""
         Get angular diameter distance between two redshifts
 
-        [r/(1+z2)]*sin_K([chi(z_1) - chi(z_1)]/r) where r is curvature radius and chi is the comoving radial distance
+        :math:`\frac{r}{1+z_2}\text{sin}_K\left(\frac{\chi(z_1) - \chi(z_1)}{r}\right)` where r is curvature radius and :math:`\chi` is the comoving radial distance
 
         Must have called calc_background, calc_background_no_thermo or calculated transfer functions or power spectra.
 
