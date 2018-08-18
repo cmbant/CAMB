@@ -305,7 +305,7 @@ class CAMBdata(object):
     Not that it *only* stores transfer functions. If you want to get power spectra or background functions,
     you must have called one of the calculation functions for the parameters of interest more recently than
     any other call to these functions. You can can make multiple instances of CAMBdata and then later call
-    `power_spectra_from_transfer` to calculate other quantities.
+    :func:`camb.CAMBdata.power_spectra_from_transfer` to calculate other quantities.
 
     To quickly make a fully calculated CAMBdata instance for a set of parameters you can call :func:`get_results`.
 
@@ -335,7 +335,9 @@ class CAMBdata(object):
 
     def set_params(self, params):
         """
-        Set parameters from params
+        Set parameters from params. Note that this does not recompute anything;
+        you will need to call :func:`~camb.CAMBdata.calc_transfers` if you change any parameters affecting the
+        background cosmology or the transfer function settings.
 
         :param params: a :class:`.model.CAMBparams` instance
         """
@@ -446,7 +448,7 @@ class CAMBdata(object):
 
     def power_spectra_from_transfer(self, initial_power_params):
         """
-        Assuming `calc_transfers` or `calc_power_spectra` have already been used, re-calculate the power spectra
+        Assuming :func:`~camb.CAMBdata.calc_transfers` or :func:`~camb.CAMBdata.calc_powers_spectra` have already been used, re-calculate the power spectra
         using a new set of initial power spectrum parameters with otherwise the same cosmology.
         This is typically much faster that re-calculating everything, as the transfer functions can be re-used.
 
