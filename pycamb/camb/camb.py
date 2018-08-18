@@ -22,6 +22,7 @@ else:
 
 _debug_params = False
 
+
 class _CAMBdata(CAMB_Structure):
     # contains complex types with pointers, so just set up dummy
     _fields_ = []
@@ -503,7 +504,7 @@ class CAMBdata(object):
         Save CMB power to a plain text file. Output is lensed total :math:`\ell(\ell+1)C_\ell/2\pi` then lensing potential and cross: L TT EE BB TE PP PT PE.
         :param filename: filename to save
         :param lmax: lmax to save
-        :param CMB_unit: scale results from dimensionless. Use 'muK' for :math:`\mu K^2` units for CMB CL and muK units for lensing cross.
+        :param CMB_unit: scale results from dimensionless. Use 'muK' for :math:`\mu K^2` units for CMB :math:`C_\ell` and :math:`\mu K` units for lensing cross.
         """
         cmb = self.get_total_cls(lmax, CMB_unit=CMB_unit)
         lens = self.get_lens_potential_cls(lmax, CMB_unit=CMB_unit)
@@ -523,7 +524,7 @@ class CAMBdata(object):
           previously set parameters and called `calc_power_spectra` (e.g. if you got this instance using `camb.get_results`),
         :param lmax: maximum l
         :param spectra: list of names of spectra to get
-        :param CMB_unit: scale results from dimensionless. Use 'muK' for muK^2 units for CMB CL and muK units for lensing cross.
+        :param CMB_unit: scale results from dimensionless. Use 'muK' for :math:`\mu K^2` units for CMB :math:`C_\ell` and :math:`\mu K` units for lensing cross.
         :param raw_cl: return math:C_\ell` rather than :math:`\ell(\ell+1)C_\ell/2\pi`
         :return: dictionary of power spectrum arrays, indexed by names of requested spectra
         """
@@ -538,18 +539,18 @@ class CAMBdata(object):
 
     def get_cmb_correlation_functions(self, params=None, lmax=None, spectrum='lensed_scalar',
                                       xvals=None, sampling_factor=1):
-        """
+        r"""
         Get the CMB correlation functions from the power spectra.
-        By default evaluated at points cos(theta) = xvals that are roots of Legendre polynomials,
+        By default evaluated at points :math:`\cos(\theta)` = xvals that are roots of Legendre polynomials,
         for accurate back integration with :func:`.correlations.corr2cl`.
-        If xvals is explicitly given, instead calculates correlations at provided cos(theta) values.
+        If xvals is explicitly given, instead calculates correlations at provided :math:`\cos(\theta)` values.
 
         :param params: optional :class:`.model.CAMBparams` instance with parameters to use. If None, must have
-          previously set parameters and called `calc_power_spectra` (e.g. if you got this instance using `camb.get_results`),
+          previously set parameters and called :meth:`calc_power_spectra` (e.g. if you got this instance using :func:`get_results`),
         :param lmax: optional maximum L to use from the cls arrays
         :param spectrum: type of CMB power spectrum to get; default 'lensed_scalar', one of
           ['total', 'unlensed_scalar', 'unlensed_total', 'lensed_scalar', 'tensor']
-        :param xvals: optional array of cos(theta) values at which to calculate correlation function.
+        :param xvals: optional array of :math:`\cos(\theta)` values at which to calculate correlation function.
         :param sampling_factor: multiple of lmax for the Gauss-Legendre order if xvals not given (default 1)
         :return: if xvals not given: corrs, xvals, weights; if xvals specified, just corrs.
           corrs is 2D array corrs[i, ix], where ix=0,1,2,3 are T, Q+U, Q-U and cross, and i indexes xvals
@@ -901,12 +902,12 @@ class CAMBdata(object):
             return res
 
     def get_total_cls(self, lmax=None, CMB_unit=None, raw_cl=False):
-        """
+        r"""
         Get lensed-scalar + tensor CMB power spectra. Must have already calculated power spectra.
 
         :param lmax: lmax to output to
-        :param CMB_unit: scale results from dimensionless. Use 'muK' for muK^2 units for CMB CL and muK units for lensing cross.
-        :param raw_cl: return C_L rather than L(L+1)C_L/2pi
+        :param CMB_unit: scale results from dimensionless. Use 'muK' for :math:`\mu K^2` units for CMB :math:`C_\ell`
+        :param raw_cl: return :math:`C_\ell` rather than :math:`\ell(\ell+1)C_\ell/2\pi`
         :return: numpy array CL[0:lmax+1,0:4], where 0..3 indexes TT, EE, BB, TE
         """
         lmax = self._lmax_setting(lmax)
@@ -917,12 +918,12 @@ class CAMBdata(object):
         return res
 
     def get_tensor_cls(self, lmax=None, CMB_unit=None, raw_cl=False):
-        """
+        r"""
         Get tensor CMB power spectra. Must have already calculated power spectra.
 
         :param lmax: lmax to output to
-        :param CMB_unit: scale results from dimensionless. Use 'muK' for muK^2 units for CMB CL and muK units for lensing cross.
-        :param raw_cl: return C_L rather than L(L+1)C_L/2pi
+        :param CMB_unit: scale results from dimensionless. Use 'muK' for :math:`\mu K^2` units for CMB :math:`C_\ell`
+        :param raw_cl: return :math:`C_\ell` rather than :math:`\ell(\ell+1)C_\ell/2\pi`
         :return: numpy array CL[0:lmax+1,0:4], where 0..3 indexes TT, EE, BB, TE
         """
 
@@ -936,12 +937,12 @@ class CAMBdata(object):
         return res
 
     def get_unlensed_scalar_cls(self, lmax=None, CMB_unit=None, raw_cl=False):
-        """
+        r"""
         Get unlensed scalar CMB power spectra. Must have already calculated power spectra.
 
         :param lmax: lmax to output to
-        :param CMB_unit: scale results from dimensionless. Use 'muK' for muK^2 units for CMB CL and muK units for lensing cross.
-        :param raw_cl: return C_L rather than L(L+1)C_L/2pi
+        :param CMB_unit: scale results from dimensionless. Use 'muK' for :math:`\mu K^2` units for CMB :math:`C_\ell`
+        :param raw_cl: return :math:`C_\ell` rather than :math:`\ell(\ell+1)C_\ell/2\pi`
         :return: numpy array CL[0:lmax+1,0:4], where 0..3 indexes TT, EE, BB, TE. CL[:,2] will be zero.
         """
         lmax = self._lmax_setting(lmax, unlensed=True)
@@ -952,12 +953,12 @@ class CAMBdata(object):
         return res
 
     def get_unlensed_total_cls(self, lmax=None, CMB_unit=None, raw_cl=False):
-        """
+        r"""
         Get unlensed CMB power spectra, including tensors if relevant. Must have already calculated power spectra.
 
         :param lmax: lmax to output to
-        :param CMB_unit: scale results from dimensionless. Use 'muK' for muK^2 units for CMB CL and muK units for lensing cross.
-        :param raw_cl: return C_L rather than L(L+1)C_L/2pi
+        :param CMB_unit: scale results from dimensionless. Use 'muK' for :math:`\mu K^2` units for CMB :math:`C_\ell`
+        :param raw_cl: return :math:`C_\ell` rather than :math:`\ell(\ell+1)C_\ell/2\pi`
         :return: numpy array CL[0:lmax+1,0:4], where 0..3 indexes TT, EE, BB, TE.
         """
         lmax = self._lmax_setting(lmax, unlensed=True)
@@ -965,12 +966,12 @@ class CAMBdata(object):
                self.get_tensor_cls(lmax, CMB_unit, raw_cl)
 
     def get_lensed_scalar_cls(self, lmax=None, CMB_unit=None, raw_cl=False):
-        """
+        r"""
         Get lensed scalar CMB power spectra. Must have already calculated power spectra.
 
         :param lmax: lmax to output to
-        :param CMB_unit: scale results from dimensionless. Use 'muK' for muK^2 units for CMB CL and muK units for lensing cross.
-        :param raw_cl: return C_L rather than L(L+1)C_L/2pi
+        :param CMB_unit: scale results from dimensionless. Use 'muK' for :math:`\mu K^2` units for CMB :math:`C_\ell`
+        :param raw_cl: return :math:`C_\ell` rather than :math:`\ell(\ell+1)C_\ell/2\pi`
         :return: numpy array CL[0:lmax+1,0:4], where 0..3 indexes TT, EE, BB, TE.
         """
 
@@ -982,13 +983,14 @@ class CAMBdata(object):
         return res
 
     def get_lens_potential_cls(self, lmax=None, CMB_unit=None, raw_cl=False):
-        """
+        r"""
         Get lensing deflection angle potential power spectrum, and cross-correlation with T and E. Must have already calculated power spectra.
-        Power spectra are [l(l+1)]^2C_l^{phi phi}/2/pi and corresponding deflection cross-correlations.
+        Power spectra are :math:`[L(L+1)]^2C_L^{\phi\phi}/2\pi` and corresponding deflection cross-correlations.
 
         :param lmax: lmax to output to
-        :param CMB_unit: scale results from dimensionless. Use 'muK' for muK^2 units for CMB CL and muK units for lensing cross.
-        :param raw_cl: return lensing potential C_L rather than [L(L+1)]^2C_L/2pi
+
+        :param CMB_unit: scale results from dimensionless. Use 'muK' for :math:`\mu K` units for lensing cross.
+        :param raw_cl: return lensing potential :math:`C_L` rather than :math:`[L(L+1)]^2C_L/2\pi`
         :return: numpy array CL[0:lmax+1,0:3], where 0..2 indexes PP, PT, PE.
         """
 
@@ -1241,8 +1243,8 @@ class CAMBdata(object):
             return eta
 
     def cosmomc_theta(self):
-        """
-        Get theta_MC, an approximation of the radio of the sound horizon to the angular diameter distance at recombination.
+        r"""
+        Get :math:`\theta_{\rm MC}`, an approximation of the radio of the sound horizon to the angular diameter distance at recombination.
 
         :return: theta_MC
         """
@@ -1326,17 +1328,17 @@ def set_params(cp=None, verbose=False, **params):
     Set all CAMB parameters at once, including parameters which are part of the
     CAMBparams structure, as well as global parameters.
 
-    E.g.
+    E.g.::
 
-    cp = camb.set_params(ns=1, omch2=0.1, ALens=1.2, lmax=2000)
+      cp = camb.set_params(ns=1, omch2=0.1, ALens=1.2, lmax=2000)
 
-    This is equivalent to:
+    This is equivalent to::
 
-    cp = model.CAMBparams()
-    cp.set_cosmology(omch2=0.1)
-    cp.set_for_lmax(lmax=2000)
-    cp.InitPower.set_params(ns=1)
-    lensing.ALens.value = 1.2
+      cp = model.CAMBparams()
+      cp.set_cosmology(omch2=0.1)
+      cp.set_for_lmax(lmax=2000)
+      cp.InitPower.set_params(ns=1)
+      lensing.ALens.value = 1.2
 
 
     :param **params: the values of the parameters
@@ -1402,7 +1404,7 @@ def get_matter_power_interpolator(params, zmin=0, zmax=10, nz_step=100, zs=None,
     Return a 2D spline interpolation object to evaluate matter power spectrum as function of z and k/h
     e.g::
       PK = get_matter_power_evaluator(params);
-      print 'Power spectrum at z=0.5, k/h=0.1 is %s (Mpc/h)^3 '%(PK.P(0.5, 0.1))
+      print('Power spectrum at z=0.5, k/h=0.1 is %s (Mpc/h)^3 '%(PK.P(0.5, 0.1)))
 
     :param params: :class:`.model.CAMBparams` instance
     :param zmin: minimum z (use 0 or smaller than you want for good interpolation)
@@ -1441,13 +1443,13 @@ _current_source_func = None
 
 def set_custom_scalar_sources(custom_sources, source_names=None, source_ell_scales=None,
                               frame='CDM', code_path=None):
-    """
+    r"""
     Set custom sources for angular power spectrum using camb.symbolic sympy expressions.
 
     :param custom_sources: list of sympy expressions for the angular power spectrum sources
     :param source_names: optional list of string naes for the sources
     :param source_ell_scales: list or dictionary of scalings for each source name, where for integer entry n, the source for
-     multipole ell is scalled by sqrt((ell+n)!/(ell-n)!), i.e. n=2 for a new polarization-like source.
+     multipole :math:`\ell` is scalled by :math:`\sqrt{(\ell+n)!/(\ell-n)!}`, i.e. :math:`n=2` for a new polarization-like source.
     :param frame: if the source is not gauge invariant, frame in which to interpret result
     :param code_path: optional path for output of source code for CAMB f90 source function
     """
