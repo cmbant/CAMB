@@ -731,7 +731,7 @@ class CAMBdata(object):
     def get_linear_matter_power_spectrum(self, var1=None, var2=None,
                                          hubble_units=True, have_power_spectra=False, params=None, nonlinear=False):
         """
-        Calculates P_{xy}(k/h), where x, y are one of model.Transfer_cdm, model.Transfer_xx etc.
+        Calculates :math:`P_{xy}(k/h)`, where x, y are one of model.Transfer_cdm, model.Transfer_xx etc.
         The output k values are not regularly spaced, and not interpolated.
 
         :param var1: variable i (index, or name of variable; default delta_tot)
@@ -788,10 +788,10 @@ class CAMBdata(object):
         return mtrans.sigma_8[:, 0]
 
     def get_fsigma8(self):
-        """
-        Get f*sigma_8 growth values (must previously have calculated power spectra).
-        For general models f*sigma_8 is defined as in the Planck 2015 parameter paper in terms of
-        the velocity-density correlation: sigma^2_{vd}/sigma_{dd} for 8 h^{-1} Mpc spheres.
+        r"""
+        Get :math:`f\sigma_8` growth values (must previously have calculated power spectra).
+        For general models :math:`f\sigma_8` is defined as in the Planck 2015 parameter paper in terms of
+        the velocity-density correlation: :math:`\sigma^2_{vd}/\sigma_{dd}` for :math:`8 h^{-1} {\rm Mpc}` spheres.
 
         :return: array of f*sigma_8 values, in order of increasing time (decreasing redshift)
         """
@@ -1023,10 +1023,10 @@ class CAMBdata(object):
         Get all unlensed auto and cross power spectra, including any custom source functions set using :func:`set_custom_scalar_sources`.
 
         :param params: optional :class:`.model.CAMBparams` instance with parameters to use. If None, must have
-          previously set parameters and called `calc_power_spectra` (e.g. if you got this instance using `camb.get_results`),
-        :param lmax: maximum l
-        :param CMB_unit: scale results from dimensionless. Use 'muK' for muK^2 units for CMB CL and muK units for lensing cross.
-        :param raw_cl: return C_L rather than L(L+1)C_L/2pi
+          previously set parameters and called :meth:`calc_power_spectra` (e.g. if you got this instance using :func:`get_results`),
+        :param lmax: maximum :math:`\ell`
+        :param CMB_unit: scale results from dimensionless. Use 'muK' for :math:`\mu K^2` units for CMB :math:`C_\ell` and :math:`\mu K` units for lensing cross.
+        :param raw_cl: return math:C_\ell` rather than :math:`\ell(\ell+1)C_\ell/2\pi`
         :return: dictionary of power spectrum arrays, index as TxT, TxE, W1xW2, custom_name_1xT... etc.
         """
 
@@ -1073,7 +1073,7 @@ class CAMBdata(object):
         """
         Get (non-comoving) angular diameter distance to redshift z.
 
-        Must have called calc_background, calc_background_no_thermo or calculated transfer functions or power spectra.
+        Must have called :meth:`calc_background`, :meth:`calc_background_no_thermo` or calculated transfer functions or power spectra.
 
         :param z: redshift or array of redshifts
         :return: angular diameter distances, matching rank of z
@@ -1092,10 +1092,10 @@ class CAMBdata(object):
     def angular_diameter_distance2(self, z1, z2):
         r"""
         Get angular diameter distance between two redshifts
+        :math:`\frac{r}{1+z_2}\text{sin}_K\left(\frac{\chi(z_2) - \chi(z_1)}{r}\right)`
+        where :math:`r` is curvature radius and :math:`\chi` is the comoving radial distance.
 
-        :math:`\frac{r}{1+z_2}\text{sin}_K\left(\frac{\chi(z_1) - \chi(z_1)}{r}\right)` where r is curvature radius and :math:`\chi` is the comoving radial distance
-
-        Must have called calc_background, calc_background_no_thermo or calculated transfer functions or power spectra.
+        Must have called :meth:`calc_background`, :meth:`calc_background_no_thermo` or calculated transfer functions or power spectra.
 
         :param z1: redshift 1
         :param z2: redshift 2
@@ -1109,7 +1109,7 @@ class CAMBdata(object):
         """
         Get comoving radial distance from us to redshift z in Mpc. This is efficient for arrays.
 
-        Must have called calc_background, calc_background_no_thermo or calculated transfer functions or power spectra.
+        Must have called :meth:`calc_background`, :meth:`calc_background_no_thermo` or calculated transfer functions or power spectra.
 
         :param z: redshift
         :return: comoving radial distance (Mpc)
