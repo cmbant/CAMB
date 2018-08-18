@@ -196,7 +196,7 @@ CAMB_BackgroundEvolution.argtypes = [int_arg, numpy_1d, numpy_2d]
 
 
 class MatterTransferData(object):
-    """
+    r"""
     MatterTransferData is the base class for storing matter power transfer function data for various q values.
     In a flat universe q=k, in a closed universe q is quantised.
 
@@ -204,7 +204,7 @@ class MatterTransferData(object):
 
     :ivar nq:  number of q modes calculated
     :ivar q: array of q values calculated
-    :ivar sigma_8: array of sigma8 values for each redshift for each power spectrum
+    :ivar sigma_8: array of :math:`\sigma_8` values for each redshift for each power spectrum
     :ivar sigma2_vdelta_8: array of v-delta8 correlation, so sigma2_vdelta_8/sigma_8 can define growth
     :ivar transfer_data: numpy array T[entry, q_index, z_index] storing transfer functions for each redshift and q; entry+1 can be
 
@@ -525,7 +525,7 @@ class CAMBdata(object):
         :param lmax: maximum l
         :param spectra: list of names of spectra to get
         :param CMB_unit: scale results from dimensionless. Use 'muK' for :math:`\mu K^2` units for CMB :math:`C_\ell` and :math:`\mu K` units for lensing cross.
-        :param raw_cl: return math:C_\ell` rather than :math:`\ell(\ell+1)C_\ell/2\pi`
+        :param raw_cl: return :math:`C_\ell` rather than :math:`\ell(\ell+1)C_\ell/2\pi`
         :return: dictionary of power spectrum arrays, indexed by names of requested spectra
         """
         P = {}
@@ -765,7 +765,7 @@ class CAMBdata(object):
 
     def get_nonlinear_matter_power_spectrum(self, **kwargs):
         """
-        Calculates P_{xy}(k/h), where x, y are one of model.Transfer_cdm, model.Transfer_xx etc.
+        Calculates :math:`P_{xy}(k/h)`, where x, y are one of model.Transfer_cdm, model.Transfer_xx etc.
         The output k values are not regularly spaced, and not interpolated.
 
         :param var1: variable i (index, or name of variable; default delta_tot)
@@ -802,7 +802,7 @@ class CAMBdata(object):
                                   var1=None, var2=None,
                                   have_power_spectra=False, params=None):
         """
-        Calculates P_{xy}(k/h), where x, y are one of Transfer_cdm, Transfer_xx etc defined in ModelParams.
+        Calculates :math:`P_{xy}(k/h)`, where x, y are one of Transfer_cdm, Transfer_xx etc defined in ModelParams.
         The output k values are regularly log spaced and interpolated. If NonLinear is set, the result is non-linear.
 
         :param minkh: minimum value of k/h for output grid (very low values < 1e-4 may not be calculated)
@@ -837,7 +837,7 @@ class CAMBdata(object):
 
     def get_matter_power_interpolator(self, nonlinear=True, var1=None, var2=None, hubble_units=True, k_hunit=True,
                                       return_z_k=False, log_interp=True, extrap_kmax=None):
-        """
+        r"""
         Assuming transfers have been calculated, return a 2D spline interpolation object to evaluate matter
         power spectrum as function of z and k/h (or k)
         e.g::
@@ -847,8 +847,8 @@ class CAMBdata(object):
         :param nonlinear: include non-linear correction from halo model
         :param var1: variable i (index, or name of variable; default delta_tot)
         :param var2: variable j (index, or name of variable; default delta_tot)
-        :param hubble_units: if true, output power spectrum in (Mpc/h)^{3} units, otherwise Mpc^{3}
-        :param k_hunit: if true, matter power is a function of k/h, if false, just k (both Mpc^{-1} units)
+        :param hubble_units: if true, output power spectrum in :math:`({\rm Mpc}/h)^{3}` units, otherwise :math:`{\rm Mpc}^{3}`
+        :param k_hunit: if true, matter power is a function of k/h, if false, just k (both :math:{\rm Mpc}^{-1}` units)
         :param return_z_k: if true, return interpolator, z, k where z, k are the grid used
         :param log_interp: if true, interpolate log of power spectrum (unless any values are negative in which case ignored)
         :param extrap_kmax: if set, use power law extrapolation beyond kmax to extrap_kmax (useful for tails of integrals)
@@ -1026,7 +1026,7 @@ class CAMBdata(object):
           previously set parameters and called :meth:`calc_power_spectra` (e.g. if you got this instance using :func:`get_results`),
         :param lmax: maximum :math:`\ell`
         :param CMB_unit: scale results from dimensionless. Use 'muK' for :math:`\mu K^2` units for CMB :math:`C_\ell` and :math:`\mu K` units for lensing cross.
-        :param raw_cl: return math:C_\ell` rather than :math:`\ell(\ell+1)C_\ell/2\pi`
+        :param raw_cl: return :math:C_\ell` rather than :math:`\ell(\ell+1)C_\ell/2\pi`
         :return: dictionary of power spectrum arrays, index as TxT, TxE, W1xW2, custom_name_1xT... etc.
         """
 
@@ -1158,10 +1158,10 @@ class CAMBdata(object):
         return self.angular_diameter_distance(z) * (1.0 + z) ** 2
 
     def h_of_z(self, z):
-        """
-        Get Hubble rate at redshift z, in Mpc^{-1} units, scalar or array
+        r"""
+        Get Hubble rate at redshift z, in :math:`{\rm Mpc}^{-1}` units, scalar or array
 
-        Must have called calc_background, calc_background_no_thermo or calculated transfer functions or power spectra.
+        Must have called :meth:`calc_background`, :meth:`calc_background_no_thermo` or calculated transfer functions or power spectra.
 
         Use hubble_parameter instead if you want in [km/s/Mpc] units.
 
@@ -1180,7 +1180,7 @@ class CAMBdata(object):
         """
         Get Hubble rate at redshift z, in km/s/Mpc units. Scalar or array.
 
-        Must have called calc_background, calc_background_no_thermo or calculated transfer functions or power spectra.
+        Must have called :meth:`calc_background`, :meth:`calc_background_no_thermo` or calculated transfer functions or power spectra.
 
         :param z: redshift
         :return: H(z)/[km/s/Mpc]
@@ -1191,7 +1191,7 @@ class CAMBdata(object):
         """
         Get physical time between two scalar factors in Gigayears
 
-        Must have called calc_background, calc_background_no_thermo or calculated transfer functions or power spectra.
+        Must have called :meth:`calc_background`, :meth:`calc_background_no_thermo` or calculated transfer functions or power spectra.
 
         :param a1: scale factor 1
         :param a2: scale factor 2
@@ -1244,9 +1244,9 @@ class CAMBdata(object):
 
     def cosmomc_theta(self):
         r"""
-        Get :math:`\theta_{\rm MC}`, an approximation of the radio of the sound horizon to the angular diameter distance at recombination.
+        Get :math:`\theta_{\rm MC}`, an approximation of the ratio of the sound horizon to the angular diameter distance at recombination.
 
-        :return: theta_MC
+        :return: :math:`\theta_{\rm MC}`
         """
         return CosmomcTheta()
 

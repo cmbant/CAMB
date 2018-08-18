@@ -30,8 +30,7 @@ def set_halofit_version(version = 'takahashi'):
             - takahashi: `arXiv:1208.2701 <http://arxiv.org/abs/1208.2701>`_
             - mead: `arXiv:1505.07833 <http://arxiv.org/abs/1505.07833>`_
             - halomodel: basic halomodel
-            - casarini: PKequal `arXiv:0810.0190 <http://arxiv.org/abs/0810.0190>`_ ,
-               `arXiv:1601.07230 <http://arxiv.org/abs/1601.07230>`_
+            - casarini: PKequal `arXiv:0810.0190 <http://arxiv.org/abs/0810.0190>`_ ,`arXiv:1601.07230 <http://arxiv.org/abs/1601.07230>`_
 
     """
     halofit_version.value = halofit_version_names.index(version) + 1
