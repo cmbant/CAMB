@@ -10,15 +10,18 @@ halofit_takahashi = 4
 halofit_mead = 5
 halofit_halomodel = 6
 halofit_casarini = 7
+halofit_mead2015 = 8
 
 halofit_default = halofit_takahashi
 
-halofit_version_names = ['original','bird','peacock','takahashi','mead','halomodel','casarini']
+halofit_version_names = ['original', 'bird', 'peacock', 'takahashi', 'mead', 'halomodel', 'casarini', 'mead2015']
 
 halofit_version = dll_import(c_int, "nonlinear", "halofit_version")
+
+
 # halofit_version.value = halofit_default
 
-def set_halofit_version(version = 'takahashi'):
+def set_halofit_version(version='takahashi'):
     """
     Set the halofit model for non-linear corrections.
 
@@ -28,9 +31,10 @@ def set_halofit_version(version = 'takahashi'):
             - bird: `arXiv:1109.4416 <http://arxiv.org/abs/1109.4416>`_
             - peacock: `Peacock fit <http://www.roe.ac.uk/~jap/haloes/>`_
             - takahashi: `arXiv:1208.2701 <http://arxiv.org/abs/1208.2701>`_
-            - mead: `arXiv:1505.07833 <http://arxiv.org/abs/1505.07833>`_
+            - mead: HMCode `arXiv:1602.02154 <http://arxiv.org/abs/1602.02154>`_
             - halomodel: basic halomodel
-            - casarini: PKequal `arXiv:0810.0190 <http://arxiv.org/abs/0810.0190>`_ ,`arXiv:1601.07230 <http://arxiv.org/abs/1601.07230>`_
+            - casarini: PKequal `arXiv:0810.0190 <http://arxiv.org/abs/0810.0190>`_, `arXiv:1601.07230 <http://arxiv.org/abs/1601.07230>`_
+            - mead2015: original 2015 version of HMCode `arXiv:1505.07833 <http://arxiv.org/abs/1505.07833>`_
 
     """
     halofit_version.value = halofit_version_names.index(version) + 1
