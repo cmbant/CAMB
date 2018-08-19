@@ -459,7 +459,7 @@ class CAMBdata(object):
 
     def power_spectra_from_transfer(self, initial_power_params):
         """
-        Assuming :meth:`calc_transfers` or :meth:`calc_powers_spectra` have already been used, re-calculate the power spectra
+        Assuming :meth:`calc_transfers` or :meth:`calc_power_spectra` have already been used, re-calculate the power spectra
         using a new set of initial power spectrum parameters with otherwise the same cosmology.
         This is typically much faster that re-calculating everything, as the transfer functions can be re-used.
 
@@ -532,7 +532,7 @@ class CAMBdata(object):
         For the lens_potential the power spectrum returned is that of the deflection.
 
         :param params: optional :class:`.model.CAMBparams` instance with parameters to use. If None, must have
-          previously set parameters and called `calc_power_spectra` (e.g. if you got this instance using `camb.get_results`),
+          previously set parameters and called `calc_power_spectra` (e.g. if you got this instance using :func:`get_results`),
         :param lmax: maximum l
         :param spectra: list of names of spectra to get
         :param CMB_unit: scale results from dimensionless. Use 'muK' for :math:`\mu K^2` units for CMB :math:`C_\ell` and :math:`\mu K` units for lensing cross.
