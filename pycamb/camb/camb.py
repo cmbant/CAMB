@@ -352,6 +352,7 @@ class CAMBdata(object):
         """
         assert (isinstance(params, model.CAMBparams))
         CAMBdata_setparams(self._key, byref(params))
+        self.Params._set_allocatables()
 
     def get_params(self):
         """
