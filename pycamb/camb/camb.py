@@ -1038,7 +1038,7 @@ class CAMBdata(object):
           previously set parameters and called :meth:`calc_power_spectra` (e.g. if you got this instance using :func:`get_results`),
         :param lmax: maximum :math:`\ell`
         :param CMB_unit: scale results from dimensionless. Use 'muK' for :math:`\mu K^2` units for CMB :math:`C_\ell` and :math:`\mu K` units for lensing cross.
-        :param raw_cl: return :math:C_\ell` rather than :math:`\ell(\ell+1)C_\ell/2\pi`
+        :param raw_cl: return :math:`C_\ell` rather than :math:`\ell(\ell+1)C_\ell/2\pi`
         :return: dictionary of power spectrum arrays, index as TxT, TxE, W1xW2, custom_name_1xT... etc.
         """
 
@@ -1160,7 +1160,7 @@ class CAMBdata(object):
         """
         Get luminosity distance from to redshift z.
 
-        Must have called calc_background, calc_background_no_thermo or calculated transfer functions or power spectra.
+        Must have called :meth:`calc_background`, :meth:`calc_background_no_thermo` or calculated transfer functions or power spectra.
 
         :param z: redshift or array of redshifts
         :return: luminosity distance (matches rank of z)
