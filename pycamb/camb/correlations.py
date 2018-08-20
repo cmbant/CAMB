@@ -1,4 +1,4 @@
-"""
+r"""
 Functions to transform CMB angular power spectra into correlation functions (cl2corr)
 and vice versa (corr2cl), and calculate lensed power spectra from unlensed ones.
 
@@ -6,7 +6,8 @@ The lensed power spectrum functions are not intended to replace those calculated
 but may be useful for tests, e.g. using different lensing potential power spectra, partially-delensed
 lensing power spectra, etc.
 
-These functions are all pure python/scipy, and operate and return cls including L(L+1)/2pi and [L(L+1)]^2/2pi factors.
+These functions are all pure python/scipy, and operate and return cls including factors :math:`\ell(\ell+1)/2\pi` (for CMB) and
+:math:`[L(L+1)]^2/2\pi` (for lensing).
 
 A. Lewis December 2016
 """
@@ -47,17 +48,17 @@ def _cached_gauss_legendre(npoints, cache=True):
 
 
 def legendre_funcs(lmax, x, m=[0, 2], lfacs=None, lfacs2=None, lrootfacs=None):
-    """
-    Utility function to return array of Legendre and d_{mn} functions for all L up to lmax.
-    Note that d_{mn} arrays start at L_min = max(m,n), so returned arrays are different sizes
+    r"""
+    Utility function to return array of Legendre and :math:`d_{mn}` functions for all :math:`\ell` up to lmax.
+    Note that :math:`d_{mn}` arrays start at :math:`\ell_{\rm min} = \max(m,n)`, so returned arrays are different sizes
 
-    :param lmax: maximum L
-    :param x: scalar value of cos(theta) at which to evaluate
-    :param m: m values to calculate d_{m,n}, etc as relevant
-    :param lfacs: optional pre-computed L(L+1) float array
-    :param lfacs2: optional pre-computed (L+2)*(L-1) float array
+    :param lmax: maximum :math:`\ell`
+    :param x: scalar value of :math:`\cos(\theta)` at which to evaluate
+    :param m: m values to calculate :math:`d_{m,n}`, etc as relevant
+    :param lfacs: optional pre-computed :math:`\ell(\ell+1)` float array
+    :param lfacs2: optional pre-computed :math:`(\ell+2)*(\ell-1)` float array
     :param lrootfacs: optional pre-computed sqrt(lfacs*lfacs2) array
-    :return: (P,dP),(d11,dm11), (d20, d22, d2m2) as requested, where P starts at L=0, but spin functions start at L=Lmin
+    :return: :math:`(P,P'),(d_{11},d_{-1,1}), (d_{20}, d_{22}, d_{2,-2})` as requested, where P starts at :math:`\ell=0`, but spin functions start at :math:`\ell=\ell_{\rm min}`
     """
     allP, alldP = legendreP(lmax, x)
     # Polarization functions all start at L=2
@@ -103,14 +104,14 @@ def legendre_funcs(lmax, x, m=[0, 2], lfacs=None, lfacs2=None, lrootfacs=None):
 
 
 def cl2corr(cls, xvals, lmax=None):
-    """
+    r"""
     Get the correlation function from the power spectra, evaluated at points cos(theta) = xvals.
     Use roots of Legendre polynomials (np.polynomial.legendre.leggauss) for accurate back integration with corr2cl.
     Note currently does not work at xvals=1 (can easily calculate that as special case!).
 
-    :param cls: 2D array cls(L,ix), with L starting at zero and ix-0,1,2,3 in order TT, EE, BB, TE.
-        cls should include l(l+1)/2pi factors.
-    :param xvals: array of cos(theta) values at which to calculate correlation function.
+    :param cls: 2D array cls(L,ix), with L (:math:`\equiv \ell`) starting at zero and ix-0,1,2,3 in order TT, EE, BB, TE.
+        cls should include :math:`\ell(\ell+1)/2\pi` factors.
+    :param xvals: array of :math:`\cos(\theta)` values at which to calculate correlation function.
     :param lmax: optional maximum L to use from the cls arrays
     :return: 2D array of corrs[i, ix], where ix=0,1,2,3 are T, Q+U, Q-U and cross
     """
@@ -143,14 +144,14 @@ def cl2corr(cls, xvals, lmax=None):
 
 
 def gauss_legendre_correlation(cls, lmax=None, sampling_factor=1):
-    """
+    r"""
     Transform power specturm cls into correlation functions evaluated at the
     roots of the Legendre polynomials for Gauss-Legendre quadrature. Returns correlation function array,
     evaluation points and weights.
     Result can be passed to corr2cl for accurate back transform.
 
-    :param cls: 2D array cls(L,ix), with L starting at zero and ix=0,1,2,3 in order TT, EE, BB, TE.
-     Should include l*(l+1)/2pi factors.
+    :param cls: 2D array cls(L,ix), with L (:math:`\equiv \ell`) starting at zero and ix=0,1,2,3 in order TT, EE, BB, TE.
+     Should include :math:`\ell(\ell+1)/2\pi` factors.
     :param lmax: optional maximum L to use
     :param sampling_factor: uses Gauss-Legendre with degree lmax*sampling_factor+1
     :return: corrs, xvals, weights; corrs[i, ix] is 2D array where ix=0,1,2,3 are T, Q+U, Q-U and cross
@@ -162,17 +163,17 @@ def gauss_legendre_correlation(cls, lmax=None, sampling_factor=1):
 
 
 def corr2cl(corrs, xvals, weights, lmax):
-    """
+    r"""
     Transform from correlation functions to power spectra.
     Note that using cl2corr followed by corr2cl is generally very accurate (< 1e-5 relative error) if
     xvals, weights = np.polynomial.legendre.leggauss(lmax+1)
 
     :param corrs: 2D array, corrs[i, ix], where ix=0,1,2,3 are T, Q+U, Q-U and cross
-    :param xvals: values of cos(theta) at which corrs stores values
+    :param xvals: values of :math:`\cos(\theta)` at which corrs stores values
     :param weights: weights for integrating each point in xvals. Typically from np.polynomial.legendre.leggauss
-    :param lmax: maximum L to calculate CL
+    :param lmax: maximum :math:`\ell` to calculate :math:`C_\ell`
     :return: array of power spectra, cl[L, ix], where L starts at zero and ix=0,1,2,3 in order TT, EE, BB, TE.
-      They include l(l+1)/2pi factors.
+      They include :math:`\ell(\ell+1)/2\pi` factors.
     """
     # For polarization, all arrays start at 2
     ls = np.arange(2, lmax + 1, dtype=np.float64)
@@ -196,13 +197,13 @@ def corr2cl(corrs, xvals, weights, lmax):
 
 
 def lensing_correlations(clpp, xvals, lmax=None):
-    """
-    Get the sigma^2(x) and C_{gl,2}(x) functions from the lensing power spectrum
+    r"""
+    Get the :math:`\sigma^2(x)` and :math:`C_{{\rm gl},2}(x)` functions from the lensing power spectrum
 
-    :param clpp: array of [l(l+1)]^2 C_phi_phi/2/pi lensing potential power spectrum
-    :param xvals: array of cos(theta) values at which to calculate correlation function.
-    :param lmax: optional maximum L to use from the cls arrays
-    :return: sigmasq, Cg2
+    :param clpp: array of :math:`[L(L+1)]^2 C_L^{\phi\phi}/2\pi` lensing potential power spectrum (zero based)
+    :param xvals: array of :math:`\cos(\theta)` values at which to calculate correlation function.
+    :param lmax: optional maximum L to use from the clpp array
+    :return: array of :math:`\sigma^2(x)`, array of :math:`C_{{\rm gl},2}(x)`
     """
     if lmax is None: lmax = clpp.shape[0] - 1
     ls = np.arange(1, lmax + 1, dtype=np.float64)
@@ -223,10 +224,10 @@ def lensing_correlations(clpp, xvals, lmax=None):
 
 
 def lensing_R(clpp, lmax=None):
-    """
-    Get R = 1/2 <|grad phi|^2>
+    r"""
+    Get :math:`R \equiv \frac{1}{2} \langle |\nabla \phi|^2\rangle`
 
-    :param clpp: array of [l(l+1)]^2 C_phi_phi/2/pi lensing potential power spectrum
+    :param clpp: array of :math:`[L(L+1)]^2 C_L^{\phi\phi}/2\pi` lensing potential power spectrum
     :param lmax: optional maximum L to use from the cls arrays
     :return: R
     """
@@ -239,21 +240,22 @@ def lensing_R(clpp, lmax=None):
 
 def lensed_correlations(cls, clpp, xvals, weights=None, lmax=None, delta=False, theta_max=None,
                         apodize_point_width=10):
-    """
-    Get the lensed correlation function from the unlensed power spectra, evaluated at points cos(theta) = xvals.
+    r"""
+    Get the lensed correlation function from the unlensed power spectra, evaluated at points :math:`\cos(\theta)` = xvals.
     Use roots of Legendre polynomials (np.polynomial.legendre.leggauss) for accurate back integration with corr2cl.
     Note currently does not work at xvals=1 (can easily calculate that as special case!).
 
     To get the lensed cls efficiently, set weights to the integral weights for each x value, then function returns
     lensed correlations and lensed cls.
 
-    Uses the non-perturbative curved-sky results from Eqs 9.12 and 9.16-9.18 of astro-ph/0601594, to second order in C_{gl,2}
+    Uses the non-perturbative curved-sky results from Eqs 9.12 and 9.16-9.18 of
+    `astro-ph/0601594 <http://arxiv.org/abs/astro-ph/0601594>`_, to second order in :math:`C_{{\rm gl},2}`
 
-    :param cls: 2D array of unlensed cls(L,ix), with L starting at zero and ix=0,1,2,3 in order TT, EE, BB, TE.
-        cls should include l(l+1)/2pi factors.
-    :param clpp: array of [l(l+1)]^2 C_phi_phi/2/pi lensing potential power spectrum
-    :param xvals: array of cos(theta) values at which to calculate correlation function.
-    :param weights: if given also return lensed Cls, otherwise just lensed correlations
+    :param cls: 2D array of unlensed cls(L,ix), with L (:math:`\equiv\ell`) starting at zero and ix=0,1,2,3 in order TT, EE, BB, TE.
+        cls should include :math:`\ell(\ell+1)/2\pi` factors.
+    :param clpp: array of :math:`[L(L+1)]^2 C_L^{\phi\phi}/2\pi` lensing potential power spectrum (zero based)
+    :param xvals: array of :math:`\cos(\theta)` values at which to calculate correlation function.
+    :param weights: if given also return lensed :math:`C_\ell`, otherwise just lensed correlations
     :param lmax: optional maximum L to use from the cls arrays
     :param delta: if true, calculate the difference between lensed and unlensed (default False)
     :param theta_max: maximum angle (in radians) to keep in the correlation functions
@@ -366,9 +368,10 @@ def lensed_correlations(cls, clpp, xvals, weights=None, lmax=None, delta=False, 
 
 def lensed_cls(cls, clpp, lmax=None, lmax_lensed=None, sampling_factor=1.4, delta_cls=False,
                theta_max=np.pi / 32, apodize_point_width=10, leggaus=True, cache=True):
-    """
+    r"""
     Get the lensed power spectra from the unlensed power spectra and the lensing potential power.
-    Uses the non-perturbative curved-sky results from Eqs 9.12 and 9.16-9.18 of astro-ph/0601594, to second order in C_{gl,2}.
+    Uses the non-perturbative curved-sky results from Eqs 9.12 and 9.16-9.18 of
+    `astro-ph/0601594 <http://arxiv.org/abs/astro-ph/0601594>`_, to second order in :math:`C_{{\rm gl},2}`.
 
     Correlations are calculated for Gauss-Legendre integration if leggaus=True; this slows it by several seconds,
     but will be must faster on subsequent calls with the same lmax*sampling_factor.
@@ -376,14 +379,14 @@ def lensed_cls(cls, clpp, lmax=None, lmax_lensed=None, sampling_factor=1.4, delt
 
     For a reference implementation with the full integral range and no apodization set theta_max=None.
 
-    Note that this function does not pad high L with a smooth fit (like CAMB's main functions); for accurate results
+    Note that this function does not pad high :math:`\ell` with a smooth fit (like CAMB's main functions); for accurate results
     should be called with lmax high enough that input cls are effectively band limited
     (lmax >= 2500, or higher for accurate BB to small scales).
     Usually lmax truncation errors are far larger than other numerical errors for lmax<4000.
 
     :param cls: 2D array of unlensed cls(L,ix), with L starting at zero and ix=0,1,2,3 in order TT, EE, BB, TE.
-        cls should include l(l+1)/2pi factors.
-    :param clpp: array of [l(l+1)]^2 C_phi_phi/2/pi lensing potential power spectrum (zero based)
+        cls should include :math:`\ell(\ell+1)/2\pi` factors.
+    :param clpp: array of :math:`[L(L+1)]^2 C_L^{\phi\phi}/2\pi` lensing potential power spectrum (zero based)
     :param lmax: optional maximum L to use from the cls arrays
     :param lmax_lensed: optional maximum L for the returned cl array (lmax_lensed <= lmax)
     :param sampling_factor: npoints = int(sampling_factor*lmax)+1
@@ -394,7 +397,7 @@ def lensed_cls(cls, clpp, lmax=None, lmax_lensed=None, sampling_factor=1.4, delt
     :param leggaus: whether to use Gauss-Legendre integration (default True)
     :param cache: if leggaus = True, set cache to save the x values and weights between calls (most of the time)
     :return: 2D array of cls[L, ix], with L starting at zero and ix=0,1,2,3 in order TT, EE, BB, TE.
-        cls include l(l+1)/2pi factors.
+        cls include :math:`\ell(\ell+1)/2\pi` factors.
     """
     if lmax is None: lmax = cls.shape[0] - 1
     npoints = int(sampling_factor * lmax) + 1
@@ -417,22 +420,23 @@ def lensed_cls(cls, clpp, lmax=None, lmax_lensed=None, sampling_factor=1.4, delt
 
 def lensed_cl_derivatives(cls, clpp, lmax=None, theta_max=np.pi / 32,
                           apodize_point_width=10, sampling_factor=1.4):
-    """
-    Get derivative dcl of lensed ell(ell+1)C_ell/2pi with respect to log(C^phi_L).
+    r"""
+    Get derivative dcl of lensed :math:`D_\ell\equiv \ell(\ell+1)C_\ell/2\pi` with respect to :math:`\log(C^{\phi}_L)`.
     To leading order (and hence not actually accurate), the lensed correction to power spectrum ix
     is given by dcl[ix,:,:].dot(np.ones(clpp.shape)).
 
-    Uses the non-perturbative curved-sky results from Eqs 9.12 and 9.16-9.18 of astro-ph/0601594, to second order in C_{gl,2}
+    Uses the non-perturbative curved-sky results from Eqs 9.12 and 9.16-9.18 of
+    `astro-ph/0601594 <http://arxiv.org/abs/astro-ph/0601594>`_, to second order in :math:`C_{{\rm gl},2}`
 
     :param cls: 2D array of unlensed cls(L,ix), with L starting at zero and ix=0,1,2,3 in order TT, EE, BB, TE.
-        cls should include l(l+1)/2pi factors.
-    :param clpp: array of [l(l+1)]^2 C_phi_phi/2/pi lensing potential power spectrum
+        cls should include :math:`\ell(\ell+1)/2\pi` factors.
+    :param clpp: array of :math:`[L(L+1)]^2 C_L^{\phi\phi}/2\pi` lensing potential power spectrum (zero based)
     :param lmax: optional maximum L to use from the cls arrays
     :param theta_max: maximum angle (in radians) to keep in the correlation functions
     :param apodize_point_width: if theta_max is set, apodize around the cut using half Gaussian of approx
         width apodize_point_width/lmax*pi
     :param sampling_factor: npoints = int(sampling_factor*lmax)+1
-    :return: array dCL[ix, ell, L], where ix=0,1,2,3 are T, EE, BB, TE and result is d[ell(ell+1)C^ix_ell/2pi]/ d log C^phi_L
+    :return: array dCL[ix, ell, L], where ix=0,1,2,3 are T, EE, BB, TE and result is :math:`d[D^{\rm ix}_\ell]/ d (\log C^{\phi}_L)`
 
     """
 
@@ -555,22 +559,24 @@ def lensed_cl_derivatives(cls, clpp, lmax=None, theta_max=np.pi / 32,
 
 def lensed_cl_derivative_unlensed(clpp, lmax=None, theta_max=np.pi / 32,
                                   apodize_point_width=10, sampling_factor=1.4):
-    """
-    Get derivative dcl of lensed minus unlensed power ell(ell+1)Delta C_ell/2pi with respect to L(L+1)C^unlens_L/2pi
+    r"""
+    Get derivative dcl of lensed minus unlensed power :math:`D_\ell \equiv \ell(\ell+1)\Delta C_\ell/2\pi` with respect
+    to :math:`\ell(\ell+1)C^{\rm unlens}_\ell/2\pi`
 
     The difference in power in the lensed spectrum is given by dCL[ix, :, :].dot(cl),
-    where cl is the appropriate L(L+1)C^unlens_L/2pi.
+    where cl is the appropriate :math:`\ell(\ell+1)C^{\rm unlens}_\ell/2\pi`.
 
-    Uses the non-perturbative curved-sky results from Eqs 9.12 and 9.16-9.18 of astro-ph/0601594, to second order in C_{gl,2}
+    Uses the non-perturbative curved-sky results from Eqs 9.12 and 9.16-9.18 of
+    `astro-ph/0601594 <http://arxiv.org/abs/astro-ph/0601594>`_, to second order in :math:`C_{{\rm gl},2}`
 
-    :param clpp: array of [l(l+1)]^2 C_phi_phi/2/pi lensing potential power spectrum
-    :param lmax: optional maximum L to use from the cls arrays
+    :param clpp: array of :math:`[L(L+1)]^2 C_L^{\phi\phi}/2\pi` lensing potential power spectrum (zero based)
+    :param lmax: optional maximum L to use from the clpp array
     :param theta_max: maximum angle (in radians) to keep in the correlation functions
     :param apodize_point_width: if theta_max is set, apodize around the cut using half Gaussian of approx
         width apodize_point_width/lmax*pi
     :param sampling_factor: npoints = int(sampling_factor*lmax)+1
     :return: array dCL[ix, ell, L], where ix=0,1,2,3 are TT, EE, BB, TE and result is
-         d[ell(ell+1)Delta C^ix_ell/2pi]/ d C^{unlens,j}_L where j[ix] are TT, EE, EE, TE
+         :math:`d\left(\Delta D^{\rm ix}_\ell\right) / d D^{{\rm unlens},j}_L` where j[ix] are TT, EE, EE, TE
 
     """
 

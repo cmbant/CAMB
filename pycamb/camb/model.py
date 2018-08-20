@@ -538,10 +538,10 @@ class CAMBparams(CAMB_Structure):
         return self
 
     def set_dark_energy(self, w=-1.0, cs2=1.0, wa=0, dark_energy_model='fluid'):
-        """
+        r"""
         Set dark energy parameters (use set_dark_energy_w_a to set w(a) from numerical table instead)
 
-        :param w: p_de/rho_de, assumed constant
+        :param w: :math:`w\equiv p_{\rm de}/\rho_{\rm de}`, assumed constant
         :param wa: evolution of w (for dark_energy_model=ppf)
         :param cs2: rest-frame sound speed squared of dark energy fluid
         :param dark_energy_model: model to use ('fluid' or 'ppf'), default is 'fluid'
@@ -578,10 +578,10 @@ class CAMBparams(CAMB_Structure):
         self.DarkEnergy.set_w_a_table(a, w)
 
     def get_omega_k(self):
-        """
-        Get curvature parameter Omega_k
+        r"""
+        Get curvature parameter :math:`\Omega_K`
 
-        :return: Omega_k
+        :return: :math:`\Omega_K`
         """
         return 1 - self.omegab - self.omegac - self.omegan - self.omegav
 
@@ -599,14 +599,14 @@ class CAMBparams(CAMB_Structure):
         return sum(self.nu_mass_degeneracies[:self.nu_mass_eigenstates]) + self.num_nu_massless
 
     def get_Y_p(self, ombh2=None, delta_neff=None):
-        """
+        r"""
         Get BBN helium nucleon fraction (NOT the same as the mass fraction Y_He) by intepolation using the
         :class:`.bbn.BBNPredictor` instance passed to :meth:`.model.CAMBparams.set_cosmology`
         (or the default one, if `Y_He` has not been set).
 
-        :param ombh2:  Omega_b h^2 (default: value passed to :meth:`.model.CAMBparams.set_cosmology`)
-        :param delta_neff:  additional N_eff relative to standard value (of 3.046) (default: from values passed to :meth:`.model.CAMBparams.set_cosmology`)
-        :return:  Y_p helium nucleon fraction predicted by BBN.
+        :param ombh2: :math:`\Omega_b h^2` (default: value passed to :meth:`.model.CAMBparams.set_cosmology`)
+        :param delta_neff:  additional :math:`N_{\rm eff}` relative to standard value (of 3.046) (default: from values passed to :meth:`.model.CAMBparams.set_cosmology`)
+        :return:  :math:`Y_p^{\rm BBN}` helium nucleon fraction predicted by BBN.
         """
         try:
             ombh2 = ombh2 if ombh2 != None else self.omegab * (self.H0 / 100.) ** 2
@@ -616,13 +616,13 @@ class CAMBparams(CAMB_Structure):
             raise CAMBError('Not able to compute Y_p: not using an interpolation table for BBN abundances.')
 
     def get_DH(self, ombh2=None, delta_neff=None):
-        """
+        r"""
         Get deuterium ration D/H by intepolation using the
         :class:`.bbn.BBNPredictor` instance passed to :meth:`.model.CAMBparams.set_cosmology`
         (or the default one, if `Y_He` has not been set).
 
-        :param ombh2:  Omega_b h^2 (default: value passed to :meth:`.model.CAMBparams.set_cosmology`)
-        :param delta_neff:  additional N_eff relative to standard value (of 3.046) (default: from values passed to :meth:`.model.CAMBparams.set_cosmology`)
+        :param ombh2: :math:`\Omega_b h^2` (default: value passed to :meth:`.model.CAMBparams.set_cosmology`)
+        :param delta_neff:  additional :math:`N_{\rm eff}` relative to standard value (of 3.046) (default: from values passed to :meth:`.model.CAMBparams.set_cosmology`)
         :return: BBN helium nucleon fraction D/H
         """
         try:
@@ -695,15 +695,15 @@ class CAMBparams(CAMB_Structure):
 
     def set_for_lmax(self, lmax, max_eta_k=None, lens_potential_accuracy=0,
                      lens_margin=150, k_eta_fac=2.5, lens_k_eta_reference=18000.0):
-        """
+        r"""
         Set parameters to get CMB power spectra accurate to specific a l_lmax.
         Note this does not fix the actual output L range, spectra may be calculated above l_max (but may not be accurate there).
         To fix the l_max for output arrays use the optional input argument to :meth:`.camb.CAMBdata.get_cmb_power_spectra` etc.
 
-        :param lmax: l_max you want
-        :param max_eta_k: maximum value of k*eta_* to use, which indirectly sets k_max. If None, sensible value set automatically.
+        :param lmax: :math:`\ell_{\rm max}` you want
+        :param max_eta_k: maximum value of :math:`k \eta_0\approx k\chi_*` to use, which indirectly sets k_max. If None, sensible value set automatically.
         :param lens_potential_accuracy: Set to 1 or higher if you want to get the lensing potential accurate
-        :param lens_margin: the delta l_max to use to ensure lensed C_L are correct at l_max
+        :param lens_margin: the :math:`\Delta \ell_{\rm max}` to use to ensure lensed :math:`C_\ell` are correct at :math:`\ell_{\rm max}`
         :param k_eta_fac:  k_eta_fac default factor for setting max_eta_k = k_eta_fac*lmax if max_eta_k=None
         :param lens_k_eta_reference:  value of max_eta_k to use when lens_potential_accuracy>0; use k_eta_max = lens_k_eta_reference*lens_potential_accuracy
         :return: self

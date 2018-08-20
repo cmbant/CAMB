@@ -18,7 +18,8 @@ recombination_saha_tau = dll_import(c_double, "recombination", "recombination_sa
 
 class RecombinationParams(CAMB_Structure):
     """
-    Hold parametes for the RECFAST recombination model.
+    Holds parametes for the RECFAST recombination model (see recfast source for details).
+
     """
     _fields_ = [
         ("RECFAST_fudge", c_double),

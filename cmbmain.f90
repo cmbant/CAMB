@@ -202,7 +202,7 @@
         ThisCT%ls = lSamp
 
         !$OMP PARAllEl DO DEFAUlT(SHARED),SCHEDUlE(DYNAMIC), PRIVATE(EV, q_ix)
-        do q_ix= 1,Evolve_q%npoints
+        do q_ix= Evolve_q%npoints,1,-1
             if (global_error_flag==0) call DoSourcek(EV,q_ix)
         end do
         !$OMP END PARAllEl DO
@@ -1148,7 +1148,7 @@
 
     !     loop over wavenumbers.
     !$OMP PARALLEL DO DEFAUlT(SHARED),SCHEDUlE(DYNAMIC), PRIVATE(EV, tau, q_ix)
-    do q_ix=Evolve_q%npoints+1,MT%num_q_trans
+    do q_ix=MT%num_q_trans, Evolve_q%npoints+1, -1
         EV%TransferOnly=.true. !in case we want to do something to speed it up
 
         EV%q= MT%q_trans(q_ix)

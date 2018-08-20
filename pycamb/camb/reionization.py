@@ -20,7 +20,7 @@ Rionization_zexp = dll_import(c_bool, "reionization", "rionization_zexp")
 
 class ReionizationParams(CAMB_Structure):
     """
-    Hold sparameters for the reionization model.
+    Holds parameters for the reionization model.
     """
     _fields_ = [
         ("Reionization", c_int),  # logical

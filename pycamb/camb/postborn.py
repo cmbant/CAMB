@@ -33,18 +33,18 @@ def cl_kappa_limber(results, PK, ls, nz, chi_source, chi_source2=None):
 def get_field_rotation_power(params, kmax=100, lmax=20000, non_linear=True, z_source=None,
                              k_per_logint=None, acc=1, lsamp=None):
     r"""
-    Get field rotation power spectrum, C_L^{\omega\omega}, following `arXiv:1605.05662 <http://arxiv.org/abs/1605.05662>`_
+    Get field rotation power spectrum, :math:`C_L^{\omega\omega}`, following `arXiv:1605.05662 <http://arxiv.org/abs/1605.05662>`_
     Uses lowest Limber approximation.
 
     :param params: :class:`.model.CAMBparams` instance with cosmological parameters etc.
-    :param kmax: maximum k (in Mpc^{-1} units)
+    :param kmax: maximum k (in :math:`{\rm Mpc}^{-1}` units)
     :param lmax: maximum L
     :param non_linear: include non-linear corrections
     :param z_source: redshift of source. If None, use peak of CMB visibility for CMB lensing
     :param k_per_logint: sampling to use in k
     :param acc: accuracy setting, increase to test stability
     :param lsamp: array of L values to compute output at. If not set, set to sampling good for interpolation
-    :return: L, C_L^{\omega\omega}, the L sample values and corresponding rotation power
+    :return: :math:`L`, :math:`C_L^{\omega\omega}`: the L sample values and corresponding rotation power
     """
 
     results = camb.get_background(params)
@@ -164,17 +164,17 @@ def get_field_rotation_power_from_PK(params, PK, chi_source, lmax=20000, acc=1, 
 
 
 def get_field_rotation_BB(params, lmax=None, acc=1, CMB_unit='muK', raw_cl=False, spline=True):
-    """
+    r"""
     Get the B-mode power spectrum from field post-born field rotation, based on perturbative and Limber approximations.
     See `arXiv:1605.05662 <http://arxiv.org/abs/1605.05662>`_.
 
     :param params: :class:`.model.CAMBparams` instance with cosmological parameters etc.
-    :param lmax: maximum L
+    :param lmax: maximum :math:`\ell`
     :param acc: accuracy
     :param CMB_unit: units for CMB output relative to dimensionless
-    :param raw_cl: return C_L rather than L(L+1)C_L/2/pi
-    :param spline: return UnivariateSpline, otherwise return tuple of lists of L and C_L
-    :return: UnivariateSpline (or arrays of sampled L and) L^2 C_L^{BB}/(2 pi) (unless raw_cl, in which case just C_L^{BB})
+    :param raw_cl: return :math:`C_\ell` rather than :math:`\ell(\ell+1)C_\ell/2\pi`
+    :param spline: return UnivariateSpline, otherwise return tuple of lists of :math:`\ell` and :math:`C_\ell`
+    :return: UnivariateSpline (or arrays of sampled :math:`\ell` and) :math:`\ell^2 C_\ell^{BB}/(2 \pi)` (unless raw_cl, in which case just :math:`C_\ell^{BB}`)
     """
 
     par_CMB = params.copy()
