@@ -407,7 +407,7 @@ class CAMBparams(CAMB_Structure):
                       mnu=0.06, nnu=3.046, YHe=None, meffsterile=0.0, standard_neutrino_neff=3.046,
                       TCMB=constants.COBE_CMBTemp, tau=None, deltazrei=None, Alens=1.0,
                       bbn_predictor=None, theta_H0_range=[10, 100]):
-        """
+        r"""
         Sets cosmological parameters in terms of physical densities and parameters used in Planck 2015 analysis.
         Default settings give a single distinct neutrino mass eigenstate, by default one neutrino with mnu = 0.06eV.
         Set the neutrino_hierarchy parameter to normal or inverted to use a two-eigenstate model that is a good
@@ -415,7 +415,7 @@ class CAMBparams(CAMB_Structure):
         If you require more fine-grained control can set the neutrino parameters directly rather than using this function.
 
         :param H0: Hubble parameter (in km/s/Mpc)
-        :param cosmomc_theta The CosmoMC theta parameter. You must set H0=None to solve for H0 given cosmomc_theta
+        :param cosmomc_theta: The CosmoMC theta parameter :math:`\theta_{\rm MC}`. You must set H0=None to solve for H0 given cosmomc_theta
         :param ombh2: physical density in baryons
         :param omch2:  physical density in cold dark matter
         :param omk: Omega_K curvature parameter
