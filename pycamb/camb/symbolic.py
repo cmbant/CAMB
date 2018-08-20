@@ -393,8 +393,8 @@ cdm_subs = [Eq(diff(A, t), 0), Eq(A, 0), Eq(diff(v_c, t), 0), Eq(v_c, 0)]
 
 
 def cdm_gauge(x):
-    """
-    Evaluates an expression in the CDM frame (v_c=0, A=0). Equivalent to the synchronous gauge
+    r"""
+    Evaluates an expression in the CDM frame :math:`(v_c=0, A=0)`. Equivalent to the synchronous gauge
     but using the covariant variable names.
 
     :param x: expression
