@@ -172,7 +172,7 @@ def get_field_rotation_BB(params, lmax=None, acc=1, CMB_unit='muK', raw_cl=False
     :param lmax: maximum :math:`\ell`
     :param acc: accuracy
     :param CMB_unit: units for CMB output relative to dimensionless
-    :param raw_cl: return :math:`C_\ell\ rather than :math:`\ell(\ell+1)C_\ell/2\pi`
+    :param raw_cl: return :math:`C_\ell` rather than :math:`\ell(\ell+1)C_\ell/2\pi`
     :param spline: return UnivariateSpline, otherwise return tuple of lists of :math:`\ell` and :math:`C_\ell`
     :return: UnivariateSpline (or arrays of sampled :math:`\ell` and) :math:`\ell^2 C_\ell^{BB}/(2 \pi)` (unless raw_cl, in which case just :math:`C_\ell^{BB}`)
     """

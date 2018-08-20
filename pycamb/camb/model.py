@@ -490,7 +490,7 @@ class CAMBparams(CAMB_Structure):
         :class:`.bbn.BBNPredictor` instance passed to :meth:`.model.CAMBparams.set_cosmology`
         (or the default one, if `Y_He` has not been set).
 
-        :param ombh2:  :math:`\Omega_b h^2` (default: value passed to :meth:`.model.CAMBparams.set_cosmology`)
+        :param ombh2: :math:`\Omega_b h^2` (default: value passed to :meth:`.model.CAMBparams.set_cosmology`)
         :param delta_neff:  additional :math:`N_{\rm eff}` relative to standard value (of 3.046) (default: from values passed to :meth:`.model.CAMBparams.set_cosmology`)
         :return:  :math:`Y_p^{\rm BBN}` helium nucleon fraction predicted by BBN.
         """
@@ -507,7 +507,7 @@ class CAMBparams(CAMB_Structure):
         :class:`.bbn.BBNPredictor` instance passed to :meth:`.model.CAMBparams.set_cosmology`
         (or the default one, if `Y_He` has not been set).
 
-        :param ombh2:  :math:`\Omega_b h^2\ (default: value passed to :meth:`.model.CAMBparams.set_cosmology`)
+        :param ombh2: :math:`\Omega_b h^2` (default: value passed to :meth:`.model.CAMBparams.set_cosmology`)
         :param delta_neff:  additional :math:`N_{\rm eff}` relative to standard value (of 3.046) (default: from values passed to :meth:`.model.CAMBparams.set_cosmology`)
         :return: BBN helium nucleon fraction D/H
         """

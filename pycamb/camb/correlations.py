@@ -1,4 +1,4 @@
-"""
+r"""
 Functions to transform CMB angular power spectra into correlation functions (cl2corr)
 and vice versa (corr2cl), and calculate lensed power spectra from unlensed ones.
 
@@ -6,7 +6,8 @@ The lensed power spectrum functions are not intended to replace those calculated
 but may be useful for tests, e.g. using different lensing potential power spectra, partially-delensed
 lensing power spectra, etc.
 
-These functions are all pure python/scipy, and operate and return cls including L(L+1)/2pi and [L(L+1)]^2/2pi factors.
+These functions are all pure python/scipy, and operate and return cls including factors :math:`\ell(\ell+1)/2\pi` (for CMB) and
+:math:`[L(L+1)]^2/2\pi` (for lensing).
 
 A. Lewis December 2016
 """
@@ -247,7 +248,8 @@ def lensed_correlations(cls, clpp, xvals, weights=None, lmax=None, delta=False, 
     To get the lensed cls efficiently, set weights to the integral weights for each x value, then function returns
     lensed correlations and lensed cls.
 
-    Uses the non-perturbative curved-sky results from Eqs 9.12 and 9.16-9.18 of astro-ph/0601594, to second order in :math:`C_{{\rm gl},2}`
+    Uses the non-perturbative curved-sky results from Eqs 9.12 and 9.16-9.18 of
+    `astro-ph/0601594 <http://arxiv.org/abs/astro-ph/0601594>`_, to second order in :math:`C_{{\rm gl},2}`
 
     :param cls: 2D array of unlensed cls(L,ix), with L (:math:`\equiv\ell`) starting at zero and ix=0,1,2,3 in order TT, EE, BB, TE.
         cls should include :math:`\ell(\ell+1)/2\pi` factors.
@@ -368,7 +370,8 @@ def lensed_cls(cls, clpp, lmax=None, lmax_lensed=None, sampling_factor=1.4, delt
                theta_max=np.pi / 32, apodize_point_width=10, leggaus=True, cache=True):
     r"""
     Get the lensed power spectra from the unlensed power spectra and the lensing potential power.
-    Uses the non-perturbative curved-sky results from Eqs 9.12 and 9.16-9.18 of astro-ph/0601594, to second order in :math:`C_{{\rm gl},2}`.
+    Uses the non-perturbative curved-sky results from Eqs 9.12 and 9.16-9.18 of
+    `astro-ph/0601594 <http://arxiv.org/abs/astro-ph/0601594>`_, to second order in :math:`C_{{\rm gl},2}`.
 
     Correlations are calculated for Gauss-Legendre integration if leggaus=True; this slows it by several seconds,
     but will be must faster on subsequent calls with the same lmax*sampling_factor.
@@ -418,11 +421,12 @@ def lensed_cls(cls, clpp, lmax=None, lmax_lensed=None, sampling_factor=1.4, delt
 def lensed_cl_derivatives(cls, clpp, lmax=None, theta_max=np.pi / 32,
                           apodize_point_width=10, sampling_factor=1.4):
     r"""
-    Get derivative dcl of lensed :math:`\ell(\ell+1)C_\ell/2\pi` with respect to :math:`\log(C^{\phi}_L)`.
+    Get derivative dcl of lensed :math:`D_\ell\equiv \ell(\ell+1)C_\ell/2\pi` with respect to :math:`\log(C^{\phi}_L)`.
     To leading order (and hence not actually accurate), the lensed correction to power spectrum ix
     is given by dcl[ix,:,:].dot(np.ones(clpp.shape)).
 
-    Uses the non-perturbative curved-sky results from Eqs 9.12 and 9.16-9.18 of astro-ph/0601594, to second order in :math:`C_{{\rm gl},2}`
+    Uses the non-perturbative curved-sky results from Eqs 9.12 and 9.16-9.18 of
+    `astro-ph/0601594 <http://arxiv.org/abs/astro-ph/0601594>`_, to second order in :math:`C_{{\rm gl},2}`
 
     :param cls: 2D array of unlensed cls(L,ix), with L starting at zero and ix=0,1,2,3 in order TT, EE, BB, TE.
         cls should include :math:`\ell(\ell+1)/2\pi` factors.
@@ -432,7 +436,7 @@ def lensed_cl_derivatives(cls, clpp, lmax=None, theta_max=np.pi / 32,
     :param apodize_point_width: if theta_max is set, apodize around the cut using half Gaussian of approx
         width apodize_point_width/lmax*pi
     :param sampling_factor: npoints = int(sampling_factor*lmax)+1
-    :return: array dCL[ix, ell, L], where ix=0,1,2,3 are T, EE, BB, TE and result is d[ell(ell+1)C^ix_ell/2pi]/ d log C^phi_L
+    :return: array dCL[ix, ell, L], where ix=0,1,2,3 are T, EE, BB, TE and result is :math:`d[D^{\rm ix}_\ell]/ d (\log C^{\phi}_L)`
 
     """
 
@@ -556,12 +560,14 @@ def lensed_cl_derivatives(cls, clpp, lmax=None, theta_max=np.pi / 32,
 def lensed_cl_derivative_unlensed(clpp, lmax=None, theta_max=np.pi / 32,
                                   apodize_point_width=10, sampling_factor=1.4):
     r"""
-    Get derivative dcl of lensed minus unlensed power :math:`\ell(\ell+1)\Delta C_\ell/2\pi` with respect to :math:`\ell(\ell+1)C^{\rm unlens}_\ell/2\pi`
+    Get derivative dcl of lensed minus unlensed power :math:`D_\ell \equiv \ell(\ell+1)\Delta C_\ell/2\pi` with respect
+    to :math:`\ell(\ell+1)C^{\rm unlens}_\ell/2\pi`
 
     The difference in power in the lensed spectrum is given by dCL[ix, :, :].dot(cl),
     where cl is the appropriate :math:`\ell(\ell+1)C^{\rm unlens}_\ell/2\pi`.
 
-    Uses the non-perturbative curved-sky results from Eqs 9.12 and 9.16-9.18 of astro-ph/0601594, to second order in :math:`C_{{\rm gl},2}`
+    Uses the non-perturbative curved-sky results from Eqs 9.12 and 9.16-9.18 of
+    `astro-ph/0601594 <http://arxiv.org/abs/astro-ph/0601594>`_, to second order in :math:`C_{{\rm gl},2}`
 
     :param clpp: array of :math:`[L(L+1)]^2 C_L^{\phi\phi}/2\pi` lensing potential power spectrum (zero based)
     :param lmax: optional maximum L to use from the clpp array
@@ -570,7 +576,7 @@ def lensed_cl_derivative_unlensed(clpp, lmax=None, theta_max=np.pi / 32,
         width apodize_point_width/lmax*pi
     :param sampling_factor: npoints = int(sampling_factor*lmax)+1
     :return: array dCL[ix, ell, L], where ix=0,1,2,3 are TT, EE, BB, TE and result is
-         :math:`d\left(\ell(\ell+1)\Delta C^{\rm ix}_\ell/2\pi\right) / d C^{{\rm unlens},j}_L` where j[ix] are TT, EE, EE, TE
+         :math:`d\left(\Delta D^{\rm ix}_\ell\right) / d D^{{\rm unlens},j}_L` where j[ix] are TT, EE, EE, TE
 
     """
 

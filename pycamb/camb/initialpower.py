@@ -41,7 +41,7 @@ class InitialPowerParams(CAMB_Structure):
         :param As: comoving curvature power at k=pivot_scalar (:math:`A_s`)
         :param ns: scalar spectral index :math:`n_s`
         :param nrun: running of scalar spectral index :math:`d n_s/d \log k`
-        :param nrunrun: running of running of spectral index, :math:`d^2 n_s/d \log k^2`
+        :param nrunrun: running of running of spectral index, :math:`d^2 n_s/d (log k)^2`
         :param r: tensor to scalar ratio at pivot
         :param nt: tensor spectral index :math:`n_t`. If None, set using inflation consistency
         :param ntrun: running of tensor spectral index
