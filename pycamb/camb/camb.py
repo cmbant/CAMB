@@ -581,7 +581,7 @@ class CAMBdata(object):
         r"""
         Get :math:`C_\ell` transfer functions
 
-        :return: :class:`.camb.ClTransferData` instance holding output arrays (copies, not pointers)
+        :return: :class:`.ClTransferData` instance holding output arrays (copies, not pointers)
         """
 
         cdata = _ClTransferData()
