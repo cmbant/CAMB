@@ -19,3 +19,5 @@ Release/
 build
 inspectionProfiles
 camb
+test_*.dat
+test_*.ini
