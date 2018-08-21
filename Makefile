@@ -3,6 +3,12 @@
 #Set FISHER=Y to compile bispectrum fisher matrix code
 FISHER=
 
+#native optimization does not work on Mac gfortran or heterogeneous clusters
+CLUSTER_SAFE ?= 0
+ifneq ($(CLUSTER_SAFE), 0)
+NONNATIVE = 1
+endif
+
 #Will detect ifort/gfortran or edit for your compiler
 ifneq ($(COMPILER),gfortran)
 ifortErr = $(shell which ifort >/dev/null; echo $$?)
@@ -12,11 +18,21 @@ endif
 ifeq "$(ifortErr)" "0"
 
 #Intel compiler
-# For OSX replace shared by dynamiclib
 F90C     = ifort
-FFLAGS = -fast -W0 -WB -fpp
-SFFLAGS = -shared -fpic
+FFLAGS = -W0 -WB -fpp
 DEBUGFLAGS = -g -check all -check noarg_temp_created -traceback -fpp -fpe0
+
+ifeq ($(shell uname -s),Darwin)
+SFFLAGS = -dynamiclib -fpic
+else
+SFFLAGS = -shared -fpic
+endif
+
+ifdef NONNATIVE
+FFLAGS+=-O3 -ipo -axCORE-AVX2
+else
+FFLAGS+=-fast
+endif
 
 ifortVer_major = $(shell ifort -v 2>&1 | cut -d " " -f 3 | cut -d. -f 1)
 ifeq ($(shell test $(ifortVer_major) -gt 15; echo $$?),0)
@@ -49,15 +65,11 @@ DEBUGFLAGS = -cpp -g -fbounds-check -fbacktrace -ffree-line-length-none -fmax-er
 MODOUT =  -J$(OUTPUT_DIR)
 SMODOUT = -J$(DLL_DIR)
 
-#native optimization does not work on Mac or heterogeneous clusters
-CLUSTER_SAFE ?= 0
-ifneq ($(CLUSTER_SAFE), 0)
-NONNATIVE = 1
-endif
 ifeq ($(shell uname -s),Darwin)
 NONNATIVE = 1
 endif
 ifndef NONNATIVE
+#Note this seems to make code slightly slower in some cases, use CLUSTER_SAFE=1 to test without
 FFLAGS+=-march=native
 endif
 endif

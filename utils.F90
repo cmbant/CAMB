@@ -405,36 +405,36 @@
                 if (RequestDelta(i) >= AReg%delta .and. Diff <= LastReg%Delta_min &
                     .and. LastReg%Delta_min <= max_request) then
 
-                LastReg%Low = AReg%Low
-                if (Diff > LastReg%Delta_min*RangeTol) then
-                    LastReg%steps =  LastReg%steps + 1
-                end if
-                if (LastReg%IsLog) then
-                    LastReg%delta = log(LastReg%High/LastReg%Low) / LastReg%steps
-                else
-                    LastReg%delta = (LastReg%High -LastReg%Low) / LastReg%steps
-                end if
-                Reg%R(i:Reg%Count-1) = Reg%R(i+1:Reg%Count)
-                Reg%Count = Reg%Count -1
-                cycle
+                    LastReg%Low = AReg%Low
+                    if (Diff > LastReg%Delta_min*RangeTol) then
+                        LastReg%steps =  LastReg%steps + 1
+                    end if
+                    if (LastReg%IsLog) then
+                        LastReg%delta = log(LastReg%High/LastReg%Low) / LastReg%steps
+                    else
+                        LastReg%delta = (LastReg%High -LastReg%Low) / LastReg%steps
+                    end if
+                    Reg%R(i:Reg%Count-1) = Reg%R(i+1:Reg%Count)
+                    Reg%Count = Reg%Count -1
+                    cycle
                 end if
             end if
             if (i/=1) then
                 LastReg => Reg%R(i-1)
                 if (RequestDelta(i) >= AReg%delta .and. Diff <= LastReg%Delta_max &
                     .and. LastReg%Delta_max <= min_request) then
-                LastReg%High = AReg%High
-                !AlMat08 LastReg%Low = AReg%Low
-                if (Diff > LastReg%Delta_max*RangeTol) then
-                    LastReg%steps =  LastReg%steps + 1
-                end if
-                if (LastReg%IsLog) then
-                    LastReg%delta = log(LastReg%High/LastReg%Low) / LastReg%steps
-                else
-                    LastReg%delta = (LastReg%High -LastReg%Low) / LastReg%steps
-                end if
-                Reg%R(i:Reg%Count-1) = Reg%R(i+1:Reg%Count)
-                Reg%Count = Reg%Count -1
+                    LastReg%High = AReg%High
+                    !AlMat08 LastReg%Low = AReg%Low
+                    if (Diff > LastReg%Delta_max*RangeTol) then
+                        LastReg%steps =  LastReg%steps + 1
+                    end if
+                    if (LastReg%IsLog) then
+                        LastReg%delta = log(LastReg%High/LastReg%Low) / LastReg%steps
+                    else
+                        LastReg%delta = (LastReg%High -LastReg%Low) / LastReg%steps
+                    end if
+                    Reg%R(i:Reg%Count-1) = Reg%R(i+1:Reg%Count)
+                    Reg%Count = Reg%Count -1
                 end if
             end if
         end if
@@ -2859,9 +2859,9 @@
     common /RASET1/ U, C, CD, CM, I97, J97
     if( IJ .lt. 0  .or.  IJ .gt. 31328  .or. &
         KL .lt. 0  .or.  KL .gt. 30081 ) then
-    print '(A)', ' The first random number seed must have a value  between 0 and 31328'
-    print '(A)',' The second seed must have a value between 0 and   30081'
-    stop
+        print '(A)', ' The first random number seed must have a value  between 0 and 31328'
+        print '(A)',' The second seed must have a value between 0 and   30081'
+        stop
     endif
     I = mod(IJ/177, 177) + 2
     J = mod(IJ    , 177) + 2

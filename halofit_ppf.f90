@@ -205,26 +205,26 @@
 
     if (halofit_version ==halofit_original .or. halofit_version ==halofit_bird &
         .or. halofit_version == halofit_peacock) then
-    ! halo model nonlinear fitting formula as described in
-    ! Appendix C of Smith et al. (2002)
-    !SPB11: Standard halofit underestimates the power on the smallest scales by a
-    !factor of two. Add an extra correction from the simulations in Bird, Viel,
-    !Haehnelt 2011 which partially accounts for this.
-    if (halofit_version ==halofit_bird) then
-        extragam = 0.3159 -0.0765*rn -0.8350*rncur
-        gam=extragam+0.86485+0.2989*rn+0.1631*rncur
-    else
-        gam=0.86485+0.2989*rn+0.1631*rncur
-    end if
-    a=1.4861+1.83693*rn+1.67618*rn*rn+0.7940*rn*rn*rn+ &
-        0.1670756*rn*rn*rn*rn-0.620695*rncur
-    a=10**a
-    b=10**(0.9463+0.9466*rn+0.3084*rn*rn-0.940*rncur)
-    c=10**(-0.2807+0.6669*rn+0.3214*rn*rn-0.0793*rncur)
-    xmu=10**(-3.54419+0.19086*rn)
-    xnu=10**(0.95897+1.2857*rn)
-    alpha=1.38848+0.3701*rn-0.1452*rn*rn
-    beta=0.8291+0.9854*rn+0.3400*rn**2+fnu*(-6.4868+1.4373*rn**2)
+        ! halo model nonlinear fitting formula as described in
+        ! Appendix C of Smith et al. (2002)
+        !SPB11: Standard halofit underestimates the power on the smallest scales by a
+        !factor of two. Add an extra correction from the simulations in Bird, Viel,
+        !Haehnelt 2011 which partially accounts for this.
+        if (halofit_version ==halofit_bird) then
+            extragam = 0.3159 -0.0765*rn -0.8350*rncur
+            gam=extragam+0.86485+0.2989*rn+0.1631*rncur
+        else
+            gam=0.86485+0.2989*rn+0.1631*rncur
+        end if
+        a=1.4861+1.83693*rn+1.67618*rn*rn+0.7940*rn*rn*rn+ &
+            0.1670756*rn*rn*rn*rn-0.620695*rncur
+        a=10**a
+        b=10**(0.9463+0.9466*rn+0.3084*rn*rn-0.940*rncur)
+        c=10**(-0.2807+0.6669*rn+0.3214*rn*rn-0.0793*rncur)
+        xmu=10**(-3.54419+0.19086*rn)
+        xnu=10**(0.95897+1.2857*rn)
+        alpha=1.38848+0.3701*rn-0.1452*rn*rn
+        beta=0.8291+0.9854*rn+0.3400*rn**2+fnu*(-6.4868+1.4373*rn**2)
     elseif (halofit_version == halofit_takahashi .or. halofit_version == halofit_casarini) then
         !RT12 Oct: the halofit in Smith+ 2003 predicts a smaller power
         !than latest N-body simulations at small scales.
@@ -565,7 +565,7 @@
     ELSE IF(imead==1) THEN
         !This uses the top-hat defined neff (HALOFIT uses Gaussian filtered fields instead)
         !Mead et al. (2016; arXiv 1602.02154) value
-         alpha=3.24*1.85**lut%neff
+        alpha=3.24*1.85**lut%neff
     ELSE IF(imead==2) THEN
         !Mead et al. (2015) value
         alpha=2.93*1.77**lut%neff
@@ -1073,6 +1073,7 @@
     ELSE IF(imead==2) THEN
        pow=1.5
     END IF    
+
     lut%c=lut%c*((g_wcdm/g_lcdm)**pow)
 
     END SUBROUTINE conc_bull
@@ -1129,7 +1130,7 @@
                 f2=growint_integrand(b,cosm)
                 sum_2n=0.5d0*(f1+f2)*dx
                 sum_new=sum_2n
-                
+
             ELSE
 
                 !Loop over only new even points to add these to the integral
@@ -1722,7 +1723,7 @@
                 f2=sigma_integrand_transformed(b,r,f0_rapid,z,itype,cosm)
                 sum_2n=0.5d0*(f1+f2)*dx
                 sum_new=sum_2n
-                
+
             ELSE
 
                 !Loop over only new even points to add these to the integral
@@ -3006,7 +3007,7 @@
 
     !Fills a table of values of the scale-independent growth function
     TYPE(HM_cosmology) :: cosm
-    INTEGER :: i   
+    INTEGER :: i
     REAL :: a, norm
     REAL, ALLOCATABLE :: d_tab(:), v_tab(:), a_tab(:)
     REAL :: ainit, amax, dinit, vinit

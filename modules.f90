@@ -75,7 +75,7 @@
 
     type TransferParams
         logical     ::  high_precision
-        logical     ::  accurate_massive_neutrinos 
+        logical     ::  accurate_massive_neutrinos
         integer     ::  num_redshifts
         real(dl)    ::  kmax         !these are acutally q values, but same as k for flat
         integer     ::  k_per_logint ! ..
@@ -1592,10 +1592,10 @@
     !$OMP PARALLEL DO DEFAULT(SHARED),SCHEDULE(STATIC) &
     !$OMP & PRIVATE(am, rhonu,pnu)
     do i=1,nrhopn
-    am=am_min*exp((i-1)*dlnam)
-    call nuRhoPres(am,rhonu,pnu)
-    r1(i)=log(rhonu)
-    p1(i)=log(pnu)
+        am=am_min*exp((i-1)*dlnam)
+        call nuRhoPres(am,rhonu,pnu)
+        r1(i)=log(rhonu)
+        p1(i)=log(pnu)
     end do
     !$OMP END PARALLEL DO
 
@@ -1772,11 +1772,11 @@
     public
     integer, parameter :: Transfer_kh =1, Transfer_cdm=2,Transfer_b=3,Transfer_g=4, &
         Transfer_r=5, Transfer_nu = 6,  & !massless and massive neutrino
-    Transfer_tot=7, Transfer_nonu=8, Transfer_tot_de=9,  &
+        Transfer_tot=7, Transfer_nonu=8, Transfer_tot_de=9,  &
         ! total perturbations with and without neutrinos, with neutrinos+dark energy in the numerator
         Transfer_Weyl = 10, & ! the Weyl potential, for lensing and ISW
-    Transfer_Newt_vel_cdm=11, Transfer_Newt_vel_baryon=12,   & ! -k v_Newtonian/H
-    Transfer_vel_baryon_cdm = 13 !relative velocity of baryons and CDM
+        Transfer_Newt_vel_cdm=11, Transfer_Newt_vel_baryon=12,   & ! -k v_Newtonian/H
+        Transfer_vel_baryon_cdm = 13 !relative velocity of baryons and CDM
 
     integer, parameter :: Transfer_max = Transfer_vel_baryon_cdm
     character(LEN=name_tag_len) :: Transfer_name_tags(Transfer_max-1) = &
@@ -2663,7 +2663,7 @@
         end if
     end if
     end subroutine thermo
-    
+
     function Thermo_OpacityToTime(opacity)
     real(dl), intent(in) :: opacity
     integer j
@@ -2833,7 +2833,7 @@
             emmu(j1)=exp(sdotmu(j1)-sdotmu(nthermo))
             if (.not. CP%AccurateReionization .and. &
                 actual_opt_depth==0 .and. xe(j1) < 1e-3) then
-            actual_opt_depth = -sdotmu(j1)+sdotmu(nthermo)
+                actual_opt_depth = -sdotmu(j1)+sdotmu(nthermo)
             end if
             if (CP%AccurateReionization .and. CP%DerivedParameters .and. z_star==0.d0) then
                 if (sdotmu(nthermo)-sdotmu(j1) - actual_opt_depth < 1) then
@@ -3194,7 +3194,7 @@
     call splini(spline_data,nthermo)
     call splder(xe,ddxe,nthermo,spline_data)
     call splder(Tb,ddTb,nthermo,spline_data)
-    
+
     outputs = 0
     do ix = 1, ntimes
         tau = times(ix)
@@ -3223,7 +3223,7 @@
         outputs(2, ix) = opacity
         outputs(3, ix) = opacity*vis
         outputs(4, ix) = cs2b
-        outputs(5, ix) = Tbaryon        
+        outputs(5, ix) = Tbaryon
     end do
 
     end subroutine GetBackgroundEvolution

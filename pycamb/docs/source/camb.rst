@@ -15,3 +15,7 @@ camb
    :members:
    :inherited-members:
 
+.. autoclass:: camb.camb.ClTransferData
+   :members:
+
+

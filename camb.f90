@@ -130,7 +130,7 @@
         if (separate) then
             P%WantTransfer = .false.
             P%Transfer%high_precision = .false.
-            P%Transfer%accurate_massive_neutrinos = .false.            
+            P%Transfer%accurate_massive_neutrinos = .false.
         end if
         P%WantTensors = .false.
         P%WantVectors = .false.
@@ -143,7 +143,7 @@
         call_again = .true.
         !Need to store CP%flat etc, but must keep original P_k settings
         CP%Transfer%high_precision = Params%Transfer%high_precision
-        CP%Transfer%accurate_massive_neutrinos = Params%Transfer%accurate_massive_neutrinos        
+        CP%Transfer%accurate_massive_neutrinos = Params%Transfer%accurate_massive_neutrinos
         CP%WantTransfer = Params%WantTransfer
         CP%WantTensors = Params%WantTensors
         CP%WantVectors = Params%WantVectors
@@ -204,24 +204,24 @@
 
     if (Params%WantTransfer .and. &
         .not. (Params%WantCls .and. Params%WantScalars .and. .not. separate)) then
-    P=Params
-    P%WantCls = .false.
-    P%WantScalars = .false.
-    P%WantTensors = .false.
-    P%WantVectors = .false.
-    call CAMBParams_Set(P)
-    if (global_error_flag==0) call cmbmain
-    if (global_error_flag/=0) then
-        if (present(error)) error =global_error_flag
-        return
-    end if
-    !Need to store num redshifts etc
-    CP%WantScalars = Params%WantScalars
-    CP%WantCls =  Params%WantCls
-    CP%WantTensors = Params%WantTensors
-    CP%WantVectors = Params%WantVectors
-    CP%Reion%Reionization = InReionization
-    Params = CP
+        P=Params
+        P%WantCls = .false.
+        P%WantScalars = .false.
+        P%WantTensors = .false.
+        P%WantVectors = .false.
+        call CAMBParams_Set(P)
+        if (global_error_flag==0) call cmbmain
+        if (global_error_flag/=0) then
+            if (present(error)) error =global_error_flag
+            return
+        end if
+        !Need to store num redshifts etc
+        CP%WantScalars = Params%WantScalars
+        CP%WantCls =  Params%WantCls
+        CP%WantTensors = Params%WantTensors
+        CP%WantVectors = Params%WantVectors
+        CP%Reion%Reionization = InReionization
+        Params = CP
     end if
 
     call_again = .false.
@@ -513,8 +513,8 @@
 
     if (P%WantScalars .and. P%Max_eta_k < P%Max_l .or.  &
         P%WantTensors .and. P%Max_eta_k_tensor < P%Max_l_tensor) then
-    OK = .false.
-    write(*,*) 'You need Max_eta_k larger than Max_l to get good results'
+        OK = .false.
+        write(*,*) 'You need Max_eta_k larger than Max_l to get good results'
     end if
 
     call Reionization_Validate(P%Reion, OK)
@@ -528,8 +528,8 @@
         end if
         if (P%transfer%kmax < 0.01 .or. P%transfer%kmax > 50000 .or. &
             P%transfer%k_per_logint>0 .and.  P%transfer%k_per_logint <1) then
-        !            OK = .false.
-        write(*,*) 'Strange transfer function settings.'
+            !            OK = .false.
+            write(*,*) 'Strange transfer function settings.'
         end if
         if (P%transfer%num_redshifts > max_transfer_redshifts .or. P%transfer%num_redshifts<1) then
             OK = .false.

@@ -7,6 +7,7 @@ import platform
 BASEDIR = osp.abspath(osp.dirname(__file__))
 if platform.system() == "Windows":
     DLLNAME = 'cambdll.dll'
+
 else:
     DLLNAME = 'camblib.so'
 CAMBL = osp.join(BASEDIR, DLLNAME)
@@ -30,10 +31,16 @@ if not mock_load:
             return res
 
 
-    if not osp.isfile(CAMBL): sys.exit(
-        '%s does not exist.\nPlease remove any old installation and install again.' % DLLNAME)
+    if not osp.isfile(CAMBL):
+        if platform.system() == "Windows":
+            # allow local git loading if not installed
+            import struct
+
+            is32Bit = struct.calcsize("P") == 4
+            CAMBL = osp.join(BASEDIR, '..', 'dlls', ('cambdll_x64.dll', DLLNAME)[is32Bit])
+        if not osp.isfile(CAMBL):
+            sys.exit('%s does not exist.\nPlease remove any old installation and install again.' % DLLNAME)
     camblib = ctypes.LibraryLoader(ifort_gfortran_loader).LoadLibrary(CAMBL)
-# camblib = ctypes.cdll.LoadLibrary(CAMBL)
 else:
     # This is just so readthedocs build will work without CAMB binary library
     try:
@@ -91,8 +98,18 @@ if not mock_load:
 class CAMBError(Exception):
     pass
 
+
+class CAMBValueError(ValueError):
+    pass
+
+
+class CAMBUnknownArgumentError(ValueError):
+    pass
+
+
 class CAMBParamRangeError(CAMBError):
     pass
+
 
 class CAMB_Structure(Structure):
     def __str__(self):

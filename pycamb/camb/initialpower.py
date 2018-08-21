@@ -35,15 +35,15 @@ class InitialPowerParams(CAMB_Structure):
 
     def set_params(self, As=2e-9, ns=0.96, nrun=0, nrunrun=0.0, r=0.0, nt=None, ntrun=0.0,
                    pivot_scalar=0.05, pivot_tensor=0.05, parameterization=tensor_param_rpivot):
-        """
+        r"""
         Set parameters using standard power law parameterization. If nt=None, uses inflation consistency relation.
 
-        :param As: comoving curvature power at k=piveo_scalar
-        :param ns: scalar spectral index
-        :param nrun: running of scalar spectral index d n_s/d log k
-        :param nrunrun: running of running of spectral index
+        :param As: comoving curvature power at k=pivot_scalar (:math:`A_s`)
+        :param ns: scalar spectral index :math:`n_s`
+        :param nrun: running of scalar spectral index :math:`d n_s/d \log k`
+        :param nrunrun: running of running of spectral index, :math:`d^2 n_s/d (\log k)^2`
         :param r: tensor to scalar ratio at pivot
-        :param nt: tensor spectral index. If None, set using inflation consistency
+        :param nt: tensor spectral index :math:`n_t`. If None, set using inflation consistency
         :param ntrun: running of tensor spectral index
         :param pivot_scalar: pivot scale for scalar spectrum
         :param pivot_tensor:  pivot scale for tensor spectrum

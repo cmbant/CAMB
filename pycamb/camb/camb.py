@@ -1,4 +1,5 @@
-from .baseconfig import camblib, CAMBError, CAMB_Structure, dll_import, mock_load
+from .baseconfig import camblib, CAMBError, CAMBValueError, CAMBUnknownArgumentError, CAMB_Structure, dll_import, \
+    mock_load
 import ctypes
 from ctypes import c_float, c_int, c_double, c_bool, POINTER, byref
 from . import model, constants, initialpower, lensing
@@ -18,6 +19,8 @@ if six.PY3:
     from inspect import getfullargspec as getargspec
 else:
     from inspect import getargspec
+
+_debug_params = False
 
 
 class _CAMBdata(CAMB_Structure):
@@ -193,15 +196,15 @@ CAMB_BackgroundEvolution.argtypes = [int_arg, numpy_1d, numpy_2d]
 
 
 class MatterTransferData(object):
-    """
+    r"""
     MatterTransferData is the base class for storing matter power transfer function data for various q values.
-    In a flat universe q=k, in a closed universe q is quantised.
+    In a flat universe q=k, in a closed universe q is quantized.
 
     To get an instance of this data, call :meth:`camb.CAMBdata.get_matter_transfer_data`
 
     :ivar nq:  number of q modes calculated
     :ivar q: array of q values calculated
-    :ivar sigma_8: array of sigma8 values for each redshift for each power spectrum
+    :ivar sigma_8: array of :math:`\sigma_8` values for each redshift for each power spectrum
     :ivar sigma2_vdelta_8: array of v-delta8 correlation, so sigma2_vdelta_8/sigma_8 can define growth
     :ivar transfer_data: numpy array T[entry, q_index, z_index] storing transfer functions for each redshift and q; entry+1 can be
 
@@ -219,7 +222,6 @@ class MatterTransferData(object):
             - Transfer_Newt_vel_baryon = 12 (Newtonian baryon velocity)
             - Transfer_vel_baryon_cdm = 13 (relative baryon-cdm velocity)
     """
-    pass
 
     def transfer_z(self, name, z_index=0):
         """
@@ -236,16 +238,26 @@ class MatterTransferData(object):
 
 
 class ClTransferData(object):
-    """
-    ClTransferData is the base class for storing CMB power transfer functions, as a function of q and l.
+    r"""
+    ClTransferData is the base class for storing CMB power transfer functions, as a function of q and :math:`\ell`.
     To get an instance of this data, call :meth:`camb.CAMBdata.get_cmb_transfer_data`
 
     :ivar NumSources:  number of sources calculated (size of p index)
     :ivar q: array of q values calculated (=k in flat universe)
-    :ivar l: int array of l values calculated
-    :ivar delta_p_l_k: transfer functions, indexed by source, l, k
+    :ivar l: int array of :math:`\ell` values calculated
+    :ivar delta_p_l_k: transfer functions, indexed by source, l, q
     """
-    pass
+
+    def get_transfer(self, source=0):
+        r"""
+        Return :math:`C_\ell` trasfer functions as a function of :math:`\ell`
+        and :math:`q` (:math:`= k` in a flat universe).
+
+        :param source: index of source: e.g. 0 for temperature, 1 for E polarization, 2 for lensing potential
+        :return: array of computed l, array of computed q, transfer functions T(l,q)
+        """
+
+        return self.l, self.q, self.delta_p_l_k[source, :, :]
 
 
 def set_feedback_level(level=1):
@@ -303,7 +315,7 @@ class CAMBdata(object):
     Not that it *only* stores transfer functions. If you want to get power spectra or background functions,
     you must have called one of the calculation functions for the parameters of interest more recently than
     any other call to these functions. You can can make multiple instances of CAMBdata and then later call
-    `power_spectra_from_transfer` to calculate other quantities.
+    :func:`~camb.CAMBdata.power_spectra_from_transfer` to calculate other quantities.
 
     To quickly make a fully calculated CAMBdata instance for a set of parameters you can call :func:`get_results`.
 
@@ -333,10 +345,13 @@ class CAMBdata(object):
 
     def set_params(self, params):
         """
-        Set parameters from params
+        Set parameters from params. Note that this does not recompute anything;
+        you will need to call :meth:`calc_transfers` if you change any parameters affecting the
+        background cosmology or the transfer function settings.
 
         :param params: a :class:`.model.CAMBparams` instance
         """
+        assert (isinstance(params, model.CAMBparams))
         CAMBdata_setparams(self._key, byref(params))
 
     def get_params(self):
@@ -362,7 +377,7 @@ class CAMBdata(object):
 
     def get_background_outputs(self):
         """
-        Get BAO values for redshifts (set redshifts using 'set_z_outputs')
+        Get BAO values for redshifts (set redshifts using :func:`set_z_outputs`)
 
         :return: rs/DV, H, DA, F_AP for each requested redshift (as 2D array)
         """
@@ -391,7 +406,7 @@ class CAMBdata(object):
     def calc_background_no_thermo(self, params):
         """
         Calculate the background evolution without calculating thermal history.
-        e.g. call this if you want to just use `angular_diameter_distance` and similar background functions
+        e.g. call this if you want to just use :meth:`angular_diameter_distance` and similar background functions
 
         :param params:  :class:`.model.CAMBparams` instance to use
         """
@@ -444,7 +459,7 @@ class CAMBdata(object):
 
     def power_spectra_from_transfer(self, initial_power_params):
         """
-        Assuming `calc_transfers` or `calc_power_spectra` have already been used, re-calculate the power spectra
+        Assuming :meth:`calc_transfers` or :meth:`calc_power_spectra` have already been used, re-calculate the power spectra
         using a new set of initial power spectrum parameters with otherwise the same cosmology.
         This is typically much faster that re-calculating everything, as the transfer functions can be re-used.
 
@@ -461,7 +476,7 @@ class CAMBdata(object):
             elif CMB_unit == 'K':
                 CMB_unit = self.Params.TCMB
             else:
-                raise ValueError('Unknown CMB_unit: %s' % CMB_unit)
+                raise CAMBValueError('Unknown CMB_unit: %s' % CMB_unit)
         return CMB_unit
 
     def _scale_cls(self, cls, CMB_unit=None, raw_cl=False, lens_potential=False):
@@ -495,11 +510,12 @@ class CAMBdata(object):
         return lmax
 
     def save_cmb_power_spectra(self, filename, lmax, CMB_unit='muK'):
-        """
-        Save CMB power to a plain text file. Output is lensed total L(L+1)C_L/2pi then lensing potential and cross: L TT EE BB TE PP PT PE.
+        r"""
+        Save CMB power to a plain text file. Output is lensed total :math:`\ell(\ell+1)C_\ell/2\pi` then lensing potential and cross: L TT EE BB TE PP PT PE.
+
         :param filename: filename to save
         :param lmax: lmax to save
-        :param CMB_unit: scale results from dimensionless. Use 'muK' for muK^2 units for CMB CL and muK units for lensing cross.
+        :param CMB_unit: scale results from dimensionless. Use 'muK' for :math:`\mu K^2` units for CMB :math:`C_\ell` and :math:`\mu K` units for lensing cross.
         """
         cmb = self.get_total_cls(lmax, CMB_unit=CMB_unit)
         lens = self.get_lens_potential_cls(lmax, CMB_unit=CMB_unit)
@@ -510,17 +526,17 @@ class CAMBdata(object):
     def get_cmb_power_spectra(self, params=None, lmax=None,
                               spectra=['total', 'unlensed_scalar', 'unlensed_total', 'lensed_scalar', 'tensor',
                                        'lens_potential'], CMB_unit=None, raw_cl=False):
-        """
-        Get CMB power spectra, as requested by the 'spectra' argument. All power spectra are l(l+1)C_l/2pi self-owned
-        numpy arrays (0..lmax, 0..3), where 0..3 index are TT, EE, BB TT, unless raw_cl is True in which case return just C_l.
+        r"""
+        Get CMB power spectra, as requested by the 'spectra' argument. All power spectra are :math:`\ell(\ell+1)C_\ell/2\pi` self-owned
+        numpy arrays (0..lmax, 0..3), where 0..3 index are TT, EE, BB TT, unless raw_cl is True in which case return just :math:`C_\ell`.
         For the lens_potential the power spectrum returned is that of the deflection.
 
         :param params: optional :class:`.model.CAMBparams` instance with parameters to use. If None, must have
-          previously set parameters and called `calc_power_spectra` (e.g. if you got this instance using `camb.get_results`),
+          previously set parameters and called `calc_power_spectra` (e.g. if you got this instance using :func:`get_results`),
         :param lmax: maximum l
         :param spectra: list of names of spectra to get
-        :param CMB_unit: scale results from dimensionless. Use 'muK' for muK^2 units for CMB CL and muK units for lensing cross.
-        :param raw_cl: return C_L rather than L(L+1)C_L/2pi
+        :param CMB_unit: scale results from dimensionless. Use 'muK' for :math:`\mu K^2` units for CMB :math:`C_\ell` and :math:`\mu K` units for lensing cross.
+        :param raw_cl: return :math:`C_\ell` rather than :math:`\ell(\ell+1)C_\ell/2\pi`
         :return: dictionary of power spectrum arrays, indexed by names of requested spectra
         """
         P = {}
@@ -534,25 +550,25 @@ class CAMBdata(object):
 
     def get_cmb_correlation_functions(self, params=None, lmax=None, spectrum='lensed_scalar',
                                       xvals=None, sampling_factor=1):
-        """
+        r"""
         Get the CMB correlation functions from the power spectra.
-        By default evaluated at points cos(theta) = xvals that are roots of Legendre polynomials,
+        By default evaluated at points :math:`\cos(\theta)` = xvals that are roots of Legendre polynomials,
         for accurate back integration with :func:`.correlations.corr2cl`.
-        If xvals is explicitly given, instead calculates correlations at provided cos(theta) values.
+        If xvals is explicitly given, instead calculates correlations at provided :math:`\cos(\theta)` values.
 
         :param params: optional :class:`.model.CAMBparams` instance with parameters to use. If None, must have
-          previously set parameters and called `calc_power_spectra` (e.g. if you got this instance using `camb.get_results`),
+          previously set parameters and called :meth:`calc_power_spectra` (e.g. if you got this instance using :func:`get_results`),
         :param lmax: optional maximum L to use from the cls arrays
         :param spectrum: type of CMB power spectrum to get; default 'lensed_scalar', one of
           ['total', 'unlensed_scalar', 'unlensed_total', 'lensed_scalar', 'tensor']
-        :param xvals: optional array of cos(theta) values at which to calculate correlation function.
+        :param xvals: optional array of :math:`\cos(\theta)` values at which to calculate correlation function.
         :param sampling_factor: multiple of lmax for the Gauss-Legendre order if xvals not given (default 1)
         :return: if xvals not given: corrs, xvals, weights; if xvals specified, just corrs.
           corrs is 2D array corrs[i, ix], where ix=0,1,2,3 are T, Q+U, Q-U and cross, and i indexes xvals
         """
 
         if not spectrum in ['total', 'unlensed_scalar', 'unlensed_total', 'lensed_scalar', 'tensor']:
-            raise ValueError('Can only get CMB correlation functions for known CMB spectrum')
+            raise CAMBValueError('Can only get CMB correlation functions for known CMB spectrum')
         from . import correlations
 
         cls = self.get_cmb_power_spectra(params, lmax, spectra=[spectrum])[spectrum]
@@ -562,11 +578,12 @@ class CAMBdata(object):
             return correlations.cl2corr(cls, xvals, lmax=lmax)
 
     def get_cmb_transfer_data(self, tp='scalar'):
-        """
-        Get C_l transfer functions
+        r"""
+        Get :math:`C_\ell` transfer functions
 
-        :return: class:`.ClTransferData` instance holding output arrays (copies, not pointers)
+        :return: :class:`.ClTransferData` instance holding output arrays (copies, not pointers)
         """
+
         cdata = _ClTransferData()
         CAMBdata_cltransferdata(self._key, byref(cdata), byref(c_int(['scalar', 'vector', 'tensor'].index(tp))))
         data = ClTransferData()
@@ -725,8 +742,8 @@ class CAMBdata(object):
 
     def get_linear_matter_power_spectrum(self, var1=None, var2=None,
                                          hubble_units=True, have_power_spectra=False, params=None, nonlinear=False):
-        """
-        Calculates P_{xy}(k/h), where x, y are one of model.Transfer_cdm, model.Transfer_xx etc.
+        r"""
+        Calculates :math:`P_{xy}(k/h)`, where x, y are one of model.Transfer_cdm, model.Transfer_xx etc.
         The output k values are not regularly spaced, and not interpolated.
 
         :param var1: variable i (index, or name of variable; default delta_tot)
@@ -759,13 +776,13 @@ class CAMBdata(object):
         return np.array(kh), np.array(z), PK
 
     def get_nonlinear_matter_power_spectrum(self, **kwargs):
-        """
-        Calculates P_{xy}(k/h), where x, y are one of model.Transfer_cdm, model.Transfer_xx etc.
+        r"""
+        Calculates :math:`P_{xy}(k/h)`, where x, y are one of model.Transfer_cdm, model.Transfer_xx etc.
         The output k values are not regularly spaced, and not interpolated.
 
         :param var1: variable i (index, or name of variable; default delta_tot)
         :param var2: variable j (index, or name of variable; default delta_tot)
-        :param hubble_units: if true, output power spectrum in (Mpc/h)^{3} units, otherwise Mpc^{3}
+        :param hubble_units: if true, output power spectrum in :Math:`({\rm Mpc}/h)^{3}` units, otherwise :math:`{\rm Mpc}^{3}`
         :param have_power_spectra: set to True if already computed power spectra
         :param params: if have_power_spectra=False, optional :class:`.model.CAMBparams` instance to specify new parameters
         :return: kh, z, PK, where kz an z are arrays of k/h and z respectively, and PK[i,j] is value at z[i], k/h[j]
@@ -774,19 +791,19 @@ class CAMBdata(object):
         return self.get_linear_matter_power_spectrum(**kwargs)
 
     def get_sigma8(self):
-        """
-        Get sigma_8 values (must previously have calculated power spectra)
+        r"""
+        Get :math:`\sigma_8` values (must previously have calculated power spectra)
 
-        :return: array of sigma_8 values, in order of increasing time (decreasing redshift)
+        :return: array of :math:`\sigma_8` values, in order of increasing time (decreasing redshift)
         """
         mtrans = self.get_matter_transfer_data()
         return mtrans.sigma_8[:, 0]
 
     def get_fsigma8(self):
-        """
-        Get f*sigma_8 growth values (must previously have calculated power spectra).
-        For general models f*sigma_8 is defined as in the Planck 2015 parameter paper in terms of
-        the velocity-density correlation: sigma^2_{vd}/sigma_{dd} for 8 h^{-1} Mpc spheres.
+        r"""
+        Get :math:`f\sigma_8` growth values (must previously have calculated power spectra).
+        For general models :math:`f\sigma_8` is defined as in the Planck 2015 parameter paper in terms of
+        the velocity-density correlation: :math:`\sigma^2_{vd}/\sigma_{dd}` for :math:`8 h^{-1} {\rm Mpc}` spheres.
 
         :return: array of f*sigma_8 values, in order of increasing time (decreasing redshift)
         """
@@ -797,7 +814,7 @@ class CAMBdata(object):
                                   var1=None, var2=None,
                                   have_power_spectra=False, params=None):
         """
-        Calculates P_{xy}(k/h), where x, y are one of Transfer_cdm, Transfer_xx etc defined in ModelParams.
+        Calculates :math:`P_{xy}(k/h)`, where x, y are one of Transfer_cdm, Transfer_xx etc defined in ModelParams.
         The output k values are regularly log spaced and interpolated. If NonLinear is set, the result is non-linear.
 
         :param minkh: minimum value of k/h for output grid (very low values < 1e-4 may not be calculated)
@@ -832,18 +849,18 @@ class CAMBdata(object):
 
     def get_matter_power_interpolator(self, nonlinear=True, var1=None, var2=None, hubble_units=True, k_hunit=True,
                                       return_z_k=False, log_interp=True, extrap_kmax=None):
-        """
+        r"""
         Assuming transfers have been calculated, return a 2D spline interpolation object to evaluate matter
         power spectrum as function of z and k/h (or k)
         e.g::
-          PK = results.get_matter_power_evaluator();
+          PK = results.get_matter_power_interpolator();
           print 'Power spectrum at z=0.5, k/h=0.1 is %s (Mpc/h)^3 '%(PK.P(0.5, 0.1))
 
         :param nonlinear: include non-linear correction from halo model
         :param var1: variable i (index, or name of variable; default delta_tot)
         :param var2: variable j (index, or name of variable; default delta_tot)
-        :param hubble_units: if true, output power spectrum in (Mpc/h)^{3} units, otherwise Mpc^{3}
-        :param k_hunit: if true, matter power is a function of k/h, if false, just k (both Mpc^{-1} units)
+        :param hubble_units: if true, output power spectrum in :math:`({\rm Mpc}/h)^{3}` units, otherwise :math:`{\rm Mpc}^{3}`
+        :param k_hunit: if true, matter power is a function of k/h, if false, just k (both :math:`{\rm Mpc}^{-1}` units)
         :param return_z_k: if true, return interpolator, z, k where z, k are the grid used
         :param log_interp: if true, interpolate log of power spectrum (unless any values are negative in which case ignored)
         :param extrap_kmax: if set, use power law extrapolation beyond kmax to extrap_kmax (useful for tails of integrals)
@@ -897,12 +914,12 @@ class CAMBdata(object):
             return res
 
     def get_total_cls(self, lmax=None, CMB_unit=None, raw_cl=False):
-        """
+        r"""
         Get lensed-scalar + tensor CMB power spectra. Must have already calculated power spectra.
 
         :param lmax: lmax to output to
-        :param CMB_unit: scale results from dimensionless. Use 'muK' for muK^2 units for CMB CL and muK units for lensing cross.
-        :param raw_cl: return C_L rather than L(L+1)C_L/2pi
+        :param CMB_unit: scale results from dimensionless. Use 'muK' for :math:`\mu K^2` units for CMB :math:`C_\ell`
+        :param raw_cl: return :math:`C_\ell` rather than :math:`\ell(\ell+1)C_\ell/2\pi`
         :return: numpy array CL[0:lmax+1,0:4], where 0..3 indexes TT, EE, BB, TE
         """
         lmax = self._lmax_setting(lmax)
@@ -913,12 +930,12 @@ class CAMBdata(object):
         return res
 
     def get_tensor_cls(self, lmax=None, CMB_unit=None, raw_cl=False):
-        """
+        r"""
         Get tensor CMB power spectra. Must have already calculated power spectra.
 
         :param lmax: lmax to output to
-        :param CMB_unit: scale results from dimensionless. Use 'muK' for muK^2 units for CMB CL and muK units for lensing cross.
-        :param raw_cl: return C_L rather than L(L+1)C_L/2pi
+        :param CMB_unit: scale results from dimensionless. Use 'muK' for :math:`\mu K^2` units for CMB :math:`C_\ell`
+        :param raw_cl: return :math:`C_\ell` rather than :math:`\ell(\ell+1)C_\ell/2\pi`
         :return: numpy array CL[0:lmax+1,0:4], where 0..3 indexes TT, EE, BB, TE
         """
 
@@ -932,12 +949,12 @@ class CAMBdata(object):
         return res
 
     def get_unlensed_scalar_cls(self, lmax=None, CMB_unit=None, raw_cl=False):
-        """
+        r"""
         Get unlensed scalar CMB power spectra. Must have already calculated power spectra.
 
         :param lmax: lmax to output to
-        :param CMB_unit: scale results from dimensionless. Use 'muK' for muK^2 units for CMB CL and muK units for lensing cross.
-        :param raw_cl: return C_L rather than L(L+1)C_L/2pi
+        :param CMB_unit: scale results from dimensionless. Use 'muK' for :math:`\mu K^2` units for CMB :math:`C_\ell`
+        :param raw_cl: return :math:`C_\ell` rather than :math:`\ell(\ell+1)C_\ell/2\pi`
         :return: numpy array CL[0:lmax+1,0:4], where 0..3 indexes TT, EE, BB, TE. CL[:,2] will be zero.
         """
         lmax = self._lmax_setting(lmax, unlensed=True)
@@ -948,12 +965,12 @@ class CAMBdata(object):
         return res
 
     def get_unlensed_total_cls(self, lmax=None, CMB_unit=None, raw_cl=False):
-        """
+        r"""
         Get unlensed CMB power spectra, including tensors if relevant. Must have already calculated power spectra.
 
         :param lmax: lmax to output to
-        :param CMB_unit: scale results from dimensionless. Use 'muK' for muK^2 units for CMB CL and muK units for lensing cross.
-        :param raw_cl: return C_L rather than L(L+1)C_L/2pi
+        :param CMB_unit: scale results from dimensionless. Use 'muK' for :math:`\mu K^2` units for CMB :math:`C_\ell`
+        :param raw_cl: return :math:`C_\ell` rather than :math:`\ell(\ell+1)C_\ell/2\pi`
         :return: numpy array CL[0:lmax+1,0:4], where 0..3 indexes TT, EE, BB, TE.
         """
         lmax = self._lmax_setting(lmax, unlensed=True)
@@ -961,12 +978,12 @@ class CAMBdata(object):
                self.get_tensor_cls(lmax, CMB_unit, raw_cl)
 
     def get_lensed_scalar_cls(self, lmax=None, CMB_unit=None, raw_cl=False):
-        """
+        r"""
         Get lensed scalar CMB power spectra. Must have already calculated power spectra.
 
         :param lmax: lmax to output to
-        :param CMB_unit: scale results from dimensionless. Use 'muK' for muK^2 units for CMB CL and muK units for lensing cross.
-        :param raw_cl: return C_L rather than L(L+1)C_L/2pi
+        :param CMB_unit: scale results from dimensionless. Use 'muK' for :math:`\mu K^2` units for CMB :math:`C_\ell`
+        :param raw_cl: return :math:`C_\ell` rather than :math:`\ell(\ell+1)C_\ell/2\pi`
         :return: numpy array CL[0:lmax+1,0:4], where 0..3 indexes TT, EE, BB, TE.
         """
 
@@ -978,13 +995,14 @@ class CAMBdata(object):
         return res
 
     def get_lens_potential_cls(self, lmax=None, CMB_unit=None, raw_cl=False):
-        """
+        r"""
         Get lensing deflection angle potential power spectrum, and cross-correlation with T and E. Must have already calculated power spectra.
-        Power spectra are [l(l+1)]^2C_l^{phi phi}/2/pi and corresponding deflection cross-correlations.
+        Power spectra are :math:`[L(L+1)]^2C_L^{\phi\phi}/2\pi` and corresponding deflection cross-correlations.
 
         :param lmax: lmax to output to
-        :param CMB_unit: scale results from dimensionless. Use 'muK' for muK^2 units for CMB CL and muK units for lensing cross.
-        :param raw_cl: return lensing potential C_L rather than [L(L+1)]^2C_L/2pi
+
+        :param CMB_unit: scale results from dimensionless. Use 'muK' for :math:`\mu K` units for lensing cross.
+        :param raw_cl: return lensing potential :math:`C_L` rather than :math:`[L(L+1)]^2C_L/2\pi`
         :return: numpy array CL[0:lmax+1,0:3], where 0..2 indexes PP, PT, PE.
         """
 
@@ -1017,10 +1035,10 @@ class CAMBdata(object):
         Get all unlensed auto and cross power spectra, including any custom source functions set using :func:`set_custom_scalar_sources`.
 
         :param params: optional :class:`.model.CAMBparams` instance with parameters to use. If None, must have
-          previously set parameters and called `calc_power_spectra` (e.g. if you got this instance using `camb.get_results`),
-        :param lmax: maximum l
-        :param CMB_unit: scale results from dimensionless. Use 'muK' for muK^2 units for CMB CL and muK units for lensing cross.
-        :param raw_cl: return C_L rather than L(L+1)C_L/2pi
+          previously set parameters and called :meth:`calc_power_spectra` (e.g. if you got this instance using :func:`get_results`),
+        :param lmax: maximum :math:`\ell`
+        :param CMB_unit: scale results from dimensionless. Use 'muK' for :math:`\mu K^2` units for CMB :math:`C_\ell` and :math:`\mu K` units for lensing cross.
+        :param raw_cl: return :math:`C_\ell` rather than :math:`\ell(\ell+1)C_\ell/2\pi`
         :return: dictionary of power spectrum arrays, index as TxT, TxE, W1xW2, custom_name_1xT... etc.
         """
 
@@ -1031,7 +1049,7 @@ class CAMBdata(object):
                 model.has_cl_2D_array.value = True
                 self.calc_power_spectra(params)
             elif not model.has_cl_2D_array:
-                raise ValueError('model.has_cl_2D_array must be true to have array C_L')
+                raise CAMBValueError('model.has_cl_2D_array must be true to have array C_L')
             lmax = lmax or self.Params.max_l
             arr = self.get_unlensed_scalar_array_cls(lmax)
             names = ['T', 'E', 'P'] + ["W%s" % (i + 1) for
@@ -1067,7 +1085,7 @@ class CAMBdata(object):
         """
         Get (non-comoving) angular diameter distance to redshift z.
 
-        Must have called calc_background, calc_background_no_thermo or calculated transfer functions or power spectra.
+        Must have called :meth:`calc_background`, :meth:`calc_background_no_thermo` or calculated transfer functions or power spectra.
 
         :param z: redshift or array of redshifts
         :return: angular diameter distances, matching rank of z
@@ -1084,12 +1102,12 @@ class CAMBdata(object):
             return arr
 
     def angular_diameter_distance2(self, z1, z2):
-        """
+        r"""
         Get angular diameter distance between two redshifts
+        :math:`\frac{r}{1+z_2}\text{sin}_K\left(\frac{\chi(z_2) - \chi(z_1)}{r}\right)`
+        where :math:`r` is curvature radius and :math:`\chi` is the comoving radial distance.
 
-        [r/(1+z2)]*sin_K([chi(z_1) - chi(z_1)]/r) where r is curvature radius and chi is the comoving radial distance
-
-        Must have called calc_background, calc_background_no_thermo or calculated transfer functions or power spectra.
+        Must have called :meth:`calc_background`, :meth:`calc_background_no_thermo` or calculated transfer functions or power spectra.
 
         :param z1: redshift 1
         :param z2: redshift 2
@@ -1103,7 +1121,7 @@ class CAMBdata(object):
         """
         Get comoving radial distance from us to redshift z in Mpc. This is efficient for arrays.
 
-        Must have called calc_background, calc_background_no_thermo or calculated transfer functions or power spectra.
+        Must have called :meth:`calc_background`, :meth:`calc_background_no_thermo` or calculated transfer functions or power spectra.
 
         :param z: redshift
         :return: comoving radial distance (Mpc)
@@ -1121,7 +1139,7 @@ class CAMBdata(object):
     def redshift_at_comoving_radial_distance(self, chi, nz_step=150, zmax=10000):
         """
         Convert comoving radial distance array to redshift array.
-        This is not calculated directly, but fit from a spline to a forward calculation of chi from z
+        This is not calculated directly, but fit from a spline to a forward calculation of chi from z.
         This is a utility routine, not optimized to be fast (though it can work on a large vector efficiently)
 
         :param chi: comoving radial distance (in Mpc), scalar or array
@@ -1142,7 +1160,7 @@ class CAMBdata(object):
         """
         Get luminosity distance from to redshift z.
 
-        Must have called calc_background, calc_background_no_thermo or calculated transfer functions or power spectra.
+        Must have called :meth:`calc_background`, :meth:`calc_background_no_thermo` or calculated transfer functions or power spectra.
 
         :param z: redshift or array of redshifts
         :return: luminosity distance (matches rank of z)
@@ -1152,10 +1170,10 @@ class CAMBdata(object):
         return self.angular_diameter_distance(z) * (1.0 + z) ** 2
 
     def h_of_z(self, z):
-        """
-        Get Hubble rate at redshift z, in Mpc^{-1} units, scalar or array
+        r"""
+        Get Hubble rate at redshift z, in :math:`{\rm Mpc}^{-1}` units, scalar or array
 
-        Must have called calc_background, calc_background_no_thermo or calculated transfer functions or power spectra.
+        Must have called :meth:`calc_background`, :meth:`calc_background_no_thermo` or calculated transfer functions or power spectra.
 
         Use hubble_parameter instead if you want in [km/s/Mpc] units.
 
@@ -1174,7 +1192,7 @@ class CAMBdata(object):
         """
         Get Hubble rate at redshift z, in km/s/Mpc units. Scalar or array.
 
-        Must have called calc_background, calc_background_no_thermo or calculated transfer functions or power spectra.
+        Must have called :meth:`calc_background`, :meth:`calc_background_no_thermo` or calculated transfer functions or power spectra.
 
         :param z: redshift
         :return: H(z)/[km/s/Mpc]
@@ -1185,7 +1203,7 @@ class CAMBdata(object):
         """
         Get physical time between two scalar factors in Gigayears
 
-        Must have called calc_background, calc_background_no_thermo or calculated transfer functions or power spectra.
+        Must have called :meth:`calc_background`, :meth:`calc_background_no_thermo` or calculated transfer functions or power spectra.
 
         :param a1: scale factor 1
         :param a2: scale factor 2
@@ -1237,10 +1255,10 @@ class CAMBdata(object):
             return eta
 
     def cosmomc_theta(self):
-        """
-        Get theta_MC, an approximation of the radio of the sound horizon to the angular diameter distance at recombination.
+        r"""
+        Get :math:`\theta_{\rm MC}`, an approximation of the ratio of the sound horizon to the angular diameter distance at recombination.
 
-        :return: theta_MC
+        :return: :math:`\theta_{\rm MC}`
         """
         return CosmomcTheta()
 
@@ -1253,6 +1271,7 @@ def get_results(params):
     :return: :class:`CAMBdata` instance
     """
     res = CAMBdata()
+    if _debug_params: print(params)
     res.calc_power_spectra(params)
     return res
 
@@ -1274,7 +1293,7 @@ def get_transfer_functions(params):
 def get_background(params, no_thermo=False):
     """
     Calculate background cosmology for specified parameters and return :class:`CAMBdata`, ready to get derived
-     parameters and use background functions like angular_diameter_distance.
+     parameters and use background functions like :func:`~camb.CAMBdata.angular_diameter_distance`.
 
     :param params: :class:`.model.CAMBparams` instance
     :param no_thermo: Use calc_background_no_thermo instead
@@ -1321,17 +1340,17 @@ def set_params(cp=None, verbose=False, **params):
     Set all CAMB parameters at once, including parameters which are part of the
     CAMBparams structure, as well as global parameters.
 
-    E.g.
+    E.g.::
 
-    cp = camb.set_params(ns=1, omch2=0.1, ALens=1.2, lmax=2000)
+      cp = camb.set_params(ns=1, omch2=0.1, ALens=1.2, lmax=2000)
 
-    This is equivalent to:
+    This is equivalent to::
 
-    cp = model.CAMBparams()
-    cp.set_cosmology(omch2=0.1)
-    cp.set_for_lmax(lmax=2000)
-    cp.InitPower.set_params(ns=1)
-    lensing.ALens.value = 1.2
+      cp = model.CAMBparams()
+      cp.set_cosmology(omch2=0.1)
+      cp.set_for_lmax(lmax=2000)
+      cp.InitPower.set_params(ns=1)
+      lensing.ALens.value = 1.2
 
 
     :param **params: the values of the parameters
@@ -1386,18 +1405,19 @@ def set_params(cp=None, verbose=False, **params):
 
     unused_params = set(params) - set(_used_params)
     if unused_params:
-        raise Exception("Unrecognized parameters: %s" % unused_params)
+        raise CAMBUnknownArgumentError("Unrecognized parameters: %s" % unused_params)
     return cp
 
 
 def get_matter_power_interpolator(params, zmin=0, zmax=10, nz_step=100, zs=None, kmax=10, nonlinear=True,
                                   var1=None, var2=None, hubble_units=True, k_hunit=True,
                                   return_z_k=False, k_per_logint=None, log_interp=True, extrap_kmax=None):
-    """
+    r"""
     Return a 2D spline interpolation object to evaluate matter power spectrum as function of z and k/h
     e.g::
-      PK = get_matter_power_evaluator(params);
-      print 'Power spectrum at z=0.5, k/h=0.1 is %s (Mpc/h)^3 '%(PK.P(0.5, 0.1))
+      from camb import get_matter_power_interpolator
+      PK = get_matter_power_interpolator(params);
+      print('Power spectrum at z=0.5, k/h=0.1/Mpc is %s (Mpc/h)^3 '%(PK.P(0.5, 0.1)))
 
     :param params: :class:`.model.CAMBparams` instance
     :param zmin: minimum z (use 0 or smaller than you want for good interpolation)
@@ -1408,8 +1428,8 @@ def get_matter_power_interpolator(params, zmin=0, zmax=10, nz_step=100, zs=None,
     :param nonlinear: include non-linear correction from halo model
     :param var1: variable i (index, or name of variable; default delta_tot)
     :param var2: variable j (index, or name of variable; default delta_tot)
-    :param hubble_units: if true, output power spectrum in (Mpc/h)^{3} units, otherwise Mpc^{3}
-    :param k_hunit: if true, matter power is a function of k/h, if false, just k (both Mpc^{-1} units)
+    :param hubble_units: if true, output power spectrum in :math:`({\rm Mpc}/h)^{3}` units, otherwise :math:`{\rm Mpc}^{3}`
+    :param k_hunit: if true, matter power is a function of k/h, if false, just k (both :math:`{\rm Mpc}^{-1}` units)
     :param return_z_k: if true, return interpolator, z, k where z, k are the grid used
     :param k_per_logint: specific uniform sampling over log k (if not set, uses optimized irregular sampling)
     :param log_interp: if true, interpolate log of power spectrum (unless any values are negative in which case ignored)
@@ -1436,13 +1456,13 @@ _current_source_func = None
 
 def set_custom_scalar_sources(custom_sources, source_names=None, source_ell_scales=None,
                               frame='CDM', code_path=None):
-    """
+    r"""
     Set custom sources for angular power spectrum using camb.symbolic sympy expressions.
 
     :param custom_sources: list of sympy expressions for the angular power spectrum sources
     :param source_names: optional list of string naes for the sources
     :param source_ell_scales: list or dictionary of scalings for each source name, where for integer entry n, the source for
-     multipole ell is scalled by sqrt((ell+n)!/(ell-n)!), i.e. n=2 for a new polarization-like source.
+     multipole :math:`\ell` is scalled by :math:`\sqrt{(\ell+n)!/(\ell-n)!}`, i.e. :math:`n=2` for a new polarization-like source.
     :param frame: if the source is not gauge invariant, frame in which to interpret result
     :param code_path: optional path for output of source code for CAMB f90 source function
     """
@@ -1453,7 +1473,7 @@ def set_custom_scalar_sources(custom_sources, source_names=None, source_ell_scal
     if isinstance(custom_sources, dict):
         assert (not source_names)
         if source_ell_scales and not isinstance(source_ell_scales, dict):
-            raise ValueError('source_ell_scales must be a dictionary if custom_sources is')
+            raise CAMBValueError('source_ell_scales must be a dictionary if custom_sources is')
         lst = []
         source_names = []
         for name in custom_sources.keys():
@@ -1465,12 +1485,12 @@ def set_custom_scalar_sources(custom_sources, source_names=None, source_ell_scal
         if source_names: source_names = [source_names]
     custom_source_names[:] = source_names or ["C%s" % (i + 1) for i in range(len(custom_sources))]
     if len(custom_source_names) != len(custom_sources):
-        raise ValueError('Number of custom source names does not match number of sources')
+        raise CAMBValueError('Number of custom source names does not match number of sources')
     scales = np.zeros(len(custom_sources), dtype=np.int32)
     if source_ell_scales:
         if isinstance(source_ell_scales, dict):
             if set(source_ell_scales.keys()) - set(custom_source_names):
-                raise ValueError('scale dict key not in source names list')
+                raise CAMBValueError('scale dict key not in source names list')
             for i, name in enumerate(custom_source_names):
                 if name in source_ell_scales:
                     scales[i] = source_ell_scales[name]

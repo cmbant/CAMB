@@ -35,49 +35,48 @@ def cl_deflection_limber(results, PK, ls, nz, chi_source, emit_pow=2, lens_pow=0
 
 
 def get_emission_angle_powers(camb_background, PK, chi_source, lmax=3000, acc=1, lsamp=None):
-    """
-    Get the power spectrum of psi_d, the potential for the emission angle, and its cross with standard lensing.
+    r"""
+    Get the power spectrum of :math:`\psi_d`, the potential for the emission angle, and its cross with standard lensing.
     Uses the Limber approximation (and assumes flat universe).
 
     :param camb_background: a CAMB results object, used for calling background functions
     :param PK: a matter power spectrum interpolator (from camb.get_matter_power_interpolator)
     :param chi_source: comoving radial distance of source in Mpc
-    :param lmax: maximum ell
+    :param lmax: maximum L
     :param acc: accuracy parameter
-    :param lsamp: ell sampling for the result
-    :return: a UnivariateSpline object containing L(L+1) C_L
+    :param lsamp: L sampling for the result
+    :return: a UnivariateSpline object containing :math:`L(L+1) C_L`
     """
 
     from scipy.interpolate import UnivariateSpline
 
     assert (isinstance(camb_background, camb.CAMBdata) and not camb_background.Params.omegak)
     nz = int(100 * acc)
-    ls = lsamp or np.hstack((np.arange(2, 60, 2), np.arange(60, min(lmax,400), 10),
-                             np.arange(min(lmax,400), lmax, int(50. / acc)),
+    ls = lsamp or np.hstack((np.arange(2, 60, 2), np.arange(60, min(lmax, 400), 10),
+                             np.arange(min(lmax, 400), lmax, int(50. / acc)),
                              np.arange(lmax, lmax + 1))).astype(np.float64)
     cl_psi_d = cl_deflection_limber(camb_background, PK, ls, nz, chi_source, emit_pow=2, lens_pow=0)
     cl_psi_d_cross = cl_deflection_limber(camb_background, PK, ls, nz, chi_source, emit_pow=1, lens_pow=1)
-
     return UnivariateSpline(ls, cl_psi_d, s=0), UnivariateSpline(ls, cl_psi_d_cross, s=0)
 
 
 def get_emission_delay_BB(params, kmax=100, lmax=3000, non_linear=True, CMB_unit='muK', raw_cl=False,
                           acc=1, lsamp=None, return_terms=False, include_reionization=True):
-    """
+    r"""
     Get B modes from emission angle and time delay effects.
     Uses full-sky result from appendix of `arXiv:1706.02673 <http://arxiv.org/abs/1706.02673>`_
 
     :param params: :class:`.model.CAMBparams` instance with cosmological parameters etc.
-    :param kmax: maximum k (in Mpc^{-1} units)
-    :param lmax: maximum L
+    :param kmax: maximum k (in :math:`{\rm Mpc}^{-1}` units)
+    :param lmax: maximum :math:`\ell`
     :param non_linear: include non-linear corrections
     :param CMB_unit: normalization for the result
-    :param raw_cl: if true return C_L, else L(L+1)C_L/2pi
+    :param raw_cl: if true return :math:`C_\ell`, else :math:`\ell(\ell+1)C_\ell/2\pi`
     :param acc: accuracy setting, increase to test stability
-    :param lsamp: array of L values to compute output at. If not set, set to sampling good for interpolation
+    :param lsamp: array of :math:`\ell` values to compute output at. If not set, set to sampling good for interpolation
     :param return_terms: return the three sub-terms separately rather than the total
     :param include_reionization: approximately include reionization terms by second scattering surface
-    :return: C_L^{BB}, the L sample values and corresponding rotation power
+    :return: UnivariateSpline for :math:`C_\ell^{BB}`
     """
 
     from scipy.interpolate import UnivariateSpline
@@ -172,15 +171,15 @@ def get_emission_delay_BB(params, kmax=100, lmax=3000, non_linear=True, CMB_unit
 
 
 def get_source_cmb_cl(params, CMB_unit='muK'):
-    """
-    Get the angular power spectrum of emission angle and time delay sources psi_t, psi_zeta,
+    r"""
+    Get the angular power spectrum of emission angle and time delay sources :math:`\psi_t`, :math:`\psi_\zeta`,
     as well as the perpendicular velocity and E polarization.
     All are returned with 1 and 2 versions, for recombination and reionization respectively.
     Note that this function destroys any custom sources currently configured.
 
     :param params: :class:`.model.CAMBparams` instance with cosmological parameters etc.
-    :param CMB_unit: scale results from dimensionless, use 'muK' for muK^2 units
-    :return: dictionary of power spectra, with L(L+1)/2pi factors.
+    :param CMB_unit: scale results from dimensionless, use 'muK' for :math:`\mu K^2` units
+    :return: dictionary of power spectra, with :math:`L(L+1)/2\pi` factors.
     """
 
     import sympy

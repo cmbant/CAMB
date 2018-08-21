@@ -109,6 +109,7 @@ def LinearPerturbation(name, species=None, camb_var=None, camb_sub=None, frame_d
     :param description: string describing variable
     :return: sympy Function instance (function of t), with attributes set to the arguments above.
     """
+    if isinstance(camb_var, list): camb_var = tuple(camb_var)
     f = sympy.Function(name, species=species, camb_var=camb_var, camb_sub=camb_sub, perturbation_order=1,
                        frame_dependence=frame_dependence, description=description)
     return f(t)
@@ -174,7 +175,7 @@ A = LinearPerturbation('A', camb_sub=0, description='acceleration',
 z = LinearPerturbation('z', description='expansion rate perturbation',
                        #                        frame_dependence = delta_frame - 3*(dH- H**2)*delta_frame/k**2)
                        frame_dependence=K_fac * delta_frame + 3 * kappa * a ** 2 * (rho + P) * delta_frame / (
-                           2 * k ** 2))
+                               2 * k ** 2))
 
 hdot = LinearPerturbation('hdot', camb_sub=k / 3 * z, description='time derivative of scale factor perturbation',
                           frame_dependence=k * delta_frame / 3 - diff(delta_frame * H, t) / k)
@@ -246,7 +247,7 @@ Delta_de = LinearPerturbation('Delta_de', species='de', camb_var='clxde',
 csq_b = LinearPerturbation('c_sb^2', species='b', camb_var=['delta_p_b', 'clxb'], camb_sub='delta_p_b/clxb',
                            description='baryon sound speed')
 csq_b.frame_dependence = (csq_b * Delta_b - diff(p_b, t) / rho_b * delta_frame / k) / (
-    Delta_b + 3 * H * (1 + p_b / rho_b) * delta_frame / k) - csq_b
+        Delta_b + 3 * H * (1 + p_b / rho_b) * delta_frame / k) - csq_b
 
 # dark energy sound speed defined in rest frame so gauge invariant
 csqhat_de = LinearPerturbation('chat_sde^2', species='de', camb_var='cs2_lam',
@@ -292,7 +293,7 @@ q_sub = Eq(q, subs(Eq(z, subs(var_subs, z)), solve(cons3, q)))
 # Evoluation equations
 
 dz = -H * z - kappa * a ** 2 / k / 2 * (delta + 3 * delta_P) + (3 * kappa * a ** 2 * (
-    rho + P) / 2) * A / k + k * K_fac * A
+        rho + P) / 2) * A / k + k * K_fac * A
 dsigma = -H * sigma + k * (phi + A) - half * kappa * a ** 2 / k * Pi
 deta = -1 / k * (2 * K * z + kappa * a ** 2 * q + 2 * K_fac * k * H * A)
 dphi = -H * phi + half / k ** 2 * kappa * a ** 2 * (k * (rho + P) * sigma + k * q - diff(Pi, t) - H * Pi)
@@ -392,8 +393,8 @@ cdm_subs = [Eq(diff(A, t), 0), Eq(A, 0), Eq(diff(v_c, t), 0), Eq(v_c, 0)]
 
 
 def cdm_gauge(x):
-    """
-    Evaluates an expression in the CDM frame (v_c=0, A=0). Equivalent to the synchronous gauge
+    r"""
+    Evaluates an expression in the CDM frame :math:`(v_c=0, A=0)`. Equivalent to the synchronous gauge
     but using the covariant variable names.
 
     :param x: expression
@@ -451,7 +452,7 @@ delta_eqs = [
        - k * q_nu + 3 * H * (-Delta_P_nu + Delta_nu * p_nu / rho_nu)),
     Eq(diff(Delta_de, t),
        -3 * (1 + w_de) * hdot - (1 + w_de) * k * v_de - 3 * H * (csqhat_de - w_de) * (
-           Delta_de + 3 * H * (1 + w_de) * v_de / k)
+               Delta_de + 3 * H * (1 + w_de) * v_de / k)
        - 3 * H * diff(w_de, t) * v_de / k)
 ]
 
@@ -477,7 +478,7 @@ tot_subs = [
 
 # Note that csqhat_de is defined in the dark energy rest-frame, so this is general-gauge result for pressure perturbation:
 Delta_P_de = (
-    csqhat_de * Delta_de + 3 * H * v_de / k * (1 + w_de) * (csqhat_de - w_de + diff(w_de, t) / 3 / H / (1 + w_de)))
+        csqhat_de * Delta_de + 3 * H * v_de / k * (1 + w_de) * (csqhat_de - w_de + diff(w_de, t) / 3 / H / (1 + w_de)))
 tot_pert_subs = [
     Eq(Pi, rho_g * pi_g + rho_r * pi_r + rho_nu * pi_nu),
     Eq(delta, rho_g * Delta_g + rho_r * Delta_r + rho_b * Delta_b + rho_c * Delta_c
@@ -690,12 +691,31 @@ def camb_fortran(expr, name='camb_function', frame='CDM', expand=False):
 _func_cache = {}
 _source_file_count = 0
 
+_default_compiler = None
+_default_flags = None
 
-def compile_source_function_code(code_body, file_path='',
-                                 compiler='gfortran',
-                                 # fflags="-shared -fPIC -g -fbounds-check -fbacktrace -ffpe-trap=invalid,overflow,zero",
-                                 fflags="-shared -fPIC -O1 -ffast-math -fmax-errors=4",
-                                 cache=True):
+
+def get_default_compiler():
+    global _default_compiler, _default_flags
+    if _default_compiler: return _default_compiler
+    from ctypes import c_int
+    from .baseconfig import camblib
+    try:
+        c_int.in_dll(camblib, "modelparams_mp_threadnum_")
+        import platform
+        _default_compiler = 'ifort'
+        if platform.system() == 'Darwin':
+            _default_flags = "-dynamiclib -fpic -O1 -W0 -WB"
+        else:
+            _default_flags = "-shared -fpic -O1 -W0 -WB"
+    except:
+        _default_compiler = 'gfortran'
+        _default_flags = "-shared -fPIC -O1 -ffast-math -fmax-errors=4"
+    # _default_flags="-shared -fPIC -g -fbounds-check -fbacktrace -ffpe-trap=invalid,overflow,zero",
+    return _default_compiler
+
+
+def compile_source_function_code(code_body, file_path='', compiler=None, fflags=None, cache=True):
     """
     Compile fortran code into function pointer in compiled shared library.
     The function is not intended to be called from python, but for passing back to compiled CAMB.
@@ -741,6 +761,9 @@ def compile_source_function_code(code_body, file_path='',
     """
 
     import subprocess, tempfile, struct, platform
+
+    compiler = compiler or get_default_compiler()
+    fflags = fflags or _default_flags
 
     if struct.calcsize("P") == 4: fflags = "-m32 " + fflags
     if platform.system() == "Windows": fflags += ' -static'

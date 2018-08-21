@@ -2488,6 +2488,7 @@
     !  Massive neutrino equations of motion.
     if (CP%Num_Nu_massive == 0) return
 
+    !DIR$ LOOP COUNT MIN(1), AVG(1)
     do nu_i = 1, CP%Nu_mass_eigenstates
         if (EV%MassiveNuApprox(nu_i)) then
             !Now EV%iq0 = clx, EV%iq0+1 = clxp, EV%iq0+2 = G_1, EV%iq0+3=G_2=pinu
@@ -2502,6 +2503,7 @@
             ayprime(off_ix+3)=(3*w-2)*adotoa*ay(off_ix+3) + 2*w*k*sigma - k/5*(3*EV%Kf(2)*G30_t-2*G11_t)
         else
             ind=EV%nu_ix(nu_i)
+            !DIR$ LOOP COUNT MIN(3), AVG(3)
             do i=1,EV%nq(nu_i)
                 q=nu_q(i)
                 aq=a*nu_masses(nu_i)/q

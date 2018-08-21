@@ -97,7 +97,7 @@
             if (x > xlim) then
                 if ((lSamp%l(j)==3).and.(x <=0.2) .or. (lSamp%l(j) > 3).and.(x < 0.5) .or. &
                     (lSamp%l(j)>5).and.(x < 1.0)) then
-                ajl(i,j)=0
+                    ajl(i,j)=0
                 else
                     !if ( lSamp%l(j) > 40000) then
                     ! ajl(i,j) = phi_langer(lSamp%l(j),0,1._dl,x)

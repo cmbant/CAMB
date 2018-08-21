@@ -43,20 +43,20 @@ class BBNPredictor(object):
     """
 
     def Y_p(self, ombh2, delta_neff=0.):
-        """
+        r"""
         Get BBN helium nucleon fraction. Must be implemented by extensions.
 
-        :param ombh2: Omega_b h^2
+        :param ombh2: :math:`\Omega_b h^2`
         :param delta_neff:  additional N_eff relative to standard value (of 3.046)
         :return:  Y_p helium nucleon fraction predicted by BBN
         """
         raise Exception('Not implemented')
 
     def Y_He(self, ombh2, delta_neff=0.):
-        """
+        r"""
         Get BBN helium mass fraction for CMB code.
 
-        :param ombh2: Omega_b h^2
+        :param ombh2: :math:`\Omega_b h^2`
         :param delta_neff:  additional N_eff relative to standard value (of 3.046)
         :return: Y_He helium mass fraction predicted by BBN
         """
@@ -78,7 +78,7 @@ class BBN_table_interpolator(BBNPredictor):
         """
 
         if os.sep not in interpolation_table and '/' not in interpolation_table:
-            interpolation_table = os.path.join(os.path.dirname(__file__), interpolation_table)
+            interpolation_table = os.path.normpath(os.path.join(os.path.dirname(__file__), interpolation_table))
         self.interpolation_table = interpolation_table
 
         comment = None
@@ -113,31 +113,31 @@ class BBN_table_interpolator(BBNPredictor):
         self.deltans = deltans
 
     def Y_p(self, ombh2, delta_neff=0., grid=False):
-        """
+        r"""
         Get BBN helium nucleon fraction by intepolation in table.
 
-        :param ombh2: Omega_b h^2 (or, more generally, value of function_of[0])
+        :param ombh2: :math:`\Omega_b h^2` (or, more generally, value of function_of[0])
         :param delta_neff:  additional N_eff relative to standard value (of 3.046) (or value of function_of[1])
         :return:  Y_p helium nucleon fraction predicted by BBN. Call Y_He() to get mass fraction instead.
         """
         return self.get('Yp^BBN', ombh2, delta_neff, grid)
 
     def DH(self, ombh2, delta_neff=0., grid=False):
-        """
+        r"""
         Get deuterium ratio D/H by interpolation in table
 
-        :param ombh2: Omega_b h^2 (or, more generally, value of function_of[0])
+        :param ombh2: :math:`\Omega_b h^2` (or, more generally, value of function_of[0])
         :param delta_neff:  additional N_eff relative to standard value (of 3.046) (or value of function_of[1])
         :return: D/H
         """
         return self.get('D/H', ombh2, delta_neff, grid)
 
     def get(self, name, ombh2, delta_neff=0., grid=False):
-        """
+        r"""
         Get value for variable "name" by intepolation from table (where name is given in the column header comment)
         For example get('sig(D/H)',0.0222,0) to get the error on D/H
 
-        :param ombh2: Omega_b h^2 (or, more generally, value of function_of[0])
+        :param ombh2: :math:`\Omega_b h^2` (or, more generally, value of function_of[0])
         :param delta_neff:  additional N_eff relative to standard value (of 3.046) (or value of function_of[1])
         :return:  Interpolated value
         """
@@ -162,14 +162,14 @@ class BBN_fitting_parthenope(BBNPredictor):
             self.taun = tau_neutron
 
     def Y_p(self, ombh2, delta_neff=0., tau_neutron=None):
-        """
+        r"""
         Get BBN helium nucleon fraction.
         # Parthenope fits, as in Planck 2015 papers
 
-        :param ombh2: Omega_b h^2
+        :param ombh2: :math:`\Omega_b h^2`
         :param delta_neff:  additional N_eff relative to standard value (of 3.046)
         :param tau_neutron: neutron lifetime
-        :return:  Y_p helium nucleon fraction predicted by BBN
+        :return:  :math:`Y_p^{\rm BBN}` helium nucleon fraction predicted by BBN
         """
         return (
                        0.2311 + 0.9502 * ombh2 - 11.27 * ombh2 * ombh2
