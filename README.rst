@@ -30,7 +30,7 @@ The master branch contains latest changes to the main release version.
 .. image:: https://mybinder.org/badge.svg 
   :target: https://mybinder.org/v2/gh/cmbant/camb/master?filepath=pycamb%2Fdocs%2FCAMBdemo.ipynb
 
-The devel branch is a development version, which integrates CAMB and CAMB sources, and uses Fortran 2008 (and hence requires ifort 14+ or gfortran 6+). It also allows runtime switching of the dark energy model.
+The devel branch is a development version, which integrates CAMB and CAMB sources, and uses Fortran 2008 (and hence requires ifort 14+ or gfortran 6+). It also allows runtime switching of the dark energy and halofit model, and easy access to lower-level accuracy parameters.
 
 .. image:: https://secure.travis-ci.org/cmbant/CAMB.png?branch=devel
   :target: https://secure.travis-ci.org/cmbant/CAMB/builds
