@@ -410,7 +410,7 @@
     P%Accuracy%AccuratePolarization = Ini%Read_Logical('accurate_polarization', .true.)
     P%Accuracy%AccurateReionization = Ini%Read_Logical('accurate_reionization', .true.)
     P%Accuracy%AccurateBB = Ini%Read_Logical('accurate_BB', .false.)
-    if (P%AccurateBB .and. P%WantCls .and. (P%Max_l < 3500 .or. &
+    if (P%Accuracy%AccurateBB .and. P%WantCls .and. (P%Max_l < 3500 .or. &
         (P%NonLinear/=NonLinear_lens .and. P%NonLinear/=NonLinear_both) .or. P%Max_eta_k < 18000)) &
         write(*,*) 'WARNING: for accurate lensing BB you need high l_max_scalar, k_eta_max_scalar and non-linear lensing'
 
