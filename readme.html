@@ -13,7 +13,7 @@
 Code for Anisotropies in the Microwave Background by <A
 HREF="http://cosmologist.info/">Antony Lewis</A> and Anthony
 Challinor. <P>
-This version August 2017.
+This version August 2018.
 <P>
 <FONT SIZE=-1>
 Originally based on CMBFAST developed by Uros Seljak and Matias
@@ -144,6 +144,32 @@ A test suite is included, and will run automatically on <A HREF="https://travis-
 <P>
 <A NAME="version">
 <H3>Version history</H3>
+
+<B>August 2018</B><BR>
+<ul>
+  <li>Option to use HMCode 2015 version (thanks Alex Mead)</li>
+  <li><b>accurate_massive_neutrino_transfers</b> option if accurate neutrino transfer functions needed at late time</li>
+  <li>Output text file precision increased</li>
+  <li>Warning if accurate_BB=T but other options not set sensibly for accurate lensing BB</li>
+<LI><A HREF="https://camb.readthedocs.org/en/latest">Python CAMB wrapper</A>:
+<ul>
+  <li>On linux system now builds with ifort if available (~35% faster)</li>
+  <li>More efficient and new vector support for <a href="https://camb.readthedocs.io/en/latest/camb.html?highlight=angular_diameter_distance#camb.CAMBdata.angular_diameter_distance">angular_diameter_distance</a>
+      and related background functions </li>
+  <li><a href="https://camb.readthedocs.io/en/latest/bbn.html">bbn module</a> generalisation to allow more general table interpolation and vector arguments; added <a href="http://www2.iap.fr/users/pitrou/primat.htm">PRIMAT table</a> (thanks Cyril Pitrou)</li>
+   <li>Improvements for default settings in various cases</li>
+   <li><a href="https://camb.readthedocs.io/en/latest/camb.html?highlight=get_background_time_evolution#camb.CAMBdata.get_background_time_evolution">get_background_time_evolution</a> can now get T_b, the baryon temperature</li>
+   <li><a href="https://camb.readthedocs.io/en/latest/camb.html?highlight=save_cmb_power_spectra#camb.CAMBdata.save_cmb_power_spectra">save_cmb_pwoer_spectra</a> convenience function</li>
+  <li>Changes for <a href="https://github.com/JesusTorrado/cobaya">Cobaya</a> compatibility (thanks Jesus Torrado)</li>
+  <li><a href="https://camb.readthedocs.io/en/latest/camb.html?highlight=get_matter_power_interpolator#camb.get_matter_power_interpolator">get_matter_power_interpolator</a>
+      has extrap_kmap to efficiently get tails by extrapolation</li>
+  <li><a href="https://camb.readthedocs.io/en/latest/camb.html#camb.CAMBdata.get_matter_power_interpolator">get_matter_power_interpolator</a>
+      now also available as method of results object for optimization purposes</li>
+  <li>mathutils module with convenience functions like Wigner 3j, pseudo-CL coupling, and fast Gauss-Legendre and x^T C^{-1} x evaluation</li>
+  <li>Doc and example notebook improvements/additional examples and warnings</li>
+</ul>
+</ul>
+
 
 <B>August 2017</B><BR>
 <UL>
