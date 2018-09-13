@@ -1342,11 +1342,12 @@ def set_params(cp=None, verbose=False, **params):
 
     E.g.::
 
-      cp = camb.set_params(ns=1, omch2=0.1, ALens=1.2, lmax=2000)
+      cp = camb.set_params(ns=1, omch2=0.1, w=-0.95, ALens=1.2, lmax=2000)
 
     This is equivalent to::
 
       cp = model.CAMBparams()
+      cp.set_dark_energy(w=-0.95)
       cp.set_cosmology(omch2=0.1)
       cp.set_for_lmax(lmax=2000)
       cp.InitPower.set_params(ns=1)
@@ -1359,46 +1360,27 @@ def set_params(cp=None, verbose=False, **params):
 
     """
 
-    setters = [s.__func__ if hasattr(s, '__func__') else s for s in  # in python3 no need for __func__ here
-               [model.CAMBparams.set_cosmology,
-                model.CAMBparams.set_initial_power,
-                model.CAMBparams.set_dark_energy,
-                model.CAMBparams.set_matter_power,
-                model.CAMBparams.set_for_lmax,
-                model.CAMBparams.set_accuracy,
-                initialpower.InitialPowerParams.set_params]]
-
-    globs = {'ALens': lensing.ALens}
-
     if cp is None:
         cp = model.CAMBparams()
     else:
         assert isinstance(cp, model.CAMBparams), "cp should be an instance of CAMBparams"
 
     _used_params = set()
-    for k, v in globs.items():
-        if k in params:
+    if 'ALens' in params:
+        _used_params.add('ALens')
+        lensing.ALens.value = params['ALens']
+
+    #Note order is important: must call set_dark_energy before set_cosmology if setting cosmomc_theta
+    setters = [cp.set_accuracy, cp.set_dark_energy, cp.set_cosmology, cp.set_initial_power,
+               cp.set_matter_power, cp.set_for_lmax, cp.InitPower.set_params]
+
+    for setter in setters:
+        kwargs = {k: params[k] for k in getargspec(setter).args[1:] if k in params}
+        _used_params.update(kwargs.keys())
+        if kwargs:
             if verbose:
-                logging.warning('Setting %s=%s' % (k, v))
-            _used_params.add(k)
-            v.value = params[k]
-
-    def crawl_params(cp):
-        for k in dir(cp):
-            if k[0] != '_':
-                v = getattr(cp, k)
-                if ismethod(v):
-                    if v.__func__ in setters:
-                        kwargs = {k: params[k] for k in getargspec(v).args[1:] if k in params}
-                        _used_params.update(kwargs.keys())
-                        if kwargs:
-                            if verbose:
-                                logging.warning('Calling %s(**%s)' % (v.__name__, kwargs))
-                            v(**kwargs)
-                elif isinstance(v, CAMB_Structure):
-                    crawl_params(v)
-
-    crawl_params(cp)
+                logging.warning('Calling %s(**%s)' % (setter.__name__, kwargs))
+            setter(**kwargs)
 
     if cp.InitPower.has_tensors():
         cp.WantTensors = True

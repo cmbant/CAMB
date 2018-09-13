@@ -322,7 +322,9 @@ class CAMBparams(CAMB_Structure):
         If you require more fine-grained control you can set the neutrino parameters directly rather than using this function.
 
         :param H0: Hubble parameter (in km/s/Mpc)
-        :param cosmomc_theta: The CosmoMC theta parameter. You must set H0=None to solve for H0 given cosmomc_theta
+        :param cosmomc_theta: The CosmoMC theta parameter. You must set H0=None to solve for H0 given cosmomc_theta. Note that
+                you must have already set the dark energy model, you can't use set_cosmology with cosmomc_theta and then
+                change the background evolution (which would change cosmomc_theta at the calculated H0 value).
         :param ombh2: physical density in baryons
         :param omch2:  physical density in cold dark matter
         :param omk: Omega_K curvature parameter
@@ -385,17 +387,20 @@ class CAMBparams(CAMB_Structure):
         neutrino_mass_fac = 94.07
         # conversion factor for thermal with Neff=3 TCMB=2.7255
 
-        omnuh2 = mnu / neutrino_mass_fac * (standard_neutrino_neff / 3.0) ** 0.75
+        if isinstance(neutrino_hierarchy, six.string_types):
+            if not neutrino_hierarchy in neutrino_hierarchies:
+                raise CAMBError('Unknown neutrino_hierarchy {0:s}'.format(neutrino_hierarchy))
+            neutrino_hierarchy = neutrino_hierarchies.index(neutrino_hierarchy) + 1
+
+        if (nnu >= standard_neutrino_neff or neutrino_hierarchy != neutrino_hierarchy_degenerate):
+            omnuh2 = mnu / neutrino_mass_fac * (standard_neutrino_neff / 3) ** 0.75
+        else:
+            omnuh2 = mnu / neutrino_mass_fac * (nnu / 3.0) ** 0.75
         omnuh2_sterile = meffsterile / neutrino_mass_fac
         if omnuh2_sterile > 0 and nnu < standard_neutrino_neff:
             raise CAMBError('sterile neutrino mass required Neff>3.046')
         if omnuh2 and not num_massive_neutrinos:
             raise CAMBError('non-zero mnu with zero num_massive_neutrinos')
-
-        if isinstance(neutrino_hierarchy, six.string_types):
-            if not neutrino_hierarchy in neutrino_hierarchies:
-                raise CAMBError('Unknown neutrino_hierarchy {0:s}'.format(neutrino_hierarchy))
-            neutrino_hierarchy = neutrino_hierarchies.index(neutrino_hierarchy) + 1
 
         omnuh2 = omnuh2 + omnuh2_sterile
         self.omegan = omnuh2 / fac
