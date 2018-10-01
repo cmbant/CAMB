@@ -57,9 +57,15 @@ def check_gfortran(version=gfortran_min, msg=True, exit=False, import_fail_ok=Tr
     else:
         ok = False
     if not ok and msg:
-        raise Exception(
-            'You need gfortran %s or higher to compile (found: %s).' % (
-                version, gfortran_version))
+        try:
+            ifort = subprocess.check_output("ifort -v", shell=True)
+        except:
+            ifort = False
+        if not ifort:
+            raise Exception(
+                'You need gfortran %s or higher to compile (found: %s).' % (
+                    version, gfortran_version))
+
     if exit:
         sys.exit(1 if ok else 0)
     return ok, gfortran_version

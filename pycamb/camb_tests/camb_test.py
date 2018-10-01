@@ -94,6 +94,9 @@ class CambTest(unittest.TestCase):
         self.assertAlmostEqual(pars.H0, 67.5512, 2)
         with self.assertRaises(CAMBParamRangeError):
             pars.set_cosmology(cosmomc_theta=0.0204085, H0=None, ombh2=0.022271, omch2=0.11914, mnu=0.06, omk=0)
+        pars = camb.set_params(cosmomc_theta=0.0104077, H0=None, ombh2=0.022, omch2=0.122, w=-0.95)
+        self.assertAlmostEqual(camb.get_background(pars, no_thermo=True).cosmomc_theta(), 0.0104077, 7)
+        pars.set_dark_energy()
 
     def testEvolution(self):
         redshifts = [0.4, 31.5]
