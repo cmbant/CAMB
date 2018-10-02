@@ -193,7 +193,7 @@ q = LinearPerturbation('q', camb_var='dgq', camb_sub='dgq/kappa/a**2', descripti
 Pi = LinearPerturbation('Pi', camb_var='dgpi', camb_sub='dgpi/a**2/kappa', description='total anisotropic stress')
 
 # quadrupole source
-polter = Symbol('polter')(t)
+polter = Function('polter')(t)
 
 # Newtonian gauge variables (in general equal to gauge invariant potentials)
 Phi_N = LinearPerturbation('Phi_N', description='Newtonian gauge curvature potential')
