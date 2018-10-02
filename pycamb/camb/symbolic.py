@@ -92,7 +92,7 @@ Friedmann = Eq(H ** 2, a ** 2 * kappa * rho / 3 - K)
 Friedmann_subs = [Friedmann, Eq(diff(H, t), dH), Eq(diff(a, t), a * H)]
 Friedmann_Kfac_subs = subs(K_sub, Friedmann_subs)
 
-delta_frame = Symbol('uprime')(t)
+delta_frame = Function('uprime')(t)
 
 
 def LinearPerturbation(name, species=None, camb_var=None, camb_sub=None, frame_dependence=None, description=None):
@@ -110,8 +110,8 @@ def LinearPerturbation(name, species=None, camb_var=None, camb_sub=None, frame_d
     :return: sympy Function instance (function of t), with attributes set to the arguments above.
     """
     if isinstance(camb_var, list): camb_var = tuple(camb_var)
-    f = sympy.Function(name, species=species, camb_var=camb_var, camb_sub=camb_sub, perturbation_order=1,
-                       frame_dependence=frame_dependence, description=description)
+    f = Function(name, species=species, camb_var=camb_var, camb_sub=camb_sub, perturbation_order=1,
+                 frame_dependence=frame_dependence, description=description)
     return f(t)
 
 
