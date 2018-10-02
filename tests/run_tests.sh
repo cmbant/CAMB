@@ -13,8 +13,8 @@ rm -Rf dist/*
 rm -Rf build/*
 rm -f camb/*.so
 
-if [[ $TRAVIS_REPO_SLUG == "cmbant/CAMB" && test $CHANNEL == "defaults" && "$TRAVIS_PULL_REQUEST" == "false" ]]
-then 
+if [[ $TRAVIS_REPO_SLUG == "cmbant/CAMB" && $CHANNEL == "defaults" && "$TRAVIS_PULL_REQUEST" == "false" ]]
+then
  case "$TRAVIS_BRANCH" in
  devel*) export CAMB_PACKAGE_NAME=camb_devel ;;
     *) export CAMB_PACKAGE_NAME=camb
