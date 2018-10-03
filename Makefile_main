@@ -70,16 +70,9 @@ endif
 
 default: camb
 
-## python wrapper library only works with gfortran
-ifeq ($(COMPILER),gfortran)
 all: camb camblib.so libcamb
 Release: camb camblib.so
 Debug: camb camblib.so
-else
-all: camb libcamb
-Release: camb
-Debug: camb
-endif
 
 libcamb: libforutils directories
 	$(MAKE) -C $(OUTPUT_DIR) -r -f ../Makefile_main $(CAMBLIB)
