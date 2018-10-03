@@ -529,10 +529,10 @@ class CAMBparams(CAMB_Structure):
         #     self.nu_mass_numbers[self.nu_mass_eigenstates - 1] = 1
         #     self.nu_mass_degeneracies[self.nu_mass_eigenstates - 1] = max(1e-6, nnu - standard_neutrino_neff)
         #     self.nu_mass_fractions[self.nu_mass_eigenstates - 1] = omnuh2_sterile / omnuh2
-
+        assert num_massive_neutrinos == int(num_massive_neutrinos)
         CAMB_SetNeutrinoHierarchy(byref(self), byref(c_double(omnuh2)), byref(c_double(omnuh2_sterile)),
                                   byref(c_double(nnu)), byref(c_int(neutrino_hierarchy)),
-                                  byref(c_int(num_massive_neutrinos)))
+                                  byref(c_int(int(num_massive_neutrinos))))
 
         if tau is not None:
             self.Reion.set_tau(tau, delta_redshift=deltazrei)

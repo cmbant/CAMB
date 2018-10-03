@@ -1,6 +1,4 @@
 language: python
-python:
-  - 2.7
  
 dist: trusty
 
@@ -10,13 +8,30 @@ branches:
   except:
     - CAMB_sources
     - rayleigh
-    
-addons:
-  apt:
-    sources:
-    - ubuntu-toolchain-r-test
-    packages:
-    - gfortran-6
+
+matrix:
+  include:
+    - addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+          packages:
+            - gfortran-6
+      env:
+        - GCC_VERSION="6"
+        - CHANNEL="defaults"
+      python: "2.7"
+    - addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+          packages:
+            - gfortran-8
+      env:
+        - GCC_VERSION="8"
+        - CHANNEL="conda-forge"
+      python: "2.7"
+         
 
 #before_install:
 #  - sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
@@ -26,7 +41,7 @@ addons:
   
 install:
   - mkdir -p gfortran-symlinks
-  - ln -s /usr/bin/gfortran-6 gfortran-symlinks/gfortran
+  - ln -s /usr/bin/gfortran-$GCC_VERSION gfortran-symlinks/gfortran
   - export PATH=$PWD/gfortran-symlinks:$PATH
   - gfortran --version
   # Setup anaconda following http://conda.pydata.org/docs/travis.html
@@ -38,15 +53,15 @@ install:
   #skip to save time
   #- conda update -q conda
   - conda info -a
-  - conda create -q -n py2-environment python=2 numpy scipy sympy six
-  - conda create -q -n py3-environment python=3 numpy scipy sympy six
+  - conda create -q -n py2-environment -c $CHANNEL python=2 numpy scipy sympy six;
+  - conda create -q -n py3-environment -c $CHANNEL python=3 numpy scipy sympy six;
   - git clone --depth=1 https://github.com/cmbant/forutils.git forutils
   - chmod +x tests/run_tests.sh
   
 script: tests/run_tests.sh
   
 after_failure:
-  - test $TRAVIS_PULL_REQUEST == "false" && test $TRAVIS_REPO_SLUG == "cmbant/CAMB" && [ -d testfiles ] && bash tests/upload_tests.sh
+  - test $TRAVIS_PULL_REQUEST == "false" && test $CHANNEL == "defaults" && test $TRAVIS_REPO_SLUG == "cmbant/CAMB" && [ -d testfiles ] && bash tests/upload_tests.sh
 
 before_deploy:
   - make clean delete
