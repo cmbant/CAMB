@@ -59,7 +59,8 @@ def check_gfortran(version=gfortran_min, msg=True, exit=False, import_fail_ok=Tr
         ok = is32Bit and 'i686' in version_str or not is32Bit and 'x86_64' in version_str
     if not ok and msg:
         try:
-            ifort = subprocess.check_output("ifort -v", shell=True)
+            with open(os.devnull, 'w') as devnull:
+                ifort = subprocess.check_output("ifort -v", shell=True, stderr=devnull)
         except:
             ifort = False
         if not ifort:
