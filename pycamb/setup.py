@@ -58,7 +58,8 @@ def check_gfortran(version=gfortran_min, msg=True, exit=False, import_fail_ok=Tr
         ok = False
     if not ok and msg:
         try:
-            ifort = subprocess.check_output("ifort -v", shell=True)
+            with open(os.devnull, 'w') as devnull:
+                ifort = subprocess.check_output("ifort -v", shell=True, stderr=devnull)
         except:
             ifort = False
         if not ifort:
