@@ -816,7 +816,7 @@
 
     !n_s is read in here. The non-linear CAMB module does not work if there is more than
     !one value in this array, so explicitly setting '1' here is fine.
-    cosm%ns=CP%InitPower%an(1)
+    cosm%ns= CP%InitPower%Effective_ns()
 
     !Write out cosmological parameters if necessary
     IF(HM_verbose) WRITE(*,*) 'HM_cosmology: Om_m:', cosm%om_m

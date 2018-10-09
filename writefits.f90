@@ -17,10 +17,6 @@
   character(Len=8) :: PowerKeys(20)
   logical COBEnorm
 
-
-  if (CP%InitPower%nn>1) write(*,*) &
-       'Warning: FITS file contains result for first power spectrum only'
-
   allocate(clout(2:lmx,1:4))
    
   call CAMB_GetCls(clout, lmx, 1, .false.)
@@ -100,11 +96,7 @@
  call add_card(header,'KETA_MAX',CP%Max_eta_k, 'Max wavenumber') 
  call add_card(header,'PRECIS',AccuracyBoost, 'Relative computation accuracy') 
  call add_card(header,'EQS_FILE',Eqns_name, 'Gauge-dependent and background equations') 
- call add_card(header,'POW_FILE',Power_Name, 'Initial power spectrum file') 
- i = Power_Descript(1,CP%WantScalars,CP%WantTensors,PowerKeys,PowerVals)
- do j=1,i
- call add_card(header,PowerKeys(j),PowerVals(j), 'Initial power spectrum details') 
- end do
+ call add_card(header,'POW_FILE',CP%InitPower%PythonClass(), 'Initial power spectrum file') 
   
   nlheader = SIZE(header)
   call write_asctab (allcl, lmx, 4, header, nlheader, Clsfile)

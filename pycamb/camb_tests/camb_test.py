@@ -142,6 +142,7 @@ class CambTest(unittest.TestCase):
         self.assertAlmostEqual(s8[2], 0.80044, 3)
 
         pars.NonLinear = model.NonLinear_both
+
         data.calc_power_spectra(pars)
         kh3, z3, pk3 = data.get_matter_power_spectrum(1e-4, 1, 20)
         self.assertAlmostEqual(pk[-1][-3], 51.909, 2)
@@ -200,6 +201,74 @@ class CambTest(unittest.TestCase):
                 self.assertTrue(np.allclose(C1[f][2:, 0], C2[f][2:, 0]))
             pars3 = pars2.copy()
             self.assertAlmostEqual(-0.7, pars3.DarkEnergy.w)
+
+    def testInitialPower(self):
+        pars = camb.CAMBparams()
+        import ctypes
+        P = camb.InitialPowerLaw()
+        P2 = ctypes.pointer(P)
+        self.assertEqual(P.As, pars.InitPower.As)
+        As = 1.8e-9
+        ns = 0.8
+        P.set_params(As=As, ns=ns)
+        self.assertEqual(P.As, As)
+        self.assertEqual(P2.contents.As, As)
+
+        pars2 = camb.CAMBparams()
+        pars2.InitPower.set_params(As=1.7e-9, ns=ns)
+        self.assertEqual(pars2.InitPower.As, 1.7e-9)
+        pars.set_initial_power(pars2.InitPower)
+        self.assertEqual(pars.InitPower.As, 1.7e-9)
+        pars.set_initial_power(P)
+        self.assertEqual(pars.InitPower.As, As)
+
+        ks = np.logspace(-5.5, 2, 1000)
+        pk = (ks / P.pivot_scalar) ** (ns - 1) * As
+        pars2.set_initial_power_table(ks, pk)
+        self.assertAlmostEqual(pars2.scalar_power(1.1), pars.scalar_power(1.1), delta=As * 1e-4)
+        sp = camb.SplinedInitialPower(ks=ks, PK=pk)
+        pars2.set_initial_power(sp)
+        self.assertAlmostEqual(pars2.scalar_power(1.1), pars.scalar_power(1.1), delta=As * 1e-4)
+        self.assertFalse(sp.has_tensors())
+        self.assertFalse(pars2.InitPower.has_tensors())
+
+        sp = camb.SplinedInitialPower()
+        sp.set_scalar_log_regular(10 ** (-5.5), 10. ** 2, pk)
+        pars2.set_initial_power(sp)
+        self.assertAlmostEqual(pars2.scalar_power(1.1), pars.scalar_power(1.1), delta=As * 1e-4)
+
+        sp.set_tensor_log_regular(10 ** (-5.5), 10. ** 2, pk)
+        pars2.set_initial_power(sp)
+        self.assertAlmostEqual(pars2.tensor_power(1.1), pars.scalar_power(1.1), delta=As * 1e-4)
+        self.assertTrue(sp.has_tensors())
+        sp.set_tensor_table([], [])
+        self.assertFalse(sp.has_tensors())
+        pars2.set_initial_power(sp)
+
+        results = camb.get_results(pars2)
+        cl = results.get_lensed_scalar_cls(CMB_unit='muK')
+        pars.InitPower.set_params(As=As, ns=ns)
+        results2 = camb.get_results(pars)
+        cl2 = results2.get_lensed_scalar_cls(CMB_unit='muK')
+        self.assertTrue(np.allclose(cl, cl2, rtol=1e-4))
+        P = camb.InitialPowerLaw(As=2.1e-9, ns=0.9)
+        pars2.set_initial_power(P)
+        pars.InitPower.set_params(As=2.1e-9, ns=0.9)
+        self.assertAlmostEqual(pars2.scalar_power(1.1), pars.scalar_power(1.1), delta=As * 1e-4)
+
+        def PK(k, As, ns):
+            return As*(k / 0.05) ** (ns - 1) * (1 + 0.1 * np.sin(10 * k))
+
+        pars.set_initial_power_function(PK, args=(3e-9, 0.95))
+        P = pars.scalar_power(ks)
+        np.testing.assert_almost_equal(P, PK(ks, 3e-9, 0.95), decimal=4)
+
+    def testInitialPowerMem(self):
+        import gc
+        gc.collect()
+        from camb.baseconfig import F2003Class
+        if F2003Class._instance_count: print('Unfreed instances', F2003Class._instance_count)
+        self.assertFalse(F2003Class._instance_count)
 
     def testSymbolic(self):
         import camb.symbolic as s

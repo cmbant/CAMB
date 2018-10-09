@@ -18,7 +18,7 @@ from . import initialpower
 from . import reionization
 from .model import CAMBparams, TransferParams
 from .reionization import ReionizationParams
-from .initialpower import InitialPowerParams
+from .initialpower import InitialPowerLaw, SplinedInitialPower
 from .bispectrum import threej
 from ctypes import c_int, c_double, c_bool
 

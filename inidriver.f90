@@ -333,7 +333,7 @@
     call Ini%Read('Alens', P%Alens)
 
     call Reionization_ReadParams(P%Reion, Ini)
-    call InitialPower_ReadParams(P%InitPower, Ini, P%WantTensors)
+    call P%InitPower%ReadParams(Ini, P%WantTensors)
     call Recombination_ReadParams(P%Recomb, Ini)
     if (Ini%HasKey('recombination')) then
         i = Ini%Read_Int('recombination', 1)

@@ -294,7 +294,6 @@
 
         integer   :: MassiveNuMethod
 
-        type(InitialPowerParams) :: InitPower  !see power_tilt.f90 - you can change this
         type(ReionizationParams) :: Reion
         type(RecombinationParams):: Recomb
         type(TransferParams)     :: Transfer
@@ -319,6 +318,7 @@
 
         logical DerivedParameters !calculate various derived parameters  (ThermoDerivedParams)
 
+        class(TInitialPower), allocatable :: InitPower
         class(TDarkEnergyBase), allocatable :: DarkEnergy
         class(TNonLinearModel), allocatable :: NonLinearModel
 
@@ -1257,18 +1257,18 @@
 
     logical :: has_cl_2D_array = .false.
 
-    real(dl), dimension (:,:,:), allocatable :: Cl_scalar, Cl_tensor, Cl_vector
-    !Indices are Cl_xxx( l , intial_power_index, Cl_type)
+    real(dl), dimension (:,:), allocatable :: Cl_scalar, Cl_tensor, Cl_vector
+    !Indices are Cl_xxx( l , Cl_type)
     !where Cl_type is one of the above constants
 
-    real(dl), dimension (:,:,:,:), allocatable :: Cl_Scalar_Array
-    !Indices are Cl_xxx( l , intial_power_index, field1,field2)
+    real(dl), dimension (:,:,:), allocatable :: Cl_Scalar_Array
+    !Indices are Cl_xxx( l , field1,field2)
     !where ordering of fields is T, E, \psi (CMB lensing potential), window_1, window_2...
 
     !The following are set only if doing lensing
     integer lmax_lensed !Only accurate to rather less than this
-    real(dl) , dimension (:,:,:), allocatable :: Cl_lensed
-    !Cl_lensed(l, power_index, Cl_type) are the interpolated Cls
+    real(dl) , dimension (:,:), allocatable :: Cl_lensed
+    !Cl_lensed(l, Cl_type) are the interpolated Cls
 
     contains
 
@@ -1381,11 +1381,11 @@
     call CheckLoadedHighLTemplate
     if (CP%WantScalars) then
         if (allocated(Cl_scalar)) deallocate(Cl_scalar)
-        allocate(Cl_scalar(lmin:CP%Max_l, CP%InitPower%nn, C_Temp:C_last))
+        allocate(Cl_scalar(lmin:CP%Max_l, C_Temp:C_last))
         Cl_scalar = 0
         if (has_cl_2D_array) then
             if (allocated(Cl_scalar_array)) deallocate(Cl_scalar_array)
-            allocate(Cl_scalar_Array(lmin:CP%Max_l, CP%InitPower%nn, &
+            allocate(Cl_scalar_Array(lmin:CP%Max_l,  &
                 3+num_redshiftwindows+num_custom_sources,3+num_redshiftwindows+num_custom_sources))
             Cl_scalar_array = 0
         end if
@@ -1393,14 +1393,14 @@
 
     if (CP%WantVectors) then
         if (allocated(Cl_vector)) deallocate(Cl_vector)
-        allocate(Cl_vector(lmin:CP%Max_l, CP%InitPower%nn, CT_Temp:CT_Cross))
+        allocate(Cl_vector(lmin:CP%Max_l, CT_Temp:CT_Cross))
         Cl_vector = 0
     end if
 
 
     if (CP%WantTensors) then
         if (allocated(Cl_tensor)) deallocate(Cl_tensor)
-        allocate(Cl_tensor(lmin:CP%Max_l_tensor, CP%InitPower%nn, CT_Temp:CT_Cross))
+        allocate(Cl_tensor(lmin:CP%Max_l_tensor, CT_Temp:CT_Cross))
         Cl_tensor = 0
     end if
 
@@ -1442,7 +1442,7 @@
     character(LEN=*) ScalFile, TensFile, TotFile, LensFile, LensTotFile,ScalCovfile
     real(dl), intent(in), optional :: factor
     real(dl) :: fact
-    integer :: last_C, in, il, i, j, unit
+    integer :: last_C, il, i, j, unit
     real(dl), allocatable :: outarr(:,:)
     character(LEN=name_tag_len) :: cov_names((3+num_redshiftwindows)**2)
 
@@ -1451,14 +1451,12 @@
     if (CP%WantScalars .and. ScalFile /= '') then
         last_C=min(C_PhiTemp,C_last)
         unit = open_file_header(ScalFile, 'L', C_name_tags(:last_C))
-        do in=1,CP%InitPower%nn
-            do il=lmin,min(10000,CP%Max_l)
-                write(unit,trim(numcat('(1I6,',last_C))//'E15.6)')il ,fact*Cl_scalar(il,in,C_Temp:last_C)
-            end do
-            do il=10100,CP%Max_l, 100
-                write(unit,trim(numcat('(1E15.6,',last_C))//'E15.6)') real(il),&
-                    fact*Cl_scalar(il,in,C_Temp:last_C)
-            end do
+        do il=lmin,min(10000,CP%Max_l)
+            write(unit,trim(numcat('(1I6,',last_C))//'E15.6)')il ,fact*Cl_scalar(il,C_Temp:last_C)
+        end do
+        do il=10100,CP%Max_l, 100
+            write(unit,trim(numcat('(1E15.6,',last_C))//'E15.6)') real(il),&
+                fact*Cl_scalar(il,C_Temp:last_C)
         end do
         close(unit)
     end if
@@ -1473,19 +1471,17 @@
         end do
         unit = open_file_header(ScalCovFile, 'L', cov_names)
 
-        do in=1,CP%InitPower%nn
-            do il=lmin,min(10000,CP%Max_l)
-                outarr=Cl_scalar_array(il,in,1:3+num_redshiftwindows,1:3+num_redshiftwindows)
-                outarr(1:2,:)=sqrt(fact)*outarr(1:2,:)
-                outarr(:,1:2)=sqrt(fact)*outarr(:,1:2)
-                write(unit,trim(numcat('(1I6,',(3+num_redshiftwindows)**2))//'E15.6)') il, real(outarr)
-            end do
-            do il=10100,CP%Max_l, 100
-                outarr=Cl_scalar_array(il,in,1:3+num_redshiftwindows,1:3+num_redshiftwindows)
-                outarr(1:2,:)=sqrt(fact)*outarr(1:2,:)
-                outarr(:,1:2)=sqrt(fact)*outarr(:,1:2)
-                write(unit,trim(numcat('(1E15.5,',(3+num_redshiftwindows)**2))//'E15.6)') real(il), real(outarr)
-            end do
+        do il=lmin,min(10000,CP%Max_l)
+            outarr=Cl_scalar_array(il,1:3+num_redshiftwindows,1:3+num_redshiftwindows)
+            outarr(1:2,:)=sqrt(fact)*outarr(1:2,:)
+            outarr(:,1:2)=sqrt(fact)*outarr(:,1:2)
+            write(unit,trim(numcat('(1I6,',(3+num_redshiftwindows)**2))//'E15.6)') il, real(outarr)
+        end do
+        do il=10100,CP%Max_l, 100
+            outarr=Cl_scalar_array(il,1:3+num_redshiftwindows,1:3+num_redshiftwindows)
+            outarr(1:2,:)=sqrt(fact)*outarr(1:2,:)
+            outarr(:,1:2)=sqrt(fact)*outarr(:,1:2)
+            write(unit,trim(numcat('(1E15.5,',(3+num_redshiftwindows)**2))//'E15.6)') real(il), real(outarr)
         end do
         close(unit)
         deallocate(outarr)
@@ -1493,34 +1489,28 @@
 
     if (CP%WantTensors .and. TensFile /= '') then
         unit = open_file_header(TensFile, 'L', CT_name_tags)
-        do in=1,CP%InitPower%nn
-            do il=lmin,CP%Max_l_tensor
-                write(unit,'(1I6,4E15.6)')il, fact*Cl_tensor(il, in, CT_Temp:CT_Cross)
-            end do
+        do il=lmin,CP%Max_l_tensor
+            write(unit,'(1I6,4E15.6)')il, fact*Cl_tensor(il, CT_Temp:CT_Cross)
         end do
         close(unit)
     end if
 
     if (CP%WantTensors .and. CP%WantScalars .and. TotFile /= '') then
         unit = open_file_header(TotFile, 'L', CT_name_tags)
-        do in=1,CP%InitPower%nn
-            do il=lmin,CP%Max_l_tensor
-                write(unit,'(1I6,4E15.6)')il, fact*(Cl_scalar(il, in, C_Temp:C_E)+ Cl_tensor(il,in, C_Temp:C_E)), &
-                    fact*Cl_tensor(il,in, CT_B), fact*(Cl_scalar(il, in, C_Cross) + Cl_tensor(il, in, CT_Cross))
-            end do
-            do il=CP%Max_l_tensor+1,CP%Max_l
-                write(unit,'(1I6,4E15.6)')il ,fact*Cl_scalar(il,in,C_Temp:C_E), 0._dl, fact*Cl_scalar(il,in,C_Cross)
-            end do
+        do il=lmin,CP%Max_l_tensor
+            write(unit,'(1I6,4E15.6)')il, fact*(Cl_scalar(il, C_Temp:C_E)+ Cl_tensor(il,C_Temp:C_E)), &
+                fact*Cl_tensor(il, CT_B), fact*(Cl_scalar(il, C_Cross) + Cl_tensor(il, CT_Cross))
+        end do
+        do il=CP%Max_l_tensor+1,CP%Max_l
+            write(unit,'(1I6,4E15.6)')il ,fact*Cl_scalar(il,C_Temp:C_E), 0._dl, fact*Cl_scalar(il,C_Cross)
         end do
         close(unit)
     end if
 
     if (CP%WantScalars .and. CP%DoLensing .and. LensFile /= '') then
         unit = open_file_header(LensFile, 'L', CT_name_tags)
-        do in=1,CP%InitPower%nn
-            do il=lmin, lmax_lensed
-                write(unit,'(1I6,4E15.6)')il, fact*Cl_lensed(il, in, CT_Temp:CT_Cross)
-            end do
+        do il=lmin, lmax_lensed
+            write(unit,'(1I6,4E15.6)')il, fact*Cl_lensed(il, CT_Temp:CT_Cross)
         end do
         close(unit)
     end if
@@ -1528,14 +1518,12 @@
 
     if (CP%WantScalars .and. CP%WantTensors .and. CP%DoLensing .and. LensTotFile /= '') then
         unit = open_file_header(LensTotFile, 'L', CT_name_tags)
-        do in=1,CP%InitPower%nn
-            do il=lmin,min(CP%Max_l_tensor,lmax_lensed)
-                write(unit,'(1I6,4E15.6)')il, fact*(Cl_lensed(il, in, &
-                    CT_Temp:CT_Cross)+ Cl_tensor(il,in, CT_Temp:CT_Cross))
-            end do
-            do il=min(CP%Max_l_tensor,lmax_lensed)+1,lmax_lensed
-                write(unit,'(1I6,4E15.6)')il, fact*Cl_lensed(il, in, CT_Temp:CT_Cross)
-            end do
+        do il=lmin,min(CP%Max_l_tensor,lmax_lensed)
+            write(unit,'(1I6,4E15.6)')il, fact*(Cl_lensed(il,  &
+                CT_Temp:CT_Cross)+ Cl_tensor(il, CT_Temp:CT_Cross))
+        end do
+        do il=min(CP%Max_l_tensor,lmax_lensed)+1,lmax_lensed
+            write(unit,'(1I6,4E15.6)')il, fact*Cl_lensed(il, CT_Temp:CT_Cross)
         end do
         close(unit)
     end if
@@ -1545,7 +1533,7 @@
     !Write out L TT EE BB TE PP PT PE where P is the lensing potential, all unlensed
     !This input supported by LensPix from 2010
     implicit none
-    integer :: in, il, unit
+    integer :: il, unit
     real(dl), intent(in), optional :: factor
     real(dl) fact, scale, BB, TT, TE, EE
     character(LEN=*), intent(in) :: LensPotFile
@@ -1559,30 +1547,28 @@
 
     if (CP%WantScalars .and. CP%DoLensing .and. LensPotFile/='') then
         unit = open_file_header(LensPotFile, 'L', lens_pot_name_tags)
-        do in=1,CP%InitPower%nn
-            do il=lmin,min(10000,CP%Max_l)
-                TT = Cl_scalar(il, in, C_Temp)
-                EE = Cl_scalar(il, in, C_E)
-                TE = Cl_scalar(il, in, C_Cross)
-                if (CP%WantTensors .and. il <= CP%Max_l_tensor) then
-                    TT= TT+Cl_tensor(il,in, CT_Temp)
-                    EE= EE+Cl_tensor(il,in, CT_E)
-                    TE= TE+Cl_tensor(il,in, CT_Cross)
-                    BB= Cl_tensor(il,in, CT_B)
-                else
-                    BB=0
-                end if
-                scale = (real(il+1)/il)**2/OutputDenominator !Factor to go from old l^4 factor to new
+        do il=lmin, min(10000,CP%Max_l)
+            TT = Cl_scalar(il, C_Temp)
+            EE = Cl_scalar(il, C_E)
+            TE = Cl_scalar(il, C_Cross)
+            if (CP%WantTensors .and. il <= CP%Max_l_tensor) then
+                TT= TT+Cl_tensor(il, CT_Temp)
+                EE= EE+Cl_tensor(il, CT_E)
+                TE= TE+Cl_tensor(il, CT_Cross)
+                BB= Cl_tensor(il, CT_B)
+            else
+                BB=0
+            end if
+            scale = (real(il+1)/il)**2/OutputDenominator !Factor to go from old l^4 factor to new
 
-                write(unit,'(1I6,7E15.6)') il , fact*TT, fact*EE, fact*BB, fact*TE, scale*Cl_scalar(il,in,C_Phi),&
-                    (real(il+1)/il)**1.5/OutputDenominator*sqrt(fact)*Cl_scalar(il,in,C_PhiTemp:C_PhiE)
-            end do
-            do il=10100,CP%Max_l, 100
-                scale = (real(il+1)/il)**2/OutputDenominator
-                write(unit,'(1E15.5,7E15.6)') real(il), fact*Cl_scalar(il,in,C_Temp:C_E),0.,&
-                    fact*Cl_scalar(il,in,C_Cross), scale*Cl_scalar(il,in,C_Phi),&
-                    (real(il+1)/il)**1.5/OutputDenominator*sqrt(fact)*Cl_scalar(il,in,C_PhiTemp:C_PhiE)
-            end do
+            write(unit,'(1I6,7E15.6)') il , fact*TT, fact*EE, fact*BB, fact*TE, scale*Cl_scalar(il,C_Phi),&
+                (real(il+1)/il)**1.5/OutputDenominator*sqrt(fact)*Cl_scalar(il,C_PhiTemp:C_PhiE)
+        end do
+        do il=10100,CP%Max_l, 100
+            scale = (real(il+1)/il)**2/OutputDenominator
+            write(unit,'(1E15.5,7E15.6)') real(il), fact*Cl_scalar(il,C_Temp:C_E),0.,&
+                fact*Cl_scalar(il,C_Cross), scale*Cl_scalar(il,C_Phi),&
+                (real(il+1)/il)**1.5/OutputDenominator*sqrt(fact)*Cl_scalar(il,C_PhiTemp:C_PhiE)
         end do
         close(unit)
     end if
@@ -1591,7 +1577,7 @@
 
     subroutine output_veccl_files(VecFile, factor)
     implicit none
-    integer :: in, il, unit
+    integer :: il, unit
     character(LEN=*), intent(in) :: VecFile
     real(dl), intent(in), optional :: factor
     real(dl) :: fact
@@ -1600,10 +1586,8 @@
 
     if (CP%WantVectors .and. VecFile /= '') then
         unit = open_file_header(VecFile, 'L', CT_name_tags)
-        do in=1,CP%InitPower%nn
-            do il=lmin,CP%Max_l
-                write(unit,'(1I6,4E15.6)')il, fact*Cl_vector(il, in, CT_Temp:CT_Cross)
-            end do
+        do il=lmin,CP%Max_l
+            write(unit,'(1I6,4E15.6)')il, fact*Cl_vector(il, CT_Temp:CT_Cross)
         end do
         close(unit)
     end if
@@ -1613,22 +1597,19 @@
     subroutine NormalizeClsAtL(lnorm)
     implicit none
     integer, intent(IN) :: lnorm
-    integer in
     real(dl) Norm
 
-    do in=1,CP%InitPower%nn
-        if (CP%WantScalars) then
-            Norm=1/Cl_scalar(lnorm,in, C_Temp)
-            Cl_scalar(lmin:CP%Max_l, in, C_Temp:C_Cross) = Cl_scalar(lmin:CP%Max_l, in, C_Temp:C_Cross) * Norm
-        end if
+    if (CP%WantScalars) then
+        Norm=1/Cl_scalar(lnorm, C_Temp)
+        Cl_scalar(lmin:CP%Max_l,  C_Temp:C_Cross) = Cl_scalar(lmin:CP%Max_l, C_Temp:C_Cross) * Norm
+    end if
 
-        if (CP%WantTensors) then
-            if (.not.CP%WantScalars) Norm = 1/Cl_tensor(lnorm,in, C_Temp)
-            !Otherwise Norm already set correctly
-            Cl_tensor(lmin:CP%Max_l_tensor, in, CT_Temp:CT_Cross) =  &
-                Cl_tensor(lmin:CP%Max_l_tensor, in, CT_Temp:CT_Cross) * Norm
-        end if
-    end do
+    if (CP%WantTensors) then
+        if (.not.CP%WantScalars) Norm = 1/Cl_tensor(lnorm, C_Temp)
+        !Otherwise Norm already set correctly
+        Cl_tensor(lmin:CP%Max_l_tensor, CT_Temp:CT_Cross) =  &
+            Cl_tensor(lmin:CP%Max_l_tensor,  CT_Temp:CT_Cross) * Norm
+    end if
 
     end  subroutine NormalizeClsAtL
 
@@ -1992,9 +1973,10 @@
 
     contains
 
-    subroutine Transfer_GetUnsplinedPower(M,PK,var1,var2, hubble_units)
+    subroutine Transfer_GetUnsplinedPower(M, Params, PK,var1,var2, hubble_units)
     !Get 2pi^2/k^3 T_1 T_2 P_R(k)
     Type(MatterTransferData) :: M
+    Type(CambParams) :: Params
     real(dl), intent(inout):: PK(:,:)
     integer, optional, intent(in) :: var1
     integer, optional, intent(in) :: var2
@@ -2016,18 +1998,19 @@
     do ik=1,nk
         k = M%TransferData(Transfer_kh,ik,1)*h
         do zix=1,nz
-            PK(ik,zix) = M%TransferData(s1,ik,CP%Transfer%PK_redshifts_index(nz-zix+1))*&
-                M%TransferData(s2,ik,CP%Transfer%PK_redshifts_index(nz-zix+1))*k*&
-                const_pi*const_twopi*scalarPower(k,1)
+            PK(ik,zix) = M%TransferData(s1,ik,Params%Transfer%PK_redshifts_index(nz-zix+1))*&
+                M%TransferData(s2,ik,Params%Transfer%PK_redshifts_index(nz-zix+1))*k*&
+                const_pi*const_twopi*Params%InitPower%ScalarPower(k)
         end do
     end do
     if (hnorm) PK=  PK * h**3
 
     end subroutine Transfer_GetUnsplinedPower
 
-    subroutine Transfer_GetUnsplinedNonlinearPower(M,PK,var1,var2, hubble_units)
+    subroutine Transfer_GetUnsplinedNonlinearPower(M,Params,PK,var1,var2, hubble_units)
     !Get 2pi^2/k^3 T_1 T_2 P_R(k) after re-scaling for non-linear evolution (if turned on)
     Type(MatterTransferData), intent(in) :: M
+    Type(CambParams) :: Params
     real(dl), intent(inout):: PK(:,:)
     integer, optional, intent(in) :: var1
     integer, optional, intent(in) :: var2
@@ -2035,34 +2018,33 @@
     Type(MatterPowerData) :: PKdata
     integer zix
 
-    call Transfer_GetUnsplinedPower(M,PK,var1,var2, hubble_units)
-    do zix=1, CP%Transfer%PK_num_redshifts
-        call Transfer_GetMatterPowerData(M, PKdata, 1, &
-            CP%Transfer%PK_redshifts_index(CP%Transfer%PK_num_redshifts-zix+1))
-        call CP%NonLinearModel%GetNonLinRatios(PKdata)
+    call Transfer_GetUnsplinedPower(M,Params,PK,var1,var2, hubble_units)
+    do zix=1, Params%Transfer%PK_num_redshifts
+        call Transfer_GetMatterPowerData(M, Params, PKdata, &
+            Params%Transfer%PK_redshifts_index(Params%Transfer%PK_num_redshifts-zix+1))
+        call Params%NonLinearModel%GetNonLinRatios(PKdata)
         PK(:,zix) =  PK(:,zix) *PKdata%nonlin_ratio(:,1)**2
         call MatterPowerdata_Free(PKdata)
     end do
 
     end subroutine Transfer_GetUnsplinedNonlinearPower
 
-    subroutine Transfer_GetMatterPowerData(MTrans, PK_data, power_ix, itf_only, var1, var2)
+    subroutine Transfer_GetMatterPowerData(MTrans, Params, PK_data, itf_only, var1, var2)
     !Does *NOT* include non-linear corrections
     !Get total matter power spectrum in units of (h Mpc^{-1})^3 ready for interpolation.
     !Here there definition is < Delta^2(x) > = 1/(2 pi)^3 int d^3k P_k(k)
     !We are assuming that Cls are generated so any baryonic wiggles are well sampled and that matter power
     !spectrum is generated to beyond the CMB k_max
     Type(MatterTransferData), intent(in) :: MTrans
+    Type(CambParams), intent(in) :: Params    
     Type(MatterPowerData) :: PK_data
-    integer, intent(in), optional :: power_ix
     integer, intent(in), optional :: itf_only
     integer, intent(in), optional :: var1, var2
     real(dl) :: h, kh, k, power
-    integer :: ik, nz, itf, itf_start, itf_end, s1, s2, p_ix
+    integer :: ik, nz, itf, itf_start, itf_end, s1, s2
 
     s1 = PresentDefault (transfer_power_var, var1)
     s2 = PresentDefault (transfer_power_var, var2)
-    p_ix = PresentDefault (1, power_ix)
 
     if (present(itf_only)) then
         itf_start=itf_only
@@ -2081,15 +2063,15 @@
     allocate(PK_data%nonlin_ratio(PK_data%num_k,nz))
     allocate(PK_data%log_kh(PK_data%num_k))
     allocate(PK_data%redshifts(nz))
-    PK_data%redshifts = CP%Transfer%Redshifts(itf_start:itf_end)
+    PK_data%redshifts = Params%Transfer%Redshifts(itf_start:itf_end)
 
-    h = CP%H0/100
+    h = Params%H0/100
 
     do ik=1,MTrans%num_q_trans
         kh = MTrans%TransferData(Transfer_kh,ik,1)
         k = kh*h
         PK_data%log_kh(ik) = log(kh)
-        power = ScalarPower(k,p_ix)
+        power = Params%InitPower%ScalarPower(k)
         if (global_error_flag/=0) then
             call MatterPowerdata_Free(PK_data)
             return
@@ -2178,10 +2160,11 @@
     end subroutine MatterPowerdata_getsplines21cm
 
 
-    subroutine MatterPowerdata_MakeNonlinear(PK_data)
+    subroutine MatterPowerdata_MakeNonlinear(NonLinearModel,PK_data)
+    class(TNonLinearModel) :: NonLinearModel
     Type(MatterPowerData) :: PK_data
 
-    call CP%NonLinearModel%GetNonLinRatios(PK_data)
+    call NonLinearModel%GetNonLinRatios(PK_data)
     PK_data%matpower = PK_data%matpower +  2*log(PK_data%nonlin_ratio)
     call MatterPowerdata_getsplines(PK_data)
 
@@ -2330,9 +2313,10 @@
     end subroutine MatterPower21cm_k
 
 
-    subroutine Transfer_GetMatterPowerS(MTrans,outpower, itf, in, minkh, dlnkh, npoints, var1, var2)
+    subroutine Transfer_GetMatterPowerS(MTrans, Params, outpower, itf, minkh, dlnkh, npoints, var1, var2)
     Type(MatterTransferData), intent(in) :: MTrans
-    integer, intent(in) :: itf, in, npoints
+    Type(CambParams) :: Params
+    integer, intent(in) :: itf, npoints
     integer, intent(in), optional :: var1, var2
     real, intent(out) :: outpower(*)
     real, intent(in) :: minkh, dlnkh
@@ -2340,7 +2324,7 @@
     real(dl):: minkhd, dlnkhd
 
     minkhd = minkh; dlnkhd = dlnkh
-    call Transfer_GetMatterPowerD(MTrans,outpowerd, itf, in, minkhd, dlnkhd, npoints,var1, var2)
+    call Transfer_GetMatterPowerD(MTrans, Params, outpowerd, itf, minkhd, dlnkhd, npoints,var1, var2)
     outpower(1:npoints) = outpowerd(1:npoints)
 
     end subroutine Transfer_GetMatterPowerS
@@ -2351,7 +2335,7 @@
     !array, itf, is given by itf = CP%Transfer%Pk_redshifts_index(itf_PK)
     !Also changed (CP%NonLinear/=NonLinear_None) to
     !CP%NonLinear/=NonLinear_none .and. CP%NonLinear/=NonLinear_Lens)
-    subroutine Transfer_GetMatterPowerD(MTrans,outpower, itf_PK, in, minkh, dlnkh, npoints, var1, var2)
+    subroutine Transfer_GetMatterPowerD(MTrans, Params,outpower, itf_PK, minkh, dlnkh, npoints, var1, var2)
     !Allows for non-smooth priordial spectra
     !if CP%Nonlinear/ = NonLinear_none includes non-linear evolution
     !Get total matter power spectrum at logarithmically equal intervals dlnkh of k/h starting at minkh
@@ -2360,9 +2344,10 @@
     !We are assuming that Cls are generated so any baryonic wiggles are well sampled and that matter power
     !sepctrum is generated to beyond the CMB k_max
     Type(MatterTransferData), intent(in) :: MTrans
+    Type(CambParams) :: Params
     Type(MatterPowerData) :: PK
 
-    integer, intent(in) :: itf_PK, in, npoints
+    integer, intent(in) :: itf_PK, npoints
     real(dl), intent(out) :: outpower(npoints)
     real(dl), intent(in) :: minkh, dlnkh
     integer, intent(in), optional :: var1, var2
@@ -2377,7 +2362,7 @@
     s1 = PresentDefault (transfer_power_var, var1)
     s2 = PresentDefault (transfer_power_var, var2)
 
-    itf = CP%Transfer%PK_redshifts_index(itf_PK)
+    itf = Params%Transfer%PK_redshifts_index(itf_PK)
 
     if (npoints < 2) call MpiStop('Need at least 2 points in Transfer_GetMatterPower')
 
@@ -2389,19 +2374,19 @@
         write(*,*) 'Warning: extrapolating matter power in Transfer_GetMatterPower'
 
 
-    if (CP%NonLinear/=NonLinear_none .and. CP%NonLinear/=NonLinear_Lens) then
-        call Transfer_GetMatterPowerData(MTrans, PK, in, itf) ! Mar 16, changed to use default variable
-        call CP%NonLinearModel%GetNonLinRatios(PK)
+    if (Params%NonLinear/=NonLinear_none .and. Params%NonLinear/=NonLinear_Lens) then
+        call Transfer_GetMatterPowerData(MTrans, Params, PK, itf) ! Mar 16, changed to use default variable
+        call Params%NonLinearModel%GetNonLinRatios(PK)
     end if
 
-    h = CP%H0/100
+    h = Params%H0/100
     logmink = log(minkh)
     do ik=1,MTrans%num_q_trans
         kh = MTrans%TransferData(Transfer_kh,ik,itf)
         k = kh*h
         kvals(ik) = log(kh)
         atransfer=MTrans%TransferData(s1,ik,itf)*MTrans%TransferData(s2,ik,itf)
-        if (CP%NonLinear/=NonLinear_none .and. CP%NonLinear/=NonLinear_Lens) &
+        if (Params%NonLinear/=NonLinear_none .and. Params%NonLinear/=NonLinear_Lens) &
             atransfer = atransfer* PK%nonlin_ratio(ik,1)**2 !only one element, this itf
         matpower(ik) = log(atransfer*k*const_pi*const_twopi*h**3)
         !Put in power spectrum later: transfer functions should be smooth, initial power may not be
@@ -2445,33 +2430,31 @@
 
     do il = 1, npoints
         k = exp(logmink + dlnkh*(il-1))*h
-        outpower(il) = outpower(il) * ScalarPower(k,in)
+        outpower(il) = outpower(il) * Params%InitPower%ScalarPower(k)
         if (global_error_flag /= 0) exit
     end do
 
-    if (CP%NonLinear/=NonLinear_none .and. CP%NonLinear/=NonLinear_Lens) call MatterPowerdata_Free(PK)
+    if (Params%NonLinear/=NonLinear_none .and. Params%NonLinear/=NonLinear_Lens) call MatterPowerdata_Free(PK)
 
     end subroutine Transfer_GetMatterPowerD
 
-    subroutine Transfer_Get_SigmaR(MTrans, R, outvals, var1, var2, power_ix, root)
+    subroutine Transfer_Get_SigmaR(MTrans, Params, R, outvals, var1, var2, root)
     !Calculate MTrans%sigma_8^2 = int dk/k win**2 T_k**2 P(k), where win is the FT of a spherical top hat
     !of radius R h^{-1} Mpc, for all requested redshifts
     !set va1, var2 e.g. to get the value from some combination of transfer functions rather than total
     Type(MatterTransferData) :: MTrans
+    Type(CambParams) :: Params
     real(dl), intent(in) :: R
     integer, intent(in), optional :: var1, var2
-    integer, intent(in), optional :: power_ix
     logical, intent(in), optional :: root !if true, give sigma8, otherwise sigma8^2
     real(dl), intent(out) :: outvals(:)
     real(dl) :: kh, k, h, x, win, lnk, dlnk, lnko, powers
-    real(dl), dimension(CP%Transfer%PK_num_redshifts) :: dsig8, dsig8o, sig8, sig8o
-    integer :: s1, s2, ix, ik
+    real(dl), dimension(Params%Transfer%PK_num_redshifts) :: dsig8, dsig8o, sig8, sig8o
+    integer :: s1, s2, ik
 
     s1 = PresentDefault (transfer_power_var, var1)
     s2 = PresentDefault (transfer_power_var, var2)
-    ix = PresentDefault (1, power_ix)
-
-    H=CP%h0/100._dl
+    H=Params%h0/100._dl
     lnko=0
     dsig8o=0
     sig8=0
@@ -2482,24 +2465,24 @@
         k = kh*H
 
         dsig8 = MTrans%TransferData(s1,ik, &
-            CP%Transfer%PK_redshifts_index(1:CP%Transfer%PK_num_redshifts))
+            Params%Transfer%PK_redshifts_index(1:Params%Transfer%PK_num_redshifts))
         if (s1==s2) then
             dsig8 = dsig8**2
         else
             dsig8 = dsig8*MTrans%TransferData(s2,ik, &
-                CP%Transfer%PK_redshifts_index(1:CP%Transfer%PK_num_redshifts))
+                Params%Transfer%PK_redshifts_index(1:Params%Transfer%PK_num_redshifts))
         end if
         x= kh *R
         win =3*(sin(x)-x*cos(x))/x**3
         lnk=log(k)
         if (ik==1) then
             dlnk=0.5_dl
-            !Approx for 2._dl/(CP%InitPower%an(in)+3)  [From int_0^k_1 dk/k k^4 P(k)]
+            !Approx for 2._dl/(Params%InitPower%an(in)+3)  [From int_0^k_1 dk/k k^4 P(k)]
             !Contribution should be very small in any case
         else
             dlnk=lnk-lnko
         end if
-        powers = ScalarPower(k,power_ix)
+        powers = Params%InitPower%ScalarPower(k)
         dsig8=(win*k**2)**2*powers*dsig8
         sig8=sig8+(dsig8+dsig8o)*dlnk/2
         dsig8o=dsig8
@@ -2511,16 +2494,17 @@
     else
         sig8 =sqrt(sig8)
     end if
-    outvals(1:CP%Transfer%PK_num_redshifts) = sig8
+    outvals(1:Params%Transfer%PK_num_redshifts) = sig8
 
     end subroutine Transfer_Get_SigmaR
 
-    subroutine Transfer_GetSigmaRArray(MTrans, R, sigmaR, redshift_ix, var1, var2, power_ix)
+    subroutine Transfer_GetSigmaRArray(MTrans, Params,R, sigmaR, redshift_ix, var1, var2)
     !Get array of SigmaR at (by default) redshift zero, for all values of R
     Type(MatterTransferData) :: MTrans
+    Type(CambParams) :: Params
     real(dl), intent(in) :: R(:)
     real(dl), intent(out) :: SigmaR(:)
-    integer, intent(in), optional :: redshift_ix, var1, var2, power_ix
+    integer, intent(in), optional :: redshift_ix, var1, var2
     integer red_ix, ik, subk
     real(dl) kh, k, h, dkh
     real(dl) lnk, dlnk, lnko, minR
@@ -2529,12 +2513,12 @@
     integer, parameter :: nsub = 5
 
     minR = minval(R)
-    red_ix = PresentDefault (CP%Transfer%PK_redshifts_index(&
-        CP%Transfer%PK_num_redshifts), redshift_ix)
+    red_ix = PresentDefault (Params%Transfer%PK_redshifts_index(&
+        Params%Transfer%PK_num_redshifts), redshift_ix)
 
-    call Transfer_GetMatterPowerData(MTrans, PKspline, power_ix, red_ix, var1, var2 )
+    call Transfer_GetMatterPowerData(MTrans, Params, PKspline, red_ix, var1, var2 )
 
-    H=CP%h0/100._dl
+    H=Params%h0/100._dl
     dkh = 0._dl
     lnko=0
     dsig8o=0
@@ -2555,7 +2539,7 @@
             win =3*(sin(x)-x*cos(x))/x**3
             if (ik==1 .and. subk==1) then
                 dlnk=0.5_dl
-                !Approx for 2._dl/(CP%InitPower%an(in)+3)  [From int_0^k_1 dk/k k^4 P(k)]
+                !Approx for 2._dl/(Params%InitPower%an(in)+3)  [From int_0^k_1 dk/k k^4 P(k)]
                 !Contribution should be very small in any case
             else
                 dlnk=lnk-lnko
@@ -2573,33 +2557,32 @@
 
     end subroutine Transfer_GetSigmaRArray
 
-    subroutine Transfer_Get_sigma8(MTrans, R, var1, var2)
+    subroutine Transfer_Get_sigma8(MTrans, Params, R, var1, var2)
     !Calculate MTrans%sigma_8^2 = int dk/k win**2 T_k**2 P(k), where win is the FT of a spherical top hat
     !of radius R h^{-1} Mpc
     ! set va1, var2 e.g. to get the value from some combination of transfer functions rather than total
     Type(MatterTransferData) :: MTrans
+    Type(CambParams) :: Params
     real(dl), intent(in), optional :: R
     integer, intent(in), optional :: var1, var2
-    integer :: ix
     real(dl) :: radius
 
     if (global_error_flag /= 0) return
 
     radius = PresentDefault (8._dl, R)
 
-    do ix = 1, CP%InitPower%nn
-        call Transfer_Get_SigmaR(MTrans, radius, MTrans%sigma_8(:,ix), var1,var2, ix)
-    end do
+    call Transfer_Get_SigmaR(MTrans, Params, radius, MTrans%sigma_8, var1,var2)
 
     end subroutine Transfer_Get_sigma8
 
-    subroutine Transfer_Get_sigmas(MTrans, R, var_delta, var_v)
+    subroutine Transfer_Get_sigmas(MTrans, Params, R, var_delta, var_v)
     !Get sigma8 and sigma_{delta v} (for growth, like f sigma8 in LCDM)
     Type(MatterTransferData) :: MTrans
+    Type(CambParams) :: Params
     real(dl), intent(in), optional :: R
     integer, intent(in), optional :: var_delta, var_v
     real(dl) :: radius
-    integer :: s1, s2, ix
+    integer :: s1, s2
 
     if (global_error_flag /= 0) return
 
@@ -2607,35 +2590,30 @@
     s1 = PresentDefault (transfer_power_var, var_delta)
     s2 = PresentDefault (Transfer_Newt_vel_cdm, var_v)
 
-    do ix = 1, CP%InitPower%nn
-        call Transfer_Get_SigmaR(MTrans, radius, MTrans%sigma_8(:,ix), s1,s1, ix)
-        if (get_growth_sigma8) call Transfer_Get_SigmaR(MTrans, radius, &
-            MTrans%sigma2_vdelta_8(:,ix), s1, s2, ix, root=.false.)
-    end do
+    call Transfer_Get_SigmaR(MTrans, Params, radius, MTrans%sigma_8, s1,s1)
+    if (get_growth_sigma8) call Transfer_Get_SigmaR(MTrans, Params,radius, &
+        MTrans%sigma2_vdelta_8(:), s1, s2, root=.false.)
 
     end subroutine Transfer_Get_sigmas
 
     subroutine Transfer_output_Sig8(MTrans)
     Type(MatterTransferData), intent(in) :: MTrans
-    integer in, j
+    integer j
     !JD 08/13 Changes in here to PK arrays and variables
     integer j_PK
 
-    do in=1, CP%InitPower%nn
-        if (CP%InitPower%nn>1)  write(*,*) 'Power spectrum : ', in
+    do j_PK=1, CP%Transfer%PK_num_redshifts
+        j = CP%Transfer%PK_redshifts_index(j_PK)
+        write(*,'("at z =",f7.3," sigma8 (all matter) = ",f7.4)') &
+            CP%Transfer%redshifts(j), MTrans%sigma_8(j_PK)
+    end do
+    if (get_growth_sigma8) then
         do j_PK=1, CP%Transfer%PK_num_redshifts
             j = CP%Transfer%PK_redshifts_index(j_PK)
-            write(*,'("at z =",f7.3," sigma8 (all matter) = ",f7.4)') &
-                CP%Transfer%redshifts(j), MTrans%sigma_8(j_PK,in)
+            write(*,'("at z =",f7.3," sigma8^2_vd/sigma8  = ",f7.4)') &
+                CP%Transfer%redshifts(j), MTrans%sigma2_vdelta_8(j_PK)/MTrans%sigma_8(j_PK)
         end do
-        if (get_growth_sigma8) then
-            do j_PK=1, CP%Transfer%PK_num_redshifts
-                j = CP%Transfer%PK_redshifts_index(j_PK)
-                write(*,'("at z =",f7.3," sigma8^2_vd/sigma8  = ",f7.4)') &
-                    CP%Transfer%redshifts(j), MTrans%sigma2_vdelta_8(j_PK,in)/MTrans%sigma_8(j_PK,in)
-            end do
-        end if
-    end do
+    end if
 
     end subroutine Transfer_output_Sig8
 
@@ -2650,8 +2628,8 @@
     allocate(MTrans%q_trans(MTrans%num_q_trans))
     allocate(MTrans%TransferData(Transfer_max,MTrans%num_q_trans,CP%Transfer%num_redshifts))
     !JD 08/13 Changes in here to PK arrays and variables
-    allocate(MTrans%sigma_8(CP%Transfer%PK_num_redshifts, CP%InitPower%nn))
-    if (get_growth_sigma8) allocate(MTrans%sigma2_vdelta_8(CP%Transfer%PK_num_redshifts, CP%InitPower%nn))
+    allocate(MTrans%sigma_8(CP%Transfer%PK_num_redshifts))
+    if (get_growth_sigma8) allocate(MTrans%sigma2_vdelta_8(CP%Transfer%PK_num_redshifts))
 
     end subroutine Transfer_Allocate
 
@@ -2753,9 +2731,9 @@
     Type(MatterTransferData), intent(in) :: MTrans
     character(LEN=Ini_max_string_len), intent(IN) :: FileNames(*)
     character(LEN=name_tag_len) :: columns(3)
-    integer itf, in, i, unit
+    integer itf, i, unit
     integer points
-    real, dimension(:,:,:), allocatable :: outpower
+    real, dimension(:,:), allocatable :: outpower
     real minkh,dlnkh
     Type(MatterPowerData) :: PK_data
     integer ncol
@@ -2771,45 +2749,41 @@
         ncol = 1
     end if
 
-    if (CP%InitPower%nn>1 .and. output_file_headers) error stop 'InitPower%nn>1 deprecated'
-
     do itf=1, CP%Transfer%PK_num_redshifts
         if (FileNames(itf) /= '') then
             if (.not. transfer_interp_matterpower ) then
                 itf_PK = CP%Transfer%PK_redshifts_index(itf)
 
                 points = MTrans%num_q_trans
-                allocate(outpower(points,CP%InitPower%nn,ncol))
+                allocate(outpower(points,ncol))
 
-                do in = 1, CP%InitPower%nn
-                    !Sources
-                    if (all21) then
-                        call Transfer_Get21cmPowerData(MTrans, PK_data, in, itf_PK)
-                    else
-                        call Transfer_GetMatterPowerData(MTrans, PK_data, in, itf_PK)
-                        !JD 08/13 for nonlinear lensing of CMB + LSS compatibility
-                        !Changed (CP%NonLinear/=NonLinear_None) to CP%NonLinear/=NonLinear_none .and. CP%NonLinear/=NonLinear_Lens)
-                        if(CP%NonLinear/=NonLinear_none .and. CP%NonLinear/=NonLinear_Lens)&
-                            call MatterPowerdata_MakeNonlinear(PK_Data)
-                    end if
+                !Sources
+                if (all21) then
+                    call Transfer_Get21cmPowerData(MTrans, CP, PK_data, itf_PK)
+                else
+                    call Transfer_GetMatterPowerData(MTrans, CP, PK_data, itf_PK)
+                    !JD 08/13 for nonlinear lensing of CMB + LSS compatibility
+                    !Changed (CP%NonLinear/=NonLinear_None) to CP%NonLinear/=NonLinear_none .and. CP%NonLinear/=NonLinear_Lens)
+                    if(CP%NonLinear/=NonLinear_none .and. CP%NonLinear/=NonLinear_Lens)&
+                        call MatterPowerdata_MakeNonlinear(CP%NonLinearModel, PK_Data)
+                end if
 
-                    outpower(:,in,1) = exp(PK_data%matpower(:,1))
-                    !Sources
-                    if (all21) then
-                        outpower(:,in,3) = exp(PK_data%vvpower(:,1))
-                        outpower(:,in,2) = exp(PK_data%vdpower(:,1))
+                outpower(:,1) = exp(PK_data%matpower(:,1))
+                !Sources
+                if (all21) then
+                    outpower(:,3) = exp(PK_data%vvpower(:,1))
+                    outpower(:,2) = exp(PK_data%vdpower(:,1))
 
-                        outpower(:,in,1) = outpower(:,in,1)/1d10*const_pi*const_twopi/MTrans%TransferData(Transfer_kh,:,1)**3
-                        outpower(:,in,2) = outpower(:,in,2)/1d10*const_pi*const_twopi/MTrans%TransferData(Transfer_kh,:,1)**3
-                        outpower(:,in,3) = outpower(:,in,3)/1d10*const_pi*const_twopi/MTrans%TransferData(Transfer_kh,:,1)**3
-                    end if
+                    outpower(:,1) = outpower(:,1)/1d10*const_pi*const_twopi/MTrans%TransferData(Transfer_kh,:,1)**3
+                    outpower(:,2) = outpower(:,2)/1d10*const_pi*const_twopi/MTrans%TransferData(Transfer_kh,:,1)**3
+                    outpower(:,3) = outpower(:,3)/1d10*const_pi*const_twopi/MTrans%TransferData(Transfer_kh,:,1)**3
+                end if
 
-                    call MatterPowerdata_Free(PK_Data)
-                end do
+                call MatterPowerdata_Free(PK_Data)
                 columns = ['P   ', 'P_vd','P_vv']
                 unit = open_file_header(FileNames(itf), 'k/h', columns(:ncol), 15)
                 do i=1,points
-                    write (unit, '(*(E15.6))') MTrans%TransferData(Transfer_kh,i,1),outpower(i,1:CP%InitPower%nn,:)
+                    write (unit, '(*(E15.6))') MTrans%TransferData(Transfer_kh,i,1),outpower(i,:)
                 end do
                 close(unit)
             else
@@ -2818,16 +2792,14 @@
                 dlnkh = 0.02
                 points = log(MTrans%TransferData(Transfer_kh,MTrans%num_q_trans,itf)/minkh)/dlnkh+1
                 !             dlnkh = log(MTrans%TransferData(Transfer_kh,MTrans%num_q_trans,itf)/minkh)/(points-0.999)
-                allocate(outpower(points,CP%InitPower%nn,1))
-                do in = 1, CP%InitPower%nn
-                    call Transfer_GetMatterPowerS(MTrans,outpower(1,in,1), itf, in, minkh,dlnkh, points)
-                end do
+                allocate(outpower(points,1))
+                call Transfer_GetMatterPowerS(MTrans, CP, outpower(1,1), itf,  minkh,dlnkh, points)
 
                 columns(1) = 'P'
                 unit = open_file_header(FileNames(itf), 'k/h', columns(:1), 15)
 
                 do i=1,points
-                    write (unit, '(*(E15.6))') minkh*exp((i-1)*dlnkh),outpower(i,1:CP%InitPower%nn,1)
+                    write (unit, '(*(E15.6))') minkh*exp((i-1)*dlnkh),outpower(i,1)
                 end do
                 close(unit)
             end if
@@ -2839,11 +2811,11 @@
     end subroutine Transfer_SaveMatterPower
 
 
-    subroutine Transfer_Get21cmPowerData(MTrans, PK_data, in, z_ix)
+    subroutine Transfer_Get21cmPowerData(MTrans, Params, PK_data, z_ix)
     !In terms of k, not k/h, and k^3 P_k /2pi rather than P_k
     Type(MatterTransferData), intent(in) :: MTrans
+    Type(CambParams) :: Params
     Type(MatterPowerData) :: PK_data, PK_cdm
-    integer, intent(in) :: in
     real(dl) h, k, pow
     integer ik
     integer z_ix,nz
@@ -2862,20 +2834,20 @@
     allocate(PK_data%log_k(PK_data%num_k))
     allocate(PK_data%redshifts(nz))
 
-    PK_data%redshifts = CP%Transfer%Redshifts(z_ix)
+    PK_data%redshifts = Params%Transfer%Redshifts(z_ix)
 
-    h = CP%H0/100
+    h = Params%H0/100
 
-    if (CP%NonLinear/=NonLinear_None .and. CP%NonLinear/=NonLinear_Lens) then
+    if (Params%NonLinear/=NonLinear_None .and. Params%NonLinear/=NonLinear_Lens) then
         if (z_ix>1) stop 'not tested more than one redshift with Nonlinear 21cm'
-        call Transfer_GetMatterPowerData(MTrans, PK_cdm, in, z_ix)
-        call CP%NonLinearModel%GetNonLinRatios_All(PK_cdm)
+        call Transfer_GetMatterPowerData(MTrans, Params, PK_cdm, z_ix)
+        call Params%NonLinearModel%GetNonLinRatios_All(PK_cdm)
     end if
 
     do ik=1,MTrans%num_q_trans
         k = MTrans%TransferData(Transfer_kh,ik,z_ix)*h
         PK_data%log_k(ik) = log(k)
-        pow = ScalarPower(k,in)*1d10
+        pow = Params%InitPower%ScalarPower(k)*1d10
 
         PK_data%matpower(ik,1) = &
             log( (MTrans%TransferData(Transfer_monopole,ik,z_ix)*k**2)**2 * pow)
@@ -2885,7 +2857,7 @@
             log( abs((MTrans%TransferData(Transfer_vnewt ,ik,z_ix)*k**2)*&
             (MTrans%TransferData(Transfer_monopole,ik,z_ix)*k**2))* pow)
 
-        if (CP%NonLinear/=NonLinear_None) then
+        if (Params%NonLinear/=NonLinear_None) then
             PK_data%matpower(ik,1) = PK_data%matpower(ik,1) + 2*log(PK_cdm%nonlin_ratio(ik,z_ix))
             PK_data%vvpower(ik,1) = PK_data%vvpower(ik,1) + 2*log(PK_cdm%nonlin_ratio_vv(ik,z_ix))
             PK_data%vdpower(ik,1) = PK_data%vdpower(ik,1) + 2*log(PK_cdm%nonlin_ratio_vd(ik,z_ix))
@@ -2896,7 +2868,7 @@
         !                 PK_data%vvpower(ik,z_ix) = 0
     end do
 
-    if (CP%NonLinear/=NonLinear_None)  call MatterPowerdata_Free(PK_cdm)
+    if (Params%NonLinear/=NonLinear_None)  call MatterPowerdata_Free(PK_cdm)
 
 
     call MatterPowerdata_getsplines21cm(PK_data)
@@ -2968,7 +2940,7 @@
     !Get 21cm C_l from sharp shell, using only monopole source and redshift distortions
     Type(MatterTransferData), intent(in) :: MTrans
     character(LEN=Ini_max_string_len), intent(IN) :: FileNames(*)
-    integer itf,in,ik
+    integer itf,ik
     integer points
     character(LEN=name_tag_len), dimension(3), parameter :: Transfer_21cm_name_tags = &
         ['CL  ','P   ','P_vv']
@@ -2987,11 +2959,10 @@
 
             points = MTrans%num_q_trans
 
-            in =1
             lastl=0
 
             call MatterPowerdata_Nullify(PK_data)
-            call Transfer_Get21cmPowerData(MTrans, PK_data, in, itf)
+            call Transfer_Get21cmPowerData(MTrans, CP, PK_data, itf)
 
             unit = open_file_header(FileNames(itf), 'L', Transfer_21cm_name_tags, 8)
 

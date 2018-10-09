@@ -25,7 +25,7 @@
     use CAMBmain
     use lensing
     type(CAMBparams) :: Params
-    type (CAMBdata)  :: OutData
+    type(CAMBdata)  :: OutData
     integer :: error !Zero if OK
     Type(MatterTransferData) :: emptyMT
     Type(ClTransferData) :: emptyCl
@@ -84,14 +84,14 @@
     type (CAMBdata) :: CData
 
     CP = CData%Params
-    call InitializePowers(CP%InitPower,CP%curv)
+    call CP%InitPower%Init(CP%curv)
     if (global_error_flag/=0) return
     if (CData%Params%WantCls) then
         call ClTransferToCl(CData%ClTransScal,CData%ClTransTens, CData%ClTransvec)
         if (CP%DoLensing .and. global_error_flag==0) call lens_Cls
         if (global_error_flag/=0) return
     end if
-    if (CData%Params%WantTransfer) call Transfer_Get_sigmas(Cdata%MTrans)
+    if (CData%Params%WantTransfer) call Transfer_Get_sigmas(Cdata%MTrans, CP)
 
     end subroutine CAMB_TransfersToPowers
 
@@ -232,8 +232,8 @@
     !Return real (NOT double precision) arrays of the computed CMB  Cls
     !Output is l(l+1)C_l/2pi
     !If GC_Conventions = .false. use E-B conventions (as the rest of CAMB does)
-    subroutine CAMB_GetCls(Cls, lmax, in, GC_conventions)
-    integer, intent(IN) :: lmax, in
+    subroutine CAMB_GetCls(Cls, lmax,GC_conventions)
+    integer, intent(IN) :: lmax
     logical, intent(IN) :: GC_conventions
     real, intent(OUT) :: Cls(2:lmax,1:4)
     integer l
@@ -242,14 +242,14 @@
     do l=2, lmax
         if (CP%WantScalars .and. l<= CP%Max_l) then
             if (CP%DoLensing) then
-                if (l<=lmax_lensed) Cls(l,1:4) = Cl_lensed(l, in, CT_Temp:CT_Cross)
+                if (l<=lmax_lensed) Cls(l,1:4) = Cl_lensed(l, CT_Temp:CT_Cross)
             else
-                Cls(l,1:2) = Cl_scalar(l, in,  C_Temp:C_E)
-                Cls(l,4) = Cl_scalar(l, in,  C_Cross)
+                Cls(l,1:2) = Cl_scalar(l, C_Temp:C_E)
+                Cls(l,4) = Cl_scalar(l, C_Cross)
             endif
         end if
         if (CP%WantTensors .and. l <= CP%Max_l_tensor) then
-            Cls(l,1:4) = Cls(l,1:4) + Cl_tensor(l, in,  CT_Temp:CT_Cross)
+            Cls(l,1:4) = Cls(l,1:4) + Cl_tensor(l, CT_Temp:CT_Cross)
         end if
     end do
     if (GC_conventions) then
@@ -329,7 +329,8 @@
     if (allocated(P%DarkEnergy)) deallocate(P%DarkEnergy)
     allocate(TDarkEnergyFluid::P%DarkEnergy)
 
-    call SetDefPowerParams(P%InitPower)
+    if (allocated(P%InitPower)) deallocate(P%InitPower)
+    allocate(TInitialPowerLaw::P%InitPower)
 
     call Recombination_SetDefParams(P%Recomb)
 

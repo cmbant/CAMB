@@ -34,83 +34,51 @@
     module InitialPower
     use Precision
     use MpiUtils, only : MpiStop
+    use classes
     implicit none
 
     private
 
-    character(LEN=*), parameter :: Power_Name = 'power_tilt'
-
-    integer, parameter :: nnmax= 5
-    !Maximum possible number of different power spectra to use
-
     integer, parameter, public :: tensor_param_indeptilt=1,  tensor_param_rpivot = 2, tensor_param_AT = 3
 
-    Type InitialPowerParams
+    Type, extends(TInitialPower) :: TInitialPowerLaw
         integer :: tensor_parameterization = tensor_param_indeptilt
-        integer nn  !Must have this variable
-        !The actual number of power spectra to use
-
         !For the default implementation return power spectra based on spectral indices
-        real(dl) an(nnmax) !scalar spectral indices
-        real(dl) n_run(nnmax) !running of spectral index
-        real(dl) n_runrun(nnmax) !running of spectral index
-        real(dl) ant(nnmax) !tensor spectral indices
-        real(dl) nt_run(nnmax) !tensor spectral index running
-        real(dl) rat(nnmax) !ratio of scalar to tensor initial power spectrum amplitudes
-        real(dl) k_0_scalar, k_0_tensor !pivot scales
-        real(dl) ScalarPowerAmp(nnmax)
-        real(dl) TensorPowerAmp(nnmax) !A_T at k_0_tensor if tensor_parameterization==tensor_param_AT
-    end Type InitialPowerParams
+        real(dl) :: ns = 1._dl !scalar spectral indices
+        real(dl) :: nrun = 0._dl !running of spectral index
+        real(dl) :: nrunrun  = 0._dl !running of spectral index
+        real(dl) :: nt  = 0._dl !tensor spectral indices
+        real(dl) :: ntrun  = 0._dl !tensor spectral index running
+        real(dl) :: r  = 0._dl !ratio of scalar to tensor initial power spectrum amplitudes
+        real(dl) :: pivot_scalar = 0.05_dl !pivot scales in Mpc^{-1}
+        real(dl) :: pivot_tensor = 0.05_dl
+        real(dl) :: As = 1._dl
+        real(dl) :: At = 1._dl !A_T at k_0_tensor if tensor_parameterization==tensor_param_AT
+    contains
+    procedure :: PythonClass => TInitialPowerLaw_PythonClass
+    procedure :: ScalarPower => TInitialPowerLaw_ScalarPower
+    procedure :: TensorPower => TInitialPowerLaw_TensorPower
+    procedure :: ReadParams => TInitialPowerLaw_ReadParams
+    procedure :: Effective_ns => TInitalPowerLaw_Effective_ns
 
-    real(dl) curv  !Curvature contant, set in InitializePowers
-
-    Type(InitialPowerParams), save :: P
+    end Type TInitialPowerLaw
 
     !Make things visible as neccessary...
 
-    public InitialPowerParams, InitialPower_ReadParams, InitializePowers, ScalarPower, TensorPower
-    public nnmax,Power_Descript, Power_Name, SetDefPowerParams
+    public TInitialPowerLaw
     contains
 
+    function TInitialPowerLaw_PythonClass(this)
+    class(TInitialPowerLaw) :: this
+    character(LEN=:), allocatable :: TInitialPowerLaw_PythonClass
+    TInitialPowerLaw_PythonClass = 'InitialPowerLaw'
+    end function TInitialPowerLaw_PythonClass
 
-    subroutine SetDefPowerParams(AP)
-    type (InitialPowerParams) :: AP
-
-    AP%nn     = 1 !number of initial power spectra
-    AP%an     = 1 !scalar spectral index
-    AP%n_run   = 0 !running of scalar spectral index
-    AP%n_runrun   = 0 !running of running of scalar spectral index
-    AP%ant    = 0 !tensor spectra index
-    AP%nt_run   = 0 !running of tensor spectral index
-    AP%rat    = 1
-    AP%k_0_scalar = 0.05
-    AP%k_0_tensor = 0.05
-    AP%ScalarPowerAmp = 1
-    AP%TensorPowerAmp = 1
-    AP%tensor_parameterization = tensor_param_indeptilt
-    end subroutine SetDefPowerParams
-
-    subroutine InitializePowers(AParamSet,acurv)
-    Type (InitialPowerParams) :: AParamSet
-    !Called before computing final Cls in cmbmain.f90
-    !Could read spectra from disk here, do other processing, etc.
-
-    real(dl) acurv
-
-    if (AParamSet%nn > nnmax) then
-        write (*,*) 'To use ',AParamSet%nn,'power spectra you need to increase'
-        write (*,*) 'nnmax in power_tilt.f90, currently ',nnmax
-    end if
-    P = AParamSet
-
-    curv=acurv
-
-    !Write implementation specific code here...
-    end subroutine InitializePowers
-
-
-    function ScalarPower(k,ix)
-    !"ix" gives the index of the power to return for this k
+    function TInitialPowerLaw_ScalarPower(this, k)
+    class(TInitialPowerLaw) :: this
+    real(dl), intent(in) :: k
+    real(dl) TInitialPowerLaw_ScalarPower
+    real(dl) lnrat
     !ScalarPower = const for scale invariant spectrum
     !The normalization is defined so that for adiabatic perturbations the gradient of the 3-Ricci
     !scalar on co-moving hypersurfaces receives power
@@ -125,116 +93,97 @@
     !< |\Delta(x)|^2 > = \int dk/k ScalarPower(k)
     !For the isocurvture velocity mode ScalarPower is the power in the neutrino heat flux.
 
-    real(dl) ScalarPower,k, lnrat
-    integer ix
 
-    lnrat = log(k/P%k_0_scalar)
-    ScalarPower = P%ScalarPowerAmp(ix) * exp(lnrat * (P%an(ix) - 1 + &
-        &             lnrat * (P%n_run(ix) / 2 + P%n_runrun(ix) / 6 * lnrat)))
+    lnrat = log(k/this%pivot_scalar)
+    TInitialPowerLaw_ScalarPower = this%As * exp(lnrat * (this%ns - 1 + &
+        &             lnrat * (this%nrun / 2 + this%nrunrun / 6 * lnrat)))
 
-    !         ScalarPower = ScalarPower * (1 + 0.1*cos( lnrat*30 ) )
-    end function ScalarPower
+    end function TInitialPowerLaw_ScalarPower
 
 
-    function TensorPower(k,ix)
+    function TInitialPowerLaw_TensorPower(this,k)
+    use constants
+    class(TInitialPowerLaw) :: this
     !TensorPower= const for scale invariant spectrum
     !The normalization is defined so that
     ! < h_{ij}(x) h^{ij}(x) > = \sum_nu nu /(nu^2-1) (nu^2-4)/nu^2 TensorPower(k)
     !for a closed model
     ! < h_{ij}(x) h^{ij}(x) > = int d nu /(nu^2+1) (nu^2+4)/nu^2 TensorPower(k)
     !for an open model
-    !"ix" gives the index of the power spectrum to return
     !Here nu^2 = (k^2 + 3*curv)/|curv|
-
-    real(dl) TensorPower,k
-    real(dl), parameter :: PiByTwo=3.14159265d0/2._dl
-    integer ix
+    real(dl), intent(in) :: k
+    real(dl) TInitialPowerLaw_TensorPower
+    real(dl), parameter :: PiByTwo=const_pi/2._dl
     real(dl) lnrat, k_dep
 
-    lnrat = log(k/P%k_0_tensor)
-    k_dep = exp(lnrat*(P%ant(ix) + P%nt_run(ix)/2*lnrat))
-    if (P%tensor_parameterization==tensor_param_indeptilt) then
-        TensorPower = P%rat(ix)*P%ScalarPowerAmp(ix)*k_dep
-    else if (P%tensor_parameterization==tensor_param_rpivot) then
-        TensorPower = P%rat(ix)*ScalarPower(P%k_0_tensor,ix) * k_dep
-    else if (P%tensor_parameterization==tensor_param_AT) then
-        TensorPower = P%TensorPowerAmp(ix) * k_dep
+    lnrat = log(k/this%pivot_tensor)
+    k_dep = exp(lnrat*(this%nt + this%ntrun/2*lnrat))
+    if (this%tensor_parameterization==tensor_param_indeptilt) then
+        TInitialPowerLaw_TensorPower = this%r*this%As*k_dep
+    else if (this%tensor_parameterization==tensor_param_rpivot) then
+        TInitialPowerLaw_TensorPower = this%r*this%ScalarPower(this%pivot_tensor) * k_dep
+    else if (this%tensor_parameterization==tensor_param_At) then
+        TInitialPowerLaw_TensorPower = this%At * k_dep
     end if
-    if (curv < 0) TensorPower=TensorPower*tanh(PiByTwo*sqrt(-k**2/curv-3))
-    end function TensorPower
+    if (this%curv < 0) TInitialPowerLaw_TensorPower= &
+        TInitialPowerLaw_TensorPower*tanh(PiByTwo*sqrt(-k**2/this%curv-3))
+    end function TInitialPowerLaw_TensorPower
 
-    !Get parameters describing parameterisation (for FITS file)
-    !Does not support running extensions
-    function Power_Descript(in, Scal, Tens, Keys, Vals)
-    character(LEN=8), intent(out) :: Keys(*)
-    real(dl), intent(out) :: Vals(*)
-    integer, intent(IN) :: in
-    logical, intent(IN) :: Scal, Tens
-    integer num, Power_Descript
-    num=0
-    if (Scal) then
-        num=num+1
-        Keys(num) = 'n_s'
-        Vals(num) = P%an(in)
-        num=num+1
-        Keys(num) = 'n_run'
-        Vals(num) = P%n_run(in)
-        num=num+1
-        Keys(num) = 's_pivot'
-        Vals(num) = P%k_0_scalar
-    end if
-    if (Tens) then
-        num=num+1
-        Keys(num) = 'n_t'
-        Vals(num) = P%ant(in)
-        num=num+1
-        Keys(num) = 't_pivot'
-        Vals(num) = P%k_0_tensor
-        if (Scal) then
-            num=num+1
-            Keys(num) = 'p_ratio'
-            Vals(num) = P%rat(in)
-        end if
-    end if
-    Power_Descript = num
-    end  function Power_Descript
+    function CompatKey(Ini, name)
+    class(TIniFile), intent(in) :: Ini
+    character(LEN=*), intent(in) :: name
+    character(LEN=:), allocatable :: CompatKey
+    !Allow backwards compatibility with old .ini files where initial power parameters were arrays
 
-    subroutine InitialPower_ReadParams(InitPower, Ini, WantTensors)
+    if (Ini%HasKey(name//'(1)')) then
+        CompatKey = name//'(1)'
+        if (Ini%HasKey(name)) call MpiStop('Must have one of '//trim(name)//' or '//trim(name)//'(1)')
+    else
+        CompatKey = name
+    end if
+    end function CompatKey
+
+    subroutine TInitialPowerLaw_ReadParams(this, Ini, WantTensors)
     use IniObjects
-    Type(InitialPowerParams) :: InitPower
-    Type(TIniFile) :: Ini
+    class(TInitialPowerLaw) :: this
+    class(TIniFile), intent(in) :: Ini
     logical, intent(in) :: WantTensors
-    integer i
 
-    call Ini%Read('pivot_scalar', InitPower%k_0_scalar)
-    call Ini%Read('pivot_tensor', InitPower%k_0_tensor)
-    InitPower%nn = Ini%Read_Int('initial_power_num', 1)
-    if (InitPower%nn>nnmax) call MpiStop('Too many initial power spectra - increase nnmax in InitialPower')
+    call Ini%Read('pivot_scalar', this%pivot_scalar)
+    call Ini%Read('pivot_tensor', this%pivot_tensor)
+    if (Ini%Read_Int('initial_power_num', 1) /= 1) call MpiStop('initial_power_num>1 no longer supported')
     if (WantTensors) then
-        InitPower%tensor_parameterization =  Ini%Read_Int('tensor_parameterization', tensor_param_indeptilt)
-        if (InitPower%tensor_parameterization < tensor_param_indeptilt .or. &
-            &   InitPower%tensor_parameterization > tensor_param_AT) &
+        this%tensor_parameterization =  Ini%Read_Int('tensor_parameterization', tensor_param_indeptilt)
+        if (this%tensor_parameterization < tensor_param_indeptilt .or. &
+            &   this%tensor_parameterization > tensor_param_AT) &
             &   call MpiStop('InitialPower: unknown tensor_parameterization')
     end if
-    InitPower%rat(:) = 1
-    do i=1, InitPower%nn
-        InitPower%an(i) = Ini%Read_Double_Array('scalar_spectral_index', i)
-        InitPower%n_run(i) = Ini%Read_Double_Array('scalar_nrun', i, 0._dl)
-        InitPower%n_runrun(i) = Ini%Read_Double_Array('scalar_nrunrun', i, 0._dl)
+    this%r = 1
+    this%ns = Ini%Read_Double(CompatKey(Ini,'scalar_spectral_index'))
+    call Ini%Read(CompatKey(Ini,'scalar_nrun'), this%nrun)
+    call Ini%Read(CompatKey(Ini,'scalar_nrunrun'), this%nrunrun)
 
-        if (WantTensors) then
-            InitPower%ant(i) = Ini%Read_Double_Array('tensor_spectral_index', i)
-            InitPower%nt_run(i) = Ini%Read_Double_Array('tensor_nrun', i, 0._dl)
-            if (InitPower%tensor_parameterization == tensor_param_AT) then
-                InitPower%TensorPowerAmp(i) = Ini%Read_Double_Array('tensor_amp', i)
-            else
-                InitPower%rat(i) = Ini%Read_Double_Array('initial_ratio', i)
-            end if
+    if (WantTensors) then
+        this%nt = Ini%Read_Double(CompatKey(Ini,'tensor_spectral_index'))
+        call Ini%Read(CompatKey(Ini,'tensor_nrun'),this%ntrun)
+        if (this%tensor_parameterization == tensor_param_AT) then
+            this%At = Ini%Read_Double(CompatKey(Ini,'tensor_amp'))
+        else
+            this%r = Ini%Read_Double(CompatKey(Ini,'initial_ratio'))
         end if
+    end if
 
-        InitPower%ScalarPowerAmp(i) = Ini%Read_Double_Array('scalar_amp', i, 1._dl)
-        !Always need this as may want to set tensor amplitude even if scalars not computed
-    end do
-    end  subroutine InitialPower_ReadParams
+    call Ini%Read(CompatKey(Ini,'scalar_amp'),this%As)
+    !Always need this as may want to set tensor amplitude even if scalars not computed
+
+    end subroutine TInitialPowerLaw_ReadParams
+
+    function TInitalPowerLaw_Effective_ns(this)
+    class(TInitialPowerLaw) :: this
+    real(dl) :: TInitalPowerLaw_Effective_ns
+
+    TInitalPowerLaw_Effective_ns = this%ns
+
+    end function TInitalPowerLaw_Effective_ns
 
     end module InitialPower

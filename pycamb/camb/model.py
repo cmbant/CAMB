@@ -1,15 +1,15 @@
-from .baseconfig import camblib, CAMB_Structure, CAMBError, CAMBParamRangeError, dll_import, f_allocatable
-from ctypes import c_bool, c_int, c_double, c_float, c_byte, byref, POINTER
+from .baseconfig import camblib, CAMB_Structure, CAMBError, CAMBValueError, CAMBParamRangeError, \
+    dll_import, f_allocatable
+from ctypes import c_bool, c_int, c_double, byref, POINTER
 from . import reionization as ion
 from . import recombination as recomb
-from . import initialpower as ipow
 from . import constants
 from .nonlinear import NonLinearModel
+from .initialpower import InitialPower, SplinedInitialPower
 import numpy as np
 from . import bbn
-import logging
+import ctypes
 import six
-import copy
 
 # ---Parameters
 
@@ -159,6 +159,7 @@ CAMBparams_SetEqual = camblib.__handles_MOD_cambparams_setequal
 CAMBparams_DE_SetTable = camblib.__handles_MOD_cambparams_setdarkenergytable
 CAMBparams_DE_GetStressEnergy = camblib.__handles_MOD_cambparams_darkenergystressenergy
 
+CAMBparams_SetPKTable = camblib.__handles_MOD_cambparams_setpktable
 CAMBParams_Free = camblib.__handles_MOD_cambparams_free
 
 
@@ -285,10 +286,14 @@ class CAMBparams(CAMB_Structure):
     def _set_allocatables(self):
         de = POINTER(DarkEnergyParams)()
         nonlin = POINTER(NonLinearModel)()
+        initpower = ctypes.c_void_p()
+
         i = c_int(0)
-        CAMBparams_GetAllocatables(byref(self), byref(i), byref(de), byref(nonlin))
+        j = c_int(0)
+        CAMBparams_GetAllocatables(byref(self), byref(i), byref(de), byref(nonlin), byref(j), byref(initpower))
         self.DarkEnergy = de.contents
         self.NonLinearModel = nonlin.contents
+        self.InitPower = InitialPower.void_contents(initpower, j.value)
 
     def __del__(self):
         if self._b_needsfree_:
@@ -329,7 +334,6 @@ class CAMBparams(CAMB_Structure):
         ("OutputNormalization", c_int),
         ("Alens", c_double),
         ("MassiveNuMethod", c_int),
-        ("InitPower", ipow.InitialPowerParams),
         ("Reion", ion.ReionizationParams),
         ("Recomb", recomb.RecombinationParams),
         ("Transfer", TransferParams),
@@ -341,18 +345,19 @@ class CAMBparams(CAMB_Structure):
         ("InitialConditionVector", c_double * 10),
         ("OnlyTransfers", c_int),  # logical
         ("DerivedParameters", c_int),  # logical
+        ("_InitPower", f_allocatable),  # resolved class accessed as self.InitPower
         ("_DarkEnergy", f_allocatable),  # resolved class accessed as self.DarkEnergy
         ("_NonLinearModel", f_allocatable),  # resolved class accessed as self.NonLinearModel
-        ("ReionHist", ion.ReionizationHistory),
-        ("flat", c_int),  # logical
-        ("closed", c_int),  # logical
-        ("open", c_int),  # logical
-        ("omegak", c_double),
-        ("curv", c_double),
-        ("r", c_double),
-        ("Ksign", c_double),
-        ("tau0", c_double),
-        ("chi0", c_double)
+        ("__ReionHist", ion.ReionizationHistory),
+        ("__flat", c_int),  # logical
+        ("__closed", c_int),  # logical
+        ("__open", c_int),  # logical
+        ("__omegak", c_double),
+        ("__curv", c_double),
+        ("__r", c_double),
+        ("__Ksign", c_double),
+        ("__tau0", c_double),
+        ("__chi0", c_double)
     ]
 
     def copy(self):
@@ -391,15 +396,76 @@ class CAMBparams(CAMB_Structure):
         self.DoLateRadTruncation = DoLateRadTruncation
         return self
 
+    def set_initial_power_function(self, P_scalar, P_tensor=None, kmin=1e-6, kmax=100., N_min=200, rtol=5e-5, args=()):
+        """
+        Set the initial power spectrum from a function P_scalar(k, *args), and optionally also the tensor spectrum.
+        The function is called to make a pre-computed array which is then interpolated inside CAMB. The sampling in k
+        is set automatically so that the spline is accurate, but you may also need to increase other accuracy parameters.
+
+        :param P_scalar: function returning normalized initial scalar curvature power as function of k (in Mpc^{-1})
+        :param P_tensor: optional function returning normalized initial tensor power spectrum
+        :param kmin: minimum wavenumber to compute
+        :param kmax: maximum wavenumber to compute
+        :param N_min: minimum number of spline points for the pre-computation
+        :param rtol: relative tolerance for deciding how many points are enough
+        :param args: optional list of arguments passed to P_scalar (and P_tensor)
+        :return: self
+        """
+
+        from scipy.interpolate import UnivariateSpline
+        assert N_min > 7
+        assert kmin < kmax
+        # sample function logspace, finely enough that it interpolates accurately
+        N = N_min
+        ktest = np.logspace(np.log10(kmin), np.log10(kmax), N // 2)
+        PK_test = P_scalar(ktest, *args)
+        while True:
+            ks = np.logspace(np.log10(kmin), np.log10(kmax), N)
+            PK_compare = UnivariateSpline(ktest, PK_test, s=0)(ks)
+            PK = P_scalar(ks, *args)
+            if np.allclose(PK, PK_compare, atol=np.max(PK) * 1e-6, rtol=rtol):
+                break
+            N *= 2
+            PK_test = PK
+            ktest = ks
+        PK_t = None if P_tensor is None else P_tensor(ks, *args)
+        self.set_initial_power_table(ks, PK, PK_t)
+        return self
+
+    def set_initial_power_table(self, k, pk=None, pk_tensor=None):
+        """
+        Set a general intial power spectrum from tabulated values. It's up to you to ensure the sampling
+        of the k values is high enough that it can be interpolated accurately.
+
+        :param k: array of k values (Mpc^{-1})
+        :param pk: array of primordial curvature perturbation power spectrum values P(k_i)
+        param pk_tensor: array of tensor spectrum values
+        """
+        initpower = POINTER(SplinedInitialPower)()
+        if pk is None:
+            pk = np.asarray([])
+        elif len(k) != len(pk):
+            raise CAMBValueError("k and P(k) arrays must be same size")
+        if pk_tensor is None:
+            pk_tensor = np.asarray([])
+        elif len(k) != len(pk_tensor):
+            raise CAMBValueError("k and P_tensor(k) arrays must be same size")
+        CAMBparams_SetPKTable(byref(self), byref(c_int(len(pk))), byref(c_int(len(pk_tensor))), k, pk, pk_tensor,
+                              byref(initpower))
+        self.InitPower = initpower.contents
+        return self
+
     def set_initial_power(self, initial_power_params):
         """
         Set the InitialPower primordial power spectrum parameters
 
-        :param initial_power_params: :class:`.initialpower.InitialPowerParams` instance
+        :param initial_power_params: :class:`.initialpower.InitialPowerLaw` or :class:`.initialpower.SplinedInitialPower`instance
         :return: self
         """
-        assert (isinstance(initial_power_params, ipow.InitialPowerParams))
-        CAMB_setinitialpower(byref(self), byref(initial_power_params))
+        assert isinstance(initial_power_params, InitialPower)
+        p, class_id = initial_power_params._pointer_id()
+        CAMB_setinitialpower(byref(self), byref(p), byref(c_int(class_id)))
+        self._set_allocatables()
         return self
 
     def set_cosmology(self, H0=67.0, cosmomc_theta=None, ombh2=0.022, omch2=0.12, omk=0.0,
@@ -752,12 +818,16 @@ def Transfer_SortAndIndexRedshifts(P):
 
 CAMB_primordialpower.argtypes = [POINTER(CAMBparams), numpy_1d, numpy_1d, POINTER(c_int), POINTER(c_int)]
 CAMBparams_SetDarkEnergy.argtypes = [POINTER(CAMBparams), POINTER(c_int), POINTER(POINTER(DarkEnergyParams))]
-CAMBparams_GetAllocatables.argtypes = CAMBparams_SetDarkEnergy.argtypes + [POINTER(POINTER(NonLinearModel))]
+CAMBparams_GetAllocatables.argtypes = CAMBparams_SetDarkEnergy.argtypes + [POINTER(POINTER(NonLinearModel))] + \
+                                      [POINTER(c_int), POINTER(ctypes.c_void_p)]
 CAMBparams_SetEqual.argtypes = [POINTER(CAMBparams), POINTER(CAMBparams)]
 
 CAMBparams_DE_SetTable.argtypes = [POINTER(DarkEnergyParams), numpy_1d, numpy_1d, POINTER(c_int)]
 
 CAMBparams_DE_GetStressEnergy.argtypes = [POINTER(DarkEnergyParams), numpy_1d, numpy_1d, numpy_1d, POINTER(c_int)]
+
+CAMBparams_SetPKTable.argtypes = [POINTER(CAMBparams), POINTER(c_int), POINTER(c_int), numpy_1d, numpy_1d, numpy_1d,
+                                  POINTER(POINTER(SplinedInitialPower))]
 
 CAMB_SetNeutrinoHierarchy.argtypes = [POINTER(CAMBparams), POINTER(c_double), POINTER(c_double),
                                       POINTER(c_double), POINTER(c_int), POINTER(c_int)]
@@ -766,3 +836,5 @@ CAMBParams_Free.argtypes = [POINTER(CAMBparams)]
 
 CAMB_SetNeutrinoHierarchy.argtypes = [POINTER(CAMBparams), POINTER(c_double), POINTER(c_double),
                                       POINTER(c_double), POINTER(c_int), POINTER(c_int)]
+
+CAMB_setinitialpower.argtypes = [POINTER(CAMBparams), POINTER(ctypes.c_void_p), POINTER(c_int)]

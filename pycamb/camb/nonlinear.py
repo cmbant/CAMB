@@ -1,5 +1,5 @@
 from .baseconfig import CAMB_Structure
-from ctypes import c_int
+from ctypes import c_int, c_double
 
 # ---Parameters in halofit_ppf.f90
 
@@ -19,7 +19,7 @@ halofit_version_names = ['original', 'bird', 'peacock', 'takahashi', 'mead', 'ha
 
 class NonLinearModel(CAMB_Structure):
     _fields_ = [
-        ("Min_kh_nonlinear", c_int),
+        ("Min_kh_nonlinear", c_double),
         ("halofit_version", c_int)
     ]
 

@@ -118,7 +118,7 @@
         a2=(BessRanges%points(bes_ix+1)-xf)/fac
         fac=fac**2*a2/6
         dlnk = CTrans%q%dpoints(q_ix) /k
-        P = ScalarPower(k, 1)*InternalScale  !!only first index for now
+        P = CP%InitPower%ScalarPower(k)*InternalScale  !!only first index for now
 
         ellmax = max(xf/(1-xlimfrac), xf + xlimmin) * CP%Accuracy%AccuracyBoost
         kpow =  k**(ind(1)+3)
@@ -182,7 +182,7 @@
         a2=(BessRanges%points(bes_ix+1)-xf)/fac
         fac=fac**2*a2/6
         dlnk = CTrans%q%dpoints(q_ix) /k
-        P = ScalarPower(k, 1)*InternalScale  !!only first index for now
+        P = CP%InitPower%ScalarPower(k)*InternalScale  !!only first index for now
 
         ellmax = max(xf/(1-xlimfrac), xf + xlimmin) * CP%Accuracy%AccuracyBoost
         do i=1,n
@@ -330,8 +330,6 @@
     end if
     if (nbispectra>max_bispectra) call MpiStop('check max_bispectra')
 
-    if (CP%InitPower%nn>1) call MpiStop('Bispectrum: multiple initial power spectra not supported')
-
     nfields=BispectrumParams%nfields
 
     if (CP%Accuracy%lSampleBoost <50) call MpiStop('Bispectrum assumes lSampleBoost=50 (all L sampled)')
@@ -388,16 +386,16 @@
 
         CPhi=0
         do i=lmin,lmax
-            CPhi(1,i) = Cl_scalar(i,1,C_Phi)/real(i,dl)**4 * InternalScale
+            CPhi(1,i) = Cl_scalar(i,C_Phi)/real(i,dl)**4 * InternalScale
             !set correlations to zero where very small to avoid numerical issues
             if (i<=lmax_lensing_corrT) then
-                CPhi(2,i) = Cl_scalar(i,1,C_PhiTemp) /real(i,dl)**3 * InternalScale
+                CPhi(2,i) = Cl_scalar(i,C_PhiTemp) /real(i,dl)**3 * InternalScale
             end if
             if (i<=lmax_lensing_corrE) then
-                CPhi(3,i) = Cl_scalar(i,1,C_PhiE) /real(i,dl)**3 * InternalScale
+                CPhi(3,i) = Cl_scalar(i,C_PhiE) /real(i,dl)**3 * InternalScale
             end if
             tmp = i*(i+1)/const_twopi
-            CLForLensingIn(:,i) = CL_lensed(i,1,CT_Temp:CT_Cross) * InternalScale/tmp
+            CLForLensingIn(:,i) = CL_lensed(i,CT_Temp:CT_Cross) * InternalScale/tmp
             ! CForLensing(i)%C=0
             CForLensing(i)%C(1,1)=CLForLensingIn(1,i)
             CForLensing(i)%C(1,2)=CLForLensingIn(4,i)
@@ -1295,7 +1293,7 @@
         a2=(BessRanges%points(bes_ix+1)-xf)/fac
         fac=fac**2*a2/6
         dlnk = CTrans%q%dpoints(q_ix) /k
-        P = ScalarPower(k, 1)  !!only first index for now
+        P = CP%InitPower%ScalarPower(k)  !!only first index for now
         ellmax = max(xf/(1-xlimfrac), xf + xlimmin) * CP%Accuracy%AccuracyBoost
 
         do j=1,CTrans%ls%l0
