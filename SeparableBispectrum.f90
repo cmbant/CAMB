@@ -247,7 +247,7 @@
     use constants
     use RangeUtils
     use FileUtils
-    use MiscUtils ! for IndexOf
+    use ArrayUtils
 #ifdef FISHER
     use MatrixUtils
 #endif
