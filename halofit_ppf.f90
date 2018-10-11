@@ -1361,7 +1361,7 @@
     !Does the one-halo power integral
 
     !Only call eta once
-    et=eta(z,lut,cosm)
+    et=this%eta(z,lut,cosm)
 
     !Calculates the value of the integrand at all nu values!
     DO i=1,lut%n
