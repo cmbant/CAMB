@@ -1344,18 +1344,14 @@
     TYPE(HM_tables), INTENT(IN) :: lut
     TYPE(HM_cosmology), INTENT(IN) :: cosm
     REAL :: Dv, g, fac, et, ks, wk
-    REAL, ALLOCATABLE :: integrand(:)
+    REAL :: integrand(lut%n)
     REAL :: sum
     INTEGER :: i
     REAL, PARAMETER :: pi=3.141592654
 
     !Does the one-halo power integral
 
-    !Allocates arrays for the integration HM_tables
-    ALLOCATE(integrand(lut%n))
-    integrand=0.
-
-    !Only call eta once
+       !Only call eta once
     et=eta(z,lut,cosm)
 
     !Calculates the value of the integrand at all nu values!
@@ -1367,9 +1363,6 @@
 
     !Carries out the integration
     sum=REAL(inttab(lut%nu,REAL(integrand),lut%n,1))
-
-    !Deallocate arrays
-    DEALLOCATE(integrand)
 
     !Virial density
     Dv=Delta_v(z,lut,cosm)
