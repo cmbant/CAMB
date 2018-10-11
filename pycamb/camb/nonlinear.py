@@ -26,7 +26,7 @@ class NonLinearModel(CAMB_Structure):
     def get_halofit_version(self):
         return halofit_version_names[self.halofit_version - 1]
 
-    def set_halofit_version(self, version='takahashi'):
+    def set_params(self, halofit_version='takahashi'):
         """
         Set the halofit model for non-linear corrections.
 
@@ -42,4 +42,4 @@ class NonLinearModel(CAMB_Structure):
             - mead2015: original 2015 version of HMCode `arXiv:1505.07833 <http://arxiv.org/abs/1505.07833>`_
 
         """
-        self.halofit_version = halofit_version_names.index(version) + 1
+        self.halofit_version = halofit_version_names.index(halofit_version) + 1

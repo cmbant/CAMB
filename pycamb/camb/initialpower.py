@@ -21,6 +21,9 @@ class InitialPower(F2003Class):
     def void_contents(cls, p, j):
         return ctypes.cast(p, POINTER(cls._classes[j])).contents
 
+    def set_params(self):
+        pass
+
 
 class SplinedInitialPower(InitialPower):
     """

@@ -525,7 +525,8 @@ class CAMBdata(F2003Class):
         """
 
         cdata = _ClTransferData()
-        CAMBdata_cltransferdata(ctypes.pointer(self), byref(cdata), byref(c_int(['scalar', 'vector', 'tensor'].index(tp))))
+        CAMBdata_cltransferdata(ctypes.pointer(self), byref(cdata),
+                                byref(c_int(['scalar', 'vector', 'tensor'].index(tp))))
         data = ClTransferData()
         data.NumSources = cdata.NumSources
         data.q = fortran_array(cdata.q, cdata.q_size)
@@ -1313,8 +1314,8 @@ def set_params(cp=None, verbose=False, **params):
         lensing.ALens.value = params['ALens']
 
     # Note order is important: must call set_dark_energy before set_cosmology if setting cosmomc_theta
-    setters = [cp.set_accuracy, cp.set_dark_energy, cp.set_cosmology, cp.set_initial_power,
-               cp.set_matter_power, cp.set_for_lmax, cp.InitPower.set_params]
+    setters = [cp.set_accuracy, cp.set_dark_energy, cp.set_cosmology,
+               cp.set_matter_power, cp.set_for_lmax, cp.InitPower.set_params, cp.NonLinearModel.set_params]
 
     for setter in setters:
         kwargs = {k: params[k] for k in getargspec(setter).args[1:] if k in params}
