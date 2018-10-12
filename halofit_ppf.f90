@@ -65,8 +65,20 @@
     procedure :: GetNonLinRatios => THalofit_GetNonLinRatios
     procedure :: halofit
     procedure :: HMcode
-    procedure, private :: Delta_v, delta_c, eta, kstar, As, conc_bull, &
-        fdamp, p_1h,p_2h, alpha, halomod, halomod_init, write_parameters, zcoll_bull
+    procedure, private :: Delta_v
+    procedure, private :: delta_c
+    procedure, private :: eta
+    procedure, private :: kstar
+    procedure, private :: As
+    procedure, private :: conc_bull
+    procedure, private :: fdamp
+    procedure, private :: p_1h
+    procedure, private :: p_2h
+    procedure, private :: alpha
+    procedure, private :: halomod
+    procedure, private :: halomod_init
+    procedure, private :: write_parameters
+    procedure, private :: zcoll_bull
     end type
 
     public THalofit, HM_verbose
