@@ -1,5 +1,8 @@
 language: python
  
+git:
+  depth: false
+ 
 dist: trusty
 
 sudo: false
@@ -55,7 +58,6 @@ install:
   - conda info -a
   - conda create -q -n py2-environment -c $CHANNEL python=2 numpy scipy sympy six;
   - conda create -q -n py3-environment -c $CHANNEL python=3 numpy scipy sympy six;
-  - git clone --depth=1 https://github.com/cmbant/forutils.git forutils
   - chmod +x tests/run_tests.sh
   
 script: tests/run_tests.sh
