@@ -19,7 +19,7 @@ endif
 endif
 
 ifeq ($(FORUTILSPATH),)
-$(error First install forutils from https://github.com/cmbant/forutils; or set FORUTILSPATH variable)
+$(error Use  git clone --recurse-submodules, install forutils from https://github.com/cmbant/forutils, or set FORUTILSPATH variable)
 endif
 
 #native optimization does not work on Mac gfortran or heterogeneous clusters
