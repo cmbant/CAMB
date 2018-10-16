@@ -2578,8 +2578,8 @@
     REAL, INTENT(IN) :: x, xin(n), yin(n)
     REAL, ALLOCATABLE ::  xtab(:), ytab(:)
     REAL :: a, b, c, d
-    REAL :: x1, x2, x3, x4
-    REAL :: y1, y2, y3, y4
+    REAL :: xarr(4)
+    REAL :: yarr(4)
     INTEGER :: i
     INTEGER, INTENT(IN) :: iorder, ifind, imeth
 
@@ -2614,18 +2614,11 @@
     IF(x<xtab(1)) THEN
 
         !Do a linear interpolation beyond the table boundary
-
-        x1=xtab(1)
-        x2=xtab(2)
-
-        y1=ytab(1)
-        y2=ytab(2)
-
         IF(imeth==1) THEN
-            CALL fit_line(a,b,x1,y1,x2,y2)
+            CALL fit_line(a,b,xtab(1),ytab(1),xtab(2),ytab(2))
             find=a*x+b
         ELSE IF(imeth==2) THEN
-            find=Lagrange_polynomial(x,1,(/x1,x2/),(/y1,y2/))
+            find=Lagrange_polynomial(x,1,xtab,ytab)
         ELSE
             STOP 'FIND: Error, method not specified correctly'
         END IF
@@ -2634,17 +2627,14 @@
 
         !Do a linear interpolation beyond the table boundary
 
-        x1=xtab(n-1)
-        x2=xtab(n)
-
-        y1=ytab(n-1)
-        y2=ytab(n)
+        xarr(1:2) = xtab(n-1:n)
+        yarr(1:2) = ytab(n-1:n)
 
         IF(imeth==1) THEN
-            CALL fit_line(a,b,x1,y1,x2,y2)
+            CALL fit_line(a,b,xarr(1),yarr(1),xarr(2),yarr(2))
             find=a*x+b
         ELSE IF(imeth==2) THEN
-            find=Lagrange_polynomial(x,1,(/x1,x2/),(/y1,y2/))
+            find=Lagrange_polynomial(x,1,xarr,yarr)
         ELSE
             STOP 'FIND: Error, method not specified correctly'
         END IF
@@ -2655,37 +2645,28 @@
 
         IF(x<=xtab(2)) THEN
 
-            x1=xtab(1)
-            x2=xtab(2)
-
-            y1=ytab(1)
-            y2=ytab(2)
+            xarr(1:2) = xtab(1:2)
+            yarr(1:2) = ytab(1:2)
 
         ELSE IF (x>=xtab(n-1)) THEN
 
-            x1=xtab(n-1)
-            x2=xtab(n)
-
-            y1=ytab(n-1)
-            y2=ytab(n)
+            xarr(1:2) = xtab(n-1:n)
+            yarr(1:2) = ytab(n-1:n)
 
         ELSE
 
             i=table_integer(x,xtab,n,ifind)
 
-            x1=xtab(i)
-            x2=xtab(i+1)
-
-            y1=ytab(i)
-            y2=ytab(i+1)
+            xarr(1:2) = xtab(i:i+1)
+            yarr(1:2) = ytab(i:i+1)
 
         END IF
 
         IF(imeth==1) THEN
-            CALL fit_line(a,b,x1,y1,x2,y2)
+            CALL fit_line(a,b,xarr(1),yarr(1),xarr(2),yarr(2))
             find=a*x+b
         ELSE IF(imeth==2) THEN
-            find=Lagrange_polynomial(x,1,(/x1,x2/),(/y1,y2/))
+            find=Lagrange_polynomial(x,1,xarr,yarr)
         ELSE
             STOP 'FIND: Error, method not specified correctly'
         END IF
@@ -2698,31 +2679,21 @@
 
             IF(x<=xtab(2)) THEN
 
-                x1=xtab(1)
-                x2=xtab(2)
-                x3=xtab(3)
-
-                y1=ytab(1)
-                y2=ytab(2)
-                y3=ytab(3)
+                xarr(1:3) = xtab(1:3)
+                yarr(1:3) = ytab(1:3)
 
             ELSE IF (x>=xtab(n-1)) THEN
 
-                x1=xtab(n-2)
-                x2=xtab(n-1)
-                x3=xtab(n)
-
-                y1=ytab(n-2)
-                y2=ytab(n-1)
-                y3=ytab(n)
+                xarr(1:3) = xtab(n-2:n)
+                yarr(1:3) = ytab(n-2:n)
 
             END IF
 
             IF(imeth==1) THEN
-                CALL fit_quadratic(a,b,c,x1,y1,x2,y2,x3,y3)
+                CALL fit_quadratic(a,b,c,xarr(1),yarr(1),xarr(2),yarr(2),xarr(3),yarr(3))
                 find=a*(x**2)+b*x+c
             ELSE IF(imeth==2) THEN
-                find=Lagrange_polynomial(x,2,(/x1,x2,x3/),(/y1,y2,y3/))
+                find=Lagrange_polynomial(x,2,xarr,yarr)
             ELSE
                 STOP 'FIND: Error, method not specified correctly'
             END IF
@@ -2731,25 +2702,18 @@
 
             i=table_integer(x,xtab,n,ifind)
 
-            x1=xtab(i-1)
-            x2=xtab(i)
-            x3=xtab(i+1)
-            x4=xtab(i+2)
-
-            y1=ytab(i-1)
-            y2=ytab(i)
-            y3=ytab(i+1)
-            y4=ytab(i+2)
+            xarr(1:4) = xtab(i-1:i+2)
+            yarr(1:4) = ytab(i-1:i+2)
 
             IF(imeth==1) THEN
                 !In this case take the average of two separate quadratic spline values
-                CALL fit_quadratic(a,b,c,x1,y1,x2,y2,x3,y3)
+                CALL fit_quadratic(a,b,c,xarr(1),yarr(1),xarr(2),yarr(2),xarr(3),yarr(3))
                 find=(a*x**2+b*x+c)/2.
-                CALL fit_quadratic(a,b,c,x2,y2,x3,y3,x4,y4)
+                CALL fit_quadratic(a,b,c,xarr(2),yarr(2),xarr(3),yarr(3),xarr(4),yarr(4))
                 find=find+(a*x**2+b*x+c)/2.
             ELSE IF(imeth==2) THEN
                 !In this case take the average of two quadratic Lagrange polynomials
-                find=(Lagrange_polynomial(x,2,(/x1,x2,x3/),(/y1,y2,y3/))+Lagrange_polynomial(x,2,(/x2,x3,x4/),(/y2,y3,y4/)))/2.
+                find=(Lagrange_polynomial(x,2,xarr,yarr)+Lagrange_polynomial(x,2,xarr(2:),yarr(2:)))/2.
             ELSE
                 STOP 'FIND: Error, method not specified correctly'
             END IF
@@ -2761,50 +2725,23 @@
         IF(n<4) STOP 'FIND: Not enough points in your table'
 
         IF(x<=xtab(3)) THEN
-
-            x1=xtab(1)
-            x2=xtab(2)
-            x3=xtab(3)
-            x4=xtab(4)
-
-            y1=ytab(1)
-            y2=ytab(2)
-            y3=ytab(3)
-            y4=ytab(4)
-
+            xarr(1:4) = xtab(1:4)
+            yarr(1:4) = ytab(1:4)
         ELSE IF (x>=xtab(n-2)) THEN
-
-            x1=xtab(n-3)
-            x2=xtab(n-2)
-            x3=xtab(n-1)
-            x4=xtab(n)
-
-            y1=ytab(n-3)
-            y2=ytab(n-2)
-            y3=ytab(n-1)
-            y4=ytab(n)
-
+            xarr(1:4) = xtab(n-3:n)
+            yarr(1:4) = ytab(n-3:n)
         ELSE
-
             i=table_integer(x,xtab,n,ifind)
 
-            x1=xtab(i-1)
-            x2=xtab(i)
-            x3=xtab(i+1)
-            x4=xtab(i+2)
-
-            y1=ytab(i-1)
-            y2=ytab(i)
-            y3=ytab(i+1)
-            y4=ytab(i+2)
-
+            xarr(1:4) = xtab(i-1:i+2)
+            yarr(1:4) = ytab(i-1:i+2)
         END IF
 
         IF(imeth==1) THEN
-            CALL fit_cubic(a,b,c,d,x1,y1,x2,y2,x3,y3,x4,y4)
+            CALL fit_cubic(a,b,c,d,xarr(1),yarr(1),xarr(2),yarr(2),xarr(3),yarr(3),xarr(4),yarr(4))
             find=a*x**3+b*x**2+c*x+d
         ELSE IF(imeth==2) THEN
-            find=Lagrange_polynomial(x,3,(/x1,x2,x3,x4/),(/y1,y2,y3,y4/))
+            find=Lagrange_polynomial(x,3,xarr,yarr)
         ELSE
             STOP 'FIND: Error, method not specified correctly'
         END IF
