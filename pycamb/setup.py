@@ -64,6 +64,9 @@ def check_gfortran(version=gfortran_min, msg=False, import_fail_ok=True):
             pass
     else:
         ok = False
+    if ok and is_windows:
+        version_str = str(subprocess.check_output("gfortran -dumpmachine", shell=True))
+        ok = is32Bit and 'i686' in version_str or not is32Bit and 'x86_64' in version_str
     if not ok and msg:
         raise Exception(
             'You need gfortran %s or higher to compile (found: %s).' % (
