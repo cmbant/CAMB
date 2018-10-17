@@ -66,7 +66,7 @@ def check_gfortran(version=gfortran_min, msg=False, import_fail_ok=True):
         ok = is32Bit and 'i686' in version_str or not is32Bit and 'x86_64' in version_str
     if not ok and msg:
         raise Exception(
-            'You need gfortran %s or higher to compile (found: %s).' % (
+            'You need ifort or gfortran %s or higher to compile (found: %s).' % (
                 version, gfortran_version))
 
     return ok, gfortran_version
