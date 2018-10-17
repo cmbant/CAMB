@@ -29,12 +29,6 @@
         !skip limber for now...
     end Type c_ClTransferData
 
-    Type dummyAllocatable
-        class(c_ClTransferData), allocatable :: P
-    end Type dummyAllocatable
-
-    private dummyAllocatable
-
     contains
 
     !SPECIAL BRIDGE ROUTINES FOR PYTHON
@@ -530,6 +524,9 @@
 
     function GetAllocatableSize() result(sz)
     use iso_c_binding
+    Type dummyAllocatable
+        class(c_ClTransferData), allocatable :: P
+    end Type dummyAllocatable
     Type(dummyAllocatable) :: T
     integer sz
 
