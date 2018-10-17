@@ -42,7 +42,15 @@ def get_gfortran_version():
         return None
 
 
-def check_gfortran(version=gfortran_min, msg=True, exit=False, import_fail_ok=True):
+def check_ifort():
+    try:
+        with open(os.devnull, 'w') as devnull:
+            return subprocess.check_output("ifort -v", shell=True, stderr=devnull)
+    except:
+        return False
+
+
+def check_gfortran(version=gfortran_min, msg=False, import_fail_ok=True):
     gfortran_version = get_gfortran_version()
     version = str(version)
     if gfortran_version:
@@ -58,18 +66,10 @@ def check_gfortran(version=gfortran_min, msg=True, exit=False, import_fail_ok=Tr
         version_str = str(subprocess.check_output("gfortran -dumpmachine", shell=True))
         ok = is32Bit and 'i686' in version_str or not is32Bit and 'x86_64' in version_str
     if not ok and msg:
-        try:
-            with open(os.devnull, 'w') as devnull:
-                ifort = subprocess.check_output("ifort -v", shell=True, stderr=devnull)
-        except:
-            ifort = False
-        if not ifort:
-            raise Exception(
-                'You need gfortran %s or higher to compile (found: %s).' % (
-                    version, gfortran_version))
+        raise Exception(
+            'You need gfortran %s or higher to compile (found: %s).' % (
+                version, gfortran_version))
 
-    if exit:
-        sys.exit(1 if ok else 0)
     return ok, gfortran_version
 
 
@@ -101,7 +101,7 @@ def get_forutils():
                     fpath = os.path.join('.', 'forutils')
             except Exception:
                 print('Failed to install using git')
-    if not path:
+    if not fpath:
         raise Exception('Install forutils from https://github.com/cmbant/forutils; or set FORUTILSPATH variable')
     return fpath
 
@@ -117,13 +117,7 @@ class SharedLibrary(build, object):
         else:
             pycamb_path = 'pycamb'
         os.chdir(CAMBDIR)
-        ifort = None
-        if not is_windows:
-            try:
-                ifort = str(subprocess.check_output("ifort -v", shell=True))
-            except Exception:
-                pass
-        if not ifort:
+        if is_windows or not check_ifort():
             ok, gfortran_version = check_gfortran(msg=not is_windows)
         if is_windows:
             COMPILER = "gfortran"
