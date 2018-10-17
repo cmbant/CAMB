@@ -44,8 +44,7 @@ def get_gfortran_version():
 
 def check_ifort():
     try:
-        with open(os.devnull, 'w') as devnull:
-            return subprocess.check_output("ifort -v", shell=True, stderr=devnull)
+        return subprocess.check_output("ifort -v", shell=True, stderr=subprocess.STDOUT)
     except:
         return False
 
