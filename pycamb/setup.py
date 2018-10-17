@@ -44,7 +44,15 @@ def get_gfortran_version():
         return None
 
 
-def check_gfortran(version=gfortran_min, msg=True, exit=False, import_fail_ok=True):
+def check_ifort():
+    try:
+        with open(os.devnull, 'w') as devnull:
+            return subprocess.check_output("ifort -v", shell=True, stderr=devnull)
+    except:
+        return False
+
+
+def check_gfortran(version=gfortran_min, msg=False, import_fail_ok=True):
     gfortran_version = get_gfortran_version()
     version = str(version)
     if gfortran_version:
@@ -57,18 +65,10 @@ def check_gfortran(version=gfortran_min, msg=True, exit=False, import_fail_ok=Tr
     else:
         ok = False
     if not ok and msg:
-        try:
-            with open(os.devnull, 'w') as devnull:
-                ifort = subprocess.check_output("ifort -v", shell=True, stderr=devnull)
-        except:
-            ifort = False
-        if not ifort:
-            raise Exception(
-                'You need gfortran %s or higher to compile (found: %s).' % (
-                    version, gfortran_version))
+        raise Exception(
+            'You need gfortran %s or higher to compile (found: %s).' % (
+                version, gfortran_version))
 
-    if exit:
-        sys.exit(1 if ok else 0)
     return ok, gfortran_version
 
 
@@ -95,7 +95,8 @@ class SharedLibrary(build, object):
         else:
             pycamb_path = 'pycamb'
         os.chdir(CAMBDIR)
-        ok, gfortran_version = check_gfortran(msg=not is_windows)
+        if is_windows or not check_ifort():
+            ok, gfortran_version = check_gfortran(msg=not is_windows)
         if is_windows:
             COMPILER = "gfortran"
             # note that TDM-GCC MingW 5.1 does not work due go general fortran bug.
