@@ -710,7 +710,7 @@ def get_default_compiler():
             _default_flags = "-shared -fpic -O1 -W0 -WB"
     except:
         _default_compiler = 'gfortran'
-        _default_flags = "-shared -fPIC -O1 -ffast-math -fmax-errors=4"
+        _default_flags = "-shared -fPIC -O1 -fmax-errors=4"
     # _default_flags="-shared -fPIC -g -fbounds-check -fbacktrace -ffpe-trap=invalid,overflow,zero",
     return _default_compiler
 
