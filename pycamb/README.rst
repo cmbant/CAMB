@@ -25,5 +25,5 @@ To install the CAMB python package on your computer run::
 
     pip install camb
 
-You will need gfortran 4.9 or higher installed to compile. Binary files for Windows are also provided, so these are used instead if no
+You will need gfortran 4.8 or higher installed to compile. Binary files for Windows are also provided, so these are used instead if no
 gfortran installation is found on Windows machines.
