@@ -18,3 +18,5 @@ Release/
 *egg*
 build
 inspectionProfiles
+camb
+!camb/
