@@ -32,7 +32,8 @@ CAMBLIB       = $(OUTPUT_DIR)/libcamb_$(RECOMBINATION).a
 F90FLAGS      = $(FFLAGS)
 F90FLAGS += $(MODOUT) $(IFLAG)$(OUTPUT_DIR)/
 
-SF90FLAGS      = $(SFFLAGS) $(FFLAGS)
+PYFFLAGS ?= $(FFLAGS)
+SF90FLAGS      = $(SFFLAGS) $(PYFFLAGS)
 SF90FLAGS += $(SMODOUT) $(IFLAG)$(DLL_DIR)/
 
 HEALPIXLD     = -L$(HEALPIXDIR)/lib -lhealpix -L$(FITSDIR) -l$(FITSLIB)
@@ -146,7 +147,7 @@ clean:
 	rm -rf Debug*
 
 delete:
-	rm -f camb	
+	rm -f camb
 	rm -f pycamb/camb/*.so
 
 ## CosmoRec make parts

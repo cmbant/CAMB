@@ -56,9 +56,10 @@ gfortErr = $(shell which gfortran >/dev/null; echo $$?)
 ifeq "$(gfortErr)" "0"
 COMPILER = gfortran
 #Gfortran compiler:
-#The options here work in v4.6+. Python wrapper needs v4.9+.
+#The options here work in v4.6+. Python wrapper needs v4.8+.
 F90C     = gfortran
 SFFLAGS =  -shared -fPIC
+PYFFLAGS = -O3 -fopenmp -fmax-errors=4
 
 FFLAGS =  -O3 -fopenmp -ffast-math -fmax-errors=4
 DEBUGFLAGS = -cpp -g -fbounds-check -fbacktrace -ffree-line-length-none -fmax-errors=4 -ffpe-trap=invalid,overflow,zero
