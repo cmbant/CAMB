@@ -302,7 +302,7 @@
     tensor_Cls = 0
     if (CP%WantTensors) then
         lmx = min(lmax,CP%Max_l_tensor)
-        tensor_Cls(1:3,lmin:lmx) = transpose(Cl_Tensor(lmin:lmx, in, CT_Temp:CT_Cross))
+        tensor_Cls(1:4,lmin:lmx) = transpose(Cl_Tensor(lmin:lmx, in, CT_Temp:CT_Cross))
     end if
 
     end subroutine CAMB_SetTensorCls
