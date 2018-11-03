@@ -3,7 +3,6 @@ import os
 import sys
 import unittest
 import numpy as np
-import logging
 
 try:
     import camb
@@ -43,7 +42,7 @@ class CambTest(unittest.TestCase):
         t2 = data.comoving_radial_distance(11.5)
         self.assertAlmostEqual(t2, t0 - t1, 2)
         self.assertAlmostEqual(t1, 4200.78, 2)
-        chistar = data.conformal_time(0) - model.tau_maxvis.value
+        chistar = data.conformal_time(0) - data.tau_maxvis()
         chis = np.linspace(0, chistar, 197)
         zs = data.redshift_at_comoving_radial_distance(chis)
         chitest = data.comoving_radial_distance(zs)
@@ -118,6 +117,35 @@ class CambTest(unittest.TestCase):
         ix = 1
         self.assertAlmostEqual(transfer_k2[ix] * kh[ix] ** 2 * (pars.H0 / 100) ** 2, ev[ix, 1, 0], 4)
 
+    def testInstances(self):
+        pars = camb.set_params(H0=69.1, ombh2=0.032, omch2=0.122, As=3e-9, ns=0.91, omk=0.013,
+                               redshifts=[0.], kmax=0.5)
+        data = camb.get_background(pars)
+        res1 = data.angular_diameter_distance(0.7)
+        drag1 = data.get_derived_params()['rdrag']
+        pars2 = camb.set_params(H0=65, ombh2=0.022, omch2=0.122, As=3e-9, ns=0.91)
+        data2 = camb.get_background(pars2)
+        res2 = data2.angular_diameter_distance(1.7)
+        drag2 = data2.get_derived_params()['rdrag']
+        self.assertAlmostEqual(res1, data.angular_diameter_distance(0.7))
+        self.assertAlmostEqual(res2, data2.angular_diameter_distance(1.7))
+        self.assertAlmostEqual(drag1, data.get_derived_params()['rdrag'])
+        self.assertEqual(pars2.InitPower.ns, data2.Params.InitPower.ns)
+        data2.calc_background(pars)
+        self.assertEqual(pars.InitPower.ns, data2.Params.InitPower.ns)
+        self.assertAlmostEqual(res1, data2.angular_diameter_distance(0.7))
+        data3 = camb.get_results(pars2)
+        cl3 = data3.get_lensed_scalar_cls(1000)
+        self.assertAlmostEqual(res2, data3.angular_diameter_distance(1.7))
+        self.assertAlmostEqual(drag2, data3.get_derived_params()['rdrag'])
+        self.assertAlmostEqual(drag1, data.get_derived_params()['rdrag'])
+        pars.set_for_lmax(3000, lens_potential_accuracy=1)
+        camb.get_results(pars)
+        del data3
+        data4 = camb.get_results(pars2)
+        cl4 = data4.get_lensed_scalar_cls(1000)
+        self.assertTrue(np.allclose(cl4, cl3))
+
     def testPowers(self):
         pars = camb.CAMBparams()
         pars.set_cosmology(H0=67.5, ombh2=0.022, omch2=0.122, mnu=0.07, omk=0)
@@ -130,7 +158,7 @@ class CambTest(unittest.TestCase):
 
         pars.set_matter_power(nonlinear=True)
         self.assertEqual(pars.NonLinear, model.NonLinear_pk)
-        pars.set_matter_power(redshifts=[0., 0.17, 3.1], nonlinear=False)
+        pars.set_matter_power(redshifts=[0., 0.17, 3.1], silent=True, nonlinear=False)
         data = camb.get_results(pars)
 
         kh, z, pk = data.get_matter_power_spectrum(1e-4, 1, 20)
@@ -151,7 +179,8 @@ class CambTest(unittest.TestCase):
         camb.set_feedback_level(0)
 
         PKnonlin = camb.get_matter_power_interpolator(pars, nonlinear=True)
-        pars.set_matter_power(redshifts=[0, 0.09, 0.15, 0.42, 0.76, 1.5, 2.3, 5.5, 8.9], kmax=10, k_per_logint=5)
+        pars.set_matter_power(redshifts=[0, 0.09, 0.15, 0.42, 0.76, 1.5, 2.3, 5.5, 8.9],
+                              silent=True, kmax=10, k_per_logint=5)
         pars.NonLinear = model.NonLinear_both
         results = camb.get_results(pars)
         kh, z, pk = results.get_nonlinear_matter_power_spectrum()
@@ -185,6 +214,44 @@ class CambTest(unittest.TestCase):
         corr, xvals, weights = correlations.gauss_legendre_correlation(cls['lensed_scalar'])
         clout = correlations.corr2cl(corr, xvals, weights, 2500)
         self.assertTrue(np.all(np.abs(clout[2:2300, 2] / cls['lensed_scalar'][2:2300, 2] - 1) < 1e-3))
+
+        pars = camb.CAMBparams()
+        pars.set_for_lmax(2000, lens_potential_accuracy=1)
+        pars.WantTensors = True
+        results = camb.get_transfer_functions(pars)
+        from camb import initialpower
+        cls = []
+        for r in [0, 0.2, 0.4]:
+            inflation_params = initialpower.InitialPowerLaw()
+            inflation_params.set_params(ns=0.96, r=r, nt=0)
+            results.power_spectra_from_transfer(inflation_params, silent=True)
+            cls += [results.get_total_cls(CMB_unit='muK')]
+        self.assertTrue(np.allclose((cls[1] - cls[0])[2:300, 2] * 2, (cls[2] - cls[0])[2:300, 2], rtol=1e-3))
+
+        # Check generating tensors and scalars together
+        pars = camb.CAMBparams()
+        lmax = 2000
+        pars.set_for_lmax(lmax, lens_potential_accuracy=1)
+        pars.InitPower.set_params(ns=0.96, r=0)
+        pars.WantTensors = False
+        results = camb.get_results(pars)
+        cl1 = results.get_total_cls(lmax, CMB_unit='muK')
+        pars.InitPower.set_params(ns=0.96, r=0.1, nt=0)
+        pars.WantTensors = True
+        results = camb.get_results(pars)
+        cl2 = results.get_lensed_scalar_cls(lmax, CMB_unit='muK')
+        ctensor2 = results.get_tensor_cls(lmax, CMB_unit='muK')
+        results = camb.get_transfer_functions(pars)
+        results.Params.InitPower.set_params(ns=1.1, r=1)
+        inflation_params = initialpower.InitialPowerLaw()
+        inflation_params.set_params(ns=0.96, r=0.05, nt=0)
+        results.power_spectra_from_transfer(inflation_params, silent=True)
+        cl3 = results.get_lensed_scalar_cls(lmax, CMB_unit='muK')
+        ctensor3 = results.get_tensor_cls(lmax, CMB_unit='muK')
+        self.assertTrue(np.allclose(ctensor2, ctensor3 * 2, rtol=1e-4))
+        self.assertTrue(np.allclose(cl1, cl2, rtol=1e-4))
+        # These are identical because all scalar spectra were identical (non-linear corrections change it  otherwise)
+        self.assertTrue(np.allclose(cl1, cl3, rtol=1e-4))
 
     def testDarkEnergy(self):
         pars = camb.CAMBparams()

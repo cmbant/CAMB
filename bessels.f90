@@ -8,7 +8,7 @@
 
     module SpherBessels
     use Precision
-    use ModelParams
+    use CambSettings
     use RangeUtils
     use MpiUtils
     implicit none
@@ -18,7 +18,8 @@
 
     real(dl), dimension(:,:), allocatable ::  ajl,ajlpr, ddajlpr
 
-    integer  num_xx, kmaxfile, file_numl,  file_l(lmax_arr)
+    integer  num_xx, kmaxfile
+    Type(lSamples), save :: file_l
     ! parameters for working out where the flat Bessel functions are small
     ! Both should increase for higher accuracy
     ! real(dl), parameter :: xlimmin=15._dl  , xlimfrac = 0.05_dl
@@ -33,24 +34,25 @@
     contains
 
 
-    subroutine InitSpherBessels
+    subroutine InitSpherBessels(lSamp)
+    Type(lSamples) lSamp
     !     This subroutine reads the jl files from disk (or generates them if not on disk)
-    use lvalues
 
     !See if already loaded with enough (and correct) lSamp%l values and k*eta values
-    if (allocated(ajl) .and. (lSamp%l0 <= file_numl) .and. all(file_l(1:lSamp%l0)-lSamp%l(1:lSamp%l0)==0) &
-        .and. (int(min(max_bessels_etak,CP%Max_eta_k))+1 <= kmaxfile) &
-        .and. (abs(CP%Accuracy%BesselBoost*CP%Accuracy%AccuracyBoost - file_acc) < 1d-2)) return
-
+    if (lSamp%nl <= file_l%nl) then
+        if (allocated(ajl) .and. all(file_l%l(1:lSamp%nl)==lSamp%l(1:lSamp%nl)) &
+            .and. (int(min(max_bessels_etak,CP%Max_eta_k))+1 <= kmaxfile) &
+            .and. (abs(CP%Accuracy%BesselBoost*CP%Accuracy%AccuracyBoost - file_acc) < 1d-2)) return
+    end if
     !Haven't made them before, so make them now
-    call GenerateBessels
+    call GenerateBessels(lSamp)
 
     if (DebugMsgs .and. FeedbackLevel > 0) write(*,*) 'Calculated Bessels'
 
     end subroutine InitSpherBessels
 
-    subroutine GenerateBessels
-    use lvalues
+    subroutine GenerateBessels(lSamp)
+    Type(lSamples) lSamp    
     real(dl) x
     real(dl) xlim
     integer i,j
@@ -58,8 +60,7 @@
 
     if (DebugMsgs .and. FeedbackLevel > 0) write (*,*) 'Generating flat Bessels...'
 
-    file_numl= lSamp%l0
-    file_l(1:lSamp%l0) = lSamp%l(1:lSamp%l0)
+    file_l = lSamp
     kmaxfile = int(min(CP%Max_eta_k,max_bessels_etak))+1
     if (do_bispectrum) kmaxfile = kmaxfile*2
 
@@ -78,7 +79,7 @@
     num_xx = BessRanges%npoints
 
 
-    max_ix = min(max_bessels_l_index,lSamp%l0)
+    max_ix = min(max_bessels_l_index,lSamp%nl)
 
     ! The three arrays are always (de-)allocated together. Therefore checking
     ! one of them for allocation is sufficient.

@@ -9,6 +9,7 @@
 x64/
 Debug/
 Release/
+Releaselib/
 *.suo
 *.pyc
 *.asv
@@ -20,3 +21,4 @@ Release/
 build
 inspectionProfiles
 camb
+!camb/

@@ -11,7 +11,7 @@ __version__ = "0.2.2"
 
 from .baseconfig import dll_import
 from .camb import CAMBdata, MatterTransferData, ClTransferData, get_results, get_transfer_functions, get_background, \
-    get_age, get_zre_from_tau, set_z_outputs, set_feedback_level, set_params, get_matter_power_interpolator, \
+    get_age, get_zre_from_tau, set_feedback_level, set_params, get_matter_power_interpolator, \
     set_custom_scalar_sources, clear_custom_scalar_sources, set_params_cosmomc
 from . import model
 from . import initialpower
@@ -22,7 +22,7 @@ from .initialpower import InitialPowerLaw, SplinedInitialPower
 from .bispectrum import threej
 from ctypes import c_int, c_double, c_bool
 
-ThreadNum = dll_import(c_int, "modelparams", "threadnum")
+ThreadNum = dll_import(c_int, "cambsettings", "threadnum")
 # ThreadNum.value = 0
 
 # Variables from module GaugeInterface

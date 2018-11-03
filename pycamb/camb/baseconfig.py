@@ -93,7 +93,7 @@ def set_filelocs():
 
 if not mock_load:
     set_filelocs()
-    from ctypes import c_byte, c_int
+    from ctypes import c_byte, c_int, c_bool
 
     _get_allocatable_size = camblib.__handles_MOD_getallocatablesize
     _get_allocatable_size.restype = c_int
@@ -138,24 +138,45 @@ class CAMB_Structure(Structure):
 
 
 class F2003Class(CAMB_Structure):
+    # Wraps a fortran type (potentially containing allocatable elements that can't be accessed directly by ctypes)
+    # Assumes fortran subroutines (handles module in camb_python) called CLASS_new and CLASS_free exist which actually
+    # allocate and deallocate instances the corresponding fortran types.
+
     _instance_count = {}
     _imports = {}
 
     def __new__(cls, *args, **kwargs):
-        _key = POINTER(cls)()
+        return cls._new_copy()
+
+    @classmethod
+    def _new_copy(cls, source=None):
+        if source is None:
+            _key = POINTER(cls)()
+        else:
+            _key = POINTER(cls)(source)
         new = cls.import_func('new', pointer=True)
         new(byref(_key))
         instance = _key.contents
         instance._key = _key
-        cls._instance_count
         cls._instance_count[cls] = cls._instance_count.get(cls, 0) + 1
         return instance
 
+    def copy(self):
+        """
+        Make independent copy of this object.
+
+        :return: copy of self
+        """
+        res = self._new_copy(source=self)
+        res._init_members()
+        return res
+
     def __init__(self, **kwargs):
-        self.init_members(**kwargs)
+        self._init_members(**kwargs)
 
     @classmethod
-    def import_func(cls, tag, pointer=False, extra_args=[]):
+    def import_func(cls, tag, pointer=False, extra_args=[], restype=None):
+        # Import fortran function called CLASSNAME_tag
         func = cls._imports.get((cls, tag), None)
         if func is None:
             func = getattr(camblib, '__handles_MOD_' + cls.__name__.lower() + '_' + tag)
@@ -163,11 +184,17 @@ class F2003Class(CAMB_Structure):
                 func.argtypes = [POINTER(POINTER(cls))] + extra_args
             else:
                 func.argtypes = [POINTER(cls)] + extra_args
-
+            if restype is not None: func.restype = restype
             cls._imports[(cls, tag)] = func
         return func
 
-    def init_members(self, **kwargs):
+    def call_func(self, tag, extra_args=[], args=[], restype=None):
+        func = self.import_func(tag, extra_args=extra_args, restype=restype)
+        return func(byref(self), *args)
+
+    def _init_members(self, **kwargs):
+        # e.g. set up allocatables or other things not directly accessible
+        # called both on new instance and on making a copy
         pass
 
     def free_instance(self):
@@ -179,7 +206,6 @@ class F2003Class(CAMB_Structure):
             del cls._instance_count[cls]
 
     def __del__(self):
-        #        if self._b_needsfree_:
         if hasattr(self, '_key'):
             self.free_instance()
 

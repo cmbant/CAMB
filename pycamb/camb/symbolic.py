@@ -701,7 +701,7 @@ def get_default_compiler():
     from ctypes import c_int
     from .baseconfig import camblib
     try:
-        c_int.in_dll(camblib, "modelparams_mp_threadnum_")
+        c_int.in_dll(camblib, "cambsettings_mp_threadnum_")
         import platform
         _default_compiler = 'ifort'
         if platform.system() == 'Darwin':
@@ -710,7 +710,7 @@ def get_default_compiler():
             _default_flags = "-shared -fpic -O1 -W0 -WB"
     except:
         _default_compiler = 'gfortran'
-        _default_flags = "-shared -fPIC -O1 -ffast-math -fmax-errors=4"
+        _default_flags = "-shared -fPIC -O1 -fmax-errors=4"
     # _default_flags="-shared -fPIC -g -fbounds-check -fbacktrace -ffpe-trap=invalid,overflow,zero",
     return _default_compiler
 

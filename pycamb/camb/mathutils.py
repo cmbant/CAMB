@@ -8,7 +8,7 @@ numpy_2d = ndpointer(c_double, flags='C_CONTIGUOUS', ndim=2)
 numpy_1d = ndpointer(c_double, flags='C_CONTIGUOUS')
 int_arg = POINTER(c_int)
 
-_chi2 = camblib.__handles_MOD_utils_getchisquared
+_chi2 = camblib.__mathutils_MOD_getchisquared
 _chi2.argtypes = [numpy_2d, numpy_1d, POINTER(c_int)]
 _chi2.restype = c_double
 
@@ -26,7 +26,7 @@ def chi_squared(covinv, x):
     return _chi2(covinv, x, c_int(len(x)))
 
 
-_3j = camblib.__getthreejs
+_3j = camblib.__mathutils_MOD_getthreejs
 _3j.argtypes = [numpy_1d, int_arg, int_arg, int_arg, int_arg]
 
 
@@ -47,7 +47,7 @@ def threej(l2, l3, m2, m3):
 
 
 # Utils_3j_integrate(W,lmax_w, n, dopol, M, lmax)
-_coupling_3j = camblib.__handles_MOD_utils_3j_integrate
+_coupling_3j = camblib.__mathutils_MOD_integrate_3j
 _coupling_3j.argtypes = [numpy_2d, POINTER(c_int), POINTER(c_int), POINTER(c_bool), numpy_3d, POINTER(c_int)]
 
 
@@ -82,7 +82,7 @@ def threej_coupling(W, lmax, pol=False):
         return [M[i, :, :] for i in range(n)]
 
 
-_gauss_legendre = camblib.__gauss_legendre
+_gauss_legendre = camblib.__mathutils_MOD_gauss_legendre
 _gauss_legendre.argtypes = [numpy_1d, numpy_1d, int_arg]
 
 

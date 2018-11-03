@@ -2,8 +2,7 @@
     module handles
     use CAMB
     use Precision
-    use ModelParams
-    use Transfer
+    use CambSettings
     use iso_c_binding
     use DarkEnergyFluid
     use DarkEnergyPPF
@@ -34,48 +33,66 @@
     !SPECIAL BRIDGE ROUTINES FOR PYTHON
 
     subroutine CAMBdata_new(handle)
-    type(c_ptr), intent(out) :: handle
-    Type (CAMBdata), pointer :: pCAMBdata
+    type(c_ptr), intent(inout) :: handle
+    Type (CAMBstate), pointer :: pSource,pCAMBstate
 
-    allocate(pCAMBdata)
-    call CAMB_InitCAMBdata(pCAMBdata)
-    call CAMB_setDefParams(pCAMBdata%Params)
-    handle = c_loc(pCAMBdata)
+    if (associated(pSource)) then
+        allocate(pCAMBstate, source=pSource)
+    else
+        allocate(pCAMBstate)
+        call CAMB_InitCAMBstate(pCAMBstate)
+        call CAMB_setDefParams(pCAMBstate%CP)
+    end if
+    handle = c_loc(pCAMBstate)
 
     end subroutine CAMBdata_new
 
     subroutine CAMBdata_free(cptr)
     type(c_ptr)  :: cptr
-    Type (CAMBdata), pointer :: pCAMBdata
+    Type (CAMBstate), pointer :: pCAMBstate
 
-    call c_f_pointer(cptr, pCAMBdata)
-    call CAMB_FreeCAMBdata(pCAMBdata)
-    deallocate(pCAMBdata)
+    call c_f_pointer(cptr, pCAMBstate)
+    call CAMB_FreeCAMBstate(pCAMBstate)
+    deallocate(pCAMBstate)
 
     end subroutine CAMBdata_free
 
-    subroutine CAMBdata_setParams(data, Params)
-    Type (CAMBdata), target :: data
+    subroutine CAMBdata_setParams(State, Params)
+    Type (CAMBstate), target :: State
     type(CAMBparams) :: Params
 
-    data%Params = Params
+    State%CP = Params
 
     end subroutine CAMBdata_setParams
 
-    subroutine CAMBdata_getParams(data, handle)
-    Type (CAMBdata), target :: data
+    subroutine CAMBdata_getParams(State, handle)
+    Type (CAMBstate), target :: State
     type(c_ptr), intent(out)  ::  handle
 
-    handle = c_loc(data%Params)
+    handle = c_loc(State%CP)
 
     end subroutine CAMBdata_getParams
 
-    function CAMBdata_GetTransfers(data, Params, onlytransfer) result(error)
-    Type (CAMBdata):: data
+    subroutine CAMBdata_getDerived(State, derived)
+    Type (CAMBstate), target :: State
+    real(dl) :: derived(nthermo_derived)
+
+    derived = State%ThermoDerivedParams
+
+    end subroutine CAMBdata_getDerived
+
+    integer function CAMBdata_getlmax_lensed(State)
+    Type (CAMBstate), target :: State
+    CAMBdata_getlmax_lensed = State%CLdata%lmax_lensed
+    end function CAMBdata_getlmax_lensed
+
+    function CAMBdata_GetTransfers(State, Params, onlytransfer) result(error)
+    Type (CAMBstate):: State
     type(CAMBparams) :: Params, P
     logical(kind=c_bool)  :: onlytransfer
     integer :: error
 
+    call SetActiveState(State)
     P = Params
     if (P%DoLensing .and. (P%NonLinear == NonLinear_lens .or. P%NonLinear == NonLinear_both)) then
         P%WantTransfer = .true.
@@ -85,127 +102,129 @@
     error = 0
 
     P%OnlyTransfers = onlytransfer
-    call CAMB_GetTransfers(P, data, error)
+    call CAMB_GetTransfers(P, State, error)
 
     end function CAMBdata_GetTransfers
 
-    subroutine CAMBdata_SetParamsForBackground(data, P)
-    Type (CAMBdata):: data
+    subroutine CAMBdata_SetParamsForBackground(State, P)
+    Type (CAMBstate):: State
     type(CAMBparams) :: P
 
     global_error_flag = 0
-    data%Params = P
-    call CAMBParams_Set(data%Params)
+    call State%CAMBParams_Set(P)
     end subroutine CAMBdata_SetParamsForBackground
 
-    function CAMBdata_CalcBackgroundTheory(data, P) result(error)
+    function CAMBdata_CalcBackgroundTheory(State, P) result(error)
     use cambmain, only: initvars
-    Type (CAMBdata):: data
+    Type (CAMBstate):: State
     type(CAMBparams) :: P
     integer error
 
     global_error_flag = 0
-    data%Params = P
-    call CAMBParams_Set(data%Params)
+    call State%CAMBParams_Set(P)
     if (global_error_flag==0) call InitVars !calculate thermal history, e.g. z_drag etc.
     error=global_error_flag
 
     end function CAMBdata_CalcBackgroundTheory
 
 
-    subroutine CAMBdata_MatterTransferData(data, cData)
-    Type(CAMBdata), target :: data
+    subroutine CAMBdata_MatterTransferData(State, cData)
+    Type(CAMBstate), target :: State
     Type(c_MatterTransferData) :: cData
 
-    cData%num_q_trans = data%MTrans%num_q_trans
-    cData%q_trans = c_loc(data%MTrans%q_trans)
-    cData%sigma_8 = c_loc(data%MTrans%sigma_8)
-    cData%sigma2_vdelta_8 = c_loc(data%MTrans%sigma2_vdelta_8)
-    cData%TransferData = c_loc(data%MTrans%TransferData)
-    cData%q_trans = c_loc(data%MTrans%q_trans)
-    cData%sigma_8_size = size(data%MTrans%sigma_8)
-    cData%sigma2_vdelta_8_size = size(data%MTrans%sigma2_vdelta_8)
-    cData%TransferData_size = shape(data%MTrans%TransferData)
+    cData%num_q_trans = State%MT%num_q_trans
+    cData%q_trans = c_loc(State%MT%q_trans)
+    cData%sigma_8 = c_loc(State%MT%sigma_8)
+    cData%sigma2_vdelta_8 = c_loc(State%MT%sigma2_vdelta_8)
+    cData%TransferData = c_loc(State%MT%TransferData)
+    cData%q_trans = c_loc(State%MT%q_trans)
+    cData%sigma_8_size = size(State%MT%sigma_8)
+    cData%sigma2_vdelta_8_size = size(State%MT%sigma2_vdelta_8)
+    cData%TransferData_size = shape(State%MT%TransferData)
 
     end subroutine CAMBdata_MatterTransferData
 
-    subroutine CAMBdata_ClTransferData(data, cData, i)
-    Type(CAMBdata), target :: data
+    subroutine CAMBdata_ClTransferData(State, cData, i)
+    Type(CAMBstate), target :: State
     Type(c_ClTransferData) :: cData
     integer, intent(in) :: i
 
     if (i==0) then
-        call Convert_ClTransferData(data%ClTransScal, cData)
+        call Convert_ClTransferData(State%CLdata%CTransScal, cData)
     else if (i==1) then
-        call Convert_ClTransferData(data%ClTransVec, cData)
+        call Convert_ClTransferData(State%CLdata%CTransVec, cData)
     else if (i==2) then
-        call Convert_ClTransferData(data%ClTransTens, cData)
+        call Convert_ClTransferData(State%CLdata%CTransTens, cData)
     else
         error stop 'Unknown ClTransferData index'
     end if
 
     end subroutine CAMBdata_ClTransferData
 
-    subroutine Convert_ClTransferData(data, cData)
-    Type(ClTransferData), target :: data
+    subroutine Convert_ClTransferData(CTrans, cData)
+    Type(ClTransferData), target :: CTrans
     Type(c_ClTransferData) :: cData
 
-    cData%NumSources = data%NumSources
-    if (allocated(Data%q%points)) then
-        cData%q_size = size(data%q%points)
-        cData%q = c_loc(data%q%points)
+    cData%NumSources = CTrans%NumSources
+    if (allocated(CTrans%q%points)) then
+        cData%q_size = size(CTrans%q%points)
+        cData%q = c_loc(CTrans%q%points)
     else
         cData%q_size = 0
     end if
-    if (associated(data%Delta_p_l_k)) then
-        cData%delta_size = shape(Data%Delta_p_l_k)
-        cData%delta_p_l_k = c_loc(Data%Delta_p_l_k)
+    if (associated(CTrans%Delta_p_l_k)) then
+        cData%delta_size = shape(CTrans%Delta_p_l_k)
+        cData%delta_p_l_k = c_loc(CTrans%Delta_p_l_k)
     else
         cData%delta_size = 0
     end if
-    cdata%l_size = Data%ls%l0
-    cdata%ls = c_loc(Data%ls%l)
+    cData%l_size = CTrans%ls%nl
+    cData%ls = c_loc(CTrans%ls%l)
 
     end subroutine Convert_ClTransferData
 
 
-    subroutine CAMBdata_GetLinearMatterPower(data, PK, var1, var2, hubble_units)
-    Type(CAMBdata) :: data
-    real(dl) :: PK(data%MTrans%num_q_trans,data%Params%Transfer%PK_num_redshifts)
+    subroutine CAMBdata_GetLinearMatterPower(State, PK, var1, var2, hubble_units)
+    Type(CAMBstate) :: State
+    real(dl) :: PK(State%MT%num_q_trans,State%CP%Transfer%PK_num_redshifts)
     integer, intent(in) :: var1, var2
     logical :: hubble_units
 
-    call Transfer_GetUnsplinedPower(data%MTrans, data%Params, PK, var1, var2, hubble_units)
+    call Transfer_GetUnsplinedPower(State%MT, State%CP, PK, var1, var2, hubble_units)
 
     end subroutine CAMBdata_GetLinearMatterPower
 
-    subroutine CAMBdata_GetNonLinearMatterPower(data, PK, var1, var2, hubble_units)
-    Type(CAMBdata) :: data
-    real(dl) :: PK(data%MTrans%num_q_trans,data%Params%Transfer%PK_num_redshifts)
+    subroutine CAMBdata_GetNonLinearMatterPower(State, PK, var1, var2, hubble_units)
+    Type(CAMBstate) :: State
+    real(dl) :: PK(State%MT%num_q_trans,State%CP%Transfer%PK_num_redshifts)
     integer, intent(in) :: var1, var2
     logical :: hubble_units
 
-    call Transfer_GetUnsplinedNonlinearPower(data%MTrans, data%Params,PK, var1, var2, hubble_units)
+    call Transfer_GetUnsplinedNonlinearPower(State%MT, State%CP,PK, var1, var2, hubble_units)
 
     end subroutine CAMBdata_GetNonLinearMatterPower
 
 
-    subroutine CAMBdata_GetMatterPower(data, outpower, minkh, dlnkh, npoints, var1, var2)
-    Type(CAMBdata) :: data
-    real(dl), intent(out) :: outpower(npoints,data%Params%Transfer%PK_num_redshifts)
+    subroutine CAMBdata_GetMatterPower(State, outpower, minkh, dlnkh, npoints, var1, var2)
+    Type(CAMBstate) :: State
+    real(dl), intent(out) :: outpower(npoints,State%CP%Transfer%PK_num_redshifts)
     real(dl), intent(in) :: minkh, dlnkh
     integer, intent(in) :: npoints, var1, var2
     integer i
 
-    do i=1,data%Params%Transfer%PK_num_redshifts
-        call Transfer_GetMatterPowerD(data%MTrans, data%Params, outpower(:,i), data%Params%Transfer%PK_num_redshifts-i+1, &
-            & minkh, dlnkh, npoints, var1, var2)
+    do i=1,State%CP%Transfer%PK_num_redshifts
+        call Transfer_GetMatterPowerD(State%MT, State%CP, outpower(:,i), &
+            State%CP%Transfer%PK_num_redshifts-i+1, minkh, dlnkh, npoints, var1, var2)
     end do
 
     end subroutine CAMBdata_GetMatterPower
 
+    real(dl) function CAMBdata_get_tau_maxvis(State)
+    Type(CAMBstate) :: State
+    CAMBdata_get_tau_maxvis = State%tau_maxvis
+    end function CAMBdata_get_tau_maxvis
 
-    subroutine CAMB_setinitialpower(Params, cptr, cls)
+    subroutine CAMBParams_setinitialpower(Params, cptr, cls)
     type(CAMBparams) :: Params
     type(c_ptr)  :: cptr
     Type (TInitialPowerLaw), pointer :: pInitialPowerLaw
@@ -223,158 +242,177 @@
         call MpiStop('Unknown initial power')
     end if
 
-    end subroutine CAMB_setinitialpower
+    end subroutine CAMBParams_setinitialpower
 
 
-    subroutine CAMB_SetTotCls(lmax, tot_scalar_Cls)
+    subroutine CAMB_SetTotCls(State,lmax, tot_scalar_Cls)
+    type(CAMBstate) State
     integer, intent(IN) :: lmax
     real(dl), intent(OUT) :: tot_scalar_cls(4, 0:lmax)
     integer l
 
     tot_scalar_cls = 0
     do l=lmin, lmax
-        if (CP%WantScalars .and. l<= CP%Max_l) then
-            if (CP%DoLensing) then
-                if (l<=lmax_lensed) tot_scalar_cls(1:4,l) = Cl_lensed(l, CT_Temp:CT_Cross)
+        if (State%CP%WantScalars .and. l<= State%CP%Max_l) then
+            if (State%CP%DoLensing) then
+                if (l<=State%CLData%lmax_lensed) &
+                    tot_scalar_cls(1:4,l) = State%CLData%Cl_lensed(l, CT_Temp:CT_Cross)
             else
-                tot_scalar_cls(1:2,l) = Cl_scalar(l,C_Temp:C_E)
-                tot_scalar_cls(4,l) = Cl_scalar(l, C_Cross)
+                tot_scalar_cls(1:2,l) = State%CLData%Cl_scalar(l,C_Temp:C_E)
+                tot_scalar_cls(4,l) = State%CLData%Cl_scalar(l, C_Cross)
             endif
         end if
         if (CP%WantTensors .and. l <= CP%Max_l_tensor) then
-            tot_scalar_cls(1:4,l) = tot_scalar_cls(1:4,l) + Cl_tensor(l, CT_Temp:CT_Cross)
+            tot_scalar_cls(1:4,l) = tot_scalar_cls(1:4,l) &
+                + State%CLData%Cl_tensor(l, CT_Temp:CT_Cross)
         end if
     end do
 
     end subroutine CAMB_SetTotCls
 
-    subroutine CAMB_SetUnlensedCls(lmax, unlensed_cls)
+    subroutine CAMB_SetUnlensedCls(State,lmax, unlensed_cls)
+    Type(CAMBstate) :: State
     integer, intent(IN) :: lmax
     real(dl), intent(OUT) :: unlensed_cls(4,0:lmax)
     integer l
 
     unlensed_cls = 0
     do l=lmin, lmax
-        if (CP%WantScalars .and. l<= CP%Max_l) then
-            unlensed_cls(1:2,l) = Cl_scalar(l, C_Temp:C_E)
-            unlensed_cls(4,l) = Cl_scalar(l, C_Cross)
+        if (State%CP%WantScalars .and. l<= CP%Max_l) then
+            unlensed_cls(1:2,l) = State%CLData%Cl_scalar(l, C_Temp:C_E)
+            unlensed_cls(4,l) = State%CLData%Cl_scalar(l, C_Cross)
         end if
-        if (CP%WantTensors .and. l <= CP%Max_l_tensor) then
-            unlensed_cls(1:4,l) = unlensed_cls(1:4,l) + Cl_tensor(l, CT_Temp:CT_Cross)
+        if (State%CP%WantTensors &
+            .and. l <= State%CP%Max_l_tensor) then
+            unlensed_cls(1:4,l) = unlensed_cls(1:4,l) &
+                + State%CLData%Cl_tensor(l, CT_Temp:CT_Cross)
         end if
     end do
 
     end subroutine CAMB_SetUnlensedCls
 
-    subroutine CAMB_SetLensPotentialCls(lmax, cls)
+    subroutine CAMB_SetLensPotentialCls(State,lmax, cls)
     use constants
+    Type(CAMBstate) :: State
     integer, intent(IN) :: lmax
     real(dl), intent(OUT) :: cls(3, 0:lmax) !phi-phi, phi-T, phi-E
     integer l
 
     cls = 0
-    if (CP%WantScalars .and. CP%DoLensing) then
-        do l=lmin, min(lmax,CP%Max_l)
-            cls(1,l) = Cl_scalar(l,C_Phi) * (real(l+1)/l)**2/const_twopi
-            cls(2:3,l) = Cl_scalar(l,C_PhiTemp:C_PhiE) * ((real(l+1)/l)**1.5/const_twopi)
+    if (State%CP%WantScalars .and. State%CP%DoLensing) then
+        do l=lmin, min(lmax,State%CP%Max_l)
+            cls(1,l) = State%CLData%Cl_scalar(l,C_Phi) * (real(l+1)/l)**2/const_twopi
+            cls(2:3,l) = State%CLData%Cl_scalar(l,C_PhiTemp:C_PhiE) &
+                * ((real(l+1)/l)**1.5/const_twopi)
         end do
     end if
 
     end subroutine CAMB_SetLensPotentialCls
 
-    subroutine CAMB_SetUnlensedScalCls(lmax, scalar_Cls)
+    subroutine CAMB_SetUnlensedScalCls(State,lmax, scalar_Cls)
+    Type(CAMBState) :: State
     integer, intent(IN) :: lmax
     real(dl), intent(OUT) :: scalar_Cls(4, 0:lmax)
     integer lmx
 
     scalar_Cls = 0
-    if (CP%WantScalars) then
-        lmx = min(CP%Max_l, lmax)
-        scalar_Cls(1:2,lmin:lmx) = transpose(Cl_Scalar(lmin:lmx, C_Temp:C_E))
-        scalar_Cls(4,lmin:lmx) = Cl_Scalar(lmin:lmx, C_Cross)
+    if (State%CP%WantScalars) then
+        lmx = min(State%CP%Max_l, lmax)
+        scalar_Cls(1:2,lmin:lmx) = &
+            transpose(State%CLData%Cl_Scalar(lmin:lmx, C_Temp:C_E))
+        scalar_Cls(4,lmin:lmx) = State%CLData%Cl_Scalar(lmin:lmx, C_Cross)
     end if
 
     end subroutine CAMB_SetUnlensedScalCls
 
-    subroutine CAMB_SetlensedScalCls(lmax, lensed_Cls)
+    subroutine CAMB_SetlensedScalCls(State,lmax, lensed_Cls)
+    type(CAMBState) State
     integer, intent(IN) :: lmax
     real(dl), intent(OUT) :: lensed_Cls(4, 0:lmax)
     integer lmx
 
     lensed_Cls = 0
-    if (CP%WantScalars .and. CP%DoLensing) then
-        lmx = min(lmax,lmax_lensed)
-        lensed_Cls(1:4,lmin:lmx) = transpose(Cl_lensed(lmin:lmx, CT_Temp:CT_Cross))
+    if (State%CP%WantScalars .and. State%CP%DoLensing) then
+        lmx = min(lmax,State%CLData%lmax_lensed)
+        lensed_Cls(1:4,lmin:lmx) = &
+            transpose(State%CLData%Cl_lensed(lmin:lmx, CT_Temp:CT_Cross))
     end if
 
     end subroutine CAMB_SetlensedScalCls
 
-    subroutine CAMB_SetTensorCls(lmax, tensor_Cls)
+    subroutine CAMB_SetTensorCls(State,lmax, tensor_Cls)
+    Type(CAMBstate) :: State
     integer, intent(IN) :: lmax
     real(dl), intent(OUT) :: tensor_Cls(4, 0:lmax)
     integer lmx
 
     tensor_Cls = 0
-    if (CP%WantTensors) then
-        lmx = min(lmax,CP%Max_l_tensor)
-        tensor_Cls(1:3,lmin:lmx) = transpose(Cl_Tensor(lmin:lmx, CT_Temp:CT_Cross))
+    if (State%CP%WantTensors) then
+        lmx = min(lmax,State%CP%Max_l_tensor)
+        tensor_Cls(1:4,lmin:lmx) = &
+            transpose(State%CLData%Cl_Tensor(lmin:lmx, CT_Temp:CT_Cross))
     end if
 
     end subroutine CAMB_SetTensorCls
 
 
-    subroutine CAMB_SetUnlensedScalarArray(lmax, ScalarArray, n)
+    subroutine CAMB_SetUnlensedScalarArray(State,lmax, ScalarArray, n)
+    Type(CAMBstate) :: State
     integer, intent(IN) :: lmax, n
     real(dl), intent(OUT) :: ScalarArray(n, n, 0:lmax)
     integer l
 
     ScalarArray = 0
-    if (CP%WantScalars) then
-        do l=lmin, min(lmax,CP%Max_l)
-            ScalarArray(1:n,1:n,l) = Cl_scalar_array(l, 1:n,1:n)
+    if (State%CP%WantScalars) then
+        do l=lmin, min(lmax,State%CP%Max_l)
+            ScalarArray(1:n,1:n,l) = State%CLData%Cl_scalar_array(l, 1:n,1:n)
         end do
     end if
 
     end subroutine CAMB_SetUnlensedScalarArray
 
-    subroutine CAMB_SetBackgroundOutputs_z(redshifts,n)
+    subroutine CAMB_SetBackgroundOutputs_z(State,redshifts,n)
+    type(CAMBstate):: State
     integer, intent(in) :: n
     real(dl), intent(in) :: redshifts(n)
 
-    if (associated(BackgroundOutputs%z_outputs)) deallocate(BackgroundOutputs%z_outputs)
+    if (associated(State%BackgroundOutputs%z_outputs)) &
+        deallocate(State%BackgroundOutputs%z_outputs)
     if (n>0) then
-        allocate(BackgroundOutputs%z_outputs(n))
-        BackgroundOutputs%z_outputs = redshifts
+        allocate(State%BackgroundOutputs%z_outputs(n))
+        State%BackgroundOutputs%z_outputs = redshifts
     else
-        nullify(BackgroundOutputs%z_outputs)
+        nullify(State%BackgroundOutputs%z_outputs)
     end if
 
     end subroutine CAMB_SetBackgroundOutputs_z
 
-    function CAMB_GetNumBackgroundOutputs()
+    function CAMB_GetNumBackgroundOutputs(State)
+    Type(CAMBstate) :: State
     integer CAMB_GetNumBackgroundOutputs
 
-    if (.not. associated(BackgroundOutputs%z_outputs)) then
+    if (.not. associated(State%BackgroundOutputs%z_outputs)) then
         CAMB_GetNumBackgroundOutputs = 0
     else
-        CAMB_GetNumBackgroundOutputs = size(BackgroundOutputs%z_outputs)
+        CAMB_GetNumBackgroundOutputs = size(State%BackgroundOutputs%z_outputs)
     end if
 
     end function CAMB_GetNumBackgroundOutputs
 
-    subroutine CAMB_GetBackgroundOutputs(outputs, n)
+    subroutine CAMB_GetBackgroundOutputs(State,outputs, n)
     use constants
+    Type(CAMBstate) :: State
     integer, intent(in) :: n
     real(dl), intent(out) :: outputs(4,n)
     integer i
 
-    if (associated(BackgroundOutputs%z_outputs)) then
-        do i=1, size(BackgroundOutputs%z_outputs)
-            outputs(1,i) = BackgroundOutputs%rs_by_D_v(i)
-            outputs(2,i) = BackgroundOutputs%H(i)*c/1e3_dl
-            outputs(3,i) = BackgroundOutputs%DA(i)
-            outputs(4,i) = (1+BackgroundOutputs%z_outputs(i))* &
-                BackgroundOutputs%DA(i) * BackgroundOutputs%H(i) !F_AP parameter
+    if (associated(State%BackgroundOutputs%z_outputs)) then
+        do i=1, size(State%BackgroundOutputs%z_outputs)
+            outputs(1,i) = State%BackgroundOutputs%rs_by_D_v(i)
+            outputs(2,i) = State%BackgroundOutputs%H(i)*c/1e3_dl
+            outputs(3,i) = State%BackgroundOutputs%DA(i)
+            outputs(4,i) = (1+State%BackgroundOutputs%z_outputs(i))* &
+                State%BackgroundOutputs%DA(i) * State%BackgroundOutputs%H(i) !F_AP parameter
         end do
     end if
 
@@ -396,9 +434,10 @@
     real(dl), intent(out) :: powers(n)
     real(dl) curv
     integer err,ix
+    real(dl), external :: GetOmegak
 
     global_error_flag = 0
-    curv =-Params%omegak/((c/1000)/Params%h0)**2
+    curv =-GetOmegak(Params)/((c/1000)/Params%h0)**2
     call Params%InitPower%Init(curv)
     if (global_error_flag==0) then
         do ix =1, n
@@ -416,10 +455,10 @@
 
     end function CAMB_PrimordialPower
 
-    subroutine GetOutputEvolutionFork(EV, times, outputs, nsources,ncustomsources)
-    use Transfer
+    subroutine GetOutputEvolutionFork(State, EV, times, outputs, nsources,ncustomsources)
     use CAMBmain
     implicit none
+    type(CAMBState) :: State
     type(EvolutionVars) EV
     real(dl), intent(in) :: times(:)
     real(dl), intent(out) :: outputs(:,:,:)
@@ -458,8 +497,8 @@
         outputs(Transfer_Max+1, j, EV%q_ix) = a
         outputs(Transfer_Max+2, j, EV%q_ix) = y(2) !etak
         adotoa = 1/(y(1)*dtauda(y(1)))
-        ddelta= (yprime(3)*grhoc+yprime(4)*grhob)/(grhob+grhoc)
-        delta=(grhoc*y(3)+grhob*y(4))/(grhob+grhoc)
+        ddelta= (yprime(3)*State%grhoc+yprime(4)*State%grhob)/(State%grhob+State%grhoc)
+        delta=(State%grhoc*y(3)+State%grhob*y(4))/(State%grhob+State%grhoc)
         growth= ddelta/delta/adotoa
         outputs(Transfer_Max+3, j, EV%q_ix) = adotoa !hubble
         outputs(Transfer_Max+4, j, EV%q_ix) = growth
@@ -486,9 +525,10 @@
     end do
     end subroutine GetOutputEvolutionFork
 
-    function CAMB_TimeEvolution(nq, q, ntimes, times, noutputs, outputs, &
+    function CAMB_TimeEvolution(this,nq, q, ntimes, times, noutputs, outputs, &
         ncustomsources,c_source_func) result(err)
     use GaugeInterface
+    Type(CAMBstate) :: this
     integer, intent(in) :: nq, ntimes, noutputs, ncustomsources
     real(dl), intent(in) :: q(nq), times(ntimes)
     real(dl), intent(out) :: outputs(noutputs, ntimes, nq)
@@ -498,6 +538,7 @@
     Type(EvolutionVars) :: Ev
     procedure(TSource_func), pointer :: old_sources
 
+    call SetActiveState(this)
     if (ncustomsources > 0) then
         ! Convert C to Fortran procedure pointer.
         old_sources => custom_sources_func
@@ -514,7 +555,7 @@
             EV%TransferOnly=.false.
             EV%q2=EV%q**2
             call GetNumEqns(EV)
-            call GetOutputEvolutionFork(EV, times, outputs, 3, ncustomsources)
+            call GetOutputEvolutionFork(State,EV, times, outputs, 3, ncustomsources)
         end if
     end do
     !$OMP END PARALLEL DO
@@ -601,13 +642,6 @@
 
     end subroutine CAMBparams_SetDarkEnergyTable
 
-    subroutine CAMBparams_SetEqual(P, P2)
-    Type(CAMBparams), target :: P, P2
-
-    P =P2
-
-    end subroutine CAMBparams_SetEqual
-
     subroutine CAMBparams_DarkEnergyStressEnergy(DE, a, grhov_t, w, n)
     Type(TDarkEnergyBase) :: DE
     integer, intent(in) :: n
@@ -643,12 +677,27 @@
 
     end subroutine CAMBparams_SetPKTable
 
-    subroutine CAMBParams_Free(P)
-    Type(CAMBparams) :: P
+    subroutine CAMBparams_new(handle)
+    type(c_ptr), intent(inout) :: handle
+    Type (CAMBparams), pointer :: pSource, pData
 
-    if (allocated(P%DarkEnergy)) deallocate(P%DarkEnergy)
-    if (allocated(P%NonLinearModel)) deallocate(P%NonLinearModel)
-    if (allocated(P%InitPower)) deallocate(P%InitPower)
+    call c_f_pointer(handle, pSource)
+    if (associated(pSource)) then
+        allocate(pData, source=pSource)
+    else
+        allocate(pData)
+        call CAMB_SetDefParams(pData)
+    end if
+    handle = c_loc(pData)
+
+    end subroutine CAMBparams_new
+
+    subroutine CAMBParams_Free(cptr)
+    type(c_ptr)  :: cptr
+    Type(CAMBparams), pointer :: P
+
+    call c_f_pointer(cptr, P)
+    deallocate(P)
 
     end subroutine CAMBParams_Free
 
@@ -671,84 +720,16 @@
 
     end subroutine CAMB_SetCustomSourcesFunc
 
-    function Utils_GetChiSquared(c_inv, Y, n) result(chi2)
-    !get dot_product(matmul(C_inv,Y), Y) efficiently assuming c_inv symmetric
-    integer, intent(in) :: n
-    real(dl), intent(in) :: Y(n)
-    real(dl), intent(in) :: c_inv(n,n)
-    integer j
-    real(dl) ztemp, chi2
-
-    chi2 = 0
-    !$OMP parallel do private(j,ztemp) reduction(+:chi2) schedule(static,16)
-    do  j = 1, n
-        ztemp= dot_product(Y(j+1:n), c_inv(j+1:n, j))
-        chi2=chi2+ (ztemp*2 +c_inv(j, j)*Y(j))*Y(j)
-    end do
-
-    end function Utils_GetChiSquared
-
-    subroutine Utils_3j_integrate(W,lmax_w, n, dopol, M, lmax)
-    !Get coupling matrix, eg for pesudo-CL
-    integer, intent(in) :: lmax, lmax_w, n
-    real(dl), intent(in) :: W(0:lmax_w,n)
-    logical, intent(in) :: dopol
-    real(dl), intent(out) :: M(0:lmax,0:lmax, n)
-    integer l1, l2, lplus, lminus, thread_ix, ix
-    real(dl), allocatable :: threejj0(:,:), threejj2(:,:)
-
-    !$ integer  OMP_GET_THREAD_NUM, OMP_GET_MAX_THREADS
-    !$ external OMP_GET_THREAD_NUM, OMP_GET_MAX_THREADS
-
-    thread_ix = 1
-    !$ thread_ix = OMP_GET_MAX_THREADS()
-
-    allocate(threejj0(0:2*lmax,thread_ix))
-    if (dopol) then
-        allocate(threejj2(0:2*lmax,thread_ix))
-    end if
-
-    !$OMP parallel do private(l1,l2,lminus,lplus,thread_ix,ix), schedule(dynamic)
-    do l1 = 0, lmax
-        thread_ix =1
-        !$ thread_ix = OMP_GET_THREAD_NUM()+1
-        do l2 = 0, l1
-            lplus =  min(lmax_w,l1+l2)
-            lminus = abs(l1-l2)
-
-            call GetThreeJs(threejj0(lminus:,thread_ix),l1,l2,0,0)
-
-            if (dopol) then
-                !note that lminus is correct, want max(abs(l1-l2),abs(m1)) where m1=0 here
-                call GetThreeJs(threejj2(lminus:,thread_ix),l1,l2,-2,2)
-                M(l2,l1,2) = sum(W(lminus:lplus:2,2)*threejj0(lminus:lplus:2,thread_ix) &
-                    *threejj2(lminus:lplus:2,thread_ix)) !TE
-                M(l2,l1,3) = sum(W(lminus:lplus:2,3)*threejj2(lminus:lplus:2,thread_ix)**2) !EE
-                M(l2,l1,4) = sum(W(lminus+1:lplus:2,3)*threejj2(lminus+1:lplus:2,thread_ix)**2) !EB
-            end if
-            if (n>1) then
-                threejj0(lminus:lplus,thread_ix) = threejj0(lminus:lplus,thread_ix)**2
-                do ix=1,n
-                    M(l2,l1,ix) = sum(W(lminus:lplus,ix)* threejj0(lminus:lplus,thread_ix))
-                end do
-            else
-                M(l2,l1,1) = sum(W(lminus:lplus,1)* threejj0(lminus:lplus,thread_ix)**2)
-            end if
-        end do
-    end do
-
-    do l1=0, lmax
-        do l2 = l1+1,lmax
-            M(l2,l1,:) = M(l1,l2,:)
-        end do
-    end do
-    end subroutine Utils_3j_integrate
-
     subroutine InitialPowerLaw_new(handle)
-    type(c_ptr), intent(out) :: handle
-    Type (TInitialPowerLaw), pointer :: pInitialPowerLaw
+    type(c_ptr), intent(inout) :: handle
+    Type (TInitialPowerLaw), pointer :: pSource,pInitialPowerLaw
 
-    allocate(pInitialPowerLaw)
+    call c_f_pointer(handle, pSource)
+    if (associated(pSource)) then
+        allocate(pInitialPowerLaw, source=pSource)
+    else
+        allocate(pInitialPowerLaw)
+    end if
     handle = c_loc(pInitialPowerLaw)
 
     end subroutine InitialPowerLaw_new
@@ -763,10 +744,14 @@
     end subroutine InitialPowerLaw_free
 
     subroutine SplinedInitialPower_new(handle)
-    type(c_ptr), intent(out) :: handle
-    Type (TSplinedInitialPower), pointer :: pSplinedInitialPower
+    type(c_ptr), intent(inout) :: handle
+    Type (TSplinedInitialPower), pointer :: pSource,pSplinedInitialPower
 
-    allocate(pSplinedInitialPower)
+    if (associated(pSource)) then
+        allocate(pSplinedInitialPower, source=pSource)
+    else
+        allocate(pSplinedInitialPower)
+    end if
     handle = c_loc(pSplinedInitialPower)
 
     end subroutine SplinedInitialPower_new
@@ -824,5 +809,54 @@
 
     end function SplinedInitialPower_HasTensors
 
+    subroutine GetBackgroundEvolution(this,ntimes, times, outputs)
+    !Called from python
+    Type(CAMBstate) :: this
+    integer, intent(in) :: ntimes
+    real(dl), intent(in) :: times(ntimes)
+    real(dl) :: outputs(5, ntimes)
+    real(dl), allocatable :: spline_data(:), ddxe(:), ddTb(:)
+    real(dl) :: d, tau, cs2b, opacity, vis, Tbaryon
+    integer i, ix
+
+    associate(T=>this%ThermoData)
+        allocate(spline_data(T%nthermo), ddxe(T%nthermo), ddTb(T%nthermo))
+        call splini(spline_data,T%nthermo)
+        call splder(T%xe,ddxe,T%nthermo,spline_data)
+        call splder(T%Tb,ddTb,T%nthermo,spline_data)
+
+        outputs = 0
+        do ix = 1, ntimes
+            tau = times(ix)
+            if (tau < T%tauminn) cycle
+            d=log(tau/T%tauminn)/T%dlntau+1._dl
+            i=int(d)
+            d=d-i
+            call T%Values(tau,cs2b, opacity)
+
+            if (i < T%nthermo) then
+                outputs(1,ix)=T%xe(i)+d*(ddxe(i)+d*(3._dl*(T%xe(i+1)-T%xe(i)) &
+                    -2._dl*ddxe(i)-ddxe(i+1)+d*(ddxe(i)+ddxe(i+1) &
+                    +2._dl*(T%xe(i)-T%xe(i+1)))))
+                vis=T%emmu(i)+d*(T%demmu(i)+d*(3._dl*(T%emmu(i+1)-T%emmu(i)) &
+                    -2._dl*T%demmu(i)-T%demmu(i+1)+d*(T%demmu(i)+T%demmu(i+1) &
+                    +2._dl*(T%emmu(i)-T%emmu(i+1)))))
+                Tbaryon = T%tb(i)+d*(ddtb(i)+d*(3._dl*(T%tb(i+1)-T%tb(i)) &
+                    -2._dl*ddtb(i)-ddtb(i+1)+d*(ddtb(i)+ddtb(i+1) &
+                    +2._dl*(T%tb(i)-T%tb(i+1)))))
+            else
+                outputs(1,ix)=T%xe(T%nthermo)
+                vis = T%emmu(T%nthermo)
+                Tbaryon = T%Tb(T%nthermo)
+            end if
+
+            outputs(2, ix) = opacity
+            outputs(3, ix) = opacity*vis
+            outputs(4, ix) = cs2b
+            outputs(5, ix) = Tbaryon
+        end do
+    end associate
+
+    end subroutine GetBackgroundEvolution
 
     end module handles

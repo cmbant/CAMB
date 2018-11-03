@@ -7,18 +7,14 @@
     use IniObjects
     use CAMB
     use Lensing
-    use Transfer
     use constants
     use Bispectrum
     use CAMBmain
     use NonLinear
     use DarkEnergyFluid
     use DarkEnergyPPF
-#ifdef NAGF95
-    use F90_UNIX
-#endif
+    use CAMBsettings
     implicit none
-
     type(CAMBparams) P
 
     character(len=:), allocatable :: numstr, outroot, VectorFileName, &
@@ -37,8 +33,11 @@
 #endif
     type(TIniFile) :: Ini
     logical bad
+    integer status
     logical :: DoCounts = .false.
+    Type(CAMBstate) :: ActiveState
 
+    call SetActiveState(ActiveState)
     InputFile = ''
     if (GetParamCount() /= 0)  InputFile = GetParam(1)
     if (InputFile == '') error stop 'No parameter input file'
@@ -67,13 +66,13 @@
     else
         num_redshiftwindows = 0
     end if
-    call Ini%Read('limber_windows', limber_windows)
-    if (limber_windows) call Ini%Read('limber_phiphi', limber_phiphi)
+    call Ini%Read('limber_windows', P%SourceTerms%limber_windows)
+    if (P%SourceTerms%limber_windows) call Ini%Read('limber_phiphi', limber_phiphi)
     if (num_redshiftwindows > 0) then
-        DoRedshiftLensing = Ini%Read_Logical('DoRedshiftLensing', .false.)
+        P%SourceTerms%do_counts_lensing = Ini%Read_Logical('DoRedshiftLensing', .false.)
         call Ini%Read('Kmax_Boost', P%Accuracy%Kmax_Boost)
     end if
-    Do21cm = Ini%Read_Logical('Do21cm', .false.)
+    P%Do21cm = Ini%Read_Logical('Do21cm', .false.)
     num_extra_redshiftwindows = 0
     do i=1, num_redshiftwindows
         associate (RedWin => Redshift_w(i))
@@ -95,7 +94,7 @@
                 RedWin%sigma = Ini%Read_Double_Array('redshift_sigma', i)
                 RedWin%sigma_z = RedWin%sigma
             else
-                Do21cm = .true.
+                P%Do21cm = .true.
                 RedWin%sigma = Ini%Read_Double_Array('redshift_sigma_Mhz', i)
                 if (RedWin%sigma < 0.003) then
                     write(*,*) 'WARNING:Window very narrow.'
@@ -110,7 +109,7 @@
                 DoCounts = .true.
                 RedWin%bias = Ini%Read_Double_Array('redshift_bias', i)
                 RedWin%dlog10Ndm = Ini%Read_Double_Array('redshift_dlog10Ndm', i ,0.d0)
-                if (DoRedshiftLensing) then
+                if (P%SourceTerms%do_counts_lensing) then
                     num_extra_redshiftwindows = num_extra_redshiftwindows + 1
                     RedWin%mag_index = num_extra_redshiftwindows
                 end if
@@ -119,33 +118,32 @@
     end do
 
 
-    if (Do21cm) then
-        line_basic = Ini%Read_Logical('line_basic')
-        line_distortions = Ini%read_Logical('line_distortions')
-        line_extra = Ini%Read_Logical('line_extra')
+    if (P%Do21cm) then
+        call Ini%Read('line_basic',P%SourceTerms%line_basic)
+        call Ini%Read('line_distortions',P%SourceTerms%line_distortions)
+        call Ini%Read('line_extra',P%SourceTerms%line_extra)
+        call Ini%Read('line_phot_dipole',P%SourceTerms%line_phot_dipole)
+        call Ini%Read('line_phot_quadrupole',P%SourceTerms%line_phot_quadrupole)
+        call Ini%Read('line_reionization',P%SourceTerms%line_reionization)
 
-        line_phot_dipole = Ini%Read_Logical('line_phot_dipole')
-        line_phot_quadrupole = Ini%Read_Logical('line_phot_quadrupole')
-        line_reionization = Ini%Read_Logical('line_reionization')
-
-        use_mK = Ini%Read_Logical('use_mK')
+        call Ini%Read('use_mK',P%SourceTerms%use_21cm_mK)
         if (DebugMsgs) then
             write (*,*) 'Doing 21cm'
-            write (*,*) 'dipole = ',line_phot_dipole, ' quadrupole =', line_phot_quadrupole
+            write (*,*) 'dipole = ',P%SourceTerms%line_phot_dipole, ' quadrupole =', P%SourceTerms%line_phot_quadrupole
         end if
     else
-        line_extra = .false.
+        P%SourceTerms%line_extra = .false.
     end if
 
     if (DoCounts) then
-        counts_density = Ini%Read_Logical('counts_density')
-        counts_redshift = Ini%Read_Logical('counts_redshift')
-        counts_radial = Ini%Read_Logical('counts_radial')
-        counts_evolve = Ini%Read_Logical('counts_evolve')
-        counts_timedelay = Ini%Read_Logical('counts_timedelay')
-        counts_ISW = Ini%Read_Logical('counts_ISW')
-        counts_potential = Ini%Read_Logical('counts_potential')
-        counts_velocity = Ini%Read_Logical('counts_velocity')
+        call Ini%Read('counts_density', P%SourceTerms%counts_density)
+        call Ini%Read('counts_redshift', P%SourceTerms%counts_redshift)
+        call Ini%Read('counts_radial', P%SourceTerms%counts_radial)
+        call Ini%Read('counts_evolve', P%SourceTerms%counts_evolve)
+        call Ini%Read('counts_timedelay', P%SourceTerms%counts_timedelay)
+        call Ini%Read('counts_ISW', P%SourceTerms%counts_ISW)
+        call Ini%Read('counts_potential', P%SourceTerms%counts_potential)
+        call Ini%Read('counts_velocity', P%SourceTerms%counts_velocity)
     end if
 
     P%OutputNormalization=outNone
@@ -230,7 +228,9 @@
     numstr = Ini%Read_String('massive_neutrinos')
     read(numstr, *) nmassive
     if (abs(nmassive-nint(nmassive))>1e-6) error stop 'massive_neutrinos should now be integer (or integer array)'
-    read(numstr,*, end=100, err=100) P%Nu_Mass_numbers(1:P%Nu_mass_eigenstates)
+    read(numstr,*, iostat=status) P%Nu_Mass_numbers(1:P%Nu_mass_eigenstates)
+    if (status/=0) error stop 'Must give num_massive number of integer physical neutrinos for each eigenstate'
+
     P%Num_Nu_massive = sum(P%Nu_Mass_numbers(1:P%Nu_mass_eigenstates))
 
     if (P%Num_Nu_massive>0) then
@@ -272,8 +272,8 @@
         P%transfer%k_per_logint = Ini%Read_Int('transfer_k_per_logint')
         P%transfer%PK_num_redshifts = Ini%Read_Int('transfer_num_redshifts')
 
-        if (Do21cm) transfer_21cm_cl = Ini%Read_Logical('transfer_21cm_cl',.false.)
-        if (transfer_21cm_cl .and. P%transfer%kmax > 800) then
+        if (P%Do21cm) P%transfer_21cm_cl = Ini%Read_Logical('transfer_21cm_cl',.false.)
+        if (P%transfer_21cm_cl .and. P%transfer%kmax > 800) then
             !Actually line widths are important at significantly larger scales too
             write (*,*) 'WARNING: kmax very large. '
             write(*,*) ' -- Neglected line width effects will dominate'
@@ -300,7 +300,7 @@
             if (MatterPowerFilenames(i) /= '') &
                 MatterPowerFilenames(i)=trim(outroot)//MatterPowerFilenames(i)
 
-            if (Do21cm) then
+            if (P%Do21cm) then
                 TransferClFileNames(i) = Ini%Read_String_Array('transfer_cl_filename',i)
                 if (TransferClFileNames(i) == '') &
                     TransferClFileNames(i) =  trim(numcat('sharp_cl_',i))//'.dat'
@@ -332,9 +332,9 @@
     call Ini%Read('DebugParam', DebugParam)
     call Ini%Read('Alens', P%Alens)
 
-    call Reionization_ReadParams(P%Reion, Ini)
+    call P%Reion%ReadParams(Ini)
     call P%InitPower%ReadParams(Ini, P%WantTensors)
-    call Recombination_ReadParams(P%Recomb, Ini)
+    call P%Recomb%ReadParams(Ini)
     if (Ini%HasKey('recombination')) then
         i = Ini%Read_Int('recombination', 1)
         if (i/=1) error stop 'recombination option deprecated'
@@ -360,7 +360,7 @@
         ScalarCovFileName = Ini%Read_String_Default('scalar_covariance_output_file', &
             'scalCovCls.dat', .false.)
         if (ScalarCovFileName /= '') then
-            has_cl_2D_array = .true.
+            P%want_cl_2D_array = .true.
             ScalarCovFileName = concat(outroot, ScalarCovFileName)
         end if
     else
@@ -461,27 +461,27 @@
     call SetIdle
 #endif
 
-    if (global_error_flag==0) call CAMB_GetResults(P)
+    if (global_error_flag==0) call CAMB_GetResults(State,P)
     if (global_error_flag/=0) then
         write (*,*) 'Error result '//trim(global_error_message)
         error stop
     endif
 
     if (P%PK_WantTransfer) then
-        call Transfer_SaveToFiles(MT,TransferFileNames)
-        call Transfer_SaveMatterPower(MT,MatterPowerFileNames)
-        call Transfer_output_sig8(MT)
-        if (do21cm .and. transfer_21cm_cl) call Transfer_Get21cmCls(MT, TransferClFileNames)
+        call Transfer_SaveToFiles(State%MT,TransferFileNames)
+        call Transfer_SaveMatterPower(State%MT,MatterPowerFileNames)
+        call Transfer_output_sig8(State%MT)
+        if (P%do21cm .and. P%transfer_21cm_cl) call Transfer_Get21cmCls(State%MT, TransferClFileNames)
     end if
 
     if (P%WantCls) then
-        call output_cl_files(ScalarFileName, ScalarCovFileName, TensorFileName, TotalFileName, &
+        call State%CLData%output_cl_files(ScalarFileName, ScalarCovFileName, TensorFileName, TotalFileName, &
             LensedFileName, LensedTotFilename, output_factor)
 
-        call output_lens_pot_files(LensPotentialFileName, output_factor)
+        call State%CLData%output_lens_pot_files(LensPotentialFileName, output_factor)
 
         if (P%WantVectors) then
-            call output_veccl_files(VectorFileName, output_factor)
+            call State%CLData%output_veccl_files(VectorFileName, output_factor)
         end if
 
 #ifdef WRITE_FITS
@@ -491,10 +491,7 @@
 
     if (allocated(MatterPowerFileNames)) deallocate (MatterPowerFileNames, &
         TransferFileNames, TransferClFileNames)
-    call CAMB_cleanup
-    stop
 
-100 error stop 'Must give num_massive number of integer physical neutrinos for each eigenstate'
     end program driver
 
 

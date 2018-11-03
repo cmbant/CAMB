@@ -84,7 +84,7 @@ def get_emission_delay_BB(params, kmax=100, lmax=3000, non_linear=True, CMB_unit
     assert (np.isclose(params.get_omega_k(), 0))
     camb_background = camb.get_background(params)
     tau0 = camb_background.conformal_time(0)
-    chi_source = tau0 - model.tau_maxvis.value
+    chi_source = tau0 - camb_background.tau_maxvis()
     z_source = camb_background.redshift_at_comoving_radial_distance(chi_source)
 
     PK = camb.get_matter_power_interpolator(params, nonlinear=non_linear,

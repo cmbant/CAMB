@@ -51,7 +51,7 @@ def get_field_rotation_power(params, kmax=100, lmax=20000, non_linear=True, z_so
     if z_source:
         chi_source = results.comoving_radial_distance(z_source)
     else:
-        chi_source = results.conformal_time(0) - model.tau_maxvis.value
+        chi_source = results.conformal_time(0) - results.tau_maxvis()
         z_source = results.redshift_at_comoving_radial_distance(chi_source)
 
     PK = camb.get_matter_power_interpolator(params, nonlinear=non_linear,

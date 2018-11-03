@@ -123,7 +123,7 @@ class SharedLibrary(build, object):
             # note that TDM-GCC MingW 5.1 does not work due go general fortran bug.
             # This works: http://sourceforge.net/projects/mingw-w64/?source=typ_redirect
             # but need to use 32bit compiler to build 32 bit dll (contrary to what is implied)
-            FFLAGS = "-shared -static -cpp -fopenmp -O3 -ffast-math -fmax-errors=4"
+            FFLAGS = "-shared -static -cpp -fopenmp -O3 -fmax-errors=4"
             if is32Bit: FFLAGS = "-m32 " + FFLAGS
             scrs = os.listdir(os.getcwd())
             if not ok:
@@ -138,8 +138,8 @@ class SharedLibrary(build, object):
             else:
                 FORUTILS = "MiscUtils.f90 StringUtils.f90 ArrayUtils.f90 MpiUtils.f90 FileUtils.f90 " \
                            "IniObjects.f90 RandUtils.f90 ObjectLists.f90 RangeUtils.f90 Interpolation.f90"
-                SOURCES = " constants.f90 classes.f90 subroutines.f90 power_tilt.f90 recfast.f90 reionization.f90 DarkEnergyInterface.f90  modules.f90" \
-                          " bessels.f90 equations.f90 DarkEnergyFluid.f90 DarkEnergyPPF.f90 halofit_ppf.f90 lensing.f90 SeparableBispectrum.f90" \
+                SOURCES = " constants.f90 classes.f90 MathUtils.f90 subroutines.f90 power_tilt.f90 recfast.f90 reionization.f90 DarkEnergyInterface.f90  modules.f90" \
+                          " bessels.f90 equations.f90 DarkEnergyFluid.f90 DarkEnergyPPF.f90 massive_neutrinos.f90 halofit_ppf.f90 lensing.f90 SeparableBispectrum.f90" \
                           " cmbmain.f90 camb.f90 camb_python.f90"
                 OUTPUT = r"-o %s\camb\%s" % (pycamb_path, DLLNAME)
                 fpath = get_forutils()

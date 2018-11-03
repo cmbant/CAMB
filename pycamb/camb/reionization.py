@@ -47,17 +47,3 @@ class ReionizationParams(CAMB_Structure):
         if delta_redshift is not None:
             self.delta_redshift = delta_redshift
         return self
-
-
-class ReionizationHistory(CAMB_Structure):
-    """
-    Internally calculated parameters.
-    """
-    _fields_ = [
-        ("tau_start", c_double),
-        ("tau_complete", c_double),
-        ("akthom", c_double),
-        ("fHe", c_double),
-        ("WindowVarMid", c_double),
-        ("WindowVarDelta", c_double)
-    ]

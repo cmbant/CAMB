@@ -42,10 +42,10 @@
     !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
     module NonLinear
-    use ModelParams
+    use CambSettings
     use DarkEnergyInterface
-    use transfer
     use classes
+    use Transfer
     implicit none
     private
 
@@ -109,7 +109,7 @@
 
     subroutine THalofit_ReadParams(this,Ini)
     use IniObjects
-    class(THalofit), intent(inout) :: this
+    class(THalofit) :: this
     class(TIniFile), intent(in) :: Ini
 
     this%halofit_version = Ini%Read_Int('halofit_version', halofit_default)
@@ -3192,16 +3192,16 @@
     real(dl) :: redshift,w_lam,wa_ppf,w_hf,wa_hf
     real(dl) :: z_star,tau_star,dlsb,dlsb_eq,w_true,wa_true,error
 
-    z_star=ThermoDerivedParams( derived_zstar )
-    tau_star=TimeOfz(z_star)
-    dlsb=TimeOfz(redshift)-tau_star
+    z_star=State%ThermoDerivedParams( derived_zstar )
+    tau_star=TimeOfz(State,z_star)
+    dlsb=TimeOfz(State,redshift)-tau_star
     w_true=w_lam
     wa_true=wa_ppf
     wa_ppf=0._dl
     do
-        z_star=ThermoDerivedParams( derived_zstar )
-        tau_star=TimeOfz(z_star)
-        dlsb_eq=TimeOfz(redshift)-tau_star
+        z_star=State%ThermoDerivedParams( derived_zstar )
+        tau_star=TimeOfz(State,State%ThermoData%z_star)
+        dlsb_eq=TimeOfz(State,redshift)-tau_star
         error=1.d0-dlsb_eq/dlsb
         if (abs(error).le.1e-7) exit
         w_lam=w_lam*(1+error)**10.d0

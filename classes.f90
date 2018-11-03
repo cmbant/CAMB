@@ -79,7 +79,7 @@
     contains
 
     subroutine TCambComponent_ReadParams(this, Ini)
-    class(TCambComponent), intent(inout) :: this
+    class(TCambComponent) :: this
     class(TIniFile), intent(in) :: Ini
 
     end subroutine TCambComponent_ReadParams
@@ -189,8 +189,8 @@
     end if
 
     end subroutine TSplinedInitialPower_SetScalarTable
-    
-    
+
+
     subroutine TSplinedInitialPower_SetTensorTable(this, n, k, PK)
     class(TSplinedInitialPower) :: this
     integer, intent(in) :: n
@@ -239,6 +239,5 @@
     end if
 
     end subroutine TSplinedInitialPower_SetTensorLogRegular
-
 
     end module classes

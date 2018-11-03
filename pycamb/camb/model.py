@@ -1,5 +1,5 @@
-from .baseconfig import camblib, CAMB_Structure, CAMBError, CAMBValueError, CAMBParamRangeError, \
-    dll_import, f_allocatable
+from .baseconfig import camblib, CAMB_Structure, F2003Class, \
+    CAMBError, CAMBValueError, CAMBParamRangeError, dll_import, f_allocatable
 from ctypes import c_bool, c_int, c_double, byref, POINTER
 from . import reionization as ion
 from . import recombination as recomb
@@ -58,76 +58,26 @@ neutrino_hierarchy_degenerate = 3
 # To set the value please just put
 # variable_name.value = new_value
 
-
-DebugParam = dll_import(c_double, "modelparams", "debugparam")
+DebugParam = dll_import(c_double, "cambsettings", "debugparam")
 # DebugParam.value = 1000000*2
 
 # logical
-do_bispectrum = dll_import(c_int, "modelparams", "do_bispectrum")
+do_bispectrum = dll_import(c_int, "cambsettings", "do_bispectrum")
 # do_bispectrum.value = False
 
-max_bessels_l_index = dll_import(c_int, "modelparams", "max_bessels_l_index")
-# max_bessels_l_index.value = 1000000
-
-max_bessels_etak = dll_import(c_double, "modelparams", "max_bessels_etak")
-# max_bessels_etak.value = 1000000*2
-
-# logical
-call_again = dll_import(c_int, "modelparams", "call_again")
-# call_again.value = False
-
-
-grhom = dll_import(c_double, "modelparams", "grhom")
-grhog = dll_import(c_double, "modelparams", "grhog")
-grhor = dll_import(c_double, "modelparams", "grhor")
-grhob = dll_import(c_double, "modelparams", "grhob")
-grhoc = dll_import(c_double, "modelparams", "grhoc")
-grhov = dll_import(c_double, "modelparams", "grhov")
-grhornomass = dll_import(c_double, "modelparams", "grhornomass")
-grhok = dll_import(c_double, "modelparams", "grhok")
-
-taurst = dll_import(c_double, "modelparams", "taurst")
-dtaurec = dll_import(c_double, "modelparams", "dtaurec")
-taurend = dll_import(c_double, "modelparams", "taurend")
-tau_maxvis = dll_import(c_double, "modelparams", "tau_maxvis")
-adotrad = dll_import(c_double, "modelparams", "adotrad")
-
-grhormass = dll_import(c_double * max_nu, "modelparams", "grhormass")
-nu_masses = dll_import(c_double * max_nu, "modelparams", "nu_masses")
-
-akthom = dll_import(c_double, "modelparams", "akthom")
-fHe = dll_import(c_double, "modelparams", "fhe")
-Nnow = dll_import(c_double, "modelparams", "nnow")
-
-limber_phiphi = dll_import(c_int, "modelparams", "limber_phiphi")
+limber_phiphi = dll_import(c_int, "cambsettings", "limber_phiphi")
 # limber_phiphi.value = 0
 
-num_extra_redshiftwindows = dll_import(c_int, "modelparams", "num_extra_redshiftwindows")
+num_extra_redshiftwindows = dll_import(c_int, "cambsettings", "num_extra_redshiftwindows")
 # num_extra_redshiftwindows.value = 0
 
-num_redshiftwindows = dll_import(c_int, "modelparams", "num_redshiftwindows")
+num_redshiftwindows = dll_import(c_int, "cambsettings", "num_redshiftwindows")
 
-num_custom_sources = dll_import(c_int, "modelparams", "num_custom_sources")
+num_custom_sources = dll_import(c_int, "cambsettings", "num_custom_sources")
 
 # logical
-use_spline_template = dll_import(c_bool, "modelparams", "use_spline_template")
+use_spline_template = dll_import(c_bool, "cambsettings", "use_spline_template")
 # use_spline_template.value = True
-
-ThermoDerivedParams = dll_import(c_double * nthermo_derived, "modelparams", "thermoderivedparams")
-# ThermoDerivedParams.value = 1.
-
-# logical
-Log_lvalues = dll_import(c_bool, "lvalues", "log_lvalues")
-# Log_lvalues.value = False
-
-# Variables from module ModelData
-
-# logical
-has_cl_2D_array = dll_import(c_bool, "modeldata", "has_cl_2d_array")
-# has_cl_2D_array.value = False
-
-
-lmax_lensed = dll_import(c_int, "modeldata", "lmax_lensed")
 
 # Variable from module Transfer
 # logical
@@ -137,15 +87,11 @@ transfer_interp_matterpower = dll_import(c_bool, "transfer", "transfer_interp_ma
 transfer_power_var = dll_import(c_int, "transfer", "transfer_power_var")
 # transfer_power_var.value = Transfer_tot
 
-# logical
-get_growth_sigma8 = dll_import(c_bool, "transfer", "get_growth_sigma8")
-# get_growth_sigma8.value = True
-
 CAMB_validateparams = camblib.__camb_MOD_camb_validateparams
 CAMB_validateparams.restype = c_bool
 
 # args for these set below after CAMBparams defined
-CAMB_setinitialpower = camblib.__handles_MOD_camb_setinitialpower
+
 CAMB_SetNeutrinoHierarchy = camblib.__camb_MOD_camb_setneutrinohierarchy
 
 numpy_1d = np.ctypeslib.ndpointer(c_double, flags='C_CONTIGUOUS')
@@ -154,13 +100,9 @@ CAMB_primordialpower.restype = c_bool
 
 CAMBparams_SetDarkEnergy = camblib.__handles_MOD_cambparams_setdarkenergy
 CAMBparams_GetAllocatables = camblib.__handles_MOD_cambparams_getallocatables
-CAMBparams_SetEqual = camblib.__handles_MOD_cambparams_setequal
 
 CAMBparams_DE_SetTable = camblib.__handles_MOD_cambparams_setdarkenergytable
 CAMBparams_DE_GetStressEnergy = camblib.__handles_MOD_cambparams_darkenergystressenergy
-
-CAMBparams_SetPKTable = camblib.__handles_MOD_cambparams_setpktable
-CAMBParams_Free = camblib.__handles_MOD_cambparams_free
 
 
 class TransferParams(CAMB_Structure):
@@ -261,11 +203,34 @@ class AccuracyParams(CAMB_Structure):
         ("BessIntBoost", c_double),
         ("BesselBoost", c_double),
         ("LimberBoost", c_double),
-        ("Kmax_Boost", c_double)
+        ("Kmax_Boost", c_double),
+        ("neutrino_q_boost", c_double),
+        ("thermo_boost", c_double)
     ]
 
 
-class CAMBparams(CAMB_Structure):
+class SourceTermParams(CAMB_Structure):
+    fields_ = [
+        ("limber_windows", c_int),
+        ("do_counts_lensing", c_int),
+        ("line_phot_dipole", c_int),
+        ("line_phot_quadrupole", c_int),
+        ("line_basic", c_int),
+        ("line_extra", c_int),
+        ("line_distortions", c_int),
+        ("line_reionization", c_int),
+        ("counts_velocity", c_int),
+        ("counts_radial", c_int),  # does not include time delay; subset of counts_velocity, just 1 / (chi * H) term
+        ("counts_density", c_int),
+        ("counts_redshift", c_int),
+        ("counts_timedelay", c_int),  # time delay terms * 1 / (H * chi)
+        ("counts_ISW", c_int),
+        ("counts_potential", c_int),  # terms in potentials at source
+        ("counts_evolve", c_int),
+        ("use_21cm_mK", c_int)]
+
+
+class CAMBparams(F2003Class):
     """
     Object storing the parameters for a CAMB calculation, including cosmological parameters and
     settings for what to calculate. When a new object is instantiated, default parameters are set automatically.
@@ -278,34 +243,15 @@ class CAMBparams(CAMB_Structure):
     You could also modify the wrapper functions to set the field value less directly.
     """
 
-    def __init__(self):
-        getattr(camblib, '__camb_MOD_camb_setdefparams')(byref(self))
-        self._set_allocatables()
-        self.InitPower.set_params()
-
-    def _set_allocatables(self):
-        de = POINTER(DarkEnergyParams)()
-        nonlin = POINTER(NonLinearModel)()
-        initpower = ctypes.c_void_p()
-
-        i = c_int(0)
-        j = c_int(0)
-        CAMBparams_GetAllocatables(byref(self), byref(i), byref(de), byref(nonlin), byref(j), byref(initpower))
-        self.DarkEnergy = de.contents
-        self.NonLinearModel = nonlin.contents
-        self.InitPower = InitialPower.void_contents(initpower, j.value)
-
-    def __del__(self):
-        if self._b_needsfree_:
-            CAMBParams_Free(byref(self))
-
     _fields_ = [
         ("WantCls", c_int),  # logical
         ("WantTransfer", c_int),  # logical
         ("WantScalars", c_int),  # logical
         ("WantTensors", c_int),  # logical
         ("WantVectors", c_int),  # logical
+        ("want_cl_2D_array", c_int),  # logical
         ("DoLensing", c_int),  # logical
+        ("Do21cm", c_int),  # logical
         ("want_zstar", c_int),  # logical
         ("want_zdrag", c_int),  # logical
         ("PK_WantTransfer", c_int),  # logical
@@ -338,38 +284,36 @@ class CAMBparams(CAMB_Structure):
         ("Recomb", recomb.RecombinationParams),
         ("Transfer", TransferParams),
         ("Accuracy", AccuracyParams),
+        ("SourceTerms", SourceTermParams),
         ("DoLateRadTruncation", c_int),
         ("Evolve_baryon_cs", c_int),
         ("Evolve_delta_xe", c_int),
         ("Evolve_delta_Ts", c_int),
         ("InitialConditionVector", c_double * 10),
         ("OnlyTransfers", c_int),  # logical
+        ("transfer_21cm_cl", c_int),  # logical
         ("DerivedParameters", c_int),  # logical
+        ("Log_lvalues", c_int),  # boolean
         ("_InitPower", f_allocatable),  # resolved class accessed as self.InitPower
         ("_DarkEnergy", f_allocatable),  # resolved class accessed as self.DarkEnergy
         ("_NonLinearModel", f_allocatable),  # resolved class accessed as self.NonLinearModel
-        ("__ReionHist", ion.ReionizationHistory),
-        ("__flat", c_int),  # logical
-        ("__closed", c_int),  # logical
-        ("__open", c_int),  # logical
-        ("__omegak", c_double),
-        ("__curv", c_double),
-        ("__r", c_double),
-        ("__Ksign", c_double),
-        ("__tau0", c_double),
-        ("__chi0", c_double)
     ]
 
-    def copy(self):
-        """
-        Make independent copy. Since it contains allocatables, these have to be newly allocated.
+    def __init__(self):
+        self._init_members()
+        self.InitPower.set_params()
 
-        :return: copy of self
-        """
-        cp = CAMBparams()
-        CAMBparams_SetEqual(byref(cp), byref(self))
-        cp._set_allocatables()
-        return cp
+    def _init_members(self):
+        de = POINTER(DarkEnergyParams)()
+        nonlin = POINTER(NonLinearModel)()
+        initpower = ctypes.c_void_p()
+
+        i = c_int(0)
+        j = c_int(0)
+        CAMBparams_GetAllocatables(byref(self), byref(i), byref(de), byref(nonlin), byref(j), byref(initpower))
+        self.DarkEnergy = de.contents
+        self.NonLinearModel = nonlin.contents
+        self.InitPower = InitialPower.void_contents(initpower, j.value)
 
     def validate(self):
         """
@@ -450,8 +394,9 @@ class CAMBparams(CAMB_Structure):
             pk_tensor = np.asarray([])
         elif len(k) != len(pk_tensor):
             raise CAMBValueError("k and P_tensor(k) arrays must be same size")
-        CAMBparams_SetPKTable(byref(self), byref(c_int(len(pk))), byref(c_int(len(pk_tensor))), k, pk, pk_tensor,
-                              byref(initpower))
+        self.call_func('setpktable', extra_args=[POINTER(c_int), POINTER(c_int), numpy_1d, numpy_1d, numpy_1d,
+                                                 POINTER(POINTER(SplinedInitialPower))], args=[
+            byref(c_int(len(pk))), byref(c_int(len(pk_tensor))), k, pk, pk_tensor, byref(initpower)])
         self.InitPower = initpower.contents
         return self
 
@@ -464,8 +409,9 @@ class CAMBparams(CAMB_Structure):
         """
         assert isinstance(initial_power_params, InitialPower)
         p, class_id = initial_power_params._pointer_id()
-        CAMB_setinitialpower(byref(self), byref(p), byref(c_int(class_id)))
-        self._set_allocatables()
+        self.call_func(tag='setinitialpower', extra_args=[POINTER(ctypes.c_void_p), POINTER(c_int)], args=[
+            byref(p), byref(c_int(class_id))])
+        self._init_members()
         return self
 
     def set_cosmology(self, H0=67.0, cosmomc_theta=None, ombh2=0.022, omch2=0.12, omk=0.0,
@@ -808,33 +754,15 @@ class CAMBparams(CAMB_Structure):
             return powers
 
 
-def Transfer_SetForNonlinearLensing(P):
-    camblib.__transfer_MOD_transfer_setfornonlinearlensing(byref(P))
-
-
-def Transfer_SortAndIndexRedshifts(P):
-    camblib.__transfer_MOD_transfer_sortandindexredshifts(byref(P))
-
-
 CAMB_primordialpower.argtypes = [POINTER(CAMBparams), numpy_1d, numpy_1d, POINTER(c_int), POINTER(c_int)]
 CAMBparams_SetDarkEnergy.argtypes = [POINTER(CAMBparams), POINTER(c_int), POINTER(POINTER(DarkEnergyParams))]
 CAMBparams_GetAllocatables.argtypes = CAMBparams_SetDarkEnergy.argtypes + [POINTER(POINTER(NonLinearModel))] + \
                                       [POINTER(c_int), POINTER(ctypes.c_void_p)]
-CAMBparams_SetEqual.argtypes = [POINTER(CAMBparams), POINTER(CAMBparams)]
 
 CAMBparams_DE_SetTable.argtypes = [POINTER(DarkEnergyParams), numpy_1d, numpy_1d, POINTER(c_int)]
 
 CAMBparams_DE_GetStressEnergy.argtypes = [POINTER(DarkEnergyParams), numpy_1d, numpy_1d, numpy_1d, POINTER(c_int)]
 
-CAMBparams_SetPKTable.argtypes = [POINTER(CAMBparams), POINTER(c_int), POINTER(c_int), numpy_1d, numpy_1d, numpy_1d,
-                                  POINTER(POINTER(SplinedInitialPower))]
-
 CAMB_SetNeutrinoHierarchy.argtypes = [POINTER(CAMBparams), POINTER(c_double), POINTER(c_double),
                                       POINTER(c_double), POINTER(c_int), POINTER(c_int)]
 
-CAMBParams_Free.argtypes = [POINTER(CAMBparams)]
-
-CAMB_SetNeutrinoHierarchy.argtypes = [POINTER(CAMBparams), POINTER(c_double), POINTER(c_double),
-                                      POINTER(c_double), POINTER(c_int), POINTER(c_int)]
-
-CAMB_setinitialpower.argtypes = [POINTER(CAMBparams), POINTER(ctypes.c_void_p), POINTER(c_int)]

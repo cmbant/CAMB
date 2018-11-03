@@ -1,6 +1,5 @@
     module DarkEnergyPPF
     use precision
-    use ModelParams
     use DarkEnergyInterface
     implicit none
 

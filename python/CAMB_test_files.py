@@ -31,6 +31,7 @@ args = parser.parse_args()
 
 logfile = None
 
+
 def printlog(text):
     global logfile
     print(text)
@@ -501,7 +502,8 @@ def num_unequal(filename, cmpFcn):
                 inifile = iniFile()
                 inifile.readFile(inifilename)
             except:
-                printlog("Could not open ini filename: %s" % inifilename)
+                if 'sharp_cl_params' not in inifilename:
+                    printlog("Could not open ini filename: %s" % inifilename)
             for o_row, n_row in zip(origMat[origBase:], newMat[newBase:]):
                 row += 1
                 if len(o_row) != len(n_row):

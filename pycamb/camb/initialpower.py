@@ -34,7 +34,7 @@ class SplinedInitialPower(InitialPower):
         ("__scalar_spline", f_allocatable),
         ("__tensor_spline", f_allocatable)]
 
-    def init_members(self, **kwargs):
+    def _init_members(self, **kwargs):
         if kwargs.get('PK', None) is not None: self.set_scalar_table(kwargs['ks'], kwargs['PK'])
 
     def has_tensors(self):
@@ -118,7 +118,7 @@ class InitialPowerLaw(InitialPower):
         ("At", c_double)
     ]
 
-    def init_members(self, **kwargs):
+    def _init_members(self, **kwargs):
         self.set_params(**kwargs)
 
     def set_params(self, As=2e-9, ns=0.96, nrun=0, nrunrun=0.0, r=0.0, nt=None, ntrun=0.0,

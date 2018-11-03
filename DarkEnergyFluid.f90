@@ -29,7 +29,6 @@
 
 
     subroutine TDarkEnergyFluid_Init(this)
-    use ModelParams
     class(TDarkEnergyFluid), intent(inout) :: this
 
     call this%TDarkEnergyBase%Init()
@@ -67,7 +66,6 @@
 
     subroutine TDarkEnergyFluid_PerturbationEvolve(this, ayprime, w, w_ix, &
         a, adotoa, k, z, y)
-    use ModelParams
     class(TDarkEnergyFluid), intent(in) :: this
     real(dl), intent(inout) :: ayprime(:)
     real(dl), intent(in) :: a, adotoa, w, k, z, y(:)
