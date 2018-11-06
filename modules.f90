@@ -1048,6 +1048,21 @@
 
     end subroutine HofzArr
 
+    subroutine sound_horizon_zArr(this,arr, z,n)
+    Type(CAMBstate) :: this
+    integer,intent(in) :: n
+    real(dl), intent(out) :: arr(n)
+    real(dl), intent(in) :: z(n)
+    integer i
+
+    call SetActiveState(this)
+    !dumb version
+    do i=1,n
+        arr(i) =rombint(dsound_da_exact,1d-8,1/(z(i)+1),1d-6)
+    end do
+
+    end subroutine sound_horizon_zArr
+
     real(dl) function BAO_D_v_from_DA_H(z, DA, Hz)
     real(dl), intent(in) :: z, DA, Hz
     real(dl) ADD

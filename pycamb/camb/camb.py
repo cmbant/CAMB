@@ -1019,6 +1019,25 @@ class CAMBdata(F2003Class):
         else:
             return f(chi)
 
+    def redshift_at_conformal_time(self, eta, nz_step=250, zmax=100000):
+        """
+        Convert conformal time array to redshift array.
+        This is not calculated directly, but fit from a spline to a forward calculation of chi from z.
+        This is a utility routine, not optimized to be fast (though it can work on a large vector efficiently)
+
+        :param eta: conformal time from bing bang (in Mpc), scalar or array
+        :param nz_step: number of redshifts calculated internally for solving grid
+        :param zmax: maximum redshift in internal solving grid
+        :return: redshift at chi, scalar or array
+        """
+        zs = np.exp(np.log(zmax + 1) * np.linspace(0, 1, nz_step)) - 1
+        etas = self.conformal_time(zs)
+        f = UnivariateSpline(etas[::-1], zs[::-1], s=0)
+        if np.isscalar(eta):
+            return np.asscalar(f(eta))
+        else:
+            return f(eta)
+
     def luminosity_distance(self, z):
         """
         Get luminosity distance from to redshift z.
@@ -1116,6 +1135,25 @@ class CAMBdata(F2003Class):
             return eta[0]
         else:
             return eta
+
+    def sound_horizon(self, z):
+        """
+        Get comoving sound horizon as function of redshift in Megaparsecs, the integral of the sound speed
+        up to given redshift.
+
+        :param z: redshift or array of redshifts
+        :return: r_s(z)
+        """
+        if np.isscalar(z):
+            redshifts = np.array([z], dtype=np.float64)
+        else:
+            redshifts = np.array(z, dtype=np.float64)
+        rs = np.empty(redshifts.shape)
+        sound_horizon_zArr(byref(self), rs, redshifts, byref(c_int(redshifts.shape[0])))
+        if np.isscalar(z):
+            return rs[0]
+        else:
+            return rs
 
     def cosmomc_theta(self):
         r"""
@@ -1450,6 +1488,9 @@ Hofz.restype = c_double
 
 HofzArr = camblib.__cambsettings_MOD_hofzarr
 HofzArr.argtypes = [POINTER(CAMBdata), numpy_1d, numpy_1d, int_arg]
+
+sound_horizon_zArr = camblib.__cambsettings_MOD_sound_horizon_zarr
+sound_horizon_zArr.argtypes = [POINTER(CAMBdata), numpy_1d, numpy_1d, int_arg]
 
 DeltaPhysicalTimeGyr = camblib.__cambsettings_MOD_deltaphysicaltimegyr
 DeltaPhysicalTimeGyr.argtypes = [POINTER(CAMBdata), d_arg, d_arg, d_arg]

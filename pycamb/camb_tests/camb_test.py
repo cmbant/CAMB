@@ -54,6 +54,7 @@ class CambTest(unittest.TestCase):
         derived = data.get_derived_params()
         self.assertAlmostEqual(derived['age'], age, 2)
         self.assertAlmostEqual(derived['rdrag'], 146.976, 2)
+        self.assertAlmostEqual(derived['rstar'], data.sound_horizon(derived['zstar']), 2)
 
         # Test BBN consistency, base_plikHM_TT_lowTEB best fit model
         pars.set_cosmology(H0=67.31, ombh2=0.022242, omch2=0.11977, mnu=0.06, omk=0)
