@@ -552,7 +552,7 @@ class CAMBdata(F2003Class):
         if unknown:
             raise CAMBError('Unknown names %s; valid names are %s' % (unknown, model.background_names))
         outputs = np.zeros((eta.shape[0], 5))
-        CAMB_BackgroundEvolution(byref(self), byref(c_int(eta.shape[0])), eta, outputs)
+        CAMB_BackgroundThermalEvolution(byref(self), byref(c_int(eta.shape[0])), eta, outputs)
         indices = [model.background_names.index(var) for var in vars]
         if format == 'dict':
             res = {}
@@ -576,6 +576,48 @@ class CAMBdata(F2003Class):
 
         return self.get_background_time_evolution(self.conformal_time(z), vars, format)
 
+    def get_background_densities(self, a, vars=model.density_names, format='dict'):
+        r"""
+        Get the individual densities as a function of scale factor. Returns :math:`8\pi G a^4 \rho_i` in Mpc units.
+        :math:`\Omega_i` can be simply obtained by taking the ratio of the components to tot.
+
+        :param z: redshift or array of redshifts
+        :param vars: list of variables to output (default all)
+        :param format: 'dict' or 'array', for either dict of 1D arrays indexed by name, or 2D array
+        :return: n_a x len(vars) 2D numpy array or dict of 1D arrays of :math:`8\pi G a^4 \rho_i` in Mpc units.
+        """
+        if isinstance(vars, six.string_types): vars = [vars]
+        unknown = set(vars) - set(model.density_names)
+        if unknown:
+            raise CAMBError('Unknown names %s; valid names are %s' % (unknown, model.density_names))
+        arr = np.atleast_1d(a)
+        outputs = np.zeros((arr.shape[0], 8))
+        self.call_func('getbackgrounddensities', extra_args=[int_arg, numpy_1d, numpy_2d],
+                       args=[byref(c_int(arr.shape[0])), arr, outputs])
+        indices = [model.density_names.index(var) for var in vars]
+        if format == 'dict':
+            res = {}
+            for var, index in zip(vars, indices):
+                res[var] = outputs[:, index]
+            return res
+        else:
+            assert format == 'array', "format must be dict or array"
+            return outputs[:, np.array(indices)]
+
+    def get_Omega(self, var, z=0):
+        r"""
+        Get density relative to critical density of variables var
+        :param var: one of 'K', 'cdm', 'baryon', 'photon', 'neutrino' (massless), 'nu' (massive neutrinos), 'de'
+        :param z: redshift
+        :return:  :math:`\Omega_i(a)`
+        """
+        dic = self.get_background_densities(1. / (1 + z), ['tot', var])
+        res = dic[var] / dic['tot']
+        if np.isscalar(z):
+            return res[0]
+        else:
+            return res
+
     def get_matter_transfer_data(self):
         """
         Get matter transfer function data and sigma8 for calculated results.
@@ -589,9 +631,9 @@ class CAMBdata(F2003Class):
         CAMBdata_mattertransferdata(byref(self), byref(cdata))
         data = MatterTransferData()
         data.nq = cdata.num_q_trans
-        data.q = nplib.as_array(cdata.q_trans, shape=(data.nq,))
-        data.sigma_8 = nplib.as_array(cdata.sigma_8, shape=(cdata.sigma_8_size,))
-        data.sigma2_vdelta_8 = nplib.as_array(cdata.sigma2_vdelta_8, shape=(cdata.sigma2_vdelta_8_size,))
+        data.q = nplib.as_array(cdata.q_trans, shape=(data.nq,)).copy()
+        data.sigma_8 = nplib.as_array(cdata.sigma_8, shape=(cdata.sigma_8_size,)).copy()
+        data.sigma2_vdelta_8 = nplib.as_array(cdata.sigma2_vdelta_8, shape=(cdata.sigma2_vdelta_8_size,)).copy()
         data.transfer_data = fortran_array(cdata.TransferData, cdata.TransferData_size, dtype=np.float32)
         return data
 
@@ -1513,8 +1555,8 @@ CAMB_TimeEvolution.argtypes = [POINTER(CAMBdata), int_arg, numpy_1d, int_arg, nu
 CAMB_SetCustomSourcesFunc = camblib.__handles_MOD_camb_setcustomsourcesfunc
 CAMB_SetCustomSourcesFunc.argtypes = [int_arg, POINTER(ctypes.c_void_p), ndpointer(c_int, flags='C_CONTIGUOUS')]
 
-CAMB_BackgroundEvolution = camblib.__handles_MOD_getbackgroundevolution
-CAMB_BackgroundEvolution.argtypes = [POINTER(CAMBdata), int_arg, numpy_1d, numpy_2d]
+CAMB_BackgroundThermalEvolution = camblib.__handles_MOD_getbackgroundthermalevolution
+CAMB_BackgroundThermalEvolution.argtypes = [POINTER(CAMBdata), int_arg, numpy_1d, numpy_2d]
 
 CAMBdata_gettransfers = camblib.__handles_MOD_cambdata_gettransfers
 CAMBdata_gettransfers.argtypes = [POINTER(CAMBdata), POINTER(model.CAMBparams),

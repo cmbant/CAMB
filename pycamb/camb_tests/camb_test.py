@@ -98,6 +98,8 @@ class CambTest(unittest.TestCase):
         pars = camb.set_params(cosmomc_theta=0.0104077, H0=None, ombh2=0.022, omch2=0.122, w=-0.95)
         self.assertAlmostEqual(camb.get_background(pars, no_thermo=True).cosmomc_theta(), 0.0104077, 7)
 
+        self.assertAlmostEqual(data.get_Omega('baryon'), data.Params.omegab, 5)
+
     def testEvolution(self):
         redshifts = [0.4, 31.5]
         pars = camb.set_params(H0=67.5, ombh2=0.022, omch2=0.122, As=2e-9, ns=0.95,

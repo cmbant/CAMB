@@ -290,7 +290,7 @@ var_subs = constraint_subs_for_variable_set()
 hdot_sub, phi_sub, sigma_sub, z_sub = [Eq(variable, subs(var_subs, variable)) for variable in [hdot, phi, sigma, z]]
 q_sub = Eq(q, subs(Eq(z, subs(var_subs, z)), solve(cons3, q)))
 
-# Evoluation equations
+# Evolution equations
 
 dz = -H * z - kappa * a ** 2 / k / 2 * (delta + 3 * delta_P) + (3 * kappa * a ** 2 * (
         rho + P) / 2) * A / k + k * K_fac * A

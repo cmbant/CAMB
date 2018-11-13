@@ -46,6 +46,7 @@ evolve_names = transfer_names + ['a', 'etak', 'H', 'growth', 'v_photon', 'pi_pho
                                  'E_2', 'v_neutrino', 'T_source', 'E_source', 'lens_potential_source']
 
 background_names = ['x_e', 'opacity', 'visibility', 'cs2b', 'T_b']
+density_names = ['tot', 'K', 'cdm', 'baryon', 'photon', 'neutrino', 'nu', 'de']
 
 dark_energy_models = ['fluid', 'ppf']
 
@@ -210,7 +211,7 @@ class AccuracyParams(CAMB_Structure):
 
 
 class SourceTermParams(CAMB_Structure):
-    fields_ = [
+    _fields_ = [
         ("limber_windows", c_int),
         ("do_counts_lensing", c_int),
         ("line_phot_dipole", c_int),
@@ -765,4 +766,3 @@ CAMBparams_DE_GetStressEnergy.argtypes = [POINTER(DarkEnergyParams), numpy_1d, n
 
 CAMB_SetNeutrinoHierarchy.argtypes = [POINTER(CAMBparams), POINTER(c_double), POINTER(c_double),
                                       POINTER(c_double), POINTER(c_int), POINTER(c_int)]
-

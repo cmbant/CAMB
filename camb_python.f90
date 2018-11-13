@@ -809,7 +809,7 @@
 
     end function SplinedInitialPower_HasTensors
 
-    subroutine GetBackgroundEvolution(this,ntimes, times, outputs)
+    subroutine GetBackgroundThermalEvolution(this,ntimes, times, outputs)
     !Called from python
     Type(CAMBstate) :: this
     integer, intent(in) :: ntimes
@@ -857,6 +857,40 @@
         end do
     end associate
 
-    end subroutine GetBackgroundEvolution
+    end subroutine GetBackgroundThermalEvolution
+
+    subroutine CAMBdata_GetBackgroundDensities(this, n, a_arr, densities)
+    ! return array of 8*pi*G*rho*a**4 for each species
+    Type(CAMBstate) :: this
+    integer, intent(in) :: n
+    real(dl), intent(in) :: a_arr(n)
+    real(dl) :: grhov_t, rhonu, grhonu, a
+    real(dl), intent(out) :: densities(8,n)
+    integer nu_i,i
+
+    do i=1, n
+        a = a_arr(i)
+        call this%CP%DarkEnergy%BackgroundDensityAndPressure(this%grhov, a, grhov_t)
+        grhonu = 0
+
+        if (this%CP%Num_Nu_massive /= 0) then
+            !Get massive neutrino density relative to massless
+            do nu_i = 1, this%CP%nu_mass_eigenstates
+                call ThermalNuBackground%rho(a * this%nu_masses(nu_i), rhonu)
+                grhonu = grhonu + rhonu * this%grhormass(nu_i)
+            end do
+        end if
+
+        densities(2,i) = this%grhok * a**2
+        densities(3,i) = this%grhoc * a
+        densities(4,i) = this%grhob * a
+        densities(5,i) = this%grhog
+        densities(6,i) = this%grhornomass
+        densities(7,i) = grhonu
+        densities(8,i) = grhov_t*a**2
+        densities(1,i) = sum(densities(2:8,i))
+    end do
+
+    end subroutine CAMBdata_GetBackgroundDensities
 
     end module handles
