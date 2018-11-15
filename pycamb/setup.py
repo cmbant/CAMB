@@ -29,7 +29,7 @@ os.chdir(file_dir)
 
 is32Bit = struct.calcsize("P") == 4
 
-gfortran_min = '4.9'
+gfortran_min = '4.8'
 
 
 def get_long_description():
@@ -44,7 +44,14 @@ def get_gfortran_version():
         return None
 
 
-def check_gfortran(version=gfortran_min, msg=True, exit=False, import_fail_ok=True):
+def check_ifort():
+    try:
+        return subprocess.check_output("ifort -v", shell=True, stderr=subprocess.STDOUT)
+    except:
+        return False
+
+
+def check_gfortran(version=gfortran_min, msg=False, import_fail_ok=True):
     gfortran_version = get_gfortran_version()
     version = str(version)
     if gfortran_version:
@@ -56,18 +63,14 @@ def check_gfortran(version=gfortran_min, msg=True, exit=False, import_fail_ok=Tr
             pass
     else:
         ok = False
+    if ok and is_windows:
+        version_str = str(subprocess.check_output("gfortran -dumpmachine", shell=True))
+        ok = is32Bit and 'i686' in version_str or not is32Bit and 'x86_64' in version_str
     if not ok and msg:
-        try:
-            ifort = subprocess.check_output("ifort -v", shell=True)
-        except:
-            ifort = False
-        if not ifort:
-            raise Exception(
-                'You need gfortran %s or higher to compile (found: %s).' % (
-                    version, gfortran_version))
+        raise Exception(
+            'You need gfortran %s or higher to compile (found: %s).' % (
+                version, gfortran_version))
 
-    if exit:
-        sys.exit(1 if ok else 0)
     return ok, gfortran_version
 
 
@@ -94,13 +97,14 @@ class SharedLibrary(build, object):
         else:
             pycamb_path = 'pycamb'
         os.chdir(CAMBDIR)
-        ok, gfortran_version = check_gfortran(msg=not is_windows)
+        if is_windows or not check_ifort():
+            ok, gfortran_version = check_gfortran(msg=not is_windows)
         if is_windows:
             COMPILER = "gfortran"
             # note that TDM-GCC MingW 5.1 does not work due go general fortran bug.
             # This works: http://sourceforge.net/projects/mingw-w64/?source=typ_redirect
             # but need to use 32bit compiler to build 32 bit dll (contrary to what is implied)
-            FFLAGS = "-shared -static -cpp -fopenmp -O3 -ffast-math -fmax-errors=4"
+            FFLAGS = "-shared -static -cpp -fopenmp -O3 -fmax-errors=4"
             if is32Bit: FFLAGS = "-m32 " + FFLAGS
             SOURCES = "constants.f90 utils.f90 subroutines.f90 inifile.f90 power_tilt.f90 recfast.f90 reionization.f90" \
                       " modules.f90 bessels.f90 equations.f90 halofit_ppf.f90 lensing.f90 SeparableBispectrum.f90 cmbmain.f90" \
