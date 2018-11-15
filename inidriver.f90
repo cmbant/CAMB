@@ -199,6 +199,8 @@
         allocate (TDarkEnergyFluid::P%DarkEnergy)
     else if (DarkEneryModel == 'PPF') then
         allocate (TDarkEnergyPPF::P%DarkEnergy)
+    else if (DarkEneryModel == 'AxionEffectiveFluid') then
+        allocate (TAxionEffectiveFluid::P%DarkEnergy)
     else
         error stop 'Unknown dark energy model'
     end if

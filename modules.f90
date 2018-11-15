@@ -740,7 +740,7 @@
         else
             this%nu_masses = 0
         end if
-        call this%CP%DarkEnergy%Init()
+        call this%CP%DarkEnergy%Init(this%CP%omegav)
         if (global_error_flag==0) then
             this%tau0=TimeOfz(this,0._dl)
             if (WantReion) call this%ReionHist%Init(this%CP%Reion,this%CP%YHe, this%akthom, this%tau0, FeedbackLevel)

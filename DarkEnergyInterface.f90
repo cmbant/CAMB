@@ -10,7 +10,7 @@
         real(dl) :: w_lam = -1_dl !p/rho for the dark energy (an effective value, used e.g. for halofit)
         real(dl) :: wa = 0._dl !may not be used, just for compatibility with e.g. halofit
         real(dl) :: cs2_lam = 1_dl !rest-frame sound speed, though may not be used
-        logical :: use_tabulated_w = .false.
+        logical :: use_tabulated_w = .false.  !Use interpolated table; note this is quite slow.
         logical :: no_perturbations = .false. !Don't change this, no perturbations is unphysical
         logical :: is_cosmological_constant = .true.
         integer :: num_perturb_equations = 0
@@ -109,9 +109,10 @@
     end subroutine ReadParams
 
 
-    subroutine Init(this)
+    subroutine Init(this, omegav)
     class(TDarkEnergyBase), intent(inout) :: this
-
+    real(dl), intent(in) :: omegav
+    
     this%is_cosmological_constant = .not. this%use_tabulated_w .and. &
         &  abs(this%w_lam + 1._dl) < 1.e-6_dl .and. this%wa==0._dl
 

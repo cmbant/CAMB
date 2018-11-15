@@ -240,6 +240,9 @@
 
     P= emptyP !Set default values set in type definitions
     P%Nu_mass_numbers=0
+    P%Nu_mass_degeneracies=0 !just zero so look nicer in python
+    P%Nu_mass_fractions=0
+    P%InitialConditionVector=0
 
     allocate(THalofit::P%NonLinearModel)
     allocate(TDarkEnergyFluid::P%DarkEnergy)
@@ -253,6 +256,7 @@
     P%Transfer%PK_redshifts=0
     P%Transfer%NLL_num_redshifts=0 !AL 11/13, def to zero
     P%Transfer%NLL_redshifts=0
+    P%Transfer%NLL_redshifts_index=0
     !End JD
 
     end subroutine CAMB_SetDefParams

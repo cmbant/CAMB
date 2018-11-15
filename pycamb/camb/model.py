@@ -429,7 +429,8 @@ class CAMBparams(F2003Class):
 
         :param cosmomc_theta: The CosmoMC theta parameter :math:`\theta_{\rm MC}`. You must set H0=None to solve for H0 given cosmomc_theta. Note that
                 you must have already set the dark energy model, you can't use set_cosmology with cosmomc_theta and then
-                change the background evolution (which would change cosmomc_theta at the calculated H0 value).
+                change the background evolution (which would change cosmomc_theta at the calculated H0 value). Likewise the dark energy model
+                cannot depend on H0.
         :param ombh2: physical density in baryons
         :param omch2:  physical density in cold dark matter
         :param omk: Omega_K curvature parameter

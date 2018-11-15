@@ -1,6 +1,6 @@
 # Initial power spectrum parameters
 
-from .baseconfig import F2003Class, CAMBError, f_allocatable, camblib
+from .baseconfig import F2003Class, CAMBError, f_allocatable
 from ctypes import c_int, c_double, POINTER, byref
 from numpy.ctypeslib import ndpointer
 import ctypes

@@ -810,7 +810,6 @@
     end function SplinedInitialPower_HasTensors
 
     subroutine GetBackgroundThermalEvolution(this,ntimes, times, outputs)
-    !Called from python
     Type(CAMBstate) :: this
     integer, intent(in) :: ntimes
     real(dl), intent(in) :: times(ntimes)
