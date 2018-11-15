@@ -168,24 +168,6 @@ class DarkEnergyParams(CAMB_Structure):
         CAMBparams_DE_SetTable(byref(self), a, w, byref(c_int(len(a))))
         return self
 
-    def get_rho_w(self, a):
-        """
-        get dark energy density in units of the dark energy density today, and w=P/rho
-        :param a: scalar factor or array of scale factors
-        :return: rho, w arrays at redshifts 1/a-1 [or scalars if a is scalar]
-        """
-        if np.isscalar(a):
-            scales = np.array([a])
-        else:
-            scales = np.asarray(a)
-        rho = np.zeros(scales.shape)
-        w = np.zeros(scales.shape)
-        CAMBparams_DE_GetStressEnergy(byref(self), scales, rho, w, byref(c_int(len(scales))))
-        if np.isscalar(a):
-            return rho[0], w[0]
-        else:
-            return rho, w
-
 
 class AccuracyParams(CAMB_Structure):
     _fields_ = [
@@ -610,6 +592,25 @@ class CAMBparams(F2003Class):
         else:
             return self.Reion.redshift
 
+    def get_dark_energy_rho_w(self, a):
+        """
+        get dark energy density in units of the dark energy density today, and w=P/rho
+        :param a: scalar factor or array of scale factors
+        :return: rho, w arrays at redshifts 1/a-1 [or scalars if a is scalar]
+        """
+        if np.isscalar(a):
+            scales = np.array([a])
+        else:
+            scales = np.asarray(a)
+        rho = np.zeros(scales.shape)
+        w = np.zeros(scales.shape)
+        CAMBparams_DE_GetStressEnergy(byref(self), scales, rho, w, byref(c_int(len(scales))))
+        if np.isscalar(a):
+            return rho[0], w[0]
+        else:
+            return rho, w
+
+
     def N_eff(self):
         """
         :return: Effective number of degrees of freedom in relativistic species at early times.
@@ -763,7 +764,7 @@ CAMBparams_GetAllocatables.argtypes = CAMBparams_SetDarkEnergy.argtypes + [POINT
 
 CAMBparams_DE_SetTable.argtypes = [POINTER(DarkEnergyParams), numpy_1d, numpy_1d, POINTER(c_int)]
 
-CAMBparams_DE_GetStressEnergy.argtypes = [POINTER(DarkEnergyParams), numpy_1d, numpy_1d, numpy_1d, POINTER(c_int)]
+CAMBparams_DE_GetStressEnergy.argtypes = [POINTER(CAMBparams), numpy_1d, numpy_1d, numpy_1d, POINTER(c_int)]
 
 CAMB_SetNeutrinoHierarchy.argtypes = [POINTER(CAMBparams), POINTER(c_double), POINTER(c_double),
                                       POINTER(c_double), POINTER(c_int), POINTER(c_int)]

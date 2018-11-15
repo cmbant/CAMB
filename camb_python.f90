@@ -642,17 +642,17 @@
 
     end subroutine CAMBparams_SetDarkEnergyTable
 
-    subroutine CAMBparams_DarkEnergyStressEnergy(DE, a, grhov_t, w, n)
-    Type(TDarkEnergyBase) :: DE
+    subroutine CAMBparams_DarkEnergyStressEnergy(P, a, grhov_t, w, n)
+    Type(CAMBparams) :: P
     integer, intent(in) :: n
     real(dl), intent(in) :: a(n)
     real(dl), intent(out) :: grhov_t(n), w(n)
     real(dl) grhov
     integer i
 
-    call DE%Init()
+    call P%DarkEnergy%Init(P%omegav)
     do i=1, n
-        call DE%BackgroundDensityAndPressure(1._dl, a(i), grhov_t(i), w(i))
+        call P%DarkEnergy%BackgroundDensityAndPressure(1._dl, a(i), grhov_t(i), w(i))
     end do
     grhov_t = grhov_t/a**2
 
