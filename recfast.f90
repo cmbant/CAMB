@@ -338,7 +338,7 @@
 
     real(dl), private, external :: dtauda
 
-    public RecombinationParams, RecombinationData, Do21cm_mina, dDeltaxe_dtau, CB1
+    public RecombinationParams, RecombinationData, Recombination_Name, Do21cm_mina, dDeltaxe_dtau, CB1
 
     contains
 

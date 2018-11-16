@@ -335,6 +335,8 @@
         logical :: OnlyTransfers = .false. !Don't use initial power spectrum data, instead get Delta_q_l array
         !If true, sigma_8 is not calculated either
 
+        real(dl), pointer :: z_outputs(:) => null() !Redshifts to output background outputs
+
         !Sources
         logical :: transfer_21cm_cl = .false.
 
@@ -351,7 +353,6 @@
 
 
     Type TBackgroundOutputs
-        real(dl), pointer :: z_outputs(:) => null()
         real(dl), allocatable :: H(:), DA(:), rs_by_D_v(:)
     end Type TBackgroundOutputs
 
@@ -1899,15 +1900,15 @@
             ThermoDerivedParams( derived_theta_rs_EQ ) = 100*rombint(dsound_da_exact,1d-8,a_eq,1d-6)/DA
 
             associate(BackgroundOutputs => State%BackgroundOutputs)
-                if (associated(BackgroundOutputs%z_outputs)) then
+                if (associated(CP%z_outputs)) then
                     if (allocated(BackgroundOutputs%H)) &
                         deallocate(BackgroundOutputs%H, BackgroundOutputs%DA, BackgroundOutputs%rs_by_D_v)
-                    noutput = size(BackgroundOutputs%z_outputs)
+                    noutput = size(CP%z_outputs)
                     allocate(BackgroundOutputs%H(noutput), BackgroundOutputs%DA(noutput), BackgroundOutputs%rs_by_D_v(noutput))
                     do i=1,noutput
-                        BackgroundOutputs%H(i) = HofZ(State,BackgroundOutputs%z_outputs(i))
-                        BackgroundOutputs%DA(i) = AngularDiameterDistance(State,BackgroundOutputs%z_outputs(i))
-                        BackgroundOutputs%rs_by_D_v(i) = rs/BAO_D_v_from_DA_H(BackgroundOutputs%z_outputs(i), &
+                        BackgroundOutputs%H(i) = HofZ(State,CP%z_outputs(i))
+                        BackgroundOutputs%DA(i) = AngularDiameterDistance(State,CP%z_outputs(i))
+                        BackgroundOutputs%rs_by_D_v(i) = rs/BAO_D_v_from_DA_H(CP%z_outputs(i), &
                             BackgroundOutputs%DA(i),BackgroundOutputs%H(i))
                     end do
                 end if

@@ -154,7 +154,7 @@
         starttime=actual !times don't include reading the Bessel file
     end if
 
-    call InitVars !Most of single thread time spent here (in InitRECFAST)
+    call InitVars(State) !Most of single thread time spent here (in InitRECFAST)
     if (global_error_flag/=0) return
 
     if (DebugMsgs .and. Feedbacklevel > 0) then
@@ -747,10 +747,13 @@
 
 
     !  initial variables, number of steps, etc.
-    subroutine InitVars
+    subroutine InitVars(state)
     use RedshiftSpaceData
+    type(CAMBstate) :: state
     real(dl) taumin, maxq, initAccuracyBoost
     integer itf
+    
+    call SetActiveState(state)
 
     initAccuracyBoost = CP%Accuracy%AccuracyBoost * CP%Accuracy%TimeStepBoost
 
