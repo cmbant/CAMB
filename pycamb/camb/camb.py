@@ -235,20 +235,11 @@ class CAMBdata(F2003Class):
         :param params: optional :class:`.model.CAMBparams` instance to use
         :return: array of rs/DV, H, DA, F_AP for each redshift as 2D array
         """
-        self.set_z_outputs(redshifts)
-        self.calc_background(params)
+        P = params.copy()
+        P.set_z_outputs(redshifts)
+        self.calc_background(P)
         res = self.get_background_outputs()
-        self.set_z_outputs([])
         return res
-
-    def set_z_outputs(self, z_outputs):
-        """
-        Set the redshifts for calculating BAO parameters at
-
-        :param z_outputs: array of redshifts
-        """
-        z_outputs = np.array(z_outputs)
-        CAMB_SetBackgroundOutputs_z(byref(self), z_outputs, byref(c_int(len(z_outputs))))
 
     def calc_background_no_thermo(self, params):
         """
@@ -1487,8 +1478,6 @@ CAMB_SetUnlensedScalarArray.argtypes = [POINTER(CAMBdata), int_arg, ndpointer(c_
 
 del _set_cl_args
 
-CAMB_SetBackgroundOutputs_z = camblib.__handles_MOD_camb_setbackgroundoutputs_z
-CAMB_SetBackgroundOutputs_z.argtypes = [POINTER(CAMBdata), numpy_1d, int_arg]
 CAMB_GetBackgroundOutputs = camblib.__handles_MOD_camb_getbackgroundoutputs
 CAMB_GetBackgroundOutputs.argtypes = [POINTER(CAMBdata), numpy_1d, int_arg]
 CAMB_GetNumBackgroundOutputs = camblib.__handles_MOD_camb_getnumbackgroundoutputs

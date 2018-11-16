@@ -335,8 +335,6 @@
         logical :: OnlyTransfers = .false. !Don't use initial power spectrum data, instead get Delta_q_l array
         !If true, sigma_8 is not calculated either
 
-        real(dl), pointer :: z_outputs(:) => null() !Redshifts to output background outputs
-
         !Sources
         logical :: transfer_21cm_cl = .false.
 
@@ -348,6 +346,8 @@
         class(TInitialPower), allocatable :: InitPower
         class(TDarkEnergyBase), allocatable :: DarkEnergy
         class(TNonLinearModel), allocatable :: NonLinearModel
+
+        real(dl), allocatable :: z_outputs(:) !Redshifts to output background outputs
 
     end type CAMBparams
 
@@ -1900,7 +1900,7 @@
             ThermoDerivedParams( derived_theta_rs_EQ ) = 100*rombint(dsound_da_exact,1d-8,a_eq,1d-6)/DA
 
             associate(BackgroundOutputs => State%BackgroundOutputs)
-                if (associated(CP%z_outputs)) then
+                if (allocated(CP%z_outputs)) then
                     if (allocated(BackgroundOutputs%H)) &
                         deallocate(BackgroundOutputs%H, BackgroundOutputs%DA, BackgroundOutputs%rs_by_D_v)
                     noutput = size(CP%z_outputs)

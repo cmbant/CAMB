@@ -610,7 +610,6 @@ class CAMBparams(F2003Class):
         else:
             return rho, w
 
-
     def N_eff(self):
         """
         :return: Effective number of degrees of freedom in relativistic species at early times.
@@ -755,6 +754,16 @@ class CAMBparams(F2003Class):
             return powers[0]
         else:
             return powers
+
+    def set_z_outputs(self, z_outputs):
+        """
+        Set the redshifts for calculating BAO parameters at
+
+        :param z_outputs: array of redshifts
+        """
+        z_outputs = np.array(z_outputs, dtype=np.float64)
+        self.call_func('setbackgroundoutputs_z', extra_args=[numpy_1d, POINTER(c_int)],
+                       args=[z_outputs, byref(c_int(len(z_outputs)))])
 
 
 CAMB_primordialpower.argtypes = [POINTER(CAMBparams), numpy_1d, numpy_1d, POINTER(c_int), POINTER(c_int)]

@@ -122,7 +122,7 @@
 
     global_error_flag = 0
     call State%CAMBParams_Set(P)
-    if (global_error_flag==0) call InitVars !calculate thermal history, e.g. z_drag etc.
+    if (global_error_flag==0) call InitVars(State) !calculate thermal history, e.g. z_drag etc.
     error=global_error_flag
 
     end function CAMBdata_CalcBackgroundTheory
@@ -371,30 +371,27 @@
 
     end subroutine CAMB_SetUnlensedScalarArray
 
-    subroutine CAMB_SetBackgroundOutputs_z(State,redshifts,n)
-    type(CAMBstate):: State
+    subroutine CAMBParams_SetBackgroundOutputs_z(P,redshifts,n)
+    type(CAMBparams):: P
     integer, intent(in) :: n
     real(dl), intent(in) :: redshifts(n)
 
-    if (associated(State%BackgroundOutputs%z_outputs)) &
-        deallocate(State%BackgroundOutputs%z_outputs)
+    if (allocated(P%z_outputs)) &
+        deallocate(P%z_outputs)
     if (n>0) then
-        allocate(State%BackgroundOutputs%z_outputs(n))
-        State%BackgroundOutputs%z_outputs = redshifts
-    else
-        nullify(State%BackgroundOutputs%z_outputs)
+        allocate(P%z_outputs, source=redshifts)
     end if
 
-    end subroutine CAMB_SetBackgroundOutputs_z
+    end subroutine CAMBParams_SetBackgroundOutputs_z
 
     function CAMB_GetNumBackgroundOutputs(State)
     Type(CAMBstate) :: State
     integer CAMB_GetNumBackgroundOutputs
 
-    if (.not. associated(State%BackgroundOutputs%z_outputs)) then
+    if (.not. allocated(State%CP%z_outputs)) then
         CAMB_GetNumBackgroundOutputs = 0
     else
-        CAMB_GetNumBackgroundOutputs = size(State%BackgroundOutputs%z_outputs)
+        CAMB_GetNumBackgroundOutputs = size(State%CP%z_outputs)
     end if
 
     end function CAMB_GetNumBackgroundOutputs
@@ -406,12 +403,12 @@
     real(dl), intent(out) :: outputs(4,n)
     integer i
 
-    if (associated(State%BackgroundOutputs%z_outputs)) then
-        do i=1, size(State%BackgroundOutputs%z_outputs)
+    if (allocated(State%CP%z_outputs)) then
+        do i=1, size(State%CP%z_outputs)
             outputs(1,i) = State%BackgroundOutputs%rs_by_D_v(i)
             outputs(2,i) = State%BackgroundOutputs%H(i)*c/1e3_dl
             outputs(3,i) = State%BackgroundOutputs%DA(i)
-            outputs(4,i) = (1+State%BackgroundOutputs%z_outputs(i))* &
+            outputs(4,i) = (1+State%CP%z_outputs(i))* &
                 State%BackgroundOutputs%DA(i) * State%BackgroundOutputs%H(i) !F_AP parameter
         end do
     end if
