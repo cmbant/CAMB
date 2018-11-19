@@ -147,7 +147,7 @@
         this%num_perturb_equations = 2
         if (this%w_n < 0.9999) then
             ! n <> infinity
-            !get (very) approximate result for sound speed parameter; arXiv:1806.10608  Eq 30
+            !get (very) approximate result for sound speed parameter; arXiv:1806.10608  Eq 30 (but mu may not exactly agree with what they used)
             n = nint((1+this%w_n)/(1-this%w_n))
             !Assume radiation domination, standard neutrino model; H0 factors cancel
             grho_rad = (kappa/c**2*4*sigma_boltz/c**3*Params%tcmb**4*Mpc**2*(1+3.046*7._dl/8*(4._dl/11)**(4._dl/3)))
@@ -156,7 +156,7 @@
             p=1./2
             mu = 1/xc*(1-cos(theta_i))**((1-n)/2.)*sqrt((1-F)*(6*p+2)*theta_i/n/sin(theta_i))
             this%freq =  mu*(1-cos(theta_i))**((n-1)/2.)* &
-                sqrt(const_pi)*Gamma((n+1)/(2.*n))*2.**(-(n**2+1)/(2.*n))*3.**((1./n-1)/2)*this%a_c**(-6./(n+1)+3) &
+                sqrt(const_pi)*Gamma((n+1)/(2.*n))/Gamma(1+0.5/n)*2.**(-(n**2+1)/(2.*n))*3.**((1./n-1)/2)*this%a_c**(-6./(n+1)+3) &
                 *( this%a_c**(6*n/(n+1.))+1)**(0.5*(1./n-1))
             this%n = n
         end if
