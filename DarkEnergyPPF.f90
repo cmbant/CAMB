@@ -32,11 +32,12 @@
     end subroutine TDarkEnergyPPF_ReadParams
 
 
-    subroutine TDarkEnergyPPF_Init(this, omegav)
+    subroutine TDarkEnergyPPF_Init(this, Params)
+    use classes
     class(TDarkEnergyPPF), intent(inout) :: this
-    real(dl), intent(in) :: omegav
+    class(TCAMBParameters), intent(in) :: Params
     
-    call this%TDarkEnergyBase%Init(omegav)
+    call this%TDarkEnergyBase%Init(Params)
     if (this%is_cosmological_constant) then
         this%num_perturb_equations = 0
     else

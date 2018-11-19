@@ -138,7 +138,6 @@
     use Errors
     use classes
     use MassiveNu
-    use InitialPower
     use Reionization
     use Recombination
     use DarkEnergyInterface
@@ -262,7 +261,7 @@
     integer, parameter :: NonLinear_both=3  !JD 08/13 added so both can be done
 
     ! Main parameters type
-    type CAMBparams
+    type, extends (TCAMBParameters) :: CAMBparams
         logical   :: WantCls  = .true.
         logical   :: WantTransfer = .false.
         logical   :: WantScalars = .true.
@@ -483,8 +482,8 @@
         logical flat,closed,open
         real(dl) omegak
         real(dl) curv, curvature_radius, Ksign !CP%r = 1/sqrt(|curv|), Ksign = 1,0 or -1
-        real(dl) tau0,chi0 !time today and rofChi(CP%tau0/CP%r)
-        real(dl) scale !relative to CP%flat. e.g. for scaling lSamp%l sampling.
+        real(dl) tau0,chi0 !time today and rofChi(tau0/curvature_radius)
+        real(dl) scale !relative to flat. e.g. for scaling lSamp%l sampling.
 
         logical ::call_again = .false.
         !if being called again with same parameters to get different thing
@@ -741,7 +740,7 @@
         else
             this%nu_masses = 0
         end if
-        call this%CP%DarkEnergy%Init(this%CP%omegav)
+        call this%CP%DarkEnergy%Init(this%CP)
         if (global_error_flag==0) then
             this%tau0=TimeOfz(this,0._dl)
             if (WantReion) call this%ReionHist%Init(this%CP%Reion,this%CP%YHe, this%akthom, this%tau0, FeedbackLevel)
@@ -2973,7 +2972,7 @@
     do zix=1, Params%Transfer%PK_num_redshifts
         call Transfer_GetMatterPowerData(M, Params, PKdata, &
             Params%Transfer%PK_redshifts_index(Params%Transfer%PK_num_redshifts-zix+1))
-        call Params%NonLinearModel%GetNonLinRatios(PKdata)
+        call Params%NonLinearModel%GetNonLinRatios(Params,PKdata)
         PK(:,zix) =  PK(:,zix) *PKdata%nonlin_ratio(:,1)**2
         call MatterPowerdata_Free(PKdata)
     end do
@@ -3114,7 +3113,7 @@
     class(TNonLinearModel) :: NonLinearModel
     Type(MatterPowerData) :: PK_data
 
-    call NonLinearModel%GetNonLinRatios(PK_data)
+    call NonLinearModel%GetNonLinRatios(CP, PK_data)
     PK_data%matpower = PK_data%matpower +  2*log(PK_data%nonlin_ratio)
     call MatterPowerdata_getsplines(PK_data)
 
@@ -3326,7 +3325,7 @@
 
     if (Params%NonLinear/=NonLinear_none .and. Params%NonLinear/=NonLinear_Lens) then
         call Transfer_GetMatterPowerData(MTrans, Params, PK, itf) ! Mar 16, changed to use default variable
-        call Params%NonLinearModel%GetNonLinRatios(PK)
+        call Params%NonLinearModel%GetNonLinRatios(CP, PK)
     end if
 
     h = Params%H0/100
@@ -3790,7 +3789,7 @@
     if (Params%NonLinear/=NonLinear_None .and. Params%NonLinear/=NonLinear_Lens) then
         if (z_ix>1) stop 'not tested more than one redshift with Nonlinear 21cm'
         call Transfer_GetMatterPowerData(MTrans, Params, PK_cdm, z_ix)
-        call Params%NonLinearModel%GetNonLinRatios_All(PK_cdm)
+        call Params%NonLinearModel%GetNonLinRatios_All(CP,PK_cdm)
     end if
 
     do ik=1,MTrans%num_q_trans

@@ -55,7 +55,7 @@
     type (CAMBstate) :: CData
 
     call SetActiveState(CData)
-    call CData%CP%InitPower%Init(Cdata%curv)
+    call CData%CP%InitPower%Init(CData%CP, Cdata%omegak)
     if (global_error_flag/=0) return
 
     if (CData%CP%WantCls) then
@@ -247,7 +247,7 @@
     allocate(THalofit::P%NonLinearModel)
     allocate(TDarkEnergyFluid::P%DarkEnergy)
     allocate(TInitialPowerLaw::P%InitPower)
-
+    
     !Set up transfer just enough to get sigma_8 OK
     P%Transfer%num_redshifts = 1
     P%Transfer%redshifts=0

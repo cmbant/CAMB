@@ -109,9 +109,10 @@
     end subroutine ReadParams
 
 
-    subroutine Init(this, omegav)
+    subroutine Init(this, Params)
+    use classes
     class(TDarkEnergyBase), intent(inout) :: this
-    real(dl), intent(in) :: omegav
+    class(TCAMBParameters), intent(in) :: Params
     
     this%is_cosmological_constant = .not. this%use_tabulated_w .and. &
         &  abs(this%w_lam + 1._dl) < 1.e-6_dl .and. this%wa==0._dl

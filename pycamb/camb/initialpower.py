@@ -29,10 +29,6 @@ class SplinedInitialPower(InitialPower):
     """
     Object to store a generic primordial spectrum set from a set of sampled k_i, P(k_i) values
     """
-    _fields_ = [
-        ("__curvature", c_double),
-        ("__scalar_spline", f_allocatable),
-        ("__tensor_spline", f_allocatable)]
 
     def _init_members(self, **kwargs):
         if kwargs.get('PK', None) is not None: self.set_scalar_table(kwargs['ks'], kwargs['PK'])
@@ -104,7 +100,7 @@ class InitialPowerLaw(InitialPower):
 
     """
     _fields_ = [
-        ("__curvature", c_double),
+        ("__first_member", c_int),
         ("tensor_parameterization", c_int),
         ("ns", c_double),
         ("nrun", c_double),

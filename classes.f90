@@ -36,6 +36,11 @@
 
     end Type MatterPowerData
 
+    type TCAMBParameters
+        !Actual type defined in modules.f90
+    end type TCAMBParameters
+
+
     type TCambComponent
     contains
     procedure :: ReadParams => TCambComponent_ReadParams
@@ -49,7 +54,7 @@
     end type TNonLinearModel
 
     type TInitialPower
-        real(dl) :: curv = 0._dl !curvature parameter
+        integer :: first_member !just so can get pointer from python
     contains
     procedure :: ScalarPower => TInitialPower_ScalarPower
     procedure :: TensorPower => TInitialPower_TensorPower
@@ -58,11 +63,6 @@
     procedure :: ReadParams => TInitialPower_ReadParams
     procedure :: Effective_ns => TInitalPower_Effective_ns
     end type TInitialPower
-
-    Type, extends(TInitialPower) :: TInitialPower2
-        real(dl) :: curv2 = 0._dl
-    contains
-    end type
 
     Type, extends(TInitialPower) :: TSplinedInitialPower
         class(TSpline1D), allocatable :: Pscalar, Ptensor
@@ -84,14 +84,16 @@
 
     end subroutine TCambComponent_ReadParams
 
-    subroutine TNonLinearModel_GetNonLinRatios(this,CAMB_Pk)
+    subroutine TNonLinearModel_GetNonLinRatios(this,Params,CAMB_Pk)
     class(TNonLinearModel) :: this
+    class(TCAMBParameters), intent(in) :: Params
     type(MatterPowerData) :: CAMB_Pk
     error stop 'GetNonLinRatios Not implemented'
     end subroutine TNonLinearModel_GetNonLinRatios
 
-    subroutine TNonLinearModel_GetNonLinRatios_All(this,CAMB_Pk)
+    subroutine TNonLinearModel_GetNonLinRatios_All(this,Params,CAMB_Pk)
     class(TNonLinearModel) :: this
+    class(TCAMBParameters), intent(in) :: Params
     type(MatterPowerData) :: CAMB_Pk
     error stop 'GetNonLinRatios_all  not supported (no non-linear velocities)'
     end subroutine TNonLinearModel_GetNonLinRatios_All
@@ -123,11 +125,10 @@
 
     end function TInitialPower_PythonClass
 
-    subroutine TInitialPower_Init(this, acurv)
+    subroutine TInitialPower_Init(this, Params, Omegak)
     class(TInitialPower) :: this
-    real(dl), intent(in) :: acurv !Curvature parameter if non-flat
-
-    this%curv = acurv
+    class(TCAMBParameters), intent(in) :: Params
+    real(dl), intent(in) :: Omegak
     end subroutine TInitialPower_Init
 
 

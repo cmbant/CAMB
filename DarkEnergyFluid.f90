@@ -15,12 +15,14 @@
     end type TDarkEnergyFluid
 
     !Example implementation of fluid model using specific analytic form
-    !(c_s^2=1 approximate effective axion fluid model from arXiv:1806.10608)
+    !(c_s^2=1 approximate effective axion fluid model from arXiv:1806.10608 for n=infinity)
+    !This is an example, it's not supposed to be a rigorous model!
     type, extends(TDarkEnergyFluid) :: TAxionEffectiveFluid
         real(dl) :: w_n = 1._dl !Effective equation of state when oscillating
         real(dl) :: Om = 0._dl !Omega of the early DE component today (assumed to be negligible compared to omega_lambda)
         real(dl) :: a_c  !transition scale factor
-        real(dl), private :: pow, omL, acpow !cached internally
+        real(dl) :: theta_i = const_pi/2 !Initial value
+        real(dl), private :: pow, omL, acpow, freq, n !cached internally
     contains
     procedure :: ReadParams =>  TAxionEffectiveFluid_ReadParams
     procedure :: Init => TAxionEffectiveFluid_Init
@@ -43,11 +45,12 @@
     end subroutine TDarkEnergyFluid_ReadParams
 
 
-    subroutine TDarkEnergyFluid_Init(this, omegav)
+    subroutine TDarkEnergyFluid_Init(this, Params)
+    use classes
     class(TDarkEnergyFluid), intent(inout) :: this
-    real(dl), intent(in) :: omegav
+    class(TCAMBParameters), intent(in) :: Params
 
-    call this%TDarkEnergyBase%Init(omegav)
+    call this%TDarkEnergyBase%Init(Params)
 
     if (this%is_cosmological_constant) then
         this%num_perturb_equations = 0
@@ -123,26 +126,48 @@
     this%w_n  = Ini%Read_Double('AxionEffectiveFluid_w_n')
     this%om  = Ini%Read_Double('AxionEffectiveFluid_om')
     this%a_c  = Ini%Read_Double('AxionEffectiveFluid_a_c')
+    call Ini%Read('AxionEffectiveFluid_theta_i', this%theta_i)
 
     end subroutine TAxionEffectiveFluid_ReadParams
 
-    subroutine TAxionEffectiveFluid_Init(this, omegav)
+    subroutine TAxionEffectiveFluid_Init(this, Params)
+    use classes
+    use cambsettings
     class(TAxionEffectiveFluid), intent(inout) :: this
-    real(dl), intent(in) :: omegav
+    class(TCAMBParameters), intent(in) :: Params
+    real(dl) :: theta_i, grho_rad, F, p, mu, xc, n
 
-    this%use_tabulated_w = .false.
-    this%is_cosmological_constant = this%om==0
-    this%pow = 3*(1+this%w_n)
-    this%omL = omegav
-    this%acpow = this%a_c**this%pow
-    this%num_perturb_equations = 2
+    select type(Params)
+    class is (CAMBparams)
+        this%use_tabulated_w = .false.
+        this%is_cosmological_constant = this%om==0
+        this%pow = 3*(1+this%w_n)
+        this%omL = Params%omegav
+        this%acpow = this%a_c**this%pow
+        this%num_perturb_equations = 2
+        if (this%w_n < 0.9999) then
+            ! n <> infinity
+            !get (very) approximate result for sound speed parameter; arXiv:1806.10608  Eq 30
+            n = nint((1+this%w_n)/(1-this%w_n))
+            !Assume radiation domination, standard neutrino model; H0 factors cancel
+            grho_rad = (kappa/c**2*4*sigma_boltz/c**3*Params%tcmb**4*Mpc**2*(1+3.046*7._dl/8*(4._dl/11)**(4._dl/3)))
+            xc = this%a_c**2/2/sqrt(grho_rad/3)
+            F=7./8
+            p=1./2
+            mu = 1/xc*(1-cos(theta_i))**((1-n)/2.)*sqrt((1-F)*(6*p+2)*theta_i/n/sin(theta_i))
+            this%freq =  mu*(1-cos(theta_i))**((n-1)/2.)* &
+                sqrt(const_pi)*Gamma((n+1)/(2.*n))*2.**(-(n**2+1)/(2.*n))*3.**((1./n-1)/2)*this%a_c**(-6./(n+1)+3) &
+                *( this%a_c**(6*n/(n+1.))+1)**(0.5*(1./n-1))
+            this%n = n
+        end if
+    end select
 
     end subroutine TAxionEffectiveFluid_Init
 
 
     function TAxionEffectiveFluid_w_de(this, a)
     class(TAxionEffectiveFluid) :: this
-    real(dl) :: TAxionEffectiveFluid_w_de, al
+    real(dl) :: TAxionEffectiveFluid_w_de
     real(dl), intent(IN) :: a
     real(dl) :: rho, apow, acpow
 
@@ -174,8 +199,14 @@
     real(dl), intent(inout) :: ayprime(:)
     real(dl), intent(in) :: a, adotoa, w, k, z, y(:)
     integer, intent(in) :: w_ix
-    real(dl) Hv3_over_k, deriv, apow, acpow
+    real(dl) Hv3_over_k, deriv, apow, acpow, cs2, fac
 
+    if (this%w_n < 0.9999) then
+        fac = 2*a**(2-6*this%w_n)*this%freq**2
+        cs2 = (fac*(this%n-1) + k**2)/(fac*(this%n+1) + k**2)
+    else
+        cs2 = this%cs2_lam
+    end if
     apow = a**this%pow
     acpow = this%acpow
     Hv3_over_k =  3*adotoa* y(w_ix + 1) / k
@@ -183,11 +214,11 @@
     deriv  = (acpow**2*(this%om+this%omL)+this%om*acpow-apow**2*this%omL)*this%pow &
         /((apow+acpow)*(this%omL*(apow+acpow)+this%om*(1+acpow)))
     !density perturbation
-    ayprime(w_ix) = -3 * adotoa * (this%cs2_lam - w) *  (y(w_ix) + Hv3_over_k) &
+    ayprime(w_ix) = -3 * adotoa * (cs2 - w) *  (y(w_ix) + Hv3_over_k) &
         -   k * y(w_ix + 1) - (1 + w) * k * z  - adotoa*deriv* Hv3_over_k
     !(1+w)v
-    ayprime(w_ix + 1) = -adotoa * (1 - 3 * this%cs2_lam - deriv) * y(w_ix + 1) + &
-        k * this%cs2_lam * y(w_ix)
+    ayprime(w_ix + 1) = -adotoa * (1 - 3 * cs2 - deriv) * y(w_ix + 1) + &
+        k * cs2 * y(w_ix)
 
     end subroutine TAxionEffectiveFluid_PerturbationEvolve
 

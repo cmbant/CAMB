@@ -165,7 +165,7 @@
     end if
 
     if (.not. CP%OnlyTransfers .or. CP%NonLinear==NonLinear_Lens .or. CP%NonLinear==NonLinear_both) &
-        call CP%InitPower%Init(State%curv)
+        call CP%InitPower%Init(CP, State%omegak)
     if (global_error_flag/=0) return
 
     !Calculation of the CMB sources.
@@ -1188,7 +1188,7 @@
 
     call Transfer_GetMatterPowerData(State%MT, CP, CAMB_PK)
 
-    call CP%NonLinearModel%GetNonLinRatios(CAMB_PK)
+    call CP%NonLinearModel%GetNonLinRatios(CP, CAMB_PK)
     first_step=1
     do while(State%TimeSteps%points(first_step) < tautf(1))
         first_step = first_step + 1

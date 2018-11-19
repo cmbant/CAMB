@@ -54,7 +54,9 @@
         real(dl) :: pivot_tensor = 0.05_dl
         real(dl) :: As = 1._dl
         real(dl) :: At = 1._dl !A_T at k_0_tensor if tensor_parameterization==tensor_param_AT
+        real(dl), private :: curv = 0._dl !curvature parameter
     contains
+    procedure :: Init => TInitialPowerLaw_Init
     procedure :: PythonClass => TInitialPowerLaw_PythonClass
     procedure :: ScalarPower => TInitialPowerLaw_ScalarPower
     procedure :: TensorPower => TInitialPowerLaw_TensorPower
@@ -73,6 +75,22 @@
     character(LEN=:), allocatable :: TInitialPowerLaw_PythonClass
     TInitialPowerLaw_PythonClass = 'InitialPowerLaw'
     end function TInitialPowerLaw_PythonClass
+
+    subroutine TInitialPowerLaw_Init(this, Params, Omegak)
+    use classes
+    use cambsettings
+    use constants, only : c
+    class(TInitialPowerLaw) :: this
+    class(TCAMBParameters), intent(in) :: Params
+    real(dl), intent(in) :: Omegak
+
+    select type(Params)
+    class is (CAMBParams)
+        !Curvature parameter if non-flat
+        this%curv = -Omegak/((c/1000)/Params%H0)**2
+    end select
+
+    end subroutine TInitialPowerLaw_Init
 
     function TInitialPowerLaw_ScalarPower(this, k)
     class(TInitialPowerLaw) :: this

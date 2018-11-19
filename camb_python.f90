@@ -429,13 +429,11 @@
     integer, intent(in) :: i,n
     real(dl), intent(in) :: k(n)
     real(dl), intent(out) :: powers(n)
-    real(dl) curv
     integer err,ix
     real(dl), external :: GetOmegak
 
     global_error_flag = 0
-    curv =-GetOmegak(Params)/((c/1000)/Params%h0)**2
-    call Params%InitPower%Init(curv)
+    call Params%InitPower%Init(Params, GetOmegak(Params))
     if (global_error_flag==0) then
         do ix =1, n
             if (i==0) then
@@ -623,7 +621,7 @@
             class default
             j=-1
         end select
-        power_handle = c_loc(P%InitPower%curv)
+        power_handle = c_loc(P%InitPower%first_member)
     else
         power_handle = c_null_ptr
     end if
@@ -647,7 +645,7 @@
     real(dl) grhov
     integer i
 
-    call P%DarkEnergy%Init(P%omegav)
+    call P%DarkEnergy%Init(P)
     do i=1, n
         call P%DarkEnergy%BackgroundDensityAndPressure(1._dl, a(i), grhov_t(i), w(i))
     end do
@@ -670,7 +668,7 @@
         call InitPower%SetScalarTable(n,k, PK)
         call InitPower%SetTensorTable(nt,k, PKt)
     end select
-    power_handle = c_loc(P%InitPower%curv)
+    power_handle = c_loc(P%InitPower%first_member)
 
     end subroutine CAMBparams_SetPKTable
 
