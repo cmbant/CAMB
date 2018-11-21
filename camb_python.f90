@@ -96,7 +96,7 @@
     P = Params
     if (P%DoLensing .and. (P%NonLinear == NonLinear_lens .or. P%NonLinear == NonLinear_both)) then
         P%WantTransfer = .true.
-        call Transfer_SetForNonlinearLensing(P%Transfer)
+        call Transfer_SetForNonlinearLensing(P)
     end if
     call Transfer_SortAndIndexRedshifts(P%Transfer)
     error = 0

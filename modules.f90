@@ -3609,38 +3609,40 @@
 
     !JD 08/13 Changes for nonlinear lensing of CMB + MPK compatibility
     !Changed function below to write to only P%NLL_*redshifts* variables
-    subroutine Transfer_SetForNonlinearLensing(P, eta_k_max)
-    Type(TransferParams) :: P
+    subroutine Transfer_SetForNonlinearLensing(CP, eta_k_max)
+    Type(CAMBParams) :: CP
     integer i
     real maxRedshift
     !Sources
     real(dl), intent(in), optional :: eta_k_max
 
-    !Sources
-    if (CP%Do21cm) then
-        if (maxval(Redshift_w(1:num_redshiftwindows)%Redshift) /= minval(Redshift_w(1:num_redshiftwindows)%Redshift))  &
-            stop 'Non-linear 21cm currently only for narrow window at one redshift'
-        if (.not. present(eta_k_max)) stop 'bad call to Transfer_SetForNonlinearLensing'
-        P%kmax = eta_k_max/10000.
-        P%k_per_logint  = 0
-        P%NLL_num_redshifts =  1
-        P%NLL_redshifts(1) = Redshift_w(1)%Redshift
-        return
-    end if
+    associate(P => CP%Transfer)
+        !Sources
+        if (CP%Do21cm) then
+            if (maxval(Redshift_w(1:num_redshiftwindows)%Redshift) /= minval(Redshift_w(1:num_redshiftwindows)%Redshift))  &
+                stop 'Non-linear 21cm currently only for narrow window at one redshift'
+            if (.not. present(eta_k_max)) stop 'bad call to Transfer_SetForNonlinearLensing'
+            P%kmax = eta_k_max/10000.
+            P%k_per_logint  = 0
+            P%NLL_num_redshifts =  1
+            P%NLL_redshifts(1) = Redshift_w(1)%Redshift
+            return
+        end if
 
-    P%kmax = max(P%kmax,5*CP%Accuracy%AccuracyBoost)
-    P%k_per_logint  = 0
-    maxRedshift = 10
-    P%NLL_num_redshifts =  nint(10*CP%Accuracy%AccuracyBoost)
-    if (CP%Accuracy%AccuracyBoost>=2) then
-        !only notionally more accuracy, more stable for RS
-        maxRedshift =15
-    end if
-    if (P%NLL_num_redshifts > max_transfer_redshifts) &
-        call MpiStop('Transfer_SetForNonlinearLensing: Too many redshifts')
-    do i=1,P%NLL_num_redshifts
-        P%NLL_redshifts(i) = real(P%NLL_num_redshifts-i)/(P%NLL_num_redshifts/maxRedshift)
-    end do
+        P%kmax = max(P%kmax,5*CP%Accuracy%AccuracyBoost)
+        P%k_per_logint  = 0
+        maxRedshift = 10
+        P%NLL_num_redshifts =  nint(10*CP%Accuracy%AccuracyBoost)
+        if (CP%Accuracy%AccuracyBoost>=2) then
+            !only notionally more accuracy, more stable for RS
+            maxRedshift =15
+        end if
+        if (P%NLL_num_redshifts > max_transfer_redshifts) &
+            call MpiStop('Transfer_SetForNonlinearLensing: Too many redshifts')
+        do i=1,P%NLL_num_redshifts
+            P%NLL_redshifts(i) = real(P%NLL_num_redshifts-i)/(P%NLL_num_redshifts/maxRedshift)
+        end do
+    end associate
 
     end subroutine Transfer_SetForNonlinearLensing
 
