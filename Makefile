@@ -66,7 +66,7 @@ endif
 ## This is flag is passed to the Fortran compiler allowing it to link C++ if required (not usually):
 F90CRLINK = -cxxlib
 ifneq "$(ifortVer_major)" "14"
-F90CRLINK += -qopt-report=1 -qopt-report-phase=vec
+F90CRLINK += -qopt-report=0 -qopt-report-phase=vec
 else
 F90CRLINK += -vec_report0
 endif
