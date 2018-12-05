@@ -466,9 +466,9 @@
     if (a1>1._dl) then
         t=0
     elseif (a2 > 1._dl) then
-        t = DeltaTime(State,a1,1.01_dl, tol)
+        t = State%DeltaTime(a1,1.01_dl, tol)
     else
-        t= DeltaTime(State,a1,a2, tol)
+        t = State%DeltaTime(a1,a2, tol)
     end if
     end function DeltaTimeMaxed
 
@@ -503,7 +503,7 @@
             do nu_i=1, CP%Nu_Mass_eigenstates
                 nu_mass = max(0.1_dl,State%nu_masses(nu_i))
                 a_mass =  1.e-1_dl/nu_mass/CP%Accuracy%lAccuracyBoost
-                time=DeltaTime(State,0._dl,State%NuPerturbations%nu_q(1)*a_mass)
+                time=State%DeltaTime(0._dl,State%NuPerturbations%nu_q(1)*a_mass)
                 nu_tau_notmassless(1, nu_i) = time
                 do j=2,nqmax
                     !times when each momentum mode becomes signficantly nonrelativistic
@@ -1975,7 +1975,7 @@
         if (a_massive >=0.99) then
             EV%MassiveNuApproxTime(nu_i)=State%tau0+1
         else if (a_massive > 17.d0/State%nu_masses(nu_i)*CP%Accuracy%AccuracyBoost) then
-            EV%MassiveNuApproxTime(nu_i)=max(EV%MassiveNuApproxTime(nu_i),DeltaTime(State,0._dl,a_massive, 0.01_dl))
+            EV%MassiveNuApproxTime(nu_i)=max(EV%MassiveNuApproxTime(nu_i),State%DeltaTime(0._dl,a_massive, 0.01_dl))
         end if
         ind = EV%nu_ix(nu_i)
         do  i=1,EV%nq(nu_i)
@@ -2197,7 +2197,7 @@
     real(dl) phidot, polterdot, polterddot, octg, octgdot
     real(dl) ddopacity, visibility, dvisibility, ddvisibility, exptau, lenswindow
     real(dl) ISW, quadrupole_source, doppler, monopole_source, tau0, ang_dist
-    real(dl) dgrho_de, dgq_de
+    real(dl) dgrho_de, dgq_de, cs2_de
 
     k=EV%k_buf
     k2=EV%k2_buf
@@ -2301,7 +2301,7 @@
 
     ayprime(1)=adotoa*a
 
-    if (.not. CP%DarkEnergy%is_cosmological_constant .and. .not. CP%DarkEnergy%no_perturbations) then
+    if (.not. CP%DarkEnergy%is_cosmological_constant) then
         call CP%DarkEnergy%PerturbedStressEnergy(dgrho_de, dgq_de, &
             dgq, dgrho, grho, grhov_t, w_dark_energy_t, gpres_noDE, etak, &
             adotoa, k, EV%Kf(1), ay, ayprime, EV%w_ix)
@@ -2805,7 +2805,13 @@
                     opacity, dopacity, ddopacity, visibility, dvisibility, ddvisibility, exptau)
             end if
             if (associated(EV%CustomSources)) then
-                call custom_sources_func(EV%CustomSources, tau, a, adotoa, grho, gpres,w_dark_energy_t, CP%DarkEnergy%cs2_lam, &
+                select type(DE=>CP%DarkEnergy)
+                class is (TDarkEnergyEqnOfState)
+                    cs2_de = DE%cs2_lam
+                    class default
+                    cs2_de=1
+                end select
+                call custom_sources_func(EV%CustomSources, tau, a, adotoa, grho, gpres,w_dark_energy_t, cs2_de, &
                     grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,grhonu_t, &
                     k, etak, ayprime(2), phi, phidot, sigma, sigmadot, &
                     dgrho, clxg,clxb,clxc,clxr,clxnu, dgrho_de/grhov_t, delta_p_b, &

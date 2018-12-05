@@ -187,17 +187,10 @@
     type TransferParams
         logical     ::  high_precision = .false.
         logical     ::  accurate_massive_neutrinos = .false.
-        integer     ::  num_redshifts = 1
         real(dl)    ::  kmax = 0.9_dl        !these are acutally q values, but same as k for flat
         integer     ::  k_per_logint =0
-        real(dl)    ::  redshifts(max_transfer_redshifts)
-        !JD 08/13 Added so both NL lensing and PK can be run at the same time
-        real(dl)    ::  PK_redshifts(max_transfer_redshifts)
-        real(dl)    ::  NLL_redshifts(max_transfer_redshifts)
-        integer     ::  PK_redshifts_index(max_transfer_redshifts)
-        integer     ::  NLL_redshifts_index(max_transfer_redshifts)
         integer     ::  PK_num_redshifts = 1
-        integer     ::  NLL_num_redshifts = 0
+        real(dl)    ::  PK_redshifts(max_transfer_redshifts) = 0._dl
     end type TransferParams
 
     type AccuracyParams
@@ -272,7 +265,6 @@
         logical   :: Do21cm = .false.
         logical   :: want_zstar = .false.
         logical   :: want_zdrag = .false.     !!JH for updated BAO likelihood.
-        logical   :: PK_WantTransfer = .false. !JD 08/13 Added so both NL lensing and PK can be run at the same time
         integer   :: NonLinear = NonLinear_none
 
         logical   :: Want_CMB = .true.
@@ -328,12 +320,6 @@
 
         logical :: Evolve_delta_Ts =.false. !Equilibrium result agrees to sub-percent level
 
-        real(dl) ::  InitialConditionVector(1:10) !Allow up to 10 for future extensions
-        !ignored unless Scalar_initial_condition == initial_vector
-
-        logical :: OnlyTransfers = .false. !Don't use initial power spectrum data, instead get Delta_q_l array
-        !If true, sigma_8 is not calculated either
-
         !Sources
         logical :: transfer_21cm_cl = .false.
 
@@ -343,11 +329,18 @@
         logical :: Log_lvalues  = .false.
 
         class(TInitialPower), allocatable :: InitPower
-        class(TDarkEnergyBase), allocatable :: DarkEnergy
+        class(TDarkEnergyModel), allocatable :: DarkEnergy
         class(TNonLinearModel), allocatable :: NonLinearModel
 
         real(dl), allocatable :: z_outputs(:) !Redshifts to output background outputs
+        real(dl), allocatable  :: InitialConditionVector(:) !ignored unless Scalar_initial_condition == initial_vector
 
+    contains
+    procedure, nopass :: PythonClass => CAMBparams_PythonClass
+    procedure, nopass :: SelfPointer => CAMBparams_SelfPointer
+    procedure :: Replace => CAMBParams_Replace
+    procedure :: SetNeutrinoHierarchy => CAMBparams_SetNeutrinoHierarchy
+    procedure :: Validate => CAMBparams_Validate
     end type CAMBparams
 
 
@@ -472,41 +465,48 @@
     procedure :: output_veccl_files => TCLdata_output_veccl_files
     end type TCLdata
 
-    type CAMBstate
+
+    type, extends(TCAMBCalculation) :: CAMBstate
 
         type(CAMBparams) :: CP
-        !Derived parameters, not set initially
-        type(ReionizationHistory) :: ReionHist
-        type(RecombinationData) :: Recombination
 
-        logical flat,closed,open
-        real(dl) omegak
-        real(dl) curv, curvature_radius, Ksign !CP%r = 1/sqrt(|curv|), Ksign = 1,0 or -1
-        real(dl) tau0,chi0 !time today and rofChi(tau0/curvature_radius)
-        real(dl) scale !relative to flat. e.g. for scaling lSamp%l sampling.
+        real(dl) ThermoDerivedParams(nthermo_derived)
 
-        logical ::call_again = .false.
-        !if being called again with same parameters to get different thing
+        logical flat,closed
 
-        !     grhom =kappa*a^2*rho_m0
+        !     grhocrit =kappa*a^2*rho_crit(0)
         !     grhornomass=grhor*number of massless neutrino species
         !     taurst,taurend - time at start/end of recombination
         !     dtaurec - dtau during recombination
         !     adotrad - a(tau) in radiation era
-
-        real(dl) grhom,grhog,grhor,grhob,grhoc,grhov,grhornomass,grhok
+        real(dl) grhocrit,grhog,grhor,grhob,grhoc,grhov,grhornomass,grhok
         real(dl) taurst,dtaurec,taurend,tau_maxvis,adotrad
 
-        !Neutrinos
-        real(dl) grhormass(max_nu)
-        !     nu_masses=m_nu*c**2/(k_B*T_nu0)
-        real(dl) nu_masses(max_nu)
+        real(dl) omegak
+        real(dl) curv, curvature_radius, Ksign !curvature_radius = 1/sqrt(|curv|), Ksign = 1,0 or -1
+        real(dl) tau0,chi0 !time today and rofChi(tau0/curvature_radius)
+        real(dl) scale !relative to flat. e.g. for scaling lSamp%l sampling.
 
         real(dl) akthom !sigma_T * (number density of protons now)
         real(dl) fHe !n_He_tot / n_H_tot
         real(dl) Nnow
+        !Neutrinos
+        real(dl) grhormass(max_nu)
+        !     nu_masses=m_nu*c**2/(k_B*T_nu0)
+        real(dl) nu_masses(max_nu)
+        integer ::  num_transfer_redshifts = 1
+        real(dl), allocatable  ::  transfer_redshifts(:)
+        integer  ::  PK_redshifts_index(max_transfer_redshifts)
 
-        real(dl) ThermoDerivedParams(nthermo_derived)
+        logical :: OnlyTransfer = .false. !C_L/PK not computed; initial power spectrum data, instead get Delta_q_l array
+        !If true, sigma_8 is not calculated either
+
+        type(ReionizationHistory) :: ReionHist
+        type(RecombinationData) :: Recombination
+
+        logical ::call_again = .false.
+        !if being called again with same parameters to get different thing
+
         Type(TNuPerturbations) :: NuPerturbations
 
         Type(TBackgroundOutputs) :: BackgroundOutputs
@@ -522,11 +522,32 @@
         Type(TClData) :: CLdata
 
     contains
+    procedure :: DeltaTime => CAMBState_DeltaTime
+    procedure :: TimeOfz => CAMBState_TimeOfz
+    procedure :: TimeOfzArr => CAMBState_TimeOfzArr
+    procedure :: DeltaPhysicalTimeGyr => CAMBState_DeltaPhysicalTimeGyr
+    procedure :: AngularDiameterDistance => CAMBState_AngularDiameterDistance
+    procedure :: AngularDiameterDistanceArr => CAMBState_AngularDiameterDistanceArr
+    procedure :: AngularDiameterDistance2 => CAMBState_AngularDiameterDistance2
+    procedure :: LuminosityDistance => CAMBState_LuminosityDistance
+    procedure :: ComovingRadialDistance => CAMBState_ComovingRadialDistance
+    procedure :: ComovingRadialDistanceArr => CAMBState_ComovingRadialDistanceArr
+    procedure :: GetBackgroundDensities => CAMBstate_GetBackgroundDensities
+    procedure :: Hofz => CAMBState_Hofz
+    procedure :: HofzArr => CAMBState_HofzArr
+    procedure :: sound_horizon_zArr => CAMBState_sound_horizon_zArr
+    procedure :: BAO_D_v => CAMBState_BAO_D_v
+    procedure :: CosmomcTheta => CAMBState_CosmomcTheta
+    procedure :: get_lmax_lensed => CAMBstate_get_lmax_lensed
+    procedure :: DarkEnergyStressEnergy => CAMBState_DarkEnergyStressEnergy
     procedure :: CAMBParams_Set
     procedure :: rofChi
     procedure :: cosfunc
     procedure :: tanfunc
     procedure :: invsinfunc
+    procedure :: GetComputedPKRedshifts
+    procedure, nopass :: PythonClass => CAMBstate_PythonClass
+    procedure, nopass :: SelfPointer => CAMBstate_SelfPointer
     end type CAMBstate
 
     type(CAMBstate), pointer :: State !Current state
@@ -573,6 +594,215 @@
         error stop 'Unknown state type'
     end select
     end subroutine SetActiveState
+
+
+    function CAMBparams_PythonClass()
+    character(LEN=:), allocatable :: CAMBparams_PythonClass
+    CAMBparams_PythonClass = 'CAMBparams'
+    end function CAMBparams_PythonClass
+
+    subroutine CAMBparams_SelfPointer(cptr,P)
+    use iso_c_binding
+    Type(c_ptr) :: cptr
+    Type (CAMBparams), pointer :: PType
+    class (TPythonInterfacedClass), pointer :: P
+
+    call c_f_pointer(cptr, PType)
+    P => PType
+
+    end subroutine CAMBparams_SelfPointer
+
+    subroutine CAMBparams_Replace(this, replace_with)
+    class(CAMBParams), target :: this
+    Type(CAMBParams), pointer :: p
+    class(TPythonInterfacedClass) :: replace_with
+
+    select type(this)
+    type is (CAMBParams)
+        p => this
+        select type(replace_with)
+        type is (CAMBParams)
+            p = replace_with
+            class default
+            error stop 'Wrong assignment type'
+        end select
+    end select
+    end subroutine CAMBparams_Replace
+        
+    subroutine CAMBparams_SetNeutrinoHierarchy(this, omnuh2, omnuh2_sterile, nnu, neutrino_hierarchy, num_massive_neutrinos)
+    use MathUtils
+    use constants
+    class(CAMBparams), intent(inout) :: this
+    real(dl), intent(in) :: omnuh2, omnuh2_sterile, nnu
+    integer, intent(in) :: neutrino_hierarchy
+    integer, intent(in), optional :: num_massive_neutrinos  !for degenerate hierarchy
+    integer, parameter :: neutrino_hierarchy_normal = 1, neutrino_hierarchy_inverted = 2, neutrino_hierarchy_degenerate = 3
+    real(dl) normal_frac, m3, neff_massive_standard, mnu, m1
+
+    if (omnuh2==0) return
+    this%Nu_mass_eigenstates=0
+    if ( omnuh2 > omnuh2_sterile) then
+        normal_frac =  (omnuh2-omnuh2_sterile)/omnuh2
+        if (neutrino_hierarchy == neutrino_hierarchy_degenerate) then
+            neff_massive_standard = num_massive_neutrinos*default_nnu/3
+            this%Num_Nu_Massive = num_massive_neutrinos
+            this%Nu_mass_eigenstates=this%Nu_mass_eigenstates+1
+            if (nnu > neff_massive_standard) then
+                this%Num_Nu_Massless = nnu - neff_massive_standard
+            else
+                this%Num_Nu_Massless = 0
+                neff_massive_standard=nnu
+            end if
+            this%Nu_mass_numbers(this%Nu_mass_eigenstates) = num_massive_neutrinos
+            this%Nu_mass_degeneracies(this%Nu_mass_eigenstates) = neff_massive_standard
+            this%Nu_mass_fractions(this%Nu_mass_eigenstates) = normal_frac
+        else
+            !Use normal or inverted hierarchy, approximated as two eigenstates in physical regime, 1 at minimum an below
+            mnu = (omnuh2 - omnuh2_sterile)*neutrino_mass_fac / (default_nnu / 3) ** 0.75_dl
+            if (neutrino_hierarchy == neutrino_hierarchy_normal) then
+                if (mnu > mnu_min_normal + 1e-4_dl) then
+                    !Two eigenstate approximation.
+                    m1=Newton_Raphson(0._dl, mnu, sum_mnu_for_m1, mnu, 1._dl)
+                    this%Num_Nu_Massive = 3
+                else
+                    !One eigenstate
+                    this%Num_Nu_Massive = 1
+                end if
+            else if (neutrino_hierarchy == neutrino_hierarchy_inverted) then
+                if (mnu > sqrt(delta_mnu31)+sqrt(delta_mnu31+delta_mnu21) + 1e-4_dl ) then
+                    !Valid case, two eigenstates
+                    m1=Newton_Raphson(sqrt(delta_mnu31), mnu, sum_mnu_for_m1, mnu, -1._dl)
+                    this%Num_Nu_Massive = 3
+                else
+                    !Unphysical low mass case: take one (2-degenerate) eigenstate
+                    this%Num_Nu_Massive = 2
+                end if
+            else
+                error stop 'Unknown neutrino_hierarchy setting'
+            end if
+            neff_massive_standard = this%Num_Nu_Massive *default_nnu/3
+            if (nnu > neff_massive_standard) then
+                this%Num_Nu_Massless = nnu - neff_massive_standard
+            else
+                this%Num_Nu_Massless = 0
+                neff_massive_standard=nnu
+            end if
+            if (this%Num_Nu_Massive==3) then
+                !two with mass m1, one with m3
+                this%Nu_mass_eigenstates = 2
+                this%Nu_mass_degeneracies(1) = neff_massive_standard*2/3._dl
+                this%Nu_mass_degeneracies(2) = neff_massive_standard*1/3._dl
+                m3 = mnu - 2*m1
+                this%Nu_mass_fractions(1) = 2*m1/mnu*normal_frac
+                this%Nu_mass_fractions(2) = m3/mnu*normal_frac
+                this%Nu_mass_numbers(1) = 2
+                this%Nu_mass_numbers(2) = 1
+            else
+                this%Nu_mass_degeneracies(1) = neff_massive_standard
+                this%Nu_mass_numbers(1) = this%Num_Nu_Massive
+                this%Nu_mass_eigenstates = 1
+                this%Nu_mass_fractions(1) = normal_frac
+            end if
+        end if
+    else
+        neff_massive_standard=0
+    end if
+    if (omnuh2_sterile>0) then
+        if (nnu<default_nnu) call MpiStop('nnu < 3.046 with massive sterile')
+        this%Num_Nu_Massless = default_nnu - neff_massive_standard
+        this%Num_Nu_Massive=this%Num_Nu_Massive+1
+        this%Nu_mass_eigenstates=this%Nu_mass_eigenstates+1
+        this%Nu_mass_numbers(this%Nu_mass_eigenstates) = 1
+        this%Nu_mass_degeneracies(this%Nu_mass_eigenstates) = max(1d-6,nnu - default_nnu)
+        this%Nu_mass_fractions(this%Nu_mass_eigenstates) = omnuh2_sterile/omnuh2
+    end if
+    end subroutine CAMBparams_SetNeutrinoHierarchy
+    
+    function CAMBparams_Validate(this) result(OK)
+    class(CAMBparams), intent(in) :: this
+    logical OK
+
+    OK = .true.
+    if (.not. this%WantTransfer .and. .not. this%WantCls) then
+        OK = .false.
+        write(*,*) 'There is nothing to do! Do transfer functions or Cls.'
+    end if
+
+    if (this%h0 < 20._dl.or.this%h0 > 100._dl) then
+        OK = .false.
+        write(*,*) '  Warning: H0 has units of km/s/Mpc. You have:', this%h0
+    end if
+    if (this%tcmb < 2.7d0.or.this%tcmb > 2.8d0) then
+        write(*,*) '  Warning: Tcmb has units of K.  Your have:', this%tcmb
+    end if
+
+    if (this%yhe < 0.2d0.or.this%yhe > 0.8d0) then
+        OK = .false.
+        write(*,*) &
+            '  Warning: YHe is the Helium fraction of baryons.', &
+            '  Your have:', this%yhe
+    end if
+    if (this%Num_Nu_massive < 0) then
+        OK = .false.
+        write(*,*) &
+            'Warning: Num_Nu_massive is strange:',this%Num_Nu_massive
+    end if
+    if (this%Num_Nu_massless < 0) then
+        OK = .false.
+        write(*,*) &
+            'Warning: Num_nu_massless is strange:', this%Num_Nu_massless
+    end if
+    if (this%Num_Nu_massive < 1 .and. this%omegan > 0.0) then
+        OK = .false.
+        write(*,*) &
+            'Warning: You have omega_neutrino > 0, but no massive species'
+    end if
+
+
+    if (this%omegab<0.001 .or. this%omegac<0 .or. this%omegab>1 .or. this%omegac>3) then
+        OK = .false.
+        write(*,*) 'Your matter densities are strange'
+    end if
+
+    if (this%WantScalars .and. this%Max_eta_k < this%Max_l .or.  &
+        this%WantTensors .and. this%Max_eta_k_tensor < this%Max_l_tensor) then
+        OK = .false.
+        write(*,*) 'You need Max_eta_k larger than Max_l to get good results'
+    end if
+
+    call this%Reion%Validate(OK)
+    call this%Recomb%Validate(OK)
+
+    if (this%WantTransfer) then
+        if (this%transfer%PK_num_redshifts > max_transfer_redshifts .or. this%transfer%PK_num_redshifts<1) then
+            OK = .false.
+            write(*,*) 'Maximum ',  max_transfer_redshifts, &
+                'redshifts. You have: ', this%transfer%PK_num_redshifts
+        end if
+        if (this%transfer%kmax < 0.01 .or. this%transfer%kmax > 50000 .or. &
+            this%transfer%k_per_logint>0 .and.  this%transfer%k_per_logint <1) then
+            !            OK = .false.
+            write(*,*) 'Strange transfer function settings.'
+        end if
+    end if
+
+    end function CAMBparams_Validate
+
+    function CAMBstate_PythonClass()
+    character(LEN=:), allocatable :: CAMBstate_PythonClass
+    CAMBstate_PythonClass = 'CAMBdata'
+    end function CAMBstate_PythonClass
+
+    subroutine CAMBstate_SelfPointer(cptr,P)
+    use iso_c_binding
+    Type(c_ptr) :: cptr
+    Type (CAMBstate), pointer :: PType
+    class (TPythonInterfacedClass), pointer :: P
+
+    call c_f_pointer(cptr, PType)
+    P => PType
+
+    end subroutine CAMBstate_SelfPointer
 
     subroutine CAMBParams_Set(this, P, error, DoReion, call_again)
     !Initialize background variables; does not yet calculate thermal history
@@ -628,6 +858,7 @@
             !Sources
             this%CP%Reion%Reionization = this%CP%transfer_21cm_cl
         end if
+        call this%GetComputedPKRedshifts(this%CP)
     end if
     if (this%CP%WantTransfer.and. this%CP%MassiveNuMethod==Nu_approx) then
         this%CP%MassiveNuMethod = Nu_trunc
@@ -675,7 +906,6 @@
         this%flat = (abs(this%omegak) <= OmegaKFlat)
         this%closed = this%omegak < -OmegaKFlat
 
-        this%open = .not. this%flat .and. .not. this%closed
         if (this%flat) then
             this%curv=0
             this%Ksign=0
@@ -694,9 +924,8 @@
 
         !H0 is in km/s/Mpc
 
-        this%grhom = 3*this%CP%h0**2/c**2*1000**2 !3*h0^2/c^2 (=8*pi*G*rho_crit/c^2)
+        this%grhocrit = 3*this%CP%h0**2/c**2*1000**2 !3*h0^2/c^2 (=8*pi*G*rho_crit/c^2)
 
-        !grhom=3.3379d-11*h0*h0
         this%grhog = kappa/c**2*4*sigma_boltz/c**3*this%CP%tcmb**4*Mpc**2 !8*pi*G/c^2*4*sigma_B/c^3 T^4
         ! grhog=1.4952d-13*tcmb**4
         this%grhor = 7._dl/8*(4._dl/11)**(4._dl/3)*this%grhog !7/8*(4/11)^(4/3)*grhog (per neutrino species)
@@ -710,14 +939,14 @@
         do nu_i = 1, this%CP%Nu_mass_eigenstates
             this%grhormass(nu_i)=this%grhor*this%CP%Nu_mass_degeneracies(nu_i)
         end do
-        this%grhoc=this%grhom*this%CP%omegac
-        this%grhob=this%grhom*this%CP%omegab
-        this%grhov=this%grhom*this%CP%omegav
-        this%grhok=this%grhom*this%omegak
+        this%grhoc=this%grhocrit*this%CP%omegac
+        this%grhob=this%grhocrit*this%CP%omegab
+        this%grhov=this%grhocrit*this%CP%omegav
+        this%grhok=this%grhocrit*this%omegak
         !  adotrad gives the relation a(tau) in the radiation era:
         this%adotrad = sqrt((this%grhog+this%grhornomass+sum(this%grhormass(1:this%CP%Nu_mass_eigenstates)))/3)
 
-        this%Nnow = this%CP%omegab*(1-this%CP%yhe)*this%grhom*c**2/kappa/m_H/Mpc**2
+        this%Nnow = this%CP%omegab*(1-this%CP%yhe)*this%grhocrit*c**2/kappa/m_H/Mpc**2
 
         this%akthom = sigma_thomson*this%Nnow*Mpc
         !sigma_T * (number density of protons now)
@@ -734,7 +963,7 @@
             !  then m = Omega_nu/N_nu rho_crit /n
             !  Error due to velocity < 1e-5
             do nu_i=1, this%CP%Nu_mass_eigenstates
-                this%nu_masses(nu_i)=fermi_dirac_const/(1.5d0*zeta3)*this%grhom/this%grhor* &
+                this%nu_masses(nu_i)=fermi_dirac_const/(1.5d0*zeta3)*this%grhocrit/this%grhor* &
                     this%CP%omegan*this%CP%Nu_mass_fractions(nu_i)/this%CP%Nu_mass_degeneracies(nu_i)
             end do
         else
@@ -742,7 +971,7 @@
         end if
         call this%CP%DarkEnergy%Init(this%CP)
         if (global_error_flag==0) then
-            this%tau0=TimeOfz(this,0._dl)
+            this%tau0=this%TimeOfz(0._dl)
             if (WantReion) call this%ReionHist%Init(this%CP%Reion,this%CP%YHe, this%akthom, this%tau0, FeedbackLevel)
             this%chi0=this%rofChi(this%tau0/this%curvature_radius)
             this%scale= this%chi0*this%curvature_radius/this%tau0  !e.g. change l sampling depending on approx peak spacing
@@ -756,10 +985,10 @@
     if (this%CP%WantScalars .and. this%CP%WantCls .and. num_redshiftwindows>0) then
         eta_k = this%CP%Max_eta_k
         do nu_i = 1,num_redshiftwindows
-            Redshift_w(nu_i)%tau = TimeOfz(this,Redshift_w(nu_i)%Redshift)
+            Redshift_w(nu_i)%tau = this%TimeOfz(Redshift_w(nu_i)%Redshift)
             Redshift_w(nu_i)%chi0 = this%tau0-Redshift_w(nu_i)%tau
             Redshift_w(nu_i)%chimin = min(Redshift_w(nu_i)%chi0,&
-                this%tau0 - TimeOfz(this,max(0.05_dl,Redshift_w(nu_i)%Redshift - 1.5*Redshift_w(nu_i)%sigma)) )
+                this%tau0 - this%TimeOfz(max(0.05_dl,Redshift_w(nu_i)%Redshift - 1.5*Redshift_w(nu_i)%sigma)) )
             this%CP%Max_eta_k = max(this%CP%Max_eta_k, this%tau0*WindowKmaxForL(Redshift_w(nu_i),this%CP%max_l))
         end do
         if (eta_k /= this%CP%Max_eta_k .and. FeedbackLevel>0) &
@@ -788,7 +1017,7 @@
         write(*,'("Om_Lambda            = ",f9.6)') P%omegav
         write(*,'("Om_K                 = ",f9.6)') this%omegak
         write(*,'("Om_m (1-Om_K-Om_L)   = ",f9.6)') 1-this%omegak-P%omegav
-        write(*,'("100 theta (CosmoMC)  = ",f9.6)') 100*CosmomcTheta(this)
+        write(*,'("100 theta (CosmoMC)  = ",f9.6)') 100*this%CosmomcTheta()
         if (this%CP%Num_Nu_Massive > 0) then
             write(*,'("N_eff (total)        = ",f9.6)') nu_massless_degeneracy + &
                 sum(this%CP%Nu_mass_degeneracies(1:this%CP%Nu_mass_eigenstates))
@@ -807,12 +1036,14 @@
     function GetTestTime()
     real(sp) GetTestTime
     real(sp) atime
+    !integer(kind=8) clock
+    !double precision count_rate
 
-    !           GetTestTime = etime(tarray)
-    !Can replace this if etime gives problems
-    !Or just comment out - only used if DebugMsgs = .true.
     call cpu_time(atime)
     GetTestTime = atime
+    !This gives poor resolution on Windows:
+    !call system_clock(clock, count_rate)
+    !GetTestTime = clock/count_rate
 
     end function GetTestTime
 
@@ -821,12 +1052,12 @@
     class(CAMBstate) :: this
     real(dl) Chi,rofChi
 
-    if (this%closed) then
-        rofChi=sin(chi)
-    else if (this%open) then
-        rofChi=sinh(chi)
-    else
+    if (this%flat) then
         rofChi=chi
+    else if (this%closed) then
+        rofChi=sin(chi)
+    else
+        rofChi=sinh(chi)
     endif
     end function rofChi
 
@@ -835,24 +1066,24 @@
     class(CAMBstate) :: this
     real(dl) Chi,cosfunc
 
-    if (this%closed) then
-        cosfunc= cos(chi)
-    else if (this%open) then
-        cosfunc=cosh(chi)
-    else
+    if (this%flat) then
         cosfunc = 1._dl
+    else if (this%closed) then
+        cosfunc= cos(chi)
+    else
+        cosfunc=cosh(chi)
     endif
     end function cosfunc
 
     function tanfunc(this,Chi)
     class(CAMBstate) :: this
     real(dl) Chi,tanfunc
-    if (this%closed) then
-        tanfunc=tan(Chi)
-    else if (this%open) then
-        tanfunc=tanh(Chi)
-    else
+    if (this%flat) then
         tanfunc=Chi
+    else if (this%closed) then
+        tanfunc=tan(Chi)
+    else
+        tanfunc=tanh(Chi)
     end if
 
     end function tanfunc
@@ -861,45 +1092,46 @@
     class(CAMBstate) :: this
     real(dl) invsinfunc,x
 
-    if (this%closed) then
-        invsinfunc=asin(x)
-    else if (this%open) then
-        invsinfunc=log((x+sqrt(1._dl+x**2)))
-    else
+    if (this%flat) then
         invsinfunc = x
+    else if (this%closed) then
+        invsinfunc=asin(x)
+    else
+        invsinfunc=log((x+sqrt(1._dl+x**2)))
     endif
     end function invsinfunc
 
     function f_K(x)
     real(dl) :: f_K
     real(dl), intent(in) :: x
+
     f_K = State%curvature_radius*State%rofChi(x/State%curvature_radius)
 
     end function f_K
 
 
-    function DeltaTime(this, a1,a2, in_tol)
-    Type(CAMBstate) :: this
-    real(dl) DeltaTime, atol
+    function CAMBState_DeltaTime(this, a1,a2, in_tol)
+    class(CAMBstate) :: this
+    real(dl) CAMBState_DeltaTime, atol
     real(dl), intent(IN) :: a1,a2
     real(dl), optional, intent(in) :: in_tol
 
     call SetActiveState(this)
     atol = PresentDefault(tol/1000/exp(CP%Accuracy%AccuracyBoost*CP%Accuracy%IntTolBoost-1), in_tol)
-    DeltaTime = rombint(dtauda,a1,a2,atol)
+    CAMBState_DeltaTime = rombint(dtauda,a1,a2,atol)
 
-    end function DeltaTime
+    end function CAMBState_DeltaTime
 
-    function TimeOfz(this, z)
-    Type(CAMBstate) :: this
-    real(dl) TimeOfz
+    function CAMBState_TimeOfz(this, z)
+    class(CAMBstate) :: this
+    real(dl) CAMBState_TimeOfz
     real(dl), intent(IN) :: z
 
-    TimeOfz=DeltaTime(this,0._dl,1._dl/(z+1._dl))
-    end function TimeOfz
+    CAMBState_TimeOfz= this%DeltaTime(0._dl,1._dl/(z+1._dl))
+    end function CAMBState_TimeOfz
 
-    subroutine TimeOfzArr(this, nz, redshifts, outputs)
-    Type(CAMBstate) :: this
+    subroutine CAMBState_TimeOfzArr(this, nz, redshifts, outputs)
+    class(CAMBstate) :: this
     integer, intent(in) :: nz
     real(dl), intent(in) :: redshifts(nz)
     real(dl), intent(out) :: outputs(nz)
@@ -908,37 +1140,37 @@
     !Dumb slow version
     !$OMP PARALLEL DO DEFAUlT(SHARED)
     do i=1, nz
-        outputs(i) = timeOfZ(this,redshifts(i))
+        outputs(i) = this%timeOfZ(redshifts(i))
     end do
     !$OMP END PARALLEL DO
 
-    end subroutine TimeOfzArr
+    end subroutine CAMBState_TimeOfzArr
 
-    function DeltaPhysicalTimeGyr(this, a1,a2, in_tol)
+    function CAMBState_DeltaPhysicalTimeGyr(this, a1,a2, in_tol)
     use constants
-    Type(CAMBstate) :: this
+    class(CAMBstate) :: this
     real(dl), intent(in) :: a1, a2
     real(dl), optional, intent(in) :: in_tol
-    real(dl) DeltaPhysicalTimeGyr, atol
+    real(dl) CAMBState_DeltaPhysicalTimeGyr, atol
 
     call SetActiveState(this)
     atol = PresentDefault(1d-4/exp(CP%Accuracy%AccuracyBoost-1), in_tol)
-    DeltaPhysicalTimeGyr = rombint(dtda,a1,a2,atol)*Mpc/c/Gyr
-    end function DeltaPhysicalTimeGyr
+    CAMBState_DeltaPhysicalTimeGyr = rombint(dtda,a1,a2,atol)*Mpc/c/Gyr
+    end function CAMBState_DeltaPhysicalTimeGyr
 
-    function AngularDiameterDistance(this,z)
-    Type(CAMBstate) :: this
+    function CAMBState_AngularDiameterDistance(this,z)
+    class(CAMBstate) :: this
     !This is the physical (non-comoving) angular diameter distance in Mpc
-    real(dl) AngularDiameterDistance
+    real(dl) CAMBState_AngularDiameterDistance
     real(dl), intent(in) :: z
 
-    AngularDiameterDistance = this%curvature_radius/(1+z)* &
-        this%rofchi(ComovingRadialDistance(this,z) /this%curvature_radius)
+    CAMBState_AngularDiameterDistance = this%curvature_radius/(1+z)* &
+        this%rofchi(this%ComovingRadialDistance(z) /this%curvature_radius)
 
-    end function AngularDiameterDistance
+    end function CAMBState_AngularDiameterDistance
 
-    subroutine AngularDiameterDistanceArr(this, arr, z, n)
-    Type(CAMBstate) :: this
+    subroutine CAMBState_AngularDiameterDistanceArr(this, arr, z, n)
+    class(CAMBstate) :: this
     !This is the physical (non-comoving) angular diameter distance in Mpc for array of z
     !z array must be monotonically increasing
     integer,intent(in) :: n
@@ -946,7 +1178,7 @@
     real(dl), intent(in) :: z(n)
     integer i
 
-    call ComovingRadialDistanceArr(this,arr, z, n, 1e-4_dl)
+    call this%ComovingRadialDistanceArr(arr, z, n, 1e-4_dl)
     if (this%flat) then
         arr = arr/(1+z)
     else
@@ -955,42 +1187,42 @@
         end do
     end if
 
-    end subroutine AngularDiameterDistanceArr
+    end subroutine CAMBState_AngularDiameterDistanceArr
 
 
-    function AngularDiameterDistance2(this,z1, z2) ! z1 < z2
+    function CAMBState_AngularDiameterDistance2(this,z1, z2) ! z1 < z2
     !From http://www.slac.stanford.edu/~amantz/work/fgas14/#cosmomc
-    Type(CAMBstate) :: this
-    real(dl) AngularDiameterDistance2
+    class(CAMBstate) :: this
+    real(dl) CAMBState_AngularDiameterDistance2
     real(dl), intent(in) :: z1, z2
 
-    AngularDiameterDistance2 = this%curvature_radius/(1+z2)* &
-        this%rofchi(ComovingRadialDistance(this,z2)/this%curvature_radius &
-        - ComovingRadialDistance(this,z1)/this%curvature_radius)
+    CAMBState_AngularDiameterDistance2 = this%curvature_radius/(1+z2)* &
+        this%rofchi(this%ComovingRadialDistance(z2)/this%curvature_radius &
+        - this%ComovingRadialDistance(z1)/this%curvature_radius)
 
-    end function AngularDiameterDistance2
+    end function CAMBState_AngularDiameterDistance2
 
-    function LuminosityDistance(this,z)
-    Type(CAMBstate) :: this
-    real(dl) LuminosityDistance
+    function CAMBstate_LuminosityDistance(this,z)
+    class(CAMBstate) :: this
+    real(dl) CAMBstate_LuminosityDistance
     real(dl), intent(in) :: z
 
-    LuminosityDistance = AngularDiameterDistance(this,z)*(1+z)**2
+    CAMBstate_LuminosityDistance = this%AngularDiameterDistance(z)*(1+z)**2
 
-    end function LuminosityDistance
+    end function CAMBstate_LuminosityDistance
 
-    function ComovingRadialDistance(this, z)
-    Type(CAMBstate) :: this
-    real(dl) ComovingRadialDistance
+    function CAMBState_ComovingRadialDistance(this, z)
+    class(CAMBstate) :: this
+    real(dl) CAMBState_ComovingRadialDistance
     real(dl), intent(in) :: z
 
-    ComovingRadialDistance = DeltaTime(this,1/(1+z),1._dl)
+    CAMBState_ComovingRadialDistance = this%DeltaTime(1/(1+z),1._dl)
 
-    end function ComovingRadialDistance
+    end function CAMBState_ComovingRadialDistance
 
-    subroutine ComovingRadialDistanceArr(this, arr, z, n, tol)
+    subroutine CAMBState_ComovingRadialDistanceArr(this, arr, z, n, tol)
     !z array must be monotonically increasing
-    Type(CAMBstate) :: this
+    class(CAMBstate) :: this
     integer, intent(in) :: n
     real(dl), intent(out) :: arr(n)
     real(dl), intent(in) :: z(n)
@@ -1003,11 +1235,11 @@
             if (z(i) < 1e-6_dl) then
                 arr(i) = 0
             else
-                arr(i) = DeltaTime(this,1/(1+z(i)),1._dl, tol)
+                arr(i) = this%DeltaTime(1/(1+z(i)),1._dl, tol)
             end if
         else
             if (z(i) < z(i-1)) error stop 'ComovingRadialDistanceArr redshifts out of order'
-            arr(i) = DeltaTime(this,1/(1+z(i)),1/(1+z(i-1)),tol)
+            arr(i) = this%DeltaTime(1/(1+z(i)),1/(1+z(i-1)),tol)
         end if
     end do
     !$OMP END PARALLEL DO
@@ -1015,25 +1247,25 @@
         arr(i) = arr(i)  + arr(i-1)
     end do
 
-    end subroutine ComovingRadialDistanceArr
+    end subroutine CAMBState_ComovingRadialDistanceArr
 
-    function Hofz(this,z)
+    function CAMBState_Hofz(this,z)
     !non-comoving Hubble in MPC units, divide by MPC_in_sec to get in SI units
     !multiply by c/1e3 to get in km/s/Mpc units
-    Type(CAMBstate) :: this
-    real(dl) Hofz, a
+    class(CAMBstate) :: this
+    real(dl) CAMBState_Hofz, a
     real(dl), intent(in) :: z
 
     call SetActiveState(this)
     a = 1/(1+z)
-    Hofz = 1/(a**2*dtauda(a))
+    CAMBState_Hofz = 1/(a**2*dtauda(a))
 
-    end function Hofz
+    end function CAMBState_Hofz
 
-    subroutine HofzArr(this, arr, z, n)
+    subroutine CAMBstate_HofzArr(this, arr, z, n)
     !non-comoving Hubble in MPC units, divide by MPC_in_sec to get in SI units
     !multiply by c/1e3 to get in km/s/Mpc units
-    Type(CAMBstate) :: this
+    class(CAMBstate) :: this
     integer,intent(in) :: n
     real(dl), intent(out) :: arr(n)
     real(dl), intent(in) :: z(n)
@@ -1046,10 +1278,10 @@
         arr(i) = 1/(a**2*dtauda(a))
     end do
 
-    end subroutine HofzArr
+    end subroutine CAMBstate_HofzArr
 
-    subroutine sound_horizon_zArr(this,arr, z,n)
-    Type(CAMBstate) :: this
+    subroutine CAMBState_sound_horizon_zArr(this,arr, z,n)
+    class(CAMBstate) :: this
     integer,intent(in) :: n
     real(dl), intent(out) :: arr(n)
     real(dl), intent(in) :: z(n)
@@ -1061,7 +1293,7 @@
         arr(i) =rombint(dsound_da_exact,1d-8,1/(z(i)+1),1d-6)
     end do
 
-    end subroutine sound_horizon_zArr
+    end subroutine CAMBState_sound_horizon_zArr
 
     real(dl) function BAO_D_v_from_DA_H(z, DA, Hz)
     real(dl), intent(in) :: z, DA, Hz
@@ -1072,13 +1304,13 @@
 
     end function BAO_D_v_from_DA_H
 
-    real(dl) function BAO_D_v(this,z)
-    Type(CAMBstate) :: this
+    real(dl) function CAMBState_BAO_D_v(this,z)
+    class(CAMBstate) :: this
     real(dl), intent(IN) :: z
 
-    BAO_D_v = BAO_D_v_from_DA_H(z,AngularDiameterDistance(this,z), Hofz(this,z))
+    CAMBState_BAO_D_v = BAO_D_v_from_DA_H(z,this%AngularDiameterDistance(z), this%Hofz(z))
 
-    end function BAO_D_v
+    end function CAMBState_BAO_D_v
 
     function dsound_da_exact(a)
     implicit none
@@ -1108,10 +1340,10 @@
     dtda= dtauda(a)*a
     end function
 
-    function CosmomcTheta(this)
-    Type(CAMBstate) :: this
+    function CAMBState_CosmomcTheta(this)
+    class(CAMBstate) :: this
     real(dl) zstar, astar, atol, rs, DA
-    real(dl) CosmomcTheta
+    real(dl) CAMBState_CosmomcTheta
     real(dl) ombh2, omdmh2
 
     call SetActiveState(this)
@@ -1126,12 +1358,152 @@
     astar = 1/(1+zstar)
     atol = 1e-6
     rs = rombint(dsound_da,1d-8,astar,atol)
-    DA = AngularDiameterDistance(this,zstar)/astar
-    CosmomcTheta = rs/DA
+    DA = this%AngularDiameterDistance(zstar)/astar
+    CAMBState_CosmomcTheta = rs/DA
     !       print *,'z* = ',zstar, 'r_s = ',rs, 'DA = ',DA, rs/DA
 
-    end function CosmomcTheta
+    end function CAMBState_CosmomcTheta
+    
+    subroutine CAMBstate_GetBackgroundDensities(this, n, a_arr, densities)
+    ! return array of 8*pi*G*rho*a**4 for each species
+    class(CAMBstate) :: this
+    integer, intent(in) :: n
+    real(dl), intent(in) :: a_arr(n)
+    real(dl) :: grhov_t, rhonu, grhonu, a
+    real(dl), intent(out) :: densities(8,n)
+    integer nu_i,i
 
+    do i=1, n
+        a = a_arr(i)
+        call this%CP%DarkEnergy%BackgroundDensityAndPressure(this%grhov, a, grhov_t)
+        grhonu = 0
+
+        if (this%CP%Num_Nu_massive /= 0) then
+            !Get massive neutrino density relative to massless
+            do nu_i = 1, this%CP%nu_mass_eigenstates
+                call ThermalNuBackground%rho(a * this%nu_masses(nu_i), rhonu)
+                grhonu = grhonu + rhonu * this%grhormass(nu_i)
+            end do
+        end if
+
+        densities(2,i) = this%grhok * a**2
+        densities(3,i) = this%grhoc * a
+        densities(4,i) = this%grhob * a
+        densities(5,i) = this%grhog
+        densities(6,i) = this%grhornomass
+        densities(7,i) = grhonu
+        densities(8,i) = grhov_t*a**2
+        densities(1,i) = sum(densities(2:8,i))
+    end do
+
+    end subroutine CAMBstate_GetBackgroundDensities
+    
+    integer function CAMBstate_get_lmax_lensed(this)
+    class(CAMBstate) :: this
+    CAMBstate_get_lmax_lensed = this%CLdata%lmax_lensed
+    end function CAMBstate_get_lmax_lensed
+
+
+
+    !JD 08/13 New function for nonlinear lensing of CMB + MPK compatibility
+    !Build master redshift array from array of desired Nonlinear lensing (NLL)
+    !redshifts and an array of desired Power spectrum (PK) redshifts.
+    !At the same time fill arrays for NLL and PK that indicate indices
+    !of their desired redshifts in the master redshift array.
+    !Finally define number of redshifts in master array. This is usually given by:
+    !P%num_redshifts = P%PK_num_redshifts + NLL_num_redshifts - 1.  The -1 comes
+    !from the fact that z=0 is in both arrays (when non-linear is on)
+    subroutine GetComputedPKRedshifts(this, Params,eta_k_max)
+    use MpiUtils, only : MpiStop
+    class(CAMBstate) :: this
+    Type(CAMBParams) :: Params
+    integer i, iPK, iNLL
+    real(dl), parameter :: tol = 1.d-5
+    real(dl) maxRedshift
+    integer   ::  NLL_num_redshifts
+    real(dl), allocatable    ::  NLL_redshifts(:), redshifts(:)
+    !Sources, but unused currently
+    real(dl), intent(in), optional :: eta_k_max
+
+    NLL_num_redshifts = 0
+    associate(P => Params%Transfer)
+        if ((Params%NonLinear==NonLinear_lens .or. Params%NonLinear==NonLinear_both) .and. &
+            (Params%DoLensing .or. num_redshiftwindows > 0)) then
+            ! Want non-linear lensing or other sources
+            P%k_per_logint  = 0
+            if (Params%Do21cm) then
+                !Sources
+                if (maxval(Redshift_w(1:num_redshiftwindows)%Redshift) /= minval(Redshift_w(1:num_redshiftwindows)%Redshift))  &
+                    stop 'Non-linear 21cm currently only for narrow window at one redshift'
+                if (.not. present(eta_k_max)) stop 'bad call to Transfer_SetForNonlinearLensing'
+                P%kmax = eta_k_max/10000.
+                NLL_num_redshifts =  1
+                allocate(NLL_redshifts(NLL_num_redshifts+1))
+                NLL_redshifts(1) = Redshift_w(1)%Redshift
+            else
+                P%kmax = max(P%kmax,5*Params%Accuracy%AccuracyBoost)
+                maxRedshift = 10
+                NLL_num_redshifts =  nint(10*Params%Accuracy%AccuracyBoost)
+                if (Params%Accuracy%AccuracyBoost>=2) then
+                    !only notionally more accuracy, more stable for RS
+                    maxRedshift =15
+                end if
+                allocate(NLL_redshifts(NLL_num_redshifts+1)) !+1 to stop access issues below
+                do i=1,NLL_num_redshifts
+                    NLL_redshifts(i) = real(NLL_num_redshifts-i)/(NLL_num_redshifts/maxRedshift)
+                end do
+            end if
+        end if
+        if (allocated(this%transfer_redshifts)) deallocate(this%transfer_redshifts)
+        if (NLL_num_redshifts==0) then
+            this%num_transfer_redshifts=P%PK_num_redshifts
+            allocate(this%transfer_redshifts(this%num_transfer_redshifts))
+            this%transfer_redshifts = P%PK_redshifts(:this%num_transfer_redshifts)
+            this%PK_redshifts_index(:this%num_transfer_redshifts) = (/ (i, i=1, this%num_transfer_redshifts ) /)
+        else
+            i=0
+            iPK=1
+            iNLL=1
+            allocate(redshifts(NLL_num_redshifts+P%PK_num_redshifts))
+            do while (iPk<=P%PK_num_redshifts .or. iNLL<=NLL_num_redshifts)
+                !JD write the next line like this to account for roundoff issues with ==. Preference given to PK_Redshift
+                i=i+1
+                if(iNLL>NLL_num_redshifts .or. P%PK_redshifts(iPK)>NLL_redshifts(iNLL)+tol) then
+                    redshifts(i)=P%PK_redshifts(iPK)
+                    this%PK_redshifts_index(iPK)=i
+                    iPK=iPK+1
+                else if(iPK>P%PK_num_redshifts .or. NLL_redshifts(iNLL)>P%PK_redshifts(iPK)+tol) then
+                    redshifts(i)=NLL_redshifts(iNLL)
+                    iNLL=iNLL+1
+                else
+                    redshifts(i)=P%PK_redshifts(iPK)
+                    this%PK_redshifts_index(iPK)=i
+                    iPK=iPK+1
+                    iNLL=iNLL+1
+                end if
+            end do
+            this%num_transfer_redshifts=i
+            allocate(this%transfer_redshifts(this%num_transfer_redshifts))
+            this%transfer_redshifts = redshifts(:this%num_transfer_redshifts)
+        end if
+    end associate
+
+    end subroutine GetComputedPKRedshifts
+
+    subroutine CAMBState_DarkEnergyStressEnergy(this, a, grhov_t, w, n)
+    class(CAMBState) :: this
+    integer, intent(in) :: n
+    real(dl), intent(in) :: a(n)
+    real(dl), intent(out) :: grhov_t(n), w(n)
+    integer i
+
+    do i=1, n
+        call this%CP%DarkEnergy%BackgroundDensityAndPressure(1._dl, a(i), grhov_t(i), w(i))
+    end do
+    grhov_t = grhov_t/a**2
+
+    end subroutine CAMBState_DarkEnergyStressEnergy
+    
     !Sources
     function WindowKmaxForL(W,ell) result(res)
     Type(TRedWin), intent(in) :: W
@@ -1524,9 +1896,9 @@
     allocate(scaleFactor(nthermo), spline_data(nthermo))
 
     !Sources
-    if (CP%Evolve_delta_xe) this%recombination_saha_tau  = TimeOfZ(State,State%Recombination%recombination_saha_z)
+    if (CP%Evolve_delta_xe) this%recombination_saha_tau  = State%TimeOfZ(State%Recombination%recombination_saha_z)
     if (CP%Evolve_baryon_cs .or. CP%Evolve_delta_xe .or. CP%Evolve_delta_Ts .or. CP%Do21cm) &
-        this%recombination_Tgas_tau = TimeOfz(State,1/Do21cm_mina-1)
+        this%recombination_Tgas_tau = State%TimeOfz(1/Do21cm_mina-1)
     transfer_ix =0
 
     this%Maxtau=State%tau0
@@ -1536,7 +1908,7 @@
     this%z_star=0.d0
     this%z_drag=0.d0
     thomc0= Compton_CT * CP%tcmb**4
-    this%r_drag0 = 3.d0/4.d0*CP%omegab*State%grhom/State%grhog
+    this%r_drag0 = 3.d0/4.d0*CP%omegab*State%grhocrit/State%grhog
     !thomc0=5.0577d-8*CP%tcmb**4
 
     this%tauminn=0.05d0*taumin
@@ -1662,10 +2034,10 @@
         etc=exp(-thomc*(a-a0))
         a2t=a0*a0*(this%tb(i-1)-tg0)*etc-CP%tcmb/thomc*(1._dl-etc)
         this%tb(i)=CP%tcmb/a+a2t/(a*a)
-        !Sources
-        if (CP%WantTransfer) then
-            do RW_i = 1, CP%Transfer%num_redshifts
-                if (z< CP%Transfer%redshifts(RW_i) .and. transfer_ix(RW_i)==0) then
+
+        if (CP%WantTransfer .and.  CP%do21cm .and. CP%transfer_21cm_cl) then
+            do RW_i = 1, CP%Transfer%PK_num_redshifts
+                if (z< CP%Transfer%PK_redshifts(RW_i) .and. transfer_ix(RW_i)==0) then
                     transfer_ix(RW_i) = i
                 end if
             end do
@@ -1739,12 +2111,12 @@
         end if
     end do
 
-    !Sources
-    if (CP%WantTransfer) then
-        if (associated(State%MT%optical_depths)) deallocate(State%MT%optical_depths, stat = RW_i)
-        allocate(State%MT%optical_depths(CP%Transfer%num_redshifts))
-        do RW_i = 1, CP%Transfer%num_redshifts
-            if (CP%Transfer%Redshifts(RW_i) < 1e-3) then
+    !Sources, needs revisiting, shouldn't be doing non-linear lensing redshift samples too
+    if (CP%WantTransfer .and.  CP%do21cm .and. CP%transfer_21cm_cl) then
+        if (allocated(State%MT%optical_depths)) deallocate(State%MT%optical_depths, stat = RW_i)
+        allocate(State%MT%optical_depths(CP%Transfer%PK_num_redshifts))
+        do RW_i = 1, CP%Transfer%PK_num_redshifts
+            if (CP%Transfer%PK_Redshifts(RW_i) < 1e-3) then
                 State%MT%optical_depths(RW_i) = 0 !zero may not be set correctly in transfer_ix
             else
                 State%MT%optical_depths(RW_i) =  -this%sdotmu(transfer_ix(RW_i))+this%sdotmu(nthermo)
@@ -1879,9 +2251,9 @@
 
     if (CP%DerivedParameters) then
         rs =rombint(dsound_da_exact,1d-8,1/(this%z_star+1),1d-6)
-        DA = AngularDiameterDistance(State,this%z_star)/(1/(this%z_star+1))
+        DA = State%AngularDiameterDistance(this%z_star)/(1/(this%z_star+1))
         associate(ThermoDerivedParams => State%ThermoDerivedParams)
-            ThermoDerivedParams( derived_Age ) = DeltaPhysicalTimeGyr(State,0.0_dl,1.0_dl)
+            ThermoDerivedParams( derived_Age ) = State%DeltaPhysicalTimeGyr(0.0_dl,1.0_dl)
             ThermoDerivedParams( derived_zstar ) = this%z_star
             ThermoDerivedParams( derived_rstar ) = rs
             ThermoDerivedParams( derived_thetastar ) = 100*rs/DA
@@ -1895,7 +2267,7 @@
             ThermoDerivedParams( derived_zEQ ) = z_eq
             a_eq = 1/(1+z_eq)
             ThermoDerivedParams( derived_kEQ ) = 1/(a_eq*dtauda(a_eq))
-            ThermoDerivedParams( derived_thetaEQ ) = 100*timeOfz(State,z_eq)/DA
+            ThermoDerivedParams( derived_thetaEQ ) = 100*State%timeOfz(z_eq)/DA
             ThermoDerivedParams( derived_theta_rs_EQ ) = 100*rombint(dsound_da_exact,1d-8,a_eq,1d-6)/DA
 
             associate(BackgroundOutputs => State%BackgroundOutputs)
@@ -1905,8 +2277,8 @@
                     noutput = size(CP%z_outputs)
                     allocate(BackgroundOutputs%H(noutput), BackgroundOutputs%DA(noutput), BackgroundOutputs%rs_by_D_v(noutput))
                     do i=1,noutput
-                        BackgroundOutputs%H(i) = HofZ(State,CP%z_outputs(i))
-                        BackgroundOutputs%DA(i) = AngularDiameterDistance(State,CP%z_outputs(i))
+                        BackgroundOutputs%H(i) = State%HofZ(CP%z_outputs(i))
+                        BackgroundOutputs%DA(i) = State%AngularDiameterDistance(CP%z_outputs(i))
                         BackgroundOutputs%rs_by_D_v(i) = rs/BAO_D_v_from_DA_H(CP%z_outputs(i), &
                             BackgroundOutputs%DA(i),BackgroundOutputs%H(i))
                     end do
@@ -2049,8 +2421,8 @@
                 !This should cover whole range where not tiny
 
                 if (Win%kind /= window_lensing .and. Win%tau_end - Win%tau_start > Win%sigma_tau*7) then
-                    call TimeSteps%Add(TimeOfZ(State,Win%Redshift+Win%sigma_z*3), &
-                        max(0._dl,TimeOfZ(State,Win%Redshift-Win%sigma_z*3)), nwindow)
+                    call TimeSteps%Add(State%TimeOfZ(Win%Redshift+Win%sigma_z*3), &
+                        max(0._dl,State%TimeOfZ(Win%Redshift-Win%sigma_z*3)), nwindow)
                     !This should be over peak
                 end if
                 !Make sure line of sight integral OK too
@@ -2923,10 +3295,10 @@
 
     contains
 
-    subroutine Transfer_GetUnsplinedPower(M, Params, PK,var1,var2, hubble_units)
+    subroutine Transfer_GetUnsplinedPower(State, M, PK,var1,var2, hubble_units)
     !Get 2pi^2/k^3 T_1 T_2 P_R(k)
     Type(MatterTransferData) :: M
-    Type(CambParams) :: Params
+    Type(CAMBstate) :: State
     real(dl), intent(inout):: PK(:,:)
     integer, optional, intent(in) :: var1
     integer, optional, intent(in) :: var2
@@ -2948,19 +3320,20 @@
     do ik=1,nk
         k = M%TransferData(Transfer_kh,ik,1)*h
         do zix=1,nz
-            PK(ik,zix) = M%TransferData(s1,ik,Params%Transfer%PK_redshifts_index(nz-zix+1))*&
-                M%TransferData(s2,ik,Params%Transfer%PK_redshifts_index(nz-zix+1))*k*&
-                const_pi*const_twopi*Params%InitPower%ScalarPower(k)
+            PK(ik,zix) = M%TransferData(s1,ik,State%PK_redshifts_index(nz-zix+1))*&
+                M%TransferData(s2,ik,State%PK_redshifts_index(nz-zix+1))*k*&
+                const_pi*const_twopi*State%CP%InitPower%ScalarPower(k)
         end do
     end do
+
     if (hnorm) PK=  PK * h**3
 
     end subroutine Transfer_GetUnsplinedPower
 
-    subroutine Transfer_GetUnsplinedNonlinearPower(M,Params,PK,var1,var2, hubble_units)
+    subroutine Transfer_GetUnsplinedNonlinearPower(State,M, PK,var1,var2, hubble_units)
     !Get 2pi^2/k^3 T_1 T_2 P_R(k) after re-scaling for non-linear evolution (if turned on)
     Type(MatterTransferData), intent(in) :: M
-    Type(CambParams) :: Params
+    Type(CambState) :: State
     real(dl), intent(inout):: PK(:,:)
     integer, optional, intent(in) :: var1
     integer, optional, intent(in) :: var2
@@ -2968,25 +3341,25 @@
     Type(MatterPowerData) :: PKdata
     integer zix
 
-    call Transfer_GetUnsplinedPower(M,Params,PK,var1,var2, hubble_units)
-    do zix=1, Params%Transfer%PK_num_redshifts
-        call Transfer_GetMatterPowerData(M, Params, PKdata, &
-            Params%Transfer%PK_redshifts_index(Params%Transfer%PK_num_redshifts-zix+1))
-        call Params%NonLinearModel%GetNonLinRatios(Params,PKdata)
+    call Transfer_GetUnsplinedPower(State,M,PK,var1,var2, hubble_units)
+    do zix=1, State%CP%Transfer%PK_num_redshifts
+        call Transfer_GetMatterPowerData(State, M, PKdata, &
+            State%PK_redshifts_index(State%CP%Transfer%PK_num_redshifts-zix+1))
+        call State%CP%NonLinearModel%GetNonLinRatios(State%CP,PKdata)
         PK(:,zix) =  PK(:,zix) *PKdata%nonlin_ratio(:,1)**2
         call MatterPowerdata_Free(PKdata)
     end do
 
     end subroutine Transfer_GetUnsplinedNonlinearPower
 
-    subroutine Transfer_GetMatterPowerData(MTrans, Params, PK_data, itf_only, var1, var2)
+    subroutine Transfer_GetMatterPowerData(State, MTrans, PK_data, itf_only, var1, var2)
     !Does *NOT* include non-linear corrections
     !Get total matter power spectrum in units of (h Mpc^{-1})^3 ready for interpolation.
     !Here there definition is < Delta^2(x) > = 1/(2 pi)^3 int d^3k P_k(k)
     !We are assuming that Cls are generated so any baryonic wiggles are well sampled and that matter power
     !spectrum is generated to beyond the CMB k_max
+    class(CAMBstate) :: State
     Type(MatterTransferData), intent(in) :: MTrans
-    Type(CambParams), intent(in) :: Params
     Type(MatterPowerData) :: PK_data
     integer, intent(in), optional :: itf_only
     integer, intent(in), optional :: var1, var2
@@ -3013,15 +3386,15 @@
     allocate(PK_data%nonlin_ratio(PK_data%num_k,nz))
     allocate(PK_data%log_kh(PK_data%num_k))
     allocate(PK_data%redshifts(nz))
-    PK_data%redshifts = Params%Transfer%Redshifts(itf_start:itf_end)
+    PK_data%redshifts = State%Transfer_Redshifts(itf_start:itf_end)
 
-    h = Params%H0/100
+    h = State%CP%H0/100
 
     do ik=1,MTrans%num_q_trans
         kh = MTrans%TransferData(Transfer_kh,ik,1)
         k = kh*h
         PK_data%log_kh(ik) = log(kh)
-        power = Params%InitPower%ScalarPower(k)
+        power = State%CP%InitPower%ScalarPower(k)
         if (global_error_flag/=0) then
             call MatterPowerdata_Free(PK_data)
             return
@@ -3137,25 +3510,7 @@
     deallocate(PK_data%vdpower,stat=i)
     deallocate(PK_data%ddvdpower,stat=i)
 
-    call MatterPowerdata_Nullify(PK_data)
     end subroutine MatterPowerdata_Free
-
-    subroutine MatterPowerdata_Nullify(PK_data)
-    Type(MatterPowerData) :: PK_data
-
-    nullify(PK_data%log_kh)
-    nullify(PK_data%nonlin_ratio)
-    nullify(PK_data%redshifts)
-    !Sources
-    nullify(PK_data%log_k)
-    nullify(PK_data%nonlin_ratio_vv)
-    nullify(PK_data%nonlin_ratio_vd)
-    nullify(PK_data%vvpower)
-    nullify(PK_data%ddvvpower)
-    nullify(PK_data%vdpower)
-    nullify(PK_data%ddvdpower)
-
-    end subroutine MatterPowerdata_Nullify
 
     function MatterPowerData_k(PK,  kh, itf) result(outpower)
     !Get matter power spectrum at particular k/h by interpolation
@@ -3262,9 +3617,9 @@
     end subroutine MatterPower21cm_k
 
 
-    subroutine Transfer_GetMatterPowerS(MTrans, Params, outpower, itf, minkh, dlnkh, npoints, var1, var2)
+    subroutine Transfer_GetMatterPowerS(State, MTrans, outpower, itf, minkh, dlnkh, npoints, var1, var2)
+    class(CAMBState) :: state
     Type(MatterTransferData), intent(in) :: MTrans
-    Type(CambParams) :: Params
     integer, intent(in) :: itf, npoints
     integer, intent(in), optional :: var1, var2
     real, intent(out) :: outpower(*)
@@ -3273,7 +3628,7 @@
     real(dl):: minkhd, dlnkhd
 
     minkhd = minkh; dlnkhd = dlnkh
-    call Transfer_GetMatterPowerD(MTrans, Params, outpowerd, itf, minkhd, dlnkhd, npoints,var1, var2)
+    call Transfer_GetMatterPowerD(State, MTrans,  outpowerd, itf, minkhd, dlnkhd, npoints,var1, var2)
     outpower(1:npoints) = outpowerd(1:npoints)
 
     end subroutine Transfer_GetMatterPowerS
@@ -3284,7 +3639,7 @@
     !array, itf, is given by itf = CP%Transfer%Pk_redshifts_index(itf_PK)
     !Also changed (CP%NonLinear/=NonLinear_None) to
     !CP%NonLinear/=NonLinear_none .and. CP%NonLinear/=NonLinear_Lens)
-    subroutine Transfer_GetMatterPowerD(MTrans, Params,outpower, itf_PK, minkh, dlnkh, npoints, var1, var2)
+    subroutine Transfer_GetMatterPowerD(State, MTrans, outpower, itf_PK, minkh, dlnkh, npoints, var1, var2)
     !Allows for non-smooth priordial spectra
     !if CP%Nonlinear/ = NonLinear_none includes non-linear evolution
     !Get total matter power spectrum at logarithmically equal intervals dlnkh of k/h starting at minkh
@@ -3292,8 +3647,8 @@
     !Here there definition is < Delta^2(x) > = 1/(2 pi)^3 int d^3k P_k(k)
     !We are assuming that Cls are generated so any baryonic wiggles are well sampled and that matter power
     !sepctrum is generated to beyond the CMB k_max
+    class(CAMBState) :: state
     Type(MatterTransferData), intent(in) :: MTrans
-    Type(CambParams) :: Params
     Type(MatterPowerData) :: PK
 
     integer, intent(in) :: itf_PK, npoints
@@ -3311,7 +3666,7 @@
     s1 = PresentDefault (transfer_power_var, var1)
     s2 = PresentDefault (transfer_power_var, var2)
 
-    itf = Params%Transfer%PK_redshifts_index(itf_PK)
+    itf = State%PK_redshifts_index(itf_PK)
 
     if (npoints < 2) call MpiStop('Need at least 2 points in Transfer_GetMatterPower')
 
@@ -3323,19 +3678,19 @@
         write(*,*) 'Warning: extrapolating matter power in Transfer_GetMatterPower'
 
 
-    if (Params%NonLinear/=NonLinear_none .and. Params%NonLinear/=NonLinear_Lens) then
-        call Transfer_GetMatterPowerData(MTrans, Params, PK, itf) ! Mar 16, changed to use default variable
-        call Params%NonLinearModel%GetNonLinRatios(CP, PK)
+    if (State%CP%NonLinear/=NonLinear_none .and. State%CP%NonLinear/=NonLinear_Lens) then
+        call Transfer_GetMatterPowerData(State, MTrans, PK, itf) ! Mar 16, changed to use default variable
+        call State%CP%NonLinearModel%GetNonLinRatios(CP, PK)
     end if
 
-    h = Params%H0/100
+    h = State%CP%H0/100
     logmink = log(minkh)
     do ik=1,MTrans%num_q_trans
         kh = MTrans%TransferData(Transfer_kh,ik,itf)
         k = kh*h
         kvals(ik) = log(kh)
         atransfer=MTrans%TransferData(s1,ik,itf)*MTrans%TransferData(s2,ik,itf)
-        if (Params%NonLinear/=NonLinear_none .and. Params%NonLinear/=NonLinear_Lens) &
+        if (State%CP%NonLinear/=NonLinear_none .and. State%CP%NonLinear/=NonLinear_Lens) &
             atransfer = atransfer* PK%nonlin_ratio(ik,1)**2 !only one element, this itf
         matpower(ik) = log(atransfer*k*const_pi*const_twopi*h**3)
         !Put in power spectrum later: transfer functions should be smooth, initial power may not be
@@ -3376,34 +3731,35 @@
     end do
 
     outpower = exp(max(-30.d0,outpower))
+    associate(InitPower => State%CP%InitPower)
+        do il = 1, npoints
+            k = exp(logmink + dlnkh*(il-1))*h
+            outpower(il) = outpower(il) * InitPower%ScalarPower(k)
+            if (global_error_flag /= 0) exit
+        end do
+    end associate
 
-    do il = 1, npoints
-        k = exp(logmink + dlnkh*(il-1))*h
-        outpower(il) = outpower(il) * Params%InitPower%ScalarPower(k)
-        if (global_error_flag /= 0) exit
-    end do
-
-    if (Params%NonLinear/=NonLinear_none .and. Params%NonLinear/=NonLinear_Lens) call MatterPowerdata_Free(PK)
+    if (State%CP%NonLinear/=NonLinear_none .and. State%CP%NonLinear/=NonLinear_Lens) call MatterPowerdata_Free(PK)
 
     end subroutine Transfer_GetMatterPowerD
 
-    subroutine Transfer_Get_SigmaR(MTrans, Params, R, outvals, var1, var2, root)
+    subroutine Transfer_Get_SigmaR(State, MTrans, R, outvals, var1, var2, root)
     !Calculate MTrans%sigma_8^2 = int dk/k win**2 T_k**2 P(k), where win is the FT of a spherical top hat
     !of radius R h^{-1} Mpc, for all requested redshifts
     !set va1, var2 e.g. to get the value from some combination of transfer functions rather than total
+    class(CAMBState) :: State
     Type(MatterTransferData) :: MTrans
-    Type(CambParams) :: Params
     real(dl), intent(in) :: R
     integer, intent(in), optional :: var1, var2
     logical, intent(in), optional :: root !if true, give sigma8, otherwise sigma8^2
     real(dl), intent(out) :: outvals(:)
     real(dl) :: kh, k, h, x, win, lnk, dlnk, lnko, powers
-    real(dl), dimension(Params%Transfer%PK_num_redshifts) :: dsig8, dsig8o, sig8, sig8o
+    real(dl), dimension(State%CP%Transfer%PK_num_redshifts) :: dsig8, dsig8o, sig8, sig8o
     integer :: s1, s2, ik
 
     s1 = PresentDefault (transfer_power_var, var1)
     s2 = PresentDefault (transfer_power_var, var2)
-    H=Params%h0/100._dl
+    H=State%CP%h0/100._dl
     lnko=0
     dsig8o=0
     sig8=0
@@ -3413,13 +3769,11 @@
         if (kh==0) cycle
         k = kh*H
 
-        dsig8 = MTrans%TransferData(s1,ik, &
-            Params%Transfer%PK_redshifts_index(1:Params%Transfer%PK_num_redshifts))
+        dsig8 = MTrans%TransferData(s1,ik, State%PK_redshifts_index(1:State%CP%Transfer%PK_num_redshifts))
         if (s1==s2) then
             dsig8 = dsig8**2
         else
-            dsig8 = dsig8*MTrans%TransferData(s2,ik, &
-                Params%Transfer%PK_redshifts_index(1:Params%Transfer%PK_num_redshifts))
+            dsig8 = dsig8*MTrans%TransferData(s2,ik, State%PK_redshifts_index(1:State%CP%Transfer%PK_num_redshifts))
         end if
         x= kh *R
         win =3*(sin(x)-x*cos(x))/x**3
@@ -3431,7 +3785,7 @@
         else
             dlnk=lnk-lnko
         end if
-        powers = Params%InitPower%ScalarPower(k)
+        powers = State%CP%InitPower%ScalarPower(k)
         dsig8=(win*k**2)**2*powers*dsig8
         sig8=sig8+(dsig8+dsig8o)*dlnk/2
         dsig8o=dsig8
@@ -3443,14 +3797,14 @@
     else
         sig8 =sqrt(sig8)
     end if
-    outvals(1:Params%Transfer%PK_num_redshifts) = sig8
+    outvals(1:State%CP%Transfer%PK_num_redshifts) = sig8
 
     end subroutine Transfer_Get_SigmaR
 
-    subroutine Transfer_GetSigmaRArray(MTrans, Params,R, sigmaR, redshift_ix, var1, var2)
+    subroutine Transfer_GetSigmaRArray(State, MTrans, R, sigmaR, redshift_ix, var1, var2)
     !Get array of SigmaR at (by default) redshift zero, for all values of R
+    class(CAMBState) :: State
     Type(MatterTransferData) :: MTrans
-    Type(CambParams) :: Params
     real(dl), intent(in) :: R(:)
     real(dl), intent(out) :: SigmaR(:)
     integer, intent(in), optional :: redshift_ix, var1, var2
@@ -3462,12 +3816,11 @@
     integer, parameter :: nsub = 5
 
     minR = minval(R)
-    red_ix = PresentDefault (Params%Transfer%PK_redshifts_index(&
-        Params%Transfer%PK_num_redshifts), redshift_ix)
+    red_ix = PresentDefault (State%PK_redshifts_index(State%CP%Transfer%PK_num_redshifts), redshift_ix)
 
-    call Transfer_GetMatterPowerData(MTrans, Params, PKspline, red_ix, var1, var2 )
+    call Transfer_GetMatterPowerData(State, MTrans, PKspline, red_ix, var1, var2 )
 
-    H=Params%h0/100._dl
+    H=State%CP%h0/100._dl
     dkh = 0._dl
     lnko=0
     dsig8o=0
@@ -3506,12 +3859,12 @@
 
     end subroutine Transfer_GetSigmaRArray
 
-    subroutine Transfer_Get_sigma8(MTrans, Params, R, var1, var2)
+    subroutine Transfer_Get_sigma8(State, MTrans, R, var1, var2)
     !Calculate MTrans%sigma_8^2 = int dk/k win**2 T_k**2 P(k), where win is the FT of a spherical top hat
     !of radius R h^{-1} Mpc
     ! set va1, var2 e.g. to get the value from some combination of transfer functions rather than total
+    class(CAMBState) :: State
     Type(MatterTransferData) :: MTrans
-    Type(CambParams) :: Params
     real(dl), intent(in), optional :: R
     integer, intent(in), optional :: var1, var2
     real(dl) :: radius
@@ -3520,14 +3873,14 @@
 
     radius = PresentDefault (8._dl, R)
 
-    call Transfer_Get_SigmaR(MTrans, Params, radius, MTrans%sigma_8, var1,var2)
+    call Transfer_Get_SigmaR(State, MTrans, radius, MTrans%sigma_8, var1,var2)
 
     end subroutine Transfer_Get_sigma8
 
-    subroutine Transfer_Get_sigmas(MTrans, Params, R, var_delta, var_v)
+    subroutine Transfer_Get_sigmas(State, MTrans,  R, var_delta, var_v)
     !Get sigma8 and sigma_{delta v} (for growth, like f sigma8 in LCDM)
+    class(CAMBState) :: State
     Type(MatterTransferData) :: MTrans
-    Type(CambParams) :: Params
     real(dl), intent(in), optional :: R
     integer, intent(in), optional :: var_delta, var_v
     real(dl) :: radius
@@ -3539,8 +3892,8 @@
     s1 = PresentDefault (transfer_power_var, var_delta)
     s2 = PresentDefault (Transfer_Newt_vel_cdm, var_v)
 
-    call Transfer_Get_SigmaR(MTrans, Params, radius, MTrans%sigma_8, s1,s1)
-    if (get_growth_sigma8) call Transfer_Get_SigmaR(MTrans, Params,radius, &
+    call Transfer_Get_SigmaR(State, MTrans,  radius, MTrans%sigma_8, s1,s1)
+    if (get_growth_sigma8) call Transfer_Get_SigmaR(State, MTrans, radius, &
         MTrans%sigma2_vdelta_8(:), s1, s2, root=.false.)
 
     end subroutine Transfer_Get_sigmas
@@ -3552,15 +3905,15 @@
     integer j_PK
 
     do j_PK=1, CP%Transfer%PK_num_redshifts
-        j = CP%Transfer%PK_redshifts_index(j_PK)
+        j = State%PK_redshifts_index(j_PK)
         write(*,'("at z =",f7.3," sigma8 (all matter) = ",f7.4)') &
-            CP%Transfer%redshifts(j), MTrans%sigma_8(j_PK)
+            State%transfer_redshifts(j), MTrans%sigma_8(j_PK)
     end do
     if (get_growth_sigma8) then
         do j_PK=1, CP%Transfer%PK_num_redshifts
-            j = CP%Transfer%PK_redshifts_index(j_PK)
+            j = State%PK_redshifts_index(j_PK)
             write(*,'("at z =",f7.3," sigma8^2_vd/sigma8  = ",f7.4)') &
-                CP%Transfer%redshifts(j), MTrans%sigma2_vdelta_8(j_PK)/MTrans%sigma_8(j_PK)
+                State%Transfer_redshifts(j), MTrans%sigma2_vdelta_8(j_PK)/MTrans%sigma_8(j_PK)
         end do
     end if
 
@@ -3575,24 +3928,12 @@
     deallocate(MTrans%sigma_8, STAT = st)
     if (get_growth_sigma8) deallocate(MTrans%sigma2_vdelta_8, STAT = st)
     allocate(MTrans%q_trans(MTrans%num_q_trans))
-    allocate(MTrans%TransferData(Transfer_max,MTrans%num_q_trans,CP%Transfer%num_redshifts))
+    allocate(MTrans%TransferData(Transfer_max,MTrans%num_q_trans,State%num_transfer_redshifts))
     !JD 08/13 Changes in here to PK arrays and variables
     allocate(MTrans%sigma_8(CP%Transfer%PK_num_redshifts))
     if (get_growth_sigma8) allocate(MTrans%sigma2_vdelta_8(CP%Transfer%PK_num_redshifts))
 
     end subroutine Transfer_Allocate
-
-    subroutine Transfer_Nullify(Mtrans)
-    Type(MatterTransferData):: MTrans
-
-    Mtrans%num_q_trans = 0
-    nullify(MTrans%q_trans)
-    nullify(MTrans%TransferData)
-    nullify(MTrans%sigma_8)
-    nullify(MTrans%sigma2_vdelta_8)
-    nullify(MTrans%optical_depths)
-
-    end subroutine Transfer_Nullify
 
     subroutine Transfer_Free(MTrans)
     Type(MatterTransferData):: MTrans
@@ -3607,47 +3948,6 @@
     end subroutine Transfer_Free
 
 
-    !JD 08/13 Changes for nonlinear lensing of CMB + MPK compatibility
-    !Changed function below to write to only P%NLL_*redshifts* variables
-    subroutine Transfer_SetForNonlinearLensing(CP, eta_k_max)
-    Type(CAMBParams) :: CP
-    integer i
-    real maxRedshift
-    !Sources
-    real(dl), intent(in), optional :: eta_k_max
-
-    associate(P => CP%Transfer)
-        !Sources
-        if (CP%Do21cm) then
-            if (maxval(Redshift_w(1:num_redshiftwindows)%Redshift) /= minval(Redshift_w(1:num_redshiftwindows)%Redshift))  &
-                stop 'Non-linear 21cm currently only for narrow window at one redshift'
-            if (.not. present(eta_k_max)) stop 'bad call to Transfer_SetForNonlinearLensing'
-            P%kmax = eta_k_max/10000.
-            P%k_per_logint  = 0
-            P%NLL_num_redshifts =  1
-            P%NLL_redshifts(1) = Redshift_w(1)%Redshift
-            return
-        end if
-
-        P%kmax = max(P%kmax,5*CP%Accuracy%AccuracyBoost)
-        P%k_per_logint  = 0
-        maxRedshift = 10
-        P%NLL_num_redshifts =  nint(10*CP%Accuracy%AccuracyBoost)
-        if (CP%Accuracy%AccuracyBoost>=2) then
-            !only notionally more accuracy, more stable for RS
-            maxRedshift =15
-        end if
-        if (P%NLL_num_redshifts > max_transfer_redshifts) &
-            call MpiStop('Transfer_SetForNonlinearLensing: Too many redshifts')
-        do i=1,P%NLL_num_redshifts
-            P%NLL_redshifts(i) = real(P%NLL_num_redshifts-i)/(P%NLL_num_redshifts/maxRedshift)
-        end do
-    end associate
-
-    end subroutine Transfer_SetForNonlinearLensing
-
-
-
     subroutine Transfer_SaveToFiles(MTrans,FileNames)
     use constants
     Type(MatterTransferData), intent(in) :: MTrans
@@ -3659,7 +3959,7 @@
 
     do i_PK=1, CP%Transfer%PK_num_redshifts
         if (FileNames(i_PK) /= '') then
-            i = CP%Transfer%PK_redshifts_index(i_PK)
+            i = State%PK_redshifts_index(i_PK)
             if (CP%do21cm) then
                 unit = open_file_header(FileNames(i_PK), 'k/h', Transfer21cm_name_tags, 14)
             else
@@ -3703,7 +4003,7 @@
     do itf=1, CP%Transfer%PK_num_redshifts
         if (FileNames(itf) /= '') then
             if (.not. transfer_interp_matterpower ) then
-                itf_PK = CP%Transfer%PK_redshifts_index(itf)
+                itf_PK = State%PK_redshifts_index(itf)
 
                 points = MTrans%num_q_trans
                 allocate(outpower(points,ncol))
@@ -3712,7 +4012,7 @@
                 if (all21) then
                     call Transfer_Get21cmPowerData(MTrans, CP, PK_data, itf_PK)
                 else
-                    call Transfer_GetMatterPowerData(MTrans, CP, PK_data, itf_PK)
+                    call Transfer_GetMatterPowerData(State, MTrans, PK_data, itf_PK)
                     !JD 08/13 for nonlinear lensing of CMB + LSS compatibility
                     !Changed (CP%NonLinear/=NonLinear_None) to CP%NonLinear/=NonLinear_none .and. CP%NonLinear/=NonLinear_Lens)
                     if(CP%NonLinear/=NonLinear_none .and. CP%NonLinear/=NonLinear_Lens)&
@@ -3744,7 +4044,7 @@
                 points = log(MTrans%TransferData(Transfer_kh,MTrans%num_q_trans,itf)/minkh)/dlnkh+1
                 !             dlnkh = log(MTrans%TransferData(Transfer_kh,MTrans%num_q_trans,itf)/minkh)/(points-0.999)
                 allocate(outpower(points,1))
-                call Transfer_GetMatterPowerS(MTrans, CP, outpower(1,1), itf,  minkh,dlnkh, points)
+                call Transfer_GetMatterPowerS(State, MTrans, outpower(1,1), itf,  minkh,dlnkh, points)
 
                 columns(1) = 'P'
                 unit = open_file_header(FileNames(itf), 'k/h', columns(:1), 15)
@@ -3784,13 +4084,13 @@
     allocate(PK_data%log_k(PK_data%num_k))
     allocate(PK_data%redshifts(nz))
 
-    PK_data%redshifts = Params%Transfer%Redshifts(z_ix)
+    PK_data%redshifts = State%Transfer_Redshifts(z_ix)
 
     h = Params%H0/100
 
     if (Params%NonLinear/=NonLinear_None .and. Params%NonLinear/=NonLinear_Lens) then
         if (z_ix>1) stop 'not tested more than one redshift with Nonlinear 21cm'
-        call Transfer_GetMatterPowerData(MTrans, Params, PK_cdm, z_ix)
+        call Transfer_GetMatterPowerData(State, MTrans, PK_cdm, z_ix)
         call Params%NonLinearModel%GetNonLinRatios_All(CP,PK_cdm)
     end if
 
@@ -3813,9 +4113,6 @@
             PK_data%vdpower(ik,1) = PK_data%vdpower(ik,1) + 2*log(PK_cdm%nonlin_ratio_vd(ik,z_ix))
         end if
 
-        !test              PK_data%matpower(ik,z_ix) = &
-        !                    log( (MTrans%TransferData(Transfer_cdm,ik,z_ix)*k**2)**2 * pow)
-        !                 PK_data%vvpower(ik,z_ix) = 0
     end do
 
     if (Params%NonLinear/=NonLinear_None)  call MatterPowerdata_Free(PK_cdm)
@@ -3890,7 +4187,7 @@
     !Get 21cm C_l from sharp shell, using only monopole source and redshift distortions
     Type(MatterTransferData), intent(in) :: MTrans
     character(LEN=Ini_max_string_len), intent(IN) :: FileNames(*)
-    integer itf,ik
+    integer itf,ik, itf_PK
     integer points
     character(LEN=name_tag_len), dimension(3), parameter :: Transfer_21cm_name_tags = &
         ['CL  ','P   ','P_vv']
@@ -3902,19 +4199,19 @@
 
 
     tol = 1e-5/exp(CP%Accuracy%AccuracyBoost*CP%Accuracy%IntTolBoost-1)
-    do itf=1, CP%Transfer%num_redshifts
+    do itf_PK=1, CP%Transfer%PK_num_redshifts
+        itf = State%PK_redshifts_index(itf_PK)
         if (FileNames(itf) /= '') then
             !print *, 'tau = ', MTrans%optical_depths(itf)
-            chi = State%tau0-TimeOfz(State,CP%Transfer%redshifts(itf))
+            chi = State%tau0-State%TimeOfz(CP%Transfer%PK_redshifts(itf_PK))
 
             points = MTrans%num_q_trans
 
             lastl=0
 
-            call MatterPowerdata_Nullify(PK_data)
             call Transfer_Get21cmPowerData(MTrans, CP, PK_data, itf)
 
-            unit = open_file_header(FileNames(itf), 'L', Transfer_21cm_name_tags, 8)
+            unit = open_file_header(FileNames(itf_PK), 'L', Transfer_21cm_name_tags, 8)
 
             do ik =1, points-1
                 k =exp(PK_data%log_k(ik))
@@ -3980,7 +4277,7 @@
                     end if
 
 
-                    Cl=exp(-2*MTrans%optical_depths(itf))*const_fourpi*Cl* &
+                    Cl=exp(-2*MTrans%optical_depths(itf_PK))*const_fourpi*Cl* &
                         real(l,dl)*(l+1)/const_twopi/1d10
 
                     write (unit, '(1I8,3E15.5)') l, Cl, exp(PK_data%matpower(ik,1)/1d10), exp(PK_data%vvpower(ik,1)/1d10)
@@ -3995,48 +4292,6 @@
 
     end subroutine Transfer_Get21cmCls
 
-    !JD 08/13 New function for nonlinear lensing of CMB + MPK compatibility
-    !Build master redshift array from array of desired Nonlinear lensing (NLL)
-    !redshifts and an array of desired Power spectrum (PK) redshifts.
-    !At the same time fill arrays for NLL and PK that indicate indices
-    !of their desired redshifts in the master redshift array.
-    !Finally define number of redshifts in master array. This is usually given by:
-    !P%num_redshifts = P%PK_num_redshifts + P%NLL_num_redshifts - 1.  The -1 comes
-    !from the fact that z=0 is in both arrays (when non-linear is on)
-    subroutine Transfer_SortAndIndexRedshifts(P)
-    use MpiUtils, only : MpiStop
-    Type(TransferParams) :: P
-    integer i, iPK, iNLL
-    real(dl), parameter :: tol = 1.d-5
-
-    i=0
-    iPK=1
-    iNLL=1
-    do while (iPk<=P%PK_num_redshifts .or. iNLL<=P%NLL_num_redshifts)
-        !JD write the next line like this to account for roundoff issues with ==. Preference given to PK_Redshift
-        i=i+1
-        if (i > max_transfer_redshifts) &
-            call MpiStop('Transfer_SortAndIndexRedshifts: Too many redshifts')
-
-        if(iNLL>P%NLL_num_redshifts .or. P%PK_redshifts(iPK)>P%NLL_redshifts(iNLL)+tol) then
-            P%redshifts(i)=P%PK_redshifts(iPK)
-            P%PK_redshifts_index(iPK)=i
-            iPK=iPK+1
-        else if(iPK>P%PK_num_redshifts .or. P%NLL_redshifts(iNLL)>P%PK_redshifts(iPK)+tol) then
-            P%redshifts(i)=P%NLL_redshifts(iNLL)
-            P%NLL_redshifts_index(iNLL)=i
-            iNLL=iNLL+1
-        else
-            P%redshifts(i)=P%PK_redshifts(iPK)
-            P%PK_redshifts_index(iPK)=i
-            P%NLL_redshifts_index(iNLL)=i
-            iPK=iPK+1
-            iNLL=iNLL+1
-        end if
-    end do
-    P%num_redshifts=i
-
-    end subroutine Transfer_SortAndIndexRedshifts
 
     end module Transfer
 

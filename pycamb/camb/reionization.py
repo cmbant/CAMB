@@ -23,8 +23,8 @@ class ReionizationParams(CAMB_Structure):
     Holds parameters for the reionization model.
     """
     _fields_ = [
-        ("Reionization", c_int),  # logical
-        ("use_optical_depth", c_int),  # logical
+        ("Reionization", c_bool),
+        ("use_optical_depth", c_bool),
         ("redshift", c_double),
         ("delta_redshift", c_double),
         ("fraction", c_double),

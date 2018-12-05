@@ -65,6 +65,8 @@
     procedure :: GetNonLinRatios => THalofit_GetNonLinRatios
     procedure :: halofit
     procedure :: HMcode
+    procedure, nopass :: PythonClass => THalofit_PythonClass
+    procedure, nopass :: SelfPointer => THalofit_SelfPointer
     procedure, private :: Delta_v
     procedure, private :: delta_c
     procedure, private :: eta
@@ -87,7 +89,7 @@
 
     TYPE HM_cosmology
         !Contains only things that do not need to be recalculated with each new z
-        REAL :: om_m, om_v, w, wa, f_nu, ns, h, Tcmb, Nnu
+        REAL(dl) :: om_m, om_v, w, wa, f_nu, ns, h, Tcmb, Nnu
         REAL, ALLOCATABLE :: r_sigma(:), sigma(:)
         REAL, ALLOCATABLE :: growth(:), a_growth(:)
         REAL, ALLOCATABLE :: k_plin(:), plin(:), plinc(:)
@@ -107,6 +109,24 @@
 
     contains
 
+    function THalofit_PythonClass()
+    character(LEN=:), allocatable :: THalofit_PythonClass
+
+    THalofit_PythonClass = 'Halofit'
+
+    end function THalofit_PythonClass
+
+    subroutine THalofit_SelfPointer(cptr,P)
+    use iso_c_binding
+    Type(c_ptr) :: cptr
+    Type (THalofit), pointer :: PType
+    class (TPythonInterfacedClass), pointer :: P
+
+    call c_f_pointer(cptr, PType)
+    P => PType
+
+    end subroutine THalofit_SelfPointer
+
     subroutine THalofit_ReadParams(this,Ini)
     use IniObjects
     class(THalofit) :: this
@@ -121,7 +141,7 @@
     !for each redshift and wavenumber
     !This implementation uses Halofit
     class(THalofit) :: this
-    class(TCAMBParameters), intent(in) :: Params
+    class(TCAMBParameters) :: Params
     type(MatterPowerData) :: CAMB_Pk
     integer itf
     real(dl) a,plin,pq,ph,pnl,rk
@@ -146,12 +166,11 @@
 
             do itf = 1, CAMB_Pk%num_z
 
-                this%w_hf=Params%DarkEnergy%w_lam
-                this%wa_hf=Params%DarkEnergy%wa
+                call Params%DarkEnergy%Effective_w_wa(this%w_hf, this%wa_hf)
                 if (this%halofit_version == halofit_casarini) then
                     ! calculate equivalent w-constant models (w_hf,0) for w_lam+wa_ppf(1-a) models
                     ! [Casarini+ (2009,2016)].
-                    call PKequal(CAMB_Pk%Redshifts(itf),Params%DarkEnergy%w_lam,Params%DarkEnergy%wa,this%w_hf,this%wa_hf)
+                    call PKequal(CAMB_Pk%Redshifts(itf),this%w_hf,this%wa_hf,this%w_hf,this%wa_hf)
                 endif
 
                 ! calculate nonlinear wavenumber (rknl), effective spectral index (rneff) and
@@ -825,8 +844,7 @@
     !Converts CAMB parameters to Meadfit parameters
     cosm%om_m=CP%omegac+CP%omegab+CP%omegan
     cosm%om_v=CP%omegav
-    cosm%w=CP%DarkEnergy%w_lam
-    cosm%wa=CP%DarkEnergy%wa
+    call CP%DarkEnergy%Effective_w_wa(cosm%w, cosm%wa)
     cosm%f_nu=CP%omegan/cosm%om_m
     cosm%h=CP%H0/100.
     cosm%Tcmb=CP%tcmb
@@ -3199,15 +3217,15 @@
     real(dl) :: z_star,tau_star,dlsb,dlsb_eq,w_true,wa_true,error
 
     z_star=State%ThermoDerivedParams( derived_zstar )
-    tau_star=TimeOfz(State,z_star)
-    dlsb=TimeOfz(State,redshift)-tau_star
+    tau_star=State%TimeOfz(z_star)
+    dlsb=State%TimeOfz(redshift)-tau_star
     w_true=w_lam
     wa_true=wa_ppf
     wa_ppf=0._dl
     do
         z_star=State%ThermoDerivedParams( derived_zstar )
-        tau_star=TimeOfz(State,State%ThermoData%z_star)
-        dlsb_eq=TimeOfz(State,redshift)-tau_star
+        tau_star=State%TimeOfz(State%ThermoData%z_star)
+        dlsb_eq=State%TimeOfz(redshift)-tau_star
         error=1.d0-dlsb_eq/dlsb
         if (abs(error).le.1e-7) exit
         w_lam=w_lam*(1+error)**10.d0

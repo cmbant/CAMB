@@ -13,21 +13,6 @@
 # serve to show the default.
 
 import sys
-import os
-import shlex
-
-try:
-    from unittest.mock import MagicMock
-except ImportError:
-    from mock import Mock as MagicMock
-
-class Mock(MagicMock):
-    @classmethod
-    def __getattr__(cls, name):
-            return Mock()
-
-MOCK_MODULES = ['ctypes']
-sys.modules.update((mod_name, Mock()) for mod_name in MOCK_MODULES)
 
 # autoclass_content = 'both'
 
@@ -45,7 +30,8 @@ needs_sphinx = '1.3'
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
-    'sphinx.ext.autodoc', 'sphinx.ext.intersphinx', 'sphinx.ext.viewcode', 'sphinx.ext.autosummary', 'sphinx.ext.mathjax'
+    'sphinx.ext.autodoc', 'sphinx.ext.intersphinx', 'sphinx.ext.viewcode', 'sphinx.ext.autosummary',
+    'sphinx.ext.mathjax'
 ]
 
 intersphinx_mapping = {'python': ('http://docs.python.org/2', None),
@@ -74,6 +60,7 @@ copyright = u'Antony Lewis'
 author = u'Antony Lewis'
 
 import camb
+
 version = camb.__version__
 release = camb.__version__
 
@@ -120,7 +107,6 @@ pygments_style = 'sphinx'
 
 # If true, `todo` and `todoList` produce output, else they produce nothing.
 todo_include_todos = False
-
 
 # -- Options for HTML output ----------------------------------------------
 
@@ -222,25 +208,25 @@ htmlhelp_basename = 'CAMBDoc'
 # -- Options for LaTeX output ---------------------------------------------
 
 latex_elements = {
-# The paper size ('letterpaper' or 'a4paper').
-# 'papersize': 'letterpaper',
+    # The paper size ('letterpaper' or 'a4paper').
+    # 'papersize': 'letterpaper',
 
-# The font size ('10pt', '11pt' or '12pt').
-# 'pointsize': '10pt',
+    # The font size ('10pt', '11pt' or '12pt').
+    # 'pointsize': '10pt',
 
-# Additional stuff for the LaTeX preamble.
-# 'preamble': '',
+    # Additional stuff for the LaTeX preamble.
+    # 'preamble': '',
 
-# Latex figure (float) alignment
-# 'figure_align': 'htbp',
+    # Latex figure (float) alignment
+    # 'figure_align': 'htbp',
 }
 
 # Grouping the document tree into LaTeX files. List of tuples
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-  (master_doc, 'CAMB.tex', u'CAMB Python Documentation',
-   author, 'manual'),
+    (master_doc, 'CAMB.tex', u'CAMB Python Documentation',
+     author, 'manual'),
 ]
 
 # The name of an image file (relative to this directory) to place at the top of
@@ -283,9 +269,9 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-  (master_doc, 'CAMB', u'CAMB Python Documentation',
-   author, 'CAMB', 'Cosmology calculations and output.',
-   'Miscellaneous'),
+    (master_doc, 'CAMB', u'CAMB Python Documentation',
+     author, 'CAMB', 'Cosmology calculations and output.',
+     'Miscellaneous'),
 ]
 
 # Documents to append as an appendix to all manuals.

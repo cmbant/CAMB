@@ -1,32 +1,47 @@
-from .baseconfig import CAMB_Structure
+from .baseconfig import F2003Class, fortran_class
 from ctypes import c_int, c_double
 
 # ---Parameters in halofit_ppf.f90
 
-halofit_original = 1
-halofit_bird = 2
-halofit_peacock = 3
-halofit_takahashi = 4
-halofit_mead = 5
-halofit_halomodel = 6
-halofit_casarini = 7
-halofit_mead2015 = 8
+halofit_original = 'original'
+halofit_bird = 'bird'
+halofit_peacock = 'peacock'
+halofit_takahashi = 'takahashi'
+halofit_mead = 'mead'
+halofit_halomodel = 'halomodel'
+halofit_casarini = 'casarini'
+halofit_mead2015 = 'mead2015'
 
 halofit_default = halofit_takahashi
 
-halofit_version_names = ['original', 'bird', 'peacock', 'takahashi', 'mead', 'halomodel', 'casarini', 'mead2015']
+halofit_version_names = [halofit_original, halofit_bird, halofit_peacock, halofit_takahashi, halofit_mead,
+                         halofit_halomodel, halofit_casarini, halofit_mead2015]
 
 
-class NonLinearModel(CAMB_Structure):
+class NonLinearModel(F2003Class):
+    """
+    Abstract base class for non-linear correction models
+    """
+    pass
+
+
+@fortran_class
+class Halofit(NonLinearModel):
+    """
+    Various specific approximate non-linear correction models based on HaloFit.
+    """
     _fields_ = [
         ("Min_kh_nonlinear", c_double),
-        ("halofit_version", c_int)
+        ("halofit_version", c_int, {"names": halofit_version_names, "start": 1})
     ]
 
-    def get_halofit_version(self):
-        return halofit_version_names[self.halofit_version - 1]
+    _fortran_class_module_ = 'NonLinear'
+    _fortran_class_name_ = 'THalofit'
 
-    def set_params(self, halofit_version='takahashi'):
+    def get_halofit_version(self):
+        return self.halofit_version
+
+    def set_params(self, halofit_version=halofit_default):
         """
         Set the halofit model for non-linear corrections.
 
@@ -42,4 +57,4 @@ class NonLinearModel(CAMB_Structure):
             - mead2015: original 2015 version of HMCode `arXiv:1505.07833 <http://arxiv.org/abs/1505.07833>`_
 
         """
-        self.halofit_version = halofit_version_names.index(halofit_version) + 1
+        self.halofit_version = halofit_version

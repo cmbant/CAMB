@@ -1,36 +1,31 @@
 # Initial power spectrum parameters
 
-from .baseconfig import F2003Class, CAMBError, f_allocatable
-from ctypes import c_int, c_double, POINTER, byref
-from numpy.ctypeslib import ndpointer
-import ctypes
-import numpy as np
+from .baseconfig import F2003Class, CAMBError, fortran_class, \
+    c_int, c_double, POINTER, byref, ndpointer, np
 
+tensor_parameterization_names = ["tensor_param_indeptilt", "tensor_param_rpivot", "tensor_param_AT"]
 tensor_param_indeptilt = 1
 tensor_param_rpivot = 2
 tensor_param_AT = 3
 
 
 class InitialPower(F2003Class):
-    _classes = []
-
-    def _pointer_id(self):
-        return self._void_p(), InitialPower._classes.index(self.__class__)
-
-    @classmethod
-    def void_contents(cls, p, j):
-        return ctypes.cast(p, POINTER(cls._classes[j])).contents
-
+    """
+    Abstract base class for initial power spectrum classes
+    """
     def set_params(self):
         pass
 
 
+@fortran_class
 class SplinedInitialPower(InitialPower):
     """
     Object to store a generic primordial spectrum set from a set of sampled k_i, P(k_i) values
     """
+    _fortran_class_module_ = 'classes'
+    _fortran_class_name_ = 'TSplinedInitialPower'
 
-    def _init_members(self, **kwargs):
+    def __init__(self, **kwargs):
         if kwargs.get('PK', None) is not None: self.set_scalar_table(kwargs['ks'], kwargs['PK'])
 
     def has_tensors(self):
@@ -39,9 +34,7 @@ class SplinedInitialPower(InitialPower):
 
         :return: True if tensors
         """
-        func = self.import_func('hastensors')
-        func.restype = c_int
-        return func(byref(self))
+        return self.call_method('hastensors', restype=c_int)
 
     def set_scalar_table(self, k, PK):
         """
@@ -51,19 +44,19 @@ class SplinedInitialPower(InitialPower):
         :param k: array of k values (Mpc^{-1}
         :param PK: array of scalar power spectrum values
         """
-        func = self.import_func('setscalartable', extra_args=[POINTER(c_int), ndpointer(c_double), ndpointer(c_double)])
-        func(byref(self), byref(c_int(len(k))), np.asarray(k), np.asarray(PK))
+        func = self.call_method('setscalartable', extra_args=[POINTER(c_int), ndpointer(c_double), ndpointer(c_double)],
+                                args=[byref(c_int(len(k))), np.asarray(k), np.asarray(PK)])
 
     def set_tensor_table(self, k, PK):
         """
         Set arrays of k and P_t(k) values for cublic spline interpolation
 
-        :param k: array of k values (Mpc^{-1}
+        :param k: array of k values (Mpc^{-1})
         :param PK: array of tensor power spectrum values
         """
-        func = self.import_func('settensortable',
-                                extra_args=[POINTER(c_int), ndpointer(c_double), ndpointer(c_double)])
-        func(byref(self), byref(c_int(len(k))), np.asarray(k), np.asarray(PK))
+        func = self.call_method('settensortable',
+                                extra_args=[POINTER(c_int), ndpointer(c_double), ndpointer(c_double)],
+                                args=[byref(c_int(len(k))), np.asarray(k), np.asarray(PK)])
 
     def set_scalar_log_regular(self, kmin, kmax, PK):
         """
@@ -71,12 +64,13 @@ class SplinedInitialPower(InitialPower):
 
         :param kmin: minimum k value (not minimum log(k))
         :param kmax: maximum k value (inclusive)
-        :param PK: array of scalar power spectrum values, with PK[0]=P(kmin) and PK[-1]=P(lmax)
+        :param PK: array of scalar power spectrum values, with PK[0]=P(kmin) and PK[-1]=P(kmax)
         """
 
-        func = self.import_func('setscalarlogregular',
-                                extra_args=[POINTER(c_double), POINTER(c_double), POINTER(c_int), ndpointer(c_double)])
-        func(byref(self), byref(c_double(kmin)), byref(c_double(kmax)), byref(c_int(len(PK))), np.asarray(PK))
+        self.call_method('setscalarlogregular',
+                         extra_args=[POINTER(c_double), POINTER(c_double), POINTER(c_int), ndpointer(c_double)],
+                         args=[byref(c_double(kmin)), byref(c_double(kmax)), byref(c_int(len(PK))),
+                               np.asarray(PK)])
 
     def set_tensor_log_regular(self, kmin, kmax, PK):
         """
@@ -84,24 +78,23 @@ class SplinedInitialPower(InitialPower):
 
         :param kmin: minimum k value (not minimum log(k))
         :param kmax: maximum k value (inclusive)
-        :param PK: array of scalar power spectrum values, with PK[0]=P_t(kmin) and PK[-1]=P_t(lmax)
+        :param PK: array of scalar power spectrum values, with PK[0]=P_t(kmin) and PK[-1]=P_t(kmax)
         """
 
-        func = self.import_func('settensorlogregular',
-                                extra_args=[POINTER(c_double), POINTER(c_double), POINTER(c_int), ndpointer(c_double)])
-        func(byref(self), byref(c_double(kmin)), byref(c_double(kmax)), byref(c_int(len(PK))), np.asarray(PK))
+        func = self.call_method('settensorlogregular',
+                                extra_args=[POINTER(c_double), POINTER(c_double), POINTER(c_int), ndpointer(c_double)],
+                                args=[byref(c_double(kmin)), byref(c_double(kmax)), byref(c_int(len(PK))),
+                                      np.asarray(PK)])
 
 
+@fortran_class
 class InitialPowerLaw(InitialPower):
     """
-    Object to store parameters for the primordial power spectrum.
-    Many of the internal variables are arrays, to allow calculating more than one power spectrum at one. Higher-level functions in the
-    CAMB python wrapper assume only one is calculated.
+    Object to store parameters for the primordial power spectrum in the standard power law expansion.
 
     """
     _fields_ = [
-        ("__first_member", c_int),
-        ("tensor_parameterization", c_int),
+        ("tensor_parameterization", c_int, {"names": tensor_parameterization_names, "start": 1}),
         ("ns", c_double),
         ("nrun", c_double),
         ("nrunrun", c_double),
@@ -114,11 +107,14 @@ class InitialPowerLaw(InitialPower):
         ("At", c_double)
     ]
 
-    def _init_members(self, **kwargs):
+    _fortran_class_module_ = 'InitialPower'
+    _fortran_class_name_ = 'TInitialPowerLaw'
+
+    def __init__(self, **kwargs):
         self.set_params(**kwargs)
 
     def set_params(self, As=2e-9, ns=0.96, nrun=0, nrunrun=0.0, r=0.0, nt=None, ntrun=0.0,
-                   pivot_scalar=0.05, pivot_tensor=0.05, parameterization=tensor_param_rpivot):
+                   pivot_scalar=0.05, pivot_tensor=0.05, parameterization="tensor_param_rpivot"):
         r"""
         Set parameters using standard power law parameterization. If nt=None, uses inflation consistency relation.
 
@@ -138,7 +134,8 @@ class InitialPowerLaw(InitialPower):
         :return: self
         """
 
-        if not parameterization in [tensor_param_rpivot, tensor_param_indeptilt]:
+        if not parameterization in [tensor_param_rpivot, tensor_param_indeptilt, "tensor_param_rpivot",
+                                    "tensor_param_indeptilt"]:
             raise CAMBError('Initial power parameterization not supported here')
         self.tensor_parameterization = parameterization
         self.As = As
@@ -167,6 +164,3 @@ class InitialPowerLaw(InitialPower):
         :return: True if non-zero tensor amplitude
         """
         return self.r > 0
-
-
-InitialPower._classes += [InitialPowerLaw, SplinedInitialPower]

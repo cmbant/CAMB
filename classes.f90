@@ -8,43 +8,72 @@
     Type MatterTransferData
         !Computed data
         integer   ::  num_q_trans   !    number of steps in k for transfer calculation
-        real(dl), dimension (:), pointer :: q_trans => NULL()
-        real(dl), dimension (:), pointer ::  sigma_8 => NULL()
-        real(dl), dimension (:), pointer ::  sigma2_vdelta_8 => NULL() !growth from sigma_{v delta}
-        real, dimension(:,:,:), pointer :: TransferData => NULL()
+        real(dl), dimension (:), allocatable :: q_trans
+        real(dl), dimension (:), allocatable ::  sigma_8
+        real(dl), dimension (:), allocatable ::  sigma2_vdelta_8 !growth from sigma_{v delta}
+        real, dimension(:,:,:), allocatable :: TransferData
         !Sources
-        real(dl), dimension(:), pointer :: optical_depths => NULL()
+        real(dl), dimension(:), allocatable :: optical_depths
         !TransferData(entry,k_index,z_index) for entry=Tranfer_kh.. Transfer_tot
     end Type MatterTransferData
 
     Type MatterPowerData
         !everything is a function of k/h
         integer   ::  num_k, num_z
-        real(dl), dimension(:), pointer :: log_kh => NULL(), redshifts => NULL()
+        real(dl), dimension(:), allocatable :: log_kh, redshifts
         !matpower is log(P_k)
         real(dl), dimension(:,:), allocatable :: matpower, ddmat
         !if NonLinear, nonlin_ratio =  sqrt(P_nonlinear/P_linear)
         !function of k and redshift NonLinearScaling(k_index,z_index)
-        real(dl), dimension(:,:), pointer :: nonlin_ratio => NULL()
+        real(dl), dimension(:,:), allocatable :: nonlin_ratio
         !Sources
-        real(dl), dimension(:), pointer :: log_k => NULL()
-        real(dl), dimension(:,:), pointer :: vvpower => NULL(), ddvvpower => NULL()
-        real(dl), dimension(:,:), pointer :: vdpower => NULL(), ddvdpower => NULL()
+        real(dl), dimension(:), allocatable :: log_k
+        real(dl), dimension(:,:), allocatable :: vvpower, ddvvpower
+        real(dl), dimension(:,:), allocatable :: vdpower, ddvdpower
 
-        real(dl), dimension(:,:), pointer :: nonlin_ratio_vv => NULL()
-        real(dl), dimension(:,:), pointer :: nonlin_ratio_vd => NULL()
+        real(dl), dimension(:,:), allocatable :: nonlin_ratio_vv
+        real(dl), dimension(:,:), allocatable :: nonlin_ratio_vd
 
     end Type MatterPowerData
 
-    type TCAMBParameters
-        !Actual type defined in modules.f90
-    end type TCAMBParameters
+    !Classes that can be accessed from python and contain allocatable objects and arrays or other classes
+    !In Python inherited from F2003Class (defined in baseconfig)
+    !All python-accessible inherited classes must define SelfPointer, and use @fortran_class decorator in python
+    !Allocatable objects can only contain instances of python-accessible classes so they can be identified from python.
+    !Class could be abstract and SelfPointer deferred, but Fortran then doesn't allow called inherited "super()" methods implemented in abstract classes
+    Type TPythonInterfacedClass
+        integer :: self !Not used, just need to be able to get reference to first entry if whole class is allocatable
+    contains
+    !SelfPointer msust be overriden for each class to be referenced from python.
+    !Gets a class pointer from an untyped pointer.
+    procedure, nopass :: SelfPointer
+    !PythonClass gets string of python class name; not actually used internally
+    procedure, nopass :: PythonClass
+    !Replace is for copying over this type with an instance of the same type
+    !It must be defined for any class used as a non-allocatable python structure field that can be assigned to
+    procedure :: Replace
+    end type TPythonInterfacedClass
 
+    Type PythonClassPtr
+        class(TPythonInterfacedClass), pointer :: Ref => null()
+    end type
 
-    type TCambComponent
+    Type PythonClassAllocatable
+        class(TPythonInterfacedClass), allocatable :: P
+    end Type PythonClassAllocatable
+
+    type, extends(TPythonInterfacedClass) :: TCambComponent
     contains
     procedure :: ReadParams => TCambComponent_ReadParams
     end type TCambComponent
+
+    type, extends(TPythonInterfacedClass) :: TCAMBParameters
+        !Actual type defined in modules.f90
+    end type TCAMBParameters
+
+    Type, extends(TPythonInterfacedClass) :: TCAMBCalculation
+        !Actual type defined in modules.f90
+    end type TCAMBCalculation
 
     type, extends(TCambComponent) :: TNonLinearModel
         real(dl) :: Min_kh_nonlinear  = 0.005_dl
@@ -53,12 +82,10 @@
     procedure :: GetNonLinRatios_All => TNonLinearModel_GetNonLinRatios_All
     end type TNonLinearModel
 
-    type TInitialPower
-        integer :: first_member !just so can get pointer from python
+    type, extends(TPythonInterfacedClass) :: TInitialPower
     contains
     procedure :: ScalarPower => TInitialPower_ScalarPower
     procedure :: TensorPower => TInitialPower_TensorPower
-    procedure :: PythonClass => TInitialPower_PythonClass
     procedure :: Init => TInitialPower_Init
     procedure :: ReadParams => TInitialPower_ReadParams
     procedure :: Effective_ns => TInitalPower_Effective_ns
@@ -73,7 +100,9 @@
     procedure :: SetTensorLogRegular => TSplinedInitialPower_SetTensorLogRegular
     procedure :: ScalarPower => TSplinedInitialPower_ScalarPower
     procedure :: TensorPower => TSplinedInitialPower_TensorPower
-    procedure :: PythonClass => TSplinedInitialPower_PythonClass
+    procedure :: HasTensors => TSplinedInitialPower_HasTensors
+    procedure, nopass :: PythonClass => TSplinedInitialPower_PythonClass
+    procedure, nopass :: SelfPointer => TSplinedInitialPower_SelfPointer
     end Type TSplinedInitialPower
 
     contains
@@ -84,9 +113,37 @@
 
     end subroutine TCambComponent_ReadParams
 
+    function PythonClass()
+    character(LEN=:), allocatable :: PythonClass
+
+    PythonClass = ''
+    error stop 'PythonClass Not implemented'
+
+    end function PythonClass
+
+    subroutine SelfPointer(cptr, P)
+    use iso_c_binding
+    Type(c_ptr) :: cptr
+    Type (TPythonInterfacedClass), pointer :: PType
+    class (TPythonInterfacedClass), pointer :: P
+
+    call c_f_pointer(cptr, PType)
+    P => PType
+    error stop 'Class must define SelfPointer function returning pointer to actual type'
+
+    end subroutine SelfPointer
+
+    subroutine Replace(this, replace_with)
+    class(TPythonInterfacedClass), target :: this
+    class(TPythonInterfacedClass) :: replace_with
+
+    error stop 'Assignment not implemented for this class'
+
+    end subroutine Replace
+
     subroutine TNonLinearModel_GetNonLinRatios(this,Params,CAMB_Pk)
     class(TNonLinearModel) :: this
-    class(TCAMBParameters), intent(in) :: Params
+    class(TCAMBParameters) :: Params
     type(MatterPowerData) :: CAMB_Pk
     error stop 'GetNonLinRatios Not implemented'
     end subroutine TNonLinearModel_GetNonLinRatios
@@ -117,13 +174,6 @@
     error stop 'TensorPower not implemented'
     end function TInitialPower_TensorPower
 
-    function TInitialPower_PythonClass(this)
-    class(TInitialPower) :: this
-    character(LEN=:), allocatable :: TInitialPower_PythonClass
-
-    TInitialPower_PythonClass = ''
-
-    end function TInitialPower_PythonClass
 
     subroutine TInitialPower_Init(this, Params, Omegak)
     class(TInitialPower) :: this
@@ -148,6 +198,23 @@
 
     end function TInitalPower_Effective_ns
 
+    subroutine TSplinedInitialPower_SelfPointer(cptr, P)
+    use iso_c_binding
+    Type(c_ptr) :: cptr
+    Type (TSplinedInitialPower), pointer :: PType
+    class (TPythonInterfacedClass), pointer :: P
+
+    call c_f_pointer(cptr, PType)
+    P => PType
+
+    end subroutine TSplinedInitialPower_SelfPointer
+
+    logical function TSplinedInitialPower_HasTensors(this)
+    class(TSplinedInitialPower) :: this
+
+    TSplinedInitialPower_HasTensors = allocated(this%Ptensor)
+
+    end function TSplinedInitialPower_HasTensors
 
     function TSplinedInitialPower_ScalarPower(this, k)
     class(TSplinedInitialPower) :: this
@@ -167,8 +234,7 @@
 
     end function TSplinedInitialPower_TensorPower
 
-    function TSplinedInitialPower_PythonClass(this)
-    class(TSplinedInitialPower) :: this
+    function TSplinedInitialPower_PythonClass()
     character(LEN=:), allocatable :: TSplinedInitialPower_PythonClass
 
     TSplinedInitialPower_PythonClass = 'SplinedInitialPower'

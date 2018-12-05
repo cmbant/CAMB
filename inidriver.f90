@@ -36,6 +36,7 @@
     integer status
     logical :: DoCounts = .false.
     Type(CAMBstate) :: ActiveState
+    logical PK_WantTransfer
 
     call SetActiveState(ActiveState)
     InputFile = ''
@@ -151,7 +152,7 @@
 
     P%WantCls= P%WantScalars .or. P%WantTensors .or. P%WantVectors
 
-    P%PK_WantTransfer = Ini%Read_Logical('get_transfer')
+    PK_WantTransfer = Ini%Read_Logical('get_transfer')
 
     call Ini%Read('accuracy_boost', P%Accuracy%AccuracyBoost)
     call Ini%Read('l_accuracy_boost', P%Accuracy%lAccuracyBoost)
@@ -253,24 +254,21 @@
         end if
     end if
 
-    !JD 08/13 begin changes for nonlinear lensing of CMB + LSS compatibility
-    !P%Transfer%redshifts -> P%Transfer%PK_redshifts and P%Transfer%num_redshifts -> P%Transfer%PK_num_redshifts
-    !in the P%WantTransfer loop.
-    if (((P%NonLinear==NonLinear_lens .or. P%NonLinear==NonLinear_both) .and. P%DoLensing) .or. P%PK_WantTransfer) then
+    if (((P%NonLinear==NonLinear_lens .or. P%NonLinear==NonLinear_both) .and. P%DoLensing) .or. PK_WantTransfer) then
         P%Transfer%high_precision = Ini%Read_Logical('transfer_high_precision', .false.)
     else
         P%transfer%high_precision = .false.
     endif
-    if (P%PK_WantTransfer) then
+    if (PK_WantTransfer) then
         P%Transfer%accurate_massive_neutrinos = Ini%Read_Logical('accurate_massive_neutrino_transfers',.false.)
     else
         P%Transfer%accurate_massive_neutrinos = .false.
     end if
     if (P%NonLinear/=NonLinear_none) call P%NonLinearModel%ReadParams(Ini)
 
-    if (P%PK_WantTransfer)  then
+    if (PK_WantTransfer)  then
         P%WantTransfer  = .true.
-        P%transfer%kmax = Ini%Read_Double('transfer_kmax')
+        P%transfer%kmax = Ini%Read_Double('transfer_kmax')*(P%h0 / 100._dl)
         P%transfer%k_per_logint = Ini%Read_Int('transfer_k_per_logint')
         P%transfer%PK_num_redshifts = Ini%Read_Int('transfer_num_redshifts')
 
@@ -283,7 +281,7 @@
 
         call Ini%Read('transfer_interp_matterpower', transfer_interp_matterpower)
         call Ini%Read('transfer_power_var', transfer_power_var)
-        !        if (P%transfer%PK_num_redshifts > max_transfer_redshifts) stop 'Too many redshifts'
+        if (P%transfer%PK_num_redshifts > max_transfer_redshifts) stop 'Too many redshifts'
         allocate (TransferFileNames(P%Transfer%PK_num_redshifts))
         allocate (MatterPowerFileNames(P%Transfer%PK_num_redshifts))
         allocate (TransferClFileNames(P%Transfer%PK_num_redshifts))
@@ -317,18 +315,7 @@
         P%Transfer%PK_num_redshifts = 1
         P%Transfer%PK_redshifts = 0
     end if
-
-    if ((P%NonLinear==NonLinear_lens .or. P%NonLinear==NonLinear_both) .and. &
-        (P%DoLensing .or. num_redshiftwindows > 0)) then
-        P%WantTransfer  = .true.
-        call Transfer_SetForNonlinearLensing(P)
-    end if
-
-    call Transfer_SortAndIndexRedshifts(P%Transfer)
-    !JD 08/13 end changes
-
-    P%transfer%kmax = P%transfer%kmax*(P%h0 / 100._dl)
-
+    
     Ini%Fail_on_not_found = .false.
 
     call Ini%Read('DebugParam', DebugParam)
@@ -347,9 +334,9 @@
     if (P%WantScalars .or. P%WantTransfer) then
         P%Scalar_initial_condition = Ini%Read_Int('initial_condition', initial_adiabatic)
         if (P%Scalar_initial_condition == initial_vector) then
-            P%InitialConditionVector=0
+            allocate(P%InitialCOnditionVector(initial_nummodes))
             numstr = Ini%Read_String('initial_vector', .true.)
-            read (numstr,*) P%InitialConditionVector(1:initial_iso_neutrino_vel)
+            read (numstr,*) P%InitialConditionVector
         end if
         if (P%Scalar_initial_condition/= initial_adiabatic) use_spline_template = .false.
     end if
@@ -457,7 +444,7 @@
 
     call Ini%Close()
 
-    if (.not. CAMB_ValidateParams(P)) error stop 'Stopped due to parameter error'
+    if (.not. P%Validate()) error stop 'Stopped due to parameter error'
 
 #ifdef RUNIDLE
     call SetIdle
@@ -469,7 +456,7 @@
         error stop
     endif
 
-    if (P%PK_WantTransfer) then
+    if (PK_WantTransfer) then
         call Transfer_SaveToFiles(State%MT,TransferFileNames)
         call Transfer_SaveMatterPower(State%MT,MatterPowerFileNames)
         call Transfer_output_sig8(State%MT)

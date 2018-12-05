@@ -78,15 +78,21 @@ libcamb: libforutils directories
 	$(MAKE) -C $(OUTPUT_DIR) -r -f ../Makefile_main $(CAMBLIB)
 
 libcambso: libforutils_so directories_so
-	$(MAKE) -C $(DLL_DIR) -r -f ../Makefile_main $(CAMBLIB) F90FLAGS="$(SF90FLAGS)" OUTPUT_DIR=$(DLL_DIR)
+	$(MAKE) -C $(DLL_DIR) -r -f ../Makefile_main objfiles F90FLAGS="$(SF90FLAGS)" OUTPUT_DIR=$(DLL_DIR)
 
 camb: libcamb $(DRIVER)
 	$(F90C) $(F90FLAGS) $(MODOUT) $(IFLAG)$(OUTPUT_DIR)/ $(IFLAG)$(FORUTILS_DIR) \
 		$(DRIVER) $(OUTPUT_DIR)/$(CAMBLIB) $(F90CRLINK) -o $@
 
-camblib.so: libcambso $(CAMBSO)
+libcambobj:
+    LIBCAMBOBJ = $(patsubst %.f90,$(DLL_DIR)/%.o,$(CAMBSRCS))
+
+objfiles: $(CAMBOBJ)
+
+#cannot link the .a library, or the linker will strip out some things we might need
+camblib.so: libcambso libcambobj $(CAMBSO)
 	$(F90C) $(SF90FLAGS) $(SMODOUT) $(IFLAG)$(DLL_DIR)/ $(IFLAG)$(FORUTILS_DIR)  \
-		$(CAMBSO) $(DLL_DIR)/$(CAMBLIB) $(F90CRLINK) -o $(DLL_DIR)/camblib.so
+		$(CAMBSO) $(LIBCAMBOBJ) $(F90CRLINK) -o $(DLL_DIR)/camblib.so
 	cp $(DLL_DIR)/camblib.so $(PYCAMB_OUTPUT_DIR)
 
 

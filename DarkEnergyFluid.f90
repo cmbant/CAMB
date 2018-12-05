@@ -2,22 +2,25 @@
     module DarkEnergyFluid
     use DarkEnergyInterface
     use constants
+    use classes
     implicit none
 
-    type, extends(TDarkEnergyBase) :: TDarkEnergyFluid
+    type, extends(TDarkEnergyEqnOfState) :: TDarkEnergyFluid
         !comoving sound speed is always exactly 1 for quintessence
         !(otherwise assumed constant, though this is almost certainly unrealistic)
     contains
     procedure :: ReadParams => TDarkEnergyFluid_ReadParams
+    procedure, nopass :: PythonClass => TDarkEnergyFluid_PythonClass
+    procedure, nopass :: SelfPointer => TDarkEnergyFluid_SelfPointer
     procedure :: Init =>TDarkEnergyFluid_Init
     procedure :: PerturbedStressEnergy => TDarkEnergyFluid_PerturbedStressEnergy
     procedure :: PerturbationEvolve => TDarkEnergyFluid_PerturbationEvolve
     end type TDarkEnergyFluid
 
     !Example implementation of fluid model using specific analytic form
-    !(c_s^2=1 approximate effective axion fluid model from arXiv:1806.10608 for n=infinity)
-    !This is an example, it's not supposed to be a rigorous model!
-    type, extends(TDarkEnergyFluid) :: TAxionEffectiveFluid
+    !(approximate effective axion fluid model from arXiv:1806.10608, with c_s^2=1 if n=infinity (w_n=1))
+    !This is an example, it's not supposed to be a rigorous model!  (not very well tested)
+    type, extends(TDarkEnergyModel) :: TAxionEffectiveFluid
         real(dl) :: w_n = 1._dl !Effective equation of state when oscillating
         real(dl) :: Om = 0._dl !Omega of the early DE component today (assumed to be negligible compared to omega_lambda)
         real(dl) :: a_c  !transition scale factor
@@ -25,6 +28,8 @@
         real(dl), private :: pow, omL, acpow, freq, n !cached internally
     contains
     procedure :: ReadParams =>  TAxionEffectiveFluid_ReadParams
+    procedure, nopass :: PythonClass => TAxionEffectiveFluid_PythonClass
+    procedure, nopass :: SelfPointer => TAxionEffectiveFluid_SelfPointer
     procedure :: Init => TAxionEffectiveFluid_Init
     procedure :: w_de => TAxionEffectiveFluid_w_de
     procedure :: grho_de => TAxionEffectiveFluid_grho_de
@@ -34,23 +39,42 @@
 
     contains
 
+   
     subroutine TDarkEnergyFluid_ReadParams(this, Ini)
     use IniObjects
-    class(TDarkEnergyFluid), intent(inout) :: this
-    type(TIniFile), intent(in) :: Ini
+    class(TDarkEnergyFluid) :: this
+    class(TIniFile), intent(in) :: Ini
 
-    call this%TDarkEnergyBase%ReadParams(Ini)
+    call this%TDarkEnergyEqnOfState%ReadParams(Ini)
     this%cs2_lam = Ini%Read_Double('cs2_lam', 1.d0)
 
     end subroutine TDarkEnergyFluid_ReadParams
 
+
+    function TDarkEnergyFluid_PythonClass()
+    character(LEN=:), allocatable :: TDarkEnergyFluid_PythonClass
+
+    TDarkEnergyFluid_PythonClass = 'DarkEnergyFluid'
+
+    end function TDarkEnergyFluid_PythonClass
+
+    subroutine TDarkEnergyFluid_SelfPointer(cptr,P)
+    use iso_c_binding
+    Type(c_ptr) :: cptr
+    Type (TDarkEnergyFluid), pointer :: PType
+    class (TPythonInterfacedClass), pointer :: P
+
+    call c_f_pointer(cptr, PType)
+    P => PType
+
+    end subroutine TDarkEnergyFluid_SelfPointer
 
     subroutine TDarkEnergyFluid_Init(this, Params)
     use classes
     class(TDarkEnergyFluid), intent(inout) :: this
     class(TCAMBParameters), intent(in) :: Params
 
-    call this%TDarkEnergyBase%Init(Params)
+    call this%TDarkEnergyEqnOfState%Init(Params)
 
     if (this%is_cosmological_constant) then
         this%num_perturb_equations = 0
@@ -77,9 +101,13 @@
     real(dl), intent(inout) :: ayprime(*)
     integer, intent(in) :: w_ix
 
-    dgrhoe = ay(w_ix) * grhov_t
-    dgqe = ay(w_ix + 1) * grhov_t * (1 + w)
-
+    if (this%no_perturbations) then
+        dgrhoe=0
+        dgqe=0
+    else
+        dgrhoe = ay(w_ix) * grhov_t
+        dgqe = ay(w_ix + 1) * grhov_t * (1 + w)
+    end if
     end subroutine TDarkEnergyFluid_PerturbedStressEnergy
 
 
@@ -118,11 +146,10 @@
 
     subroutine TAxionEffectiveFluid_ReadParams(this, Ini)
     use IniObjects
-    class(TAxionEffectiveFluid), intent(inout) :: this
-    type(TIniFile), intent(in) :: Ini
+    class(TAxionEffectiveFluid) :: this
+    class(TIniFile), intent(in) :: Ini
 
-    call this%TDarkEnergyBase%ReadParams(Ini)
-    call Ini%Read('cs2_lam', this%cs2_lam)
+    call this%TDarkEnergyModel%ReadParams(Ini)
     this%w_n  = Ini%Read_Double('AxionEffectiveFluid_w_n')
     this%om  = Ini%Read_Double('AxionEffectiveFluid_om')
     this%a_c  = Ini%Read_Double('AxionEffectiveFluid_a_c')
@@ -130,19 +157,36 @@
 
     end subroutine TAxionEffectiveFluid_ReadParams
 
+
+    function TAxionEffectiveFluid_PythonClass()
+    character(LEN=:), allocatable :: TAxionEffectiveFluid_PythonClass
+
+    TAxionEffectiveFluid_PythonClass = 'AxionEffectiveFluid'
+    end function TAxionEffectiveFluid_PythonClass
+
+    subroutine TAxionEffectiveFluid_SelfPointer(cptr,P)
+    use iso_c_binding
+    Type(c_ptr) :: cptr
+    Type (TAxionEffectiveFluid), pointer :: PType
+    class (TPythonInterfacedClass), pointer :: P
+
+    call c_f_pointer(cptr, PType)
+    P => PType
+
+    end subroutine TAxionEffectiveFluid_SelfPointer
+
     subroutine TAxionEffectiveFluid_Init(this, Params)
     use classes
     use cambsettings
     class(TAxionEffectiveFluid), intent(inout) :: this
     class(TCAMBParameters), intent(in) :: Params
-    real(dl) :: theta_i, grho_rad, F, p, mu, xc, n
+    real(dl) :: grho_rad, F, p, mu, xc, n
 
     select type(Params)
     class is (CAMBparams)
-        this%use_tabulated_w = .false.
         this%is_cosmological_constant = this%om==0
         this%pow = 3*(1+this%w_n)
-        this%omL = Params%omegav
+        this%omL = Params%omegav - this%om !omegav is total dark energy density today
         this%acpow = this%a_c**this%pow
         this%num_perturb_equations = 2
         if (this%w_n < 0.9999) then
@@ -154,8 +198,8 @@
             xc = this%a_c**2/2/sqrt(grho_rad/3)
             F=7./8
             p=1./2
-            mu = 1/xc*(1-cos(theta_i))**((1-n)/2.)*sqrt((1-F)*(6*p+2)*theta_i/n/sin(theta_i))
-            this%freq =  mu*(1-cos(theta_i))**((n-1)/2.)* &
+            mu = 1/xc*(1-cos(this%theta_i))**((1-n)/2.)*sqrt((1-F)*(6*p+2)*this%theta_i/n/sin(this%theta_i))
+            this%freq =  mu*(1-cos(this%theta_i))**((n-1)/2.)* &
                 sqrt(const_pi)*Gamma((n+1)/(2.*n))/Gamma(1+0.5/n)*2.**(-(n**2+1)/(2.*n))*3.**((1./n-1)/2)*this%a_c**(-6./(n+1)+3) &
                 *( this%a_c**(6*n/(n+1.))+1)**(0.5*(1./n-1))
             this%n = n
@@ -205,7 +249,7 @@
         fac = 2*a**(2-6*this%w_n)*this%freq**2
         cs2 = (fac*(this%n-1) + k**2)/(fac*(this%n+1) + k**2)
     else
-        cs2 = this%cs2_lam
+        cs2 = 1
     end if
     apow = a**this%pow
     acpow = this%acpow

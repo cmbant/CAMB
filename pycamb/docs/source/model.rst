@@ -7,9 +7,13 @@ camb.model
    :inherited-members:
 
 
+.. autoclass:: camb.model.AccuracyParams
+   :members:
+
 .. autoclass:: camb.model.TransferParams
    :members:
-   :inherited-members:
+
+.. autoclass:: camb.model.SourceTermParams
+   :members:
 
 
-   

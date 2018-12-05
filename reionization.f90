@@ -29,7 +29,7 @@
 
     logical :: include_helium_fullreion = .true.
 
-    type, extends(TCambComponent) :: ReionizationParams
+    type ReionizationParams
         logical    :: Reionization = .true.
         logical    :: use_optical_depth = .false.
         real(dl)   :: redshift = 10._dl

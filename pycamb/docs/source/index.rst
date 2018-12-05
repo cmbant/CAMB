@@ -31,7 +31,9 @@ Other modules:
    :maxdepth: 1
 
    bbn
+   dark_energy
    initialpower
+   nonlinear
    reionization
    recombination
    correlations

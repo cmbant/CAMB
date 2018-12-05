@@ -6,6 +6,8 @@
     use iso_c_binding
     use DarkEnergyFluid
     use DarkEnergyPPF
+    use ObjectLists
+    use classes
     implicit none
 
     Type c_MatterTransferData
@@ -28,81 +30,181 @@
         !skip limber for now...
     end Type c_ClTransferData
 
+    Type RealAllocatableArray
+        double precision, allocatable :: R(:)
+    end Type
+
+    Type IntAllocatableArray
+        integer, allocatable :: R(:)
+    end Type
+
+    ABSTRACT INTERFACE
+    subroutine TSelfPointer(cptr, P)
+    use iso_c_binding
+    use classes
+    Type(c_ptr) :: cptr
+    class (TPythonInterfacedClass), pointer :: P
+    END subroutine TSelfPointer
+    end interface
+
+    integer, private, save, target :: dummy
+
     contains
 
-    !SPECIAL BRIDGE ROUTINES FOR PYTHON
 
-    subroutine CAMBdata_new(handle)
-    type(c_ptr), intent(inout) :: handle
-    Type (CAMBstate), pointer :: pSource,pCAMBstate
+    subroutine GetAllocatableSize(sz, sz_array)
+    Type(PythonClassAllocatable) :: T
+    Type(RealAllocatableArray) :: T2
+    integer, intent(out) :: sz, sz_array
 
-    if (associated(pSource)) then
-        allocate(pCAMBstate, source=pSource)
+    sz = storage_size(T) / 8
+    sz_array = storage_size(T2) / 8
+
+    end subroutine GetAllocatableSize
+
+
+    function get_allocatable_1D_array(array, ptr) result(sz)
+    Type(RealAllocatableArray), target :: array
+    Type(c_Ptr), intent(out) :: ptr
+    integer sz
+
+    if (allocated(array%R)) then
+        ptr = c_loc(array%R)
+        sz = size(array%R)
     else
-        allocate(pCAMBstate)
-        call CAMB_InitCAMBstate(pCAMBstate)
-        call CAMB_setDefParams(pCAMBstate%CP)
+        sz=0
     end if
-    handle = c_loc(pCAMBstate)
 
-    end subroutine CAMBdata_new
+    end function get_allocatable_1D_array
 
-    subroutine CAMBdata_free(cptr)
+    subroutine set_allocatable_1D_array(array, vals, sz)
+    Type(RealAllocatableArray), target :: array
+    integer, intent(in) :: sz
+    real(dl) :: vals(sz)
+
+    if (allocated(array%R)) deallocate(array%R)
+    if (sz>0) then
+        allocate(array%R, source = vals)
+    end if
+
+    end subroutine set_allocatable_1D_array
+
+    function get_allocatable_1D_array_int(array, ptr) result(sz)
+    Type(IntAllocatableArray), target :: array
+    Type(c_Ptr), intent(out) :: ptr
+    integer sz
+
+    if (allocated(array%R)) then
+        ptr = c_loc(array%R)
+        sz = size(array%R)
+    else
+        sz=0
+    end if
+
+    end function get_allocatable_1D_array_int
+
+    subroutine set_allocatable_1D_array_int(array, vals, sz)
+    Type(IntAllocatableArray), target :: array
+    integer, intent(in) :: sz
+    integer :: vals(sz)
+
+    if (allocated(array%R)) deallocate(array%R)
+    if (sz>0) then
+        allocate(array%R, source = vals)
+    end if
+
+    end subroutine set_allocatable_1D_array_int
+
+    function get_effective_null()
+    type(c_ptr) get_effective_null
+
+    !Can use actual null pointer in gfortran. ifort requires non-null (but doesn't have to be valid memory)
+    get_effective_null = c_loc(dummy)
+
+    end function get_effective_null
+
+    subroutine F2003Class_get_id(SelfPtr, pSource)
+    TYPE(C_FUNPTR), INTENT(IN) :: SelfPtr
+    procedure(TSelfPointer), pointer :: SelfFunc
+    class(TPythonInterfacedClass), pointer :: pSource
+
+    CALL C_F_PROCPOINTER (SelfPtr, SelfFunc)
+    call SelfFunc(get_effective_null(), pSource)
+
+    end subroutine F2003Class_get_id
+
+    subroutine F2003Class_GetAllocatable(classobject, id, handle)
+    Type(PythonClassAllocatable), target :: classobject
+    type(c_ptr), intent(out)  :: handle
+    class (TPythonInterfacedClass), pointer :: id
+
+    if (allocated(classobject%P)) then
+        call classobject%P%SelfPointer(get_effective_null(), id)
+        handle =  c_loc(classobject%P%self)
+    else
+        handle = c_null_ptr
+    end if
+
+    end subroutine F2003Class_GetAllocatable
+
+    subroutine F2003Class_SetAllocatable(f_allocatable, handle, SelfPtr)
+    Type(PythonClassAllocatable), target :: f_allocatable
+    type(c_ptr), intent(in) :: handle
+    TYPE(C_FUNPTR), INTENT(IN) :: SelfPtr
+    procedure(TSelfPointer), pointer :: SelfFunc
+    class(TPythonInterfacedClass), pointer :: pSource
+
+    CALL C_F_PROCPOINTER (SelfPtr, SelfFunc)
+    call SelfFunc(handle, pSource)
+
+    if (allocated(f_allocatable%P)) deallocate(f_allocatable%P)
+    if (associated(pSource)) then
+        allocate(f_allocatable%P,source = pSource)
+    end if
+
+    end subroutine F2003Class_SetAllocatable
+
+    subroutine F2003Class_new(handle, selfPtr)
+    type(c_ptr), intent(inout) :: handle
+    TYPE(C_FUNPTR), INTENT(IN) :: SelfPtr
+    procedure(TSelfPointer), pointer :: SelfFunc
+    class(TPythonInterfacedClass), pointer :: pSource
+    class(TPythonInterfacedClass), pointer :: p
+
+    CALL C_F_PROCPOINTER (SelfPtr, SelfFunc)
+    if (C_ASSOCIATED(handle)) then
+        call SelfFunc(handle, pSource)
+        allocate(p, source=pSource)
+    else
+        call SelfFunc(get_effective_null(), pSource)
+        allocate(p, mold = pSource)
+    end if
+    handle = c_loc(p%self)
+
+    end subroutine F2003Class_new
+
+    subroutine F2003Class_free(cptr,SelfPtr)
     type(c_ptr)  :: cptr
-    Type (CAMBstate), pointer :: pCAMBstate
+    TYPE(C_FUNPTR), INTENT(IN) :: SelfPtr
+    procedure(TSelfPointer), pointer :: SelfFunc
+    class(TPythonInterfacedClass), pointer :: pSource
 
-    call c_f_pointer(cptr, pCAMBstate)
-    call CAMB_FreeCAMBstate(pCAMBstate)
-    deallocate(pCAMBstate)
+    CALL C_F_PROCPOINTER (SelfPtr, SelfFunc)
+    call SelfFunc(cptr, pSource)
+    if (.not. associated(pSource)) error stop 'Null in F2003Class_free'
+    deallocate(pSource)
 
-    end subroutine CAMBdata_free
-
-    subroutine CAMBdata_setParams(State, Params)
-    Type (CAMBstate), target :: State
-    type(CAMBparams) :: Params
-
-    State%CP = Params
-
-    end subroutine CAMBdata_setParams
-
-    subroutine CAMBdata_getParams(State, handle)
-    Type (CAMBstate), target :: State
-    type(c_ptr), intent(out)  ::  handle
-
-    handle = c_loc(State%CP)
-
-    end subroutine CAMBdata_getParams
-
-    subroutine CAMBdata_getDerived(State, derived)
-    Type (CAMBstate), target :: State
-    real(dl) :: derived(nthermo_derived)
-
-    derived = State%ThermoDerivedParams
-
-    end subroutine CAMBdata_getDerived
-
-    integer function CAMBdata_getlmax_lensed(State)
-    Type (CAMBstate), target :: State
-    CAMBdata_getlmax_lensed = State%CLdata%lmax_lensed
-    end function CAMBdata_getlmax_lensed
+    end subroutine F2003Class_free
 
     function CAMBdata_GetTransfers(State, Params, onlytransfer) result(error)
     Type (CAMBstate):: State
-    type(CAMBparams) :: Params, P
-    logical(kind=c_bool)  :: onlytransfer
+    type(CAMBparams) :: Params
+    logical :: onlytransfer
     integer :: error
 
     call SetActiveState(State)
-    P = Params
-    if (P%DoLensing .and. (P%NonLinear == NonLinear_lens .or. P%NonLinear == NonLinear_both)) then
-        P%WantTransfer = .true.
-        call Transfer_SetForNonlinearLensing(P)
-    end if
-    call Transfer_SortAndIndexRedshifts(P%Transfer)
     error = 0
-
-    P%OnlyTransfers = onlytransfer
-    call CAMB_GetTransfers(P, State, error)
+    call CAMB_GetTransfers(Params, State, error, onlytransfer)
 
     end function CAMBdata_GetTransfers
 
@@ -190,7 +292,7 @@
     integer, intent(in) :: var1, var2
     logical :: hubble_units
 
-    call Transfer_GetUnsplinedPower(State%MT, State%CP, PK, var1, var2, hubble_units)
+    call Transfer_GetUnsplinedPower(State, State%MT, PK, var1, var2, hubble_units)
 
     end subroutine CAMBdata_GetLinearMatterPower
 
@@ -200,29 +302,24 @@
     integer, intent(in) :: var1, var2
     logical :: hubble_units
 
-    call Transfer_GetUnsplinedNonlinearPower(State%MT, State%CP,PK, var1, var2, hubble_units)
+    call Transfer_GetUnsplinedNonlinearPower(State, State%MT, PK, var1, var2, hubble_units)
 
     end subroutine CAMBdata_GetNonLinearMatterPower
 
 
     subroutine CAMBdata_GetMatterPower(State, outpower, minkh, dlnkh, npoints, var1, var2)
     Type(CAMBstate) :: State
+    integer, intent(in) :: npoints, var1, var2
     real(dl), intent(out) :: outpower(npoints,State%CP%Transfer%PK_num_redshifts)
     real(dl), intent(in) :: minkh, dlnkh
-    integer, intent(in) :: npoints, var1, var2
     integer i
 
     do i=1,State%CP%Transfer%PK_num_redshifts
-        call Transfer_GetMatterPowerD(State%MT, State%CP, outpower(:,i), &
+        call Transfer_GetMatterPowerD(State, State%MT, outpower(:,i), &
             State%CP%Transfer%PK_num_redshifts-i+1, minkh, dlnkh, npoints, var1, var2)
     end do
 
     end subroutine CAMBdata_GetMatterPower
-
-    real(dl) function CAMBdata_get_tau_maxvis(State)
-    Type(CAMBstate) :: State
-    CAMBdata_get_tau_maxvis = State%tau_maxvis
-    end function CAMBdata_get_tau_maxvis
 
     subroutine CAMBParams_setinitialpower(Params, cptr, cls)
     type(CAMBparams) :: Params
@@ -371,31 +468,6 @@
 
     end subroutine CAMB_SetUnlensedScalarArray
 
-    subroutine CAMBParams_SetBackgroundOutputs_z(P,redshifts,n)
-    type(CAMBparams):: P
-    integer, intent(in) :: n
-    real(dl), intent(in) :: redshifts(n)
-
-    if (allocated(P%z_outputs)) &
-        deallocate(P%z_outputs)
-    if (n>0) then
-        allocate(P%z_outputs, source=redshifts)
-    end if
-
-    end subroutine CAMBParams_SetBackgroundOutputs_z
-
-    function CAMB_GetNumBackgroundOutputs(State)
-    Type(CAMBstate) :: State
-    integer CAMB_GetNumBackgroundOutputs
-
-    if (.not. allocated(State%CP%z_outputs)) then
-        CAMB_GetNumBackgroundOutputs = 0
-    else
-        CAMB_GetNumBackgroundOutputs = size(State%CP%z_outputs)
-    end if
-
-    end function CAMB_GetNumBackgroundOutputs
-
     subroutine CAMB_GetBackgroundOutputs(State,outputs, n)
     use constants
     Type(CAMBstate) :: State
@@ -529,7 +601,7 @@
     real(dl), intent(out) :: outputs(noutputs, ntimes, nq)
     TYPE(C_FUNPTR), INTENT(IN) :: c_source_func
     integer err
-    integer q_ix, i
+    integer q_ix
     Type(EvolutionVars) :: Ev
     procedure(TSource_func), pointer :: old_sources
 
@@ -558,144 +630,6 @@
     err = global_error_flag
     end function CAMB_TimeEvolution
 
-    function GetAllocatableSize() result(sz)
-    use iso_c_binding
-    Type dummyAllocatable
-        class(c_ClTransferData), allocatable :: P
-    end Type dummyAllocatable
-    Type(dummyAllocatable) :: T
-    integer sz
-
-    sz = storage_size(T)
-
-    end function GetAllocatableSize
-
-    subroutine CAMBparams_SetDarkEnergy(P, i, handle)
-    Type(CAMBparams), target :: P
-    integer, intent(in) :: i
-    type(c_ptr), intent(out)  ::  handle
-
-    if (allocated(P%DarkEnergy)) deallocate(P%DarkEnergy)
-    if (i==0) then
-        allocate(TDarkEnergyFluid::P%DarkEnergy)
-    else if (i==1) then
-        allocate(TDarkEnergyPPF::P%DarkEnergy)
-    else
-        error stop 'Unknown dark energy model'
-    end if
-
-    !can't reference polymorphic type, but can reference first data entry (which is same thing here)
-    handle = c_loc(P%DarkEnergy%w_lam)
-
-    end subroutine CAMBparams_SetDarkEnergy
-
-    subroutine CAMBparams_GetAllocatables(P, i,de_handle, nonlin_handle, j, power_handle)
-    Type(CAMBparams), target :: P
-    integer, intent(out) :: i,j
-    type(c_ptr), intent(out)  ::  de_handle, nonlin_handle, power_handle
-
-    if (allocated(P%DarkEnergy)) then
-        select type (point => P%DarkEnergy)
-        class is (TDarkEnergyFluid)
-            i =0
-        class is (TDarkEnergyPPF)
-            i =1
-            class default
-            i = -1
-        end select
-        de_handle = c_loc(P%DarkEnergy%w_lam)
-    else
-        de_handle = c_null_ptr
-    end if
-    if (allocated(P%NonLinearModel)) then
-        nonlin_handle = c_loc(P%NonLinearModel%Min_kh_nonlinear)
-    else
-        nonlin_handle = c_null_ptr
-    end if
-    if (allocated(P%InitPower)) then
-        select type (PK => P%InitPower)
-        class is (TInitialPowerLaw)
-            j=0
-        class is (TSplinedInitialPower)
-            j=1
-            class default
-            j=-1
-        end select
-        power_handle = c_loc(P%InitPower%first_member)
-    else
-        power_handle = c_null_ptr
-    end if
-
-    end subroutine CAMBparams_GetAllocatables
-
-    subroutine CAMBparams_SetDarkEnergyTable(DE, a, w, n)
-    Type(TDarkEnergyBase) :: DE
-    integer, intent(in) :: n
-    real(dl), intent(in) :: a(n), w(n)
-
-    call DE%SetwTable(a,w)
-
-    end subroutine CAMBparams_SetDarkEnergyTable
-
-    subroutine CAMBparams_DarkEnergyStressEnergy(P, a, grhov_t, w, n)
-    Type(CAMBparams) :: P
-    integer, intent(in) :: n
-    real(dl), intent(in) :: a(n)
-    real(dl), intent(out) :: grhov_t(n), w(n)
-    real(dl) grhov
-    integer i
-
-    call P%DarkEnergy%Init(P)
-    do i=1, n
-        call P%DarkEnergy%BackgroundDensityAndPressure(1._dl, a(i), grhov_t(i), w(i))
-    end do
-    grhov_t = grhov_t/a**2
-
-    end subroutine CAMBparams_DarkEnergyStressEnergy
-
-    subroutine CAMBparams_SetPKTable(P, n, nt, k, PK, PKt, power_handle)
-    use interpolation
-    integer, intent(in) :: n, nt
-    real(dl), intent(in) :: k(max(n,nt)), PK(n), PKt(nt)
-    Type(CAMBparams), target :: P
-    type(c_ptr), intent(out)  :: power_handle
-
-    if (allocated(P%InitPower)) deallocate(P%InitPower)
-    allocate(TSplinedInitialPower::P%InitPower)
-
-    select type (InitPower => P%InitPower)
-    class is (TSplinedInitialPower)
-        call InitPower%SetScalarTable(n,k, PK)
-        call InitPower%SetTensorTable(nt,k, PKt)
-    end select
-    power_handle = c_loc(P%InitPower%first_member)
-
-    end subroutine CAMBparams_SetPKTable
-
-    subroutine CAMBparams_new(handle)
-    type(c_ptr), intent(inout) :: handle
-    Type (CAMBparams), pointer :: pSource, pData
-
-    call c_f_pointer(handle, pSource)
-    if (associated(pSource)) then
-        allocate(pData, source=pSource)
-    else
-        allocate(pData)
-        call CAMB_SetDefParams(pData)
-    end if
-    handle = c_loc(pData)
-
-    end subroutine CAMBparams_new
-
-    subroutine CAMBParams_Free(cptr)
-    type(c_ptr)  :: cptr
-    Type(CAMBparams), pointer :: P
-
-    call c_f_pointer(cptr, P)
-    deallocate(P)
-
-    end subroutine CAMBParams_Free
-
     subroutine CAMB_SetCustomSourcesFunc(ncustomsources, c_source_func, ell_scales)
     use GaugeInterface
     integer, intent(in) :: ncustomsources
@@ -714,95 +648,6 @@
     end if
 
     end subroutine CAMB_SetCustomSourcesFunc
-
-    subroutine InitialPowerLaw_new(handle)
-    type(c_ptr), intent(inout) :: handle
-    Type (TInitialPowerLaw), pointer :: pSource,pInitialPowerLaw
-
-    call c_f_pointer(handle, pSource)
-    if (associated(pSource)) then
-        allocate(pInitialPowerLaw, source=pSource)
-    else
-        allocate(pInitialPowerLaw)
-    end if
-    handle = c_loc(pInitialPowerLaw)
-
-    end subroutine InitialPowerLaw_new
-
-    subroutine InitialPowerLaw_free(cptr)
-    type(c_ptr)  :: cptr
-    Type (TInitialPowerLaw), pointer :: pInitialPowerLaw
-
-    call c_f_pointer(cptr, pInitialPowerLaw)
-    deallocate(pInitialPowerLaw)
-
-    end subroutine InitialPowerLaw_free
-
-    subroutine SplinedInitialPower_new(handle)
-    type(c_ptr), intent(inout) :: handle
-    Type (TSplinedInitialPower), pointer :: pSource,pSplinedInitialPower
-
-    if (associated(pSource)) then
-        allocate(pSplinedInitialPower, source=pSource)
-    else
-        allocate(pSplinedInitialPower)
-    end if
-    handle = c_loc(pSplinedInitialPower)
-
-    end subroutine SplinedInitialPower_new
-
-    subroutine SplinedInitialPower_free(cptr)
-    type(c_ptr)  :: cptr
-    Type (TSplinedInitialPower), pointer :: pSplinedInitialPower
-
-    call c_f_pointer(cptr, pSplinedInitialPower)
-    deallocate(pSplinedInitialPower)
-
-    end subroutine SplinedInitialPower_free
-
-    subroutine SplinedInitialPower_setscalartable(this, n, k, PK)
-    Type(TSplinedInitialPower) :: this
-    integer, intent(in) :: n
-    real(dl), intent(in) :: k(n), PK(n)
-
-    call this%SetScalarTable(n,k,Pk)
-
-    end subroutine SplinedInitialPower_setscalartable
-
-    subroutine SplinedInitialPower_settensortable(this, n, k, PK)
-    Type(TSplinedInitialPower) :: this
-    integer, intent(in) :: n
-    real(dl), intent(in) :: k(n), PK(n)
-
-    call this%SetTensorTable(n,k,Pk)
-
-    end subroutine SplinedInitialPower_settensortable
-
-    subroutine SplinedInitialPower_setscalarlogregular(this, kmin, kmax, n, PK)
-    Type(TSplinedInitialPower) :: this
-    integer, intent(in) :: n
-    real(dl), intent(in) ::kmin, kmax, PK(n)
-
-    call this%SetScalarLogRegular(kmin, kmax, n, PK)
-
-    end subroutine SplinedInitialPower_setscalarlogregular
-
-    subroutine SplinedInitialPower_settensorlogregular(this, kmin, kmax, n, PK)
-    Type(TSplinedInitialPower) :: this
-    integer, intent(in) :: n
-    real(dl), intent(in) ::kmin, kmax, PK(n)
-
-    call this%SetTensorLogRegular(kmin, kmax, n, PK)
-
-    end subroutine SplinedInitialPower_settensorlogregular
-
-
-    logical function SplinedInitialPower_HasTensors(this)
-    Type(TSplinedInitialPower) :: this
-
-    SplinedInitialPower_HasTensors = allocated(this%Ptensor)
-
-    end function SplinedInitialPower_HasTensors
 
     subroutine GetBackgroundThermalEvolution(this,ntimes, times, outputs)
     Type(CAMBstate) :: this
@@ -852,39 +697,5 @@
     end associate
 
     end subroutine GetBackgroundThermalEvolution
-
-    subroutine CAMBdata_GetBackgroundDensities(this, n, a_arr, densities)
-    ! return array of 8*pi*G*rho*a**4 for each species
-    Type(CAMBstate) :: this
-    integer, intent(in) :: n
-    real(dl), intent(in) :: a_arr(n)
-    real(dl) :: grhov_t, rhonu, grhonu, a
-    real(dl), intent(out) :: densities(8,n)
-    integer nu_i,i
-
-    do i=1, n
-        a = a_arr(i)
-        call this%CP%DarkEnergy%BackgroundDensityAndPressure(this%grhov, a, grhov_t)
-        grhonu = 0
-
-        if (this%CP%Num_Nu_massive /= 0) then
-            !Get massive neutrino density relative to massless
-            do nu_i = 1, this%CP%nu_mass_eigenstates
-                call ThermalNuBackground%rho(a * this%nu_masses(nu_i), rhonu)
-                grhonu = grhonu + rhonu * this%grhormass(nu_i)
-            end do
-        end if
-
-        densities(2,i) = this%grhok * a**2
-        densities(3,i) = this%grhoc * a
-        densities(4,i) = this%grhob * a
-        densities(5,i) = this%grhog
-        densities(6,i) = this%grhornomass
-        densities(7,i) = grhonu
-        densities(8,i) = grhov_t*a**2
-        densities(1,i) = sum(densities(2:8,i))
-    end do
-
-    end subroutine CAMBdata_GetBackgroundDensities
 
     end module handles

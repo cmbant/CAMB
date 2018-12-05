@@ -57,12 +57,12 @@
         real(dl), private :: curv = 0._dl !curvature parameter
     contains
     procedure :: Init => TInitialPowerLaw_Init
-    procedure :: PythonClass => TInitialPowerLaw_PythonClass
+    procedure, nopass :: PythonClass => TInitialPowerLaw_PythonClass
+    procedure, nopass :: SelfPointer => TInitialPowerLaw_SelfPointer
     procedure :: ScalarPower => TInitialPowerLaw_ScalarPower
     procedure :: TensorPower => TInitialPowerLaw_TensorPower
     procedure :: ReadParams => TInitialPowerLaw_ReadParams
     procedure :: Effective_ns => TInitalPowerLaw_Effective_ns
-
     end Type TInitialPowerLaw
 
     !Make things visible as neccessary...
@@ -70,11 +70,21 @@
     public TInitialPowerLaw
     contains
 
-    function TInitialPowerLaw_PythonClass(this)
-    class(TInitialPowerLaw) :: this
+    function TInitialPowerLaw_PythonClass()
     character(LEN=:), allocatable :: TInitialPowerLaw_PythonClass
     TInitialPowerLaw_PythonClass = 'InitialPowerLaw'
     end function TInitialPowerLaw_PythonClass
+
+    subroutine TInitialPowerLaw_SelfPointer(cptr,P)
+    use iso_c_binding
+    Type(c_ptr) :: cptr
+    Type (TInitialPowerLaw), pointer :: PType
+    class (TPythonInterfacedClass), pointer :: P
+
+    call c_f_pointer(cptr, PType)
+    P => PType
+
+    end subroutine TInitialPowerLaw_SelfPointer
 
     subroutine TInitialPowerLaw_Init(this, Params, Omegak)
     use classes

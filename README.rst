@@ -2,7 +2,7 @@
 CAMB
 ===================
 :CAMB:  Code for Anisotropies in the Microwave Background, Fortran 95 code and python module
-:Homepage: http://camb.info/
+:Homepage: https://camb.info/
 
 .. image:: https://img.shields.io/pypi/v/camb.svg?style=flat
         :target: https://pypi.python.org/pypi/camb/
@@ -10,7 +10,7 @@ CAMB
 Description and installation
 =============================
 
-For full details of the Fortran code see the `ReadMe <http://camb.info/readme.html>`_.
+For full details of the Fortran code see the `ReadMe <https://camb.info/readme.html>`_.
 
 The python wrapper provides a module called "camb", source in the "pycamb" folder and documented in the `Python CAMB documentation <https://camb.readthedocs.io/en/latest/>`_.
 
@@ -31,6 +31,7 @@ The master branch contains latest changes to the main release version.
   :target: https://mybinder.org/v2/gh/cmbant/camb/master?filepath=pycamb%2Fdocs%2FCAMBdemo.ipynb
 
 The devel branch is a development version, which integrates CAMB and CAMB sources, and uses Fortran 2008 (and hence requires ifort 14+ or gfortran 6+). It also allows runtime switching of the dark energy and halofit model, and easy access to lower-level accuracy parameters.
+Note that the devel branch is currently very slow compiled with ifort (ifort bug); compile with gfortran or use the somewhat older devel_ifort branch.
 
 .. image:: https://secure.travis-ci.org/cmbant/CAMB.png?branch=devel
   :target: https://secure.travis-ci.org/cmbant/CAMB/builds

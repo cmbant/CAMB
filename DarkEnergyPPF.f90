@@ -1,18 +1,19 @@
     module DarkEnergyPPF
-    use precision
     use DarkEnergyInterface
+    use classes
     implicit none
 
     private
-
-    type, extends(TDarkEnergyBase) :: TDarkEnergyPPF
+    
+    type, extends(TDarkEnergyEqnOfState) :: TDarkEnergyPPF
         real(dl) :: c_Gamma_ppf = 0.4_dl
     contains
     procedure :: ReadParams => TDarkEnergyPPF_ReadParams
+    procedure, nopass :: PythonClass => TDarkEnergyPPF_PythonClass
     procedure :: Init => TDarkEnergyPPF_Init
     procedure :: PerturbedStressEnergy => TDarkEnergyPPF_PerturbedStressEnergy
     procedure :: diff_rhopi_Add_Term => TDarkEnergyPPF_diff_rhopi_Add_Term
-
+    procedure, nopass :: SelfPointer => TDarkEnergyPPF_SelfPointer
     procedure, private :: setcgammappf
     end type TDarkEnergyPPF
 
@@ -21,23 +22,40 @@
 
     subroutine TDarkEnergyPPF_ReadParams(this, Ini)
     use IniObjects
-    class(TDarkEnergyPPF), intent(inout) :: this
-    type(TIniFile), intent(in) :: Ini
+    class(TDarkEnergyPPF) :: this
+    class(TIniFile), intent(in) :: Ini
 
-    call this%TDarkEnergyBase%ReadParams(Ini)
+    call this%TDarkEnergyEqnOfState%ReadParams(Ini)
     this%cs2_lam = Ini%Read_Double('cs2_lam', 1.d0)
     if (this%cs2_lam /= 1.d0) error stop 'cs2_lam not supported by PPF model'
     call this%setcgammappf
 
     end subroutine TDarkEnergyPPF_ReadParams
 
+    function TDarkEnergyPPF_PythonClass()
+    character(LEN=:), allocatable :: TDarkEnergyPPF_PythonClass
+
+    TDarkEnergyPPF_PythonClass = 'DarkEnergyPPF'
+    end function TDarkEnergyPPF_PythonClass
+
+    
+    subroutine TDarkEnergyPPF_SelfPointer(cptr,P)
+    use iso_c_binding
+    Type(c_ptr) :: cptr
+    Type (TDarkEnergyPPF), pointer :: PType
+    class (TPythonInterfacedClass), pointer :: P
+
+    call c_f_pointer(cptr, PType)
+    P => PType
+    
+    end subroutine TDarkEnergyPPF_SelfPointer
 
     subroutine TDarkEnergyPPF_Init(this, Params)
     use classes
     class(TDarkEnergyPPF), intent(inout) :: this
     class(TCAMBParameters), intent(in) :: Params
-    
-    call this%TDarkEnergyBase%Init(Params)
+
+    call this%TDarkEnergyEqnOfState%Init(Params)
     if (this%is_cosmological_constant) then
         this%num_perturb_equations = 0
     else
@@ -87,6 +105,12 @@
     integer, intent(in) :: w_ix
     real(dl) :: Gamma, S_Gamma, ckH, Gammadot, Fa, sigma
     real(dl) :: vT, grhoT, k2
+
+    if (this%no_perturbations) then
+        dgrhoe=0
+        dgqe=0
+        return
+    end if
 
     k2=k**2
     !ppf

@@ -16,7 +16,8 @@ git rm -r * > /dev/null 2>&1
 cp -r ../testfiles/* .
 git add --all .
 git commit -m "Travis build $TRAVIS_BUILD_NUMBER for $TRAVIS_BRANCH commit $TRAVIS_COMMIT"
-git push --quiet origin ${TRAVIS_BRANCH}_travis > /dev/null 2>&1
+git push --quiet origin ${TRAVIS_BRANCH}_travis 
+#> /dev/null 2>&1
 
 #git init
 #git add --all .

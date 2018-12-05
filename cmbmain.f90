@@ -164,7 +164,7 @@
         write (*,*) 'r = ',real(State%curvature_radius),' scale = ',real(State%scale), 'age = ', real(State%tau0)
     end if
 
-    if (.not. CP%OnlyTransfers .or. CP%NonLinear==NonLinear_Lens .or. CP%NonLinear==NonLinear_both) &
+    if (.not. State%OnlyTransfer .or. CP%NonLinear==NonLinear_Lens .or. CP%NonLinear==NonLinear_both) &
         call CP%InitPower%Init(CP, State%omegak)
     if (global_error_flag/=0) return
 
@@ -227,8 +227,8 @@
         end if
     end if
 
-    if (CP%WantTransfer .and. .not. CP%OnlyTransfers .and. global_error_flag==0) &
-        call Transfer_Get_sigmas(State%MT, CP)
+    if (CP%WantTransfer .and. .not. State%OnlyTransfer .and. global_error_flag==0) &
+        call Transfer_Get_sigmas(State, State%MT)
 
     !     if CMB calculations are requested, calculate the Cl by
     !     integrating the sources over time and over k.
@@ -271,7 +271,7 @@
 
         !Final calculations for CMB output unless want the Cl transfer functions only.
 
-        if (.not. CP%OnlyTransfers .and. global_error_flag==0) &
+        if (.not. State%OnlyTransfer .and. global_error_flag==0) &
             call ClTransferToCl(State)
     end if
 
@@ -816,8 +816,8 @@
     !     Calculating the times for the outputs of the transfer functions.
     !
     if (CP%WantTransfer) then
-        do itf=1,CP%Transfer%num_redshifts
-            tautf(itf)=min(TimeOfz(State,CP%Transfer%redshifts(itf)),State%tau0)
+        do itf=1,State%num_transfer_redshifts
+            tautf(itf)=min(State%TimeOfz(State%Transfer_redshifts(itf)),State%tau0)
             if (itf>1) then
                 if (tautf(itf) <= tautf(itf-1)) then
                     call MpiStop('Transfer redshifts not set or out of order')
@@ -996,7 +996,7 @@
     tol1=tol/exp(CP%Accuracy%AccuracyBoost*CP%Accuracy%IntTolBoost-1)
     if (CP%WantTransfer) then
         if  (CP%Transfer%high_precision) tol1=tol1/100
-        do while (itf <= CP%Transfer%num_redshifts .and. State%TimeSteps%points(2) > tautf(itf))
+        do while (itf <= State%num_transfer_redshifts .and. State%TimeSteps%points(2) > tautf(itf))
             !Just in case someone wants to get the transfer outputs well before recombination
             call GaugeInterface_EvolveScal(EV,tau,y,tautf(itf),tol1,ind,c,w)
             if (global_error_flag/=0) return
@@ -1009,7 +1009,7 @@
         tauend=State%TimeSteps%points(j)
 
         if (.not. DebugEvolution .and. (EV%q*tauend > max_etak_scalar .and. tauend > State%taurend) &
-            .and. .not. WantLateTime .and. (.not.CP%WantTransfer.or.tau > tautf(CP%Transfer%num_redshifts))) then
+            .and. .not. WantLateTime .and. (.not.CP%WantTransfer.or.tau > tautf(State%num_transfer_redshifts))) then
             Src(EV%q_ix,1:SourceNum,j)=0
         else
             !Integrate over time, calulate end point derivs and calc output
@@ -1020,7 +1020,7 @@
             Src(EV%q_ix,1:SourceNum,j)=sources
 
             !     Calculation of transfer functions.
-101         if (CP%WantTransfer.and.itf <= CP%Transfer%num_redshifts) then
+101         if (CP%WantTransfer.and.itf <= State%num_transfer_redshifts) then
                 if (j < State%TimeSteps%npoints) then
                     if (tauend < tautf(itf) .and. State%TimeSteps%points(j+1)  > tautf(itf)) then
                         call GaugeInterface_EvolveScal(EV,tau,y,tautf(itf),tol1,ind,c,w)
@@ -1034,7 +1034,7 @@
 
                     itf=itf+1
                     if (j < State%TimeSteps%npoints) then
-                        if (itf <= CP%Transfer%num_redshifts.and. &
+                        if (itf <= State%num_transfer_redshifts.and. &
                             State%TimeSteps%points(j+1) > tautf(itf)) goto 101
                     end if
                 endif
@@ -1167,7 +1167,7 @@
     call initial(EV,y, tau)
     if (global_error_flag/=0) return
 
-    do i=1,CP%Transfer%num_redshifts
+    do i=1,State%num_transfer_redshifts
         call GaugeInterface_EvolveScal(EV,tau,y,tautf(i),atol,ind,c,w)
         if (global_error_flag/=0) return
         call outtransf(EV,y,tau,State%MT%TransferData(:,EV%q_ix,i))
@@ -1181,12 +1181,12 @@
     use NonLinear
     integer i,ik,first_step
     real (dl) tau
-    real(dl) scaling(CP%Transfer%num_redshifts), ddScaling(CP%Transfer%num_redshifts)
+    real(dl) scaling(State%num_transfer_redshifts), ddScaling(State%num_transfer_redshifts)
     real(dl) ho,a0,b0, ascale
     integer tf_lo, tf_hi
     type(MatterPowerData) :: CAMB_Pk
 
-    call Transfer_GetMatterPowerData(State%MT, CP, CAMB_PK)
+    call Transfer_GetMatterPowerData(State, State%MT, CAMB_PK)
 
     call CP%NonLinearModel%GetNonLinRatios(CP, CAMB_PK)
     first_step=1
@@ -1202,9 +1202,9 @@
         elseif (Evolve_q%points(ik)/(CP%H0/100) >  CP%NonLinearModel%Min_kh_nonlinear) then
             !Interpolate non-linear scaling in conformal time
             !Do not use an associate for scaling. It does not work.
-            scaling = CAMB_Pk%nonlin_ratio(ik,1:CP%Transfer%num_redshifts)
+            scaling = CAMB_Pk%nonlin_ratio(ik,1:State%num_transfer_redshifts)
             if (all(abs(scaling-1) < 5e-4)) cycle
-            call spline(tautf(1), scaling(1), CP%Transfer%num_redshifts,&
+            call spline(tautf(1), scaling(1), State%num_transfer_redshifts,&
                 spl_large, spl_large, ddScaling(1))
 
             tf_lo=1

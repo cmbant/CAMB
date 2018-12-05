@@ -1,12 +1,6 @@
 from ctypes import c_int, c_double, c_bool, POINTER
-from .baseconfig import camblib
+from .baseconfig import camblib, numpy_1d, numpy_2d, numpy_3d
 import numpy as np
-from numpy.ctypeslib import ndpointer
-
-numpy_3d = ndpointer(c_double, flags='C_CONTIGUOUS', ndim=3)
-numpy_2d = ndpointer(c_double, flags='C_CONTIGUOUS', ndim=2)
-numpy_1d = ndpointer(c_double, flags='C_CONTIGUOUS')
-int_arg = POINTER(c_int)
 
 _chi2 = camblib.__mathutils_MOD_getchisquared
 _chi2.argtypes = [numpy_2d, numpy_1d, POINTER(c_int)]
@@ -26,6 +20,7 @@ def chi_squared(covinv, x):
     return _chi2(covinv, x, c_int(len(x)))
 
 
+int_arg = POINTER(c_int)
 _3j = camblib.__mathutils_MOD_getthreejs
 _3j.argtypes = [numpy_1d, int_arg, int_arg, int_arg, int_arg]
 

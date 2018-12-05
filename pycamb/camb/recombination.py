@@ -1,5 +1,5 @@
 from .baseconfig import CAMB_Structure, dll_import
-from ctypes import c_bool, c_int, c_double
+from ctypes import c_int, c_double
 
 
 # ---Derived Types in recombination.f90

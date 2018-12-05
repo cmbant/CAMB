@@ -1,11 +1,16 @@
 camb.initialpower
 ==================================
 
-
-.. autoclass:: camb.initialpower.InitialPowerParams
+.. autoclass:: camb.initialpower.InitialPower
    :members:
-   :inherited-members:
+
+.. autoclass:: camb.initialpower.InitialPowerLaw
+   :show-inheritance:
+   :members:
 
 
+.. autoclass:: camb.initialpower.SplinedInitialPower
+   :show-inheritance:
+   :members:
 
 

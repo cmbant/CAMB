@@ -6,15 +6,64 @@ import numpy as np
 
 try:
     import camb
-except ImportError:
+except ImportError as e:
     sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../')))
     import camb
-from camb import model, correlations, bbn
-from camb.baseconfig import CAMBParamRangeError
+from camb import model, correlations, bbn, dark_energy, initialpower
+from camb.baseconfig import CAMBParamRangeError, CAMBValueError
+
+Fast = 'ci fast' in os.getenv("TRAVIS_COMMIT_MESSAGE", "")
 
 
 class CambTest(unittest.TestCase):
+
+    def testAssigments(self):
+        pars = camb.CAMBparams()
+        pars.set_cosmology(H0=68.5, ombh2=0.022)
+        pars.InitPower.set_params(ns=0.01)
+        data = camb.CAMBdata()
+        data.Params = pars
+        self.assertEqual(data.Params.InitPower.ns, pars.InitPower.ns)
+        d = dark_energy.DarkEnergyFluid(w=-0.95)
+        pars.DarkEnergy = d
+        self.assertEqual(pars.DarkEnergy.w, -0.95)
+        pars.DarkEnergy = dark_energy.AxionEffectiveFluid(w_n=0.4)
+        data.Params = pars
+        self.assertEqual(pars.DarkEnergy.w_n, 0.4)
+        pars.z_outputs = [0.1, 0.4]
+        self.assertEqual(pars.z_outputs[1], 0.4)
+        pars.z_outputs[0] = 0.3
+        self.assertEqual(pars.z_outputs[0], 0.3)
+        pars.z_outputs = pars.z_outputs
+        pars.z_outputs = []
+        pars.z_outputs = None
+        self.assertFalse(len(pars.z_outputs))
+        with self.assertRaises(TypeError):
+            pars.DarkEnergy = initialpower.InitialPowerLaw()
+        pars.NonLinear = model.NonLinear_both
+        printstr = str(pars)
+        self.assertTrue('Want_CMB_lensing = True' in printstr and
+                        "NonLinear = NonLinear_both" in printstr)
+        pars.NonLinear = model.NonLinear_lens
+        self.assertTrue(pars.NonLinear == model.NonLinear_lens)
+        with self.assertRaises(ValueError):
+            pars.NonLinear = 4
+        pars.nu_mass_degeneracies = np.zeros(3)
+        self.assertTrue(len(pars.nu_mass_degeneracies) == 3)
+        pars.nu_mass_degeneracies = [1, 2, 3]
+        self.assertTrue(pars.nu_mass_degeneracies[1] == 2)
+        pars.nu_mass_degeneracies[1] = 5
+        self.assertTrue(pars.nu_mass_degeneracies[1] == 5)
+        with self.assertRaises(CAMBParamRangeError):
+            pars.nu_mass_degeneracies = np.zeros(7)
+        pars.nu_mass_eigenstates = 0
+        self.assertFalse(len((pars.nu_mass_degeneracies[:1])))
+        pars = camb.set_params(**{'InitPower.ns': 1.2, 'WantTransfer': True})
+        self.assertEqual(pars.InitPower.ns, 1.2)
+        self.assertTrue(pars.WantTransfer)
+
     def testBackground(self):
+
         pars = camb.CAMBparams()
         pars.set_cosmology(H0=68.5, ombh2=0.022, omch2=0.122, YHe=0.2453, mnu=0.07, omk=0)
         zre = camb.get_zre_from_tau(pars, 0.06)
@@ -38,11 +87,12 @@ class CambTest(unittest.TestCase):
 
         data.comoving_radial_distance(0.48)
         t0 = data.conformal_time(0)
+        self.assertAlmostEqual(t0, data.tau0)
         t1 = data.conformal_time(11.5)
         t2 = data.comoving_radial_distance(11.5)
         self.assertAlmostEqual(t2, t0 - t1, 2)
         self.assertAlmostEqual(t1, 4200.78, 2)
-        chistar = data.conformal_time(0) - data.tau_maxvis()
+        chistar = data.conformal_time(0) - data.tau_maxvis
         chis = np.linspace(0, chistar, 197)
         zs = data.redshift_at_comoving_radial_distance(chis)
         chitest = data.comoving_radial_distance(zs)
@@ -97,6 +147,16 @@ class CambTest(unittest.TestCase):
             pars.set_cosmology(cosmomc_theta=0.0204085, H0=None, ombh2=0.022271, omch2=0.11914, mnu=0.06, omk=0)
         pars = camb.set_params(cosmomc_theta=0.0104077, H0=None, ombh2=0.022, omch2=0.122, w=-0.95)
         self.assertAlmostEqual(camb.get_background(pars, no_thermo=True).cosmomc_theta(), 0.0104077, 7)
+
+        pars = camb.set_params(cosmomc_theta=0.0104077, H0=None, ombh2=0.022, omch2=0.122, w=-0.95, wa=0,
+                               dark_energy_model='ppf')
+        self.assertAlmostEqual(camb.get_background(pars, no_thermo=True).cosmomc_theta(), 0.0104077, 7)
+
+        pars = camb.set_params(cosmomc_theta=0.0104077, H0=None, ombh2=0.022, omch2=0.122, w=-0.95,
+                               dark_energy_model='DarkEnergyFluid', initial_power_model='InitialPowerLaw')
+        self.assertAlmostEqual(camb.get_background(pars, no_thermo=True).cosmomc_theta(), 0.0104077, 7)
+        with self.assertRaises(CAMBValueError):
+            camb.set_params(dark_energy_model='InitialPowerLaw')
 
         self.assertAlmostEqual(data.get_Omega('baryon'), data.Params.omegab, 5)
 
@@ -259,7 +319,7 @@ class CambTest(unittest.TestCase):
     def testDarkEnergy(self):
         pars = camb.CAMBparams()
         pars.InitPower.set_params(ns=0.965, r=0)
-        for m in model.dark_energy_models:
+        for m in ['fluid', 'ppf']:
             pars.set_dark_energy(w=-0.7, wa=0.2, dark_energy_model=m)
             C1 = camb.get_results(pars).get_cmb_power_spectra()
             a = np.logspace(-5, 0, 1000)
@@ -333,14 +393,8 @@ class CambTest(unittest.TestCase):
         P = pars.scalar_power(ks)
         np.testing.assert_almost_equal(P, PK(ks, 3e-9, 0.95), decimal=4)
 
-    def testInitialPowerMem(self):
-        import gc
-        gc.collect()
-        from camb.baseconfig import F2003Class
-        if F2003Class._instance_count: print('Unfreed instances', F2003Class._instance_count)
-        self.assertFalse(F2003Class._instance_count)
-
     def testSymbolic(self):
+        if Fast: return
         import camb.symbolic as s
 
         monopole_source, ISW, doppler, quadrupole_source = s.get_scalar_temperature_sources()
@@ -384,6 +438,7 @@ class CambTest(unittest.TestCase):
         s.internal_consistency_checks()
 
     def test_extra_EmissionAnglePostBorn(self):
+        if Fast: return
         from camb import emission_angle, postborn
         pars = camb.set_params(H0=67.5, ombh2=0.022, omch2=0.122, As=2e-9, ns=0.95, tau=0.055)
         BB = emission_angle.get_emission_delay_BB(pars, lmax=3500)

@@ -222,7 +222,7 @@
     real(dl), parameter :: RECFAST_fudge_default = 1.14_dl !1.14_dl
     real(dl), parameter :: RECFAST_fudge_default2 = 1.105d0 + 0.02d0
 
-    type, extends(TCambComponent) :: RecombinationParams
+    type RecombinationParams
         real(dl) :: RECFAST_fudge  = RECFAST_fudge_default2
         real(dl) :: RECFAST_fudge_He = RECFAST_fudge_He_default
         integer  :: RECFAST_Heswitch = RECFAST_Heswitch_default
