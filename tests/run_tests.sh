@@ -44,9 +44,6 @@ fi
 popd
 
 case "$TRAVIS_BRANCH" in
- devel_newstate*) 
-       BRANCH="devel_newstate" 
-       ;;
  devel*) 
        BRANCH="devel_newstate" 
        ;;

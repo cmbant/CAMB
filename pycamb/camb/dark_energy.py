@@ -32,6 +32,8 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
         ("no_perturbations", c_bool)
     ]
 
+    _methods_ = [('SetWTable', [numpy_1d, numpy_1d, POINTER(c_int)])]
+
     def set_params(self, w=-1.0, wa=0, cs2=1.0):
         """
          Set the parameters so that P(a)/rho(a) = w(a) = w + (1-a)*wa
@@ -55,8 +57,7 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
         if len(a) != len(w): raise ValueError('Dark energy w(a) table non-equal sized arrays')
         if not np.isclose(a[-1], 1):  raise ValueError('Dark energy w(a) arrays must end at a=1')
 
-        self.call_method('setwtable', extra_args=[numpy_1d, numpy_1d, POINTER(c_int)],
-                         args=[a, w, byref(c_int(len(a)))])
+        self.f_SetWTable(a, w, byref(c_int(len(a))))
         return self
 
 

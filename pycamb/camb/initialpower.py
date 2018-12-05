@@ -1,7 +1,7 @@
 # Initial power spectrum parameters
 
 from .baseconfig import F2003Class, CAMBError, fortran_class, \
-    c_int, c_double, POINTER, byref, ndpointer, np
+    c_int, c_double, POINTER, byref, numpy_1d, np
 
 tensor_parameterization_names = ["tensor_param_indeptilt", "tensor_param_rpivot", "tensor_param_AT"]
 tensor_param_indeptilt = 1
@@ -13,6 +13,7 @@ class InitialPower(F2003Class):
     """
     Abstract base class for initial power spectrum classes
     """
+
     def set_params(self):
         pass
 
@@ -25,6 +26,12 @@ class SplinedInitialPower(InitialPower):
     _fortran_class_module_ = 'classes'
     _fortran_class_name_ = 'TSplinedInitialPower'
 
+    _methods_ = [('HasTensors', [], c_int),
+                 ('SetScalarTable', [POINTER(c_int), numpy_1d, numpy_1d]),
+                 ('SetTensorTable', [POINTER(c_int), numpy_1d, numpy_1d]),
+                 ('SetScalarLogRegular', [POINTER(c_double), POINTER(c_double), POINTER(c_int), numpy_1d]),
+                 ('SetTensorLogRegular', [POINTER(c_double), POINTER(c_double), POINTER(c_int), numpy_1d])]
+
     def __init__(self, **kwargs):
         if kwargs.get('PK', None) is not None: self.set_scalar_table(kwargs['ks'], kwargs['PK'])
 
@@ -34,7 +41,7 @@ class SplinedInitialPower(InitialPower):
 
         :return: True if tensors
         """
-        return self.call_method('hastensors', restype=c_int)
+        return self.f_HasTensors() != 0
 
     def set_scalar_table(self, k, PK):
         """
@@ -44,8 +51,7 @@ class SplinedInitialPower(InitialPower):
         :param k: array of k values (Mpc^{-1}
         :param PK: array of scalar power spectrum values
         """
-        func = self.call_method('setscalartable', extra_args=[POINTER(c_int), ndpointer(c_double), ndpointer(c_double)],
-                                args=[byref(c_int(len(k))), np.asarray(k), np.asarray(PK)])
+        self.f_SetScalarTable(byref(c_int(len(k))), np.asarray(k), np.asarray(PK))
 
     def set_tensor_table(self, k, PK):
         """
@@ -54,9 +60,7 @@ class SplinedInitialPower(InitialPower):
         :param k: array of k values (Mpc^{-1})
         :param PK: array of tensor power spectrum values
         """
-        func = self.call_method('settensortable',
-                                extra_args=[POINTER(c_int), ndpointer(c_double), ndpointer(c_double)],
-                                args=[byref(c_int(len(k))), np.asarray(k), np.asarray(PK)])
+        self.f_SetTensorTable(byref(c_int(len(k))), np.asarray(k), np.asarray(PK))
 
     def set_scalar_log_regular(self, kmin, kmax, PK):
         """
@@ -66,11 +70,8 @@ class SplinedInitialPower(InitialPower):
         :param kmax: maximum k value (inclusive)
         :param PK: array of scalar power spectrum values, with PK[0]=P(kmin) and PK[-1]=P(kmax)
         """
-
-        self.call_method('setscalarlogregular',
-                         extra_args=[POINTER(c_double), POINTER(c_double), POINTER(c_int), ndpointer(c_double)],
-                         args=[byref(c_double(kmin)), byref(c_double(kmax)), byref(c_int(len(PK))),
-                               np.asarray(PK)])
+        self.f_SetScalarLogRegular(byref(c_double(kmin)), byref(c_double(kmax)), byref(c_int(len(PK))),
+                                   np.asarray(PK))
 
     def set_tensor_log_regular(self, kmin, kmax, PK):
         """
@@ -81,10 +82,8 @@ class SplinedInitialPower(InitialPower):
         :param PK: array of scalar power spectrum values, with PK[0]=P_t(kmin) and PK[-1]=P_t(kmax)
         """
 
-        func = self.call_method('settensorlogregular',
-                                extra_args=[POINTER(c_double), POINTER(c_double), POINTER(c_int), ndpointer(c_double)],
-                                args=[byref(c_double(kmin)), byref(c_double(kmax)), byref(c_int(len(PK))),
-                                      np.asarray(PK)])
+        self.f_SetTensorLogRegular(byref(c_double(kmin)), byref(c_double(kmax)), byref(c_int(len(PK))),
+                                   np.asarray(PK))
 
 
 @fortran_class
