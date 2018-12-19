@@ -136,105 +136,108 @@
 
     end subroutine THalofit_ReadParams
 
-    subroutine THalofit_GetNonLinRatios(this,Params,CAMB_Pk)
+    subroutine THalofit_GetNonLinRatios(this,State,CAMB_Pk)
     !Fill the CAMB_Pk%nonlin_scaling array with sqrt(non-linear power/linear power)
     !for each redshift and wavenumber
     !This implementation uses Halofit
     class(THalofit) :: this
-    class(TCAMBParameters) :: Params
+    class(TCAMBCalculation) :: State
     type(MatterPowerData) :: CAMB_Pk
     integer itf
     real(dl) a,plin,pq,ph,pnl,rk
     real(dl) sig,rknl,rneff,rncur,d1,d2
-    real(dl) diff,xlogr1,xlogr2,rmid
+    real(dl) diff,xlogr1,xlogr2,rmid, h2
     integer i
 
-    select type (Params)
-    class is (CAMBParams)
+    select type (State)
+    class is (CAMBState)
+        associate(Params => State%CP)
 
-        IF(this%halofit_version==halofit_mead .OR. this%halofit_version==halofit_halomodel &
-            .OR.  this%halofit_version==halofit_mead2015) THEN
-            !AM - Call HMcode here
-            CALL this%HMcode(Params,CAMB_Pk)
-        ELSE
+            IF(this%halofit_version==halofit_mead .OR. this%halofit_version==halofit_halomodel &
+                .OR.  this%halofit_version==halofit_mead2015) THEN
+                !AM - Call HMcode here
+                CALL this%HMcode(State,CAMB_Pk)
+            ELSE
 
-            !!BR09 putting neutrinos into the matter as well, not sure if this is correct, but at least one will get a consisent omk.
-            this%omm0 = Params%omegac+Params%omegab+Params%omegan
-            this%fnu = Params%omegan/this%omm0
+                !!BR09 putting neutrinos into the matter as well, not sure if this is correct, but at least one will get a consisent omk.
+                h2 = (Params%H0/100)**2
+                this%omm0 = (Params%omch2+Params%ombh2+Params%omnuh2)/h2
+                this%fnu = Params%omnuh2/h2/this%omm0
 
-            CAMB_Pk%nonlin_ratio = 1
+                CAMB_Pk%nonlin_ratio = 1
 
-            do itf = 1, CAMB_Pk%num_z
+                do itf = 1, CAMB_Pk%num_z
 
-                call Params%DarkEnergy%Effective_w_wa(this%w_hf, this%wa_hf)
-                if (this%halofit_version == halofit_casarini) then
-                    ! calculate equivalent w-constant models (w_hf,0) for w_lam+wa_ppf(1-a) models
-                    ! [Casarini+ (2009,2016)].
-                    call PKequal(CAMB_Pk%Redshifts(itf),this%w_hf,this%wa_hf,this%w_hf,this%wa_hf)
-                endif
-
-                ! calculate nonlinear wavenumber (rknl), effective spectral index (rneff) and
-                ! curvature (rncur) of the power spectrum at the desired redshift, using method
-                ! described in Smith et al (2002).
-                a = 1/real(1+CAMB_Pk%Redshifts(itf),dl)
-                this%om_m = omega_m(a, this%omm0, Params%omegav, this%w_hf, this%wa_hf)
-                this%om_v = omega_v(a, this%omm0, Params%omegav, this%w_hf, this%wa_hf)
-                this%acur = a
-                xlogr1=-2.0
-                xlogr2=3.5
-                do
-                    rmid=(xlogr2+xlogr1)/2.0
-                    rmid=10**rmid
-                    call wint(CAMB_Pk,itf,rmid,sig,d1,d2)
-                    diff=sig-1.0
-                    if (abs(diff).le.0.001) then
-                        rknl=1./rmid
-                        rneff=-3-d1
-                        rncur=-d2
-                        exit
-                    elseif (diff.gt.0.001) then
-                        xlogr1=log10(rmid)
-                    elseif (diff.lt.-0.001) then
-                        xlogr2=log10(rmid)
+                    call Params%DarkEnergy%Effective_w_wa(this%w_hf, this%wa_hf)
+                    if (this%halofit_version == halofit_casarini) then
+                        ! calculate equivalent w-constant models (w_hf,0) for w_lam+wa_ppf(1-a) models
+                        ! [Casarini+ (2009,2016)].
+                        call PKequal(CAMB_Pk%Redshifts(itf),this%w_hf,this%wa_hf,this%w_hf,this%wa_hf)
                     endif
-                    if (xlogr2 < -1.9999) then
-                        !is still linear, exit
-                        goto 101
-                    else if (xlogr1>3.4999) then
-                        ! Totally crazy non-linear
-                        global_error_flag=349
-                        write(*,*) 'Error in halofit'
-                        goto 101
-                    end if
+
+                    ! calculate nonlinear wavenumber (rknl), effective spectral index (rneff) and
+                    ! curvature (rncur) of the power spectrum at the desired redshift, using method
+                    ! described in Smith et al (2002).
+                    a = 1/real(1+CAMB_Pk%Redshifts(itf),dl)
+                    this%om_m = omega_m(a, this%omm0, State%omega_de, this%w_hf, this%wa_hf)
+                    this%om_v = omega_v(a, this%omm0, State%omega_de, this%w_hf, this%wa_hf)
+                    this%acur = a
+                    xlogr1=-2.0
+                    xlogr2=3.5
+                    do
+                        rmid=(xlogr2+xlogr1)/2.0
+                        rmid=10**rmid
+                        call wint(CAMB_Pk,itf,rmid,sig,d1,d2)
+                        diff=sig-1.0
+                        if (abs(diff).le.0.001) then
+                            rknl=1./rmid
+                            rneff=-3-d1
+                            rncur=-d2
+                            exit
+                        elseif (diff.gt.0.001) then
+                            xlogr1=log10(rmid)
+                        elseif (diff.lt.-0.001) then
+                            xlogr2=log10(rmid)
+                        endif
+                        if (xlogr2 < -1.9999) then
+                            !is still linear, exit
+                            goto 101
+                        else if (xlogr1>3.4999) then
+                            ! Totally crazy non-linear
+                            global_error_flag=349
+                            write(*,*) 'Error in halofit'
+                            goto 101
+                        end if
+                    end do
+
+                    ! now calculate power spectra for a logarithmic range of wavenumbers (rk)
+
+                    do i=1, CAMB_PK%num_k
+                        rk = exp(CAMB_Pk%log_kh(i))
+
+                        if (rk > this%Min_kh_nonlinear) then
+
+                            ! linear power spectrum !! Remeber => plin = k^3 * P(k) * constant
+                            ! constant = 4*pi*V/(2*pi)^3
+
+                            plin= MatterPowerData_k(CAMB_PK, rk, itf)*(rk**3/(2*const_pi**2))
+
+                            ! calculate nonlinear power according to halofit: pnl = pq + ph,
+                            ! where pq represents the quasi-linear (halo-halo) power and
+                            ! where ph is represents the self-correlation halo term.
+
+                            call this%halofit(rk,rneff,rncur,rknl,plin,pnl,pq,ph)   ! halo fitting formula
+                            CAMB_Pk%nonlin_ratio(i,itf) = sqrt(pnl/plin)
+
+                        end if
+
+                    enddo
+
+101                 continue
                 end do
 
-                ! now calculate power spectra for a logarithmic range of wavenumbers (rk)
-
-                do i=1, CAMB_PK%num_k
-                    rk = exp(CAMB_Pk%log_kh(i))
-
-                    if (rk > this%Min_kh_nonlinear) then
-
-                        ! linear power spectrum !! Remeber => plin = k^3 * P(k) * constant
-                        ! constant = 4*pi*V/(2*pi)^3
-
-                        plin= MatterPowerData_k(CAMB_PK, rk, itf)*(rk**3/(2*const_pi**2))
-
-                        ! calculate nonlinear power according to halofit: pnl = pq + ph,
-                        ! where pq represents the quasi-linear (halo-halo) power and
-                        ! where ph is represents the self-correlation halo term.
-
-                        call this%halofit(rk,rneff,rncur,rknl,plin,pnl,pq,ph)   ! halo fitting formula
-                        CAMB_Pk%nonlin_ratio(i,itf) = sqrt(pnl/plin)
-
-                    end if
-
-                enddo
-
-101             continue
-            end do
-
-        END IF
+            END IF
+        end associate
     end select
 
     end subroutine THalofit_GetNonLinRatios
@@ -401,10 +404,10 @@
     !!JD end generalize to variable w
 
     !!AM Below is for HMcode
-    SUBROUTINE HMcode(this,Params,CAMB_Pk)
+    SUBROUTINE HMcode(this,State,CAMB_Pk)
     !!AM - A CAMB derived type that I need
     class(THalofit) :: this
-    Class(CAMBParams) :: Params
+    Class(CAMBState) :: State
     TYPE(MatterPowerData) :: CAMB_Pk
     REAL :: z, k
     REAL :: p1h, p2h, pfull, plin
@@ -438,7 +441,7 @@
     nk=CAMB_PK%num_k
 
     !!AM - Assign cosmological parameters for the halo model calculation
-    CALL assign_HM_cosmology(Params,cosi)
+    CALL assign_HM_cosmology(State,cosi)
 
     !Fill growth function table (only needs to be done once)
     CALL fill_growtab(cosi)
@@ -836,23 +839,27 @@
 
     END FUNCTION Tcb_Tcbnu_ratio
 
-    SUBROUTINE assign_HM_cosmology(Params,cosm)
-    class(CAMBParams), intent(in) :: Params
+    SUBROUTINE assign_HM_cosmology(State,cosm)
+    class(CAMBState) :: State
     !Assigns the internal HMcode cosmological parameters
     TYPE(HM_cosmology) :: cosm
+    real(dl) h2
 
-    !Converts CAMB parameters to Meadfit parameters
-    cosm%om_m=CP%omegac+CP%omegab+CP%omegan
-    cosm%om_v=CP%omegav
-    call CP%DarkEnergy%Effective_w_wa(cosm%w, cosm%wa)
-    cosm%f_nu=CP%omegan/cosm%om_m
-    cosm%h=CP%H0/100.
-    cosm%Tcmb=CP%tcmb
-    cosm%Nnu=CP%Num_Nu_massive
+    associate(CP => State%CP)
+        !Converts CAMB parameters to Meadfit parameters
+        h2 = (CP%H0/100)**2
+        cosm%om_m=(CP%omch2+CP%ombh2+CP%omnuh2)/h2
+        cosm%om_v=State%omega_de
+        call CP%DarkEnergy%Effective_w_wa(cosm%w, cosm%wa)
+        cosm%f_nu=CP%omnuh2/h2/cosm%om_m
+        cosm%h=CP%H0/100
+        cosm%Tcmb=CP%tcmb
+        cosm%Nnu=CP%Num_Nu_massive
 
-    !n_s is read in here. The non-linear CAMB module does not work if there is more than
-    !one value in this array, so explicitly setting '1' here is fine.
-    cosm%ns= CP%InitPower%Effective_ns()
+        !n_s is read in here. The non-linear CAMB module does not work if there is more than
+        !one value in this array, so explicitly setting '1' here is fine.
+        cosm%ns= CP%InitPower%Effective_ns()
+    end associate
 
     !Write out cosmological parameters if necessary
     IF(HM_verbose) WRITE(*,*) 'HM_cosmology: Om_m:', cosm%om_m

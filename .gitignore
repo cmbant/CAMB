@@ -2,7 +2,7 @@
 *.a
 *.o
 *.sm
-*~
+*~*
 .metadata
 .project
 .pydevproject
@@ -11,14 +11,21 @@ Debug/
 Release/
 Releaselib/
 *.suo
+*.d
+*.bat
 *.pyc
 *.asv
 *.u2d
 *.user
 *.save
-.DS_Store
+*.log
+.idea
+.DS_Storegit sta
 *egg*
+test*dat
 build
 inspectionProfiles
 camb
 !camb/
+Advisor/
+Inspector/

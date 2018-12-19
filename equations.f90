@@ -2,21 +2,10 @@
     ! To avoid circular module issues, some things are not part of module
 
 
-    !Return OmegaK - modify this if you add extra fluid components
-    function GetOmegak(CP)
-    use CambSettings, only : CAMBParams, dl
-    Type(CAMBParams), intent(in) :: CP
-    real(dl)  GetOmegak
-
-    GetOmegak = 1 - (CP%omegab+CP%omegac+CP%omegav+CP%omegan)
-
-    end function GetOmegak
-
-
     subroutine Init_Backgrounds
     !This is only called once per model, and is a good point to do any extra initialization.
     !It is called before first call to dtauda, but after
-    !massive neutrinos are initialized and after GetOmegak
+    !massive neutrinos are initialized
 
     end  subroutine Init_Backgrounds
 
@@ -218,7 +207,7 @@
     type(EvolutionVars) EV
     real(dl) c(24),w(EV%nvar,9), y(EV%nvar), tol1, tau, tauend
     integer ind
-
+    
     call dverk(EV,EV%ScalEqsToPropagate,derivs,tau,y,tauend,tol1,ind,c,EV%nvar,w)
     if (ind==-3) then
         call GlobalError('Dverk error -3: the subroutine was unable  to  satisfy  the  error ' &
@@ -511,7 +500,7 @@
                     nu_tau_notmassless(j, nu_i) = time
                 end do
 
-                a_nonrel =  2.5d0/nu_mass*CP%Accuracy%AccuracyBoost !!!Feb13tweak
+                a_nonrel =  2.5d0/nu_mass*CP%Accuracy%AccuracyBoost
                 nu_tau_nonrelativistic(nu_i) =DeltaTimeMaxed(0._dl,a_nonrel)
                 a_massive =  17.d0/nu_mass*CP%Accuracy%AccuracyBoost
                 nu_tau_massive(nu_i) =nu_tau_nonrelativistic(nu_i) + DeltaTimeMaxed(a_nonrel,a_massive)
@@ -1398,8 +1387,8 @@
             k*(z+vb)/adotoa/3)
     end if
 
-    do w_ix = 1, num_redshiftwindows
-        associate (W => Redshift_W(w_ix))
+    do w_ix = 1, State%num_redshiftwindows
+        associate (W => State%Redshift_W(w_ix))
 
             if (W%kind == window_lensing) then
                 sources(3+w_ix) =-2*phi*W%win_lens(j)
@@ -1409,7 +1398,7 @@
 
                 !Main density source
                 if (CP%SourceTerms%counts_density) then
-                    counts_density_source= W%wing(j)*(clxc*W%bias + (W%comoving_density_ev(j) - 3*adotoa)*sigma/k)
+                    counts_density_source= W%wing(j)*(clxc*W%Window%GetBias(k,a) + (W%comoving_density_ev(j) - 3*adotoa)*sigma/k)
                     !Newtonian gauge count density; bias assumed to be on synchronous gauge CDM density
                 else
                     counts_density_source= 0
@@ -1428,7 +1417,7 @@
                 ! 2v j'/(H\chi) geometric term
                 if (State%tau0-tau > 0.1_dl .and. CP%SourceTerms%counts_radial) then
                     chi =State%tau0-tau
-                    counts_radial_source= (1-2.5*W%dlog10Ndm)*((-4.D0*W%wing2(j)/chi*adotoa &
+                    counts_radial_source= (1-2.5*W%Window%dlog10Ndm)*((-4.D0*W%wing2(j)/chi*adotoa &
                         -2.D0*(-W%dwing2(j)*chi-W%wing2(j))/chi**2)/ &
                         k*sigma+2.D0*W%wing2(j)*etak/chi/k/EV%Kf(1))
                 else
@@ -1437,7 +1426,7 @@
 
                 if (CP%SourceTerms%counts_timedelay) then
                     !time delay; WinV is int g/chi
-                    counts_timedelay_source= 2*(1-2.5*W%dlog10Ndm)*W%WinV(j)*2*phi
+                    counts_timedelay_source= 2*(1-2.5*W%Window%dlog10Ndm)*W%WinV(j)*2*phi
                 else
                     counts_timedelay_source = 0
                 end if
@@ -1451,7 +1440,7 @@
 
                 if (CP%SourceTerms%counts_potential) then
                     !approx phi = psi
-                    counts_potential_source = ( phidot/adotoa + phi +(5*W%dlog10Ndm-2)*phi ) * W%wing(j) &
+                    counts_potential_source = ( phidot/adotoa + phi +(5*W%Window%dlog10Ndm-2)*phi ) * W%wing(j) &
                         + phi * W%wingtau(j)
                 else
                     counts_potential_source = 0
@@ -1471,8 +1460,8 @@
 
                 sources(3+w_ix)=sources(3+w_ix)/W%Fq
 
-                if (CP%SourceTerms%do_counts_lensing) &
-                    sources(3+W%mag_index+num_redshiftwindows) = phi*W%win_lens(j)*(2-5*W%dlog10Ndm)
+                if (CP%SourceTerms%counts_lensing) &
+                    sources(3+W%mag_index+State%num_redshiftwindows) = phi*W%win_lens(j)*(2-5*W%Window%dlog10Ndm)
             elseif (W%kind == window_21cm) then
                 if (CP%SourceTerms%line_basic) then
                     sources(3+w_ix)= exptau*(W%wing(j)*Delta_source + W%wing2(j)*Delta_source2 &
@@ -1545,7 +1534,7 @@
 
 
                 if (CP%SourceTerms%line_reionization) then
-                    if (num_redshiftwindows>1) stop 'reionization only for one window at the mo'
+                    if (State%num_redshiftwindows>1) stop 'reionization only for one window at the mo'
                     lineoff=EV%reion_line_ix
                     lineoffpol = lineoff+EV%lmaxline-1
 
@@ -1846,7 +1835,7 @@
     Rv=grhonu/(grhonu+State%grhog)
 
     Rg = 1-Rv
-    Rc=CP%omegac/(CP%omegac+CP%omegab)
+    Rc=CP%omch2/(CP%omch2+CP%ombh2)
     Rb=1-Rc
     Rp15=4*Rv+15
 
@@ -2030,10 +2019,10 @@
 
     !    finished_tightcoupling = ((k/opacity > ep).or.(1._dl/(opacity*tau) > ep))
     EV%TightSwitchoffTime = min(State%ThermoData%tight_tau,State%ThermoData%OpacityToTime(EV%k_buf/ep))
-
-    a=tau*State%adotrad
+    
     rhomass =  sum(State%grhormass(1:CP%Nu_mass_eigenstates))
     omtau = tau*(State%grhob+State%grhoc)/sqrt(3*(State%grhog+rhomass+State%grhornomass))
+    a=tau*State%adotrad*(1+omtau/4)
 
     if (DoTensorNeutrinos) then
         bigR = (rhomass+State%grhornomass)/(rhomass+State%grhornomass+State%grhog)
@@ -2098,8 +2087,8 @@
     x=k*tau
 
     bigR = (State%grhornomass)/(State%grhornomass+State%grhog)
-    Rc=CP%omegac/(CP%omegac+CP%omegab)
-
+    Rc=CP%omch2/(CP%omch2+CP%ombh2)
+        
     yv(1)=a
 
 
@@ -2198,7 +2187,9 @@
     real(dl) ddopacity, visibility, dvisibility, ddvisibility, exptau, lenswindow
     real(dl) ISW, quadrupole_source, doppler, monopole_source, tau0, ang_dist
     real(dl) dgrho_de, dgq_de, cs2_de
-
+    Type(CAMBState), pointer :: Dat
+    
+    Dat => State
     k=EV%k_buf
     k2=EV%k2_buf
 
@@ -2216,19 +2207,19 @@
 
     !  Compute expansion rate from: grho 8*pi*rho*a**2
 
-    grhob_t=State%grhob/a
-    grhoc_t=State%grhoc/a
-    grhor_t=State%grhornomass/a2
-    grhog_t=State%grhog/a2
-    call CP%DarkEnergy%BackgroundDensityAndPressure(State%grhov, a, grhov_t, w_dark_energy_t)
+    grhob_t=Dat%grhob/a
+    grhoc_t=Dat%grhoc/a
+    grhor_t=Dat%grhornomass/a2
+    grhog_t=Dat%grhog/a2
+    call Dat%CP%DarkEnergy%BackgroundDensityAndPressure(Dat%grhov, a, grhov_t, w_dark_energy_t)
 
     !  Get sound speed and ionisation fraction.
     if (EV%TightCoupling) then
-        call State%ThermoData%Values(tau,cs2,opacity,dopacity)
+        call Dat%ThermoData%Values(tau,cs2,opacity,dopacity)
     else
-        call State%ThermoData%Values(tau,cs2,opacity)
+        call Dat%ThermoData%Values(tau,cs2,opacity)
     end if
-
+  
     gpres_nu=0
     grhonu_t=0
 
@@ -2238,7 +2229,7 @@
     !  8*pi*a*a*SUM[(rho_i+p_i)*v_i]
     dgq=grhob_t*vb
 
-    if (CP%Num_Nu_Massive > 0) then
+    if (Dat%CP%Num_Nu_Massive > 0) then
         call MassiveNuVars(EV,ay,a,grhonu_t,gpres_nu,dgrho_matter,dgq, wnu_arr)
     end if
 
@@ -2246,12 +2237,12 @@
     grho = grho_matter+grhor_t+grhog_t+grhov_t
     gpres_noDE = gpres_nu + (grhor_t + grhog_t)/3
 
-    if (State%flat) then
+    if (Dat%flat) then
         adotoa=sqrt(grho/3)
         cothxor=1._dl/tau
     else
-        adotoa=sqrt((grho+State%grhok)/3._dl)
-        cothxor=1._dl/State%tanfunc(tau/State%curvature_radius)/State%curvature_radius
+        adotoa=sqrt((grho+Dat%grhok)/3._dl)
+        cothxor=1._dl/Dat%tanfunc(tau/Dat%curvature_radius)/Dat%curvature_radius
     end if
 
     dgrho = dgrho_matter
@@ -2301,8 +2292,8 @@
 
     ayprime(1)=adotoa*a
 
-    if (.not. CP%DarkEnergy%is_cosmological_constant) then
-        call CP%DarkEnergy%PerturbedStressEnergy(dgrho_de, dgq_de, &
+    if (.not. Dat%CP%DarkEnergy%is_cosmological_constant) then
+        call Dat%CP%DarkEnergy%PerturbedStressEnergy(dgrho_de, dgq_de, &
             dgq, dgrho, grho, grhov_t, w_dark_energy_t, gpres_noDE, etak, &
             adotoa, k, EV%Kf(1), ay, ayprime, EV%w_ix)
         dgrho = dgrho + dgrho_de
@@ -2312,17 +2303,17 @@
     !  Get sigma (shear) and z from the constraints
     ! have to get z from eta for numerical stability
     z=(0.5_dl*dgrho/k + etak)/adotoa
-    if (State%flat) then
+    if (Dat%flat) then
         !eta*k equation
         sigma=(z+1.5_dl*dgq/k2)
         ayprime(2)=0.5_dl*dgq
     else
         sigma=(z+1.5_dl*dgq/k2)/EV%Kf(1)
-        ayprime(2)=0.5_dl*dgq + State%curv*z
+        ayprime(2)=0.5_dl*dgq + Dat%curv*z
     end if
 
-    if (.not. CP%DarkEnergy%is_cosmological_constant) &
-        call CP%DarkEnergy%PerturbationEvolve(ayprime, w_dark_energy_t, &
+    if (.not. Dat%CP%DarkEnergy%is_cosmological_constant) &
+        call Dat%CP%DarkEnergy%PerturbationEvolve(ayprime, w_dark_energy_t, &
         EV%w_ix, a, adotoa, k, z, ay)
 
     !  CDM equation of motion
@@ -2338,25 +2329,25 @@
     !Sources
     if (EV%Evolve_baryon_cs) then
         if (a > Do21cm_mina) then
-            Tmat = State%Recombination%T_m(a)
+            Tmat = Dat%Recombination%T_m(a)
         else
-            Tmat = CP%TCMB/a
+            Tmat = Dat%CP%TCMB/a
         end if
         if (EV%Evolve_TM) then
             Delta_TM = ay(EV%Tg_ix)
         else
             Delta_TM = clxg/4
         end if
-        delta_p_b = barssc0*(1._dl-0.75d0*CP%yhe+(1._dl-CP%yhe)*opacity*a2/State%akthom)*Tmat*(clxb + delta_tm)
+        delta_p_b = barssc0*(1._dl-0.75d0*Dat%CP%yhe+(1._dl-Dat%CP%yhe)*opacity*a2/Dat%akthom)*Tmat*(clxb + delta_tm)
     else
         Delta_TM = clxg/4
         delta_p_b = cs2*clxb
     end if
 
 
-    if (CP%Evolve_delta_xe) then
+    if (Dat%CP%Evolve_delta_xe) then
         if (EV%saha) then
-            xe=State%Recombination%x_e(a)
+            xe=Dat%Recombination%x_e(a)
             Delta_xe = (1-xe)/(2-xe)*(-clxb + (3._dl/2+  CB1/Tmat)*Delta_TM)
         else
             Delta_xe = ay(EV%xe_ix)
@@ -2513,40 +2504,40 @@
     if (EV%Evolve_baryon_cs) then
         if (EV%Evolve_TM) then
             Delta_TCMB = clxg/4
-            xe = State%Recombination%x_e(a)
-            Trad = CP%TCMB/a
+            xe = Dat%Recombination%x_e(a)
+            Trad = Dat%CP%TCMB/a
 
             !Matter temperature
             !Recfast_CT = (8./3.)*(sigma_T/(m_e*C))*a_R in Mpc [a_R = radiation constant]
-            ayprime(EV%Tg_ix) = -2*k*(z+vb)/3 - a*  Compton_CT * (Trad**4) * xe / (1._dl+xe+State%fHe) * &
-                ((1- Trad/Tmat)*(Delta_TCMB*4 + Delta_xe/(1+xe/(1+State%fHe))) + Trad/Tmat*(Delta_Tm - Delta_TCMB)  )
+            ayprime(EV%Tg_ix) = -2*k*(z+vb)/3 - a*  Compton_CT * (Trad**4) * xe / (1._dl+xe+Dat%fHe) * &
+                ((1- Trad/Tmat)*(Delta_TCMB*4 + Delta_xe/(1+xe/(1+Dat%fHe))) + Trad/Tmat*(Delta_Tm - Delta_TCMB)  )
 
-            if (CP%Evolve_delta_Ts) then
+            if (Dat%CP%Evolve_delta_Ts) then
                 ayprime(EV%Ts_ix) =  Get21cm_dTs(a,clxb,ay(EV%Ts_ix),Delta_TCMB,Delta_Tm,Tmat,Trad,xe )
             end if
         else
-            if (CP%Evolve_delta_Ts) then
+            if (Dat%CP%Evolve_delta_Ts) then
                 ayprime(EV%Ts_ix) = -k*(4._dl/3._dl*z+qg)/4  !Assume follows Delta_TM which follows clxg
             end if
         end if
     end if
 
-    if (CP%Evolve_delta_xe .and. .not. EV%saha) then
-        ayprime(EV%xe_ix) = State%Recombination%dDeltaxe_dtau(a, Delta_xe,clxb, Delta_Tm, k*z/3,k*vb)
+    if (Dat%CP%Evolve_delta_xe .and. .not. EV%saha) then
+        ayprime(EV%xe_ix) = Dat%Recombination%dDeltaxe_dtau(a, Delta_xe,clxb, Delta_Tm, k*z/3,k*vb)
     end if
 
-    if (CP%Do21cm) then
+    if (Dat%CP%Do21cm) then
         if (a > Do21cm_mina) then
-            if (CP%SourceTerms%line_reionization) then
+            if (Dat%CP%SourceTerms%line_reionization) then
                 lineoff = EV%reion_line_ix+1
                 lineoffpol = lineoff+EV%lmaxline-1
 
-                if (tau> State%ThermoData%tau_start_redshiftwindows) then
+                if (tau> Dat%ThermoData%tau_start_redshiftwindows) then
                     !Multipoles of 21cm
 
                     polter_line = ay(lineoff+2)/10+9._dl/15*ay(lineoffpol+2)
 
-                    call interp_window(State%TimeSteps,Redshift_W(1),tau,wing_t,wing2_t,winv_t)
+                    call interp_window(Dat%TimeSteps,Dat%Redshift_W(1),tau,wing_t,wing2_t,winv_t)
 
                     delta_source2 = Get21cm_source2(a,clxb,Delta_TCMB,Delta_Tm,Delta_xe,Tmat,Trad,xe,k*(z+vb)/adotoa/3)
 
@@ -2595,9 +2586,9 @@
 
 
     !  Massive neutrino equations of motion.
-    if (CP%Num_Nu_massive >0) then
+    if (Dat%CP%Num_Nu_massive >0) then
         !DIR$ LOOP COUNT MIN(1), AVG(1)
-        do nu_i = 1, CP%Nu_mass_eigenstates
+        do nu_i = 1, Dat%CP%Nu_mass_eigenstates
             if (EV%MassiveNuApprox(nu_i)) then
                 !Now EV%iq0 = clx, EV%iq0+1 = clxp, EV%iq0+2 = G_1, EV%iq0+3=G_2=pinu
                 !see astro-ph/0203507
@@ -2613,8 +2604,8 @@
                 ind=EV%nu_ix(nu_i)
                 !DIR$ LOOP COUNT MIN(3), AVG(3)
                 do i=1,EV%nq(nu_i)
-                    q=State%NuPerturbations%nu_q(i)
-                    aq=a*State%nu_masses(nu_i)/q
+                    q=Dat%NuPerturbations%nu_q(i)
+                    aq=a*Dat%nu_masses(nu_i)/q
                     v=1._dl/sqrt(1._dl+aq*aq)
 
                     ayprime(ind)=-k*(4._dl/3._dl*z + v*ay(ind+1))
@@ -2692,7 +2683,7 @@
                 octgdot=ayprime(EV%g_ix+3)
             end if
         end if
-        if (CP%DarkEnergy%is_cosmological_constant) then
+        if (Dat%CP%DarkEnergy%is_cosmological_constant) then
             dgrho_de=0
             dgq_de=0
         end if
@@ -2701,19 +2692,19 @@
         dgpi_diff = 0  !sum (3*p_nu -rho_nu)*pi_nu
         pidot_sum = grhog_t*pigdot + grhor_t*pirdot
         clxnu =0
-        if (CP%Num_Nu_Massive /= 0) then
+        if (Dat%CP%Num_Nu_Massive /= 0) then
             call MassiveNuVarsOut(EV,ay,ayprime,a, dgpi=dgpi, clxnu_all=clxnu, &
                 dgpi_diff=dgpi_diff, pidot_sum=pidot_sum)
         end if
         gpres = gpres_noDE + w_dark_energy_t*grhov_t
         diff_rhopi = pidot_sum - (4*dgpi+ dgpi_diff)*adotoa + &
-            CP%DarkEnergy%diff_rhopi_Add_Term(dgrho_de, dgq_de, grho, &
-            gpres, w_dark_energy_t, State%grhok, adotoa, &
+            Dat%CP%DarkEnergy%diff_rhopi_Add_Term(dgrho_de, dgq_de, grho, &
+            gpres, w_dark_energy_t, Dat%grhok, adotoa, &
             EV%kf(1), k, grhov_t, z, k2, ayprime, ay, EV%w_ix)
         phi = -((dgrho +3*dgq*adotoa/k)/EV%Kf(1) + dgpi)/(2*k2)
 
         if (associated(EV%OutputTransfer)) then
-            EV%OutputTransfer(Transfer_kh) = k/(CP%h0/100._dl)
+            EV%OutputTransfer(Transfer_kh) = k/(Dat%CP%h0/100._dl)
             EV%OutputTransfer(Transfer_cdm) = clxc
             EV%OutputTransfer(Transfer_b) = clxb
             EV%OutputTransfer(Transfer_g) = clxg
@@ -2727,20 +2718,20 @@
             EV%OutputTransfer(Transfer_Newt_vel_cdm)=  -k*sigma/adotoa
             EV%OutputTransfer(Transfer_Newt_vel_baryon) = -k*(vb + sigma)/adotoa
             EV%OutputTransfer(Transfer_vel_baryon_cdm) = vb
-            if (CP%do21cm) then
-                Tspin = State%Recombination%T_s(a)
-                xe = State%Recombination%x_e(a)
+            if (Dat%CP%do21cm) then
+                Tspin = Dat%Recombination%T_s(a)
+                xe = Dat%Recombination%x_e(a)
 
-                tau_eps = a*line21_const*State%NNow/a**3/adotoa/Tspin/1000
+                tau_eps = a*line21_const*Dat%NNow/a**3/adotoa/Tspin/1000
                 delta_source2 = Get21cm_source2(a,clxb,clxg/4,Delta_Tm,Delta_xe,Tmat,&
-                    CP%TCMB/a,xe,k*(z+vb)/adotoa/3)
+                    Dat%CP%TCMB/a,xe,k*(z+vb)/adotoa/3)
                 tau_fac = tau_eps/(exp(tau_eps)-1)
                 EV%OutputTransfer(Transfer_monopole) = ( clxb + Trad/(Tspin-Trad)*delta_source2 ) /k2 &
                     + (tau_fac-1)*(clxb - (delta_source2 + clxg/4)  ) / k2
 
                 EV%OutputTransfer(Transfer_vnewt) = tau_fac*k*(vb+sigma)/adotoa/k2
                 EV%OutputTransfer(Transfer_Tmat) =  delta_TM/k2
-                if (CP%SourceTerms%use_21cm_mK) then
+                if (Dat%CP%SourceTerms%use_21cm_mK) then
                     Tb = (1-exp(-tau_eps))*a*(Tspin-Trad)*1000
 
                     EV%OutputTransfer(Transfer_monopole) = EV%OutputTransfer(Transfer_monopole)*Tb
@@ -2752,10 +2743,10 @@
         if (associated(EV%OutputSources)) then
 
             EV%OutputSources = 0
-            call State%ThermoData%IonizationFunctionsAtTime(tau, opacity, dopacity, ddopacity, &
+            call Dat%ThermoData%IonizationFunctionsAtTime(tau, opacity, dopacity, ddopacity, &
                 visibility, dvisibility, ddvisibility, exptau, lenswindow)
 
-            tau0 = State%tau0
+            tau0 = Dat%tau0
             phidot = (1.0d0/2.0d0)*(adotoa*(-dgpi - 2*k2*phi) + dgq*k - &
                 diff_rhopi+ k*sigma*(gpres + grho))/k2
             !time derivative of shear
@@ -2788,13 +2779,12 @@
 
             if (size(EV%OutputSources) > 2) then
                 !Get lensing sources
-                !Can modify this here if you want to get power spectra for other tracer
-                if (tau>State%tau_maxvis .and. tau0-tau > 0.1_dl) then
-                    EV%OutputSources(3) = -2*phi*f_K(tau-State%tau_maxvis)/(f_K(tau0-State%tau_maxvis)*ang_dist)
+                if (tau>Dat%tau_maxvis .and. tau0-tau > 0.1_dl) then
+                    EV%OutputSources(3) = -2*phi*f_K(tau-Dat%tau_maxvis)/(f_K(tau0-Dat%tau_maxvis)*ang_dist)
                     !We include the lensing factor of two here
                 end if
             end if
-            if (num_redshiftwindows > 0) then
+            if (Dat%num_redshiftwindows > 0) then
                 call output_window_sources(EV, EV%OutputSources, ay, ayprime, &
                     tau, a, adotoa, grho, gpres, &
                     k, etak, z, ayprime(2), phi, phidot, sigma, sigmadot, &
@@ -2805,7 +2795,7 @@
                     opacity, dopacity, ddopacity, visibility, dvisibility, ddvisibility, exptau)
             end if
             if (associated(EV%CustomSources)) then
-                select type(DE=>CP%DarkEnergy)
+                select type(DE=>Dat%CP%DarkEnergy)
                 class is (TDarkEnergyEqnOfState)
                     cs2_de = DE%cs2_lam
                     class default
@@ -2819,7 +2809,7 @@
                     dgpi, pig, pir, pigdot, pirdot, diff_rhopi, &
                     polter, polterdot, polterddot, octg, octgdot, E, Edot, &
                     opacity, dopacity, ddopacity, visibility, dvisibility, ddvisibility, exptau, &
-                    tau0, State%tau_maxvis, EV%Kf,f_K)
+                    tau0, Dat%tau_maxvis, EV%Kf,f_K)
             end if
         end if
     end if
@@ -3013,9 +3003,10 @@
     real(dl) Hchi,pinu, pig
     real(dl) k,k2,a,a2
     real(dl) pir, adotoa, rhonu, shear
-
     real(dl) cothxor
-
+    Type(CAMBState), pointer :: Dat
+    
+    Dat => State
     k2=EV%k2_buf
     k= EV%k_buf
 
@@ -3029,33 +3020,33 @@
 
     ! Compute expansion rate from: grho=8*pi*rho*a**2
     ! Also calculate gpres: 8*pi*p*a**2
-    grhob_t=State%grhob/a
-    grhoc_t=State%grhoc/a
-    grhor_t=State%grhornomass/a2
-    grhog_t=State%grhog/a2
-    call CP%DarkEnergy%BackgroundDensityAndPressure(State%grhov, a, grhov_t)
+    grhob_t=Dat%grhob/a
+    grhoc_t=Dat%grhoc/a
+    grhor_t=Dat%grhornomass/a2
+    grhog_t=Dat%grhog/a2
+    call Dat%CP%DarkEnergy%BackgroundDensityAndPressure(Dat%grhov, a, grhov_t)
 
     grho=grhob_t+grhoc_t+grhor_t+grhog_t+grhov_t
 
     !Do massive neutrinos
-    if (CP%Num_Nu_Massive >0) then
-        do nu_i=1,CP%Nu_mass_eigenstates
-            call ThermalNuBackground%rho(a*State%nu_masses(nu_i),rhonu)
-            grho=grho+State%grhormass(nu_i)*rhonu/a2
+    if (Dat%CP%Num_Nu_Massive >0) then
+        do nu_i=1,Dat%CP%Nu_mass_eigenstates
+            call ThermalNuBackground%rho(a*Dat%nu_masses(nu_i),rhonu)
+            grho=grho+Dat%grhormass(nu_i)*rhonu/a2
         end do
     end if
 
-    if (State%flat) then
+    if (Dat%flat) then
         cothxor=1._dl/tau
         adotoa=sqrt(grho/3._dl)
     else
-        cothxor=1._dl/State%tanfunc(tau/State%curvature_radius)/State%curvature_radius
-        adotoa=sqrt((grho+State%grhok)/3._dl)
+        cothxor=1._dl/Dat%tanfunc(tau/Dat%curvature_radius)/Dat%curvature_radius
+        adotoa=sqrt((grho+Dat%grhok)/3._dl)
     end if
 
     aytprime(1)=adotoa*a
 
-    call State%ThermoData%Values(tau,cs2,opacity)
+    call Dat%ThermoData%Values(tau,cs2,opacity)
 
     if (.not. EV%TensTightCoupling) then
         !  Don't use tight coupling approx - use explicit equations:
@@ -3152,19 +3143,19 @@
         end if
 
         !  Massive neutrino equations of motion and contributions to anisotropic stress.
-        if (CP%Num_Nu_massive > 0) then
-            do nu_i=1,CP%Nu_mass_eigenstates
+        if (Dat%CP%Num_Nu_massive > 0) then
+            do nu_i=1,Dat%CP%Nu_mass_eigenstates
                 if (.not. EV%EvolveTensorMassiveNu(nu_i)) then
-                    rhopi=rhopi+ State%grhormass(nu_i)/a2*pir !- good approx, note no rhonu weighting
+                    rhopi=rhopi+ Dat%grhormass(nu_i)/a2*pir !- good approx, note no rhonu weighting
                 else
                     ind=EV%nu_ix(nu_i)+2
 
                     pinu= Nu_pi(EV, ayt, a, nu_i)
-                    rhopi=rhopi+ State%grhormass(nu_i)/a2*pinu
+                    rhopi=rhopi+ Dat%grhormass(nu_i)/a2*pinu
 
-                    do i=1,State%NuPerturbations%nqmax
-                        q=State%NuPerturbations%nu_q(i)
-                        aq=a*State%nu_masses(nu_i)/q
+                    do i=1,Dat%NuPerturbations%nqmax
+                        q=Dat%NuPerturbations%nu_q(i)
+                        aq=a*Dat%nu_masses(nu_i)/q
                         v=1._dl/sqrt(1._dl+aq*aq)
                         if (EV%lmaxnut>2) then
                             aytprime(ind)=-v*EV%denlkt(2,2)*ayt(ind+1)+8._dl/15._dl*k*shear
@@ -3187,10 +3178,10 @@
 
     !  Get the propagation equation for the shear
 
-    if (State%flat) then
+    if (Dat%flat) then
         aytprime(3)=-2*adotoa*shear+k*Hchi-rhopi/k
     else
-        aytprime(3)=-2*adotoa*shear+k*Hchi*(1+2*State%curv/k2)-rhopi/k
+        aytprime(3)=-2*adotoa*shear+k*Hchi*(1+2*Dat%curv/k2)-rhopi/k
     endif
 
     aytprime(2)=-k*shear

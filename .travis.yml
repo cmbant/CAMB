@@ -33,7 +33,7 @@ matrix:
       env:
         - GCC_VERSION="8"
         - CHANNEL="conda-forge"
-      python: "2.7"
+      python: "3.6"
          
 
 #before_install:
@@ -48,16 +48,20 @@ install:
   - export PATH=$PWD/gfortran-symlinks:$PATH
   - gfortran --version
   # Setup anaconda following http://conda.pydata.org/docs/travis.html
-  - wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh;
+  - if [[ "$TRAVIS_PYTHON_VERSION" == "2.7" ]]; then
+      wget https://repo.continuum.io/miniconda/Miniconda2-latest-Linux-x86_64.sh -O miniconda.sh;
+    else
+      wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh;
+    fi
   - bash miniconda.sh -b -p $HOME/miniconda
   - export PATH="$HOME/miniconda/bin:$PATH"
   - hash -r
   - conda config --set always_yes yes --set changeps1 no
-  #skip to save time
-  #- conda update -q conda
+  #can skip to save time:
+  - conda update -q conda
   - conda info -a
-  - conda create -q -n py2-environment -c $CHANNEL python=2 numpy scipy sympy six;
-  - conda create -q -n py3-environment -c $CHANNEL python=3 numpy scipy sympy six;
+  - conda create -q -n test-environment -c $CHANNEL numpy scipy sympy six;
+  - source activate test-environment
   - chmod +x tests/run_tests.sh
   
 script: tests/run_tests.sh
@@ -77,6 +81,7 @@ deploy:
     password:
       secure: "UA+nTWbEND3R/KVodbAG/2xXcCibpotNO+PHBIokR8fm7KmYdjSnXF3OXBDNvFPYEQg2KY7L/JviCbUM9yfZmtekvMg7aKP/2fuHcayByNy5VJ4mUgcA48ft6LKp/sLS/8fn7nCzHbclT/Ye/Wo3PmGK1mQqbu9oxXGidY8C7pbXB9ZYnssdMH9DHXSqjIAL23yN95G8U1n9bVLI0dZB0ORFHro/f7XeIPrzJEdEgql33BSq5YArf7WK/2Vlo8Zk0vPNT1xRJvEdNaJ/VZ5Nk31yuym04ZekmWlBmi+kTsO0zwD4wQrkCFGm9qb31JRHjuRTpxrHUTkiXwTvYutmwNtHqJ3SYkQgoTmb6qi9f4Nha3mtAbRviTDxgVi8Dv4gWp59iXVcOQMhRM9hxiCK7QwMkHJsvss4XuL149eLFLP7TfNw6PwHo/tpMMyRyDBdwgT+Vz0wNUyncEKwsgunxgvct9sy4TKNs96NJ90cTee3ditq/ZmrLjzp0xjQkBW5nA1AiW/9g3KkozkWh0Q74qGR1qrSlKInM7na64zLnp8seRb71Ki+2Ad+gx+fREnTmmgBSTIav4AjQCc+hnEIYnZ57DyNqIaqON25jiL1i85oaAdWLDR5pctWlebmzRcS2PvuvgqB76bvgLnIoHPg8pRm4Li7wvYCQhi9fo9RvR4="
     on:
+      python: '2.7'
       branch: master
       repo: cmbant/CAMB
       tags: true

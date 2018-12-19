@@ -38,13 +38,17 @@
         integer, allocatable :: R(:)
     end Type
 
-    ABSTRACT INTERFACE
+    Type PythonClassAllocatableArray
+        Type(PythonClassAllocatable), allocatable :: R(:)
+    end Type PythonClassAllocatableArray
+
+    abstract interface
     subroutine TSelfPointer(cptr, P)
     use iso_c_binding
-    use classes
+    import
     Type(c_ptr) :: cptr
     class (TPythonInterfacedClass), pointer :: P
-    END subroutine TSelfPointer
+    end subroutine TSelfPointer
     end interface
 
     integer, private, save, target :: dummy
@@ -52,16 +56,36 @@
     contains
 
 
-    subroutine GetAllocatableSize(sz, sz_array)
+    subroutine GetAllocatableSize(sz, sz_array, sz_object_array)
     Type(PythonClassAllocatable) :: T
     Type(RealAllocatableArray) :: T2
-    integer, intent(out) :: sz, sz_array
+    Type(PythonClassAllocatableArray) :: T3
+    integer, intent(out) :: sz, sz_array, sz_object_array
 
     sz = storage_size(T) / 8
     sz_array = storage_size(T2) / 8
+    sz_object_array = storage_size(T3) / 8
 
     end subroutine GetAllocatableSize
 
+    function better_c_loc(R)
+    !Longwinded way to get pointer to R (needed in gfortran, can do directly in ifort)
+    class(TPythonInterfacedClass), target :: R
+    Type(c_ptr) better_c_loc
+    type(PythonClassPtr), target :: P
+    Type Dummy
+        integer :: Self
+    end type Dummy
+    Type DummyClassPtr
+        class(Dummy), pointer :: Ref
+    end type
+    type(DummyClassPtr), pointer :: mock
+
+    P%Ref => R
+    call c_f_pointer(c_loc(P), mock)
+    better_c_loc = c_loc(mock%Ref%Self)
+
+    end function better_c_loc
 
     function get_allocatable_1D_array(array, ptr) result(sz)
     Type(RealAllocatableArray), target :: array
@@ -115,6 +139,34 @@
 
     end subroutine set_allocatable_1D_array_int
 
+    function get_allocatable_object_1D_array(array, ptr) result(sz)
+    Type(PythonClassAllocatableArray), target :: array
+    Type(c_Ptr), intent(out) :: ptr
+    integer sz
+
+    if (allocated(array%R)) then
+        ptr = c_loc(array%R)
+        sz = size(array%R)
+    else
+        sz=0
+    end if
+
+    end function get_allocatable_object_1D_array
+
+
+    subroutine set_allocatable_object_1D_array(array, vals, sz)
+    Type(PythonClassAllocatableArray), target :: array
+    integer, intent(in) :: sz
+    Type(PythonClassAllocatable) :: vals(sz)
+
+    if (allocated(array%R)) deallocate(array%R)
+    if (sz>0) then
+        allocate(array%R(sz))
+        array%R = vals
+    end if
+
+    end subroutine set_allocatable_object_1D_array
+
     function get_effective_null()
     type(c_ptr) get_effective_null
 
@@ -140,26 +192,21 @@
 
     if (allocated(classobject%P)) then
         call classobject%P%SelfPointer(get_effective_null(), id)
-        handle =  c_loc(classobject%P%self)
+        ! handle =  c_loc(classobject%P) ! only works in ifort
+        handle =  better_c_loc(classobject%P)
     else
         handle = c_null_ptr
     end if
 
     end subroutine F2003Class_GetAllocatable
 
-    subroutine F2003Class_SetAllocatable(f_allocatable, handle, SelfPtr)
+    subroutine F2003Class_SetAllocatable(f_allocatable, source)
     Type(PythonClassAllocatable), target :: f_allocatable
-    type(c_ptr), intent(in) :: handle
-    TYPE(C_FUNPTR), INTENT(IN) :: SelfPtr
-    procedure(TSelfPointer), pointer :: SelfFunc
-    class(TPythonInterfacedClass), pointer :: pSource
-
-    CALL C_F_PROCPOINTER (SelfPtr, SelfFunc)
-    call SelfFunc(handle, pSource)
+    class(TPythonInterfacedClass), optional :: source
 
     if (allocated(f_allocatable%P)) deallocate(f_allocatable%P)
-    if (associated(pSource)) then
-        allocate(f_allocatable%P,source = pSource)
+    if (present(Source)) then
+        allocate(f_allocatable%P,source = source)
     end if
 
     end subroutine F2003Class_SetAllocatable
@@ -179,7 +226,7 @@
         call SelfFunc(get_effective_null(), pSource)
         allocate(p, mold = pSource)
     end if
-    handle = c_loc(p%self)
+    handle = better_c_loc(p)
 
     end subroutine F2003Class_new
 
@@ -213,7 +260,7 @@
     type(CAMBparams) :: P
 
     global_error_flag = 0
-    call State%CAMBParams_Set(P)
+    call State%SetParams(P)
     end subroutine CAMBdata_SetParamsForBackground
 
     function CAMBdata_CalcBackgroundTheory(State, P) result(error)
@@ -223,7 +270,7 @@
     integer error
 
     global_error_flag = 0
-    call State%CAMBParams_Set(P)
+    call State%SetParams(P)
     if (global_error_flag==0) call InitVars(State) !calculate thermal history, e.g. z_drag etc.
     error=global_error_flag
 
@@ -502,10 +549,9 @@
     real(dl), intent(in) :: k(n)
     real(dl), intent(out) :: powers(n)
     integer err,ix
-    real(dl), external :: GetOmegak
 
     global_error_flag = 0
-    call Params%InitPower%Init(Params, GetOmegak(Params))
+    call Params%InitPower%Init(Params)
     if (global_error_flag==0) then
         do ix =1, n
             if (i==0) then
@@ -595,13 +641,14 @@
     function CAMB_TimeEvolution(this,nq, q, ntimes, times, noutputs, outputs, &
         ncustomsources,c_source_func) result(err)
     use GaugeInterface
+    use CAMBmain
     Type(CAMBstate) :: this
     integer, intent(in) :: nq, ntimes, noutputs, ncustomsources
     real(dl), intent(in) :: q(nq), times(ntimes)
     real(dl), intent(out) :: outputs(noutputs, ntimes, nq)
     TYPE(C_FUNPTR), INTENT(IN) :: c_source_func
-    integer err
-    integer q_ix
+    integer err, q_ix
+    real(dl) taustart
     Type(EvolutionVars) :: Ev
     procedure(TSource_func), pointer :: old_sources
 
@@ -614,6 +661,8 @@
 
     global_error_flag = 0
     outputs = 0
+    taustart = GetTauStart(maxval(q))
+    if (.not. this%ThermoData%HasTHermoData .or. taustart < this%ThermoData%tauminn) call this%ThermoData%Init(taustart)
     !$OMP PARALLEL DO DEFAUlT(SHARED),SCHEDUlE(DYNAMIC), PRIVATE(EV, q_ix)
     do q_ix= 1, nq
         if (global_error_flag==0) then
@@ -649,14 +698,17 @@
 
     end subroutine CAMB_SetCustomSourcesFunc
 
-    subroutine GetBackgroundThermalEvolution(this,ntimes, times, outputs)
+    subroutine GetBackgroundThermalEvolution(this, ntimes, times, outputs)
     Type(CAMBstate) :: this
     integer, intent(in) :: ntimes
     real(dl), intent(in) :: times(ntimes)
-    real(dl) :: outputs(5, ntimes)
+    real(dl) :: outputs(9, ntimes)
     real(dl), allocatable :: spline_data(:), ddxe(:), ddTb(:)
-    real(dl) :: d, tau, cs2b, opacity, vis, Tbaryon
+    real(dl) :: d, tau, cs2b, opacity, Tbaryon, dopacity, ddopacity, &
+        visibility, dvisibility, ddvisibility, exptau, lenswindow
     integer i, ix
+
+    if (.not. this%ThermoData%HasTHermoData) call this%ThermoData%Init(min(1d-3,max(1d-5,minval(times))))
 
     associate(T=>this%ThermoData)
         allocate(spline_data(T%nthermo), ddxe(T%nthermo), ddTb(T%nthermo))
@@ -667,32 +719,34 @@
         outputs = 0
         do ix = 1, ntimes
             tau = times(ix)
-            if (tau < T%tauminn) cycle
+            if (tau < T%tauminn*1.01) cycle
             d=log(tau/T%tauminn)/T%dlntau+1._dl
             i=int(d)
             d=d-i
             call T%Values(tau,cs2b, opacity)
+            call T%IonizationFunctionsAtTime(tau, opacity, dopacity, ddopacity, &
+                visibility, dvisibility, ddvisibility, exptau, lenswindow)
 
             if (i < T%nthermo) then
                 outputs(1,ix)=T%xe(i)+d*(ddxe(i)+d*(3._dl*(T%xe(i+1)-T%xe(i)) &
                     -2._dl*ddxe(i)-ddxe(i+1)+d*(ddxe(i)+ddxe(i+1) &
                     +2._dl*(T%xe(i)-T%xe(i+1)))))
-                vis=T%emmu(i)+d*(T%demmu(i)+d*(3._dl*(T%emmu(i+1)-T%emmu(i)) &
-                    -2._dl*T%demmu(i)-T%demmu(i+1)+d*(T%demmu(i)+T%demmu(i+1) &
-                    +2._dl*(T%emmu(i)-T%emmu(i+1)))))
                 Tbaryon = T%tb(i)+d*(ddtb(i)+d*(3._dl*(T%tb(i+1)-T%tb(i)) &
                     -2._dl*ddtb(i)-ddtb(i+1)+d*(ddtb(i)+ddtb(i+1) &
                     +2._dl*(T%tb(i)-T%tb(i+1)))))
             else
                 outputs(1,ix)=T%xe(T%nthermo)
-                vis = T%emmu(T%nthermo)
                 Tbaryon = T%Tb(T%nthermo)
             end if
 
             outputs(2, ix) = opacity
-            outputs(3, ix) = opacity*vis
+            outputs(3, ix) = visibility
             outputs(4, ix) = cs2b
             outputs(5, ix) = Tbaryon
+            outputs(6, ix) = dopacity
+            outputs(7, ix) = ddopacity
+            outputs(8, ix) = dvisibility
+            outputs(9, ix) = ddvisibility
         end do
     end associate
 

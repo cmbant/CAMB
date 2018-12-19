@@ -12,9 +12,9 @@
         real(dl), dimension (:), allocatable ::  sigma_8
         real(dl), dimension (:), allocatable ::  sigma2_vdelta_8 !growth from sigma_{v delta}
         real, dimension(:,:,:), allocatable :: TransferData
-        !Sources
-        real(dl), dimension(:), allocatable :: optical_depths
         !TransferData(entry,k_index,z_index) for entry=Tranfer_kh.. Transfer_tot
+    contains
+    procedure :: Free => MatterTransferData_Free
     end Type MatterTransferData
 
     Type MatterPowerData
@@ -40,9 +40,9 @@
     !In Python inherited from F2003Class (defined in baseconfig)
     !All python-accessible inherited classes must define SelfPointer, and use @fortran_class decorator in python
     !Allocatable objects can only contain instances of python-accessible classes so they can be identified from python.
-    !Class could be abstract and SelfPointer deferred, but Fortran then doesn't allow called inherited "super()" methods implemented in abstract classes
+    !Class could be abstract and SelfPointer deferred, but Fortran then doesn't allow called inherited "super()"
+    !methods implemented in abstract classes
     Type TPythonInterfacedClass
-        integer :: self !Not used, just need to be able to get reference to first entry if whole class is allocatable
     contains
     !SelfPointer msust be overriden for each class to be referenced from python.
     !Gets a class pointer from an untyped pointer.
@@ -62,6 +62,7 @@
         class(TPythonInterfacedClass), allocatable :: P
     end Type PythonClassAllocatable
 
+    
     type, extends(TPythonInterfacedClass) :: TCambComponent
     contains
     procedure :: ReadParams => TCambComponent_ReadParams
@@ -141,16 +142,16 @@
 
     end subroutine Replace
 
-    subroutine TNonLinearModel_GetNonLinRatios(this,Params,CAMB_Pk)
+    subroutine TNonLinearModel_GetNonLinRatios(this,State,CAMB_Pk)
     class(TNonLinearModel) :: this
-    class(TCAMBParameters) :: Params
+    class(TCAMBCalculation) :: State
     type(MatterPowerData) :: CAMB_Pk
     error stop 'GetNonLinRatios Not implemented'
     end subroutine TNonLinearModel_GetNonLinRatios
 
-    subroutine TNonLinearModel_GetNonLinRatios_All(this,Params,CAMB_Pk)
+    subroutine TNonLinearModel_GetNonLinRatios_All(this,State,CAMB_Pk)
     class(TNonLinearModel) :: this
-    class(TCAMBParameters), intent(in) :: Params
+    class(TCAMBCalculation), intent(in) :: State
     type(MatterPowerData) :: CAMB_Pk
     error stop 'GetNonLinRatios_all  not supported (no non-linear velocities)'
     end subroutine TNonLinearModel_GetNonLinRatios_All
@@ -175,10 +176,9 @@
     end function TInitialPower_TensorPower
 
 
-    subroutine TInitialPower_Init(this, Params, Omegak)
+    subroutine TInitialPower_Init(this, Params)
     class(TInitialPower) :: this
     class(TCAMBParameters), intent(in) :: Params
-    real(dl), intent(in) :: Omegak
     end subroutine TInitialPower_Init
 
 
@@ -307,4 +307,18 @@
 
     end subroutine TSplinedInitialPower_SetTensorLogRegular
 
+    
+    subroutine MatterTransferData_Free(this)
+    class(MatterTransferData):: this
+    integer st
+
+    deallocate(this%q_trans, STAT = st)
+    deallocate(this%TransferData, STAT = st)
+    deallocate(this%sigma_8, STAT = st)
+    deallocate(this%sigma2_vdelta_8, STAT = st)
+
+    end subroutine MatterTransferData_Free
+
+
+    
     end module classes

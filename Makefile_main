@@ -38,7 +38,7 @@ SF90FLAGS      = $(SFFLAGS) $(FFLAGS)
 
 HEALPIXLD     = -L$(HEALPIXDIR)/lib -lhealpix -L$(FITSDIR) -l$(FITSLIB)
 CAMBSRCS      = constants.f90 classes.f90 MathUtils.f90 subroutines.f90 \
-        $(RECOMBINATION).f90 $(REIONIZATION).f90 DarkEnergyInterface.f90 \
+        $(RECOMBINATION).f90 $(REIONIZATION).f90 DarkEnergyInterface.f90 SourceWindows.f90 \
         massive_neutrinos.f90 modules.f90 bessels.f90 equations.f90 DarkEnergyFluid.f90 \
         DarkEnergyPPF.f90  $(POWERSPECTRUM).f90 $(NONLINEAR).f90 lensing.f90 \
         $(BISPECTRUM).f90 cmbmain.f90 camb.f90

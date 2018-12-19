@@ -12,7 +12,7 @@ To install the CAMB python package on your computer, in the pycamb folder run::
 
     python setup.py install --user
 
-You will need gfortran 4.9 or higher installed to compile. Binary files for Windows are also provided, so these are used instead if no
+You will need gfortran 6 or higher installed to compile. Binary files for Windows are also provided, so these are used instead if no
 gfortran installation is found on Windows machines.
 
 
@@ -36,6 +36,7 @@ Other modules:
    nonlinear
    reionization
    recombination
+   sources
    correlations
    postborn
    emission_angle

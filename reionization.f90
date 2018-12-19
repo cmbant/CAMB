@@ -13,6 +13,8 @@
     !So tau and zre can be mapped into each other easily (for any symmetric window)
     !However for generality the module maps tau into z_{re} using a binary search
     !so could be easily modified for other monatonic parameterizations.
+    
+    !The ionization history must be twice differentiable. 
 
     !AL March 2008
     !AL July 2008 - added trap for setting optical depth without use_optical_depth
@@ -24,22 +26,22 @@
     real(dl), parameter :: Reionization_DefFraction = -1._dl
     !if -1 set from YHe assuming Hydrogen and first ionization of Helium follow each other
 
-    real(dl) :: Reionization_AccuracyBoost = 1._dl
     real(dl) :: Rionization_zexp = 1.5_dl
-
-    logical :: include_helium_fullreion = .true.
 
     type ReionizationParams
         logical    :: Reionization = .true.
         logical    :: use_optical_depth = .false.
         real(dl)   :: redshift = 10._dl
+        real(dl)   :: optical_depth = 0._dl
         real(dl)   :: delta_redshift = 0.5_dl
         real(dl)   :: fraction = Reionization_DefFraction
-        real(dl)   :: optical_depth = 0._dl
         !Parameters for the second reionization of Helium
+        logical    :: include_helium_fullreion  = .true.
         real(dl)   :: helium_redshift  = 3.5_dl
-        real(dl)   :: helium_delta_redshift  = 0.5
-        real(dl)   :: helium_redshiftstart  = 5._dl
+        real(dl)   :: helium_delta_redshift  = 0.4_dl
+        real(dl)   :: helium_redshiftstart  = 5.5_dl
+        real(dl)   :: tau_solve_accuracy_boost = 1._dl
+        real(dl)   :: timestep_boost =  1._dl
     contains
     procedure :: ReadParams => Reionization_ReadParams
     procedure :: Validate => Reionization_Validate
@@ -92,7 +94,7 @@
     end if
     Reionization_xe =(this%Params%fraction-xstart)*(tgh+1._dl)/2._dl+xstart
 
-    if (include_helium_fullreion .and. a > (1/(1+ this%Params%helium_redshiftstart))) then
+    if (this%Params%include_helium_fullreion .and. a > (1/(1+ this%Params%helium_redshiftstart))) then
 
         !Effect of Helium becoming fully ionized is small so details not important
         xod = (1+this%Params%helium_redshift - 1._dl/a)/this%Params%helium_delta_redshift
@@ -115,9 +117,9 @@
     class(ReionizationHistory) :: this
     integer Reionization_timesteps
 
-    Reionization_timesteps = 50
+    Reionization_timesteps = nint(50 * this%Params%timestep_boost)
 
-    end  function Reionization_timesteps
+    end function Reionization_timesteps
 
     subroutine Reionization_ReadParams(this, Ini)
     use IniObjects
@@ -208,38 +210,37 @@
 
         this%tau_complete = min(tau0, &
             this%tau_start+ rombint(dtauda,astart,1.d0/(1.d0+max(0.d0,Reion%redshift-Reion%delta_redshift*8)),1d-3))
-
     end if
 
     end subroutine Reionization_Init
 
-    subroutine Reionization_Validate(Reion, OK)
-    class(ReionizationParams),intent(in) :: Reion
+    subroutine Reionization_Validate(this, OK)
+    class(ReionizationParams),intent(in) :: this
     logical, intent(inout) :: OK
 
-    if (Reion%Reionization) then
-        if (Reion%use_optical_depth) then
-            if (Reion%optical_depth<0 .or. Reion%optical_depth > 0.9  .or. &
-                include_helium_fullreion .and. Reion%optical_depth<0.01) then
+    if (this%Reionization) then
+        if (this%use_optical_depth) then
+            if (this%optical_depth<0 .or. this%optical_depth > 0.9  .or. &
+                this%include_helium_fullreion .and. this%optical_depth<0.01) then
                 OK = .false.
-                write(*,*) 'Optical depth is strange. You have:', Reion%optical_depth
+                write(*,*) 'Optical depth is strange. You have:', this%optical_depth
             end if
         else
-            if (Reion%redshift < 0 .or. Reion%Redshift +Reion%delta_redshift*3 > Reionization_maxz .or. &
-                include_helium_fullreion .and. Reion%redshift < Reion%helium_redshift) then
+            if (this%redshift < 0 .or. this%Redshift +this%delta_redshift*3 > Reionization_maxz .or. &
+                this%include_helium_fullreion .and. this%redshift < this%helium_redshift) then
                 OK = .false.
-                write(*,*) 'Reionization redshift strange. You have: ',Reion%Redshift
+                write(*,*) 'Reionization redshift strange. You have: ',this%Redshift
             end if
         end if
-        if (Reion%fraction/= Reionization_DefFraction .and. (Reion%fraction < 0 .or. Reion%fraction > 1.5)) then
+        if (this%fraction/= Reionization_DefFraction .and. (this%fraction < 0 .or. this%fraction > 1.5)) then
             OK = .false.
-            write(*,*) 'Reionization fraction strange. You have: ',Reion%fraction
+            write(*,*) 'Reionization fraction strange. You have: ',this%fraction
         end if
-        if (Reion%delta_redshift > 3 .or. Reion%delta_redshift<0.1 ) then
+        if (this%delta_redshift > 3 .or. this%delta_redshift<0.1 ) then
             !Very narrow windows likely to cause problems in interpolation etc.
             !Very broad likely to conflict with quasar data at z=6
             OK = .false.
-            write(*,*) 'Reionization delta_redshift is strange. You have: ',Reion%delta_redshift
+            write(*,*) 'Reionization delta_redshift is strange. You have: ',this%delta_redshift
         end if
     end if
 
@@ -291,7 +292,7 @@
         else
             try_b = this%Params%redshift
         end if
-        if (abs(try_b - try_t) < 2e-3/Reionization_AccuracyBoost) exit
+        if (abs(try_b - try_t) < 2e-3/Reion%tau_solve_accuracy_boost) exit
         if (i>100) call GlobalError('Reionization_zreFromOptDepth: failed to converge',error_reionization)
     end do
 

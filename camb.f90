@@ -18,20 +18,10 @@
     integer :: error !Zero if OK
     logical onlytransfer
 
-    call CAMB_FreeCAMBstate(OutData)
-    call CAMB_GetResults(OutData, Params, error,onlytransfer)
+    call OutData%Free()
+    call CAMB_GetResults(OutData, Params, error, onlytransfer)
 
     end subroutine CAMB_GetTransfers
-
-    subroutine CAMB_FreeCAMBstate(Dat)
-    type (CAMBstate) :: Dat
-
-    call Free_ClTransfer(Dat%CLdata%CTransScal)
-    call Free_ClTransfer(Dat%ClData%CTransVec)
-    call Free_ClTransfer(Dat%ClData%CTransTens)
-    call Transfer_Free(Dat%MT)
-
-    end subroutine CAMB_FreeCAMBstate
 
 
     subroutine CAMB_TransfersToPowers(CData)
@@ -41,7 +31,7 @@
 
     call SetActiveState(CData)
     CData%OnlyTransfer = .false.
-    call CData%CP%InitPower%Init(CData%CP, Cdata%omegak)
+    call CData%CP%InitPower%Init(CData%CP)
     if (global_error_flag/=0) return
 
     if (CData%CP%WantCls) then
@@ -77,10 +67,11 @@
         P%Max_eta_k=max(min(P%max_l,3000)*2.5_dl,P%Max_eta_k)
         P%WantTensors = .false.
         P%WantVectors = .false.
-        if ((P%NonLinear==NonLinear_lens .or. P%NonLinear==NonLinear_both) .and. (P%DoLensing .or. num_redshiftwindows > 0)) then
+        if ((P%NonLinear==NonLinear_lens .or. P%NonLinear==NonLinear_both) .and. &
+            (P%DoLensing .or. State%num_redshiftwindows > 0)) then
             P%WantTransfer  = .true.
         end if
-        call OutData%CAMBParams_Set(P)
+        call OutData%SetParams(P)
         if (global_error_flag==0) call cmbmain
         if (global_error_flag/=0) then
             if (present(error)) error =global_error_flag
@@ -95,7 +86,7 @@
         P%Transfer%high_precision = .false.
         P%WantScalars = .false.
         P%WantVectors = .false.
-        call OutData%CAMBParams_Set(P, call_again=call_again)
+        call OutData%SetParams(P, call_again=call_again)
         if (global_error_flag==0) call cmbmain
         if (global_error_flag/=0) then
             if (present(error)) error =global_error_flag
@@ -110,7 +101,7 @@
         P%Transfer%high_precision = .false.
         P%WantScalars = .false.
         P%WantTensors = .false.
-        call OutData%CAMBParams_Set(P, call_again=call_again)
+        call OutData%SetParams(P, call_again=call_again)
         if (global_error_flag==0) call cmbmain
         if (global_error_flag/=0) then
             if (present(error)) error =global_error_flag
@@ -125,7 +116,7 @@
         P%WantScalars = .false.
         P%WantTensors = .false.
         P%WantVectors = .false.
-        call OutData%CAMBParams_Set(P, call_again=call_again)
+        call OutData%SetParams(P, call_again=call_again)
         if (global_error_flag==0) call cmbmain
         if (global_error_flag/=0) then
             if (present(error)) error =global_error_flag
@@ -140,7 +131,7 @@
     OutData%CP%Accuracy = Params%Accuracy
     OutData%CP%Reion%Reionization = Params%Reion%Reionization
     OutData%CP%Transfer%high_precision = Params%Transfer%high_precision
-    OutData%CP%DerivedParameters = Params%DerivedParameters
+    OutData%CP%WantDerivedParameters = Params%WantDerivedParameters
 
     if (.not. OutData%OnlyTransfer .and. Params%WantCls .and. Params%WantScalars) then
         if (Params%DoLensing .and. global_error_flag==0) then
@@ -193,7 +184,7 @@
     integer error
     Type(CAMBstate) :: State
 
-    call  State%CAMBParams_Set(P, error, .false.)
+    call  State%SetParams(P, error, .false.)
 
     if (error/=0) then
         CAMB_GetAge = -1
@@ -213,7 +204,7 @@
 
     P%Reion%use_optical_depth = .true.
     P%Reion%optical_depth = tau
-    call State%CAMBParams_Set(P,error)
+    call State%SetParams(P,error)
     if (error/=0)  then
         CAMB_GetZreFromTau = -1
     else

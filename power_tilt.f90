@@ -86,18 +86,17 @@
 
     end subroutine TInitialPowerLaw_SelfPointer
 
-    subroutine TInitialPowerLaw_Init(this, Params, Omegak)
+    subroutine TInitialPowerLaw_Init(this, Params)
     use classes
     use cambsettings
     use constants, only : c
     class(TInitialPowerLaw) :: this
     class(TCAMBParameters), intent(in) :: Params
-    real(dl), intent(in) :: Omegak
 
     select type(Params)
     class is (CAMBParams)
         !Curvature parameter if non-flat
-        this%curv = -Omegak/((c/1000)/Params%H0)**2
+        this%curv = -Params%Omk/((c/1000)/Params%H0)**2
     end select
 
     end subroutine TInitialPowerLaw_Init

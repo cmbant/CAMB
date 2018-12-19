@@ -30,7 +30,7 @@
     do i=n1,1,-1
         dy(i)=f(i)-g(i)*dy(i+1)
     end do
-    deallocate(f)
+
     end subroutine splder
     !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
     subroutine splini(g,n)

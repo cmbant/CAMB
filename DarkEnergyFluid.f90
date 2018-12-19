@@ -1,6 +1,7 @@
 
     module DarkEnergyFluid
     use DarkEnergyInterface
+    use CambSettings
     use constants
     use classes
     implicit none
@@ -39,7 +40,7 @@
 
     contains
 
-   
+
     subroutine TDarkEnergyFluid_ReadParams(this, Ini)
     use IniObjects
     class(TDarkEnergyFluid) :: this
@@ -69,12 +70,12 @@
 
     end subroutine TDarkEnergyFluid_SelfPointer
 
-    subroutine TDarkEnergyFluid_Init(this, Params)
+    subroutine TDarkEnergyFluid_Init(this, State)
     use classes
     class(TDarkEnergyFluid), intent(inout) :: this
-    class(TCAMBParameters), intent(in) :: Params
+    class(TCAMBCalculation), intent(in) :: State
 
-    call this%TDarkEnergyEqnOfState%Init(Params)
+    call this%TDarkEnergyEqnOfState%Init(State)
 
     if (this%is_cosmological_constant) then
         this%num_perturb_equations = 0
@@ -175,18 +176,17 @@
 
     end subroutine TAxionEffectiveFluid_SelfPointer
 
-    subroutine TAxionEffectiveFluid_Init(this, Params)
+    subroutine TAxionEffectiveFluid_Init(this, State)
     use classes
-    use cambsettings
     class(TAxionEffectiveFluid), intent(inout) :: this
-    class(TCAMBParameters), intent(in) :: Params
+    class(TCAMBCalculation), intent(in) :: State
     real(dl) :: grho_rad, F, p, mu, xc, n
 
-    select type(Params)
-    class is (CAMBparams)
+    select type(State)
+    class is (CAMBstate)
         this%is_cosmological_constant = this%om==0
         this%pow = 3*(1+this%w_n)
-        this%omL = Params%omegav - this%om !omegav is total dark energy density today
+        this%omL = State%Omega_de - this%om !Omega_de is total dark energy density today
         this%acpow = this%a_c**this%pow
         this%num_perturb_equations = 2
         if (this%w_n < 0.9999) then
@@ -194,7 +194,7 @@
             !get (very) approximate result for sound speed parameter; arXiv:1806.10608  Eq 30 (but mu may not exactly agree with what they used)
             n = nint((1+this%w_n)/(1-this%w_n))
             !Assume radiation domination, standard neutrino model; H0 factors cancel
-            grho_rad = (kappa/c**2*4*sigma_boltz/c**3*Params%tcmb**4*Mpc**2*(1+3.046*7._dl/8*(4._dl/11)**(4._dl/3)))
+            grho_rad = (kappa/c**2*4*sigma_boltz/c**3*State%CP%tcmb**4*Mpc**2*(1+3.046*7._dl/8*(4._dl/11)**(4._dl/3)))
             xc = this%a_c**2/2/sqrt(grho_rad/3)
             F=7./8
             p=1./2

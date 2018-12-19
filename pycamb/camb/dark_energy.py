@@ -10,6 +10,9 @@ class DarkEnergyModel(F2003Class):
         ("__is_cosmological_constant", c_bool),
         ("__num_perturb_equations", c_int)]
 
+    def validate_params(self):
+        return True
+
 
 class DarkEnergyEqnOfState(DarkEnergyModel):
     """
@@ -25,11 +28,11 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
     _fortran_class_name_ = 'TDarkEnergyEqnOfState'
 
     _fields_ = [
-        ("w", c_double),
-        ("wa", c_double),
-        ("cs2", c_double),
-        ("use_tabulated_w", c_bool),
-        ("no_perturbations", c_bool)
+        ("w", c_double, "w(0)"),
+        ("wa", c_double, "-dw/da(0)"),
+        ("cs2", c_double, "fluid rest-frame sound speed squared"),
+        ("use_tabulated_w", c_bool, "using an interpolated tabulated w(a) rather than w, wa above"),
+        ("__no_perturbations", c_bool, "turn off perturbations (unphysical, so hidden in Python)")
     ]
 
     _methods_ = [('SetWTable', [numpy_1d, numpy_1d, POINTER(c_int)])]
@@ -40,11 +43,12 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
 
         :param w: w(0)
         :param wa: -dw/da(0)
-        :param cs2: fluid rest-frame sound speed
+        :param cs2: fluid rest-frame sound speed squared
         """
         self.w = w
         self.wa = wa
         self.cs2 = cs2
+        self.validate_params()
 
     def set_w_a_table(self, a, w):
         """
@@ -71,21 +75,9 @@ class DarkEnergyFluid(DarkEnergyEqnOfState):
     _fortran_class_module_ = 'DarkEnergyFluid'
     _fortran_class_name_ = 'TDarkEnergyFluid'
 
-    def set_params(self, w=-1.0, wa=0, cs2=1.0):
-        """
-        Set the parameters so that P(a)/rho(a) = w(a) = w + (1-a)*wa.
-        The fluid model must have w(a) <= -1 at all times.
-
-        :param w: w(0)
-        :param wa: -dw/da(0)
-        :param cs2: fluid rest-frame sound speed
-        """
-
-        if wa and (w < -1 - 1e-6 or 1 + w + wa < -1 - 1e-6):
+    def validate_params(self):
+        if not self.use_tabulated_w and self.wa and (self.w < -1 - 1e-6 or 1 + self.w + self.wa < -1 - 1e-6):
             raise CAMBError('fluid dark energy model does not support w crossing -1')
-        self.w = w
-        self.wa = wa
-        self.cs2 = cs2
 
 
 @fortran_class
@@ -95,7 +87,7 @@ class DarkEnergyPPF(DarkEnergyEqnOfState):
     Use inherited methods to set parameters or interpolation table.
 
     """
-    _fields_ = [("c_Gamma_ppf", c_double)]
+    #cannot declare c_Gamma_ppf directly here as have not defined all fields in DarkEnergyEqnOfState (TCubicSpline)
     _fortran_class_module_ = 'DarkEnergyPPF'
     _fortran_class_name_ = 'TDarkEnergyPPF'
 

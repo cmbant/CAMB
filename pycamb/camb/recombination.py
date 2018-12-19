@@ -1,8 +1,6 @@
-from .baseconfig import CAMB_Structure, dll_import
-from ctypes import c_int, c_double
+from .baseconfig import CAMB_Structure
+from ctypes import c_int, c_double, c_bool
 
-
-# ---Derived Types in recombination.f90
 
 class RecombinationParams(CAMB_Structure):
     """
@@ -13,7 +11,7 @@ class RecombinationParams(CAMB_Structure):
         ("RECFAST_fudge", c_double),
         ("RECFAST_fudge_He", c_double),
         ("RECFAST_Heswitch", c_int),
-        ("RECFAST_Hswitch", c_int),  # logical
+        ("RECFAST_Hswitch", c_bool),
         ("AGauss1", c_double),
         ("AGauss2", c_double),
         ("zGauss1", c_double),

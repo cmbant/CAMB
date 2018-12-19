@@ -1,38 +1,28 @@
-from .baseconfig import CAMB_Structure, dll_import
-from ctypes import c_bool, c_int, c_double
+from .baseconfig import CAMB_Structure
+from ctypes import c_bool, c_double
 
-# ---Variables in reionization.f90
-# To set the value please just put
-# variablename.value = newvalue
-
-# logical
-include_helium_fullreion = dll_import(c_bool, "reionization", "include_helium_fullreion")
-# include_helium_fullreion.value = True
-
-# logical
-Reionization_AccuracyBoost = dll_import(c_bool, "reionization", "reionization_accuracyboost")
-# Reionization_AccuracyBoost.value = 1.
-
-Rionization_zexp = dll_import(c_bool, "reionization", "rionization_zexp")
-
-
-# ---Derived Types in reionization.f90
 
 class ReionizationParams(CAMB_Structure):
     """
-    Holds parameters for the reionization model.
+    Holds parameters for the reionization model. The default (unphysical) model tanh parameterization is described in
+    Appendix B of `arXiv:0804.3865 <http://arxiv.org/abs/0804.3865>`_
+    This should become a changeable class at some point.
     """
     _fields_ = [
-        ("Reionization", c_bool),
-        ("use_optical_depth", c_bool),
-        ("redshift", c_double),
-        ("delta_redshift", c_double),
-        ("fraction", c_double),
-        ("optical_depth", c_double),
-        ("helium_redshift", c_double),  # helium_redshift  = 3.5_dl
-        ("helium_delta_redshift", c_double),  # helium_delta_redshift  = 0.5
-        ("helium_redshiftstart", c_double)  # helium_redshiftstart  = 5._dl
-    ]
+        ("Reionization", c_bool, "Is there reionization? (can be off for matter power which is independent of it)"),
+        ("use_optical_depth", c_bool, "Whether to use the optical depth or redshift paramters"),
+        ("redshift", c_double, "Reionization redshift if use_optical_depth-False"),
+        ("optical_depth", c_double, "Optical depth if use_optical_depth=True"),
+        ("delta_redshift", c_double, "Duration of reionization"),
+        ("fraction", c_double,
+         "Reionization fraction when complete, or -1 for full ionization of hydrogen and first ionization of helium."),
+        ("include_helium_fullreion", c_bool, "Whether to include second reionization of helium"),
+        ("helium_redshift", c_double, "Redshift for second reionization of helium"),
+        ("helium_delta_redshift", c_double, "Width in redshift for second reionization of helium"),
+        ("helium_redshiftstart", c_double, "Include second helium reionizatio below this redshift"),
+        ("tau_solve_accuracy_boost", c_double, "Accuracy boosting parameter for solving for z_re from tau"),
+        ("timestep_boost", c_double,
+         "Accuracy boosting parameter for the minimum number of time sampling steps through reionization")]
 
     def set_tau(self, tau, delta_redshift=None):
         """

@@ -7,7 +7,7 @@ import time
 import sys
 import shutil
 import copy
-from iniFile import iniFile
+from inifile import IniFile
 
 parser = argparse.ArgumentParser(description='Run CAMB tests')
 parser.add_argument('ini_dir', help='ini file directory')
@@ -210,7 +210,7 @@ filetolmatrix = [["*scalCls.dat", Ignore()],  # Ignore() all scalCls.dat files.
                  ["*lensedCls.dat", coltol1],  # lensed and lenspotential files both use coltol1 given above
                  ["*lensedtotCls.dat", coltol1],
                  ["*lenspotentialCls.dat", coltolunlensed],
-                 ["*scalCovCls.dat", coltolunlensed],
+                 ["*scalarCovCls.dat", coltolunlensed],
                  ["*tensCls.dat", ColTol({"TE": (True, lambda o, n: diffnsqrt(o, n, 1e-2, 'T', 'E')),
                                           "*": (True, [(0, 1e-2),
                                                        (600, Ignore())])})],
@@ -497,12 +497,17 @@ def num_unequal(filename, cmpFcn):
             inifilename = '_'.join(inifilenameparts[0:2]) if inifilenameparts[1] != 'transfer' else inifilenameparts[0]
             inifilename += "_params.ini"
             inifilename = os.path.join(args.ini_dir, args.out_files_dir, inifilename)
-            try:
-                # The following split fails for *_transfer_out.* files where it not needed anyway.
-                inifile = iniFile()
-                inifile.readFile(inifilename)
-            except:
-                if 'sharp_cl_params' not in inifilename:
+            if not os.path.exists(inifilename):
+                if 'sharp_cl_params' in inifilename:
+                    inifile = IniFile()
+                else:
+                    printlog("ini filename does not exist: %s" % inifilename)
+            else:
+                try:
+                    # The following split fails for *_transfer_out.* files where it not needed anyway.
+                    inifile = IniFile()
+                    inifile.readFile(inifilename)
+                except:
                     printlog("Could not open ini filename: %s" % inifilename)
             for o_row, n_row in zip(origMat[origBase:], newMat[newBase:]):
                 row += 1

@@ -137,11 +137,13 @@
     logical :: short_integral_range
     real(dl) range_fac
     logical, parameter :: approx = .false.
-    real(dl) theta_cut(lmax)
+    real(dl) theta_cut(lmax), LensAccuracyBoost
     Type(TCLData), pointer :: CL
 
     !$ integer  OMP_GET_THREAD_NUM, OMP_GET_MAX_THREADS
     !$ external OMP_GET_THREAD_NUM, OMP_GET_MAX_THREADS
+
+    LensAccuracyBoost = CP%Accuracy%AccuracyBoost*CP%Accuracy%LensingBoost
 
     if (lensing_includes_tensors) call MpiStop('Haven''t implemented tensor lensing')
     CL =>  State%ClData
@@ -156,14 +158,14 @@
         if (allocated(CL%Cl_lensed)) deallocate(CL%Cl_lensed)
         allocate(CL%Cl_lensed(lmin:CL%lmax_lensed,1:4), source = 0._dl)
 
-        npoints = CP%Max_l  * 2 *CP%Accuracy%AccuracyBoost
+        npoints = CP%Max_l  * 2 *LensAccuracyBoost
         short_integral_range = .not. CP%Accuracy%AccurateBB
         dtheta = const_pi / npoints
         if (CP%Max_l > 3500) dtheta=dtheta/1.3
         apodize_point_width = nint(0.003 / dtheta)
         npoints = int(const_pi/dtheta)
         if (short_integral_range) then
-            range_fac= max(1._dl,32/CP%Accuracy%AccuracyBoost) !fraction of range to integrate
+            range_fac= max(1._dl,32/LensAccuracyBoost) !fraction of range to integrate
             npoints = int(npoints /range_fac)
             !OK for TT, EE, TE but inaccurate for low l BB
             !this induces high frequency ringing on very small scales
@@ -174,7 +176,7 @@
 
         if (DebugMsgs) timeprev=GetTestTime()
 
-        interp_fac = max(1,min(nint(10/CP%Accuracy%AccuracyBoost),int(range_fac*2)-1))
+        interp_fac = max(1,min(nint(10/LensAccuracyBoost),int(range_fac*2)-1))
 
         jmax = 0
         do l=lmin,lmax
@@ -525,11 +527,14 @@
     integer max_lensed_ix
     integer b_lo
     real(dl) T2,T4,a0, b0
-    real(dl) lfacs(CP%Max_l)
+    real(dl) lfacs(CP%Max_l), LensAccuracyBoost
     real(dl), allocatable, dimension(:,:,:) :: lens_contrib(:,:,:)
     integer thread_ix
+
     !$ integer OMP_GET_THREAD_NUM, OMP_GET_MAX_THREADS
     !$ external OMP_GET_THREAD_NUM, OMP_GET_MAX_THREADS
+
+    LensAccuracyBoost = CP%Accuracy%AccuracyBoost*CP%Accuracy%LensingBoost
 
     if (lensing_includes_tensors) stop 'Haven''t implemented tensor lensing'
 
@@ -548,7 +553,7 @@
 
         dtheta = const_pi / npoints
         if (.not. CP%Accuracy%AccurateBB) then
-            npoints = int(npoints /32 *min(32._dl,CP%Accuracy%AccuracyBoost))
+            npoints = int(npoints /32 *min(32._dl,LensAccuracyBoost))
             !OK for TT, EE, TE but inaccurate for low l BB
             !this induces high frequency ringing on very small scales
         end if

@@ -19,7 +19,10 @@ class CambTest(unittest.TestCase):
 
     def testAssigments(self):
         pars = camb.CAMBparams()
-        pars.set_cosmology(H0=68.5, ombh2=0.022)
+        pars.set_cosmology(H0=68.5, ombh2=0.022, mnu=0, omch2=0.1)
+        self.assertAlmostEqual(pars.omegam, (0.022 + 0.1) / 0.685 ** 2)
+        with self.assertRaises(AttributeError):
+            pars.omegam = 1
         pars.InitPower.set_params(ns=0.01)
         data = camb.CAMBdata()
         data.Params = pars
@@ -61,9 +64,24 @@ class CambTest(unittest.TestCase):
         pars = camb.set_params(**{'InitPower.ns': 1.2, 'WantTransfer': True})
         self.assertEqual(pars.InitPower.ns, 1.2)
         self.assertTrue(pars.WantTransfer)
+        pars.DarkEnergy = None
+
+        from camb.sources import GaussianSourceWindow
+        pars = camb.CAMBparams()
+        pars.SourceWindows = [GaussianSourceWindow(), GaussianSourceWindow(redshift=1)]
+        self.assertEqual(pars.SourceWindows[1].redshift, 1)
+        pars.SourceWindows[0].redshift = 2
+        self.assertEqual(pars.SourceWindows[0].redshift, 2)
+        self.assertTrue(len(pars.SourceWindows) == 2)
+        pars.SourceWindows[0] = GaussianSourceWindow(redshift=3)
+        self.assertEqual(pars.SourceWindows[0].redshift, 3)
+        self.assertTrue('redshift = 3.0' in str(pars))
+        pars.SourceWindows = pars.SourceWindows[0:1]
+        self.assertTrue(len(pars.SourceWindows) == 1)
+        pars.SourceWindows = []
+        self.assertTrue(len(pars.SourceWindows) == 0)
 
     def testBackground(self):
-
         pars = camb.CAMBparams()
         pars.set_cosmology(H0=68.5, ombh2=0.022, omch2=0.122, YHe=0.2453, mnu=0.07, omk=0)
         zre = camb.get_zre_from_tau(pars, 0.06)
@@ -110,7 +128,7 @@ class CambTest(unittest.TestCase):
         pars.set_cosmology(H0=67.31, ombh2=0.022242, omch2=0.11977, mnu=0.06, omk=0)
         self.assertAlmostEqual(pars.YHe, 0.245336, 5)
         data.calc_background(pars)
-        self.assertAlmostEqual(data.cosmomc_theta(), 0.01040862, 7)
+        self.assertAlmostEqual(data.cosmomc_theta(), 0.010408566, 7)
         self.assertAlmostEqual(data.get_derived_params()['kd'], 0.14055, 4)
 
         pars.set_cosmology(H0=67.31, ombh2=0.022242, omch2=0.11977, mnu=0.06, omk=0,
@@ -120,9 +138,9 @@ class CambTest(unittest.TestCase):
 
         # test massive sterile models as in Planck papers
         pars.set_cosmology(H0=68.0, ombh2=0.022305, omch2=0.11873, mnu=0.06, nnu=3.073, omk=0, meffsterile=0.013)
-        self.assertAlmostEqual(pars.omegan * (pars.H0 / 100) ** 2, 0.00078, 5)
+        self.assertAlmostEqual(pars.omnuh2, 0.00078, 5)
         self.assertAlmostEqual(pars.YHe, 0.24573, 5)
-        self.assertAlmostEqual(pars.N_eff(), 3.073, 4)
+        self.assertAlmostEqual(pars.N_eff, 3.073, 4)
 
         data.calc_background(pars)
         self.assertAlmostEqual(data.get_derived_params()['age'], 13.773, 2)
@@ -141,24 +159,60 @@ class CambTest(unittest.TestCase):
         pars.set_dark_energy()  # re-set defaults
 
         # test theta
-        pars.set_cosmology(cosmomc_theta=0.0104085, H0=None, ombh2=0.022271, omch2=0.11914, mnu=0.06, omk=0)
+        pars.set_cosmology(cosmomc_theta=0.0104085, ombh2=0.022271, omch2=0.11914, mnu=0.06, omk=0)
         self.assertAlmostEqual(pars.H0, 67.5512, 2)
         with self.assertRaises(CAMBParamRangeError):
-            pars.set_cosmology(cosmomc_theta=0.0204085, H0=None, ombh2=0.022271, omch2=0.11914, mnu=0.06, omk=0)
-        pars = camb.set_params(cosmomc_theta=0.0104077, H0=None, ombh2=0.022, omch2=0.122, w=-0.95)
+            pars.set_cosmology(cosmomc_theta=0.0204085, ombh2=0.022271, omch2=0.11914, mnu=0.06, omk=0)
+        pars = camb.set_params(cosmomc_theta=0.0104077, ombh2=0.022, omch2=0.122, w=-0.95)
         self.assertAlmostEqual(camb.get_background(pars, no_thermo=True).cosmomc_theta(), 0.0104077, 7)
 
-        pars = camb.set_params(cosmomc_theta=0.0104077, H0=None, ombh2=0.022, omch2=0.122, w=-0.95, wa=0,
+        pars = camb.set_params(thetastar=0.010311, ombh2=0.022, omch2=0.122)
+        self.assertAlmostEqual(camb.get_background(pars).get_derived_params()['thetastar'] / 100, 0.010311, 7)
+        pars = camb.set_params(thetastar=0.010311, ombh2=0.022, omch2=0.122, omk=-0.05)
+        self.assertAlmostEqual(camb.get_background(pars).get_derived_params()['thetastar'] / 100, 0.010311, 7)
+        self.assertAlmostEqual(pars.H0, 49.7148, places=3)
+
+        pars = camb.set_params(cosmomc_theta=0.0104077, ombh2=0.022, omch2=0.122, w=-0.95, wa=0,
                                dark_energy_model='ppf')
         self.assertAlmostEqual(camb.get_background(pars, no_thermo=True).cosmomc_theta(), 0.0104077, 7)
 
-        pars = camb.set_params(cosmomc_theta=0.0104077, H0=None, ombh2=0.022, omch2=0.122, w=-0.95,
+        pars = camb.set_params(cosmomc_theta=0.0104077, ombh2=0.022, omch2=0.122, w=-0.95,
                                dark_energy_model='DarkEnergyFluid', initial_power_model='InitialPowerLaw')
         self.assertAlmostEqual(camb.get_background(pars, no_thermo=True).cosmomc_theta(), 0.0104077, 7)
+
         with self.assertRaises(CAMBValueError):
             camb.set_params(dark_energy_model='InitialPowerLaw')
-
-        self.assertAlmostEqual(data.get_Omega('baryon'), data.Params.omegab, 5)
+        data.calc_background(pars)
+        h2 = (data.Params.H0 / 100) ** 2
+        self.assertAlmostEqual(data.get_Omega('baryon'), data.Params.ombh2 / h2, 7)
+        self.assertAlmostEqual(data.get_Omega('nu'), data.Params.omnuh2 / h2, 7)
+        self.assertAlmostEqual(data.get_Omega('photon') + data.get_Omega('neutrino') + data.get_Omega('de') +
+                               (pars.ombh2 + pars.omch2 + pars.omnuh2) / h2 + pars.omk, 1, 8)
+        pars.set_cosmology(H0=67, mnu=1, neutrino_hierarchy='normal')
+        data.calc_background(pars)
+        h2 = (pars.H0 / 100) ** 2
+        self.assertAlmostEqual(data.get_Omega('photon') + data.get_Omega('neutrino') + data.get_Omega('de') +
+                               (pars.ombh2 + pars.omch2 + pars.omnuh2) / h2 + pars.omk, 1, 8)
+        redshifts = np.array([0.005, 0.01, 0.3, 0.9342, 4, 27, 321.5, 932, 1049, 1092, 2580, 1e4, 2.1e7])
+        self.assertTrue(
+            np.allclose(data.redshift_at_conformal_time(data.conformal_time(redshifts)), redshifts, rtol=1e-7))
+        pars.set_dark_energy(w=-1.8)
+        data.calc_background(pars)
+        self.assertTrue(
+            np.allclose(data.redshift_at_conformal_time(data.conformal_time(redshifts)), redshifts, rtol=1e-7))
+        pars.set_cosmology(cosmomc_theta=0.0104085)
+        data.calc_background(pars)
+        self.assertAlmostEqual(data.cosmomc_theta(), 0.0104085)
+        derived = data.get_derived_params()
+        pars.Accuracy.BackgroundTimeStepBoost = 2
+        data.calc_background(pars)
+        derived2 = data.get_derived_params()
+        self.assertAlmostEqual(derived['thetastar'], derived2['thetastar'], places=5)
+        pars.set_cosmology(H0=67.5, ombh2=0.022, omch2=0.122, mnu=0.11, neutrino_hierarchy='inverted')
+        self.assertEqual(pars.num_nu_massive, 3)
+        self.assertEqual(pars.nu_mass_numbers[1], 1)
+        self.assertEqual(pars.nu_mass_eigenstates, 2)
+        self.assertAlmostEqual(pars.nu_mass_fractions[0], 0.915197, places=4)
 
     def testEvolution(self):
         redshifts = [0.4, 31.5]
@@ -237,8 +291,8 @@ class CambTest(unittest.TestCase):
         data.calc_power_spectra(pars)
         kh3, z3, pk3 = data.get_matter_power_spectrum(1e-4, 1, 20)
         self.assertAlmostEqual(pk[-1][-3], 51.909, 2)
-        self.assertAlmostEqual(pk3[-1][-3], 57.697, 2)
-        self.assertAlmostEqual(pk2[-2][-4], 53.476, 2)
+        self.assertAlmostEqual(pk3[-1][-3], 57.709, 2)
+        self.assertAlmostEqual(pk2[-2][-4], 56.436, 2)
         camb.set_feedback_level(0)
 
         PKnonlin = camb.get_matter_power_interpolator(pars, nonlinear=True)
@@ -279,6 +333,7 @@ class CambTest(unittest.TestCase):
         self.assertTrue(np.all(np.abs(clout[2:2300, 2] / cls['lensed_scalar'][2:2300, 2] - 1) < 1e-3))
 
         pars = camb.CAMBparams()
+        pars.set_cosmology(H0=78, YHe=0.22)
         pars.set_for_lmax(2000, lens_potential_accuracy=1)
         pars.WantTensors = True
         results = camb.get_transfer_functions(pars)
@@ -293,6 +348,7 @@ class CambTest(unittest.TestCase):
 
         # Check generating tensors and scalars together
         pars = camb.CAMBparams()
+        pars.set_cosmology(H0=67)
         lmax = 2000
         pars.set_for_lmax(lmax, lens_potential_accuracy=1)
         pars.InitPower.set_params(ns=0.96, r=0)
@@ -318,6 +374,7 @@ class CambTest(unittest.TestCase):
 
     def testDarkEnergy(self):
         pars = camb.CAMBparams()
+        pars.set_cosmology(H0=71)
         pars.InitPower.set_params(ns=0.965, r=0)
         for m in ['fluid', 'ppf']:
             pars.set_dark_energy(w=-0.7, wa=0.2, dark_energy_model=m)
@@ -334,6 +391,7 @@ class CambTest(unittest.TestCase):
 
     def testInitialPower(self):
         pars = camb.CAMBparams()
+        pars.set_cosmology(H0=67)
         import ctypes
         P = camb.InitialPowerLaw()
         P2 = ctypes.pointer(P)
@@ -345,6 +403,7 @@ class CambTest(unittest.TestCase):
         self.assertEqual(P2.contents.As, As)
 
         pars2 = camb.CAMBparams()
+        pars2.set_cosmology(H0=67)
         pars2.InitPower.set_params(As=1.7e-9, ns=ns)
         self.assertEqual(pars2.InitPower.As, 1.7e-9)
         pars.set_initial_power(pars2.InitPower)
@@ -392,6 +451,32 @@ class CambTest(unittest.TestCase):
         pars.set_initial_power_function(PK, args=(3e-9, 0.95))
         P = pars.scalar_power(ks)
         np.testing.assert_almost_equal(P, PK(ks, 3e-9, 0.95), decimal=4)
+
+    def testSources(self):
+        from camb.sources import GaussianSourceWindow, SplinedSourceWindow
+        pars = camb.CAMBparams()
+        pars.set_cosmology(H0=64, mnu=0)
+        pars.set_for_lmax(1200)
+        pars.Want_CMB = False
+        pars.SourceWindows = [
+            GaussianSourceWindow(redshift=0.17, source_type='counts', bias=1.2, sigma=0.04, dlog10Ndm=-0.2),
+            GaussianSourceWindow(redshift=0.5, source_type='lensing', sigma=0.07, dlog10Ndm=0)]
+        pars.SourceTerms.limber_windows = True
+        results = camb.get_results(pars)
+        cls = results.get_source_cls_dict()
+        zs = np.arange(0, 0.5, 0.02)
+        W = np.exp(-(zs - 0.17) ** 2 / 2 / 0.04 ** 2) / np.sqrt(2 * np.pi) / 0.04
+        pars.SourceWindows[0] = SplinedSourceWindow(bias=1.2, dlog10Ndm=-0.2, z=zs, W=W)
+        results = camb.get_results(pars)
+        cls2 = results.get_source_cls_dict()
+        self.assertTrue(np.allclose(cls2["W1xW1"][2:1200], cls["W1xW1"][2:1200], rtol=1e-3))
+        pars.SourceWindows = [GaussianSourceWindow(redshift=1089, source_type='lensing', sigma=30)]
+        results = camb.get_results(pars)
+        cls = results.get_source_cls_dict()
+        PP = cls['PxP']
+        ls = np.arange(0, PP.shape[0])
+        self.assertTrue(np.allclose(PP / 4 * (ls * (ls + 1)), cls['W1xW1'], rtol=1e-3))
+        self.assertTrue(np.allclose(PP / 2 * np.sqrt(ls * (ls + 1)), cls['PxW1'], rtol=1e-3))
 
     def testSymbolic(self):
         if Fast: return

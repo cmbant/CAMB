@@ -7,9 +7,13 @@ const_pi = 3.1415926535897932384626433832795
 const_twopi = 2. * const_pi
 const_fourpi = 4. * const_pi
 const_sqrt6 = 2.4494897427831780981972840747059
+zeta3 = 1.2020569031595942853997
+zeta5 = 1.0369277551433699263313
+zeta7 = 1.0083492773819228268397
 
 c = 2.99792458e8
 h_p = 6.62606896e-34
+hbar = h_p / 2 / const_pi
 
 G = 6.6738e-11  # data book 2012, last digit +/-8
 sigma_thomson = 6.6524616e-29
@@ -47,3 +51,9 @@ line21_const = 3 * l_21cm ** 2 * c * h_p / 32 / const_pi / k_B * A10 * MPc_in_se
 # 1000 to get in MiliKelvin
 COBE_CMBTemp = 2.7255  # (Fixsen 2009) used as default value
 default_nnu = 3.046
+
+inv_neutrino_mass_fac = zeta3 * 3. / 2 / const_pi ** 2 * 4. / 11 * \
+                        ((k_B * COBE_CMBTemp / hbar / c) ** 3 * kappa / 3 / (100 * 1000 / Mpc) ** 2 / (c ** 2 / eV))
+
+neutrino_mass_fac = 1 / inv_neutrino_mass_fac
+# converts omnuh2 into sum m_nu in eV for non-relativistic but thermal neutrinos (no 0.046 factor); ~ 94.07

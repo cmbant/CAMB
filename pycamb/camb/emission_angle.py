@@ -50,7 +50,7 @@ def get_emission_angle_powers(camb_background, PK, chi_source, lmax=3000, acc=1,
 
     from scipy.interpolate import UnivariateSpline
 
-    assert (isinstance(camb_background, camb.CAMBdata) and np.isclose(camb_background.Params.get_omega_k(), 0))
+    assert (isinstance(camb_background, camb.CAMBdata) and np.isclose(camb_background.Params.omk, 0))
     nz = int(100 * acc)
     ls = lsamp or np.hstack((np.arange(2, 60, 2), np.arange(60, min(lmax, 400), 10),
                              np.arange(min(lmax, 400), lmax, int(50. / acc)),
@@ -81,7 +81,7 @@ def get_emission_delay_BB(params, kmax=100, lmax=3000, non_linear=True, CMB_unit
 
     from scipy.interpolate import UnivariateSpline
 
-    assert (np.isclose(params.get_omega_k(), 0))
+    assert (np.isclose(params.omk, 0))
     camb_background = camb.get_background(params)
     chi_source = camb_background.tau0 - camb_background.tau_maxvis
     z_source = camb_background.redshift_at_comoving_radial_distance(chi_source)
@@ -185,7 +185,7 @@ def get_source_cmb_cl(params, CMB_unit='muK'):
     from sympy import diff
     from . import symbolic as cs
 
-    assert (np.isclose(params.get_omega_k(), 0))
+    assert (np.isclose(params.omk, 0))
 
     angdist = cs.tau0 - cs.t
     emission_sources = {

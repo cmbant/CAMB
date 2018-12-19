@@ -68,10 +68,10 @@
     end subroutine PrintFeedback
 
 
-    subroutine Init(this, Params)
+    subroutine Init(this, State)
     use classes
     class(TDarkEnergyModel), intent(inout) :: this
-    class(TCAMBParameters), intent(in) :: Params
+    class(TCAMBCalculation), intent(in) :: State
 
     end subroutine Init
 
@@ -158,8 +158,7 @@
 
     allocate(integral(this%equation_of_state%n))
     ! log (rho) =  -3 int dlna (1+w)
-    call spline_integrate(this%equation_of_state%X,this%equation_of_state%F, &
-        this%equation_of_state%ddF,integral,this%equation_of_state%n)
+    call this%equation_of_state%IntegralArray(integral)
     integral  = -3*( (this%equation_of_state%X-this%equation_of_state%X(1)) + integral) + 4*this%equation_of_state%X
     integral = integral - integral(this%equation_of_state%n) !log(a^4 rho_de)) normalized to 0 at a=1
     call this%logdensity%Init(this%equation_of_state%X, integral)
@@ -257,10 +256,10 @@
     end subroutine TDarkEnergyEqnOfState_ReadParams
 
 
-    subroutine TDarkEnergyEqnOfState_Init(this, Params)
+    subroutine TDarkEnergyEqnOfState_Init(this, State)
     use classes
     class(TDarkEnergyEqnOfState), intent(inout) :: this
-    class(TCAMBParameters), intent(in) :: Params
+    class(TCAMBCalculation), intent(in) :: State
 
     this%is_cosmological_constant = .not. this%use_tabulated_w .and. &
         &  abs(this%w_lam + 1._dl) < 1.e-6_dl .and. this%wa==0._dl

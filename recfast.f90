@@ -262,17 +262,19 @@
 
         real(dl), private :: HO, Tnow, fu
         integer, private :: n_eq = 3
-        logical :: doTmatTspin = .false.
+        logical :: doTspin = .false.
 
         !The following only used for approximations where small effect
         real(dl), private :: OmegaK, OmegaT, z_eq
         type(RecombinationParams), pointer :: Params
 
         real(dl), private :: last_OmB =0, Last_YHe=0, Last_H0=0, Last_dtauda=0, last_fudge, last_fudgeHe
+        logical, private :: last_doTspin
 
     contains
     procedure :: Init => Recombination_init
-    procedure :: x_e => Recombination_xe !ionization fraction
+    procedure :: x_e => Recombination_xe
+    procedure :: xe_Tm => Recombination_xe_Tm !ionization fraction and baryon temperature
     procedure :: T_m => Recombination_tm !baryon temperature
     procedure :: T_s => Recombination_ts !Spin temperature
     procedure :: Version => Recombination_version
@@ -379,7 +381,6 @@
     real(dl) zst,a,z,az,bz,Recombination_tm
     integer ilo,ihi
 
-    if (.not. this%doTmatTspin) call MpiStop('RECFAST: Recombination_tm not stored')
     z=1/a-1
     if (z >= this%zrec(1)) then
         Recombination_tm=this%Tnow/a
@@ -390,7 +391,7 @@
             zst=(zinitial-z)/delta_z
             ihi= int(zst)
             ilo = ihi+1
-            az=zst - int(zst)
+            az=zst - ihi
             bz=1-az
             Recombination_tm=az*this%Tmrec(ilo)+bz*this%Tmrec(ihi)+ &
                 ((az**3-az)*this%dTmrec(ilo)+(bz**3-bz)*this%dTmrec(ihi))/6._dl
@@ -417,7 +418,7 @@
             zst=(zinitial-z)/delta_z
             ihi= int(zst)
             ilo = ihi+1
-            az=zst - int(zst)
+            az=zst - ihi
             bz=1-az
 
             Recombination_ts=az*this%tsrec(ilo)+bz*this%tsrec(ihi)+ &
@@ -426,7 +427,6 @@
     endif
 
     end function Recombination_ts
-
 
     function Recombination_xe(this,a)
     class(RecombinationData) :: this
@@ -444,7 +444,7 @@
             zst=(zinitial-z)/delta_z
             ihi= int(zst)
             ilo = ihi+1
-            az=zst - int(zst)
+            az=zst - ihi
             bz=1-az
             Recombination_xe=az*this%xrec(ilo)+bz*this%xrec(ihi)+ &
                 ((az**3-az)*this%dxrec(ilo)+(bz**3-bz)*this%dxrec(ihi))/6._dl
@@ -452,6 +452,37 @@
     endif
 
     end function Recombination_xe
+
+    subroutine Recombination_xe_Tm(this,a, xe, Tm)
+    class(RecombinationData) :: this
+    real(dl), intent(in) :: a
+    real(dl), intent(out) :: xe, Tm
+    real(dl) zst,z,az,bz
+    integer ilo,ihi
+
+    z=1/a-1
+    if (z.ge.this%zrec(1)) then
+        xe=this%xrec(1)
+        Tm = this%Tnow/a
+    else
+        if (z.le.this%zrec(nz)) then
+            xe=this%xrec(nz)
+            TM =  this%Tmrec(nz)
+        else
+            zst=(zinitial-z)/delta_z
+            ihi= int(zst)
+            ilo = ihi+1
+            az=zst - ihi
+            bz=1-az
+            xe=az*this%xrec(ilo)+bz*this%xrec(ihi)+ &
+                ((az**3-az)*this%dxrec(ilo)+(bz**3-bz)*this%dxrec(ihi))/6._dl
+            Tm=az*this%Tmrec(ilo)+bz*this%Tmrec(ihi)+ &
+                ((az**3-az)*this%dTmrec(ilo)+(bz**3-bz)*this%dTmrec(ihi))/6._dl
+
+        endif
+    endif
+
+    end subroutine Recombination_xe_Tm
 
     function Recombination_version(this) result(version)
     class(RecombinationData) :: this
@@ -461,7 +492,7 @@
 
     end function Recombination_version
 
-    subroutine Recombination_init(this,Recomb, OmegaC, OmegaB, Omegan, Omegav, h0inp, tcmb, yp, nnu, WantTMatTSpin)
+    subroutine Recombination_init(this,Recomb, omch2, ombh2, Omegak, h0inp, tcmb, yp, WantTSpin)
     !At some point should inherit this class from base and pass TCAMBparams with other parameters
     !Note recfast only uses OmegaB, h0inp, tcmb and yp - others used only for Tmat approximation where effect small
     !nnu currently not used here
@@ -470,13 +501,11 @@
     implicit none
     class(RecombinationData), target :: this
     Type (RecombinationParams), target :: Recomb
-    type(RecombinationData), pointer :: this_ptr
     real(dl) :: Trad,Tmat,Tspin,d0hi,d0lo
     integer :: I
 
-    real(dl), intent(in) :: OmegaB,OmegaC, Omegan, Omegav, h0inp, yp
-    real(dl), intent(in), optional :: nnu
-    logical, intent(in), optional :: WantTMatTSpin
+    real(dl), intent(in) :: ombh2, omch2, Omegak, h0inp, yp
+    logical, intent(in), optional :: WantTSpin
     real(dl) :: z,n,x,x0,rhs,x_H,x_He,x_H0,x_He0,H
     real(dl) :: zstart,zend,tcmb
     real(dl) :: cw(24)
@@ -487,30 +516,37 @@
     integer :: ind, nw
     !       --- Parameter statements
     real(dl), parameter :: tol=1.D-5                !Tolerance for R-K
-    external :: dverk
+    interface
+    subroutine TDverk (this,n, fcn, x, y, xend, tol, ind, c, nw, w)
+    use Precision
+    import
+    class(RecombinationData), target :: this
+    integer n, ind
+    real(dl) x, y(n), xend, tol, c(*), w(nw,9)
+    external fcn
+    end subroutine
+    end interface
+    procedure(TDverk) :: dverk
 
     !       ===============================================================
 
     this%Params => Recomb
-    select type(this)
-    type is (RecombinationData)
-        this_ptr => this
-    end select
+    this%doTspin = DefaultFalse(WantTSpin)
 
-    if (this%Last_OmB==OmegaB .and. this%Last_H0 == h0inp .and. yp == this%Last_YHe .and. &
+    if (this%Last_OmB==ombh2 .and. this%Last_H0 == h0inp .and. yp == this%Last_YHe .and. &
         dtauda(0.2352375823_dl) == this%Last_dtauda .and. this%last_fudge == Recomb%RECFAST_fudge &
-        .and. this%last_fudgeHe==Recomb%RECFAST_fudge_He) return
+        .and. this%last_fudgeHe==Recomb%RECFAST_fudge_He .and. (this%doTspin .eqv. this%last_doTspin)) return
     !This takes up most of the single thread time, so cache if at all possible
     !For example if called with different reionization, or tensor rather than scalar
 
     this%Last_dtauda = dtauda(0.2352375823_dl) !Just get it at a random scale factor
-    this%Last_OmB = OmegaB
+    this%Last_OmB = ombh2
     this%Last_H0 = h0inp
     this%Last_YHe=yp
     this%last_fudge = Recomb%RECFAST_FUDGE
     this%last_fudgeHe = Recomb%RECFAST_FUDGE_He
+    this%last_doTspin = this%doTspin
 
-    this%doTMatTspin = DefaultFalse(WantTMatTSpin)
 
 
     !       write(*,*)'recfast version 1.0'
@@ -530,13 +566,14 @@
     z = zinitial
     !       will output every 1 in z, but this is easily changed also
 
+     H = H0inp/100._dl
+
     !Not general, but only for approx
-    this%OmegaT=OmegaC+OmegaB            !total dark matter + baryons
-    this%OmegaK=1.d0-this%OmegaT-OmegaV       !curvature
+    this%OmegaT=(omch2+ombh2)/H**2        !total dark matter + baryons
+    this%OmegaK=OmegaK       !curvature
 
 
     !       convert the Hubble constant units
-    H = H0inp/100._dl
     this%HO = H*bigH
 
 
@@ -546,12 +583,12 @@
     this%fHe = Yp/(not4*(1.d0-Yp))       !n_He_tot / n_H_tot
 
 
-    this%Nnow = 3._dl*this%HO**2*OmegaB/(const_eightpi*G*this%mu_H*m_H)
+    this%Nnow = 3._dl*bigH**2*ombh2/(const_eightpi*G*this%mu_H*m_H)
 
     n = this%Nnow * (1._dl+z)**3
     fnu = (21.d0/8.d0)*(4.d0/11.d0)**(4.d0/3.d0)
     !   (this is explictly for 3 massless neutrinos - change if N_nu.ne.3; but only used for approximation so not critical)
-    this%z_eq = (3.d0*(this%HO*C)**2/(const_eightpi*G*a_rad*(1.d0+fnu)*this%Tnow**4))*(OmegaB+OmegaC)
+    this%z_eq = (3.d0*(bigH*C)**2/(const_eightpi*G*a_rad*(1.d0+fnu)*this%Tnow**4))*(ombh2+omch2)
     this%z_eq = this%z_eq - 1.d0
 
     !       Fudge factor to approximate for low z out of equilibrium effect
@@ -647,13 +684,13 @@
                 - CB1/(this%Tnow*(1._dl+z)) ) / this%Nnow
             x_H0 = 0.5d0 * (sqrt( rhs**2+4._dl*rhs ) - rhs )
 
-            call DVERK(this_ptr,3,ION,zstart,y,zend,tol,ind,cw,nw,w)
+            call DVERK(this,3,ION,zstart,y,zend,tol,ind,cw,nw,w)
             y(1) = x_H0
             x0 = y(1) + this%fHe*y(2)
             y(4)=y(3)
         else
 
-            call DVERK(this_ptr,nw,ION,zstart,y,zend,tol,ind,cw,nw,w)
+            call DVERK(this,nw,ION,zstart,y,zend,tol,ind,cw,nw,w)
 
             x0 = y(1) + this%fHe*y(2)
 
@@ -667,9 +704,10 @@
 
         this%zrec(i)=zend
         this%xrec(i)=x
+        this%tmrec(i) = Tmat
 
 
-        if (this%doTmatTspin) then
+        if (this%doTspin) then
             if (Evolve_Ts .and. zend< 1/Do21cm_minev-1 ) then
                 Tspin = y(4)
             else
@@ -684,7 +722,6 @@
             end if
 
             this%tsrec(i) = Tspin
-            this%tmrec(i) = Tmat
 
         end if
 
@@ -695,9 +732,9 @@
     d0hi=1.0d40
     d0lo=1.0d40
     call spline(this%zrec,this%xrec,nz,d0lo,d0hi,this%dxrec)
-    if (this%doTmatTspin) then
+    call spline(this%zrec,this%tmrec,nz,d0lo,d0hi,this%dtmrec)
+    if (this%doTspin) then
         call spline(this%zrec,this%tsrec,nz,d0lo,d0hi,this%dtsrec)
-        call spline(this%zrec,this%tmrec,nz,d0lo,d0hi,this%dtmrec)
     end if
     deallocate(w)
 
@@ -754,7 +791,7 @@
 
 
     subroutine ION(Recomb,Ndim,z,Y,f)
-    Type(RecombinationData) :: Recomb
+    class(RecombinationData) :: Recomb
     integer Ndim
 
     real(dl) z,x,n,n_He,Trad,Tmat,Tspin,x_H,x_He, Hz
@@ -983,7 +1020,6 @@
     end subroutine ION
 
 
-
     function dDeltaxe_dtau(this,a, Delta_xe,Delta_nH, Delta_Tm, hdot, kvb)
     !d x_e/d tau assuming Helium all neutral and temperature perturbations negligible
     !it is not accurate for x_e of order 1
@@ -995,10 +1031,12 @@
     real(dl) Rup,Rdown,K
     real(dl) a_PPB,b_PPB,c_PPB,d_PPB
     real(dl) delta_alpha, delta_beta, delta_K, clh
+    real(dl) xe
 
 
     Delta_tg =Delta_Tm
-    x_H = min(1._dl,this%x_e(a))
+    call this%xe_Tm(a, xe, Tmat)
+    x_H = min(1._dl,xe)
 
     !       the Pequignot, Petitjean & Boisson fitting parameters for Hydrogen
     a_PPB = 4.309d0
@@ -1015,8 +1053,6 @@
     Trad = this%Tnow /a
     clh = 1/dtauda(a)/a !conformal time
     Hz = clh/a/MPC_in_sec !normal time in seconds
-
-    Tmat = this%T_m(a)
 
     !       Get the radiative rates using PPQ fit, identical to Hummer's table
 

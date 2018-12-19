@@ -50,12 +50,12 @@
     
     end subroutine TDarkEnergyPPF_SelfPointer
 
-    subroutine TDarkEnergyPPF_Init(this, Params)
+    subroutine TDarkEnergyPPF_Init(this, State)
     use classes
     class(TDarkEnergyPPF), intent(inout) :: this
-    class(TCAMBParameters), intent(in) :: Params
+    class(TCAMBCalculation), intent(in) :: State
 
-    call this%TDarkEnergyEqnOfState%Init(Params)
+    call this%TDarkEnergyEqnOfState%Init(State)
     if (this%is_cosmological_constant) then
         this%num_perturb_equations = 0
     else

@@ -30,7 +30,8 @@ The master branch contains latest changes to the main release version.
 .. image:: https://mybinder.org/badge.svg 
   :target: https://mybinder.org/v2/gh/cmbant/camb/master?filepath=pycamb%2Fdocs%2FCAMBdemo.ipynb
 
-The devel branch is a development version, which integrates CAMB and CAMB sources, and uses Fortran 2008 (and hence requires ifort 14+ or gfortran 6+). It also allows runtime switching of the dark energy and halofit model, and easy access to lower-level accuracy parameters.
+The devel branch is a development version, which integrates CAMB and CAMB sources, and uses Fortran 2008 (and hence requires ifort 14+ or gfortran 6+). It also allows runtime switching of the dark energy and halofit model, 
+general numerically-interpolated primordial power spectra and source window functions, and easy access to lower-level accuracy parameters.
 Note that the devel branch is currently very slow compiled with ifort (ifort bug); compile with gfortran or use the somewhat older devel_ifort branch.
 
 .. image:: https://secure.travis-ci.org/cmbant/CAMB.png?branch=devel
@@ -39,7 +40,7 @@ Note that the devel branch is currently very slow compiled with ifort (ifort bug
   :target: https://mybinder.org/v2/gh/cmbant/camb/devel?filepath=pycamb%2Fdocs%2FCAMBdemo.ipynb
 
 
-CAMB_sources is the updated public `CAMB Sources <http://camb.info/sources/>`_ code.
+CAMB_sources is the old public `CAMB Sources <http://camb.info/sources/>`_ code.
 
 =============
 

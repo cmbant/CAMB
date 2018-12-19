@@ -48,7 +48,7 @@ class SplinedInitialPower(InitialPower):
         Set arrays of k and P(k) values for cublic spline interpolation.
         Note that using :meth:`set_scalar_log_regular` may be better (faster, and easier to get fine enough spacing a low k)
 
-        :param k: array of k values (Mpc^{-1}
+        :param k: array of k values (Mpc^{-1})
         :param PK: array of scalar power spectrum values
         """
         self.f_SetScalarTable(byref(c_int(len(k))), np.asarray(k), np.asarray(PK))

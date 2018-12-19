@@ -1,17 +1,11 @@
     module MassiveNu
-    use constants, only: dl, const_pi
+    use constants
     implicit none
     private
 
     real(dl), parameter  :: fermi_dirac_const  = 7._dl/120*const_pi**4 ! 5.68219698_dl
     !fermi_dirac_const = int q^3 F(q) dq = 7/120*pi^4
     real(dl), parameter  :: const2 = 5._dl/7._dl/const_pi**2   !0.072372274_dl
-    real(dl), parameter  :: zeta3  = 1.2020569031595942853997_dl
-    real(dl), parameter  :: zeta5  = 1.0369277551433699263313_dl
-    real(dl), parameter  :: zeta7  = 1.0083492773819228268397_dl
-
-    ! zeta3*3/2/pi^2*4/11*((k_B*COBE_CMBTemp/hbar/c)^3* 8*pi*G/3/(100*km/s/megaparsec)^2/(c^2/eV)
-    real(dl), parameter :: neutrino_mass_fac= 94.07_dl !converts omnuh2 into sum m_nu in eV
 
     integer, parameter  :: nrhopn=2000
     real(dl), parameter :: am_min = 0.01_dl  !0.02_dl
@@ -44,7 +38,7 @@
 
     Type(TThermalNuBackground), save :: ThermalNuBackground
 
-    public fermi_dirac_const,  zeta3, sum_mnu_for_m1, neutrino_mass_fac, TNuPerturbations, ThermalNuBackground
+    public fermi_dirac_const,  sum_mnu_for_m1, neutrino_mass_fac, TNuPerturbations, ThermalNuBackground
     contains
     !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 

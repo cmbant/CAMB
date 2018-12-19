@@ -22,8 +22,8 @@
         LensedTotFileName, LensPotentialFileName, ScalarCovFileName, &
         version_check, DarkEneryModel, S
 
-    integer :: i
-    ! max_transfer_redshifts
+    integer :: i, num_redshiftwindows
+
     character(len=Ini_max_string_len), allocatable :: TransferFileNames(:), &
         MatterPowerFileNames(:), TransferClFileNames(:)
     real(dl) :: output_factor, nmassive
@@ -68,32 +68,31 @@
         num_redshiftwindows = 0
     end if
     call Ini%Read('limber_windows', P%SourceTerms%limber_windows)
-    if (P%SourceTerms%limber_windows) call Ini%Read('limber_phiphi', limber_phiphi)
+    if (P%SourceTerms%limber_windows) call Ini%Read('limber_phiphi', P%SourceTerms%limber_phi_lmin)
     if (num_redshiftwindows > 0) then
-        P%SourceTerms%do_counts_lensing = Ini%Read_Logical('DoRedshiftLensing', .false.)
-        call Ini%Read('Kmax_Boost', P%Accuracy%Kmax_Boost)
+        allocate(P%SourceWindows(num_redshiftwindows))
+        P%SourceTerms%counts_lensing = Ini%Read_Logical('DoRedshiftLensing', .false.)
+        call Ini%Read('Kmax_Boost', P%Accuracy%KmaxBoost)
     end if
     P%Do21cm = Ini%Read_Logical('Do21cm', .false.)
-    num_extra_redshiftwindows = 0
     do i=1, num_redshiftwindows
-        associate (RedWin => Redshift_w(i))
-            call InitRedshiftWindow(RedWin)
+        allocate(TGaussianSourceWindow::P%SourceWindows(i)%Window)
+        select type (RedWin=>P%SourceWindows(i)%Window)
+        class is (TGaussianSourceWindow)
             RedWin%Redshift = Ini%Read_Double_Array('redshift', i)
             S = Ini%Read_String_Array('redshift_kind', i)
             if (S == '21cm') then
-                RedWin%kind = window_21cm
+                RedWin%source_type = window_21cm
             elseif (S == 'counts') then
-                RedWin%kind = window_counts
+                RedWin%source_type = window_counts
             elseif (S == 'lensing') then
-                RedWin%kind = window_lensing
+                RedWin%source_type = window_lensing
             else
                 write (*,*) i, 'Error: unknown type of window '//trim(S)
                 error stop
             end if
-            RedWin%a = 1 / (1 + RedWin%Redshift)
-            if (RedWin%kind /= window_21cm) then
+            if (RedWin%source_type /= window_21cm) then
                 RedWin%sigma = Ini%Read_Double_Array('redshift_sigma', i)
-                RedWin%sigma_z = RedWin%sigma
             else
                 P%Do21cm = .true.
                 RedWin%sigma = Ini%Read_Double_Array('redshift_sigma_Mhz', i)
@@ -103,19 +102,16 @@
                 end if
                 !with 21cm widths are in Mhz, make dimensionless scale factor
                 RedWin%sigma = RedWin%sigma / (f_21cm / 1e6)
-                RedWin%sigma_z = RedWin%sigma * (1 + RedWin%RedShift) ** 2
-                write(*,*) i,'delta_z = ', RedWin%sigma_z
+                write(*,*) i,'delta_z = ',  RedWin%sigma * (1 + RedWin%RedShift) ** 2
             end if
-            if (RedWin%kind == window_counts) then
+            if (RedWin%source_type == window_counts) then
                 DoCounts = .true.
                 RedWin%bias = Ini%Read_Double_Array('redshift_bias', i)
                 RedWin%dlog10Ndm = Ini%Read_Double_Array('redshift_dlog10Ndm', i ,0.d0)
-                if (P%SourceTerms%do_counts_lensing) then
-                    num_extra_redshiftwindows = num_extra_redshiftwindows + 1
-                    RedWin%mag_index = num_extra_redshiftwindows
-                end if
             end if
-        end associate
+            class default
+            call MpiStop('Probable compiler bug')
+        end select
     end do
 
 
@@ -209,16 +205,13 @@
 
     P%h0 = Ini%Read_Double('hubble')
 
-    if (Ini%Read_Logical('use_physical', .false.)) then
-        P%omegab = Ini%Read_Double('ombh2') / (P%H0 / 100) ** 2
-        P%omegac = Ini%Read_Double('omch2') / (P%H0 / 100) ** 2
-        P%omegan = Ini%Read_Double('omnuh2') / (P%H0 / 100) ** 2
-        P%omegav = 1- Ini%Read_Double('omk') - P%omegab - P%omegac - P%omegan
+    if (Ini%Read_Logical('use_physical', .true.)) then
+        P%ombh2 = Ini%Read_Double('ombh2')
+        P%omch2 = Ini%Read_Double('omch2')
+        P%omnuh2 = Ini%Read_Double('omnuh2')
+        P%omk = Ini%Read_Double('omk')
     else
-        P%omegab = Ini%Read_Double('omega_baryon')
-        P%omegac = Ini%Read_Double('omega_cdm')
-        P%omegav = Ini%Read_Double('omega_lambda')
-        P%omegan = Ini%Read_Double('omega_neutrino')
+        error stop 'use_physical = F no longer supported. Use ombh2, omch2, omnuh2, omk'
     end if
 
     P%tcmb = Ini%Read_Double('temp_cmb', COBE_CMBTemp)
@@ -315,7 +308,7 @@
         P%Transfer%PK_num_redshifts = 1
         P%Transfer%PK_redshifts = 0
     end if
-    
+
     Ini%Fail_on_not_found = .false.
 
     call Ini%Read('DebugParam', DebugParam)
@@ -347,7 +340,7 @@
         LensPotentialFileName = Ini%Read_String('lens_potential_output_file')
         if (LensPotentialFileName/='') LensPotentialFileName = concat(outroot,LensPotentialFileName)
         ScalarCovFileName = Ini%Read_String_Default('scalar_covariance_output_file', &
-            'scalCovCls.dat', .false.)
+            'scalarCovCls.dat', .false.)
         if (ScalarCovFileName /= '') then
             P%want_cl_2D_array = .true.
             ScalarCovFileName = concat(outroot, ScalarCovFileName)
@@ -403,7 +396,7 @@
         (P%NonLinear/=NonLinear_lens .and. P%NonLinear/=NonLinear_both) .or. P%Max_eta_k < 18000)) &
         write(*,*) 'WARNING: for accurate lensing BB you need high l_max_scalar, k_eta_max_scalar and non-linear lensing'
 
-    P%DerivedParameters = Ini%Read_Logical('derived_parameters', .true.)
+    P%WantDerivedParameters = Ini%Read_Logical('derived_parameters', .true.)
 
     version_check = Ini%Read_String('version_check')
     if (version_check == '') then
@@ -477,9 +470,6 @@
         if (FITSfilename /= '') call WriteFitsCls(FITSfilename, CP%Max_l)
 #endif
     end if
-
-    if (allocated(MatterPowerFileNames)) deallocate (MatterPowerFileNames, &
-        TransferFileNames, TransferClFileNames)
 
     end program driver
 

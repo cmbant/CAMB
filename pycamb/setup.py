@@ -128,8 +128,8 @@ class SharedLibrary(build, object):
             scrs = os.listdir(os.getcwd())
             if not ok:
                 print(
-                        'WARNING: gfortran %s or higher not in path (if you just installed you may need to log off and on again).' %
-                        gfortran_min)
+                    'WARNING: gfortran %s or higher not in path (if you just installed you may need to log off and on again).' %
+                    gfortran_min)
                 print('         You can get a Windows gfortran build from http://sourceforge.net/projects/mingw-w64/')
                 print('         (get the %s version to match this python installation)' % (('x86_64', 'i686')[is32Bit]))
                 print('Using pre-compiled binaries instead - any local changes will be ignored...')
@@ -138,8 +138,10 @@ class SharedLibrary(build, object):
             else:
                 FORUTILS = "MiscUtils.f90 StringUtils.f90 ArrayUtils.f90 MpiUtils.f90 FileUtils.f90 " \
                            "IniObjects.f90 RandUtils.f90 ObjectLists.f90 RangeUtils.f90 Interpolation.f90"
-                SOURCES = " constants.f90 classes.f90 MathUtils.f90 subroutines.f90 massive_neutrinos.f90 recfast.f90 reionization.f90 DarkEnergyInterface.f90  modules.f90" \
-                          " bessels.f90 equations.f90 power_tilt.f90 DarkEnergyFluid.f90 DarkEnergyPPF.f90  halofit_ppf.f90 lensing.f90 SeparableBispectrum.f90" \
+                SOURCES = " constants.f90 classes.f90 MathUtils.f90 subroutines.f90 massive_neutrinos.f90 " \
+                          "SourceWindows.f90 recfast.f90 reionization.f90 DarkEnergyInterface.f90 modules.f90" \
+                          " bessels.f90 equations.f90 power_tilt.f90 DarkEnergyFluid.f90 DarkEnergyPPF.f90 " \
+                          "halofit_ppf.f90 lensing.f90 SeparableBispectrum.f90" \
                           " cmbmain.f90 camb.f90 camb_python.f90"
                 OUTPUT = r"-o %s\camb\%s" % (pycamb_path, DLLNAME)
                 fpath = get_forutils()
