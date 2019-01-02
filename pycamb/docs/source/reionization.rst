@@ -1,10 +1,12 @@
 camb.reionization
 ==================================
 
-
-.. autoclass:: camb.reionization.ReionizationParams
+.. autoclass:: camb.reionization.ReionizationModel
    :members:
-   :inherited-members:
+
+.. autoclass:: camb.reionization.TanhReionization
+   :show-inheritance:
+   :members:
 
 
 

@@ -1,8 +1,9 @@
-from .baseconfig import camblib, CAMBError, CAMBValueError, CAMBUnknownArgumentError, CAMB_Structure, dll_import, \
+from .baseconfig import camblib, CAMBError, CAMBValueError, CAMBUnknownArgumentError, CAMB_Structure,  \
     F2003Class, fortran_class, numpy_1d, numpy_2d, fortran_array, AllocatableArrayDouble, ndpointer, np
 from ctypes import c_float, c_int, c_double, c_bool, POINTER, byref
 import ctypes
 from . import model, constants
+from ._config import config
 from .model import set_default_params, CAMBparams
 import logging
 import six
@@ -40,9 +41,6 @@ class _ClTransferData(CAMB_Structure):
                 ('l', POINTER(c_int))
                 ]
 
-
-# Use FeedbackLevel.value to read and set
-FeedbackLevel = dll_import(c_int, "cambsettings", "feedbacklevel")
 
 int_arg = POINTER(c_int)
 d_arg = POINTER(c_double)
@@ -119,7 +117,7 @@ def set_feedback_level(level=1):
 
     :param level:  zero for nothing, >1 for more
     """
-    FeedbackLevel.value = level
+    config.FeedbackLevel = level
 
 
 @fortran_class
@@ -132,8 +130,7 @@ class CAMBdata(F2003Class):
     To quickly make a fully calculated CAMBdata instance for a set of parameters you can call :func:`get_results`.
 
     """
-    _fortran_class_module_ = 'CambSettings'
-    _fortran_class_name_ = 'CAMBstate'
+    _fortran_class_module_ = 'results'
 
     _fields_ = [("Params", CAMBparams),
                 ("ThermoDerivedParams", c_double * model.nthermo_derived,
@@ -166,6 +163,7 @@ class CAMBdata(F2003Class):
                 ("akthom", c_double, "sigma_T * (number density of protons now)"),
                 ("fHe", c_double, "n_He_tot / n_H_tot"),
                 ("Nnow", c_double, "number density today"),
+                ("z_eq", c_double, "matter-radiation equality refshift assuming all neutrinos relativistic"),
                 ("grhormass", c_double * model.max_nu),
                 ("nu_masses", c_double * model.max_nu),
                 ("num_transfer_redshifts", c_int,
@@ -196,7 +194,8 @@ class CAMBdata(F2003Class):
                  ('CosmomcTheta', [], c_double),
                  ('DarkEnergyStressEnergy', [numpy_1d, numpy_1d, numpy_1d, int_arg]),
                  ('get_lmax_lensed', [], c_int),
-                 ('get_zstar', [d_arg], c_double)
+                 ('get_zstar', [d_arg], c_double),
+                 ('SetParams', [POINTER(CAMBparams), int_arg, int_arg, int_arg])
                  ]
 
     def __init__(self):
@@ -248,6 +247,12 @@ class CAMBdata(F2003Class):
         self.calc_background(P)
         return self.get_background_outputs()
 
+    def _check_params(self, params):
+        if not isinstance(params, CAMBparams):
+            raise CAMBValueError('Must pass a CAMBparams instance')
+        if not params.ombh2:
+            raise CAMBValueError('Parameter values not set')
+
     def calc_background_no_thermo(self, params):
         """
         Calculate the background evolution without calculating thermal history.
@@ -255,9 +260,10 @@ class CAMBdata(F2003Class):
 
         :param params:  :class:`.model.CAMBparams` instance to use
         """
-        if not params.ombh2:
-            raise CAMBValueError('Parameter values not set')
-        CAMB_SetParamsForBackground(byref(self), byref(params))
+        self._check_params(params)
+        self.f_SetParams(byref(params), None, None, None)
+        if config.global_error_flag != 0:
+            raise CAMBError('Error %s settings parameters' % config.global_error_flag)
 
     def calc_background(self, params):
         """
@@ -265,8 +271,7 @@ class CAMBdata(F2003Class):
         e.g. call this if you want to get derived parameters and call background functions
         :param params:  :class:`.model.CAMBparams` instance to use
         """
-        if not params.ombh2:
-            raise CAMBValueError('Parameter values not set')
+        self._check_params(params)
         res = CAMB_CalcBackgroundTheory(byref(self), byref(params))
         if res:
             raise CAMBError('Error %s in calc_background' % res)
@@ -279,9 +284,8 @@ class CAMBdata(F2003Class):
         :param only_transfers: only calculate transfer functions, no power spectra
         :return: non-zero if error, zero if OK
         """
+        self._check_params(params)
         if not only_transfers: self._check_powers(params)
-        if not params.ombh2:
-            raise CAMBValueError('Parameter values not set')
         res = CAMBdata_gettransfers(byref(self), byref(params), byref(c_int(1 if only_transfers else 0)))
         return res
 
@@ -656,8 +660,8 @@ class CAMBdata(F2003Class):
         return data
 
     def _transfer_var(self, var1, var2):
-        if var1 is None: var1 = model.transfer_power_var.value
-        if var2 is None: var2 = model.transfer_power_var.value
+        if var1 is None: var1 = config.transfer_power_var
+        if var2 is None: var2 = config.transfer_power_var
         if isinstance(var1, six.string_types): var1 = model.transfer_names.index(var1) + 1
         if isinstance(var2, six.string_types): var2 = model.transfer_names.index(var2) + 1
         return c_int(var1), c_int(var2)
@@ -736,7 +740,7 @@ class CAMBdata(F2003Class):
                                   var1=None, var2=None,
                                   have_power_spectra=False, params=None):
         """
-        Calculates :math:`P_{xy}(k/h)`, where x, y are one of Transfer_cdm, Transfer_xx etc defined in CambSettings
+        Calculates :math:`P_{xy}(k/h)`, where x, y are one of Transfer_cdm, Transfer_xx etc.
         The output k values are regularly log spaced and interpolated. If NonLinear is set, the result is non-linear.
 
         :param minkh: minimum value of k/h for output grid (very low values < 1e-4 may not be calculated)
@@ -949,7 +953,8 @@ class CAMBdata(F2003Class):
         lmax = self._lmax_setting(lmax, unlensed=True)
         if not self.Params.Want_cl_2D_array:
             raise CAMBError('unlensed_scalar_array not calculated (set Want_cl_2D_array)')
-        n = 3 + len(self.Params.SourceWindows) + len(custom_source_names)
+
+        n = 3 + len(self.Params.SourceWindows) + self.Params.CustomSources.num_custom_sources
         res = np.empty((n, n, lmax + 1), order='F')
         CAMB_SetUnlensedScalarArray(byref(self), byref(c_int(lmax)), res, byref(c_int(n)))
         return res
@@ -977,6 +982,7 @@ class CAMBdata(F2003Class):
             nwindows = len(self.Params.SourceWindows)
             lmax = lmax or self.Params.max_l
             arr = self.get_unlensed_scalar_array_cls(lmax)
+            custom_source_names = self.Params.get_custom_source_names()
             names = ['T', 'E', 'P'] + ["W%s" % (i + 1) for
                                        i in range(nwindows)] + custom_source_names
             CMB_unit = self._CMB_unit(CMB_unit) or 1
@@ -1344,7 +1350,7 @@ def get_zre_from_tau(params, tau):
     :param tau: optical depth
     :return: reionization redshift (or negative number if error)
     """
-    return CAMB_GetZreFromTau(byref(params), byref(c_double(tau)))
+    return params.Reion.get_zre(params, tau)
 
 
 def set_params(cp=None, verbose=False, **params):
@@ -1355,7 +1361,7 @@ def set_params(cp=None, verbose=False, **params):
 
     E.g.::
 
-      cp = camb.set_params(ns=1, omch2=0.1, w=-0.95, Alens=1.2, lmax=2000,
+      cp = camb.set_params(ns=1, H0=67, ombh2=0.022, omch2=0.1, w=-0.95, Alens=1.2, lmax=2000,
                            WantTransfer=True, dark_energy_model='DarkEnergyPPF')
 
     This is equivalent to::
@@ -1363,7 +1369,7 @@ def set_params(cp=None, verbose=False, **params):
       cp = model.CAMBparams()
       cp.DarkEnergy = DarkEnergyPPF()
       cp.DarkEnergy.set_params(w=-0.95)
-      cp.set_cosmology(omch2=0.1, Alens=1.2)
+      cp.set_cosmology(H0=67, omch2=0.1, ombh2=0.022, Alens=1.2)
       cp.set_for_lmax(lmax=2000)
       cp.InitPower.set_params(ns=1)
       cp.WantTransfer = True
@@ -1404,7 +1410,7 @@ def set_params(cp=None, verbose=False, **params):
                 logging.warning('Calling %s(**%s)' % (setter.__name__, kwargs))
             setter(**kwargs)
 
-    # Note order is important: must call DarkEnergy.set_params before set_cosmology if setting cosmomc_theta
+    # Note order is important: must call DarkEnergy.set_params before set_cosmology if setting theta rather than H0
     # set_classes allows redefinition of the classes used, so must be called before setting class parameters
     do_set(cp.set_accuracy)
     do_set(cp.set_classes)
@@ -1510,65 +1516,6 @@ p
                                                  extrap_kmax=extrap_kmax)
 
 
-custom_source_names = []
-_current_source_func = None
-
-
-def set_custom_scalar_sources(custom_sources, source_names=None, source_ell_scales=None,
-                              frame='CDM', code_path=None):
-    r"""
-    Set custom sources for angular power spectrum using camb.symbolic sympy expressions.
-
-    :param custom_sources: list of sympy expressions for the angular power spectrum sources
-    :param source_names: optional list of string naes for the sources
-    :param source_ell_scales: list or dictionary of scalings for each source name, where for integer entry n, the source for
-     multipole :math:`\ell` is scalled by :math:`\sqrt{(\ell+n)!/(\ell-n)!}`, i.e. :math:`n=2` for a new polarization-like source.
-    :param frame: if the source is not gauge invariant, frame in which to interpret result
-    :param code_path: optional path for output of source code for CAMB f90 source function
-    """
-
-    from . import symbolic
-    global _current_source_func
-
-    if isinstance(custom_sources, dict):
-        assert (not source_names)
-        if source_ell_scales and not isinstance(source_ell_scales, dict):
-            raise CAMBValueError('source_ell_scales must be a dictionary if custom_sources is')
-        lst = []
-        source_names = []
-        for name in custom_sources.keys():
-            source_names.append(name)
-            lst.append(custom_sources[name])
-        custom_sources = lst
-    elif not isinstance(custom_sources, (list, tuple)):
-        custom_sources = [custom_sources]
-        if source_names: source_names = [source_names]
-    custom_source_names[:] = source_names or ["C%s" % (i + 1) for i in range(len(custom_sources))]
-    if len(custom_source_names) != len(custom_sources):
-        raise CAMBValueError('Number of custom source names does not match number of sources')
-    scales = np.zeros(len(custom_sources), dtype=np.int32)
-    if source_ell_scales:
-        if isinstance(source_ell_scales, dict):
-            if set(source_ell_scales.keys()) - set(custom_source_names):
-                raise CAMBValueError('scale dict key not in source names list')
-            for i, name in enumerate(custom_source_names):
-                if name in source_ell_scales:
-                    scales[i] = source_ell_scales[name]
-        else:
-            scales[:] = source_ell_scales
-
-    _current_source_func = symbolic.compile_sympy_to_camb_source_func(custom_sources, frame=frame, code_path=code_path)
-    custom_source_func = ctypes.cast(_current_source_func, ctypes.c_void_p)
-    CAMB_SetCustomSourcesFunc(byref(c_int(len(custom_sources))), byref(custom_source_func), scales)
-
-
-def clear_custom_scalar_sources():
-    global _current_source_func
-    custom_source_names[:] = []
-    CAMB_SetCustomSourcesFunc(byref(c_int(0)), byref(ctypes.c_void_p(0)), np.zeros(0, dtype=np.int32))
-    _current_source_func = None
-
-
 CAMB_SetTotCls = camblib.__handles_MOD_camb_settotcls
 CAMB_SetUnlensedCls = camblib.__handles_MOD_camb_setunlensedcls
 CAMB_SetLensPotentialCls = camblib.__handles_MOD_camb_setlenspotentialcls
@@ -1598,18 +1545,11 @@ CAMB_GetAge = camblib.__camb_MOD_camb_getage
 CAMB_GetAge.restype = c_double
 CAMB_GetAge.argtypes = [POINTER(model.CAMBparams)]
 
-CAMB_GetZreFromTau = camblib.__camb_MOD_camb_getzrefromtau
-CAMB_GetZreFromTau.restype = c_double
-CAMB_GetZreFromTau.argtypes = [POINTER(model.CAMBparams), d_arg]
-
 CAMB_TimeEvolution = camblib.__handles_MOD_camb_timeevolution
 CAMB_TimeEvolution.restype = c_bool
 CAMB_TimeEvolution.argtypes = [POINTER(CAMBdata), int_arg, numpy_1d, int_arg, numpy_1d,
                                int_arg, ndpointer(c_double, flags='C_CONTIGUOUS', ndim=3),
                                int_arg, POINTER(ctypes.c_void_p)]
-
-CAMB_SetCustomSourcesFunc = camblib.__handles_MOD_camb_setcustomsourcesfunc
-CAMB_SetCustomSourcesFunc.argtypes = [int_arg, POINTER(ctypes.c_void_p), ndpointer(c_int, flags='C_CONTIGUOUS')]
 
 CAMB_BackgroundThermalEvolution = camblib.__handles_MOD_getbackgroundthermalevolution
 CAMB_BackgroundThermalEvolution.argtypes = [POINTER(CAMBdata), int_arg, numpy_1d, numpy_2d]
@@ -1627,9 +1567,6 @@ CAMBdata_mattertransferdata.argtypes = [POINTER(CAMBdata), POINTER(_MatterTransf
 
 CAMBdata_cltransferdata = camblib.__handles_MOD_cambdata_cltransferdata
 CAMBdata_cltransferdata.argtypes = [POINTER(CAMBdata), POINTER(_ClTransferData), int_arg]
-
-CAMB_SetParamsForBackground = camblib.__handles_MOD_cambdata_setparamsforbackground
-CAMB_SetParamsForBackground.argtypes = [POINTER(CAMBdata), POINTER(model.CAMBparams)]
 
 CAMB_CalcBackgroundTheory = camblib.__handles_MOD_cambdata_calcbackgroundtheory
 CAMB_CalcBackgroundTheory.argtypes = [POINTER(CAMBdata), POINTER(model.CAMBparams)]

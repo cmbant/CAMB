@@ -1,15 +1,22 @@
-from .baseconfig import CAMB_Structure
-from ctypes import c_bool, c_double
+from .baseconfig import F2003Class, fortran_class
+from ctypes import c_bool, c_double, POINTER, byref, c_void_p
 
 
-class ReionizationParams(CAMB_Structure):
+class ReionizationModel(F2003Class):
     """
-    Holds parameters for the reionization model. The default (unphysical) model tanh parameterization is described in
-    Appendix B of `arXiv:0804.3865 <http://arxiv.org/abs/0804.3865>`_
-    This should become a changeable class at some point.
+    Abstract base class for reionization models.
     """
     _fields_ = [
-        ("Reionization", c_bool, "Is there reionization? (can be off for matter power which is independent of it)"),
+        ("Reionization", c_bool, "Is there reionization? (can be off for matter power which is independent of it)")]
+
+
+@fortran_class
+class TanhReionization(ReionizationModel):
+    """
+    This default (unphysical) tanh x_e parameterization is described in
+    Appendix B of `arXiv:0804.3865 <http://arxiv.org/abs/0804.3865>`_
+    """
+    _fields_ = [
         ("use_optical_depth", c_bool, "Whether to use the optical depth or redshift paramters"),
         ("redshift", c_double, "Reionization redshift if use_optical_depth-False"),
         ("optical_depth", c_double, "Optical depth if use_optical_depth=True"),
@@ -22,7 +29,13 @@ class ReionizationParams(CAMB_Structure):
         ("helium_redshiftstart", c_double, "Include second helium reionizatio below this redshift"),
         ("tau_solve_accuracy_boost", c_double, "Accuracy boosting parameter for solving for z_re from tau"),
         ("timestep_boost", c_double,
-         "Accuracy boosting parameter for the minimum number of time sampling steps through reionization")]
+         "Accuracy boosting parameter for the minimum number of time sampling steps through reionization"),
+        ("max_redshift", c_double, "Maxmimum redshift allowed when mapping tau into reionization redshift")]
+
+    _fortran_class_module_ = 'Reionization'
+    _fortran_class_name_ = 'TTanhReionization'
+
+    _methods_ = [('GetZreFromTau', [c_void_p, POINTER(c_double)], c_double, {"nopass": True})]
 
     def set_tau(self, tau, delta_redshift=None):
         """
@@ -37,3 +50,18 @@ class ReionizationParams(CAMB_Structure):
         if delta_redshift is not None:
             self.delta_redshift = delta_redshift
         return self
+
+    def get_zre(self, params, tau=None):
+        """
+        Get the midpoint redshift of reionization.
+
+        :param params: :class:`.model.CAMBparams` instance with cosmological parameters
+        :param tau: if set, calculation the redshift for tau, otherwise uses curently set parameters
+        :return: reionization mid-point redshift
+        """
+        if self.use_optical_depth or tau:
+            from .camb import CAMBparams
+            assert isinstance(params, CAMBparams)
+            return self.f_GetZreFromTau(byref(params), c_double(tau or self.optical_depth))
+        else:
+            return self.redshift

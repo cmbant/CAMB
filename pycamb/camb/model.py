@@ -1,8 +1,9 @@
 from .baseconfig import camblib, CAMB_Structure, F2003Class, fortran_class, numpy_1d, np, \
-    CAMBError, CAMBValueError, CAMBParamRangeError, dll_import, AllocatableArrayDouble, AllocatableObject, \
-    AllocatableObjectArray
-from ctypes import c_bool, c_int, c_double, byref, POINTER
-from . import reionization as ion
+    CAMBError, CAMBValueError, CAMBParamRangeError, AllocatableArrayDouble, AllocatableObject, \
+    AllocatableObjectArray, AllocatableArrayInt, numpy_1d_int
+from ctypes import c_bool, c_int, c_double, byref, POINTER, c_void_p
+import ctypes
+from . import reionization as reion
 from . import recombination as recomb
 from . import constants
 from .initialpower import InitialPower, SplinedInitialPower
@@ -55,35 +56,6 @@ neutrino_hierarchy_normal = 'normal'
 neutrino_hierarchy_inverted = 'inverted'
 neutrino_hierarchy_degenerate = 'degenerate'
 neutrino_hierarchies = [neutrino_hierarchy_normal, neutrino_hierarchy_inverted, neutrino_hierarchy_degenerate]
-
-# ---Variables in modules.f90
-# To set the value please just put
-# variable_name.value = new_value
-
-DebugParam = dll_import(c_double, "cambsettings", "debugparam")
-# DebugParam.value = 1000000*2
-
-
-do_bispectrum = dll_import(c_int, "cambsettings", "do_bispectrum")
-# do_bispectrum.value = False
-
-num_custom_sources = dll_import(c_int, "cambsettings", "num_custom_sources")
-
-use_spline_template = dll_import(c_bool, "cambsettings", "use_spline_template")
-# use_spline_template.value = True
-
-# Variable from module Transfer
-
-transfer_interp_matterpower = dll_import(c_bool, "transfer", "transfer_interp_matterpower")
-# transfer_interp_matterpower.value = False
-
-transfer_power_var = dll_import(c_int, "transfer", "transfer_power_var")
-# transfer_power_var.value = Transfer_tot
-
-# args for these set below after CAMBparams defined
-
-CAMB_primordialpower = camblib.__handles_MOD_camb_primordialpower
-CAMB_primordialpower.restype = c_bool
 
 
 class TransferParams(CAMB_Structure):
@@ -165,13 +137,23 @@ class SourceTermParams(CAMB_Structure):
         ("use_21cm_mK", c_bool, "Use mK units for 21cm")]
 
 
+class CustomSources(CAMB_Structure):
+    """
+    Structure containing symoblic-compiled custom CMB angular power spectrum source functions.
+    Don't change this directly, instead call  :func:`~camb.CAMBparams.set_custom_scalar_sources`.
+    """
+    _fields_ = [("num_custom_sources", c_int, "number of sources set"),
+                ("c_source_func", c_void_p, "Don't directly change this"),
+                ("custom_source_ell_scales", AllocatableArrayInt, "scaling in L for outputs")]
+
+
 @fortran_class
 class CAMBparams(F2003Class):
     """
     Object storing the parameters for a CAMB calculation, including cosmological parameters and
     settings for what to calculate. When a new object is instantiated, default parameters are set automatically.
 
-    To add a new parameter, add it to the CAMBparams type in modules.f90, then  edit the _fields_ list in the CAMBparams
+    To add a new parameter, add it to the CAMBparams type in model.f90, then  edit the _fields_ list in the CAMBparams
     class in model.py to add the new parameter in the corresponding location of the member list. After rebuilding the
     python version you can then access the parameter by using params.new_parameter_name where params is a CAMBparams instance.
     You could also modify the wrapper functions to set the field value less directly.
@@ -197,6 +179,7 @@ class CAMBparams(F2003Class):
         ("Transfer", TransferParams),
         ("want_zstar", c_bool),
         ("want_zdrag", c_bool),
+        ("min_l", c_int, "l_min for the scalar C_L (1 or 2, l=1 dipoles are Newtonian Gauge)"),
         ("max_l", c_int, "l_max for the scalar C_L"),
         ("max_l_tensor", c_int, "l_max for the tensor C_L"),
         ("max_eta_k", c_double, "Maximum k*eta_0 for scalar C_L, where eta_0 is the conformal time today"),
@@ -219,8 +202,8 @@ class CAMBparams(F2003Class):
         ("nu_mass_numbers", c_int * max_nu, {"size": "nu_mass_eigenstates"},
          "Number of physical neutrinos per distinct eigenstate"),
         ("InitPower", AllocatableObject(InitialPower)),
-        ("Recomb", recomb.RecombinationParams),
-        ("Reion", ion.ReionizationParams),
+        ("Recomb", AllocatableObject(recomb.RecombinationModel)),
+        ("Reion", AllocatableObject(reion.ReionizationModel)),
         ("DarkEnergy", AllocatableObject(DarkEnergyModel)),
         ("NonLinearModel", AllocatableObject(NonLinearModel)),
         ("Accuracy", AccuracyParams),
@@ -243,14 +226,18 @@ class CAMBparams(F2003Class):
         ("Do21cm", c_bool, "21cm is not yet implemented via the python wrapper"),
         ("transfer_21cm_cl", c_bool, "Get 21cm C_L at a given fixed redshift"),
         ("Log_lvalues", c_bool, "Use log spacing for sampling in L"),
-        ("SourceWindows", AllocatableObjectArray(SourceWindow))
+        ("SourceWindows", AllocatableObjectArray(SourceWindow)),
+        ("CustomSources", CustomSources)
     ]
 
-    _fortran_class_module_ = 'CambSettings'
+    _fortran_class_module_ = 'model'
 
     _methods_ = [('SetNeutrinoHierarchy', [POINTER(c_double), POINTER(c_double),
                                            POINTER(c_double), POINTER(c_int), POINTER(c_int)]),
-                 ('Validate', None, c_int)]
+                 ('Validate', None, c_int),
+                 ('PrimordialPower', [numpy_1d, numpy_1d, POINTER(c_int), POINTER(c_int)]),
+                 ('SetCustomSourcesFunc',
+                  [POINTER(c_int), POINTER(ctypes.c_void_p), numpy_1d_int])]
 
     def __init__(self, **kwargs):
         set_default_params(self)
@@ -531,7 +518,10 @@ class CAMBparams(F2003Class):
         """
         :return: Effective number of degrees of freedom in relativistic species at early times.
         """
-        return sum(self.nu_mass_degeneracies[:self.nu_mass_eigenstates]) + self.num_nu_massless
+        if self.share_delta_neff:
+            return self.num_nu_massless + self.num_nu_massive
+        else:
+            return sum(self.nu_mass_degeneracies[:self.nu_mass_eigenstates]) + self.num_nu_massless
 
     def set_classes(self, dark_energy_model=None, initial_power_model=None, non_linear_model=None):
         """
@@ -582,11 +572,7 @@ class CAMBparams(F2003Class):
         return self
 
     def get_zre(self):
-        if self.Reion.use_optical_depth:
-            from . import camb
-            return camb.get_zre_from_tau(self, self.Reion.optical_depth)
-        else:
-            return self.Reion.redshift
+        return self.Reion.get_zre(self)
 
     def get_Y_p(self, ombh2=None, delta_neff=None):
         r"""
@@ -716,11 +702,74 @@ class CAMBparams(F2003Class):
             karr = np.array(k)
         n = karr.shape[0]
         powers = np.empty(n)
-        CAMB_primordialpower(byref(self), karr, powers, byref(c_int(n)), byref(c_int(ix)))
+        self.f_PrimordialPower(karr, powers, byref(c_int(n)), byref(c_int(ix)))
         if np.isscalar(k):
             return powers[0]
         else:
             return powers
+
+    _custom_source_name_dict = {}
+
+    def set_custom_scalar_sources(self, custom_sources, source_names=None, source_ell_scales=None,
+                                  frame='CDM', code_path=None):
+        r"""
+        Set custom sources for angular power spectrum using camb.symbolic sympy expressions.
+
+        :param custom_sources: list of sympy expressions for the angular power spectrum sources
+        :param source_names: optional list of string naes for the sources
+        :param source_ell_scales: list or dictionary of scalings for each source name, where for integer entry n, the source for
+         multipole :math:`\ell` is scalled by :math:`\sqrt{(\ell+n)!/(\ell-n)!}`, i.e. :math:`n=2` for a new polarization-like source.
+        :param frame: if the source is not gauge invariant, frame in which to interpret result
+        :param code_path: optional path for output of source code for CAMB f90 source function
+        """
+
+        from . import symbolic
+
+        if isinstance(custom_sources, dict):
+            assert (not source_names)
+            if source_ell_scales and not isinstance(source_ell_scales, dict):
+                raise CAMBValueError('source_ell_scales must be a dictionary if custom_sources is')
+            lst = []
+            source_names = []
+            for name in custom_sources.keys():
+                source_names.append(name)
+                lst.append(custom_sources[name])
+            custom_sources = lst
+        elif not isinstance(custom_sources, (list, tuple)):
+            custom_sources = [custom_sources]
+            if source_names: source_names = [source_names]
+        custom_source_names = source_names or ["C%s" % (i + 1) for i in range(len(custom_sources))]
+        if len(custom_source_names) != len(custom_sources):
+            raise CAMBValueError('Number of custom source names does not match number of sources')
+        scales = np.zeros(len(custom_sources), dtype=np.int32)
+        if source_ell_scales:
+            if isinstance(source_ell_scales, dict):
+                if set(source_ell_scales.keys()) - set(custom_source_names):
+                    raise CAMBValueError('scale dict key not in source names list')
+                for i, name in enumerate(custom_source_names):
+                    if name in source_ell_scales:
+                        scales[i] = source_ell_scales[name]
+            else:
+                scales[:] = source_ell_scales
+
+        _current_source_func = symbolic.compile_sympy_to_camb_source_func(custom_sources, frame=frame,
+                                                                          code_path=code_path)
+
+        custom_source_func = ctypes.cast(_current_source_func, c_void_p)
+        self._custom_source_name_dict[custom_source_func.value] = custom_source_names
+        self.f_SetCustomSourcesFunc(byref(c_int(len(custom_sources))), byref(custom_source_func), scales)
+
+    def get_custom_source_names(self):
+        if self.CustomSources.num_custom_sources:
+            return self._custom_source_name_dict[self.CustomSources.c_source_func]
+        else:
+            return []
+
+    def clear_custom_scalar_sources(self):
+        self.f_SetCustomSourcesFunc(byref(c_int(0)), byref(ctypes.c_void_p(0)), np.zeros(0, dtype=np.int32))
+
+
+
 
 
 def set_default_params(P):
@@ -732,6 +781,3 @@ def set_default_params(P):
     assert (isinstance(P, CAMBparams))
     camblib.__camb_MOD_camb_setdefparams(byref(P))
     return P
-
-
-CAMB_primordialpower.argtypes = [POINTER(CAMBparams), numpy_1d, numpy_1d, POINTER(c_int), POINTER(c_int)]

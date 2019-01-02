@@ -1,4 +1,6 @@
-    !This module provides the initial power spectra, parameterized as an expansion in ln k
+    !This module provides the initial power spectra
+
+    !TInitialPowerLaw is parameterized as an expansion in ln k
     !
     ! ln P_s = ln A_s + (n_s -1)*ln(k/k_0_scalar) + n_{run}/2 * ln(k/k_0_scalar)^2 + n_{runrun}/6 * ln(k/k_0_scalar)^3
     !
@@ -27,9 +29,6 @@
     !
     !The absolute normalization of the Cls is unimportant here, but the relative ratio
     !of the tensor and scalar Cls generated with this module will be correct for general models
-    !
-    !December 2003 - changed default tensor pivot to 0.05 (consistent with CMBFAST 4.5)
-    !April 2014 added different tensor parameterizations, running of running and running of tensors
 
     module InitialPower
     use Precision
@@ -65,9 +64,22 @@
     procedure :: Effective_ns => TInitalPowerLaw_Effective_ns
     end Type TInitialPowerLaw
 
-    !Make things visible as neccessary...
+    Type, extends(TInitialPower) :: TSplinedInitialPower
+        class(TSpline1D), allocatable :: Pscalar, Ptensor
+    contains
+    procedure :: SetScalarTable => TSplinedInitialPower_SetScalarTable
+    procedure :: SetTensorTable => TSplinedInitialPower_SetTensorTable
+    procedure :: SetScalarLogRegular => TSplinedInitialPower_SetScalarLogRegular
+    procedure :: SetTensorLogRegular => TSplinedInitialPower_SetTensorLogRegular
+    procedure :: ScalarPower => TSplinedInitialPower_ScalarPower
+    procedure :: TensorPower => TSplinedInitialPower_TensorPower
+    procedure :: HasTensors => TSplinedInitialPower_HasTensors
+    procedure, nopass :: PythonClass => TSplinedInitialPower_PythonClass
+    procedure, nopass :: SelfPointer => TSplinedInitialPower_SelfPointer
+    end Type TSplinedInitialPower
 
-    public TInitialPowerLaw
+
+    public TInitialPowerLaw, TSplinedInitialPower
     contains
 
     function TInitialPowerLaw_PythonClass()
@@ -88,7 +100,7 @@
 
     subroutine TInitialPowerLaw_Init(this, Params)
     use classes
-    use cambsettings
+    use results
     use constants, only : c
     class(TInitialPowerLaw) :: this
     class(TCAMBParameters), intent(in) :: Params
@@ -212,5 +224,117 @@
     TInitalPowerLaw_Effective_ns = this%ns
 
     end function TInitalPowerLaw_Effective_ns
+
+
+    subroutine TSplinedInitialPower_SelfPointer(cptr, P)
+    use iso_c_binding
+    Type(c_ptr) :: cptr
+    Type (TSplinedInitialPower), pointer :: PType
+    class (TPythonInterfacedClass), pointer :: P
+
+    call c_f_pointer(cptr, PType)
+    P => PType
+
+    end subroutine TSplinedInitialPower_SelfPointer
+
+    logical function TSplinedInitialPower_HasTensors(this)
+    class(TSplinedInitialPower) :: this
+
+    TSplinedInitialPower_HasTensors = allocated(this%Ptensor)
+
+    end function TSplinedInitialPower_HasTensors
+
+    function TSplinedInitialPower_ScalarPower(this, k)
+    class(TSplinedInitialPower) :: this
+    real(dl), intent(in) ::k
+    real(dl) TSplinedInitialPower_ScalarPower
+
+    TSplinedInitialPower_ScalarPower = this%Pscalar%Value(k)
+
+    end function TSplinedInitialPower_ScalarPower
+
+    function TSplinedInitialPower_TensorPower(this, k)
+    class(TSplinedInitialPower) :: this
+    real(dl), intent(in) ::k
+    real(dl) TSplinedInitialPower_TensorPower
+
+    TSplinedInitialPower_TensorPower = this%Ptensor%Value(k)
+
+    end function TSplinedInitialPower_TensorPower
+
+    function TSplinedInitialPower_PythonClass()
+    character(LEN=:), allocatable :: TSplinedInitialPower_PythonClass
+
+    TSplinedInitialPower_PythonClass = 'SplinedInitialPower'
+
+    end function TSplinedInitialPower_PythonClass
+
+    subroutine TSplinedInitialPower_SetScalarTable(this, n, k, PK)
+    class(TSplinedInitialPower) :: this
+    integer, intent(in) :: n
+    real(dl), intent(in) :: k(n), PK(n)
+
+    if (allocated(this%Pscalar)) deallocate(this%Pscalar)
+    if (n>0) then
+        allocate(TCubicSpline::this%Pscalar)
+        select type (Sp => this%Pscalar)
+        class is (TCubicSpline)
+            call Sp%Init(k,PK)
+        end select
+    end if
+
+    end subroutine TSplinedInitialPower_SetScalarTable
+
+
+    subroutine TSplinedInitialPower_SetTensorTable(this, n, k, PK)
+    class(TSplinedInitialPower) :: this
+    integer, intent(in) :: n
+    real(dl), intent(in) :: k(n), PK(n)
+
+    if (allocated(this%PTensor)) deallocate(this%PTensor)
+    if (n>0) then
+        allocate(TCubicSpline::this%PTensor)
+        select type (Sp => this%PTensor)
+        class is (TCubicSpline)
+            call Sp%Init(k,PK)
+        end select
+    end if
+
+    end subroutine TSplinedInitialPower_SetTensorTable
+
+    subroutine TSplinedInitialPower_SetScalarLogRegular(this, kmin, kmax, n, PK)
+    class(TSplinedInitialPower) :: this
+    integer, intent(in) :: n
+    real(dl), intent(in) ::kmin, kmax, PK(n)
+
+    if (allocated(this%Pscalar)) deallocate(this%Pscalar)
+    if (n>0) then
+        allocate(TLogRegularCubicSpline::this%Pscalar)
+        select type (Sp => this%Pscalar)
+        class is (TLogRegularCubicSpline)
+            call Sp%Init(kmin, kmax, n, PK)
+        end select
+    end if
+
+    end subroutine TSplinedInitialPower_SetScalarLogRegular
+
+
+    subroutine TSplinedInitialPower_SetTensorLogRegular(this, kmin, kmax, n, PK)
+    class(TSplinedInitialPower) :: this
+    integer, intent(in) :: n
+    real(dl), intent(in) ::kmin, kmax, PK(n)
+
+    if (allocated(this%Ptensor)) deallocate(this%Ptensor)
+    if (n>0) then
+        allocate(TLogRegularCubicSpline::this%Ptensor)
+        select type (Sp => this%Ptensor)
+        class is (TLogRegularCubicSpline)
+            call Sp%Init(kmin, kmax, n, PK)
+        end select
+    end if
+
+    end subroutine TSplinedInitialPower_SetTensorLogRegular
+
+
 
     end module InitialPower

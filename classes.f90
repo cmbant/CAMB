@@ -62,19 +62,21 @@
         class(TPythonInterfacedClass), allocatable :: P
     end Type PythonClassAllocatable
 
-    
+
     type, extends(TPythonInterfacedClass) :: TCambComponent
     contains
     procedure :: ReadParams => TCambComponent_ReadParams
+    procedure :: Validate =>  TCambComponent_Validate
     end type TCambComponent
+
 
     type, extends(TPythonInterfacedClass) :: TCAMBParameters
         !Actual type defined in modules.f90
     end type TCAMBParameters
 
-    Type, extends(TPythonInterfacedClass) :: TCAMBCalculation
+    Type, extends(TPythonInterfacedClass) :: TCAMBdata
         !Actual type defined in modules.f90
-    end type TCAMBCalculation
+    end type TCAMBdata
 
     type, extends(TCambComponent) :: TNonLinearModel
         real(dl) :: Min_kh_nonlinear  = 0.005_dl
@@ -92,19 +94,27 @@
     procedure :: Effective_ns => TInitalPower_Effective_ns
     end type TInitialPower
 
-    Type, extends(TInitialPower) :: TSplinedInitialPower
-        class(TSpline1D), allocatable :: Pscalar, Ptensor
+    Type, extends(TCambComponent) :: TRecombinationModel
+        real(dl) :: min_a_evolve_Tm = 1/(1+900.) !scale factor at which to start evolving Delta_TM
     contains
-    procedure :: SetScalarTable => TSplinedInitialPower_SetScalarTable
-    procedure :: SetTensorTable => TSplinedInitialPower_SetTensorTable
-    procedure :: SetScalarLogRegular => TSplinedInitialPower_SetScalarLogRegular
-    procedure :: SetTensorLogRegular => TSplinedInitialPower_SetTensorLogRegular
-    procedure :: ScalarPower => TSplinedInitialPower_ScalarPower
-    procedure :: TensorPower => TSplinedInitialPower_TensorPower
-    procedure :: HasTensors => TSplinedInitialPower_HasTensors
-    procedure, nopass :: PythonClass => TSplinedInitialPower_PythonClass
-    procedure, nopass :: SelfPointer => TSplinedInitialPower_SelfPointer
-    end Type TSplinedInitialPower
+    procedure :: Init => TRecombinationModel_init
+    procedure :: x_e => TRecombinationModel_xe !ionization fraction
+    procedure :: xe_Tm => TRecombinationModel_xe_Tm !ionization fraction and baryon temperature
+    procedure :: T_m => TRecombinationModel_tm !baryon temperature
+    procedure :: T_s => TRecombinationModel_ts !Spin temperature
+    procedure :: Version => TRecombinationModel_version
+    procedure :: dDeltaxe_dtau => TRecombinationModel_dDeltaxe_dtau
+    procedure :: get_Saha_z => TRecombinationModel_Get_Saha_z
+    end type
+
+    Type, extends(TCAMBComponent) :: TReionizationModel
+        logical  :: Reionization = .true.
+    contains
+    procedure :: Init => TReionizationModel_Init
+    procedure :: x_e => TReionizationModel_xe
+    procedure :: get_timesteps => TReionizationModel_get_timesteps
+    end Type TReionizationModel
+
 
     contains
 
@@ -113,6 +123,13 @@
     class(TIniFile), intent(in) :: Ini
 
     end subroutine TCambComponent_ReadParams
+
+    subroutine  TCambComponent_Validate(this, OK)
+    class(TCambComponent),intent(in) :: this
+    logical, intent(inout) :: OK
+
+    end subroutine TCambComponent_Validate
+
 
     function PythonClass()
     character(LEN=:), allocatable :: PythonClass
@@ -144,14 +161,14 @@
 
     subroutine TNonLinearModel_GetNonLinRatios(this,State,CAMB_Pk)
     class(TNonLinearModel) :: this
-    class(TCAMBCalculation) :: State
+    class(TCAMBdata) :: State
     type(MatterPowerData) :: CAMB_Pk
     error stop 'GetNonLinRatios Not implemented'
     end subroutine TNonLinearModel_GetNonLinRatios
 
     subroutine TNonLinearModel_GetNonLinRatios_All(this,State,CAMB_Pk)
     class(TNonLinearModel) :: this
-    class(TCAMBCalculation), intent(in) :: State
+    class(TCAMBdata), intent(in) :: State
     type(MatterPowerData) :: CAMB_Pk
     error stop 'GetNonLinRatios_all  not supported (no non-linear velocities)'
     end subroutine TNonLinearModel_GetNonLinRatios_All
@@ -198,116 +215,7 @@
 
     end function TInitalPower_Effective_ns
 
-    subroutine TSplinedInitialPower_SelfPointer(cptr, P)
-    use iso_c_binding
-    Type(c_ptr) :: cptr
-    Type (TSplinedInitialPower), pointer :: PType
-    class (TPythonInterfacedClass), pointer :: P
 
-    call c_f_pointer(cptr, PType)
-    P => PType
-
-    end subroutine TSplinedInitialPower_SelfPointer
-
-    logical function TSplinedInitialPower_HasTensors(this)
-    class(TSplinedInitialPower) :: this
-
-    TSplinedInitialPower_HasTensors = allocated(this%Ptensor)
-
-    end function TSplinedInitialPower_HasTensors
-
-    function TSplinedInitialPower_ScalarPower(this, k)
-    class(TSplinedInitialPower) :: this
-    real(dl), intent(in) ::k
-    real(dl) TSplinedInitialPower_ScalarPower
-
-    TSplinedInitialPower_ScalarPower = this%Pscalar%Value(k)
-
-    end function TSplinedInitialPower_ScalarPower
-
-    function TSplinedInitialPower_TensorPower(this, k)
-    class(TSplinedInitialPower) :: this
-    real(dl), intent(in) ::k
-    real(dl) TSplinedInitialPower_TensorPower
-
-    TSplinedInitialPower_TensorPower = this%Ptensor%Value(k)
-
-    end function TSplinedInitialPower_TensorPower
-
-    function TSplinedInitialPower_PythonClass()
-    character(LEN=:), allocatable :: TSplinedInitialPower_PythonClass
-
-    TSplinedInitialPower_PythonClass = 'SplinedInitialPower'
-
-    end function TSplinedInitialPower_PythonClass
-
-    subroutine TSplinedInitialPower_SetScalarTable(this, n, k, PK)
-    class(TSplinedInitialPower) :: this
-    integer, intent(in) :: n
-    real(dl), intent(in) :: k(n), PK(n)
-
-    if (allocated(this%Pscalar)) deallocate(this%Pscalar)
-    if (n>0) then
-        allocate(TCubicSpline::this%Pscalar)
-        select type (Sp => this%Pscalar)
-        class is (TCubicSpline)
-            call Sp%Init(k,PK)
-        end select
-    end if
-
-    end subroutine TSplinedInitialPower_SetScalarTable
-
-
-    subroutine TSplinedInitialPower_SetTensorTable(this, n, k, PK)
-    class(TSplinedInitialPower) :: this
-    integer, intent(in) :: n
-    real(dl), intent(in) :: k(n), PK(n)
-
-    if (allocated(this%PTensor)) deallocate(this%PTensor)
-    if (n>0) then
-        allocate(TCubicSpline::this%PTensor)
-        select type (Sp => this%PTensor)
-        class is (TCubicSpline)
-            call Sp%Init(k,PK)
-        end select
-    end if
-
-    end subroutine TSplinedInitialPower_SetTensorTable
-
-    subroutine TSplinedInitialPower_SetScalarLogRegular(this, kmin, kmax, n, PK)
-    class(TSplinedInitialPower) :: this
-    integer, intent(in) :: n
-    real(dl), intent(in) ::kmin, kmax, PK(n)
-
-    if (allocated(this%Pscalar)) deallocate(this%Pscalar)
-    if (n>0) then
-        allocate(TLogRegularCubicSpline::this%Pscalar)
-        select type (Sp => this%Pscalar)
-        class is (TLogRegularCubicSpline)
-            call Sp%Init(kmin, kmax, n, PK)
-        end select
-    end if
-
-    end subroutine TSplinedInitialPower_SetScalarLogRegular
-
-
-    subroutine TSplinedInitialPower_SetTensorLogRegular(this, kmin, kmax, n, PK)
-    class(TSplinedInitialPower) :: this
-    integer, intent(in) :: n
-    real(dl), intent(in) ::kmin, kmax, PK(n)
-
-    if (allocated(this%Ptensor)) deallocate(this%Ptensor)
-    if (n>0) then
-        allocate(TLogRegularCubicSpline::this%Ptensor)
-        select type (Sp => this%Ptensor)
-        class is (TLogRegularCubicSpline)
-            call Sp%Init(kmin, kmax, n, PK)
-        end select
-    end if
-
-    end subroutine TSplinedInitialPower_SetTensorLogRegular
-
-    
     subroutine MatterTransferData_Free(this)
     class(MatterTransferData):: this
     integer st
@@ -320,5 +228,110 @@
     end subroutine MatterTransferData_Free
 
 
-    
+    function TRecombinationModel_tm(this,a)
+    class(TRecombinationModel) :: this
+    real(dl) zst,a,z,az,bz,TRecombinationModel_tm
+    integer ilo,ihi
+
+    call MpiStop('TRecombinationModel_tm not implemented')
+    TRecombinationModel_tm=0
+
+    end function TRecombinationModel_tm
+
+
+    function TRecombinationModel_ts(this,a)
+    class(TRecombinationModel) :: this
+    !zrec(1) is zinitial-delta_z
+    real(dl), intent(in) :: a
+    real(dl) TRecombinationModel_ts
+
+    call MpiStop('TRecombinationModel_ts not implemented')
+    TRecombinationModel_ts=0
+
+    end function TRecombinationModel_ts
+
+    function TRecombinationModel_xe(this,a)
+    class(TRecombinationModel) :: this
+    real(dl), intent(in) :: a
+    real(dl) TRecombinationModel_xe
+
+    call MpiStop('TRecombinationModel_xe not implemented')
+    TRecombinationModel_xe=0
+
+    end function TRecombinationModel_xe
+
+    subroutine TRecombinationModel_xe_Tm(this,a, xe, Tm)
+    class(TRecombinationModel) :: this
+    real(dl), intent(in) :: a
+    real(dl), intent(out) :: xe, Tm
+
+    call MpiStop('TRecombinationModel_xe_TM not implemented')
+    xe=0
+    Tm=0
+
+    end subroutine TRecombinationModel_xe_Tm
+
+    function TRecombinationModel_version(this) result(version)
+    class(TRecombinationModel) :: this
+    character(LEN=:), allocatable :: version
+
+    version = ''
+
+    end function TRecombinationModel_version
+
+    subroutine TRecombinationModel_init(this,State, WantTSpin)
+    class(TRecombinationModel), target :: this
+    class(TCAMBdata), target :: State
+    logical, intent(in), optional :: WantTSpin
+    end subroutine TRecombinationModel_init
+
+    function TRecombinationModel_dDeltaxe_dtau(this,a, Delta_xe,Delta_nH, Delta_Tm, hdot, kvb)
+    !d x_e/d tau
+    class(TRecombinationModel) :: this
+    real(dl) TRecombinationModel_dDeltaxe_dtau
+    real(dl), intent(in):: a, Delta_xe,Delta_nH, Delta_Tm, hdot, kvb
+
+    call MpiStop('TRecombinationModel_dDeltaxe_dtau not implemented')
+    TRecombinationModel_dDeltaxe_dtau=0
+
+    end function TRecombinationModel_dDeltaxe_dtau
+
+    real(dl) function TRecombinationModel_Get_Saha_z(this)
+    class(TRecombinationModel) :: this
+    call MpiStop('TRecombinationModel_Get_Saha_z not implemented')
+    TRecombinationModel_Get_Saha_z = 0
+    end function
+
+    function TReionizationModel_xe(this, z, tau, xe_recomb)
+    !a and time tau and redundant, both provided for convenience
+    !xe_recomb is xe(tau_start) from recombination (typically very small, ~2e-4)
+    !xe should map smoothly onto xe_recomb
+    class(TReionizationModel) :: this
+    real(dl), intent(in) :: z
+    real(dl), intent(in), optional :: tau, xe_recomb
+    real(dl) TReionizationModel_xe
+
+    call MpiStop('TReionizationModel_xe not implemented')
+    TReionizationModel_xe=0
+
+    end function TReionizationModel_xe
+
+    subroutine TReionizationModel_get_timesteps(this, n_steps, z_start, z_complete)
+    !minimum number of time steps to use between tau_start and tau_complete
+    !Scaled by AccuracyBoost later
+    !steps may be set smaller than this anyway
+    class(TReionizationModel) :: this
+    integer, intent(out) :: n_steps
+    real(dl), intent(out):: z_start, z_Complete
+    call MpiStop('TReionizationModel_get_timesteps not implemented')
+    n_steps=0
+    z_start=0
+    z_complete=0
+    end subroutine TReionizationModel_get_timesteps
+
+    subroutine TReionizationModel_Init(this, State)
+    class(TReionizatioNModel) :: this
+    class(TCAMBdata), target :: State
+    end subroutine TReionizationModel_Init
+
     end module classes

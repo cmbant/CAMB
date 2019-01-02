@@ -8,7 +8,7 @@
 
     module SpherBessels
     use Precision
-    use CambSettings
+    use results
     use RangeUtils
     use MpiUtils
     implicit none
@@ -16,9 +16,9 @@
 
     ! Bessel functions and their second derivatives for interpolation
 
-    real(dl), dimension(:,:), allocatable ::  ajl,ajlpr, ddajlpr
+    real(dl), dimension(:,:), allocatable ::  ajl, ajlpr, ddajlpr
 
-    integer  num_xx, kmaxfile
+    integer  num_xx, kmaxfile, max_ix
     Type(lSamples), save :: file_l
     ! parameters for working out where the flat Bessel functions are small
     ! Both should increase for higher accuracy
@@ -33,35 +33,39 @@
 
     contains
 
-
-    subroutine InitSpherBessels(lSamp)
+    subroutine InitSpherBessels(lSamp, CP,max_bessels_l_index, max_bessels_etak)
     Type(lSamples) lSamp
-    !     This subroutine reads the jl files from disk (or generates them if not on disk)
+    Type(CAMBParams) :: CP
+    integer, intent(in) :: max_bessels_l_index
+    real(dl), intent(in) :: max_bessels_etak
 
     !See if already loaded with enough (and correct) lSamp%l values and k*eta values
     if (lSamp%nl <= file_l%nl) then
-        if (allocated(ajl) .and. all(file_l%l(1:lSamp%nl)==lSamp%l(1:lSamp%nl)) &
+        if (allocated(ajl) .and. all(file_l%l(1:lSamp%nl)==lSamp%l(1:lSamp%nl) .and. (max_bessels_l_index <= max_ix)) &
             .and. (int(min(max_bessels_etak,CP%Max_eta_k))+1 <= kmaxfile) &
             .and. (abs(CP%Accuracy%BesselBoost*CP%Accuracy%AccuracyBoost - file_acc) < 1d-2)) return
     end if
+
     !Haven't made them before, so make them now
-    call GenerateBessels(lSamp)
+    kmaxfile = int(min(CP%Max_eta_k,max_bessels_etak))+1
+    max_ix = min(max_bessels_l_index,lSamp%nl)
+
+    call GenerateBessels(lSamp, CP)
 
     if (DebugMsgs .and. FeedbackLevel > 0) write(*,*) 'Calculated Bessels'
 
     end subroutine InitSpherBessels
 
-    subroutine GenerateBessels(lSamp)
-    Type(lSamples) lSamp    
+    subroutine GenerateBessels(lSamp, CP)
+    Type(lSamples) lSamp
+    Type(CAMBParams) :: CP
     real(dl) x
     real(dl) xlim
     integer i,j
-    integer max_ix
 
     if (DebugMsgs .and. FeedbackLevel > 0) write (*,*) 'Generating flat Bessels...'
 
     file_l = lSamp
-    kmaxfile = int(min(CP%Max_eta_k,max_bessels_etak))+1
     if (do_bispectrum) kmaxfile = kmaxfile*2
 
     if (DebugMsgs .and. FeedbackLevel > 0) write (*,*) 'x_max bessels', kmaxfile
@@ -78,8 +82,6 @@
     call BessRanges%GetArray(.false.)
     num_xx = BessRanges%npoints
 
-
-    max_ix = min(max_bessels_l_index,lSamp%nl)
 
     ! The three arrays are always (de-)allocated together. Therefore checking
     ! one of them for allocation is sufficient.
@@ -312,26 +314,14 @@
     !                                                                      c
     !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
-
-
-    ! module USpherBessels
-    ! use Precision
-    ! implicit none
-    ! private
-
-
-    !public USpherBesselWithDeriv, phi_recurs,phi_langer
-
-
-    ! contains
-
-    subroutine USpherBesselWithDeriv(closed,Chi,l,beta,y1,y2)
+    subroutine USpherBesselWithDeriv(closed,CP,Chi,l,beta,y1,y2)
     !returns y1=ujl*sinhChi and y2=diff(y1,Chi)
     !aim for accuracy > 1% for all inputs
     real(dl) Chi,beta,y1,y2,sinhChi,cothChi
     real(dl) sin_K, cot_K
     integer l,K
     logical, intent(IN) :: closed
+    Type(CAMBParams), intent(in) :: CP
     logical DoRecurs
 
     if (closed) then

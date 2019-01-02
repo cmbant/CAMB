@@ -1,7 +1,13 @@
 from .baseconfig import F2003Class, fortran_class
 from ctypes import c_int, c_double
 
-# ---Parameters in halofit_ppf.f90
+
+class NonLinearModel(F2003Class):
+    """
+    Abstract base class for non-linear correction models
+    """
+    pass
+
 
 halofit_original = 'original'
 halofit_bird = 'bird'
@@ -16,13 +22,6 @@ halofit_default = halofit_takahashi
 
 halofit_version_names = [halofit_original, halofit_bird, halofit_peacock, halofit_takahashi, halofit_mead,
                          halofit_halomodel, halofit_casarini, halofit_mead2015]
-
-
-class NonLinearModel(F2003Class):
-    """
-    Abstract base class for non-linear correction models
-    """
-    pass
 
 
 @fortran_class

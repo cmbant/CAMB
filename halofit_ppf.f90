@@ -42,7 +42,7 @@
     !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
     module NonLinear
-    use CambSettings
+    use results
     use DarkEnergyInterface
     use classes
     use Transfer
@@ -141,7 +141,7 @@
     !for each redshift and wavenumber
     !This implementation uses Halofit
     class(THalofit) :: this
-    class(TCAMBCalculation) :: State
+    class(TCAMBdata) :: State
     type(MatterPowerData) :: CAMB_Pk
     integer itf
     real(dl) a,plin,pq,ph,pnl,rk
@@ -150,7 +150,7 @@
     integer i
 
     select type (State)
-    class is (CAMBState)
+    class is (CAMBdata)
         associate(Params => State%CP)
 
             IF(this%halofit_version==halofit_mead .OR. this%halofit_version==halofit_halomodel &
@@ -172,7 +172,7 @@
                     if (this%halofit_version == halofit_casarini) then
                         ! calculate equivalent w-constant models (w_hf,0) for w_lam+wa_ppf(1-a) models
                         ! [Casarini+ (2009,2016)].
-                        call PKequal(CAMB_Pk%Redshifts(itf),this%w_hf,this%wa_hf,this%w_hf,this%wa_hf)
+                        call PKequal(State,CAMB_Pk%Redshifts(itf),this%w_hf,this%wa_hf,this%w_hf,this%wa_hf)
                     endif
 
                     ! calculate nonlinear wavenumber (rknl), effective spectral index (rneff) and
@@ -407,7 +407,7 @@
     SUBROUTINE HMcode(this,State,CAMB_Pk)
     !!AM - A CAMB derived type that I need
     class(THalofit) :: this
-    Class(CAMBState) :: State
+    Class(CAMBdata) :: State
     TYPE(MatterPowerData) :: CAMB_Pk
     REAL :: z, k
     REAL :: p1h, p2h, pfull, plin
@@ -840,7 +840,7 @@
     END FUNCTION Tcb_Tcbnu_ratio
 
     SUBROUTINE assign_HM_cosmology(State,cosm)
-    class(CAMBState) :: State
+    class(CAMBdata) :: State
     !Assigns the internal HMcode cosmological parameters
     TYPE(HM_cosmology) :: cosm
     real(dl) h2
@@ -3217,9 +3217,10 @@
 
     !!AM End HMcode
 
-    subroutine PKequal(redshift,w_lam,wa_ppf,w_hf,wa_hf)
+    subroutine PKequal(State,redshift,w_lam,wa_ppf,w_hf,wa_hf)
     !used by halofit_casarini: arXiv:0810.0190, arXiv:1601.07230
     implicit none
+    Type(CAMBdata) :: State
     real(dl) :: redshift,w_lam,wa_ppf,w_hf,wa_hf
     real(dl) :: z_star,tau_star,dlsb,dlsb_eq,w_true,wa_true,error
 

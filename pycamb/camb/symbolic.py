@@ -9,7 +9,7 @@ For a guide to usage and content see the `ScalEqs notebook <http://camb.readthed
 
 As well as defining standard quantities, and how they map to CAMB variables, there are also functions for
 converting a symbolic expression to CAMB source code, and compiling custom sources for use with CAMB
-(as used by :func:`.camb.set_custom_scalar_sources`, :meth:`.camb.CAMBdata.get_time_evolution`)
+(as used by :func:`.camb.model.CAMBparams.set_custom_scalar_sources`, :meth:`.camb.CAMBdata.get_time_evolution`)
 
 A Lewis July 2017
 """

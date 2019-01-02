@@ -40,7 +40,7 @@ if mock_load:
     from unittest.mock import MagicMock
 
     camblib = MagicMock()
-    dll_import = MagicMock()
+    import_property = MagicMock()
 else:
 
     if not osp.isfile(CAMBL):
@@ -62,11 +62,26 @@ else:
         pass
 
 
-    def dll_import(tp, module, func):
+    class _dll_value(object):
+        __slots__ = ['f']
+
+        def __init__(self, f):
+            self.f = f
+
+        def __get__(self, instance, owner):
+            return self.f.value
+
+        def __set__(self, instance, value):
+            self.f.value = value
+
+
+    def import_property(tp, module, func):
         if gfortran:
-            return tp.in_dll(camblib, "__%s_MOD_%s" % (module, func))
+            f = tp.in_dll(camblib, "__%s_MOD_%s" % (module.lower(), func.lower()))
         else:
-            return tp.in_dll(camblib, "%s_mp_%s_" % (module, func))
+            f = tp.in_dll(camblib, "%s_mp_%s_" % (module.lower(), func.lower()))
+
+        return _dll_value(f)
 
 
 def lib_import(module_name, class_name, func_name, restype=None):

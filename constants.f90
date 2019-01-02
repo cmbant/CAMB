@@ -77,34 +77,5 @@
     end module constants
 
 
-    module Errors
-    use MiscUtils, only : PresentDefault
-    implicit none
 
-    integer :: global_error_flag=0
-    character(LEN=1024) :: global_error_message = ''
-    integer, parameter :: error_reionization=1
-    integer, parameter :: error_recombination=2
-    integer, parameter :: error_inital_power=3
-    integer, parameter :: error_evolution=4
-    integer, parameter :: error_unsupported_params=5
-    integer, parameter :: error_darkenergy=6
-
-    contains
-
-    subroutine GlobalError(message, id)
-    character(LEN=*), intent(IN), optional :: message
-    integer, intent(in), optional :: id
-
-    global_error_message = PresentDefault('', message)
-    if (present(id)) then
-        if (id==0) error stop 'Error id must be non-zero'
-        global_error_flag=id
-    else
-        global_error_flag=-1
-    end if
-
-    end subroutine GlobalError
-
-    end module Errors
 

@@ -10,28 +10,29 @@
     end  subroutine Init_Backgrounds
 
 
-    ! Background evolution
-    function dtauda(a)
-    use CambSettings
+    ! Background evolution, return d tau/ d a, where tau is the conformal time
+    function dtauda(this,a)
+    use results
     use MassiveNu
     use DarkEnergyInterface
     implicit none
+    class(CAMBdata) :: this
     real(dl), intent(in) :: a
     real(dl) :: dtauda, rhonu, grhoa2, a2, grhov_t
     integer :: nu_i
 
     a2 = a ** 2
-    call CP%DarkEnergy%BackgroundDensityAndPressure(State%grhov, a, grhov_t)
+    call this%CP%DarkEnergy%BackgroundDensityAndPressure(this%grhov, a, grhov_t)
 
     !  8*pi*G*rho*a**4.
-    grhoa2 = State%grhok * a2 + (State%grhoc + State%grhob) * a + State%grhog + State%grhornomass + &
+    grhoa2 = this%grhok * a2 + (this%grhoc + this%grhob) * a + this%grhog + this%grhornomass + &
         grhov_t * a2
 
-    if (CP%Num_Nu_massive /= 0) then
+    if (this%CP%Num_Nu_massive /= 0) then
         !Get massive neutrino density relative to massless
-        do nu_i = 1, CP%nu_mass_eigenstates
-            call ThermalNuBackground%rho(a * State%nu_masses(nu_i), rhonu)
-            grhoa2 = grhoa2 + rhonu * State%grhormass(nu_i)
+        do nu_i = 1, this%CP%nu_mass_eigenstates
+            call ThermalNuBack%rho(a * this%nu_masses(nu_i), rhonu)
+            grhoa2 = grhoa2 + rhonu * this%grhormass(nu_i)
         end do
     end if
 
@@ -47,10 +48,9 @@
 
     module GaugeInterface
     use precision
-    use CambSettings
+    use results
     use MassiveNu
     use DarkEnergyInterface
-    use Errors
     use Transfer
     implicit none
     public
@@ -60,7 +60,9 @@
 
     logical, parameter :: plot_evolve = .false. !for outputing time evolution
 
-    integer, parameter :: basic_num_eqns = 5
+    integer, parameter :: basic_num_eqns = 4
+    integer, parameter :: ix_etak=1, ix_clxc=2, ix_clxb=3, ix_vb=4
+    integer, parameter :: ixt_H = 1, ixt_shear = 2
 
     logical :: DoTensorNeutrinos = .true.
 
@@ -81,6 +83,7 @@
     type EvolutionVars
         real(dl) q, q2
         real(dl) k_buf,k2_buf ! set in initial
+        logical :: is_cosmological_constant
 
         integer w_ix !Index of two quintessence equations
         integer Tg_ix !index of matter temerature perturbation
@@ -154,6 +157,9 @@
         logical :: evolve_TM !\delta T_g evolved separately
         logical :: evolve_baryon_cs !evolving sound speed rather than using background approx
 
+        !Workaround for ifort, gives class pointer to avoid creating temps and huge slow down
+        class(TThermoData), pointer :: ThermoData => null()
+
         real, pointer :: OutputTransfer(:) => null()
         real(dl), pointer :: OutputSources(:) => null()
         real(dl), pointer :: CustomSources(:) => null()
@@ -187,7 +193,9 @@
     END SUBROUTINE TSource_func
     END INTERFACE
 
-    procedure(TSource_func), pointer :: custom_sources_func => null()
+    class(CAMBdata), pointer :: State !Current state.
+    !(Due to ifort bug State needs to be class pointer to avoid making temp class pointers when calling functions)
+    type(CAMBParams), pointer :: CP   !Current parameters (part of state)
 
     !precalculated arrays
     real(dl) polfac(max_l_evolve),denl(max_l_evolve),vecfac(max_l_evolve),vecfacpol(max_l_evolve)
@@ -199,15 +207,27 @@
     real(dl), allocatable :: nu_tau_notmassless(:,:)
     real(dl) nu_tau_nonrelativistic(max_nu), nu_tau_massive(max_nu)
 
-    real(dl), private, external :: dtauda
+    procedure(state_function), private :: dtauda
     contains
+
+    subroutine SetActiveState(P)
+    class(CAMBdata), target :: P
+
+    select type(P)
+    type is (CAMBdata)
+        State => P
+        CP => P%CP
+        class default
+        error stop 'Unknown state type'
+    end select
+    end subroutine SetActiveState
 
 
     subroutine GaugeInterface_ScalEv(EV,y,tau,tauend,tol1,ind,c,w)
     type(EvolutionVars) EV
     real(dl) c(24),w(EV%nvar,9), y(EV%nvar), tol1, tau, tauend
     integer ind
-    
+
     call dverk(EV,EV%ScalEqsToPropagate,derivs,tau,y,tauend,tol1,ind,c,EV%nvar,w)
     if (ind==-3) then
         call GlobalError('Dverk error -3: the subroutine was unable  to  satisfy  the  error ' &
@@ -217,6 +237,14 @@
             //'compiling with bounds checking may (or may not) help find the problem.',error_evolution)
     end if
     end subroutine GaugeInterface_ScalEv
+
+    function f_K(x)
+    real(dl) :: f_K
+    real(dl), intent(in) :: x
+
+    f_K = State%curvature_radius*State%rofChi(x/State%curvature_radius)
+
+    end function f_K
 
     function next_nu_nq(nq) result (next_nq)
     integer, intent(in) :: nq
@@ -261,9 +289,9 @@
 
     !Sources
     tau_switch_saha=noSwitch
-    if (CP%Evolve_delta_xe .and. EV%saha)  tau_switch_saha = State%ThermoData%recombination_saha_tau
+    if (CP%Evolve_delta_xe .and. EV%saha)  tau_switch_saha = EV%ThermoData%recombination_saha_tau
     tau_switch_evolve_TM=noSwitch
-    if (EV%Evolve_baryon_cs .and. .not. EV%Evolve_tm) tau_switch_evolve_TM = State%ThermoData%recombination_Tgas_tau
+    if (EV%Evolve_baryon_cs .and. .not. EV%Evolve_tm) tau_switch_evolve_TM = EV%ThermoData%recombination_Tgas_tau
 
     !Evolve equations from tau to tauend, performing switches in equations if necessary.
 
@@ -286,7 +314,7 @@
     if (CP%DoLateRadTruncation) then
         if (.not. EV%no_nu_multpoles) & !!.and. .not. EV%has_nu_relativistic .and. tau_switch_nu_massless ==noSwitch)  &
             tau_switch_no_nu_multpoles= &
-            max(15/EV%k_buf*CP%Accuracy%AccuracyBoost,min(State%taurend,State%ThermoData%matter_verydom_tau))
+            max(15/EV%k_buf*CP%Accuracy%AccuracyBoost,min(State%taurend,EV%ThermoData%matter_verydom_tau))
 
         if (.not. EV%no_phot_multpoles .and. (.not.CP%WantCls .or. EV%k_buf>0.03*CP%Accuracy%AccuracyBoost)) &
             tau_switch_no_phot_multpoles =max(15/EV%k_buf,State%taurend)*CP%Accuracy%AccuracyBoost
@@ -315,7 +343,7 @@
             ind=1
             !Set up variables with their tight coupling values
             y(EV%g_ix+2) = EV%pig
-            call State%ThermoData%Values(tau,cs2,opacity,dopacity)
+            call EV%ThermoData%Values(tau,a, cs2,opacity,dopacity)
 
             if (second_order_tightcoupling) then
                 ! Francis-Yan Cyr-Racine November 2010
@@ -369,9 +397,10 @@
             end do
         else if (next_switch == tau_switch_nu_massive) then
             !Very non-relativistic neutrinos, switch to truncated velocity-weight hierarchy
+            call EV%ThermoData%Values(tau,a, cs2,opacity)
             do nu_i = 1, CP%Nu_mass_eigenstates
                 if (.not. EV%MassiveNuApprox(nu_i) .and.  next_switch== EV%MassiveNuApproxTime(nu_i) ) then
-                    call SwitchToMassiveNuApprox(EV,y, nu_i)
+                    call SwitchToMassiveNuApprox(EV, a, y, nu_i)
                     exit
                 end if
             end do
@@ -398,12 +427,12 @@
             EVout%saha = .false.
             call SetupScalarArrayIndices(EVout)
             call CopyScalarVariableArray(y,yout, EV, EVout)
+            call EV%ThermoData%Values(tau,a, cs2,opacity)
             y=yout
             EV=EVout
-            a=y(1)
             Delta_Tm = y(EV%g_ix)/4 ! assume delta_TM = delta_T_gamma
-            xe= State%Recombination%x_e(a)
-            y(EV%xe_ix) = (1-xe)/(2-xe)*(-y(4) + (3./2+  CB1/(CP%TCMB/a))*Delta_TM)
+            xe= CP%Recomb%x_e(a)
+            y(EV%xe_ix) = (1-xe)/(2-xe)*(-y(ix_clxb) + (3./2+  CB1/(CP%TCMB/a))*Delta_TM)
         else if (next_switch==tau_switch_evolve_TM) then
             !Sources
             ind=1
@@ -427,7 +456,7 @@
     type(EvolutionVars) EV, EVOut
     real(dl) c(24),w(EV%nvart,9), y(EV%nvart),yout(EV%nvart), tol1, tau, tauend
     integer ind
-    real(dl) opacity, cs2
+    real(dl) opacity, cs2, a
 
     if (EV%TensTightCoupling .and. tauend > EV%TightSwitchoffTime) then
         if (EV%TightSwitchoffTime > tau) then
@@ -439,13 +468,12 @@
         call CopyTensorVariableArray(y,yout,Ev, Evout)
         Ev = EvOut
         y=yout
-        call State%ThermoData%Values(tau,cs2,opacity)
-        y(EV%g_ix+2)= 32._dl/45._dl*EV%k_buf/opacity*y(3)
+        call EV%ThermoData%Values(tau,a,cs2,opacity)
+        y(EV%g_ix+2)= 32._dl/45._dl*EV%k_buf/opacity*y(ixt_shear)
         y(EV%E_ix+2) = y(EV%g_ix+2)/4
     end if
 
     call dverk(EV,EV%TensEqsToPropagate, derivst,tau,y,tauend,tol1,ind,c,EV%nvart,w)
-
 
     end subroutine GaugeInterface_EvolveTens
 
@@ -722,7 +750,7 @@
     type(EvolutionVars) EV
     integer nu_i, neq
     integer, optional, intent(out) :: maxeq
-    neq=3
+    neq=2
     EV%g_ix = neq-1 !EV%g_ix+2 is quadrupole
     if (.not. EV%TensTightCoupling) then
         EV%E_ix = EV%g_ix + (EV%lmaxt-1)
@@ -730,7 +758,7 @@
         neq = neq+ (EV%lmaxt-1)+(EV%lmaxpolt-1)*2
     end if
     if (present(maxeq)) then
-        maxeq =3 + (EV%lmaxt-1)+(EV%lmaxpolt-1)*2
+        maxeq = 2 + (EV%lmaxt-1)+(EV%lmaxpolt-1)*2
     end if
     EV%r_ix = neq -1
     if (DoTensorNeutrinos) then
@@ -760,7 +788,7 @@
     integer lmaxpolt, lmaxt, nu_i, ind, ind2, i
 
     yout=0
-    yout(1:3) = y(1:3)
+    yout(1:2) = y(1:2)
     if (.not. EVOut%TensTightCoupling .and. .not.EV%TensTightCoupling) then
         lmaxt = min(EVOut%lmaxt,EV%lmaxt)
         yout(EVout%g_ix+2:EVout%g_ix+lmaxt)=y(EV%g_ix+2:EV%g_ix+lmaxt)
@@ -954,18 +982,15 @@
 
     end subroutine GetNumEqns
 
-    !cccccccccccccccccccccccccccccccccc
-    subroutine SwitchToMassiveNuApprox(EV,y, nu_i)
+    subroutine SwitchToMassiveNuApprox(EV,a, y, nu_i)
     !When the neutrinos are no longer highly relativistic we use a truncated
     !energy-integrated hierarchy going up to third order in velocity dispersion
     type(EvolutionVars) EV, EVout
     integer, intent(in) :: nu_i
-
     real(dl) a,a2,pnu,clxnu,dpnu,pinu,rhonu
     real(dl) qnu
     real(dl) y(EV%nvar), yout(EV%nvar)
 
-    a=y(1)
     a2=a*a
     EVout=EV
     EVout%MassiveNuApprox(nu_i)=.true.
@@ -973,7 +998,7 @@
     call CopyScalarVariableArray(y,yout, EV, EVout)
 
     !Get density and pressure as ratio to massles by interpolation from table
-    call ThermalNuBackground%rho_P(a*State%nu_masses(nu_i),rhonu,pnu)
+    call ThermalNuBack%rho_P(a*State%nu_masses(nu_i),rhonu,pnu)
 
     !Integrate over q
     call Nu_Integrate_L012(EV, y, a, nu_i, clxnu,qnu,dpnu,pinu)
@@ -998,10 +1023,10 @@
 
     end subroutine SwitchToMassiveNuApprox
 
-    subroutine MassiveNuVarsOut(EV,y,yprime,a,grho,gpres,dgrho,dgq,dgpi, dgpi_diff,pidot_sum,clxnu_all)
+    subroutine MassiveNuVarsOut(EV,y,yprime,a,adotoa,grho,gpres,dgrho,dgq,dgpi, dgpi_diff,pidot_sum,clxnu_all)
     implicit none
     type(EvolutionVars) EV
-    real(dl) :: y(EV%nvar), yprime(EV%nvar),a
+    real(dl) :: y(EV%nvar), yprime(EV%nvar),a, adotoa
     real(dl), optional :: grho,gpres,dgrho,dgq,dgpi, dgpi_diff,pidot_sum,clxnu_all
     !grho = a^2 kappa rho
     !gpres = a^2 kappa p
@@ -1013,7 +1038,7 @@
 
     integer nu_i
     real(dl) pinudot,grhormass_t, rhonu, pnu,  rhonudot
-    real(dl) adotoa, grhonu_t,gpnu_t
+    real(dl) grhonu_t,gpnu_t
     real(dl) clxnu, qnu, pinu, dpnu, grhonu, dgrhonu
 
     grhonu=0
@@ -1022,7 +1047,7 @@
         grhormass_t=State%grhormass(nu_i)/a**2
 
         !Get density and pressure as ratio to massless by interpolation from table
-        call ThermalNuBackground%rho_P(a*State%nu_masses(nu_i),rhonu,pnu)
+        call ThermalNuBack%rho_P(a*State%nu_masses(nu_i),rhonu,pnu)
 
         if (EV%MassiveNuApprox(nu_i)) then
             clxnu=y(EV%nu_ix(nu_i))
@@ -1038,8 +1063,7 @@
             qnu=qnu/rhonu
             clxnu = clxnu/rhonu
             pinu=pinu/rhonu
-            adotoa = 1/(a*dtauda(a))
-            rhonudot = ThermalNuBackground%drho(a*State%nu_masses(nu_i),adotoa,rhonu)
+            rhonudot = ThermalNuBack%drho(a*State%nu_masses(nu_i),adotoa)
 
             call Nu_pinudot(EV,y, yprime, a,adotoa, nu_i,pinudot)
             pinudot=pinudot/rhonu - rhonudot/rhonu*pinu
@@ -1104,7 +1128,7 @@
             aq=am/nu_q(iq)
             v=1._dl/sqrt(1._dl+aq*aq)
             pert_scale=(State%nu_masses(nu_i)/nu_q(iq))**2/2
-            tmp = nu_int_kernel(iq)*(y(EV%r_ix)  + pert_scale*y(ind)  )
+            tmp = nu_int_kernel(iq)*(y(EV%r_ix)  + pert_scale*y(ind))
             drhonu=drhonu+ tmp/v
             fnu=fnu+nu_int_kernel(iq)*(y(EV%r_ix+1)+ pert_scale*y(ind+1))
             if (present(dpnu)) then
@@ -1232,7 +1256,7 @@
         grhormass_t=State%grhormass(nu_i)/a**2
 
         !Get density and pressure as ratio to massless by interpolation from table
-        call ThermalNuBackground%rho_P(a*State%nu_masses(nu_i),rhonu,pnu)
+        call ThermalNuBack%rho_P(a*State%nu_masses(nu_i),rhonu,pnu)
 
         if (EV%MassiveNuApprox(nu_i)) then
             clxnu=y(EV%nu_ix(nu_i))
@@ -1261,11 +1285,10 @@
     end subroutine MassiveNuVars
 
 
-    !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-
     function Get21cm_source2(a,Delta_source,Delta_TCMB,Delta_Tm,Delta_xe,Tmat,Trad,xe, vterm )
     !Delta_Tspin - Delta_TCMB
     use constants
+    use DarkAge21cm
     !vterm = hdot/clh + k*n/3/clh
     real(dl), intent(in) :: a,Delta_source,Delta_TCMB,Delta_Tm,Tmat,Trad,xe, Delta_xe, vterm
     real(dl) :: Get21cm_source2
@@ -1273,12 +1296,11 @@
     real(dl) dC10, n_H,C10, C10_HH, C10_eH
     real(dl) kappa_HH,kappa_eH
     real(dl) tau_eps
-    real(dl) dtauda, H
-    external dtauda
+    real(dl) H
     real(dl) TSpin
     n_H = State%NNow/a**3
-    kappa_HH = State%Recombination%kappa_HH_21cm(Tmat, .false.)
-    kappa_eH = State%Recombination%kappa_eH_21cm(Tmat, .false.)
+    kappa_HH = kappa_HH_21cm(Tmat, .false.)
+    kappa_eH = kappa_eH_21cm(Tmat, .false.)
     C10_HH = n_H*kappa_HH* (1- xe)
     C10_eH = n_H*kappa_eH*xe
     C10 = C10_HH + C10_eH    !only relevant when He ionization is negligible
@@ -1290,14 +1312,14 @@
     !                  n_H*kappa_pH_21cm(Tmat, .false.)*xe
     !          if (a>0.5) stop
 
-    dC10 = (C10*Delta_source + (C10_HH*State%Recombination%kappa_HH_21cm(Tmat, .true.) &
-        + C10_eH*State%Recombination%kappa_eH_21cm(Tmat, .true.)) * &
+    dC10 = (C10*Delta_source + (C10_HH*kappa_HH_21cm(Tmat, .true.) &
+        + C10_eH*kappa_eH_21cm(Tmat, .true.)) * &
         Delta_Tm + (kappa_eH-kappa_HH)*xe*n_H*Delta_xe)
 
     Get21cm_source2 =  dC10*(Rgamma-Rm) +  C10*(Rm*Delta_tm - Delta_TCMB*Rgamma)
 
-    TSpin=State%Recombination%T_s(a)
-    H = (1/(a*dtauda(a)))
+    TSpin=CP%Recomb%T_s(a)
+    H = (1/(a*dtauda(State,a)))
     tau_eps = a*line21_const*State%NNow/a**3/H/Tspin/1000
 
     Get21cm_source2 = Get21cm_source2 + &
@@ -1308,26 +1330,24 @@
     end function Get21cm_source2
 
 
-
-    !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-
     function Get21cm_dTs(a,Delta_n,Delta_Ts,Delta_TCMB,Delta_Tm,Tmat,Trad,xe )
     !d Delta T_s / d eta dropping small \Delta_xe terms
     use constants
+    use DarkAge21cm
     real(dl), intent(in) :: a,Delta_n,Delta_Ts,Delta_TCMB,Delta_Tm,Tmat,Trad,xe
     real(dl) :: Get21cm_dTs
     real(dl) n_H,C10, C10_HH, C10_eH, delta_C10
     real(dl) kappa_HH,kappa_eH, TSpin
 
     n_H = State%NNow/a**3
-    kappa_HH = State%Recombination%kappa_HH_21cm(Tmat, .false.)
-    kappa_eH = State%Recombination%kappa_eH_21cm(Tmat, .false.)
+    kappa_HH = kappa_HH_21cm(Tmat, .false.)
+    kappa_eH = kappa_eH_21cm(Tmat, .false.)
     C10_HH = n_H*kappa_HH* (1- xe)
     C10_eH = n_H*kappa_eH*xe
     C10 = C10_HH + C10_eH    !only relevant when He ionization is negligible
-    TSpin=State%Recombination%T_s(a)
-    delta_C10 = C10*Delta_n + (C10_HH*State%Recombination%kappa_HH_21cm(Tmat, .true.) &
-        +C10_eH*State%Recombination%kappa_eH_21cm(Tmat, .true.))*Delta_Tm
+    TSpin=CP%Recomb%T_s(a)
+    delta_C10 = C10*Delta_n + (C10_HH*kappa_HH_21cm(Tmat, .true.) &
+        +C10_eH*kappa_eH_21cm(Tmat, .true.))*Delta_Tm
 
     !          write(*,'(9e15.5)') 1/a-1,Tmat,Tspin, Trad,C10_HH,C10_eH,A10*Trad/T_21cm,xe,&
     !                  n_H*kappa_pH_21cm(Tmat, .false.)*xe
@@ -1337,8 +1357,6 @@
 
     end function Get21cm_dTs
 
-
-    !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
     subroutine output_window_sources(EV, sources, y, yprime, &
         tau, a, adotoa, grho, gpres, &
@@ -1372,7 +1390,7 @@
     j = EV%OutputStep
     if (CP%SourceTerms%line_reionization) sources(2)=0
 
-    if (tau <= State%ThermoData%tau_start_redshiftwindows) return
+    if (tau <= EV%ThermoData%tau_start_redshiftwindows) return
 
     !There are line of sight contributions...
     if (CP%Do21cm) then
@@ -1380,8 +1398,8 @@
         Delta_source = clxb
         Trad = CP%TCMB/a
 
-        xe = State%Recombination%x_e(a)
-        Tmat = State%Recombination%T_m(a)
+        xe = CP%Recomb%x_e(a)
+        Tmat = CP%Recomb%T_m(a)
 
         Delta_source2 = Get21cm_source2(a,Delta_source,Delta_TCMB,Delta_Tm,Delta_xe,Tmat,Trad,xe, &
             k*(z+vb)/adotoa/3)
@@ -1600,8 +1618,6 @@
     end do
     end subroutine output_window_sources
 
-    !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-
     subroutine output(EV, y, j, tau,sources, num_custom_sources)
     type(EvolutionVars) EV
     real(dl) y(EV%nvar), yprime(EV%nvar)
@@ -1620,8 +1636,6 @@
 
     end subroutine output
 
-
-    !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
     subroutine outputt(EV,yt,n,tau,dt,dte,dtb)
     !calculate the tensor sources for open and closed case
     implicit none
@@ -1634,7 +1648,6 @@
     real(dl) k,k2
     real(dl), dimension(:),pointer :: E,Bprime,Eprime
     real(dl), target :: pol(3),polEprime(3), polBprime(3)
-    real(dl) dtauda
     real(dl) opacity, dopacity, ddopacity, &
         visibility, dvisibility, ddvisibility, exptau, lenswindow
 
@@ -1643,10 +1656,10 @@
     k2=EV%k2_buf
     k=EV%k_buf
     aux=EV%aux_buf
-    shear = yt(3)
+    shear = yt(ixt_shear)
 
     x=(State%tau0-tau)/State%curvature_radius
-    call State%ThermoData%IonizationFunctionsAtTime(tau, opacity, dopacity, ddopacity, &
+    call EV%ThermoData%IonizationFunctionsAtTime(tau, a, opacity, dopacity, ddopacity, &
         visibility, dvisibility, ddvisibility, exptau, lenswindow)
 
     !  And the electric part of the Weyl.
@@ -1660,9 +1673,8 @@
         octg=ytprime(EV%g_ix+3)
     else
         !  Use the tight-coupling approximation
-        a =yt(1)
-        adotoa = 1/(a*dtauda(a))
-        pigdot=32._dl/45._dl*k/opacity*(2._dl*adotoa*shear+ytprime(3))
+        adotoa = 1/(a*dtauda(State,a))
+        pigdot=32._dl/45._dl*k/opacity*(2._dl*adotoa*shear+ytprime(ixt_shear))
         pig = 32._dl/45._dl*k/opacity*shear
         pol=0
         polEprime=0
@@ -1685,7 +1697,7 @@
         polterdot=9._dl/15._dl*Eprime(2) + 0.1_dl*pigdot
         polterddot = 9._dl/15._dl*(-dopacity*(E(2)-polter)-opacity*(  &
             Eprime(2)-polterdot) + k*(2._dl/3._dl*Bprime(2)*aux - 5._dl/27._dl*Eprime(3)*EV%Kft(2))) &
-            +0.1_dl*(k*(-octg*EV%Kft(2)/3._dl + 8._dl/15._dl*ytprime(3)) - &
+            +0.1_dl*(k*(-octg*EV%Kft(2)/3._dl + 8._dl/15._dl*ytprime(ixt_shear)) - &
             dopacity*(pig - polter) - opacity*(pigdot-polterdot))
 
         dt=(shear*exptau + (15._dl/8._dl)*polter*visibility/k)*State%curvature_radius/sinhxr**2/prefac
@@ -1704,7 +1716,7 @@
 
     end subroutine outputt
 
-    !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+
     subroutine outputv(EV,yv,n,tau,dt,dte,dtb)
     !calculate the vector sources
     implicit none
@@ -1715,7 +1727,7 @@
     real(dl) vb,qg, pig, polter, sigma
     real(dl) k,k2
     real(dl), dimension(:),pointer :: E,Eprime
-    real(dl) opacity, dopacity, ddopacity, &
+    real(dl) a, opacity, dopacity, ddopacity, &
         visibility, dvisibility, ddvisibility, exptau, lenswindow
 
 
@@ -1738,7 +1750,7 @@
         polter = 0.1_dl*pig + 9._dl/15._dl*E(2)
         polterdot=9._dl/15._dl*Eprime(2) + 0.1_dl*yvprime(5)
 
-        call State%ThermoData%IonizationFunctionsAtTime(tau, opacity, dopacity, ddopacity, &
+        call EV%ThermoData%IonizationFunctionsAtTime(tau, a, opacity, dopacity, ddopacity, &
             visibility, dvisibility, ddvisibility, exptau, lenswindow)
 
         if (yv(1) < 1e-3) then
@@ -1760,10 +1772,8 @@
 
     end subroutine outputv
 
-
-    !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
     subroutine initial(EV,y, tau)
-    !  Initial conditions.
+    !  Scalar initial conditions.
     implicit none
 
     type(EvolutionVars) EV
@@ -1781,6 +1791,8 @@
     nullify(EV%OutputTransfer) !Should not be needed, but avoids issues in ifort 14
     nullify(EV%OutputSources)
     nullify(EV%CustomSources)
+
+    EV%is_cosmological_constant = State%CP%DarkEnergy%is_cosmological_constant
 
     if (State%flat) then
         EV%k_buf=EV%q
@@ -1819,7 +1831,7 @@
         ep=ep0
     end if
     if (second_order_tightcoupling) ep=ep*2
-    EV%TightSwitchoffTime = min(State%ThermoData%tight_tau, State%ThermoData%OpacityToTime(EV%k_buf/ep))
+    EV%TightSwitchoffTime = min(EV%ThermoData%tight_tau, EV%ThermoData%OpacityToTime(EV%k_buf/ep))
 
     y=0
 
@@ -1922,16 +1934,15 @@
         !So we start with chi=-1 as before
     end if
 
-    y(1)=a
-    y(2)= -InitVec(i_eta)*k/2
+    y(ix_etak)= -InitVec(i_eta)*k/2
     !get eta_s*k, where eta_s is synchronous gauge variable
 
     !  CDM
-    y(3)=InitVec(i_clxc)
+    y(ix_clxc)=InitVec(i_clxc)
 
     !  Baryons
-    y(4)=InitVec(i_clxb)
-    y(5)=InitVec(i_vb)
+    y(ix_clxb)=InitVec(i_clxb)
+    y(ix_vb)=InitVec(i_vb)
 
     !  Photons
     y(EV%g_ix)=InitVec(i_clxg)
@@ -2018,8 +2029,8 @@
     end if
 
     !    finished_tightcoupling = ((k/opacity > ep).or.(1._dl/(opacity*tau) > ep))
-    EV%TightSwitchoffTime = min(State%ThermoData%tight_tau,State%ThermoData%OpacityToTime(EV%k_buf/ep))
-    
+    EV%TightSwitchoffTime = min(EV%ThermoData%tight_tau,EV%ThermoData%OpacityToTime(EV%k_buf/ep))
+
     rhomass =  sum(State%grhormass(1:CP%Nu_mass_eigenstates))
     omtau = tau*(State%grhob+State%grhoc)/sqrt(3*(State%grhog+rhomass+State%grhornomass))
     a=tau*State%adotrad*(1+omtau/4)
@@ -2032,20 +2043,19 @@
 
     x=k*tau
 
-    yt(1)=a
     tens0 = 1
 
-    yt(2)= tens0
+    yt(ixt_H)= tens0
     !commented things are for the compensated mode with magnetic fields; can be neglected
     !-15/28._dl*x**2*(bigR-1)/(15+4*bigR)*Magnetic*(1-5./2*omtau/(2*bigR+15))
 
     elec=-tens0*(1+2*State%curv/k2)*(2*bigR+10)/(4*bigR+15) !elec, with H=1
 
     !shear
-    yt(3)=-5._dl/2/(bigR+5)*x*elec
+    yt(ixt_shear)=-5._dl/2/(bigR+5)*x*elec
     !          + 15._dl/14*x*(bigR-1)/(4*bigR+15)*Magnetic*(1 - 15./2*omtau/(2*bigR+15))
 
-    yt(4:EV%nvart)=0._dl
+    yt(ixt_shear+1:EV%nvart)=0._dl
 
     !  Neutrinos
     if (DoTensorNeutrinos) then
@@ -2088,9 +2098,8 @@
 
     bigR = (State%grhornomass)/(State%grhornomass+State%grhog)
     Rc=CP%omch2/(CP%omch2+CP%ombh2)
-        
-    yv(1)=a
 
+    yv(1)=a !Could eliminate this, but rarely used anyway
 
     yv(2)= vec_sig0*(1- 15._dl/2*omtau/(4*bigR+15)) + 45._dl/14*x*Magnetic*(BigR-1)/(4*BigR+15)
     !qg
@@ -2140,24 +2149,17 @@
 
     end subroutine outtransf
 
-
-    !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
     subroutine derivs(EV,n,tau,ay,ayprime)
-    !  Evaluate the time derivatives of the perturbations
-    !  ayprime is not necessarily GaugeInterface.yprime, so keep them distinct
+    !  Evaluate the time derivatives of the scalar perturbations
     use constants, only : barssc0, Compton_CT, line21_const
     use MassiveNu
     use Recombination
     implicit none
     type(EvolutionVars) EV
-
     integer n,nu_i
     real(dl) ay(n),ayprime(n)
     real(dl) tau, w
     real(dl) k,k2
-
-    !  Internal variables.
-
     real(dl) opacity
     real(dl) photbar,cs2,pb43,grho,slip,clxgdot, &
         clxcdot,clxbdot,adotdota,gpres,clxrdot,etak
@@ -2171,7 +2173,7 @@
     real(dl) a,a2,z,clxc,clxb,vb,clxg,qg,pig,clxr,qr,pir
     real(dl) E2, dopacity
     integer l,i,ind, ind2, off_ix, ix
-    real(dl) dgs,sigmadot,dz !, ddz
+    real(dl) dgs,sigmadot,dz
     real(dl) dgpi,dgrho_matter,grho_matter, clxnu, gpres_nu
     !non-flat vars
     real(dl) cothxor !1/tau in flat case
@@ -2187,41 +2189,40 @@
     real(dl) ddopacity, visibility, dvisibility, ddvisibility, exptau, lenswindow
     real(dl) ISW, quadrupole_source, doppler, monopole_source, tau0, ang_dist
     real(dl) dgrho_de, dgq_de, cs2_de
-    Type(CAMBState), pointer :: Dat
-    
-    Dat => State
+
     k=EV%k_buf
     k2=EV%k2_buf
 
-    a=ay(1)
+    !  Get background scale factor, sound speed and ionisation fraction.
+    if (EV%TightCoupling) then
+        call EV%ThermoData%Values(tau,a,cs2,opacity,dopacity)
+    else
+        call EV%ThermoData%Values(tau,a,cs2,opacity)
+    end if
     a2=a*a
 
-    etak=ay(2)
+    etak=ay(ix_etak)
 
     !  CDM variables
-    clxc=ay(3)
+    clxc=ay(ix_clxc)
 
     !  Baryon variables
-    clxb=ay(4)
-    vb=ay(5)
-
+    clxb=ay(ix_clxb)
+    vb=ay(ix_vb)
     !  Compute expansion rate from: grho 8*pi*rho*a**2
 
-    grhob_t=Dat%grhob/a
-    grhoc_t=Dat%grhoc/a
-    grhor_t=Dat%grhornomass/a2
-    grhog_t=Dat%grhog/a2
-    call Dat%CP%DarkEnergy%BackgroundDensityAndPressure(Dat%grhov, a, grhov_t, w_dark_energy_t)
+    grhob_t=State%grhob/a
+    grhoc_t=State%grhoc/a
+    grhor_t=State%grhornomass/a2
+    grhog_t=State%grhog/a2
 
-    !  Get sound speed and ionisation fraction.
-    if (EV%TightCoupling) then
-        call Dat%ThermoData%Values(tau,cs2,opacity,dopacity)
+    if (EV%is_cosmological_constant) then
+        grhov_t = State%grhov * a2
+        w_dark_energy_t = -1_dl
     else
-        call Dat%ThermoData%Values(tau,cs2,opacity)
+        call State%CP%DarkEnergy%BackgroundDensityAndPressure(State%grhov, a, grhov_t, w_dark_energy_t)
     end if
-  
-    gpres_nu=0
-    grhonu_t=0
+
 
     !total perturbations: matter terms first, then add massive nu, de and radiation
     !  8*pi*a*a*SUM[rho_i*clx_i]
@@ -2229,7 +2230,10 @@
     !  8*pi*a*a*SUM[(rho_i+p_i)*v_i]
     dgq=grhob_t*vb
 
-    if (Dat%CP%Num_Nu_Massive > 0) then
+    gpres_nu=0
+    grhonu_t=0
+
+    if (State%CP%Num_Nu_Massive > 0) then
         call MassiveNuVars(EV,ay,a,grhonu_t,gpres_nu,dgrho_matter,dgq, wnu_arr)
     end if
 
@@ -2237,12 +2241,12 @@
     grho = grho_matter+grhor_t+grhog_t+grhov_t
     gpres_noDE = gpres_nu + (grhor_t + grhog_t)/3
 
-    if (Dat%flat) then
+    if (State%flat) then
         adotoa=sqrt(grho/3)
         cothxor=1._dl/tau
     else
-        adotoa=sqrt((grho+Dat%grhok)/3._dl)
-        cothxor=1._dl/Dat%tanfunc(tau/Dat%curvature_radius)/Dat%curvature_radius
+        adotoa=sqrt((grho+State%grhok)/3._dl)
+        cothxor=1._dl/State%tanfunc(tau/State%curvature_radius)/State%curvature_radius
     end if
 
     dgrho = dgrho_matter
@@ -2290,10 +2294,8 @@
     photbar=grhog_t/grhob_t
     pb43=4._dl/3*photbar
 
-    ayprime(1)=adotoa*a
-
-    if (.not. Dat%CP%DarkEnergy%is_cosmological_constant) then
-        call Dat%CP%DarkEnergy%PerturbedStressEnergy(dgrho_de, dgq_de, &
+    if (.not. EV%is_cosmological_constant) then
+        call State%CP%DarkEnergy%PerturbedStressEnergy(dgrho_de, dgq_de, &
             dgq, dgrho, grho, grhov_t, w_dark_energy_t, gpres_noDE, etak, &
             adotoa, k, EV%Kf(1), ay, ayprime, EV%w_ix)
         dgrho = dgrho + dgrho_de
@@ -2303,51 +2305,51 @@
     !  Get sigma (shear) and z from the constraints
     ! have to get z from eta for numerical stability
     z=(0.5_dl*dgrho/k + etak)/adotoa
-    if (Dat%flat) then
+    if (State%flat) then
         !eta*k equation
         sigma=(z+1.5_dl*dgq/k2)
-        ayprime(2)=0.5_dl*dgq
+        ayprime(ix_etak)=0.5_dl*dgq
     else
         sigma=(z+1.5_dl*dgq/k2)/EV%Kf(1)
-        ayprime(2)=0.5_dl*dgq + Dat%curv*z
+        ayprime(ix_etak)=0.5_dl*dgq + State%curv*z
     end if
 
-    if (.not. Dat%CP%DarkEnergy%is_cosmological_constant) &
-        call Dat%CP%DarkEnergy%PerturbationEvolve(ayprime, w_dark_energy_t, &
+    if (.not. EV%is_cosmological_constant) &
+        call State%CP%DarkEnergy%PerturbationEvolve(ayprime, w_dark_energy_t, &
         EV%w_ix, a, adotoa, k, z, ay)
 
     !  CDM equation of motion
     clxcdot=-k*z
-    ayprime(3)=clxcdot
+    ayprime(ix_clxc)=clxcdot
 
     !  Baryon equation of motion.
     clxbdot=-k*(z+vb)
-    ayprime(4)=clxbdot
+    ayprime(ix_clxb)=clxbdot
     !  Photon equation of motion
     clxgdot=-k*(4._dl/3._dl*z+qg)
 
     !Sources
     if (EV%Evolve_baryon_cs) then
-        if (a > Do21cm_mina) then
-            Tmat = Dat%Recombination%T_m(a)
+        if (a > State%CP%Recomb%min_a_evolve_Tm) then
+            Tmat = State%CP%Recomb%T_m(a)
         else
-            Tmat = Dat%CP%TCMB/a
+            Tmat = State%CP%TCMB/a
         end if
         if (EV%Evolve_TM) then
             Delta_TM = ay(EV%Tg_ix)
         else
             Delta_TM = clxg/4
         end if
-        delta_p_b = barssc0*(1._dl-0.75d0*Dat%CP%yhe+(1._dl-Dat%CP%yhe)*opacity*a2/Dat%akthom)*Tmat*(clxb + delta_tm)
+        delta_p_b = barssc0*(1._dl-0.75d0*State%CP%yhe+(1._dl-State%CP%yhe)*opacity*a2/State%akthom)*Tmat*(clxb + delta_tm)
     else
         Delta_TM = clxg/4
         delta_p_b = cs2*clxb
     end if
 
 
-    if (Dat%CP%Evolve_delta_xe) then
+    if (State%CP%Evolve_delta_xe) then
         if (EV%saha) then
-            xe=Dat%Recombination%x_e(a)
+            xe=State%CP%Recomb%x_e(a)
             Delta_xe = (1-xe)/(2-xe)*(-clxb + (3._dl/2+  CB1/Tmat)*Delta_TM)
         else
             Delta_xe = ay(EV%xe_ix)
@@ -2408,7 +2410,7 @@
         vbdot=-adotoa*vb+k*delta_p_b-photbar*opacity*(4._dl/3*vb-qg)
     end if
 
-    ayprime(5)=vbdot
+    ayprime(ix_vb)=vbdot
 
     if (.not. EV%no_phot_multpoles) then
         !  Photon equations of motion
@@ -2504,40 +2506,40 @@
     if (EV%Evolve_baryon_cs) then
         if (EV%Evolve_TM) then
             Delta_TCMB = clxg/4
-            xe = Dat%Recombination%x_e(a)
-            Trad = Dat%CP%TCMB/a
+            xe = State%CP%Recomb%x_e(a)
+            Trad = State%CP%TCMB/a
 
             !Matter temperature
             !Recfast_CT = (8./3.)*(sigma_T/(m_e*C))*a_R in Mpc [a_R = radiation constant]
-            ayprime(EV%Tg_ix) = -2*k*(z+vb)/3 - a*  Compton_CT * (Trad**4) * xe / (1._dl+xe+Dat%fHe) * &
-                ((1- Trad/Tmat)*(Delta_TCMB*4 + Delta_xe/(1+xe/(1+Dat%fHe))) + Trad/Tmat*(Delta_Tm - Delta_TCMB)  )
+            ayprime(EV%Tg_ix) = -2*k*(z+vb)/3 - a*  Compton_CT * (Trad**4) * xe / (1._dl+xe+State%fHe) * &
+                ((1- Trad/Tmat)*(Delta_TCMB*4 + Delta_xe/(1+xe/(1+State%fHe))) + Trad/Tmat*(Delta_Tm - Delta_TCMB)  )
 
-            if (Dat%CP%Evolve_delta_Ts) then
+            if (State%CP%Evolve_delta_Ts) then
                 ayprime(EV%Ts_ix) =  Get21cm_dTs(a,clxb,ay(EV%Ts_ix),Delta_TCMB,Delta_Tm,Tmat,Trad,xe )
             end if
         else
-            if (Dat%CP%Evolve_delta_Ts) then
+            if (State%CP%Evolve_delta_Ts) then
                 ayprime(EV%Ts_ix) = -k*(4._dl/3._dl*z+qg)/4  !Assume follows Delta_TM which follows clxg
             end if
         end if
     end if
 
-    if (Dat%CP%Evolve_delta_xe .and. .not. EV%saha) then
-        ayprime(EV%xe_ix) = Dat%Recombination%dDeltaxe_dtau(a, Delta_xe,clxb, Delta_Tm, k*z/3,k*vb)
+    if (State%CP%Evolve_delta_xe .and. .not. EV%saha) then
+        ayprime(EV%xe_ix) = State%CP%Recomb%dDeltaxe_dtau(a, Delta_xe,clxb, Delta_Tm, k*z/3,k*vb)
     end if
 
-    if (Dat%CP%Do21cm) then
-        if (a > Do21cm_mina) then
-            if (Dat%CP%SourceTerms%line_reionization) then
+    if (State%CP%Do21cm) then
+        if (a > State%CP%Recomb%min_a_evolve_Tm) then
+            if (State%CP%SourceTerms%line_reionization) then
                 lineoff = EV%reion_line_ix+1
                 lineoffpol = lineoff+EV%lmaxline-1
 
-                if (tau> Dat%ThermoData%tau_start_redshiftwindows) then
+                if (tau> EV%ThermoData%tau_start_redshiftwindows) then
                     !Multipoles of 21cm
 
                     polter_line = ay(lineoff+2)/10+9._dl/15*ay(lineoffpol+2)
 
-                    call interp_window(Dat%TimeSteps,Dat%Redshift_W(1),tau,wing_t,wing2_t,winv_t)
+                    call interp_window(State%TimeSteps,State%Redshift_W(1),tau,wing_t,wing2_t,winv_t)
 
                     delta_source2 = Get21cm_source2(a,clxb,Delta_TCMB,Delta_Tm,Delta_xe,Tmat,Trad,xe,k*(z+vb)/adotoa/3)
 
@@ -2586,9 +2588,9 @@
 
 
     !  Massive neutrino equations of motion.
-    if (Dat%CP%Num_Nu_massive >0) then
+    if (State%CP%Num_Nu_massive >0) then
         !DIR$ LOOP COUNT MIN(1), AVG(1)
-        do nu_i = 1, Dat%CP%Nu_mass_eigenstates
+        do nu_i = 1, State%CP%Nu_mass_eigenstates
             if (EV%MassiveNuApprox(nu_i)) then
                 !Now EV%iq0 = clx, EV%iq0+1 = clxp, EV%iq0+2 = G_1, EV%iq0+3=G_2=pinu
                 !see astro-ph/0203507
@@ -2604,8 +2606,8 @@
                 ind=EV%nu_ix(nu_i)
                 !DIR$ LOOP COUNT MIN(3), AVG(3)
                 do i=1,EV%nq(nu_i)
-                    q=Dat%NuPerturbations%nu_q(i)
-                    aq=a*Dat%nu_masses(nu_i)/q
+                    q=State%NuPerturbations%nu_q(i)
+                    aq=a*State%nu_masses(nu_i)/q
                     v=1._dl/sqrt(1._dl+aq*aq)
 
                     ayprime(ind)=-k*(4._dl/3._dl*z + v*ay(ind+1))
@@ -2683,7 +2685,7 @@
                 octgdot=ayprime(EV%g_ix+3)
             end if
         end if
-        if (Dat%CP%DarkEnergy%is_cosmological_constant) then
+        if (EV%is_cosmological_constant) then
             dgrho_de=0
             dgq_de=0
         end if
@@ -2692,19 +2694,19 @@
         dgpi_diff = 0  !sum (3*p_nu -rho_nu)*pi_nu
         pidot_sum = grhog_t*pigdot + grhor_t*pirdot
         clxnu =0
-        if (Dat%CP%Num_Nu_Massive /= 0) then
-            call MassiveNuVarsOut(EV,ay,ayprime,a, dgpi=dgpi, clxnu_all=clxnu, &
+        if (State%CP%Num_Nu_Massive /= 0) then
+            call MassiveNuVarsOut(EV,ay,ayprime,a, adotoa, dgpi=dgpi, clxnu_all=clxnu, &
                 dgpi_diff=dgpi_diff, pidot_sum=pidot_sum)
         end if
         gpres = gpres_noDE + w_dark_energy_t*grhov_t
         diff_rhopi = pidot_sum - (4*dgpi+ dgpi_diff)*adotoa + &
-            Dat%CP%DarkEnergy%diff_rhopi_Add_Term(dgrho_de, dgq_de, grho, &
-            gpres, w_dark_energy_t, Dat%grhok, adotoa, &
+            State%CP%DarkEnergy%diff_rhopi_Add_Term(dgrho_de, dgq_de, grho, &
+            gpres, w_dark_energy_t, State%grhok, adotoa, &
             EV%kf(1), k, grhov_t, z, k2, ayprime, ay, EV%w_ix)
         phi = -((dgrho +3*dgq*adotoa/k)/EV%Kf(1) + dgpi)/(2*k2)
 
         if (associated(EV%OutputTransfer)) then
-            EV%OutputTransfer(Transfer_kh) = k/(Dat%CP%h0/100._dl)
+            EV%OutputTransfer(Transfer_kh) = k/(State%CP%h0/100._dl)
             EV%OutputTransfer(Transfer_cdm) = clxc
             EV%OutputTransfer(Transfer_b) = clxb
             EV%OutputTransfer(Transfer_g) = clxg
@@ -2718,20 +2720,20 @@
             EV%OutputTransfer(Transfer_Newt_vel_cdm)=  -k*sigma/adotoa
             EV%OutputTransfer(Transfer_Newt_vel_baryon) = -k*(vb + sigma)/adotoa
             EV%OutputTransfer(Transfer_vel_baryon_cdm) = vb
-            if (Dat%CP%do21cm) then
-                Tspin = Dat%Recombination%T_s(a)
-                xe = Dat%Recombination%x_e(a)
+            if (State%CP%do21cm) then
+                Tspin = State%CP%Recomb%T_s(a)
+                xe = State%CP%Recomb%x_e(a)
 
-                tau_eps = a*line21_const*Dat%NNow/a**3/adotoa/Tspin/1000
+                tau_eps = a*line21_const*State%NNow/a**3/adotoa/Tspin/1000
                 delta_source2 = Get21cm_source2(a,clxb,clxg/4,Delta_Tm,Delta_xe,Tmat,&
-                    Dat%CP%TCMB/a,xe,k*(z+vb)/adotoa/3)
+                    State%CP%TCMB/a,xe,k*(z+vb)/adotoa/3)
                 tau_fac = tau_eps/(exp(tau_eps)-1)
                 EV%OutputTransfer(Transfer_monopole) = ( clxb + Trad/(Tspin-Trad)*delta_source2 ) /k2 &
                     + (tau_fac-1)*(clxb - (delta_source2 + clxg/4)  ) / k2
 
                 EV%OutputTransfer(Transfer_vnewt) = tau_fac*k*(vb+sigma)/adotoa/k2
                 EV%OutputTransfer(Transfer_Tmat) =  delta_TM/k2
-                if (Dat%CP%SourceTerms%use_21cm_mK) then
+                if (State%CP%SourceTerms%use_21cm_mK) then
                     Tb = (1-exp(-tau_eps))*a*(Tspin-Trad)*1000
 
                     EV%OutputTransfer(Transfer_monopole) = EV%OutputTransfer(Transfer_monopole)*Tb
@@ -2743,10 +2745,10 @@
         if (associated(EV%OutputSources)) then
 
             EV%OutputSources = 0
-            call Dat%ThermoData%IonizationFunctionsAtTime(tau, opacity, dopacity, ddopacity, &
+            call EV%ThermoData%IonizationFunctionsAtTime(tau, a, opacity, dopacity, ddopacity, &
                 visibility, dvisibility, ddvisibility, exptau, lenswindow)
 
-            tau0 = Dat%tau0
+            tau0 = State%tau0
             phidot = (1.0d0/2.0d0)*(adotoa*(-dgpi - 2*k2*phi) + dgq*k - &
                 diff_rhopi+ k*sigma*(gpres + grho))/k2
             !time derivative of shear
@@ -2779,15 +2781,15 @@
 
             if (size(EV%OutputSources) > 2) then
                 !Get lensing sources
-                if (tau>Dat%tau_maxvis .and. tau0-tau > 0.1_dl) then
-                    EV%OutputSources(3) = -2*phi*f_K(tau-Dat%tau_maxvis)/(f_K(tau0-Dat%tau_maxvis)*ang_dist)
+                if (tau>State%tau_maxvis .and. tau0-tau > 0.1_dl) then
+                    EV%OutputSources(3) = -2*phi*f_K(tau-State%tau_maxvis)/(f_K(tau0-State%tau_maxvis)*ang_dist)
                     !We include the lensing factor of two here
                 end if
             end if
-            if (Dat%num_redshiftwindows > 0) then
+            if (State%num_redshiftwindows > 0) then
                 call output_window_sources(EV, EV%OutputSources, ay, ayprime, &
                     tau, a, adotoa, grho, gpres, &
-                    k, etak, z, ayprime(2), phi, phidot, sigma, sigmadot, &
+                    k, etak, z, ayprime(ix_etak), phi, phidot, sigma, sigmadot, &
                     dgrho, clxg,clxb,clxc,clxnu, Delta_TM, Delta_xe, &
                     dgq, qg, vb, qgdot, vbdot, &
                     dgpi, pig, pigdot, diff_rhopi, &
@@ -2795,21 +2797,27 @@
                     opacity, dopacity, ddopacity, visibility, dvisibility, ddvisibility, exptau)
             end if
             if (associated(EV%CustomSources)) then
-                select type(DE=>Dat%CP%DarkEnergy)
+                select type(DE=>State%CP%DarkEnergy)
                 class is (TDarkEnergyEqnOfState)
                     cs2_de = DE%cs2_lam
                     class default
                     cs2_de=1
                 end select
-                call custom_sources_func(EV%CustomSources, tau, a, adotoa, grho, gpres,w_dark_energy_t, cs2_de, &
-                    grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,grhonu_t, &
-                    k, etak, ayprime(2), phi, phidot, sigma, sigmadot, &
-                    dgrho, clxg,clxb,clxc,clxr,clxnu, dgrho_de/grhov_t, delta_p_b, &
-                    dgq, qg, qr, dgq_de/grhov_t, vb, qgdot, qrdot, vbdot, &
-                    dgpi, pig, pir, pigdot, pirdot, diff_rhopi, &
-                    polter, polterdot, polterddot, octg, octgdot, E, Edot, &
-                    opacity, dopacity, ddopacity, visibility, dvisibility, ddvisibility, exptau, &
-                    tau0, Dat%tau_maxvis, EV%Kf,f_K)
+                block
+                    procedure(TSource_func), pointer :: custom_sources_func
+
+                    call c_f_procpointer(CP%CustomSources%c_source_func,custom_sources_func)
+
+                    call custom_sources_func(EV%CustomSources, tau, a, adotoa, grho, gpres,w_dark_energy_t, cs2_de, &
+                        grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,grhonu_t, &
+                        k, etak, ayprime(ix_etak), phi, phidot, sigma, sigmadot, &
+                        dgrho, clxg,clxb,clxc,clxr,clxnu, dgrho_de/grhov_t, delta_p_b, &
+                        dgq, qg, qr, dgq_de/grhov_t, vb, qgdot, qrdot, vbdot, &
+                        dgpi, pig, pir, pigdot, pirdot, diff_rhopi, &
+                        polter, polterdot, polterddot, octg, octgdot, E, Edot, &
+                        opacity, dopacity, ddopacity, visibility, dvisibility, ddvisibility, exptau, &
+                        tau0, State%tau_maxvis, EV%Kf,f_K)
+                end block
             end if
         end if
     end if
@@ -2849,16 +2857,16 @@
 
     sigma=yv(2)
 
-    a2=a*a
 
     !  Get sound speed and opacity, and see if should use tight-coupling
 
-    call State%ThermoData%Values(tau,cs2,opacity)
+    call EV%ThermoData%Values(tau,a, cs2,opacity)
     if (k > 0.06_dl*epsw) then
         ep=ep0
     else
         ep=0.2_dl*ep0
     end if
+    a2=a*a
 
     finished_tightcoupling = &
         ((k/opacity > ep).or.(1._dl/(opacity*tau) > ep .and. k/opacity > 1d-4))
@@ -2987,8 +2995,6 @@
     end subroutine derivsv
 
 
-
-    !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
     subroutine derivst(EV,n,tau,ayt,aytprime)
     !  Evaluate the time derivatives of the tensor perturbations.
     use MassiveNu
@@ -2996,57 +3002,31 @@
     type(EvolutionVars) EV
     integer n,l,i,ind, nu_i
     real(dl), target ::  ayt(n),aytprime(n)
-    real(dl) tau,grho,rhopi,cs2,opacity,pirdt
+    real(dl) tau, rhopi,opacity,pirdt
     real(dl), dimension(:),pointer :: neut,neutprime,E,B,Eprime,Bprime
     real(dl) q,aq,v
-    real(dl)  grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,polter
-    real(dl) Hchi,pinu, pig
-    real(dl) k,k2,a,a2
-    real(dl) pir, adotoa, rhonu, shear
+    real(dl) Hchi,pinu, pig, polter
+    real(dl) k,k2,a,a2,grhog_t, grhor_t
+    real(dl) pir, adot, adotoa, rhonu, shear
     real(dl) cothxor
-    Type(CAMBState), pointer :: Dat
-    
-    Dat => State
+
     k2=EV%k2_buf
     k= EV%k_buf
 
-    a=ayt(1)
+    call EV%ThermoData%Expansion_Values(tau,a, adot,opacity)
 
-    Hchi=ayt(2)
+    Hchi=ayt(ixt_H)
 
-    shear=ayt(3)
+    shear=ayt(ixt_shear)
 
     a2=a*a
+    adotoa = adot/a
 
-    ! Compute expansion rate from: grho=8*pi*rho*a**2
-    ! Also calculate gpres: 8*pi*p*a**2
-    grhob_t=Dat%grhob/a
-    grhoc_t=Dat%grhoc/a
-    grhor_t=Dat%grhornomass/a2
-    grhog_t=Dat%grhog/a2
-    call Dat%CP%DarkEnergy%BackgroundDensityAndPressure(Dat%grhov, a, grhov_t)
-
-    grho=grhob_t+grhoc_t+grhor_t+grhog_t+grhov_t
-
-    !Do massive neutrinos
-    if (Dat%CP%Num_Nu_Massive >0) then
-        do nu_i=1,Dat%CP%Nu_mass_eigenstates
-            call ThermalNuBackground%rho(a*Dat%nu_masses(nu_i),rhonu)
-            grho=grho+Dat%grhormass(nu_i)*rhonu/a2
-        end do
-    end if
-
-    if (Dat%flat) then
+    if (State%flat) then
         cothxor=1._dl/tau
-        adotoa=sqrt(grho/3._dl)
     else
-        cothxor=1._dl/Dat%tanfunc(tau/Dat%curvature_radius)/Dat%curvature_radius
-        adotoa=sqrt((grho+Dat%grhok)/3._dl)
+        cothxor=1._dl/State%tanfunc(tau/State%curvature_radius)/State%curvature_radius
     end if
-
-    aytprime(1)=adotoa*a
-
-    call Dat%ThermoData%Values(tau,cs2,opacity)
 
     if (.not. EV%TensTightCoupling) then
         !  Don't use tight coupling approx - use explicit equations:
@@ -3102,7 +3082,6 @@
             Bprime(l) =(EV%denlkt(1,L)*B(l-1) - EV%denlkt(4,L)*E(l))  -opacity*B(l)
 
         else !lmax=2
-
             aytprime(ind)=k*8._dl/15._dl*shear-opacity*(pig - polter)
             Eprime(2) = - opacity*(E(2) - polter) + EV%denlkt(4,2)*B(2)
             Bprime(2) = - EV%denlkt(4,2)*E(2)  -opacity*B(2)
@@ -3111,9 +3090,10 @@
     else  !Tight coupling
         pig = 32._dl/45._dl*k/opacity*shear
     endif
+    grhor_t=State%grhornomass/a2
+    grhog_t=State%grhog/a2
 
     rhopi=grhog_t*pig
-
 
     !  Neutrino equations:
     !  Anisotropic stress
@@ -3143,19 +3123,19 @@
         end if
 
         !  Massive neutrino equations of motion and contributions to anisotropic stress.
-        if (Dat%CP%Num_Nu_massive > 0) then
-            do nu_i=1,Dat%CP%Nu_mass_eigenstates
+        if (State%CP%Num_Nu_massive > 0) then
+            do nu_i=1,State%CP%Nu_mass_eigenstates
                 if (.not. EV%EvolveTensorMassiveNu(nu_i)) then
-                    rhopi=rhopi+ Dat%grhormass(nu_i)/a2*pir !- good approx, note no rhonu weighting
+                    rhopi=rhopi+ State%grhormass(nu_i)/a2*pir !- good approx, note no rhonu weighting
                 else
                     ind=EV%nu_ix(nu_i)+2
 
                     pinu= Nu_pi(EV, ayt, a, nu_i)
-                    rhopi=rhopi+ Dat%grhormass(nu_i)/a2*pinu
+                    rhopi=rhopi+ State%grhormass(nu_i)/a2*pinu
 
-                    do i=1,Dat%NuPerturbations%nqmax
-                        q=Dat%NuPerturbations%nu_q(i)
-                        aq=a*Dat%nu_masses(nu_i)/q
+                    do i=1,State%NuPerturbations%nqmax
+                        q=State%NuPerturbations%nu_q(i)
+                        aq=a*State%nu_masses(nu_i)/q
                         v=1._dl/sqrt(1._dl+aq*aq)
                         if (EV%lmaxnut>2) then
                             aytprime(ind)=-v*EV%denlkt(2,2)*ayt(ind+1)+8._dl/15._dl*k*shear
@@ -3178,13 +3158,13 @@
 
     !  Get the propagation equation for the shear
 
-    if (Dat%flat) then
-        aytprime(3)=-2*adotoa*shear+k*Hchi-rhopi/k
+    if (State%flat) then
+        aytprime(ixt_shear)=-2*adotoa*shear+k*Hchi-rhopi/k
     else
-        aytprime(3)=-2*adotoa*shear+k*Hchi*(1+2*Dat%curv/k2)-rhopi/k
+        aytprime(ixt_shear)=-2*adotoa*shear+k*Hchi*(1+2*State%curv/k2)-rhopi/k
     endif
 
-    aytprime(2)=-k*shear
+    aytprime(ixt_H)=-k*shear
 
     end subroutine derivst
 

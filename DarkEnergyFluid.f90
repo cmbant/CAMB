@@ -1,7 +1,7 @@
 
     module DarkEnergyFluid
     use DarkEnergyInterface
-    use CambSettings
+    use results
     use constants
     use classes
     implicit none
@@ -73,7 +73,7 @@
     subroutine TDarkEnergyFluid_Init(this, State)
     use classes
     class(TDarkEnergyFluid), intent(inout) :: this
-    class(TCAMBCalculation), intent(in) :: State
+    class(TCAMBdata), intent(in) :: State
 
     call this%TDarkEnergyEqnOfState%Init(State)
 
@@ -179,11 +179,11 @@
     subroutine TAxionEffectiveFluid_Init(this, State)
     use classes
     class(TAxionEffectiveFluid), intent(inout) :: this
-    class(TCAMBCalculation), intent(in) :: State
+    class(TCAMBdata), intent(in) :: State
     real(dl) :: grho_rad, F, p, mu, xc, n
 
     select type(State)
-    class is (CAMBstate)
+    class is (CAMBdata)
         this%is_cosmological_constant = this%om==0
         this%pow = 3*(1+this%w_n)
         this%omL = State%Omega_de - this%om !Omega_de is total dark energy density today

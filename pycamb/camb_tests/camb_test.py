@@ -9,7 +9,7 @@ try:
 except ImportError as e:
     sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../')))
     import camb
-from camb import model, correlations, bbn, dark_energy, initialpower
+from camb import model, correlations, bbn, dark_energy, initialpower, config
 from camb.baseconfig import CAMBParamRangeError, CAMBValueError
 
 Fast = 'ci fast' in os.getenv("TRAVIS_COMMIT_MESSAGE", "")
@@ -322,9 +322,9 @@ class CambTest(unittest.TestCase):
 
         # check lensed CL against python; will only agree well for high lmax as python has no extrapolation template
         cls_lensed2 = correlations.lensed_cls(cls['unlensed_scalar'], cls['lens_potential'][:, 0], delta_cls=False)
-        self.assertTrue(np.all(np.abs(cls_lensed2[2:2000, 2] / cls_lensed[2:2000, 2] - 1) < 1e-3))
-        self.assertTrue(np.all(np.abs(cls_lensed2[2:3000, 0] / cls_lensed[2:3000, 0] - 1) < 1e-3))
-        self.assertTrue(np.all(np.abs(cls_lensed2[2:3000, 1] / cls_lensed[2:3000, 1] - 1) < 1e-3))
+        np.testing.assert_allclose(cls_lensed2[2:2000, 2], cls_lensed[2:2000, 2], rtol=1e-3)
+        np.testing.assert_allclose(cls_lensed2[2:2000, 1], cls_lensed[2:2000, 1], rtol=1e-3)
+        np.testing.assert_allclose(cls_lensed2[2:2000, 0], cls_lensed[2:2000, 0], rtol=1e-3)
         self.assertTrue(np.all(np.abs((cls_lensed2[2:3000, 3] - cls_lensed[2:3000, 3]) /
                                       np.sqrt(cls_lensed2[2:3000, 0] * cls_lensed2[2:3000, 1])) < 1e-4))
 
@@ -371,6 +371,19 @@ class CambTest(unittest.TestCase):
         self.assertTrue(np.allclose(cl1, cl2, rtol=1e-4))
         # These are identical because all scalar spectra were identical (non-linear corrections change it  otherwise)
         self.assertTrue(np.allclose(cl1, cl3, rtol=1e-4))
+
+        pars = camb.CAMBparams()
+        pars.set_cosmology(H0=67.5, ombh2=0.022, omch2=0.122, mnu=0.07, omk=0)
+        pars.set_for_lmax(2500)
+        pars.min_l = 2
+        res = camb.get_results(pars)
+        cls = res.get_lensed_scalar_cls(2000)
+        pars.min_l = 1
+        res = camb.get_results(pars)
+        cls2 = res.get_lensed_scalar_cls(2000)
+        np.testing.assert_allclose(cls[2:, 0:2], cls2[2:, 0:2], rtol=1e-4)
+        self.assertAlmostEqual(cls2[1, 0], 1.30388e-10, places=13)
+        self.assertAlmostEqual(cls[1, 0], 0)
 
     def testDarkEnergy(self):
         pars = camb.CAMBparams()
@@ -504,7 +517,7 @@ class CambTest(unittest.TestCase):
         pars = camb.set_params(H0=67.5, ombh2=0.022, omch2=0.122, As=2e-9, ns=0.95)
         pars.set_accuracy(lSampleBoost=2)
         try:
-            camb.set_custom_scalar_sources([monopole_source + ISW + doppler + quadrupole_source,
+            pars.set_custom_scalar_sources([monopole_source + ISW + doppler + quadrupole_source,
                                             s.scalar_E_source], source_names=['T2', 'E2'],
                                            source_ell_scales={'E2': 2})
             data = camb.get_results(pars)
@@ -518,7 +531,6 @@ class CambTest(unittest.TestCase):
             self.assertTrue(np.allclose(dic1['unlensed_scalar'][2:2000, 1], dic['ExE'][2:2000]))
         finally:
             pars.set_accuracy(lSampleBoost=1)
-            camb.clear_custom_scalar_sources()
 
         s.internal_consistency_checks()
 

@@ -199,9 +199,5 @@ def get_source_cmb_cl(params, CMB_unit='muK'):
         sources[key + '1'] = sympy.Piecewise((source, 1 / cs.a - 1 > 30), (0, True))  # recombination
         sources[key + '2'] = sympy.Piecewise((source, 1 / cs.a - 1 <= 30), (0, True))  # reionization
 
-    camb.set_custom_scalar_sources(sources, source_ell_scales={'E1': 2, 'E2': 2})
-    try:
-        cldic = camb.get_results(params).get_cmb_unlensed_scalar_array_dict(CMB_unit=CMB_unit)
-    finally:
-        camb.clear_custom_scalar_sources()
-    return cldic
+    params.set_custom_scalar_sources(sources, source_ell_scales={'E1': 2, 'E2': 2})
+    return camb.get_results(params).get_cmb_unlensed_scalar_array_dict(CMB_unit=CMB_unit)

@@ -2,7 +2,7 @@
 
     module CAMB
     use Precision
-    use CambSettings
+    use results
     use GaugeInterface
     use InitialPower
     use Reionization
@@ -12,22 +12,10 @@
     implicit none
     contains
 
-    subroutine CAMB_GetTransfers(Params, OutData, error, onlytransfer)
-    type(CAMBparams) :: Params
-    type(CAMBstate) :: OutData
-    integer :: error !Zero if OK
-    logical onlytransfer
-
-    call OutData%Free()
-    call CAMB_GetResults(OutData, Params, error, onlytransfer)
-
-    end subroutine CAMB_GetTransfers
-
-
     subroutine CAMB_TransfersToPowers(CData)
     use CAMBmain
     use lensing
-    type (CAMBstate) :: CData
+    type (CAMBdata) :: CData
 
     call SetActiveState(CData)
     CData%OnlyTransfer = .false.
@@ -50,8 +38,7 @@
     use CAMBmain
     use lensing
     use Bispectrum
-    use Errors
-    type(CAMBstate)  :: OutData
+    type(CAMBdata)  :: OutData
     type(CAMBparams) :: Params
     integer, optional :: error !Zero if OK
     logical, optional :: onlytransfer
@@ -60,6 +47,7 @@
 
     global_error_flag = 0
     call_again = .false.
+    call OutData%Free()
     call SetActiveState(OutData)
     OutData%OnlyTransfer = DefaultFalse(onlytransfer)
     if (Params%WantCls .and. Params%WantScalars) then
@@ -139,7 +127,7 @@
         end if
 
         if (do_bispectrum .and. global_error_flag==0) &
-            call GetBispectrum(OutData%CLData%CTransScal)
+            call GetBispectrum(OutData,OutData%CLData%CTransScal)
     end if
 
     end subroutine CAMB_GetResults
@@ -149,7 +137,7 @@
     !Output is l(l+1)C_l/2pi
     !If GC_Conventions = .false. use E-B conventions (as the rest of CAMB does)
     subroutine CAMB_GetCls(State, Cls, lmax,GC_conventions)
-    Type(CAMBstate) :: State
+    Type(CAMBdata) :: State
     integer, intent(IN) :: lmax
     logical, intent(IN) :: GC_conventions
     real, intent(OUT) :: Cls(2:lmax,1:4)
@@ -182,7 +170,7 @@
     type(CAMBparams), intent(in) :: P
     real(dl) CAMB_GetAge
     integer error
-    Type(CAMBstate) :: State
+    Type(CAMBdata) :: State
 
     call  State%SetParams(P, error, .false.)
 
@@ -194,28 +182,9 @@
 
     end function CAMB_GetAge
 
-
-    function CAMB_GetZreFromTau(P, tau)
-    type(CAMBparams) :: P
-    real(dl) tau
-    real(dl) CAMB_GetZreFromTau
-    integer error
-    type(CAMBstate) :: State
-
-    P%Reion%use_optical_depth = .true.
-    P%Reion%optical_depth = tau
-    call State%SetParams(P,error)
-    if (error/=0)  then
-        CAMB_GetZreFromTau = -1
-    else
-        CAMB_GetZreFromTau = State%CP%Reion%redshift
-    end if
-
-    end function CAMB_GetZreFromTau
-
-
     subroutine CAMB_SetDefParams(P)
     use NonLinear
+    use Recombination
     type(CAMBparams), intent(inout), target :: P
     type(CAMBparams) :: emptyP
 
@@ -227,8 +196,10 @@
     allocate(THalofit::P%NonLinearModel)
     allocate(TDarkEnergyFluid::P%DarkEnergy)
     allocate(TInitialPowerLaw::P%InitPower)
+    allocate(TRecfast::P%Recomb)
+    allocate(TTanhReionization::P%Reion)
 
     end subroutine CAMB_SetDefParams
 
-   
+
     end module CAMB

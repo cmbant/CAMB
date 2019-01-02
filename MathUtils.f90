@@ -13,30 +13,32 @@
     contains
 
     !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-    function Integrate_Romberg_classfunc(obj, fin,a,b,tol, maxit, minsteps)
+    function Integrate_Romberg(obj, fin,a,b,tol, maxit, minsteps)
     !  Rombint returns the integral from a to b of f(obj,x) using Romberg integration.
-    !  The method converges provided that f(x) is continuous in (a,b).
-    !  f must be real(dl). The first argument is a generic object/type instance (NOT a class)
+    !  The method converges provided that f is continuous in (a,b).
+    !  f must be real(dl). The first argument is a class instance.
     !  tol indicates the desired relative accuracy in the integral.
 
     ! Modified by AL to specify max iterations and minimum number of steps
     ! (min steps useful to stop wrong results on periodic or sharp functions)
     use iso_c_binding
+    use MiscUtils
     class(*) :: obj
     real(dl), external :: fin !a class function
     procedure(obj_function), pointer :: f
     real(dl), intent(in) :: a,b,tol
-    integer, intent(in):: maxit,minsteps
-    real(dl) :: Integrate_Romberg_classfunc
+    integer, intent(in), optional :: maxit,minsteps
+    integer max_it, min_steps
+    real(dl) :: Integrate_Romberg
     integer, parameter :: MAXJ=5
     integer :: nint, i, k, jmax, j
     real(dl) :: h, gmax, error, g(MAXJ+1), g0, g1, fourj
-    TYPE(C_FUNPTR) :: P
 
     !convert the class function (un-type-checked) into correct type to call correctly for class argument
-    P = c_funloc(fin)
-    call C_F_PROCPOINTER(P, f)
+    call C_F_PROCPOINTER(c_funloc(fin), f)
 
+    max_it = PresentDefault(25, maxit)
+    min_steps = PresentDefault(0, minsteps)
     h=0.5d0*(b-a)
     gmax=h*(f(obj,a)+f(obj,b))
     g(1)=gmax
@@ -45,7 +47,7 @@
     i=0
     do
         i=i+1
-        if (i > maxit.or.(i > 5.and.abs(error) < tol) .and. nint > minsteps) exit
+        if (i > max_it.or.(i > 5.and.abs(error) < tol) .and. nint > min_steps) exit
         !  Calculate next trapezoidal rule approximation to integral.
         g0=0._dl
         do k=1,nint
@@ -72,15 +74,177 @@
         g(jmax+1)=g0
     end do
 
-    Integrate_Romberg_classfunc=g0
-    if (i > maxit .and. abs(error) > tol)  then
+    Integrate_Romberg=g0
+    if (i > max_it .and. abs(error) > tol)  then
         write(*,*) 'Warning: Integrate_Romberg failed to converge; '
-        write (*,*)'integral, error, tol:', Integrate_Romberg_classfunc,error, tol
+        write (*,*)'integral, error, tol:', Integrate_Romberg,error, tol
     end if
 
-    end function Integrate_Romberg_classfunc
+    end function Integrate_Romberg
 
-    function Newton_Raphson(xxl,xxh,funcs, param, param2) result(xm)
+
+    subroutine brentq(obj,func,ax,bx,tol,xzero,fzero,iflag,fax,fbx)
+    use iso_c_binding
+
+    !>
+    !  Find a zero of the function \( f(x) \) in the given interval
+    !  \( [a_x,b_x] \) to within a tolerance \( 4 \epsilon |x| + tol \),
+    !  where \( \epsilon \) is the relative machine precision defined as
+    !  the smallest representable number such that \( 1.0 + \epsilon > 1.0 \).
+    !
+    !  It is assumed that \( f(a_x) \) and \( f(b_x) \) have opposite signs.
+    !
+    !#References
+    !  * R. P. Brent, "[An algorithm with guaranteed convergence for
+    !    finding a zero of a function](http://maths-people.anu.edu.au/~brent/pd/rpb005.pdf)",
+    !    The Computer Journal, Vol 14, No. 4., 1971.
+    !  * R. P. Brent, "[Algorithms for minimization without derivatives](http://maths-people.anu.edu.au/~brent/pub/pub011.html)",
+    !    Prentice-Hall, Inc., 1973.
+    !
+    !# See also
+    !  1. [zeroin.f](http://www.netlib.org/go/zeroin.f) from Netlib
+
+    use iso_fortran_env, only: error_unit
+    implicit none
+    class(*) :: obj
+    real(dl), external :: func !a class function f(obj,x)
+    procedure(obj_function), pointer :: f
+
+    real(dl),intent(in)              :: ax      !! left endpoint of initial interval
+    real(dl),intent(in)              :: bx      !! right endpoint of initial interval
+    real(dl),intent(in)              :: tol     !! desired length of the interval of uncertainty of the final result (>=0)
+    real(dl),intent(out)             :: xzero   !! abscissa approximating a zero of `f` in the interval `ax`,`bx`
+    real(dl),intent(out)             :: fzero   !! value of `f` at the root (`f(xzero)`)
+    integer,intent(out)              :: iflag   !! status flag (`-1`=error, `0`=root found)
+    real(dl),intent(in),optional     :: fax     !! if `f(ax)` is already known, it can be input here
+    real(dl),intent(in),optional     :: fbx     !! if `f(ax)` is already known, it can be input here
+    real(dl), parameter :: one = 1._dl, zero = 0._dl, two =2._dl, three = 3._dl
+    real(dl),parameter :: eps   = epsilon(one)  !! original code had d1mach(4)
+    real(dl) :: a,b,c,d,e,fa,fb,fc,tol1,xm,p,q,r,s
+
+    !convert the class function (un-type-checked) into correct type to call correctly for class argument
+    call C_F_PROCPOINTER(c_funloc(func), f)
+
+    tol1 = eps+one
+
+    a=ax
+    b=bx
+
+    if (present(fax)) then
+        fa = fax
+    else
+        fa=f(obj,a)
+    end if
+    if (present(fbx)) then
+        fb = fbx
+    else
+        fb=f(obj,b)
+    end if
+
+    !check trivial cases first:
+    if (fa==zero) then
+
+        iflag = 0
+        xzero = a
+        fzero = fa
+
+    elseif (fb==zero) then
+
+        iflag = 0
+        xzero = b
+        fzero = fb
+
+    elseif (fa*(fb/abs(fb))<zero) then  ! check that f(ax) and f(bx) have different signs
+
+        c=a
+        fc=fa
+        d=b-a
+        e=d
+
+        do
+
+            if (abs(fc)<abs(fb)) then
+                a=b
+                b=c
+                c=a
+                fa=fb
+                fb=fc
+                fc=fa
+            end if
+
+            tol1=two*eps*abs(b)+0.5_dl*tol
+            xm = 0.5_dl*(c-b)
+            if ((abs(xm)<=tol1).or.(fb==zero)) exit
+
+            ! see if a bisection is forced
+            if ((abs(e)>=tol1).and.(abs(fa)>abs(fb))) then
+                s=fb/fa
+                if (a/=c) then
+                    ! inverse quadratic interpolation
+                    q=fa/fc
+                    r=fb/fc
+                    p=s*(two*xm*q*(q-r)-(b-a)*(r-one))
+                    q=(q-one)*(r-one)*(s-one)
+                else
+                    ! linear interpolation
+                    p=two*xm*s
+                    q=one-s
+                end if
+                if (p<=zero) then
+                    p=-p
+                else
+                    q=-q
+                end if
+                s=e
+                e=d
+                if (((two*p)>=(three*xm*q-abs(tol1*q))) .or. &
+                    (p>=abs(0.5_dl*s*q))) then
+                    d=xm
+                    e=d
+                else
+                    d=p/q
+                end if
+            else
+                d=xm
+                e=d
+            end if
+
+            a=b
+            fa=fb
+            if (abs(d)<=tol1) then
+                if (xm<=zero) then
+                    b=b-tol1
+                else
+                    b=b+tol1
+                end if
+            else
+                b=b+d
+            end if
+            fb=f(obj,b)
+            if ((fb*(fc/abs(fc)))>zero) then
+                c=a
+                fc=fa
+                d=b-a
+                e=d
+            end if
+
+        end do
+
+        iflag = 0
+        xzero = b
+        fzero = fb
+
+    else
+
+        iflag = -1
+        write(error_unit,'(A)')&
+            'Error in zeroin: f(ax) and f(bx) do not have different signs.'
+
+    end if
+
+    end subroutine brentq
+
+    function Newton_Raphson2(xxl,xxh,funcs, param, param2) result(xm)
     use Precision
     implicit none
     real(dl), intent(in) :: xxl     ! root bracket 1
@@ -133,7 +297,7 @@
         write(*,*) xn, f, error
     endif
 
-    end function Newton_Raphson
+    end function Newton_Raphson2
 
 
     subroutine Gauss_Legendre(x,w,n)

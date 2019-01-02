@@ -23,221 +23,16 @@
     !     E. Bertschinger.  See the LICENSE file of the COSMICS distribution
     !     for restrictions on the modification and distribution of this software.
 
-
-    module CambSettings
-    use precision
-    use Errors
-    use classes
-    use MassiveNu
-    use Reionization
-    use Recombination
-    use DarkEnergyInterface
-    use SourceWindows
-    use constants, only : const_pi, const_twopi, const_fourpi, const_eightpi, COBE_CMBTemp, default_nnu
+    module results
+    use constants, only : const_pi, const_twopi
     use MiscUtils
     use RangeUtils
     use StringUtils
-    use MpiUtils, only : MpiStop
+    use MathUtils
+    use config
+    use model
     implicit none
     public
-
-    character(LEN=*), parameter :: version = 'Dec18'
-
-    integer :: FeedbackLevel = -1 !if >0 print out useful information about the model
-
-    logical :: output_file_headers = .true.
-
-    logical, parameter :: DebugMsgs=.false. !Set to true to view progress and timing
-
-    logical, parameter :: DebugEvolution = .false. !Set to true to do all the evolution for all k
-
-    real(dl) :: DebugParam = 0._dl !not used but read in, useful for parameter-dependent tests
-
-    logical ::  do_bispectrum  = .false.
-    logical, parameter :: hard_bispectrum = .false. ! e.g. warm inflation where delicate cancellations
-
-    logical, parameter :: full_bessel_integration = .false. !(go into the tails when calculating the sources)
-
-    integer, parameter :: Nu_int = 0, Nu_trunc=1, Nu_approx = 2, Nu_best = 3
-    !For CAMBparams%MassiveNuMethod
-    !Nu_int: always integrate distribution function
-    !Nu_trunc: switch to expansion in velocity once non-relativistic
-    !Nu_approx: approximate scheme - good for CMB, but not formally correct and no good for matter power
-    !Nu_best: automatically use mixture which is fastest and most accurate
-
-    integer, parameter :: max_Nu = 5 !Maximum number of neutrino species
-    integer, parameter :: max_transfer_redshifts = 150
-    integer, parameter :: outNone=1
-
-    integer :: max_bessels_l_index  = 1000000
-    real(dl) :: max_bessels_etak = 1000000*2
-
-    real(dl), parameter ::  OutputDenominator = const_twopi
-    !When using outNone the output is l(l+1)Cl/OutputDenominator
-
-    type TransferParams
-        logical     ::  high_precision = .false.
-        logical     ::  accurate_massive_neutrinos = .false.
-        real(dl)    ::  kmax = 0.9_dl        !these are acutally q values, but same as k for flat
-        integer     ::  k_per_logint =0
-        integer     ::  PK_num_redshifts = 1
-        real(dl)    ::  PK_redshifts(max_transfer_redshifts) = 0._dl
-    end type TransferParams
-
-    type AccuracyParams
-        !Parameters for checking/changing overall accuracy
-        !parameters equal to 1 corresponds to ~0.1% scalar C_l accuracy (at L>600)
-
-        real(dl) :: AccuracyBoost =1._dl
-        !Decrease step sizes, etc. by this parameter. Useful for checking accuracy.
-        !Can also be used to improve speed significantly if less accuracy is required.
-        !or improving accuracy for extreme models.
-        !Note this does not increase lSamp%l sampling or massive neutrino q-sampling
-
-
-        real(dl) :: lSampleBoost=1._dl
-        !Increase lSampleBoost to increase sampling in lSamp%l for Cl interpolation
-
-        real(dl) :: lAccuracyBoost=1._dl
-        !Boost number of multipoles integrated in Boltzman heirarchy
-
-        logical   :: AccuratePolarization = .true.
-        !Do you care about the accuracy of the polarization Cls?
-
-        logical   :: AccurateBB = .false.
-        !Do you care about BB accuracy (e.g. in lensing)
-
-        !Reionization settings - used if Reion%Reionization=.true.
-        logical   :: AccurateReionization = .true.
-        !Do you care about pecent level accuracy on EE signal from reionization?
-
-        !The following allow separate tweaking (all also affected by AccuracyBoost above)
-
-        real(dl) :: TimeStepBoost = 1._dl !sampling timesteps
-
-        real(dl) :: BackgroundTimeStepBoost = 1._dl !number of time steps for background thermal history interpolation
-
-        real(dl) :: IntTolBoost = 1._dl !Tolerances for integrating differential equations
-
-        real(dl) :: SourcekAccuracyBoost = 1._dl !Accuracy of k sampling for source time integration
-
-        real(dl) :: IntkAccuracyBoost = 1._dl !Accuracy of k sampling for integration
-
-        real(dl) :: TransferkBoost = 1._dl !Accuracy of k sampling for transfer functions
-
-        real(dl) :: NonFlatIntAccuracyBoost = 1._dl !Accuracy of non-flat time integration
-
-        real(dl) :: BessIntBoost = 1._dl !Accuracy of bessel integration truncation
-
-        real(dl) :: LensingBoost = 1._dl !Accuracy for CMB lensing of CMB power spectra
-
-        real(dl) :: NonlinSourceBoost = 1._dl !Steps and kmax for the non-linear correction
-
-        real(dl) :: BesselBoost = 1._dl !accuracy of bessel pre-computation sampling
-
-        real(dl) :: LimberBoost = 1._dl !Accuracy of Limber approximation use
-
-        real(dl) :: KmaxBoost = 1._dl !Boost max k for source window functions
-
-        real(dl) :: neutrino_q_boost = 1._dl !number of momenta integrated for neutrino perturbations
-
-    end type AccuracyParams
-
-    !other variables, options, derived variables, etc.
-
-    integer, parameter :: NonLinear_none=0, NonLinear_Pk =1, NonLinear_Lens=2
-    integer, parameter :: NonLinear_both=3  !JD 08/13 added so both can be done
-
-    ! Main parameters type
-    type, extends (TCAMBParameters) :: CAMBparams
-        logical   :: WantCls  = .true.
-        logical   :: WantTransfer = .false.
-
-        logical   :: WantScalars = .true.
-        logical   :: WantTensors = .false.
-        logical   :: WantVectors = .false.
-
-        logical   :: WantDerivedParameters = .true.!calculate various derived parameters  (ThermoDerivedParams)
-        logical   :: Want_cl_2D_Array = .true.
-        logical   :: Want_CMB = .true.
-        logical   :: Want_CMB_lensing = .true.
-        logical   :: DoLensing  = .true.
-        integer   :: NonLinear = NonLinear_none
-        type(TransferParams)     :: Transfer
-
-        logical   :: want_zstar = .false.
-        logical   :: want_zdrag = .false.     !!JH for updated BAO likelihood.
-
-        integer   :: Max_l = 2500
-        integer   :: Max_l_tensor = 600
-        real(dl)  :: Max_eta_k = 5000
-        real(dl)  :: Max_eta_k_tensor = 1200
-        ! _tensor settings only used in initialization,
-        !Max_l and Max_eta_k are set to the tensor variables if only tensors requested
-
-        real(dl)  :: ombh2 = 0._dl
-        real(dl)  :: omch2 = 0._dl
-        real(dl)  :: omk = 0._dl
-        real(dl)  :: omnuh2 = 0._dl
-        !Omega baryon, CDM, Lambda and massive neutrino
-        real(dl)  :: H0 = 67._dl
-        real(dl)  :: TCMB = COBE_CMBTemp
-        real(dl)  :: Yhe = 0.24_dl
-        real(dl)  :: Num_Nu_massless = default_nnu
-        integer   :: Num_Nu_massive = 0 !sum of Nu_mass_numbers below
-        integer   :: Nu_mass_eigenstates = 0  !1 for degenerate masses
-        logical   :: share_delta_neff = .false. !take fractional part to heat all eigenstates the same
-        real(dl)  :: Nu_mass_degeneracies(max_nu)
-        real(dl)  :: Nu_mass_fractions(max_nu) !The ratios of the total densities
-        integer   :: Nu_mass_numbers(max_nu) !physical number per eigenstate
-
-        class(TInitialPower), allocatable :: InitPower
-        type(RecombinationParams):: Recomb
-        type(ReionizationParams) :: Reion
-        class(TDarkEnergyModel), allocatable :: DarkEnergy
-        class(TNonLinearModel), allocatable :: NonLinearModel
-        type(AccuracyParams)     :: Accuracy
-        type(SourceTermParams)   :: SourceTerms
-
-        real(dl), allocatable :: z_outputs(:) !Redshifts to output background outputs
-
-        integer   :: Scalar_initial_condition = 1 !adiabatic
-        !must be one of the initial_xxx values defined in GaugeInterface
-        real(dl), allocatable  :: InitialConditionVector(:) !ignored unless Scalar_initial_condition == initial_vector
-
-        integer   :: OutputNormalization = outNone
-        !outNone, or C_OutputNormalization=1 if > 1
-
-        real(dl)  :: Alens = 1._dl
-
-        integer   :: MassiveNuMethod = Nu_best
-
-        logical :: DoLateRadTruncation = .true.
-        !if true, use smooth approx to radition perturbations after decoupling on
-        !small scales, saving evolution of irrelevant osciallatory multipole equations
-
-        logical :: Evolve_baryon_cs = .false.
-        !if true, evolves equation for Delta_{T_m} to get cs_2 = \delta p /\delta\rho for perfect gas
-
-        logical :: Evolve_delta_xe = .false. !Include ionization fraction perturbations
-
-        logical :: Evolve_delta_Ts =.false. !Equilibrium result agrees to sub-percent level
-
-        !Sources
-        logical   :: Do21cm = .false.
-        logical :: transfer_21cm_cl = .false.
-        logical :: Log_lvalues  = .false.
-
-        Type(TSourceWindowHolder), allocatable :: SourceWindows(:)
-
-    contains
-    procedure, nopass :: PythonClass => CAMBparams_PythonClass
-    procedure, nopass :: SelfPointer => CAMBparams_SelfPointer
-    procedure :: Replace => CAMBParams_Replace
-    procedure :: SetNeutrinoHierarchy => CAMBparams_SetNeutrinoHierarchy
-    procedure :: Validate => CAMBparams_Validate
-    end type CAMBparams
-
 
     Type TBackgroundOutputs
         real(dl), allocatable :: H(:), DA(:), rs_by_D_v(:)
@@ -250,6 +45,7 @@
 
     Type lSamples
         integer :: nl = 0
+        integer :: lmin = 2
         integer, allocatable :: l(:)
     contains
     procedure :: Init => lSamples_init
@@ -265,11 +61,11 @@
         logical :: HasThermoData = .false. !Has it been computed yet for current parameters?
         !Background thermal history, interpolated from precomputed tables
         integer :: nthermo !Number of table steps
-        !baryon temperature, sound speed, ionization fractions, and e^(-tau)
-        real(dl), dimension(:), allocatable :: tb, cs2, xe, emmu
-        !derivatives for interpolation
-        real(dl), dimension(:), allocatable :: dcs2, dotmu, ddotmu
-        real(dl), dimension(:), allocatable :: demmu, dddotmu, ddddotmu
+        !baryon temperature, sound speed, ionization fractions, and opacity
+        real(dl), dimension(:), allocatable :: tb, cs2, xe, dotmu
+        ! e^(-tau) and derivatives
+        real(dl), dimension(:), allocatable :: emmu, dcs2,demmu, ddotmu, dddotmu, ddddotmu
+        real(dl), dimension(:), allocatable :: ScaleFactor, dScaleFactor, adot, dadot
         real(dl), dimension(:), allocatable :: winlens, dwinlens
         real(dl) tauminn,dlntau
         real(dl) :: tight_tau, actual_opt_depth
@@ -290,6 +86,7 @@
     procedure :: Init => Thermo_Init
     procedure :: OpacityToTime => Thermo_OpacityToTime
     procedure :: values => Thermo_values
+    procedure :: expansion_values => Thermo_expansion_values
     procedure :: IonizationFunctionsAtTime
     procedure, private :: DoWindowSpline
     procedure, private :: SetTimeSteps
@@ -329,16 +126,6 @@
 
     end Type ClTransferData
 
-    !Computed output power spectra data
-
-    integer, parameter :: C_Temp = 1, C_E = 2, C_Cross =3, C_Phi = 4, C_PhiTemp = 5, C_PhiE=6
-    integer :: C_last = C_PhiE
-    integer, parameter :: CT_Temp =1, CT_E = 2, CT_B = 3, CT_Cross=  4
-    integer, parameter :: name_tag_len = 12
-    character(LEN=name_tag_len), dimension(C_PhiE), parameter :: C_name_tags = ['TT','EE','TE','PP','TP','EP']
-    character(LEN=name_tag_len), dimension(CT_Cross), parameter :: CT_name_tags = ['TT','EE','BB','TE']
-    character(LEN=name_tag_len), dimension(7), parameter :: lens_pot_name_tags = ['TT','EE','BB','TE','PP','TP','EP']
-
     type TCLdata
         Type(ClTransferData) :: CTransScal, CTransTens, CTransVec
 
@@ -363,7 +150,7 @@
     end type TCLdata
 
 
-    type, extends(TCAMBCalculation) :: CAMBstate
+    type, extends(TCAMBdata) :: CAMBdata
 
         type(CAMBparams) :: CP
 
@@ -387,6 +174,7 @@
         real(dl) akthom !sigma_T * (number density of protons now)
         real(dl) fHe !n_He_tot / n_H_tot
         real(dl) Nnow
+        real(dl) z_eq !defined assuming all neutrinos massless
         !Neutrinos
         real(dl) grhormass(max_nu)
         !     nu_masses=m_nu*c**2/(k_B*T_nu0)
@@ -403,11 +191,11 @@
         !gets sigma_vdelta, like sigma8 but using velocity-density cross power,
         !in late LCDM f*sigma8 = sigma_vdelta^2/sigma8
 
-        type(ReionizationHistory) :: ReionHist
-        type(RecombinationData) :: Recombination
-
         logical ::call_again = .false.
         !if being called again with same parameters to get different thing
+
+        real(dl) :: reion_tau_start, reion_tau_complete
+        integer :: reion_n_steps
 
         Type(TNuPerturbations) :: NuPerturbations
 
@@ -429,294 +217,74 @@
         real(dl), dimension(:), allocatable :: optical_depths_for21cm
 
     contains
-    procedure :: DeltaTime => CAMBState_DeltaTime
-    procedure :: TimeOfz => CAMBState_TimeOfz
-    procedure :: TimeOfzArr => CAMBState_TimeOfzArr
-    procedure :: DeltaPhysicalTimeGyr => CAMBState_DeltaPhysicalTimeGyr
-    procedure :: AngularDiameterDistance => CAMBState_AngularDiameterDistance
-    procedure :: AngularDiameterDistanceArr => CAMBState_AngularDiameterDistanceArr
-    procedure :: AngularDiameterDistance2 => CAMBState_AngularDiameterDistance2
-    procedure :: LuminosityDistance => CAMBState_LuminosityDistance
-    procedure :: ComovingRadialDistance => CAMBState_ComovingRadialDistance
-    procedure :: ComovingRadialDistanceArr => CAMBState_ComovingRadialDistanceArr
-    procedure :: GetBackgroundDensities => CAMBstate_GetBackgroundDensities
-    procedure :: Hofz => CAMBState_Hofz
-    procedure :: HofzArr => CAMBState_HofzArr
-    procedure :: sound_horizon => CAMBState_sound_horizon
-    procedure :: sound_horizon_zArr => CAMBState_sound_horizon_zArr
-    procedure :: RedshiftAtTimeArr => CAMBState_RedshiftAtTimeArr
-    procedure :: BAO_D_v => CAMBState_BAO_D_v
-    procedure :: CosmomcTheta => CAMBState_CosmomcTheta
-    procedure :: get_lmax_lensed => CAMBstate_get_lmax_lensed
-    procedure :: get_zstar => CAMBState_get_zstar
-    procedure :: DarkEnergyStressEnergy => CAMBState_DarkEnergyStressEnergy
-    procedure :: SetParams => CAMBState_SetParams
-    procedure :: Free => CAMBState_Free
+    procedure :: DeltaTime => CAMBdata_DeltaTime
+    procedure :: TimeOfz => CAMBdata_TimeOfz
+    procedure :: TimeOfzArr => CAMBdata_TimeOfzArr
+    procedure :: DeltaPhysicalTimeGyr => CAMBdata_DeltaPhysicalTimeGyr
+    procedure :: AngularDiameterDistance => CAMBdata_AngularDiameterDistance
+    procedure :: AngularDiameterDistanceArr => CAMBdata_AngularDiameterDistanceArr
+    procedure :: AngularDiameterDistance2 => CAMBdata_AngularDiameterDistance2
+    procedure :: LuminosityDistance => CAMBdata_LuminosityDistance
+    procedure :: ComovingRadialDistance => CAMBdata_ComovingRadialDistance
+    procedure :: ComovingRadialDistanceArr => CAMBdata_ComovingRadialDistanceArr
+    procedure :: GetBackgroundDensities => CAMBdata_GetBackgroundDensities
+    procedure :: Hofz => CAMBdata_Hofz
+    procedure :: HofzArr => CAMBdata_HofzArr
+    procedure :: sound_horizon => CAMBdata_sound_horizon
+    procedure :: sound_horizon_zArr => CAMBdata_sound_horizon_zArr
+    procedure :: RedshiftAtTimeArr => CAMBdata_RedshiftAtTimeArr
+    procedure :: BAO_D_v => CAMBdata_BAO_D_v
+    procedure :: CosmomcTheta => CAMBdata_CosmomcTheta
+    procedure :: get_lmax_lensed => CAMBdata_get_lmax_lensed
+    procedure :: get_zstar => CAMBdata_get_zstar
+    procedure :: DarkEnergyStressEnergy => CAMBdata_DarkEnergyStressEnergy
+    procedure :: SetParams => CAMBdata_SetParams
+    procedure :: Free => CAMBdata_Free
+    procedure :: GetReionizationOptDepth
     procedure :: rofChi
     procedure :: cosfunc
     procedure :: tanfunc
     procedure :: invsinfunc
     procedure :: GetComputedPKRedshifts
-    procedure, nopass :: PythonClass => CAMBstate_PythonClass
-    procedure, nopass :: SelfPointer => CAMBstate_SelfPointer
-    end type CAMBstate
+    procedure :: binary_search
+    procedure, nopass :: PythonClass => CAMBdata_PythonClass
+    procedure, nopass :: SelfPointer => CAMBdata_SelfPointer
+    end type CAMBdata
 
-    type(CAMBstate), pointer :: State !Current state
-    type(CAMBParams), pointer :: CP   !Current parameters (part of state)
+    interface
+    FUNCTION state_function(obj, a)
+    use precision
+    import
+    class(CAMBdata) :: obj
+    real(dl), intent(in) :: a
+    real(dl) :: state_function
+    END FUNCTION  state_function
+    end interface
 
-    integer :: ThreadNum = 0
-    !If zero assigned automatically, obviously only used if parallelised
-
-    integer :: num_custom_sources = 0
-    integer, allocatable :: custom_source_ell_scales(:)
-
-    integer, parameter :: lmin = 2
-    !must be either 1 or 2
-
-    real(dl), parameter :: OmegaKFlat = 5e-7_dl !Value at which to use flat code
-
-    real(dl), parameter :: tol=1.0d-4 !Base tolerance for integrations
-
-    !     used as parameter for spline - tells it to use 'natural' end values
-    real(dl), parameter :: spl_large=1.e40_dl
-
-    character(LEN=1024) :: highL_unlensed_cl_template = 'HighLExtrapTemplate_lenspotentialCls.dat'
-    !fiducial high-accuracy high-L C_L used for making small cosmology-independent numerical corrections
-    !to lensing and C_L interpolation. Ideally close to models of interest, but dependence is weak.
-    logical :: use_spline_template = .true.
-    integer, parameter :: lmax_extrap_highl = 8000
-    real(dl), allocatable :: highL_CL_template(:,:)
-
-    real(dl), private, external :: dtauda, rombint, rombint2
+    procedure(obj_function), private :: dtauda
 
     contains
 
-    subroutine SetActiveState(P)
-    class(CAMBstate), target :: P
+    function CAMBdata_PythonClass()
+    character(LEN=:), allocatable :: CAMBdata_PythonClass
+    CAMBdata_PythonClass = 'CAMBdata'
+    end function CAMBdata_PythonClass
 
-    select type(P)
-    type is (CAMBstate)
-        State => P
-        CP => P%CP
-        class default
-        error stop 'Unknown state type'
-    end select
-    end subroutine SetActiveState
-
-
-    function CAMBparams_PythonClass()
-    character(LEN=:), allocatable :: CAMBparams_PythonClass
-    CAMBparams_PythonClass = 'CAMBparams'
-    end function CAMBparams_PythonClass
-
-    subroutine CAMBparams_SelfPointer(cptr,P)
+    subroutine CAMBdata_SelfPointer(cptr,P)
     use iso_c_binding
     Type(c_ptr) :: cptr
-    Type (CAMBparams), pointer :: PType
+    Type (CAMBdata), pointer :: PType
     class (TPythonInterfacedClass), pointer :: P
 
     call c_f_pointer(cptr, PType)
     P => PType
 
-    end subroutine CAMBparams_SelfPointer
+    end subroutine CAMBdata_SelfPointer
 
-    subroutine CAMBparams_Replace(this, replace_with)
-    class(CAMBParams), target :: this
-    Type(CAMBParams), pointer :: p
-    class(TPythonInterfacedClass) :: replace_with
-
-    select type(this)
-    type is (CAMBParams)
-        p => this
-        select type(replace_with)
-        type is (CAMBParams)
-            p = replace_with
-            class default
-            error stop 'Wrong assignment type'
-        end select
-    end select
-    end subroutine CAMBparams_Replace
-
-    subroutine CAMBparams_SetNeutrinoHierarchy(this, omnuh2, omnuh2_sterile, nnu, neutrino_hierarchy, num_massive_neutrinos)
-    !Set neutrino hierarchy in the approximate two-eigenstate model (treating two as exactly degenerate, and assuming non-relativistic)
-    use MathUtils
-    use constants
-    class(CAMBparams), intent(inout) :: this
-    real(dl), intent(in) :: omnuh2, omnuh2_sterile, nnu
-    integer, intent(in) :: neutrino_hierarchy
-    integer, intent(in), optional :: num_massive_neutrinos  !for degenerate hierarchy
-    integer, parameter :: neutrino_hierarchy_normal = 1, neutrino_hierarchy_inverted = 2, neutrino_hierarchy_degenerate = 3
-    real(dl) normal_frac, m3, neff_massive_standard, mnu, m1
-
-    if (omnuh2==0) return
-    this%Nu_mass_eigenstates=0
-    if ( omnuh2 > omnuh2_sterile) then
-        normal_frac =  (omnuh2-omnuh2_sterile)/omnuh2
-        if (neutrino_hierarchy == neutrino_hierarchy_degenerate) then
-            neff_massive_standard = num_massive_neutrinos*default_nnu/3
-            this%Num_Nu_Massive = num_massive_neutrinos
-            this%Nu_mass_eigenstates=this%Nu_mass_eigenstates+1
-            if (nnu > neff_massive_standard) then
-                this%Num_Nu_Massless = nnu - neff_massive_standard
-            else
-                this%Num_Nu_Massless = 0
-                neff_massive_standard=nnu
-            end if
-            this%Nu_mass_numbers(this%Nu_mass_eigenstates) = num_massive_neutrinos
-            this%Nu_mass_degeneracies(this%Nu_mass_eigenstates) = neff_massive_standard
-            this%Nu_mass_fractions(this%Nu_mass_eigenstates) = normal_frac
-        else
-            !Use normal or inverted hierarchy, approximated as two eigenstates in physical regime, 1 at minimum an below
-            mnu = (omnuh2 - omnuh2_sterile)*neutrino_mass_fac*(COBE_CMBTemp/this%TCMB)**3/ (default_nnu / 3) ** 0.75_dl
-            if (neutrino_hierarchy == neutrino_hierarchy_normal) then
-                if (mnu > mnu_min_normal + 1e-4_dl) then
-                    !Two eigenstate approximation.
-                    m1=Newton_Raphson(0._dl, mnu, sum_mnu_for_m1, mnu, 1._dl)
-                    this%Num_Nu_Massive = 3
-                else
-                    !One eigenstate
-                    this%Num_Nu_Massive = 1
-                end if
-            else if (neutrino_hierarchy == neutrino_hierarchy_inverted) then
-                if (mnu > sqrt(delta_mnu31)+sqrt(delta_mnu31+delta_mnu21) + 1e-4_dl ) then
-                    !Valid case, two eigenstates
-                    m1=Newton_Raphson(sqrt(delta_mnu31), mnu, sum_mnu_for_m1, mnu, -1._dl)
-                    this%Num_Nu_Massive = 3
-                else
-                    !Unphysical low mass case: take one (2-degenerate) eigenstate
-                    this%Num_Nu_Massive = 2
-                end if
-            else
-                error stop 'Unknown neutrino_hierarchy setting'
-            end if
-            neff_massive_standard = this%Num_Nu_Massive *default_nnu/3
-            if (nnu > neff_massive_standard) then
-                this%Num_Nu_Massless = nnu - neff_massive_standard
-            else
-                this%Num_Nu_Massless = 0
-                neff_massive_standard=nnu
-            end if
-            if (this%Num_Nu_Massive==3) then
-                !two with mass m1, one with m3
-                this%Nu_mass_eigenstates = 2
-                this%Nu_mass_degeneracies(1) = neff_massive_standard*2/3._dl
-                this%Nu_mass_degeneracies(2) = neff_massive_standard*1/3._dl
-                m3 = mnu - 2*m1
-                this%Nu_mass_fractions(1) = 2*m1/mnu*normal_frac
-                this%Nu_mass_fractions(2) = m3/mnu*normal_frac
-                this%Nu_mass_numbers(1) = 2
-                this%Nu_mass_numbers(2) = 1
-            else
-                this%Nu_mass_degeneracies(1) = neff_massive_standard
-                this%Nu_mass_numbers(1) = this%Num_Nu_Massive
-                this%Nu_mass_eigenstates = 1
-                this%Nu_mass_fractions(1) = normal_frac
-            end if
-        end if
-    else
-        neff_massive_standard=0
-    end if
-    if (omnuh2_sterile>0) then
-        if (nnu<default_nnu) call MpiStop('nnu < 3.046 with massive sterile')
-        this%Num_Nu_Massless = default_nnu - neff_massive_standard
-        this%Num_Nu_Massive=this%Num_Nu_Massive+1
-        this%Nu_mass_eigenstates=this%Nu_mass_eigenstates+1
-        this%Nu_mass_numbers(this%Nu_mass_eigenstates) = 1
-        this%Nu_mass_degeneracies(this%Nu_mass_eigenstates) = max(1d-6,nnu - default_nnu)
-        this%Nu_mass_fractions(this%Nu_mass_eigenstates) = omnuh2_sterile/omnuh2
-    end if
-    end subroutine CAMBparams_SetNeutrinoHierarchy
-
-    function CAMBparams_Validate(this) result(OK)
-    class(CAMBparams), intent(in) :: this
-    logical OK
-
-    OK = .true.
-    if (.not. this%WantTransfer .and. .not. this%WantCls) then
-        OK = .false.
-        write(*,*) 'There is nothing to do! Do transfer functions or Cls.'
-    end if
-
-    if (this%h0 < 20._dl.or.this%h0 > 100._dl) then
-        OK = .false.
-        write(*,*) '  Warning: H0 has units of km/s/Mpc. You have:', this%h0
-    end if
-    if (this%tcmb < 2.7d0.or.this%tcmb > 2.8d0) then
-        write(*,*) '  Warning: Tcmb has units of K.  Your have:', this%tcmb
-    end if
-
-    if (this%yhe < 0.2d0.or.this%yhe > 0.8d0) then
-        OK = .false.
-        write(*,*) &
-            '  Warning: YHe is the Helium fraction of baryons.', &
-            '  Your have:', this%yhe
-    end if
-    if (this%Num_Nu_massive < 0) then
-        OK = .false.
-        write(*,*) &
-            'Warning: Num_Nu_massive is strange:',this%Num_Nu_massive
-    end if
-    if (this%Num_Nu_massless < 0) then
-        OK = .false.
-        write(*,*) &
-            'Warning: Num_nu_massless is strange:', this%Num_Nu_massless
-    end if
-    if (this%Num_Nu_massive < 1 .and. this%omnuh2 > 0.0) then
-        OK = .false.
-        write(*,*) &
-            'Warning: You have omega_neutrino > 0, but no massive species'
-    end if
-
-
-    if (this%ombh2<0.0005 .or. this%omch2<0 .or. this%ombh2>0.5 .or. this%omch2>2) then
-        OK = .false.
-        write(*,*) 'Your matter densities are strange (may not have been set)'
-    end if
-
-    if (this%WantScalars .and. this%Max_eta_k < this%Max_l .or.  &
-        this%WantTensors .and. this%Max_eta_k_tensor < this%Max_l_tensor) then
-        OK = .false.
-        write(*,*) 'You need Max_eta_k larger than Max_l to get good results'
-    end if
-
-    call this%Reion%Validate(OK)
-    call this%Recomb%Validate(OK)
-
-    if (this%WantTransfer) then
-        if (this%transfer%PK_num_redshifts > max_transfer_redshifts .or. this%transfer%PK_num_redshifts<1) then
-            OK = .false.
-            write(*,*) 'Maximum ',  max_transfer_redshifts, &
-                'redshifts. You have: ', this%transfer%PK_num_redshifts
-        end if
-        if (this%transfer%kmax < 0.01 .or. this%transfer%kmax > 50000 .or. &
-            this%transfer%k_per_logint>0 .and.  this%transfer%k_per_logint <1) then
-            !            OK = .false.
-            write(*,*) 'Strange transfer function settings.'
-        end if
-    end if
-
-    end function CAMBparams_Validate
-
-    function CAMBstate_PythonClass()
-    character(LEN=:), allocatable :: CAMBstate_PythonClass
-    CAMBstate_PythonClass = 'CAMBdata'
-    end function CAMBstate_PythonClass
-
-    subroutine CAMBstate_SelfPointer(cptr,P)
-    use iso_c_binding
-    Type(c_ptr) :: cptr
-    Type (CAMBstate), pointer :: PType
-    class (TPythonInterfacedClass), pointer :: P
-
-    call c_f_pointer(cptr, PType)
-    P => PType
-
-    end subroutine CAMBstate_SelfPointer
-
-    subroutine CAMBState_SetParams(this, P, error, DoReion, call_again)
+    subroutine CAMBdata_SetParams(this, P, error, DoReion, call_again)
     !Initialize background variables; does not yet calculate thermal history
     use constants
-    class(CAMBstate), target :: this
+    class(CAMBdata), target :: this
     type(CAMBparams), intent(in) :: P
     real(dl) fractional_number, conv
     integer, optional :: error !Zero if OK
@@ -757,7 +325,6 @@
         this%CP%WantCls = P%WantCls
     else
         this%CP=P
-        call SetActiveState(this)
         this%CP%Max_eta_k = max(this%CP%Max_eta_k,this%CP%Max_eta_k_tensor)
     end if
 
@@ -868,6 +435,8 @@
 
         this%fHe = this%CP%YHe/(mass_ratio_He_H*(1.d0-this%CP%YHe))  !n_He_tot / n_H_tot
 
+        this%z_eq = (this%grhob+this%grhoc)/(this%grhog+this%grhornomass+sum(this%grhormass(1:this%CP%Nu_mass_eigenstates))) -1
+
         if (this%CP%omnuh2/=0) then
             !Initialize things for massive neutrinos
             call ThermalNuBackground%Init()
@@ -896,12 +465,12 @@
         call this%CP%DarkEnergy%Init(this)
         if (global_error_flag==0) then
             this%tau0=this%TimeOfz(0._dl)
-            if (WantReion) call this%ReionHist%Init(this%CP%Reion,this%CP%YHe, this%akthom, this%tau0, FeedbackLevel)
             this%chi0=this%rofChi(this%tau0/this%curvature_radius)
             this%scale= this%chi0*this%curvature_radius/this%tau0  !e.g. change l sampling depending on approx peak spacing
             if (this%closed .and. this%tau0/this%curvature_radius >3.14) then
                 call GlobalError('chi >= pi in closed model not supported',error_unsupported_params)
             end if
+            if (WantReion) call this%CP%Reion%Init(this)
         end if
     end if
     if (allocated(this%CP%SourceWindows)) then
@@ -914,7 +483,7 @@
     if (this%CP%WantScalars .and. this%CP%WantCls .and. this%num_redshiftwindows>0) then
         eta_k = this%CP%Max_eta_k
         if (allocated(this%Redshift_W)) deallocate(this%Redshift_W)
-        allocate(State%Redshift_W(this%num_redshiftwindows))
+        allocate(this%Redshift_W(this%num_redshiftwindows))
         this%num_extra_redshiftwindows = 0
         !$OMP PARALLEL DO DEFAULT(SHARED), PRIVATE(zpeak, sigma_z, zpeakstart, zpeakend, nu_i, Win)
         do nu_i = 1, this%num_redshiftwindows
@@ -927,13 +496,13 @@
             end if
             Win%Redshift = zpeak
             Win%tau = this%TimeOfz(zpeak, tol=1e-4_dl)
-            Win%sigma_tau = sigma_z*dtauda(1/(1+zpeak))/(1+zpeak)**2
-            Win%tau_peakstart=State%TimeOfZ(zpeakstart, tol=1e-4_dl)
-            Win%tau_peakend = State%TimeOfZ(max(0._dl,zpeakend), tol=1e-4_dl)
+            Win%sigma_tau = sigma_z*dtauda(this,1/(1+zpeak))/(1+zpeak)**2
+            Win%tau_peakstart=this%TimeOfZ(zpeakstart, tol=1e-4_dl)
+            Win%tau_peakend = this%TimeOfZ(max(0._dl,zpeakend), tol=1e-4_dl)
             Win%chi0 = this%tau0-Win%tau
             Win%chimin = min(Win%chi0,this%tau0 - this%TimeOfz(max(0.05_dl,zpeakend), tol=1e-4_dl))
             !$OMP CRITICAL
-            this%CP%Max_eta_k = max(this%CP%Max_eta_k, this%tau0*WindowKmaxForL(Win,this%CP%max_l))
+            this%CP%Max_eta_k = max(this%CP%Max_eta_k, this%tau0*WindowKmaxForL(Win,this%CP,this%CP%max_l))
             if (Win%Window%source_type==window_21cm) this%CP%Do21cm = .true.
             if (Win%Window%source_type==window_counts .and. P%SourceTerms%counts_lensing) then
                 this%num_extra_redshiftwindows = this%num_extra_redshiftwindows + 1
@@ -979,120 +548,41 @@
         end if
     end if
 
-    end subroutine CAMBState_SetParams
+    end subroutine CAMBdata_SetParams
 
-    subroutine CAMBState_Free(this)
-    class(CAMBstate) :: this
+    subroutine CAMBdata_Free(this)
+    class(CAMBdata) :: this
 
     call Free_ClTransfer(this%CLdata%CTransScal)
     call Free_ClTransfer(this%ClData%CTransVec)
     call Free_ClTransfer(this%ClData%CTransTens)
     call this%MT%Free()
 
-    end subroutine CAMBState_Free
+    end subroutine CAMBdata_Free
 
-
-    function GetTestTime()
-    real(sp) GetTestTime
-    real(sp) atime
-    !integer(kind=8) clock
-    !double precision count_rate
-
-    call cpu_time(atime)
-    GetTestTime = atime
-    !This gives poor resolution on Windows:
-    !call system_clock(clock, count_rate)
-    !GetTestTime = clock/count_rate
-
-    end function GetTestTime
-
-
-    function rofChi(this,Chi) !sinh(chi) for open, sin(chi) for closed.
-    class(CAMBstate) :: this
-    real(dl) Chi,rofChi
-
-    if (this%flat) then
-        rofChi=chi
-    else if (this%closed) then
-        rofChi=sin(chi)
-    else
-        rofChi=sinh(chi)
-    endif
-    end function rofChi
-
-
-    function cosfunc (this,Chi)
-    class(CAMBstate) :: this
-    real(dl) Chi,cosfunc
-
-    if (this%flat) then
-        cosfunc = 1._dl
-    else if (this%closed) then
-        cosfunc= cos(chi)
-    else
-        cosfunc=cosh(chi)
-    endif
-    end function cosfunc
-
-    function tanfunc(this,Chi)
-    class(CAMBstate) :: this
-    real(dl) Chi,tanfunc
-    if (this%flat) then
-        tanfunc=Chi
-    else if (this%closed) then
-        tanfunc=tan(Chi)
-    else
-        tanfunc=tanh(Chi)
-    end if
-
-    end function tanfunc
-
-    function invsinfunc(this,x)
-    class(CAMBstate) :: this
-    real(dl) invsinfunc,x
-
-    if (this%flat) then
-        invsinfunc = x
-    else if (this%closed) then
-        invsinfunc=asin(x)
-    else
-        invsinfunc=log((x+sqrt(1._dl+x**2)))
-    endif
-    end function invsinfunc
-
-    function f_K(x)
-    real(dl) :: f_K
-    real(dl), intent(in) :: x
-
-    f_K = State%curvature_radius*State%rofChi(x/State%curvature_radius)
-
-    end function f_K
-
-
-    function CAMBState_DeltaTime(this, a1,a2, in_tol)
-    class(CAMBstate) :: this
-    real(dl) CAMBState_DeltaTime, atol
+    function CAMBdata_DeltaTime(this, a1,a2, in_tol)
+    class(CAMBdata) :: this
+    real(dl) CAMBdata_DeltaTime, atol
     real(dl), intent(IN) :: a1,a2
     real(dl), optional, intent(in) :: in_tol
 
-    call SetActiveState(this)
-    atol = PresentDefault(tol/1000/exp(CP%Accuracy%AccuracyBoost*CP%Accuracy%IntTolBoost-1), in_tol)
-    CAMBState_DeltaTime = rombint(dtauda,a1,a2,atol)
+    atol = PresentDefault(tol/1000/exp(this%CP%Accuracy%AccuracyBoost*this%CP%Accuracy%IntTolBoost-1), in_tol)
+    CAMBdata_DeltaTime = Integrate_Romberg(this, dtauda,a1,a2,atol)
 
-    end function CAMBState_DeltaTime
+    end function CAMBdata_DeltaTime
 
-    function CAMBState_TimeOfz(this, z, tol)
-    class(CAMBstate) :: this
-    real(dl) CAMBState_TimeOfz
+    function CAMBdata_TimeOfz(this, z, tol)
+    class(CAMBdata) :: this
+    real(dl) CAMBdata_TimeOfz
     real(dl), intent(in), optional :: tol
     real(dl), intent(IN) :: z
 
-    CAMBState_TimeOfz= this%DeltaTime(0._dl,1._dl/(z+1._dl), tol)
-    end function CAMBState_TimeOfz
+    CAMBdata_TimeOfz= this%DeltaTime(0._dl,1._dl/(z+1._dl), tol)
+    end function CAMBdata_TimeOfz
 
-    subroutine CAMBState_TimeOfzArr(this, arr,  z, n, tol)
+    subroutine CAMBdata_TimeOfzArr(this, arr,  z, n, tol)
     !z array must be monotonically *decreasing* so times increasing
-    class(CAMBstate) :: this
+    class(CAMBdata) :: this
     integer, intent(in) :: n
     real(dl), intent(out) :: arr(n)
     real(dl), intent(in) :: z(n)
@@ -1109,7 +599,7 @@
             elseif (z(i) < z(i-1) + 1e-6_dl) then
                 arr(i)=0
             else
-                error stop 'CAMBState_TimeOfzArr redshifts must be decreasing'
+                error stop 'CAMBdata_TimeOfzArr redshifts must be decreasing'
             end if
         end if
     end do
@@ -1118,33 +608,32 @@
         arr(i) = arr(i)  + arr(i-1)
     end do
 
-    end subroutine CAMBState_TimeOfzArr
+    end subroutine CAMBdata_TimeOfzArr
 
-    function CAMBState_DeltaPhysicalTimeGyr(this, a1,a2, in_tol)
+    function CAMBdata_DeltaPhysicalTimeGyr(this, a1,a2, in_tol)
     use constants
-    class(CAMBstate) :: this
+    class(CAMBdata) :: this
     real(dl), intent(in) :: a1, a2
     real(dl), optional, intent(in) :: in_tol
-    real(dl) CAMBState_DeltaPhysicalTimeGyr, atol
+    real(dl) CAMBdata_DeltaPhysicalTimeGyr, atol
 
-    call SetActiveState(this)
-    atol = PresentDefault(1d-4/exp(CP%Accuracy%AccuracyBoost-1), in_tol)
-    CAMBState_DeltaPhysicalTimeGyr = rombint(dtda,a1,a2,atol)*Mpc/c/Gyr
-    end function CAMBState_DeltaPhysicalTimeGyr
+    atol = PresentDefault(1d-4/exp(this%CP%Accuracy%AccuracyBoost-1), in_tol)
+    CAMBdata_DeltaPhysicalTimeGyr = Integrate_Romberg(this, dtda,a1,a2,atol)*Mpc/c/Gyr
+    end function CAMBdata_DeltaPhysicalTimeGyr
 
-    function CAMBState_AngularDiameterDistance(this,z)
-    class(CAMBstate) :: this
+    function CAMBdata_AngularDiameterDistance(this,z)
+    class(CAMBdata) :: this
     !This is the physical (non-comoving) angular diameter distance in Mpc
-    real(dl) CAMBState_AngularDiameterDistance
+    real(dl) CAMBdata_AngularDiameterDistance
     real(dl), intent(in) :: z
 
-    CAMBState_AngularDiameterDistance = this%curvature_radius/(1+z)* &
+    CAMBdata_AngularDiameterDistance = this%curvature_radius/(1+z)* &
         this%rofchi(this%ComovingRadialDistance(z) /this%curvature_radius)
 
-    end function CAMBState_AngularDiameterDistance
+    end function CAMBdata_AngularDiameterDistance
 
-    subroutine CAMBState_AngularDiameterDistanceArr(this, arr, z, n)
-    class(CAMBstate) :: this
+    subroutine CAMBdata_AngularDiameterDistanceArr(this, arr, z, n)
+    class(CAMBdata) :: this
     !This is the physical (non-comoving) angular diameter distance in Mpc for array of z
     !z array must be monotonically increasing
     integer,intent(in) :: n
@@ -1161,42 +650,42 @@
         end do
     end if
 
-    end subroutine CAMBState_AngularDiameterDistanceArr
+    end subroutine CAMBdata_AngularDiameterDistanceArr
 
 
-    function CAMBState_AngularDiameterDistance2(this,z1, z2) ! z1 < z2
+    function CAMBdata_AngularDiameterDistance2(this,z1, z2) ! z1 < z2
     !From http://www.slac.stanford.edu/~amantz/work/fgas14/#cosmomc
-    class(CAMBstate) :: this
-    real(dl) CAMBState_AngularDiameterDistance2
+    class(CAMBdata) :: this
+    real(dl) CAMBdata_AngularDiameterDistance2
     real(dl), intent(in) :: z1, z2
 
-    CAMBState_AngularDiameterDistance2 = this%curvature_radius/(1+z2)* &
+    CAMBdata_AngularDiameterDistance2 = this%curvature_radius/(1+z2)* &
         this%rofchi(this%ComovingRadialDistance(z2)/this%curvature_radius &
         - this%ComovingRadialDistance(z1)/this%curvature_radius)
 
-    end function CAMBState_AngularDiameterDistance2
+    end function CAMBdata_AngularDiameterDistance2
 
-    function CAMBstate_LuminosityDistance(this,z)
-    class(CAMBstate) :: this
-    real(dl) CAMBstate_LuminosityDistance
+    function CAMBdata_LuminosityDistance(this,z)
+    class(CAMBdata) :: this
+    real(dl) CAMBdata_LuminosityDistance
     real(dl), intent(in) :: z
 
-    CAMBstate_LuminosityDistance = this%AngularDiameterDistance(z)*(1+z)**2
+    CAMBdata_LuminosityDistance = this%AngularDiameterDistance(z)*(1+z)**2
 
-    end function CAMBstate_LuminosityDistance
+    end function CAMBdata_LuminosityDistance
 
-    function CAMBState_ComovingRadialDistance(this, z)
-    class(CAMBstate) :: this
-    real(dl) CAMBState_ComovingRadialDistance
+    function CAMBdata_ComovingRadialDistance(this, z)
+    class(CAMBdata) :: this
+    real(dl) CAMBdata_ComovingRadialDistance
     real(dl), intent(in) :: z
 
-    CAMBState_ComovingRadialDistance = this%DeltaTime(1/(1+z),1._dl)
+    CAMBdata_ComovingRadialDistance = this%DeltaTime(1/(1+z),1._dl)
 
-    end function CAMBState_ComovingRadialDistance
+    end function CAMBdata_ComovingRadialDistance
 
-    subroutine CAMBState_ComovingRadialDistanceArr(this, arr, z, n, tol)
+    subroutine CAMBdata_ComovingRadialDistanceArr(this, arr, z, n, tol)
     !z array must be monotonically increasing
-    class(CAMBstate) :: this
+    class(CAMBdata) :: this
     integer, intent(in) :: n
     real(dl), intent(out) :: arr(n)
     real(dl), intent(in) :: z(n)
@@ -1221,50 +710,47 @@
         arr(i) = arr(i)  + arr(i-1)
     end do
 
-    end subroutine CAMBState_ComovingRadialDistanceArr
+    end subroutine CAMBdata_ComovingRadialDistanceArr
 
-    function CAMBState_Hofz(this,z)
+    function CAMBdata_Hofz(this,z)
     !non-comoving Hubble in MPC units, divide by MPC_in_sec to get in SI units
     !multiply by c/1e3 to get in km/s/Mpc units
-    class(CAMBstate) :: this
-    real(dl) CAMBState_Hofz, a
+    class(CAMBdata) :: this
+    real(dl) CAMBdata_Hofz, a
     real(dl), intent(in) :: z
 
-    call SetActiveState(this)
     a = 1/(1+z)
-    CAMBState_Hofz = 1/(a**2*dtauda(a))
+    CAMBdata_Hofz = 1/(a**2*dtauda(this,a))
 
-    end function CAMBState_Hofz
+    end function CAMBdata_Hofz
 
-    subroutine CAMBstate_HofzArr(this, arr, z, n)
+    subroutine CAMBdata_HofzArr(this, arr, z, n)
     !non-comoving Hubble in MPC units, divide by MPC_in_sec to get in SI units
     !multiply by c/1e3 to get in km/s/Mpc units
-    class(CAMBstate) :: this
+    class(CAMBdata) :: this
     integer,intent(in) :: n
     real(dl), intent(out) :: arr(n)
     real(dl), intent(in) :: z(n)
     integer i
     real(dl) :: a
 
-    call SetActiveState(this)
     do i=1, n
         a = 1/(1+z(i))
-        arr(i) = 1/(a**2*dtauda(a))
+        arr(i) = 1/(a**2*dtauda(this,a))
     end do
 
-    end subroutine CAMBstate_HofzArr
+    end subroutine CAMBdata_HofzArr
 
-    real(dl) function CAMBState_sound_horizon(this, z)
-    class(CAMBstate) :: this
+    real(dl) function CAMBdata_sound_horizon(this, z)
+    class(CAMBdata) :: this
     real(dl), intent(in) :: z
-    
-     call SetActiveState(this)
-    CAMBState_sound_horizon = rombint(dsound_da_exact,1d-9,1/(z+1),1e-6_dl)
-    
-    end function CAMBState_sound_horizon
-    
-    subroutine CAMBState_sound_horizon_zArr(this,arr, z,n)
-    class(CAMBstate) :: this
+
+    CAMBdata_sound_horizon = Integrate_Romberg(this,dsound_da_exact,1d-9,1/(z+1),1e-6_dl)
+
+    end function CAMBdata_sound_horizon
+
+    subroutine CAMBdata_sound_horizon_zArr(this,arr, z,n)
+    class(CAMBdata) :: this
     integer,intent(in) :: n
     real(dl), intent(out) :: arr(n)
     real(dl), intent(in) :: z(n)
@@ -1275,10 +761,10 @@
         arr(i) = this%sound_horizon(z(i))
     end do
 
-    end subroutine CAMBState_sound_horizon_zArr
+    end subroutine CAMBdata_sound_horizon_zArr
 
-    subroutine CAMBState_RedshiftAtTimeArr(this, arr, tau, n)
-    class(CAMBstate) :: this
+    subroutine CAMBdata_RedshiftAtTimeArr(this, arr, tau, n)
+    class(CAMBdata) :: this
     integer,intent(in) :: n
     real(dl), intent(out) :: arr(n)
     real(dl), intent(in) :: tau(n)
@@ -1289,15 +775,15 @@
     !$OMP PARALLEL DO DEFAULT(SHARED), private(om, i)
     do i=1, n
         if (tau(i) < this%ThermoData%tauminn*1.1) then
-            om = (State%grhob+State%grhoc)/&
-                sqrt(3*(State%grhog+sum(State%grhormass(1:CP%Nu_mass_eigenstates))+State%grhornomass))
+            om = (this%grhob+this%grhoc)/&
+                sqrt(3*(this%grhog+sum(this%grhormass(1:this%CP%Nu_mass_eigenstates))+this%grhornomass))
             arr(i) = 1/(this%adotrad*tau(i)*(1+om*tau(i)/4))-1
         else
             arr(i) = 1/this%ThermoData%ScaleFactorAtTime%Value(tau(i))-1
         end if
     end do
 
-    end subroutine CAMBState_RedshiftAtTimeArr
+    end subroutine CAMBdata_RedshiftAtTimeArr
 
     real(dl) function BAO_D_v_from_DA_H(z, DA, Hz)
     real(dl), intent(in) :: z, DA, Hz
@@ -1308,51 +794,32 @@
 
     end function BAO_D_v_from_DA_H
 
-    real(dl) function CAMBState_BAO_D_v(this,z)
-    class(CAMBstate) :: this
+    real(dl) function CAMBdata_BAO_D_v(this,z)
+    class(CAMBdata) :: this
     real(dl), intent(IN) :: z
 
-    CAMBState_BAO_D_v = BAO_D_v_from_DA_H(z,this%AngularDiameterDistance(z), this%Hofz(z))
+    CAMBdata_BAO_D_v = BAO_D_v_from_DA_H(z,this%AngularDiameterDistance(z), this%Hofz(z))
 
-    end function CAMBState_BAO_D_v
+    end function CAMBdata_BAO_D_v
 
-    function dsound_da_exact(a)
-    implicit none
-    real(dl) dsound_da_exact,a,R,cs
+    function CAMBdata_get_zstar(this)
+    class(CAMBdata) :: this
+    real(dl) CAMBdata_get_zstar
 
-    R = 3*state%grhob*a / (4*state%grhog)
-    cs=1.0d0/sqrt(3*(1+R))
-    dsound_da_exact=dtauda(a)*cs
+    call this%CP%Recomb%Init(this)
 
-    end function dsound_da_exact
+    CAMBdata_get_zstar=this%binary_search(noreion_optdepth, 1.d0, 700.d0, 2000.d0, 1d-3)
 
-    function dsound_da_approx(a)
-    !approximate form used e.g. by CosmoMC for theta
-    implicit none
-    real(dl) dsound_da_approx,a,R,cs
+    end function CAMBdata_get_zstar
 
-    R=3.0d4*a*CP%ombh2
-    !          R = 3*grhob*a / (4*grhog) //above is mostly within 0.2% and used for previous consistency
-    cs=1.0d0/sqrt(3*(1+R))
-    dsound_da_approx=dtauda(a)*cs
-
-    end function dsound_da_approx
-
-    function dtda(a)
-    real(dl) dtda,a
-
-    dtda= dtauda(a)*a
-    end function
-
-    function CAMBState_CosmomcTheta(this)
-    class(CAMBstate) :: this
+    function CAMBdata_CosmomcTheta(this)
+    class(CAMBdata) :: this
     real(dl) zstar, astar, atol, rs, DA
-    real(dl) CAMBState_CosmomcTheta
+    real(dl) CAMBdata_CosmomcTheta
     real(dl) ombh2, omdmh2
 
-    call SetActiveState(this)
-    ombh2 = CP%ombh2
-    omdmh2 = (CP%omch2+CP%omnuh2)
+    ombh2 = this%CP%ombh2
+    omdmh2 = (this%CP%omch2+this%CP%omnuh2)
 
     !!From Hu & Sugiyama
     zstar =  1048*(1+0.00124*ombh2**(-0.738))*(1+ &
@@ -1361,17 +828,17 @@
 
     astar = 1/(1+zstar)
     atol = 1e-6
-    rs = rombint(dsound_da_approx,1d-8,astar,atol)
+    rs = Integrate_Romberg(this,dsound_da_approx,1d-8,astar,atol)
     DA = this%AngularDiameterDistance(zstar)/astar
-    CAMBState_CosmomcTheta = rs/DA
+    CAMBdata_CosmomcTheta = rs/DA
     !       print *,'z* = ',zstar, 'r_s = ',rs, 'DA = ',DA, rs/DA
 
-    end function CAMBState_CosmomcTheta
+    end function CAMBdata_CosmomcTheta
 
 
-    subroutine CAMBstate_GetBackgroundDensities(this, n, a_arr, densities)
+    subroutine CAMBdata_GetBackgroundDensities(this, n, a_arr, densities)
     ! return array of 8*pi*G*rho*a**4 for each species
-    class(CAMBstate) :: this
+    class(CAMBdata) :: this
     integer, intent(in) :: n
     real(dl), intent(in) :: a_arr(n)
     real(dl) :: grhov_t, rhonu, grhonu, a
@@ -1401,13 +868,12 @@
         densities(1,i) = sum(densities(2:8,i))
     end do
 
-    end subroutine CAMBstate_GetBackgroundDensities
+    end subroutine CAMBdata_GetBackgroundDensities
 
-    integer function CAMBstate_get_lmax_lensed(this)
-    class(CAMBstate) :: this
-    CAMBstate_get_lmax_lensed = this%CLdata%lmax_lensed
-    end function CAMBstate_get_lmax_lensed
-
+    integer function CAMBdata_get_lmax_lensed(this)
+    class(CAMBdata) :: this
+    CAMBdata_get_lmax_lensed = this%CLdata%lmax_lensed
+    end function CAMBdata_get_lmax_lensed
 
 
     !JD 08/13 New function for nonlinear lensing of CMB + MPK compatibility
@@ -1420,7 +886,7 @@
     !from the fact that z=0 is in both arrays (when non-linear is on)
     subroutine GetComputedPKRedshifts(this, Params,eta_k_max)
     use MpiUtils, only : MpiStop
-    class(CAMBstate) :: this
+    class(CAMBdata) :: this
     Type(CAMBParams) :: Params
     integer i, iPK, iNLL
     real(dl), parameter :: tol = 1.d-5
@@ -1497,8 +963,8 @@
 
     end subroutine GetComputedPKRedshifts
 
-    subroutine CAMBState_DarkEnergyStressEnergy(this, a, grhov_t, w, n)
-    class(CAMBState) :: this
+    subroutine CAMBdata_DarkEnergyStressEnergy(this, a, grhov_t, w, n)
+    class(CAMBdata) :: this
     integer, intent(in) :: n
     real(dl), intent(in) :: a(n)
     real(dl), intent(out) :: grhov_t(n), w(n)
@@ -1509,10 +975,204 @@
     end do
     grhov_t = grhov_t/a**2
 
-    end subroutine CAMBState_DarkEnergyStressEnergy
+    end subroutine CAMBdata_DarkEnergyStressEnergy
+
+    function rofChi(this,Chi) !sinh(chi) for open, sin(chi) for closed.
+    class(CAMBdata) :: this
+    real(dl) Chi,rofChi
+
+    if (this%flat) then
+        rofChi=chi
+    else if (this%closed) then
+        rofChi=sin(chi)
+    else
+        rofChi=sinh(chi)
+    endif
+    end function rofChi
+
+
+    function cosfunc (this,Chi)
+    class(CAMBdata) :: this
+    real(dl) Chi,cosfunc
+
+    if (this%flat) then
+        cosfunc = 1._dl
+    else if (this%closed) then
+        cosfunc= cos(chi)
+    else
+        cosfunc=cosh(chi)
+    endif
+    end function cosfunc
+
+    function tanfunc(this,Chi)
+    class(CAMBdata) :: this
+    real(dl) Chi,tanfunc
+    if (this%flat) then
+        tanfunc=Chi
+    else if (this%closed) then
+        tanfunc=tan(Chi)
+    else
+        tanfunc=tanh(Chi)
+    end if
+
+    end function tanfunc
+
+    function invsinfunc(this,x)
+    class(CAMBdata) :: this
+    real(dl) invsinfunc,x
+
+    if (this%flat) then
+        invsinfunc = x
+    else if (this%closed) then
+        invsinfunc=asin(x)
+    else
+        invsinfunc=log((x+sqrt(1._dl+x**2)))
+    endif
+    end function invsinfunc
+
+    function dsound_da_exact(this,a)
+    class(CAMBdata) :: this
+    real(dl) dsound_da_exact,a,R,cs
+
+    R = 3*this%grhob*a / (4*this%grhog)
+    cs=1.0d0/sqrt(3*(1+R))
+    dsound_da_exact=dtauda(this,a)*cs
+
+    end function dsound_da_exact
+
+    function dsound_da_approx(this,a)
+    !approximate form used e.g. by CosmoMC for theta
+    class(CAMBdata) :: this
+    real(dl) dsound_da_approx,a,R,cs
+
+    R=3.0d4*a*this%CP%ombh2
+    !          R = 3*grhob*a / (4*grhog) //above is mostly within 0.2% and used for previous consistency
+    cs=1.0d0/sqrt(3*(1+R))
+    dsound_da_approx=dtauda(this,a)*cs
+
+    end function dsound_da_approx
+
+    function dtda(this,a)
+    class(CAMBdata) :: this
+    real(dl) dtda,a
+
+    dtda= dtauda(this,a)*a
+    end function
+
+    function ddamping_da(this, a)
+    class(CAMBdata) :: this
+    real(dl) :: ddamping_da
+    real(dl), intent(in) :: a
+    real(dl) :: R
+
+    R=this%ThermoData%r_drag0*a
+    !ignoring reionisation, not relevant for distance measures
+    ddamping_da = (R**2 + 16*(1+R)/15)/(1+R)**2*dtauda(this,a)*a**2/(this%CP%Recomb%x_e(a)*this%akthom)
+
+    end function ddamping_da
+
+    function noreion_doptdepth_dz(this,z)
+    class(CAMBdata) :: this
+    real(dl) :: noreion_doptdepth_dz
+    real(dl), intent(in) :: z
+    real(dl) :: a
+
+    a = 1._dl/(1._dl+z)
+
+    !ignoring reionisation, not relevant for distance measures
+    noreion_doptdepth_dz = this%CP%Recomb%x_e(a)*this%akthom*dtauda(this,a)
+
+    end function noreion_doptdepth_dz
+
+    function noreion_optdepth(this,z)
+    class(CAMBdata) :: this
+    real(dl) noreion_optdepth
+    real(dl),intent(in) :: z
+
+    noreion_optdepth = Integrate_Romberg(this, noreion_doptdepth_dz, 0.d0, z, 1d-5, 20, 100)
+
+    end function noreion_optdepth
+
+    function ddragoptdepth_dz(this,z)
+    class(CAMBdata) :: this
+    real(dl) :: ddragoptdepth_dz
+    real(dl), intent(in) :: z
+    real(dl) :: a
+
+    a = 1._dl/(1._dl+z)
+    ddragoptdepth_dz = noreion_doptdepth_dz(this,z)/this%ThermoData%r_drag0/a
+
+    end function ddragoptdepth_dz
+
+    function dragoptdepth(this,z)
+    class(CAMBdata) :: this
+    real(dl) dragoptdepth
+    real(dl),intent(in) :: z
+
+    dragoptdepth =  Integrate_Romberg(this,ddragoptdepth_dz, 0.d0, z, 1d-5, 20, 100)
+
+    end function dragoptdepth
+
+    function reion_doptdepth_dz(this,z)
+    class(CAMBdata) :: this
+    real(dl) :: reion_doptdepth_dz
+    real(dl), intent(in) :: z
+
+    reion_doptdepth_dz = this%CP%Reion%x_e(z)*this%akthom*dtauda(this,1._dl/(1._dl+z))
+
+    end function reion_doptdepth_dz
+
+    function GetReionizationOptDepth(this)
+    class(CAMBdata) :: this
+    real(dl) GetReionizationOptDepth
+    integer n
+    real(dl) zstart, zend
+
+    call this%CP%Reion%get_timesteps(n, zstart, zend)
+    GetReionizationOptDepth = Integrate_Romberg(this, reion_doptdepth_dz,0.d0,zstart,&
+        1d-5/this%CP%Accuracy%AccuracyBoost)
+
+    end function GetReionizationOptDepth
+
+    real(dl) function binary_search(this,func, goal, x1, x2, tol)
+    !This is about twice as inefficient as Brent
+    class(CAMBdata) :: this
+    procedure(state_function) :: func
+    real(dl), intent(in) :: goal,x1,x2,tol
+    real(dl) try_t, try_b, avg, D_try, last_bot, last_top, diff
+    integer count
+
+    try_b = x1
+    try_t = x2
+    diff = tol*2
+    count = 0
+    do while (diff > tol)
+        if (count>100) then
+            call GlobalError('optical depth redshift finder did not converge',error_reionization)
+            binary_search = 0
+            return
+        end if
+        avg = (try_b+try_t)/2
+        D_try = func(this,avg)
+        count = count+1
+        if (D_try < goal) then
+            try_b = avg
+            last_bot = D_try
+        else
+            try_t = avg
+            last_top = D_try
+        end if
+        diff = abs(D_try - goal)
+    end do
+    if (try_b==x1) last_bot = func(this,x1)
+    if (try_t==x2) last_top = func(this,x2)
+    binary_search =  (try_t*(goal-last_bot) + try_b*(last_top-goal))/(last_top-last_bot)
+
+    end function binary_search
 
     !Sources
-    function WindowKmaxForL(W,ell) result(res)
+    function WindowKmaxForL(W,CP, ell) result(res)
+    class(CAMBparams), intent(in) :: CP
     Type(TRedWin), intent(in) :: W
     real(dl) res
     integer, intent(in)::  ell
@@ -1544,17 +1204,18 @@
 
     end function  lSamples_indexOf
 
-    subroutine lSamples_init(this, State, max_l)
+    subroutine lSamples_init(this, State, lmin, max_l)
     ! This subroutines initializes lSet%l arrays. Other values will be interpolated.
     class(lSamples) :: this
-    class(CAMBstate), target :: State
-    integer, intent(IN) :: max_l
+    class(CAMBdata), target :: State
+    integer, intent(IN) :: lmin,max_l
     integer lind, lvar, step, top, bot
     integer, allocatable :: ls(:)
     real(dl) AScale
 
     allocate(ls(max_l))
     if (allocated(this%l)) deallocate(this%l)
+    this%lmin = lmin
     associate(Accuracy => State%CP%Accuracy)
         Ascale=State%scale/Accuracy%lSampleBoost
 
@@ -1566,7 +1227,8 @@
                 ls(lind)=lvar
             end do
             this%nl=lind
-            allocate(this%l, source = ls(1:lind))
+            allocate(this%l(lind))
+            this%l = ls(1:lind)
             return
         end if
 
@@ -1614,7 +1276,6 @@
             ls(lind)=lvar
         end do
 
-        !Sources
         if (State%CP%Log_lvalues) then
             !Useful for generating smooth things like 21cm to high l
             step=max(nint(20*Ascale),4)
@@ -1710,7 +1371,7 @@
     subroutine InterpolateClArr(lSet,iCl, all_Cl, max_index)
     class(lSamples), intent(in) :: lSet
     real(dl), intent(in) :: iCl(*)
-    real(dl), intent(out):: all_Cl(lmin:*)
+    real(dl), intent(out):: all_Cl(lSet%lmin:*)
     integer, intent(in), optional :: max_index
     integer il,llo,lhi, xi
     real(dl) ddCl(lSet%nl)
@@ -1727,7 +1388,7 @@
     call spline(xl,iCL(1),max_ind,cllo,clhi,ddCl(1))
 
     llo=1
-    do il=lmin,lSet%l(max_ind)
+    do il=lSet%lmin,lSet%l(max_ind)
         xi=il
         if ((xi > lSet%l(llo+1)).and.(llo < max_ind)) then
             llo=llo+1
@@ -1746,7 +1407,7 @@
     subroutine InterpolateClArrTemplated(lSet,iCl, all_Cl, max_ind, template_index)
     class(lSamples), intent(in) :: lSet
     real(dl), intent(in) :: iCl(*)
-    real(dl), intent(out):: all_Cl(lmin:*)
+    real(dl), intent(out):: all_Cl(lSet%lmin:*)
     integer, intent(in) :: max_ind
     integer, intent(in), optional :: template_index
     integer maxdelta, il
@@ -1766,13 +1427,13 @@
 
             call lSet%InterpolateClArr(DeltaCl, all_Cl, maxdelta)
 
-            do il=lmin,lSet%l(maxdelta)
+            do il=lSet%lmin,lSet%l(maxdelta)
                 all_Cl(il) = all_Cl(il) +  highL_CL_template(il,template_index)
             end do
 
             if (maxdelta < max_ind) then
                 !directly interpolate high L where no t  emplate (doesn't effect lensing spectrum much anyway)
-                allocate(tmpall(lmin:lSet%l(max_ind)))
+                allocate(tmpall(lSet%lmin:lSet%l(max_ind)))
                 call InterpolateClArr(lSet,iCl, tmpall, max_ind)
                 !overlap to reduce interpolation artefacts
                 all_cl(lSet%l(maxdelta-2):lSet%l(max_ind) ) = tmpall(lSet%l(maxdelta-2):lSet%l(max_ind))
@@ -1787,12 +1448,13 @@
     end subroutine InterpolateClArrTemplated
 
 
-    subroutine Thermo_values(this,tau, cs2b, opacity, dopacity)
+    subroutine Thermo_values(this,tau, a, cs2b, opacity, dopacity)
     !Compute unperturbed sound speed squared,
     !and ionization fraction by interpolating pre-computed tables.
     !If requested also get time derivative of opacity
     class(TThermoData) :: this
-    real(dl) :: tau, cs2b, opacity
+    real(dl), intent(in) :: tau
+    real(dl), intent(out) :: a, cs2b, opacity
     real(dl), intent(out), optional :: dopacity
     integer i
     real(dl) d
@@ -1802,40 +1464,25 @@
     d=d-i
     if (i < 1) then
         !Linear interpolation if out of bounds (should not occur).
-        cs2b=this%cs2(1)+(d+i-1)*this%dcs2(1)
-        opacity=this%dotmu(1)+(d-1)*this%ddotmu(1)
         write(*,*) 'tau, taumin = ', tau, this%tauminn
         call MpiStop('thermo out of bounds')
     else if (i >= this%nthermo) then
-        cs2b=this%cs2(this%nthermo)+(d+i-this%nthermo)*this%dcs2(this%nthermo)
-        opacity=this%dotmu(this%nthermo)+(d-this%nthermo)*this%ddotmu(this%nthermo)
+        cs2b=this%cs2(this%nthermo)
+        opacity=this%dotmu(this%nthermo)
+        a=1
         if (present(dopacity)) then
-            dopacity = 0
-            call MpiStop('thermo: shouldn''t happen')
+            dopacity = this%ddotmu(this%nthermo)/(tau*this%dlntau)
         end if
     else
-        !test
-        !    cs2b=this%thermo_table(1,i)+d*(this%thermo_table(2,i)+d*(3*(this%thermo_table(1,i+1)-this%thermo_table(1,i))  &
-        !        -2*this%thermo_table(2,i)-this%thermo_table(2,i+1)+d*(this%thermo_table(2,i)+this%thermo_table(2,i+1)  &
-        !        +2*(this%thermo_table(1,i)-this%thermo_table(1,i+1)))))
-        !    opacity=this%thermo_table(3,i)+d*(this%thermo_table(4,i)+d*(3*(this%thermo_table(3,i+1)-this%thermo_table(3,i))  &
-        !        -2*this%thermo_table(4,i)-this%thermo_table(4,i+1)+d*(this%thermo_table(4,i)+this%thermo_table(4,i+1)  &
-        !        +2*(this%thermo_table(3,i)-this%thermo_table(3,i+1)))))
-        !    if (present(dopacity)) then
-        !        dopacity=this%thermo_table(4,i)+d*(this%thermo_table(5,i)+d*(3*(this%thermo_table(4,i+1)-this%thermo_table(4,i))  &
-        !            -2*this%thermo_table(5,i)-this%thermo_table(5,i+1)+d*(this%thermo_table(5,i)+this%thermo_table(4,i+1)  &
-        !            +2*(this%thermo_table(4,i)-this%thermo_table(4,i+1)))))
-        !
-        !    end if
-        !else
-        !Cubic spline interpolation.
         cs2b=this%cs2(i)+d*(this%dcs2(i)+d*(3*(this%cs2(i+1)-this%cs2(i))  &
             -2*this%dcs2(i)-this%dcs2(i+1)+d*(this%dcs2(i)+this%dcs2(i+1)  &
             +2*(this%cs2(i)-this%cs2(i+1)))))
         opacity=this%dotmu(i)+d*(this%ddotmu(i)+d*(3*(this%dotmu(i+1)-this%dotmu(i)) &
             -2*this%ddotmu(i)-this%ddotmu(i+1)+d*(this%ddotmu(i)+this%ddotmu(i+1) &
             +2*(this%dotmu(i)-this%dotmu(i+1)))))
-
+        a = (this%ScaleFactor(i)+d*(this%dScaleFactor(i)+d*(3*(this%ScaleFactor(i+1)-this%ScaleFactor(i)) &
+            -2*this%dScaleFactor(i)-this%dScaleFactor(i+1)+d*(this%dScaleFactor(i)+this%dScaleFactor(i+1) &
+            +2*(this%ScaleFactor(i)-this%ScaleFactor(i+1))))))*tau
         if (present(dopacity)) then
             dopacity=(this%ddotmu(i)+d*(this%dddotmu(i)+d*(3*(this%ddotmu(i+1)  &
                 -this%ddotmu(i))-2*this%dddotmu(i)-this%dddotmu(i+1)+d*(this%dddotmu(i) &
@@ -1843,6 +1490,38 @@
         end if
     end if
     end subroutine Thermo_values
+
+    subroutine Thermo_expansion_values(this, tau, a, adot, opacity)
+    class(TThermoData) :: this
+    real(dl), intent(in) :: tau
+    real(dl), intent(out) :: a, adot, opacity
+    integer i
+    real(dl) d
+
+    d=log(tau/this%tauminn)/this%dlntau+1._dl
+    i=int(d)
+    d=d-i
+    if (i < 1) then
+        call MpiStop('thermo out of bounds')
+    else if (i >= this%nthermo) then
+        opacity=this%dotmu(this%nthermo)
+        a=1
+        adot=this%adot(this%nthermo)
+    else
+        a = (this%ScaleFactor(i)+d*(this%dScaleFactor(i)+d*(3*(this%ScaleFactor(i+1)-this%ScaleFactor(i)) &
+            -2*this%dScaleFactor(i)-this%dScaleFactor(i+1)+d*(this%dScaleFactor(i)+this%dScaleFactor(i+1) &
+            +2*(this%ScaleFactor(i)-this%ScaleFactor(i+1))))))*tau
+
+        adot = (this%adot(i)+d*(this%dadot(i)+d*(3*(this%adot(i+1)-this%adot(i)) &
+            -2*this%dadot(i)-this%dadot(i+1)+d*(this%dadot(i)+this%dadot(i+1) &
+            +2*(this%adot(i)-this%adot(i+1))))))
+
+        opacity=this%dotmu(i)+d*(this%ddotmu(i)+d*(3*(this%dotmu(i+1)-this%dotmu(i)) &
+            -2*this%ddotmu(i)-this%ddotmu(i+1)+d*(this%ddotmu(i)+this%ddotmu(i+1) &
+            +2*(this%dotmu(i)-this%dotmu(i+1)))))
+    end if
+
+    end subroutine Thermo_expansion_values
 
     function Thermo_OpacityToTime(this,opacity)
     class(TThermoData) :: this
@@ -1860,13 +1539,14 @@
 
     end function Thermo_OpacityToTime
 
-    subroutine Thermo_Init(this,taumin)
+    subroutine Thermo_Init(this, State,taumin)
     !  Compute and save unperturbed baryon temperature and ionization fraction
     !  as a function of time.  With nthermo=10000, xe(tau) has a relative
     ! accuracy (numerical integration precision) better than 1.e-5.
     use constants
     use StringUtils
     class(TThermoData) :: this
+    class(CAMBdata), target :: State
     real(dl), intent(in) :: taumin
     integer nthermo
     real(dl) tau01,a0,barssc,dtau
@@ -1878,20 +1558,25 @@
     real(dl) last_dotmu, om
     real(dl) a_verydom
     real(dl) awin_lens1p,awin_lens2p,dwing_lens, rs, DA
-    real(dl) z_eq, a_eq, rs_eq, tau_eq, rstar
+    real(dl) a_eq, rs_eq, tau_eq, rstar
     integer noutput
     Type(CalWins), dimension(:), allocatable, target :: RW
     real(dl) awin_lens1(State%num_redshiftwindows),awin_lens2(State%num_redshiftwindows)
     real(dl) Tspin, Trad, rho_fac, window, tau_eps
-    integer transfer_ix(CP%Transfer%PK_num_redshifts)
+    integer transfer_ix(State%CP%Transfer%PK_num_redshifts)
     integer RW_i, j2
     real(dl) Tb21cm, winamp, z, background_boost
     character(len=:), allocatable :: outstr
-    real(dl), allocatable ::  ScaleFactor(:), Hubble(:), taus(:), xe_a(:), sdotmu(:), opts(:)
+    real(dl), allocatable ::  taus(:)
+    real(dl), allocatable :: xe_a(:), sdotmu(:), opts(:)
     real(dl), allocatable :: scale_factors(:), times(:), dt(:)
     Type(TCubicSpline) :: dotmuSp
     integer ninverse, nlin
     real(dl) dlna, zstar_min, zstar_max
+    real(dl) reion_z_start, reion_z_complete
+    Type(CAMBParams), pointer :: CP
+
+    CP => State%CP
 
     !Allocate memory outside parallel region to keep ifort happy
     background_boost = CP%Accuracy%BackgroundTimeStepBoost*CP%Accuracy%AccuracyBoost
@@ -1916,17 +1601,19 @@
         end associate
     end do
     this%nthermo = nthermo
-    allocate(scaleFactor(nthermo), spline_data(nthermo), sdotmu(nthermo))
+    allocate(spline_data(nthermo), sdotmu(nthermo))
 
     if (allocated(this%tb) .and. this%nthermo/=size(this%tb)) then
-        deallocate(this%tb, this%cs2, this%xe, this%emmu)
-        deallocate(this%dcs2, this%dotmu, this%ddotmu)
+        deallocate(this%scaleFactor, this%cs2, this%dcs2, this%ddotmu)
+        deallocate(this%dscaleFactor, this%adot, this%dadot)
+        deallocate(this%tb, this%xe, this%emmu, this%dotmu)
         deallocate(this%demmu, this%dddotmu, this%ddddotmu)
         if (dowinlens .and. allocated(this%winlens)) deallocate(this%winlens, this%dwinlens)
     endif
     if (.not. allocated(this%tb)) then
-        allocate(this%tb(nthermo), this%cs2(nthermo), this%xe(nthermo), this%emmu(nthermo))
-        allocate(this%dcs2(nthermo), this%dotmu(nthermo), this%ddotmu(nthermo))
+        allocate(this%scaleFactor(nthermo), this%cs2(nthermo), this%dcs2(nthermo), this%ddotmu(nthermo))
+        allocate(this%dscaleFactor(nthermo), this%adot(nthermo), this%dadot(nthermo))
+        allocate(this%tb(nthermo), this%xe(nthermo), this%emmu(nthermo),this%dotmu(nthermo))
         allocate(this%demmu(nthermo), this%dddotmu(nthermo), this%ddddotmu(nthermo))
         if (dowinlens) allocate(this%winlens(nthermo), this%dwinlens(nthermo))
     end if
@@ -1958,16 +1645,15 @@
     allocate(scale_factors(ninverse+nlin))
     allocate(times(ninverse+nlin))
     allocate(dt(ninverse+nlin))
-    allocate(Hubble(nthermo), taus(nthermo), xe_a(nthermo))
+    allocate(taus(nthermo), xe_a(nthermo))
 
     !$OMP PARALLEL SECTIONS DEFAULT(SHARED)
     !$OMP SECTION
-    call State%Recombination%Init(CP%Recomb, CP%omch2, CP%ombh2, CP%Omk, &
-        CP%h0,CP%tcmb,CP%yhe,WantTSpin=CP%Do21cm)    !almost all the time spent here
+    call CP%Recomb%Init(State,WantTSpin=CP%Do21cm)    !almost all the time spent here
 
-    if (CP%Evolve_delta_xe) this%recombination_saha_tau  = State%TimeOfZ(State%Recombination%recombination_saha_z, tol=1e-4_dl)
+    if (CP%Evolve_delta_xe) this%recombination_saha_tau  = State%TimeOfZ(CP%Recomb%get_saha_z(), tol=1e-4_dl)
     if (CP%Evolve_baryon_cs .or. CP%Evolve_delta_xe .or. CP%Evolve_delta_Ts .or. CP%Do21cm) &
-        this%recombination_Tgas_tau = State%TimeOfz(1/Do21cm_mina-1, tol=1e-4_dl)
+        this%recombination_Tgas_tau = State%TimeOfz(1/CP%Recomb%min_a_evolve_Tm-1, tol=1e-4_dl)
 
     !$OMP SECTION
     !Do other stuff while recombination calculating
@@ -1987,7 +1673,16 @@
 
     this%matter_verydom_tau = 0
     a_verydom = CP%Accuracy%AccuracyBoost*5*(State%grhog+State%grhornomass)/(State%grhoc+State%grhob)
-
+    if (CP%Reion%Reionization) then
+        call CP%Reion%get_timesteps(State%reion_n_steps, reion_z_start, reion_z_complete)
+        State%reion_tau_start = max(0.05_dl, State%TimeOfZ(reion_z_start, 1d-3))
+        !Time when a very small reionization fraction (assuming tanh fitting)
+        State%reion_tau_complete = min(State%tau0, &
+            State%reion_tau_start+ State%DeltaTime(1/(1+reion_z_start),1/(1.d0+reion_z_complete),1d-3))
+    else
+        State%reion_tau_start = State%tau0
+        State%reion_tau_complete = State%tau0
+    end  if
     !  Initial conditions: assume radiation-dominated universe.
     !  Assume that any entropy generation occurs before tauminn.
     !  This gives wrong temperature before pair annihilation, but
@@ -2007,7 +1702,7 @@
     scale_factors(ninverse+nlin-1) = 0.9_dl + 0.1_dl*scale_factors(ninverse+nlin-2)
     scale_factors(ninverse+nlin) = 1
     do i=1, ninverse+nlin
-        dt(i) =  dtauda(scale_factors(i))
+        dt(i) = dtauda(State,scale_factors(i))
     end do
     call this%ScaleFactorAtTime%Init(scale_factors, dt)
     call this%ScaleFactorATTime%IntegralArray(times(2), first_index=2)
@@ -2020,9 +1715,10 @@
         taus(i) = this%tauminn*exp((i-1)*this%dlntau)
     end do
     taus(nthermo) = State%tau0
-    call this%ScaleFactorAtTime%Array(taus(2:), scaleFactor(2:))
-    scaleFactor(1) = a0
-    scaleFactor(nthermo) = 1
+    call this%ScaleFactorAtTime%Array(taus(2:), this%scaleFactor(2:))
+    this%scaleFactor(1) = a0
+    this%scaleFactor(nthermo) = 1
+    this%adot(1) = 1/dtauda(State,a0)
 
     tau01=this%tauminn
     do i=2,nthermo
@@ -2030,9 +1726,9 @@
         !Now at the log spaced time steps
         tau=taus(i)
         dtau = tau-tau01
-        a = scaleFactor(i)
-        adot = 1/dtauda(a)
-        Hubble(i) = adot
+        a = this%scaleFactor(i)
+        adot = 1/dtauda(State,a)
+        this%adot(i) = adot
         if (this%matter_verydom_tau ==0 .and. a > a_verydom) then
             this%matter_verydom_tau = tau
         end if
@@ -2095,10 +1791,9 @@
     end do
     !$OMP END PARALLEL SECTIONS
 
-
     if (global_error_flag/=0) return
 
-    call State%Recombination%xe_tm(a0,this%xe(1), this%tb(1))
+    call CP%Recomb%xe_tm(a0,this%xe(1), this%tb(1))
     barssc=barssc0*(1._dl-0.75d0*CP%yhe+(1._dl-CP%yhe)*this%xe(1))
     this%cs2(1)=4._dl/3._dl*barssc*this%tb(1)
     this%dotmu(1)=this%xe(1)*State%akthom/a0**2
@@ -2106,19 +1801,19 @@
 
     !$OMP PARALLEL DO DEFAULT(SHARED), SCHEDULE(STATIC,16)
     do i=2,nthermo
-        call State%Recombination%xe_tm(scaleFactor(i), xe_a(i), this%tb(i))
+        call CP%Recomb%xe_tm(this%scaleFactor(i), xe_a(i), this%tb(i))
     end do
 
     do i=2,nthermo
         tau =taus(i)
-        a = scaleFactor(i)
+        a = this%scaleFactor(i)
         a2=a*a
-        adot=Hubble(i)
+        adot=this%adot(i)
 
         if (State%num_redshiftwindows>0) then
             if (a > 1d-4) then
                 if (CP%Do21cm ) then
-                    Tspin = State%Recombination%T_s(a)
+                    Tspin = CP%Recomb%T_s(a)
                     Trad = CP%TCMB/a
                     rho_fac = line21_const*State%NNow/a**3
                     tau_eps = a*line21_const*State%NNow/a**3/(adot/a)/Tspin/1000
@@ -2133,11 +1828,11 @@
 
         ! If there is re-ionization, smoothly increase xe to the
         ! requested value.
-        if (CP%Reion%Reionization .and. tau > State%ReionHist%tau_start) then
+        if (CP%Reion%Reionization .and. tau > State%reion_tau_start) then
             if(ncount == 0) then
                 ncount=i-1
             end if
-            this%xe(i) = State%ReionHist%x_e(a, tau, this%xe(ncount))
+            this%xe(i) = CP%Reion%x_e(1/a-1, tau, this%xe(ncount))
             if (CP%Accuracy%AccurateReionization .and. CP%WantDerivedParameters) then
                 this%dotmu(i)=(xe_a(i) - this%xe(i))*State%akthom/a2
 
@@ -2194,8 +1889,8 @@
         do j1=nint(log(100/this%tauminn)/this%dlntau),nthermo
             if (-sdotmu(j1) - this%actual_opt_depth < 1) then
                 !Bracket z_star
-                zstar_min = 1/scaleFactor(j1+1)-1
-                zstar_max = 1/scaleFactor(j1-2)-1
+                zstar_min = 1/this%scaleFactor(j1+1)-1
+                zstar_max = 1/this%scaleFactor(j1-2)-1
                 exit
             end if
         end do
@@ -2281,7 +1976,7 @@
         if (do_bispectrum .and. hard_bispectrum) State%dtaurec = State%dtaurec / 4
     end if
 
-    if (CP%Reion%Reionization) State%taurend=min(State%taurend,State%ReionHist%tau_start)
+    if (CP%Reion%Reionization) State%taurend=min(State%taurend,State%reion_tau_start)
 
     if (DebugMsgs) then
         write (*,*) 'taurst, taurend = ', State%taurst, State%taurend
@@ -2293,14 +1988,17 @@
     call splder(this%ddotmu,this%dddotmu,nthermo,spline_data)
     call splder(this%dddotmu,this%ddddotmu,nthermo,spline_data)
     if (CP%want_zstar .or. CP%WantDerivedParameters) &
-        this%z_star = binary_search(optdepth, 1.d0, zstar_min, zstar_max, 1d-3/background_boost)
+        this%z_star = State%binary_search(noreion_optdepth, 1.d0, zstar_min, zstar_max, 1d-3/background_boost)
     !$OMP SECTION
     call splder(this%cs2,this%dcs2,nthermo,spline_data)
     call splder(this%emmu,this%demmu,nthermo,spline_data)
+    call splder(this%adot,this%dadot,nthermo,spline_data)
     if (dowinlens) call splder(this%winlens,this%dwinlens,nthermo,spline_data)
     if (CP%want_zdrag .or. CP%WantDerivedParameters) this%z_drag = &
-        binary_search(dragoptdepth, 1.d0, 700.d0, zstar_max, 2d-3/background_boost)
+        State%binary_search(dragoptdepth, 1.d0, 700.d0, zstar_max, 2d-3/background_boost)
     !$OMP SECTION
+    this%ScaleFactor(:) = this%scaleFactor/taus !a/tau
+    this%dScaleFactor(:) = (this%adot - this%ScaleFactor)*this%dlntau !derivative of a/tau
     if (State%num_redshiftwindows >0) then
         call splder(this%redshift_time,this%dredshift_time,nthermo,spline_data)
         call splder(this%arhos_fac,this%darhos_fac,nthermo,spline_data)
@@ -2311,24 +2009,16 @@
             end if
         end do
     end if
-    call this%SetTimeSteps(State%TimeSteps)
+    call this%SetTimeSteps(State,State%TimeSteps)
     !$OMP END PARALLEL SECTIONS
-
-    !if (allocated(this%thermo_table)) deallocate(this%thermo_table)
-    !allocate(this%thermo_table(5,nthermo))
-    !this%thermo_table(1,:) = this%cs2
-    !this%thermo_table(2,:) = this%dcs2
-    !this%thermo_table(3,:) = this%dotmu
-    !this%thermo_table(4,:) = this%ddotmu
-    !this%thermo_table(5,:) = this%dddotmu
 
     if (State%num_redshiftwindows>0) then
         !$OMP PARALLEL DO DEFAULT(SHARED),SCHEDULE(STATIC)
         do j2=1,State%TimeSteps%npoints
-            call this%DoWindowSpline(j2,State%TimeSteps%points(j2), RW)
+            call this%DoWindowSpline(State,j2,State%TimeSteps%points(j2), RW)
         end do
         !$OMP END PARALLEL DO
-        call this%SetTimeStepWindows(State%TimeSteps)
+        call this%SetTimeStepWindows(State,State%TimeSteps)
     end if
 
     if (CP%WantDerivedParameters) then
@@ -2343,14 +2033,14 @@
             !$OMP SECTION
             rs =State%sound_horizon(this%z_drag)
             ThermoDerivedParams( derived_rdrag ) = rs
-            ThermoDerivedParams( derived_kD ) =  sqrt(1.d0/(rombint(ddamping_da, 1d-8, 1/(this%z_star+1), 1d-6)/6))
+            ThermoDerivedParams( derived_kD ) =  &
+                sqrt(1.d0/(Integrate_Romberg(State,ddamping_da, 1d-8, 1/(this%z_star+1), 1d-6)/6))
             !$OMP SECTION
-            z_eq = (State%grhob+State%grhoc)/(State%grhog+State%grhornomass+sum(State%grhormass(1:CP%Nu_mass_eigenstates))) -1
-            ThermoDerivedParams( derived_zEQ ) = z_eq
-            a_eq = 1/(1+z_eq)
-            ThermoDerivedParams( derived_kEQ ) = 1/(a_eq*dtauda(a_eq))
-            rs_eq = State%sound_horizon(z_eq)
-            tau_eq = State%timeOfz(z_eq)
+            ThermoDerivedParams( derived_zEQ ) = State%z_eq
+            a_eq = 1/(1+State%z_eq)
+            ThermoDerivedParams( derived_kEQ ) = 1/(a_eq*dtauda(State,a_eq))
+            rs_eq = State%sound_horizon(State%z_eq)
+            tau_eq = State%timeOfz(State%z_eq)
             !$OMP SECTION
             !$OMP END PARALLEL SECTIONS
 
@@ -2416,9 +2106,9 @@
     if (CP%Do21cm .and. CP%transfer_21cm_cl) then
         do RW_i=1,CP%Transfer%PK_num_redshifts
             a=1._dl/(1+CP%Transfer%PK_redshifts(RW_i))
-            Tspin = State%Recombination%T_s(a)
+            Tspin = CP%Recomb%T_s(a)
             Trad = CP%TCMB/a
-            adot = 1/dtauda(a)
+            adot = 1/dtauda(State,a)
             tau_eps = a**2*line21_const*State%NNow/a**3/adot/Tspin/1000
             Tb21cm = 1000*(1-exp(-tau_eps))*a*(Tspin-Trad)
             if (FeedbackLevel>0) then
@@ -2433,23 +2123,24 @@
     end subroutine Thermo_Init
 
 
-    subroutine SetTimeSteps(this,TimeSteps)
+    subroutine SetTimeSteps(this,State,TimeSteps)
     !Set time steps to use for sampling the source functions for the CMB power spectra
     class(TThermoData) :: this
     Type(TRanges) :: TimeSteps
+    class(CAMBdata) State
     real(dl) dtau0
     integer nri0, nstep
     !Sources
     integer ix,i,nwindow, L_limb
     real(dl) keff, win_end, TimeSampleBoost
 
-    TimeSampleBoost = CP%Accuracy%AccuracyBoost*CP%Accuracy%TimeStepBoost
+    TimeSampleBoost = State%CP%Accuracy%AccuracyBoost*State%CP%Accuracy%TimeStepBoost
     call TimeSteps%Init()
 
     call TimeSteps%Add_delta(State%taurst, State%taurend, State%dtaurec)
 
     ! Calculating the timesteps after recombination
-    if (CP%WantTensors) then
+    if (State%CP%WantTensors) then
         dtau0=max(State%taurst/40,State%tau0/2000._dl/TimeSampleBoost)
     else
         dtau0=State%tau0/500._dl/TimeSampleBoost
@@ -2465,7 +2156,7 @@
 
     this%tau_start_redshiftwindows = State%tau0
     this%tau_end_redshiftwindows = 0
-    if (CP%WantScalars .or. CP%SourceTerms%line_reionization) then
+    if (State%CP%WantScalars .or. State%CP%SourceTerms%line_reionization) then
         do ix=1, State%num_redshiftwindows
             associate (Win => State%Redshift_W(ix))
 
@@ -2482,11 +2173,11 @@
                     win_end = State%tau0
                 end if
 
-                if (Win%kind == window_21cm .and. (CP%SourceTerms%line_phot_dipole .or. &
-                    CP%SourceTerms%line_phot_quadrupole)) nwindow = nwindow *3
+                if (Win%kind == window_21cm .and. (State%CP%SourceTerms%line_phot_dipole .or. &
+                    State%CP%SourceTerms%line_phot_quadrupole)) nwindow = nwindow *3
 
-                L_limb = Win_limber_ell(Win,CP%max_l)
-                keff = WindowKmaxForL(Win,L_limb)
+                L_limb = Win_limber_ell(Win,State%CP,State%CP%max_l)
+                keff = WindowKmaxForL(Win,State%CP,L_limb)
 
                 !Keep sampling in x better than Nyquist
                 nwindow = max(nwindow, nint(TimeSampleBoost *(win_end- Win%tau_start)* keff/3))
@@ -2502,21 +2193,21 @@
                 end if
                 !Make sure line of sight integral OK too
                 ! if (dtau0 > Win%tau_end/300/TimeSampleBoost) then
-                !  call Ranges_Add_delta(TimeSteps, Win%tau_end, CP%tau0,  Win%tau_start/300/AccuracyBoost)
+                !  call Ranges_Add_delta(TimeSteps, Win%tau_end, State%CP%tau0,  Win%tau_start/300/AccuracyBoost)
                 ! end if
             end associate
         end do
     end if
 
 
-    if (CP%Reion%Reionization) then
-        nri0=int(State%ReionHist%timesteps()*CP%Accuracy%AccuracyBoost)
+    if (State%CP%Reion%Reionization) then
+        nri0=int(State%reion_n_steps*State%CP%Accuracy%AccuracyBoost)
         !Steps while reionization going from zero to maximum
-        call TimeSteps%Add(State%ReionHist%tau_start,State%ReionHist%tau_complete,nri0)
+        call TimeSteps%Add(State%reion_tau_start,State%reion_tau_complete,nri0)
     end if
 
     !Sources
-    if (.not. CP%Want_CMB .and. CP%WantCls) then
+    if (.not. State%CP%Want_CMB .and. State%CP%WantCls) then
         if (State%num_redshiftwindows==0) call MpiStop('Want_CMB=false, but not redshift windows either')
         call TimeSteps%Add_delta(this%tau_start_redshiftwindows, State%tau0, dtau0)
     end if
@@ -2545,10 +2236,10 @@
 
     end subroutine SetTimeSteps
 
-    subroutine SetTimeStepWindows(this,TimeSteps)
-    use Recombination
+    subroutine SetTimeStepWindows(this,State,TimeSteps)
     use constants
     class(TThermoData) :: this
+    class(CAMBdata) :: State
     Type(TRanges) :: TimeSteps
     integer i, j, jstart, ix
     real(dl) tau,  a, a2
@@ -2600,12 +2291,12 @@
         z = this%step_redshift(j)
         a = 1._dl/(1._dl+z)
         a2=a**2
-        adot=1._dl/dtauda(a)
+        adot=1._dl/dtauda(State,a)
 
 
-        if (CP%Do21cm) then
-            Tspin = State%Recombination%T_s(a)
-            Trad = CP%TCMB/a
+        if (State%CP%Do21cm) then
+            Tspin = State%CP%Recomb%T_s(a)
+            Trad = State%CP%TCMB/a
             rho_fac = line21_const*State%NNow/a**3 !neglect ionization fraction
             tau_eps = a*rho_fac/(adot/a)/Tspin/1000
             exp_fac =  (1-exp(-tau_eps))/tau_eps
@@ -2636,7 +2327,7 @@
 
                     !Window for tau_s for the self-absoption term
                     RedWin%wingtau(j) =  RedWin%wing(j)*(1 - exp(-tau_eps)/exp_fac)
-                elseif ( RedWin%kind == window_counts) then
+                elseif (RedWin%kind == window_counts) then
 
                     !window is n(a) where n is TOTAL not fractional number
                     !delta = int wing(eta) delta(eta) deta
@@ -2653,7 +2344,7 @@
                         int_tmp(j,i)=0
                     end if
 
-                    if (CP%SourceTerms%counts_evolve) then
+                    if (State%CP%SourceTerms%counts_evolve) then
                         back_count_tmp(j,i) =  RedWin%Window%counts_background_z(1/a-1)/a
                         if (tau < State%tau0 -0.1) then
                             RedWin%comoving_density_ev(j) = back_count_tmp(j,i)*(adot/a)/(State%tau0 - tau)**2
@@ -2691,7 +2382,7 @@
             if (RedWin%kind == window_21cm) then
                 call spline_integrate(TimeSteps%points(jstart),RedWin%Wing2(jstart),&
                     RedWin%ddWing2(jstart), tmp(jstart),ninterp)
-                RedWin%optical_depth_21 = tmp(TimeSteps%npoints) / (CP%TCMB*1000)
+                RedWin%optical_depth_21 = tmp(TimeSteps%npoints) / (State%CP%TCMB*1000)
                 !WinF not used.. replaced below
 
                 call spline(TimeSteps%points(jstart),RedWin%Wingtau(jstart),ninterp,spl_large,spl_large,RedWin%ddWingtau(jstart))
@@ -2699,7 +2390,7 @@
                     RedWin%dWingtau(jstart), ninterp)
             elseif (RedWin%kind == window_counts) then
 
-                if (CP%SourceTerms%counts_evolve) then
+                if (State%CP%SourceTerms%counts_evolve) then
                     call spline(TimeSteps%points(jstart),back_count_tmp(jstart,i),ninterp,spl_large,spl_large,tmp)
                     call spline_deriv(TimeSteps%points(jstart),back_count_tmp(jstart,i),tmp,tmp2(jstart),ninterp)
                     do ix = jstart, TimeSteps%npoints
@@ -2784,8 +2475,9 @@
     end if
     end subroutine interp_window
 
-    subroutine DoWindowSpline(this,j2,tau, RW)
+    subroutine DoWindowSpline(this,State,j2,tau, RW)
     class(TThermoData) :: this
+    class(CAMBdata) :: State
     integer j2, i, RW_i
     real(dl) d, tau
     Type(CalWins) :: RW(:)
@@ -2834,26 +2526,21 @@
 
     end subroutine DoWindowSpline
 
-    subroutine IonizationFunctionsAtTime(this,tau, opac, dopac, ddopac, &
+    subroutine IonizationFunctionsAtTime(this,tau, a, opac, dopac, ddopac, &
         vis, dvis, ddvis, expmmu, lenswin)
     class(TThermoData) :: this
     real(dl), intent(in) :: tau
-    real(dl), intent(out):: opac, dopac, ddopac, vis, dvis, ddvis, expmmu, lenswin
-    real(dl) d
+    real(dl), intent(out):: a, opac, dopac, ddopac, vis, dvis, ddvis, expmmu, lenswin
+    real(dl) d, cs2
     integer i
+
+    call this%Values(tau,a,cs2,opac,dopac)
 
     d=log(tau/this%tauminn)/this%dlntau+1._dl
     i=int(d)
     d=d-i
 
     if (i < this%nthermo) then
-        opac=this%dotmu(i)+d*(this%ddotmu(i)+d*(3._dl*(this%dotmu(i+1)-this%dotmu(i)) &
-            -2._dl*this%ddotmu(i)-this%ddotmu(i+1)+d*(this%ddotmu(i)+this%ddotmu(i+1) &
-            +2._dl*(this%dotmu(i)-this%dotmu(i+1)))))
-        dopac=(this%ddotmu(i)+d*(this%dddotmu(i)+d*(3._dl*(this%ddotmu(i+1)  &
-            -this%ddotmu(i))-2._dl*this%dddotmu(i)-this%dddotmu(i+1)+d*(this%dddotmu(i) &
-            +this%dddotmu(i+1)+2._dl*(this%ddotmu(i)-this%ddotmu(i+1))))))/(tau &
-            *this%dlntau)
         ddopac=(this%dddotmu(i)+d*(this%ddddotmu(i)+d*(3._dl*(this%dddotmu(i+1) &
             -this%dddotmu(i))-2._dl*this%ddddotmu(i)-this%ddddotmu(i+1)  &
             +d*(this%ddddotmu(i)+this%ddddotmu(i+1)+2._dl*(this%dddotmu(i) &
@@ -2872,8 +2559,6 @@
         dvis=expmmu*(opac**2+dopac)
         ddvis=expmmu*(opac**3+3*opac*dopac+ddopac)
     else
-        opac=this%dotmu(this%nthermo)
-        dopac=this%ddotmu(this%nthermo)
         ddopac=this%dddotmu(this%nthermo)
         expmmu=this%emmu(this%nthermo)
         vis=opac*expmmu
@@ -2882,110 +2567,6 @@
     end if
 
     end subroutine IonizationFunctionsAtTime
-
-    function ddamping_da(a)
-    real(dl) :: ddamping_da
-    real(dl), intent(in) :: a
-    real(dl) :: R
-
-    R=State%ThermoData%r_drag0*a
-    !ignoring reionisation, not relevant for distance measures
-    ddamping_da = (R**2 + 16*(1+R)/15)/(1+R)**2*dtauda(a)*a**2/(State%Recombination%x_e(a)*State%akthom)
-
-    end function ddamping_da
-
-
-    !!!!!!!!!!!!!!!!!!!
-    !JH: functions and subroutines for calculating z_star and z_drag
-
-    function doptdepth_dz(z)
-    real(dl) :: doptdepth_dz
-    real(dl), intent(in) :: z
-    real(dl) :: a
-
-    a = 1._dl/(1._dl+z)
-
-    !ignoring reionisation, not relevant for distance measures
-    doptdepth_dz = State%Recombination%x_e(a)*State%akthom*dtauda(a)
-
-    end function doptdepth_dz
-
-
-    function optdepth(z)
-    real(dl) optdepth
-    real(dl),intent(in) :: z
-
-    optdepth = rombint2(doptdepth_dz, 0.d0, z, 1d-5, 20, 100)
-
-    end function optdepth
-
-
-    function ddragoptdepth_dz(z)
-    real(dl) :: ddragoptdepth_dz
-    real(dl), intent(in) :: z
-    real(dl) :: a
-
-    a = 1._dl/(1._dl+z)
-    ddragoptdepth_dz = doptdepth_dz(z)/State%ThermoData%r_drag0/a
-
-    end function ddragoptdepth_dz
-
-
-    function dragoptdepth(z)
-    real(dl) dragoptdepth
-    real(dl),intent(in) :: z
-
-    dragoptdepth =  rombint2(ddragoptdepth_dz, 0.d0, z, 1d-5, 20, 100)
-
-    end function dragoptdepth
-
-
-    real(dl) function binary_search(func, goal, x1, x2, tol)
-    !This is about twice as inefficient as Brent
-    real(dl), external :: func
-    real(dl), intent(in) :: goal,x1,x2,tol
-    real(dl) try_t, try_b, avg, D_try, last_bot, last_top, diff
-    integer count
-
-    try_b = x1
-    try_t = x2
-    diff = tol*2
-    count = 0
-    do while (diff > tol)
-        if (count>100) then
-            call GlobalError('optical depth redshift finder did not converge',error_reionization)
-            binary_search = 0
-            return
-        end if
-        avg = (try_b+try_t)/2
-        D_try = func(avg)
-        count = count+1
-        if (D_try < goal) then
-            try_b = avg
-            last_bot = D_try
-        else
-            try_t = avg
-            last_top = D_try
-        end if
-        diff = abs(D_try - goal)
-    end do
-    if (try_b==x1) last_bot = func(x1)
-    if (try_t==x2) last_top = func(x2)
-    binary_search =  (try_t*(goal-last_bot) + try_b*(last_top-goal))/(last_top-last_bot)
-
-    end function binary_search
-
-    function CAMBState_get_zstar(State)
-    class(CAMBstate) :: State
-    real(dl) CAMBState_get_zstar
-
-    call SetActiveState(State)
-    call State%Recombination%Init(State%CP%Recomb, State%CP%omch2, State%CP%ombh2, State%CP%Omk, &
-        State%CP%h0,State%CP%tcmb,State%CP%yhe)
-
-    CAMBState_get_zstar=binary_search(optdepth, 1.d0, 700.d0, 2000.d0, 1d-3)
-
-    end function CAMBState_get_zstar
 
     subroutine Init_ClTransfer(CTrans)
     !Need to set the Ranges array q before calling this
@@ -3002,13 +2583,14 @@
 
     end subroutine Init_ClTransfer
 
-    subroutine Init_Limber(CTrans)
+    subroutine Init_Limber(CTrans,State)
     Type(ClTransferData) :: CTrans
+    class(CAMBdata) :: State
 
     call Free_Limber(Ctrans)
     allocate(CTrans%Limber_l_min(CTrans%NumSources))
     CTrans%Limber_l_min = 0
-    if (State%num_redshiftwindows>0 .or. CP%SourceTerms%limber_phi_lmin>0) then
+    if (State%num_redshiftwindows>0 .or. State%CP%SourceTerms%limber_phi_lmin>0) then
         allocate(CTrans%Limber_windows(CTrans%NumSources,CTrans%ls%nl))
     end if
 
@@ -3047,8 +2629,9 @@
     end subroutine Free_Limber
 
 
-    function Win_Limber_ell(W,lmax) result(ell_limb)
+    function Win_Limber_ell(W,CP,lmax) result(ell_limb)
     Type(TRedWin) :: W
+    Type(CAMBParams) :: CP
     integer, intent(in) :: lmax
     integer ell_limb
 
@@ -3072,9 +2655,9 @@
     type(TTextFile) :: infile
 
     if (.not. allocated(highL_CL_template)) then
-        allocate(highL_CL_template(lmin:lmax_extrap_highl, C_Temp:C_Phi))
+        allocate(highL_CL_template(1:lmax_extrap_highl, C_Temp:C_Phi))
         call infile%Open(highL_unlensed_cl_template)
-        if (lmin==1) highL_CL_template(lmin,:)=0
+        highL_CL_template(1,:)=0
         do
             read(infile%unit, *, end=500) L, array
             if (L>lmax_extrap_highl) exit
@@ -3091,31 +2674,35 @@
     end subroutine CheckLoadedHighLTemplate
 
 
-    subroutine TCLdata_InitCls(this, CP)
+    subroutine TCLdata_InitCls(this, State)
     class(TCLData) :: this
-    class(CAMBParams) :: CP
+    class(CAMBdata) :: State
 
-    call CheckLoadedHighLTemplate
-    if (CP%WantScalars) then
-        if (allocated(this%Cl_scalar)) deallocate(this%Cl_scalar)
-        allocate(this%Cl_scalar(lmin:CP%Max_l, C_Temp:C_last), source=0._dl)
-        if (CP%want_cl_2D_array) then
-            if (allocated(this%Cl_scalar_array)) deallocate(this%Cl_scalar_array)
-            allocate(this%Cl_scalar_Array(lmin:CP%Max_l,  &
-                3+State%num_redshiftwindows+num_custom_sources,3+State%num_redshiftwindows+num_custom_sources))
-            this%Cl_scalar_array = 0
+    associate(CP=>State%CP)
+        call CheckLoadedHighLTemplate
+        if (CP%WantScalars) then
+            if (allocated(this%Cl_scalar)) deallocate(this%Cl_scalar)
+            allocate(this%Cl_scalar(CP%Min_l:CP%Max_l, C_Temp:C_last), source=0._dl)
+            if (CP%want_cl_2D_array) then
+                if (allocated(this%Cl_scalar_array)) deallocate(this%Cl_scalar_array)
+                allocate(this%Cl_scalar_Array(CP%Min_l:CP%Max_l,  &
+                    3+State%num_redshiftwindows+CP%CustomSources%num_custom_sources, &
+                    3+State%num_redshiftwindows+CP%CustomSources%num_custom_sources))
+                this%Cl_scalar_array = 0
+            end if
         end if
-    end if
 
-    if (CP%WantVectors) then
-        if (allocated(this%Cl_vector)) deallocate(this%Cl_vector)
-        allocate(this%Cl_vector(lmin:CP%Max_l, CT_Temp:CT_Cross), source=0._dl)
-    end if
+        if (CP%WantVectors) then
+            if (allocated(this%Cl_vector)) deallocate(this%Cl_vector)
+            allocate(this%Cl_vector(CP%Min_l:CP%Max_l, CT_Temp:CT_Cross), source=0._dl)
+        end if
 
-    if (CP%WantTensors) then
-        if (allocated(this%Cl_tensor)) deallocate(this%Cl_tensor)
-        allocate(this%Cl_tensor(lmin:CP%Max_l_tensor, CT_Temp:CT_Cross), source=0._dl)
-    end if
+        if (CP%WantTensors) then
+            if (allocated(this%Cl_tensor)) deallocate(this%Cl_tensor)
+            allocate(this%Cl_tensor(CP%Max_l_tensor, CT_Temp:CT_Cross), source=0._dl)
+        end if
+    end associate
+
     end subroutine TCLdata_InitCls
 
     function open_file_header(filename, Col1, Columns, n) result(unit)
@@ -3148,14 +2735,20 @@
 
     end function scalar_fieldname
 
-    subroutine TCLdata_output_cl_files(this,ScalFile,ScalCovFile,TensFile, TotFile, LensFile, LensTotFile, factor)
+    subroutine TCLdata_output_cl_files(this, State, ScalFile,ScalCovFile,TensFile, TotFile, LensFile, LensTotFile, factor)
     class(TCLData) :: this
+    class(CAMBdata), target :: State
     character(LEN=*) ScalFile, TensFile, TotFile, LensFile, LensTotFile,ScalCovfile
     real(dl), intent(in), optional :: factor
     real(dl) :: fact
     integer :: last_C, il, i, j, unit
     real(dl), allocatable :: outarr(:,:)
     character(LEN=name_tag_len) :: cov_names((3+State%num_redshiftwindows)**2)
+    Type(CAMBParams), pointer :: CP
+    integer lmin
+
+    CP=> State%CP
+    lmin= CP%Min_l
 
     fact = PresentDefault(1._dl, factor)
 
@@ -3240,10 +2833,11 @@
     end if
     end subroutine TCLdata_output_cl_files
 
-    subroutine TCLdata_output_lens_pot_files(this,LensPotFile, factor)
+    subroutine TCLdata_output_lens_pot_files(this,CP, LensPotFile, factor)
     !Write out L TT EE BB TE PP PT PE where P is the lensing potential, all unlensed
     !This input supported by LensPix from 2010
     class(TCLdata) :: this
+    Type(CAMBParams), intent(in) :: CP
     integer :: il, unit
     real(dl), intent(in), optional :: factor
     real(dl) fact, scale, BB, TT, TE, EE
@@ -3258,7 +2852,7 @@
 
     if (CP%WantScalars .and. CP%DoLensing .and. LensPotFile/='') then
         unit = open_file_header(LensPotFile, 'L', lens_pot_name_tags)
-        do il=lmin, min(10000,CP%Max_l)
+        do il=CP%Min_l, min(10000,CP%Max_l)
             TT = this%Cl_scalar(il, C_Temp)
             EE = this%Cl_scalar(il, C_E)
             TE = this%Cl_scalar(il, C_Cross)
@@ -3286,9 +2880,10 @@
     end subroutine TCLdata_output_lens_pot_files
 
 
-    subroutine TCLdata_output_veccl_files(this,VecFile, factor)
+    subroutine TCLdata_output_veccl_files(this, CP,VecFile, factor)
     class(TCLData) :: this
     integer :: il, unit
+    Type(CAMBParams), intent(in) :: CP
     character(LEN=*), intent(in) :: VecFile
     real(dl), intent(in), optional :: factor
     real(dl) :: fact
@@ -3297,7 +2892,7 @@
 
     if (CP%WantVectors .and. VecFile /= '') then
         unit = open_file_header(VecFile, 'L', CT_name_tags)
-        do il=lmin,CP%Max_l
+        do il=CP%Min_l,CP%Max_l
             write(unit,'(1I6,4E15.6)')il, fact*this%Cl_vector(il, CT_Temp:CT_Cross)
         end do
         close(unit)
@@ -3305,34 +2900,32 @@
 
     end subroutine TCLdata_output_veccl_files
 
-    subroutine TCLdata_NormalizeClsAtL(this,lnorm)
+    subroutine TCLdata_NormalizeClsAtL(this,CP,lnorm)
     class(TCLData) :: this
+    Type(CAMBParams), intent(in) :: CP
     integer, intent(IN) :: lnorm
     real(dl) Norm
 
     if (CP%WantScalars) then
         Norm=1/this%Cl_scalar(lnorm, C_Temp)
-        this%Cl_scalar(lmin:CP%Max_l,  C_Temp:C_Cross) = this%Cl_scalar(lmin:CP%Max_l, C_Temp:C_Cross) * Norm
+        this%Cl_scalar(CP%Min_l:CP%Max_l,  C_Temp:C_Cross) = this%Cl_scalar(CP%Min_l:CP%Max_l, C_Temp:C_Cross) * Norm
     end if
 
     if (CP%WantTensors) then
         if (.not.CP%WantScalars) Norm = 1/this%Cl_tensor(lnorm, C_Temp)
         !Otherwise Norm already set correctly
-        this%Cl_tensor(lmin:CP%Max_l_tensor, CT_Temp:CT_Cross) =  &
-            this%Cl_tensor(lmin:CP%Max_l_tensor,  CT_Temp:CT_Cross) * Norm
+        this%Cl_tensor(CP%Min_l:CP%Max_l_tensor, CT_Temp:CT_Cross) =  &
+            this%Cl_tensor(CP%Min_l:CP%Max_l_tensor,  CT_Temp:CT_Cross) * Norm
     end if
 
     end subroutine TCLdata_NormalizeClsAtL
 
-
-    end module CambSettings
-
+    end module results
 
 
     module Transfer
     !Module for matter transfer function/matter power spectrum
-    use CAMBsettings
-    use Errors
+    use results
     implicit none
     public
     integer, parameter :: Transfer_kh =1, Transfer_cdm=2,Transfer_b=3,Transfer_g=4, &
@@ -3373,14 +2966,12 @@
     module procedure Transfer_GetMatterPowerD,Transfer_GetMatterPowerS
     end interface
 
-    real(dl), private, external :: rombint_obj
-
     contains
 
     subroutine Transfer_GetUnsplinedPower(State, M, PK,var1,var2, hubble_units)
     !Get 2pi^2/k^3 T_1 T_2 P_R(k)
     Type(MatterTransferData) :: M
-    Type(CAMBstate) :: State
+    Type(CAMBdata) :: State
     real(dl), intent(inout):: PK(:,:)
     integer, optional, intent(in) :: var1
     integer, optional, intent(in) :: var2
@@ -3394,10 +2985,10 @@
     hnorm = DefaultTrue (hubble_units)
 
     nk=M%num_q_trans
-    nz=CP%Transfer%PK_num_redshifts
+    nz=State%CP%Transfer%PK_num_redshifts
     if (nk/= size(PK,1) .or. nz/=size(PK,2)) call MpiStop('Trasfer_GetUnsplinedPower wrong size')
 
-    h = CP%H0/100
+    h = State%CP%H0/100
 
     do ik=1,nk
         k = M%TransferData(Transfer_kh,ik,1)*h
@@ -3415,7 +3006,7 @@
     subroutine Transfer_GetUnsplinedNonlinearPower(State,M, PK,var1,var2, hubble_units)
     !Get 2pi^2/k^3 T_1 T_2 P_R(k) after re-scaling for non-linear evolution (if turned on)
     Type(MatterTransferData), intent(in) :: M
-    Type(CambState) :: State
+    Type(CAMBdata) :: State
     real(dl), intent(inout):: PK(:,:)
     integer, optional, intent(in) :: var1
     integer, optional, intent(in) :: var2
@@ -3440,7 +3031,7 @@
     !Here there definition is < Delta^2(x) > = 1/(2 pi)^3 int d^3k P_k(k)
     !We are assuming that Cls are generated so any baryonic wiggles are well sampled and that matter power
     !spectrum is generated to beyond the CMB k_max
-    class(CAMBstate) :: State
+    class(CAMBdata) :: State
     Type(MatterTransferData), intent(in) :: MTrans
     Type(MatterPowerData) :: PK_data
     integer, intent(in), optional :: itf_only
@@ -3562,17 +3153,6 @@
     end do
 
     end subroutine MatterPowerdata_getsplines21cm
-
-
-    subroutine MatterPowerdata_MakeNonlinear(NonLinearModel,PK_data)
-    class(TNonLinearModel) :: NonLinearModel
-    Type(MatterPowerData) :: PK_data
-
-    call NonLinearModel%GetNonLinRatios(State, PK_data)
-    PK_data%matpower = PK_data%matpower +  2*log(PK_data%nonlin_ratio)
-    call MatterPowerdata_getsplines(PK_data)
-
-    end subroutine MatterPowerdata_MakeNonlinear
 
     subroutine MatterPowerdata_Free(PK_data)
     Type(MatterPowerData) :: PK_data
@@ -3700,7 +3280,7 @@
 
 
     subroutine Transfer_GetMatterPowerS(State, MTrans, outpower, itf, minkh, dlnkh, npoints, var1, var2)
-    class(CAMBState) :: state
+    class(CAMBdata) :: state
     Type(MatterTransferData), intent(in) :: MTrans
     integer, intent(in) :: itf, npoints
     integer, intent(in), optional :: var1, var2
@@ -3729,7 +3309,7 @@
     !Here there definition is < Delta^2(x) > = 1/(2 pi)^3 int d^3k P_k(k)
     !We are assuming that Cls are generated so any baryonic wiggles are well sampled and that matter power
     !sepctrum is generated to beyond the CMB k_max
-    class(CAMBState) :: state
+    class(CAMBdata) :: state
     Type(MatterTransferData), intent(in) :: MTrans
     Type(MatterPowerData) :: PK
 
@@ -3826,7 +3406,7 @@
     !Calculate MTrans%sigma_8^2 = int dk/k win**2 T_k**2 P(k), where win is the FT of a spherical top hat
     !of radius R h^{-1} Mpc, for all requested redshifts
     !set va1, var2 e.g. to get the value from some combination of transfer functions rather than total
-    class(CAMBState) :: State
+    class(CAMBdata) :: State
     Type(MatterTransferData) :: MTrans
     real(dl), intent(in) :: R
     integer, intent(in), optional :: var1, var2
@@ -3882,7 +3462,7 @@
 
     subroutine Transfer_GetSigmaRArray(State, MTrans, R, sigmaR, redshift_ix, var1, var2)
     !Get array of SigmaR at (by default) redshift zero, for all values of R
-    class(CAMBState) :: State
+    class(CAMBdata) :: State
     Type(MatterTransferData) :: MTrans
     real(dl), intent(in) :: R(:)
     real(dl), intent(out) :: SigmaR(:)
@@ -3942,7 +3522,7 @@
     !Calculate MTrans%sigma_8^2 = int dk/k win**2 T_k**2 P(k), where win is the FT of a spherical top hat
     !of radius R h^{-1} Mpc
     ! set va1, var2 e.g. to get the value from some combination of transfer functions rather than total
-    class(CAMBState) :: State
+    class(CAMBdata) :: State
     Type(MatterTransferData) :: MTrans
     real(dl), intent(in), optional :: R
     integer, intent(in), optional :: var1, var2
@@ -3958,7 +3538,7 @@
 
     subroutine Transfer_Get_sigmas(State, MTrans,  R, var_delta, var_v)
     !Get sigma8 and sigma_{delta v} (for growth, like f sigma8 in LCDM)
-    class(CAMBState) :: State
+    class(CAMBdata) :: State
     Type(MatterTransferData) :: MTrans
     real(dl), intent(in), optional :: R
     integer, intent(in), optional :: var_delta, var_v
@@ -3977,49 +3557,50 @@
 
     end subroutine Transfer_Get_sigmas
 
-    subroutine Transfer_output_Sig8(MTrans)
+    subroutine Transfer_output_Sig8(MTrans, State)
     Type(MatterTransferData), intent(in) :: MTrans
+    Type(CAMBdata), intent(in) :: State
     integer j_PK
 
-    do j_PK=1, CP%Transfer%PK_num_redshifts
+    do j_PK=1, State%CP%Transfer%PK_num_redshifts
         write(*,'("at z =",f7.3," sigma8 (all matter) = ",f7.4)') &
-            CP%Transfer%PK_redshifts(j_PK), MTrans%sigma_8(j_PK)
+            State%CP%Transfer%PK_redshifts(j_PK), MTrans%sigma_8(j_PK)
     end do
     if (State%get_growth_sigma8) then
-        do j_PK=1, CP%Transfer%PK_num_redshifts
+        do j_PK=1, State%CP%Transfer%PK_num_redshifts
             write(*,'("at z =",f7.3," sigma8^2_vd/sigma8  = ",f7.4)') &
-                CP%Transfer%PK_redshifts(j_PK), MTrans%sigma2_vdelta_8(j_PK)/MTrans%sigma_8(j_PK)
+                State%CP%Transfer%PK_redshifts(j_PK), MTrans%sigma2_vdelta_8(j_PK)/MTrans%sigma_8(j_PK)
         end do
     end if
 
     end subroutine Transfer_output_Sig8
 
 
-    subroutine Transfer_Allocate(MTrans)
+    subroutine Transfer_Allocate(MTrans, State)
     Type(MatterTransferData) :: MTrans
+    class(CAMBdata) :: State
 
     call MTrans%Free()
     allocate(MTrans%q_trans(MTrans%num_q_trans))
     allocate(MTrans%TransferData(Transfer_max,MTrans%num_q_trans,State%num_transfer_redshifts))
-    !JD 08/13 Changes in here to PK arrays and variables
-    allocate(MTrans%sigma_8(CP%Transfer%PK_num_redshifts))
-    if (State%get_growth_sigma8) allocate(MTrans%sigma2_vdelta_8(CP%Transfer%PK_num_redshifts))
+    allocate(MTrans%sigma_8(State%CP%Transfer%PK_num_redshifts))
+    if (State%get_growth_sigma8) allocate(MTrans%sigma2_vdelta_8(State%CP%Transfer%PK_num_redshifts))
 
     end subroutine Transfer_Allocate
 
-    subroutine Transfer_SaveToFiles(MTrans,FileNames)
+    subroutine Transfer_SaveToFiles(MTrans,State,FileNames)
     use constants
     Type(MatterTransferData), intent(in) :: MTrans
+    class(CAMBdata) :: State
     integer i,ik
     character(LEN=Ini_max_string_len), intent(IN) :: FileNames(*)
-    !JD 08/13 Changes in here to PK arrays and variables
     integer i_PK
     integer unit
 
-    do i_PK=1, CP%Transfer%PK_num_redshifts
+    do i_PK=1, State%CP%Transfer%PK_num_redshifts
         if (FileNames(i_PK) /= '') then
             i = State%PK_redshifts_index(i_PK)
-            if (CP%do21cm) then
+            if (State%CP%do21cm) then
                 unit = open_file_header(FileNames(i_PK), 'k/h', Transfer21cm_name_tags, 14)
             else
                 unit = open_file_header(FileNames(i_PK), 'k/h', transfer_name_tags, 14)
@@ -4035,10 +3616,11 @@
 
     end subroutine Transfer_SaveToFiles
 
-    subroutine Transfer_SaveMatterPower(MTrans, FileNames, all21cm)
+    subroutine Transfer_SaveMatterPower(MTrans, State,FileNames, all21cm)
     use constants
     !Export files of total  matter power spectra in h^{-1} Mpc units, against k/h.
     Type(MatterTransferData), intent(in) :: MTrans
+    Type(CAMBdata) :: State
     character(LEN=Ini_max_string_len), intent(IN) :: FileNames(*)
     character(LEN=name_tag_len) :: columns(3)
     integer itf, i, unit
@@ -4059,7 +3641,7 @@
         ncol = 1
     end if
 
-    do itf=1, CP%Transfer%PK_num_redshifts
+    do itf=1, State%CP%Transfer%PK_num_redshifts
         if (FileNames(itf) /= '') then
             if (.not. transfer_interp_matterpower ) then
                 itf_PK = State%PK_redshifts_index(itf)
@@ -4074,8 +3656,11 @@
                     call Transfer_GetMatterPowerData(State, MTrans, PK_data, itf_PK)
                     !JD 08/13 for nonlinear lensing of CMB + LSS compatibility
                     !Changed (CP%NonLinear/=NonLinear_None) to CP%NonLinear/=NonLinear_none .and. CP%NonLinear/=NonLinear_Lens)
-                    if(CP%NonLinear/=NonLinear_none .and. CP%NonLinear/=NonLinear_Lens)&
-                        call MatterPowerdata_MakeNonlinear(CP%NonLinearModel, PK_Data)
+                    if(State%CP%NonLinear/=NonLinear_none .and. State%CP%NonLinear/=NonLinear_Lens) then
+                        call State%CP%NonLinearModel%GetNonLinRatios(State, PK_data)
+                        PK_data%matpower = PK_data%matpower +  2*log(PK_data%nonlin_ratio)
+                        call MatterPowerdata_getsplines(PK_data)
+                    end if
                 end if
 
                 outpower(:,1) = exp(PK_data%matpower(:,1))
@@ -4124,7 +3709,7 @@
     subroutine Transfer_Get21cmPowerData(MTrans, State, PK_data, z_ix)
     !In terms of k, not k/h, and k^3 P_k /2pi rather than P_k
     Type(MatterTransferData), intent(in) :: MTrans
-    Type(CambState) :: State
+    Type(CAMBdata) :: State
     Type(MatterPowerData) :: PK_data, PK_cdm
     real(dl) h, k, pow
     integer ik
@@ -4183,7 +3768,7 @@
 
     function Get21cmCl_l(Vars,kin)
     !Direct integration with j^2/r, etc.
-    Type(Cl21cmVars) Vars
+    class(Cl21cmVars) Vars
     real(dl) kin, x, jl,ddJl,k, jlm1
     real(dl) Get21cmCl_l
     real(dl) monopole, vv , vd
@@ -4208,7 +3793,7 @@
 
     function Get21cmCl_l_avg(Vars,kin)
     !Asymptotic results where we take <cos^2>=1/2 assuming smooth power spectrum
-    Type(Cl21cmVars) Vars
+    class(Cl21cmVars) Vars
     real(dl) kin, x, jl,ddJl,cross,k
     real(dl) Get21cmCl_l_avg
     real(dl) monopole, vv , vd,lphalf
@@ -4241,10 +3826,11 @@
     end function Get21cmCl_l_avg
 
 
-    subroutine Transfer_Get21cmCls(MTrans, FileNames)
+    subroutine Transfer_Get21cmCls(MTrans, State,FileNames)
     use constants
     !Get 21cm C_l from sharp shell, using only monopole source and redshift distortions
     Type(MatterTransferData), intent(in) :: MTrans
+    Type(CAMBdata), target :: State
     character(LEN=Ini_max_string_len), intent(IN) :: FileNames(*)
     integer itf,ik, itf_PK
     integer points
@@ -4255,7 +3841,9 @@
     integer l, lastl, unit
     real(dl) k_min, k_max,k, avg_fac
     Type(Cl21cmVars) vars
+    Type(CAMBParams), pointer :: CP
 
+    CP=>State%CP
 
     tol = 1e-5/exp(CP%Accuracy%AccuracyBoost*CP%Accuracy%IntTolBoost-1)
     do itf_PK=1, CP%Transfer%PK_num_redshifts
@@ -4294,7 +3882,7 @@
                     Vars%logs = .false.
                     if (k_max < exp(PK_data%log_k(points))) then
                         !Integrate bessels properly
-                        Cl = rombint_obj(Vars,Get21cmCl_l,k_min,k_max, atol, 25)
+                        Cl = Integrate_Romberg(Vars,Get21cmCl_l,k_min,k_max, atol, 25)
 
                         Vars%logs = .true.
                         k_min = log(k_max)
@@ -4309,15 +3897,6 @@
 
                             k_max = min(log(5*k), PK_data%log_k(points))
 
-
-                            !                    if (k_max < exp(PK_data%log_k(points))) then
-                            !                      Cl = rombint_obj(Vars,Get21cmCl_l,k_min,k_max, atol, 25)
-                            !                      Vars%logs = .true.
-                            !                      k_min = log(k*(1+100/chi))
-                            !                     k_max = min(log(3*k), PK_data%log_k(points))
-                            !                    else
-                            !                       k_max = exp(PK_data%log_k(points))
-                            !                    end if
                         elseif (l>1e4) then
                             Vars%logs = .false.
                             k_min = k_max
@@ -4328,11 +3907,10 @@
                             k_max = min(log(max(0.3_dl,k)*18*CP%Accuracy%AccuracyBoost), PK_data%log_k(points))
                         end if
 
-                        Cl = Cl+rombint_obj(Vars,Get21cmCl_l_avg,k_min,k_max, atol, 25)
-                        !                   Cl = Cl+rombint_obj(Vars,Get21cmCl_l,k_min,k_max, atol, 25)
+                        Cl = Cl+Integrate_Romberg(Vars,Get21cmCl_l_avg,k_min,k_max, atol, 25)
                     else
                         k_max = exp(PK_data%log_k(points))
-                        Cl = rombint_obj(Vars,Get21cmCl_l,k_min,k_max, atol, 25)
+                        Cl = Integrate_Romberg(Vars,Get21cmCl_l,k_min,k_max, atol, 25)
                     end if
 
 
@@ -4353,6 +3931,3 @@
 
 
     end module Transfer
-
-
-

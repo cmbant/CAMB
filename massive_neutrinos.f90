@@ -7,14 +7,16 @@
     !fermi_dirac_const = int q^3 F(q) dq = 7/120*pi^4
     real(dl), parameter  :: const2 = 5._dl/7._dl/const_pi**2   !0.072372274_dl
 
-    integer, parameter  :: nrhopn=2000
-    real(dl), parameter :: am_min = 0.01_dl  !0.02_dl
+    !Steps for spline interpolation (use series outside this range)
+    integer, parameter  :: nrhopn=1400
+    real(dl), parameter :: am_min = 0.3_dl
     !smallest a*m_nu to integrate distribution function rather than using series
-    real(dl), parameter :: am_max = 600._dl
+    real(dl), parameter :: am_max = 70._dl
     !max a*m_nu to integrate
 
-    real(dl), parameter  :: am_minp=am_min*1.1
-    real(dl), parameter :: am_maxp=am_max*0.9
+    !Actual range for using series (to avoid inaccurate ends of spline)
+    real(dl), parameter :: am_minp=am_min + am_max/(nrhopn-1)*1.01_dl
+    real(dl), parameter :: am_maxp=am_max*0.9_dl
 
     Type TNuPerturbations
         !Sample for massive neutrino momentum
@@ -27,7 +29,7 @@
 
     Type TThermalNuBackground
         !Quantities for the neutrino background momentum distribution assuming thermal
-        real(dl) dlnam
+        real(dl) dam !step in a*m
         real(dl), dimension(:), allocatable ::  r1,p1,dr1,dp1,ddr1
     contains
     procedure :: init => ThermalNuBackground_init
@@ -36,11 +38,12 @@
     procedure :: drho => ThermalNuBackground_drho
     end type TThermalNuBackground
 
-    Type(TThermalNuBackground), save :: ThermalNuBackground
+    Type(TThermalNuBackground), target :: ThermalNuBackground
+    class(TThermalNuBackground), pointer :: ThermalNuBack !ifort workaround
 
-    public fermi_dirac_const,  sum_mnu_for_m1, neutrino_mass_fac, TNuPerturbations, ThermalNuBackground
+    public fermi_dirac_const,  sum_mnu_for_m1, neutrino_mass_fac, TNuPerturbations, &
+        ThermalNuBackground, ThermalNuBack
     contains
-    !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
     subroutine sum_mnu_for_m1(summnu,dsummnu, m1, targ, sgn)
     use constants
@@ -111,17 +114,18 @@
     real(dl) spline_data(nrhopn)
 
     if (allocated(this%r1)) return
+    ThermalNuBack => ThermalNuBackground !ifort bug workaround
 
     allocate(this%r1(nrhopn),this%p1(nrhopn),this%dr1(nrhopn),this%dp1(nrhopn),this%ddr1(nrhopn))
-    this%dlnam=-(log(am_min/am_max))/(nrhopn-1)
+    this%dam=(am_max-am_min)/(nrhopn-1)
 
     !$OMP PARALLEL DO DEFAULT(SHARED), SCHEDULE(STATIC), &
     !$OMP& PRIVATE(am,rhonu,pnu)
     do i=1,nrhopn
-        am=am_min*exp((i-1)*this%dlnam)
+        am=am_min + (i-1)*this%dam
         call nuRhoPres(am,rhonu,pnu)
-        this%r1(i)=log(rhonu)
-        this%p1(i)=log(pnu)
+        this%r1(i)=rhonu
+        this%p1(i)=pnu
     end do
     !$OMP END PARALLEL DO
 
@@ -132,7 +136,6 @@
 
     end subroutine ThermalNuBackground_init
 
-    !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
     subroutine nuRhoPres(am,rhonu,pnu)
     !  Compute the density and pressure of one eigenstate of massive neutrinos,
     !  in units of the mean density of one flavor of massless neutrinos.
@@ -166,28 +169,36 @@
 
     end subroutine nuRhoPres
 
-    !cccccccccccccccccccccccccccccccccccccccccc
     subroutine ThermalNuBackground_rho_P(this,am,rhonu,pnu)
     class(TThermalNuBackground) :: this
     real(dl), intent(in) :: am
     real(dl), intent(out) :: rhonu, pnu
-    real(dl) d
+    real(dl) d, logam, am2
     integer i
     !  Compute massive neutrino density and pressure in units of the mean
     !  density of one eigenstate of massless neutrinos.  Use cubic splines to
-    !  interpolate from a table.
+    !  interpolate from a table. Accuracy generally better than 1e-5.
 
     if (am <= am_minp) then
-        rhonu=1._dl + const2*am**2
-        pnu=(2-rhonu)/3._dl
+        if (am< 0.01_dl) then
+            rhonu=1._dl + const2*am**2
+            pnu=(2-rhonu)/3._dl
+        else
+            !Higher order expansion result less obvious, Appendix A of arXiv:0911.2714
+            am2=am**2
+            logam = log(am)
+            rhonu = 1+am2*(const2+am2*(.1099926669d-1*logam-.3492416767d-2-.5866275571d-2*am))
+            pnu = (1+am2*(-const2+am2*(-.3299780009d-1*logam-.5219952794d-3+.2346510229d-1*am)))/3
+        end if
         return
     else if (am >= am_maxp) then
-        rhonu = 3/(2*fermi_dirac_const)*(zeta3*am + (15*zeta5)/2/am)
+        !Simple series solution (expanded in 1/(a*m))
+        rhonu = 3/(2*fermi_dirac_const)*(zeta3*am + ((15*zeta5)/2 - 945._dl/16*zeta7/am**2)/am)
         pnu = 900._dl/120._dl/fermi_dirac_const*(zeta5-63._dl/4*Zeta7/am**2)/am
         return
     end if
 
-    d=log(am/am_min)/this%dlnam+1._dl
+    d=(am-am_min)/this%dam+1._dl
     i=int(d)
     d=d-i
 
@@ -196,17 +207,14 @@
         -this%dr1(i+1)+d*(this%dr1(i)+this%dr1(i+1)+2._dl*(this%r1(i)-this%r1(i+1)))))
     pnu=this%p1(i)+d*(this%dp1(i)+d*(3._dl*(this%p1(i+1)-this%p1(i))-2._dl*this%dp1(i) &
         -this%dp1(i+1)+d*(this%dp1(i)+this%dp1(i+1)+2._dl*(this%p1(i)-this%p1(i+1)))))
-    rhonu=exp(rhonu)
-    pnu=exp(pnu)
 
     end subroutine ThermalNuBackground_rho_P
 
-    !cccccccccccccccccccccccccccccccccccccccccc
     subroutine ThermalNuBackground_rho(this,am,rhonu)
     class(TThermalNuBackground) :: this
     real(dl), intent(in) :: am
     real(dl), intent(out) :: rhonu
-    real(dl) d
+    real(dl) d, am2
     integer i
 
     !  Compute massive neutrino density in units of the mean
@@ -214,41 +222,44 @@
     !  interpolate from a table.
 
     if (am <= am_minp) then
-        rhonu=1._dl + const2*am**2
+        if (am < 0.01_dl) then
+            rhonu=1._dl + const2*am**2
+        else
+            am2=am**2
+            rhonu = 1+am2*(const2+am2*(.1099926669d-1*log(am)-.3492416767d-2-.5866275571d-2*am))
+        end if
         return
     else if (am >= am_maxp) then
-        rhonu = 3/(2*fermi_dirac_const)*(zeta3*am + (15*zeta5)/2/am)
+        rhonu = 3/(2*fermi_dirac_const)*(zeta3*am + ((15*zeta5)/2 - 945._dl/16*zeta7/am**2)/am)
         return
     end if
 
-    d=log(am/am_min)/this%dlnam+1._dl
+    d=(am-am_min)/this%dam+1._dl
     i=int(d)
     d=d-i
 
     !  Cubic spline interpolation.
     rhonu=this%r1(i)+d*(this%dr1(i)+d*(3._dl*(this%r1(i+1)-this%r1(i))-2._dl*this%dr1(i) &
         -this%dr1(i+1)+d*(this%dr1(i)+this%dr1(i+1)+2._dl*(this%r1(i)-this%r1(i+1)))))
-    rhonu=exp(rhonu)
+
     end subroutine ThermalNuBackground_rho
 
-    !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-
-    function ThermalNuBackground_drho(this,am,adotoa,rhonu) result (rhonudot)
-    class(TThermalNuBackground) :: this
-
+    function ThermalNuBackground_drho(this,am,adotoa) result (rhonudot)
     !  Compute the time derivative of the mean density in massive neutrinos
-    !  and the shear perturbation.
-    real(dl) adotoa,rhonu,rhonudot
-    real(dl) d
+    class(TThermalNuBackground) :: this
+    real(dl) adotoa,rhonudot
+    real(dl) d, am2
     real(dl), intent(IN) :: am
     integer i
 
     if (am< am_minp) then
-        rhonudot = 2*const2*am**2*adotoa
+        !rhonudot = 2*const2*am**2*adotoa
+        am2 = am**2
+        rhonudot=  am**2*(2*const2 +am2*(0.1759882671_dl*log(am)+.3211546524d-1 -0.1466568893_dl*am))*adotoa
     else if (am>am_maxp) then
-        rhonudot = 3/(2*fermi_dirac_const)*(zeta3*am - (15*zeta5)/2/am)*adotoa
+        rhonudot = 3/(2*fermi_dirac_const)*(zeta3*am +( -(15*zeta5)/2 + 2835._dl/16*zeta7/am**2)/am)*adotoa
     else
-        d=log(am/am_min)/this%dlnam+1._dl
+        d=(am-am_min)/this%dam+1._dl
         i=int(d)
         d=d-i
         !  Cubic spline interpolation for rhonudot.
@@ -256,7 +267,7 @@
             -2._dl*this%ddr1(i)-this%ddr1(i+1)+d*(this%ddr1(i)+this%ddr1(i+1) &
             +2._dl*(this%dr1(i)-this%dr1(i+1)))))
 
-        rhonudot=rhonu*adotoa*rhonudot/this%dlnam
+        rhonudot=adotoa*rhonudot/this%dam*am
     end if
 
     end function ThermalNuBackground_drho

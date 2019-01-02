@@ -2,10 +2,12 @@ camb.recombination
 ==================================
 
 
-.. autoclass:: camb.recombination.RecombinationParams
+.. autoclass:: camb.recombination.RecombinationModel
    :members:
-   :inherited-members:
 
+.. autoclass:: camb.recombination.Recfast
+   :show-inheritance:
+   :members:
 
 
 

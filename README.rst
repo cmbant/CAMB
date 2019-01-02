@@ -32,7 +32,6 @@ The master branch contains latest changes to the main release version.
 
 The devel branch is a development version, which integrates CAMB and CAMB sources, and uses Fortran 2008 (and hence requires ifort 14+ or gfortran 6+). It also allows runtime switching of the dark energy and halofit model, 
 general numerically-interpolated primordial power spectra and source window functions, and easy access to lower-level accuracy parameters.
-Note that the devel branch is currently very slow compiled with ifort (ifort bug); compile with gfortran or use the somewhat older devel_ifort branch.
 
 .. image:: https://secure.travis-ci.org/cmbant/CAMB.png?branch=devel
   :target: https://secure.travis-ci.org/cmbant/CAMB/builds

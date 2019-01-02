@@ -101,7 +101,7 @@ If transfer functions are requested the columns in the <b>output_root</b>_transf
 </table>
 <br>
 where Delta_X is defined as (delta rho_X)/rho_X  in the synchronous gauge and evaluated at the requested redshift, given a unit primordial curvature perturbation on superhorizon scales (for adiabatic modes, chi_0=-1).
-The column numbers correspond to the Transfer_xx integer constants  defined in the Transfer module (modules.f90).
+The column numbers correspond to the Transfer_xx integer constants  defined in the Transfer module (results.f90).
 <p>
 <b>output_root</b>_matterpower.dat contains the conventionally normalized matter power spectrum (for baryons+cdm+massive neutrinos), in h/Mpc units.
 
@@ -660,21 +660,19 @@ HREF="http://arxiv.org/abs/astro-ph/9911481">astro-ph/9911481</A>. As from CMBFA
 <BLOCKQUOTE>
 <B>camb.f90</B>
 <P>
-Main wrapper routines for running CAMB in your programs. Add "use
+Main wrapper routines for running CAMB in your fortran programs. Add "use
 camb" to your programs and call CAMB_GetResults to generate output
 from a set of model parameters (specified in the CAMBparams type -
-defined at the top of modules.f90). You can call
+defined in model.f90). You can call
 CAMB_ValidateParams(P) to check that the parameter set is valid, use
 CAMB_GetAge to compute the age of a model in gigayears, and
-CAMB_GetCls to retrieve the computed Cls. The results can also be
-accessed directly using the arrays in the ModelData module (defined in modules.f90).<P>
+CAMB_GetCls to retrieve the computed Cls. <P>
 Sample programs tester.f90 and sigma8.f90 are supplied showing how to
 use CAMB from your own programs. You can also use CAMB_GetTransfers to access the C_l transfer functions directly without incorporating the initial power spectrum.
 </P>
 <B>cmbmain.f90</B>
 <P>
-The main subroutine that does integrations, etc. Encompasses CMBFAST's
-cmbflat and cmbopen.
+The main subroutine that does integrations, etc.
 <P>
 <B>equations.f90</B>
 <P>
@@ -689,8 +687,7 @@ equivalent to the synchronous gauge equations.
 <P>
    The subroutine dtauda(a) returns dt/da and is used wherever the
    background evolution is needed. It
-   can be modified for different backgrounds. You may
-   also need to change the GetOmegak routine if you add additional
+   can be modified for different backgrounds. If you add additional
    components, and can edit the init_background routine to do
    additional initialization.
     <P>
@@ -703,14 +700,11 @@ equivalent to the synchronous gauge equations.
    spectra for other matter tracers, e.g. for cross-correlation with
    the CMB. The lensing power spectrum is automatically computed if
    <B>DoLensing=T</B>.
-<P><i>equations_ppf.f90</i> is an alternative module that allows evolving dark energy crossing w=-1.
 <P>
-<B> power_tilt.f90</B>
+<B> InitialPower.f90</B>
 <P>
-This file defines a module called InitialPower that returns the
-initial power spectra. Change this file to use your own initial power
-spectrum, change how the spectra are parameterized, or to change how
-the Cls are normalized. Comments in the code explain this further.
+This file defines a module called InitialPower with classes returning the
+initial power spectra. Comments in the code explain this further.
 <P>
 
 <P>
@@ -718,24 +712,25 @@ the Cls are normalized. Comments in the code explain this further.
 <P>
 This file defines a module called Reionization that parameterizes the reionization history and supplies a function <B>Reionization_xe</B> that gives x<sub>e</sub> as a function of redshift. Optical depth input parameters are mapped into z<sub>re</sub> (defined as where x<sub>e</sub> is half its maximum (ex second He reionization)) using a binary search. See the CAMB <A HREF="http://cosmologist.info/notes/CAMB.pdf">notes</A> for discussion. This module should be easily modifiable for alternative reionization models.
 <P>
-<B>halofit.f90</B><P>
-Implements the NonLinear module, to calculate non linear scalings of the matter power spectrum as a function of redshift. Uses HALOFIT (<A HREF="http://arxiv.org/abs/astro-ph/0207664">astro-ph/0207664</A>, code thanks to <A HREF="http://www.astro.upenn.edu/~res">Robert Smith</A>, with tweaks
+<B>halofit_ppf.f90</B><P>
+Implements the NonLinearModel class, to calculate non linear scalings of the matter power spectrum as a function of redshift. Uses HALOFIT (<A HREF="http://arxiv.org/abs/astro-ph/0207664">astro-ph/0207664</A>, code thanks to <A HREF="http://www.astro.upenn.edu/~res">Robert Smith</A>, with tweaks
 from <A HREF="http://arxiv.org/abs/1208.2701">arXiv:1208.2701</A> (thanks Ryuichi Takahashi) - see that paper for discussion of numerical accuracy. This module can be replaced to use a different non-linear fitting method if desired.
 
-
 <P>
-
  <B> inidriver.F90</B>
 <P>
     Reads in parameters from a file of name/value pairs and calls CAMB. Modify
     this file to generate grids of models, change the parameterization, etc.
+<P>
+ <B>model.f90</B>
+<P>
+ Defined CAMBparams input parameter types.
+<P>
 
 <P>
- <B> modules.f90</B>
+ <B>results.f90</B>
 <P>
-   Various modules used by the other parts of the program, Module
-   &quot;ModelParams&quot; contains most of the model parameters. Boolean vars
-   flat, open and closed determine the model type.
+  Defines types used by calculated intermediate results (e.g. time interpolation tables), and outputs like CAMBdata and transfer functions
 <P>
 
  <B>bessels.f90</B>
@@ -773,6 +768,13 @@ from <A HREF="http://arxiv.org/abs/1208.2701">arXiv:1208.2701</A> (thanks Ryuich
 <B>SeparableBispectrum.f90</B>
 <P>
   Implements calculation of simple separable primordial bispectra, specifically the local constant f<sub>NL</sub> model, and the CMB lensing bispectrum due to the linear temperature and polarization cross-correlation with the lensing potential. Compile with FISHER defined in the makefile to also calculate Fisher elements, including the effects of lensing signal variance (edit Makefile to link to LAPACK if necessary). Note that the primordial bispectra here are unlensed (see <A HREF="http://arxiv.org/abs/0905.4732">arXiv:0905.4732</a> for a calculation), but the lensed bispectra are calculated non-perturbatively (but approximately) using the lensed small-scale CMB power spectra. Note that calculating primordial bispectra is significantly slower than doing standard power spectrum calculations, however it parallelizes well.
+  
+  <P>
+ <B>camb_python.f90</B>
+<P>
+  Interface functions for the python wrapper.
+  <P>
+
 </BLOCKQUOTE>
 
 <P>

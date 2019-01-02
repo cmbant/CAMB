@@ -13,6 +13,7 @@ class InitialPower(F2003Class):
     """
     Abstract base class for initial power spectrum classes
     """
+    _fortran_class_module_ = 'InitialPower'
 
     def set_params(self):
         pass
@@ -23,7 +24,6 @@ class SplinedInitialPower(InitialPower):
     """
     Object to store a generic primordial spectrum set from a set of sampled k_i, P(k_i) values
     """
-    _fortran_class_module_ = 'classes'
     _fortran_class_name_ = 'TSplinedInitialPower'
 
     _methods_ = [('HasTensors', [], c_int),
@@ -106,7 +106,6 @@ class InitialPowerLaw(InitialPower):
         ("At", c_double)
     ]
 
-    _fortran_class_module_ = 'InitialPower'
     _fortran_class_name_ = 'TInitialPowerLaw'
 
     def __init__(self, **kwargs):

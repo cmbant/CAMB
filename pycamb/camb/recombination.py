@@ -1,10 +1,21 @@
-from .baseconfig import CAMB_Structure
 from ctypes import c_int, c_double, c_bool
+from .baseconfig import F2003Class, fortran_class
 
 
-class RecombinationParams(CAMB_Structure):
+class RecombinationModel(F2003Class):
     """
-    Holds parametes for the RECFAST recombination model (see recfast source for details).
+    Abstract base class for recombination models
+    """
+    _fields_ = [
+        ("min_a_evolve_Tm", c_double,
+         "minimum scale factor at which to solve matter temperature perturbation if evolving sound speed or ionization fraction perturbation")
+    ]
+
+
+@fortran_class
+class Recfast(RecombinationModel):
+    """
+    Holds parameters for the RECFAST recombination model (see recfast source for details).
 
     """
     _fields_ = [
@@ -19,3 +30,6 @@ class RecombinationParams(CAMB_Structure):
         ("wGauss1", c_double),
         ("wGauss2", c_double)
     ]
+
+    _fortran_class_module_ = 'Recombination'
+    _fortran_class_name_ = 'TRecfast'

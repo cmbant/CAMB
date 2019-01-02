@@ -13,7 +13,7 @@
     use NonLinear
     use DarkEnergyFluid
     use DarkEnergyPPF
-    use CAMBsettings
+    use results
     implicit none
     type(CAMBparams) P
 
@@ -35,7 +35,7 @@
     logical bad
     integer status
     logical :: DoCounts = .false.
-    Type(CAMBstate) :: ActiveState
+    Type(CAMBdata) :: ActiveState
     logical PK_WantTransfer
 
     call SetActiveState(ActiveState)
@@ -160,6 +160,7 @@
     P%Evolve_delta_Ts = Ini%Read_Logical('evolve_delta_ts', .false.)
 
     P%DoLensing = .false.
+    P%Min_l = Ini%Read_int('l_min',2)
     if (P%WantCls) then
         if (P%WantScalars  .or. P%WantVectors) then
             P%Max_l = Ini%Read_Int('l_max_scalar')
@@ -414,6 +415,7 @@
     end if
 
     call Ini%Read('feedback_level', FeedbackLevel)
+    if (Ini%HasKey('DebugMsgs')) call Ini%Read('DebugMsgs', DebugMsgs)
 
     call Ini%Read('output_file_headers', output_file_headers)
 
@@ -450,20 +452,20 @@
     endif
 
     if (PK_WantTransfer) then
-        call Transfer_SaveToFiles(State%MT,TransferFileNames)
-        call Transfer_SaveMatterPower(State%MT,MatterPowerFileNames)
-        call Transfer_output_sig8(State%MT)
-        if (P%do21cm .and. P%transfer_21cm_cl) call Transfer_Get21cmCls(State%MT, TransferClFileNames)
+        call Transfer_SaveToFiles(State%MT,State, TransferFileNames)
+        call Transfer_SaveMatterPower(State%MT,State,MatterPowerFileNames)
+        call Transfer_output_sig8(State%MT, State)
+        if (P%do21cm .and. P%transfer_21cm_cl) call Transfer_Get21cmCls(State%MT, State,TransferClFileNames)
     end if
 
     if (P%WantCls) then
-        call State%CLData%output_cl_files(ScalarFileName, ScalarCovFileName, TensorFileName, TotalFileName, &
+        call State%CLData%output_cl_files(State,ScalarFileName, ScalarCovFileName, TensorFileName, TotalFileName, &
             LensedFileName, LensedTotFilename, output_factor)
 
-        call State%CLData%output_lens_pot_files(LensPotentialFileName, output_factor)
+        call State%CLData%output_lens_pot_files(State%CP,LensPotentialFileName, output_factor)
 
         if (P%WantVectors) then
-            call State%CLData%output_veccl_files(VectorFileName, output_factor)
+            call State%CLData%output_veccl_files(State%CP,VectorFileName, output_factor)
         end if
 
 #ifdef WRITE_FITS

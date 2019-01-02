@@ -4,7 +4,7 @@
     implicit none
 
     private
-    
+
     type, extends(TDarkEnergyEqnOfState) :: TDarkEnergyPPF
         real(dl) :: c_Gamma_ppf = 0.4_dl
     contains
@@ -38,7 +38,7 @@
     TDarkEnergyPPF_PythonClass = 'DarkEnergyPPF'
     end function TDarkEnergyPPF_PythonClass
 
-    
+
     subroutine TDarkEnergyPPF_SelfPointer(cptr,P)
     use iso_c_binding
     Type(c_ptr) :: cptr
@@ -47,13 +47,13 @@
 
     call c_f_pointer(cptr, PType)
     P => PType
-    
+
     end subroutine TDarkEnergyPPF_SelfPointer
 
     subroutine TDarkEnergyPPF_Init(this, State)
     use classes
     class(TDarkEnergyPPF), intent(inout) :: this
-    class(TCAMBCalculation), intent(in) :: State
+    class(TCAMBdata), intent(in) :: State
 
     call this%TDarkEnergyEqnOfState%Init(State)
     if (this%is_cosmological_constant) then

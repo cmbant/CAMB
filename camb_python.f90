@@ -2,7 +2,7 @@
     module handles
     use CAMB
     use Precision
-    use CambSettings
+    use results
     use iso_c_binding
     use DarkEnergyFluid
     use DarkEnergyPPF
@@ -244,28 +244,19 @@
     end subroutine F2003Class_free
 
     function CAMBdata_GetTransfers(State, Params, onlytransfer) result(error)
-    Type (CAMBstate):: State
+    Type (CAMBdata):: State
     type(CAMBparams) :: Params
     logical :: onlytransfer
     integer :: error
 
-    call SetActiveState(State)
     error = 0
-    call CAMB_GetTransfers(Params, State, error, onlytransfer)
+    call CAMB_GetResults(State, Params, error, onlytransfer)
 
     end function CAMBdata_GetTransfers
 
-    subroutine CAMBdata_SetParamsForBackground(State, P)
-    Type (CAMBstate):: State
-    type(CAMBparams) :: P
-
-    global_error_flag = 0
-    call State%SetParams(P)
-    end subroutine CAMBdata_SetParamsForBackground
-
     function CAMBdata_CalcBackgroundTheory(State, P) result(error)
     use cambmain, only: initvars
-    Type (CAMBstate):: State
+    Type (CAMBdata):: State
     type(CAMBparams) :: P
     integer error
 
@@ -278,7 +269,7 @@
 
 
     subroutine CAMBdata_MatterTransferData(State, cData)
-    Type(CAMBstate), target :: State
+    Type(CAMBdata), target :: State
     Type(c_MatterTransferData) :: cData
 
     cData%num_q_trans = State%MT%num_q_trans
@@ -294,7 +285,7 @@
     end subroutine CAMBdata_MatterTransferData
 
     subroutine CAMBdata_ClTransferData(State, cData, i)
-    Type(CAMBstate), target :: State
+    Type(CAMBdata), target :: State
     Type(c_ClTransferData) :: cData
     integer, intent(in) :: i
 
@@ -334,7 +325,7 @@
 
 
     subroutine CAMBdata_GetLinearMatterPower(State, PK, var1, var2, hubble_units)
-    Type(CAMBstate) :: State
+    Type(CAMBdata) :: State
     real(dl) :: PK(State%MT%num_q_trans,State%CP%Transfer%PK_num_redshifts)
     integer, intent(in) :: var1, var2
     logical :: hubble_units
@@ -344,7 +335,7 @@
     end subroutine CAMBdata_GetLinearMatterPower
 
     subroutine CAMBdata_GetNonLinearMatterPower(State, PK, var1, var2, hubble_units)
-    Type(CAMBstate) :: State
+    Type(CAMBdata) :: State
     real(dl) :: PK(State%MT%num_q_trans,State%CP%Transfer%PK_num_redshifts)
     integer, intent(in) :: var1, var2
     logical :: hubble_units
@@ -355,7 +346,7 @@
 
 
     subroutine CAMBdata_GetMatterPower(State, outpower, minkh, dlnkh, npoints, var1, var2)
-    Type(CAMBstate) :: State
+    Type(CAMBdata) :: State
     integer, intent(in) :: npoints, var1, var2
     real(dl), intent(out) :: outpower(npoints,State%CP%Transfer%PK_num_redshifts)
     real(dl), intent(in) :: minkh, dlnkh
@@ -390,13 +381,13 @@
 
 
     subroutine CAMB_SetTotCls(State,lmax, tot_scalar_Cls)
-    type(CAMBstate) State
+    type(CAMBdata) State
     integer, intent(IN) :: lmax
     real(dl), intent(OUT) :: tot_scalar_cls(4, 0:lmax)
     integer l
 
     tot_scalar_cls = 0
-    do l=lmin, lmax
+    do l=State%CP%Min_l, lmax
         if (State%CP%WantScalars .and. l<= State%CP%Max_l) then
             if (State%CP%DoLensing) then
                 if (l<=State%CLData%lmax_lensed) &
@@ -415,13 +406,13 @@
     end subroutine CAMB_SetTotCls
 
     subroutine CAMB_SetUnlensedCls(State,lmax, unlensed_cls)
-    Type(CAMBstate) :: State
+    Type(CAMBdata) :: State
     integer, intent(IN) :: lmax
     real(dl), intent(OUT) :: unlensed_cls(4,0:lmax)
     integer l
 
     unlensed_cls = 0
-    do l=lmin, lmax
+    do l=State%CP%Min_l, lmax
         if (State%CP%WantScalars .and. l<= CP%Max_l) then
             unlensed_cls(1:2,l) = State%CLData%Cl_scalar(l, C_Temp:C_E)
             unlensed_cls(4,l) = State%CLData%Cl_scalar(l, C_Cross)
@@ -437,14 +428,14 @@
 
     subroutine CAMB_SetLensPotentialCls(State,lmax, cls)
     use constants
-    Type(CAMBstate) :: State
+    Type(CAMBdata) :: State
     integer, intent(IN) :: lmax
     real(dl), intent(OUT) :: cls(3, 0:lmax) !phi-phi, phi-T, phi-E
     integer l
 
     cls = 0
     if (State%CP%WantScalars .and. State%CP%DoLensing) then
-        do l=lmin, min(lmax,State%CP%Max_l)
+        do l=State%CP%Min_l, min(lmax,State%CP%Max_l)
             cls(1,l) = State%CLData%Cl_scalar(l,C_Phi) * (real(l+1)/l)**2/const_twopi
             cls(2:3,l) = State%CLData%Cl_scalar(l,C_PhiTemp:C_PhiE) &
                 * ((real(l+1)/l)**1.5/const_twopi)
@@ -454,7 +445,7 @@
     end subroutine CAMB_SetLensPotentialCls
 
     subroutine CAMB_SetUnlensedScalCls(State,lmax, scalar_Cls)
-    Type(CAMBState) :: State
+    Type(CAMBdata) :: State
     integer, intent(IN) :: lmax
     real(dl), intent(OUT) :: scalar_Cls(4, 0:lmax)
     integer lmx
@@ -462,15 +453,15 @@
     scalar_Cls = 0
     if (State%CP%WantScalars) then
         lmx = min(State%CP%Max_l, lmax)
-        scalar_Cls(1:2,lmin:lmx) = &
-            transpose(State%CLData%Cl_Scalar(lmin:lmx, C_Temp:C_E))
-        scalar_Cls(4,lmin:lmx) = State%CLData%Cl_Scalar(lmin:lmx, C_Cross)
+        scalar_Cls(1:2,State%CP%Min_l:lmx) = &
+            transpose(State%CLData%Cl_Scalar(State%CP%Min_l:lmx, C_Temp:C_E))
+        scalar_Cls(4,State%CP%Min_l:lmx) = State%CLData%Cl_Scalar(State%CP%Min_l:lmx, C_Cross)
     end if
 
     end subroutine CAMB_SetUnlensedScalCls
 
     subroutine CAMB_SetlensedScalCls(State,lmax, lensed_Cls)
-    type(CAMBState) State
+    type(CAMBdata) State
     integer, intent(IN) :: lmax
     real(dl), intent(OUT) :: lensed_Cls(4, 0:lmax)
     integer lmx
@@ -478,14 +469,14 @@
     lensed_Cls = 0
     if (State%CP%WantScalars .and. State%CP%DoLensing) then
         lmx = min(lmax,State%CLData%lmax_lensed)
-        lensed_Cls(1:4,lmin:lmx) = &
-            transpose(State%CLData%Cl_lensed(lmin:lmx, CT_Temp:CT_Cross))
+        lensed_Cls(1:4,State%CP%Min_l:lmx) = &
+            transpose(State%CLData%Cl_lensed(State%CP%Min_l:lmx, CT_Temp:CT_Cross))
     end if
 
     end subroutine CAMB_SetlensedScalCls
 
     subroutine CAMB_SetTensorCls(State,lmax, tensor_Cls)
-    Type(CAMBstate) :: State
+    Type(CAMBdata) :: State
     integer, intent(IN) :: lmax
     real(dl), intent(OUT) :: tensor_Cls(4, 0:lmax)
     integer lmx
@@ -493,22 +484,22 @@
     tensor_Cls = 0
     if (State%CP%WantTensors) then
         lmx = min(lmax,State%CP%Max_l_tensor)
-        tensor_Cls(1:4,lmin:lmx) = &
-            transpose(State%CLData%Cl_Tensor(lmin:lmx, CT_Temp:CT_Cross))
+        tensor_Cls(1:4,State%CP%Min_l:lmx) = &
+            transpose(State%CLData%Cl_Tensor(State%CP%Min_l:lmx, CT_Temp:CT_Cross))
     end if
 
     end subroutine CAMB_SetTensorCls
 
 
     subroutine CAMB_SetUnlensedScalarArray(State,lmax, ScalarArray, n)
-    Type(CAMBstate) :: State
+    Type(CAMBdata) :: State
     integer, intent(IN) :: lmax, n
     real(dl), intent(OUT) :: ScalarArray(n, n, 0:lmax)
     integer l
 
     ScalarArray = 0
     if (State%CP%WantScalars) then
-        do l=lmin, min(lmax,State%CP%Max_l)
+        do l=State%CP%Min_l, min(lmax,State%CP%Max_l)
             ScalarArray(1:n,1:n,l) = State%CLData%Cl_scalar_array(l, 1:n,1:n)
         end do
     end if
@@ -517,7 +508,7 @@
 
     subroutine CAMB_GetBackgroundOutputs(State,outputs, n)
     use constants
-    Type(CAMBstate) :: State
+    Type(CAMBdata) :: State
     integer, intent(in) :: n
     real(dl), intent(out) :: outputs(4,n)
     integer i
@@ -542,47 +533,20 @@
 
     end subroutine set_cls_template
 
-    function CAMB_PrimordialPower(Params, k, powers, n,  i) result(err)
-    use constants
-    type(CAMBparams) :: Params
-    integer, intent(in) :: i,n
-    real(dl), intent(in) :: k(n)
-    real(dl), intent(out) :: powers(n)
-    integer err,ix
-
-    global_error_flag = 0
-    call Params%InitPower%Init(Params)
-    if (global_error_flag==0) then
-        do ix =1, n
-            if (i==0) then
-                powers(ix) = Params%InitPower%ScalarPower(k(ix))
-            elseif (i==2) then
-                powers(ix) = Params%InitPower%TensorPower(k(ix))
-            else
-                error stop 'Unknown power type index'
-            end if
-            if (global_error_flag /= 0) exit
-        end do
-    end if
-    err= global_error_flag
-
-    end function CAMB_PrimordialPower
-
     subroutine GetOutputEvolutionFork(State, EV, times, outputs, nsources,ncustomsources)
     use CAMBmain
-    implicit none
-    type(CAMBState) :: State
+    type(CAMBdata) :: State
     type(EvolutionVars) EV
     real(dl), intent(in) :: times(:)
     real(dl), intent(out) :: outputs(:,:,:)
     integer, intent(in) :: nsources, ncustomsources
     real(dl) tau,tol1,tauend, taustart
     integer j,ind
-    real(dl) c(24),w(EV%nvar,9), y(EV%nvar)
-    real(dl) yprime(EV%nvar), ddelta, delta, adotoa,dtauda, growth, a
+    real(dl) c(24),w(EV%nvar,9), y(EV%nvar), cs2, opacity
+    real(dl) yprime(EV%nvar), ddelta, delta, adotoa,growth, a
     real(dl), target :: sources(nsources), custom_sources(ncustomsources)
-    external dtauda
     real, target :: Arr(Transfer_max)
+    procedure(obj_function) :: dtauda
 
     w=0
     y=0
@@ -604,14 +568,13 @@
         if (ncustomsources>0) EV%CustomSources => custom_sources
         call derivs(EV,EV%ScalEqsToPropagate,tau,y,yprime)
         nullify(EV%OutputTransfer, EV%OutputSources, EV%CustomSources)
-
-        a = y(1)
+        call State%ThermoData%Values(tau,a, cs2,opacity)
         outputs(1:Transfer_Max, j, EV%q_ix) = Arr
         outputs(Transfer_Max+1, j, EV%q_ix) = a
-        outputs(Transfer_Max+2, j, EV%q_ix) = y(2) !etak
-        adotoa = 1/(y(1)*dtauda(y(1)))
-        ddelta= (yprime(3)*State%grhoc+yprime(4)*State%grhob)/(State%grhob+State%grhoc)
-        delta=(State%grhoc*y(3)+State%grhob*y(4))/(State%grhob+State%grhoc)
+        outputs(Transfer_Max+2, j, EV%q_ix) = y(ix_etak) !etak
+        adotoa = 1/(a*dtauda(State,a))
+        ddelta= (yprime(ix_clxc)*State%grhoc+yprime(ix_clxb)*State%grhob)/(State%grhob+State%grhoc)
+        delta=(State%grhoc*y(ix_clxc)+State%grhob*y(ix_clxb))/(State%grhob+State%grhoc)
         growth= ddelta/delta/adotoa
         outputs(Transfer_Max+3, j, EV%q_ix) = adotoa !hubble
         outputs(Transfer_Max+4, j, EV%q_ix) = growth
@@ -642,7 +605,7 @@
         ncustomsources,c_source_func) result(err)
     use GaugeInterface
     use CAMBmain
-    Type(CAMBstate) :: this
+    Type(CAMBdata),target :: this
     integer, intent(in) :: nq, ntimes, noutputs, ncustomsources
     real(dl), intent(in) :: q(nq), times(ntimes)
     real(dl), intent(out) :: outputs(noutputs, ntimes, nq)
@@ -650,19 +613,20 @@
     integer err, q_ix
     real(dl) taustart
     Type(EvolutionVars) :: Ev
-    procedure(TSource_func), pointer :: old_sources
+    Type(TCUstomSourceParams) :: Old
 
-    call SetActiveState(this)
     if (ncustomsources > 0) then
         ! Convert C to Fortran procedure pointer.
-        old_sources => custom_sources_func
-        CALL C_F_PROCPOINTER (c_source_func, custom_sources_func)
+        Old = State%CP%CustomSources
+        State%CP%CustomSources%c_source_func = c_source_func
+        State%CP%CustomSources%num_custom_sources = ncustomsources
     end if
+    call SetActiveState(this)
 
     global_error_flag = 0
     outputs = 0
     taustart = GetTauStart(maxval(q))
-    if (.not. this%ThermoData%HasTHermoData .or. taustart < this%ThermoData%tauminn) call this%ThermoData%Init(taustart)
+    if (.not. this%ThermoData%HasTHermoData .or. taustart < this%ThermoData%tauminn) call this%ThermoData%Init(this,taustart)
     !$OMP PARALLEL DO DEFAUlT(SHARED),SCHEDUlE(DYNAMIC), PRIVATE(EV, q_ix)
     do q_ix= 1, nq
         if (global_error_flag==0) then
@@ -670,45 +634,29 @@
             EV%q = q(q_ix)
             EV%TransferOnly=.false.
             EV%q2=EV%q**2
+            EV%ThermoData => this%ThermoData
             call GetNumEqns(EV)
             call GetOutputEvolutionFork(State,EV, times, outputs, 3, ncustomsources)
         end if
     end do
     !$OMP END PARALLEL DO
-    if (ncustomsources>0) custom_sources_func => old_sources
+    if (ncustomsources>0) State%CP%CustomSources = Old
     err = global_error_flag
+
     end function CAMB_TimeEvolution
 
-    subroutine CAMB_SetCustomSourcesFunc(ncustomsources, c_source_func, ell_scales)
-    use GaugeInterface
-    integer, intent(in) :: ncustomsources
-    integer, intent(in) :: ell_scales(ncustomsources)
-    TYPE(C_FUNPTR), INTENT(IN) :: c_source_func
-
-    num_custom_sources = ncustomsources
-    if (allocated(custom_source_ell_scales)) deallocate(custom_source_ell_scales)
-    if (ncustomsources > 0) then
-        ! Convert C to Fortran procedure pointer.
-        CALL C_F_PROCPOINTER (c_source_func, custom_sources_func)
-        allocate(custom_source_ell_scales(num_custom_sources))
-        custom_source_ell_scales=ell_scales
-    else
-        nullify(custom_sources_func)
-    end if
-
-    end subroutine CAMB_SetCustomSourcesFunc
 
     subroutine GetBackgroundThermalEvolution(this, ntimes, times, outputs)
-    Type(CAMBstate) :: this
+    Type(CAMBdata) :: this
     integer, intent(in) :: ntimes
     real(dl), intent(in) :: times(ntimes)
     real(dl) :: outputs(9, ntimes)
     real(dl), allocatable :: spline_data(:), ddxe(:), ddTb(:)
-    real(dl) :: d, tau, cs2b, opacity, Tbaryon, dopacity, ddopacity, &
+    real(dl) :: a, d, tau, cs2b, opacity, Tbaryon, dopacity, ddopacity, &
         visibility, dvisibility, ddvisibility, exptau, lenswindow
     integer i, ix
 
-    if (.not. this%ThermoData%HasTHermoData) call this%ThermoData%Init(min(1d-3,max(1d-5,minval(times))))
+    if (.not. this%ThermoData%HasTHermoData) call this%ThermoData%Init(this,min(1d-3,max(1d-5,minval(times))))
 
     associate(T=>this%ThermoData)
         allocate(spline_data(T%nthermo), ddxe(T%nthermo), ddTb(T%nthermo))
@@ -723,8 +671,8 @@
             d=log(tau/T%tauminn)/T%dlntau+1._dl
             i=int(d)
             d=d-i
-            call T%Values(tau,cs2b, opacity)
-            call T%IonizationFunctionsAtTime(tau, opacity, dopacity, ddopacity, &
+            call T%Values(tau,a,cs2b, opacity)
+            call T%IonizationFunctionsAtTime(tau, a, opacity, dopacity, ddopacity, &
                 visibility, dvisibility, ddvisibility, exptau, lenswindow)
 
             if (i < T%nthermo) then

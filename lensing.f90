@@ -37,7 +37,7 @@
 
     module lensing
     use Precision
-    use CambSettings
+    use results
     use constants, only : const_pi, const_twopi, const_fourpi
     implicit none
     integer, parameter :: lensing_method_curv_corr=1,lensing_method_flat_corr=2, &
@@ -75,7 +75,7 @@
 
 
     subroutine lens_Cls(State)
-    class(CAMBstate) :: State
+    class(CAMBdata) :: State
 
     if (lensing_method == lensing_method_curv_corr) then
         call CorrFuncFullSky(State)
@@ -90,22 +90,22 @@
 
 
     subroutine CorrFuncFullSky(State)
-    class(CAMBstate) :: State
+    class(CAMBdata) :: State
     integer :: lmax_extrap
 
     lmax_extrap = State%CP%Max_l - lensed_convolution_margin + 750
     lmax_extrap = min(lmax_extrap_highl,lmax_extrap)
-    call CorrFuncFullSkyImpl(State,max(lmax_extrap,State%CP%max_l))
+    call CorrFuncFullSkyImpl(State,State%CP%min_l,max(lmax_extrap,State%CP%max_l))
 
     end subroutine CorrFuncFullSky
 
 
-    subroutine CorrFuncFullSkyImpl(State,lmax)
+    subroutine CorrFuncFullSkyImpl(State,lmin,lmax)
     !Accurate curved sky correlation function method
     !Uses non-perturbative isotropic term with 2nd order expansion in C_{gl,2}
     !Neglects C_{gl}(theta) terms (very good approx)
-    class(CAMBstate), target :: State
-    integer, intent(in) :: lmax
+    class(CAMBdata), target :: State
+    integer, intent(in) :: lmin,lmax
     integer l, i
     integer :: npoints
     real(dl) corr(4), Cg2, sigmasq, theta
@@ -128,7 +128,6 @@
     real(dl) sinfac, Cg2sq
     real(dl) X000,X022,X220,X121,X132,X242
     real(dl) dX000,dX022
-    real(sp) timeprev
     integer  interp_fac
     integer j,jmax
     integer llo, lhi
@@ -139,15 +138,17 @@
     logical, parameter :: approx = .false.
     real(dl) theta_cut(lmax), LensAccuracyBoost
     Type(TCLData), pointer :: CL
+    Type(TTimer) :: Timer
 
     !$ integer  OMP_GET_THREAD_NUM, OMP_GET_MAX_THREADS
     !$ external OMP_GET_THREAD_NUM, OMP_GET_MAX_THREADS
 
-    LensAccuracyBoost = CP%Accuracy%AccuracyBoost*CP%Accuracy%LensingBoost
 
     if (lensing_includes_tensors) call MpiStop('Haven''t implemented tensor lensing')
     CL =>  State%ClData
     associate(lSamp => State%CLData%CTransScal%ls, CP=>State%CP)
+
+        LensAccuracyBoost = CP%Accuracy%AccuracyBoost*CP%Accuracy%LensingBoost
 
         max_lensed_ix = lSamp%nl-1
         do while(lSamp%l(max_lensed_ix) > CP%Max_l - lensed_convolution_margin)
@@ -174,7 +175,7 @@
             range_fac=1
         end if
 
-        if (DebugMsgs) timeprev=GetTestTime()
+        if (DebugMsgs) call Timer%Start()
 
         interp_fac = max(1,min(nint(10/LensAccuracyBoost),int(range_fac*2)-1))
 
@@ -246,7 +247,7 @@
 
         !$OMP PARALLEL DO DEFAULT(PRIVATE),  &
         !$OMP SHARED(lfacs,lfacs2,lrootfacs,Cphil3,CTT,CTE,CEE,lens_contrib,theta_cut), &
-        !$OMP SHARED(lmax,dtheta,CL,roots, npoints,interp_fac), &
+        !$OMP SHARED(lmin, lmax,dtheta,CL,roots, npoints,interp_fac), &
         !$OMP SHARED(jmax,ls,xl,short_integral_range,apodize_point_width)
         do i=1,npoints-1
 
@@ -463,11 +464,10 @@
                 end do
             end if
 
-            !$          thread_ix = OMP_GET_THREAD_NUM()+1
+            !$  thread_ix = OMP_GET_THREAD_NUM()+1
 
             do l=lmin, CL%lmax_lensed
                 !theta factors were put in earlier (already in corr)
-
 
                 lens_contrib(C_Temp, l, thread_ix)= lens_contrib(C_Temp,l, thread_ix) + &
                     corr(1)*P(l)*sinth
@@ -502,43 +502,39 @@
 
         end do
 
-        deallocate(ddcontribs,corrcontribs)
-        deallocate(lens_contrib)
-
-        if (DebugMsgs) write(*,*) GetTestTime()-timeprev, 'Time for corr lensing'
+        if (DebugMsgs) call Timer%WriteTime('Time for corr lensing')
     end associate
 
     end subroutine CorrFuncFullSkyImpl
 
-
-
     subroutine CorrFuncFlatSky(State)
     !Do flat sky approx partially non-perturbative lensing, lensing_method=2
-    class(CAMBstate) :: State
+    class(CAMBdata) :: State
     integer l, i
     integer :: npoints
     real(dl) Cgl2,  sigmasq, theta
     real(dl) dtheta
     real(dl) dbessfac, fac, fac1,fac2,  C2term, expsig, corr(4)
-    real(sp) timeprev
-    real(dl) Bessel0(lmin:CP%Max_l),Bessel2(lmin:CP%Max_l)
-    real(dl) Bessel4(lmin:CP%Max_l),Bessel6(lmin:CP%Max_l)
-    real(dl) Cphil3(lmin:CP%Max_l), CTT(lmin:CP%Max_l), CTE(lmin:CP%Max_l),CEE(lmin:CP%Max_l)
+    real(dl) Bessel0(State%CP%Min_l:State%CP%Max_l),Bessel2(State%CP%Min_l:State%CP%Max_l)
+    real(dl) Bessel4(State%CP%Min_l:State%CP%Max_l),Bessel6(State%CP%Min_l:State%CP%Max_l)
+    real(dl) Cphil3(State%CP%Min_l:State%CP%Max_l), CTT(State%CP%Min_l:State%CP%Max_l), &
+        CTE(State%CP%Min_l:State%CP%Max_l),CEE(State%CP%Min_l:State%CP%Max_l)
     integer max_lensed_ix
     integer b_lo
     real(dl) T2,T4,a0, b0
-    real(dl) lfacs(CP%Max_l), LensAccuracyBoost
+    real(dl) lfacs(State%CP%Max_l), LensAccuracyBoost
     real(dl), allocatable, dimension(:,:,:) :: lens_contrib(:,:,:)
     integer thread_ix
+    Type(TTimer) :: Timer
 
     !$ integer OMP_GET_THREAD_NUM, OMP_GET_MAX_THREADS
     !$ external OMP_GET_THREAD_NUM, OMP_GET_MAX_THREADS
 
-    LensAccuracyBoost = CP%Accuracy%AccuracyBoost*CP%Accuracy%LensingBoost
-
     if (lensing_includes_tensors) stop 'Haven''t implemented tensor lensing'
 
-    associate(lSamp => State%CLData%CTransScal%ls, CP=>State%CP, CL=> State%ClData)
+    associate(lSamp => State%CLData%CTransScal%ls, CP=>State%CP, CL=> State%ClData, lmin => State%CP%Min_l)
+
+        LensAccuracyBoost = CP%Accuracy%AccuracyBoost*CP%Accuracy%LensingBoost
 
         max_lensed_ix = lSamp%nl-1
         do while(lSamp%l(max_lensed_ix) > CP%Max_l -250)
@@ -560,7 +556,7 @@
 
         call GetBessels(npoints*dtheta*CP%Max_l)
 
-        if (DebugMsgs) timeprev=GetTestTime()
+        if (DebugMsgs) call Timer%Start()
 
         dbessfac = dbessel**2/6
 
@@ -687,36 +683,34 @@
 
         deallocate(lens_contrib)
 
-        if (DebugMsgs) write(*,*) GetTestTime()-timeprev, 'Time for corr lensing'
+        if (DebugMsgs) call Timer%WriteTime('Time for corr lensing')
     end associate
     end subroutine CorrFuncFlatSky
 
     subroutine BadHarmonic(State)
     use MathUtils
-    class(CAMBstate) :: State
+    class(CAMBdata) :: State
     integer maxl, i, almin, max_lensed_ix, maxl_phi
     real(dl) , dimension (:,:), allocatable :: bare_cls
-    real(dl) pp(CP%Max_l)
-    real(dl) asum, RR, roots(CP%Max_l)
+    real(dl) pp(State%CP%Max_l)
+    real(dl) asum, RR, roots(State%CP%Max_l)
     real(dl) asum_TE, asum_EE, asum_BB
     integer l1,l2,al,j, j1, k, hk, llp_1, llp_al, g1
     real(dl)  F, fct
     real(dl) g2l,g2l1, norm
-    real(dl) a3j(CP%Max_l*2+1), tF, expF
+    real(dl) a3j(State%CP%Max_l*2+1), tF, expF
     logical DoPol
     real(dl), allocatable :: iContribs(:,:), intcontrib(:)
     real(dl) , dimension (:,:), allocatable :: iCl_lensed
     integer max_j_contribs
-    real(sp) timeprev
 
     !Otherwise use second order perturbative harmonic method
 
-    if (DebugMsgs) timeprev=GetTestTime()
+    associate(lSamp => State%CLData%CTransScal%ls, CP=>State%CP, CL=> State%ClData, lmin => State%CP%Min_l)
 
-    DoPol = CP%Accuracy%AccuratePolarization
+        DoPol = CP%Accuracy%AccuratePolarization
 
-    maxl = CP%Max_l
-    associate(lSamp => State%CLData%CTransScal%ls, CP=>State%CP, CL=> State%ClData)
+        maxl = CP%Max_l
 
         if (allocated(CL%Cl_lensed)) deallocate(CL%Cl_lensed)
 
@@ -910,11 +904,6 @@
             call lSamp%InterpolateClArr(iCl_lensed(1,j),CL%Cl_lensed(lmin, j),max_lensed_ix)
         end do
 
-        deallocate(iCl_lensed)
-
-        if (DebugMsgs) then
-            if (FeedbackLevel>0) write(*,*) GetTestTime()-timeprev,' Timing for lensing'
-        end if
     end associate
 
     end subroutine BadHarmonic
@@ -1056,4 +1045,3 @@
 
 
     end module lensing
-

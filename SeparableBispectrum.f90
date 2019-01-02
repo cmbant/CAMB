@@ -15,7 +15,7 @@
     !Fisher results are with and without the cosmic variance from low L_1
 
     module Bispectrum
-    use CambSettings
+    use results
     use InitialPower
     use SpherBessels
     use constants
@@ -92,10 +92,11 @@
 
     end subroutine InitBesselDerivs
 
-    subroutine NonGauss_l_r_localOpt(CTrans, ind, indP, res, resP, nfields, r)
+    subroutine NonGauss_l_r_localOpt(CP,CTrans, ind, indP, res, resP, nfields, r)
     !functions of the form int dk k^2 k^i j_l(kr) Delta_l(k) [P]
     !ind and indP are arrays of required k^i powers
     !res and resP are the results without and with the power spectrum P in the integrand
+    Class(CAMBPArams) :: CP
     Type(ClTransferData) :: CTrans
     integer, intent(in) :: ind(:), indP(:)
     integer :: nfields
@@ -150,11 +151,12 @@
 
     end subroutine NonGauss_l_r_localOpt
 
-    subroutine NonGauss_l_r(CTrans, ind, indP,res, resP,nfields, r)
+    subroutine NonGauss_l_r(CP,CTrans, ind, indP,res, resP,nfields, r)
     !functions of the form int dk k^2 k^i j_l(kr) Delta_l(k) [P]
     !ind and indP are arrays of required k^i powers
     !res and resP are the results without and with the power spectrum P in the integrand
     !Output of P scaled by 1d10 (so bispectrum by 1d20)
+    Class(CAMBParams) :: CP
     Type(ClTransferData) :: CTrans
     integer:: nfields
     integer, intent(in) :: ind(:), indP(:)
@@ -165,7 +167,7 @@
     real(dl) xf , J_l, fac, a2, k, dlnk, term, P, kpow(size(ind)), kpow2(size(indP))
 
     if (shape == shape_local) then
-        call NonGauss_l_r_localOpt(CTrans, ind, indP,res, resP, nfields, r)
+        call NonGauss_l_r_localOpt(CP,CTrans, ind, indP,res, resP, nfields, r)
         return
     end if
 
@@ -237,7 +239,7 @@
     end subroutine NonGauss_l_r
 
 
-    subroutine GetBispectrum(CTrans)
+    subroutine GetBispectrum(State,CTrans)
     !Note: may need high maxetak to make sure oscillatory k integrals cancel correctly
     !for accurate alpha(r), beta(r), e.g. 8000; not so important for bispectrum
     !increase accuracy_boost
@@ -250,6 +252,7 @@
 #ifdef FISHER
     use MatrixUtils
 #endif
+    Class(CAMBdata), target :: State
     integer, parameter :: max_bispectra = 2  !fnl, lensing
     Type(ClTransferData) :: CTrans
     type(TRanges) :: TimeStepsNongauss
@@ -262,15 +265,15 @@
     !OddBispectra are parity odd terms like TEB (if do_parity_odd requested for lensing)
     Type(TBispectrum), pointer :: Bispectrum
     !For use in Fisher approximations
-    real(dl) test(lmin:CTrans%ls%l(CTrans%ls%nl))
+    real(dl) test(CTrans%ls%lmin:CTrans%ls%l(CTrans%ls%nl))
     integer i, j, l1,l2,l3, il1, n,np, npd
-    integer min_l, max_l, lmax
+    integer min_l, max_l, lmin, lmax
     real(dl) tmp, tmp1, tmp2, tmp3
     real(dl) a3j(0:CTrans%ls%l(CTrans%ls%nl)*2+1)
     real(dl) a3j2(0:CTrans%ls%l(CTrans%ls%nl)*2+1,4,2)
-    real(dl) CLForLensingIn(4,lmin:CTrans%ls%l(CTrans%ls%nl)),CPhi(3,lmin:CTrans%ls%l(CTrans%ls%nl))
+    real(dl) CLForLensingIn(4,CTrans%ls%lmin:CTrans%ls%l(CTrans%ls%nl))
+    real(dl) CPhi(3,CTrans%ls%lmin:CTrans%ls%l(CTrans%ls%nl))
     Type(lSamples) :: SampleL
-    real starttime
     real(dl) Bscale
     integer field, field1,field2,field3, bi_ix,bix
     Type(TCov2), allocatable :: CForLensing(:)
@@ -308,6 +311,10 @@
 #endif
     type(TTextFile) :: file_alpha, file_beta, file_alpha_beta_r
     type(TTextFile), allocatable, dimension(:) :: bispectrum_files
+    Type(CAMBParams), pointer :: CP
+    Type(TTimer) :: Timer
+
+    CP =>State%CP
 
     parities(1)=1  !T
     parities(2)=1  !E
@@ -336,6 +343,7 @@
     if (lens_bispectrum_approx == first_order_unlensed) file_tag='_unlens'
 
     lmax = CTrans%ls%l(CTrans%ls%nl)
+    lmin = CTrans%ls%lmin
     if (CP%DoLensing) lmax = State%CLData%lmax_lensed
     SampleL%nl=0
     l1=1
@@ -412,8 +420,7 @@
             end do
         end do
 #endif
-        if (DebugMsgs) starttime=GetTestTime()
-
+        if (DebugMsgs) call Timer%Start()
 
         !$OMP PARALLEL DO DEFAULT(SHARED), SCHEDULE(STATIC,3), &
         !$OMP PRIVATE(l1, l2, l3, max_l, min_l, bix, bi_ix, tmp1, tmp2, tmp3), &
@@ -477,7 +484,7 @@
         end do
         !$OMP END PARALLEL DO
 
-        if (DebugMsgs) print *,'Time for lensing:', GetTestTime()-starttime
+        if (DebugMsgs) call Timer%WriteTime('Time for lensing:')
 
         if (nfields==1) BispectrumParams%do_parity_odd=.false.
 
@@ -630,7 +637,7 @@
             call file_alpha_beta_r%CreateFile(trim(output_root)//'_alpha_beta_r.txt') ! 102
         end if
 
-        if (DebugMsgs) starttime=GetTestTime()
+        if (DebugMsgs) call Timer%Start()
 
         !When writing to the files is requested, then do not OMP. This is done
         !by the IF(.not. ...).
@@ -652,8 +659,8 @@
                 allocate(resPd_l(1:CTrans%ls%l(CTrans%ls%nl),npd))
             end if
 
-            call NonGauss_l_r(CTrans, ind, indP,res, resP, nfields, r)
-            if (npd>0) call NonGauss_deriv_l_r(CTrans, indPd,resPd, r, dJl,dddJl)
+            call NonGauss_l_r(CP,CTrans, ind, indP,res, resP, nfields, r)
+            if (npd>0) call NonGauss_deriv_l_r(CP,CTrans, indPd,resPd, r, dJl,dddJl)
 
             do field=1,nfields
                 do j=1,n
@@ -725,7 +732,7 @@
         deallocate(TransferPolFac)
         call TimeStepsNongauss%Free()
 
-        if (DebugMsgs) print *,'Time for fnl bispectrum:', GetTestTime()-starttime
+        if (DebugMsgs) call Timer%WriteTime('Time for fnl bispectrum:')
 
     end if !DoPrimordial
 
@@ -902,7 +909,7 @@
             end if
         end do
 
-        if (debugMsgs) starttime=GetTestTime()
+        if (debugMsgs) call Timer%Start()
         allocate(ifish_contribs(SampleL%l0,nbispectra,nbispectra,nfields,nfields) )
         !This loop is just in case want to plot out lmax dependence
         do lmaxcuti=SampleL%l0, SampleL%l0
@@ -1013,7 +1020,7 @@
             end do
             !$OMP END PARALLEL DO
 
-            if (DebugMsgs) print *,'Time for Fisher:', GetTestTime()-starttime
+            if (DebugMsgs) call Timer%WriteTime('Time for Fisher:')
 
             allocate(fish_contribs(lmin:CTrans%ls%l(CTrans%ls%nl),nfields,nfields))
             allocate(Fisher(nbispectra,nbispectra))
@@ -1270,8 +1277,9 @@
 
 
     !not needed for local NG
-    subroutine NonGauss_deriv_l_r(CTrans, indP,resP, r, dJl, dddJl)
+    subroutine NonGauss_deriv_l_r(CP,CTrans, indP,resP, r, dJl, dddJl)
     !As above, but integral against derivative of bessel function to get derivative of function
+    Class(CAMBParams) :: CP
     Type(ClTransferData) :: CTrans
     real(dl), intent(in) :: dJl(BessRanges%npoints,CTrans%ls%nl), dddJl(BessRanges%npoints,CTrans%ls%nl)
     integer, intent(in) :: indP(:)

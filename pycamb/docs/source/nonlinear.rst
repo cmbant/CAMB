@@ -5,4 +5,5 @@ camb.nonlinear
    :members:
 
 .. autoclass:: camb.nonlinear.Halofit
+   :show-inheritance:
    :members:

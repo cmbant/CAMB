@@ -71,7 +71,7 @@
     subroutine Init(this, State)
     use classes
     class(TDarkEnergyModel), intent(inout) :: this
-    class(TCAMBCalculation), intent(in) :: State
+    class(TCAMBdata), intent(in) :: State
 
     end subroutine Init
 
@@ -259,7 +259,7 @@
     subroutine TDarkEnergyEqnOfState_Init(this, State)
     use classes
     class(TDarkEnergyEqnOfState), intent(inout) :: this
-    class(TCAMBCalculation), intent(in) :: State
+    class(TCAMBdata), intent(in) :: State
 
     this%is_cosmological_constant = .not. this%use_tabulated_w .and. &
         &  abs(this%w_lam + 1._dl) < 1.e-6_dl .and. this%wa==0._dl
