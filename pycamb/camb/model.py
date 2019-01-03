@@ -285,7 +285,7 @@ class CAMBparams(F2003Class):
         :return: self
         """
 
-        from scipy.interpolate import UnivariateSpline
+        from scipy.interpolate import InterpolatedUnivariateSpline
         assert N_min > 7
         assert kmin < kmax
         # sample function logspace, finely enough that it interpolates accurately
@@ -294,7 +294,7 @@ class CAMBparams(F2003Class):
         PK_test = P_scalar(ktest, *args)
         while True:
             ks = np.logspace(np.log10(kmin), np.log10(kmax), N)
-            PK_compare = UnivariateSpline(ktest, PK_test, s=0)(ks)
+            PK_compare = InterpolatedUnivariateSpline(ktest, PK_test)(ks)
             PK = P_scalar(ks, *args)
             if np.allclose(PK, PK_compare, atol=np.max(PK) * 1e-6, rtol=rtol):
                 break
@@ -767,9 +767,6 @@ class CAMBparams(F2003Class):
 
     def clear_custom_scalar_sources(self):
         self.f_SetCustomSourcesFunc(byref(c_int(0)), byref(ctypes.c_void_p(0)), np.zeros(0, dtype=np.int32))
-
-
-
 
 
 def set_default_params(P):

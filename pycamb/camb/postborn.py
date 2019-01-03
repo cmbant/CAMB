@@ -1,7 +1,7 @@
 from . import camb, model
 import numpy as np
 
-from scipy.interpolate import RectBivariateSpline, UnivariateSpline
+from scipy.interpolate import RectBivariateSpline, InterpolatedUnivariateSpline
 
 
 def cl_kappa_limber(results, PK, ls, nz, chi_source, chi_source2=None):
@@ -102,7 +102,7 @@ def get_field_rotation_power_from_PK(params, PK, chi_source, lmax=20000, acc=1, 
 
     # Get field rotation (curl) spectrum.
     diagm = np.diag(M)
-    diagmsp = UnivariateSpline(ls, diagm, s=0)
+    diagmsp = InterpolatedUnivariateSpline(ls, diagm)
 
     def high_curl_integrand(ll, lp):
         lp = lp.astype(np.int)
@@ -151,7 +151,7 @@ def get_field_rotation_power_from_PK(params, PK, chi_source, lmax=20000, acc=1, 
             tmps[ix] += lp * np.dot(w, (np.sin(phi) / lfact ** 2 * (cosphi - lrat)) ** 2 *
                                     np.exp(Mf(lnorm, lp, grid=False))) * dphi
 
-        sp = UnivariateSpline(lcalc, tmps, s=0)
+        sp = InterpolatedUnivariateSpline(lcalc, tmps)
         clcurl[i] = sp.integral(2, lpmax - 1) * 4 / (2 * np.pi) ** 2
 
         if lpmax < lmax:
@@ -171,8 +171,8 @@ def get_field_rotation_BB(params, lmax=None, acc=1, CMB_unit='muK', raw_cl=False
     :param acc: accuracy
     :param CMB_unit: units for CMB output relative to dimensionless
     :param raw_cl: return :math:`C_\ell` rather than :math:`\ell(\ell+1)C_\ell/2\pi`
-    :param spline: return UnivariateSpline, otherwise return tuple of lists of :math:`\ell` and :math:`C_\ell`
-    :return: UnivariateSpline (or arrays of sampled :math:`\ell` and) :math:`\ell^2 C_\ell^{BB}/(2 \pi)` (unless raw_cl, in which case just :math:`C_\ell^{BB}`)
+    :param spline: return InterpolatedUnivariateSpline, otherwise return tuple of lists of :math:`\ell` and :math:`C_\ell`
+    :return: InterpolatedUnivariateSpline (or arrays of sampled :math:`\ell` and) :math:`\ell^2 C_\ell^{BB}/(2 \pi)` (unless raw_cl, in which case just :math:`C_\ell^{BB}`)
     """
 
     par_CMB = params.copy()
@@ -182,17 +182,17 @@ def get_field_rotation_BB(params, lmax=None, acc=1, CMB_unit='muK', raw_cl=False
     par_CMB.WantCls = True
     results = camb.get_results(par_CMB)
     CE = results.get_unlensed_scalar_cls(lmax, CMB_unit=CMB_unit, raw_cl=True)[:, 1]
-    CEsp = UnivariateSpline(np.arange(CE.shape[0]), CE, s=0)
+    CEsp = InterpolatedUnivariateSpline(np.arange(CE.shape[0]), CE)
     lsamp, clcurl = get_field_rotation_power(params, acc=acc)
     lsamp, BB = get_field_rotation_BB_integral(lsamp, clcurl, CEsp, lmax, acc=acc, raw_cl=raw_cl)
     if spline:
-        return UnivariateSpline(lsamp, BB, s=0)
+        return InterpolatedUnivariateSpline(lsamp, BB)
     else:
         return lsamp, BB
 
 
 def get_field_rotation_BB_integral(lsamp, clcurl, cl_E_unlensed_sp, lmax=None, lsamp_out=None, acc=1, raw_cl=False):
-    CurlSp = UnivariateSpline(lsamp, clcurl, s=0)
+    CurlSp = InterpolatedUnivariateSpline(lsamp, clcurl)
     lmax = lmax or lsamp[-1]
     if lsamp_out is None: lsamp_out = np.array([L for L in lsamp if L <= lmax // 2])
     Bcurl = np.zeros(lsamp_out.shape)

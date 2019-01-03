@@ -8,7 +8,7 @@ from .model import set_default_params, CAMBparams
 import logging
 import six
 
-from scipy.interpolate import UnivariateSpline, RectBivariateSpline
+from scipy.interpolate import RectBivariateSpline
 
 if six.PY3:
     from inspect import getfullargspec as getargspec

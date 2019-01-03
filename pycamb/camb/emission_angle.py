@@ -45,10 +45,10 @@ def get_emission_angle_powers(camb_background, PK, chi_source, lmax=3000, acc=1,
     :param lmax: maximum L
     :param acc: accuracy parameter
     :param lsamp: L sampling for the result
-    :return: a UnivariateSpline object containing :math:`L(L+1) C_L`
+    :return: a InterpolatedUnivariateSpline object containing :math:`L(L+1) C_L`
     """
 
-    from scipy.interpolate import UnivariateSpline
+    from scipy.interpolate import InterpolatedUnivariateSpline
 
     assert (isinstance(camb_background, camb.CAMBdata) and np.isclose(camb_background.Params.omk, 0))
     nz = int(100 * acc)
@@ -57,7 +57,7 @@ def get_emission_angle_powers(camb_background, PK, chi_source, lmax=3000, acc=1,
                              np.arange(lmax, lmax + 1))).astype(np.float64)
     cl_psi_d = cl_deflection_limber(camb_background, PK, ls, nz, chi_source, emit_pow=2, lens_pow=0)
     cl_psi_d_cross = cl_deflection_limber(camb_background, PK, ls, nz, chi_source, emit_pow=1, lens_pow=1)
-    return UnivariateSpline(ls, cl_psi_d, s=0), UnivariateSpline(ls, cl_psi_d_cross, s=0)
+    return InterpolatedUnivariateSpline(ls, cl_psi_d), InterpolatedUnivariateSpline(ls, cl_psi_d_cross)
 
 
 def get_emission_delay_BB(params, kmax=100, lmax=3000, non_linear=True, CMB_unit='muK', raw_cl=False,
@@ -76,10 +76,10 @@ def get_emission_delay_BB(params, kmax=100, lmax=3000, non_linear=True, CMB_unit
     :param lsamp: array of :math:`\ell` values to compute output at. If not set, set to sampling good for interpolation
     :param return_terms: return the three sub-terms separately rather than the total
     :param include_reionization: approximately include reionization terms by second scattering surface
-    :return: UnivariateSpline for :math:`C_\ell^{BB}`
+    :return: InterpolatedUnivariateSpline for :math:`C_\ell^{BB}`
     """
 
-    from scipy.interpolate import UnivariateSpline
+    from scipy.interpolate import InterpolatedUnivariateSpline
 
     assert (np.isclose(params.omk, 0))
     camb_background = camb.get_background(params)
@@ -162,11 +162,11 @@ def get_emission_delay_BB(params, kmax=100, lmax=3000, non_linear=True, CMB_unit
     totBEterm *= fac
     totBxterm *= fac
     if return_terms:
-        return UnivariateSpline(lsampvelcl, totautoB, s=0), \
-               UnivariateSpline(lsampvelcl, totBEterm, s=0), \
-               UnivariateSpline(lsampvelcl, totBxterm, s=0)
+        return InterpolatedUnivariateSpline(lsampvelcl, totautoB), \
+               InterpolatedUnivariateSpline(lsampvelcl, totBEterm), \
+               InterpolatedUnivariateSpline(lsampvelcl, totBxterm)
     else:
-        return UnivariateSpline(lsampvelcl, totBxterm + totBEterm + totautoB, s=0)
+        return InterpolatedUnivariateSpline(lsampvelcl, totBxterm + totBEterm + totautoB)
 
 
 def get_source_cmb_cl(params, CMB_unit='muK'):
