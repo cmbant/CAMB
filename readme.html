@@ -145,6 +145,44 @@ A test suite is included, and will run automatically on <A HREF="https://travis-
 <A NAME="version">
 <H3>Version history</H3>
 
+<B>xxx 2019</B><BR>
+<ul>
+<li>Integrated CAMB and CAMB sources, for CMB, CMB lensing, lensing convergence, number counts and 21cm. </li>
+<li>Fortran 2003 Object-oriented code restructuring; fortran code structure now closer to the python.</li>
+<li>Changed CAMBparam parameters to be physical density parameters ombh2, omch3, omnuh2 (+omk)</li>
+<li>Modest speed improvement from using higher order series solutions for background neutrino density combined with linear rather than log spline.</li>
+<li>Uses splined a(t) for perturbation evolution rather than evolving for each perturbation mode; tensor spectrum results now much faster</li>
+<li>More accurate background calculations with partial parallelism</li>
+<li>min_l and custom source functions now set as parts of CAMBparams</li>
+<li>Account for radiation when setting dark energy density from matter densities and omk</li>
+<li>Smoother default reionization history parameters around helium second reionization</li>
+<li>Use matter temperature evolution from recfast (still harmlessly wrong - as before - from reionization onwards)</li>
+<li>scalarCovCls.dat and _array outputs for lensing potential now deflection angle</li>
+<li>Fix for auto-kmax when using lensing from command line</li>
+<li>Dark Energy, InitialPower, NonLinearModel, ReionizationModel and RecombinationModel are now all classes that can be switched dynamically. General spline fit implementation for the initial power spectrum and lensing/count source distributions.</li>
+<li>SplinedInitialPower and SplinedSourceWindow implementations for general interpolated initial power spectra and source window functions</li>
+<li>Added TAxionEffectiveFluid example specific dark energy class implementation</li>
+<li>Git reposiotory now uses submodule for <a href="https://github.com/cmbant/forutils">forutils</a></li>
+    <LI><A HREF="https://camb.readthedocs.io/en/devel/">Python CAMB wrapper</A>:
+     <ul>
+       <l>Lensing convergence, number counts and 21cm now available from Python</li>
+       <li>SplinedSourceWindow and GaussianWindow for setting SourceWindows array (see example notebook)</li>
+       <li>Reworked python-fortran interface using metaclass and decorators, supporting allocatable arrays and class instances and directly import and call of fortran class methods</li>
+       <li>Support multiple CAMBdata instances, and results object can be called safely in any order (removing most global variables)</li>
+       <li>Dark Energy, InitialPower, NonLinearModel, ReionizationModel and RecombinationModel classes that can be dynamically assigned to CAMBparam class member elements</li>
+       <li><a href="https://camb.readthedocs.io/en/devel/model.html#camb.model.CAMBparams.set_initial_power_function">set_initial_power_function</a> and <a href="https://camb.readthedocs.io/en/devel/model.html#camb.model.CAMBparams.set_initial_power_table">set_initial_power_table</a> to set initial power spectra from arbitrary python function or sampled arrays</li>
+       <li>set_cosmology() now supports more general exact thetastar as well as H0 and cosmomc_theta. No H0 default.</li>
+       <li>CAMBParams read-only properties for omegam, N_eff, omegab, omegac, omaganu, h</li>
+       <li>T_CMB changes handled consistently</li>
+       <li>camb.set_params supports options for changing dark energy, initial power and non-linear model classes</li>
+       <li>camb.set_params can set CAMBparam members if not already used as an argument (and things like InitPower.ns via an input string)</li>
+       <li>Fields support named enumerations, name-length fields for arrays, fortran-compatible boolean and help</li>
+       <li>Docs include help for field values (auto-generated via metaclass)</li>
+       <li>Faster and array versions of various background functions</li>
+      </ul>
+
+</ul>
+
 <B>August 2018</B><BR>
 <ul>
   <li>Option to use HMCode 2015 version (thanks Alex Mead)</li>
@@ -768,7 +806,7 @@ from <A HREF="http://arxiv.org/abs/1208.2701">arXiv:1208.2701</A> (thanks Ryuich
 <B>SeparableBispectrum.f90</B>
 <P>
   Implements calculation of simple separable primordial bispectra, specifically the local constant f<sub>NL</sub> model, and the CMB lensing bispectrum due to the linear temperature and polarization cross-correlation with the lensing potential. Compile with FISHER defined in the makefile to also calculate Fisher elements, including the effects of lensing signal variance (edit Makefile to link to LAPACK if necessary). Note that the primordial bispectra here are unlensed (see <A HREF="http://arxiv.org/abs/0905.4732">arXiv:0905.4732</a> for a calculation), but the lensed bispectra are calculated non-perturbatively (but approximately) using the lensed small-scale CMB power spectra. Note that calculating primordial bispectra is significantly slower than doing standard power spectrum calculations, however it parallelizes well.
-  
+
   <P>
  <B>camb_python.f90</B>
 <P>
