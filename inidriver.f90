@@ -316,7 +316,7 @@
     call Ini%Read('Alens', P%Alens)
 
     call P%Reion%ReadParams(Ini)
-    call P%InitPower%ReadParams(Ini, P%WantTensors)
+    call P%InitPower%ReadParams(Ini)
     call P%Recomb%ReadParams(Ini)
     if (Ini%HasKey('recombination')) then
         i = Ini%Read_Int('recombination', 1)

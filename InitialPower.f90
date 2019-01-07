@@ -182,11 +182,13 @@
     end if
     end function CompatKey
 
-    subroutine TInitialPowerLaw_ReadParams(this, Ini, WantTensors)
+    subroutine TInitialPowerLaw_ReadParams(this, Ini)
     use IniObjects
     class(TInitialPowerLaw) :: this
     class(TIniFile), intent(in) :: Ini
-    logical, intent(in) :: WantTensors
+    logical :: WantTensors
+
+    WantTensors = Ini%Read_Logical('get_tensor_cls', .false.)
 
     call Ini%Read('pivot_scalar', this%pivot_scalar)
     call Ini%Read('pivot_tensor', this%pivot_tensor)

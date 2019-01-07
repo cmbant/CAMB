@@ -85,12 +85,11 @@
     procedure :: GetNonLinRatios_All => TNonLinearModel_GetNonLinRatios_All
     end type TNonLinearModel
 
-    type, extends(TPythonInterfacedClass) :: TInitialPower
+    type, extends(TCambComponent) :: TInitialPower
     contains
     procedure :: ScalarPower => TInitialPower_ScalarPower
     procedure :: TensorPower => TInitialPower_TensorPower
     procedure :: Init => TInitialPower_Init
-    procedure :: ReadParams => TInitialPower_ReadParams
     procedure :: Effective_ns => TInitalPower_Effective_ns
     end type TInitialPower
 
@@ -107,7 +106,7 @@
     procedure :: get_Saha_z => TRecombinationModel_Get_Saha_z
     end type
 
-    Type, extends(TCAMBComponent) :: TReionizationModel
+    Type, extends(TCambComponent) :: TReionizationModel
         logical  :: Reionization = .true.
     contains
     procedure :: Init => TReionizationModel_Init
@@ -197,14 +196,6 @@
     class(TInitialPower) :: this
     class(TCAMBParameters), intent(in) :: Params
     end subroutine TInitialPower_Init
-
-
-    subroutine TInitialPower_ReadParams(this, Ini, WantTensors)
-    class(TInitialPower) :: this
-    class(TIniFile), intent(in) :: Ini
-    logical, intent(in) :: WantTensors
-
-    end subroutine TInitialPower_ReadParams
 
     function TInitalPower_Effective_ns(this)
     class(TInitialPower) :: this
