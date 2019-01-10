@@ -432,7 +432,8 @@ class CAMBStructureMeta(type(Structure)):
                 pass
 
         tps = {c_bool: "boolean", c_double: "float64", c_int: "integer", c_float: "float32",
-               AllocatableArrayDouble: "float64 array", AllocatableArrayInt: "integer array"}
+               AllocatableArrayDouble: "float64 array", AllocatableArrayInt: "integer array",
+               ctypes.c_void_p: "pointer"}
         field_doc = ''
         for field in _fields:
             field_name = field[0]

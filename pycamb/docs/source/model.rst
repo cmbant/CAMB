@@ -16,4 +16,4 @@ camb.model
 .. autoclass:: camb.model.SourceTermParams
    :members:
 
-
+.. autoclass:: camb.model.CustomSources
