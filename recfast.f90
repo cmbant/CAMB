@@ -376,7 +376,8 @@
 
     function TRecfast_tm(this,a)
     class(TRecfast) :: this
-    real(dl) zst,a,z,az,bz,TRecfast_tm
+    real(dl), intent(in) :: a
+    real(dl) zst,z,az,bz,TRecfast_tm
     integer ilo,ihi
 
     z=1/a-1
@@ -496,9 +497,6 @@
     end function TRecfast_version
 
     subroutine TRecfast_init(this,State, WantTSpin)
-    !At some point should inherit this class from base and pass TCAMBparams with other parameters
-    !Note recfast only uses OmegaB, h0inp, tcmb and yp - others used only for Tmat approximation where effect small
-    !nnu currently not used here
     use MiscUtils
     implicit none
     class(TRecfast), target :: this
@@ -1004,12 +1002,12 @@
     end subroutine ION
 
 
-    function TRecfast_dDeltaxe_dtau(this,a, Delta_xe,Delta_nH, Delta_Tm, hdot, kvb)
+    function TRecfast_dDeltaxe_dtau(this,a, Delta_xe,Delta_nH, Delta_Tm, hdot, kvb,adotoa)
     !d x_e/d tau assuming Helium all neutral and temperature perturbations negligible
     !it is not accurate for x_e of order 1
     class(TRecfast) :: this
     real(dl) TRecfast_dDeltaxe_dtau
-    real(dl), intent(in):: a, Delta_xe,Delta_nH, Delta_Tm, hdot, kvb
+    real(dl), intent(in):: a, Delta_xe,Delta_nH, Delta_Tm, hdot, kvb,adotoa
     real(dl) Delta_Tg
     real(dl) xedot,z,x,n,n_He,Trad,Tmat,x_H,Hz, C_r, dlnC_r
     real(dl) Rup,Rdown,K
@@ -1035,7 +1033,7 @@
         n = Calc%Nnow /a**3
         n_He = Calc%fHe * n
         Trad = Calc%Tnow /a
-        clh = 1/dtauda(Calc%State,a)/a !conformal time
+        clh = adotoa !conformal time Hubble
         Hz = clh/a/MPC_in_sec !normal time in seconds
 
         !       Get the radiative rates using PPQ fit, identical to Hummer's table

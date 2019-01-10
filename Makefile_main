@@ -1,13 +1,13 @@
 
-#Files containing evolution equations initial power spectrum module
-POWERSPECTRUM ?= InitialPower
-REIONIZATION ?= reionization
-RECOMBINATION ?= recfast
+#Files containing classes to include
+#e.g. change RECOMBINATION_FILES to "recfast cosmorec" to also support cosmorec
+POWERSPECTRUM_FILES ?= InitialPower
+REIONIZATION_FILES ?= reionization
+RECOMBINATION_FILES ?= recfast
+NONLINEAR_FILES     ?= halofit_ppf SecondOrderPK
+DARKENERGY_FILES  ?= DarkEnergyFluid DarkEnergyPPF
 
 BISPECTRUM ?= SeparableBispectrum
-
-#Module doing non-linear scaling
-NONLINEAR     ?= halofit_ppf
 
 #Driver program
 DRIVER        ?= inidriver.f90
@@ -25,7 +25,14 @@ PYCAMB_OUTPUT_DIR ?= pycamb/camb
 DLL_DIR ?= Releaselib
 
 
-CAMBLIB       = libcamb_$(RECOMBINATION).a
+CAMBLIB       = libcamb.a
+
+SOURCEFILES      = constants config classes MathUtils subroutines DarkAge21cm \
+        DarkEnergyInterface SourceWindows massive_neutrinos model results bessels \
+        $(RECOMBINATION_FILES) $(DARKENERGY_FILES) equations \
+        $(REIONIZATION_FILES) $(POWERSPECTRUM_FILES) $(NONLINEAR_FILES) \
+        lensing $(BISPECTRUM) cmbmain camb
+
 
 F90WFLAGS     = -Waliasing -Wampersand -Wconversion -Wc-binding-type -Wintrinsics-std \
         -Wno-tabs -Wintrinsic-shadow -Wline-truncation -Wtarget-lifetime -Wreal-q-constant
@@ -37,13 +44,9 @@ F90FLAGS      = $(FFLAGS)
 SF90FLAGS      = $(SFFLAGS) $(FFLAGS)
 
 HEALPIXLD     = -L$(HEALPIXDIR)/lib -lhealpix -L$(FITSDIR) -l$(FITSLIB)
-CAMBSRCS      = constants.f90 config.f90 classes.f90 MathUtils.f90 subroutines.f90 DarkAge21cm.f90 \
-        DarkEnergyInterface.f90 SourceWindows.f90 massive_neutrinos.f90 model.f90 results.f90 bessels.f90 \
-        $(RECOMBINATION).f90 $(REIONIZATION).f90 equations.f90 DarkEnergyFluid.f90 \
-        DarkEnergyPPF.f90  $(POWERSPECTRUM).f90 $(NONLINEAR).f90 lensing.f90 \
-        $(BISPECTRUM).f90 cmbmain.f90 camb.f90
 
-CAMBOBJ       = $(patsubst %.f90,%.o,$(CAMBSRCS))
+
+CAMBOBJ       = $(patsubst %,%.o,$(SOURCEFILES))
 CAMBSO        = camb_python.f90
 
 
@@ -52,20 +55,22 @@ camblib.so: FORUTILS_DIR=$(FORUTILSPATH)/$(DLL_DIR)/
 F90CRLINK     += -L$(FORUTILS_DIR) -lforutils
 
 ## CosmoRec
-ifeq ($(RECOMBINATION),cosmorec)
+ifneq (,$(findstring cosmorec,$(RECOMBINATION_FILES)))
+camb: libCosmoRec.a
+libcambso: libCosmoRec.a
+FFLAGS += -DCOSMOREC
 COSMOREC_PATH ?=../CosmoRec/
 GSL_LINK ?=-lgsl -lgslcblas
-camb: libCosmoRec.a
-$(CAMBLIB): libCosmoRec.a
 F90CRLINK += -L$(COSMOREC_PATH) -lCosmoRec $(GSL_LINK) -lstdc++
 endif
 
 
-ifeq ($(RECOMBINATION),hyrec)
+ifneq (,$(findstring hyrec,$(RECOMBINATION_FILES)))
+FFLAGS += -DHYREC
 HYREC_PATH ?= ../HyRec/
-camb: libhyrec.a
-$(CAMBLIB): libhyrec.a
 F90CRLINK += -L$(HYREC_PATH) -lhyrec
+camb: libhyrec.a
+libcambso: libhyrec.a
 endif
 
 default: camb
@@ -85,7 +90,7 @@ camb: libcamb $(DRIVER)
 		$(DRIVER) $(OUTPUT_DIR)/$(CAMBLIB) $(F90CRLINK) -o $@
 
 libcambobj:
-    LIBCAMBOBJ = $(patsubst %.f90,$(DLL_DIR)/%.o,$(CAMBSRCS))
+    LIBCAMBOBJ = $(patsubst %,$(DLL_DIR)/%.o,$(SOURCEFILES))
 
 objfiles: $(CAMBOBJ)
 

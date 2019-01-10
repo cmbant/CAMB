@@ -14,13 +14,20 @@
     use DarkEnergyFluid
     use DarkEnergyPPF
     use results
-    implicit none
+#ifdef COSMOREC
+    use CosmoRec
+#endif
+#ifdef HYREC
+    use HyRec
+#endif
+
+implicit none
     type(CAMBparams) P
 
     character(len=:), allocatable :: numstr, outroot, VectorFileName, &
         InputFile, ScalarFileName, TensorFileName, TotalFileName, LensedFileName,&
         LensedTotFileName, LensPotentialFileName, ScalarCovFileName, &
-        version_check, DarkEneryModel, S
+        version_check, DarkEneryModel, RecombinationModel, S
 
     integer :: i, num_redshiftwindows
 
@@ -317,11 +324,31 @@
 
     call P%Reion%ReadParams(Ini)
     call P%InitPower%ReadParams(Ini)
-    call P%Recomb%ReadParams(Ini)
+
     if (Ini%HasKey('recombination')) then
         i = Ini%Read_Int('recombination', 1)
         if (i/=1) error stop 'recombination option deprecated'
     end if
+    RecombinationModel = Ini%Read_String_Default('recombination_model', 'Recfast')
+    if (RecombinationModel == 'CosmoRec') then
+#ifdef COSMOREC
+        deallocate(P%Recomb)
+        allocate(TCosmoRec::P%Recomb)
+#else
+        error stop 'Compile with CosmoRec to use recombination_model=CosmoRec'
+#endif  
+    else if (RecombinationModel == 'HyRec') then
+#ifdef HYREC
+        deallocate(P%Recomb)
+        allocate(THyRec::P%Recomb)
+#else
+        error stop 'Compile with HyRec to use recombination_model=HyRec'
+#endif          
+    else if (RecombinationModel /= 'Recfast') then
+        error stop 'Unknown recombination_model'
+    end if
+
+    call P%Recomb%ReadParams(Ini)
 
     call Bispectrum_ReadParams(BispectrumParams, Ini, outroot)
 
@@ -469,7 +496,7 @@
         end if
 
 #ifdef WRITE_FITS
-        if (FITSfilename /= '') call WriteFitsCls(FITSfilename, CP%Max_l)
+        if (FITSfilename /= '') call WriteFitsCls(State, FITSfilename, CP%Max_l)
 #endif
     end if
 

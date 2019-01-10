@@ -141,7 +141,7 @@ class SharedLibrary(build, object):
                 SOURCES = " constants.f90 config.f90 classes.f90 MathUtils.f90 subroutines.f90 massive_neutrinos.f90 " \
                           "SourceWindows.f90 DarkAge21cm.f90 DarkEnergyInterface.f90 model.f90 results.f90 " \
                           "recfast.f90 reionization.f90 bessels.f90 equations.f90 InitialPower.f90 DarkEnergyFluid.f90 DarkEnergyPPF.f90 " \
-                          "halofit_ppf.f90 lensing.f90 SeparableBispectrum.f90" \
+                          "halofit_ppf.f90 SecondOrderPK.f90 lensing.f90 SeparableBispectrum.f90" \
                           " cmbmain.f90 camb.f90 camb_python.f90"
                 OUTPUT = r"-o %s\camb\%s" % (pycamb_path, DLLNAME)
                 fpath = get_forutils()

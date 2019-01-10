@@ -81,6 +81,7 @@
     type, extends(TCambComponent) :: TNonLinearModel
         real(dl) :: Min_kh_nonlinear  = 0.005_dl
     contains
+    procedure :: Init => TNonLinearModel_init
     procedure :: GetNonLinRatios => TNonLinearModel_GetNonLinRatios
     procedure :: GetNonLinRatios_All => TNonLinearModel_GetNonLinRatios_All
     end type TNonLinearModel
@@ -158,17 +159,22 @@
 
     end subroutine Replace
 
+    subroutine TNonLinearModel_Init(this, State)
+    class(TNonLinearModel) :: this
+    class(TCAMBdata), target :: State
+    end subroutine TNonLinearModel_Init
+
     subroutine TNonLinearModel_GetNonLinRatios(this,State,CAMB_Pk)
     class(TNonLinearModel) :: this
     class(TCAMBdata) :: State
-    type(MatterPowerData) :: CAMB_Pk
+    type(MatterPowerData), target :: CAMB_Pk
     error stop 'GetNonLinRatios Not implemented'
     end subroutine TNonLinearModel_GetNonLinRatios
 
     subroutine TNonLinearModel_GetNonLinRatios_All(this,State,CAMB_Pk)
     class(TNonLinearModel) :: this
-    class(TCAMBdata), intent(in) :: State
-    type(MatterPowerData) :: CAMB_Pk
+    class(TCAMBdata) :: State
+    type(MatterPowerData), target :: CAMB_Pk
     error stop 'GetNonLinRatios_all  not supported (no non-linear velocities)'
     end subroutine TNonLinearModel_GetNonLinRatios_All
 
@@ -221,8 +227,8 @@
 
     function TRecombinationModel_tm(this,a)
     class(TRecombinationModel) :: this
-    real(dl) zst,a,z,az,bz,TRecombinationModel_tm
-    integer ilo,ihi
+    real(dl), intent(in) :: a
+    real(dl) TRecombinationModel_tm
 
     call MpiStop('TRecombinationModel_tm not implemented')
     TRecombinationModel_tm=0
@@ -252,13 +258,13 @@
     end function TRecombinationModel_xe
 
     subroutine TRecombinationModel_xe_Tm(this,a, xe, Tm)
+    !Not required to implement, but may be able to optimize
     class(TRecombinationModel) :: this
     real(dl), intent(in) :: a
     real(dl), intent(out) :: xe, Tm
 
-    call MpiStop('TRecombinationModel_xe_TM not implemented')
-    xe=0
-    Tm=0
+    xe = this%x_e(a)
+    Tm = this%T_m(a)
 
     end subroutine TRecombinationModel_xe_Tm
 
@@ -276,11 +282,11 @@
     logical, intent(in), optional :: WantTSpin
     end subroutine TRecombinationModel_init
 
-    function TRecombinationModel_dDeltaxe_dtau(this,a, Delta_xe,Delta_nH, Delta_Tm, hdot, kvb)
+    function TRecombinationModel_dDeltaxe_dtau(this,a, Delta_xe,Delta_nH, Delta_Tm, hdot, kvb,adotoa)
     !d x_e/d tau
     class(TRecombinationModel) :: this
     real(dl) TRecombinationModel_dDeltaxe_dtau
-    real(dl), intent(in):: a, Delta_xe,Delta_nH, Delta_Tm, hdot, kvb
+    real(dl), intent(in):: a, Delta_xe,Delta_nH, Delta_Tm, hdot, kvb,adotoa
 
     call MpiStop('TRecombinationModel_dDeltaxe_dtau not implemented')
     TRecombinationModel_dDeltaxe_dtau=0

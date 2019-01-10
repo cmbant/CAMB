@@ -142,7 +142,7 @@
     !This implementation uses Halofit
     class(THalofit) :: this
     class(TCAMBdata) :: State
-    type(MatterPowerData) :: CAMB_Pk
+    type(MatterPowerData), target :: CAMB_Pk
     integer itf
     real(dl) a,plin,pq,ph,pnl,rk
     real(dl) sig,rknl,rneff,rncur,d1,d2

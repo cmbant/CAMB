@@ -109,17 +109,13 @@ The column numbers correspond to the Transfer_xx integer constants  defined in t
 <A NAME="coding">
 <H3>Compilation options and code modifications</H3>
 <P>
-You can edit the Makefile's EQUATIONS, POWERSPECTRUM, RECOMBINATION and REIONIZATION
- variables , which determine which module is used to implement and model various parts of the calculation. The POWERSPECTRUM.f90  file7 contains a module giving the initial
- power spectrum, the EQUATIONS.f90 file contains the background evolution
- equations and sets of gauge-dependent perturbation
- equations (the alternative equations_ppf.f90 is provided to implement the common <i>w</i>, <i>w<sub>a</sub></i> varying dark energy parameterization). RECOMBINATION.f90 gives the background recombination history: recfast by default, but you can also compile to use <A HREF="http://www.cita.utoronto.ca/~jchluba/Science_Jens/Recombination/CosmoRec.html">CosmoRec</A> and <A HREF="http://www.sns.ias.edu/~yacine/hyrec/hyrec.html">HyRec</A>. REIONIZATION is by default a simple relatively fast single-step reionization model (following <A HREF="http://arxiv.org/abs/0804.3865">arXiv:0804.3865</A>).
-  Various other modules can also be changed at compile time if desired.
- To avoid problems run <B>make clean</B> after changing the
- Makefile before recompiling. You can also use e.g. <B>make RECOMBINATION=cosmorec</b> to override the default and compile with a different module.
+The Makefile should work out of the box in most cases for ifort and gfortran.
+If you define your own new classes, or want to compile with  <A HREF="http://www.jb.man.ac.uk/~jchluba/Science/CosmoRec/CosmoRec.html">CosmoRec</A> or <A HREF="http://pages.jh.edu/~yalihai1/hyrec/hyrec.html">HyRec</A> recombination support, you can edit the file list variables at the top of Makefile_main.
+ You can also use e.g. <B>make RECOMBINATION_FILES="recfast cosmorec"</b> to override the default and compile with additional files.
+ REIONIZATION is by default a simple relatively fast single-step reionization model (following <A HREF="http://arxiv.org/abs/0804.3865">arXiv:0804.3865</A>), but you could add alternative models by implementing other derived classes. 
 </P>
 <P>
-You can produce files in  <A
+It's rarely needed, but you can power spectrum produce files in  <A
 HREF="http://heasarc.gsfc.nasa.gov/docs/software/fitsio/fitsio.html">FITS</A>
  format - to do this you will need to have <A
 HREF="http://www.eso.org/science/healpix/">HEALPIX</A> installed and make
@@ -129,10 +125,7 @@ HREF="http://www.eso.org/science/healpix/">HEALPIX</A> installed and make
 </P>
 <P>
 All the equations that need to be modified for
-simple non-standard models are in the equations.f90 file.  It should be possible to produce other files
-for extended models (see the sample <A
-HREF="http://camb.info/extra.html">quintessence</A> module). (Note that varying
-constant - e.g. alpha -  models are not quite so simple to plug in; a sample equations_ppf.f90 file provided to implement a varying <i>w</i> dark energy equation of state in the <A HREF="http://arxiv.org/abs/0808.3125">PPF</A> model).
+simple non-standard models are in the equations.f90 file, or an in separate classes like the dark energy model.
 <P>
 After modifying any of the source code run <B>make clean</B> before running <B>make</B> to recompile (Visual Fortran will re-compile dependent code automatically).
 Run <B>make all</B> to build a library libcamb.a that you can use when
@@ -179,6 +172,8 @@ A test suite is included, and will run automatically on <A HREF="https://travis-
        <li>Fields support named enumerations, name-length fields for arrays, fortran-compatible boolean and help</li>
        <li>Docs include help for field values (auto-generated via metaclass)</li>
        <li>Faster and array versions of various background functions</li>
+       <li>SecondOrderPK non-linear model class</li>
+       <LI>Optional support for CosmoRec and HyRec NonLinearModel classes (need to compile with them linked)</li>
       </ul>
 
 </ul>

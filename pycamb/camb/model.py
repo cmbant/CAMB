@@ -9,6 +9,7 @@ from . import constants
 from .initialpower import InitialPower, SplinedInitialPower
 from .nonlinear import NonLinearModel
 from .dark_energy import DarkEnergyModel, DarkEnergyEqnOfState
+from .recombination import RecombinationModel
 from .sources import SourceWindow, GaussianSourceWindow
 from . import bbn
 import six
@@ -523,13 +524,15 @@ class CAMBparams(F2003Class):
         else:
             return sum(self.nu_mass_degeneracies[:self.nu_mass_eigenstates]) + self.num_nu_massless
 
-    def set_classes(self, dark_energy_model=None, initial_power_model=None, non_linear_model=None):
+    def set_classes(self, dark_energy_model=None, initial_power_model=None,
+                    non_linear_model=None, recombination_model=None):
         """
         Change the classes used to implement parts of the model.
 
         :param dark_energy_model: 'fluid', 'ppf', or name of a DarkEnergyModel class
         :param initial_power_model: name of an InitialPower class
         :param non_linear_model: name of a NonLinearModel class
+        :param recombination_model: name of recombination_model class
         """
         if dark_energy_model:
             self.DarkEnergy = self.make_class_named(dark_energy_model, DarkEnergyModel)
@@ -537,6 +540,8 @@ class CAMBparams(F2003Class):
             self.InitPower = self.make_class_named(initial_power_model, InitialPower)
         if non_linear_model:
             self.NonLinear = self.make_class_named(initial_power_model, NonLinearModel)
+        if recombination_model:
+            self.Recomb = self.make_class_named(recombination_model, RecombinationModel)
 
     def set_dark_energy(self, w=-1.0, cs2=1.0, wa=0, dark_energy_model='fluid'):
         r"""

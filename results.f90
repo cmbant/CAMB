@@ -425,7 +425,7 @@
             - (this%grhornomass + this%grhog)/this%grhocrit
         this%grhov=this%grhocrit*this%Omega_de
 
-        !  adotrad gives the relation a(tau) in the radiation era:
+        !  adotrad gives da/dtau in the asymptotic radiation-dominated era:
         this%adotrad = sqrt((this%grhog+this%grhornomass+sum(this%grhormass(1:this%CP%Nu_mass_eigenstates)))/3)
 
         this%Nnow = this%CP%ombh2/h2*(1-this%CP%yhe)*this%grhocrit*c**2/kappa/m_H/Mpc**2
@@ -471,6 +471,7 @@
                 call GlobalError('chi >= pi in closed model not supported',error_unsupported_params)
             end if
             if (WantReion) call this%CP%Reion%Init(this)
+            if (this%CP%NonLinear/=NonLinear_None) call this%CP%NonLinearModel%Init(this)
         end if
     end if
     if (allocated(this%CP%SourceWindows)) then

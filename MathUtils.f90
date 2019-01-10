@@ -12,8 +12,7 @@
 
     contains
 
-    !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-    function Integrate_Romberg(obj, fin,a,b,tol, maxit, minsteps)
+    function Integrate_Romberg(obj, fin, a, b, tol, maxit, minsteps, abs_tol)
     !  Rombint returns the integral from a to b of f(obj,x) using Romberg integration.
     !  The method converges provided that f is continuous in (a,b).
     !  f must be real(dl). The first argument is a class instance.
@@ -28,17 +27,20 @@
     procedure(obj_function), pointer :: f
     real(dl), intent(in) :: a,b,tol
     integer, intent(in), optional :: maxit,minsteps
+    logical, intent(in), optional :: abs_tol
     integer max_it, min_steps
     real(dl) :: Integrate_Romberg
     integer, parameter :: MAXJ=5
     integer :: nint, i, k, jmax, j
     real(dl) :: h, gmax, error, g(MAXJ+1), g0, g1, fourj
+    logical abstol
 
     !convert the class function (un-type-checked) into correct type to call correctly for class argument
     call C_F_PROCPOINTER(c_funloc(fin), f)
 
     max_it = PresentDefault(25, maxit)
     min_steps = PresentDefault(0, minsteps)
+    abstol = DefaultFalse(abs_tol)
     h=0.5d0*(b-a)
     gmax=h*(f(obj,a)+f(obj,b))
     g(1)=gmax
@@ -65,10 +67,14 @@
             g(j)=g0
             g0=g1
         end do
-        if (abs(g0).gt.tol) then
-            error=1._dl-gmax/g0
+        if (abstol) then
+            error=abs(gmax-g0)
         else
-            error=gmax
+            if (abs(g0).gt.tol) then
+                error=1._dl-gmax/g0
+            else
+                error=gmax
+            end if
         end if
         gmax=g0
         g(jmax+1)=g0

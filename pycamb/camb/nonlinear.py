@@ -6,7 +6,9 @@ class NonLinearModel(F2003Class):
     """
     Abstract base class for non-linear correction models
     """
-    pass
+    _fields_ = [
+        ("Min_kh_nonlinear", c_double, "minimum k/h at which to apply non-linear corrections"),
+    ]
 
 
 halofit_original = 'original'
@@ -30,7 +32,6 @@ class Halofit(NonLinearModel):
     Various specific approximate non-linear correction models based on HaloFit.
     """
     _fields_ = [
-        ("Min_kh_nonlinear", c_double),
         ("halofit_version", c_int, {"names": halofit_version_names, "start": 1})
     ]
 
@@ -57,3 +58,22 @@ class Halofit(NonLinearModel):
 
         """
         self.halofit_version = halofit_version
+
+
+@fortran_class
+class SecondOrderPK(NonLinearModel):
+    """
+    Third-order Newtonian perturbation theory results for the non-linear correction.
+    Only intended for use at very high redshift (z>10) where corrections are perturbative, it will not give
+    sensible results at low redshift.
+
+    See Appendix F of `astro-ph/0702600 <http://arxiv.org/abs/astro-ph/0702600>`_ for equations and references.
+
+    Not intended for production use, it's mainly to serve as an example alternative non-linear model implementation.
+    """
+
+    _fortran_class_module_ = 'SecondOrderPK'
+    _fortran_class_name_ = 'TSecondOrderPK'
+
+    def set_params(self):
+        pass

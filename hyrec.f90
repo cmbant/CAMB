@@ -1,85 +1,98 @@
     !---------------------------------------------------------------------------------------------------
     ! Recombination module for CAMB, using HyRec
-    ! Author: Antony Lewis
+    ! Note you will need to rename dtauda_ in history.c to exported_dtauda.
+    ! To use with the python wrapper add -fPIC to the HYREC CCFLAGS (for gcc)
     !---------------------------------------------------------------------------------------------------
 
-    module Recombination
+    module HyRec
+    use precision
     use constants
-    use AMLUtils
+    use classes
+    use MathUtils
+    use results
+    use config
+    use MpiUtils, only : MpiStop
     implicit none
     private
 
-    type RecombinationParams
+    type, extends(TRecombinationModel) :: THyRec
+    contains
+    procedure :: Init => THyRec_init
+    procedure :: x_e => THyRec_xe
+    procedure :: T_m => THyRec_tm !baryon temperature
+    procedure, nopass :: SelfPointer => THyRec_SelfPointer
+    end type THyRec
 
-    end type RecombinationParams
+    class(CAMBdata), pointer :: CurrentState
 
-    character(LEN=*), parameter :: Recombination_Name = 'HyRec'
-
-    public RecombinationParams, Recombination_xe, Recombination_tm, Recombination_init,   &
-        Recombination_ReadParams, Recombination_SetDefParams, &
-        Recombination_Validate, Recombination_Name
-
-
+    public THyRec
     contains
 
-    subroutine Recombination_ReadParams(R, Ini)
-    use IniObjects
-    Type(RecombinationParams) :: R
-    Type(TIniFile) :: Ini
 
-
-    end subroutine Recombination_ReadParams
-
-
-    subroutine Recombination_SetDefParams(R)
-    type (RecombinationParams) ::R
-
-
-    end subroutine Recombination_SetDefParams
-
-
-    subroutine Recombination_Validate(R, OK)
-    Type(RecombinationParams), intent(in) :: R
-    logical, intent(inout) :: OK
-
-
-    end subroutine Recombination_Validate
-
-
-
-    function Recombination_tm(a)
+    function Thyrec_tm(this,a)
+    class(THyRec) :: this
     real(dl), intent(in) :: a
-    real(dl) Recombination_tm, hyrec_tm
+    real(dl) Thyrec_tm,hyrec_tm
     external hyrec_tm
 
-    Recombination_tm =  hyrec_tm(a);
+    Thyrec_tm =  hyrec_tm(a)
 
-    end function Recombination_tm
+    end function Thyrec_tm
 
-
-    function Recombination_xe(a)
+    function THyRec_xe(this,a)
+    class(THyRec) :: this
     real(dl), intent(in) :: a
-    real(dl) Recombination_xe,hyrec_xe
+    real(dl) THyRec_xe,hyrec_xe
     external hyrec_xe
 
-    Recombination_xe = hyrec_xe(a);
+    THyRec_xe = hyrec_xe(a);
 
-    end function Recombination_xe
+    end function THyRec_xe
 
+    real(dl) function THyrec_dtauda(a) BIND(C, NAME='exported_dtauda')
+    real(dl), intent(in) :: a
+    procedure(obj_function) :: dtauda
 
-    subroutine Recombination_init(Recomb, OmegaC, OmegaB, OmegaN, Omegav, h0inp, tcmb, yp, num_nu)
-    use AMLUtils
-    implicit none
-    Type (RecombinationParams), intent(in) :: Recomb
-    real(dl), intent(in) :: OmegaC, OmegaB, OmegaN, OmegaV, h0inp, tcmb, yp, num_nu
+    THyrec_dtauda = dtauda(CurrentState,a)
+    end function THyrec_dtauda
+
+    subroutine THyRec_init(this,State, WantTSpin)
+    class(THyRec), target :: this
+    class(TCAMBdata), target :: State
+    logical, intent(in), optional :: WantTSpin
+    real(dl) OmegaB, OmegaC, OmegaN, h2
     external rec_build_history_camb
 
-    call rec_build_history_camb(OmegaC, OmegaB, OmegaN, Omegav, h0inp, tcmb, yp, num_nu)
+    if (DefaultFalse(WantTSpin)) call MpiStop('HyRec does not support 21cm')
 
-    end subroutine Recombination_init
+    select type(State)
+    class is (CAMBdata)
+        CurrentState => State
 
+        if (State%CP%Evolve_delta_xe) &
+            call MpiStop('HyRec currently does not support evolving Delta x_e')
 
+        h2 = (State%CP%H0/100)**2
+        OmegaB = State%CP%ombh2/h2
+        OmegaN = State%CP%omnuh2/h2
+        OmegaC = State%CP%omch2/h2
 
+        call rec_build_history_camb(OmegaC, OmegaB, OmegaN, State%Omega_de, &
+            State%CP%H0, State%CP%tcmb, State%CP%Yhe, State%CP%N_eff())
 
-    end module Recombination
+    end select
+    end subroutine THyRec_init
+
+    subroutine THyRec_SelfPointer(cptr,P)
+    use iso_c_binding
+    Type(c_ptr) :: cptr
+    Type (THyRec), pointer :: PType
+    class (TPythonInterfacedClass), pointer :: P
+
+    call c_f_pointer(cptr, PType)
+    P => PType
+
+    end subroutine THyRec_SelfPointer
+
+    end module HyRec
 

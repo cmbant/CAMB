@@ -11,6 +11,8 @@
 
     integer, parameter :: outNone=1
 
+    integer, parameter :: neutrino_hierarchy_normal = 1, neutrino_hierarchy_inverted = 2, neutrino_hierarchy_degenerate = 3
+
     integer, parameter :: Nu_int = 0, Nu_trunc=1, Nu_approx = 2, Nu_best = 3
     !For CAMBparams%MassiveNuMethod
     !Nu_int: always integrate distribution function
@@ -89,16 +91,16 @@
 
     end type AccuracyParams
 
+    !For holding custom CMB source functions (use via python interface)
     Type TCustomSourceParams
         integer :: num_custom_sources = 0
         Type(C_FUNPTR) :: c_source_func = c_null_funptr
         integer, allocatable :: custom_source_ell_scales(:)
     end Type TCustomSourceParams
 
-    !other variables, options, derived variables, etc.
-
+    !Non-linear corrections, either just P(k), or just CMB lensing/sources, or both
     integer, parameter :: NonLinear_none=0, NonLinear_Pk =1, NonLinear_Lens=2
-    integer, parameter :: NonLinear_both=3  !JD 08/13 added so both can be done
+    integer, parameter :: NonLinear_both=3
 
     ! Main parameters type
     type, extends (TCAMBParameters) :: CAMBparams
@@ -160,7 +162,7 @@
         integer   :: OutputNormalization = outNone
         !outNone, or C_OutputNormalization=1 if > 1
 
-        real(dl)  :: Alens = 1._dl
+        real(dl)  :: Alens = 1._dl !Unphysical rescaling parameter of the CMB lensing power
 
         integer   :: MassiveNuMethod = Nu_best
 
@@ -175,10 +177,9 @@
 
         logical :: Evolve_delta_Ts =.false. !Equilibrium result agrees to sub-percent level
 
-        !Sources
-        logical   :: Do21cm = .false.
+        logical :: Do21cm = .false.
         logical :: transfer_21cm_cl = .false.
-        logical :: Log_lvalues  = .false.
+        logical :: Log_lvalues  = .false. !useful for smooth results at very high L
 
         Type(TSourceWindowHolder), allocatable :: SourceWindows(:)
 
@@ -191,6 +192,7 @@
     procedure :: Validate => CAMBparams_Validate
     procedure :: PrimordialPower => CAMBparams_PrimordialPower
     procedure :: SetCustomSourcesFunc => CAMBparams_SetCustomSourcesFunc
+    procedure :: N_eff => CAMBparams_N_eff
     end type CAMBparams
 
     contains
@@ -229,19 +231,21 @@
     end subroutine CAMBparams_Replace
 
     subroutine CAMBparams_SetNeutrinoHierarchy(this, omnuh2, omnuh2_sterile, nnu, neutrino_hierarchy, num_massive_neutrinos)
-    !Set neutrino hierarchy in the approximate two-eigenstate model (treating two as exactly degenerate, and assuming non-relativistic)
+    !Set neutrino hierarchy in the approximate two-eigenstate model (treating two as exactly degenerate, and assuming non-relativistic),
+    !or use degenerate mass approximation.
+    !omnuh2 is the massive total neutrino density today, omnuh2_sterile is the component of that due to steriles
     use MathUtils
     use constants
     class(CAMBparams), intent(inout) :: this
     real(dl), intent(in) :: omnuh2, omnuh2_sterile, nnu
     integer, intent(in) :: neutrino_hierarchy
     integer, intent(in), optional :: num_massive_neutrinos  !for degenerate hierarchy
-    integer, parameter :: neutrino_hierarchy_normal = 1, neutrino_hierarchy_inverted = 2, neutrino_hierarchy_degenerate = 3
     real(dl) normal_frac, m3, neff_massive_standard, mnu, m1
 
+    this%omnuh2 = omnuh2
     if (omnuh2==0) return
     this%Nu_mass_eigenstates=0
-    if ( omnuh2 > omnuh2_sterile) then
+    if (omnuh2 > omnuh2_sterile) then
         normal_frac =  (omnuh2-omnuh2_sterile)/omnuh2
         if (neutrino_hierarchy == neutrino_hierarchy_degenerate) then
             neff_massive_standard = num_massive_neutrinos*default_nnu/3
@@ -257,7 +261,7 @@
             this%Nu_mass_degeneracies(this%Nu_mass_eigenstates) = neff_massive_standard
             this%Nu_mass_fractions(this%Nu_mass_eigenstates) = normal_frac
         else
-            !Use normal or inverted hierarchy, approximated as two eigenstates in physical regime, 1 at minimum an below
+            !Use normal or inverted hierarchy, approximated as two eigenstates in physical regime, 1 at minimum and below
             mnu = (omnuh2 - omnuh2_sterile)*neutrino_mass_fac*(COBE_CMBTemp/this%TCMB)**3/ (default_nnu / 3) ** 0.75_dl
             if (neutrino_hierarchy == neutrino_hierarchy_normal) then
                 if (mnu > mnu_min_normal + 1e-4_dl) then
@@ -317,6 +321,13 @@
         this%Nu_mass_fractions(this%Nu_mass_eigenstates) = omnuh2_sterile/omnuh2
     end if
     end subroutine CAMBparams_SetNeutrinoHierarchy
+
+    real(dl) function CAMBparams_N_eff(this)
+    class(CAMBparams), intent(in) :: this
+
+    CAMBparams_N_eff = this%Num_Nu_Massless+sum(this%Nu_mass_degeneracies(1:this%Nu_mass_eigenstates))
+
+    end function CAMBparams_N_eff
 
     function CAMBparams_Validate(this) result(OK)
     class(CAMBparams), intent(in) :: this
@@ -405,7 +416,7 @@
     end if
 
     end subroutine CAMBParams_SetCustomSourcesFunc
-    
+
     function CAMBparams_PrimordialPower(this, k, powers, n,  i) result(err)
     class(CAMBparams) :: this
     integer, intent(in) :: i,n

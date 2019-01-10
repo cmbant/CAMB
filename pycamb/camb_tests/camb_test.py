@@ -9,7 +9,7 @@ try:
 except ImportError as e:
     sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../')))
     import camb
-from camb import model, correlations, bbn, dark_energy, initialpower, config
+from camb import model, correlations, bbn, dark_energy, initialpower
 from camb.baseconfig import CAMBParamRangeError, CAMBValueError
 
 Fast = 'ci fast' in os.getenv("TRAVIS_COMMIT_MESSAGE", "")

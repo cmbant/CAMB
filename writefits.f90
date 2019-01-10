@@ -2,11 +2,12 @@
 !Antony Lewis July 2003
 
 
- subroutine WriteFitsCls(Clsfile, lmx)
+ subroutine WriteFitsCls(results,Clsfile, lmx)
   use CAMB
   use head_fits, ONLY : add_card 
   use fitstools, only : write_asctab
   implicit none
+  class(CAMBdata), intent(in) :: results
   character(LEN=*), INTENT(IN) ::  Clsfile
   integer, INTENT(IN) :: lmx
   CHARACTER(LEN=80), DIMENSION(1:120) :: header
@@ -19,9 +20,8 @@
 
   allocate(clout(2:lmx,1:4))
    
-  call CAMB_GetCls(clout, lmx, 1, .false.)
+  call CAMB_GetCls(results,clout, lmx, .false.)
   !HealPix 1.2 uses E-B conventions
-
 
   if (CP%OutputNormalization >=2) then
    fac=1
@@ -73,18 +73,16 @@
  call add_card(header,'COMMENT','-----------------------------------------------')
  call add_card(header,'COMMENT','     Cosmological parameters')
  call add_card(header,'COMMENT','-----------------------------------------------')
- call add_card(header,'OMEGAB',CP%omegab, 'Omega in baryons')
- call add_card(header,'OMEGAC',CP%omegac, 'Omega in CDM')
- call add_card(header,'OMEGAV',CP%omegav, 'Omega in cosmological constant')
- call add_card(header,'OMEGAN',CP%omegan, 'Omega in neutrinos')
+ call add_card(header,'OMEGAB',CP%ombh2/(CP%H0/100)**2, 'Omega in baryons')
+ call add_card(header,'OMEGAC',CP%omch2/(CP%H0/100)**2, 'Omega in CDM')
+ call add_card(header,'OMEGAV',State%Omega_de, 'Omega in cosmological constant')
+ call add_card(header,'OMEGAN',CP%omnuh2/(CP%H0/100)**2, 'Omega in neutrinos')
  call add_card(header,'HUBBLE', CP%h0, 'Hublle constant in km/s/Mpc')
  call add_card(header,'NNUNR',CP%Num_Nu_massive, 'number of massive neutrinos')
  call add_card(header,'NNUR',CP%Num_Nu_massless, 'number of massless neutrinos')
  call add_card(header,'TCMB',CP%tcmb, 'CMB temperature in Kelvin')
  call add_card(header,'HELFRACT',CP%yhe, 'Helium fraction')
- call add_card(header,'OPTDLSS',CP%Reion%optical_depth, 'reionisation optical depth')
- call add_card(header,'IONFRACT',CP%Reion%fraction, 'ionisation fraction')
- call add_card(header,'ZREION',CP%reion%redshift, 'reionisation redshift')
+ call add_card(header,'OPTDLSS',State%GetReionizationOptDepth(), 'reionisation optical depth')
  call add_card(header,'COMMENT','-----------------------------------------------')
  call add_card(header,'COMMENT','     Other parameters')
  call add_card(header,'COMMENT','-----------------------------------------------')
@@ -94,9 +92,8 @@
  COBEnorm = .false.
  call add_card(header,'COBENORM',COBEnorm, 'COBE normalized') 
  call add_card(header,'KETA_MAX',CP%Max_eta_k, 'Max wavenumber') 
- call add_card(header,'PRECIS',AccuracyBoost, 'Relative computation accuracy') 
+ call add_card(header,'PRECIS',CP%Accuracy%AccuracyBoost, 'Relative computation accuracy') 
  call add_card(header,'EQS_FILE',Eqns_name, 'Gauge-dependent and background equations') 
- call add_card(header,'POW_FILE',CP%InitPower%PythonClass(), 'Initial power spectrum file') 
   
   nlheader = SIZE(header)
   call write_asctab (allcl, lmx, 4, header, nlheader, Clsfile)

@@ -602,6 +602,9 @@ class F2003Class(CAMB_Structure):
             _key = POINTER(cls)(source)
         pointer_func = getattr(cls, '_fortran_selfpointer_function', None)
         if pointer_func is None:
+            if getattr(cls, '_optional_compile', False):
+                raise CAMBFortranError(
+                    'Class %s has not been built into the Fortran binary, edit Makefile_main and rebuild to use.' % cls.__name__)
             raise CAMBFortranError(
                 'Cannot instantiate %s, is base class or needs @fortran_class decorator' % cls.__name__)
         _new_instance(byref(_key), byref(pointer_func))
@@ -674,7 +677,7 @@ class F2003Class(CAMB_Structure):
 
 # Decorator to get function to get class pointers to each class type, and build index of classes
 # that allocatables could have
-def fortran_class(cls):
+def fortran_class(cls, optional=False):
     if mock_load: return cls
     class_module = getattr(cls, "_fortran_class_module_", None)
     if not class_module:
@@ -684,13 +687,21 @@ def fortran_class(cls):
     try:
         cls._fortran_selfpointer_function = lib_import(class_module, cls._fortran_class_name_, 'selfpointer')
     except AttributeError as e:
-        print(e)
-        raise CAMBFortranError(
-            "Class %s cannot find fortran %s_SelfPointer method in module %s." % (
-                cls.__name__, cls._fortran_class_name_, class_module))
+        if optional:
+            cls._optional_compile = True
+            return cls
+        else:
+            print(e)
+            raise CAMBFortranError(
+                "Class %s cannot find fortran %s_SelfPointer method in module %s." % (
+                    cls.__name__, cls._fortran_class_name_, class_module))
 
     typed_id = f_pointer()
     _get_id(byref(cls._fortran_selfpointer_function), byref(typed_id))
     F2003Class._class_pointers[tuple(typed_id)] = cls
     F2003Class._class_names[cls.__name__] = cls
     return cls
+
+
+def optional_fortran_class(cls):
+    return fortran_class(cls, optional=True)

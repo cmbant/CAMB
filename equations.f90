@@ -61,8 +61,8 @@
     logical, parameter :: plot_evolve = .false. !for outputing time evolution
 
     integer, parameter :: basic_num_eqns = 4
-    integer, parameter :: ix_etak=1, ix_clxc=2, ix_clxb=3, ix_vb=4
-    integer, parameter :: ixt_H = 1, ixt_shear = 2
+    integer, parameter :: ix_etak=1, ix_clxc=2, ix_clxb=3, ix_vb=4 !Scalar array indices for each quantity
+    integer, parameter :: ixt_H = 1, ixt_shear = 2 !tensor indices
 
     logical :: DoTensorNeutrinos = .true.
 
@@ -213,13 +213,9 @@
     subroutine SetActiveState(P)
     class(CAMBdata), target :: P
 
-    select type(P)
-    type is (CAMBdata)
-        State => P
-        CP => P%CP
-        class default
-        error stop 'Unknown state type'
-    end select
+    State => P
+    CP => P%CP
+
     end subroutine SetActiveState
 
 
@@ -2346,7 +2342,6 @@
         delta_p_b = cs2*clxb
     end if
 
-
     if (State%CP%Evolve_delta_xe) then
         if (EV%saha) then
             xe=State%CP%Recomb%x_e(a)
@@ -2400,8 +2395,7 @@
 
         !  Use tight-coupling approximation for vb
         !  zeroth order approximation to vbdot + the pig term
-        vbdot=(-adotoa*vb+cs2*k*clxb  &
-            +k/4*pb43*(clxg-2*EV%Kf(1)*pig))/(1+pb43)
+        vbdot=(-adotoa*vb+cs2*k*clxb + k/4*pb43*(clxg-2*EV%Kf(1)*pig))/(1+pb43)
 
         vbdot=vbdot+pb43/(1+pb43)*slip
         EV%pig = pig
@@ -2512,7 +2506,8 @@
             !Matter temperature
             !Recfast_CT = (8./3.)*(sigma_T/(m_e*C))*a_R in Mpc [a_R = radiation constant]
             ayprime(EV%Tg_ix) = -2*k*(z+vb)/3 - a*  Compton_CT * (Trad**4) * xe / (1._dl+xe+State%fHe) * &
-                ((1- Trad/Tmat)*(Delta_TCMB*4 + Delta_xe/(1+xe/(1+State%fHe))) + Trad/Tmat*(Delta_Tm - Delta_TCMB)  )
+                ((1- Trad/Tmat)*(Delta_TCMB*4 + Delta_xe/(1+xe/(1+State%fHe))) &
+                + Trad/Tmat*(Delta_Tm - Delta_TCMB)  )
 
             if (State%CP%Evolve_delta_Ts) then
                 ayprime(EV%Ts_ix) =  Get21cm_dTs(a,clxb,ay(EV%Ts_ix),Delta_TCMB,Delta_Tm,Tmat,Trad,xe )
@@ -2525,7 +2520,8 @@
     end if
 
     if (State%CP%Evolve_delta_xe .and. .not. EV%saha) then
-        ayprime(EV%xe_ix) = State%CP%Recomb%dDeltaxe_dtau(a, Delta_xe,clxb, Delta_Tm, k*z/3,k*vb)
+        ayprime(EV%xe_ix) = &
+            State%CP%Recomb%dDeltaxe_dtau(a, Delta_xe,clxb, Delta_Tm, k*z/3,k*vb, adotoa)
     end if
 
     if (State%CP%Do21cm) then

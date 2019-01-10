@@ -1,224 +1,195 @@
     !---------------------------------------------------------------------------------------------------
-    ! Recombination module for CAMB, using CosmoRec 
+    ! Recombination module for CAMB, using CosmoRec
     ! Author: Richard Shaw (CITA)
+    !
+    ! To use with the python wrapper add -fPIC to CCFLAGS in the CosmoRec Makefile (for gcc)
     !---------------------------------------------------------------------------------------------------
     ! 08.06.2012: added possibility to communicate Hubble (Jens Chluba)
     ! 12.06.2012: AL, changed interface to pass nnu directly; fixed spline extrapolation
+    ! 09.01.2019: AL, updated for new class structure
 
-    module Recombination
+    module CosmoRec
+    use precision
     use constants
-    use AMLUtils
+    use classes
+    use MathUtils
+    use results
+    use config
+    use Interpolation
+    use MpiUtils, only : MpiStop
     implicit none
     private
 
-    type RecombinationParams
+    integer, parameter :: Nz = 10000
+    real(dl), parameter :: zmax = 1d4
+    real(dl), parameter :: zmin = 0._dl
 
-        integer :: runmode
-        real(dl) :: fdm  ! Dark matter annihilation efficiency
+    type, extends(TRecombinationModel) :: TCosmoRec
+
+        integer :: runmode = 0
+        real(dl) :: fdm  = 0._dl ! Dark matter annihilation efficiency
 
         ! Internal accuracy of CosmoRec (0 - normal, 3 - most accurate
         ! other values defined in CosmoRec.cpp source file)
-        real(dl) :: accuracy 
+        real(dl) :: accuracy = 0._dl
+        !Internal data
+        class(TRegularCubicSpline), allocatable :: xrec, tmrec
+    contains
+    procedure :: ReadParams => TCosmoRec_ReadParams
+    procedure :: Validate => TCosmoRec_Validate
+    procedure :: Init => TCosmoRec_init
+    procedure :: x_e => TCosmoRec_xe
+    procedure :: T_m => TCosmoRec_tm !baryon temperature
+    procedure, nopass :: SelfPointer => TCosmoRec_SelfPointer
+    end type TCosmoRec
 
-    end type RecombinationParams
-
-    character(LEN=*), parameter :: Recombination_Name = 'CosmoRec'
-
-    logical :: first_run = .true.
-    integer, parameter :: Nz = 10000
-    real(dl) :: zmax = 1d4
-    real(dl) :: zmin = 0._dl
-    real(dl), dimension(Nz) :: zrec, arec, Hz
-    real(dl), dimension(Nz) :: xrec, tmrec, x2rec, tm2rec
-
-    public RecombinationParams, Recombination_xe, Recombination_tm, Recombination_init,   &
-    Recombination_ReadParams, Recombination_SetDefParams, &
-    Recombination_Validate, Recombination_Name
-
-
+    public TCosmoRec
     contains
 
-    subroutine Recombination_ReadParams(R, Ini)
-    use IniObjects
-    Type(RecombinationParams) :: R
-    Type(TIniFile) :: Ini
+    subroutine TCosmoRec_ReadParams(this, Ini)
+    class(TCosmoRec) :: this
+    class(TIniFile), intent(in) :: Ini
 
-    R%runmode = Ini%Read_Int_File('cosmorec_runmode', 0)
-    R%accuracy = Ini%Read_Double_File('cosmorec_accuracy', 0.0D0)
-    R%fdm = Ini%Read_Double_File('cosmorec_fdm', 0.0D0)
+    call Ini%Read('cosmorec_runmode', this%runmode)
+    call Ini%Read('cosmorec_accuracy', this%accuracy)
+    call Ini%Read('cosmorec_fdm', this%fdm)
 
-    end subroutine Recombination_ReadParams
-
-
-    subroutine Recombination_SetDefParams(R)
-    type (RecombinationParams) ::R
-
-    R%runmode = 0
-    R%fdm = 0.0
-    R%accuracy = 0
-
-    end subroutine Recombination_SetDefParams
+    end subroutine TCosmoRec_ReadParams
 
 
-    subroutine Recombination_Validate(R, OK)
-    Type(RecombinationParams), intent(in) :: R
+    subroutine TCosmoRec_Validate(this, OK)
+    class(TCosmoRec),intent(in) :: this
     logical, intent(inout) :: OK
 
-    if(R%runmode < 0 .or. R%runmode > 3) then
+    if(this%runmode < 0 .or. this%runmode > 3) then
         write(*,*) "Invalid runmode for CosmoRec,"
         OK = .false.
     end if
 
-    if(R%runmode < 2 .and. R%fdm > 1d-23) then
+    if(this%runmode < 2 .and. this%fdm > 1d-23) then
         write(*,*) "Dark matter annihilation rate too high. Will crash CosmoRec."
         OK = .false.
     end if
 
-    if(R%accuracy < 0.0 .or. R%accuracy > 3.0) then
+    if(this%accuracy < 0.0 .or. this%accuracy > 3.0) then
         write(*,*) "CosmoRec accuracy mode undefined."
         OK = .false.
     end if
 
-    end subroutine Recombination_Validate
+    end subroutine TCosmoRec_Validate
 
-
-
-    function Recombination_tm(a)
+    function TCosmoRec_tm(this,a)
+    class(TCosmoRec) :: this
     real(dl), intent(in) :: a
-    real(dl) Recombination_tm
+    real(dl) TCosmoRec_tm
+    real(dl) z
 
-    Recombination_tm = spline_val(a, arec, tmrec, tm2rec, Nz)
+    z =1/a-1
+    if (z >= this%tmrec%xmax) then
+        TCosmoRec_tm = this%tmrec%F(Nz)*(1+z)/(1+this%tmrec%xmax)
+    else if (z <= this%tmrec%xmin) then
+        TCosmoRec_tm = this%tmrec%F(1)
+    else
+        TCosmoRec_tm = this%tmrec%Value(z)
+    end if
 
-    end function Recombination_tm
+    end function TCosmoRec_tm
 
-
-    function Recombination_xe(a)
+    function TCosmoRec_xe(this,a)
+    class(TCosmoRec) :: this
     real(dl), intent(in) :: a
-    real(dl) Recombination_xe
+    real(dl) TCosmoRec_xe
+    real(dl) z
 
-    Recombination_xe = spline_val(a, arec, xrec, x2rec, Nz)
+    z =1/a-1
 
-    end function Recombination_xe
+    if (z >= this%xrec%xmax) then
+        TCosmoRec_xe = this%xrec%F(Nz)
+    else if (z <= this%xrec%xmin) then
+        TCosmoRec_xe = this%xrec%F(1)
+    else
+        TCosmoRec_xe = this%xrec%Value(z)
+    end if
 
+    end function TCosmoRec_xe
 
-
-
-    subroutine Recombination_init(Recomb, OmegaC, OmegaB, OmegaN, Omegav, h0inp, tcmb, yp, num_nu)
-    !Would love to pass structure as arguments, but F90 would give circular reference...
-    !hence mess passing parameters explcitly and non-generally
-
-    use AMLUtils
-    implicit none
-    Type (RecombinationParams), intent(in) :: Recomb
-    real(dl), intent(in) :: OmegaC, OmegaB, OmegaN, OmegaV, h0inp, tcmb, yp, num_nu
-
-    real(dl) OmegaK
+    subroutine TCosmoRec_init(this, State, WantTSpin)
+    use MiscUtils
+    class(TCosmoRec), target :: this
+    class(TCAMBdata), target :: State
+    logical, intent(in), optional :: WantTSpin
     integer :: i, label
     real(dl), dimension(5) :: runpars
+    procedure(obj_function) :: dtauda
+    real(dl) OmegaB, OmegaC, OmegaK, h2
+    real(dl), allocatable :: Hz(:), zrec(:), tmrec(:), xrec(:), tmp(:)
+    external CosmoRec_calc_h_cpp
 
-    real(dl) dtauda
-    external dtauda
-
-    ! Calculate the curvature
-    OmegaK = 1._dl - OmegaC - OmegaB - OmegaV
 #ifdef MPI
     label = GetMpiRank()
 #else
     label = 0
 #endif
     ! Some feedback
+    if (DefaultFalse(WantTSpin)) call MpiStop('CosmoRec does not support 21cm')
 
-    if (Feedback >1) then
-        print *, "" ;
-        print *, "==== CosmoRec parameters ====" ;
+    select type(State)
+    class is (CAMBdata)
 
-        print *, "Runmode: ", Recomb%runmode
-        print "(a,f10.5)", " Omega_c: ", OmegaC
-        print "(a,f10.5)", " Omega_b: ", OmegaB
-        print "(a,f10.5)", " Omega_k: ", OmegaK
-        print "(a,f10.5)", " Num_nu : ", num_nu
-        print "(a,f10.5)", " Hubble : ", h0inp
-        print "(a,f10.5)", " T_cmb  : ", tcmb
-        print "(a,f10.5)", " Y_He   : ", yp
-        print "(a,f10.5)", " f_dm   : ", Recomb%fdm
-    end if
+        if (State%CP%Evolve_delta_xe) &
+            call MpiStop('CosmoRec currently does not support evolving Delta x_e')
+        h2 = (State%CP%H0/100)**2
+        OmegaB = State%CP%ombh2/h2
+        !These parameters are now redundant since using Hz array, just set to something
+        Omegak = State%CP%omk
+        OmegaC = State%CP%omch2/h2
 
-    ! Set runtime parameters
-    runpars = 0._dl
-    runpars(1) = Recomb%fdm ! Set dark matter annihilation efficiency
-    runpars(2) = Recomb%accuracy
+        if (.not. allocated(this%xrec)) allocate(TRegularCubicSpline::this%xrec)
+        if (.not. allocated(this%tmrec)) allocate(TRegularCubicSpline::this%tmrec)
 
-    ! Set redshifts to calculate at.
-    do i=1,Nz
-        zrec(i) = zmax - i*((zmax - zmin) / Nz)
-        arec(i) = 1d0 / (1.0D0 + zrec(i))
-        Hz(i) = 1/dtauda(1/(1._dl+zrec(i)))*(1._dl+zrec(i))**2/MPC_in_sec  
-    end do
+        allocate(Hz(Nz), zrec(Nz), xrec(Nz), tmrec(Nz), tmp(Nz))
 
-    ! internal Hubble function of CosmoRec is used
-    !call CosmoRec_calc_cpp(Recomb%runmode, runpars, &
-    !     OmegaC, OmegaB, OmegaK, num_nu, h0inp, tcmb, yp, &
-    !     zrec, xrec, tmrec, Nz, label)
+        ! Set runtime parameters
+        runpars = 0._dl
+        runpars(1) = this%fdm ! Set dark matter annihilation efficiency
+        runpars(2) = this%accuracy
 
-    ! version which uses camb Hubble function
-    call CosmoRec_calc_h_cpp(Recomb%runmode, runpars, &
-    OmegaC, OmegaB, OmegaK, num_nu, h0inp, tcmb, yp, &
-    zrec, Hz, Nz, zrec, xrec, tmrec, Nz, label)
-
-    call spline_double(arec, xrec, Nz, x2rec)
-    call spline_double(arec, tmrec, Nz, tm2rec)
-
-    ! print some output
-    !open(unit=267,file="CosmoRec.out.Xe.II.dat")
-    !do i=1,Nz
-    !   write (267,*) zrec(i), xrec(i), tmrec(i)
-    !end do
-    !close(267)
-
-    end subroutine Recombination_init
-
-
-
-    ! General routine for cubic spline interpolation (see NR)
-    real(dl) function spline_val(x, xv, yv, y2, n)
-
-    real(dl), intent(in) :: x
-    real(dl), intent(in) :: xv(n), yv(n), y2(n)
-    integer, intent(in) :: n
-
-    integer :: kh,kl,kn
-    real(dl) :: h,a,b,c,d
-
-    ! Extrapolate if value is above or below interval
-    if(x < xv(1)) then
-        spline_val = yv(1)
-    else if(x > xv(n)) then
-        spline_val = yv(n)
-    else
-        ! Bisection to find correct interval
-        kh = n
-        kl = 1
-        do while(kh - kl > 1)
-            kn = (kh + kl) / 2
-            if(xv(kn) > x) then
-                kh = kn
-            else
-                kl = kn
-            end if
+        ! Set redshifts to calculate at.
+        do i=1,Nz
+            zrec(i) = zmax - (i-1)*((zmax - zmin) / (Nz-1))
+            Hz(i) = 1/dtauda(State,1/(1._dl+zrec(i))) &
+                *(1._dl+zrec(i))**2/MPC_in_sec
         end do
 
-        ! Set up constants (a la NR)
-        h = xv(kh) - xv(kl)
+        ! internal Hubble function of CosmoRec is used
+        !call CosmoRec_calc_cpp(Recomb%runmode, runpars, &
+        !     OmegaC, OmegaB, OmegaK, num_nu, h0inp, tcmb, yp, &
+        !     zrec, xrec, tmrec, Nz, label)
 
-        a = (xv(kh) - x) / h
-        b = (x - xv(kl)) / h
-        c = (a**3 - a)* h**2 / 6
-        d = (b**3 - b)* h**2 / 6
+        ! version which uses camb Hubble function
+        call CosmoRec_calc_h_cpp(this%runmode, runpars, &
+            OmegaC, OmegaB, OmegaK, State%CP%N_eff(), State%CP%H0, State%CP%tcmb, State%CP%yhe, &
+            zrec, Hz, Nz, zrec, xrec, tmrec, Nz, label)
 
-        spline_val = (a*yv(kl) + b*yv(kh) + c*y2(kl) + d*y2(kh))
+        !Init interpolation
+        tmp =xrec(Nz:1:-1)
+        call this%xrec%Init(zrec(Nz), zrec(1), Nz, tmp)
+        tmp =tmrec(Nz:1:-1)
+        call this%tmrec%Init(zrec(Nz), zrec(1), Nz, tmp)
+    end select
 
-    end if
-    end function spline_val
+    end subroutine TCosmoRec_init
 
-    end module Recombination
+    subroutine TCosmoRec_SelfPointer(cptr,P)
+    use iso_c_binding
+    Type(c_ptr) :: cptr
+    Type (TCosmoRec), pointer :: PType
+    class (TPythonInterfacedClass), pointer :: P
+
+    call c_f_pointer(cptr, PType)
+    P => PType
+
+    end subroutine TCosmoRec_SelfPointer
+
+    end module CosmoRec
 

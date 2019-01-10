@@ -136,6 +136,7 @@
     !Return real (NOT double precision) arrays of the computed CMB  Cls
     !Output is l(l+1)C_l/2pi
     !If GC_Conventions = .false. use E-B conventions (as the rest of CAMB does)
+    !Used by WriteFits only
     subroutine CAMB_GetCls(State, Cls, lmax,GC_conventions)
     Type(CAMBdata) :: State
     integer, intent(IN) :: lmax
