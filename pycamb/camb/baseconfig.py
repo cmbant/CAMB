@@ -205,7 +205,8 @@ class _ArrayOfAllocatable(FortranAllocatable):
         s = ''
         for i in range(len(self.allocatables)):
             item = self[i]
-            s += ('%s: <%s>\n  ' % (i, item.__class__.__name__) + str(item).replace('\n', '\n  ')).strip(' ')
+            content = item._as_string() if isinstance(item, CAMB_Structure) else str(item)
+            s += ('%s: <%s>\n  ' % (i, item.__class__.__name__) + content.replace('\n', '\n  ')).strip(' ')
         return s
 
 
