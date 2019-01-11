@@ -546,14 +546,16 @@ class CAMB_Structure(Structure):
         fields += cls.__dict__.get('_fields_', [])
         return fields
 
-    def __str__(self):
+    def _as_string(self):
         s = ''
         for field_name, field_type in self.get_all_fields():
             if field_name[0:2] == '__': continue
             if field_name[0] == '_': field_name = field_name[1:]
             obj = getattr(self, field_name)
             if isinstance(obj, (CAMB_Structure, FortranAllocatable)):
-                s += (field_name + ': <%s>\n  ' % obj.__class__.__name__ + str(obj).replace('\n', '\n  ')).strip(' ')
+                s += (field_name + ': <%s>\n  ' % obj.__class__.__name__ + obj._as_string().replace('\n',
+                                                                                                    '\n  ')).strip(
+                    ' ')
             else:
                 if isinstance(obj, ctypes.Array):
                     if len(obj) > 20:
@@ -563,6 +565,9 @@ class CAMB_Structure(Structure):
                 else:
                     s += field_name + ' = ' + str(obj) + '\n'
         return s
+
+    def __str__(self):
+        return 'class: <%s>\n ' % self.__class__.__name__ + self._as_string().replace('\n', '\n ')
 
 
 class _FortranSelf(object):

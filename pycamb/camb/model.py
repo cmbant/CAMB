@@ -141,7 +141,7 @@ class SourceTermParams(CAMB_Structure):
 class CustomSources(CAMB_Structure):
     """
     Structure containing symoblic-compiled custom CMB angular power spectrum source functions.
-    Don't change this directly, instead call  :func:`~camb.CAMBparams.set_custom_scalar_sources`.
+    Don't change this directly, instead call  :func:`.model.CAMBparams.set_custom_scalar_sources`.
     """
     _fields_ = [("num_custom_sources", c_int, "number of sources set"),
                 ("c_source_func", c_void_p, "Don't directly change this"),
