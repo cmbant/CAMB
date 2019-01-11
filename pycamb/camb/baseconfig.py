@@ -553,9 +553,8 @@ class CAMB_Structure(Structure):
             if field_name[0] == '_': field_name = field_name[1:]
             obj = getattr(self, field_name)
             if isinstance(obj, (CAMB_Structure, FortranAllocatable)):
-                s += (field_name + ': <%s>\n  ' % obj.__class__.__name__ + obj._as_string().replace('\n',
-                                                                                                    '\n  ')).strip(
-                    ' ')
+                content = obj._as_string() if isinstance(obj, CAMB_Structure) else str(obj)
+                s += (field_name + ': <%s>\n  ' % obj.__class__.__name__ + content.replace('\n', '\n  ')).strip(' ')
             else:
                 if isinstance(obj, ctypes.Array):
                     if len(obj) > 20:
