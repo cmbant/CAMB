@@ -1,6 +1,0 @@
-include *.rst *.txt
-recursive-include camb *.py
-recursive-include camb_tests *.py
-recursive-include dlls *.dll
-include camb/PArthENoPE_880.2_marcucci.dat
-include camb/PArthENoPE_880.2_standard.dat

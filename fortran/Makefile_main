@@ -1,0 +1,150 @@
+
+#Files containing classes to include
+#e.g. change RECOMBINATION_FILES to "recfast cosmorec" to also support cosmorec
+POWERSPECTRUM_FILES ?= InitialPower
+REIONIZATION_FILES ?= reionization
+RECOMBINATION_FILES ?= recfast
+NONLINEAR_FILES     ?= halofit SecondOrderPK
+DARKENERGY_FILES  ?= DarkEnergyFluid DarkEnergyPPF
+
+BISPECTRUM ?= SeparableBispectrum
+
+#Driver program
+DRIVER        ?= inidriver.f90
+#DRIVER       ?= sigma8.f90
+#DRIVER       ?= tester.f90
+
+Release: OUTPUT_DIR = Release
+Debug: OUTPUT_DIR = Debug
+
+Release: DLL_DIR = Releaselib
+Debug: DLL_DIR = Debuglib
+
+OUTPUT_DIR ?= Release
+PYCAMB_OUTPUT_DIR ?= camb
+DLL_DIR ?= Releaselib
+
+
+CAMBLIB       = libcamb.a
+
+SOURCEFILES      = constants config classes MathUtils subroutines DarkAge21cm \
+        DarkEnergyInterface SourceWindows massive_neutrinos model results bessels \
+        $(RECOMBINATION_FILES) $(DARKENERGY_FILES) equations \
+        $(REIONIZATION_FILES) $(POWERSPECTRUM_FILES) $(NONLINEAR_FILES) \
+        lensing $(BISPECTRUM) cmbmain camb
+
+
+F90WFLAGS     = -Waliasing -Wampersand -Wconversion -Wc-binding-type -Wintrinsics-std \
+        -Wno-tabs -Wintrinsic-shadow -Wline-truncation -Wtarget-lifetime -Wreal-q-constant
+# -Wsurprising -Wunused
+
+F90FLAGS      = $(FFLAGS)
+#F90FLAGS      += $(F90WFLAGS)
+
+SF90FLAGS      = $(SFFLAGS) $(FFLAGS)
+
+HEALPIXLD     = -L$(HEALPIXDIR)/lib -lhealpix -L$(FITSDIR) -l$(FITSLIB)
+
+
+CAMBOBJ       = $(patsubst %,%.o,$(SOURCEFILES))
+CAMBSO        = camb_python.f90
+
+
+FORUTILS_DIR = $(FORUTILSPATH)/$(OUTPUT_DIR)/
+camblib.so: FORUTILS_DIR=$(FORUTILSPATH)/$(DLL_DIR)/
+F90CRLINK     += -L$(FORUTILS_DIR) -lforutils
+
+## CosmoRec
+ifneq (,$(findstring cosmorec,$(RECOMBINATION_FILES)))
+camb: libCosmoRec.a
+libcambso: libCosmoRec.a
+FFLAGS += -DCOSMOREC
+COSMOREC_PATH ?=../../CosmoRec/
+GSL_LINK ?=-lgsl -lgslcblas
+F90CRLINK += -L$(COSMOREC_PATH) -lCosmoRec $(GSL_LINK) -lstdc++
+endif
+
+
+ifneq (,$(findstring hyrec,$(RECOMBINATION_FILES)))
+FFLAGS += -DHYREC
+HYREC_PATH ?= ../../HyRec/
+F90CRLINK += -L$(HYREC_PATH) -lhyrec
+camb: libhyrec.a
+libcambso: libhyrec.a
+endif
+
+default: camb
+
+all: camb camblib.so libcamb
+Release: camb camblib.so
+Debug: camb camblib.so
+
+libcamb: libforutils directories
+	$(MAKE) -C $(OUTPUT_DIR) -r -f ../Makefile_main $(CAMBLIB)
+
+libcambso: libforutils_so directories_so
+	$(MAKE) -C $(DLL_DIR) -r -f ../Makefile_main objfiles F90FLAGS="$(SF90FLAGS)" OUTPUT_DIR=$(DLL_DIR)
+
+camb: libcamb $(DRIVER)
+	$(F90C) $(F90FLAGS) $(MODOUT) $(IFLAG)$(OUTPUT_DIR)/ $(IFLAG)$(FORUTILS_DIR) \
+		$(DRIVER) $(OUTPUT_DIR)/$(CAMBLIB) $(F90CRLINK) -o $@
+
+libcambobj:
+    LIBCAMBOBJ = $(patsubst %,$(DLL_DIR)/%.o,$(SOURCEFILES))
+
+objfiles: $(CAMBOBJ)
+
+#cannot link the .a library, or the linker will strip out some things we might need
+camblib.so: libcambso libcambobj $(CAMBSO)
+	$(F90C) $(SF90FLAGS) $(SMODOUT) $(IFLAG)$(DLL_DIR)/ $(IFLAG)$(FORUTILS_DIR)  \
+		$(CAMBSO) $(LIBCAMBOBJ) $(F90CRLINK) -o $(DLL_DIR)/camblib.so
+	cp $(DLL_DIR)/camblib.so $(PYCAMB_OUTPUT_DIR)
+
+
+$(CAMBLIB): $(CAMBOBJ)
+	$(AR) -r $@ $(CAMBOBJ)
+
+camb_fits: libforutils directories writefits.f90 $(CAMBOBJ) $(DRIVER)
+	$(F90C) $(F90FLAGS) -I$(HEALPIXDIR)/include $(CAMBOBJ) writefits.f90 $(DRIVER) \
+		$(F90CRLINK) $(HEALPIXLD) -DWRITE_FITS -o $@
+
+%.o: ../%.f90
+	$(F90C) $(F90FLAGS) $(IFLAG)$(FORUTILS_DIR) -c $< -o $*.o
+
+directories:
+	mkdir -p $(OUTPUT_DIR)
+
+directories_so:
+	mkdir -p $(DLL_DIR)
+
+libforutils_so:
+	cd $(FORUTILSPATH) && \
+	$(MAKE) $(DLL_DIR)
+
+libforutils:
+	cd $(FORUTILSPATH) && \
+	$(MAKE) $(OUTPUT_DIR)
+
+
+clean:
+	-rm -f *.o *.a *.d core *.mod *.optrpt *.d
+	-rm -rf Release* Debug* WinDLL*
+
+delete:
+	rm -f camb	
+	rm -f ../camb/*.so
+
+## CosmoRec make parts
+cleanCR:
+	cd $(COSMOREC_PATH); make tidy;
+
+libCosmoRec.a:
+	cd $(COSMOREC_PATH); make lib;
+
+libhyrec.a:
+	cd $(HYREC_PATH); make libhyrec.a;
+
+export
+-include *.d
+
+.PHONY: clean directories libcamb Release Debug

@@ -1,8 +1,8 @@
 language: python
- 
+
 git:
   depth: false
- 
+
 dist: trusty
 
 sudo: false
@@ -34,14 +34,14 @@ matrix:
         - GCC_VERSION="8"
         - CHANNEL="conda-forge"
       python: "3.6"
-         
+
 
 #before_install:
 #  - sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
 #  - sudo apt-get update -qq
 #  - sudo apt-get install -qq gfortran-6
 #  - sudo update-alternatives --install /usr/bin/gfortran gfortran /usr/bin/gfortran-6 90
-  
+
 install:
   - mkdir -p gfortran-symlinks
   - ln -s /usr/bin/gfortran-$GCC_VERSION gfortran-symlinks/gfortran
@@ -62,17 +62,16 @@ install:
   - conda info -a
   - conda create -q -n test-environment -c $CHANNEL numpy scipy sympy six;
   - source activate test-environment
-  - chmod +x tests/run_tests.sh
-  
-script: tests/run_tests.sh
-  
+  - chmod +x fortran/tests/run_tests.sh
+
+script: fortran/tests/run_tests.sh
+
 after_failure:
-  - test $TRAVIS_PULL_REQUEST == "false" && test $CHANNEL == "defaults" && test $TRAVIS_REPO_SLUG == "cmbant/CAMB" && [ -d testfiles ] && bash tests/upload_tests.sh
+  - test $TRAVIS_PULL_REQUEST == "false" && test $CHANNEL == "defaults" && test $TRAVIS_REPO_SLUG == "cmbant/CAMB" && [ -d testfiles ] && bash fortran/tests/upload_tests.sh
 
 before_deploy:
-  - make clean delete
-  - cd pycamb
- 
+  - pushd fortran; make clean delete; popd
+
 deploy:
   - provider: pypi
     skip_cleanup: true

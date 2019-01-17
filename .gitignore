@@ -1,6 +1,7 @@
 *.mod
 *.a
 *.o
+*.so
 *.sm
 *~*
 .metadata
@@ -10,6 +11,7 @@ x64/
 Debug/
 Release/
 Releaselib/
+WinDLL/
 *.suo
 *.d
 *.bat
@@ -20,12 +22,14 @@ Releaselib/
 *.save
 *.log
 .idea
-.DS_Storegit sta
+.DS_Store
 *egg*
 test*dat
 build
+testfiles
 inspectionProfiles
-camb
-!camb/
+fortran/camb
 Advisor/
 Inspector/
+.ipynb_checkpoints
+camb/HighLExtrapTemplate_lenspotentialCls.dat
