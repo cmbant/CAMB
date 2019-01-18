@@ -16,29 +16,40 @@ Description and installation
 
 CAMB is a cosmology code for calculating cosmlogical observables, including
 CMB, lensing, source count and 21cm angular power spectra, matter power spectra, transfer functions
-and background evolution. The code is in Python and modern Fortran.
-
-To install the CAMB python package on your computer run::
-
-    pip install camb
-
-or from the source
-
-   python setup.py install
-
-You will need gfortran 6 or higher installed to compile. Binary library builds for python on
-Windows are also provided, so these are used instead if no gfortran installation
-is found on Windows machines.
+and background evolution. The code is in Python, with numerical code implemented in fast modern Fortran.
 
 See the `CAMB python example notebook <https://camb.readthedocs.org/en/latest/CAMBdemo.html>`_ for a
 quick introduction to how to use the CAMB Python package.
 
+For a standard non-editable installation use::
+
+    pip install camb [--user]
+
+The --user is optional and only required if you don't have write permission to your main python installation.
+To install from source, clone from github using::
+
+    git clone --recursive https://github.com/cmbant/CAMB
+
+Then in the project source root directory use::
+
+    python setup.py install [--user]
+
+If you want to work on the code, you can also just install in place without copying anything using::
+
+    python setup.py make
+    pip install -e . [--user]
+
+You will need gfortran 6 or higher installed to compile. Binary files for Windows are also provided, so these are used instead if no
+gfortran installation is found on Windows machines. If you have gfortran installed, "python setup.py make" will build
+the Fortran library on all systems (including Windows without directly using a Makefile).
+
 The python wrapper provides a module called "camb" documented in the `Python CAMB documentation <https://camb.readthedocs.io/en/latest/>`_.
 
-.. image:: https://readthedocs.org/projects/camb/badge/?version=latest
-   :target: https://camb.readthedocs.org/en/latest
+After installation you can also run CAMB from the command line reading parameters from a .ini file, e.g.::
 
-To compile the Fortran command-line code run "Make" in the fortran directory. For full details
+  camb inifiles/planck_2018.ini
+
+To compile the Fortran command-line code run "make camb" in the fortran directory. For full details
 see the  `ReadMe <https://camb.info/readme.html>`_.
 
 Branches
@@ -57,8 +68,9 @@ Reference results and test outputs are stored in the `test outputs repository <h
 
 To reproduce legacy results, see these branches:
 
-CAMB_sources is the old public `CAMB Sources <http://camb.info/sources/>`_ code.
-CAMB_v1 is the old Fortran-oriented (gfortran 4.8-compatible) version as used by the Planck 2018 analysis.
+ - *CAMB_sources* is the old public `CAMB Sources <http://camb.info/sources/>`_ code.
+ - *CAMB_v1* is the old Fortran-oriented (gfortran 4.8-compatible) version as used by the Planck 2018 analysis.
+ - *rayleigh* includes frequency-dependent Rayleigh scattering
 
 =============
 

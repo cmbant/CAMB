@@ -3,7 +3,7 @@
     use constants, only: const_twopi
     implicit none
 
-    character(LEN=*), parameter :: version = 'Dec18'
+    character(LEN=*), parameter :: version = 'Jan19'
 
     integer :: FeedbackLevel = 0 !if >0 print out useful information about the model
 
@@ -78,5 +78,30 @@
     end if
 
     end subroutine GlobalError
+
+    subroutine CheckLoadedHighLTemplate
+    use FileUtils
+    use MpiUtils
+    integer :: L
+    real(dl) :: array(7)
+    type(TTextFile) :: F
+    character(LEN=:), allocatable :: InLine
+
+    if (.not. allocated(highL_CL_template)) then
+        allocate(highL_CL_template(1:lmax_extrap_highl, C_Temp:C_Phi))
+        highL_CL_template(1,:)=0
+
+        do while (F%ReadNextContentLine(highL_unlensed_cl_template, InLine))
+            read(InLine, *) L, array
+            if (L>lmax_extrap_highl) exit
+            highL_CL_template(L, C_Temp:C_E) =array(1:2)
+            highL_CL_template(L, C_Cross) =array(4)
+            highL_CL_template(L, C_Phi) =array(5)
+        end do
+        if (L< lmax_extrap_highl) &
+            call MpiStop('CheckLoadedHighLTemplate: template file does not go up to lmax_extrap_highl')
+    end if
+
+    end subroutine CheckLoadedHighLTemplate
 
     end module config

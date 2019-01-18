@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 import os
 import sys
 
@@ -9,10 +10,11 @@ from argparse import RawTextHelpFormatter
 import ctypes
 import six
 
-def _run_command_line():
+
+def run_command_line():
     parser = argparse.ArgumentParser(formatter_class=RawTextHelpFormatter,
                                      description='Python command line CAMB reading parameters from a .ini file.' +
-                                                 '\n\n  Example usage:\n\n  python camb.py inifiles/planck_2018.ini')
+                                                 '\n\nSample .ini files are provided in the source distribution, e.g. see inifiles/planck_2018.ini')
     parser.add_argument('ini_file', help='text .ini file with parameter settings')
     parser.add_argument('--validate', action='store_true',
                         help='Just validate the .ini file, don''t actually run anything')
@@ -33,4 +35,4 @@ def _run_command_line():
 
 
 if __name__ == "__main__":
-    _run_command_line()
+    run_command_line()

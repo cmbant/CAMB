@@ -86,7 +86,7 @@ class AccuracyParams(CAMB_Structure):
     _fields_ = [
         ("AccuracyBoost", c_double,
          "general accuracy setting effecting everything related to step sizes etc. (including separate settings below except the next two)"),
-        ("lSampleBoost", c_double, "accuracy for sampling in ell for interpolation for the C_l"),
+        ("lSampleBoost", c_double, "accuracy for sampling in ell for interpolation for the C_l (if >=50, all ell are calculated)"),
         ("lAccuracyBoost", c_double, "Boosts number of multipoles integrated in Boltzman heirarchy"),
         ("AccuratePolarization", c_bool, "Do you care about the accuracy of the polarization Cls?"),
         ("AccurateBB", c_bool, "Do you care about BB accuracy (e.g. in lensing)"),
@@ -160,7 +160,7 @@ class CAMBparams(F2003Class):
     You could also modify the wrapper functions to set the field value less directly.
 
     You can view the set of underlying parameters used by the Fortran code by printing the CAMBparams instance.
-    In python, to set cosmology parameters it is usually best to use :meth:`.model.CAMBparams.set_cosmology` and
+    In python, to set cosmology parameters it is usually best to use :meth:`set_cosmology` and
     equivalent methods for most other parameters. Alternatively the convenience function :func:`.camb.set_params` can construct
     a complete instance from a dictionary of relevant parameters.
 
@@ -227,7 +227,8 @@ class CAMBparams(F2003Class):
         ("Do21cm", c_bool, "21cm is not yet implemented via the python wrapper"),
         ("transfer_21cm_cl", c_bool, "Get 21cm C_L at a given fixed redshift"),
         ("Log_lvalues", c_bool, "Use log spacing for sampling in L"),
-        ("use_cl_spline_template", c_bool, "When interpolating use a fiducial spectrum shape to define ratio to spline"),
+        (
+        "use_cl_spline_template", c_bool, "When interpolating use a fiducial spectrum shape to define ratio to spline"),
 
         ("SourceWindows", AllocatableObjectArray(SourceWindow)),
         ("CustomSources", CustomSources)
@@ -586,11 +587,11 @@ class CAMBparams(F2003Class):
     def get_Y_p(self, ombh2=None, delta_neff=None):
         r"""
         Get BBN helium nucleon fraction (NOT the same as the mass fraction Y_He) by intepolation using the
-        :class:`.bbn.BBNPredictor` instance passed to :meth:`.model.CAMBparams.set_cosmology`
+        :class:`.bbn.BBNPredictor` instance passed to :meth:`set_cosmology`
         (or the default one, if `Y_He` has not been set).
 
-        :param ombh2: :math:`\Omega_b h^2` (default: value passed to :meth:`.model.CAMBparams.set_cosmology`)
-        :param delta_neff:  additional :math:`N_{\rm eff}` relative to standard value (of 3.046) (default: from values passed to :meth:`.model.CAMBparams.set_cosmology`)
+        :param ombh2: :math:`\Omega_b h^2` (default: value passed to :meth:`set_cosmology`)
+        :param delta_neff:  additional :math:`N_{\rm eff}` relative to standard value (of 3.046) (default: from values passed to :meth:`set_cosmology`)
         :return:  :math:`Y_p^{\rm BBN}` helium nucleon fraction predicted by BBN.
         """
         try:
@@ -603,11 +604,11 @@ class CAMBparams(F2003Class):
     def get_DH(self, ombh2=None, delta_neff=None):
         r"""
         Get deuterium ration D/H by intepolation using the
-        :class:`.bbn.BBNPredictor` instance passed to :meth:`.model.CAMBparams.set_cosmology`
+        :class:`.bbn.BBNPredictor` instance passed to :meth:`set_cosmology`
         (or the default one, if `Y_He` has not been set).
 
-        :param ombh2: :math:`\Omega_b h^2` (default: value passed to :meth:`.model.CAMBparams.set_cosmology`)
-        :param delta_neff:  additional :math:`N_{\rm eff}` relative to standard value (of 3.046) (default: from values passed to :meth:`.model.CAMBparams.set_cosmology`)
+        :param ombh2: :math:`\Omega_b h^2` (default: value passed to :meth:`set_cosmology`)
+        :param delta_neff:  additional :math:`N_{\rm eff}` relative to standard value (of 3.046) (default: from values passed to :meth:`set_cosmology`)
         :return: BBN helium nucleon fraction D/H
         """
         try:

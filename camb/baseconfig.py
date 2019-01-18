@@ -44,9 +44,9 @@ if mock_load:
 else:
 
     if not osp.isfile(CAMBL):
-        sys.exit(
-            'Library file %s does not exist.\nMake sure you have installed or built the camb package (or remove any old installation and install again).' % (
-                CAMBL))
+        sys.exit('Library file %s does not exist.\nMake sure you have installed or built the camb package '
+                 '(e.g. using "python setup.py make"); or remove any old conflicting installation and install again.' % (
+                     CAMBL))
 
     camblib = ctypes.LibraryLoader(ifort_gfortran_loader).LoadLibrary(CAMBL)
 
@@ -86,11 +86,14 @@ def lib_import(module_name, class_name, func_name, restype=None):
     return func
 
 
-def set_filelocs():
-    HighLExtrapTemplate = osp.join(BASEDIR, "HighLExtrapTemplate_lenspotentialCls.dat")
+def set_cl_template_file(cl_template_file=None):
+    if cl_template_file and not osp.exists(cl_template_file):
+        raise ValueError('File not found : %s' % cl_template_file)
+
+    HighLExtrapTemplate = cl_template_file or osp.join(BASEDIR, "HighLExtrapTemplate_lenspotentialCls.dat")
     if not osp.exists(HighLExtrapTemplate):
         HighLExtrapTemplate = osp.abspath(
-            osp.join(BASEDIR, "../../fortran", "HighLExtrapTemplate_lenspotentialCls.dat"))
+            osp.join(BASEDIR, "..", "..", "fortran", "HighLExtrapTemplate_lenspotentialCls.dat"))
     HighLExtrapTemplate = six.b(HighLExtrapTemplate)
     func = camblib.__handles_MOD_set_cls_template
     func.argtypes = [ctypes.c_char_p, ctypes.c_long]
@@ -98,7 +101,7 @@ def set_filelocs():
     func(s, ctypes.c_long(len(HighLExtrapTemplate)))
 
 
-set_filelocs()
+set_cl_template_file()
 
 
 def _get_fortran_sizes():

@@ -154,6 +154,7 @@ A test suite is included, and will run automatically on <A HREF="https://travis-
 <li>Modest speed improvement from using higher order series solutions for background neutrino density combined with linear rather than log spline.</li>
 <li>Uses splined a(t) for perturbation evolution rather than evolving for each perturbation mode; tensor spectrum results now much faster</li>
 <li>More accurate background calculations with partial parallelism</li>
+<li>Finer every-L sampling at L=11-15 (small change in EE). Updated c_l interpolation template.</li>
 <li>min_l and custom source functions now set as parts of CAMBparams</li>
 <li>Account for radiation when setting dark energy density from matter densities and omk</li>
 <li>Smoother default reionization history parameters around helium second reionization</li>
@@ -166,7 +167,7 @@ A test suite is included, and will run automatically on <A HREF="https://travis-
 <li>Git repository now uses submodule for <a href="https://github.com/cmbant/forutils">forutils</a></li>
     <LI><A HREF="https://camb.readthedocs.io/">Python CAMB wrapper</A>:
      <ul>
-       <l>Lensing convergence, number counts and 21cm now available from Python</li>
+       <li>Lensing convergence, number counts and 21cm now available from Python</li>
        <li>SplinedSourceWindow and GaussianWindow for setting SourceWindows array (see example notebook)</li>
        <li>Reworked python-fortran interface using metaclass and decorators, supporting allocatable arrays and class instances and directly import and call of fortran class methods</li>
        <li>Support multiple CAMBdata instances, and results object can be called safely in any order (removing most global variables)</li>
@@ -181,7 +182,8 @@ A test suite is included, and will run automatically on <A HREF="https://travis-
        <li>Docs include help for field values (auto-generated via metaclass)</li>
        <li>Faster and array versions of various background functions</li>
        <li>SecondOrderPK non-linear model class</li>
-       <LI>Optional support for CosmoRec and HyRec NonLinearModel classes (need to compile with them linked)</li>
+       <li>Optional support for CosmoRec and HyRec NonLinearModel classes (need to compile with them linked)</li>
+       <li>Updated BBN model default to Parthenope 2017 as Planck 2018 analysis</li>
       </ul>
 
 </ul>

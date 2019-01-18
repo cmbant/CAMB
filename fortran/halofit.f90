@@ -51,7 +51,7 @@
 
     integer, parameter :: halofit_original = 1, halofit_bird=2, halofit_peacock=3, halofit_takahashi=4
     integer, parameter :: halofit_mead=5, halofit_halomodel=6, halofit_casarini=7, halofit_mead2015=8
-    integer, parameter :: halofit_default = halofit_takahashi
+    integer, parameter :: halofit_default = halofit_mead
 
     logical :: HM_verbose = .false.
 
@@ -430,7 +430,7 @@
     IF(this%halofit_version==halofit_mead) this%imead=1
     IF(this%halofit_version==halofit_mead2015) this%imead=2
 
-    HM_verbose = (FeedbackLevel>0)
+    HM_verbose = (FeedbackLevel>1)
 
     IF(HM_verbose) WRITE(*,*)
     IF(HM_verbose) WRITE(*,*) 'HMcode: Running HMcode'

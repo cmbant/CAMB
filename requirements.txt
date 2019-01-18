@@ -1,5 +1,4 @@
 numpy
-matplotlib
 six
 sympy>=1.0
-scipy
+scipy>=1.0

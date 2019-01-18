@@ -12,14 +12,16 @@ except ImportError as e:
 from camb import model, correlations, bbn, dark_energy, initialpower
 from camb.baseconfig import CAMBParamRangeError, CAMBValueError
 
-Fast = 'ci fast' in os.getenv("TRAVIS_COMMIT_MESSAGE", "")
+fast = 'ci fast' in os.getenv("TRAVIS_COMMIT_MESSAGE", "")
 
 
 class CambTest(unittest.TestCase):
 
     def testAssigments(self):
-        pars = camb.read_ini(os.path.join(os.path.dirname(__file__), '..', 'inifiles', 'planck_2018.ini'))
-        self.assertTrue(np.abs(camb.get_background(pars).cosmomc_theta() * 100 / 1.040909 - 1) < 2e-5)
+        ini = os.path.join(os.path.dirname(__file__), '..', 'inifiles', 'planck_2018.ini')
+        if os.path.exists(ini):
+            pars = camb.read_ini(ini)
+            self.assertTrue(np.abs(camb.get_background(pars).cosmomc_theta() * 100 / 1.040909 - 1) < 2e-5)
         pars = camb.CAMBparams()
         pars.set_cosmology(H0=68.5, ombh2=0.022, mnu=0, omch2=0.1)
         self.assertAlmostEqual(pars.omegam, (0.022 + 0.1) / 0.685 ** 2)
@@ -128,7 +130,7 @@ class CambTest(unittest.TestCase):
 
         # Test BBN consistency, base_plikHM_TT_lowTEB best fit model
         pars.set_cosmology(H0=67.31, ombh2=0.022242, omch2=0.11977, mnu=0.06, omk=0)
-        self.assertAlmostEqual(pars.YHe, 0.245336, 5)
+        self.assertAlmostEqual(pars.YHe, 0.245347, 5)
         data.calc_background(pars)
         self.assertAlmostEqual(data.cosmomc_theta(), 0.010408566, 7)
         self.assertAlmostEqual(data.get_derived_params()['kd'], 0.14055, 4)
@@ -494,7 +496,7 @@ class CambTest(unittest.TestCase):
         self.assertTrue(np.allclose(PP / 2 * np.sqrt(ls * (ls + 1)), cls['PxW1'], rtol=1e-3))
 
     def testSymbolic(self):
-        if Fast: return
+        if fast: return
         import camb.symbolic as s
 
         monopole_source, ISW, doppler, quadrupole_source = s.get_scalar_temperature_sources()
@@ -537,7 +539,7 @@ class CambTest(unittest.TestCase):
         s.internal_consistency_checks()
 
     def test_extra_EmissionAnglePostBorn(self):
-        if Fast: return
+        if fast: return
         from camb import emission_angle, postborn
         pars = camb.set_params(H0=67.5, ombh2=0.022, omch2=0.122, As=2e-9, ns=0.95, tau=0.055)
         BB = emission_angle.get_emission_delay_BB(pars, lmax=3500)

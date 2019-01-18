@@ -8451,15 +8451,15 @@ label {
 }
 /* Flexible box model classes */
 /* Taken from Alex Russell http://infrequently.org/2009/08/css-3-progress/ */
-/* This file is a compatability layer.  It allows the usage of flexible box
+/* This file is a compatability layer.  It allows the usage of flexible box 
 model layouts accross multiple browsers, including older browsers.  The newest,
 universal implementation of the flexible box model is used when available (see
-`Modern browsers` comments below).  Browsers that are known to implement this
+`Modern browsers` comments below).  Browsers that are known to implement this 
 new spec completely include:
 
     Firefox 28.0+
     Chrome 29.0+
-    Internet Explorer 11+
+    Internet Explorer 11+ 
     Opera 17.0+
 
 Browsers not listed, including Safari, are supported via the styling under the
@@ -11233,7 +11233,7 @@ div#pager .ui-resizable-handle {
   background: #f7f7f7;
   border-top: 1px solid #cfcfcf;
   border-bottom: 1px solid #cfcfcf;
-  /* This injects handle bars (a short, wide = symbol) for
+  /* This injects handle bars (a short, wide = symbol) for 
         the resize handle. */
 }
 div#pager .ui-resizable-handle::after {
@@ -11676,7 +11676,7 @@ ul.typeahead-list > li > a {
 .highlight .il { color: #666666 } /* Literal.Number.Integer.Long */
     </style>
 <style type="text/css">
-
+    
 /* Temporary definitions which will become obsolete with Notebook release 5.0 */
 .ansi-black-fg { color: #3E424D; }
 .ansi-black-bg { background-color: #3E424D; }
@@ -11730,14 +11730,14 @@ div#notebook {
   div.cell {
     display: block;
     page-break-inside: avoid;
-  }
-  div.output_wrapper {
+  } 
+  div.output_wrapper { 
     display: block;
-    page-break-inside: avoid;
+    page-break-inside: avoid; 
   }
-  div.output {
+  div.output { 
     display: block;
-    page-break-inside: avoid;
+    page-break-inside: avoid; 
   }
 }
 </style>
@@ -11816,7 +11816,7 @@ div#notebook {
 
 <div class="output_subarea output_stream output_stdout output_text">
 <pre>Using CAMB installed at c:\work\dist\git\camb
-CAMB version: 1.0.0
+CAMB version: 1.0.0 
 </pre>
 </div>
 </div>
@@ -11974,7 +11974,7 @@ height=698
 <span class="n">pars</span><span class="o">.</span><span class="n">set_for_lmax</span><span class="p">(</span><span class="mi">2500</span><span class="p">,</span> <span class="n">lens_potential_accuracy</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
 <span class="n">results</span> <span class="o">=</span> <span class="n">camb</span><span class="o">.</span><span class="n">get_results</span><span class="p">(</span><span class="n">pars</span><span class="p">)</span>
 <span class="n">lmax2500CL</span> <span class="o">=</span> <span class="n">results</span><span class="o">.</span><span class="n">get_lensed_scalar_cls</span><span class="p">(</span><span class="n">CMB_unit</span><span class="o">=</span><span class="s1">&#39;muK&#39;</span><span class="p">)</span>
-
+                  
 <span class="n">pars</span><span class="o">.</span><span class="n">set_for_lmax</span><span class="p">(</span><span class="mi">4000</span><span class="p">,</span> <span class="n">lens_potential_accuracy</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
 <span class="n">results</span> <span class="o">=</span> <span class="n">camb</span><span class="o">.</span><span class="n">get_results</span><span class="p">(</span><span class="n">pars</span><span class="p">)</span>
 <span class="n">lmax4000CL</span> <span class="o">=</span> <span class="n">results</span><span class="o">.</span><span class="n">get_lensed_scalar_cls</span><span class="p">(</span><span class="n">CMB_unit</span><span class="o">=</span><span class="s1">&#39;muK&#39;</span><span class="p">)</span>
@@ -12242,7 +12242,7 @@ height=278
 
 <span class="n">ws</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="o">-</span><span class="mf">1.5</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.6</span><span class="p">,</span> <span class="mi">5</span><span class="p">)</span>
 <span class="k">for</span> <span class="n">w</span> <span class="ow">in</span> <span class="n">ws</span><span class="p">:</span>
-    <span class="n">pars</span><span class="o">.</span><span class="n">set_dark_energy</span><span class="p">(</span><span class="n">w</span><span class="o">=</span><span class="n">w</span><span class="p">,</span> <span class="n">wa</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">dark_energy_model</span><span class="o">=</span><span class="s1">&#39;fluid&#39;</span><span class="p">)</span>
+    <span class="n">pars</span><span class="o">.</span><span class="n">set_dark_energy</span><span class="p">(</span><span class="n">w</span><span class="o">=</span><span class="n">w</span><span class="p">,</span> <span class="n">wa</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">dark_energy_model</span><span class="o">=</span><span class="s1">&#39;fluid&#39;</span><span class="p">)</span> 
     <span class="n">results</span> <span class="o">=</span> <span class="n">camb</span><span class="o">.</span><span class="n">get_results</span><span class="p">(</span><span class="n">pars</span><span class="p">)</span>
     <span class="n">cl</span> <span class="o">=</span> <span class="n">results</span><span class="o">.</span><span class="n">get_lens_potential_cls</span><span class="p">(</span><span class="n">lmax</span><span class="o">=</span><span class="mi">2000</span><span class="p">)</span>
     <span class="n">plt</span><span class="o">.</span><span class="n">loglog</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">2001</span><span class="p">),</span> <span class="n">cl</span><span class="p">[:,</span><span class="mi">0</span><span class="p">])</span>
@@ -12465,7 +12465,7 @@ See the <a href="https://camb.readthedocs.io/en/latest/model.html">docs</a> for 
    num_custom_sources = 0
    c_source_func = None
    custom_source_ell_scales = []
-
+ 
 </pre>
 </div>
 </div>
@@ -12492,7 +12492,7 @@ See the <a href="https://camb.readthedocs.io/en/latest/model.html">docs</a> for 
 <span class="n">w</span> <span class="o">=</span> <span class="o">-</span><span class="mf">1.2</span> <span class="o">+</span> <span class="mf">0.2</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="n">a</span><span class="p">)</span>
 <span class="n">pars</span><span class="o">.</span><span class="n">DarkEnergy</span><span class="o">=</span> <span class="n">DarkEnergyPPF</span><span class="p">()</span>
 <span class="n">pars</span><span class="o">.</span><span class="n">DarkEnergy</span><span class="o">.</span><span class="n">set_w_a_table</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">w</span><span class="p">)</span>
-<span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Table-interpolated parameters (w and wa are set to estimated values at 0):</span><span class="se">\n\n</span><span class="s1">&#39;</span>
+<span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Table-interpolated parameters (w and wa are set to estimated values at 0):</span><span class="se">\n\n</span><span class="s1">&#39;</span> 
       <span class="p">,</span><span class="n">pars</span><span class="o">.</span><span class="n">DarkEnergy</span><span class="p">)</span>
 <span class="n">results2</span> <span class="o">=</span> <span class="n">camb</span><span class="o">.</span><span class="n">get_background</span><span class="p">(</span><span class="n">pars</span><span class="p">)</span>
 
@@ -12527,7 +12527,7 @@ See the <a href="https://camb.readthedocs.io/en/latest/model.html">docs</a> for 
  wa = 0.2
  cs2 = 1.0
  use_tabulated_w = False
-
+ 
 Table-interpolated parameters (w and wa are set to estimated values at 0):
 
  class: &lt;DarkEnergyPPF&gt;
@@ -12535,7 +12535,7 @@ Table-interpolated parameters (w and wa are set to estimated values at 0):
  wa = 0.1993346429183863
  cs2 = 1.0
  use_tabulated_w = True
-
+ 
 </pre>
 </div>
 </div>
@@ -12698,7 +12698,7 @@ height=277
 
 
 <div class="output_subarea output_stream output_stdout output_text">
-<pre>Number of sources (T, E, phi..): 3; number of ell: 85; number of k: 2737
+<pre>Number of sources (T, E, phi..): 3; number of ell: 85; number of k: 2737 
 </pre>
 </div>
 </div>
@@ -13381,7 +13381,7 @@ height=281
 
 <span class="c1">#Get the matter power spectrum interpolation object (based on RectBivariateSpline). </span>
 <span class="c1">#Here for lensing we want the power spectrum of the Weyl potential.</span>
-<span class="n">PK</span> <span class="o">=</span> <span class="n">camb</span><span class="o">.</span><span class="n">get_matter_power_interpolator</span><span class="p">(</span><span class="n">pars</span><span class="p">,</span> <span class="n">nonlinear</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+<span class="n">PK</span> <span class="o">=</span> <span class="n">camb</span><span class="o">.</span><span class="n">get_matter_power_interpolator</span><span class="p">(</span><span class="n">pars</span><span class="p">,</span> <span class="n">nonlinear</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> 
     <span class="n">hubble_units</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">k_hunit</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">kmax</span><span class="o">=</span><span class="n">kmax</span><span class="p">,</span>
     <span class="n">var1</span><span class="o">=</span><span class="n">model</span><span class="o">.</span><span class="n">Transfer_Weyl</span><span class="p">,</span><span class="n">var2</span><span class="o">=</span><span class="n">model</span><span class="o">.</span><span class="n">Transfer_Weyl</span><span class="p">,</span> <span class="n">zmax</span><span class="o">=</span><span class="n">zs</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
 
@@ -13475,7 +13475,7 @@ where $P_\Psi $ is obtained from the interpolator.</p>
 <span class="c1">#need lens_potential_accuracy=2. Increase to 4 for accurate match to the Limber calculation here</span>
 <span class="n">pars</span><span class="o">.</span><span class="n">set_for_lmax</span><span class="p">(</span><span class="mi">2500</span><span class="p">,</span><span class="n">lens_potential_accuracy</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
 <span class="n">results</span> <span class="o">=</span> <span class="n">camb</span><span class="o">.</span><span class="n">get_results</span><span class="p">(</span><span class="n">pars</span><span class="p">)</span>
-<span class="n">cl_camb</span><span class="o">=</span><span class="n">results</span><span class="o">.</span><span class="n">get_lens_potential_cls</span><span class="p">(</span><span class="mi">2500</span><span class="p">)</span>
+<span class="n">cl_camb</span><span class="o">=</span><span class="n">results</span><span class="o">.</span><span class="n">get_lens_potential_cls</span><span class="p">(</span><span class="mi">2500</span><span class="p">)</span> 
 <span class="c1">#cl_camb[:,0] is phi x phi power spectrum (other columns are phi x T and phi x E)</span>
 
 <span class="c1">#Make plot. Expect difference at very low-L from inaccuracy in Limber approximation, and</span>
@@ -13534,7 +13534,7 @@ height=265
 <span class="n">axs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">loglog</span><span class="p">(</span><span class="n">kh_nonlin</span><span class="p">,</span> <span class="n">pk_takahashi</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
 <span class="n">axs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">loglog</span><span class="p">(</span><span class="n">kh_nonlin</span><span class="p">,</span> <span class="n">pk_mead</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
 <span class="n">axs</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">semilogx</span><span class="p">(</span><span class="n">kh_nonlin</span><span class="p">,</span> <span class="n">pk_mead</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">/</span><span class="n">pk_takahashi</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
-<span class="n">axs</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;$k/h\, \rm</span><span class="si">{Mpc}</span><span class="s1">$&#39;</span><span class="p">)</span>
+<span class="n">axs</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;$k/h\, \rm</span><span class="si">{Mpc}</span><span class="s1">$&#39;</span><span class="p">)</span>    
 <span class="n">axs</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">legend</span><span class="p">([</span><span class="s1">&#39;Mead/Takahashi-1&#39;</span><span class="p">],</span> <span class="n">loc</span><span class="o">=</span><span class="s1">&#39;upper left&#39;</span><span class="p">);</span>
 </pre></div>
 
@@ -13580,7 +13580,7 @@ height=484
 <span class="n">pars</span><span class="o">.</span><span class="n">InitPower</span><span class="o">.</span><span class="n">set_params</span><span class="p">(</span><span class="n">As</span><span class="o">=</span><span class="mf">2e-9</span><span class="p">,</span> <span class="n">ns</span><span class="o">=</span><span class="mf">0.965</span><span class="p">)</span>
 <span class="n">pars</span><span class="o">.</span><span class="n">set_for_lmax</span><span class="p">(</span><span class="n">lmax</span><span class="p">,</span> <span class="n">lens_potential_accuracy</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
 <span class="c1">#set Want_CMB to true if you also want CMB spectra or correlations</span>
-<span class="n">pars</span><span class="o">.</span><span class="n">Want_CMB</span> <span class="o">=</span> <span class="kc">False</span>
+<span class="n">pars</span><span class="o">.</span><span class="n">Want_CMB</span> <span class="o">=</span> <span class="kc">False</span> 
 <span class="c1">#NonLinear_both or NonLinear_lens will use non-linear corrections</span>
 <span class="n">pars</span><span class="o">.</span><span class="n">NonLinear</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">NonLinear_both</span>
 <span class="c1">#Set up W(z) window functions, later labelled W1, W2. Gaussian here.</span>
@@ -13719,7 +13719,7 @@ height=265
  line_extra = False
  line_reionization = False
  use_21cm_mK = True
-
+ 
 </pre>
 </div>
 </div>
@@ -13919,7 +13919,7 @@ height=278
 <span class="c1">#need to increase default sampling in ell to see features smaller than peaks reliably</span>
 <span class="n">pars</span><span class="o">.</span><span class="n">Accuracy</span><span class="o">.</span><span class="n">lSampleBoost</span> <span class="o">=</span> <span class="mi">2</span>
 <span class="c1">#may also need to sample k more densely when computing C_l from P(k)</span>
-<span class="n">pars</span><span class="o">.</span><span class="n">Accuracy</span><span class="o">.</span><span class="n">IntkAccuracyBoost</span> <span class="o">=</span> <span class="mi">2</span>
+<span class="n">pars</span><span class="o">.</span><span class="n">Accuracy</span><span class="o">.</span><span class="n">IntkAccuracyBoost</span> <span class="o">=</span> <span class="mi">2</span> 
 
 <span class="n">results3</span> <span class="o">=</span> <span class="n">camb</span><span class="o">.</span><span class="n">get_results</span><span class="p">(</span><span class="n">pars</span><span class="p">)</span>
 <span class="n">cl_unlensed3</span><span class="o">=</span><span class="n">results3</span><span class="o">.</span><span class="n">get_unlensed_scalar_cls</span><span class="p">(</span><span class="n">CMB_unit</span> <span class="o">=</span><span class="s1">&#39;muK&#39;</span><span class="p">)</span>
@@ -14081,7 +14081,7 @@ height=285
   </div>
 </body>
 
-
+ 
 
 
 </html>

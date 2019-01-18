@@ -189,7 +189,7 @@ class CAMBdata(F2003Class):
         you will need to call :meth:`calc_transfers` if you change any parameters affecting the
         background cosmology or the transfer function settings.
 
-        :param params: a :class:`.model.CAMBparams` instance
+        :param params: a :class:`~.model.CAMBparams` instance
         """
         self.Params = params
 
@@ -221,7 +221,7 @@ class CAMBdata(F2003Class):
         Get BAO parameters at given redshifts, using parameters in params
 
         :param redshifts: list of redshifts
-        :param params: optional :class:`.model.CAMBparams` instance to use
+        :param params: optional :class:`~.model.CAMBparams` instance to use
         :return: array of rs/DV, H, DA, F_AP for each redshift as 2D array
         """
         P = params.copy()
@@ -240,7 +240,7 @@ class CAMBdata(F2003Class):
         Calculate the background evolution without calculating thermal history.
         e.g. call this if you want to just use :meth:`angular_diameter_distance` and similar background functions
 
-        :param params:  :class:`.model.CAMBparams` instance to use
+        :param params:  :class:`~.model.CAMBparams` instance to use
         """
         self._check_params(params)
         self.f_SetParams(byref(params), None, None, None)
@@ -251,7 +251,7 @@ class CAMBdata(F2003Class):
         """
         Calculate the background evolution and thermal history.
         e.g. call this if you want to get derived parameters and call background functions
-        :param params:  :class:`.model.CAMBparams` instance to use
+        :param params:  :class:`~.model.CAMBparams` instance to use
         """
         self._check_params(params)
         res = CAMBdata_CalcBackgroundTheory(byref(self), byref(params))
@@ -262,7 +262,7 @@ class CAMBdata(F2003Class):
         """
         Calculate the transfer functions (for CMB and matter power, as determined by params.WantCls, params.WantTransfer)
 
-        :param params: :class:`.model.CAMBparams` instance with parameters to use
+        :param params: :class:`~.model.CAMBparams` instance with parameters to use
         :param only_transfers: only calculate transfer functions, no power spectra
         :return: non-zero if error, zero if OK
         """
@@ -282,7 +282,7 @@ class CAMBdata(F2003Class):
         """
         Calculates transfer functions and power spectra.
 
-        :param params: optional :class:`.model.CAMBparams` instance with parameters to use
+        :param params: optional :class:`~.model.CAMBparams` instance with parameters to use
 
         """
         if params is not None:
@@ -376,7 +376,7 @@ class CAMBdata(F2003Class):
         numpy arrays (0..lmax, 0..3), where 0..3 index are TT, EE, BB TT, unless raw_cl is True in which case return just :math:`C_\ell`.
         For the lens_potential the power spectrum returned is that of the deflection.
 
-        :param params: optional :class:`.model.CAMBparams` instance with parameters to use. If None, must have
+        :param params: optional :class:`~.model.CAMBparams` instance with parameters to use. If None, must have
           previously set parameters and called `calc_power_spectra` (e.g. if you got this instance using :func:`.camb.get_results`),
         :param lmax: maximum l
         :param spectra: list of names of spectra to get
@@ -401,7 +401,7 @@ class CAMBdata(F2003Class):
         for accurate back integration with :func:`.correlations.corr2cl`.
         If xvals is explicitly given, instead calculates correlations at provided :math:`\cos(\theta)` values.
 
-        :param params: optional :class:`.model.CAMBparams` instance with parameters to use. If None, must have
+        :param params: optional :class:`~.model.CAMBparams` instance with parameters to use. If None, must have
           previously set parameters and called :meth:`calc_power_spectra` (e.g. if you got this instance using :func:`.camb.get_results`),
         :param lmax: optional maximum L to use from the cls arrays
         :param spectrum: type of CMB power spectrum to get; default 'lensed_scalar', one of
@@ -659,7 +659,7 @@ class CAMBdata(F2003Class):
         :param var2: variable j (index, or name of variable; default delta_tot)
         :param hubble_units: if true, output power spectrum in (Mpc/h) units, otherwise Mpc
         :param have_power_spectra: set to True if already computed power spectra
-        :param params: if have_power_spectra=False, optional :class:`.model.CAMBparams` instance to specify new parameters
+        :param params: if have_power_spectra=False, optional :class:`~.model.CAMBparams` instance to specify new parameters
         :param nonlinear: include non-linear correction from halo model
         :return: kh, z, PK, where kz an z are arrays of k/h and z respectively, and PK[i,j] is value at z[i], k/h[j]
         """
@@ -693,7 +693,7 @@ class CAMBdata(F2003Class):
         :param var2: variable j (index, or name of variable; default delta_tot)
         :param hubble_units: if true, output power spectrum in :Math:`({\rm Mpc}/h)^{3}` units, otherwise :math:`{\rm Mpc}^{3}`
         :param have_power_spectra: set to True if already computed power spectra
-        :param params: if have_power_spectra=False, optional :class:`.model.CAMBparams` instance to specify new parameters
+        :param params: if have_power_spectra=False, optional :class:`~.model.CAMBparams` instance to specify new parameters
         :return: kh, z, PK, where kz an z are arrays of k/h and z respectively, and PK[i,j] is value at z[i], k/h[j]
         """
         kwargs['nonlinear'] = True
@@ -732,7 +732,7 @@ class CAMBdata(F2003Class):
         :param var1: variable i (index, or name of variable; default delta_tot)
         :param var2: variable j (index, or name of variable; default delta_tot)
         :param have_power_spectra: set to True if already computed power spectra
-        :param params: if have_power_spectra=False and want to specify new parameters, a :class:`.model.CAMBparams` instance
+        :param params: if have_power_spectra=False and want to specify new parameters, a :class:`~.model.CAMBparams` instance
         :return: kh, z, PK, where kz an z are arrays of k/h and z respectively, and PK[i,j] is value at z[i], k/h[j]
         """
 
@@ -946,7 +946,7 @@ class CAMBdata(F2003Class):
         """
         Get all unlensed auto and cross power spectra, including any custom source functions set using :meth:`.model.CAMBparams.set_custom_scalar_sources`.
 
-        :param params: optional :class:`.model.CAMBparams` instance with parameters to use. If None, must have
+        :param params: optional :class:`~.model.CAMBparams` instance with parameters to use. If None, must have
           previously set parameters and called :meth:`calc_power_spectra` (e.g. if you got this instance using :func:`.camb.get_results`),
         :param lmax: maximum :math:`\ell`
         :param CMB_unit: scale results from dimensionless. Use 'muK' for :math:`\mu K^2` units for CMB :math:`C_\ell` and :math:`\mu K` units for lensing cross.
@@ -1001,7 +1001,7 @@ class CAMBdata(F2003Class):
         Get all source window function and CMB lensing and cross power spectra. Does not include CMB spectra.
         Note that P is the deflection angle, but lensing windows return the kappa power.
 
-        :param params: optional :class:`.model.CAMBparams` instance with parameters to use. If None, must have
+        :param params: optional :class:`~.model.CAMBparams` instance with parameters to use. If None, must have
           previously set parameters and called :meth:`calc_power_spectra` (e.g. if you got this instance using :func:`.camb.get_results`),
         :param lmax: maximum :math:`\ell`
         :param raw_cl: return :math:`C_\ell` rather than :math:`\ell(\ell+1)C_\ell/2\pi`

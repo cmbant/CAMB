@@ -65,17 +65,18 @@ class BBNPredictor(object):
 
 class BBN_table_interpolator(BBNPredictor):
     """
-    BBN predictor based on interpolation on a table calculated from BBN code
+    BBN predictor based on interpolation from a numerical table calculated by a BBN code.
+
+    Tables are supplied for `Parthenope <http://parthenope.na.infn.it/>`_ 2017 (PArthENoPE_880.2_standard.dat, default),
+    similar but with Marucci rates (PArthENoPE_880.2_marcucci.dat), and `PRIMAT <http://www2.iap.fr/users/pitrou/primat.htm>`_ (PRIMAT_Yp_DH_Error.dat).
+
+    :param interpolation_table: filename of interpolation table to use.
+    :param function_of: two variables that determine the interpolation grid (x,y) in the table, matching top column label comment.
+        By default ombh2, DeltaN, and function argument names reflect that, but can also be used more generally.
+
     """
 
     def __init__(self, interpolation_table='PArthENoPE_880.2_standard.dat', function_of=['ombh2', 'DeltaN']):
-        """
-        Load table file and initialize interpolation
-
-        :param interpolation_table: filename of interpolation table to use.
-        :param function_of: two variables that determine the interpolation grid (x,y) in the table, matching top column label comment.
-            By default ombh2, DeltaN, and function argument names reflect that, but can also be used more generally.
-        """
 
         if os.sep not in interpolation_table and '/' not in interpolation_table:
             interpolation_table = os.path.normpath(os.path.join(os.path.dirname(__file__), interpolation_table))
@@ -149,7 +150,7 @@ class BBN_table_interpolator(BBNPredictor):
 
 class BBN_fitting_parthenope(BBNPredictor):
     """
-    BBN predictions for Helium abundance using fitting formulae based on Parthenope (pre 2015)
+    Old BBN predictions for Helium abundance using fitting formulae based on Parthenope (pre 2015).
     """
 
     def __init__(self, tau_neutron=None):
@@ -191,11 +192,11 @@ _default_predictor = None
 
 def get_default_predictor():
     """
-    Get instance of default BBNPredictor class. Currently fitting formula to match Planck 2015 analysis.
+    Get instance of default BBNPredictor class. Currently numerical table interpolation as Planck 2018 analysis.
     """
     global _default_predictor
     if _default_predictor is None:
-        _default_predictor = BBN_fitting_parthenope()
+        _default_predictor = BBN_table_interpolator()
     return _default_predictor
 
 

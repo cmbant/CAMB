@@ -529,7 +529,9 @@
     subroutine set_cls_template(cls_template)
     character(len=*), intent(in) :: cls_template
 
+    if (allocated(highL_CL_template)) deallocate(highL_CL_template)
     highL_unlensed_cl_template = trim(cls_template)
+    call CheckLoadedHighLTemplate
 
     end subroutine set_cls_template
 

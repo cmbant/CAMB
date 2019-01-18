@@ -20,7 +20,7 @@ halofit_halomodel = 'halomodel'
 halofit_casarini = 'casarini'
 halofit_mead2015 = 'mead2015'
 
-halofit_default = halofit_takahashi
+halofit_default = halofit_mead
 
 halofit_version_names = [halofit_original, halofit_bird, halofit_peacock, halofit_takahashi, halofit_mead,
                          halofit_halomodel, halofit_casarini, halofit_mead2015]

@@ -516,10 +516,10 @@
             write (*,*) 'source max_eta_k: ', this%CP%Max_eta_k,'kmax = ', this%CP%Max_eta_k/this%tau0
     end if
 
-    if (this%CP%NonLinear==NonLinear_Lens .or. this%CP%NonLinear==NonLinear_both ) then
-        this%CP%Transfer%kmax = max(this%CP%Transfer%kmax, this%CP%Max_eta_k/this%tau0)
-        if (FeedbackLevel > 0 .and. this%CP%Transfer%kmax== this%CP%Max_eta_k/this%tau0) &
-            write (*,*) 'max_eta_k changed to ', this%CP%Max_eta_k
+    if ((this%CP%NonLinear==NonLinear_Lens .or. this%CP%NonLinear==NonLinear_both) .and. &
+        this%CP%Max_eta_k/this%tau0 > this%CP%Transfer%kmax) then
+        this%CP%Transfer%kmax =this%CP%Max_eta_k/this%tau0
+        if (FeedbackLevel > 0) write (*,*) 'kmax changed to ', this%CP%Transfer%kmax
     end if
 
     if (global_error_flag/=0) then
@@ -1242,13 +1242,17 @@
         end do
 
         if (Accuracy%AccurateReionization) then
+            do lvar=11, 14
+                lind=lind+1
+                ls(lind)=lvar
+            end do
             if (Accuracy%lSampleBoost > 1) then
-                do lvar=11, 37,1
+                do lvar=15, 37, 1
                     lind=lind+1
                     ls(lind)=lvar
                 end do
             else
-                do lvar=11, 37,2
+                do lvar=15, 37, 2
                     lind=lind+1
                     ls(lind)=lvar
                 end do
@@ -1420,7 +1424,7 @@
     if (max_ind > lSet%nl) call MpiStop('Wrong max_ind in InterpolateClArrTemplated')
     if (lSet%use_spline_template .and. present(template_index)) then
         if (template_index<=3) then
-            !interpolate only the difference between the C_l and an accurately interpolated template. Temp only for the mo.
+            !interpolate only the difference between the C_l and an accurately interpolated template.
             !Using unlensed for template, seems to be good enough
             maxdelta=max_ind
             do while (lSet%l(maxdelta) > lmax_extrap_highl)
@@ -2649,32 +2653,6 @@
         ell_limb = lmax
     end if
     end function Win_Limber_ell
-
-
-    subroutine CheckLoadedHighLTemplate
-    use FileUtils
-    integer :: L
-    real(dl) :: array(7)
-    type(TTextFile) :: infile
-
-    if (.not. allocated(highL_CL_template)) then
-        allocate(highL_CL_template(1:lmax_extrap_highl, C_Temp:C_Phi))
-        call infile%Open(highL_unlensed_cl_template)
-        highL_CL_template(1,:)=0
-        do
-            read(infile%unit, *, end=500) L, array
-            if (L>lmax_extrap_highl) exit
-            !  array = array * (2*l+1)/(4*pi) * 2*pi/(l*(l+1))
-            highL_CL_template(L, C_Temp:C_E) =array(1:2)
-            highL_CL_template(L, C_Cross) =array(4)
-            highL_CL_template(L, C_Phi) =array(5)
-        end do
-500     if (L< lmax_extrap_highl) &
-            call MpiStop('CheckLoadedHighLTemplate: template file does not go up to lmax_extrap_highl')
-        call infile%Close()
-    end if
-
-    end subroutine CheckLoadedHighLTemplate
 
 
     subroutine TCLdata_InitCls(this, State)
