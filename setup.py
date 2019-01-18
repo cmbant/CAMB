@@ -7,15 +7,10 @@ import io
 import re
 import os
 import shutil
-from distutils.command.build import build
-from distutils.command.install import install
+from setuptools import setup
+from setuptools.command.build_py import build_py
+from distutils.core import Command
 import struct
-
-try:
-    from setuptools import setup
-except ImportError:
-    print('Using distutils.core')
-    from distutils.core import setup
 
 is_windows = platform.system() == "Windows"
 if is_windows:
@@ -233,7 +228,7 @@ def make_library(cluster=False):
     os.chdir(file_dir)
 
 
-class MakeLibrary(build.__bases__[0], object):
+class MakeLibrary(Command):
     user_options = []
 
     def initialize_options(self):
@@ -252,24 +247,18 @@ class MakeLibraryCluster(MakeLibrary):
         make_library(True)
 
 
-class SharedLibrary(build, object):
+class SharedLibrary(build_py):
 
     def run(self):
         make_library(False)
-        build.run(self)
+        build_py.run(self)
 
 
 class SharedLibraryCluster(SharedLibrary):
 
     def run(self):
         make_library(True)
-        build.run(self)
-
-
-class CustomInstall(install):
-    def run(self):
-        self.run_command('build')
-        install.run(self)
+        build_py.run(self)
 
 
 if __name__ == "__main__":
@@ -279,7 +268,8 @@ if __name__ == "__main__":
           long_description=get_long_description(),
           author='Antony Lewis',
           url="https://camb.info/",
-          cmdclass={'build': SharedLibrary, 'build_cluster': SharedLibraryCluster, 'install': CustomInstall,
+          zip_safe=False,
+          cmdclass={'build_py': SharedLibrary, 'build_cluster': SharedLibraryCluster,
                     'make': MakeLibrary, 'make_cluster': MakeLibraryCluster},
           packages=['camb', 'camb_tests'],
           package_data={'camb': [DLLNAME, 'HighLExtrapTemplate_lenspotentialCls.dat',

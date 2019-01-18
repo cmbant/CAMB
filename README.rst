@@ -14,7 +14,7 @@ CAMB
 Description and installation
 =============================
 
-CAMB is a cosmology code for calculating cosmlogical observables, including
+CAMB is a cosmology code for calculating cosmological observables, including
 CMB, lensing, source count and 21cm angular power spectra, matter power spectra, transfer functions
 and background evolution. The code is in Python, with numerical code implemented in fast modern Fortran.
 
