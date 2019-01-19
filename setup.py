@@ -87,13 +87,17 @@ def get_forutils():
     def git_install_forutils():
         try:
             print('forutils not found, attempting to install using git...')
-            if subprocess.call("git clone --depth=1 https://github.com/cmbant/forutils", shell=True) == 0:
-                return os.path.join('.', 'forutils')
+            os.chdir('..')
+            try:
+                if subprocess.call("git clone --depth=1 https://github.com/cmbant/forutils", shell=True) == 0:
+                    return os.path.join('..', 'forutils')
+            finally:
+                os.chdir('fortran')
         except Exception:
             print('Failed to install using git')
 
     if not fpath:
-        dirs = ['.', '..', '../..']
+        dirs = ['..', '../..']
         for dir in dirs:
             path = os.path.join(dir, 'forutils')
             if os.path.isdir(path):
@@ -102,13 +106,17 @@ def get_forutils():
                 break
         if not fpath:
             fpath = git_install_forutils()
-        elif not os.path.exists(os.path.join(fpath, 'Makefilke')):
-            if os.path.isdir('.git'):
+        elif not os.path.exists(os.path.join(fpath, 'Makefile')):
+            if os.path.isdir(os.path.join('..','.git')):
                 # submodule may not be pulled
                 try:
-                    print('forutils directory found but no Makefile. Attempting to clone submodule...')
-                    if subprocess.call("git submodule update --init --recursive", shell=True, cwd=main_dir) != 0:
-                        raise Exception()
+                    try:
+                        os.chdir('..')
+                        print('forutils directory found but no Makefile. Attempting to clone submodule...')
+                        if subprocess.call("git submodule update --init --recursive", shell=True, cwd=main_dir) != 0:
+                            raise Exception()
+                    finally:
+                        os.chdir('fortran')
                 except Exception:
                     fpath = None
                     print('Failed to install forutils using git')
