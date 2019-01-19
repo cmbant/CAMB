@@ -83,6 +83,15 @@ def find_version():
 
 def get_forutils():
     fpath = os.getenv('FORUTILSPATH')
+
+    def git_install_forutils():
+        try:
+            print('forutils not found, attempting to install using git...')
+            if subprocess.call("git clone --depth=1 https://github.com/cmbant/forutils", shell=True) == 0:
+                return os.path.join('.', 'forutils')
+        except Exception:
+            print('Failed to install using git')
+
     if not fpath:
         dirs = ['.', '..', '../..']
         for dir in dirs:
@@ -92,23 +101,27 @@ def get_forutils():
                 main_dir = dir
                 break
         if not fpath:
-            try:
-                print('forutils not found, attempting to install using git...')
-                if subprocess.call("git clone --depth=1 https://github.com/cmbant/forutils", shell=True) == 0:
-                    fpath = os.path.join('.', 'forutils')
-            except Exception:
-                print('Failed to install using git')
-        elif not os.path.exists(os.path.join(fpath, 'Makefilke')) and os.path.isdir(os.path.join(fpath, '.git')):
-            # submodule may not be pulled
-            try:
-                print('forutils directory found but no Makefile. Attempting to clone submodule...')
-                if subprocess.call("git submodule update --init --recursive", shell=True, cwd=main_dir) != 0:
-                    raise Exception()
-            except Exception:
-                print('Failed to install using git')
+            fpath = git_install_forutils()
+        elif not os.path.exists(os.path.join(fpath, 'Makefilke')):
+            if os.path.isdir('.git'):
+                # submodule may not be pulled
+                try:
+                    print('forutils directory found but no Makefile. Attempting to clone submodule...')
+                    if subprocess.call("git submodule update --init --recursive", shell=True, cwd=main_dir) != 0:
+                        raise Exception()
+                except Exception:
+                    fpath = None
+                    print('Failed to install forutils using git')
+            else:
+                os.rmdir(fpath)
+                if not os.path.exists(fpath):
+                    fpath = git_install_forutils()
+                else:
+                    fpath = None
 
     if not fpath:
-        raise Exception('Install forutils from https://github.com/cmbant/forutils; or set FORUTILSPATH variable')
+        raise Exception(
+            'Install forutils from https://github.com/cmbant/forutils, pull the submodule, or set FORUTILSPATH variable')
     return fpath
 
 

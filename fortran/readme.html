@@ -9,10 +9,10 @@
  <A HREF="#adds">Add-ons</A> | <A HREF="#refs">References</A>
 </CENTER>
 <FONT FACE="Arial,Helvetica" SIZE=2>
-<H2>CAMB ReadMe</H2>
+<H2>Fortran CAMB ReadMe</H2>
 Code for Anisotropies in the Microwave Background by <A
 HREF="http://cosmologist.info/">Antony Lewis</A> and Anthony
-Challinor. This version January 2019. <P>
+Challinor. This version 1.0.0 January 2019. <P>
 CAMB is a Python and Fortran code for computing CMB, CMB lensing, lensing, galaxy count and dark-age 21cm power spectra, transfer functions and matter power spectra, and background cosmological functions.
 <P>
 <FONT SIZE=-1>
@@ -146,7 +146,7 @@ A test suite is included, and will run automatically on <A HREF="https://travis-
 <A NAME="version">
 <H3>Version history</H3>
 
-<B>January 2019</B><BR>
+<B>1.0.0: January 2019</B><BR>
 <ul>
 <li>Integrated CAMB and CAMB sources, for CMB, CMB lensing, lensing convergence, number counts and 21cm. </li>
 <li>Fortran 2003 Object-oriented code restructuring; fortran code structure now closer to the python (see <a href="https://camb.info/doc/classes/_index.html">class trees</a>).</li>
@@ -161,12 +161,14 @@ A test suite is included, and will run automatically on <A HREF="https://travis-
 <li>Use matter temperature evolution from recfast (still harmlessly wrong - as before - from reionization onwards)</li>
 <li>scalarCovCls.dat and _array outputs for lensing potential now deflection angle</li>
 <li>Fix for auto-kmax when using lensing from command line</li>
+<li>Halofit default updated to HMcode to match Planck 2018 analysis</li>
 <li>Dark Energy, InitialPower, NonLinearModel, ReionizationModel and RecombinationModel are now all classes that can be switched dynamically. General spline fit implementation for the initial power spectrum and lensing/count source distributions.</li>
 <li>SplinedInitialPower and SplinedSourceWindow implementations for general interpolated initial power spectra and source window functions</li>
 <li>Added TAxionEffectiveFluid example specific dark energy class implementation</li>
 <li>Git repository now uses submodule for <a href="https://github.com/cmbant/forutils">forutils</a></li>
-    <LI><A HREF="https://camb.readthedocs.io/">Python CAMB wrapper</A>:
+    <LI><A HREF="https://camb.readthedocs.io/">Python CAMB</A>:
      <ul>
+       <li>CAMB is now packaged as a Python-focused module, but fortran directory still has support for fortran executable as before.</li>
        <li>Lensing convergence, number counts and 21cm now available from Python</li>
        <li>SplinedSourceWindow and GaussianWindow for setting SourceWindows array (see example notebook)</li>
        <li>Reworked python-fortran interface using metaclass and decorators, supporting allocatable arrays and class instances and directly import and call of fortran class methods</li>
@@ -711,7 +713,7 @@ CAMB_ValidateParams(P) to check that the parameter set is valid, use
 CAMB_GetAge to compute the age of a model in gigayears, and
 CAMB_GetCls to retrieve the computed Cls. <P>
 Sample programs tester.f90 and sigma8.f90 are supplied showing how to
-use CAMB from your own programs. You can also use CAMB_GetTransfers to access the C_l transfer functions directly without incorporating the initial power spectrum.
+use CAMB from your own programs. You can also use CAMB_GetTransfers to access the C_l transfer functions directly without incorporating the initial power spectrum. In addition this module provides the routines to read settings from a .ini file.
 </P>
 <B>cmbmain.f90</B>
 <P>
@@ -753,17 +755,17 @@ initial power spectra. Comments in the code explain this further.
 <P>
 <B> reionization.f90</B>
 <P>
-This file defines a module called Reionization that parameterizes the reionization history and supplies a function <B>Reionization_xe</B> that gives x<sub>e</sub> as a function of redshift. Optical depth input parameters are mapped into z<sub>re</sub> (defined as where x<sub>e</sub> is half its maximum (ex second He reionization)) using a binary search. See the CAMB <A HREF="http://cosmologist.info/notes/CAMB.pdf">notes</A> for discussion. This module should be easily modifiable for alternative reionization models.
+This file defines a module called Reionization that provides a class implementing a tanh-parameterization of the reionization history. The class gives x<sub>e</sub> as a function of redshift. Optical depth input parameters are mapped into z<sub>re</sub> (defined as where x<sub>e</sub> is half its maximum (ex second He reionization)) using a binary search. See the CAMB <A HREF="http://cosmologist.info/notes/CAMB.pdf">notes</A> for discussion. This module should be easily modifiable for alternative reionization models.
 <P>
-<B>halofit_ppf.f90</B><P>
+<B>halofit.f90</B><P>
 Implements the NonLinearModel class, to calculate non linear scalings of the matter power spectrum as a function of redshift. Uses HALOFIT (<A HREF="http://arxiv.org/abs/astro-ph/0207664">astro-ph/0207664</A>, code thanks to <A HREF="http://www.astro.upenn.edu/~res">Robert Smith</A>, with tweaks
 from <A HREF="http://arxiv.org/abs/1208.2701">arXiv:1208.2701</A> (thanks Ryuichi Takahashi) - see that paper for discussion of numerical accuracy. This module can be replaced to use a different non-linear fitting method if desired.
 
 <P>
- <B> inidriver.F90</B>
+ <B> inidriver.f90</B>
 <P>
-    Reads in parameters from a file of name/value pairs and calls CAMB. Modify
-    this file to generate grids of models, change the parameterization, etc.
+    Reads in parameters from a file of name/value pairs and calls CAMB. 
+    The fortran equivalent of camb.py.
 <P>
  <B>model.f90</B>
 <P>
@@ -798,7 +800,7 @@ from <A HREF="http://arxiv.org/abs/1208.2701">arXiv:1208.2701</A> (thanks Ryuich
 <B> writefits.f90</B>
 <P>
  Subroutine WriteFitsCls that uses HEALPIX routines to output power spectrum
- in FITS format.
+ in FITS format. Not usually used (also not tested regularly).
  <P>
 <B>recfast.f90</B>
 <P>
@@ -806,7 +808,7 @@ from <A HREF="http://arxiv.org/abs/1208.2701">arXiv:1208.2701</A> (thanks Ryuich
  by Douglas Scott (with minor modifications for CMBFAST and the
  CAMB). See <A
  HREF="http://www.astro.ubc.ca/people/scott/recfast.html">RECFAST</A>
- for the original code. This module implements the RECOMBINATION module required by CAMB, and could be replaced by more detailed codes. Sample wrappers are also provided for <A HREF="http://www.cita.utoronto.ca/~jchluba/Science_Jens/Recombination/CosmoRec.html">CosmoRec</A> and <A HREF="http://www.sns.ias.edu/~yacine/hyrec/hyrec.html">HyRec</A>, but the libraries for these must be installed separately.
+ for the original code. This module implements the TRecombinationModel class required by CAMB. Sample wrappers are also provided for <A HREF="http://www.cita.utoronto.ca/~jchluba/Science_Jens/Recombination/CosmoRec.html">CosmoRec</A> and <A HREF="http://www.sns.ias.edu/~yacine/hyrec/hyrec.html">HyRec</A>, but the libraries for these must be installed separately.
  <P>
 <B>SeparableBispectrum.f90</B>
 <P>
