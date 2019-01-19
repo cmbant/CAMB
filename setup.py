@@ -9,6 +9,7 @@ import os
 import shutil
 from setuptools import setup
 from setuptools.command.build_py import build_py
+from setuptools.command.develop import develop
 from distutils.core import Command
 import struct
 
@@ -261,6 +262,20 @@ class SharedLibraryCluster(SharedLibrary):
         build_py.run(self)
 
 
+class DevelopLibrary(develop):
+
+    def run(self):
+        make_library(False)
+        develop.run(self)
+
+
+class DevelopLibraryCluster(develop):
+
+    def run(self):
+        make_library(True)
+        develop.run(self)
+
+
 if __name__ == "__main__":
     setup(name=os.getenv('CAMB_PACKAGE_NAME', 'camb'),
           version=find_version(),
@@ -270,7 +285,8 @@ if __name__ == "__main__":
           url="https://camb.info/",
           zip_safe=False,
           cmdclass={'build_py': SharedLibrary, 'build_cluster': SharedLibraryCluster,
-                    'make': MakeLibrary, 'make_cluster': MakeLibraryCluster},
+                    'make': MakeLibrary, 'make_cluster': MakeLibraryCluster,
+                    'develop': DevelopLibrary, 'develop_cluster': DevelopLibraryCluster},
           packages=['camb', 'camb_tests'],
           package_data={'camb': [DLLNAME, 'HighLExtrapTemplate_lenspotentialCls.dat',
                                  'PArthENoPE_880.2_marcucci.dat', 'PArthENoPE_880.2_standard.dat',
