@@ -101,12 +101,17 @@ def set_cl_template_file(cl_template_file=None):
     func(s, ctypes.c_long(len(HighLExtrapTemplate)))
 
 
-def get_fortran_version():
+def check_fortran_version(version):
+    if mock_load: return
     func = camblib.__camb_MOD_camb_getversion
     func.argtypes = [ctypes.c_char_p, ctypes.c_long]
     s = ctypes.create_string_buffer(33)
     func(s, ctypes.c_long(32))
-    return s.value.decode('ascii').strip()
+    fortran_version = s.value.decode('ascii').strip()
+    if fortran_version != version:
+        raise CAMBFortranError('Version %s of fortran library does not match python version (%s).' %
+                               (fortran_version,
+                                version) + '\nUpdate install or use "setup.py make" to rebuild library.')
 
 
 set_cl_template_file()
