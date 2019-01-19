@@ -61,9 +61,6 @@
     real(dl), dimension(:), allocatable :: Bess4, ddBess4
     real(dl), dimension(:), allocatable :: Bess6, ddBess6
 
-    integer, parameter :: lensed_convolution_margin = 100
-    !Number of L less than L max at which the lensed power spectrum is calculated
-
     !Harmonic method stores
     integer :: lmax_donelnfa = 0
     real(dl), dimension(:), allocatable  :: lnfa

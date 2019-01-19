@@ -51,6 +51,9 @@
     integer, parameter :: lmax_extrap_highl = 8000
     real(dl), allocatable :: highL_CL_template(:,:)
 
+    integer, parameter :: lensed_convolution_margin = 100
+    !Number of L less than L max at which the lensed power spectrum is calculated
+
     integer :: global_error_flag=0
 
     character(LEN=1024) :: global_error_message = ''

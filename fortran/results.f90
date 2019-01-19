@@ -1357,10 +1357,13 @@
                             ls(lind)=lvar
                             step = nint(step*1.5) !log spacing
                         end do
+                        if (ls(lind) < max_l - 100) then
+                            !Try to keep lensed spectra up to specified lmax
+                            lind=lind+1
+                            ls(lind)=max_l - lensed_convolution_margin
+                        end if
                     end if
-                    !Sources
                 end if !log_lvalues
-
                 if (ls(lind) /=max_l) then
                     lind=lind+1
                     ls(lind)=max_l
