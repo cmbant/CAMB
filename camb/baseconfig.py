@@ -101,6 +101,14 @@ def set_cl_template_file(cl_template_file=None):
     func(s, ctypes.c_long(len(HighLExtrapTemplate)))
 
 
+def get_fortran_version():
+    func = camblib.__camb_MOD_camb_getversion
+    func.argtypes = [ctypes.c_char_p, ctypes.c_long]
+    s = ctypes.create_string_buffer(33)
+    func(s, ctypes.c_long(32))
+    return s.value.decode('ascii').strip()
+
+
 set_cl_template_file()
 
 

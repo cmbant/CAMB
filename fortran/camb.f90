@@ -826,5 +826,9 @@
 
     end subroutine CAMB_CommandLineRun
 
+    subroutine CAMB_GetVersion(ver)
+    character(LEN=*) :: ver
+    ver = version
+    end subroutine CAMB_GetVersion
 
     end module CAMB
