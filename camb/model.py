@@ -596,7 +596,7 @@ class CAMBparams(F2003Class):
         """
         try:
             ombh2 = ombh2 if ombh2 != None else self.ombh2
-            delta_neff = delta_neff if delta_neff != None else self.N_eff - 3.046
+            delta_neff = delta_neff if delta_neff is not None else self.N_eff - 3.046
             return self.bbn_predictor.Y_p(ombh2, delta_neff)
         except AttributeError:
             raise CAMBError('Not able to compute Y_p: not using an interpolation table for BBN abundances.')
@@ -613,7 +613,7 @@ class CAMBparams(F2003Class):
         """
         try:
             ombh2 = ombh2 if ombh2 != None else self.ombh2
-            delta_neff = delta_neff if delta_neff != None else self.N_eff - 3.046
+            delta_neff = delta_neff if delta_neff is not None else self.N_eff - 3.046
             return self.bbn_predictor.DH(ombh2, delta_neff)
         except AttributeError:
             raise CAMBError('Not able to compute DH: not using an interpolation table for BBN abundances.')

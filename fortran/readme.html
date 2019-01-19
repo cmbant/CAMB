@@ -3,28 +3,41 @@
 <TITLE>CAMB Fortran ReadMe</TITLE>
 </HEAD>
 <BODY BGCOLOR="#FFFFFF" LINK="#0000FF" VLINK="#800080">
-<BODY>
+<style>
+body {
+    margin-top: 20px;
+    margin-left: 25px;
+    margin-right: 25px;
+}
+p,li,td,tr,table,body {line-height: 1.5em; font-size:1em; font-family:  Arial, Helvetica, sans-serif}
+</style>
 <CENTER>
-<A HREF="#compiling">Compiling</A> | <A HREF="#inputs">Inputs</A> | <A HREF="#outputs">Outputs</A>| <A HREF="#coding">Customization</A> | <A HREF="#version">History</A> | <A HREF="#COMPARE">Comparison</A> | <A HREF="#FILES">Source files</A> | <A HREF="#ACCURACY">Accuracy</A> |
+<H2>Fortran CAMB ReadMe</H2>
+
+<A HREF="#compiling">Compiling</A> | <A HREF="#inputs">Inputs</A> | <A HREF="#outputs">Outputs</A>| <A HREF="#coding">Customization</A> | 
+<A HREF="#ACCURACY">Accuracy</A> |
+<A HREF="#version">Change log</A> |
  <A HREF="#adds">Add-ons</A> | <A HREF="#refs">References</A>
 </CENTER>
-<FONT FACE="Arial,Helvetica" SIZE=2>
-<H2>Fortran CAMB ReadMe</H2>
-Code for Anisotropies in the Microwave Background by <A
-HREF="http://cosmologist.info/">Antony Lewis</A> and Anthony
-Challinor. This version 1.0.0 January 2019. <P>
-CAMB is a Python and Fortran code for computing CMB, CMB lensing, lensing, galaxy count and dark-age 21cm power spectra, transfer functions and matter power spectra, and background cosmological functions.
+<hr>
+CAMB is a Python and Fortran code for computing CMB, CMB lensing, lensing, galaxy count and dark-age 21cm power spectra, transfer functions and matter power spectra, and background cosmological functions. 
+For latest information on this program see <A HREF="http://camb.info">camb.info</A>.
+<p>
+ Often it is easiest and most flexible to just use the <A HREF="https://camb.readthedocs.org/en/latest">Python version</A>, which includes a command-line "camb" script. This
+ readme instead focuses on using the compiled binary Fortran command-line version.
+CAMB can also be used as part of the <A HREF="http://cosmologist.info/cosmomc/">CosmoMC</A> and <a href="https://cobaya.readthedocs.io/en/latest/">Cobaya</a> parameter estimation packages.
+<P>
 <P>
 <FONT SIZE=-1>
+This version January 2019, version 1.0. <br>
+Code for Anisotropies in the Microwave Background by <A
+HREF="http://cosmologist.info/">Antony Lewis</A> and Anthony
+Challinor. <br>
 Originally based on CMBFAST developed by Uros Seljak and Matias
 Zaldarriaga, itself based on Boltzmann code written by
 Edmund Bertschinger, Chung-Pei Ma and Paul Bode.
-For latest information on this program see <A HREF="http://camb.info">camb.info</A>.
 </FONT>
-<P>
-
-CAMB can also be used as part of the <A HREF="http://cosmologist.info/cosmomc/">CosmoMC</A> and <a href="https://cobaya.readthedocs.io/en/latest/">Cobaya</a> parameter estimation packages.
-<P>
+</p>
 
 <A NAME="compiling">
 <B>Compiling and running</B>
@@ -32,9 +45,7 @@ CAMB can also be used as part of the <A HREF="http://cosmologist.info/cosmomc/">
 To install and compile yourself you will need a Fortran 2008 (or higher) compiler - you can get the free <A HREF="https://gcc.gnu.org/wiki/GFortranBinaries">gfortran</A> compiler (version 6 or higher), or the optimized Intel compiler <em>ifort</em> is installed on many academic clusters and also supports integrated development and debugging in Visual Studio under Windows.
  Alternatively you can use CAMB in the pre-configured <A HREF="http://cosmologist.info/CosmoBox">CosmoBox</A> virtual machine. <P>
 
- <p>
- Often it is easiest and most flexible to just use the <A HREF="https://camb.readthedocs.org/en/latest">Python version</A>. This readme instead focuses on using the compiled binary Fortran command-line version.
- <P>
+ 
 To install the Fortran binary from the command line:
 <UL>
 <LI><A HREF="http://camb.info/CAMBsubmit.html">Download</A> CAMB
@@ -92,7 +103,7 @@ C<sub>dE</sub>=[l(l+1)]<sup>3/2</sup>C<sub>l</sub><sup>&Phi;E</sup>/2&pi;. These
 <A NAME="transfer"></A>
 If transfer functions are requested the columns in the <b>output_root</b>_transfer.dat output file are:
 <p>
-<table border="1" cellpadding="2" style="font-size:12px">
+<table border="1" cellpadding="2">
 <tr><td>1     </td><td> k/h    </td><td> wavenumber in h Mpc<sup>-1</sup>     </td></tr>
 <tr><td>2     </td><td> Delta_CDM/k<sup>2</sup>     </td><td> CDM          </td></tr>
 <tr><td>3     </td><td> Delta_b/k<sup>2</sup>     </td><td> baryons          </td></tr>
@@ -139,14 +150,163 @@ After modifying any of the source code run <B>make clean</B> before running <B>m
 Run <B>make all</B> to build a library libcamb.a that you can use when
 linking to other programs. (You will also need to include the module files using -I/cambfolder).
 <P>
+See the <a href="https://camb.info/doc/classes/_index.html">class hierarchy</a> for how the different components of the calculation are structured.
 Some details about what different source code files do are given <A HREF="#FILES">below</A>, see also the <A HREF="http://cosmologist.info/notes/CAMB.pdf">CAMB notes</A>.
 <P>
 A test suite is included, and will run automatically on <A HREF="https://travis-ci.org/">Travis</A> when committing or making pull requests on the <A HREF="https://github.com/cmbant/CAMB">GitHub repository</A>. Python unit tests are in the pycamb/camb_tests directory, and scripts for comparing outputs for a variety of models (as run on Travis) are in the tests directory.
+
+<A NAME="FILES">
+<H3>The source files</H3>
+<P>
+See the  <a href="https://camb.info/doc/">auto-generated source documentation</a>, and a few details below:
+<BLOCKQUOTE>
+<B>camb.f90</B>
+<P>
+Main wrapper routines for running CAMB in your fortran programs. Add "use
+camb" to your programs and call CAMB_GetResults to generate output
+from a set of model parameters (specified in the CAMBparams type -
+defined in model.f90). You can call
+CAMB_ValidateParams(P) to check that the parameter set is valid, use
+CAMB_GetAge to compute the age of a model in gigayears, and
+CAMB_GetCls to retrieve the computed Cls. <P>
+Sample programs tester.f90 and sigma8.f90 are supplied showing how to
+use CAMB from your own programs. You can also use CAMB_GetTransfers to access the C_l transfer functions directly without incorporating the initial power spectrum. In addition this module provides the routines to read settings from a .ini file.
+</P>
+<B>cmbmain.f90</B>
+<P>
+The main subroutine that does integrations, etc.
+<P>
+<B>equations.f90</B>
+<P>
+Files containing background and perturbation evolution equations. The
+perturbations equations used are derived in the covariant approach,
+fixing to the CDM (zero acceleration) frame, which are essentially
+equivalent to the synchronous gauge equations.
+<P>
+   The file defines a module called &quot;GaugeInterface&quot; which provides
+   the necessary perturbation calculation routines for
+   &quot;cmbmain&quot;.
+<P>
+   The subroutine dtauda(a) returns dt/da and is used wherever the
+   background evolution is needed. It
+   can be modified for different backgrounds. If you add additional
+   components, and can edit the init_background routine to do
+   additional initialization.
+    <P>
+   outtransf writes out the matter transfer functions.
+<P>
+   The "output" subroutine computes the scalar sources at a given time for a
+   given wavenumber. These are the temperature, E polarization and (if
+   doing lensing) the lensing source. By editing the equation for the
+   lensing source it should be straightforward to compute power
+   spectra for other matter tracers, e.g. for cross-correlation with
+   the CMB. The lensing power spectrum is automatically computed if
+   <B>DoLensing=T</B>.
+<P>
+<B> InitialPower.f90</B>
+<P>
+This file defines a module called InitialPower with classes returning the
+initial power spectra. Comments in the code explain this further.
+<P>
+
+<P>
+<B> reionization.f90</B>
+<P>
+This file defines a module called Reionization that provides a class implementing a tanh-parameterization of the reionization history. The class gives x<sub>e</sub> as a function of redshift. Optical depth input parameters are mapped into z<sub>re</sub> (defined as where x<sub>e</sub> is half its maximum (ex second He reionization)) using a binary search. See the CAMB <A HREF="http://cosmologist.info/notes/CAMB.pdf">notes</A> for discussion. This module should be easily modifiable for alternative reionization models.
+<P>
+<B>halofit.f90</B><P>
+Implements the NonLinearModel class, to calculate non linear scalings of the matter power spectrum as a function of redshift. Uses HALOFIT (<A HREF="http://arxiv.org/abs/astro-ph/0207664">astro-ph/0207664</A>, code thanks to <A HREF="http://www.astro.upenn.edu/~res">Robert Smith</A>, with tweaks
+from <A HREF="http://arxiv.org/abs/1208.2701">arXiv:1208.2701</A> (thanks Ryuichi Takahashi) - see that paper for discussion of numerical accuracy. This module can be replaced to use a different non-linear fitting method if desired.
+
+<P>
+ <B> inidriver.f90</B>
+<P>
+    Reads in parameters from a file of name/value pairs and calls CAMB.
+    The fortran equivalent of camb.py.
+<P>
+ <B>model.f90</B>
+<P>
+ Defined CAMBparams input parameter types.
+<P>
+
+<P>
+ <B>results.f90</B>
+<P>
+  Defines types used by calculated intermediate results (e.g. time interpolation tables), and outputs like CAMBdata and transfer functions
+<P>
+
+ <B>bessels.f90</B>
+<P>
+   Module to calculate spherical and hyper-spherical Bessel
+   functions. Hyper-spherical functions generated by use of
+   either the recursion relation or Kosowsky's WKB approximation. Based on
+   Arthur Kosowsky's &quot;hyperjl.c&quot;.
+<P>
+
+<B>lensing.f90</B>
+<P>
+  Lensing module for computing the lensed CMB power spectra from the
+  unlensed spectra and a lensing power spectrum. See <A HREF="http://arxiv.org/abs/astro-ph/0502425">astro-ph/0502425</A>.
+</P>
+
+ <B> subroutines.f90</B>
+<P>
+   Various subroutines for interpolation, and modified Runge-Kutta
+   dverk for parallelized evolution.
+<P>
+<B> writefits.f90</B>
+<P>
+ Subroutine WriteFitsCls that uses HEALPIX routines to output power spectrum
+ in FITS format. Not usually used (also not tested regularly).
+ <P>
+<B>recfast.f90</B>
+<P>
+ RECFAST integrator for Cosmic Recombination of Hydrogen and Helium
+ by Douglas Scott (with minor modifications for CMBFAST and the
+ CAMB). See <A
+ HREF="http://www.astro.ubc.ca/people/scott/recfast.html">RECFAST</A>
+ for the original code. This module implements the TRecombinationModel class required by CAMB. Sample wrappers are also provided for <A HREF="http://www.cita.utoronto.ca/~jchluba/Science_Jens/Recombination/CosmoRec.html">CosmoRec</A> and <A HREF="http://www.sns.ias.edu/~yacine/hyrec/hyrec.html">HyRec</A>, but the libraries for these must be installed separately.
+ <P>
+<B>SeparableBispectrum.f90</B>
+<P>
+  Implements calculation of simple separable primordial bispectra, specifically the local constant f<sub>NL</sub> model, and the CMB lensing bispectrum due to the linear temperature and polarization cross-correlation with the lensing potential. Compile with FISHER defined in the makefile to also calculate Fisher elements, including the effects of lensing signal variance (edit Makefile to link to LAPACK if necessary). Note that the primordial bispectra here are unlensed (see <A HREF="http://arxiv.org/abs/0905.4732">arXiv:0905.4732</a> for a calculation), but the lensed bispectra are calculated non-perturbatively (but approximately) using the lensed small-scale CMB power spectra. Note that calculating primordial bispectra is significantly slower than doing standard power spectrum calculations, however it parallelizes well.
+
+  <P>
+ <B>camb_python.f90</B>
+<P>
+  Interface functions for the python wrapper.
+  <P>
+
+</BLOCKQUOTE>
+
+<P>
+<A NAME="ACCURACY">
+<H3>Accuracy</H3>
+<P>
+<BLOCKQUOTE>
+Scalar numerical errors should rarely exceed 0.3% and 0.1% for 500&lt;L&lt;3000. Matter power spectrum errors are usually dominated by interpolation in the acoustic oscillations, with about 0.2% accuracy (but much better rms accuracy). For a detailed study of numerical accuracy as of January 2012 see <A HREF="http://arxiv.org/abs/1201.3654">arXiv:1201.3654</A>.
+<p>
+</p>
+Accuracy of course assumes the model is correct, and is dependent on RECFAST being the correct ionization history. Lensed C_l TT, TE and EE are accurate at the same level  (to within the approximation that the lensing potential is linear, or the accuracy of the HALOFIT non-linear model).
+<P>
+ Extreme models (e.g. scale &gt; 4, h&gt;1) may give errors of 5% or more.
+<P>
+ Tensor errors around 2% or more on small scales (e.g. due to l-interpolation). Low l accuracy somewhat worse than scalars (typically < 1%). Turn on neutrinos in the input file for accurate results (automatic on high accuracy setting).
+<P>
+ Hierarchy truncation errors up to 5% at high l (&gt;1500) in some
+   closed models
+<P>
+ You can improve or check accuracy (or increase speed) by changing
+   global accuracy parameters at the bottom of the params.ini input file. Convergence and stability can be checked using the <A HREF="http://camb.info/test_suite.tar.gz">test suite</A>, and accuracy
+   parameters can also be changed from the python version.
+<P>
+</BLOCKQUOTE>
+
 <P>
 <A NAME="version">
 <H3>Version history</H3>
 
-<B>1.0.0: January 2019</B><BR>
+<B>1.0: January 2019</B><BR>
 <ul>
 <li>Integrated CAMB and CAMB sources, for CMB, CMB lensing, lensing convergence, number counts and 21cm. </li>
 <li>Fortran 2003 Object-oriented code restructuring; fortran code structure now closer to the python (see <a href="https://camb.info/doc/classes/_index.html">class trees</a>).</li>
@@ -165,6 +325,7 @@ A test suite is included, and will run automatically on <A HREF="https://travis-
 <li>Dark Energy, InitialPower, NonLinearModel, ReionizationModel and RecombinationModel are now all classes that can be switched dynamically. General spline fit implementation for the initial power spectrum and lensing/count source distributions.</li>
 <li>SplinedInitialPower and SplinedSourceWindow implementations for general interpolated initial power spectra and source window functions</li>
 <li>Added TAxionEffectiveFluid example specific dark energy class implementation</li>
+<li>high_accuracy_default option removed (is now the default).</li>
 <li>Git repository now uses submodule for <a href="https://github.com/cmbant/forutils">forutils</a></li>
     <LI><A HREF="https://camb.readthedocs.io/">Python CAMB</A>:
      <ul>
@@ -651,210 +812,14 @@ and fixes various bugs that were in CMBFAST 2.4.1 but fixed in CMBFAST
 CMBFAST. Using it does not slow things down significantly and corrects
 errors at around the 2% level.
 
-<A NAME="COMPARE">
-<H3>Comparison with CLASS</H3>
- The <A href="http://class-code.net">CLASS</A> CMB code is written independently of CAMB and CMBFAST and is in pure C (not C++, despite the name). The basic equations and algorithm are substantially the same as CMBFAST in both cases, with CLASS having a C implementation of CAMB's lensed power spectrum method, and CAMB implementing in F90 some of the new very-sub-horizon approximations introduced in CLASS (which make little difference at WMAP precision, but significantly increase speed for small-scales and high accuracy). The codes use different combinations of approximation schemes and sampling for massive neutrinos. For standard models at CAMB's default accuracy settings speeds should be similar depending on compilers used, with CAMB's <b>high_accuracy_default</b> option being similar to CLASS's <b>cl_permille.pre</b>.
-
-<H3>Comparison with CMBFAST</H3>
-This code was originally developed from CMBFAST 2.4.1 to support closed models
-and gauge invariant variables. After releasing this code CMBFAST 3.2
-was released which also supports closed models. These codes were
-developed independently and so are somewhat different, and both codes
-have developed independently since then.
-<P>
-The main differences in the non-flat computation lie in how we perform the integral of the source
-functions with the hyperspherical Bessel functions. We use
-Kosowsky's WKB approximation or the recursion relation to evaluate the Bessel
-functions at the starting point of ranges of integration, and then
-integrate the differential equation. CMBFAST
-integrates up the differential equation from a pre-calculated starting point. Unlike
-CMBFAST 3.2 our ranges of integration continue into the Chi > pi/2
-region for closed models. We avoid problems with stability of the
-integration (contamination with the irregular solution) by cutting off
-the integration when the errors become important (where the values in the
-dissipative tail are becoming small). This leads to very small errors,
-and allows for a much simpler scheme than that used in CMBFAST 3.2 where
-the symmetry of the Bessel functions is used to extend to the Chi> Pi/2 region.
-<P>
-From the user's point of view the main point is that this code is
-rather faster than CMBFAST in many cases. Assuming same recombination history CAMB agrees with the CMBFAST 4.5 high precision TT calculation to < 1% at low l, and about 0.3% at l>100 in concordance flat models. If CAMB is run with high precision options the agreement is nearly 0.1% at high l. The polarized spectra also agree well except around the first dip in the EE spectrum with reionization (see CAMB's accurate_reionization parameter).
-<P>
-Note that as of March 2008 CAMB's reionization parameterization is slightly different to CMBFAST. CMBFAST 4.5.1 also uses an old version of RECFAST.
-<P>
-CMBFAST 3.2 introduced an include file for adjusting the
-l-sampling. In CAMB this is done automatically depending on the model,
-so there is no need to modify the l-sampling by hand.
-<P>
-CMBFAST uses the flat sky and Limber approximation and works from the transfer
-functions to work out the lensing potential, CAMB uses the full result (agreement is excellent). CAMB uses a full-sky correlation function method rather than the flat sky approx (about max 0.4% effect on EE).
-<P>
-CMBFAST 4 uses a "k-splitting" to allow rapid computation of grids of
-models to reasonable accuracy. If you need to generate a large number
-of models and accuracy is not vital using CMBFAST 4 would probably
-save you some time and effort. CMBFAST 4 also supports some extended models not supported by CAMB, e.g. 5-D models.
-<P>
-CAMB is in Fortran 90 and is more modularized, so using different initial power spectra, modified equations, etc. is often just a case of modifying one or two files and re-compiling.
-<P>
-Note that the conventions for the polarization power spectra output by CAMB agree with those of CMBFAST. This sign convention for the cross-correlation C_l^TE spectrum differs from the definitions in <A
-HREF="http://arxiv.org/abs/astro-ph/9911481">astro-ph/9911481</A>. As from CMBFAST 4.2 the initial power spectrum normalization conventions also agree.
-<P>
-
-<A NAME="FILES">
-<H3>The source files</H3>
-<P>
-<BLOCKQUOTE>
-<B>camb.f90</B>
-<P>
-Main wrapper routines for running CAMB in your fortran programs. Add "use
-camb" to your programs and call CAMB_GetResults to generate output
-from a set of model parameters (specified in the CAMBparams type -
-defined in model.f90). You can call
-CAMB_ValidateParams(P) to check that the parameter set is valid, use
-CAMB_GetAge to compute the age of a model in gigayears, and
-CAMB_GetCls to retrieve the computed Cls. <P>
-Sample programs tester.f90 and sigma8.f90 are supplied showing how to
-use CAMB from your own programs. You can also use CAMB_GetTransfers to access the C_l transfer functions directly without incorporating the initial power spectrum. In addition this module provides the routines to read settings from a .ini file.
-</P>
-<B>cmbmain.f90</B>
-<P>
-The main subroutine that does integrations, etc.
-<P>
-<B>equations.f90</B>
-<P>
-Files containing background and perturbation evolution equations. The
-perturbations equations used are derived in the covariant approach,
-fixing to the CDM (zero acceleration) frame, which are essentially
-equivalent to the synchronous gauge equations.
-<P>
-   The file defines a module called &quot;GaugeInterface&quot; which provides
-   the necessary perturbation calculation routines for
-   &quot;cmbmain&quot;.
-<P>
-   The subroutine dtauda(a) returns dt/da and is used wherever the
-   background evolution is needed. It
-   can be modified for different backgrounds. If you add additional
-   components, and can edit the init_background routine to do
-   additional initialization.
-    <P>
-   outtransf writes out the matter transfer functions.
-<P>
-   The "output" subroutine computes the scalar sources at a given time for a
-   given wavenumber. These are the temperature, E polarization and (if
-   doing lensing) the lensing source. By editing the equation for the
-   lensing source it should be straightforward to compute power
-   spectra for other matter tracers, e.g. for cross-correlation with
-   the CMB. The lensing power spectrum is automatically computed if
-   <B>DoLensing=T</B>.
-<P>
-<B> InitialPower.f90</B>
-<P>
-This file defines a module called InitialPower with classes returning the
-initial power spectra. Comments in the code explain this further.
-<P>
-
-<P>
-<B> reionization.f90</B>
-<P>
-This file defines a module called Reionization that provides a class implementing a tanh-parameterization of the reionization history. The class gives x<sub>e</sub> as a function of redshift. Optical depth input parameters are mapped into z<sub>re</sub> (defined as where x<sub>e</sub> is half its maximum (ex second He reionization)) using a binary search. See the CAMB <A HREF="http://cosmologist.info/notes/CAMB.pdf">notes</A> for discussion. This module should be easily modifiable for alternative reionization models.
-<P>
-<B>halofit.f90</B><P>
-Implements the NonLinearModel class, to calculate non linear scalings of the matter power spectrum as a function of redshift. Uses HALOFIT (<A HREF="http://arxiv.org/abs/astro-ph/0207664">astro-ph/0207664</A>, code thanks to <A HREF="http://www.astro.upenn.edu/~res">Robert Smith</A>, with tweaks
-from <A HREF="http://arxiv.org/abs/1208.2701">arXiv:1208.2701</A> (thanks Ryuichi Takahashi) - see that paper for discussion of numerical accuracy. This module can be replaced to use a different non-linear fitting method if desired.
-
-<P>
- <B> inidriver.f90</B>
-<P>
-    Reads in parameters from a file of name/value pairs and calls CAMB. 
-    The fortran equivalent of camb.py.
-<P>
- <B>model.f90</B>
-<P>
- Defined CAMBparams input parameter types.
-<P>
-
-<P>
- <B>results.f90</B>
-<P>
-  Defines types used by calculated intermediate results (e.g. time interpolation tables), and outputs like CAMBdata and transfer functions
-<P>
-
- <B>bessels.f90</B>
-<P>
-   Module to calculate spherical and hyper-spherical Bessel
-   functions. Hyper-spherical functions generated by use of
-   either the recursion relation or Kosowsky's WKB approximation. Based on
-   Arthur Kosowsky's &quot;hyperjl.c&quot;.
-<P>
-
-<B>lensing.f90</B>
-<P>
-  Lensing module for computing the lensed CMB power spectra from the
-  unlensed spectra and a lensing power spectrum. See <A HREF="http://arxiv.org/abs/astro-ph/0502425">astro-ph/0502425</A>.
-</P>
-
- <B> subroutines.f90</B>
-<P>
-   Various subroutines for interpolation, and modified Runge-Kutta
-   dverk for parallelized evolution.
-<P>
-<B> writefits.f90</B>
-<P>
- Subroutine WriteFitsCls that uses HEALPIX routines to output power spectrum
- in FITS format. Not usually used (also not tested regularly).
- <P>
-<B>recfast.f90</B>
-<P>
- RECFAST integrator for Cosmic Recombination of Hydrogen and Helium
- by Douglas Scott (with minor modifications for CMBFAST and the
- CAMB). See <A
- HREF="http://www.astro.ubc.ca/people/scott/recfast.html">RECFAST</A>
- for the original code. This module implements the TRecombinationModel class required by CAMB. Sample wrappers are also provided for <A HREF="http://www.cita.utoronto.ca/~jchluba/Science_Jens/Recombination/CosmoRec.html">CosmoRec</A> and <A HREF="http://www.sns.ias.edu/~yacine/hyrec/hyrec.html">HyRec</A>, but the libraries for these must be installed separately.
- <P>
-<B>SeparableBispectrum.f90</B>
-<P>
-  Implements calculation of simple separable primordial bispectra, specifically the local constant f<sub>NL</sub> model, and the CMB lensing bispectrum due to the linear temperature and polarization cross-correlation with the lensing potential. Compile with FISHER defined in the makefile to also calculate Fisher elements, including the effects of lensing signal variance (edit Makefile to link to LAPACK if necessary). Note that the primordial bispectra here are unlensed (see <A HREF="http://arxiv.org/abs/0905.4732">arXiv:0905.4732</a> for a calculation), but the lensed bispectra are calculated non-perturbatively (but approximately) using the lensed small-scale CMB power spectra. Note that calculating primordial bispectra is significantly slower than doing standard power spectrum calculations, however it parallelizes well.
-
-  <P>
- <B>camb_python.f90</B>
-<P>
-  Interface functions for the python wrapper.
-  <P>
-
-</BLOCKQUOTE>
-
-<P>
-<A NAME="ACCURACY">
-<H3>Accuracy</H3>
-<P>
-<BLOCKQUOTE>
-Scalar numerical errors should rarely exceed 0.3% for min(2500, L well into the damping tail) at default accuracy setting, and 0.1% for 500&lt;L&lt;2000 with <b>high_accuracy_default=T</b>. Matter power spectrum errors are usually dominated by interpolation in the acoustic oscillations, with about 0.2% accuracy with high_accuracy_default (but much better rms accuracy). For a detailed study of numerical accuracy as of January 2012 see <A HREF="http://arxiv.org/abs/1201.3654">arXiv:1201.3654</A>.
-
-
-See also <A HREF="#COMPARE">comparison</A> with CMBFAST. Accuracy of course assumes the model is correct, and is dependent on RECFAST being the correct ionization history. Lensed C_l TT, TE and EE are accurate at the same level  (to within the approximation that the lensing potential is linear, or the accuracy of the HALOFIT non-linear model).
-<P>
- Extreme models (e.g. scale &gt; 4, h&gt;1) may give errors of 5% or more.
-<P>
- Tensor errors around 2% or more on small scales (e.g. due to l-interpolation). Low l accuracy somewhat worse than scalars (typically < 1%). Turn on neutrinos in the input file for accurate results (automatic on high accuracy setting).
-<P>
- Hierarchy truncation errors up to 5% at high l (&gt;1500) in some
-   closed models
-<P>
- You can improve or check accuracy (or increase speed) by changing
-   global accuracy parameters at the bottom of the params.ini input file. Convergence and stability can be checked using the <A HREF="http://camb.info/test_suite.tar.gz">test suite</A>.
-<P>
-</BLOCKQUOTE>
 
 
 
 <A NAME="adds">
 <H3>Add-ons, extensions, external sites</H3>
 <UL>
-<LI><A HREF="http://background.uchicago.edu/camb_rpc/">Reionization principal components</a>
-<LI><A HREF="http://camb.info/ppf/">Parameterized Post-Friedmann Dark Energy</A>
-<LI><A HREF="http://camb.info/sources">CAMB sources</A> get linear 21cm, lensing and number counts; 3rd order perturbation theory P(k); perturbed recombination
-<LI><A HREF="http://camb.info/extra.html">Quintessence</A> module
-<LI><A HREF="http://lambda.gsfc.nasa.gov/toolbox/tb_camb_form.cfm">CAMB online</A> (note may not be latest version)
-<LI><A HREF="http://people.sissa.it/~leach/inflation/camb_inflation.html">Inflationary parameterization</A> of initial power by Samuel Leach.
+<li><a href="https://github.com/sfu-cosmo/MGCAMB/">MGCAMB</a></li>
+<li><a href="http://eftcamb.org/">EFTCAMB</a></li>
 </UL>
 
 <A NAME="refs">
@@ -1017,6 +982,5 @@ Integral solution for the microwave background
 CMBFAST for spatially closed universes<BR>
 Uros Seljak and Matias Zaldariaga,  <A HREF="http://arxiv.org/abs/astro-ph/9911219">astro-ph/9911219</A>
 
-</FONT>
 </BODY>
 </HTML>
