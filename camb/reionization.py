@@ -56,7 +56,7 @@ class TanhReionization(ReionizationModel):
         Get the midpoint redshift of reionization.
 
         :param params: :class:`.model.CAMBparams` instance with cosmological parameters
-        :param tau: if set, calculation the redshift for tau, otherwise uses curently set parameters
+        :param tau: if set, calculate the redshift for optical depth tau, otherwise uses curently set parameters
         :return: reionization mid-point redshift
         """
         if self.use_optical_depth or tau:
