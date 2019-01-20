@@ -68,7 +68,7 @@ Reference results and test outputs are stored in the `test outputs repository <h
 To reproduce legacy results, see these branches:
 
  - *CAMB_sources* is the old public `CAMB Sources <http://camb.info/sources/>`_ code.
- - *CAMB_v1* is the old Fortran-oriented (gfortran 4.8-compatible) version as used by the Planck 2018 analysis.
+ - *CAMB_v0* is the old Fortran-oriented (gfortran 4.8-compatible) version as used by the Planck 2018 analysis.
  - *rayleigh* includes frequency-dependent Rayleigh scattering
 
 =============
