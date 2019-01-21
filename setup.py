@@ -107,7 +107,7 @@ def get_forutils():
         if not fpath:
             fpath = git_install_forutils()
         elif not os.path.exists(os.path.join(fpath, 'Makefile')):
-            if os.path.isdir(os.path.join('..','.git')):
+            if os.path.isdir(os.path.join('..', '.git')):
                 # submodule may not be pulled
                 try:
                     try:
@@ -209,16 +209,25 @@ def make_library(cluster=False):
                                                                                        '').split()]
             tmpdir = 'WinDLL' + ('', '32')[is32Bit]
             if not os.path.isdir(tmpdir): os.mkdir(tmpdir)
-            modified = False
             ofiles = []
             for source in FORUTILS + SOURCES:
-                # simplest possible Makefile-free make without making full dependencies
-                fout = os.path.join(tmpdir, os.path.split(source)[1] + '.o')
+                #manual Make using dependency files if available
+                outroot = os.path.join(tmpdir, os.path.split(source)[1])
+                fout = outroot + '.o'
                 ofiles += [fout]
-                if modified or not os.path.exists(fout) or os.path.getmtime(fout) < os.path.getmtime(
-                        source + '.f90'):
-                    modified = True
-                    cmd = COMPILER + ' ' + FFLAGS + ' ' + source + '.f90 -c -o %s -J%s' % (fout, tmpdir)
+                modified = not os.path.exists(fout)
+                if not modified:
+                    o_time = os.path.getmtime(fout)
+                    modified = o_time < os.path.getmtime(source + '.f90') or not os.path.exists(outroot + '.d')
+                    if not modified:
+                        with io.open(outroot + '.d', 'r') as f:
+                            for dependence in " ".join(f.readlines()).replace("\\\n", "").split(':')[1].strip().split():
+                                if os.path.getmtime(dependence) > o_time:
+                                    modified = True
+                                    break
+
+                if modified:
+                    cmd = COMPILER + ' ' + FFLAGS + ' ' + source + '.f90 -MMD -c -o %s -J%s' % (fout, tmpdir)
                     print(cmd)
                     if subprocess.call(cmd, shell=True) != 0:
                         raise IOError('Compilation failed')

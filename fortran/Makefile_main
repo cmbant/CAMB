@@ -127,7 +127,7 @@ libforutils:
 
 
 clean:
-	-rm -f *.o *.a *.d core *.mod *.optrpt *.d
+	-rm -f *.o *.a *.d core *.mod *.optrpt
 	-rm -rf Release* Debug* WinDLL*
 
 delete:
