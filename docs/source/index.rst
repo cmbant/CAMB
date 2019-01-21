@@ -20,7 +20,6 @@ To install from source, in the project source root directory use::
 
 If you want to work on the code, you can also just install in place without copying anything using::
 
-    python setup.py make
     pip install -e . [--user]
 
 You will need gfortran 6 or higher installed to compile. Binary files for Windows are also provided, so these are used instead if no

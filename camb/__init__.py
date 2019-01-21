@@ -6,7 +6,7 @@ Python CAMB interface (https://camb.info)
 """
 __author__ = "Antony Lewis"
 __contact__ = "antony at cosmologist dot info"
-__version__ = "1.0.1"
+__version__ = "1.0.2"
 
 from . import baseconfig
 

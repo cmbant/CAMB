@@ -111,7 +111,8 @@ def check_fortran_version(version):
     if fortran_version != version:
         raise CAMBFortranError('Version %s of fortran library does not match python version (%s).' %
                                (fortran_version,
-                                version) + '\nUpdate install or use "setup.py make" to rebuild library.')
+                                version) + '\nUpdate install or use "setup.py make" to rebuild library.'
+                               + '\n(also check camb.__file__ is actually at the path you think you are loading)')
 
 
 set_cl_template_file()
