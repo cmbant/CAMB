@@ -1368,7 +1368,7 @@
                     lind=lind+1
                     ls(lind)=max_l
                 end if
-                if (.not. State%flat) ls(lind-1)=int(max_l+ls(lind-2))/2
+                if (.not. State%flat .and. max_l<=5000) ls(lind-1)=int(max_l+ls(lind-2))/2
                 !Not in CP%flat case so interpolation table is the same when using lower l_max
             end if
         end if
