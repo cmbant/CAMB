@@ -258,8 +258,8 @@ class CambTest(unittest.TestCase):
         data3 = camb.get_results(pars2)
         cl3 = data3.get_lensed_scalar_cls(1000)
         self.assertAlmostEqual(res2, data3.angular_diameter_distance(1.7))
-        self.assertAlmostEqual(drag2, data3.get_derived_params()['rdrag'])
-        self.assertAlmostEqual(drag1, data.get_derived_params()['rdrag'])
+        self.assertAlmostEqual(drag2, data3.get_derived_params()['rdrag'], places=3)
+        self.assertAlmostEqual(drag1, data.get_derived_params()['rdrag'], places=3)
         pars.set_for_lmax(3000, lens_potential_accuracy=1)
         camb.get_results(pars)
         del data3

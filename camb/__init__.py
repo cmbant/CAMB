@@ -15,7 +15,6 @@ from .baseconfig import CAMBFortranError, CAMBError, CAMBValueError
 from .camb import get_results, get_transfer_functions, get_background, \
     get_age, get_zre_from_tau, set_feedback_level, set_params, get_matter_power_interpolator, \
     set_params_cosmomc, read_ini, run_ini
-from . import results
 from . import model
 from . import initialpower
 from . import reionization

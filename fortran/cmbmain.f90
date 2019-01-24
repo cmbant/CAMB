@@ -311,6 +311,7 @@
     real(dl) CL, reall,fac
     integer s_ix2,j,n
     integer winmin
+    Type(LimberRec), pointer :: LimbRec, LimbRec2
 
     if (CP%SourceTerms%limber_phi_lmin>0) then
         winmin = 0
@@ -324,36 +325,36 @@
             do j= i, State%num_redshiftwindows
                 s_ix2 = 3+j
                 if (CTrans%limber_l_min(s_ix2) /=0) then
-                    !$OMP PARALLEL DO DEFAUlT(SHARED), PRIVATE(Cl,ell,reall,fac,n)
+                    !$OMP PARALLEL DO DEFAUlT(SHARED), PRIVATE(Cl,ell,reall,fac,n, LimbRec, LimbRec2)
                     do ell = max(CTrans%limber_l_min(s_ix), CTrans%limber_l_min(s_ix2)), Ctrans%ls%nl
-                        associate (LimbRec => CTrans%Limber_windows(s_ix,ell), &
-                            LimbRec2 => CTrans%Limber_windows(s_ix2,ell))
-                            Cl = 0
+                        !Don't use associate to avoid ifort omp bug
+                        LimbRec => CTrans%Limber_windows(s_ix,ell)
+                        LimbRec2 => CTrans%Limber_windows(s_ix2,ell)
+                        Cl = 0
 
-                            do n = max(LimbRec%n1,LimbRec2%n1), min(LimbRec%n2,LimbRec2%n2)
-                                !Actually integral over chi; source has sqrt( chi dchi)
-                                !Same n corresponds to same k since ell fixed here
-                                Cl = Cl + LimbRec%Source(n)*LimbRec2%Source(n) * CP%InitPower%ScalarPower(LimbRec%k(n))
-                            end do
+                        do n = max(LimbRec%n1,LimbRec2%n1), min(LimbRec%n2,LimbRec2%n2)
+                            !Actually integral over chi; source has sqrt( chi dchi)
+                            !Same n corresponds to same k since ell fixed here
+                            Cl = Cl + LimbRec%Source(n)*LimbRec2%Source(n) * CP%InitPower%ScalarPower(LimbRec%k(n))
+                        end do
 
-                            reall = real(CTrans%ls%l(ell),dl)
-                            fac = (2 * const_pi ** 2)/const_fourpi/(reall+0.5_dl)**3 !fourpi because multipled by fourpi later
-                            if (j >= 1) then
-                                if (State%Redshift_w(j)%kind == window_lensing) &
-                                    fac = fac / 2 * reall * (reall + 1)
-                            end if
-                            if (i >= 1) then
-                                if (State%Redshift_w(i)%kind == window_lensing) &
-                                    fac = fac / 2 * reall * (reall + 1)
-                            end if
-                            Cl = Cl*fac
+                        reall = real(CTrans%ls%l(ell),dl)
+                        fac = (2 * const_pi ** 2)/const_fourpi/(reall+0.5_dl)**3 !fourpi because multipled by fourpi later
+                        if (j >= 1) then
+                            if (State%Redshift_w(j)%kind == window_lensing) &
+                                fac = fac / 2 * reall * (reall + 1)
+                        end if
+                        if (i >= 1) then
+                            if (State%Redshift_w(i)%kind == window_lensing) &
+                                fac = fac / 2 * reall * (reall + 1)
+                        end if
+                        Cl = Cl*fac
 
-                            if(j==0 .and. i==0) iCl_scalar(ell,C_Phi) = Cl
-                            if (State%CP%want_cl_2D_array) then
-                                iCl_Array(ell,s_ix,s_ix2) = Cl
-                                if (i/=j) iCl_Array(ell,s_ix2,s_ix) = Cl
-                            end if
-                        end associate
+                        if(j==0 .and. i==0) iCl_scalar(ell,C_Phi) = Cl
+                        if (State%CP%want_cl_2D_array) then
+                            iCl_Array(ell,s_ix,s_ix2) = Cl
+                            if (i/=j) iCl_Array(ell,s_ix2,s_ix) = Cl
+                        end if
                     end do
                     !$OMP END PARALLEL DO
                 end if
