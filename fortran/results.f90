@@ -487,14 +487,15 @@
         if (allocated(this%Redshift_W)) deallocate(this%Redshift_W)
         allocate(this%Redshift_W(this%num_redshiftwindows))
         this%num_extra_redshiftwindows = 0
-        !$OMP PARALLEL DO DEFAULT(SHARED), PRIVATE(zpeak, sigma_z, zpeakstart, zpeakend, nu_i, Win)
+        !$OMP PARALLEL DO DEFAULT(SHARED), SCHEDULE(STATIC), PRIVATE(zpeak, sigma_z, zpeakstart, zpeakend, nu_i, Win)
         do nu_i = 1, this%num_redshiftwindows
             Win => this%Redshift_w(nu_i)
             Win%Window => this%CP%SourceWindows(nu_i)%Window
             Win%kind = Win%Window%source_type
             call Win%Window%GetScales(zpeak, sigma_z, zpeakstart, zpeakend)
             if (FeedbackLevel > 1) then
-                write(*,*) 'Window scales:',nu_i, zpeak, sigma_z, zpeakstart, zpeakend
+                write(*,*) FormatString('Window scales: %d peak: %f, sigma: %f, start:%f, end %f', &
+                    nu_i, zpeak, sigma_z, zpeakstart, zpeakend)
             end if
             Win%Redshift = zpeak
             Win%tau = this%TimeOfz(zpeak, tol=1e-4_dl)
@@ -2644,13 +2645,15 @@
     Type(CAMBParams) :: CP
     integer, intent(in) :: lmax
     integer ell_limb
+    real(dl) LimBoost
 
     if (CP%SourceTerms%limber_windows) then
+        LimBoost = CP%Accuracy%AccuracyBoost*CP%Accuracy%SourceLimberBoost
         !Turn on limber when k is a scale smaller than window width
         if (W%kind==window_lensing) then
-            ell_limb = max(CP%SourceTerms%limber_phi_lmin,nint(50*CP%Accuracy%AccuracyBoost))
+            ell_limb = max(CP%SourceTerms%limber_phi_lmin,nint(50*LimBoost))
         else
-            ell_limb = max(CP%SourceTerms%limber_phi_lmin, nint(CP%Accuracy%AccuracyBoost *6* W%chi0/W%sigma_tau))
+            ell_limb = max(CP%SourceTerms%limber_phi_lmin, nint(LimBoost *6* W%chi0/W%sigma_tau))
         end if
     else
         ell_limb = lmax

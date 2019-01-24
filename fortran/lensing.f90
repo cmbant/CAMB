@@ -45,7 +45,7 @@
 
     integer :: lensing_method = lensing_method_curv_corr
 
-    real(dl) :: lensing_sanity_check_amplitude = 1e-7
+    real(dl) :: lensing_sanity_check_amplitude = 1e-7_dl
 
     real(dl) :: ALens_Fiducial = 0._dl
     !Change from zero to set lensing smoothing by scaling amplitude of fiducial template

@@ -240,11 +240,11 @@
 
     end function TSplinedSourceWindow_count_obs_window_z
 
-    subroutine TSplinedSourceWindow_GetScales(this, zpeak, sigma_z,zpeakstart, zpeakend)
+    subroutine TSplinedSourceWindow_GetScales(this, zpeak, sigma_z, zpeakstart, zpeakend)
     class(TSplinedSourceWindow) :: this
     real(dl), intent(out) :: zpeak, sigma_z, zpeakstart, zpeakend
-    integer ix, i
-    real(dl) z1, zstart, zend
+    integer ix, i, j
+    real(dl) z1, zstart, zend, targ
 
     associate(z => this%Window%X, W => this%Window%F, n=>this%Window%n)
         zstart = z(n)
@@ -265,13 +265,33 @@
             end if
         end do
         z1 = 0._dl
+        !sigma_z sets the scale of structure in the window function
+        !Used for determining when Limber should be valid and required time step size
+        !Try minimum of some simple heuristics
         sigma_z = (zpeakstart - zpeakend)/3
         do i = 1, n
             if (W(i) > this%maxwin/2 .and. z1==0._dl) then
                 z1 = z(i)
-            else if (W(i) <= this%maxwin/2 .and. z1/= 0._dl) then
+            else if (W(i) < this%maxwin/2 .and. z1/= 0._dl) then
                 sigma_z = min(sigma_z, z(i)-z1)
                 z1 = 0._dl
+            end if
+        end do
+        do i = 1, n
+            if (W(i) < this%maxwin*0.45) then
+                targ = w(i) + this%maxwin/2
+                do j=i+1, n
+                    if (W(j) >= targ) then
+                        sigma_z = min(sigma_z, (z(j)-z(i))/0.85)
+                        exit
+                    end if
+                end do
+                do j=i-1, 1,-1
+                    if (W(j) >= targ) then
+                        sigma_z = min(sigma_z, (z(i)-z(j))/0.85)
+                        exit
+                    end if
+                end do
             end if
         end do
     end associate

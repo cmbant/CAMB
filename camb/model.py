@@ -104,6 +104,7 @@ class AccuracyParams(CAMB_Structure):
         ("NonlinSourceBoost", c_double, "Accuracy of steps and kmax used for the non-linear correction"),
         ("BesselBoost", c_double, "Accuracy of bessel pre-computation sampling"),
         ("LimberBoost", c_double, "Accuracy of Limber approximation use"),
+        ("SourceLimberBoost", c_double, "Scales when to switch to Limber for source windows"),
         ("KmaxBoost", c_double, "Boost max k for source window functions"),
         ("neutrino_q_boost", c_double, "Number of momenta integrated for neutrino perturbations"),
     ]

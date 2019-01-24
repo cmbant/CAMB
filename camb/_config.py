@@ -30,5 +30,11 @@ class _config(object):
 
     transfer_power_var = import_property(c_int, "transfer", "transfer_power_var")
 
+    def __repr__(self):
+        s = ''
+        for x in dir(self):
+            if x[0] != '_':
+                s += '%s = %s\n' % (x, getattr(self, x))
+        return s
 
 config = _config()

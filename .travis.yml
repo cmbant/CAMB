@@ -3,7 +3,7 @@ language: python
 git:
   depth: false
 
-dist: trusty
+dist: xenial
 
 sudo: false
 
@@ -14,7 +14,8 @@ branches:
 
 matrix:
   include:
-    - addons:
+    - name: "GCC6"
+      addons:
         apt:
           sources:
             - ubuntu-toolchain-r-test
@@ -24,7 +25,8 @@ matrix:
         - GCC_VERSION="6"
         - CHANNEL="defaults"
       python: "2.7"
-    - addons:
+    - name: "GCC8"
+      addons:
         apt:
           sources:
             - ubuntu-toolchain-r-test
@@ -33,7 +35,7 @@ matrix:
       env:
         - GCC_VERSION="8"
         - CHANNEL="conda-forge"
-      python: "3.6"
+      python: "3.7"
 
 install:
   - mkdir -p gfortran-symlinks

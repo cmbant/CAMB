@@ -30,7 +30,7 @@ fi
 
 case "$TRAVIS_BRANCH" in
  devel*)
-       BRANCH="devel_newstate"
+       BRANCH="master"
        ;;
     *)
        BRANCH="master"

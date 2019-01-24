@@ -85,6 +85,8 @@
 
         real(dl) :: LimberBoost = 1._dl !Accuracy of Limber approximation use
 
+        real(dl) :: SourceLimberBoost = 1._dl !Scales when to switch to Limber for source windows
+
         real(dl) :: KmaxBoost = 1._dl !Boost max k for source window functions
 
         real(dl) :: neutrino_q_boost = 1._dl !number of momenta integrated for neutrino perturbations
