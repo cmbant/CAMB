@@ -184,11 +184,11 @@
         ThisCT%NumSources = SourceNum
         call ThisCT%ls%Init(State,CP%Min_l, maximum_l)
 
-        !$OMP PARAllEl DO DEFAUlT(SHARED),SCHEDUlE(DYNAMIC), PRIVATE(EV, q_ix)
+        !$OMP PARALLEL DO DEFAULT(SHARED),SCHEDULE(DYNAMIC), PRIVATE(EV, q_ix)
         do q_ix= Evolve_q%npoints,1,-1
             if (global_error_flag==0) call DoSourcek(EV,q_ix)
         end do
-        !$OMP END PARAllEl DO
+        !$OMP END PARALLEL DO
 
         if (DebugMsgs .and. Feedbacklevel > 0) call Timer%WriteTime('Timing for source calculation')
 
@@ -325,7 +325,7 @@
             do j= i, State%num_redshiftwindows
                 s_ix2 = 3+j
                 if (CTrans%limber_l_min(s_ix2) /=0) then
-                    !$OMP PARALLEL DO DEFAUlT(SHARED), PRIVATE(Cl,ell,reall,fac,n, LimbRec, LimbRec2)
+                    !$OMP PARALLEL DO DEFAULT(SHARED), SCHEDULE(STATIC), PRIVATE(Cl,ell,reall,fac,n, LimbRec, LimbRec2)
                     do ell = max(CTrans%limber_l_min(s_ix), CTrans%limber_l_min(s_ix2)), Ctrans%ls%nl
                         !Don't use associate to avoid ifort omp bug
                         LimbRec => CTrans%Limber_windows(s_ix,ell)
@@ -1070,7 +1070,7 @@
         write(*,*) State%MT%num_q_trans-Evolve_q%npoints, 'transfer k values'
 
     !     loop over wavenumbers.
-    !$OMP PARALLEL DO DEFAUlT(SHARED),SCHEDUlE(DYNAMIC), PRIVATE(EV, tau, q_ix)
+    !$OMP PARALLEL DO DEFAULT(SHARED),SCHEDULE(DYNAMIC), PRIVATE(EV, tau, q_ix)
     do q_ix=State%MT%num_q_trans, Evolve_q%npoints+1, -1
         EV%TransferOnly=.true. !in case we want to do something to speed it up
 
@@ -2331,7 +2331,7 @@
         end if
     end do
 #ifndef __INTEL_COMPILER
-    !$OMP END PARAllEl DO
+    !$OMP END PARALLEL DO
 #endif
 
     deallocate(ks,pows,dlnks)
