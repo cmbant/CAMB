@@ -494,6 +494,21 @@ class CambTest(unittest.TestCase):
         ls = np.arange(0, PP.shape[0])
         self.assertTrue(np.allclose(PP / 4 * (ls * (ls + 1)), cls['W1xW1'], rtol=1e-3))
         self.assertTrue(np.allclose(PP / 2 * np.sqrt(ls * (ls + 1)), cls['PxW1'], rtol=1e-3))
+        # test something sharp with redshift distortions (tricky..)
+        from scipy import signal
+        zs = np.arange(1.9689, 2.1057, (2.1057 - 1.9689) / 2000)
+        W = signal.tukey(len(zs), alpha=0.1)
+        pars = camb.CAMBparams()
+        pars.set_cosmology(H0=67.5, ombh2=0.022, omch2=0.122)
+        pars.InitPower.set_params(As=2e-9, ns=0.965)
+        pars.set_for_lmax(4000)
+        pars.SourceWindows = [SplinedSourceWindow(z=zs, W=W, source_type='counts')]
+        pars.SourceTerms.counts_redshift = True
+        results = camb.get_results(pars)
+        cls = results.get_source_cls_dict()
+        self.assertAlmostEqual(np.sum(cls['PxW1'][10:3000:20]), 0.00020001, places=5)
+        self.assertAlmostEqual(np.sum(cls['W1xW1'][10:3000:20]), 2.26348, places=3)
+        self.assertAlmostEqual(np.sum(cls['W1xW1'][10]), 0.0001097, places=6)
 
     def testSymbolic(self):
         if fast: return

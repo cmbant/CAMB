@@ -244,8 +244,7 @@ class CAMBdata(F2003Class):
         """
         self._check_params(params)
         self.f_SetParams(byref(params), None, None, None)
-        if config.global_error_flag != 0:
-            raise CAMBError('Error %s settings parameters' % config.global_error_flag)
+        config.check_global_error('calc_background_no_thermo')
 
     def calc_background(self, params):
         """
@@ -254,9 +253,8 @@ class CAMBdata(F2003Class):
         :param params:  :class:`~.model.CAMBparams` instance to use
         """
         self._check_params(params)
-        res = CAMBdata_CalcBackgroundTheory(byref(self), byref(params))
-        if res:
-            raise CAMBError('Error %s in calc_background' % res)
+        if CAMBdata_CalcBackgroundTheory(byref(self), byref(params)):
+            config.check_global_error('calc_background')
 
     def calc_transfers(self, params, only_transfers=True):
         """
@@ -268,8 +266,8 @@ class CAMBdata(F2003Class):
         """
         self._check_params(params)
         if not only_transfers: self._check_powers(params)
-        res = CAMBdata_gettransfers(byref(self), byref(params), byref(c_int(1 if only_transfers else 0)))
-        return res
+        if CAMBdata_gettransfers(byref(self), byref(params), byref(c_int(1 if only_transfers else 0))):
+            config.check_global_error('calc_transfer')
 
     def _check_powers(self, params=None):
         if params is None: params = self.Params
@@ -286,12 +284,11 @@ class CAMBdata(F2003Class):
 
         """
         if params is not None:
-            result = self.calc_transfers(params, only_transfers=False)
-            if result != 0:
-                raise CAMBError('Error getting transfer functions: %u' % result)
+            self.calc_transfers(params, only_transfers=False)
         else:
             self._check_powers()
             CAMBdata_transferstopowers(byref(self))
+            config.check_global_error()
 
     def power_spectra_from_transfer(self, initial_power_params, silent=False):
         """
@@ -307,12 +304,14 @@ class CAMBdata(F2003Class):
         :param silent: suppress warnings about non-linear corrections not being recalculated
         """
         if not silent and self.Params.NonLinear in [model.NonLinear_lens, model.NonLinear_both] and \
-                self.Params.WantScalars and self.Params.WantCls:
+                self.Params.WantScalars and self.Params.WantCls and not getattr(self, '_suppress_power_warn', False):
             logging.warning(
                 'power_spectra_from_transfer with non-linear lensing does not recalculate the non-linear correction')
+            self._suppress_power_warn = True
         self.Params.set_initial_power(initial_power_params)
         self._check_powers()
         CAMBdata_transferstopowers(byref(self))
+        config.check_global_error()
 
     def _CMB_unit(self, CMB_unit):
         if isinstance(CMB_unit, six.string_types):
@@ -495,10 +494,9 @@ class CAMBdata(F2003Class):
             nvars = num_standard_names + ncustom
             outputs = np.empty((k.shape[0], times.shape[0], nvars))
             if CAMB_TimeEvolution(byref(self), byref(c_int(k.shape[0])), k, byref(c_int(times.shape[0])),
-                                  times[indices],
-                                  byref(c_int(nvars)), outputs,
+                                  times[indices], byref(c_int(nvars)), outputs,
                                   byref(c_int(ncustom)), byref(custom_source_func)):
-                raise CAMBError('Error in evolution')
+                config.check_global_error('get_time_evolution')
             i_rev = np.zeros(times.shape, dtype=int)
             i_rev[indices] = np.arange(times.shape[0])
             outputs = outputs[:, i_rev, :]

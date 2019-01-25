@@ -65,6 +65,7 @@
     end Type TInitialPowerLaw
 
     Type, extends(TInitialPower) :: TSplinedInitialPower
+        real(dl) :: effective_ns_for_nonlinear = -1._dl !used for halofit
         class(TSpline1D), allocatable :: Pscalar, Ptensor
     contains
     procedure :: SetScalarTable => TSplinedInitialPower_SetScalarTable
@@ -74,6 +75,7 @@
     procedure :: ScalarPower => TSplinedInitialPower_ScalarPower
     procedure :: TensorPower => TSplinedInitialPower_TensorPower
     procedure :: HasTensors => TSplinedInitialPower_HasTensors
+    procedure :: Effective_ns => TSplinedInitialPower_Effective_ns
     procedure, nopass :: PythonClass => TSplinedInitialPower_PythonClass
     procedure, nopass :: SelfPointer => TSplinedInitialPower_SelfPointer
     end Type TSplinedInitialPower
@@ -339,6 +341,18 @@
     end if
 
     end subroutine TSplinedInitialPower_SetTensorLogRegular
+
+    function TSplinedInitialPower_Effective_ns(this)
+    use config
+    class(TSplinedInitialPower) :: this
+    real(dl) :: TSplinedInitialPower_Effective_ns
+
+    if (this%effective_ns_for_nonlinear==-1._dl) then
+        call GlobalError('TSplinedInitialPower: effective_ns_for_nonlinear not set',error_inital_power)
+    else
+        TSplinedInitialPower_Effective_ns = this%effective_ns_for_nonlinear
+    end if
+    end function TSplinedInitialPower_Effective_ns
 
 
 

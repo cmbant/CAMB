@@ -86,7 +86,8 @@ class AccuracyParams(CAMB_Structure):
     _fields_ = [
         ("AccuracyBoost", c_double,
          "general accuracy setting effecting everything related to step sizes etc. (including separate settings below except the next two)"),
-        ("lSampleBoost", c_double, "accuracy for sampling in ell for interpolation for the C_l (if >=50, all ell are calculated)"),
+        ("lSampleBoost", c_double,
+         "accuracy for sampling in ell for interpolation for the C_l (if >=50, all ell are calculated)"),
         ("lAccuracyBoost", c_double, "Boosts number of multipoles integrated in Boltzman heirarchy"),
         ("AccuratePolarization", c_bool, "Do you care about the accuracy of the polarization Cls?"),
         ("AccurateBB", c_bool, "Do you care about BB accuracy (e.g. in lensing)"),
@@ -229,7 +230,8 @@ class CAMBparams(F2003Class):
         ("transfer_21cm_cl", c_bool, "Get 21cm C_L at a given fixed redshift"),
         ("Log_lvalues", c_bool, "Use log spacing for sampling in L"),
         (
-        "use_cl_spline_template", c_bool, "When interpolating use a fiducial spectrum shape to define ratio to spline"),
+            "use_cl_spline_template", c_bool,
+            "When interpolating use a fiducial spectrum shape to define ratio to spline"),
 
         ("SourceWindows", AllocatableObjectArray(SourceWindow)),
         ("CustomSources", CustomSources)
@@ -274,7 +276,8 @@ class CAMBparams(F2003Class):
         self.DoLateRadTruncation = DoLateRadTruncation
         return self
 
-    def set_initial_power_function(self, P_scalar, P_tensor=None, kmin=1e-6, kmax=100., N_min=200, rtol=5e-5, args=()):
+    def set_initial_power_function(self, P_scalar, P_tensor=None, kmin=1e-6, kmax=100., N_min=200, rtol=5e-5,
+                                   effective_ns_for_nonlinear=None, args=()):
         r"""
         Set the initial power spectrum from a function P_scalar(k, \*args), and optionally also the tensor spectrum.
         The function is called to make a pre-computed array which is then interpolated inside CAMB. The sampling in k
@@ -286,6 +289,7 @@ class CAMBparams(F2003Class):
         :param kmax: maximum wavenumber to compute
         :param N_min: minimum number of spline points for the pre-computation
         :param rtol: relative tolerance for deciding how many points are enough
+        :param effective_ns_for_nonlinear: an effective n_s for use with approximate non-linear corrections
         :param args: optional list of arguments passed to P_scalar (and P_tensor)
         :return: self
         """
@@ -307,10 +311,10 @@ class CAMBparams(F2003Class):
             PK_test = PK
             ktest = ks
         PK_t = None if P_tensor is None else P_tensor(ks, *args)
-        self.set_initial_power_table(ks, PK, PK_t)
+        self.set_initial_power_table(ks, PK, PK_t, effective_ns_for_nonlinear)
         return self
 
-    def set_initial_power_table(self, k, pk=None, pk_tensor=None):
+    def set_initial_power_table(self, k, pk=None, pk_tensor=None, effective_ns_for_nonlinear=None):
         """
         Set a general intial power spectrum from tabulated values. It's up to you to ensure the sampling
         of the k values is high enough that it can be interpolated accurately.
@@ -318,9 +322,12 @@ class CAMBparams(F2003Class):
         :param k: array of k values (Mpc^{-1})
         :param pk: array of primordial curvature perturbation power spectrum values P(k_i)
         :param pk_tensor: array of tensor spectrum values
+        :param effective_ns_for_nonlinear: an effective n_s for use with approximate non-linear corrections
         """
         self.InitPower = SplinedInitialPower()
         initpower = self.InitPower
+        if effective_ns_for_nonlinear is not None:
+            initpower.effective_ns_for_nonlinear = effective_ns_for_nonlinear
         if pk is None:
             pk = np.asarray([])
         elif len(k) != len(pk):

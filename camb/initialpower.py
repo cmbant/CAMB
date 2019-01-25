@@ -26,6 +26,9 @@ class SplinedInitialPower(InitialPower):
     """
     _fortran_class_name_ = 'TSplinedInitialPower'
 
+    _fields_ = [
+        ('effective_ns_for_nonlinear', c_double, "Effective n_s to use for approximate non-linear correction models")]
+
     _methods_ = [('HasTensors', [], c_int),
                  ('SetScalarTable', [POINTER(c_int), numpy_1d, numpy_1d]),
                  ('SetTensorTable', [POINTER(c_int), numpy_1d, numpy_1d]),

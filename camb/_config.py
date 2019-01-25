@@ -1,4 +1,5 @@
-from .baseconfig import import_property, c_int, c_bool, c_double
+from .baseconfig import import_property, CAMBError
+from ctypes import c_char, c_int, c_bool, c_double
 
 lensing_method_curv_corr = 1
 lensing_method_flat_corr = 2
@@ -30,11 +31,31 @@ class _config(object):
 
     transfer_power_var = import_property(c_int, "transfer", "transfer_power_var")
 
+    _global_error_message = import_property(c_char * 1024, "config", "global_error_message")
+
+    def global_error_message(self):
+        return bytearray(self._global_error_message).decode('ascii').strip()
+
+    def check_global_error(self, reference=''):
+        code = self.global_error_flag
+        if code:
+            err = config.global_error_message()
+            self.global_error_flag = 0
+            if reference:
+                reference = 'Error in Fortran called from %s:\n' % reference
+            else:
+                reference = ''
+            if err:
+                raise CAMBError(reference + '%s' % err)
+            else:
+                raise CAMBError(reference + 'Error code: %s' % code)
+
     def __repr__(self):
         s = ''
         for x in dir(self):
             if x[0] != '_':
                 s += '%s = %s\n' % (x, getattr(self, x))
         return s
+
 
 config = _config()

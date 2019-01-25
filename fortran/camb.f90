@@ -129,6 +129,7 @@
         if (do_bispectrum .and. global_error_flag==0) &
             call GetBispectrum(OutData,OutData%CLData%CTransScal)
     end if
+    if (global_error_flag/=0 .and. present(error)) error =global_error_flag
 
     end subroutine CAMB_GetResults
 
@@ -202,17 +203,19 @@
 
     end subroutine CAMB_SetDefParams
 
-    logical function CAMB_ReadParamFile(P, InputFile, InpLen, ErrMsg, ErrLen)
+    logical function CAMB_ReadParamFile(P, InputFile, InpLen)
     Type(CAMBParams) :: P
-    integer, intent(in) :: ErrLen, InpLen
+    integer, intent(in) :: InpLen
     character(LEN=InpLen), intent(in) :: InputFile
-    character(LEN=ErrLen), intent(inout) :: ErrMsg
+    character(LEN=len(global_error_message)) :: ErrMsg
     Type(TIniFile) :: Ini
     logical bad
 
     call Ini%Open(InputFile, bad, .false.)
+    ErrMsg = ''
     CAMB_ReadParamFile = CAMB_ReadParams(P, Ini, ErrMsg)
     call Ini%Close()
+    if (ErrMsg/='') call GlobalError(ErrMsg,error_ini)
 
     end function CAMB_ReadParamFile
 
@@ -708,7 +711,7 @@
 
     if (global_error_flag==0) call CAMB_GetResults(State,P)
     if (global_error_flag/=0) then
-        ErrMsg =  'Error result '//trim(global_error_message)
+        ErrMsg =  trim(global_error_message)
         return
     endif
 
@@ -738,10 +741,10 @@
 
     end function CAMB_RunFromIni
 
-    logical function CAMB_RunIniFile(InputFile, InpLen, ErrMsg, ErrLen)
-    integer, intent(in) :: InpLen, ErrLen
+    logical function CAMB_RunIniFile(InputFile, InpLen)
+    integer, intent(in) :: InpLen
     character(LEN=InpLen), intent(in) :: InputFile
-    character(LEN=ErrLen), intent(inout) :: ErrMsg
+    character(LEN=len(global_error_message)) :: ErrMsg
     Type(TIniFile) :: Ini
     logical bad
 
@@ -750,8 +753,10 @@
 
     call Ini%Open(InputFile, bad, .false.)
     Ini%Fail_on_not_found = .false.
+    ErrMsg = ''
     CAMB_RunIniFile = CAMB_RunFromIni(Ini, InputFile, ErrMsg)
     call Ini%Close()
+    if (ErrMsg/='') call GlobalError(ErrMsg,error_ini)
 
     end function CAMB_RunIniFile
 

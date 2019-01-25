@@ -217,12 +217,13 @@ def validate_ini_file(filename):
     import subprocess
     import sys
     try:
+        err = ''
         command = '"%s" "%s" "%s" --validate' % (
             sys.executable, os.path.join(os.path.dirname(__file__), '_command_line.py'), filename)
         subprocess.check_output(command, stderr=subprocess.STDOUT, shell=True)
     except subprocess.CalledProcessError as E:
         err = E.output.decode().replace('ERROR STOP', '').strip()
-        raise CAMBValueError(err + ' (%s)' % filename)
+    if err: raise CAMBValueError(err + ' (%s)' % filename)
     return True
 
 
@@ -239,12 +240,11 @@ def run_ini(ini_filename, no_validate=False):
         raise CAMBValueError('File not found: %s' % ini_filename)
     if not no_validate: validate_ini_file(ini_filename)
     runIni = camblib.__camb_MOD_camb_runinifile
-    runIni.argtypes = [ctypes.c_char_p, POINTER(ctypes.c_long), ctypes.c_char_p, POINTER(ctypes.c_long)]
+    runIni.argtypes = [ctypes.c_char_p, POINTER(ctypes.c_long)]
     runIni.restype = c_bool
     s = ctypes.create_string_buffer(six.b(ini_filename))
-    err = ctypes.create_string_buffer(1025)
-    if not runIni(s, ctypes.c_long(len(ini_filename)), err, ctypes.c_long(1024)):
-        raise CAMBError(err.value.decode('ascii'))
+    if not runIni(s, ctypes.c_long(len(ini_filename))):
+        config.check_global_error('run_ini')
 
 
 def read_ini(ini_filename, no_validate=False):
@@ -259,13 +259,11 @@ def read_ini(ini_filename, no_validate=False):
     if not no_validate: validate_ini_file(ini_filename)
     cp = model.CAMBparams()
     readIni = camblib.__camb_MOD_camb_readparamfile
-    readIni.argtypes = [POINTER(CAMBparams), ctypes.c_char_p, POINTER(ctypes.c_long), ctypes.c_char_p,
-                        POINTER(ctypes.c_long)]
+    readIni.argtypes = [POINTER(CAMBparams), ctypes.c_char_p, POINTER(ctypes.c_long)]
     readIni.restype = ctypes.c_bool
     s = ctypes.create_string_buffer(six.b(ini_filename))
-    err = ctypes.create_string_buffer(1025)
-    if not readIni(cp, s, ctypes.c_long(len(ini_filename)), err, ctypes.c_long(1024)):
-        raise CAMBValueError(err.value.decode('ascii'))
+    if not readIni(cp, s, ctypes.c_long(len(ini_filename))):
+        config.check_global_error('read_ini')
     return cp
 
 

@@ -359,27 +359,6 @@
 
     end subroutine CAMBdata_GetMatterPower
 
-    subroutine CAMBParams_setinitialpower(Params, cptr, cls)
-    type(CAMBparams) :: Params
-    type(c_ptr)  :: cptr
-    Type (TInitialPowerLaw), pointer :: pInitialPowerLaw
-    Type (TSplinedInitialPower), pointer :: pInitialSplined
-    integer, intent(in) :: cls
-
-    if (allocated(Params%InitPower)) deallocate(Params%InitPower)
-    if (cls==0) then
-        call c_f_pointer(cptr, pInitialPowerLaw)
-        allocate(Params%InitPower, source = pInitialPowerLaw)
-    elseif (cls==1) then
-        call c_f_pointer(cptr, pInitialSplined)
-        allocate(Params%InitPower, source = pInitialSplined)
-    else
-        call MpiStop('Unknown initial power')
-    end if
-
-    end subroutine CAMBParams_setinitialpower
-
-
     subroutine CAMB_SetTotCls(State,lmax, tot_scalar_Cls)
     type(CAMBdata) State
     integer, intent(IN) :: lmax
