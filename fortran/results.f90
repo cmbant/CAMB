@@ -2205,14 +2205,10 @@
                 !This should cover whole range where not tiny
 
                 if (Win%kind /= window_lensing  .and. &
-                    Win%tau_peakend-Win%tau_peakstart < (Win%tau_end-Win%tau_start)*0.4) then
-                    call TimeSteps%Add(Win%tau_peakstart,Win%tau_peakend, nwindow)
+                    Win%tau_peakend-Win%tau_peakstart < nint(60*TimeSampleBoost) * delta) then
+                    call TimeSteps%Add(Win%tau_peakstart,Win%tau_peakend,  nint(60*TimeSampleBoost))
                     !This should be over peak
                 end if
-                !Make sure line of sight integral OK too
-                ! if (dtau0 > Win%tau_end/300/TimeSampleBoost) then
-                !  call Ranges_Add_delta(TimeSteps, Win%tau_end, State%CP%tau0,  Win%tau_start/300/AccuracyBoost)
-                ! end if
             end associate
         end do
     end if
