@@ -366,7 +366,6 @@
             end if
         end if
         SampleL%nl= SampleL%nl + 1
-        ! print *,l1
         SampleL%l(SampleL%nl) = l1
         if (l1 == lmax) exit
     end do

@@ -920,9 +920,7 @@
     !
 
     write (*,*) 'Error in dverk, x =',x, 'xend=', xend
-    call MpiStop()
-    !
-    !  end abort action
+    call MpiStop('DVERK error')
     !
     end subroutine dverk
 

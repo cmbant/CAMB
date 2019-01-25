@@ -6,6 +6,8 @@ class SourceWindow(F2003Class):
     """
     Abstract base class for a number count/lensing/21cm source window function.
     A list of instances of these classes can be assigned to the SourceWindows field of :class:`.model.CAMBparams`.
+
+    Note that source windows can currently only be used in flat models.
     """
     _fields_ = [("source_type", c_int, {"names": ["21cm", "counts", "lensing"], "start": 1}),
                 ("bias", c_double),

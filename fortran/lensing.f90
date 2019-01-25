@@ -738,7 +738,7 @@
         if (RR > 1e-5) then
             write (*,*) 'You need to normalize realistically to use lensing.'
             write (*,*) 'see http://cosmocoffee.info/viewtopic.php?t=94'
-            call MpiStop()
+            call MpiStop('Lensing error')
         end if
         if (maxl > lmax_donelnfa) then
             !Get ln factorials

@@ -978,8 +978,6 @@
             * (Tmat-Trad) / (Hz*(1._dl+z)) + 2._dl*Tmat/(1._dl+z)
     end if
 
-    ! print *, z, f(3)*(1+z)/Tmat
-
     if (evolve_Ts) then
 
         !       follow the matter temperature once it has a chance of diverging

@@ -152,7 +152,7 @@
 
     if (DebugMsgs .and. Feedbacklevel > 0) then
         call Timer%WriteTime('Timing for InitVars')
-        write (*,*) 'r = ',real(State%curvature_radius),' scale = ',real(State%scale), 'age = ', real(State%tau0)
+        if (.not. State%flat) call WriteFormat('r = %f, scale = %f',State%curvature_radius, State%scale)
     end if
 
     if (.not. State%OnlyTransfer .or. CP%NonLinear==NonLinear_Lens .or. CP%NonLinear==NonLinear_both) &
@@ -169,7 +169,7 @@
     !$ if (ThreadNum /=0) call OMP_SET_NUM_THREADS(ThreadNum)
 
     if (CP%WantCls) then
-        if (DebugMsgs .and. Feedbacklevel > 0) write(*,*) 'Set ',Evolve_q%npoints,' source k values'
+        if (DebugMsgs .and. Feedbacklevel > 0) call WriteFormat('Set %d source k values',Evolve_q%npoints)
 
         call GetSourceMem
 
@@ -230,7 +230,7 @@
 
             call SetkValuesForInt
 
-            if (DebugMsgs .and. Feedbacklevel > 0) write(*,*) 'Set ',ThisCT%q%npoints,' integration k values'
+            if (DebugMsgs .and. Feedbacklevel > 0) call WriteFormat('Set %d integration k values',ThisCT%q%npoints)
 
             !Begin k-loop and integrate Sources*Bessels over time
             !$OMP PARALLEL DO DEFAULT(SHARED), SCHEDULE(STATIC,4)
@@ -316,7 +316,7 @@
     if (CP%SourceTerms%limber_phi_lmin>0) then
         winmin = 0
     else
-        winmin=1
+        winmin = 1
     end if
 
     do i =winmin, State%num_redshiftwindows
@@ -407,7 +407,8 @@
                 ThisCT%limber_l_min(s_ix) =  ell
                 ell_needed = ThisCT%ls%l(ell)
                 max_bessels_l_index = max(max_bessels_l_index,ThisCT%limber_l_min(s_ix)-1)
-                if (FeedbackLevel > 1) write (*,*) i,'Limber switch', ell_needed
+                if (FeedbackLevel > 1 .or. DebugMsgs) &
+                    call WriteFormat('Limber switch %d: %d', i,  ell_needed)
                 exit
             end if
         end do
@@ -476,7 +477,7 @@
                 end do
             end do
         else
-            max_bessels_l_index  = ThisCT%ls%nl
+            max_bessels_l_index = ThisCT%ls%nl
         end if
     end do
 
@@ -785,8 +786,7 @@
         end associate
     end do
 
-    !     Calculating the times for the outputs of the transfer functions.
-    !
+    ! Calculating the times for the outputs of the transfer functions.
     if (CP%WantTransfer .or. .not. allocated(State%Transfer_times)) then
         if (allocated(State%Transfer_times)) deallocate(State%Transfer_times)
         !allocate even if no transfer to prevent debugging access errors
@@ -1067,7 +1067,7 @@
 
 
     if (DebugMsgs .and. Feedbacklevel > 0) &
-        write(*,*) State%MT%num_q_trans-Evolve_q%npoints, 'transfer k values'
+        call WriteFormat('Transfer k values: %f',State%MT%num_q_trans-Evolve_q%npoints)
 
     !     loop over wavenumbers.
     !$OMP PARALLEL DO DEFAULT(SHARED),SCHEDULE(DYNAMIC), PRIVATE(EV, tau, q_ix)
@@ -1492,7 +1492,7 @@
             !Do integral if any useful contribution to the CMB, or large scale effects
 
             if (DoInt) then
-                if (CP%CUstomSources%num_custom_sources==0 .and. State%num_redshiftwindows==0) then
+                if (CP%CustomSources%num_custom_sources==0 .and. State%num_redshiftwindows==0) then
                     do n= State%TimeSteps%IndexOf(tmin),min(IV%SourceSteps,State%TimeSteps%IndexOf(tmax))
                         !Full Bessel integration
                         a2=aa(n)
@@ -1533,7 +1533,6 @@
                                 end do
                             end if
                         end do
-
                     else
                         do n= State%TimeSteps%IndexOf(tmin),min(IV%SourceSteps,State%TimeSteps%IndexOf(tmax))
                             !Full Bessel integration
@@ -2205,7 +2204,6 @@
     do j=1,CTrans%ls%nl
         !Integrate dk/k Delta_l_q**2 * Power(k)
         ell = real(CTrans%ls%l(j),dl)
-
         if (j<= CTrans%max_index_nonlimber) then
             do q_ix = 1, CTrans%q%npoints
                 if (.not.(State%closed.and.nint(CTrans%q%points(q_ix)*State%curvature_radius)<=CTrans%ls%l(j))) then
@@ -2333,8 +2331,6 @@
 #ifndef __INTEL_COMPILER
     !$OMP END PARALLEL DO
 #endif
-
-    deallocate(ks,pows,dlnks)
 
     end subroutine CalcScalCls
 

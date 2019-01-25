@@ -834,7 +834,6 @@
     rs = Integrate_Romberg(this,dsound_da_approx,1d-8,astar,atol)
     DA = this%AngularDiameterDistance(zstar)/astar
     CAMBdata_CosmomcTheta = rs/DA
-    !       print *,'z* = ',zstar, 'r_s = ',rs, 'DA = ',DA, rs/DA
 
     end function CAMBdata_CosmomcTheta
 
@@ -1767,7 +1766,8 @@
                             RedWin%tau_start = tau01
                         else if (RedWin%tau_start /=0 .and. RedWin%tau_end==State%tau0 .and. winamp < 1e-8) then
                             RedWin%tau_end = min(State%tau0,tau + dtau)
-                            if (DebugMsgs) print *,'time window = ', RedWin%tau_start, RedWin%tau_end
+                            if (DebugMsgs) call WriteFormat('Window %d: tau1 = %f, tau2 = %f',&
+                                RW_i, RedWin%tau_start, RedWin%tau_end)
                         end if
                     else
                         if (RedWin%kind == window_lensing .or.  RedWin%kind == window_counts &
@@ -2143,7 +2143,7 @@
     integer nri0, nstep
     !Sources
     integer ix,i,nwindow, L_limb
-    real(dl) keff, win_end, TimeSampleBoost
+    real(dl) keff, win_end, TimeSampleBoost, delta
 
     TimeSampleBoost = State%CP%Accuracy%AccuracyBoost*State%CP%Accuracy%TimeStepBoost
     call TimeSteps%Init()
@@ -2172,7 +2172,6 @@
             associate (Win => State%Redshift_W(ix))
 
                 Win%tau_start = max(Win%tau_start,state%taurst)
-                this%tau_start_redshiftwindows = min(Win%tau_start,this%tau_start_redshiftwindows)
 
                 if (Win%kind /= window_lensing) then
                     !Have to be careful to integrate dwinV as the window tails off
@@ -2192,7 +2191,15 @@
 
                 !Keep sampling in x better than Nyquist
                 nwindow = max(nwindow, nint(TimeSampleBoost *(win_end- Win%tau_start)* keff/3))
-                if (Feedbacklevel > 1) write (*,*) ix, 'nwindow =', nwindow
+                if (Win%kind /= window_lensing .and. Win%sigma_tau < (win_end - Win%tau_start)/nwindow*8) then
+                    nwindow = nint(TimeSampleBoost*(win_end - Win%tau_start)/Win%sigma_tau*8)
+                end if
+                if (Feedbacklevel > 1 .or. DebugMsgs) call WriteFormat('nwindow %d: %d', ix, nwindow)
+                delta = (win_end-Win%tau_start)/nwindow
+                Win%tau_start = Win%tau_start - delta*3
+                win_end = min(State%tau0, win_end+delta*2)
+
+                this%tau_start_redshiftwindows = min(Win%tau_start,this%tau_start_redshiftwindows)
 
                 call TimeSteps%Add(Win%tau_start, win_end, nwindow)
                 !This should cover whole range where not tiny
@@ -2243,7 +2250,7 @@
         end do
     end if
 
-    if (DebugMsgs .and. FeedbackLevel > 0) write(*,*) 'Set ',nstep, ' time steps'
+    if (DebugMsgs .and. FeedbackLevel > 0) call WriteFormat('Set %d time steps', nstep)
 
     end subroutine SetTimeSteps
 
@@ -2653,7 +2660,7 @@
         if (W%kind==window_lensing) then
             ell_limb = max(CP%SourceTerms%limber_phi_lmin,nint(50*LimBoost))
         else
-            ell_limb = max(CP%SourceTerms%limber_phi_lmin, nint(LimBoost *6* W%chi0/W%sigma_tau))
+            ell_limb = max(CP%SourceTerms%limber_phi_lmin, nint(LimBoost*6*W%chi0/W%sigma_tau))
         end if
     else
         ell_limb = lmax
@@ -3836,7 +3843,6 @@
     do itf_PK=1, CP%Transfer%PK_num_redshifts
         itf = State%PK_redshifts_index(itf_PK)
         if (FileNames(itf) /= '') then
-            !print *, 'tau = ', MTrans%optical_depths(itf)
             chi = State%tau0-State%TimeOfz(CP%Transfer%PK_redshifts(itf_PK))
 
             points = MTrans%num_q_trans

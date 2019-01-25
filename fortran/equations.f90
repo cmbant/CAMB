@@ -2896,7 +2896,6 @@
     !  sigma = 2*rhoq/k**2
     !for non-large k this expression for sigma is unstable at early times
     !so propagate sigma equation separately (near total cancellation in rhoq)
-    ! print *,yv(2),2*rhoq/k**2
 
     if (finished_tightcoupling) then
         !  Use explicit equations:
