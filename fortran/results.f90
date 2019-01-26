@@ -2458,8 +2458,6 @@
         end associate
     end do
 
-    deallocate(int_tmp,back_count_tmp)
-
     end subroutine SetTimeStepWindows
 
 
