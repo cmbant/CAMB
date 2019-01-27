@@ -203,19 +203,29 @@ def make_library(cluster=False):
         else:
             fpath = get_forutils()
             makefile = makefile_dict('Makefile_main')
-            SOURCES = makefile['SOURCEFILES'].split() + [makefile['CAMBSO'].replace('.f90', '')]
+            SOURCES = makefile['SOURCEFILES'].split()
             FORUTILS = [os.path.join(fpath, f.replace('.f90', '')) for f in
                         makefile_dict(os.path.join(fpath, 'Makefile'))['SRCS'].replace('MatrixUtils.f90',
                                                                                        '').split()]
             tmpdir = 'WinDLL' + ('', '32')[is32Bit]
             if not os.path.isdir(tmpdir): os.mkdir(tmpdir)
             ofiles = []
+            new_compiler = True
+            ver_file = os.path.join(tmpdir, 'compiler.ver')
+            if os.path.exists(ver_file):
+                with io.open(ver_file, 'r') as f:
+                    new_compiler = gfortran_version != f.readline().strip()
+            if new_compiler:
+                with io.open(ver_file, 'w') as f:
+                    f.write(gfortran_version)
+            need_compile = not os.path.exists(lib_file)
+            if not need_compile: dll_time = os.path.getmtime(lib_file)
             for source in FORUTILS + SOURCES:
-                #manual Make using dependency files if available
+                # manual Make using dependency files if available
                 outroot = os.path.join(tmpdir, os.path.split(source)[1])
                 fout = outroot + '.o'
                 ofiles += [fout]
-                modified = not os.path.exists(fout)
+                modified = new_compiler or not os.path.exists(fout)
                 if not modified:
                     o_time = os.path.getmtime(fout)
                     modified = o_time < os.path.getmtime(source + '.f90') or not os.path.exists(outroot + '.d')
@@ -227,25 +237,32 @@ def make_library(cluster=False):
                                     break
 
                 if modified:
+                    need_compile = True
                     cmd = COMPILER + ' ' + FFLAGS + ' ' + source + '.f90 -MMD -c -o %s -J%s' % (fout, tmpdir)
                     print(cmd)
                     if subprocess.call(cmd, shell=True) != 0:
                         raise IOError('Compilation failed')
-            if os.path.exists(lib_file):
-                # raise an exception if the file in use and cannot be deleted
-                try:
-                    os.remove(lib_file)
-                except OSError:
-                    raise IOError('dll file in use. Stop python codes and notebook kernels that are using camb.')
-            print('Compiling sources...')
-            cmd = COMPILER + ' ' + FFLAGS + ' ' + " ".join(ofiles) + ' -o %s -J%s' % (lib_file, tmpdir)
-            print(cmd)
-            if subprocess.call(cmd, shell=True) != 0:
-                raise IOError('Compilation failed')
+                elif not need_compile and dll_time < o_time:
+                    need_compile = True
+
+            if need_compile or not os.path.exists(lib_file):
+                if os.path.exists(lib_file):
+                    # raise an exception if the file in use and cannot be deleted
+                    try:
+                        os.remove(lib_file)
+                    except OSError:
+                        raise IOError('dll file in use. Stop python codes and notebook kernels that are using camb.')
+                print('Compiling sources...')
+                cmd = COMPILER + ' ' + FFLAGS + ' ' + " ".join(ofiles) + ' -o %s -J%s' % (lib_file, tmpdir)
+                print(cmd)
+                if subprocess.call(cmd, shell=True) != 0:
+                    raise IOError('Compilation failed')
+            else:
+                print('DLL up to date.')
     else:
         get_forutils()
         print("Compiling source...")
-        subprocess.call("make camblib.so PYCAMB_OUTPUT_DIR=%s/camb/ CLUSTER_SAFE=%d" %
+        subprocess.call("make python PYCAMB_OUTPUT_DIR=%s/camb/ CLUSTER_SAFE=%d" %
                         (pycamb_path, int(cluster)), shell=True)
         subprocess.call("chmod 755 %s" % lib_file, shell=True)
 

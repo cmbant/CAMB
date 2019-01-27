@@ -25,6 +25,7 @@ WinDLL/
 .DS_Store
 *egg*
 test*dat
+core
 build
 testfiles
 inspectionProfiles

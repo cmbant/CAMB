@@ -41,6 +41,7 @@ ifeq "$(ifortErr)" "0"
 F90C     = ifort
 
 ifortVer_major = $(shell ifort -v 2>&1 | cut -d " " -f 3 | cut -d. -f 1)
+compiler_ver = $(shell ifort -v 2>&1)
 ifeq ($(shell test $(ifortVer_major) -gt 15; echo $$?),0)
 COMMON_FFLAGS = -fpp -qopenmp
 else
@@ -81,6 +82,7 @@ else
 gfortErr = $(shell which gfortran >/dev/null; echo $$?)
 ifeq "$(gfortErr)" "0"
 #Gfortran compiler (version 6+):
+compiler_ver = $(shell gfortran -dumpversion 2>&1)
 COMPILER = gfortran
 F90C     = gfortran
 COMMON_FFLAGS = -MMD -cpp -ffree-line-length-none -fmax-errors=4 -fopenmp
@@ -106,43 +108,6 @@ endif
 endif
 
 IFLAG = -I
-
-#G95 compiler
-#F90C   = g95
-#FFLAGS = -O2
-
-#SGI, -mp toggles multi-processor. Use -O2 if -Ofast gives problems.
-#F90C     = f90
-#FFLAGS  = -Ofast -mp
-
-#Digital/Compaq fortran, -omp toggles multi-processor
-#F90C    = f90
-#FFLAGS  = -omp -O4 -arch host -math_library fast -tune host -fpe1
-
-#Absoft ProFortran, single processor:
-#F90C     = f95
-#FFLAGS = -O2 -cpu:athlon -s -lU77 -w -YEXT_NAMES="LCS" -YEXT_SFX="_"
-
-#NAGF95, single processor:
-#F90C     = f95
-#FFLAGS = -DNAGF95 -O3
-
-#PGF90
-#F90C = pgf90
-#FFLAGS = -O2 -DESCAPEBACKSLASH -Mpreprocess
-
-#Sun V880
-#F90C = mpf90
-#FFLAGS =  -O4 -openmp -ftrap=%none -dalign
-
-#Sun parallel enterprise:
-#F90C     = f95
-#FFLAGS =  -O2 -xarch=native64 -openmp -ftrap=%none
-#try removing -openmp if get bus errors. -03, -04 etc are dodgy.
-
-#IBM XL Fortran, multi-processor (run gmake)
-#F90C     = xlf90_r
-#FFLAGS  = -DESCAPEBACKSLASH -DIBMXL -qsmp=omp -qsuffix=f=f90:cpp=F90 -O3 -qstrict -qarch=pwr3 -qtune=pwr3
 
 #Settings for building camb_fits
 #Location of FITSIO and name of library
