@@ -50,7 +50,7 @@ CAMBOBJ       = $(patsubst %,%.o,$(SOURCEFILES))
 
 FORUTILS_DIR = $(FORUTILSPATH)/$(OUTPUT_DIR)/
 camblib.so: FORUTILS_DIR=$(FORUTILSPATH)/$(DLL_DIR)/
-F90CRLINK     += -L$(FORUTILS_DIR) -lforutils
+F90CRLINK     += -L"$(FORUTILS_DIR)" -lforutils
 
 ## CosmoRec
 ifneq (,$(findstring cosmorec,$(RECOMBINATION_FILES)))
@@ -101,7 +101,7 @@ python: libforutils_so directories_so
 	@$(MAKE) -C .. $(MAKEOPT) -f Makefile_main camb_exe
 
 camb_exe:
-	$(F90C) $(F90FLAGS) $(MODOUT) $(IFLAG)$(OUTPUT_DIR)/ $(IFLAG)$(FORUTILS_DIR) \
+	$(F90C) $(F90FLAGS) $(MODOUT) $(IFLAG)$(OUTPUT_DIR)/ $(IFLAG)"$(FORUTILS_DIR)" \
 		$(OUTPUT_DIR)/$(DRIVER).o $(OUTPUT_DIR)/$(CAMBLIB) $(F90CRLINK) -o camb
 
 camblib.so: $(CAMBOBJ)
@@ -112,7 +112,7 @@ libcambobj:
 
 #cannot link the .a library, or the linker will strip out some things we might need
 $(DLL_DIR)/camblib.so: libcambobj
-	$(F90C) $(SF90FLAGS) $(SMODOUT) $(IFLAG)$(DLL_DIR)/ $(IFLAG)$(FORUTILS_DIR)  \
+	$(F90C) $(SF90FLAGS) $(SMODOUT) $(IFLAG)$(DLL_DIR)/ $(IFLAG)"$(FORUTILS_DIR)"  \
 		$(LIBCAMBOBJ) $(F90CRLINK) -o $(DLL_DIR)/camblib.so
 	cp $(DLL_DIR)/camblib.so $(PYCAMB_OUTPUT_DIR)
 
@@ -126,7 +126,7 @@ camb_fits: libforutils directories writefits.f90 $(CAMBOBJ) $(DRIVER).o
 
 #../Makefile ../Makefile_main
 %.o: ../%.f90 compiler.ver 
-	$(F90C) $(F90FLAGS) $(IFLAG)$(FORUTILS_DIR) -c $< -o $*.o
+	$(F90C) $(F90FLAGS) $(IFLAG)"$(FORUTILS_DIR)" -c $< -o $*.o
 
 directories:
 	@mkdir -p $(OUTPUT_DIR)
@@ -135,11 +135,11 @@ directories_so:
 	@mkdir -p $(DLL_DIR)
 
 libforutils_so:
-	@cd $(FORUTILSPATH) && \
+	cd "$(FORUTILSPATH)" && \
 	$(MAKE) $(MAKEOPT) $(DLL_DIR)
 
 libforutils:
-	@cd $(FORUTILSPATH) && \
+	@cd "$(FORUTILSPATH)" && \
 	$(MAKE) $(MAKEOPT) $(OUTPUT_DIR)
 
 
