@@ -48,9 +48,11 @@ HEALPIXLD     = -L$(HEALPIXDIR)/lib -lhealpix -L$(FITSDIR) -l$(FITSLIB)
 
 CAMBOBJ       = $(patsubst %,%.o,$(SOURCEFILES))
 
-FORUTILS_DIR = $(FORUTILSPATH)/$(OUTPUT_DIR)/
-camblib.so: FORUTILS_DIR=$(FORUTILSPATH)/$(DLL_DIR)/
-F90CRLINK     += -L"$(FORUTILS_DIR)" -lforutils
+FORUTILS_DIR ?= $(FORUTILSPATH)/$(OUTPUT_DIR)/
+python: FORUTILS_DIR=$(FORUTILSPATH)/$(DLL_DIR)/
+
+LIBLINK = -L"$(FORUTILS_DIR)" -lforutils
+	
 
 ## CosmoRec
 ifneq (,$(findstring cosmorec,$(RECOMBINATION_FILES)))
@@ -59,14 +61,14 @@ python: libCosmoRec.a
 FFLAGS += -DCOSMOREC
 COSMOREC_PATH ?=../../CosmoRec/
 GSL_LINK ?=-lgsl -lgslcblas
-F90CRLINK += -L$(COSMOREC_PATH) -lCosmoRec $(GSL_LINK) -lstdc++
+LIBLINK += -L$(COSMOREC_PATH) -lCosmoRec $(GSL_LINK) -lstdc++
 endif
 
 
 ifneq (,$(findstring hyrec,$(RECOMBINATION_FILES)))
 FFLAGS += -DHYREC
 HYREC_PATH ?= ../../HyRec/
-F90CRLINK += -L$(HYREC_PATH) -lhyrec
+LIBLINK += -L$(HYREC_PATH) -lhyrec
 camb: libhyrec.a
 python: libhyrec.a
 endif
@@ -97,14 +99,14 @@ libcamb: libforutils directories
 python: libforutils_so directories_so
 	@$(MAKE) -C $(DLL_DIR) $(MAKEOPT) -r -f ../Makefile_main camblib.so F90FLAGS="$(SF90FLAGS)" OUTPUT_DIR=$(DLL_DIR)
 
-../camb: $(CAMBLIB) $(DRIVER).o | silent
+../camb: $(CAMBLIB) $(DRIVER).o $(FORUTILS_DIR)/libforutils.a | silent
 	@$(MAKE) -C .. $(MAKEOPT) -f Makefile_main camb_exe
 
 camb_exe:
 	$(F90C) $(F90FLAGS) $(MODOUT) $(IFLAG)$(OUTPUT_DIR)/ $(IFLAG)"$(FORUTILS_DIR)" \
-		$(OUTPUT_DIR)/$(DRIVER).o $(OUTPUT_DIR)/$(CAMBLIB) $(F90CRLINK) -o camb
+		$(OUTPUT_DIR)/$(DRIVER).o $(OUTPUT_DIR)/$(CAMBLIB) $(F90CRLINK) $(LIBLINK) -o camb
 
-camblib.so: $(CAMBOBJ)
+camblib.so: $(CAMBOBJ) $(FORUTILS_DIR)/libforutils.a
 	@$(MAKE) -C .. $(MAKEOPT) -f Makefile_main $(DLL_DIR)/camblib.so
 
 libcambobj:
@@ -113,7 +115,7 @@ libcambobj:
 #cannot link the .a library, or the linker will strip out some things we might need
 $(DLL_DIR)/camblib.so: libcambobj
 	$(F90C) $(SF90FLAGS) $(SMODOUT) $(IFLAG)$(DLL_DIR)/ $(IFLAG)"$(FORUTILS_DIR)"  \
-		$(LIBCAMBOBJ) $(F90CRLINK) -o $(DLL_DIR)/camblib.so
+		$(LIBCAMBOBJ) $(F90CRLINK) $(LIBLINK) -o $(DLL_DIR)/camblib.so
 	cp $(DLL_DIR)/camblib.so $(PYCAMB_OUTPUT_DIR)
 
 
@@ -122,7 +124,7 @@ $(CAMBLIB): $(CAMBOBJ)
 
 camb_fits: libforutils directories writefits.f90 $(CAMBOBJ) $(DRIVER).o
 	$(F90C) $(F90FLAGS) -I$(HEALPIXDIR)/include $(CAMBOBJ) writefits.f90 $(DRIVER).o \
-		$(F90CRLINK) $(HEALPIXLD) -DWRITE_FITS -o $@
+		$(F90CRLINK) $(LIBLINK) $(HEALPIXLD) -DWRITE_FITS -o $@
 
 #../Makefile ../Makefile_main
 %.o: ../%.f90 compiler.ver 
@@ -135,7 +137,7 @@ directories_so:
 	@mkdir -p $(DLL_DIR)
 
 libforutils_so:
-	cd "$(FORUTILSPATH)" && \
+	@cd "$(FORUTILSPATH)" && \
 	$(MAKE) $(MAKEOPT) $(DLL_DIR)
 
 libforutils:
@@ -167,4 +169,5 @@ silent:
 export
 -include *.d
 
-.PHONY: clean directories libcamb Release Releaselib Debuglib Debug camb driver
+.PHONY: clean directories libcamb Release Releaselib Debuglib Debug \
+        camb python camb_exe libcambobj libcamb

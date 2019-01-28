@@ -42,6 +42,12 @@ F90C     = ifort
 
 ifortVer_major = $(shell ifort -v 2>&1 | cut -d " " -f 3 | cut -d. -f 1)
 compiler_ver = $(shell ifort -v 2>&1)
+#other tests will be done by forutils
+ifeq ($(shell test $(ifortVer_major) -lt 18; echo $$?),0)
+$(warning ** ifort version lower than 18.0.1 may not work with the Python wrapper **)
+endif
+
+
 ifeq ($(shell test $(ifortVer_major) -gt 15; echo $$?),0)
 COMMON_FFLAGS = -fpp -qopenmp
 else
