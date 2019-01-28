@@ -355,5 +355,6 @@ if __name__ == "__main__":
               'Programming Language :: Python :: 3.6',
               'Programming Language :: Python :: 3.7'
           ],
-          keywords=['cosmology', 'CAMB', 'CMB']
+          keywords=['cosmology', 'CAMB', 'CMB'],
+          install_requires=['scipy>=1.0', 'six', 'sympy>=1.0']
           )

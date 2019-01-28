@@ -14,17 +14,14 @@ For a standard non-editable installation use::
     pip install camb [--user]
 
 The --user is optional and only required if you don't have write permission to your main python installation.
-To install from source, in the project source root directory use::
+If you want to work on the code from github, you can also just install in place without copying anything using::
 
-    python setup.py install [--user]
+    pip install -e /path/to/CAMB [--user]
 
-If you want to work on the code, you can also just install in place without copying anything using::
-
-    pip install -e . [--user]
-
-You will need gfortran 6 or higher installed to compile. Binary files for Windows are also provided, so these are used instead if no
+You will need ifort or gfortran 6 or higher installed (and on your path) to compile. Binary files for Windows are also provided, so these are used instead if no
 gfortran installation is found on Windows machines. If you have gfortran installed, "python setup.py make" will build
-the Fortran library on all systems (including Windows without directly using a Makefile).
+the Fortran library on all systems (including Windows without directly using a Makefile), and can be used to update
+a source installation after changes or pulling updated.
 
 After installation the camb python module can be loaded from your scripts using "import camb".
 You can also run CAMB from the command line reading parameters from a .ini file, e.g.::
