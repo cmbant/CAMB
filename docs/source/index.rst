@@ -6,8 +6,9 @@ galaxy count, dark-age 21cm power spectra, matter power spectra and transfer fun
 There are also general utility function for cosmological calculations. The main code is Python with numerical
 calculations implemented efficiently in Python-wrapped modern Fortran.
 
-See the `CAMB python example notebook <http://camb.readthedocs.org/en/latest/CAMBdemo.html>`_ for a quick
-introductory set of examples of how to use the CAMB package.
+See the `CAMB python example notebook <https://camb.readthedocs.org/en/latest/CAMBdemo.html>`_ for an
+introductory set of examples of how to use the CAMB package. This is usually the fastest way to learn how to use it
+and quickly see some of the capabilities.
 
 For a standard non-editable installation use::
 
@@ -18,10 +19,11 @@ If you want to work on the code from github, you can also just install in place 
 
     pip install -e /path/to/CAMB [--user]
 
-You will need ifort or gfortran 6 or higher installed (and on your path) to compile. Binary files for Windows are also provided, so these are used instead if no
+You will need ifort or gfortran 6 or higher installed (and on your path) to compile; see :ref:`fortran-compilers` for
+compiler installation details if needed. A compiled library for Windows is also provided, and is used if no
 gfortran installation is found on Windows machines. If you have gfortran installed, "python setup.py make" will build
 the Fortran library on all systems (including Windows without directly using a Makefile), and can be used to update
-a source installation after changes or pulling updated.
+a source installation after changes or pulling an updated version.
 
 After installation the camb python module can be loaded from your scripts using "import camb".
 You can also run CAMB from the command line reading parameters from a .ini file, e.g.::

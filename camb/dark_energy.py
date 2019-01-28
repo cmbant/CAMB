@@ -83,7 +83,7 @@ class DarkEnergyFluid(DarkEnergyEqnOfState):
 @fortran_class
 class DarkEnergyPPF(DarkEnergyEqnOfState):
     """
-    Class implementating the w, wa or splined w(a) parameterization in the PPF perturbation approximation (`arXiv:0808.3125 <http://arxiv.org/abs/0808.3125>`_)
+    Class implementating the w, wa or splined w(a) parameterization in the PPF perturbation approximation (`arXiv:0808.3125 <https://arxiv.org/abs/0808.3125>`_)
     Use inherited methods to set parameters or interpolation table.
 
     """
@@ -95,7 +95,7 @@ class DarkEnergyPPF(DarkEnergyEqnOfState):
 @fortran_class
 class AxionEffectiveFluid(DarkEnergyModel):
     """
-    Example implementation of a specifc (early) dark energy fluid model (`arXiv:1806.10608 <http://arxiv.org/abs/1806.10608>`_).
+    Example implementation of a specifc (early) dark energy fluid model (`arXiv:1806.10608 <https://arxiv.org/abs/1806.10608>`_).
     Not well tested, but should serve to demonstrate how to make your own custom classes.
     """
     _fields_ = [

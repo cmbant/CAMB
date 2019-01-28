@@ -713,6 +713,9 @@ def get_default_compiler():
     return _default_compiler
 
 
+_first_compile = True
+
+
 def compile_source_function_code(code_body, file_path='', compiler=None, fflags=None, cache=True):
     """
     Compile fortran code into function pointer in compiled shared library.
@@ -758,14 +761,18 @@ def compile_source_function_code(code_body, file_path='', compiler=None, fflags=
     end function
     """
 
-    import subprocess, tempfile, struct, platform
+    import subprocess, tempfile
+    from ._compilers import is_32_bit, is_windows, compiler_environ, check_gfortran
 
     compiler = compiler or get_default_compiler()
     fflags = fflags or _default_flags
 
-    if struct.calcsize("P") == 4: fflags = "-m32 " + fflags
-    if platform.system() == "Windows": fflags += ' -static'
-
+    if is_32_bit: fflags = "-m32 " + fflags
+    if is_windows:
+        global _first_compile
+        fflags += ' -static'
+        if _first_compile:
+            check_gfortran(msg=True)
     workdir = file_path or tempfile.gettempdir()
     if not os.access(workdir, os.F_OK):
         os.mkdir(workdir)
@@ -791,7 +798,7 @@ def compile_source_function_code(code_body, file_path='', compiler=None, fflags=
 
         command = " ".join([compiler, fflags, source_file, "-o", dll_name])
         try:
-            subprocess.check_output(command, stderr=subprocess.STDOUT, shell=True, cwd=workdir)
+            subprocess.check_output(command, stderr=subprocess.STDOUT, shell=True, cwd=workdir, env=compiler_environ)
         except subprocess.CalledProcessError as E:
             print(command)
             print('Error compiling generated code:')

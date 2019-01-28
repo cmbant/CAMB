@@ -31,7 +31,7 @@ def cl_kappa_limber(results, PK, ls, nz, chi_source, chi_source2=None):
 def get_field_rotation_power(params, kmax=100, lmax=20000, non_linear=True, z_source=None,
                              k_per_logint=None, acc=1, lsamp=None):
     r"""
-    Get field rotation power spectrum, :math:`C_L^{\omega\omega}`, following `arXiv:1605.05662 <http://arxiv.org/abs/1605.05662>`_
+    Get field rotation power spectrum, :math:`C_L^{\omega\omega}`, following `arXiv:1605.05662 <https://arxiv.org/abs/1605.05662>`_
     Uses lowest Limber approximation.
 
     :param params: :class:`.model.CAMBparams` instance with cosmological parameters etc.
@@ -164,7 +164,7 @@ def get_field_rotation_power_from_PK(params, PK, chi_source, lmax=20000, acc=1, 
 def get_field_rotation_BB(params, lmax=None, acc=1, CMB_unit='muK', raw_cl=False, spline=True):
     r"""
     Get the B-mode power spectrum from field post-born field rotation, based on perturbative and Limber approximations.
-    See `arXiv:1605.05662 <http://arxiv.org/abs/1605.05662>`_.
+    See `arXiv:1605.05662 <https://arxiv.org/abs/1605.05662>`_.
 
     :param params: :class:`.model.CAMBparams` instance with cosmological parameters etc.
     :param lmax: maximum :math:`\ell`

@@ -14,7 +14,7 @@ class ReionizationModel(F2003Class):
 class TanhReionization(ReionizationModel):
     """
     This default (unphysical) tanh x_e parameterization is described in
-    Appendix B of `arXiv:0804.3865 <http://arxiv.org/abs/0804.3865>`_
+    Appendix B of `arXiv:0804.3865 <https://arxiv.org/abs/0804.3865>`_
     """
     _fields_ = [
         ("use_optical_depth", c_bool, "Whether to use the optical depth or redshift paramters"),

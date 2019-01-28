@@ -249,7 +249,7 @@ def lensed_correlations(cls, clpp, xvals, weights=None, lmax=None, delta=False, 
     lensed correlations and lensed cls.
 
     Uses the non-perturbative curved-sky results from Eqs 9.12 and 9.16-9.18 of
-    `astro-ph/0601594 <http://arxiv.org/abs/astro-ph/0601594>`_, to second order in :math:`C_{{\rm gl},2}`
+    `astro-ph/0601594 <https://arxiv.org/abs/astro-ph/0601594>`_, to second order in :math:`C_{{\rm gl},2}`
 
     :param cls: 2D array of unlensed cls(L,ix), with L (:math:`\equiv\ell`) starting at zero and ix=0,1,2,3 in order TT, EE, BB, TE.
         cls should include :math:`\ell(\ell+1)/2\pi` factors.
@@ -371,7 +371,7 @@ def lensed_cls(cls, clpp, lmax=None, lmax_lensed=None, sampling_factor=1.4, delt
     r"""
     Get the lensed power spectra from the unlensed power spectra and the lensing potential power.
     Uses the non-perturbative curved-sky results from Eqs 9.12 and 9.16-9.18 of
-    `astro-ph/0601594 <http://arxiv.org/abs/astro-ph/0601594>`_, to second order in :math:`C_{{\rm gl},2}`.
+    `astro-ph/0601594 <https://arxiv.org/abs/astro-ph/0601594>`_, to second order in :math:`C_{{\rm gl},2}`.
 
     Correlations are calculated for Gauss-Legendre integration if leggaus=True; this slows it by several seconds,
     but will be must faster on subsequent calls with the same lmax*sampling_factor.
@@ -426,7 +426,7 @@ def lensed_cl_derivatives(cls, clpp, lmax=None, theta_max=np.pi / 32,
     is given by dcl[ix,:,:].dot(np.ones(clpp.shape)).
 
     Uses the non-perturbative curved-sky results from Eqs 9.12 and 9.16-9.18 of
-    `astro-ph/0601594 <http://arxiv.org/abs/astro-ph/0601594>`_, to second order in :math:`C_{{\rm gl},2}`
+    `astro-ph/0601594 <https://arxiv.org/abs/astro-ph/0601594>`_, to second order in :math:`C_{{\rm gl},2}`
 
     :param cls: 2D array of unlensed cls(L,ix), with L starting at zero and ix=0,1,2,3 in order TT, EE, BB, TE.
         cls should include :math:`\ell(\ell+1)/2\pi` factors.
@@ -567,7 +567,7 @@ def lensed_cl_derivative_unlensed(clpp, lmax=None, theta_max=np.pi / 32,
     where cl is the appropriate :math:`\ell(\ell+1)C^{\rm unlens}_\ell/2\pi`.
 
     Uses the non-perturbative curved-sky results from Eqs 9.12 and 9.16-9.18 of
-    `astro-ph/0601594 <http://arxiv.org/abs/astro-ph/0601594>`_, to second order in :math:`C_{{\rm gl},2}`
+    `astro-ph/0601594 <https://arxiv.org/abs/astro-ph/0601594>`_, to second order in :math:`C_{{\rm gl},2}`
 
     :param clpp: array of :math:`[L(L+1)]^2 C_L^{\phi\phi}/2\pi` lensing potential power spectrum (zero based)
     :param lmax: optional maximum L to use from the clpp array

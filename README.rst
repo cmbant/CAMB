@@ -5,7 +5,7 @@ CAMB
 :Author: Antony Lewis and Anthony Challinor
 :Homepage: https://camb.info/
 
-.. image:: http://img.shields.io/pypi/v/camb.svg?style=flat
+.. image:: https://img.shields.io/pypi/v/camb.svg?style=flat
         :target: https://pypi.python.org/pypi/camb/
 .. image:: https://readthedocs.org/projects/camb/badge/?version=latest
    :target: https://camb.readthedocs.org/en/latest
@@ -62,12 +62,12 @@ The master branch contains latest changes to the main release version.
   :target: https://mybinder.org/v2/gh/cmbant/camb/master?filepath=docs%2FCAMBdemo.ipynb
 
 The devel branch contains latest less-stable things in development.
-The master and devel branches have an integrated test suite, which runs automatically on `Travis <http://travis-ci.org>`_  for new commits and pull requests.
+The master and devel branches have an integrated test suite, which runs automatically on `Travis <https://travis-ci.org>`_  for new commits and pull requests.
 Reference results and test outputs are stored in the `test outputs repository <https://github.com/cmbant/CAMB_test_outputs/>`_. Tests can also be run locally.
 
 To reproduce legacy results, see these branches:
 
- - *CAMB_sources* is the old public `CAMB Sources <http://camb.info/sources/>`_ code.
+ - *CAMB_sources* is the old public `CAMB Sources <https://camb.info/sources/>`_ code.
  - *CAMB_v0* is the old Fortran-oriented (gfortran 4.8-compatible) version as used by the Planck 2018 analysis.
  - *rayleigh* includes frequency-dependent Rayleigh scattering
 

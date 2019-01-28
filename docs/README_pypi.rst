@@ -5,7 +5,7 @@ CAMB
 :Author: Antony Lewis and Anthony Challinor
 :Homepage: https://camb.info/
 
-.. image:: http://img.shields.io/pypi/v/camb.svg?style=flat
+.. image:: https://img.shields.io/pypi/v/camb.svg?style=flat
         :target: https://pypi.python.org/pypi/camb/
 .. image:: https://readthedocs.org/projects/camb/badge/?version=latest
    :target: https://camb.readthedocs.org/en/latest
