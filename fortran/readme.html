@@ -14,13 +14,13 @@ p,li,td,tr,table,body {line-height: 1.5em; font-size:1em; font-family:  Arial, H
 <CENTER>
 <H2>Fortran CAMB ReadMe</H2>
 
-<A HREF="#compiling">Compiling</A> | <A HREF="#inputs">Inputs</A> | <A HREF="#outputs">Outputs</A>| <A HREF="#coding">Customization</A> | 
+<A HREF="#compiling">Compiling</A> | <A HREF="#inputs">Inputs</A> | <A HREF="#outputs">Outputs</A>| <A HREF="#coding">Customization</A> |
 <A HREF="#ACCURACY">Accuracy</A> |
 <A HREF="#version">Change log</A> |
  <A HREF="#adds">Add-ons</A> | <A HREF="#refs">References</A>
 </CENTER>
 <hr>
-CAMB is a Python and Fortran code for computing CMB, CMB lensing, lensing, galaxy count and dark-age 21cm power spectra, transfer functions and matter power spectra, and background cosmological functions. 
+CAMB is a Python and Fortran code for computing CMB, CMB lensing, lensing, galaxy count and dark-age 21cm power spectra, transfer functions and matter power spectra, and background cosmological functions.
 For latest information on this program see <A HREF="http://camb.info">camb.info</A>.
 <p>
  Often it is easiest and most flexible to just use the <A HREF="https://camb.readthedocs.org/en/latest">Python version</A>, which includes a command-line "camb" script. This
@@ -45,7 +45,7 @@ Edmund Bertschinger, Chung-Pei Ma and Paul Bode.
 To install and compile yourself you will need a Fortran 2008 (or higher) compiler - you can get the free <A HREF="https://gcc.gnu.org/wiki/GFortranBinaries">gfortran</A> compiler (version 6 or higher), or the optimized Intel compiler <em>ifort</em> is installed on many academic clusters and also supports integrated development and debugging in Visual Studio under Windows.
  Alternatively you can use CAMB in the pre-configured <A HREF="http://cosmologist.info/CosmoBox">CosmoBox</A> virtual machine. <P>
 
- 
+
 To install the Fortran binary from the command line:
 <UL>
 <LI><A HREF="http://camb.info/CAMBsubmit.html">Download</A> CAMB
@@ -345,7 +345,7 @@ Accuracy of course assumes the model is correct, and is dependent on RECFAST bei
        <li>Docs include help for field values (auto-generated via metaclass)</li>
        <li>Faster and array versions of various background functions</li>
        <li>SecondOrderPK non-linear model class</li>
-       <li>Optional support for CosmoRec and HyRec NonLinearModel classes (need to compile with them linked)</li>
+       <li>Optional support for CosmoRec and HyRec RecombinationModel classes (need to compile with them linked)</li>
        <li>Updated BBN model default to Parthenope 2017 as Planck 2018 analysis</li>
       </ul>
 

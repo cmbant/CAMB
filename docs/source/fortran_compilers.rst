@@ -56,7 +56,7 @@ Note that you will need to close all python instances using camb before you can 
 This includes in Jupyter notebooks; just re-start the kernel or use::
 
     import IPython
-    app = IPython.Application.instance().kernel.do_shutdown(True)
+    IPython.Application.instance().kernel.do_shutdown(True)
 
 If you want to automamatically rebuild the library from Jupyter you can do something like this::
 

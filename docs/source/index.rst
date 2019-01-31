@@ -15,13 +15,13 @@ For a standard non-editable installation use::
     pip install camb [--user]
 
 The --user is optional and only required if you don't have write permission to your main python installation.
-If you want to work on the code from github, you can also just install in place without copying anything using::
+If you want to work on the code from `GitHub <https://github.com/cmbant/camb>`_, you can also just install in place without copying anything using::
 
     pip install -e /path/to/CAMB [--user]
 
 You will need ifort or gfortran 6 or higher installed (and on your path) to compile; see :ref:`fortran-compilers` for
 compiler installation details if needed. A compiled library for Windows is also provided, and is used if no
-gfortran installation is found on Windows machines. If you have gfortran installed, "python setup.py make" will build
+gfortran installation is found on Windows machines. If you have gfortrand installed, "python setup.py make" will build
 the Fortran library on all systems (including Windows without directly using a Makefile), and can be used to update
 a source installation after changes or pulling an updated version.
 

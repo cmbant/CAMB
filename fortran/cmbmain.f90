@@ -313,6 +313,7 @@
     integer winmin
     Type(LimberRec), pointer :: LimbRec, LimbRec2
 
+    if (CTrans%NumSources <3) return
     if (CP%SourceTerms%limber_phi_lmin>0) then
         winmin = 0
     else
@@ -2297,17 +2298,19 @@
         if (State%CP%want_cl_2D_array) then
             fac=1
             fac(2) = sqrt(ctnorm)
-            fac(3) = sqrt(ell*(ell+1)*CP%ALens) !Changed Dec18 for consistency
-            do w_ix=3 + State%num_redshiftwindows+1,3 + State%num_redshiftwindows + CP%CustomSources%num_custom_sources
-                nscal= CP%CustomSources%custom_source_ell_scales(w_ix - State%num_redshiftwindows -3)
-                do i=1, nscal
-                    fac(w_ix) = fac(w_ix)*(ell+i)*(ell-i+1)
+            if (CTrans%NumSources > 2) then
+                fac(3) = sqrt(ell*(ell+1)*CP%ALens) !Changed Dec18 for consistency
+                do w_ix=3 + State%num_redshiftwindows+1,3 + State%num_redshiftwindows + CP%CustomSources%num_custom_sources
+                    nscal= CP%CustomSources%custom_source_ell_scales(w_ix - State%num_redshiftwindows -3)
+                    do i=1, nscal
+                        fac(w_ix) = fac(w_ix)*(ell+i)*(ell-i+1)
+                    end do
+                    fac(w_ix) = sqrt(fac(w_ix))
                 end do
-                fac(w_ix) = sqrt(fac(w_ix))
-            end do
+            end if
 
-            do w_ix=1,3 + State%num_redshiftwindows + CP%CustomSources%num_custom_sources
-                do w_ix2=w_ix,3 + State%num_redshiftwindows + CP%CustomSources%num_custom_sources
+            do w_ix=1, CTrans%NumSources - State%num_extra_redshiftwindows
+                do w_ix2=w_ix,CTrans%NumSources - State%num_extra_redshiftwindows
                     iCl_Array(j,w_ix,w_ix2) =iCl_Array(j,w_ix,w_ix2) &
                         *fac(w_ix)*fac(w_ix2)*dbletmp
                     iCl_Array(j,w_ix2,w_ix) = iCl_Array(j,w_ix,w_ix2)
