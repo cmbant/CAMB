@@ -42,7 +42,9 @@ class MatterTransferData(object):
     MatterTransferData is the base class for storing matter power transfer function data for various q values.
     In a flat universe q=k, in a closed universe q is quantized.
 
-    To get an instance of this data, call :meth:`.results.CAMBdata.get_matter_transfer_data`
+    To get an instance of this data, call :meth:`.results.CAMBdata.get_matter_transfer_data`.
+
+    For a description of the different Transfer_xxx outputs see :ref:`transfer-variables`.
 
     :ivar nq:  number of q modes calculated
     :ivar q: array of q values calculated
@@ -653,6 +655,8 @@ class CAMBdata(F2003Class):
         Calculates :math:`P_{xy}(k/h)`, where x, y are one of model.Transfer_cdm, model.Transfer_xx etc.
         The output k values are not regularly spaced, and not interpolated.
 
+        For a description of outputs for different var1, var2 see :ref:`transfer-variables`.
+
         :param var1: variable i (index, or name of variable; default delta_tot)
         :param var2: variable j (index, or name of variable; default delta_tot)
         :param hubble_units: if true, output power spectrum in (Mpc/h) units, otherwise Mpc
@@ -686,6 +690,8 @@ class CAMBdata(F2003Class):
         r"""
         Calculates :math:`P_{xy}(k/h)`, where x, y are one of model.Transfer_cdm, model.Transfer_xx etc.
         The output k values are not regularly spaced, and not interpolated.
+
+        For a description of outputs for different var1, var2 see :ref:`transfer-variables`.
 
         :param var1: variable i (index, or name of variable; default delta_tot)
         :param var2: variable j (index, or name of variable; default delta_tot)
@@ -723,6 +729,8 @@ class CAMBdata(F2003Class):
         """
         Calculates :math:`P_{xy}(k/h)`, where x, y are one of Transfer_cdm, Transfer_xx etc.
         The output k values are regularly log spaced and interpolated. If NonLinear is set, the result is non-linear.
+
+        For a description of outputs for different var1, var2 see :ref:`transfer-variables`.
 
         :param minkh: minimum value of k/h for output grid (very low values < 1e-4 may not be calculated)
         :param maxkh: maximum value of k/h (check consistent with input params.Transfer.kmax)
@@ -765,6 +773,8 @@ class CAMBdata(F2003Class):
            PK = results.get_matter_power_interpolator();
            print('Power spectrum at z=0.5, k/h=0.1 is %s (Mpc/h)^3 '%(PK.P(0.5, 0.1)))
 
+        For a description of outputs for different var1, var2 see :ref:`transfer-variables`.
+
         :param nonlinear: include non-linear correction from halo model
         :param var1: variable i (index, or name of variable; default delta_tot)
         :param var2: variable j (index, or name of variable; default delta_tot)
@@ -773,8 +783,9 @@ class CAMBdata(F2003Class):
         :param return_z_k: if true, return interpolator, z, k where z, k are the grid used
         :param log_interp: if true, interpolate log of power spectrum (unless any values are negative in which case ignored)
         :param extrap_kmax: if set, use power law extrapolation beyond kmax to extrap_kmax (useful for tails of integrals)
-        :return: :class:`~scipy:scipy.interpolate.RectBivariateSpline` object PK, that can be called with PK(z,log(kh)) to get log matter power values.
-            If return_z_k=True, instead return interpolator, z, k where z, k are the grid used
+        :return: An object PK based on :class:`~scipy:scipy.interpolate.RectBivariateSpline`, that can be called with PK.P(z,kh)
+           or PK(z,log(kh)) to get log matter power values.
+           If return_z_k=True, instead return interpolator, z, k where z, k are the grid used.
         """
 
         class PKInterpolator(RectBivariateSpline):

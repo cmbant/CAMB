@@ -708,16 +708,29 @@ class CAMBparams(F2003Class):
         return self
 
     def scalar_power(self, k):
+        r"""
+        Get the primordial scalar curvature power spectrum at :math:`k`
+
+        :param k: wavenumber :math:`k` (in :math:`{\rm Mpc}^{-1}` units)
+        :return: power spectrum at :math:`k`
+        """
         return self.primordial_power(k, 0)
 
     def tensor_power(self, k):
+        r"""
+        Get the primordial tensor curvature power spectrum at :math:`k`
+
+        :param k:  wavenumber :math:`k` (in :math:`{\rm Mpc}^{-1}` units)
+        :return: tensor power spectrum at :math:`k`
+        """
+
         return self.primordial_power(k, 2)
 
     def primordial_power(self, k, ix):
         if np.isscalar(k):
-            karr = np.array([float(k)])
+            karr = np.array([k], dtype=np.float64)
         else:
-            karr = np.array(k)
+            karr = np.array(k, dtype=np.float64)
         n = karr.shape[0]
         powers = np.empty(n)
         self.f_PrimordialPower(karr, powers, byref(c_int(n)), byref(c_int(ix)))

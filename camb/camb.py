@@ -279,6 +279,9 @@ def get_matter_power_interpolator(params, zmin=0, zmax=10, nz_step=100, zs=None,
        PK = get_matter_power_interpolator(params);
        print('Power spectrum at z=0.5, k/h=0.1/Mpc is %s (Mpc/h)^3 '%(PK.P(0.5, 0.1)))
 
+    For a description of outputs for different var1, var2 see :ref:`transfer-variables`.
+    If you already have a :class:`~.results.CAMBdata` result object, you can instead use :meth:`~.results.CAMBdata.get_matter_power_interpolator`.
+
     :param params: :class:`.model.CAMBparams` instance
     :param zmin: minimum z (use 0 or smaller than you want for good interpolation)
     :param zmax: maximum z (use larger than you want for good interpolation)
@@ -294,8 +297,9 @@ def get_matter_power_interpolator(params, zmin=0, zmax=10, nz_step=100, zs=None,
     :param k_per_logint: specific uniform sampling over log k (if not set, uses optimized irregular sampling)
     :param log_interp: if true, interpolate log of power spectrum (unless any values are negative in which case ignored)
     :param extrap_kmax: if set, use power law extrapolation beyond kmax to extrap_kmax (useful for tails of integrals)
-    :return: :class:`~scipy:scipy.interpolate.RectBivariateSpline` object PK, that can be called with PK(z,log(kh)) to get log matter power values.
-        if return_z_k=True, instead return interpolator, z, k where z, k are the grid used
+    :return: An object PK based on :class:`~scipy:scipy.interpolate.RectBivariateSpline`, that can be called with PK.P(z,kh)
+           or PK(z,log(kh)) to get log matter power values.
+           If return_z_k=True, instead return interpolator, z, k where z, k are the grid used.
     """
 
     pars = params.copy()

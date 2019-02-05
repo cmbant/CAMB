@@ -57,8 +57,8 @@ directory called "CAMB-xxx". Note you need <a href="https://github.com/cmbant/fo
 edit the supplied Makefile, see below)
 <LI>Run <B>./camb ../inifiles/params.ini</B>, where params.ini is a file
  of parameter values (sample supplied). The params.ini file should be
- fairly self-explanatory.
-<LI>To install and use the Python CAMB wrapper see the <A HREF="https://camb.readthedocs.org/en/latest">Python CAMB</A> documentation.
+ fairly self-explanatory. The Fortran program should be run from the fortran directory (in order find the .dat template file that it loads).
+<LI>To install and use the Python CAMB wrapper see the <A HREF="https://camb.readthedocs.org/en/latest">Python CAMB</A> documentation. After in installing with pip this also has a command-line camb script that will be built automatically with the python version - no need to compile the fortran code directly, and it can be run from any directory.
 </UL>
 </P>
 <P>
