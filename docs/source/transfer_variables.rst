@@ -13,7 +13,7 @@ Transfer_kh                 1     :math:`k/h`
 Transfer_cdm                2     :math:`\Delta_c`, CDM density
 Transfer_b                  3     :math:`\Delta_b`, baryon density
 Transfer_g                  4     :math:`\Delta_\gamma`, photon density
-Transfer_r                  5     :math:`\Delta_r`, for masslesses neutrinos
+Transfer_r                  5     :math:`\Delta_r`, for massless neutrinos
 Transfer_nu                 6     :math:`\Delta_\nu` for massive neutrinos
 Transfer_tot                7     :math:`\frac{\rho_c\Delta_c+\rho_b\Delta_b+\rho_\nu\Delta_\nu}{\rho_c+\rho_b+\rho_\nu}`, CDM+baryons+massive neutrino density
 Transfer_nonu               8     :math:`\frac{\rho_c\Delta_c+\rho_b\Delta_b}{\rho_b+\rho_c}`, CDM+baryon  density

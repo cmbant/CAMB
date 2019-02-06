@@ -119,6 +119,8 @@ class BBN_table_interpolator(BBNPredictor):
 
         :param ombh2: :math:`\Omega_b h^2` (or, more generally, value of function_of[0])
         :param delta_neff:  additional N_eff relative to standard value (of 3.046) (or value of function_of[1])
+        :param grid: parameter for :class:`~scipy:scipy.interpolate.RectBivariateSpline` (whether to evaluate the results
+           on a grid spanned by the input arrays, or at points specified by the input arrays)
         :return:  Y_p helium nucleon fraction predicted by BBN. Call Y_He() to get mass fraction instead.
         """
         return self.get('Yp^BBN', ombh2, delta_neff, grid)
@@ -129,6 +131,8 @@ class BBN_table_interpolator(BBNPredictor):
 
         :param ombh2: :math:`\Omega_b h^2` (or, more generally, value of function_of[0])
         :param delta_neff:  additional N_eff relative to standard value (of 3.046) (or value of function_of[1])
+        :param grid: parameter for :class:`~scipy:scipy.interpolate.RectBivariateSpline` (whether to evaluate the results
+           on a grid spanned by the input arrays, or at points specified by the input arrays)
         :return: D/H
         """
         return self.get('D/H', ombh2, delta_neff, grid)
@@ -140,11 +144,14 @@ class BBN_table_interpolator(BBNPredictor):
 
         :param ombh2: :math:`\Omega_b h^2` (or, more generally, value of function_of[0])
         :param delta_neff:  additional N_eff relative to standard value (of 3.046) (or value of function_of[1])
-        :return:  Interpolated value
+        :param grid: parameter for :class:`~scipy:scipy.interpolate.RectBivariateSpline` (whether to evaluate the results
+           on a grid spanned by the input arrays, or at points specified by the input arrays)
+        :return:  Interpolated value (or grid)
         """
         if name not in self.interpolators:
             raise ValueError('Unknown BBN table column index "%s"' % name)
         res = self.interpolators[name](ombh2, delta_neff, grid=grid)
+        if np.isscalar(ombh2) and np.isscalar(delta_neff): return np.float64(res)
         return res
 
 

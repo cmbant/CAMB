@@ -401,7 +401,7 @@ class CAMBparams(F2003Class):
     def set_cosmology(self, H0=None, ombh2=0.022, omch2=0.12, omk=0.0,
                       cosmomc_theta=None, thetastar=None,
                       neutrino_hierarchy='degenerate', num_massive_neutrinos=1,
-                      mnu=0.06, nnu=3.046, YHe=None, meffsterile=0.0, standard_neutrino_neff=3.046,
+                      mnu=0.06, nnu=constants.default_nnu, YHe=None, meffsterile=0.0, standard_neutrino_neff=constants.default_nnu,
                       TCMB=constants.COBE_CMBTemp, tau=None, deltazrei=None, Alens=1.0,
                       bbn_predictor=None, theta_H0_range=[10, 100]):
         r"""
@@ -465,7 +465,7 @@ class CAMBparams(F2003Class):
             omnuh2 = mnu / neutrino_mass_fac * (nnu / 3.0) ** 0.75
         omnuh2_sterile = meffsterile / neutrino_mass_fac
         if omnuh2_sterile > 0 and nnu < standard_neutrino_neff:
-            raise CAMBError('sterile neutrino mass required Neff>3.046')
+            raise CAMBError('sterile neutrino mass required Neff> %.3g'%(constants.default_nnu))
         if omnuh2 and not num_massive_neutrinos:
             raise CAMBError('non-zero mnu with zero num_massive_neutrinos')
 
@@ -474,7 +474,7 @@ class CAMBparams(F2003Class):
         self.omk = omk
         if omnuh2_sterile > 0:
             if nnu < standard_neutrino_neff:
-                raise CAMBError('nnu < 3.046 with massive sterile')
+                raise CAMBError('nnu < %.3g with massive sterile'%(constants.default_nnu))
         assert num_massive_neutrinos == int(num_massive_neutrinos)
         self.f_SetNeutrinoHierarchy(byref(c_double(omnuh2)), byref(c_double(omnuh2_sterile)),
                                     byref(c_double(nnu)),
@@ -604,7 +604,7 @@ class CAMBparams(F2003Class):
         """
         try:
             ombh2 = ombh2 if ombh2 != None else self.ombh2
-            delta_neff = delta_neff if delta_neff is not None else self.N_eff - 3.046
+            delta_neff = delta_neff if delta_neff is not None else self.N_eff - constants.default_nnu
             return self.bbn_predictor.Y_p(ombh2, delta_neff)
         except AttributeError:
             raise CAMBError('Not able to compute Y_p: not using an interpolation table for BBN abundances.')
@@ -621,7 +621,7 @@ class CAMBparams(F2003Class):
         """
         try:
             ombh2 = ombh2 if ombh2 != None else self.ombh2
-            delta_neff = delta_neff if delta_neff is not None else self.N_eff - 3.046
+            delta_neff = delta_neff if delta_neff is not None else self.N_eff - constants.default_nnu
             return self.bbn_predictor.DH(ombh2, delta_neff)
         except AttributeError:
             raise CAMBError('Not able to compute DH: not using an interpolation table for BBN abundances.')

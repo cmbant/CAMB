@@ -1,7 +1,7 @@
 from .baseconfig import camblib, CAMBError, CAMBValueError, CAMBUnknownArgumentError, np
 from ctypes import c_float, c_int, c_double, c_bool, POINTER, byref
 import ctypes
-from . import model
+from . import model, constants
 from ._config import config
 from .model import CAMBparams
 from .results import CAMBdata, MatterTransferData, ClTransferData
@@ -200,7 +200,7 @@ def set_params_cosmomc(p, num_massive_neutrinos=1, neutrino_hierarchy='degenerat
         raise ValueError('Parameter not currrently supported by set_params_cosmomc')
     pars.set_cosmology(H0=p['H0'], ombh2=p['omegabh2'], omch2=p['omegach2'], mnu=p.get('mnu', 0.06),
                        omk=p.get('omegak', 0), tau=p['tau'], deltazrei=p.get('deltazrei', None),
-                       nnu=p.get('nnu', 3.046), Alens=p.get('Alens', 1.0),
+                       nnu=p.get('nnu', constants.default_nnu), Alens=p.get('Alens', 1.0),
                        YHe=p.get('yheused', None), meffsterile=p.get('meffsterile', 0),
                        num_massive_neutrinos=num_massive_neutrinos, neutrino_hierarchy=neutrino_hierarchy)
     pars.InitPower.set_params(ns=p['ns'], r=p.get('r', 0), As=p['A'] * 1e-9, nrun=p.get('nrun', 0),
