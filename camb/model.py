@@ -401,9 +401,10 @@ class CAMBparams(F2003Class):
     def set_cosmology(self, H0=None, ombh2=0.022, omch2=0.12, omk=0.0,
                       cosmomc_theta=None, thetastar=None,
                       neutrino_hierarchy='degenerate', num_massive_neutrinos=1,
-                      mnu=0.06, nnu=constants.default_nnu, YHe=None, meffsterile=0.0, standard_neutrino_neff=constants.default_nnu,
+                      mnu=0.06, nnu=constants.default_nnu, YHe=None, meffsterile=0.0,
+                      standard_neutrino_neff=constants.default_nnu,
                       TCMB=constants.COBE_CMBTemp, tau=None, deltazrei=None, Alens=1.0,
-                      bbn_predictor=None, theta_H0_range=[10, 100]):
+                      bbn_predictor=None, bbn_interpolation_table=None, theta_H0_range=[10, 100]):
         r"""
         Sets cosmological parameters in terms of physical densities and parameters (e.g. as used in Planck analyses).
         Default settings give a single distinct neutrino mass eigenstate, by default one neutrino with mnu = 0.06eV.
@@ -439,14 +440,18 @@ class CAMBparams(F2003Class):
         :param tau: optical depth; if None, current Reion settings are not changed
         :param deltazrei: redshift width of reionization; if None, uses default
         :param Alens: (non-physical) scaling of the lensing potential compared to prediction
-        :param bbn_predictor: :class:`.bbn.BBNPredictor` instance used to get YHe from BBN consistency if YHe is None
+        :param bbn_predictor: :class:`.bbn.BBNPredictor` instance used to get YHe from BBN consistency if YHe is None,
+         or name of a BBN predictor class, or file name of an interpolation table
         :param theta_H0_range: if thetastar or cosmomc_theta is specified, the min, max interval of H0 values to map to;
           if H0 is outside this range it will raise an exception.
         """
 
         if YHe is None:
             # use BBN prediction
-            self.bbn_predictor = bbn_predictor or bbn.get_default_predictor()
+            if isinstance(bbn_predictor, six.string_types):
+                self.bbn_predictor = bbn.get_predictor(bbn_predictor)
+            else:
+                self.bbn_predictor = bbn_predictor or bbn.get_predictor()
             YHe = self.bbn_predictor.Y_He(ombh2 * (constants.COBE_CMBTemp / TCMB) ** 3, nnu - standard_neutrino_neff)
         self.YHe = YHe
         self.TCMB = TCMB
@@ -465,7 +470,7 @@ class CAMBparams(F2003Class):
             omnuh2 = mnu / neutrino_mass_fac * (nnu / 3.0) ** 0.75
         omnuh2_sterile = meffsterile / neutrino_mass_fac
         if omnuh2_sterile > 0 and nnu < standard_neutrino_neff:
-            raise CAMBError('sterile neutrino mass required Neff> %.3g'%(constants.default_nnu))
+            raise CAMBError('sterile neutrino mass required Neff> %.3g' % (constants.default_nnu))
         if omnuh2 and not num_massive_neutrinos:
             raise CAMBError('non-zero mnu with zero num_massive_neutrinos')
 
@@ -474,7 +479,7 @@ class CAMBparams(F2003Class):
         self.omk = omk
         if omnuh2_sterile > 0:
             if nnu < standard_neutrino_neff:
-                raise CAMBError('nnu < %.3g with massive sterile'%(constants.default_nnu))
+                raise CAMBError('nnu < %.3g with massive sterile' % (constants.default_nnu))
         assert num_massive_neutrinos == int(num_massive_neutrinos)
         self.f_SetNeutrinoHierarchy(byref(c_double(omnuh2)), byref(c_double(omnuh2_sterile)),
                                     byref(c_double(nnu)),

@@ -28,6 +28,8 @@ zeta3 = 1.202056903
 n_photon = (kB * TCMB / hbar / c) ** 3 * zeta3 * 2 / np.pi ** 2
 omegafac = (1e5 / Mpc) ** 2 / (8 * np.pi * G) * 3
 
+default_interpolation_table = 'PArthENoPE_880.2_standard.dat'
+
 
 def yhe_to_ypBBN(Yp):
     return -4 * m_H * Yp / (Yp * m_He - 4 * Yp * m_H - m_He)
@@ -76,7 +78,7 @@ class BBN_table_interpolator(BBNPredictor):
 
     """
 
-    def __init__(self, interpolation_table='PArthENoPE_880.2_standard.dat', function_of=['ombh2', 'DeltaN']):
+    def __init__(self, interpolation_table=default_interpolation_table, function_of=['ombh2', 'DeltaN']):
 
         if os.sep not in interpolation_table and '/' not in interpolation_table:
             interpolation_table = os.path.normpath(os.path.join(os.path.dirname(__file__), interpolation_table))
@@ -194,17 +196,23 @@ class BBN_fitting_parthenope(BBNPredictor):
                ) * pow((tau_neutron or self.taun) / 880.3, 0.418) * 1e-5
 
 
-_default_predictor = None
+_predictors = {}
 
 
-def get_default_predictor():
+def get_predictor(predictor_name=None):
     """
     Get instance of default BBNPredictor class. Currently numerical table interpolation as Planck 2018 analysis.
     """
-    global _default_predictor
-    if _default_predictor is None:
-        _default_predictor = BBN_table_interpolator()
-    return _default_predictor
+    global _predictors
+    predictor_name = predictor_name or default_interpolation_table
+    predictor = _predictors.get(predictor_name, None)
+    if predictor is None:
+        if predictor_name == 'BBN_fitting_parthenope':
+            predictor = BBN_fitting_parthenope()
+        else:
+            predictor = BBN_table_interpolator(interpolation_table=predictor_name)
+        _predictors[predictor_name] = predictor
+    return predictor
 
 
 if __name__ == "__main__":
