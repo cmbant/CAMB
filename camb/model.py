@@ -404,7 +404,7 @@ class CAMBparams(F2003Class):
                       mnu=0.06, nnu=constants.default_nnu, YHe=None, meffsterile=0.0,
                       standard_neutrino_neff=constants.default_nnu,
                       TCMB=constants.COBE_CMBTemp, tau=None, deltazrei=None, Alens=1.0,
-                      bbn_predictor=None, bbn_interpolation_table=None, theta_H0_range=[10, 100]):
+                      bbn_predictor=None, theta_H0_range=[10, 100]):
         r"""
         Sets cosmological parameters in terms of physical densities and parameters (e.g. as used in Planck analyses).
         Default settings give a single distinct neutrino mass eigenstate, by default one neutrino with mnu = 0.06eV.
