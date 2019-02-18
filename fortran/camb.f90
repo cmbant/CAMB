@@ -24,7 +24,7 @@
 
     if (CData%CP%WantCls) then
         call ClTransferToCl(CData)
-        if (CP%DoLensing .and. global_error_flag==0) call lens_Cls(Cdata)
+        if (State%CP%DoLensing .and. global_error_flag==0) call lens_Cls(Cdata)
         if (global_error_flag/=0) return
     end if
 

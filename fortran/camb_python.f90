@@ -376,7 +376,7 @@
                 tot_scalar_cls(4,l) = State%CLData%Cl_scalar(l, C_Cross)
             endif
         end if
-        if (CP%WantTensors .and. l <= CP%Max_l_tensor) then
+        if (State%CP%WantTensors .and. l <= State%CP%Max_l_tensor) then
             tot_scalar_cls(1:4,l) = tot_scalar_cls(1:4,l) &
                 + State%CLData%Cl_tensor(l, CT_Temp:CT_Cross)
         end if
@@ -392,7 +392,7 @@
 
     unlensed_cls = 0
     do l=State%CP%Min_l, lmax
-        if (State%CP%WantScalars .and. l<= CP%Max_l) then
+        if (State%CP%WantScalars .and. l<= State%CP%Max_l) then
             unlensed_cls(1:2,l) = State%CLData%Cl_scalar(l, C_Temp:C_E)
             unlensed_cls(4,l) = State%CLData%Cl_scalar(l, C_Cross)
         end if

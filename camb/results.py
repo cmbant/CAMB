@@ -252,6 +252,7 @@ class CAMBdata(F2003Class):
         """
         Calculate the background evolution and thermal history.
         e.g. call this if you want to get derived parameters and call background functions
+
         :param params:  :class:`~.model.CAMBparams` instance to use
         """
         self._check_params(params)
@@ -347,6 +348,8 @@ class CAMBdata(F2003Class):
     def _lmax_setting(self, lmax=None, unlensed=False):
         if self.Params.DoLensing and not unlensed:
             lmax_calc = self.f_get_lmax_lensed()
+            if not lmax_calc:
+                raise CAMBError('lensed CL have not been calculated')
         else:
             lmax_calc = self.Params.max_l
         if lmax is None:
@@ -355,7 +358,7 @@ class CAMBdata(F2003Class):
             logging.warning('getting CMB power spectra to higher L than calculated, may be innacurate/zeroed.')
         return lmax
 
-    def save_cmb_power_spectra(self, filename, lmax, CMB_unit='muK'):
+    def save_cmb_power_spectra(self, filename, lmax=None, CMB_unit='muK'):
         r"""
         Save CMB power to a plain text file. Output is lensed total :math:`\ell(\ell+1)C_\ell/2\pi` then lensing potential and cross: L TT EE BB TE PP PT PE.
 
@@ -363,6 +366,7 @@ class CAMBdata(F2003Class):
         :param lmax: lmax to save
         :param CMB_unit: scale results from dimensionless. Use 'muK' for :math:`\mu K^2` units for CMB :math:`C_\ell` and :math:`\mu K` units for lensing cross.
         """
+        lmax = self._lmax_setting(lmax)
         cmb = self.get_total_cls(lmax, CMB_unit=CMB_unit)
         lens = self.get_lens_potential_cls(lmax, CMB_unit=CMB_unit)
         ls = np.atleast_2d(np.arange(lmax + 1)).T
