@@ -21,7 +21,7 @@ Release: DLL_DIR = Releaselib
 Debug: DLL_DIR = Debuglib
 
 OUTPUT_DIR ?= Release
-PYCAMB_OUTPUT_DIR ?= camb
+PYCAMB_OUTPUT_DIR ?= ../camb
 DLL_DIR ?= Releaselib
 
 
