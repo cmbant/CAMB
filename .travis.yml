@@ -34,19 +34,9 @@ matrix:
             - gfortran-8
       env:
         - GCC_VERSION="8"
-        - CHANNEL="defaults"
-      python: "3.7"
-    - name: "GCC9"
-      addons:
-        apt:
-          sources:
-            - ubuntu-toolchain-r-test
-          packages:
-            - gfortran-9
-      env:
-        - GCC_VERSION="9"
         - CHANNEL="conda-forge"
       python: "3.7"
+
 
 install:
   - mkdir -p gfortran-symlinks
