@@ -2228,9 +2228,18 @@
 
     !Sources
     if (.not. State%CP%Want_CMB .and. State%CP%WantCls) then
-        if (State%num_redshiftwindows==0) call MpiStop('Want_CMB=false, but not redshift windows either')
-        call TimeSteps%Add_delta(this%tau_start_redshiftwindows, State%tau0, dtau0)
+        if (State%num_redshiftwindows==0) then
+            call GlobalError('Want_CMB=false, but not redshift windows either', error_unsupported_params)
+        else
+            call TimeSteps%Add_delta(this%tau_start_redshiftwindows, State%tau0, dtau0)
+        endif
     end if
+
+    if (global_error_flag/=0) then
+        return
+    end if
+
+
 
     !Create arrays out of the region information.
     call TimeSteps%GetArray()
