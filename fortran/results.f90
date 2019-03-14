@@ -780,7 +780,8 @@
     integer i
     real(dl) om
 
-    if (this%ThermoData%ScaleFactorAtTime%n==0) call MpiStop('RedshiftAtTimeArr: background history not calculated')
+    if (this%ThermoData%ScaleFactorAtTime%n==0) call GlobalError('RedshiftAtTimeArr: background history not calculated', error_unsupported_params)
+    if (global_error_flag/=0) return
     !$OMP PARALLEL DO DEFAULT(SHARED), private(om, i)
     do i=1, n
         if (tau(i) < this%ThermoData%tauminn*1.1) then
