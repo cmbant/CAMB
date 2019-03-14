@@ -170,6 +170,7 @@
     subroutine dverk (EV,n, fcn, x, y, xend, tol, ind, c, nw, w)
     use Precision
     use MpiUtils
+    use Config, only : GlobalError, error_evolution
     integer n, ind, nw, k
     real(dl) x, y(n), xend, tol, c(*), w(nw,9), temp
     real EV !it isn't, but as long as it maintains it as a pointer we are OK
@@ -920,7 +921,7 @@
     !
 
     write (*,*) 'Error in dverk, x =',x, 'xend=', xend
-    call MpiStop('DVERK error')
+    call GlobalError('DVERK error', error_evolution)
     !
     end subroutine dverk
 
