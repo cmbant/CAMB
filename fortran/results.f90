@@ -346,7 +346,7 @@
         this%ThermoData%HasThermoData = .false.
         if (this%CP%Num_Nu_Massive /= sum(this%CP%Nu_mass_numbers(1:this%CP%Nu_mass_eigenstates))) then
             if (sum(this%CP%Nu_mass_numbers(1:this%CP%Nu_mass_eigenstates))/=0) &
-                call MpiStop('Num_Nu_Massive is not sum of Nu_mass_numbers')
+                call GlobalError('Num_Nu_Massive is not sum of Nu_mass_numbers', error_unsupported_params)
         end if
         if (this%CP%Omnuh2 < 1.e-7_dl) this%CP%Omnuh2 = 0
         if (this%CP%Omnuh2==0 .and. this%CP%Num_Nu_Massive /=0) then
@@ -361,7 +361,7 @@
 
         nu_massless_degeneracy = this%CP%Num_Nu_massless !N_eff for massless neutrinos
         if (this%CP%Num_nu_massive > 0) then
-            if (this%CP%Nu_mass_eigenstates==0) call MpiStop('Have Num_nu_massive>0 but no nu_mass_eigenstates')
+            if (this%CP%Nu_mass_eigenstates==0) call GlobalError('Have Num_nu_massive>0 but no nu_mass_eigenstates', error_unsupported_params)
             if (this%CP%Nu_mass_eigenstates==1 .and. this%CP%Nu_mass_numbers(1)==0) &
                 this%CP%Nu_mass_numbers(1) = this%CP%Num_Nu_Massive
             if (all(this%CP%Nu_mass_numbers(1:this%CP%Nu_mass_eigenstates)==0)) this%CP%Nu_mass_numbers=1 !just assume one for all
@@ -375,10 +375,16 @@
                     this%CP%Nu_mass_numbers(1:this%CP%Nu_mass_eigenstates)*neff_i
             end if
             if (abs(sum(this%CP%Nu_mass_fractions(1:this%CP%Nu_mass_eigenstates))-1) > 1e-4) &
-                call MpiStop('Nu_mass_fractions do not add up to 1')
+            call GlobalError('Nu_mass_fractions do not add up to 1', error_unsupported_params)
         else
             this%CP%Nu_mass_eigenstates = 0
         end if
+
+        if (global_error_flag/=0) then
+            if (present(error)) error = global_error_flag
+            return
+        end if
+
 
         call This%ThermoData%ScaleFactorAtTime%Clear()
 
