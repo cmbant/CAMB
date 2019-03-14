@@ -10,6 +10,7 @@ def cl_kappa_limber(results, PK, ls, nz, chi_source, chi_source2=None):
         chi_source2 = chi_source
     else:
         chi_source2 = np.float64(chi_source2)
+        if chi_source2 < chi_source: chi_source, chi_source2 = chi_source2, chi_source
     chis = np.linspace(0, chi_source, nz, dtype=np.float64)
     zs = results.redshift_at_comoving_radial_distance(chis)
     dchis = (chis[2:] - chis[:-2]) / 2
