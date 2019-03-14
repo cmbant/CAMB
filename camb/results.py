@@ -749,6 +749,9 @@ class CAMBdata(F2003Class):
         if not have_power_spectra:
             self.calc_power_spectra(params)
 
+        if not npoints >= 2:
+            raise CAMBError('Need at least two points in get_matter_power_spectrum')
+
         assert self.Params.WantTransfer
         if self.Params.Transfer.kmax < maxkh:
             logging.warning("get_matter_power_spectrum using larger k_max than input parameter Transfer.kmax")
@@ -1134,6 +1137,7 @@ class CAMBdata(F2003Class):
             times = np.asarray(eta, dtype=np.float64)
         redshifts = np.empty(times.shape)
         self.f_RedshiftAtTimeArr(redshifts, times, byref(c_int(times.shape[0])))
+        config.check_global_error('redshift_at_conformal_time')
         if np.isscalar(eta):
             return redshifts[0]
         else:
