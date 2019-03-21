@@ -378,7 +378,7 @@ class CAMBdata(F2003Class):
                                        'lens_potential'], CMB_unit=None, raw_cl=False):
         r"""
         Get CMB power spectra, as requested by the 'spectra' argument. All power spectra are :math:`\ell(\ell+1)C_\ell/2\pi` self-owned
-        numpy arrays (0..lmax, 0..3), where 0..3 index are TT, EE, BB TT, unless raw_cl is True in which case return just :math:`C_\ell`.
+        numpy arrays (0..lmax, 0..3), where 0..3 index are TT, EE, BB, TE, unless raw_cl is True in which case return just :math:`C_\ell`.
         For the lens_potential the power spectrum returned is that of the deflection.
 
         :param params: optional :class:`~.model.CAMBparams` instance with parameters to use. If None, must have
