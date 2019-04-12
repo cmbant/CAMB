@@ -56,10 +56,8 @@
 
     !flat method stores
     real(dl), parameter :: dbessel = 0.05_dl
-    real(dl), dimension(:), allocatable :: Bess0, ddBess0
-    real(dl), dimension(:), allocatable :: Bess2, ddBess2
-    real(dl), dimension(:), allocatable :: Bess4, ddBess4
-    real(dl), dimension(:), allocatable :: Bess6, ddBess6
+    integer, parameter :: maxbessel = 9
+    real(dl), dimension(:,:), allocatable :: Bess, ddBess
 
     !Harmonic method stores
     integer :: lmax_donelnfa = 0
@@ -67,7 +65,7 @@
 
     public lens_Cls, lensing_includes_tensors, lensing_method, lensing_method_flat_corr,&
         lensing_method_curv_corr,lensing_method_harmonic, BessI, ALens_Fiducial, &
-        lensing_sanity_check_amplitude
+        lensing_sanity_check_amplitude, GetFlatSkyCGrads
     contains
 
 
@@ -512,15 +510,15 @@
     real(dl) Cgl2,  sigmasq, theta
     real(dl) dtheta
     real(dl) dbessfac, fac, fac1,fac2,  C2term, expsig, corr(4)
-    real(dl) Bessel0(State%CP%Min_l:State%CP%Max_l),Bessel2(State%CP%Min_l:State%CP%Max_l)
-    real(dl) Bessel4(State%CP%Min_l:State%CP%Max_l),Bessel6(State%CP%Min_l:State%CP%Max_l)
+    real(dl) Bessel(State%CP%Min_l:State%CP%Max_l,0:maxbessel)
     real(dl) Cphil3(State%CP%Min_l:State%CP%Max_l), CTT(State%CP%Min_l:State%CP%Max_l), &
         CTE(State%CP%Min_l:State%CP%Max_l),CEE(State%CP%Min_l:State%CP%Max_l)
     integer max_lensed_ix
-    integer b_lo
+    integer b_lo, ix
     real(dl) T2,T4,a0, b0
     real(dl) lfacs(State%CP%Max_l), LensAccuracyBoost
     real(dl), allocatable, dimension(:,:,:) :: lens_contrib(:,:,:)
+    integer, parameter :: bess_need(4) = (/ 0,2,4,6 /)
     integer thread_ix
     Type(TTimer) :: Timer
 
@@ -534,7 +532,8 @@
         LensAccuracyBoost = CP%Accuracy%AccuracyBoost*CP%Accuracy%LensingBoost
 
         max_lensed_ix = lSamp%nl-1
-        do while(lSamp%l(max_lensed_ix) > CP%Max_l -250)
+        do while(lSamp%l(max_lensed_ix) > CP%Max_l - 250)
+            !Wider margin here as not using template
             max_lensed_ix = max_lensed_ix -1
         end do
         CL%lmax_lensed = lSamp%l(max_lensed_ix)
@@ -581,8 +580,7 @@
 
         !$OMP PARALLEL DO DEFAULT(SHARED), &
         !$OMP PRIVATE(theta, sigmasq,cgl2,b_lo,a0,b0,fac,fac1,fac2), &
-        !$OMP PRIVATE(Bessel0,Bessel2,Bessel4,Bessel6), &
-        !$OMP PRIVATE(corr,expsig,C2term,T2,T4,i,l, thread_ix)
+        !$OMP PRIVATE(Bessel,ix,corr,expsig,C2term,T2,T4,i,l, thread_ix)
         do i=1,npoints-1
 
             theta = i * dtheta
@@ -601,19 +599,12 @@
                 fac2 = fac1*(a0-2)
                 fac1 = fac1*(b0-2)
 
-                Bessel0(l) = a0*Bess0(b_lo)+ b0*Bess0(b_lo+1) +fac1*ddBess0(b_lo) &
-                    +fac2*ddBess0(b_lo+1)
-                sigmasq = sigmasq + (1-Bessel0(l))*Cphil3(l)
-
-
-                Bessel2(l) = a0*Bess2(b_lo)+ b0*Bess2(b_lo+1) +fac1*ddBess2(b_lo) &
-                    +fac2*ddBess2(b_lo+1)
-                Cgl2 =  Cgl2 + Bessel2(l)*Cphil3(l)
-
-                Bessel4(l) = a0*Bess4(b_lo)+ b0*Bess4(b_lo+1) +fac1*ddBess4(b_lo) &
-                    +fac2*ddBess4(b_lo+1)
-                Bessel6(l) = a0*Bess6(b_lo)+ b0*Bess6(b_lo+1) +fac1*ddBess6(b_lo) &
-                    +fac2*ddBess6(b_lo+1)
+                do ix=1,size(bess_need)
+                    Bessel(l,bess_need(ix)) = a0*Bess(b_lo,bess_need(ix))+ b0*Bess(b_lo+1,bess_need(ix)) &
+                        +fac1*ddBess(b_lo,bess_need(ix)) + fac2*ddBess(b_lo+1,bess_need(ix))
+                end do
+                sigmasq = sigmasq + (1-Bessel(l,0))*Cphil3(l)
+                Cgl2 =  Cgl2 + Bessel(l,2)*Cphil3(l)
 
             end do
 
@@ -631,7 +622,7 @@
                 fac2 = C2term*fac1
                 fac1 = fac1 - theta  !we want expsig-1 to get lensing difference
 
-                fac = fac1*Bessel0(l) + fac2*Bessel2(l)
+                fac = fac1*Bessel(l,0) + fac2*Bessel(l,2)
 
                 !TT
                 corr(1) = corr(1) + CTT(l) * fac
@@ -641,26 +632,26 @@
                 fac2 = fac2*0.5_dl
                 !Q-U
                 corr(3) = corr(3) + CEE(l) * &
-                    (fac1*Bessel4(l) + fac2*(Bessel2(l)+Bessel6(l)))
+                    (fac1*Bessel(l,4) + fac2*(Bessel(l,2)+Bessel(l,6)))
                 !Cross
                 corr(4) = corr(4) + CTE(l) * &
-                    (fac1*Bessel2(l) + fac2*(Bessel0(l)+Bessel4(l)))
+                    (fac1*Bessel(l,2) + fac2*(Bessel(l,0)+Bessel(l,4)))
 
 
             end do
 
-            !$          thread_ix = OMP_GET_THREAD_NUM()+1
+            !$ thread_ix = OMP_GET_THREAD_NUM()+1
 
             do l=lmin, CL%lmax_lensed
                 !theta factors were put in earlier (already in corr)
                 lens_contrib(C_Temp, l, thread_ix)= lens_contrib(C_Temp,l, thread_ix) + &
-                    corr(1)*Bessel0(l)
-                T2 = corr(2)*Bessel0(l)
-                T4 = corr(3)*Bessel4(l)
+                    corr(1)*Bessel(l,0)
+                T2 = corr(2)*Bessel(l,0)
+                T4 = corr(3)*Bessel(l,4)
                 lens_contrib(CT_E,l,thread_ix)  = lens_contrib(CT_E,l, thread_ix) + T2+T4
                 lens_contrib(CT_B,l,thread_ix)  = lens_contrib(CT_B,l, thread_ix) + T2-T4
                 lens_contrib(CT_Cross,l, thread_ix) = lens_contrib(CT_Cross,l, thread_ix) + &
-                    corr(4)*Bessel2(l)
+                    corr(4)*Bessel(l,2)
             end do
 
         end do
@@ -683,6 +674,187 @@
         if (DebugMsgs) call Timer%WriteTime('Time for corr lensing')
     end associate
     end subroutine CorrFuncFlatSky
+
+
+    subroutine GetFlatSkyCgrads(State, lmax, CGrads)
+    !Do flat skyapprox calculation of gradient spectra C^(T\grad T) etc.
+    !See Appendix C of https://arxiv.org/abs/1101.2234
+    type(CAMBdata) :: State
+    integer, intent(in) :: lmax
+    real(dl) :: CGrads(6,0:lmax)
+    integer l, i
+    integer :: npoints
+    real(dl) Cgl2,  sigmasq, theta
+    real(dl) dtheta
+    real(dl) dbessfac, fac, fac1,fac2,  C2term, expsig, corr(6)
+    real(dl) Bessel(State%CP%Min_l:State%CP%Max_l,0:maxbessel)
+    real(dl) Cphil3(State%CP%Min_l:State%CP%Max_l), CTT(State%CP%Min_l:State%CP%Max_l), &
+        CTE(State%CP%Min_l:State%CP%Max_l),CEE(State%CP%Min_l:State%CP%Max_l)
+    integer b_lo, ix
+    real(dl) T2,T4,a0, b0
+    real(dl) lfacs(State%CP%Max_l), LensAccuracyBoost
+    real(dl), allocatable, dimension(:,:,:) :: lens_contrib(:,:,:)
+    integer, parameter :: bess_need(7) = (/ 0,1,2,3,5,7,9 /)
+    integer thread_ix
+    Type(TTimer) :: Timer
+
+    !$ integer OMP_GET_THREAD_NUM, OMP_GET_MAX_THREADS
+    !$ external OMP_GET_THREAD_NUM, OMP_GET_MAX_THREADS
+
+    if (lensing_includes_tensors) stop 'Haven''t implemented tensor lensing'
+
+    associate(lSamp => State%CLData%CTransScal%ls, CP=>State%CP, CL=> State%ClData, lmin => State%CP%Min_l)
+
+        LensAccuracyBoost = CP%Accuracy%AccuracyBoost*CP%Accuracy%LensingBoost
+
+        npoints = CP%Max_l  * 2
+        if (CP%Accuracy%AccurateBB) npoints = npoints * 2
+
+        dtheta = const_pi / npoints
+        if (.not. CP%Accuracy%AccurateBB) then
+            npoints = int(npoints /32 *min(32._dl,LensAccuracyBoost))
+            !OK for TT, EE, TE but inaccurate for low l BB
+            !this induces high frequency ringing on very small scales
+        end if
+
+        call GetBessels(npoints*dtheta*CP%Max_l)
+
+        if (DebugMsgs) call Timer%Start()
+
+        dbessfac = dbessel**2/6
+
+        thread_ix = 1
+        !$  thread_ix = OMP_GET_MAX_THREADS()
+        allocate(lens_contrib(6,CL%lmax_lensed,thread_ix), source=0._dl)
+
+        do l=lmin,CP%Max_l
+            ! l^3 C_phi_phi/2/pi: Cl_scalar(l,1,C_Phi) is l^4 C_phi_phi
+            Cphil3(l) = CL%Cl_scalar(l,C_Phi)/l /const_twopi
+            fac = l/const_twopi*const_twopi/(l*(l+1))
+            CTT(l) =  CL%Cl_scalar(l,C_Temp)*fac
+            CEE(l) =  CL%Cl_scalar(l,C_E)*fac
+            CTE(l) =  CL%Cl_scalar(l,C_Cross)*fac
+            lfacs(l) = l**2*0.5_dl
+        end do
+
+        if (Cphil3(10) > 1e-7) then
+            write (*,*) 'You need to normalize realistically to use lensing.'
+            write (*,*) 'see http://cosmocoffee.info/viewtopic.php?t=94'
+            stop
+        end if
+
+        !$OMP PARALLEL DO DEFAULT(SHARED), &
+        !$OMP PRIVATE(theta, sigmasq,cgl2,b_lo,a0,b0,fac,fac1,fac2), &
+        !$OMP PRIVATE(Bessel,ix,corr,expsig,C2term,T2,T4,i,l, thread_ix)
+        do i=1,npoints-1
+
+            theta = i * dtheta
+            sigmasq =0
+            Cgl2=0
+            fac = theta /dbessel
+
+            do l=lmin,CP%Max_l
+
+                !Interpolate the Bessel functions, and compute sigma^2 and C_{gl,2}
+                b0 = l*fac
+                b_lo = int(b0) +1
+                a0=  b_lo - b0
+                b0=  1._dl - a0
+                fac1 = a0*b0*dbessfac
+                fac2 = fac1*(a0-2)
+                fac1 = fac1*(b0-2)
+
+                do ix=1,size(bess_need)
+                    Bessel(l,bess_need(ix)) = a0*Bess(b_lo,bess_need(ix))+ b0*Bess(b_lo+1,bess_need(ix)) &
+                        +fac1*ddBess(b_lo,bess_need(ix)) + fac2*ddBess(b_lo+1,bess_need(ix))
+                end do
+                sigmasq = sigmasq + (1-Bessel(l,0))*Cphil3(l)
+                Cgl2 =  Cgl2 + Bessel(l,2)*Cphil3(l)
+
+            end do
+
+            !Get difference between lensed and unlensed correlation function
+            corr = 0
+            do l=lmin,CP%Max_l
+                !For 2nd order perturbative result use
+                !         expsig = 1 -sigmasq*l**2/2._dl
+                !         C2term = l**2*Cgl2/2._dl
+                fac = sigmasq*lfacs(l)
+                expsig = exp(-fac)
+                C2term = Cgl2*lfacs(l)
+                !Put theta factor later  in here
+                fac1 = expsig*theta
+                fac2 = C2term*fac1
+                fac1 = fac1 - theta  !we want expsig-1 to get lensing difference
+
+                fac = -(l*theta) * (fac1*Bessel(l,1) + fac2*(Bessel(l,3)-Bessel(l,1))/2 &
+                    +( Bessel(l,5)-Bessel(l,3)+2*Bessel(l,1))/8*fac2*C2term  )
+
+                !Tgrad T
+                corr(1) = corr(1) + CTT(l) * fac
+
+                !Q + U
+                corr(2) = corr(2) + CEE(l) * fac
+                fac2 = fac2*0.5_dl
+
+                corr(3) = corr(3) - CEE(l) * (l*theta) * (fac1*(Bessel(l,5)) + &
+                    fac2*(Bessel(l,3)+Bessel(l,7))   + fac2*c2term*(Bessel(l,1)+Bessel(l,9)+2*Bessel(l,5))/4 )
+
+                corr(4) = corr(4) + CEE(l) * (l*theta) * (fac1*(Bessel(l,3)) + &
+                    fac2*(Bessel(l,1)+Bessel(l,5)) + fac2*c2term*(-Bessel(l,1)+Bessel(l,7)+2*Bessel(l,3))/4  )
+
+                corr(5) = corr(5) + CTE(l) *  (l*theta) * (fac1*(Bessel(l,3)) + &
+                    fac2*(Bessel(l,5)+Bessel(l,1)))
+
+                corr(6) = corr(6) - CTE(l) *  (l*theta) * (fac1*(Bessel(l,1)) + &
+                    fac2*(Bessel(l,3)-Bessel(l,1)))
+
+            end do
+
+            !$ thread_ix = OMP_GET_THREAD_NUM()+1
+
+            do l=lmin, CL%lmax_lensed
+                !theta factors were put in earlier (already in corr)
+
+                lens_contrib(1, l, thread_ix)= lens_contrib(1,l, thread_ix) - &
+                    corr(1)*Bessel(l,1)/(l*theta)
+
+                T2 = -corr(2)*Bessel(l,1)/(l*theta)
+                T4 = (corr(4)*(Bessel(l,3)) - corr(3)*(Bessel(l,5)) )/(l*theta)/2
+                lens_contrib(2,l,thread_ix)  = lens_contrib(2,l, thread_ix) + (T2+T4)/2
+                lens_contrib(3,l,thread_ix)  = lens_contrib(3,l, thread_ix) + (T2-T4)/2
+
+                lens_contrib(4,l,thread_ix)  = lens_contrib(4,l, thread_ix) + &
+                    (corr(4)*(Bessel(l,3)) + corr(3)*(Bessel(l,5)) )/(l*theta)/2
+
+                !T\grad E
+                lens_contrib(5,l, thread_ix) = lens_contrib(5,l, thread_ix) + &
+                    (corr(5)*Bessel(l,3)- corr(6)*(Bessel(l,1)))/(l*theta)/2
+                !TE\perp
+                lens_contrib(6,l, thread_ix) = lens_contrib(6,l, thread_ix) - &
+                    (corr(5)*Bessel(l,3) + corr(6)*(Bessel(l,1)))/(l*theta)/2
+            end do
+
+        end do
+        !$OMP END PARALLEL DO
+
+        CGrads = 0
+        do l=lmin, min(CL%lmax_lensed, lmax)
+            fac = l*(l+1)* const_twopi/OutputDenominator*dtheta
+            CGrads(1,l) = sum(lens_contrib(1,l,:))*fac + CL%Cl_scalar(l,CT_Temp)
+            CGrads(2,l) = sum(lens_contrib(2,l,:))*fac + CL%Cl_scalar(l,CT_E)
+            CGrads(3,l) = sum(lens_contrib(3,l,:))*fac !BB
+            CGrads(4,l) = sum(lens_contrib(4,l,:))*fac !Perp
+            CGrads(5,l) = sum(lens_contrib(5,l,:))*fac + CL%Cl_scalar(l,C_Cross)
+            CGrads(6,l) = sum(lens_contrib(6,l,:))*fac
+        end do
+
+        deallocate(lens_contrib)
+
+        if (DebugMsgs) call Timer%WriteTime('Time for GetFlatSkyCgrads')
+    end associate
+
+    end subroutine GetFlatSkyCgrads
 
     subroutine BadHarmonic(State)
     use MathUtils
@@ -909,39 +1081,28 @@
     real(dl), intent(in):: MaxArg
     integer i
     real(dl), allocatable, dimension(:) :: x
-    integer max_bes_ix
+    integer max_bes_ix,ix
     integer, save :: last_max = 0
 
     max_bes_ix = nint(MaxArg / dbessel) + 3
     if (max_bes_ix > last_max) then
         last_max = max_bes_ix
-        if (allocated(Bess0)) then
-            deallocate(Bess0,ddBess0)
-            deallocate(Bess2,ddBess2)
-            deallocate(Bess4,ddBess4)
-            deallocate(Bess6,ddBess6)
+        if (allocated(Bess)) then
+            deallocate(Bess,ddBess)
         end if
-        allocate(Bess0(max_bes_ix),ddBess0(max_bes_ix))
-
-        allocate(Bess2(max_bes_ix),ddBess2(max_bes_ix))
-        allocate(Bess4(max_bes_ix),ddBess4(max_bes_ix))
-        allocate(Bess6(max_bes_ix),ddBess6(max_bes_ix))
+        allocate(Bess(max_bes_ix,0:maxbessel),ddBess(max_bes_ix,0:maxbessel))
 
         allocate(x(max_bes_ix))
-        Bess0(1)=1
-        Bess2(1)=0; Bess4(1)=0; Bess6(1)=0
+        Bess(1,1:maxbessel)=0
+        Bess(1,0)=1
         x(1)=0
         do i=2, max_bes_ix
             x(i) = (i-1)*dbessel
-            Bess0(i) = bessel_j0(x(i))
-            Bess2(i) = bessel_jn(2,x(i))
-            Bess4(i) = bessel_jn(4,x(i))
-            Bess6(i) = bessel_jn(6,x(i))
+            Bess(i,:)=Bessel_jn(0, maxbessel,x(i))
         end do
-        call spline(x,Bess0,max_bes_ix,spl_large,spl_large,ddBess0)
-        call spline(x,Bess2,max_bes_ix,spl_large,spl_large,ddBess2)
-        call spline(x,Bess4,max_bes_ix,spl_large,spl_large,ddBess4)
-        call spline(x,Bess6,max_bes_ix,spl_large,spl_large,ddBess6)
+        do ix=0,maxbessel
+            call spline(x,Bess(1,ix),max_bes_ix,spl_large,spl_large,ddBess(1,ix))
+        end do
 
         deallocate(x)
     end if

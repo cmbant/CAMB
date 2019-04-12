@@ -1,5 +1,5 @@
 from .baseconfig import camblib, CAMBError, CAMBValueError, CAMBUnknownArgumentError, CAMB_Structure, \
-    F2003Class, fortran_class, numpy_1d, numpy_2d, fortran_array, AllocatableArrayDouble, ndpointer, np
+    F2003Class, fortran_class, numpy_1d, numpy_2d, fortran_array, AllocatableArrayDouble, ndpointer, np, lib_import
 from ctypes import c_float, c_int, c_double, c_bool, POINTER, byref
 import ctypes
 from . import model, constants
@@ -753,7 +753,7 @@ class CAMBdata(F2003Class):
             raise CAMBError('Need at least two points in get_matter_power_spectrum')
 
         assert self.Params.WantTransfer
-        if self.Params.Transfer.kmax < maxkh*self.Params.h:
+        if self.Params.Transfer.kmax < maxkh * self.Params.h:
             logging.warning("get_matter_power_spectrum using larger k_max than input parameter Transfer.kmax")
         if self.Params.NonLinear == model.NonLinear_none and self.Params.Transfer.kmax < 1:
             logging.warning("get_matter_power_spectrum Transfer.kmax small to get non-linear spectrum")
@@ -1057,6 +1057,27 @@ class CAMBdata(F2003Class):
             if params is not None:
                 params.Want_cl_2D_array = old_val
         return result
+
+    def get_lensed_gradient_cls(self, lmax=None, CMB_unit=None, raw_cl=False):
+        r"""
+        Get lensed gradient scalar CMB power spectra in flat sky approximation (`arXiv:1101.2234 <https://arxiv.org/abs/1101.2234>`_).
+        Set use params.Accuracy.AccurateBB = True for good small-scale results (even for T\grad T).
+        Must have already calculated lensed power spectra.
+
+        :param lmax: lmax to output to
+        :param CMB_unit: scale results from dimensionless. Use 'muK' for :math:`\mu K^2` units for CMB :math:`C_\ell`
+        :param raw_cl: return :math:`C_\ell` rather than :math:`\ell(\ell+1)C_\ell/2\pi`
+        :return: numpy array CL[0:lmax+1,0:6], where CL[:,0] is T\grad T spectrum, etc (others not well tested).
+        """
+        assert self.Params.DoLensing
+        lmax = self._lmax_setting(lmax)
+        res = np.empty((lmax + 1, 6))
+        opt = c_int(lmax)
+        GetFlatSkyCgrads = lib_import('lensing', '', 'getflatskycgrads')
+        GetFlatSkyCgrads.argtypes = [POINTER(CAMBdata), int_arg, numpy_1d]
+        GetFlatSkyCgrads(byref(self), byref(opt), res)
+        self._scale_cls(res, CMB_unit, raw_cl)
+        return res
 
     def angular_diameter_distance(self, z):
         """

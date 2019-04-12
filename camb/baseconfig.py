@@ -80,8 +80,9 @@ else:
 
 
 def lib_import(module_name, class_name, func_name, restype=None):
+    if class_name: class_name += '_'
     func = getattr(camblib, '__' + module_name.lower() +
-                   '_MOD_' + (class_name + '_' + func_name).lower())
+                   '_MOD_' + (class_name + func_name).lower())
     if restype: func.restype = restype
     return func
 
