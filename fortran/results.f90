@@ -361,7 +361,8 @@
 
         nu_massless_degeneracy = this%CP%Num_Nu_massless !N_eff for massless neutrinos
         if (this%CP%Num_nu_massive > 0) then
-            if (this%CP%Nu_mass_eigenstates==0) call GlobalError('Have Num_nu_massive>0 but no nu_mass_eigenstates', error_unsupported_params)
+            if (this%CP%Nu_mass_eigenstates==0) &
+                call GlobalError('Have Num_nu_massive>0 but no nu_mass_eigenstates', error_unsupported_params)
             if (this%CP%Nu_mass_eigenstates==1 .and. this%CP%Nu_mass_numbers(1)==0) &
                 this%CP%Nu_mass_numbers(1) = this%CP%Num_Nu_Massive
             if (all(this%CP%Nu_mass_numbers(1:this%CP%Nu_mass_eigenstates)==0)) this%CP%Nu_mass_numbers=1 !just assume one for all
@@ -375,7 +376,7 @@
                     this%CP%Nu_mass_numbers(1:this%CP%Nu_mass_eigenstates)*neff_i
             end if
             if (abs(sum(this%CP%Nu_mass_fractions(1:this%CP%Nu_mass_eigenstates))-1) > 1e-4) &
-            call GlobalError('Nu_mass_fractions do not add up to 1', error_unsupported_params)
+                call GlobalError('Nu_mass_fractions do not add up to 1', error_unsupported_params)
         else
             this%CP%Nu_mass_eigenstates = 0
         end if
@@ -780,7 +781,8 @@
     integer i
     real(dl) om
 
-    if (this%ThermoData%ScaleFactorAtTime%n==0) call GlobalError('RedshiftAtTimeArr: background history not calculated', error_unsupported_params)
+    if (this%ThermoData%ScaleFactorAtTime%n==0) &
+        call GlobalError('RedshiftAtTimeArr: background history not calculated', error_unsupported_params)
     if (global_error_flag/=0) return
     !$OMP PARALLEL DO DEFAULT(SHARED), private(om, i)
     do i=1, n
