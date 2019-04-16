@@ -1061,13 +1061,13 @@ class CAMBdata(F2003Class):
     def get_lensed_gradient_cls(self, lmax=None, CMB_unit=None, raw_cl=False):
         r"""
         Get lensed gradient scalar CMB power spectra in flat sky approximation (`arXiv:1101.2234 <https://arxiv.org/abs/1101.2234>`_).
-        Set use params.Accuracy.AccurateBB = True for good small-scale results (even for T\grad T).
+        Set params.Accuracy.AccurateBB = True for good small-scale results (even for T\grad T).
         Must have already calculated lensed power spectra.
 
         :param lmax: lmax to output to
         :param CMB_unit: scale results from dimensionless. Use 'muK' for :math:`\mu K^2` units for CMB :math:`C_\ell`
         :param raw_cl: return :math:`C_\ell` rather than :math:`\ell(\ell+1)C_\ell/2\pi`
-        :return: numpy array CL[0:lmax+1,0:6], where CL[:,i] are :math:`T\nabla T`, :math:`E\nabla E`, :math:`B\nabla B\, :math:`PP_\perp`,
+        :return: numpy array CL[0:lmax+1,0:6], where CL[:,i] are :math:`T\nabla T`, :math:`E\nabla E`, :math:`B\nabla B`, :math:`PP_\perp`,
                  :math:`T\nabla E`, :math:`TP_\perp` as defined in appendix C of `arXiv:1101.2234 <https://arxiv.org/abs/1101.2234>`_.
         """
         assert self.Params.DoLensing
