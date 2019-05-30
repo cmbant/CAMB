@@ -37,6 +37,7 @@
     !AM May 17: Made the baryon feedback parameters more obvious in HMcode
     !AL Jul 17: fixed undefined z calling Tcb_Tcbnu_ratio
     !AM Jul 17: sped-up HMcode integration routines
+    !AM May 18: Fixed bug in Dolag correction to c(M) power
 
 
     !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1119,9 +1120,11 @@
     g_lcdm=growint(ainf,cos_lcdm)
 
     !This is the Dolag et al. (2004) correction for halo concentrations
-    IF(this%imead==0 .OR. this%imead==1) THEN
+    IF(this%imead==0 .OR. this%imead==2) THEN
+        ! Mead et al. (2015) used the Dolag (2004) correction
         pow=1.
-    ELSE IF(this%imead==2) THEN
+    ELSE IF(this%imead==1) THEN
+        ! Mead et al. (2016) changed the power to 1.5 to better accomodate more extreme dark-energy models
         pow=1.5
     END IF
     lut%c=lut%c*((g_wcdm/g_lcdm)**pow)
