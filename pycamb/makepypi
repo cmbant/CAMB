@@ -1,6 +1,0 @@
-cd c://work/dist/git/camb/pycamb
-rm -Rf dist
-python setup.py bdist_wheel --plat-name win_amd64 --universal
-python setup.py sdist upload -r pypi
-#twine upload dist/* -r testpypi
-rm -Rf fortran

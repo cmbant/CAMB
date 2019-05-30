@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+<CodeBlocks_project_file>
+	<FileVersion major="1" minor="6" />
+	<Project>
+		<Option title="camb" />
+		<Option makefile_is_custom="1" />
+		<Option pch_mode="2" />
+		<Option compiler="gfortran" />
+		<Option virtualFolders="makefile/;" />
+		<Build>
+			<Target title="Debug">
+				<Option output="camb" prefix_auto="1" extension_auto="1" />
+				<Option object_output="Debug/" />
+				<Option type="1" />
+				<Option compiler="gfortran" />
+				<Option parameters="params.ini" />
+				<Compiler>
+					<Add option="-Wall" />
+					<Add option="-g" />
+				</Compiler>
+			</Target>
+			<Target title="Release">
+				<Option output="camb" prefix_auto="1" extension_auto="1" />
+				<Option object_output="Release/" />
+				<Option type="1" />
+				<Option compiler="gfortran" />
+				<Option parameters="params.ini" />
+				<Compiler>
+					<Add option="-Wall" />
+					<Add option="-O2" />
+				</Compiler>
+				<Linker>
+					<Add option="-s" />
+				</Linker>
+			</Target>
+		</Build>
+		<Unit filename="DarkAge21cm.f90" />
+		<Unit filename="DarkEnergyFluid.f90" />
+		<Unit filename="DarkEnergyInterface.f90" />
+		<Unit filename="DarkEnergyPPF.f90" />
+		<Unit filename="InitialPower.f90" />
+		<Unit filename="Makefile">
+			<Option virtualFolder="makefile/" />
+		</Unit>
+		<Unit filename="Makefile_main">
+			<Option virtualFolder="makefile/" />
+		</Unit>
+		<Unit filename="MathUtils.f90" />
+		<Unit filename="SecondOrderPK.f90" />
+		<Unit filename="SeparableBispectrum.f90" />
+		<Unit filename="SourceWindows.f90" />
+		<Unit filename="bessels.f90" />
+		<Unit filename="camb.f90" />
+		<Unit filename="camb_python.f90" />
+		<Unit filename="classes.f90" />
+		<Unit filename="cmbmain.f90" />
+		<Unit filename="config.f90" />
+		<Unit filename="constants.f90" />
+		<Unit filename="equations.f90" />
+		<Unit filename="halofit.f90" />
+		<Unit filename="lensing.f90" />
+		<Unit filename="massive_neutrinos.f90" />
+		<Unit filename="recfast.f90" />
+		<Unit filename="reionization.f90" />
+		<Unit filename="results.f90" />
+		<Unit filename="subroutines.f90" />
+		<Extensions>
+			<envvars />
+			<code_completion />
+			<debugger />
+			<lib_finder disable_auto="1" />
+		</Extensions>
+	</Project>
+</CodeBlocks_project_file>
