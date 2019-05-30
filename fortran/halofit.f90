@@ -506,17 +506,10 @@
         delta_c=1.686
     ELSE IF(this%imead==1 .or. this%imead==2) THEN
         !Mead et al. (2015; arXiv 1505.07833) value
-<<<<<<< HEAD:halofit_ppf.f90
-        delta_c=1.59+0.0314*log(lut%sig8z)        
-        IF(imead==1) THEN
-           delta_c=delta_c*(1.+0.262*cosm%f_nu) !Mead et al. (2016; arXiv 1602.02154) neutrino addition
-           delta_c=delta_c*(1.+0.0123*log10(Omega_m_hm(z,cosm))) !Nakamura & Suto (1997) fitting formula for LCDM
-=======
         delta_c=1.59+0.0314*log(lut%sig8z)
         IF(this%imead==1) THEN
             delta_c=delta_c*(1.+0.262*cosm%f_nu) !Mead et al. (2016; arXiv 1602.02154) neutrino addition
             delta_c=delta_c*(1.+0.0123*log10(Omega_m_hm(z,cosm))) !Nakamura & Suto (1997) fitting formula for LCDM
->>>>>>> 1aac1d2eb4826ca2310b6a322aa458af39d1120e:fortran/halofit.f90
         END IF
     END IF    
 
@@ -1127,20 +1120,11 @@
     g_lcdm=growint(ainf,cos_lcdm)
 
     !This is the Dolag et al. (2004) correction for halo concentrations
-<<<<<<< HEAD:halofit_ppf.f90
-    IF(imead==0 .OR. imead==1) THEN
-       pow=1.
-    ELSE IF(imead==2) THEN
-       pow=1.5
-    END IF    
-
-=======
     IF(this%imead==0 .OR. this%imead==1) THEN
         pow=1.
     ELSE IF(this%imead==2) THEN
         pow=1.5
     END IF
->>>>>>> 1aac1d2eb4826ca2310b6a322aa458af39d1120e:fortran/halofit.f90
     lut%c=lut%c*((g_wcdm/g_lcdm)**pow)
 
     END SUBROUTINE conc_bull
