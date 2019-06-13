@@ -37,6 +37,22 @@ class _ClTransferData(CAMB_Structure):
                 ]
 
 
+def save_cmb_power_array(filename, array, labels, lmin=0):
+    """
+    Save an zero-based 2-d array of CL to a text file, with each line startin with L.
+    :param filename: filename to save
+    :param array: 2D array of power spectra
+    :param labels:  header names for each column in the output
+    :param lmin: L to start output in file (usually 0 or 2)
+    """
+    lmax = array.shape[0] - 1
+    ls = np.atleast_2d(np.arange(lmin, lmax + 1)).T
+    ncol = array.shape[1]
+    if isinstance(labels, six.string_types): labels = labels.split()
+    np.savetxt(filename, np.hstack((ls, array[lmin:, :])), fmt=['%4u'] + ['%12.7e'] * ncol,
+               header=' L ' + ' '.join(['{:13s}'.format(lab) for lab in labels]))
+
+
 class MatterTransferData(object):
     r"""
     MatterTransferData is the base class for storing matter power transfer function data for various q values.
@@ -369,9 +385,7 @@ class CAMBdata(F2003Class):
         lmax = self._lmax_setting(lmax)
         cmb = self.get_total_cls(lmax, CMB_unit=CMB_unit)
         lens = self.get_lens_potential_cls(lmax, CMB_unit=CMB_unit)
-        ls = np.atleast_2d(np.arange(lmax + 1)).T
-        np.savetxt(filename, np.hstack((ls, cmb, lens)), fmt=['%4u'] + ['%12.7e'] * 7,
-                   header=' L ' + 'TT EE BB TE PP PT PE'.replace(' ', ' ' * 12))
+        save_cmb_power_array(filename, np.hstack((cmb, lens)), 'TT EE BB TE PP PT PE')
 
     def get_cmb_power_spectra(self, params=None, lmax=None,
                               spectra=['total', 'unlensed_scalar', 'unlensed_total', 'lensed_scalar', 'tensor',
@@ -1061,18 +1075,18 @@ class CAMBdata(F2003Class):
     def get_lensed_gradient_cls(self, lmax=None, CMB_unit=None, raw_cl=False):
         r"""
         Get lensed gradient scalar CMB power spectra in flat sky approximation (`arXiv:1101.2234 <https://arxiv.org/abs/1101.2234>`_).
-        Set params.Accuracy.AccurateBB = True for good small-scale results (even for T\grad T).
-        Must have already calculated lensed power spectra.
+        Note that lmax used to calculate results may need to be substantially larger than the lmax output from this function
+        (there is no extrapolation as in the main lensing routines). Lensed power spectra must be already calculated.
 
         :param lmax: lmax to output to
         :param CMB_unit: scale results from dimensionless. Use 'muK' for :math:`\mu K^2` units for CMB :math:`C_\ell`
         :param raw_cl: return :math:`C_\ell` rather than :math:`\ell(\ell+1)C_\ell/2\pi`
         :return: numpy array CL[0:lmax+1,0:6], where CL[:,i] are :math:`T\nabla T`, :math:`E\nabla E`, :math:`B\nabla B`, :math:`PP_\perp`,
-                 :math:`T\nabla E`, :math:`TP_\perp` as defined in appendix C of `arXiv:1101.2234 <https://arxiv.org/abs/1101.2234>`_.
+                 :math:`T\nabla E`, :math:`TP_\perp`, :math:`(\nabla T)^2`, :math:`\nabla T\nabla T ` where the first six are as defined in appendix C of `arXiv:1101.2234 <https://arxiv.org/abs/1101.2234>`_.
         """
         assert self.Params.DoLensing
         lmax = self._lmax_setting(lmax)
-        res = np.empty((lmax + 1, 6))
+        res = np.empty((lmax + 1, 8))
         opt = c_int(lmax)
         GetFlatSkyCgrads = lib_import('lensing', '', 'getflatskycgrads')
         GetFlatSkyCgrads.argtypes = [POINTER(CAMBdata), int_arg, numpy_1d]

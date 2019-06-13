@@ -225,7 +225,7 @@ class CAMBparams(F2003Class):
         ("Evolve_baryon_cs", c_bool,
          "Evolve a separate equation for the baryon sound speed rather than using background approximation"),
         ("Evolve_delta_xe", c_bool, "Evolve ionization fraction perturbations"),
-        ("Evolve_delta_Ts", c_bool, "Evolve the splin temperature perturbation (for 21cm)"),
+        ("Evolve_delta_Ts", c_bool, "Evolve the spin temperature perturbation (for 21cm)"),
         ("Do21cm", c_bool, "21cm is not yet implemented via the python wrapper"),
         ("transfer_21cm_cl", c_bool, "Get 21cm C_L at a given fixed redshift"),
         ("Log_lvalues", c_bool, "Use log spacing for sampling in L"),

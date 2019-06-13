@@ -707,8 +707,11 @@
                 do i=nq+1, EVOut%nq(nu_i)
                     lmax = min(EVOut%lmaxnu_tau(nu_i), EV%lmaxnr)
                     ind2=ix_off2+ (i-1)*(EVOut%lmaxnu_tau(nu_i)+1)
-                    yout(ind2:ind2+lmax) = y(EV%r_ix:EV%r_ix+lmax)
-
+                    if (EV%high_ktau_neutrino_approx) then !!!2019
+                        yout(ind2:ind2+2) = y(EV%r_ix:EV%r_ix+2)
+                    else
+                        yout(ind2:ind2+lmax) = y(EV%r_ix:EV%r_ix+lmax)
+                    end if
                     !Add leading correction for the mass
                     q=State%NuPerturbations%nu_q(i)
                     pert_scale=(State%nu_masses(nu_i)/q)**2/2
