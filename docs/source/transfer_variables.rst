@@ -50,7 +50,7 @@ Transfer_kh                 1     :math:`k/h`
 Transfer_cdm                2     :math:`\Delta_c`, CDM density
 Transfer_b                  3     :math:`\Delta_b`, baryon density
 Transfer_monopole           4     :math:`\Delta_s+(r_\tau-1)(\Delta_{b}-\Delta_{T_s})`, 21cm monopole source
-Transfer_vnewt              5     :math:`r_\tau kv_{b,N}/\mathcal{H}`, 21cm Newtonian-gauge velocity source
+Transfer_vnewt              5     :math:`r_\tau kv_{N,b}/\mathcal{H}`, 21cm Newtonian-gauge velocity source
 Transfer_Tmat               6     :math:`\Delta_{T_m}`, matter temperature perturbation
 Transfer_tot                7     :math:`\frac{\rho_c\Delta_c+\rho_b\Delta_b+\rho_\nu\Delta_\nu}{\rho_c+\rho_b+\rho_\nu}`, CDM+baryons+massive neutrino density
 Transfer_nonu               8     :math:`\frac{\rho_c\Delta_c+\rho_b\Delta_b}{\rho_b+\rho_c}`, CDM+baryon  density
