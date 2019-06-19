@@ -25,15 +25,15 @@ matrix:
         - GCC_VERSION="6"
         - CHANNEL="defaults"
       python: "2.7"
-    - name: "GCC8"
+    - name: "GCC9"
       addons:
         apt:
           sources:
             - ubuntu-toolchain-r-test
           packages:
-            - gfortran-8
+            - gfortran-9
       env:
-        - GCC_VERSION="8"
+        - GCC_VERSION="9"
         - CHANNEL="conda-forge"
       python: "3.7"
 
