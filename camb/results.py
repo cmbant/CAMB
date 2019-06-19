@@ -1081,7 +1081,7 @@ class CAMBdata(F2003Class):
         :param lmax: lmax to output to
         :param CMB_unit: scale results from dimensionless. Use 'muK' for :math:`\mu K^2` units for CMB :math:`C_\ell`
         :param raw_cl: return :math:`C_\ell` rather than :math:`\ell(\ell+1)C_\ell/2\pi`
-        :return: numpy array CL[0:lmax+1,0:6], where CL[:,i] are :math:`T\nabla T`, :math:`E\nabla E`, :math:`B\nabla B`, :math:`PP_\perp`,
+        :return: numpy array CL[0:lmax+1,0:8], where CL[:,i] are :math:`T\nabla T`, :math:`E\nabla E`, :math:`B\nabla B`, :math:`PP_\perp`,
                  :math:`T\nabla E`, :math:`TP_\perp`, :math:`(\nabla T)^2`, :math:`\nabla T\nabla T` where the first six are as defined in
                  appendix C of `1101.2234 <https://arxiv.org/abs/1101.2234>`_.
         """
