@@ -60,7 +60,7 @@ class MatterTransferData(object):
 
     To get an instance of this data, call :meth:`.results.CAMBdata.get_matter_transfer_data`.
 
-    For a description of the different Transfer_xxx outputs see :ref:`transfer-variables`.
+    For a description of the different Transfer_xxx outputs (and 21cm case) see :ref:`transfer-variables`.
 
     :ivar nq:  number of q modes calculated
     :ivar q: array of q values calculated
@@ -1082,7 +1082,8 @@ class CAMBdata(F2003Class):
         :param CMB_unit: scale results from dimensionless. Use 'muK' for :math:`\mu K^2` units for CMB :math:`C_\ell`
         :param raw_cl: return :math:`C_\ell` rather than :math:`\ell(\ell+1)C_\ell/2\pi`
         :return: numpy array CL[0:lmax+1,0:6], where CL[:,i] are :math:`T\nabla T`, :math:`E\nabla E`, :math:`B\nabla B`, :math:`PP_\perp`,
-                 :math:`T\nabla E`, :math:`TP_\perp`, :math:`(\nabla T)^2`, :math:`\nabla T\nabla T ` where the first six are as defined in appendix C of `arXiv:1101.2234 <https://arxiv.org/abs/1101.2234>`_.
+                 :math:`T\nabla E`, :math:`TP_\perp`, :math:`(\nabla T)^2`, :math:`\nabla T\nabla T` where the first six are as defined in
+                 appendix C of `1101.2234 <https://arxiv.org/abs/1101.2234>`_.
         """
         assert self.Params.DoLensing
         lmax = self._lmax_setting(lmax)
