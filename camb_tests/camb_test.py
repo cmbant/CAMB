@@ -289,6 +289,9 @@ class CambTest(unittest.TestCase):
         s8 = data.get_sigma8()
         self.assertAlmostEqual(s8[0], 0.24686, 3)
         self.assertAlmostEqual(s8[2], 0.80044, 3)
+        fs8 = data.get_fsigma8()
+        self.assertAlmostEqual(fs8[0], 0.2431, 3)
+        self.assertAlmostEqual(fs8[2], 0.424712, 3)
 
         pars.NonLinear = model.NonLinear_both
 
