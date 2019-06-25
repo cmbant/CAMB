@@ -787,7 +787,10 @@ class CAMBdata(F2003Class):
                                       return_z_k=False, log_interp=True, extrap_kmax=None):
         r"""
         Assuming transfers have been calculated, return a 2D spline interpolation object to evaluate matter
-        power spectrum as function of z and k/h (or k), e.g.
+        power spectrum as function of z and k/h (or k). Uses self.Params.Transfer.PK_redshifts as the spline node
+        points in z. If fewer than four redshift points are used the interpolator uses a reduced order spline in z
+        (so results at intermediate z may be innaccurate), otherwise it uses bicubic.
+        Usage example:
 
         .. code-block:: python
 
@@ -851,7 +854,7 @@ class CAMBdata(F2003Class):
         if log_interp and np.any(pk <= 0):
             log_interp = False
         logkh = np.log(kh)
-        deg_z = min(len(z) - 1 , 3)
+        deg_z = min(len(z) - 1, 3)
         PKInterpolator = PKInterpolator if deg_z else PKInterpolatorSingleZ
         if extrap_kmax and extrap_kmax > kh[-1]:
             logextrap = np.log(extrap_kmax)
