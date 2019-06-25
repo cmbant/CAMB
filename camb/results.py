@@ -7,7 +7,7 @@ from ._config import config
 from .model import set_default_params, CAMBparams
 import logging
 import six
-from scipy.interpolate import RectBivariateSpline
+from scipy.interpolate import RectBivariateSpline, interp1d
 
 int_arg = POINTER(c_int)
 d_arg = POINTER(c_double)
@@ -819,6 +819,31 @@ class CAMBdata(F2003Class):
                 else:
                     return self(z, np.log(kh), grid=grid)
 
+        class PKInterpolatorSingleZ(interp1d):
+
+            def __init__(self, *args, **kwargs):
+                self._single_z = np.array(args[0])
+                super(PKInterpolator, self).__init__(*(args[1:]), kind=kwargs.get("ky"))
+
+            def check_z(self, z):
+                if not np.allclose(z, self._single_z):
+                    raise CAMBError(
+                        "P(z,k) requested at z=%r, but only computed for z=%g. "
+                        "Cannot extrapolate!" % (z, self._single_z))
+
+            def __call__(self, *args):
+                self.check_z(args[0])
+                # NB returns dimensionality as the 2D one: 1 dimension if z single
+                return (lambda x: x[0] if np.isscalar(args[0]) else x)(
+                    super(PKInterpolatorSingleZ, self).__call__(*(args[1:])))
+
+            def P(self, z, kh, grid=None):
+                # grid kwarg is ignored
+                if self.islog:
+                    return np.exp(self(z, np.log(kh)))
+                else:
+                    return self(z, np.log(kh))
+
         assert self.Params.WantTransfer
         kh, z, pk = self.get_linear_matter_power_spectrum(var1, var2, hubble_units, nonlinear=nonlinear)
         if not k_hunit:
@@ -826,6 +851,8 @@ class CAMBdata(F2003Class):
         if log_interp and np.any(pk <= 0):
             log_interp = False
         logkh = np.log(kh)
+        deg_z = min(len(z) - 1 , 3)
+        PKInterpolator = PKInterpolator if deg_z else PKInterpolatorSingleZ
         if extrap_kmax and extrap_kmax > kh[-1]:
             logextrap = np.log(extrap_kmax)
             logpknew = np.empty((pk.shape[0], pk.shape[1] + 1))
@@ -833,16 +860,18 @@ class CAMBdata(F2003Class):
             logpknew[:, -1] = logpknew[:, -2] + (logpknew[:, -2] - logpknew[:, -3]) / (logkh[-2] - logkh[-3]) * (
                     logextrap - logkh[-1])
             logkhnew = np.hstack((logkh, logextrap))
+            deg_k = min(len(logkhnew) - 1, 3)
             if log_interp:
-                res = PKInterpolator(z, logkhnew, logpknew)
+                res = PKInterpolator(z, logkhnew, logpknew, kx=deg_z, ky=deg_k)
             else:
-                res = PKInterpolator(z, logkhnew, np.exp(logpknew))
+                res = PKInterpolator(z, logkhnew, np.exp(logpknew), kx=deg_z, ky=deg_k)
             res.kmax = extrap_kmax
         else:
+            deg_k = min(len(logkh) - 1, 3)
             if log_interp:
-                res = PKInterpolator(z, logkh, np.log(pk))
+                res = PKInterpolator(z, logkh, np.log(pk), kx=deg_z, ky=deg_k)
             else:
-                res = PKInterpolator(z, logkh, pk)
+                res = PKInterpolator(z, logkh, pk, kx=deg_z, ky=deg_k)
             res.kmax = np.max(kh)
 
         res.kmin = np.min(kh)
