@@ -769,7 +769,7 @@ class CAMBdata(F2003Class):
         assert self.Params.WantTransfer
         if self.Params.Transfer.kmax < maxkh * self.Params.h:
             logging.warning("get_matter_power_spectrum using larger k_max than input parameter Transfer.kmax")
-        if self.Params.NonLinear == model.NonLinear_none and self.Params.Transfer.kmax < 1:
+        if self.Params.NonLinear != model.NonLinear_none and self.Params.Transfer.kmax < 1:
             logging.warning("get_matter_power_spectrum Transfer.kmax small to get non-linear spectrum")
 
         nz = self.Params.Transfer.PK_num_redshifts
