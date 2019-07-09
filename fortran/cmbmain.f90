@@ -75,7 +75,6 @@
     type IntegrationVars
         integer q_ix
         real(dl) q, dq    !q value we are doing and delta q
-        !        real(dl), dimension(:,:), pointer :: Delta_l_q
         !Contribution to C_l integral from this k
         real(dl), dimension(:,:), pointer :: Source_q, ddSource_q
         !Interpolated sources for this k
@@ -306,7 +305,7 @@
     end subroutine ClTransferToCl
 
     subroutine CalcLimberScalCls(CTrans)
-    Type(ClTransferData) :: CTrans
+    Type(ClTransferData), target :: CTrans
     integer ell, i, s_ix
     real(dl) CL, reall,fac
     integer s_ix2,j,n

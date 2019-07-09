@@ -148,16 +148,18 @@ class FortranAllocatable(Structure):
     pass
 
 
+_reuse_pointer = ctypes.c_void_p()
+_reuse_typed_id = f_pointer()
+
+
 # member corresponding to class(...), allocatable :: member in fortran
 class _AllocatableObject(FortranAllocatable):
     _fields_ = [("allocatable", f_pointer)]
 
     def get_allocatable(self):
-        typed_id = f_pointer()
-        pointer = ctypes.c_void_p()
-        _get_allocatable(byref(self), byref(typed_id), byref(pointer))
-        if pointer:
-            return ctypes.cast(pointer, POINTER(F2003Class._class_pointers[tuple(typed_id)])).contents
+        _get_allocatable(byref(self), byref(_reuse_typed_id), byref(_reuse_pointer))
+        if _reuse_pointer:
+            return ctypes.cast(_reuse_pointer, POINTER(F2003Class._class_pointers[tuple(_reuse_typed_id)])).contents
         else:
             return None
 
@@ -188,10 +190,9 @@ class _AllocatableArray(FortranAllocatable):  # member corresponding to allocata
     _fields_ = [("allocatable", ctypes.c_void_p * (_f_allocatable_array_size // ctypes.sizeof(ctypes.c_void_p)))]
 
     def get_allocatable(self):
-        pointer = ctypes.c_void_p()
-        size = self._get_allocatable_1D_array(byref(self), byref(pointer))
+        size = self._get_allocatable_1D_array(byref(self), byref(_reuse_pointer))
         if size:
-            return ctypes.cast(pointer, POINTER(self._ctype * size)).contents
+            return ctypes.cast(_reuse_pointer, POINTER(self._ctype * size)).contents
         else:
             return np.asarray([])
 
@@ -242,10 +243,9 @@ class _AllocatableObjectArray(FortranAllocatable):
     _fields_ = [("allocatable", ctypes.c_void_p * (_f_allocatable_object_array_size // ctypes.sizeof(ctypes.c_void_p)))]
 
     def get_allocatable(self):
-        pointer = ctypes.c_void_p()
-        size = self._get_allocatable_object_1D_array(byref(self), byref(pointer))
+        size = self._get_allocatable_object_1D_array(byref(self), byref(_reuse_pointer))
         if size:
-            return ctypes.cast(pointer, POINTER(_make_array_class(self._baseclass, size))).contents
+            return ctypes.cast(_reuse_pointer, POINTER(_make_array_class(self._baseclass, size))).contents
         else:
             return []
 
@@ -716,9 +716,8 @@ def fortran_class(cls, optional=False):
                 "Class %s cannot find fortran %s_SelfPointer method in module %s." % (
                     cls.__name__, cls._fortran_class_name_, class_module))
 
-    typed_id = f_pointer()
-    _get_id(byref(cls._fortran_selfpointer_function), byref(typed_id))
-    F2003Class._class_pointers[tuple(typed_id)] = cls
+    _get_id(byref(cls._fortran_selfpointer_function), byref(_reuse_typed_id))
+    F2003Class._class_pointers[tuple(_reuse_typed_id)] = cls
     F2003Class._class_names[cls.__name__] = cls
     return cls
 

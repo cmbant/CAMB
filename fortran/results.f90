@@ -101,8 +101,8 @@
 
     Type LimberRec
         integer n1,n2 !corresponding time step array indices
-        real(dl), dimension(:), pointer :: k  => NULL()
-        real(dl), dimension(:), pointer :: Source  => NULL()
+        real(dl), dimension(:), allocatable :: k
+        real(dl), dimension(:), allocatable :: Source
     end Type LimberRec
 
     Type ClTransferData
@@ -114,13 +114,13 @@
         !- tensors: T and E and phi (for lensing), and T, E, B respectively
 
         type (TRanges) :: q
-        real(dl), dimension(:,:,:), pointer :: Delta_p_l_k => NULL()
+        real(dl), dimension(:,:,:), allocatable :: Delta_p_l_k
 
         !The L index of the lowest L to use for Limber
-        integer, dimension(:), pointer :: Limber_l_min => NULL()
+        integer, dimension(:), allocatable :: Limber_l_min
         !For each l, the set of k in each limber window
         !indices LimberWindow(SourceNum,l)
-        Type(LimberRec), dimension(:,:), pointer :: Limber_windows => NULL()
+        Type(LimberRec), dimension(:,:), allocatable :: Limber_windows
 
         !The maximum L needed for non-Limber
         integer max_index_nonlimber
@@ -2628,10 +2628,8 @@
 
     subroutine Free_ClTransfer(CTrans)
     Type(ClTransferData) :: CTrans
-    integer st
 
-    deallocate(CTrans%Delta_p_l_k, STAT = st)
-    nullify(CTrans%Delta_p_l_k)
+    if (allocated(CTrans%Delta_p_l_k)) deallocate(CTrans%Delta_p_l_k)
     call CTrans%q%Free()
     call Free_Limber(CTrans)
 
@@ -2639,22 +2637,9 @@
 
     subroutine Free_Limber(CTrans)
     Type(ClTransferData) :: CTrans
-    integer st,i,j
 
-    if (associated(CTrans%Limber_l_min)) then
-        do i=1, CTrans%NumSources
-            if (CTrans%Limber_l_min(i)/=0) then
-                do j=CTrans%Limber_l_min(i), CTrans%ls%nl
-                    deallocate(CTrans%Limber_windows(i, j)%k, STAT = st)
-                    deallocate(CTrans%Limber_windows(i, j)%Source, STAT = st)
-                end do
-            end if
-        end do
-        deallocate(CTrans%Limber_l_min, STAT = st)
-    end if
-    deallocate(CTrans%Limber_windows, STAT = st)
-    nullify(CTrans%Limber_l_min)
-    nullify(CTrans%Limber_windows)
+    if (allocated(CTrans%Limber_l_min)) deallocate(CTrans%Limber_l_min)
+    if (allocated(CTrans%Limber_windows)) deallocate(CTrans%Limber_windows)
 
     end subroutine Free_Limber
 
