@@ -94,9 +94,9 @@
     TYPE HM_cosmology
         !Contains only things that do not need to be recalculated with each new z
         REAL(dl) :: om_m, om_v, w, wa, f_nu, ns, h, Tcmb, Nnu
-        REAL, ALLOCATABLE :: r_sigma(:), sigma(:)
+        REAL, ALLOCATABLE :: log_r_sigma(:), log_sigma(:)
         REAL, ALLOCATABLE :: growth(:), a_growth(:)
-        REAL, ALLOCATABLE :: k_plin(:), plin(:), plinc(:)
+        REAL, ALLOCATABLE :: log_k_plin(:), log_plin(:), log_plinc(:)
         INTEGER :: nk, ng, nsig
         !AM - Added feedback parameters below at fixed fiducial (DMONLY) values
         REAL :: A_baryon=3.13
@@ -729,45 +729,47 @@
     TYPE(HM_cosmology) :: cosm
     INTEGER :: i
     REAL :: z, g
-    INTEGER, PARAMETER :: imeth=2
+    REAL, ALLOCATABLE :: k(:), Pk(:), Pkc(:)
+    INTEGER, PARAMETER :: imeth=2 ! Mead: Update
     REAL, PARAMETER :: pi=3.141592654
     REAL, PARAMETER :: kmin=1e-3
     REAL, PARAMETER :: kmax=1e2
-    INTEGER, PARAMETER :: nk=128
+    INTEGER :: nk=512 ! Mead: Update
 
     IF(HM_verbose) WRITE(*,*) 'LINEAR POWER: Filling linear power HM_tables'
 
     !Fill arrays
-    IF(ALLOCATED(cosm%k_plin)) DEALLOCATE(cosm%k_plin)
-    IF(ALLOCATED(cosm%plin))   DEALLOCATE(cosm%plin)
-    IF(ALLOCATED(cosm%plinc))  DEALLOCATE(cosm%plinc)
+    IF(ALLOCATED(cosm%log_k_plin)) DEALLOCATE(cosm%log_k_plin)
+    IF(ALLOCATED(cosm%log_plin))   DEALLOCATE(cosm%log_plin)
+    IF(ALLOCATED(cosm%log_plinc))  DEALLOCATE(cosm%log_plinc)
 
     IF(imeth==1) THEN
 
         !Fill k-table with the same k points as in the CAMB calculation
         !If a user has specified lots of points this could make the halo-model
         !calculation chug
-        cosm%nk=CAMB_PK%num_k
-        ALLOCATE(cosm%k_plin(nk))
-        DO i=1,cosm%nk
-            cosm%k_plin(i)=exp(CAMB_Pk%log_kh(i))
-        END DO
+        nk=CAMB_PK%num_k
+        cosm%nk=nk
+        ALLOCATE(cosm%log_k_plin(nk))
+        cosm%log_k_plin=CAMB_Pk%log_kh
 
     ELSE IF(imeth==2) THEN
 
         !Fill a k-table with an equal-log-spaced k range
         !Note that the minimum should be such that the linear spectrum is accurately a power-law below this wavenumber
         cosm%nk=nk
-        CALL fill_table(log(kmin),log(kmax),cosm%k_plin,cosm%nk)
-        cosm%k_plin=exp(cosm%k_plin)
+        CALL fill_table(log(kmin),log(kmax),cosm%log_k_plin,nk)
 
-    END IF
+     END IF
 
-    IF(HM_verbose) WRITE(*,*) 'LINEAR POWER: k_min:', cosm%k_plin(1)
-    IF(HM_verbose) WRITE(*,*) 'LINEAR POWER: k_max:', cosm%k_plin(nk)
+    ALLOCATE(k(nk))
+    k=exp(cosm%log_k_plin)
+
+    IF(HM_verbose) WRITE(*,*) 'LINEAR POWER: k_min:', k(1)
+    IF(HM_verbose) WRITE(*,*) 'LINEAR POWER: k_max:', k(nk)
     IF(HM_verbose) WRITE(*,*) 'LINEAR POWER: nk:', nk
 
-    ALLOCATE(cosm%plin(nk),cosm%plinc(nk))
+    ALLOCATE(Pk(nk),Pkc(nk))
 
     !Find the redshift
     z=CAMB_Pk%Redshifts(iz)
@@ -776,16 +778,23 @@
     !Fill power table, both cold- and all-matter
     DO i=1,nk
         !Take the power from the current redshift choice
-        cosm%plin(i)=MatterPowerData_k(CAMB_PK,DBLE(cosm%k_plin(i)),iz)*(cosm%k_plin(i)**3/(2.*pi**2))
-        cosm%plinc(i)=cosm%plin(i)*(Tcb_Tcbnu_ratio(cosm%k_plin(i),z,cosm))**2
+        Pk(i)=MatterPowerData_k(CAMB_PK,DBLE(k(i)),iz)*(k(i)**3/(2.*pi**2))
+        Pkc(i)=Pk(i)*Tcb_Tcbnu_ratio(k(i),z,cosm)**2
     END DO
+
+    IF(HM_verbose) WRITE(*,*) 'LINEAR POWER: Delta2_min:', Pk(1)
+    IF(HM_verbose) WRITE(*,*) 'LINEAR POWER: Delta2_max:', Pk(nk)
 
     !Calculate the growth factor at the redshift of interest
     g=grow(z,cosm)
 
+    ALLOCATE(cosm%log_plin(nk),cosm%log_plinc(nk))
+
     !Grow the power to z=0
-    cosm%plin=cosm%plin/(g**2.)
-    cosm%plinc=cosm%plinc/(g**2.)
+    cosm%log_plin=log(Pk/(g**2.))
+    cosm%log_plinc=log(Pkc/(g**2.))
+
+    DEALLOCATE(k,Pk,Pkc)
 
     !Check sigma_8 value
     IF(HM_verbose) WRITE(*,*) 'LINEAR POWER: sigma_8:', sigma(8.,0.,0,cosm)
@@ -1332,8 +1341,8 @@
 
     !Set number of k points as well as min and max k values
     !Note that the min k value should be set to the same as the CAMB min k value
-    n=SIZE(cosm%k_plin)
-    kmax=cosm%k_plin(n)
+    n=SIZE(cosm%log_k_plin)
+    kmax=exp(cosm%log_k_plin(n))
 
     !Spectral index used in the high-k extrapolation
     ns=cosm%ns
@@ -1341,16 +1350,16 @@
     IF(k>kmax) THEN
         !Do some interpolation here based on knowledge of things at high k
         IF(itype==0) THEN
-            find_pk=cosm%plin(n)*((log(k)/log(kmax))**2.)*((k/kmax)**(ns-1.))
+            find_pk=exp(cosm%log_plin(n))*((log(k)/log(kmax))**2.)*((k/kmax)**(ns-1.))
         ELSE IF(itype==1) THEN
-            find_pk=cosm%plinc(n)*((log(k)/log(kmax))**2.)*((k/kmax)**(ns-1.))
+            find_pk=exp(cosm%log_plinc(n))*((log(k)/log(kmax))**2.)*((k/kmax)**(ns-1.))
         END IF
     ELSE
         !Otherwise use the standard find algorithm
         IF(itype==0) THEN
-            find_pk=exp(find(log(k),log(cosm%k_plin),log(cosm%plin),cosm%nk,3,3,2))
+            find_pk=exp(find(log(k),cosm%log_k_plin,cosm%log_plin,cosm%nk,3,3,2))
         ELSE IF(itype==1) THEN
-            find_pk=exp(find(log(k),log(cosm%k_plin),log(cosm%plinc),cosm%nk,3,3,2))
+            find_pk=exp(find(log(k),cosm%log_k_plin,cosm%log_plinc,cosm%nk,3,3,2))
         END IF
     END IF
 
@@ -1453,9 +1462,9 @@
     SUBROUTINE fill_sigtab(cosm)
 
     !Fills look-up HM_tables for sigma(R)
-    REAL :: r, sig
     INTEGER :: i
     TYPE(HM_cosmology) :: cosm
+    REAL, ALLOCATABLE :: r(:), sig(:)
     REAL, PARAMETER :: rmin=1e-4
     REAL, PARAMETER :: rmax=1e3
     INTEGER, PARAMETER :: nsig=64
@@ -1468,35 +1477,42 @@
     !This wouldn't be appropriate for models with a small-scale linear spectrum cut-off (e.g., WDM)
 
     !Allocate arrays
-    IF(ALLOCATED(cosm%r_sigma)) DEALLOCATE(cosm%r_sigma)
-    IF(ALLOCATED(cosm%sigma))   DEALLOCATE(cosm%sigma)
+    IF(ALLOCATED(cosm%log_r_sigma)) DEALLOCATE(cosm%log_r_sigma)
+    IF(ALLOCATED(cosm%log_sigma))   DEALLOCATE(cosm%log_sigma)
 
     !These values of 'r' work fine for any power spectrum of cosmological importance
     !Having nsig as a 2** number is most efficient for the look-up routines
-    cosm%nsig=nsig
-    ALLOCATE(cosm%r_sigma(nsig),cosm%sigma(nsig))
+    !cosm%nsig=nsig
+    !ALLOCATE(cosm%log_r_sigma(nsig),cosm%log_sigma(nsig))
+    ALLOCATE(r(nsig),sig(nsig))
 
     IF(HM_verbose) WRITE(*,*) 'SIGTAB: Filling sigma interpolation table'
     IF(HM_verbose) WRITE(*,*) 'SIGTAB: R_min:', rmin
     IF(HM_verbose) WRITE(*,*) 'SIGTAB: R_max:', rmax
     IF(HM_verbose) WRITE(*,*) 'SIGTAB: Values:', nsig
 
-    !$OMP PARALLEL DO default(shared), private(sig, r)
+    !!$OMP PARALLEL DO default(shared), private(sig, r)
+    !$OMP PARALLEL DO default(shared)
     DO i=1,nsig
 
         !Equally spaced r in log
-        r=exp(log(rmin)+log(rmax/rmin)*float(i-1)/float(nsig-1))
+        r(i)=exp(log(rmin)+log(rmax/rmin)*float(i-1)/float(nsig-1))
 
-        sig=sigma(r,0.,1,cosm)
-
-        cosm%r_sigma(i)=r
-        cosm%sigma(i)=sig
+        sig(i)=sigma(r(i),0.,1,cosm)
 
     END DO
     !$OMP END PARALLEL DO
 
-    IF(HM_verbose) WRITE(*,*) 'SIGTAB: sigma_min:', cosm%sigma(nsig)
-    IF(HM_verbose) WRITE(*,*) 'SIGTAB: sigma_max:', cosm%sigma(1)
+    IF(HM_verbose) WRITE(*,*) 'SIGTAB: sigma_min:', sig(nsig)
+    IF(HM_verbose) WRITE(*,*) 'SIGTAB: sigma_max:', sig(1)
+
+    cosm%nsig=nsig
+    ALLOCATE(cosm%log_r_sigma(nsig),cosm%log_sigma(nsig))
+    cosm%log_r_sigma=log(r)
+    cosm%log_sigma=log(sig)
+
+    DEALLOCATE(r,sig)
+
     IF(HM_verbose) WRITE(*,*) 'SIGTAB: Done'
     IF(HM_verbose) WRITE(*,*)
 
@@ -1512,7 +1528,7 @@
     !Assumes scale-independet growth for the cold matter
     !Uses the approximation sigma(R,z)=g(z)*sigma(R,z=0)
 
-    sigmac=grow(z,cosm)*exp(find(log(r),log(cosm%r_sigma),log(cosm%sigma),cosm%nsig,3,3,2))
+    sigmac=grow(z,cosm)*exp(find(log(r),cosm%log_r_sigma,cosm%log_sigma,cosm%nsig,3,3,2))
 
     END FUNCTION sigmac
 
@@ -1658,7 +1674,7 @@
     REAL, INTENT(IN) :: r, z
     INTEGER, INTENT(IN) :: itype
     TYPE(HM_cosmology), INTENT(IN) :: cosm
-    REAL, PARAMETER :: acc=1d-3
+    REAL, PARAMETER :: acc=1d-4 ! Mead: Update
     INTEGER, PARAMETER :: iorder=3
     REAL, PARAMETER :: rsplit=1d-2
 
