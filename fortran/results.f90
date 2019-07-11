@@ -1159,7 +1159,7 @@
     count = 0
     do while (diff > tol)
         if (count>100) then
-            call GlobalError('optical depth redshift finder did not converge',error_reionization)
+            call GlobalError('binary_search (e.g for optical depth) did not converge',error_reionization)
             binary_search = 0
             return
         end if
@@ -1897,7 +1897,7 @@
             this%emmu(j1)=1.d-30
         else
             this%emmu(j1)=exp(sdotmu(j1))
-            if (.not. CP%Accuracy%AccurateReionization .and. &
+            if (CP%Reion%Reionization .and. .not. CP%Accuracy%AccurateReionization .and. &
                 this%actual_opt_depth==0 .and. this%xe(j1) < 1e-3) then
                 this%actual_opt_depth = -sdotmu(j1)
             end if
@@ -1905,7 +1905,8 @@
     end do
     zstar_min = 700._dl
     zstar_max = 2000._dl
-    if (CP%ACcuracy%AccurateReionization .and. (CP%WantDerivedParameters .or. CP%Want_Zstar)) then
+    if (CP%Reion%Reionization .and. CP%Accuracy%AccurateReionization &
+        .and. (CP%WantDerivedParameters .or. CP%Want_Zstar)) then
         do j1=nint(log(100/this%tauminn)/this%dlntau),nthermo
             if (-sdotmu(j1) - this%actual_opt_depth < 1) then
                 !Bracket z_star
@@ -1928,7 +1929,8 @@
         end do
     end if
 
-    if (CP%Accuracy%AccurateReionization .and. FeedbackLevel > 0 .and. CP%WantDerivedParameters) then
+    if (CP%Reion%Reionization .and. CP%Accuracy%AccurateReionization &
+        .and. FeedbackLevel > 0 .and. CP%WantDerivedParameters) then
         write(*,'("Reion opt depth      = ",f7.4)') this%actual_opt_depth
     end if
 
