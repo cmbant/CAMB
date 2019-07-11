@@ -111,6 +111,9 @@
     END TYPE HM_tables
     !!AM - End of my additions
 
+    ! HMcode parameters
+    REAL, PARAMETER :: rsplit_sigma=1d-2
+
     contains
 
     function THalofit_PythonClass()
@@ -672,6 +675,8 @@
 
     a=this%alpha(z,lut,cosm)
     pfull=(p2h**a+p1h**a)**(1./a)
+    !pfull=sigma(k,z,0,cosm) ! MEAD: Remove
+    !pfull=sigmac(k,z,cosm)  ! MEAD: Remove
 
     END SUBROUTINE halomod
 
@@ -730,11 +735,11 @@
     INTEGER :: i
     REAL :: z, g
     REAL, ALLOCATABLE :: k(:), Pk(:), Pkc(:)
-    INTEGER, PARAMETER :: imeth=2 ! Mead: Update
+    INTEGER, PARAMETER :: imeth=2 ! MEAD: Should I update July 2019
     REAL, PARAMETER :: pi=3.141592654
     REAL, PARAMETER :: kmin=1e-3
     REAL, PARAMETER :: kmax=1e2
-    INTEGER :: nk=512 ! Mead: Update
+    INTEGER :: nk=512 ! MEAD: Update July 2019
 
     IF(HM_verbose) WRITE(*,*) 'LINEAR POWER: Filling linear power HM_tables'
 
@@ -1289,7 +1294,7 @@
     !Do numerical inversion
     DO i=1,lut%n
 
-        RHS=dc*grow(z,cosm)/lut%sigf(i)
+        RHS=dc*growz/lut%sigf(i)
 
         IF(RHS>growz) THEN
             !This is the case of 'halo forms in the future'
@@ -1491,7 +1496,6 @@
     IF(HM_verbose) WRITE(*,*) 'SIGTAB: R_max:', rmax
     IF(HM_verbose) WRITE(*,*) 'SIGTAB: Values:', nsig
 
-    !!$OMP PARALLEL DO default(shared), private(sig, r)
     !$OMP PARALLEL DO default(shared)
     DO i=1,nsig
 
@@ -1674,9 +1678,9 @@
     REAL, INTENT(IN) :: r, z
     INTEGER, INTENT(IN) :: itype
     TYPE(HM_cosmology), INTENT(IN) :: cosm
-    REAL, PARAMETER :: acc=1d-4 ! Mead: Update
+    REAL, PARAMETER :: acc=1d-4 ! MEAD: Update July 2019
     INTEGER, PARAMETER :: iorder=3
-    REAL, PARAMETER :: rsplit=1d-2
+    REAL, PARAMETER :: rsplit=rsplit_sigma
 
     IF(r>=rsplit) THEN
         sigma=sqrt(sigint0(r,z,itype,cosm,acc,iorder))
@@ -1844,7 +1848,7 @@
     REAL :: f0_rapid
     REAL, INTENT(IN) :: r
     REAL :: alpha
-    REAL, PARAMETER :: rsplit=1d-2
+    REAL, PARAMETER :: rsplit=rsplit_sigma
 
     IF(r>rsplit) THEN
         !alpha 0.3-0.5 works well
