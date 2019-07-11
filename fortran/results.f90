@@ -101,8 +101,8 @@
 
     Type LimberRec
         integer n1,n2 !corresponding time step array indices
-        real(dl), dimension(:), pointer :: k  => NULL()
-        real(dl), dimension(:), pointer :: Source  => NULL()
+        real(dl), dimension(:), allocatable :: k
+        real(dl), dimension(:), allocatable :: Source
     end Type LimberRec
 
     Type ClTransferData
@@ -114,13 +114,13 @@
         !- tensors: T and E and phi (for lensing), and T, E, B respectively
 
         type (TRanges) :: q
-        real(dl), dimension(:,:,:), pointer :: Delta_p_l_k => NULL()
+        real(dl), dimension(:,:,:), allocatable :: Delta_p_l_k
 
         !The L index of the lowest L to use for Limber
-        integer, dimension(:), pointer :: Limber_l_min => NULL()
+        integer, dimension(:), allocatable :: Limber_l_min
         !For each l, the set of k in each limber window
         !indices LimberWindow(SourceNum,l)
-        Type(LimberRec), dimension(:,:), pointer :: Limber_windows => NULL()
+        Type(LimberRec), dimension(:,:), allocatable :: Limber_windows
 
         !The maximum L needed for non-Limber
         integer max_index_nonlimber
@@ -1159,7 +1159,7 @@
     count = 0
     do while (diff > tol)
         if (count>100) then
-            call GlobalError('optical depth redshift finder did not converge',error_reionization)
+            call GlobalError('binary_search (e.g for optical depth) did not converge',error_reionization)
             binary_search = 0
             return
         end if
@@ -1897,7 +1897,7 @@
             this%emmu(j1)=1.d-30
         else
             this%emmu(j1)=exp(sdotmu(j1))
-            if (.not. CP%Accuracy%AccurateReionization .and. &
+            if (CP%Reion%Reionization .and. .not. CP%Accuracy%AccurateReionization .and. &
                 this%actual_opt_depth==0 .and. this%xe(j1) < 1e-3) then
                 this%actual_opt_depth = -sdotmu(j1)
             end if
@@ -1905,7 +1905,8 @@
     end do
     zstar_min = 700._dl
     zstar_max = 2000._dl
-    if (CP%ACcuracy%AccurateReionization .and. (CP%WantDerivedParameters .or. CP%Want_Zstar)) then
+    if ((.not. CP%Reion%Reionization .or. CP%Accuracy%AccurateReionization) &
+        .and. (CP%WantDerivedParameters .or. CP%Want_Zstar)) then
         do j1=nint(log(100/this%tauminn)/this%dlntau),nthermo
             if (-sdotmu(j1) - this%actual_opt_depth < 1) then
                 !Bracket z_star
@@ -1928,7 +1929,8 @@
         end do
     end if
 
-    if (CP%Accuracy%AccurateReionization .and. FeedbackLevel > 0 .and. CP%WantDerivedParameters) then
+    if (CP%Reion%Reionization .and. CP%Accuracy%AccurateReionization &
+        .and. FeedbackLevel > 0 .and. CP%WantDerivedParameters) then
         write(*,'("Reion opt depth      = ",f7.4)') this%actual_opt_depth
     end if
 
@@ -2015,7 +2017,7 @@
     call splder(this%adot,this%dadot,nthermo,spline_data)
     if (dowinlens) call splder(this%winlens,this%dwinlens,nthermo,spline_data)
     if (CP%want_zdrag .or. CP%WantDerivedParameters) this%z_drag = &
-        State%binary_search(dragoptdepth, 1.d0, 700.d0, zstar_max, 2d-3/background_boost)
+        State%binary_search(dragoptdepth, 1.d0, 700.d0, max(zstar_max*1.1_dl,1200._dl), 2d-3/background_boost)
     !$OMP SECTION
     this%ScaleFactor(:) = this%scaleFactor/taus !a/tau
     this%dScaleFactor(:) = (this%adot - this%ScaleFactor)*this%dlntau !derivative of a/tau
@@ -2628,10 +2630,8 @@
 
     subroutine Free_ClTransfer(CTrans)
     Type(ClTransferData) :: CTrans
-    integer st
 
-    deallocate(CTrans%Delta_p_l_k, STAT = st)
-    nullify(CTrans%Delta_p_l_k)
+    if (allocated(CTrans%Delta_p_l_k)) deallocate(CTrans%Delta_p_l_k)
     call CTrans%q%Free()
     call Free_Limber(CTrans)
 
@@ -2639,22 +2639,9 @@
 
     subroutine Free_Limber(CTrans)
     Type(ClTransferData) :: CTrans
-    integer st,i,j
 
-    if (associated(CTrans%Limber_l_min)) then
-        do i=1, CTrans%NumSources
-            if (CTrans%Limber_l_min(i)/=0) then
-                do j=CTrans%Limber_l_min(i), CTrans%ls%nl
-                    deallocate(CTrans%Limber_windows(i, j)%k, STAT = st)
-                    deallocate(CTrans%Limber_windows(i, j)%Source, STAT = st)
-                end do
-            end if
-        end do
-        deallocate(CTrans%Limber_l_min, STAT = st)
-    end if
-    deallocate(CTrans%Limber_windows, STAT = st)
-    nullify(CTrans%Limber_l_min)
-    nullify(CTrans%Limber_windows)
+    if (allocated(CTrans%Limber_l_min)) deallocate(CTrans%Limber_l_min)
+    if (allocated(CTrans%Limber_windows)) deallocate(CTrans%Limber_windows)
 
     end subroutine Free_Limber
 

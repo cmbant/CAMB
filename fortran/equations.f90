@@ -2724,11 +2724,11 @@
                 delta_source2 = Get21cm_source2(a,clxb,clxg/4,Delta_Tm,Delta_xe,Tmat,&
                     State%CP%TCMB/a,xe,k*(z+vb)/adotoa/3)
                 tau_fac = tau_eps/(exp(tau_eps)-1)
-                EV%OutputTransfer(Transfer_monopole) = ( clxb + Trad/(Tspin-Trad)*delta_source2 ) /k2 &
-                    + (tau_fac-1)*(clxb - (delta_source2 + clxg/4)  ) / k2
+                EV%OutputTransfer(Transfer_monopole) = ( clxb + Trad/(Tspin-Trad)*delta_source2 )  &
+                    + (tau_fac-1)*(clxb - (delta_source2 + clxg/4)  )
 
-                EV%OutputTransfer(Transfer_vnewt) = tau_fac*k*(vb+sigma)/adotoa/k2
-                EV%OutputTransfer(Transfer_Tmat) =  delta_TM/k2
+                EV%OutputTransfer(Transfer_vnewt) = tau_fac*k*(vb+sigma)/adotoa
+                EV%OutputTransfer(Transfer_Tmat) =  delta_TM
                 if (State%CP%SourceTerms%use_21cm_mK) then
                     Tb = (1-exp(-tau_eps))*a*(Tspin-Trad)*1000
 

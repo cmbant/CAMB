@@ -312,7 +312,7 @@
     else
         cData%q_size = 0
     end if
-    if (associated(CTrans%Delta_p_l_k)) then
+    if (allocated(CTrans%Delta_p_l_k)) then
         cData%delta_size = shape(CTrans%Delta_p_l_k)
         cData%delta_p_l_k = c_loc(CTrans%Delta_p_l_k)
     else

@@ -71,11 +71,11 @@
 
 
     type, extends(TPythonInterfacedClass) :: TCAMBParameters
-        !Actual type defined in modules.f90
+        !Actual type defined in model.f90
     end type TCAMBParameters
 
     Type, extends(TPythonInterfacedClass) :: TCAMBdata
-        !Actual type defined in modules.f90
+        !Actual type defined in results.f90
     end type TCAMBdata
 
     type, extends(TCambComponent) :: TNonLinearModel

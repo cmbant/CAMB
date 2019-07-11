@@ -7,7 +7,7 @@ from ._config import config
 from .model import set_default_params, CAMBparams
 import logging
 import six
-from scipy.interpolate import RectBivariateSpline
+from scipy.interpolate import RectBivariateSpline, interp1d
 
 int_arg = POINTER(c_int)
 d_arg = POINTER(c_double)
@@ -37,6 +37,22 @@ class _ClTransferData(CAMB_Structure):
                 ]
 
 
+def save_cmb_power_array(filename, array, labels, lmin=0):
+    """
+    Save an zero-based 2-d array of CL to a text file, with each line startin with L.
+    :param filename: filename to save
+    :param array: 2D array of power spectra
+    :param labels:  header names for each column in the output
+    :param lmin: L to start output in file (usually 0 or 2)
+    """
+    lmax = array.shape[0] - 1
+    ls = np.atleast_2d(np.arange(lmin, lmax + 1)).T
+    ncol = array.shape[1]
+    if isinstance(labels, six.string_types): labels = labels.split()
+    np.savetxt(filename, np.hstack((ls, array[lmin:, :])), fmt=['%4u'] + ['%12.7e'] * ncol,
+               header=' L ' + ' '.join(['{:13s}'.format(lab) for lab in labels]))
+
+
 class MatterTransferData(object):
     r"""
     MatterTransferData is the base class for storing matter power transfer function data for various q values.
@@ -44,7 +60,7 @@ class MatterTransferData(object):
 
     To get an instance of this data, call :meth:`.results.CAMBdata.get_matter_transfer_data`.
 
-    For a description of the different Transfer_xxx outputs see :ref:`transfer-variables`.
+    For a description of the different Transfer_xxx outputs (and 21cm case) see :ref:`transfer-variables`.
 
     :ivar nq:  number of q modes calculated
     :ivar q: array of q values calculated
@@ -369,9 +385,7 @@ class CAMBdata(F2003Class):
         lmax = self._lmax_setting(lmax)
         cmb = self.get_total_cls(lmax, CMB_unit=CMB_unit)
         lens = self.get_lens_potential_cls(lmax, CMB_unit=CMB_unit)
-        ls = np.atleast_2d(np.arange(lmax + 1)).T
-        np.savetxt(filename, np.hstack((ls, cmb, lens)), fmt=['%4u'] + ['%12.7e'] * 7,
-                   header=' L ' + 'TT EE BB TE PP PT PE'.replace(' ', ' ' * 12))
+        save_cmb_power_array(filename, np.hstack((cmb, lens)), 'TT EE BB TE PP PT PE')
 
     def get_cmb_power_spectra(self, params=None, lmax=None,
                               spectra=['total', 'unlensed_scalar', 'unlensed_total', 'lensed_scalar', 'tensor',
@@ -755,7 +769,7 @@ class CAMBdata(F2003Class):
         assert self.Params.WantTransfer
         if self.Params.Transfer.kmax < maxkh * self.Params.h:
             logging.warning("get_matter_power_spectrum using larger k_max than input parameter Transfer.kmax")
-        if self.Params.NonLinear == model.NonLinear_none and self.Params.Transfer.kmax < 1:
+        if self.Params.NonLinear != model.NonLinear_none and self.Params.Transfer.kmax < 1:
             logging.warning("get_matter_power_spectrum Transfer.kmax small to get non-linear spectrum")
 
         nz = self.Params.Transfer.PK_num_redshifts
@@ -773,7 +787,10 @@ class CAMBdata(F2003Class):
                                       return_z_k=False, log_interp=True, extrap_kmax=None):
         r"""
         Assuming transfers have been calculated, return a 2D spline interpolation object to evaluate matter
-        power spectrum as function of z and k/h (or k), e.g.
+        power spectrum as function of z and k/h (or k). Uses self.Params.Transfer.PK_redshifts as the spline node
+        points in z. If fewer than four redshift points are used the interpolator uses a reduced order spline in z
+        (so results at intermediate z may be innaccurate), otherwise it uses bicubic.
+        Usage example:
 
         .. code-block:: python
 
@@ -805,6 +822,31 @@ class CAMBdata(F2003Class):
                 else:
                     return self(z, np.log(kh), grid=grid)
 
+        class PKInterpolatorSingleZ(interp1d):
+
+            def __init__(self, *args, **kwargs):
+                self._single_z = np.array(args[0])
+                super(PKInterpolator, self).__init__(*(args[1:]), kind=kwargs.get("ky"))
+
+            def check_z(self, z):
+                if not np.allclose(z, self._single_z):
+                    raise CAMBError(
+                        "P(z,k) requested at z=%r, but only computed for z=%g. "
+                        "Cannot extrapolate!" % (z, self._single_z))
+
+            def __call__(self, *args):
+                self.check_z(args[0])
+                # NB returns dimensionality as the 2D one: 1 dimension if z single
+                return (lambda x: x[0] if np.isscalar(args[0]) else x)(
+                    super(PKInterpolatorSingleZ, self).__call__(*(args[1:])))
+
+            def P(self, z, kh, grid=None):
+                # grid kwarg is ignored
+                if self.islog:
+                    return np.exp(self(z, np.log(kh)))
+                else:
+                    return self(z, np.log(kh))
+
         assert self.Params.WantTransfer
         kh, z, pk = self.get_linear_matter_power_spectrum(var1, var2, hubble_units, nonlinear=nonlinear)
         if not k_hunit:
@@ -812,6 +854,8 @@ class CAMBdata(F2003Class):
         if log_interp and np.any(pk <= 0):
             log_interp = False
         logkh = np.log(kh)
+        deg_z = min(len(z) - 1, 3)
+        PKInterpolator = PKInterpolator if deg_z else PKInterpolatorSingleZ
         if extrap_kmax and extrap_kmax > kh[-1]:
             logextrap = np.log(extrap_kmax)
             logpknew = np.empty((pk.shape[0], pk.shape[1] + 1))
@@ -819,16 +863,18 @@ class CAMBdata(F2003Class):
             logpknew[:, -1] = logpknew[:, -2] + (logpknew[:, -2] - logpknew[:, -3]) / (logkh[-2] - logkh[-3]) * (
                     logextrap - logkh[-1])
             logkhnew = np.hstack((logkh, logextrap))
+            deg_k = min(len(logkhnew) - 1, 3)
             if log_interp:
-                res = PKInterpolator(z, logkhnew, logpknew)
+                res = PKInterpolator(z, logkhnew, logpknew, kx=deg_z, ky=deg_k)
             else:
-                res = PKInterpolator(z, logkhnew, np.exp(logpknew))
+                res = PKInterpolator(z, logkhnew, np.exp(logpknew), kx=deg_z, ky=deg_k)
             res.kmax = extrap_kmax
         else:
+            deg_k = min(len(logkh) - 1, 3)
             if log_interp:
-                res = PKInterpolator(z, logkh, np.log(pk))
+                res = PKInterpolator(z, logkh, np.log(pk), kx=deg_z, ky=deg_k)
             else:
-                res = PKInterpolator(z, logkh, pk)
+                res = PKInterpolator(z, logkh, pk, kx=deg_z, ky=deg_k)
             res.kmax = np.max(kh)
 
         res.kmin = np.min(kh)
@@ -1061,18 +1107,19 @@ class CAMBdata(F2003Class):
     def get_lensed_gradient_cls(self, lmax=None, CMB_unit=None, raw_cl=False):
         r"""
         Get lensed gradient scalar CMB power spectra in flat sky approximation (`arXiv:1101.2234 <https://arxiv.org/abs/1101.2234>`_).
-        Set params.Accuracy.AccurateBB = True for good small-scale results (even for T\grad T).
-        Must have already calculated lensed power spectra.
+        Note that lmax used to calculate results may need to be substantially larger than the lmax output from this function
+        (there is no extrapolation as in the main lensing routines). Lensed power spectra must be already calculated.
 
         :param lmax: lmax to output to
         :param CMB_unit: scale results from dimensionless. Use 'muK' for :math:`\mu K^2` units for CMB :math:`C_\ell`
         :param raw_cl: return :math:`C_\ell` rather than :math:`\ell(\ell+1)C_\ell/2\pi`
-        :return: numpy array CL[0:lmax+1,0:6], where CL[:,i] are :math:`T\nabla T`, :math:`E\nabla E`, :math:`B\nabla B`, :math:`PP_\perp`,
-                 :math:`T\nabla E`, :math:`TP_\perp` as defined in appendix C of `arXiv:1101.2234 <https://arxiv.org/abs/1101.2234>`_.
+        :return: numpy array CL[0:lmax+1,0:8], where CL[:,i] are :math:`T\nabla T`, :math:`E\nabla E`, :math:`B\nabla B`, :math:`PP_\perp`,
+                 :math:`T\nabla E`, :math:`TP_\perp`, :math:`(\nabla T)^2`, :math:`\nabla T\nabla T` where the first six are as defined in
+                 appendix C of `1101.2234 <https://arxiv.org/abs/1101.2234>`_.
         """
         assert self.Params.DoLensing
         lmax = self._lmax_setting(lmax)
-        res = np.empty((lmax + 1, 6))
+        res = np.empty((lmax + 1, 8))
         opt = c_int(lmax)
         GetFlatSkyCgrads = lib_import('lensing', '', 'getflatskycgrads')
         GetFlatSkyCgrads.argtypes = [POINTER(CAMBdata), int_arg, numpy_1d]

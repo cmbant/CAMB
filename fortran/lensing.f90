@@ -681,12 +681,13 @@
     !See Appendix C of https://arxiv.org/abs/1101.2234
     type(CAMBdata) :: State
     integer, intent(in) :: lmax
-    real(dl) :: CGrads(6,0:lmax)
+    integer, parameter :: ncorr = 8
+    real(dl) :: CGrads(ncorr,0:lmax)
     integer l, i
     integer :: npoints
     real(dl) Cgl2,  sigmasq, theta
     real(dl) dtheta
-    real(dl) dbessfac, fac, fac1,fac2,  C2term, expsig, corr(6)
+    real(dl) dbessfac, fac, fac1,fac2,  C2term, expsig, corr(ncorr)
     real(dl) Bessel(State%CP%Min_l:State%CP%Max_l,0:maxbessel)
     real(dl) Cphil3(State%CP%Min_l:State%CP%Max_l), CTT(State%CP%Min_l:State%CP%Max_l), &
         CTE(State%CP%Min_l:State%CP%Max_l),CEE(State%CP%Min_l:State%CP%Max_l)
@@ -694,7 +695,7 @@
     real(dl) T2,T4,a0, b0
     real(dl) lfacs(State%CP%Max_l), LensAccuracyBoost
     real(dl), allocatable, dimension(:,:,:) :: lens_contrib(:,:,:)
-    integer, parameter :: bess_need(7) = (/ 0,1,2,3,5,7,9 /)
+    integer, parameter :: bess_need(8) = (/ 0,1,2,3,4, 5,7,9 /)
     integer thread_ix
     Type(TTimer) :: Timer
 
@@ -707,15 +708,9 @@
 
         LensAccuracyBoost = CP%Accuracy%AccuracyBoost*CP%Accuracy%LensingBoost
 
-        npoints = CP%Max_l  * 2
-        if (CP%Accuracy%AccurateBB) npoints = npoints * 2
+        npoints = CP%Max_l  * 2 *2
 
         dtheta = const_pi / npoints
-        if (.not. CP%Accuracy%AccurateBB) then
-            npoints = int(npoints /32 *min(32._dl,LensAccuracyBoost))
-            !OK for TT, EE, TE but inaccurate for low l BB
-            !this induces high frequency ringing on very small scales
-        end if
 
         call GetBessels(npoints*dtheta*CP%Max_l)
 
@@ -725,7 +720,7 @@
 
         thread_ix = 1
         !$  thread_ix = OMP_GET_MAX_THREADS()
-        allocate(lens_contrib(6,CL%lmax_lensed,thread_ix), source=0._dl)
+        allocate(lens_contrib(ncorr,CL%lmax_lensed,thread_ix), source=0._dl)
 
         do l=lmin,CP%Max_l
             ! l^3 C_phi_phi/2/pi: Cl_scalar(l,1,C_Phi) is l^4 C_phi_phi
@@ -793,6 +788,11 @@
                 !Tgrad T
                 corr(1) = corr(1) + CTT(l) * fac
 
+                !\gradT\cdot\grad T
+                corr(7) = corr(7) + CTT(l) * l**2 * (fac1*Bessel(l,0) + fac2*Bessel(l,2))
+                !\gradT_{<a}\grad T_{b>}
+                corr(8) = corr(8) + CTT(l) * l**2 * (fac1*Bessel(l,2) + fac2/2*(Bessel(l,0)+Bessel(l,4)))
+
                 !Q + U
                 corr(2) = corr(2) + CEE(l) * fac
                 fac2 = fac2*0.5_dl
@@ -809,6 +809,7 @@
                 corr(6) = corr(6) - CTE(l) *  (l*theta) * (fac1*(Bessel(l,1)) + &
                     fac2*(Bessel(l,3)-Bessel(l,1)))
 
+
             end do
 
             !$ thread_ix = OMP_GET_THREAD_NUM()+1
@@ -818,6 +819,12 @@
 
                 lens_contrib(1, l, thread_ix)= lens_contrib(1,l, thread_ix) - &
                     corr(1)*Bessel(l,1)/(l*theta)
+
+                lens_contrib(7, l, thread_ix)= lens_contrib(7,l, thread_ix) + &
+                    corr(7)*Bessel(l,0)/(l**2)
+
+                lens_contrib(8, l, thread_ix)= lens_contrib(8,l, thread_ix) + &
+                    corr(8)*Bessel(l,2)/(l**2)
 
                 T2 = -corr(2)*Bessel(l,1)/(l*theta)
                 T4 = (corr(4)*(Bessel(l,3)) - corr(3)*(Bessel(l,5)) )/(l*theta)/2
@@ -847,6 +854,8 @@
             CGrads(4,l) = sum(lens_contrib(4,l,:))*fac !Perp
             CGrads(5,l) = sum(lens_contrib(5,l,:))*fac + CL%Cl_scalar(l,C_Cross)
             CGrads(6,l) = sum(lens_contrib(6,l,:))*fac
+            CGrads(7,l) = sum(lens_contrib(7,l,:))*fac + CL%Cl_scalar(l,CT_Temp)
+            CGrads(8,l) = sum(lens_contrib(8,l,:))*fac + CL%Cl_scalar(l,CT_Temp)
         end do
 
         deallocate(lens_contrib)
