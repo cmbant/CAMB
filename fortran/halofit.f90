@@ -58,6 +58,8 @@
 
     type, extends(TNonLinearModel) :: THalofit
         integer :: halofit_version = halofit_default
+        !!TT - These are the baryon parameters of HMCode
+        real(dl) :: HMCode_A_baryon, HMCode_eta_baryon
         !!AM - Added these types for HMcode
         integer, private :: imead !!AM - added these for HMcode, need to be visible to all subroutines and functions
         real(dl), private :: om_m,om_v,fnu,omm0, acur, w_hf, wa_hf
@@ -440,6 +442,10 @@
     !!AM - Translate from CAMB variables to my variables
     nz=CAMB_PK%num_z
     nk=CAMB_PK%num_k
+
+    !!TT - Assign baryon parameters
+    cosi%A_baryon = this%HMCode_A_baryon
+    cosi%eta_baryon = this%HMCode_eta_baryon
 
     !!AM - Assign cosmological parameters for the halo model calculation
     CALL assign_HM_cosmology(State,cosi)
