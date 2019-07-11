@@ -1905,7 +1905,7 @@
     end do
     zstar_min = 700._dl
     zstar_max = 2000._dl
-    if (CP%Reion%Reionization .and. CP%Accuracy%AccurateReionization &
+    if ((.not. CP%Reion%Reionization .or. CP%Accuracy%AccurateReionization) &
         .and. (CP%WantDerivedParameters .or. CP%Want_Zstar)) then
         do j1=nint(log(100/this%tauminn)/this%dlntau),nthermo
             if (-sdotmu(j1) - this%actual_opt_depth < 1) then
@@ -2017,7 +2017,7 @@
     call splder(this%adot,this%dadot,nthermo,spline_data)
     if (dowinlens) call splder(this%winlens,this%dwinlens,nthermo,spline_data)
     if (CP%want_zdrag .or. CP%WantDerivedParameters) this%z_drag = &
-        State%binary_search(dragoptdepth, 1.d0, 700.d0, zstar_max, 2d-3/background_boost)
+        State%binary_search(dragoptdepth, 1.d0, 700.d0, max(zstar_max*1.1_dl,1200._dl), 2d-3/background_boost)
     !$OMP SECTION
     this%ScaleFactor(:) = this%scaleFactor/taus !a/tau
     this%dScaleFactor(:) = (this%adot - this%ScaleFactor)*this%dlntau !derivative of a/tau
