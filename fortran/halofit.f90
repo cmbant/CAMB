@@ -38,7 +38,7 @@
     !AL Jul 17: fixed undefined z calling Tcb_Tcbnu_ratio
     !AM Jul 17: sped-up HMcode integration routines
     !AM May 18: Fixed bug in Dolag correction to c(M) power
-
+    !AM Jul 19: Upgraded accuracy and bug fix for massive-neutrino models
 
     !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -64,6 +64,7 @@
         !!AM - Added these types for HMcode
         integer, private :: imead !!AM - added these for HMcode, need to be visible to all subroutines and functions
         real(dl), private :: om_m,om_v,fnu,omm0, acur, w_hf, wa_hf
+        real(dl), private :: om_c, om_b
     contains
     procedure :: ReadParams => THalofit_ReadParams
     procedure :: GetNonLinRatios => THalofit_GetNonLinRatios
@@ -93,7 +94,7 @@
 
     TYPE HM_cosmology
         !Contains only things that do not need to be recalculated with each new z
-        REAL(dl) :: om_m, om_v, w, wa, f_nu, ns, h, Tcmb, Nnu
+        REAL(dl) :: om_m, om_c, om_b, om_v, w, wa, f_nu, ns, h, Tcmb, Nnu
         REAL, ALLOCATABLE :: log_r_sigma(:), log_sigma(:)
         REAL, ALLOCATABLE :: growth(:), a_growth(:)
         REAL, ALLOCATABLE :: log_k_plin(:), log_plin(:), log_plinc(:)
@@ -522,7 +523,7 @@
             delta_c=delta_c*(1.+0.262*cosm%f_nu) !Mead et al. (2016; arXiv 1602.02154) neutrino addition
             delta_c=delta_c*(1.+0.0123*log10(Omega_m_hm(z,cosm))) !Nakamura & Suto (1997) fitting formula for LCDM
         END IF
-    END IF    
+    END IF
 
     END FUNCTION delta_c
 
@@ -662,6 +663,7 @@
     REAL :: a
     TYPE(HM_cosmology), INTENT(IN) :: cosm
     TYPE(HM_tables), INTENT(IN) :: lut
+    !LOGICAL, PARAMETER :: sigma=.FALSE. ! MEAD: Remove
 
     !Calls expressions for one- and two-halo terms and then combines
     !to form the full power spectrum
@@ -675,8 +677,7 @@
 
     a=this%alpha(z,lut,cosm)
     pfull=(p2h**a+p1h**a)**(1./a)
-    !pfull=sigma(k,z,0,cosm) ! MEAD: Remove
-    !pfull=sigmac(k,z,cosm)  ! MEAD: Remove
+    !IF(sigma) pfull=sigmac(k,z,cosm)  ! MEAD: Remove
 
     END SUBROUTINE halomod
 
@@ -739,7 +740,7 @@
     REAL, PARAMETER :: pi=3.141592654
     REAL, PARAMETER :: kmin=1e-3
     REAL, PARAMETER :: kmax=1e2
-    INTEGER :: nk=512 ! MEAD: Update July 2019
+    INTEGER :: nk=512 ! AM Jul 19: Improved accuracy from 128 to 512 points
 
     IF(HM_verbose) WRITE(*,*) 'LINEAR POWER: Filling linear power HM_tables'
 
@@ -872,6 +873,8 @@
         !Converts CAMB parameters to Meadfit parameters
         h2 = (CP%H0/100)**2
         cosm%om_m=(CP%omch2+CP%ombh2+CP%omnuh2)/h2
+        cosm%om_c=CP%omch2/h2
+        cosm%om_b=CP%ombh2/h2
         cosm%om_v=State%omega_de
         call CP%DarkEnergy%Effective_w_wa(cosm%w, cosm%wa)
         cosm%f_nu=CP%omnuh2/h2/cosm%om_m
@@ -886,6 +889,8 @@
 
     !Write out cosmological parameters if necessary
     IF(HM_verbose) WRITE(*,*) 'HM_cosmology: Om_m:', cosm%om_m
+    IF(HM_verbose) WRITE(*,*) 'HM_cosmology: Om_c:', cosm%om_c
+    IF(HM_verbose) WRITE(*,*) 'HM_cosmology: Om_b:', cosm%om_b
     IF(HM_verbose) WRITE(*,*) 'HM_cosmology: Om_v:', cosm%om_v
     IF(HM_verbose) WRITE(*,*) 'HM_cosmology: w_0:', cosm%w
     IF(HM_verbose) WRITE(*,*) 'HM_cosmology: w_a:', cosm%wa
@@ -1266,7 +1271,8 @@
     END IF
 
     !Note the minus sign here
-    growint_integrand=-(Omega_m_hm(-1.+1./a,cosm)**gam)/a
+    !AM Jul 19: changed Omega_m to Omega_cold for massive neutrino cosmologies
+    growint_integrand=-(Omega_cold_hm(-1.+1./a,cosm)**gam)/a
 
     END FUNCTION growint_integrand
 
@@ -1367,9 +1373,6 @@
             find_pk=exp(find(log(k),cosm%log_k_plin,cosm%log_plinc,cosm%nk,3,3,2))
         END IF
     END IF
-
-    !Old method, works fine for m_nu<0.5 eV
-    !IF(itype==1) find_pk=find_pk/(1.-cosm%f_nu)**2.
 
     END FUNCTION find_pk
 
@@ -1487,8 +1490,6 @@
 
     !These values of 'r' work fine for any power spectrum of cosmological importance
     !Having nsig as a 2** number is most efficient for the look-up routines
-    !cosm%nsig=nsig
-    !ALLOCATE(cosm%log_r_sigma(nsig),cosm%log_sigma(nsig))
     ALLOCATE(r(nsig),sig(nsig))
 
     IF(HM_verbose) WRITE(*,*) 'SIGTAB: Filling sigma interpolation table'
@@ -1678,7 +1679,7 @@
     REAL, INTENT(IN) :: r, z
     INTEGER, INTENT(IN) :: itype
     TYPE(HM_cosmology), INTENT(IN) :: cosm
-    REAL, PARAMETER :: acc=1d-4 ! MEAD: Update July 2019
+    REAL, PARAMETER :: acc=1d-4 !AM Jul 19: Upgraded accuracy from 1d-3 to 1d-4
     INTEGER, PARAMETER :: iorder=3
     REAL, PARAMETER :: rsplit=rsplit_sigma
 
@@ -2206,6 +2207,17 @@
 
     END FUNCTION Omega_m_hm
 
+    FUNCTION Omega_cold_hm(z,cosm)
+
+    !This calculates omega_cold variations with z!
+    REAL :: Omega_cold_hm
+    REAL, INTENT(IN) :: z
+    TYPE(HM_cosmology), INTENT(IN) :: cosm
+  
+    Omega_cold_hm=((cosm%om_c+cosm%om_b)*(1.+z)**3.)/Hubble2(z,cosm)
+  
+    END FUNCTION Omega_cold_hm
+
     FUNCTION grow(z,cosm)
 
     !Finds the scale-independent growth fuction at redshift z
@@ -2338,11 +2350,7 @@
     IF(theta==0. .OR. theta==1.) THEN
         dispint_integrand=0.
     ELSE
-        !IF(r>Rsplit) THEN
-        !   k=(-1.d0+1.d0/theta)/r**alpha
-        !ELSE
         k=(-1.+1./theta)
-        !END IF
         dispint_integrand=(p_lin(k,z,0,cosm)/k**2)*(wk_tophat(k*r)**2)/(theta*(1.-theta))
     END IF
 
@@ -3028,12 +3036,14 @@
     !The calculation should start at a z when Om_m(z)=1., so that the assumption
     !of starting in the g\propto a growing mode is valid (this will not work for early DE)
     ainit=0.001
+
     !Final should be a=1. unless considering models in the future
     amax=1.
 
     !These set the initial conditions to be the Om_m=1. growing mode
-    dinit=ainit
-    vinit=1.
+    !AM Jul 19: changed initial conditions to be appropriate for massive neutrino cosmologies
+    dinit = ainit**(1.-3.*cosm%f_nu/5.)
+    vinit = (1.-3.*cosm%f_nu/5.)*ainit**(-3.*cosm%f_nu/5.)
 
     !Overall accuracy for the ODE solver
     acc=1d-3
@@ -3158,8 +3168,6 @@
 
             END IF
 
-            !t8(i+1)=t8(i)+dt
-
         END DO
 
         IF(j==1) ifail=1
@@ -3215,7 +3223,8 @@
 
     z=-1.+(1./a)
 
-    f1=3.*Omega_m_hm(z,cosm)*d/(2.*(a**2.))
+    !AM Jul 19: changed Omega_m to Omega_cold for massive neutrino cosmologies
+    f1=3.*Omega_cold_hm(z,cosm)*d/(2.*(a**2.))
     f2=(2.+AH(z,cosm)/Hubble2(z,cosm))*(v/a)
 
     fv=f1-f2
