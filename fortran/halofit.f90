@@ -107,13 +107,34 @@
     TYPE HM_tables
         !Stuff that needs to be recalculated for each new z
         REAL, ALLOCATABLE :: c(:), rv(:), nu(:), sig(:), zc(:), m(:), rr(:), sigf(:)
-        REAL :: sigv, sigv100, c3, knl, rnl, neff, sig8z
+        REAL :: sigv, sigv100, knl, rnl, neff, sig8z, z, dc
         INTEGER :: n
     END TYPE HM_tables
     !!AM - End of my additions
 
-    ! HMcode parameters
+    ! HMcode numerical parameters (do not change unless you know what you are doing)
+    INTEGER, PARAMETER :: imeth_pk=1 ! MEAD: Should I update to imeth=1 Jul 19
+    REAL, PARAMETER :: kmin_pk=1e-3
+    REAL, PARAMETER :: kmax_pk=1e2
+    INTEGER, PARAMETER :: nk_pk=512 ! AM Jul 19: Improved accuracy from 128 to 512 points
+
+    ! HMcode numerical parameters for sigma(R)
+    REAL, PARAMETER :: rmin_sigma=1e-4
+    REAL, PARAMETER :: rmax_sigma=1e3
+    INTEGER, PARAMETER :: n_sigma=64
     REAL, PARAMETER :: rsplit_sigma=1d-2
+    REAL, PARAMETER :: acc_sigma=1d-5 !AM Jul 19: Upgraded accuracy from 1d-3 to 1d-4
+    INTEGER, PARAMETER :: iorder_sigma=3
+
+    ! HMcode numerical parameters for sigmaV(R)
+    REAL, PARAMETER :: acc_dispint=1d-4
+    REAL, PARAMETER :: alpha_sigmaV=3.
+    INTEGER, PARAMETER :: iorder_dispint=3
+
+    ! HMcode numerical parameters for neff(R)
+    REAL, PARAMETER :: acc_neff=1e-4
+    REAL, PARAMETER :: alpha_neff=1.
+    INTEGER, PARAMETER :: iorder_neff=3
 
     contains
 
@@ -663,7 +684,7 @@
     REAL :: a
     TYPE(HM_cosmology), INTENT(IN) :: cosm
     TYPE(HM_tables), INTENT(IN) :: lut
-    !LOGICAL, PARAMETER :: sigma=.FALSE. ! MEAD: Remove
+    LOGICAL, PARAMETER :: sigma=.FALSE. ! MEAD: Remove
 
     !Calls expressions for one- and two-halo terms and then combines
     !to form the full power spectrum
@@ -677,7 +698,8 @@
 
     a=this%alpha(z,lut,cosm)
     pfull=(p2h**a+p1h**a)**(1./a)
-    !IF(sigma) pfull=sigmac(k,z,cosm)  ! MEAD: Remove
+    IF(sigma) pfull=sigmac(k,z,cosm)  ! MEAD: Remove
+    !IF(sigma) pfull=sigmaV(k,z,cosm)  ! MEAD: Remove
 
     END SUBROUTINE halomod
 
@@ -736,11 +758,11 @@
     INTEGER :: i
     REAL :: z, g
     REAL, ALLOCATABLE :: k(:), Pk(:), Pkc(:)
-    INTEGER, PARAMETER :: imeth=2 ! MEAD: Should I update July 2019
+    INTEGER, PARAMETER :: imeth=imeth_pk
     REAL, PARAMETER :: pi=3.141592654
-    REAL, PARAMETER :: kmin=1e-3
-    REAL, PARAMETER :: kmax=1e2
-    INTEGER :: nk=512 ! AM Jul 19: Improved accuracy from 128 to 512 points
+    REAL, PARAMETER :: kmin=kmin_pk
+    REAL, PARAMETER :: kmax=kmax_pk
+    INTEGER :: nk=nk_pk
 
     IF(HM_verbose) WRITE(*,*) 'LINEAR POWER: Filling linear power HM_tables'
 
@@ -766,7 +788,11 @@
         cosm%nk=nk
         CALL fill_table(log(kmin),log(kmax),cosm%log_k_plin,nk)
 
-     END IF
+    ELSE
+
+      STOP 'FILL_PLINTAB: Error, imeth specified incorrectly'
+
+    END IF
 
     ALLOCATE(k(nk))
     k=exp(cosm%log_k_plin)
@@ -965,12 +991,15 @@
 
     IF(HM_verbose) WRITE(*,*) 'HALOMOD: Filling look-up HM_tables'
     IF(HM_verbose) WRITE(*,*) 'HALOMOD: HM_tables being filled at redshift:', z
+    lut%z=z
 
     !Find value of sigma_v, sig8, etc.
 
-    lut%sigv=sqrt(dispint(0.,z,cosm)/3.)
+    !lut%sigv=sqrt(dispint(0.,z,cosm)/3.)
+    lut%sigv=sigmaV(0.,z,cosm)
     IF(HM_verbose) WRITE(*,*) 'HALOMOD: sigv [Mpc/h]:', lut%sigv
-    lut%sigv100=sqrt(dispint(100.,z,cosm)/3.)
+    !lut%sigv100=sqrt(dispint(100.,z,cosm)/3.)
+    lut%sigv100=sigmaV(100.,z,cosm)
     IF(HM_verbose) WRITE(*,*) 'HALOMOD: sigv100 [Mpc/h]:', lut%sigv100
     lut%sig8z=sigma(8.,z,0,cosm)
     IF(HM_verbose) WRITE(*,*) 'HALOMOD: sig8(z):', lut%sig8z
@@ -984,6 +1013,7 @@
     IF(HM_verbose) WRITE(*,*) 'HALOMOD: M_max:', mmax
 
     dc=this%delta_c(z,lut,cosm)
+    lut%dc=dc
 
     !$OMP PARALLEL DO default(shared), private(m,r,sig,nu)
     DO i=1,n
@@ -1092,9 +1122,16 @@
     REAL :: ns
     TYPE(HM_cosmology), INTENT(IN) :: cosm
     TYPE(HM_tables), INTENT(IN) :: lut
+    REAL :: sigma
+    LOGICAL :: derivative=.FALSE. ! MEAD: Remove
 
-    !Numerical differentiation to find effective index at collapse
-    neff=-3.-derivative_table(log(lut%rnl),log(lut%rr),log(lut%sig**2.),lut%n,3,3)
+    IF(derivative) THEN
+      !Numerical differentiation to find effective index at collapse
+      neff=-3.-derivative_table(log(lut%rnl),log(lut%rr),log(lut%sig**2.),lut%n,3,3) ! MEAD: Remove
+    ELSE
+      sigma=lut%dc
+      neff=-3.-2.*neff_integral(lut%rnl, lut%z, cosm)/sigma**2
+    END IF
 
     !For some bizarre cosmological models r_nl is very small, so almost no collapse has occured
     !In this case the n_eff calculation goes mad and needs to be fixed using this fudge.
@@ -1473,9 +1510,9 @@
     INTEGER :: i
     TYPE(HM_cosmology) :: cosm
     REAL, ALLOCATABLE :: r(:), sig(:)
-    REAL, PARAMETER :: rmin=1e-4
-    REAL, PARAMETER :: rmax=1e3
-    INTEGER, PARAMETER :: nsig=64
+    REAL, PARAMETER :: rmin=rmin_sigma
+    REAL, PARAMETER :: rmax=rmax_sigma
+    INTEGER, PARAMETER :: nsig=n_sigma
 
     !This fills up HM_tables of r vs. sigma(r) across a range in r!
     !It is used only in look-up for further calculations of sigmac(r) and not otherwise!
@@ -1537,19 +1574,36 @@
 
     END FUNCTION sigmac
 
-    FUNCTION wk_tophat(x)
+    REAL FUNCTION wk_tophat(x)
 
     !The normlaised Fourier Transform of a top-hat
-    REAL :: wk_tophat, x
+    REAL, INTENT(IN) :: x
+    REAL, PARAMETER :: dx=1e-3 ! Taylor expansion for |x|<dx
 
     !Taylor expansion used for low x to avoid cancellation problems
-    IF(x<0.01) THEN
+    IF(abs(x)<dx) THEN
         wk_tophat=1.-(x**2.)/10.
     ELSE
         wk_tophat=3.*(sin(x)-x*cos(x))/(x**3.)
     END IF
 
     END FUNCTION wk_tophat
+
+    REAL FUNCTION wk_tophat_deriv(x)
+
+    ! The derivative of a normlaised Fourier Transform of a spherical top-hat
+    IMPLICIT NONE
+    REAL, INTENT(IN) :: x
+    REAL, PARAMETER :: dx=1e-3 ! Taylor expansion for |x|<dx
+
+    ! Taylor expansion used for low x to avoid cancelation problems
+    IF (abs(x)<dx) THEN
+       wk_tophat_deriv=-x/5.+x**3/70.
+    ELSE
+       wk_tophat_deriv=(3./x**4)*((x**2-3.)*sin(x)+3.*x*cos(x))
+    END IF
+
+    END FUNCTION wk_tophat_deriv
 
     FUNCTION inttab(x,y,n,iorder)
 
@@ -1679,8 +1733,8 @@
     REAL, INTENT(IN) :: r, z
     INTEGER, INTENT(IN) :: itype
     TYPE(HM_cosmology), INTENT(IN) :: cosm
-    REAL, PARAMETER :: acc=1d-4 !AM Jul 19: Upgraded accuracy from 1d-3 to 1d-4
-    INTEGER, PARAMETER :: iorder=3
+    REAL, PARAMETER :: acc=acc_sigma !AM Jul 19: Upgraded accuracy from 1d-3 to 1d-4
+    INTEGER, PARAMETER :: iorder=iorder_sigma
     REAL, PARAMETER :: rsplit=rsplit_sigma
 
     IF(r>=rsplit) THEN
@@ -2235,6 +2289,18 @@
 
     END FUNCTION grow
 
+    FUNCTION sigmaV(R,z,cosm)
+
+      IMPLICIT NONE
+      REAL :: sigmaV
+      REAL, INTENT(IN) :: R
+      REAL, INTENT(IN) :: z
+      TYPE(HM_cosmology), INTENT(IN) :: cosm
+
+      sigmaV=sqrt(dispint(R,z,cosm)/3.)
+
+    END FUNCTION
+
     FUNCTION dispint(R,z,cosm)
 
     !Integrates between a and b until desired accuracy is reached
@@ -2251,8 +2317,8 @@
     real(dl) :: sum_n, sum_2n, sum_new, sum_old
     INTEGER, PARAMETER :: jmin=5
     INTEGER, PARAMETER :: jmax=30
-    REAL, PARAMETER :: acc=1d-3
-    INTEGER, PARAMETER :: iorder=3
+    REAL, PARAMETER :: acc=acc_dispint
+    INTEGER, PARAMETER :: iorder=iorder_dispint
 
     !Integration range for integration parameter
     !Note 0 -> infinity in k has changed to 0 -> 1 in x
@@ -2331,30 +2397,165 @@
 
     END FUNCTION dispint
 
-    FUNCTION dispint_integrand(theta,R,z,cosm)
+    FUNCTION dispint_integrand(t,R,z,cosm)
 
     !This is the integrand for the velocity dispersion integral
     IMPLICIT NONE
     REAL :: dispint_integrand
-    REAL, INTENT(IN) :: theta, z, R
+    REAL, INTENT(IN) :: t
+    REAL, INTENT(IN) :: R
+    REAL, INTENT(IN) :: z
     TYPE(HM_cosmology), INTENT(IN) :: cosm
-    REAL :: k
-    REAL, PARAMETER :: alpha=1.65 !Speeds up integral for large 'R'
-    REAL, PARAMETER :: Rsplit=10. !Value to impliment speed up
+    REAL :: k, kR, w_hat
+    REAL, PARAMETER :: alpha=alpha_sigmaV !Speeds up integral for large 'R'
 
     !Note that I have not included the speed up alpha and Rsplit
     !The choice of alpha=1.65 seemed to work well for R=100.
     !Rsplit=10 is thoughlessly chosen (only because 100.>10.)
     !Including this seems to make things slower (faster integration but slower IF statements?)
 
-    IF(theta==0. .OR. theta==1.) THEN
+    IF(t<=0. .OR. t>=1.) THEN
         dispint_integrand=0.
     ELSE
-        k=(-1.+1./theta)
-        dispint_integrand=(p_lin(k,z,0,cosm)/k**2)*(wk_tophat(k*r)**2)/(theta*(1.-theta))
+      IF(R==0.) THEN
+         kR=0.
+         k=(-1.+1./t)**alpha
+      ELSE
+         kR=(-1.+1./t)**alpha
+         k=kR/R
+      END IF
+      w_hat=wk_tophat(kR)
+      dispint_integrand=(p_lin(k,z,0,cosm)/k**2)*(w_hat**2)*alpha/(t*(1.-t))
     END IF
 
     END FUNCTION dispint_integrand
+
+   FUNCTION neff_integral(R,z,cosm)
+
+   !Integrates between a and b until desired accuracy is reached
+   !Stores information to reduce function calls
+   IMPLICIT NONE
+   REAL :: neff_integral
+   REAL, INTENT(IN) :: R
+   REAL, INTENT(IN) :: z
+   TYPE(HM_cosmology), INTENT(IN) :: cosm
+   REAL :: a, b
+   INTEGER :: i, j
+   INTEGER :: n
+   REAL :: x, dx
+   REAL :: f1, f2, fx
+   real(dl) :: sum_n, sum_2n, sum_new, sum_old
+   INTEGER, PARAMETER :: jmin=5
+   INTEGER, PARAMETER :: jmax=30
+   REAL, PARAMETER :: acc=acc_neff
+   INTEGER, PARAMETER :: iorder=iorder_neff
+
+   !Integration range for integration parameter
+   !Note 0 -> infinity in k has changed to 0 -> 1 in x
+   a=0.d0
+   b=1.d0
+
+   IF(a==b) THEN
+
+      !Fix the answer to zero if the integration limits are identical
+      neff_integral=0.
+
+   ELSE
+
+      !Reset the sum variable for the integration
+      sum_2n=0.d0
+      sum_n=0.d0
+      sum_old=0.d0
+      sum_new=0.d0
+
+      DO j=1,jmax
+
+         !Note, you need this to be 1+2**n for some integer n
+         !j=1 n=2; j=2 n=3; j=3 n=5; j=4 n=9; ...'
+         n=1+2**(j-1)
+
+         !Calculate the dx interval for this value of 'n'
+         dx=(b-a)/REAL(n-1)
+
+         IF(j==1) THEN
+
+            !The first go is just the trapezium of the end points
+            f1=neff_integrand(a,R,z,cosm)
+            f2=neff_integrand(b,R,z,cosm)
+            sum_2n=0.5d0*(f1+f2)*dx
+            sum_new=sum_2n
+
+         ELSE
+
+            !Loop over only new even points to add these to the integral
+            DO i=2,n,2
+                  x=a+(b-a)*REAL(i-1)/REAL(n-1)
+                  fx=neff_integrand(x,R,z,cosm)
+                  sum_2n=sum_2n+fx
+            END DO
+
+            !Now create the total using the old and new parts
+            sum_2n=sum_n/2.d0+sum_2n*dx
+
+            !Now calculate the new sum depending on the integration order
+            IF(iorder==1) THEN
+               sum_new=sum_2n
+            ELSE IF(iorder==3) THEN
+               sum_new=(4.d0*sum_2n-sum_n)/3.d0 !This is Simpson's rule and cancels error
+            ELSE
+               STOP 'NEFF_INTEGERAL: Error, iorder specified incorrectly'
+            END IF
+
+         END IF
+
+         IF((j>=jmin) .AND. (ABS(-1.d0+sum_new/sum_old)<acc)) THEN
+            !jmin avoids spurious early convergence
+            neff_integral=REAL(sum_new)
+            EXIT
+         ELSE IF(j==jmax) THEN
+            STOP 'NEFF_INTEGRAL: Integration timed out'
+         ELSE
+            !Integral has not converged so store old sums and reset sum variables
+            sum_old=sum_new
+            sum_n=sum_2n
+            sum_2n=0.d0
+         END IF
+
+      END DO
+  
+   END IF
+  
+   END FUNCTION neff_integral
+  
+   FUNCTION neff_integrand(t,R,z,cosm)
+  
+   !This is the integrand for the velocity dispersion integral
+   IMPLICIT NONE
+   REAL :: neff_integrand
+   REAL, INTENT(IN) :: t
+   REAL, INTENT(IN) :: R
+   REAL, INTENT(IN) :: z
+   TYPE(HM_cosmology), INTENT(IN) :: cosm
+   REAL :: k, kR, w_hat, w_hat_deriv
+   INTEGER, PARAMETER :: itype=1 ! Cold matter
+   REAL, PARAMETER :: alpha=alpha_neff !Speeds up integral for large 'R'
+  
+   !Note that I have not included the speed up alpha and Rsplit
+   !The choice of alpha=1.65 seemed to work well for R=100.
+   !Rsplit=10 is thoughlessly chosen (only because 100.>10.)
+   !Including this seems to make things slower (faster integration but slower IF statements?)
+
+   IF(t<=0. .OR. t>=1.) THEN
+      neff_integrand=0.
+   ELSE
+      kR=(-1.+1./t)**alpha
+      k=kR/R
+      w_hat=wk_tophat(kR)
+      w_hat_deriv=wk_tophat_deriv(kR)
+      neff_integrand=p_lin(k, z, itype, cosm)*w_hat*w_hat_deriv*(alpha/t**2)*(-1.+1./t)**(alpha-1.)
+   END IF
+  
+   END FUNCTION neff_integrand
 
     FUNCTION Si(x)
 
