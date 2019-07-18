@@ -112,22 +112,27 @@
     END TYPE HM_tables
     !!AM - End of my additions
 
-    ! HMcode numerical parameters (do not change unless you know what you are doing)
+    ! HMcode numerical parameters
+    REAL, PARAMETER :: mmin_HMcode=1e0 !Lower mass limit
+    REAL, PARAMETER :: mmax_HMcode=1e18 !Upper mass limit
+    INTEGER, PARAMETER :: n_HMcode=256 !Number of entries in look-up HM_tables.
+
+    ! HMcode linear P(k) numerical parameters
     INTEGER, PARAMETER :: imeth_pk=1 ! MEAD: Should I update to imeth=1 Jul 19
     REAL, PARAMETER :: kmin_pk=1e-3
     REAL, PARAMETER :: kmax_pk=1e2
-    INTEGER, PARAMETER :: nk_pk=512 ! AM Jul 19: Improved accuracy from 128 to 512 points
+    INTEGER, PARAMETER :: nk_pk=512 !AM Jul 19: Improved accuracy from 128 to 512 points
 
     ! HMcode numerical parameters for sigma(R)
     REAL, PARAMETER :: rmin_sigma=1e-4
     REAL, PARAMETER :: rmax_sigma=1e3
     INTEGER, PARAMETER :: n_sigma=64
-    REAL, PARAMETER :: rsplit_sigma=1d-2
-    REAL, PARAMETER :: acc_sigma=1d-5 !AM Jul 19: Upgraded accuracy from 1d-3 to 1d-4
+    REAL, PARAMETER :: rsplit_sigma=1e-2
+    REAL, PARAMETER :: acc_sigma=1e-4 !AM Jul 19: Upgraded accuracy from 1d-3 to 1d-4
     INTEGER, PARAMETER :: iorder_sigma=3
 
     ! HMcode numerical parameters for sigmaV(R)
-    REAL, PARAMETER :: acc_dispint=1d-4
+    REAL, PARAMETER :: acc_dispint=1e-4
     REAL, PARAMETER :: alpha_sigmaV=3.
     INTEGER, PARAMETER :: iorder_dispint=3
 
@@ -684,7 +689,6 @@
     REAL :: a
     TYPE(HM_cosmology), INTENT(IN) :: cosm
     TYPE(HM_tables), INTENT(IN) :: lut
-    LOGICAL, PARAMETER :: sigma=.FALSE. ! MEAD: Remove
 
     !Calls expressions for one- and two-halo terms and then combines
     !to form the full power spectrum
@@ -698,8 +702,6 @@
 
     a=this%alpha(z,lut,cosm)
     pfull=(p2h**a+p1h**a)**(1./a)
-    IF(sigma) pfull=sigmac(k,z,cosm)  ! MEAD: Remove
-    !IF(sigma) pfull=sigmaV(k,z,cosm)  ! MEAD: Remove
 
     END SUBROUTINE halomod
 
@@ -985,9 +987,9 @@
     REAL :: Dv, dc, f, m, nu, r, sig
     TYPE(HM_cosmology) :: cosm
     TYPE(HM_tables) :: lut
-    REAL, PARAMETER :: mmin=1e0 !Lower mass limit
-    REAL, PARAMETER :: mmax=1e18 !Upper mass limit
-    INTEGER, PARAMETER :: n=256 !Number of entries in look-up HM_tables.
+    REAL, PARAMETER :: mmin=mmin_HMcode !Lower mass limit
+    REAL, PARAMETER :: mmax=mmax_HMcode !Upper mass limit
+    INTEGER, PARAMETER :: n=n_HMcode !Number of entries in look-up HM_tables.
 
     IF(HM_verbose) WRITE(*,*) 'HALOMOD: Filling look-up HM_tables'
     IF(HM_verbose) WRITE(*,*) 'HALOMOD: HM_tables being filled at redshift:', z
@@ -995,10 +997,8 @@
 
     !Find value of sigma_v, sig8, etc.
 
-    !lut%sigv=sqrt(dispint(0.,z,cosm)/3.)
     lut%sigv=sigmaV(0.,z,cosm)
     IF(HM_verbose) WRITE(*,*) 'HALOMOD: sigv [Mpc/h]:', lut%sigv
-    !lut%sigv100=sqrt(dispint(100.,z,cosm)/3.)
     lut%sigv100=sigmaV(100.,z,cosm)
     IF(HM_verbose) WRITE(*,*) 'HALOMOD: sigv100 [Mpc/h]:', lut%sigv100
     lut%sig8z=sigma(8.,z,0,cosm)
@@ -1122,16 +1122,8 @@
     REAL :: ns
     TYPE(HM_cosmology), INTENT(IN) :: cosm
     TYPE(HM_tables), INTENT(IN) :: lut
-    REAL :: sigma
-    LOGICAL :: derivative=.FALSE. ! MEAD: Remove
 
-    IF(derivative) THEN
-      !Numerical differentiation to find effective index at collapse
-      neff=-3.-derivative_table(log(lut%rnl),log(lut%rr),log(lut%sig**2.),lut%n,3,3) ! MEAD: Remove
-    ELSE
-      sigma=lut%dc
-      neff=-3.-2.*neff_integral(lut%rnl, lut%z, cosm)/sigma**2
-    END IF
+    neff=-3.-2.*neff_integral(lut%rnl, lut%z, cosm)/lut%dc**2
 
     !For some bizarre cosmological models r_nl is very small, so almost no collapse has occured
     !In this case the n_eff calculation goes mad and needs to be fixed using this fudge.
@@ -2299,7 +2291,7 @@
 
       sigmaV=sqrt(dispint(R,z,cosm)/3.)
 
-    END FUNCTION
+    END FUNCTION sigmaV
 
     FUNCTION dispint(R,z,cosm)
 
@@ -2408,11 +2400,7 @@
     TYPE(HM_cosmology), INTENT(IN) :: cosm
     REAL :: k, kR, w_hat
     REAL, PARAMETER :: alpha=alpha_sigmaV !Speeds up integral for large 'R'
-
-    !Note that I have not included the speed up alpha and Rsplit
-    !The choice of alpha=1.65 seemed to work well for R=100.
-    !Rsplit=10 is thoughlessly chosen (only because 100.>10.)
-    !Including this seems to make things slower (faster integration but slower IF statements?)
+    INTEGER, PARAMETER :: itype=0 ! Calculate for all matter
 
     IF(t<=0. .OR. t>=1.) THEN
         dispint_integrand=0.
@@ -2552,7 +2540,7 @@
       k=kR/R
       w_hat=wk_tophat(kR)
       w_hat_deriv=wk_tophat_deriv(kR)
-      neff_integrand=p_lin(k, z, itype, cosm)*w_hat*w_hat_deriv*(alpha/t**2)*(-1.+1./t)**(alpha-1.)
+      neff_integrand=p_lin(k,z,itype,cosm)*w_hat*w_hat_deriv*(alpha/t**2)*(-1.+1./t)**(alpha-1.)
    END IF
   
    END FUNCTION neff_integrand
@@ -2655,190 +2643,6 @@
     END IF
 
     END FUNCTION Ci
-
-    FUNCTION derivative_table(x,xin,yin,n,iorder,imeth)
-
-    !Takes the derivative y'(x) at point x
-    REAL :: derivative_table
-    INTEGER, INTENT(IN) :: n
-    REAL, INTENT(IN) :: x, xin(n), yin(n)
-    REAL, ALLOCATABLE ::  xtab(:), ytab(:)
-    REAL :: a, b, c, d
-    REAL :: x1, x2, x3, x4
-    REAL :: y1, y2, y3, y4
-    INTEGER :: i
-    INTEGER, INTENT(IN) :: imeth, iorder
-
-    !This version interpolates if the value is off either end of the array!
-    !Care should be chosen to insert x, xtab, ytab as log if this might give better!
-    !Results from the interpolation!
-
-    !imeth = 1 => find x in xtab by crudely searching
-    !imeth = 2 => find x in xtab quickly assuming the table is linearly spaced
-    !imeth = 3 => find x in xtab using midpoint splitting (iterations=CEILING(log2(n)))
-
-    !iorder = 1 => linear interpolation
-    !iorder = 2 => quadratic interpolation
-    !iorder = 3 => cubic interpolation
-
-    ALLOCATE(xtab(n),ytab(n))
-
-    xtab=xin
-    ytab=yin
-
-    IF(xtab(1)>xtab(n)) THEN
-        !Reverse the arrays in this case
-        CALL reverse(xtab,n)
-        CALL reverse(ytab,n)
-    END IF
-
-    IF(iorder==1) THEN
-
-        IF(n<2) ERROR STOP 'DERIVATIVE_TABLE: Not enough points in your table for linear interpolation'
-
-        IF(x<=xtab(2)) THEN
-
-            x2=xtab(2)
-            x1=xtab(1)
-
-            y2=ytab(2)
-            y1=ytab(1)
-
-        ELSE IF (x>=xtab(n-1)) THEN
-
-            x2=xtab(n)
-            x1=xtab(n-1)
-
-            y2=ytab(n)
-            y1=ytab(n-1)
-
-        ELSE
-
-            i=table_integer(x,xtab,n,imeth)
-
-            x2=xtab(i+1)
-            x1=xtab(i)
-
-            y2=ytab(i+1)
-            y1=ytab(i)
-
-        END IF
-
-        CALL fit_line(a,b,x1,y1,x2,y2)
-        derivative_table=a
-
-    ELSE IF(iorder==2) THEN
-
-        IF(n<3) ERROR STOP 'DERIVATIVE_TABLE_QUADRATIC: Not enough points in your table'
-
-        IF(x<=xtab(2) .OR. x>=xtab(n-1)) THEN
-
-            IF(x<=xtab(2)) THEN
-
-                x3=xtab(3)
-                x2=xtab(2)
-                x1=xtab(1)
-
-                y3=ytab(3)
-                y2=ytab(2)
-                y1=ytab(1)
-
-            ELSE IF (x>=xtab(n-1)) THEN
-
-                x3=xtab(n)
-                x2=xtab(n-1)
-                x1=xtab(n-2)
-
-                y3=ytab(n)
-                y2=ytab(n-1)
-                y1=ytab(n-2)
-
-            END IF
-
-            CALL fit_quadratic(a,b,c,x1,y1,x2,y2,x3,y3)
-
-            derivative_table=2.*a*x+b
-
-        ELSE
-
-            i=table_integer(x,xtab,n,imeth)
-
-            x1=xtab(i-1)
-            x2=xtab(i)
-            x3=xtab(i+1)
-            x4=xtab(i+2)
-
-            y1=ytab(i-1)
-            y2=ytab(i)
-            y3=ytab(i+1)
-            y4=ytab(i+2)
-
-            !In this case take the average of two separate quadratic spline values
-
-            derivative_table=0.
-
-            CALL fit_quadratic(a,b,c,x1,y1,x2,y2,x3,y3)
-            derivative_table=derivative_table+(2.*a*x+b)/2.
-
-            CALL fit_quadratic(a,b,c,x2,y2,x3,y3,x4,y4)
-            derivative_table=derivative_table+(2.*a*x+b)/2.
-
-        END IF
-
-    ELSE IF(iorder==3) THEN
-
-        IF(n<4) ERROR STOP 'DERIVATIVE_TABLE_CUBIC: Not enough points in your table'
-
-        IF(x<=xtab(3)) THEN
-
-            x4=xtab(4)
-            x3=xtab(3)
-            x2=xtab(2)
-            x1=xtab(1)
-
-            y4=ytab(4)
-            y3=ytab(3)
-            y2=ytab(2)
-            y1=ytab(1)
-
-        ELSE IF (x>=xtab(n-2)) THEN
-
-            x4=xtab(n)
-            x3=xtab(n-1)
-            x2=xtab(n-2)
-            x1=xtab(n-3)
-
-            y4=ytab(n)
-            y3=ytab(n-1)
-            y2=ytab(n-2)
-            y1=ytab(n-3)
-
-        ELSE
-
-            i=table_integer(x,xtab,n,imeth)
-
-            x1=xtab(i-1)
-            x2=xtab(i)
-            x3=xtab(i+1)
-            x4=xtab(i+2)
-
-            y1=ytab(i-1)
-            y2=ytab(i)
-            y3=ytab(i+1)
-            y4=ytab(i+2)
-
-        END IF
-
-        CALL fit_cubic(a,b,c,d,x1,y1,x2,y2,x3,y3,x4,y4)
-        derivative_table=3.*a*(x**2.)+2.*b*x+c
-
-    ELSE
-
-        ERROR STOP 'DERIVATIVE_TABLE: Error, order not specified correctly'
-
-    END IF
-
-    END FUNCTION derivative_table
 
     FUNCTION find(x,xin,yin,n,iorder,ifind,imeth)
 
