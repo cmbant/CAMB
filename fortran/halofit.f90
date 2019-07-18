@@ -118,7 +118,7 @@
     INTEGER, PARAMETER :: n_HMcode=256 !Number of entries in look-up HM_tables.
 
     ! HMcode linear P(k) numerical parameters
-    INTEGER, PARAMETER :: imeth_pk=1 ! MEAD: Should I update to imeth=1 Jul 19
+    INTEGER, PARAMETER :: imeth_pk=1 !AM Jul 19: Changed to imeth=1 from imeth=2
     REAL, PARAMETER :: kmin_pk=1e-3
     REAL, PARAMETER :: kmax_pk=1e2
     INTEGER, PARAMETER :: nk_pk=512 !AM Jul 19: Improved accuracy from 128 to 512 points
@@ -128,7 +128,7 @@
     REAL, PARAMETER :: rmax_sigma=1e3
     INTEGER, PARAMETER :: n_sigma=64
     REAL, PARAMETER :: rsplit_sigma=1e-2
-    REAL, PARAMETER :: acc_sigma=1e-4 !AM Jul 19: Upgraded accuracy from 1d-3 to 1d-4
+    REAL, PARAMETER :: acc_sigma=1e-4 !AM Jul 19: Upgraded accuracy from 1e-3 to 1e-4
     INTEGER, PARAMETER :: iorder_sigma=3
 
     ! HMcode numerical parameters for sigmaV(R)
@@ -1590,9 +1590,9 @@
 
     ! Taylor expansion used for low x to avoid cancelation problems
     IF (abs(x)<dx) THEN
-       wk_tophat_deriv=-x/5.+x**3/70.
+        wk_tophat_deriv=-x/5.+x**3/70.
     ELSE
-       wk_tophat_deriv=(3./x**4)*((x**2-3.)*sin(x)+3.*x*cos(x))
+        wk_tophat_deriv=(3./x**4)*((x**2-3.)*sin(x)+3.*x*cos(x))
     END IF
 
     END FUNCTION wk_tophat_deriv
@@ -1739,26 +1739,6 @@
 
     END FUNCTION sigma
 
-    FUNCTION sigma_integrand(k,R,z,itype,cosm)
-
-    !The integrand for the sigma(R) integrals
-    IMPLICIT NONE
-    REAL :: sigma_integrand
-    REAL, INTENT(IN) :: k, R, z
-    INTEGER, INTENT(IN) :: itype
-    TYPE(HM_cosmology), INTENT(IN) :: cosm
-    REAL :: y, w_hat
-
-    IF(k==0.d0) THEN
-        sigma_integrand=0.d0
-    ELSE
-        y=k*R
-        w_hat=wk_tophat(y)
-        sigma_integrand=p_lin(k,z,itype,cosm)*(w_hat**2)/k
-    END IF
-
-    END FUNCTION sigma_integrand
-
     FUNCTION sigma_integrand_transformed(t,R,f,z,itype,cosm)
 
     !The integrand for the sigma(R) integrals
@@ -1767,7 +1747,7 @@
     REAL, INTENT(IN) :: t, R, z
     INTEGER, INTENT(IN) :: itype
     TYPE(HM_cosmology), INTENT(IN) :: cosm
-    REAL :: k, y, w_hat
+    REAL :: k, kR, w_hat
 
     INTERFACE
     FUNCTION f(x)
@@ -1778,21 +1758,38 @@
 
     !Integrand to the sigma integral in terms of t. Defined by k=(1/t-1)/f(R) where f(R) is *any* function
 
-    IF(t==0.d0) THEN
+    IF(t<=0. .OR. t>=1.) THEN
         !t=0 corresponds to k=infintiy when W(kR)=0.
-        sigma_integrand_transformed=0.d0
-    ELSE IF(t==1.d0) THEN
         !t=1 corresponds to k=0. when P(k)=0.
         sigma_integrand_transformed=0.d0
     ELSE
         !f(R) can be *any* function of R here to improve integration speed
         k=(-1.d0+1.d0/t)/f(R)
-        y=k*R
-        w_hat=wk_tophat(y)
+        kR=k*R
+        w_hat=wk_tophat(kR)
         sigma_integrand_transformed=p_lin(k,z,itype,cosm)*(w_hat**2)/(t*(1.d0-t))
     END IF
 
     END FUNCTION sigma_integrand_transformed
+
+    FUNCTION sigma_integrand(k,R,z,itype,cosm)
+
+    !The integrand for the sigma(R) integrals
+    IMPLICIT NONE
+    REAL :: sigma_integrand
+    REAL, INTENT(IN) :: k, R, z
+    INTEGER, INTENT(IN) :: itype
+    TYPE(HM_cosmology), INTENT(IN) :: cosm
+    REAL :: w_hat
+
+    IF(k==0.d0) THEN
+        sigma_integrand=0.d0
+    ELSE
+        w_hat=wk_tophat(k*R)
+        sigma_integrand=p_lin(k,z,itype,cosm)*(w_hat**2)/k
+    END IF
+
+    END FUNCTION sigma_integrand
 
     FUNCTION sigint0(r,z,itype,cosm,acc,iorder)
 
@@ -2283,13 +2280,13 @@
 
     FUNCTION sigmaV(R,z,cosm)
 
-      IMPLICIT NONE
-      REAL :: sigmaV
-      REAL, INTENT(IN) :: R
-      REAL, INTENT(IN) :: z
-      TYPE(HM_cosmology), INTENT(IN) :: cosm
+    IMPLICIT NONE
+    REAL :: sigmaV
+    REAL, INTENT(IN) :: R
+    REAL, INTENT(IN) :: z
+    TYPE(HM_cosmology), INTENT(IN) :: cosm
 
-      sigmaV=sqrt(dispint(R,z,cosm)/3.)
+    sigmaV=sqrt(dispint(R,z,cosm)/3.)
 
     END FUNCTION sigmaV
 
@@ -2405,145 +2402,140 @@
     IF(t<=0. .OR. t>=1.) THEN
         dispint_integrand=0.
     ELSE
-      IF(R==0.) THEN
-         kR=0.
-         k=(-1.+1./t)**alpha
-      ELSE
-         kR=(-1.+1./t)**alpha
-         k=kR/R
-      END IF
-      w_hat=wk_tophat(kR)
-      dispint_integrand=(p_lin(k,z,0,cosm)/k**2)*(w_hat**2)*alpha/(t*(1.-t))
+        IF(R==0.) THEN
+            kR=0.
+            k=(-1.+1./t)**alpha
+        ELSE
+            kR=(-1.+1./t)**alpha
+            k=kR/R
+        END IF
+        w_hat=wk_tophat(kR)
+        dispint_integrand=(p_lin(k,z,0,cosm)/k**2)*(w_hat**2)*alpha/(t*(1.-t))
     END IF
 
     END FUNCTION dispint_integrand
 
-   FUNCTION neff_integral(R,z,cosm)
+    FUNCTION neff_integral(R,z,cosm)
 
-   !Integrates between a and b until desired accuracy is reached
-   !Stores information to reduce function calls
-   IMPLICIT NONE
-   REAL :: neff_integral
-   REAL, INTENT(IN) :: R
-   REAL, INTENT(IN) :: z
-   TYPE(HM_cosmology), INTENT(IN) :: cosm
-   REAL :: a, b
-   INTEGER :: i, j
-   INTEGER :: n
-   REAL :: x, dx
-   REAL :: f1, f2, fx
-   real(dl) :: sum_n, sum_2n, sum_new, sum_old
-   INTEGER, PARAMETER :: jmin=5
-   INTEGER, PARAMETER :: jmax=30
-   REAL, PARAMETER :: acc=acc_neff
-   INTEGER, PARAMETER :: iorder=iorder_neff
+    !Integrates between a and b until desired accuracy is reached
+    !Stores information to reduce function calls
+    IMPLICIT NONE
+    REAL :: neff_integral
+    REAL, INTENT(IN) :: R
+    REAL, INTENT(IN) :: z
+    TYPE(HM_cosmology), INTENT(IN) :: cosm
+    REAL :: a, b
+    INTEGER :: i, j
+    INTEGER :: n
+    REAL :: x, dx
+    REAL :: f1, f2, fx
+    real(dl) :: sum_n, sum_2n, sum_new, sum_old
+    INTEGER, PARAMETER :: jmin=5
+    INTEGER, PARAMETER :: jmax=30
+    REAL, PARAMETER :: acc=acc_neff
+    INTEGER, PARAMETER :: iorder=iorder_neff
 
-   !Integration range for integration parameter
-   !Note 0 -> infinity in k has changed to 0 -> 1 in x
-   a=0.d0
-   b=1.d0
+    !Integration range for integration parameter
+    !Note 0 -> infinity in k has changed to 0 -> 1 in x
+    a=0.d0
+    b=1.d0
 
-   IF(a==b) THEN
+    IF(a==b) THEN
 
-      !Fix the answer to zero if the integration limits are identical
-      neff_integral=0.
+        !Fix the answer to zero if the integration limits are identical
+        neff_integral=0.
 
-   ELSE
+    ELSE
 
-      !Reset the sum variable for the integration
-      sum_2n=0.d0
-      sum_n=0.d0
-      sum_old=0.d0
-      sum_new=0.d0
+        !Reset the sum variable for the integration
+        sum_2n=0.d0
+        sum_n=0.d0
+        sum_old=0.d0
+        sum_new=0.d0
 
-      DO j=1,jmax
+        DO j=1,jmax
 
-         !Note, you need this to be 1+2**n for some integer n
-         !j=1 n=2; j=2 n=3; j=3 n=5; j=4 n=9; ...'
-         n=1+2**(j-1)
+            !Note, you need this to be 1+2**n for some integer n
+            !j=1 n=2; j=2 n=3; j=3 n=5; j=4 n=9; ...'
+            n=1+2**(j-1)
 
-         !Calculate the dx interval for this value of 'n'
-         dx=(b-a)/REAL(n-1)
+            !Calculate the dx interval for this value of 'n'
+            dx=(b-a)/REAL(n-1)
 
-         IF(j==1) THEN
+            IF(j==1) THEN
 
-            !The first go is just the trapezium of the end points
-            f1=neff_integrand(a,R,z,cosm)
-            f2=neff_integrand(b,R,z,cosm)
-            sum_2n=0.5d0*(f1+f2)*dx
-            sum_new=sum_2n
+                !The first go is just the trapezium of the end points
+                f1=neff_integrand(a,R,z,cosm)
+                f2=neff_integrand(b,R,z,cosm)
+                sum_2n=0.5d0*(f1+f2)*dx
+                sum_new=sum_2n
 
-         ELSE
-
-            !Loop over only new even points to add these to the integral
-            DO i=2,n,2
-                  x=a+(b-a)*REAL(i-1)/REAL(n-1)
-                  fx=neff_integrand(x,R,z,cosm)
-                  sum_2n=sum_2n+fx
-            END DO
-
-            !Now create the total using the old and new parts
-            sum_2n=sum_n/2.d0+sum_2n*dx
-
-            !Now calculate the new sum depending on the integration order
-            IF(iorder==1) THEN
-               sum_new=sum_2n
-            ELSE IF(iorder==3) THEN
-               sum_new=(4.d0*sum_2n-sum_n)/3.d0 !This is Simpson's rule and cancels error
             ELSE
-               STOP 'NEFF_INTEGERAL: Error, iorder specified incorrectly'
+
+                !Loop over only new even points to add these to the integral
+                DO i=2,n,2
+                    x=a+(b-a)*REAL(i-1)/REAL(n-1)
+                    fx=neff_integrand(x,R,z,cosm)
+                    sum_2n=sum_2n+fx
+                END DO
+
+                !Now create the total using the old and new parts
+                sum_2n=sum_n/2.d0+sum_2n*dx
+
+                !Now calculate the new sum depending on the integration order
+                IF(iorder==1) THEN
+                sum_new=sum_2n
+                ELSE IF(iorder==3) THEN
+                sum_new=(4.d0*sum_2n-sum_n)/3.d0 !This is Simpson's rule and cancels error
+                ELSE
+                STOP 'NEFF_INTEGERAL: Error, iorder specified incorrectly'
+                END IF
+
             END IF
 
-         END IF
+            IF((j>=jmin) .AND. (ABS(-1.d0+sum_new/sum_old)<acc)) THEN
+                !jmin avoids spurious early convergence
+                neff_integral=REAL(sum_new)
+                EXIT
+            ELSE IF(j==jmax) THEN
+                STOP 'NEFF_INTEGRAL: Integration timed out'
+            ELSE
+                !Integral has not converged so store old sums and reset sum variables
+                sum_old=sum_new
+                sum_n=sum_2n
+                sum_2n=0.d0
+            END IF
 
-         IF((j>=jmin) .AND. (ABS(-1.d0+sum_new/sum_old)<acc)) THEN
-            !jmin avoids spurious early convergence
-            neff_integral=REAL(sum_new)
-            EXIT
-         ELSE IF(j==jmax) THEN
-            STOP 'NEFF_INTEGRAL: Integration timed out'
-         ELSE
-            !Integral has not converged so store old sums and reset sum variables
-            sum_old=sum_new
-            sum_n=sum_2n
-            sum_2n=0.d0
-         END IF
+        END DO
+    
+    END IF
+    
+    END FUNCTION neff_integral
+  
+    FUNCTION neff_integrand(t,R,z,cosm)
+    
+    !This is the integrand for the velocity dispersion integral
+    IMPLICIT NONE
+    REAL :: neff_integrand
+    REAL, INTENT(IN) :: t
+    REAL, INTENT(IN) :: R
+    REAL, INTENT(IN) :: z
+    TYPE(HM_cosmology), INTENT(IN) :: cosm
+    REAL :: k, kR, w_hat, w_hat_deriv
+    INTEGER, PARAMETER :: itype=1 ! Cold matter
+    REAL, PARAMETER :: alpha=alpha_neff !Speeds up integral for large 'R'
 
-      END DO
-  
-   END IF
-  
-   END FUNCTION neff_integral
-  
-   FUNCTION neff_integrand(t,R,z,cosm)
-  
-   !This is the integrand for the velocity dispersion integral
-   IMPLICIT NONE
-   REAL :: neff_integrand
-   REAL, INTENT(IN) :: t
-   REAL, INTENT(IN) :: R
-   REAL, INTENT(IN) :: z
-   TYPE(HM_cosmology), INTENT(IN) :: cosm
-   REAL :: k, kR, w_hat, w_hat_deriv
-   INTEGER, PARAMETER :: itype=1 ! Cold matter
-   REAL, PARAMETER :: alpha=alpha_neff !Speeds up integral for large 'R'
-  
-   !Note that I have not included the speed up alpha and Rsplit
-   !The choice of alpha=1.65 seemed to work well for R=100.
-   !Rsplit=10 is thoughlessly chosen (only because 100.>10.)
-   !Including this seems to make things slower (faster integration but slower IF statements?)
-
-   IF(t<=0. .OR. t>=1.) THEN
-      neff_integrand=0.
-   ELSE
-      kR=(-1.+1./t)**alpha
-      k=kR/R
-      w_hat=wk_tophat(kR)
-      w_hat_deriv=wk_tophat_deriv(kR)
-      neff_integrand=p_lin(k,z,itype,cosm)*w_hat*w_hat_deriv*(alpha/t**2)*(-1.+1./t)**(alpha-1.)
-   END IF
-  
-   END FUNCTION neff_integrand
+    IF(t<=0. .OR. t>=1.) THEN
+        neff_integrand=0.
+    ELSE
+        kR=(-1.+1./t)**alpha
+        k=kR/R
+        w_hat=wk_tophat(kR)
+        w_hat_deriv=wk_tophat_deriv(kR)
+        neff_integrand=p_lin(k,z,itype,cosm)*w_hat*w_hat_deriv*(alpha/t**2)*(-1.+1./t)**(alpha-1.)
+    END IF
+    
+    END FUNCTION neff_integrand
 
     FUNCTION Si(x)
 
