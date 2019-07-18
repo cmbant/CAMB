@@ -127,8 +127,8 @@
     REAL, PARAMETER :: rmin_sigma=1e-4
     REAL, PARAMETER :: rmax_sigma=1e3
     INTEGER, PARAMETER :: n_sigma=64
-    REAL, PARAMETER :: rsplit_sigma=1e-2
     REAL, PARAMETER :: acc_sigma=1e-4 !AM Jul 19: Upgraded accuracy from 1e-3 to 1e-4
+    REAL, PARAMETER :: alpha_sigma=3.
     INTEGER, PARAMETER :: iorder_sigma=3
 
     ! HMcode numerical parameters for sigmaV(R)
@@ -689,6 +689,7 @@
     REAL :: a
     TYPE(HM_cosmology), INTENT(IN) :: cosm
     TYPE(HM_tables), INTENT(IN) :: lut
+    LOGICAL, PARAMETER :: sigma=.FALSE.
 
     !Calls expressions for one- and two-halo terms and then combines
     !to form the full power spectrum
@@ -702,6 +703,9 @@
 
     a=this%alpha(z,lut,cosm)
     pfull=(p2h**a+p1h**a)**(1./a)
+    IF(sigma) THEN
+        pfull=sigmac(k,z,cosm)
+    END IF
 
     END SUBROUTINE halomod
 
@@ -1727,19 +1731,12 @@
     TYPE(HM_cosmology), INTENT(IN) :: cosm
     REAL, PARAMETER :: acc=acc_sigma !AM Jul 19: Upgraded accuracy from 1d-3 to 1d-4
     INTEGER, PARAMETER :: iorder=iorder_sigma
-    REAL, PARAMETER :: rsplit=rsplit_sigma
 
-    IF(r>=rsplit) THEN
-        sigma=sqrt(sigint0(r,z,itype,cosm,acc,iorder))
-    ELSE IF(r<rsplit) THEN
-        sigma=sqrt(sigint1(r,z,itype,cosm,acc,iorder)+sigint2(r,z,itype,cosm,acc,iorder))
-    ELSE
-        STOP 'SIGMA: Error, something went wrong'
-    END IF
+    sigma=sqrt(sigint(r,z,itype,cosm,acc,iorder))
 
     END FUNCTION sigma
 
-    FUNCTION sigma_integrand_transformed(t,R,f,z,itype,cosm)
+    FUNCTION sigma_integrand_transformed(t,R,z,itype,cosm)
 
     !The integrand for the sigma(R) integrals
     IMPLICIT NONE
@@ -1748,26 +1745,17 @@
     INTEGER, INTENT(IN) :: itype
     TYPE(HM_cosmology), INTENT(IN) :: cosm
     REAL :: k, kR, w_hat
-
-    INTERFACE
-    FUNCTION f(x)
-    REAL :: f
-    REAL, INTENT(IN) :: x
-    END FUNCTION f
-    END INTERFACE
-
-    !Integrand to the sigma integral in terms of t. Defined by k=(1/t-1)/f(R) where f(R) is *any* function
+    REAL, PARAMETER :: alpha=alpha_sigma
 
     IF(t<=0. .OR. t>=1.) THEN
         !t=0 corresponds to k=infintiy when W(kR)=0.
         !t=1 corresponds to k=0. when P(k)=0.
         sigma_integrand_transformed=0.d0
     ELSE
-        !f(R) can be *any* function of R here to improve integration speed
-        k=(-1.d0+1.d0/t)/f(R)
-        kR=k*R
+        kR=(-1.+1./t)**alpha
+        k=kR/R
         w_hat=wk_tophat(kR)
-        sigma_integrand_transformed=p_lin(k,z,itype,cosm)*(w_hat**2)/(t*(1.d0-t))
+        sigma_integrand_transformed=sigma_integrand(k,R,z,itype,cosm)*k*alpha/(t*(1.-t))
     END IF
 
     END FUNCTION sigma_integrand_transformed
@@ -1791,12 +1779,12 @@
 
     END FUNCTION sigma_integrand
 
-    FUNCTION sigint0(r,z,itype,cosm,acc,iorder)
+    FUNCTION sigint(r,z,itype,cosm,acc,iorder)
 
     !Integrates between a and b until desired accuracy is reached
     !Stores information to reduce function calls
     IMPLICIT NONE
-    REAL :: sigint0
+    REAL :: sigint
     REAL, INTENT(IN) :: r, z
     INTEGER, INTENT(IN) :: itype
     TYPE(HM_cosmology), INTENT(IN) :: cosm
@@ -1815,7 +1803,7 @@
     IF(a==b) THEN
 
         !Fix the answer to zero if the integration limits are identical
-        sigint0=0.d0
+        sigint=0.d0
 
     ELSE
 
@@ -1837,8 +1825,8 @@
             IF(j==1) THEN
 
                 !The first go is just the trapezium of the end points
-                f1=sigma_integrand_transformed(a,r,f0_rapid,z,itype,cosm)
-                f2=sigma_integrand_transformed(b,r,f0_rapid,z,itype,cosm)
+                f1=sigma_integrand_transformed(a,r,z,itype,cosm)
+                f2=sigma_integrand_transformed(b,r,z,itype,cosm)
                 sum_2n=0.5d0*(f1+f2)*dx
                 sum_new=sum_2n
 
@@ -1847,7 +1835,7 @@
                 !Loop over only new even points to add these to the integral
                 DO i=2,n,2
                     x=a+(b-a)*REAL(i-1)/REAL(n-1)
-                    fx=sigma_integrand_transformed(x,r,f0_rapid,z,itype,cosm)
+                    fx=sigma_integrand_transformed(x,r,z,itype,cosm)
                     sum_2n=sum_2n+fx
                 END DO
 
@@ -1860,17 +1848,17 @@
                 ELSE IF(iorder==3) THEN
                     sum_new=(4.d0*sum_2n-sum_n)/3.d0 !This is Simpson's rule and cancels error
                 ELSE
-                    STOP 'SIGINT0: Error, iorder specified incorrectly'
+                    STOP 'SIGINT: Error, iorder specified incorrectly'
                 END IF
 
             END IF
 
             IF((j>=jmin) .AND. (ABS(-1.d0+sum_new/sum_old)<acc)) THEN
                 !jmin avoids spurious early convergence
-                sigint0=REAL(sum_new)
+                sigint=REAL(sum_new)
                 EXIT
             ELSE IF(j==jmax) THEN
-                STOP 'SIGINT0: Integration timed out'
+                STOP 'SIGINT: Integration timed out'
             ELSE
                 !Integral has not converged so store old sums and reset sum variables
                 sum_old=sum_new
@@ -1882,235 +1870,7 @@
 
     END IF
 
-    END FUNCTION sigint0
-
-    FUNCTION f0_rapid(r)
-
-    !This is the 'rapidising' function to increase integration speed
-    !for sigma(R). Found by trial-and-error
-    IMPLICIT NONE
-    REAL :: f0_rapid
-    REAL, INTENT(IN) :: r
-    REAL :: alpha
-    REAL, PARAMETER :: rsplit=rsplit_sigma
-
-    IF(r>rsplit) THEN
-        !alpha 0.3-0.5 works well
-        alpha=0.5d0
-    ELSE
-        !If alpha=1 this goes tits up
-        !alpha 0.7-0.9 works well
-        alpha=0.8d0
-    END IF
-
-    f0_rapid=r**alpha
-
-    END FUNCTION f0_rapid
-
-    FUNCTION sigint1(r,z,itype,cosm,acc,iorder)
-
-    !Integrates between a and b until desired accuracy is reached
-    !Stores information to reduce function calls
-    IMPLICIT NONE
-    REAL :: sigint1
-    REAL, INTENT(IN) :: r, z
-    INTEGER, INTENT(IN) :: itype
-    TYPE(HM_cosmology), INTENT(IN) :: cosm
-    REAL, INTENT(IN) :: acc
-    INTEGER, INTENT(IN) :: iorder
-    REAL :: a, b
-    INTEGER :: i, j
-    INTEGER :: n
-    REAL :: x, dx
-    REAL :: f1, f2, fx
-    real(dl) :: sum_n, sum_2n, sum_new, sum_old
-    INTEGER, PARAMETER :: jmin=5
-    INTEGER, PARAMETER :: jmax=30
-
-    a=r/(r+r**.5d0)
-    b=1.d0
-
-    IF(a==b) THEN
-
-        !Fix the answer to zero if the integration limits are identical
-        sigint1=0.d0
-
-    ELSE
-
-        !Reset the sum variable for the integration
-        sum_2n=0.d0
-        sum_n=0.d0
-        sum_old=0.d0
-        sum_new=0.d0
-
-        DO j=1,jmax
-
-            !Note, you need this to be 1+2**n for some integer n
-            !j=1 n=2; j=2 n=3; j=3 n=5; j=4 n=9; ...'
-            n=1+2**(j-1)
-
-            !Calculate the dx interval for this value of 'n'
-            dx=(b-a)/REAL(n-1)
-
-            IF(j==1) THEN
-
-                !The first go is just the trapezium of the end points
-                f1=sigma_integrand_transformed(a,r,f1_rapid,z,itype,cosm)
-                f2=sigma_integrand_transformed(b,r,f1_rapid,z,itype,cosm)
-                sum_2n=0.5d0*(f1+f2)*dx
-                sum_new=sum_2n
-
-            ELSE
-
-                !Loop over only new even points to add these to the integral
-                DO i=2,n,2
-                    x=a+(b-a)*REAL(i-1)/REAL(n-1)
-                    fx=sigma_integrand_transformed(x,r,f1_rapid,z,itype,cosm)
-                    sum_2n=sum_2n+fx
-                END DO
-
-                !Now create the total using the old and new parts
-                sum_2n=sum_n/2.d0+sum_2n*dx
-
-                !Now calculate the new sum depending on the integration order
-                IF(iorder==1) THEN
-                    sum_new=sum_2n
-                ELSE IF(iorder==3) THEN
-                    sum_new=(4.d0*sum_2n-sum_n)/3.d0 !This is Simpson's rule and cancels error
-                ELSE
-                    STOP 'SIGINT1: Error, iorder specified incorrectly'
-                END IF
-
-            END IF
-
-            IF((j>=jmin) .AND. (ABS(-1.d0+sum_new/sum_old)<acc)) THEN
-                !jmin avoids spurious early convergence
-                sigint1=REAL(sum_new)
-                EXIT
-            ELSE IF(j==jmax) THEN
-                STOP 'SIGINT1: Integration timed out'
-            ELSE
-                !Integral has not converged so store old sums and reset sum variables
-                sum_old=sum_new
-                sum_n=sum_2n
-                sum_2n=0.d0
-            END IF
-
-        END DO
-
-    END IF
-
-    END FUNCTION sigint1
-
-    FUNCTION f1_rapid(r)
-
-    !This is the 'rapidising' function to increase integration speed
-    !for sigma(R). Found by trial-and-error
-    IMPLICIT NONE
-    REAL :: f1_rapid
-    REAL, INTENT(IN) :: r
-    REAL, PARAMETER :: alpha=0.5d0
-
-    f1_rapid=r**alpha
-
-    END FUNCTION f1_rapid
-
-    FUNCTION sigint2(r,z,itype,cosm,acc,iorder)
-
-    !Integrates between a and b until desired accuracy is reached
-    !Stores information to reduce function calls
-    IMPLICIT NONE
-    REAL :: sigint2
-    REAL, INTENT(IN) :: r, z
-    INTEGER, INTENT(IN) :: itype
-    TYPE(HM_cosmology), INTENT(IN) :: cosm
-    REAL, INTENT(IN) :: acc
-    INTEGER, INTENT(IN) :: iorder
-    REAL :: a, b
-    INTEGER :: i, j
-    INTEGER :: n
-    REAL :: x, dx
-    REAL :: f1, f2, fx
-    real(dl) :: sum_n, sum_2n, sum_new, sum_old
-    INTEGER, PARAMETER :: jmin=5
-    INTEGER, PARAMETER :: jmax=30
-    REAL, PARAMETER :: C=10.d0 !How far to go out in 1/r units for integral
-
-    a=1.d0/r
-    b=C/r
-
-    IF(a==b) THEN
-
-        !Fix the answer to zero if the integration limits are identical
-        sigint2=0.d0
-
-    ELSE
-
-        !Reset the sum variable for the integration
-        sum_2n=0.d0
-        sum_n=0.d0
-        sum_old=0.d0
-        sum_new=0.d0
-
-        DO j=1,jmax
-
-            !Note, you need this to be 1+2**n for some integer n
-            !j=1 n=2; j=2 n=3; j=3 n=5; j=4 n=9; ...'
-            n=1+2**(j-1)
-
-            !Calculate the dx interval for this value of 'n'
-            dx=(b-a)/REAL(n-1)
-
-            IF(j==1) THEN
-
-                !The first go is just the trapezium of the end points
-                f1=sigma_integrand(a,r,z,itype,cosm)
-                f2=sigma_integrand(b,r,z,itype,cosm)
-                sum_2n=0.5d0*(f1+f2)*dx
-                sum_new=sum_2n
-
-            ELSE
-
-                !Loop over only new even points to add these to the integral
-                DO i=2,n,2
-                    x=a+(b-a)*REAL(i-1)/REAL(n-1)
-                    fx=sigma_integrand(x,r,z,itype,cosm)
-                    sum_2n=sum_2n+fx
-                END DO
-
-                !Now create the total using the old and new parts
-                sum_2n=sum_n/2.d0+sum_2n*dx
-
-                !Now calculate the new sum depending on the integration order
-                IF(iorder==1) THEN
-                    sum_new=sum_2n
-                ELSE IF(iorder==3) THEN
-                    sum_new=(4.d0*sum_2n-sum_n)/3.d0 !This is Simpson's rule and cancels error
-                ELSE
-                    STOP 'SIGINT2: Error, iorder specified incorrectly'
-                END IF
-
-            END IF
-
-            IF((j>=jmin) .AND. (ABS(-1.d0+sum_new/sum_old)<acc)) THEN
-                !jmin avoids spurious early convergence
-                sigint2=REAL(sum_new)
-                !WRITE(*,*) 'INTEGRATE_STORE: Nint:', n
-                EXIT
-            ELSE IF(j==jmax) THEN
-                STOP 'SIGINT2: Integration timed out'
-            ELSE
-                !Integral has not converged so store old sums and reset sum variables
-                sum_old=sum_new
-                sum_n=sum_2n
-                sum_2n=0.d0
-            END IF
-
-        END DO
-
-    END IF
-
-    END FUNCTION sigint2
+    END FUNCTION sigint
 
     FUNCTION win(k,rv,c)
 
