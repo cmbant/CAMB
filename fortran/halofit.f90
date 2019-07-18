@@ -1131,7 +1131,6 @@
     REAL(dl), PARAMETER :: acc=acc_neff
     INTEGER, PARAMETER :: iorder=iorder_neff
 
-    !neff=-3.-2.*neff_integral(lut%rnl, lut%z, cosm)/lut%dc**2
     neff=-3.-2.*integrate(tmin,tmax,neff_integrand,lut%rnl,lut%z,itype,cosm,acc,iorder)/lut%dc**2
 
     !For some bizarre cosmological models r_nl is very small, so almost no collapse has occured
@@ -2109,7 +2108,7 @@
         k=kR/R
         w_hat=wk_tophat(kR)
         w_hat_deriv=wk_tophat_deriv(kR)
-        neff_integrand=p_lin(k,z,itype,cosm)*w_hat*w_hat_deriv*(alpha/t**2)*(-1.+1./t)**(alpha-1.)
+        neff_integrand=p_lin(k,z,itype,cosm)*w_hat*w_hat_deriv*alpha*kR/(t*(1.-t))
     END IF
     
     END FUNCTION neff_integrand
