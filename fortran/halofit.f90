@@ -95,50 +95,50 @@
     TYPE HM_cosmology
         !Contains only things that do not need to be recalculated with each new z
         REAL(dl) :: om_m, om_c, om_b, om_v, w, wa, f_nu, ns, h, Tcmb, Nnu
-        REAL, ALLOCATABLE :: log_r_sigma(:), log_sigma(:)
-        REAL, ALLOCATABLE :: growth(:), a_growth(:)
-        REAL, ALLOCATABLE :: log_k_plin(:), log_plin(:), log_plinc(:)
+        REAL(dl), ALLOCATABLE :: log_r_sigma(:), log_sigma(:)
+        REAL(dl), ALLOCATABLE :: growth(:), a_growth(:)
+        REAL(dl), ALLOCATABLE :: log_k_plin(:), log_plin(:), log_plinc(:)
         INTEGER :: nk, ng, nsig
         !AM - Added feedback parameters below at fixed fiducial (DMONLY) values
-        REAL :: A_baryon=3.13
-        REAL :: eta_baryon=0.603
+        REAL(dl) :: A_baryon=3.13
+        REAL(dl) :: eta_baryon=0.603
     END TYPE HM_cosmology
 
     TYPE HM_tables
         !Stuff that needs to be recalculated for each new z
-        REAL, ALLOCATABLE :: c(:), rv(:), nu(:), sig(:), zc(:), m(:), rr(:), sigf(:)
-        REAL :: sigv, sigv100, knl, rnl, neff, sig8z, z, dc
+        REAL(dl), ALLOCATABLE :: c(:), rv(:), nu(:), sig(:), zc(:), m(:), rr(:), sigf(:)
+        REAL(dl) :: sigv, sigv100, knl, rnl, neff, sig8z, z, dc
         INTEGER :: n
     END TYPE HM_tables
     !!AM - End of my additions
 
     ! HMcode numerical parameters
-    REAL, PARAMETER :: mmin_HMcode=1e0 !Lower mass limit
-    REAL, PARAMETER :: mmax_HMcode=1e18 !Upper mass limit
+    REAL(dl), PARAMETER :: mmin_HMcode=1e0 !Lower mass limit
+    REAL(dl), PARAMETER :: mmax_HMcode=1e18 !Upper mass limit
     INTEGER, PARAMETER :: n_HMcode=256 !Number of entries in look-up HM_tables.
 
     ! HMcode linear P(k) numerical parameters
     INTEGER, PARAMETER :: imeth_pk=1 !AM Jul 19: Changed to imeth=1 from imeth=2
-    REAL, PARAMETER :: kmin_pk=1e-3
-    REAL, PARAMETER :: kmax_pk=1e2
+    REAL(dl), PARAMETER :: kmin_pk=1e-3
+    REAL(dl), PARAMETER :: kmax_pk=1e2
     INTEGER, PARAMETER :: nk_pk=512 !AM Jul 19: Improved accuracy from 128 to 512 points
 
     ! HMcode numerical parameters for sigma(R)
-    REAL, PARAMETER :: rmin_sigma=1e-4
-    REAL, PARAMETER :: rmax_sigma=1e3
+    REAL(dl), PARAMETER :: rmin_sigma=1e-4
+    REAL(dl), PARAMETER :: rmax_sigma=1e3
     INTEGER, PARAMETER :: n_sigma=64
-    REAL, PARAMETER :: acc_sigma=1e-4 !AM Jul 19: Upgraded accuracy from 1e-3 to 1e-4
-    REAL, PARAMETER :: alpha_sigma=3.
+    REAL(dl), PARAMETER :: acc_sigma=1e-4 !AM Jul 19: Upgraded accuracy from 1e-3 to 1e-4
+    REAL(dl), PARAMETER :: alpha_sigma=3.
     INTEGER, PARAMETER :: iorder_sigma=3
 
     ! HMcode numerical parameters for sigmaV(R)
-    REAL, PARAMETER :: acc_sigmaV=1e-4
-    REAL, PARAMETER :: alpha_sigmaV=3.
+    REAL(dl), PARAMETER :: acc_sigmaV=1e-4
+    REAL(dl), PARAMETER :: alpha_sigmaV=3.
     INTEGER, PARAMETER :: iorder_sigmaV=3
 
     ! HMcode numerical parameters for neff(R)
-    REAL, PARAMETER :: acc_neff=1e-4
-    REAL, PARAMETER :: alpha_neff=1.
+    REAL(dl), PARAMETER :: acc_neff=1e-4
+    REAL(dl), PARAMETER :: alpha_neff=1.
     INTEGER, PARAMETER :: iorder_neff=3
 
     contains
@@ -443,12 +443,12 @@
     class(THalofit) :: this
     Class(CAMBdata) :: State
     TYPE(MatterPowerData) :: CAMB_Pk
-    REAL :: z, k
-    REAL :: p1h, p2h, pfull, plin
+    REAL(dl) :: z, k
+    REAL(dl) :: p1h, p2h, pfull, plin
     INTEGER :: i, j, nk, nz
     TYPE(HM_cosmology) :: cosi
     TYPE(HM_tables) :: lut
-    REAL, PARAMETER :: pi=3.141592654
+    REAL(dl), PARAMETER :: pi=3.141592654
 
     !HMcode developed by Alexander Mead (alexander.j.mead@googlemail.com)
     !Please contact me if you have any questions whatsoever
@@ -515,8 +515,8 @@
     FUNCTION Delta_v(this,z,lut,cosm)
     class(THalofit) :: this
     !Function for the virialised overdensity
-    REAL :: Delta_v
-    REAL, INTENT(IN) :: z
+    REAL(dl) :: Delta_v
+    REAL(dl), INTENT(IN) :: z
     TYPE(HM_cosmology), INTENT(IN) :: cosm
     TYPE(HM_tables), INTENT(IN) :: lut
 
@@ -535,8 +535,8 @@
     FUNCTION delta_c(this,z,lut,cosm)
     class(THalofit) :: this
     !Function for the linear collapse density
-    REAL :: delta_c
-    REAL, INTENT(IN) :: z
+    REAL(dl) :: delta_c
+    REAL(dl), INTENT(IN) :: z
     TYPE(HM_cosmology), INTENT(IN) :: cosm
     TYPE(HM_tables), INTENT(IN) :: lut
 
@@ -556,11 +556,11 @@
     FUNCTION eta(this,z,lut,cosm)
     class(THalofit) :: this
     !Function eta that puffs halo profiles
-    REAL :: eta
-    REAL, INTENT(IN) :: z
+    REAL(dl) :: eta
+    REAL(dl), INTENT(IN) :: z
     TYPE(HM_cosmology), INTENT(IN) :: cosm
     TYPE(HM_tables), INTENT(IN) :: lut
-    REAL :: eta0
+    REAL(dl) :: eta0
 
     IF(this%imead==0) THEN
         eta=0.
@@ -579,8 +579,8 @@
     FUNCTION kstar(this,z,lut,cosm)
     class(THalofit) :: this
     !Function k* that cuts off the 1-halo term at large scales
-    REAL :: kstar
-    REAL, INTENT(IN) :: z
+    REAL(dl) :: kstar
+    REAL(dl), INTENT(IN) :: z
     TYPE(HM_cosmology), INTENT(IN) :: cosm
     TYPE(HM_tables), INTENT(IN) :: lut
 
@@ -598,8 +598,8 @@
     FUNCTION As(this,z,lut,cosm)
     class(THalofit) :: this
     !Halo concentration pre-factor from Bullock et al. (2001) relation
-    REAL :: As
-    REAL, INTENT(IN) :: z
+    REAL(dl) :: As
+    REAL(dl), INTENT(IN) :: z
     TYPE(HM_cosmology), INTENT(IN) :: cosm
     TYPE(HM_tables), INTENT(IN) :: lut
 
@@ -618,8 +618,8 @@
     FUNCTION fdamp(this,z,lut,cosm)
     class(THalofit) :: this
     !Linear power damping function from Mead et al. (2015; arXiv 1505.07833)
-    REAL ::fdamp
-    REAL, INTENT(IN) :: z
+    REAL(dl) ::fdamp
+    REAL(dl), INTENT(IN) :: z
     TYPE(HM_cosmology), INTENT(IN) :: cosm
     TYPE(HM_tables), INTENT(IN) :: lut
 
@@ -644,8 +644,8 @@
     FUNCTION alpha(this,z,lut,cosm)
     class(THalofit) :: this
     !Two- to one-halo transition smoothing from Mead et al. (2015; arXiv 1505.07833)
-    REAL :: alpha
-    REAL, INTENT(IN) :: z
+    REAL(dl) :: alpha
+    REAL(dl), INTENT(IN) :: z
     TYPE(HM_tables), INTENT(IN) :: lut
     TYPE(HM_cosmology), INTENT(IN) :: cosm
 
@@ -670,13 +670,13 @@
     FUNCTION r_nl(lut)
     !Calculates R_nl, defined by nu(R_nl)=1., nu=dc/sigma(R)
     TYPE(HM_tables), INTENT(IN) :: lut
-    REAL :: r_nl
+    REAL(dl) :: r_nl
 
     IF(lut%nu(1)>1.) THEN
         !This catches some very strange values that appear for odd cosmological models
         r_nl=lut%rr(1)
     ELSE
-        r_nl=exp(find(log(1.),log(lut%nu),log(lut%rr),lut%n,3,3,2))
+        r_nl=exp(find(log(1.d0),log(lut%nu),log(lut%rr),lut%n,3,3,2))
     END IF
 
     END FUNCTION r_nl
@@ -684,9 +684,9 @@
     SUBROUTINE halomod(this,k,z,p1h,p2h,pfull,plin,lut,cosm)
     class(THalofit) :: this
     !Calcuates 1-halo and 2-halo terms and combines them to form the full halomodel power
-    REAL, INTENT(OUT) :: p1h, p2h, pfull
-    REAL, INTENT(IN) :: plin, k, z
-    REAL :: a
+    REAL(dl), INTENT(OUT) :: p1h, p2h, pfull
+    REAL(dl), INTENT(IN) :: plin, k, z
+    REAL(dl) :: a
     TYPE(HM_cosmology), INTENT(IN) :: cosm
     TYPE(HM_tables), INTENT(IN) :: lut
     LOGICAL, PARAMETER :: sigma=.FALSE.
@@ -712,8 +712,8 @@
     SUBROUTINE fill_table(min,max,arr,n)
     !Fills array 'arr' in equally spaced intervals
     INTEGER :: i
-    REAL, INTENT(IN) :: min, max
-    REAL, ALLOCATABLE :: arr(:)
+    REAL(dl), INTENT(IN) :: min, max
+    REAL(dl), ALLOCATABLE :: arr(:)
     INTEGER, INTENT(IN) :: n
 
     !Allocate the array, and deallocate it if it is full
@@ -731,29 +731,29 @@
 
     END SUBROUTINE fill_table
 
-    SUBROUTINE fill_table8(min,max,arr,n)
+    ! SUBROUTINE fill_table8(min,max,arr,n)
 
-    !Fills array 'arr' in equally spaced intervals
-    IMPLICIT NONE
-    INTEGER :: i
-    real(dl), INTENT(IN) :: min, max
-    real(dl), ALLOCATABLE :: arr(:)
-    INTEGER, INTENT(IN) :: n
+    ! !Fills array 'arr' in equally spaced intervals
+    ! IMPLICIT NONE
+    ! INTEGER :: i
+    ! REAL(dl), INTENT(IN) :: min, max
+    ! real(dl), ALLOCATABLE :: arr(:)
+    ! INTEGER, INTENT(IN) :: n
 
-    !Allocate the array, and deallocate it if it is full
-    IF(ALLOCATED(arr)) DEALLOCATE(arr)
-    ALLOCATE(arr(n))
-    arr=0.
+    ! !Allocate the array, and deallocate it if it is full
+    ! IF(ALLOCATED(arr)) DEALLOCATE(arr)
+    ! ALLOCATE(arr(n))
+    ! arr=0.
 
-    IF(n==1) THEN
-        arr(1)=min
-    ELSE IF(n>1) THEN
-        DO i=1,n
-            arr(i)=min+(max-min)*float(i-1)/float(n-1)
-        END DO
-    END IF
+    ! IF(n==1) THEN
+    !     arr(1)=min
+    ! ELSE IF(n>1) THEN
+    !     DO i=1,n
+    !         arr(i)=min+(max-min)*float(i-1)/float(n-1)
+    !     END DO
+    ! END IF
 
-    END SUBROUTINE fill_table8
+    ! END SUBROUTINE fill_table8
 
     SUBROUTINE fill_plintab(iz,cosm,CAMB_PK)
 
@@ -762,12 +762,12 @@
     INTEGER, INTENT(IN) :: iz
     TYPE(HM_cosmology) :: cosm
     INTEGER :: i
-    REAL :: z, g
-    REAL, ALLOCATABLE :: k(:), Pk(:), Pkc(:)
+    REAL(dl) :: z, g
+    REAL(dl), ALLOCATABLE :: k(:), Pk(:), Pkc(:)
     INTEGER, PARAMETER :: imeth=imeth_pk
-    REAL, PARAMETER :: pi=3.141592654
-    REAL, PARAMETER :: kmin=kmin_pk
-    REAL, PARAMETER :: kmax=kmax_pk
+    REAL(dl), PARAMETER :: pi=3.141592654
+    REAL(dl), PARAMETER :: kmin=kmin_pk
+    REAL(dl), PARAMETER :: kmax=kmax_pk
     INTEGER :: nk=nk_pk
 
     IF(HM_verbose) WRITE(*,*) 'LINEAR POWER: Filling linear power HM_tables'
@@ -816,7 +816,7 @@
     !Fill power table, both cold- and all-matter
     DO i=1,nk
         !Take the power from the current redshift choice
-        Pk(i)=MatterPowerData_k(CAMB_PK,DBLE(k(i)),iz)*(k(i)**3/(2.*pi**2))
+        Pk(i)=MatterPowerData_k(CAMB_PK,k(i),iz)*(k(i)**3/(2.*pi**2))
         Pkc(i)=Pk(i)*Tcb_Tcbnu_ratio(k(i),z,cosm)**2
     END DO
 
@@ -835,7 +835,7 @@
     DEALLOCATE(k,Pk,Pkc)
 
     !Check sigma_8 value
-    IF(HM_verbose) WRITE(*,*) 'LINEAR POWER: sigma_8:', sigma(8.,0.,0,cosm)
+    IF(HM_verbose) WRITE(*,*) 'LINEAR POWER: sigma_8:', sigma(8.d0,0.d0,0,cosm)
     IF(HM_verbose) WRITE(*,*) 'LINEAR POWER: Done'
     IF(HM_verbose) WRITE(*,*)
 
@@ -848,10 +848,10 @@
     !Note that this assumes that there are exactly 3 species of neutrinos with
     !Nnu<=3 of these being massive, and with the mass split evenly between the number of massive species.
 
-    REAL :: Tcb_Tcbnu_ratio
-    REAL, INTENT(IN) :: k, z
-    REAL :: D, Dcb, Dcbnu, pcb, zeq, q, yfs
-    REAL :: BigT
+    REAL(dl) :: Tcb_Tcbnu_ratio
+    REAL(dl), INTENT(IN) :: k, z
+    REAL(dl) :: D, Dcb, Dcbnu, pcb, zeq, q, yfs
+    REAL(dl) :: BigT
     TYPE(HM_cosmology) :: cosm
 
     IF(cosm%f_nu==0.) THEN
@@ -986,13 +986,13 @@
     class(THalofit) :: this
     !Halo-model initialisation routine
     !Computes look-up HM_tables necessary for the halo model calculations
-    REAL, INTENT(IN) :: z
+    REAL(dl), INTENT(IN) :: z
     INTEGER :: i
-    REAL :: Dv, dc, f, m, nu, r, sig
+    REAL(dl) :: Dv, dc, f, m, nu, r, sig
     TYPE(HM_cosmology) :: cosm
     TYPE(HM_tables) :: lut
-    REAL, PARAMETER :: mmin=mmin_HMcode !Lower mass limit
-    REAL, PARAMETER :: mmax=mmax_HMcode !Upper mass limit
+    REAL(dl), PARAMETER :: mmin=mmin_HMcode !Lower mass limit
+    REAL(dl), PARAMETER :: mmax=mmax_HMcode !Upper mass limit
     INTEGER, PARAMETER :: n=n_HMcode !Number of entries in look-up HM_tables.
 
     IF(HM_verbose) WRITE(*,*) 'HALOMOD: Filling look-up HM_tables'
@@ -1001,11 +1001,11 @@
 
     !Find value of sigma_v, sig8, etc.
 
-    lut%sigv=sigmaV(0.,z,0,cosm)
+    lut%sigv=sigmaV(0.d0,z,0,cosm)
     IF(HM_verbose) WRITE(*,*) 'HALOMOD: sigv [Mpc/h]:', lut%sigv
-    lut%sigv100=sigmaV(100.,z,0,cosm)
+    lut%sigv100=sigmaV(100.d0,z,0,cosm)
     IF(HM_verbose) WRITE(*,*) 'HALOMOD: sigv100 [Mpc/h]:', lut%sigv100
-    lut%sig8z=sigma(8.,z,0,cosm)
+    lut%sig8z=sigma(8.d0,z,0,cosm)
     IF(HM_verbose) WRITE(*,*) 'HALOMOD: sig8(z):', lut%sig8z
 
     IF(ALLOCATED(lut%rr)) CALL deallocate_LUT(lut)
@@ -1087,7 +1087,7 @@
     SUBROUTINE write_parameters(this,z,lut,cosm)
     class(THalofit) :: this
     !This subroutine writes out the halomodel parameters at the current redshift
-    REAL, INTENT(IN) :: z
+    REAL(dl), INTENT(IN) :: z
     TYPE(HM_cosmology), INTENT(IN) :: cosm
     TYPE(HM_tables), INTENT(IN) :: lut
 
@@ -1109,10 +1109,10 @@
     PURE FUNCTION radius_m(m,cosm)
 
     !Calculates the co-moving radius that encloses a mass 'm' in the homogeneous Universe
-    REAL :: radius_m
-    REAL, INTENT(IN) :: m
+    REAL(dl) :: radius_m
+    REAL(dl), INTENT(IN) :: m
     TYPE(HM_cosmology), INTENT(IN) :: cosm
-    REAL, PARAMETER :: pi=3.141592654
+    REAL(dl), PARAMETER :: pi=3.141592654
 
     radius_m=(3.*m/(4.*pi*cosmic_density(cosm)))**(1./3.)
 
@@ -1121,14 +1121,14 @@
     FUNCTION neff(lut,cosm)
 
     !Finds the effective spectral index at the collapse scale r_nl, where nu(r_nl)=1.
-    REAL :: neff
-    REAL :: ns
+    REAL(dl) :: neff
+    REAL(dl) :: ns
     TYPE(HM_cosmology), INTENT(IN) :: cosm
     TYPE(HM_tables), INTENT(IN) :: lut 
-    REAL, PARAMETER :: tmin=0.
-    REAL, PARAMETER :: tmax=1.
+    REAL(dl), PARAMETER :: tmin=0.
+    REAL(dl), PARAMETER :: tmax=1.
     INTEGER, PARAMETER :: itype=1 ! Cold matter here
-    REAL, PARAMETER :: acc=acc_neff
+    REAL(dl), PARAMETER :: acc=acc_neff
     INTEGER, PARAMETER :: iorder=iorder_neff
 
     !neff=-3.-2.*neff_integral(lut%rnl, lut%z, cosm)/lut%dc**2
@@ -1145,10 +1145,10 @@
     SUBROUTINE conc_bull(this,z,lut,cosm)
     class(THalofit) :: this
     !Calculates the Bullock et al. (2001) concentration-mass relation
-    REAL, INTENT(IN) :: z
+    REAL(dl), INTENT(IN) :: z
     TYPE(HM_cosmology) :: cosm, cos_lcdm
     TYPE(HM_tables) :: lut
-    REAL :: A, zf, ainf, zinf, g_lcdm, g_wcdm, pow
+    REAL(dl) :: A, zf, ainf, zinf, g_lcdm, g_wcdm, pow
     INTEGER :: i
 
     !Amplitude of relation (4. in Bullock et al. 2001)
@@ -1201,15 +1201,15 @@
     !Integrates between a and b until desired accuracy is reached
     !Stores information to reduce function calls
     IMPLICIT NONE
-    REAL :: growint
-    REAL, INTENT(IN) :: a
+    REAL(dl) :: growint
+    REAL(dl), INTENT(IN) :: a
     TYPE(HM_cosmology), INTENT(IN) :: cosm
-    REAL :: b
+    REAL(dl) :: b
     INTEGER :: i, j
     INTEGER :: n
-    REAL :: x, dx
-    REAL :: f1, f2, fx
-    real(dl) :: sum_n, sum_2n, sum_new, sum_old
+    REAL(dl) :: x, dx
+    REAL(dl) :: f1, f2, fx
+    REAL(dl) :: sum_n, sum_2n, sum_new, sum_old
     INTEGER, PARAMETER :: jmin=5
     INTEGER, PARAMETER :: jmax=30
     real(dl), PARAMETER :: acc=1d-3
@@ -1295,10 +1295,10 @@
 
     !Integrand for the approximate growth integral
     IMPLICIT NONE
-    REAL :: growint_integrand
-    REAL, INTENT(IN) :: a
+    REAL(dl) :: growint_integrand
+    REAL(dl), INTENT(IN) :: a
     TYPE(HM_cosmology), INTENT(IN) :: cosm
-    REAL :: gam
+    REAL(dl) :: gam
 
     IF(cosm%w<-1.) THEN
         gam=0.55+0.02*(1.+cosm%w)
@@ -1317,11 +1317,11 @@
     SUBROUTINE zcoll_bull(this,z,cosm,lut)
     class(THalofit) :: this
     !Calcuates the halo collapse redshift according to the Bullock (2001) prescription
-    REAL, INTENT(IN) :: z
+    REAL(dl), INTENT(IN) :: z
     TYPE(HM_cosmology) :: cosm
     TYPE(HM_tables) :: lut
-    REAL :: dc
-    REAL :: af, zf, RHS, a, growz
+    REAL(dl) :: dc
+    REAL(dl) :: af, zf, RHS, a, growz
     INTEGER :: i
 
     !This fills up the halo formation redshift table as per Bullock relations
@@ -1358,9 +1358,9 @@
     FUNCTION mass_r(r,cosm)
 
     !Calcuates the average mass enclosed at co-moving radius r
-    REAL :: mass_r, r
+    REAL(dl) :: mass_r, r
     TYPE(HM_cosmology) :: cosm
-    REAL, PARAMETER :: pi=3.141592654
+    REAL(dl), PARAMETER :: pi=3.141592654
 
     !Relation between mean cosmological mass and radius
     mass_r=(4.*pi/3.)*cosmic_density(cosm)*(r**3.)
@@ -1370,7 +1370,7 @@
     PURE FUNCTION cosmic_density(cosm)
 
     !The z=0 cosmological matter density
-    REAL :: cosmic_density
+    REAL(dl) :: cosmic_density
     TYPE(HM_cosmology), INTENT(IN) :: cosm
 
     !In M_sun per Mpc^3 with h factors included. The constant does this.
@@ -1381,9 +1381,9 @@
     FUNCTION find_pk(k,itype,cosm)
 
     !Look-up and interpolation for P(k,z=0)
-    REAL :: find_pk
-    REAL :: kmax, ns
-    REAL, INTENT(IN) :: k
+    REAL(dl) :: find_pk
+    REAL(dl) :: kmax, ns
+    REAL(dl), INTENT(IN) :: k
     INTEGER, INTENT(IN) :: itype
     INTEGER :: n
     TYPE(HM_cosmology), INTENT(IN) :: cosm
@@ -1417,8 +1417,8 @@
     FUNCTION p_lin(k,z,itype,cosm)
 
     !Looks up the value for the linear power spectrum
-    REAL :: p_lin
-    REAL, INTENT (IN) :: k, z
+    REAL(dl) :: p_lin
+    REAL(dl), INTENT (IN) :: k, z
     INTEGER, INTENT(IN) :: itype
     TYPE(HM_cosmology), INTENT(IN) :: cosm
 
@@ -1432,10 +1432,10 @@
     FUNCTION p_2h(this,k,z,plin,lut,cosm)
     class(THalofit) :: this
     !Calculates the 2-halo term
-    REAL :: p_2h
-    REAL, INTENT(IN) :: k, plin
-    REAL :: sigv, frac
-    REAL, INTENT(IN) :: z
+    REAL(dl) :: p_2h
+    REAL(dl), INTENT(IN) :: k, plin
+    REAL(dl) :: sigv, frac
+    REAL(dl), INTENT(IN) :: z
     TYPE(HM_tables), INTENT(IN) :: lut
     TYPE(HM_cosmology), INTENT(IN) :: cosm
 
@@ -1457,15 +1457,15 @@
     FUNCTION p_1h(this,k,z,lut,cosm)
     class(THalofit) :: this
     !Calculates the 1-halo term
-    REAL :: p_1h
-    REAL, INTENT(IN) :: k, z
+    REAL(dl) :: p_1h
+    REAL(dl), INTENT(IN) :: k, z
     TYPE(HM_tables), INTENT(IN) :: lut
     TYPE(HM_cosmology), INTENT(IN) :: cosm
-    REAL :: Dv, g, fac, et, ks, wk
-    REAL :: integrand(lut%n)
-    REAL :: sum
+    REAL(dl) :: Dv, g, fac, et, ks, wk
+    REAL(dl) :: integrand(lut%n)
+    REAL(dl) :: sum
     INTEGER :: i
-    REAL, PARAMETER :: pi=3.141592654
+    REAL(dl), PARAMETER :: pi=3.141592654
 
     !Does the one-halo power integral
 
@@ -1480,7 +1480,7 @@
     END DO
 
     !Carries out the integration
-    sum=REAL(inttab(lut%nu,REAL(integrand),lut%n,1))
+    sum=inttab(lut%nu,integrand,lut%n,1)
 
     !Virial density
     Dv=this%Delta_v(z,lut,cosm)
@@ -1510,9 +1510,9 @@
     !Fills look-up HM_tables for sigma(R)
     INTEGER :: i
     TYPE(HM_cosmology) :: cosm
-    REAL, ALLOCATABLE :: r(:), sig(:)
-    REAL, PARAMETER :: rmin=rmin_sigma
-    REAL, PARAMETER :: rmax=rmax_sigma
+    REAL(dl), ALLOCATABLE :: r(:), sig(:)
+    REAL(dl), PARAMETER :: rmin=rmin_sigma
+    REAL(dl), PARAMETER :: rmax=rmax_sigma
     INTEGER, PARAMETER :: nsig=n_sigma
 
     !This fills up HM_tables of r vs. sigma(r) across a range in r!
@@ -1541,7 +1541,7 @@
         !Equally spaced r in log
         r(i)=exp(log(rmin)+log(rmax/rmin)*float(i-1)/float(nsig-1))
 
-        sig(i)=sigma(r(i),0.,1,cosm)
+        sig(i)=sigma(r(i),0.d0,1,cosm)
 
     END DO
     !$OMP END PARALLEL DO
@@ -1564,8 +1564,8 @@
     FUNCTION sigmac(r,z,cosm)
 
     !Finds sigma_cold(R) from look-up table
-    REAL :: sigmac
-    REAL, INTENT(IN) :: r, z
+    REAL(dl) :: sigmac
+    REAL(dl), INTENT(IN) :: r, z
     TYPE(HM_cosmology), INTENT(IN) :: cosm
 
     !Assumes scale-independet growth for the cold matter
@@ -1575,11 +1575,12 @@
 
     END FUNCTION sigmac
 
-    REAL FUNCTION wk_tophat(x)
+    FUNCTION wk_tophat(x)
 
     !The normlaised Fourier Transform of a top-hat
-    REAL, INTENT(IN) :: x
-    REAL, PARAMETER :: dx=1e-3 ! Taylor expansion for |x|<dx
+    REAL(dl) :: wk_tophat
+    REAL(dl), INTENT(IN) :: x
+    REAL(dl), PARAMETER :: dx=1e-3 ! Taylor expansion for |x|<dx
 
     !Taylor expansion used for low x to avoid cancellation problems
     IF(abs(x)<dx) THEN
@@ -1590,12 +1591,13 @@
 
     END FUNCTION wk_tophat
 
-    REAL FUNCTION wk_tophat_deriv(x)
+    FUNCTION wk_tophat_deriv(x)
 
     ! The derivative of a normlaised Fourier Transform of a spherical top-hat
     IMPLICIT NONE
-    REAL, INTENT(IN) :: x
-    REAL, PARAMETER :: dx=1e-3 ! Taylor expansion for |x|<dx
+    REAL(dl) :: wk_tophat_deriv
+    REAL(dl), INTENT(IN) :: x
+    REAL(dl), PARAMETER :: dx=1e-3 ! Taylor expansion for |x|<dx
 
     ! Taylor expansion used for low x to avoid cancelation problems
     IF (abs(x)<dx) THEN
@@ -1609,12 +1611,12 @@
     FUNCTION inttab(x,y,n,iorder)
 
     !Integrates tables y(x)dx
-    REAL :: inttab
+    REAL(dl) :: inttab
     INTEGER, INTENT(IN) :: n
-    REAL, INTENT(IN) :: x(n), y(n)
-    REAL :: a, b, c, d, h
-    REAL :: q1, q2, q3, qi, qf
-    REAL :: x1, x2, x3, x4, y1, y2, y3, y4, xi, xf
+    REAL(dl), INTENT(IN) :: x(n), y(n)
+    REAL(dl) :: a, b, c, d, h
+    REAL(dl) :: q1, q2, q3, qi, qf
+    REAL(dl) :: x1, x2, x3, x4, y1, y2, y3, y4, xi, xf
     real(dl) :: sum
     INTEGER :: i, i1, i2, i3, i4
     INTEGER, INTENT(IN) :: iorder
@@ -1730,13 +1732,13 @@
 
     !Gets sigma(R)
     IMPLICIT NONE
-    REAL :: sigma
-    REAL, INTENT(IN) :: r, z
+    REAL(dl) :: sigma
+    REAL(dl), INTENT(IN) :: r, z
     INTEGER, INTENT(IN) :: itype
     TYPE(HM_cosmology), INTENT(IN) :: cosm
-    REAL, PARAMETER :: tmin=0.
-    REAL, PARAMETER :: tmax=1.
-    REAL, PARAMETER :: acc=acc_sigma !AM Jul 19: Upgraded accuracy from 1d-3 to 1d-4
+    REAL(dl), PARAMETER :: tmin=0.
+    REAL(dl), PARAMETER :: tmax=1.
+    REAL(dl), PARAMETER :: acc=acc_sigma !AM Jul 19: Upgraded accuracy from 1d-3 to 1d-4
     INTEGER, PARAMETER :: iorder=iorder_sigma
 
     !sigma=sqrt(sigint(r,z,itype,cosm,acc,iorder))
@@ -1748,12 +1750,12 @@
 
     !The integrand for the sigma(R) integrals
     IMPLICIT NONE
-    REAL :: sigma_integrand
-    REAL, INTENT(IN) :: t, R, z
+    REAL(dl) :: sigma_integrand
+    REAL(dl), INTENT(IN) :: t, R, z
     INTEGER, INTENT(IN) :: itype
     TYPE(HM_cosmology), INTENT(IN) :: cosm
-    REAL :: k, kR, w_hat
-    REAL, PARAMETER :: alpha=alpha_sigma
+    REAL(dl) :: k, kR, w_hat
+    REAL(dl), PARAMETER :: alpha=alpha_sigma
 
     IF(t<=0. .OR. t>=1.) THEN
         !t=0 corresponds to k=infintiy when W(kR)=0.
@@ -1768,34 +1770,36 @@
 
     END FUNCTION sigma_integrand
 
-    REAL FUNCTION integrate(a,b,f,y,z,itype,cosm,acc,iorder)
+    FUNCTION integrate(a,b,f,y,z,itype,cosm,acc,iorder)
 
     !Integrates between a and b until desired accuracy is reached
     !Stores information to reduce function calls
     IMPLICIT NONE
-    REAL, INTENT(IN) :: a
-    REAL, INTENT(IN) :: b
-    REAL, EXTERNAL :: f
-    REAL, INTENT(IN) :: y
-    REAL, INTENT(IN) :: z
+    REAL(dl) :: integrate
+    REAL(dl), INTENT(IN) :: a
+    REAL(dl), INTENT(IN) :: b
+    REAL(dl), EXTERNAL :: f
+    REAL(dl), INTENT(IN) :: y
+    REAL(dl), INTENT(IN) :: z
     INTEGER, INTENT(IN) :: itype
     TYPE(HM_cosmology), INTENT(IN) :: cosm
-    REAL, INTENT(IN) :: acc
+    REAL(dl), INTENT(IN) :: acc
     INTEGER, INTENT(IN) :: iorder
     INTEGER :: i, j
     INTEGER :: n
-    REAL :: x, dx
-    REAL :: f1, f2, fx
+    REAL(dl) :: x, dx
+    REAL(dl) :: f1, f2, fx
     real(dl) :: sum_n, sum_2n, sum_new, sum_old
     INTEGER, PARAMETER :: jmin=5
     INTEGER, PARAMETER :: jmax=30
 
     INTERFACE
     FUNCTION f(x, y, z, itype, cosm)
-        IMPORT :: HM_cosmology
-        REAL, INTENT(IN) :: x
-        REAL, INTENT(IN) :: y
-        REAL, INTENT(IN) :: z
+        USE precision
+        IMPORT :: HM_cosmology    
+        REAL(dl), INTENT(IN) :: x
+        REAL(dl), INTENT(IN) :: y
+        REAL(dl), INTENT(IN) :: z
         INTEGER, INTENT(IN) :: itype
         TYPE(HM_cosmology), INTENT(IN) :: cosm
     END FUNCTION f
@@ -1876,8 +1880,8 @@
     FUNCTION win(k,rv,c)
 
     !Selects the halo window function (k-space halo profile)
-    REAL :: win
-    REAL, INTENT(IN) :: k, rv, c
+    REAL(dl) :: win
+    REAL(dl), INTENT(IN) :: k, rv, c
 
     !Choose the NFW analytic form
     win=winnfw(k,rv,c)
@@ -1891,10 +1895,10 @@
     FUNCTION winnfw(k,rv,c)
 
     !The analytic Fourier Transform of the NFW profile
-    REAL :: winnfw
-    REAL, INTENT(IN) :: k, rv, c
-    REAL :: si1, si2, ci1, ci2, ks
-    REAL :: p1, p2, p3
+    REAL(dl) :: winnfw
+    REAL(dl), INTENT(IN) :: k, rv, c
+    REAL(dl) :: si1, si2, ci1, ci2, ks
+    REAL(dl) :: p1, p2, p3
 
     !Define the scale wavenumber
     ks=k*rv/c
@@ -1921,8 +1925,8 @@
     !This calculates the (normalised) mass of a halo of concentration c
     !The 'normalised' mass is that divided by the prefactor r_s^3 4*pi rho_n
     !where rho_n is the profile normalisation [i.e, rho=rho_n/((r/r_s)*(1.+r/r_s)^2]
-    REAL :: mass
-    REAL, INTENT(IN) :: c
+    REAL(dl) :: mass
+    REAL(dl), INTENT(IN) :: c
 
     mass=log(1.+c)-c/(1.+c)
 
@@ -1931,8 +1935,8 @@
     FUNCTION gnu(nu)
 
     !Select the mass function
-    REAL :: gnu
-    REAL, INTENT(IN) :: nu
+    REAL(dl) :: gnu
+    REAL(dl), INTENT(IN) :: nu
 
     !Sheth & Torman (1999)
     gnu=gst(nu)
@@ -1942,9 +1946,9 @@
     FUNCTION gst(nu)
 
     !Sheth & Tormen (1999) mass function!
-    REAL :: gst
-    REAL, INTENT(IN) :: nu
-    REAL :: p, a, bigA
+    REAL(dl) :: gst
+    REAL(dl), INTENT(IN) :: nu
+    REAL(dl) :: p, a, bigA
 
     !Note I use nu=dc/sigma whereas ST (1999) use nu=(dc/sigma)^2
     !This accounts for the different pre-factor and slighly changed nu dependence
@@ -1964,10 +1968,10 @@
 
     !This calculates the dimensionless squared hubble parameter at redshift z (H/H_0)^2!
     !Ignores contributions from radiation (not accurate at high z, but consistent with simulations)!
-    REAL :: Hubble2
-    REAL, INTENT(IN) :: z
+    REAL(dl) :: Hubble2
+    REAL(dl), INTENT(IN) :: z
     TYPE(HM_cosmology), INTENT(IN) :: cosm
-    REAL :: a
+    REAL(dl) :: a
 
     a=1./(1.+z)
 
@@ -1979,8 +1983,8 @@
 
     !The time evolution for dark energy: rho_de=rho_de,0 * X(a)
     !X(a)=1 for LCDM but changes for other models
-    REAL :: X_de
-    REAL, INTENT(IN) :: a
+    REAL(dl) :: X_de
+    REAL(dl), INTENT(IN) :: a
     TYPE(HM_cosmology), INTENT(IN) :: cosm
 
     X_de=(a**(-3.*(1.+cosm%w+cosm%wa)))*exp(-3.*cosm%wa*(1.-a))
@@ -1990,8 +1994,8 @@
     FUNCTION w_de_hm(a,cosm)
 
     !The dark energy w(a) function
-    REAL :: w_de_hm
-    REAL, INTENT(IN) :: a
+    REAL(dl) :: w_de_hm
+    REAL(dl), INTENT(IN) :: a
     TYPE(HM_cosmology), INTENT(IN) :: cosm
 
     w_de_hm=cosm%w+(1.-a)*cosm%wa
@@ -2001,9 +2005,9 @@
     FUNCTION Omega_m_hm(z,cosm)
 
     !This calculates omega_m variations with z!
-    REAL :: Omega_m_hm
-    REAL, INTENT(IN) :: z
-    REAL :: om_m
+    REAL(dl) :: Omega_m_hm
+    REAL(dl), INTENT(IN) :: z
+    REAL(dl) :: om_m
     TYPE(HM_cosmology), INTENT(IN) :: cosm
 
     om_m=cosm%om_m
@@ -2014,8 +2018,8 @@
     FUNCTION Omega_cold_hm(z,cosm)
 
     !This calculates omega_cold variations with z!
-    REAL :: Omega_cold_hm
-    REAL, INTENT(IN) :: z
+    REAL(dl) :: Omega_cold_hm
+    REAL(dl), INTENT(IN) :: z
     TYPE(HM_cosmology), INTENT(IN) :: cosm
   
     Omega_cold_hm=((cosm%om_c+cosm%om_b)*(1.+z)**3.)/Hubble2(z,cosm)
@@ -2025,9 +2029,9 @@
     FUNCTION grow(z,cosm)
 
     !Finds the scale-independent growth fuction at redshift z
-    REAL :: grow
-    REAL, INTENT(IN) :: z
-    REAL :: a
+    REAL(dl) :: grow
+    REAL(dl), INTENT(IN) :: z
+    REAL(dl) :: a
     TYPE(HM_cosmology), INTENT(IN) :: cosm
 
     IF(z==0.) THEN
@@ -2042,14 +2046,14 @@
     FUNCTION sigmaV(R,z,itype,cosm)
 
     IMPLICIT NONE
-    REAL :: sigmaV
-    REAL, INTENT(IN) :: R
-    REAL, INTENT(IN) :: z
+    REAL(dl) :: sigmaV
+    REAL(dl), INTENT(IN) :: R
+    REAL(dl), INTENT(IN) :: z
     INTEGER, INTENT(IN) :: itype
     TYPE(HM_cosmology), INTENT(IN) :: cosm   
-    REAL, PARAMETER :: tmin=0.
-    REAL, PARAMETER :: tmax=1.
-    REAL, PARAMETER :: acc=acc_sigmaV
+    REAL(dl), PARAMETER :: tmin=0.
+    REAL(dl), PARAMETER :: tmax=1.
+    REAL(dl), PARAMETER :: acc=acc_sigmaV
     INTEGER, PARAMETER :: iorder=iorder_sigmaV
 
     sigmaV=sqrt(integrate(tmin,tmax,sigmaV_integrand,R,z,itype,cosm,acc,iorder)/3.)
@@ -2060,14 +2064,14 @@
 
     !This is the integrand for the velocity dispersion integral
     IMPLICIT NONE
-    REAL :: sigmaV_integrand
-    REAL, INTENT(IN) :: t
-    REAL, INTENT(IN) :: R
-    REAL, INTENT(IN) :: z
+    REAL(dl) :: sigmaV_integrand
+    REAL(dl), INTENT(IN) :: t
+    REAL(dl), INTENT(IN) :: R
+    REAL(dl), INTENT(IN) :: z
     INTEGER, INTENT(IN) :: itype
     TYPE(HM_cosmology), INTENT(IN) :: cosm
-    REAL :: k, kR, w_hat
-    REAL, PARAMETER :: alpha=alpha_sigmaV !Speeds up integral for large 'R'
+    REAL(dl) :: k, kR, w_hat
+    REAL(dl), PARAMETER :: alpha=alpha_sigmaV !Speeds up integral for large 'R'
 
     IF(t<=0. .OR. t>=1.) THEN
         sigmaV_integrand=0.
@@ -2089,14 +2093,14 @@
     
     !This is the integrand for the velocity dispersion integral
     IMPLICIT NONE
-    REAL :: neff_integrand
-    REAL, INTENT(IN) :: t
-    REAL, INTENT(IN) :: R
-    REAL, INTENT(IN) :: z
+    REAL(dl) :: neff_integrand
+    REAL(dl), INTENT(IN) :: t
+    REAL(dl), INTENT(IN) :: R
+    REAL(dl), INTENT(IN) :: z
     INTEGER, INTENT(IN) :: itype
     TYPE(HM_cosmology), INTENT(IN) :: cosm
-    REAL :: k, kR, w_hat, w_hat_deriv
-    REAL, PARAMETER :: alpha=alpha_neff !Speeds up integral for large 'R'
+    REAL(dl) :: k, kR, w_hat, w_hat_deriv
+    REAL(dl), PARAMETER :: alpha=alpha_neff !Speeds up integral for large 'R'
 
     IF(t<=0. .OR. t>=1.) THEN
         neff_integrand=0.
@@ -2113,8 +2117,8 @@
     FUNCTION Si(x)
 
     !Calculates the 'sine integral' function Si(x)
-    REAL :: Si
-    REAL, INTENT(IN) :: x
+    REAL(dl) :: Si
+    REAL(dl), INTENT(IN) :: x
     REAL(dl) :: x2, y, f, g, si8
     REAL(dl), PARAMETER :: pi=3.1415926535897932384626433d0
 
@@ -2164,8 +2168,8 @@
     FUNCTION Ci(x)
 
     !Calculates the 'cosine integral' function Ci(x)
-    REAL :: Ci
-    REAL, INTENT(IN) :: x
+    REAL(dl) :: Ci
+    REAL(dl), INTENT(IN) :: x
     REAL(dl) :: x2, y, f, g, ci8
     REAL(dl), PARAMETER :: em_const=0.577215664901532861d0
 
@@ -2213,13 +2217,13 @@
 
     !Given two arrays x and y this routine interpolates to find the y_i value at position x_i
     IMPLICIT NONE
-    REAL :: find
+    REAL(dl) :: find
     INTEGER, INTENT(IN) :: n
-    REAL, INTENT(IN) :: x, xin(n), yin(n)
-    REAL, ALLOCATABLE ::  xtab(:), ytab(:)
-    REAL :: a, b, c, d
-    REAL :: xarr(4)
-    REAL :: yarr(4)
+    REAL(dl), INTENT(IN) :: x, xin(n), yin(n)
+    REAL(dl), ALLOCATABLE ::  xtab(:), ytab(:)
+    REAL(dl) :: a, b, c, d
+    REAL(dl) :: xarr(4)
+    REAL(dl) :: yarr(4)
     INTEGER :: i
     INTEGER, INTENT(IN) :: iorder, ifind, imeth
 
@@ -2400,7 +2404,7 @@
     IMPLICIT NONE
     INTEGER :: table_integer
     INTEGER, INTENT(IN) :: n
-    REAL, INTENT(IN) :: x, xtab(n)
+    REAL(dl), INTENT(IN) :: x, xtab(n)
     INTEGER, INTENT(IN) :: imeth
 
     IF(imeth==1) THEN
@@ -2421,9 +2425,9 @@
     IMPLICIT NONE
     INTEGER :: linear_table_integer
     INTEGER, INTENT(IN) :: n
-    REAL, INTENT(IN) :: x, xtab(n)
-    REAL :: x1, x2, xn
-    REAL, PARAMETER :: acc=1d-3 !Test for linear table
+    REAL(dl), INTENT(IN) :: x, xtab(n)
+    REAL(dl) :: x1, x2, xn
+    REAL(dl), PARAMETER :: acc=1d-3 !Test for linear table
 
     !Returns the integer (table position) below the value of x
     !eg. if x(3)=6. and x(4)=7. and x=6.5 this will return 6
@@ -2447,7 +2451,7 @@
     IMPLICIT NONE
     INTEGER :: search_int
     INTEGER, INTENT(IN) :: n
-    REAL, INTENT(IN) :: x, xtab(n)
+    REAL(dl), INTENT(IN) :: x, xtab(n)
     INTEGER :: i
 
     IF(xtab(1)>xtab(n)) STOP 'SEARCH_INT: table in wrong order'
@@ -2466,7 +2470,7 @@
     IMPLICIT NONE
     INTEGER :: int_split
     INTEGER, INTENT(IN) :: n
-    REAL, INTENT(IN) :: x, xtab(n)
+    REAL(dl), INTENT(IN) :: x, xtab(n)
     INTEGER :: i1, i2, imid
 
     IF(xtab(1)>xtab(n)) STOP 'INT_SPLIT: table in wrong order'
@@ -2496,8 +2500,8 @@
 
     !Given xi, yi i=1,2 fits a line between these points
     IMPLICIT NONE
-    REAL, INTENT(OUT) :: a0, a1
-    REAL, INTENT(IN) :: x1, y1, x2, y2
+    REAL(dl), INTENT(OUT) :: a0, a1
+    REAL(dl), INTENT(IN) :: x1, y1, x2, y2
 
     a1=(y2-y1)/(x2-x1)
     a0=y1-a1*x1
@@ -2508,8 +2512,8 @@
 
     !Given xi, yi i=1,2,3 fits a quadratic between these points
     IMPLICIT NONE
-    REAL, INTENT(OUT) :: a0, a1, a2
-    REAL, INTENT(IN) :: x1, y1, x2, y2, x3, y3
+    REAL(dl), INTENT(OUT) :: a0, a1, a2
+    REAL(dl), INTENT(IN) :: x1, y1, x2, y2, x3, y3
 
     a2=((y2-y1)/(x2-x1)-(y3-y1)/(x3-x1))/(x2-x3)
     a1=(y2-y1)/(x2-x1)-a2*(x2+x1)
@@ -2521,9 +2525,9 @@
 
     !Given xi, yi i=1,2,3,4 fits a cubic between these points
     IMPLICIT NONE
-    REAL, INTENT(OUT) :: a, b, c, d
-    REAL, INTENT(IN) :: x1, y1, x2, y2, x3, y3, x4, y4
-    REAL :: f1, f2, f3
+    REAL(dl), INTENT(OUT) :: a, b, c, d
+    REAL(dl), INTENT(IN) :: x1, y1, x2, y2, x3, y3, x4, y4
+    REAL(dl) :: f1, f2, f3
 
     f1=(y4-y1)/((x4-x2)*(x4-x1)*(x4-x3))
     f2=(y3-y1)/((x3-x2)*(x3-x1)*(x4-x3))
@@ -2551,10 +2555,10 @@
 
     !Computes the result of the nth order Lagrange polynomial at point x, L(x)
     IMPLICIT NONE
-    REAL :: Lagrange_polynomial
+    REAL(dl) :: Lagrange_polynomial
     INTEGER, INTENT(IN) :: n
-    REAL, INTENT(IN) :: x, xv(n+1), yv(n+1)
-    REAL :: l(n+1)
+    REAL(dl), INTENT(IN) :: x, xv(n+1), yv(n+1)
+    REAL(dl) :: l(n+1)
     INTEGER :: i, j
 
     !Initialise variables, one for sum and one for multiplication
@@ -2576,9 +2580,9 @@
     !This reverses the contents of arry!
     IMPLICIT NONE
     INTEGER, INTENT(IN) :: n
-    REAL, INTENT(INOUT) :: arry(n)
+    REAL(dl), INTENT(INOUT) :: arry(n)
     INTEGER :: i
-    REAL, ALLOCATABLE :: hold(:)
+    REAL(dl), ALLOCATABLE :: hold(:)
 
     ALLOCATE(hold(n))
 
@@ -2597,10 +2601,10 @@
     !Fills a table of values of the scale-independent growth function
     TYPE(HM_cosmology) :: cosm
     INTEGER :: i
-    REAL :: a, norm
-    REAL, ALLOCATABLE :: d_tab(:), v_tab(:), a_tab(:)
-    REAL :: ainit, amax, dinit, vinit
-    REAL :: acc
+    REAL(dl) :: a, norm
+    REAL(dl), ALLOCATABLE :: d_tab(:), v_tab(:), a_tab(:)
+    REAL(dl) :: ainit, amax, dinit, vinit
+    REAL(dl) :: acc
     INTEGER, PARAMETER :: n=64
 
     !The calculation should start at a z when Om_m(z)=1., so that the assumption
@@ -2619,11 +2623,11 @@
     acc=1d-3
 
     IF(HM_verbose) WRITE(*,*) 'GROWTH: Solving growth equation'
-    CALL ode_growth(d_tab,v_tab,a_tab,0.,ainit,amax,dinit,vinit,acc,3,cosm)
+    CALL ode_growth(d_tab,v_tab,a_tab,0.d0,ainit,amax,dinit,vinit,acc,3,cosm)
     IF(HM_verbose) WRITE(*,*) 'GROWTH: ODE done'
 
     !Normalise so that g(z=0)=1
-    norm=find(1.,a_tab,d_tab,SIZE(a_tab),3,3,2)
+    norm=find(1.d0,a_tab,d_tab,SIZE(a_tab),3,3,2)
     IF(HM_verbose) WRITE(*,*) 'GROWTH: Unnormalised g(a=1):', norm
     d_tab=d_tab/norm
 
@@ -2648,10 +2652,10 @@
 
     !Solves 2nd order ODE x''(t) from ti to tf and writes out array of x, v, t values
     IMPLICIT NONE
-    REAL :: xi, ti, tf, dt, acc, vi, x4, v4, t4, kk
-    REAL :: kx1, kx2, kx3, kx4, kv1, kv2, kv3, kv4
+    REAL(dl) :: xi, ti, tf, dt, acc, vi, x4, v4, t4, kk
+    REAL(dl) :: kx1, kx2, kx3, kx4, kv1, kv2, kv3, kv4
     REAL(dl), ALLOCATABLE :: x8(:), t8(:), v8(:), xh(:), th(:), vh(:)
-    REAL, ALLOCATABLE :: x(:), v(:), t(:)
+    REAL(dl), ALLOCATABLE :: x(:), v(:), t(:)
     INTEGER :: i, j, k, n, np, ifail, kn, imeth
     TYPE(HM_cosmology) :: cosm
     INTEGER, PARAMETER :: jmax=30
@@ -2686,7 +2690,7 @@
         v8(1)=vi
 
         !Fill up a table for the time values
-        CALL fill_table8(DBLE(ti),DBLE(tf),t8,n)
+        CALL fill_table(ti,tf,t8,n)
 
         !Set the time interval
         dt=(tf-ti)/float(n-1)
@@ -2786,9 +2790,9 @@
     FUNCTION fv(d,v,k,a,cosm)
 
     !v'=f(v) in ODE solver
-    REAL :: fv
-    REAL, INTENT(IN) :: d, v, k, a
-    REAL :: f1, f2, z
+    REAL(dl) :: fv
+    REAL(dl), INTENT(IN) :: d, v, k, a
+    REAL(dl) :: f1, f2, z
     TYPE(HM_cosmology), INTENT(IN) :: cosm
 
     z=-1.+(1./a)
@@ -2803,8 +2807,8 @@
 
     FUNCTION fd(d,v,k,a,cosm)
     !d'=f(d) in ODE solver
-    REAL :: fd
-    REAL, INTENT(IN) :: d, v, k, a
+    REAL(dl) :: fd
+    REAL(dl), INTENT(IN) :: d, v, k, a
     TYPE(HM_cosmology), INTENT(IN) :: cosm
 
     fd=v
@@ -2814,9 +2818,9 @@
     FUNCTION AH(z,cosm)
 
     !The Hubble acceleration function \ddot{a}/a
-    REAL :: AH
-    REAL, INTENT(IN) :: z
-    REAL :: a
+    REAL(dl) :: AH
+    REAL(dl), INTENT(IN) :: z
+    REAL(dl) :: a
     TYPE(HM_cosmology), INTENT(IN) :: cosm
 
     a=1./(1.+z)
