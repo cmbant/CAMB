@@ -1,7 +1,7 @@
     !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     ! The `halofit' code models the nonlinear evolution of cold matter
     ! cosmological power spectra. The full details of the way in which
-    ! this is done are presented in Smith et al. (2002), MNRAS, ?, ?.
+    ! this is done are presented in Smith et al. (2003), MNRAS, 341, 4
     !
     ! The code `halofit' was written by R. E. Smith & J. A. Peacock.
     ! See http://www.astro.upenn.edu/~res,
@@ -112,34 +112,52 @@
     END TYPE HM_tables
     !!AM - End of my additions
 
+    ! HMcode parameters
+    REAL(dl), PARAMETER :: zinf_Dolag=10. ! Effective 'infinite' redshift for Dolag
+    REAL, PARAMETER :: fdamp_min=1e-3     ! Minimum value of fdamp
+    REAL, PARAMETER :: fdamp_max=0.99     ! Maximum value of fdamp
+    REAL, PARAMETER :: alpha_min=0.5      ! Minimum value of alpha transition
+    REAL, PARAMETER :: alpha_max=2.       ! Maximum value of alpha transition
+    REAL, PARAMETER :: ks_limit=7.        ! Limit for (k/ks)^2 in one-halo term
+
     ! HMcode numerical parameters
-    REAL(dl), PARAMETER :: mmin_HMcode=1e0 !Lower mass limit
-    REAL(dl), PARAMETER :: mmax_HMcode=1e18 !Upper mass limit
-    INTEGER, PARAMETER :: n_HMcode=256 !Number of entries in look-up HM_tables.
+    REAL(dl), PARAMETER :: mmin_HMcode=1e0  ! Lower mass limit [Msun/h]
+    REAL(dl), PARAMETER :: mmax_HMcode=1e18 ! Upper mass limit [Msun/h]
+    INTEGER, PARAMETER :: n_HMcode=256      ! Number of entries in look-up HM_tables.
 
     ! HMcode linear P(k) numerical parameters
-    INTEGER, PARAMETER :: imeth_pk=1 !AM Jul 19: Changed to imeth=1 from imeth=2
-    REAL(dl), PARAMETER :: kmin_pk=1e-3
-    REAL(dl), PARAMETER :: kmax_pk=1e2
-    INTEGER, PARAMETER :: nk_pk=512 !AM Jul 19: Improved accuracy from 128 to 512 points
+    LOGICAL, PARAMETER :: rebin_pk=.FALSE. ! Should the linear P(k) be rebinned?
+    REAL(dl), PARAMETER :: kmin_pk=1e-3    ! Minimum wavenumber if rebinning [h/Mpc]
+    REAL(dl), PARAMETER :: kmax_pk=1e2     ! Maximum wavenumber if rebinning [h/Mpc]
+    INTEGER, PARAMETER :: nk_pk=512        ! Number of points in k if rebining
+    LOGICAL, PARAMETER :: log_plin_extrap=.FALSE. ! Extrapolate at high-k via thoery or simple power law
 
-    ! HMcode numerical parameters for sigma(R)
-    REAL(dl), PARAMETER :: rmin_sigma=1e-4
-    REAL(dl), PARAMETER :: rmax_sigma=1e3
-    INTEGER, PARAMETER :: n_sigma=64
-    REAL(dl), PARAMETER :: acc_sigma=1e-4 !AM Jul 19: Upgraded accuracy from 1e-3 to 1e-4
-    REAL(dl), PARAMETER :: alpha_sigma=3.
-    INTEGER, PARAMETER :: iorder_sigma=3
+    ! Linear growth factor numerical parameters
+    real(dl), PARAMETER :: acc_growth=1e-4   ! Accuracy for growth integral or ODE
+    INTEGER, PARAMETER :: iorder_growth=3    ! Polynomial order for growth integral
+    REAL(dl), PARAMETER :: ainit_growth=1e-3 ! Initial scale factor for growth ODE
+    REAL(dl), PARAMETER :: amax_growth=1.    ! Final scale factor for growth ODE
+    INTEGER, PARAMETER :: n_growth=64        ! Number of entries for growth look-up table
 
-    ! HMcode numerical parameters for sigmaV(R)
-    REAL(dl), PARAMETER :: acc_sigmaV=1e-4
-    REAL(dl), PARAMETER :: alpha_sigmaV=3.
-    INTEGER, PARAMETER :: iorder_sigmaV=3
+    ! HMcode numerical parameters for sigma(R) tabulation
+    REAL(dl), PARAMETER :: rmin_sigma=1e-4 ! Minimum scale for sigma(R) look-up tables [Mpc/h]
+    REAL(dl), PARAMETER :: rmax_sigma=1e3  ! Maximum scale for sigma(R) look-up tables [Mpc/h]
+    INTEGER, PARAMETER :: n_sigma=64       ! Number of points in look-up tables
 
-    ! HMcode numerical parameters for neff(R)
-    REAL(dl), PARAMETER :: acc_neff=1e-4
-    REAL(dl), PARAMETER :: alpha_neff=1.
-    INTEGER, PARAMETER :: iorder_neff=3
+    ! HMcode numerical parameters for sigma(R) integration
+    REAL(dl), PARAMETER :: acc_sigma=1e-4 ! Relative accuracy of numerical integration
+    REAL(dl), PARAMETER :: alpha_sigma=3. ! Exponent to speed up integration
+    INTEGER, PARAMETER :: iorder_sigma=3  ! Polynomail order for numerical integration
+
+    ! HMcode numerical parameters for sigmaV(R) integration
+    REAL(dl), PARAMETER :: acc_sigmaV=1e-4 ! Relative accuracy of numerical integration
+    REAL(dl), PARAMETER :: alpha_sigmaV=3. ! Exponent to speed up integration
+    INTEGER, PARAMETER :: iorder_sigmaV=3  ! Polynomial order for numerical integration
+
+    ! HMcode numerical parameters for neff(R) integration
+    REAL(dl), PARAMETER :: acc_neff=1e-4 ! Relative accuracy of numerical integration
+    REAL(dl), PARAMETER :: alpha_neff=2. ! Exponent to speed up integration
+    INTEGER, PARAMETER :: iorder_neff=3  ! Polynomial order for numerical integration
 
     contains
 
@@ -636,8 +654,8 @@
     END IF
 
     !Catches extreme values of fdamp
-    IF(fdamp<1.e-3) fdamp=1.e-3
-    IF(fdamp>0.99)  fdamp=0.99
+    IF(fdamp<fdamp_min) fdamp=fdamp_min
+    IF(fdamp>fdamp_max) fdamp=fdamp_max
 
     END FUNCTION fdamp
 
@@ -662,8 +680,8 @@
     END IF
 
     !Catches values of alpha that are crazy
-    IF(alpha>2.)  alpha=2.
-    IF(alpha<0.5) alpha=0.5
+    IF(alpha>alpha_max) alpha=alpha_max
+    IF(alpha<alpha_min) alpha=alpha_min
 
     END FUNCTION alpha
 
@@ -731,30 +749,6 @@
 
     END SUBROUTINE fill_table
 
-    ! SUBROUTINE fill_table8(min,max,arr,n)
-
-    ! !Fills array 'arr' in equally spaced intervals
-    ! IMPLICIT NONE
-    ! INTEGER :: i
-    ! REAL(dl), INTENT(IN) :: min, max
-    ! real(dl), ALLOCATABLE :: arr(:)
-    ! INTEGER, INTENT(IN) :: n
-
-    ! !Allocate the array, and deallocate it if it is full
-    ! IF(ALLOCATED(arr)) DEALLOCATE(arr)
-    ! ALLOCATE(arr(n))
-    ! arr=0.
-
-    ! IF(n==1) THEN
-    !     arr(1)=min
-    ! ELSE IF(n>1) THEN
-    !     DO i=1,n
-    !         arr(i)=min+(max-min)*float(i-1)/float(n-1)
-    !     END DO
-    ! END IF
-
-    ! END SUBROUTINE fill_table8
-
     SUBROUTINE fill_plintab(iz,cosm,CAMB_PK)
 
     !Fills internal HMcode HM_tables for the linear power spectrum at z=0
@@ -764,7 +758,6 @@
     INTEGER :: i
     REAL(dl) :: z, g
     REAL(dl), ALLOCATABLE :: k(:), Pk(:), Pkc(:)
-    INTEGER, PARAMETER :: imeth=imeth_pk
     REAL(dl), PARAMETER :: pi=3.141592654
     REAL(dl), PARAMETER :: kmin=kmin_pk
     REAL(dl), PARAMETER :: kmax=kmax_pk
@@ -777,17 +770,7 @@
     IF(ALLOCATED(cosm%log_plin))   DEALLOCATE(cosm%log_plin)
     IF(ALLOCATED(cosm%log_plinc))  DEALLOCATE(cosm%log_plinc)
 
-    IF(imeth==1) THEN
-
-        !Fill k-table with the same k points as in the CAMB calculation
-        !If a user has specified lots of points this could make the halo-model
-        !calculation chug
-        nk=CAMB_PK%num_k
-        cosm%nk=nk
-        ALLOCATE(cosm%log_k_plin(nk))
-        cosm%log_k_plin=CAMB_Pk%log_kh
-
-    ELSE IF(imeth==2) THEN
+    IF(rebin_pk) THEN
 
         !Fill a k-table with an equal-log-spaced k range
         !Note that the minimum should be such that the linear spectrum is accurately a power-law below this wavenumber
@@ -796,7 +779,13 @@
 
     ELSE
 
-      STOP 'FILL_PLINTAB: Error, imeth specified incorrectly'
+        !Fill k-table with the same k points as in the CAMB calculation
+        !If a user has specified lots of points this could make the halo-model
+        !calculation chug
+        nk=CAMB_PK%num_k
+        cosm%nk=nk
+        ALLOCATE(cosm%log_k_plin(nk))
+        cosm%log_k_plin=CAMB_Pk%log_kh
 
     END IF
 
@@ -994,6 +983,7 @@
     REAL(dl), PARAMETER :: mmin=mmin_HMcode !Lower mass limit
     REAL(dl), PARAMETER :: mmax=mmax_HMcode !Upper mass limit
     INTEGER, PARAMETER :: n=n_HMcode !Number of entries in look-up HM_tables.
+    REAL, PARAMETER :: f_Bullock=0.01**(1./3.)
 
     IF(HM_verbose) WRITE(*,*) 'HALOMOD: Filling look-up HM_tables'
     IF(HM_verbose) WRITE(*,*) 'HALOMOD: HM_tables being filled at redshift:', z
@@ -1039,9 +1029,9 @@
 
     !Fills up a table for sigma(fM) for Bullock c(m) relation
     !This is the f=0.01 parameter in the Bullock realtion sigma(fM,z)
-    f=0.01**(1./3.)
+    !f=0.01**(1./3.)
     DO i=1,lut%n
-        lut%sigf(i)=sigmac(lut%rr(i)*f,z,cosm)
+        lut%sigf(i)=sigmac(lut%rr(i)*f_Bullock,z,cosm)
     END DO
     IF(HM_verbose) WRITE(*,*) 'HALOMOD: sigf HM_tables filled'
 
@@ -1147,8 +1137,9 @@
     REAL(dl), INTENT(IN) :: z
     TYPE(HM_cosmology) :: cosm, cos_lcdm
     TYPE(HM_tables) :: lut
-    REAL(dl) :: A, zf, ainf, zinf, g_lcdm, g_wcdm, pow
+    REAL(dl) :: A, zf, ainf, g_lcdm, g_wcdm, pow
     INTEGER :: i
+    REAL(dl), PARAMETER :: zinf=zinf_Dolag
 
     !Amplitude of relation (4. in Bullock et al. 2001)
     A=this%As(z,lut,cosm)
@@ -1165,7 +1156,7 @@
     !Dolag (2004) prescription for adding DE dependence
 
     !This is approximately z=infinity
-    zinf=10.
+    !zinf=10.
     g_wcdm=grow(zinf,cosm)
 
     !Make a LCDM HM_cosmology
@@ -1211,8 +1202,8 @@
     REAL(dl) :: sum_n, sum_2n, sum_new, sum_old
     INTEGER, PARAMETER :: jmin=5
     INTEGER, PARAMETER :: jmax=30
-    real(dl), PARAMETER :: acc=1d-3
-    INTEGER, PARAMETER :: iorder=3
+    real(dl), PARAMETER :: acc=acc_growth
+    INTEGER, PARAMETER :: iorder=iorder_growth
 
     !Integration range for integration parameter
     !Note a -> 1
@@ -1390,13 +1381,11 @@
     !Set number of k points as well as min and max k values
     !Note that the min k value should be set to the same as the CAMB min k value
     n=SIZE(cosm%log_k_plin)
-    kmax=exp(cosm%log_k_plin(n))
+    kmax=exp(cosm%log_k_plin(n)) 
 
-    !Spectral index used in the high-k extrapolation
-    ns=cosm%ns
-
-    IF(k>kmax) THEN
+    IF(log_plin_extrap .AND. k>kmax) THEN
         !Do some interpolation here based on knowledge of things at high k
+        ns=cosm%ns !Spectral index used in the high-k extrapolation
         IF(itype==0) THEN
             find_pk=exp(cosm%log_plin(n))*((log(k)/log(kmax))**2.)*((k/kmax)**(ns-1.))
         ELSE IF(itype==1) THEN
@@ -1493,7 +1482,7 @@
     !Prevents problems if k/ks is very large
     IF(ks==0.) THEN
         fac=0.
-    ELSE IF((k/ks)**2.>7.) THEN
+    ELSE IF((k/ks)**2.>ks_limit) THEN
         fac=0.
     ELSE
         fac=exp(-((k/ks)**2.))
@@ -1947,16 +1936,18 @@
     !Sheth & Tormen (1999) mass function!
     REAL(dl) :: gst
     REAL(dl), INTENT(IN) :: nu
-    REAL(dl) :: p, a, bigA
+    REAL(dl), PARAMETER :: p=0.3
+    REAL(dl), PARAMETER :: a=0.707
+    REAL(dl), PARAMETER :: bigA=0.21616
 
     !Note I use nu=dc/sigma whereas ST (1999) use nu=(dc/sigma)^2
     !This accounts for the different pre-factor and slighly changed nu dependence
     !f(nu^2)d(nu^2)=2*nu*f(nu)dnu
 
-    !Sheth & Tormen fitting numbers
-    p=0.3
-    a=0.707
-    bigA=0.21616
+    !Sheth & Tormen fitting numbers ! MEAD: Remove
+    !p=0.3
+    !a=0.707
+    !bigA=0.21616
 
     !Full mass function. Note this is normalised such that integral f(nu)dnu = 1
     gst=bigA*(1.+((a*nu*nu)**(-p)))*exp(-a*nu*nu/2.)
@@ -2016,7 +2007,7 @@
 
     FUNCTION Omega_cold_hm(z,cosm)
 
-    !This calculates omega_cold variations with z!
+    !This calculates omega_cold variations with z (no neutrinos)
     REAL(dl) :: Omega_cold_hm
     REAL(dl), INTENT(IN) :: z
     TYPE(HM_cosmology), INTENT(IN) :: cosm
@@ -2602,24 +2593,16 @@
     INTEGER :: i
     REAL(dl) :: a, norm
     REAL(dl), ALLOCATABLE :: d_tab(:), v_tab(:), a_tab(:)
-    REAL(dl) :: ainit, amax, dinit, vinit
-    REAL(dl) :: acc
-    INTEGER, PARAMETER :: n=64
-
-    !The calculation should start at a z when Om_m(z)=1., so that the assumption
-    !of starting in the g\propto a growing mode is valid (this will not work for early DE)
-    ainit=0.001
-
-    !Final should be a=1. unless considering models in the future
-    amax=1.
+    REAL(dl) :: dinit, vinit
+    REAL(dl), PARAMETER :: ainit=ainit_growth
+    REAL(dl), PARAMETER :: amax=amax_growth
+    REAL(dl), PARAMETER :: acc=acc_growth
+    INTEGER, PARAMETER :: n=n_growth
 
     !These set the initial conditions to be the Om_m=1. growing mode
     !AM Jul 19: changed initial conditions to be appropriate for massive neutrino cosmologies
     dinit = ainit**(1.-3.*cosm%f_nu/5.)
     vinit = (1.-3.*cosm%f_nu/5.)*ainit**(-3.*cosm%f_nu/5.)
-
-    !Overall accuracy for the ODE solver
-    acc=1d-3
 
     IF(HM_verbose) WRITE(*,*) 'GROWTH: Solving growth equation'
     CALL ode_growth(d_tab,v_tab,a_tab,0.d0,ainit,amax,dinit,vinit,acc,3,cosm)
