@@ -113,12 +113,13 @@
     !!AM - End of my additions
 
     ! HMcode parameters
-    REAL(dl), PARAMETER :: zinf_Dolag=10. ! Effective 'infinite' redshift for Dolag
-    REAL, PARAMETER :: fdamp_min=1e-3     ! Minimum value of fdamp
-    REAL, PARAMETER :: fdamp_max=0.99     ! Maximum value of fdamp
-    REAL, PARAMETER :: alpha_min=0.5      ! Minimum value of alpha transition
-    REAL, PARAMETER :: alpha_max=2.       ! Maximum value of alpha transition
-    REAL, PARAMETER :: ks_limit=7.        ! Limit for (k/ks)^2 in one-halo term
+    REAL(dl), PARAMETER :: zinf_Dolag=10.    ! Effective 'infinite' redshift for Dolag
+    REAL(dl), PARAMETER :: fdamp_min=1e-3    ! Minimum value of fdamp
+    REAL(dl), PARAMETER :: fdamp_max=0.99    ! Maximum value of fdamp
+    REAL(dl), PARAMETER :: alpha_min=0.5     ! Minimum value of alpha transition
+    REAL(dl), PARAMETER :: alpha_max=2.      ! Maximum value of alpha transition
+    REAL(dl), PARAMETER :: ks_limit=7.       ! Limit for (k/ks)^2 in one-halo term
+    REAL(dl), PARAMETER :: pi_HM=3.141592654 ! Lovely pi
 
     ! HMcode numerical parameters
     REAL(dl), PARAMETER :: mmin_HMcode=1e0  ! Lower mass limit [Msun/h]
@@ -126,11 +127,11 @@
     INTEGER, PARAMETER :: n_HMcode=256      ! Number of entries in look-up HM_tables.
 
     ! HMcode linear P(k) numerical parameters
-    LOGICAL, PARAMETER :: rebin_pk=.FALSE. ! Should the linear P(k) be rebinned?
-    REAL(dl), PARAMETER :: kmin_pk=1e-3    ! Minimum wavenumber if rebinning [h/Mpc]
-    REAL(dl), PARAMETER :: kmax_pk=1e2     ! Maximum wavenumber if rebinning [h/Mpc]
-    INTEGER, PARAMETER :: nk_pk=512        ! Number of points in k if rebining
-    LOGICAL, PARAMETER :: log_plin_extrap=.FALSE. ! Extrapolate at high-k via thoery or simple power law
+    LOGICAL, PARAMETER :: rebin_pk=.TRUE.     ! Should the linear P(k) be rebinned?
+    REAL(dl), PARAMETER :: kmin_pk=1e-3       ! Minimum wavenumber if rebinning [h/Mpc]
+    REAL(dl), PARAMETER :: kmax_pk=1e2        ! Maximum wavenumber if rebinning [h/Mpc]
+    INTEGER, PARAMETER :: nk_pk=512           ! Number of points in k if rebining
+    LOGICAL, PARAMETER :: plin_extrap=.FALSE. ! Extrapolate at high-k via thoery or simple power law
 
     ! Linear growth factor numerical parameters
     real(dl), PARAMETER :: acc_growth=1e-4   ! Accuracy for growth integral or ODE
@@ -466,7 +467,7 @@
     INTEGER :: i, j, nk, nz
     TYPE(HM_cosmology) :: cosi
     TYPE(HM_tables) :: lut
-    REAL(dl), PARAMETER :: pi=3.141592654
+    REAL(dl), PARAMETER :: pi=pi_HM
 
     !HMcode developed by Alexander Mead (alexander.j.mead@googlemail.com)
     !Please contact me if you have any questions whatsoever
@@ -758,7 +759,7 @@
     INTEGER :: i
     REAL(dl) :: z, g
     REAL(dl), ALLOCATABLE :: k(:), Pk(:), Pkc(:)
-    REAL(dl), PARAMETER :: pi=3.141592654
+    REAL(dl), PARAMETER :: pi=pi_HM
     REAL(dl), PARAMETER :: kmin=kmin_pk
     REAL(dl), PARAMETER :: kmax=kmax_pk
     INTEGER :: nk=nk_pk
@@ -1102,7 +1103,7 @@
     REAL(dl) :: radius_m
     REAL(dl), INTENT(IN) :: m
     TYPE(HM_cosmology), INTENT(IN) :: cosm
-    REAL(dl), PARAMETER :: pi=3.141592654
+    REAL(dl), PARAMETER :: pi=pi_HM
 
     radius_m=(3.*m/(4.*pi*cosmic_density(cosm)))**(1./3.)
 
@@ -1350,7 +1351,7 @@
     !Calcuates the average mass enclosed at co-moving radius r
     REAL(dl) :: mass_r, r
     TYPE(HM_cosmology) :: cosm
-    REAL(dl), PARAMETER :: pi=3.141592654
+    REAL(dl), PARAMETER :: pi=pi_HM
 
     !Relation between mean cosmological mass and radius
     mass_r=(4.*pi/3.)*cosmic_density(cosm)*(r**3.)
@@ -1383,7 +1384,7 @@
     n=SIZE(cosm%log_k_plin)
     kmax=exp(cosm%log_k_plin(n)) 
 
-    IF(log_plin_extrap .AND. k>kmax) THEN
+    IF(plin_extrap .AND. k>kmax) THEN
         !Do some interpolation here based on knowledge of things at high k
         ns=cosm%ns !Spectral index used in the high-k extrapolation
         IF(itype==0) THEN
@@ -1453,7 +1454,7 @@
     REAL(dl) :: integrand(lut%n)
     REAL(dl) :: sum
     INTEGER :: i
-    REAL(dl), PARAMETER :: pi=3.141592654
+    REAL(dl), PARAMETER :: pi=pi_HM
 
     !Does the one-halo power integral
 
