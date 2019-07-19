@@ -127,6 +127,7 @@
     INTEGER, PARAMETER :: n_HMcode=256      ! Number of entries in look-up HM_tables.
 
     ! HMcode linear P(k) numerical parameters
+    ! AM: Jul 19: Updated nk_pk from 128 to 512
     LOGICAL, PARAMETER :: rebin_pk=.TRUE.     ! Should the linear P(k) be rebinned?
     REAL(dl), PARAMETER :: kmin_pk=1e-3       ! Minimum wavenumber if rebinning [h/Mpc]
     REAL(dl), PARAMETER :: kmax_pk=1e2        ! Maximum wavenumber if rebinning [h/Mpc]
@@ -134,6 +135,7 @@
     LOGICAL, PARAMETER :: plin_extrap=.FALSE. ! Extrapolate at high-k via thoery or simple power law
 
     ! Linear growth factor numerical parameters
+    ! AM: Jul 19: Updated acc_growth from 1e-3 to 1e-4
     real(dl), PARAMETER :: acc_growth=1e-4   ! Accuracy for growth integral or ODE
     INTEGER, PARAMETER :: iorder_growth=3    ! Polynomial order for growth integral
     REAL(dl), PARAMETER :: ainit_growth=1e-3 ! Initial scale factor for growth ODE
@@ -146,16 +148,19 @@
     INTEGER, PARAMETER :: n_sigma=64       ! Number of points in look-up tables
 
     ! HMcode numerical parameters for sigma(R) integration
+    ! AM: Jul 19: Updated acc_sigma from 1e-3 to 1e-4
     REAL(dl), PARAMETER :: acc_sigma=1e-4 ! Relative accuracy of numerical integration
     REAL(dl), PARAMETER :: alpha_sigma=3. ! Exponent to speed up integration
     INTEGER, PARAMETER :: iorder_sigma=3  ! Polynomail order for numerical integration
 
     ! HMcode numerical parameters for sigmaV(R) integration
+    ! AM: Jul 19: Updated acc_sigmaV from 1e-3 to 1e-4
     REAL(dl), PARAMETER :: acc_sigmaV=1e-4 ! Relative accuracy of numerical integration
     REAL(dl), PARAMETER :: alpha_sigmaV=3. ! Exponent to speed up integration
     INTEGER, PARAMETER :: iorder_sigmaV=3  ! Polynomial order for numerical integration
 
     ! HMcode numerical parameters for neff(R) integration
+    ! AM: Jul 19: Updated acc_neff from 1e-3 to 1e-4
     REAL(dl), PARAMETER :: acc_neff=1e-4 ! Relative accuracy of numerical integration
     REAL(dl), PARAMETER :: alpha_neff=2. ! Exponent to speed up integration
     INTEGER, PARAMETER :: iorder_neff=3  ! Polynomial order for numerical integration
@@ -1727,7 +1732,7 @@
     TYPE(HM_cosmology), INTENT(IN) :: cosm
     REAL(dl), PARAMETER :: tmin=0.
     REAL(dl), PARAMETER :: tmax=1.
-    REAL(dl), PARAMETER :: acc=acc_sigma !AM Jul 19: Upgraded accuracy from 1d-3 to 1d-4
+    REAL(dl), PARAMETER :: acc=acc_sigma
     INTEGER, PARAMETER :: iorder=iorder_sigma
 
     !sigma=sqrt(sigint(r,z,itype,cosm,acc,iorder))
@@ -1944,11 +1949,6 @@
     !Note I use nu=dc/sigma whereas ST (1999) use nu=(dc/sigma)^2
     !This accounts for the different pre-factor and slighly changed nu dependence
     !f(nu^2)d(nu^2)=2*nu*f(nu)dnu
-
-    !Sheth & Tormen fitting numbers ! MEAD: Remove
-    !p=0.3
-    !a=0.707
-    !bigA=0.21616
 
     !Full mass function. Note this is normalised such that integral f(nu)dnu = 1
     gst=bigA*(1.+((a*nu*nu)**(-p)))*exp(-a*nu*nu/2.)
