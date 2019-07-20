@@ -28,7 +28,10 @@ def get_ifort_version():
 
 
 def get_gfortran_version():
-    return call_command("gfortran -dumpversion")
+    ver = call_command("gfortran -dumpversion")
+    if '.' not in ver:
+        ver = call_command("gfortran -dumpfullversion")
+    return ver
 
 
 def check_ifort():
