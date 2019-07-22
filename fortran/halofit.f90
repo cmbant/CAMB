@@ -536,13 +536,12 @@
 
     END SUBROUTINE HMcode
 
-    FUNCTION Delta_v(this,z,lut,cosm)
+    FUNCTION Delta_v(this,z,cosm)
     class(THalofit) :: this
     !Function for the virialised overdensity
     REAL(dl) :: Delta_v
     REAL(dl), INTENT(IN) :: z
     TYPE(HM_cosmology), INTENT(IN) :: cosm
-    TYPE(HM_tables), INTENT(IN) :: lut
 
     IF(this%imead==0) THEN
         !Value that is normally used in halo model predictions
@@ -577,11 +576,10 @@
 
     END FUNCTION delta_c
 
-    FUNCTION eta(this,z,lut,cosm)
+    FUNCTION eta(this,lut,cosm)
     class(THalofit) :: this
     !Function eta that puffs halo profiles
     REAL(dl) :: eta
-    REAL(dl), INTENT(IN) :: z
     TYPE(HM_cosmology), INTENT(IN) :: cosm
     TYPE(HM_tables), INTENT(IN) :: lut
     REAL(dl) :: eta0
@@ -600,12 +598,10 @@
 
     END FUNCTION eta
 
-    FUNCTION kstar(this,z,lut,cosm)
+    FUNCTION kstar(this,lut)
     class(THalofit) :: this
     !Function k* that cuts off the 1-halo term at large scales
     REAL(dl) :: kstar
-    REAL(dl), INTENT(IN) :: z
-    TYPE(HM_cosmology), INTENT(IN) :: cosm
     TYPE(HM_tables), INTENT(IN) :: lut
 
     IF(this%imead==0) THEN
@@ -619,13 +615,11 @@
 
     END FUNCTION kstar
 
-    FUNCTION As(this,z,lut,cosm)
+    FUNCTION As(this,cosm)
     class(THalofit) :: this
     !Halo concentration pre-factor from Bullock et al. (2001) relation
     REAL(dl) :: As
-    REAL(dl), INTENT(IN) :: z
     TYPE(HM_cosmology), INTENT(IN) :: cosm
-    TYPE(HM_tables), INTENT(IN) :: lut
 
     IF(this%imead==0) THEN
         !Set to 4 for the standard Bullock value
@@ -639,12 +633,10 @@
 
     END FUNCTION As
 
-    FUNCTION fdamp(this,z,lut,cosm)
+    FUNCTION fdamp(this,lut)
     class(THalofit) :: this
     !Linear power damping function from Mead et al. (2015; arXiv 1505.07833)
     REAL(dl) ::fdamp
-    REAL(dl), INTENT(IN) :: z
-    TYPE(HM_cosmology), INTENT(IN) :: cosm
     TYPE(HM_tables), INTENT(IN) :: lut
 
     !Linear theory damping factor
@@ -665,13 +657,11 @@
 
     END FUNCTION fdamp
 
-    FUNCTION alpha(this,z,lut,cosm)
+    FUNCTION alpha(this,lut)
     class(THalofit) :: this
     !Two- to one-halo transition smoothing from Mead et al. (2015; arXiv 1505.07833)
     REAL(dl) :: alpha
-    REAL(dl), INTENT(IN) :: z
     TYPE(HM_tables), INTENT(IN) :: lut
-    TYPE(HM_cosmology), INTENT(IN) :: cosm
 
     IF(this%imead==0) THEN
         !Set to 1 for the standard halomodel sum of one- and two-halo terms
@@ -722,10 +712,10 @@
         p2h=0.
     ELSE
         p1h=this%p_1h(k,z,lut,cosm)
-        p2h=this%p_2h(k,z,plin,lut,cosm)
+        p2h=this%p_2h(k,plin,lut)
     END IF
 
-    a=this%alpha(z,lut,cosm)
+    a=this%alpha(lut)
     pfull=(p2h**a+p1h**a)**(1./a)
     IF(sigma) THEN
         pfull=sigmac(k,z,cosm)
@@ -983,7 +973,7 @@
     !Computes look-up HM_tables necessary for the halo model calculations
     REAL(dl), INTENT(IN) :: z
     INTEGER :: i
-    REAL(dl) :: Dv, dc, f, m, nu, r, sig
+    REAL(dl) :: Dv, dc, m, nu, r, sig
     TYPE(HM_cosmology) :: cosm
     TYPE(HM_tables) :: lut
     REAL(dl), PARAMETER :: mmin=mmin_HMcode !Lower mass limit
@@ -1042,7 +1032,7 @@
     IF(HM_verbose) WRITE(*,*) 'HALOMOD: sigf HM_tables filled'
 
     !Fill virial radius table using real radius table
-    Dv=this%Delta_v(z,lut,cosm)
+    Dv=this%Delta_v(z,cosm)
     lut%rv=lut%rr/(Dv**(1./3.))
 
     IF(HM_verbose) WRITE(*,*) 'HALOMOD: rv HM_tables filled'
@@ -1090,13 +1080,13 @@
     IF(HM_verbose) WRITE(*,*) 'WRITE_PARAMETERS: at this redshift'
     IF(HM_verbose) WRITE(*,*) '=================================='
     IF(HM_verbose) WRITE(*,fmt='(A10,F10.5)') 'z:', z
-    IF(HM_verbose) WRITE(*,fmt='(A10,F10.5)') 'Dv:', this%Delta_v(z,lut,cosm)
+    IF(HM_verbose) WRITE(*,fmt='(A10,F10.5)') 'Dv:', this%Delta_v(z,cosm)
     IF(HM_verbose) WRITE(*,fmt='(A10,F10.5)') 'dc:', this%delta_c(z,lut,cosm)
-    IF(HM_verbose) WRITE(*,fmt='(A10,F10.5)') 'eta:', this%eta(z,lut,cosm)
-    IF(HM_verbose) WRITE(*,fmt='(A10,F10.5)') 'k*:', this%kstar(z,lut,cosm)
-    IF(HM_verbose) WRITE(*,fmt='(A10,F10.5)') 'A:', this%As(z,lut,cosm)
-    IF(HM_verbose) WRITE(*,fmt='(A10,F10.5)') 'fdamp:', this%fdamp(z,lut,cosm)
-    IF(HM_verbose) WRITE(*,fmt='(A10,F10.5)') 'alpha:', this%alpha(z,lut,cosm)
+    IF(HM_verbose) WRITE(*,fmt='(A10,F10.5)') 'eta:', this%eta(lut,cosm)
+    IF(HM_verbose) WRITE(*,fmt='(A10,F10.5)') 'k*:', this%kstar(lut)
+    IF(HM_verbose) WRITE(*,fmt='(A10,F10.5)') 'A:', this%As(cosm)
+    IF(HM_verbose) WRITE(*,fmt='(A10,F10.5)') 'fdamp:', this%fdamp(lut)
+    IF(HM_verbose) WRITE(*,fmt='(A10,F10.5)') 'alpha:', this%alpha(lut)
     IF(HM_verbose) WRITE(*,*) '=================================='
     IF(HM_verbose) WRITE(*,*)
 
@@ -1148,7 +1138,7 @@
     REAL(dl), PARAMETER :: zinf=zinf_Dolag
 
     !Amplitude of relation (4. in Bullock et al. 2001)
-    A=this%As(z,lut,cosm)
+    A=this%As(cosm)
 
     !Fill the collapse time look-up table
     CALL this%zcoll_bull(z,cosm,lut)
@@ -1423,18 +1413,16 @@
 
     END FUNCTION p_lin
 
-    FUNCTION p_2h(this,k,z,plin,lut,cosm)
+    FUNCTION p_2h(this,k,plin,lut)
     class(THalofit) :: this
     !Calculates the 2-halo term
     REAL(dl) :: p_2h
     REAL(dl), INTENT(IN) :: k, plin
     REAL(dl) :: sigv, frac
-    REAL(dl), INTENT(IN) :: z
     TYPE(HM_tables), INTENT(IN) :: lut
-    TYPE(HM_cosmology), INTENT(IN) :: cosm
 
     !Damping function
-    frac=this%fdamp(z,lut,cosm)
+    frac=this%fdamp(lut)
 
     IF(this%imead==0 .OR. frac<1.e-3) THEN
         p_2h=plin
@@ -1464,7 +1452,7 @@
     !Does the one-halo power integral
 
     !Only call eta once
-    et=this%eta(z,lut,cosm)
+    et=this%eta(lut,cosm)
 
     !Calculates the value of the integrand at all nu values!
     DO i=1,lut%n
@@ -1477,13 +1465,13 @@
     sum=inttab(lut%nu,integrand,lut%n,1)
 
     !Virial density
-    Dv=this%Delta_v(z,lut,cosm)
+    Dv=this%Delta_v(z,cosm)
 
     !These are just numerical factors from the 1-halo integral in terms of nu!
     p_1h=sum*2.*Dv*(k**3.)/(3.*pi)
 
     !Damping of the 1-halo term at very large scales
-    ks=this%kstar(z,lut,cosm)
+    ks=this%kstar(lut)
 
     !Prevents problems if k/ks is very large
     IF(ks==0.) THEN
@@ -1772,7 +1760,6 @@
     REAL(dl) :: integrate
     REAL(dl), INTENT(IN) :: a
     REAL(dl), INTENT(IN) :: b
-    REAL(dl), EXTERNAL :: f
     REAL(dl), INTENT(IN) :: y
     REAL(dl), INTENT(IN) :: z
     INTEGER, INTENT(IN) :: itype
@@ -1790,7 +1777,8 @@
     INTERFACE
     FUNCTION f(x, y, z, itype, cosm)
         USE precision
-        IMPORT :: HM_cosmology    
+        IMPORT :: HM_cosmology
+        REAL(dl) :: f
         REAL(dl), INTENT(IN) :: x
         REAL(dl), INTENT(IN) :: y
         REAL(dl), INTENT(IN) :: z
@@ -2606,7 +2594,7 @@
     vinit = (1.-3.*cosm%f_nu/5.)*ainit**(-3.*cosm%f_nu/5.)
 
     IF(HM_verbose) WRITE(*,*) 'GROWTH: Solving growth equation'
-    CALL ode_growth(d_tab,v_tab,a_tab,0.d0,ainit,amax,dinit,vinit,acc,3,cosm)
+    CALL ode_growth(d_tab,v_tab,a_tab,ainit,amax,dinit,vinit,acc,3,cosm)
     IF(HM_verbose) WRITE(*,*) 'GROWTH: ODE done'
 
     !Normalise so that g(z=0)=1
@@ -2631,11 +2619,11 @@
 
     END SUBROUTINE fill_growtab
 
-    SUBROUTINE ode_growth(x,v,t,kk,ti,tf,xi,vi,acc,imeth,cosm)
+    SUBROUTINE ode_growth(x,v,t,ti,tf,xi,vi,acc,imeth,cosm)
 
     !Solves 2nd order ODE x''(t) from ti to tf and writes out array of x, v, t values
     IMPLICIT NONE
-    REAL(dl) :: xi, ti, tf, dt, acc, vi, x4, v4, t4, kk
+    REAL(dl) :: xi, ti, tf, dt, acc, vi, x4, v4, t4
     REAL(dl) :: kx1, kx2, kx3, kx4, kv1, kv2, kv3, kv4
     REAL(dl), ALLOCATABLE :: x8(:), t8(:), v8(:), xh(:), th(:), vh(:)
     REAL(dl), ALLOCATABLE :: x(:), v(:), t(:)
@@ -2690,8 +2678,8 @@
             IF(imeth==1) THEN
 
                 !Crude method
-                kx1=dt*fd(x4,v4,kk,t4,cosm)
-                kv1=dt*fv(x4,v4,kk,t4,cosm)
+                kx1=dt*fd(v4)
+                kv1=dt*fv(x4,v4,t4,cosm)
 
                 x8(i+1)=x8(i)+kx1
                 v8(i+1)=v8(i)+kv1
@@ -2700,10 +2688,10 @@
 
                 !Mid-point method
                 !2017/06/18 - There was a bug in this part before. Luckily it was not used. Thanks Dipak Munshi.
-                kx1=dt*fd(x4,v4,kk,t4,cosm)
-                kv1=dt*fv(x4,v4,kk,t4,cosm)
-                kx2=dt*fd(x4+kx1/2.,v4+kv1/2.,kk,t4+dt/2.,cosm)
-                kv2=dt*fv(x4+kx1/2.,v4+kv1/2.,kk,t4+dt/2.,cosm)
+                kx1=dt*fd(v4)
+                kv1=dt*fv(x4,v4,t4,cosm)
+                kx2=dt*fd(v4+kv1/2.)
+                kv2=dt*fv(x4+kx1/2.,v4+kv1/2.,t4+dt/2.,cosm)
 
                 x8(i+1)=x8(i)+kx2
                 v8(i+1)=v8(i)+kv2
@@ -2711,14 +2699,14 @@
             ELSE IF(imeth==3) THEN
 
                 !4th order Runge-Kutta method (fast!)
-                kx1=dt*fd(x4,v4,kk,t4,cosm)
-                kv1=dt*fv(x4,v4,kk,t4,cosm)
-                kx2=dt*fd(x4+kx1/2.,v4+kv1/2.,kk,t4+dt/2.,cosm)
-                kv2=dt*fv(x4+kx1/2.,v4+kv1/2.,kk,t4+dt/2.,cosm)
-                kx3=dt*fd(x4+kx2/2.,v4+kv2/2.,kk,t4+dt/2.,cosm)
-                kv3=dt*fv(x4+kx2/2.,v4+kv2/2.,kk,t4+dt/2.,cosm)
-                kx4=dt*fd(x4+kx3,v4+kv3,kk,t4+dt,cosm)
-                kv4=dt*fv(x4+kx3,v4+kv3,kk,t4+dt,cosm)
+                kx1=dt*fd(v4)
+                kv1=dt*fv(x4,v4,t4,cosm)
+                kx2=dt*fd(v4+kv1/2.)
+                kv2=dt*fv(x4+kx1/2.,v4+kv1/2.,t4+dt/2.,cosm)
+                kx3=dt*fd(v4+kv2/2.)
+                kv3=dt*fv(x4+kx2/2.,v4+kv2/2.,t4+dt/2.,cosm)
+                kx4=dt*fd(v4+kv3)
+                kv4=dt*fv(x4+kx3,v4+kv3,t4+dt,cosm)
 
                 x8(i+1)=x8(i)+(kx1+(2.*kx2)+(2.*kx3)+kx4)/6.
                 v8(i+1)=v8(i)+(kv1+(2.*kv2)+(2.*kv3)+kv4)/6.
@@ -2770,11 +2758,11 @@
 
     END SUBROUTINE ode_growth
 
-    FUNCTION fv(d,v,k,a,cosm)
+    FUNCTION fv(d,v,a,cosm)
 
     !v'=f(v) in ODE solver
     REAL(dl) :: fv
-    REAL(dl), INTENT(IN) :: d, v, k, a
+    REAL(dl), INTENT(IN) :: d, v, a
     REAL(dl) :: f1, f2, z
     TYPE(HM_cosmology), INTENT(IN) :: cosm
 
@@ -2788,11 +2776,11 @@
 
     END FUNCTION fv
 
-    FUNCTION fd(d,v,k,a,cosm)
+    FUNCTION fd(v)
+
     !d'=f(d) in ODE solver
     REAL(dl) :: fd
-    REAL(dl), INTENT(IN) :: d, v, k, a
-    TYPE(HM_cosmology), INTENT(IN) :: cosm
+    REAL(dl), INTENT(IN) :: v
 
     fd=v
 
