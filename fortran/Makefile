@@ -59,7 +59,7 @@ FFLAGS = -fp-model precise -W0 -WB $(COMMON_FFLAGS)
 DEBUGFLAGS =  -g -check all -check noarg_temp_created -traceback -fpe0 $(COMMON_FFLAGS)
 
 ifeq ($(shell uname -s),Darwin)
-SFFLAGS = -dynamiclib -fpic
+SFFLAGS = -dynamiclib #-fpic
 else
 SFFLAGS = -shared -fpic
 endif
@@ -95,7 +95,12 @@ COMMON_FFLAGS = -MMD -cpp -ffree-line-length-none -fmax-errors=4 -fopenmp
 # Using -ffast-math causes differences between Debug and Release configurations.
 FFLAGS = -O3 $(COMMON_FFLAGS)
 DEBUGFLAGS = -g -fbacktrace -ffpe-trap=invalid,overflow,zero -fbounds-check $(COMMON_FFLAGS)
-SFFLAGS =  -shared -fPIC
+ifeq ($(shell uname -s),Darwin)
+SFFLAGS = -dynamiclib #-fpic
+else
+SFFLAGS = -shared -fpic
+endif
+#SFFLAGS =  -shared -fPIC
 MODOUT =  -J$(OUTPUT_DIR)
 SMODOUT = -J$(DLL_DIR)
 
