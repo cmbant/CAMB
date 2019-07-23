@@ -122,13 +122,15 @@
     REAL(dl), PARAMETER :: pi_HM=3.141592654 ! Lovely pi
 
     ! HMcode numerical parameters
+    ! AM: TODO: Reducing halo mass range and number of points may save time
     REAL(dl), PARAMETER :: mmin_HMcode=1e0  ! Lower mass limit [Msun/h]
     REAL(dl), PARAMETER :: mmax_HMcode=1e18 ! Upper mass limit [Msun/h]
     INTEGER, PARAMETER :: n_HMcode=256      ! Number of entries in look-up HM_tables.
 
     ! HMcode linear P(k) numerical parameters
-    ! AM: Jul 19: Updated nk_pk from 128 to 512
-    LOGICAL, PARAMETER :: rebin_pk=.TRUE.     ! Should the linear P(k) be rebinned?
+    ! AM: Jul 19: Updated nk_pk_interpolation from 128 to 512
+    ! AM: TODO: Change finding scheme to assume linear spacing may save time
+    LOGICAL, PARAMETER :: rebin_pk=.TRUE.             ! Should the linear P(k) be rebinned?
     REAL(dl), PARAMETER :: kmin_pk_interpolation=1e-3 ! Minimum wavenumber if rebinning [h/Mpc]
     REAL(dl), PARAMETER :: kmax_pk_interpolation=1e2  ! Maximum wavenumber if rebinning [h/Mpc]
     INTEGER, PARAMETER :: nk_pk_interpolation=512     ! Number of points in k if rebining
@@ -140,9 +142,10 @@
     ! Linear growth integral numerical parameters (LCDM only; only used in Dolag correction)
     ! AM: Jul 19: Updated acc_growint from 1e-3 to 1e-4
     REAL(dl), PARAMETER :: acc_growth_integration=1e-4 ! Accuracy for growth function integral
-    INTEGER, PARAMETER :: iorder_growth_integration=3 ! Polynomial order for growth integral
+    INTEGER, PARAMETER :: iorder_growth_integration=3  ! Polynomial order for growth integral
 
-    ! Linear growth factor interpolation numerical parameters 
+    ! Linear growth factor tabulation and interpolation numerical parameters
+    ! AM: TODO: Change finding scheme to assume linear spacing may save time
     REAL(dl), PARAMETER :: ainit_growth_interpolation=1e-3 ! Initial scale factor for growth ODE
     REAL(dl), PARAMETER :: amax_growth_interpolation=1.    ! Final scale factor for growth ODE
     INTEGER, PARAMETER :: n_growth_interpolation=64        ! Number of entries for growth look-up table
@@ -153,7 +156,7 @@
     ! Growth function ODE numerical parameters
     ! AM: Jul 19: Updated acc_growth_ODE from 1e-3 to 1e-4
     REAL(dl), PARAMETER :: acc_growth_ODE=1e-4              ! Accuracy for growth integral or ODE
-    INTEGER, PARAMETER :: iorder_growth_ODE=3               ! Polynomial order for growth function ODE interpolation
+    INTEGER, PARAMETER :: imeth_growth_ODE=3                ! Method for growth function ODE solving
     INTEGER, PARAMETER :: iorder_growth_ODE_interpolation=3 ! Polynomial order for growth function ODE interpolation
     INTEGER, PARAMETER :: ifind_growth_ODE_interpolation=3  ! Finding scheme for growth function ODE interpolation
     INTEGER, PARAMETER :: imeth_growth_ODE_interpolation=2  ! Method growth function ODE interpolation
@@ -164,6 +167,7 @@
     INTEGER, PARAMETER :: imeth_growth_inversion=2  ! Method growth function ODE inversion
 
     ! HMcode numerical parameters for sigma(R) tabulation and interpolation
+    ! AM: TODO: Change finding scheme to assume linear spacing may save time
     REAL(dl), PARAMETER :: rmin_sigma_interpolation=1e-4 ! Minimum scale for sigma(R) look-up tables [Mpc/h]
     REAL(dl), PARAMETER :: rmax_sigma_interpolation=1e3  ! Maximum scale for sigma(R) look-up tables [Mpc/h]
     INTEGER, PARAMETER :: n_sigma_interpolation=64       ! Number of points in look-up tables
@@ -951,6 +955,7 @@
     SUBROUTINE initialise_HM_cosmology(iz,cosm,CAMB_PK)
 
     !Sets up HM_tables of sigma, growth and linear power for the HM_cosmology
+    !AM: TODO: Store current growth factor, or make P(k) and sigma(R) at current z
     TYPE(MatterPowerData), INTENT(IN) :: CAMB_PK
     TYPE(HM_cosmology) :: cosm
     INTEGER, INTENT(IN) :: iz
@@ -1335,9 +1340,9 @@
     REAL(dl) :: dc
     REAL(dl) :: af, zf, RHS, growz
     INTEGER :: i
-    INTEGER, PARAMETER :: iorder=iorder_growth_inversion ! MEAD: Move to header?
-    INTEGER, PARAMETER :: ifind=ifind_growth_inversion   ! MEAD: Move to header?
-    INTEGER, PARAMETER :: imeth=imeth_growth_inversion   ! MEAD: Move to header?
+    INTEGER, PARAMETER :: iorder=iorder_growth_inversion
+    INTEGER, PARAMETER :: ifind=ifind_growth_inversion
+    INTEGER, PARAMETER :: imeth=imeth_growth_inversion
 
     !This fills up the halo formation redshift table as per Bullock relations
 
@@ -1347,8 +1352,6 @@
     dc=this%delta_c(z,lut,cosm)
 
     !Find the growth function at the current redshift
-    !a=1./(1.+z) ! MEAD: Remove
-    !growz=find(a,cosm%a_growth,cosm%growth,cosm%ng,iorder,ifind,imeth) ! MEAD: Remove
     growz=grow(z,cosm)
 
     !Do numerical inversion
@@ -1361,7 +1364,7 @@
             !in this case set formation redshift to current redshift
             zf=z
         ELSE
-            af=find(RHS,cosm%growth,cosm%a_growth,cosm%ng,iorder,ifind,imeth) ! MEAD: Change to growth iorder, ifind, imeth
+            af=find(RHS,cosm%growth,cosm%a_growth,cosm%ng,iorder,ifind,imeth)
             zf=-1.+1./af
         END IF
 
@@ -2425,7 +2428,11 @@
     REAL(dl), INTENT(IN) :: x, xtab(n)
     INTEGER, INTENT(IN) :: imeth
 
-    IF(imeth==1) THEN
+    IF(x<xtab(1)) THEN
+        table_integer=0
+    ELSE IF(x>xtab(n)) THEN
+        table_integer=n
+    ELSE IF(imeth==1) THEN
         table_integer=linear_table_integer(x,xtab,n)
     ELSE IF(imeth==2) THEN
         table_integer=search_int(x,xtab,n)
@@ -2615,7 +2622,7 @@
     REAL(dl), PARAMETER :: amax=amax_growth_interpolation
     INTEGER, PARAMETER :: n=n_growth_interpolation
     REAL(dl), PARAMETER :: acc_ODE=acc_growth_ODE
-    INTEGER, PARAMETER :: iorder_ODE=iorder_growth_ODE
+    INTEGER, PARAMETER :: imeth_ODE=imeth_growth_ODE
     INTEGER, PARAMETER :: iorder_int=iorder_growth_ODE_interpolation
     INTEGER, PARAMETER :: ifind_int=ifind_growth_ODE_interpolation
     INTEGER, PARAMETER :: imeth_int=imeth_growth_ODE_interpolation
@@ -2626,7 +2633,7 @@
     vinit = (1.-3.*cosm%f_nu/5.)*ainit**(-3.*cosm%f_nu/5.)
 
     IF(HM_verbose) WRITE(*,*) 'GROWTH: Solving growth equation'
-    CALL ode_growth(d_tab,v_tab,a_tab,ainit,amax,dinit,vinit,acc_ODE,iorder_ODE,cosm)
+    CALL ode_growth(d_tab,v_tab,a_tab,ainit,amax,dinit,vinit,acc_ODE,imeth_ODE,cosm)
     IF(HM_verbose) WRITE(*,*) 'GROWTH: ODE done'
 
     !Normalise so that g(z=0)=1
