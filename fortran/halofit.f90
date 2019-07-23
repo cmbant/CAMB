@@ -129,41 +129,64 @@
     ! HMcode linear P(k) numerical parameters
     ! AM: Jul 19: Updated nk_pk from 128 to 512
     LOGICAL, PARAMETER :: rebin_pk=.TRUE.     ! Should the linear P(k) be rebinned?
-    REAL(dl), PARAMETER :: kmin_pk=1e-3       ! Minimum wavenumber if rebinning [h/Mpc]
-    REAL(dl), PARAMETER :: kmax_pk=1e2        ! Maximum wavenumber if rebinning [h/Mpc]
-    INTEGER, PARAMETER :: nk_pk=512           ! Number of points in k if rebining
-    LOGICAL, PARAMETER :: plin_extrap=.FALSE. ! Extrapolate at high-k via thoery or simple power law
+    REAL(dl), PARAMETER :: kmin_pk_interpolation=1e-3 ! Minimum wavenumber if rebinning [h/Mpc]
+    REAL(dl), PARAMETER :: kmax_pk_interpolation=1e2  ! Maximum wavenumber if rebinning [h/Mpc]
+    INTEGER, PARAMETER :: nk_pk_interpolation=512     ! Number of points in k if rebining
+    LOGICAL, PARAMETER :: plin_extrap=.FALSE.         ! Extrapolate at high-k via thoery or simple power law
+    INTEGER, PARAMETER :: iorder_pk_interpolation=3   ! Polynomial order for P(k) interpolation
+    INTEGER, PARAMETER :: ifind_pk_interpolation=3    ! Finding scheme for P(k) interpolation
+    INTEGER, PARAMETER :: imeth_pk_interpolation=2    ! Method for P(k) interpolation
 
-    ! Linear growth factor numerical parameters
-    ! AM: Jul 19: Updated acc_growth from 1e-3 to 1e-4
-    real(dl), PARAMETER :: acc_growth=1e-4   ! Accuracy for growth integral or ODE
-    INTEGER, PARAMETER :: iorder_growth=3    ! Polynomial order for growth integral
-    REAL(dl), PARAMETER :: ainit_growth=1e-3 ! Initial scale factor for growth ODE
-    REAL(dl), PARAMETER :: amax_growth=1.    ! Final scale factor for growth ODE
-    INTEGER, PARAMETER :: n_growth=64        ! Number of entries for growth look-up table
+    ! Linear growth integral numerical parameters (LCDM only; only used in Dolag correction)
+    ! AM: Jul 19: Updated acc_growint from 1e-3 to 1e-4
+    REAL(dl), PARAMETER :: acc_growth_integration=1e-4 ! Accuracy for growth function integral
+    INTEGER, PARAMETER :: iorder_growth_integration=3 ! Polynomial order for growth integral
 
-    ! HMcode numerical parameters for sigma(R) tabulation
-    REAL(dl), PARAMETER :: rmin_sigma=1e-4 ! Minimum scale for sigma(R) look-up tables [Mpc/h]
-    REAL(dl), PARAMETER :: rmax_sigma=1e3  ! Maximum scale for sigma(R) look-up tables [Mpc/h]
-    INTEGER, PARAMETER :: n_sigma=64       ! Number of points in look-up tables
+    ! Linear growth factor interpolation numerical parameters 
+    REAL(dl), PARAMETER :: ainit_growth_interpolation=1e-3 ! Initial scale factor for growth ODE
+    REAL(dl), PARAMETER :: amax_growth_interpolation=1.    ! Final scale factor for growth ODE
+    INTEGER, PARAMETER :: n_growth_interpolation=64        ! Number of entries for growth look-up table
+    INTEGER, PARAMETER :: iorder_growth_interpolation=3    ! Polynomial order for growth function interpolation
+    INTEGER, PARAMETER :: ifind_growth_interpolation=3     ! Finding scheme for growth function interpolation
+    INTEGER, PARAMETER :: imeth_growth_interpolation=2     ! Method for growth function interpolation
 
-    ! HMcode numerical parameters for sigma(R) integration
-    ! AM: Jul 19: Updated acc_sigma from 1e-3 to 1e-4
-    REAL(dl), PARAMETER :: acc_sigma=1e-4 ! Relative accuracy of numerical integration
-    REAL(dl), PARAMETER :: alpha_sigma=3. ! Exponent to speed up integration
-    INTEGER, PARAMETER :: iorder_sigma=3  ! Polynomail order for numerical integration
+    ! Growth function ODE numerical parameters
+    ! AM: Jul 19: Updated acc_growth_ODE from 1e-3 to 1e-4
+    REAL(dl), PARAMETER :: acc_growth_ODE=1e-4              ! Accuracy for growth integral or ODE
+    INTEGER, PARAMETER :: iorder_growth_ODE=3               ! Polynomial order for growth function ODE interpolation
+    INTEGER, PARAMETER :: iorder_growth_ODE_interpolation=3 ! Polynomial order for growth function ODE interpolation
+    INTEGER, PARAMETER :: ifind_growth_ODE_interpolation=3  ! Finding scheme for growth function ODE interpolation
+    INTEGER, PARAMETER :: imeth_growth_ODE_interpolation=2  ! Method growth function ODE interpolation
+
+    ! Linear growth function inversion numerical parameters (used for c(M) only)
+    INTEGER, PARAMETER :: iorder_growth_inversion=3 ! Polynomial order for growth function ODE inversion
+    INTEGER, PARAMETER :: ifind_growth_inversion=3  ! Finding scheme for growth function ODE inversion
+    INTEGER, PARAMETER :: imeth_growth_inversion=2  ! Method growth function ODE inversion
+
+    ! HMcode numerical parameters for sigma(R) tabulation and interpolation
+    REAL(dl), PARAMETER :: rmin_sigma_interpolation=1e-4 ! Minimum scale for sigma(R) look-up tables [Mpc/h]
+    REAL(dl), PARAMETER :: rmax_sigma_interpolation=1e3  ! Maximum scale for sigma(R) look-up tables [Mpc/h]
+    INTEGER, PARAMETER :: n_sigma_interpolation=64       ! Number of points in look-up tables
+    INTEGER, PARAMETER :: iorder_sigma_interpolation=3   ! Polynomial order for sigma(R) interpolation
+    INTEGER, PARAMETER :: ifind_sigma_interpolation=3    ! Finding scheme for sigma(R) interpolation
+    INTEGER, PARAMETER :: imeth_sigma_interpolation=2    ! Method sigma(R) interpolation
+
+    ! HMcode numerical parameters for sigma(R) integration (dominates run time as of Jul 2019)
+    ! AM: Jul 19: Upgraded acc_sigma from 1e-3 to 3e-4
+    REAL(dl), PARAMETER :: acc_sigma_integration=3e-4 ! Relative accuracy of numerical integration
+    REAL(dl), PARAMETER :: alpha_sigma_integration=3. ! Exponent to speed up integration
+    INTEGER, PARAMETER :: iorder_sigma_integration=3  ! Polynomail order for numerical integration
 
     ! HMcode numerical parameters for sigmaV(R) integration
-    ! AM: Jul 19: Updated acc_sigmaV from 1e-3 to 1e-4
-    REAL(dl), PARAMETER :: acc_sigmaV=1e-4 ! Relative accuracy of numerical integration
-    REAL(dl), PARAMETER :: alpha_sigmaV=3. ! Exponent to speed up integration
-    INTEGER, PARAMETER :: iorder_sigmaV=3  ! Polynomial order for numerical integration
+    ! AM: Jul 19: Upgraded acc_sigmaV from 1e-3 to 1e-4
+    REAL(dl), PARAMETER :: acc_sigmaV_integration=1e-4 ! Relative accuracy of numerical integration
+    REAL(dl), PARAMETER :: alpha_sigmaV_integration=3. ! Exponent to speed up integration
+    INTEGER, PARAMETER :: iorder_sigmaV_integration=3  ! Polynomial order for numerical integration
 
     ! HMcode numerical parameters for neff(R) integration
-    ! AM: Jul 19: Updated acc_neff from 1e-3 to 1e-4
-    REAL(dl), PARAMETER :: acc_neff=1e-4 ! Relative accuracy of numerical integration
-    REAL(dl), PARAMETER :: alpha_neff=2. ! Exponent to speed up integration
-    INTEGER, PARAMETER :: iorder_neff=3  ! Polynomial order for numerical integration
+    REAL(dl), PARAMETER :: acc_neff_integration=1e-4 ! Relative accuracy of numerical integration
+    REAL(dl), PARAMETER :: alpha_neff_integration=2. ! Exponent to speed up integration
+    INTEGER, PARAMETER :: iorder_neff_integration=3  ! Polynomial order for numerical integration
 
     contains
 
@@ -685,12 +708,15 @@
     !Calculates R_nl, defined by nu(R_nl)=1., nu=dc/sigma(R)
     TYPE(HM_tables), INTENT(IN) :: lut
     REAL(dl) :: r_nl
+    INTEGER, PARAMETER :: iorder=3
+    INTEGER, PARAMETER :: ifind=3
+    INTEGER, PARAMETER :: imeth=2
 
     IF(lut%nu(1)>1.) THEN
         !This catches some very strange values that appear for odd cosmological models
         r_nl=lut%rr(1)
     ELSE
-        r_nl=exp(find(log(1.d0),log(lut%nu),log(lut%rr),lut%n,3,3,2))
+        r_nl=exp(find(log(1.d0),log(lut%nu),log(lut%rr),lut%n,iorder,ifind,imeth))
     END IF
 
     END FUNCTION r_nl
@@ -755,9 +781,9 @@
     REAL(dl) :: z, g
     REAL(dl), ALLOCATABLE :: k(:), Pk(:), Pkc(:)
     REAL(dl), PARAMETER :: pi=pi_HM
-    REAL(dl), PARAMETER :: kmin=kmin_pk
-    REAL(dl), PARAMETER :: kmax=kmax_pk
-    INTEGER :: nk=nk_pk
+    REAL(dl), PARAMETER :: kmin=kmin_pk_interpolation
+    REAL(dl), PARAMETER :: kmax=kmax_pk_interpolation
+    INTEGER :: nk=nk_pk_interpolation
 
     IF(HM_verbose) WRITE(*,*) 'LINEAR POWER: Filling linear power HM_tables'
 
@@ -1114,8 +1140,8 @@
     REAL(dl), PARAMETER :: tmin=0.
     REAL(dl), PARAMETER :: tmax=1.
     INTEGER, PARAMETER :: itype=1 ! Cold matter here
-    REAL(dl), PARAMETER :: acc=acc_neff
-    INTEGER, PARAMETER :: iorder=iorder_neff
+    REAL(dl), PARAMETER :: acc=acc_neff_integration
+    INTEGER, PARAMETER :: iorder=iorder_neff_integration
 
     neff=-3.-2.*integrate(tmin,tmax,neff_integrand,lut%rnl,lut%z,itype,cosm,acc,iorder)/lut%dc**2
 
@@ -1198,8 +1224,8 @@
     REAL(dl) :: sum_n, sum_2n, sum_new, sum_old
     INTEGER, PARAMETER :: jmin=5
     INTEGER, PARAMETER :: jmax=30
-    real(dl), PARAMETER :: acc=acc_growth
-    INTEGER, PARAMETER :: iorder=iorder_growth
+    REAL(dl), PARAMETER :: acc=acc_growth_integration
+    INTEGER, PARAMETER :: iorder=iorder_growth_integration
 
     !Integration range for integration parameter
     !Note a -> 1
@@ -1307,8 +1333,11 @@
     TYPE(HM_cosmology) :: cosm
     TYPE(HM_tables) :: lut
     REAL(dl) :: dc
-    REAL(dl) :: af, zf, RHS, a, growz
+    REAL(dl) :: af, zf, RHS, growz
     INTEGER :: i
+    INTEGER, PARAMETER :: iorder=iorder_growth_inversion ! MEAD: Move to header?
+    INTEGER, PARAMETER :: ifind=ifind_growth_inversion   ! MEAD: Move to header?
+    INTEGER, PARAMETER :: imeth=imeth_growth_inversion   ! MEAD: Move to header?
 
     !This fills up the halo formation redshift table as per Bullock relations
 
@@ -1318,8 +1347,9 @@
     dc=this%delta_c(z,lut,cosm)
 
     !Find the growth function at the current redshift
-    a=1./(1.+z)
-    growz=find(a,cosm%a_growth,cosm%growth,cosm%ng,3,3,2)
+    !a=1./(1.+z) ! MEAD: Remove
+    !growz=find(a,cosm%a_growth,cosm%growth,cosm%ng,iorder,ifind,imeth) ! MEAD: Remove
+    growz=grow(z,cosm)
 
     !Do numerical inversion
     DO i=1,lut%n
@@ -1331,7 +1361,7 @@
             !in this case set formation redshift to current redshift
             zf=z
         ELSE
-            af=find(RHS,cosm%growth,cosm%a_growth,cosm%ng,3,3,2)
+            af=find(RHS,cosm%growth,cosm%a_growth,cosm%ng,iorder,ifind,imeth) ! MEAD: Change to growth iorder, ifind, imeth
             zf=-1.+1./af
         END IF
 
@@ -1373,6 +1403,9 @@
     INTEGER, INTENT(IN) :: itype
     INTEGER :: n
     TYPE(HM_cosmology), INTENT(IN) :: cosm
+    INTEGER, PARAMETER :: iorder=iorder_pk_interpolation
+    INTEGER, PARAMETER :: ifind=ifind_pk_interpolation
+    INTEGER, PARAMETER :: imeth=imeth_pk_interpolation
 
     !Set number of k points as well as min and max k values
     !Note that the min k value should be set to the same as the CAMB min k value
@@ -1390,9 +1423,9 @@
     ELSE
         !Otherwise use the standard find algorithm
         IF(itype==0) THEN
-            find_pk=exp(find(log(k),cosm%log_k_plin,cosm%log_plin,cosm%nk,3,3,2))
+            find_pk=exp(find(log(k),cosm%log_k_plin,cosm%log_plin,cosm%nk,iorder,ifind,imeth))
         ELSE IF(itype==1) THEN
-            find_pk=exp(find(log(k),cosm%log_k_plin,cosm%log_plinc,cosm%nk,3,3,2))
+            find_pk=exp(find(log(k),cosm%log_k_plin,cosm%log_plinc,cosm%nk,iorder,ifind,imeth))
         END IF
     END IF
 
@@ -1493,9 +1526,9 @@
     INTEGER :: i
     TYPE(HM_cosmology) :: cosm
     REAL(dl), ALLOCATABLE :: r(:), sig(:)
-    REAL(dl), PARAMETER :: rmin=rmin_sigma
-    REAL(dl), PARAMETER :: rmax=rmax_sigma
-    INTEGER, PARAMETER :: nsig=n_sigma
+    REAL(dl), PARAMETER :: rmin=rmin_sigma_interpolation
+    REAL(dl), PARAMETER :: rmax=rmax_sigma_interpolation
+    INTEGER, PARAMETER :: nsig=n_sigma_interpolation
 
     !This fills up HM_tables of r vs. sigma(r) across a range in r!
     !It is used only in look-up for further calculations of sigmac(r) and not otherwise!
@@ -1549,11 +1582,14 @@
     REAL(dl) :: sigmac
     REAL(dl), INTENT(IN) :: r, z
     TYPE(HM_cosmology), INTENT(IN) :: cosm
+    INTEGER, PARAMETER :: iorder=iorder_sigma_interpolation
+    INTEGER, PARAMETER :: ifind=ifind_sigma_interpolation
+    INTEGER, PARAMETER :: imeth=imeth_sigma_interpolation
 
     !Assumes scale-independet growth for the cold matter
     !Uses the approximation sigma(R,z)=g(z)*sigma(R,z=0)
 
-    sigmac=grow(z,cosm)*exp(find(log(r),cosm%log_r_sigma,cosm%log_sigma,cosm%nsig,3,3,2))
+    sigmac=grow(z,cosm)*exp(find(log(r),cosm%log_r_sigma,cosm%log_sigma,cosm%nsig,iorder,ifind,imeth))
 
     END FUNCTION sigmac
 
@@ -1720,8 +1756,8 @@
     TYPE(HM_cosmology), INTENT(IN) :: cosm
     REAL(dl), PARAMETER :: tmin=0.
     REAL(dl), PARAMETER :: tmax=1.
-    REAL(dl), PARAMETER :: acc=acc_sigma
-    INTEGER, PARAMETER :: iorder=iorder_sigma
+    REAL(dl), PARAMETER :: acc=acc_sigma_integration
+    INTEGER, PARAMETER :: iorder=iorder_sigma_integration
 
     !sigma=sqrt(sigint(r,z,itype,cosm,acc,iorder))
     sigma=sqrt(integrate(tmin,tmax,sigma_integrand,r,z,itype,cosm,acc,iorder))
@@ -1737,7 +1773,7 @@
     INTEGER, INTENT(IN) :: itype
     TYPE(HM_cosmology), INTENT(IN) :: cosm
     REAL(dl) :: k, kR, w_hat
-    REAL(dl), PARAMETER :: alpha=alpha_sigma
+    REAL(dl), PARAMETER :: alpha=alpha_sigma_integration
 
     IF(t<=0. .OR. t>=1.) THEN
         !t=0 corresponds to k=infintiy when W(kR)=0.
@@ -2012,12 +2048,15 @@
     REAL(dl), INTENT(IN) :: z
     REAL(dl) :: a
     TYPE(HM_cosmology), INTENT(IN) :: cosm
+    INTEGER, PARAMETER :: iorder=iorder_growth_interpolation
+    INTEGER, PARAMETER :: ifind=ifind_growth_interpolation
+    INTEGER, PARAMETER :: imeth=imeth_growth_interpolation
 
     IF(z==0.) THEN
         grow=1.
     ELSE
         a=1./(1.+z)
-        grow=find(a,cosm%a_growth,cosm%growth,cosm%ng,3,3,2)
+        grow=find(a,cosm%a_growth,cosm%growth,cosm%ng,iorder,ifind,imeth)
     END IF
 
     END FUNCTION grow
@@ -2032,8 +2071,8 @@
     TYPE(HM_cosmology), INTENT(IN) :: cosm   
     REAL(dl), PARAMETER :: tmin=0.
     REAL(dl), PARAMETER :: tmax=1.
-    REAL(dl), PARAMETER :: acc=acc_sigmaV
-    INTEGER, PARAMETER :: iorder=iorder_sigmaV
+    REAL(dl), PARAMETER :: acc=acc_sigmaV_integration
+    INTEGER, PARAMETER :: iorder=iorder_sigmaV_integration
 
     sigmaV=sqrt(integrate(tmin,tmax,sigmaV_integrand,R,z,itype,cosm,acc,iorder)/3.)
 
@@ -2050,7 +2089,7 @@
     INTEGER, INTENT(IN) :: itype
     TYPE(HM_cosmology), INTENT(IN) :: cosm
     REAL(dl) :: k, kR, w_hat
-    REAL(dl), PARAMETER :: alpha=alpha_sigmaV !Speeds up integral for large 'R'
+    REAL(dl), PARAMETER :: alpha=alpha_sigmaV_integration !Speeds up integral for large 'R'
 
     IF(t<=0. .OR. t>=1.) THEN
         sigmaV_integrand=0.
@@ -2079,7 +2118,7 @@
     INTEGER, INTENT(IN) :: itype
     TYPE(HM_cosmology), INTENT(IN) :: cosm
     REAL(dl) :: k, kR, w_hat, w_hat_deriv
-    REAL(dl), PARAMETER :: alpha=alpha_neff !Speeds up integral for large 'R'
+    REAL(dl), PARAMETER :: alpha=alpha_neff_integration !Speeds up integral for large 'R'
 
     IF(t<=0. .OR. t>=1.) THEN
         neff_integrand=0.
@@ -2405,21 +2444,10 @@
     INTEGER :: linear_table_integer
     INTEGER, INTENT(IN) :: n
     REAL(dl), INTENT(IN) :: x, xtab(n)
-    REAL(dl) :: x1, x2, xn
-    REAL(dl), PARAMETER :: acc=1d-3 !Test for linear table
+    REAL(dl) :: x1, xn
 
-    !Returns the integer (table position) below the value of x
-    !eg. if x(3)=6. and x(4)=7. and x=6.5 this will return 6
-    !Assumes table is organised linearly (care for logs)
-
-    !n=SIZE(xtab)
     x1=xtab(1)
-    x2=xtab(2)
     xn=xtab(n)
-
-    IF(x1>xn) STOP 'LINEAR_TABLE_INTEGER :: table in the wrong order'
-    IF(ABS(-1.+float(n-1)*(x2-x1)/(xn-x1))>acc) STOP 'LINEAR_TABLE_INTEGER :: table does not seem to be linear'
-
     linear_table_integer=1+FLOOR(float(n-1)*(x-x1)/(xn-x1))
 
     END FUNCTION linear_table_integer
@@ -2583,10 +2611,14 @@
     REAL(dl) :: a, norm
     REAL(dl), ALLOCATABLE :: d_tab(:), v_tab(:), a_tab(:)
     REAL(dl) :: dinit, vinit
-    REAL(dl), PARAMETER :: ainit=ainit_growth
-    REAL(dl), PARAMETER :: amax=amax_growth
-    REAL(dl), PARAMETER :: acc=acc_growth
-    INTEGER, PARAMETER :: n=n_growth
+    REAL(dl), PARAMETER :: ainit=ainit_growth_interpolation
+    REAL(dl), PARAMETER :: amax=amax_growth_interpolation
+    INTEGER, PARAMETER :: n=n_growth_interpolation
+    REAL(dl), PARAMETER :: acc_ODE=acc_growth_ODE
+    INTEGER, PARAMETER :: iorder_ODE=iorder_growth_ODE
+    INTEGER, PARAMETER :: iorder_int=iorder_growth_ODE_interpolation
+    INTEGER, PARAMETER :: ifind_int=ifind_growth_ODE_interpolation
+    INTEGER, PARAMETER :: imeth_int=imeth_growth_ODE_interpolation
 
     !These set the initial conditions to be the Om_m=1. growing mode
     !AM Jul 19: changed initial conditions to be appropriate for massive neutrino cosmologies
@@ -2594,11 +2626,11 @@
     vinit = (1.-3.*cosm%f_nu/5.)*ainit**(-3.*cosm%f_nu/5.)
 
     IF(HM_verbose) WRITE(*,*) 'GROWTH: Solving growth equation'
-    CALL ode_growth(d_tab,v_tab,a_tab,ainit,amax,dinit,vinit,acc,3,cosm)
+    CALL ode_growth(d_tab,v_tab,a_tab,ainit,amax,dinit,vinit,acc_ODE,iorder_ODE,cosm)
     IF(HM_verbose) WRITE(*,*) 'GROWTH: ODE done'
 
     !Normalise so that g(z=0)=1
-    norm=find(1.d0,a_tab,d_tab,SIZE(a_tab),3,3,2)
+    norm=find(1.d0,a_tab,d_tab,SIZE(a_tab),iorder_int,ifind_int,imeth_int)
     IF(HM_verbose) WRITE(*,*) 'GROWTH: Unnormalised g(a=1):', norm
     d_tab=d_tab/norm
 
@@ -2611,7 +2643,7 @@
     DO i=1,n
         a=ainit+(amax-ainit)*float(i-1)/float(n-1)
         cosm%a_growth(i)=a
-        cosm%growth(i)=find(a,a_tab,d_tab,SIZE(a_tab),3,3,2)
+        cosm%growth(i)=find(a,a_tab,d_tab,SIZE(a_tab),iorder_int,ifind_int,imeth_int)
     END DO
 
     IF(HM_verbose) WRITE(*,*) 'GROWTH: Done'
