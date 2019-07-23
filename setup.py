@@ -106,6 +106,8 @@ def make_library(cluster=False):
     lib_file = os.path.join(pycamb_path, 'camb', DLLNAME)
     if compile.is_windows or not compile.check_ifort():
         ok, gfortran_version = compile.check_gfortran(msg=not compile.is_windows)
+        if ok and '8.2.0' in gfortran_version:
+            print('WARNING: gfortran 8.2.0 may be buggy and give unreliable results or crashes, upgrade gfortran.')
     if compile.is_windows:
         COMPILER = "gfortran"
         FFLAGS = "-shared -static -cpp -fopenmp -O3 -fmax-errors=4"
