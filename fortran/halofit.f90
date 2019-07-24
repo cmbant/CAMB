@@ -47,6 +47,7 @@
     use DarkEnergyInterface
     use classes
     use Transfer
+    use constants
     implicit none
     private
 
@@ -59,8 +60,8 @@
     type, extends(TNonLinearModel) :: THalofit
         integer :: halofit_version = halofit_default
         !!TT - These are the baryon parameters of HMCode
-        real(dl) :: HMCode_A_baryon=3.13
-        real(dl) :: HMCode_eta_baryon=0.603
+        real(dl) :: HMCode_A_baryon=3.13_dl
+        real(dl) :: HMCode_eta_baryon=0.603_dl
         !!AM - Added these types for HMcode
         integer, private :: imead !!AM - added these for HMcode, need to be visible to all subroutines and functions
         real(dl), private :: om_m,om_v,fnu,omm0, acur, w_hf, wa_hf
@@ -98,7 +99,9 @@
         REAL(dl), ALLOCATABLE :: log_r_sigma(:), log_sigma(:)
         REAL(dl), ALLOCATABLE :: growth(:), a_growth(:)
         REAL(dl), ALLOCATABLE :: log_k_plin(:), log_plin(:), log_plinc(:)
+        real(dl) :: kmax
         INTEGER :: nk, ng, nsig
+        real(dl) :: grow2_z, this_z !cached value at redshift being calclated
         !AM - Added feedback parameters below at fixed fiducial (DMONLY) values
         REAL(dl) :: A_baryon=3.13
         REAL(dl) :: eta_baryon=0.603
@@ -113,13 +116,13 @@
     !!AM - End of my additions
 
     ! HMcode parameters
-    REAL(dl), PARAMETER :: zinf_Dolag=10.    ! Effective 'infinite' redshift for Dolag
-    REAL(dl), PARAMETER :: fdamp_min=1e-3    ! Minimum value of fdamp
-    REAL(dl), PARAMETER :: fdamp_max=0.99    ! Maximum value of fdamp
-    REAL(dl), PARAMETER :: alpha_min=0.5     ! Minimum value of alpha transition
-    REAL(dl), PARAMETER :: alpha_max=2.      ! Maximum value of alpha transition
-    REAL(dl), PARAMETER :: ks_limit=7.       ! Limit for (k/ks)^2 in one-halo term
-    REAL(dl), PARAMETER :: pi_HM=3.141592654 ! Lovely pi
+    REAL(dl), PARAMETER :: zinf_Dolag=10._dl    ! Effective 'infinite' redshift for Dolag
+    REAL(dl), PARAMETER :: fdamp_min=1e-3_dl    ! Minimum value of fdamp
+    REAL(dl), PARAMETER :: fdamp_max=0.99_dl    ! Maximum value of fdamp
+    REAL(dl), PARAMETER :: alpha_min=0.5_dl     ! Minimum value of alpha transition
+    REAL(dl), PARAMETER :: alpha_max=2._dl      ! Maximum value of alpha transition
+    REAL(dl), PARAMETER :: ks_limit=7._dl       ! Limit for (k/ks)^2 in one-halo term
+    REAL(dl), PARAMETER :: pi_HM=const_pi ! Lovely pi
 
     ! HMcode numerical parameters
     ! AM: TODO: Reducing halo mass range and number of points may save time
@@ -131,13 +134,13 @@
     ! AM: Jul 19: Updated nk_pk_interpolation from 128 to 512
     ! AM: TODO: Change finding scheme to assume linear spacing may save time
     LOGICAL, PARAMETER :: rebin_pk=.TRUE.             ! Should the linear P(k) be rebinned?
-    REAL(dl), PARAMETER :: kmin_pk_interpolation=1e-3 ! Minimum wavenumber if rebinning [h/Mpc]
-    REAL(dl), PARAMETER :: kmax_pk_interpolation=1e2  ! Maximum wavenumber if rebinning [h/Mpc]
+    REAL(dl), PARAMETER :: kmin_pk_interpolation=1d-3 ! Minimum wavenumber if rebinning [h/Mpc]
+    REAL(dl), PARAMETER :: kmax_pk_interpolation=1d2  ! Maximum wavenumber if rebinning [h/Mpc]
     INTEGER, PARAMETER :: nk_pk_interpolation=512     ! Number of points in k if rebining
     LOGICAL, PARAMETER :: plin_extrap=.FALSE.         ! Extrapolate at high-k via thoery or simple power law
-    INTEGER, PARAMETER :: iorder_pk_interpolation=3   ! Polynomial order for P(k) interpolation
-    INTEGER, PARAMETER :: ifind_pk_interpolation=3    ! Finding scheme for P(k) interpolation
-    INTEGER, PARAMETER :: imeth_pk_interpolation=2    ! Method for P(k) interpolation
+    INTEGER, PARAMETER :: iorder_pk_interpolation=1   ! Polynomial order for P(k) interpolation
+    INTEGER, PARAMETER :: ifind_pk_interpolation=1    ! Finding scheme for P(k) interpolation (if rebin_pk=True)
+    INTEGER, PARAMETER :: imeth_pk_interpolation=1    ! Method for P(k) interpolation
 
     ! Linear growth integral numerical parameters (LCDM only; only used in Dolag correction)
     ! AM: Jul 19: Updated acc_growint from 1e-3 to 1e-4
@@ -561,6 +564,7 @@
 
     END DO
 
+
     END SUBROUTINE HMcode
 
     FUNCTION Delta_v(this,z,cosm)
@@ -804,7 +808,7 @@
         CALL fill_table(log(kmin),log(kmax),cosm%log_k_plin,nk)
 
     ELSE
-
+        if (ifind_pk_interpolation==1) stop 'ifind_pk_interpolation=1 assumes rebin_pk'
         !Fill k-table with the same k points as in the CAMB calculation
         !If a user has specified lots of points this could make the halo-model
         !calculation chug
@@ -817,6 +821,7 @@
 
     ALLOCATE(k(nk))
     k=exp(cosm%log_k_plin)
+    cosm%kmax = k(nk)
 
     IF(HM_verbose) WRITE(*,*) 'LINEAR POWER: k_min:', k(1)
     IF(HM_verbose) WRITE(*,*) 'LINEAR POWER: k_max:', k(nk)
@@ -829,6 +834,7 @@
     IF(HM_verbose) WRITE(*,*) 'LINEAR POWER: z of input:', z
 
     !Fill power table, both cold- and all-matter
+    !$OMP PARALLEL DO DEFAULT(SHARED)
     DO i=1,nk
         !Take the power from the current redshift choice
         Pk(i)=MatterPowerData_k(CAMB_PK,k(i),iz)*(k(i)**3/(2.*pi**2))
@@ -840,7 +846,8 @@
 
     !Calculate the growth factor at the redshift of interest
     g=grow(z,cosm)
-
+    cosm%grow2_z = g**2
+    cosm%this_z = z
     ALLOCATE(cosm%log_plin(nk),cosm%log_plinc(nk))
 
     !Grow the power to z=0
@@ -1141,7 +1148,7 @@
     REAL(dl) :: neff
     REAL(dl) :: ns
     TYPE(HM_cosmology), INTENT(IN) :: cosm
-    TYPE(HM_tables), INTENT(IN) :: lut 
+    TYPE(HM_tables), INTENT(IN) :: lut
     REAL(dl), PARAMETER :: tmin=0.
     REAL(dl), PARAMETER :: tmax=1.
     INTEGER, PARAMETER :: itype=1 ! Cold matter here
@@ -1382,7 +1389,7 @@
     REAL(dl), PARAMETER :: pi=pi_HM
 
     !Relation between mean cosmological mass and radius
-    mass_r=(4.*pi/3.)*cosmic_density(cosm)*(r**3.)
+    mass_r=(4*pi/3)*cosmic_density(cosm)*(r**3)
 
     END FUNCTION mass_r
 
@@ -1393,7 +1400,7 @@
     TYPE(HM_cosmology), INTENT(IN) :: cosm
 
     !In M_sun per Mpc^3 with h factors included. The constant does this.
-    cosmic_density=(2.775e11)*cosm%om_m
+    cosmic_density=(2.775d11)*cosm%om_m
 
     END FUNCTION cosmic_density
 
@@ -1401,7 +1408,7 @@
 
     !Look-up and interpolation for P(k,z=0)
     REAL(dl) :: find_pk
-    REAL(dl) :: kmax, ns
+    REAL(dl) :: ns
     REAL(dl), INTENT(IN) :: k
     INTEGER, INTENT(IN) :: itype
     INTEGER :: n
@@ -1413,15 +1420,14 @@
     !Set number of k points as well as min and max k values
     !Note that the min k value should be set to the same as the CAMB min k value
     n=SIZE(cosm%log_k_plin)
-    kmax=exp(cosm%log_k_plin(n)) 
 
-    IF(plin_extrap .AND. k>kmax) THEN
+    IF(plin_extrap .AND. k>cosm%kmax) THEN
         !Do some interpolation here based on knowledge of things at high k
         ns=cosm%ns !Spectral index used in the high-k extrapolation
         IF(itype==0) THEN
-            find_pk=exp(cosm%log_plin(n))*((log(k)/log(kmax))**2.)*((k/kmax)**(ns-1.))
+            find_pk=exp(cosm%log_plin(n))*((log(k)/cosm%log_k_plin(n))**2)*((k/cosm%kmax)**(ns-1))
         ELSE IF(itype==1) THEN
-            find_pk=exp(cosm%log_plinc(n))*((log(k)/log(kmax))**2.)*((k/kmax)**(ns-1.))
+            find_pk=exp(cosm%log_plinc(n))*((log(k)/cosm%log_k_plin(n))**2)*((k/cosm%kmax)**(ns-1))
         END IF
     ELSE
         !Otherwise use the standard find algorithm
@@ -1439,13 +1445,20 @@
     !Looks up the value for the linear power spectrum
     REAL(dl) :: p_lin
     REAL(dl), INTENT (IN) :: k, z
+    REAL(dl) growth2
     INTEGER, INTENT(IN) :: itype
     TYPE(HM_cosmology), INTENT(IN) :: cosm
 
     !This gives the linear power spectrum for the model in question
     !P(k) should have been previously normalised to z=0
-
-    p_lin=(grow(z,cosm)**2.)*find_pk(k,itype,cosm)
+    if (z==0._dl) then
+        growth2 = 1
+    else if (z==cosm%this_z) then
+        growth2 = cosm%grow2_z
+    else
+        growth2 = grow(z,cosm)**2 !never actually needed
+    end if
+    p_lin=growth2*find_pk(k,itype,cosm)
 
     END FUNCTION p_lin
 
@@ -1605,9 +1618,9 @@
 
     !Taylor expansion used for low x to avoid cancellation problems
     IF(abs(x)<dx) THEN
-        wk_tophat=1.-(x**2.)/10.
+        wk_tophat=1-(x**2)/10
     ELSE
-        wk_tophat=3.*(sin(x)-x*cos(x))/(x**3.)
+        wk_tophat=3*(sin(x)-x*cos(x))/(x**3)
     END IF
 
     END FUNCTION wk_tophat
@@ -1622,9 +1635,9 @@
 
     ! Taylor expansion used for low x to avoid cancelation problems
     IF (abs(x)<dx) THEN
-        wk_tophat_deriv=-x/5.+x**3/70.
+        wk_tophat_deriv=-x/5+x**3/70
     ELSE
-        wk_tophat_deriv=(3./x**4)*((x**2-3.)*sin(x)+3.*x*cos(x))
+        wk_tophat_deriv=(3/x**4)*((x**2-3)*sin(x)+3*x*cos(x))
     END IF
 
     END FUNCTION wk_tophat_deriv
@@ -1815,14 +1828,14 @@
 
     INTERFACE
     FUNCTION f(x, y, z, itype, cosm)
-        USE precision
-        IMPORT :: HM_cosmology
-        REAL(dl) :: f
-        REAL(dl), INTENT(IN) :: x
-        REAL(dl), INTENT(IN) :: y
-        REAL(dl), INTENT(IN) :: z
-        INTEGER, INTENT(IN) :: itype
-        TYPE(HM_cosmology), INTENT(IN) :: cosm
+    USE precision
+    IMPORT :: HM_cosmology
+    REAL(dl) :: f
+    REAL(dl), INTENT(IN) :: x
+    REAL(dl), INTENT(IN) :: y
+    REAL(dl), INTENT(IN) :: z
+    INTEGER, INTENT(IN) :: itype
+    TYPE(HM_cosmology), INTENT(IN) :: cosm
     END FUNCTION f
     END INTERFACE
 
@@ -1846,7 +1859,7 @@
             n=1+2**(j-1)
 
             !Calculate the dx interval for this value of 'n'
-            dx=(b-a)/REAL(n-1)
+            dx=(b-a)/REAL(n-1,dl)
 
             IF(j==1) THEN
 
@@ -1860,7 +1873,7 @@
 
                 !Loop over only new even points to add these to the integral
                 DO i=2,n,2
-                    x=a+(b-a)*real(i-1)/real(n-1)
+                    x=a+(b-a)*real(i-1,dl)/real(n-1,dl)
                     fx=f(x,y,z,itype,cosm)
                     sum_2n=sum_2n+fx
                 END DO
@@ -1881,7 +1894,7 @@
 
             IF((j>=jmin) .AND. (ABS(-1.d0+sum_new/sum_old)<acc)) THEN
                 !jmin avoids spurious early convergence
-                integrate=REAL(sum_new)
+                integrate=sum_new
                 EXIT
             ELSE IF(j==jmax) THEN
                 STOP 'INTEGRATE: Integration timed out'
@@ -1908,8 +1921,8 @@
     win=winnfw(k,rv,c)
 
     !Correct for the case of disasters (a bit sloppy, not sure if this is ever used)
-    IF(win>1.) win=1.
-    IF(win<0.) win=0.
+    IF(win>1._dl) win=1._dl
+    IF(win<0._dl) win=0._dl
 
     END FUNCTION win
 
@@ -1949,7 +1962,7 @@
     REAL(dl) :: mass
     REAL(dl), INTENT(IN) :: c
 
-    mass=log(1.+c)-c/(1.+c)
+    mass=log(1+c)-c/(1+c)
 
     END FUNCTION mass
 
@@ -1978,7 +1991,7 @@
     !f(nu^2)d(nu^2)=2*nu*f(nu)dnu
 
     !Full mass function. Note this is normalised such that integral f(nu)dnu = 1
-    gst=bigA*(1.+((a*nu*nu)**(-p)))*exp(-a*nu*nu/2.)
+    gst=bigA*(1+((a*nu*nu)**(-p)))*exp(-a*nu*nu/2)
 
     END FUNCTION gst
 
@@ -1991,9 +2004,9 @@
     TYPE(HM_cosmology), INTENT(IN) :: cosm
     REAL(dl) :: a
 
-    a=1./(1.+z)
+    a=1/(1+z)
 
-    Hubble2=cosm%om_m*(1.+z)**3+cosm%om_v*X_de(a,cosm)+(1.-cosm%om_m-cosm%om_v)*(1.+z)**2
+    Hubble2=cosm%om_m*(1+z)**3+cosm%om_v*X_de(a,cosm)+(1-cosm%om_m-cosm%om_v)*(1+z)**2
 
     END FUNCTION Hubble2
 
@@ -2005,7 +2018,7 @@
     REAL(dl), INTENT(IN) :: a
     TYPE(HM_cosmology), INTENT(IN) :: cosm
 
-    X_de=(a**(-3.*(1.+cosm%w+cosm%wa)))*exp(-3.*cosm%wa*(1.-a))
+    X_de=(a**(-3*(1+cosm%w+cosm%wa)))*exp(-3*cosm%wa*(1-a))
 
     END FUNCTION X_de
 
@@ -2016,7 +2029,7 @@
     REAL(dl), INTENT(IN) :: a
     TYPE(HM_cosmology), INTENT(IN) :: cosm
 
-    w_de_hm=cosm%w+(1.-a)*cosm%wa
+    w_de_hm=cosm%w+(1-a)*cosm%wa
 
     END FUNCTION w_de_hm
 
@@ -2029,7 +2042,7 @@
     TYPE(HM_cosmology), INTENT(IN) :: cosm
 
     om_m=cosm%om_m
-    Omega_m_hm=(om_m*(1.+z)**3.)/Hubble2(z,cosm)
+    Omega_m_hm=(om_m*(1+z)**3)/Hubble2(z,cosm)
 
     END FUNCTION Omega_m_hm
 
@@ -2039,9 +2052,9 @@
     REAL(dl) :: Omega_cold_hm
     REAL(dl), INTENT(IN) :: z
     TYPE(HM_cosmology), INTENT(IN) :: cosm
-  
-    Omega_cold_hm=((cosm%om_c+cosm%om_b)*(1.+z)**3.)/Hubble2(z,cosm)
-  
+
+    Omega_cold_hm=((cosm%om_c+cosm%om_b)*(1+z)**3)/Hubble2(z,cosm)
+
     END FUNCTION Omega_cold_hm
 
     FUNCTION grow(z,cosm)
@@ -2071,13 +2084,13 @@
     REAL(dl), INTENT(IN) :: R
     REAL(dl), INTENT(IN) :: z
     INTEGER, INTENT(IN) :: itype
-    TYPE(HM_cosmology), INTENT(IN) :: cosm   
-    REAL(dl), PARAMETER :: tmin=0.
-    REAL(dl), PARAMETER :: tmax=1.
+    TYPE(HM_cosmology), INTENT(IN) :: cosm
+    REAL(dl), PARAMETER :: tmin=0._dl
+    REAL(dl), PARAMETER :: tmax=1._dl
     REAL(dl), PARAMETER :: acc=acc_sigmaV_integration
     INTEGER, PARAMETER :: iorder=iorder_sigmaV_integration
 
-    sigmaV=sqrt(integrate(tmin,tmax,sigmaV_integrand,R,z,itype,cosm,acc,iorder)/3.)
+    sigmaV=sqrt(integrate(tmin,tmax,sigmaV_integrand,R,z,itype,cosm,acc,iorder)/3)
 
     END FUNCTION sigmaV
 
@@ -2094,24 +2107,24 @@
     REAL(dl) :: k, kR, w_hat
     REAL(dl), PARAMETER :: alpha=alpha_sigmaV_integration !Speeds up integral for large 'R'
 
-    IF(t<=0. .OR. t>=1.) THEN
-        sigmaV_integrand=0.
+    IF(t<=0._dl .OR. t>=1._dl) THEN
+        sigmaV_integrand=0
     ELSE
         IF(R==0.) THEN
-            kR=0.
-            k=(-1.+1./t)**alpha
+            kR=0
+            k=(-1+1/t)**alpha
         ELSE
-            kR=(-1.+1./t)**alpha
+            kR=(-1+1/t)**alpha
             k=kR/R
         END IF
         w_hat=wk_tophat(kR)
-        sigmaV_integrand=(p_lin(k,z,itype,cosm)/k**2)*(w_hat**2)*alpha/(t*(1.-t))
+        sigmaV_integrand=(p_lin(k,z,itype,cosm)/k**2)*(w_hat**2)*alpha/(t*(1-t))
     END IF
 
     END FUNCTION sigmaV_integrand
-  
+
     FUNCTION neff_integrand(t,R,z,itype,cosm)
-    
+
     !This is the integrand for the velocity dispersion integral
     IMPLICIT NONE
     REAL(dl) :: neff_integrand
@@ -2123,16 +2136,16 @@
     REAL(dl) :: k, kR, w_hat, w_hat_deriv
     REAL(dl), PARAMETER :: alpha=alpha_neff_integration !Speeds up integral for large 'R'
 
-    IF(t<=0. .OR. t>=1.) THEN
-        neff_integrand=0.
+    IF(t<=0 .OR. t>=1) THEN
+        neff_integrand=0
     ELSE
-        kR=(-1.+1./t)**alpha
+        kR=(-1+1/t)**alpha
         k=kR/R
         w_hat=wk_tophat(kR)
         w_hat_deriv=wk_tophat_deriv(kR)
-        neff_integrand=p_lin(k,z,itype,cosm)*w_hat*w_hat_deriv*alpha*kR/(t*(1.-t))
+        neff_integrand=p_lin(k,z,itype,cosm)*w_hat*w_hat_deriv*alpha*kR/(t*(1-t))
     END IF
-    
+
     END FUNCTION neff_integrand
 
     FUNCTION Si(x)
@@ -2141,10 +2154,9 @@
     REAL(dl) :: Si
     REAL(dl), INTENT(IN) :: x
     REAL(dl) :: x2, y, f, g, si8
-    REAL(dl), PARAMETER :: pi=3.1415926535897932384626433d0
 
     !Expansions for high and low x thieved from Wikipedia, two different expansions for above and below 4.
-    IF(ABS(x)<=4.) THEN
+    IF(ABS(x)<=4) THEN
 
         x2=x*x
 
@@ -2157,7 +2169,7 @@
 
         Si=si8
 
-    ELSE IF(ABS(x)>4.) THEN
+    ELSE IF(ABS(x)>4) THEN
 
         y=1.d0/(x*x)
 
@@ -2180,7 +2192,7 @@
             + y*(2.23355543278099360d9 + y*(7.87465017341829930d10 + y*(1.39866710696414565d12 &
             + y*(1.17164723371736605d13 + y*(4.01839087307656620d13 +y*(3.99653257887490811d13))))))))))
 
-        Si=pi/2.d0-f*cos(x)-g*sin(x)
+        Si=pi_HM/2.d0-f*cos(x)-g*sin(x)
 
     END IF
 
@@ -2195,7 +2207,7 @@
     REAL(dl), PARAMETER :: em_const=0.577215664901532861d0
 
     !Expansions for high and low x thieved from Wikipedia, two different expansions for above and below 4.
-    IF(ABS(x)<=4.) THEN
+    IF(ABS(x)<=4) THEN
 
         x2=x*x
 
@@ -2207,7 +2219,7 @@
 
         Ci=ci8
 
-    ELSE IF(ABS(x)>4.) THEN
+    ELSE IF(ABS(x)>4) THEN
 
         y=1./(x*x)
 
@@ -2234,14 +2246,14 @@
 
     END FUNCTION Ci
 
-    FUNCTION find(x,xin,yin,n,iorder,ifind,imeth)
+    FUNCTION find(x,xtab,ytab,n,iorder,ifind,imeth)
 
     !Given two arrays x and y this routine interpolates to find the y_i value at position x_i
     IMPLICIT NONE
     REAL(dl) :: find
     INTEGER, INTENT(IN) :: n
-    REAL(dl), INTENT(IN) :: x, xin(n), yin(n)
-    REAL(dl), ALLOCATABLE ::  xtab(:), ytab(:)
+    REAL(dl), INTENT(in) :: x
+    REAL(dl), INTENT(IN) :: xtab(n), ytab(n)
     REAL(dl) :: a, b, c, d
     REAL(dl) :: xarr(4)
     REAL(dl) :: yarr(4)
@@ -2265,16 +2277,7 @@
     !imeth = 1 => Uses cubic polynomials for interpolation
     !imeth = 2 => Uses Lagrange polynomials for interpolation
 
-    ALLOCATE(xtab(n),ytab(n))
-
-    xtab=xin
-    ytab=yin
-
-    IF(xtab(1)>xtab(n)) THEN
-        !Reverse the arrays in this case
-        CALL reverse(xtab,n)
-        CALL reverse(ytab,n)
-    END IF
+    if (xtab(1)>xtab(n)) stop 'Assuming arrays in order'
 
     IF(x<xtab(1)) THEN
 
@@ -2574,10 +2577,22 @@
     REAL(dl), INTENT(IN) :: x, xv(n+1), yv(n+1)
     REAL(dl) :: l(n+1)
     INTEGER :: i, j
+    real(dl) dx(n+1)
+
+    if (n==3) then
+        !Hard coded cubic for speed
+        dx = x- xv
+        Lagrange_polynomial =  &
+            + dx(2)*dx(3)*dx(4)/(xv(1)-xv(2))/(xv(1)-xv(3))/(xv(1)-xv(4)) * yv(1) &
+            + dx(1)*dx(3)*dx(4)/(xv(2)-xv(1))/(xv(2)-xv(3))/(xv(2)-xv(4)) * yv(2) &
+            + dx(1)*dx(2)*dx(4)/(xv(3)-xv(1))/(xv(3)-xv(2))/(xv(3)-xv(4)) * yv(3) &
+            + dx(1)*dx(2)*dx(3)/(xv(4)-xv(1))/(xv(4)-xv(2))/(xv(4)-xv(3)) * yv(4)
+        return
+    end if
 
     !Initialise variables, one for sum and one for multiplication
-    Lagrange_polynomial=0.
-    l=1.
+    Lagrange_polynomial=0
+    l=1
 
     !Loops to find the polynomials, one is a sum and one is a multiple
     DO i=0,n
