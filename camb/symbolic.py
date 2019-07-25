@@ -706,7 +706,7 @@ def get_default_compiler():
         import platform
         _default_compiler = 'ifort'
         if platform.system() == 'Darwin':
-            _default_flags = "-dynamiclib -fpic -O1 -W0 -WB"
+            _default_flags = "-dynamiclib -O1 -W0 -WB" #-fpic
         else:
             _default_flags = "-shared -fpic -O1 -W0 -WB"
     # _default_flags="-shared -fPIC -g -fbounds-check -fbacktrace -ffpe-trap=invalid,overflow,zero",
