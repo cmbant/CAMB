@@ -13,6 +13,7 @@ import os
 if six.PY3:
     from inspect import getfullargspec as getargspec
 else:
+    # noinspection PyDeprecation
     from inspect import getargspec
 
 _debug_params = False
@@ -189,6 +190,7 @@ def set_params_cosmomc(p, num_massive_neutrinos=1, neutrino_hierarchy='degenerat
     :param p: dictionary of cosmomc parameters (e.g. from getdist.types.BestFit's getParamDict() function)
     :param num_massive_neutrinos: usually 1 if fixed mnu=0.06 eV, three if mnu varying
     :param neutrino_hierarchy: hierarchy
+    :param halofit_version: name of the soecific Halofit model to use for non-linear modelling
     :param dark_energy_model: ppf or fluid dark energy model
     :param lmax: lmax for accuracy settings
     :param lens_potential_accuracy: lensing accuracy parameter
@@ -251,6 +253,7 @@ def read_ini(ini_filename, no_validate=False):
     """
     Get a :class:`.model.CAMBparams` instance using parameter specified in a .ini parameter file.
 
+    :param ini_filename: path of the .ini file to read
     :param no_validate: do not pre-validate the ini file (faster, but may crash kernel if error)
     :return: :class:`.model.CAMBparams` instance
     """

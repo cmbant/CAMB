@@ -37,6 +37,7 @@ class ifort_gfortran_loader(ctypes.CDLL):
 
 mock_load = os.environ.get('READTHEDOCS', None)
 if mock_load:
+    # noinspection PyCompatibility
     from unittest.mock import MagicMock
 
     camblib = MagicMock()
@@ -682,7 +683,8 @@ class F2003Class(CAMB_Structure):
         self.call_method('Replace', extra_args=[POINTER(f_pointer)], allow_inherit=False,
                          args=[byref(instance.fortran_self)])
 
-    def make_class_named(self, name, base_class=None):
+    @staticmethod
+    def make_class_named(name, base_class=None):
         if not isinstance(name, type):
             cls = F2003Class._class_names.get(name, None)
             if not cls:

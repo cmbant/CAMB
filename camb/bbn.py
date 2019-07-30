@@ -144,6 +144,7 @@ class BBN_table_interpolator(BBNPredictor):
         Get value for variable "name" by intepolation from table (where name is given in the column header comment)
         For example get('sig(D/H)',0.0222,0) to get the error on D/H
 
+        :param name: string name of the parameter, as given in header of interpolation table
         :param ombh2: :math:`\Omega_b h^2` (or, more generally, value of function_of[0])
         :param delta_neff:  additional N_eff relative to standard value (of 3.046) (or value of function_of[1])
         :param grid: parameter for :class:`~scipy:scipy.interpolate.RectBivariateSpline` (whether to evaluate the results

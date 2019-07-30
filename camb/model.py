@@ -13,6 +13,7 @@ from .recombination import RecombinationModel
 from .sources import SourceWindow, GaussianSourceWindow
 from . import bbn
 import six
+import logging
 
 # ---Parameters
 
@@ -46,7 +47,7 @@ derived_names = ['age', 'zstar', 'rstar', 'thetastar', 'DAstar', 'zdrag',
 transfer_names = ['k/h', 'delta_cdm', 'delta_baryon', 'delta_photon', 'delta_neutrino', 'delta_nu', 'delta_tot',
                   'delta_nonu', 'delta_tot_de', 'Weyl', 'v_newtonian_cdm', 'v_newtonian_baryon', 'v_baryon_cdm']
 
-evolve_names = transfer_names + ['a', 'etak', 'H', 'growth', 'v_photon', 'pi_photon', \
+evolve_names = transfer_names + ['a', 'etak', 'H', 'growth', 'v_photon', 'pi_photon',
                                  'E_2', 'v_neutrino', 'T_source', 'E_source', 'lens_potential_source']
 
 background_names = ['x_e', 'opacity', 'visibility', 'cs2b', 'T_b', 'dopacity', 'ddopacity', 'dvisibility',
@@ -464,13 +465,13 @@ class CAMBparams(F2003Class):
         if not isinstance(neutrino_hierarchy, six.string_types):
             neutrino_hierarchy = neutrino_hierarchies[neutrino_hierarchy - 1]
 
-        if (nnu >= standard_neutrino_neff or neutrino_hierarchy != neutrino_hierarchy_degenerate):
+        if nnu >= standard_neutrino_neff or neutrino_hierarchy != neutrino_hierarchy_degenerate:
             omnuh2 = mnu / neutrino_mass_fac * (standard_neutrino_neff / 3) ** 0.75
         else:
             omnuh2 = mnu / neutrino_mass_fac * (nnu / 3.0) ** 0.75
         omnuh2_sterile = meffsterile / neutrino_mass_fac
         if omnuh2_sterile > 0 and nnu < standard_neutrino_neff:
-            raise CAMBError('sterile neutrino mass required Neff> %.3g' % (constants.default_nnu))
+            raise CAMBError('sterile neutrino mass required Neff> %.3g' % constants.default_nnu)
         if omnuh2 and not num_massive_neutrinos:
             raise CAMBError('non-zero mnu with zero num_massive_neutrinos')
 
@@ -479,7 +480,7 @@ class CAMBparams(F2003Class):
         self.omk = omk
         if omnuh2_sterile > 0:
             if nnu < standard_neutrino_neff:
-                raise CAMBError('nnu < %.3g with massive sterile' % (constants.default_nnu))
+                raise CAMBError('nnu < %.3g with massive sterile' % constants.default_nnu)
         assert num_massive_neutrinos == int(num_massive_neutrinos)
         self.f_SetNeutrinoHierarchy(byref(c_double(omnuh2)), byref(c_double(omnuh2_sterile)),
                                     byref(c_double(nnu)),
@@ -608,7 +609,7 @@ class CAMBparams(F2003Class):
         :return:  :math:`Y_p^{\rm BBN}` helium nucleon fraction predicted by BBN.
         """
         try:
-            ombh2 = ombh2 if ombh2 != None else self.ombh2
+            ombh2 = ombh2 if ombh2 is not None else self.ombh2
             delta_neff = delta_neff if delta_neff is not None else self.N_eff - constants.default_nnu
             return self.bbn_predictor.Y_p(ombh2, delta_neff)
         except AttributeError:
@@ -625,7 +626,7 @@ class CAMBparams(F2003Class):
         :return: BBN helium nucleon fraction D/H
         """
         try:
-            ombh2 = ombh2 if ombh2 != None else self.ombh2
+            ombh2 = ombh2 if ombh2 is not None else self.ombh2
             delta_neff = delta_neff if delta_neff is not None else self.N_eff - constants.default_nnu
             return self.bbn_predictor.DH(ombh2, delta_neff)
         except AttributeError:
@@ -655,6 +656,8 @@ class CAMBparams(F2003Class):
                     self.NonLinear = NonLinear_both
                 else:
                     self.NonLinear = NonLinear_pk
+                if kmax < 20 and not silent:
+                    logging.warning("Using kmax=%s with Halofit non-linear models may give inaccurate results" % kmax)
             else:
                 if self.NonLinear in [NonLinear_lens, NonLinear_both]:
                     self.NonLinear = NonLinear_lens
@@ -696,7 +699,7 @@ class CAMBparams(F2003Class):
 
         :param lmax: :math:`\ell_{\rm max}` you want
         :param max_eta_k: maximum value of :math:`k \eta_0\approx k\chi_*` to use, which indirectly sets k_max. If None, sensible value set automatically.
-        :param lens_potential_accuracy: Set to 1 or higher if you want to get the lensing potential accurate
+        :param lens_potential_accuracy: Set to 1 or higher if you want to get the lensing potential accurate (1 is only Planck-level accuracy)
         :param lens_margin: the :math:`\Delta \ell_{\rm max}` to use to ensure lensed :math:`C_\ell` are correct at :math:`\ell_{\rm max}`
         :param k_eta_fac:  k_eta_fac default factor for setting max_eta_k = k_eta_fac*lmax if max_eta_k=None
         :param lens_k_eta_reference:  value of max_eta_k to use when lens_potential_accuracy>0; use k_eta_max = lens_k_eta_reference*lens_potential_accuracy

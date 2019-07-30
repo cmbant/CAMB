@@ -151,7 +151,7 @@ def get_emission_delay_BB(params, kmax=100, lmax=3000, non_linear=True, CMB_unit
                                                - (lp * (lp + 1) - ll * (ll + 1)) * cxd[minl + off - 2:maxl + 1 - 2:2]) \
                                 * cEE[llp - 2]
                 wigx2 = wigx[off:maxl - minl + 1:2] * wig[off:maxl - minl + 1:2]
-                totBxterm[i] += lstep * (np.dot(wigx2, cExx[minl + off - 2:maxl + 1 - 2:2]) \
+                totBxterm[i] += lstep * (np.dot(wigx2, cExx[minl + off - 2:maxl + 1 - 2:2])
                                          * (2 * cd[llp - 2] - ((lp * (lp + 1) - ll * (ll + 1)) * cxd[llp - 2]))
                                          - np.dot(wigx2, cEx[minl + off - 2:maxl + 1 - 2:2]) * cxd[llp - 2]) \
                                 * np.sqrt(lp * (lp + 1) * (lp + 2) * (lp - 1))

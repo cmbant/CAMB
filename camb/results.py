@@ -247,7 +247,8 @@ class CAMBdata(F2003Class):
         self.calc_background(P)
         return self.get_background_outputs()
 
-    def _check_params(self, params):
+    @staticmethod
+    def _check_params(params):
         if not isinstance(params, CAMBparams):
             raise CAMBValueError('Must pass a CAMBparams instance')
         if not params.ombh2:
@@ -584,7 +585,7 @@ class CAMBdata(F2003Class):
         Get the individual densities as a function of scale factor. Returns :math:`8\pi G a^4 \rho_i` in Mpc units.
         :math:`\Omega_i` can be simply obtained by taking the ratio of the components to tot.
 
-        :param z: redshift or array of redshifts
+        :param a: scale factor or array of scale factors
         :param vars: list of variables to output (default all)
         :param format: 'dict' or 'array', for either dict of 1D arrays indexed by name, or 2D array
         :return: n_a x len(vars) 2D numpy array or dict of 1D arrays of :math:`8\pi G a^4 \rho_i` in Mpc units.
@@ -660,7 +661,8 @@ class CAMBdata(F2003Class):
         data.transfer_data = fortran_array(cdata.TransferData, cdata.TransferData_size, dtype=np.float32)
         return data
 
-    def _transfer_var(self, var1, var2):
+    @staticmethod
+    def _transfer_var(var1, var2):
         if var1 is None: var1 = config.transfer_power_var
         if var2 is None: var2 = config.transfer_power_var
         if isinstance(var1, six.string_types): var1 = model.transfer_names.index(var1) + 1
@@ -826,7 +828,7 @@ class CAMBdata(F2003Class):
 
             def __init__(self, *args, **kwargs):
                 self._single_z = np.array(args[0])
-                super(PKInterpolator, self).__init__(*(args[1:]), kind=kwargs.get("ky"))
+                super(PKInterpolatorSingleZ, self).__init__(*(args[1:]), kind=kwargs.get("ky"))
 
             def check_z(self, z):
                 if not np.allclose(z, self._single_z):
@@ -1170,6 +1172,7 @@ class CAMBdata(F2003Class):
         Must have called :meth:`calc_background`, :meth:`calc_background_no_thermo` or calculated transfer functions or power spectra.
 
         :param z: redshift
+        :param tol: numerical tolerance parameter
         :return: comoving radial distance (Mpc)
         """
         if not np.isscalar(z):

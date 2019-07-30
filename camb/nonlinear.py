@@ -47,7 +47,7 @@ class Halofit(NonLinearModel):
         """
         Set the halofit model for non-linear corrections.
 
-        :param version: One of
+        :param halofit_version: One of
 
             - original: `astro-ph/0207664 <https://arxiv.org/abs/astro-ph/0207664>`_
             - bird: `arXiv:1109.4416 <https://arxiv.org/abs/1109.4416>`_

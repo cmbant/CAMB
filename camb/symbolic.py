@@ -856,8 +856,8 @@ def internal_consistency_checks():
 
     # Gauge functions checks
     assert (newtonian_gauge(dsigma) == 0)
-    assert (subs(K_sub, subs(var_subs, subs(pert_eqs, subs(cdm_gauge(synchronous_vars), \
-                                                           subs(synchronous_subs, sigma) - sigma).doit())) \
+    assert (subs(K_sub, subs(var_subs, subs(pert_eqs, subs(cdm_gauge(synchronous_vars),
+                                                           subs(synchronous_subs, sigma) - sigma).doit()))
                  .simplify().collect(eta)).simplify() == 0)
 
     # check all equations are gauge invariant
