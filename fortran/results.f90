@@ -1370,6 +1370,8 @@
                             !Try to keep lensed spectra up to specified lmax
                             lind=lind+1
                             ls(lind)=max_l - lensed_convolution_margin
+                        else if (ls(lind) - ls(lind-1) > lensed_convolution_margin) then
+                            ls(lind)=max_l - lensed_convolution_margin
                         end if
                     end if
                 end if !log_lvalues
@@ -1378,7 +1380,7 @@
                     ls(lind)=max_l
                 end if
                 if (.not. State%flat .and. max_l<=5000) ls(lind-1)=int(max_l+ls(lind-2))/2
-                !Not in CP%flat case so interpolation table is the same when using lower l_max
+                !Not in flat case so interpolation table is the same when using lower l_max
             end if
         end if
     end associate

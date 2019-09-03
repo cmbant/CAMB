@@ -106,10 +106,10 @@
     real(dl) corr(4), Cg2, sigmasq, theta
     real(dl) dtheta
     real(dl) llp1,fac, fac1,fac2,fac3, rootllp1, rootfac1, rootfac2, rootfac3
-    integer max_lensed_ix
     real(dl) P(lmax),dP(lmax)
     real(dl) sinth,halfsinth, x, T2,T4
     real(dl) roots(-1:lmax+4), lfacs(lmax), lfacs2(lmax), lrootfacs(lmax)
+    integer max_lensed_ix
     real(dl) d_11(lmax),d_m11(lmax)
     real(dl) d_22(lmax),d_2m2(lmax),d_20(lmax)
     real(dl) Cphil3(lmin:lmax), CTT(lmin:lmax), CTE(lmin:lmax),CEE(lmin:lmax)
@@ -138,18 +138,17 @@
     !$ integer  OMP_GET_THREAD_NUM, OMP_GET_MAX_THREADS
     !$ external OMP_GET_THREAD_NUM, OMP_GET_MAX_THREADS
 
-
     if (lensing_includes_tensors) call MpiStop('Haven''t implemented tensor lensing')
     CL =>  State%ClData
     associate(lSamp => State%CLData%CTransScal%ls, CP=>State%CP)
 
         LensAccuracyBoost = CP%Accuracy%AccuracyBoost*CP%Accuracy%LensingBoost
-
         max_lensed_ix = lSamp%nl-1
         do while(lSamp%l(max_lensed_ix) > CP%Max_l - lensed_convolution_margin)
             max_lensed_ix = max_lensed_ix -1
         end do
-        CL%lmax_lensed = lSamp%l(max_lensed_ix)
+        !150 is the default margin added in python by set_for_lmax
+        CL%lmax_lensed = max(lSamp%l(max_lensed_ix), CP%Max_l - 150)
 
         if (allocated(CL%Cl_lensed)) deallocate(CL%Cl_lensed)
         allocate(CL%Cl_lensed(lmin:CL%lmax_lensed,1:4), source = 0._dl)
