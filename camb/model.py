@@ -650,13 +650,14 @@ class CAMBparams(F2003Class):
         self.Transfer.high_precision = True
         self.Transfer.accurate_massive_neutrinos = accurate_massive_neutrino_transfers
         self.Transfer.kmax = kmax
+        zs = sorted(redshifts, reverse=True)
         if nonlinear is not None:
             if nonlinear:
                 if self.NonLinear in [NonLinear_lens, NonLinear_both]:
                     self.NonLinear = NonLinear_both
                 else:
                     self.NonLinear = NonLinear_pk
-                if kmax < 20 and not silent:
+                if not silent and (kmax < 5 or kmax < 20 and np.max(zs) > 4):
                     logging.warning("Using kmax=%s with Halofit non-linear models may give inaccurate results" % kmax)
             else:
                 if self.NonLinear in [NonLinear_lens, NonLinear_both]:
@@ -664,7 +665,6 @@ class CAMBparams(F2003Class):
                 else:
                     self.NonLinear = NonLinear_none
         self.Transfer.k_per_logint = k_per_logint if k_per_logint else 0
-        zs = sorted(redshifts, reverse=True)
         if not silent and np.any(np.array(zs) - np.array(redshifts) != 0):
             print("Note: redshifts have been re-sorted (earliest first)")
         if len(redshifts) > max_transfer_redshifts:
