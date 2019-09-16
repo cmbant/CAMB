@@ -699,6 +699,7 @@ class CAMBdata(F2003Class):
         PK = np.empty((nz, nk))
         if nonlinear:
             CAMBdata_GetNonLinearMatterPower(byref(self), PK, byref(var1), byref(var2), byref(hubble_units))
+            config.check_global_error('get_[non]linear_matter_power_spectrum')
         else:
             CAMBdata_GetLinearMatterPower(byref(self), PK, byref(var1), byref(var2), byref(hubble_units))
 

@@ -48,6 +48,7 @@
     use classes
     use Transfer
     use constants
+    use config
     implicit none
     private
 
@@ -292,8 +293,7 @@
                             goto 101
                         else if (xlogr1>3.4999) then
                             ! Totally crazy non-linear
-                            global_error_flag=349
-                            write(*,*) 'Error in halofit'
+                            call GlobalError('Error in halofit (xlogr1>3.4999)', error_nonlinear)
                             goto 101
                         end if
                     end do
@@ -551,6 +551,7 @@
 
         !Initiliasation for the halomodel calcualtion (needs to be done for each z)
         CALL this%halomod_init(z,lut,cosi)
+        if (global_error_flag/=0) return
 
         !Loop over k values and calculate P(k)
         !$OMP PARALLEL DO DEFAULT(SHARED), private(k,plin, pfull,p1h,p2h)
@@ -808,7 +809,7 @@
         CALL fill_table(log(kmin),log(kmax),cosm%log_k_plin,nk)
 
     ELSE
-        if (ifind_pk_interpolation==1) stop 'ifind_pk_interpolation=1 assumes rebin_pk'
+        if (ifind_pk_interpolation==1) error stop 'ifind_pk_interpolation=1 assumes rebin_pk'
         !Fill k-table with the same k points as in the CAMB calculation
         !If a user has specified lots of points this could make the halo-model
         !calculation chug
@@ -985,14 +986,14 @@
     ALLOCATE(lut%zc(n),lut%m(n),lut%c(n),lut%rv(n))
     ALLOCATE(lut%nu(n),lut%rr(n),lut%sigf(n),lut%sig(n))
 
-    lut%zc=0.
-    lut%m=0.
-    lut%c=0.
-    lut%rv=0.
-    lut%nu=0.
-    lut%rr=0.
-    lut%sigf=0.
-    lut%sig=0.
+    lut%zc=0
+    lut%m=0
+    lut%c=0
+    lut%rv=0
+    lut%nu=0
+    lut%rr=0
+    lut%sigf=0
+    lut%sig=0
 
     END SUBROUTINE allocate_LUT
 
@@ -1026,11 +1027,14 @@
     !Find value of sigma_v, sig8, etc.
 
     lut%sigv=sigmaV(0.d0,z,0,cosm)
+    if (global_error_flag/=0) return
     IF(HM_verbose) WRITE(*,*) 'HALOMOD: sigv [Mpc/h]:', lut%sigv
     lut%sigv100=sigmaV(100.d0,z,0,cosm)
+    if (global_error_flag/=0) return
     IF(HM_verbose) WRITE(*,*) 'HALOMOD: sigv100 [Mpc/h]:', lut%sigv100
     lut%sig8z=sigma(8.d0,z,0,cosm)
     IF(HM_verbose) WRITE(*,*) 'HALOMOD: sig8(z):', lut%sig8z
+    if (global_error_flag/=0) return
 
     IF(ALLOCATED(lut%rr)) CALL deallocate_LUT(lut)
 
@@ -1058,6 +1062,7 @@
 
     END DO
     !$OMP END PARALLEL DO
+    if (global_error_flag/=0) return
 
     IF(HM_verbose) WRITE(*,*) 'HALOMOD: m, r, nu, sig HM_tables filled'
 
@@ -1291,7 +1296,7 @@
                 ELSE IF(iorder==3) THEN
                     sum_new=(4.d0*sum_2n-sum_n)/3.d0 !This is Simpson's rule and cancels error
                 ELSE
-                    STOP 'GROWINT: Error, iorder specified incorrectly'
+                    ERROR STOP 'GROWINT: Error, iorder specified incorrectly'
                 END IF
 
             END IF
@@ -1301,7 +1306,9 @@
                 growint=exp(sum_new)
                 EXIT
             ELSE IF(j==jmax) THEN
-                STOP 'GROWINT: Integration timed out'
+                growint=exp(sum_new)
+                call GlobalError('HMCode GROWINT, Integration timed out', error_nonlinear)
+                return
             ELSE
                 !Integral has not converged so store old sums and reset sum variables
                 sum_old=sum_new
@@ -1887,7 +1894,7 @@
                 ELSE IF(iorder==3) THEN
                     sum_new=(4.d0*sum_2n-sum_n)/3.d0 !This is Simpson's rule and cancels error
                 ELSE
-                    STOP 'INTEGRATE: Error, iorder specified incorrectly'
+                    ERROR STOP 'INTEGRATE: Error, iorder specified incorrectly'
                 END IF
 
             END IF
@@ -1897,7 +1904,9 @@
                 integrate=sum_new
                 EXIT
             ELSE IF(j==jmax) THEN
-                STOP 'INTEGRATE: Integration timed out'
+                integrate=sum_new
+                call GlobalError('HMCode INTEGRATE, Integration timed out', error_nonlinear)
+                return
             ELSE
                 !Integral has not converged so store old sums and reset sum variables
                 sum_old=sum_new
@@ -2277,7 +2286,7 @@
     !imeth = 1 => Uses cubic polynomials for interpolation
     !imeth = 2 => Uses Lagrange polynomials for interpolation
 
-    if (xtab(1)>xtab(n)) stop 'Assuming arrays in order'
+    if (xtab(1)>xtab(n)) error stop 'Assuming arrays in order'
 
     IF(x<xtab(1)) THEN
 
@@ -2288,7 +2297,7 @@
         ELSE IF(imeth==2) THEN
             find=Lagrange_polynomial(x,1,xtab,ytab)
         ELSE
-            STOP 'FIND: Error, method not specified correctly'
+            ERROR STOP 'FIND: Error, method not specified correctly'
         END IF
 
     ELSE IF(x>xtab(n)) THEN
@@ -2304,12 +2313,12 @@
         ELSE IF(imeth==2) THEN
             find=Lagrange_polynomial(x,1,xarr,yarr)
         ELSE
-            STOP 'FIND: Error, method not specified correctly'
+            ERROR STOP 'FIND: Error, method not specified correctly'
         END IF
 
     ELSE IF(iorder==1) THEN
 
-        IF(n<2) STOP 'FIND: Not enough points in your table for linear interpolation'
+        IF(n<2) ERROR STOP 'FIND: Not enough points in your table for linear interpolation'
 
         IF(x<=xtab(2)) THEN
 
@@ -2336,12 +2345,12 @@
         ELSE IF(imeth==2) THEN
             find=Lagrange_polynomial(x,1,xarr,yarr)
         ELSE
-            STOP 'FIND: Error, method not specified correctly'
+            ERROR STOP 'FIND: Error, method not specified correctly'
         END IF
 
     ELSE IF(iorder==2) THEN
 
-        IF(n<3) STOP 'FIND: Not enough points in your table'
+        IF(n<3) ERROR STOP 'FIND: Not enough points in your table'
 
         IF(x<=xtab(2) .OR. x>=xtab(n-1)) THEN
 
@@ -2363,7 +2372,7 @@
             ELSE IF(imeth==2) THEN
                 find=Lagrange_polynomial(x,2,xarr,yarr)
             ELSE
-                STOP 'FIND: Error, method not specified correctly'
+                ERROR STOP 'FIND: Error, method not specified correctly'
             END IF
 
         ELSE
@@ -2383,14 +2392,14 @@
                 !In this case take the average of two quadratic Lagrange polynomials
                 find=(Lagrange_polynomial(x,2,xarr,yarr)+Lagrange_polynomial(x,2,xarr(2:),yarr(2:)))/2.
             ELSE
-                STOP 'FIND: Error, method not specified correctly'
+                ERROR STOP 'FIND: Error, method not specified correctly'
             END IF
 
         END IF
 
     ELSE IF(iorder==3) THEN
 
-        IF(n<4) STOP 'FIND: Not enough points in your table'
+        IF(n<4) ERROR STOP 'FIND: Not enough points in your table'
 
         IF(x<=xtab(3)) THEN
             xarr(1:4) = xtab(1:4)
@@ -2411,12 +2420,12 @@
         ELSE IF(imeth==2) THEN
             find=Lagrange_polynomial(x,3,xarr,yarr)
         ELSE
-            STOP 'FIND: Error, method not specified correctly'
+            ERROR STOP 'FIND: Error, method not specified correctly'
         END IF
 
     ELSE
 
-        STOP 'FIND: Error, interpolation order specified incorrectly'
+        ERROR STOP 'FIND: Error, interpolation order specified incorrectly'
 
     END IF
 
@@ -2442,7 +2451,7 @@
     ELSE IF(imeth==3) THEN
         table_integer=int_split(x,xtab,n)
     ELSE
-        STOP 'TABLE INTEGER: Method specified incorrectly'
+        ERROR STOP 'TABLE INTEGER: Method specified incorrectly'
     END IF
 
     END FUNCTION table_integer
@@ -2471,7 +2480,7 @@
     REAL(dl), INTENT(IN) :: x, xtab(n)
     INTEGER :: i
 
-    IF(xtab(1)>xtab(n)) STOP 'SEARCH_INT: table in wrong order'
+    IF(xtab(1)>xtab(n)) ERROR STOP 'SEARCH_INT: table in wrong order'
 
     DO i=1,n
         IF(x>=xtab(i) .AND. x<=xtab(i+1)) EXIT
@@ -2490,7 +2499,7 @@
     REAL(dl), INTENT(IN) :: x, xtab(n)
     INTEGER :: i1, i2, imid
 
-    IF(xtab(1)>xtab(n)) STOP 'INT_SPLIT: table in wrong order'
+    IF(xtab(1)>xtab(n)) ERROR STOP 'INT_SPLIT: table in wrong order'
 
     i1=1
     i2=n
