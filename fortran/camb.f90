@@ -21,6 +21,7 @@
     CData%OnlyTransfer = .false.
     call CData%CP%InitPower%Init(CData%CP)
     if (global_error_flag/=0) return
+    if (allocated(Cdata%CAMB_Pk)) deallocate(Cdata%CAMB_PK)
 
     if (CData%CP%WantCls) then
         call ClTransferToCl(CData)

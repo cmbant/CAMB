@@ -670,7 +670,7 @@ class CAMBdata(F2003Class):
         return c_int(var1), c_int(var2)
 
     def get_linear_matter_power_spectrum(self, var1=None, var2=None,
-                                         hubble_units=True, have_power_spectra=False, params=None, nonlinear=False):
+                                         hubble_units=True, have_power_spectra=True, params=None, nonlinear=False):
         r"""
         Calculates :math:`P_{xy}(k/h)`, where x, y are one of model.Transfer_cdm, model.Transfer_xx etc.
         The output k values are not regularly spaced, and not interpolated.
@@ -680,12 +680,12 @@ class CAMBdata(F2003Class):
         :param var1: variable i (index, or name of variable; default delta_tot)
         :param var2: variable j (index, or name of variable; default delta_tot)
         :param hubble_units: if true, output power spectrum in (Mpc/h) units, otherwise Mpc
-        :param have_power_spectra: set to True if already computed power spectra
+        :param have_power_spectra: set to False if not already computed power spectra
         :param params: if have_power_spectra=False, optional :class:`~.model.CAMBparams` instance to specify new parameters
         :param nonlinear: include non-linear correction from halo model
         :return: kh, z, PK, where kz an z are arrays of k/h and z respectively, and PK[i,j] is value at z[i], k/h[j]
         """
-        if not have_power_spectra:
+        if self.OnlyTransfers or params is not None or not have_power_spectra:
             self.calc_power_spectra(params)
         data = self.get_matter_transfer_data()
 
