@@ -717,7 +717,7 @@ class CAMBdata(F2003Class):
         :param var1: variable i (index, or name of variable; default delta_tot)
         :param var2: variable j (index, or name of variable; default delta_tot)
         :param hubble_units: if true, output power spectrum in :Math:`({\rm Mpc}/h)^{3}` units, otherwise :math:`{\rm Mpc}^{3}`
-        :param have_power_spectra: set to True if already computed power spectra
+        :param have_power_spectra: set to False if not already computed power spectra
         :param params: if have_power_spectra=False, optional :class:`~.model.CAMBparams` instance to specify new parameters
         :return: kh, z, PK, where kz an z are arrays of k/h and z respectively, and PK[i,j] is value at z[i], k/h[j]
         """

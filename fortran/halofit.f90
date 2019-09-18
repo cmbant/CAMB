@@ -103,7 +103,7 @@
         REAL(dl), ALLOCATABLE :: log_k_plin(:), log_plin(:), log_plinc(:)
         real(dl) :: kmax
         INTEGER :: nk, ng, nsig
-        real(dl) :: grow2_z, this_z !cached value at redshift being calclated
+        real(dl) :: grow2_z, this_z !cached value at redshift being calculated
         !AM - Added feedback parameters below at fixed fiducial (DMONLY) values
         REAL(dl) :: A_baryon=3.13
         REAL(dl) :: eta_baryon=0.603
@@ -1563,8 +1563,6 @@
     cosm%log_r_sigma=log(r)
     cosm%log_sigma=log(sig)
 
-    DEALLOCATE(r,sig)
-
     IF(HM_verbose) WRITE(*,*) 'SIGTAB: Done'
     IF(HM_verbose) WRITE(*,*)
 
@@ -2596,7 +2594,7 @@
     cosm%ng=n
     ALLOCATE(cosm%a_growth(n),cosm%growth(n))
     DO i=1,n
-        a=ainit+(amax-ainit)*float(i-1)/float(n-1)
+        a=ainit+(amax-ainit)*(i-1)/real(n-1,dl)
         cosm%a_growth(i)=a
         cosm%growth(i)=find(a,a_tab,d_tab,SIZE(a_tab),iorder_int,ifind_int,imeth_int)
     END DO
