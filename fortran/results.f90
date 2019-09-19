@@ -453,23 +453,10 @@
             !Initialize things for massive neutrinos
             call ThermalNuBackground%Init()
             call this%NuPerturbations%Init(P%Accuracy%AccuracyBoost*P%Accuracy%neutrino_q_boost)
-            !  nu_masses=m_nu(i)*c**2/(k_B*T_nu0).
-            !  Get number density n of neutrinos from
-            !  rho_massless/n = int q^3/(1+e^q) / int q^2/(1+e^q)=7/180 pi^4/Zeta(3)
-            !  then m = Omega_nu/N_nu rho_crit /n
-            !  Error due to velocity < 1e-5 for mnu~0.06 but can easily correct
+            !  nu_masses=m_nu(i)*c**2/(k_B*T_nu0)
             do nu_i=1, this%CP%Nu_mass_eigenstates
-                this%nu_masses(nu_i)=fermi_dirac_const/(1.5d0*zeta3)*this%grhocrit/this%grhor* &
-                    this%CP%omnuh2/h2*this%CP%Nu_mass_fractions(nu_i)/this%CP%Nu_mass_degeneracies(nu_i)
-                block
-                    real(dl) rhonu, rhonu1, delta
-
-                    !Make perturbative correction for the tiny error due to the neutrino velocity
-                    call ThermalNuBackground%rho(this%nu_masses(nu_i), rhonu)
-                    call ThermalNuBackground%rho(this%nu_masses(nu_i)*0.9, rhonu1)
-                    delta = rhonu - this%CP%Nu_mass_fractions(nu_i)*this%grhocrit*this%CP%omnuh2/h2/this%grhormass(nu_i)
-                    this%nu_masses(nu_i) = this%nu_masses(nu_i)*(1 + delta/((rhonu1 - rhonu)/0.1) )
-                end block
+                this%nu_masses(nu_i)= ThermalNuBackground%find_nu_mass_for_rho(this%CP%omnuh2/h2*this%CP%Nu_mass_fractions(nu_i)&
+                    *this%grhocrit/this%grhormass(nu_i))
             end do
         else
             this%nu_masses = 0
