@@ -863,8 +863,8 @@ class CAMBdata(F2003Class):
         PKInterpolator = PKInterpolator if deg_z else PKInterpolatorSingleZ
         if extrap_kmax and extrap_kmax > kh[-1]:
             # extrapolate to ultimate power law
-            # TODO: use more physical extrapolation function
-            if not silent and kh_max < 3 and extrap_kmax > 2:
+            # TODO: use more physical extrapolation function for linear case
+            if not silent and (kh_max < 3 and extrap_kmax > 2 and nonlinear or kh_max < 0.4):
                 logging.warning("Extrapolating to higher k with matter transfer functions "
                                 "only to k=%.3g Mpc^{-1} may be inaccurate.\n " % (kh_max * self.Params.H0 / 100))
             logextrap = np.log(extrap_kmax)
