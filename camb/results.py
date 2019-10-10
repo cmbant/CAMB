@@ -787,7 +787,7 @@ class CAMBdata(F2003Class):
         return minkh * np.exp(np.arange(npoints) * dlnkh), z, PK
 
     def get_matter_power_interpolator(self, nonlinear=True, var1=None, var2=None, hubble_units=True, k_hunit=True,
-                                      return_z_k=False, log_interp=True, extrap_kmax=None):
+                                      return_z_k=False, log_interp=True, extrap_kmax=None, silent=False):
         r"""
         Assuming transfers have been calculated, return a 2D spline interpolation object to evaluate matter
         power spectrum as function of z and k/h (or k). Uses self.Params.Transfer.PK_redshifts as the spline node
@@ -810,6 +810,7 @@ class CAMBdata(F2003Class):
         :param return_z_k: if true, return interpolator, z, k where z, k are the grid used
         :param log_interp: if true, interpolate log of power spectrum (unless any values are negative in which case ignored)
         :param extrap_kmax: if set, use power law extrapolation beyond kmax to extrap_kmax (useful for tails of integrals)
+        :param silent: Set True to silence warnings
         :return: An object PK based on :class:`~scipy:scipy.interpolate.RectBivariateSpline`, that can be called with PK.P(z,kh)
            or PK(z,log(kh)) to get log matter power values.
            If return_z_k=True, instead return interpolator, z, k where z, k are the grid used.
@@ -852,6 +853,7 @@ class CAMBdata(F2003Class):
 
         assert self.Params.WantTransfer
         kh, z, pk = self.get_linear_matter_power_spectrum(var1, var2, hubble_units, nonlinear=nonlinear)
+        kh_max = kh[-1]
         if not k_hunit:
             kh *= self.Params.H0 / 100
         if log_interp and np.any(pk <= 0):
@@ -860,12 +862,20 @@ class CAMBdata(F2003Class):
         deg_z = min(len(z) - 1, 3)
         PKInterpolator = PKInterpolator if deg_z else PKInterpolatorSingleZ
         if extrap_kmax and extrap_kmax > kh[-1]:
+            # extrapolate to ultimate power law
+            # TODO: use more physical extrapolation function
+            if not silent and kh_max < 3 and extrap_kmax > 2:
+                logging.warning("Extrapolating to higher k with matter transfer functions "
+                                "only to k=%.3g Mpc^{-1} may be inaccurate.\n " % (kh_max * self.Params.H0 / 100))
             logextrap = np.log(extrap_kmax)
-            logpknew = np.empty((pk.shape[0], pk.shape[1] + 1))
-            logpknew[:, :-1] = np.log(pk)
-            logpknew[:, -1] = logpknew[:, -2] + (logpknew[:, -2] - logpknew[:, -3]) / (logkh[-2] - logkh[-3]) * (
-                    logextrap - logkh[-1])
-            logkhnew = np.hstack((logkh, logextrap))
+            logpknew = np.empty((pk.shape[0], pk.shape[1] + 2))
+            logpknew[:, :-2] = np.log(pk)
+            delta = logextrap - logkh[-1]
+            dlog = (logpknew[:, -3] - logpknew[:, -4]) / (logkh[-1] - logkh[-2])
+            logpknew[:, -1] = logpknew[:, -3] + dlog * delta
+            logpknew[:, -2] = logpknew[:, -3] + dlog * delta * 0.9
+            logkhnew = np.hstack((logkh, logextrap - delta * 0.1, logextrap))
+
             deg_k = min(len(logkhnew) - 1, 3)
             if log_interp:
                 res = PKInterpolator(z, logkhnew, logpknew, kx=deg_z, ky=deg_k)
