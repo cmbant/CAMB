@@ -1899,8 +1899,7 @@
     end do
     zstar_min = 700._dl
     zstar_max = 2000._dl
-    if ((.not. CP%Reion%Reionization .or. CP%Accuracy%AccurateReionization) &
-        .and. (CP%WantDerivedParameters .or. CP%Want_Zstar)) then
+    if ((.not. CP%Reion%Reionization .or. CP%Accuracy%AccurateReionization) .and. CP%WantDerivedParameters) then
         do j1=nint(log(100/this%tauminn)/this%dlntau),nthermo
             if (-sdotmu(j1) - this%actual_opt_depth < 1) then
                 !Bracket z_star
