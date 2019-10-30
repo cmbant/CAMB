@@ -2200,12 +2200,13 @@
 
     END FUNCTION Ci
 
-    FUNCTION find(x,xtab,ytab,n,iorder,ifind,imeth)
+    recursive FUNCTION find(x,xtab,ytab,n,iorder,ifind,imeth) result(y)
     !Given two arrays x and y this routine interpolates to find the y_i value at position x_i
-    REAL(dl) :: find
+    REAL(dl) :: y
     INTEGER, INTENT(IN) :: n
     REAL(dl), INTENT(in) :: x
     REAL(dl), INTENT(IN) :: xtab(n), ytab(n)
+    REAL(dl), ALLOCATABLE :: xtab_rev(:), ytab_rev(:)
     REAL(dl) :: a, b, c, d
     REAL(dl) :: xarr(4)
     REAL(dl) :: yarr(4)
@@ -2229,16 +2230,24 @@
     !imeth = 1 => Uses cubic polynomials for interpolation
     !imeth = 2 => Uses Lagrange polynomials for interpolation
 
-    if (xtab(1)>xtab(n)) error stop 'Assuming arrays in order'
+    if (xtab(1)>xtab(n)) then
+        WRITE(*,*) 'WARNING: HMCODE find arrays in order. Please report this'
+        WRITE(*,*) 'x = ',x, 'n=',n, 'xtab(1)=',xtab(1), 'xtab(n)=',xtab(n)
+        call GlobalError('Array order error in HMCode', error_nonlinear)
+        CALL reverse(xtab,n, xtab_rev)
+        CALL reverse(ytab,n, ytab_rev)
+        y =  find(x, xtab_rev, ytab_rev, n, iorder, ifind, imeth)
+        return
+    end if
 
     IF(x<xtab(1)) THEN
 
         !Do a linear interpolation beyond the table boundary
         IF(imeth==1) THEN
             CALL fit_line(a,b,xtab(1),ytab(1),xtab(2),ytab(2))
-            find=a*x+b
+            y=a*x+b
         ELSE IF(imeth==2) THEN
-            find=Lagrange_polynomial(x,1,xtab,ytab)
+            y=Lagrange_polynomial(x,1,xtab,ytab)
         ELSE
             ERROR STOP 'FIND: Error, method not specified correctly'
         END IF
@@ -2252,9 +2261,9 @@
 
         IF(imeth==1) THEN
             CALL fit_line(a,b,xarr(1),yarr(1),xarr(2),yarr(2))
-            find=a*x+b
+            y=a*x+b
         ELSE IF(imeth==2) THEN
-            find=Lagrange_polynomial(x,1,xarr,yarr)
+            y=Lagrange_polynomial(x,1,xarr,yarr)
         ELSE
             ERROR STOP 'FIND: Error, method not specified correctly'
         END IF
@@ -2284,9 +2293,9 @@
 
         IF(imeth==1) THEN
             CALL fit_line(a,b,xarr(1),yarr(1),xarr(2),yarr(2))
-            find=a*x+b
+            y=a*x+b
         ELSE IF(imeth==2) THEN
-            find=Lagrange_polynomial(x,1,xarr,yarr)
+            y=Lagrange_polynomial(x,1,xarr,yarr)
         ELSE
             ERROR STOP 'FIND: Error, method not specified correctly'
         END IF
@@ -2311,9 +2320,9 @@
 
             IF(imeth==1) THEN
                 CALL fit_quadratic(a,b,c,xarr(1),yarr(1),xarr(2),yarr(2),xarr(3),yarr(3))
-                find=a*(x**2)+b*x+c
+                y=a*(x**2)+b*x+c
             ELSE IF(imeth==2) THEN
-                find=Lagrange_polynomial(x,2,xarr,yarr)
+                y=Lagrange_polynomial(x,2,xarr,yarr)
             ELSE
                 ERROR STOP 'FIND: Error, method not specified correctly'
             END IF
@@ -2328,12 +2337,12 @@
             IF(imeth==1) THEN
                 !In this case take the average of two separate quadratic spline values
                 CALL fit_quadratic(a,b,c,xarr(1),yarr(1),xarr(2),yarr(2),xarr(3),yarr(3))
-                find=(a*x**2+b*x+c)/2.
+                y=(a*x**2+b*x+c)/2.
                 CALL fit_quadratic(a,b,c,xarr(2),yarr(2),xarr(3),yarr(3),xarr(4),yarr(4))
-                find=find+(a*x**2+b*x+c)/2.
+                y=y+(a*x**2+b*x+c)/2.
             ELSE IF(imeth==2) THEN
                 !In this case take the average of two quadratic Lagrange polynomials
-                find=(Lagrange_polynomial(x,2,xarr,yarr)+Lagrange_polynomial(x,2,xarr(2:),yarr(2:)))/2.
+                y=(Lagrange_polynomial(x,2,xarr,yarr)+Lagrange_polynomial(x,2,xarr(2:),yarr(2:)))/2.
             ELSE
                 ERROR STOP 'FIND: Error, method not specified correctly'
             END IF
@@ -2359,9 +2368,9 @@
 
         IF(imeth==1) THEN
             CALL fit_cubic(a,b,c,d,xarr(1),yarr(1),xarr(2),yarr(2),xarr(3),yarr(3),xarr(4),yarr(4))
-            find=a*x**3+b*x**2+c*x+d
+            y=a*x**3+b*x**2+c*x+d
         ELSE IF(imeth==2) THEN
-            find=Lagrange_polynomial(x,3,xarr,yarr)
+            y=Lagrange_polynomial(x,3,xarr,yarr)
         ELSE
             ERROR STOP 'FIND: Error, method not specified correctly'
         END IF
@@ -2540,19 +2549,16 @@
 
     END FUNCTION Lagrange_polynomial
 
-    SUBROUTINE reverse(arry,n)
+    SUBROUTINE reverse(arry,n, output)
     !This reverses the contents of arry!
     INTEGER, INTENT(IN) :: n
-    REAL(dl), INTENT(INOUT) :: arry(n)
+    REAL(dl), INTENT(IN) :: arry(n)
     INTEGER :: i
-    REAL(dl), ALLOCATABLE :: hold(:)
+    REAL(dl), ALLOCATABLE, intent(OUT) :: output(:)
 
-    ALLOCATE(hold(n))
-
-    hold=arry
-
+    ALLOCATE(output(n))
     DO i=1,n
-        arry(i)=hold(n-i+1)
+        output(i)=arry(n-i+1)
     END DO
 
     END SUBROUTINE reverse
