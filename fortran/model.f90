@@ -246,7 +246,10 @@
     real(dl) normal_frac, m3, neff_massive_standard, mnu, m1
 
     this%omnuh2 = omnuh2
-    if (omnuh2==0) return
+    if (omnuh2==0) then
+        this%Num_Nu_Massless = nnu
+        return
+    end if
     this%Nu_mass_eigenstates=0
     if (omnuh2 > omnuh2_sterile) then
         normal_frac =  (omnuh2-omnuh2_sterile)/omnuh2
