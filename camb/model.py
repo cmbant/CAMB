@@ -221,8 +221,8 @@ class CAMBparams(F2003Class):
         ("OutputNormalization", c_int, "If non-zero, multipole to normalize the C_L at"),
         ("Alens", c_double, "non-physical scaling amplitude for the CMB lensing spectrum power"),
         ("MassiveNuMethod", c_int, {"names": ["Nu_int", "Nu_trunc", "Nu_approx", "Nu_best"]}),
-        ("DoLateRadTruncation", c_bool,
-         "If true, use smooth approx to radition perturbations after decoupling on small scales, saving evolution of irrelevant osciallatory multipole equations"),
+        ("DoLateRadTruncation", c_bool, "If true, use smooth approx to radition perturbations after decoupling on small"
+                                        " scales, saving evolution of irrelevant osciallatory multipole equations"),
         ("Evolve_baryon_cs", c_bool,
          "Evolve a separate equation for the baryon sound speed rather than using background approximation"),
         ("Evolve_delta_xe", c_bool, "Evolve ionization fraction perturbations"),
@@ -230,10 +230,8 @@ class CAMBparams(F2003Class):
         ("Do21cm", c_bool, "21cm is not yet implemented via the python wrapper"),
         ("transfer_21cm_cl", c_bool, "Get 21cm C_L at a given fixed redshift"),
         ("Log_lvalues", c_bool, "Use log spacing for sampling in L"),
-        (
-            "use_cl_spline_template", c_bool,
-            "When interpolating use a fiducial spectrum shape to define ratio to spline"),
-
+        ("use_cl_spline_template", c_bool,
+         "When interpolating use a fiducial spectrum shape to define ratio to spline"),
         ("SourceWindows", AllocatableObjectArray(SourceWindow)),
         ("CustomSources", CustomSources)
     ]

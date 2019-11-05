@@ -7,7 +7,7 @@ import numpy as np
 try:
     import camb
 except ImportError as e:
-    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../')))
+    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
     import camb
 from camb import model, correlations, bbn, dark_energy, initialpower
 from camb.baseconfig import CAMBParamRangeError, CAMBValueError

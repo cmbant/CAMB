@@ -266,15 +266,23 @@ if __name__ == "__main__":
           long_description=get_long_description(),
           author='Antony Lewis',
           url="https://camb.info/",
+          project_urls={
+              'Documentation': 'https://camb.readthedocs.org',
+              'Source': 'https://github.com/cmbant/camb',
+              'Tracker': 'https://github.com/cmbant/camb/issues',
+              'Reference': 'http://arxiv.org/abs/astro-ph/9911177',
+              'Licensing': 'https://github.com/cmbant/CAMB/blob/master/LICENCE.txt'
+          },
           zip_safe=False,
           cmdclass={'build_py': SharedLibrary, 'build_cluster': SharedLibraryCluster,
                     'make': MakeLibrary, 'make_cluster': MakeLibraryCluster, 'clean': CleanLibrary,
                     'develop': DevelopLibrary, 'develop_cluster': DevelopLibraryCluster},
-          packages=['camb', 'camb_tests'],
+          packages=['camb', 'camb.tests'],
+          platforms="any",
           package_data={'camb': [DLLNAME, 'HighLExtrapTemplate_lenspotentialCls.dat',
                                  'PArthENoPE_880.2_marcucci.dat', 'PArthENoPE_880.2_standard.dat',
                                  'PRIMAT_Yp_DH_Error.dat']},
-          test_suite='camb_tests',
+          test_suite='camb.tests',
           entry_points={
               'console_scripts': [
                   'camb=camb._command_line:run_command_line',
@@ -287,10 +295,11 @@ if __name__ == "__main__":
               "Programming Language :: Python :: 2",
               'Programming Language :: Python :: 2.7',
               'Programming Language :: Python :: 3',
-              'Programming Language :: Python :: 3.5',
               'Programming Language :: Python :: 3.6',
-              'Programming Language :: Python :: 3.7'
+              'Programming Language :: Python :: 3.7',
+              'Programming Language :: Python :: 3.8'
           ],
           keywords=['cosmology', 'CAMB', 'CMB'],
-          install_requires=['scipy>=1.0', 'six', 'sympy>=1.0']
+          install_requires=['scipy>=1.0', 'six', 'sympy>=1.0'],
+          python_requires='>=2.7,!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,!=3.5.*'
           )
