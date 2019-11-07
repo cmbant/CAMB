@@ -60,6 +60,8 @@ Other modules:
    correlations
    postborn
    emission_angle
+   transfer_variables
 
+* `Example notebook <https://camb.readthedocs.org/en/latest/CAMBdemo.html>`_
 * :ref:`genindex`
 
