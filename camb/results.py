@@ -432,7 +432,7 @@ class CAMBdata(F2003Class):
           corrs is 2D array corrs[i, ix], where ix=0,1,2,3 are T, Q+U, Q-U and cross, and i indexes xvals
         """
 
-        if not spectrum in ['total', 'unlensed_scalar', 'unlensed_total', 'lensed_scalar', 'tensor']:
+        if spectrum not in ['total', 'unlensed_scalar', 'unlensed_total', 'lensed_scalar', 'tensor']:
             raise CAMBValueError('Can only get CMB correlation functions for known CMB spectrum')
         from . import correlations
 

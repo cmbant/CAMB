@@ -969,13 +969,16 @@
                 end if
                 !     output transfer functions for this k-value.
 
-                if (abs(tau-State%Transfer_Times(itf)) < 1.e-5_dl) then
+                if (abs(tau-State%Transfer_Times(itf)) < 1.e-5_dl .or. j==State%TimeSteps%npoints) then
                     call outtransf(EV,y, tau, State%MT%TransferData(:,EV%q_ix,itf))
-
                     itf=itf+1
                     if (j < State%TimeSteps%npoints) then
                         if (itf <= State%num_transfer_redshifts.and. &
                             State%TimeSteps%points(j+1) > State%Transfer_Times(itf)) goto 101
+                    else
+                        if (abs(tau-State%Transfer_Times(itf-1)) > 5.e-5_dl) then
+                            write(*,*) 'WARNING: mismatch in integrated times (CalcScalarSources)'
+                        end if
                     end if
                 endif
             end if
