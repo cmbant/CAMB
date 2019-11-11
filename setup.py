@@ -48,8 +48,10 @@ def get_forutils():
         try:
             print('forutils not found, attempting to install using git...')
             os.chdir('..')
+            fbranch = os.getenv('FORUTILSBRANCH', '1.0.1')
             try:
-                if subprocess.call("git clone --depth=1 https://github.com/cmbant/forutils", shell=True) == 0:
+                if subprocess.call("git clone --branch %s --depth=1 https://github.com/cmbant/forutils" % fbranch,
+                                   shell=True) == 0:
                     return os.path.join('..', 'forutils')
             finally:
                 os.chdir('fortran')
@@ -58,11 +60,11 @@ def get_forutils():
 
     if not fpath:
         dirs = ['..', '..' + os.sep + '..']
-        for dir in dirs:
-            path = os.path.join(dir, 'forutils')
+        for _dir in dirs:
+            path = os.path.join(_dir, 'forutils')
             if os.path.isdir(path):
                 fpath = path
-                main_dir = dir
+                main_dir = _dir
                 break
         if not fpath:
             fpath = git_install_forutils()

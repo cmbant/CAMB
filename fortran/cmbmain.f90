@@ -977,7 +977,7 @@
                             State%TimeSteps%points(j+1) > State%Transfer_Times(itf)) goto 101
                     else
                         if (abs(tau-State%Transfer_Times(itf-1)) > 5.e-5_dl) then
-                            write(*,*) 'WARNING: mismatch in integrated times (CalcScalarSources)'
+                            write(*,*) 'WARNING: mismatch in integrated times (CAMB: CalcScalarSources)'
                         end if
                     end if
                 endif
