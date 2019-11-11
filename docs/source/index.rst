@@ -60,7 +60,13 @@ Other modules:
    correlations
    postborn
    emission_angle
+
+.. toctree::
+   :maxdepth: 1
+
    transfer_variables
+   fortran_compilers
+   mathutils
 
 * `Example notebook <https://camb.readthedocs.org/en/latest/CAMBdemo.html>`_
 * :ref:`genindex`

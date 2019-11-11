@@ -1,3 +1,9 @@
+"""
+This module contains some fast utility functions that are useful in the same contexts as camb. They are entirely
+independent of the main camb code.
+
+"""
+
 from ctypes import c_int, c_double, c_bool, POINTER
 from .baseconfig import camblib, numpy_1d, numpy_2d, numpy_3d
 import numpy as np
