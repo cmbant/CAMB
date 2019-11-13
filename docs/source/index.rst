@@ -29,7 +29,7 @@ Anaconda users can also install from conda-forge using::
 
   conda install -c conda-forge camb
 
-with no need for a Fortran compiler (unless you want to use custom sources/symbolic complication features).
+with no need for a Fortran compiler (unless you want to use custom sources/symbolic compilation features).
 
 After installation the camb python module can be loaded from your scripts using "import camb".
 You can also run CAMB from the command line reading parameters from a .ini file, e.g.::

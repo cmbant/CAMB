@@ -215,7 +215,7 @@ def set_params_cosmomc(p, num_massive_neutrinos=1, neutrino_hierarchy='degenerat
 
 
 def validate_ini_file(filename):
-    # Checkin fortran .ini file parameters are valid; catch error stop in separate process
+    # Check if fortran .ini file parameters are valid; catch error stop in separate process
     import subprocess
     import sys
     try:

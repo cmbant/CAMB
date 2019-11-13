@@ -594,14 +594,16 @@ class _FortranSelf(object):
 
 
 class F2003Class(CAMB_Structure):
-    # Wraps a fortran type/class that is allocated in fortran, potentially containing allocatable  _fields_ elements that
-    # are instances of classes, allocatable arrays that are wrapped in python, and list of class _methods_ from fortran
+    # Wraps a fortran type/class that is allocated in fortran, potentially containing allocatable  _fields_
+    # elements that are instances of classes, allocatable arrays that are wrapped in python, and list
+    # of class _methods_ from fortran.
     #
-    # Note that assigning to allocatable fields makes a deep copy of the object so the obect always owns all memory belonging to its fields.
-    # Accessing an allocatable field makes a new class pointer object on the fly. It can become undefined if the allocatable field is reassigned.
+    # Note that assigning to allocatable fields makes a deep copy of the object so the object always owns all memory
+    # belonging to its fields. Accessing an allocatable field makes a new class pointer object on the fly. It can
+    # become undefined if the allocatable field is reassigned.
 
-    # classes are referenced by their fortran null pointer object. _class_pointers is a dictionary relating these f_pointer to python classes
-    # Elements are added each class by the @fortran_class decorator.
+    # classes are referenced by their fortran null pointer object. _class_pointers is a dictionary relating these
+    # f_pointer to python classes Elements are added each class by the @fortran_class decorator.
     _class_pointers = {}
 
     # dictionary mapping class names to classes
@@ -609,7 +611,8 @@ class F2003Class(CAMB_Structure):
 
     __slots__ = ()
 
-    # pointer to fortran class; generated once per instance using _fortran_selfpointer_function then repaced with actual value
+    # pointer to fortran class; generated once per instance using _fortran_selfpointer_function then replaced with
+    # the actual value
     fortran_self = _FortranSelf()
 
     def __new__(cls, *args, **kwargs):

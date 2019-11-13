@@ -283,7 +283,7 @@ def constraint_subs_for_variable_set(variables=[z, sigma, phi, hdot]):
     return solve(constraints, variables)
 
 
-# Various substitutions for variables in terms of other variables (using constaints)
+# Various substitutions for variables in terms of other variables (using constraints)
 
 var_subs = constraint_subs_for_variable_set()
 

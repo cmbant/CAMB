@@ -165,7 +165,7 @@ class CAMBdata(F2003Class):
                 ("akthom", c_double, "sigma_T * (number density of protons now)"),
                 ("fHe", c_double, "n_He_tot / n_H_tot"),
                 ("Nnow", c_double, "number density today"),
-                ("z_eq", c_double, "matter-radiation equality refshift assuming all neutrinos relativistic"),
+                ("z_eq", c_double, "matter-radiation equality redshift assuming all neutrinos relativistic"),
                 ("grhormass", c_double * model.max_nu),
                 ("nu_masses", c_double * model.max_nu),
                 ("num_transfer_redshifts", c_int,
