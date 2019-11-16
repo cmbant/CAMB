@@ -6,8 +6,8 @@ The lensed power spectrum functions are not intended to replace those calculated
 but may be useful for tests, e.g. using different lensing potential power spectra, partially-delensed
 lensing power spectra, etc.
 
-These functions are all pure python/scipy, and operate and return cls including factors :math:`\ell(\ell+1)/2\pi` (for CMB) and
-:math:`[L(L+1)]^2/2\pi` (for lensing).
+These functions are all pure python/scipy, and operate and return cls including
+factors :math:`\ell(\ell+1)/2\pi` (for CMB) and :math:`[L(L+1)]^2/2\pi` (for lensing).
 
 A. Lewis December 2016
 """
@@ -47,7 +47,7 @@ def _cached_gauss_legendre(npoints, cache=True):
         return xvals, weights
 
 
-def legendre_funcs(lmax, x, m=[0, 2], lfacs=None, lfacs2=None, lrootfacs=None):
+def legendre_funcs(lmax, x, m=(0, 2), lfacs=None, lfacs2=None, lrootfacs=None):
     r"""
     Utility function to return array of Legendre and :math:`d_{mn}` functions for all :math:`\ell` up to lmax.
     Note that :math:`d_{mn}` arrays start at :math:`\ell_{\rm min} = \max(m,n)`, so returned arrays are different sizes
@@ -58,14 +58,16 @@ def legendre_funcs(lmax, x, m=[0, 2], lfacs=None, lfacs2=None, lrootfacs=None):
     :param lfacs: optional pre-computed :math:`\ell(\ell+1)` float array
     :param lfacs2: optional pre-computed :math:`(\ell+2)*(\ell-1)` float array
     :param lrootfacs: optional pre-computed sqrt(lfacs*lfacs2) array
-    :return: :math:`(P,P'),(d_{11},d_{-1,1}), (d_{20}, d_{22}, d_{2,-2})` as requested, where P starts at :math:`\ell=0`, but spin functions start at :math:`\ell=\ell_{\rm min}`
+    :return: :math:`(P,P'),(d_{11},d_{-1,1}), (d_{20}, d_{22}, d_{2,-2})` as requested, where P starts
+             at :math:`\ell=0`, but spin functions start at :math:`\ell=\ell_{\rm min}`
     """
     allP, alldP = legendreP(lmax, x)
     # Polarization functions all start at L=2
     fac1 = 1 - x
     fac2 = 1 + x
     res = []
-    if 0 in m: res.append((allP, alldP))
+    if 0 in m:
+        res.append((allP, alldP))
 
     if 1 in m:
         lfacs1 = np.arange(1, lmax + 1, dtype=np.float64)
@@ -109,14 +111,15 @@ def cl2corr(cls, xvals, lmax=None):
     Use roots of Legendre polynomials (np.polynomial.legendre.leggauss) for accurate back integration with corr2cl.
     Note currently does not work at xvals=1 (can easily calculate that as special case!).
 
-    :param cls: 2D array cls(L,ix), with L (:math:`\equiv \ell`) starting at zero and ix-0,1,2,3 in order TT, EE, BB, TE.
-        cls should include :math:`\ell(\ell+1)/2\pi` factors.
+    :param cls: 2D array cls(L,ix), with L (:math:`\equiv \ell`) starting at zero and ix-0,1,2,3 in
+                order TT, EE, BB, TE. cls should include :math:`\ell(\ell+1)/2\pi` factors.
     :param xvals: array of :math:`\cos(\theta)` values at which to calculate correlation function.
     :param lmax: optional maximum L to use from the cls arrays
     :return: 2D array of corrs[i, ix], where ix=0,1,2,3 are T, Q+U, Q-U and cross
     """
 
-    if lmax is None: lmax = cls.shape[0] - 1
+    if lmax is None:
+        lmax = cls.shape[0] - 1
     xvals = np.asarray(xvals)
     ls = np.arange(0, lmax + 1, dtype=np.float64)
     corrs = np.zeros((len(xvals), 4))
@@ -150,8 +153,8 @@ def gauss_legendre_correlation(cls, lmax=None, sampling_factor=1):
     evaluation points and weights.
     Result can be passed to corr2cl for accurate back transform.
 
-    :param cls: 2D array cls(L,ix), with L (:math:`\equiv \ell`) starting at zero and ix=0,1,2,3 in order TT, EE, BB, TE.
-     Should include :math:`\ell(\ell+1)/2\pi` factors.
+    :param cls: 2D array cls(L,ix), with L (:math:`\equiv \ell`) starting at zero and ix=0,1,2,3 in
+                order TT, EE, BB, TE. Should include :math:`\ell(\ell+1)/2\pi` factors.
     :param lmax: optional maximum L to use
     :param sampling_factor: uses Gauss-Legendre with degree lmax*sampling_factor+1
     :return: corrs, xvals, weights; corrs[i, ix] is 2D array where ix=0,1,2,3 are T, Q+U, Q-U and cross
@@ -251,8 +254,8 @@ def lensed_correlations(cls, clpp, xvals, weights=None, lmax=None, delta=False, 
     Uses the non-perturbative curved-sky results from Eqs 9.12 and 9.16-9.18 of
     `astro-ph/0601594 <https://arxiv.org/abs/astro-ph/0601594>`_, to second order in :math:`C_{{\rm gl},2}`
 
-    :param cls: 2D array of unlensed cls(L,ix), with L (:math:`\equiv\ell`) starting at zero and ix=0,1,2,3 in order TT, EE, BB, TE.
-        cls should include :math:`\ell(\ell+1)/2\pi` factors.
+    :param cls: 2D array of unlensed cls(L,ix), with L (:math:`\equiv\ell`) starting at zero and ix=0,1,2,3 in
+                order TT, EE, BB, TE. cls should include :math:`\ell(\ell+1)/2\pi` factors.
     :param clpp: array of :math:`[L(L+1)]^2 C_L^{\phi\phi}/2\pi` lensing potential power spectrum (zero based)
     :param xvals: array of :math:`\cos(\theta)` values at which to calculate correlation function.
     :param weights: if given also return lensed :math:`C_\ell`, otherwise just lensed correlations
@@ -379,8 +382,8 @@ def lensed_cls(cls, clpp, lmax=None, lmax_lensed=None, sampling_factor=1.4, delt
 
     For a reference implementation with the full integral range and no apodization set theta_max=None.
 
-    Note that this function does not pad high :math:`\ell` with a smooth fit (like CAMB's main functions); for accurate results
-    should be called with lmax high enough that input cls are effectively band limited
+    Note that this function does not pad high :math:`\ell` with a smooth fit (like CAMB's main functions); for
+    accurate results should be called with lmax high enough that input cls are effectively band limited
     (lmax >= 2500, or higher for accurate BB to small scales).
     Usually lmax truncation errors are far larger than other numerical errors for lmax<4000.
 
@@ -399,7 +402,8 @@ def lensed_cls(cls, clpp, lmax=None, lmax_lensed=None, sampling_factor=1.4, delt
     :return: 2D array of cls[L, ix], with L starting at zero and ix=0,1,2,3 in order TT, EE, BB, TE.
         cls include :math:`\ell(\ell+1)/2\pi` factors.
     """
-    if lmax is None: lmax = cls.shape[0] - 1
+    if lmax is None:
+        lmax = cls.shape[0] - 1
     npoints = int(sampling_factor * lmax) + 1
     if leggaus:
         xvals, weights = _cached_gauss_legendre(npoints, cache)
@@ -436,7 +440,8 @@ def lensed_cl_derivatives(cls, clpp, lmax=None, theta_max=np.pi / 32,
     :param apodize_point_width: if theta_max is set, apodize around the cut using half Gaussian of approx
         width apodize_point_width/lmax*pi
     :param sampling_factor: npoints = int(sampling_factor*lmax)+1
-    :return: array dCL[ix, ell, L], where ix=0,1,2,3 are T, EE, BB, TE and result is :math:`d[D^{\rm ix}_\ell]/ d (\log C^{\phi}_L)`
+    :return: array dCL[ix, ell, L], where ix=0,1,2,3 are T, EE, BB, TE and r
+             esult is :math:`d[D^{\rm ix}_\ell]/ d (\log C^{\phi}_L)`
 
     """
 
@@ -580,7 +585,8 @@ def lensed_cl_derivative_unlensed(clpp, lmax=None, theta_max=np.pi / 32,
 
     """
 
-    if lmax is None: lmax = clpp.shape[0] - 1
+    if lmax is None:
+        lmax = clpp.shape[0] - 1
     npoints = int(sampling_factor * lmax) + 1
     xvals, weights = _cached_gauss_legendre(npoints)
 

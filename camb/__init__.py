@@ -12,7 +12,7 @@ __version__ = "1.0.10"
 from . import baseconfig
 
 baseconfig.check_fortran_version(__version__)
-from .baseconfig import CAMBFortranError, CAMBError, CAMBValueError
+from .baseconfig import CAMBFortranError, CAMBError, CAMBValueError, CAMBUnknownArgumentError, CAMBParamRangeError
 from .camb import get_results, get_transfer_functions, get_background, \
     get_age, get_zre_from_tau, set_feedback_level, set_params, get_matter_power_interpolator, \
     set_params_cosmomc, read_ini, run_ini

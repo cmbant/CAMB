@@ -79,14 +79,14 @@ class TransferParams(CAMB_Structure):
 
 class AccuracyParams(CAMB_Structure):
     """
-    Structure with parameters governing numerical accuracy. AccuracyBoost will also scale almost all the other parameters
-    except for lSampleBoost (which is specific to the output interpolation) and lAccuracyBoost (which is specific to the
-    multipole hierarchy evolution), e.g setting AccuracyBoost=2, IntTolBoost=1.5, means that internally the k sampling for
-    integration will be boosed by AccuracyBoost*IntTolBoost = 3.
+    Structure with parameters governing numerical accuracy. AccuracyBoost will also scale almost all the other
+    parameters except for lSampleBoost (which is specific to the output interpolation) and lAccuracyBoost
+    (which is specific to the multipole hierarchy evolution), e.g setting AccuracyBoost=2, IntTolBoost=1.5, means
+    that internally the k sampling for integration will be boosed by AccuracyBoost*IntTolBoost = 3.
     """
     _fields_ = [
-        ("AccuracyBoost", c_double,
-         "general accuracy setting effecting everything related to step sizes etc. (including separate settings below except the next two)"),
+        ("AccuracyBoost", c_double, "general accuracy setting effecting everything related to step sizes etc. "
+                                    "(including separate settings below except the next two)"),
         ("lSampleBoost", c_double,
          "accuracy for sampling in ell for interpolation for the C_l (if >=50, all ell are calculated)"),
         ("lAccuracyBoost", c_double, "Boosts number of multipoles integrated in Boltzman heirarchy"),
@@ -120,14 +120,14 @@ class SourceTermParams(CAMB_Structure):
         ("limber_windows", c_bool,
          "Use Limber approximation where appropriate. CMB lensing uses Limber even if limber_window is false, " +
          "but method is changed to be consistent with other sources if limber_windows is true"),
-        ("limber_phi_lmin", c_int,
-         "When limber_windows=True, the minimum L to use Limber approximation for the lensing potential and other sources (which may use higher but not lower)"),
+        ("limber_phi_lmin", c_int, "When limber_windows=True, the minimum L to use Limber approximation for the "
+                                   "lensing potential and other sources (which may use higher but not lower)"),
         ("counts_density", c_bool, "Include the density perturbation source"),
         ("counts_redshift", c_bool, "Include redshift distortions"),
         ("counts_lensing", c_bool, "Include magnification bias for number counts"),
         ("counts_velocity", c_bool, "Non-redshift distortion velocity terms"),
-        ("counts_radial", c_bool,
-         "Radial displacement velocity term; does not include time delay; subset of counts_velocity, just 1 / (chi * H) term"),
+        ("counts_radial", c_bool, "Radial displacement velocity term; does not include time delay; "
+                                  "subset of counts_velocity, just 1 / (chi * H) term"),
         ("counts_timedelay", c_bool, "Include time delay terms * 1 / (H * chi)"),
         ("counts_ISW", c_bool, "Include tiny ISW terms"),
         ("counts_potential", c_bool, "Include tiny terms in potentials at source"),
@@ -159,13 +159,13 @@ class CAMBparams(F2003Class):
 
     To add a new parameter, add it to the CAMBparams type in model.f90, then  edit the _fields_ list in the CAMBparams
     class in model.py to add the new parameter in the corresponding location of the member list. After rebuilding the
-    python version you can then access the parameter by using params.new_parameter_name where params is a CAMBparams instance.
-    You could also modify the wrapper functions to set the field value less directly.
+    python version you can then access the parameter by using params.new_parameter_name where params is a CAMBparams
+    instance. You could also modify the wrapper functions to set the field value less directly.
 
     You can view the set of underlying parameters used by the Fortran code by printing the CAMBparams instance.
     In python, to set cosmology parameters it is usually best to use :meth:`set_cosmology` and
-    equivalent methods for most other parameters. Alternatively the convenience function :func:`.camb.set_params` can construct
-    a complete instance from a dictionary of relevant parameters.
+    equivalent methods for most other parameters. Alternatively the convenience function :func:`.camb.set_params`
+    can construct a complete instance from a dictionary of relevant parameters.
 
     """
     _fields_ = [
@@ -221,8 +221,10 @@ class CAMBparams(F2003Class):
         ("OutputNormalization", c_int, "If non-zero, multipole to normalize the C_L at"),
         ("Alens", c_double, "non-physical scaling amplitude for the CMB lensing spectrum power"),
         ("MassiveNuMethod", c_int, {"names": ["Nu_int", "Nu_trunc", "Nu_approx", "Nu_best"]}),
-        ("DoLateRadTruncation", c_bool, "If true, use smooth approx to radiation perturbations after decoupling on small"
-                                        " scales, saving evolution of irrelevant oscillatory multipole equations"),
+        (
+            "DoLateRadTruncation", c_bool,
+            "If true, use smooth approx to radiation perturbations after decoupling on small"
+            " scales, saving evolution of irrelevant oscillatory multipole equations"),
         ("Evolve_baryon_cs", c_bool,
          "Evolve a separate equation for the baryon sound speed rather than using background approximation"),
         ("Evolve_delta_xe", c_bool, "Evolve ionization fraction perturbations"),
@@ -261,9 +263,11 @@ class CAMBparams(F2003Class):
     def set_accuracy(self, AccuracyBoost=1., lSampleBoost=1., lAccuracyBoost=1., DoLateRadTruncation=True):
         """
         Set parameters determining overall calculation accuracy (large values may give big slow down).
-        For finer control you can set individual accuracy parameters by changing CAMBParams.Accuracy (:class:`.model.AccuracyParams`) .
+        For finer control you can set individual accuracy parameters by changing CAMBParams.Accuracy
+        (:class:`.model.AccuracyParams`) .
 
-        :param AccuracyBoost: increase AccuracyBoost to decrease integration step size, increase density of k sampling, etc.
+        :param AccuracyBoost: increase AccuracyBoost to decrease integration step size, increase density of k
+                              sampling, etc.
         :param lSampleBoost: increase lSampleBoost to increase density of L sampling for CMB
         :param lAccuracyBoost: increase lAccuracyBoost to increase the maximum L included in the Boltzmann hierarchies
         :param DoLateRadTruncation: If True, use approximation to radiation perturbation evolution at late times
@@ -342,19 +346,21 @@ class CAMBparams(F2003Class):
         """
         Set the InitialPower primordial power spectrum parameters
 
-        :param initial_power_params: :class:`.initialpower.InitialPowerLaw` or :class:`.initialpower.SplinedInitialPower` instance
+        :param initial_power_params: :class:`.initialpower.InitialPowerLaw`
+                                     or :class:`.initialpower.SplinedInitialPower` instance
         :return: self
         """
         self.InitPower = initial_power_params
         return self
 
-    def set_H0_for_theta(self, theta, cosmomc_approx=False, theta_H0_range=[10, 100], est_H0=67.0,
+    def set_H0_for_theta(self, theta, cosmomc_approx=False, theta_H0_range=(10, 100), est_H0=67.0,
                          iteration_threshold=8):
         r"""
         Set H0 to give a specified value of the acoustic angular scale parameter theta.
 
         :param theta: value of :math:`r_s/D_M` at redshift :math:`z_\star`
-        :param cosmomc_approx: if true, use approximate fitting formula for :math:`z_\star`, if false do full numerical calculation
+        :param cosmomc_approx: if true, use approximate fitting formula for :math:`z_\star`,
+                               if false do full numerical calculation
         :param theta_H0_range: min, max iterval to search for H0 (in km/s/Mpc)
         :param est_H0: an initial guess for H0 in km/s/Mpc, used in the case comsomc_approx=False.
         :param iteration_threshold: differnce in H0 from est_H0 for which to iterate, used for cosmomc_approx=False
@@ -403,7 +409,7 @@ class CAMBparams(F2003Class):
                       mnu=0.06, nnu=constants.default_nnu, YHe=None, meffsterile=0.0,
                       standard_neutrino_neff=constants.default_nnu,
                       TCMB=constants.COBE_CMBTemp, tau=None, deltazrei=None, Alens=1.0,
-                      bbn_predictor=None, theta_H0_range=[10, 100]):
+                      bbn_predictor=None, theta_H0_range=(10, 100)):
         r"""
         Sets cosmological parameters in terms of physical densities and parameters (e.g. as used in Planck analyses).
         Default settings give a single distinct neutrino mass eigenstate, by default one neutrino with mnu = 0.06eV.
@@ -610,7 +616,8 @@ class CAMBparams(F2003Class):
         (or the default one, if `Y_He` has not been set).
 
         :param ombh2: :math:`\Omega_b h^2` (default: value passed to :meth:`set_cosmology`)
-        :param delta_neff:  additional :math:`N_{\rm eff}` relative to standard value (of 3.046) (default: from values passed to :meth:`set_cosmology`)
+        :param delta_neff:  additional :math:`N_{\rm eff}` relative to standard value (of 3.046)
+                           (default: from values passed to :meth:`set_cosmology`)
         :return:  :math:`Y_p^{\rm BBN}` helium nucleon fraction predicted by BBN.
         """
         try:
@@ -627,7 +634,8 @@ class CAMBparams(F2003Class):
         (or the default one, if `Y_He` has not been set).
 
         :param ombh2: :math:`\Omega_b h^2` (default: value passed to :meth:`set_cosmology`)
-        :param delta_neff:  additional :math:`N_{\rm eff}` relative to standard value (of 3.046) (default: from values passed to :meth:`set_cosmology`)
+        :param delta_neff:  additional :math:`N_{\rm eff}` relative to standard value (of 3.046)
+                           (default: from values passed to :meth:`set_cosmology`)
         :return: BBN helium nucleon fraction D/H
         """
         try:
@@ -637,7 +645,7 @@ class CAMBparams(F2003Class):
         except AttributeError:
             raise CAMBError('Not able to compute DH: not using an interpolation table for BBN abundances.')
 
-    def set_matter_power(self, redshifts=[0.], kmax=1.2, k_per_logint=None, nonlinear=None,
+    def set_matter_power(self, redshifts=(0.,), kmax=1.2, k_per_logint=None, nonlinear=None,
                          accurate_massive_neutrino_transfers=False, silent=False):
         """
         Set parameters for calculating matter power spectra and transfer functions.
@@ -699,15 +707,20 @@ class CAMBparams(F2003Class):
                      lens_margin=150, k_eta_fac=2.5, lens_k_eta_reference=18000.0):
         r"""
         Set parameters to get CMB power spectra accurate to specific a l_lmax.
-        Note this does not fix the actual output L range, spectra may be calculated above l_max (but may not be accurate there).
-        To fix the l_max for output arrays use the optional input argument to :meth:`.results.CAMBdata.get_cmb_power_spectra` etc.
+        Note this does not fix the actual output L range, spectra may be calculated above l_max
+        (but may not be accurate there). To fix the l_max for output arrays use the optional input argument
+        to :meth:`.results.CAMBdata.get_cmb_power_spectra` etc.
 
         :param lmax: :math:`\ell_{\rm max}` you want
-        :param max_eta_k: maximum value of :math:`k \eta_0\approx k\chi_*` to use, which indirectly sets k_max. If None, sensible value set automatically.
-        :param lens_potential_accuracy: Set to 1 or higher if you want to get the lensing potential accurate (1 is only Planck-level accuracy)
-        :param lens_margin: the :math:`\Delta \ell_{\rm max}` to use to ensure lensed :math:`C_\ell` are correct at :math:`\ell_{\rm max}`
+        :param max_eta_k: maximum value of :math:`k \eta_0\approx k\chi_*` to use, which indirectly sets k_max.
+                          If None, sensible value set automatically.
+        :param lens_potential_accuracy: Set to 1 or higher if you want to get the lensing potential accurate
+                                        (1 is only Planck-level accuracy)
+        :param lens_margin: the :math:`\Delta \ell_{\rm max}` to use to ensure lensed :math:`C_\ell` are correct
+                            at :math:`\ell_{\rm max}`
         :param k_eta_fac:  k_eta_fac default factor for setting max_eta_k = k_eta_fac*lmax if max_eta_k=None
-        :param lens_k_eta_reference:  value of max_eta_k to use when lens_potential_accuracy>0; use k_eta_max = lens_k_eta_reference*lens_potential_accuracy
+        :param lens_k_eta_reference:  value of max_eta_k to use when lens_potential_accuracy>0; use
+                                      k_eta_max = lens_k_eta_reference*lens_potential_accuracy
         :return: self
         """
         if self.DoLensing:
@@ -761,8 +774,9 @@ class CAMBparams(F2003Class):
 
         :param custom_sources: list of sympy expressions for the angular power spectrum sources
         :param source_names: optional list of string naes for the sources
-        :param source_ell_scales: list or dictionary of scalings for each source name, where for integer entry n, the source for
-         multipole :math:`\ell` is scalled by :math:`\sqrt{(\ell+n)!/(\ell-n)!}`, i.e. :math:`n=2` for a new polarization-like source.
+        :param source_ell_scales: list or dictionary of scalings for each source name, where for integer entry n,
+            the source for multipole :math:`\ell` is scalled by :math:`\sqrt{(\ell+n)!/(\ell-n)!}`,
+            i.e. :math:`n=2` for a new polarization-like source.
         :param frame: if the source is not gauge invariant, frame in which to interpret result
         :param code_path: optional path for output of source code for CAMB f90 source function
         """
@@ -781,7 +795,8 @@ class CAMBparams(F2003Class):
             custom_sources = lst
         elif not isinstance(custom_sources, (list, tuple)):
             custom_sources = [custom_sources]
-            if source_names: source_names = [source_names]
+            if source_names:
+                source_names = [source_names]
         custom_source_names = source_names or ["C%s" % (i + 1) for i in range(len(custom_sources))]
         if len(custom_source_names) != len(custom_sources):
             raise CAMBValueError('Number of custom source names does not match number of sources')
@@ -816,6 +831,7 @@ class CAMBparams(F2003Class):
 def set_default_params(P):
     """
     Set default values for all parameters
+
     :param P: :class:`.model.CAMBparams`
     :return: P
     """

@@ -78,7 +78,7 @@ class BBN_table_interpolator(BBNPredictor):
 
     """
 
-    def __init__(self, interpolation_table=default_interpolation_table, function_of=['ombh2', 'DeltaN']):
+    def __init__(self, interpolation_table=default_interpolation_table, function_of=('ombh2', 'DeltaN')):
 
         if os.sep not in interpolation_table and '/' not in interpolation_table:
             interpolation_table = os.path.normpath(os.path.join(os.path.dirname(__file__), interpolation_table))

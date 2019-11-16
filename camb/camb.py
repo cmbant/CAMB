@@ -36,15 +36,16 @@ def get_results(params):
     :return: :class:`~.results.CAMBdata` instance
     """
     res = CAMBdata()
-    if _debug_params: print(params)
+    if _debug_params:
+        print(params)
     res.calc_power_spectra(params)
     return res
 
 
 def get_transfer_functions(params):
     """
-    Calculate transfer functions for specified parameters and return :class:`~.results.CAMBdata` instance for getting results
-    and subsequently calculating power spectra.
+    Calculate transfer functions for specified parameters and return :class:`~.results.CAMBdata` instance for
+    getting results and subsequently calculating power spectra.
 
     :param params: :class:`.model.CAMBparams` instance
     :return: :class:`~.results.CAMBdata` instance
@@ -225,7 +226,8 @@ def validate_ini_file(filename):
         subprocess.check_output(command, stderr=subprocess.STDOUT, shell=True)
     except subprocess.CalledProcessError as E:
         err = E.output.decode().replace('ERROR STOP', '').strip()
-    if err: raise CAMBValueError(err + ' (%s)' % filename)
+    if err:
+        raise CAMBValueError(err + ' (%s)' % filename)
     return True
 
 
@@ -240,7 +242,8 @@ def run_ini(ini_filename, no_validate=False):
     """
     if not os.path.exists(ini_filename):
         raise CAMBValueError('File not found: %s' % ini_filename)
-    if not no_validate: validate_ini_file(ini_filename)
+    if not no_validate:
+        validate_ini_file(ini_filename)
     runIni = camblib.__camb_MOD_camb_runinifile
     runIni.argtypes = [ctypes.c_char_p, POINTER(ctypes.c_long)]
     runIni.restype = c_bool
@@ -259,7 +262,8 @@ def read_ini(ini_filename, no_validate=False):
     """
     if not os.path.exists(ini_filename):
         raise CAMBValueError('File not found: %s' % ini_filename)
-    if not no_validate: validate_ini_file(ini_filename)
+    if not no_validate:
+        validate_ini_file(ini_filename)
     cp = model.CAMBparams()
     readIni = camblib.__camb_MOD_camb_readparamfile
     readIni.argtypes = [POINTER(CAMBparams), ctypes.c_char_p, POINTER(ctypes.c_long)]
@@ -283,7 +287,8 @@ def get_matter_power_interpolator(params, zmin=0, zmax=10, nz_step=100, zs=None,
        print('Power spectrum at z=0.5, k/h=0.1/Mpc is %s (Mpc/h)^3 '%(PK.P(0.5, 0.1)))
 
     For a description of outputs for different var1, var2 see :ref:`transfer-variables`.
-    If you already have a :class:`~.results.CAMBdata` result object, you can instead use :meth:`~.results.CAMBdata.get_matter_power_interpolator`.
+    If you already have a :class:`~.results.CAMBdata` result object, you can instead
+    use :meth:`~.results.CAMBdata.get_matter_power_interpolator`.
 
     :param params: :class:`.model.CAMBparams` instance
     :param zmin: minimum z (use 0 or smaller than you want for good interpolation)
@@ -294,15 +299,16 @@ def get_matter_power_interpolator(params, zmin=0, zmax=10, nz_step=100, zs=None,
     :param nonlinear: include non-linear correction from halo model
     :param var1: variable i (index, or name of variable; default delta_tot)
     :param var2: variable j (index, or name of variable; default delta_tot)
-    :param hubble_units: if true, output power spectrum in :math:`({\rm Mpc}/h)^{3}` units, otherwise :math:`{\rm Mpc}^{3}`
+    :param hubble_units: if true, output power spectrum in :math:`({\rm Mpc}/h)^{3}` units,
+                         otherwise :math:`{\rm Mpc}^{3}`
     :param k_hunit: if true, matter power is a function of k/h, if false, just k (both :math:`{\rm Mpc}^{-1}` units)
     :param return_z_k: if true, return interpolator, z, k where z, k are the grid used
     :param k_per_logint: specific uniform sampling over log k (if not set, uses optimized irregular sampling)
     :param log_interp: if true, interpolate log of power spectrum (unless any values are negative in which case ignored)
     :param extrap_kmax: if set, use power law extrapolation beyond kmax to extrap_kmax (useful for tails of integrals)
-    :return: An object PK based on :class:`~scipy:scipy.interpolate.RectBivariateSpline`, that can be called with PK.P(z,kh)
-           or PK(z,log(kh)) to get log matter power values.
-           If return_z_k=True, instead return interpolator, z, k where z, k are the grid used.
+    :return: An object PK based on :class:`~scipy:scipy.interpolate.RectBivariateSpline`, that can be called
+             with PK.P(z,kh) or PK(z,log(kh)) to get log matter power values.
+             If return_z_k=True, instead return interpolator, z, k where z, k are the grid used.
     """
 
     pars = params.copy()

@@ -16,9 +16,9 @@ file_dir = os.path.abspath(os.path.dirname(__file__))
 os.chdir(file_dir)
 
 sys.path.insert(0, os.path.join(file_dir, 'camb'))
-compile = __import__('_compilers')
+_compile = __import__('_compilers')
 
-if compile.is_windows:
+if _compile.is_windows:
     DLLNAME = 'cambdll.dll'
 else:
     DLLNAME = 'camblib.so'
@@ -90,8 +90,8 @@ def get_forutils():
                     fpath = None
 
     if not fpath:
-        raise Exception(
-            'Install forutils from https://github.com/cmbant/forutils, pull the submodule, or set FORUTILSPATH variable')
+        raise Exception('Install forutils from https://github.com/cmbant/forutils, '
+                        'pull the submodule, or set FORUTILSPATH variable')
     return fpath
 
 
@@ -99,42 +99,44 @@ def clean_dir(path, rmdir=False):
     if os.path.isdir(path):
         for f in os.listdir(path):
             os.remove(os.path.join(path, f))
-        if rmdir: os.rmdir(path)
+        if rmdir:
+            os.rmdir(path)
 
 
 def make_library(cluster=False):
     os.chdir(os.path.join(file_dir, 'fortran'))
     pycamb_path = '..'
     lib_file = os.path.join(pycamb_path, 'camb', DLLNAME)
-    if compile.is_windows or not compile.check_ifort():
-        ok, gfortran_version = compile.check_gfortran(msg=not compile.is_windows)
+    if _compile.is_windows or not _compile.check_ifort():
+        ok, gfortran_version = _compile.check_gfortran(msg=not _compile.is_windows)
         if ok and '8.2.0' in gfortran_version:
             print('WARNING: gfortran 8.2.0 may be buggy and give unreliable results or crashes, upgrade gfortran.')
-    if compile.is_windows:
+    if _compile.is_windows:
         COMPILER = "gfortran"
         FFLAGS = "-shared -static -cpp -fopenmp -O3 -fmax-errors=4"
         # FFLAGS = "-shared -static -cpp -fopenmp -g -fbacktrace -ffpe-trap=invalid,overflow,zero -fbounds-check -fmax-errors=4"
-        if compile.is_32_bit: FFLAGS = "-m32 " + FFLAGS
+        if _compile.is_32_bit:
+            FFLAGS = "-m32 " + FFLAGS
         if not ok:
-            print(
-                'WARNING: gfortran %s or higher not in path (if you just installed you may need to log off and on again).' %
-                compile.gfortran_min)
+            print('WARNING: gfortran %s or higher not in path (if you just installed '
+                  'you may need to log off and on again).' % _compile.gfortran_min)
             print('         You can get a Windows gfortran build from https://sourceforge.net/projects/mingw-w64/')
             print(
-                '         (get the %s version to match this python installation)' % compile.gfortran_bits)
-            if compile.is_32_bit:
+                '         (get the %s version to match this python installation)' % _compile.gfortran_bits)
+            if _compile.is_32_bit:
                 raise IOError('No 32bit Windows DLL provided, you need to build or use 64 bit python')
             else:
                 print('Using pre-compiled binary instead - any local changes will be ignored...')
         else:
             fpath = get_forutils()
-            makefile = compile.makefile_dict('Makefile_main')
+            makefile = _compile.makefile_dict('Makefile_main')
             SOURCES = makefile['SOURCEFILES'].split()
             FORUTILS = [os.path.join(fpath, f.replace('.f90', '')) for f in
-                        compile.makefile_dict(os.path.join(fpath, 'Makefile'))['SRCS'].replace('MatrixUtils.f90',
-                                                                                               '').split()]
+                        _compile.makefile_dict(os.path.join(fpath, 'Makefile'))['SRCS'].replace('MatrixUtils.f90',
+                                                                                                '').split()]
             tmpdir = 'WinDLL'
-            if not os.path.isdir(tmpdir): os.mkdir(tmpdir)
+            if not os.path.isdir(tmpdir):
+                os.mkdir(tmpdir)
             ofiles = []
             new_compiler = True
             ver_file = os.path.join(tmpdir, 'compiler.ver')
@@ -147,7 +149,8 @@ def make_library(cluster=False):
                     f.write(gfortran_version)
 
             need_compile = not os.path.exists(lib_file)
-            if not need_compile: dll_time = os.path.getmtime(lib_file)
+            if not need_compile:
+                dll_time = os.path.getmtime(lib_file)
             for source in FORUTILS + SOURCES:
                 # manual Make using dependency files if available
                 outroot = os.path.join(tmpdir, os.path.split(source)[1])
@@ -168,7 +171,7 @@ def make_library(cluster=False):
                     need_compile = True
                     cmd = COMPILER + ' ' + FFLAGS + ' ' + source + '.f90 -MMD -c -o %s -J%s' % (fout, tmpdir)
                     print(cmd)
-                    if subprocess.call(cmd, shell=True, env=compile.compiler_environ) != 0:
+                    if subprocess.call(cmd, shell=True, env=_compile.compiler_environ) != 0:
                         raise IOError('Compilation failed')
                 elif not need_compile and dll_time < o_time:
                     need_compile = True
@@ -183,7 +186,7 @@ def make_library(cluster=False):
                 print('Compiling sources...')
                 cmd = COMPILER + ' ' + FFLAGS + ' ' + " ".join(ofiles) + ' -o %s -J%s' % (lib_file, tmpdir)
                 print(cmd)
-                if subprocess.call(cmd, shell=True, env=compile.compiler_environ) != 0:
+                if subprocess.call(cmd, shell=True, env=_compile.compiler_environ) != 0:
                     raise IOError('Compilation failed')
             else:
                 print('DLL up to date.')
@@ -254,7 +257,7 @@ class DevelopLibraryCluster(develop):
 class CleanLibrary(clean):
 
     def run(self):
-        if compile.is_windows:
+        if _compile.is_windows:
             clean_dir(os.path.join(file_dir, 'fortran', 'WinDLL'), rmdir=True)
         else:
             subprocess.call("make clean", shell=True, cwd=os.path.join(file_dir, 'fortran'))

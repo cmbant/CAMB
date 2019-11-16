@@ -58,8 +58,10 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
         :param w: array of w(a)
         :return: self
         """
-        if len(a) != len(w): raise ValueError('Dark energy w(a) table non-equal sized arrays')
-        if not np.isclose(a[-1], 1):  raise ValueError('Dark energy w(a) arrays must end at a=1')
+        if len(a) != len(w):
+            raise ValueError('Dark energy w(a) table non-equal sized arrays')
+        if not np.isclose(a[-1], 1):
+            raise ValueError('Dark energy w(a) arrays must end at a=1')
 
         self.f_SetWTable(a, w, byref(c_int(len(a))))
         return self
@@ -68,7 +70,8 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
 @fortran_class
 class DarkEnergyFluid(DarkEnergyEqnOfState):
     """
-    Class implementing the w, wa or splined w(a) parameterization using the constant sound-speed signle fluid model (as for single-field quintessense).
+    Class implementing the w, wa or splined w(a) parameterization using the constant sound-speed signle fluid model
+    (as for single-field quintessense).
 
     """
 
@@ -83,11 +86,12 @@ class DarkEnergyFluid(DarkEnergyEqnOfState):
 @fortran_class
 class DarkEnergyPPF(DarkEnergyEqnOfState):
     """
-    Class implementating the w, wa or splined w(a) parameterization in the PPF perturbation approximation (`arXiv:0808.3125 <https://arxiv.org/abs/0808.3125>`_)
+    Class implementating the w, wa or splined w(a) parameterization in the PPF perturbation approximation
+    (`arXiv:0808.3125 <https://arxiv.org/abs/0808.3125>`_)
     Use inherited methods to set parameters or interpolation table.
 
     """
-    #cannot declare c_Gamma_ppf directly here as have not defined all fields in DarkEnergyEqnOfState (TCubicSpline)
+    # cannot declare c_Gamma_ppf directly here as have not defined all fields in DarkEnergyEqnOfState (TCubicSpline)
     _fortran_class_module_ = 'DarkEnergyPPF'
     _fortran_class_name_ = 'TDarkEnergyPPF'
 
@@ -95,7 +99,8 @@ class DarkEnergyPPF(DarkEnergyEqnOfState):
 @fortran_class
 class AxionEffectiveFluid(DarkEnergyModel):
     """
-    Example implementation of a specifc (early) dark energy fluid model (`arXiv:1806.10608 <https://arxiv.org/abs/1806.10608>`_).
+    Example implementation of a specifc (early) dark energy fluid model
+    (`arXiv:1806.10608 <https://arxiv.org/abs/1806.10608>`_).
     Not well tested, but should serve to demonstrate how to make your own custom classes.
     """
     _fields_ = [

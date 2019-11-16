@@ -60,7 +60,8 @@ def subs(eqs, expr):
     if isinstance(expr, (list, tuple)):
         res = [subs(eqs, ex) for ex in expr]
         return [x for x in res if x is not True]
-    if not isinstance(expr, sympy.Expr): return expr
+    if not isinstance(expr, sympy.Expr):
+        return expr
     if isinstance(eqs, dict):
         return expr.subs(eqs)
     else:
@@ -109,14 +110,16 @@ def LinearPerturbation(name, species=None, camb_var=None, camb_sub=None, frame_d
     :param description: string describing variable
     :return: sympy Function instance (function of t), with attributes set to the arguments above.
     """
-    if isinstance(camb_var, list): camb_var = tuple(camb_var)
+    if isinstance(camb_var, list):
+        camb_var = tuple(camb_var)
     f = Function(name, species=species, camb_var=camb_var, camb_sub=camb_sub, perturbation_order=1,
                  frame_dependence=frame_dependence, description=description)
     return f(t)
 
 
 def list_perturbations(expr, lst=None):
-    if lst is None: lst = []
+    if lst is None:
+        lst = []
     if getattr(expr, 'perturbation_order', None) and expr not in lst:
         lst.append(expr)
     for arg in expr.args:
@@ -125,8 +128,9 @@ def list_perturbations(expr, lst=None):
 
 
 def list_frame_dependent_vars(expr, lst=None):
-    if lst is None: lst = []
-    if getattr(expr, 'frame_dependence', None) and not expr in lst:
+    if lst is None:
+        lst = []
+    if getattr(expr, 'frame_dependence', None) and expr not in lst:
         lst.append(expr)
     for arg in expr.args:
         list_frame_dependent_vars(arg, lst)
@@ -145,15 +149,18 @@ def frame_change(expr, delta_u=None, total=False):
         res = expr.frame_dependence
         if delta_u is not None:
             res = res.subs(delta_frame, delta_u)
-        if total: res += expr
+        if total:
+            res += expr
         return res
     else:
-        if isinstance(expr, (list, tuple)): return [frame_change(x) for x in expr]
+        if isinstance(expr, (list, tuple)):
+            return [frame_change(x) for x in expr]
         perts = list_frame_dependent_vars(expr)
         res = subs([Eq(pert, pert + pert.frame_dependence) for pert in perts], expr)
         if delta_u is not None and isinstance(res, sympy.Expr):
             res = res.subs(delta_frame, delta_u)
-        if not total: res -= expr
+        if not total:
+            res -= expr
         res = simplify(res).expand()
         return simplify_sum(res.collect(list_frame_dependent_vars(res)))
 
@@ -279,7 +286,7 @@ cons4 = hdot - k / 3 * z + H * A
 constraints = [cons1, cons2, cons3, cons4]
 
 
-def constraint_subs_for_variable_set(variables=[z, sigma, phi, hdot]):
+def constraint_subs_for_variable_set(variables=(z, sigma, phi, hdot)):
     return solve(constraints, variables)
 
 
@@ -332,14 +339,18 @@ def make_frame_invariant(expr, frame='CDM'):
     """
 
     if isinstance(frame, six.string_types):
-        if not frame in frame_names: raise ValueError('Unknown frame names: %s' % frame)
+        if frame not in frame_names:
+            raise ValueError('Unknown frame names: %s' % frame)
         frame = frame_names[frame]
-    if isinstance(expr, Eq): return simplify(
-        Eq(make_frame_invariant(expr.lhs, frame), make_frame_invariant(expr.rhs, frame)))
-    if isinstance(expr, (list, tuple)): return [make_frame_invariant(x, frame) for x in expr]
+    if isinstance(expr, Eq):
+        return simplify(
+            Eq(make_frame_invariant(expr.lhs, frame), make_frame_invariant(expr.rhs, frame)))
+    if isinstance(expr, (list, tuple)):
+        return [make_frame_invariant(x, frame) for x in expr]
     # do frame change to make frame variable zero
     # special case of frame=A, equivalent to v_c frame by evolution equation
-    if frame == A: frame = v_c
+    if frame == A:
+        frame = v_c
     delta_u = solve(frame_change(frame, total=True), delta_frame)
     if delta_frame in delta_u.atoms(Function):
         raise ValueError(
@@ -374,7 +385,7 @@ def newtonian_gauge(x):
 
     if isinstance(x, (list, tuple)):
         res = [newtonian_gauge(y) for y in x]
-        return [x for x in res if x != True]
+        return [x for x in res if x is not True]
     res = subs(Newtonian_subs, x)
     if isinstance(res, sympy.Expr):
         res = simplify(res.doit())
@@ -425,7 +436,7 @@ def synchronous_gauge(x):
     """
     if isinstance(x, (list, tuple)):
         res = [synchronous_gauge(y) for y in x]
-        return [x for x in res if x != True]
+        return [x for x in res if x is not True]
     res = subs(synchronous_subs, x)
     if isinstance(res, sympy.Expr):
         return simplify(res.doit())
@@ -476,7 +487,8 @@ tot_subs = [
     Eq(P, P_t)
 ]
 
-# Note that csqhat_de is defined in the dark energy rest-frame, so this is general-gauge result for pressure perturbation:
+# Note that csqhat_de is defined in the dark energy rest-frame,
+# so this is general-gauge result for pressure perturbation:
 Delta_P_de = (
         csqhat_de * Delta_de + 3 * H * v_de / k * (1 + w_de) * (csqhat_de - w_de + diff(w_de, t) / 3 / H / (1 + w_de)))
 tot_pert_subs = [
@@ -490,17 +502,18 @@ tot_pert_subs = [
 ]
 
 
-def define_variable(name, namespace=globals(), order=1):
-    if not name in namespace:
+def define_variable(name, namespace=None, order=1):
+    name = name or globals()
+    if name not in namespace:
         namespace[name] = sympy.Function(name, perturbation_order=order)(t)
     return namespace[name]
 
 
-def define_variables(names, namespace=globals(), order=1):
+def define_variables(names, namespace=None, order=1):
     return [define_variable(name, namespace, order) for name in names.split()]
 
 
-def _make_index_func(name, l, namespace=globals()):
+def _make_index_func(name, l, namespace=None):
     name += '_' + str(l)
     return define_variable(name, namespace)
 
@@ -513,7 +526,8 @@ def J_eq(l):
     Glp = _make_index_func('J', l + 1)
     Glm = _make_index_func('J', l - 1)
     eq = -k / (2 * l + 1) * ((l + 1) * Kf[l] * Glp - l * Glm) - opacity * Gl
-    if l == 2: eq = eq + 8 * k / 15 * sigma + opacity * polter
+    if l == 2:
+        eq = eq + 8 * k / 15 * sigma + opacity * polter
     return Eq(diff(Gl, t), eq).subs({sympy.sympify('J_2(t)'): pi_g, sympy.sympify('J_1(t)'): q_g})
 
 
@@ -524,7 +538,8 @@ def G_eq(l):
     Glp = _make_index_func('G', l + 1)
     Glm = _make_index_func('G', l - 1)
     eq = -k / (2 * l + 1) * ((l + 1) * Kf[l] * Glp - l * Glm)
-    if l == 2: eq = eq + 8 * k / 15 * sigma
+    if l == 2:
+        eq = eq + 8 * k / 15 * sigma
     return Eq(diff(Gl, t), eq).subs({sympy.sympify('G_2(t)'): pi_r, sympy.sympify('G_1(t)'): q_r})
 
 
@@ -623,8 +638,7 @@ def camb_fortran(expr, name='camb_function', frame='CDM', expand=False):
     polterdot, polterddot, diff_rhopi, sigmadot, phidot, \
     ddvisibility, dvisibility, dopacity, ddopacity = \
         define_variables(camb_diff_vars, _camb_cache)
-    Edot, E = \
-        sympy.symbols(camb_arr_vars, cls=sympy.IndexedBase, shape=(sympy.oo,))
+    Edot, E = sympy.symbols(camb_arr_vars, cls=sympy.IndexedBase, shape=(sympy.oo,))
 
     # Keep everything except baryons pressure which is very small
     camb_diff_subs = [(diff(q_g, t), qgdot), (diff(pi_g, t), pigdot), (diff(pi_r, t), pirdot),
@@ -663,21 +677,23 @@ def camb_fortran(expr, name='camb_function', frame='CDM', expand=False):
                 camb_var = define_variable(camb_var)
                 camb_sub = getattr(var, 'camb_sub', None) or camb_var
             if camb_sub:
-                if isinstance(camb_sub, six.string_types): camb_sub = eval(camb_sub)
+                if isinstance(camb_sub, six.string_types):
+                    camb_sub = eval(camb_sub)
                 camb_var_subs.append((var, camb_sub))
 
     camb_subs = camb_var_subs + [(p_b, 0), (E_2, E[2]), (E_3, E[3]), (J_3, octg), (K_fac, Kf[1])]
     res = res.subs(camb_subs).simplify()
-    no_arg_funcs = [f for f in res.atoms(Function) if f.args[0] == t and not f is f_K]
+    no_arg_funcs = [f for f in res.atoms(Function) if f.args[0] == t and f is not f_K]
     res = res.subs(zip(no_arg_funcs, [Symbol(str(x.func)) for x in no_arg_funcs]))
     res = res.subs(t, tau)
-    if expand: res = res.expand()
+    if expand:
+        res = res.expand()
     res = res.collect([Symbol(str(x.func)) for x in
                        [k, sigma, opacity, visibility, dopacity, dvisibility, ddvisibility]])
     res = sympy.fcode(res, source_format='free', standard=95, assign_to=name, contract=False)
     import textwrap
 
-    if not 'if ' in res:
+    if 'if ' not in res:
         lines = res.split('\n')
         for i, line in enumerate(lines):
             if '=' in line:
@@ -697,7 +713,8 @@ _default_flags = None
 
 def get_default_compiler():
     global _default_compiler, _default_flags
-    if _default_compiler: return _default_compiler
+    if _default_compiler:
+        return _default_compiler
     from .baseconfig import gfortran
     if gfortran:
         _default_compiler = 'gfortran'
@@ -706,7 +723,7 @@ def get_default_compiler():
         import platform
         _default_compiler = 'ifort'
         if platform.system() == 'Darwin':
-            _default_flags = "-dynamiclib -O1 -W0 -WB" #-fpic
+            _default_flags = "-dynamiclib -O1 -W0 -WB"
         else:
             _default_flags = "-shared -fpic -O1 -W0 -WB"
     # _default_flags="-shared -fPIC -g -fbounds-check -fbacktrace -ffpe-trap=invalid,overflow,zero",
@@ -730,7 +747,8 @@ def compile_source_function_code(code_body, file_path='', compiler=None, fflags=
     :return: function pointer for compiled code
     """
 
-    if cache and code_body in _func_cache: return _func_cache[code_body].source_func_
+    if cache and code_body in _func_cache:
+        return _func_cache[code_body].source_func_
 
     global _source_file_count
 
@@ -767,7 +785,8 @@ def compile_source_function_code(code_body, file_path='', compiler=None, fflags=
     compiler = compiler or get_default_compiler()
     fflags = fflags or _default_flags
 
-    if is_32_bit: fflags = "-m32 " + fflags
+    if is_32_bit:
+        fflags = "-m32 " + fflags
     if is_windows:
         global _first_compile
         fflags += ' -static'
@@ -806,7 +825,8 @@ def compile_source_function_code(code_body, file_path='', compiler=None, fflags=
             print('Source is:\n %s' % code_body)
             raise
     finally:
-        if not file_path and source_file: os.remove(source_file)
+        if not file_path and source_file:
+            os.remove(source_file)
         os.chdir(oldwork)
 
     # Had weird crashes when LoadLibrary path was relative to current dir
@@ -838,7 +858,7 @@ def compile_sympy_to_camb_source_func(sources, code_path=None, frame='CDM'):
 def internal_consistency_checks():
     print('Sympy: ', sympy.__version__)
 
-    ##All equations should be gauge invariant
+    # All equations should be gauge invariant
     for cons in constraints:
         assert (simplify(subs(Friedmann_Kfac_subs, make_frame_invariant(cons)) - cons) == 0)
 

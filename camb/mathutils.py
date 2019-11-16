@@ -66,7 +66,8 @@ def threej_coupling(W, lmax, pol=False):
         W = [W]
     if pol:
         n = 4
-        if len(W) == 1: W = W * 3
+        if len(W) == 1:
+            W = W * 3
         assert len(W) == 3
     else:
         n = len(W)

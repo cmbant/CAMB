@@ -645,7 +645,7 @@ class F2003Class(CAMB_Structure):
         return self._new_copy(source=self)
 
     @classmethod
-    def import_method(cls, tag, extra_args=[], restype=None, nopass=False, allow_inherit=True):
+    def import_method(cls, tag, extra_args=(), restype=None, nopass=False, allow_inherit=True):
         func = cls._class_imports.get(tag, None)
         if func is None:
             try:
@@ -661,7 +661,7 @@ class F2003Class(CAMB_Structure):
             cls._class_imports[tag] = func
         return func
 
-    def call_method(self, tag, extra_args=[], args=[], restype=None, nopass=False, allow_inherit=True):
+    def call_method(self, tag, extra_args=(), args=(), restype=None, nopass=False, allow_inherit=True):
         func = self.import_method(tag, extra_args=extra_args, restype=restype, nopass=nopass,
                                   allow_inherit=allow_inherit)
         if nopass:
@@ -703,7 +703,8 @@ class F2003Class(CAMB_Structure):
 # Decorator to get function to get class pointers to each class type, and build index of classes
 # that allocatables could have
 def fortran_class(cls, optional=False):
-    if mock_load: return cls
+    if mock_load:
+        return cls
     class_module = getattr(cls, "_fortran_class_module_", None)
     if not class_module:
         msg = "F2003Class %s must define _fortran_class_module_" % cls.__name__
