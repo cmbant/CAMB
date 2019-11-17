@@ -503,7 +503,7 @@ tot_pert_subs = [
 
 
 def define_variable(name, namespace=None, order=1):
-    name = name or globals()
+    namespace = namespace or globals()
     if name not in namespace:
         namespace[name] = sympy.Function(name, perturbation_order=order)(t)
     return namespace[name]
