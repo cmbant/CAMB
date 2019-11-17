@@ -900,6 +900,10 @@ class CAMBdata(F2003Class):
             if not silent and (kh_max < 3 and extrap_kmax > 2 and nonlinear or kh_max < 0.4):
                 logging.warning("Extrapolating to higher k with matter transfer functions "
                                 "only to k=%.3g Mpc^{-1} may be inaccurate.\n " % (kh_max * self.Params.H0 / 100))
+            if not log_interp:
+                raise CAMBValueError(
+                    "Cannot use extrap_kmax with non-log PK interpolation for %s, %s. " % (var1, var2) +
+                    ("Some Pk are negative." if np.any(pk <= 0) else ""))
             logextrap = np.log(extrap_kmax)
             logpknew = np.empty((pk.shape[0], pk.shape[1] + 2))
             logpknew[:, :-2] = np.log(pk)
