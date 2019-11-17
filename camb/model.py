@@ -569,7 +569,7 @@ class CAMBparams(F2003Class):
         if initial_power_model:
             self.InitPower = self.make_class_named(initial_power_model, InitialPower)
         if non_linear_model:
-            self.NonLinear = self.make_class_named(initial_power_model, NonLinearModel)
+            self.NonLinear = self.make_class_named(non_linear_model, NonLinearModel)
         if recombination_model:
             self.Recomb = self.make_class_named(recombination_model, RecombinationModel)
 
