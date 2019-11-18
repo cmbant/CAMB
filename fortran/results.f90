@@ -2227,7 +2227,8 @@
     !Sources
     if (.not. State%CP%Want_CMB .and. State%CP%WantCls) then
         if (State%num_redshiftwindows==0) then
-            call GlobalError('Want_CMB=false, but not redshift windows either', error_unsupported_params)
+            call GlobalError('Want_CMB=false and WantCls=true, but no redshift windows either', &
+                error_unsupported_params)
         else
             call TimeSteps%Add_delta(this%tau_start_redshiftwindows, State%tau0, dtau0)
         endif
