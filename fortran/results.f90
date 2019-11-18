@@ -812,7 +812,8 @@
 
     call this%CP%Recomb%Init(this)
 
-    CAMBdata_get_zstar=this%binary_search(noreion_optdepth, 1.d0, 700.d0, 2000.d0, 1d-3)
+    CAMBdata_get_zstar=this%binary_search(noreion_optdepth, 1.d0, 700.d0, 2000.d0, &
+        1d-3,100.d0,5000.d0)
 
     end function CAMBdata_get_zstar
 
@@ -1137,23 +1138,34 @@
 
     end function GetReionizationOptDepth
 
-    real(dl) function binary_search(this,func, goal, x1, x2, tol)
+    real(dl) function binary_search(this,func, goal, x1, x2, tol, widex1, widex2)
     !This is about twice as inefficient as Brent
     class(CAMBdata) :: this
     procedure(state_function) :: func
     real(dl), intent(in) :: goal,x1,x2,tol
+    real(dl), intent(in), optional :: widex1, widex2 !Wider range in case of failure
     real(dl) try_t, try_b, avg, D_try, last_bot, last_top, diff
     integer count
+    logical wide
 
     try_b = x1
     try_t = x2
     diff = tol*2
     count = 0
+    wide = .false.
     do while (diff > tol)
         if (count>100) then
-            call GlobalError('binary_search (e.g for optical depth) did not converge',error_reionization)
-            binary_search = 0
-            return
+            if (.not. wide .and. present(widex1)) then
+                count=0
+                wide=.true.
+                try_b=widex1
+                try_t=widex2
+            else
+                call GlobalError(FormatString('binary_search (e.g for optical depth) did not converge: ' //&
+                    'Base range %f-%f.',x1,x2),error_reionization)
+                binary_search = 0
+                return
+            end if
         end if
         avg = (try_b+try_t)/2
         D_try = func(this,avg)
@@ -2003,14 +2015,16 @@
     call splder(this%ddotmu,this%dddotmu,nthermo,spline_data)
     call splder(this%dddotmu,this%ddddotmu,nthermo,spline_data)
     if (CP%want_zstar .or. CP%WantDerivedParameters) &
-        this%z_star = State%binary_search(noreion_optdepth, 1.d0, zstar_min, zstar_max, 1d-3/background_boost)
+        this%z_star = State%binary_search(noreion_optdepth, 1.d0, zstar_min, zstar_max, &
+        & 1d-3/background_boost, 100._dl, 4000._dl)
     !$OMP SECTION
     call splder(this%cs2,this%dcs2,nthermo,spline_data)
     call splder(this%emmu,this%demmu,nthermo,spline_data)
     call splder(this%adot,this%dadot,nthermo,spline_data)
     if (dowinlens) call splder(this%winlens,this%dwinlens,nthermo,spline_data)
-    if (CP%want_zdrag .or. CP%WantDerivedParameters) this%z_drag = &
-        State%binary_search(dragoptdepth, 1.d0, 700.d0, max(zstar_max*1.1_dl,1200._dl), 2d-3/background_boost)
+    if (CP%want_zdrag .or. CP%WantDerivedParameters) &
+        this%z_drag = State%binary_search(dragoptdepth, 1.d0, 800.d0, &
+        & max(zstar_max*1.1_dl,1200._dl), 2d-3/background_boost, 100.d0, 4000._dl)
     !$OMP SECTION
     this%ScaleFactor(:) = this%scaleFactor/taus !a/tau
     this%dScaleFactor(:) = (this%adot - this%ScaleFactor)*this%dlntau !derivative of a/tau
