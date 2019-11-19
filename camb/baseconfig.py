@@ -24,13 +24,13 @@ CAMBL = osp.join(BASEDIR, DLLNAME)
 gfortran = True
 
 
-class ifort_gfortran_loader(ctypes.CDLL):
+class IfortGfortranLoader(ctypes.CDLL):
 
     def __getitem__(self, name_or_ordinal):
         if gfortran:
-            res = super(ifort_gfortran_loader, self).__getitem__(name_or_ordinal)
+            res = super(IfortGfortranLoader, self).__getitem__(name_or_ordinal)
         else:
-            res = super(ifort_gfortran_loader, self).__getitem__(
+            res = super(IfortGfortranLoader, self).__getitem__(
                 name_or_ordinal.replace('_MOD_', '_mp_').replace('__', '') + '_')
         return res
 
@@ -46,10 +46,10 @@ else:
 
     if not osp.isfile(CAMBL):
         sys.exit('Library file %s does not exist.\nMake sure you have installed or built the camb package '
-                 '(e.g. using "python setup.py make"); or remove any old conflicting installation and install again.' % (
-                     CAMBL))
+                 '(e.g. using "python setup.py make"); or remove any old conflicting installation and install again.'
+                 % CAMBL)
 
-    camblib = ctypes.LibraryLoader(ifort_gfortran_loader).LoadLibrary(CAMBL)
+    camblib = ctypes.LibraryLoader(IfortGfortranLoader).LoadLibrary(CAMBL)
 
     try:
         c_int.in_dll(camblib, "handles_mp_set_cls_template_")
@@ -81,10 +81,12 @@ else:
 
 
 def lib_import(module_name, class_name, func_name, restype=None):
-    if class_name: class_name += '_'
+    if class_name:
+        class_name += '_'
     func = getattr(camblib, '__' + module_name.lower() +
                    '_MOD_' + (class_name + func_name).lower())
-    if restype: func.restype = restype
+    if restype:
+        func.restype = restype
     return func
 
 
@@ -92,19 +94,20 @@ def set_cl_template_file(cl_template_file=None):
     if cl_template_file and not osp.exists(cl_template_file):
         raise ValueError('File not found : %s' % cl_template_file)
 
-    HighLExtrapTemplate = cl_template_file or osp.join(BASEDIR, "HighLExtrapTemplate_lenspotentialCls.dat")
-    if not osp.exists(HighLExtrapTemplate):
-        HighLExtrapTemplate = osp.abspath(
+    template = cl_template_file or osp.join(BASEDIR, "HighLExtrapTemplate_lenspotentialCls.dat")
+    if not osp.exists(template):
+        template = osp.abspath(
             osp.join(BASEDIR, "..", "..", "fortran", "HighLExtrapTemplate_lenspotentialCls.dat"))
-    HighLExtrapTemplate = six.b(HighLExtrapTemplate)
+    template = six.b(template)
     func = camblib.__handles_MOD_set_cls_template
     func.argtypes = [ctypes.c_char_p, ctypes.c_long]
-    s = ctypes.create_string_buffer(HighLExtrapTemplate)
-    func(s, ctypes.c_long(len(HighLExtrapTemplate)))
+    s = ctypes.create_string_buffer(template)
+    func(s, ctypes.c_long(len(template)))
 
 
 def check_fortran_version(version):
-    if mock_load: return
+    if mock_load:
+        return
     func = camblib.__camb_MOD_camb_getversion
     func.argtypes = [ctypes.c_char_p, ctypes.c_long]
     s = ctypes.create_string_buffer(33)
@@ -174,8 +177,10 @@ class _AllocatableObject(FortranAllocatable):
 _class_cache = {}
 
 
+# noinspection PyPep8Naming
 def AllocatableObject(cls=None):
-    if cls is None: cls = F2003Class
+    if cls is None:
+        cls = F2003Class
     if not issubclass(cls, F2003Class):
         raise ValueError("AllocatableObject type must be descended from F2003Class")
     res = _class_cache.get(cls, None)
@@ -231,12 +236,12 @@ def _make_array_class(baseclass, size):
     if res:
         return res
 
-    class temp(_ArrayOfAllocatable):
+    class Temp(_ArrayOfAllocatable):
         _fields_ = [("allocatables", AllocatableObject(baseclass) * size)]
 
-    temp.__name__ = "%sArray_%s" % (baseclass.__name__, size)
-    _class_cache[(baseclass, size)] = temp
-    return temp
+    Temp.__name__ = "%sArray_%s" % (baseclass.__name__, size)
+    _class_cache[(baseclass, size)] = Temp
+    return Temp
 
 
 class _AllocatableObjectArray(FortranAllocatable):
@@ -251,7 +256,8 @@ class _AllocatableObjectArray(FortranAllocatable):
             return []
 
     def set_allocatable(self, array, name):
-        if array is None: array = []
+        if array is None:
+            array = []
         pointers = (f_pointer * len(array))()
         for i, instance in enumerate(array):
             if not isinstance(instance, self._baseclass):
@@ -267,8 +273,10 @@ _AllocatableObjectArray._get_allocatable_object_1D_array.restype = c_int
 _AllocatableObjectArray._set_allocatable_object_1D_array = camblib.__handles_MOD_set_allocatable_object_1d_array
 
 
+# noinspection PyPep8Naming
 def AllocatableObjectArray(cls=None):
-    if cls is None: cls = F2003Class
+    if cls is None:
+        cls = F2003Class
     if not issubclass(cls, F2003Class):
         raise ValueError("AllocatableObject type must be descended from F2003Class")
     return type("AllocatableArray" + cls.__name__, (_AllocatableObjectArray,), {"_baseclass": cls})
@@ -338,9 +346,10 @@ class CAMBFortranError(Exception):
     pass
 
 
-def method_import(module_name, class_name, func_name, restype=None, extra_args=[], nopass=False):
+def method_import(module_name, class_name, func_name, restype=None, extra_args=(), nopass=False):
     func = lib_import(module_name, class_name, func_name, restype)
-    if extra_args is not None and len(extra_args): func.argtypes = ([] if nopass else [POINTER(f_pointer)]) + extra_args
+    if extra_args is not None and len(extra_args):
+        func.argtypes = ([] if nopass else [POINTER(f_pointer)]) + list(extra_args)
     return func
 
 
@@ -397,7 +406,7 @@ class NamedIntField(object):
     def __set__(self, instance, value):
         if isinstance(value, six.string_types):
             value = self.name_values[value]
-        elif not value in self.values:
+        elif value not in self.values:
             raise ValueError("Value %s not in allowed: %s" % (value, self.name_values))
         setattr(instance, self.real_name, value)
 
@@ -438,6 +447,7 @@ class SizedArrayField(object):  # statically sized array with another field dete
 
 
 class CAMBStructureMeta(type(Structure)):
+    # noinspection PyMethodParameters
     def __new__(metacls, name, bases, namespace):
         _fields = namespace.get("_fields_", "")
         ctypes_fields = []
@@ -550,6 +560,7 @@ class CAMBStructureMeta(type(Structure)):
         return cls
 
 
+# noinspection PyPep8Naming
 @six.add_metaclass(CAMBStructureMeta)
 class CAMB_Structure(Structure):
 
@@ -565,8 +576,10 @@ class CAMB_Structure(Structure):
     def _as_string(self):
         s = ''
         for field_name, field_type in self.get_all_fields():
-            if field_name[0:2] == '__': continue
-            if field_name[0] == '_': field_name = field_name[1:]
+            if field_name[0:2] == '__':
+                continue
+            if field_name[0] == '_':
+                field_name = field_name[1:]
             obj = getattr(self, field_name)
             if isinstance(obj, (CAMB_Structure, FortranAllocatable)):
                 content = obj._as_string() if isinstance(obj, CAMB_Structure) else str(obj)
@@ -627,8 +640,8 @@ class F2003Class(CAMB_Structure):
         pointer_func = getattr(cls, '_fortran_selfpointer_function', None)
         if pointer_func is None:
             if getattr(cls, '_optional_compile', False):
-                raise CAMBFortranError(
-                    'Class %s has not been built into the Fortran binary, edit Makefile_main and rebuild to use.' % cls.__name__)
+                raise CAMBFortranError('Class %s has not been built into the Fortran binary,'
+                                       ' edit Makefile_main and rebuild to use.' % cls.__name__)
             raise CAMBFortranError(
                 'Cannot instantiate %s, is base class or needs @fortran_class decorator' % cls.__name__)
         _new_instance(byref(_key), byref(pointer_func))

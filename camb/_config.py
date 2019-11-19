@@ -24,7 +24,7 @@ class _config(object):
     lensing_method = import_property(c_int, "lensing", "lensing_method")
 
     lensing_sanity_check_amplitude = import_property(c_double, "lensing", "lensing_sanity_check_amplitude")
-    # lensing_sanity_check_amplitude.value = 1e-7 by default, will error if  (2*l+1)l(l+1)/4pi C_phi_phi > lensing_
+    # lensing_sanity_check_amplitude.value = 1e-7 by default, will error if  (2*L+1)L(L+1)/4pi C_phi_phi > lensing_
     # sanity_check_amplitude at L=10
     # increase to large number to prevent sanity check (but lensing requires realistic amplitude as non-linear)
 

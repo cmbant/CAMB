@@ -183,7 +183,7 @@ class CAMBparams(F2003Class):
         ("Transfer", TransferParams),
         ("want_zstar", c_bool),
         ("want_zdrag", c_bool),
-        ("min_l", c_int, "l_min for the scalar C_L (1 or 2, l=1 dipoles are Newtonian Gauge)"),
+        ("min_l", c_int, "l_min for the scalar C_L (1 or 2, L=1 dipoles are Newtonian Gauge)"),
         ("max_l", c_int, "l_max for the scalar C_L"),
         ("max_l_tensor", c_int, "l_max for the tensor C_L"),
         ("max_eta_k", c_double, "Maximum k*eta_0 for scalar C_L, where eta_0 is the conformal time today"),
@@ -283,7 +283,8 @@ class CAMBparams(F2003Class):
         r"""
         Set the initial power spectrum from a function P_scalar(k, \*args), and optionally also the tensor spectrum.
         The function is called to make a pre-computed array which is then interpolated inside CAMB. The sampling in k
-        is set automatically so that the spline is accurate, but you may also need to increase other accuracy parameters.
+        is set automatically so that the spline is accurate, but you may also need to increase other
+        accuracy parameters.
 
         :param P_scalar: function returning normalized initial scalar curvature power as function of k (in Mpc^{-1})
         :param P_tensor: optional function returning normalized initial tensor power spectrum

@@ -26,6 +26,7 @@ class CambTest(unittest.TestCase):
         pars.set_cosmology(H0=68.5, ombh2=0.022, mnu=0, omch2=0.1)
         self.assertAlmostEqual(pars.omegam, (0.022 + 0.1) / 0.685 ** 2)
         with self.assertRaises(AttributeError):
+            # noinspection PyPropertyAccess
             pars.omegam = 1
         pars.InitPower.set_params(ns=0.01)
         data = camb.CAMBdata()
@@ -514,7 +515,8 @@ class CambTest(unittest.TestCase):
         self.assertAlmostEqual(np.sum(cls['W1xW1'][10]), 0.0001097, places=6)
 
     def testSymbolic(self):
-        if fast: return
+        if fast:
+            return
         import camb.symbolic as s
 
         monopole_source, ISW, doppler, quadrupole_source = s.get_scalar_temperature_sources()
@@ -557,7 +559,8 @@ class CambTest(unittest.TestCase):
         s.internal_consistency_checks()
 
     def test_extra_EmissionAnglePostBorn(self):
-        if fast: return
+        if fast:
+            return
         from camb import emission_angle, postborn
         pars = camb.set_params(H0=67.5, ombh2=0.022, omch2=0.122, As=2e-9, ns=0.95, tau=0.055)
         BB = emission_angle.get_emission_delay_BB(pars, lmax=3500)

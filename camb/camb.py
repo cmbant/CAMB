@@ -244,11 +244,11 @@ def run_ini(ini_filename, no_validate=False):
         raise CAMBValueError('File not found: %s' % ini_filename)
     if not no_validate:
         validate_ini_file(ini_filename)
-    runIni = camblib.__camb_MOD_camb_runinifile
-    runIni.argtypes = [ctypes.c_char_p, POINTER(ctypes.c_long)]
-    runIni.restype = c_bool
+    run_inifile = camblib.__camb_MOD_camb_runinifile
+    run_inifile.argtypes = [ctypes.c_char_p, POINTER(ctypes.c_long)]
+    run_inifile.restype = c_bool
     s = ctypes.create_string_buffer(six.b(ini_filename))
-    if not runIni(s, ctypes.c_long(len(ini_filename))):
+    if not run_inifile(s, ctypes.c_long(len(ini_filename))):
         config.check_global_error('run_ini')
 
 
@@ -265,11 +265,11 @@ def read_ini(ini_filename, no_validate=False):
     if not no_validate:
         validate_ini_file(ini_filename)
     cp = model.CAMBparams()
-    readIni = camblib.__camb_MOD_camb_readparamfile
-    readIni.argtypes = [POINTER(CAMBparams), ctypes.c_char_p, POINTER(ctypes.c_long)]
-    readIni.restype = ctypes.c_bool
+    read_inifile = camblib.__camb_MOD_camb_readparamfile
+    read_inifile.argtypes = [POINTER(CAMBparams), ctypes.c_char_p, POINTER(ctypes.c_long)]
+    read_inifile.restype = ctypes.c_bool
     s = ctypes.create_string_buffer(six.b(ini_filename))
-    if not readIni(cp, s, ctypes.c_long(len(ini_filename))):
+    if not read_inifile(cp, s, ctypes.c_long(len(ini_filename))):
         config.check_global_error('read_ini')
     return cp
 

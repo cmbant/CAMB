@@ -77,7 +77,7 @@ def get_field_rotation_power_from_PK(params, PK, chi_source, lmax=20000, acc=1, 
     cls[0, :] = 0
     cl_chi = RectBivariateSpline(chimaxs, ls, cls)
 
-    # Get M(l,l') matrix
+    # Get M(L,L') matrix
     chis = np.linspace(0, chi_source, nz, dtype=np.float64)
     zs = results.redshift_at_comoving_radial_distance(chis)
     dchis = (chis[2:] - chis[:-2]) / 2
@@ -122,7 +122,7 @@ def get_field_rotation_power_from_PK(params, PK, chi_source, lmax=20000, acc=1, 
         if ll < 500:
             lcalc = lsall[0:lpmax - 2]
         else:
-            # sampling in l', with denser around l~l'
+            # sampling in L', with denser around L~L'
             lcalc = np.hstack((lsall[0:20:4],
                                lsall[29:ll - 200:35],
                                lsall[ll - 190:ll + 210:6],
@@ -173,7 +173,8 @@ def get_field_rotation_BB(params, lmax=None, acc=1, CMB_unit='muK', raw_cl=False
     :param acc: accuracy
     :param CMB_unit: units for CMB output relative to dimensionless
     :param raw_cl: return :math:`C_\ell` rather than :math:`\ell(\ell+1)C_\ell/2\pi`
-    :param spline: return InterpolatedUnivariateSpline, otherwise return tuple of lists of :math:`\ell` and :math:`C_\ell`
+    :param spline: return InterpolatedUnivariateSpline, otherwise return tuple of lists of :math:`\ell`
+                   and :math:`C_\ell`
     :return: InterpolatedUnivariateSpline (or arrays of sampled :math:`\ell` and) :math:`\ell^2 C_\ell^{BB}/(2 \pi)`
              (unless raw_cl, in which case just :math:`C_\ell^{BB}`)
     """
@@ -197,11 +198,12 @@ def get_field_rotation_BB(params, lmax=None, acc=1, CMB_unit='muK', raw_cl=False
 def get_field_rotation_BB_integral(lsamp, clcurl, cl_E_unlensed_sp, lmax=None, lsamp_out=None, acc=1, raw_cl=False):
     CurlSp = InterpolatedUnivariateSpline(lsamp, clcurl)
     lmax = lmax or lsamp[-1]
-    if lsamp_out is None: lsamp_out = np.array([L for L in lsamp if L <= lmax // 2])
+    if lsamp_out is None:
+        lsamp_out = np.array([L for L in lsamp if L <= lmax // 2])
     Bcurl = np.zeros(lsamp_out.shape)
 
     for i, ll in enumerate(lsamp_out):
-        l = np.float64(ll)
+        ell = np.float64(ll)
         for llp in range(10, lmax):
             lp = np.float64(llp)
             if abs(ll - llp) > 200 and lp > 200:
@@ -216,14 +218,15 @@ def get_field_rotation_BB_integral(lsamp, clcurl, cl_E_unlensed_sp, lmax=None, l
             cosphi = np.cos(phi)
             sinphi = np.sin(phi)
             sin2phi = np.sin(2 * phi)
-            lpp = np.sqrt(lp ** 2 + l ** 2 - 2 * cosphi * l * lp)
+            lpp = np.sqrt(lp ** 2 + ell ** 2 - 2 * cosphi * ell * lp)
             w[lpp < 2] = 0
             w[lpp > lmax] = 0
             curls = CurlSp(lpp)
             dCEs = cl_E_unlensed_sp(lp) * lp * dphi
-            crossterm = sinphi * l * lp / lpp ** 2
+            crossterm = sinphi * ell * lp / lpp ** 2
             Bcurl[i] += np.dot(w, curls * (crossterm * sin2phi) ** 2) * dCEs
 
     Bcurl *= 4 / (2 * np.pi) ** 2
-    if not raw_cl: Bcurl *= lsamp_out * (lsamp_out + 1) / (2 * np.pi)
+    if not raw_cl:
+        Bcurl *= lsamp_out * (lsamp_out + 1) / (2 * np.pi)
     return lsamp_out, Bcurl

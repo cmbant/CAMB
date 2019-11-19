@@ -160,7 +160,8 @@ def gauss_legendre_correlation(cls, lmax=None, sampling_factor=1):
     :return: corrs, xvals, weights; corrs[i, ix] is 2D array where ix=0,1,2,3 are T, Q+U, Q-U and cross
     """
 
-    if lmax is None: lmax = cls.shape[0] - 1
+    if lmax is None:
+        lmax = cls.shape[0] - 1
     xvals, weights = _cached_gauss_legendre(int(sampling_factor * lmax) + 1)
     return cl2corr(cls, xvals, lmax), xvals, weights
 
@@ -208,10 +209,11 @@ def lensing_correlations(clpp, xvals, lmax=None):
     :param lmax: optional maximum L to use from the clpp array
     :return: array of :math:`\sigma^2(x)`, array of :math:`C_{{\rm gl},2}(x)`
     """
-    if lmax is None: lmax = clpp.shape[0] - 1
+    if lmax is None:
+        lmax = clpp.shape[0] - 1
     ls = np.arange(1, lmax + 1, dtype=np.float64)
     cldd = clpp[1:] / (ls * (ls + 1))
-    cphil3 = (2 * ls + 1) * cldd / 2  # (2*l+1)l(l+1)/4pi C_phi_phi
+    cphil3 = (2 * ls + 1) * cldd / 2  # (2*L+1)L(L+1)/4pi C_phi_phi
     sigmasq = np.zeros(xvals.shape)
     Cg2 = np.zeros(xvals.shape)
     llp1 = ls * (ls + 1)
@@ -234,7 +236,8 @@ def lensing_R(clpp, lmax=None):
     :param lmax: optional maximum L to use from the cls arrays
     :return: R
     """
-    if lmax is None: lmax = clpp.shape[0] - 1
+    if lmax is None:
+        lmax = clpp.shape[0] - 1
     ls = np.arange(1, lmax + 1, dtype=np.float64)
     cldd = clpp[1:] / (ls * (ls + 1))
     cphil3 = (2 * ls + 1) * cldd / 4
@@ -244,7 +247,8 @@ def lensing_R(clpp, lmax=None):
 def lensed_correlations(cls, clpp, xvals, weights=None, lmax=None, delta=False, theta_max=None,
                         apodize_point_width=10):
     r"""
-    Get the lensed correlation function from the unlensed power spectra, evaluated at points :math:`\cos(\theta)` = xvals.
+    Get the lensed correlation function from the unlensed power spectra, evaluated at
+    points :math:`\cos(\theta)` = xvals.
     Use roots of Legendre polynomials (np.polynomial.legendre.leggauss) for accurate back integration with corr2cl.
     Note currently does not work at xvals=1 (can easily calculate that as special case!).
 
@@ -267,14 +271,15 @@ def lensed_correlations(cls, clpp, xvals, weights=None, lmax=None, delta=False, 
         if weights is not None, then return corrs, lensed_cls
     """
 
-    if lmax is None: lmax = cls.shape[0] - 1
+    if lmax is None:
+        lmax = cls.shape[0] - 1
     xvals = np.asarray(xvals)
     ls = np.arange(0, lmax + 1, dtype=np.float64)
     lfacs = ls * (ls + 1)
     lfacsall = lfacs.copy()
     lfacs[0] = 1
     cldd = clpp[1:lmax + 1] / lfacs[1:]
-    cphil3 = (2 * ls[1:] + 1) * cldd / 2  # (2*l+1)l(l+1)/4pi C_phi_phi
+    cphil3 = (2 * ls[1:] + 1) * cldd / 2  # (2*L+1)L(L+1)/4pi C_phi_phi
     facs = (2 * ls + 1) / (4 * np.pi) * 2 * np.pi / lfacs
 
     ct = facs * cls[:lmax + 1, 0]
@@ -445,7 +450,8 @@ def lensed_cl_derivatives(cls, clpp, lmax=None, theta_max=np.pi / 32,
 
     """
 
-    if lmax is None: lmax = cls.shape[0] - 1
+    if lmax is None:
+        lmax = cls.shape[0] - 1
     npoints = int(sampling_factor * lmax) + 1
     xvals, weights = _cached_gauss_legendre(npoints)
 
@@ -454,7 +460,7 @@ def lensed_cl_derivatives(cls, clpp, lmax=None, theta_max=np.pi / 32,
     lfacsall = lfacs.copy()
     lfacs[0] = 1
     cldd = clpp[1:lmax + 1] / lfacs[1:]
-    cphil3 = (2 * ls[1:] + 1) * cldd / 2  # (2*l+1)l(l+1)/4pi C_phi_phi
+    cphil3 = (2 * ls[1:] + 1) * cldd / 2  # (2*L+1)L(L+1)/4pi C_phi_phi
     facs = (2 * ls + 1) / (4 * np.pi) * 2 * np.pi / lfacs
 
     ct = facs * cls[:lmax + 1, 0]
@@ -595,7 +601,7 @@ def lensed_cl_derivative_unlensed(clpp, lmax=None, theta_max=np.pi / 32,
     lfacsall = lfacs.copy()
     lfacs[0] = 1
     cldd = clpp[1:lmax + 1] / lfacs[1:]
-    cphil3 = (2 * ls[1:] + 1) * cldd / 2  # (2*l+1)l(l+1)/4pi C_phi_phi
+    cphil3 = (2 * ls[1:] + 1) * cldd / 2  # (2*L+1)L(L+1)/4pi C_phi_phi
     facs = (2 * ls + 1) / (4 * np.pi) * 2 * np.pi / lfacs
 
     ct = facs

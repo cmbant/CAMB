@@ -238,7 +238,8 @@ if not os.path.exists(args.ini_dir):
 out_files_dir = os.path.join(args.ini_dir, args.out_files_dir)
 
 if args.clean:
-    if os.path.exists(out_files_dir): shutil.rmtree(out_files_dir)
+    if os.path.exists(out_files_dir):
+        shutil.rmtree(out_files_dir)
 
 if not os.path.exists(out_files_dir):
     os.mkdir(out_files_dir)
@@ -393,13 +394,13 @@ def getTestParams():
         params.append(['counts_lmax2', 'l_max_scalar = 1200'] + counts_def + source_counts)
 
         params.append(['counts_overlap'] + counts_def
-                      + ['num_redshiftwindows = 2'] + make_win(1, 0.17, 'counts', 1.2, 0.04, -0.2) \
+                      + ['num_redshiftwindows = 2'] + make_win(1, 0.17, 'counts', 1.2, 0.04, -0.2)
                       + make_win(2, 0.2, 'counts', 1.2, 0.04, -0.2))
         params.append(['lensing_base', 'DEFAULT(../inifiles/params_lensing.ini)'])
         params.append(['21cm_base', 'DEFAULT(../inifiles/params_21cm.ini)'])
         params.append(['21cm_base2', 'DEFAULT(../inifiles/params_21cm.ini)', 'get_transfer = T'])
         params.append(['counts_lens', 'DEFAULT(../inifiles/params_counts.ini)']
-                      + ['num_redshiftwindows = 2'] + make_win(1, 0.17, 'counts', 1.2, 0.04, -0.2) \
+                      + ['num_redshiftwindows = 2'] + make_win(1, 0.17, 'counts', 1.2, 0.04, -0.2)
                       + make_win(2, 0.5, 'lensing', 0, 0.07, 0.2))
 
     max_tests = args.max_tests or os.environ.get('CAMB_TESTS_MAX')
@@ -409,7 +410,7 @@ def getTestParams():
 
 
 def list_files(file_dir):
-    return [f for f in os.listdir(file_dir) if not '.ini' in f]
+    return [f for f in os.listdir(file_dir) if '.ini' not in f]
 
 
 def output_file_num(file_dir):
@@ -503,7 +504,7 @@ def num_unequal(filename, cmpFcn):
                     # The following split fails for *_transfer_out.* files where it not needed anyway.
                     inifile = IniFile()
                     inifile.readFile(inifilename)
-                except:
+                except OSError:
                     printlog("Could not open ini filename: %s" % inifilename)
             for o_row, n_row in zip(origMat[origBase:], newMat[newBase:]):
                 row += 1

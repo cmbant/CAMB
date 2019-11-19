@@ -33,7 +33,7 @@ class _ClTransferData(CAMB_Structure):
                 ('delta_size', c_int * 3),
                 ('delta_p_l_k', POINTER(c_double)),
                 ('l_size', c_int),
-                ('l', POINTER(c_int))
+                ('L', POINTER(c_int))
                 ]
 
 
@@ -61,27 +61,30 @@ class MatterTransferData(object):
 
     To get an instance of this data, call :meth:`.results.CAMBdata.get_matter_transfer_data`.
 
-    For a description of the different Transfer_xxx outputs (and 21cm case) see :ref:`transfer-variables`.
+    For a description of the different Transfer_xxx outputs (and 21cm case) see :ref:`transfer-variables`; the
+    array is indexed by index+1 gven by:
+
+    - Transfer_kh = 1 (k/h)
+    - Transfer_cdm = 2 (cdm)
+    - Transfer_b = 3 (baryons)
+    - Transfer_g = 4 (photons)
+    - Transfer_r = 5 (massless neutrinos)
+    - Transfer_nu = 6 (massive neutrinos)
+    - Transfer_tot = 7 (total matter)
+    - Transfer_nonu = 8 (total matter excluding neutrinos)
+    - Transfer_tot_de = 9 (total including dark energy perturbations)
+    - Transfer_Weyl = 10 (Weyl potential)
+    - Transfer_Newt_vel_cdm = 11 (Newtonian CDM velocity)
+    - Transfer_Newt_vel_baryon = 12 (Newtonian baryon velocity)
+    - Transfer_vel_baryon_cdm = 13 (relative baryon-cdm velocity)
+
 
     :ivar nq:  number of q modes calculated
     :ivar q: array of q values calculated
     :ivar sigma_8: array of :math:`\sigma_8` values for each redshift
     :ivar sigma2_vdelta_8: array of v-delta8 correlation, so sigma2_vdelta_8/sigma_8 can define growth
-    :ivar transfer_data: numpy array T[entry, q_index, z_index] storing transfer functions for each redshift and q; entry+1 can be
-
-            - Transfer_kh = 1 (k/h)
-            - Transfer_cdm = 2 (cdm)
-            - Transfer_b = 3 (baryons)
-            - Transfer_g = 4 (photons)
-            - Transfer_r = 5 (massless neutrinos)
-            - Transfer_nu = 6 (massive neutrinos)
-            - Transfer_tot = 7 (total matter)
-            - Transfer_nonu = 8 (total matter excluding neutrinos)
-            - Transfer_tot_de = 9 (total including dark energy perturbations)
-            - Transfer_Weyl = 10 (Weyl potential)
-            - Transfer_Newt_vel_cdm = 11 (Newtonian CDM velocity)
-            - Transfer_Newt_vel_baryon = 12 (Newtonian baryon velocity)
-            - Transfer_vel_baryon_cdm = 13 (relative baryon-cdm velocity)
+    :ivar transfer_data: numpy array T[entry, q_index, z_index] storing transfer functions for each redshift and q;
+                         entry+1 can be one of the Transfer_xxx variables above.
     """
 
     def transfer_z(self, name, z_index=0):
@@ -105,8 +108,8 @@ class ClTransferData(object):
 
     :ivar NumSources:  number of sources calculated (size of p index)
     :ivar q: array of q values calculated (=k in flat universe)
-    :ivar l: int array of :math:`\ell` values calculated
-    :ivar delta_p_l_k: transfer functions, indexed by source, l, q
+    :ivar L: int array of :math:`\ell` values calculated
+    :ivar delta_p_l_k: transfer functions, indexed by source, L, q
     """
 
     def get_transfer(self, source=0):
@@ -115,7 +118,7 @@ class ClTransferData(object):
         and :math:`q` (:math:`= k` in a flat universe).
 
         :param source: index of source: e.g. 0 for temperature, 1 for E polarization, 2 for lensing potential
-        :return: array of computed l, array of computed q, transfer functions T(l,q)
+        :return: array of computed L, array of computed q, transfer functions T(L,q)
         """
 
         return self.l, self.q, self.delta_p_l_k[source, :, :]
@@ -162,7 +165,7 @@ class CAMBdata(F2003Class):
                 ("Ksign", c_double, "Ksign = 1,0 or -1"),
                 ("tau0", c_double, "conformal time today"),
                 ("chi0", c_double, "comoving angular diameter distance of big bang; rofChi(tau0/curvature_radius)"),
-                ("scale", c_double, "relative to flat. e.g. for scaling l sampling"),
+                ("scale", c_double, "relative to flat. e.g. for scaling L sampling"),
                 ("akthom", c_double, "sigma_T * (number density of protons now)"),
                 ("fHe", c_double, "n_He_tot / n_H_tot"),
                 ("Nnow", c_double, "number density today"),
@@ -406,7 +409,7 @@ class CAMBdata(F2003Class):
         :param params: optional :class:`~.model.CAMBparams` instance with parameters to use. If None, must have
           previously set parameters and called `calc_power_spectra` (e.g. if you got this instance
           using :func:`.camb.get_results`),
-        :param lmax: maximum l
+        :param lmax: maximum L
         :param spectra: list of names of spectra to get
         :param CMB_unit: scale results from dimensionless. Use 'muK' for :math:`\mu K^2` units for CMB :math:`C_\ell`
           and :math:`\mu K` units for lensing cross.

@@ -519,38 +519,38 @@ def _make_index_func(name, l, namespace=None):
 
 
 # Boltzmann hierarchies. Haven't included massive neutrinos here as yet.
-def J_eq(l):
+def J_eq(L):
     # photons
-    assert (l > 1)
-    Gl = _make_index_func('J', l)
-    Glp = _make_index_func('J', l + 1)
-    Glm = _make_index_func('J', l - 1)
-    eq = -k / (2 * l + 1) * ((l + 1) * Kf[l] * Glp - l * Glm) - opacity * Gl
-    if l == 2:
+    assert (L > 1)
+    Gl = _make_index_func('J', L)
+    Glp = _make_index_func('J', L + 1)
+    Glm = _make_index_func('J', L - 1)
+    eq = -k / (2 * L + 1) * ((L + 1) * Kf[L] * Glp - L * Glm) - opacity * Gl
+    if L == 2:
         eq = eq + 8 * k / 15 * sigma + opacity * polter
     return Eq(diff(Gl, t), eq).subs({sympy.sympify('J_2(t)'): pi_g, sympy.sympify('J_1(t)'): q_g})
 
 
-def G_eq(l):
+def G_eq(L):
     # massless neutrinos
-    assert (l > 1)
-    Gl = _make_index_func('G', l)
-    Glp = _make_index_func('G', l + 1)
-    Glm = _make_index_func('G', l - 1)
-    eq = -k / (2 * l + 1) * ((l + 1) * Kf[l] * Glp - l * Glm)
-    if l == 2:
+    assert (L > 1)
+    Gl = _make_index_func('G', L)
+    Glp = _make_index_func('G', L + 1)
+    Glm = _make_index_func('G', L - 1)
+    eq = -k / (2 * L + 1) * ((L + 1) * Kf[L] * Glp - L * Glm)
+    if L == 2:
         eq = eq + 8 * k / 15 * sigma
     return Eq(diff(Gl, t), eq).subs({sympy.sympify('G_2(t)'): pi_r, sympy.sympify('G_1(t)'): q_r})
 
 
-def E_eq(l):
+def E_eq(L):
     # E polarization
-    assert (l > 1)
-    El = _make_index_func('E', l)
-    Elp = _make_index_func('E', l + 1)
-    Elm = _make_index_func('E', l - 1)
-    eq = -k / (2 * l + 1) * ((l + 3) * (l - 1) * Kf[l] * Elp / (l + 1) - l * Elm) - opacity * El
-    if l == 2:
+    assert (L > 1)
+    El = _make_index_func('E', L)
+    Elp = _make_index_func('E', L + 1)
+    Elm = _make_index_func('E', L - 1)
+    eq = -k / (2 * L + 1) * ((L + 3) * (L - 1) * Kf[L] * Elp / (L + 1) - L * Elm) - opacity * El
+    if L == 2:
         eq = eq + polter * opacity
     return Eq(diff(El, t), eq).subs(sympy.sympify('E_1(t)'), 0)
 
@@ -779,7 +779,8 @@ def compile_source_function_code(code_body, file_path='', compiler=None, fflags=
     end function
     """
 
-    import subprocess, tempfile
+    import subprocess
+    import tempfile
     from ._compilers import is_32_bit, is_windows, compiler_environ, check_gfortran
 
     compiler = compiler or get_default_compiler()
