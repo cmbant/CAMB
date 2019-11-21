@@ -1,4 +1,4 @@
-camb.model
+Input parameter model
 ==================================
 
 

@@ -1,4 +1,4 @@
-camb.mathutils
+Maths utils
 ==================================
 
 .. automodule:: camb.mathutils

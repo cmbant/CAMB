@@ -1,4 +1,4 @@
-camb.initialpower
+Initial power spectra
 ==================================
 
 .. autoclass:: camb.initialpower.InitialPower

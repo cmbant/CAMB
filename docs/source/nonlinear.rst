@@ -1,4 +1,4 @@
-camb.nonlinear
+Non-linear models
 ==================================
 
 .. autoclass:: camb.nonlinear.NonLinearModel

@@ -286,7 +286,7 @@
 
     end subroutine CAMBdata_SelfPointer
 
-    subroutine CAMBdata_SetParams(this, P, error, DoReion, call_again)
+    subroutine CAMBdata_SetParams(this, P, error, DoReion, call_again, background_only)
     !Initialize background variables; does not yet calculate thermal history
     use constants
     class(CAMBdata), target :: this
@@ -294,12 +294,13 @@
     real(dl) fractional_number, conv
     integer, optional :: error !Zero if OK
     logical, optional :: DoReion
-    logical, optional :: call_again
+    logical, optional :: call_again, background_only
     logical WantReion, calling_again
     integer nu_i,actual_massless
     real(dl) nu_massless_degeneracy, neff_i, eta_k, h2
     real(dl) zpeak, sigma_z, zpeakstart, zpeakend
     Type(TRedWin), pointer :: Win
+    logical back_only
     !Constants in SI units
 
     global_error_flag = 0
@@ -317,6 +318,7 @@
 
     WantReion = DefaultTrue(DoReion)
     calling_again= DefaultFalse(call_again)
+    back_only = DefaultFalse(background_only)
 
     if (calling_again) then
         this%CP%WantDerivedParameters = .false.
@@ -333,7 +335,7 @@
         this%CP%Max_eta_k = max(this%CP%Max_eta_k,this%CP%Max_eta_k_tensor)
     end if
 
-    if (P%WantTransfer) then
+    if (P%WantTransfer .and. .not. back_only) then
         this%CP%WantScalars=.true.
         if (.not. P%WantCls) then
             this%CP%Accuracy%AccuratePolarization = .false.
@@ -470,10 +472,11 @@
                 call GlobalError('chi >= pi in closed model not supported',error_unsupported_params)
             end if
             if (WantReion) call this%CP%Reion%Init(this)
-            if (this%CP%NonLinear/=NonLinear_None) call this%CP%NonLinearModel%Init(this)
+            if (this%CP%NonLinear/=NonLinear_None .and. .not. back_only) &
+                call this%CP%NonLinearModel%Init(this)
         end if
     end if
-    if (allocated(this%CP%SourceWindows)) then
+    if (allocated(this%CP%SourceWindows) .and. .not. back_only) then
         this%num_redshiftwindows = size(this%CP%SourceWindows)
     else
         this%num_redshiftwindows = 0

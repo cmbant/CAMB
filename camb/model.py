@@ -381,6 +381,7 @@ class CAMBparams(F2003Class):
             zstar = c_double()
             self.H0 = est_H0
             data.calc_background_no_thermo(self)
+            # get_zstar initializes the recombination model
             zstar = data.f_get_zstar(byref(zstar))
 
         def f(H0):

@@ -62,7 +62,7 @@ def get_background(params, no_thermo=False):
     parameters and use background functions like :func:`~results.CAMBdata.angular_diameter_distance`.
 
     :param params: :class:`.model.CAMBparams` instance
-    :param no_thermo: set True if thermal history not required.
+    :param no_thermo: set True if thermal and ionization history not required.
     :return: :class:`~.results.CAMBdata` instance
     """
 

@@ -175,7 +175,7 @@
     integer error
     Type(CAMBdata) :: State
 
-    call  State%SetParams(P, error, .false.)
+    call  State%SetParams(P, error, .false., .false., .true.)
 
     if (error/=0) then
         CAMB_GetAge = -1

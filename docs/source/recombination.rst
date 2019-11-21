@@ -1,4 +1,4 @@
-camb.recombination
+Recombination models
 ==================================
 
 

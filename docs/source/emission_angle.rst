@@ -1,4 +1,4 @@
-camb.emission_angle
+Lensing emission angle
 ==================================
 
 .. automodule:: camb.emission_angle

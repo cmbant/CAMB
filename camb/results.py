@@ -199,7 +199,7 @@ class CAMBdata(F2003Class):
                  ('DarkEnergyStressEnergy', [numpy_1d, numpy_1d, numpy_1d, int_arg]),
                  ('get_lmax_lensed', [], c_int),
                  ('get_zstar', [d_arg], c_double),
-                 ('SetParams', [POINTER(CAMBparams), int_arg, int_arg, int_arg])
+                 ('SetParams', [POINTER(CAMBparams), int_arg, int_arg, int_arg, int_arg])
                  ]
 
     def __init__(self):
@@ -258,15 +258,16 @@ class CAMBdata(F2003Class):
         if not params.ombh2:
             raise CAMBValueError('Parameter values not set')
 
-    def calc_background_no_thermo(self, params):
+    def calc_background_no_thermo(self, params, do_reion=False):
         """
-        Calculate the background evolution without calculating thermal history.
+        Calculate the background evolution without calculating thermal or ionization history.
         e.g. call this if you want to just use :meth:`angular_diameter_distance` and similar background functions
 
         :param params:  :class:`~.model.CAMBparams` instance to use
+        :param do_reion: whether to initialize the reionization model
         """
         self._check_params(params)
-        self.f_SetParams(byref(params), None, None, None)
+        self.f_SetParams(byref(params), None, byref(c_int(1 if do_reion else 0)), None, byref(c_int(1)))
         config.check_global_error('calc_background_no_thermo')
 
     def calc_background(self, params):
