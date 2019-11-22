@@ -246,7 +246,10 @@
     real(dl) normal_frac, m3, neff_massive_standard, mnu, m1
 
     this%omnuh2 = omnuh2
-    if (omnuh2==0) return
+    if (omnuh2==0) then
+        this%Num_Nu_Massless = nnu
+        return
+    end if
     this%Nu_mass_eigenstates=0
     if (omnuh2 > omnuh2_sterile) then
         normal_frac =  (omnuh2-omnuh2_sterile)/omnuh2
@@ -278,7 +281,7 @@
             else if (neutrino_hierarchy == neutrino_hierarchy_inverted) then
                 if (mnu > sqrt(delta_mnu31)+sqrt(delta_mnu31+delta_mnu21) + 1e-4_dl ) then
                     !Valid case, two eigenstates
-                    m1=Newton_Raphson2(sqrt(delta_mnu31), mnu, sum_mnu_for_m1, mnu, -1._dl)
+                    m1=Newton_Raphson2(sqrt(delta_mnu31)+1e-6_dl, mnu, sum_mnu_for_m1, mnu, -1._dl)
                     this%Num_Nu_Massive = 3
                 else
                     !Unphysical low mass case: take one (2-degenerate) eigenstate

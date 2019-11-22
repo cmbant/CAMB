@@ -1,8 +1,12 @@
-build:
-  image: latest
+version: 2
 
 python:
-  version: 3.6
-  setup_py_install: false
-  use_system_site_packages: true
+  version: 3.7
+  system_packages: true
+  install:
+    - requirements: requirements.txt
 
+sphinx:
+  configuration: docs/source/conf.py
+
+formats: all

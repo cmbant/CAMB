@@ -1,4 +1,4 @@
-camb.results
+Calculation results
 ==================================
 
 .. autoclass:: camb.results.CAMBdata

@@ -1,4 +1,4 @@
-camb.sources
+Source windows functions
 ==================================
 
 .. autoclass:: camb.sources.SourceWindow

@@ -43,7 +43,7 @@ A10 = 2.869e-15
 B10 = l_21cm ** 3 / 2 / h_p / c * A10
 
 line21_const = 3 * l_21cm ** 2 * c * h_p / 32 / const_pi / k_B * A10 * MPc_in_sec * 1000
-# 1000 to get in MiliKelvin
+# 1000 to get in MilliKelvin
 COBE_CMBTemp = 2.7255  # (Fixsen 2009) used as default value
 default_nnu = 3.046
 

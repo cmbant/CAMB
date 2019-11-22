@@ -105,7 +105,8 @@ def get_emission_delay_BB(params, kmax=100, lmax=3000, non_linear=True, CMB_unit
 
     for reion in [False, True]:
         if reion:
-            if not include_reionization: break
+            if not include_reionization:
+                break
             zreion = params.get_zre()
             chi_source = camb_background.tau0 - camb_background.conformal_time(zreion)
             lmax_e = 300
@@ -131,7 +132,8 @@ def get_emission_delay_BB(params, kmax=100, lmax=3000, non_linear=True, CMB_unit
         czeta = cmb['%sx%s' % (tag_zeta, tag_zeta)][2:lmax_e + 1] / llp1 * (2 * lsarr + 1)
 
         for i, ll in enumerate(lsampvelcl):
-            if reion and ll > lmax_e: break
+            if reion and ll > lmax_e:
+                break
             for llp in range(2, lmax_e, lstep):
                 lp = np.float64(llp)
                 wig = threej(llp, ll, 2, -2)
@@ -143,21 +145,23 @@ def get_emission_delay_BB(params, kmax=100, lmax=3000, non_linear=True, CMB_unit
                 minl = max(2, np.abs(llp - ll))
                 maxl = min(lmax_e, np.abs(llp + ll))
                 off = 0
-                if (minl + llp + ll) % 2 == 0: off = 1
+                if (minl + llp + ll) % 2 == 0:
+                    off = 1
                 wig2 = wig[off:maxl - minl + 1:2] ** 2
                 totautoB[i] += lstep * np.dot(wig2, czeta[minl + off - 2:maxl + 1 - 2:2]) * cdd[llp - 2]
                 totBEterm[i] += lstep * np.dot(wig2,
                                                cd[minl + off - 2:maxl + 1 - 2:2] - cxdd[minl + off - 2:maxl + 1 - 2:2]
-                                               - (lp * (lp + 1) - ll * (ll + 1)) * cxd[minl + off - 2:maxl + 1 - 2:2]) \
-                                * cEE[llp - 2]
+                                               - (lp * (lp + 1) - ll * (ll + 1)) * cxd[minl + off - 2:maxl + 1 - 2:2]
+                                               ) * cEE[llp - 2]
                 wigx2 = wigx[off:maxl - minl + 1:2] * wig[off:maxl - minl + 1:2]
-                totBxterm[i] += lstep * (np.dot(wigx2, cExx[minl + off - 2:maxl + 1 - 2:2]) \
+                totBxterm[i] += lstep * (np.dot(wigx2, cExx[minl + off - 2:maxl + 1 - 2:2])
                                          * (2 * cd[llp - 2] - ((lp * (lp + 1) - ll * (ll + 1)) * cxd[llp - 2]))
-                                         - np.dot(wigx2, cEx[minl + off - 2:maxl + 1 - 2:2]) * cxd[llp - 2]) \
-                                * np.sqrt(lp * (lp + 1) * (lp + 2) * (lp - 1))
+                                         - np.dot(wigx2, cEx[minl + off - 2:maxl + 1 - 2:2]) * cxd[llp - 2]
+                                         ) * np.sqrt(lp * (lp + 1) * (lp + 2) * (lp - 1))
 
     fac = 1 / 2.  # (4 * np.pi)  [CMB CL already have 1/2pi in ]
-    if not raw_cl: fac *= lsampvelcl * (lsampvelcl + 1) / (2 * np.pi)
+    if not raw_cl:
+        fac *= lsampvelcl * (lsampvelcl + 1) / (2 * np.pi)
     totautoB *= fac
     totBEterm *= fac
     totBxterm *= fac

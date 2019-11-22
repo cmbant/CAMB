@@ -969,13 +969,16 @@
                 end if
                 !     output transfer functions for this k-value.
 
-                if (abs(tau-State%Transfer_Times(itf)) < 1.e-5_dl) then
+                if (abs(tau-State%Transfer_Times(itf)) < 1.e-5_dl .or. j==State%TimeSteps%npoints) then
                     call outtransf(EV,y, tau, State%MT%TransferData(:,EV%q_ix,itf))
-
                     itf=itf+1
                     if (j < State%TimeSteps%npoints) then
                         if (itf <= State%num_transfer_redshifts.and. &
                             State%TimeSteps%points(j+1) > State%Transfer_Times(itf)) goto 101
+                    else
+                        if (abs(tau-State%Transfer_Times(itf-1)) > 5.e-5_dl) then
+                            write(*,*) 'WARNING: mismatch in integrated times (CAMB: CalcScalarSources)'
+                        end if
                     end if
                 endif
             end if
@@ -1121,11 +1124,12 @@
     real(dl) scaling(State%num_transfer_redshifts), ddScaling(State%num_transfer_redshifts)
     real(dl) ho,a0,b0, ascale
     integer tf_lo, tf_hi
-    type(MatterPowerData) :: CAMB_Pk
 
-    call Transfer_GetMatterPowerData(State, State%MT, CAMB_PK)
+    if (allocated(State%CAMB_Pk)) deallocate(State%CAMB_PK)
+    allocate(State%CAMB_PK)
+    call Transfer_GetMatterPowerData(State, State%MT, State%CAMB_PK)
 
-    call CP%NonLinearModel%GetNonLinRatios(State, CAMB_PK)
+    call CP%NonLinearModel%GetNonLinRatios(State, State%CAMB_PK)
     first_step=1
     do while(State%TimeSteps%points(first_step) < State%Transfer_Times(1))
         first_step = first_step + 1
@@ -1135,11 +1139,11 @@
     do ik=1, Evolve_q%npoints
         if (CP%Do21cm) then
             Src(ik, 4:SourceNum, :) = Src(ik, 4:SourceNum, :) * &
-                CAMB_Pk%nonlin_ratio(ik,1)
+                State%CAMB_Pk%nonlin_ratio(ik,1)
         elseif (Evolve_q%points(ik)/(CP%H0/100) >  CP%NonLinearModel%Min_kh_nonlinear) then
             !Interpolate non-linear scaling in conformal time
             !Do not use an associate for scaling. It does not work.
-            scaling = CAMB_Pk%nonlin_ratio(ik,1:State%num_transfer_redshifts)
+            scaling = State%CAMB_Pk%nonlin_ratio(ik,1:State%num_transfer_redshifts)
             if (all(abs(scaling-1) < 5e-4)) cycle
             call spline(State%Transfer_Times(1), scaling(1), State%num_transfer_redshifts,&
                 spl_large, spl_large, ddScaling(1))
@@ -1168,8 +1172,6 @@
         end if
     end do
     !$OMP END PARALLEL DO
-
-    call MatterPowerdata_Free(CAMB_pk)
 
     end subroutine MakeNonlinearSources
 

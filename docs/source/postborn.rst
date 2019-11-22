@@ -1,4 +1,4 @@
-camb.postborn
+Post-Born lensing
 ==================================
 
 .. automodule:: camb.postborn

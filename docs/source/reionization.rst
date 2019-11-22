@@ -1,4 +1,4 @@
-camb.reionization
+Reionization models
 ==================================
 
 .. autoclass:: camb.reionization.ReionizationModel

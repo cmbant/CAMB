@@ -31,11 +31,13 @@
         !Quantities for the neutrino background momentum distribution assuming thermal
         real(dl) dam !step in a*m
         real(dl), dimension(:), allocatable ::  r1,p1,dr1,dp1,ddr1
+        real(dl), private :: target_rho
     contains
     procedure :: init => ThermalNuBackground_init
     procedure :: rho_P => ThermalNuBackground_rho_P
     procedure :: rho => ThermalNuBackground_rho
     procedure :: drho => ThermalNuBackground_drho
+    procedure :: find_nu_mass_for_rho => ThermalNuBackground_find_nu_mass_for_rho
     end type TThermalNuBackground
 
     Type(TThermalNuBackground), target :: ThermalNuBackground
@@ -218,8 +220,8 @@
     integer i
 
     !  Compute massive neutrino density in units of the mean
-    !  density of one eigenstate of massless neutrinos.  Use cubic splines to
-    !  interpolate from a table.
+    !  density of one eigenstate of massless neutrinos.  Use series solutions or
+    !  cubic splines to interpolate from a table.
 
     if (am <= am_minp) then
         if (am < 0.01_dl) then
@@ -243,6 +245,58 @@
         -this%dr1(i+1)+d*(this%dr1(i)+this%dr1(i+1)+2._dl*(this%r1(i)-this%r1(i+1)))))
 
     end subroutine ThermalNuBackground_rho
+
+    function rho_err(this, nu_mass)
+    class(TThermalNuBackground) :: this
+    real(dl) rho_err, nu_mass, rhonu
+
+    call this%rho(nu_mass, rhonu)
+    rho_err = rhonu - this%target_rho
+
+    end function rho_err
+
+    function ThermalNuBackground_find_nu_mass_for_rho(this,rho) result(nu_mass)
+    !  Get eigenstate mass given input density (rho is neutrino density in units of one massless)
+    !  nu_mass=m_n*c**2/(k_B*T_nu0).
+    !  Get number density n of neutrinos from
+    !  rho_massless/n = int q^3/(1+e^q) / int q^2/(1+e^q)=7/180 pi^4/Zeta(3)
+    !  then m = Omega_nu/N_nu rho_crit /n if non-relativistic
+    use MathUtils
+    use config
+    class(TThermalNuBackground) :: this
+    real(dl), intent(in) :: rho
+    real(dl) nu_mass, rhonu, rhonu1, delta
+    real(dl) fzero
+    integer iflag
+
+    if (rho <= 1.001_dl) then
+        !energy density all accounted for by massless result
+        nu_mass=0
+    else
+        !Get mass assuming fully non-relativistic
+        nu_mass=fermi_dirac_const/(1.5d0*zeta3)*rho
+
+        if (nu_mass>4) then
+            !  perturbative correction for velocity when nearly non-relativistic
+            !  Error due to velocity < 1e-5 for mnu~0.06 but can easily correct (assuming non-relativistic today)
+            !  Note that python does not propagate mnu to omnuh2 consistently to the same accuracy; but this makes
+            !  fortran more internally consistent between input and computed Omega_nu h^2
+
+            !Make perturbative correction for the tiny error due to the neutrino velocity
+            call this%rho(nu_mass, rhonu)
+            call this%rho(nu_mass*0.9, rhonu1)
+            delta = rhonu - rho
+            nu_mass = nu_mass*(1 + delta/((rhonu1 - rhonu)/0.1) )
+        else
+            !Directly solve to avoid issues with perturbative result when no longer very relativistic
+            this%target_rho = rho
+            call brentq(this,rho_err,0._dl,nu_mass,0.01_dl,nu_mass,fzero,iflag)
+            if (iflag/=0) call GlobalError('find_nu_mass_for_rho failed to find neutrino mass')
+        end if
+    end if
+
+    end function ThermalNuBackground_find_nu_mass_for_rho
+
 
     function ThermalNuBackground_drho(this,am,adotoa) result (rhonudot)
     !  Compute the time derivative of the mean density in massive neutrinos

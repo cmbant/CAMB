@@ -3,7 +3,7 @@
     use constants, only: const_twopi
     implicit none
 
-    character(LEN=*), parameter :: version = '1.0.6'
+    character(LEN=*), parameter :: version = '1.0.11.1'
 
     integer :: FeedbackLevel = 0 !if >0 print out useful information about the model
 
@@ -65,6 +65,8 @@
     integer, parameter :: error_unsupported_params=5
     integer, parameter :: error_darkenergy=6
     integer, parameter :: error_ini=7
+    integer, parameter :: error_nonlinear=8
+
 
     contains
 

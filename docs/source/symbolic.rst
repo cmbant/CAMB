@@ -1,4 +1,4 @@
-camb.symbolic
+Symbolic manipulation
 ==================================
 
 .. automodule:: camb.symbolic

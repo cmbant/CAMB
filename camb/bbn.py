@@ -70,15 +70,17 @@ class BBN_table_interpolator(BBNPredictor):
     BBN predictor based on interpolation from a numerical table calculated by a BBN code.
 
     Tables are supplied for `Parthenope <http://parthenope.na.infn.it/>`_ 2017 (PArthENoPE_880.2_standard.dat, default),
-    similar but with Marucci rates (PArthENoPE_880.2_marcucci.dat), and `PRIMAT <http://www2.iap.fr/users/pitrou/primat.htm>`_ (PRIMAT_Yp_DH_Error.dat).
+    similar but with Marucci rates (PArthENoPE_880.2_marcucci.dat), and
+    `PRIMAT <http://www2.iap.fr/users/pitrou/primat.htm>`_ (PRIMAT_Yp_DH_Error.dat).
 
     :param interpolation_table: filename of interpolation table to use.
-    :param function_of: two variables that determine the interpolation grid (x,y) in the table, matching top column label comment.
-        By default ombh2, DeltaN, and function argument names reflect that, but can also be used more generally.
+    :param function_of: two variables that determine the interpolation grid (x,y) in the table,
+         matching top column label comment. By default ombh2, DeltaN, and function argument names reflect that,
+         but can also be used more generally.
 
     """
 
-    def __init__(self, interpolation_table=default_interpolation_table, function_of=['ombh2', 'DeltaN']):
+    def __init__(self, interpolation_table=default_interpolation_table, function_of=('ombh2', 'DeltaN')):
 
         if os.sep not in interpolation_table and '/' not in interpolation_table:
             interpolation_table = os.path.normpath(os.path.join(os.path.dirname(__file__), interpolation_table))
@@ -121,8 +123,8 @@ class BBN_table_interpolator(BBNPredictor):
 
         :param ombh2: :math:`\Omega_b h^2` (or, more generally, value of function_of[0])
         :param delta_neff:  additional N_eff relative to standard value (of 3.046) (or value of function_of[1])
-        :param grid: parameter for :class:`~scipy:scipy.interpolate.RectBivariateSpline` (whether to evaluate the results
-           on a grid spanned by the input arrays, or at points specified by the input arrays)
+        :param grid: parameter for :class:`~scipy:scipy.interpolate.RectBivariateSpline` (whether to evaluate the
+           results on a grid spanned by the input arrays, or at points specified by the input arrays)
         :return:  Y_p helium nucleon fraction predicted by BBN. Call Y_He() to get mass fraction instead.
         """
         return self.get('Yp^BBN', ombh2, delta_neff, grid)
@@ -133,8 +135,8 @@ class BBN_table_interpolator(BBNPredictor):
 
         :param ombh2: :math:`\Omega_b h^2` (or, more generally, value of function_of[0])
         :param delta_neff:  additional N_eff relative to standard value (of 3.046) (or value of function_of[1])
-        :param grid: parameter for :class:`~scipy:scipy.interpolate.RectBivariateSpline` (whether to evaluate the results
-           on a grid spanned by the input arrays, or at points specified by the input arrays)
+        :param grid: parameter for :class:`~scipy:scipy.interpolate.RectBivariateSpline` (whether to evaluate the
+           results on a grid spanned by the input arrays, or at points specified by the input arrays)
         :return: D/H
         """
         return self.get('D/H', ombh2, delta_neff, grid)
@@ -144,16 +146,18 @@ class BBN_table_interpolator(BBNPredictor):
         Get value for variable "name" by intepolation from table (where name is given in the column header comment)
         For example get('sig(D/H)',0.0222,0) to get the error on D/H
 
+        :param name: string name of the parameter, as given in header of interpolation table
         :param ombh2: :math:`\Omega_b h^2` (or, more generally, value of function_of[0])
         :param delta_neff:  additional N_eff relative to standard value (of 3.046) (or value of function_of[1])
-        :param grid: parameter for :class:`~scipy:scipy.interpolate.RectBivariateSpline` (whether to evaluate the results
-           on a grid spanned by the input arrays, or at points specified by the input arrays)
+        :param grid: parameter for :class:`~scipy:scipy.interpolate.RectBivariateSpline` (whether to evaluate the
+           results on a grid spanned by the input arrays, or at points specified by the input arrays)
         :return:  Interpolated value (or grid)
         """
         if name not in self.interpolators:
             raise ValueError('Unknown BBN table column index "%s"' % name)
         res = self.interpolators[name](ombh2, delta_neff, grid=grid)
-        if np.isscalar(ombh2) and np.isscalar(delta_neff): return np.float64(res)
+        if np.isscalar(ombh2) and np.isscalar(delta_neff):
+            return np.float64(res)
         return res
 
 

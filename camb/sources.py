@@ -54,4 +54,4 @@ class SplinedSourceWindow(SourceWindow):
         if len(W) != len(z) or z[-1] < z[1] or len(z) < 5:
             raise ValueError(
                 "Redshifts must be well sampled and in ascending order, with window function the same length as z")
-        self.f_SetTable(byref(c_int(len(z))), np.asarray(z), np.asarray(W))
+        self.f_SetTable(byref(c_int(len(z))), np.asarray(z, dtype=np.float64), np.asarray(W, dtype=np.float64))

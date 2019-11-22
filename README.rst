@@ -7,9 +7,14 @@ CAMB
 
 .. image:: https://img.shields.io/pypi/v/camb.svg?style=flat
         :target: https://pypi.python.org/pypi/camb/
+.. image:: https://img.shields.io/conda/vn/conda-forge/camb.svg
+   :target: https://anaconda.org/conda-forge/camb
 .. image:: https://readthedocs.org/projects/camb/badge/?version=latest
    :target: https://camb.readthedocs.org/en/latest
-
+.. image:: https://secure.travis-ci.org/cmbant/CAMB.png?branch=master
+  :target: https://secure.travis-ci.org/cmbant/CAMB/builds
+.. image:: https://mybinder.org/badge.svg
+  :target: https://mybinder.org/v2/gh/cmbant/camb/master?filepath=docs%2FCAMBdemo.ipynb
 
 Description and installation
 =============================
@@ -55,11 +60,6 @@ Branches
 =============================
 
 The master branch contains latest changes to the main release version.
-
-.. image:: https://secure.travis-ci.org/cmbant/CAMB.png?branch=master
-  :target: https://secure.travis-ci.org/cmbant/CAMB/builds
-.. image:: https://mybinder.org/badge.svg
-  :target: https://mybinder.org/v2/gh/cmbant/camb/master?filepath=docs%2FCAMBdemo.ipynb
 
 The devel branch contains latest less-stable things in development.
 The master and devel branches have an integrated test suite, which runs automatically on `Travis <https://travis-ci.org>`_  for new commits and pull requests.

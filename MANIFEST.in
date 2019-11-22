@@ -1,6 +1,5 @@
 include *.rst *.txt
 recursive-include camb *.py
-recursive-include camb_tests *.py
 recursive-include fortran Makefile* *.dat *.?90
 recursive-include forutils Makefile* *.?90
 include camb/cambdll.dll

@@ -7,8 +7,8 @@ class RecombinationModel(F2003Class):
     Abstract base class for recombination models
     """
     _fields_ = [
-        ("min_a_evolve_Tm", c_double,
-         "minimum scale factor at which to solve matter temperature perturbation if evolving sound speed or ionization fraction perturbations")
+        ("min_a_evolve_Tm", c_double, "minimum scale factor at which to solve matter temperature "
+                                      "perturbation if evolving sound speed or ionization fraction perturbations")
     ]
 
 
@@ -39,7 +39,8 @@ class Recfast(RecombinationModel):
 class CosmoRec(RecombinationModel):
     """
     `CosmoRec <http://www.jb.man.ac.uk/~jchluba/Science/CosmoRec/CosmoRec.html>`_ recombination model.
-    To use this, the library must be build with CosmoRec installed and RECOMBINATION_FILES including cosmorec in the Makefile.
+    To use this, the library must be build with CosmoRec installed and RECOMBINATION_FILES including cosmorec
+    in the Makefile.
 
     CosmoRec must be built with -fPIC added to the compiler flags.
 
@@ -57,11 +58,12 @@ class CosmoRec(RecombinationModel):
 
 @optional_fortran_class
 class HyRec(RecombinationModel):
-    """
+    r"""
     `HyRec <http://pages.jh.edu/~yalihai1/hyrec/hyrec.html>`_ recombination model.
     To use this, the library must be build with HyRec installed and RECOMBINATION_FILES including hyrec in the Makefile.
 
-    You will need to edit HyRec Makefile to add -fPIC compiler flag to CCFLAG (for gcc), and rename "dtauda\_" in history.c to "exported_dtauda"
+    You will need to edit HyRec Makefile to add -fPIC compiler flag to CCFLAG (for gcc), and rename "dtauda\_"
+    in history.c to "exported_dtauda"
 
     """
     _fortran_class_module_ = 'HyRec'

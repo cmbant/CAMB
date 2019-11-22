@@ -10,7 +10,8 @@ def cl_kappa_limber(results, PK, ls, nz, chi_source, chi_source2=None):
         chi_source2 = chi_source
     else:
         chi_source2 = np.float64(chi_source2)
-        if chi_source2 < chi_source: chi_source, chi_source2 = chi_source2, chi_source
+        if chi_source2 < chi_source:
+            chi_source, chi_source2 = chi_source2, chi_source
     chis = np.linspace(0, chi_source, nz, dtype=np.float64)
     zs = results.redshift_at_comoving_radial_distance(chis)
     dchis = (chis[2:] - chis[:-2]) / 2
@@ -32,8 +33,8 @@ def cl_kappa_limber(results, PK, ls, nz, chi_source, chi_source2=None):
 def get_field_rotation_power(params, kmax=100, lmax=20000, non_linear=True, z_source=None,
                              k_per_logint=None, acc=1, lsamp=None):
     r"""
-    Get field rotation power spectrum, :math:`C_L^{\omega\omega}`, following `arXiv:1605.05662 <https://arxiv.org/abs/1605.05662>`_
-    Uses lowest Limber approximation.
+    Get field rotation power spectrum, :math:`C_L^{\omega\omega}`,
+    following `arXiv:1605.05662 <https://arxiv.org/abs/1605.05662>`_. Uses lowest Limber approximation.
 
     :param params: :class:`.model.CAMBparams` instance with cosmological parameters etc.
     :param kmax: maximum k (in :math:`{\rm Mpc}^{-1}` units)
@@ -76,7 +77,7 @@ def get_field_rotation_power_from_PK(params, PK, chi_source, lmax=20000, acc=1, 
     cls[0, :] = 0
     cl_chi = RectBivariateSpline(chimaxs, ls, cls)
 
-    # Get M(l,l') matrix
+    # Get M(L,L') matrix
     chis = np.linspace(0, chi_source, nz, dtype=np.float64)
     zs = results.redshift_at_comoving_radial_distance(chis)
     dchis = (chis[2:] - chis[:-2]) / 2
@@ -86,13 +87,13 @@ def get_field_rotation_power_from_PK(params, PK, chi_source, lmax=20000, acc=1, 
     w = np.ones(chis.shape)
     cchi = cl_chi(chis, ls, grid=True)
     M = np.zeros((ls.size, ls.size))
-    for i, l in enumerate(ls):
-        k = (l + 0.5) / chis
+    for i, ell in enumerate(ls):
+        k = (ell + 0.5) / chis
         w[:] = 1
         w[k < 1e-4] = 0
         w[k >= PK.kmax] = 0
         cl = np.dot(dchis * w * PK.P(zs, k, grid=False) * win / k ** 4, cchi)
-        M[i, :] = cl * l ** 4  # note we don't attempt to be accurate beyond lowest Limber
+        M[i, :] = cl * ell ** 4  # note we don't attempt to be accurate beyond lowest Limber
     Mf = RectBivariateSpline(ls, ls, np.log(M))
 
     # L sampling for output
@@ -115,13 +116,13 @@ def get_field_rotation_power_from_PK(params, PK, chi_source, lmax=20000, acc=1, 
 
     for i, ll in enumerate(lsamp):
 
-        l = np.float64(ll)
+        ell = np.float64(ll)
         lmin = lsall[0]
-        lpmax = min(lmax, int(max(1000, l * 2)))
+        lpmax = min(lmax, int(max(1000, ell * 2)))
         if ll < 500:
             lcalc = lsall[0:lpmax - 2]
         else:
-            # sampling in l', with denser around l~l'
+            # sampling in L', with denser around L~L'
             lcalc = np.hstack((lsall[0:20:4],
                                lsall[29:ll - 200:35],
                                lsall[ll - 190:ll + 210:6],
@@ -141,9 +142,9 @@ def get_field_rotation_power_from_PK(params, PK, chi_source, lmax=20000, acc=1, 
             phi = np.linspace(dphi, (nphi - 1) / 2 * dphi, (nphi - 1) // 2)  # even and don't need zero
             w = 2 * np.ones(phi.size)
             cosphi = np.cos(phi)
-            lrat = lp / l
+            lrat = lp / ell
             lfact = np.sqrt(1 + lrat ** 2 - 2 * cosphi * lrat)
-            lnorm = l * lfact
+            lnorm = ell * lfact
             lfact[lfact <= 0] = 1
             w[lnorm < lmin] = 0
             w[lnorm > lmax] = 0
@@ -172,8 +173,10 @@ def get_field_rotation_BB(params, lmax=None, acc=1, CMB_unit='muK', raw_cl=False
     :param acc: accuracy
     :param CMB_unit: units for CMB output relative to dimensionless
     :param raw_cl: return :math:`C_\ell` rather than :math:`\ell(\ell+1)C_\ell/2\pi`
-    :param spline: return InterpolatedUnivariateSpline, otherwise return tuple of lists of :math:`\ell` and :math:`C_\ell`
-    :return: InterpolatedUnivariateSpline (or arrays of sampled :math:`\ell` and) :math:`\ell^2 C_\ell^{BB}/(2 \pi)` (unless raw_cl, in which case just :math:`C_\ell^{BB}`)
+    :param spline: return InterpolatedUnivariateSpline, otherwise return tuple of lists of :math:`\ell`
+                   and :math:`C_\ell`
+    :return: InterpolatedUnivariateSpline (or arrays of sampled :math:`\ell` and) :math:`\ell^2 C_\ell^{BB}/(2 \pi)`
+             (unless raw_cl, in which case just :math:`C_\ell^{BB}`)
     """
 
     par_CMB = params.copy()
@@ -195,11 +198,12 @@ def get_field_rotation_BB(params, lmax=None, acc=1, CMB_unit='muK', raw_cl=False
 def get_field_rotation_BB_integral(lsamp, clcurl, cl_E_unlensed_sp, lmax=None, lsamp_out=None, acc=1, raw_cl=False):
     CurlSp = InterpolatedUnivariateSpline(lsamp, clcurl)
     lmax = lmax or lsamp[-1]
-    if lsamp_out is None: lsamp_out = np.array([L for L in lsamp if L <= lmax // 2])
+    if lsamp_out is None:
+        lsamp_out = np.array([L for L in lsamp if L <= lmax // 2])
     Bcurl = np.zeros(lsamp_out.shape)
 
     for i, ll in enumerate(lsamp_out):
-        l = np.float64(ll)
+        ell = np.float64(ll)
         for llp in range(10, lmax):
             lp = np.float64(llp)
             if abs(ll - llp) > 200 and lp > 200:
@@ -214,14 +218,15 @@ def get_field_rotation_BB_integral(lsamp, clcurl, cl_E_unlensed_sp, lmax=None, l
             cosphi = np.cos(phi)
             sinphi = np.sin(phi)
             sin2phi = np.sin(2 * phi)
-            lpp = np.sqrt(lp ** 2 + l ** 2 - 2 * cosphi * l * lp)
+            lpp = np.sqrt(lp ** 2 + ell ** 2 - 2 * cosphi * ell * lp)
             w[lpp < 2] = 0
             w[lpp > lmax] = 0
             curls = CurlSp(lpp)
             dCEs = cl_E_unlensed_sp(lp) * lp * dphi
-            crossterm = sinphi * l * lp / lpp ** 2
+            crossterm = sinphi * ell * lp / lpp ** 2
             Bcurl[i] += np.dot(w, curls * (crossterm * sin2phi) ** 2) * dCEs
 
     Bcurl *= 4 / (2 * np.pi) ** 2
-    if not raw_cl: Bcurl *= lsamp_out * (lsamp_out + 1) / (2 * np.pi)
+    if not raw_cl:
+        Bcurl *= lsamp_out * (lsamp_out + 1) / (2 * np.pi)
     return lsamp_out, Bcurl

@@ -182,7 +182,6 @@
         real(dl) nu_masses(max_nu)
         integer ::  num_transfer_redshifts = 1
         real(dl), allocatable  ::  transfer_redshifts(:)
-        real(dl), allocatable ::  transfer_times(:)
         integer  ::  PK_redshifts_index(max_transfer_redshifts)
 
         logical :: OnlyTransfer = .false. !C_L/PK not computed; initial power spectrum data, instead get Delta_q_l array
@@ -207,8 +206,13 @@
         !Background interpolation tables for thermal history etc.
         Type(TThermoData) :: ThermoData
 
+        real(dl), allocatable :: transfer_times(:)
+
         !Matter transfer data
         Type (MatterTransferData):: MT
+
+        !Matter power spectrum for default variable (used for non-linear corrections)
+        Type(MatterPowerData), allocatable :: CAMB_PK
 
         Type(TClData) :: CLdata
 
@@ -282,7 +286,7 @@
 
     end subroutine CAMBdata_SelfPointer
 
-    subroutine CAMBdata_SetParams(this, P, error, DoReion, call_again)
+    subroutine CAMBdata_SetParams(this, P, error, DoReion, call_again, background_only)
     !Initialize background variables; does not yet calculate thermal history
     use constants
     class(CAMBdata), target :: this
@@ -290,12 +294,13 @@
     real(dl) fractional_number, conv
     integer, optional :: error !Zero if OK
     logical, optional :: DoReion
-    logical, optional :: call_again
+    logical, optional :: call_again, background_only
     logical WantReion, calling_again
     integer nu_i,actual_massless
     real(dl) nu_massless_degeneracy, neff_i, eta_k, h2
     real(dl) zpeak, sigma_z, zpeakstart, zpeakend
     Type(TRedWin), pointer :: Win
+    logical back_only
     !Constants in SI units
 
     global_error_flag = 0
@@ -313,6 +318,7 @@
 
     WantReion = DefaultTrue(DoReion)
     calling_again= DefaultFalse(call_again)
+    back_only = DefaultFalse(background_only)
 
     if (calling_again) then
         this%CP%WantDerivedParameters = .false.
@@ -329,7 +335,7 @@
         this%CP%Max_eta_k = max(this%CP%Max_eta_k,this%CP%Max_eta_k_tensor)
     end if
 
-    if (P%WantTransfer) then
+    if (P%WantTransfer .and. .not. back_only) then
         this%CP%WantScalars=.true.
         if (.not. P%WantCls) then
             this%CP%Accuracy%AccuratePolarization = .false.
@@ -449,23 +455,10 @@
             !Initialize things for massive neutrinos
             call ThermalNuBackground%Init()
             call this%NuPerturbations%Init(P%Accuracy%AccuracyBoost*P%Accuracy%neutrino_q_boost)
-            !  nu_masses=m_nu(i)*c**2/(k_B*T_nu0).
-            !  Get number density n of neutrinos from
-            !  rho_massless/n = int q^3/(1+e^q) / int q^2/(1+e^q)=7/180 pi^4/Zeta(3)
-            !  then m = Omega_nu/N_nu rho_crit /n
-            !  Error due to velocity < 1e-5 for mnu~0.06 but can easily correct
+            !  nu_masses=m_nu(i)*c**2/(k_B*T_nu0)
             do nu_i=1, this%CP%Nu_mass_eigenstates
-                this%nu_masses(nu_i)=fermi_dirac_const/(1.5d0*zeta3)*this%grhocrit/this%grhor* &
-                    this%CP%omnuh2/h2*this%CP%Nu_mass_fractions(nu_i)/this%CP%Nu_mass_degeneracies(nu_i)
-                block
-                    real(dl) rhonu, rhonu1, delta
-
-                    !Make perturbative correction for the tiny error due to the neutrino velocity
-                    call ThermalNuBackground%rho(this%nu_masses(nu_i), rhonu)
-                    call ThermalNuBackground%rho(this%nu_masses(nu_i)*0.9, rhonu1)
-                    delta = rhonu - this%CP%Nu_mass_fractions(nu_i)*this%grhocrit*this%CP%omnuh2/h2/this%grhormass(nu_i)
-                    this%nu_masses(nu_i) = this%nu_masses(nu_i)*(1 + delta/((rhonu1 - rhonu)/0.1) )
-                end block
+                this%nu_masses(nu_i)= ThermalNuBackground%find_nu_mass_for_rho(this%CP%omnuh2/h2*this%CP%Nu_mass_fractions(nu_i)&
+                    *this%grhocrit/this%grhormass(nu_i))
             end do
         else
             this%nu_masses = 0
@@ -479,10 +472,11 @@
                 call GlobalError('chi >= pi in closed model not supported',error_unsupported_params)
             end if
             if (WantReion) call this%CP%Reion%Init(this)
-            if (this%CP%NonLinear/=NonLinear_None) call this%CP%NonLinearModel%Init(this)
+            if (this%CP%NonLinear/=NonLinear_None .and. .not. back_only) &
+                call this%CP%NonLinearModel%Init(this)
         end if
     end if
-    if (allocated(this%CP%SourceWindows)) then
+    if (allocated(this%CP%SourceWindows) .and. .not. back_only) then
         this%num_redshiftwindows = size(this%CP%SourceWindows)
     else
         this%num_redshiftwindows = 0
@@ -567,6 +561,7 @@
     call Free_ClTransfer(this%ClData%CTransVec)
     call Free_ClTransfer(this%ClData%CTransTens)
     call this%MT%Free()
+    if (allocated(this%CAMB_Pk)) deallocate(this%CAMB_PK)
 
     end subroutine CAMBdata_Free
 
@@ -820,7 +815,8 @@
 
     call this%CP%Recomb%Init(this)
 
-    CAMBdata_get_zstar=this%binary_search(noreion_optdepth, 1.d0, 700.d0, 2000.d0, 1d-3)
+    CAMBdata_get_zstar=this%binary_search(noreion_optdepth, 1.d0, 700.d0, 2000.d0, &
+        1d-3,100.d0,5000.d0)
 
     end function CAMBdata_get_zstar
 
@@ -1145,23 +1141,34 @@
 
     end function GetReionizationOptDepth
 
-    real(dl) function binary_search(this,func, goal, x1, x2, tol)
+    real(dl) function binary_search(this,func, goal, x1, x2, tol, widex1, widex2)
     !This is about twice as inefficient as Brent
     class(CAMBdata) :: this
     procedure(state_function) :: func
     real(dl), intent(in) :: goal,x1,x2,tol
+    real(dl), intent(in), optional :: widex1, widex2 !Wider range in case of failure
     real(dl) try_t, try_b, avg, D_try, last_bot, last_top, diff
     integer count
+    logical wide
 
     try_b = x1
     try_t = x2
     diff = tol*2
     count = 0
+    wide = .false.
     do while (diff > tol)
         if (count>100) then
-            call GlobalError('binary_search (e.g for optical depth) did not converge',error_reionization)
-            binary_search = 0
-            return
+            if (.not. wide .and. present(widex1)) then
+                count=0
+                wide=.true.
+                try_b=widex1
+                try_t=widex2
+            else
+                call GlobalError(FormatString('binary_search (e.g for optical depth) did not converge: ' //&
+                    'Base range %f-%f.',x1,x2),error_reionization)
+                binary_search = 0
+                return
+            end if
         end if
         avg = (try_b+try_t)/2
         D_try = func(this,avg)
@@ -1370,6 +1377,8 @@
                             !Try to keep lensed spectra up to specified lmax
                             lind=lind+1
                             ls(lind)=max_l - lensed_convolution_margin
+                        else if (ls(lind) - ls(lind-1) > lensed_convolution_margin) then
+                            ls(lind)=max_l - lensed_convolution_margin
                         end if
                     end if
                 end if !log_lvalues
@@ -1378,7 +1387,7 @@
                     ls(lind)=max_l
                 end if
                 if (.not. State%flat .and. max_l<=5000) ls(lind-1)=int(max_l+ls(lind-2))/2
-                !Not in CP%flat case so interpolation table is the same when using lower l_max
+                !Not in flat case so interpolation table is the same when using lower l_max
             end if
         end if
     end associate
@@ -1905,8 +1914,7 @@
     end do
     zstar_min = 700._dl
     zstar_max = 2000._dl
-    if ((.not. CP%Reion%Reionization .or. CP%Accuracy%AccurateReionization) &
-        .and. (CP%WantDerivedParameters .or. CP%Want_Zstar)) then
+    if ((.not. CP%Reion%Reionization .or. CP%Accuracy%AccurateReionization) .and. CP%WantDerivedParameters) then
         do j1=nint(log(100/this%tauminn)/this%dlntau),nthermo
             if (-sdotmu(j1) - this%actual_opt_depth < 1) then
                 !Bracket z_star
@@ -2010,14 +2018,16 @@
     call splder(this%ddotmu,this%dddotmu,nthermo,spline_data)
     call splder(this%dddotmu,this%ddddotmu,nthermo,spline_data)
     if (CP%want_zstar .or. CP%WantDerivedParameters) &
-        this%z_star = State%binary_search(noreion_optdepth, 1.d0, zstar_min, zstar_max, 1d-3/background_boost)
+        this%z_star = State%binary_search(noreion_optdepth, 1.d0, zstar_min, zstar_max, &
+        & 1d-3/background_boost, 100._dl, 4000._dl)
     !$OMP SECTION
     call splder(this%cs2,this%dcs2,nthermo,spline_data)
     call splder(this%emmu,this%demmu,nthermo,spline_data)
     call splder(this%adot,this%dadot,nthermo,spline_data)
     if (dowinlens) call splder(this%winlens,this%dwinlens,nthermo,spline_data)
-    if (CP%want_zdrag .or. CP%WantDerivedParameters) this%z_drag = &
-        State%binary_search(dragoptdepth, 1.d0, 700.d0, max(zstar_max*1.1_dl,1200._dl), 2d-3/background_boost)
+    if (CP%want_zdrag .or. CP%WantDerivedParameters) &
+        this%z_drag = State%binary_search(dragoptdepth, 1.d0, 800.d0, &
+        & max(zstar_max*1.1_dl,1200._dl), 2d-3/background_boost, 100.d0, 4000._dl)
     !$OMP SECTION
     this%ScaleFactor(:) = this%scaleFactor/taus !a/tau
     this%dScaleFactor(:) = (this%adot - this%ScaleFactor)*this%dlntau !derivative of a/tau
@@ -2234,7 +2244,8 @@
     !Sources
     if (.not. State%CP%Want_CMB .and. State%CP%WantCls) then
         if (State%num_redshiftwindows==0) then
-            call GlobalError('Want_CMB=false, but not redshift windows either', error_unsupported_params)
+            call GlobalError('Want_CMB=false and WantCls=true, but no redshift windows either', &
+                error_unsupported_params)
         else
             call TimeSteps%Add_delta(this%tau_start_redshiftwindows, State%tau0, dtau0)
         endif
@@ -2980,21 +2991,46 @@
     nk=M%num_q_trans
     nz=State%CP%Transfer%PK_num_redshifts
     if (nk/= size(PK,1) .or. nz/=size(PK,2)) call MpiStop('Trasfer_GetUnsplinedPower wrong size')
-
     h = State%CP%H0/100
 
-    do ik=1,nk
-        k = M%TransferData(Transfer_kh,ik,1)*h
+    if (s1==transfer_power_var .and. s2==transfer_power_var .and. allocated(State%CAMB_Pk)) then
+        !Already computed
         do zix=1,nz
-            PK(ik,zix) = M%TransferData(s1,ik,State%PK_redshifts_index(nz-zix+1))*&
-                M%TransferData(s2,ik,State%PK_redshifts_index(nz-zix+1))*k*&
-                const_pi*const_twopi*State%CP%InitPower%ScalarPower(k)
+            PK(:,zix) = exp(State%CAMB_pk%matpower(:, State%PK_redshifts_index(nz-zix+1)))
         end do
-    end do
+        if (.not. hnorm) PK=  PK / h**3
+    else
 
-    if (hnorm) PK=  PK * h**3
+        do ik=1,nk
+            k = M%TransferData(Transfer_kh,ik,1)*h
+            do zix=1,nz
+                PK(ik,zix) = M%TransferData(s1,ik,State%PK_redshifts_index(nz-zix+1))*&
+                    M%TransferData(s2,ik,State%PK_redshifts_index(nz-zix+1))*k*&
+                    const_pi*const_twopi*State%CP%InitPower%ScalarPower(k)
+            end do
+        end do
+
+        if (hnorm) PK=  PK * h**3
+    end if
 
     end subroutine Transfer_GetUnsplinedPower
+
+    subroutine Transfer_GetNonLinRatio_index(State,M, ratio, itf)
+    Type(MatterTransferData), intent(in) :: M
+    Type(CAMBdata) :: State
+    real(dl), allocatable, intent(out) :: ratio(:)
+    integer, intent(in) :: itf
+    Type(MatterPowerData) :: PKdata
+
+    if (allocated(State%CAMB_PK)) then
+        allocate(ratio, source = State%CAMB_PK%nonlin_ratio(:,itf))
+    else
+        call Transfer_GetMatterPowerData(State, M, PKdata,itf)
+        call State%CP%NonLinearModel%GetNonLinRatios(State,PKdata)
+        allocate(ratio, source = PKdata%nonlin_ratio(:,1))
+    end if
+    end subroutine Transfer_GetNonLinRatio_index
+
 
     subroutine Transfer_GetUnsplinedNonlinearPower(State,M, PK,var1,var2, hubble_units)
     !Get 2pi^2/k^3 T_1 T_2 P_R(k) after re-scaling for non-linear evolution (if turned on)
@@ -3004,16 +3040,20 @@
     integer, optional, intent(in) :: var1
     integer, optional, intent(in) :: var2
     logical, optional, intent(in) :: hubble_units
-    Type(MatterPowerData) :: PKdata
     integer zix
+    real(dl), allocatable :: ratio(:)
+
+    if (.not. allocated(State%CAMB_Pk) .and. State%CP%Transfer%PK_num_redshifts == State%num_transfer_redshifts &
+        .and. .not. State%OnlyTransfer) then
+        allocate(State%CAMB_PK)
+        call Transfer_GetMatterPowerData(State, State%MT, State%CAMB_PK)
+        call State%CP%NonLinearModel%GetNonLinRatios(State, State%CAMB_PK)
+    end if
 
     call Transfer_GetUnsplinedPower(State,M,PK,var1,var2, hubble_units)
     do zix=1, State%CP%Transfer%PK_num_redshifts
-        call Transfer_GetMatterPowerData(State, M, PKdata, &
-            State%PK_redshifts_index(State%CP%Transfer%PK_num_redshifts-zix+1))
-        call State%CP%NonLinearModel%GetNonLinRatios(State,PKdata)
-        PK(:,zix) =  PK(:,zix) *PKdata%nonlin_ratio(:,1)**2
-        call MatterPowerdata_Free(PKdata)
+        call Transfer_GetNonLinRatio_index(State, M, ratio,State%PK_redshifts_index(State%CP%Transfer%PK_num_redshifts-zix+1))
+        PK(:,zix) =  PK(:,zix) *ratio**2
     end do
 
     end subroutine Transfer_GetUnsplinedNonlinearPower
@@ -3304,7 +3344,6 @@
     !sepctrum is generated to beyond the CMB k_max
     class(CAMBdata) :: state
     Type(MatterTransferData), intent(in) :: MTrans
-    Type(MatterPowerData) :: PK
 
     integer, intent(in) :: itf_PK, npoints
     real(dl), intent(out) :: outpower(npoints)
@@ -3317,6 +3356,7 @@
     real(dl) atransfer,xi, a0, b0, ho, logmink,k, h
     integer itf
     integer :: s1,s2
+    real(dl), allocatable :: ratio(:)
 
     s1 = PresentDefault (transfer_power_var, var1)
     s2 = PresentDefault (transfer_power_var, var2)
@@ -3331,8 +3371,7 @@
 
 
     if (State%CP%NonLinear/=NonLinear_none .and. State%CP%NonLinear/=NonLinear_Lens) then
-        call Transfer_GetMatterPowerData(State, MTrans, PK, itf)
-        call State%CP%NonLinearModel%GetNonLinRatios(State, PK)
+        call Transfer_GetNonLinRatio_index(State, Mtrans, ratio, itf)
     end if
 
     h = State%CP%H0/100
@@ -3343,7 +3382,7 @@
         kvals(ik) = log(kh)
         atransfer=MTrans%TransferData(s1,ik,itf)*MTrans%TransferData(s2,ik,itf)
         if (State%CP%NonLinear/=NonLinear_none .and. State%CP%NonLinear/=NonLinear_Lens) &
-            atransfer = atransfer* PK%nonlin_ratio(ik,1)**2 !only one element, this itf
+            atransfer = atransfer* ratio(ik)**2 !only one element, this itf
         matpower(ik) = log(atransfer*k*const_pi*const_twopi*h**3)
         !Put in power spectrum later: transfer functions should be smooth, initial power may not be
     end do
@@ -3390,8 +3429,6 @@
             if (global_error_flag /= 0) exit
         end do
     end associate
-
-    if (State%CP%NonLinear/=NonLinear_none .and. State%CP%NonLinear/=NonLinear_Lens) call MatterPowerdata_Free(PK)
 
     end subroutine Transfer_GetMatterPowerD
 

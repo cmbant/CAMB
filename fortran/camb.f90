@@ -21,6 +21,7 @@
     CData%OnlyTransfer = .false.
     call CData%CP%InitPower%Init(CData%CP)
     if (global_error_flag/=0) return
+    if (allocated(Cdata%CAMB_Pk)) deallocate(Cdata%CAMB_PK)
 
     if (CData%CP%WantCls) then
         call ClTransferToCl(CData)
@@ -174,7 +175,7 @@
     integer error
     Type(CAMBdata) :: State
 
-    call  State%SetParams(P, error, .false.)
+    call  State%SetParams(P, error, .false., .false., .true.)
 
     if (error/=0) then
         CAMB_GetAge = -1

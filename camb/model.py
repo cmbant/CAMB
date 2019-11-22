@@ -13,6 +13,7 @@ from .recombination import RecombinationModel
 from .sources import SourceWindow, GaussianSourceWindow
 from . import bbn
 import six
+import logging
 
 # ---Parameters
 
@@ -46,7 +47,7 @@ derived_names = ['age', 'zstar', 'rstar', 'thetastar', 'DAstar', 'zdrag',
 transfer_names = ['k/h', 'delta_cdm', 'delta_baryon', 'delta_photon', 'delta_neutrino', 'delta_nu', 'delta_tot',
                   'delta_nonu', 'delta_tot_de', 'Weyl', 'v_newtonian_cdm', 'v_newtonian_baryon', 'v_baryon_cdm']
 
-evolve_names = transfer_names + ['a', 'etak', 'H', 'growth', 'v_photon', 'pi_photon', \
+evolve_names = transfer_names + ['a', 'etak', 'H', 'growth', 'v_photon', 'pi_photon',
                                  'E_2', 'v_neutrino', 'T_source', 'E_source', 'lens_potential_source']
 
 background_names = ['x_e', 'opacity', 'visibility', 'cs2b', 'T_b', 'dopacity', 'ddopacity', 'dvisibility',
@@ -78,14 +79,14 @@ class TransferParams(CAMB_Structure):
 
 class AccuracyParams(CAMB_Structure):
     """
-    Structure with parameters governing numerical accuracy. AccuracyBoost will also scale almost all the other parameters
-    except for lSampleBoost (which is specific to the output interpolation) and lAccuracyBoost (which is specific to the
-    multipole hierarchy evolution), e.g setting AccuracyBoost=2, IntTolBoost=1.5, means that internally the k sampling for
-    integration will be boosed by AccuracyBoost*IntTolBoost = 3.
+    Structure with parameters governing numerical accuracy. AccuracyBoost will also scale almost all the other
+    parameters except for lSampleBoost (which is specific to the output interpolation) and lAccuracyBoost
+    (which is specific to the multipole hierarchy evolution), e.g setting AccuracyBoost=2, IntTolBoost=1.5, means
+    that internally the k sampling for integration will be boosed by AccuracyBoost*IntTolBoost = 3.
     """
     _fields_ = [
-        ("AccuracyBoost", c_double,
-         "general accuracy setting effecting everything related to step sizes etc. (including separate settings below except the next two)"),
+        ("AccuracyBoost", c_double, "general accuracy setting effecting everything related to step sizes etc. "
+                                    "(including separate settings below except the next two)"),
         ("lSampleBoost", c_double,
          "accuracy for sampling in ell for interpolation for the C_l (if >=50, all ell are calculated)"),
         ("lAccuracyBoost", c_double, "Boosts number of multipoles integrated in Boltzman heirarchy"),
@@ -119,14 +120,14 @@ class SourceTermParams(CAMB_Structure):
         ("limber_windows", c_bool,
          "Use Limber approximation where appropriate. CMB lensing uses Limber even if limber_window is false, " +
          "but method is changed to be consistent with other sources if limber_windows is true"),
-        ("limber_phi_lmin", c_int,
-         "When limber_windows=True, the minimum L to use Limber approximation for the lensing potential and other sources (which may use higher but not lower)"),
+        ("limber_phi_lmin", c_int, "When limber_windows=True, the minimum L to use Limber approximation for the "
+                                   "lensing potential and other sources (which may use higher but not lower)"),
         ("counts_density", c_bool, "Include the density perturbation source"),
         ("counts_redshift", c_bool, "Include redshift distortions"),
         ("counts_lensing", c_bool, "Include magnification bias for number counts"),
         ("counts_velocity", c_bool, "Non-redshift distortion velocity terms"),
-        ("counts_radial", c_bool,
-         "Radial displacement velocity term; does not include time delay; subset of counts_velocity, just 1 / (chi * H) term"),
+        ("counts_radial", c_bool, "Radial displacement velocity term; does not include time delay; "
+                                  "subset of counts_velocity, just 1 / (chi * H) term"),
         ("counts_timedelay", c_bool, "Include time delay terms * 1 / (H * chi)"),
         ("counts_ISW", c_bool, "Include tiny ISW terms"),
         ("counts_potential", c_bool, "Include tiny terms in potentials at source"),
@@ -158,13 +159,13 @@ class CAMBparams(F2003Class):
 
     To add a new parameter, add it to the CAMBparams type in model.f90, then  edit the _fields_ list in the CAMBparams
     class in model.py to add the new parameter in the corresponding location of the member list. After rebuilding the
-    python version you can then access the parameter by using params.new_parameter_name where params is a CAMBparams instance.
-    You could also modify the wrapper functions to set the field value less directly.
+    python version you can then access the parameter by using params.new_parameter_name where params is a CAMBparams
+    instance. You could also modify the wrapper functions to set the field value less directly.
 
     You can view the set of underlying parameters used by the Fortran code by printing the CAMBparams instance.
     In python, to set cosmology parameters it is usually best to use :meth:`set_cosmology` and
-    equivalent methods for most other parameters. Alternatively the convenience function :func:`.camb.set_params` can construct
-    a complete instance from a dictionary of relevant parameters.
+    equivalent methods for most other parameters. Alternatively the convenience function :func:`.camb.set_params`
+    can construct a complete instance from a dictionary of relevant parameters.
 
     """
     _fields_ = [
@@ -182,7 +183,7 @@ class CAMBparams(F2003Class):
         ("Transfer", TransferParams),
         ("want_zstar", c_bool),
         ("want_zdrag", c_bool),
-        ("min_l", c_int, "l_min for the scalar C_L (1 or 2, l=1 dipoles are Newtonian Gauge)"),
+        ("min_l", c_int, "l_min for the scalar C_L (1 or 2, L=1 dipoles are Newtonian Gauge)"),
         ("max_l", c_int, "l_max for the scalar C_L"),
         ("max_l_tensor", c_int, "l_max for the tensor C_L"),
         ("max_eta_k", c_double, "Maximum k*eta_0 for scalar C_L, where eta_0 is the conformal time today"),
@@ -213,15 +214,16 @@ class CAMBparams(F2003Class):
         ("SourceTerms", SourceTermParams),
         ("z_outputs", AllocatableArrayDouble, "redshifts to always calculate BAO output parameters"),
         ("scalar_initial_condition", c_int,
-         {"start": 1, "names": ["initial_adiabatic", "initial_iso_CDM", "initial_iso_baryon",
-                                "initial_iso_neutrino", "initial_iso_neutrino_vel", "initial_vector"]}),
+         {"names": ["initial_vector", "initial_adiabatic", "initial_iso_CDM", "initial_iso_baryon",
+                    "initial_iso_neutrino", "initial_iso_neutrino_vel"]}),
         ("InitialConditionVector", AllocatableArrayDouble,
          "if scalar_initial_condition is initial_vector, the vector of initial condition amplitudes"),
         ("OutputNormalization", c_int, "If non-zero, multipole to normalize the C_L at"),
         ("Alens", c_double, "non-physical scaling amplitude for the CMB lensing spectrum power"),
         ("MassiveNuMethod", c_int, {"names": ["Nu_int", "Nu_trunc", "Nu_approx", "Nu_best"]}),
         ("DoLateRadTruncation", c_bool,
-         "If true, use smooth approx to radition perturbations after decoupling on small scales, saving evolution of irrelevant osciallatory multipole equations"),
+         "If true, use smooth approx to radiation perturbations after decoupling on small"
+         " scales, saving evolution of irrelevant oscillatory multipole equations"),
         ("Evolve_baryon_cs", c_bool,
          "Evolve a separate equation for the baryon sound speed rather than using background approximation"),
         ("Evolve_delta_xe", c_bool, "Evolve ionization fraction perturbations"),
@@ -229,10 +231,8 @@ class CAMBparams(F2003Class):
         ("Do21cm", c_bool, "21cm is not yet implemented via the python wrapper"),
         ("transfer_21cm_cl", c_bool, "Get 21cm C_L at a given fixed redshift"),
         ("Log_lvalues", c_bool, "Use log spacing for sampling in L"),
-        (
-            "use_cl_spline_template", c_bool,
-            "When interpolating use a fiducial spectrum shape to define ratio to spline"),
-
+        ("use_cl_spline_template", c_bool,
+         "When interpolating use a fiducial spectrum shape to define ratio to spline"),
         ("SourceWindows", AllocatableObjectArray(SourceWindow)),
         ("CustomSources", CustomSources)
     ]
@@ -262,9 +262,11 @@ class CAMBparams(F2003Class):
     def set_accuracy(self, AccuracyBoost=1., lSampleBoost=1., lAccuracyBoost=1., DoLateRadTruncation=True):
         """
         Set parameters determining overall calculation accuracy (large values may give big slow down).
-        For finer control you can set individual accuracy parameters by changing CAMBParams.Accuracy (:class:`.model.AccuracyParams`) .
+        For finer control you can set individual accuracy parameters by changing CAMBParams.Accuracy
+        (:class:`.model.AccuracyParams`) .
 
-        :param AccuracyBoost: increase AccuracyBoost to decrease integration step size, increase density of k sampling, etc.
+        :param AccuracyBoost: increase AccuracyBoost to decrease integration step size, increase density of k
+                              sampling, etc.
         :param lSampleBoost: increase lSampleBoost to increase density of L sampling for CMB
         :param lAccuracyBoost: increase lAccuracyBoost to increase the maximum L included in the Boltzmann hierarchies
         :param DoLateRadTruncation: If True, use approximation to radiation perturbation evolution at late times
@@ -281,7 +283,8 @@ class CAMBparams(F2003Class):
         r"""
         Set the initial power spectrum from a function P_scalar(k, \*args), and optionally also the tensor spectrum.
         The function is called to make a pre-computed array which is then interpolated inside CAMB. The sampling in k
-        is set automatically so that the spline is accurate, but you may also need to increase other accuracy parameters.
+        is set automatically so that the spline is accurate, but you may also need to increase other
+        accuracy parameters.
 
         :param P_scalar: function returning normalized initial scalar curvature power as function of k (in Mpc^{-1})
         :param P_tensor: optional function returning normalized initial tensor power spectrum
@@ -343,19 +346,21 @@ class CAMBparams(F2003Class):
         """
         Set the InitialPower primordial power spectrum parameters
 
-        :param initial_power_params: :class:`.initialpower.InitialPowerLaw` or :class:`.initialpower.SplinedInitialPower` instance
+        :param initial_power_params: :class:`.initialpower.InitialPowerLaw`
+                                     or :class:`.initialpower.SplinedInitialPower` instance
         :return: self
         """
         self.InitPower = initial_power_params
         return self
 
-    def set_H0_for_theta(self, theta, cosmomc_approx=False, theta_H0_range=[10, 100], est_H0=67.0,
+    def set_H0_for_theta(self, theta, cosmomc_approx=False, theta_H0_range=(10, 100), est_H0=67.0,
                          iteration_threshold=8):
         r"""
         Set H0 to give a specified value of the acoustic angular scale parameter theta.
 
         :param theta: value of :math:`r_s/D_M` at redshift :math:`z_\star`
-        :param cosmomc_approx: if true, use approximate fitting formula for :math:`z_\star`, if false do full numerical calculation
+        :param cosmomc_approx: if true, use approximate fitting formula for :math:`z_\star`,
+                               if false do full numerical calculation
         :param theta_H0_range: min, max iterval to search for H0 (in km/s/Mpc)
         :param est_H0: an initial guess for H0 in km/s/Mpc, used in the case comsomc_approx=False.
         :param iteration_threshold: differnce in H0 from est_H0 for which to iterate, used for cosmomc_approx=False
@@ -376,6 +381,7 @@ class CAMBparams(F2003Class):
             zstar = c_double()
             self.H0 = est_H0
             data.calc_background_no_thermo(self)
+            # get_zstar initializes the recombination model
             zstar = data.f_get_zstar(byref(zstar))
 
         def f(H0):
@@ -404,7 +410,7 @@ class CAMBparams(F2003Class):
                       mnu=0.06, nnu=constants.default_nnu, YHe=None, meffsterile=0.0,
                       standard_neutrino_neff=constants.default_nnu,
                       TCMB=constants.COBE_CMBTemp, tau=None, deltazrei=None, Alens=1.0,
-                      bbn_predictor=None, theta_H0_range=[10, 100]):
+                      bbn_predictor=None, theta_H0_range=(10, 100)):
         r"""
         Sets cosmological parameters in terms of physical densities and parameters (e.g. as used in Planck analyses).
         Default settings give a single distinct neutrino mass eigenstate, by default one neutrino with mnu = 0.06eV.
@@ -412,25 +418,32 @@ class CAMBparams(F2003Class):
         approximation to the known mass splittings seen in oscillation measurements.
         For more fine-grained control can set the neutrino parameters directly rather than using this function.
 
-        Instead of setting the Hubble parameter directly, you can instead set the acoustic scale parameter (cosmomc_theta, which
-        is based on a fitting forumula for simple models, or thetastar, which is numerically calculated more generally).
-        Note that you must have already set the dark energy model, you can't use set_cosmology with theta and then
-        change the background evolution (which would change theta at the calculated H0 value).
-        Likewise the dark energy model cannot depend explicitly on H0.
+        Instead of setting the Hubble parameter directly, you can instead set the acoustic scale parameter
+        (cosmomc_theta, which is based on a fitting forumula for simple models, or thetastar, which is numerically
+        calculated more generally). Note that you must have already set the dark energy model, you can't use
+        set_cosmology with theta and then change the background evolution (which would change theta at the calculated
+        H0 value).Likewise the dark energy model cannot depend explicitly on H0.
 
-        :param H0: Hubble parameter today in km/s/Mpc. Can leave unset and instead set thetastar or cosmomc_theta (which solves for the required H0).
+        :param H0: Hubble parameter today in km/s/Mpc. Can leave unset and instead set thetastar or cosmomc_theta
+                  (which solves for the required H0).
         :param ombh2: physical density in baryons
         :param omch2:  physical density in cold dark matter
         :param omk: Omega_K curvature parameter
-        :param cosmomc_theta: The approximate CosmoMC theta parameter :math:`\theta_{\rm MC}`. The angular diamter distance is calculated numerically,
-           but the redshift :math:`z_\star` is calculated using an approximate (quite accurate but non-general) fitting formula. Leave unset to use H0 or thetastar.
-        :param thetastar: The angular acoustic scale parameter :math:`\theta_\star = r_s(z_*)/D_M(z_*)`, defined as the ratio of the photon-baryon sound horizon :math:`r_s` to the
-           angular diameter distance :math:`D_M`, where both quantities are evaluated at :math:`z_*`, the redshift at which the optical depth
-           (excluding reionization) is unity. Leave unset to use H0 or cosmomc_theta.
+        :param cosmomc_theta: The approximate CosmoMC theta parameter :math:`\theta_{\rm MC}`. The angular
+                              diamter distance is calculated numerically, but the redshift :math:`z_\star`
+                              is calculated using an approximate (quite accurate but non-general) fitting formula.
+                              Leave unset to use H0 or thetastar.
+        :param thetastar: The angular acoustic scale parameter :math:`\theta_\star = r_s(z_*)/D_M(z_*)`, defined as
+                    the ratio of the photon-baryon sound horizon :math:`r_s` to the angular diameter
+                    distance :math:`D_M`, where both quantities are evaluated at :math:`z_*`, the redshift at
+                    which the optical depth (excluding reionization) is unity. Leave unset to use H0 or cosmomc_theta.
         :param neutrino_hierarchy: 'degenerate', 'normal', or 'inverted' (1 or 2 eigenstate approximation)
         :param num_massive_neutrinos:  number of massive neutrinos
-        :param mnu: sum of neutrino masses (in eV, Omega_nu is calculated approximately from this assuming neutrinos non-relativistic today).
-             Set the field values directly if you need finer control or more complex models.
+        :param mnu: sum of neutrino masses (in eV). Omega_nu is calculated approximately from this assuming neutrinos
+               non-relativistic today; i.e. here is defined as a direct proxy for Omega_nu. Internally the actual
+               physical mass is calculated from the Omega_nu accounting for small mass-dependent velocity corrections
+               but neglecting spectral distortions to the neutrino distribution.
+               Set the neutrino field values directly if you need finer control or more complex neutrino models.
         :param nnu: N_eff, effective relativistic degrees of freedom
         :param YHe: Helium mass fraction. If None, set from BBN consistency.
         :param meffsterile: effective mass of sterile neutrinos
@@ -464,13 +477,13 @@ class CAMBparams(F2003Class):
         if not isinstance(neutrino_hierarchy, six.string_types):
             neutrino_hierarchy = neutrino_hierarchies[neutrino_hierarchy - 1]
 
-        if (nnu >= standard_neutrino_neff or neutrino_hierarchy != neutrino_hierarchy_degenerate):
+        if nnu >= standard_neutrino_neff or neutrino_hierarchy != neutrino_hierarchy_degenerate:
             omnuh2 = mnu / neutrino_mass_fac * (standard_neutrino_neff / 3) ** 0.75
         else:
             omnuh2 = mnu / neutrino_mass_fac * (nnu / 3.0) ** 0.75
         omnuh2_sterile = meffsterile / neutrino_mass_fac
         if omnuh2_sterile > 0 and nnu < standard_neutrino_neff:
-            raise CAMBError('sterile neutrino mass required Neff> %.3g' % (constants.default_nnu))
+            raise CAMBError('sterile neutrino mass required Neff> %.3g' % constants.default_nnu)
         if omnuh2 and not num_massive_neutrinos:
             raise CAMBError('non-zero mnu with zero num_massive_neutrinos')
 
@@ -479,7 +492,7 @@ class CAMBparams(F2003Class):
         self.omk = omk
         if omnuh2_sterile > 0:
             if nnu < standard_neutrino_neff:
-                raise CAMBError('nnu < %.3g with massive sterile' % (constants.default_nnu))
+                raise CAMBError('nnu < %.3g with massive sterile' % constants.default_nnu)
         assert num_massive_neutrinos == int(num_massive_neutrinos)
         self.f_SetNeutrinoHierarchy(byref(c_double(omnuh2)), byref(c_double(omnuh2_sterile)),
                                     byref(c_double(nnu)),
@@ -557,7 +570,7 @@ class CAMBparams(F2003Class):
         if initial_power_model:
             self.InitPower = self.make_class_named(initial_power_model, InitialPower)
         if non_linear_model:
-            self.NonLinear = self.make_class_named(initial_power_model, NonLinearModel)
+            self.NonLinear = self.make_class_named(non_linear_model, NonLinearModel)
         if recombination_model:
             self.Recomb = self.make_class_named(recombination_model, RecombinationModel)
 
@@ -604,11 +617,12 @@ class CAMBparams(F2003Class):
         (or the default one, if `Y_He` has not been set).
 
         :param ombh2: :math:`\Omega_b h^2` (default: value passed to :meth:`set_cosmology`)
-        :param delta_neff:  additional :math:`N_{\rm eff}` relative to standard value (of 3.046) (default: from values passed to :meth:`set_cosmology`)
+        :param delta_neff:  additional :math:`N_{\rm eff}` relative to standard value (of 3.046)
+                           (default: from values passed to :meth:`set_cosmology`)
         :return:  :math:`Y_p^{\rm BBN}` helium nucleon fraction predicted by BBN.
         """
         try:
-            ombh2 = ombh2 if ombh2 != None else self.ombh2
+            ombh2 = ombh2 if ombh2 is not None else self.ombh2
             delta_neff = delta_neff if delta_neff is not None else self.N_eff - constants.default_nnu
             return self.bbn_predictor.Y_p(ombh2, delta_neff)
         except AttributeError:
@@ -621,23 +635,24 @@ class CAMBparams(F2003Class):
         (or the default one, if `Y_He` has not been set).
 
         :param ombh2: :math:`\Omega_b h^2` (default: value passed to :meth:`set_cosmology`)
-        :param delta_neff:  additional :math:`N_{\rm eff}` relative to standard value (of 3.046) (default: from values passed to :meth:`set_cosmology`)
+        :param delta_neff:  additional :math:`N_{\rm eff}` relative to standard value (of 3.046)
+                           (default: from values passed to :meth:`set_cosmology`)
         :return: BBN helium nucleon fraction D/H
         """
         try:
-            ombh2 = ombh2 if ombh2 != None else self.ombh2
+            ombh2 = ombh2 if ombh2 is not None else self.ombh2
             delta_neff = delta_neff if delta_neff is not None else self.N_eff - constants.default_nnu
             return self.bbn_predictor.DH(ombh2, delta_neff)
         except AttributeError:
             raise CAMBError('Not able to compute DH: not using an interpolation table for BBN abundances.')
 
-    def set_matter_power(self, redshifts=[0.], kmax=1.2, k_per_logint=None, nonlinear=None,
+    def set_matter_power(self, redshifts=(0.,), kmax=1.2, k_per_logint=None, nonlinear=None,
                          accurate_massive_neutrino_transfers=False, silent=False):
         """
         Set parameters for calculating matter power spectra and transfer functions.
 
         :param redshifts: array of redshifts to calculate
-        :param kmax: maximum k to calculate
+        :param kmax: maximum k to calculate (where k is just k, not k/h)
         :param k_per_logint: number of k steps per log k. Set to zero to use default optimized spacing.
         :param nonlinear: if None, uses existing setting, otherwise boolean for whether to use non-linear matter power.
         :param accurate_massive_neutrino_transfers: if you want the massive neutrino transfers accurately
@@ -649,19 +664,21 @@ class CAMBparams(F2003Class):
         self.Transfer.high_precision = True
         self.Transfer.accurate_massive_neutrinos = accurate_massive_neutrino_transfers
         self.Transfer.kmax = kmax
+        zs = sorted(redshifts, reverse=True)
         if nonlinear is not None:
             if nonlinear:
                 if self.NonLinear in [NonLinear_lens, NonLinear_both]:
                     self.NonLinear = NonLinear_both
                 else:
                     self.NonLinear = NonLinear_pk
+                if not silent and (kmax < 5 or kmax < 20 and np.max(zs) > 4):
+                    logging.warning("Using kmax=%s with Halofit non-linear models may give inaccurate results" % kmax)
             else:
                 if self.NonLinear in [NonLinear_lens, NonLinear_both]:
                     self.NonLinear = NonLinear_lens
                 else:
                     self.NonLinear = NonLinear_none
         self.Transfer.k_per_logint = k_per_logint if k_per_logint else 0
-        zs = sorted(redshifts, reverse=True)
         if not silent and np.any(np.array(zs) - np.array(redshifts) != 0):
             print("Note: redshifts have been re-sorted (earliest first)")
         if len(redshifts) > max_transfer_redshifts:
@@ -691,15 +708,20 @@ class CAMBparams(F2003Class):
                      lens_margin=150, k_eta_fac=2.5, lens_k_eta_reference=18000.0):
         r"""
         Set parameters to get CMB power spectra accurate to specific a l_lmax.
-        Note this does not fix the actual output L range, spectra may be calculated above l_max (but may not be accurate there).
-        To fix the l_max for output arrays use the optional input argument to :meth:`.results.CAMBdata.get_cmb_power_spectra` etc.
+        Note this does not fix the actual output L range, spectra may be calculated above l_max
+        (but may not be accurate there). To fix the l_max for output arrays use the optional input argument
+        to :meth:`.results.CAMBdata.get_cmb_power_spectra` etc.
 
         :param lmax: :math:`\ell_{\rm max}` you want
-        :param max_eta_k: maximum value of :math:`k \eta_0\approx k\chi_*` to use, which indirectly sets k_max. If None, sensible value set automatically.
+        :param max_eta_k: maximum value of :math:`k \eta_0\approx k\chi_*` to use, which indirectly sets k_max.
+                          If None, sensible value set automatically.
         :param lens_potential_accuracy: Set to 1 or higher if you want to get the lensing potential accurate
-        :param lens_margin: the :math:`\Delta \ell_{\rm max}` to use to ensure lensed :math:`C_\ell` are correct at :math:`\ell_{\rm max}`
+                                        (1 is only Planck-level accuracy)
+        :param lens_margin: the :math:`\Delta \ell_{\rm max}` to use to ensure lensed :math:`C_\ell` are correct
+                            at :math:`\ell_{\rm max}`
         :param k_eta_fac:  k_eta_fac default factor for setting max_eta_k = k_eta_fac*lmax if max_eta_k=None
-        :param lens_k_eta_reference:  value of max_eta_k to use when lens_potential_accuracy>0; use k_eta_max = lens_k_eta_reference*lens_potential_accuracy
+        :param lens_k_eta_reference:  value of max_eta_k to use when lens_potential_accuracy>0; use
+                                      k_eta_max = lens_k_eta_reference*lens_potential_accuracy
         :return: self
         """
         if self.DoLensing:
@@ -753,8 +775,9 @@ class CAMBparams(F2003Class):
 
         :param custom_sources: list of sympy expressions for the angular power spectrum sources
         :param source_names: optional list of string naes for the sources
-        :param source_ell_scales: list or dictionary of scalings for each source name, where for integer entry n, the source for
-         multipole :math:`\ell` is scalled by :math:`\sqrt{(\ell+n)!/(\ell-n)!}`, i.e. :math:`n=2` for a new polarization-like source.
+        :param source_ell_scales: list or dictionary of scalings for each source name, where for integer entry n,
+            the source for multipole :math:`\ell` is scalled by :math:`\sqrt{(\ell+n)!/(\ell-n)!}`,
+            i.e. :math:`n=2` for a new polarization-like source.
         :param frame: if the source is not gauge invariant, frame in which to interpret result
         :param code_path: optional path for output of source code for CAMB f90 source function
         """
@@ -773,7 +796,8 @@ class CAMBparams(F2003Class):
             custom_sources = lst
         elif not isinstance(custom_sources, (list, tuple)):
             custom_sources = [custom_sources]
-            if source_names: source_names = [source_names]
+            if source_names:
+                source_names = [source_names]
         custom_source_names = source_names or ["C%s" % (i + 1) for i in range(len(custom_sources))]
         if len(custom_source_names) != len(custom_sources):
             raise CAMBValueError('Number of custom source names does not match number of sources')
@@ -808,6 +832,7 @@ class CAMBparams(F2003Class):
 def set_default_params(P):
     """
     Set default values for all parameters
+
     :param P: :class:`.model.CAMBparams`
     :return: P
     """

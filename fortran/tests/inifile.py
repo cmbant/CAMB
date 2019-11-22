@@ -13,10 +13,10 @@ class IniError(Exception):
 class IniFile(object):
     """
     Class for storing option parameter values and reading/saving to file
-    
+
     Unlike standard .ini files, IniFile allows inheritance, in that a .ini file can use
     INCLUDE(..) and DEFAULT(...) to include or override settings in another file (to avoid duplication)
-    
+
     :ivar params: dictionary of name, values stored
     :ivar comments: dictionary of optional comments for parameter names
     """
@@ -219,9 +219,11 @@ class IniFile(object):
         default = getattr(instance, name, default)
         setattr(instance, name, self.asType(name, type(default), default, allowEmpty=allowEmpty))
 
-    def getAttr(self, instance, name, default=None):
+    def getAttr(self, instance, name, default=None, comment=None):
         val = getattr(instance, name, default)
         self.params[name] = val
+        if comment:
+            self.comments[name] = comment
 
     def bool(self, name, default=False):
         """
@@ -398,6 +400,6 @@ class IniFile(object):
 
     def relativeFileName(self, name, default=None):
         s = self.string(name, default)
-        if self.original_filename is not None:
+        if not os.path.isabs(s) and self.original_filename is not None:
             return os.path.join(os.path.dirname(self.original_filename), s)
         return s

@@ -123,7 +123,7 @@
     real(dl),intent(out)             :: fzero   !! value of `f` at the root (`f(xzero)`)
     integer,intent(out)              :: iflag   !! status flag (`-1`=error, `0`=root found)
     real(dl),intent(in),optional     :: fax     !! if `f(ax)` is already known, it can be input here
-    real(dl),intent(in),optional     :: fbx     !! if `f(ax)` is already known, it can be input here
+    real(dl),intent(in),optional     :: fbx     !! if `f(bx)` is already known, it can be input here
     real(dl), parameter :: one = 1._dl, zero = 0._dl, two =2._dl, three = 3._dl
     real(dl),parameter :: eps   = epsilon(one)  !! original code had d1mach(4)
     real(dl) :: a,b,c,d,e,fa,fb,fc,tol1,xm,p,q,r,s

@@ -3,7 +3,7 @@ language: python
 git:
   depth: false
 
-dist: xenial
+dist: bionic
 
 sudo: false
 
@@ -14,50 +14,56 @@ branches:
 
 matrix:
   include:
-    - name: "GCC6"
+    - name: "GCC6 + Python 2.7"
       addons:
         apt:
-          sources:
-            - ubuntu-toolchain-r-test
           packages:
             - gfortran-6
       env:
         - GCC_VERSION="6"
         - CHANNEL="defaults"
+        - PYDIST="ANACONDA"
+        - PYVER="2"
+        - FORTRAN="test"
       python: "2.7"
-    - name: "GCC9"
+    - name: "GCC9 + Python 3.8"
       addons:
         apt:
           sources:
-            - ubuntu-toolchain-r-test
+            - sourceline: "ppa:ubuntu-toolchain-r/test"
           packages:
             - gfortran-9
       env:
         - GCC_VERSION="9"
         - CHANNEL="conda-forge"
-      python: "3.7"
-
+        - PYDIST="ANACONDA"
+        - PYVER="3"
+        - FORTRAN="test"
+      python: "3.8"
+    - name: "Ubuntu 18.04 + Python 3.6"
+      addons:
+        apt:
+          packages:
+            - gfortran
+      python: "3.6"
 
 install:
-  - mkdir -p gfortran-symlinks
-  - ln -s /usr/bin/gfortran-$GCC_VERSION gfortran-symlinks/gfortran
-  - export PATH=$PWD/gfortran-symlinks:$PATH
+  - if [[ "$FORTRAN" == "test" ]]; then
+      mkdir -p gfortran-symlinks;
+      ln -s /usr/bin/gfortran-$GCC_VERSION gfortran-symlinks/gfortran;
+      export PATH=$PWD/gfortran-symlinks:$PATH;
+    fi  
   - gfortran --version
-  # Setup anaconda following http://conda.pydata.org/docs/travis.html
-  - if [[ "$TRAVIS_PYTHON_VERSION" == "2.7" ]]; then
-      wget https://repo.continuum.io/miniconda/Miniconda2-latest-Linux-x86_64.sh -O miniconda.sh;
-    else
-      wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh;
-    fi
-  - bash miniconda.sh -b -p $HOME/miniconda
-  - export PATH="$HOME/miniconda/bin:$PATH"
-  - hash -r
-  - conda config --set always_yes yes --set changeps1 no
-  #can skip to save time:
-  - conda update -q conda
-  - conda info -a
-  - conda create -q -n test-environment -c $CHANNEL numpy scipy sympy six;
-  - source activate test-environment
+  - if [[ "$PYDIST" == "ANACONDA" ]]; then
+      wget https://repo.continuum.io/miniconda/Miniconda$PYVER-latest-Linux-x86_64.sh -O miniconda.sh;
+      bash miniconda.sh -b -p $HOME/miniconda;
+      export PATH="$HOME/miniconda/bin:$PATH";
+      hash -r;
+      conda config --set always_yes yes --set changeps1 no;
+      conda info -a;
+      conda create -q -n test-environment -c $CHANNEL python=$TRAVIS_PYTHON_VERSION numpy scipy sympy six;
+      source activate test-environment;
+    fi 
   - chmod +x fortran/tests/run_tests.sh
 
 script: fortran/tests/run_tests.sh

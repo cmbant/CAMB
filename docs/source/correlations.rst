@@ -1,4 +1,4 @@
-camb.correlations
+Correlation functions
 ==================================
 
 .. automodule:: camb.correlations

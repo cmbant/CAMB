@@ -1,4 +1,4 @@
-camb.dark_energy
+Dark Energy models
 ==================================
 
 .. autoclass:: camb.dark_energy.DarkEnergyModel
