@@ -844,7 +844,7 @@ class CAMBdata(F2003Class):
         :param k_hunit: if true, matter power is a function of k/h, if false, just k (both :math:`{\rm Mpc}^{-1}` units)
         :param return_z_k: if true, return interpolator, z, k where z, k are the grid used
         :param log_interp: if true, interpolate log of power spectrum
-                           (unless any values are negative in which case ignored)
+                           (unless any values cross zero in which case ignored)
         :param extrap_kmax: if set, use power law extrapolation beyond kmax to extrap_kmax
                             (useful for tails of integrals)
         :param silent: Set True to silence warnings
@@ -859,7 +859,7 @@ class CAMBdata(F2003Class):
                 if grid is None:
                     grid = not np.isscalar(z) and not np.isscalar(kh)
                 if self.islog:
-                    return np.exp(self(z, np.log(kh), grid=grid))
+                    return self.logsign * np.exp(self(z, np.log(kh), grid=grid))
                 else:
                     return self(z, np.log(kh), grid=grid)
 
@@ -884,7 +884,7 @@ class CAMBdata(F2003Class):
             def P(self, z, kh, grid=None):
                 # grid kwarg is ignored
                 if self.islog:
-                    return np.exp(self(z, np.log(kh)))
+                    return self.logsign * np.exp(self(z, np.log(kh)))
                 else:
                     return self(z, np.log(kh))
 
@@ -893,12 +893,18 @@ class CAMBdata(F2003Class):
         kh_max = kh[-1]
         if not k_hunit:
             kh *= self.Params.H0 / 100
+        sign = 1
         if log_interp and np.any(pk <= 0):
-            log_interp = False
+            if np.all(pk < 0):
+                sign = -1
+            else:
+                log_interp = False
+        p_or_log_p = np.log(sign * pk) if log_interp else pk
         logkh = np.log(kh)
         deg_z = min(len(z) - 1, 3)
+        kmax = kh[-1]
         PKInterpolator = PKInterpolator if deg_z else PKInterpolatorSingleZ
-        if extrap_kmax and extrap_kmax > kh[-1]:
+        if extrap_kmax and extrap_kmax > kmax:
             # extrapolate to ultimate power law
             # TODO: use more physical extrapolation function for linear case
             if not silent and (kh_max < 3 and extrap_kmax > 2 and nonlinear or kh_max < 0.4):
@@ -906,33 +912,25 @@ class CAMBdata(F2003Class):
                                 "only to k=%.3g Mpc^{-1} may be inaccurate.\n " % (kh_max * self.Params.H0 / 100))
             if not log_interp:
                 raise CAMBValueError(
-                    "Cannot use extrap_kmax with non-log PK interpolation for %s, %s. " % (var1, var2) +
-                    ("Some Pk are negative." if np.any(pk <= 0) else ""))
+                    "Cannot use extrap_kmax with log_inter=False (e.g. PK crossing zero for %s, %s.)" % (var1, var2))
+
             logextrap = np.log(extrap_kmax)
-            logpknew = np.empty((pk.shape[0], pk.shape[1] + 2))
-            logpknew[:, :-2] = np.log(pk)
+            log_p_new = np.empty((pk.shape[0], pk.shape[1] + 2))
+            log_p_new[:, :-2] = p_or_log_p
             delta = logextrap - logkh[-1]
-            dlog = (logpknew[:, -3] - logpknew[:, -4]) / (logkh[-1] - logkh[-2])
-            logpknew[:, -1] = logpknew[:, -3] + dlog * delta
-            logpknew[:, -2] = logpknew[:, -3] + dlog * delta * 0.9
-            logkhnew = np.hstack((logkh, logextrap - delta * 0.1, logextrap))
 
-            deg_k = min(len(logkhnew) - 1, 3)
-            if log_interp:
-                res = PKInterpolator(z, logkhnew, logpknew, kx=deg_z, ky=deg_k)
-            else:
-                res = PKInterpolator(z, logkhnew, np.exp(logpknew), kx=deg_z, ky=deg_k)
-            res.kmax = extrap_kmax
-        else:
-            deg_k = min(len(logkh) - 1, 3)
-            if log_interp:
-                res = PKInterpolator(z, logkh, np.log(pk), kx=deg_z, ky=deg_k)
-            else:
-                res = PKInterpolator(z, logkh, pk, kx=deg_z, ky=deg_k)
-            res.kmax = np.max(kh)
+            dlog = (log_p_new[:, -3] - log_p_new[:, -4]) / (logkh[-1] - logkh[-2])
+            log_p_new[:, -1] = log_p_new[:, -3] + dlog * delta
+            log_p_new[:, -2] = log_p_new[:, -3] + dlog * delta * 0.9
+            logkh = np.hstack((logkh, logextrap - delta * 0.1, logextrap))
+            p_or_log_p = log_p_new
 
+        deg_k = min(len(logkh) - 1, 3)
+        res = PKInterpolator(z, logkh, p_or_log_p, kx=deg_z, ky=deg_k)
         res.kmin = np.min(kh)
+        res.kmax = kmax
         res.islog = log_interp
+        res.logsign = sign
         res.zmin = np.min(z)
         res.zmax = np.max(z)
         if return_z_k:
