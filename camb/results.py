@@ -356,7 +356,7 @@ class CAMBdata(F2003Class):
             ls = np.arange(1, cls.shape[0])[..., np.newaxis]
             ls = np.float64(ls * (ls + 1))
             if lens_potential:
-                cls[1:, 0:] /= ls ** 2 / (2 * np.pi)
+                cls[1:, 0] /= ls[:, 0] ** 2 / (2 * np.pi)
                 cls[1:, 1:] /= ls ** (3. / 2) / (2 * np.pi)
             else:
                 cls[1:, :] /= ls / (2 * np.pi)

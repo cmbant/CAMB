@@ -512,36 +512,45 @@
     real(dl) amin,q_switch_lowk,q_switch_lowk1,q_switch_osc,q_switch_highk
     real(dl), dimension(:), allocatable :: q_transfer
     Type(MatterTransferData), pointer :: MT
+    real(dl) k_per_logint
 
     MT => State%MT
-    if (CP%Transfer%k_per_logint==0) then
+    if (CP%Transfer%k_per_logint==0 .or. State%needs_good_pk_sampling) then
         !Optimized spacing
         !Large log spacing on superhorizon scales
-        !Linear spacing for horizon scales and first few baryon osciallations
+        !Linear spacing for horizon scales and first few baryon oscillations
         !Log spacing for last few oscillations
         !large log spacing for small scales
+        !All have at least k_per_logint steps per log k
 
         boost = CP%Accuracy%AccuracyBoost * CP%Accuracy%TransferkBoost
+        k_per_logint =CP%Transfer%k_per_logint
         if (CP%Transfer%high_precision) boost = boost*1.5
 
         q_switch_lowk1 = 0.7/State%taurst
-        dlog_lowk1=2*boost
+        dlog_lowk1=max(2*boost, k_per_logint)
 
         q_switch_lowk = 8/State%taurst
-        dlog_lowk=8*boost*2.5
+        dlog_lowk=max(8*boost*2.5, k_per_logint)
 
         q_switch_osc = min(CP%Transfer%kmax,30/State%taurst)
         d_osc= 200*boost*1.8
 
-        dlog_osc = 17*boost
+        if (CP%Transfer%k_per_logint>0) then
+            ! only keep linear steps where smaller than needed for k_per_logint
+            q_switch_lowk =  min(q_switch_osc, max(q_switch_lowk,  &
+                1/d_osc/(exp(1./k_per_logint)-1)))
+        end if
+
+        dlog_osc = max(17*boost, k_per_logint)
         q_switch_highk = min(CP%Transfer%kmax,90/State%taurst)
 
         !Then up to kmax
-        dlog_highk = 3*boost
+        dlog_highk = max(3*boost,k_per_logint)
 
         amin = 5e-5_dl
 
-        nq=int((log(CP%Transfer%kmax/amin))*d_osc)+1
+        nq=int((log(CP%Transfer%kmax/amin))*max(d_osc, k_per_logint))+1
         allocate(q_transfer(nq))
 
         nq=int((log(q_switch_lowk1/amin))*dlog_lowk1)+1
@@ -556,11 +565,13 @@
         end do
         MT%num_q_trans = MT%num_q_trans + nq
 
-        nq=int((q_switch_osc-q_transfer(MT%num_q_trans))*d_osc)+1
-        do q_ix=1, nq
-            q_transfer(MT%num_q_trans+q_ix) = q_transfer(MT%num_q_trans)+ q_ix/d_osc
-        end do
-        MT%num_q_trans = MT%num_q_trans + nq
+        if (q_switch_osc> q_switch_lowk) then
+            nq=int((q_switch_osc-q_transfer(MT%num_q_trans))*d_osc)+1
+            do q_ix=1, nq
+                q_transfer(MT%num_q_trans+q_ix) = q_transfer(MT%num_q_trans)+ q_ix/d_osc
+            end do
+            MT%num_q_trans = MT%num_q_trans + nq
+        end if
 
         if (CP%Transfer%kmax > q_transfer(MT%num_q_trans)) then
             nq=int(log( q_switch_highk/q_transfer(MT%num_q_trans))*dlog_osc) +1
@@ -578,6 +589,7 @@
             end do
             MT%num_q_trans = MT%num_q_trans + nq
         end if
+
     else
         !Fixed spacing
         MT%num_q_trans=int((log(CP%Transfer%kmax)-log(qmin))*CP%Transfer%k_per_logint)+1
