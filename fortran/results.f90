@@ -150,6 +150,14 @@
     procedure :: output_veccl_files => TCLdata_output_veccl_files
     end type TCLdata
 
+    Type TTimeSources
+        ! values of q to evolve the propagation equations to compute the sources
+        type(TRanges) :: Evolve_q
+        real(dl), dimension(:,:,:), allocatable :: LinearSrc !Sources and second derivs
+        !LinearSrc indices  ( k_index, source_index, time_step_index )
+        integer SourceNum, NonCustomSourceNum
+        !SourceNum is total number sources (2 or 3 for scalars, 3 for tensors).
+    end type TTimeSources
 
     type, extends(TCAMBdata) :: CAMBdata
 
@@ -186,11 +194,12 @@
 
         logical :: OnlyTransfer = .false. !C_L/PK not computed; initial power spectrum data, instead get Delta_q_l array
         !If true, sigma_8 is not calculated either]]
+        logical :: HasScalarTimeSources = .false. !No power spectra, only time transfer functions
 
         logical :: get_growth_sigma8 = .true.
         !gets sigma_vdelta, like sigma8 but using velocity-density cross power,
         !in late LCDM f*sigma8 = sigma_vdelta^2/sigma8
-        
+
         logical :: needs_good_pk_sampling = .false.
 
         logical ::call_again = .false.
@@ -222,6 +231,10 @@
         integer :: num_extra_redshiftwindows = 0
         Type(TRedWin), allocatable :: Redshift_W(:)
         real(dl), dimension(:), allocatable :: optical_depths_for21cm
+
+        Type(TTimeSources), allocatable :: ScalarTimeSources
+        integer :: Scalar_C_last = C_PhiE
+
 
     contains
     procedure :: DeltaTime => CAMBdata_DeltaTime
@@ -2689,7 +2702,7 @@
         call CheckLoadedHighLTemplate
         if (CP%WantScalars) then
             if (allocated(this%Cl_scalar)) deallocate(this%Cl_scalar)
-            allocate(this%Cl_scalar(CP%Min_l:CP%Max_l, C_Temp:C_last), source=0._dl)
+            allocate(this%Cl_scalar(CP%Min_l:CP%Max_l, C_Temp:State%Scalar_C_last), source=0._dl)
             if (CP%want_cl_2D_array) then
                 if (allocated(this%Cl_scalar_array)) deallocate(this%Cl_scalar_array)
                 allocate(this%Cl_scalar_Array(CP%Min_l:CP%Max_l,  &
@@ -2760,7 +2773,7 @@
     fact = PresentDefault(1._dl, factor)
 
     if (CP%WantScalars .and. ScalFile /= '') then
-        last_C=min(C_PhiTemp,C_last)
+        last_C=min(C_PhiTemp,State%Scalar_C_last)
         unit = open_file_header(ScalFile, 'L', C_name_tags(:last_C))
         do il=lmin,min(10000,CP%Max_l)
             write(unit,trim(numcat('(1I6,',last_C))//'E15.6)')il ,fact*this%Cl_scalar(il,C_Temp:last_C)

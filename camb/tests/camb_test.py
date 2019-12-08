@@ -393,6 +393,39 @@ class CambTest(unittest.TestCase):
         self.assertAlmostEqual(cls2[1, 0], 1.30388e-10, places=13)
         self.assertAlmostEqual(cls[1, 0], 0)
 
+    def testTimeTransfers(self):
+        from camb import initialpower
+        pars = camb.set_params(H0=69, YHe=0.22, lmax=2000, lens_potential_accuracy=1, ns=0.96, As=2.5e-9)
+        results1 = camb.get_results(pars)
+        cl1 = results1.get_total_cls()
+
+        pars = camb.set_params(H0=69, YHe=0.22, lmax=2000, lens_potential_accuracy=1)
+        results = camb.get_transfer_functions(pars, only_time_sources=True)
+        inflation_params = initialpower.InitialPowerLaw()
+        inflation_params.set_params(ns=0.96, As=2.5e-9)
+        results.power_spectra_from_transfer(inflation_params)
+        cl2 = results.get_total_cls()
+        np.testing.assert_allclose(cl1, cl2, rtol=1e-4)
+        inflation_params.set_params(ns=0.96, As=1.9e-9)
+        results.power_spectra_from_transfer(inflation_params)
+        inflation_params.set_params(ns=0.96, As=2.5e-9)
+        results.power_spectra_from_transfer(inflation_params)
+        cl2 = results.get_total_cls()
+        np.testing.assert_allclose(cl1, cl2, rtol=1e-4)
+
+        pars = camb.CAMBparams()
+        pars.set_cosmology(H0=78, YHe=0.22)
+        pars.set_for_lmax(2000, lens_potential_accuracy=1)
+        pars.WantTensors = True
+        results = camb.get_transfer_functions(pars, only_time_sources=True)
+        cls = []
+        for r in [0, 0.2, 0.4]:
+            inflation_params = initialpower.InitialPowerLaw()
+            inflation_params.set_params(ns=0.96, r=r, nt=0)
+            results.power_spectra_from_transfer(inflation_params)
+            cls += [results.get_total_cls(CMB_unit='muK')]
+        self.assertTrue(np.allclose((cls[1] - cls[0])[2:300, 2] * 2, (cls[2] - cls[0])[2:300, 2], rtol=1e-3))
+
     def testDarkEnergy(self):
         pars = camb.CAMBparams()
         pars.set_cosmology(H0=71)

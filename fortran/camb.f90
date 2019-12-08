@@ -13,9 +13,11 @@
     contains
 
     subroutine CAMB_TransfersToPowers(CData)
+    !From Delta_p_l_k or time transfers to CMB powers and transfers to P(k)
     use CAMBmain
     use lensing
     type (CAMBdata) :: CData
+    logical :: want_tensors, want_vectors
 
     call SetActiveState(CData)
     CData%OnlyTransfer = .false.
@@ -24,6 +26,17 @@
     if (allocated(Cdata%CAMB_Pk)) deallocate(Cdata%CAMB_PK)
 
     if (CData%CP%WantCls) then
+        if (allocated(CData%ScalarTimeSources) .and. CData%CP%WantScalars) then
+            want_tensors = CData%CP%WantTensors
+            want_vectors = CData%CP%WantVectors
+            Cdata%OnlyTransfer = .true. !prevent ClTransferToCl
+            Cdata%CP%WantTensors = .false.
+            CData%CP%WantVectors = .false.
+            call TimeSourcesToCl
+            Cdata%CP%WantTensors = want_tensors
+            CData%CP%WantVectors = want_vectors
+            Cdata%OnlyTransfer = .false.
+        end if
         call ClTransferToCl(CData)
         if (State%CP%DoLensing .and. global_error_flag==0) call lens_Cls(Cdata)
         if (global_error_flag/=0) return
@@ -33,16 +46,15 @@
 
     end subroutine CAMB_TransfersToPowers
 
-
     !Call this routine with a set of parameters to generate the results you want.
-    subroutine CAMB_GetResults(OutData, Params, error, onlytransfer)
+    subroutine CAMB_GetResults(OutData, Params, error, onlytransfer, onlytimesources)
     use CAMBmain
     use lensing
     use Bispectrum
     type(CAMBdata)  :: OutData
     type(CAMBparams) :: Params
     integer, optional :: error !Zero if OK
-    logical, optional :: onlytransfer
+    logical, optional :: onlytransfer, onlytimesources
     type(CAMBparams) P
     logical :: call_again
 
@@ -50,25 +62,10 @@
     call_again = .false.
     call OutData%Free()
     call SetActiveState(OutData)
-    OutData%OnlyTransfer = DefaultFalse(onlytransfer)
-    if (Params%WantCls .and. Params%WantScalars) then
-        P = Params
-        P%Max_eta_k=max(min(P%max_l,3000)*2.5_dl,P%Max_eta_k)
-        P%WantTensors = .false.
-        P%WantVectors = .false.
-        if ((P%NonLinear==NonLinear_lens .or. P%NonLinear==NonLinear_both) .and. &
-            (P%DoLensing .or. State%num_redshiftwindows > 0)) then
-            P%WantTransfer  = .true.
-        end if
-        call OutData%SetParams(P)
-        if (global_error_flag==0) call cmbmain
-        if (global_error_flag/=0) then
-            if (present(error)) error =global_error_flag
-            return
-        end if
-        call_again = .true.
-    end if
+    OutData%HasScalarTimeSources= DefaultFalse(onlytimesources)
+    OutData%OnlyTransfer = DefaultFalse(onlytransfer) .or. OutData%HasScalarTimeSources
 
+    !Vector and tensors first, so at end time steps in state are for scalars
     if (Params%WantCls .and. Params%WantTensors) then
         P=Params
         P%WantTransfer = .false.
@@ -98,6 +95,25 @@
         end if
         call_again = .true.
     end if
+
+    if (Params%WantCls .and. Params%WantScalars) then
+        P = Params
+        P%Max_eta_k=max(min(P%max_l,3000)*2.5_dl,P%Max_eta_k)
+        P%WantTensors = .false.
+        P%WantVectors = .false.
+        if ((P%NonLinear==NonLinear_lens .or. P%NonLinear==NonLinear_both) .and. &
+            (P%DoLensing .or. State%num_redshiftwindows > 0)) then
+            P%WantTransfer  = .true.
+        end if
+        call OutData%SetParams(P)
+        if (global_error_flag==0) call cmbmain
+        if (global_error_flag/=0) then
+            if (present(error)) error =global_error_flag
+            return
+        end if
+        call_again = .true.
+    end if
+
 
     if (Params%WantTransfer .and. .not. (Params%WantCls .and. Params%WantScalars)) then
         P=Params

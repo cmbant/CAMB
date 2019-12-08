@@ -114,8 +114,8 @@ def make_library(cluster=False):
     if _compile.is_windows:
         COMPILER = "gfortran"
         FFLAGS = "-shared -static -cpp -fopenmp -O3 -fmax-errors=4"
-        # FFLAGS = "-shared -static -cpp -fopenmp -g -fbacktrace -ffpe-trap=invalid,overflow,zero
-        # -fbounds-check -fmax-errors=4"
+        # FFLAGS = "-shared -static -cpp -fopenmp -g -fbacktrace -ffpe-trap=invalid,overflow,zero " \
+        #         "-fbounds-check -fmax-errors=4"
         if _compile.is_32_bit:
             FFLAGS = "-m32 " + FFLAGS
         if not ok:

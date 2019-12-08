@@ -653,7 +653,7 @@ class CAMBparams(F2003Class):
 
         :param redshifts: array of redshifts to calculate
         :param kmax: maximum k to calculate (where k is just k, not k/h)
-        :param k_per_logint: number of k steps per log k. Set to zero to use default optimized spacing.
+        :param k_per_logint: minimum number of k steps per log k. Set to zero to use default optimized spacing.
         :param nonlinear: if None, uses existing setting, otherwise boolean for whether to use non-linear matter power.
         :param accurate_massive_neutrino_transfers: if you want the massive neutrino transfers accurately
         :param silent: if True, don't give warnings about sort order
@@ -827,6 +827,18 @@ class CAMBparams(F2003Class):
 
     def clear_custom_scalar_sources(self):
         self.f_SetCustomSourcesFunc(byref(c_int(0)), byref(ctypes.c_void_p(0)), np.zeros(0, dtype=np.int32))
+
+    def diff(self, params):
+        """
+        Print differences between this set of parameters and params
+
+        :param params: another CAMBparams instance
+        """
+        p1 = str(params)
+        p2 = str(self)
+        for line1, line2 in zip(p1.split('\n'), p2.split('\n')):
+            if line1 != line2:
+                print(line1, ' <-> ', line2)
 
 
 def set_default_params(P):

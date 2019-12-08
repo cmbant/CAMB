@@ -243,17 +243,18 @@
 
     end subroutine F2003Class_free
 
-    function CAMBdata_GetTransfers(State, Params, onlytransfer) result(error)
+    function CAMBdata_GetTransfers(State, Params, onlytransfer, onlytimesources) result(error)
     Type (CAMBdata):: State
     type(CAMBparams) :: Params
-    logical :: onlytransfer
+    logical :: onlytransfer, onlytimesources
     integer :: error
 
     error = 0
-    call CAMB_GetResults(State, Params, error, onlytransfer)
+    call CAMB_GetResults(State, Params, error, onlytransfer, onlytimesources)
 
     end function CAMBdata_GetTransfers
 
+    
     function CAMBdata_CalcBackgroundTheory(State, P) result(error)
     use cambmain, only: initvars
     Type (CAMBdata):: State

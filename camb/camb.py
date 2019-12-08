@@ -42,17 +42,20 @@ def get_results(params):
     return res
 
 
-def get_transfer_functions(params):
+def get_transfer_functions(params, only_time_sources=False):
     """
     Calculate transfer functions for specified parameters and return :class:`~.results.CAMBdata` instance for
     getting results and subsequently calculating power spectra.
 
     :param params: :class:`.model.CAMBparams` instance
+    :param only_time_sources: does not calculate the CMB l,k transfer functions and does not apply any non-linear
+                              correction scaling. Results with only_time_sources=True can therefore be used with
+                              different initial power spectra to get consistent non-linear lensed spectra.
     :return: :class:`~.results.CAMBdata` instance
     """
 
     res = CAMBdata()
-    res.calc_transfers(params)
+    res.calc_transfers(params, only_transfers=True, only_time_sources=only_time_sources)
     return res
 
 
