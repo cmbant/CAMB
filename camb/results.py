@@ -121,7 +121,7 @@ class ClTransferData(object):
         :return: array of computed L, array of computed q, transfer functions T(L,q)
         """
 
-        return self.l, self.q, self.delta_p_l_k[source, :, :]
+        return self.L, self.q, self.delta_p_l_k[source, :, :]
 
 
 @fortran_class
@@ -475,7 +475,7 @@ class CAMBdata(F2003Class):
         data = ClTransferData()
         data.NumSources = cdata.NumSources
         data.q = fortran_array(cdata.q, cdata.q_size)
-        data.l = fortran_array(cdata.l, cdata.l_size, dtype=c_int)
+        data.L = fortran_array(cdata.L, cdata.l_size, dtype=c_int)
         data.delta_p_l_k = fortran_array(cdata.delta_p_l_k, cdata.delta_size)
         return data
 
