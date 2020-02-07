@@ -219,6 +219,11 @@ class CambTest(unittest.TestCase):
         self.assertEqual(pars.nu_mass_eigenstates, 2)
         self.assertAlmostEqual(pars.nu_mass_fractions[0], 0.915197, places=4)
 
+        pars = camb.CAMBparams()
+        pars.set_cosmology(H0=68.5, ombh2=0.022, omch2=0.122, YHe=0.2453, mnu=0.07, omk=0, zrei=zre)
+        results = camb.get_background(pars)
+        self.assertEqual(results.Params.Reion.redshift, zre)
+
     def testEvolution(self):
         redshifts = [0.4, 31.5]
         pars = camb.set_params(H0=67.5, ombh2=0.022, omch2=0.122, As=2e-9, ns=0.95,

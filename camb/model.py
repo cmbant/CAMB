@@ -409,7 +409,7 @@ class CAMBparams(F2003Class):
                       neutrino_hierarchy='degenerate', num_massive_neutrinos=1,
                       mnu=0.06, nnu=constants.default_nnu, YHe=None, meffsterile=0.0,
                       standard_neutrino_neff=constants.default_nnu,
-                      TCMB=constants.COBE_CMBTemp, tau=None, deltazrei=None, Alens=1.0,
+                      TCMB=constants.COBE_CMBTemp, tau=None, zrei=None, deltazrei=None, Alens=1.0,
                       bbn_predictor=None, theta_H0_range=(10, 100)):
         r"""
         Sets cosmological parameters in terms of physical densities and parameters (e.g. as used in Planck analyses).
@@ -450,7 +450,8 @@ class CAMBparams(F2003Class):
         :param standard_neutrino_neff:  default value for N_eff in standard cosmology (non-integer to allow for partial
                 heating of neutrinos at electron-positron annihilation and QED effects)
         :param TCMB: CMB temperature (in Kelvin)
-        :param tau: optical depth; if None, current Reion settings are not changed
+        :param tau: optical depth; if None and zrei is None, current Reion settings are not changed
+        :param zrei: reionization mid-point optical depth (set tau=None to use this)
         :param deltazrei: redshift width of reionization; if None, uses default
         :param Alens: (non-physical) scaling of the lensing potential compared to prediction
         :param bbn_predictor: :class:`.bbn.BBNPredictor` instance used to get YHe from BBN consistency if YHe is None,
@@ -515,7 +516,11 @@ class CAMBparams(F2003Class):
             self.H0 = H0
 
         if tau is not None:
+            if zrei is not None:
+                raise CAMBError('Cannot set both tau and zrei')
             self.Reion.set_tau(tau, delta_redshift=deltazrei)
+        elif zrei is not None:
+            self.Reion.set_zrei(zrei, delta_redshift=deltazrei)
         elif deltazrei:
             raise CAMBError('must set tau if setting deltazrei')
 
