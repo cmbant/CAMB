@@ -13,7 +13,6 @@
 # serve to show the default.
 
 import sys
-import camb
 
 # autoclass_content = 'both'
 
@@ -21,6 +20,7 @@ import camb
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 sys.path.insert(0, '../..')
+import camb
 
 # -- General configuration ------------------------------------------------
 
