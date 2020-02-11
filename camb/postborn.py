@@ -106,10 +106,10 @@ def get_field_rotation_power_from_PK(params, PK, chi_source, lmax=20000, acc=1, 
     diagm = np.diag(M)
     diagmsp = InterpolatedUnivariateSpline(ls, diagm)
 
-    def high_curl_integrand(ll, lp):
-        lp = lp.astype(np.int)
-        r2 = (np.float64(ll) / lp) ** 2
-        return lp * r2 * diagmsp(lp) / np.pi
+    def high_curl_integrand(_ll, _lp):
+        _lp = _lp.astype(np.int)
+        r2 = (np.float64(_ll) / _lp) ** 2
+        return _lp * r2 * diagmsp(_lp) / np.pi
 
     clcurl = np.zeros(lsamp.shape)
     lsall = np.arange(2, lmax + 1, dtype=np.float64)

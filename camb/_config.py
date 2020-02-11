@@ -6,7 +6,7 @@ lensing_method_flat_corr = 2
 lensing_method_harmonic = 3
 
 
-class _config(object):
+class _config:
     # print feedback if > 0 (note in Jupyter notebook this will appear in the terminal, not the notebook)
     FeedbackLevel = import_property(c_int, "config", "FeedbackLevel")
 

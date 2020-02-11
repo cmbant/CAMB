@@ -1,3 +1,2 @@
-six
 sympy>=1.0
 scipy>=1.0

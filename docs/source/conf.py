@@ -13,6 +13,7 @@
 # serve to show the default.
 
 import sys
+import camb
 
 # autoclass_content = 'both'
 
@@ -24,6 +25,7 @@ sys.path.insert(0, '../..')
 # -- General configuration ------------------------------------------------
 
 nitpicky = True
+
 
 # Prevent spurious errors for every field ivar (not sure why..)
 def on_missing_reference(app, env, node, contnode):
@@ -73,8 +75,6 @@ master_doc = 'index'
 project = u'Code for Anisotropies in the Microwave Background (CAMB)'
 copyright = u'Antony Lewis'
 author = u'Antony Lewis'
-
-import camb
 
 version = camb.__version__
 release = camb.__version__

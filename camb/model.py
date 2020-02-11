@@ -10,12 +10,10 @@ from .initialpower import InitialPower, SplinedInitialPower
 from .nonlinear import NonLinearModel
 from .dark_energy import DarkEnergyModel, DarkEnergyEqnOfState
 from .recombination import RecombinationModel
-from .sources import SourceWindow, GaussianSourceWindow
+from .sources import SourceWindow
 from . import bbn
-import six
 import logging
-
-# ---Parameters
+from typing import Union, Optional
 
 max_nu = 5
 max_transfer_redshifts = 150
@@ -249,7 +247,7 @@ class CAMBparams(F2003Class):
     def __init__(self, **kwargs):
         set_default_params(self)
         self.InitPower.set_params()
-        super(CAMBparams, self).__init__(**kwargs)
+        super().__init__(**kwargs)
 
     def validate(self):
         """
@@ -395,7 +393,8 @@ class CAMBparams(F2003Class):
             return theta_test - theta
 
         try:
-            self.H0 = brentq(f, theta_H0_range[0], theta_H0_range[1], rtol=5e-5)
+            # noinspection PyTypeChecker
+            self.H0: float = brentq(f, theta_H0_range[0], theta_H0_range[1], rtol=5e-5)
             if not cosmomc_approx and abs(self.H0 - est_H0) > iteration_threshold:
                 # iterate with recalculation of recombination and zstar
                 self.set_H0_for_theta(theta, theta_H0_range=theta_H0_range, est_H0=self.H0,
@@ -404,13 +403,13 @@ class CAMBparams(F2003Class):
         except ValueError:
             raise CAMBParamRangeError('No solution for H0 inside of theta_H0_range')
 
-    def set_cosmology(self, H0=None, ombh2=0.022, omch2=0.12, omk=0.0,
-                      cosmomc_theta=None, thetastar=None,
-                      neutrino_hierarchy='degenerate', num_massive_neutrinos=1,
-                      mnu=0.06, nnu=constants.default_nnu, YHe=None, meffsterile=0.0,
-                      standard_neutrino_neff=constants.default_nnu,
-                      TCMB=constants.COBE_CMBTemp, tau=None, zrei=None, deltazrei=None, Alens=1.0,
-                      bbn_predictor=None, theta_H0_range=(10, 100)):
+    def set_cosmology(self, H0: Optional[float] = None, ombh2=0.022, omch2=0.12, omk=0.0,
+                      cosmomc_theta: Optional[float] = None, thetastar: Optional[float] = None,
+                      neutrino_hierarchy: Union[str, int] = 'degenerate', num_massive_neutrinos=1,
+                      mnu=0.06, nnu=constants.default_nnu, YHe: Optional[float] = None, meffsterile=0.0,
+                      standard_neutrino_neff=constants.default_nnu, TCMB=constants.COBE_CMBTemp,
+                      tau: Optional[float] = None, zrei: Optional[float] = None, deltazrei: Optional[float] = None,
+                      Alens=1.0, bbn_predictor: Union[None, str, bbn.BBNPredictor] = None, theta_H0_range=(10, 100)):
         r"""
         Sets cosmological parameters in terms of physical densities and parameters (e.g. as used in Planck analyses).
         Default settings give a single distinct neutrino mass eigenstate, by default one neutrino with mnu = 0.06eV.
@@ -462,7 +461,7 @@ class CAMBparams(F2003Class):
 
         if YHe is None:
             # use BBN prediction
-            if isinstance(bbn_predictor, six.string_types):
+            if isinstance(bbn_predictor, str):
                 self.bbn_predictor = bbn.get_predictor(bbn_predictor)
             else:
                 self.bbn_predictor = bbn_predictor or bbn.get_predictor()
@@ -475,7 +474,7 @@ class CAMBparams(F2003Class):
 
         neutrino_mass_fac = constants.neutrino_mass_fac * (constants.COBE_CMBTemp / TCMB) ** 3
 
-        if not isinstance(neutrino_hierarchy, six.string_types):
+        if not isinstance(neutrino_hierarchy, str):
             neutrino_hierarchy = neutrino_hierarchies[neutrino_hierarchy - 1]
 
         if nnu >= standard_neutrino_neff or neutrino_hierarchy != neutrino_hierarchy_degenerate:

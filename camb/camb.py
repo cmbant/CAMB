@@ -1,20 +1,13 @@
 from .baseconfig import camblib, CAMBError, CAMBValueError, CAMBUnknownArgumentError, np
-from ctypes import c_float, c_int, c_double, c_bool, POINTER, byref
+from ctypes import c_double, c_bool, POINTER, byref
 import ctypes
 from . import model, constants
 from ._config import config
 from .model import CAMBparams
 from .results import CAMBdata, MatterTransferData, ClTransferData
-
 import logging
-import six
 import os
-
-if six.PY3:
-    from inspect import getfullargspec as getargspec
-else:
-    # noinspection PyDeprecation
-    from inspect import getargspec
+from inspect import getfullargspec
 
 _debug_params = False
 
@@ -148,7 +141,7 @@ def set_params(cp=None, verbose=False, **params):
     used_params = set()
 
     def do_set(setter):
-        kwargs = {k: params[k] for k in getargspec(setter).args[1:] if k in params}
+        kwargs = {kk: params[kk] for kk in getfullargspec(setter).args[1:] if kk in params}
         used_params.update(kwargs.keys())
         if kwargs:
             if verbose:
@@ -250,7 +243,7 @@ def run_ini(ini_filename, no_validate=False):
     run_inifile = camblib.__camb_MOD_camb_runinifile
     run_inifile.argtypes = [ctypes.c_char_p, POINTER(ctypes.c_long)]
     run_inifile.restype = c_bool
-    s = ctypes.create_string_buffer(six.b(ini_filename))
+    s = ctypes.create_string_buffer(ini_filename.encode("latin-1"))
     if not run_inifile(s, ctypes.c_long(len(ini_filename))):
         config.check_global_error('run_ini')
 
@@ -271,7 +264,7 @@ def read_ini(ini_filename, no_validate=False):
     read_inifile = camblib.__camb_MOD_camb_readparamfile
     read_inifile.argtypes = [POINTER(CAMBparams), ctypes.c_char_p, POINTER(ctypes.c_long)]
     read_inifile.restype = ctypes.c_bool
-    s = ctypes.create_string_buffer(six.b(ini_filename))
+    s = ctypes.create_string_buffer(ini_filename.encode("latin-1"))
     if not read_inifile(cp, s, ctypes.c_long(len(ini_filename))):
         config.check_global_error('read_ini')
     return cp

@@ -6,7 +6,6 @@ from . import model, constants
 from ._config import config
 from .model import set_default_params, CAMBparams
 import logging
-import six
 from scipy.interpolate import RectBivariateSpline, interp1d
 
 int_arg = POINTER(c_int)
@@ -48,13 +47,14 @@ def save_cmb_power_array(filename, array, labels, lmin=0):
     lmax = array.shape[0] - 1
     ls = np.atleast_2d(np.arange(lmin, lmax + 1)).T
     ncol = array.shape[1]
-    if isinstance(labels, six.string_types):
+    if isinstance(labels, str):
         labels = labels.split()
+    # noinspection PyTypeChecker
     np.savetxt(filename, np.hstack((ls, array[lmin:, :])), fmt=['%4u'] + ['%12.7e'] * ncol,
                header=' L ' + ' '.join(['{:13s}'.format(lab) for lab in labels]))
 
 
-class MatterTransferData(object):
+class MatterTransferData:
     r"""
     MatterTransferData is the base class for storing matter power transfer function data for various q values.
     In a flat universe q=k, in a closed universe q is quantized.
@@ -87,6 +87,12 @@ class MatterTransferData(object):
                          entry+1 can be one of the Transfer_xxx variables above.
     """
 
+    nq: int
+    q: np.ndarray
+    sigma_8: np.ndarray
+    sigma2_vdelta_8: np.ndarray
+    transfer_data: np.ndarray
+
     def transfer_z(self, name, z_index=0):
         """
         Get transfer function (function of q, for each q in self.q_trans) by name for given redshift index
@@ -101,7 +107,7 @@ class MatterTransferData(object):
         return self.transfer_data[model.transfer_names.index(name), :, z_index]
 
 
-class ClTransferData(object):
+class ClTransferData:
     r"""
     ClTransferData is the base class for storing CMB power transfer functions, as a function of q and :math:`\ell`.
     To get an instance of this data, call :meth:`.results.CAMBdata.get_cmb_transfer_data`
@@ -111,6 +117,10 @@ class ClTransferData(object):
     :ivar L: int array of :math:`\ell` values calculated
     :ivar delta_p_l_k: transfer functions, indexed by source, L, q
     """
+    NumSources: int
+    q: np.ndarray
+    L: np.ndarray
+    delta_p_l_k: np.ndarray
 
     def get_transfer(self, source=0):
         r"""
@@ -348,7 +358,7 @@ class CAMBdata(F2003Class):
         config.check_global_error()
 
     def _CMB_unit(self, CMB_unit):
-        if isinstance(CMB_unit, six.string_types):
+        if isinstance(CMB_unit, str):
             if CMB_unit == 'muK':
                 CMB_unit = self.Params.TCMB * 1e6
             elif CMB_unit == 'K':
@@ -500,7 +510,7 @@ class CAMBdata(F2003Class):
             if not isinstance(vars, (tuple, list)):
                 vars = [vars]
             import sympy
-            named_vars = [var for var in vars if isinstance(var, six.string_types)]
+            named_vars = [var for var in vars if isinstance(var, str)]
 
             unknown = set(named_vars) - set(model.evolve_names)
             if unknown:
@@ -572,7 +582,7 @@ class CAMBdata(F2003Class):
         :return: n_eta x len(vars) 2D numpy array of outputs or dict of 1D arrays
         """
 
-        if isinstance(vars, six.string_types):
+        if isinstance(vars, str):
             vars = [vars]
         unknown = set(vars) - set(model.background_names)
         if unknown:
@@ -612,7 +622,7 @@ class CAMBdata(F2003Class):
         :param format: 'dict' or 'array', for either dict of 1D arrays indexed by name, or 2D array
         :return: n_a x len(vars) 2D numpy array or dict of 1D arrays of :math:`8\pi G a^4 \rho_i` in Mpc units.
         """
-        if isinstance(vars, six.string_types):
+        if isinstance(vars, str):
             vars = [vars]
         unknown = set(vars) - set(model.density_names)
         if unknown:
@@ -664,7 +674,7 @@ class CAMBdata(F2003Class):
         else:
             return res
 
-    def get_matter_transfer_data(self):
+    def get_matter_transfer_data(self) -> MatterTransferData:
         """
         Get matter transfer function data and sigma8 for calculated results.
 
@@ -690,9 +700,9 @@ class CAMBdata(F2003Class):
             var1 = config.transfer_power_var
         if var2 is None:
             var2 = config.transfer_power_var
-        if isinstance(var1, six.string_types):
+        if isinstance(var1, str):
             var1 = model.transfer_names.index(var1) + 1
-        if isinstance(var2, six.string_types):
+        if isinstance(var2, str):
             var2 = model.transfer_names.index(var2) + 1
         return c_int(var1), c_int(var2)
 
@@ -860,6 +870,8 @@ class CAMBdata(F2003Class):
         """
 
         class PKInterpolator(RectBivariateSpline):
+            islog: bool
+            logsign: int
 
             def P(self, z, kh, grid=None):
                 if grid is None:
@@ -870,10 +882,12 @@ class CAMBdata(F2003Class):
                     return self(z, np.log(kh), grid=grid)
 
         class PKInterpolatorSingleZ(interp1d):
+            islog: bool
+            logsign: int
 
             def __init__(self, *args, **kwargs):
                 self._single_z = np.array(args[0])
-                super(PKInterpolatorSingleZ, self).__init__(*(args[1:]), kind=kwargs.get("ky"))
+                super().__init__(*(args[1:]), kind=kwargs.get("ky"))
 
             def check_z(self, z):
                 if not np.allclose(z, self._single_z):
@@ -884,8 +898,7 @@ class CAMBdata(F2003Class):
             def __call__(self, *args):
                 self.check_z(args[0])
                 # NB returns dimensionality as the 2D one: 1 dimension if z single
-                return (lambda x: x[0] if np.isscalar(args[0]) else x)(
-                    super(PKInterpolatorSingleZ, self).__call__(*(args[1:])))
+                return (lambda x: x[0] if np.isscalar(args[0]) else x)(super().__call__(*(args[1:])))
 
             def P(self, z, kh, grid=None):
                 # grid kwarg is ignored
@@ -895,10 +908,10 @@ class CAMBdata(F2003Class):
                     return self(z, np.log(kh))
 
         assert self.Params.WantTransfer
-        kh, z, pk = self.get_linear_matter_power_spectrum(var1, var2, hubble_units, nonlinear=nonlinear)
-        kh_max = kh[-1]
+        khs, zs, pk = self.get_linear_matter_power_spectrum(var1, var2, hubble_units, nonlinear=nonlinear)
+        kh_max = khs[-1]
         if not k_hunit:
-            kh *= self.Params.H0 / 100
+            khs *= self.Params.H0 / 100
         sign = 1
         if log_interp and np.any(pk <= 0):
             if np.all(pk < 0):
@@ -906,9 +919,9 @@ class CAMBdata(F2003Class):
             else:
                 log_interp = False
         p_or_log_p = np.log(sign * pk) if log_interp else pk
-        logkh = np.log(kh)
-        deg_z = min(len(z) - 1, 3)
-        kmax = kh[-1]
+        logkh = np.log(khs)
+        deg_z = min(len(zs) - 1, 3)
+        kmax = khs[-1]
         PKInterpolator = PKInterpolator if deg_z else PKInterpolatorSingleZ
         if extrap_kmax and extrap_kmax > kmax:
             # extrapolate to ultimate power law
@@ -932,15 +945,15 @@ class CAMBdata(F2003Class):
             p_or_log_p = log_p_new
 
         deg_k = min(len(logkh) - 1, 3)
-        res = PKInterpolator(z, logkh, p_or_log_p, kx=deg_z, ky=deg_k)
-        res.kmin = np.min(kh)
+        res = PKInterpolator(zs, logkh, p_or_log_p, kx=deg_z, ky=deg_k)
+        res.kmin = np.min(khs)
         res.kmax = kmax
         res.islog = log_interp
         res.logsign = sign
-        res.zmin = np.min(z)
-        res.zmax = np.max(z)
+        res.zmin = np.min(zs)
+        res.zmax = np.max(zs)
         if return_z_k:
-            return res, z, kh
+            return res, zs, khs
         else:
             return res
 
@@ -1078,6 +1091,7 @@ class CAMBdata(F2003Class):
                  Note that P is the lensing deflection, lensing windows Wx give convergence.
         """
 
+        old_val = None
         try:
             if params is not None:
                 old_val = params.Want_cl_2D_array
@@ -1115,7 +1129,7 @@ class CAMBdata(F2003Class):
                             cls *= CMB_units[i] * CMB_units[j]
                         result[tag] = cls
         finally:
-            if params is not None:
+            if old_val is not None:
                 params.Want_cl_2D_array = old_val
         return result
 

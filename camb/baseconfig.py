@@ -1,7 +1,6 @@
 import os
 import os.path as osp
 import sys
-import six
 import platform
 import ctypes
 from ctypes import Structure, POINTER, byref, c_int, c_double, c_bool, c_float
@@ -28,10 +27,9 @@ class IfortGfortranLoader(ctypes.CDLL):
 
     def __getitem__(self, name_or_ordinal):
         if gfortran:
-            res = super(IfortGfortranLoader, self).__getitem__(name_or_ordinal)
+            res = super().__getitem__(name_or_ordinal)
         else:
-            res = super(IfortGfortranLoader, self).__getitem__(
-                name_or_ordinal.replace('_MOD_', '_mp_').replace('__', '') + '_')
+            res = super().__getitem__(name_or_ordinal.replace('_MOD_', '_mp_').replace('__', '') + '_')
         return res
 
 
@@ -59,7 +57,7 @@ else:
         pass
 
 
-    class _dll_value(object):
+    class _dll_value:
         __slots__ = ['f']
 
         def __init__(self, f):
@@ -101,7 +99,7 @@ def set_cl_template_file(cl_template_file=None):
         template = osp.abspath(
             osp.join(BASEDIR, "..", "..", "fortran",
                      "HighLExtrapTemplate_lenspotentialCls.dat"))
-    template = six.b(template)
+    template = template.encode("latin-1")
     func = camblib.__handles_MOD_set_cls_template
     func.argtypes = [ctypes.c_char_p, ctypes.c_long]
     s = ctypes.create_string_buffer(template)
@@ -199,8 +197,7 @@ def AllocatableObject(cls=None):
         return res
 
 
-class _AllocatableArray(
-    FortranAllocatable):  # member corresponding to allocatable :: d(:) member in fortran
+class _AllocatableArray(FortranAllocatable):  # member corresponding to allocatable :: d(:) member in fortran
     _fields_ = [("allocatable", ctypes.c_void_p * (
             _f_allocatable_array_size // ctypes.sizeof(ctypes.c_void_p)))]
 
@@ -366,7 +363,7 @@ def method_import(module_name, class_name, func_name, restype=None, extra_args=(
 
 # Handle custom field types inspired by:
 # https://stackoverflow.com/questions/45527945/extend-ctypes-to-specify-field-overloading
-class FortranManagedField(object):
+class FortranManagedField:
     __slots__ = ['name', 'real_name', 'type_']
 
     def __init__(self, name, type_):
@@ -391,7 +388,7 @@ class FortranManagedField(object):
         setattr(instance, self.real_name, value)
 
 
-class NamedIntField(object):
+class NamedIntField:
     __slots__ = ['real_name', 'values', 'name_values']
 
     def __init__(self, name, **kwargs):
@@ -415,14 +412,14 @@ class NamedIntField(object):
         return self.values[value]
 
     def __set__(self, instance, value):
-        if isinstance(value, six.string_types):
+        if isinstance(value, str):
             value = self.name_values[value]
         elif value not in self.values:
             raise ValueError("Value %s not in allowed: %s" % (value, self.name_values))
         setattr(instance, self.real_name, value)
 
 
-class BoolField(object):  # fortran-compatible boolean (actually c_int internally)
+class BoolField:  # fortran-compatible boolean (actually c_int internally)
     __slots__ = ['real_name']
 
     def __init__(self, name):
@@ -435,7 +432,7 @@ class BoolField(object):  # fortran-compatible boolean (actually c_int internall
         setattr(instance, self.real_name, (0, 1)[value])
 
 
-class SizedArrayField(object):  # statically sized array with another field determining size
+class SizedArrayField:  # statically sized array with another field determining size
     __slots__ = ['real_name', 'size_name']
 
     def __init__(self, name, size_name):
@@ -466,7 +463,7 @@ class CAMBStructureMeta(type(Structure)):
         try:
             F2003 = F2003Class
         except NameError:
-            class F2003(object):
+            class F2003:
                 pass
 
         tps = {c_bool: "boolean", c_double: "float64", c_int: "integer",
@@ -537,7 +534,8 @@ class CAMBStructureMeta(type(Structure)):
         if field_doc:
             namespace['__doc__'] = namespace.get('__doc__', "") + "\n" + field_doc
 
-        cls = type(Structure).__new__(metacls, name, bases, namespace)
+        # noinspection PyTypeChecker
+        cls: CAMB_Structure = super().__new__(metacls, name, bases, namespace)
 
         if name == "F2003Class" or issubclass(bases[0], F2003):
             cls._class_imports = {}
@@ -547,16 +545,16 @@ class CAMBStructureMeta(type(Structure)):
         prefix = getattr(cls, '_method_prefix_', "f_")
         methods = cls.__dict__.get("_methods_", "")
 
-        def make_method(func, name, nopass, doc):
-            if nopass:
+        def make_method(_func, _name, _nopass, doc):
+            if _nopass:
                 def method_func(self, *args):
-                    return func(*args)
+                    return _func(*args)
             else:
                 def method_func(self, *args):
-                    return func(self.fortran_self, *args)
+                    return _func(self.fortran_self, *args)
             if doc:
                 method_func.__doc__ = doc
-            method_func.__name__ = name
+            method_func.__name__ = _name
             return method_func
 
         for method in methods:
@@ -578,8 +576,7 @@ class CAMBStructureMeta(type(Structure)):
 
 
 # noinspection PyPep8Naming
-@six.add_metaclass(CAMBStructureMeta)
-class CAMB_Structure(Structure):
+class CAMB_Structure(Structure, metaclass=CAMBStructureMeta):
 
     @classmethod
     def get_all_fields(cls):
@@ -615,7 +612,7 @@ class CAMB_Structure(Structure):
         return 'class: <%s>\n ' % self.__class__.__name__ + self._as_string().replace('\n', '\n ')
 
 
-class _FortranSelf(object):
+class _FortranSelf:
     def __get__(self, instance, owner):
         if not instance and owner.__class__ is CAMBStructureMeta:
             # prevent error during introspection of classes
@@ -677,6 +674,8 @@ class F2003Class(CAMB_Structure):
         :return: deep copy of self
         """
         return self._new_copy(source=self)
+
+    __copy__ = copy
 
     @classmethod
     def import_method(cls, tag, extra_args=(), restype=None, nopass=False,

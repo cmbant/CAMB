@@ -1,4 +1,3 @@
-from __future__ import absolute_import
 import os
 import sys
 import unittest
@@ -45,6 +44,7 @@ class CambTest(unittest.TestCase):
         pars.z_outputs = pars.z_outputs
         pars.z_outputs = []
         pars.z_outputs = None
+        # noinspection PyTypeChecker
         self.assertFalse(len(pars.z_outputs))
         with self.assertRaises(TypeError):
             pars.DarkEnergy = initialpower.InitialPowerLaw()
@@ -504,13 +504,14 @@ class CambTest(unittest.TestCase):
         pars.InitPower.set_params(As=2.1e-9, ns=0.9)
         self.assertAlmostEqual(pars2.scalar_power(1.1), pars.scalar_power(1.1), delta=As * 1e-4)
 
-        def PK(k, As, ns):
-            return As * (k / 0.05) ** (ns - 1) * (1 + 0.1 * np.sin(10 * k))
+        def PK(k, A, n):
+            return A * (k / 0.05) ** (n - 1) * (1 + 0.1 * np.sin(10 * k))
 
         pars.set_initial_power_function(PK, args=(3e-9, 0.95))
         P = pars.scalar_power(ks)
         np.testing.assert_almost_equal(P, PK(ks, 3e-9, 0.95), decimal=4)
 
+    # noinspection PyTypeChecker
     def testSources(self):
         from camb.sources import GaussianSourceWindow, SplinedSourceWindow
         pars = camb.CAMBparams()

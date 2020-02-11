@@ -41,7 +41,7 @@ class SplinedSourceWindow(SourceWindow):
         z = kwargs.pop('z', None)
         if z is not None:
             self.set_table(z, kwargs.pop('W'))
-        super(F2003Class, self).__init__(**kwargs)
+        super().__init__(**kwargs)
 
     def set_table(self, z, W):
         """

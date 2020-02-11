@@ -5,7 +5,6 @@
 
 import numpy as np
 import os
-import io
 
 # Various useful constants
 hbar = 1.05457e-34
@@ -39,7 +38,7 @@ def ypBBN_to_yhe(YBBN):
     return -YBBN * m_He / (-YBBN * m_He + 4 * YBBN * m_H - 4 * m_H)
 
 
-class BBNPredictor(object):
+class BBNPredictor:
     """
     The base class for making BBN predictions for Helium abundance
     """
@@ -87,7 +86,7 @@ class BBN_table_interpolator(BBNPredictor):
         self.interpolation_table = interpolation_table
 
         comment = None
-        with io.open(interpolation_table) as f:
+        with open(interpolation_table) as f:
             for line in f:
                 line = line.strip()
                 if line:
