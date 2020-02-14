@@ -1,3 +1,4 @@
+import os
 from .baseconfig import import_property, CAMBError
 from ctypes import c_char, c_int, c_bool, c_double
 
@@ -60,3 +61,6 @@ class _config:
 
 
 config = _config()
+
+if os.environ.get('BINDER_LAUNCH_HOST'):
+    config.ThreadNum = 1  # binder is very slow with more than 1 CPU, force 1 by default
