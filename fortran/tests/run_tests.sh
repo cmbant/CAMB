@@ -1,5 +1,6 @@
 set -e
 
+gfortran --version
 python --version
 python setup.py install
 python -c "import camb; print(camb.__version__)"
