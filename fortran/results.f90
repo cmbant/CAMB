@@ -3481,7 +3481,11 @@
             dsig8 = dsig8*MTrans%TransferData(s2,ik, State%PK_redshifts_index(1:State%CP%Transfer%PK_num_redshifts))
         end if
         x= kh *R
-        win =3*(sin(x)-x*cos(x))/x**3
+        if (x < 1e-2_dl) then
+            win = 1._dl - x**2
+        else
+            win = 3*(sin(x)-x*cos(x))/x**3
+        end if
         lnk=log(k)
         if (ik==1) then
             dlnk=0.5_dl
@@ -3543,7 +3547,11 @@
             lnk=log(k)
 
             x= kh *R
-            win =3*(sin(x)-x*cos(x))/x**3
+            where (x < 1e-2_dl)
+                win = 1._dl - x**2
+            elsewhere
+                win =3*(sin(x)-x*cos(x))/x**3
+            end where
             if (ik==1 .and. subk==1) then
                 dlnk=0.5_dl
                 !Approx for 2._dl/(Params%InitPower%an(in)+3)  [From int_0^k_1 dk/k k^4 P(k)]
