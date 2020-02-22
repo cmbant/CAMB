@@ -254,7 +254,6 @@
 
     end function CAMBdata_GetTransfers
 
-    
     function CAMBdata_CalcBackgroundTheory(State, P) result(error)
     use cambmain, only: initvars
     Type (CAMBdata):: State
@@ -268,20 +267,69 @@
 
     end function CAMBdata_CalcBackgroundTheory
 
+    subroutine CAMBdata_GetSigma8(State, s8, i)
+    Type(CAMBdata) :: State
+    integer i
+    real(dl) s8(State%CP%Transfer%PK_num_redshifts)
+
+    if (i==0) then
+        s8= State%MT%sigma_8
+    elseif (i==1 .and. allocated(State%MT%sigma2_vdelta_8)) then
+        s8 = State%MT%sigma2_vdelta_8/State%MT%sigma_8
+    else
+        s8 = 0
+    end if
+
+    end subroutine CAMBdata_GetSigma8
+
+    subroutine CAMBdata_GetSigmaRArray(State, sigma, R, nR, z_ix, nz, var1, var2)
+    Type(CAMBdata) :: State
+    real(dl) :: sigma(nR,nz)
+    integer :: nR
+    real(dl) :: R(nR)
+    integer nz
+    integer var1, var2, z_ix(nz)
+    integer i, ix
+
+    !$OMP PARALLEL DO DEFAULT(SHARED), PRIVATE(ix)
+    do i=1, nz
+        ix = z_ix(i)
+        if (ix==-1) ix = State%PK_redshifts_index(State%CP%Transfer%PK_num_redshifts)
+        call Transfer_GetSigmaRArray(State, State%MT, R, sigma(:,i), ix, var1, var2)
+    end do
+
+    end subroutine CAMBdata_GetSigmaRArray
+
+
+    subroutine CAMBdata_GetMatterTransferks(State, nk, ks)
+    Type(CAMBdata) :: State
+    real(dl) ks(nk)
+    integer nk
+
+    if (nk/=0) then
+        ks =  State%MT%TransferData(Transfer_kh,:,1) * (State%CP%H0/100)
+    end if
+    nk = State%MT%num_q_trans
+
+    end subroutine CAMBdata_GetMatterTransferks
 
     subroutine CAMBdata_MatterTransferData(State, cData)
     Type(CAMBdata), target :: State
     Type(c_MatterTransferData) :: cData
 
+    if (allocated(State%MT%sigma2_vdelta_8)) then
+        cData%sigma2_vdelta_8_size = size(State%MT%sigma2_vdelta_8)
+        cData%sigma2_vdelta_8 = c_loc(State%MT%sigma2_vdelta_8)
+    else
+        cData%sigma2_vdelta_8_size =0
+    end if
+    cData%sigma_8_size = size(State%MT%sigma_8)
+    cData%sigma_8 = c_loc(State%MT%sigma_8)
+    cData%TransferData_size = shape(State%MT%TransferData)
     cData%num_q_trans = State%MT%num_q_trans
     cData%q_trans = c_loc(State%MT%q_trans)
-    cData%sigma_8 = c_loc(State%MT%sigma_8)
-    cData%sigma2_vdelta_8 = c_loc(State%MT%sigma2_vdelta_8)
     cData%TransferData = c_loc(State%MT%TransferData)
     cData%q_trans = c_loc(State%MT%q_trans)
-    cData%sigma_8_size = size(State%MT%sigma_8)
-    cData%sigma2_vdelta_8_size = size(State%MT%sigma2_vdelta_8)
-    cData%TransferData_size = shape(State%MT%TransferData)
 
     end subroutine CAMBdata_MatterTransferData
 

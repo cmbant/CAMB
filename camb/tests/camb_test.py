@@ -398,6 +398,57 @@ class CambTest(unittest.TestCase):
         self.assertAlmostEqual(cls2[1, 0], 1.30388e-10, places=13)
         self.assertAlmostEqual(cls[1, 0], 0)
 
+    def testSigmaR(self):
+        pars = camb.CAMBparams()
+        pars.set_cosmology(H0=67.5, ombh2=0.022, omch2=0.122, mnu=0.07, omk=0)
+        pars.InitPower.set_params(ns=0.965, As=2e-9)
+        pars.set_matter_power(nonlinear=False)
+        results = camb.get_results(pars)
+        sigma8 = results.get_sigma8_0()
+        self.assertAlmostEqual(sigma8, results.get_sigmaR(8)[-1], places=3)
+        self.assertAlmostEqual(sigma8, results.get_sigmaR(np.array([8]), z_indices=-1)[-1], places=3)
+        self.assertAlmostEqual(results.get_sigmaR(8)[-1], results.get_sigmaR(8, z_indices=-1))
+        pars.set_matter_power(nonlinear=False, k_per_logint=0, kmax=2)
+        results = camb.get_results(pars)
+        P, z, k = results.get_matter_power_interpolator(nonlinear=False, hubble_units=False, k_hunit=False,
+                                                        return_z_k=True, extrap_kmax=100, silent=True)
+        truth = 0.800629  # from high kmax, high accuracy boost
+        self.assertTrue(abs(results.get_sigmaR(8)[-1] / sigma8 - 1) < 1e-3)
+
+        def get_sigma(ks, dlogk):
+            x = ks * 8 / (pars.H0 / 100)
+            w = (3 * (np.sin(x) - x * np.cos(x)) / x ** 3) ** 2
+            w[x < 1e-2] = 1 - x[x < 1e-2] ** 2 / 2
+            Ps = P.P(0, ks) * ks ** 3 / (2 * np.pi ** 2)
+            return np.sqrt(np.dot(w, Ps * dlogk))
+
+        logk = np.arange(np.log(1e-5), np.log(20.), 1. / 100)
+        ks = np.exp(logk)
+        py_sigma = get_sigma(ks, logk[1] - logk[0])
+        self.assertAlmostEqual(py_sigma, truth, places=3)
+        # no interpolation
+        logk = np.log(k)
+        diffs = (logk[2:] - logk[:-2]) / 2
+        ks = k[1:-1]
+        py_sigma2 = get_sigma(ks, diffs)
+        self.assertAlmostEqual(py_sigma2, truth, places=3)
+        self.assertTrue(abs(results.get_sigmaR(8)[-1] / truth - 1) < 1e-4)
+        self.assertTrue(abs(results.get_sigmaR(np.array([8]), z_indices=-1)[-1] / truth - 1) < 1e-4)
+        pars.set_matter_power(nonlinear=False, k_per_logint=0, kmax=1.2, redshifts=np.arange(0, 10, 2))
+        results = camb.get_results(pars)
+        sigmas = results.get_sigmaR(np.arange(1, 20, 1), hubble_units=False, z_indices=None)
+        pars.Accuracy.AccuracyBoost = 2
+        results = camb.get_results(pars)
+        sigmas2 = results.get_sigmaR(np.arange(1, 20, 1), hubble_units=False, z_indices=None)
+        self.assertTrue(np.all(np.abs(sigmas / sigmas2 - 1) < 1e-3))
+        pars.Accuracy.AccuracyBoost = 1
+        pars.set_matter_power(nonlinear=False, k_per_logint=100, kmax=10, redshifts=np.arange(0, 10, 2))
+        results = camb.get_results(pars)
+        sigmas2 = results.get_sigmaR(np.arange(1, 20, 1), hubble_units=False, z_indices=None)
+        self.assertAlmostEqual(sigmas2[4, 2], 1.77346, places=3)
+        self.assertTrue(np.all(np.abs(sigmas[:, 1:] / sigmas2[:, 1:] - 1) < 1e-3))
+        self.assertTrue(np.all(np.abs(sigmas[:, 0] / sigmas2[:, 0] - 1) < 2e-3))
+
     def testTimeTransfers(self):
         from camb import initialpower
         pars = camb.set_params(H0=69, YHe=0.22, lmax=2000, lens_potential_accuracy=1, ns=0.96, As=2.5e-9)

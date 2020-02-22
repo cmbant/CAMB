@@ -897,7 +897,6 @@
     CAMBdata_get_lmax_lensed = this%CLdata%lmax_lensed
     end function CAMBdata_get_lmax_lensed
 
-
     !JD 08/13 New function for nonlinear lensing of CMB + MPK compatibility
     !Build master redshift array from array of desired Nonlinear lensing (NLL)
     !redshifts and an array of desired Power spectrum (PK) redshifts.
@@ -3077,7 +3076,7 @@
     subroutine Transfer_GetMatterPowerData(State, MTrans, PK_data, itf_only, var1, var2)
     !Does *NOT* include non-linear corrections
     !Get total matter power spectrum in units of (h Mpc^{-1})^3 ready for interpolation.
-    !Here there definition is < Delta^2(x) > = 1/(2 pi)^3 int d^3k P_k(k)
+    !Here the definition is < Delta^2(x) > = 1/(2 pi)^3 int d^3k P_k(k)
     !We are assuming that Cls are generated so any baryonic wiggles are well sampled and that matter power
     !spectrum is generated to beyond the CMB k_max
     class(CAMBdata) :: State
@@ -3223,7 +3222,7 @@
 
     end subroutine MatterPowerdata_Free
 
-    function MatterPowerData_k(PK,  kh, itf) result(outpower)
+    function MatterPowerData_k(PK,  kh, itf, index_cache) result(outpower)
     !Get matter power spectrum at particular k/h by interpolation
     Type(MatterPowerData) :: PK
     integer, intent(in) :: itf
@@ -3232,6 +3231,7 @@
     integer llo,lhi
     real(dl) outpower, dp
     real(dl) ho,a0,b0
+    integer, optional :: index_cache
     integer, save :: i_last = 1
 
     logk = log(kh)
@@ -3246,14 +3246,18 @@
             ( PK%log_kh(PK%num_k)-PK%log_kh(PK%num_k-1) )
         outpower = PK%matpower(PK%num_k,itf) + dp*(logk - PK%log_kh(PK%num_k))
     else
-        llo=min(i_last,PK%num_k)
+        llo=min(PresentDefault(i_last, index_cache),PK%num_k)
         do while (PK%log_kh(llo) > logk)
             llo=llo-1
         end do
-        do while (PK%log_kh(llo+1)< logk)
+        do while (PK%log_kh(llo+1) < logk)
             llo=llo+1
         end do
-        i_last =llo
+        if (present(index_cache)) then
+            index_cache = llo
+        else
+            i_last =llo
+        end if
         lhi=llo+1
         ho=PK%log_kh(lhi)-PK%log_kh(llo)
         a0=(PK%log_kh(lhi)-logk)/ho
@@ -3462,8 +3466,8 @@
     real(dl), dimension(State%CP%Transfer%PK_num_redshifts) :: dsig8, dsig8o, sig8, sig8o
     integer :: s1, s2, ik
 
-    s1 = PresentDefault (transfer_power_var, var1)
-    s2 = PresentDefault (transfer_power_var, var2)
+    s1 = PresentDefault(transfer_power_var, var1)
+    s2 = PresentDefault(transfer_power_var, var2)
     H=State%CP%h0/100._dl
     lnko=0
     dsig8o=0
@@ -3482,7 +3486,7 @@
         end if
         x= kh *R
         if (x < 1e-2_dl) then
-            win = 1._dl - x**2
+            win = 1._dl - x**2/10
         else
             win = 3*(sin(x)-x*cos(x))/x**3
         end if
@@ -3512,45 +3516,66 @@
 
     subroutine Transfer_GetSigmaRArray(State, MTrans, R, sigmaR, redshift_ix, var1, var2)
     !Get array of SigmaR at (by default) redshift zero, for all values of R
-    class(CAMBdata) :: State
+    class(CAMBdata), target :: State
     Type(MatterTransferData) :: MTrans
     real(dl), intent(in) :: R(:)
     real(dl), intent(out) :: SigmaR(:)
     integer, intent(in), optional :: redshift_ix, var1, var2
     integer red_ix, ik, subk
-    real(dl) kh, k, h, dkh
-    real(dl) lnk, dlnk, lnko, minR
+    real(dl) kh, k, h, dkh, k_step
+    real(dl) lnk, dlnk, lnko, minR, maxR
     real(dl), dimension(size(R)) ::  x, win, dsig8, dsig8o, sig8, sig8o
-    type(MatterPowerData) :: PKspline
-    integer, parameter :: nsub = 5
+    type(MatterPowerData), target:: PKspline
+    type(MatterPowerData), pointer :: PK
+    integer PK_ix
+    integer :: nsub
+    integer index_cache, nextra
 
-    minR = minval(R)
-    red_ix = PresentDefault (State%PK_redshifts_index(State%CP%Transfer%PK_num_redshifts), redshift_ix)
+    index_cache = 1
+    nsub = 5 !interpolation steps
+    h=State%CP%h0/100._dl
+    minR = minval(R)/ h
+    maxR = maxval(R)
+    red_ix = PresentDefault(State%PK_redshifts_index(State%CP%Transfer%PK_num_redshifts), redshift_ix)
 
-    call Transfer_GetMatterPowerData(State, MTrans, PKspline, red_ix, var1, var2 )
-
-    H=State%CP%h0/100._dl
+    if (allocated(State%CAMB_PK) .and. var1==transfer_power_var .and. var2==transfer_power_var) then
+        PK => State%CAMB_PK
+        PK_ix = red_ix
+    else
+        call Transfer_GetMatterPowerData(State, MTrans, PKspline, red_ix, var1, var2)
+        PK => PKspline
+        PK_ix = 1
+    end if
     dkh = 0._dl
     lnko=0
     dsig8o=0
     sig8=0
     sig8o=0
     if (MTrans%TransferData(Transfer_kh,1,1)==0) call MpiStop('Transfer_GetSigmaRArray kh zero')
-    do ik=1, MTrans%num_q_trans + 2
+
+    !Steps to extrapolate beyond kmax for tail [could do analytically]
+    nextra = (4 /minR - State%CP%Transfer%kmax)/h/ &
+        (MTrans%TransferData(Transfer_kh,MTrans%num_q_trans,1)- MTrans%TransferData(Transfer_kh,MTrans%num_q_trans-1,1))
+    do ik=1, MTrans%num_q_trans + max(2, nextra)
         if (ik < MTrans%num_q_trans) then
-            dkh = (MTrans%TransferData(Transfer_kh,ik+1,1)- MTrans%TransferData(Transfer_kh,ik,1))/nsub
-            !after last step just extrapolate a bit with previous size
+            k_step= MTrans%TransferData(Transfer_kh,ik+1,1)-MTrans%TransferData(Transfer_kh,ik,1)
+            kh = MTrans%TransferData(Transfer_kh,ik,1)
+            nsub = max(1, nint(k_step*min(maxR,4/(kh*h))/0.5))
+        else
+            !after last step just extrapolate with previous size
+            nsub = max(1, nint(k_step*min(maxR,4/(kh*h))))
         end if
-        if (ik <= MTrans%num_q_trans) kh = MTrans%TransferData(Transfer_kh,ik,1)
+        nsub = nint(nsub*State%CP%Accuracy%AccuracyBoost)
+        dkh = k_step/nsub
         do subk = 1, nsub
-            k = kh*H
+            k = kh*h
             lnk=log(k)
 
             x= kh *R
             where (x < 1e-2_dl)
-                win = 1._dl - x**2
+                win = 1._dl - x**2/5
             elsewhere
-                win =3*(sin(x)-x*cos(x))/x**3
+                win =(3*(sin(x)-x*cos(x))/x**3)**2
             end where
             if (ik==1 .and. subk==1) then
                 dlnk=0.5_dl
@@ -3559,16 +3584,15 @@
             else
                 dlnk=lnk-lnko
             end if
-            dsig8=win**2*(MatterPowerData_k(PKspline,  kh, 1)*k**3)
+            dsig8=win*(MatterPowerData_k(PKspline, kh,PK_ix,index_cache)*k**3)
             sig8=sig8+(dsig8+dsig8o)*dlnk/2
             dsig8o=dsig8
             lnko=lnk
             kh = kh + dkh
         end do
     end do
-    call MatterPowerdata_Free(PKspline)
 
-    SigmaR=sqrt(sig8/(const_pi*const_twopi*h**3 ))
+    SigmaR=sqrt(sig8/(const_pi*const_twopi*h**3))
 
     end subroutine Transfer_GetSigmaRArray
 
