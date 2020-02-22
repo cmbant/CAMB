@@ -805,7 +805,7 @@ class CAMBdata(F2003Class):
             R = R * self.Params.H0 / 100
         var1, var2 = self._transfer_var(var1, var2)
         radii = np.atleast_1d(np.array(R, dtype=np.float64))
-        valid_indices = np.array(self.PK_redshifts_index[:self.Params.Transfer.PK_num_redshifts], dtype=np.int)
+        valid_indices = np.array(self.PK_redshifts_index[:self.Params.Transfer.PK_num_redshifts], dtype=np.int32)
         if z_indices is None:
             z_ix = valid_indices
         else:
