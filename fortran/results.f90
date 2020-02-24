@@ -3515,7 +3515,7 @@
     end subroutine Transfer_Get_SigmaR
 
     subroutine Transfer_GetSigmaRArray(State, MTrans, R, sigmaR, redshift_ix, var1, var2)
-    !Get array of SigmaR at (by default) redshift zero, for all values of R
+    !Get array of SigmaR at (by default) redshift zero, for all values of R (in h^{-1}Mpc units)
     class(CAMBdata), target :: State
     Type(MatterTransferData) :: MTrans
     real(dl), intent(in) :: R(:)

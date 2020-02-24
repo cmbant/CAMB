@@ -784,9 +784,9 @@ class CAMBdata(F2003Class):
                                                      have_power_spectra=have_power_spectra, params=params,
                                                      nonlinear=True)
 
-    def get_sigmaR(self, R, z_indices=None, var1=None, var2=None, hubble_units=True):
+    def get_sigmaR(self, R, z_indices=None, var1=None, var2=None, hubble_units=True, return_R_z=False):
         r"""
-        Calculate :math:`\sigma_R` values, the RMS matter fluctuation in spheres of radius R in linear theory.
+        Calculate :math:`\sigma_R` values, the RMS linear matter fluctuation in spheres of radius R in linear theory.
         Accuracy depends on the sampling with which the matter transfer functions are computed.
 
         For a description of outputs for different var1, var2 see :ref:`transfer-variables`.
@@ -799,12 +799,17 @@ class CAMBdata(F2003Class):
         :param var1: variable i (index, or name of variable; default delta_tot)
         :param var2: variable j (index, or name of variable; default delta_tot)
         :param hubble_units: if true, R is in h^{-1} Mpc, otherwise Mpc
+        :param return_R_z: if true, return tuple of R, z, sigmaR
+                           (where R always Mpc units not h^{-1}Mpc and R< z are arrays)
         :return: array of :math:`\sigma_R` values, or 2D array indexed by (redshift, R)
         """
-        if not hubble_units:
-            R = R * self.Params.H0 / 100
         var1, var2 = self._transfer_var(var1, var2)
-        radii = np.atleast_1d(np.array(R, dtype=np.float64))
+        if hubble_units:
+            if not np.isscalar(R):
+                R = np.array(R, dtype=np.float64)
+            R = R / (self.Params.H0 / 100)
+
+        radii = np.atleast_1d(np.asarray(R, dtype=np.float64)) * self.Params.H0 / 100
         valid_indices = np.array(self.PK_redshifts_index[:self.Params.Transfer.PK_num_redshifts], dtype=np.int32)
         if z_indices is None:
             z_ix = valid_indices
@@ -816,11 +821,13 @@ class CAMBdata(F2003Class):
         if z_indices is not None and np.isscalar(z_indices):
             sigma_R = sigma_R[0, :]
             if np.isscalar(R):
-                return sigma_R[0]
-        if np.isscalar(R):
-            return sigma_R[:, 0]
-
-        return sigma_R
+                sigma_R = sigma_R[0]
+        elif np.isscalar(R):
+            sigma_R = sigma_R[:, 0]
+        if return_R_z:
+            return R, np.array(self.transfer_redshifts)[z_ix - 1], sigma_R
+        else:
+            return sigma_R
 
     def get_sigma8(self):
         r"""

@@ -415,11 +415,11 @@ class CambTest(unittest.TestCase):
         truth = 0.800629  # from high kmax, high accuracy boost
         self.assertTrue(abs(results.get_sigmaR(8)[-1] / sigma8 - 1) < 1e-3)
 
-        def get_sigma(ks, dlogk):
-            x = ks * 8 / (pars.H0 / 100)
+        def get_sigma(_ks, dlogk):
+            x = _ks * 8 / (pars.H0 / 100)
             w = (3 * (np.sin(x) - x * np.cos(x)) / x ** 3) ** 2
             w[x < 1e-2] = 1 - x[x < 1e-2] ** 2 / 2
-            Ps = P.P(0, ks) * ks ** 3 / (2 * np.pi ** 2)
+            Ps = P.P(0, _ks) * _ks ** 3 / (2 * np.pi ** 2)
             return np.sqrt(np.dot(w, Ps * dlogk))
 
         logk = np.arange(np.log(1e-5), np.log(20.), 1. / 100)
