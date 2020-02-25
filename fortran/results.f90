@@ -492,7 +492,11 @@
         end if
     end if
     if (allocated(this%CP%SourceWindows) .and. .not. back_only) then
-        this%num_redshiftwindows = size(this%CP%SourceWindows)
+        if (.not. this%CP%WantScalars) then
+            this%num_redshiftwindows=0
+        else
+            this%num_redshiftwindows = size(this%CP%SourceWindows)
+        end if
     else
         this%num_redshiftwindows = 0
         this%CP%SourceTerms%limber_windows = .false.
