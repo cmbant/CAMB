@@ -663,6 +663,8 @@ class CAMBparams(F2003Class):
         :param silent: if True, don't give warnings about sort order
         :return: self
         """
+        if not len(redshifts):
+            raise CAMBError('set_matter_power redshifts list is empty')
 
         self.WantTransfer = True
         self.Transfer.high_precision = True

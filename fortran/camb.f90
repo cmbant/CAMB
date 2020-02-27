@@ -315,7 +315,7 @@
                 RedWin%bias = Ini%Read_Double_Array('redshift_bias', i)
                 RedWin%dlog10Ndm = Ini%Read_Double_Array('redshift_dlog10Ndm', i ,0.d0)
             end if
-            class default
+        class default
             call MpiStop('Probable compiler bug')
         end select
     end do

@@ -5,6 +5,7 @@
 
 import numpy as np
 import os
+from scipy.interpolate import RectBivariateSpline
 
 # Various useful constants
 hbar = 1.05457e-34
@@ -36,6 +37,10 @@ def yhe_to_ypBBN(Yp):
 
 def ypBBN_to_yhe(YBBN):
     return -YBBN * m_He / (-YBBN * m_He + 4 * YBBN * m_H - 4 * m_H)
+
+
+class BBNIterpolator(RectBivariateSpline):
+    grid: np.ndarray
 
 
 class BBNPredictor:
@@ -103,14 +108,13 @@ class BBN_table_interpolator(BBNPredictor):
         deltans = list(np.unique(table[:, DeltaN_i]))
         ombh2s = list(np.unique(table[:, ombh2_i]))
         assert (table.shape[0] == len(ombh2s) * len(deltans))
-        from scipy.interpolate import RectBivariateSpline
         self.interpolators = {}
         for i, col in enumerate(columns):
             if i != ombh2_i and i != DeltaN_i and np.count_nonzero(table[:, i]):
                 grid = np.zeros((len(ombh2s), len(deltans)))
                 for ix in range(table.shape[0]):
                     grid[ombh2s.index(table[ix, ombh2_i]), deltans.index(table[ix, DeltaN_i])] = table[ix, i]
-                self.interpolators[col] = RectBivariateSpline(ombh2s, deltans, grid)
+                self.interpolators[col] = BBNIterpolator(ombh2s, deltans, grid)
                 self.interpolators[col].grid = grid
 
         self.ombh2s = ombh2s
