@@ -97,7 +97,7 @@ def set_cl_template_file(cl_template_file=None):
                                             "HighLExtrapTemplate_lenspotentialCls.dat")
     if not osp.exists(template):
         template = osp.abspath(
-            osp.join(BASEDIR, "..", "..", "fortran",
+            osp.join(BASEDIR, "..", "fortran",
                      "HighLExtrapTemplate_lenspotentialCls.dat"))
     template = template.encode("latin-1")
     func = camblib.__handles_MOD_set_cls_template
