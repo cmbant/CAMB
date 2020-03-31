@@ -3,7 +3,7 @@
     use constants, only: const_twopi
     implicit none
 
-    character(LEN=*), parameter :: version = '1.0.11.1'
+    character(LEN=*), parameter :: version = '1.1.2.1'
 
     integer :: FeedbackLevel = 0 !if >0 print out useful information about the model
 
@@ -29,7 +29,6 @@
     !Computed output power spectra data
 
     integer, parameter :: C_Temp = 1, C_E = 2, C_Cross =3, C_Phi = 4, C_PhiTemp = 5, C_PhiE=6
-    integer :: C_last = C_PhiE
     integer, parameter :: CT_Temp =1, CT_E = 2, CT_B = 3, CT_Cross=  4
     integer, parameter :: name_tag_len = 12
     character(LEN=name_tag_len), dimension(C_PhiE), parameter :: C_name_tags = ['TT','EE','TE','PP','TP','EP']

@@ -2797,7 +2797,7 @@
                 select type(DE=>State%CP%DarkEnergy)
                 class is (TDarkEnergyEqnOfState)
                     cs2_de = DE%cs2_lam
-                    class default
+                class default
                     cs2_de=1
                 end select
                 block

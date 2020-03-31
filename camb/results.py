@@ -1,12 +1,11 @@
-from .baseconfig import camblib, CAMBError, CAMBValueError, CAMBUnknownArgumentError, CAMB_Structure, \
-    F2003Class, fortran_class, numpy_1d, numpy_2d, fortran_array, AllocatableArrayDouble, ndpointer, np, lib_import
+from .baseconfig import camblib, CAMBError, CAMBValueError, CAMBUnknownArgumentError, CAMB_Structure, F2003Class, \
+    fortran_class, numpy_1d, numpy_2d, numpy_1d_int, fortran_array, AllocatableArrayDouble, ndpointer, np, lib_import
 from ctypes import c_float, c_int, c_double, c_bool, POINTER, byref
 import ctypes
 from . import model, constants
 from ._config import config
 from .model import set_default_params, CAMBparams
 import logging
-import six
 from scipy.interpolate import RectBivariateSpline, interp1d
 
 int_arg = POINTER(c_int)
@@ -48,13 +47,14 @@ def save_cmb_power_array(filename, array, labels, lmin=0):
     lmax = array.shape[0] - 1
     ls = np.atleast_2d(np.arange(lmin, lmax + 1)).T
     ncol = array.shape[1]
-    if isinstance(labels, six.string_types):
+    if isinstance(labels, str):
         labels = labels.split()
+    # noinspection PyTypeChecker
     np.savetxt(filename, np.hstack((ls, array[lmin:, :])), fmt=['%4u'] + ['%12.7e'] * ncol,
                header=' L ' + ' '.join(['{:13s}'.format(lab) for lab in labels]))
 
 
-class MatterTransferData(object):
+class MatterTransferData:
     r"""
     MatterTransferData is the base class for storing matter power transfer function data for various q values.
     In a flat universe q=k, in a closed universe q is quantized.
@@ -87,6 +87,12 @@ class MatterTransferData(object):
                          entry+1 can be one of the Transfer_xxx variables above.
     """
 
+    nq: int
+    q: np.ndarray
+    sigma_8: np.ndarray
+    sigma2_vdelta_8: np.ndarray
+    transfer_data: np.ndarray
+
     def transfer_z(self, name, z_index=0):
         """
         Get transfer function (function of q, for each q in self.q_trans) by name for given redshift index
@@ -101,7 +107,7 @@ class MatterTransferData(object):
         return self.transfer_data[model.transfer_names.index(name), :, z_index]
 
 
-class ClTransferData(object):
+class ClTransferData:
     r"""
     ClTransferData is the base class for storing CMB power transfer functions, as a function of q and :math:`\ell`.
     To get an instance of this data, call :meth:`.results.CAMBdata.get_cmb_transfer_data`
@@ -111,6 +117,10 @@ class ClTransferData(object):
     :ivar L: int array of :math:`\ell` values calculated
     :ivar delta_p_l_k: transfer functions, indexed by source, L, q
     """
+    NumSources: int
+    q: np.ndarray
+    L: np.ndarray
+    delta_p_l_k: np.ndarray
 
     def get_transfer(self, source=0):
         r"""
@@ -121,7 +131,7 @@ class ClTransferData(object):
         :return: array of computed L, array of computed q, transfer functions T(L,q)
         """
 
-        return self.l, self.q, self.delta_p_l_k[source, :, :]
+        return self.L, self.q, self.delta_p_l_k[source, :, :]
 
 
 @fortran_class
@@ -176,7 +186,8 @@ class CAMBdata(F2003Class):
                  "Number of calculated redshift outputs for the matter transfer (including those for CMB lensing)"),
                 ("transfer_redshifts", AllocatableArrayDouble, "Calculated output redshifts"),
                 ("PK_redshifts_index", c_int * model.max_transfer_redshifts, "Indices of the requested PK_redshifts"),
-                ("OnlyTransfers", c_bool, "Only calculating transfer functions, not power spectra")]
+                ("OnlyTransfers", c_bool, "Only calculating transfer functions, not power spectra"),
+                ("HasScalarTimeSources", c_bool, "calculate and save time source functions, not power spectra")]
 
     # Note there are many more fields in Fortran. Since F2003Class is memory-managed by Fortran, we don't need
     # need to define them all in python.
@@ -281,19 +292,22 @@ class CAMBdata(F2003Class):
         if CAMBdata_CalcBackgroundTheory(byref(self), byref(params)):
             config.check_global_error('calc_background')
 
-    def calc_transfers(self, params, only_transfers=True):
+    def calc_transfers(self, params, only_transfers=True, only_time_sources=False):
         """
         Calculate the transfer functions (for CMB and matter power, as determined
         by params.WantCls, params.WantTransfer).
 
         :param params: :class:`~.model.CAMBparams` instance with parameters to use
         :param only_transfers: only calculate transfer functions, no power spectra
+        :param only_time_sources: only calculate time transfer functions, no (p,l,k) transfer functions or non-
+                                  linear scaling
         :return: non-zero if error, zero if OK
         """
         self._check_params(params)
-        if not only_transfers:
+        if not (only_transfers or only_time_sources):
             self._check_powers(params)
-        if CAMBdata_gettransfers(byref(self), byref(params), byref(c_int(1 if only_transfers else 0))):
+        if CAMBdata_gettransfers(byref(self), byref(params), byref(c_int(1 if only_transfers else 0)),
+                                 byref(c_int(1 if only_time_sources else 0))):
             config.check_global_error('calc_transfer')
 
     def _check_powers(self, params=None):
@@ -318,7 +332,7 @@ class CAMBdata(F2003Class):
             CAMBdata_transferstopowers(byref(self))
             config.check_global_error()
 
-    def power_spectra_from_transfer(self, initial_power_params, silent=False):
+    def power_spectra_from_transfer(self, initial_power_params=None, silent=False):
         """
         Assuming :meth:`calc_transfers` or :meth:`calc_power_spectra` have already been used, re-calculate the
         power spectra using a new set of initial power spectrum parameters with otherwise the same cosmology.
@@ -328,21 +342,23 @@ class CAMBdata(F2003Class):
         same results as doing a full recalculation.
 
         :param initial_power_params: :class:`.initialpower.InitialPowerLaw` or :class:`.initialpower.SplinedInitialPower`
-               instance with new primordial power spectrum parameters
+               instance with new primordial power spectrum parameters, or None to use current power spectrum.
         :param silent: suppress warnings about non-linear corrections not being recalculated
         """
-        if not silent and self.Params.NonLinear in [model.NonLinear_lens, model.NonLinear_both] and \
+        if not silent and not self.HasScalarTimeSources and \
+                self.Params.NonLinear in [model.NonLinear_lens, model.NonLinear_both] and \
                 self.Params.WantScalars and self.Params.WantCls and not getattr(self, '_suppress_power_warn', False):
             logging.warning(
                 'power_spectra_from_transfer with non-linear lensing does not recalculate the non-linear correction')
             self._suppress_power_warn = True
-        self.Params.set_initial_power(initial_power_params)
+        if initial_power_params:
+            self.Params.set_initial_power(initial_power_params)
         self._check_powers()
         CAMBdata_transferstopowers(byref(self))
         config.check_global_error()
 
     def _CMB_unit(self, CMB_unit):
-        if isinstance(CMB_unit, six.string_types):
+        if isinstance(CMB_unit, str):
             if CMB_unit == 'muK':
                 CMB_unit = self.Params.TCMB * 1e6
             elif CMB_unit == 'K':
@@ -356,7 +372,7 @@ class CAMBdata(F2003Class):
             ls = np.arange(1, cls.shape[0])[..., np.newaxis]
             ls = np.float64(ls * (ls + 1))
             if lens_potential:
-                cls[1:, 0:] /= ls ** 2 / (2 * np.pi)
+                cls[1:, 0] /= ls[:, 0] ** 2 / (2 * np.pi)
                 cls[1:, 1:] /= ls ** (3. / 2) / (2 * np.pi)
             else:
                 cls[1:, :] /= ls / (2 * np.pi)
@@ -469,7 +485,7 @@ class CAMBdata(F2003Class):
         data = ClTransferData()
         data.NumSources = cdata.NumSources
         data.q = fortran_array(cdata.q, cdata.q_size)
-        data.l = fortran_array(cdata.l, cdata.l_size, dtype=c_int)
+        data.L = fortran_array(cdata.L, cdata.l_size, dtype=c_int)
         data.delta_p_l_k = fortran_array(cdata.delta_p_l_k, cdata.delta_size)
         return data
 
@@ -494,7 +510,7 @@ class CAMBdata(F2003Class):
             if not isinstance(vars, (tuple, list)):
                 vars = [vars]
             import sympy
-            named_vars = [var for var in vars if isinstance(var, six.string_types)]
+            named_vars = [var for var in vars if isinstance(var, str)]
 
             unknown = set(named_vars) - set(model.evolve_names)
             if unknown:
@@ -566,7 +582,7 @@ class CAMBdata(F2003Class):
         :return: n_eta x len(vars) 2D numpy array of outputs or dict of 1D arrays
         """
 
-        if isinstance(vars, six.string_types):
+        if isinstance(vars, str):
             vars = [vars]
         unknown = set(vars) - set(model.background_names)
         if unknown:
@@ -606,7 +622,7 @@ class CAMBdata(F2003Class):
         :param format: 'dict' or 'array', for either dict of 1D arrays indexed by name, or 2D array
         :return: n_a x len(vars) 2D numpy array or dict of 1D arrays of :math:`8\pi G a^4 \rho_i` in Mpc units.
         """
-        if isinstance(vars, six.string_types):
+        if isinstance(vars, str):
             vars = [vars]
         unknown = set(vars) - set(model.density_names)
         if unknown:
@@ -658,7 +674,7 @@ class CAMBdata(F2003Class):
         else:
             return res
 
-    def get_matter_transfer_data(self):
+    def get_matter_transfer_data(self) -> MatterTransferData:
         """
         Get matter transfer function data and sigma8 for calculated results.
 
@@ -673,8 +689,14 @@ class CAMBdata(F2003Class):
         data.nq = cdata.num_q_trans
         from numpy import ctypeslib as nplib
         data.q = nplib.as_array(cdata.q_trans, shape=(data.nq,)).copy()
-        data.sigma_8 = nplib.as_array(cdata.sigma_8, shape=(cdata.sigma_8_size,)).copy()
-        data.sigma2_vdelta_8 = nplib.as_array(cdata.sigma2_vdelta_8, shape=(cdata.sigma2_vdelta_8_size,)).copy()
+        if cdata.sigma_8_size:
+            data.sigma_8 = nplib.as_array(cdata.sigma_8, shape=(cdata.sigma_8_size,)).copy()
+        else:
+            data.sigma_8 = None
+        if cdata.sigma2_vdelta_8_size:
+            data.sigma2_vdelta_8 = nplib.as_array(cdata.sigma2_vdelta_8, shape=(cdata.sigma2_vdelta_8_size,)).copy()
+        else:
+            data.sigma2_vdelta_8 = None
         data.transfer_data = fortran_array(cdata.TransferData, cdata.TransferData_size, dtype=np.float32)
         return data
 
@@ -684,9 +706,9 @@ class CAMBdata(F2003Class):
             var1 = config.transfer_power_var
         if var2 is None:
             var2 = config.transfer_power_var
-        if isinstance(var1, six.string_types):
+        if isinstance(var1, str):
             var1 = model.transfer_names.index(var1) + 1
-        if isinstance(var2, six.string_types):
+        if isinstance(var2, str):
             var2 = model.transfer_names.index(var2) + 1
         return c_int(var1), c_int(var2)
 
@@ -712,14 +734,19 @@ class CAMBdata(F2003Class):
         """
         if self.OnlyTransfers or params is not None or not have_power_spectra:
             self.calc_power_spectra(params)
-        data = self.get_matter_transfer_data()
 
-        nk = data.nq
+        num_k = c_int(0)
+        CAMBdata_mattertransferks(byref(self), byref(num_k), np.array([]))
+        nk = num_k.value
+
+        ks = np.empty(nk, dtype=np.float64)
+        CAMBdata_mattertransferks(byref(self), byref(num_k), ks)
+
         nz = self.Params.Transfer.PK_num_redshifts
-        kh = data.transfer_data[model.Transfer_kh - 1, :, 0]
-        if not k_hunit:
-            kh *= self.Params.H0 / 100
-
+        if k_hunit:
+            kh = ks / (self.Params.H0 / 100)
+        else:
+            kh = ks
         var1, var2 = self._transfer_var(var1, var2)
 
         hubble_units = c_int(hubble_units)
@@ -732,7 +759,7 @@ class CAMBdata(F2003Class):
 
         z = self.Params.Transfer.PK_redshifts[:nz]
         z.reverse()
-        return np.array(kh), np.array(z), PK
+        return kh, np.array(z), PK
 
     def get_nonlinear_matter_power_spectrum(self, var1=None, var2=None, hubble_units=True, k_hunit=True,
                                             have_power_spectra=True, params=None):
@@ -757,14 +784,68 @@ class CAMBdata(F2003Class):
                                                      have_power_spectra=have_power_spectra, params=params,
                                                      nonlinear=True)
 
+    def get_sigmaR(self, R, z_indices=None, var1=None, var2=None, hubble_units=True, return_R_z=False):
+        r"""
+        Calculate :math:`\sigma_R` values, the RMS linear matter fluctuation in spheres of radius R in linear theory.
+        Accuracy depends on the sampling with which the matter transfer functions are computed.
+
+        For a description of outputs for different var1, var2 see :ref:`transfer-variables`.
+        Note that numerical errors are slightly different to get_sigma8 for R=8 Mpc/h.
+
+        :param R: radius in Mpc or h^{-1} Mpc units, scalar or array
+        :param z_indices: indices of redshifts in Params.Transfer.PK_redshifts to calculate
+                          (default None gives all computed in order of increasing time (decreasing redshift);
+                          -1 gives redshift 0; list gives all listed indices)
+        :param var1: variable i (index, or name of variable; default delta_tot)
+        :param var2: variable j (index, or name of variable; default delta_tot)
+        :param hubble_units: if true, R is in h^{-1} Mpc, otherwise Mpc
+        :param return_R_z: if true, return tuple of R, z, sigmaR
+                           (where R always Mpc units not h^{-1}Mpc and R< z are arrays)
+        :return: array of :math:`\sigma_R` values, or 2D array indexed by (redshift, R)
+        """
+        var1, var2 = self._transfer_var(var1, var2)
+        if hubble_units:
+            if not np.isscalar(R):
+                R = np.array(R, dtype=np.float64)
+            R = R / (self.Params.H0 / 100)
+
+        radii = np.atleast_1d(np.asarray(R, dtype=np.float64)) * self.Params.H0 / 100
+        valid_indices = np.array(self.PK_redshifts_index[:self.Params.Transfer.PK_num_redshifts], dtype=np.int32)
+        if z_indices is None:
+            z_ix = valid_indices
+        else:
+            z_ix = np.atleast_1d(valid_indices[z_indices])
+        sigma_R = np.empty((len(z_ix), len(radii)), dtype=np.float64)
+        CAMBdata_GetSigmaRArray(byref(self), sigma_R, radii, byref(c_int(len(radii))), z_ix,
+                                byref(c_int(len(z_ix))), byref(var1), byref(var2))
+        if z_indices is not None and np.isscalar(z_indices):
+            sigma_R = sigma_R[0, :]
+            if np.isscalar(R):
+                sigma_R = sigma_R[0]
+        elif np.isscalar(R):
+            sigma_R = sigma_R[:, 0]
+        if return_R_z:
+            return R, np.array(self.transfer_redshifts)[z_ix - 1], sigma_R
+        else:
+            return sigma_R
+
     def get_sigma8(self):
         r"""
-        Get :math:`\sigma_8` values (must previously have calculated power spectra)
+        Get :math:`\sigma_8` values at Params.PK_redshifts (must previously have calculated power spectra)
 
         :return: array of :math:`\sigma_8` values, in order of increasing time (decreasing redshift)
         """
-        mtrans = self.get_matter_transfer_data()
-        return mtrans.sigma_8[:]
+        sigma8 = np.empty(self.Params.Transfer.PK_num_redshifts, dtype=np.float64)
+        CAMBdata_GetSigma8(byref(self), sigma8, byref(c_int(0)))
+        return sigma8
+
+    def get_sigma8_0(self):
+        r"""
+        Get :math:`\sigma_8` value today (must previously have calculated power spectra)
+
+        :return: :math:`\sigma_8` today
+        """
+        return self.get_sigma8()[-1]
 
     def get_fsigma8(self):
         r"""
@@ -774,8 +855,9 @@ class CAMBdata(F2003Class):
 
         :return: array of f*sigma_8 values, in order of increasing time (decreasing redshift)
         """
-        mtrans = self.get_matter_transfer_data()
-        return mtrans.sigma2_vdelta_8 / mtrans.sigma_8
+        fsigma8 = np.empty(self.Params.Transfer.PK_num_redshifts, dtype=np.float64)
+        CAMBdata_GetSigma8(byref(self), fsigma8, byref(c_int(1)))
+        return fsigma8
 
     def get_matter_power_spectrum(self, minkh=1e-4, maxkh=1.0, npoints=100,
                                   var1=None, var2=None,
@@ -844,7 +926,7 @@ class CAMBdata(F2003Class):
         :param k_hunit: if true, matter power is a function of k/h, if false, just k (both :math:`{\rm Mpc}^{-1}` units)
         :param return_z_k: if true, return interpolator, z, k where z, k are the grid used
         :param log_interp: if true, interpolate log of power spectrum
-                           (unless any values are negative in which case ignored)
+                           (unless any values cross zero in which case ignored)
         :param extrap_kmax: if set, use power law extrapolation beyond kmax to extrap_kmax
                             (useful for tails of integrals)
         :param silent: Set True to silence warnings
@@ -854,20 +936,24 @@ class CAMBdata(F2003Class):
         """
 
         class PKInterpolator(RectBivariateSpline):
+            islog: bool
+            logsign: int
 
             def P(self, z, kh, grid=None):
                 if grid is None:
                     grid = not np.isscalar(z) and not np.isscalar(kh)
                 if self.islog:
-                    return np.exp(self(z, np.log(kh), grid=grid))
+                    return self.logsign * np.exp(self(z, np.log(kh), grid=grid))
                 else:
                     return self(z, np.log(kh), grid=grid)
 
         class PKInterpolatorSingleZ(interp1d):
+            islog: bool
+            logsign: int
 
             def __init__(self, *args, **kwargs):
                 self._single_z = np.array(args[0])
-                super(PKInterpolatorSingleZ, self).__init__(*(args[1:]), kind=kwargs.get("ky"))
+                super().__init__(*(args[1:]), kind=kwargs.get("ky"))
 
             def check_z(self, z):
                 if not np.allclose(z, self._single_z):
@@ -878,27 +964,32 @@ class CAMBdata(F2003Class):
             def __call__(self, *args):
                 self.check_z(args[0])
                 # NB returns dimensionality as the 2D one: 1 dimension if z single
-                return (lambda x: x[0] if np.isscalar(args[0]) else x)(
-                    super(PKInterpolatorSingleZ, self).__call__(*(args[1:])))
+                return (lambda x: x[0] if np.isscalar(args[0]) else x)(super().__call__(*(args[1:])))
 
             def P(self, z, kh, grid=None):
                 # grid kwarg is ignored
                 if self.islog:
-                    return np.exp(self(z, np.log(kh)))
+                    return self.logsign * np.exp(self(z, np.log(kh)))
                 else:
                     return self(z, np.log(kh))
 
         assert self.Params.WantTransfer
-        kh, z, pk = self.get_linear_matter_power_spectrum(var1, var2, hubble_units, nonlinear=nonlinear)
-        kh_max = kh[-1]
+        khs, zs, pk = self.get_linear_matter_power_spectrum(var1, var2, hubble_units, nonlinear=nonlinear)
+        kh_max = khs[-1]
         if not k_hunit:
-            kh *= self.Params.H0 / 100
+            khs *= self.Params.H0 / 100
+        sign = 1
         if log_interp and np.any(pk <= 0):
-            log_interp = False
-        logkh = np.log(kh)
-        deg_z = min(len(z) - 1, 3)
+            if np.all(pk < 0):
+                sign = -1
+            else:
+                log_interp = False
+        p_or_log_p = np.log(sign * pk) if log_interp else pk
+        logkh = np.log(khs)
+        deg_z = min(len(zs) - 1, 3)
+        kmax = khs[-1]
         PKInterpolator = PKInterpolator if deg_z else PKInterpolatorSingleZ
-        if extrap_kmax and extrap_kmax > kh[-1]:
+        if extrap_kmax and extrap_kmax > kmax:
             # extrapolate to ultimate power law
             # TODO: use more physical extrapolation function for linear case
             if not silent and (kh_max < 3 and extrap_kmax > 2 and nonlinear or kh_max < 0.4):
@@ -906,37 +997,29 @@ class CAMBdata(F2003Class):
                                 "only to k=%.3g Mpc^{-1} may be inaccurate.\n " % (kh_max * self.Params.H0 / 100))
             if not log_interp:
                 raise CAMBValueError(
-                    "Cannot use extrap_kmax with non-log PK interpolation for %s, %s. " % (var1, var2) +
-                    ("Some Pk are negative." if np.any(pk <= 0) else ""))
+                    "Cannot use extrap_kmax with log_inter=False (e.g. PK crossing zero for %s, %s.)" % (var1, var2))
+
             logextrap = np.log(extrap_kmax)
-            logpknew = np.empty((pk.shape[0], pk.shape[1] + 2))
-            logpknew[:, :-2] = np.log(pk)
+            log_p_new = np.empty((pk.shape[0], pk.shape[1] + 2))
+            log_p_new[:, :-2] = p_or_log_p
             delta = logextrap - logkh[-1]
-            dlog = (logpknew[:, -3] - logpknew[:, -4]) / (logkh[-1] - logkh[-2])
-            logpknew[:, -1] = logpknew[:, -3] + dlog * delta
-            logpknew[:, -2] = logpknew[:, -3] + dlog * delta * 0.9
-            logkhnew = np.hstack((logkh, logextrap - delta * 0.1, logextrap))
 
-            deg_k = min(len(logkhnew) - 1, 3)
-            if log_interp:
-                res = PKInterpolator(z, logkhnew, logpknew, kx=deg_z, ky=deg_k)
-            else:
-                res = PKInterpolator(z, logkhnew, np.exp(logpknew), kx=deg_z, ky=deg_k)
-            res.kmax = extrap_kmax
-        else:
-            deg_k = min(len(logkh) - 1, 3)
-            if log_interp:
-                res = PKInterpolator(z, logkh, np.log(pk), kx=deg_z, ky=deg_k)
-            else:
-                res = PKInterpolator(z, logkh, pk, kx=deg_z, ky=deg_k)
-            res.kmax = np.max(kh)
+            dlog = (log_p_new[:, -3] - log_p_new[:, -4]) / (logkh[-1] - logkh[-2])
+            log_p_new[:, -1] = log_p_new[:, -3] + dlog * delta
+            log_p_new[:, -2] = log_p_new[:, -3] + dlog * delta * 0.9
+            logkh = np.hstack((logkh, logextrap - delta * 0.1, logextrap))
+            p_or_log_p = log_p_new
 
-        res.kmin = np.min(kh)
+        deg_k = min(len(logkh) - 1, 3)
+        res = PKInterpolator(zs, logkh, p_or_log_p, kx=deg_z, ky=deg_k)
+        res.kmin = np.min(khs)
+        res.kmax = kmax
         res.islog = log_interp
-        res.zmin = np.min(z)
-        res.zmax = np.max(z)
+        res.logsign = sign
+        res.zmin = np.min(zs)
+        res.zmax = np.max(zs)
         if return_z_k:
-            return res, z, kh
+            return res, zs, khs
         else:
             return res
 
@@ -1074,6 +1157,7 @@ class CAMBdata(F2003Class):
                  Note that P is the lensing deflection, lensing windows Wx give convergence.
         """
 
+        old_val = None
         try:
             if params is not None:
                 old_val = params.Want_cl_2D_array
@@ -1111,7 +1195,7 @@ class CAMBdata(F2003Class):
                             cls *= CMB_units[i] * CMB_units[j]
                         result[tag] = cls
         finally:
-            if params is not None:
+            if old_val is not None:
                 params.Want_cl_2D_array = old_val
         return result
 
@@ -1430,7 +1514,7 @@ class CAMBdata(F2003Class):
 
 CAMBdata_gettransfers = camblib.__handles_MOD_cambdata_gettransfers
 CAMBdata_gettransfers.argtypes = [POINTER(CAMBdata), POINTER(model.CAMBparams),
-                                  POINTER(c_int)]
+                                  POINTER(c_int), POINTER(c_int)]
 CAMBdata_gettransfers.restype = c_int
 
 CAMBdata_transferstopowers = camblib.__camb_MOD_camb_transferstopowers
@@ -1438,6 +1522,9 @@ CAMBdata_transferstopowers.argtypes = [POINTER(CAMBdata)]
 
 CAMBdata_mattertransferdata = camblib.__handles_MOD_cambdata_mattertransferdata
 CAMBdata_mattertransferdata.argtypes = [POINTER(CAMBdata), POINTER(_MatterTransferData)]
+
+CAMBdata_mattertransferks = camblib.__handles_MOD_cambdata_getmattertransferks
+CAMBdata_mattertransferks.argtypes = [POINTER(CAMBdata), POINTER(c_int), numpy_1d]
 
 CAMBdata_cltransferdata = camblib.__handles_MOD_cambdata_cltransferdata
 CAMBdata_cltransferdata.argtypes = [POINTER(CAMBdata), POINTER(_ClTransferData), int_arg]
@@ -1450,6 +1537,13 @@ CAMBdata_GetNonLinearMatterPower.argtypes = [POINTER(CAMBdata), numpy_2d, int_ar
 CAMBdata_GetMatterPower = camblib.__handles_MOD_cambdata_getmatterpower
 CAMBdata_GetMatterPower.argtypes = [POINTER(CAMBdata), numpy_2d,
                                     d_arg, d_arg, int_arg, int_arg, int_arg]
+
+CAMBdata_GetSigma8 = camblib.__handles_MOD_cambdata_getsigma8
+CAMBdata_GetSigma8.argtypes = [POINTER(CAMBdata), numpy_1d, int_arg]
+
+CAMBdata_GetSigmaRArray = camblib.__handles_MOD_cambdata_getsigmararray
+CAMBdata_GetSigmaRArray.argtypes = [POINTER(CAMBdata), numpy_2d, numpy_1d, int_arg, numpy_1d_int, int_arg, int_arg,
+                                    int_arg]
 
 CAMBdata_CalcBackgroundTheory = camblib.__handles_MOD_cambdata_calcbackgroundtheory
 CAMBdata_CalcBackgroundTheory.argtypes = [POINTER(CAMBdata), POINTER(model.CAMBparams)]

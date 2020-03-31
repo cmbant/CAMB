@@ -16,7 +16,6 @@ A Lewis July 2017
 
 import ctypes
 import os
-import six
 import sympy
 from sympy import diff, Eq, simplify, Function, Symbol
 from sympy.abc import t, kappa, K, k
@@ -338,7 +337,7 @@ def make_frame_invariant(expr, frame='CDM'):
     that is frame invariant (and equal to just sigma when Delta_g=0).
     """
 
-    if isinstance(frame, six.string_types):
+    if isinstance(frame, str):
         if frame not in frame_names:
             raise ValueError('Unknown frame names: %s' % frame)
         frame = frame_names[frame]
@@ -513,8 +512,8 @@ def define_variables(names, namespace=None, order=1):
     return [define_variable(name, namespace, order) for name in names.split()]
 
 
-def _make_index_func(name, l, namespace=None):
-    name += '_' + str(l)
+def _make_index_func(name, ell, namespace=None):
+    name += '_' + str(ell)
     return define_variable(name, namespace)
 
 
@@ -564,8 +563,8 @@ def get_hierarchies(lmax=5):
     """
 
     eqs = []
-    for l in range(2, lmax):
-        eqs += [J_eq(l), G_eq(l), E_eq(l)]
+    for ell in range(2, lmax):
+        eqs += [J_eq(ell), G_eq(ell), E_eq(ell)]
     return eqs
 
 
@@ -677,7 +676,7 @@ def camb_fortran(expr, name='camb_function', frame='CDM', expand=False):
                 camb_var = define_variable(camb_var)
                 camb_sub = getattr(var, 'camb_sub', None) or camb_var
             if camb_sub:
-                if isinstance(camb_sub, six.string_types):
+                if isinstance(camb_sub, str):
                     camb_sub = eval(camb_sub)
                 camb_var_subs.append((var, camb_sub))
 

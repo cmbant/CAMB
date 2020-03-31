@@ -37,6 +37,20 @@ class TanhReionization(ReionizationModel):
 
     _methods_ = [('GetZreFromTau', [c_void_p, POINTER(c_double)], c_double, {"nopass": True})]
 
+    def set_zrei(self, zrei, delta_redshift=None):
+        """
+        Set the mid-point reionization redshift
+
+        :param zrei: mid-point redshift
+        :param delta_redshift:  delta z for reionization
+        :return:  self
+        """
+        self.use_optical_depth = False
+        self.redshift = zrei
+        if delta_redshift is not None:
+            self.delta_redshift = delta_redshift
+        return self
+
     def set_tau(self, tau, delta_redshift=None):
         """
         Set the optical depth

@@ -70,6 +70,7 @@ To reproduce legacy results, see these branches:
  - *CAMB_sources* is the old public `CAMB Sources <https://camb.info/sources/>`_ code.
  - *CAMB_v0* is the old Fortran-oriented (gfortran 4.8-compatible) version as used by the Planck 2018 analysis.
  - *rayleigh* includes frequency-dependent Rayleigh scattering
+ - *python2* is the last Python 2 compatible version
 
 =============
 

@@ -3,7 +3,6 @@ import os
 import struct
 import platform
 import re
-import io
 from pkg_resources import parse_version
 
 is_windows = platform.system() == "Windows"
@@ -78,7 +77,7 @@ def check_gfortran(version=gfortran_min, msg=False, retry=False):
 
 def makefile_dict(filename):
     # this is very non-general, just enough for pulling source file names from Makefile
-    with io.open(filename, 'r') as f:
+    with open(filename, 'r') as f:
         lines = f.readlines()
     vals = {}
     lastval = None

@@ -66,6 +66,8 @@
 
     Type, extends(TInitialPower) :: TSplinedInitialPower
         real(dl) :: effective_ns_for_nonlinear = -1._dl !used for halofit
+        real(dl) :: kmin_scalar, kmax_scalar
+        real(dl) :: kmin_tensor, kmax_tensor
         class(TSpline1D), allocatable :: Pscalar, Ptensor
     contains
     procedure :: SetScalarTable => TSplinedInitialPower_SetScalarTable
@@ -256,7 +258,13 @@
     real(dl), intent(in) ::k
     real(dl) TSplinedInitialPower_ScalarPower
 
-    TSplinedInitialPower_ScalarPower = this%Pscalar%Value(k)
+    if (k <= this%kmin_scalar) then
+        TSplinedInitialPower_ScalarPower = this%Pscalar%F(1)
+    elseif (k >= this%kmax_scalar) then
+        TSplinedInitialPower_ScalarPower = this%Pscalar%F(this%Pscalar%n)
+    else
+        TSplinedInitialPower_ScalarPower = this%Pscalar%Value(k)
+    end if
 
     end function TSplinedInitialPower_ScalarPower
 
@@ -265,7 +273,13 @@
     real(dl), intent(in) ::k
     real(dl) TSplinedInitialPower_TensorPower
 
-    TSplinedInitialPower_TensorPower = this%Ptensor%Value(k)
+    if (k <= this%kmin_tensor) then
+        TSplinedInitialPower_TensorPower = this%Ptensor%F(1)
+    elseif (k >= this%kmax_tensor) then
+        TSplinedInitialPower_TensorPower = this%Ptensor%F(this%Ptensor%n)
+    else
+        TSplinedInitialPower_TensorPower = this%Ptensor%Value(k)
+    end if
 
     end function TSplinedInitialPower_TensorPower
 
@@ -288,6 +302,8 @@
         class is (TCubicSpline)
             call Sp%Init(k,PK)
         end select
+        this%kmin_scalar = k(1)
+        this%kmax_scalar = k(n)
     end if
 
     end subroutine TSplinedInitialPower_SetScalarTable
@@ -305,6 +321,8 @@
         class is (TCubicSpline)
             call Sp%Init(k,PK)
         end select
+        this%kmin_tensor = k(1)
+        this%kmax_tensor = k(n)
     end if
 
     end subroutine TSplinedInitialPower_SetTensorTable
@@ -321,6 +339,8 @@
         class is (TLogRegularCubicSpline)
             call Sp%Init(kmin, kmax, n, PK)
         end select
+        this%kmin_scalar = kmin
+        this%kmax_scalar = kmax
     end if
 
     end subroutine TSplinedInitialPower_SetScalarLogRegular
@@ -338,6 +358,8 @@
         class is (TLogRegularCubicSpline)
             call Sp%Init(kmin, kmax, n, PK)
         end select
+        this%kmin_tensor = kmin
+        this%kmax_tensor = kmax
     end if
 
     end subroutine TSplinedInitialPower_SetTensorLogRegular

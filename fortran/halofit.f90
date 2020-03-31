@@ -442,7 +442,9 @@
     real(dl) sum1,sum2,sum3,t,y,x,w1,w2,w3
     real(dl) x2,rk, fac,r, sig, d1,d2, anorm
     integer i,nint
+    integer index_cache
 
+    index_cache = 1
     nint=3000
     sum1=0.d0
     sum2=0.d0
@@ -452,7 +454,7 @@
         t=(i-0.5_dl)/nint
         y=-1.d0+1.d0/t
         rk=y
-        d2=MatterPowerData_k(CAMB_PK, rk, itf)*(rk**3*anorm)
+        d2=MatterPowerData_k(CAMB_PK, rk, itf, index_cache)*(rk**3*anorm)
         x=y*r
         x2=x*x
         w1=exp(-x2)
@@ -793,7 +795,7 @@
     REAL(dl), PARAMETER :: pi=pi_HM
     REAL(dl), PARAMETER :: kmin=kmin_pk_interpolation
     REAL(dl), PARAMETER :: kmax=kmax_pk_interpolation
-    INTEGER :: nk=nk_pk_interpolation
+    INTEGER :: nk=nk_pk_interpolation, index_cache
 
     IF(HM_verbose) WRITE(*,*) 'LINEAR POWER: Filling linear power HM_tables'
 
@@ -834,12 +836,12 @@
     !Find the redshift
     z=CAMB_Pk%Redshifts(iz)
     IF(HM_verbose) WRITE(*,*) 'LINEAR POWER: z of input:', z
-
+    index_cache = 1
     !Fill power table, both cold- and all-matter
-    !$OMP PARALLEL DO DEFAULT(SHARED)
+    !$OMP PARALLEL DO DEFAULT(SHARED), FIRSTPRIVATE(index_cache)
     DO i=1,nk
         !Take the power from the current redshift choice
-        Pk(i)=MatterPowerData_k(CAMB_PK,k(i),iz)*(k(i)**3/(2*pi**2))
+        Pk(i)=MatterPowerData_k(CAMB_PK,k(i),iz, index_cache)*(k(i)**3/(2*pi**2))
         Pkc(i)=Pk(i)*Tcb_Tcbnu_ratio(k(i),z,cosm)**2
     END DO
 

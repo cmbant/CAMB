@@ -1,3 +1,4 @@
+import os
 from .baseconfig import import_property, CAMBError
 from ctypes import c_char, c_int, c_bool, c_double
 
@@ -6,7 +7,7 @@ lensing_method_flat_corr = 2
 lensing_method_harmonic = 3
 
 
-class _config(object):
+class _config:
     # print feedback if > 0 (note in Jupyter notebook this will appear in the terminal, not the notebook)
     FeedbackLevel = import_property(c_int, "config", "FeedbackLevel")
 
@@ -60,3 +61,6 @@ class _config(object):
 
 
 config = _config()
+
+if os.environ.get('BINDER_LAUNCH_HOST'):
+    config.ThreadNum = 1  # binder is very slow with more than 1 CPU, force 1 by default

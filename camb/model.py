@@ -10,12 +10,10 @@ from .initialpower import InitialPower, SplinedInitialPower
 from .nonlinear import NonLinearModel
 from .dark_energy import DarkEnergyModel, DarkEnergyEqnOfState
 from .recombination import RecombinationModel
-from .sources import SourceWindow, GaussianSourceWindow
+from .sources import SourceWindow
 from . import bbn
-import six
 import logging
-
-# ---Parameters
+from typing import Union, Optional
 
 max_nu = 5
 max_transfer_redshifts = 150
@@ -249,7 +247,7 @@ class CAMBparams(F2003Class):
     def __init__(self, **kwargs):
         set_default_params(self)
         self.InitPower.set_params()
-        super(CAMBparams, self).__init__(**kwargs)
+        super().__init__(**kwargs)
 
     def validate(self):
         """
@@ -395,7 +393,8 @@ class CAMBparams(F2003Class):
             return theta_test - theta
 
         try:
-            self.H0 = brentq(f, theta_H0_range[0], theta_H0_range[1], rtol=5e-5)
+            # noinspection PyTypeChecker
+            self.H0: float = brentq(f, theta_H0_range[0], theta_H0_range[1], rtol=5e-5)
             if not cosmomc_approx and abs(self.H0 - est_H0) > iteration_threshold:
                 # iterate with recalculation of recombination and zstar
                 self.set_H0_for_theta(theta, theta_H0_range=theta_H0_range, est_H0=self.H0,
@@ -404,13 +403,13 @@ class CAMBparams(F2003Class):
         except ValueError:
             raise CAMBParamRangeError('No solution for H0 inside of theta_H0_range')
 
-    def set_cosmology(self, H0=None, ombh2=0.022, omch2=0.12, omk=0.0,
-                      cosmomc_theta=None, thetastar=None,
-                      neutrino_hierarchy='degenerate', num_massive_neutrinos=1,
-                      mnu=0.06, nnu=constants.default_nnu, YHe=None, meffsterile=0.0,
-                      standard_neutrino_neff=constants.default_nnu,
-                      TCMB=constants.COBE_CMBTemp, tau=None, deltazrei=None, Alens=1.0,
-                      bbn_predictor=None, theta_H0_range=(10, 100)):
+    def set_cosmology(self, H0: Optional[float] = None, ombh2=0.022, omch2=0.12, omk=0.0,
+                      cosmomc_theta: Optional[float] = None, thetastar: Optional[float] = None,
+                      neutrino_hierarchy: Union[str, int] = 'degenerate', num_massive_neutrinos=1,
+                      mnu=0.06, nnu=constants.default_nnu, YHe: Optional[float] = None, meffsterile=0.0,
+                      standard_neutrino_neff=constants.default_nnu, TCMB=constants.COBE_CMBTemp,
+                      tau: Optional[float] = None, zrei: Optional[float] = None, deltazrei: Optional[float] = None,
+                      Alens=1.0, bbn_predictor: Union[None, str, bbn.BBNPredictor] = None, theta_H0_range=(10, 100)):
         r"""
         Sets cosmological parameters in terms of physical densities and parameters (e.g. as used in Planck analyses).
         Default settings give a single distinct neutrino mass eigenstate, by default one neutrino with mnu = 0.06eV.
@@ -450,7 +449,8 @@ class CAMBparams(F2003Class):
         :param standard_neutrino_neff:  default value for N_eff in standard cosmology (non-integer to allow for partial
                 heating of neutrinos at electron-positron annihilation and QED effects)
         :param TCMB: CMB temperature (in Kelvin)
-        :param tau: optical depth; if None, current Reion settings are not changed
+        :param tau: optical depth; if None and zrei is None, current Reion settings are not changed
+        :param zrei: reionization mid-point optical depth (set tau=None to use this)
         :param deltazrei: redshift width of reionization; if None, uses default
         :param Alens: (non-physical) scaling of the lensing potential compared to prediction
         :param bbn_predictor: :class:`.bbn.BBNPredictor` instance used to get YHe from BBN consistency if YHe is None,
@@ -461,7 +461,7 @@ class CAMBparams(F2003Class):
 
         if YHe is None:
             # use BBN prediction
-            if isinstance(bbn_predictor, six.string_types):
+            if isinstance(bbn_predictor, str):
                 self.bbn_predictor = bbn.get_predictor(bbn_predictor)
             else:
                 self.bbn_predictor = bbn_predictor or bbn.get_predictor()
@@ -474,7 +474,7 @@ class CAMBparams(F2003Class):
 
         neutrino_mass_fac = constants.neutrino_mass_fac * (constants.COBE_CMBTemp / TCMB) ** 3
 
-        if not isinstance(neutrino_hierarchy, six.string_types):
+        if not isinstance(neutrino_hierarchy, str):
             neutrino_hierarchy = neutrino_hierarchies[neutrino_hierarchy - 1]
 
         if nnu >= standard_neutrino_neff or neutrino_hierarchy != neutrino_hierarchy_degenerate:
@@ -515,7 +515,11 @@ class CAMBparams(F2003Class):
             self.H0 = H0
 
         if tau is not None:
+            if zrei is not None:
+                raise CAMBError('Cannot set both tau and zrei')
             self.Reion.set_tau(tau, delta_redshift=deltazrei)
+        elif zrei is not None:
+            self.Reion.set_zrei(zrei, delta_redshift=deltazrei)
         elif deltazrei:
             raise CAMBError('must set tau if setting deltazrei')
 
@@ -653,12 +657,14 @@ class CAMBparams(F2003Class):
 
         :param redshifts: array of redshifts to calculate
         :param kmax: maximum k to calculate (where k is just k, not k/h)
-        :param k_per_logint: number of k steps per log k. Set to zero to use default optimized spacing.
+        :param k_per_logint: minimum number of k steps per log k. Set to zero to use default optimized spacing.
         :param nonlinear: if None, uses existing setting, otherwise boolean for whether to use non-linear matter power.
         :param accurate_massive_neutrino_transfers: if you want the massive neutrino transfers accurately
         :param silent: if True, don't give warnings about sort order
         :return: self
         """
+        if not len(redshifts):
+            raise CAMBError('set_matter_power redshifts list is empty')
 
         self.WantTransfer = True
         self.Transfer.high_precision = True
@@ -827,6 +833,18 @@ class CAMBparams(F2003Class):
 
     def clear_custom_scalar_sources(self):
         self.f_SetCustomSourcesFunc(byref(c_int(0)), byref(ctypes.c_void_p(0)), np.zeros(0, dtype=np.int32))
+
+    def diff(self, params):
+        """
+        Print differences between this set of parameters and params
+
+        :param params: another CAMBparams instance
+        """
+        p1 = str(params)
+        p2 = str(self)
+        for line1, line2 in zip(p1.split('\n'), p2.split('\n')):
+            if line1 != line2:
+                print(line1, ' <-> ', line2)
 
 
 def set_default_params(P):

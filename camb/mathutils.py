@@ -100,9 +100,9 @@ def scalar_coupling_matrix(P, lmax):
     if lmax_power < 2 * lmax:
         print('Warning: power spectrum lmax is less than 2*lmax')
 
-        W = np.empty(lmax_power + 1)
-        for l1 in range(lmax_power + 1):
-            W[l1] = (2 * l1 + 1) * P[l1] / (4 * np.pi)
+    W = np.empty(lmax_power + 1)
+    for l1 in range(lmax_power + 1):
+        W[l1] = (2 * l1 + 1) * P[l1] / (4 * np.pi)
     M = threej_coupling(W, lmax)
 
     factor = 2 * np.arange(lmax + 1) + 1

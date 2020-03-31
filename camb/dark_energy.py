@@ -70,7 +70,7 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
 @fortran_class
 class DarkEnergyFluid(DarkEnergyEqnOfState):
     """
-    Class implementing the w, wa or splined w(a) parameterization using the constant sound-speed signle fluid model
+    Class implementing the w, wa or splined w(a) parameterization using the constant sound-speed single fluid model
     (as for single-field quintessense).
 
     """

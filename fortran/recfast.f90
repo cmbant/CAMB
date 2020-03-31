@@ -717,7 +717,7 @@
         if (Calc%doTspin) then
             call spline(Calc%zrec,Calc%tsrec,nz,d0lo,d0hi,Calc%dtsrec)
         end if
-        class default
+    class default
         call MpiStop('Wrong state type')
     end select
 

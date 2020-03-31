@@ -1,4 +1,3 @@
-from __future__ import absolute_import
 import os
 import sys
 import unittest
@@ -45,6 +44,7 @@ class CambTest(unittest.TestCase):
         pars.z_outputs = pars.z_outputs
         pars.z_outputs = []
         pars.z_outputs = None
+        # noinspection PyTypeChecker
         self.assertFalse(len(pars.z_outputs))
         with self.assertRaises(TypeError):
             pars.DarkEnergy = initialpower.InitialPowerLaw()
@@ -218,6 +218,11 @@ class CambTest(unittest.TestCase):
         self.assertEqual(pars.nu_mass_numbers[1], 1)
         self.assertEqual(pars.nu_mass_eigenstates, 2)
         self.assertAlmostEqual(pars.nu_mass_fractions[0], 0.915197, places=4)
+
+        pars = camb.CAMBparams()
+        pars.set_cosmology(H0=68.5, ombh2=0.022, omch2=0.122, YHe=0.2453, mnu=0.07, omk=0, zrei=zre)
+        results = camb.get_background(pars)
+        self.assertEqual(results.Params.Reion.redshift, zre)
 
     def testEvolution(self):
         redshifts = [0.4, 31.5]
@@ -393,6 +398,90 @@ class CambTest(unittest.TestCase):
         self.assertAlmostEqual(cls2[1, 0], 1.30388e-10, places=13)
         self.assertAlmostEqual(cls[1, 0], 0)
 
+    def testSigmaR(self):
+        pars = camb.CAMBparams()
+        pars.set_cosmology(H0=67.5, ombh2=0.022, omch2=0.122, mnu=0.07, omk=0)
+        pars.InitPower.set_params(ns=0.965, As=2e-9)
+        pars.set_matter_power(nonlinear=False)
+        results = camb.get_results(pars)
+        sigma8 = results.get_sigma8_0()
+        self.assertAlmostEqual(sigma8, results.get_sigmaR(8)[-1], places=3)
+        self.assertAlmostEqual(sigma8, results.get_sigmaR(np.array([8]), z_indices=-1)[-1], places=3)
+        self.assertAlmostEqual(results.get_sigmaR(8)[-1], results.get_sigmaR(8, z_indices=-1))
+        pars.set_matter_power(nonlinear=False, k_per_logint=0, kmax=2)
+        results = camb.get_results(pars)
+        P, z, k = results.get_matter_power_interpolator(nonlinear=False, hubble_units=False, k_hunit=False,
+                                                        return_z_k=True, extrap_kmax=100, silent=True)
+        truth = 0.800629  # from high kmax, high accuracy boost
+        self.assertTrue(abs(results.get_sigmaR(8)[-1] / sigma8 - 1) < 1e-3)
+
+        def get_sigma(_ks, dlogk):
+            x = _ks * 8 / (pars.H0 / 100)
+            w = (3 * (np.sin(x) - x * np.cos(x)) / x ** 3) ** 2
+            w[x < 1e-2] = 1 - x[x < 1e-2] ** 2 / 2
+            Ps = P.P(0, _ks) * _ks ** 3 / (2 * np.pi ** 2)
+            return np.sqrt(np.dot(w, Ps * dlogk))
+
+        logk = np.arange(np.log(1e-5), np.log(20.), 1. / 100)
+        ks = np.exp(logk)
+        py_sigma = get_sigma(ks, logk[1] - logk[0])
+        self.assertAlmostEqual(py_sigma, truth, places=3)
+        # no interpolation
+        logk = np.log(k)
+        diffs = (logk[2:] - logk[:-2]) / 2
+        ks = k[1:-1]
+        py_sigma2 = get_sigma(ks, diffs)
+        self.assertAlmostEqual(py_sigma2, truth, places=3)
+        self.assertTrue(abs(results.get_sigmaR(8)[-1] / truth - 1) < 1e-4)
+        self.assertTrue(abs(results.get_sigmaR(np.array([8]), z_indices=-1)[-1] / truth - 1) < 1e-4)
+        pars.set_matter_power(nonlinear=False, k_per_logint=0, kmax=1.2, redshifts=np.arange(0, 10, 2))
+        results = camb.get_results(pars)
+        sigmas = results.get_sigmaR(np.arange(1, 20, 1), hubble_units=False, z_indices=None)
+        pars.Accuracy.AccuracyBoost = 2
+        results = camb.get_results(pars)
+        sigmas2 = results.get_sigmaR(np.arange(1, 20, 1), hubble_units=False, z_indices=None)
+        self.assertTrue(np.all(np.abs(sigmas / sigmas2 - 1) < 1e-3))
+        pars.Accuracy.AccuracyBoost = 1
+        pars.set_matter_power(nonlinear=False, k_per_logint=100, kmax=10, redshifts=np.arange(0, 10, 2))
+        results = camb.get_results(pars)
+        sigmas2 = results.get_sigmaR(np.arange(1, 20, 1), hubble_units=False, z_indices=None)
+        self.assertAlmostEqual(sigmas2[4, 2], 1.77346, places=3)
+        self.assertTrue(np.all(np.abs(sigmas[:, 1:] / sigmas2[:, 1:] - 1) < 1e-3))
+        self.assertTrue(np.all(np.abs(sigmas[:, 0] / sigmas2[:, 0] - 1) < 2e-3))
+
+    def testTimeTransfers(self):
+        from camb import initialpower
+        pars = camb.set_params(H0=69, YHe=0.22, lmax=2000, lens_potential_accuracy=1, ns=0.96, As=2.5e-9)
+        results1 = camb.get_results(pars)
+        cl1 = results1.get_total_cls()
+
+        pars = camb.set_params(H0=69, YHe=0.22, lmax=2000, lens_potential_accuracy=1)
+        results = camb.get_transfer_functions(pars, only_time_sources=True)
+        inflation_params = initialpower.InitialPowerLaw()
+        inflation_params.set_params(ns=0.96, As=2.5e-9)
+        results.power_spectra_from_transfer(inflation_params)
+        cl2 = results.get_total_cls()
+        np.testing.assert_allclose(cl1, cl2, rtol=1e-4)
+        inflation_params.set_params(ns=0.96, As=1.9e-9)
+        results.power_spectra_from_transfer(inflation_params)
+        inflation_params.set_params(ns=0.96, As=2.5e-9)
+        results.power_spectra_from_transfer(inflation_params)
+        cl2 = results.get_total_cls()
+        np.testing.assert_allclose(cl1, cl2, rtol=1e-4)
+
+        pars = camb.CAMBparams()
+        pars.set_cosmology(H0=78, YHe=0.22)
+        pars.set_for_lmax(2000, lens_potential_accuracy=1)
+        pars.WantTensors = True
+        results = camb.get_transfer_functions(pars, only_time_sources=True)
+        cls = []
+        for r in [0, 0.2, 0.4]:
+            inflation_params = initialpower.InitialPowerLaw()
+            inflation_params.set_params(ns=0.96, r=r, nt=0)
+            results.power_spectra_from_transfer(inflation_params)
+            cls += [results.get_total_cls(CMB_unit='muK')]
+        self.assertTrue(np.allclose((cls[1] - cls[0])[2:300, 2] * 2, (cls[2] - cls[0])[2:300, 2], rtol=1e-3))
+
     def testDarkEnergy(self):
         pars = camb.CAMBparams()
         pars.set_cosmology(H0=71)
@@ -466,13 +555,14 @@ class CambTest(unittest.TestCase):
         pars.InitPower.set_params(As=2.1e-9, ns=0.9)
         self.assertAlmostEqual(pars2.scalar_power(1.1), pars.scalar_power(1.1), delta=As * 1e-4)
 
-        def PK(k, As, ns):
-            return As * (k / 0.05) ** (ns - 1) * (1 + 0.1 * np.sin(10 * k))
+        def PK(k, A, n):
+            return A * (k / 0.05) ** (n - 1) * (1 + 0.1 * np.sin(10 * k))
 
         pars.set_initial_power_function(PK, args=(3e-9, 0.95))
         P = pars.scalar_power(ks)
         np.testing.assert_almost_equal(P, PK(ks, 3e-9, 0.95), decimal=4)
 
+    # noinspection PyTypeChecker
     def testSources(self):
         from camb.sources import GaussianSourceWindow, SplinedSourceWindow
         pars = camb.CAMBparams()

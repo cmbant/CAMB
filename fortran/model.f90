@@ -227,7 +227,7 @@
         select type(replace_with)
         type is (CAMBParams)
             p = replace_with
-            class default
+        class default
             error stop 'Wrong assignment type'
         end select
     end select

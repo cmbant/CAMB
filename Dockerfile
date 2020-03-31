@@ -1,7 +1,7 @@
 #Dockerfile for running pycamb notebooks with binder
 #https://mybinder.org/v2/gh/cmbant/camb/master?filepath=docs%2FCAMBdemo.ipynb
 
-FROM cmbant/cosmobox:python3
+FROM cmbant/cosmobox
 
 ENV NB_USER jovyan
 ENV NB_UID 1000

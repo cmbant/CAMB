@@ -20,10 +20,12 @@ import sys
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 sys.path.insert(0, '../..')
+import camb
 
 # -- General configuration ------------------------------------------------
 
 nitpicky = True
+
 
 # Prevent spurious errors for every field ivar (not sure why..)
 def on_missing_reference(app, env, node, contnode):
@@ -73,8 +75,6 @@ master_doc = 'index'
 project = u'Code for Anisotropies in the Microwave Background (CAMB)'
 copyright = u'Antony Lewis'
 author = u'Antony Lewis'
-
-import camb
 
 version = camb.__version__
 release = camb.__version__

@@ -2,10 +2,10 @@
 
 import sys
 import subprocess
-import io
 import re
 import os
 import shutil
+from typing import Any
 from setuptools import setup
 from setuptools.command.build_py import build_py
 from setuptools.command.develop import develop
@@ -16,7 +16,7 @@ file_dir = os.path.abspath(os.path.dirname(__file__))
 os.chdir(file_dir)
 
 sys.path.insert(0, os.path.join(file_dir, 'camb'))
-_compile = __import__('_compilers')
+_compile: Any = __import__('_compilers')
 
 if _compile.is_windows:
     DLLNAME = 'cambdll.dll'
@@ -30,7 +30,7 @@ def get_long_description():
 
 
 def find_version():
-    version_file = io.open(os.path.join(file_dir, 'camb', '__init__.py')).read()
+    version_file = open(os.path.join(file_dir, 'camb', '__init__.py')).read()
     version_match = re.search(r"^__version__ = ['\"]([^'\"]*)['\"]", version_file, re.M)
     if version_match:
         version = version_match.group(1)
@@ -48,7 +48,7 @@ def get_forutils():
         try:
             print('forutils not found, attempting to install using git...')
             os.chdir('..')
-            fbranch = os.getenv('FORUTILSBRANCH', '1.0.1')
+            fbranch = os.getenv('FORUTILSBRANCH', '1.0.2' if os.environ.get('CONDA_BUILD') else 'master')
             try:
                 if subprocess.call("git clone --branch %s --depth=1 https://github.com/cmbant/forutils" % fbranch,
                                    shell=True) == 0:
@@ -114,8 +114,8 @@ def make_library(cluster=False):
     if _compile.is_windows:
         COMPILER = "gfortran"
         FFLAGS = "-shared -static -cpp -fopenmp -O3 -fmax-errors=4"
-        # FFLAGS = "-shared -static -cpp -fopenmp -g -fbacktrace -ffpe-trap=invalid,overflow,zero
-        # -fbounds-check -fmax-errors=4"
+        # FFLAGS = "-shared -static -cpp -fopenmp -g -fbacktrace -ffpe-trap=invalid,overflow,zero " \
+        #         "-fbounds-check -fmax-errors=4"
         if _compile.is_32_bit:
             FFLAGS = "-m32 " + FFLAGS
         if not ok:
@@ -142,11 +142,11 @@ def make_library(cluster=False):
             new_compiler = True
             ver_file = os.path.join(tmpdir, 'compiler.ver')
             if os.path.exists(ver_file):
-                with io.open(ver_file, 'r') as f:
+                with open(ver_file, 'r') as f:
                     new_compiler = gfortran_version != f.readline().strip()
             if new_compiler:
                 clean_dir(tmpdir)
-                with io.open(ver_file, 'w') as f:
+                with open(ver_file, 'w') as f:
                     f.write(gfortran_version)
 
             need_compile = not os.path.exists(lib_file)
@@ -162,7 +162,7 @@ def make_library(cluster=False):
                     o_time = os.path.getmtime(fout)
                     modified = o_time < os.path.getmtime(source + '.f90') or not os.path.exists(outroot + '.d')
                     if not modified:
-                        with io.open(outroot + '.d', 'r') as f:
+                        with open(outroot + '.d', 'r') as f:
                             for dependence in " ".join(f.readlines()).replace("\\\n", "").split(':')[1].strip().split():
                                 if os.path.getmtime(dependence) > o_time:
                                     modified = True
@@ -298,14 +298,12 @@ if __name__ == "__main__":
               'Operating System :: OS Independent',
               'Intended Audience :: Science/Research',
               'Topic :: Scientific/Engineering :: Astronomy',
-              "Programming Language :: Python :: 2",
-              'Programming Language :: Python :: 2.7',
               'Programming Language :: Python :: 3',
               'Programming Language :: Python :: 3.6',
               'Programming Language :: Python :: 3.7',
               'Programming Language :: Python :: 3.8'
           ],
           keywords=['cosmology', 'CAMB', 'CMB'],
-          install_requires=['scipy>=1.0', 'six', 'sympy>=1.0'],
-          python_requires='>=2.7,!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,!=3.5.*'
+          install_requires=['scipy>=1.0', 'sympy>=1.0'],
+          python_requires='>=3.6'
           )
