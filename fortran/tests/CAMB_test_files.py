@@ -574,7 +574,7 @@ def num_unequal(filename, cmpFcn):
             #                printlog("Skipped file %s" % (filename))
             return False
     except ValueError as e:
-        printlog("ValueError: '%s' at %d, %d in file: %s" % (e.message, row, col + 1, filename))
+        printlog("ValueError: '%s' at %d, %d in file: %s" % (e, row, col + 1, filename))
         return True
 
 

@@ -48,7 +48,7 @@ def get_forutils():
         try:
             print('forutils not found, attempting to install using git...')
             os.chdir('..')
-            fbranch = os.getenv('FORUTILSBRANCH', '1.0.2' if os.environ.get('CONDA_BUILD') else 'master')
+            fbranch = os.getenv('FORUTILSBRANCH', '1.0.3' if os.environ.get('CONDA_BUILD') else 'master')
             try:
                 if subprocess.call("git clone --branch %s --depth=1 https://github.com/cmbant/forutils" % fbranch,
                                    shell=True) == 0:
