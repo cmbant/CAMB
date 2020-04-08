@@ -79,7 +79,7 @@ class DarkEnergyFluid(DarkEnergyEqnOfState):
     _fortran_class_name_ = 'TDarkEnergyFluid'
 
     def validate_params(self):
-        if not self.use_tabulated_w and self.wa and (self.w < -1 - 1e-6 or 1 + self.w + self.wa < -1 - 1e-6):
+        if not self.use_tabulated_w and self.wa and (self.w < -1 - 1e-6 or 1 + self.w + self.wa < - 1e-6):
             raise CAMBError('fluid dark energy model does not support w crossing -1')
 
 
