@@ -56,8 +56,6 @@ jobs:
         - docker run -v $(pwd):/camb  -t cmbant/cosmobox:devel /bin/bash -c "cd /camb; fortran/tests/run_tests.sh"
       after_failure:
         - echo "docker fail"
-  allow_failures:
-        - name: "GCC9 + Python 3.8"
 
 install:
   - if [[ "$FORTRAN" == "test" ]]; then
