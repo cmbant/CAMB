@@ -195,7 +195,7 @@ def get_valid_numerical_params(transfer_only=False, **class_names):
 
     def extract_params(set_func):
         pars = getfullargspec(set_func)
-        for arg, v in zip(pars.args[1:], pars.defaults[1:]):
+        for arg, v in zip(pars.args[1:], pars.defaults):
             if (isinstance(v, numbers.Number) or v is None) and 'version' not in arg:
                 params.add(arg)
 
