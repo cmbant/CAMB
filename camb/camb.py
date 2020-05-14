@@ -215,6 +215,7 @@ def set_params_cosmomc(p, num_massive_neutrinos=1, neutrino_hierarchy='degenerat
                        dark_energy_model='ppf', lmax=2500, lens_potential_accuracy=1, inpars=None):
     """
     get CAMBParams for dictionary of cosmomc-named parameters assuming Planck 2018 defaults
+
     :param p: dictionary of cosmomc parameters (e.g. from getdist.types.BestFit's getParamDict() function)
     :param num_massive_neutrinos: usually 1 if fixed mnu=0.06 eV, three if mnu varying
     :param neutrino_hierarchy: hierarchy

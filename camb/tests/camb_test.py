@@ -1,6 +1,7 @@
 import os
 import sys
 import unittest
+import platform
 import numpy as np
 
 try:
@@ -658,3 +659,20 @@ class CambTest(unittest.TestCase):
 
         Bom = postborn.get_field_rotation_BB(pars, lmax=3500)
         self.assertAlmostEqual(Bom(100) * 2 * np.pi / 100 / 101., 1.65e-11, delta=1e-12)
+
+    def test_memory(self):
+        if platform.system() != "Windows":
+            import gc
+            import resource
+            last_usage = -1
+            for i in range(3):
+                pars = camb.CAMBparams()
+                pars.set_cosmology(H0=70, ombh2=0.022, omch2=0.12, mnu=0.06, omk=0, tau=0.17)
+                results = camb.get_results(pars)
+                del pars, results
+                gc.collect()
+                usage = round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0, 1)
+                if last_usage > 0 and usage != last_usage:
+                    print('Memory usage: %2.2f KB vs %2.2f KB' % (usage, last_usage))
+                    raise Exception("Apparent memory leak")
+                last_usage = usage

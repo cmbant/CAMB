@@ -13,7 +13,8 @@ def run_command_line():
     parser = argparse.ArgumentParser(formatter_class=RawTextHelpFormatter,
                                      description='Python command line CAMB reading parameters from a .ini file.' +
                                                  '\n\nSample .ini files are provided in the source distribution, '
-                                                 'e.g. see inifiles/planck_2018.ini')
+                                                 'e.g. see inifiles/planck_2018.ini at '
+                                                 'https://github.com/cmbant/CAMB/tree/master/inifiles')
     parser.add_argument('ini_file', help='text .ini file with parameter settings')
     parser.add_argument('--validate', action='store_true',
                         help='Just validate the .ini file, don''t actually run anything')

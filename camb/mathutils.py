@@ -56,6 +56,8 @@ _coupling_3j.argtypes = [numpy_2d, POINTER(c_int), POINTER(c_int), POINTER(c_boo
 def threej_coupling(W, lmax, pol=False):
     """
     Calculate symmetric coupling matrix for given weights W (i.e. the mask power power spectrum).
+    If pol is False and W is an array of weights, produces array of temperature couplings, otherwise for pol is True
+    produces set of TT, TE, EE, EB couplings (and weights must have one spectrum - for same masks - or three).
 
     :param W: 1d array of Weights for each L, or array of weights (zero based)
     :param lmax: lmax for the output matrix (assumed symmetric, though not in principle)
