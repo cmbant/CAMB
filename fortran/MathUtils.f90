@@ -673,15 +673,16 @@
 
             call GetThreeJs(threejj0(lminus:,thread_ix),l1,l2,0,0)
 
-            if (dopol) then
+            if (dopol .and. l1>=2 .and. l2>=2) then
                 !note that lminus is correct, want max(abs(l1-l2),abs(m1)) where m1=0 here
+                !(polarization coupling depends on lowest multipoles of the mask)
                 call GetThreeJs(threejj2(lminus:,thread_ix),l1,l2,-2,2)
                 M(l2,l1,2) = sum(W(lminus:lplus:2,2)*threejj0(lminus:lplus:2,thread_ix) &
                     *threejj2(lminus:lplus:2,thread_ix)) !TE
                 M(l2,l1,3) = sum(W(lminus:lplus:2,3)*threejj2(lminus:lplus:2,thread_ix)**2) !EE
                 M(l2,l1,4) = sum(W(lminus+1:lplus:2,3)*threejj2(lminus+1:lplus:2,thread_ix)**2) !EB
             end if
-            if (n>1) then
+            if (n>1 .and. .not. dopol) then
                 threejj0(lminus:lplus,thread_ix) = threejj0(lminus:lplus,thread_ix)**2
                 do ix=1,n
                     M(l2,l1,ix) = sum(W(lminus:lplus,ix)* threejj0(lminus:lplus,thread_ix))
