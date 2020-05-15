@@ -69,7 +69,7 @@ def subs(eqs, expr):
             return expr.subs(eqs.lhs, eqs.rhs)
         eqs = [(eq.lhs, eq.rhs) for eq in eqs]
         # must use dict in order for rhs not to be substituted by subsequent lhs
-        return expr.subs(dict(eqs))
+        return expr.subs(dict(eqs), simultaneous=True)
 
 
 def solve(eq, x):
@@ -284,13 +284,6 @@ cons2 = k ** 2 * eta - kappa * a ** 2 * delta + 2 * k * H * z
 cons3 = 2 * third * (k / a) ** 2 * (z - K_fac * sigma) + kappa * q
 cons4 = hdot - k / 3 * z + H * A
 constraints = [cons1, cons2, cons3, cons4]
-
-# see https://github.com/sympy/sympy/issues/19326
-assert simplify((Delta_b * Delta_c).subs(
-    {Delta_b: Delta_b + 1,
-     Delta_c: Delta_b}) - Delta_b * (Delta_b + 1)) == 0, \
-    "Sympy substitute with dict is not independent or order " \
-    "(bug in this sympy %s?)" % sympy.__version__
 
 
 def constraint_subs_for_variable_set(variables=(z, sigma, phi, hdot)):
