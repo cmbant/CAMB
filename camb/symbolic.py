@@ -56,20 +56,20 @@ exptau = Function('exptau', description='exp(-tau)')(t)
 
 def subs(eqs, expr):
     # generalization to act on lists of equations, and support using Eq equations.
-    # lists are substituted irrespective of order, so no RHS variables are substituted by other elements
+    # lists and dicts are substituted irrespective of order, so no RHS variables
+    # are substituted by other elements
     if isinstance(expr, (list, tuple)):
         res = [subs(eqs, ex) for ex in expr]
         return [x for x in res if x is not True]
     if not isinstance(expr, (sympy.Expr, Relational)):
         return expr
     if isinstance(eqs, dict):
-        return expr.subs(eqs)
+        return expr.subs(eqs, simultaneous=True)
     else:
         if not isinstance(eqs, (list, tuple)):
             return expr.subs(eqs.lhs, eqs.rhs)
         eqs = [(eq.lhs, eq.rhs) for eq in eqs]
-        # must use dict in order for rhs not to be substituted by subsequent lhs
-        return expr.subs(dict(eqs), simultaneous=True)
+        return expr.subs(eqs, simultaneous=True)
 
 
 def solve(eq, x):
