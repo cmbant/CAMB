@@ -92,7 +92,7 @@ class CambTest(unittest.TestCase):
                                   'cosmomc_theta', 'YHe', 'wa', 'cs2', 'H0', 'mnu', 'Alens', 'TCMB', 'ns',
                                   'nrun', 'As', 'nt', 'r', 'w', 'omch2'})
         params2 = camb.get_valid_numerical_params(dark_energy_model='AxionEffectiveFluid')
-        self.assertEqual(params2.difference(params), {'om', 'w_n', 'a_c'})
+        self.assertEqual(params2.difference(params), {'om', 'w_n', 'a_c', 'theta_i'})
 
     def testBackground(self):
         pars = camb.CAMBparams()
