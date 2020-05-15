@@ -18,6 +18,7 @@ import ctypes
 import os
 import sympy
 from sympy import diff, Eq, simplify, Function, Symbol
+from sympy.core.relational import Relational
 from sympy.abc import t, kappa, K, k
 
 # Background variables
@@ -59,7 +60,7 @@ def subs(eqs, expr):
     if isinstance(expr, (list, tuple)):
         res = [subs(eqs, ex) for ex in expr]
         return [x for x in res if x is not True]
-    if not isinstance(expr, sympy.Expr):
+    if not isinstance(expr, (sympy.Expr, Relational)):
         return expr
     if isinstance(eqs, dict):
         return expr.subs(eqs)
@@ -283,6 +284,13 @@ cons2 = k ** 2 * eta - kappa * a ** 2 * delta + 2 * k * H * z
 cons3 = 2 * third * (k / a) ** 2 * (z - K_fac * sigma) + kappa * q
 cons4 = hdot - k / 3 * z + H * A
 constraints = [cons1, cons2, cons3, cons4]
+
+# see https://github.com/sympy/sympy/issues/19326
+assert simplify((Delta_b * Delta_c).subs(
+    {Delta_b: Delta_b + 1,
+     Delta_c: Delta_b}) - Delta_b * (Delta_b + 1)) == 0, \
+    "Sympy substitute with dict is not independent or order " \
+    "(bug in this sympy %s?)" % sympy.__version__
 
 
 def constraint_subs_for_variable_set(variables=(z, sigma, phi, hdot)):

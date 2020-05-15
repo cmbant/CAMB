@@ -195,9 +195,12 @@ def get_valid_numerical_params(transfer_only=False, **class_names):
 
     def extract_params(set_func):
         pars = getfullargspec(set_func)
-        for arg, v in zip(pars.args[1:], pars.defaults[1:]):
-            if (isinstance(v, numbers.Number) or v is None) and 'version' not in arg:
-                params.add(arg)
+        for arg in pars.args[1:len(pars.args) - len(pars.defaults or [])]:
+            params.add(arg)
+        if pars.defaults:
+            for arg, v in zip(pars.args[len(pars.args) - len(pars.defaults):], pars.defaults):
+                if (isinstance(v, numbers.Number) or v is None) and 'version' not in arg:
+                    params.add(arg)
 
     extract_params(cp.DarkEnergy.set_params)
     extract_params(cp.set_cosmology)
@@ -208,7 +211,7 @@ def get_valid_numerical_params(transfer_only=False, **class_names):
         if not f.startswith('_') and tp == ctypes.c_double:
             params.add(f)
     return params - {'max_eta_k_tensor', 'max_eta_k', 'neutrino_hierarchy', 'standard_neutrino_neff',
-                     'pivot_scalar', 'num_massive_neutrinos', 'num_nu_massless'}
+                     'pivot_scalar', 'pivot_tensor', 'num_massive_neutrinos', 'num_nu_massless', 'bbn_predictor'}
 
 
 def set_params_cosmomc(p, num_massive_neutrinos=1, neutrino_hierarchy='degenerate', halofit_version='mead',
