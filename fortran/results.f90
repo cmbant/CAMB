@@ -2103,19 +2103,17 @@
             ThermoDerivedParams( derived_thetaD ) =  100*const_pi/ThermoDerivedParams( derived_kD )/DA
 
             if (allocated(CP%z_outputs)) then
-                associate(BackgroundOutputs => State%BackgroundOutputs)
-                    if (allocated(BackgroundOutputs%H)) &
-                        deallocate(BackgroundOutputs%H, BackgroundOutputs%DA, BackgroundOutputs%rs_by_D_v)
-                    noutput = size(CP%z_outputs)
-                    allocate(BackgroundOutputs%H(noutput), BackgroundOutputs%DA(noutput), BackgroundOutputs%rs_by_D_v(noutput))
-                    !$OMP PARALLEL DO DEFAULT(shared)
-                    do i=1,noutput
-                        BackgroundOutputs%H(i) = State%HofZ(CP%z_outputs(i))
-                        BackgroundOutputs%DA(i) = State%AngularDiameterDistance(CP%z_outputs(i))
-                        BackgroundOutputs%rs_by_D_v(i) = rs/BAO_D_v_from_DA_H(CP%z_outputs(i), &
-                            BackgroundOutputs%DA(i),BackgroundOutputs%H(i))
-                    end do
-                end associate
+                if (allocated(State%BackgroundOutputs%H)) &
+                    deallocate(State%BackgroundOutputs%H, State%BackgroundOutputs%DA, State%BackgroundOutputs%rs_by_D_v)
+                noutput = size(CP%z_outputs)
+                allocate(State%BackgroundOutputs%H(noutput), State%BackgroundOutputs%DA(noutput), State%BackgroundOutputs%rs_by_D_v(noutput))
+                !$OMP PARALLEL DO DEFAULT(shared)
+                do i=1,noutput
+                    State%BackgroundOutputs%H(i) = State%HofZ(CP%z_outputs(i))
+                    State%BackgroundOutputs%DA(i) = State%AngularDiameterDistance(CP%z_outputs(i))
+                    State%BackgroundOutputs%rs_by_D_v(i) = rs/BAO_D_v_from_DA_H(CP%z_outputs(i), &
+                        State%BackgroundOutputs%DA(i),State%BackgroundOutputs%H(i))
+                end do
             end if
 
             if (FeedbackLevel > 0) then
