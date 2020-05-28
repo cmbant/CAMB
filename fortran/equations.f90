@@ -1,5 +1,4 @@
-    ! Equations module for background and perturbations
-    ! To avoid circular module issues, some things are not part of module
+    ! Equations module for background and ! To avoid circular module issues, some things are not part of module
 
 
     subroutine Init_Backgrounds
@@ -1947,10 +1946,13 @@
 
     ! DarkEnergy: This initializes also i_vq, when num_perturb_equations is set
     !             to 2.
-    if (CP%DarkEnergy%num_perturb_equations > 0) &
+    if (CP%DarkEnergy%num_perturb_equations > 0) then
+        call CP%DarkEnergy%PerturbationInitial(InitVec(i_clxde:i_clxde + CP%DarkEnergy%num_perturb_equations - 1), &
+            a, tau,  k)
         y(EV%w_ix:EV%w_ix + CP%DarkEnergy%num_perturb_equations - 1) = &
         InitVec(i_clxde:i_clxde + CP%DarkEnergy%num_perturb_equations - 1)
-
+    end if
+        
     if (CP%Evolve_delta_Ts) then
         y(EV%Ts_ix) = y(EV%g_ix)/4
     end if
@@ -2220,7 +2222,6 @@
         call State%CP%DarkEnergy%BackgroundDensityAndPressure(State%grhov, a, grhov_t, w_dark_energy_t)
     end if
 
-
     !total perturbations: matter terms first, then add massive nu, de and radiation
     !  8*pi*a*a*SUM[rho_i*clx_i]
     dgrho_matter=grhob_t*clxb+grhoc_t*clxc
@@ -2293,7 +2294,7 @@
 
     if (.not. EV%is_cosmological_constant) then
         call State%CP%DarkEnergy%PerturbedStressEnergy(dgrho_de, dgq_de, &
-            dgq, dgrho, grho, grhov_t, w_dark_energy_t, gpres_noDE, etak, &
+            a, dgq, dgrho, grho, grhov_t, w_dark_energy_t, gpres_noDE, etak, &
             adotoa, k, EV%Kf(1), ay, ayprime, EV%w_ix)
         dgrho = dgrho + dgrho_de
         dgq = dgq + dgq_de

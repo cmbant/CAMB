@@ -701,3 +701,8 @@ class CambTest(unittest.TestCase):
                     print('Memory usage: %2.2f KB vs %2.2f KB' % (usage, last_usage))
                     raise Exception("Apparent memory leak")
                 last_usage = usage
+
+    def test_quintessence(self):
+        pars = camb.set_params( ombh2=0.022, omch2=0.122,
+                               dark_energy_model='Quintessence', H0=67)
+        camb.get_background(pars)

@@ -36,6 +36,7 @@
 		<File RelativePath="..\DarkEnergyInterface.f90"/>
 		<File RelativePath="..\DarkEnergyPPF.f90"/>
 		<File RelativePath="..\equations.f90"/>
+		<File RelativePath="..\DarkEnergyQuintessence.f90"/>
 		<File RelativePath="..\halofit.f90"/>
 		<File RelativePath="..\InitialPower.f90"/>
 		<File RelativePath="..\lensing.f90"/>

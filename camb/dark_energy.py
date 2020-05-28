@@ -119,5 +119,25 @@ class AxionEffectiveFluid(DarkEnergyModel):
             self.theta_i = theta_i
 
 
+@fortran_class
+class Quintessence(DarkEnergyModel):
+    _fields_ = [
+        ("n", c_double),
+        ("f", c_double),
+        ("m", c_double),
+        ("theta_i", c_double),
+        ("frac_lambda0", c_double),
+        ("npoints", c_int)
+    ]
+    _fortran_class_name_ = 'TQuintessence'
+    _fortran_class_module_ = 'Quintessence'
+
+    def set_params(self, n, f, m, theta_i=0.0):
+        self.n = n
+        self.f = f
+        self.m = m
+        self.theta_i = theta_i
+
+
 # short names for models that support w/wa
 F2003Class._class_names.update({'fluid': DarkEnergyFluid, 'ppf': DarkEnergyPPF})

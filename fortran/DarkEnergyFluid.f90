@@ -73,7 +73,7 @@
     subroutine TDarkEnergyFluid_Init(this, State)
     use classes
     class(TDarkEnergyFluid), intent(inout) :: this
-    class(TCAMBdata), intent(in) :: State
+    class(TCAMBdata), intent(in), target :: State
 
     call this%TDarkEnergyEqnOfState%Init(State)
 
@@ -94,10 +94,10 @@
 
 
     subroutine TDarkEnergyFluid_PerturbedStressEnergy(this, dgrhoe, dgqe, &
-        dgq, dgrho, grho, grhov_t, w, gpres_noDE, etak, adotoa, k, kf1, ay, ayprime, w_ix)
+        a, dgq, dgrho, grho, grhov_t, w, gpres_noDE, etak, adotoa, k, kf1, ay, ayprime, w_ix)
     class(TDarkEnergyFluid), intent(inout) :: this
     real(dl), intent(out) :: dgrhoe, dgqe
-    real(dl), intent(in) ::  dgq, dgrho, grho, grhov_t, w, gpres_noDE, etak, adotoa, k, kf1
+    real(dl), intent(in) ::  a, dgq, dgrho, grho, grhov_t, w, gpres_noDE, etak, adotoa, k, kf1
     real(dl), intent(in) :: ay(*)
     real(dl), intent(inout) :: ayprime(*)
     integer, intent(in) :: w_ix
@@ -179,7 +179,7 @@
     subroutine TAxionEffectiveFluid_Init(this, State)
     use classes
     class(TAxionEffectiveFluid), intent(inout) :: this
-    class(TCAMBdata), intent(in) :: State
+    class(TCAMBdata), intent(in), target :: State
     real(dl) :: grho_rad, F, p, mu, xc, n
 
     select type(State)
@@ -268,10 +268,10 @@
 
 
     subroutine TAxionEffectiveFluid_PerturbedStressEnergy(this, dgrhoe, dgqe, &
-        dgq, dgrho, grho, grhov_t, w, gpres_noDE, etak, adotoa, k, kf1, ay, ayprime, w_ix)
+        a, dgq, dgrho, grho, grhov_t, w, gpres_noDE, etak, adotoa, k, kf1, ay, ayprime, w_ix)
     class(TAxionEffectiveFluid), intent(inout) :: this
     real(dl), intent(out) :: dgrhoe, dgqe
-    real(dl), intent(in) ::  dgq, dgrho, grho, grhov_t, w, gpres_noDE, etak, adotoa, k, kf1
+    real(dl), intent(in) :: a, dgq, dgrho, grho, grhov_t, w, gpres_noDE, etak, adotoa, k, kf1
     real(dl), intent(in) :: ay(*)
     real(dl), intent(inout) :: ayprime(*)
     integer, intent(in) :: w_ix

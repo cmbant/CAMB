@@ -513,17 +513,7 @@
     real(dl) :: C10, tau_21Ts
     integer :: ind, nw
     real(dl), parameter :: tol=1.D-5                !Tolerance for R-K
-    interface
-    subroutine TDverk (this,n, fcn, x, y, xend, tol, ind, c, nw, w)
-    use Precision
-    import
-    class(TRecfast), target :: this
-    integer n, ind
-    real(dl) x, y(n), xend, tol, c(*), w(nw,9)
-    external fcn
-    end subroutine
-    end interface
-    procedure(TDverk) :: dverk
+    procedure(TClassDverk) :: dverk
 
 
     if (.not. allocated(this%Calc)) allocate(this%Calc)
