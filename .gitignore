@@ -8,9 +8,6 @@
 .project
 .pydevproject
 x64/
-Debug/
-Release/
-Releaselib/
 WinDLL/
 *.suo
 *.d
@@ -29,10 +26,16 @@ core
 build
 testfiles
 inspectionProfiles
-fortran/camb
-fortran/DebugMPI
-fortran/ReleaseMPI/
 Advisor/
 Inspector/
 .ipynb_checkpoints
 camb/HighLExtrapTemplate_lenspotentialCls.dat
+
+# compilation products:
+fortran/camb
+Debug/
+Debuglib/
+Release/
+Releaselib/
+DebugMPI/
+ReleaseMPI/

@@ -133,6 +133,7 @@ FFLAGS += -DFISHER
 endif
 
 DEBUGFLAGS ?= $(FFLAGS)
+DEBUGFLAGS += -DDEBUG
 Debug: FFLAGS = $(DEBUGFLAGS)
 
 include ./Makefile_main

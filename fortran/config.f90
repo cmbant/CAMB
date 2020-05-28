@@ -15,8 +15,13 @@
 
     real(dl) :: DebugParam = 0._dl !not used but read in, useful for parameter-dependent tests
 
+#ifdef DEBUG
+    ! In debug mode default to single thread
+    integer :: ThreadNum = 1
+#else
+    ! If zero assigned automatically to OMP_NUM_THREADS, obviously only used if parallelised
     integer :: ThreadNum = 0
-    !If zero assigned automatically, obviously only used if parallelised
+#endif
 
     logical ::  do_bispectrum  = .false.
     logical, parameter :: hard_bispectrum = .false. ! e.g. warm inflation where delicate cancellations
