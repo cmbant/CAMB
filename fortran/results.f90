@@ -2106,7 +2106,8 @@
                 if (allocated(State%BackgroundOutputs%H)) &
                     deallocate(State%BackgroundOutputs%H, State%BackgroundOutputs%DA, State%BackgroundOutputs%rs_by_D_v)
                 noutput = size(CP%z_outputs)
-                allocate(State%BackgroundOutputs%H(noutput), State%BackgroundOutputs%DA(noutput), State%BackgroundOutputs%rs_by_D_v(noutput))
+                allocate(State%BackgroundOutputs%H(noutput), State%BackgroundOutputs%DA(noutput), &
+                    State%BackgroundOutputs%rs_by_D_v(noutput))
                 !$OMP PARALLEL DO DEFAULT(shared)
                 do i=1,noutput
                     State%BackgroundOutputs%H(i) = State%HofZ(CP%z_outputs(i))
