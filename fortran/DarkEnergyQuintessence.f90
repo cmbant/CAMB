@@ -40,7 +40,7 @@
         integer :: min_steps_per_osc = 10
         integer :: npoints_linear, npoints_log
         real(dl) :: dloga, da, astart, log_astart, max_a_log
-        real(dl), dimension(:), allocatable :: aVals, phi_a, phidot_a, ddphi_a, ddphidot_a
+        real(dl), dimension(:), allocatable :: aVals, phi_a, phidot_a, fde, ddphi_a, ddphidot_a
         class(CAMBdata), pointer, private :: State
     contains
     procedure :: ReadParams =>  TQuintessence_ReadParams
@@ -170,12 +170,11 @@
     ! Evolve the background equation in terms of loga.
     ! Variables are phi=y(1), a^2 phi' = y(2)
     ! Assume otherwise standard background components
-    use MassiveNu
     class(TQuintessence) :: this
     integer num
     real(dl) y(num),yprime(num)
     real(dl) loga, a, a2, tot
-    real(dl) phi, tmp, phidot, rhonu, adotoa
+    real(dl) phi, tmp, phidot, grhode, adotoa
     integer nu_i
 
     a = exp(loga)
@@ -183,15 +182,8 @@
     phi = y(1)
     phidot = y(2)/a2
 
-    tmp=a2*(0.5d0*phidot**2 + a2*(this%Vofphi(phi,0) + this%frac_lambda0*this%State%grhov))
-    tot=(this%State%grhoc+this%State%grhob)*a+this%State%grhog+this%State%grhornomass +this%State%grhok*a2 + tmp
-    if (this%State%CP%Num_Nu_massive /= 0) then
-        !Get massive neutrino density relative to massless
-        do nu_i = 1, this%State%CP%nu_mass_eigenstates
-            call ThermalNuBack%rho(a * this%State%nu_masses(nu_i), rhonu)
-            tot = tot +rhonu*this%State%grhormass(nu_i)
-        end do
-    end if
+    grhode=a2*(0.5d0*phidot**2 + a2*(this%Vofphi(phi,0) + this%frac_lambda0*this%State%grhov))
+    tot = this%state%grho_no_de(a) + grhode
 
     adotoa=sqrt(tot/3.0d0)/a
     yprime(1)=phidot/adotoa !d phi /d ln a
@@ -203,27 +195,19 @@
     ! Evolve the background equation in terms of a.
     ! Variables are phi=y(1), a^2 phi' = y(2)
     ! Assume otherwise standard background components
-    use MassiveNu
     class(TQuintessence) :: this
     integer num
     real(dl) y(num),yprime(num)
     real(dl) a, a2, tot
-    real(dl) phi, tmp, phidot, rhonu, adot
+    real(dl) phi, grhode, phidot, rhonu, adot
     integer nu_i
 
     a2=a**2
     phi = y(1)
     phidot = y(2)/a2
 
-    tmp=a2*(0.5d0*phidot**2 + a2*(this%Vofphi(phi,0) + this%frac_lambda0*this%State%grhov))
-    tot=(this%State%grhoc+this%State%grhob)*a+this%State%grhog+this%State%grhornomass +this%State%grhok*a2 + tmp
-    if (this%State%CP%Num_Nu_massive /= 0) then
-        !Get massive neutrino density relative to massless
-        do nu_i = 1, this%State%CP%nu_mass_eigenstates
-            call ThermalNuBack%rho(a * this%State%nu_masses(nu_i), rhonu)
-            tot = tot +rhonu*this%State%grhormass(nu_i)
-        end do
-    end if
+    grhode=a2*(0.5d0*phidot**2 + a2*(this%Vofphi(phi,0) + this%frac_lambda0*this%State%grhov))
+    tot = this%state%grho_no_de(a) + grhode
 
     adot=sqrt(tot/3.0d0)
     yprime(1)=phidot/adot !d phi /d a
@@ -385,10 +369,10 @@
 
         !Define fde is ratio of energy density to total assuming the neutrinos fully relativistic
         !adotrad = sqrt((this%grhog+this%grhornomass+sum(this%grhormass(1:this%CP%Nu_mass_eigenstates)))/3)
-        
-        fde(ix) = 1/(((this%State%grhoc+this%State%grhob)*aVals(ix)+3*this%State%adotrad**2 + &
-            this%frac_lambda0*this%State%grhov*a2**2)  /(a2*(0.5d0* phidot_a(ix)**2 + a2*this%Vofphi(y(1),0))) + 1)
-        call Fout%Write(exp(aend), phi_a(ix), phidot_a(ix), fde)
+
+        fde(ix) = 1/((this%state%grho_no_de(aVals(ix)) +  this%frac_lambda0*this%State%grhov*a2**2) &
+            /(a2*(0.5d0* phidot_a(ix)**2 + a2*this%Vofphi(y(1),0))) + 1)
+        call Fout%Write(exp(aend), phi_a(ix), phidot_a(ix), fde(ix))
         if (aVals(ix)*(exp(this%dloga)-1)*this%min_steps_per_osc > da_osc) then
             !Step size getting too big to sample oscillations well
             exit
@@ -406,27 +390,28 @@
     tot_points = this%npoints_log+this%npoints_linear
     allocate(this%phi_a(tot_points),this%phidot_a(tot_points))
     allocate(this%ddphi_a(tot_points),this%ddphidot_a(tot_points))
-    allocate(this%aVals(tot_points))
+    allocate(this%aVals(tot_points), this%fde(tot_points))
     this%aVals(1:ix) = aVals(1:ix)
     this%phi_a(1:ix) = phi_a(1:ix)
     this%phidot_a(1:ix) = phidot_a(1:ix)
     this%aVals(1:ix) = aVals(1:ix)
+    this%fde(1:ix) = fde(1:ix)
 
     ind=1
     afrom = this%max_a_log
     do i=1, this%npoints_linear
         ix = this%npoints_log + i
         aend = this%max_a_log + this%da*i
+        a2 =aend**2
         this%aVals(ix)=aend
         call dverk(this,NumEqs,EvolveBackground,afrom,y,aend,atol,ind,c,NumEqs,w)
         call EvolveBackground(this,NumEqs,aend,y,w(:,1))
         this%phi_a(ix)=y(1)
-        this%phidot_a(ix)=y(2)/aend**2
+        this%phidot_a(ix)=y(2)/a2
 
-        fde=aend**2*(0.5d0* this%phidot_a(ix)**2 + aend**2*this%Vofphi(y(1),0))/ &
-            ((this%State%grhoc+this%State%grhob)*aend+this%State%grhog+this%State%grhornomass)
-        
-        call Fout%Write(aend, this%phi_a(ix), this%phidot_a(ix), fde)
+        this%fde(ix) = 1/((this%state%grho_no_de(aend) +  this%frac_lambda0*this%State%grhov*a2**2) &
+            /(a2*(0.5d0* this%phidot_a(ix)**2 + a2*this%Vofphi(y(1),0))) + 1)
+        call Fout%Write(aend, this%phi_a(ix), this%phidot_a(ix), this%fde(ix))
     end do
 
     call Fout%Close()

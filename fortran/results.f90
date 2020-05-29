@@ -260,6 +260,7 @@
     procedure :: DarkEnergyStressEnergy => CAMBdata_DarkEnergyStressEnergy
     procedure :: SetParams => CAMBdata_SetParams
     procedure :: Free => CAMBdata_Free
+    procedure :: grho_no_de
     procedure :: GetReionizationOptDepth
     procedure :: rofChi
     procedure :: cosfunc
@@ -1148,6 +1149,25 @@
 
     end function reion_doptdepth_dz
 
+    function grho_no_de(this, a) result(grhoa2)
+    !  Return 8*pi*G*rho_no_de*a**4 where rho_no_de includes everything except dark energy.
+    class(CAMBdata) :: this
+    real(dl), intent(in) :: a
+    real(dl) grhoa2, rhonu
+    integer nu_i
+
+    grhoa2 = this%grhok * a**2 + (this%grhoc + this%grhob) * a + this%grhog + this%grhornomass
+
+    if (this%CP%Num_Nu_massive /= 0) then
+        !Get massive neutrino density relative to massless
+        do nu_i = 1, this%CP%nu_mass_eigenstates
+            call ThermalNuBack%rho(a * this%nu_masses(nu_i), rhonu)
+            grhoa2 = grhoa2 + rhonu * this%grhormass(nu_i)
+        end do
+    end if
+
+    end function grho_no_de
+    
     function GetReionizationOptDepth(this)
     class(CAMBdata) :: this
     real(dl) GetReionizationOptDepth

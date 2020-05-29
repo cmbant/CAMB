@@ -6,40 +6,25 @@
     !It is called before first call to dtauda, but after
     !massive neutrinos are initialized
 
-    end  subroutine Init_Backgrounds
-
+    end subroutine Init_Backgrounds
 
     ! Background evolution, return d tau/ d a, where tau is the conformal time
     function dtauda(this,a)
     use results
-    use MassiveNu
     use DarkEnergyInterface
     implicit none
     class(CAMBdata) :: this
     real(dl), intent(in) :: a
-    real(dl) :: dtauda, rhonu, grhoa2, a2, grhov_t
-    integer :: nu_i
+    real(dl) :: dtauda, grhoa2, grhov_t
 
-    a2 = a ** 2
     call this%CP%DarkEnergy%BackgroundDensityAndPressure(this%grhov, a, grhov_t)
 
     !  8*pi*G*rho*a**4.
-    grhoa2 = this%grhok * a2 + (this%grhoc + this%grhob) * a + this%grhog + this%grhornomass + &
-        grhov_t * a2
-
-    if (this%CP%Num_Nu_massive /= 0) then
-        !Get massive neutrino density relative to massless
-        do nu_i = 1, this%CP%nu_mass_eigenstates
-            call ThermalNuBack%rho(a * this%nu_masses(nu_i), rhonu)
-            grhoa2 = grhoa2 + rhonu * this%grhormass(nu_i)
-        end do
-    end if
+    grhoa2 = this%grho_no_de(a) +  grhov_t * a**2
 
     dtauda = sqrt(3 / grhoa2)
 
     end function dtauda
-
-
 
     !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
@@ -1950,9 +1935,9 @@
         call CP%DarkEnergy%PerturbationInitial(InitVec(i_clxde:i_clxde + CP%DarkEnergy%num_perturb_equations - 1), &
             a, tau,  k)
         y(EV%w_ix:EV%w_ix + CP%DarkEnergy%num_perturb_equations - 1) = &
-        InitVec(i_clxde:i_clxde + CP%DarkEnergy%num_perturb_equations - 1)
+            InitVec(i_clxde:i_clxde + CP%DarkEnergy%num_perturb_equations - 1)
     end if
-        
+
     if (CP%Evolve_delta_Ts) then
         y(EV%Ts_ix) = y(EV%g_ix)/4
     end if
