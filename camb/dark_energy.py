@@ -127,6 +127,9 @@ class Quintessence(DarkEnergyModel):
         ("m", c_double),
         ("theta_i", c_double),
         ("frac_lambda0", c_double),
+        ("use_zc", c_bool),
+        ("zc", c_double),
+        ("fde_zc", c_double),
         ("npoints", c_int)
     ]
     _fortran_class_name_ = 'TQuintessence'

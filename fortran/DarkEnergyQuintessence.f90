@@ -36,11 +36,15 @@
         real(dl) :: m = 5d-54 !m in reduced Planck mass units
         real(dl) :: theta_i = 3.1_dl !initial value of phi/f
         real(dl) :: frac_lambda0 = 1._dl !fraction of dark energy density that is cosmological constant today
+        logical :: use_zc = .false. !adjust m to fit zc
+        real(dl) :: zc, fde_zc !readshift for peak f_de and f_de at that redshift
         integer :: npoints = 5000 !baseline number of log a steps; will be increased if needed when there are oscillations
         integer :: min_steps_per_osc = 10
         integer :: npoints_linear, npoints_log
-        real(dl) :: dloga, da, astart, log_astart, max_a_log
-        real(dl), dimension(:), allocatable :: aVals, phi_a, phidot_a, fde, ddphi_a, ddphidot_a
+        real(dl) :: astart = 1e-7_dl
+        real(dl) :: integrate_tol = 1e-6_dl
+        real(dl) :: dloga, da, log_astart, max_a_log
+        real(dl), dimension(:), allocatable :: aVals, phi_a, phidot_a, fde, ddfde, ddphi_a, ddphidot_a
         class(CAMBdata), pointer, private :: State
     contains
     procedure :: ReadParams =>  TQuintessence_ReadParams
@@ -55,7 +59,10 @@
     procedure :: Vofphi
     !    procedure, private :: GetOmegaFromInitial
     procedure, private :: ValsAta
+    procedure, private :: fdeAta
     procedure, private :: phidot_start => TQuintessence_phidot_start
+    procedure, private :: fde_peak
+    procedure :: calc_zc_fde
     end type TQuintessence
 
     procedure(TClassDverk) :: dverk
@@ -173,21 +180,11 @@
     class(TQuintessence) :: this
     integer num
     real(dl) y(num),yprime(num)
-    real(dl) loga, a, a2, tot
-    real(dl) phi, tmp, phidot, grhode, adotoa
-    integer nu_i
+    real(dl) loga, a
 
     a = exp(loga)
-    a2=a**2
-    phi = y(1)
-    phidot = y(2)/a2
-
-    grhode=a2*(0.5d0*phidot**2 + a2*(this%Vofphi(phi,0) + this%frac_lambda0*this%State%grhov))
-    tot = this%state%grho_no_de(a) + grhode
-
-    adotoa=sqrt(tot/3.0d0)/a
-    yprime(1)=phidot/adotoa !d phi /d ln a
-    yprime(2)= -a2**2*this%Vofphi(phi,1)/adotoa
+    call this%EvolveBackground(num, a, y, yprime)
+    yprime = yprime*a
 
     end subroutine EvolveBackgroundLog
 
@@ -199,8 +196,7 @@
     integer num
     real(dl) y(num),yprime(num)
     real(dl) a, a2, tot
-    real(dl) phi, grhode, phidot, rhonu, adot
-    integer nu_i
+    real(dl) phi, grhode, phidot, adot
 
     a2=a**2
     phi = y(1)
@@ -249,14 +245,17 @@
     class(TCAMBdata), intent(in), target :: State
     real(dl) aend, afrom
     integer, parameter ::  NumEqs=2
-    real(dl) c(24),w(NumEqs,9), y(NumEqs),atol
+    real(dl) c(24),w(NumEqs,9), y(NumEqs)
     integer ind, i, ix
     real(dl), parameter :: splZero = 0._dl
-    real(dl) rhofrac, lastsign, da_osc, last_a
+    real(dl) lastsign, da_osc, last_a, a_c
     real(dl) initial_phi, initial_phidot, a2
     Type(TTextFile) Fout
     real(dl), dimension(:), allocatable :: aVals, phi_a, phidot_a, fde
-    integer npoints, tot_points
+    integer npoints, tot_points, max_ix
+    logical has_peak, done
+    real(dl) fzero, xzero
+    integer iflag, iter
 
     !Make interpolation table, etc,
     !At this point massive neutrinos have been initialized
@@ -271,9 +270,22 @@
     this%is_cosmological_constant = .false.
     this%num_perturb_equations = 2
 
-    initial_phi = this%theta_i*this%f
-    this%astart=1d-7
     this%log_astart = log(this%astart)
+
+    if (this%use_zc) then
+        do iter = 1, 2
+            call brentq(this,match_fde,log(0.01_dl),log(1._dl), 1d-4,xzero,fzero,iflag)
+            if (i/=0) print *, 'BRENTQ FAILED'
+            this%f = exp(xzero)
+            print *, 'match to m, f =', this%m, this%f, fzero
+            call brentq(this,match_zc,log(1d-55),log(1d-52), 1d-3,xzero,fzero,iflag)
+            this%m = exp(xzero)
+            print *, 'match to m, f =', this%m, this%f, fzero
+            call this%calc_zc_fde(fzero, xzero)
+            print *, 'matched outputs', fzero, xzero
+        end do
+
+    end if
 
     this%dloga = (-this%log_astart)/(this%npoints-1)
 
@@ -335,7 +347,8 @@
     !
     !end if !Find initial
 
-    atol=1d-6
+    initial_phi = this%theta_i*this%f
+
     y(1)=initial_phi
     initial_phidot =  this%astart*this%phidot_start(initial_phi)
     y(2)= initial_phidot*this%astart**2
@@ -345,6 +358,8 @@
     aVals(1)=this%astart
     da_osc = 1
     last_a = this%astart
+    max_ix =0
+    done = .false.
 
     ind=1
     afrom=this%log_astart
@@ -354,7 +369,7 @@
         ix = i+1
         aVals(ix)=exp(aend)
         a2 = aVals(ix)**2
-        call dverk(this,NumEqs,EvolveBackgroundLog,afrom,y,aend,atol,ind,c,NumEqs,w)
+        call dverk(this,NumEqs,EvolveBackgroundLog,afrom,y,aend,this%integrate_tol,ind,c,NumEqs,w)
         call EvolveBackgroundLog(this,NumEqs,aend,y,w(:,1))
         phi_a(ix)=y(1)
         phidot_a(ix)=y(2)/a2
@@ -367,11 +382,19 @@
             lastsign= y(2)
         end if
 
+        if (a2**2*abs(this%Vofphi(initial_phi,2)) > 3*this%state%grho_no_de(aVals(ix)) .and. .not. done) then
+            done = .true.
+            print *, 'z estimate', 1/aVals(ix)-1
+        end if
+
         !Define fde is ratio of energy density to total assuming the neutrinos fully relativistic
         !adotrad = sqrt((this%grhog+this%grhornomass+sum(this%grhormass(1:this%CP%Nu_mass_eigenstates)))/3)
 
         fde(ix) = 1/((this%state%grho_no_de(aVals(ix)) +  this%frac_lambda0*this%State%grhov*a2**2) &
             /(a2*(0.5d0* phidot_a(ix)**2 + a2*this%Vofphi(y(1),0))) + 1)
+        if (max_ix==0 .and. ix > 2 .and. fde(ix)< fde(ix-1)) then
+            max_ix = ix-1
+        end if
         call Fout%Write(exp(aend), phi_a(ix), phidot_a(ix), fde(ix))
         if (aVals(ix)*(exp(this%dloga)-1)*this%min_steps_per_osc > da_osc) then
             !Step size getting too big to sample oscillations well
@@ -390,7 +413,7 @@
     tot_points = this%npoints_log+this%npoints_linear
     allocate(this%phi_a(tot_points),this%phidot_a(tot_points))
     allocate(this%ddphi_a(tot_points),this%ddphidot_a(tot_points))
-    allocate(this%aVals(tot_points), this%fde(tot_points))
+    allocate(this%aVals(tot_points), this%fde(tot_points), this%ddfde(tot_points))
     this%aVals(1:ix) = aVals(1:ix)
     this%phi_a(1:ix) = phi_a(1:ix)
     this%phidot_a(1:ix) = phidot_a(1:ix)
@@ -404,13 +427,16 @@
         aend = this%max_a_log + this%da*i
         a2 =aend**2
         this%aVals(ix)=aend
-        call dverk(this,NumEqs,EvolveBackground,afrom,y,aend,atol,ind,c,NumEqs,w)
+        call dverk(this,NumEqs,EvolveBackground,afrom,y,aend,this%integrate_tol,ind,c,NumEqs,w)
         call EvolveBackground(this,NumEqs,aend,y,w(:,1))
         this%phi_a(ix)=y(1)
         this%phidot_a(ix)=y(2)/a2
 
         this%fde(ix) = 1/((this%state%grho_no_de(aend) +  this%frac_lambda0*this%State%grhov*a2**2) &
             /(a2*(0.5d0* this%phidot_a(ix)**2 + a2*this%Vofphi(y(1),0))) + 1)
+        if (max_ix==0 .and. this%fde(ix)< this%fde(ix-1)) then
+            max_ix = ix-1
+        end if
         call Fout%Write(aend, this%phi_a(ix), this%phidot_a(ix), this%fde(ix))
     end do
 
@@ -418,8 +444,166 @@
 
     call spline(this%aVals,this%phi_a,tot_points,splZero,splZero,this%ddphi_a)
     call spline(this%aVals,this%phidot_a,tot_points,splZero,splZero,this%ddphidot_a)
+    call spline(this%aVals,this%fde,tot_points,splZero,splZero,this%ddfde)
+    has_peak = .false.
+    if (max_ix >0) then
+        ix = max_ix
+        has_peak = this%fde_peak(a_c, this%aVals(ix), this%aVals(ix+1), this%fde(ix), &
+            this%fde(ix+1), this%ddfde(ix), this%ddfde(ix+1))
+        if (.not. has_peak) then
+            has_peak = this%fde_peak(a_c, this%aVals(ix-1), this%aVals(ix), &
+                this%fde(ix-1), this%fde(ix), this%ddfde(ix-1), this%ddfde(ix))
+        end if
+    end if
+    if (has_peak) then
+        this%zc = 1/a_c-1
+        this%fde_zc = this%fdeAta(a_c)
+    else
+        print *, 'NO PEAK FINAL'
+        this%zc = -1
+    end if
+    print *, 'zc, fde used', this%zc, this%fde_zc
 
     end subroutine TQuintessence_Init
+
+    logical function fde_peak(this, peak, xlo, xhi, Flo, Fhi, ddFlo, ddFhi)
+    class(TQuintessence) :: this
+    real(dl), intent(out) :: peak
+    real(dl) Delta
+    real(dl), intent(in) :: xlo, xhi, ddFlo, ddFhi,Flo, Fhi
+    real(dl) a, b, c, fac
+
+    !See if derivative has zero in spline interval xlo .. xhi
+
+    Delta = xhi - xlo
+
+    a = 0.5_dl*(ddFhi-ddFlo)/Delta
+    b = (xhi*ddFlo-xlo*ddFhi)/Delta
+    c = (Fhi-Flo)/Delta+ Delta/6._dl*((1-3*xhi**2/Delta**2)*ddFlo+(3*xlo**2/Delta**2-1)*ddFhi)
+    fac = b**2-4*a*c
+    if (fac>=0) then
+        fac = sqrt(fac)
+        peak = (-b + fac)/2/a
+        if (peak >= xlo .and. peak <= xhi) then
+            fde_peak = .true.
+            return
+        else
+            peak = (-b - fac)/2/a
+            if (peak >= xlo .and. peak <= xhi) then
+                fde_peak = .true.
+                return
+            end if
+        end if
+    end if
+    fde_peak = .false.
+
+    end function fde_peak
+
+    function match_zc(this, logm)
+    class(TQuintessence), intent(inout) :: this
+    real(dl), intent(in) :: logm
+    real(dl) match_zc, zc, fde_zc
+
+    this%m = exp(logm)
+    call this%calc_zc_fde(zc, fde_zc)
+    match_zc = zc - this%zc
+
+    end function match_zc
+
+    function match_fde(this, logf)
+    class(TQuintessence), intent(inout) :: this
+    real(dl), intent(in) :: logf
+    real(dl) match_fde, zc, fde_zc
+
+    this%f = exp(logf)
+    call this%calc_zc_fde(zc, fde_zc)
+    match_fde = fde_zc - this%fde_zc
+
+    end function match_fde
+
+
+    subroutine calc_zc_fde(this, z_c, fde_zc)
+    class(TQuintessence), intent(inout) :: this
+    real(dl), intent(out) :: z_c, fde_zc
+    real(dl) aend, afrom
+    integer, parameter ::  NumEqs=2
+    real(dl) c(24),w(NumEqs,9), y(NumEqs)
+    integer ind, i, ix
+    real(dl), parameter :: splZero = 0._dl
+    real(dl) a_c
+    real(dl) initial_phi, initial_phidot, a2
+    real(dl), dimension(:), allocatable :: aVals, fde, ddfde
+    integer npoints, max_ix
+    logical has_peak
+    real(dl) a0, b0, da
+
+    ! Get z_c and f_de(z_c) where z_c is the redshift of (first) peak of f_de (de energy fraction)
+    ! Do this by forward propagating until peak, then get peak values by cubic interpolation
+
+    initial_phi = this%theta_i*this%f
+    this%log_astart = log(this%astart)
+    this%dloga = (-this%log_astart)/(this%npoints-1)
+
+    npoints = (-this%log_astart)/this%dloga + 1
+    allocate(aVals(npoints), fde(npoints), ddfde(npoints))
+
+    y(1)=initial_phi
+    initial_phidot =  this%astart*this%phidot_start(initial_phi)
+    y(2)= initial_phidot*this%astart**2
+    aVals(1)=this%astart
+    max_ix =0
+    ind=1
+    afrom=this%log_astart
+    do i=1, npoints-1
+        aend = this%log_astart + this%dloga*i
+        ix = i+1
+        aVals(ix)=exp(aend)
+        a2 = aVals(ix)**2
+        call dverk(this,NumEqs,EvolveBackgroundLog,afrom,y,aend,this%integrate_tol,ind,c,NumEqs,w)
+        call EvolveBackgroundLog(this,NumEqs,aend,y,w(:,1))
+        fde(ix) = 1/((this%state%grho_no_de(aVals(ix)) +  this%frac_lambda0*this%State%grhov*a2**2) &
+            /((0.5d0*y(2)**2/a2 + a2**2*this%Vofphi(y(1),0))) + 1)
+        if (max_ix==0 .and. ix > 2 .and. fde(ix)< fde(ix-1)) then
+            max_ix = ix-1
+        end if
+        if (max_ix/=0 .and. ix > max_ix+4) exit
+    end do
+
+    call spline(aVals,fde,ix,splZero,splZero,ddfde)
+    has_peak = .false.
+    if (max_ix >0) then
+        has_peak = this%fde_peak(a_c, aVals(max_ix), aVals(max_ix+1), fde(max_ix), &
+            fde(max_ix+1), ddfde(max_ix), ddfde(max_ix+1))
+        if (.not. has_peak) then
+            has_peak = this%fde_peak(a_c, aVals(max_ix-1), aVals(max_ix), &
+                fde(max_ix-1), fde(max_ix), ddfde(max_ix-1), ddfde(max_ix))
+        end if
+    end if
+    if (has_peak) then
+        z_c = 1/a_c-1
+        ix = int((log(a_c)-this%log_astart)/this%dloga)+1
+        da = aVals(ix+1) - aVals(ix)
+        a0 = (aVals(ix+1) - a_c)/da
+        b0 = 1 - a0
+        fde_zc=b0*fde(ix+1) + a0*(fde(ix)-b0*((a0+1)*ddfde(ix)+(2-a0)*ddfde(ix+1))*da**2/6._dl)
+    else
+        print *, 'calc_zc_fde: NO PEAK'
+        z_c = -1
+        fde_zc = 0
+    end if
+
+    end subroutine calc_zc_fde
+
+    function fdeAta(this,a)
+    class(TQuintessence) :: this
+    real(dl), intent(in) :: a
+    real(dl) fdeAta, aphi, aphidot, a2
+
+    call this%ValsAta(a, aphi, aphidot)
+    a2 = a**2
+    fdeAta = 1/((this%state%grho_no_de(a) +  this%frac_lambda0*this%State%grhov*a2**2) &
+        /(a2*(0.5d0* aphidot**2 + a2*this%Vofphi(aphi,0))) + 1)
+    end function fdeAta
 
     subroutine ValsAta(this,a,aphi,aphidot)
     class(TQuintessence) :: this
