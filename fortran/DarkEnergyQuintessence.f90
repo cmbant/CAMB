@@ -203,7 +203,7 @@
 
     subroutine ValsAta(this,a,aphi,aphidot)
     class(TQuintessence) :: this
-    !Do interpolation for background phi and phidot at a
+    !Do interpolation for background phi and phidot at a (precomputed in Init)
     real(dl) a, aphi, aphidot
     real(dl) a0,b0,ho2o6,delta,da
     integer ix
@@ -232,9 +232,9 @@
 
     end subroutine ValsAta
 
-
     subroutine TQuintessence_PerturbedStressEnergy(this, dgrhoe, dgqe, &
         a, dgq, dgrho, grho, grhov_t, w, gpres_noDE, etak, adotoa, k, kf1, ay, ayprime, w_ix)
+    !Get density perturbation and heat flux
     class(TQuintessence), intent(inout) :: this
     real(dl), intent(out) :: dgrhoe, dgqe
     real(dl), intent(in) ::  a, dgq, dgrho, grho, grhov_t, w, gpres_noDE, etak, adotoa, k, kf1
@@ -254,6 +254,7 @@
 
     subroutine TQuintessence_PerturbationEvolve(this, ayprime, w, w_ix, &
         a, adotoa, k, z, y)
+    !Get conformal time derivatives of the density perturbation and velocity
     class(TQuintessence), intent(in) :: this
     real(dl), intent(inout) :: ayprime(:)
     real(dl), intent(in) :: a, adotoa, w, k, z, y(:)
@@ -266,8 +267,9 @@
     ayprime(w_ix)= vq
     ayprime(w_ix+1) = - 2*adotoa*vq - k*z*phidot - k**2*clxq - a**2*clxq*this%Vofphi(phi,2)
 
-    end subroutine TQuintessence_PerturbationEvolve
+        end subroutine TQuintessence_PerturbationEvolve
 
+    ! Early Quintessence example, axion potential from e.g. arXiv: 1908.06995
 
     function TEarlyQuintessence_VofPhi(this, phi, deriv) result(VofPhi)
     !The input variable phi is sqrt(8*Pi*G)*psi
@@ -279,7 +281,7 @@
     real(dl) theta, costheta
     real(dl), parameter :: units = MPC_in_sec**2 /Tpl**2  !convert to units of 1/Mpc^2
 
-    ! Assume f = sqrt(kappa*f_theory) = f_theory/M_pl
+    ! Assume f = sqrt(kappa)*f_theory = f_theory/M_pl
     ! m = m_theory/M_Pl
     theta = phi/this%f
     if (deriv==0) then
@@ -309,7 +311,7 @@
     Type(TTextFile) Fout
     real(dl), dimension(:), allocatable :: sampled_a, phi_a, phidot_a, fde
     integer npoints, tot_points, max_ix
-    logical has_peak, done
+    logical has_peak
     real(dl) fzero, xzero
     integer iflag, iter
     Type(TTimer) :: Timer
@@ -322,13 +324,15 @@
 
     call this%TQuintessence%Init(State)
 
-    this%log_astart = log(this%astart)
-
     if (this%use_zc) then
+        !Find underlying parameters m,f to give specified zc and fde_zc (peak early dark energy fraction)
+        !Input m,f are used as starting values for search, which is done by brute force
+        !(so should generalize easily, but not optimized for this specific potential)
         log_params(1) = log(this%m)
         log_params(2) = log(this%f)
 
         if (.false.) then
+            ! Can just iterate linear optimizations when nearly orthogonal
             call Timer%Start()
             do iter = 1, 2
                 call brentq(this,match_fde,log(0.01_dl),log(10._dl), 1d-3,xzero,fzero,iflag)
@@ -442,7 +446,6 @@
     da_osc = 1
     last_a = this%astart
     max_ix =0
-    done = .false.
 
     ind=1
     afrom=this%log_astart
@@ -463,11 +466,6 @@
             da_osc = min(da_osc, exp(aend) - last_a)
             last_a = exp(aend)
             lastsign= y(2)
-        end if
-
-        if (a2**2*abs(this%Vofphi(initial_phi,2)) > 3*this%state%grho_no_de(sampled_a(ix)) .and. .not. done) then
-            done = .true.
-            print *, 'z estimate', 1/sampled_a(ix)-1
         end if
 
         !Define fde is ratio of energy density to total assuming the neutrinos fully relativistic
