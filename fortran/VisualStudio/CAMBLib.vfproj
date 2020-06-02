@@ -35,14 +35,15 @@
 		<File RelativePath="..\DarkEnergyFluid.f90"/>
 		<File RelativePath="..\DarkEnergyInterface.f90"/>
 		<File RelativePath="..\DarkEnergyPPF.f90"/>
-		<File RelativePath="..\equations.f90"/>
 		<File RelativePath="..\DarkEnergyQuintessence.f90"/>
+		<File RelativePath="..\equations.f90"/>
 		<File RelativePath="..\halofit.f90"/>
 		<File RelativePath="..\InitialPower.f90"/>
 		<File RelativePath="..\lensing.f90"/>
 		<File RelativePath="..\massive_neutrinos.f90"/>
 		<File RelativePath="..\MathUtils.f90"/>
 		<File RelativePath="..\model.f90"/>
+		<File RelativePath="..\PowellConstrainedMinimize.f90"/>
 		<File RelativePath="..\recfast.f90"/>
 		<File RelativePath="..\reionization.f90"/>
 		<File RelativePath="..\results.f90"/>

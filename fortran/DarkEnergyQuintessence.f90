@@ -40,11 +40,13 @@
         real(dl) :: zc, fde_zc !readshift for peak f_de and f_de at that redshift
         integer :: npoints = 5000 !baseline number of log a steps; will be increased if needed when there are oscillations
         integer :: min_steps_per_osc = 10
-        integer :: npoints_linear, npoints_log
         real(dl) :: astart = 1e-7_dl
         real(dl) :: integrate_tol = 1e-6_dl
+        real(dl), dimension(:), allocatable :: aVals, phi_a, phidot_a, fde
+        integer :: npoints_linear, npoints_log
         real(dl) :: dloga, da, log_astart, max_a_log
-        real(dl), dimension(:), allocatable :: aVals, phi_a, phidot_a, fde, ddfde, ddphi_a, ddphidot_a
+        integer :: DebugLevel = 0 !higher then zero for some debug output to console
+        real(dl), dimension(:), allocatable :: ddfde, ddphi_a, ddphidot_a
         class(CAMBdata), pointer, private :: State
     contains
     procedure :: ReadParams =>  TQuintessence_ReadParams
@@ -241,6 +243,7 @@
 
     subroutine TQuintessence_Init(this, State)
     use FileUtils
+    use Powell
     class(TQuintessence), intent(inout) :: this
     class(TCAMBdata), intent(in), target :: State
     real(dl) aend, afrom
@@ -256,6 +259,9 @@
     logical has_peak, done
     real(dl) fzero, xzero
     integer iflag, iter
+    Type(TTimer) :: Timer
+    Type(TBOBYQA) :: Minimize
+    real(dl) log_params(2), param_min(2), param_max(2)
 
     !Make interpolation table, etc,
     !At this point massive neutrinos have been initialized
@@ -273,17 +279,48 @@
     this%log_astart = log(this%astart)
 
     if (this%use_zc) then
-        do iter = 1, 2
-            call brentq(this,match_fde,log(0.01_dl),log(1._dl), 1d-4,xzero,fzero,iflag)
-            if (i/=0) print *, 'BRENTQ FAILED'
-            this%f = exp(xzero)
-            print *, 'match to m, f =', this%m, this%f, fzero
-            call brentq(this,match_zc,log(1d-55),log(1d-52), 1d-3,xzero,fzero,iflag)
-            this%m = exp(xzero)
-            print *, 'match to m, f =', this%m, this%f, fzero
-            call this%calc_zc_fde(fzero, xzero)
-            print *, 'matched outputs', fzero, xzero
-        end do
+        log_params(1) = log(this%m)
+        log_params(2) = log(this%f)
+
+        if (.false.) then
+            call Timer%Start()
+            do iter = 1, 2
+                call brentq(this,match_fde,log(0.01_dl),log(10._dl), 1d-3,xzero,fzero,iflag)
+                if (iflag/=0) print *, 'BRENTQ FAILED f'
+                this%f = exp(xzero)
+                print *, 'match to m, f =', this%m, this%f, fzero
+                call brentq(this,match_zc,log(1d-55),log(1d-52), 1d-3,xzero,fzero,iflag)
+                if (iflag/=0) print *, 'BRENTQ FAILED m'
+                this%m = exp(xzero)
+                print *, 'match to m, f =', this%m, this%f, fzero
+                call this%calc_zc_fde(fzero, xzero)
+                print *, 'matched outputs', fzero, xzero
+            end do
+            call Timer%WriteTime('Timing for fitting')
+        end if
+        if (.True.) then
+            if (this%DebugLevel>0) call Timer%Start()
+            !Minimize in log f, log m
+            param_min(1) = log(0.001_dl)
+            param_min(2) = log(1d-57)
+            param_max(1) = log(1e5_dl)
+            param_max(2) = log(1d-50)
+            if (Minimize%BOBYQA(this, match_fde_zc, 2, 5, log_params,param_min, &
+                param_max, 0.8_dl,1e-4_dl,this%DebugLevel,2000)) then
+                if (Minimize%Last_bestfit > 1e-3) then
+                    print *, 'ERROR finding good solution for fde, zc - best fit = ', Minimize%Last_bestfit
+                end if
+                this%f = exp(log_params(1))
+                this%m = exp(log_params(2))
+                if (this%DebugLevel>0) then
+                    call this%calc_zc_fde(fzero, xzero)
+                    print *, 'matched outputs Bobyqa zc, fde = ', fzero, xzero
+                end if
+            else
+                print *, 'ERROR finding solution for fde, zc'
+            end if
+            if (this%DebugLevel>0) call Timer%WriteTime('Timing for BOBYQA')
+        end if
 
     end if
 
@@ -363,7 +400,7 @@
 
     ind=1
     afrom=this%log_astart
-    call Fout%CreateOpenFile('z:\test.txt')
+    !call Fout%CreateOpenFile('z:\test.txt')
     do i=1, npoints-1
         aend = this%log_astart + this%dloga*i
         ix = i+1
@@ -395,7 +432,7 @@
         if (max_ix==0 .and. ix > 2 .and. fde(ix)< fde(ix-1)) then
             max_ix = ix-1
         end if
-        call Fout%Write(exp(aend), phi_a(ix), phidot_a(ix), fde(ix))
+        !call Fout%Write(exp(aend), phi_a(ix), phidot_a(ix), fde(ix))
         if (aVals(ix)*(exp(this%dloga)-1)*this%min_steps_per_osc > da_osc) then
             !Step size getting too big to sample oscillations well
             exit
@@ -437,10 +474,10 @@
         if (max_ix==0 .and. this%fde(ix)< this%fde(ix-1)) then
             max_ix = ix-1
         end if
-        call Fout%Write(aend, this%phi_a(ix), this%phidot_a(ix), this%fde(ix))
+        !call Fout%Write(aend, this%phi_a(ix), this%phidot_a(ix), this%fde(ix))
     end do
 
-    call Fout%Close()
+    !call Fout%Close()
 
     call spline(this%aVals,this%phi_a,tot_points,splZero,splZero,this%ddphi_a)
     call spline(this%aVals,this%phidot_a,tot_points,splZero,splZero,this%ddphidot_a)
@@ -521,6 +558,17 @@
 
     end function match_fde
 
+    function match_fde_zc(this, x)
+    class(TQuintessence) :: this
+    real(dl), intent(in) :: x(:)
+    real(dl) match_fde_zc, zc, fde_zc
+
+    this%f = exp(x(1))
+    this%m = exp(x(2))
+    call this%calc_zc_fde(zc, fde_zc)
+    match_fde_zc = (log(this%fde_zc)-log(fde_zc))**2 + (zc/this%zc-1)**2
+
+    end function match_fde_zc
 
     subroutine calc_zc_fde(this, z_c, fde_zc)
     class(TQuintessence), intent(inout) :: this
@@ -615,6 +663,10 @@
     if (a >= 0.9999999d0) then
         aphi= this%phi_a(this%npoints_linear+this%npoints_log)
         aphidot= this%phidot_a(this%npoints_linear+this%npoints_log)
+        return
+    elseif (a < this%astart) then
+        aphi = this%phi_a(1)
+        aphidot = 0
         return
     elseif (a > this%max_a_log) then
         delta= a-this%max_a_log

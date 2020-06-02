@@ -1,4 +1,4 @@
-from .baseconfig import F2003Class, fortran_class, numpy_1d, CAMBError, np
+from .baseconfig import F2003Class, fortran_class, numpy_1d, CAMBError, np, AllocatableArrayDouble
 from ctypes import c_int, c_double, byref, POINTER, c_bool
 
 
@@ -130,16 +130,29 @@ class Quintessence(DarkEnergyModel):
         ("use_zc", c_bool),
         ("zc", c_double),
         ("fde_zc", c_double),
-        ("npoints", c_int)
+        ("npoints", c_int),
+        ("min_steps_per_osc", c_int),
+        ("astart", c_double),
+        ("integrate_tol", c_double),
+        ("aVals", AllocatableArrayDouble),
+        ("phi_a", AllocatableArrayDouble),
+        ("phidot_a", AllocatableArrayDouble),
+        ("fde", AllocatableArrayDouble)
     ]
     _fortran_class_name_ = 'TQuintessence'
     _fortran_class_module_ = 'Quintessence'
 
-    def set_params(self, n, f, m, theta_i=0.0):
+    def set_params(self, n, f, m, theta_i=0.0, use_zc=False, zc=None, fde_zc=None):
         self.n = n
         self.f = f
         self.m = m
         self.theta_i = theta_i
+        self.use_zc = use_zc
+        if use_zc:
+            if zc is None or fde_zc is None:
+                raise ValueError("must set zc and fde_zc if using use_zc")
+            self.zc = zc
+            self.fde_zc = fde_zc
 
 
 # short names for models that support w/wa
