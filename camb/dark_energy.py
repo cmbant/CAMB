@@ -1,4 +1,5 @@
-from .baseconfig import F2003Class, fortran_class, numpy_1d, CAMBError, np, AllocatableArrayDouble
+from .baseconfig import F2003Class, fortran_class, numpy_1d, CAMBError, np, \
+    AllocatableArrayDouble, f_pointer
 from ctypes import c_int, c_double, byref, POINTER, c_bool
 
 
@@ -119,8 +120,30 @@ class AxionEffectiveFluid(DarkEnergyModel):
             self.theta_i = theta_i
 
 
-@fortran_class
+# base class for scalar field quintessence models
 class Quintessence(DarkEnergyModel):
+    _fields_ = [
+        ("DebugLevel", c_int),
+        ("astart", c_double),
+        ("integrate_tol", c_double),
+        ("sampled_a", AllocatableArrayDouble),
+        ("phi_a", AllocatableArrayDouble),
+        ("phidot_a", AllocatableArrayDouble),
+        ("__npoints_linear", c_int),
+        ("__npoints_log", c_int),
+        ("__dloga", c_double),
+        ("__da", c_double),
+        ("__log_astart", c_double),
+        ("__max_a_log", c_double),
+        ("__ddphi_a", AllocatableArrayDouble),
+        ("__ddphidot_a", AllocatableArrayDouble),
+        ("__state", f_pointer)
+    ]
+    _fortran_class_module_ = 'Quintessence'
+
+
+@fortran_class
+class EarlyQuintessence(Quintessence):
     _fields_ = [
         ("n", c_double),
         ("f", c_double),
@@ -132,15 +155,10 @@ class Quintessence(DarkEnergyModel):
         ("fde_zc", c_double),
         ("npoints", c_int),
         ("min_steps_per_osc", c_int),
-        ("astart", c_double),
-        ("integrate_tol", c_double),
-        ("aVals", AllocatableArrayDouble),
-        ("phi_a", AllocatableArrayDouble),
-        ("phidot_a", AllocatableArrayDouble),
-        ("fde", AllocatableArrayDouble)
+        ("fde", AllocatableArrayDouble),
+        ("__ddfde", AllocatableArrayDouble)
     ]
-    _fortran_class_name_ = 'TQuintessence'
-    _fortran_class_module_ = 'Quintessence'
+    _fortran_class_name_ = 'TEarlyQuintessence'
 
     def set_params(self, n, f, m, theta_i=0.0, use_zc=False, zc=None, fde_zc=None):
         self.n = n
