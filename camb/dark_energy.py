@@ -105,17 +105,18 @@ class AxionEffectiveFluid(DarkEnergyModel):
     Not well tested, but should serve to demonstrate how to make your own custom classes.
     """
     _fields_ = [
-        ("w_n", c_double),
-        ("om", c_double),
-        ("a_c", c_double),
-        ("theta_i", c_double)]
+        ("w_n", c_double, "effective equation of state parameter"),
+        ("fde_zc", c_double, "energy density fraction at z=zc"),
+        ("zc", c_double, "decay transition redshift (not same as peak of energy density fraction)"),
+        ("theta_i", c_double, "initial condition field value")]
+
     _fortran_class_name_ = 'TAxionEffectiveFluid'
     _fortran_class_module_ = 'DarkEnergyFluid'
 
-    def set_params(self, w_n, om, a_c, theta_i=None):
+    def set_params(self, w_n, fde_zc, zc, theta_i=None):
         self.w_n = w_n
-        self.om = om
-        self.a_c = a_c
+        self.fde_zc = fde_zc
+        self.zc = zc
         if theta_i is not None:
             self.theta_i = theta_i
 

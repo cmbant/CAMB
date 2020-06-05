@@ -2,7 +2,7 @@
     !F90 translated version of plato.asu.edu/ftp/other_software/bobyqa.zip
     !Powell 2009 Method http://www.damtp.cam.ac.uk/user/na/NA_papers/NA2009_06.pdf
 
-    !AL Sept 2012: translated to F90, changed to input "funkk" class function argument
+    !AL Sept 2012/2020: translated to F90, changed to input "funkk" class function argument
     !to minimize rather than calfun subroutine as original
 
     MODULE Powell
@@ -41,7 +41,7 @@
     use iso_c_binding
     class(TBOBYQA) this
     class(*), target :: obj
-    real(dp), external :: funk !a class function f(obj,x)
+    real(dp), external :: funk !a class function f(obj,x) where obj is any class instance
     integer, intent(in)::n, npt, maxfun, iPrint
     real(dp), intent(in) :: RHOBEG, RHOEND
     logical BOBYQA

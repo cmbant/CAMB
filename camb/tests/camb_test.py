@@ -92,7 +92,7 @@ class CambTest(unittest.TestCase):
                                   'cosmomc_theta', 'YHe', 'wa', 'cs2', 'H0', 'mnu', 'Alens', 'TCMB', 'ns',
                                   'nrun', 'As', 'nt', 'r', 'w', 'omch2'})
         params2 = camb.get_valid_numerical_params(dark_energy_model='AxionEffectiveFluid')
-        self.assertEqual(params2.difference(params), {'om', 'w_n', 'a_c', 'theta_i'})
+        self.assertEqual(params2.difference(params), {'fde_zc', 'w_n', 'zc', 'theta_i'})
 
     def testBackground(self):
         pars = camb.CAMBparams()
@@ -704,5 +704,5 @@ class CambTest(unittest.TestCase):
 
     def test_quintessence(self):
         pars = camb.set_params( ombh2=0.022, omch2=0.122,
-                               dark_energy_model='Quintessence', H0=67)
+                               dark_energy_model='EarlyQuintessence', H0=67)
         camb.get_background(pars)

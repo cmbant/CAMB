@@ -267,7 +267,7 @@
     ayprime(w_ix)= vq
     ayprime(w_ix+1) = - 2*adotoa*vq - k*z*phidot - k**2*clxq - a**2*clxq*this%Vofphi(phi,2)
 
-        end subroutine TQuintessence_PerturbationEvolve
+    end subroutine TQuintessence_PerturbationEvolve
 
     ! Early Quintessence example, axion potential from e.g. arXiv: 1908.06995
 
@@ -297,7 +297,6 @@
 
 
     subroutine TEarlyQuintessence_Init(this, State)
-    use FileUtils
     use Powell
     class(TEarlyQuintessence), intent(inout) :: this
     class(TCAMBdata), intent(in), target :: State
@@ -308,7 +307,6 @@
     real(dl), parameter :: splZero = 0._dl
     real(dl) lastsign, da_osc, last_a, a_c
     real(dl) initial_phi, initial_phidot, a2
-    Type(TTextFile) Fout
     real(dl), dimension(:), allocatable :: sampled_a, phi_a, phidot_a, fde
     integer npoints, tot_points, max_ix
     logical has_peak
@@ -348,30 +346,32 @@
             end do
             call Timer%WriteTime('Timing for fitting')
         end if
-        if (.True.) then
-            if (this%DebugLevel>0) call Timer%Start()
-            !Minimize in log f, log m
-            param_min(1) = log(0.001_dl)
-            param_min(2) = log(1d-57)
-            param_max(1) = log(1e5_dl)
-            param_max(2) = log(1d-50)
-            if (Minimize%BOBYQA(this, match_fde_zc, 2, 5, log_params,param_min, &
-                param_max, 0.8_dl,1e-4_dl,this%DebugLevel,2000)) then
-                if (Minimize%Last_bestfit > 1e-3) then
-                    print *, 'ERROR finding good solution for fde, zc - best fit = ', Minimize%Last_bestfit
-                end if
-                this%f = exp(log_params(1))
-                this%m = exp(log_params(2))
-                if (this%DebugLevel>0) then
-                    call this%calc_zc_fde(fzero, xzero)
-                    print *, 'matched outputs Bobyqa zc, fde = ', fzero, xzero
-                end if
-            else
-                print *, 'ERROR finding solution for fde, zc'
+        if (this%DebugLevel>0) call Timer%Start()
+        !Minimize in log f, log m
+        param_min(1) = log(0.001_dl)
+        param_min(2) = log(1d-57)
+        param_max(1) = log(1e5_dl)
+        param_max(2) = log(1d-50)
+        if (Minimize%BOBYQA(this, match_fde_zc, 2, 5, log_params,param_min, &
+            param_max, 0.8_dl,1e-4_dl,this%DebugLevel,2000)) then
+            if (Minimize%Last_bestfit > 1e-3) then
+                global_error_flag = error_darkenergy
+                global_error_message= 'TEarlyQuintessence ERROR converging solution for fde, zc'
+                print *, 'last-bestfit= ', Minimize%Last_bestfit 
+                return
             end if
-            if (this%DebugLevel>0) call Timer%WriteTime('Timing for BOBYQA')
+            this%f = exp(log_params(1))
+            this%m = exp(log_params(2))
+            if (this%DebugLevel>0) then
+                call this%calc_zc_fde(fzero, xzero)
+                print *, 'matched outputs Bobyqa zc, fde = ', fzero, xzero
+            end if
+        else
+            global_error_flag = error_darkenergy
+            global_error_message= 'TEarlyQuintessence ERROR finding solution for fde, zc'
+            return
         end if
-
+        if (this%DebugLevel>0) call Timer%WriteTime('Timing for BOBYQA')
     end if
 
     this%dloga = (-this%log_astart)/(this%npoints-1)
@@ -449,7 +449,6 @@
 
     ind=1
     afrom=this%log_astart
-    !call Fout%CreateOpenFile('z:\test.txt')
     do i=1, npoints-1
         aend = this%log_astart + this%dloga*i
         ix = i+1
@@ -468,15 +467,12 @@
             lastsign= y(2)
         end if
 
-        !Define fde is ratio of energy density to total assuming the neutrinos fully relativistic
-        !adotrad = sqrt((this%grhog+this%grhornomass+sum(this%grhormass(1:this%CP%Nu_mass_eigenstates)))/3)
-
+        !Define fde as ratio of early dark energy density to total
         fde(ix) = 1/((this%state%grho_no_de(sampled_a(ix)) +  this%frac_lambda0*this%State%grhov*a2**2) &
             /(a2*(0.5d0* phidot_a(ix)**2 + a2*this%Vofphi(y(1),0))) + 1)
         if (max_ix==0 .and. ix > 2 .and. fde(ix)< fde(ix-1)) then
             max_ix = ix-1
         end if
-        !call Fout%Write(exp(aend), phi_a(ix), phidot_a(ix), fde(ix))
         if (sampled_a(ix)*(exp(this%dloga)-1)*this%min_steps_per_osc > da_osc) then
             !Step size getting too big to sample oscillations well
             exit
@@ -518,10 +514,7 @@
         if (max_ix==0 .and. this%fde(ix)< this%fde(ix-1)) then
             max_ix = ix-1
         end if
-        !call Fout%Write(aend, this%phi_a(ix), this%phidot_a(ix), this%fde(ix))
     end do
-
-    !call Fout%Close()
 
     call spline(this%sampled_a,this%phi_a,tot_points,splZero,splZero,this%ddphi_a)
     call spline(this%sampled_a,this%phidot_a,tot_points,splZero,splZero,this%ddphidot_a)
@@ -540,10 +533,12 @@
         this%zc = 1/a_c-1
         this%fde_zc = this%fdeAta(a_c)
     else
-        print *, 'NO PEAK FINAL'
+        if (this%DebugLevel>0) write(*,*) 'TEarlyQuintessence: NO PEAK '
         this%zc = -1
     end if
-    print *, 'zc, fde used', this%zc, this%fde_zc
+    if (this%DebugLevel>0) then
+        write(*,*) 'TEarlyQuintessence zc, fde used', this%zc, this%fde_zc
+    end if
 
     end subroutine TEarlyQuintessence_Init
 
@@ -610,8 +605,10 @@
     this%f = exp(x(1))
     this%m = exp(x(2))
     call this%calc_zc_fde(zc, fde_zc)
-    match_fde_zc = (log(this%fde_zc)-log(fde_zc))**2 + (zc/this%zc-1)**2
-
+    
+    match_fde_zc = (log(this%fde_zc)-log(fde_zc))**2 + (log(zc)-log(this%zc))**2
+    !print *, 'f, m, zc, fde_zc', this%f, this%m, zc, fde_zc, match_fde_zc
+    
     end function match_fde_zc
 
     subroutine calc_zc_fde(this, z_c, fde_zc)
