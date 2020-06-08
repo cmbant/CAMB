@@ -5,7 +5,7 @@ POWERSPECTRUM_FILES ?= InitialPower
 REIONIZATION_FILES ?= reionization
 RECOMBINATION_FILES ?= recfast
 NONLINEAR_FILES     ?= halofit SecondOrderPK
-DARKENERGY_FILES  ?= DarkEnergyFluid DarkEnergyPPF PowellConstrainedMinimize DarkEnergyQuintessence
+DARKENERGY_FILES  ?= DarkEnergyFluid DarkEnergyPPF PowellMinimize DarkEnergyQuintessence
 
 BISPECTRUM ?= SeparableBispectrum
 

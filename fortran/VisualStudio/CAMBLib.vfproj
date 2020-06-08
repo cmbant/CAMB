@@ -43,7 +43,7 @@
 		<File RelativePath="..\massive_neutrinos.f90"/>
 		<File RelativePath="..\MathUtils.f90"/>
 		<File RelativePath="..\model.f90"/>
-		<File RelativePath="..\PowellConstrainedMinimize.f90"/>
+		<File RelativePath="..\PowellMinimize.f90"/>
 		<File RelativePath="..\recfast.f90"/>
 		<File RelativePath="..\reionization.f90"/>
 		<File RelativePath="..\results.f90"/>

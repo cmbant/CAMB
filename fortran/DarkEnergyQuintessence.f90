@@ -73,6 +73,7 @@
     procedure, nopass :: SelfPointer => TEarlyQuintessence_SelfPointer
     procedure, private :: fdeAta
     procedure, private :: fde_peak
+    procedure, private :: check_error
     procedure :: calc_zc_fde
 
     end type TEarlyQuintessence
@@ -313,7 +314,7 @@
     real(dl) fzero, xzero
     integer iflag, iter
     Type(TTimer) :: Timer
-    Type(TBOBYQA) :: Minimize
+    Type(TNEWUOA) :: Minimize
     real(dl) log_params(2), param_min(2), param_max(2)
 
     !Make interpolation table, etc,
@@ -326,8 +327,8 @@
         !Find underlying parameters m,f to give specified zc and fde_zc (peak early dark energy fraction)
         !Input m,f are used as starting values for search, which is done by brute force
         !(so should generalize easily, but not optimized for this specific potential)
-        log_params(1) = log(this%m)
-        log_params(2) = log(this%f)
+        log_params(1) = log(this%f)
+        log_params(2) = log(this%m)
 
         if (.false.) then
             ! Can just iterate linear optimizations when nearly orthogonal
@@ -348,23 +349,27 @@
         end if
         if (this%DebugLevel>0) call Timer%Start()
         !Minimize in log f, log m
-        param_min(1) = log(0.001_dl)
-        param_min(2) = log(1d-57)
-        param_max(1) = log(1e5_dl)
-        param_max(2) = log(1d-50)
-        if (Minimize%BOBYQA(this, match_fde_zc, 2, 5, log_params,param_min, &
-            param_max, 0.8_dl,1e-4_dl,this%DebugLevel,2000)) then
+        ! param_min(1) = log(0.001_dl)
+        ! param_min(2) = log(1d-58)
+        ! param_max(1) = log(1e5_dl)
+        ! param_max(2) = log(1d-50)
+        ! if (Minimize%BOBYQA(this, match_fde_zc, 2, 5, log_params,param_min, &
+        !           param_max, 0.8_dl,1e-4_dl,this%DebugLevel,2000)) then
+
+        if (Minimize%NEWUOA(this, match_fde_zc, 2, 5, log_params,&
+            0.8_dl,1e-4_dl,this%DebugLevel,500)) then
+
             if (Minimize%Last_bestfit > 1e-3) then
                 global_error_flag = error_darkenergy
                 global_error_message= 'TEarlyQuintessence ERROR converging solution for fde, zc'
-                print *, 'last-bestfit= ', Minimize%Last_bestfit 
+                write(*,*) 'last-bestfit= ', Minimize%Last_bestfit
                 return
             end if
             this%f = exp(log_params(1))
             this%m = exp(log_params(2))
             if (this%DebugLevel>0) then
                 call this%calc_zc_fde(fzero, xzero)
-                print *, 'matched outputs Bobyqa zc, fde = ', fzero, xzero
+                write(*,*) 'matched outputs Bobyqa zc, fde = ', fzero, xzero
             end if
         else
             global_error_flag = error_darkenergy
@@ -455,6 +460,7 @@
         sampled_a(ix)=exp(aend)
         a2 = sampled_a(ix)**2
         call dverk(this,NumEqs,EvolveBackgroundLog,afrom,y,aend,this%integrate_tol,ind,c,NumEqs,w)
+        if (.not. this%check_error(exp(afrom), exp(aend))) return
         call EvolveBackgroundLog(this,NumEqs,aend,y,w(:,1))
         phi_a(ix)=y(1)
         phidot_a(ix)=y(2)/a2
@@ -505,6 +511,7 @@
         a2 =aend**2
         this%sampled_a(ix)=aend
         call dverk(this,NumEqs,EvolveBackground,afrom,y,aend,this%integrate_tol,ind,c,NumEqs,w)
+        if (.not. this%check_error(afrom, aend)) return
         call EvolveBackground(this,NumEqs,aend,y,w(:,1))
         this%phi_a(ix)=y(1)
         this%phidot_a(ix)=y(2)/a2
@@ -541,6 +548,20 @@
     end if
 
     end subroutine TEarlyQuintessence_Init
+
+    logical function check_error(this, afrom, aend)
+    class(TEarlyQuintessence) :: this
+    real(dl) afrom, aend
+
+    if (global_error_flag/=0) then
+        write(*,*) 'TEarlyQuintessence error integrating', afrom, aend
+        write(*,*) this%n, this%f, this%m, this%theta_i
+        stop
+        check_error = .false.
+        return
+    end if
+    check_error= .true.
+    end function check_error
 
     logical function fde_peak(this, peak, xlo, xhi, Flo, Fhi, ddFlo, ddFhi)
     class(TEarlyQuintessence) :: this
@@ -605,10 +626,12 @@
     this%f = exp(x(1))
     this%m = exp(x(2))
     call this%calc_zc_fde(zc, fde_zc)
-    
+
     match_fde_zc = (log(this%fde_zc)-log(fde_zc))**2 + (log(zc)-log(this%zc))**2
-    !print *, 'f, m, zc, fde_zc', this%f, this%m, zc, fde_zc, match_fde_zc
-    
+    if (this%DebugLevel>1) then
+        write(*,*) 'search f, m, zc, fde_zc, chi2', this%f, this%m, zc, fde_zc, match_fde_zc
+    end if
+
     end function match_fde_zc
 
     subroutine calc_zc_fde(this, z_c, fde_zc)
@@ -649,6 +672,7 @@
         sampled_a(ix)=exp(aend)
         a2 = sampled_a(ix)**2
         call dverk(this,NumEqs,EvolveBackgroundLog,afrom,y,aend,this%integrate_tol,ind,c,NumEqs,w)
+        if (.not. this%check_error(exp(afrom), exp(aend))) return
         call EvolveBackgroundLog(this,NumEqs,aend,y,w(:,1))
         fde(ix) = 1/((this%state%grho_no_de(sampled_a(ix)) +  this%frac_lambda0*this%State%grhov*a2**2) &
             /((0.5d0*y(2)**2/a2 + a2**2*this%Vofphi(y(1),0))) + 1)
@@ -676,7 +700,7 @@
         b0 = 1 - a0
         fde_zc=b0*fde(ix+1) + a0*(fde(ix)-b0*((a0+1)*ddfde(ix)+(2-a0)*ddfde(ix+1))*da**2/6._dl)
     else
-        print *, 'calc_zc_fde: NO PEAK'
+        write(*,*) 'calc_zc_fde: NO PEAK'
         z_c = -1
         fde_zc = 0
     end if
