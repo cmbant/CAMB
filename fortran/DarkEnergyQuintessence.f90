@@ -60,7 +60,7 @@
         real(dl) :: m = 5d-54 !m in reduced Planck mass units
         real(dl) :: theta_i = 3.1_dl !initial value of phi/f
         real(dl) :: frac_lambda0 = 1._dl !fraction of dark energy density that is cosmological constant today
-        logical :: use_zc = .false. !adjust m to fit zc
+        logical :: use_zc = .true. !adjust m to fit zc
         real(dl) :: zc, fde_zc !readshift for peak f_de and f_de at that redshift
         integer :: npoints = 5000 !baseline number of log a steps; will be increased if needed when there are oscillations
         integer :: min_steps_per_osc = 10
@@ -376,7 +376,7 @@
             global_error_message= 'TEarlyQuintessence ERROR finding solution for fde, zc'
             return
         end if
-        if (this%DebugLevel>0) call Timer%WriteTime('Timing for BOBYQA')
+        if (this%DebugLevel>0) call Timer%WriteTime('Timing for parameter fitting')
     end if
 
     this%dloga = (-this%log_astart)/(this%npoints-1)
