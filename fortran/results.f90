@@ -3587,7 +3587,7 @@
             else
                 dlnk=lnk-lnko
             end if
-            dsig8=win*(MatterPowerData_k(PKspline, kh,PK_ix,index_cache)*k**3)
+            dsig8=win*(MatterPowerData_k(PK, kh,PK_ix,index_cache)*k**3)
             sig8=sig8+(dsig8+dsig8o)*dlnk/2
             dsig8o=dsig8
             lnko=lnk

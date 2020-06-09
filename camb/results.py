@@ -800,7 +800,7 @@ class CAMBdata(F2003Class):
         :param var2: variable j (index, or name of variable; default delta_tot)
         :param hubble_units: if true, R is in h^{-1} Mpc, otherwise Mpc
         :param return_R_z: if true, return tuple of R, z, sigmaR
-                           (where R always Mpc units not h^{-1}Mpc and R< z are arrays)
+                           (where R always Mpc units not h^{-1}Mpc and R, z are arrays)
         :return: array of :math:`\sigma_R` values, or 2D array indexed by (redshift, R)
         """
         var1, var2 = self._transfer_var(var1, var2)
