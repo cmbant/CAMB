@@ -170,18 +170,17 @@ class EarlyQuintessence(Quintessence):
     ]
     _fortran_class_name_ = 'TEarlyQuintessence'
 
-
-def set_params(self, n, f=0.05, m=5e-54, theta_i=0.0, use_zc=True, zc=None, fde_zc=None):
-    self.n = n
-    self.f = f
-    self.m = m
-    self.theta_i = theta_i
-    self.use_zc = use_zc
-    if use_zc:
-        if zc is None or fde_zc is None:
-            raise ValueError("must set zc and fde_zc if using use_zc")
-        self.zc = zc
-        self.fde_zc = fde_zc
+    def set_params(self, n, f=0.05, m=5e-54, theta_i=0.0, use_zc=True, zc=None, fde_zc=None):
+        self.n = n
+        self.f = f
+        self.m = m
+        self.theta_i = theta_i
+        self.use_zc = use_zc
+        if use_zc:
+            if zc is None or fde_zc is None:
+                raise ValueError("must set zc and fde_zc if using use_zc")
+            self.zc = zc
+            self.fde_zc = fde_zc
 
 
 # short names for models that support w/wa
