@@ -407,7 +407,7 @@ class CAMBdata(F2003Class):
         :param filename: filename to save
         :param lmax: lmax to save
         :param CMB_unit: scale results from dimensionless. Use 'muK' for :math:`\mu K^2` units for CMB :math:`C_\ell`
-        and :math:`\mu K` units for lensing cross.
+               and :math:`\mu K` units for lensing cross.
         """
         lmax = self._lmax_setting(lmax)
         cmb = self.get_total_cls(lmax, CMB_unit=CMB_unit)
@@ -419,8 +419,8 @@ class CAMBdata(F2003Class):
                                        'lens_potential'), CMB_unit=None, raw_cl=False):
         r"""
         Get CMB power spectra, as requested by the 'spectra' argument. All power spectra are
-         :math:`\ell(\ell+1)C_\ell/2\pi` self-owned numpy arrays (0..lmax, 0..3), where 0..3 index
-         are TT, EE, BB, TE, unless raw_cl is True in which case return just :math:`C_\ell`.
+        :math:`\ell(\ell+1)C_\ell/2\pi` self-owned numpy arrays (0..lmax, 0..3), where 0..3 index
+        are TT, EE, BB, TE, unless raw_cl is True in which case return just :math:`C_\ell`.
         For the lens_potential the power spectrum returned is that of the deflection.
 
         :param params: optional :class:`~.model.CAMBparams` instance with parameters to use. If None, must have
@@ -800,7 +800,7 @@ class CAMBdata(F2003Class):
         :param var2: variable j (index, or name of variable; default delta_tot)
         :param hubble_units: if true, R is in h^{-1} Mpc, otherwise Mpc
         :param return_R_z: if true, return tuple of R, z, sigmaR
-                           (where R always Mpc units not h^{-1}Mpc and R< z are arrays)
+                           (where R always Mpc units not h^{-1}Mpc and R, z are arrays)
         :return: array of :math:`\sigma_R` values, or 2D array indexed by (redshift, R)
         """
         var1, var2 = self._transfer_var(var1, var2)

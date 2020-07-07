@@ -86,6 +86,13 @@ class CambTest(unittest.TestCase):
         self.assertTrue(len(pars.SourceWindows) == 1)
         pars.SourceWindows = []
         self.assertTrue(len(pars.SourceWindows) == 0)
+        params = camb.get_valid_numerical_params()
+        self.assertEqual(params, {'ombh2', 'deltazrei', 'omnuh2', 'tau', 'omk', 'zrei', 'thetastar', 'nrunrun',
+                                  'meffsterile', 'nnu', 'ntrun', 'HMCode_A_baryon', 'HMCode_eta_baryon',
+                                  'cosmomc_theta', 'YHe', 'wa', 'cs2', 'H0', 'mnu', 'Alens', 'TCMB', 'ns',
+                                  'nrun', 'As', 'nt', 'r', 'w', 'omch2'})
+        params2 = camb.get_valid_numerical_params(dark_energy_model='AxionEffectiveFluid')
+        self.assertEqual(params2.difference(params), {'om', 'w_n', 'a_c', 'theta_i'})
 
     def testBackground(self):
         pars = camb.CAMBparams()
@@ -648,6 +655,24 @@ class CambTest(unittest.TestCase):
             pars.set_accuracy(lSampleBoost=1)
 
         s.internal_consistency_checks()
+
+    def test_mathutils(self):
+        from camb.mathutils import chi_squared, threej_coupling, scalar_coupling_matrix, pcl_coupling_matrix
+        cinv = np.linalg.inv(np.array([[1.2, 3], [3, 18.2]]))
+        vec = np.array([0.5, 5.])
+        self.assertAlmostEqual(chi_squared(cinv, vec), cinv.dot(vec).dot(vec))
+        W = np.zeros(100)
+        W[0] = 1
+        lmax = len(W)
+        Xi = threej_coupling(W, lmax)
+        np.testing.assert_allclose(np.diag(Xi) * (2 * np.arange(lmax + 1) + 1), np.ones(lmax + 1))
+        Xis = threej_coupling(W, lmax, pol=True)
+        np.testing.assert_allclose(np.diag(Xis[0]) * (2 * np.arange(lmax + 1) + 1), np.ones(lmax + 1))
+        P = W * 4 * np.pi
+        M = scalar_coupling_matrix(P, lmax)
+        np.testing.assert_allclose(M, np.eye(lmax + 1))
+        M = pcl_coupling_matrix(P, lmax)
+        np.testing.assert_allclose(M, np.eye(lmax + 1))
 
     def test_extra_EmissionAnglePostBorn(self):
         if fast:

@@ -30,6 +30,8 @@ build
 testfiles
 inspectionProfiles
 fortran/camb
+fortran/DebugMPI
+fortran/ReleaseMPI/
 Advisor/
 Inspector/
 .ipynb_checkpoints

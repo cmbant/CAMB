@@ -56,7 +56,9 @@ class _config:
         s = ''
         for x in dir(self):
             if x[0] != '_':
-                s += '%s = %s\n' % (x, getattr(self, x))
+                value = getattr(self, x)
+                if not callable(value):
+                    s += '%s = %s\n' % (x, value)
         return s
 
 
