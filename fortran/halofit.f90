@@ -54,8 +54,9 @@
     private
 
     integer, parameter :: halofit_original = 1, halofit_bird=2, halofit_peacock=3, halofit_takahashi=4
-    integer, parameter :: halofit_mead=5, halofit_halomodel=6, halofit_casarini=7, halofit_mead2015=8
-    integer, parameter :: halofit_default = halofit_mead
+    integer, parameter :: halofit_mead2016=5, halofit_halomodel=6, halofit_casarini=7, halofit_mead2015=8
+    integer, parameter :: halofit_mead2020=9
+    integer, parameter :: halofit_default = halofit_mead2016
 
     logical :: HM_verbose = .false.
 
@@ -93,7 +94,7 @@
 
     public THalofit, HM_verbose
     public halofit_default, halofit_original, halofit_bird, halofit_peacock, halofit_takahashi
-    public halofit_mead, halofit_halomodel, halofit_casarini
+    public halofit_mead2016, halofit_mead2015, halofit_mead2020, halofit_halomodel, halofit_casarini
 
     TYPE HM_cosmology
         !Contains only things that do not need to be recalculated with each new z
@@ -112,7 +113,7 @@
     TYPE HM_tables
         !Stuff that needs to be recalculated for each new z
         REAL(dl), ALLOCATABLE :: c(:), rv(:), nu(:), sig(:), zc(:), m(:), rr(:), sigf(:)
-        REAL(dl) :: sigv, sigv100, knl, rnl, neff, sig8z, z, dc
+        REAL(dl) :: sigv, sigv100, knl, rnl, neff, sig8z, z, dc, sig8z_cold
         INTEGER :: n
     END TYPE HM_tables
     !!AM - End of my additions
@@ -245,8 +246,8 @@
     class is (CAMBdata)
         associate(Params => State%CP)
 
-            IF(this%halofit_version==halofit_mead .OR. this%halofit_version==halofit_halomodel &
-                .OR.  this%halofit_version==halofit_mead2015) THEN
+            IF(this%halofit_version==halofit_mead2016 .OR. this%halofit_version==halofit_halomodel &
+                .OR.  this%halofit_version==halofit_mead2015 .OR. this%halofit_version==halofit_mead2020) THEN
                 !AM - Call HMcode here
                 CALL this%HMcode(State,CAMB_Pk)
             ELSE
@@ -517,11 +518,13 @@
 
     !Use imead to switch between the standard and accurate halo-model calcuation
     !0 - Standard (this is just a vanilla halo model calculation with no accuracy tweaks)
-    !1 - Accurate from Mead et al. (2015; arXiv 1505.07833)
-    !2 - Accurate from Mead et al. (2015; arXiv 1505.07833; no calibration for massive neutrinos)
+    !1 - Accurate from Mead et al. (2016; arXiv 1602.02154)
+    !2 - Accurate from Mead et al. (2015; arXiv 1505.07833)
+    !3 - Accurate from Mead et al. (2020; arXiv xxxx.xxxxx)
     IF(this%halofit_version==halofit_halomodel) this%imead=0
-    IF(this%halofit_version==halofit_mead) this%imead=1
+    IF(this%halofit_version==halofit_mead2016) this%imead=1
     IF(this%halofit_version==halofit_mead2015) this%imead=2
+    IF(this%halofit_version==halofit_mead2020) this%imead=3
 
     HM_verbose = (FeedbackLevel>1)
 
@@ -587,6 +590,8 @@
         Delta_v=418*(Omega_m_hm(z,cosm)**(-0.352_dl))
         !Mead et al. (2016; arXiv 1602.02154) neutrino addition
         IF(this%imead==1) Delta_v=Delta_v*(1+0.916_dl*cosm%f_nu)
+    ELSE IF(this%imead==3) THEN
+        Delta_v=Delta_v_Mead()
     END IF
 
     END FUNCTION Delta_v
@@ -608,6 +613,8 @@
             delta_c=delta_c*(1.+0.262*cosm%f_nu) !Mead et al. (2016; arXiv 1602.02154) neutrino addition
             delta_c=delta_c*(1.+0.0123*log10(Omega_m_hm(z,cosm))) !Nakamura & Suto (1997) fitting formula for LCDM
         END IF
+    ELSE IF(this%imead==3) THEN
+        delta_c=delta_c_Mead()
     END IF    
 
     END FUNCTION delta_c
@@ -630,6 +637,8 @@
         !eta0=1.03-0.11*cosm%A_baryon !This is the original one-parameter relation from 1505.07833
         !eta0=0.98-0.12*cosm%A_baryon !This is an updated one-parameter relation: Section 4.1.2 of 1707.06627
         eta=eta0-0.3*lut%sig8z
+    ELSE IF(this%imead==3) THEN
+        eta=0.128*lut%sig8z_cold**(-0.36)
     END IF
 
     END FUNCTION eta
@@ -647,6 +656,8 @@
         !One-halo cut-off wavenumber
         !Mead et al. (2015; arXiv 1505.07833) value
         kstar=0.584*(lut%sigv)**(-1.)
+    ELSE IF(this%imead==3) THEN
+        kstar=0.056*lut%sig8z_cold**(-1.01)
     END IF
 
     END FUNCTION kstar
@@ -665,6 +676,8 @@
         !As=3.13
         !AM - added for easy modification of feedback parameter
         As=cosm%A_baryon
+    ELSE IF(this%imead==3) THEN
+        As=5.20
     END IF
 
     END FUNCTION As
@@ -685,6 +698,8 @@
     ELSE IF(this%imead==2) THEN
         !Mead et al. (2015) value
         fdamp=0.188*lut%sig8z**4.29
+    ELSE IF(this%imead==3) THEN
+        fdamp=0.270*lut%sig8z_cold**0.94
     END IF
 
     !Catches extreme values of fdamp
@@ -709,6 +724,8 @@
     ELSE IF(this%imead==2) THEN
         !Mead et al. (2015) value
         alpha=2.93*1.77**lut%neff
+    ELSE IF (this%imead==3) THEN
+        alpha=1.875*(1.603)**lut%neff
     END IF
 
     !Catches values of alpha that are crazy
@@ -1022,8 +1039,14 @@
     if (global_error_flag==0) lut%sigv100=sigmaV(100.d0,z,0,cosm)
     IF(HM_verbose) WRITE(*,*) 'HALOMOD: sigv100 [Mpc/h]:', lut%sigv100
     !$OMP SECTION
-    if (global_error_flag==0) lut%sig8z=sigma(8.d0,z,0,cosm)
-    IF(HM_verbose) WRITE(*,*) 'HALOMOD: sig8(z):', lut%sig8z
+    if (global_error_flag==0) then
+        lut%sig8z=sigma(8.d0,z,0,cosm)
+        lut%sig8z_cold=sigma(8.d0,z,1,cosm)
+    end if
+    IF(HM_verbose) THEN
+        WRITE(*,*) 'HALOMOD: sig8(z):', lut%sig8z
+        WRITE(*,*) 'HALOMOD: cold sig8(z):', lut%sig8z_cold
+    END IF
     !$OMP END PARALLEL SECTIONS
     if (global_error_flag/=0) return
 
@@ -1195,7 +1218,7 @@
     g_lcdm=growint(ainf,cos_lcdm)
 
     !This is the Dolag et al. (2004) correction for halo concentrations
-    IF(this%imead==0 .OR. this%imead==2) THEN
+    IF(this%imead==0 .OR. this%imead==2 .OR. this%imead==3) THEN
         ! Mead et al. (2015) used the Dolag (2004) correction
         pow=1.
     ELSE IF(this%imead==1) THEN
@@ -1448,17 +1471,23 @@
     !Calculates the 2-halo term
     REAL(dl) :: p_2h
     REAL(dl), INTENT(IN) :: k, plin
-    REAL(dl) :: sigv, frac
-    TYPE(HM_tables), INTENT(IN) :: lut
+    REAL(dl) :: sigv, frac, kdamp, ndamp, x
+    TYPE(HM_tables), INTENT(IN) :: lut 
 
     !Damping function
     frac=this%fdamp(lut)
 
     IF(this%imead==0 .OR. frac<1.e-3) THEN
         p_2h=plin
-    ELSE
+    ELSE IF(this%imead==1 .OR. this%imead==2) THEN
         sigv=lut%sigv
         p_2h=plin*(1.-frac*(tanh(k*sigv/sqrt(ABS(frac))))**2.)
+    ELSE IF(this%imead==3) THEN
+        ! MEAD: plin should be de-wiggle here
+        kdamp=0.057*lut%sig8z_cold**(-1.09)
+        ndamp=2.85
+        x=(k/kdamp)**ndamp
+        p_2h=plin*(1.-frac*x/(1.+x))
     END IF
 
     !For some strange cosmologies frac>1. so this must be added to prevent p_2h<0.
@@ -1473,7 +1502,7 @@
     REAL(dl), INTENT(IN) :: k, z
     TYPE(HM_tables), INTENT(IN) :: lut
     TYPE(HM_cosmology), INTENT(IN) :: cosm
-    REAL(dl) :: Dv, g, fac, et, ks, wk
+    REAL(dl) :: Dv, g, fac, et, ks, wk, x
     REAL(dl) :: integrand(lut%n)
     REAL(dl) :: sum
     INTEGER :: i
@@ -1499,21 +1528,24 @@
 
     !These are just numerical factors from the 1-halo integral in terms of nu!
     p_1h=sum*2.*Dv*(k**3.)/(3.*pi)
-
-    !Damping of the 1-halo term at very large scales
-    ks=this%kstar(lut)
-
-    !Prevents problems if k/ks is very large
-    IF(ks==0.) THEN
-        fac=0.
-    ELSE IF((k/ks)**2.>ks_limit) THEN
-        fac=0.
-    ELSE
-        fac=exp(-((k/ks)**2.))
+ 
+    IF(this%imead==1 .OR. this%imead==2) THEN
+        !Damping of the 1-halo term at very large scales
+        ks=this%kstar(lut)
+        IF(ks==0.) THEN
+            fac=0.
+        ELSE IF((k/ks)**2.>ks_limit) THEN
+            fac=0. !Prevents problems if k/ks is very large
+        ELSE
+            fac=exp(-((k/ks)**2.))
+        END IF
+        !Damping of the one-halo term at very large scales
+        p_1h=p_1h*(1.-fac)
+    ELSE IF(this%imead==3) THEN
+        ks=this%kstar(lut)
+        x=(k/ks)**4
+        p_1h=p_1h*x/(1.+x)
     END IF
-
-    !Damping of the one-halo term at very large scales
-    p_1h=p_1h*(1.-fac)
 
     END FUNCTION p_1h
 
