@@ -155,9 +155,10 @@
 
     ! Linear growth integral numerical parameters (LCDM only; only used in Dolag correction)
     ! AM: Jul 19: Updated acc_growint from 1e-3 to 1e-4
+    ! AM: Sep 20: Changed cold_growth = .FALSE. to be in line with my code
     REAL(dl), PARAMETER :: acc_growth_integration=1e-4 ! Accuracy for growth function integral
     INTEGER, PARAMETER :: iorder_growth_integration=3  ! Polynomial order for growth integral
-    LOGICAL, PARAMETER :: cold_growth = .FALSE.        ! Should growth be calculated using cold or total matter?
+    LOGICAL, PARAMETER :: cold_growth = .FALSE.        ! Should growth be of cold or all matter?
 
     ! Linear growth factor tabulation and interpolation numerical parameters
     ! AM: TODO: Change finding scheme to assume linear spacing may save time
@@ -213,7 +214,8 @@
     INTEGER, PARAMETER :: iorder_neff_integration=3  ! Polynomial order for numerical integration
 
     ! HMcode numerical parameters for cold transfer function approximation
-    LOGICAL, PARAMETER :: EdS_Tcold_growth = .FALSE. ! MEAD: Care here, before this was .TRUE.
+    ! AM: Sep 20: Care here, before EdS_Tcold_growth = .TRUE.
+    LOGICAL, PARAMETER :: EdS_Tcold_growth = .FALSE. ! Should the EdS growth function be used?
 
     contains
 
@@ -265,7 +267,6 @@
 
             IF(this%halofit_version==halofit_mead2016 .OR. this%halofit_version==halofit_halomodel &
                 .OR.  this%halofit_version==halofit_mead2015 .OR. this%halofit_version==halofit_mead2020) THEN
-                !AM - Call HMcode here
                 CALL this%HMcode(State,CAMB_Pk)
             ELSE
 
@@ -1014,7 +1015,7 @@
     CALL fill_sigtab(cosm)
 
     ! Extract BAO wiggle from P(k)
-    ! MEAD: Move this so that it is not done every z
+    ! AM: TODO: Move this so that it is not done every z
     CALL init_wiggle(cosm)
 
     END SUBROUTINE initialise_HM_cosmology
@@ -1106,10 +1107,8 @@
         lut%rr(i)=r
         lut%sig(i)=sig
         lut%nu(i)=nu
-        !sigma(fM) for Bullock c(m) relation
-        !This is the f=0.01 parameter in the Bullock realtion sigma(fM,z)
-        !f=0.01**(1./3.)
         lut%sigf(i)=sigmac(r*f_Bullock,z,cosm)
+
     END DO
     !$OMP END PARALLEL DO
     if (global_error_flag/=0) return
@@ -1543,11 +1542,9 @@
         sigv=lut%sigv
         p_2h=plin*(1.-frac*(tanh(k*sigv/sqrt(ABS(frac))))**2.)
     ELSE IF(this%imead==3) THEN
-        ! MEAD: plin should be de-wiggle here
         kdamp=0.057*lut%sig8z_cold**(-1.09)
         ndamp=2.85
         x=(k/kdamp)**ndamp
-        !p_2h=plin*(1.-frac*x/(1.+x))
         p_2h=p_dewiggle(k, lut%z, lut%sigv, cosm)*(1.-frac*x/(1.+x))
     END IF
 
@@ -1615,7 +1612,6 @@
     REAL FUNCTION p_dewiggle(k, z, sigv, cosm)
 
     ! Call the dewiggled power spectrum, which is linear but with damped wiggles
-    ! MEAD: Convert to CAMB routine
     REAL(dl), INTENT(IN) :: k
     REAL(dl), INTENT(IN) :: z
     REAL(dl), INTENT(IN) :: sigv
