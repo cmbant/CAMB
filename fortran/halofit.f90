@@ -1675,6 +1675,8 @@
     IF (HM_verbose) WRITE(*, *) 'INIT_WIGGLE: Initialising interpolator'
 
     ! Fill look-up tables
+    IF(ALLOCATED(cosm%log_k_wiggle)) DEALLOCATE(cosm%log_k_wiggle)
+    IF(ALLOCATED(cosm%pk_wiggle)) DEALLOCATE(cosm%pk_wiggle)
     ALLOCATE(cosm%log_k_wiggle(nk), cosm%pk_wiggle(nk))
     cosm%log_k_wiggle = log(k)
     cosm%pk_wiggle = pk_wiggle
