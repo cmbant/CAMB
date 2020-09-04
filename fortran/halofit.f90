@@ -41,6 +41,7 @@
     !AM Jul 19: Upgraded accuracy and bug fix for massive-neutrino models
     !AL Jul 19: Speedups, use linear interpolation for pk; find index using fixed spacing; precompute growth(z)
     !AL Sep 19: Propagate errors rather than stop, decrease jmax for integration time out (prevent very slow error)
+    !AM Sep 20: Added HMcode-2020 model
     !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
     module NonLinear
@@ -129,12 +130,6 @@
     REAL(dl), PARAMETER :: ks_limit=7._dl    ! Limit for (k/ks)^2 in one-halo term
     REAL(dl), PARAMETER :: pi_HM=const_pi    ! Lovely pi
 
-    ! HMcode numerical parameters
-    ! AM: TODO: Reducing halo mass range and number of points may save time
-    !REAL(dl), PARAMETER :: mmin_HMcode=1e0  ! Lower mass limit [Msun/h]
-    !REAL(dl), PARAMETER :: mmax_HMcode=1e18 ! Upper mass limit [Msun/h]
-    !INTEGER, PARAMETER :: n_HMcode=256      ! Number of entries in look-up HM_tables.
-
     ! HMcode linear P(k) numerical parameters
     ! AM: Jul 19: Updated nk_pk_interpolation from 128 to 512
     ! AM: TODO: Change finding scheme to assume linear spacing may save time
@@ -151,9 +146,9 @@
     REAL, PARAMETER :: kmin_wiggle = 5e-3    ! Minimum wavenumber to calulate wiggle [Mpc/h]
     REAL, PARAMETER :: kmax_wiggle = 5.      ! Maximum wavenumber to calulate wiggle [Mpc/h]
     INTEGER, PARAMETER :: nk_wiggle = 512    ! Number of k points to store wiggle
-    INTEGER, PARAMETER :: iorder_wiggle = 3
-    INTEGER, PARAMETER :: ifind_wiggle = 3
-    INTEGER, PARAMETER :: imeth_wiggle = 2
+    INTEGER, PARAMETER :: iorder_wiggle = 3  ! Order for wiggle interpolation
+    INTEGER, PARAMETER :: ifind_wiggle = 3   ! 3 - Mid-point finding scheme for wiggle interpolation
+    INTEGER, PARAMETER :: imeth_wiggle = 2   ! 2- Lagrange polynomial interpolation
     REAL, PARAMETER :: wiggle_dx = 0.20      ! Smoothing half-width if using top-hat smoothing
     REAL, PARAMETER :: wiggle_sigma = 0.25   ! Smoothing width if using Gaussian smoothing 
     REAL, PARAMETER :: knorm_nowiggle = 0.03 ! Wavenumber at which to force linear and nowiggle to be identical [Mpc/h] 
@@ -162,6 +157,7 @@
     ! AM: Jul 19: Updated acc_growint from 1e-3 to 1e-4
     REAL(dl), PARAMETER :: acc_growth_integration=1e-4 ! Accuracy for growth function integral
     INTEGER, PARAMETER :: iorder_growth_integration=3  ! Polynomial order for growth integral
+    LOGICAL, PARAMETER :: cold_growth = .FALSE.        ! Should growth be calculated using cold or total matter?
 
     ! Linear growth factor tabulation and interpolation numerical parameters
     ! AM: TODO: Change finding scheme to assume linear spacing may save time
@@ -192,7 +188,6 @@
     INTEGER, PARAMETER :: imeth_agrowth_interpolation=2  ! Method for accumulated growth interpolation
 
     ! HMcode numerical parameters for sigma(R) tabulation and interpolation
-    ! AM: TODO: Change finding scheme to assume linear spacing may save time
     REAL(dl), PARAMETER :: rmin_sigma_interpolation=1e-4 ! Minimum scale for sigma(R) look-up tables [Mpc/h]
     REAL(dl), PARAMETER :: rmax_sigma_interpolation=1e3  ! Maximum scale for sigma(R) look-up tables [Mpc/h]
     INTEGER, PARAMETER :: n_sigma_interpolation=64       ! Number of points in look-up tables
@@ -216,6 +211,9 @@
     REAL(dl), PARAMETER :: acc_neff_integration=1e-4 ! Relative accuracy of numerical integration
     REAL(dl), PARAMETER :: alpha_neff_integration=2. ! Exponent to speed up integration
     INTEGER, PARAMETER :: iorder_neff_integration=3  ! Polynomial order for numerical integration
+
+    ! HMcode numerical parameters for cold transfer function approximation
+    LOGICAL, PARAMETER :: EdS_Tcold_growth = .FALSE. ! MEAD: Care here, before this was .TRUE.
 
     contains
 
@@ -913,7 +911,6 @@
     REAL(dl) :: D, Dcb, Dcbnu, pcb, zeq, q, yfs
     REAL(dl) :: BigT
     TYPE(HM_cosmology) :: cosm
-    LOGICAL, PARAMETER :: wrong_growth = .FALSE. ! MEAD: Care here, before this was .TRUE.
 
     IF(cosm%f_nu==0._dl) THEN
 
@@ -931,7 +928,7 @@
         zeq=(2.5e4)*cosm%om_m*(cosm%h**2)*(BigT**(-4.))
 
         !The growth function normalised such that D=(1.+z_eq)/(1+z) at early times (when Omega_m \approx 1)
-        IF (wrong_growth) THEN
+        IF (EdS_Tcold_growth) THEN
             D=(1.+zeq)/(1.+z) ! EdS solution
         ELSE
             D=(1.+zeq)*ungrow(z, cosm) ! General solution
@@ -1385,7 +1382,7 @@
     REAL(dl) :: growint_integrand
     REAL(dl), INTENT(IN) :: a
     TYPE(HM_cosmology), INTENT(IN) :: cosm
-    REAL(dl) :: gam
+    REAL(dl) :: Om_m, z, gam
 
     IF(cosm%w<-1.) THEN
         gam=0.55+0.02*(1.+cosm%w)
@@ -1397,7 +1394,13 @@
 
     !Note the minus sign here
     !AM Jul 19: changed Omega_m to Omega_cold for massive neutrino cosmologies
-    growint_integrand=-(Omega_cold_hm(-1.+1./a,cosm)**gam)/a
+    z = -1.+1./a
+    IF (cold_growth) THEN
+        Om_m = Omega_cold_hm(z,cosm)
+    ELSE
+        Om_m = Omega_m_hm(z,cosm)
+    END IF
+    growint_integrand=-(Om_m**gam)/a
 
     END FUNCTION growint_integrand
 
@@ -2284,32 +2287,44 @@
     REAL(dl) :: Hubble2
     REAL(dl), INTENT(IN) :: z
     TYPE(HM_cosmology), INTENT(IN) :: cosm
-    REAL(dl) :: a
 
-    a=1/(1+z)
-
-    Hubble2=cosm%om_m*(1+z)**3+cosm%om_v*X_de(a,cosm)+(1-cosm%om_m-cosm%om_v)*(1+z)**2
+    Hubble2=cosm%om_m*(1+z)**3+cosm%om_v*X_de(z,cosm)+(1-cosm%om_m-cosm%om_v)*(1+z)**2
 
     END FUNCTION Hubble2
 
-    FUNCTION X_de(a,cosm)
+    FUNCTION AH(z,cosm)
+    !The Hubble acceleration function \ddot{a}/a
+    REAL(dl) :: AH
+    REAL(dl), INTENT(IN) :: z
+    TYPE(HM_cosmology), INTENT(IN) :: cosm
+
+    AH=cosm%om_m*(1+z)**3+cosm%om_v*(1.+3.*w_de_hm(z,cosm))*X_de(z,cosm)
+    AH=-AH/2.
+
+    END FUNCTION AH
+
+    FUNCTION X_de(z,cosm)
     !The time evolution for dark energy: rho_de=rho_de,0 * X(a)
     !X(a)=1 for LCDM but changes for other models
     REAL(dl) :: X_de
-    REAL(dl), INTENT(IN) :: a
+    REAL(dl), INTENT(IN) :: z
     TYPE(HM_cosmology), INTENT(IN) :: cosm
+    REAL(dl) :: a
 
+    a=1./(1.+z)
     X_de=(a**(-3*(1+cosm%w+cosm%wa)))*exp(-3*cosm%wa*(1-a))
 
     END FUNCTION X_de
 
-    FUNCTION w_de_hm(a,cosm)
+    FUNCTION w_de_hm(z,cosm)
 
     !The dark energy w(a) function
     REAL(dl) :: w_de_hm
-    REAL(dl), INTENT(IN) :: a
+    REAL(dl), INTENT(IN) :: z
     TYPE(HM_cosmology), INTENT(IN) :: cosm
+    REAL(dl) :: a
 
+    a=1./(1.+z)
     w_de_hm=cosm%w+(1-a)*cosm%wa
 
     END FUNCTION w_de_hm
@@ -2360,7 +2375,7 @@
     ! Growth function normalised such that g(a) = a at early (matter-dominated) times
     IMPLICIT NONE
     REAL(dl), INTENT(IN) :: z
-    TYPE(HM_cosmology), INTENT(INOUT) :: cosm
+    TYPE(HM_cosmology), INTENT(IN) :: cosm
 
     ungrow = cosm%gnorm*grow(z, cosm)
 
@@ -2371,7 +2386,7 @@
     ! Accumulated growth function: int_0^a g(a)/a da
     IMPLICIT NONE
     REAL(dl), INTENT(IN) :: z
-    TYPE(HM_cosmology), INTENT(INOUT) :: cosm
+    TYPE(HM_cosmology), INTENT(IN) :: cosm
     REAL(dl) :: a
     INTEGER, PARAMETER :: iorder=iorder_agrowth_interpolation
     INTEGER, PARAMETER :: ifind=ifind_agrowth_interpolation
@@ -3118,13 +3133,18 @@
     !v'=f(v) in ODE solver
     REAL(dl) :: fv
     REAL(dl), INTENT(IN) :: d, v, a
-    REAL(dl) :: f1, f2, z
+    REAL(dl) :: f1, f2, z, Om_m
     TYPE(HM_cosmology), INTENT(IN) :: cosm
 
     z=-1.+(1./a)
 
     !AM Jul 19: changed Omega_m to Omega_cold for massive neutrino cosmologies
-    f1=3.*Omega_cold_hm(z,cosm)*d/(2.*a**2.)
+    IF (cold_growth) THEN
+        Om_m = Omega_cold_hm(z,cosm)
+    ELSE
+        Om_m = Omega_m_hm(z,cosm)
+    END IF
+    f1=3.*Om_m*d/(2.*a**2.)
     f2=(2.+AH(z,cosm)/Hubble2(z,cosm))*(v/a)
 
     fv=f1-f2
@@ -3141,28 +3161,14 @@
 
     END FUNCTION fd
 
-    FUNCTION AH(z,cosm)
-
-    !The Hubble acceleration function \ddot{a}/a
-    REAL(dl) :: AH
-    REAL(dl), INTENT(IN) :: z
-    REAL(dl) :: a
-    TYPE(HM_cosmology), INTENT(IN) :: cosm
-
-    a=1./(1.+z)
-    AH=cosm%om_m*a**(-3.)+cosm%om_v*(1.+3.*w_de_hm(a,cosm))*x_de(a,cosm)
-    AH=-AH/2.
-
-    END FUNCTION AH
-
     REAL(dl) FUNCTION dc_Mead(z, cosm)
 
     ! delta_c fitting function from Mead (2017; 1606.05345)
     IMPLICIT NONE
-    REAL(dl), INTENT(IN) :: z ! scale factor
+    REAL(dl), INTENT(IN) :: z
     TYPE(HM_cosmology), INTENT(IN) :: cosm
     REAL(dl) :: lg, bG, Om_m, ai, a
-    TYPE(HM_cosmology) :: cosm_LCDM
+    !TYPE(HM_cosmology) :: cosm_LCDM
 
     ! See Appendix A of Mead (2017) for naming convention
     REAL(dl), PARAMETER :: p10 = -0.0069
@@ -3177,15 +3183,11 @@
     INTEGER, PARAMETER :: a2 = 0
     REAL(dl), PARAMETER :: dc0 = (3./20.)*(12.*pi_HM)**(2./3.)
 
-    ! Remove neutrinos from cosmology
-    ! MEAD: Is this necessary? How are growth things calculated for neutrinos?
-    cosm_LCDM = cosm
-    cosm_LCDM%Om_c = cosm%Om_c+cosm%Om_nu
-    cosm_LCDM%Om_nu = 0.
+    IF (cold_growth) STOP 'DV_MEAD: Error, this will not work if you want cold growth'
 
-    lg = ungrow(z, cosm_LCDM)
-    bG = acc_growth(z, cosm_LCDM)
-    Om_m = Omega_m_hm(z, cosm_LCDM)
+    lg = ungrow(z, cosm)
+    bG = acc_growth(z, cosm)
+    Om_m = Omega_m_hm(z, cosm)
     a = 1./(1.+z)
 
     dc_Mead = 1.  
@@ -3199,10 +3201,10 @@
 
     ! Delta_v fitting function from Mead (2017; 1606.05345)
     IMPLICIT NONE
-    REAL(dl), INTENT(IN) :: z !scale factor
+    REAL(dl), INTENT(IN) :: z
     TYPE(HM_cosmology), INTENT(IN) :: cosm
     REAL(dl) :: lg, bG, Om_m, a
-    TYPE(HM_cosmology) :: cosm_LCDM
+    !TYPE(HM_cosmology) :: cosm_LCDM
 
     ! See Appendix A of Mead (2017) for naming convention
     REAL(dl), PARAMETER :: p30 = -0.79
@@ -3217,15 +3219,11 @@
     INTEGER, PARAMETER :: a4 = 2
     REAL(dl), PARAMETER :: Dv0 = 18.*pi_HM**2
 
-    ! Remove neutrinos from cosmology
-    ! MEAD: Is this necessary? How are growth things calculated for neutrinos?
-    cosm_LCDM = cosm
-    cosm_LCDM%Om_c = cosm%Om_c+cosm%Om_nu
-    cosm_LCDM%Om_nu = 0.
+    IF (cold_growth) STOP 'DV_MEAD: Error, this will not work if you want cold growth'
 
-    lg = ungrow(z, cosm_LCDM)
-    bG = acc_growth(z, cosm_LCDM)
-    Om_m = Omega_m_hm(z, cosm_LCDM)
+    lg = ungrow(z, cosm)
+    bG = acc_growth(z, cosm)
+    Om_m = Omega_m_hm(z, cosm)
     a = 1./(1.+z)
 
     Dv_Mead = 1.    
