@@ -55,9 +55,10 @@
     private
 
     integer, parameter :: halofit_original = 1, halofit_bird=2, halofit_peacock=3, halofit_takahashi=4
-    integer, parameter :: halofit_mead2016=5, halofit_halomodel=6, halofit_casarini=7, halofit_mead2015=8
-    integer, parameter :: halofit_mead2020=9
-    integer, parameter :: halofit_default = halofit_mead2016
+    integer, parameter :: halofit_casarini=7
+    integer, parameter :: halofit_mead2016=5, halofit_halomodel=6, halofit_mead2015=8, halofit_mead2020=9
+    integer, parameter :: halofit_mead=halofit_mead2016 ! AM Kept for backwards compatability
+    integer, parameter :: halofit_default=halofit_mead2016
 
     logical :: HM_verbose = .false.
 
@@ -96,6 +97,7 @@
     public THalofit, HM_verbose
     public halofit_default, halofit_original, halofit_bird, halofit_peacock, halofit_takahashi
     public halofit_mead2016, halofit_mead2015, halofit_mead2020, halofit_halomodel, halofit_casarini
+    public halofit_mead ! AM for backwards compatability
 
     TYPE HM_cosmology
         !Contains only things that do not need to be recalculated with each new z
@@ -143,22 +145,22 @@
     INTEGER, PARAMETER :: imeth_pk_interpolation=1    ! Method for P(k) interpolation
 
     ! HMcode dewiggle numerical parameters
-    REAL, PARAMETER :: kmin_wiggle = 5e-3    ! Minimum wavenumber to calulate wiggle [Mpc/h]
-    REAL, PARAMETER :: kmax_wiggle = 5.      ! Maximum wavenumber to calulate wiggle [Mpc/h]
-    INTEGER, PARAMETER :: nk_wiggle = 512    ! Number of k points to store wiggle
-    INTEGER, PARAMETER :: iorder_wiggle = 3  ! Order for wiggle interpolation
-    INTEGER, PARAMETER :: ifind_wiggle = 3   ! 3 - Mid-point finding scheme for wiggle interpolation
-    INTEGER, PARAMETER :: imeth_wiggle = 2   ! 2- Lagrange polynomial interpolation
-    REAL, PARAMETER :: wiggle_dx = 0.20      ! Smoothing half-width if using top-hat smoothing
-    REAL, PARAMETER :: wiggle_sigma = 0.25   ! Smoothing width if using Gaussian smoothing 
-    REAL, PARAMETER :: knorm_nowiggle = 0.03 ! Wavenumber at which to force linear and nowiggle to be identical [Mpc/h] 
+    REAL, PARAMETER :: kmin_wiggle=5e-3    ! Minimum wavenumber to calulate wiggle [Mpc/h]
+    REAL, PARAMETER :: kmax_wiggle=5.      ! Maximum wavenumber to calulate wiggle [Mpc/h]
+    INTEGER, PARAMETER :: nk_wiggle=512    ! Number of k points to store wiggle
+    INTEGER, PARAMETER :: iorder_wiggle=3  ! Order for wiggle interpolation
+    INTEGER, PARAMETER :: ifind_wiggle=3   ! 3 - Mid-point finding scheme for wiggle interpolation
+    INTEGER, PARAMETER :: imeth_wiggle=2   ! 2- Lagrange polynomial interpolation
+    REAL, PARAMETER :: wiggle_dx=0.20      ! Smoothing half-width if using top-hat smoothing
+    REAL, PARAMETER :: wiggle_sigma=0.25   ! Smoothing width if using Gaussian smoothing 
+    REAL, PARAMETER :: knorm_nowiggle=0.03 ! Wavenumber at which to force linear and nowiggle to be identical [Mpc/h] 
 
     ! Linear growth integral numerical parameters (LCDM only; only used in Dolag correction)
     ! AM: Jul 19: Updated acc_growint from 1e-3 to 1e-4
     ! AM: Sep 20: Changed cold_growth = .FALSE. to be in line with my code
     REAL(dl), PARAMETER :: acc_growth_integration=1e-4 ! Accuracy for growth function integral
     INTEGER, PARAMETER :: iorder_growth_integration=3  ! Polynomial order for growth integral
-    LOGICAL, PARAMETER :: cold_growth = .FALSE.        ! Should growth be of cold or all matter?
+    LOGICAL, PARAMETER :: cold_growth=.FALSE.          ! Should growth be of cold or all matter?
 
     ! Linear growth factor tabulation and interpolation numerical parameters
     ! AM: TODO: Change finding scheme to assume linear spacing may save time
@@ -214,8 +216,8 @@
     INTEGER, PARAMETER :: iorder_neff_integration=3  ! Polynomial order for numerical integration
 
     ! HMcode numerical parameters for cold transfer function approximation
-    ! AM: Sep 20: Care here, before EdS_Tcold_growth = .TRUE.
-    LOGICAL, PARAMETER :: EdS_Tcold_growth = .FALSE. ! Should the EdS growth function be used?
+    ! AM: Sep 20: Care here, before EdS_Tcold_growth=.TRUE.
+    LOGICAL, PARAMETER :: EdS_Tcold_growth=.FALSE. ! Should the EdS growth function (incorrectly) be used?
 
     contains
 
@@ -538,7 +540,7 @@
     !0 - Standard (this is just a vanilla halo model calculation with no accuracy tweaks)
     !1 - Accurate from Mead et al. (2016; arXiv 1602.02154)
     !2 - Accurate from Mead et al. (2015; arXiv 1505.07833)
-    !3 - Accurate from Mead et al. (2020; arXiv xxxx.xxxxx)
+    !3 - Accurate from Mead et al. (2020; arXiv 2009.01858)
     IF(this%halofit_version==halofit_halomodel) this%imead=0
     IF(this%halofit_version==halofit_mead2016) this%imead=1
     IF(this%halofit_version==halofit_mead2015) this%imead=2
