@@ -572,7 +572,7 @@
         !Initialise the specific HM_cosmology (fill sigma(R) and P_lin HM_tables)
         !Currently this needs to be done at each z (mainly because of scale-dependent growth with neutrinos)
         !For non-massive-neutrino models this could only be done once, which would speed things up a bit
-        CALL initialise_HM_cosmology(j,cosi,CAMB_PK)
+        CALL initialise_HM_cosmology(this,j,cosi,CAMB_PK)
 
         !Sets the current redshift from the table
         z=CAMB_Pk%Redshifts(j)
@@ -780,7 +780,6 @@
     REAL(dl) :: a
     TYPE(HM_cosmology), INTENT(IN) :: cosm
     TYPE(HM_tables), INTENT(IN) :: lut
-    LOGICAL, PARAMETER :: sigma=.FALSE.
 
     !Calls expressions for one- and two-halo terms and then combines
     !to form the full power spectrum
@@ -794,9 +793,6 @@
 
     a=this%alpha(lut)
     pfull=(p2h**a+p1h**a)**(1./a)
-    IF(sigma) THEN
-        pfull=sigmac(k,z,cosm)
-    END IF
 
     END SUBROUTINE halomod
 
@@ -897,7 +893,7 @@
     cosm%log_plinc=log(Pkc/(g**2))
 
     !Check sigma_8 value
-    IF(HM_verbose) WRITE(*,*) 'LINEAR POWER: sigma_8:', sigma(8.d0,0.d0,0,cosm)
+    IF(HM_verbose) WRITE(*,*) 'LINEAR POWER: sigma_8:', sigma_integral(8.d0,0.d0,0,cosm)
     IF(HM_verbose) WRITE(*,*) 'LINEAR POWER: Done'
     IF(HM_verbose) WRITE(*,*)
 
@@ -1003,9 +999,10 @@
 
     END SUBROUTINE assign_HM_cosmology
 
-    SUBROUTINE initialise_HM_cosmology(iz,cosm,CAMB_PK)
+    SUBROUTINE initialise_HM_cosmology(this,iz,cosm,CAMB_PK)
     !Sets up HM_tables of sigma, growth and linear power for the HM_cosmology
     !AM: TODO: Store current growth factor, or make P(k) and sigma(R) at current z
+    class(THalofit) :: this
     TYPE(MatterPowerData), INTENT(IN) :: CAMB_PK
     TYPE(HM_cosmology) :: cosm
     INTEGER, INTENT(IN) :: iz
@@ -1014,7 +1011,7 @@
     CALL fill_plintab(iz,cosm,CAMB_PK)
 
     !Fill sigma(r) table
-    CALL fill_sigtab(cosm)
+    CALL fill_sigtab(this,cosm)
 
     ! Extract BAO wiggle from P(k)
     ! AM: TODO: Move this so that it is not done every z
@@ -1079,8 +1076,8 @@
     IF(HM_verbose) WRITE(*,*) 'HALOMOD: sigv100 [Mpc/h]:', lut%sigv100
     !$OMP SECTION
     if (global_error_flag==0) then
-        lut%sig8z=sigma(8.d0,z,0,cosm)
-        lut%sig8z_cold=sigma(8.d0,z,1,cosm)
+        lut%sig8z=sigma_integral(8.d0,z,0,cosm)
+        lut%sig8z_cold=sigma_integral(8.d0,z,1,cosm)
     end if
     IF(HM_verbose) THEN
         WRITE(*,*) 'HALOMOD: sig8(z):', lut%sig8z
@@ -1102,14 +1099,14 @@
 
         m=exp(log(mmin)+log(mmax/mmin)*real(i-1,dl)/(lut%n-1))
         r=radius_m(m,cosm)
-        sig=sigmac(r,z,cosm)
+        sig=sigma_lut(r,z,cosm)
         nu=dc/sig
 
         lut%m(i)=m
         lut%rr(i)=r
         lut%sig(i)=sig
         lut%nu(i)=nu
-        lut%sigf(i)=sigmac(r*f_Bullock,z,cosm)
+        lut%sigf(i)=sigma_lut(r*f_Bullock,z,cosm)
 
     END DO
     !$OMP END PARALLEL DO
@@ -1137,7 +1134,7 @@
     IF(HM_verbose) WRITE(*,*) 'HALOMOD: k_nl [h/Mpc]:', lut%knl
 
     !Calcuate the effective spectral index at the collapse scale
-    lut%neff=neff(lut,cosm)
+    lut%neff=neff(this,lut,cosm)
 
     IF(HM_verbose) WRITE(*,*) 'HALOMOD: n_eff:', lut%neff
 
@@ -1189,24 +1186,32 @@
 
     END FUNCTION radius_m
 
-    FUNCTION neff(lut,cosm)
+    FUNCTION neff(this,lut,cosm)
     !Finds the effective spectral index at the collapse scale r_nl, where nu(r_nl)=1.
     REAL(dl) :: neff
+    class(THalofit) :: this
     REAL(dl) :: ns
     TYPE(HM_cosmology), INTENT(IN) :: cosm
     TYPE(HM_tables), INTENT(IN) :: lut
     REAL(dl) :: sig
+    INTEGER :: itype
     REAL(dl), PARAMETER :: tmin=0.
     REAL(dl), PARAMETER :: tmax=1.
-    INTEGER, PARAMETER :: itype=1 ! Cold matter here
     REAL(dl), PARAMETER :: acc=acc_neff_integration
     INTEGER, PARAMETER :: iorder=iorder_neff_integration
+
+    ! Choose type of sigma(R) to tabulate depending on HMcode version
+    IF (this%imead==1 .OR. this%imead==3) THEN
+        itype=1 ! 1 - Cold matter
+    ELSE
+        itype=0 ! 0 - All matter
+    END IF
 
     ! Choosings sig = delta_c should be equivalent to actually calculating it again, however
     ! Do the actual calculation to be consistent with HMx. Problems with weird cosmologies with 
     ! low spectral indices such that no collapse has occured. R_nl very small
     !sig=lut%dc ! Take great care here. This should be the same as below, but won't be for strange models
-    sig=sigma(lut%rnl,lut%z,itype,cosm)
+    sig=sigma_integral(lut%rnl,lut%z,itype,cosm)
     neff=-3.-2.*integrate(tmin,tmax,neff_integrand,lut%rnl,lut%z,itype,cosm,acc,iorder)/sig**2
 
     !For some bizarre cosmological models r_nl is very small, so almost no collapse has occured
@@ -1830,21 +1835,28 @@
   
     END SUBROUTINE smooth_array_Gaussian
 
-    SUBROUTINE fill_sigtab(cosm)
-    !Fills look-up HM_tables for sigma(R)
-    INTEGER :: i
-    TYPE(HM_cosmology) :: cosm
-    REAL(dl), ALLOCATABLE :: r(:), sig(:)
-    REAL(dl), PARAMETER :: rmin=rmin_sigma_interpolation
-    REAL(dl), PARAMETER :: rmax=rmax_sigma_interpolation
-    INTEGER, PARAMETER :: nsig=n_sigma_interpolation
-
-    !This fills up HM_tables of r vs. sigma(r) across a range in r!
-    !It is used only in look-up for further calculations of sigmac(r) and not otherwise!
+    SUBROUTINE fill_sigtab(this,cosm)
+    !This fills up HM_tables of r vs. sigma(r) across a range in r
+    !It is used only in look-up for further calculations of sigmac(r) and not otherwise
     !and prevents a large number of calls to the sigint functions
     !rmin and rmax need to be decided in advance and are chosen such that
     !R vs. sigma(R) is approximately power-law below and above these values of R
     !This wouldn't be appropriate for models with a small-scale linear spectrum cut-off (e.g., WDM)
+    INTEGER :: i
+    class(THalofit) :: this
+    TYPE(HM_cosmology) :: cosm
+    REAL(dl), ALLOCATABLE :: r(:), sig(:)
+    INTEGER :: itype
+    REAL(dl), PARAMETER :: rmin=rmin_sigma_interpolation
+    REAL(dl), PARAMETER :: rmax=rmax_sigma_interpolation
+    INTEGER, PARAMETER :: nsig=n_sigma_interpolation
+
+    ! Choose type of sigma(R) to tabulate depending on HMcode version
+    IF (this%imead==1 .OR. this%imead==3) THEN
+        itype=1 ! 1 - Cold matter
+    ELSE
+        itype=0 ! 0 - All matter
+    END IF
 
     !Allocate arrays
     IF(ALLOCATED(cosm%log_r_sigma)) DEALLOCATE(cosm%log_r_sigma)
@@ -1865,7 +1877,7 @@
         !Equally spaced r in log
         r(i)=exp(log(rmin)+log(rmax/rmin)*float(i-1)/float(nsig-1))
 
-        sig(i)=sigma(r(i),0.d0,1,cosm)
+        sig(i)=sigma_integral(r(i),0.d0,itype,cosm)
 
     END DO
     !$OMP END PARALLEL DO
@@ -1883,9 +1895,9 @@
 
     END SUBROUTINE fill_sigtab
 
-    FUNCTION sigmac(r,z,cosm)
+    FUNCTION sigma_lut(r,z,cosm)
     !Finds sigma_cold(R) from look-up table
-    REAL(dl) :: sigmac
+    REAL(dl) :: sigma_lut
     REAL(dl), INTENT(IN) :: r, z
     TYPE(HM_cosmology), INTENT(IN) :: cosm
     INTEGER, PARAMETER :: iorder=iorder_sigma_interpolation
@@ -1895,9 +1907,9 @@
     !Assumes scale-independet growth for the cold matter
     !Uses the approximation sigma(R,z)=g(z)*sigma(R,z=0)
 
-    sigmac=grow(z,cosm)*exp(find(log(r),cosm%log_r_sigma,cosm%log_sigma,cosm%nsig,iorder,ifind,imeth))
+    sigma_lut=grow(z,cosm)*exp(find(log(r),cosm%log_r_sigma,cosm%log_sigma,cosm%nsig,iorder,ifind,imeth))
 
-    END FUNCTION sigmac
+    END FUNCTION sigma_lut
 
     FUNCTION wk_tophat(x)
 
@@ -2055,9 +2067,9 @@
 
     END FUNCTION inttab
 
-    FUNCTION sigma(r,z,itype,cosm)
+    FUNCTION sigma_integral(r,z,itype,cosm)
     !Gets sigma(R)
-    REAL(dl) :: sigma
+    REAL(dl) :: sigma_integral
     REAL(dl), INTENT(IN) :: r, z
     INTEGER, INTENT(IN) :: itype
     TYPE(HM_cosmology), INTENT(IN) :: cosm
@@ -2067,9 +2079,9 @@
     INTEGER, PARAMETER :: iorder=iorder_sigma_integration
 
     !sigma=sqrt(sigint(r,z,itype,cosm,acc,iorder))
-    sigma=sqrt(integrate(tmin,tmax,sigma_integrand,r,z,itype,cosm,acc,iorder))
+    sigma_integral=sqrt(integrate(tmin,tmax,sigma_integrand,r,z,itype,cosm,acc,iorder))
 
-    END FUNCTION sigma
+    END FUNCTION sigma_integral
 
     FUNCTION sigma_integrand(t,R,z,itype,cosm)
 
