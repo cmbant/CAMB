@@ -1003,9 +1003,8 @@
     END SUBROUTINE assign_HM_cosmology
 
     SUBROUTINE initialise_HM_cosmology(this,iz,cosm,CAMB_PK)
-    !Sets up HM_tables of sigma, growth and linear power for the HM_cosmology
-    !AM: TODO: Store current growth factor, or make P(k) and sigma(R) at current z
     class(THalofit) :: this
+    !Sets up HM_tables of sigma, growth and linear power for the HM_cosmology 
     TYPE(MatterPowerData), INTENT(IN) :: CAMB_PK
     TYPE(HM_cosmology) :: cosm
     INTEGER, INTENT(IN) :: iz
@@ -1190,9 +1189,9 @@
     END FUNCTION radius_m
 
     FUNCTION neff(this,lut,cosm)
-    !Finds the effective spectral index at the collapse scale r_nl, where nu(r_nl)=1.
-    REAL(dl) :: neff
     class(THalofit) :: this
+    !Finds the effective spectral index at the collapse scale r_nl, where nu(r_nl)=1.
+    REAL(dl) :: neff  
     REAL(dl) :: ns
     TYPE(HM_cosmology), INTENT(IN) :: cosm
     TYPE(HM_tables), INTENT(IN) :: lut
@@ -1513,7 +1512,6 @@
     END FUNCTION find_pk
 
     FUNCTION p_lin(k,z,itype,cosm)
-
     !Looks up the value for the linear power spectrum
     REAL(dl) :: p_lin
     REAL(dl), INTENT (IN) :: k, z
@@ -1620,7 +1618,6 @@
     END FUNCTION p_1h
 
     REAL FUNCTION p_dewiggle(k, z, sigv, cosm)
-
     ! Call the dewiggled power spectrum, which is linear but with damped wiggles
     REAL(dl), INTENT(IN) :: k
     REAL(dl), INTENT(IN) :: z
@@ -1640,7 +1637,6 @@
     END FUNCTION p_dewiggle
 
     SUBROUTINE init_wiggle(cosm)
-
     ! Isolate the power spectrum wiggle
     TYPE(HM_cosmology), INTENT(INOUT) :: cosm
     REAL(dl), ALLOCATABLE :: k(:), Pk(:)
@@ -1699,7 +1695,6 @@
     END SUBROUTINE init_wiggle
 
     SUBROUTINE calculate_psmooth(k, z, Pk, Pk_smt, cosm)
-
     ! Calculate the normalised smoothed power spectrum at a range of k
     REAL(dl), INTENT(IN) :: k(:)
     REAL(dl), INTENT(IN) :: z
@@ -1724,7 +1719,6 @@
     END SUBROUTINE calculate_psmooth
 
     SUBROUTINE calculate_nowiggle(k, z, Pk, Pk_nw, cosm)
-
     ! Calculate the normalised no wiggle power spectrum at a range of k and a
     ! Comes from the Eisenstein & Hu approximation
     REAL(dl), INTENT(IN) :: k(:)
@@ -1758,7 +1752,6 @@
     END SUBROUTINE calculate_nowiggle
 
     REAL FUNCTION Pk_nowiggle(k, cosm)
-
     ! Calculates the un-normalised no-wiggle power spectrum 
     ! Comes from the Eisenstein & Hu approximation
     REAL(dl), INTENT(IN) :: k
@@ -1769,7 +1762,6 @@
     END FUNCTION Pk_nowiggle
 
     REAL FUNCTION Tk_nw(k, cosm)
-
     ! No-wiggle transfer function from Eisenstein & Hu: astro-ph:9709112
     REAL(dl), INTENT(IN) :: k ! Wavenumber [h/Mpc]
     TYPE(HM_cosmology), INTENT(IN) :: cosm
@@ -1796,7 +1788,6 @@
     END FUNCTION Tk_nw
 
     SUBROUTINE smooth_array_Gaussian(x, f, sigma)
-
     ! Smooth an array f(x) using a Gaussian kernel
     REAL(dl), INTENT(IN) :: x(:)    ! x coordinates
     REAL(dl), INTENT(INOUT) :: f(:) ! Array to smooth
@@ -1839,14 +1830,14 @@
     END SUBROUTINE smooth_array_Gaussian
 
     SUBROUTINE fill_sigtab(this,cosm)
+    class(THalofit) :: this
     !This fills up HM_tables of r vs. sigma(r) across a range in r
     !It is used only in look-up for further calculations of sigmac(r) and not otherwise
     !and prevents a large number of calls to the sigint functions
     !rmin and rmax need to be decided in advance and are chosen such that
     !R vs. sigma(R) is approximately power-law below and above these values of R
     !This wouldn't be appropriate for models with a small-scale linear spectrum cut-off (e.g., WDM)
-    INTEGER :: i
-    class(THalofit) :: this
+    INTEGER :: i   
     TYPE(HM_cosmology) :: cosm
     REAL(dl), ALLOCATABLE :: r(:), sig(:)
     INTEGER :: itype
@@ -1906,9 +1897,6 @@
     INTEGER, PARAMETER :: iorder=iorder_sigma_interpolation
     INTEGER, PARAMETER :: ifind=ifind_sigma_interpolation
     INTEGER, PARAMETER :: imeth=imeth_sigma_interpolation
-
-    !Assumes scale-independet growth for the cold matter
-    !Uses the approximation sigma(R,z)=g(z)*sigma(R,z=0)
 
     sigma_lut=grow(z,cosm)*exp(find(log(r),cosm%log_r_sigma,cosm%log_sigma,cosm%nsig,iorder,ifind,imeth))
 
@@ -2087,7 +2075,6 @@
     END FUNCTION sigma_integral
 
     FUNCTION sigma_integrand(t,R,z,itype,cosm)
-
     !The integrand for the sigma(R) integrals
     REAL(dl) :: sigma_integrand
     REAL(dl), INTENT(IN) :: t, R, z
@@ -2279,7 +2266,6 @@
     END FUNCTION gnu
 
     FUNCTION gst(nu)
-
     !Sheth & Tormen (1999) mass function!
     REAL(dl) :: gst
     REAL(dl), INTENT(IN) :: nu
@@ -2961,8 +2947,7 @@
 
     !These set the initial conditions to be the Om_m=1. growing mode
     !AM Jul 19: changed initial conditions to be appropriate for massive neutrino cosmologies
-    !dinit = ainit**(1.-3.*cosm%f_nu/5.)
-    !vinit = (1.-3.*cosm%f_nu/5.)*ainit**(-3.*cosm%f_nu/5.)
+    !AM Sep 20: reverted initial conditions to assume neutrinos cluster
     zinit = -1.+1./aini
     f = 1.-Omega_m_hm(zinit, cosm)
     dinit = aini**(1.-3.*f/5.)
@@ -2990,7 +2975,6 @@
     END DO
 
     ! Table integration to calculate G(a)=int_0^a g(a')/a' da'
-
     IF(ALLOCATED(cosm%agrow)) DEALLOCATE(cosm%agrow)
     ALLOCATE(cosm%agrow(n))
 
