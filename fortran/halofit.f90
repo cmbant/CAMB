@@ -164,8 +164,8 @@
 
     ! Linear growth factor tabulation and interpolation numerical parameters
     ! AM: TODO: Change finding scheme to assume linear spacing may save time
-    REAL(dl), PARAMETER :: ainit_growth_interpolation=1e-3 ! Initial scale factor for growth ODE
-    REAL(dl), PARAMETER :: amax_growth_interpolation=1.    ! Final scale factor for growth ODE
+    REAL(dl), PARAMETER :: amin_growth_interpolation=1e-3  ! Minimum scale factor for growth interpolation
+    REAL(dl), PARAMETER :: amax_growth_interpolation=1.    ! Maximum scale factor for growth interpolation
     INTEGER, PARAMETER :: n_growth_interpolation=64        ! Number of entries for growth look-up table
     INTEGER, PARAMETER :: iorder_growth_interpolation=3    ! Polynomial order for growth function interpolation
     INTEGER, PARAMETER :: ifind_growth_interpolation=3     ! Finding scheme for growth function interpolation
@@ -173,6 +173,9 @@
 
     ! Growth function ODE numerical parameters
     ! AM: Jul 19: Updated acc_growth_ODE from 1e-3 to 1e-4
+    ! AM: Sep 20: Changed aini from 1e-3 to 1e-4
+    REAL(dl), PARAMETER :: aini_growth_ODE=1e-4             ! Initial scale factor for growth ODE
+    REAL(dl), PARAMETER :: afin_growth_ODE=1.               ! Final scale factor for growth ODE
     REAL(dl), PARAMETER :: acc_growth_ODE=1e-4              ! Accuracy for growth integral or ODE
     INTEGER, PARAMETER :: imeth_growth_ODE=3                ! Method for growth function ODE solving
     INTEGER, PARAMETER :: iorder_growth_ODE_interpolation=3 ! Polynomial order for growth function ODE interpolation
@@ -1253,7 +1256,7 @@
         ginf_wcdm=grow(zinf,cosm)
 
         !Make a LCDM HM_cosmology
-        !Only need to make sure model is flat with the same Omega_m and w=-1
+        !Need to make sure model is flat with the same Omega_m and w=-1
         !This is *only* used for a calculation of the growth function
         cosm_lcdm=cosm
         DEALLOCATE(cosm_lcdm%growth)
@@ -2942,8 +2945,12 @@
     REAL(dl) :: a
     REAL(dl), ALLOCATABLE :: d_tab(:), v_tab(:), a_tab(:)
     REAL(dl) :: dinit, vinit, zinit, f
-    REAL(dl), PARAMETER :: ainit=ainit_growth_interpolation
+    REAL(dl), PARAMETER :: aini=aini_growth_ODE
+    REAL(dl), PARAMETER :: afin=afin_growth_ODE
+    REAL(dl), PARAMETER :: amin=amin_growth_interpolation
     REAL(dl), PARAMETER :: amax=amax_growth_interpolation
+    !REAL(dl), PARAMETER :: ainit=ainit_growth_interpolation
+    !REAL(dl), PARAMETER :: amax=amax_growth_interpolation
     INTEGER, PARAMETER :: n=n_growth_interpolation
     REAL(dl), PARAMETER :: acc_ODE=acc_growth_ODE
     INTEGER, PARAMETER :: imeth_ODE=imeth_growth_ODE
@@ -2956,13 +2963,13 @@
     !AM Jul 19: changed initial conditions to be appropriate for massive neutrino cosmologies
     !dinit = ainit**(1.-3.*cosm%f_nu/5.)
     !vinit = (1.-3.*cosm%f_nu/5.)*ainit**(-3.*cosm%f_nu/5.)
-    zinit = -1.+1./ainit
+    zinit = -1.+1./aini
     f = 1.-Omega_m_hm(zinit, cosm)
-    dinit = ainit**(1.-3.*f/5.)
-    vinit = (1.-3.*f/5.)*ainit**(-3.*f/5.)
+    dinit = aini**(1.-3.*f/5.)
+    vinit = (1.-3.*f/5.)*aini**(-3.*f/5.)
 
     IF(HM_verbose) WRITE(*,*) 'GROWTH: Solving growth equation'
-    CALL ode_growth(d_tab,v_tab,a_tab,ainit,amax,dinit,vinit,acc_ODE,imeth_ODE,cosm)
+    CALL ode_growth(d_tab,v_tab,a_tab,aini,afin,dinit,vinit,acc_ODE,imeth_ODE,cosm)
     IF(HM_verbose) WRITE(*,*) 'GROWTH: ODE done'
 
     !Normalise so that g(z=0)=1
@@ -2977,7 +2984,7 @@
     cosm%ng=n
     ALLOCATE(cosm%a_growth(n),cosm%growth(n))
     DO i=1,n
-        a=ainit+(amax-ainit)*(i-1)/real(n-1,dl)
+        a=amin+(amax-amin)*(i-1)/real(n-1,dl)
         cosm%a_growth(i)=a
         cosm%growth(i)=find(a,a_tab,d_tab,SIZE(a_tab),iorder_int,ifind_int,imeth_int)
     END DO
@@ -2998,6 +3005,7 @@
        cosm%agrow(i) = cosm%agrow(i)+cosm%gnorm*cosm%growth(1)
     END DO
 
+    IF(HM_verbose) WRITE(*,*) 'GROWTH: Accumulated G(a=1):', cosm%agrow(n)
     IF(HM_verbose) WRITE(*,*) 'GROWTH: Done'
     IF(HM_verbose) WRITE(*,*)
 
@@ -3180,7 +3188,6 @@
     REAL(dl), INTENT(IN) :: z
     TYPE(HM_cosmology), INTENT(IN) :: cosm
     REAL(dl) :: lg, bG, Om_m, ai, a
-    !TYPE(HM_cosmology) :: cosm_LCDM
 
     ! See Appendix A of Mead (2017) for naming convention
     REAL(dl), PARAMETER :: p10 = -0.0069
@@ -3216,7 +3223,6 @@
     REAL(dl), INTENT(IN) :: z
     TYPE(HM_cosmology), INTENT(IN) :: cosm
     REAL(dl) :: lg, bG, Om_m, a
-    !TYPE(HM_cosmology) :: cosm_LCDM
 
     ! See Appendix A of Mead (2017) for naming convention
     REAL(dl), PARAMETER :: p30 = -0.79
