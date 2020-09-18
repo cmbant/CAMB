@@ -54,7 +54,7 @@
     implicit none
     private
 
-    integer, parameter :: halofit_original = 1, halofit_bird=2, halofit_peacock=3, halofit_takahashi=4
+    integer, parameter :: halofit_original=1, halofit_bird=2, halofit_peacock=3, halofit_takahashi=4
     integer, parameter :: halofit_casarini=7
     integer, parameter :: halofit_mead2016=5, halofit_halomodel=6, halofit_mead2015=8, halofit_mead2020=9
     integer, parameter :: halofit_mead=halofit_mead2016 ! AM Kept for backwards compatability
@@ -203,7 +203,8 @@
 
     ! HMcode numerical parameters for sigma(R) integration (dominates run time as of Jul 2019)
     ! AM: Jul 19: Upgraded acc_sigma from 1e-3 to 3e-4
-    REAL(dl), PARAMETER :: acc_sigma_integration=3e-4 ! Relative accuracy of numerical integration
+    ! AM: Sep 20: Upgraded acc_sigma from 3e-4 to 1e-4 to fix problems for some cosmologies
+    REAL(dl), PARAMETER :: acc_sigma_integration=1e-4 ! Relative accuracy of numerical integration
     REAL(dl), PARAMETER :: alpha_sigma_integration=3. ! Exponent to speed up integration
     INTEGER, PARAMETER :: iorder_sigma_integration=3  ! Polynomail order for numerical integration
 
@@ -221,6 +222,9 @@
     ! HMcode numerical parameters for cold transfer function approximation
     ! AM: Sep 20: Care here, before EdS_Tcold_growth=.TRUE.
     LOGICAL, PARAMETER :: EdS_Tcold_growth=.FALSE. ! Should the EdS growth function (incorrectly) be used?
+
+    ! HMcode numerical parameters for one-halo term
+    INTEGER, PARAMETER :: iorder_integration_1h=1 ! Should be linear order (i.e., trapezium rule)
 
     contains
 
@@ -1573,6 +1577,7 @@
     REAL(dl) :: sum
     INTEGER :: i
     REAL(dl), PARAMETER :: pi=pi_HM
+    INTEGER, PARAMETER :: iorder=iorder_integration_1h
 
     !Does the one-halo power integral
 
@@ -1582,20 +1587,17 @@
     !Calculates the value of the integrand at all nu values!
     DO i=1,lut%n
         g=gnu(lut%nu(i))
-        wk=win(k*(lut%nu(i)**et),lut%rv(i),lut%c(i))
-        integrand(i)=(lut%rv(i)**3.)*g*(wk**2.)
+        wk=win(k*lut%nu(i)**et,lut%rv(i),lut%c(i))
+        integrand(i)=g*(wk**2)*lut%m(i)
     END DO
 
     IF(this%imead==3) integrand=integrand*(1.-cosm%f_nu)**2
 
     !Carries out the integration
-    sum=inttab(lut%nu,integrand,1,lut%n,1)
+    sum=inttab(lut%nu,integrand,1,lut%n,iorder)/cosmic_density(cosm)
 
-    !Virial density
-    Dv=this%Delta_v(z,cosm)
-
-    !These are just numerical factors from the 1-halo integral in terms of nu!
-    p_1h=sum*2.*Dv*(k**3.)/(3.*pi)
+    !Numerical factors to convert from P(k) to Delta^2(k)
+    p_1h=sum*k**3/(2.*pi**2)
  
     IF(this%imead==1 .OR. this%imead==2) THEN
         !Damping of the 1-halo term at very large scales
@@ -2069,7 +2071,6 @@
     REAL(dl), PARAMETER :: acc=acc_sigma_integration
     INTEGER, PARAMETER :: iorder=iorder_sigma_integration
 
-    !sigma=sqrt(sigint(r,z,itype,cosm,acc,iorder))
     sigma_integral=sqrt(integrate(tmin,tmax,sigma_integrand,r,z,itype,cosm,acc,iorder))
 
     END FUNCTION sigma_integral
@@ -2218,7 +2219,7 @@
     END FUNCTION win
 
     FUNCTION winnfw(k,rv,c)
-    !The analytic Fourier Transform of the NFW profile
+    !The analytic Fourier Transform of the NFW profile; note  W(k->0)=1
     REAL(dl) :: winnfw
     REAL(dl), INTENT(IN) :: k, rv, c
     REAL(dl) :: si1, si2, ci1, ci2, ks
@@ -2469,9 +2470,10 @@
     REAL(dl) :: Si
     REAL(dl), INTENT(IN) :: x
     REAL(dl) :: x2, y, f, g, si8
+    REAL(dl), PARAMETER :: x0=4. ! Transition between two different approximations
 
     !Expansions for high and low x thieved from Wikipedia, two different expansions for above and below 4.
-    IF(ABS(x)<=4) THEN
+    IF(ABS(x)<=x0) THEN
 
         x2=x*x
 
@@ -2484,7 +2486,7 @@
 
         Si=si8
 
-    ELSE IF(ABS(x)>4) THEN
+    ELSE IF(ABS(x)>x0) THEN
 
         y=1.d0/(x*x)
 
@@ -2520,9 +2522,10 @@
     REAL(dl), INTENT(IN) :: x
     REAL(dl) :: x2, y, f, g, ci8
     REAL(dl), PARAMETER :: em_const=0.577215664901532861d0
+    REAL(dl), PARAMETER :: x0=4. ! Transition between two different approximations
 
     !Expansions for high and low x thieved from Wikipedia, two different expansions for above and below 4.
-    IF(ABS(x)<=4) THEN
+    IF(ABS(x)<=x0) THEN
 
         x2=x*x
 
@@ -2534,7 +2537,7 @@
 
         Ci=ci8
 
-    ELSE IF(ABS(x)>4) THEN
+    ELSE IF(ABS(x)>x0) THEN
 
         y=1./(x*x)
 
@@ -2947,7 +2950,7 @@
 
     !These set the initial conditions to be the Om_m=1. growing mode
     !AM Jul 19: changed initial conditions to be appropriate for massive neutrino cosmologies
-    !AM Sep 20: reverted initial conditions to assume neutrinos cluster
+    !AM Sep 20: changed initial conditions to assume neutrinos cluster, but changed to take into account EDE
     zinit = -1.+1./aini
     f = 1.-Omega_m_hm(zinit, cosm)
     dinit = aini**(1.-3.*f/5.)
