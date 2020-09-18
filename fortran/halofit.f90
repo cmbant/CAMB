@@ -151,7 +151,6 @@
     INTEGER, PARAMETER :: iorder_wiggle=3  ! Order for wiggle interpolation
     INTEGER, PARAMETER :: ifind_wiggle=3   ! 3 - Mid-point finding scheme for wiggle interpolation
     INTEGER, PARAMETER :: imeth_wiggle=2   ! 2- Lagrange polynomial interpolation
-    REAL, PARAMETER :: wiggle_dx=0.20      ! Smoothing half-width if using top-hat smoothing
     REAL, PARAMETER :: wiggle_sigma=0.25   ! Smoothing width if using Gaussian smoothing 
     REAL, PARAMETER :: knorm_nowiggle=0.03 ! Wavenumber at which to force linear and nowiggle to be identical [Mpc/h] 
 
@@ -589,7 +588,7 @@
         if (global_error_flag/=0) return
 
         !Loop over k values and calculate P(k)
-        !$OMP PARALLEL DO DEFAULT(SHARED), private(k,plin, pfull,p1h,p2h)
+        !$OMP PARALLEL DO DEFAULT(SHARED), private(k,plin,pfull,p1h,p2h)
         DO i=1,nk
             k=exp(CAMB_Pk%log_kh(i))
             plin=p_lin(k,z,0,cosi)
@@ -1020,7 +1019,7 @@
     CALL fill_sigtab(this,cosm)
 
     ! Extract BAO wiggle from P(k)
-    ! AM: TODO: Move this so that it is not done every z
+    ! AM: TODO: Maybe move this so that it is not done every z
     CALL init_wiggle(cosm)
 
     END SUBROUTINE initialise_HM_cosmology
@@ -1625,14 +1624,19 @@
     REAL(dl), INTENT(IN) :: z
     REAL(dl), INTENT(IN) :: sigv
     TYPE(HM_cosmology), INTENT(IN) :: cosm
-    REAL(dl) :: p_wiggle, f, p_linear
+    REAL(dl) :: p_wiggle, f, p_linear, logk
     INTEGER, PARAMETER :: itype = 0 ! Matter power here
     INTEGER, PARAMETER :: iorder = iorder_wiggle
     INTEGER, PARAMETER :: ifind = ifind_wiggle
     INTEGER, PARAMETER :: imeth = imeth_wiggle
  
-    p_linear = p_lin(k, z, itype, cosm) 
-    p_wiggle = find(log(k), cosm%log_k_wiggle, cosm%pk_wiggle, nk_wiggle, iorder, ifind, imeth)
+    p_linear = p_lin(k, z, itype, cosm)
+    logk = log(k)
+    IF (logk < cosm%log_k_wiggle(1) .OR. logk > cosm%log_k_wiggle(nk_wiggle)) THEN
+        p_wiggle = 0.
+    ELSE
+        p_wiggle = find(log(k), cosm%log_k_wiggle, cosm%pk_wiggle, nk_wiggle, iorder, ifind, imeth)
+    END IF
     f = exp(-(k*sigv)**2)
     p_dewiggle = p_linear+(f-1.)*p_wiggle*grow(z, cosm)**2
 
@@ -1705,7 +1709,6 @@
     REAL(dl), ALLOCATABLE :: Pk_nw(:)
     TYPE(HM_cosmology), INTENT(IN) :: cosm
     INTEGER :: ia, na
-    REAL(dl), PARAMETER :: dx = wiggle_dx
     REAL(dl), PARAMETER :: sig = wiggle_sigma
 
     ! Reduce dynamic range
