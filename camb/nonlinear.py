@@ -37,9 +37,9 @@ class Halofit(NonLinearModel):
     """
     _fields_ = [
         ("halofit_version", c_int, {"names": halofit_version_names, "start": 1}),
-        ("HMcode_A_baryon", c_double, "HMcode parameter A_baryon"),
-        ("HMcode_eta_baryon", c_double, "HMcode parameter eta_baryon"),
-        ("HMcode_logT_AGN", c_double, "HMcode parameter log10(T_AGN/K)")
+        ("HMCode_A_baryon", c_double, "HMcode parameter A_baryon"),
+        ("HMCode_eta_baryon", c_double, "HMcode parameter eta_baryon"),
+        ("HMCode_logT_AGN", c_double, "HMcode parameter log10(T_AGN/K)")
     ]
 
     _fortran_class_module_ = 'NonLinear'
@@ -48,7 +48,7 @@ class Halofit(NonLinearModel):
     def get_halofit_version(self):
         return self.halofit_version
 
-    def set_params(self, halofit_version=halofit_default, HMcode_A_baryon=3.13, HMcode_eta_baryon=0.603, HMcode_logT_AGN=7.8):
+    def set_params(self, halofit_version=halofit_default, HMCode_A_baryon=3.13, HMCode_eta_baryon=0.603, HMCode_logT_AGN=7.8):
         """
         Set the halofit model for non-linear corrections.
 
@@ -69,9 +69,9 @@ class Halofit(NonLinearModel):
         :param HMcode_eta_baryon: HMcode parameter logT_AGN. Default 7.8.
         """
         self.halofit_version = halofit_version
-        self.HMcode_A_baryon = HMcode_A_baryon
-        self.HMcode_eta_baryon = HMcode_eta_baryon
-        self.HMcode_logT_AGN = HMcode_logT_AGN
+        self.HMCode_A_baryon = HMCode_A_baryon
+        self.HMCode_eta_baryon = HMCode_eta_baryon
+        self.HMCode_logT_AGN = HMCode_logT_AGN
 
 
 @fortran_class

@@ -88,7 +88,7 @@ class CambTest(unittest.TestCase):
         self.assertTrue(len(pars.SourceWindows) == 0)
         params = camb.get_valid_numerical_params()
         self.assertEqual(params, {'ombh2', 'deltazrei', 'omnuh2', 'tau', 'omk', 'zrei', 'thetastar', 'nrunrun',
-                                  'meffsterile', 'nnu', 'ntrun', 'HMCode_A_baryon', 'HMCode_eta_baryon',
+                                  'meffsterile', 'nnu', 'ntrun', 'HMCode_A_baryon', 'HMCode_eta_baryon', 'HMCode_logT_AGN',
                                   'cosmomc_theta', 'YHe', 'wa', 'cs2', 'H0', 'mnu', 'Alens', 'TCMB', 'ns',
                                   'nrun', 'As', 'nt', 'r', 'w', 'omch2'})
         params2 = camb.get_valid_numerical_params(dark_energy_model='AxionEffectiveFluid')
