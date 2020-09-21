@@ -57,6 +57,7 @@
     integer, parameter :: halofit_original=1, halofit_bird=2, halofit_peacock=3, halofit_takahashi=4
     integer, parameter :: halofit_casarini=7
     integer, parameter :: halofit_mead2016=5, halofit_halomodel=6, halofit_mead2015=8, halofit_mead2020=9
+    integer, parameter :: halofit_mead2020_feedback=10
     integer, parameter :: halofit_mead=halofit_mead2016 ! AM Kept for backwards compatability
     integer, parameter :: halofit_default=halofit_mead2016
 
@@ -65,8 +66,9 @@
     type, extends(TNonLinearModel) :: THalofit
         integer :: halofit_version = halofit_default
         !!TT - These are the baryon parameters of HMCode
-        real(dl) :: HMCode_A_baryon=3.13_dl
-        real(dl) :: HMCode_eta_baryon=0.603_dl
+        real(dl) :: HMcode_A_baryon=3.13_dl
+        real(dl) :: HMcode_eta_baryon=0.603_dl
+        real(dl) :: HMcode_logT_AGN=7.8_dl
         !!AM - Added these types for HMcode
         integer, private :: imead !!AM - added these for HMcode, need to be visible to all subroutines and functions
         real(dl), private :: om_m,om_v,fnu,omm0, acur, w_hf, wa_hf
@@ -97,6 +99,7 @@
     public THalofit, HM_verbose
     public halofit_default, halofit_original, halofit_bird, halofit_peacock, halofit_takahashi
     public halofit_mead2016, halofit_mead2015, halofit_mead2020, halofit_halomodel, halofit_casarini
+    public halofit_mead2020_feedback
     public halofit_mead ! AM for backwards compatability
 
     TYPE HM_cosmology
@@ -113,6 +116,7 @@
         !AM - Added feedback parameters below at fixed fiducial (DMONLY) values
         REAL(dl) :: A_baryon=3.13
         REAL(dl) :: eta_baryon=0.603
+        REAL(dl) :: logT_AGN=7.8
     END TYPE HM_cosmology
 
     TYPE HM_tables
@@ -251,6 +255,9 @@
     class(TIniFile), intent(in) :: Ini
 
     this%halofit_version = Ini%Read_Int('halofit_version', halofit_default)
+    IF(this%halofit_version == halofit_mead2020_feedback) THEN
+        this%HMcode_logT_AGN = Ini%Read_Double('HMcode_logT_AGN', 7.8_dl)
+    END IF
 
     end subroutine THalofit_ReadParams
 
@@ -273,8 +280,11 @@
     class is (CAMBdata)
         associate(Params => State%CP)
 
-            IF(this%halofit_version==halofit_mead2016 .OR. this%halofit_version==halofit_halomodel &
-                .OR.  this%halofit_version==halofit_mead2015 .OR. this%halofit_version==halofit_mead2020) THEN
+            IF(this%halofit_version==halofit_mead2016 .OR. &
+                this%halofit_version==halofit_halomodel .OR. &
+                this%halofit_version==halofit_mead2015 .OR. &
+                this%halofit_version==halofit_mead2020 .OR. &
+                this%halofit_version==halofit_mead2020_feedback) THEN
                 CALL this%HMcode(State,CAMB_Pk)
             ELSE
 
@@ -531,7 +541,8 @@
     TYPE(MatterPowerData) :: CAMB_Pk
     REAL(dl) :: z, k
     REAL(dl) :: p1h, p2h, pfull, plin
-    INTEGER :: i, j, nk, nz
+    REAL(dl), ALLOCATABLE :: p_den(:,:), p_num(:,:)
+    INTEGER :: i, j, ii, nk, nz
     TYPE(HM_cosmology) :: cosi
     TYPE(HM_tables) :: lut
     REAL(dl), PARAMETER :: pi=pi_HM
@@ -547,6 +558,8 @@
     !1 - Accurate from Mead et al. (2016; arXiv 1602.02154)
     !2 - Accurate from Mead et al. (2015; arXiv 1505.07833)
     !3 - Accurate from Mead et al. (2020; arXiv 2009.01858)
+    !4 - Denominator for feedback reaction model from Mead et al. (2020; arXiv 2009.01858)
+    !5 - Numerator for feedback reaction from Mead et al. (2020; arXiv 2009.01858)
     IF(this%halofit_version==halofit_halomodel) this%imead=0
     IF(this%halofit_version==halofit_mead2016) this%imead=1
     IF(this%halofit_version==halofit_mead2015) this%imead=2
@@ -561,10 +574,9 @@
     !!AM - Translate from CAMB variables to my variables
     nz=CAMB_PK%num_z
     nk=CAMB_PK%num_k
-
-    !!TT - Assign baryon parameters
-    cosi%A_baryon = this%HMCode_A_baryon
-    cosi%eta_baryon = this%HMCode_eta_baryon
+    IF(this%halofit_version==halofit_mead2020_feedback) THEN
+        ALLOCATE(p_den(nk,nz), p_num(nk,nz))
+    END IF
 
     !!AM - Assign cosmological parameters for the halo model calculation
     CALL assign_HM_cosmology(this,State,cosi)
@@ -583,21 +595,61 @@
         !Sets the current redshift from the table
         z=CAMB_Pk%Redshifts(j)
 
-        !Initiliasation for the halomodel calcualtion (needs to be done for each z)
-        CALL this%halomod_init(z,lut,cosi)
-        if (global_error_flag/=0) return
+        IF(this%halofit_version==halofit_mead2020_feedback) THEN
 
-        !Loop over k values and calculate P(k)
-        !$OMP PARALLEL DO DEFAULT(SHARED), private(k,plin,pfull,p1h,p2h)
-        DO i=1,nk
-            k=exp(CAMB_Pk%log_kh(i))
-            plin=p_lin(k,z,0,cosi)
-            CALL this%halomod(k,z,p1h,p2h,pfull,plin,lut,cosi)
-            CAMB_Pk%nonlin_ratio(i,j)=sqrt(pfull/plin)
-        END DO
-        !$OMP END PARALLEL DO
+            ! Loop over numerator, denominator and HMcode to make feedback response model
+            DO ii = 1, 3
+
+                IF(ii==1) this%imead=3 ! HMcode 2020
+                IF(ii==2) this%imead=4 ! Denominator for response
+                IF(ii==3) this%imead=5 ! Numerator for response
+
+                !Initiliasation for the halomodel calculation (needs to be done for each z)
+                CALL this%halomod_init(z,lut,cosi)
+                if (global_error_flag/=0) return
+
+                !Loop over k values and calculate P(k)
+                !$OMP PARALLEL DO DEFAULT(SHARED), private(k,plin,pfull,p1h,p2h)
+                DO i=1,nk
+                    k=exp(CAMB_Pk%log_kh(i))
+                    plin=p_lin(k,z,0,cosi)
+                    CALL this%halomod(k,z,p1h,p2h,pfull,plin,lut,cosi)
+                    IF(this%imead==3) THEN
+                        CAMB_Pk%nonlin_ratio(i,j)=sqrt(pfull/plin)               
+                    ELSE IF(this%imead==4) THEN
+                        p_den(i,j)=pfull                 
+                    ELSE IF(this%imead==5) THEN
+                        p_num(i,j)=pfull
+                    END IF
+                END DO
+                !$OMP END PARALLEL DO
+
+            END DO
+
+        ELSE
+
+            !Initiliasation for the halomodel calculation (needs to be done for each z)
+            CALL this%halomod_init(z,lut,cosi)
+            if (global_error_flag/=0) return
+
+            !Loop over k values and calculate P(k)
+            !$OMP PARALLEL DO DEFAULT(SHARED), private(k,plin,pfull,p1h,p2h)
+            DO i=1,nk
+                k=exp(CAMB_Pk%log_kh(i))
+                plin=p_lin(k,z,0,cosi)
+                CALL this%halomod(k,z,p1h,p2h,pfull,plin,lut,cosi)
+                CAMB_Pk%nonlin_ratio(i,j)=sqrt(pfull/plin)
+            END DO
+            !$OMP END PARALLEL DO
+
+        END IF
 
     END DO
+
+    ! Make the non-linear correction from the response for HMcode 2020
+    IF(this%halofit_version==halofit_mead2020_feedback) THEN
+        CAMB_Pk%nonlin_ratio=CAMB_Pk%nonlin_ratio*sqrt(p_num/p_den)
+    END IF
 
     END SUBROUTINE HMcode
 
@@ -608,15 +660,12 @@
     REAL(dl), INTENT(IN) :: z
     TYPE(HM_cosmology), INTENT(IN) :: cosm
 
-    IF(this%imead==0) THEN
-        !Value that is normally used in halo model predictions
-        Delta_v=200
-    ELSE IF(this%imead==1 .OR. this%imead==2) THEN
+    IF(this%imead==1 .OR. this%imead==2) THEN
         !Mead et al. (2015; arXiv 1505.07833) value
         Delta_v=418*Omega_m_hm(z,cosm)**(-0.352_dl)
         !Mead et al. (2016; arXiv 1602.02154) neutrino addition
         IF(this%imead==1) Delta_v=Delta_v*(1+0.916_dl*cosm%f_nu)
-    ELSE IF(this%imead==3) THEN
+    ELSE IF(this%imead==0 .OR. this%imead==3 .OR. this%imead==4 .OR. this%imead==5) THEN
         Delta_v=Dv_Mead(z, cosm)
     END IF
 
@@ -630,16 +679,14 @@
     TYPE(HM_cosmology), INTENT(IN) :: cosm
     TYPE(HM_tables), INTENT(IN) :: lut
 
-    IF(this%imead==0) THEN
-        delta_c=1.686
-    ELSE IF(this%imead==1 .or. this%imead==2) THEN
+    IF(this%imead==1 .or. this%imead==2) THEN
         !Mead et al. (2015; arXiv 1505.07833) value
         delta_c=1.59+0.0314*log(lut%sig8z)
         IF(this%imead==1) THEN
             delta_c=delta_c*(1.+0.262*cosm%f_nu) !Mead et al. (2016; arXiv 1602.02154) neutrino addition
             delta_c=delta_c*(1.+0.0123*log10(Omega_m_hm(z,cosm))) !Nakamura & Suto (1997) fitting formula for LCDM
         END IF
-    ELSE IF(this%imead==3) THEN
+    ELSE IF(this%imead==0 .OR. this%imead==3 .OR. this%imead==4 .OR. this%imead==5) THEN
         delta_c=dc_Mead(z, cosm)
     END IF    
 
@@ -653,15 +700,15 @@
     TYPE(HM_tables), INTENT(IN) :: lut
     REAL(dl) :: eta0
 
-    IF(this%imead==0) THEN
+    IF(this%imead==0 .OR. this%imead==4 .OR. this%imead==5) THEN
         eta=0.
     ELSE IF(this%imead==1 .or. this%imead==2) THEN
         !The first parameter here is 'eta_0' in Mead et al. (2015; arXiv 1505.07833)
         !eta=0.603-0.3*lut%sig8z
         !AM - made baryon feedback parameter obvious
         eta0=cosm%eta_baryon
-        !eta0=1.03-0.11*cosm%A_baryon !This is the original one-parameter relation from 1505.07833
-        !eta0=0.98-0.12*cosm%A_baryon !This is an updated one-parameter relation: Section 4.1.2 of 1707.06627
+        !eta0=1.03-0.11*cosm%A_baryon !Original one-parameter relation from 1505.07833
+        !eta0=0.98-0.12*cosm%A_baryon !Updated one-parameter relation: Section 4.1.2 of 1707.06627
         eta=eta0-0.3*lut%sig8z
     ELSE IF(this%imead==3) THEN
         eta=0.128*lut%sig8z_cold**(-0.36)
@@ -675,7 +722,7 @@
     REAL(dl) :: kstar
     TYPE(HM_tables), INTENT(IN) :: lut
 
-    IF(this%imead==0) THEN
+    IF(this%imead==0 .OR. this%imead==4 .OR. this%imead==5) THEN
         !Set to zero for the standard Poisson one-halo term
         kstar=0.
     ELSE IF(this%imead==1 .or. this%imead==2) THEN
@@ -688,15 +735,22 @@
 
     END FUNCTION kstar
 
-    FUNCTION As(this,cosm)
+    FUNCTION As(this,lut,cosm)
     class(THalofit) :: this
     !Halo concentration pre-factor from Bullock et al. (2001) relation
-    REAL(dl) :: As
+    TYPE(HM_tables), INTENT(IN) :: lut
     TYPE(HM_cosmology), INTENT(IN) :: cosm
+    REAL(dl) :: As
+    REAL(dl) :: B0, Bz, theta
 
-    IF(this%imead==0) THEN
+    IF(this%imead==0 .OR. this%imead==4) THEN
         !Set to 4 for the standard Bullock value
         As=4.
+    ELSE IF(this%imead==5) THEN
+        theta=cosm%logT_AGN-7.8
+        B0=3.44-0.496*theta
+        Bz=-0.0671-0.0371*theta
+        As=B0*10**(lut%z*Bz)
     ELSE IF(this%imead==1 .or. this%imead==2) THEN
         !This is the 'A' halo-concentration parameter in Mead et al. (2015; arXiv 1505.07833)
         !As=3.13
@@ -715,7 +769,7 @@
     TYPE(HM_tables), INTENT(IN) :: lut
 
     !Linear theory damping factor
-    IF(this%imead==0) THEN
+    IF(this%imead==0 .OR. this%imead==4 .OR. this%imead==5) THEN
         !Set to 0 for the standard linear theory two halo term
         fdamp=0.
     ELSE IF(this%imead==1) THEN
@@ -740,7 +794,7 @@
     REAL(dl) :: alpha
     TYPE(HM_tables), INTENT(IN) :: lut
 
-    IF(this%imead==0) THEN
+    IF(this%imead==0 .OR. this%imead==4 .OR. this%imead==5) THEN
         !Set to 1 for the standard halomodel sum of one- and two-halo terms
         alpha=1.
     ELSE IF(this%imead==1) THEN
@@ -797,8 +851,12 @@
         p2h=this%p_2h(k,plin,lut,cosm)
     END IF
 
-    a=this%alpha(lut)
-    pfull=(p2h**a+p1h**a)**(1./a)
+    IF (this%imead==1 .OR. this%imead==2 .OR. this%imead==3) THEN
+        a=this%alpha(lut)
+        pfull=(p2h**a+p1h**a)**(1./a)
+    ELSE
+        pfull=p2h+p1h
+    END IF
 
     END SUBROUTINE halomod
 
@@ -986,6 +1044,14 @@
         cosm%ns= CP%InitPower%Effective_ns()
     end associate
 
+    ! Baryon feedback parameters
+    IF(this%halofit_version==halofit_mead2015 .OR. this%halofit_version==halofit_mead2016)  THEN
+        cosm%A_baryon = this%HMcode_A_baryon
+        cosm%eta_baryon = this%HMcode_eta_baryon
+    ELSE IF(this%halofit_version==halofit_mead2020_feedback) THEN
+        cosm%logT_AGN = this%HMcode_logT_AGN
+    END IF
+
     !Write out cosmological parameters if necessary
     IF(HM_verbose) WRITE(*,*) 'HM_cosmology: Om_m:', cosm%om_m
     IF(HM_verbose) WRITE(*,*) 'HM_cosmology: Om_c:', cosm%om_c
@@ -999,8 +1065,12 @@
     IF(HM_verbose) WRITE(*,*) 'HM_cosmology: h:', cosm%h
     IF(HM_verbose) WRITE(*,*) 'HM_cosmology: T_CMB [K]:', cosm%Tcmb
     IF(HM_verbose) WRITE(*,*) 'HM_cosmology: N_nu (massive):', cosm%Nnu
-    IF(HM_verbose .AND. this%imead==2) WRITE(*,*) 'HM_cosmology: A_baryon:', cosm%A_baryon
-    IF(HM_verbose .AND. this%imead==2) WRITE(*,*) 'HM_cosmology: eta_baryon:', cosm%eta_baryon
+    IF(HM_verbose .AND. (this%halofit_version==halofit_mead2015 .OR. this%halofit_version==halofit_mead2016)) THEN
+        WRITE(*,*) 'HM_cosmology: A_baryon:', cosm%A_baryon
+        WRITE(*,*) 'HM_cosmology: eta_baryon:', cosm%eta_baryon
+    ELSE IF(HM_verbose .AND. this%halofit_version==halofit_mead2020_feedback) THEN
+        WRITE(*,*) 'HM_cosmology: log10(T_AGN/K):', cosm%logT_AGN
+    END IF
     IF(HM_verbose) WRITE(*,*)
 
     END SUBROUTINE assign_HM_cosmology
@@ -1065,7 +1135,7 @@
         mmin=1e0
         mmax=1e18
         nm=256
-    ELSE IF (this%imead==3) THEN
+    ELSE IF (this%imead==3 .OR. this%imead==4 .OR. this%imead==5) THEN
         mmin=1e7
         mmax=1e17
         nm=128
@@ -1172,7 +1242,7 @@
     IF(HM_verbose) WRITE(*,fmt='(A10,F10.5)') 'dc:', this%delta_c(z,lut,cosm)
     IF(HM_verbose) WRITE(*,fmt='(A10,F10.5)') 'eta:', this%eta(lut,cosm)
     IF(HM_verbose) WRITE(*,fmt='(A10,F10.5)') 'k*:', this%kstar(lut)
-    IF(HM_verbose) WRITE(*,fmt='(A10,F10.5)') 'A:', this%As(cosm)
+    IF(HM_verbose) WRITE(*,fmt='(A10,F10.5)') 'A:', this%As(lut,cosm)
     IF(HM_verbose) WRITE(*,fmt='(A10,F10.5)') 'fdamp:', this%fdamp(lut)
     IF(HM_verbose) WRITE(*,fmt='(A10,F10.5)') 'alpha:', this%alpha(lut)
     IF(HM_verbose) WRITE(*,*) '=================================='
@@ -1206,7 +1276,7 @@
     INTEGER, PARAMETER :: iorder=iorder_neff_integration
 
     ! Choose type of sigma(R) to tabulate depending on HMcode version
-    IF (this%imead==1 .OR. this%imead==3) THEN
+    IF (this%imead==1 .OR. this%imead==3 .OR. this%imead==4 .OR. this%imead==5) THEN
         itype=1 ! 1 - Cold matter
     ELSE
         itype=0 ! 0 - All matter
@@ -1239,7 +1309,7 @@
     REAL(dl), PARAMETER :: zinf=zc_Dolag
 
     !Amplitude of relation (4. in Bullock et al. 2001)
-    A=this%As(cosm)
+    A=this%As(lut,cosm)
 
     !Fill the collapse time look-up table
     CALL this%zcoll_bull(z,cosm,lut)
@@ -1271,7 +1341,7 @@
         ginf_lcdm=growint(zinf,cosm_lcdm)
 
         !This is the Dolag et al. (2004) correction for halo concentrations
-        IF(this%imead==0 .OR. this%imead==2 .OR. this%imead==3) THEN
+        IF(this%imead==0 .OR. this%imead==2 .OR. this%imead==3 .OR. this%imead==4 .OR. this%imead==5) THEN
             ! Mead et al. (2015) used the Dolag (2004) correction
             pow=1.
         ELSE IF(this%imead==1) THEN
@@ -1281,7 +1351,7 @@
         lut%c=lut%c*(ginf_wcdm/ginf_lcdm)**pow
 
         ! This is needed for the correction to make sense at high z
-        IF(this%imead==3) THEN
+        IF(this%imead==3 .OR. this%imead==4 .OR. this%imead==5) THEN
             g_lcdm=growint(z,cosm_lcdm)
             g_wcdm=grow(z,cosm)
             lut%c=lut%c*(g_lcdm/g_wcdm)**pow
@@ -1479,6 +1549,79 @@
 
     END FUNCTION cosmic_density
 
+    FUNCTION baryonify_wk(wk, m, lut, cosm)
+
+    ! Change halo window to account for feedback mass loss and star formation
+    IMPLICIT NONE
+    REAL(dl) :: baryonify_wk
+    REAL(dl), INTENT(IN) :: wk
+    REAL(dl), INTENT(IN) :: m
+    TYPE(HM_tables), INTENT(IN) :: lut
+    TYPE(HM_cosmology), INTENT(IN) :: cosm
+    REAL(dl) :: wkn, fs
+
+    wkn = wk
+    wkn = wkn*halo_mass_fraction(m, lut, cosm) ! Gas expulsion
+    fs = f_star(lut, cosm)
+    wkn = wkn+fs ! Star formation
+
+    baryonify_wk = wkn
+
+    END FUNCTION baryonify_wk
+
+    FUNCTION halo_mass_fraction(m, lut, cosm)
+
+    ! Simple baryon model where high-mass haloes have a mass fraction of 1 and low-mass haloes have Omega_c/Omega_m
+    ! This also accounts for massive neutrinos since it is written in terms of Om_c and Om_b (rather than Om_m)
+    ! TODO: Could just precompute this once for each M in the halomod init function
+    IMPLICIT NONE
+    REAL(dl) :: halo_mass_fraction
+    REAL(dl), INTENT(IN) :: m
+    TYPE(HM_tables), INTENT(IN) :: lut
+    TYPE(HM_cosmology), INTENT(IN) :: cosm
+    REAL(dl) :: r, fc, fb, fs, mb, beta
+
+    mb = m_baryon(lut, cosm) ! Feedback halo mass
+    beta = 2.                ! Power-law index
+    r = (m/mb)**beta         ! If m>>m0 then r becomes large, if m<<m0 then r=0  
+    fb = cosm%Om_b/cosm%Om_m ! Halo baryon fraction                              
+    fc = cosm%Om_c/cosm%Om_m ! Halo CDM fraction
+    fs = f_star(lut, cosm)   ! Halo star fraction
+    halo_mass_fraction = fc+(fb-fs)*r/(1.+r) ! Remaining halo mass fraction
+
+    END FUNCTION halo_mass_fraction
+
+    FUNCTION m_baryon(lut, cosm)
+
+    REAL(dl) :: m_baryon
+    TYPE(HM_tables), INTENT(IN) :: lut
+    TYPE(HM_cosmology), INTENT(IN) :: cosm
+    REAL(dl) :: mb0, mbz, theta
+
+    theta=cosm%logT_AGN-7.8
+    mb0=13.87+1.81*theta
+    mb0=10**mb0
+    mbz=-0.108+0.195*theta
+    m_baryon=mb0*10**(mbz*lut%z)
+
+    END FUNCTION m_baryon
+
+    FUNCTION f_star(lut, cosm)
+
+    REAL(dl) :: f_star
+    TYPE(HM_tables), INTENT(IN) :: lut
+    TYPE(HM_cosmology), INTENT(IN) :: cosm
+    REAL(dl) :: f0, fz, theta
+
+    theta=cosm%logT_AGN-7.8
+    f0=0.0201-0.003*theta
+    fz=0.409+0.0224*theta
+    f_star=f0*10**(fz*lut%z)
+
+    IF(f_star > cosm%Om_b/cosm%Om_m) f_star = cosm%Om_b/cosm%Om_m
+
+    END FUNCTION f_star
+
     FUNCTION find_pk(k,itype,cosm)
     !Look-up and interpolation for P(k,z=0)
     REAL(dl) :: find_pk
@@ -1547,7 +1690,7 @@
     !Damping function
     frac=this%fdamp(lut)
 
-    IF(this%imead==0 .OR. frac<1.e-3) THEN
+    IF(this%imead==0 .OR. this%imead==4 .OR. this%imead==5 .OR. frac<1.e-3) THEN
         p_2h=plin
     ELSE IF(this%imead==1 .OR. this%imead==2) THEN
         sigv=lut%sigv
@@ -1571,26 +1714,26 @@
     REAL(dl), INTENT(IN) :: k, z
     TYPE(HM_tables), INTENT(IN) :: lut
     TYPE(HM_cosmology), INTENT(IN) :: cosm
-    REAL(dl) :: Dv, g, fac, et, ks, wk, x
+    REAL(dl) :: Dv, g, fac, et, ks, wk, x, m
     REAL(dl) :: integrand(lut%n)
     REAL(dl) :: sum
     INTEGER :: i
     REAL(dl), PARAMETER :: pi=pi_HM
     INTEGER, PARAMETER :: iorder=iorder_integration_1h
 
-    !Does the one-halo power integral
-
     !Only call eta once
     et=this%eta(lut,cosm)
 
     !Calculates the value of the integrand at all nu values!
     DO i=1,lut%n
+        m=lut%m(i)
         g=gnu(lut%nu(i))
         wk=win(k*lut%nu(i)**et,lut%rv(i),lut%c(i))
+        IF(this%imead==5) wk=baryonify_wk(wk, m, lut, cosm)
         integrand(i)=g*(wk**2)*lut%m(i)
     END DO
 
-    IF(this%imead==3) integrand=integrand*(1.-cosm%f_nu)**2
+    IF(this%imead==3 .OR. this%imead==4) integrand=integrand*(1.-cosm%f_nu)**2
 
     !Carries out the integration
     sum=inttab(lut%nu,integrand,1,lut%n,iorder)/cosmic_density(cosm)
@@ -1851,10 +1994,10 @@
     INTEGER, PARAMETER :: nsig=n_sigma_interpolation
 
     ! Choose type of sigma(R) to tabulate depending on HMcode version
-    IF (this%imead==1 .OR. this%imead==3) THEN
-        itype=1 ! 1 - Cold matter
-    ELSE
+    IF(this%halofit_version == halofit_mead2015) THEN
         itype=0 ! 0 - All matter
+    ELSE
+        itype=1 ! 1 - Cold matter
     END IF
 
     !Allocate arrays
