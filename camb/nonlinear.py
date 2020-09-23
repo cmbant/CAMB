@@ -26,8 +26,7 @@ halofit_mead2020_feedback = 'mead2020_feedback'
 halofit_default = halofit_mead
 
 halofit_version_names = [halofit_original, halofit_bird, halofit_peacock, halofit_takahashi, halofit_mead,
-                         halofit_halomodel, halofit_casarini, halofit_mead2015, halofit_mead2016, halofit_mead2020,
-                         halofit_mead2020_feedback]
+                         halofit_halomodel, halofit_casarini, halofit_mead2015, halofit_mead2020, halofit_mead2020_feedback]
 
 
 @fortran_class
