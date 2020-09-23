@@ -2,14 +2,6 @@
     ! To avoid circular module issues, some things are not part of module
 
 
-    subroutine Init_Backgrounds
-    !This is only called once per model, and is a good point to do any extra initialization.
-    !It is called before first call to dtauda, but after
-    !massive neutrinos are initialized
-
-    end  subroutine Init_Backgrounds
-
-
     ! Background evolution, return d tau/ d a, where tau is the conformal time
     function dtauda(this,a)
     use results
