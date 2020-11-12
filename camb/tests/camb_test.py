@@ -703,6 +703,11 @@ class CambTest(unittest.TestCase):
                 last_usage = usage
 
     def test_quintessence(self):
-        pars = camb.set_params(ombh2=0.022, omch2=0.122,
-                               dark_energy_model='EarlyQuintessence', H0=67)
+        n = 3
+        # set zc and fde_zc
+        pars = camb.set_params(ombh2=0.022, omch2=0.122, thetastar=0.01044341764253,
+                               dark_energy_model='EarlyQuintessence',
+                               m=8e-53, f=0.05, n=n, theta_i=3.1, use_zc=True, zc=1e4, fde_zc=0.1)
         camb.get_background(pars)
+        results = camb.get_results(pars)
+        self.assertAlmostEqual(results.get_derived_params()['thetastar'], 1.044341764253, delta=1e-5)

@@ -154,7 +154,7 @@ class EarlyQuintessence(Quintessence):
 
     _fields_ = [
         ("n", c_double, "power index for potential"),
-        ("f", c_double, r"f/Mpl (sqrt(8\piG)f); only used for initial search value of use_zc is True"),
+        ("f", c_double, r"f/Mpl (sqrt(8\piG)f); only used for initial search value if use_zc is True"),
         ("m", c_double, "mass parameter in reduced Planck mass units; "
                         "only used for initial search value of use_zc is True"),
         ("theta_i", c_double, "phi/f initial field value"),
