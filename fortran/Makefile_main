@@ -1,6 +1,7 @@
 
 #Files containing classes to include
 #e.g. change RECOMBINATION_FILES to "recfast cosmorec" to also support cosmorec
+#     or to "recfast hyrec" to support HYREC-2
 POWERSPECTRUM_FILES ?= InitialPower
 REIONIZATION_FILES ?= reionization
 RECOMBINATION_FILES ?= recfast
@@ -67,7 +68,7 @@ endif
 
 ifneq (,$(findstring hyrec,$(RECOMBINATION_FILES)))
 FFLAGS += -DHYREC
-HYREC_PATH ?= ../../HyRec/
+HYREC_PATH ?= ../../HYREC-2/
 LIBLINK += -L$(HYREC_PATH) -lhyrec
 camb: libhyrec.a
 python: libhyrec.a

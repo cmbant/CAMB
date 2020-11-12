@@ -703,6 +703,6 @@ class CambTest(unittest.TestCase):
                 last_usage = usage
 
     def test_quintessence(self):
-        pars = camb.set_params( ombh2=0.022, omch2=0.122,
+        pars = camb.set_params(ombh2=0.022, omch2=0.122,
                                dark_energy_model='EarlyQuintessence', H0=67)
         camb.get_background(pars)

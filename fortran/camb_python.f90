@@ -645,13 +645,13 @@
     Type(EvolutionVars) :: Ev
     Type(TCUstomSourceParams) :: Old
 
+    call SetActiveState(this)
     if (ncustomsources > 0) then
         ! Convert C to Fortran procedure pointer.
         Old = State%CP%CustomSources
         State%CP%CustomSources%c_source_func = c_source_func
         State%CP%CustomSources%num_custom_sources = ncustomsources
     end if
-    call SetActiveState(this)
 
     global_error_flag = 0
     outputs = 0
