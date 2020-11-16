@@ -573,6 +573,7 @@ class CAMBStructureMeta(type(Structure)):
 # noinspection PyPep8Naming
 class CAMB_Structure(Structure, metaclass=CAMBStructureMeta):
 
+    # noinspection PyUnresolvedReferences
     @classmethod
     def get_all_fields(cls):
         if cls != CAMB_Structure:
@@ -684,6 +685,7 @@ class F2003Class(CAMB_Structure):
                 try:
                     if not allow_inherit or cls.__bases__[0] == F2003Class:
                         raise
+                    # noinspection PyUnresolvedReferences
                     func = cls.__bases__[0].import_method(tag, extra_args, restype, nopass=nopass)
                 except AttributeError:
                     raise AttributeError(

@@ -697,7 +697,7 @@ class CambTest(unittest.TestCase):
                 del pars, results
                 gc.collect()
                 usage = round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0, 1)
-                if last_usage > 0 and usage != last_usage:
+                if 0 < last_usage != usage:
                     print('Memory usage: %2.2f KB vs %2.2f KB' % (usage, last_usage))
                     raise Exception("Apparent memory leak")
                 last_usage = usage

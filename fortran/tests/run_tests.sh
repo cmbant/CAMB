@@ -4,7 +4,7 @@ gfortran --version
 python --version
 python setup.py install
 python -c "import camb; print(camb.__version__)"
-python setup.py test
+python -m unittest camb.tests.camb_test
 pip uninstall -y camb
 rm -Rf dist/*
 rm -Rf build/*

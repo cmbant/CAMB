@@ -1,7 +1,8 @@
 from ctypes import c_int, c_double, c_char
 from .mathutils import threej
 
-# ---Parameters
+# Note currently there is no python interface for getting bispectrum results.
+
 Ini_max_string_len = 1024
 max_bispectrum_deltas = 5
 
