@@ -861,7 +861,11 @@
             if (CP%Accuracy%AccuratePolarization) scal = 4  !But need more to get polarization right
             EV%lmaxgpol=max(3,nint(min(8,nint(scal* 150* EV%q))*CP%Accuracy%lAccuracyBoost))
             EV%lmaxnr=max(3,nint(min(7,nint(sqrt(scal)* 150 * EV%q))*CP%Accuracy%lAccuracyBoost))
-            EV%lmaxnu = min(EV%lmaxnu, EV%lmaxnr) ! Nov 2020 change following Pavel Motloch report
+            if (EV%lmaxnr < EV%lmaxnu) then
+                ! Nov 2020 change following Pavel Motloch report
+                EV%lmaxnr = EV%lmaxnu
+                !EV%lmaxnu = min(EV%lmaxnu, EV%lmaxnr) ! may be better but have not tested and makes small result changes
+            endif
             EV%lmaxg=max(3,nint(min(8,nint(sqrt(scal) *300 * EV%q))*CP%Accuracy%lAccuracyBoost))
             !Sources
             if (CP%SourceTerms%line_phot_quadrupole) then
