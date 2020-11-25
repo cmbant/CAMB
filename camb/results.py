@@ -845,6 +845,9 @@ class CAMBdata(F2003Class):
 
         :return: :math:`\sigma_8` today
         """
+        nz = self.Params.Transfer.PK_num_redshifts
+        if not nz or self.Params.Transfer.PK_redshifts[nz - 1] > 1e-5:
+            raise CAMBError("sigma8 requested at z=0, but P(z=0) not calcaulted")
         return self.get_sigma8()[-1]
 
     def get_fsigma8(self):
