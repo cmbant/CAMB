@@ -123,6 +123,15 @@ class AxionEffectiveFluid(DarkEnergyModel):
 
 # base class for scalar field quintessence models
 class Quintessence(DarkEnergyModel):
+    r"""
+    Abstract base class for single scalar field quintessence models.
+
+    For each model the field value and derivative are stored and splined at sampled scale factor values.
+
+    To implement a new model, need to define a new derived class in Fortran,
+    defining Vofphi and setting up initial conditions and interpolation tables (see TEarlyQuintessence as example).
+
+    """
     _fields_ = [
         ("DebugLevel", c_int),
         ("astart", c_double),
