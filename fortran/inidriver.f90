@@ -13,6 +13,7 @@
     if (InputFile == '') error stop 'No parameter input file'
 
     call CAMB_CommandLineRun(InputFile)
+    deallocate(InputFile) ! Just so no memory leaks in valgrind
 
     end program driver
 

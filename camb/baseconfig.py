@@ -317,15 +317,10 @@ def fortran_array(c_pointer, shape, dtype=np.float64, order='F', own_data=True):
     if not hasattr(shape, '__len__'):
         shape = np.atleast_1d(shape)
     arr_size = np.prod(shape[:]) * np.dtype(dtype).itemsize
-    if sys.version_info.major >= 3:
-        buf_from_mem = ctypes.pythonapi.PyMemoryView_FromMemory
-        buf_from_mem.restype = ctypes.py_object
-        buf_from_mem.argtypes = (ctypes.c_void_p, ctypes.c_int, ctypes.c_int)
-        buffer = buf_from_mem(c_pointer, arr_size, 0x100)
-    else:
-        buffer_from_memory = ctypes.pythonapi.PyBuffer_FromMemory
-        buffer_from_memory.restype = ctypes.py_object
-        buffer = buffer_from_memory(c_pointer, arr_size)
+    buf_from_mem = ctypes.pythonapi.PyMemoryView_FromMemory
+    buf_from_mem.restype = ctypes.py_object
+    buf_from_mem.argtypes = (ctypes.c_void_p, ctypes.c_int, ctypes.c_int)
+    buffer = buf_from_mem(c_pointer, arr_size, 0x100)
     arr = np.ndarray(tuple(shape[:]), dtype, buffer, order=order)
     if own_data and not arr.flags.owndata:
         return arr.copy()
@@ -578,6 +573,7 @@ class CAMBStructureMeta(type(Structure)):
 # noinspection PyPep8Naming
 class CAMB_Structure(Structure, metaclass=CAMBStructureMeta):
 
+    # noinspection PyUnresolvedReferences
     @classmethod
     def get_all_fields(cls):
         if cls != CAMB_Structure:
@@ -689,6 +685,7 @@ class F2003Class(CAMB_Structure):
                 try:
                     if not allow_inherit or cls.__bases__[0] == F2003Class:
                         raise
+                    # noinspection PyUnresolvedReferences
                     func = cls.__bases__[0].import_method(tag, extra_args, restype, nopass=nopass)
                 except AttributeError:
                     raise AttributeError(

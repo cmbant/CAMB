@@ -92,7 +92,7 @@ class CambTest(unittest.TestCase):
                                   'cosmomc_theta', 'YHe', 'wa', 'cs2', 'H0', 'mnu', 'Alens', 'TCMB', 'ns',
                                   'nrun', 'As', 'nt', 'r', 'w', 'omch2'})
         params2 = camb.get_valid_numerical_params(dark_energy_model='AxionEffectiveFluid')
-        self.assertEqual(params2.difference(params), {'om', 'w_n', 'a_c', 'theta_i'})
+        self.assertEqual(params2.difference(params), {'fde_zc', 'w_n', 'zc', 'theta_i'})
 
     def testBackground(self):
         pars = camb.CAMBparams()
@@ -713,7 +713,17 @@ class CambTest(unittest.TestCase):
                 del pars, results
                 gc.collect()
                 usage = round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0, 1)
-                if last_usage > 0 and usage != last_usage:
+                if 0 < last_usage != usage:
                     print('Memory usage: %2.2f KB vs %2.2f KB' % (usage, last_usage))
                     raise Exception("Apparent memory leak")
                 last_usage = usage
+
+    def test_quintessence(self):
+        n = 3
+        # set zc and fde_zc
+        pars = camb.set_params(ombh2=0.022, omch2=0.122, thetastar=0.01044341764253,
+                               dark_energy_model='EarlyQuintessence',
+                               m=8e-53, f=0.05, n=n, theta_i=3.1, use_zc=True, zc=1e4, fde_zc=0.1)
+        camb.get_background(pars)
+        results = camb.get_results(pars)
+        self.assertAlmostEqual(results.get_derived_params()['thetastar'], 1.044341764253, delta=1e-5)

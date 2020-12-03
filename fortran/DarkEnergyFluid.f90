@@ -23,10 +23,12 @@
     !This is an example, it's not supposed to be a rigorous model!  (not very well tested)
     type, extends(TDarkEnergyModel) :: TAxionEffectiveFluid
         real(dl) :: w_n = 1._dl !Effective equation of state when oscillating
-        real(dl) :: Om = 0._dl !Omega of the early DE component today (assumed to be negligible compared to omega_lambda)
-        real(dl) :: a_c  !transition scale factor
+        real(dl) :: fde_zc = 0._dl ! energy density fraction at a_c (not the same as peak dark energy fraction)
+        real(dl) :: zc  !transition redshift (scale factor a_c)
         real(dl) :: theta_i = const_pi/2 !Initial value
-        real(dl), private :: pow, omL, acpow, freq, n !cached internally
+        !om is Omega of the early DE component today (assumed to be negligible compared to omega_lambda)
+        !omL is the lambda component of the total dark energy omega
+        real(dl), private :: a_c, pow, om, omL, acpow, freq, n !cached internally
     contains
     procedure :: ReadParams =>  TAxionEffectiveFluid_ReadParams
     procedure, nopass :: PythonClass => TAxionEffectiveFluid_PythonClass
@@ -73,7 +75,7 @@
     subroutine TDarkEnergyFluid_Init(this, State)
     use classes
     class(TDarkEnergyFluid), intent(inout) :: this
-    class(TCAMBdata), intent(in) :: State
+    class(TCAMBdata), intent(in), target :: State
 
     call this%TDarkEnergyEqnOfState%Init(State)
 
@@ -94,10 +96,10 @@
 
 
     subroutine TDarkEnergyFluid_PerturbedStressEnergy(this, dgrhoe, dgqe, &
-        dgq, dgrho, grho, grhov_t, w, gpres_noDE, etak, adotoa, k, kf1, ay, ayprime, w_ix)
+        a, dgq, dgrho, grho, grhov_t, w, gpres_noDE, etak, adotoa, k, kf1, ay, ayprime, w_ix)
     class(TDarkEnergyFluid), intent(inout) :: this
     real(dl), intent(out) :: dgrhoe, dgqe
-    real(dl), intent(in) ::  dgq, dgrho, grho, grhov_t, w, gpres_noDE, etak, adotoa, k, kf1
+    real(dl), intent(in) ::  a, dgq, dgrho, grho, grhov_t, w, gpres_noDE, etak, adotoa, k, kf1
     real(dl), intent(in) :: ay(*)
     real(dl), intent(inout) :: ayprime(*)
     integer, intent(in) :: w_ix
@@ -151,9 +153,12 @@
     class(TIniFile), intent(in) :: Ini
 
     call this%TDarkEnergyModel%ReadParams(Ini)
+    if (Ini%HasKey('AxionEffectiveFluid_a_c')) then
+        error stop 'AxionEffectiveFluid inputs changed to AxionEffectiveFluid_fde_zc and AxionEffectiveFluid_zc'
+    end if
     this%w_n  = Ini%Read_Double('AxionEffectiveFluid_w_n')
-    this%om  = Ini%Read_Double('AxionEffectiveFluid_om')
-    this%a_c  = Ini%Read_Double('AxionEffectiveFluid_a_c')
+    this%fde_zc  = Ini%Read_Double('AxionEffectiveFluid_fde_zc')
+    this%zc  = Ini%Read_Double('AxionEffectiveFluid_zc')
     call Ini%Read('AxionEffectiveFluid_theta_i', this%theta_i)
 
     end subroutine TAxionEffectiveFluid_ReadParams
@@ -179,15 +184,19 @@
     subroutine TAxionEffectiveFluid_Init(this, State)
     use classes
     class(TAxionEffectiveFluid), intent(inout) :: this
-    class(TCAMBdata), intent(in) :: State
+    class(TCAMBdata), intent(in), target :: State
     real(dl) :: grho_rad, F, p, mu, xc, n
 
     select type(State)
     class is (CAMBdata)
-        this%is_cosmological_constant = this%om==0
+        this%is_cosmological_constant = this%fde_zc==0
         this%pow = 3*(1+this%w_n)
-        this%omL = State%Omega_de - this%om !Omega_de is total dark energy density today
+        this%a_c = 1/(1+this%zc)
         this%acpow = this%a_c**this%pow
+        !Omega in early de at z=0
+        this%om = 2*this%fde_zc/(1-this%fde_zc)*&
+            (State%grho_no_de(this%a_c)/this%a_c**4/State%grhocrit + State%Omega_de)/(1 + 1/this%acpow)
+        this%omL = State%Omega_de - this%om !Omega_de is total dark energy density today
         this%num_perturb_equations = 2
         if (this%w_n < 0.9999) then
             ! n <> infinity
@@ -268,10 +277,10 @@
 
 
     subroutine TAxionEffectiveFluid_PerturbedStressEnergy(this, dgrhoe, dgqe, &
-        dgq, dgrho, grho, grhov_t, w, gpres_noDE, etak, adotoa, k, kf1, ay, ayprime, w_ix)
+        a, dgq, dgrho, grho, grhov_t, w, gpres_noDE, etak, adotoa, k, kf1, ay, ayprime, w_ix)
     class(TAxionEffectiveFluid), intent(inout) :: this
     real(dl), intent(out) :: dgrhoe, dgqe
-    real(dl), intent(in) ::  dgq, dgrho, grho, grhov_t, w, gpres_noDE, etak, adotoa, k, kf1
+    real(dl), intent(in) :: a, dgq, dgrho, grho, grhov_t, w, gpres_noDE, etak, adotoa, k, kf1
     real(dl), intent(in) :: ay(*)
     real(dl), intent(inout) :: ayprime(*)
     integer, intent(in) :: w_ix
