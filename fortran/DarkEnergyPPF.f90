@@ -53,7 +53,7 @@
     subroutine TDarkEnergyPPF_Init(this, State)
     use classes
     class(TDarkEnergyPPF), intent(inout) :: this
-    class(TCAMBdata), intent(in) :: State
+    class(TCAMBdata), intent(in), target :: State
 
     call this%TDarkEnergyEqnOfState%Init(State)
     if (this%is_cosmological_constant) then
@@ -96,10 +96,10 @@
 
 
     subroutine TDarkEnergyPPF_PerturbedStressEnergy(this, dgrhoe, dgqe, &
-        dgq, dgrho, grho, grhov_t, w, gpres_noDE, etak, adotoa, k, kf1, ay, ayprime, w_ix)
+        a, dgq, dgrho, grho, grhov_t, w, gpres_noDE, etak, adotoa, k, kf1, ay, ayprime, w_ix)
     class(TDarkEnergyPPF), intent(inout) :: this
     real(dl), intent(out) :: dgrhoe, dgqe
-    real(dl), intent(in) ::  dgq, dgrho, grho, grhov_t, w, gpres_noDE, etak, adotoa, k, kf1
+    real(dl), intent(in) ::  a, dgq, dgrho, grho, grhov_t, w, gpres_noDE, etak, adotoa, k, kf1
     real(dl), intent(in) :: ay(*)
     real(dl), intent(inout) :: ayprime(*)
     integer, intent(in) :: w_ix

@@ -274,6 +274,7 @@
     real(dl) CLForLensingIn(4,CTrans%ls%lmin:CTrans%ls%l(CTrans%ls%nl))
     real(dl) CPhi(3,CTrans%ls%lmin:CTrans%ls%l(CTrans%ls%nl))
     Type(lSamples) :: SampleL
+    integer, allocatable :: ls(:)
     real(dl) Bscale
     integer field, field1,field2,field3, bi_ix,bix
     Type(TCov2), allocatable :: CForLensing(:)
@@ -345,6 +346,8 @@
     lmax = CTrans%ls%l(CTrans%ls%nl)
     lmin = CTrans%ls%lmin
     if (CP%DoLensing) lmax = State%CLData%lmax_lensed
+    SampleL%lmin=2
+    allocate(ls(lmax))
     SampleL%nl=0
     l1=1
     do
@@ -360,15 +363,16 @@
         end if
         if (BispectrumParams%Slice_Base_L>0 .and. SampleL%nl>0) then
             !Make sure requested slice base is actually calculated
-            if ( BispectrumParams%Slice_Base_L <l1 .and. BispectrumParams%Slice_Base_L>SampleL%l(SampleL%nl)) then
+            if ( BispectrumParams%Slice_Base_L <l1 .and. BispectrumParams%Slice_Base_L>ls(SampleL%nl)) then
                 SampleL%nl= SampleL%nl + 1
-                SampleL%l(SampleL%nl) = BispectrumParams%Slice_Base_L
+                ls(SampleL%nl) = BispectrumParams%Slice_Base_L
             end if
         end if
         SampleL%nl= SampleL%nl + 1
-        SampleL%l(SampleL%nl) = l1
+        ls(SampleL%nl) = l1
         if (l1 == lmax) exit
     end do
+    allocate(SampleL%l, source=ls(1:SampleL%nl))
 
     allocate(Bispectra(nfields,nfields,nfields,nbispectra))
     do field1=1,nfields
@@ -744,7 +748,7 @@
                 do idelta=1,BispectrumParams%ndelta
                     if (mod(BispectrumParams%Slice_Base_L + BispectrumParams%deltas(idelta),2)==1 &
                         .and. bispectrum_type/=lens_bispectrum_ix) cycle
-                    call bispectrum_files(nbispectra+BispectrumParams%ndelta*(bispectrum_type-1)+idelta)% &
+                    call bispectrum_files(BispectrumParams%ndelta*(bispectrum_type-1)+idelta)% &
                         CreateFile(concat(trim(output_root)//'bispectrum_'//&
                         trim(BispectrumNames(bispectrum_type))//'_base_', &
                         BispectrumParams%Slice_Base_L,'_delta_',BispectrumParams%deltas(idelta), &
@@ -772,7 +776,7 @@
                         !Particular slice
                         idelta=IndexOf(l3-l2,BispectrumParams%deltas,BispectrumParams%ndelta)
                         do bispectrum_type=1,nbispectra
-                            fileid=bispectrum_files(nbispectra+BispectrumParams%ndelta*(bispectrum_type-1)+idelta)%unit
+                            fileid=bispectrum_files(BispectrumParams%ndelta*(bispectrum_type-1)+idelta)%unit
                             write (fileid,'(1I5)', advance='NO') L2
                             do field1=1,nfields
                                 do field2=1,nfields
@@ -825,7 +829,7 @@
                             idelta=IndexOf(l3-l2,BispectrumParams%deltas,BispectrumParams%ndelta)
                             do bispectrum_type=1,nbispectra
                                 if (bispectrum_type/=lens_bispectrum_ix) cycle
-                                fileid=bispectrum_files(nbispectra +BispectrumParams%ndelta*(bispectrum_type-1)+idelta)%unit
+                                fileid=bispectrum_files(BispectrumParams%ndelta*(bispectrum_type-1)+idelta)%unit
                                 write (fileid,'(1I5)', advance='NO') L2
                                 oddix=0
                                 do field1=1,3

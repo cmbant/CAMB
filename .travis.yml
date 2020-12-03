@@ -24,7 +24,7 @@ jobs:
         - PYDIST="ANACONDA"
         - FORTRAN="test"
       python: "3.7"
-    - name: "GCC9 + Python 3.8"
+    - name: "GCC9 + Python 3.9"
       addons:
         apt:
           sources:
@@ -36,13 +36,20 @@ jobs:
         - CHANNEL="conda-forge"
         - PYDIST="ANACONDA"
         - FORTRAN="test"
-      python: "3.8"
+      python: "3.9"
     - name: "Ubuntu 18.04 + Python 3.6"
       addons:
         apt:
           packages:
             - gfortran
       python: "3.6"
+    - name: "Ubuntu 20.04 + Python 3.8"
+      dist: focal
+      addons:
+        apt:
+          packages:
+            - gfortran
+      python: "3.8"
     - name: "GCC trunk cosmobox"
       language: shell
       services:

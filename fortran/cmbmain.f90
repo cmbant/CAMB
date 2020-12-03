@@ -699,7 +699,7 @@
     taustart=min(taustart,0.1_dl)
 
     !     Start when massive neutrinos are strongly relativistic.
-    if (CP%Num_nu_massive>0) then
+    if (CP%Num_nu_massive>0 .and. any(State%nu_masses(1:CP%Nu_mass_eigenstates)/=0)) then
         taustart=min(taustart,1.d-3/maxval(State%nu_masses(1:CP%Nu_mass_eigenstates))/State%adotrad)
     end if
 

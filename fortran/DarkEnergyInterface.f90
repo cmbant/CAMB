@@ -14,8 +14,10 @@
     procedure :: BackgroundDensityAndPressure
     procedure :: PerturbedStressEnergy !Get density perturbation and heat flux for sources
     procedure :: diff_rhopi_Add_Term
+    procedure :: PerturbationInitial
     procedure :: PerturbationEvolve
     procedure :: PrintFeedback
+    ! do not have to implement w_de or grho_de if BackgroundDensityAndPressure is inherited directly
     procedure :: w_de
     procedure :: grho_de
     procedure :: Effective_w_wa !Used as approximate values for non-linear corrections
@@ -71,7 +73,7 @@
     subroutine Init(this, State)
     use classes
     class(TDarkEnergyModel), intent(inout) :: this
-    class(TCAMBdata), intent(in) :: State
+    class(TCAMBdata), intent(in), target :: State
 
     end subroutine Init
 
@@ -108,10 +110,10 @@
 
 
     subroutine PerturbedStressEnergy(this, dgrhoe, dgqe, &
-        dgq, dgrho, grho, grhov_t, w, gpres_noDE, etak, adotoa, k, kf1, ay, ayprime, w_ix)
+        a, dgq, dgrho, grho, grhov_t, w, gpres_noDE, etak, adotoa, k, kf1, ay, ayprime, w_ix)
     class(TDarkEnergyModel), intent(inout) :: this
     real(dl), intent(out) :: dgrhoe, dgqe
-    real(dl), intent(in) ::  dgq, dgrho, grho, grhov_t, w, gpres_noDE, etak, adotoa, k, kf1
+    real(dl), intent(in) ::  a, dgq, dgrho, grho, grhov_t, w, gpres_noDE, etak, adotoa, k, kf1
     real(dl), intent(in) :: ay(*)
     real(dl), intent(inout) :: ayprime(*)
     integer, intent(in) :: w_ix
@@ -143,6 +145,16 @@
     integer, intent(in) :: w_ix
     end subroutine PerturbationEvolve
 
+    subroutine PerturbationInitial(this, y, a, tau, k)
+    class(TDarkEnergyModel), intent(in) :: this
+    real(dl), intent(out) :: y(:)
+    real(dl), intent(in) :: a, tau, k
+    !Get intinitial values for perturbations at a (or tau)
+    !For standard adiabatic perturbations can usually just set to zero to good accuracy
+
+    y = 0
+
+    end subroutine PerturbationInitial
 
 
     subroutine TDarkEnergyEqnOfState_SetwTable(this, a, w, n)
@@ -259,7 +271,7 @@
     subroutine TDarkEnergyEqnOfState_Init(this, State)
     use classes
     class(TDarkEnergyEqnOfState), intent(inout) :: this
-    class(TCAMBdata), intent(in) :: State
+    class(TCAMBdata), intent(in), target :: State
 
     this%is_cosmological_constant = .not. this%use_tabulated_w .and. &
         &  abs(this%w_lam + 1._dl) < 1.e-6_dl .and. this%wa==0._dl
