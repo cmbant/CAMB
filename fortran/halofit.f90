@@ -1131,15 +1131,9 @@
     lut%z=z
 
     ! Mass range and number of points
-    IF(this%imead==0 .OR. this%imead==1 .OR. this%imead==2) THEN
-        mmin=1e0
-        mmax=1e18
-        nm=256
-    ELSE IF (this%imead==3 .OR. this%imead==4 .OR. this%imead==5) THEN
-        mmin=1e7
-        mmax=1e17
-        nm=128
-    END IF
+    mmin=1e0
+    mmax=1e18
+    nm=256
 
     !Find value of sigma_v, sig8, etc.
     !$OMP PARALLEL SECTIONS DEFAULT(SHARED)
