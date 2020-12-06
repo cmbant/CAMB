@@ -14,7 +14,7 @@ CAMB
 .. image:: https://travis-ci.org/cmbant/camb.svg?branch=master
   :target: https://travis-ci.org/cmbant/camb/builds
 .. image:: https://mybinder.org/badge_logo.svg
-  :target: https://mybinder.org/v2/gh/fomightez/CAMB/HEAD?filepath=docs%2FCAMBdemo.ipynb
+  :target: https://mybinder.org/v2/gh/cmbant/CAMB/HEAD?filepath=docs%2FCAMBdemo.ipynb
 
 Description and installation
 =============================
