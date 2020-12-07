@@ -138,7 +138,7 @@
 
     ! HMcode linear P(k) numerical parameters
     ! AM: Jul 19: Updated nk_pk_interpolation from 128 to 512
-    ! AM: TODO: Change finding scheme to assume linear spacing may save time
+    ! AM: Dec 20: Calculation time and accuracy are especially sensive to these parameters
     LOGICAL, PARAMETER :: rebin_pk=.TRUE.             ! Should the linear P(k) be rebinned?
     REAL(dl), PARAMETER :: kmin_pk_interpolation=1d-3 ! Minimum wavenumber if rebinning [h/Mpc]
     REAL(dl), PARAMETER :: kmax_pk_interpolation=1d2  ! Maximum wavenumber if rebinning [h/Mpc]
@@ -167,12 +167,12 @@
 
     ! Linear growth factor tabulation and interpolation numerical parameters
     ! AM: TODO: Change finding scheme to assume linear spacing may save time
-    REAL(dl), PARAMETER :: amin_growth_interpolation=1e-3  ! Minimum scale factor for growth interpolation
-    REAL(dl), PARAMETER :: amax_growth_interpolation=1.    ! Maximum scale factor for growth interpolation
-    INTEGER, PARAMETER :: n_growth_interpolation=64        ! Number of entries for growth look-up table
-    INTEGER, PARAMETER :: iorder_growth_interpolation=3    ! Polynomial order for growth function interpolation
-    INTEGER, PARAMETER :: ifind_growth_interpolation=3     ! Finding scheme for growth function interpolation
-    INTEGER, PARAMETER :: imeth_growth_interpolation=2     ! Method for growth function interpolation
+    REAL(dl), PARAMETER :: amin_growth_interpolation=1e-3 ! Minimum scale factor for growth interpolation
+    REAL(dl), PARAMETER :: amax_growth_interpolation=1.   ! Maximum scale factor for growth interpolation
+    INTEGER, PARAMETER :: n_growth_interpolation=64       ! Number of entries for growth look-up table
+    INTEGER, PARAMETER :: iorder_growth_interpolation=3   ! Polynomial order for growth function interpolation
+    INTEGER, PARAMETER :: ifind_growth_interpolation=3    ! Finding scheme for growth function interpolation
+    INTEGER, PARAMETER :: imeth_growth_interpolation=2    ! Method for growth function interpolation
 
     ! Growth function ODE numerical parameters
     ! AM: Jul 19: Updated acc_growth_ODE from 1e-3 to 1e-4
