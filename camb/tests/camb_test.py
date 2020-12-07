@@ -88,7 +88,7 @@ class CambTest(unittest.TestCase):
         self.assertTrue(len(pars.SourceWindows) == 0)
         params = camb.get_valid_numerical_params()
         self.assertEqual(params, {'ombh2', 'deltazrei', 'omnuh2', 'tau', 'omk', 'zrei', 'thetastar', 'nrunrun',
-                                  'meffsterile', 'nnu', 'ntrun', 'HMCode_A_baryon', 'HMCode_eta_baryon',
+                                  'meffsterile', 'nnu', 'ntrun', 'HMCode_A_baryon', 'HMCode_eta_baryon', 'HMCode_logT_AGN',
                                   'cosmomc_theta', 'YHe', 'wa', 'cs2', 'H0', 'mnu', 'Alens', 'TCMB', 'ns',
                                   'nrun', 'As', 'nt', 'r', 'w', 'omch2'})
         params2 = camb.get_valid_numerical_params(dark_energy_model='AxionEffectiveFluid')
@@ -329,8 +329,24 @@ class CambTest(unittest.TestCase):
         self.assertTrue(np.sum((pk_interp / pk_interp2 - 1) ** 2) < 0.005)
 
         pars.NonLinearModel.set_params(halofit_version='mead')
-        _, _, pk = results.get_nonlinear_matter_power_spectrum(params=pars, var1='delta_cdm', var2='delta_cdm')
-        self.assertAlmostEqual(pk[0][160], 824.6, delta=0.5)
+        _, _, pk = results.get_nonlinear_matter_power_spectrum(params=pars)
+        self.assertAlmostEqual(pk[0][160], 814.9, delta=0.5)
+
+        pars.NonLinearModel.set_params(halofit_version='mead2016')
+        _, _, pk = results.get_nonlinear_matter_power_spectrum(params=pars)
+        self.assertAlmostEqual(pk[0][160], 814.9, delta=0.5)
+
+        pars.NonLinearModel.set_params(halofit_version='mead2015')
+        _, _, pk = results.get_nonlinear_matter_power_spectrum(params=pars)
+        self.assertAlmostEqual(pk[0][160], 791.3, delta=0.5)
+
+        pars.NonLinearModel.set_params(halofit_version='mead2020')
+        _, _, pk = results.get_nonlinear_matter_power_spectrum(params=pars)
+        self.assertAlmostEqual(pk[0][160], 815.8, delta=0.5)
+
+        pars.NonLinearModel.set_params(halofit_version='mead2020_feedback')
+        _, _, pk = results.get_nonlinear_matter_power_spectrum(params=pars)
+        self.assertAlmostEqual(pk[0][160], 799.0, delta=0.5)
 
         lmax = 4000
         pars.set_for_lmax(lmax)
