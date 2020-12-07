@@ -543,15 +543,19 @@
     REAL(dl) :: p1h, p2h, pfull, plin
     REAL(dl), ALLOCATABLE :: p_den(:,:), p_num(:,:)
     INTEGER :: i, j, ii, nk, nz
+    REAL :: t1, t2
     TYPE(HM_cosmology) :: cosi
     TYPE(HM_tables) :: lut
     REAL(dl), PARAMETER :: pi=pi_HM
+    LOGICAL, PARAMETER :: timing_test = .FALSE.
 
     !HMcode developed by Alexander Mead (alexander.j.mead@googlemail.com)
     !Please contact me if you have any questions whatsoever
     !If you use this in your work please cite the original paper: http://arxiv.org/abs/1505.07833
     !If you use the extensions (w(a) and massive neutrinos) then please cite: http://arxiv.org/abs/1602.02154
     !Also consider citing the source code at ASCL: http://ascl.net/1508.001
+
+    IF (timing_test) CALL CPU_TIME(t1)
 
     !Use imead to switch between the standard and accurate halo-model calcuation
     !0 - Standard (this is just a vanilla halo model calculation with no accuracy tweaks)
@@ -651,6 +655,14 @@
         CAMB_Pk%nonlin_ratio=CAMB_Pk%nonlin_ratio*sqrt(p_num/p_den)
     END IF
 
+    IF (timing_test) THEN
+        CALL CPU_TIME(t2)
+        WRITE(*, *) 'HMcode number of k:', nk
+        WRITE(*, *) 'HMcode number of z:', nz
+        WRITE(*, *) 'HMcode run time [s]:', t2-t1
+        STOP 'HMcode timing test complete'
+    END IF
+
     END SUBROUTINE HMcode
 
     FUNCTION Delta_v(this,z,cosm)
@@ -711,7 +723,7 @@
         !eta0=0.98-0.12*cosm%A_baryon !Updated one-parameter relation: Section 4.1.2 of 1707.06627
         eta=eta0-0.3*lut%sig8z
     ELSE IF(this%imead==3) THEN
-        eta=0.128*lut%sig8z_cold**(-0.36)
+        eta=0.1281*lut%sig8z_cold**(-0.3644)
     END IF
 
     END FUNCTION eta
@@ -730,7 +742,7 @@
         !Mead et al. (2015; arXiv 1505.07833) value
         kstar=0.584*(lut%sigv)**(-1.)
     ELSE IF(this%imead==3) THEN
-        kstar=0.056*lut%sig8z_cold**(-1.01)
+        kstar=0.05618*lut%sig8z_cold**(-1.013)
     END IF
 
     END FUNCTION kstar
@@ -757,7 +769,7 @@
         !AM - added for easy modification of feedback parameter
         As=cosm%A_baryon
     ELSE IF(this%imead==3) THEN
-        As=5.20
+        As=5.196
     END IF
 
     END FUNCTION As
@@ -779,7 +791,7 @@
         !Mead et al. (2015) value
         fdamp=0.188*lut%sig8z**4.29
     ELSE IF(this%imead==3) THEN
-        fdamp=0.270*lut%sig8z_cold**0.94
+        fdamp=0.2696*lut%sig8z_cold**0.9403
     END IF
 
     !Catches extreme values of fdamp
@@ -1690,7 +1702,7 @@
         sigv=lut%sigv
         p_2h=plin*(1.-frac*(tanh(k*sigv/sqrt(ABS(frac))))**2.)
     ELSE IF(this%imead==3) THEN
-        kdamp=0.057*lut%sig8z_cold**(-1.09)
+        kdamp=0.05699*lut%sig8z_cold**(-1.089)
         ndamp=2.85
         x=(k/kdamp)**ndamp
         p_2h=p_dewiggle(k, lut%z, lut%sigv, cosm)*(1.-frac*x/(1.+x))
