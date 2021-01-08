@@ -23,7 +23,7 @@ halofit_mead2016 = 'mead2016'
 halofit_mead2020 = 'mead2020'
 halofit_mead2020_feedback = 'mead2020_feedback'
 
-halofit_default = halofit_mead
+halofit_default = halofit_mead2020
 
 halofit_version_names = {halofit_original          : 1,
                          halofit_bird              : 2,

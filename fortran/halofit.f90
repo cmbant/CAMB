@@ -59,7 +59,7 @@
     integer, parameter :: halofit_mead2016=5, halofit_halomodel=6, halofit_mead2015=8, halofit_mead2020=9
     integer, parameter :: halofit_mead2020_feedback=10
     integer, parameter :: halofit_mead=halofit_mead2016 ! AM Kept for backwards compatability
-    integer, parameter :: halofit_default=halofit_mead2016
+    integer, parameter :: halofit_default=halofit_mead2020
 
     logical :: HM_verbose = .false.
 
