@@ -9,6 +9,7 @@
 .pydevproject
 x64/
 Debug/
+Debuglib/
 Release/
 Releaselib/
 WinDLL/
