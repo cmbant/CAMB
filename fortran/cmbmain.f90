@@ -100,7 +100,7 @@
     integer maximum_l !Max value of l to compute
     real(dl) :: maximum_qeta = 3000._dl
 
-    integer :: l_smooth_sample = 3000 !assume transfer functions effectively small for k>2*l_smooth_sample
+    integer :: l_smooth_sample = 3000 !assume transfer functions effectively small for k*chi0>2*l_smooth_sample
 
     integer :: max_bessels_l_index  = 1000000
     real(dl) :: max_bessels_etak = 1000000*2
@@ -874,6 +874,7 @@
 
     q_cmb = 2*l_smooth_sample/State%chi0*SourceAccuracyBoost  !assume everything is smooth at l > l_smooth_sample
     if (CP%Want_CMB .and. maximum_l > 5000 .and. CP%Accuracy%AccuratePolarization) q_cmb = q_cmb*1.4
+    q_cmb = max(q_switch*2, q_cmb)
     !prevent EE going wild in tail
     dksmooth = q_cmb/2/(SourceAccuracyBoost)**2
     if (CP%Want_CMB) dksmooth = dksmooth/6
@@ -881,7 +882,8 @@
     associate(Evolve_q => ThisSources%Evolve_q)
         call Evolve_q%Init()
         call Evolve_q%Add_delta(qmin, qmax_log, dlnk0, IsLog = .true.)
-        call Evolve_q%Add_delta(qmax_log, min(qmax,q_switch), dkn1)
+        if (qmax > qmax_log) &
+            call Evolve_q%Add_delta(qmax_log, min(qmax,q_switch), dkn1)
         if (qmax > q_switch) then
             call Evolve_q%Add_delta(q_switch, min(q_cmb,qmax), dkn2)
             if (qmax > q_cmb) then

@@ -260,6 +260,10 @@
     if(.not. this%use_tabulated_w)then
         this%w_lam = Ini%Read_Double('w', -1.d0)
         this%wa = Ini%Read_Double('wa', 0.d0)
+        ! trap dark energy becoming important at high redshift 
+        ! (will still work if this test is removed in some cases)
+        if (this%w_lam + this%wa > 0) &
+             error stop 'w + wa > 0, giving w>0 at high redshift'
     else
         call File%LoadTxt(Ini%Read_String('wafile'), table)
         call this%SetwTable(table(:,1),table(:,2), size(table(:,1)))

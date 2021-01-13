@@ -51,6 +51,10 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
         self.cs2 = cs2
         self.validate_params()
 
+    def validate_params(self):
+        if not self.use_tabulated_w and self.wa + self.w > 0:
+            raise CAMBError('dark energy model has w + wa > 0, giving w>0 at high redshift')
+
     def set_w_a_table(self, a, w):
         """
         Set w(a) from numerical values (used as cublic spline). Note this is quite slow.
@@ -80,8 +84,10 @@ class DarkEnergyFluid(DarkEnergyEqnOfState):
     _fortran_class_name_ = 'TDarkEnergyFluid'
 
     def validate_params(self):
-        if not self.use_tabulated_w and self.wa and (self.w < -1 - 1e-6 or 1 + self.w + self.wa < - 1e-6):
-            raise CAMBError('fluid dark energy model does not support w crossing -1')
+        super().validate_params()
+        if not self.use_tabulated_w:
+            if self.wa and (self.w < -1 - 1e-6 or 1 + self.w + self.wa < - 1e-6):
+                raise CAMBError('fluid dark energy model does not support w crossing -1')
 
 
 @fortran_class
