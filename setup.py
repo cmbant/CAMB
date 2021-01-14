@@ -299,11 +299,12 @@ if __name__ == "__main__":
               'Intended Audience :: Science/Research',
               'Topic :: Scientific/Engineering :: Astronomy',
               'Programming Language :: Python :: 3',
+              'Programming Language :: Python :: 3.6',
               'Programming Language :: Python :: 3.7',
               'Programming Language :: Python :: 3.8',
               'Programming Language :: Python :: 3.9'
           ],
           keywords=['cosmology', 'CAMB', 'CMB'],
           install_requires=['scipy>=1.0', 'sympy>=1.0'],
-          python_requires='>=3.7'
+          python_requires='>=3.6'
           )
