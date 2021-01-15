@@ -13157,7 +13157,7 @@ div#notebook {
 
 
 <div class="output_subarea output_stream output_stdout output_text">
-<pre>Using CAMB 1.2.1 installed at c:\work\dist\git\camb\camb
+<pre>Using CAMB 1.3.0 installed at c:\work\dist\git\camb\camb
 </pre>
 </div>
 </div>
@@ -16064,12 +16064,13 @@ height=536
 <div class="prompt input_prompt">In&nbsp;[56]:</div>
 <div class="inner_cell">
     <div class="input_area">
-<div class=" highlight hl-ipython3"><pre><span></span><span class="c1"># For partially-delensed spectra, power spectra can be computed using a custom</span>
-<span class="c1"># or scaled lensing potential power spectrum. There&#39;s a pure-python interface</span>
-<span class="c1"># in the correlation module, or can use the result object functions (faster).</span>
+<div class=" highlight hl-ipython3"><pre><span></span><span class="c1"># For partially-delensed or Alens-scaled spectra, power spectra can be computed using </span>
+<span class="c1"># a custom or scaled lensing potential power spectrum. There&#39;s a pure-python </span>
+<span class="c1"># interface in the correlation module, or can use the result object functions </span>
+<span class="c1"># (faster).</span>
 <span class="c1"># Here just plot results for scaled lensing spectrum, can use </span>
 <span class="c1"># get_lensed_cls_with_spectrum to calculate lensed spectrum with specific </span>
-<span class="c1"># lensing power if needed</span>
+<span class="c1"># lensing power if needed.</span>
 
 <span class="n">pars</span> <span class="o">=</span> <span class="n">camb</span><span class="o">.</span><span class="n">set_params</span><span class="p">(</span><span class="n">H0</span><span class="o">=</span><span class="mf">67.5</span><span class="p">,</span> <span class="n">ombh2</span><span class="o">=</span><span class="mf">0.022</span><span class="p">,</span> <span class="n">omch2</span><span class="o">=</span><span class="mf">0.122</span><span class="p">,</span> <span class="n">As</span><span class="o">=</span><span class="mf">2e-9</span><span class="p">,</span> <span class="n">ns</span><span class="o">=</span><span class="mf">0.96</span><span class="p">)</span>
 <span class="n">pars</span><span class="o">.</span><span class="n">set_for_lmax</span><span class="p">(</span><span class="mi">3500</span><span class="p">,</span> <span class="n">lens_potential_accuracy</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>

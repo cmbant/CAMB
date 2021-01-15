@@ -357,7 +357,7 @@ class CambTest(unittest.TestCase):
         cls_lensed = data.get_lensed_scalar_cls(3000)
         cphi = data.get_lens_potential_cls(2000)
 
-        cls_lensed2 = data.get_lensed_cls_with_spectrum(cls['lens_potential'][:, 0], lmax=3000)
+        cls_lensed2 = data.get_lensed_cls_with_spectrum(data.get_lens_potential_cls()[:, 0], lmax=3000)
         np.testing.assert_allclose(cls_lensed2[2:, :], cls_lensed[2:, :], rtol=1e-4)
         cls_lensed2 = data.get_partially_lensed_cls(1, lmax=3000)
         np.testing.assert_allclose(cls_lensed2[2:, :], cls_lensed[2:, :], rtol=1e-4)
