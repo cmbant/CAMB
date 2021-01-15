@@ -88,9 +88,9 @@ class CambTest(unittest.TestCase):
         self.assertTrue(len(pars.SourceWindows) == 0)
         params = camb.get_valid_numerical_params()
         self.assertEqual(params, {'ombh2', 'deltazrei', 'omnuh2', 'tau', 'omk', 'zrei', 'thetastar', 'nrunrun',
-                                  'meffsterile', 'nnu', 'ntrun', 'HMCode_A_baryon', 'HMCode_eta_baryon', 'HMCode_logT_AGN',
-                                  'cosmomc_theta', 'YHe', 'wa', 'cs2', 'H0', 'mnu', 'Alens', 'TCMB', 'ns',
-                                  'nrun', 'As', 'nt', 'r', 'w', 'omch2'})
+                                  'meffsterile', 'nnu', 'ntrun', 'HMCode_A_baryon', 'HMCode_eta_baryon',
+                                  'HMCode_logT_AGN', 'cosmomc_theta', 'YHe', 'wa', 'cs2', 'H0', 'mnu', 'Alens',
+                                  'TCMB', 'ns', 'nrun', 'As', 'nt', 'r', 'w', 'omch2'})
         params2 = camb.get_valid_numerical_params(dark_energy_model='AxionEffectiveFluid')
         self.assertEqual(params2.difference(params), {'fde_zc', 'w_n', 'zc', 'theta_i'})
 
@@ -352,10 +352,17 @@ class CambTest(unittest.TestCase):
         pars.set_for_lmax(lmax)
         cls = data.get_cmb_power_spectra(pars)
         data.get_total_cls(2000)
-        data.get_unlensed_scalar_cls(2500)
+        cls_unlensed = data.get_unlensed_scalar_cls(2500)
         data.get_tensor_cls(2000)
         cls_lensed = data.get_lensed_scalar_cls(3000)
         cphi = data.get_lens_potential_cls(2000)
+
+        cls_lensed2 = data.get_lensed_cls_with_spectrum(cls['lens_potential'][:, 0], lmax=3000)
+        np.testing.assert_allclose(cls_lensed2[2:, :], cls_lensed[2:, :], rtol=1e-4)
+        cls_lensed2 = data.get_partially_lensed_cls(1, lmax=3000)
+        np.testing.assert_allclose(cls_lensed2[2:, :], cls_lensed[2:, :], rtol=1e-4)
+        cls_lensed2 = data.get_partially_lensed_cls(0, lmax=2500)
+        np.testing.assert_allclose(cls_lensed2[2:, :], cls_unlensed[2:, :], rtol=1e-4)
 
         # check lensed CL against python; will only agree well for high lmax as python has no extrapolation template
         cls_lensed2 = correlations.lensed_cls(cls['unlensed_scalar'], cls['lens_potential'][:, 0], delta_cls=False)

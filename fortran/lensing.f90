@@ -65,7 +65,7 @@
 
     public lens_Cls, lensing_includes_tensors, lensing_method, lensing_method_flat_corr,&
         lensing_method_curv_corr,lensing_method_harmonic, BessI, ALens_Fiducial, &
-        lensing_sanity_check_amplitude, GetFlatSkyCGrads
+        lensing_sanity_check_amplitude, GetFlatSkyCGrads, lensClsWithSpectrum
     contains
 
 
@@ -83,17 +83,44 @@
     end if
     end subroutine lens_Cls
 
-
     subroutine CorrFuncFullSky(State)
     class(CAMBdata) :: State
-    integer :: lmax_extrap
+    integer :: lmax_extrap,l
+    real(dl) CPP(0:State%CP%max_l)
 
     lmax_extrap = State%CP%Max_l - lensed_convolution_margin + 750
     lmax_extrap = min(lmax_extrap_highl,lmax_extrap)
-    call CorrFuncFullSkyImpl(State,State%CP%min_l,max(lmax_extrap,State%CP%max_l))
+    do l= State%CP%min_l,State%CP%max_l
+        ! Cl_scalar(l,1,C_Phi) is l^4 C_phi_phi
+        CPP(l) = State%CLdata%Cl_scalar(l,C_Phi)*(l+1)**2/real(l,dl)**2/const_twopi
+    end do
+    call CorrFuncFullSkyImpl(State, State%ClData, State%ClData, CPP, &
+        State%CP%min_l,max(lmax_extrap,State%CP%max_l))
 
     end subroutine CorrFuncFullSky
 
+    subroutine lensClsWithSpectrum(State, CPP, lensedCls, lmax_lensed)
+    !Get lensed CL using CPP as the lensing specturm
+    !CPP is [L(L+1)]^2C_phi_phi/2/pi
+    type(CAMBdata) :: State
+    real(dl), intent(in) :: CPP(0:State%CP%max_l)
+    real(dl) :: lensedCls(4, 0:State%CP%Max_l)
+    integer :: lmax_lensed
+    Type(TCLData) :: CLout
+    integer :: lmax_extrap, l
+  
+    lmax_extrap = State%CP%Max_l - lensed_convolution_margin + 750
+    lmax_extrap = min(lmax_extrap_highl,lmax_extrap)
+    call CorrFuncFullSkyImpl(State, State%ClData, CLout, CPP, &
+        State%CP%min_l,max(lmax_extrap,State%CP%max_l))
+    lmax_lensed = CLout%lmax_lensed
+
+    do l=State%CP%min_l, lmax_lensed
+        lensedCls(:,l) = CLout%Cl_lensed(l,:)
+    end do
+    
+    end subroutine lensClsWithSpectrum
+    
     subroutine AmplitudeError
 
     call GlobalError('You need to normalize realistically to use lensing. ' &
@@ -101,11 +128,13 @@
 
     end subroutine AmplitudeError
 
-    subroutine CorrFuncFullSkyImpl(State,lmin,lmax)
+    subroutine CorrFuncFullSkyImpl(State,CL,CLout,CPP,lmin,lmax)
     !Accurate curved sky correlation function method
     !Uses non-perturbative isotropic term with 2nd order expansion in C_{gl,2}
     !Neglects C_{gl}(theta) terms (very good approx)
     class(CAMBdata), target :: State
+    Type(TCLData) :: CL, CLout
+    real(dl) :: CPP(0:State%CP%max_l) ! [L(L+1)]^2 C_L_phi_phi/2pi
     integer, intent(in) :: lmin,lmax
     integer l, i
     integer :: npoints
@@ -138,14 +167,12 @@
     real(dl) range_fac
     logical, parameter :: approx = .false.
     real(dl) theta_cut(lmax), LensAccuracyBoost
-    Type(TCLData), pointer :: CL
     Type(TTimer) :: Timer
 
     !$ integer  OMP_GET_THREAD_NUM, OMP_GET_MAX_THREADS
     !$ external OMP_GET_THREAD_NUM, OMP_GET_MAX_THREADS
 
     if (lensing_includes_tensors) call MpiStop('Haven''t implemented tensor lensing')
-    CL =>  State%ClData
     associate(lSamp => State%CLData%CTransScal%ls, CP=>State%CP)
 
         LensAccuracyBoost = CP%Accuracy%AccuracyBoost*CP%Accuracy%LensingBoost
@@ -154,11 +181,11 @@
             max_lensed_ix = max_lensed_ix -1
         end do
         !150 is the default margin added in python by set_for_lmax
-        CL%lmax_lensed = max(lSamp%l(max_lensed_ix), CP%Max_l - 150)
+        CLout%lmax_lensed = max(lSamp%l(max_lensed_ix), CP%Max_l - 150)
 
-        if (allocated(CL%Cl_lensed)) deallocate(CL%Cl_lensed)
-        allocate(CL%Cl_lensed(lmin:CL%lmax_lensed,1:4), source = 0._dl)
-
+        if (allocated(CLout%Cl_lensed)) deallocate(CLout%Cl_lensed)
+        allocate(CLout%Cl_lensed(lmin:CLout%lmax_lensed,1:4), source = 0._dl)
+        
         npoints = CP%Max_l  * 2 *LensAccuracyBoost
         short_integral_range = .not. CP%Accuracy%AccurateBB
         dtheta = const_pi / npoints
@@ -199,15 +226,14 @@
             roots(l) = sqrt(real(l,dl))
         end do
 
-
         thread_ix = 1
         !$ thread_ix = OMP_GET_MAX_THREADS()
-        allocate(lens_contrib(4,CL%lmax_lensed,thread_ix))
+        allocate(lens_contrib(4,CLout%lmax_lensed,thread_ix))
         allocate(ddcontribs(lmax,4),corrcontribs(lmax,4))
 
         do l=lmin,CP%Max_l
             ! (2*l+1)l(l+1)/4pi C_phi_phi: Cl_scalar(l,1,C_Phi) is l^4 C_phi_phi
-            Cphil3(l) = CL%Cl_scalar(l,C_Phi)*(2*l+1)*(l+1)/real(l,dl)**3/const_fourpi
+            Cphil3(l) = CPP(l)*(l+0.5_dl)/real((l+1)*l, dl)
             fac = (2*l+1)/const_fourpi * const_twopi/(l*(l+1))
             CTT(l) =  CL%Cl_scalar(l,C_Temp)*fac
             CEE(l) =  CL%Cl_scalar(l,C_E)*fac
@@ -246,7 +272,7 @@
 
         !$OMP PARALLEL DO DEFAULT(PRIVATE),  &
         !$OMP SHARED(lfacs,lfacs2,lrootfacs,Cphil3,CTT,CTE,CEE,lens_contrib,theta_cut), &
-        !$OMP SHARED(lmin, lmax,dtheta,CL,roots, npoints,interp_fac), &
+        !$OMP SHARED(lmin, lmax,dtheta,CL,CLout,roots, npoints,interp_fac), &
         !$OMP SHARED(jmax,ls,xl,short_integral_range,apodize_point_width)
         do i=1,npoints-1
 
@@ -465,7 +491,7 @@
 
             !$  thread_ix = OMP_GET_THREAD_NUM()+1
 
-            do l=lmin, CL%lmax_lensed
+            do l=lmin, CLout%lmax_lensed
                 !theta factors were put in earlier (already in corr)
 
                 lens_contrib(C_Temp, l, thread_ix)= lens_contrib(C_Temp,l, thread_ix) + &
@@ -488,15 +514,15 @@
         end do
         !$OMP END PARALLEL DO
 
-        do l=lmin, CL%lmax_lensed
+        do l=lmin, CLout%lmax_lensed
             !sign from d(cos theta) = -sin theta dtheta
             fac = l*(l+1)/OutputDenominator*dtheta*const_twopi
-            CL%Cl_lensed(l,CT_Temp) = sum(lens_contrib(CT_Temp,l,:))*fac &
+            CLout%Cl_lensed(l,CT_Temp) = sum(lens_contrib(CT_Temp,l,:))*fac &
                 + CL%Cl_scalar(l,C_Temp)
-            CL%Cl_lensed(l,CT_E) = sum(lens_contrib(CT_E,l,:))*fac &
+            CLout%Cl_lensed(l,CT_E) = sum(lens_contrib(CT_E,l,:))*fac &
                 + CL%Cl_scalar(l,C_E)
-            CL%Cl_lensed(l,CT_B) = sum(lens_contrib(CT_B,l,:))*fac
-            CL%Cl_lensed(l,CT_Cross) = sum(lens_contrib(CT_Cross,l,:))*fac &
+            CLout%Cl_lensed(l,CT_B) = sum(lens_contrib(CT_B,l,:))*fac
+            CLout%Cl_lensed(l,CT_Cross) = sum(lens_contrib(CT_Cross,l,:))*fac &
                 + CL%Cl_scalar(l,C_Cross)
 
         end do

@@ -391,6 +391,7 @@ def lensed_cls(cls, clpp, lmax=None, lmax_lensed=None, sampling_factor=1.4, delt
     accurate results should be called with lmax high enough that input cls are effectively band limited
     (lmax >= 2500, or higher for accurate BB to small scales).
     Usually lmax truncation errors are far larger than other numerical errors for lmax<4000.
+    For a faster result use get_lensed_cls_with_spectrum.
 
     :param cls: 2D array of unlensed cls(L,ix), with L starting at zero and ix=0,1,2,3 in order TT, EE, BB, TE.
         cls should include :math:`\ell(\ell+1)/2\pi` factors.
