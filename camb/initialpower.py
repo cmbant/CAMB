@@ -38,6 +38,9 @@ class SplinedInitialPower(InitialPower):
     def __init__(self, **kwargs):
         if kwargs.get('PK', None) is not None:
             self.set_scalar_table(kwargs['ks'], kwargs['PK'])
+        ns_eff = kwards.get('effective_ns_for_nonlinear', None)
+        if ns_eff is not None:
+            self.effective_ns_for_nonlinear = ns_eff
 
     def has_tensors(self):
         """

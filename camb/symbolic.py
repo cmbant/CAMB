@@ -106,7 +106,7 @@ def LinearPerturbation(name, species=None, camb_var=None, camb_sub=None, frame_d
     :param camb_var: relevant CAMB fortran variable
     :param camb_sub:  if not equal to camb_var, and string giving the expression in CAMB variables
     :param frame_dependence: the change in the perturbation when the frame 4-velocity u change
-             from u to u + delta_frame. Should be a sumpy expression involving delta_frame.
+             from u to u + delta_frame. Should be a numpy expression involving delta_frame.
     :param description: string describing variable
     :return: sympy Function instance (function of t), with attributes set to the arguments above.
     """
