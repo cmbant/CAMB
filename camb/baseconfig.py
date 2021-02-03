@@ -292,7 +292,7 @@ def AllocatableObjectArray(cls=None):
 
 
 class AllocatableArrayInt(_AllocatableArray):
-    _dtype = np.int
+    _dtype = int
     _ctype = c_int
 
 
