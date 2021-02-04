@@ -170,7 +170,8 @@ class CambTest(unittest.TestCase):
             if(verbose): print('')
 
             # Loop over cosmologies
-            for icos in [26, 56, 241, 242, 243, 244, 245, 246, 247, 248, 249, 250, 251]:
+            #for icos in [26, 56, 241, 242, 243, 244, 245, 246, 247, 248, 249, 250, 251]:
+            for icos in [26, 56]:
 
                 # Loop over HMcode versions
                 for HMcode_version in ['mead2015', 'mead2016', 'mead2020', 'mead2020_feedback']:    
