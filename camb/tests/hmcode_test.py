@@ -52,7 +52,7 @@ class HMcodeTest(unittest.TestCase):
                 data = np.loadtxt(infile)
                 k = data[:, 0]
                 a = a_in
-                D2 = data[:, 1:]       
+                D2 = data[:, 1:]
                 Pk = (D2.T/(4.*pi*(k/twopi)**3)).T # Convert Delta^2(k) -> P(k)
                 
                 # Return results
@@ -181,7 +181,7 @@ class HMcodeTest(unittest.TestCase):
                 results.Params.NonLinearModel.set_params(halofit_version=HMcode_version, HMCode_logT_AGN=logT)
                 k, z, Pk = results.get_matter_power_spectrum(minkh=kmin, maxkh=kmax, npoints=nk)
                 Pk = Pk.T[:, ::-1]
-                z = np.array(z)[::-1]      
+                z = np.array(z)[::-1]
                 a = 1./(1.+z)
                 if verbose: print('sigma_8:', results.get_sigma8()[-1])
                 
@@ -210,7 +210,7 @@ class HMcodeTest(unittest.TestCase):
                     if verbose: print('Infile:', infile)
                     k_in, a_in, Pk_in = read_Mead_benchmark(infile)
 
-                    # Get power from CAMB                   
+                    # Get power from CAMB
                     k_nl, a_nl, Pk_nl = get_HMcode_power_from_CAMB(results, k_in, a_in, logT, HMcode_version)
 
                     # Compare benchmark to calculation
