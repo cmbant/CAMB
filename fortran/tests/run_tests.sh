@@ -5,6 +5,10 @@ python --version
 python setup.py install
 python -c "import camb; print(camb.__version__)"
 python -m unittest camb.tests.camb_test
+rm -Rf HMcode_test_outputs
+git clone https://github.com/alexander-mead/HMcode_test_outputs.git
+python -m unittest camb.tests.hmcode_test
+rm -Rf HMcode_test_outputs
 pip uninstall -y camb
 rm -Rf dist/*
 rm -Rf build/*
@@ -43,7 +47,7 @@ pushd fortran
 make clean
 make
 
-mkdir testfiles
+mkdir -p testfiles
 python tests/CAMB_test_files.py testfiles --make_ini
 
 pushd testfiles
