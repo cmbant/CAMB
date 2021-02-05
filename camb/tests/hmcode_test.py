@@ -8,10 +8,8 @@ try:
 except ImportError as e:
     sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
     import camb
-
-fast = 'ci fast' in os.getenv("TRAVIS_COMMIT_MESSAGE", "")
  
-class CambTest(unittest.TestCase):
+class HMcodeTest(unittest.TestCase):
  
     def testHMcode(self):
 
@@ -75,7 +73,7 @@ class CambTest(unittest.TestCase):
                 logT = 7.8
                 
                 # Uncommon test parameters
-                if (icos == 56):
+                if icos == 56:
                     Om_m = 0.3158
                     Om_b = 0.04939
                     h = 0.6732
@@ -85,36 +83,36 @@ class CambTest(unittest.TestCase):
                     w0 = -1.
                     wa = 0.
                     mnu = 0.06
-                elif (icos == 241):
+                elif icos == 241:
                     w0 = -0.7
                     As = 2.46981e-9
-                elif (icos == 242):
+                elif icos == 242:
                     w0 = -1.3
                     As = 1.75070e-9
-                elif (icos == 243):
+                elif icos == 243:
                     mnu = 0.3
                     As = 2.35868e-9
-                elif (icos == 244):
+                elif icos == 244:
                     mnu = 0.9
                     As = 3.43507e-9
-                elif (icos == 245):
+                elif icos == 245:
                     ns = 0.7
                     As = 2.38515e-9
-                elif (icos == 246):
+                elif icos == 246:
                     ns = 1.3
                     As = 1.47601e-9
-                elif (icos == 247):
+                elif icos == 247:
                     Om_b = 0.01
                     As = 1.20028e-9
-                elif (icos == 248):
+                elif icos == 248:
                     Om_b = 0.1
                     As = 3.88822e-9
-                elif (icos == 249):
+                elif icos == 249:
                     wa = 0.9
                     As = 3.35538e-9
-                elif (icos == 250):
+                elif icos == 250:
                     logT = 7.6
-                elif (icos == 251):
+                elif icos == 251:
                     logT = 8.0
                     
                 # Return cosmological parameters
@@ -152,7 +150,7 @@ class CambTest(unittest.TestCase):
                 pars.InitPower.set_params(As=As, ns=ns)
 
                 # Set sigma_8 normalisation (wasteful)
-                if (norm_sig8):
+                if norm_sig8:
                     pars.set_matter_power(redshifts=[0.], kmax=kmax_calc)
                     pars.NonLinear = camb.model.NonLinear_none
                     results = camb.get_results(pars)
@@ -164,7 +162,7 @@ class CambTest(unittest.TestCase):
                 pars.set_matter_power(redshifts=z, kmax=kmax_calc)
                 pars.NonLinear = camb.model.NonLinear_both
                 results = camb.get_results(pars)
-                if (verbose): 
+                if verbose: 
                     print(pars)
 
                 # Return results and AGN temperature (ugly, but it needs to come out)
@@ -185,8 +183,7 @@ class CambTest(unittest.TestCase):
                 Pk = Pk.T[:, ::-1]
                 z = np.array(z)[::-1]      
                 a = 1./(1.+z)
-                if (verbose):
-                    print('sigma_8:', results.get_sigma8()[-1])
+                if verbose: print('sigma_8:', results.get_sigma8()[-1])
                 
                 # Return non-linear power
                 return k, a, Pk
@@ -196,7 +193,7 @@ class CambTest(unittest.TestCase):
                 return 'HMcode_test_outputs/HMcode_cos%d_hm%d.txt' % (icos, ihm)
 
             # Whitespace
-            if(verbose): print('')
+            if verbose: print('')
 
             # Loop over cosmologies
             for icos in [26, 56, 241, 242, 243, 244, 245, 246, 247, 248, 249, 250, 251]:
@@ -210,7 +207,7 @@ class CambTest(unittest.TestCase):
                     # Read benchmark data
                     ihm = HMcode_version_ihm[HMcode_version]
                     infile = HMcode_benchmark_file(icos, ihm)
-                    if(verbose): print('Infile:', infile)
+                    if verbose: print('Infile:', infile)
                     k_in, a_in, Pk_in = read_Mead_benchmark(infile)
 
                     # Get power from CAMB                   
@@ -223,5 +220,5 @@ class CambTest(unittest.TestCase):
                         self.assertAlmostEqual(a_nl[ia]/a_in[ia], 1., delta=eps_a)
                     for ia in range(len(a_in)):
                         for ik in range(len(k_in)):
-                            if (kmin_test <= k_in[ik] <= kmax_test and amin_test <= a_in[ia] <= amax_test):
+                            if kmin_test <= k_in[ik] <= kmax_test and amin_test <= a_in[ia] <= amax_test:
                                 self.assertAlmostEqual(Pk_nl[ik, ia]/Pk_in[ik, ia], 1., delta=eps_Pk)

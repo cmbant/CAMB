@@ -7,7 +7,7 @@ python -c "import camb; print(camb.__version__)"
 python -m unittest camb.tests.camb_test
 rm -Rf HMcode_test_outputs
 git clone https://github.com/alexander-mead/HMcode_test_outputs.git
-python -m unittest camb.tests.camb_test_hmcode
+python -m unittest camb.tests.hmcode_test
 rm -Rf HMcode_test_outputs
 pip uninstall -y camb
 rm -Rf dist/*
