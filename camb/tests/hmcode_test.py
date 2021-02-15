@@ -46,7 +46,7 @@ class HMcodeTest(unittest.TestCase):
             'mead2020_feedback': 124
         }
 
-        # Read in and sort Mead benchmark data
+        # Read in and sort Mead benchmark datawi
         def read_Mead_benchmark(infile):
 
             # Read data and split into k, a and Pk

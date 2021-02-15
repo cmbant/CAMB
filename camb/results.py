@@ -1253,7 +1253,7 @@ class CAMBdata(F2003Class):
                 params.Want_cl_2D_array = old_val
         return result
 
-    def get_lensed_gradient_cls(self, lmax=None, CMB_unit=None, raw_cl=False):
+    def get_lensed_gradient_cls(self, lmax=None, CMB_unit=None, raw_cl=False, clpp=None):
         r"""
         Get lensed gradient scalar CMB power spectra in flat sky approximation
         (`arXiv:1101.2234 <https://arxiv.org/abs/1101.2234>`_).
@@ -1264,6 +1264,8 @@ class CAMBdata(F2003Class):
         :param lmax: lmax to output to
         :param CMB_unit: scale results from dimensionless. Use 'muK' for :math:`\mu K^2` units for CMB :math:`C_\ell`
         :param raw_cl: return :math:`C_\ell` rather than :math:`\ell(\ell+1)C_\ell/2\pi`
+        :param clpp: custom array of :math:`[L(L+1)]^2 C_L^{\phi\phi}/2\pi` lensing potential power spectrum
+             to use (zero based), rather than calculated specturm from this model
         :return: numpy array CL[0:lmax+1,0:8], where CL[:,i] are :math:`T\nabla T`, :math:`E\nabla E`,
                  :math:`B\nabla B`, :math:`PP_\perp`, :math:`T\nabla E`, :math:`TP_\perp`, :math:`(\nabla T)^2`,
                  :math:`\nabla T\nabla T` where the first six are as defined in appendix C
@@ -1273,9 +1275,17 @@ class CAMBdata(F2003Class):
         lmax = self._lmax_setting(lmax)
         res = np.empty((lmax + 1, 8))
         opt = c_int(lmax)
-        GetFlatSkyCgrads = lib_import('lensing', '', 'getflatskycgrads')
-        GetFlatSkyCgrads.argtypes = [POINTER(CAMBdata), int_arg, numpy_1d]
-        GetFlatSkyCgrads(byref(self), byref(opt), res)
+        if clpp is not None:
+            if clpp.shape[0] < self.Params.max_l + 1:
+                raise CAMBValueError('clpp must go to at least Params.max_l (zero based)')
+            clpp = np.array(clpp, dtype=np.float64)
+            GetFlatSkyCgrads = lib_import('lensing', '', 'getflatskycgradswithspectrum')
+            GetFlatSkyCgrads.argtypes = [POINTER(CAMBdata), numpy_1d, int_arg, numpy_1d]
+            GetFlatSkyCgrads(byref(self), clpp, byref(opt), res)
+        else:
+            GetFlatSkyCgrads = lib_import('lensing', '', 'getflatskycgrads')
+            GetFlatSkyCgrads.argtypes = [POINTER(CAMBdata), int_arg, numpy_1d]
+            GetFlatSkyCgrads(byref(self), byref(opt), res)
         self._scale_cls(res, CMB_unit, raw_cl)
         return res
 

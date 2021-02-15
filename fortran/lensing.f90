@@ -65,7 +65,8 @@
 
     public lens_Cls, lensing_includes_tensors, lensing_method, lensing_method_flat_corr,&
         lensing_method_curv_corr,lensing_method_harmonic, BessI, ALens_Fiducial, &
-        lensing_sanity_check_amplitude, GetFlatSkyCGrads, lensClsWithSpectrum
+        lensing_sanity_check_amplitude, lensClsWithSpectrum, &
+        GetFlatSkyCGrads, GetFlatSkyCgradsWithSpectrum
     contains
 
 
@@ -108,7 +109,7 @@
     integer :: lmax_lensed
     Type(TCLData) :: CLout
     integer :: lmax_extrap, l
-  
+
     lmax_extrap = State%CP%Max_l - lensed_convolution_margin + 750
     lmax_extrap = min(lmax_extrap_highl,lmax_extrap)
     call CorrFuncFullSkyImpl(State, State%ClData, CLout, CPP, &
@@ -118,9 +119,9 @@
     do l=State%CP%min_l, lmax_lensed
         lensedCls(:,l) = CLout%Cl_lensed(l,:)
     end do
-    
+
     end subroutine lensClsWithSpectrum
-    
+
     subroutine AmplitudeError
 
     call GlobalError('You need to normalize realistically to use lensing. ' &
@@ -185,7 +186,7 @@
 
         if (allocated(CLout%Cl_lensed)) deallocate(CLout%Cl_lensed)
         allocate(CLout%Cl_lensed(lmin:CLout%lmax_lensed,1:4), source = 0._dl)
-        
+
         npoints = CP%Max_l  * 2 *LensAccuracyBoost
         short_integral_range = .not. CP%Accuracy%AccurateBB
         dtheta = const_pi / npoints
@@ -706,9 +707,27 @@
 
 
     subroutine GetFlatSkyCgrads(State, lmax, CGrads)
+    type(CAMBdata) :: State
+    integer, intent(in) :: lmax
+    integer, parameter :: ncorr = 8
+    real(dl) :: CGrads(ncorr,0:lmax)
+    real(dl) CPP(0:State%CP%max_l)
+    integer l
+
+    do l= State%CP%min_l,State%CP%max_l
+        ! Cl_scalar(l,1,C_Phi) is l^4 C_phi_phi
+        CPP(l) = State%CLdata%Cl_scalar(l,C_Phi)*(l+1)**2/real(l,dl)**2/const_twopi
+    end do
+    call GetFlatSkyCgradsWithSpectrum(State, CPP, lmax, CGrads)
+
+    end subroutine GetFlatSkyCgrads
+
+
+    subroutine GetFlatSkyCgradsWithSpectrum(State, CPP, lmax, CGrads)
     !Do flat skyapprox calculation of gradient spectra C^(T\grad T) etc.
     !See Appendix C of https://arxiv.org/abs/1101.2234
     type(CAMBdata) :: State
+    real(dl), intent(in) :: CPP(0:State%CP%max_l)
     integer, intent(in) :: lmax
     integer, parameter :: ncorr = 8
     real(dl) :: CGrads(ncorr,0:lmax)
@@ -753,7 +772,7 @@
 
         do l=lmin,CP%Max_l
             ! l^3 C_phi_phi/2/pi: Cl_scalar(l,1,C_Phi) is l^4 C_phi_phi
-            Cphil3(l) = CL%Cl_scalar(l,C_Phi)/l /const_twopi
+            Cphil3(l) = CPP(l)*l/real((l+1)**2, dl)
             fac = l/const_twopi*const_twopi/(l*(l+1))
             CTT(l) =  CL%Cl_scalar(l,C_Temp)*fac
             CEE(l) =  CL%Cl_scalar(l,C_E)*fac
@@ -891,7 +910,7 @@
         if (DebugMsgs) call Timer%WriteTime('Time for GetFlatSkyCgrads')
     end associate
 
-    end subroutine GetFlatSkyCgrads
+    end subroutine GetFlatSkyCgradsWithSpectrum
 
     subroutine BadHarmonic(State)
     use MathUtils
