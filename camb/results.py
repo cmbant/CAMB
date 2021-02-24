@@ -1314,19 +1314,25 @@ class CAMBdata(F2003Class):
         self._scale_cls(res, CMB_unit, raw_cl)
         return res
 
-    def get_partially_lensed_cls(self, Alens: float, lmax=None, CMB_unit=None, raw_cl=False):
+    def get_partially_lensed_cls(self, Alens, lmax=None, CMB_unit=None, raw_cl=False):
         r"""
            Get lensed CMB power spectra using curved-sky correlation function method, using
-           true lensing spectrum scaled by Alens.
+           true lensing spectrum scaled by Alens. Alens can be an array in L for realistic delensing estimates.
            Note that if Params.Alens is also set, the result is scaled by the product of both
 
-           :param Alens: scaling of the lensing relative to true, with Alens=1 being the standard result
+           :param Alens: scaling of the lensing relative to true, with Alens=1 being the standard result. Can
+              can a scalar in which case all L are scaled, or an zero-based array with the L by L scaling
+              (with L larger than the size of the array having Alens_L=1).
            :param lmax: lmax to output to
            :param CMB_unit: scale results from dimensionless. Use 'muK' for :math:`\mu K^2` units for CMB :math:`C_\ell`
            :param raw_cl: return :math:`C_\ell` rather than :math:`\ell(\ell+1)C_\ell/2\pi`
            :return: numpy array CL[0:lmax+1,0:4], where 0..3 indexes TT, EE, BB, TE.
            """
-        clpp = self.get_lens_potential_cls()[:, 0] * Alens
+        clpp = results.get_lens_potential_cls()[:, 0]
+        if np.isscalar(Alens):
+            clpp *= Alens
+        else:
+            clpp[:Alens.size] *= Alens
         return self.get_lensed_cls_with_spectrum(clpp, lmax, CMB_unit, raw_cl)
 
     def angular_diameter_distance(self, z):
