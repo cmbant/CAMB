@@ -7,9 +7,24 @@ from ctypes import Structure, POINTER, byref, c_int, c_double, c_bool, c_float
 from numpy.ctypeslib import ndpointer
 import numpy as np
 
+
+def ndpointer_or_null(*args, **kwargs):
+    # allows passing None to fortran optional arguments
+    # from https://stackoverflow.com/a/37664693/1022775
+    base = ndpointer(*args, **kwargs)
+
+    def from_param(cls, obj):
+        if obj is None:
+            return obj
+        return base.from_param(obj)
+
+    return type(base.__name__, (base,), {'from_param': classmethod(from_param)})
+
+
 numpy_3d = ndpointer(c_double, flags='C_CONTIGUOUS', ndim=3)
 numpy_2d = ndpointer(c_double, flags='C_CONTIGUOUS', ndim=2)
 numpy_1d = ndpointer(c_double, flags='C_CONTIGUOUS')
+numpy_1d_or_null = ndpointer_or_null(c_double, flags='C_CONTIGUOUS')
 numpy_1d_int = ndpointer(c_int, flags='C_CONTIGUOUS')
 
 BASEDIR = osp.abspath(osp.dirname(__file__))

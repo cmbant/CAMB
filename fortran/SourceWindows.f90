@@ -30,12 +30,14 @@
 
     Type, extends(TSourceWindow) :: TSplinedSourceWindow
         Type(TCubicSpline), allocatable :: Window
+        Type(TCubicSpline), allocatable :: Bias_z
         real(dl) :: maxwin
     contains
     procedure, nopass :: SelfPointer => TSplinedSourceWindow_SelfPointer
     procedure :: count_obs_window_z => TSplinedSourceWindow_count_obs_window_z
     procedure :: GetScales => TSplinedSourceWindow_GetScales
     procedure :: SetTable => TSplinedSourceWindow_SetTable
+    procedure :: GetBias => TSplinedSourceWindow_GetBias
     end Type TSplinedSourceWindow
 
     Type TSourceWindowHolder
@@ -209,16 +211,41 @@
 
     end subroutine TSplinedSourceWindow_SelfPointer
 
-    subroutine  TSplinedSourceWindow_SetTable(this, n, z, W)
+    real(dl) function TSplinedSourceWindow_GetBias(this,k,a)
+    class(TSplinedSourceWindow) :: this
+    real(dl), intent(in) :: k,a
+    real(dl) z
+    if (allocated(this%bias_z))  then
+        z = 1/a-1
+        if (z > this%Window%X(this%Window%n) .or. z < this%Window%X(1)) then
+            TSplinedSourceWindow_GetBias = 0
+        else
+            TSplinedSourceWindow_GetBias = this%Window%Value(z)
+        end if
+    else
+        TSplinedSourceWindow_GetBias = this%Bias !Simplest scale-independent and time independent model
+    end if
+    end function
+
+
+    subroutine  TSplinedSourceWindow_SetTable(this, n, z, W, bias_z)
     class(TSplinedSourceWindow) :: this
     integer, intent(in) :: n
     real(dl), intent(in) :: z(n), W(n)
+    real(dl), intent(in), optional :: bias_z(n)
 
     if (allocated(this%Window)) deallocate(this%Window)
     if (n>0) then
         allocate(this%Window)
         call this%Window%Init(z,W)
         this%maxwin = maxval(this%Window%F)
+    end if
+    if (present(bias_z)) then
+        if (allocated(this%Bias_z)) deallocate(this%Bias_z)
+        if (n>0) then
+            allocate(this%Bias_z)
+            call this%Bias_z%Init(z,bias_z)
+        end if
     end if
 
     end subroutine TSplinedSourceWindow_SetTable
