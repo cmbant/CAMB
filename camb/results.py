@@ -1328,7 +1328,7 @@ class CAMBdata(F2003Class):
            :param raw_cl: return :math:`C_\ell` rather than :math:`\ell(\ell+1)C_\ell/2\pi`
            :return: numpy array CL[0:lmax+1,0:4], where 0..3 indexes TT, EE, BB, TE.
            """
-        clpp = results.get_lens_potential_cls()[:, 0]
+        clpp = self.get_lens_potential_cls()[:, 0]
         if np.isscalar(Alens):
             clpp *= Alens
         else:
