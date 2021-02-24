@@ -220,7 +220,7 @@
         if (z > this%Window%X(this%Window%n) .or. z < this%Window%X(1)) then
             TSplinedSourceWindow_GetBias = 0
         else
-            TSplinedSourceWindow_GetBias = this%Window%Value(z)
+            TSplinedSourceWindow_GetBias = this%bias_z%value(z)
         end if
     else
         TSplinedSourceWindow_GetBias = this%Bias !Simplest scale-independent and time independent model
