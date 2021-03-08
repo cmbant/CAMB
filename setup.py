@@ -287,7 +287,7 @@ if __name__ == "__main__":
           platforms="any",
           package_data={'camb': [DLLNAME, 'HighLExtrapTemplate_lenspotentialCls.dat',
                                  'PArthENoPE_880.2_marcucci.dat', 'PArthENoPE_880.2_standard.dat',
-                                 'PRIMAT_Yp_DH_Error.dat']},
+                                 'PRIMAT_Yp_DH_Error.dat', 'PRIMAT_Yp_DH_ErrorMC_2021.dat']},
           test_suite='camb.tests',
           entry_points={
               'console_scripts': [
