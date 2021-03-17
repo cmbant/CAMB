@@ -49,6 +49,7 @@ jobs:
       services:
         - docker
       before_install:
+        - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
         - docker pull cmbant/cosmobox:devel
       install:
         - chmod +x fortran/tests/run_tests.sh
