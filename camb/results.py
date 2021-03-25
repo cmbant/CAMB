@@ -38,7 +38,8 @@ class _ClTransferData(CAMB_Structure):
 
 def save_cmb_power_array(filename, array, labels, lmin=0):
     """
-    Save an zero-based 2-d array of CL to a text file, with each line startin with L.
+    Save an zero-based 2-d array of CL to a text file, with each line starting with L.
+
     :param filename: filename to save
     :param array: 2D array of power spectra
     :param labels:  header names for each column in the output

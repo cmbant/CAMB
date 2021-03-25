@@ -370,7 +370,7 @@
             if (sum(this%CP%Nu_mass_numbers(1:this%CP%Nu_mass_eigenstates))/=0) &
                 call GlobalError('Num_Nu_Massive is not sum of Nu_mass_numbers', error_unsupported_params)
         end if
-        if (this%CP%Omnuh2 < 1.e-7_dl) this%CP%Omnuh2 = 0
+10      if (this%CP%Omnuh2 < 1.e-7_dl) this%CP%Omnuh2 = 0
         if (this%CP%Omnuh2==0 .and. this%CP%Num_Nu_Massive /=0) then
             if (this%CP%share_delta_neff) then
                 this%CP%Num_Nu_Massless = this%CP%Num_Nu_Massless + this%CP%Num_Nu_Massive
@@ -476,6 +476,13 @@
                 this%nu_masses(nu_i)= ThermalNuBackground%find_nu_mass_for_rho(this%CP%omnuh2/h2*this%CP%Nu_mass_fractions(nu_i)&
                     *this%grhocrit/this%grhormass(nu_i))
             end do
+            if (all(this%nu_masses(1:this%CP%Nu_mass_eigenstates)==0)) then
+                !All density accounted for by massless, so just use massless
+                this%CP%Omnuh2 = 0
+                goto 10
+            end if
+            !Just prevent divide by zero
+            this%nu_masses(1:this%CP%Nu_mass_eigenstates) = max(this%nu_masses(1:this%CP%Nu_mass_eigenstates),1e-3_dl)
         else
             this%nu_masses = 0
         end if
