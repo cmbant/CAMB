@@ -49,7 +49,7 @@ jobs:
       services:
         - docker
       before_install:
-        - if [[$TRAVIS_PULL_REQUEST == "false"]]; then
+        - if [ "$TRAVIS_PULL_REQUEST" = "false" ]; then
             echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin;
           fi
         - docker pull cmbant/cosmobox:devel
