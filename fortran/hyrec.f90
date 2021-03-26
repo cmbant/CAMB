@@ -149,7 +149,7 @@
         Calc%Tnow=State%CP%tcmb
 
         call rec_build_history_camb(OmegaC, OmegaB, &
-            State%CP%H0, State%CP%tcmb, State%CP%Yhe, State%CP%N_eff()-State%CP%Nu_mass_eigenstates, &
+            State%CP%H0, State%CP%tcmb, State%CP%Yhe, State%CP%N_eff(), &
             this%Calc%xhyrec, this%Calc%tmhyrec, Nz)
     end select
     end subroutine THyRec_init
