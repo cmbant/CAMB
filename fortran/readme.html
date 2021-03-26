@@ -29,7 +29,6 @@ CAMB can also be used as part of the <A HREF="http://cosmologist.info/cosmomc/">
 <P>
 <P>
 <FONT SIZE=-1>
-This version January 2019, version 1.0. <br>
 Code for Anisotropies in the Microwave Background by <A
 HREF="http://cosmologist.info/">Antony Lewis</A> and Anthony
 Challinor. <br>
@@ -129,7 +128,7 @@ The column numbers correspond to the Transfer_xx integer constants  defined in t
 <H3>Compilation options and code modifications</H3>
 <P>
 The Makefile should work out of the box in most cases for ifort and gfortran.
-If you define your own new classes, or want to compile with  <A HREF="http://www.jb.man.ac.uk/~jchluba/Science/CosmoRec/CosmoRec.html">CosmoRec</A> or <A HREF="http://pages.jh.edu/~yalihai1/hyrec/hyrec.html">HyRec</A> recombination support, you can edit the file list variables at the top of Makefile_main.
+If you define your own new classes, or want to compile with  <A HREF="http://www.jb.man.ac.uk/~jchluba/Science/CosmoRec/CosmoRec.html">CosmoRec</A> or <A HREF="https://github.com/nanoomlee/HYREC-2">HyRec</A> recombination support, you can edit the file list variables at the top of Makefile_main.
  You can also use e.g. <B>make RECOMBINATION_FILES="recfast cosmorec"</b> to override the default and compile with additional files.
  REIONIZATION is by default a simple relatively fast single-step reionization model (following <A HREF="http://arxiv.org/abs/0804.3865">arXiv:0804.3865</A>), but you could add alternative models by implementing other derived classes.
 </P>
@@ -266,7 +265,7 @@ from <A HREF="http://arxiv.org/abs/1208.2701">arXiv:1208.2701</A> (thanks Ryuich
  by Douglas Scott (with minor modifications for CMBFAST and the
  CAMB). See <A
  HREF="http://www.astro.ubc.ca/people/scott/recfast.html">RECFAST</A>
- for the original code. This module implements the TRecombinationModel class required by CAMB. Sample wrappers are also provided for <A HREF="http://www.cita.utoronto.ca/~jchluba/Science_Jens/Recombination/CosmoRec.html">CosmoRec</A> and <A HREF="http://www.sns.ias.edu/~yacine/hyrec/hyrec.html">HyRec</A>, but the libraries for these must be installed separately.
+ for the original code. This module implements the TRecombinationModel class required by CAMB. Sample wrappers are also provided for <A HREF="http://www.jb.man.ac.uk/~jchluba/Science/CosmoRec/CosmoRec.html">CosmoRec</A> and <A HREF="https://github.com/nanoomlee/HYREC-2">HyRec</A>, but the libraries for these must be installed separately.
  <P>
 <B>SeparableBispectrum.f90</B>
 <P>
@@ -306,6 +305,11 @@ Accuracy of course assumes the model is correct, and is dependent on RECFAST bei
 <P>
 <A NAME="version">
 <H3>Version history</H3>
+
+<B>1.x + :</B> See <a href="https://github.com/cmbant/CAMB/releases">GitHub Release</a> history<BR>
+<p>
+</p>
+
 
 <B>1.0: January 2019</B><BR>
 <ul>
