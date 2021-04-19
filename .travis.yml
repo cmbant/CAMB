@@ -24,7 +24,7 @@ jobs:
         - PYDIST="ANACONDA"
         - FORTRAN="test"
       python: "3.7"
-    - name: "GCC9 + Python 3.9"
+    - name: "GCC9 + Python 3.9 (anaconda)"
       addons:
         apt:
           sources:
@@ -33,8 +33,8 @@ jobs:
             - gfortran-9
       env:
         - GCC_VERSION="9"
-        - CHANNEL="conda-forge"
         - PYDIST="ANACONDA"
+        - CHANNEL="defaults"
         - FORTRAN="test"
       python: "3.9"
     - name: "Ubuntu 20.04 + Python 3.8"
@@ -44,6 +44,18 @@ jobs:
           packages:
             - gfortran
       python: "3.8"
+    - name: "GCC10 + Python 3.9 (conda-forge)"
+      dist: focal
+      addons:
+        apt:
+          packages:
+            - gfortran-10
+      env:
+        - GCC_VERSION="10"
+        - FORTRAN="test"
+        - CHANNEL="conda-forge"
+        - PYDIST="ANACONDA"
+      python: "3.9"
     - name: "GCC trunk cosmobox"
       language: shell
       services:
@@ -61,12 +73,6 @@ jobs:
         - echo "docker fail"
 
 install:
-  - if [[ "$FORTRAN" == "test" ]]; then
-      mkdir -p gfortran-symlinks;
-      ln -s /usr/bin/gfortran-$GCC_VERSION gfortran-symlinks/gfortran;
-      export PATH=$PWD/gfortran-symlinks:$PATH;
-    fi
-  - gfortran --version
   - if [[ "$PYDIST" == "ANACONDA" ]]; then
       wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh;
       bash miniconda.sh -b -p $HOME/miniconda;
@@ -77,6 +83,15 @@ install:
       conda create -q -n test-environment -c $CHANNEL python=$TRAVIS_PYTHON_VERSION numpy scipy sympy;
       source activate test-environment;
     fi
+  - if [[ "$FORTRAN" == "test" ]]; then
+      mkdir -p gfortran-symlinks;
+      ln -s /usr/bin/gfortran-$GCC_VERSION gfortran-symlinks/gfortran;
+      export PATH=$PWD/gfortran-symlinks:$PATH;
+    fi
+  - if [[ "$GCC_VERSION" == "10" ]]; then
+      export LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libgfortran.so.5;
+    fi
+  - gfortran --version
   - chmod +x fortran/tests/run_tests.sh
 
 script: fortran/tests/run_tests.sh
