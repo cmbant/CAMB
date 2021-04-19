@@ -44,6 +44,8 @@ jobs:
           packages:
             - gfortran
       python: "3.8"
+      env:
+        - PYPI_DIST="true"
     - name: "GCC10 + Python 3.9 (conda-forge)"
       dist: focal
       addons:
@@ -97,7 +99,7 @@ install:
 script: fortran/tests/run_tests.sh
 
 after_failure:
-  - test $TRAVIS_PULL_REQUEST == "false" && test $CHANNEL == "defaults" && test $TRAVIS_REPO_SLUG == "cmbant/CAMB" && [ -d fortran/testfiles ] && bash fortran/tests/upload_tests.sh
+  - test $TRAVIS_PULL_REQUEST == "false" && test $PYPI_DIST == "true" && test $TRAVIS_REPO_SLUG == "cmbant/CAMB" && [ -d fortran/testfiles ] && bash fortran/tests/upload_tests.sh
 
 before_deploy:
   - pushd fortran; make clean delete; popd
@@ -113,3 +115,4 @@ deploy:
       branch: master
       repo: cmbant/CAMB
       tags: true
+      condition: $PYPI_DIST = true
