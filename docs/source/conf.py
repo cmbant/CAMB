@@ -72,9 +72,9 @@ source_encoding = 'utf-8-sig'
 master_doc = 'index'
 
 # General information about the project.
-project = u'Code for Anisotropies in the Microwave Background (CAMB)'
-copyright = u'Antony Lewis'
-author = u'Antony Lewis'
+project = 'Code for Anisotropies in the Microwave Background (CAMB)'
+copyright = 'Antony Lewis'
+author = 'Antony Lewis'
 
 version = camb.__version__
 release = camb.__version__

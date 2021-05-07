@@ -22,6 +22,7 @@
     ! (min steps useful to stop wrong results on periodic or sharp functions)
     use iso_c_binding
     use MiscUtils
+    use config, only : global_error_flag
     class(*) :: obj
     real(dl), external :: fin !a class function
     procedure(obj_function), pointer :: f
@@ -37,12 +38,13 @@
 
     !convert the class function (un-type-checked) into correct type to call correctly for class argument
     call C_F_PROCPOINTER(c_funloc(fin), f)
-
+    Integrate_Romberg = -1
     max_it = PresentDefault(25, maxit)
     min_steps = PresentDefault(0, minsteps)
     abstol = DefaultFalse(abs_tol)
     h=0.5d0*(b-a)
     gmax=h*(f(obj,a)+f(obj,b))
+    if (global_error_flag /=0) return
     g(1)=gmax
     nint=1
     error=1.0d20
@@ -54,6 +56,7 @@
         g0=0._dl
         do k=1,nint
             g0=g0+f(obj, a+(k+k-1)*h)
+            if (global_error_flag /=0) return
         end do
         g0=0.5d0*g(1)+h*g0
         h=0.5d0*h

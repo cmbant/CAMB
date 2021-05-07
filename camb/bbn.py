@@ -1,5 +1,5 @@
 # Classes to produce BBN predictions for helium mass fraction and D/H given other parameters
-# Fitting formula for Parthenelope via Julien Lesourges Dec 2014
+# Fitting formula for Parthenelope via Julien Lesgourgues Dec 2014
 # General interpolation tables, with defaults from Parthenope May 2017 (thanks Ofelia Pesanti)
 # Use PRIMAT_Yp_DH_Error.dat table for latest from the PRIMAT code (arXiv: 1801.08023, thanks Cyril Pitrou)
 

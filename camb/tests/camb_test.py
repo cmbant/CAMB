@@ -622,7 +622,7 @@ class CambTest(unittest.TestCase):
         # test something sharp with redshift distortions (tricky..)
         from scipy import signal
         zs = np.arange(1.9689, 2.1057, (2.1057 - 1.9689) / 2000)
-        W = signal.tukey(len(zs), alpha=0.1)
+        W = signal.windows.tukey(len(zs), alpha=0.1)
         pars = camb.CAMBparams()
         pars.set_cosmology(H0=67.5, ombh2=0.022, omch2=0.122)
         pars.InitPower.set_params(As=2e-9, ns=0.965)

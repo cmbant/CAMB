@@ -9,7 +9,7 @@ from reionization, but this can optionally be turned off.
 
 from . import camb, model
 import numpy as np
-from .bispectrum import threej
+from .mathutils import threej
 
 
 def cl_deflection_limber(results, PK, ls, nz, chi_source, emit_pow=2, lens_pow=0):

@@ -1,5 +1,4 @@
 from ctypes import c_int, c_double, c_char
-from .mathutils import threej
 
 # Note currently there is no python interface for getting bispectrum results.
 

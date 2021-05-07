@@ -13,8 +13,12 @@
 
     !  8*pi*G*rho*a**4.
     grhoa2 = this%grho_no_de(a) +  grhov_t * a**2
-
-    dtauda = sqrt(3 / grhoa2)
+    if (grhoa2 <= 0) then
+        call GlobalError('Universe stops expanding before today (recollapse not supported)', error_unsupported_params)
+        dtauda = 0
+    else
+        dtauda = sqrt(3 / grhoa2)
+    end if
 
     end function dtauda
 

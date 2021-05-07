@@ -487,8 +487,8 @@
             this%nu_masses = 0
         end if
         call this%CP%DarkEnergy%Init(this)
+        if (global_error_flag==0) this%tau0=this%TimeOfz(0._dl)
         if (global_error_flag==0) then
-            this%tau0=this%TimeOfz(0._dl)
             this%chi0=this%rofChi(this%tau0/this%curvature_radius)
             this%scale= this%chi0*this%curvature_radius/this%tau0  !e.g. change l sampling depending on approx peak spacing
             if (this%closed .and. this%tau0/this%curvature_radius >3.14) then
@@ -1174,7 +1174,7 @@
     end if
 
     end function grho_no_de
-    
+
     function GetReionizationOptDepth(this)
     class(CAMBdata) :: this
     real(dl) GetReionizationOptDepth
