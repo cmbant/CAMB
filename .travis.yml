@@ -95,8 +95,11 @@ install:
     fi
   - gfortran --version
   - chmod +x fortran/tests/run_tests.sh
+  - pip install flake8
 
-script: fortran/tests/run_tests.sh
+script:
+  - flake8 camb --select=E713,E704,E703,E714,E10,E11,E20,E22,E23,E25,E27,E301,E302,E304,E9,E741,F405,F406,F5,F6,F7,F8,W1,W2,W3,W6 --show-source --statistics
+  - fortran/tests/run_tests.sh
 
 after_failure:
   - test $TRAVIS_PULL_REQUEST == "false" && test $PYPI_DIST == "true" && test $TRAVIS_REPO_SLUG == "cmbant/CAMB" && [ -d fortran/testfiles ] && bash fortran/tests/upload_tests.sh

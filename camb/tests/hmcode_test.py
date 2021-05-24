@@ -5,7 +5,7 @@ import numpy as np
 
 try:
     import camb
-except ImportError as e:
+except ImportError:
     sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
     import camb
 

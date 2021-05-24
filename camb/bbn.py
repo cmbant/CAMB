@@ -231,4 +231,3 @@ if __name__ == "__main__":
     print(BBN_table_interpolator('PArthENoPE_880.2_marcucci.dat').DH(0.02463, -0.6))
     print(BBN_table_interpolator('PRIMAT_Yp_DH_Error.dat').DH(0.02463, -0.6))
     print(BBN_table_interpolator('PRIMAT_Yp_DH_ErrorMC_2021.dat').DH(0.02463, -0.6))
-

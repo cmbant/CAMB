@@ -6,7 +6,7 @@ import numpy as np
 
 try:
     import camb
-except ImportError as e:
+except ImportError:
     sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
     import camb
 from camb import model, correlations, bbn, dark_energy, initialpower
@@ -355,7 +355,7 @@ class CambTest(unittest.TestCase):
         cls_unlensed = data.get_unlensed_scalar_cls(2500)
         data.get_tensor_cls(2000)
         cls_lensed = data.get_lensed_scalar_cls(3000)
-        cphi = data.get_lens_potential_cls(2000)
+        data.get_lens_potential_cls(2000)
 
         cls_lensed2 = data.get_lensed_cls_with_spectrum(data.get_lens_potential_cls()[:, 0], lmax=3000)
         np.testing.assert_allclose(cls_lensed2[2:, :], cls_lensed[2:, :], rtol=1e-4)
@@ -716,7 +716,7 @@ class CambTest(unittest.TestCase):
             for i in range(3):
                 pars = camb.CAMBparams()
                 pars.set_cosmology(H0=70, ombh2=0.022, omch2=0.12, mnu=0.06, omk=0, tau=0.17)
-                results = camb.get_results(pars)
+                results = camb.get_results(pars)  # noqa
                 del pars, results
                 gc.collect()
                 usage = round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0, 1)
