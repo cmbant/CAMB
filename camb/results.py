@@ -808,6 +808,7 @@ class CAMBdata(F2003Class):
                            (where R always Mpc units not h^{-1}Mpc and R, z are arrays)
         :return: array of :math:`\sigma_R` values, or 2D array indexed by (redshift, R)
         """
+        assert self.Params.WantTransfer
         var1, var2 = self._transfer_var(var1, var2)
         if hubble_units:
             if not np.isscalar(R):
@@ -840,6 +841,7 @@ class CAMBdata(F2003Class):
 
         :return: array of :math:`\sigma_8` values, in order of increasing time (decreasing redshift)
         """
+        assert self.Params.WantTransfer
         sigma8 = np.empty(self.Params.Transfer.PK_num_redshifts, dtype=np.float64)
         CAMBdata_GetSigma8(byref(self), sigma8, byref(c_int(0)))
         return sigma8
@@ -863,6 +865,7 @@ class CAMBdata(F2003Class):
 
         :return: array of f*sigma_8 values, in order of increasing time (decreasing redshift)
         """
+        assert self.Params.WantTransfer
         fsigma8 = np.empty(self.Params.Transfer.PK_num_redshifts, dtype=np.float64)
         CAMBdata_GetSigma8(byref(self), fsigma8, byref(c_int(1)))
         return fsigma8
