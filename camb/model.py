@@ -613,6 +613,9 @@ class CAMBparams(F2003Class):
     def get_zre(self):
         return self.Reion.get_zre(self)
 
+    # alias consistent with input parameter name
+    get_zrei = get_zre
+
     def get_Y_p(self, ombh2=None, delta_neff=None):
         r"""
         Get BBN helium nucleon fraction (NOT the same as the mass fraction Y_He) by intepolation using the
