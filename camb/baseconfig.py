@@ -595,16 +595,18 @@ class CAMB_Structure(Structure, metaclass=CAMBStructureMeta):
             fields = cls.__bases__[0].get_all_fields()
         else:
             fields = []
-        fields += cls.__dict__.get('_fields_', [])
+        fields += [(name[1:], value) if name.startswith('_') else (name, value) for name, value in
+                   cls.__dict__.get('_fields_', []) if
+                   not name.startswith('__')]
         return fields
+
+    @classmethod
+    def get_valid_field_names(cls):
+        return set(field[0] for field in cls.get_all_fields())
 
     def _as_string(self):
         s = ''
         for field_name, field_type in self.get_all_fields():
-            if field_name[0:2] == '__':
-                continue
-            if field_name[0] == '_':
-                field_name = field_name[1:]
             obj = getattr(self, field_name)
             if isinstance(obj, (CAMB_Structure, FortranAllocatable)):
                 content = obj._as_string() if isinstance(obj, CAMB_Structure) else str(obj)
@@ -644,7 +646,7 @@ class F2003Class(CAMB_Structure):
     # become undefined if the allocatable field is reassigned.
 
     # classes are referenced by their fortran null pointer object. _class_pointers is a dictionary relating these
-    # f_pointer to python classes Elements are added each class by the @fortran_class decorator.
+    # f_pointer to python classes. Elements are added each class by the @fortran_class decorator.
     _class_pointers = {}
 
     # dictionary mapping class names to classes
@@ -658,6 +660,12 @@ class F2003Class(CAMB_Structure):
 
     def __new__(cls, *args, **kwargs):
         return cls._new_copy()
+
+    def __init__(self, **kwargs):
+        unknowns = set(kwargs) - self.get_valid_field_names()
+        if unknowns:
+            raise ValueError('Unknown argument(s): %s' % unknowns)
+        super().__init__(**kwargs)
 
     @classmethod
     def _new_copy(cls, source=None):
