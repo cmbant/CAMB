@@ -29,4 +29,4 @@ The --user is optional and only required if you don't have write permission to y
 You will need gfortran 6 or higher installed to compile. Binary files for Windows are also provided, so these are used instead if no
 gfortran installation is found on Windows machines.
 
-The python wrapper provides a module called "camb" documented in the `Python CAMB documentation <https://camb.readthedocs.io/en/latest/>`_.
+The python wrapper provides a module called "camb" documented in the Python `CAMB documentation <https://camb.readthedocs.io/en/latest/>`_.

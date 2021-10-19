@@ -1,4 +1,4 @@
-Python CAMB
+CAMB
 =============
 
 CAMB (Code for Anisotropies in the Microwave Background), a cosmology code for calculating CMB, lensing,
@@ -78,3 +78,16 @@ Other modules:
 * `Example notebook <https://camb.readthedocs.org/en/latest/CAMBdemo.html>`_
 * :ref:`genindex`
 
+===================
+
+.. image:: https://cdn.cosmologist.info/antony/Sussex_white.svg
+   :alt: University of Sussex
+   :target: https://www.sussex.ac.uk/astronomy/
+   :height: 170px
+   :width: 170px
+
+.. image:: https://cdn.cosmologist.info/antony/ERC_white.svg
+   :alt: European Research Council
+   :target: https://erc.europa.eu/
+   :height: 170px
+   :width: 170px

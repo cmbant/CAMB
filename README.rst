@@ -47,7 +47,7 @@ You will need gfortran 6 or higher installed to compile. Binary files for Window
 gfortran installation is found on Windows machines. If you have gfortran installed, "python setup.py make"
 (and other standard setup commands) will build the Fortran library on all systems (including Windows without directly using a Makefile).
 
-The python wrapper provides a module called "camb" documented in the `Python CAMB documentation <https://camb.readthedocs.io/en/latest/>`_.
+The python wrapper provides a module called "camb" documented in the Python `CAMB documentation <https://camb.readthedocs.io/en/latest/>`_.
 
 After installation you can also run CAMB from the command line reading parameters from a .ini file, e.g.::
 
@@ -72,9 +72,9 @@ To reproduce legacy results, see these branches:
  - *rayleigh* includes frequency-dependent Rayleigh scattering
  - *python2* is the last Python 2 compatible version
 
-=============
+===================
 
 .. raw:: html
 
-    <a href="http://www.sussex.ac.uk/astronomy/"><img src="https://cdn.cosmologist.info/antony/Sussex.png" height="170px"></a>
-    <a href="http://erc.europa.eu/"><img src="https://erc.europa.eu/sites/default/files/content/erc_banner-vertical.jpg" height="200px"></a>
+    <a href="http://www.sussex.ac.uk/astronomy/"><img src="https://cdn.cosmologist.info/antony/Sussex_white.svg" style="height:200px" height="200px"></a>
+    <a href="http://erc.europa.eu/"><img src="https://cdn.cosmologist.info/antony/ERC_white.svg" style="height:200px" height="200px"></a>
