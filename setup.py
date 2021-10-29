@@ -122,8 +122,7 @@ def make_library(cluster=False):
             print('WARNING: gfortran %s or higher not in path (if you just installed '
                   'you may need to log off and on again).' % _compile.gfortran_min)
             print('         You can get a Windows gfortran build from https://sourceforge.net/projects/mingw-w64/')
-            print(
-                '         (get the %s version to match this python installation)' % _compile.gfortran_bits)
+            print('         - go to Files, and download MinGW-W64 Online Installer.')
             if _compile.is_32_bit:
                 raise IOError('No 32bit Windows DLL provided, you need to build or use 64 bit python')
             else:
