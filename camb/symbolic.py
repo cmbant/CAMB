@@ -5,7 +5,7 @@ It uses the covariant perturbation notation, but includes functions to project i
 Newtonian or synchronous gauge, as well as constructing general gauge invariant quantities.
 It uses "t" as the conformal time variable (=tau in the fortran code).
 
-For a guide to usage and content see the `ScalEqs notebook <http://camb.readthedocs.org/en/latest/ScalEqs.html>`_
+For a guide to usage and content see the `ScalEqs notebook <https://camb.readthedocs.io/en/latest/ScalEqs.html>`_
 
 As well as defining standard quantities, and how they map to CAMB variables, there are also functions for
 converting a symbolic expression to CAMB source code, and compiling custom sources for use with CAMB

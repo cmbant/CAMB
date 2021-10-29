@@ -6,7 +6,7 @@ galaxy count, dark-age 21cm power spectra, matter power spectra and transfer fun
 There are also general utility function for cosmological calculations such as the background expansion, distances, etc.
 The main code is Python with numerical calculations implemented efficiently in Python-wrapped modern Fortran.
 
-See the `CAMB python example notebook <https://camb.readthedocs.org/en/latest/CAMBdemo.html>`_ for an
+See the `CAMB python example notebook <https://camb.readthedocs.io/en/latest/CAMBdemo.html>`_ for an
 introductory set of examples of how to use the CAMB package. This is usually the fastest way to learn how to use it
 and quickly see some of the capabilities.
 
@@ -75,7 +75,7 @@ Other modules:
    fortran_compilers
    mathutils
 
-* `Example notebook <https://camb.readthedocs.org/en/latest/CAMBdemo.html>`_
+* `Example notebook <https://camb.readthedocs.io/en/latest/CAMBdemo.html>`_
 * :ref:`genindex`
 
 ===================

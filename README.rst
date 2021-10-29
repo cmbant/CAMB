@@ -10,7 +10,7 @@ CAMB
 .. image:: https://img.shields.io/conda/vn/conda-forge/camb.svg
    :target: https://anaconda.org/conda-forge/camb
 .. image:: https://readthedocs.org/projects/camb/badge/?version=latest
-   :target: https://camb.readthedocs.org/en/latest
+   :target: https://camb.readthedocs.io/en/latest
 .. image:: https://travis-ci.com/cmbant/camb.svg?branch=master
   :target: https://app.travis-ci.com/cmbant/camb/builds
 .. image:: https://mybinder.org/badge_logo.svg
@@ -23,7 +23,7 @@ CAMB is a cosmology code for calculating cosmological observables, including
 CMB, lensing, source count and 21cm angular power spectra, matter power spectra, transfer functions
 and background evolution. The code is in Python, with numerical code implemented in fast modern Fortran.
 
-See the `CAMB python example notebook <https://camb.readthedocs.org/en/latest/CAMBdemo.html>`_ for a
+See the `CAMB python example notebook <https://camb.readthedocs.io/en/latest/CAMBdemo.html>`_ for a
 quick introduction to how to use the CAMB Python package.
 
 For a standard non-editable installation use::

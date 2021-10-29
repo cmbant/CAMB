@@ -43,7 +43,7 @@ unit primordial curvature perturbation on super-horizon scales. The
 :meth:`~camb.results.CAMBdata.get_matter_transfer_data` function returns the above quantities
 divided by :math:`k^2` (so they are roughly constant at low :math:`k` on super-horizon scales).
 
-The  `example notebook <https://camb.readthedocs.org/en/latest/CAMBdemo.html>`_  has various examples of getting the
+The  `example notebook <https://camb.readthedocs.io/en/latest/CAMBdemo.html>`_  has various examples of getting the
 matter power spectrum, relating the Weyl-potential spectrum to lensing, and calculating the
 baryon-dark matter relative velocity spectra. There is also an explicit example of how to calculate the matter
 power spectrum manually from the matter transfer functions.

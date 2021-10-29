@@ -23,7 +23,7 @@ p,li,td,tr,table,body {line-height: 1.5em; font-size:1em; font-family:  Arial, H
 CAMB is a Python and Fortran code for computing CMB, CMB lensing, lensing, galaxy count and dark-age 21cm power spectra, transfer functions and matter power spectra, and background cosmological functions.
 For latest information on this program see <A HREF="http://camb.info">camb.info</A>.
 <p>
- Often it is easiest and most flexible to just use the <A HREF="https://camb.readthedocs.org/en/latest">Python version</A>, which includes a command-line "camb" script. This
+ Often it is easiest and most flexible to just use the <A HREF="https://camb.readthedocs.io/en/latest">Python version</A>, which includes a command-line "camb" script. This
  readme instead focuses on using the compiled binary Fortran command-line version.
 CAMB can also be used as part of the <A HREF="http://cosmologist.info/cosmomc/">CosmoMC</A> and <a href="https://cobaya.readthedocs.io/en/latest/">Cobaya</a> parameter estimation packages.
 <P>
@@ -42,12 +42,12 @@ Edmund Bertschinger, Chung-Pei Ma and Paul Bode.
 <B>Compiling and running</B>
 </P>
 To install and compile yourself you will need a Fortran 2008 (or higher) compiler - you can get the free <A HREF="https://gcc.gnu.org/wiki/GFortranBinaries">gfortran</A> compiler (version 6 or higher), or the optimized Intel compiler <em>ifort</em> is installed on many academic clusters and also supports integrated development and debugging in Visual Studio under Windows.
- Alternatively you can use CAMB in the pre-configured <A HREF="http://cosmologist.info/CosmoBox">CosmoBox</A> virtual machine. <P>
+ Alternatively you can use CAMB in the pre-configured <A HREF="https://cosmologist.info/CosmoBox">CosmoBox</A> virtual machine. <P>
 
 
 To install the Fortran binary from the command line:
 <UL>
-<LI><A HREF="http://camb.info/CAMBsubmit.html">Download</A> CAMB
+<LI><A HREF="https://camb.info/CAMBsubmit.html">Download</A> CAMB
 <li>If cloning using git, add <b>--recurse-submodules</b> to get the forutils submodule as well</li>
 <LI>If downloading unzip the file (<B>tar xfv filename </B> for tar.gz); all files will be extracted to a
 directory called "CAMB-xxx". Note you need <a href="https://github.com/cmbant/forutils">forutils</a> library in the forutils directory.
@@ -57,15 +57,15 @@ edit the supplied Makefile, see below)
 <LI>Run <B>./camb ../inifiles/params.ini</B>, where params.ini is a file
  of parameter values (sample supplied). The params.ini file should be
  fairly self-explanatory. The Fortran program should be run from the fortran directory (in order find the .dat template file that it loads).
-<LI>To install and use the Python CAMB wrapper see the <A HREF="https://camb.readthedocs.org/en/latest">Python CAMB</A> documentation. After in installing with pip this also has a command-line camb script that will be built automatically with the python version - no need to compile the fortran code directly, and it can be run from any directory.
+<LI>To install and use the Python CAMB wrapper see the <A HREF="https://camb.readthedocs.io/en/latest">Python CAMB</A> documentation. After in installing with pip this also has a command-line camb script that will be built automatically with the python version - no need to compile the fortran code directly, and it can be run from any directory.
 </UL>
 </P>
 <P>
 The Makefile comes set up for gfortran and  ifort compilers. Edit the relevant parts of the Makefile to compile on other systems. If you have Intel's Visual Fortran you can use the projects in the VisualStudio folder, no need to use the Makefile. To run on multi-processor machines add the -openmp (or equivalent) option to the Makefile's FFLAGS parameter to compile a parallelized (OPENMP) version.
 </P>
 <P>
- For a demo of how to use CAMB with the python wrapper see the <A HREF="http://camb.readthedocs.org/en/latest/CAMBdemo.html">demo notebook</A>.
-For some further technical details about the algorithms, equations and code see the <A HREF="http://cosmologist.info/notes/CAMB.pdf">CAMB notes</A>.
+ For a demo of how to use CAMB with the python wrapper see the <A HREF="https://camb.readthedocs.io/en/latest/CAMBdemo.html">demo notebook</A>.
+For some further technical details about the algorithms, equations and code see the <A HREF="https://cosmologist.info/notes/CAMB.pdf">CAMB notes</A>.
 
 </P>
 <A NAME="inputs">
@@ -73,7 +73,7 @@ For some further technical details about the algorithms, equations and code see 
 <P>
 The params.ini file specifies the parameters used to run the program. Comments in params.ini should make this fairly self-explanatory,
 more complicated cases, for example to run with multiple neutrino mass eigenstates and sterile neutrinos at different temperatures
-see the documentation and examples in the <A HREF="http://cosmologist.info/notes/CAMB.pdf">CAMB notes</A>. To produce the matter power spectrum in addition to CMB C<sub>l</sub> set <b>get_transfer = T</b>; the <b>do_nonlinear</b> input parameter determines whether this is output as the linear power spectrum or includes non-linear corrections from the Halofit model.
+see the documentation and examples in the <A HREF="https://cosmologist.info/notes/CAMB.pdf">CAMB notes</A>. To produce the matter power spectrum in addition to CMB C<sub>l</sub> set <b>get_transfer = T</b>; the <b>do_nonlinear</b> input parameter determines whether this is output as the linear power spectrum or includes non-linear corrections from the Halofit model.
 <P>
 The default params.ini file produces results in &mu;K<sup>2</sup> from the given primordial curvature perturbation power (<B>scalar_amp</B>) on 0.05 MPc<sup>-1</sup> scales. To get unnormalized dimensionless results set <B>scalar_amp=1</B> and <B>CMB_outputscale=1</B>. To compute lensed C<sub>l</sub>s you must set the normalization to some realistic value (the calculation is non-linear, so normalization matters).
 <P>
@@ -97,7 +97,7 @@ If <b>do_lensing=T</b> and <b>lens_potential_output_file</b> is specified a file
 l C<sub>TT</sub> C<sub>EE</sub> C<sub>BB</sub>  C<sub>TE</sub> C<sub>dd</sub> C<sub>dT</sub> C<sub>dE</sub>
 </BLOCKQUOTE>
 where as before C<sub>X</sub> are l(l+1)C<sub>l</sub>/2&pi;, and d is the deflection angle, so C<sub>dd</sub>=[l(l+1)]<sup>2</sup>C<sub>l</sub><sup>&Phi;</sup>/2&pi;,  C<sub>dT</sub>=[l(l+1)]<sup>3/2</sup>C<sub>l</sub><sup>&Phi;T</sup>/2&pi;,
-C<sub>dE</sub>=[l(l+1)]<sup>3/2</sup>C<sub>l</sub><sup>&Phi;E</sup>/2&pi;. These are the spectra required for simulating lensed skies using <A HREF="http://cosmologist.info/lenspix">LensPix</A>.
+C<sub>dE</sub>=[l(l+1)]<sup>3/2</sup>C<sub>l</sub><sup>&Phi;E</sup>/2&pi;. These are the spectra required for simulating lensed skies using <A HREF="https://cosmologist.info/lenspix">LensPix</A>.
 <P>
 <A NAME="transfer"></A>
 If transfer functions are requested the columns in the <b>output_root</b>_transfer.dat output file are:
@@ -150,9 +150,9 @@ Run <B>make all</B> to build a library libcamb.a that you can use when
 linking to other programs. (You will also need to include the module files using -I/cambfolder).
 <P>
 See the <a href="https://camb.info/doc/classes/_index.html">class hierarchy</a> for how the different components of the calculation are structured.
-Some details about what different source code files do are given <A HREF="#FILES">below</A>, see also the <A HREF="http://cosmologist.info/notes/CAMB.pdf">CAMB notes</A>.
+Some details about what different source code files do are given <A HREF="#FILES">below</A>, see also the <A HREF="https://cosmologist.info/notes/CAMB.pdf">CAMB notes</A>.
 <P>
-A test suite is included, and will run automatically on <A HREF="https://travis-ci.org/">Travis</A> when committing or making pull requests on the <A HREF="https://github.com/cmbant/CAMB">GitHub repository</A>.
+A test suite is included, and will run automatically on <A HREF="https://travis-ci.com/">Travis</A> when committing or making pull requests on the <A HREF="https://github.com/cmbant/CAMB">GitHub repository</A>.
     Python unit tests are in the camb.tests, and scripts for comparing outputs for a variety of models (as run on Travis) are in the tests directory.
 
 <A NAME="FILES">
@@ -215,8 +215,8 @@ initial power spectra. Comments in the code explain this further.
 This file defines a module called Reionization that provides a class implementing a tanh-parameterization of the reionization history. The class gives x<sub>e</sub> as a function of redshift. Optical depth input parameters are mapped into z<sub>re</sub> (defined as where x<sub>e</sub> is half its maximum (ex second He reionization)) using a binary search. See the CAMB <A HREF="http://cosmologist.info/notes/CAMB.pdf">notes</A> for discussion. This module should be easily modifiable for alternative reionization models.
 <P>
 <B>halofit.f90</B><P>
-Implements the NonLinearModel class, to calculate non linear scalings of the matter power spectrum as a function of redshift. Uses HALOFIT (<A HREF="http://arxiv.org/abs/astro-ph/0207664">astro-ph/0207664</A>, code thanks to <A HREF="http://www.astro.upenn.edu/~res">Robert Smith</A>, with tweaks
-from <A HREF="http://arxiv.org/abs/1208.2701">arXiv:1208.2701</A> (thanks Ryuichi Takahashi) - see that paper for discussion of numerical accuracy. This module can be replaced to use a different non-linear fitting method if desired.
+Implements the NonLinearModel class, to calculate non-linear scalings of the matter power spectrum as a function of redshift. Uses HALOFIT (<A HREF="https://arxiv.org/abs/astro-ph/0207664">astro-ph/0207664</A>, code thanks to <A HREF="https://profiles.sussex.ac.uk/p330705-robert-e-smith">Robert Smith</A>, with tweaks
+from <A HREF="https://arxiv.org/abs/1208.2701">arXiv:1208.2701</A> (thanks Ryuichi Takahashi) - see that paper for discussion of numerical accuracy. This module can be replaced to use a different non-linear fitting method if desired.
 
 <P>
  <B> inidriver.f90</B>
@@ -362,7 +362,7 @@ Accuracy of course assumes the model is correct, and is dependent on RECFAST bei
   <li><b>accurate_massive_neutrino_transfers</b> option if accurate neutrino transfer functions needed at late time</li>
   <li>Output text file precision increased</li>
   <li>Warning if accurate_BB=T but other options not set sensibly for accurate lensing BB</li>
-<LI><A HREF="https://camb.readthedocs.org/en/latest">Python CAMB wrapper</A>:
+<LI><A HREF="https://camb.readthedocs.io/en/latest">Python CAMB wrapper</A>:
 <ul>
   <li>On linux system now builds with ifort if available (~35% faster)</li>
   <li>More efficient and new vector support for <a href="https://camb.readthedocs.io/en/latest/camb.html?highlight=angular_diameter_distance#camb.CAMBdata.angular_diameter_distance">angular_diameter_distance</a>
@@ -386,7 +386,7 @@ Accuracy of course assumes the model is correct, and is dependent on RECFAST bei
 <UL>
 <LI>HMCode bug fix and speed up (thanks Alex Mead)</LI>
 <li>Refactoring in equations.f90 so all scalar source outputs now computed in derivs function; support for custom source functions (as used by python camb.symbolic module)
-<LI><A HREF="https://camb.readthedocs.org/en/latest">Python CAMB wrapper</A>:
+<LI><A HREF="https://camb.readthedocs.io/en/latest">Python CAMB wrapper</A>:
 <ul>
   <li>Added <A href="http://camb.readthedocs.io/en/latest/symbolic.html">camb.symbolic</a> module using sympy, to get equations, convert between gauges, and produce and compile CAMB code from analytic results in different gauges. See the <A hREf="http://nbviewer.jupyter.org/github/cmbant/CAMB/blob/master/pycamb/docs/ScalEqs.ipynb">demo notebook</a> demonstrating how to use this, set custom sources, plot perturbation evolution and calculate angular power spectra of different things.
   <li>Add <a href="http://camb.readthedocs.io/en/latest/emission_angle.html">camb.emission_angle</a> module to get BB power from emission angle and time delay (<a href="http://arxiv.org/abs/1706.02673">1706.02673</a>)</li>
@@ -424,7 +424,7 @@ Accuracy of course assumes the model is correct, and is dependent on RECFAST bei
 <B>May 2016</B><BR>
 <UL>
 <LI>Added support for <A HREF="http://arxiv.org/abs/1505.07833">HMCODE</A> Halofit version (halofit_version=5; thanks Alex Mead); Takahashi remains the default as before
-<LI><A HREF="https://camb.readthedocs.org/en/latest">Python CAMB wrapper</A>
+<LI><A HREF="https://camb.readthedocs.io/en/latest">Python CAMB wrapper</A>
 <UL>
 <LI>  <b>camb.get_matter_power_interpolator</b> function get 2D spline object for evaluating P(k,z);
 <br>See the <A HREF="http://camb.readthedocs.io/en/latest/CAMBdemo.html">sample notebook</A> for an example of how to use this to calculate a lensing spectrum
@@ -438,7 +438,7 @@ Accuracy of course assumes the model is correct, and is dependent on RECFAST bei
 
 <B>November 2015</B><BR>
 <UL>
-<LI>New <A HREF="https://camb.readthedocs.org/en/latest">Python CAMB wrapper</A>
+<LI>New <A HREF="https://camb.readthedocs.io/en/latest">Python CAMB wrapper</A>
 <LI>Option to add comment headers to output files giving column names (output_file_headers = T)
 <LI>New input parameters to change the default second helium reionization redshift and duration
 <LI>Output of transfer functions will now also work at very early times

@@ -272,10 +272,10 @@ if __name__ == "__main__":
           author='Antony Lewis',
           url="https://camb.info/",
           project_urls={
-              'Documentation': 'https://camb.readthedocs.org',
+              'Documentation': 'https://camb.readthedocs.io',
               'Source': 'https://github.com/cmbant/camb',
               'Tracker': 'https://github.com/cmbant/camb/issues',
-              'Reference': 'http://arxiv.org/abs/astro-ph/9911177',
+              'Reference': 'https://arxiv.org/abs/astro-ph/9911177',
               'Licensing': 'https://github.com/cmbant/CAMB/blob/master/LICENCE.txt'
           },
           zip_safe=False,
