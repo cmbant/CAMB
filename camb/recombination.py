@@ -59,7 +59,7 @@ class CosmoRec(RecombinationModel):
 @optional_fortran_class
 class HyRec(RecombinationModel):
     r"""
-    `HyRec <http://pages.jh.edu/~yalihai1/hyrec/hyrec.html>`_ recombination model.
+    `HyRec <https://github.com/nanoomlee/HYREC-2>`_ recombination model.
     To use this, the library must be build with HyRec installed and RECOMBINATION_FILES including hyrec in the Makefile.
 
     You will need to edit HyRec Makefile to add -fPIC compiler flag to CCFLAG (for gcc), and rename "dtauda\_"

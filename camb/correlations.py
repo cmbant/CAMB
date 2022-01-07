@@ -432,7 +432,7 @@ def lensed_cl_derivatives(cls, clpp, lmax=None, theta_max=np.pi / 32,
                           apodize_point_width=10, sampling_factor=1.4):
     r"""
     Get derivative dcl of lensed :math:`D_\ell\equiv \ell(\ell+1)C_\ell/2\pi` with respect to :math:`\log(C^{\phi}_L)`.
-    To leading order (and hence not actually accurate), the lensed correction to power spectrum ix
+    To leading order (and hence not actually accurate), the lensed correction to power spectrum is
     is given by dcl[ix,:,:].dot(np.ones(clpp.shape)).
 
     Uses the non-perturbative curved-sky results from Eqs 9.12 and 9.16-9.18 of

@@ -71,6 +71,8 @@ class CambTest(unittest.TestCase):
         self.assertEqual(pars.InitPower.ns, 1.2)
         self.assertTrue(pars.WantTransfer)
         pars.DarkEnergy = None
+        pars = camb.set_params(**{'H0': 67, 'ombh2': 0.002, 'r': 0.1, 'Accuracy.AccurateBB': True})
+        self.assertEqual(pars.Accuracy.AccurateBB, True)
 
         from camb.sources import GaussianSourceWindow
         pars = camb.CAMBparams()
