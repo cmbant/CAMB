@@ -2335,11 +2335,14 @@
 
             END IF
 
-            IF((j>=jmin) .AND. (ABS(-1.d0+sum_new/sum_old)<acc)) THEN
-                !jmin avoids spurious early convergence
-                integrate=sum_new
-                EXIT
-            ELSE IF(j==jmax) THEN
+            IF(j>=jmin .and. sum_old /= 0) THEN
+                if (ABS(-1.d0+sum_new/sum_old)<acc) THEN
+                    !jmin avoids spurious early convergence
+                    integrate=sum_new
+                    EXIT
+                end if
+            end if
+            IF(j==jmax) THEN
                 integrate=sum_new
                 call GlobalError('HMCode INTEGRATE, Integration timed out', error_nonlinear)
                 return
