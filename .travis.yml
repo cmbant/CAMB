@@ -43,7 +43,7 @@ jobs:
         apt:
           packages:
             - gfortran
-      python: "3.8"
+      python: "3.10"
       env:
         - PYPI_DIST="true"
     - name: "GCC10 + Python 3.9 (conda-forge)"

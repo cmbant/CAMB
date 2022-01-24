@@ -2,7 +2,7 @@ set -e
 
 gfortran --version
 python --version
-python setup.py install
+pip install -e .
 python -c "import camb; print(camb.__version__)"
 python -m unittest camb.tests.camb_test
 rm -Rf HMcode_test_outputs
