@@ -234,6 +234,16 @@ class CambTest(unittest.TestCase):
         results = camb.get_background(pars)
         self.assertEqual(results.Params.Reion.redshift, zre)
 
+        pars = camb.CAMBparams()
+        pars.set_cosmology(H0=68.5, ombh2=0.022, omch2=0.122, YHe=0.2453, mnu=0.07, omk=-0.05)
+        data = camb.get_background(pars)
+        delta2 = data.curvature_radius / (1 + 0.25) * (
+            np.sin((data.comoving_radial_distance(0.25) - data.comoving_radial_distance(0.05)) / data.curvature_radius))
+        np.testing.assert_allclose(delta2, data.angular_diameter_distance2(0.05, 0.25))
+        dists = data.angular_diameter_distance2([0.3, 0.05, 0.25], [1, 0.25, 0.05])
+        self.assertAlmostEqual(delta2, dists[1])
+        self.assertEqual(0, dists[2])
+
     def testEvolution(self):
         redshifts = [0.4, 31.5]
         pars = camb.set_params(H0=67.5, ombh2=0.022, omch2=0.122, As=2e-9, ns=0.95,

@@ -196,7 +196,8 @@ class CAMBdata(F2003Class):
 
     _methods_ = [('AngularDiameterDistance', [d_arg], c_double),
                  ('AngularDiameterDistanceArr', [numpy_1d, numpy_1d, int_arg]),
-                 ('AngularDiameterDistance2', [d_arg], c_double),
+                 ('AngularDiameterDistance2', [d_arg, d_arg], c_double),
+                 ('AngularDiameterDistance2Arr', [numpy_1d, numpy_1d, numpy_1d, int_arg]),
                  ('ComovingRadialDistance', [d_arg], c_double),
                  ('ComovingRadialDistanceArr', [numpy_1d, numpy_1d, int_arg, d_arg]),
                  ('Hofz', [d_arg], c_double),
@@ -1365,17 +1366,29 @@ class CAMBdata(F2003Class):
         Get angular diameter distance between two redshifts
         :math:`\frac{r}{1+z_2}\text{sin}_K\left(\frac{\chi(z_2) - \chi(z_1)}{r}\right)`
         where :math:`r` is curvature radius and :math:`\chi` is the comoving radial distance.
+        If z_1 >= z_2 returns zero.
 
         Must have called :meth:`calc_background`, :meth:`calc_background_no_thermo` or calculated transfer
         functions or power spectra.
 
-        :param z1: redshift 1
-        :param z2: redshift 2
-        :return: result
+        :param z1: redshift 1, or orray of redshifts
+        :param z2: redshift 2, or orray of redshifts
+        :return: result (scalar or array of distances between pairs of z1, z2)
         """
-        if not np.isscalar(z1) or not np.isscalar(z2):
-            raise CAMBError('vector z not supported yet')
-        return self.f_AngularDiameterDistance2(byref(c_double(z1)), byref(c_double(z2)))
+        if np.isscalar(z1):
+            if not np.isscalar(z2):
+                z1 = np.ones(len(z2)) * z1
+        elif np.isscalar(z2):
+            if not np.isscalar(z1):
+                z2 = np.ones(len(z1)) * z2
+        if not np.isscalar(z1):
+            z1 = np.asarray(z1, dtype=np.float64)
+            z2 = np.asarray(z2, dtype=np.float64)
+            dists = np.empty(z1.shape)
+            self.f_AngularDiameterDistance2Arr(dists, z1, z2, byref(c_int(dists.shape[0])))
+            return dists
+        else:
+            return self.f_AngularDiameterDistance2(byref(c_double(z1)), byref(c_double(z2)))
 
     def comoving_radial_distance(self, z, tol=1e-4):
         """
