@@ -656,7 +656,7 @@ class CAMBdata(F2003Class):
         if np.isscalar(a):
             scales = np.array([a])
         else:
-            scales = np.asarray(a)
+            scales = np.ascontiguousarray(a)
         rho = np.zeros(scales.shape)
         w = np.zeros(scales.shape)
         self.f_DarkEnergyStressEnergy(scales, rho, w, byref(c_int(len(scales))))
@@ -816,7 +816,7 @@ class CAMBdata(F2003Class):
                 R = np.array(R, dtype=np.float64)
             R = R / (self.Params.H0 / 100)
 
-        radii = np.atleast_1d(np.asarray(R, dtype=np.float64)) * self.Params.H0 / 100
+        radii = np.atleast_1d(np.ascontiguousarray(R, dtype=np.float64)) * self.Params.H0 / 100
         valid_indices = np.array(self.PK_redshifts_index[:self.Params.Transfer.PK_num_redshifts], dtype=np.int32)
         if z_indices is None:
             z_ix = valid_indices
@@ -1382,9 +1382,9 @@ class CAMBdata(F2003Class):
             if not np.isscalar(z1):
                 z2 = np.ones(len(z1)) * z2
         if not np.isscalar(z1):
-            z1 = np.asarray(z1, dtype=np.float64)
-            z2 = np.asarray(z2, dtype=np.float64)
-            dists = np.empty(z1.shape)
+            z1 = np.ascontiguousarray(z1, dtype=np.float64)
+            z2 = np.ascontiguousarray(z2, dtype=np.float64)
+            dists = np.empty(z1.shape, dtype=np.float64)
             self.f_AngularDiameterDistance2Arr(dists, z1, z2, byref(c_int(dists.shape[0])))
             return dists
         else:
@@ -1433,7 +1433,7 @@ class CAMBdata(F2003Class):
         if np.isscalar(eta):
             times = np.array([eta], dtype=np.float64)
         else:
-            times = np.asarray(eta, dtype=np.float64)
+            times = np.ascontiguousarray(eta, dtype=np.float64)
         redshifts = np.empty(times.shape)
         self.f_RedshiftAtTimeArr(redshifts, times, byref(c_int(times.shape[0])))
         config.check_global_error('redshift_at_conformal_time')
