@@ -330,7 +330,7 @@ class CAMBparams(F2003Class):
         if effective_ns_for_nonlinear is not None:
             initpower.effective_ns_for_nonlinear = effective_ns_for_nonlinear
         if pk is None:
-            pk = np.asarray([])
+            pk = np.empty(0)
         elif len(k) != len(pk):
             raise CAMBValueError("k and P(k) arrays must be same size")
         if pk_tensor is not None:

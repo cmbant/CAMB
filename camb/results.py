@@ -38,7 +38,7 @@ class _ClTransferData(CAMB_Structure):
 
 def save_cmb_power_array(filename, array, labels, lmin=0):
     """
-    Save an zero-based 2-d array of CL to a text file, with each line starting with L.
+    Save a zero-based 2-d array of CL to a text file, with each line starting with L.
 
     :param filename: filename to save
     :param array: 2D array of power spectra
@@ -303,8 +303,8 @@ class CAMBdata(F2003Class):
 
         :param params: :class:`~.model.CAMBparams` instance with parameters to use
         :param only_transfers: only calculate transfer functions, no power spectra
-        :param only_time_sources: only calculate time transfer functions, no (p,l,k) transfer functions or non-
-                                  linear scaling
+        :param only_time_sources: only calculate time transfer functions, no (p,l,k) transfer functions or
+                                    non-linear scaling
         :return: non-zero if error, zero if OK
         """
         self._check_params(params)
@@ -737,7 +737,7 @@ class CAMBdata(F2003Class):
         :param params: if have_power_spectra=False, optional :class:`~.model.CAMBparams` instance
                        to specify new parameters
         :param nonlinear: include non-linear correction from halo model
-        :return: k/h or k, z, PK, where kz an z are arrays of k/h or k and z respectively,
+        :return: k/h or k, z, PK, where kz and z are arrays of k/h or k and z respectively,
                  and PK[i,j] is the value at z[i], k[j]/h or k[j]
         """
         if self.OnlyTransfers or params is not None or not have_power_spectra:
@@ -785,7 +785,7 @@ class CAMBdata(F2003Class):
         :param have_power_spectra: set to False if not already computed power spectra
         :param params: if have_power_spectra=False, optional :class:`~.model.CAMBparams` instance
                        to specify new parameters
-        :return: k/h or k, z, PK, where kz an z are arrays of k/h or k and z respectively,
+        :return: k/h or k, z, PK, where kz and z are arrays of k/h or k and z respectively,
                  and PK[i,j] is the value at z[i], k[j]/h or k[j]
         """
         return self.get_linear_matter_power_spectrum(var1=var1, var2=var2, hubble_units=hubble_units, k_hunit=k_hunit,
@@ -890,7 +890,7 @@ class CAMBdata(F2003Class):
         :param have_power_spectra: set to True if already computed power spectra
         :param params: if have_power_spectra=False and want to specify new parameters,
                        a :class:`~.model.CAMBparams` instance
-        :return: kh, z, PK, where kz an z are arrays of k/h and z respectively, and PK[i,j] is value at z[i], k/h[j]
+        :return: kh, z, PK, where kz and z are arrays of k/h and z respectively, and PK[i,j] is value at z[i], k/h[j]
         """
 
         if not have_power_spectra:
@@ -1327,8 +1327,8 @@ class CAMBdata(F2003Class):
            true lensing spectrum scaled by Alens. Alens can be an array in L for realistic delensing estimates.
            Note that if Params.Alens is also set, the result is scaled by the product of both
 
-           :param Alens: scaling of the lensing relative to true, with Alens=1 being the standard result. Can
-              can a scalar in which case all L are scaled, or an zero-based array with the L by L scaling
+           :param Alens: scaling of the lensing relative to true, with Alens=1 being the standard result.
+              Can be a scalar in which case all L are scaled, or a zero-based array with the L by L scaling
               (with L larger than the size of the array having Alens_L=1).
            :param lmax: lmax to output to
            :param CMB_unit: scale results from dimensionless. Use 'muK' for :math:`\mu K^2` units for CMB :math:`C_\ell`

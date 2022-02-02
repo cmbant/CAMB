@@ -221,7 +221,7 @@ class _AllocatableArray(FortranAllocatable):  # member corresponding to allocata
         if size:
             return ctypes.cast(_reuse_pointer, POINTER(self._ctype * size)).contents
         else:
-            return np.asarray([])
+            return np.empty(0)
 
     def set_allocatable(self, array, name):
         self._set_allocatable_1D_array(byref(self), np.array(array, dtype=self._dtype),
