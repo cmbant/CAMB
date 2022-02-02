@@ -203,8 +203,10 @@ class CAMBdata(F2003Class):
                  ('Hofz', [d_arg], c_double),
                  ('HofzArr', [numpy_1d, numpy_1d, int_arg]),
                  ('DeltaPhysicalTimeGyr', [d_arg, d_arg, d_arg], c_double),
+                 ('DeltaPhysicalTimeGyrArr', [numpy_1d, numpy_1d, numpy_1d, int_arg, d_arg]),
                  ('GetBackgroundDensities', [int_arg, numpy_1d, numpy_2d]),
                  ('DeltaTime', [d_arg, d_arg, d_arg], c_double),
+                 ('DeltaTimeArr', [numpy_1d, numpy_1d, numpy_1d, int_arg, d_arg]),
                  ('TimeOfzArr', [numpy_1d, numpy_1d, int_arg, d_arg]),
                  ('sound_horizon_zArr', [numpy_1d, numpy_1d, int_arg]),
                  ('RedshiftAtTimeArr', [numpy_1d, numpy_1d, int_arg]),
@@ -1361,6 +1363,22 @@ class CAMBdata(F2003Class):
             arr[indices] = arr.copy()
             return arr
 
+    def _make_scalar_or_arrays(self, z1, z2):
+        if np.isscalar(z1):
+            if np.isscalar(z2):
+                return z1, z2
+            else:
+                z1 = np.ones(len(z2)) * z1
+        else:
+            z1 = np.ascontiguousarray(z1, dtype=np.float64)
+            if np.isscalar(z2):
+                z2 = np.ones(len(z1)) * z2
+            else:
+                z2 = np.ascontiguousarray(z2, dtype=np.float64)
+                if len(z1) != len(z2):
+                    raise CAMBError('z1 nand z2 must be scalar or same-length 1D arrays')
+        return z1, z2
+
     def angular_diameter_distance2(self, z1, z2):
         r"""
         Get angular diameter distance between two redshifts
@@ -1375,16 +1393,9 @@ class CAMBdata(F2003Class):
         :param z2: redshift 2, or orray of redshifts
         :return: result (scalar or array of distances between pairs of z1, z2)
         """
-        if np.isscalar(z1):
-            if not np.isscalar(z2):
-                z1 = np.ones(len(z2)) * z1
-        elif np.isscalar(z2):
-            if not np.isscalar(z1):
-                z2 = np.ones(len(z1)) * z2
+        z1, z2 = self._make_scalar_or_arrays(z1, z2)
         if not np.isscalar(z1):
-            z1 = np.ascontiguousarray(z1, dtype=np.float64)
-            z2 = np.ascontiguousarray(z2, dtype=np.float64)
-            dists = np.empty(z1.shape, dtype=np.float64)
+            dists = np.empty(z1.shape)
             self.f_AngularDiameterDistance2Arr(dists, z1, z2, byref(c_int(dists.shape[0])))
             return dists
         else:
@@ -1500,9 +1511,13 @@ class CAMBdata(F2003Class):
         :param a2: scale factor 2
         :return: (age(a2)-age(a1))/Gigayear
         """
-        if not np.isscalar(a1) or not np.isscalar(a2):
-            raise CAMBError('vector inputs not supported yet')
-        return self.f_DeltaPhysicalTimeGyr(byref(c_double(a1)), byref(c_double(a2)), None)
+        a1, a2 = self._make_scalar_or_arrays(a1, a2)
+        if not np.isscalar(a1):
+            times = np.empty(a1.shape)
+            self.f_DeltaPhysicalTimeGyrArr(times, a1, a2, byref(c_int(times.shape[0])), None)
+            return times
+        else:
+            return self.f_DeltaPhysicalTimeGyr(byref(c_double(a1)), byref(c_double(a2)), None)
 
     def physical_time(self, z):
         """
@@ -1511,6 +1526,8 @@ class CAMBdata(F2003Class):
         :param z:  redshift
         :return: t(z)/Gigayear
         """
+        if not np.isscalar(z):
+            z = np.asarray(z, dtype=np.float64)
         return self.physical_time_a1_a2(0, 1.0 / (1 + z))
 
     def conformal_time_a1_a2(self, a1, a2):
@@ -1521,11 +1538,13 @@ class CAMBdata(F2003Class):
         :param a2: scale factor 2
         :return: eta(a2)-eta(a1) = chi(a1)-chi(a2) in Megaparsec
         """
-
-        if not np.isscalar(a1) or not np.isscalar(a2):
-            raise CAMBError('vector inputs not supported yet')
-
-        return self.f_DeltaTime(byref(c_double(a1)), byref(c_double(a2)), None)
+        a1, a2 = self._make_scalar_or_arrays(a1, a2)
+        if not np.isscalar(a1):
+            times = np.empty(a1.shape)
+            self.f_DeltaTimeArr(times, a1, a2, byref(c_int(times.shape[0])), None)
+            return times
+        else:
+            return self.f_DeltaTime(byref(c_double(a1)), byref(c_double(a2)), None)
 
     def conformal_time(self, z, presorted=None, tol=None):
         """

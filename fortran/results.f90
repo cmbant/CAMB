@@ -238,9 +238,11 @@
 
     contains
     procedure :: DeltaTime => CAMBdata_DeltaTime
+    procedure :: DeltaTimeArr => CAMBdata_DeltaTimeArr
     procedure :: TimeOfz => CAMBdata_TimeOfz
     procedure :: TimeOfzArr => CAMBdata_TimeOfzArr
     procedure :: DeltaPhysicalTimeGyr => CAMBdata_DeltaPhysicalTimeGyr
+    procedure :: DeltaPhysicalTimeGyrArr => CAMBdata_DeltaPhysicalTimeGyrArr
     procedure :: AngularDiameterDistance => CAMBdata_AngularDiameterDistance
     procedure :: AngularDiameterDistanceArr => CAMBdata_AngularDiameterDistanceArr
     procedure :: AngularDiameterDistance2 => CAMBdata_AngularDiameterDistance2
@@ -604,6 +606,21 @@
 
     end function CAMBdata_DeltaTime
 
+    subroutine CAMBdata_DeltaTimeArr(this, arr,  a1, a2, n, tol)
+    class(CAMBdata) :: this
+    integer, intent(in) :: n
+    real(dl), intent(out) :: arr(n)
+    real(dl), intent(in) :: a1(n), a2(n)
+    real(dl), intent(in), optional :: tol
+    integer i
+
+    !$OMP PARALLEL DO DEFAULT(SHARED),SCHEDULE(STATIC)
+    do i = 1, n
+        arr(i) = this%DeltaTime(a1(i), a2(i), tol)
+    end do
+
+    end subroutine CAMBdata_DeltaTimeArr
+
     function CAMBdata_TimeOfz(this, z, tol)
     class(CAMBdata) :: this
     real(dl) CAMBdata_TimeOfz
@@ -653,6 +670,22 @@
     atol = PresentDefault(1d-4/exp(this%CP%Accuracy%AccuracyBoost-1), in_tol)
     CAMBdata_DeltaPhysicalTimeGyr = Integrate_Romberg(this, dtda,a1,a2,atol)*Mpc/c/Gyr
     end function CAMBdata_DeltaPhysicalTimeGyr
+
+    subroutine CAMBdata_DeltaPhysicalTimeGyrArr(this, arr,  a1, a2, n, tol)
+    class(CAMBdata) :: this
+    integer, intent(in) :: n
+    real(dl), intent(out) :: arr(n)
+    real(dl), intent(in) :: a1(n), a2(n)
+    real(dl), intent(in), optional :: tol
+    integer i
+
+    !$OMP PARALLEL DO DEFAULT(SHARED),SCHEDULE(STATIC)
+    do i = 1, n
+        arr(i) = this%DeltaPhysicalTimeGyr(a1(i), a2(i), tol)
+    end do
+
+    end subroutine CAMBdata_DeltaPhysicalTimeGyrArr
+
 
     function CAMBdata_AngularDiameterDistance(this,z)
     class(CAMBdata) :: this

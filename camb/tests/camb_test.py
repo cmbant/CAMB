@@ -244,6 +244,11 @@ class CambTest(unittest.TestCase):
         self.assertAlmostEqual(delta2, dists[1])
         self.assertEqual(0, dists[2])
 
+        self.assertEqual(data.physical_time(0.4), data.physical_time([0.2, 0.4])[1])
+        d = data.conformal_time_a1_a2(0, 0.5) + data.conformal_time_a1_a2(0.5, 1)
+        self.assertAlmostEqual(d, data.conformal_time_a1_a2(0, 1))
+        self.assertAlmostEqual(d, sum(data.conformal_time_a1_a2([0, 0.5], [0.5, 1])))
+
     def testEvolution(self):
         redshifts = [0.4, 31.5]
         pars = camb.set_params(H0=67.5, ombh2=0.022, omch2=0.122, As=2e-9, ns=0.95,
