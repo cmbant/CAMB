@@ -731,6 +731,7 @@
     end subroutine DoSourcek
 
     subroutine GetSourceMem
+    integer :: err
 
     if (CP%WantScalars) then
         if (WantLateTime) then
@@ -752,7 +753,8 @@
     if (allocated(ThisSources%LinearSrc)) &
         deallocate(ThisSources%LinearSrc)
     allocate(ThisSources%LinearSrc(ThisSources%Evolve_q%npoints,&
-        ThisSources%SourceNum,State%TimeSteps%npoints), source=0._dl)
+        ThisSources%SourceNum,State%TimeSteps%npoints), source=0._dl, stat=err)
+    if (err/=0) call GlobalError('Sources requires too much memory to allocate', error_unsupported_params)                                                                               
 
     end subroutine GetSourceMem
 
