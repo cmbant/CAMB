@@ -48,7 +48,7 @@ class IfortGfortranLoader(ctypes.CDLL):
         return res
 
 
-mock_load = os.environ.get('READTHEDOCS', None)
+mock_load = os.environ.get('CAMB_MOCK_LOAD', None)
 if mock_load:
     # noinspection PyCompatibility
     from unittest.mock import MagicMock
