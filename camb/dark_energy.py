@@ -68,6 +68,9 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
         if not np.isclose(a[-1], 1):
             raise ValueError('Dark energy w(a) arrays must end at a=1')
 
+        a = a.astype("double")
+        w = w.astype("double")
+
         self.f_SetWTable(a, w, byref(c_int(len(a))))
         return self
 
