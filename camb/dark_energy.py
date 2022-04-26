@@ -67,6 +67,8 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
             raise ValueError('Dark energy w(a) table non-equal sized arrays')
         if not np.isclose(a[-1], 1):
             raise ValueError('Dark energy w(a) arrays must end at a=1')
+        if np.any(a <= 0):
+            raise ValueError('Dark energy w(a) table cannot be set for a<=0')
 
         a = a.astype("double")
         w = w.astype("double")
