@@ -33,6 +33,11 @@ Transfer_Newt_vel_baryon = 12
 Transfer_vel_baryon_cdm = 13
 Transfer_max = Transfer_vel_baryon_cdm
 
+# for 21cm case
+Transfer_monopole = 4
+Transfer_vnewt = 5
+Transfer_Tmat = 6
+
 NonLinear_none = "NonLinear_none"
 NonLinear_pk = "NonLinear_pk"
 NonLinear_lens = "NonLinear_lens"
