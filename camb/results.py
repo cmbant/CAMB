@@ -650,7 +650,8 @@ class CAMBdata(F2003Class):
 
     def get_dark_energy_rho_w(self, a):
         """
-        Get dark energy density in units of the dark energy density today, and :math:`w=P/\rho`
+        Get dark energy density in units of the dark energy density today, and equation of state parameter
+        :math:`w\equiv P/\rho`
 
         :param a: scalar factor or array of scale factors
         :return: rho, w arrays at redshifts :math:`1/a-1` [or scalars if :math:`a` is scalar]

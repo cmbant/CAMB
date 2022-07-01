@@ -506,7 +506,7 @@
     Type(RecombinationData), pointer :: Calc
     logical, intent(in), optional :: WantTSpin
     real(dl) :: z,n,x,x0,rhs,x_H,x_He,x_H0,x_He0,H, Yp
-    real(dl) :: zstart,zend
+    real(dl) :: zstart,zend,z_scale
     real(dl) :: cw(24)
     real(dl), dimension(:,:), allocatable :: w
     real(dl) :: y(4)
@@ -537,7 +537,7 @@
 
         Calc%Recombination_saha_z=0.d0
 
-        Calc%Tnow=State%CP%tcmb
+        Calc%Tnow = State%CP%tcmb
         !       These are easy to inquire as input, but let's use simple values
         z = zinitial
         !       will output every 1 in z, but this is easily changed also
@@ -600,8 +600,9 @@
             ! He is 99% singly ionized, and *then* switch to joint H/He recombination.
 
             z = zend
+            z_scale = Calc%Tnow/COBE_CMBTemp * (1+z) -1
 
-            if (zend > 8000._dl) then
+            if (z_scale > 8000._dl) then
 
                 x_H0 = 1._dl
                 x_He0 = 1._dl
@@ -611,7 +612,7 @@
                 y(3) = Calc%Tnow*(1._dl+z)
                 y(4) = y(3)
 
-            else if(z > 5000._dl)then
+            else if(z_scale > 5000._dl)then
 
                 x_H0 = 1._dl
                 x_He0 = 1._dl
@@ -625,7 +626,7 @@
                 y(3) = Calc%Tnow*(1._dl+z)
                 y(4) = y(3)
 
-            else if(z > 3500._dl)then
+            else if(z_scale > 3500._dl)then
 
                 x_H0 = 1._dl
                 x_He0 = 1._dl
@@ -720,15 +721,16 @@
     !       but not pathological choices of zstart
     !       Initial ionization fraction using Saha for relevant species
     Type(RecombinationData) :: Calc
-    real(dl) z,x0,rhs,x_H0,x_He0
+    real(dl) z,x0,rhs,x_H0,x_He0, z_scale
 
-    if(z > 8000._dl)then
+    z_scale = Calc%Tnow/COBE_CMBTemp*(z+1)-1
 
+    if(z_scale > 8000._dl)then
         x_H0 = 1._dl
         x_He0 = 1._dl
         x0 = 1._dl+2._dl*Calc%fHe
 
-    else if(z > 3500._dl)then
+    else if(z_scale > 3500._dl)then
 
         x_H0 = 1._dl
         x_He0 = 1._dl
@@ -738,7 +740,7 @@
         x0 = 0.5d0 * ( sqrt( (rhs-1._dl-Calc%fHe)**2 &
             + 4._dl*(1._dl+2._dl*Calc%fHe)*rhs) - (rhs-1._dl-Calc%fHe) )
 
-    else if(z > 2000._dl)then
+    else if(z_scale > 2000._dl)then
 
         x_H0 = 1._dl
         rhs = exp( 1.5d0 * log(CR*Calc%Tnow/(1._dl+z)) &
@@ -774,7 +776,7 @@
     real(dl) tauHe_t,pHe_t,CL_PSt,CfHe_t,gamma_2Pt
     real(dl) epsilon
     integer Heflag
-    real(dl) C10, dHdz
+    real(dl) C10, dHdz, z_scale
     type(RecombinationData), pointer :: Recomb
 
     Recomb => this%Calc
@@ -835,9 +837,10 @@
         K = CK/Hz !Peebles coefficient K=lambda_a^3/8piH
     else
         !c  fit a double Gaussian correction function
+        z_scale = this%Calc%Tnow/COBE_CMBTemp*(1+z)-1
         K = CK/Hz*(1.0d0 &
-            +this%AGauss1*exp(-((log(1.0d0+z)-this%zGauss1)/this%wGauss1)**2.d0) &
-            +this%AGauss2*exp(-((log(1.0d0+z)-this%zGauss2)/this%wGauss2)**2.d0))
+            +this%AGauss1*exp(-((log(1.0d0+z_scale)-this%zGauss1)/this%wGauss1)**2.d0) &
+            +this%AGauss2*exp(-((log(1.0d0+z_scale)-this%zGauss2)/this%wGauss2)**2.d0))
     end if
 
 
