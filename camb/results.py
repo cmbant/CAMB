@@ -649,7 +649,7 @@ class CAMBdata(F2003Class):
             return outputs[:, np.array(indices)]
 
     def get_dark_energy_rho_w(self, a):
-        """
+        r"""
         Get dark energy density in units of the dark energy density today, and equation of state parameter
         :math:`w\equiv P/\rho`
 
