@@ -657,7 +657,7 @@ class CAMBparams(F2003Class):
         except AttributeError:
             raise CAMBError('Not able to compute DH: not using an interpolation table for BBN abundances.')
 
-    def set_matter_power(self, redshifts=(0.,), kmax=1.2, k_per_logint=None, nonlinear=None,
+    def set_matter_power(self, redshifts=(0.,), kmax=1.2, k_per_logint=None, NonLinear=None,
                          accurate_massive_neutrino_transfers=False, silent=False):
         """
         Set parameters for calculating matter power spectra and transfer functions.
@@ -665,7 +665,7 @@ class CAMBparams(F2003Class):
         :param redshifts: array of redshifts to calculate
         :param kmax: maximum k to calculate (where k is just k, not k/h)
         :param k_per_logint: minimum number of k steps per log k. Set to zero to use default optimized spacing.
-        :param nonlinear: if None, uses existing setting, otherwise boolean for whether to use non-linear matter power.
+        :param NonLinear: if None, uses existing setting, otherwise boolean for whether to use non-linear matter power.
         :param accurate_massive_neutrino_transfers: if you want the massive neutrino transfers accurately
         :param silent: if True, don't give warnings about sort order
         :return: self
@@ -678,8 +678,8 @@ class CAMBparams(F2003Class):
         self.Transfer.accurate_massive_neutrinos = accurate_massive_neutrino_transfers
         self.Transfer.kmax = kmax
         zs = sorted(redshifts, reverse=True)
-        if nonlinear is not None:
-            if nonlinear:
+        if NonLinear is not None:
+            if NonLinear:
                 if self.NonLinear in [NonLinear_lens, NonLinear_both]:
                     self.NonLinear = NonLinear_both
                 else:
@@ -699,14 +699,14 @@ class CAMBparams(F2003Class):
         self.Transfer.PK_redshifts = zs
         return self
 
-    def set_nonlinear_lensing(self, nonlinear):
+    def set_nonlinear_lensing(self, NonLinear):
         """
         Settings for whether or not to use non-linear corrections for the CMB lensing potential.
         Note that set_for_lmax also sets lensing to be non-linear if lens_potential_accuracy>0
 
-        :param nonlinear: true to use non-linear corrections
+        :param NonLinear: true to use non-linear corrections
         """
-        if nonlinear:
+        if NonLinear:
             if self.NonLinear in [NonLinear_pk, NonLinear_both]:
                 self.NonLinear = NonLinear_both
             else:
@@ -718,7 +718,7 @@ class CAMBparams(F2003Class):
                 self.NonLinear = NonLinear_none
 
     def set_for_lmax(self, lmax, max_eta_k=None, lens_potential_accuracy=0,
-                     lens_margin=150, k_eta_fac=2.5, lens_k_eta_reference=18000.0, nonlinear=None):
+                     lens_margin=150, k_eta_fac=2.5, lens_k_eta_reference=18000.0, NonLinear=None):
         r"""
         Set parameters to get CMB power spectra accurate to specific a l_lmax.
         Note this does not fix the actual output L range, spectra may be calculated above l_max
@@ -735,7 +735,7 @@ class CAMBparams(F2003Class):
         :param k_eta_fac:  k_eta_fac default factor for setting max_eta_k = k_eta_fac*lmax if max_eta_k=None
         :param lens_k_eta_reference:  value of max_eta_k to use when lens_potential_accuracy>0; use
                                       k_eta_max = lens_k_eta_reference*lens_potential_accuracy
-        :param nonlinear: use non-linear power spectrum; if None, sets nonlinear if lens_potential_accuracy>0 otherwise
+        :param NonLinear: use non-linear power spectrum; if None, sets NonLinear if lens_potential_accuracy>0 otherwise
                           preserves current setting
         :return: self
         """
@@ -745,10 +745,10 @@ class CAMBparams(F2003Class):
             self.max_l = lmax
         self.max_eta_k = max_eta_k or self.max_l * k_eta_fac
         if lens_potential_accuracy:
-            self.set_nonlinear_lensing(nonlinear is not False)
+            self.set_nonlinear_lensing(NonLinear is not False)
             self.max_eta_k = max(self.max_eta_k, lens_k_eta_reference * lens_potential_accuracy)
-        elif nonlinear is not None:
-            self.set_nonlinear_lensing(nonlinear)
+        elif NonLinear is not None:
+            self.set_nonlinear_lensing(NonLinear)
         return self
 
     def scalar_power(self, k):

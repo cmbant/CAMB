@@ -308,9 +308,9 @@ class CambTest(unittest.TestCase):
         self.assertAlmostEqual(pars.scalar_power(1), 1.801e-9, 4)
         self.assertAlmostEqual(pars.scalar_power([1, 1.5])[0], 1.801e-9, 4)
 
-        pars.set_matter_power(nonlinear=True)
+        pars.set_matter_power(NonLinear=True)
         self.assertEqual(pars.NonLinear, model.NonLinear_pk)
-        pars.set_matter_power(redshifts=[0., 0.17, 3.1], silent=True, nonlinear=False)
+        pars.set_matter_power(redshifts=[0., 0.17, 3.1], silent=True, NonLinear=False)
         data = camb.get_results(pars)
 
         kh, z, pk = data.get_matter_power_spectrum(1e-4, 1, 20)
@@ -450,13 +450,13 @@ class CambTest(unittest.TestCase):
         pars = camb.CAMBparams()
         pars.set_cosmology(H0=67.5, ombh2=0.022, omch2=0.122, mnu=0.07, omk=0)
         pars.InitPower.set_params(ns=0.965, As=2e-9)
-        pars.set_matter_power(nonlinear=False)
+        pars.set_matter_power(NonLinear=False)
         results = camb.get_results(pars)
         sigma8 = results.get_sigma8_0()
         self.assertAlmostEqual(sigma8, results.get_sigmaR(8)[-1], places=3)
         self.assertAlmostEqual(sigma8, results.get_sigmaR(np.array([8]), z_indices=-1)[-1], places=3)
         self.assertAlmostEqual(results.get_sigmaR(8)[-1], results.get_sigmaR(8, z_indices=-1))
-        pars.set_matter_power(nonlinear=False, k_per_logint=0, kmax=2)
+        pars.set_matter_power(NonLinear=False, k_per_logint=0, kmax=2)
         results = camb.get_results(pars)
         P, z, k = results.get_matter_power_interpolator(nonlinear=False, hubble_units=False, k_hunit=False,
                                                         return_z_k=True, extrap_kmax=100, silent=True)
@@ -482,7 +482,7 @@ class CambTest(unittest.TestCase):
         self.assertAlmostEqual(py_sigma2, truth, places=3)
         self.assertTrue(abs(results.get_sigmaR(8)[-1] / truth - 1) < 1e-4)
         self.assertTrue(abs(results.get_sigmaR(np.array([8]), z_indices=-1)[-1] / truth - 1) < 1e-4)
-        pars.set_matter_power(nonlinear=False, k_per_logint=0, kmax=1.2, redshifts=np.arange(0, 10, 2))
+        pars.set_matter_power(NonLinear=False, k_per_logint=0, kmax=1.2, redshifts=np.arange(0, 10, 2))
         results = camb.get_results(pars)
         sigmas = results.get_sigmaR(np.arange(1, 20, 1), hubble_units=False, z_indices=None)
         pars.Accuracy.AccuracyBoost = 2
@@ -490,7 +490,7 @@ class CambTest(unittest.TestCase):
         sigmas2 = results.get_sigmaR(np.arange(1, 20, 1), hubble_units=False, z_indices=None)
         self.assertTrue(np.all(np.abs(sigmas / sigmas2 - 1) < 1e-3))
         pars.Accuracy.AccuracyBoost = 1
-        pars.set_matter_power(nonlinear=False, k_per_logint=100, kmax=10, redshifts=np.arange(0, 10, 2))
+        pars.set_matter_power(NonLinear=False, k_per_logint=100, kmax=10, redshifts=np.arange(0, 10, 2))
         results = camb.get_results(pars)
         sigmas2 = results.get_sigmaR(np.arange(1, 20, 1), hubble_units=False, z_indices=None)
         self.assertAlmostEqual(sigmas2[4, 2], 1.77346, places=3)
