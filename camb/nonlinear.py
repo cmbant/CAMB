@@ -69,11 +69,12 @@ class Halofit(NonLinearModel):
             - halomodel: basic halomodel
             - casarini: PKequal `arXiv:0810.0190 <https://arxiv.org/abs/0810.0190>`_, `arXiv:1601.07230 <https://arxiv.org/abs/1601.07230>`_
             - mead2015: original 2015 version of HMCode `arXiv:1505.07833 <https://arxiv.org/abs/1505.07833>`_
+            - mead2016: Alias for 'mead'.
             - mead2020: 2020 version of HMcode `arXiv:2009.01858 <https://arxiv.org/abs/2009.01858>`_
             - mead2020_feedback: 2020 version of HMcode with baryonic feedback `arXiv:2009.01858 <https://arxiv.org/abs/2009.01858>`_
-        :param HMCode_A_baryon: HMcode parameter A_baryon. Default 3.13.
-        :param HMCode_eta_baryon: HMcode parameter eta_baryon. Default 0.603.
-        :param HMCode_logT_AGN: HMcode parameter logT_AGN. Default 7.8.
+        :param HMCode_A_baryon: HMcode parameter A_baryon. Default 3.13. Used only in models mead2015 and mead2016 (and its alias mead).
+        :param HMCode_eta_baryon: HMcode parameter eta_baryon. Default 0.603. Used only in mead2015 and mead2016 (and its alias mead).
+        :param HMCode_logT_AGN: HMcode parameter logT_AGN. Default 7.8. Used only in model mead2020_feedback.
         """
         self.halofit_version = halofit_version
         self.HMCode_A_baryon = HMCode_A_baryon
