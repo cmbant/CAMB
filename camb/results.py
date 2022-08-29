@@ -1312,7 +1312,7 @@ class CAMBdata(F2003Class):
         lmax_unlens = self.Params.max_l
         if clpp.shape[0] < lmax_unlens + 1:
             raise CAMBValueError('clpp must go to at least Params.max_l (zero based)')
-        res = np.empty((lmax_unlens + 1, 4), dtype=np.float64)
+        res = np.zeros((lmax_unlens + 1, 4), dtype=np.float64)
         lmax_lensed = c_int(0)
         lensClsWithSpectrum = lib_import('lensing', '', 'lensclswithspectrum')
         lensClsWithSpectrum.argtypes = [POINTER(CAMBdata), numpy_1d, numpy_2d, int_arg]
