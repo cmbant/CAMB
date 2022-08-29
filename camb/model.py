@@ -202,6 +202,7 @@ class CAMBparams(F2003Class):
         ("num_nu_massive", c_int, "Total physical (integer) number of massive neutrino species"),
         ("nu_mass_eigenstates", c_int, "Number of non-degenerate mass eigenstates"),
         ("share_delta_neff", c_bool, "Share the non-integer part of num_nu_massless between the eigenstates "),
+        ("no_isw", c_bool, "Turn of ISW to TT"),
         ("nu_mass_degeneracies", c_double * max_nu, {"size": "nu_mass_eigenstates"},
          "Degeneracy of each distinct eigenstate"),
         ("nu_mass_fractions", c_double * max_nu, {"size": "nu_mass_eigenstates"},

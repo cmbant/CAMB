@@ -143,6 +143,7 @@
         integer   :: Num_Nu_massive = 0 !sum of Nu_mass_numbers below
         integer   :: Nu_mass_eigenstates = 0  !1 for degenerate masses
         logical   :: share_delta_neff = .false. !take fractional part to heat all eigenstates the same
+        logical   :: no_isw = .false. ! turn off ISW
         real(dl)  :: Nu_mass_degeneracies(max_nu)
         real(dl)  :: Nu_mass_fractions(max_nu) !The ratios of the total densities
         integer   :: Nu_mass_numbers(max_nu) !physical number per eigenstate

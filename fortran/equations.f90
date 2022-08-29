@@ -2750,6 +2750,7 @@
 
             !2phi' term (\phi' + \psi' in Newtonian gauge), phi is the Weyl potential
             ISW = 2*phidot*exptau
+            if (State%CP%no_isw .and. a > 1/(15.+1)) ISW = 0
             monopole_source =  (-etak/(k*EV%Kf(1)) + 2*phi + clxg/4)*visibility
             doppler = ((sigma + vb)*dvisibility + (sigmadot + vbdot)*visibility)/k
             quadrupole_source = (5.0d0/8.0d0)*(3*polter*ddvisibility + 6*polterdot*dvisibility &
