@@ -91,7 +91,8 @@ def get_forutils():
 
     if not fpath:
         raise Exception('Install forutils from https://github.com/cmbant/forutils, '
-                        'pull the submodule, or set FORUTILSPATH variable')
+                        'pull the forutils submodule, or set FORUTILSPATH variable.\n'
+                        'If you are cloning with git, use "git clone --recursive"')
     return fpath
 
 
