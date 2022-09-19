@@ -209,6 +209,7 @@ class CAMBparams(F2003Class):
          "Mass fraction in each distinct eigenstate"),
         ("nu_mass_numbers", c_int * max_nu, {"size": "nu_mass_eigenstates"},
          "Number of physical neutrinos per distinct eigenstate"),
+        ("Gamma_DM", c_double),
         ("InitPower", AllocatableObject(InitialPower)),
         ("Recomb", AllocatableObject(recomb.RecombinationModel)),
         ("Reion", AllocatableObject(reion.ReionizationModel)),

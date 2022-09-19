@@ -1292,7 +1292,7 @@ class CAMBdata(F2003Class):
             GetFlatSkyCgrads(byref(self), clpp, byref(opt), res)
         else:
             GetFlatSkyCgrads = lib_import('lensing', '', 'getflatskycgrads')
-            GetFlatSkyCgrads.argtypes = [POINTER(CAMBdata), int_arg, numpy_1d]
+            GetFlatSkyCgrads.argtypes= [POINTER(CAMBdata), int_arg, numpy_1d]
             GetFlatSkyCgrads(byref(self), byref(opt), res)
         self._scale_cls(res, CMB_unit, raw_cl)
         return res

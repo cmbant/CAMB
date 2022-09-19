@@ -40,8 +40,8 @@
 
     logical, parameter :: plot_evolve = .false. !for outputing time evolution
 
-    integer, parameter :: basic_num_eqns = 4
-    integer, parameter :: ix_etak=1, ix_clxc=2, ix_clxb=3, ix_vb=4 !Scalar array indices for each quantity
+    integer, parameter :: basic_num_eqns = 5
+    integer, parameter :: ix_etak=1, ix_clxc=2, ix_clxb=3, ix_vb=4, ix_vc=5 !Scalar array indices for each quantity
     integer, parameter :: ixt_H = 1, ixt_shear = 2 !tensor indices
 
     logical :: DoTensorNeutrinos = .true.
@@ -1921,6 +1921,7 @@
 
     !  CDM
     y(ix_clxc)=InitVec(i_clxc)
+    y(ix_vc) = 0
 
     !  Baryons
     y(ix_clxb)=InitVec(i_clxb)
@@ -2155,7 +2156,7 @@
     real(dl) w_dark_energy_t !equation of state of dark energy
     real(dl) gpres_noDE !Pressure with matter and radiation, no dark energy
     real(dl) qgdot,qrdot,pigdot,pirdot,vbdot,dgrho,adotoa
-    real(dl) a,a2,z,clxc,clxb,vb,clxg,qg,pig,clxr,qr,pir
+    real(dl) a,a2,z,clxc,clxb,vb,clxg,qg,pig,clxr,qr,pir,vc
     real(dl) E2, dopacity
     integer l,i,ind, ind2, off_ix, ix
     real(dl) dgs,sigmadot,dz
@@ -2173,7 +2174,7 @@
     real(dl) phidot, polterdot, polterddot, octg, octgdot
     real(dl) ddopacity, visibility, dvisibility, ddvisibility, exptau, lenswindow
     real(dl) ISW, quadrupole_source, doppler, monopole_source, tau0, ang_dist
-    real(dl) dgrho_de, dgq_de, cs2_de
+    real(dl) dgrho_de, dgq_de, cs2_de, Gamma_De
 
     k=EV%k_buf
     k2=EV%k2_buf
@@ -2190,6 +2191,8 @@
 
     !  CDM variables
     clxc=ay(ix_clxc)
+    vc=ay(ix_vc)
+
 
     !  Baryon variables
     clxb=ay(ix_clxb)
@@ -2212,7 +2215,7 @@
     !  8*pi*a*a*SUM[rho_i*clx_i]
     dgrho_matter=grhob_t*clxb+grhoc_t*clxc
     !  8*pi*a*a*SUM[(rho_i+p_i)*v_i]
-    dgq=grhob_t*vb
+    dgq=grhob_t*vb + grhoc_t*vc
 
     gpres_nu=0
     grhonu_t=0
@@ -2302,9 +2305,14 @@
         call State%CP%DarkEnergy%PerturbationEvolve(ayprime, w_dark_energy_t, &
         EV%w_ix, a, adotoa, k, z, ay)
 
+    Gamma_De = State%CP%Gamma_DM*a**4/(State%CP%omch2/(State%CP%H0/100)**2)*sqrt(State%grhocrit/3)
+    ayprime(EV%w_ix + 1) = ayprime(EV%w_ix + 1) -  &
+          Gamma_De*(ay(EV%w_ix + 1)  - vc)*grhoc_t/grhov_t/(1+w_dark_energy_t)
+
     !  CDM equation of motion
-    clxcdot=-k*z
+    clxcdot=-k*(z+vc)
     ayprime(ix_clxc)=clxcdot
+    ayprime(ix_vc)=-adotoa*vc +  Gamma_De*(ay(EV%w_ix + 1)  - vc)
 
     !  Baryon equation of motion.
     clxbdot=-k*(z+vb)
@@ -2701,9 +2709,9 @@
             EV%OutputTransfer(Transfer_tot_de) =  dgrho/grho_matter
             !Transfer_Weyl is k^2Phi, where Phi is the Weyl potential
             EV%OutputTransfer(Transfer_Weyl) = k2*phi
-            EV%OutputTransfer(Transfer_Newt_vel_cdm)=  -k*sigma/adotoa
+            EV%OutputTransfer(Transfer_Newt_vel_cdm)=  -k*(vc+sigma)/adotoa
             EV%OutputTransfer(Transfer_Newt_vel_baryon) = -k*(vb + sigma)/adotoa
-            EV%OutputTransfer(Transfer_vel_baryon_cdm) = vb
+            EV%OutputTransfer(Transfer_vel_baryon_cdm) = vb - vc
             if (State%CP%do21cm) then
                 Tspin = State%CP%Recomb%T_s(a)
                 xe = State%CP%Recomb%x_e(a)
