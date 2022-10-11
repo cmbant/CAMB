@@ -287,21 +287,33 @@ def read_ini(ini_filename, no_validate=False):
     """
     Get a :class:`.model.CAMBparams` instance using parameter specified in a .ini parameter file.
 
-    :param ini_filename: path of the .ini file to read
+    :param ini_filename: path of the .ini file to read, or a full URL to download from
     :param no_validate: do not pre-validate the ini file (faster, but may crash kernel if error)
     :return: :class:`.model.CAMBparams` instance
     """
+    if ini_filename.startswith('http'):
+        import requests, tempfile
+        data = requests.get(ini_filename)
+        ini_filename = tempfile.NamedTemporaryFile(suffix='.ini', delete=False).name
+        with open(ini_filename, 'wb') as file:
+            file.write(data.content)
+    else:
+        data = None
     if not os.path.exists(ini_filename):
         raise CAMBValueError('File not found: %s' % ini_filename)
-    if not no_validate:
-        validate_ini_file(ini_filename)
-    cp = model.CAMBparams()
-    read_inifile = camblib.__camb_MOD_camb_readparamfile
-    read_inifile.argtypes = [POINTER(CAMBparams), ctypes.c_char_p, POINTER(ctypes.c_long)]
-    read_inifile.restype = ctypes.c_bool
-    s = ctypes.create_string_buffer(ini_filename.encode("latin-1"))
-    if not read_inifile(cp, s, ctypes.c_long(len(ini_filename))):
-        config.check_global_error('read_ini')
+    try:
+        if not no_validate:
+            validate_ini_file(ini_filename)
+        cp = model.CAMBparams()
+        read_inifile = camblib.__camb_MOD_camb_readparamfile
+        read_inifile.argtypes = [POINTER(CAMBparams), ctypes.c_char_p, POINTER(ctypes.c_long)]
+        read_inifile.restype = ctypes.c_bool
+        s = ctypes.create_string_buffer(ini_filename.encode("latin-1"))
+        if not read_inifile(cp, s, ctypes.c_long(len(ini_filename))):
+            config.check_global_error('read_ini')
+    finally:
+        if data:
+            os.unlink(ini_filename)
     return cp
 
 
