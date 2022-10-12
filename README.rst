@@ -35,13 +35,9 @@ To install from source, clone from github using::
 
     git clone --recursive https://github.com/cmbant/CAMB
 
-Then in the project source root directory use::
+Then install using::
 
-    python setup.py install [--user]
-
-If you want to work on the code, you can also just install in place without copying anything using::
-
-    pip install -e . [--user]
+    pip install -e ./CAMB [--user]
 
 You will need gfortran 6 or higher installed to compile. Binary files for Windows are also provided, so these are used instead if no
 gfortran installation is found on Windows machines. If you have gfortran installed, "python setup.py make"

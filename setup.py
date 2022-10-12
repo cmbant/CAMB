@@ -122,8 +122,8 @@ def make_library(cluster=False):
         if not ok:
             print('WARNING: gfortran %s or higher not in path (if you just installed '
                   'you may need to log off and on again).' % _compile.gfortran_min)
-            print('         You can get a Windows gfortran build from https://sourceforge.net/projects/mingw-w64/')
-            print('         - go to Files, and download MinGW-W64 Online Installer.')
+            print('        You can get a Windows gfortran build from https://sourceforge.net/projects/mingw-w64/files/')
+            print('        - go to Files, and download MinGW-W64 Online Installer.')
             if _compile.is_32_bit:
                 raise IOError('No 32bit Windows DLL provided, you need to build or use 64 bit python')
             else:
@@ -192,6 +192,9 @@ def make_library(cluster=False):
             else:
                 print('DLL up to date.')
     else:
+        if not _compile.call_command('make -v'):
+            raise IOError('Build failed - you must have "make" installed. '
+                          'E.g. on ubuntu install with "sudo apt install make" (or use build-essential package).')
         get_forutils()
         print("Compiling source...")
         subprocess.call("make python PYCAMB_OUTPUT_DIR=%s/camb/ CLUSTER_SAFE=%d" %
@@ -303,6 +306,7 @@ if __name__ == "__main__":
               'Programming Language :: Python :: 3.7',
               'Programming Language :: Python :: 3.8',
               'Programming Language :: Python :: 3.9'
+              'Programming Language :: Python :: 3.10'
           ],
           keywords=['cosmology', 'CAMB', 'CMB'],
           install_requires=['scipy>=1.0', 'sympy>=1.0'],

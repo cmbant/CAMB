@@ -13,40 +13,16 @@ branches:
 
 jobs:
   include:
-    - name: "GCC6 + Python 3.7"
-      addons:
-        apt:
-          packages:
-            - gfortran-6
-      env:
-        - GCC_VERSION="6"
-        - CHANNEL="defaults"
-        - PYDIST="ANACONDA"
-        - FORTRAN="test"
-      python: "3.7"
-    - name: "GCC9 + Python 3.9 (anaconda)"
-      addons:
-        apt:
-          sources:
-            - sourceline: "ppa:ubuntu-toolchain-r/test"
-          packages:
-            - gfortran-9
-      env:
-        - GCC_VERSION="9"
-        - PYDIST="ANACONDA"
-        - CHANNEL="defaults"
-        - FORTRAN="test"
-      python: "3.9"
-    - name: "Ubuntu 20.04 + Python 3.8"
+    - name: "Ubuntu 20.04 + Python 3.7"
       dist: focal
       addons:
         apt:
           packages:
             - gfortran
-      python: "3.10"
+      python: "3.7"
       env:
         - PYPI_DIST="true"
-    - name: "GCC10 + Python 3.9 (conda-forge)"
+    - name: "GCC10 + Python 3.10 anaconda"
       dist: focal
       addons:
         apt:
@@ -54,10 +30,10 @@ jobs:
             - gfortran-10
       env:
         - GCC_VERSION="10"
-        - FORTRAN="test"
-        - CHANNEL="conda-forge"
+        - CHANNEL="defaults"
         - PYDIST="ANACONDA"
-      python: "3.9"
+        - FORTRAN="test"
+      python: "3.10"
     - name: "GCC trunk cosmobox"
       language: shell
       services:

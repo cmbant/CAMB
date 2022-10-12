@@ -17,7 +17,7 @@ If you do not have a suitable Fortran compiler, you can get one as follows:
 :Mac:
     Download the `binary installation <https://gcc.gnu.org/wiki/GFortranBinaries>`_
 :Windows:
-    Download gfortran as part of `MinGW-w64 <https://sourceforge.net/projects/mingw-w64/>`_ (select x86_64 option in the installation program)
+    Download gfortran as part of `MinGW-w64 <https://sourceforge.net/projects/mingw-w64/files>`_ (select x86_64 option in the installation program)
 :Linux:
     To install from the standard repository use:
 
@@ -74,4 +74,3 @@ If you want to automamatically rebuild the library from Jupyter you can do somet
 
     except subprocess.CalledProcessError as E:
         print(E.output.decode())
-
