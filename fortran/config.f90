@@ -3,7 +3,7 @@
     use constants, only: const_twopi
     implicit none
 
-    character(LEN=*), parameter :: version = '1.3.6'
+    character(LEN=*), parameter :: version = '1.3.7'
 
     integer :: FeedbackLevel = 0 !if >0 print out useful information about the model
 

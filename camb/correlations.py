@@ -446,8 +446,8 @@ def lensed_cl_derivatives(cls, clpp, lmax=None, theta_max=np.pi / 32,
     :param apodize_point_width: if theta_max is set, apodize around the cut using half Gaussian of approx
         width apodize_point_width/lmax*pi
     :param sampling_factor: npoints = int(sampling_factor*lmax)+1
-    :return: array dCL[ix, ell, L], where ix=0,1,2,3 are T, EE, BB, TE and r
-             esult is :math:`d[D^{\rm ix}_\ell]/ d (\log C^{\phi}_L)`
+    :return: array dCL[ix, ell, L], where ix=0,1,2,3 are T, EE, BB, TE and result
+               is :math:`d[D^{\rm ix}_\ell]/ d (\log C^{\phi}_L)`
 
     """
 

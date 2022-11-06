@@ -365,8 +365,8 @@ class CAMBparams(F2003Class):
         :param cosmomc_approx: if true, use approximate fitting formula for :math:`z_\star`,
                                if false do full numerical calculation
         :param theta_H0_range: min, max iterval to search for H0 (in km/s/Mpc)
-        :param est_H0: an initial guess for H0 in km/s/Mpc, used in the case comsomc_approx=False.
-        :param iteration_threshold: differnce in H0 from est_H0 for which to iterate, used for cosmomc_approx=False
+        :param est_H0: an initial guess for H0 in km/s/Mpc, used in the case cosmomc_approx=False.
+        :param iteration_threshold: difference in H0 from est_H0 for which to iterate, used for cosmomc_approx=False
         """
 
         if not (0.001 < theta < 0.1):
@@ -425,7 +425,7 @@ class CAMBparams(F2003Class):
         (cosmomc_theta, which is based on a fitting forumula for simple models, or thetastar, which is numerically
         calculated more generally). Note that you must have already set the dark energy model, you can't use
         set_cosmology with theta and then change the background evolution (which would change theta at the calculated
-        H0 value).Likewise the dark energy model cannot depend explicitly on H0.
+        H0 value). Likewise the dark energy model cannot depend explicitly on H0.
 
         :param H0: Hubble parameter today in km/s/Mpc. Can leave unset and instead set thetastar or cosmomc_theta
                   (which solves for the required H0).

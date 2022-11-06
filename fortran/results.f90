@@ -737,9 +737,9 @@
 
     subroutine CAMBdata_AngularDiameterDistance2Arr(this, arr, z1, z2, n)
     class(CAMBdata) :: this
+    integer, intent(in) :: n
     real(dl), intent(out) :: arr(n)
     real(dl), intent(in) :: z1(n), z2(n)
-    integer, intent(in) :: n
     integer i
 
     !$OMP PARALLEL DO DEFAULT(SHARED),SCHEDULE(STATIC)
@@ -3461,7 +3461,8 @@
     real(dl) matpower(MTrans%num_q_trans), kh, kvals(MTrans%num_q_trans), ddmat(MTrans%num_q_trans)
     real(dl) atransfer,xi, a0, b0, ho, logmink,k, h
     integer itf
-    integer :: s1,s2
+    integer :: s1,s2, sign
+    logical log_interp
     real(dl), allocatable :: ratio(:)
 
     s1 = PresentDefault (transfer_power_var, var1)
@@ -3489,10 +3490,19 @@
         atransfer=MTrans%TransferData(s1,ik,itf)*MTrans%TransferData(s2,ik,itf)
         if (State%CP%NonLinear/=NonLinear_none .and. State%CP%NonLinear/=NonLinear_Lens) &
             atransfer = atransfer* ratio(ik)**2 !only one element, this itf
-        matpower(ik) = log(atransfer*k*const_pi*const_twopi*h**3)
+        matpower(ik) = atransfer*k*const_pi*const_twopi*h**3
         !Put in power spectrum later: transfer functions should be smooth, initial power may not be
     end do
-
+    sign = 1
+    log_interp = .true.
+    if (any(matpower <= 0)) then
+        if (all(matpower < 0)) then
+            sign = -1
+        else
+            log_interp = .false.
+        endif
+    endif
+    if (log_interp) matpower = log(sign*matpower)
     call spline(kvals,matpower,MTrans%num_q_trans,cllo,clhi,ddmat)
 
     llo=1
@@ -3527,7 +3537,9 @@
         lastix = lastix+1
     end do
 
-    outpower = exp(max(-30.d0,outpower))
+    if (log_interp) then
+        outpower = sign*exp(max(-30.d0,outpower))
+    end if
     associate(InitPower => State%CP%InitPower)
         do il = 1, npoints
             k = exp(logmink + dlnkh*(il-1))*h
