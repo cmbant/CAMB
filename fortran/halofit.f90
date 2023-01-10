@@ -734,14 +734,14 @@
     REAL(dl) :: kstar
     TYPE(HM_tables), INTENT(IN) :: lut
 
-    IF(this%imead==0 .OR. this%imead==4 .OR. this%imead==5) THEN
+    IF(this%imead==0) THEN
         !Set to zero for the standard Poisson one-halo term
         kstar=0.
     ELSE IF(this%imead==1 .or. this%imead==2) THEN
         !One-halo cut-off wavenumber
         !Mead et al. (2015; arXiv 1505.07833) value
         kstar=0.584*(lut%sigv)**(-1.)
-    ELSE IF(this%imead==3) THEN
+    ELSE IF(this%imead==3 .OR. this%imead==4 .OR. this%imead==5) THEN
         kstar=0.05618*lut%sig8z_cold**(-1.013)
     END IF
 
@@ -1759,7 +1759,7 @@
         END IF
         !Damping of the one-halo term at very large scales
         p_1h=p_1h*(1.-fac)
-    ELSE IF(this%imead==3) THEN
+    ELSE IF(this%imead==3 .OR. this%imead==4 .OR. this%imead==5) THEN
         ks=this%kstar(lut)
         x=(k/ks)**4
         p_1h=p_1h*x/(1.+x)
