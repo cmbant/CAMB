@@ -42,6 +42,7 @@
     !AL Jul 19: Speedups, use linear interpolation for pk; find index using fixed spacing; precompute growth(z)
     !AL Sep 19: Propagate errors rather than stop, decrease jmax for integration time out (prevent very slow error)
     !AM Sep 20: Added HMcode-2020 model
+    !AM Jan 23: Fixed HMcode-2020 feedback low-k predictions
     !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
     module NonLinear
