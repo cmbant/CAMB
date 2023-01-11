@@ -1,4 +1,4 @@
-from .baseconfig import F2003Class, fortran_class, numpy_1d, np, numpy_1d_or_null
+from .baseconfig import F2003Class, fortran_class, numpy_1d, numpy_2d, np, numpy_1d_or_null
 from ctypes import POINTER, c_int, c_double, byref
 
 
@@ -35,30 +35,45 @@ class SplinedSourceWindow(SourceWindow):
     """
     _fortran_class_name_ = "TSplinedSourceWindow"
 
-    _methods_ = [("SetTable", [POINTER(c_int), numpy_1d, numpy_1d, numpy_1d_or_null])]
+    _methods_ = [("SetTable", [POINTER(c_int), numpy_1d, numpy_1d, numpy_1d_or_null]),
+                 ("SetTable2DBias", [POINTER(c_int), POINTER(c_int), numpy_1d, numpy_1d, numpy_1d, numpy_2d])
+                 ]
 
     def __init__(self, **kwargs):
         z = kwargs.pop('z', None)
         if z is not None:
-            self.set_table(z, kwargs.pop('W'), kwargs.pop('bias_z', None))
+            self.set_table(z, kwargs.pop('W'), kwargs.pop('bias_z', None),
+                           kwargs.pop('k_bias', None), kwargs.pop('bias_kz', None))
         super().__init__(**kwargs)
 
-    def set_table(self, z, W, bias_z=None):
+    def set_table(self, z, W, bias_z=None, k_bias=None, bias_kz=None):
         """
         Set arrays of z and W(z) for cublic spline interpolation. Note that W(z) is the total count distribution
         observed, not a fractional selection function on an underlying distribution.
 
         :param z: array of redshift values (monotonically increasing)
         :param W: array of window function values. It must be well enough sampled to smoothly cubic-spline interpolate
-        :param bias_z: optional array of bias values at each z
+        :param bias_z: optional array of bias values at each z for scale-independent bias
+        :param k_bias: optional array of k values for bias
+        :param bias_kz: optional 2D contiguous array for space-dependent bias(k, z).
+                        Must ensure range of k is large enough to cover required vaules.
+
         """
         if len(W) != len(z) or z[-1] < z[1] or len(z) < 5:
             raise ValueError(
                 "Redshifts must be well sampled and in ascending order, with window function the same length as z")
+        z = np.ascontiguousarray(z, dtype=np.float64)
+        W = np.ascontiguousarray(W, dtype=np.float64)
         if bias_z is not None:
+            if bias_kz is not None:
+                raise ValueError("set bias_k or bias_zk")
             bias_z = np.ascontiguousarray(bias_z, dtype=np.float64)
             if len(bias_z) != len(z):
                 raise ValueError("bias array must be same size as the redshift array")
-
-        self.f_SetTable(byref(c_int(len(z))), np.ascontiguousarray(z, dtype=np.float64),
-                        np.ascontiguousarray(W, dtype=np.float64), bias_z)
+        if bias_kz is not None:
+            k = np.ascontiguousarray(k_bias, dtype=np.float64)
+            if bias_kz.shape[0] != len(k) or bias_kz.shape[1] != len(z):
+                raise ValueError('Bias array does not match shape of k,z arrays')
+            self.f_SetTable2DBias(byref(c_int(len(z))), byref(c_int(len(k))), z, k, W, bias_kz)
+        else:
+            self.f_SetTable(byref(c_int(len(z))), z, W, bias_z)

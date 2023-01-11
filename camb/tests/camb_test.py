@@ -625,10 +625,18 @@ class CambTest(unittest.TestCase):
         cls = results.get_source_cls_dict()
         zs = np.arange(0, 0.5, 0.02)
         W = np.exp(-(zs - 0.17) ** 2 / 2 / 0.04 ** 2) / np.sqrt(2 * np.pi) / 0.04
-        pars.SourceWindows[0] = SplinedSourceWindow(bias=1.2, dlog10Ndm=-0.2, z=zs, W=W)
-        results = camb.get_results(pars)
-        cls2 = results.get_source_cls_dict()
-        self.assertTrue(np.allclose(cls2["W1xW1"][2:1200], cls["W1xW1"][2:1200], rtol=1e-3))
+
+        ks = np.logspace(-4, 3, 50)
+        bias_kz = 1.2 * np.ones((len(ks), len(zs)))
+        test_windows = [SplinedSourceWindow(bias=1.2, dlog10Ndm=-0.2, z=zs, W=W),
+                        SplinedSourceWindow(bias_z=1.2 * np.ones_like(zs), dlog10Ndm=-0.2, z=zs, W=W),
+                        SplinedSourceWindow(k_bias=ks, bias_kz=bias_kz, dlog10Ndm=-0.2, z=zs, W=W)]
+        for window in test_windows:
+            pars.SourceWindows[0] = window
+            results = camb.get_results(pars)
+            cls2 = results.get_source_cls_dict()
+            self.assertTrue(np.allclose(cls2["W1xW1"][2:1200], cls["W1xW1"][2:1200], rtol=1e-3))
+
         pars.SourceWindows = [GaussianSourceWindow(redshift=1089, source_type='lensing', sigma=30)]
         results = camb.get_results(pars)
         cls = results.get_source_cls_dict()

@@ -2,6 +2,7 @@
     use precision
     use Classes
     use MpiUtils
+    use Interpolation, only : TCubicSpline, TInterpGrid2D
     implicit none
 
     integer, parameter :: window_21cm = 1, window_counts = 2, window_lensing = 3
@@ -31,12 +32,14 @@
     Type, extends(TSourceWindow) :: TSplinedSourceWindow
         Type(TCubicSpline), allocatable :: Window
         Type(TCubicSpline), allocatable :: Bias_z
+        Type(TInterpGrid2D), allocatable :: Bias_zk
         real(dl) :: maxwin
     contains
     procedure, nopass :: SelfPointer => TSplinedSourceWindow_SelfPointer
     procedure :: count_obs_window_z => TSplinedSourceWindow_count_obs_window_z
     procedure :: GetScales => TSplinedSourceWindow_GetScales
     procedure :: SetTable => TSplinedSourceWindow_SetTable
+    procedure :: SetTable2DBias => TSplinedSourceWindow_SetTable2DBias
     procedure :: GetBias => TSplinedSourceWindow_GetBias
     end Type TSplinedSourceWindow
 
@@ -215,7 +218,18 @@
     class(TSplinedSourceWindow) :: this
     real(dl), intent(in) :: k,a
     real(dl) z
-    if (allocated(this%bias_z))  then
+    integer error
+
+    if (allocated(this%bias_zk)) then
+        z = 1/a-1
+        if (z > this%Window%X(this%Window%n) .or. z < this%Window%X(1)) then
+            TSplinedSourceWindow_GetBias = 0
+        else
+            error = 0
+            TSplinedSourceWindow_GetBias = this%bias_zk%value(z, k, error)
+            if (error /= 0) TSplinedSourceWindow_GetBias = 0
+        end if
+    elseif (allocated(this%bias_z))  then
         z = 1/a-1
         if (z > this%Window%X(this%Window%n) .or. z < this%Window%X(1)) then
             TSplinedSourceWindow_GetBias = 0
@@ -242,13 +256,34 @@
     end if
     if (present(bias_z)) then
         if (allocated(this%Bias_z)) deallocate(this%Bias_z)
+        if (allocated(this%Bias_zk)) deallocate(this%Bias_zk)
         if (n>0) then
             allocate(this%Bias_z)
             call this%Bias_z%Init(z,bias_z)
         end if
     end if
-
     end subroutine TSplinedSourceWindow_SetTable
+
+    subroutine  TSplinedSourceWindow_SetTable2DBias(this, n, nk, z, k, W, bias_zk)
+    class(TSplinedSourceWindow) :: this
+    integer, intent(in) :: n, nk
+    real(dl), intent(in) :: z(n), W(n), k(nk)
+    real(dl), intent(in) :: bias_zk(n,nk)
+
+    if (allocated(this%Window)) deallocate(this%Window)
+    if (n>0) then
+        allocate(this%Window)
+        call this%Window%Init(z,W)
+        this%maxwin = maxval(this%Window%F)
+    end if
+    if (allocated(this%Bias_zk)) deallocate(this%Bias_zk)
+    if (n>0 .and. nk>0) then
+        allocate(this%Bias_zk)
+        call this%Bias_zk%Init(z,k,bias_zk)
+    end if
+
+    end subroutine TSplinedSourceWindow_SetTable2DBias
+
 
     function TSplinedSourceWindow_count_obs_window_z(this, z, winamp)
     !distribution function W(z) for the observed sources, used for lensing and number count spectrum
@@ -256,7 +291,7 @@
     !note this is the total count distribution observed, not a fractional selection function on an underlying distribution
     class(TSplinedSourceWindow) :: this
     real(dl), intent(in) :: z
-    real(dl) TSplinedSourceWindow_count_obs_window_z, dz,winamp
+    real(dl) TSplinedSourceWindow_count_obs_window_z, winamp
 
     if (z > this%Window%X(this%Window%n) .or. z < this%Window%X(1)) then
         TSplinedSourceWindow_count_obs_window_z =0
@@ -270,7 +305,7 @@
     subroutine TSplinedSourceWindow_GetScales(this, zpeak, sigma_z, zpeakstart, zpeakend)
     class(TSplinedSourceWindow) :: this
     real(dl), intent(out) :: zpeak, sigma_z, zpeakstart, zpeakend
-    integer ix, i, j
+    integer i, j
     real(dl) z1, zstart, zend, targ
 
     associate(z => this%Window%X, W => this%Window%F, n=>this%Window%n)

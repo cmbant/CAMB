@@ -504,7 +504,7 @@ class CAMBStructureMeta(type(Structure)):
                             "sized fields only allowed for ctypes Arrays")
                     if dic["size"] not in [x[0] for x in _fields]:
                         raise CAMBFortranError(
-                            "size must be name of field in same structure (%s for %s)" % (
+                            "size must be the name of a field in same structure (%s for %s)" % (
                                 dic["size"], field_name))
                     new_field = SizedArrayField(field_name, dic["size"])
                     ctypes_fields.append(("_" + field_name, field_type))
