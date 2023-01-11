@@ -22,6 +22,7 @@
     use results
     use constants
     use classes
+    use Interpolation
     implicit none
     private
 

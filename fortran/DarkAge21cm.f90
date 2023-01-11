@@ -1,5 +1,6 @@
     module DarkAge21cm
     use constants
+    use splines
     !Functions for collision rates.
     implicit none
     contains
@@ -30,7 +31,7 @@
         allocate(logRates(n_table),logTemps(n_table),ddlogRates(n_table))
         logRates = log(real(rates,dl)*0.01**3)
         logTemps = log(real(Temps,dl))
-        call spline(logTemps,logRates,n_table,1d30,1d30,ddlogRates)
+        call spline_def(logTemps,logRates,n_table,ddlogRates)
     end if
 
     if (T<=Temps(1)) then
@@ -135,7 +136,7 @@
         allocate(logRates(n_table),logTemps(n_table),ddlogRates(n_table))
         logRates = log(real(rates,dl)*factor)
         logTemps = log(real(Temps,dl))
-        call spline(logTemps,logRates,n_table,1d30,1d30,ddlogRates)
+        call spline_def(logTemps,logRates,n_table,ddlogRates)
     end if
 
     if (T<=Temps(1)) then

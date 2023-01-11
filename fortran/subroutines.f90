@@ -1,11 +1,25 @@
     !Low-level numerical routines for splines and dverk for differential equation integration.
 
-    subroutine splder(y,dy,n, g)
+    module splines
     use Precision
+    use Interpolation
+    implicit none
+    contains
+    
+    subroutine spline_def(x,y,n,d2)
+    !Low-level initialize spline arrays with default boundary conditions 
+    integer, intent(in) :: n
+    real(sp_acc), intent(in) :: x(n), y(n)
+    real(sp_acc), intent(out) :: d2(n)
+    
+    call spline(x,y,n,SPLINE_DANGLE,SPLINE_DANGLE,d2)
+    
+    end subroutine spline_def
+
+    subroutine splder(y,dy,n, g)
     !  Splder fits a cubic spline to y and returns the first derivatives at
     !  the grid points in dy.  Dy is equivalent to a 4th-order Pade
     !  difference formula for dy/di.
-    implicit none
     integer, intent(in) :: n
     real(dl), intent(in) :: y(n),g(n)
     real(dl), intent(out) :: dy(n)
@@ -31,9 +45,7 @@
     end subroutine splder
     !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
     subroutine splini(g,n)
-    use Precision
     !  Splini must be called before splder to initialize array g in common.
-    implicit none
     integer, intent(in) :: n
     real(dl), intent(out):: g(n)
     integer :: i
@@ -44,61 +56,8 @@
     end do
     end subroutine splini
 
-
-    !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-    ! calculates array of second derivatives used by cubic spline
-    ! interpolation. y2 is array of second derivatives, yp1 and ypn are first
-    ! derivatives at end points.
-
-    !Thanks Martin Reinecke
-    subroutine spline(x,y,n,d11,d1n,d2)
-    use Precision
-    integer, intent(in) :: n
-    real(dl), intent(in) :: x(n), y(n), d11, d1n
-    real(dl), intent(out) :: d2(n)
-    integer i
-    real(dl) xp,qn,sig,un,xxdiv,u(n-1),d1l,d1r
-
-    d1r= (y(2)-y(1))/(x(2)-x(1))
-    if (d11>.99e30_dl) then
-        d2(1)=0._dl
-        u(1)=0._dl
-    else
-        d2(1)=-0.5_dl
-        u(1)=(3._dl/(x(2)-x(1)))*(d1r-d11)
-    endif
-
-    do i=2,n-1
-        d1l=d1r
-        d1r=(y(i+1)-y(i))/(x(i+1)-x(i))
-        xxdiv=1._dl/(x(i+1)-x(i-1))
-        sig=(x(i)-x(i-1))*xxdiv
-        xp=1._dl/(sig*d2(i-1)+2._dl)
-
-        d2(i)=(sig-1._dl)*xp
-
-        u(i)=(6._dl*(d1r-d1l)*xxdiv-sig*u(i-1))*xp
-    end do
-    d1l=d1r
-
-    if (d1n>.99e30_dl) then
-        qn=0._dl
-        un=0._dl
-    else
-        qn=0.5_dl
-        un=(3._dl/(x(n)-x(n-1)))*(d1n-d1l)
-    endif
-
-    d2(n)=(un-qn*u(n-1))/(qn*d2(n-1)+1._dl)
-    do i=n-1,1,-1
-        d2(i)=d2(i)*d2(i+1)+u(i)
-    end do
-    end subroutine spline
-
     SUBROUTINE spline_deriv(x,y,y2,y1,n)
     !Get derivative y1 given array of x, y and y''
-    use Precision
-    implicit none
     INTEGER, intent(in) :: n
     real(dl), intent(in) :: x(n), y(n), y2(n)
     real(dl), intent(out) :: y1(n)
@@ -106,7 +65,6 @@
     real(dl) dx
 
     do i=1, n-1
-
         dx = (x(i+1) - x(i))
         y1(i) = (y(i+1) - y(i))/dx - dx*(2*y2(i) + y2(i+1))/6
     end do
@@ -117,7 +75,6 @@
 
     subroutine spline_integrate(x,y,y2,yint,n)
     !Cumulative integral of cubic spline
-    use Precision
     integer, intent(in) :: n
     real(dl), intent(in) :: x(n), y(n), y2(n)
     real(dl), intent(out) :: yint(n)
@@ -140,12 +97,10 @@
 
 
     subroutine splint(y,z,n)
-    use Precision
     !  Splint integrates a cubic spline, providing the output value
     !  z = integral from 1 to n of s(i)di, where s(i) is the spline fit
     !  to y(i).
     !
-    implicit none
     integer, intent(in) :: n
     real(dl), intent(in) :: y(n)
     real(dl), intent(out) :: z
@@ -162,6 +117,8 @@
     z=0.5d0*(y(1)+y(n))+(dy1-dyn)/12._dl
     z= z + sum(y(2:n1))
     end subroutine splint
+
+    end module splines
 
 
     !This version is modified to pass an object parameter to the function on each call
@@ -925,6 +882,6 @@
     !
     end subroutine dverk
 
-  
+
 
 

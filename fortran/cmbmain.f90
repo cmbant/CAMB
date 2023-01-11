@@ -754,7 +754,8 @@
         deallocate(ThisSources%LinearSrc)
     allocate(ThisSources%LinearSrc(ThisSources%Evolve_q%npoints,&
         ThisSources%SourceNum,State%TimeSteps%npoints), source=0._dl, stat=err)
-    if (err/=0) call GlobalError('Sources requires too much memory to allocate', error_unsupported_params)                                                                               
+    if (err/=0) call GlobalError('Sources requires too much memory to allocate', &
+        error_unsupported_params)                                                                               
 
     end subroutine GetSourceMem
 
@@ -1181,8 +1182,7 @@
             !Do not use an associate for scaling. It does not work.
             scaling = State%CAMB_Pk%nonlin_ratio(ik,1:State%num_transfer_redshifts)
             if (all(abs(scaling-1) < 5e-4)) cycle
-            call spline(State%Transfer_Times(1), scaling(1), State%num_transfer_redshifts,&
-                spl_large, spl_large, ddScaling(1))
+            call spline_def(State%Transfer_Times, scaling, State%num_transfer_redshifts,ddScaling)
 
             tf_lo=1
             tf_hi=tf_lo+1
@@ -1222,8 +1222,8 @@
     !$OMP PARALLEL DO DEFAULT(SHARED), SCHEDULE(STATIC), PRIVATE(i,j)
     do  i=1,State%TimeSteps%npoints
         do j=1, ThisSources%SourceNum
-            call spline(ThisSources%Evolve_q%points,ScaledSrc(1,j,i), &
-                ThisSources%Evolve_q%npoints,spl_large, spl_large, ddScaledSrc(1,j,i))
+            call spline_def(ThisSources%Evolve_q%points,ScaledSrc(:,j,i), &
+                ThisSources%Evolve_q%npoints, ddScaledSrc(:,j,i))
         end do
     end do
     !$OMP END PARALLEL DO
@@ -1374,8 +1374,8 @@
 
     if (.not.State%flat) then
         do i=1, ThisSources%SourceNum
-            call spline(State%TimeSteps%points,IV%Source_q(1,i),State%TimeSteps%npoints,&
-                spl_large,spl_large,IV%ddSource_q(1,i))
+            call spline_def(State%TimeSteps%points,IV%Source_q(:,i),State%TimeSteps%npoints,&
+                IV%ddSource_q(:,i))
         end do
     end if
 

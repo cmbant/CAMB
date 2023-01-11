@@ -108,6 +108,7 @@
     end subroutine TNuPerturbations_init
 
     subroutine ThermalNuBackground_init(this)
+    use splines
     class(TThermalNuBackground) :: this
     !  Initialize interpolation tables for massive neutrinos.
     !  Use cubic splines interpolation of log rhonu and pnu vs. log a*m.
@@ -141,6 +142,7 @@
     subroutine nuRhoPres(am,rhonu,pnu)
     !  Compute the density and pressure of one eigenstate of massive neutrinos,
     !  in units of the mean density of one flavor of massless neutrinos.
+    use splines
     real(dl),  parameter :: qmax=30._dl
     integer, parameter :: nq=100
     real(dl) dum1(nq+1),dum2(nq+1)

@@ -8,6 +8,7 @@
     use DarkEnergyPPF
     use ObjectLists
     use classes
+    use Interpolation
     implicit none
 
     Type c_MatterTransferData
@@ -284,10 +285,9 @@
 
     subroutine CAMBdata_GetSigmaRArray(State, sigma, R, nR, z_ix, nz, var1, var2)
     Type(CAMBdata) :: State
+    integer, intent(in) :: nR, nz  
     real(dl) :: sigma(nR,nz)
-    integer :: nR
     real(dl) :: R(nR)
-    integer nz
     integer var1, var2, z_ix(nz)
     integer i, ix
 
@@ -303,8 +303,8 @@
 
     subroutine CAMBdata_GetMatterTransferks(State, nk, ks)
     Type(CAMBdata) :: State
-    real(dl) ks(nk)
     integer nk
+    real(dl) ks(nk)
 
     if (nk/=0) then
         ks =  State%MT%TransferData(Transfer_kh,:,1) * (State%CP%H0/100)
@@ -677,6 +677,7 @@
 
 
     subroutine GetBackgroundThermalEvolution(this, ntimes, times, outputs)
+    use splines
     Type(CAMBdata) :: this
     integer, intent(in) :: ntimes
     real(dl), intent(in) :: times(ntimes)

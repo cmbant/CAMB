@@ -26,10 +26,10 @@ def get_ifort_version():
     return call_command("ifort -v")
 
 
-def get_gfortran_version():
-    ver = call_command("gfortran -dumpversion")
+def get_gfortran_version(command='gfortran'):
+    ver = call_command(command + " -dumpversion")
     if ver and '.' not in ver:
-        ver = call_command("gfortran -dumpfullversion")
+        ver = call_command(command + " -dumpfullversion")
     return ver
 
 
@@ -46,24 +46,34 @@ def check_gfortran(version=gfortran_min, msg=False, retry=False):
     else:
         ok = False
     if not ok and is_windows and not retry:
-        mingw = os.path.join(os.environ["ProgramFiles"], 'mingw-w64')
+        newpath = None
         best_version = gfortran_min
-        if os.path.isdir(mingw):
-            # look for mingw installation
-            dirs = [name for name in os.listdir(mingw) if
-                    gfortran_bits in name and os.path.isdir(os.path.join(mingw, name))]
-            path = None
-            for i, x in enumerate(dirs):
-                ver = x.split('-')[1]
-                if parse_version(best_version) <= parse_version(ver):
-                    best_version = ver
-                    path = x
-            if path:
-                newpath = os.path.join(mingw, path, 'mingw64', 'bin')
-                if os.path.exists(os.path.join(newpath, 'gfortran.exe')):
-                    if not compiler_environ["PATH"].startswith(newpath):
-                        compiler_environ["PATH"] = newpath + ';' + compiler_environ["PATH"]
-                    return check_gfortran(version, msg, retry=True)
+        for root in (os.path.expanduser('~'), os.environ["ProgramFiles"]):
+            mingw = os.path.join(root, 'mingw-w64')
+            if not os.path.isdir(mingw):
+                mingw = os.path.join(root, 'mingw64')
+
+            if os.path.isdir(mingw):
+                # look for mingw installation
+                dirs = [name for name in os.listdir(mingw) if
+                        gfortran_bits in name and os.path.isdir(os.path.join(mingw, name))]
+                for i, x in enumerate(dirs):
+                    if '.' in x:
+                        ver = x.split('-')[1]
+                        if parse_version(best_version) <= parse_version(ver):
+                            best_version = ver
+                            newpath = os.path.join(mingw, x, 'mingw64', 'bin')
+                bin = os.path.join(mingw, 'bin')
+                if os.path.exists(bin):
+                    ver = get_gfortran_version('"' + os.path.join(bin, 'gfortran') + '"')
+                    if ver and parse_version(best_version) <= parse_version(ver):
+                        best_version = ver
+                        newpath = bin
+        if newpath:
+            if os.path.exists(os.path.join(newpath, 'gfortran.exe')):
+                if not compiler_environ["PATH"].startswith(newpath):
+                    compiler_environ["PATH"] = newpath + ';' + compiler_environ["PATH"]
+                return check_gfortran(version, msg, retry=True)
     if ok and is_windows:
         version_str = str(subprocess.check_output("gfortran -dumpmachine", shell=True, env=compiler_environ))
         ok = gfortran_bits in version_str

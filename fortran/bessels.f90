@@ -11,6 +11,7 @@
     use results
     use RangeUtils
     use MpiUtils
+    use splines
     implicit none
     private
 
@@ -115,8 +116,8 @@
         end do
 
         !     get the interpolation matrix for bessel functions
-        call spline(BessRanges%points,ajl(1,j),num_xx,spl_large,spl_large,ajlpr(1,j))
-        call spline(BessRanges%points,ajlpr(1,j),num_xx,spl_large,spl_large,ddajlpr(1,j))
+        call spline_def(BessRanges%points,ajl(:,j),num_xx,ajlpr(:,j))
+        call spline_def(BessRanges%points,ajlpr(:,j),num_xx,ddajlpr(:,j))
     end do
     !$OMP END PARALLEL DO
 

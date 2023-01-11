@@ -20,6 +20,7 @@
     use SpherBessels
     use constants
     use MpiUtils
+    use splines
     implicit none
 
     integer, parameter :: max_bispectrum_deltas = 5, max_bispectrum_fields=3
@@ -78,7 +79,7 @@
     do i=1, CTrans%ls%nl
         !Spline agrees well
         !  call spline_deriv(BessRanges%points,ajl(1,i),ajlpr(1,i),dJl(1,i),BessRanges%npoints)
-        !  call spline(BessRanges%points,dJl(1,i),BessRanges%npoints,spl_large,spl_large,dddJl(1,i))
+        !  call spline_def(BessRanges%points,dJl(1,i),BessRanges%npoints,dddJl(1,i))
 
         l1 = CTrans%ls%l(i)
         do j=1, BessRanges%npoints
@@ -86,7 +87,7 @@
             call BJL(l1+1,BessRanges%points(j),Jp)
             dJl(j,i)=  ( l1*Jm - (l1+1)*Jp)/(2*l1+1)
         end do
-        call spline(BessRanges%points,dJl(1,i),BessRanges%npoints,spl_large,spl_large,dddJl(1,i))
+        call spline_def(BessRanges%points,dJl(:,i),BessRanges%npoints,dddJl(:,i))
 
     end do
 

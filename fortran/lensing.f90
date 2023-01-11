@@ -39,6 +39,7 @@
     use Precision
     use results
     use constants, only : const_pi, const_twopi, const_fourpi
+    use splines
     implicit none
     integer, parameter :: lensing_method_curv_corr=1,lensing_method_flat_corr=2, &
         lensing_method_harmonic=3
@@ -462,7 +463,7 @@
             if (.false.) then
                 if (abs(sum(corrcontribs(1:jmax,1)))>1e-11) print *,i,sum(corrcontribs(1:jmax,1))
                 do j=1,4
-                    call spline(xl,corrcontribs(1,j),jmax,1d30,1d30,ddcontribs(1,j))
+                    call spline_def(xl,corrcontribs(:,j),jmax,ddcontribs(:,j))
                 end do
                 corr=0
                 llo=1
@@ -1157,7 +1158,7 @@
             Bess(i,:)=Bessel_jn(0, maxbessel,x(i))
         end do
         do ix=0,maxbessel
-            call spline(x,Bess(1,ix),max_bes_ix,spl_large,spl_large,ddBess(1,ix))
+            call spline_def(x,Bess(:,ix),max_bes_ix,ddBess(:,ix))
         end do
 
         deallocate(x)

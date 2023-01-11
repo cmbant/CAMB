@@ -41,9 +41,6 @@
 
     real(dl), parameter :: tol=1.0d-4 !Base tolerance for perturbation integrations
 
-    !     used as parameter for spline - tells it to use 'natural' end values
-    real(dl), parameter :: spl_large=1.e40_dl
-
     character(LEN=1024) :: highL_unlensed_cl_template = 'HighLExtrapTemplate_lenspotentialCls.dat'
     !fiducial high-accuracy high-L C_L used for making small cosmology-independent numerical corrections
     !to lensing and C_L interpolation. Ideally close to models of interest, but dependence is weak.

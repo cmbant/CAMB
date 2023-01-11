@@ -501,7 +501,7 @@
     implicit none
     class(TRecfast), target :: this
     class(TCAMBdata), target :: State
-    real(dl) :: Trad,Tmat,Tspin,d0hi,d0lo
+    real(dl) :: Trad,Tmat,Tspin
     integer :: I
     Type(RecombinationData), pointer :: Calc
     logical, intent(in), optional :: WantTSpin
@@ -701,12 +701,10 @@
             !          write (*,'(5E15.5)') zend, Trad, Tmat, Tspin, x
         end do
 
-        d0hi=1.0d40
-        d0lo=1.0d40
-        call spline(Calc%zrec,Calc%xrec,nz,d0lo,d0hi,Calc%dxrec)
-        call spline(Calc%zrec,Calc%tmrec,nz,d0lo,d0hi,Calc%dtmrec)
+        call spline_def(Calc%zrec,Calc%xrec,nz,Calc%dxrec)
+        call spline_def(Calc%zrec,Calc%tmrec,nz,Calc%dtmrec)
         if (Calc%doTspin) then
-            call spline(Calc%zrec,Calc%tsrec,nz,d0lo,d0hi,Calc%dtsrec)
+            call spline_def(Calc%zrec,Calc%tsrec,nz,Calc%dtsrec)
         end if
     class default
         call MpiStop('Wrong state type')
