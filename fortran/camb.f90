@@ -185,7 +185,7 @@
     end subroutine CAMB_GetCls
 
     function CAMB_GetAge(P)
-    !Return age in gigayears, returns -1 on error
+    !Return age in Julian gigayears, returns -1 on error
     type(CAMBparams), intent(in) :: P
     real(dl) CAMB_GetAge
     integer error

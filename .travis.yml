@@ -34,6 +34,15 @@ jobs:
         - PYDIST="ANACONDA"
         - FORTRAN="test"
       python: "3.10"
+    - name: "Ubuntu 22.04 + Python 3.11"
+      dist: jammy
+      addons:
+        apt:
+          packages:
+            - gfortran
+      env:
+        - CHANNEL="defaults"
+      python: "3.11"
     - name: "GCC trunk cosmobox"
       language: shell
       services:

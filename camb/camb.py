@@ -76,7 +76,7 @@ def get_age(params):
     Get age of universe for given set of parameters
 
     :param params:  :class:`.model.CAMBparams` instance
-    :return: age of universe in gigayears
+    :return: age of universe in Julian gigayears
     """
     return CAMB_GetAge(byref(params))
 

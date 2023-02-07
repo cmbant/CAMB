@@ -1503,7 +1503,7 @@ class CAMBdata(F2003Class):
 
     def physical_time_a1_a2(self, a1, a2):
         """
-        Get physical time between two scalar factors in Gigayears
+        Get physical time between two scalar factors in Julian Gigayears
 
         Must have called :meth:`calc_background`, :meth:`calc_background_no_thermo` or calculated transfer functions
         or power spectra.
@@ -1522,7 +1522,7 @@ class CAMBdata(F2003Class):
 
     def physical_time(self, z):
         """
-        Get physical time from hot big bang to redshift z in Gigayears.
+        Get physical time from hot big bang to redshift z in Julian Gigayears.
 
         :param z:  redshift
         :return: t(z)/Gigayear

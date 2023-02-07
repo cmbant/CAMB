@@ -2,41 +2,23 @@
 # Fitting formula for Parthenelope via Julien Lesgourgues Dec 2014
 # General interpolation tables, with defaults from Parthenope May 2017 (thanks Ofelia Pesanti)
 # Use PRIMAT_Yp_DH_Error.dat table for latest from the PRIMAT code (arXiv: 1801.08023, thanks Cyril Pitrou)
+# from 1.4.0, delta_nnu values are relative to 3.044, not 3.046
 
 import numpy as np
 import os
 from scipy.interpolate import RectBivariateSpline
+from .constants import m_H, m_He4, default_nnu
 
-# Various useful constants
-hbar = 1.05457e-34
-c = 299792458.
-kB = 1.380650e-23
-MeV = 1.6021764e-13
-eV = MeV / 1e6
-G = 6.6738e-11
-TCMB = 2.7255
-mP = np.sqrt(hbar * c / G)
-Mpc = 3.0856776e22
-
-m_proton = 1.672621637e-27
-m_H = 1.673575e-27
-not4 = 3.9715
-m_He = m_H * not4
-
-zeta3 = 1.202056903
-
-n_photon = (kB * TCMB / hbar / c) ** 3 * zeta3 * 2 / np.pi ** 2
-omegafac = (1e5 / Mpc) ** 2 / (8 * np.pi * G) * 3
-
-default_interpolation_table = 'PArthENoPE_880.2_standard.dat'
+# previously (< 1.4.0) default_interpolation_table = 'PArthENoPE_880.2_standard.dat'
+default_interpolation_table = 'PRIMAT_Yp_DH_ErrorMC_2021.dat'
 
 
 def yhe_to_ypBBN(Yp):
-    return -4 * m_H * Yp / (Yp * m_He - 4 * Yp * m_H - m_He)
+    return -4 * m_H * Yp / (Yp * m_He4 - 4 * Yp * m_H - m_He4)
 
 
 def ypBBN_to_yhe(YBBN):
-    return -YBBN * m_He / (-YBBN * m_He + 4 * YBBN * m_H - 4 * m_H)
+    return -YBBN * m_He4 / (-YBBN * m_He4 + 4 * YBBN * m_H - 4 * m_H)
 
 
 class BBNIterpolator(RectBivariateSpline):
@@ -53,7 +35,7 @@ class BBNPredictor:
         Get BBN helium nucleon fraction. Must be implemented by extensions.
 
         :param ombh2: :math:`\Omega_b h^2`
-        :param delta_neff:  additional N_eff relative to standard value (of 3.046)
+        :param delta_neff:  additional N_eff relative to standard value (of 3.044)
         :return:  Y_p helium nucleon fraction predicted by BBN
         """
         raise Exception('Not implemented')
@@ -63,7 +45,7 @@ class BBNPredictor:
         Get BBN helium mass fraction for CMB code.
 
         :param ombh2: :math:`\Omega_b h^2`
-        :param delta_neff:  additional N_eff relative to standard value (of 3.046)
+        :param delta_neff:  additional N_eff relative to standard value (of 3.044)
         :return: Y_He helium mass fraction predicted by BBN
         """
         return ypBBN_to_yhe(self.Y_p(ombh2, delta_neff))
@@ -125,7 +107,7 @@ class BBN_table_interpolator(BBNPredictor):
         Get BBN helium nucleon fraction by intepolation in table.
 
         :param ombh2: :math:`\Omega_b h^2` (or, more generally, value of function_of[0])
-        :param delta_neff:  additional N_eff relative to standard value (of 3.046) (or value of function_of[1])
+        :param delta_neff:  additional N_eff relative to standard value (of 3.044) (or value of function_of[1])
         :param grid: parameter for :class:`~scipy:scipy.interpolate.RectBivariateSpline` (whether to evaluate the
            results on a grid spanned by the input arrays, or at points specified by the input arrays)
         :return:  Y_p helium nucleon fraction predicted by BBN. Call Y_He() to get mass fraction instead.
@@ -137,7 +119,7 @@ class BBN_table_interpolator(BBNPredictor):
         Get deuterium ratio D/H by interpolation in table
 
         :param ombh2: :math:`\Omega_b h^2` (or, more generally, value of function_of[0])
-        :param delta_neff:  additional N_eff relative to standard value (of 3.046) (or value of function_of[1])
+        :param delta_neff:  additional N_eff relative to standard value (of 3.044) (or value of function_of[1])
         :param grid: parameter for :class:`~scipy:scipy.interpolate.RectBivariateSpline` (whether to evaluate the
            results on a grid spanned by the input arrays, or at points specified by the input arrays)
         :return: D/H
@@ -151,7 +133,7 @@ class BBN_table_interpolator(BBNPredictor):
 
         :param name: string name of the parameter, as given in header of interpolation table
         :param ombh2: :math:`\Omega_b h^2` (or, more generally, value of function_of[0])
-        :param delta_neff:  additional N_eff relative to standard value (of 3.046) (or value of function_of[1])
+        :param delta_neff:  additional N_eff relative to standard value (of 3.044) (or value of function_of[1])
         :param grid: parameter for :class:`~scipy:scipy.interpolate.RectBivariateSpline` (whether to evaluate the
            results on a grid spanned by the input arrays, or at points specified by the input arrays)
         :return:  Interpolated value (or grid)
@@ -184,23 +166,25 @@ class BBN_fitting_parthenope(BBNPredictor):
         # Parthenope fits, as in Planck 2015 papers
 
         :param ombh2: :math:`\Omega_b h^2`
-        :param delta_neff:  additional N_eff relative to standard value (of 3.046)
+        :param delta_neff:  additional N_eff relative to standard value (of 3.046 for consistency with Planck)
         :param tau_neutron: neutron lifetime
         :return:  :math:`Y_p^{\rm BBN}` helium nucleon fraction predicted by BBN
         """
+        delta_neff = default_nnu + delta_neff - 3.046
         return (
-                       0.2311 + 0.9502 * ombh2 - 11.27 * ombh2 * ombh2
-                       + delta_neff * (0.01356 + 0.008581 * ombh2 - 0.1810 * ombh2 * ombh2)
-                       + delta_neff * delta_neff * (-0.0009795 - 0.001370 * ombh2 + 0.01746 * ombh2 * ombh2)
-               ) * pow((tau_neutron or self.taun) / 880.3, 0.728)
+                0.2311 + 0.9502 * ombh2 - 11.27 * ombh2 * ombh2
+                + delta_neff * (0.01356 + 0.008581 * ombh2 - 0.1810 * ombh2 * ombh2)
+                + delta_neff * delta_neff * (-0.0009795 - 0.001370 * ombh2 + 0.01746 * ombh2 * ombh2)
+        ) * pow((tau_neutron or self.taun) / 880.3, 0.728)
 
     def DH(self, ombh2, delta_neff, tau_neutron=None):
+        delta_neff = default_nnu + delta_neff - 3.046
         return (
-                       18.754 - 1534.4 * ombh2 + 48656. * ombh2 * ombh2 - 552670. * ombh2 ** 3
-                       + delta_neff * (2.4914 - 208.11 * ombh2 + 6760.9 * ombh2 ** 2 - 78007. * ombh2 ** 3)
-                       + delta_neff * delta_neff * (
-                               0.012907 - 1.3653 * ombh2 + 37.388 * ombh2 ** 2 - 267.78 * ombh2 ** 3)
-               ) * pow((tau_neutron or self.taun) / 880.3, 0.418) * 1e-5
+                18.754 - 1534.4 * ombh2 + 48656. * ombh2 * ombh2 - 552670. * ombh2 ** 3
+                + delta_neff * (2.4914 - 208.11 * ombh2 + 6760.9 * ombh2 ** 2 - 78007. * ombh2 ** 3)
+                + delta_neff * delta_neff * (
+                        0.012907 - 1.3653 * ombh2 + 37.388 * ombh2 ** 2 - 267.78 * ombh2 ** 3)
+        ) * pow((tau_neutron or self.taun) / 880.3, 0.418) * 1e-5
 
 
 _predictors = {}

@@ -318,7 +318,7 @@
         neff_massive_standard=0
     end if
     if (omnuh2_sterile>0) then
-        if (nnu<default_nnu) call MpiStop('nnu < 3.046 with massive sterile')
+        if (nnu<default_nnu) call MpiStop('nnu < 3.044 with massive sterile')
         this%Num_Nu_Massless = default_nnu - neff_massive_standard
         this%Num_Nu_Massive=this%Num_Nu_Massive+1
         this%Nu_mass_eigenstates=this%Nu_mass_eigenstates+1

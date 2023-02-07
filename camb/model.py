@@ -628,7 +628,7 @@ class CAMBparams(F2003Class):
         (or the default one, if `Y_He` has not been set).
 
         :param ombh2: :math:`\Omega_b h^2` (default: value passed to :meth:`set_cosmology`)
-        :param delta_neff:  additional :math:`N_{\rm eff}` relative to standard value (of 3.046)
+        :param delta_neff:  additional :math:`N_{\rm eff}` relative to standard value (of 3.044)
                            (default: from values passed to :meth:`set_cosmology`)
         :return:  :math:`Y_p^{\rm BBN}` helium nucleon fraction predicted by BBN.
         """
@@ -646,7 +646,7 @@ class CAMBparams(F2003Class):
         (or the default one, if `Y_He` has not been set).
 
         :param ombh2: :math:`\Omega_b h^2` (default: value passed to :meth:`set_cosmology`)
-        :param delta_neff:  additional :math:`N_{\rm eff}` relative to standard value (of 3.046)
+        :param delta_neff:  additional :math:`N_{\rm eff}` relative to standard value (of 3.044)
                            (default: from values passed to :meth:`set_cosmology`)
         :return: BBN helium nucleon fraction D/H
         """

@@ -124,7 +124,7 @@ class CambTest(unittest.TestCase):
         t1 = data.conformal_time(11.5)
         t2 = data.comoving_radial_distance(11.5)
         self.assertAlmostEqual(t2, t0 - t1, 2)
-        self.assertAlmostEqual(t1, 4200.78, 2)
+        self.assertAlmostEqual(t1, 4200.809, 2)
         chistar = data.conformal_time(0) - data.tau_maxvis
         chis = np.linspace(0, chistar, 197)
         zs = data.redshift_at_comoving_radial_distance(chis)
@@ -136,25 +136,25 @@ class CambTest(unittest.TestCase):
 
         derived = data.get_derived_params()
         self.assertAlmostEqual(derived['age'], age, 2)
-        self.assertAlmostEqual(derived['rdrag'], 146.976, 2)
+        self.assertAlmostEqual(derived['rdrag'], 146.986, 2)
         self.assertAlmostEqual(derived['rstar'], data.sound_horizon(derived['zstar']), 2)
 
         # Test BBN consistency, base_plikHM_TT_lowTEB best fit model
         pars.set_cosmology(H0=67.31, ombh2=0.022242, omch2=0.11977, mnu=0.06, omk=0)
-        self.assertAlmostEqual(pars.YHe, 0.245347, 5)
+        self.assertAlmostEqual(pars.YHe, 0.2458, 5)
         data.calc_background(pars)
-        self.assertAlmostEqual(data.cosmomc_theta(), 0.010408566, 7)
+        self.assertAlmostEqual(data.cosmomc_theta(), 0.0104090741, 7)
         self.assertAlmostEqual(data.get_derived_params()['kd'], 0.14055, 4)
 
         pars.set_cosmology(H0=67.31, ombh2=0.022242, omch2=0.11977, mnu=0.06, omk=0,
                            bbn_predictor=bbn.BBN_table_interpolator())
-        self.assertAlmostEqual(pars.YHe, 0.2453469, 5)
+        self.assertAlmostEqual(pars.YHe, 0.2458, 5)
         self.assertAlmostEqual(pars.get_Y_p(), bbn.BBN_table_interpolator().Y_p(0.022242, 0), 5)
 
         # test massive sterile models as in Planck papers
         pars.set_cosmology(H0=68.0, ombh2=0.022305, omch2=0.11873, mnu=0.06, nnu=3.073, omk=0, meffsterile=0.013)
         self.assertAlmostEqual(pars.omnuh2, 0.00078, 5)
-        self.assertAlmostEqual(pars.YHe, 0.24573, 5)
+        self.assertAlmostEqual(pars.YHe, 0.246218, 5)
         self.assertAlmostEqual(pars.N_eff, 3.073, 4)
 
         data.calc_background(pars)
@@ -175,7 +175,7 @@ class CambTest(unittest.TestCase):
 
         # test theta
         pars.set_cosmology(cosmomc_theta=0.0104085, ombh2=0.022271, omch2=0.11914, mnu=0.06, omk=0)
-        self.assertAlmostEqual(pars.H0, 67.5512, 2)
+        self.assertAlmostEqual(pars.H0, 67.537, 2)
         with self.assertRaises(CAMBParamRangeError):
             pars.set_cosmology(cosmomc_theta=0.0204085, ombh2=0.022271, omch2=0.11914, mnu=0.06, omk=0)
         pars = camb.set_params(cosmomc_theta=0.0104077, ombh2=0.022, omch2=0.122, w=-0.95)
@@ -185,7 +185,7 @@ class CambTest(unittest.TestCase):
         self.assertAlmostEqual(camb.get_background(pars).get_derived_params()['thetastar'] / 100, 0.010311, 7)
         pars = camb.set_params(thetastar=0.010311, ombh2=0.022, omch2=0.122, omk=-0.05)
         self.assertAlmostEqual(camb.get_background(pars).get_derived_params()['thetastar'] / 100, 0.010311, 7)
-        self.assertAlmostEqual(pars.H0, 49.7148, places=3)
+        self.assertAlmostEqual(pars.H0, 49.70624, places=3)
 
         pars = camb.set_params(cosmomc_theta=0.0104077, ombh2=0.022, omch2=0.122, w=-0.95, wa=0,
                                dark_energy_model='ppf')
@@ -328,9 +328,9 @@ class CambTest(unittest.TestCase):
 
         data.calc_power_spectra(pars)
         kh3, z3, pk3 = data.get_matter_power_spectrum(1e-4, 1, 20)
-        self.assertAlmostEqual(pk[-1][-3], 51.909, 2)
-        self.assertAlmostEqual(pk3[-1][-3], 57.709, 2)
-        self.assertAlmostEqual(pk2[-2][-4], 56.436, 2)
+        self.assertAlmostEqual(pk[-1][-3], 51.924, 2)
+        self.assertAlmostEqual(pk3[-1][-3], 57.723, 2)
+        self.assertAlmostEqual(pk2[-2][-4], 56.454, 2)
         camb.set_feedback_level(0)
 
         PKnonlin = camb.get_matter_power_interpolator(pars, nonlinear=True)
@@ -457,10 +457,11 @@ class CambTest(unittest.TestCase):
         self.assertAlmostEqual(sigma8, results.get_sigmaR(np.array([8]), z_indices=-1)[-1], places=3)
         self.assertAlmostEqual(results.get_sigmaR(8)[-1], results.get_sigmaR(8, z_indices=-1))
         pars.set_matter_power(nonlinear=False, k_per_logint=0, kmax=2)
+
         results = camb.get_results(pars)
         P, z, k = results.get_matter_power_interpolator(nonlinear=False, hubble_units=False, k_hunit=False,
                                                         return_z_k=True, extrap_kmax=100, silent=True)
-        truth = 0.800629  # from high kmax, high accuracy boost
+        truth = 0.800679  # from high kmax, high accuracy boost
         self.assertTrue(abs(results.get_sigmaR(8)[-1] / sigma8 - 1) < 1e-3)
 
         def get_sigma(_ks, dlogk):
@@ -657,7 +658,7 @@ class CambTest(unittest.TestCase):
         results = camb.get_results(pars)
         cls = results.get_source_cls_dict()
         self.assertAlmostEqual(np.sum(cls['PxW1'][10:3000:20]), 0.00020001, places=5)
-        self.assertAlmostEqual(np.sum(cls['W1xW1'][10:3000:20]), 2.26348, places=3)
+        self.assertAlmostEqual(np.sum(cls['W1xW1'][10:3000:20]), 2.26413, places=3)
         self.assertAlmostEqual(np.sum(cls['W1xW1'][10]), 0.0001097, places=6)
 
     def testSymbolic(self):
