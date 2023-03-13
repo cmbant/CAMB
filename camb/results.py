@@ -981,7 +981,7 @@ class CAMBdata(F2003Class):
                 # NB returns dimensionality as the 2D one: 1 dimension if z single
                 return (lambda x: x[0] if np.isscalar(args[0]) else x)(super().__call__(*(args[1:])))
 
-            def P(self, z, kh, grid=None):
+            def P(self, z, kh, **_kwargs):
                 # grid kwarg is ignored
                 if self.islog:
                     return self.logsign * np.exp(self(z, np.log(kh)))
