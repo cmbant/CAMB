@@ -501,6 +501,10 @@ class CAMBdata(F2003Class):
         """
         Get the mode evolution as a function of conformal time for some k values.
 
+        Note that gravitational potentials (e.g. Weyl) are not integrated in the code and are
+        calculated as derived parameters; they may be numerically unstable far outside the horizon.
+        (use the series expansion result if needed far outside the horizon)
+
         :param q: wavenumber values to calculate (or array of k values)
         :param eta: array of requested conformal times to output
         :param vars: list of variable names or sympy symbolic expressions to output (using camb.symbolic)
