@@ -236,6 +236,7 @@ class CAMBparams(F2003Class):
         ("Log_lvalues", c_bool, "Use log spacing for sampling in L"),
         ("use_cl_spline_template", c_bool,
          "When interpolating use a fiducial spectrum shape to define ratio to spline"),
+        ("min_l_logl_sampling", c_int, "Minimum L to use log sampling for L"),
         ("SourceWindows", AllocatableObjectArray(SourceWindow)),
         ("CustomSources", CustomSources)
     ]
@@ -262,7 +263,8 @@ class CAMBparams(F2003Class):
         """
         return self.f_Validate() != 0
 
-    def set_accuracy(self, AccuracyBoost=1., lSampleBoost=1., lAccuracyBoost=1., DoLateRadTruncation=True):
+    def set_accuracy(self, AccuracyBoost=1., lSampleBoost=1., lAccuracyBoost=1., DoLateRadTruncation=True,
+                     min_l_logl_sampling=None):
         """
         Set parameters determining overall calculation accuracy (large values may give big slow down).
         For finer control you can set individual accuracy parameters by changing CAMBParams.Accuracy
@@ -273,12 +275,16 @@ class CAMBparams(F2003Class):
         :param lSampleBoost: increase lSampleBoost to increase density of L sampling for CMB
         :param lAccuracyBoost: increase lAccuracyBoost to increase the maximum L included in the Boltzmann hierarchies
         :param DoLateRadTruncation: If True, use approximation to radiation perturbation evolution at late times
+        :param min_l_logl_sampling: at L>min_l_logl_sampling uses sparser log sampling for L interpolation;
+                                    increase above 5000 for better accuracy at L > 5000
         :return: self
         """
         self.Accuracy.lSampleBoost = lSampleBoost
         self.Accuracy.AccuracyBoost = AccuracyBoost
         self.Accuracy.lAccuracyBoost = lAccuracyBoost
         self.DoLateRadTruncation = DoLateRadTruncation
+        if min_l_logl_sampling:
+            self.min_l_logl_sampling = min_l_logl_sampling
         return self
 
     def set_initial_power_function(self, P_scalar, P_tensor=None, kmin=1e-6, kmax=100., N_min=200, rtol=5e-5,

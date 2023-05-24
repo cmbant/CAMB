@@ -58,7 +58,7 @@
         !Reionization settings - used if Reion%Reionization=.true.
         logical   :: AccurateReionization = .true.
         !Do you care about pecent level accuracy on EE signal from reionization?
-
+       
         !The following allow separate tweaking (all also affected by AccuracyBoost above)
 
         real(dl) :: TimeStepBoost = 1._dl !sampling timesteps
@@ -182,8 +182,9 @@
         logical :: Do21cm = .false.
         logical :: transfer_21cm_cl = .false.
         logical :: Log_lvalues  = .false. !useful for smooth results at very high L
-        logical :: use_cl_spline_template = .true.
-
+        logical :: use_cl_spline_template = .true.    
+        integer :: min_l_logl_sampling = 5000 ! increase to use linear sampling for longer
+    
         Type(TSourceWindowHolder), allocatable :: SourceWindows(:)
 
         Type(TCustomSourceParams) :: CustomSources
