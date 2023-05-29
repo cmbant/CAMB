@@ -16,7 +16,7 @@ import logging
 from typing import Union, Optional
 
 max_nu = 5
-max_transfer_redshifts = 150
+max_transfer_redshifts = 256
 nthermo_derived = 13
 Transfer_kh = 1
 Transfer_cdm = 2

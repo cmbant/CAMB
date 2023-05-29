@@ -21,7 +21,7 @@
     !Nu_best: automatically use mixture which is fastest and most accurate
 
     integer, parameter :: max_Nu = 5 !Maximum number of neutrino species
-    integer, parameter :: max_transfer_redshifts = 150
+    integer, parameter :: max_transfer_redshifts = 256
 
     type TransferParams
         logical     ::  high_precision = .false.
