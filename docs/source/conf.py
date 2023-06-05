@@ -32,7 +32,8 @@ def on_missing_reference(app, env, node, contnode):
     if node['reftype'] == 'obj':
         return contnode
     else:
-        return None
+        else:
+    return None
 
 
 def setup(app):
@@ -47,7 +48,7 @@ needs_sphinx = '4.0'
 # ones.
 extensions = [
     'sphinx.ext.autodoc', 'sphinx.ext.intersphinx', 'sphinx.ext.viewcode', 'sphinx.ext.autosummary',
-    'sphinx.ext.mathjax', 'sphinxcontrib.jquery'
+    'sphinx.ext.mathjax', 'sphinx_rtd_theme'
 ]
 
 intersphinx_mapping = {'python': ('https://docs.python.org/3', None),
