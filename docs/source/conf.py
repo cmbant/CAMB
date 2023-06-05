@@ -32,8 +32,7 @@ def on_missing_reference(app, env, node, contnode):
     if node['reftype'] == 'obj':
         return contnode
     else:
-        else:
-    return None
+        return None
 
 
 def setup(app):
