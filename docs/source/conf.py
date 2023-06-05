@@ -47,7 +47,7 @@ needs_sphinx = '4.0'
 # ones.
 extensions = [
     'sphinx.ext.autodoc', 'sphinx.ext.intersphinx', 'sphinx.ext.viewcode', 'sphinx.ext.autosummary',
-    'sphinx.ext.mathjax', 'sphinx_rtd_theme'
+    'sphinx.ext.mathjax', 'sphinx_rtd_theme', 'sphinxcontrib.jquery'
 ]
 
 intersphinx_mapping = {'python': ('https://docs.python.org/3', None),
