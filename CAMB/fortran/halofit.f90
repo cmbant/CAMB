@@ -670,7 +670,7 @@
         ELSE IF(z>=this%Zc) THEN
            y=1
         END IF
-    CAMB_Pk%nonlin_ratio(:,i) = CAMB_Pk%nonlin_ratio(:,i) * y
+    CAMB_Pk%nonlin_ratio(:,i) = CAMB_Pk%nonlin_ratio(:,i) * sqrt(y)
     END DO
 
     ! Make the non-linear correction from the response for HMcode 2020
