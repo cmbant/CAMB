@@ -1,0 +1,105 @@
+os: linux
+language: python
+
+git:
+  depth: false
+
+dist: bionic
+
+branches:
+  except:
+    - CAMB_sources
+    - rayleigh
+
+jobs:
+  include:
+    - name: "Ubuntu 20.04 + Python 3.7"
+      dist: focal
+      addons:
+        apt:
+          packages:
+            - gfortran
+      python: "3.7"
+      env:
+        - PYPI_DIST="true"
+    - name: "GCC10 + Python 3.10 anaconda"
+      dist: focal
+      addons:
+        apt:
+          packages:
+            - gfortran-10
+      env:
+        - GCC_VERSION="10"
+        - CHANNEL="defaults"
+        - PYDIST="ANACONDA"
+        - FORTRAN="test"
+      python: "3.10"
+    - name: "Ubuntu 22.04 + Python 3.11"
+      dist: jammy
+      addons:
+        apt:
+          packages:
+            - gfortran
+      env:
+        - CHANNEL="defaults"
+      python: "3.11"
+    - name: "GCC trunk cosmobox"
+      language: shell
+      services:
+        - docker
+      before_install:
+        - if [ "$TRAVIS_PULL_REQUEST" = "false" ]; then
+            echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin;
+          fi
+        - docker pull cmbant/cosmobox:devel
+      install:
+        - chmod +x fortran/tests/run_tests.sh
+      script:
+        - docker run -v $(pwd):/camb  -t cmbant/cosmobox:devel /bin/bash -c "cd /camb; fortran/tests/run_tests.sh"
+      after_failure:
+        - echo "docker fail"
+
+install:
+  - if [[ "$PYDIST" == "ANACONDA" ]]; then
+      wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh;
+      bash miniconda.sh -b -p $HOME/miniconda;
+      export PATH="$HOME/miniconda/bin:$PATH";
+      hash -r;
+      conda config --set always_yes yes --set changeps1 no;
+      conda info -a;
+      conda create -q -n test-environment -c $CHANNEL python=$TRAVIS_PYTHON_VERSION numpy scipy sympy;
+      source activate test-environment;
+    fi
+  - if [[ "$FORTRAN" == "test" ]]; then
+      mkdir -p gfortran-symlinks;
+      ln -s /usr/bin/gfortran-$GCC_VERSION gfortran-symlinks/gfortran;
+      export PATH=$PWD/gfortran-symlinks:$PATH;
+    fi
+  - if [[ "$GCC_VERSION" == "10" ]]; then
+      export LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libgfortran.so.5;
+    fi
+  - gfortran --version
+  - chmod +x fortran/tests/run_tests.sh
+  - pip install flake8
+
+script:
+  - flake8 camb --select=E713,E704,E703,E714,E10,E11,E20,E22,E23,E25,E27,E301,E302,E304,E9,E741,F405,F406,F5,F6,F7,F8,W1,W2,W3,W6 --show-source --statistics
+  - fortran/tests/run_tests.sh
+
+after_failure:
+  - test $TRAVIS_PULL_REQUEST == "false" && test $PYPI_DIST == "true" && test $TRAVIS_REPO_SLUG == "cmbant/CAMB" && [ -d fortran/testfiles ] && bash fortran/tests/upload_tests.sh
+
+before_deploy:
+  - pushd fortran; make clean delete; popd
+
+deploy:
+  - provider: pypi
+    distributions: sdist
+    username: "cmbant"
+    password:
+      secure: "UA+nTWbEND3R/KVodbAG/2xXcCibpotNO+PHBIokR8fm7KmYdjSnXF3OXBDNvFPYEQg2KY7L/JviCbUM9yfZmtekvMg7aKP/2fuHcayByNy5VJ4mUgcA48ft6LKp/sLS/8fn7nCzHbclT/Ye/Wo3PmGK1mQqbu9oxXGidY8C7pbXB9ZYnssdMH9DHXSqjIAL23yN95G8U1n9bVLI0dZB0ORFHro/f7XeIPrzJEdEgql33BSq5YArf7WK/2Vlo8Zk0vPNT1xRJvEdNaJ/VZ5Nk31yuym04ZekmWlBmi+kTsO0zwD4wQrkCFGm9qb31JRHjuRTpxrHUTkiXwTvYutmwNtHqJ3SYkQgoTmb6qi9f4Nha3mtAbRviTDxgVi8Dv4gWp59iXVcOQMhRM9hxiCK7QwMkHJsvss4XuL149eLFLP7TfNw6PwHo/tpMMyRyDBdwgT+Vz0wNUyncEKwsgunxgvct9sy4TKNs96NJ90cTee3ditq/ZmrLjzp0xjQkBW5nA1AiW/9g3KkozkWh0Q74qGR1qrSlKInM7na64zLnp8seRb71Ki+2Ad+gx+fREnTmmgBSTIav4AjQCc+hnEIYnZ57DyNqIaqON25jiL1i85oaAdWLDR5pctWlebmzRcS2PvuvgqB76bvgLnIoHPg8pRm4Li7wvYCQhi9fo9RvR4="
+    on:
+      branch: master
+      repo: cmbant/CAMB
+      tags: true
+      condition: $PYPI_DIST = true

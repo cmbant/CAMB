@@ -1,0 +1,15 @@
+include *.rst *.txt
+recursive-include camb *.py
+recursive-include fortran Makefile* *.dat *.?90
+recursive-include forutils Makefile* *.?90
+include camb/cambdll.dll
+exclude camb/camblib.so
+include camb/PArthENoPE_880.2_marcucci.dat
+include camb/PArthENoPE_880.2_standard.dat
+include camb/PRIMAT_Yp_DH_Error.dat
+include camb/PRIMAT_Yp_DH_ErrorMC_2021.dat
+exclude camb/HighLExtrapTemplate_lenspotentialCls.dat
+exclude fortran/sigma8.f90
+exclude fortran/writefits.f90
+include docs/README_pypi.rst
+

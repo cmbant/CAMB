@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<VisualStudioProject ProjectType="typeStaticLibrary" ProjectCreator="Intel Fortran" Keyword="Static Library" Version="11.0" ProjectIdGuid="{C7D790F6-3574-43A1-A5E1-1E6FC5478F95}">
+	<Platforms>
+		<Platform Name="x64"/></Platforms>
+	<Configurations>
+		<Configuration Name="Debug|x64" ConfigurationType="typeStaticLibrary">
+				<Tool Name="VFFortranCompilerTool" SuppressStartupBanner="true" DebugInformationFormat="debugEnabled" Optimization="optimizeDisabled" HeapArrays="1" Preprocess="preprocessYes" ErrorLimit="4" StandardWarnings="standardWarningsF08" WarnDeclarations="true" WarnUnusedVariables="true" WarnTruncateSource="true" FloatingPointExceptionHandling="fpe0" Traceback="true" BoundsCheck="true" UninitializedVariablesCheck="true" StackFrameCheck="true" RuntimeLibrary="rtMultiThreadedDLL"/>
+				<Tool Name="VFLibrarianTool" IgnoreAllDefaultLibraries="true"/>
+				<Tool Name="VFResourceCompilerTool"/>
+				<Tool Name="VFMidlTool" SuppressStartupBanner="true" TargetEnvironment="midlTargetAMD64"/>
+				<Tool Name="VFCustomBuildTool"/>
+				<Tool Name="VFPreLinkEventTool"/>
+				<Tool Name="VFPreBuildEventTool"/>
+				<Tool Name="VFPostBuildEventTool"/></Configuration>
+		<Configuration Name="Release|x64" ConfigurationType="typeStaticLibrary">
+				<Tool Name="VFFortranCompilerTool" SuppressStartupBanner="true" Preprocess="preprocessYes" OpenMP="OpenMPParallelCode"/>
+				<Tool Name="VFLibrarianTool" IgnoreAllDefaultLibraries="true"/>
+				<Tool Name="VFResourceCompilerTool"/>
+				<Tool Name="VFMidlTool" SuppressStartupBanner="true" TargetEnvironment="midlTargetAMD64"/>
+				<Tool Name="VFCustomBuildTool"/>
+				<Tool Name="VFPreLinkEventTool"/>
+				<Tool Name="VFPreBuildEventTool"/>
+				<Tool Name="VFPostBuildEventTool"/></Configuration></Configurations>
+	<Files>
+		<Filter Name="Header Files" Filter="fi;fd"/>
+		<Filter Name="Resource Files" Filter="rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe"/>
+		<Filter Name="Source Files" Filter="f90;for;f;fpp;ftn;def;odl;idl">
+		<File RelativePath="..\bessels.f90"/>
+		<File RelativePath="..\camb.f90"/>
+		<File RelativePath="..\classes.f90"/>
+		<File RelativePath="..\cmbmain.f90"/>
+		<File RelativePath="..\config.f90"/>
+		<File RelativePath="..\constants.f90"/>
+		<File RelativePath="..\DarkAge21cm.f90"/>
+		<File RelativePath="..\DarkEnergyFluid.f90"/>
+		<File RelativePath="..\DarkEnergyInterface.f90"/>
+		<File RelativePath="..\DarkEnergyPPF.f90"/>
+		<File RelativePath="..\DarkEnergyQuintessence.f90"/>
+		<File RelativePath="..\equations.f90"/>
+		<File RelativePath="..\halofit.f90"/>
+		<File RelativePath="..\InitialPower.f90"/>
+		<File RelativePath="..\lensing.f90"/>
+		<File RelativePath="..\massive_neutrinos.f90"/>
+		<File RelativePath="..\MathUtils.f90"/>
+		<File RelativePath="..\model.f90"/>
+		<File RelativePath="..\PowellMinimize.f90"/>
+		<File RelativePath="..\recfast.f90"/>
+		<File RelativePath="..\reionization.f90"/>
+		<File RelativePath="..\results.f90"/>
+		<File RelativePath="..\SeparableBispectrum.F90"/>
+		<File RelativePath="..\SourceWindows.f90"/>
+		<File RelativePath="..\subroutines.f90"/></Filter></Files>
+	<Globals/></VisualStudioProject>
