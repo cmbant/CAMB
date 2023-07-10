@@ -1106,7 +1106,7 @@
 
 
     if (DebugMsgs .and. Feedbacklevel > 0) &
-        call WriteFormat('Transfer k values: %f',State%MT%num_q_trans-n_source_points)
+        call WriteFormat('Transfer k values: %d',State%MT%num_q_trans-n_source_points)
 
     !     loop over wavenumbers.
     !$OMP PARALLEL DO DEFAULT(SHARED),SCHEDULE(DYNAMIC), PRIVATE(EV, tau, q_ix)
