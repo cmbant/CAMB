@@ -32,7 +32,7 @@
             Cdata%OnlyTransfer = .true. !prevent ClTransferToCl
             Cdata%CP%WantTensors = .false.
             CData%CP%WantVectors = .false.
-            call TimeSourcesToCl
+            call TimeSourcesToCl(CData%ClData%CTransScal)
             Cdata%CP%WantTensors = want_tensors
             CData%CP%WantVectors = want_vectors
             Cdata%OnlyTransfer = .false.
