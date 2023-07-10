@@ -45,7 +45,9 @@ class Halofit(NonLinearModel):
         ("halofit_version", c_int, {"names": halofit_version_names}),
         ("HMCode_A_baryon", c_double, "HMcode parameter A_baryon"),
         ("HMCode_eta_baryon", c_double, "HMcode parameter eta_baryon"),
-        ("HMCode_logT_AGN", c_double, "HMcode parameter log10(T_AGN/K)")
+        ("HMCode_logT_AGN", c_double, "HMcode parameter log10(T_AGN/K)"),
+        ("Zc", c_double, "parameter Zc"),
+        ("fo", c_double, "parameter fo")
     ]
 
     _fortran_class_module_ = 'NonLinear'
@@ -55,7 +57,7 @@ class Halofit(NonLinearModel):
         return self.halofit_version
 
     def set_params(self, halofit_version=halofit_default, HMCode_A_baryon=3.13, HMCode_eta_baryon=0.603,
-                   HMCode_logT_AGN=7.8):
+                   HMCode_logT_AGN=7.8, Zc=1.0, fo=1.0):
         """
         Set the halofit model for non-linear corrections.
 
@@ -80,7 +82,8 @@ class Halofit(NonLinearModel):
         self.HMCode_A_baryon = HMCode_A_baryon
         self.HMCode_eta_baryon = HMCode_eta_baryon
         self.HMCode_logT_AGN = HMCode_logT_AGN
-
+        self.Zc = Zc
+        self.fo = fo
 
 @fortran_class
 class SecondOrderPK(NonLinearModel):

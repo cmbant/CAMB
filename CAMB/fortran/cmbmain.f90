@@ -105,7 +105,6 @@
     integer :: max_bessels_l_index  = 1000000
     real(dl) :: max_bessels_etak = 1000000*2
 
-    Type(ClTransferData), pointer :: ThisCT => null()
     Type(TTimeSources) , pointer :: ThisSources => null()
     Type(TTimeSources), allocatable, target :: TempSources
 
@@ -126,6 +125,7 @@
     type(EvolutionVars) EV
     Type(TTimer) :: Timer
     real(dl) starttime
+    Type(ClTransferData), pointer :: ThisCT 
 
     WantLateTime =  CP%DoLensing .or. State%num_redshiftwindows > 0 .or. CP%CustomSources%num_custom_sources>0
 
@@ -216,7 +216,7 @@
     !     integrating the sources over time and over k.
 
     if (CP%WantCls .and. (.not. CP%WantScalars .or. .not. State%HasScalarTimeSources)) then
-        call TimeSourcesToCl
+        call TimeSourcesToCl(ThisCT)
 
         if (CP%WantScalars) then
             deallocate(State%ScalarTimeSources)
@@ -231,9 +231,10 @@
 
     end subroutine cmbmain
 
-    subroutine TimeSourcesToCl
-    Type(TTimer) :: Timer
+    subroutine TimeSourcesToCl(ThisCT)
+    Type(ClTransferData) :: ThisCT 
     integer q_ix
+    Type(TTimer) :: Timer
 
     if (CP%WantScalars) ThisSources => State%ScalarTimeSources
 
@@ -255,21 +256,21 @@
         max_bessels_l_index = ThisCT%ls%nl
         max_bessels_etak  = maximum_qeta
 
-        if (CP%WantScalars) call GetLimberTransfers
+        if (CP%WantScalars) call GetLimberTransfers(ThisCT)
         ThisCT%max_index_nonlimber = max_bessels_l_index
 
         if (State%flat) call InitSpherBessels(ThisCT%ls, CP, max_bessels_l_index,max_bessels_etak )
         !This is only slow if not called before with same (or higher) Max_l, Max_eta_k
         !Preferably stick to Max_l being a multiple of 50
 
-        call SetkValuesForInt
+        call SetkValuesForInt(ThisCT)
 
         if (DebugMsgs .and. Feedbacklevel > 0) call WriteFormat('Set %d integration k values',ThisCT%q%npoints)
 
         !Begin k-loop and integrate Sources*Bessels over time
         !$OMP PARALLEL DO DEFAULT(SHARED), SCHEDULE(STATIC,4)
         do q_ix=1,ThisCT%q%npoints
-            call SourceToTransfers(q_ix)
+            call SourceToTransfers(ThisCT, q_ix)
         end do !q loop
         !$OMP END PARALLEL DO
 
@@ -398,7 +399,8 @@
 
     end subroutine CalcLimberScalCls
 
-    subroutine GetLimberTransfers
+    subroutine GetLimberTransfers(ThisCT)
+    Type(ClTransferData), target :: ThisCT 
     integer ell, ell_needed
     integer i, s_ix, s_ix_lens
     type(TRedWin), pointer :: W
@@ -517,7 +519,8 @@
 
     end subroutine GetLimberTransfers
 
-    subroutine SourceToTransfers(q_ix)
+    subroutine SourceToTransfers(ThisCT, q_ix)
+    type(ClTransferData), target :: ThisCT 
     integer q_ix
     type(IntegrationVars) :: IV
 
@@ -532,7 +535,7 @@
 
     call InterpolateSources(IV)
 
-    call DoSourceIntegration(IV)
+    call DoSourceIntegration(IV, ThisCT)
 
     if (.not.State%flat) deallocate(IV%ddSource_q)
     deallocate(IV%Source_q)
@@ -1106,7 +1109,7 @@
 
 
     if (DebugMsgs .and. Feedbacklevel > 0) &
-        call WriteFormat('Transfer k values: %f',State%MT%num_q_trans-n_source_points)
+        call WriteFormat('Transfer k values: %d',State%MT%num_q_trans-n_source_points)
 
     !     loop over wavenumbers.
     !$OMP PARALLEL DO DEFAULT(SHARED),SCHEDULE(DYNAMIC), PRIVATE(EV, tau, q_ix)
@@ -1231,7 +1234,8 @@
     end subroutine InitSourceInterpolation
 
 
-    subroutine SetkValuesForInt
+    subroutine SetkValuesForInt(ThisCT)
+    Type(ClTransferData) :: ThisCT 
     integer no
     real(dl) dk,dk0,dlnk1, dk2, max_k_dk, k_max_log, k_max_0
     integer lognum
@@ -1392,10 +1396,11 @@
     end  subroutine IntegrationVars_Init
 
 
-    subroutine DoSourceIntegration(IV) !for particular wave number q
+    subroutine DoSourceIntegration(IV, ThisCT) !for particular wave number q
+    type(IntegrationVars) IV
+    Type(ClTransferData) :: ThisCT    
     integer j,ll,llmax
     real(dl) nu
-    type(IntegrationVars) IV
     real(dl) :: sixpibynu
 
     nu=IV%q*State%curvature_radius
@@ -1418,12 +1423,12 @@
     end if
 
     if (State%flat) then
-        call DoFlatIntegration(IV,llmax)
+        call DoFlatIntegration(IV,ThisCT, llmax)
     else
         do j=1,ThisCT%ls%nl
             ll=ThisCT%ls%l(j)
             if (ll>llmax) exit
-            call IntegrateSourcesBessels(IV,j,ll,nu)
+            call IntegrateSourcesBessels(IV,ThisCT,j,ll,nu)
         end do !j loop
     end if
 
@@ -1449,9 +1454,10 @@
     end function UseLimber
 
     !flat source integration
-    subroutine DoFlatIntegration(IV, llmax)
+    subroutine DoFlatIntegration(IV, ThisCT, llmax)
     implicit none
     type(IntegrationVars) IV
+    Type(ClTransferData) :: ThisCT 
     integer llmax
     integer j
     logical DoInt
@@ -1641,9 +1647,10 @@
 
     !non-flat source integration
 
-    subroutine IntegrateSourcesBessels(IV,j,l,nu)
+    subroutine IntegrateSourcesBessels(IV,ThisCT,j,l,nu)
     use SpherBessels
     type(IntegrationVars) IV
+    Type(ClTransferData) :: ThisCT 
     logical DoInt
     integer l,j, nstart,nDissipative,ntop,nbot,nrange,nnow
     real(dl) nu,ChiDissipative,ChiStart,tDissipative,y1,y2,y1dis,y2dis

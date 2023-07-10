@@ -79,7 +79,7 @@
     end type TCAMBdata
 
     type, extends(TCambComponent) :: TNonLinearModel
-        real(dl) :: Min_kh_nonlinear  = 0.005_dl
+        real(dl) :: Min_kh_nonlinear  = 0.0_dl
     contains
     procedure :: Init => TNonLinearModel_init
     procedure :: GetNonLinRatios => TNonLinearModel_GetNonLinRatios

@@ -70,6 +70,8 @@
         real(dl) :: HMcode_A_baryon=3.13_dl
         real(dl) :: HMcode_eta_baryon=0.603_dl
         real(dl) :: HMcode_logT_AGN=7.8_dl
+        real(dl) :: Zc=1.0_dl
+        real(dl) :: fo=1.0_dl
         !!AM - Added these types for HMcode
         integer, private :: imead !!AM - added these for HMcode, need to be visible to all subroutines and functions
         real(dl), private :: om_m,om_v,fnu,omm0, acur, w_hf, wa_hf
@@ -259,6 +261,16 @@
     IF(this%halofit_version == halofit_mead2020_feedback) THEN
         this%HMcode_logT_AGN = Ini%Read_Double('HMcode_logT_AGN', 7.8_dl)
     END IF
+
+     this%halofit_version = Ini%Read_Int('halofit_version', halofit_default)
+     IF(this%halofit_version == halofit_default) THEN
+        this%Zc = Ini%Read_Double('Zc', 1.0_dl)
+     END IF
+
+     this%halofit_version = Ini%Read_Int('halofit_version', halofit_default)
+     IF(this%halofit_version == halofit_default) THEN
+        this%fo = Ini%Read_Double('fo', 1.0_dl)
+     END IF
 
     end subroutine THalofit_ReadParams
 
@@ -540,7 +552,7 @@
     class(THalofit) :: this
     Class(CAMBdata) :: State
     TYPE(MatterPowerData) :: CAMB_Pk
-    REAL(dl) :: z, k
+    REAL(dl) :: z, k, y
     REAL(dl) :: p1h, p2h, pfull, plin
     REAL(dl), ALLOCATABLE :: p_den(:,:), p_num(:,:)
     INTEGER :: i, j, ii, nk, nz
@@ -649,6 +661,16 @@
 
         END IF
 
+    END DO
+
+    DO i=1,nz
+    z=CAMB_Pk%Redshifts(i)
+        IF(z<this%Zc) THEN
+           y=(1-this%fo)*z/this%Zc+this%fo
+        ELSE IF(z>=this%Zc) THEN
+           y=1
+        END IF
+    CAMB_Pk%nonlin_ratio(:,i) = CAMB_Pk%nonlin_ratio(:,i) * y
     END DO
 
     ! Make the non-linear correction from the response for HMcode 2020
