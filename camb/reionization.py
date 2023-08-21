@@ -7,7 +7,7 @@ class ReionizationModel(F2003Class):
     Abstract base class for reionization models.
     """
     _fields_ = [
-        ("Reionization", c_bool, "Is there reionization? (can be off for matter power which is independent of it)")]
+        ("Reionization", c_bool, "Is there reionization? (can be off for matter power, which is independent of it)")]
 
 
 @fortran_class
@@ -18,7 +18,7 @@ class TanhReionization(ReionizationModel):
     """
     _fields_ = [
         ("use_optical_depth", c_bool, "Whether to use the optical depth or redshift paramters"),
-        ("redshift", c_double, "Reionization redshift if use_optical_depth-False"),
+        ("redshift", c_double, "Reionization redshift if use_optical_depth=False"),
         ("optical_depth", c_double, "Optical depth if use_optical_depth=True"),
         ("delta_redshift", c_double, "Duration of reionization"),
         ("fraction", c_double,
@@ -26,7 +26,7 @@ class TanhReionization(ReionizationModel):
         ("include_helium_fullreion", c_bool, "Whether to include second reionization of helium"),
         ("helium_redshift", c_double, "Redshift for second reionization of helium"),
         ("helium_delta_redshift", c_double, "Width in redshift for second reionization of helium"),
-        ("helium_redshiftstart", c_double, "Include second helium reionizatio below this redshift"),
+        ("helium_redshiftstart", c_double, "Include second helium reionization below this redshift"),
         ("tau_solve_accuracy_boost", c_double, "Accuracy boosting parameter for solving for z_re from tau"),
         ("timestep_boost", c_double,
          "Accuracy boosting parameter for the minimum number of time sampling steps through reionization"),
