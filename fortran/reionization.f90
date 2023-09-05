@@ -7,7 +7,7 @@
     implicit none
     private
     
-    !Default tanh reionization, and an alternative expoenttial model with fixed minimum z_re
+    !Default tanh reionization, and an alternative exponential model with fixed minimum z_re
     
     !This module has smooth tanh reionization of specified mid-point (z_{re}) and width
     !The tanh function is in the variable (1+z)**Rionization_zexp
@@ -56,6 +56,7 @@
     procedure, private :: zreFromOptDepth => TBaseTauWithHeReionization_zreFromOptDepth
     procedure :: SecondHelium_xe => TBaseTauWithHeReionization_SecondHelium_xe
     procedure :: SetParamsForZre => TBaseTauWithHeReionization_SetParamsForZre
+    procedure :: Validate => TBaseTauWithHeReionization_Validate
     end type TBaseTauWithHeReionization
 
     type, extends(TBaseTauWithHeReionization) :: TTanhReionization
@@ -66,8 +67,9 @@
     procedure :: x_e => TTanhReionization_xe
     procedure :: get_timesteps => TTanhReionization_get_timesteps
     procedure :: ReadParams => TTanhReionization_ReadParams
-    procedure, nopass :: SelfPointer => TTanhReionization_SelfPointer
+    procedure :: Validate => TTanhReionization_Validate
     procedure :: SetParamsForZre => TTanhReionization_SetParamsForZre
+    procedure, nopass :: SelfPointer => TTanhReionization_SelfPointer
     end type TTanhReionization
 
     type, extends(TBaseTauWithHeReionization) :: TExpReionization
@@ -85,7 +87,7 @@
     procedure, nopass :: SelfPointer => TExpReionization_SelfPointer
     end type TExpReionization
 
-    public TTanhReionization, TExpReionization
+    public TBaseTauWithHeReionization, TTanhReionization, TExpReionization
     contains
 
     subroutine TBaseTauWithHeReionization_Init(this, State)
