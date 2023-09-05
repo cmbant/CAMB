@@ -65,6 +65,7 @@
     contains
     procedure :: x_e => TTanhReionization_xe
     procedure :: get_timesteps => TTanhReionization_get_timesteps
+    procedure :: ReadParams => TTanhReionization_ReadParams
     procedure, nopass :: SelfPointer => TTanhReionization_SelfPointer
     procedure :: SetParamsForZre => TTanhReionization_SetParamsForZre
     end type TTanhReionization
@@ -80,6 +81,7 @@
     procedure :: x_e => TExpReionization_xe
     procedure :: get_timesteps => TExpReionization_get_timesteps
     procedure :: Init => TExpReionization_Init
+    procedure :: ReadParams => TExpReionization_ReadParams
     procedure, nopass :: SelfPointer => TExpReionization_SelfPointer
     end type TExpReionization
 
@@ -318,7 +320,6 @@
     this%WindowVarDelta = Tanh_zexp*(1._dl+this%redshift)**(Tanh_zexp-1._dl)*this%delta_redshift
 
     end subroutine TTanhReionization_SetParamsForZre
-
 
     subroutine TTanhReionization_ReadParams(this, Ini)
     use IniObjects

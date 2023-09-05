@@ -309,6 +309,6 @@ if __name__ == "__main__":
               'Programming Language :: Python :: 3.11'
           ],
           keywords=['cosmology', 'CAMB', 'CMB'],
-          install_requires=['scipy>=1.0', 'sympy>=1.0'],
+          install_requires=['scipy>=1.0', 'sympy>=1.0', 'packaging'],
           python_requires='>=3.6'
           )
