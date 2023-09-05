@@ -11,6 +11,8 @@ branches:
     - CAMB_sources
     - rayleigh
 
+if: (type != pull_request) OR (type = pull_request AND TRAVIS_PULL_REQUEST_SLUG != 'cmbant/camb')
+
 jobs:
   include:
     - name: "Ubuntu 20.04 + Python 3.7"
