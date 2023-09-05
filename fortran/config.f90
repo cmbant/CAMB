@@ -3,7 +3,7 @@
     use constants, only: const_twopi
     implicit none
 
-    character(LEN=*), parameter :: version = '1.5.0'
+    character(LEN=*), parameter :: version = '1.5.1'
 
     integer :: FeedbackLevel = 0 !if >0 print out useful information about the model
 
@@ -35,8 +35,6 @@
     character(LEN=name_tag_len), dimension(CT_Cross), parameter :: CT_name_tags = ['TT','EE','BB','TE']
     character(LEN=name_tag_len), dimension(7), parameter :: lens_pot_name_tags = ['TT','EE','BB','TE','PP','TP','EP']
 
-    !integer :: lmin = 2  !must be either 1 or 2. 1 is relevant for CMB lensing dipole and other dipoles relative to CMB
-
     real(dl), parameter :: OmegaKFlat = 5e-7_dl !Value at which to use flat code
 
     real(dl), parameter :: tol=1.0d-4 !Base tolerance for perturbation integrations
@@ -62,7 +60,6 @@
     integer, parameter :: error_darkenergy=6
     integer, parameter :: error_ini=7
     integer, parameter :: error_nonlinear=8
-
 
     contains
 

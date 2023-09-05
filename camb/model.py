@@ -10,6 +10,7 @@ from .initialpower import InitialPower, SplinedInitialPower
 from .nonlinear import NonLinearModel
 from .dark_energy import DarkEnergyModel, DarkEnergyEqnOfState
 from .recombination import RecombinationModel
+from .reionization import ReionizationModel
 from .sources import SourceWindow
 from . import bbn
 import logging
@@ -418,7 +419,7 @@ class CAMBparams(F2003Class):
                       neutrino_hierarchy: Union[str, int] = 'degenerate', num_massive_neutrinos=1,
                       mnu=0.06, nnu=constants.default_nnu, YHe: Optional[float] = None, meffsterile=0.0,
                       standard_neutrino_neff=constants.default_nnu, TCMB=constants.COBE_CMBTemp,
-                      tau: Optional[float] = None, zrei: Optional[float] = None, deltazrei: Optional[float] = None,
+                      tau: Optional[float] = None, zrei: Optional[float] = None,
                       Alens=1.0, bbn_predictor: Union[None, str, bbn.BBNPredictor] = None, theta_H0_range=(10, 100)):
         r"""
         Sets cosmological parameters in terms of physical densities and parameters (e.g. as used in Planck analyses).
@@ -461,7 +462,6 @@ class CAMBparams(F2003Class):
         :param TCMB: CMB temperature (in Kelvin)
         :param tau: optical depth; if None and zrei is None, current Reion settings are not changed
         :param zrei: reionization mid-point optical depth (set tau=None to use this)
-        :param deltazrei: redshift width of reionization; if None, uses default
         :param Alens: (non-physical) scaling of the lensing potential compared to prediction
         :param bbn_predictor: :class:`.bbn.BBNPredictor` instance used to get YHe from BBN consistency if YHe is None,
          or name of a BBN predictor class, or file name of an interpolation table
@@ -527,11 +527,9 @@ class CAMBparams(F2003Class):
         if tau is not None:
             if zrei is not None:
                 raise CAMBError('Cannot set both tau and zrei')
-            self.Reion.set_tau(tau, delta_redshift=deltazrei)
+            self.Reion.set_tau(tau)
         elif zrei is not None:
-            self.Reion.set_zrei(zrei, delta_redshift=deltazrei)
-        elif deltazrei:
-            raise CAMBError('must set tau if setting deltazrei')
+            self.Reion.set_zrei(zrei)
 
         return self
 
@@ -570,14 +568,16 @@ class CAMBparams(F2003Class):
             return sum(self.nu_mass_degeneracies[:self.nu_mass_eigenstates]) + self.num_nu_massless
 
     def set_classes(self, dark_energy_model=None, initial_power_model=None,
-                    non_linear_model=None, recombination_model=None):
+                    non_linear_model=None, recombination_model=None,
+                    reionization_model=None):
         """
         Change the classes used to implement parts of the model.
 
         :param dark_energy_model: 'fluid', 'ppf', or name of a DarkEnergyModel class
         :param initial_power_model: name of an InitialPower class
         :param non_linear_model: name of a NonLinearModel class
-        :param recombination_model: name of recombination_model class
+        :param recombination_model: name of RecombinationModel class
+        :param reionization_model: name of a ReionizationModel class
         """
         if dark_energy_model:
             self.DarkEnergy = self.make_class_named(dark_energy_model, DarkEnergyModel)
@@ -587,6 +587,8 @@ class CAMBparams(F2003Class):
             self.NonLinear = self.make_class_named(non_linear_model, NonLinearModel)
         if recombination_model:
             self.Recomb = self.make_class_named(recombination_model, RecombinationModel)
+        if reionization_model:
+            self.Reion = self.make_class_named(reionization_model, ReionizationModel)
 
     def set_dark_energy(self, w=-1.0, cs2=1.0, wa=0, dark_energy_model='fluid'):
         r"""

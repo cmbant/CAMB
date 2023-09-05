@@ -3,7 +3,7 @@ import os
 import struct
 import platform
 import re
-from pkg_resources import parse_version
+from packaging.version import parse as parse_version
 
 is_windows = platform.system() == "Windows"
 
