@@ -9,8 +9,7 @@ from typing import Any
 from setuptools import setup
 from setuptools.command.build_py import build_py
 from setuptools.command.develop import develop
-from distutils.command.clean import clean
-from distutils.core import Command
+from setuptools import Command
 
 file_dir = os.path.abspath(os.path.dirname(__file__))
 os.chdir(file_dir)
@@ -259,14 +258,13 @@ class DevelopLibraryCluster(develop):
         develop.run(self)
 
 
-class CleanLibrary(clean):
+class CleanLibrary(MakeLibrary):
 
     def run(self):
         if _compile.is_windows:
             clean_dir(os.path.join(file_dir, 'fortran', 'WinDLL'), rmdir=True)
         else:
             subprocess.call("make clean", shell=True, cwd=os.path.join(file_dir, 'fortran'))
-        clean.run(self)
 
 
 if __name__ == "__main__":
