@@ -154,6 +154,7 @@ def set_params(cp=None, verbose=False, **params):
     do_set(cp.set_accuracy)
     do_set(cp.set_classes)
     do_set(cp.DarkEnergy.set_params)
+    do_set(cp.Reion.set_extra_params)
     do_set(cp.set_cosmology)
     do_set(cp.set_matter_power)
     do_set(cp.set_for_lmax)
@@ -203,6 +204,7 @@ def get_valid_numerical_params(transfer_only=False, **class_names):
                     params.add(arg)
 
     extract_params(cp.DarkEnergy.set_params)
+    extract_params(cp.Reion.set_extra_params)
     extract_params(cp.set_cosmology)
     if not transfer_only:
         extract_params(cp.InitPower.set_params)
@@ -232,14 +234,16 @@ def set_params_cosmomc(p, num_massive_neutrinos=1, neutrino_hierarchy='degenerat
     pars = inpars or model.CAMBparams()
     if p.get('alpha1', 0) or p.get('Aphiphi', 1) != 1:
         raise ValueError('Parameter not currrently supported by set_params_cosmomc')
+
+    pars.set_dark_energy(w=p.get('w', -1), wa=p.get('wa', 0), dark_energy_model=dark_energy_model)
+    pars.Reion.set_extra_params(deltazrei=p.get('deltazrei', None))
     pars.set_cosmology(H0=p['H0'], ombh2=p['omegabh2'], omch2=p['omegach2'], mnu=p.get('mnu', 0.06),
-                       omk=p.get('omegak', 0), tau=p['tau'], deltazrei=p.get('deltazrei', None),
+                       omk=p.get('omegak', 0), tau=p['tau'],
                        nnu=p.get('nnu', constants.default_nnu), Alens=p.get('Alens', 1.0),
                        YHe=p.get('yheused', None), meffsterile=p.get('meffsterile', 0),
                        num_massive_neutrinos=num_massive_neutrinos, neutrino_hierarchy=neutrino_hierarchy)
     pars.InitPower.set_params(ns=p['ns'], r=p.get('r', 0), As=p['A'] * 1e-9, nrun=p.get('nrun', 0),
                               nrunrun=p.get('nrunrun', 0))
-    pars.set_dark_energy(w=p.get('w', -1), wa=p.get('wa', 0), dark_energy_model=dark_energy_model)
     pars.set_for_lmax(lmax, lens_potential_accuracy=lens_potential_accuracy)
     pars.NonLinearModel.set_params(halofit_version=halofit_version)
     pars.WantTensors = pars.InitPower.has_tensors()

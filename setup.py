@@ -306,9 +306,11 @@ if __name__ == "__main__":
               'Programming Language :: Python :: 3.8',
               'Programming Language :: Python :: 3.9',
               'Programming Language :: Python :: 3.10',
-              'Programming Language :: Python :: 3.11'
+              'Programming Language :: Python :: 3.11',
+              'Programming Language :: Python :: 3.12'
           ],
           keywords=['cosmology', 'CAMB', 'CMB'],
-          install_requires=['scipy>=1.0', 'sympy>=1.0'],
+          install_requires=['scipy>=1.0', 'sympy>=1.0', 'packaging'],
+          extras_require={'docs': ["sphinx>=4.0", "sphinx_rtd_theme>=1", "sphinxcontrib-jquery"]},
           python_requires='>=3.6'
           )
