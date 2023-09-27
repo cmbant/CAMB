@@ -311,5 +311,6 @@ if __name__ == "__main__":
           ],
           keywords=['cosmology', 'CAMB', 'CMB'],
           install_requires=['scipy>=1.0', 'sympy>=1.0', 'packaging'],
+          extras_require={'docs': ["sphinx", "sphinx_rtd_theme>=1", "sphinxcontrib-jquery"]},
           python_requires='>=3.6'
           )
