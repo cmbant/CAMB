@@ -97,9 +97,8 @@ before_deploy:
 deploy:
   - provider: pypi
     distributions: sdist
-    username: "cmbant"
-    password:
-      secure: "UA+nTWbEND3R/KVodbAG/2xXcCibpotNO+PHBIokR8fm7KmYdjSnXF3OXBDNvFPYEQg2KY7L/JviCbUM9yfZmtekvMg7aKP/2fuHcayByNy5VJ4mUgcA48ft6LKp/sLS/8fn7nCzHbclT/Ye/Wo3PmGK1mQqbu9oxXGidY8C7pbXB9ZYnssdMH9DHXSqjIAL23yN95G8U1n9bVLI0dZB0ORFHro/f7XeIPrzJEdEgql33BSq5YArf7WK/2Vlo8Zk0vPNT1xRJvEdNaJ/VZ5Nk31yuym04ZekmWlBmi+kTsO0zwD4wQrkCFGm9qb31JRHjuRTpxrHUTkiXwTvYutmwNtHqJ3SYkQgoTmb6qi9f4Nha3mtAbRviTDxgVi8Dv4gWp59iXVcOQMhRM9hxiCK7QwMkHJsvss4XuL149eLFLP7TfNw6PwHo/tpMMyRyDBdwgT+Vz0wNUyncEKwsgunxgvct9sy4TKNs96NJ90cTee3ditq/ZmrLjzp0xjQkBW5nA1AiW/9g3KkozkWh0Q74qGR1qrSlKInM7na64zLnp8seRb71Ki+2Ad+gx+fREnTmmgBSTIav4AjQCc+hnEIYnZ57DyNqIaqON25jiL1i85oaAdWLDR5pctWlebmzRcS2PvuvgqB76bvgLnIoHPg8pRm4Li7wvYCQhi9fo9RvR4="
+    username: "__token__"
+    password: $PYPI_TOKEN
     on:
       branch: master
       repo: cmbant/CAMB
