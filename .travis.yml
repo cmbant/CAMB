@@ -97,8 +97,7 @@ before_deploy:
 deploy:
   - provider: pypi
     distributions: sdist
-    user: "__token__"
-    password: $PYPI_TOKEN
+    username: "__token__"
     on:
       branch: master
       repo: cmbant/CAMB
