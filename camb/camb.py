@@ -209,6 +209,7 @@ def get_valid_numerical_params(transfer_only=False, **class_names):
     if not transfer_only:
         extract_params(cp.InitPower.set_params)
         extract_params(cp.NonLinearModel.set_params)
+    # noinspection PyProtectedMember
     for f, tp in cp._fields_:
         if not f.startswith('_') and tp == ctypes.c_double:
             params.add(f)

@@ -58,7 +58,6 @@ class BaseTauWithHeReionization(ReionizationModel):
         Set the mid-point reionization redshift
 
         :param zrei: mid-point redshift
-        :param delta_redshift:  delta z for reionization
         :return: self
         """
         self.use_optical_depth = False
@@ -70,7 +69,6 @@ class BaseTauWithHeReionization(ReionizationModel):
         Set the optical depth
 
         :param tau: optical depth
-        :param delta_redshift: delta z for reionization
         :return: self
         """
         self.use_optical_depth = True
@@ -93,7 +91,7 @@ class TanhReionization(BaseTauWithHeReionization):
         """
         Set extra parameters (not tau, or zrei)
 
-        :param delta_redshift: delta z for reionization
+        :param deltazrei: delta z for reionization
         """
         if deltazrei is not None:
             self.delta_redshift = deltazrei
