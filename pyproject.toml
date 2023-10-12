@@ -38,7 +38,7 @@ docs = ["sphinx>=4.0", "sphinx_rtd_theme>=1.0", "sphinxcontrib-jquery"]
 camb = "camb._command_line:run_command_line'"
 
 [project.urls]
-Homepage = "https://camb.info
+Homepage = "https://camb.info"
 Documentation = "https://camb.readthedocs.io"
 Source = "https://github.com/cmbant/camb"
 Tracker = "https://github.com/cmbant/camb/issues"
