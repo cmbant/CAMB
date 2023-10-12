@@ -41,9 +41,6 @@ You can also run CAMB from the command line reading parameters from a .ini file,
 
   camb inifiles/planck_2018.ini
 
-You may need to check your python scripts directory is in your path for this to work. Alternatively from the source package root directory (after make but without installation) use::
-
-  python camb.py inifiles/planck_2018.ini
 
 Sample .ini files can be obtained from the `repository <https://github.com/cmbant/CAMB/tree/master/inifiles>`_. You can load parameters programmatically from an .ini file or URL using :func:`.camb.read_ini`.
 
