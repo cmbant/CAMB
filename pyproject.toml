@@ -1,5 +1,6 @@
 [build-system]
-requires = ["setuptools", "packaging"]
+requires = ["setuptools", "packaging", "wheel"]
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "camb"
