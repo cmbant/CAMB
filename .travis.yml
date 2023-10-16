@@ -4,7 +4,7 @@ language: python
 git:
   depth: false
 
-dist: bionic
+dist: jammy
 
 branches:
   except:
@@ -37,7 +37,6 @@ jobs:
         - FORTRAN="test"
       python: "3.10"
     - name: "Ubuntu 22.04 + Python 3.11"
-      dist: jammy
       addons:
         apt:
           packages:
