@@ -15,7 +15,7 @@ if: (type != pull_request) OR (type = pull_request AND TRAVIS_PULL_REQUEST_SLUG 
 
 jobs:
   include:
-    - name: "Ubuntu 20.04 + Python 3.7"
+    - name: "Focal + Python 3.7"
       dist: focal
       addons:
         apt:
@@ -36,14 +36,12 @@ jobs:
         - PYDIST="ANACONDA"
         - FORTRAN="test"
       python: "3.10"
-    - name: "Ubuntu 22.04 + Python 3.11"
+    - name: "Jammy + Python 3.12"
       addons:
         apt:
           packages:
             - gfortran
-      env:
-        - CHANNEL="defaults"
-      python: "3.11"
+      python: "3.12"
     - name: "GCC trunk cosmobox"
       language: shell
       services:
