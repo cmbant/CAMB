@@ -83,7 +83,7 @@
         this%num_perturb_equations = 0
     else
         if (this%use_tabulated_w) then
-            if (any(this%equation_of_state%F<-1)) &
+            if (any(this%equation_of_state%F<-1) .and. any(this%equation_of_state%F>-1)) &
                 error stop 'Fluid dark energy model does not allow w crossing -1'
         elseif (this%wa/=0 .and. &
             ((1+this%w_lam < -1.e-6_dl) .or. 1+this%w_lam + this%wa < -1.e-6_dl)) then

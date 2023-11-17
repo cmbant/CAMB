@@ -94,6 +94,12 @@ class DarkEnergyFluid(DarkEnergyEqnOfState):
             if self.wa and (self.w < -1 - 1e-6 or 1 + self.w + self.wa < - 1e-6):
                 raise CAMBError('fluid dark energy model does not support w crossing -1')
 
+    def set_w_a_table(self, a, w):
+        # check w array has elements that are all the same sign or zero
+        if np.sign(1 + np.max(w)) - np.sign(1 + np.min(w)) == 2:
+            raise ValueError('fluid dark energy model does not support w crossing -1')
+        super().set_w_a_table(a, w)
+
 
 @fortran_class
 class DarkEnergyPPF(DarkEnergyEqnOfState):
