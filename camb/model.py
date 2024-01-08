@@ -170,6 +170,7 @@ class CAMBparams(F2003Class):
     In python, to set cosmology parameters it is usually best to use :meth:`set_cosmology` and
     equivalent methods for most other parameters. Alternatively the convenience function :func:`.camb.set_params`
     can construct a complete instance from a dictionary of relevant parameters.
+    You can also  save and restore a CAMBparams instance using the repr and eval functions, or pickle it.
 
     """
     _fields_ = [
