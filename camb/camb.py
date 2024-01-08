@@ -29,6 +29,8 @@ def get_results(params):
     :param params: :class:`.model.CAMBparams` instance
     :return: :class:`~.results.CAMBdata` instance
     """
+    if isinstance(params, dict):
+        params = set_params(**params)
     res = CAMBdata()
     if _debug_params:
         print(params)
@@ -118,6 +120,7 @@ def set_params(cp=None, verbose=False, **params):
     * :meth:`.model.CAMBparams.set_accuracy`
     * :meth:`.model.CAMBparams.set_classes`
     * :meth:`.dark_energy.DarkEnergyEqnOfState.set_params` (or equivalent if a different dark energy model class used)
+    * :meth:`.reionization.TanhReionization.set_extra_params` (or equivalent if a different reionization class used)
     * :meth:`.model.CAMBparams.set_cosmology`
     * :meth:`.model.CAMBparams.set_matter_power`
     * :meth:`.model.CAMBparams.set_for_lmax`

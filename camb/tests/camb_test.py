@@ -2,6 +2,7 @@ import os
 import sys
 import unittest
 import platform
+import pickle
 import numpy as np
 
 try:
@@ -445,6 +446,18 @@ class CambTest(unittest.TestCase):
         np.testing.assert_allclose(cls[2:, 0:2], cls2[2:, 0:2], rtol=1e-4)
         self.assertAlmostEqual(cls2[1, 0], 1.30388e-10, places=13)
         self.assertAlmostEqual(cls[1, 0], 0)
+
+    def testSave(self):
+        pars = camb.set_params(H0=67.5, ombh2=0.022, omch2=0.122, As=2e-9, ns=0.95,
+                               redshifts=[0.4, 31.5], kmax=0.1)
+        pars.set_dark_energy(w=-0.7, wa=0.2, dark_energy_model='ppf')
+        s = repr(pars)
+        pars2 = eval(s)
+        assert (repr(pars2) == s)
+        assert "DarkEnergyPPF" in str(pars2)
+        b = pickle.dumps(pars)
+        pars2 = pickle.loads(b)
+        assert (repr(pars2) == s)
 
     def testSigmaR(self):
         pars = camb.CAMBparams()

@@ -46,6 +46,9 @@ class SplinedSourceWindow(SourceWindow):
                            kwargs.pop('k_bias', None), kwargs.pop('bias_kz', None))
         super().__init__(**kwargs)
 
+    def __getstate__(self):
+        raise TypeError("Cannot save class with splines")
+
     def set_table(self, z, W, bias_z=None, k_bias=None, bias_kz=None):
         """
         Set arrays of z and W(z) for cublic spline interpolation. Note that W(z) is the total count distribution

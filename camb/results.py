@@ -220,6 +220,9 @@ class CAMBdata(F2003Class):
     def __init__(self):
         set_default_params(self.Params)
 
+    def __getstate__(self):
+        raise TypeError("Cannot save CAMB result objects")
+
     def set_params(self, params):
         """
         Set parameters from params. Note that this does not recompute anything;

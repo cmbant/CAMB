@@ -36,11 +36,14 @@ class SplinedInitialPower(InitialPower):
                  ('SetTensorLogRegular', [POINTER(c_double), POINTER(c_double), POINTER(c_int), numpy_1d])]
 
     def __init__(self, **kwargs):
-        if kwargs.get('PK', None) is not None:
+        if kwargs.get('PK') is not None:
             self.set_scalar_table(kwargs['ks'], kwargs['PK'])
-        ns_eff = kwargs.get('effective_ns_for_nonlinear', None)
+        ns_eff = kwargs.get('effective_ns_for_nonlinear')
         if ns_eff is not None:
             self.effective_ns_for_nonlinear = ns_eff
+
+    def __getstate__(self):
+        raise TypeError("Cannot save class with splines")
 
     def has_tensors(self):
         """

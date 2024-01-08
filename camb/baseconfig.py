@@ -221,7 +221,7 @@ class _AllocatableArray(FortranAllocatable):  # member corresponding to allocata
         if size:
             return ctypes.cast(_reuse_pointer, POINTER(self._ctype * size)).contents
         else:
-            return np.empty(0)
+            return np.empty(0, dtype=self._dtype)
 
     def set_allocatable(self, array, name):
         self._set_allocatable_1D_array(byref(self), np.array(array, dtype=self._dtype),
@@ -621,8 +621,43 @@ class CAMB_Structure(Structure, metaclass=CAMBStructureMeta):
                     s += field_name + ' = ' + str(obj) + '\n'
         return s
 
+    @classmethod
+    def dict(cls, state):
+        """
+        Make an instance of the class from a dictionary of field values (used to restore from repr)
+
+        :param state: dictinary of values
+        :return: new instance
+        """
+        c = cls.__new__(cls)
+        c.__setstate__(state)
+        return c
+
     def __repr__(self):
+        return f"{self.__class__.__module__}.{self.__class__.__name__}.dict(" + repr(self.__getstate__()) + ")"
+
+    def __str__(self):
         return 'class: <%s>\n ' % self.__class__.__name__ + self._as_string().replace('\n', '\n ')
+
+    def __reduce__(self):
+        return self.__class__, (), self.__getstate__()
+
+    def __getstate__(self) -> dict:
+        state = {}
+        for field_name, field_type in self.get_all_fields():
+            obj = getattr(self, field_name)
+            if isinstance(obj, (ctypes.Array, np.ndarray)):
+                state[field_name] = list(obj[:len(obj)])
+            elif isinstance(obj, ctypes.c_void_p):
+                if obj.value is not None:
+                    raise CAMBFortranError("Cannot save class with general pointer")
+            else:
+                state[field_name] = obj
+        return state
+
+    def __setstate__(self, state):
+        for key, value in state.items():
+            setattr(self, key, value)
 
 
 class _FortranSelf:
@@ -662,9 +697,10 @@ class F2003Class(CAMB_Structure):
         return cls._new_copy()
 
     def __init__(self, **kwargs):
-        unknowns = set(kwargs) - self.get_valid_field_names()
-        if unknowns:
-            raise ValueError('Unknown argument(s): %s' % unknowns)
+        if kwargs:
+            unknowns = set(kwargs) - self.get_valid_field_names()
+            if unknowns:
+                raise ValueError('Unknown argument(s): %s' % unknowns)
         super().__init__(**kwargs)
 
     @classmethod
