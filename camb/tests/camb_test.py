@@ -451,6 +451,8 @@ class CambTest(unittest.TestCase):
         pars = camb.set_params(H0=67.5, ombh2=0.022, omch2=0.122, As=2e-9, ns=0.95,
                                redshifts=[0.4, 31.5], kmax=0.1)
         pars.set_dark_energy(w=-0.7, wa=0.2, dark_energy_model='ppf')
+        from camb.sources import GaussianSourceWindow
+        pars.SourceWindows = [GaussianSourceWindow(), GaussianSourceWindow(redshift=1)]
         s = repr(pars)
         pars2 = eval(s)
         assert (repr(pars2) == s)
@@ -458,6 +460,9 @@ class CambTest(unittest.TestCase):
         b = pickle.dumps(pars)
         pars2 = pickle.loads(b)
         assert (repr(pars2) == s)
+        pars2.InitPower = initialpower.SplinedInitialPower()
+        with self.assertRaises(TypeError):
+            repr(pars2)
 
     def testSigmaR(self):
         pars = camb.CAMBparams()

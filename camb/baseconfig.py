@@ -307,7 +307,7 @@ def AllocatableObjectArray(cls=None):
 
 
 class AllocatableArrayInt(_AllocatableArray):
-    _dtype = int
+    _dtype = np.int32
     _ctype = c_int
 
 
@@ -646,7 +646,7 @@ class CAMB_Structure(Structure, metaclass=CAMBStructureMeta):
         state = {}
         for field_name, field_type in self.get_all_fields():
             obj = getattr(self, field_name)
-            if isinstance(obj, (ctypes.Array, np.ndarray)):
+            if isinstance(obj, (ctypes.Array, np.ndarray, FortranAllocatable)):
                 state[field_name] = list(obj[:len(obj)])
             elif isinstance(obj, ctypes.c_void_p):
                 if obj.value is not None:
