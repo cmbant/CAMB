@@ -625,6 +625,12 @@ class CAMB_Structure(Structure, metaclass=CAMBStructureMeta):
     def __repr__(self):
         return f"{self.__class__.__module__}.{self.__class__.__name__}.dict(" + repr(self.__getstate__()) + ")"
 
+    def _repr_pretty_(self, p, cycle):
+        if cycle:
+            p.text(self.__class__.__name__ + '(...)')
+        else:
+            p.text(str(self))
+
     def __str__(self):
         return 'class: <%s>\n ' % self.__class__.__name__ + self._as_string().replace('\n', '\n ')
 

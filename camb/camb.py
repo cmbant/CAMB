@@ -216,7 +216,7 @@ def get_valid_numerical_params(transfer_only=False, **class_names):
     for f, tp in cp._fields_:
         if not f.startswith('_') and tp == ctypes.c_double:
             params.add(f)
-    return params - {'max_eta_k_tensor', 'max_eta_k', 'neutrino_hierarchy', 'standard_neutrino_neff',
+    return params - {'max_eta_k_tensor', 'max_eta_k', 'neutrino_hierarchy', 'standard_neutrino_neff', 'setter_H0',
                      'pivot_scalar', 'pivot_tensor', 'num_massive_neutrinos', 'num_nu_massless', 'bbn_predictor'}
 
 
