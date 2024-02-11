@@ -187,7 +187,7 @@ def AllocatableObject(cls=None):
         cls = F2003Class
     if not issubclass(cls, F2003Class):
         raise ValueError("AllocatableObject type must be descended from F2003Class")
-    res = _class_cache.get(cls, None)
+    res = _class_cache.get(cls)
     if res:
         return res
     else:
@@ -615,7 +615,7 @@ class CAMB_Structure(Structure, metaclass=CAMBStructureMeta):
         """
         Make an instance of the class from a dictionary of field values (used to restore from repr)
 
-        :param state: dictinary of values
+        :param state: dictionary of values
         :return: new instance
         """
         c = cls.__new__(cls)

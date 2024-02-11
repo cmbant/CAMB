@@ -1,6 +1,5 @@
 import sys
 import subprocess
-import re
 import os
 import shutil
 from typing import Any

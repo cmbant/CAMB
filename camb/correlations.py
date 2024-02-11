@@ -13,7 +13,6 @@ A. Lewis December 2016
 """
 
 import numpy as np
-import os
 from scipy.special import lpn as legendrep
 
 try:

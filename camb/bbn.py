@@ -55,7 +55,7 @@ class BBN_table_interpolator(BBNPredictor):
     """
     BBN predictor based on interpolation from a numerical table calculated by a BBN code.
 
-    Tables are supplied for `Parthenope <http://parthenope.na.infn.it/>`_ 2017 (PArthENoPE_880.2_standard.dat, default),
+    Tables are supplied for `Parthenope <http://parthenope.na.infn.it/>`_ 2017 (PArthENoPE_880.2_standard.dat),
     similar but with Marucci rates (PArthENoPE_880.2_marcucci.dat),
     `PRIMAT <http://www2.iap.fr/users/pitrou/primat.htm>`_ (PRIMAT_Yp_DH_Error.dat, PRIMAT_Yp_DH_ErrorMC_2021.dat).
 
