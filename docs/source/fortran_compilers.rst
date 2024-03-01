@@ -18,24 +18,11 @@ If you do not have a suitable Fortran compiler, you can get one as follows:
     Download the `binary installation <https://gcc.gnu.org/wiki/GFortranBinaries>`_
 :Windows:
     Download gfortran as part of `MinGW-w64 <https://sourceforge.net/projects/mingw-w64/files>`_ (select x86_64 option in the installation program)
+    or get latest from niXman on `GitHub <https://github.com/niXman/mingw-builds-binaries/releases>`_ (e.g. x86_64-13.2.0-release-win32-seh-msvcrt-rt_v11-rev1)
 :Linux:
     To install from the standard repository use:
 
      - "sudo apt-get update; sudo apt-get install gfortran"
-
-    On Ubuntu systems where the default gfortran is too old, you can use this to install a later version
-
-     - sudo add-apt-repository ppa:ubuntu-toolchain-r/test
-     - sudo apt-get update
-     - sudo apt install gfortran-8
-
-    To make this the default gfortran then use
-
-     - mkdir -p gfortran-symlinks
-     - ln -s /usr/bin/gfortran-8 gfortran-symlinks/gfortran
-     - export PATH=$PWD/gfortran-symlinks:$PATH
-
-    To re-use next time, add gfortran-symlinks directory to your startup settings (.bashrc).
 
 Alternatively you can compile and run in a container or virtual machine: e.g., see `CosmoBox <https://cosmologist.info/CosmoBox>`_.
 For example, to run a configured shell in docker where you can install and run camb from the command line (after changing to the camb directory)::
@@ -50,7 +37,7 @@ pulled or local changes use::
 
     python setup.py make
 
-This will also work on Windows as long as you have MinGW-w64 installed as described above.
+This will also work on Windows as long as you have MinGW-w64 installed under Program Files as described above.
 
 Note that you will need to close all python instances using camb before you can re-load with an updated library.
 This includes in Jupyter notebooks; just re-start the kernel or use::
