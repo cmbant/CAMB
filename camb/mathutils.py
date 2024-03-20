@@ -48,6 +48,26 @@ def threej(l2, l3, m2, m3):
     return result
 
 
+def threej_pt(l1, l2, l3, m1, m2, m3):
+    """
+    Convenience testing function to get 3j for specific arguments.
+    Normally use threej to get an array at once for same cost.
+
+    :param l2: L_2
+    :param l3: L_3
+    :param m2: M_2
+    :param m3: M_3
+    :return: Wigner 3j (integer zero if outside triangle constraints)
+    """
+    if m1 + m2 + m3:
+        return 0
+    l1min = max(np.abs(l2 - l3), np.abs(m1))
+    if l1 < l1min or l1 > l2 + l3:
+        return 0
+    wigner = threej(l2, l3, m2, m3)
+    return wigner[l1 - l1min]
+
+
 # Utils_3j_integrate(W,lmax_w, n, dopol, M, lmax)
 _coupling_3j = camblib.__mathutils_MOD_integrate_3j
 _coupling_3j.argtypes = [numpy_2d, POINTER(c_int), POINTER(c_int), POINTER(c_bool), numpy_3d, POINTER(c_int)]
