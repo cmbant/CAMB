@@ -338,8 +338,12 @@ def get_matter_power_interpolator(params, zmin=0, zmax=10, nz_step=100, zs=None,
        print('Power spectrum at z=0.5, k/h=0.1/Mpc is %s (Mpc/h)^3 '%(PK.P(0.5, 0.1)))
 
     For a description of outputs for different var1, var2 see :ref:`transfer-variables`.
-    If you already have a :class:`~.results.CAMBdata` result object, you can instead
-    use :meth:`~.results.CAMBdata.get_matter_power_interpolator`.
+
+    This function re-calculates results from scratch with the given parameters.
+    If you already have a :class:`~.results.CAMBdata` result object, you should instead
+    use :meth:`~.results.CAMBdata.get_matter_power_interpolator`
+    (call :meth:`.model.CAMBparams.set_matter_power` as need to set up the required ranges for the matter power
+    before calling get_results).
 
     :param params: :class:`.model.CAMBparams` instance
     :param zmin: minimum z (use 0 or smaller than you want for good interpolation)
