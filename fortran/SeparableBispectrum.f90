@@ -742,7 +742,7 @@
 
     if (BispectrumParams%Slice_Base_L>0 .or. BispectrumParams%FullOutputFile/='') then
         !write out slice in (muK)^3 units
-        allocate(bispectrum_files(nbispectra* BispectrumParams%ndelta))
+        allocate(bispectrum_files(nbispectra* max(1, BispectrumParams%ndelta)))
         Bscale=(COBE_CMBTemp*1d6)**3/InternalScale**2;
         do bispectrum_type=1,nbispectra
             if (BispectrumParams%Slice_Base_L>0) then
@@ -757,8 +757,9 @@
                 end do
             end if
             if (BispectrumParams%FullOutputFile/='') then
-                call bispectrum_files(bispectrum_type)%CreateFile(concat(output_root,BispectrumParams%FullOutputFile, &
-                    '_', BispectrumNames(bispectrum_type), file_tag, '.dat'))
+                call bispectrum_files(bispectrum_type)%CreateFile(concat(trim(output_root), &
+                BispectrumParams%FullOutputFile, '_', BispectrumNames(bispectrum_type), &
+                file_tag, '.dat'))
             end if
         end do
         do il1= 1, SampleL%nl
