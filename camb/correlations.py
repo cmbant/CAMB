@@ -143,7 +143,7 @@ def cl2corr(cls, xvals, lmax=None):
 
 def gauss_legendre_correlation(cls, lmax=None, sampling_factor=1):
     r"""
-    Transform power specturm cls into correlation functions evaluated at the
+    Transform power spectrum cls into correlation functions evaluated at the
     roots of the Legendre polynomials for Gauss-Legendre quadrature. Returns correlation function array,
     evaluation points and weights.
     Result can be passed to corr2cl for accurate back transform.

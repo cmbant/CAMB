@@ -228,7 +228,7 @@ def set_params_cosmomc(p, num_massive_neutrinos=1, neutrino_hierarchy='degenerat
     :param p: dictionary of cosmomc parameters (e.g. from getdist.types.BestFit's getParamDict() function)
     :param num_massive_neutrinos: usually 1 if fixed mnu=0.06 eV, three if mnu varying
     :param neutrino_hierarchy: hierarchy
-    :param halofit_version: name of the soecific Halofit model to use for non-linear modelling
+    :param halofit_version: name of the specific Halofit model to use for non-linear modelling
     :param dark_energy_model: ppf or fluid dark energy model
     :param lmax: lmax for accuracy settings
     :param lens_potential_accuracy: lensing accuracy parameter
@@ -237,7 +237,7 @@ def set_params_cosmomc(p, num_massive_neutrinos=1, neutrino_hierarchy='degenerat
     """
     pars = inpars or model.CAMBparams()
     if p.get('alpha1', 0) or p.get('Aphiphi', 1) != 1:
-        raise ValueError('Parameter not currrently supported by set_params_cosmomc')
+        raise ValueError('Parameter not currently supported by set_params_cosmomc')
 
     pars.set_dark_energy(w=p.get('w', -1), wa=p.get('wa', 0), dark_energy_model=dark_energy_model)
     pars.Reion.set_extra_params(deltazrei=p.get('deltazrei', None))

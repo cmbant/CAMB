@@ -57,7 +57,7 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
 
     def set_w_a_table(self, a, w):
         """
-        Set w(a) from numerical values (used as cublic spline). Note this is quite slow.
+        Set w(a) from numerical values (used as cubic spline). Note this is quite slow.
 
         :param a: array of scale factors
         :param w: array of w(a)
@@ -109,7 +109,7 @@ class DarkEnergyFluid(DarkEnergyEqnOfState):
 @fortran_class
 class DarkEnergyPPF(DarkEnergyEqnOfState):
     """
-    Class implementating the w, wa or splined w(a) parameterization in the PPF perturbation approximation
+    Class implementing the w, wa or splined w(a) parameterization in the PPF perturbation approximation
     (`arXiv:0808.3125 <https://arxiv.org/abs/0808.3125>`_)
     Use inherited methods to set parameters or interpolation table.
 
@@ -122,7 +122,7 @@ class DarkEnergyPPF(DarkEnergyEqnOfState):
 @fortran_class
 class AxionEffectiveFluid(DarkEnergyModel):
     """
-    Example implementation of a specifc (early) dark energy fluid model
+    Example implementation of a specific (early) dark energy fluid model
     (`arXiv:1806.10608 <https://arxiv.org/abs/1806.10608>`_).
     Not well tested, but should serve to demonstrate how to make your own custom classes.
     """
@@ -193,11 +193,11 @@ class EarlyQuintessence(Quintessence):
                         "only used for initial search value when use_zc is True"),
         ("theta_i", c_double, "phi/f initial field value"),
         ("frac_lambda0", c_double, "fraction of dark energy in cosmological constant today (approximated as 1)"),
-        ("use_zc", c_bool, "solve for f, m to get specific critical reshift zc and fde_zc"),
-        ("zc", c_double, "reshift of peak fractional early dark energy density"),
+        ("use_zc", c_bool, "solve for f, m to get specific critical redshift zc and fde_zc"),
+        ("zc", c_double, "redshift of peak fractional early dark energy density"),
         ("fde_zc", c_double, "fraction of early dark energy density to total at peak"),
         ("npoints", c_int, "number of points for background integration spacing"),
-        ("min_steps_per_osc", c_int, "minimumum number of steps per background oscillation scale"),
+        ("min_steps_per_osc", c_int, "minimum number of steps per background oscillation scale"),
         ("fde", AllocatableArrayDouble, "after initialized, the calculated background early dark energy "
                                         "fractions at sampled_a"),
         ("__ddfde", AllocatableArrayDouble)

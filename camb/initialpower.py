@@ -77,7 +77,7 @@ class SplinedInitialPower(InitialPower):
 
     def set_scalar_log_regular(self, kmin, kmax, PK):
         """
-        Set log-regular cublic spline interpolation for P(k)
+        Set log-regular cubic spline interpolation for P(k)
 
         :param kmin: minimum k value (not minimum log(k))
         :param kmax: maximum k value (inclusive)
@@ -88,7 +88,7 @@ class SplinedInitialPower(InitialPower):
 
     def set_tensor_log_regular(self, kmin, kmax, PK):
         """
-        Set log-regular cublic spline interpolation for tensor spectrum P_t(k)
+        Set log-regular cubic spline interpolation for tensor spectrum P_t(k)
 
         :param kmin: minimum k value (not minimum log(k))
         :param kmax: maximum k value (inclusive)

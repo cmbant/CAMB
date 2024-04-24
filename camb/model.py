@@ -85,19 +85,19 @@ class AccuracyParams(CAMB_Structure):
     """
     Structure with parameters governing numerical accuracy. AccuracyBoost will also scale almost all the other
     parameters except for lSampleBoost (which is specific to the output interpolation) and lAccuracyBoost
-    (which is specific to the multipole hierarchy evolution), e.g setting AccuracyBoost=2, IntTolBoost=1.5, means
-    that internally the k sampling for integration will be boosed by AccuracyBoost*IntTolBoost = 3.
+    (which is specific to the multipole hierarchy evolution), e.g. setting AccuracyBoost=2, IntTolBoost=1.5, means
+    that internally the k sampling for integration will be boosted by AccuracyBoost*IntTolBoost = 3.
     """
     _fields_ = [
         ("AccuracyBoost", c_double, "general accuracy setting effecting everything related to step sizes etc. "
                                     "(including separate settings below except the next two)"),
         ("lSampleBoost", c_double,
          "accuracy for sampling in ell for interpolation for the C_l (if >=50, all ell are calculated)"),
-        ("lAccuracyBoost", c_double, "Boosts number of multipoles integrated in Boltzman heirarchy"),
+        ("lAccuracyBoost", c_double, "Boosts number of multipoles integrated in Boltzmann hierarchy"),
         ("AccuratePolarization", c_bool, "Do you care about the accuracy of the polarization Cls?"),
         ("AccurateBB", c_bool, "Do you care about BB accuracy (e.g. in lensing)"),
-        ("AccurateReionization", c_bool, "Do you care about pecent level accuracy on EE signal from reionization?"),
-        ("TimeStepBoost", c_double, "Sampling timesteps"),
+        ("AccurateReionization", c_bool, "Do you care about percent level accuracy on EE signal from reionization?"),
+        ("TimeStepBoost", c_double, "Sampling time steps"),
         ("BackgroundTimeStepBoost", c_double,
          "Number of time steps for background thermal history and source window interpolation"),
         ("IntTolBoost", c_double, "Tolerances for integrating differential equations"),
@@ -135,10 +135,10 @@ class SourceTermParams(CAMB_Structure):
         ("counts_timedelay", c_bool, "Include time delay terms * 1 / (H * chi)"),
         ("counts_ISW", c_bool, "Include tiny ISW terms"),
         ("counts_potential", c_bool, "Include tiny terms in potentials at source"),
-        ("counts_evolve", c_bool, "Accout for source evolution"),
+        ("counts_evolve", c_bool, "Account for source evolution"),
         ("line_phot_dipole", c_bool, "Dipole sources for 21cm"),
         ("line_phot_quadrupole", c_bool, "Quadrupole sources for 21cm"),
-        ("line_basic", c_bool, "Include main 21cm monopole density/spin temerature sources"),
+        ("line_basic", c_bool, "Include main 21cm monopole density/spin temperature sources"),
         ("line_distortions", c_bool, "Redshift distortions for 21cm"),
         ("line_extra", c_bool, "Include other sources"),
         ("line_reionization", c_bool, "Replace the E modes with 21cm polarization"),
@@ -330,7 +330,7 @@ class CAMBparams(F2003Class):
 
     def set_initial_power_table(self, k, pk=None, pk_tensor=None, effective_ns_for_nonlinear=None):
         """
-        Set a general intial power spectrum from tabulated values. It's up to you to ensure the sampling
+        Set a general initial power spectrum from tabulated values. It's up to you to ensure the sampling
         of the k values is high enough that it can be interpolated accurately.
 
         :param k: array of k values (Mpc^{-1})
@@ -372,7 +372,7 @@ class CAMBparams(F2003Class):
         :param theta: value of :math:`r_s/D_M` at redshift :math:`z_\star`
         :param cosmomc_approx: if true, use approximate fitting formula for :math:`z_\star`,
                                if false do full numerical calculation
-        :param theta_H0_range: min, max iterval to search for H0 (in km/s/Mpc)
+        :param theta_H0_range: min, max interval to search for H0 (in km/s/Mpc)
         :param est_H0: an initial guess for H0 in km/s/Mpc, used in the case cosmomc_approx=False.
         :param iteration_threshold: difference in H0 from est_H0 for which to iterate,
                used for cosmomc_approx=False to correct for small changes in zstar when H0 changes
@@ -441,10 +441,10 @@ class CAMBparams(F2003Class):
         For more fine-grained control can set the neutrino parameters directly rather than using this function.
 
         Instead of setting the Hubble parameter directly, you can instead set the acoustic scale parameter
-        (cosmomc_theta, which is based on a fitting forumula for simple models, or thetastar, which is numerically
+        (cosmomc_theta, which is based on a fitting formula for simple models, or thetastar, which is numerically
         calculated more generally). Note that you must have already set the dark energy model, you can't use
         set_cosmology with theta and then change the background evolution (which would change theta at the calculated
-        H0 value). Likewise the dark energy model cannot depend explicitly on H0 unless you provide a custom
+        H0 value). Likewise, the dark energy model cannot depend explicitly on H0 unless you provide a custom
         setter_H0 function to update the model for each H0 iteration used to search for thetastar.
 
         :param H0: Hubble parameter today in km/s/Mpc. Can leave unset and instead set thetastar or cosmomc_theta
@@ -453,7 +453,7 @@ class CAMBparams(F2003Class):
         :param omch2:  physical density in cold dark matter
         :param omk: Omega_K curvature parameter
         :param cosmomc_theta: The approximate CosmoMC theta parameter :math:`\theta_{\rm MC}`. The angular
-                              diamter distance is calculated numerically, but the redshift :math:`z_\star`
+                              diameter distance is calculated numerically, but the redshift :math:`z_\star`
                               is calculated using an approximate (quite accurate but non-general) fitting formula.
                               Leave unset to use H0 or thetastar.
         :param thetastar: The angular acoustic scale parameter :math:`\theta_\star = r_s(z_*)/D_M(z_*)`, defined as
@@ -480,7 +480,7 @@ class CAMBparams(F2003Class):
          or name of a BBN predictor class, or file name of an interpolation table
         :param theta_H0_range: if thetastar or cosmomc_theta is specified, the min, max interval of H0 values to map to;
           if H0 is outside this range it will raise an exception.
-        :param setter_H0: if specified, a function to call to set H0 for each iteration to find thetstar. It should be
+        :param setter_H0: if specified, a function to call to set H0 for each iteration to find thetastar. It should be
          a function(pars: CAMBParams, H0: float). Not normally needed, but can be used e.g. when DE model needs to be
          changed for each H0 because it depends explicitly on H0
         """
@@ -647,7 +647,7 @@ class CAMBparams(F2003Class):
 
     def get_Y_p(self, ombh2=None, delta_neff=None):
         r"""
-        Get BBN helium nucleon fraction (NOT the same as the mass fraction Y_He) by intepolation using the
+        Get BBN helium nucleon fraction (NOT the same as the mass fraction Y_He) by interpolation using the
         :class:`.bbn.BBNPredictor` instance passed to :meth:`set_cosmology`
         (or the default one, if `Y_He` has not been set).
 
@@ -665,7 +665,7 @@ class CAMBparams(F2003Class):
 
     def get_DH(self, ombh2=None, delta_neff=None):
         r"""
-        Get deuterium ration D/H by intepolation using the
+        Get deuterium ration D/H by interpolation using the
         :class:`.bbn.BBNPredictor` instance passed to :meth:`set_cosmology`
         (or the default one, if `Y_He` has not been set).
 
@@ -815,9 +815,9 @@ class CAMBparams(F2003Class):
         Set custom sources for angular power spectrum using camb.symbolic sympy expressions.
 
         :param custom_sources: list of sympy expressions for the angular power spectrum sources
-        :param source_names: optional list of string naes for the sources
+        :param source_names: optional list of string names for the sources
         :param source_ell_scales: list or dictionary of scalings for each source name, where for integer entry n,
-            the source for multipole :math:`\ell` is scalled by :math:`\sqrt{(\ell+n)!/(\ell-n)!}`,
+            the source for multipole :math:`\ell` is scaled by :math:`\sqrt{(\ell+n)!/(\ell-n)!}`,
             i.e. :math:`n=2` for a new polarization-like source.
         :param frame: if the source is not gauge invariant, frame in which to interpret result
         :param code_path: optional path for output of source code for CAMB f90 source function

@@ -15,7 +15,7 @@ class BaseTauWithHeReionization(ReionizationModel):
     Abstract class for models that map z_re to tau, and include second reionization of Helium
     """
     _fields_ = [
-        ("use_optical_depth", c_bool, "Whether to use the optical depth or redshift paramters"),
+        ("use_optical_depth", c_bool, "Whether to use the optical depth or redshift parameters"),
         ("redshift", c_double, "Reionization redshift (xe=0.5) if use_optical_depth=False"),
         ("optical_depth", c_double, "Optical depth if use_optical_depth=True"),
         ("fraction", c_double,
@@ -27,8 +27,8 @@ class BaseTauWithHeReionization(ReionizationModel):
         ("tau_solve_accuracy_boost", c_double, "Accuracy boosting parameter for solving for z_re from tau"),
         ("timestep_boost", c_double,
          "Accuracy boosting parameter for the minimum number of time sampling steps through reionization"),
-        ("max_redshift", c_double, "Maxmimum redshift allowed when mapping tau into reionization redshift"),
-        ("__min_redshift", c_double, "Minimim redshift allowed when mapping tau into reionization redshift"),
+        ("max_redshift", c_double, "Maximum redshift allowed when mapping tau into reionization redshift"),
+        ("__min_redshift", c_double, "Minimum redshift allowed when mapping tau into reionization redshift"),
         ("__fHe", c_double, "Helium fraction"),
         ("__state", f_pointer)
     ]
@@ -43,7 +43,7 @@ class BaseTauWithHeReionization(ReionizationModel):
         Get the midpoint redshift of reionization.
 
         :param params: :class:`.model.CAMBparams` instance with cosmological parameters
-        :param tau: if set, calculate the redshift for optical depth tau, otherwise uses curently set parameters
+        :param tau: if set, calculate the redshift for optical depth tau, otherwise uses currently set parameters
         :return: reionization mid-point redshift
         """
         if self.use_optical_depth or tau:
@@ -100,7 +100,7 @@ class TanhReionization(BaseTauWithHeReionization):
 @fortran_class
 class ExpReionization(BaseTauWithHeReionization):
     """
-        An ionization fraction that decreases exponentially at high z, saturating to fully inionized at fixed redshift.
+        An ionization fraction that decreases exponentially at high z, saturating to fully ionized at fixed redshift.
         This model has a minimum non-zero tau around 0.04 for reion_redshift_complete=6.1.
         Similar to e.g. arXiv:1509.02785, arXiv:2006.16828, but not attempting to fit shape near x_e~1 at z<6.1
     """

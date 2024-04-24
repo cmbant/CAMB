@@ -63,7 +63,7 @@ class MatterTransferData:
     To get an instance of this data, call :meth:`.results.CAMBdata.get_matter_transfer_data`.
 
     For a description of the different Transfer_xxx outputs (and 21cm case) see :ref:`transfer-variables`; the
-    array is indexed by index+1 gven by:
+    array is indexed by index+1 given by:
 
     - Transfer_kh = 1 (k/h)
     - Transfer_cdm = 2 (cdm)
@@ -125,7 +125,7 @@ class ClTransferData:
 
     def get_transfer(self, source=0):
         r"""
-        Return :math:`C_\ell` trasfer functions as a function of :math:`\ell`
+        Return :math:`C_\ell` transfer functions as a function of :math:`\ell`
         and :math:`q` (:math:`= k` in a flat universe).
 
         :param source: index of source: e.g. 0 for temperature, 1 for E polarization, 2 for lensing potential
@@ -865,7 +865,7 @@ class CAMBdata(F2003Class):
         """
         nz = self.Params.Transfer.PK_num_redshifts
         if not nz or self.Params.Transfer.PK_redshifts[nz - 1] > 1e-5:
-            raise CAMBError("sigma8 requested at z=0, but P(z=0) not calcaulted")
+            raise CAMBError("sigma8 requested at z=0, but P(z=0) not calculated")
         return self.get_sigma8()[-1]
 
     def get_fsigma8(self):
@@ -930,7 +930,7 @@ class CAMBdata(F2003Class):
         Assuming transfers have been calculated, return a 2D spline interpolation object to evaluate matter
         power spectrum as function of z and k/h (or k). Uses self.Params.Transfer.PK_redshifts as the spline node
         points in z. If fewer than four redshift points are used the interpolator uses a reduced order spline in z
-        (so results at intermediate z may be innaccurate), otherwise it uses bicubic.
+        (so results at intermediate z may be inaccurate), otherwise it uses bicubic.
         Usage example:
 
         .. code-block:: python
@@ -1280,7 +1280,7 @@ class CAMBdata(F2003Class):
         :param CMB_unit: scale results from dimensionless. Use 'muK' for :math:`\mu K^2` units for CMB :math:`C_\ell`
         :param raw_cl: return :math:`C_\ell` rather than :math:`\ell(\ell+1)C_\ell/2\pi`
         :param clpp: custom array of :math:`[L(L+1)]^2 C_L^{\phi\phi}/2\pi` lensing potential power spectrum
-             to use (zero based), rather than calculated specturm from this model
+             to use (zero based), rather than calculated spectrum from this model
         :return: numpy array CL[0:lmax+1,0:8], where CL[:,i] are :math:`T\nabla T`, :math:`E\nabla E`,
                  :math:`B\nabla B`, :math:`PP_\perp`, :math:`T\nabla E`, :math:`TP_\perp`, :math:`(\nabla T)^2`,
                  :math:`\nabla T\nabla T` where the first six are as defined in appendix C
