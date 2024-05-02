@@ -86,7 +86,7 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
 class DarkEnergyFluid(DarkEnergyEqnOfState):
     """
     Class implementing the w, wa or splined w(a) parameterization using the constant sound-speed single fluid model
-    (as for single-field quintessense).
+    (as for single-field quintessence).
 
     """
 

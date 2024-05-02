@@ -128,7 +128,7 @@ class BBN_table_interpolator(BBNPredictor):
 
     def get(self, name, ombh2, delta_neff=0., grid=False):
         r"""
-        Get value for variable "name" by intepolation from table (where name is given in the column header comment)
+        Get value for variable "name" by interpolation from table (where name is given in the column header comment)
         For example get('sig(D/H)',0.0222,0) to get the error on D/H
 
         :param name: string name of the parameter, as given in header of interpolation table

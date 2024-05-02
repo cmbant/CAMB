@@ -55,7 +55,7 @@ class SplinedInitialPower(InitialPower):
 
     def set_scalar_table(self, k, PK):
         """
-        Set arrays of k and P(k) values for cublic spline interpolation.
+        Set arrays of k and P(k) values for cubic spline interpolation.
         Note that using :meth:`set_scalar_log_regular` may be better
         (faster, and easier to get fine enough spacing a low k)
 
@@ -67,7 +67,7 @@ class SplinedInitialPower(InitialPower):
 
     def set_tensor_table(self, k, PK):
         """
-        Set arrays of k and P_t(k) values for cublic spline interpolation
+        Set arrays of k and P_t(k) values for cubic spline interpolation
 
         :param k: array of k values (Mpc^{-1})
         :param PK: array of tensor power spectrum values

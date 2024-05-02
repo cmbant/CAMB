@@ -403,7 +403,7 @@ class CAMBdata(F2003Class):
         if lmax is None:
             lmax = lmax_calc
         elif lmax > lmax_calc:
-            logging.warning('getting CMB power spectra to higher L than calculated, may be innacurate/zeroed.')
+            logging.warning('getting CMB power spectra to higher L than calculated, may be inaccurate/zeroed.')
         return lmax
 
     def save_cmb_power_spectra(self, filename, lmax=None, CMB_unit='muK'):
@@ -1397,8 +1397,8 @@ class CAMBdata(F2003Class):
         Must have called :meth:`calc_background`, :meth:`calc_background_no_thermo` or calculated transfer
         functions or power spectra.
 
-        :param z1: redshift 1, or orray of redshifts
-        :param z2: redshift 2, or orray of redshifts
+        :param z1: redshift 1, or array of redshifts
+        :param z2: redshift 2, or array of redshifts
         :return: result (scalar or array of distances between pairs of z1, z2)
         """
         z1, z2 = self._make_scalar_or_arrays(z1, z2)
