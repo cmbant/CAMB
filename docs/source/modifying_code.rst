@@ -7,7 +7,7 @@ Although CAMB supports some non-standard models by default (e.g. some early dark
 model you'll generally need to modify the code. Simple cases that do not need code modification are:
 
 - Dark energy fluid models with a given equation of state but constant sound speed (see :doc:`dark_energy`)
-- Different primordial power spectra (see :doc:`initial_power`)
+- Different primordial power spectra (see :doc:`initialpower`)
 - Different BBN mappings for the Helium abundance (which is pure Python, see :doc:`bbn`)
 
 In these cases, you can just pass in an interpolation table from Python to encapsulate the modified physics.
