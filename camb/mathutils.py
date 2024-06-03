@@ -53,8 +53,10 @@ def threej_pt(l1, l2, l3, m1, m2, m3):
     Convenience testing function to get 3j for specific arguments.
     Normally use threej to get an array at once for same cost.
 
+    :param l1: L_1
     :param l2: L_2
     :param l3: L_3
+    :param m1: M_1
     :param m2: M_2
     :param m3: M_3
     :return: Wigner 3j (integer zero if outside triangle constraints)
