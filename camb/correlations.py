@@ -49,7 +49,7 @@ def legendre_funcs(lmax, x, m=(0, 2), lfacs=None, lfacs2=None, lrootfacs=None):
 
     :param lmax: maximum :math:`\ell`
     :param x: scalar value of :math:`\cos(\theta)` at which to evaluate
-    :param m: m values to calculate :math:`d_{m,n}`, etc as relevant
+    :param m: m values to calculate :math:`d_{m,n}`, etc. as relevant
     :param lfacs: optional pre-computed :math:`\ell(\ell+1)` float array
     :param lfacs2: optional pre-computed :math:`(\ell+2)*(\ell-1)` float array
     :param lrootfacs: optional pre-computed sqrt(lfacs*lfacs2) array

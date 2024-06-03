@@ -180,7 +180,7 @@ class Quintessence(DarkEnergyModel):
 @fortran_class
 class EarlyQuintessence(Quintessence):
     r"""
-    Example early quintessence (axion-like, as arXiv:1908.06995) with potential
+    Example early quintessence (axion-like, as `arXiv:1908.06995 <https://arxiv.org/abs/1908.06995>`_) with potential
 
      V(\phi) = m^2f^2 (1 - cos(\phi/f))^n + \Lambda_{cosmological constant}
 

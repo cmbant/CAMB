@@ -74,6 +74,7 @@ Other modules:
    :maxdepth: 1
 
    transfer_variables
+   modifying_code
    fortran_compilers
    mathutils
 
