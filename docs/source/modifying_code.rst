@@ -6,7 +6,7 @@ Modifying the code
 Although CAMB supports some non-standard models by default (e.g. some early dark energy models), when you have a new
 model you'll generally need to modify the code. Simple cases that do not need code modification are:
 
-- Dark energy fluid models with a given equation of state and sound speed (see :doc:`dark_energy`)
+- Dark energy fluid models with a given equation of state but constant sound speed (see :doc:`dark_energy`)
 - Different primordial power spectra (see :doc:`initial_power`)
 - Different BBN mappings for the Helium abundance (which is pure Python, see :doc:`bbn`)
 
@@ -100,16 +100,17 @@ Changing the version number in both Python and Fortran will give you an automati
 intended Fortran source.
 
 The default accuracy parameters are designed for Simons Observatory-like precision for standard models. Check your results are stable to
-increasing accuracy parameters.
+increasing accuracy parameters `AccuracyBoost` and `lAccuracyBoost` (in :class:`~camb.model.AccuracyParams`). If not, changing specific accuracy parameters as needed may be much more efficient that using the high-level parameter
+`AccuracyBoost` (which increases the accuracy of many things at once).
 
 There are a number of possible gotchas when using Python-wrapped Fortran types. Firstly, types derived directly from `CAMB_Structure` are intended to map directly
 to Fortran types (via the standard `ctypes` interface), for example, `AccuracyParams` is inherited directly from `CAMB_Structure`. These should generally not be
-instantiated directly in Python as they are only intended to be used as sub-components of larger types. For example, a new Python instance `AccuracyParams()` will
-give a zero Fortran array, which is not the default value for the accuracy parameters.
+instantiated directly in Python as they are only intended to be used as sub-components of larger types. For example, a new Python instance of :class:`~camb.model.AccuracyParams` will
+give a zero Fortran array, which does not correspond to the default values for the accuracy parameters.
 
 Fortran-mapped classes in Python inherit from `F2003Class`. These also map data in a Fortran class type (the `_fields_` defined above).
-If they are a sub-component of another `F2003Class`, they may be created dynamically to match the underlying structure.
-This can give unexpected results if you try to add variables to only the Python class. For example, if `pars` is a `CAMBParams()` instance and `test` is not defined
+If they are an allocatable subcomponent of another `F2003Class`, they may be created dynamically to match the underlying structure.
+This can give unexpected results if you try to add variables to only the Python class. For example, if `pars` is a :class:`~camb.model.CAMBparams` instance and `test` is not defined
 then doing this::
 
     pars.DarkEnergy.test = 'x'
@@ -117,7 +118,7 @@ then doing this::
 
 will not give you 'x'; it will give you an undefined variable error. This is because the Python code doesn't 'know' that the Fortran code is not modifying the
 DarkEnergy structure, so `pars.DarkEnergy` is generating a new instance mapped to the underlying Fortran data whenever you access it.
-You can avoid this by always defining fields in both Fortran and Python, or only using Python variables in container-level classes like `CAMBParams`.
+You can avoid this by always defining fields in both Fortran and Python, or only using Python variables in container-level classes like :class:`~camb.model.CAMBparams`.
 
 When using dark energy models, make sure you are not setting `thetastar` in Python before setting the dark energy parameters: it needs to know the dark
 energy model to map `thetastar` into `H0` consistently.
@@ -128,7 +129,7 @@ Interfacing with Cobaya
 =======================
 
 The `Cobaya sampler <https://cobaya.readthedocs.org>`_ can do parameter inference for your custom models. It uses introspection to determine which
-variables the linked CAMB version supports, so if you add new variables e.g., to `CAMBparams` or as arguments to `set_cosmology`,
+variables the linked CAMB version supports, so if you add new variables e.g., to :class:`~camb.model.CAMBparams` or as arguments to :meth:`~camb.model.CAMBparams.set_cosmology`,
 you should automatically be able to use them in Cobaya. For other new variables, you may need to modify :func:`~camb.get_valid_numerical_params`.
 
 For supporting new primordial power spectra or multiple bins there are `test examples <https://github.com/CobayaSampler/cobaya/blob/master/tests/test_cosmo_multi_theory.py>`_.
