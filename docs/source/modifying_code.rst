@@ -6,9 +6,9 @@ Modifying the code
 Although CAMB supports some non-standard models by default (e.g. some early dark energy models), when you have a new
 model you'll generally need to modify the code. Simple cases that do not need code modification are:
 
-- Dark energy fluid models with a given equation of state and sound speed (see :ref:`dark_energy`)
-- Different primordial power spectra (see :ref:`initial_power`)
-- Different BBN mappings for the Helium abundance (which is pure Python, see :ref:`bbn`)
+- Dark energy fluid models with a given equation of state and sound speed (see :doc:`dark_energy`)
+- Different primordial power spectra (see :doc:`initial_power`)
+- Different BBN mappings for the Helium abundance (which is pure Python, see :doc:`bbn`)
 
 In these cases, you can just pass in an interpolation table from Python to encapsulate the modified physics.
 
@@ -95,7 +95,7 @@ The `CAMB notes <https://cosmologist.info/notes/CAMB.pdf>`_ provide some guidanc
 Code updates, testing, and gotchas
 ==================================
 
-Make sure you recompile the Fortran after making any changes (see :ref:`fortran_compilers`).
+Make sure you recompile the Fortran after making any changes (see :doc:`fortran_compilers`).
 Changing the version number in both Python and Fortran will give you an automatic run-time check that the Python being run matches the
 intended Fortran source.
 
