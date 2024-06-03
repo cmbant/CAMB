@@ -30,7 +30,7 @@ For example, to run a configured shell in docker where you can install and run c
     docker run -v /local/git/path/CAMB:/camb -i -t cmbant/cosmobox
 
 Updating modified Fortran code
-==============================
+------------------------------
 
 In the main CAMB source root directory, to re-build the Fortran binary including any
 pulled or local changes use::

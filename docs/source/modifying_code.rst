@@ -13,7 +13,8 @@ model you'll generally need to modify the code. Simple cases that do not need co
 In these cases, you can just pass in an interpolation table from Python to encapsulate the modified physics.
 
 Defining new classes
-====================
+--------------------
+
 
 For other changes to the dark energy, initial power, reionization, recombination, or non-linear correction, you can usually
 define new classes that inherit from the standard base classes. The classes are defined in both Python and Fortran, so you
@@ -83,7 +84,7 @@ The `ReadParams` function is only needed if you want to also be able to load par
 using them via Python. The `PythonClass` method is not strictly needed.
 
 Other code changes
-==================
+------------------
 
 For quintessence models with a different potential, you will need to modify the Fortran to define the new potential function.
 See :class:`~camb.dark_energy.Quintessence` and the `DarkEnergyQuintessence.f90` Fortran source. This may be a simple change,
@@ -93,7 +94,8 @@ More generally, you will need to modify the equations at both the background and
 The `CAMB notes <https://cosmologist.info/notes/CAMB.pdf>`_ provide some guidance on conventions and variable definitions.
 
 Code updates, testing, and gotchas
-==================================
+----------------------------------
+
 
 Make sure you recompile the Fortran after making any changes (see :doc:`fortran_compilers`).
 Changing the version number in both Python and Fortran will give you an automatic run-time check that the Python being run matches the
@@ -126,7 +128,7 @@ energy model to map `thetastar` into `H0` consistently.
 When accessing array-like members of a structure, e.g., `CAMBparams.z_outputs`, you may need to explicitly cast to a list to see the elements.
 
 Interfacing with Cobaya
-=======================
+-----------------------
 
 The `Cobaya sampler <https://cobaya.readthedocs.org>`_ can do parameter inference for your custom models. It uses introspection to determine which
 variables the linked CAMB version supports, so if you add new variables e.g., to :class:`~camb.model.CAMBparams` or as arguments to :meth:`~camb.model.CAMBparams.set_cosmology`,
@@ -136,3 +138,5 @@ For supporting new primordial power spectra or multiple bins there are `test exa
 This also shows how to use `get_class_options` to dynamically define multiple parameters based on an input parameter.
 
 You can only directly sample scalar parameters, but it is also easy to `map vector parameters <https://cobaya.readthedocs.io/en/latest/params_prior.html#vector-parameters>`_.
+
+The `CosmoCoffee <https://cosmocoffee.info/viewforum.php>`_ discussion forum can be used to ask questions and to see previous answers.
