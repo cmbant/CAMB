@@ -139,4 +139,4 @@ This also shows how to use `get_class_options` to dynamically define multiple pa
 
 You can only directly sample scalar parameters, but it is also easy to `map vector parameters <https://cobaya.readthedocs.io/en/latest/params_prior.html#vector-parameters>`_.
 
-The `CosmoCoffee <https://cosmocoffee.info/viewforum.php>`_ discussion forum can be used to ask questions and to see previous answers.
+The `CosmoCoffee <https://cosmocoffee.info/viewforum.php?f=11>`_ discussion forum can be used to ask questions and to see previous answers.
