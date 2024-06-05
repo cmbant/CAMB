@@ -8,7 +8,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ ubuntu-latest, windows-latest, flyci-macos-large-latest-m2]
+        os: [ windows-latest, flyci-macos-large-latest-m2]
 
     steps:
       - uses: awvwgk/setup-fortran@main
@@ -36,6 +36,7 @@ jobs:
         run: python -m cibuildwheel --output-dir wheelhouse
         env:
           # Disable building for PyPy and 32bit.
+          CIBW_BUILD: cp37-*
           CIBW_SKIP: pp* *-win32 *-manylinux_i686 *musllinux*
           #CIBW_TEST_REQUIRES: scipy sympy
           #CIBW_TEST_COMMAND: python -m unittest camb.tests.camb_test
@@ -44,3 +45,4 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           path: ./wheelhouse/*.whl
+          overwrite: true
