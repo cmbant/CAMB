@@ -9,7 +9,7 @@ jobs:
     strategy:
       matrix:
         #
-        os: [macos-13, macos-14, ubuntu-latest, windows-latest]
+        os: [ macos-13, macos-14, ubuntu-latest, windows-latest ]
 
     steps:
       - uses: awvwgk/setup-fortran@main
@@ -33,42 +33,29 @@ jobs:
       - name: Install cibuildwheel
         run: python -m pip install cibuildwheel==2.18.1
 
-      - name: Build wheels
+      - name: Build macos-13 wheels
         if: matrix.os == 'macos-13'
-        run: python -m cibuildwheel --output-dir wheelhouse
         env:
           # Disable building for PyPy and 32bit.
+          MACOSX_DEPLOYMENT_TARGET: 10.13
           CIBW_BUILD: cp311-*
           CIBW_SKIP: pp*
           #CIBW_TEST_REQUIRES: scipy sympy
           #CIBW_TEST_COMMAND: python -m unittest camb.tests.camb_test
-          CIBW_ENVIRONMENT: >
-            _PYTHON_HOST_PLATFORM=macosx-10.13-x86_64
           CIBW_BUILD_VERBOSITY: 2
+        run: python -m cibuildwheel --output-dir wheelhouse
 
       - name: Build wheels
-        if: matrix.os == 'macos-14'
-        run: python -m cibuildwheel --output-dir wheelhouse
+        if: matrix.os != 'macos-13'
         env:
-          # Disable building for PyPy and 32bit.
-          CIBW_BUILD: cp311-*
-          CIBW_SKIP: pp*
-          #CIBW_TEST_REQUIRES: scipy sympy
-          #CIBW_TEST_COMMAND: python -m unittest camb.tests.camb_test
-          CIBW_ENVIRONMENT: >
-            _PYTHON_HOST_PLATFORM=macosx-10.14-arm64
-          CIBW_BUILD_VERBOSITY: 2
-
-      - name: Build wheels
-        if: matrix.os != 'macos-13' && matrix.os != 'macos-14'
-        run: python -m cibuildwheel --output-dir wheelhouse
-        env:
+          MACOSX_DEPLOYMENT_TARGET: 10.14
           # Disable building for PyPy and 32bit.
           CIBW_BUILD: cp311-*
           CIBW_SKIP: pp* *-win32 *-manylinux_i686 *musllinux*
           #CIBW_TEST_REQUIRES: scipy sympy
           #CIBW_TEST_COMMAND: python -m unittest camb.tests.camb_test
           CIBW_BUILD_VERBOSITY: 2
+        run: python -m cibuildwheel --output-dir wheelhouse
 
       - uses: actions/upload-artifact@v4
         with:
