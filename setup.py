@@ -2,6 +2,7 @@ import sys
 import subprocess
 import os
 import shutil
+import re
 from typing import Any
 from setuptools import setup, Command, Extension
 from setuptools.command.build_ext import build_ext
@@ -273,8 +274,14 @@ class BuildExtCommand(build_ext):
         pass
 
 
+def find_version():
+    version_file = open(os.path.join(file_dir, 'camb', '__init__.py')).read()
+    return re.search(r"^__version__ = ['\"]([^'\"]*)['\"]", version_file, re.M).group(1)
+
+
 if __name__ == "__main__":
     setup(name=os.getenv('CAMB_PACKAGE_NAME', 'camb'),
+          version=find_version(),
           zip_safe=False,
           cmdclass={'build_py': SharedLibrary, 'build_cluster': SharedLibraryCluster,
                     'make': MakeLibrary, 'make_cluster': MakeLibraryCluster, 'clean': CleanLibrary,
