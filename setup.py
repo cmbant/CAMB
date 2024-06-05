@@ -3,12 +3,11 @@ import subprocess
 import os
 import shutil
 from typing import Any
-from setuptools import setup
+from setuptools import setup, Extension, Command
 from setuptools.command.build_py import build_py
 from setuptools.command.develop import develop
 from setuptools.command.install import install
 from wheel.bdist_wheel import bdist_wheel as _bdist_wheel
-from setuptools import Command
 
 file_dir = os.path.abspath(os.path.dirname(__file__))
 os.chdir(file_dir)
@@ -20,6 +19,7 @@ if _compile.is_windows:
     DLLNAME = 'cambdll.dll'
 else:
     DLLNAME = 'camblib.so'
+
 
 def get_forutils():
     fpath = os.getenv('FORUTILSPATH')
@@ -273,5 +273,11 @@ if __name__ == "__main__":
           package_data={'camb': [DLLNAME, 'HighLExtrapTemplate_lenspotentialCls.dat',
                                  'PArthENoPE_880.2_marcucci.dat', 'PArthENoPE_880.2_standard.dat',
                                  'PRIMAT_Yp_DH_Error.dat', 'PRIMAT_Yp_DH_ErrorMC_2021.dat']},
+          ext_modules=[
+              Extension(
+                  name='your.external.module',
+                  sources=[]
+              )
+          ],
           test_suite='camb.tests'
           )
