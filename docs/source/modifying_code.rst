@@ -131,8 +131,8 @@ Interfacing with Cobaya
 -----------------------
 
 The `Cobaya sampler <https://cobaya.readthedocs.org>`_ can do parameter inference for your custom models. It uses introspection to determine which
-variables the linked CAMB version supports, so if you add new variables e.g., to :class:`~camb.model.CAMBparams` or as arguments to :meth:`~camb.model.CAMBparams.set_cosmology`,
-you should automatically be able to use them in Cobaya. For other new variables, you may need to modify :func:`~camb.get_valid_numerical_params`.
+variables the linked CAMB version supports, so if you add new variables e.g., to :class:`~camb.model.CAMBparams` or as arguments to :meth:`~camb.model.CAMBparams.set_cosmology` or the `set_params`
+method of the dark energy, reionization, etc. classes, you should automatically be able to use them in Cobaya. For other new variables, you may need to modify :func:`~camb.get_valid_numerical_params`.
 
 For supporting new primordial power spectra or multiple bins there are `test examples <https://github.com/CobayaSampler/cobaya/blob/master/tests/test_cosmo_multi_theory.py>`_.
 This also shows how to use `get_class_options` to dynamically define multiple parameters based on an input parameter.
