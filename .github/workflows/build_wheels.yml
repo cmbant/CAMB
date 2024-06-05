@@ -8,7 +8,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ flyci-macos-large-latest-m2, macOS-13, ubuntu-latest, windows-latest]
+        #macOS-13
+        os: [ flyci-macos-large-latest-m2, ubuntu-latest, windows-latest]
 
     steps:
       - uses: awvwgk/setup-fortran@main
