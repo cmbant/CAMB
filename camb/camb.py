@@ -29,6 +29,8 @@ def get_results(params):
     :param params: :class:`.model.CAMBparams` instance
     :return: :class:`~.results.CAMBdata` instance
     """
+    if isinstance(params, dict):
+        params = set_params(**params)
     res = CAMBdata()
     if _debug_params:
         print(params)
@@ -118,6 +120,7 @@ def set_params(cp=None, verbose=False, **params):
     * :meth:`.model.CAMBparams.set_accuracy`
     * :meth:`.model.CAMBparams.set_classes`
     * :meth:`.dark_energy.DarkEnergyEqnOfState.set_params` (or equivalent if a different dark energy model class used)
+    * :meth:`.reionization.TanhReionization.set_extra_params` (or equivalent if a different reionization class used)
     * :meth:`.model.CAMBparams.set_cosmology`
     * :meth:`.model.CAMBparams.set_matter_power`
     * :meth:`.model.CAMBparams.set_for_lmax`
@@ -154,6 +157,7 @@ def set_params(cp=None, verbose=False, **params):
     do_set(cp.set_accuracy)
     do_set(cp.set_classes)
     do_set(cp.DarkEnergy.set_params)
+    do_set(cp.Reion.set_extra_params)
     do_set(cp.set_cosmology)
     do_set(cp.set_matter_power)
     do_set(cp.set_for_lmax)
@@ -203,14 +207,16 @@ def get_valid_numerical_params(transfer_only=False, **class_names):
                     params.add(arg)
 
     extract_params(cp.DarkEnergy.set_params)
+    extract_params(cp.Reion.set_extra_params)
     extract_params(cp.set_cosmology)
     if not transfer_only:
         extract_params(cp.InitPower.set_params)
         extract_params(cp.NonLinearModel.set_params)
+    # noinspection PyProtectedMember
     for f, tp in cp._fields_:
         if not f.startswith('_') and tp == ctypes.c_double:
             params.add(f)
-    return params - {'max_eta_k_tensor', 'max_eta_k', 'neutrino_hierarchy', 'standard_neutrino_neff',
+    return params - {'max_eta_k_tensor', 'max_eta_k', 'neutrino_hierarchy', 'standard_neutrino_neff', 'setter_H0',
                      'pivot_scalar', 'pivot_tensor', 'num_massive_neutrinos', 'num_nu_massless', 'bbn_predictor'}
 
 
@@ -222,7 +228,7 @@ def set_params_cosmomc(p, num_massive_neutrinos=1, neutrino_hierarchy='degenerat
     :param p: dictionary of cosmomc parameters (e.g. from getdist.types.BestFit's getParamDict() function)
     :param num_massive_neutrinos: usually 1 if fixed mnu=0.06 eV, three if mnu varying
     :param neutrino_hierarchy: hierarchy
-    :param halofit_version: name of the soecific Halofit model to use for non-linear modelling
+    :param halofit_version: name of the specific Halofit model to use for non-linear modelling
     :param dark_energy_model: ppf or fluid dark energy model
     :param lmax: lmax for accuracy settings
     :param lens_potential_accuracy: lensing accuracy parameter
@@ -231,15 +237,17 @@ def set_params_cosmomc(p, num_massive_neutrinos=1, neutrino_hierarchy='degenerat
     """
     pars = inpars or model.CAMBparams()
     if p.get('alpha1', 0) or p.get('Aphiphi', 1) != 1:
-        raise ValueError('Parameter not currrently supported by set_params_cosmomc')
+        raise ValueError('Parameter not currently supported by set_params_cosmomc')
+
+    pars.set_dark_energy(w=p.get('w', -1), wa=p.get('wa', 0), dark_energy_model=dark_energy_model)
+    pars.Reion.set_extra_params(deltazrei=p.get('deltazrei', None))
     pars.set_cosmology(H0=p['H0'], ombh2=p['omegabh2'], omch2=p['omegach2'], mnu=p.get('mnu', 0.06),
-                       omk=p.get('omegak', 0), tau=p['tau'], deltazrei=p.get('deltazrei', None),
+                       omk=p.get('omegak', 0), tau=p['tau'],
                        nnu=p.get('nnu', constants.default_nnu), Alens=p.get('Alens', 1.0),
                        YHe=p.get('yheused', None), meffsterile=p.get('meffsterile', 0),
                        num_massive_neutrinos=num_massive_neutrinos, neutrino_hierarchy=neutrino_hierarchy)
     pars.InitPower.set_params(ns=p['ns'], r=p.get('r', 0), As=p['A'] * 1e-9, nrun=p.get('nrun', 0),
                               nrunrun=p.get('nrunrun', 0))
-    pars.set_dark_energy(w=p.get('w', -1), wa=p.get('wa', 0), dark_energy_model=dark_energy_model)
     pars.set_for_lmax(lmax, lens_potential_accuracy=lens_potential_accuracy)
     pars.NonLinearModel.set_params(halofit_version=halofit_version)
     pars.WantTensors = pars.InitPower.has_tensors()
@@ -330,8 +338,12 @@ def get_matter_power_interpolator(params, zmin=0, zmax=10, nz_step=100, zs=None,
        print('Power spectrum at z=0.5, k/h=0.1/Mpc is %s (Mpc/h)^3 '%(PK.P(0.5, 0.1)))
 
     For a description of outputs for different var1, var2 see :ref:`transfer-variables`.
-    If you already have a :class:`~.results.CAMBdata` result object, you can instead
-    use :meth:`~.results.CAMBdata.get_matter_power_interpolator`.
+
+    This function re-calculates results from scratch with the given parameters.
+    If you already have a :class:`~.results.CAMBdata` result object, you should instead
+    use :meth:`~.results.CAMBdata.get_matter_power_interpolator`
+    (call :meth:`.model.CAMBparams.set_matter_power` as need to set up the required ranges for the matter power
+    before calling get_results).
 
     :param params: :class:`.model.CAMBparams` instance
     :param zmin: minimum z (use 0 or smaller than you want for good interpolation)

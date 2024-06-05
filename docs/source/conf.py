@@ -47,7 +47,7 @@ needs_sphinx = '4.0'
 # ones.
 extensions = [
     'sphinx.ext.autodoc', 'sphinx.ext.intersphinx', 'sphinx.ext.viewcode', 'sphinx.ext.autosummary',
-    'sphinx.ext.mathjax'
+    'sphinx.ext.mathjax', 'sphinx_rtd_theme', 'sphinxcontrib.jquery'
 ]
 
 intersphinx_mapping = {'python': ('https://docs.python.org/3', None),
@@ -84,7 +84,7 @@ release = camb.__version__
 #
 # This is also used if you do content translation via gettext catalogs.
 # Usually you set "language" from the command line for these cases.
-language = None
+language = 'en'
 
 # There are two options for replacing |today|: either, you set today to some
 # non-false value, then it is used:

@@ -63,7 +63,7 @@ class MatterTransferData:
     To get an instance of this data, call :meth:`.results.CAMBdata.get_matter_transfer_data`.
 
     For a description of the different Transfer_xxx outputs (and 21cm case) see :ref:`transfer-variables`; the
-    array is indexed by index+1 gven by:
+    array is indexed by index+1 given by:
 
     - Transfer_kh = 1 (k/h)
     - Transfer_cdm = 2 (cdm)
@@ -125,7 +125,7 @@ class ClTransferData:
 
     def get_transfer(self, source=0):
         r"""
-        Return :math:`C_\ell` trasfer functions as a function of :math:`\ell`
+        Return :math:`C_\ell` transfer functions as a function of :math:`\ell`
         and :math:`q` (:math:`= k` in a flat universe).
 
         :param source: index of source: e.g. 0 for temperature, 1 for E polarization, 2 for lensing potential
@@ -219,6 +219,9 @@ class CAMBdata(F2003Class):
 
     def __init__(self):
         set_default_params(self.Params)
+
+    def __getstate__(self):
+        raise TypeError("Cannot save CAMB result objects")
 
     def set_params(self, params):
         """
@@ -400,7 +403,7 @@ class CAMBdata(F2003Class):
         if lmax is None:
             lmax = lmax_calc
         elif lmax > lmax_calc:
-            logging.warning('getting CMB power spectra to higher L than calculated, may be innacurate/zeroed.')
+            logging.warning('getting CMB power spectra to higher L than calculated, may be inaccurate/zeroed.')
         return lmax
 
     def save_cmb_power_spectra(self, filename, lmax=None, CMB_unit='muK'):
@@ -500,6 +503,10 @@ class CAMBdata(F2003Class):
     def get_time_evolution(self, q, eta, vars=model.evolve_names, lAccuracyBoost=4, frame='CDM'):
         """
         Get the mode evolution as a function of conformal time for some k values.
+
+        Note that gravitational potentials (e.g. Weyl) are not integrated in the code and are
+        calculated as derived parameters; they may be numerically unstable far outside the horizon.
+        (use the series expansion result if needed far outside the horizon)
 
         :param q: wavenumber values to calculate (or array of k values)
         :param eta: array of requested conformal times to output
@@ -858,7 +865,7 @@ class CAMBdata(F2003Class):
         """
         nz = self.Params.Transfer.PK_num_redshifts
         if not nz or self.Params.Transfer.PK_redshifts[nz - 1] > 1e-5:
-            raise CAMBError("sigma8 requested at z=0, but P(z=0) not calcaulted")
+            raise CAMBError("sigma8 requested at z=0, but P(z=0) not calculated")
         return self.get_sigma8()[-1]
 
     def get_fsigma8(self):
@@ -923,7 +930,7 @@ class CAMBdata(F2003Class):
         Assuming transfers have been calculated, return a 2D spline interpolation object to evaluate matter
         power spectrum as function of z and k/h (or k). Uses self.Params.Transfer.PK_redshifts as the spline node
         points in z. If fewer than four redshift points are used the interpolator uses a reduced order spline in z
-        (so results at intermediate z may be innaccurate), otherwise it uses bicubic.
+        (so results at intermediate z may be inaccurate), otherwise it uses bicubic.
         Usage example:
 
         .. code-block:: python
@@ -981,7 +988,7 @@ class CAMBdata(F2003Class):
                 # NB returns dimensionality as the 2D one: 1 dimension if z single
                 return (lambda x: x[0] if np.isscalar(args[0]) else x)(super().__call__(*(args[1:])))
 
-            def P(self, z, kh, grid=None):
+            def P(self, z, kh, **_kwargs):
                 # grid kwarg is ignored
                 if self.islog:
                     return self.logsign * np.exp(self(z, np.log(kh)))
@@ -1273,7 +1280,7 @@ class CAMBdata(F2003Class):
         :param CMB_unit: scale results from dimensionless. Use 'muK' for :math:`\mu K^2` units for CMB :math:`C_\ell`
         :param raw_cl: return :math:`C_\ell` rather than :math:`\ell(\ell+1)C_\ell/2\pi`
         :param clpp: custom array of :math:`[L(L+1)]^2 C_L^{\phi\phi}/2\pi` lensing potential power spectrum
-             to use (zero based), rather than calculated specturm from this model
+             to use (zero based), rather than calculated spectrum from this model
         :return: numpy array CL[0:lmax+1,0:8], where CL[:,i] are :math:`T\nabla T`, :math:`E\nabla E`,
                  :math:`B\nabla B`, :math:`PP_\perp`, :math:`T\nabla E`, :math:`TP_\perp`, :math:`(\nabla T)^2`,
                  :math:`\nabla T\nabla T` where the first six are as defined in appendix C
@@ -1390,8 +1397,8 @@ class CAMBdata(F2003Class):
         Must have called :meth:`calc_background`, :meth:`calc_background_no_thermo` or calculated transfer
         functions or power spectra.
 
-        :param z1: redshift 1, or orray of redshifts
-        :param z2: redshift 2, or orray of redshifts
+        :param z1: redshift 1, or array of redshifts
+        :param z2: redshift 2, or array of redshifts
         :return: result (scalar or array of distances between pairs of z1, z2)
         """
         z1, z2 = self._make_scalar_or_arrays(z1, z2)

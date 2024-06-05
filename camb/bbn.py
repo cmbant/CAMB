@@ -55,7 +55,7 @@ class BBN_table_interpolator(BBNPredictor):
     """
     BBN predictor based on interpolation from a numerical table calculated by a BBN code.
 
-    Tables are supplied for `Parthenope <http://parthenope.na.infn.it/>`_ 2017 (PArthENoPE_880.2_standard.dat, default),
+    Tables are supplied for `Parthenope <http://parthenope.na.infn.it/>`_ 2017 (PArthENoPE_880.2_standard.dat),
     similar but with Marucci rates (PArthENoPE_880.2_marcucci.dat),
     `PRIMAT <http://www2.iap.fr/users/pitrou/primat.htm>`_ (PRIMAT_Yp_DH_Error.dat, PRIMAT_Yp_DH_ErrorMC_2021.dat).
 
@@ -128,7 +128,7 @@ class BBN_table_interpolator(BBNPredictor):
 
     def get(self, name, ombh2, delta_neff=0., grid=False):
         r"""
-        Get value for variable "name" by intepolation from table (where name is given in the column header comment)
+        Get value for variable "name" by interpolation from table (where name is given in the column header comment)
         For example get('sig(D/H)',0.0222,0) to get the error on D/H
 
         :param name: string name of the parameter, as given in header of interpolation table

@@ -1,0 +1,49 @@
+[build-system]
+requires = ["setuptools", "packaging", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "camb"
+authors = [
+    { name = "Antony Lewis" },
+]
+description = "Code for Anisotropies in the Microwave Background"
+keywords= ['cosmology', 'CAMB', 'CMB']
+readme = "docs/README_pypi.rst"
+license = { file = "LICENCE.txt" }
+dynamic = ["version"]
+requires-python = ">=3.6.0"
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Operating System :: OS Independent",
+    "Environment :: Console",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Astronomy",
+    "License :: OSI Approved :: GNU Lesser General Public License v3 (LGPLv3)",
+    "Programming Language :: Python :: 3.6",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12"
+]
+dependencies = [
+    "scipy>=1.0", "sympy>=1.0", "packaging"
+]
+
+[project.optional-dependencies]
+docs = ["sphinx>=4.0", "sphinx_rtd_theme>=1.0", "sphinxcontrib-jquery"]
+
+[project.scripts]
+camb = "camb._command_line:run_command_line"
+
+[project.urls]
+Homepage = "https://camb.info"
+Documentation = "https://camb.readthedocs.io"
+Source = "https://github.com/cmbant/camb"
+Tracker = "https://github.com/cmbant/camb/issues"
+Licensing = "https://github.com/cmbant/camb/blob/master/LICENCE.txt"
+
+[tool.setuptools.dynamic]
+version = {attr = "camb.__version__"}

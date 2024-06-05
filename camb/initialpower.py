@@ -36,11 +36,14 @@ class SplinedInitialPower(InitialPower):
                  ('SetTensorLogRegular', [POINTER(c_double), POINTER(c_double), POINTER(c_int), numpy_1d])]
 
     def __init__(self, **kwargs):
-        if kwargs.get('PK', None) is not None:
+        if kwargs.get('PK') is not None:
             self.set_scalar_table(kwargs['ks'], kwargs['PK'])
-        ns_eff = kwargs.get('effective_ns_for_nonlinear', None)
+        ns_eff = kwargs.get('effective_ns_for_nonlinear')
         if ns_eff is not None:
             self.effective_ns_for_nonlinear = ns_eff
+
+    def __getstate__(self):
+        raise TypeError("Cannot save class with splines")
 
     def has_tensors(self):
         """
@@ -52,7 +55,7 @@ class SplinedInitialPower(InitialPower):
 
     def set_scalar_table(self, k, PK):
         """
-        Set arrays of k and P(k) values for cublic spline interpolation.
+        Set arrays of k and P(k) values for cubic spline interpolation.
         Note that using :meth:`set_scalar_log_regular` may be better
         (faster, and easier to get fine enough spacing a low k)
 
@@ -64,7 +67,7 @@ class SplinedInitialPower(InitialPower):
 
     def set_tensor_table(self, k, PK):
         """
-        Set arrays of k and P_t(k) values for cublic spline interpolation
+        Set arrays of k and P_t(k) values for cubic spline interpolation
 
         :param k: array of k values (Mpc^{-1})
         :param PK: array of tensor power spectrum values
@@ -74,7 +77,7 @@ class SplinedInitialPower(InitialPower):
 
     def set_scalar_log_regular(self, kmin, kmax, PK):
         """
-        Set log-regular cublic spline interpolation for P(k)
+        Set log-regular cubic spline interpolation for P(k)
 
         :param kmin: minimum k value (not minimum log(k))
         :param kmax: maximum k value (inclusive)
@@ -85,7 +88,7 @@ class SplinedInitialPower(InitialPower):
 
     def set_tensor_log_regular(self, kmin, kmax, PK):
         """
-        Set log-regular cublic spline interpolation for tensor spectrum P_t(k)
+        Set log-regular cubic spline interpolation for tensor spectrum P_t(k)
 
         :param kmin: minimum k value (not minimum log(k))
         :param kmax: maximum k value (inclusive)

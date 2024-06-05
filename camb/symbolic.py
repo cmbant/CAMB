@@ -559,7 +559,7 @@ def get_hierarchies(lmax=5):
     """
     Get Boltzmann hierarchies up to lmax for photons (J), E polarization and massless neutrinos (G).
 
-    :param lmax: maxmimum multipole
+    :param lmax: maximum multipole
     :return: list of equations
     """
 
@@ -621,8 +621,8 @@ def camb_fortran(expr, name='camb_function', frame='CDM', expand=False):
     :param expr: symbolic sympy expression using camb.symbolic variables and functions (plus any
                  standard general functions that CAMB can convert to fortran).
     :param name: lhs variable string to assign result to
-    :param frame: frame in which to interret non gauge-invariant expressions.
-                  By default uses CDM frame (synchronous gauge), as used natively by CAMB.
+    :param frame: frame in which to interpret non gauge-invariant expressions.
+                  By default, uses CDM frame (synchronous gauge), as used natively by CAMB.
     :param expand: do a sympy expand before generating code
     :return: fortran code snippet
     """

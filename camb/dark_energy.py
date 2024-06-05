@@ -57,7 +57,7 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
 
     def set_w_a_table(self, a, w):
         """
-        Set w(a) from numerical values (used as cublic spline). Note this is quite slow.
+        Set w(a) from numerical values (used as cubic spline). Note this is quite slow.
 
         :param a: array of scale factors
         :param w: array of w(a)
@@ -76,12 +76,17 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
         self.f_SetWTable(a, w, byref(c_int(len(a))))
         return self
 
+    def __getstate__(self):
+        if self.use_tabulated_w:
+            raise TypeError("Cannot save class with splines")
+        return super().__getstate__()
+
 
 @fortran_class
 class DarkEnergyFluid(DarkEnergyEqnOfState):
     """
     Class implementing the w, wa or splined w(a) parameterization using the constant sound-speed single fluid model
-    (as for single-field quintessense).
+    (as for single-field quintessence).
 
     """
 
@@ -94,11 +99,17 @@ class DarkEnergyFluid(DarkEnergyEqnOfState):
             if self.wa and (self.w < -1 - 1e-6 or 1 + self.w + self.wa < - 1e-6):
                 raise CAMBError('fluid dark energy model does not support w crossing -1')
 
+    def set_w_a_table(self, a, w):
+        # check w array has elements that do not cross -1
+        if np.sign(1 + np.max(w)) - np.sign(1 + np.min(w)) == 2:
+            raise ValueError('fluid dark energy model does not support w crossing -1')
+        super().set_w_a_table(a, w)
+
 
 @fortran_class
 class DarkEnergyPPF(DarkEnergyEqnOfState):
     """
-    Class implementating the w, wa or splined w(a) parameterization in the PPF perturbation approximation
+    Class implementing the w, wa or splined w(a) parameterization in the PPF perturbation approximation
     (`arXiv:0808.3125 <https://arxiv.org/abs/0808.3125>`_)
     Use inherited methods to set parameters or interpolation table.
 
@@ -111,7 +122,7 @@ class DarkEnergyPPF(DarkEnergyEqnOfState):
 @fortran_class
 class AxionEffectiveFluid(DarkEnergyModel):
     """
-    Example implementation of a specifc (early) dark energy fluid model
+    Example implementation of a specific (early) dark energy fluid model
     (`arXiv:1806.10608 <https://arxiv.org/abs/1806.10608>`_).
     Not well tested, but should serve to demonstrate how to make your own custom classes.
     """
@@ -162,29 +173,32 @@ class Quintessence(DarkEnergyModel):
     ]
     _fortran_class_module_ = 'Quintessence'
 
+    def __getstate__(self):
+        raise TypeError("Cannot save class with splines")
+
 
 @fortran_class
 class EarlyQuintessence(Quintessence):
     r"""
-    Example early quintessence (axion-like, as arXiv:1908.06995) with potential
+    Example early quintessence (axion-like, as `arXiv:1908.06995 <https://arxiv.org/abs/1908.06995>`_) with potential
 
-     V(\phi) = m^2f^2 (1 - cos(\phi/f))^2 + \Lambda_{cosmological constant}
+     V(\phi) = m^2f^2 (1 - cos(\phi/f))^n + \Lambda_{cosmological constant}
 
     """
 
     _fields_ = [
         ("n", c_double, "power index for potential"),
-        ("f", c_double, r"f/Mpl (sqrt(8\piG)f); only used for initial search value if use_zc is True"),
+        ("f", c_double, r"f/Mpl (sqrt(8\piG)f); only used for initial search value when use_zc is True"),
         ("m", c_double, "mass parameter in reduced Planck mass units; "
-                        "only used for initial search value of use_zc is True"),
+                        "only used for initial search value when use_zc is True"),
         ("theta_i", c_double, "phi/f initial field value"),
-        ("frac_lambda0", c_double, "fraction of dark energy in cosmologicla constant today (approximated as 1)"),
-        ("use_zc", c_bool, "solve for f, m to get specific critical reshidt zc and fde_zc"),
-        ("zc", c_double, "reshift of peak fractional early dark energy density"),
+        ("frac_lambda0", c_double, "fraction of dark energy in cosmological constant today (approximated as 1)"),
+        ("use_zc", c_bool, "solve for f, m to get specific critical redshift zc and fde_zc"),
+        ("zc", c_double, "redshift of peak fractional early dark energy density"),
         ("fde_zc", c_double, "fraction of early dark energy density to total at peak"),
         ("npoints", c_int, "number of points for background integration spacing"),
-        ("min_steps_per_osc", c_int, "minimumum number of steps per background oscillation scale"),
-        ("fde", AllocatableArrayDouble, "after initialized, the calculated backgroundearly dark energy "
+        ("min_steps_per_osc", c_int, "minimum number of steps per background oscillation scale"),
+        ("fde", AllocatableArrayDouble, "after initialized, the calculated background early dark energy "
                                         "fractions at sampled_a"),
         ("__ddfde", AllocatableArrayDouble)
     ]
@@ -198,7 +212,7 @@ class EarlyQuintessence(Quintessence):
         self.use_zc = use_zc
         if use_zc:
             if zc is None or fde_zc is None:
-                raise ValueError("must set zc and fde_zc if using use_zc")
+                raise ValueError("must set zc and fde_zc if using 'use_zc'")
             self.zc = zc
             self.fde_zc = fde_zc
 

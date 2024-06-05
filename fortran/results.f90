@@ -1329,7 +1329,7 @@
     class(lSamples) :: this
     class(CAMBdata), target :: State
     integer, intent(IN) :: lmin,max_l
-    integer lind, lvar, step, top, bot
+    integer lind, lvar, step, top, bot, lmin_log
     integer, allocatable :: ls(:)
     real(dl) AScale
 
@@ -1337,6 +1337,7 @@
     if (allocated(this%l)) deallocate(this%l)
     this%lmin = lmin
     this%use_spline_template = State%CP%use_cl_spline_template
+    lmin_log = State%CP%min_l_logl_sampling
     associate(Accuracy => State%CP%Accuracy)
         Ascale=State%scale/Accuracy%lSampleBoost
 
@@ -1457,14 +1458,14 @@
                         step=max(nint(50*Ascale),7)
                     end if
                     bot=ls(lind)+step
-                    top=min(5000,max_l)
+                    top=min(lmin_log,max_l)
 
                     do lvar = bot,top,step
                         lind=lind+1
                         ls(lind)=lvar
                     end do
 
-                    if (max_l > 5000) then
+                    if (max_l > lmin_log) then
                         !Should be pretty smooth or tiny out here
                         step=max(nint(400*Ascale),50)
                         lvar = ls(lind)
@@ -1488,7 +1489,7 @@
                     lind=lind+1
                     ls(lind)=max_l
                 end if
-                if (.not. State%flat .and. max_l<=5000) ls(lind-1)=int(max_l+ls(lind-2))/2
+                if (.not. State%flat .and. max_l<=lmin_log) ls(lind-1)=int(max_l+ls(lind-2))/2
                 !Not in flat case so interpolation table is the same when using lower l_max
             end if
         end if

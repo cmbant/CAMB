@@ -13,7 +13,7 @@ A. Lewis December 2016
 """
 
 import numpy as np
-import os
+from scipy.special import lpn as legendrep
 
 try:
     from .mathutils import gauss_legendre
@@ -21,11 +21,6 @@ except:
     # use np.polynomial.legendre if can't load fast native (so can use module without compiling camb)
     # Fortran version is much faster than current np.polynomial
     gauss_legendre = None
-
-if not os.environ.get('READTHEDOCS', None):
-    from scipy.special import lpn as legendreP
-else:
-    np.pi = 3.1415927  # needed to get docs right for np.pi/32 default argument
 
 _gauss_legendre_cache = {}
 
@@ -54,14 +49,14 @@ def legendre_funcs(lmax, x, m=(0, 2), lfacs=None, lfacs2=None, lrootfacs=None):
 
     :param lmax: maximum :math:`\ell`
     :param x: scalar value of :math:`\cos(\theta)` at which to evaluate
-    :param m: m values to calculate :math:`d_{m,n}`, etc as relevant
+    :param m: m values to calculate :math:`d_{m,n}`, etc. as relevant
     :param lfacs: optional pre-computed :math:`\ell(\ell+1)` float array
     :param lfacs2: optional pre-computed :math:`(\ell+2)*(\ell-1)` float array
     :param lrootfacs: optional pre-computed sqrt(lfacs*lfacs2) array
     :return: :math:`(P,P'),(d_{11},d_{-1,1}), (d_{20}, d_{22}, d_{2,-2})` as requested, where P starts
              at :math:`\ell=0`, but spin functions start at :math:`\ell=\ell_{\rm min}`
     """
-    allP, alldP = legendreP(lmax, x)
+    allP, alldP = legendrep(lmax, x)
     # Polarization functions all start at L=2
     fac1 = 1 - x
     fac2 = 1 + x
@@ -148,7 +143,7 @@ def cl2corr(cls, xvals, lmax=None):
 
 def gauss_legendre_correlation(cls, lmax=None, sampling_factor=1):
     r"""
-    Transform power specturm cls into correlation functions evaluated at the
+    Transform power spectrum cls into correlation functions evaluated at the
     roots of the Legendre polynomials for Gauss-Legendre quadrature. Returns correlation function array,
     evaluation points and weights.
     Result can be passed to corr2cl for accurate back transform.
@@ -218,7 +213,7 @@ def lensing_correlations(clpp, xvals, lmax=None):
     Cg2 = np.zeros(xvals.shape)
     llp1 = ls * (ls + 1)
     for i, x in enumerate(xvals):
-        P, dP = legendreP(lmax, x)
+        P, dP = legendrep(lmax, x)
         fac1 = 1 - x
         fac2 = 1 + x
         d_11 = fac1 * dP[1:] / llp1 + P[1:]

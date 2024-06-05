@@ -1,8 +1,5 @@
-#!/usr/bin/env python
-
 import sys
 import subprocess
-import re
 import os
 import shutil
 from typing import Any
@@ -10,9 +7,8 @@ from setuptools import setup
 from setuptools.command.build_py import build_py
 from setuptools.command.develop import develop
 from setuptools.command.install import install
-from distutils.command.clean import clean
-from distutils.core import Command
 from wheel.bdist_wheel import bdist_wheel as _bdist_wheel
+from setuptools import Command
 
 file_dir = os.path.abspath(os.path.dirname(__file__))
 os.chdir(file_dir)
@@ -24,24 +20,6 @@ if _compile.is_windows:
     DLLNAME = 'cambdll.dll'
 else:
     DLLNAME = 'camblib.so'
-
-
-def get_long_description():
-    with open(os.path.join('docs', 'README_pypi.rst')) as f:
-        return f.read()
-
-
-def find_version():
-    version_file = open(os.path.join(file_dir, 'camb', '__init__.py')).read()
-    version_match = re.search(r"^__version__ = ['\"]([^'\"]*)['\"]", version_file, re.M)
-    if version_match:
-        version = version_match.group(1)
-        commit = os.getenv('TRAVIS_BUILD_NUMBER')
-        if commit and not os.getenv('TRAVIS_TAG'):
-            version += '.' + commit
-        return version
-    raise RuntimeError("Unable to find version string.")
-
 
 def get_forutils():
     fpath = os.getenv('FORUTILSPATH')
@@ -261,14 +239,13 @@ class DevelopLibraryCluster(develop):
         develop.run(self)
 
 
-class CleanLibrary(clean):
+class CleanLibrary(MakeLibrary):
 
     def run(self):
         if _compile.is_windows:
             clean_dir(os.path.join(file_dir, 'fortran', 'WinDLL'), rmdir=True)
         else:
             subprocess.call("make clean", shell=True, cwd=os.path.join(file_dir, 'fortran'))
-        clean.run(self)
 
 
 class BDistWheelNonPure(_bdist_wheel):
@@ -286,18 +263,6 @@ class InstallPlatlib(install):
 
 if __name__ == "__main__":
     setup(name=os.getenv('CAMB_PACKAGE_NAME', 'camb'),
-          version=find_version(),
-          description='Code for Anisotropies in the Microwave Background',
-          long_description=get_long_description(),
-          author='Antony Lewis',
-          url="https://camb.info/",
-          project_urls={
-              'Documentation': 'https://camb.readthedocs.io',
-              'Source': 'https://github.com/cmbant/camb',
-              'Tracker': 'https://github.com/cmbant/camb/issues',
-              'Reference': 'https://arxiv.org/abs/astro-ph/9911177',
-              'Licensing': 'https://github.com/cmbant/CAMB/blob/master/LICENCE.txt'
-          },
           zip_safe=False,
           cmdclass={'build_py': SharedLibrary, 'build_cluster': SharedLibraryCluster,
                     'make': MakeLibrary, 'make_cluster': MakeLibraryCluster, 'clean': CleanLibrary,
@@ -308,26 +273,5 @@ if __name__ == "__main__":
           package_data={'camb': [DLLNAME, 'HighLExtrapTemplate_lenspotentialCls.dat',
                                  'PArthENoPE_880.2_marcucci.dat', 'PArthENoPE_880.2_standard.dat',
                                  'PRIMAT_Yp_DH_Error.dat', 'PRIMAT_Yp_DH_ErrorMC_2021.dat']},
-          test_suite='camb.tests',
-          entry_points={
-              'console_scripts': [
-                  'camb=camb._command_line:run_command_line',
-              ]},
-          classifiers=[
-              'Development Status :: 5 - Production/Stable',
-              'Operating System :: OS Independent',
-              'Intended Audience :: Science/Research',
-              'Topic :: Scientific/Engineering :: Astronomy',
-              'Programming Language :: Python :: 3',
-              'Programming Language :: Python :: 3.6',
-              'Programming Language :: Python :: 3.7',
-              'Programming Language :: Python :: 3.8',
-              'Programming Language :: Python :: 3.9',
-              'Programming Language :: Python :: 3.10',
-              'Programming Language :: Python :: 3.11'
-          ],
-          keywords=['cosmology', 'CAMB', 'CMB'],
-          install_requires=['scipy>=1.0', 'sympy>=1.0'],
-          python_requires='>=3.6',
-          has_ext_modules=lambda: True
+          test_suite='camb.tests'
           )

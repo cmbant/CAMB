@@ -3,7 +3,6 @@ import os
 import struct
 import platform
 import re
-from pkg_resources import parse_version
 
 is_windows = platform.system() == "Windows"
 
@@ -38,6 +37,7 @@ def check_ifort():
 
 
 def check_gfortran(version=gfortran_min, msg=False, retry=False):
+    from packaging.version import parse as parse_version
     global compiler_environ
     gfortran_version = get_gfortran_version()
     version = str(version)
@@ -62,13 +62,17 @@ def check_gfortran(version=gfortran_min, msg=False, retry=False):
                         ver = x.split('-')[1]
                         if parse_version(best_version) <= parse_version(ver):
                             best_version = ver
-                            newpath = os.path.join(mingw, x, 'mingw64', 'bin')
-                bin = os.path.join(mingw, 'bin')
-                if os.path.exists(bin):
-                    ver = get_gfortran_version('"' + os.path.join(bin, 'gfortran') + '"')
+                            newpath = os.path.join(mingw, x)
+                            if os.path.exists(os.path.join(newpath, 'mingw64', 'bin')):
+                                newpath = os.path.join(newpath, 'mingw64', 'bin')
+                            elif os.path.exists(os.path.join(newpath, 'bin')):
+                                newpath = os.path.join(newpath, 'bin')
+                bin_path = os.path.join(mingw, 'bin')
+                if os.path.exists(bin_path):
+                    ver = get_gfortran_version('"' + os.path.join(bin_path, 'gfortran') + '"')
                     if ver and parse_version(best_version) <= parse_version(ver):
                         best_version = ver
-                        newpath = bin
+                        newpath = bin_path
         if newpath:
             if os.path.exists(os.path.join(newpath, 'gfortran.exe')):
                 if not compiler_environ["PATH"].startswith(newpath):

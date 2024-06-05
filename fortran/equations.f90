@@ -35,6 +35,9 @@
     implicit none
     public
 
+    ! Equations and relation to synchronous gauge variables documented in the notes:
+    ! https://cosmologist.info/notes/CAMB.pdf
+
     !Description of this file. Change if you make modifications.
     character(LEN=*), parameter :: Eqns_name = 'cdm_gauge'
 

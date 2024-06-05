@@ -14,25 +14,6 @@ rm -Rf dist/*
 rm -Rf build/*
 rm -f camb/*.so
 
-if [[ $TRAVIS_REPO_SLUG == "cmbant/CAMB" && $PYPI_DIST == "true" && "$TRAVIS_PULL_REQUEST" == "false" ]]
-then
- case "$TRAVIS_BRANCH" in
- devel*) export CAMB_PACKAGE_NAME=camb_devel ;;
-    *) export CAMB_PACKAGE_NAME=camb
- esac
- python setup.py sdist
- pip install twine
- twine upload -r pypitest --repository-url https://test.pypi.org/legacy/ dist/* || true
-#too much delay on test.pypi to reliably immediately test install
-# mkdir -p test_dir
-# pushd test_dir
-# pip install --index-url https://test.pypi.org/simple/ $CAMB_PACKAGE_NAME
-# python -c "import camb; print(camb.__version__)"
-# python -m unittest tests.camb_test
-# pip uninstall -y $CAMB_PACKAGE_NAME
-# popd
-fi
-
 case "$TRAVIS_BRANCH" in
  devel*)
        BRANCH="master"

@@ -1,4 +1,3 @@
-import os
 import os.path as osp
 import sys
 import platform
@@ -48,50 +47,38 @@ class IfortGfortranLoader(ctypes.CDLL):
         return res
 
 
-mock_load = os.environ.get('CAMB_MOCK_LOAD', None)
-if mock_load:
-    # noinspection PyCompatibility
-    from unittest.mock import MagicMock
+if not osp.isfile(CAMBL):
+    sys.exit(
+        'Library file %s does not exist.\nMake sure you have installed or built the camb package '
+        '(e.g. using "python setup.py make"); or remove any old conflicting installation and install again.'
+        % CAMBL)
 
-    camblib = MagicMock()
-    import_property = MagicMock()
-else:
+camblib = ctypes.LibraryLoader(IfortGfortranLoader).LoadLibrary(CAMBL)
 
-    if not osp.isfile(CAMBL):
-        sys.exit(
-            'Library file %s does not exist.\nMake sure you have installed or built the camb package '
-            '(e.g. using "python setup.py make"); or remove any old conflicting installation and install again.'
-            % CAMBL)
-
-    camblib = ctypes.LibraryLoader(IfortGfortranLoader).LoadLibrary(CAMBL)
-
-    try:
-        c_int.in_dll(camblib, "handles_mp_set_cls_template_")
-        gfortran = False
-    except Exception:
-        pass
+try:
+    c_int.in_dll(camblib, "handles_mp_set_cls_template_")
+    gfortran = False
+except Exception:
+    pass
 
 
-    class _dll_value:
-        __slots__ = ['f']
+class _dll_value:
+    __slots__ = ['f']
 
-        def __init__(self, f):
-            self.f = f
+    def __init__(self, f):
+        self.f = f
 
-        def __get__(self, instance, owner):
-            return self.f.value
+    def __get__(self, instance, owner):
+        return self.f.value
 
-        def __set__(self, instance, value):
-            self.f.value = value
+    def __set__(self, instance, value):
+        self.f.value = value
 
 
-    def import_property(tp, module, func):
-        if gfortran:
-            f = tp.in_dll(camblib, "__%s_MOD_%s" % (module.lower(), func.lower()))
-        else:
-            f = tp.in_dll(camblib, "%s_mp_%s_" % (module.lower(), func.lower()))
-
-        return _dll_value(f)
+def import_property(tp, module, func):
+    name = "__%s_MOD_%s" if gfortran else "%s_mp_%s_"
+    f = tp.in_dll(camblib, name % (module.lower(), func.lower()))
+    return _dll_value(f)
 
 
 def lib_import(module_name, class_name, func_name, restype=None):
@@ -122,8 +109,6 @@ def set_cl_template_file(cl_template_file=None):
 
 
 def check_fortran_version(version):
-    if mock_load:
-        return
     func = camblib.__camb_MOD_camb_getversion
     func.argtypes = [ctypes.c_char_p, ctypes.c_long]
     s = ctypes.create_string_buffer(33)
@@ -189,7 +174,7 @@ class _AllocatableObject(FortranAllocatable):
     def set_allocatable(self, instance, name):
         if instance and not isinstance(instance, self._baseclass):
             raise TypeError(
-                '%s expects object that is an instance of %s' % (name, self._baseclass.__name__))
+                '%s expects an object that is an instance of %s' % (name, self._baseclass.__name__))
         _set_allocatable(byref(self), byref(instance.fortran_self) if instance else None)
 
 
@@ -202,7 +187,7 @@ def AllocatableObject(cls=None):
         cls = F2003Class
     if not issubclass(cls, F2003Class):
         raise ValueError("AllocatableObject type must be descended from F2003Class")
-    res = _class_cache.get(cls, None)
+    res = _class_cache.get(cls)
     if res:
         return res
     else:
@@ -221,7 +206,7 @@ class _AllocatableArray(FortranAllocatable):  # member corresponding to allocata
         if size:
             return ctypes.cast(_reuse_pointer, POINTER(self._ctype * size)).contents
         else:
-            return np.empty(0)
+            return np.empty(0, dtype=self._dtype)
 
     def set_allocatable(self, array, name):
         self._set_allocatable_1D_array(byref(self), np.array(array, dtype=self._dtype),
@@ -243,13 +228,17 @@ class _ArrayOfAllocatable(FortranAllocatable):
     def __len__(self):
         return len(self.allocatables)
 
-    def __repr__(self):
+    def __str__(self):
         s = ''
         for i in range(len(self.allocatables)):
             item = self[i]
-            content = item._as_string() if isinstance(item, CAMB_Structure) else repr(item)
-            s += ('%s: <%s>\n  ' % (i, item.__class__.__name__) + content.replace('\n', '\n  ')).strip(' ')
+            content = item._as_string() if isinstance(item, CAMB_Structure) else str(item)
+            s += ('%s: <%s>\n  ' % (i, item.__class__.__name__)
+                  + content.replace('\n', '\n  ')).strip(' ')
         return s
+
+    def __repr__(self):
+        return repr(list(self))
 
 
 def _make_array_class(baseclass, size):
@@ -285,7 +274,7 @@ class _AllocatableObjectArray(FortranAllocatable):
         for i, instance in enumerate(array):
             if not isinstance(instance, self._baseclass):
                 raise TypeError(
-                    '%s expects object that is an instance of %s' % (name, self._baseclass.__name__))
+                    '%s expects an object that is an instance of %s' % (name, self._baseclass.__name__))
             pointers[i] = instance.fortran_self
 
         self._set_allocatable_object_1D_array(byref(self), byref(pointers), byref(c_int(len(array))))
@@ -307,7 +296,7 @@ def AllocatableObjectArray(cls=None):
 
 
 class AllocatableArrayInt(_AllocatableArray):
-    _dtype = int
+    _dtype = np.int32
     _ctype = c_int
 
 
@@ -621,8 +610,49 @@ class CAMB_Structure(Structure, metaclass=CAMBStructureMeta):
                     s += field_name + ' = ' + str(obj) + '\n'
         return s
 
+    @classmethod
+    def dict(cls, state):
+        """
+        Make an instance of the class from a dictionary of field values (used to restore from repr)
+
+        :param state: dictionary of values
+        :return: new instance
+        """
+        c = cls.__new__(cls)
+        c.__setstate__(state)
+        return c
+
     def __repr__(self):
+        return f"{self.__class__.__module__}.{self.__class__.__name__}.dict(" + repr(self.__getstate__()) + ")"
+
+    def _repr_pretty_(self, p, cycle):
+        if cycle:
+            p.text(self.__class__.__name__ + '(...)')
+        else:
+            p.text(str(self))
+
+    def __str__(self):
         return 'class: <%s>\n ' % self.__class__.__name__ + self._as_string().replace('\n', '\n ')
+
+    def __reduce__(self):
+        return self.__class__, (), self.__getstate__()
+
+    def __getstate__(self) -> dict:
+        state = {}
+        for field_name, field_type in self.get_all_fields():
+            obj = getattr(self, field_name)
+            if isinstance(obj, (ctypes.Array, np.ndarray, _ArrayOfAllocatable)):
+                state[field_name] = list(obj[:len(obj)])
+            elif isinstance(obj, ctypes.c_void_p):
+                if obj.value is not None:
+                    raise CAMBFortranError("Cannot save class with general pointer")
+            else:
+                state[field_name] = obj
+        return state
+
+    def __setstate__(self, state):
+        for key, value in state.items():
+            setattr(self, key, value)
 
 
 class _FortranSelf:
@@ -662,9 +692,10 @@ class F2003Class(CAMB_Structure):
         return cls._new_copy()
 
     def __init__(self, **kwargs):
-        unknowns = set(kwargs) - self.get_valid_field_names()
-        if unknowns:
-            raise ValueError('Unknown argument(s): %s' % unknowns)
+        if kwargs:
+            unknowns = set(kwargs) - self.get_valid_field_names()
+            if unknowns:
+                raise ValueError('Unknown argument(s): %s' % unknowns)
         super().__init__(**kwargs)
 
     @classmethod
@@ -688,9 +719,9 @@ class F2003Class(CAMB_Structure):
 
     def copy(self):
         """
-        Make independent copy of this object.
+        Make an independent copy of this object.
 
-        :return: deep copy of self
+        :return: a deep copy of self
         """
         return self._new_copy(source=self)
 
@@ -735,7 +766,7 @@ class F2003Class(CAMB_Structure):
 
         :param instance: instance of the same class to replace this instance with
         """
-        if type(instance) != type(self):
+        if type(instance) is not type(self):
             raise TypeError(
                 'Cannot assign non-identical types (%s to %s, non-allocatable)' % (type(instance), type(self)))
         self.call_method('Replace', extra_args=[POINTER(f_pointer)], allow_inherit=False,
@@ -759,8 +790,6 @@ class F2003Class(CAMB_Structure):
 # Decorator to get function to get class pointers to each class type, and build index of classes
 # that allocatables could have
 def fortran_class(cls, optional=False):
-    if mock_load:
-        return cls
     class_module = getattr(cls, "_fortran_class_module_", None)
     if not class_module:
         msg = "F2003Class %s must define _fortran_class_module_" % cls.__name__
