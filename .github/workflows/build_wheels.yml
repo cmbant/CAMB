@@ -9,7 +9,7 @@ jobs:
     strategy:
       matrix:
         #
-        os: [ macos-13, macos-14, ubuntu-latest, windows-latest ]
+        os: [ macos-12, macos-13, macos-14, ubuntu-latest, windows-latest ]
 
     steps:
       - uses: awvwgk/setup-fortran@main
@@ -42,11 +42,21 @@ jobs:
           CIBW_SKIP: pp*
           #CIBW_TEST_REQUIRES: scipy sympy
           #CIBW_TEST_COMMAND: python -m unittest camb.tests.camb_test
-          CIBW_BUILD_VERBOSITY: 2
+          CIBW_BUILD_VERBOSITY: 1
+        run: python -m cibuildwheel --output-dir wheelhouse
+
+      - name: Build macos-12 wheels
+        if: matrix.os == 'macos-12'
+        env:
+          # Disable building for PyPy and 32bit.
+          MACOSX_DEPLOYMENT_TARGET: 11
+          CIBW_BUILD: cp311-*
+          CIBW_SKIP: pp*
+          CIBW_BUILD_VERBOSITY: 1
         run: python -m cibuildwheel --output-dir wheelhouse
 
       - name: Build wheels
-        if: matrix.os != 'macos-13'
+        if: matrix.os != 'macos-13' && matrix.os != 'macos-12'
         env:
           MACOSX_DEPLOYMENT_TARGET: 14
           # Disable building for PyPy and 32bit.
@@ -54,7 +64,7 @@ jobs:
           CIBW_SKIP: pp* *-win32 *-manylinux_i686 *musllinux*
           #CIBW_TEST_REQUIRES: scipy sympy
           #CIBW_TEST_COMMAND: python -m unittest camb.tests.camb_test
-          CIBW_BUILD_VERBOSITY: 2
+          CIBW_BUILD_VERBOSITY: 1
         run: python -m cibuildwheel --output-dir wheelhouse
 
       - uses: actions/upload-artifact@v4
