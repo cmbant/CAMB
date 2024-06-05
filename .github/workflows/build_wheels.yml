@@ -16,7 +16,7 @@ jobs:
         id: setup-fortran
         with:
           compiler: gcc
-          version: 12
+          version: 11
 
       - run: ${{ env.FC }} --version
         env:
@@ -49,7 +49,7 @@ jobs:
         if: matrix.os == 'macos-12'
         env:
           # Disable building for PyPy and 32bit.
-          MACOSX_DEPLOYMENT_TARGET: 11
+          MACOSX_DEPLOYMENT_TARGET: 12
           CIBW_BUILD: cp311-*
           CIBW_SKIP: pp*
           CIBW_BUILD_VERBOSITY: 1
