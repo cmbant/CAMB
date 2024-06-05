@@ -30,6 +30,16 @@ jobs:
         with:
           python-version: '3.10'
 
+      - name: Set MacOS Deployment Target
+        if: startsWith(matrix.os, 'macos-13')
+        run: |
+          echo "export MACOSX_DEPLOYMENT_TARGET=10.13" >> $GITHUB_ENV
+
+      - name: Set MacOS Deployment Target
+        if: startsWith(matrix.os, 'macos-14')
+        run: |
+          echo "export MACOSX_DEPLOYMENT_TARGET=10.14" >> $GITHUB_ENV
+
       - name: Install cibuildwheel
         run: python -m pip install cibuildwheel==2.18.1
 
@@ -42,7 +52,6 @@ jobs:
           #CIBW_TEST_REQUIRES: scipy sympy
           #CIBW_TEST_COMMAND: python -m unittest camb.tests.camb_test
           CIBW_BUILD_VERBOSITY: 2
-          MACOSX_DEPLOYMENT_TARGET: ${{ if startsWith(matrix.os, 'macos-13') }}10.13${{ else }}${{ 10.14 }}{{ endif }}
 
       - uses: actions/upload-artifact@v4
         with:
