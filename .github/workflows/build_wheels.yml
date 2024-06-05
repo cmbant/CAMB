@@ -42,7 +42,7 @@ jobs:
           #CIBW_TEST_REQUIRES: scipy sympy
           #CIBW_TEST_COMMAND: python -m unittest camb.tests.camb_test
           CIBW_BUILD_VERBOSITY: 2
-          MACOSX_DEPLOYMENT_TARGET: 10.13
+          MACOSX_DEPLOYMENT_TARGET: ${{ if startsWith(matrix.os, 'macos-13') }}10.13${{ else }}${{ 10.14 }}{{ endif }}
 
       - uses: actions/upload-artifact@v4
         with:
