@@ -1,4 +1,4 @@
-name: Build
+name: Wheels
 
 on: [ push, pull_request ]
 
@@ -72,3 +72,50 @@ jobs:
           name: wheels-${{ matrix.os }}
           path: |
             wheelhouse/*.whl
+
+  build-sdist-and-upload:
+      runs-on: ubuntu-latest
+      needs: ['build_wheels']
+      permissions:
+        id-token: write
+
+      steps:
+        - uses: actions/checkout@v4
+          with:
+            submodules: recursive
+
+        - name: Set up Python
+          uses: actions/setup-python@v5
+          with:
+            python-version: "3.10"
+            cache: pip
+            cache-dependency-path: "setup.py"
+
+        - name: Install dependencies
+          run: |
+            python -m pip install -U pip
+            python -m pip install -U build twine
+
+        - name: Download wheels from build artifacts
+          uses: actions/download-artifact@v4
+          with:
+            pattern: wheels-*
+            merge-multiple: true
+            path: dist-wheels/
+
+        - name: Build package
+          run: |
+            python -m build --sdist
+            twine check --strict dist/*
+            twine check --strict dist-wheels/*
+
+        - name: Publish wheels to PyPI
+          uses: pypa/gh-action-pypi-publish@release/v1
+          with:
+            repository-url: https://test.pypi.org/legacy/
+            packages-dir: dist-wheels/
+
+        - name: Publish sdist to PyPI
+          uses: pypa/gh-action-pypi-publish@release/v1
+          with:
+            repository-url: https://test.pypi.org/legacy/
