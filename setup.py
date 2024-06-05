@@ -3,7 +3,8 @@ import subprocess
 import os
 import shutil
 from typing import Any
-from setuptools import setup, Extension, Command
+from setuptools import setup, Command, Extension
+from setuptools.command.build_ext import build_ext
 from setuptools.command.build_py import build_py
 from setuptools.command.develop import develop
 from setuptools.command.install import install
@@ -250,15 +251,26 @@ class CleanLibrary(MakeLibrary):
 
 class BDistWheelNonPure(_bdist_wheel):
     def finalize_options(self):
-        _bdist_wheel.finalize_options(self)
+        super().finalize_options()
         self.root_is_pure = False
+
+    def get_tag(self):
+        _, _, plat = super().get_tag()
+        return "py3", "none", plat
 
 
 class InstallPlatlib(install):
     def finalize_options(self):
-        install.finalize_options(self)
+        super().finalize_options()
         if self.distribution.has_ext_modules():
             self.install_lib = self.install_platlib
+
+
+class BuildExtCommand(build_ext):
+    """Ensure built extensions are added to the correct path in the wheel."""
+
+    def run(self):
+        pass
 
 
 if __name__ == "__main__":
@@ -267,17 +279,13 @@ if __name__ == "__main__":
           cmdclass={'build_py': SharedLibrary, 'build_cluster': SharedLibraryCluster,
                     'make': MakeLibrary, 'make_cluster': MakeLibraryCluster, 'clean': CleanLibrary,
                     'develop': DevelopLibrary, 'develop_cluster': DevelopLibraryCluster,
-                    'bdist_wheel': BDistWheelNonPure, 'install': InstallPlatlib},
+                    'bdist_wheel': BDistWheelNonPure, 'install': InstallPlatlib,
+                    "build_ext": BuildExtCommand},
+          ext_modules=[Extension("camb.camblib", [])],
           packages=['camb', 'camb.tests'],
           platforms="any",
           package_data={'camb': [DLLNAME, 'HighLExtrapTemplate_lenspotentialCls.dat',
                                  'PArthENoPE_880.2_marcucci.dat', 'PArthENoPE_880.2_standard.dat',
                                  'PRIMAT_Yp_DH_Error.dat', 'PRIMAT_Yp_DH_ErrorMC_2021.dat']},
-          ext_modules=[
-              Extension(
-                  name='your.external.module',
-                  sources=[]
-              )
-          ],
           test_suite='camb.tests'
           )
