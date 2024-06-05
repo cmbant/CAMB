@@ -16,7 +16,7 @@ jobs:
         id: setup-fortran
         with:
           compiler: gcc
-          version: 11
+          version: 12
 
       - run: ${{ env.FC }} --version
         env:
