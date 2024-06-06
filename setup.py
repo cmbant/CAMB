@@ -279,7 +279,6 @@ def find_version():
     version_match = re.search(r"^__version__ = ['\"]([^'\"]*)['\"]", version_file, re.M)
     if version_match:
         version = version_match.group(1)
-        print("Run number %s" % os.getenv('GITHUB_RUN_NUMBER'))
         commit = os.getenv('GITHUB_RUN_NUMBER')
         if commit and not os.getenv('GITHUB_REF', '').startswith('refs/tags/'):
             version += '.' + commit

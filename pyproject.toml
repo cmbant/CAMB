@@ -45,3 +45,6 @@ Source = "https://github.com/cmbant/camb"
 Tracker = "https://github.com/cmbant/camb/issues"
 Licensing = "https://github.com/cmbant/camb/blob/master/LICENCE.txt"
 
+[tool.project.metadata]
+name = "camb"
+version = { python = 'import setup; setup.find_version()' }
