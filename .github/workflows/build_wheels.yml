@@ -6,7 +6,7 @@ on: [ push, pull_request ]
 jobs:
   build_wheels:
     name: Build wheels on ${{ matrix.os }}
-    if: ${{ startsWith(github.ref, 'refs/tags/') || contains(github.event.commits.*.message, '[pypi]') }}
+    if: ${{ startsWith(github.ref, 'refs/tags/') || contains(github.event.head_commit.message, '[pypi]') }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
