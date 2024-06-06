@@ -8,7 +8,7 @@ authors = [
     { name = "Antony Lewis" },
 ]
 description = "Code for Anisotropies in the Microwave Background"
-keywords= ['cosmology', 'CAMB', 'CMB']
+keywords = ['cosmology', 'CAMB', 'CMB']
 readme = "docs/README_pypi.rst"
 license = { file = "LICENCE.txt" }
 dynamic = ["version"]
@@ -45,5 +45,3 @@ Source = "https://github.com/cmbant/camb"
 Tracker = "https://github.com/cmbant/camb/issues"
 Licensing = "https://github.com/cmbant/camb/blob/master/LICENCE.txt"
 
-[tool.setuptools.dynamic]
-version = { attr = "camb.__version__" }
