@@ -274,21 +274,8 @@ class BuildExtCommand(build_ext):
         pass
 
 
-def find_version():
-    version_file = open(os.path.join(file_dir, 'camb', '__init__.py')).read()
-    version_match = re.search(r"^__version__ = ['\"]([^'\"]*)['\"]", version_file, re.M)
-    if version_match:
-        version = version_match.group(1)
-        commit = os.getenv('GITHUB_RUN_NUMBER')
-        if commit and not os.getenv('GITHUB_REF', '').startswith('refs/tags/'):
-            version += '.' + commit
-        return version
-    raise RuntimeError("Unable to find version string.")
-
-
 if __name__ == "__main__":
     setup(name=os.getenv('CAMB_PACKAGE_NAME', 'camb'),
-          version=find_version(),
           zip_safe=False,
           cmdclass={'build_py': SharedLibrary, 'build_cluster': SharedLibraryCluster,
                     'make': MakeLibrary, 'make_cluster': MakeLibraryCluster, 'clean': CleanLibrary,
