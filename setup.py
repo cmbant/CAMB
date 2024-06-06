@@ -181,7 +181,7 @@ def make_library(cluster=False):
         get_forutils()
         print("Compiling source...")
         subprocess.call("make python PYCAMB_OUTPUT_DIR=%s/camb/ CLUSTER_SAFE=%d" %
-                        (pycamb_path, int(cluster)), shell=True)
+                        (pycamb_path, int(cluster if not os.getenv("GITHUB_ACTIONS") else 1)), shell=True)
         subprocess.call("chmod 755 %s" % lib_file, shell=True)
 
     if not os.path.isfile(os.path.join(pycamb_path, 'camb', DLLNAME)):
@@ -276,7 +276,14 @@ class BuildExtCommand(build_ext):
 
 def find_version():
     version_file = open(os.path.join(file_dir, 'camb', '__init__.py')).read()
-    return re.search(r"^__version__ = ['\"]([^'\"]*)['\"]", version_file, re.M).group(1)
+    version_match = re.search(r"^__version__ = ['\"]([^'\"]*)['\"]", version_file, re.M)
+    if version_match:
+        version = version_match.group(1)
+        commit = os.getenv('GITHUB_RUN_NUMBER')
+        if commit and not os.getenv('TRAVIS_TAG'):
+            version += '.' + commit
+        return version
+    raise RuntimeError("Unable to find version string.")
 
 
 if __name__ == "__main__":

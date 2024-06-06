@@ -2,6 +2,8 @@ name: Wheels
 
 on: [ push, pull_request ]
 
+if: ${{ startsWith(github.ref, 'refs/tags/') || contains(github.event.commits.*.message, '[pypi]') }}
+
 jobs:
   build_wheels:
     name: Build wheels on ${{ matrix.os }}
@@ -39,8 +41,6 @@ jobs:
           MACOSX_DEPLOYMENT_TARGET: 13
           CIBW_BUILD: cp311-*
           CIBW_SKIP: pp*
-          #CIBW_TEST_REQUIRES: scipy sympy
-          #CIBW_TEST_COMMAND: python -m unittest camb.tests.camb_test
           CIBW_BUILD_VERBOSITY: 1
         run: python -m cibuildwheel --output-dir wheelhouse
 
@@ -109,13 +109,25 @@ jobs:
             twine check --strict dist/*
             twine check --strict dist-wheels/*
 
-        - name: Publish wheels to PyPI
+        - name: Publish wheels to PyPI Test
+          if: ${{ !startsWith(github.ref, 'refs/tags/') }}
           uses: pypa/gh-action-pypi-publish@release/v1
           with:
             repository-url: https://test.pypi.org/legacy/
             packages-dir: dist-wheels/
 
-        - name: Publish sdist to PyPI
+        - name: Publish sdist to PyPI Test
+          if: ${{ !startsWith(github.ref, 'refs/tags/') }}
           uses: pypa/gh-action-pypi-publish@release/v1
           with:
             repository-url: https://test.pypi.org/legacy/
+
+        - name: Publish wheels to PyPI
+          if: ${{ startsWith(github.ref, 'refs/tags/') }}
+          uses: pypa/gh-action-pypi-publish@release/v1
+          with:
+            packages-dir: dist-wheels/
+
+        - name: Publish sdist to PyPI
+          if: ${{ startsWith(github.ref, 'refs/tags/') }}
+          uses: pypa/gh-action-pypi-publish@release/v1
