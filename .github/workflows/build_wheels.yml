@@ -10,7 +10,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ macos-12, macos-13, macos-14, ubuntu-latest, windows-latest ]
+        os: [ macos-11, macos-12, macos-13, macos-14, ubuntu-latest, windows-latest ]
 
     steps:
       - uses: awvwgk/setup-fortran@main
@@ -29,7 +29,7 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: '3.6'
 
       - name: Install cibuildwheel
         run: python -m pip install cibuildwheel==2.18.1
@@ -54,8 +54,16 @@ jobs:
           CIBW_BUILD_VERBOSITY: 1
         run: python -m cibuildwheel --output-dir wheelhouse
 
+      - name: Build macos-11 wheels
+        if: matrix.os == 'macos-11'
+        env:
+          CIBW_BUILD: cp311-*
+          CIBW_SKIP: pp*
+          CIBW_BUILD_VERBOSITY: 2
+        run: python -m cibuildwheel --output-dir wheelhouse
+
       - name: Build wheels
-        if: matrix.os != 'macos-13' && matrix.os != 'macos-12'
+        if: matrix.os != 'macos-13' && matrix.os != 'macos-12' && matrix.os != 'macos-11'
         env:
           MACOSX_DEPLOYMENT_TARGET: 14
           # Disable building for PyPy and 32bit.
