@@ -10,8 +10,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ macos-11 ]
-#        os: [ macos-11, macos-12, macos-13, macos-14, ubuntu-latest, windows-latest ]
+        os: [ macos-11, macos-12, macos-13, macos-14, ubuntu-latest, windows-latest ]
 
     steps:
       - uses: awvwgk/setup-fortran@main
@@ -56,6 +55,7 @@ jobs:
       - name: Build macos-11 wheels
         if: matrix.os == 'macos-11'
         env:
+          MACOSX_DEPLOYMENT_TARGET: 11
           CIBW_BUILD: cp311-*
           CIBW_SKIP: pp*
           CIBW_BUILD_VERBOSITY: 2
