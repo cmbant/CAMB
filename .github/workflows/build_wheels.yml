@@ -9,9 +9,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ macos-13-xlarge ]
-
-    #        os: [ macos-11, macos-12, macos-13, macos-13-xlarge, macos-14, ubuntu-latest, windows-latest ]
+        os: [ macos-11, macos-12, macos-13, macos-13-xlarge, macos-14, ubuntu-latest, windows-latest ]
 
     steps:
       - uses: awvwgk/setup-fortran@main
