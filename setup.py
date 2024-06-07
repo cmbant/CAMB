@@ -2,7 +2,6 @@ import sys
 import subprocess
 import os
 import shutil
-import re
 from typing import Any
 from setuptools import setup, Command, Extension
 from setuptools.command.build_ext import build_ext
