@@ -15,16 +15,16 @@ jobs:
 
     steps:
       - uses: awvwgk/setup-fortran@main
+        if: matrix.os == 'windows-latest'
         id: setup-fortran
         with:
           compiler: gcc
           version: 11
 
-      - run: which gfortran-11
+      - run: ln -s $(which gfortran-11) /usr/local/bin/gfortran
+        if: matrix.os != 'windows-latest'
 
-      - run: ${{ env.FC }} --version
-        env:
-          FC: ${{ steps.setup-fortran.outputs.fc }}
+      - run: gfortran --version
 
       - uses: actions/checkout@v4
         with:
