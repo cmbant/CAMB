@@ -45,4 +45,4 @@ Tracker = "https://github.com/cmbant/camb/issues"
 Licensing = "https://github.com/cmbant/camb/blob/master/LICENCE.txt"
 
 [tool.setuptools.dynamic]
-version = {attr = "camb.__version__"}
+version = { attr = "camb.__version__" }
