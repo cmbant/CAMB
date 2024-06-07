@@ -45,7 +45,7 @@ This includes in Jupyter notebooks; just re-start the kernel or use::
     import IPython
     IPython.Application.instance().kernel.do_shutdown(True)
 
-If you want to automamatically rebuild the library from Jupyter you can do something like this::
+If you want to automatically rebuild the library from Jupyter you can do something like this::
 
     import subprocess
     import sys

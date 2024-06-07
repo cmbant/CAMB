@@ -151,4 +151,4 @@ jobs:
         run: python -m pip install -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ camb
 
       - name: test
-        run: time python -m unittest camb.tests.camb_test
+        run: python -m unittest camb.tests.camb_test

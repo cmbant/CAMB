@@ -21,17 +21,17 @@ If you want to work on the code from `GitHub <https://github.com/cmbant/camb>`_,
     pip install -e ./CAMB [--user]
 
 You will need ifort or gfortran 6 or higher installed (and on your path) to compile; see :ref:`fortran-compilers` for
-compiler installation details if needed. A compiled library for Windows is also provided, and is used if no
-gfortran installation is found on Windows machines. If you have gfortran installed, "python setup.py make" will build
+compiler installation details if needed. If you have gfortran installed, "python setup.py make" will build
 the Fortran library on all systems (including Windows without directly using a Makefile), and can be used to update
 a source installation after changes or pulling an updated version.
 
+The standard pip installation includes binary pre-compiled code, so no need for a Fortran compiler
+(unless you want to use custom sources/symbolic compilation features).
 Anaconda users can also install from conda-forge, best making a new clean environment using::
 
-  conda create -n camb -c conda-forge python=3.9 camb
+  conda create -n camb -c conda-forge python=3.11 camb
   activate camb
 
-with no need for a Fortran compiler (unless you want to use custom sources/symbolic compilation features).
 Check that conda installs the latest version, if not try installing
 in a new clean conda environment as above.
 
