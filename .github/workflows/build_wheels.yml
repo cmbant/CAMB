@@ -60,7 +60,7 @@ jobs:
         run: python -m cibuildwheel --output-dir wheelhouse
 
       - name: Build wheels
-        if: matrix.os == 'macos-14' && matrix.os == 'ubuntu-latest' && matrix.os == 'windows-latest'
+        if: matrix.os == 'macos-14' || matrix.os == 'ubuntu-latest' || matrix.os == 'windows-latest'
         env:
           MACOSX_DEPLOYMENT_TARGET: 14
           CIBW_BUILD: cp311-*
@@ -135,3 +135,20 @@ jobs:
       - name: Publish sdist to PyPI
         if: ${{ startsWith(github.ref, 'refs/tags/') }}
         uses: pypa/gh-action-pypi-publish@release/v1
+
+  test_wheels:
+    name: Test wheels on ${{ matrix.os }}
+    if: contains(github.event.head_commit.message, '[test_pypi]')
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ macos-11, macos-12, macos-13, macos-13-xlarge, macos-14, ubuntu-latest, windows-latest ]
+
+    steps:
+      - uses: actions/setup-python@v5
+
+      - name: install
+        run: pip python -m pip install -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ camb
+
+      - name: test
+        run: python -m unittest camb.tests.camb_test
