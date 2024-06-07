@@ -39,9 +39,9 @@ Then install using::
 
     pip install -e ./CAMB [--user]
 
-You will need gfortran 6 or higher installed to compile. Binary files for Windows are also provided, so these are used instead if no
-gfortran installation is found on Windows machines. If you have gfortran installed, "python setup.py make"
-(and other standard setup commands) will build the Fortran library on all systems (including Windows without directly using a Makefile).
+You will need gfortran 6 or higher installed to compile (usually included with gcc by default).
+If you have gfortran installed, "python setup.py make" (and other standard setup commands) will build the Fortran
+library on all systems (including Windows without directly using a Makefile).
 
 The python wrapper provides a module called "camb" documented in the Python `CAMB documentation <https://camb.readthedocs.io/en/latest/>`_.
 
