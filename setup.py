@@ -257,6 +257,8 @@ class BDistWheelNonPure(_bdist_wheel):
 
     def get_tag(self):
         _, _, plat = super().get_tag()
+        if "osx_11" in plat:
+            return _, _, plat
         return "py3", "none", plat
 
 

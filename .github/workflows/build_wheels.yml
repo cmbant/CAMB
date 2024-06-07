@@ -35,7 +35,6 @@ jobs:
       - name: Build macos-13 wheels
         if: matrix.os == 'macos-13'
         env:
-          # Disable building for PyPy and 32bit.
           MACOSX_DEPLOYMENT_TARGET: 13
           CIBW_BUILD: cp311-*
           CIBW_SKIP: pp*
@@ -45,7 +44,6 @@ jobs:
       - name: Build macos-12 wheels
         if: matrix.os == 'macos-12'
         env:
-          # Disable building for PyPy and 32bit.
           MACOSX_DEPLOYMENT_TARGET: 12
           CIBW_BUILD: cp311-*
           CIBW_SKIP: pp*
@@ -56,16 +54,14 @@ jobs:
         if: matrix.os == 'macos-11'
         env:
           MACOSX_DEPLOYMENT_TARGET: 11
-          CIBW_BUILD: cp311-*
           CIBW_SKIP: pp*
-          CIBW_BUILD_VERBOSITY: 2
+          CIBW_BUILD_VERBOSITY: 1
         run: python -m cibuildwheel --output-dir wheelhouse
 
       - name: Build wheels
         if: matrix.os != 'macos-13' && matrix.os != 'macos-12' && matrix.os != 'macos-11'
         env:
           MACOSX_DEPLOYMENT_TARGET: 14
-          # Disable building for PyPy and 32bit.
           CIBW_BUILD: cp311-*
           CIBW_SKIP: pp* *-win32 *-manylinux_i686 *musllinux*
           #CIBW_TEST_REQUIRES: scipy sympy
