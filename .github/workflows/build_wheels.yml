@@ -9,7 +9,9 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ macos-11, macos-12, macos-13, macos-13-xlarge, macos-14, ubuntu-latest, windows-latest ]
+        os: [ macos-13-xlarge ]
+
+    #        os: [ macos-11, macos-12, macos-13, macos-13-xlarge, macos-14, ubuntu-latest, windows-latest ]
 
     steps:
       - uses: awvwgk/setup-fortran@main
@@ -17,6 +19,8 @@ jobs:
         with:
           compiler: gcc
           version: 11
+
+      - run: which gfortran-11
 
       - run: ${{ env.FC }} --version
         env:
