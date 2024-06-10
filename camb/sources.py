@@ -57,7 +57,7 @@ class SplinedSourceWindow(SourceWindow):
         :param z: array of redshift values (monotonically increasing)
         :param W: array of window function values. It must be well enough sampled to smoothly cubic-spline interpolate
         :param bias_z: optional array of bias values at each z for scale-independent bias
-        :param k_bias: optional array of k values for bias
+        :param k_bias: optional array of k values for bias (Mpc^-1)
         :param bias_kz: optional 2D contiguous array for space-dependent bias(k, z).
                         Must ensure range of k is large enough to cover required values.
 

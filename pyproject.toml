@@ -8,11 +8,11 @@ authors = [
     { name = "Antony Lewis" },
 ]
 description = "Code for Anisotropies in the Microwave Background"
-keywords= ['cosmology', 'CAMB', 'CMB']
+keywords = ['cosmology', 'CAMB', 'CMB']
 readme = "docs/README_pypi.rst"
 license = { file = "LICENCE.txt" }
 dynamic = ["version"]
-requires-python = ">=3.6.0"
+requires-python = ">=3.7.0"
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Operating System :: OS Independent",
@@ -20,7 +20,6 @@ classifiers = [
     "Intended Audience :: Science/Research",
     "Topic :: Scientific/Engineering :: Astronomy",
     "License :: OSI Approved :: GNU Lesser General Public License v3 (LGPLv3)",
-    "Programming Language :: Python :: 3.6",
     "Programming Language :: Python :: 3.7",
     "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
@@ -46,4 +45,4 @@ Tracker = "https://github.com/cmbant/camb/issues"
 Licensing = "https://github.com/cmbant/camb/blob/master/LICENCE.txt"
 
 [tool.setuptools.dynamic]
-version = {attr = "camb.__version__"}
+version = { attr = "camb.__version__" }

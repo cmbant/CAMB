@@ -3,10 +3,12 @@ import subprocess
 import os
 import shutil
 from typing import Any
-from setuptools import setup
+from setuptools import setup, Command, Extension
+from setuptools.command.build_ext import build_ext
 from setuptools.command.build_py import build_py
 from setuptools.command.develop import develop
-from setuptools import Command
+from setuptools.command.install import install
+from wheel.bdist_wheel import bdist_wheel as _bdist_wheel
 
 file_dir = os.path.abspath(os.path.dirname(__file__))
 os.chdir(file_dir)
@@ -18,6 +20,7 @@ if _compile.is_windows:
     DLLNAME = 'cambdll.dll'
 else:
     DLLNAME = 'camblib.so'
+
 
 def get_forutils():
     fpath = os.getenv('FORUTILSPATH')
@@ -177,7 +180,7 @@ def make_library(cluster=False):
         get_forutils()
         print("Compiling source...")
         subprocess.call("make python PYCAMB_OUTPUT_DIR=%s/camb/ CLUSTER_SAFE=%d" %
-                        (pycamb_path, int(cluster)), shell=True)
+                        (pycamb_path, int(cluster if not os.getenv("GITHUB_ACTIONS") else 1)), shell=True)
         subprocess.call("chmod 755 %s" % lib_file, shell=True)
 
     if not os.path.isfile(os.path.join(pycamb_path, 'camb', DLLNAME)):
@@ -246,12 +249,41 @@ class CleanLibrary(MakeLibrary):
             subprocess.call("make clean", shell=True, cwd=os.path.join(file_dir, 'fortran'))
 
 
+class BDistWheelNonPure(_bdist_wheel):
+    def finalize_options(self):
+        super().finalize_options()
+        self.root_is_pure = False
+
+    def get_tag(self):
+        _, _, plat = super().get_tag()
+        if "osx_11" in plat:
+            return _, _, plat
+        return "py3", "none", plat
+
+
+class InstallPlatlib(install):
+    def finalize_options(self):
+        super().finalize_options()
+        if self.distribution.has_ext_modules():
+            self.install_lib = self.install_platlib
+
+
+class BuildExtCommand(build_ext):
+    """Ensure built extensions are added to the correct path in the wheel."""
+
+    def run(self):
+        pass
+
+
 if __name__ == "__main__":
     setup(name=os.getenv('CAMB_PACKAGE_NAME', 'camb'),
           zip_safe=False,
           cmdclass={'build_py': SharedLibrary, 'build_cluster': SharedLibraryCluster,
                     'make': MakeLibrary, 'make_cluster': MakeLibraryCluster, 'clean': CleanLibrary,
-                    'develop': DevelopLibrary, 'develop_cluster': DevelopLibraryCluster},
+                    'develop': DevelopLibrary, 'develop_cluster': DevelopLibraryCluster,
+                    'bdist_wheel': BDistWheelNonPure, 'install': InstallPlatlib,
+                    "build_ext": BuildExtCommand},
+          ext_modules=[Extension("camb.camblib", [])],
           packages=['camb', 'camb.tests'],
           platforms="any",
           package_data={'camb': [DLLNAME, 'HighLExtrapTemplate_lenspotentialCls.dat',
