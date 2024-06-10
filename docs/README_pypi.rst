@@ -21,12 +21,12 @@ and background evolution. The code is in Python, with numerical code implemented
 See the `CAMB python example notebook <https://camb.readthedocs.io/en/latest/CAMBdemo.html>`_ for a
 quick introduction to how to use the CAMB Python package.
 
-To install the CAMB python package on your computer run::
+To install the CAMB on your computer run::
 
     pip install camb [--user]
 
 The --user is optional and only required if you don't have write permission to your main python installation.
-You will need gfortran 6 or higher installed to compile. Binary files for Windows are also provided, so these are used instead if no
-gfortran installation is found on Windows machines.
+Binary wheels are provided for most systems; to compile from source you will need gfortran 6 or higher installed
+(usually installed as part of gcc). gfortran is also required for just-in-time compilation of some functions like custom sources.
 
-The python wrapper provides a module called "camb" documented in the Python `CAMB documentation <https://camb.readthedocs.io/en/latest/>`_.
+The python module is  "camb". see the `CAMB documentation <https://camb.readthedocs.io/en/latest/>`_.
