@@ -15,7 +15,8 @@ if: (type != pull_request) OR (type = pull_request AND TRAVIS_PULL_REQUEST_SLUG 
 
 jobs:
   include:
-    - name: "Focal + Python 3.7"
+    - if: branch !~ ^test.*
+      name: "Focal + Python 3.7"
       dist: focal
       addons:
         apt:
@@ -24,7 +25,8 @@ jobs:
       python: "3.7"
       env:
         - PYPI_DIST="true"
-    - name: "GCC10 + Python 3.10 anaconda"
+    - if: branch !~ ^test.*
+      name: "GCC10 + Python 3.10 anaconda"
       dist: focal
       addons:
         apt:
@@ -42,7 +44,8 @@ jobs:
           packages:
             - gfortran
       python: "3.12"
-    - name: "GCC trunk cosmobox"
+    - if: branch !~ ^test.*
+      name: "GCC trunk cosmobox"
       language: shell
       services:
         - docker
