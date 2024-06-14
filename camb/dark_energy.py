@@ -113,8 +113,8 @@ class DarkEnergyPPF(DarkEnergyEqnOfState):
     (`arXiv:0808.3125 <https://arxiv.org/abs/0808.3125>`_)
     Use inherited methods to set parameters or interpolation table.
 
-    Note PPF is not a physical model and just designed to allow crossing -1 in an ad hoc way. For models
-    with w>-1 but far from cosmological constant, it can give quite different answers to the well-defined fluid model.
+    Note PPF is not a physical model and just designed to allow crossing -1 in an ad hoc smooth way. For models
+    with w>-1 but far from cosmological constant, it can give quite different answers to the fluid model with c_s^2=1.
 
     """
     # cannot declare c_Gamma_ppf directly here as have not defined all fields in DarkEnergyEqnOfState (TCubicSpline)

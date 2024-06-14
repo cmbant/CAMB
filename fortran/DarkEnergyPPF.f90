@@ -129,7 +129,9 @@
     S_Gamma = grhov_t * (1 + w) * (vT + sigma) * k / adotoa / 2._dl / k2
     ckH = this%c_Gamma_ppf * k / adotoa
 
-    if (ckH * ckH .gt. 3.d1) then ! ckH^2 > 30 ?????????
+    if (ckH * ckH > 1000) then
+        ! Was ckH^2 > 30 originally, but this is better behaved (closer to fluid)
+        ! for some extreme models (thanks Yanhui Yang, Simeon Bird 2024)
         Gamma = 0
         Gammadot = 0.d0
     else
