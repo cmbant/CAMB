@@ -138,5 +138,8 @@ For supporting new primordial power spectra or multiple bins there are `test exa
 This also shows how to use `get_class_options` to dynamically define multiple parameters based on an input parameter.
 
 You can only directly sample scalar parameters, but it is also easy to `map vector parameters <https://cobaya.readthedocs.io/en/latest/params_prior.html#vector-parameters>`_.
+Cobaya will automatically identify numerical arguments to the `set_params`
+function of custom classes (e.g. dark energy), but for vector parameters to be picked up for sampling you need define
+them with a default value of `None`.
 
 The `CosmoCoffee <https://cosmocoffee.info/viewforum.php?f=11>`_ discussion forum can be used to ask questions and to see previous answers.
