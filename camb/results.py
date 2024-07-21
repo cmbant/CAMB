@@ -1,4 +1,4 @@
-from .baseconfig import camblib, CAMBError, CAMBValueError, CAMBUnknownArgumentError, CAMB_Structure, F2003Class, \
+from .baseconfig import camblib, CAMBError, CAMBValueError, CAMB_Structure, F2003Class, \
     fortran_class, numpy_1d, numpy_2d, numpy_1d_int, fortran_array, AllocatableArrayDouble, ndpointer, np, lib_import
 from ctypes import c_float, c_int, c_double, c_bool, POINTER, byref
 import ctypes

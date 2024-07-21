@@ -1,10 +1,10 @@
-from .baseconfig import camblib, CAMBError, CAMBValueError, CAMBUnknownArgumentError, np
+from .baseconfig import camblib, CAMBValueError, CAMBUnknownArgumentError, np
 from ctypes import c_double, c_bool, POINTER, byref
 import ctypes
 from . import model, constants
 from ._config import config
 from .model import CAMBparams
-from .results import CAMBdata, MatterTransferData, ClTransferData
+from .results import CAMBdata
 import logging
 import os
 import numbers
