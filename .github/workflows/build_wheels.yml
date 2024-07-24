@@ -9,7 +9,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ macos-11, macos-12, macos-13, flyci-macos-large-latest-m2, macos-14, ubuntu-latest, windows-latest ]
+        os: [ macos-12, macos-13, flyci-macos-large-latest-m2, macos-14, ubuntu-latest, windows-latest ]
 
     steps:
       - uses: awvwgk/setup-fortran@main
@@ -45,18 +45,9 @@ jobs:
       - name: Build macos-12 wheels
         if: matrix.os == 'macos-12'
         env:
-          MACOSX_DEPLOYMENT_TARGET: 12
-          CIBW_BUILD: cp311-*
-          CIBW_SKIP: pp*
-          CIBW_BUILD_VERBOSITY: 1
-        run: python -m cibuildwheel --output-dir wheelhouse
-
-      - name: Build macos-11 wheels
-        if: matrix.os == 'macos-11'
-        env:
           # all cp3xx, since old macs seem to only use osx 11+ builds if this is set not "none"
           # see consistency with get_tag() in setup.py
-          MACOSX_DEPLOYMENT_TARGET: 11
+          MACOSX_DEPLOYMENT_TARGET: 12
           CIBW_SKIP: pp*
           CIBW_BUILD_VERBOSITY: 1
         run: python -m cibuildwheel --output-dir wheelhouse
