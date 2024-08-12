@@ -45,7 +45,7 @@ jobs:
       - name: Build macos-12 wheels
         if: matrix.os == 'macos-12'
         env:
-          # all cp3xx, since old macs seem to only use osx 11+ builds if this is set not "none"
+          # all cp3xx, since old macs seem to only use osx 12+ builds if this is set not "none"
           # see consistency with get_tag() in setup.py
           MACOSX_DEPLOYMENT_TARGET: 12
           CIBW_SKIP: pp*
