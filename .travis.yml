@@ -26,7 +26,7 @@ jobs:
       env:
         - PYPI_DIST="true"
     - if: branch !~ ^test.*
-      name: "GCC10 + Python 3.10 anaconda"
+      name: "GCC10 + Python anaconda"
       dist: focal
       addons:
         apt:
@@ -37,7 +37,7 @@ jobs:
         - CHANNEL="defaults"
         - PYDIST="ANACONDA"
         - FORTRAN="test"
-      python: "3.10"
+      language: minimal
     - name: "Jammy + Python 3.12"
       addons:
         apt:
@@ -63,13 +63,13 @@ jobs:
 
 install:
   - if [[ "$PYDIST" == "ANACONDA" ]]; then
-      wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh;
+      wget -q https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh;
       bash miniconda.sh -b -p $HOME/miniconda;
       export PATH="$HOME/miniconda/bin:$PATH";
       hash -r;
       conda config --set always_yes yes --set changeps1 no;
       conda info -a;
-      conda create -q -n test-environment -c $CHANNEL python=$TRAVIS_PYTHON_VERSION numpy scipy sympy;
+      conda create -q -n test-environment -c $CHANNEL numpy scipy sympy;
       source activate test-environment;
     fi
   - if [[ "$FORTRAN" == "test" ]]; then

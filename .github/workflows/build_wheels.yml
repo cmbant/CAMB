@@ -9,7 +9,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ macos-12, macos-13, flyci-macos-large-latest-m2, macos-14, ubuntu-latest, windows-latest ]
+        os: [ macos-12, macos-13, macos-13-xlarge, macos-14, ubuntu-latest, windows-latest ]
 
     steps:
       - uses: awvwgk/setup-fortran@main
@@ -34,7 +34,7 @@ jobs:
         run: python -m pip install cibuildwheel
 
       - name: Build macos-13 wheels
-        if: matrix.os == 'macos-13' || matrix.os == 'macos-13-xlarge' || matrix.os == 'flyci-macos-large-latest-m2'
+        if: matrix.os == 'macos-13' || matrix.os == 'macos-13-xlarge'
         env:
           MACOSX_DEPLOYMENT_TARGET: 13
           CIBW_BUILD: cp311-*
@@ -134,7 +134,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ macos-11, macos-12, macos-13, flyci-macos-large-latest-m2, macos-14, ubuntu-latest, windows-latest ]
+        os: [ macos-12, macos-13, macos-13-xlarge, macos-14, ubuntu-latest, windows-latest ]
 
     steps:
       - uses: actions/setup-python@v5

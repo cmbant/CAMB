@@ -638,11 +638,18 @@
     real(dl) ztemp, chi2
 
     chi2 = 0
-    !$OMP parallel do private(j,ztemp) reduction(+:chi2) schedule(static,16)
-    do  j = 1, n
-        ztemp= dot_product(Y(j+1:n), c_inv(j+1:n, j))
-        chi2=chi2+ (ztemp*2 +c_inv(j, j)*Y(j))*Y(j)
-    end do
+    if (n>=512) then
+        !$OMP parallel do private(j,ztemp) reduction(+:chi2) schedule(static,16)
+        do  j = 1, n
+            ztemp= dot_product(Y(j+1:n), c_inv(j+1:n, j))
+            chi2=chi2+ (ztemp*2 +c_inv(j, j)*Y(j))*Y(j)
+        end do
+    else
+        do  j = 1, n
+            ztemp= dot_product(Y(j+1:n), c_inv(j+1:n, j))
+            chi2=chi2+ (ztemp*2 +c_inv(j, j)*Y(j))*Y(j)
+        end do
+    end if
 
     end function GetChiSquared
 
