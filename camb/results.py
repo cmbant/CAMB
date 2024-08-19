@@ -1473,7 +1473,7 @@ class CAMBdata(F2003Class):
         """
 
         if not np.isscalar(z):
-            z = np.asarray(z)
+            z = np.ascontiguousarray(z, dtype=np.float64)
         return self.angular_diameter_distance(z) * (1.0 + z) ** 2
 
     def h_of_z(self, z):
@@ -1489,7 +1489,7 @@ class CAMBdata(F2003Class):
         :return: H(z)
         """
         if not np.isscalar(z):
-            z = np.array(z, dtype=np.float64)
+            z = np.ascontiguousarray(z, dtype=np.float64)
             arr = np.empty(z.shape)
             self.f_HofzArr(arr, z, byref(c_int(z.shape[0])))
             return arr
@@ -1535,7 +1535,7 @@ class CAMBdata(F2003Class):
         :return: t(z)/Gigayear
         """
         if not np.isscalar(z):
-            z = np.asarray(z, dtype=np.float64)
+            z = np.ascontiguousarray(z, dtype=np.float64)
         return self.physical_time_a1_a2(0, 1.0 / (1 + z))
 
     def conformal_time_a1_a2(self, a1, a2):
@@ -1567,7 +1567,7 @@ class CAMBdata(F2003Class):
         if np.isscalar(z):
             redshifts = np.array([z], dtype=np.float64)
         else:
-            redshifts = np.array(z, dtype=np.float64)
+            redshifts = np.asarray(z, dtype=np.float64)
             if presorted is True:
                 redshifts = redshifts[::-1].copy()
             elif presorted is None:

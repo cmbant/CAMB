@@ -795,10 +795,7 @@ class CAMBparams(F2003Class):
         return self.primordial_power(k, 2)
 
     def primordial_power(self, k, ix):
-        if np.isscalar(k):
-            karr = np.array([k], dtype=np.float64)
-        else:
-            karr = np.array(k, dtype=np.float64)
+        karr = np.ascontiguousarray([k] if np.isscalar(k) else k, dtype=np.float64)
         n = karr.shape[0]
         powers = np.empty(n)
         self.f_PrimordialPower(karr, powers, byref(c_int(n)), byref(c_int(ix)))

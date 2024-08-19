@@ -16,13 +16,13 @@ if: (type != pull_request) OR (type = pull_request AND TRAVIS_PULL_REQUEST_SLUG 
 jobs:
   include:
     - if: branch !~ ^test.*
-      name: "Focal + Python 3.7"
+      name: "Focal + Python 3.8"
       dist: focal
       addons:
         apt:
           packages:
             - gfortran
-      python: "3.7"
+      python: "3.8"
       env:
         - PYPI_DIST="true"
     - if: branch !~ ^test.*

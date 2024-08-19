@@ -97,10 +97,18 @@ FFLAGS = -O3 $(COMMON_FFLAGS)
 DEBUGFLAGS = -g -fbacktrace -ffpe-trap=invalid,overflow,zero -fbounds-check $(COMMON_FFLAGS)
 ifeq ($(shell uname -s),Darwin)
 SFFLAGS = -dynamiclib #-fpic
+ifneq ($(shell echo $(compiler_ver) | awk '{print ($$1 >= 14.0)}'),0)
+SFFLAGS += -static-libgfortran -static-libgcc -static-libquadmath 
+endif
 else
 SFFLAGS = -shared -fpic
+ifneq ($(CIBW_BUILD),)
+SFFLAGS += -static-libgfortran -static-libgcc
 endif
-#SFFLAGS =  -shared -fPIC
+endif
+
+
+
 MODOUT =  -J$(OUTPUT_DIR)
 SMODOUT = -J$(DLL_DIR)
 
