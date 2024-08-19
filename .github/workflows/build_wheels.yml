@@ -48,8 +48,6 @@ jobs:
       - name: Build macos-12 wheels
         if: matrix.os == 'macos-12'
         env:
-          # all cp3xx, since old macs seem to only use osx 12+ builds if this is set not "none"
-          # see consistency with get_tag() in setup.py
           MACOSX_DEPLOYMENT_TARGET: 12
           CIBW_BUILD: cp311-*
           CIBW_SKIP: pp*
@@ -138,7 +136,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ macos-12, macos-13, macos-13-xlarge, macos-14, ubuntu-latest, windows-latest ]
+        os: [ macos-12, macos-13, macos-14, ubuntu-20.04, windows-latest ]
 
     steps:
       - uses: actions/setup-python@v5

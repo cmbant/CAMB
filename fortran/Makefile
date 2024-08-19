@@ -102,9 +102,6 @@ SFFLAGS += -static-libgfortran -static-libgcc -static-libquadmath
 endif
 else
 SFFLAGS = -shared -fpic
-ifneq ($(CIBW_BUILD),)
-SFFLAGS += -static-libgfortran -static-libgcc
-endif
 endif
 
 
