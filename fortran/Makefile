@@ -101,7 +101,7 @@ ifneq ($(shell echo $(compiler_ver) | awk '{print ($$1 >= 14.0)}'),0)
 SFFLAGS += -static-libgfortran -static-libgcc -static-libquadmath 
 endif
 else
-SFFLAGS = -shared -fpic -static-libgfortran -static-libgcc
+SFFLAGS = -shared -fpic
 endif
 
 
