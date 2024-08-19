@@ -39,6 +39,7 @@ jobs:
         - FORTRAN="test"
       language: minimal
     - name: "Jammy + Python 3.12"
+      if: NOT commit_message =~ /\[pypi\]/ AND NOT commit_message =~ /\[testpypi\]/
       addons:
         apt:
           packages:

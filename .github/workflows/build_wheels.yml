@@ -57,7 +57,7 @@ jobs:
       - name: Build wheels
         if: matrix.os == 'macos-14' || matrix.os == 'ubuntu-latest' || matrix.os == 'windows-latest'
         env:
-          MACOSX_DEPLOYMENT_TARGET: 11
+          MACOSX_DEPLOYMENT_TARGET: 14
           CIBW_BUILD: cp311-*
           CIBW_SKIP: pp* *-win32 *-manylinux_i686 *musllinux*
           CIBW_BUILD_VERBOSITY: 1
