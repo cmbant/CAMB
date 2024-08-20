@@ -170,7 +170,7 @@ class HMcodeTest(unittest.TestCase):
             return results, logT
 
         # Get the HMcode power from CAMB
-        def get_HMcode_power_from_CAMB(results, k_in, logT, HMcode_version):
+        def get_HMcode_power_from_CAMB(results, k_in, a_in, logT, HMcode_version):
 
             # k and z ranges for results
             kmin = k_in[0]
@@ -214,7 +214,7 @@ class HMcodeTest(unittest.TestCase):
                 k_in, a_in, Pk_in = read_Mead_benchmark(infile)
 
                 # Get power from CAMB
-                k_nl, a_nl, Pk_nl = get_HMcode_power_from_CAMB(results, k_in, logT, HMcode_version)
+                k_nl, a_nl, Pk_nl = get_HMcode_power_from_CAMB(results, k_in, a_in, logT, HMcode_version)
 
                 # Compare benchmark to calculation
                 for ik in range(len(k_in)):

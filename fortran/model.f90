@@ -135,7 +135,9 @@
         real(dl)  :: ombh2 = 0._dl !baryon density Omega_b h^2
         real(dl)  :: omch2 = 0._dl !cold dark matter density Omega_c h^2
         real(dl)  :: omk = 0._dl !Omega_K
-        real(dl)  :: omnuh2 = 0._dl !massive neutino Omega_nu h^2
+        real(dl)  :: omnuh2 = 0._dl !massive neutino Omega_nu h^2\
+		! added
+		real(dl)  :: omdwh2 = 0._dl !domain wall density Omega_dw h^2
         real(dl)  :: H0 = 67._dl !Hubble parameter in km/s/Mpc
         real(dl)  :: TCMB = COBE_CMBTemp
         real(dl)  :: Yhe = 0.24_dl

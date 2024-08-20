@@ -424,6 +424,8 @@
         P%omch2 = Ini%Read_Double('omch2')
         P%omnuh2 = Ini%Read_Double('omnuh2')
         P%omk = Ini%Read_Double('omk')
+		! added
+	    P%omdwh2 = Ini%Read_Double('omdwh2')
     else
         ErrMsg = 'use_physical = F no longer supported. Use ombh2, omch2, omnuh2, omk'
         return

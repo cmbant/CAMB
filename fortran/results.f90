@@ -173,7 +173,8 @@
         !     taurst,taurend - time at start/end of recombination
         !     dtaurec - dtau during recombination
         !     adotrad - a(tau) in radiation era
-        real(dl) grhocrit,grhog,grhor,grhob,grhoc,grhov,grhornomass,grhok
+		! added
+        real(dl) grhocrit,grhog,grhor,grhob,grhoc,grhodw,grhov,grhornomass,grhok
         real(dl) taurst,dtaurec,taurend,tau_maxvis,adotrad
 
         real(dl) Omega_de
@@ -455,8 +456,12 @@
         this%grhoc=this%grhocrit*this%CP%omch2/h2
         this%grhob=this%grhocrit*this%CP%ombh2/h2
         this%grhok=this%grhocrit*this%CP%omk
-        this%Omega_de = 1 -(this%CP%omch2 + this%CP%ombh2 + this%CP%omnuh2)/h2 - this%CP%omk  &
-            - (this%grhornomass + this%grhog)/this%grhocrit
+		! added
+		this%grhodw = this%grhocrit * this%CP%omdwh2 / h2
+		! added
+        this%Omega_de = 1 - (this%CP%omch2 + this%CP%ombh2 + this%CP%omnuh2 + this%CP%omdwh2)/h2 - this%CP%omk  &
+                - (this%grhornomass + this%grhog)/this%grhocrit
+			
         this%grhov=this%grhocrit*this%Omega_de
 
         !  adotrad gives da/dtau in the asymptotic radiation-dominated era:
@@ -566,6 +571,8 @@
         write(*,'("Om_b h^2             = ",f9.6)') P%ombh2
         write(*,'("Om_c h^2             = ",f9.6)') P%omch2
         write(*,'("Om_nu h^2            = ",f9.6)') P%omnuh2
+		! added
+		write(*,'("Om_dw h^2             = ",f9.6)') P%omdwh2
         write(*,'("Om_darkenergy        = ",f9.6)') this%Omega_de
         write(*,'("Om_K                 = ",f9.6)') P%omk
         write(*,'("Om_m (inc Om_u)      = ",f9.6)') (P%ombh2+P%omch2+P%omnuh2)/h2

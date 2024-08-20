@@ -193,6 +193,8 @@ class CAMBparams(F2003Class):
         ("max_l_tensor", c_int, "l_max for the tensor C_L"),
         ("max_eta_k", c_double, "Maximum k*eta_0 for scalar C_L, where eta_0 is the conformal time today"),
         ("max_eta_k_tensor", c_double, "Maximum k*eta_0 for tensor C_L, where eta_0 is the conformal time today"),
+        # added
+        ("omdwh2", c_double, "Omega_domain_wall h^2"),
         ("ombh2", c_double, "Omega_baryon h^2"),
         ("omch2", c_double, "Omega_cdm h^2"),
         ("omk", c_double, "Omega_K"),
@@ -424,8 +426,8 @@ class CAMBparams(F2003Class):
                                       iteration_threshold=iteration_threshold, setter_H0=setter_H0)
         except ValueError:
             raise CAMBParamRangeError('No solution for H0 inside of theta_H0_range')
-
-    def set_cosmology(self, H0: Optional[float] = None, ombh2=0.022, omch2=0.12, omk=0.0,
+# added
+    def set_cosmology(self, H0: Optional[float] = None, ombh2=0.022, omch2=0.12, omk=0.0, omdwh2=0.0,
                       cosmomc_theta: Optional[float] = None, thetastar: Optional[float] = None,
                       neutrino_hierarchy: Union[str, int] = 'degenerate', num_massive_neutrinos=1,
                       mnu=0.06, nnu=constants.default_nnu, YHe: Optional[float] = None, meffsterile=0.0,
@@ -495,6 +497,8 @@ class CAMBparams(F2003Class):
         self.YHe = YHe
         self.TCMB = TCMB
         self.ombh2 = ombh2
+        # added
+        self.omdwh2 = omdwh2
         self.omch2 = omch2
         self.Alens = Alens
 
@@ -568,7 +572,13 @@ class CAMBparams(F2003Class):
     @property
     def omeganu(self):
         return self.omnuh2 / (self.H0 / 100) ** 2
-
+        
+        
+    # added
+    @property
+    def omegadw(self):
+        return self.omdwh2 / (self.H0 / 100) ** 2
+        
     @property
     def omegam(self):
         return (self.ombh2 + self.omch2 + self.omnuh2) / (self.H0 / 100) ** 2
@@ -795,7 +805,10 @@ class CAMBparams(F2003Class):
         return self.primordial_power(k, 2)
 
     def primordial_power(self, k, ix):
-        karr = np.ascontiguousarray([k] if np.isscalar(k) else k, dtype=np.float64)
+        if np.isscalar(k):
+            karr = np.array([k], dtype=np.float64)
+        else:
+            karr = np.array(k, dtype=np.float64)
         n = karr.shape[0]
         powers = np.empty(n)
         self.f_PrimordialPower(karr, powers, byref(c_int(n)), byref(c_int(ix)))

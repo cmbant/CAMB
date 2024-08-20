@@ -1,14 +1,13 @@
 # coding: utf8
 """
 
-CAMB, Code for Anisotropies in the Microwave Background (https://camb.info)
-Computational modules are wrapped Fortran 2003, but can be used entirely from Python.
+Python CAMB interface (https://camb.info)
 
 """
 __author__ = "Antony Lewis"
 __contact__ = "antony at cosmologist dot info"
 __url__ = "https://camb.readthedocs.io"
-__version__ = "1.5.8"
+__version__ = "1.5.6"
 
 from . import baseconfig
 

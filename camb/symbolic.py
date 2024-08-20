@@ -690,8 +690,7 @@ def camb_fortran(expr, name='camb_function', frame='CDM', expand=False):
         res = res.expand()
     res = res.collect([Symbol(str(x.func)) for x in
                        [k, sigma, opacity, visibility, dopacity, dvisibility, ddvisibility]])
-    res = sympy.fcode(res, source_format='free', standard=95, assign_to=name, contract=False,
-                      allow_unknown_functions=True)
+    res = sympy.fcode(res, source_format='free', standard=95, assign_to=name, contract=False)
     import textwrap
 
     if 'if ' not in res:

@@ -11,8 +11,10 @@
 
     call this%CP%DarkEnergy%BackgroundDensityAndPressure(this%grhov, a, grhov_t)
 
+
     !  8*pi*G*rho*a**4.
-    grhoa2 = this%grho_no_de(a) +  grhov_t * a**2
+	! added
+    grhoa2 = this%grho_no_de(a) +  grhov_t * a**2 + this%grhodw * a**3
     if (grhoa2 <= 0) then
         call GlobalError('Universe stops expanding before today (recollapse not supported)', error_unsupported_params)
         dtauda = 0
@@ -149,10 +151,11 @@
         integer :: OutputStep = 0
 
     end type EvolutionVars
-
+	
+	! added
     ABSTRACT INTERFACE
     SUBROUTINE TSource_func(sources, tau, a, adotoa, grho, gpres,w_lam, cs2_lam,  &
-        grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,grhonu_t, &
+        grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t, grhodw_t,grhonu_t, &
         k,etak, etakdot, phi, phidot, sigma, sigmadot, &
         dgrho, clxg,clxb,clxc,clxr, clxnu, clxde, delta_p_b, &
         dgq, qg, qr, qde, vb, qgdot, qrdot, vbdot, &
@@ -160,10 +163,11 @@
         polter, polterdot, polterddot, octg, octgdot, E, Edot, &
         opacity, dopacity, ddopacity, visibility, dvisibility, ddvisibility, exptau, &
         tau0, tau_maxvis, Kf, f_K)
-    use precision
+    ! added
+	use precision
     real(dl), intent(out) :: sources(:)
     real(dl), intent(in) :: tau, a, adotoa, grho, gpres,w_lam, cs2_lam,  &
-        grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,grhonu_t, &
+        grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,grhodw_t, grhonu_t, &
         k,etak, etakdot, phi, phidot, sigma, sigmadot, &
         dgrho, clxg,clxb,clxc, clxr, clxnu, clxde, delta_p_b, &
         dgq, qg, qr, qde, vb, qgdot, qrdot, vbdot, &
@@ -2153,8 +2157,9 @@
         clxcdot,clxbdot,adotdota,gpres,clxrdot,etak
     real(dl) q,aq,v
     real(dl) G11_t,G30_t, wnu_arr(max_nu)
-
-    real(dl) dgq,grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,grhonu_t,sigma,polter
+	
+	! added
+    real(dl) dgq,grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t, grhodw_t,grhonu_t,sigma,polter
     real(dl) w_dark_energy_t !equation of state of dark energy
     real(dl) gpres_noDE !Pressure with matter and radiation, no dark energy
     real(dl) qgdot,qrdot,pigdot,pirdot,vbdot,dgrho,adotoa
@@ -2203,6 +2208,8 @@
     grhoc_t=State%grhoc/a
     grhor_t=State%grhornomass/a2
     grhog_t=State%grhog/a2
+	! added
+	grhodw_t = State%grhodw * a
 
     if (EV%is_cosmological_constant) then
         grhov_t = State%grhov * a2
@@ -2224,9 +2231,10 @@
         call MassiveNuVars(EV,ay,a,grhonu_t,gpres_nu,dgrho_matter,dgq, wnu_arr)
     end if
 
+    ! added 
     grho_matter=grhonu_t+grhob_t+grhoc_t
-    grho = grho_matter+grhor_t+grhog_t+grhov_t
-    gpres_noDE = gpres_nu + (grhor_t + grhog_t)/3
+    grho = grho_matter+grhor_t+grhog_t+grhov_t+grhodw_t
+    gpres_noDE = gpres_nu + (-2*grhodw_t+grhor_t + grhog_t)/3
 
     if (State%flat) then
         adotoa=sqrt(grho/3)
@@ -2304,7 +2312,6 @@
     if (.not. EV%is_cosmological_constant) &
         call State%CP%DarkEnergy%PerturbationEvolve(ayprime, w_dark_energy_t, &
         EV%w_ix, a, adotoa, k, z, ay)
-
     !  CDM equation of motion
     clxcdot=-k*z
     ayprime(ix_clxc)=clxcdot
@@ -2314,6 +2321,7 @@
     ayprime(ix_clxb)=clxbdot
     !  Photon equation of motion
     clxgdot=-k*(4._dl/3._dl*z+qg)
+
 
     !Sources
     if (EV%Evolve_baryon_cs) then
@@ -2794,9 +2802,11 @@
                     procedure(TSource_func), pointer :: custom_sources_func
 
                     call c_f_procpointer(CP%CustomSources%c_source_func,custom_sources_func)
+					
+					! added
 
                     call custom_sources_func(EV%CustomSources, tau, a, adotoa, grho, gpres,w_dark_energy_t, cs2_de, &
-                        grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,grhonu_t, &
+                        grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t, grhodw_t, grhonu_t, &
                         k, etak, ayprime(ix_etak), phi, phidot, sigma, sigmadot, &
                         dgrho, clxg,clxb,clxc,clxr,clxnu, dgrho_de/grhov_t, delta_p_b, &
                         dgq, qg, qr, dgq_de/grhov_t, vb, qgdot, qrdot, vbdot, &

@@ -256,6 +256,8 @@ class BDistWheelNonPure(_bdist_wheel):
 
     def get_tag(self):
         _, _, plat = super().get_tag()
+        if "osx_11" in plat:
+            return _, _, plat
         return "py3", "none", plat
 
 
@@ -287,4 +289,5 @@ if __name__ == "__main__":
           package_data={'camb': [DLLNAME, 'HighLExtrapTemplate_lenspotentialCls.dat',
                                  'PArthENoPE_880.2_marcucci.dat', 'PArthENoPE_880.2_standard.dat',
                                  'PRIMAT_Yp_DH_Error.dat', 'PRIMAT_Yp_DH_ErrorMC_2021.dat']},
+          test_suite='camb.tests'
           )

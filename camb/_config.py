@@ -39,13 +39,15 @@ class _config:
         return bytearray(self._global_error_message).decode('ascii').strip()
 
     def check_global_error(self, reference=''):
-        if code := self.global_error_flag:
+        code = self.global_error_flag
+        if code:
+            err = config.global_error_message()
             self.global_error_flag = 0
             if reference:
                 reference = 'Error in Fortran called from %s:\n' % reference
             else:
                 reference = ''
-            if err := config.global_error_message():
+            if err:
                 raise CAMBError(reference + '%s' % err)
             else:
                 raise CAMBError(reference + 'Error code: %s' % code)
