@@ -13,7 +13,7 @@ except ImportError:
 from camb import model, correlations, bbn, dark_energy, initialpower
 from camb.baseconfig import CAMBParamRangeError, CAMBValueError
 
-fast = 'ci fast' in os.getenv("TRAVIS_COMMIT_MESSAGE", "") or os.getenv("GITHUB_ACTIONS")
+fast = 'ci fast' in os.getenv("GITHUB_ACTIONS")
 
 
 class CambTest(unittest.TestCase):

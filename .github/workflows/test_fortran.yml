@@ -1,0 +1,37 @@
+name: Build and Test Fortran
+
+on:
+  push:
+    branches-ignore:
+      - 'test**'
+  pull_request:
+
+jobs:
+  fortran-test:
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != 'cmbant/camb')
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+        fetch-depth: 0
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.x"
+
+    - name: Install python requirements
+      run: python -m pip install numpy
+
+    - name: Run Build and Test Script
+      run: bash fortran/tests/run_tests.sh
+
+    - name: Upload Test Files on Failure
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-output-${{ github.sha }}
+        path: fortran/testfiles/
+        if-no-files-found: warn

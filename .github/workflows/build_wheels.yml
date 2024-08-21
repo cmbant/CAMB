@@ -12,12 +12,12 @@ jobs:
         os: [ macos-12, macos-13-xlarge, macos-14, ubuntu-latest, windows-latest ]
 
     steps:
-      - uses: fortran-lang/setup-fortran@main
-        if: matrix.os == 'windows-latest'
-        id: setup-fortran
-        with:
-          compiler: gcc
-          version: 13
+#      - uses: fortran-lang/setup-fortran@main
+#        if: matrix.os == 'windows-latest'
+#        id: setup-fortran
+#        with:
+#          compiler: gcc
+#          version: 13
 
       - run: ln -s $(which gfortran-14) /usr/local/bin/gfortran
         if: matrix.os != 'windows-latest' && matrix.os != 'ubuntu-latest'
@@ -85,7 +85,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.x"
           cache: pip
           cache-dependency-path: "setup.py"
 
