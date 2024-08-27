@@ -403,8 +403,8 @@ class NamedIntField:
         else:
             assert isinstance(names, dict)
             self.name_values = names
-            for name in names:
-                self.values[names[name]] = name
+            for name, value in names.items():
+                self.values[value] = name
 
     def __get__(self, instance, owner):
         value = getattr(instance, self.real_name)
@@ -693,8 +693,7 @@ class F2003Class(CAMB_Structure):
 
     def __init__(self, **kwargs):
         if kwargs:
-            unknowns = set(kwargs) - self.get_valid_field_names()
-            if unknowns:
+            if unknowns := set(kwargs).difference(self.get_valid_field_names()):
                 raise ValueError('Unknown argument(s): %s' % unknowns)
         super().__init__(**kwargs)
 

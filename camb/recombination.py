@@ -38,8 +38,8 @@ class Recfast(RecombinationModel):
 @optional_fortran_class
 class CosmoRec(RecombinationModel):
     """
-    `CosmoRec <http://www.jb.man.ac.uk/~jchluba/Science/CosmoRec/CosmoRec.html>`_ recombination model.
-    To use this, the library must be build with CosmoRec installed and RECOMBINATION_FILES including cosmorec
+    `CosmoRec <https://www.jb.man.ac.uk/~jchluba/Science/CosmoRec/CosmoRec.html>`_ recombination model.
+    To use this, the library must be built with CosmoRec installed and RECOMBINATION_FILES including cosmorec
     in the Makefile.
 
     CosmoRec must be built with -fPIC added to the compiler flags.
@@ -60,7 +60,7 @@ class CosmoRec(RecombinationModel):
 class HyRec(RecombinationModel):
     r"""
     `HyRec <https://github.com/nanoomlee/HYREC-2>`_ recombination model.
-    To use this, the library must be build with HyRec installed and RECOMBINATION_FILES including hyrec in the Makefile.
+    To use this, the library must be built with HyRec installed and RECOMBINATION_FILES including hyrec in the Makefile.
 
     """
     _fortran_class_module_ = 'HyRec'

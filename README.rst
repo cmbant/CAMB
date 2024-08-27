@@ -57,7 +57,7 @@ Branches
 
 The master branch contains latest changes to the main release version.
 
-There isa a test suite, which runs automatically on GitHub actions for new commits and pull requests.
+There is a test suite, which runs automatically on GitHub actions for new commits and pull requests.
 Reference results and test outputs are stored in the `test outputs repository <https://github.com/cmbant/CAMB_test_outputs/>`_. Tests can also be run locally.
 
 To reproduce legacy results, see these branches:
