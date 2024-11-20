@@ -252,6 +252,7 @@
         return
     end if
     this%Nu_mass_eigenstates=0
+    this%share_delta_neff = .false.
     if (omnuh2 > omnuh2_sterile) then
         normal_frac =  (omnuh2-omnuh2_sterile)/omnuh2
         if (neutrino_hierarchy == neutrino_hierarchy_degenerate) then

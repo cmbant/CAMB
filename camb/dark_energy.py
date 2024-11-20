@@ -102,7 +102,7 @@ class DarkEnergyFluid(DarkEnergyEqnOfState):
     def set_w_a_table(self, a, w):
         # check w array has elements that do not cross -1
         if np.sign(1 + np.max(w)) - np.sign(1 + np.min(w)) == 2:
-            raise ValueError('fluid dark energy model does not support w crossing -1')
+            raise CAMBError('fluid dark energy model does not support w crossing -1')
         super().set_w_a_table(a, w)
 
 
