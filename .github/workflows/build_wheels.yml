@@ -9,15 +9,9 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ macos-12, macos-13-xlarge, macos-14, ubuntu-latest, windows-latest ]
-
+        # see https://github.com/actions/runner-images/tree/main
+        os: [ macos-13, macos-13-xlarge, macos-14, ubuntu-latest, windows-latest ]
     steps:
-#      - uses: fortran-lang/setup-fortran@main
-#        if: matrix.os == 'windows-latest'
-#        id: setup-fortran
-#        with:
-#          compiler: gcc
-#          version: 13
 
       - run: ln -s $(which gfortran-14) /usr/local/bin/gfortran
         if: matrix.os != 'windows-latest' && matrix.os != 'ubuntu-latest'
@@ -45,10 +39,10 @@ jobs:
           CIBW_BUILD_VERBOSITY: 1
         run: python -m cibuildwheel --output-dir wheelhouse
 
-      - name: Build macos-12 wheels
-        if: matrix.os == 'macos-12'
+      - name: Build macos-15 wheels
+        if: matrix.os == 'macos-15' || matrix.os == 'macos-15-large'
         env:
-          MACOSX_DEPLOYMENT_TARGET: 12
+          MACOSX_DEPLOYMENT_TARGET: 15
           CIBW_BUILD: cp311-*
           CIBW_SKIP: pp*
           CIBW_BUILD_VERBOSITY: 1
