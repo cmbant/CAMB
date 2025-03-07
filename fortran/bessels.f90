@@ -86,8 +86,10 @@
 
     ! The three arrays are always (de-)allocated together. Therefore checking
     ! one of them for allocation is sufficient.
-    if (.not. allocated(ajl) .or. any(ubound(ajl) < [num_xx, max_ix])) then
-        if (allocated(ajl)) deallocate(ajl, ajlpr, ddajlpr)
+    if (allocated(ajl)) then
+        if (any(ubound(ajl) < [num_xx, max_ix])) deallocate(ajl, ajlpr, ddajlpr)
+    end if
+    if (.not. allocated(ajl)) then
         allocate(ajl(1:num_xx,1:max_ix), ajlpr(1:num_xx,1:max_ix), &
             ddajlpr(1:num_xx,1:max_ix))
     end if
