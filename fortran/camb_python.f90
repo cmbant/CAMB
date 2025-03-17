@@ -631,7 +631,7 @@
     end do
     end subroutine GetOutputEvolutionFork
 
-    function CAMB_TimeEvolution(this,nq, q, ntimes, times, noutputs, outputs, &
+    function CAMB_TimeEvolution(this, nq, q, ntimes, times, noutputs, outputs, &
         ncustomsources,c_source_func) result(err)
     use GaugeInterface
     use CAMBmain

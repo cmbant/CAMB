@@ -543,8 +543,8 @@ class CAMBdata(F2003Class):
             if np.isscalar(q):
                 k = np.array([q], dtype=np.float64)
             else:
-                k = np.array(q, dtype=np.float64)
-            times = np.array(np.atleast_1d(eta), dtype=np.float64)
+                k = np.ascontiguousarray(q, dtype=np.float64)
+            times = np.asarray(np.atleast_1d(eta), dtype=np.float64)
             indices = np.argsort(times)  # times must be in increasing order
             if n_custom := len(custom_vars):
                 from . import symbolic
@@ -554,6 +554,8 @@ class CAMBdata(F2003Class):
                 custom_source_func = ctypes.c_void_p(0)
             nvars = num_standard_names + n_custom
             outputs = np.empty((k.shape[0], times.shape[0], nvars))
+            if times[indices[0]] <= 1e-8:
+                raise CAMBError('Initial time nearly zero or negative for time evolution calculation')
             if CAMB_TimeEvolution(byref(self), byref(c_int(k.shape[0])), k, byref(c_int(times.shape[0])),
                                   times[indices], byref(c_int(nvars)), outputs,
                                   byref(c_int(n_custom)), byref(custom_source_func)):

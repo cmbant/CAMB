@@ -13,7 +13,7 @@ except ImportError:
 from camb import model, correlations, bbn, dark_energy, initialpower
 from camb.baseconfig import CAMBParamRangeError, CAMBValueError
 
-fast = 'ci fast' in os.getenv("GITHUB_ACTIONS")
+fast = 'ci fast' in os.getenv("GITHUB_ACTIONS", '')
 
 
 class CambTest(unittest.TestCase):
@@ -694,7 +694,6 @@ class CambTest(unittest.TestCase):
         monopole2 = s.make_frame_invariant(s.newtonian_gauge(monopole_source), 'Newtonian')
         Delta_c_N = s.make_frame_invariant(s.Delta_c, 'Newtonian')
         Delta_c_N2 = s.make_frame_invariant(s.synchronous_gauge(Delta_c_N), 'CDM')
-
         ev = data.get_time_evolution(ks, tau, ['delta_photon', s.Delta_g, Delta_c_N, Delta_c_N2,
                                                monopole_source, monopole2,
                                                temp_source, 'T_source'])
