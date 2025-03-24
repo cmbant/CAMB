@@ -68,6 +68,7 @@ class TransferParams(CAMB_Structure):
     """
     Object storing parameters for the matter power spectrum calculation.
 
+    Not intended to be separately instantiated, only used as part of CAMBparams.
     """
     _fields_ = [
         ("high_precision", c_bool, "True for more accuracy"),
@@ -87,6 +88,9 @@ class AccuracyParams(CAMB_Structure):
     parameters except for lSampleBoost (which is specific to the output interpolation) and lAccuracyBoost
     (which is specific to the multipole hierarchy evolution), e.g. setting AccuracyBoost=2, IntTolBoost=1.5, means
     that internally the k sampling for integration will be boosted by AccuracyBoost*IntTolBoost = 3.
+
+    Not intended to be separately instantiated, only used as part of CAMBparams.
+    If you want to set fields with :func:`.camb.set_params`, use 'Accuracy.xxx':yyy in the parameter dictionary.
     """
     _fields_ = [
         ("AccuracyBoost", c_double, "general accuracy setting effecting everything related to step sizes etc. "
@@ -119,6 +123,8 @@ class AccuracyParams(CAMB_Structure):
 class SourceTermParams(CAMB_Structure):
     """
     Structure with parameters determining how galaxy/lensing/21cm power spectra and transfer functions are calculated.
+
+    Not intended to be separately instantiated, only used as part of CAMBparams.
     """
     _fields_ = [
         ("limber_windows", c_bool,
