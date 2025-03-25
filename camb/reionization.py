@@ -75,6 +75,15 @@ class BaseTauWithHeReionization(ReionizationModel):
         self.optical_depth = tau
         return self
 
+    def set_extra_params(self, max_zrei=None):
+        """
+        Set extra parameters (not tau, or zrei)
+
+        :param max_zrei: maximum redshift allowed when mapping tau into reionization redshift
+        """
+        if max_zrei is not None:
+            self.max_redshift = max_zrei
+
 
 @fortran_class
 class TanhReionization(BaseTauWithHeReionization):
@@ -87,12 +96,14 @@ class TanhReionization(BaseTauWithHeReionization):
 
     _fortran_class_name_ = 'TTanhReionization'
 
-    def set_extra_params(self, deltazrei=None):
+    def set_extra_params(self, deltazrei=None, max_zrei=None):
         """
         Set extra parameters (not tau, or zrei)
 
         :param deltazrei: delta z for reionization
+        :param max_zrei: maximum redshift allowed when mapping tau into reionization
         """
+        super().set_extra_params(max_zrei)
         if deltazrei is not None:
             self.delta_redshift = deltazrei
 
@@ -111,15 +122,16 @@ class ExpReionization(BaseTauWithHeReionization):
 
     _fortran_class_name_ = 'TExpReionization'
 
-    def set_extra_params(self, reion_redshift_complete=None, reion_exp_power=None, reion_exp_smooth_width=None):
+    def set_extra_params(self, reion_redshift_complete=None, reion_exp_power=None, reion_exp_smooth_width=None, max_zrei=None):
         """
         Set extra parameters (not tau, or zrei)
 
         :param reion_redshift_complete: redshift at which reionization complete (e.g. around 6)
         :param reion_exp_power: power in exponential decay with redshift
         :param reion_exp_smooth_width: smoothing parameter to keep derivative smooth
+        :param max_zrei: maximum redshift allowed when mapping tau into reionization
         """
-
+        super().set_extra_params(max_zrei)
         if reion_redshift_complete is not None:
             self.reion_redshift_complete = reion_redshift_complete
         if reion_exp_power is not None:
