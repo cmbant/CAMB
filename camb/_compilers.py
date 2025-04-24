@@ -38,7 +38,6 @@ def check_ifort():
 
 def check_gfortran(version=gfortran_min, msg=False, retry=False):
     from packaging.version import parse as parse_version
-    global compiler_environ
     gfortran_version = get_gfortran_version()
     version = str(version)
     if gfortran_version:

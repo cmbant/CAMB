@@ -194,7 +194,6 @@ def get_predictor(predictor_name=None):
     """
     Get instance of default BBNPredictor class. Currently numerical table interpolation as Planck 2018 analysis.
     """
-    global _predictors
     predictor_name = predictor_name or default_interpolation_table
     predictor = _predictors.get(predictor_name, None)
     if predictor is None:

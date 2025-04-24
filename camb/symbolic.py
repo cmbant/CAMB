@@ -790,7 +790,6 @@ def compile_source_function_code(code_body, file_path='', compiler=None, fflags=
     if is_32_bit:
         fflags = "-m32 " + fflags
     if is_windows:
-        global _first_compile
         fflags += ' -static'
         if _first_compile:
             check_gfortran(msg=True)
