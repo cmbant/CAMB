@@ -1,11 +1,14 @@
 version: 2
 
 build:
-  os: "ubuntu-22.04"
+  os: "ubuntu-24.04"
   tools:
-    python: "3.11"
+    python: "3.13"
   apt_packages:
     - gfortran
+  jobs:
+    pre_build:
+      - python docs/markdown_builder.py --output docs/camb_docs_combined.md
 
 python:
   install:

@@ -32,7 +32,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-docs = ["sphinx>=4.0", "sphinx_rtd_theme>=1.0", "sphinxcontrib-jquery"]
+docs = ["sphinx>=4.0", "sphinx_rtd_theme>=1.0", "sphinxcontrib-jquery", "sphinx_markdown_builder", "jupytext"]
 
 [project.scripts]
 camb = "camb._command_line:run_command_line"

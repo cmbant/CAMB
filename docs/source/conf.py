@@ -47,7 +47,7 @@ needs_sphinx = '4.0'
 # ones.
 extensions = [
     'sphinx.ext.autodoc', 'sphinx.ext.intersphinx', 'sphinx.ext.viewcode', 'sphinx.ext.autosummary',
-    'sphinx.ext.mathjax', 'sphinx_rtd_theme', 'sphinxcontrib.jquery'
+    'sphinx.ext.mathjax', 'sphinx_rtd_theme', 'sphinxcontrib.jquery', 'sphinx_markdown_builder'
 ]
 
 intersphinx_mapping = {'python': ('https://docs.python.org/3', None),
@@ -155,7 +155,7 @@ html_theme_options = {}
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-# html_static_path = ['_static']
+html_static_path = ['../camb_docs_combined.md']
 
 # Add any extra paths that contain custom files (such as robots.txt or
 # .htaccess) here, relative to this directory. These files are copied

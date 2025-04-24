@@ -8,7 +8,12 @@ The main code is Python with numerical calculations implemented efficiently in P
 
 See the `CAMB python example notebook <https://camb.readthedocs.io/en/latest/CAMBdemo.html>`_ for an
 introductory set of examples of how to use the CAMB package. This is usually the fastest way to learn how to use it
-and quickly see some of the capabilities. There are also `technical notes <https://cosmologist.info/notes/CAMB.pdf>`_.
+and quickly see some of the capabilities. There's also an `AI help assistant <https://cosmocoffee.info/help_assist.php>`_,
+with up-to-date knowledge of the full Python documentation.
+
+There are also `technical notes <https://cosmologist.info/notes/CAMB.pdf>`_
+and an `LLM context file <https://camb.readthedocs.io/en/latest/_static/camb_docs_combined.md>`_ that you can use in
+system prompts or as part documentation database.
 
 For a standard non-editable installation use::
 
