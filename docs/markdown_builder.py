@@ -95,6 +95,46 @@ def build_markdown_docs():
     return build_dir
 
 
+def extract_toctree_order(index_rst_path="docs/source/index.rst"):
+    """Extract the order of files from the index.rst toctree."""
+    try:
+        with open(index_rst_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        # Find all toctree sections
+        toctree_sections = []
+        current_section = []
+        in_toctree = False
+
+        for line in content.split('\n'):
+            line = line.strip()
+            if '.. toctree::' in line:
+                in_toctree = True
+                current_section = []
+            elif in_toctree:
+                if line and not line.startswith(':'):
+                    # This is a document reference in the toctree
+                    current_section.append(line)
+                elif not line and current_section:
+                    # Empty line after entries - end of this toctree
+                    toctree_sections.append(current_section)
+                    in_toctree = False
+
+        # Add the last section if we're still in a toctree at the end
+        if in_toctree and current_section:
+            toctree_sections.append(current_section)
+
+        # Flatten the list of sections
+        ordered_files = []
+        for section in toctree_sections:
+            ordered_files.extend(section)
+
+        return ordered_files
+    except Exception as e:
+        print(f"Warning: Could not extract toctree order from index.rst: {e}")
+        return []
+
+
 def combine_markdown_files(build_dir, exclude_files, output_file):
     """Combine Markdown files into a single file with improved structure."""
     print(f"Combining Markdown files into {output_file}...")
@@ -122,6 +162,51 @@ def combine_markdown_files(build_dir, exclude_files, output_file):
         print(f"Successfully excluded {excluded_count} file(s)")
     else:
         print("Note: No files were excluded.")
+
+    # Ensure index.md comes first if it exists
+    index_file = None
+    other_files = []
+
+    for file_path in filtered_files:
+        if os.path.basename(file_path).lower() == "index.md":
+            index_file = file_path
+        else:
+            other_files.append(file_path)
+
+    # Get the order from index.rst
+    ordered_docs = extract_toctree_order()
+
+    # Create a mapping of filenames to their paths
+    filename_to_path = {os.path.splitext(os.path.basename(f))[0]: f for f in other_files}
+
+    # Sort other_files based on the order in index.rst
+    sorted_other_files = []
+
+    # First add files in the order they appear in index.rst
+    ordered_count = 0
+    for doc in ordered_docs:
+        if doc in filename_to_path:
+            sorted_other_files.append(filename_to_path[doc])
+            # Remove from the dictionary to mark as processed
+            del filename_to_path[doc]
+            ordered_count += 1
+
+    # Then add any remaining files that weren't in the toctree
+    remaining_files = list(filename_to_path.values())
+    remaining_files.sort()  # Sort alphabetically
+    sorted_other_files.extend(remaining_files)
+
+    if ordered_count > 0:
+        print(f"Sorted {ordered_count} files according to their order in index.rst")
+    if remaining_files:
+        print(f"Added {len(remaining_files)} additional files not found in index.rst (sorted alphabetically)")
+
+    # Reorder files with index first, then the rest in the determined order
+    if index_file:
+        filtered_files = [index_file] + sorted_other_files
+        print("Placing index.md first in the combined document")
+    else:
+        filtered_files = sorted_other_files
 
     # Create the output directory if it doesn't exist
     os.makedirs(os.path.dirname(output_file), exist_ok=True)
