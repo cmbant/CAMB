@@ -1,4 +1,4 @@
-Copyright 2000-2018 Antony Lewis and Anthony Challinor.
+Copyright 2000-2025 Antony Lewis and Anthony Challinor.
 
 Portions of this software were originally based on
 CMBFAST  by  Uros Seljak and Matias Zaldarriaga, itself based on Boltzmann code written by Edmund

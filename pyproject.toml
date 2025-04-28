@@ -10,7 +10,8 @@ authors = [
 description = "Code for Anisotropies in the Microwave Background"
 keywords = ['cosmology', 'CAMB', 'CMB']
 readme = "docs/README_pypi.rst"
-license = { file = "LICENCE.txt" }
+license = "LicenseRef-LGPL-arxiv"
+license-files = ["LICENCE.txt"]
 dynamic = ["version"]
 requires-python = ">=3.8.0"
 classifiers = [
@@ -19,7 +20,7 @@ classifiers = [
     "Environment :: Console",
     "Intended Audience :: Science/Research",
     "Topic :: Scientific/Engineering :: Astronomy",
-    "License :: OSI Approved :: GNU Lesser General Public License v3 (LGPLv3)",
+#    "License :: OSI Approved :: GNU Lesser General Public License v3 (LGPLv3)",
     "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
