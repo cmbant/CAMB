@@ -13,9 +13,9 @@ jobs:
         - name: "Latest Python 3.x"
           os: ubuntu-latest
           python-version: 3.x
-        - name: "OS X Python 3.8"
+        - name: "OS X Python 3.9"
           os: macos-latest
-          python-version: 3.8
+          python-version: 3.9
         - name: "Windows Python 3.12"
           os: windows-latest
           python-version: 3.12

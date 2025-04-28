@@ -34,7 +34,7 @@ The standard pip installation includes binary pre-compiled code, so no need for 
 (unless you want to use custom sources/symbolic compilation features).
 Anaconda users can also install from conda-forge, best making a new clean environment using::
 
-  conda create -n camb -c conda-forge python=3.11 camb
+  conda create -n camb -c conda-forge python=3.13 camb
   activate camb
 
 Check that conda installs the latest version, if not try installing
