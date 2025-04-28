@@ -453,6 +453,8 @@ class CAMBparams(F2003Class):
         H0 value). Likewise, the dark energy model cannot depend explicitly on H0 unless you provide a custom
         setter_H0 function to update the model for each H0 iteration used to search for thetastar.
 
+        If in doubt, print CAMBparams after setting parameters to see the underlying values that have been set.
+
         :param H0: Hubble parameter today in km/s/Mpc. Can leave unset and instead set thetastar or cosmomc_theta
                   (which solves for the required H0).
         :param ombh2: physical density in baryons
@@ -467,7 +469,8 @@ class CAMBparams(F2003Class):
                     distance :math:`D_M`, where both quantities are evaluated at :math:`z_*`, the redshift at
                     which the optical depth (excluding reionization) is unity. Leave unset to use H0 or cosmomc_theta.
         :param neutrino_hierarchy: 'degenerate', 'normal', or 'inverted' (1 or 2 eigenstate approximation)
-        :param num_massive_neutrinos:  number of massive neutrinos
+        :param num_massive_neutrinos:  number of massive neutrinos. If meffsterile is set, this is the number of
+                                       massive active neutrinos.
         :param mnu: sum of neutrino masses (in eV). Omega_nu is calculated approximately from this assuming neutrinos
                non-relativistic today; i.e. here is defined as a direct proxy for Omega_nu. Internally the actual
                physical mass is calculated from the Omega_nu accounting for small mass-dependent velocity corrections
@@ -475,7 +478,8 @@ class CAMBparams(F2003Class):
                Set the neutrino field values directly if you need finer control or more complex neutrino models.
         :param nnu: N_eff, effective relativistic degrees of freedom
         :param YHe: Helium mass fraction. If None, set from BBN consistency.
-        :param meffsterile: effective mass of sterile neutrinos
+        :param meffsterile: effective mass of sterile neutrinos (set along with nnu greater than the standard value).
+                 Defined as in the Planck papers. You do not need to also change num_massive_neutrinos.
         :param standard_neutrino_neff:  default value for N_eff in standard cosmology (non-integer to allow for partial
                 heating of neutrinos at electron-positron annihilation and QED effects)
         :param TCMB: CMB temperature (in Kelvin)
@@ -522,9 +526,6 @@ class CAMBparams(F2003Class):
         omnuh2 = omnuh2 + omnuh2_sterile
         self.omnuh2 = omnuh2
         self.omk = omk
-        if omnuh2_sterile > 0:
-            if nnu < standard_neutrino_neff:
-                raise CAMBError('nnu < %.3g with massive sterile' % constants.default_nnu)
         assert num_massive_neutrinos == int(num_massive_neutrinos)
         self.f_SetNeutrinoHierarchy(byref(c_double(omnuh2)), byref(c_double(omnuh2_sterile)),
                                     byref(c_double(nnu)),

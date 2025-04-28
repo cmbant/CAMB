@@ -238,6 +238,7 @@
     !Set neutrino hierarchy in the approximate two-eigenstate model (treating two as exactly degenerate, and assuming non-relativistic),
     !or use degenerate mass approximation.
     !omnuh2 is the massive total neutrino density today, omnuh2_sterile is the component of that due to steriles
+    !omnuh2_sterile is interpreted as in the Planck parameter papers
     use MathUtils
     use constants
     class(CAMBparams), intent(inout) :: this
