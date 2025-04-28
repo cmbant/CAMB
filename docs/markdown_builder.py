@@ -221,9 +221,10 @@ def combine_markdown_files(build_dir, exclude_files, output_file):
         for file_path in filtered_files:
             file_name = os.path.basename(file_path)
             section_name = os.path.splitext(file_name)[0]
+            link_name = 'https://camb.readthedocs.io/en/latest/' + section_name + '.html'
 
             print(f"  Adding {section_name}...")
-            outfile.write(f"## {file_name}\n\n")
+            outfile.write(f"## {link_name}\n\n")
 
             # Add file content
             with open(file_path, "r", encoding="utf-8") as infile:
@@ -303,7 +304,7 @@ def main():
         if CAMBdemo_md:
             print(f"Appending CAMBdemo.md to {args.output}...")
             with open(args.output, "a", encoding="utf-8") as outfile:
-                outfile.write("## Usage examples from CAMBdemo jupyter notebook \n\n")
+                outfile.write("## Usage examples from CAMBdemo jupyter notebook\n\n")
                 with open(CAMBdemo_md, "r", encoding="utf-8") as infile:
                     content = infile.read()
                     outfile.write(content)
