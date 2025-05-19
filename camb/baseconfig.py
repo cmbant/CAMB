@@ -2,6 +2,7 @@ import os.path as osp
 import sys
 import platform
 import ctypes
+import inspect
 from ctypes import Structure, POINTER, byref, c_int, c_double, c_bool, c_float
 from numpy.ctypeslib import ndpointer
 import numpy as np
@@ -507,7 +508,7 @@ class CAMBStructureMeta(type(Structure)):
             else:
                 ctypes_fields.append((field_name, field_type))
             if field[0][0] != '_':  # add :ivar: documentation for each field
-                field_doc += "\n    :ivar %s:" % field[0]
+                field_doc += "\n:ivar %s:" % field[0]
                 if isinstance(field[-1], dict) and field[-1].get('names', None):
                     field_doc += " (integer/string, one of: %s) " % (", ".join(field[-1]["names"]))
                 else:
@@ -531,7 +532,7 @@ class CAMBStructureMeta(type(Structure)):
         namespace["_fields_"] = ctypes_fields
 
         if field_doc:
-            namespace['__doc__'] = namespace.get('__doc__', "") + "\n" + field_doc
+            namespace['__doc__'] = inspect.cleandoc(namespace.get('__doc__', "")) + "\n" + field_doc
 
         # noinspection PyTypeChecker
         cls: CAMB_Structure = super().__new__(metacls, name, bases, namespace)

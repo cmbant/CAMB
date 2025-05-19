@@ -27,18 +27,6 @@ import camb
 nitpicky = True
 
 
-# # Prevent spurious errors for every field ivar (not sure why..)
-# def on_missing_reference(app, env, node, contnode):
-#     if node['reftype'] == 'obj':
-#         return contnode
-#     else:
-#         return None
-
-
-# def setup(app):
-#     app.connect('missing-reference', on_missing_reference)
-
-
 # If your documentation needs a minimal Sphinx version, state it here.
 needs_sphinx = '4.0'
 
