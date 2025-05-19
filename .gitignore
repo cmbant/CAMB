@@ -38,3 +38,44 @@ Inspector/
 .ipynb_checkpoints
 camb/HighLExtrapTemplate_lenspotentialCls.dat
 .vscode/
+<<<<<<< Updated upstream
+=======
+testfile*
+*.ipynb
+!CAMBdemo.ipynb
+!ScalEqs.ipynb
+*.dll
+*.a
+*.o
+*.png
+*.so
+*.sm
+*~
+*.whl
+*.pdf
+.vs
+*.mp4
+
+# Ignore all .dat and .ini files except those already tracked in git
+*.dat
+*.ini
+*compatibility.txt
+camb_test.py
+temp_test.py
+*.layout
+lensing_cgrads.f90
+# Exceptions for tracked .dat files
+!camb/PArthENoPE_880.2_marcucci.dat
+!camb/PArthENoPE_880.2_standard.dat
+!camb/PRIMAT_Yp_DH_Error.dat
+!camb/PRIMAT_Yp_DH_ErrorMC_2021.dat
+!fortran/HighLExtrapTemplate_lenspotentialCls.dat
+# Exceptions for tracked .ini files
+!inifiles/params.ini
+!inifiles/params_21cm.ini
+!inifiles/params_counts.ini
+!inifiles/params_lensing.ini
+!inifiles/planck_2018.ini
+!inifiles/planck_2018_acc.ini
+!inifiles/sources_defaults.ini
+>>>>>>> Stashed changes
