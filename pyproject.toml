@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools", "packaging", "wheel"]
+requires = ["setuptools>=77", "packaging>=24", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -13,21 +13,20 @@ readme = "docs/README_pypi.rst"
 license = "LicenseRef-LGPLv3-arxiv"
 license-files = ["LICENCE.txt"]
 dynamic = ["version"]
-requires-python = ">=3.9.0"
+requires-python = ">=3.10.0"
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Operating System :: OS Independent",
     "Environment :: Console",
     "Intended Audience :: Science/Research",
     "Topic :: Scientific/Engineering :: Astronomy",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13"
 ]
 dependencies = [
-    "numpy", "scipy>=1.0", "sympy>=1.0", "packaging"
+    "numpy", "scipy>=1.0", "sympy>=1.0", "packaging>=24"
 ]
 
 [project.optional-dependencies]

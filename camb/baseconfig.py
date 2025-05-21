@@ -318,7 +318,7 @@ AllocatableArrayDouble._set_allocatable_1D_array = camblib.__handles_MOD_set_all
 AllocatableArrayDouble._set_allocatable_1D_array.argtypes = [POINTER(AllocatableArrayDouble), numpy_1d, POINTER(c_int)]
 
 
-def fortran_array(c_pointer, shape, dtype=np.float64, order='F', own_data=True):
+def fortran_array(c_pointer, shape, dtype: type =np.float64, order='F', own_data=True):
     if not hasattr(shape, '__len__'):
         shape = np.atleast_1d(shape)
     arr_size = np.prod(shape[:]) * np.dtype(dtype).itemsize
@@ -640,7 +640,7 @@ class CAMB_Structure(Structure, metaclass=CAMBStructureMeta):
 
     def __getstate__(self) -> dict:
         state = {}
-        for field_name, field_type in self.get_all_fields():
+        for field_name, _ in self.get_all_fields():
             obj = getattr(self, field_name)
             if isinstance(obj, (ctypes.Array, np.ndarray, _ArrayOfAllocatable)):
                 state[field_name] = list(obj[:len(obj)])
@@ -684,6 +684,12 @@ class F2003Class(CAMB_Structure):
     _class_names = {}
 
     __slots__ = ()
+
+    # _fields_ store ctypes fields, but here overridden  
+    _fields_: list[tuple[str, type] | tuple[str, type, str]]
+
+    # _methods_ for calling fortran functions name, arguments and optional return value  
+    _methods_: list[tuple[str, list, type] | tuple[str, list]]
 
     # pointer to fortran class; generated once per instance using _fortran_selfpointer_function then replaced with
     # the actual value

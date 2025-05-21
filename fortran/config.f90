@@ -60,6 +60,7 @@
     integer, parameter :: error_darkenergy=6
     integer, parameter :: error_ini=7
     integer, parameter :: error_nonlinear=8
+    integer, parameter :: error_allocation=9
 
     contains
 

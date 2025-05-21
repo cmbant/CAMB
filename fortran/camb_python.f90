@@ -307,6 +307,11 @@
     real(dl) ks(nk)
 
     if (nk/=0) then
+        if (.not. allocated(State%MT%TransferData)) then
+            global_error_flag = error_allocation
+            global_error_message = 'TransferData not allocated: make sure transfer functions computed'
+            return
+        end if
         ks =  State%MT%TransferData(Transfer_kh,:,1) * (State%CP%H0/100)
     end if
     nk = State%MT%num_q_trans

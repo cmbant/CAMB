@@ -11,7 +11,7 @@ except ImportError:
     sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
     import camb
 from camb import model, correlations, bbn, dark_energy, initialpower
-from camb.baseconfig import CAMBParamRangeError, CAMBValueError
+from camb.baseconfig import CAMBParamRangeError, CAMBValueError, CAMBError
 
 fast = 'ci fast' in os.getenv("GITHUB_ACTIONS", '')
 
@@ -249,6 +249,15 @@ class CambTest(unittest.TestCase):
         d = data.conformal_time_a1_a2(0, 0.5) + data.conformal_time_a1_a2(0.5, 1)
         self.assertAlmostEqual(d, data.conformal_time_a1_a2(0, 1))
         self.assertAlmostEqual(d, sum(data.conformal_time_a1_a2([0, 0.5], [0.5, 1])))
+
+    def testErrors(self):
+        redshifts = np.logspace(-1, np.log10(1089))
+        pars = camb.set_params(H0=67.5, ombh2=0.022, omch2=0.122, As=2e-9, ns=0.95,
+                               redshifts=redshifts, kmax=0.1)
+
+        results = camb.get_background(pars)
+        with self.assertRaises(CAMBError):
+            results.get_matter_power_interpolator()
 
     def testEvolution(self):
         redshifts = [0.4, 31.5]

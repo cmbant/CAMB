@@ -90,8 +90,8 @@ class MatterTransferData:
 
     nq: int
     q: np.ndarray
-    sigma_8: np.ndarray
-    sigma2_vdelta_8: np.ndarray
+    sigma_8: np.ndarray | None
+    sigma2_vdelta_8: np.ndarray | None
     transfer_data: np.ndarray
 
     def transfer_z(self, name, z_index=0):
@@ -372,8 +372,7 @@ class CAMBdata(F2003Class):
 
     def _scale_cls(self, cls, CMB_unit=None, raw_cl=False, lens_potential=False):
         if raw_cl:
-            ls = np.arange(1, cls.shape[0])[..., np.newaxis]
-            ls = np.float64(ls * (ls + 1))
+            ls = np.arange(1, cls.shape[0], dtype=np.float64)[..., np.newaxis]
             if lens_potential:
                 cls[1:, 0] /= ls[:, 0] ** 2 / (2 * np.pi)
                 cls[1:, 1:] /= ls ** (3. / 2) / (2 * np.pi)
@@ -739,6 +738,8 @@ class CAMBdata(F2003Class):
         num_k = c_int(0)
         CAMBdata_mattertransferks(byref(self), byref(num_k), np.array([]))
         nk = num_k.value
+        if not nk:
+            raise CAMBError('No k values available for matter power spectrum')
 
         ks = np.empty(nk, dtype=np.float64)
         CAMBdata_mattertransferks(byref(self), byref(num_k), ks)
@@ -754,9 +755,9 @@ class CAMBdata(F2003Class):
         PK = np.empty((nz, nk))
         if nonlinear:
             CAMBdata_GetNonLinearMatterPower(byref(self), PK, byref(var1), byref(var2), byref(hubble_units))
-            config.check_global_error('get_[non]linear_matter_power_spectrum')
         else:
             CAMBdata_GetLinearMatterPower(byref(self), PK, byref(var1), byref(var2), byref(hubble_units))
+        config.check_global_error('get_[non]linear_matter_power_spectrum')
 
         z = self.Params.Transfer.PK_redshifts[:nz]
         z.reverse()
@@ -945,6 +946,10 @@ class CAMBdata(F2003Class):
         class PKInterpolator(RectBivariateSpline):
             islog: bool
             logsign: int
+            kmin : float
+            kmax : float
+            zmin : float
+            zmax : float
 
             def P(self, z, kh, grid=None):
                 if grid is None:
@@ -1395,7 +1400,7 @@ class CAMBdata(F2003Class):
         else:
             return self.f_AngularDiameterDistance2(byref(c_double(z1)), byref(c_double(z2)))
 
-    def comoving_radial_distance(self, z, tol=1e-4):
+    def comoving_radial_distance(self, z: float, tol=1e-4):
         """
         Get comoving radial distance from us to redshift z in Mpc. This is efficient for arrays.
 
