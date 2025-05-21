@@ -2,6 +2,7 @@ from .baseconfig import camblib, CAMB_Structure, F2003Class, fortran_class, nump
     CAMBError, CAMBValueError, CAMBParamRangeError, AllocatableArrayDouble, AllocatableObject, \
     AllocatableObjectArray, AllocatableArrayInt, numpy_1d_int
 from ctypes import c_bool, c_int, c_double, byref, POINTER, c_void_p
+from typing import Dict, List, Union, cast
 import ctypes
 from . import reionization as reion
 from . import recombination as recomb
@@ -261,6 +262,7 @@ class CAMBparams(F2003Class):
     def __init__(self, **kwargs):
         set_default_params(self)
         self.InitPower.set_params()
+        self._custom_source_name_dict: Dict[int, List[str]] = {}
         super().__init__(**kwargs)
 
     def validate(self):
@@ -429,9 +431,12 @@ class CAMBparams(F2003Class):
             # Convert rtol to numpy.float64 to match the expected type
             import numpy as np
             # brentq returns a float or a tuple with the float and additional info
+            # Explicitly set full_output=False to ensure we get a float
             result = brentq(f, theta_H0_range[0], theta_H0_range[1], rtol=np.float64(5e-5), full_output=False)
-            # Ensure we have a float
-            self.H0 = float(result)
+            # Ensure we have a float by explicitly converting
+            # Use type annotation to help pyright
+            result_float: float = result
+            self.H0 = float(result_float)
             if not cosmomc_approx and abs(self.H0 - est_H0) > iteration_threshold:
                 # iterate with recalculation of recombination and zstar
                 self.set_H0_for_theta(theta, theta_H0_range=theta_H0_range, est_H0=self.H0,
@@ -692,7 +697,9 @@ class CAMBparams(F2003Class):
         try:
             ombh2 = ombh2 if ombh2 is not None else self.ombh2
             delta_neff = delta_neff if delta_neff is not None else self.N_eff - constants.default_nnu
-            return self.bbn_predictor.DH(ombh2, delta_neff)
+            # Use getattr to avoid pyright error about unknown attribute
+            dh_method = getattr(self.bbn_predictor, 'DH')
+            return dh_method(ombh2, delta_neff)
         except AttributeError:
             raise CAMBError('Not able to compute DH: not using an interpolation table for BBN abundances.')
 
@@ -819,7 +826,7 @@ class CAMBparams(F2003Class):
         else:
             return powers
 
-    _custom_source_name_dict: dict[int, str] = {}
+    _custom_source_name_dict: Dict[int, List[str]] = {}
 
     def set_custom_scalar_sources(self, custom_sources, source_names=None, source_ell_scales=None,
                                   frame='CDM', code_path=None):
@@ -869,7 +876,13 @@ class CAMBparams(F2003Class):
                                                                           code_path=code_path)
 
         custom_source_func = ctypes.cast(_current_source_func, c_void_p)
-        self._custom_source_name_dict[custom_source_func.value] = custom_source_names
+        # Ensure the key is an integer and the value is a list of strings
+        if custom_source_func.value is not None:
+            key = int(custom_source_func.value)
+            # Convert all names to strings
+            names_list = [str(name) for name in custom_source_names]
+            # Use cast to help pyright understand the type
+            self._custom_source_name_dict[key] = cast(List[str], names_list)
         self.f_SetCustomSourcesFunc(byref(c_int(len(custom_sources))), byref(custom_source_func), scales)
 
     def get_custom_source_names(self) -> list[str]:

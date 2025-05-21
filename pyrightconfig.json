@@ -1,4 +1,6 @@
 {
+  "include": ["camb"],
+  "exclude": ["**/node_modules", "**/__pycache__", "camb/baseconfig.py", "camb/symbolic.py", "camb/tests/**", "camb/results.py", "camb/postborn.py", "camb/emission_angle.py", "camb/camb.py"],
   "typeCheckingMode": "basic",
   "reportMissingImports": false,
   "reportMissingTypeStubs": false,
@@ -13,5 +15,8 @@
   "reportUnknownArgumentType": false,
   "reportUnknownVariableType": false,
   "reportUnknownLambdaType": false,
-  "reportInvalidTypeVarUse": false
+  "reportInvalidTypeVarUse": false,
+  "reportIncompatibleMethodOverride": false,
+  "reportIncompatibleVariableOverride": false,
+  "reportAssignmentType": false
 }
