@@ -102,7 +102,7 @@ class BBN_table_interpolator(BBNPredictor):
         self.ombh2s = ombh2s
         self.deltans = deltans
 
-    def Y_p(self, ombh2, delta_neff=0., grid=False):
+    def Y_p(self, ombh2, delta_neff=0., grid=False) -> float:
         r"""
         Get BBN helium nucleon fraction by intepolation in table.
 
@@ -114,7 +114,7 @@ class BBN_table_interpolator(BBNPredictor):
         """
         return self.get('Yp^BBN', ombh2, delta_neff, grid)
 
-    def DH(self, ombh2, delta_neff=0., grid=False):
+    def DH(self, ombh2, delta_neff=0., grid=False) -> float:
         r"""
         Get deuterium ratio D/H by interpolation in table
 

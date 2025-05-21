@@ -404,12 +404,13 @@ class CAMBparams(F2003Class):
                 params.H0 = H0
 
         data = camb.CAMBdata()
+        zstar = None
         if not cosmomc_approx:
-            zstar = c_double()
+            zstar_val = c_double()
             _set_H0(self, est_H0)
             data.calc_background_no_thermo(self)
             # get_zstar initializes the recombination model
-            zstar = data.f_get_zstar(byref(zstar))
+            zstar = data.f_get_zstar(byref(zstar_val))
 
         def f(H0):
             _set_H0(self, H0)
@@ -418,12 +419,19 @@ class CAMBparams(F2003Class):
                 theta_test = data.cosmomc_theta()
             else:
                 rs = data.sound_horizon(zstar)
-                theta_test = rs / (data.angular_diameter_distance(zstar) * (1 + zstar))
+                # Ensure zstar is not None before adding 1
+                z_value = zstar if zstar is not None else 0
+                theta_test = rs / (data.angular_diameter_distance(zstar) * (1 + z_value))
             return theta_test - theta
 
         try:
             # noinspection PyTypeChecker
-            self.H0: float = brentq(f, theta_H0_range[0], theta_H0_range[1], rtol=5e-5)
+            # Convert rtol to numpy.float64 to match the expected type
+            import numpy as np
+            # brentq returns a float or a tuple with the float and additional info
+            result = brentq(f, theta_H0_range[0], theta_H0_range[1], rtol=np.float64(5e-5), full_output=False)
+            # Ensure we have a float
+            self.H0 = float(result)
             if not cosmomc_approx and abs(self.H0 - est_H0) > iteration_threshold:
                 # iterate with recalculation of recombination and zstar
                 self.set_H0_for_theta(theta, theta_H0_range=theta_H0_range, est_H0=self.H0,
@@ -864,9 +872,16 @@ class CAMBparams(F2003Class):
         self._custom_source_name_dict[custom_source_func.value] = custom_source_names
         self.f_SetCustomSourcesFunc(byref(c_int(len(custom_sources))), byref(custom_source_func), scales)
 
-    def get_custom_source_names(self):
-        if self.CustomSources.num_custom_sources:
-            return self._custom_source_name_dict[self.CustomSources.c_source_func]
+    def get_custom_source_names(self) -> list[str]:
+        if self.CustomSources.num_custom_sources and self.CustomSources.c_source_func in self._custom_source_name_dict:
+            names = self._custom_source_name_dict[self.CustomSources.c_source_func]
+            # Ensure we return a list of strings
+            if isinstance(names, list):
+                return [str(name) for name in names]
+            elif isinstance(names, str):
+                return [names]
+            else:
+                return []
         else:
             return []
 
