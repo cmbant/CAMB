@@ -318,7 +318,7 @@ AllocatableArrayDouble._set_allocatable_1D_array = camblib.__handles_MOD_set_all
 AllocatableArrayDouble._set_allocatable_1D_array.argtypes = [POINTER(AllocatableArrayDouble), numpy_1d, POINTER(c_int)]
 
 
-def fortran_array(c_pointer, shape, dtype: type =np.float64, order='F', own_data=True):
+def fortran_array(c_pointer, shape, dtype: type = np.float64, order='F', own_data=True):
     if not hasattr(shape, '__len__'):
         shape = np.atleast_1d(shape)
     arr_size = np.prod(shape[:]) * np.dtype(dtype).itemsize

@@ -946,10 +946,10 @@ class CAMBdata(F2003Class):
         class PKInterpolator(RectBivariateSpline):
             islog: bool
             logsign: int
-            kmin : float
-            kmax : float
-            zmin : float
-            zmax : float
+            kmin: float
+            kmax: float
+            zmin: float
+            zmax: float
 
             def P(self, z, kh, grid=None):
                 if grid is None:
