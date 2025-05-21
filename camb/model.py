@@ -14,7 +14,7 @@ from .reionization import ReionizationModel
 from .sources import SourceWindow
 from . import bbn
 import logging
-from typing import Union, Optional
+# Union and Optional types are now built-in to Python 3.10+
 
 max_nu = 5
 max_transfer_redshifts = 256
@@ -431,13 +431,13 @@ class CAMBparams(F2003Class):
         except ValueError:
             raise CAMBParamRangeError('No solution for H0 inside of theta_H0_range')
 
-    def set_cosmology(self, H0: Optional[float] = None, ombh2=0.022, omch2=0.12, omk=0.0,
-                      cosmomc_theta: Optional[float] = None, thetastar: Optional[float] = None,
-                      neutrino_hierarchy: Union[str, int] = 'degenerate', num_massive_neutrinos=1,
-                      mnu=0.06, nnu=constants.default_nnu, YHe: Optional[float] = None, meffsterile=0.0,
+    def set_cosmology(self, H0: float | None = None, ombh2=0.022, omch2=0.12, omk=0.0,
+                      cosmomc_theta: float | None = None, thetastar: float | None = None,
+                      neutrino_hierarchy: str | int = 'degenerate', num_massive_neutrinos=1,
+                      mnu=0.06, nnu=constants.default_nnu, YHe: float | None = None, meffsterile=0.0,
                       standard_neutrino_neff=constants.default_nnu, TCMB=constants.COBE_CMBTemp,
-                      tau: Optional[float] = None, zrei: Optional[float] = None,
-                      Alens=1.0, bbn_predictor: Union[None, str, bbn.BBNPredictor] = None,
+                      tau: float | None = None, zrei: float | None = None,
+                      Alens=1.0, bbn_predictor: None | str | bbn.BBNPredictor = None,
                       theta_H0_range=(10, 100), setter_H0=None):
         r"""
         Sets cosmological parameters in terms of physical densities and parameters (e.g. as used in Planck analyses).
@@ -811,7 +811,7 @@ class CAMBparams(F2003Class):
         else:
             return powers
 
-    _custom_source_name_dict = {}
+    _custom_source_name_dict: dict[int, str] = {}
 
     def set_custom_scalar_sources(self, custom_sources, source_names=None, source_ell_scales=None,
                                   frame='CDM', code_path=None):

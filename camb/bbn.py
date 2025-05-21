@@ -187,7 +187,7 @@ class BBN_fitting_parthenope(BBNPredictor):
         ) * pow((tau_neutron or self.taun) / 880.3, 0.418) * 1e-5
 
 
-_predictors = {}
+_predictors: dict[str, BBNPredictor] = {}
 
 
 def get_predictor(predictor_name=None):

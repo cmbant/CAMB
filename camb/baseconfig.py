@@ -175,11 +175,11 @@ class _AllocatableObject(FortranAllocatable):
     def set_allocatable(self, instance, name):
         if instance and not isinstance(instance, self._baseclass):
             raise TypeError(
-                '%s expects an object that is an instance of %s' % (name, self._baseclass.__name__))
+                '{} expects an object that is an instance of {}'.format(name, self._baseclass.__name__))
         _set_allocatable(byref(self), byref(instance.fortran_self) if instance else None)
 
 
-_class_cache = {}
+_class_cache: dict[type, type] = {}
 
 
 # noinspection PyPep8Naming
@@ -234,7 +234,7 @@ class _ArrayOfAllocatable(FortranAllocatable):
         for i in range(len(self.allocatables)):
             item = self[i]
             content = item._as_string() if isinstance(item, CAMB_Structure) else str(item)
-            s += ('%s: <%s>\n  ' % (i, item.__class__.__name__)
+            s += ('{}: <{}>\n  '.format(i, item.__class__.__name__)
                   + content.replace('\n', '\n  ')).strip(' ')
         return s
 
@@ -250,7 +250,7 @@ def _make_array_class(baseclass, size):
     class Temp(_ArrayOfAllocatable):
         _fields_ = [("allocatables", AllocatableObject(baseclass) * size)]
 
-    Temp.__name__ = "%sArray_%s" % (baseclass.__name__, size)
+    Temp.__name__ = "{}Array_{}".format(baseclass.__name__, size)
     _class_cache[(baseclass, size)] = Temp
     return Temp
 
@@ -275,7 +275,7 @@ class _AllocatableObjectArray(FortranAllocatable):
         for i, instance in enumerate(array):
             if not isinstance(instance, self._baseclass):
                 raise TypeError(
-                    '%s expects an object that is an instance of %s' % (name, self._baseclass.__name__))
+                    '{} expects an object that is an instance of {}'.format(name, self._baseclass.__name__))
             pointers[i] = instance.fortran_self
 
         self._set_allocatable_object_1D_array(byref(self), byref(pointers), byref(c_int(len(array))))
@@ -326,7 +326,7 @@ def fortran_array(c_pointer, shape, dtype: type = np.float64, order='F', own_dat
     buf_from_mem.restype = ctypes.py_object
     buf_from_mem.argtypes = (ctypes.c_void_p, ctypes.c_int, ctypes.c_int)
     buffer = buf_from_mem(c_pointer, arr_size, 0x100)
-    arr = np.ndarray(tuple(shape[:]), dtype, buffer, order=order)
+    arr: np.ndarray = np.ndarray(tuple(shape[:]), dtype, buffer, order=order)
     if own_data and not arr.flags.owndata:
         return arr.copy()
     else:
@@ -415,7 +415,7 @@ class NamedIntField:
         if isinstance(value, str):
             value = self.name_values[value]
         elif value not in self.values:
-            raise ValueError("Value %s not in allowed: %s" % (value, self.name_values))
+            raise ValueError("Value {} not in allowed: {}".format(value, self.name_values))
         setattr(instance, self.real_name, value)
 
 
@@ -450,7 +450,7 @@ class SizedArrayField:  # statically sized array with another field determining 
         field = getattr(instance, self.real_name)
         if len(value) > len(field):
             raise CAMBParamRangeError(
-                "%s can be of max length %s" % (self.real_name[1:], len(field)))
+                "{} can be of max length {}".format(self.real_name[1:], len(field)))
         field[:len(value)] = value
         setattr(instance, self.size_name, len(value))
 
@@ -494,13 +494,13 @@ class CAMBStructureMeta(type(Structure)):
                             "sized fields only allowed for ctypes Arrays")
                     if dic["size"] not in [x[0] for x in _fields]:
                         raise CAMBFortranError(
-                            "size must be the name of a field in same structure (%s for %s)" % (
+                            "size must be the name of a field in same structure ({} for {})".format(
                                 dic["size"], field_name))
                     new_field = SizedArrayField(field_name, dic["size"])
                     ctypes_fields.append(("_" + field_name, field_type))
                 else:
                     raise CAMBFortranError(
-                        "Unknown dictionary content for %s, %s" % (field_name, dic))
+                        "Unknown dictionary content for {}, {}".format(field_name, dic))
             else:
                 new_field = None
             if new_field:
@@ -518,12 +518,12 @@ class CAMBStructureMeta(type(Structure)):
                     elif issubclass(field[1], ctypes.Array):
                         field_doc += " (*%s array*)" % tps[field[1]._type_]
                     elif issubclass(field[1], CAMB_Structure):
-                        field_doc += " :class:`%s.%s`" % (field[1].__module__, field[1].__name__)
+                        field_doc += " :class:`{}.{}`".format(field[1].__module__, field[1].__name__)
                     elif issubclass(field[1], _AllocatableObject):
-                        field_doc += " :class:`%s.%s`" % (
+                        field_doc += " :class:`{}.{}`".format(
                             field[1]._baseclass.__module__, field[1]._baseclass.__name__)
                     elif issubclass(field[1], _AllocatableObjectArray):
-                        field_doc += " array of :class:`%s.%s`" % (
+                        field_doc += " array of :class:`{}.{}`".format(
                             field[1]._baseclass.__module__, field[1]._baseclass.__name__)
 
                 if len(field) > 2 and not isinstance(field[-1], dict):
@@ -567,7 +567,7 @@ class CAMBStructureMeta(type(Structure)):
                 func = method_import(cls._fortran_class_module_, cls._fortran_class_name_,
                                      method_name, extra_args=extra_args, nopass=nopass, restype=restype)
             except AttributeError:
-                raise AttributeError('No function %s_%s found in module %s' % (
+                raise AttributeError('No function {}_{} found in module {}'.format(
                     cls._fortran_class_name_, method_name, cls._fortran_class_module_))
             new_method = make_method(func, prefix + method_name, nopass, opts.get("doc", ""))
             setattr(cls, prefix + method_name, new_method)
@@ -592,7 +592,7 @@ class CAMB_Structure(Structure, metaclass=CAMBStructureMeta):
 
     @classmethod
     def get_valid_field_names(cls):
-        return set(field[0] for field in cls.get_all_fields())
+        return {field[0] for field in cls.get_all_fields()}
 
     def _as_string(self):
         s = ''
@@ -678,10 +678,10 @@ class F2003Class(CAMB_Structure):
 
     # classes are referenced by their fortran null pointer object. _class_pointers is a dictionary relating these
     # f_pointer to python classes. Elements are added each class by the @fortran_class decorator.
-    _class_pointers = {}
+    _class_pointers: dict[type, int] = {}
 
     # dictionary mapping class names to classes
-    _class_names = {}
+    _class_names: dict[str, type] = {}
 
     __slots__ = ()
 
@@ -749,7 +749,7 @@ class F2003Class(CAMB_Structure):
                     func = cls.__bases__[0].import_method(tag, extra_args, restype, nopass=nopass)
                 except AttributeError:
                     raise AttributeError(
-                        'No function %s_%s found ' % (cls._fortran_class_name_, tag))
+                        'No function {}_{} found '.format(cls._fortran_class_name_, tag))
             cls._class_imports[tag] = func
         return func
 
@@ -774,7 +774,7 @@ class F2003Class(CAMB_Structure):
         """
         if type(instance) is not type(self):
             raise TypeError(
-                'Cannot assign non-identical types (%s to %s, non-allocatable)' % (type(instance), type(self)))
+                'Cannot assign non-identical types ({} to {}, non-allocatable)'.format(type(instance), type(self)))
         self.call_method('Replace', extra_args=[POINTER(f_pointer)], allow_inherit=False,
                          args=[byref(instance.fortran_self)])
 
@@ -790,7 +790,7 @@ class F2003Class(CAMB_Structure):
             return cls()
         else:
             raise CAMBValueError(
-                "class %s is not a type of %s" % (cls.__name__, base_class.__name__))
+                "class {} is not a type of {}".format(cls.__name__, base_class.__name__))
 
 
 # Decorator to get function to get class pointers to each class type, and build index of classes

@@ -22,7 +22,7 @@ except:
     # Fortran version is much faster than current np.polynomial
     gauss_legendre = None
 
-_gauss_legendre_cache = {}
+_gauss_legendre_cache: dict[int, tuple[np.ndarray, np.ndarray]] = {}
 
 
 def _cached_gauss_legendre(npoints, cache=True):

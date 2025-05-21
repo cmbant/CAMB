@@ -17,6 +17,7 @@ A Lewis July 2017
 import ctypes
 import os
 import sympy
+from typing import Any
 from sympy import diff, Eq, simplify, Function, Symbol
 from sympy.core.relational import Relational
 from sympy.abc import t, kappa, K, k
@@ -294,7 +295,7 @@ def constraint_subs_for_variable_set(variables=(z, sigma, phi, hdot)):
 
 var_subs = constraint_subs_for_variable_set()
 
-hdot_sub, phi_sub, sigma_sub, z_sub = [Eq(variable, subs(var_subs, variable)) for variable in [hdot, phi, sigma, z]]
+hdot_sub, phi_sub, sigma_sub, z_sub = (Eq(variable, subs(var_subs, variable)) for variable in [hdot, phi, sigma, z])
 q_sub = Eq(q, subs(Eq(z, subs(var_subs, z)), solve(cons3, q)))
 
 # Evolution equations
@@ -609,7 +610,7 @@ def get_scalar_temperature_sources(checks=False):
 
 
 # for translation in source output routine (does not include all equation variables)
-_camb_cache = {}
+_camb_cache: dict[str, Any] = {}
 
 
 def camb_fortran(expr, name='camb_function', frame='CDM', expand=False):
@@ -705,7 +706,7 @@ def camb_fortran(expr, name='camb_function', frame='CDM', expand=False):
     return res
 
 
-_func_cache = {}
+_func_cache: dict[str, Any] = {}
 _source_file_count = 0
 
 _default_compiler = None
