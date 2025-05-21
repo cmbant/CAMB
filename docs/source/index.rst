@@ -9,24 +9,27 @@ The main code is Python with numerical calculations implemented efficiently in P
 See the `CAMB python example notebook <https://camb.readthedocs.io/en/latest/CAMBdemo.html>`_ for an
 introductory set of examples of how to use the CAMB package. This is usually the fastest way to learn how to use it
 and quickly see some of the capabilities. There's also an `AI help assistant <https://cosmocoffee.info/help_assist.php>`_,
-with up-to-date knowledge of the full Python documentation.
+with up-to-date knowledge of the full Python documentation, 
+and you can use with code execution in `CMB Agent <https://github.com/CMBAgents/cmbagent/>`.
 
 There are also `technical notes <https://cosmologist.info/notes/CAMB.pdf>`_
 and an `LLM context file <https://camb.readthedocs.io/en/latest/_static/camb_docs_combined.md>`_ that you can use in
-system prompts or as part documentation database.
+system prompts or as part of a documentation database.
 
 For a standard non-editable installation use::
 
     pip install camb [--user]
 
 The --user is optional and only required if you don't have write permission to your main python installation.
-If you want to work on the code from `GitHub <https://github.com/cmbant/camb>`_, you can also just install in place without copying anything using::
+
+If you want to work on the code from `GitHub <https://github.com/cmbant/camb>`_, you can install using::
 
     git clone --recursive https://github.com/cmbant/CAMB.git
     pip install -e ./CAMB [--user]
 
-You will need ifort or gfortran 6 or higher installed (and on your path) to compile; see :ref:`fortran-compilers` for
-compiler installation details if needed. If you have gfortran installed, "python setup.py make" will build
+You will need ifort or gfortran 6 or higher installed (and on your path) to compile from source;
+you can see :ref:`fortran-compilers` for compiler installation details if needed. 
+If you have gfortran installed, "python setup.py make" will build
 the Fortran library on all systems (including Windows without directly using a Makefile), and can be used to update
 a source installation after changes or pulling an updated version.
 
