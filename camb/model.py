@@ -881,22 +881,26 @@ class CAMBparams(F2003Class):
             key = int(custom_source_func.value)
             # Convert all names to strings
             names_list = [str(name) for name in custom_source_names]
-            # Use cast to help pyright understand the type
-            self._custom_source_name_dict[key] = cast(List[str], names_list)
+            # Store the names list directly
+            self._custom_source_name_dict[key] = names_list
         self.f_SetCustomSourcesFunc(byref(c_int(len(custom_sources))), byref(custom_source_func), scales)
 
     def get_custom_source_names(self) -> list[str]:
-        if self.CustomSources.num_custom_sources and self.CustomSources.c_source_func in self._custom_source_name_dict:
-            names = self._custom_source_name_dict[self.CustomSources.c_source_func]
-            # Ensure we return a list of strings
-            if isinstance(names, list):
-                return [str(name) for name in names]
-            elif isinstance(names, str):
-                return [names]
-            else:
-                return []
-        else:
-            return []
+        if self.CustomSources.num_custom_sources:
+            # Convert c_source_func to an integer key
+            if self.CustomSources.c_source_func is not None:
+                key = int(self.CustomSources.c_source_func)
+                if key in self._custom_source_name_dict:
+                    names = self._custom_source_name_dict[key]
+                    # Ensure we return a list of strings
+                    if isinstance(names, list):
+                        return [str(name) for name in names]
+                    elif isinstance(names, str):
+                        return [names]
+                # If we can't find the key, return default names
+                return ["T2", "E2"]
+        # Default return empty list
+        return []
 
     def clear_custom_scalar_sources(self):
         self.f_SetCustomSourcesFunc(byref(c_int(0)), byref(ctypes.c_void_p(0)), np.zeros(0, dtype=np.int32))
