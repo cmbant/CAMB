@@ -1,0 +1,17 @@
+{
+  "typeCheckingMode": "basic",
+  "reportMissingImports": false,
+  "reportMissingTypeStubs": false,
+  "reportOptionalMemberAccess": false,
+  "reportOptionalSubscript": false,
+  "reportOptionalOperand": false,
+  "reportOptionalCall": false,
+  "reportOptionalIterable": false,
+  "reportOptionalContextManager": false,
+  "reportOptionalOperand": false,
+  "reportUnknownMemberType": false,
+  "reportUnknownArgumentType": false,
+  "reportUnknownVariableType": false,
+  "reportUnknownLambdaType": false,
+  "reportInvalidTypeVarUse": false
+}

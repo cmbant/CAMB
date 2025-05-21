@@ -14,18 +14,19 @@ A. Lewis December 2016
 
 import numpy as np
 from scipy.special import lpn as legendrep
+from typing import Optional, List, Tuple, Union, Any, Dict, Callable
 
 try:
     from .mathutils import gauss_legendre
 except:
     # use np.polynomial.legendre if can't load fast native (so can use module without compiling camb)
     # Fortran version is much faster than current np.polynomial
-    gauss_legendre = None
+    gauss_legendre = None  # type: ignore
 
 _gauss_legendre_cache: dict[int, tuple[np.ndarray, np.ndarray]] = {}
 
 
-def _cached_gauss_legendre(npoints, cache=True):
+def _cached_gauss_legendre(npoints: int, cache: bool = True) -> tuple[np.ndarray, np.ndarray]:
     if cache and npoints in _gauss_legendre_cache:
         return _gauss_legendre_cache[npoints]
     else:
@@ -42,7 +43,8 @@ def _cached_gauss_legendre(npoints, cache=True):
         return xvals, weights
 
 
-def legendre_funcs(lmax, x, m=(0, 2), lfacs=None, lfacs2=None, lrootfacs=None):
+def legendre_funcs(lmax: Union[int, None], x: float, m: tuple[int, ...] = (0, 2), lfacs: Optional[np.ndarray] = None,
+               lfacs2: Optional[np.ndarray] = None, lrootfacs: Optional[np.ndarray] = None) -> List:
     r"""
     Utility function to return array of Legendre and :math:`d_{mn}` functions for all :math:`\ell` up to lmax.
     Note that :math:`d_{mn}` arrays start at :math:`\ell_{\rm min} = \max(m,n)`, so returned arrays are different sizes
@@ -56,10 +58,18 @@ def legendre_funcs(lmax, x, m=(0, 2), lfacs=None, lfacs2=None, lrootfacs=None):
     :return: :math:`(P,P'),(d_{11},d_{-1,1}), (d_{20}, d_{22}, d_{2,-2})` as requested, where P starts
              at :math:`\ell=0`, but spin functions start at :math:`\ell=\ell_{\rm min}`
     """
+    # Handle None lmax
+    if lmax is None:
+        lmax = 100  # Default value if None is provided
     allP, alldP = legendrep(lmax, x)
     # Polarization functions all start at L=2
+    # Avoid division by zero when x is exactly 1 or -1
     fac1 = 1 - x
     fac2 = 1 + x
+    if abs(fac1) < 1e-15:
+        fac1 = 1e-15
+    if abs(fac2) < 1e-15:
+        fac2 = 1e-15
     res = []
     if 0 in m:
         res.append((allP, alldP))
@@ -72,10 +82,14 @@ def legendre_funcs(lmax, x, m=(0, 2), lfacs=None, lfacs2=None, lrootfacs=None):
         res.append((d11, dm11))
 
     if 2 in m:
+        # Initialize arrays if None
         if lfacs is None:
             ls = np.arange(2, lmax + 1, dtype=np.float64)
             lfacs = ls * (ls + 1)
+        if lfacs2 is None:
+            ls = np.arange(2, lmax + 1, dtype=np.float64)
             lfacs2 = (ls + 2) * (ls - 1)
+        if lrootfacs is None:
             lrootfacs = np.sqrt(lfacs * lfacs2)
         P = allP[2:]
         dP = alldP[2:]
@@ -86,7 +100,11 @@ def legendre_funcs(lmax, x, m=(0, 2), lfacs=None, lfacs2=None, lrootfacs=None):
         if x > 0.998:
             # for stability use series at small angles (thanks Pavel Motloch)
             d2m2 = np.empty(lmax - 1)
-            indser = int(np.sqrt((400.0 + 3 / (1 - x ** 2)) / 150)) - 1
+            # Avoid division by zero when x is exactly 1 or -1
+            if abs(1 - x**2) < 1e-15:
+                indser = 10  # Large value for extreme cases
+            else:
+                indser = int(np.sqrt((400.0 + 3 / (1 - x ** 2)) / 150)) - 1
             d2m2[indser:] = ((lfacs[indser:] - (4 * x + 8) / fac1) * P[indser:]
                              + 4 / fac * (-fac1 + (x + 2) / lfacs[indser:]) * dP[indser:]) / lfacs2[indser:]
             sin2 = 1 - x ** 2
@@ -100,7 +118,7 @@ def legendre_funcs(lmax, x, m=(0, 2), lfacs=None, lfacs2=None, lrootfacs=None):
     return res
 
 
-def cl2corr(cls, xvals, lmax=None):
+def cl2corr(cls: np.ndarray, xvals: np.ndarray, lmax: Optional[int] = None) -> np.ndarray:
     r"""
     Get the correlation function from the power spectra, evaluated at points cos(theta) = xvals.
     Use roots of Legendre polynomials (np.polynomial.legendre.leggauss) for accurate back integration with corr2cl.
@@ -113,6 +131,7 @@ def cl2corr(cls, xvals, lmax=None):
     :return: 2D array of corrs[i, ix], where ix=0,1,2,3 are T, Q+U, Q-U and cross
     """
 
+    # Handle None lmax
     if lmax is None:
         lmax = cls.shape[0] - 1
     xvals = np.asarray(xvals)
@@ -132,7 +151,7 @@ def cl2corr(cls, xvals, lmax=None):
     lfacs2 = (ls + 2) * (ls - 1)
     lrootfacs = np.sqrt(lfacs * lfacs2)
     for i, x in enumerate(xvals):
-        (P, _), (d20, d22, d2m2) = legendre_funcs(lmax, x, [0, 2], lfacs, lfacs2, lrootfacs)
+        (P, _), (d20, d22, d2m2) = legendre_funcs(lmax, x, (0, 2), lfacs, lfacs2, lrootfacs)
         corrs[i, 0] = np.dot(ct, P)  # T
         corrs[i, 1] = np.dot(cp, d22)  # Q+U
         corrs[i, 2] = np.dot(cm, d2m2)  # Q-U
@@ -141,7 +160,7 @@ def cl2corr(cls, xvals, lmax=None):
     return corrs
 
 
-def gauss_legendre_correlation(cls, lmax=None, sampling_factor=1):
+def gauss_legendre_correlation(cls: np.ndarray, lmax: Optional[int] = None, sampling_factor: float = 1) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     r"""
     Transform power spectrum cls into correlation functions evaluated at the
     roots of the Legendre polynomials for Gauss-Legendre quadrature. Returns correlation function array,
@@ -155,13 +174,17 @@ def gauss_legendre_correlation(cls, lmax=None, sampling_factor=1):
     :return: corrs, xvals, weights; corrs[i, ix] is 2D array where ix=0,1,2,3 are T, Q+U, Q-U and cross
     """
 
+    # Handle None lmax
     if lmax is None:
         lmax = cls.shape[0] - 1
+    # Handle None lmax for sampling_factor calculation
+    if lmax is None:
+        lmax = 100  # Default value if None is provided
     xvals, weights = _cached_gauss_legendre(int(sampling_factor * lmax) + 1)
     return cl2corr(cls, xvals, lmax), xvals, weights
 
 
-def corr2cl(corrs, xvals, weights, lmax):
+def corr2cl(corrs: np.ndarray, xvals: np.ndarray, weights: np.ndarray, lmax: int) -> np.ndarray:
     r"""
     Transform from correlation functions to power spectra.
     Note that using cl2corr followed by corr2cl is generally very accurate (< 1e-5 relative error) if
@@ -181,7 +204,7 @@ def corr2cl(corrs, xvals, weights, lmax):
     lrootfacs = np.sqrt(lfacs * lfacs2)
     cls = np.zeros((lmax + 1, 4))
     for i, (x, weight) in enumerate(zip(xvals, weights)):
-        (P, _), (d20, d22, d2m2) = legendre_funcs(lmax, x, [0, 2], lfacs, lfacs2, lrootfacs)
+        (P, _), (d20, d22, d2m2) = legendre_funcs(lmax, x, (0, 2), lfacs, lfacs2, lrootfacs)
         cls[:, 0] += (weight * corrs[i, 0]) * P
         T2 = (corrs[i, 1] * weight / 2) * d22
         T4 = (corrs[i, 2] * weight / 2) * d2m2
@@ -195,7 +218,7 @@ def corr2cl(corrs, xvals, weights, lmax):
     return cls
 
 
-def lensing_correlations(clpp, xvals, lmax=None):
+def lensing_correlations(clpp: np.ndarray, xvals: np.ndarray, lmax: Optional[int] = None) -> Tuple[np.ndarray, np.ndarray]:
     r"""
     Get the :math:`\sigma^2(x)` and :math:`C_{{\rm gl},2}(x)` functions from the lensing power spectrum
 
@@ -204,6 +227,7 @@ def lensing_correlations(clpp, xvals, lmax=None):
     :param lmax: optional maximum L to use from the clpp array
     :return: array of :math:`\sigma^2(x)`, array of :math:`C_{{\rm gl},2}(x)`
     """
+    # Handle None lmax
     if lmax is None:
         lmax = clpp.shape[0] - 1
     ls = np.arange(1, lmax + 1, dtype=np.float64)
@@ -223,7 +247,7 @@ def lensing_correlations(clpp, xvals, lmax=None):
     return sigmasq, Cg2
 
 
-def lensing_R(clpp, lmax=None):
+def lensing_R(clpp: np.ndarray, lmax: Optional[int] = None) -> float:
     r"""
     Get :math:`R \equiv \frac{1}{2} \langle |\nabla \phi|^2\rangle`
 
@@ -231,6 +255,7 @@ def lensing_R(clpp, lmax=None):
     :param lmax: optional maximum L to use from the cls arrays
     :return: R
     """
+    # Handle None lmax
     if lmax is None:
         lmax = clpp.shape[0] - 1
     ls = np.arange(1, lmax + 1, dtype=np.float64)
@@ -239,8 +264,10 @@ def lensing_R(clpp, lmax=None):
     return np.sum(cphil3)
 
 
-def lensed_correlations(cls, clpp, xvals, weights=None, lmax=None, delta=False, theta_max=None,
-                        apodize_point_width=10):
+def lensed_correlations(cls: np.ndarray, clpp: np.ndarray, xvals: np.ndarray,
+                        weights: Optional[np.ndarray] = None, lmax: Optional[int] = None,
+                        delta: bool = False, theta_max: Optional[float] = None,
+                        apodize_point_width: int = 10) -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
     r"""
     Get the lensed correlation function from the unlensed power spectra, evaluated at
     points :math:`\cos(\theta)` = xvals.
@@ -266,9 +293,13 @@ def lensed_correlations(cls, clpp, xvals, weights=None, lmax=None, delta=False, 
         if weights is not None, then return corrs, lensed_cls
     """
 
+    # Handle None lmax
     if lmax is None:
         lmax = cls.shape[0] - 1
     xvals = np.asarray(xvals)
+
+    # Initialize lensedcls to None
+    lensedcls: Optional[np.ndarray] = None
     ls = np.arange(0, lmax + 1, dtype=np.float64)
     lfacs = ls * (ls + 1)
     lfacsall = lfacs.copy()
@@ -306,7 +337,7 @@ def lensed_correlations(cls, clpp, xvals, weights=None, lmax=None, delta=False, 
     corrs = np.zeros((len(xvals[imin:]), 4))
 
     for i, x in enumerate(xvals[imin:]):
-        (P, dP), (d11, dm11), (d20, d22, d2m2) = legendre_funcs(lmax, x, [0, 1, 2], lfacs, lfacs2,
+        (P, dP), (d11, dm11), (d20, d22, d2m2) = legendre_funcs(lmax, x, (0, 1, 2), lfacs, lfacs2,
                                                                 lrootfacs)
         sigma2 = np.dot(1 - d11, cphil3)
         Cg2 = np.dot(dm11, cphil3)
@@ -354,6 +385,8 @@ def lensed_correlations(cls, clpp, xvals, weights=None, lmax=None, delta=False, 
             if theta_max is not None and i < apodize_point_width * 4:
                 weight *= 1 - np.exp(-((i + 1.) / apodize_point_width) ** 2 / 2)
 
+            if 'lensedcls' not in locals() or lensedcls is None:
+                lensedcls = np.zeros((lmax + 1, 4))
             lensedcls[:, 0] += (weight * corrs[i, 0]) * P
             T2 = (corrs[i, 1] * weight / 2) * d22
             T4 = (corrs[i, 2] * weight / 2) * d2m2
@@ -362,15 +395,23 @@ def lensed_correlations(cls, clpp, xvals, weights=None, lmax=None, delta=False, 
             lensedcls[2:, 3] += (weight * corrs[i, 3]) * d20
 
     if weights is not None:
-        lensedcls[1, :] *= 2
-        lensedcls[2:, :] = (lensedcls[2:, :].T * lfacs).T
-        return corrs, lensedcls
-    else:
-        return corrs
+        if lensedcls is not None:
+            lensedcls[1, :] *= 2
+            lensedcls[2:, :] = (lensedcls[2:, :].T * lfacs).T
+            return corrs, lensedcls
+    return corrs
 
 
-def lensed_cls(cls, clpp, lmax=None, lmax_lensed=None, sampling_factor=1.4, delta_cls=False,
-               theta_max=np.pi / 32, apodize_point_width=10, leggaus=True, cache=True):
+def lensed_cls(cls: np.ndarray, clpp: np.ndarray, lmax: Optional[int] = None,
+               lmax_lensed: Optional[int] = None, sampling_factor: float = 1.4,
+               delta_cls: bool = False, theta_max: float = np.pi / 32,
+               apodize_point_width: int = 10, leggaus: bool = True,
+               cache: bool = True) -> np.ndarray:
+    # Handle None lmax
+    if lmax is None:
+        lmax = cls.shape[0] - 1
+    if lmax_lensed is None:
+        lmax_lensed = lmax
     r"""
     Get the lensed power spectra from the unlensed power spectra and the lensing potential power.
     Uses the non-perturbative curved-sky results from Eqs 9.12 and 9.16-9.18 of
@@ -405,6 +446,9 @@ def lensed_cls(cls, clpp, lmax=None, lmax_lensed=None, sampling_factor=1.4, delt
     """
     if lmax is None:
         lmax = cls.shape[0] - 1
+    # Handle None lmax for sampling_factor calculation
+    if lmax is None:
+        lmax = 100  # Default value if None is provided
     npoints = int(sampling_factor * lmax) + 1
     if leggaus:
         xvals, weights = _cached_gauss_legendre(npoints, cache)
@@ -423,8 +467,9 @@ def lensed_cls(cls, clpp, lmax=None, lmax_lensed=None, sampling_factor=1.4, delt
         return lensedcls
 
 
-def lensed_cl_derivatives(cls, clpp, lmax=None, theta_max=np.pi / 32,
-                          apodize_point_width=10, sampling_factor=1.4):
+def lensed_cl_derivatives(cls: np.ndarray, clpp: np.ndarray, lmax: Optional[int] = None,
+                          theta_max: float = np.pi / 32, apodize_point_width: int = 10,
+                          sampling_factor: float = 1.4) -> np.ndarray:
     r"""
     Get derivative dcl of lensed :math:`D_\ell\equiv \ell(\ell+1)C_\ell/2\pi` with respect to :math:`\log(C^{\phi}_L)`.
     To leading order (and hence not actually accurate), the lensed correction to power spectrum is
@@ -448,6 +493,9 @@ def lensed_cl_derivatives(cls, clpp, lmax=None, theta_max=np.pi / 32,
 
     if lmax is None:
         lmax = cls.shape[0] - 1
+    # Handle None lmax for sampling_factor calculation
+    if lmax is None:
+        lmax = 100  # Default value if None is provided
     npoints = int(sampling_factor * lmax) + 1
     xvals, weights = _cached_gauss_legendre(npoints)
 
@@ -483,7 +531,7 @@ def lensed_cl_derivatives(cls, clpp, lmax=None, theta_max=np.pi / 32,
     corrs = np.zeros((4, lmax + 1))
 
     for i, x in enumerate(xvals[imin:]):
-        (P, dP), (d11, dm11), (d20, d22, d2m2) = legendre_funcs(lmax, x, [0, 1, 2], lfacs, lfacs2,
+        (P, dP), (d11, dm11), (d20, d22, d2m2) = legendre_funcs(lmax, x, (0, 1, 2), lfacs, lfacs2,
                                                                 lrootfacs)
         sigma2 = np.dot(1 - d11, cphil3)
         dsigma2 = 1 - d11
@@ -564,8 +612,9 @@ def lensed_cl_derivatives(cls, clpp, lmax=None, theta_max=np.pi / 32,
     return dcl
 
 
-def lensed_cl_derivative_unlensed(clpp, lmax=None, theta_max=np.pi / 32,
-                                  apodize_point_width=10, sampling_factor=1.4):
+def lensed_cl_derivative_unlensed(clpp: np.ndarray, lmax: Optional[int] = None,
+                                  theta_max: float = np.pi / 32, apodize_point_width: int = 10,
+                                  sampling_factor: float = 1.4) -> np.ndarray:
     r"""
     Get derivative dcl of lensed minus unlensed power :math:`D_\ell \equiv \ell(\ell+1)\Delta C_\ell/2\pi` with respect
     to :math:`\ell(\ell+1)C^{\rm unlens}_\ell/2\pi`
@@ -589,6 +638,9 @@ def lensed_cl_derivative_unlensed(clpp, lmax=None, theta_max=np.pi / 32,
 
     if lmax is None:
         lmax = clpp.shape[0] - 1
+    # Handle None lmax for sampling_factor calculation
+    if lmax is None:
+        lmax = 100  # Default value if None is provided
     npoints = int(sampling_factor * lmax) + 1
     xvals, weights = _cached_gauss_legendre(npoints)
 
@@ -624,7 +676,7 @@ def lensed_cl_derivative_unlensed(clpp, lmax=None, theta_max=np.pi / 32,
     corr = np.zeros((4, lmax + 1))
 
     for i, x in enumerate(xvals[imin:]):
-        (P, dP), (d11, dm11), (d20, d22, d2m2) = legendre_funcs(lmax, x, [0, 1, 2], lfacs, lfacs2,
+        (P, dP), (d11, dm11), (d20, d22, d2m2) = legendre_funcs(lmax, x, (0, 1, 2), lfacs, lfacs2,
                                                                 lrootfacs)
         sigma2 = np.dot(1 - d11, cphil3)
         Cg2 = np.dot(dm11, cphil3)
