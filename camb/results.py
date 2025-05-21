@@ -372,7 +372,8 @@ class CAMBdata(F2003Class):
 
     def _scale_cls(self, cls, CMB_unit=None, raw_cl=False, lens_potential=False):
         if raw_cl:
-            ls = np.arange(1, cls.shape[0], dtype=np.float64)[..., np.newaxis]
+            ls = np.arange(1, cls.shape[0])[..., np.newaxis]
+            ls = np.float64(ls * (ls + 1))
             if lens_potential:
                 cls[1:, 0] /= ls[:, 0] ** 2 / (2 * np.pi)
                 cls[1:, 1:] /= ls ** (3. / 2) / (2 * np.pi)
