@@ -78,6 +78,7 @@ lensing_cgrads.f90
 !inifiles/sources_defaults.ini
 
 # Ignore AI-related files
-AI-notes
 AI_notes.txt
 .augment-guidelines
+
+scripts
