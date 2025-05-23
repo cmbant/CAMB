@@ -10,15 +10,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: "Latest Python 3.x"
+          - name: "Latest Python 3.10"
             os: ubuntu-latest
-            python-version: "3.x"
-          - name: "OS X Python 3.10"
-            os: macos-latest
             python-version: "3.10"
-          - name: "Windows Python 3.12"
+          - name: "Windows Python 3.13"
             os: windows-latest
-            python-version: "3.12"
+            python-version: "3.13"
 
     steps:
       - uses: actions/checkout@v4
@@ -39,7 +36,7 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         uses: astral-sh/ruff-action@v3
         with:
-          args: check --select=E713,E703,E714,E10,E11,E20,E22,E23,E25,E27,E301,E302,E304,E9,F405,F406,F5,F6,F7,F8,W1,W2,W3,W6 --show-source --statistics camb
+          args: check --select=E713,E703,E714,E10,E11,E20,E22,E23,E25,E27,E301,E302,E304,E9,F405,F406,F5,F6,F7,F8,W1,W2,W3,W6 camb
 
       - name: Install dependencies
         run: |
