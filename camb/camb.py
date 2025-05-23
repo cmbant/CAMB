@@ -167,8 +167,11 @@ def set_params(cp=None, verbose=False, **params):
     if cp.InitPower.has_tensors():
         cp.WantTensors = True
 
-    unused_params = set(params) - used_params
-    if unused_params:
+    if unused_params := set(params) - used_params:
+        if 'share_delta_neff' in unused_params:
+            logging.warning('share_delta_neff is deprecated in python interface, ' \
+                            'use delta_neff is only for backward compatibility with .ini files')
+
         for k in unused_params:
             obj = cp
             if '.' in k:
@@ -213,7 +216,7 @@ def get_valid_numerical_params(transfer_only=False, **class_names):
         extract_params(cp.InitPower.set_params)
         extract_params(cp.NonLinearModel.set_params)
     # noinspection PyProtectedMember
-    for f, tp in cp._fields_:
+    for f, tp, *_ in cp._fields_:
         if not f.startswith('_') and tp == ctypes.c_double:
             params.add(f)
     return params - {'max_eta_k_tensor', 'max_eta_k', 'neutrino_hierarchy', 'standard_neutrino_neff', 'setter_H0',
@@ -300,7 +303,8 @@ def read_ini(ini_filename, no_validate=False):
     :return: :class:`.model.CAMBparams` instance
     """
     if ini_filename.startswith('http'):
-        import requests, tempfile
+        import requests
+        import tempfile
         data = requests.get(ini_filename)
         ini_filename = tempfile.NamedTemporaryFile(suffix='.ini', delete=False).name
         with open(ini_filename, 'wb') as file:
@@ -325,7 +329,7 @@ def read_ini(ini_filename, no_validate=False):
     return cp
 
 
-def get_matter_power_interpolator(params, zmin=0, zmax=10, nz_step=100, zs=None, kmax=10, nonlinear=True,
+def get_matter_power_interpolator(params, zmin=0.0, zmax=10.0, nz_step=100, zs=None, kmax=10.0, nonlinear=True,
                                   var1=None, var2=None, hubble_units=True, k_hunit=True,
                                   return_z_k=False, k_per_logint=None, log_interp=True, extrap_kmax=None):
     r"""

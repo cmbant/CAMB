@@ -372,8 +372,8 @@ class CAMBdata(F2003Class):
 
     def _scale_cls(self, cls, CMB_unit=None, raw_cl=False, lens_potential=False):
         if raw_cl:
-            ls = np.arange(1, cls.shape[0])[..., np.newaxis]
-            ls = np.float64(ls * (ls + 1))
+            ls = np.arange(1, cls.shape[0], dtype=np.float64)[..., np.newaxis]
+            ls = ls * (ls + 1)
             if lens_potential:
                 cls[1:, 0] /= ls[:, 0] ** 2 / (2 * np.pi)
                 cls[1:, 1:] /= ls ** (3. / 2) / (2 * np.pi)
@@ -619,7 +619,7 @@ class CAMBdata(F2003Class):
 
         return self.get_background_time_evolution(self.conformal_time(z), vars, format)
 
-    def get_background_densities(self, a, vars=model.density_names, format='dict'):
+    def get_background_densities(self, a, vars=model.density_names, format='dict') -> dict | np.ndarray:
         r"""
         Get the individual densities as a function of scale factor. Returns :math:`8\pi G a^4 \rho_i` in Mpc units.
         :math:`\Omega_i` can be simply obtained by taking the ratio of the components to tot.
@@ -1320,7 +1320,7 @@ class CAMBdata(F2003Class):
         self._scale_cls(res, CMB_unit, raw_cl)
         return res
 
-    def get_partially_lensed_cls(self, Alens, lmax=None, CMB_unit=None, raw_cl=False):
+    def get_partially_lensed_cls(self, Alens: float | np.ndarray, lmax=None, CMB_unit=None, raw_cl=False):
         r"""
            Get lensed CMB power spectra using curved-sky correlation function method, using
            true lensing spectrum scaled by Alens. Alens can be an array in L for realistic delensing estimates.
@@ -1363,7 +1363,8 @@ class CAMBdata(F2003Class):
             return arr
 
     @staticmethod
-    def _make_scalar_or_arrays(z1, z2):
+    def _make_scalar_or_arrays(z1: float | np.ndarray, z2: float | np.ndarray) -> \
+            tuple[np.ndarray | float, np.ndarray | float]:
         if np.isscalar(z1):
             if np.isscalar(z2):
                 return z1, z2
@@ -1468,7 +1469,7 @@ class CAMBdata(F2003Class):
             z = np.ascontiguousarray(z, dtype=np.float64)
         return self.angular_diameter_distance(z) * (1.0 + z) ** 2
 
-    def h_of_z(self, z):
+    def h_of_z(self, z: float | np.ndarray):
         r"""
         Get Hubble rate at redshift z, in :math:`{\rm Mpc}^{-1}` units, scalar or array
 
@@ -1488,7 +1489,7 @@ class CAMBdata(F2003Class):
         else:
             return self.f_Hofz(byref(c_double(z)))
 
-    def hubble_parameter(self, z):
+    def hubble_parameter(self, z: float | np.ndarray):
         """
         Get Hubble rate at redshift z, in km/s/Mpc units. Scalar or array.
 
@@ -1530,7 +1531,7 @@ class CAMBdata(F2003Class):
             z = np.ascontiguousarray(z, dtype=np.float64)
         return self.physical_time_a1_a2(0, 1.0 / (1 + z))
 
-    def conformal_time_a1_a2(self, a1, a2):
+    def conformal_time_a1_a2(self, a1: float | np.ndarray, a2: float | np.ndarray):
         """
         Get conformal time between two scale factors (=comoving radial distance travelled by light on light cone)
 

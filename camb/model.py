@@ -14,7 +14,8 @@ from .reionization import ReionizationModel
 from .sources import SourceWindow
 from . import bbn
 import logging
-from typing import Union, Optional
+
+# Union and Optional types are now built-in to Python 3.10+
 
 max_nu = 5
 max_transfer_redshifts = 256
@@ -209,7 +210,8 @@ class CAMBparams(F2003Class):
         ("num_nu_massless", c_double, "Effective number of massless neutrinos"),
         ("num_nu_massive", c_int, "Total physical (integer) number of massive neutrino species"),
         ("nu_mass_eigenstates", c_int, "Number of non-degenerate mass eigenstates"),
-        ("share_delta_neff", c_bool, "Share the non-integer part of num_nu_massless between the eigenstates "),
+        ("share_delta_neff", c_bool, "Share the non-integer part of num_nu_massless between the eigenstates. "
+                                     "This is not needed or used in the python interface."),
         ("nu_mass_degeneracies", c_double * max_nu, {"size": "nu_mass_eigenstates"},
          "Degeneracy of each distinct eigenstate"),
         ("nu_mass_fractions", c_double * max_nu, {"size": "nu_mass_eigenstates"},
@@ -248,6 +250,8 @@ class CAMBparams(F2003Class):
         ("SourceWindows", AllocatableObjectArray(SourceWindow)),
         ("CustomSources", CustomSources)
     ]
+
+    H0: float
 
     _fortran_class_module_ = 'model'
 
@@ -423,7 +427,7 @@ class CAMBparams(F2003Class):
 
         try:
             # noinspection PyTypeChecker
-            self.H0: float = brentq(f, theta_H0_range[0], theta_H0_range[1], rtol=5e-5)
+            self.H0 = brentq(f, theta_H0_range[0], theta_H0_range[1], rtol=5e-5)  # type: ignore
             if not cosmomc_approx and abs(self.H0 - est_H0) > iteration_threshold:
                 # iterate with recalculation of recombination and zstar
                 self.set_H0_for_theta(theta, theta_H0_range=theta_H0_range, est_H0=self.H0,
@@ -431,13 +435,13 @@ class CAMBparams(F2003Class):
         except ValueError:
             raise CAMBParamRangeError('No solution for H0 inside of theta_H0_range')
 
-    def set_cosmology(self, H0: Optional[float] = None, ombh2=0.022, omch2=0.12, omk=0.0,
-                      cosmomc_theta: Optional[float] = None, thetastar: Optional[float] = None,
-                      neutrino_hierarchy: Union[str, int] = 'degenerate', num_massive_neutrinos=1,
-                      mnu=0.06, nnu=constants.default_nnu, YHe: Optional[float] = None, meffsterile=0.0,
+    def set_cosmology(self, H0: float | None = None, ombh2=0.022, omch2=0.12, omk=0.0,
+                      cosmomc_theta: float | None = None, thetastar: float | None = None,
+                      neutrino_hierarchy: str | int = 'degenerate', num_massive_neutrinos=1,
+                      mnu=0.06, nnu=constants.default_nnu, YHe: float | None = None, meffsterile=0.0,
                       standard_neutrino_neff=constants.default_nnu, TCMB=constants.COBE_CMBTemp,
-                      tau: Optional[float] = None, zrei: Optional[float] = None,
-                      Alens=1.0, bbn_predictor: Union[None, str, bbn.BBNPredictor] = None,
+                      tau: float | None = None, zrei: float | None = None,
+                      Alens=1.0, bbn_predictor: None | str | bbn.BBNPredictor = None,
                       theta_H0_range=(10, 100), setter_H0=None):
         r"""
         Sets cosmological parameters in terms of physical densities and parameters (e.g. as used in Planck analyses).
@@ -589,6 +593,10 @@ class CAMBparams(F2003Class):
             return self.num_nu_massless + self.num_nu_massive
         else:
             return sum(self.nu_mass_degeneracies[:self.nu_mass_eigenstates]) + self.num_nu_massless
+
+    @property
+    def lmax(self):
+        return self.max_l
 
     def set_classes(self, dark_energy_model=None, initial_power_model=None,
                     non_linear_model=None, recombination_model=None,
@@ -811,7 +819,7 @@ class CAMBparams(F2003Class):
         else:
             return powers
 
-    _custom_source_name_dict = {}
+    _custom_source_name_dict: dict = {}
 
     def set_custom_scalar_sources(self, custom_sources, source_names=None, source_ell_scales=None,
                                   frame='CDM', code_path=None):
