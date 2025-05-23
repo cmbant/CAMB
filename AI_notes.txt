@@ -1,0 +1,25 @@
+
+pyupgrade
+
+
+1/ 
+ -Check out PR 173
+  git submodule update --init --recursive
+ - Set up conda, activate and use
+  conda install -c conda-forge gfortran  -y
+  
+ - pip install pyright[nodejs] 
+ 
+ - pip -e install the program
+   
+ - Check and fix type and other errors using pyright  
+   
+ - check test code still works by running camb.tests:camb_test.py test   
+ 
+   
+ - sudo apt install gfortran
+ - pip install pyupgrade pylance pyright
+ - pip install -e the program.
+
+2/
+Run type check test with pyright and investigate typing errors in the python code and fix as many as you can. You can be fairly permissive short "Any" is better than a very long explicit type, esp. for python wrapping fortran. Should be using modern python 3.10+ syntax. 

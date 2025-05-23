@@ -1,3 +1,4 @@
+# type: ignore
 import os.path as osp
 import sys
 import platform

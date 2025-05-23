@@ -13,7 +13,7 @@ A. Lewis December 2016
 """
 
 import numpy as np
-from scipy.special import lpn as legendrep
+from scipy.special import legendre_p_all as legendrep
 
 try:
     from .mathutils import gauss_legendre
