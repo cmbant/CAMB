@@ -11,16 +11,14 @@ except ImportError:
 
 
 class HMcodeTest(unittest.TestCase):
-
     def testHMcode(self):
-
         # Parameters
         # TODO: Not clear that the neutrino setup here agrees exactly with my HMx setup
         # TODO: Larger errors than I would like with high-massive-nu and high-baryon cosmologies
         # TODO: Normalisation via As not agreeing exactly with sigma_8 values
         kmax_calc = 2e2  # Maximum wavenumber for the CAMB calculation [h/Mpc]
         pi = np.pi  # Lovely pi
-        twopi = 2. * pi  # Twice as lovely pi
+        twopi = 2.0 * pi  # Twice as lovely pi
         neutrino_number = 94.14  # Neutrino closure mass [eV] TODO: VERY LAZY (should it be 93.14, 94.07eV?)
         eps_k = 1e-6  # Fractional error tolerated in k
         eps_a = 1e-6  # Fractional error tolerated in a
@@ -38,29 +36,21 @@ class HMcodeTest(unittest.TestCase):
         a_in = np.array([0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0])  # Scale factors for tests
 
         # Dictionary for HMcode versions
-        HMcode_version_ihm = {
-            'mead': 51,
-            'mead2016': 51,
-            'mead2015': 66,
-            'mead2020': 123,
-            'mead2020_feedback': 124
-        }
+        HMcode_version_ihm = {'mead': 51, 'mead2016': 51, 'mead2015': 66, 'mead2020': 123, 'mead2020_feedback': 124}
 
         # Read in and sort Mead benchmark data
         def read_Mead_benchmark(infile):
-
             # Read data and split into k, a and Pk
             data = np.loadtxt(infile)
             k = data[:, 0]
             a = a_in
             D2 = data[:, 1:]
-            Pk = (D2.T / (4. * pi * (k / twopi) ** 3)).T  # Convert Delta^2(k) -> P(k)
+            Pk = (D2.T / (4.0 * pi * (k / twopi) ** 3)).T  # Convert Delta^2(k) -> P(k)
 
             # Return results
             return k, a, Pk
 
         def HMcode_test_cosmologies(icos):
-
             # Common test parameters
             Om_m = 0.30
             Om_b = 0.05
@@ -68,9 +58,9 @@ class HMcodeTest(unittest.TestCase):
             ns = 0.96
             sig8 = 0.8
             As = 1.97269e-9
-            w0 = -1.
-            wa = 0.
-            mnu = 0.
+            w0 = -1.0
+            wa = 0.0
+            mnu = 0.0
             logT = 7.8
 
             # Uncommon test parameters
@@ -81,8 +71,8 @@ class HMcodeTest(unittest.TestCase):
                 ns = 0.96605
                 sig8 = 0.8120
                 As = 2.08924e-9
-                w0 = -1.
-                wa = 0.
+                w0 = -1.0
+                wa = 0.0
                 mnu = 0.06
             elif icos == 241:
                 w0 = -0.7
@@ -121,38 +111,45 @@ class HMcodeTest(unittest.TestCase):
 
         # Set up a CAMB parameter set for a Mead cosmology
         def setup_HMcode_test(a, icos):
-
             # Get the cosmological parameters for the cosmology
             Om_m, Om_b, h, ns, sig8, As, w0, wa, mnu, logT = HMcode_test_cosmologies(icos)
 
             # Redshifts
-            z = -1. + 1. / a
+            z = -1.0 + 1.0 / a
 
             # Derive and set CAMB parameters
-            H0 = 100. * h
+            H0 = 100.0 * h
             wnu = mnu / neutrino_number
-            Om_nu = wnu / h ** 2
+            Om_nu = wnu / h**2
             Om_c = Om_m - Om_b - Om_nu
-            Om_k = 0.
-            wb = Om_b * h ** 2
-            wc = Om_c * h ** 2
+            Om_k = 0.0
+            wb = Om_b * h**2
+            wc = Om_c * h**2
 
             # Set parameters using the traditional Fortran language
             # TODO: Check carefully against my ini files
-            pars = camb.CAMBparams(WantCls=False, H0=H0, ombh2=wb, omch2=wc, omnuh2=wnu, omk=Om_k, YHe=Y_He, TCMB=T_CMB,
-                                   num_nu_massive=nnu,
-                                   num_nu_massless=neff - nnu,
-                                   nu_mass_numbers=[nnu],
-                                   nu_mass_degeneracies=[neff / nnu],
-                                   nu_mass_fractions=[1.],
-                                   share_delta_neff=True,
-                                   )
+            pars = camb.CAMBparams(
+                WantCls=False,
+                H0=H0,
+                ombh2=wb,
+                omch2=wc,
+                omnuh2=wnu,
+                omk=Om_k,
+                YHe=Y_He,
+                TCMB=T_CMB,
+                num_nu_massive=nnu,
+                num_nu_massless=neff - nnu,
+                nu_mass_numbers=[nnu],
+                nu_mass_degeneracies=[neff / nnu],
+                nu_mass_fractions=[1.0],
+                share_delta_neff=True,
+            )
             pars.set_dark_energy(w=w0, wa=wa, dark_energy_model='ppf')
             pars.InitPower.set_params(As=As, ns=ns)
 
             # Set sigma_8 normalisation (wasteful)
             if norm_sig8:
-                pars.set_matter_power(redshifts=[0.], kmax=kmax_calc)
+                pars.set_matter_power(redshifts=[0.0], kmax=kmax_calc)
                 pars.NonLinear = camb.model.NonLinear_none
                 results = camb.get_results(pars)
                 sig8_init = results.get_sigma8()
@@ -171,7 +168,6 @@ class HMcodeTest(unittest.TestCase):
 
         # Get the HMcode power from CAMB
         def get_HMcode_power_from_CAMB(results, k_in, logT, HMcode_version):
-
             # k and z ranges for results
             kmin = k_in[0]
             kmax = k_in[-1]
@@ -182,7 +178,7 @@ class HMcodeTest(unittest.TestCase):
             k, z, Pk = results.get_matter_power_spectrum(minkh=kmin, maxkh=kmax, npoints=nk)
             Pk = Pk.T[:, ::-1]
             z = np.array(z)[::-1]
-            a = 1. / (1. + z)
+            a = 1.0 / (1.0 + z)
             if verbose:
                 print('sigma_8:', results.get_sigma8()[-1])
 
@@ -199,13 +195,11 @@ class HMcodeTest(unittest.TestCase):
 
         # Loop over cosmologies
         for icos in [26, 56, 241, 242, 243, 244, 245, 246, 247, 248, 249, 250, 251]:
-
             # Init CAMB
             results, logT = setup_HMcode_test(a_in, icos)
 
             # Loop over HMcode versions
             for HMcode_version in ['mead2015', 'mead2016', 'mead2020', 'mead2020_feedback']:
-
                 # Read benchmark data
                 ihm = HMcode_version_ihm[HMcode_version]
                 infile = HMcode_benchmark_file(icos, ihm)
@@ -218,10 +212,10 @@ class HMcodeTest(unittest.TestCase):
 
                 # Compare benchmark to calculation
                 for ik in range(len(k_in)):
-                    self.assertAlmostEqual(k_nl[ik] / k_in[ik], 1., delta=eps_k)
+                    self.assertAlmostEqual(k_nl[ik] / k_in[ik], 1.0, delta=eps_k)
                 for ia in range(len(a_in)):
-                    self.assertAlmostEqual(a_nl[ia] / a_in[ia], 1., delta=eps_a)
+                    self.assertAlmostEqual(a_nl[ia] / a_in[ia], 1.0, delta=eps_a)
                 for ia in range(len(a_in)):
                     for ik in range(len(k_in)):
                         if kmin_test <= k_in[ik] <= kmax_test and amin_test <= a_in[ia] <= amax_test:
-                            self.assertAlmostEqual(Pk_nl[ik, ia] / Pk_in[ik, ia], 1., delta=eps_Pk)
+                            self.assertAlmostEqual(Pk_nl[ik, ia] / Pk_in[ik, ia], 1.0, delta=eps_Pk)

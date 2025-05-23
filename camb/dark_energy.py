@@ -1,5 +1,4 @@
-from .baseconfig import F2003Class, fortran_class, numpy_1d, CAMBError, np, \
-    AllocatableArrayDouble, f_pointer
+from .baseconfig import F2003Class, fortran_class, numpy_1d, CAMBError, np, AllocatableArrayDouble, f_pointer
 from ctypes import c_int, c_double, byref, POINTER, c_bool
 
 
@@ -7,9 +6,8 @@ class DarkEnergyModel(F2003Class):
     """
     Abstract base class for dark energy model implementations.
     """
-    _fields_ = [
-        ("__is_cosmological_constant", c_bool),
-        ("__num_perturb_equations", c_int)]
+
+    _fields_ = [('__is_cosmological_constant', c_bool), ('__num_perturb_equations', c_int)]
 
     def validate_params(self) -> None:
         pass
@@ -25,15 +23,16 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
     set a general interpolated P(k) model from a python function.
 
     """
+
     _fortran_class_module_ = 'DarkEnergyInterface'
     _fortran_class_name_ = 'TDarkEnergyEqnOfState'
 
     _fields_ = [
-        ("w", c_double, "w(0)"),
-        ("wa", c_double, "-dw/da(0)"),
-        ("cs2", c_double, "fluid rest-frame sound speed squared"),
-        ("use_tabulated_w", c_bool, "using an interpolated tabulated w(a) rather than w, wa above"),
-        ("__no_perturbations", c_bool, "turn off perturbations (unphysical, so hidden in Python)")
+        ('w', c_double, 'w(0)'),
+        ('wa', c_double, '-dw/da(0)'),
+        ('cs2', c_double, 'fluid rest-frame sound speed squared'),
+        ('use_tabulated_w', c_bool, 'using an interpolated tabulated w(a) rather than w, wa above'),
+        ('__no_perturbations', c_bool, 'turn off perturbations (unphysical, so hidden in Python)'),
     ]
 
     _methods_ = [('SetWTable', [numpy_1d, numpy_1d, POINTER(c_int)])]
@@ -78,7 +77,7 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
 
     def __getstate__(self):
         if self.use_tabulated_w:
-            raise TypeError("Cannot save class with splines")
+            raise TypeError('Cannot save class with splines')
         return super().__getstate__()
 
 
@@ -96,7 +95,7 @@ class DarkEnergyFluid(DarkEnergyEqnOfState):
     def validate_params(self) -> None:
         super().validate_params()
         if not self.use_tabulated_w:
-            if self.wa and (self.w < -1 - 1e-6 or 1 + self.w + self.wa < - 1e-6):
+            if self.wa and (self.w < -1 - 1e-6 or 1 + self.w + self.wa < -1e-6):
                 raise CAMBError('fluid dark energy model does not support w crossing -1')
 
     def set_w_a_table(self, a, w) -> 'DarkEnergyEqnOfState':
@@ -117,6 +116,7 @@ class DarkEnergyPPF(DarkEnergyEqnOfState):
     with w>-1 but far from cosmological constant, it can give quite different answers to the fluid model with c_s^2=1.
 
     """
+
     # cannot declare c_Gamma_ppf directly here as have not defined all fields in DarkEnergyEqnOfState (TCubicSpline)
     _fortran_class_module_ = 'DarkEnergyPPF'
     _fortran_class_name_ = 'TDarkEnergyPPF'
@@ -129,11 +129,13 @@ class AxionEffectiveFluid(DarkEnergyModel):
     (`arXiv:1806.10608 <https://arxiv.org/abs/1806.10608>`_).
     Not well tested, but should serve to demonstrate how to make your own custom classes.
     """
+
     _fields_ = [
-        ("w_n", c_double, "effective equation of state parameter"),
-        ("fde_zc", c_double, "energy density fraction at z=zc"),
-        ("zc", c_double, "decay transition redshift (not same as peak of energy density fraction)"),
-        ("theta_i", c_double, "initial condition field value")]
+        ('w_n', c_double, 'effective equation of state parameter'),
+        ('fde_zc', c_double, 'energy density fraction at z=zc'),
+        ('zc', c_double, 'decay transition redshift (not same as peak of energy density fraction)'),
+        ('theta_i', c_double, 'initial condition field value'),
+    ]
 
     _fortran_class_name_ = 'TAxionEffectiveFluid'
     _fortran_class_module_ = 'DarkEnergyFluid'
@@ -157,27 +159,28 @@ class Quintessence(DarkEnergyModel):
     defining Vofphi and setting up initial conditions and interpolation tables (see TEarlyQuintessence as example).
 
     """
+
     _fields_ = [
-        ("DebugLevel", c_int),
-        ("astart", c_double),
-        ("integrate_tol", c_double),
-        ("sampled_a", AllocatableArrayDouble),
-        ("phi_a", AllocatableArrayDouble),
-        ("phidot_a", AllocatableArrayDouble),
-        ("__npoints_linear", c_int),
-        ("__npoints_log", c_int),
-        ("__dloga", c_double),
-        ("__da", c_double),
-        ("__log_astart", c_double),
-        ("__max_a_log", c_double),
-        ("__ddphi_a", AllocatableArrayDouble),
-        ("__ddphidot_a", AllocatableArrayDouble),
-        ("__state", f_pointer)
+        ('DebugLevel', c_int),
+        ('astart', c_double),
+        ('integrate_tol', c_double),
+        ('sampled_a', AllocatableArrayDouble),
+        ('phi_a', AllocatableArrayDouble),
+        ('phidot_a', AllocatableArrayDouble),
+        ('__npoints_linear', c_int),
+        ('__npoints_log', c_int),
+        ('__dloga', c_double),
+        ('__da', c_double),
+        ('__log_astart', c_double),
+        ('__max_a_log', c_double),
+        ('__ddphi_a', AllocatableArrayDouble),
+        ('__ddphidot_a', AllocatableArrayDouble),
+        ('__state', f_pointer),
     ]
     _fortran_class_module_ = 'Quintessence'
 
     def __getstate__(self):
-        raise TypeError("Cannot save class with splines")
+        raise TypeError('Cannot save class with splines')
 
 
 @fortran_class
@@ -190,20 +193,26 @@ class EarlyQuintessence(Quintessence):
     """
 
     _fields_ = [
-        ("n", c_double, "power index for potential"),
-        ("f", c_double, r"f/Mpl (sqrt(8\piG)f); only used for initial search value when use_zc is True"),
-        ("m", c_double, "mass parameter in reduced Planck mass units; "
-                        "only used for initial search value when use_zc is True"),
-        ("theta_i", c_double, "phi/f initial field value"),
-        ("frac_lambda0", c_double, "fraction of dark energy in cosmological constant today (approximated as 1)"),
-        ("use_zc", c_bool, "solve for f, m to get specific critical redshift zc and fde_zc"),
-        ("zc", c_double, "redshift of peak fractional early dark energy density"),
-        ("fde_zc", c_double, "fraction of early dark energy density to total at peak"),
-        ("npoints", c_int, "number of points for background integration spacing"),
-        ("min_steps_per_osc", c_int, "minimum number of steps per background oscillation scale"),
-        ("fde", AllocatableArrayDouble, "after initialized, the calculated background early dark energy "
-                                        "fractions at sampled_a"),
-        ("__ddfde", AllocatableArrayDouble)
+        ('n', c_double, 'power index for potential'),
+        ('f', c_double, r'f/Mpl (sqrt(8\piG)f); only used for initial search value when use_zc is True'),
+        (
+            'm',
+            c_double,
+            'mass parameter in reduced Planck mass units; only used for initial search value when use_zc is True',
+        ),
+        ('theta_i', c_double, 'phi/f initial field value'),
+        ('frac_lambda0', c_double, 'fraction of dark energy in cosmological constant today (approximated as 1)'),
+        ('use_zc', c_bool, 'solve for f, m to get specific critical redshift zc and fde_zc'),
+        ('zc', c_double, 'redshift of peak fractional early dark energy density'),
+        ('fde_zc', c_double, 'fraction of early dark energy density to total at peak'),
+        ('npoints', c_int, 'number of points for background integration spacing'),
+        ('min_steps_per_osc', c_int, 'minimum number of steps per background oscillation scale'),
+        (
+            'fde',
+            AllocatableArrayDouble,
+            'after initialized, the calculated background early dark energy fractions at sampled_a',
+        ),
+        ('__ddfde', AllocatableArrayDouble),
     ]
     _fortran_class_name_ = 'TEarlyQuintessence'
 

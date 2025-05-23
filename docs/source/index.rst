@@ -9,7 +9,7 @@ The main code is Python with numerical calculations implemented efficiently in P
 See the `CAMB python example notebook <https://camb.readthedocs.io/en/latest/CAMBdemo.html>`_ for an
 introductory set of examples of how to use the CAMB package. This is usually the fastest way to learn how to use it
 and quickly see some of the capabilities. There's also an `AI help assistant <https://cosmocoffee.info/help_assist.php>`_,
-with up-to-date knowledge of the full Python documentation, 
+with up-to-date knowledge of the full Python documentation,
 and you can use with code execution in `CMB Agent <https://github.com/CMBAgents/cmbagent/>`_.
 
 There are also `technical notes <https://cosmologist.info/notes/CAMB.pdf>`_
@@ -28,7 +28,7 @@ If you want to work on the code from `GitHub <https://github.com/cmbant/camb>`_,
     pip install -e ./CAMB [--user]
 
 You will need ifort or gfortran 6 or higher installed (and on your path) to compile from source;
-you can see :ref:`fortran-compilers` for compiler installation details if needed. 
+you can see :ref:`fortran-compilers` for compiler installation details if needed.
 If you have gfortran installed, "python setup.py make" will build
 the Fortran library on all systems (including Windows without directly using a Makefile), and can be used to update
 a source installation after changes or pulling an updated version.
@@ -85,6 +85,7 @@ Other modules:
    modifying_code
    fortran_compilers
    mathutils
+   development
 
 * `Example notebook <https://camb.readthedocs.io/en/latest/CAMBdemo.html>`_
 * :ref:`genindex`

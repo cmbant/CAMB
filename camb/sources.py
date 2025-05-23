@@ -9,12 +9,15 @@ class SourceWindow(F2003Class):
 
     Note that source windows can currently only be used in flat models.
     """
-    _fields_ = [("source_type", c_int, {"names": ["21cm", "counts", "lensing"], "start": 1}),
-                ("bias", c_double),
-                ("dlog10Ndm", c_double)]
 
-    _fortran_class_module_ = "SourceWindows"
-    _fortran_class_name_ = "TSourceWindow"
+    _fields_ = [
+        ('source_type', c_int, {'names': ['21cm', 'counts', 'lensing'], 'start': 1}),
+        ('bias', c_double),
+        ('dlog10Ndm', c_double),
+    ]
+
+    _fortran_class_module_ = 'SourceWindows'
+    _fortran_class_name_ = 'TSourceWindow'
 
 
 @fortran_class
@@ -22,10 +25,10 @@ class GaussianSourceWindow(SourceWindow):
     """
     A Gaussian W(z) source window function.
     """
-    _fields_ = [("redshift", c_double),
-                ("sigma", c_double)]
 
-    _fortran_class_name_ = "TGaussianSourceWindow"
+    _fields_ = [('redshift', c_double), ('sigma', c_double)]
+
+    _fortran_class_name_ = 'TGaussianSourceWindow'
 
 
 @fortran_class
@@ -33,21 +36,24 @@ class SplinedSourceWindow(SourceWindow):
     """
     A numerical W(z) source window function constructed by interpolation from a numerical table.
     """
-    _fortran_class_name_ = "TSplinedSourceWindow"
 
-    _methods_ = [("SetTable", [POINTER(c_int), numpy_1d, numpy_1d, numpy_1d_or_null]),
-                 ("SetTable2DBias", [POINTER(c_int), POINTER(c_int), numpy_1d, numpy_1d, numpy_1d, numpy_2d])
-                 ]
+    _fortran_class_name_ = 'TSplinedSourceWindow'
+
+    _methods_ = [
+        ('SetTable', [POINTER(c_int), numpy_1d, numpy_1d, numpy_1d_or_null]),
+        ('SetTable2DBias', [POINTER(c_int), POINTER(c_int), numpy_1d, numpy_1d, numpy_1d, numpy_2d]),
+    ]
 
     def __init__(self, **kwargs):
         z = kwargs.pop('z', None)
         if z is not None:
-            self.set_table(z, kwargs.pop('W'), kwargs.pop('bias_z', None),
-                           kwargs.pop('k_bias', None), kwargs.pop('bias_kz', None))
+            self.set_table(
+                z, kwargs.pop('W'), kwargs.pop('bias_z', None), kwargs.pop('k_bias', None), kwargs.pop('bias_kz', None)
+            )
         super().__init__(**kwargs)
 
     def __getstate__(self):
-        raise TypeError("Cannot save class with splines")
+        raise TypeError('Cannot save class with splines')
 
     def set_table(self, z, W, bias_z=None, k_bias=None, bias_kz=None):
         """
@@ -64,15 +70,16 @@ class SplinedSourceWindow(SourceWindow):
         """
         if len(W) != len(z) or z[-1] < z[1] or len(z) < 5:
             raise ValueError(
-                "Redshifts must be well sampled and in ascending order, with window function the same length as z")
+                'Redshifts must be well sampled and in ascending order, with window function the same length as z'
+            )
         z = np.ascontiguousarray(z, dtype=np.float64)
         W = np.ascontiguousarray(W, dtype=np.float64)
         if bias_z is not None:
             if bias_kz is not None:
-                raise ValueError("set bias_k or bias_zk")
+                raise ValueError('set bias_k or bias_zk')
             bias_z = np.ascontiguousarray(bias_z, dtype=np.float64)
             if len(bias_z) != len(z):
-                raise ValueError("bias array must be same size as the redshift array")
+                raise ValueError('bias array must be same size as the redshift array')
         if bias_kz is not None:
             k = np.ascontiguousarray(k_bias, dtype=np.float64)
             if bias_kz.shape[0] != len(k) or bias_kz.shape[1] != len(z):

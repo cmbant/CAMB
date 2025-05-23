@@ -55,7 +55,7 @@ class IniFile:
                     res = res + c
                     index += 1
                 elif s[index + 1] == '(':
-                    s = s[index + 2:]
+                    s = s[index + 2 :]
                     pathlen = len(s)
                     index = s.index(')')
                     var = s[:index]
@@ -82,9 +82,9 @@ class IniFile:
                         comments.append(s[1:].rstrip())
                         continue
                     elif s.startswith('INCLUDE('):
-                        fileincludes.append(s[s.find('(') + 1:s.rfind(')')])
+                        fileincludes.append(s[s.find('(') + 1 : s.rfind(')')])
                     elif s.startswith('DEFAULT('):
-                        filedefaults.append(s[s.find('(') + 1:s.rfind(')')])
+                        filedefaults.append(s[s.find('(') + 1 : s.rfind(')')])
                     elif s != '':
                         eq = s.find('=')
                         if eq >= 0:
@@ -93,7 +93,7 @@ class IniFile:
                                 if if_not_defined:
                                     continue
                                 raise IniError('Error: duplicate key: ' + key + ' in ' + filename)
-                            value = s[eq + 1:].strip()
+                            value = s[eq + 1 :].strip()
                             if self.expand_environment_variables:
                                 value = self.expand_placeholders(value)
                             self.params[key] = value
@@ -124,7 +124,7 @@ class IniFile:
             raise
 
     def __str__(self):
-        return "\n".join(self.fileLines())
+        return '\n'.join(self.fileLines())
 
     def saveFile(self, filename=None):
         """
@@ -141,7 +141,6 @@ class IniFile:
             f.write(str(self))
 
     def fileLines(self):
-
         def asIniText(value):
             if isinstance(value, type('')):
                 return value
@@ -196,7 +195,7 @@ class IniFile:
         :param allowEmpty: whether to allow empty strings (return True is parameter name exists but is not set, "x = ")
         """
 
-        return name in self.params and (allowEmpty or self.params[name] != "")
+        return name in self.params and (allowEmpty or self.params[name] != '')
 
     def asType(self, name, tp, default=None, allowEmpty=False):
         if self.isSet(name, allowEmpty):

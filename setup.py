@@ -31,8 +31,12 @@ def get_forutils():
             os.chdir('..')
             fbranch = os.getenv('FORUTILSBRANCH', '1.0.3' if os.environ.get('CONDA_BUILD') else 'master')
             try:
-                if subprocess.call("git clone --branch %s --depth=1 https://github.com/cmbant/forutils" % fbranch,
-                                   shell=True) == 0:
+                if (
+                    subprocess.call(
+                        'git clone --branch %s --depth=1 https://github.com/cmbant/forutils' % fbranch, shell=True
+                    )
+                    == 0
+                ):
                     return os.path.join('..', 'forutils')
             finally:
                 os.chdir('fortran')
@@ -56,7 +60,7 @@ def get_forutils():
                     try:
                         os.chdir('..')
                         print('forutils directory found but no Makefile. Attempting to clone submodule...')
-                        if subprocess.call("git submodule update --init --recursive", shell=True, cwd=main_dir) != 0:
+                        if subprocess.call('git submodule update --init --recursive', shell=True, cwd=main_dir) != 0:
                             raise Exception()
                     finally:
                         os.chdir('fortran')
@@ -71,9 +75,11 @@ def get_forutils():
                     fpath = None
 
     if not fpath:
-        raise Exception('Install forutils from https://github.com/cmbant/forutils, '
-                        'pull the forutils submodule, or set FORUTILSPATH variable.\n'
-                        'If you are cloning with git, use "git clone --recursive"')
+        raise Exception(
+            'Install forutils from https://github.com/cmbant/forutils, '
+            'pull the forutils submodule, or set FORUTILSPATH variable.\n'
+            'If you are cloning with git, use "git clone --recursive"'
+        )
     return fpath
 
 
@@ -94,15 +100,17 @@ def make_library(cluster=False):
         if ok and '8.2.0' in gfortran_version:
             print('WARNING: gfortran 8.2.0 may be buggy and give unreliable results or crashes, upgrade gfortran.')
     if _compile.is_windows:
-        COMPILER = "gfortran"
-        FFLAGS = "-shared -static -cpp -fopenmp -O3 -fmax-errors=4"
+        COMPILER = 'gfortran'
+        FFLAGS = '-shared -static -cpp -fopenmp -O3 -fmax-errors=4'
         # FFLAGS = "-shared -static -cpp -fopenmp -g -fbacktrace -ffpe-trap=invalid,overflow,zero " \
         #         "-fbounds-check -fmax-errors=4"
         if _compile.is_32_bit:
-            FFLAGS = "-m32 " + FFLAGS
+            FFLAGS = '-m32 ' + FFLAGS
         if not ok:
-            print('WARNING: gfortran %s or higher not in path (if you just installed '
-                  'you may need to log off and on again).' % _compile.gfortran_min)
+            print(
+                'WARNING: gfortran %s or higher not in path (if you just installed '
+                'you may need to log off and on again).' % _compile.gfortran_min
+            )
             print('        You can get a Windows gfortran build from https://sourceforge.net/projects/mingw-w64/files/')
             print('        - go to Files, and download MinGW-W64 Online Installer.')
             print('        Alternatively newer versions at https://github.com/niXman/mingw-builds-binaries')
@@ -114,9 +122,12 @@ def make_library(cluster=False):
             fpath = get_forutils()
             makefile = _compile.makefile_dict('Makefile_main')
             SOURCES = makefile['SOURCEFILES'].split()
-            FORUTILS = [os.path.join(fpath, f.replace('.f90', '')) for f in
-                        _compile.makefile_dict(os.path.join(fpath, 'Makefile'))['SRCS'].replace('MatrixUtils.f90',
-                                                                                                '').split()]
+            FORUTILS = [
+                os.path.join(fpath, f.replace('.f90', ''))
+                for f in _compile.makefile_dict(os.path.join(fpath, 'Makefile'))['SRCS']
+                .replace('MatrixUtils.f90', '')
+                .split()
+            ]
             tmpdir = 'WinDLL'
             if not os.path.isdir(tmpdir):
                 os.mkdir(tmpdir)
@@ -145,7 +156,7 @@ def make_library(cluster=False):
                     modified = o_time < os.path.getmtime(source + '.f90') or not os.path.exists(outroot + '.d')
                     if not modified:
                         with open(outroot + '.d', 'r') as f:
-                            for dependence in " ".join(f.readlines()).replace("\\\n", "").split(':')[1].strip().split():
+                            for dependence in ' '.join(f.readlines()).replace('\\\n', '').split(':')[1].strip().split():
                                 if os.path.getmtime(dependence) > o_time:
                                     modified = True
                                     break
@@ -167,7 +178,7 @@ def make_library(cluster=False):
                     except OSError:
                         raise IOError('dll file in use. Stop python codes and notebook kernels that are using camb.')
                 print('Compiling sources...')
-                cmd = COMPILER + ' ' + FFLAGS + ' ' + " ".join(ofiles) + ' -o %s -J%s' % (lib_file, tmpdir)
+                cmd = COMPILER + ' ' + FFLAGS + ' ' + ' '.join(ofiles) + ' -o %s -J%s' % (lib_file, tmpdir)
                 print(cmd)
                 if subprocess.call(cmd, shell=True, env=_compile.compiler_environ) != 0:
                     raise IOError('Compilation failed')
@@ -175,13 +186,18 @@ def make_library(cluster=False):
                 print('DLL up to date.')
     else:
         if not _compile.call_command('make -v'):
-            raise IOError('Build failed - you must have "make" installed. '
-                          'E.g. on ubuntu install with "sudo apt install make" (or use build-essential package).')
+            raise IOError(
+                'Build failed - you must have "make" installed. '
+                'E.g. on ubuntu install with "sudo apt install make" (or use build-essential package).'
+            )
         get_forutils()
-        print("Compiling source...")
-        subprocess.call("make python PYCAMB_OUTPUT_DIR=%s/camb/ CLUSTER_SAFE=%d" %
-                        (pycamb_path, int(cluster if not os.getenv("GITHUB_ACTIONS") else 1)), shell=True)
-        subprocess.call("chmod 755 %s" % lib_file, shell=True)
+        print('Compiling source...')
+        subprocess.call(
+            'make python PYCAMB_OUTPUT_DIR=%s/camb/ CLUSTER_SAFE=%d'
+            % (pycamb_path, int(cluster if not os.getenv('GITHUB_ACTIONS') else 1)),
+            shell=True,
+        )
+        subprocess.call('chmod 755 %s' % lib_file, shell=True)
 
     if not os.path.isfile(os.path.join(pycamb_path, 'camb', DLLNAME)):
         sys.exit('Compilation failed')
@@ -207,46 +223,40 @@ class MakeLibrary(Command):
 
 
 class MakeLibraryCluster(MakeLibrary):
-
     def run(self):
         make_library(True)
 
 
 class SharedLibrary(build_py):
-
     def run(self):
         make_library(False)
         build_py.run(self)
 
 
 class SharedLibraryCluster(SharedLibrary):
-
     def run(self):
         make_library(True)
         build_py.run(self)
 
 
 class DevelopLibrary(develop):
-
     def run(self):
         make_library(False)
         develop.run(self)
 
 
 class DevelopLibraryCluster(develop):
-
     def run(self):
         make_library(True)
         develop.run(self)
 
 
 class CleanLibrary(MakeLibrary):
-
     def run(self):
         if _compile.is_windows:
             clean_dir(os.path.join(file_dir, 'fortran', 'WinDLL'), rmdir=True)
         else:
-            subprocess.call("make clean", shell=True, cwd=os.path.join(file_dir, 'fortran'))
+            subprocess.call('make clean', shell=True, cwd=os.path.join(file_dir, 'fortran'))
 
 
 class BDistWheelNonPure(_bdist_wheel):
@@ -256,7 +266,7 @@ class BDistWheelNonPure(_bdist_wheel):
 
     def get_tag(self):
         _, _, plat = super().get_tag()
-        return "py3", "none", plat
+        return 'py3', 'none', plat
 
 
 class InstallPlatlib(install):
@@ -273,18 +283,33 @@ class BuildExtCommand(build_ext):
         pass
 
 
-if __name__ == "__main__":
-    setup(name=os.getenv('CAMB_PACKAGE_NAME', 'camb'),
-          zip_safe=False,
-          cmdclass={'build_py': SharedLibrary, 'build_cluster': SharedLibraryCluster,
-                    'make': MakeLibrary, 'make_cluster': MakeLibraryCluster, 'clean': CleanLibrary,
-                    'develop': DevelopLibrary, 'develop_cluster': DevelopLibraryCluster,
-                    'bdist_wheel': BDistWheelNonPure, 'install': InstallPlatlib,
-                    "build_ext": BuildExtCommand},
-          ext_modules=[Extension("camb.camblib", [])],
-          packages=['camb', 'camb.tests'],
-          platforms="any",
-          package_data={'camb': [DLLNAME, 'HighLExtrapTemplate_lenspotentialCls.dat',
-                                 'PArthENoPE_880.2_marcucci.dat', 'PArthENoPE_880.2_standard.dat',
-                                 'PRIMAT_Yp_DH_Error.dat', 'PRIMAT_Yp_DH_ErrorMC_2021.dat']},
-          )
+if __name__ == '__main__':
+    setup(
+        name=os.getenv('CAMB_PACKAGE_NAME', 'camb'),
+        zip_safe=False,
+        cmdclass={
+            'build_py': SharedLibrary,
+            'build_cluster': SharedLibraryCluster,
+            'make': MakeLibrary,
+            'make_cluster': MakeLibraryCluster,
+            'clean': CleanLibrary,
+            'develop': DevelopLibrary,
+            'develop_cluster': DevelopLibraryCluster,
+            'bdist_wheel': BDistWheelNonPure,
+            'install': InstallPlatlib,
+            'build_ext': BuildExtCommand,
+        },
+        ext_modules=[Extension('camb.camblib', [])],
+        packages=['camb', 'camb.tests'],
+        platforms='any',
+        package_data={
+            'camb': [
+                DLLNAME,
+                'HighLExtrapTemplate_lenspotentialCls.dat',
+                'PArthENoPE_880.2_marcucci.dat',
+                'PArthENoPE_880.2_standard.dat',
+                'PRIMAT_Yp_DH_Error.dat',
+                'PRIMAT_Yp_DH_ErrorMC_2021.dat',
+            ]
+        },
+    )

@@ -47,11 +47,34 @@ version = { attr = "camb.__version__" }
 
 [tool.ruff]
 line-length = 120
+target-version = "py310"
 
 [tool.ruff.lint]
 select = ["E", "F", "W"]
+ignore = []
 
 [tool.ruff.lint.per-file-ignores]
-"camb/__init__.py" = ["F401"]
+"camb/__init__.py" = ["F401", "E402"]
 "camb/camb.py" = ["F401"]
-"camb/results.py" = ["F401"]
+"camb/results.py" = ["F401", "E501"]
+"camb/reionization.py" = ["E501"]
+"camb/_command_line.py" = ["E402"]
+"docs/source/conf.py" = ["E402"]
+"camb/emission_angle.py" = ["E741"]
+"camb/postborn.py" = ["E741"]
+"fortran/tests/CAMB_test_files.py" = ["E731"]
+"fortran/tests/inifile.py" = ["E721"]
+"**/*.ipynb" = ["F405", "E501", "F403", "E402"]
+
+[tool.ruff.format]
+quote-style = "single"
+indent-style = "space"
+line-ending = "auto"
+skip-magic-trailing-comma = false
+docstring-code-format = true
+
+[tool.flake8]
+select = [
+    "E713", "E704", "E703", "E714", "E741", "E10", "E11", "E20", "E22", "E23", "E25", "E27", 
+    "E301", "E302", "E304", "E9", "F405", "F406", "F5", "F6", "F7", "F8", "W1", "W2", "W3", "W6"
+]
