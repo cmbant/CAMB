@@ -96,7 +96,7 @@ class TanhReionization(BaseTauWithHeReionization):
 
     _fortran_class_name_ = 'TTanhReionization'
 
-    def set_extra_params(self, deltazrei=None, max_zrei=None):
+    def set_extra_params(self, deltazrei=None, max_zrei=None) -> None:
         """
         Set extra parameters (not tau, or zrei)
 
@@ -122,7 +122,8 @@ class ExpReionization(BaseTauWithHeReionization):
 
     _fortran_class_name_ = 'TExpReionization'
 
-    def set_extra_params(self, reion_redshift_complete=None, reion_exp_power=None, reion_exp_smooth_width=None, max_zrei=None):
+    def set_extra_params(self, reion_redshift_complete=None, reion_exp_power=None, reion_exp_smooth_width=None,
+                         max_zrei=None) -> None:
         """
         Set extra parameters (not tau, or zrei)
 

@@ -17,7 +17,7 @@ gfortran_bits = ('x86_64', 'i686')[is_32_bit]
 def call_command(cmd):
     try:
         return subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT, env=compiler_environ).decode().strip()
-    except:
+    except Exception:
         return None
 
 

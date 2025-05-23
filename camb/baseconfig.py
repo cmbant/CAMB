@@ -578,6 +578,8 @@ class CAMBStructureMeta(type(Structure)):
 
 # noinspection PyPep8Naming
 class CAMB_Structure(Structure, metaclass=CAMBStructureMeta):
+    # _fields_ store ctypes fields, but here overridden
+    _fields_: list[tuple[str, type] | tuple[str, type, str | dict] | tuple[str, type, dict, str]]
 
     # noinspection PyUnresolvedReferences
     @classmethod
@@ -686,11 +688,8 @@ class F2003Class(CAMB_Structure):
 
     __slots__ = ()
 
-    # _fields_ store ctypes fields, but here overridden
-    _fields_: list[tuple[str, type] | tuple[str, type, str]]
-
     # _methods_ for calling fortran functions name, arguments and optional return value
-    _methods_: list[tuple[str, list, type] | tuple[str, list]]
+    _methods_: list[tuple[str, list | None, type] | tuple[str, list]]
 
     # pointer to fortran class; generated once per instance using _fortran_selfpointer_function then replaced with
     # the actual value

@@ -15,7 +15,7 @@ class InitialPower(F2003Class):
     """
     _fortran_class_module_ = 'InitialPower'
 
-    def set_params(self):
+    def set_params(self, **kwargs):
         pass
 
 

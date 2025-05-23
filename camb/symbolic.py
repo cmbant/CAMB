@@ -810,7 +810,7 @@ def compile_source_function_code(code_body, file_path='', compiler=None, fflags=
                 break
             try:
                 os.remove(dll_name)
-            except:
+            except Exception:
                 _source_file_count += 1
 
         source_file = name_tag + '.f90'
@@ -842,7 +842,7 @@ def compile_source_function_code(code_body, file_path='', compiler=None, fflags=
         # won't work on Windows while DLL in use
         try:
             os.remove(dll_name)
-        except:
+        except Exception:
             pass
 
     return func_lib.source_func_

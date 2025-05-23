@@ -11,8 +11,8 @@ class DarkEnergyModel(F2003Class):
         ("__is_cosmological_constant", c_bool),
         ("__num_perturb_equations", c_int)]
 
-    def validate_params(self):
-        return True
+    def validate_params(self) -> None:
+        pass
 
 
 class DarkEnergyEqnOfState(DarkEnergyModel):
@@ -55,7 +55,7 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
         if not self.use_tabulated_w and self.wa + self.w > 0:
             raise CAMBError('dark energy model has w + wa > 0, giving w>0 at high redshift')
 
-    def set_w_a_table(self, a, w):
+    def set_w_a_table(self, a, w) -> 'DarkEnergyEqnOfState':
         """
         Set w(a) from numerical values (used as cubic spline). Note this is quite slow.
 
@@ -93,17 +93,17 @@ class DarkEnergyFluid(DarkEnergyEqnOfState):
     _fortran_class_module_ = 'DarkEnergyFluid'
     _fortran_class_name_ = 'TDarkEnergyFluid'
 
-    def validate_params(self):
+    def validate_params(self) -> None:
         super().validate_params()
         if not self.use_tabulated_w:
             if self.wa and (self.w < -1 - 1e-6 or 1 + self.w + self.wa < - 1e-6):
                 raise CAMBError('fluid dark energy model does not support w crossing -1')
 
-    def set_w_a_table(self, a, w):
+    def set_w_a_table(self, a, w) -> 'DarkEnergyEqnOfState':
         # check w array has elements that do not cross -1
         if np.sign(1 + np.max(w)) - np.sign(1 + np.min(w)) == 2:
             raise CAMBError('fluid dark energy model does not support w crossing -1')
-        super().set_w_a_table(a, w)
+        return super().set_w_a_table(a, w)
 
 
 @fortran_class

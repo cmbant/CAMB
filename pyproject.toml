@@ -26,7 +26,7 @@ classifiers = [
     "Programming Language :: Python :: 3.13"
 ]
 dependencies = [
-    "numpy", "scipy>=1.5", "sympy>=1.0", "packaging>=24"
+    "numpy", "scipy>=1.0", "sympy>=1.0", "packaging>=24"
 ]
 
 [project.optional-dependencies]
@@ -44,3 +44,16 @@ Licensing = "https://github.com/cmbant/camb/blob/master/LICENCE.txt"
 
 [tool.setuptools.dynamic]
 version = { attr = "camb.__version__" }
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "W"]
+
+[tool.ruff.lint.per-file-ignores]
+"camb/__init__.py" = ["F401"]
+"camb/camb.py" = ["F401"]
+"camb/results.py" = ["F401"]
+"docs/CAMBdemo.ipynb" = ["F401"]
+"docs/ScalEqs.ipynb" = ["F401"]

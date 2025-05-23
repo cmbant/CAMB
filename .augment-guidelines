@@ -1,2 +1,0 @@
-- When pushing PR, use name "AI agent", making clear is not written or tested by cmbant.
-- Only use pylance/pyright for type checking, not mypi

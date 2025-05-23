@@ -50,6 +50,16 @@ class BBNPredictor:
         """
         return ypBBN_to_yhe(self.Y_p(ombh2, delta_neff))
 
+    def DH(self, ombh2, delta_neff=0.):
+        r"""
+        Get deuterium ratio D/H. Must be implemented by extensions.
+
+        :param ombh2: :math:`\Omega_b h^2`
+        :param delta_neff:  additional N_eff relative to standard value (of 3.044)
+        :return: D/H
+        """
+        raise Exception('Not implemented')
+
 
 class BBN_table_interpolator(BBNPredictor):
     """

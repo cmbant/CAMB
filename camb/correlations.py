@@ -13,11 +13,20 @@ A. Lewis December 2016
 """
 
 import numpy as np
-from scipy.special import legendre_p_all as legendrep
+
+try:
+    from scipy.special import legendre_p_all
+
+
+    def legendrep(n, z):
+        return legendre_p_all(n, z, diff_n=1)
+
+except ImportError:
+    from scipy.special import lpn as legendrep
 
 try:
     from .mathutils import gauss_legendre
-except:
+except Exception:
     # use np.polynomial.legendre if can't load fast native (so can use module without compiling camb)
     # Fortran version is much faster than current np.polynomial
     gauss_legendre = None
