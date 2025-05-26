@@ -1,0 +1,55 @@
+{
+    // Editor settings
+    "editor.rulers": [
+        120
+    ],
+    "editor.wordWrapColumn": 120,
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+        "source.fixAll": "explicit"
+    },
+    // Python test settings
+    "python.testing.pytestEnabled": false,
+    "python.testing.unittestEnabled": true,
+    "python.testing.unittestArgs": [
+        "-v",
+        "-s",
+        "./camb/tests",
+        "-p",
+        "*_test.py"
+    ],
+    // Pylance/Pyright settings to silence NumPy-related type errors
+    "python.analysis.diagnosticSeverityOverrides": {
+        "reportGeneralTypeIssues": "none",
+        "reportOptionalMemberAccess": "none",
+        "reportOptionalSubscript": "none",
+        "reportOptionalOperand": "none",
+        "reportOptionalIterable": "none",
+        "reportUnknownMemberType": "none",
+        "reportUnknownArgumentType": "none",
+        "reportUnknownVariableType": "none",
+        "reportUnknownParameterType": "none",
+        "reportMissingTypeStubs": "none",
+        "reportUnknownLambdaType": "none",
+        "reportImportCycles": "none",
+        "reportOptionalCall": "none",
+        "reportOptionalContextManager": "none",
+        "reportTypedDictNotRequiredAccess": "none",
+        "reportArgumentType": "none",
+        "reportOperatorIssue": "none",
+        "reportAttributeAccessIssue": "none"
+    },
+    "python.analysis.typeCheckingMode": "basic",
+    // Ruff settings
+    "[python]": {
+        "editor.defaultFormatter": "charliermarsh.ruff",
+        "editor.formatOnSave": true,
+        "editor.formatOnPaste": false,
+        "editor.formatOnType": false
+    },
+    "ruff.organizeImports": false,
+    "files.exclude": {
+        "**/__pycache__": true,
+        "**/.ruff_cache": true
+    }
+}

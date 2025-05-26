@@ -641,7 +641,9 @@ class CAMBdata(F2003Class):
         """
         return self.get_time_evolution(q, self.conformal_time(z), vars, lAccuracyBoost)
 
-    def get_background_time_evolution(self, eta, vars=model.background_names, format='dict'):
+    def get_background_time_evolution(
+        self, eta: np.ndarray, vars: str | list[str] = model.background_names, format: str = 'dict'
+    ) -> dict[str, np.ndarray] | np.ndarray:
         """
         Get the evolution of background variables a function of conformal time.
         For the moment a and H are rather perversely only available via :meth:`get_time_evolution`
@@ -1102,7 +1104,7 @@ class CAMBdata(F2003Class):
         logkh = np.log(khs)
         deg_z = min(len(zs) - 1, 3)
         kmax = khs[-1]
-        PKInterpolator = PKInterpolator if deg_z else PKInterpolatorSingleZ
+        PKInterpolator = PKInterpolator if deg_z else PKInterpolatorSingleZ  # type: ignore
         if extrap_kmax and extrap_kmax > kmax:
             # extrapolate to ultimate power law
             # TODO: use more physical extrapolation function for linear case
@@ -1471,7 +1473,7 @@ class CAMBdata(F2003Class):
     ) -> tuple[np.ndarray | float, np.ndarray | float]:
         if np.isscalar(z1):
             if np.isscalar(z2):
-                return z1, z2
+                return z1, z2  # type: ignore
             else:
                 z1 = np.ones(len(z2)) * z1
         else:
@@ -1506,7 +1508,7 @@ class CAMBdata(F2003Class):
         else:
             return self.f_AngularDiameterDistance2(byref(c_double(z1)), byref(c_double(z2)))
 
-    def comoving_radial_distance(self, z: float, tol=1e-4):
+    def comoving_radial_distance(self, z: float | np.ndarray, tol=1e-4):
         """
         Get comoving radial distance from us to redshift z in Mpc. This is efficient for arrays.
 
@@ -1519,7 +1521,7 @@ class CAMBdata(F2003Class):
         """
         if not np.isscalar(z):
             indices = np.argsort(z)
-            redshifts = np.array(z[indices], dtype=np.float64)
+            redshifts = np.array(z[indices], dtype=np.float64)  # type: ignore
             chis = np.empty(redshifts.shape)
             self.f_ComovingRadialDistanceArr(chis, redshifts, byref(c_int(chis.shape[0])), byref(c_double(tol)))
             chis[indices] = chis.copy()

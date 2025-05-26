@@ -696,7 +696,7 @@ class F2003Class(CAMB_Structure):
     __slots__ = ()
 
     # _methods_ for calling fortran functions name, arguments and optional return value
-    _methods_: list[tuple[str, list | None, type] | tuple[str, list]]
+    _methods_: list[tuple[str, list | None, type] | tuple[str, list] | tuple[str, list, type, dict]]
 
     # pointer to fortran class; generated once per instance using _fortran_selfpointer_function then replaced with
     # the actual value

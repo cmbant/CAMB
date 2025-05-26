@@ -37,7 +37,6 @@ Advisor/
 Inspector/
 .ipynb_checkpoints
 camb/HighLExtrapTemplate_lenspotentialCls.dat
-.vscode/
 testfile*
 *.ipynb
 !CAMBdemo.ipynb
