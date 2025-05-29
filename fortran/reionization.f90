@@ -495,13 +495,14 @@
         z_mid = this%redshift  ! 50% ionized (set by tau solver)
 
         ! Weibull function: xe_frac = exp(-(z-z_late)^k / lambda^k)
+        ! This gives ionized fraction that decreases from 1 at z_late to 0 at high z
         ! where lambda and k are computed from the parameterization
         if (z > z_late) then
             z_norm = z - z_late
             weibull_arg = (z_norm / this%weibull_lambda)**this%weibull_k
             xe_frac = exp(-weibull_arg)
         else
-            xe_frac = 1._dl
+            xe_frac = 1._dl  ! Fully ionized at z <= z_late
         end if
 
         TWeibullReionization_xe = xe_frac * (this%fraction - xstart) + xstart
@@ -528,7 +529,7 @@
 
     subroutine TWeibullReionization_SetParamsForZre(this)
     class(TWeibullReionization) :: this
-    real(dl) :: z_early, z_late, z_mid, delta_z
+    real(dl) :: z_early, z_late, z_mid, delta_z, A_z
 
     ! Calculate Weibull parameters following Trac et al. 2022 (ApJ 927, 186) Eqs. 10-15
     ! and arXiv:2505.15899v1 parameterization
@@ -539,36 +540,38 @@
     ! - A_z: asymmetry parameter (reion_asymmetry)
     !
     ! Following Trac et al. 2022 Eq. 10-11:
-    ! Delta z = z_ear - z_lat
-    ! A_z = (z_ear - z_lat) / (z_mid - z_lat)
+    ! Delta z = z_early - z_late
+    ! A_z = (z_early - z_late) / (z_mid - z_late)
 
     z_late = this%reion_redshift_complete
     z_early = z_late + this%reion_duration  ! Delta z_90
     z_mid = this%redshift
 
-    ! Calculate Weibull parameters following the standard parameterization
+    ! Calculate Weibull parameters following the Trac et al. parameterization
     ! For the Weibull CDF: F(z) = 1 - exp(-((z-z_late)/lambda)^k)
     ! where F(z) is the ionized fraction
     delta_z = z_early - z_late
-    if (delta_z > 0._dl .and. this%reion_asymmetry > 0._dl) then
-        ! The asymmetry parameter A_z relates to the Weibull shape parameter k
-        ! Following the standard approach: use A_z to determine the shape
+    if (delta_z > 0._dl .and. this%reion_asymmetry > 0._dl .and. z_mid > z_late) then
+        ! Calculate the actual asymmetry from the current parameters
+        A_z = delta_z / (z_mid - z_late)
+
+        ! Use the asymmetry parameter to determine the Weibull shape parameter k
+        ! Following Trac et al. approach: k is related to asymmetry
         this%weibull_k = this%reion_asymmetry
 
         ! Calculate scale parameter lambda from the midpoint condition
         ! At z_mid, we want F = 0.5 (50% ionized)
         ! 0.5 = 1 - exp(-((z_mid-z_late)/lambda)^k)
-        ! Solving: lambda = (z_mid - z_late) / (-ln(0.5))^(1/k)
-        if (z_mid > z_late) then
-            this%weibull_lambda = (z_mid - z_late) / (log(2._dl))**(1._dl/this%weibull_k)
-        else
-            ! Fallback: use duration-based estimate
-            this%weibull_lambda = delta_z / (2._dl * (log(2._dl))**(1._dl/this%weibull_k))
-        end if
+        ! Solving: lambda = (z_mid - z_late) / (ln(2))^(1/k)
+        this%weibull_lambda = (z_mid - z_late) / (log(2._dl))**(1._dl/this%weibull_k)
     else
         ! Fallback values for edge cases
         this%weibull_k = 2._dl
-        this%weibull_lambda = max(delta_z / 2._dl, 0.5_dl)
+        if (delta_z > 0._dl) then
+            this%weibull_lambda = delta_z / (2._dl * (log(2._dl))**(1._dl/this%weibull_k))
+        else
+            this%weibull_lambda = 0.5_dl
+        end if
     end if
 
     end subroutine TWeibullReionization_SetParamsForZre

@@ -15,3 +15,7 @@ Reionization models
 .. autoclass:: camb.reionization.ExpReionization
    :show-inheritance:
    :members:
+
+.. autoclass:: camb.reionization.WeibullReionization
+   :show-inheritance:
+   :members:

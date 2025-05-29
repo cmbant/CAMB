@@ -886,16 +886,16 @@ class CambTest(unittest.TestCase):
         """Test the Weibull reionization model following Trac et al. 2022 (ApJ 927, 186) and arXiv:2505.15899v1"""
         from camb.reionization import WeibullReionization
 
-        # Test basic functionality
+        # Test basic functionality with conservative parameters that should work
         pars = camb.CAMBparams()
         pars.set_cosmology(H0=67.5, ombh2=0.022, omch2=0.122, mnu=0.07, omk=0)
 
-        # Set up Weibull reionization model with conservative parameters
+        # Use conservative parameters that are known to work
         weibull_reion = WeibullReionization()
         weibull_reion.set_extra_params(
-            reion_redshift_complete=6.0,  # z at which reionization is complete
-            reion_duration=1.0,           # Delta z_90 (smaller for stability)
-            reion_asymmetry=1.0           # A_z asymmetry parameter (smaller for stability)
+            reion_redshift_complete=6.0,  # Later completion
+            reion_duration=1.0,           # Shorter duration
+            reion_asymmetry=1.0           # Symmetric
         )
         weibull_reion.set_tau(0.065)  # Set optical depth
 
