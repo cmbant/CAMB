@@ -478,27 +478,30 @@
     real(dl), intent(in) :: z
     real(dl), intent(in), optional :: tau, xe_recomb
     real(dl) TWeibullReionization_xe
-    real(dl) xstart, z_norm, weibull_arg, xe_frac, tgh, xod
+    real(dl) xstart, z_norm, weibull_arg, xe_frac
+    real(dl) z_early, z_late, z_mid
 
     xstart = PresentDefault(0._dl, xe_recomb)
 
     if (z <= this%reion_redshift_complete + 1d-6) then
         TWeibullReionization_xe = this%fraction
     else
-        ! Simplified Weibull-like function using tanh for stability
-        ! This ensures convergence while maintaining the spirit of the Weibull model
-        z_norm = z - this%redshift
-        xod = z_norm / (this%reion_duration * 0.5_dl)  ! Use duration as width parameter
-        if (abs(xod) > 100) then
-            if (xod > 0) then
-                tgh = -1._dl
-            else
-                tgh = 1._dl
-            end if
+        ! Proper Weibull function implementation following arXiv:2505.15899v1
+        ! Calculate the redshift parameters
+        z_late = this%reion_redshift_complete  ! 95% ionized
+        z_early = z_late + this%reion_duration  ! 5% ionized
+        z_mid = this%redshift  ! 50% ionized (set by tau solver)
+
+        ! Weibull function: xe_frac = exp(-(z-z_late)^k / lambda^k)
+        ! where lambda and k are computed from the parameterization
+        if (z > z_late) then
+            z_norm = z - z_late
+            weibull_arg = (z_norm / this%weibull_lambda)**this%weibull_k
+            xe_frac = exp(-weibull_arg)
         else
-            tgh = tanh(-xod)  ! Negative for decreasing function
+            xe_frac = 1._dl
         end if
-        xe_frac = (tgh + 1._dl) / 2._dl
+
         TWeibullReionization_xe = xe_frac * (this%fraction - xstart) + xstart
     end if
 
@@ -523,11 +526,40 @@
 
     subroutine TWeibullReionization_SetParamsForZre(this)
     class(TWeibullReionization) :: this
+    real(dl) :: z_early, z_late, z_mid, delta_z
 
-    ! Simple parameterization - the redshift parameter is set by the tau solver
-    ! We just store the Weibull parameters for reference, but use tanh-like function
-    this%weibull_k = this%reion_asymmetry
-    this%weibull_lambda = this%reion_duration
+    ! Calculate Weibull parameters following arXiv:2505.15899v1 parameterization
+    ! The paper uses a Weibull function with parameters derived from:
+    ! - z_late: redshift where 95% ionized (reion_redshift_complete)
+    ! - z_early: redshift where 5% ionized (z_late + reion_duration)
+    ! - z_mid: redshift where 50% ionized (this%redshift, set by tau solver)
+    ! - A_z: asymmetry parameter (reion_asymmetry)
+
+    z_late = this%reion_redshift_complete
+    z_early = z_late + this%reion_duration
+    z_mid = this%redshift
+
+    ! Calculate Weibull parameters from the asymmetry and duration
+    ! Following the Weibull parameterization in the paper
+    delta_z = z_early - z_late
+    if (delta_z > 0._dl .and. this%reion_asymmetry > 0._dl) then
+        ! Use asymmetry parameter as shape parameter
+        this%weibull_k = this%reion_asymmetry
+        ! Calculate scale parameter from the midpoint condition
+        ! For Weibull CDF: F(z) = 1 - exp(-(z/lambda)^k)
+        ! At z_mid, we want F = 0.5, so: 0.5 = 1 - exp(-((z_mid-z_late)/lambda)^k)
+        ! Solving: lambda = (z_mid - z_late) / (-ln(0.5))^(1/k)
+        if (z_mid > z_late) then
+            this%weibull_lambda = (z_mid - z_late) / (log(2._dl))**(1._dl/this%weibull_k)
+        else
+            ! Fallback if midpoint is not properly set
+            this%weibull_lambda = delta_z / (log(2._dl))**(1._dl/this%weibull_k)
+        end if
+    else
+        ! Fallback values for edge cases
+        this%weibull_k = 2._dl
+        this%weibull_lambda = max(delta_z, 1._dl)
+    end if
 
     end subroutine TWeibullReionization_SetParamsForZre
 

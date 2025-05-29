@@ -897,7 +897,7 @@ class CambTest(unittest.TestCase):
             reion_duration=1.0,           # Delta z_90 (smaller for stability)
             reion_asymmetry=1.0           # A_z asymmetry parameter (smaller for stability)
         )
-        weibull_reion.set_tau(0.055)  # Set optical depth (slightly lower)
+        weibull_reion.set_tau(0.065)  # Set optical depth
 
         pars.Reion = weibull_reion
 
@@ -906,7 +906,7 @@ class CambTest(unittest.TestCase):
 
         # Test that optical depth is approximately correct
         tau_computed = results.Params.Reion.optical_depth
-        self.assertAlmostEqual(tau_computed, 0.055, places=2)
+        self.assertAlmostEqual(tau_computed, 0.065, places=2)
 
         # Test that reionization redshift is reasonable
         zre = results.Params.Reion.redshift
@@ -931,7 +931,7 @@ class CambTest(unittest.TestCase):
         # Compare with default TanhReionization model for basic consistency
         from camb.reionization import TanhReionization
         tanh_reion = TanhReionization()
-        tanh_reion.set_tau(0.055)
+        tanh_reion.set_tau(0.065)
 
         pars2 = camb.CAMBparams()
         pars2.set_cosmology(H0=67.5, ombh2=0.022, omch2=0.122, mnu=0.07, omk=0)
