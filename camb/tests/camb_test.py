@@ -883,7 +883,7 @@ class CambTest(unittest.TestCase):
         self.assertAlmostEqual(results.get_derived_params()['thetastar'], 1.044341764253, delta=1e-5)
 
     def test_weibull_reionization(self):
-        """Test the Weibull reionization model following arXiv:2505.15899v1"""
+        """Test the Weibull reionization model following Trac et al. 2022 (ApJ 927, 186) and arXiv:2505.15899v1"""
         from camb.reionization import WeibullReionization
 
         # Test basic functionality

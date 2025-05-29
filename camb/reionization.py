@@ -157,7 +157,10 @@ class ExpReionization(BaseTauWithHeReionization):
 @fortran_class
 class WeibullReionization(BaseTauWithHeReionization):
     """
-    Weibull function reionization model following arXiv:2505.15899v1 Eq. 1.
+    Weibull function reionization model following:
+    - Trac et al. 2022, ApJ 927, 186 (arXiv:2109.10375) Eqs. 10-15
+    - Cain et al. 2025, arXiv:2505.15899v1 Eq. 1
+
     This model uses a Weibull distribution to parameterize the reionization history
     with parameters for completion redshift, duration, and asymmetry.
     """
