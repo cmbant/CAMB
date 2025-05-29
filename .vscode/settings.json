@@ -45,11 +45,42 @@
         "editor.defaultFormatter": "charliermarsh.ruff",
         "editor.formatOnSave": true,
         "editor.formatOnPaste": false,
-        "editor.formatOnType": false
+        "editor.formatOnType": false,
+        "editor.rulers": [
+            120
+        ],
+        "editor.codeActionsOnSave": {
+            "source.organizeImports": "explicit"
+        }
     },
     "ruff.organizeImports": false,
     "files.exclude": {
         "**/__pycache__": true,
-        "**/.ruff_cache": true
+        "**/.ruff_cache": true,
+        ".idea/": true,
+        ".empty/": true,
+        "VisualStudio": true,
+        ".pytest_cache": true,
+        "**/.ipynb_checkpoints": true,
+        "dist/": true,
+        "**/_build": true,
+        "**/build": true,
+        "**/*.dll": true,
+        "**/*.egg-info": true,
+    },
+    "search.exclude": {
+        "**/__pycache__": true,
+        "**/*.pyc": true,
+        "**/*.pyo": true,
+        "**/*.egg-info": true,
+        "**/build": true,
+        "**/.pytest_cache": true,
+        "**/.coverage": true,
+        "**/.mypy_cache": true,
+        "**/.ruff_cache": true,
+        ".idea/": true,
+        "**/chains": true,
+        "**/.ipynb_checkpoints": true,
+        ".venv/": true
     }
 }
