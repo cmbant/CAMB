@@ -87,7 +87,26 @@
     procedure, nopass :: SelfPointer => TExpReionization_SelfPointer
     end type TExpReionization
 
-    public TBaseTauWithHeReionization, TTanhReionization, TExpReionization
+    type, extends(TBaseTauWithHeReionization) :: TWeibullReionization
+        ! Weibull function reionization model following:
+        ! - Trac et al. 2022, ApJ 927, 186 (arXiv:2109.10375) Eqs. 10-15
+        ! - Cain et al. 2025, arXiv:2505.15899v1 Eq. 1
+        ! This model uses a Weibull distribution to parameterize the reionization history
+        real(dl)   :: reion_redshift_complete = 5.6_dl  ! redshift at which reionization is complete (5% neutral)
+        real(dl)   :: reion_duration = 2.0_dl           ! duration parameter (Delta z_90)
+        real(dl)   :: reion_asymmetry = 2.0_dl          ! asymmetry parameter (A_z)
+        real(dl), private :: weibull_lambda             ! Weibull scale parameter (computed)
+        real(dl), private :: weibull_k                  ! Weibull shape parameter (computed)
+    contains
+    procedure :: x_e => TWeibullReionization_xe
+    procedure :: get_timesteps => TWeibullReionization_get_timesteps
+    procedure :: Init => TWeibullReionization_Init
+    procedure :: ReadParams => TWeibullReionization_ReadParams
+    procedure :: SetParamsForZre => TWeibullReionization_SetParamsForZre
+    procedure, nopass :: SelfPointer => TWeibullReionization_SelfPointer
+    end type TWeibullReionization
+
+    public TBaseTauWithHeReionization, TTanhReionization, TExpReionization, TWeibullReionization
     contains
 
     subroutine TBaseTauWithHeReionization_Init(this, State)
@@ -442,5 +461,145 @@
     P => PType
 
     end subroutine TExpReionization_SelfPointer
+
+    subroutine TWeibullReionization_Init(this, State)
+    class(TWeibullReionization) :: this
+    class(TCAMBdata), target :: State
+
+    this%min_redshift = this%reion_redshift_complete
+    call this%SetParamsForZre()
+    call this%TBaseTauWithHeReionization%Init(State)
+
+    end subroutine TWeibullReionization_Init
+
+    function TWeibullReionization_xe(this, z, tau, xe_recomb)
+    !Weibull function reionization model following arXiv:2505.15899v1
+    !xe_recomb is xe(tau_start) from recombination (typically very small, ~2e-4)
+    !xe should map smoothly onto xe_recomb
+    class(TWeibullReionization) :: this
+    real(dl), intent(in) :: z
+    real(dl), intent(in), optional :: tau, xe_recomb
+    real(dl) TWeibullReionization_xe
+    real(dl) xstart, z_norm, weibull_arg, xe_frac
+    real(dl) z_early, z_late, z_mid
+
+    xstart = PresentDefault(0._dl, xe_recomb)
+
+    if (z <= this%reion_redshift_complete + 1d-6) then
+        TWeibullReionization_xe = this%fraction
+    else
+        ! Proper Weibull function implementation following arXiv:2505.15899v1
+        ! Calculate the redshift parameters
+        z_late = this%reion_redshift_complete  ! 95% ionized
+        z_early = z_late + this%reion_duration  ! 5% ionized
+        z_mid = this%redshift  ! 50% ionized (set by tau solver)
+
+        ! Weibull function: xe_frac = exp(-(z-z_late)^k / lambda^k)
+        ! This gives ionized fraction that decreases from 1 at z_late to 0 at high z
+        ! where lambda and k are computed from the parameterization
+        if (z > z_late) then
+            z_norm = z - z_late
+            weibull_arg = (z_norm / this%weibull_lambda)**this%weibull_k
+            xe_frac = exp(-weibull_arg)
+        else
+            xe_frac = 1._dl  ! Fully ionized at z <= z_late
+        end if
+
+        TWeibullReionization_xe = xe_frac * (this%fraction - xstart) + xstart
+    end if
+
+    TWeibullReionization_xe = TWeibullReionization_xe + this%SecondHelium_xe(z)
+
+    end function TWeibullReionization_xe
+
+    subroutine TWeibullReionization_get_timesteps(this, n_steps, z_start, z_complete)
+    !minimum number of time steps to use between tau_start and tau_complete
+    !Scaled by AccuracyBoost later
+    !steps may be set smaller than this anyway
+    class(TWeibullReionization) :: this
+    integer, intent(out) :: n_steps
+    real(dl), intent(out):: z_start, z_complete
+
+    n_steps = nint(50 * this%timestep_boost)
+    ! Use duration parameter to set range
+    z_start = this%redshift + this%reion_duration * 4._dl
+    z_complete = max(0._dl, this%reion_redshift_complete)
+
+    end subroutine TWeibullReionization_get_timesteps
+
+    subroutine TWeibullReionization_SetParamsForZre(this)
+    class(TWeibullReionization) :: this
+    real(dl) :: z_early, z_late, z_mid, delta_z, A_z
+
+    ! Calculate Weibull parameters following Trac et al. 2022 (ApJ 927, 186) Eqs. 10-15
+    ! and arXiv:2505.15899v1 parameterization
+    ! The Weibull function parameterizes the reionization history with:
+    ! - z_late: redshift where 95% ionized (reion_redshift_complete)
+    ! - z_early: redshift where 5% ionized (z_late + reion_duration = Delta z_90)
+    ! - z_mid: redshift where 50% ionized (this%redshift, set by tau solver)
+    ! - A_z: asymmetry parameter (reion_asymmetry)
+    !
+    ! Following Trac et al. 2022 Eq. 10-11:
+    ! Delta z = z_early - z_late
+    ! A_z = (z_early - z_late) / (z_mid - z_late)
+
+    z_late = this%reion_redshift_complete
+    z_early = z_late + this%reion_duration  ! Delta z_90
+    z_mid = this%redshift
+
+    ! Calculate Weibull parameters following the Trac et al. parameterization
+    ! For the Weibull CDF: F(z) = 1 - exp(-((z-z_late)/lambda)^k)
+    ! where F(z) is the ionized fraction
+    delta_z = z_early - z_late
+    if (delta_z > 0._dl .and. this%reion_asymmetry > 0._dl .and. z_mid > z_late) then
+        ! Calculate the actual asymmetry from the current parameters
+        A_z = delta_z / (z_mid - z_late)
+
+        ! Use the asymmetry parameter to determine the Weibull shape parameter k
+        ! Following Trac et al. approach: k is related to asymmetry
+        this%weibull_k = this%reion_asymmetry
+
+        ! Calculate scale parameter lambda from the midpoint condition
+        ! At z_mid, we want F = 0.5 (50% ionized)
+        ! 0.5 = 1 - exp(-((z_mid-z_late)/lambda)^k)
+        ! Solving: lambda = (z_mid - z_late) / (ln(2))^(1/k)
+        this%weibull_lambda = (z_mid - z_late) / (log(2._dl))**(1._dl/this%weibull_k)
+    else
+        ! Fallback values for edge cases
+        this%weibull_k = 2._dl
+        if (delta_z > 0._dl) then
+            this%weibull_lambda = delta_z / (2._dl * (log(2._dl))**(1._dl/this%weibull_k))
+        else
+            this%weibull_lambda = 0.5_dl
+        end if
+    end if
+
+    end subroutine TWeibullReionization_SetParamsForZre
+
+    subroutine TWeibullReionization_ReadParams(this, Ini)
+    use IniObjects
+    class(TWeibullReionization) :: this
+    class(TIniFile), intent(in) :: Ini
+
+    call this%TBaseTauWithHeReionization%ReadParams(Ini)
+    if (this%Reionization) then
+        call Ini%Read('reion_redshift_complete', this%reion_redshift_complete)
+        call Ini%Read('reion_duration', this%reion_duration)
+        call Ini%Read('reion_asymmetry', this%reion_asymmetry)
+        call this%SetParamsForZre()
+    end if
+
+    end subroutine TWeibullReionization_ReadParams
+
+    subroutine TWeibullReionization_SelfPointer(cptr,P)
+    use iso_c_binding
+    Type(c_ptr) :: cptr
+    Type (TWeibullReionization), pointer :: PType
+    class (TPythonInterfacedClass), pointer :: P
+
+    call c_f_pointer(cptr, PType)
+    P => PType
+
+    end subroutine TWeibullReionization_SelfPointer
 
     end module Reionization
