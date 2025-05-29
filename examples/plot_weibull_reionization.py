@@ -23,14 +23,14 @@ from camb.reionization import WeibullReionization, TanhReionization
 def get_ionization_history(reion_model, z_array):
     """
     Get ionization history for a given reionization model.
-    
+
     Parameters:
     -----------
     reion_model : camb.reionization object
         The reionization model to use
     z_array : array_like
         Array of redshifts to evaluate
-        
+
     Returns:
     --------
     xe_values : array
@@ -41,22 +41,15 @@ def get_ionization_history(reion_model, z_array):
     pars = camb.CAMBparams()
     pars.set_cosmology(H0=67.5, ombh2=0.022, omch2=0.122)
     pars.Reion = reion_model
-    
+
     # Get background evolution
-    results = camb.get_background(pars)
-    
-    # Get ionization fraction for each redshift
-    xe_values = []
-    for z in z_array:
-        try:
-            # Get background variables at this redshift
-            bg_vars = results.get_background_time_evolution([results.conformal_time(z)], ['x_e'])
-            xe_values.append(bg_vars[0, 0])
-        except:
-            # Fallback for edge cases
-            xe_values.append(1.0 if z < 6 else 0.0)
-    
-    return np.array(xe_values), results
+    results = camb.get_results(pars)
+
+    # Get ionization fraction using the correct CAMB method
+    bg_evolution = results.get_background_redshift_evolution(z_array, ['x_e'])
+    xe_values = bg_evolution['x_e']
+
+    return xe_values, results
 
 
 def plot_reionization_comparison():
