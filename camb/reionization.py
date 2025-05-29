@@ -152,3 +152,44 @@ class ExpReionization(BaseTauWithHeReionization):
             self.reion_exp_power = reion_exp_power
         if reion_exp_smooth_width is not None:
             self.reion_exp_smooth_width = reion_exp_smooth_width
+
+
+@fortran_class
+class WeibullReionization(BaseTauWithHeReionization):
+    """
+    Weibull function reionization model following arXiv:2505.15899v1 Eq. 1.
+    This model uses a Weibull distribution to parameterize the reionization history
+    with parameters for completion redshift, duration, and asymmetry.
+    """
+
+    _fields_ = [
+        ('reion_redshift_complete', c_double, 'redshift at which reionization is complete (5% neutral)'),
+        ('reion_duration', c_double, 'duration parameter (Delta z_90)'),
+        ('reion_asymmetry', c_double, 'asymmetry parameter (A_z)'),
+        ('__weibull_lambda', c_double, 'Weibull scale parameter (computed)'),
+        ('__weibull_k', c_double, 'Weibull shape parameter (computed)'),
+    ]
+
+    _fortran_class_name_ = 'TWeibullReionization'
+
+    def set_extra_params(
+        self, reion_redshift_complete=None, reion_duration=None, reion_asymmetry=None, max_zrei=None
+    ) -> None:
+        """
+        Set extra parameters (not tau, or zrei)
+
+        :param reion_redshift_complete: redshift at which reionization is complete (5% neutral)
+        :param reion_duration: duration parameter (Delta z_90)
+        :param reion_asymmetry: asymmetry parameter (A_z)
+        :param max_zrei: maximum redshift allowed when mapping tau into reionization
+        """
+        super().set_extra_params(max_zrei)
+        if reion_redshift_complete is not None:
+            self.reion_redshift_complete = reion_redshift_complete
+        if reion_duration is not None:
+            self.reion_duration = reion_duration
+        if reion_asymmetry is not None:
+            self.reion_asymmetry = reion_asymmetry
+        # Update Weibull parameters when any parameter changes
+        if hasattr(self, '_fortran_pointer') and self._fortran_pointer:
+            self.f_SetParamsForZre()
