@@ -1,0 +1,14 @@
+You can use apt get to install gfortran needed to compile the code, and uv to manage python env. You will need to get the forutils submodule code.
+
+This is the camb cosmology code. Currently there are two reionization models implemented. We want to implement a third option, following Eq 1 of
+
+https://arxiv.org/html/2505.15899v1
+
+1. Modify the fortran and python code by close analogy to the implementation of the "exp" reionziation model, making new class for this new reionization model, available from fortran and python.  
+
+2. Add a unit test, similar to the one for the "exp" reionization model
+
+3. Check the changes compile and get to passing text (make sure the test is testing something significant, like the "exp" test)
+
+4. Make a PR (onto the devel branch) with the new implementation with description. Make clear it is AI generated. 
+

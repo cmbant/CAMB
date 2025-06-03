@@ -75,6 +75,7 @@ lensing_cgrads.f90
 !inifiles/planck_2018.ini
 !inifiles/planck_2018_acc.ini
 !inifiles/sources_defaults.ini
+prompts.txt
 
 # Ignore AI-related files
 AI_notes.txt

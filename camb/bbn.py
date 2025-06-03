@@ -4,13 +4,15 @@
 # Use PRIMAT_Yp_DH_Error.dat table for latest from the PRIMAT code (arXiv: 1801.08023, thanks Cyril Pitrou)
 # from 1.4.0, delta_nnu values are relative to 3.044, not 3.046
 
-import numpy as np
 import os
+
+import numpy as np
 from scipy.interpolate import RectBivariateSpline
-from .constants import m_H, m_He4, default_nnu
+
+from .constants import default_nnu, m_H, m_He4
 
 # previously (< 1.4.0) default_interpolation_table = 'PArthENoPE_880.2_standard.dat'
-default_interpolation_table = 'PRIMAT_Yp_DH_ErrorMC_2021.dat'
+default_interpolation_table = "PRIMAT_Yp_DH_ErrorMC_2021.dat"
 
 
 def yhe_to_ypBBN(Yp):
@@ -38,7 +40,7 @@ class BBNPredictor:
         :param delta_neff:  additional N_eff relative to standard value (of 3.044)
         :return:  Y_p helium nucleon fraction predicted by BBN
         """
-        raise Exception('Not implemented')
+        raise Exception("Not implemented")
 
     def Y_He(self, ombh2, delta_neff=0.0):
         r"""
@@ -58,7 +60,7 @@ class BBNPredictor:
         :param delta_neff:  additional N_eff relative to standard value (of 3.044)
         :return: D/H
         """
-        raise Exception('Not implemented')
+        raise Exception("Not implemented")
 
 
 class BBN_table_interpolator(BBNPredictor):
@@ -76,8 +78,8 @@ class BBN_table_interpolator(BBNPredictor):
 
     """
 
-    def __init__(self, interpolation_table=default_interpolation_table, function_of=('ombh2', 'DeltaN')):
-        if os.sep not in interpolation_table and '/' not in interpolation_table:
+    def __init__(self, interpolation_table=default_interpolation_table, function_of=("ombh2", "DeltaN")):
+        if os.sep not in interpolation_table and "/" not in interpolation_table:
             interpolation_table = os.path.normpath(os.path.join(os.path.dirname(__file__), interpolation_table))
         self.interpolation_table = interpolation_table
 
@@ -86,7 +88,7 @@ class BBN_table_interpolator(BBNPredictor):
             for line in f:
                 line = line.strip()
                 if line:
-                    if line[0] == '#':
+                    if line[0] == "#":
                         comment = line[1:]
                     else:
                         break
@@ -121,7 +123,7 @@ class BBN_table_interpolator(BBNPredictor):
            results on a grid spanned by the input arrays, or at points specified by the input arrays)
         :return:  Y_p helium nucleon fraction predicted by BBN. Call Y_He() to get mass fraction instead.
         """
-        return self.get('Yp^BBN', ombh2, delta_neff, grid)
+        return self.get("Yp^BBN", ombh2, delta_neff, grid)
 
     def DH(self, ombh2, delta_neff=0.0, grid=False):
         r"""
@@ -133,7 +135,7 @@ class BBN_table_interpolator(BBNPredictor):
            results on a grid spanned by the input arrays, or at points specified by the input arrays)
         :return: D/H
         """
-        return self.get('D/H', ombh2, delta_neff, grid)
+        return self.get("D/H", ombh2, delta_neff, grid)
 
     def get(self, name, ombh2, delta_neff=0.0, grid=False):
         r"""
@@ -214,7 +216,7 @@ def get_predictor(predictor_name=None):
     predictor_name = predictor_name or default_interpolation_table
     predictor = _predictors.get(predictor_name, None)
     if predictor is None:
-        if predictor_name == 'BBN_fitting_parthenope':
+        if predictor_name == "BBN_fitting_parthenope":
             predictor = BBN_fitting_parthenope()
         else:
             predictor = BBN_table_interpolator(interpolation_table=predictor_name)
@@ -222,12 +224,12 @@ def get_predictor(predictor_name=None):
     return predictor
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     print(BBN_table_interpolator().Y_He(0.01897, 1.2))
     print(BBN_fitting_parthenope().Y_He(0.01897, 1.2))
-    print(BBN_table_interpolator('PRIMAT_Yp_DH_Error.dat').Y_He(0.01897, 1.2))
+    print(BBN_table_interpolator("PRIMAT_Yp_DH_Error.dat").Y_He(0.01897, 1.2))
     print(BBN_table_interpolator().DH(0.02463, -0.6))
     print(BBN_fitting_parthenope().DH(0.02463, -0.6))
-    print(BBN_table_interpolator('PArthENoPE_880.2_marcucci.dat').DH(0.02463, -0.6))
-    print(BBN_table_interpolator('PRIMAT_Yp_DH_Error.dat').DH(0.02463, -0.6))
-    print(BBN_table_interpolator('PRIMAT_Yp_DH_ErrorMC_2021.dat').DH(0.02463, -0.6))
+    print(BBN_table_interpolator("PArthENoPE_880.2_marcucci.dat").DH(0.02463, -0.6))
+    print(BBN_table_interpolator("PRIMAT_Yp_DH_Error.dat").DH(0.02463, -0.6))
+    print(BBN_table_interpolator("PRIMAT_Yp_DH_ErrorMC_2021.dat").DH(0.02463, -0.6))

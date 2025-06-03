@@ -1,4 +1,5 @@
 import os
+
 import numpy as np
 
 
@@ -43,21 +44,21 @@ class IniFile:
 
     def expand_placeholders(self, s):
         """Expand shell variables of the forms $(var), like in Makefiles"""
-        if '$(' not in s:
+        if "$(" not in s:
             return s
-        res = ''
+        res = ""
         index = 0
         pathlen = len(s)
         while index < pathlen:
             c = s[index]
-            if c == '$':
-                if s[index + 1] == '$':
+            if c == "$":
+                if s[index + 1] == "$":
                     res = res + c
                     index += 1
-                elif s[index + 1] == '(':
+                elif s[index + 1] == "(":
                     s = s[index + 2 :]
                     pathlen = len(s)
-                    index = s.index(')')
+                    index = s.index(")")
                     var = s[:index]
                     if var in os.environ:
                         res = res + os.environ[var]
@@ -72,27 +73,27 @@ class IniFile:
             filedefaults = []
             self.original_filename = filename
             comments = []
-            with open(filename, encoding='utf-8-sig') as textFileHandle:
+            with open(filename, encoding="utf-8-sig") as textFileHandle:
                 # Remove blank lines and comment lines from the python list of lists.
                 for line in textFileHandle:
                     s = line.strip()
-                    if s == 'END':
+                    if s == "END":
                         break
-                    if s.startswith('#'):
+                    if s.startswith("#"):
                         comments.append(s[1:].rstrip())
                         continue
-                    elif s.startswith('INCLUDE('):
-                        fileincludes.append(s[s.find('(') + 1 : s.rfind(')')])
-                    elif s.startswith('DEFAULT('):
-                        filedefaults.append(s[s.find('(') + 1 : s.rfind(')')])
-                    elif s != '':
-                        eq = s.find('=')
+                    elif s.startswith("INCLUDE("):
+                        fileincludes.append(s[s.find("(") + 1 : s.rfind(")")])
+                    elif s.startswith("DEFAULT("):
+                        filedefaults.append(s[s.find("(") + 1 : s.rfind(")")])
+                    elif s != "":
+                        eq = s.find("=")
                         if eq >= 0:
                             key = s[0:eq].strip()
                             if key in self.params:
                                 if if_not_defined:
                                     continue
-                                raise IniError('Error: duplicate key: ' + key + ' in ' + filename)
+                                raise IniError("Error: duplicate key: " + key + " in " + filename)
                             value = s[eq + 1 :].strip()
                             if self.expand_environment_variables:
                                 value = self.expand_placeholders(value)
@@ -100,7 +101,7 @@ class IniFile:
                             self.readOrder.append(key)
                             if len(comments):
                                 self.comments[key] = comments
-                    if not s.startswith('#'):
+                    if not s.startswith("#"):
                         comments = []
 
             if keep_includes:
@@ -120,11 +121,11 @@ class IniFile:
 
             return self.params
         except:
-            print('Error in ' + filename)
+            print("Error in " + filename)
             raise
 
     def __str__(self):
-        return '\n'.join(self.fileLines())
+        return "\n".join(self.fileLines())
 
     def saveFile(self, filename=None):
         """
@@ -136,13 +137,13 @@ class IniFile:
         if not filename:
             filename = self.original_filename
         if not filename:
-            raise IniError('No filename for iniFile.saveFile()')
-        with open(filename, 'w', encoding='utf-8') as f:
+            raise IniError("No filename for iniFile.saveFile()")
+        with open(filename, "w", encoding="utf-8") as f:
             f.write(str(self))
 
     def fileLines(self):
         def asIniText(value):
-            if isinstance(value, type('')):
+            if isinstance(value, type("")):
                 return value
             if type(value) == bool:
                 return str(value)[0]
@@ -150,19 +151,19 @@ class IniFile:
 
         parameterLines = []
         for include in self.includes:
-            parameterLines.append('INCLUDE(' + include + ')')
+            parameterLines.append("INCLUDE(" + include + ")")
         for default in self.defaults:
-            parameterLines.append('DEFAULT(' + default + ')')
+            parameterLines.append("DEFAULT(" + default + ")")
 
         keys = list(self.params.keys())
         keys.sort()
 
         for key in self.readOrder:
             if key in keys:
-                parameterLines.append(key + '=' + asIniText(self.params[key]))
+                parameterLines.append(key + "=" + asIniText(self.params[key]))
                 keys.remove(key)
         for key in keys:
-            parameterLines.append(key + '=' + asIniText(self.params[key]))
+            parameterLines.append(key + "=" + asIniText(self.params[key]))
 
         return parameterLines
 
@@ -176,7 +177,7 @@ class IniFile:
             self.params.pop(k, None)
 
     def _undefined(self, name):
-        raise IniError('parameter not defined: ' + name)
+        raise IniError("parameter not defined: " + name)
 
     def hasKey(self, name):
         """
@@ -195,7 +196,7 @@ class IniFile:
         :param allowEmpty: whether to allow empty strings (return True is parameter name exists but is not set, "x = ")
         """
 
-        return name in self.params and (allowEmpty or self.params[name] != '')
+        return name in self.params and (allowEmpty or self.params[name] != "")
 
     def asType(self, name, tp, default=None, allowEmpty=False):
         if self.isSet(name, allowEmpty):
@@ -241,11 +242,11 @@ class IniFile:
             s = self.params[name]
             if isinstance(s, bool):
                 return s
-            if s[0] == 'T':
+            if s[0] == "T":
                 return True
-            elif s[0] == 'F':
+            elif s[0] == "F":
                 return False
-            raise IniError('parameter does not have valid T(rue) or F(alse) boolean value: ' + name)
+            raise IniError("parameter does not have valid T(rue) or F(alse) boolean value: " + name)
         elif default is not None:
             return default
         else:
@@ -369,7 +370,7 @@ class IniFile:
         :param index: index (in brackets)
         :param default: default value
         """
-        return self.int(name + '(%u)' % index, default)
+        return self.int(name + "(%u)" % index, default)
 
     def array_string(self, name, index=1, default=None):
         """
@@ -380,7 +381,7 @@ class IniFile:
         :param default: default value
         """
 
-        return self.string(name + '(%u)' % index, default)
+        return self.string(name + "(%u)" % index, default)
 
     def array_bool(self, name, index=1, default=None):
         """
@@ -391,7 +392,7 @@ class IniFile:
         :param default: default value
         """
 
-        return self.bool(name + '(%u)' % index, default)
+        return self.bool(name + "(%u)" % index, default)
 
     def array_float(self, name, index=1, default=None):
         """
@@ -402,7 +403,7 @@ class IniFile:
         :param default: default value
         """
 
-        return self.float(name + '(%u)' % index, default)
+        return self.float(name + "(%u)" % index, default)
 
     def relativeFileName(self, name, default=None):
         s = self.string(name, default)

@@ -1,14 +1,15 @@
-from .baseconfig import camblib, CAMBError, CAMBValueError, CAMBUnknownArgumentError, np
-from ctypes import c_double, c_bool, POINTER, byref
 import ctypes
-from . import model, constants
-from ._config import config
-from .model import CAMBparams
-from .results import CAMBdata, MatterTransferData, ClTransferData
 import logging
-import os
 import numbers
+import os
+from ctypes import POINTER, byref, c_bool, c_double
 from inspect import getfullargspec
+
+from . import constants, model
+from ._config import config
+from .baseconfig import CAMBError, CAMBUnknownArgumentError, CAMBValueError, camblib, np
+from .model import CAMBparams
+from .results import CAMBdata, ClTransferData, MatterTransferData
 
 _debug_params = False
 
@@ -111,7 +112,7 @@ def set_params(cp=None, verbose=False, **params):
           Alens=1.2,
           lmax=2000,
           WantTransfer=True,
-          dark_energy_model='DarkEnergyPPF',
+          dark_energy_model="DarkEnergyPPF",
       )
 
     This is equivalent to::
@@ -143,13 +144,13 @@ def set_params(cp=None, verbose=False, **params):
 
     """
 
-    if 'ALens' in params:
-        raise ValueError('Use Alens not ALens')
+    if "ALens" in params:
+        raise ValueError("Use Alens not ALens")
 
     if cp is None:
         cp = model.CAMBparams()
     else:
-        assert isinstance(cp, model.CAMBparams), 'cp should be an instance of CAMBparams'
+        assert isinstance(cp, model.CAMBparams), "cp should be an instance of CAMBparams"
 
     used_params = set()
 
@@ -158,7 +159,7 @@ def set_params(cp=None, verbose=False, **params):
         used_params.update(kwargs)
         if kwargs:
             if verbose:
-                logging.warning('Calling %s(**%s)' % (setter.__name__, kwargs))
+                logging.warning("Calling %s(**%s)" % (setter.__name__, kwargs))
             setter(**kwargs)
 
     # Note order is important: must call DarkEnergy.set_params before set_cosmology if setting theta rather than H0
@@ -177,16 +178,16 @@ def set_params(cp=None, verbose=False, **params):
         cp.WantTensors = True
 
     if unused_params := set(params) - used_params:
-        if 'share_delta_neff' in unused_params:
+        if "share_delta_neff" in unused_params:
             logging.warning(
-                'share_delta_neff is deprecated in python interface, '
-                'use delta_neff is only for backward compatibility with .ini files'
+                "share_delta_neff is deprecated in python interface, "
+                "use delta_neff is only for backward compatibility with .ini files"
             )
 
         for k in unused_params:
             obj = cp
-            if '.' in k:
-                parts = k.split('.')
+            if "." in k:
+                parts = k.split(".")
                 for p in parts[:-1]:
                     obj = getattr(obj, p)
                 par = parts[-1]
@@ -195,7 +196,7 @@ def set_params(cp=None, verbose=False, **params):
             if hasattr(obj, par):
                 setattr(obj, par, params[k])
             else:
-                raise CAMBUnknownArgumentError('Unrecognized parameter: %s' % k)
+                raise CAMBUnknownArgumentError("Unrecognized parameter: %s" % k)
     return cp
 
 
@@ -217,7 +218,7 @@ def get_valid_numerical_params(transfer_only=False, **class_names):
             params.add(arg)
         if pars.defaults:
             for arg, v in zip(pars.args[len(pars.args) - len(pars.defaults) :], pars.defaults):
-                if (isinstance(v, numbers.Number) or v is None) and 'version' not in arg:
+                if (isinstance(v, numbers.Number) or v is None) and "version" not in arg:
                     params.add(arg)
 
     extract_params(cp.DarkEnergy.set_params)
@@ -228,28 +229,28 @@ def get_valid_numerical_params(transfer_only=False, **class_names):
         extract_params(cp.NonLinearModel.set_params)
     # noinspection PyProtectedMember
     for f, tp, *_ in cp._fields_:
-        if not f.startswith('_') and tp == ctypes.c_double:
+        if not f.startswith("_") and tp == ctypes.c_double:
             params.add(f)
     return params - {
-        'max_eta_k_tensor',
-        'max_eta_k',
-        'neutrino_hierarchy',
-        'standard_neutrino_neff',
-        'setter_H0',
-        'pivot_scalar',
-        'pivot_tensor',
-        'num_massive_neutrinos',
-        'num_nu_massless',
-        'bbn_predictor',
+        "max_eta_k_tensor",
+        "max_eta_k",
+        "neutrino_hierarchy",
+        "standard_neutrino_neff",
+        "setter_H0",
+        "pivot_scalar",
+        "pivot_tensor",
+        "num_massive_neutrinos",
+        "num_nu_massless",
+        "bbn_predictor",
     }
 
 
 def set_params_cosmomc(
     p,
     num_massive_neutrinos=1,
-    neutrino_hierarchy='degenerate',
-    halofit_version='mead',
-    dark_energy_model='ppf',
+    neutrino_hierarchy="degenerate",
+    halofit_version="mead",
+    dark_energy_model="ppf",
     lmax=2500,
     lens_potential_accuracy=1,
     inpars=None,
@@ -268,27 +269,27 @@ def set_params_cosmomc(
     :return:
     """
     pars = inpars or model.CAMBparams()
-    if p.get('alpha1', 0) or p.get('Aphiphi', 1) != 1:
-        raise ValueError('Parameter not currently supported by set_params_cosmomc')
+    if p.get("alpha1", 0) or p.get("Aphiphi", 1) != 1:
+        raise ValueError("Parameter not currently supported by set_params_cosmomc")
 
-    pars.set_dark_energy(w=p.get('w', -1), wa=p.get('wa', 0), dark_energy_model=dark_energy_model)
-    pars.Reion.set_extra_params(deltazrei=p.get('deltazrei', None))
+    pars.set_dark_energy(w=p.get("w", -1), wa=p.get("wa", 0), dark_energy_model=dark_energy_model)
+    pars.Reion.set_extra_params(deltazrei=p.get("deltazrei", None))
     pars.set_cosmology(
-        H0=p['H0'],
-        ombh2=p['omegabh2'],
-        omch2=p['omegach2'],
-        mnu=p.get('mnu', 0.06),
-        omk=p.get('omegak', 0),
-        tau=p['tau'],
-        nnu=p.get('nnu', constants.default_nnu),
-        Alens=p.get('Alens', 1.0),
-        YHe=p.get('yheused', None),
-        meffsterile=p.get('meffsterile', 0),
+        H0=p["H0"],
+        ombh2=p["omegabh2"],
+        omch2=p["omegach2"],
+        mnu=p.get("mnu", 0.06),
+        omk=p.get("omegak", 0),
+        tau=p["tau"],
+        nnu=p.get("nnu", constants.default_nnu),
+        Alens=p.get("Alens", 1.0),
+        YHe=p.get("yheused", None),
+        meffsterile=p.get("meffsterile", 0),
         num_massive_neutrinos=num_massive_neutrinos,
         neutrino_hierarchy=neutrino_hierarchy,
     )
     pars.InitPower.set_params(
-        ns=p['ns'], r=p.get('r', 0), As=p['A'] * 1e-9, nrun=p.get('nrun', 0), nrunrun=p.get('nrunrun', 0)
+        ns=p["ns"], r=p.get("r", 0), As=p["A"] * 1e-9, nrun=p.get("nrun", 0), nrunrun=p.get("nrunrun", 0)
     )
     pars.set_for_lmax(lmax, lens_potential_accuracy=lens_potential_accuracy)
     pars.NonLinearModel.set_params(halofit_version=halofit_version)
@@ -302,17 +303,17 @@ def validate_ini_file(filename):
     import sys
 
     try:
-        err = ''
+        err = ""
         command = '"%s" "%s" "%s" --validate' % (
             sys.executable,
-            os.path.join(os.path.dirname(__file__), '_command_line.py'),
+            os.path.join(os.path.dirname(__file__), "_command_line.py"),
             filename,
         )
         subprocess.check_output(command, stderr=subprocess.STDOUT, shell=True)
     except subprocess.CalledProcessError as E:
-        err = E.output.decode().replace('ERROR STOP', '').strip()
+        err = E.output.decode().replace("ERROR STOP", "").strip()
     if err:
-        raise CAMBValueError(err + ' (%s)' % filename)
+        raise CAMBValueError(err + " (%s)" % filename)
     return True
 
 
@@ -326,15 +327,15 @@ def run_ini(ini_filename, no_validate=False):
     :param no_validate: do not pre-validate the ini file (faster, but may crash kernel if error)
     """
     if not os.path.exists(ini_filename):
-        raise CAMBValueError('File not found: %s' % ini_filename)
+        raise CAMBValueError("File not found: %s" % ini_filename)
     if not no_validate:
         validate_ini_file(ini_filename)
     run_inifile = camblib.__camb_MOD_camb_runinifile
     run_inifile.argtypes = [ctypes.c_char_p, POINTER(ctypes.c_long)]
     run_inifile.restype = c_bool
-    s = ctypes.create_string_buffer(ini_filename.encode('latin-1'))
+    s = ctypes.create_string_buffer(ini_filename.encode("latin-1"))
     if not run_inifile(s, ctypes.c_long(len(ini_filename))):
-        config.check_global_error('run_ini')
+        config.check_global_error("run_ini")
 
 
 def read_ini(ini_filename, no_validate=False):
@@ -345,18 +346,19 @@ def read_ini(ini_filename, no_validate=False):
     :param no_validate: do not pre-validate the ini file (faster, but may crash kernel if error)
     :return: :class:`.model.CAMBparams` instance
     """
-    if ini_filename.startswith('http'):
-        import requests
+    if ini_filename.startswith("http"):
         import tempfile
 
+        import requests
+
         data = requests.get(ini_filename)
-        ini_filename = tempfile.NamedTemporaryFile(suffix='.ini', delete=False).name
-        with open(ini_filename, 'wb') as file:
+        ini_filename = tempfile.NamedTemporaryFile(suffix=".ini", delete=False).name
+        with open(ini_filename, "wb") as file:
             file.write(data.content)
     else:
         data = None
     if not os.path.exists(ini_filename):
-        raise CAMBValueError('File not found: %s' % ini_filename)
+        raise CAMBValueError("File not found: %s" % ini_filename)
     try:
         if not no_validate:
             validate_ini_file(ini_filename)
@@ -364,9 +366,9 @@ def read_ini(ini_filename, no_validate=False):
         read_inifile = camblib.__camb_MOD_camb_readparamfile
         read_inifile.argtypes = [POINTER(CAMBparams), ctypes.c_char_p, POINTER(ctypes.c_long)]
         read_inifile.restype = ctypes.c_bool
-        s = ctypes.create_string_buffer(ini_filename.encode('latin-1'))
+        s = ctypes.create_string_buffer(ini_filename.encode("latin-1"))
         if not read_inifile(cp, s, ctypes.c_long(len(ini_filename))):
-            config.check_global_error('read_ini')
+            config.check_global_error("read_ini")
     finally:
         if data:
             os.unlink(ini_filename)
@@ -398,7 +400,7 @@ def get_matter_power_interpolator(
        from camb import get_matter_power_interpolator
 
        PK = get_matter_power_interpolator(params)
-       print('Power spectrum at z=0.5, k/h=0.1/Mpc is %s (Mpc/h)^3 ' % (PK.P(0.5, 0.1)))
+       print("Power spectrum at z=0.5, k/h=0.1/Mpc is %s (Mpc/h)^3 " % (PK.P(0.5, 0.1)))
 
     For a description of outputs for different var1, var2 see :ref:`transfer-variables`.
 

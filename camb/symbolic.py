@@ -16,44 +16,45 @@ A Lewis July 2017
 
 import ctypes
 import os
-import sympy
 from typing import Any
-from sympy import diff, Eq, simplify, Function, Symbol
+
+import sympy
+from sympy import Eq, Function, Symbol, diff, simplify
+from sympy.abc import K, k, kappa, t
 from sympy.core.relational import Relational
-from sympy.abc import t, kappa, K, k
 
 # Background variables
 
-tau0 = Symbol('tau0', description='conformal time today')
-tau_maxvis = Symbol('tau_maxvis', description='conformal time of peak visibility')
+tau0 = Symbol("tau0", description="conformal time today")
+tau_maxvis = Symbol("tau_maxvis", description="conformal time of peak visibility")
 
-f_K = Function('f_K', description='comoving angular diameter distance')
+f_K = Function("f_K", description="comoving angular diameter distance")
 
-H = Function('H', description='comoving hubble parameter', camb_var='adotoa')(t)
-rho = Function('rho', description='total density', camb_var='grho', camb_sub='grho/kappa/a**2')(t)
-P = Function('P', description='total pressure', camb_var='gpres', camb_sub='gpres/kappa/a**2')(t)
-a = Function('a', description='scale factor')(t)
+H = Function("H", description="comoving hubble parameter", camb_var="adotoa")(t)
+rho = Function("rho", description="total density", camb_var="grho", camb_sub="grho/kappa/a**2")(t)
+P = Function("P", description="total pressure", camb_var="gpres", camb_sub="gpres/kappa/a**2")(t)
+a = Function("a", description="scale factor")(t)
 
-rho_b = Function('rho_b', description='baryon density', camb_var='grhob_t', camb_sub='grhob_t/kappa/a**2')(t)
-rho_c = Function('rho_c', description='CDM density', camb_var='grhoc_t', camb_sub='grhoc_t/kappa/a**2')(t)
-rho_g = Function('rho_g', description='photon density', camb_var='grhog_t', camb_sub='grhog_t/kappa/a**2')(t)
-rho_r = Function('rho_r', description='massless neutrino density', camb_var='grhor_t', camb_sub='grhor_t/kappa/a**2')(t)
+rho_b = Function("rho_b", description="baryon density", camb_var="grhob_t", camb_sub="grhob_t/kappa/a**2")(t)
+rho_c = Function("rho_c", description="CDM density", camb_var="grhoc_t", camb_sub="grhoc_t/kappa/a**2")(t)
+rho_g = Function("rho_g", description="photon density", camb_var="grhog_t", camb_sub="grhog_t/kappa/a**2")(t)
+rho_r = Function("rho_r", description="massless neutrino density", camb_var="grhor_t", camb_sub="grhor_t/kappa/a**2")(t)
 rho_nu = Function(
-    'rho_nu', description='massive neutrino density', camb_var='grhonu_t', camb_sub='grhonu_t/kappa/a**2'
+    "rho_nu", description="massive neutrino density", camb_var="grhonu_t", camb_sub="grhonu_t/kappa/a**2"
 )(t)
-rho_de = Function('rho_de', description='dark energy density', camb_var='grhov_t', camb_sub='grhov_t/kappa/a**2')(t)
+rho_de = Function("rho_de", description="dark energy density", camb_var="grhov_t", camb_sub="grhov_t/kappa/a**2")(t)
 
-p_b = Function('p_b', description='baryon pressure', camb_sub='0')(t)
-p_nu = Function('p_nu', description='massive neutrino pressure')(t)
-w_de = Function('w_de', camb_var='w_lam', description='fluid dark energy equation of state')(t)
+p_b = Function("p_b", description="baryon pressure", camb_sub="0")(t)
+p_nu = Function("p_nu", description="massive neutrino pressure")(t)
+w_de = Function("w_de", camb_var="w_lam", description="fluid dark energy equation of state")(t)
 p_g = rho_g / 3
 p_r = rho_r / 3
 p_c = 0
 p_de = w_de * rho_de
 
-opacity = Function('opacity', description='opacity, a n_e sigma_t')(t)
-visibility = Function('visibility', description='ionization visibility')(t)
-exptau = Function('exptau', description='exp(-tau)')(t)
+opacity = Function("opacity", description="opacity, a n_e sigma_t")(t)
+visibility = Function("visibility", description="ionization visibility")(t)
+exptau = Function("exptau", description="exp(-tau)")(t)
 
 
 def subs(eqs, expr):
@@ -84,8 +85,8 @@ def solve(eq, x):
 
 half = sympy.Rational(1, 2)
 third = sympy.Rational(1, 3)
-Kf = sympy.IndexedBase('Kf', shape=(sympy.oo,))
-K_fac = Symbol('Kf_1')  # currently sympy bugs just using Kf[1], so treat as separate symbol
+Kf = sympy.IndexedBase("Kf", shape=(sympy.oo,))
+K_fac = Symbol("Kf_1")  # currently sympy bugs just using Kf[1], so treat as separate symbol
 K_fac_sub = 1 - 3 * K / k**2
 K_sub = Eq(K, solve(K_fac_sub - K_fac, K))
 
@@ -95,7 +96,7 @@ Friedmann = Eq(H**2, a**2 * kappa * rho / 3 - K)
 Friedmann_subs = [Friedmann, Eq(diff(H, t), dH), Eq(diff(a, t), a * H)]
 Friedmann_Kfac_subs = subs(K_sub, Friedmann_subs)
 
-delta_frame = Function('uprime')(t)
+delta_frame = Function("uprime")(t)
 
 
 def LinearPerturbation(name, species=None, camb_var=None, camb_sub=None, frame_dependence=None, description=None):
@@ -129,7 +130,7 @@ def LinearPerturbation(name, species=None, camb_var=None, camb_sub=None, frame_d
 def list_perturbations(expr, lst=None):
     if lst is None:
         lst = []
-    if getattr(expr, 'perturbation_order', None) and expr not in lst:
+    if getattr(expr, "perturbation_order", None) and expr not in lst:
         lst.append(expr)
     for arg in expr.args:
         list_perturbations(arg, lst)
@@ -139,7 +140,7 @@ def list_perturbations(expr, lst=None):
 def list_frame_dependent_vars(expr, lst=None):
     if lst is None:
         lst = []
-    if getattr(expr, 'frame_dependence', None) and expr not in lst:
+    if getattr(expr, "frame_dependence", None) and expr not in lst:
         lst.append(expr)
     for arg in expr.args:
         list_frame_dependent_vars(arg, lst)
@@ -154,7 +155,7 @@ def simplify_sum(expr):
 
 
 def frame_change(expr, delta_u=None, total=False):
-    if getattr(expr, 'frame_dependence', None):
+    if getattr(expr, "frame_dependence", None):
         res = expr.frame_dependence
         if delta_u is not None:
             res = res.subs(delta_frame, delta_u)
@@ -177,160 +178,160 @@ def frame_change(expr, delta_u=None, total=False):
 # Perturbation variables
 
 # gauge-invariant potential
-phi = LinearPerturbation('phi', description='Weyl potential')
+phi = LinearPerturbation("phi", description="Weyl potential")
 
 eta = LinearPerturbation(
-    'eta',
-    camb_var='etak',
-    camb_sub='-2*etak/k',
-    description='three-curvature',
+    "eta",
+    camb_var="etak",
+    camb_sub="-2*etak/k",
+    description="three-curvature",
     frame_dependence=-2 * K_fac * H * delta_frame / k,
 )
 
-sigma = LinearPerturbation('sigma', description='shear', frame_dependence=delta_frame)
+sigma = LinearPerturbation("sigma", description="shear", frame_dependence=delta_frame)
 
 A = LinearPerturbation(
-    'A', camb_sub=0, description='acceleration', frame_dependence=(diff(delta_frame, t) + H * delta_frame) / k
+    "A", camb_sub=0, description="acceleration", frame_dependence=(diff(delta_frame, t) + H * delta_frame) / k
 )
 
 z = LinearPerturbation(
-    'z',
-    description='expansion rate perturbation',
+    "z",
+    description="expansion rate perturbation",
     #                        frame_dependence = delta_frame - 3*(dH- H**2)*delta_frame/k**2)
     frame_dependence=K_fac * delta_frame + 3 * kappa * a**2 * (rho + P) * delta_frame / (2 * k**2),
 )
 
 hdot = LinearPerturbation(
-    'hdot',
+    "hdot",
     camb_sub=k / 3 * z,
-    description='time derivative of scale factor perturbation',
+    description="time derivative of scale factor perturbation",
     frame_dependence=k * delta_frame / 3 - diff(delta_frame * H, t) / k,
 )
 
 delta = LinearPerturbation(
-    'delta',
-    camb_var='dgrho',
-    camb_sub='dgrho/kappa/a**2',
-    description='total density perturbation',
+    "delta",
+    camb_var="dgrho",
+    camb_sub="dgrho/kappa/a**2",
+    description="total density perturbation",
     frame_dependence=3 * H * (rho + P) * delta_frame / k,
 )
 
 delta_P = LinearPerturbation(
-    'delta_P',
-    camb_sub='error',
-    description='total pressure perturbation',
+    "delta_P",
+    camb_sub="error",
+    description="total pressure perturbation",
     frame_dependence=-diff(P, t) * delta_frame / k,
 )
 
 q = LinearPerturbation(
-    'q',
-    camb_var='dgq',
-    camb_sub='dgq/kappa/a**2',
-    description='total heat flux',
+    "q",
+    camb_var="dgq",
+    camb_sub="dgq/kappa/a**2",
+    description="total heat flux",
     frame_dependence=-(rho + P) * delta_frame,
 )
 
-Pi = LinearPerturbation('Pi', camb_var='dgpi', camb_sub='dgpi/a**2/kappa', description='total anisotropic stress')
+Pi = LinearPerturbation("Pi", camb_var="dgpi", camb_sub="dgpi/a**2/kappa", description="total anisotropic stress")
 
 # quadrupole source
-polter = Function('polter')(t)
+polter = Function("polter")(t)
 
 # Newtonian gauge variables (in general equal to gauge invariant potentials)
-Phi_N = LinearPerturbation('Phi_N', description='Newtonian gauge curvature potential')
-Psi_N = LinearPerturbation('Psi_N', description='Newtonian gauge acceleration potential')
+Phi_N = LinearPerturbation("Phi_N", description="Newtonian gauge curvature potential")
+Psi_N = LinearPerturbation("Psi_N", description="Newtonian gauge acceleration potential")
 
 # Synchronous gauge variables
-eta_s = LinearPerturbation('eta_s', description='Synchronous gauge curvature variable')
-hdot_s = LinearPerturbation('hdot_s', description='Synchronous gauge diff(h,t)')
+eta_s = LinearPerturbation("eta_s", description="Synchronous gauge curvature variable")
+hdot_s = LinearPerturbation("hdot_s", description="Synchronous gauge diff(h,t)")
 
 # velocities, and dimensionless heat flux [(rho_i+P_i)v_i = rho_i q_i]
 
 q_r = LinearPerturbation(
-    'q_r', species='r', camb_var='qr', description='massless neutrino heat flux', frame_dependence=-4 * delta_frame / 3
+    "q_r", species="r", camb_var="qr", description="massless neutrino heat flux", frame_dependence=-4 * delta_frame / 3
 )
 q_g = LinearPerturbation(
-    'q_g', species='g', camb_var='qg', description='photon heat flux', frame_dependence=-4 * delta_frame / 3
+    "q_g", species="g", camb_var="qg", description="photon heat flux", frame_dependence=-4 * delta_frame / 3
 )
 q_nu = LinearPerturbation(
-    'q_nu',
-    species='nu',
-    camb_var='qnu',
-    description='massive neutrino heat flux',
+    "q_nu",
+    species="nu",
+    camb_var="qnu",
+    description="massive neutrino heat flux",
     frame_dependence=-(1 + p_nu / rho_nu) * delta_frame,
 )
 
-v_c = LinearPerturbation('v_c', species='c', description='CDM velocity', frame_dependence=-delta_frame)
+v_c = LinearPerturbation("v_c", species="c", description="CDM velocity", frame_dependence=-delta_frame)
 v_b = LinearPerturbation(
-    'v_b', species='b', camb_var='vb', description='baryon velocity', frame_dependence=-delta_frame
+    "v_b", species="b", camb_var="vb", description="baryon velocity", frame_dependence=-delta_frame
 )
 v_de = LinearPerturbation(
-    'v_de',
-    species='de',
-    camb_var=['qde', 'w_lam'],
-    camb_sub='qde/(1+w_lam)',
-    description='dark energy velocity',
+    "v_de",
+    species="de",
+    camb_var=["qde", "w_lam"],
+    camb_sub="qde/(1+w_lam)",
+    description="dark energy velocity",
     frame_dependence=-delta_frame,
 )
 Delta_b = LinearPerturbation(
-    'Delta_b',
-    species='b',
-    camb_var='clxb',
-    description='fractional baryon density perturbation',
+    "Delta_b",
+    species="b",
+    camb_var="clxb",
+    description="fractional baryon density perturbation",
     frame_dependence=3 * H * (1 + p_b / rho_b) * delta_frame / k,
 )
 Delta_P_b = LinearPerturbation(
-    'Delta_P_b',
-    camb_sub='delta_p_b',
-    description='fractional baryon pressure perturbation',
+    "Delta_P_b",
+    camb_sub="delta_p_b",
+    description="fractional baryon pressure perturbation",
     frame_dependence=-diff(p_b, t) / rho_b * delta_frame / k,
 )
 
 Delta_c = LinearPerturbation(
-    'Delta_c',
-    species='c',
-    camb_var='clxc',
-    description='fractional CDM density perturbation',
+    "Delta_c",
+    species="c",
+    camb_var="clxc",
+    description="fractional CDM density perturbation",
     frame_dependence=3 * H * delta_frame / k,
 )
 Delta_r = LinearPerturbation(
-    'Delta_r',
-    species='r',
-    camb_var='clxr',
-    description='fractional massless neutrino density perturbation',
+    "Delta_r",
+    species="r",
+    camb_var="clxr",
+    description="fractional massless neutrino density perturbation",
     frame_dependence=4 * H * delta_frame / k,
 )
 
 Delta_nu = LinearPerturbation(
-    'Delta_nu',
-    species='nu',
-    camb_var='clxnu',
-    description='fractional massive neutrino density perturbation',
+    "Delta_nu",
+    species="nu",
+    camb_var="clxnu",
+    description="fractional massive neutrino density perturbation",
     frame_dependence=3 * H * (1 + p_nu / rho_nu) * delta_frame / k,
 )
 Delta_P_nu = LinearPerturbation(
-    'Delta_P_nu',
-    camb_sub='error',
-    description='fractional massive neutrino pressure perturbation',
+    "Delta_P_nu",
+    camb_sub="error",
+    description="fractional massive neutrino pressure perturbation",
     frame_dependence=-diff(p_nu, t) / rho_nu * delta_frame / k,
 )
 
 Delta_g = LinearPerturbation(
-    'Delta_g',
-    species='g',
-    camb_var='clxg',
-    description='fractional CDM density perturbation',
+    "Delta_g",
+    species="g",
+    camb_var="clxg",
+    description="fractional CDM density perturbation",
     frame_dependence=4 * H * delta_frame / k,
 )
 Delta_de = LinearPerturbation(
-    'Delta_de',
-    species='de',
-    camb_var='clxde',
-    description='fractional dark energy density perturbation',
+    "Delta_de",
+    species="de",
+    camb_var="clxde",
+    description="fractional dark energy density perturbation",
     frame_dependence=3 * H * (1 + w_de) * delta_frame / k,
 )
 # Sound speeds
 csq_b = LinearPerturbation(
-    'c_sb^2', species='b', camb_var=['delta_p_b', 'clxb'], camb_sub='delta_p_b/clxb', description='baryon sound speed'
+    "c_sb^2", species="b", camb_var=["delta_p_b", "clxb"], camb_sub="delta_p_b/clxb", description="baryon sound speed"
 )
 csq_b.frame_dependence = (csq_b * Delta_b - diff(p_b, t) / rho_b * delta_frame / k) / (
     Delta_b + 3 * H * (1 + p_b / rho_b) * delta_frame / k
@@ -338,17 +339,17 @@ csq_b.frame_dependence = (csq_b * Delta_b - diff(p_b, t) / rho_b * delta_frame /
 
 # dark energy sound speed defined in rest frame so gauge invariant
 csqhat_de = LinearPerturbation(
-    'chat_sde^2', species='de', camb_var='cs2_lam', description='rest frame dark energy sound speed'
+    "chat_sde^2", species="de", camb_var="cs2_lam", description="rest frame dark energy sound speed"
 )
 
 # Anisotropic stress
-pi_g = LinearPerturbation('pi_g', species='g', camb_var='pig', description='photon anisotropic stress')
-pi_r = LinearPerturbation('pi_r', species='r', camb_var='pir', description='massless neutrino anisotropic stress')
-pi_nu = LinearPerturbation('pi_nu', species='r', camb_var='pinu', description='massive neutrino anisotropic stress')
+pi_g = LinearPerturbation("pi_g", species="g", camb_var="pig", description="photon anisotropic stress")
+pi_r = LinearPerturbation("pi_r", species="r", camb_var="pir", description="massless neutrino anisotropic stress")
+pi_nu = LinearPerturbation("pi_nu", species="r", camb_var="pinu", description="massive neutrino anisotropic stress")
 
-E_2 = LinearPerturbation('E_2', species='E', description='E polarization quadrupole')
-E_3 = LinearPerturbation('E_3', species='E', description='E polarization octopole')
-J_3 = LinearPerturbation('J_3', species='g', description='photon octopole')
+E_2 = LinearPerturbation("E_2", species="E", description="E polarization quadrupole")
+E_3 = LinearPerturbation("E_3", species="E", description="E polarization octopole")
+J_3 = LinearPerturbation("J_3", species="g", description="photon octopole")
 
 polter_t = sympy.Rational(2, 15) * (3 * pi_g / 4 + 9 * E_2 / 2)
 polter_sub = Eq(polter, polter_t)
@@ -396,10 +397,10 @@ total_eqs = [
 tot_eqs = total_eqs + pert_eqs + background_eqs
 
 # frame names specify a frame where a certain variable is zero
-frame_names = {'CDM': v_c, 'Newtonian': sigma, 'comoving': q, 'flat': eta, 'constant density': delta}
+frame_names = {"CDM": v_c, "Newtonian": sigma, "comoving": q, "flat": eta, "constant density": delta}
 
 
-def make_frame_invariant(expr, frame='CDM'):
+def make_frame_invariant(expr, frame="CDM"):
     """
     Makes the quantity gauge invariant, assuming currently evaluated in frame 'frame'.
     frame can either be a string frame name, or a variable that is zero in the current frame,
@@ -411,7 +412,7 @@ def make_frame_invariant(expr, frame='CDM'):
 
     if isinstance(frame, str):
         if frame not in frame_names:
-            raise ValueError('Unknown frame names: %s' % frame)
+            raise ValueError("Unknown frame names: %s" % frame)
         frame = frame_names[frame]
     if isinstance(expr, Eq):
         return simplify(Eq(make_frame_invariant(expr.lhs, frame), make_frame_invariant(expr.rhs, frame)))
@@ -424,7 +425,7 @@ def make_frame_invariant(expr, frame='CDM'):
     delta_u = solve(frame_change(frame, total=True), delta_frame)
     if delta_frame in delta_u.atoms(Function):
         raise ValueError(
-            'Cannot solve for change of frame. Currently only supports algebraic frame changes: %s' % delta_u
+            "Cannot solve for change of frame. Currently only supports algebraic frame changes: %s" % delta_u
         )
     return frame_change(expr, delta_u=delta_u, total=True)
 
@@ -610,7 +611,7 @@ def define_variables(names, namespace=None, order=1):
 
 
 def _make_index_func(name, ell, namespace=None):
-    name += '_' + str(ell)
+    name += "_" + str(ell)
     return define_variable(name, namespace)
 
 
@@ -618,37 +619,37 @@ def _make_index_func(name, ell, namespace=None):
 def J_eq(L):
     # photons
     assert L > 1
-    Gl = _make_index_func('J', L)
-    Glp = _make_index_func('J', L + 1)
-    Glm = _make_index_func('J', L - 1)
+    Gl = _make_index_func("J", L)
+    Glp = _make_index_func("J", L + 1)
+    Glm = _make_index_func("J", L - 1)
     eq = -k / (2 * L + 1) * ((L + 1) * Kf[L] * Glp - L * Glm) - opacity * Gl
     if L == 2:
         eq = eq + 8 * k / 15 * sigma + opacity * polter
-    return Eq(diff(Gl, t), eq).subs({sympy.sympify('J_2(t)'): pi_g, sympy.sympify('J_1(t)'): q_g})
+    return Eq(diff(Gl, t), eq).subs({sympy.sympify("J_2(t)"): pi_g, sympy.sympify("J_1(t)"): q_g})
 
 
 def G_eq(L):
     # massless neutrinos
     assert L > 1
-    Gl = _make_index_func('G', L)
-    Glp = _make_index_func('G', L + 1)
-    Glm = _make_index_func('G', L - 1)
+    Gl = _make_index_func("G", L)
+    Glp = _make_index_func("G", L + 1)
+    Glm = _make_index_func("G", L - 1)
     eq = -k / (2 * L + 1) * ((L + 1) * Kf[L] * Glp - L * Glm)
     if L == 2:
         eq = eq + 8 * k / 15 * sigma
-    return Eq(diff(Gl, t), eq).subs({sympy.sympify('G_2(t)'): pi_r, sympy.sympify('G_1(t)'): q_r})
+    return Eq(diff(Gl, t), eq).subs({sympy.sympify("G_2(t)"): pi_r, sympy.sympify("G_1(t)"): q_r})
 
 
 def E_eq(L):
     # E polarization
     assert L > 1
-    El = _make_index_func('E', L)
-    Elp = _make_index_func('E', L + 1)
-    Elm = _make_index_func('E', L - 1)
+    El = _make_index_func("E", L)
+    Elp = _make_index_func("E", L + 1)
+    Elm = _make_index_func("E", L - 1)
     eq = -k / (2 * L + 1) * ((L + 3) * (L - 1) * Kf[L] * Elp / (L + 1) - L * Elm) - opacity * El
     if L == 2:
         eq = eq + polter * opacity
-    return Eq(diff(El, t), eq).subs(sympy.sympify('E_1(t)'), 0)
+    return Eq(diff(El, t), eq).subs(sympy.sympify("E_1(t)"), 0)
 
 
 def get_hierarchies(lmax=5):
@@ -723,7 +724,7 @@ def get_scalar_temperature_sources(checks=False):
 _camb_cache: dict[str, Any] = {}
 
 
-def camb_fortran(expr, name='camb_function', frame='CDM', expand=False):
+def camb_fortran(expr, name="camb_function", frame="CDM", expand=False):
     """
     Convert symbolic expression to CAMB fortran code, using CAMB variable notation.
     This is not completely general, but it will handle conversion of Newtonian gauge
@@ -739,13 +740,13 @@ def camb_fortran(expr, name='camb_function', frame='CDM', expand=False):
     """
 
     camb_diff_vars = (
-        'etakdot qgdot qrdot vbdot pigdot pirdot pinudot '
-        + 'octg octgdot polterdot polterddot diff_rhopi sigmadot phidot  '
-        + 'ddvisibility dvisibility dopacity ddopacity'
+        "etakdot qgdot qrdot vbdot pigdot pirdot pinudot "
+        + "octg octgdot polterdot polterddot diff_rhopi sigmadot phidot  "
+        + "ddvisibility dvisibility dopacity ddopacity"
     )
-    camb_arr_vars = 'Edot E'
+    camb_arr_vars = "Edot E"
 
-    tau = _camb_cache.setdefault('tau', Symbol('tau'))
+    tau = _camb_cache.setdefault("tau", Symbol("tau"))
 
     (
         etakdot,
@@ -793,32 +794,32 @@ def camb_fortran(expr, name='camb_function', frame='CDM', expand=False):
         (diff(p_b, t), 0),
     ]
 
-    if frame != 'CDM':
+    if frame != "CDM":
         expr = make_frame_invariant(expr, frame)
 
     # substitute for variables not available in CAMB function
     expr = cdm_gauge(subs(Newt_vars + synchronous_vars + [hdot_sub, z_sub], expr)).doit().simplify()
     res = cdm_gauge(subs(background_eqs + total_eqs, expr).subs(camb_diff_subs))
 
-    if 'Derivative' in str(res):
+    if "Derivative" in str(res):
         raise Exception(
-            'Unknown derivatives, generally can only handle up to second.\nRemaining derivatives: ' + str(res)
+            "Unknown derivatives, generally can only handle up to second.\nRemaining derivatives: " + str(res)
         )
 
     res = cdm_gauge(subs([K_sub, hdot_sub, z_sub], res))
     camb_var_subs = []
     for var in res.atoms(Function):
-        camb_var = getattr(var, 'camb_var', None)
+        camb_var = getattr(var, "camb_var", None)
         if camb_var:
             if isinstance(camb_var, (list, tuple)):
                 for x in camb_var:
                     define_variable(x)
-                camb_sub = getattr(var, 'camb_sub', None)
+                camb_sub = getattr(var, "camb_sub", None)
                 if not camb_sub:
-                    raise Exception('must have camb_sub if camb_var has more than one variable')
+                    raise Exception("must have camb_sub if camb_var has more than one variable")
             else:
                 camb_var = define_variable(camb_var)
-                camb_sub = getattr(var, 'camb_sub', None) or camb_var
+                camb_sub = getattr(var, "camb_sub", None) or camb_var
             if camb_sub:
                 if isinstance(camb_sub, str):
                     camb_sub = eval(camb_sub)
@@ -835,18 +836,18 @@ def camb_fortran(expr, name='camb_function', frame='CDM', expand=False):
         [Symbol(str(x.func)) for x in [k, sigma, opacity, visibility, dopacity, dvisibility, ddvisibility]]
     )
     res = sympy.fcode(
-        res, source_format='free', standard=95, assign_to=name, contract=False, allow_unknown_functions=True
+        res, source_format="free", standard=95, assign_to=name, contract=False, allow_unknown_functions=True
     )
     import textwrap
 
-    if 'if ' not in res:
-        lines = res.split('\n')
+    if "if " not in res:
+        lines = res.split("\n")
         for i, line in enumerate(lines):
-            if '=' in line:
-                res = '\n'.join(lines[i:])
+            if "=" in line:
+                res = "\n".join(lines[i:])
                 break
-        res = ''.join([x.strip() for x in res.split('&')])
-        res = ' &\n    '.join(textwrap.wrap(res))
+        res = "".join([x.strip() for x in res.split("&")])
+        res = " &\n    ".join(textwrap.wrap(res))
     return res
 
 
@@ -864,16 +865,16 @@ def get_default_compiler():
     from .baseconfig import gfortran
 
     if gfortran:
-        _default_compiler = 'gfortran'
-        _default_flags = '-shared -fPIC -O1 -fmax-errors=4'
+        _default_compiler = "gfortran"
+        _default_flags = "-shared -fPIC -O1 -fmax-errors=4"
     else:
         import platform
 
-        _default_compiler = 'ifort'
-        if platform.system() == 'Darwin':
-            _default_flags = '-dynamiclib -O1 -W0 -WB'
+        _default_compiler = "ifort"
+        if platform.system() == "Darwin":
+            _default_flags = "-dynamiclib -O1 -W0 -WB"
         else:
-            _default_flags = '-shared -fpic -O1 -W0 -WB'
+            _default_flags = "-shared -fpic -O1 -W0 -WB"
     # _default_flags="-shared -fPIC -g -fbounds-check -fbacktrace -ffpe-trap=invalid,overflow,zero",
     return _default_compiler
 
@@ -881,7 +882,7 @@ def get_default_compiler():
 _first_compile = True
 
 
-def compile_source_function_code(code_body, file_path='', compiler=None, fflags=None, cache=True):
+def compile_source_function_code(code_body, file_path="", compiler=None, fflags=None, cache=True):
     """
     Compile fortran code into function pointer in compiled shared library.
     The function is not intended to be called from python, but for passing back to compiled CAMB.
@@ -929,15 +930,16 @@ def compile_source_function_code(code_body, file_path='', compiler=None, fflags=
 
     import subprocess
     import tempfile
-    from ._compilers import is_32_bit, is_windows, compiler_environ, check_gfortran
+
+    from ._compilers import check_gfortran, compiler_environ, is_32_bit, is_windows
 
     compiler = compiler or get_default_compiler()
     fflags = fflags or _default_flags
 
     if is_32_bit:
-        fflags = '-m32 ' + fflags
+        fflags = "-m32 " + fflags
     if is_windows:
-        fflags += ' -static'
+        fflags += " -static"
         if _first_compile:
             check_gfortran(msg=True)
     workdir = file_path or tempfile.gettempdir()
@@ -950,8 +952,8 @@ def compile_source_function_code(code_body, file_path='', compiler=None, fflags=
         os.chdir(workdir)
         _source_file_count += 1
         while True:
-            name_tag = 'camb_source%s' % _source_file_count
-            dll_name = name_tag + '.dll'
+            name_tag = "camb_source%s" % _source_file_count
+            dll_name = name_tag + ".dll"
             if not os.path.exists(dll_name):
                 break
             try:
@@ -959,18 +961,18 @@ def compile_source_function_code(code_body, file_path='', compiler=None, fflags=
             except Exception:
                 _source_file_count += 1
 
-        source_file = name_tag + '.f90'
-        with open(source_file, 'w') as f:
+        source_file = name_tag + ".f90"
+        with open(source_file, "w") as f:
             f.write(template % code_body)
 
-        command = ' '.join([compiler, fflags, source_file, '-o', dll_name])
+        command = " ".join([compiler, fflags, source_file, "-o", dll_name])
         try:
             subprocess.check_output(command, stderr=subprocess.STDOUT, shell=True, cwd=workdir, env=compiler_environ)
         except subprocess.CalledProcessError as E:
             print(command)
-            print('Error compiling generated code:')
+            print("Error compiling generated code:")
             print(E.output)
-            print('Source is:\n %s' % code_body)
+            print("Source is:\n %s" % code_body)
             raise
     finally:
         if not file_path and source_file:
@@ -994,17 +996,17 @@ def compile_source_function_code(code_body, file_path='', compiler=None, fflags=
     return func_lib.source_func_
 
 
-def compile_sympy_to_camb_source_func(sources, code_path=None, frame='CDM'):
-    code = ''
+def compile_sympy_to_camb_source_func(sources, code_path=None, frame="CDM"):
+    code = ""
     if not isinstance(sources, (list, tuple)):
         sources = [sources]
     for i, source in enumerate(sources):
-        code += camb_fortran(source, 'sources(%s)' % (i + 1), frame=frame) + '\n'
+        code += camb_fortran(source, "sources(%s)" % (i + 1), frame=frame) + "\n"
     return compile_source_function_code(code, file_path=code_path)
 
 
 def internal_consistency_checks():
-    print('Sympy: ', sympy.__version__)
+    print("Sympy: ", sympy.__version__)
 
     # All equations should be gauge invariant
     for cons in constraints:
@@ -1050,12 +1052,12 @@ def internal_consistency_checks():
         for eq in total_eqs:
             assert subs(component_eqs + tot_subs, subs(tot_pert_subs, eq).doit()).doit().simplify()
     except TypeError:
-        print('If this test fails, you probably have an old sympy version. You need version 1 or higher.')
+        print("If this test fails, you probably have an old sympy version. You need version 1 or higher.")
         raise
 
     get_scalar_temperature_sources(True)
-    print('All symbolic relation tests OK')
+    print("All symbolic relation tests OK")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     internal_consistency_checks()

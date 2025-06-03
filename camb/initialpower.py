@@ -1,8 +1,8 @@
 # Initial power spectrum parameters
 
-from .baseconfig import F2003Class, CAMBError, fortran_class, c_int, c_double, POINTER, byref, numpy_1d, np
+from .baseconfig import POINTER, CAMBError, F2003Class, byref, c_double, c_int, fortran_class, np, numpy_1d
 
-tensor_parameterization_names = ['tensor_param_indeptilt', 'tensor_param_rpivot', 'tensor_param_AT']
+tensor_parameterization_names = ["tensor_param_indeptilt", "tensor_param_rpivot", "tensor_param_AT"]
 tensor_param_indeptilt = 1
 tensor_param_rpivot = 2
 tensor_param_AT = 3
@@ -13,7 +13,7 @@ class InitialPower(F2003Class):
     Abstract base class for initial power spectrum classes
     """
 
-    _fortran_class_module_ = 'InitialPower'
+    _fortran_class_module_ = "InitialPower"
 
     def set_params(self, **kwargs):
         pass
@@ -25,29 +25,29 @@ class SplinedInitialPower(InitialPower):
     Object to store a generic primordial spectrum set from a set of sampled k_i, P(k_i) values
     """
 
-    _fortran_class_name_ = 'TSplinedInitialPower'
+    _fortran_class_name_ = "TSplinedInitialPower"
 
     _fields_ = [
-        ('effective_ns_for_nonlinear', c_double, 'Effective n_s to use for approximate non-linear correction models')
+        ("effective_ns_for_nonlinear", c_double, "Effective n_s to use for approximate non-linear correction models")
     ]
 
     _methods_ = [
-        ('HasTensors', [], c_int),
-        ('SetScalarTable', [POINTER(c_int), numpy_1d, numpy_1d]),
-        ('SetTensorTable', [POINTER(c_int), numpy_1d, numpy_1d]),
-        ('SetScalarLogRegular', [POINTER(c_double), POINTER(c_double), POINTER(c_int), numpy_1d]),
-        ('SetTensorLogRegular', [POINTER(c_double), POINTER(c_double), POINTER(c_int), numpy_1d]),
+        ("HasTensors", [], c_int),
+        ("SetScalarTable", [POINTER(c_int), numpy_1d, numpy_1d]),
+        ("SetTensorTable", [POINTER(c_int), numpy_1d, numpy_1d]),
+        ("SetScalarLogRegular", [POINTER(c_double), POINTER(c_double), POINTER(c_int), numpy_1d]),
+        ("SetTensorLogRegular", [POINTER(c_double), POINTER(c_double), POINTER(c_int), numpy_1d]),
     ]
 
     def __init__(self, **kwargs):
-        if kwargs.get('PK') is not None:
-            self.set_scalar_table(kwargs['ks'], kwargs['PK'])
-        ns_eff = kwargs.get('effective_ns_for_nonlinear')
+        if kwargs.get("PK") is not None:
+            self.set_scalar_table(kwargs["ks"], kwargs["PK"])
+        ns_eff = kwargs.get("effective_ns_for_nonlinear")
         if ns_eff is not None:
             self.effective_ns_for_nonlinear = ns_eff
 
     def __getstate__(self):
-        raise TypeError('Cannot save class with splines')
+        raise TypeError("Cannot save class with splines")
 
     def has_tensors(self):
         """
@@ -121,20 +121,20 @@ class InitialPowerLaw(InitialPower):
     """
 
     _fields_ = [
-        ('tensor_parameterization', c_int, {'names': tensor_parameterization_names, 'start': 1}),
-        ('ns', c_double),
-        ('nrun', c_double),
-        ('nrunrun', c_double),
-        ('nt', c_double),
-        ('ntrun', c_double),
-        ('r', c_double),
-        ('pivot_scalar', c_double),
-        ('pivot_tensor', c_double),
-        ('As', c_double),
-        ('At', c_double),
+        ("tensor_parameterization", c_int, {"names": tensor_parameterization_names, "start": 1}),
+        ("ns", c_double),
+        ("nrun", c_double),
+        ("nrunrun", c_double),
+        ("nt", c_double),
+        ("ntrun", c_double),
+        ("r", c_double),
+        ("pivot_scalar", c_double),
+        ("pivot_tensor", c_double),
+        ("As", c_double),
+        ("At", c_double),
     ]
 
-    _fortran_class_name_ = 'TInitialPowerLaw'
+    _fortran_class_name_ = "TInitialPowerLaw"
 
     def __init__(self, **kwargs):
         self.set_params(**kwargs)
@@ -150,7 +150,7 @@ class InitialPowerLaw(InitialPower):
         ntrun=0.0,
         pivot_scalar=0.05,
         pivot_tensor=0.05,
-        parameterization='tensor_param_rpivot',
+        parameterization="tensor_param_rpivot",
     ):
         r"""
         Set parameters using standard power law parameterization. If nt=None, uses inflation consistency relation.
@@ -174,10 +174,10 @@ class InitialPowerLaw(InitialPower):
         if parameterization not in [
             tensor_param_rpivot,
             tensor_param_indeptilt,
-            'tensor_param_rpivot',
-            'tensor_param_indeptilt',
+            "tensor_param_rpivot",
+            "tensor_param_indeptilt",
         ]:
-            raise CAMBError('Initial power parameterization not supported here')
+            raise CAMBError("Initial power parameterization not supported here")
         self.tensor_parameterization = parameterization
         self.As = As
         self.ns = ns
@@ -186,9 +186,9 @@ class InitialPowerLaw(InitialPower):
         if nt is None:
             # set from inflationary consistency
             if ntrun:
-                raise CAMBError('ntrun set but using inflation consistency (nt=None)')
+                raise CAMBError("ntrun set but using inflation consistency (nt=None)")
             if tensor_param_rpivot != tensor_param_rpivot:
-                raise CAMBError('tensor parameterization not tensor_param_rpivot with inflation consistency')
+                raise CAMBError("tensor parameterization not tensor_param_rpivot with inflation consistency")
             self.nt = -r / 8.0 * (2.0 - ns - r / 8.0)
             self.ntrun = r / 8.0 * (r / 8.0 + ns - 1)
         else:

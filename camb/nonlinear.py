@@ -1,5 +1,6 @@
+from ctypes import c_double, c_int
+
 from .baseconfig import F2003Class, fortran_class
-from ctypes import c_int, c_double
 
 
 class NonLinearModel(F2003Class):
@@ -7,20 +8,20 @@ class NonLinearModel(F2003Class):
     Abstract base class for non-linear correction models
     """
 
-    _fields_ = [('Min_kh_nonlinear', c_double, 'minimum k/h at which to apply non-linear corrections')]
+    _fields_ = [("Min_kh_nonlinear", c_double, "minimum k/h at which to apply non-linear corrections")]
 
 
-halofit_original = 'original'
-halofit_bird = 'bird'
-halofit_peacock = 'peacock'
-halofit_takahashi = 'takahashi'
-halofit_mead = 'mead'
-halofit_halomodel = 'halomodel'
-halofit_casarini = 'casarini'
-halofit_mead2015 = 'mead2015'
-halofit_mead2016 = 'mead2016'
-halofit_mead2020 = 'mead2020'
-halofit_mead2020_feedback = 'mead2020_feedback'
+halofit_original = "original"
+halofit_bird = "bird"
+halofit_peacock = "peacock"
+halofit_takahashi = "takahashi"
+halofit_mead = "mead"
+halofit_halomodel = "halomodel"
+halofit_casarini = "casarini"
+halofit_mead2015 = "mead2015"
+halofit_mead2016 = "mead2016"
+halofit_mead2020 = "mead2020"
+halofit_mead2020_feedback = "mead2020_feedback"
 
 halofit_default = halofit_mead2020
 
@@ -46,14 +47,14 @@ class Halofit(NonLinearModel):
     """
 
     _fields_ = [
-        ('halofit_version', c_int, {'names': halofit_version_names}),
-        ('HMCode_A_baryon', c_double, 'HMcode parameter A_baryon'),
-        ('HMCode_eta_baryon', c_double, 'HMcode parameter eta_baryon'),
-        ('HMCode_logT_AGN', c_double, 'HMcode parameter log10(T_AGN/K)'),
+        ("halofit_version", c_int, {"names": halofit_version_names}),
+        ("HMCode_A_baryon", c_double, "HMcode parameter A_baryon"),
+        ("HMCode_eta_baryon", c_double, "HMcode parameter eta_baryon"),
+        ("HMCode_logT_AGN", c_double, "HMcode parameter log10(T_AGN/K)"),
     ]
 
-    _fortran_class_module_ = 'NonLinear'
-    _fortran_class_name_ = 'THalofit'
+    _fortran_class_module_ = "NonLinear"
+    _fortran_class_name_ = "THalofit"
 
     def get_halofit_version(self):
         return self.halofit_version
@@ -101,8 +102,8 @@ class SecondOrderPK(NonLinearModel):
     Not intended for production use, it's mainly to serve as an example alternative non-linear model implementation.
     """
 
-    _fortran_class_module_ = 'SecondOrderPK'
-    _fortran_class_name_ = 'TSecondOrderPK'
+    _fortran_class_module_ = "SecondOrderPK"
+    _fortran_class_name_ = "TSecondOrderPK"
 
     def set_params(self):
         pass

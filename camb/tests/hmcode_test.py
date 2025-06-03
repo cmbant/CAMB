@@ -1,12 +1,13 @@
 import os
 import sys
 import unittest
+
 import numpy as np
 
 try:
     import camb
 except ImportError:
-    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
+    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
     import camb
 
 
@@ -36,7 +37,7 @@ class HMcodeTest(unittest.TestCase):
         a_in = np.array([0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0])  # Scale factors for tests
 
         # Dictionary for HMcode versions
-        HMcode_version_ihm = {'mead': 51, 'mead2016': 51, 'mead2015': 66, 'mead2020': 123, 'mead2020_feedback': 124}
+        HMcode_version_ihm = {"mead": 51, "mead2016": 51, "mead2015": 66, "mead2020": 123, "mead2020_feedback": 124}
 
         # Read in and sort Mead benchmark data
         def read_Mead_benchmark(infile):
@@ -144,7 +145,7 @@ class HMcodeTest(unittest.TestCase):
                 nu_mass_fractions=[1.0],
                 share_delta_neff=True,
             )
-            pars.set_dark_energy(w=w0, wa=wa, dark_energy_model='ppf')
+            pars.set_dark_energy(w=w0, wa=wa, dark_energy_model="ppf")
             pars.InitPower.set_params(As=As, ns=ns)
 
             # Set sigma_8 normalisation (wasteful)
@@ -180,18 +181,18 @@ class HMcodeTest(unittest.TestCase):
             z = np.array(z)[::-1]
             a = 1.0 / (1.0 + z)
             if verbose:
-                print('sigma_8:', results.get_sigma8()[-1])
+                print("sigma_8:", results.get_sigma8()[-1])
 
             # Return non-linear power
             return k, a, Pk
 
         # Input file name
         def HMcode_benchmark_file(icos, ihm):
-            return 'HMcode_test_outputs/HMcode_cos%d_hm%d.txt' % (icos, ihm)
+            return "HMcode_test_outputs/HMcode_cos%d_hm%d.txt" % (icos, ihm)
 
         # Whitespace
         if verbose:
-            print('')
+            print("")
 
         # Loop over cosmologies
         for icos in [26, 56, 241, 242, 243, 244, 245, 246, 247, 248, 249, 250, 251]:
@@ -199,12 +200,12 @@ class HMcodeTest(unittest.TestCase):
             results, logT = setup_HMcode_test(a_in, icos)
 
             # Loop over HMcode versions
-            for HMcode_version in ['mead2015', 'mead2016', 'mead2020', 'mead2020_feedback']:
+            for HMcode_version in ["mead2015", "mead2016", "mead2020", "mead2020_feedback"]:
                 # Read benchmark data
                 ihm = HMcode_version_ihm[HMcode_version]
                 infile = HMcode_benchmark_file(icos, ihm)
                 if verbose:
-                    print('Infile:', infile)
+                    print("Infile:", infile)
                 k_in, a_in, Pk_in = read_Mead_benchmark(infile)
 
                 # Get power from CAMB

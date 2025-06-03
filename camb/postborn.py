@@ -1,7 +1,7 @@
-from . import camb, model
 import numpy as np
+from scipy.interpolate import InterpolatedUnivariateSpline, RectBivariateSpline
 
-from scipy.interpolate import RectBivariateSpline, InterpolatedUnivariateSpline
+from . import camb, model
 
 
 def cl_kappa_limber(results, PK, ls, nz, chi_source, chi_source2=None):
@@ -73,7 +73,7 @@ def get_field_rotation_power_from_PK(params, PK, chi_source, lmax=20000, acc=1, 
     results = camb.get_background(params)
     nz = int(100 * acc)
     if lmax < 3000:
-        raise ValueError('field rotation assumed lmax > 3000')
+        raise ValueError("field rotation assumed lmax > 3000")
     ls = np.hstack(
         (
             np.arange(2, 400, 1),
@@ -190,7 +190,7 @@ def get_field_rotation_power_from_PK(params, PK, chi_source, lmax=20000, acc=1, 
     return lsamp, clcurl
 
 
-def get_field_rotation_BB(params, lmax=None, acc=1, CMB_unit='muK', raw_cl=False, spline=True):
+def get_field_rotation_BB(params, lmax=None, acc=1, CMB_unit="muK", raw_cl=False, spline=True):
     r"""
     Get the B-mode power spectrum from field post-born field rotation, based on perturbative and Limber approximations.
     See `arXiv:1605.05662 <https://arxiv.org/abs/1605.05662>`_.

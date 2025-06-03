@@ -5,9 +5,6 @@
     ],
     "editor.wordWrapColumn": 120,
     "editor.formatOnSave": true,
-    "editor.codeActionsOnSave": {
-        "source.fixAll": "explicit"
-    },
     // Python test settings
     "python.testing.pytestEnabled": false,
     "python.testing.unittestEnabled": true,
@@ -50,10 +47,11 @@
             120
         ],
         "editor.codeActionsOnSave": {
-            "source.organizeImports": "explicit"
+            "source.organizeImports": "explicit",
+            "source.fixAll": "explicit"
         }
     },
-    "ruff.organizeImports": false,
+    "ruff.organizeImports": true,
     "files.exclude": {
         "**/__pycache__": true,
         "**/.ruff_cache": true,
@@ -79,7 +77,6 @@
         "**/.mypy_cache": true,
         "**/.ruff_cache": true,
         ".idea/": true,
-        "**/chains": true,
         "**/.ipynb_checkpoints": true,
         ".venv/": true
     }

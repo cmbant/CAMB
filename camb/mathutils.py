@@ -4,9 +4,11 @@ independent of the main camb code.
 
 """
 
-from ctypes import c_int, c_double, c_bool, POINTER
-from .baseconfig import camblib, numpy_1d, numpy_2d, numpy_3d
+from ctypes import POINTER, c_bool, c_double, c_int
+
 import numpy as np
+
+from .baseconfig import camblib, numpy_1d, numpy_2d, numpy_3d
 
 _chi2 = camblib.__mathutils_MOD_getchisquared
 _chi2.argtypes = [numpy_2d, numpy_1d, POINTER(c_int)]
@@ -22,7 +24,7 @@ def chi_squared(covinv, x):
     :return: covinv.dot(x).dot(x), but parallelized and using symmetry
     """
     if len(x) != covinv.shape[0] or covinv.shape[0] != covinv.shape[1]:
-        raise ValueError('Wrong shape in chi_squared')
+        raise ValueError("Wrong shape in chi_squared")
     return _chi2(covinv, x, c_int(len(x)))
 
 
@@ -131,11 +133,11 @@ def scalar_coupling_matrix(P, lmax):
     if not isinstance(P, (list, tuple)):
         P = [P]
     elif any(x.size != P[0].size for x in P[1:]):
-        raise ValueError('Mask power spectra must have same lmax')
+        raise ValueError("Mask power spectra must have same lmax")
 
     lmax_power = min(P[0].size - 1, 2 * lmax)
     if lmax_power < 2 * lmax:
-        print('Warning: power spectrum lmax is less than 2*lmax')
+        print("Warning: power spectrum lmax is less than 2*lmax")
 
     fac = (2 * np.arange(lmax_power + 1) + 1) / 4 / np.pi
     M = threej_coupling([fac * power for power in P], lmax)
@@ -159,7 +161,7 @@ def pcl_coupling_matrix(P, lmax, pol=False):
 
     lmax_power = min(P.size - 1, 2 * lmax)
     if lmax_power < 2 * lmax:
-        print('Warning: power spectrum lmax is less than 2*lmax')
+        print("Warning: power spectrum lmax is less than 2*lmax")
 
     W = (2 * np.arange(lmax_power + 1) + 1) * P / (4 * np.pi)
     M = threej_coupling(W, lmax, pol=pol)

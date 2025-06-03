@@ -7,8 +7,9 @@ Corrections to T and E are negligible, and not calculated. The result for BB inc
 from reionization, but this can optionally be turned off.
 """
 
-from . import camb, model
 import numpy as np
+
+from . import camb, model
 from .mathutils import threej
 
 
@@ -70,7 +71,7 @@ def get_emission_delay_BB(
     kmax=100,
     lmax=3000,
     non_linear=True,
-    CMB_unit='muK',
+    CMB_unit="muK",
     raw_cl=False,
     acc=1,
     lsamp=None,
@@ -131,12 +132,12 @@ def get_emission_delay_BB(
             zreion = params.get_zre()
             chi_source = camb_background.tau0 - camb_background.conformal_time(zreion)
             lmax_e = 300
-            tag_E = 'E2'
-            tag_zeta = 'emit2'
+            tag_E = "E2"
+            tag_zeta = "emit2"
             lstep = 1
         else:
-            tag_E = 'E1'
-            tag_zeta = 'emit1'
+            tag_E = "E1"
+            tag_zeta = "emit1"
             lstep = 5
 
         cl_psi_d_sp, cl_psi_d_x_lens_sp = get_emission_angle_powers(camb_background, PK, chi_source, lmax_e, acc, lsamp)
@@ -147,10 +148,10 @@ def get_emission_delay_BB(
         cd = cl_psi_d_sp(lsarr) / llp1 * (2 * lsarr + 1)
         cxdd = cl_psi_d_x_lens_sp(lsarr) * (2 * lsarr + 1)
         cxd = cxdd / llp1
-        cEE = cmb['%sx%s' % (tag_E, tag_E)][2 : lmax_e + 1] / llp1 * (2 * lsarr + 1)  # raw CL
-        cEx = cmb['%sx%s' % (tag_E, tag_zeta)][2 : lmax_e + 1] * (2 * lsarr + 1)
+        cEE = cmb["%sx%s" % (tag_E, tag_E)][2 : lmax_e + 1] / llp1 * (2 * lsarr + 1)  # raw CL
+        cEx = cmb["%sx%s" % (tag_E, tag_zeta)][2 : lmax_e + 1] * (2 * lsarr + 1)
         cExx = cEx / llp1
-        czeta = cmb['%sx%s' % (tag_zeta, tag_zeta)][2 : lmax_e + 1] / llp1 * (2 * lsarr + 1)
+        czeta = cmb["%sx%s" % (tag_zeta, tag_zeta)][2 : lmax_e + 1] / llp1 * (2 * lsarr + 1)
 
         for i, ll in enumerate(lsampvelcl):
             if reion and ll > lmax_e:
@@ -207,7 +208,7 @@ def get_emission_delay_BB(
         return InterpolatedUnivariateSpline(lsampvelcl, totBxterm + totBEterm + totautoB)
 
 
-def get_source_cmb_cl(params, CMB_unit='muK'):
+def get_source_cmb_cl(params, CMB_unit="muK"):
     r"""
     Get the angular power spectrum of emission angle and time delay sources :math:`\psi_t`, :math:`\psi_\zeta`,
     as well as the perpendicular velocity and E polarization.
@@ -221,22 +222,23 @@ def get_source_cmb_cl(params, CMB_unit='muK'):
 
     import sympy
     from sympy import diff
+
     from . import symbolic as cs
 
     assert np.isclose(params.omk, 0)
 
     angdist = cs.tau0 - cs.t
     emission_sources = {
-        'vperp': -(cs.sigma + cs.v_b) * cs.visibility / cs.k / angdist,
-        'emit': 15 * diff(cs.polter * cs.visibility, cs.t) / 8 / cs.k**2 / angdist,
-        'delay': 15 * diff(cs.polter * cs.visibility, cs.t) / 8 / cs.k**2 / angdist**2 * (cs.tau0 - cs.tau_maxvis),
-        'E': cs.scalar_E_source,
+        "vperp": -(cs.sigma + cs.v_b) * cs.visibility / cs.k / angdist,
+        "emit": 15 * diff(cs.polter * cs.visibility, cs.t) / 8 / cs.k**2 / angdist,
+        "delay": 15 * diff(cs.polter * cs.visibility, cs.t) / 8 / cs.k**2 / angdist**2 * (cs.tau0 - cs.tau_maxvis),
+        "E": cs.scalar_E_source,
     }
 
     sources = {}
     for key, source in list(emission_sources.items()):
-        sources[key + '1'] = sympy.Piecewise((source, 1 / cs.a - 1 > 30), (0, True))  # recombination
-        sources[key + '2'] = sympy.Piecewise((source, 1 / cs.a - 1 <= 30), (0, True))  # reionization
+        sources[key + "1"] = sympy.Piecewise((source, 1 / cs.a - 1 > 30), (0, True))  # recombination
+        sources[key + "2"] = sympy.Piecewise((source, 1 / cs.a - 1 <= 30), (0, True))  # reionization
 
-    params.set_custom_scalar_sources(sources, source_ell_scales={'E1': 2, 'E2': 2})
+    params.set_custom_scalar_sources(sources, source_ell_scales={"E1": 2, "E2": 2})
     return camb.get_results(params).get_cmb_unlensed_scalar_array_dict(CMB_unit=CMB_unit)

@@ -1,27 +1,29 @@
+import ctypes
+import logging
+from ctypes import POINTER, byref, c_bool, c_double, c_float, c_int
+
+from scipy.interpolate import RectBivariateSpline, interp1d
+
+from . import constants, model
+from ._config import config
 from .baseconfig import (
-    camblib,
-    CAMBError,
-    CAMBValueError,
-    CAMBUnknownArgumentError,
-    CAMB_Structure,
-    F2003Class,
-    fortran_class,
-    numpy_1d,
-    numpy_2d,
-    numpy_1d_int,
-    fortran_array,
     AllocatableArrayDouble,
+    CAMB_Structure,
+    CAMBError,
+    CAMBUnknownArgumentError,
+    CAMBValueError,
+    F2003Class,
+    camblib,
+    fortran_array,
+    fortran_class,
+    lib_import,
     ndpointer,
     np,
-    lib_import,
+    numpy_1d,
+    numpy_1d_int,
+    numpy_2d,
 )
-from ctypes import c_float, c_int, c_double, c_bool, POINTER, byref
-import ctypes
-from . import model, constants
-from ._config import config
-from .model import set_default_params, CAMBparams
-import logging
-from scipy.interpolate import RectBivariateSpline, interp1d
+from .model import CAMBparams, set_default_params
 
 int_arg = POINTER(c_int)
 d_arg = POINTER(c_double)
@@ -30,26 +32,26 @@ d_arg = POINTER(c_double)
 class _MatterTransferData(CAMB_Structure):
     # contains complex types with pointers, so just set up dummy
     _fields_ = [
-        ('num_q_trans', c_int),
-        ('q_trans', POINTER(c_double)),
-        ('sigma_8', POINTER(c_double)),
-        ('sigma2_vdelta_8', POINTER(c_double)),
-        ('TransferData', POINTER(c_float)),
-        ('sigma_8_size', c_int),
-        ('sigma2_vdelta_8_size', c_int),
-        ('TransferData_size', c_int * 3),
+        ("num_q_trans", c_int),
+        ("q_trans", POINTER(c_double)),
+        ("sigma_8", POINTER(c_double)),
+        ("sigma2_vdelta_8", POINTER(c_double)),
+        ("TransferData", POINTER(c_float)),
+        ("sigma_8_size", c_int),
+        ("sigma2_vdelta_8_size", c_int),
+        ("TransferData_size", c_int * 3),
     ]
 
 
 class _ClTransferData(CAMB_Structure):
     _fields_ = [
-        ('NumSources', c_int),
-        ('q_size', c_int),
-        ('q', POINTER(c_double)),
-        ('delta_size', c_int * 3),
-        ('delta_p_l_k', POINTER(c_double)),
-        ('l_size', c_int),
-        ('L', POINTER(c_int)),
+        ("NumSources", c_int),
+        ("q_size", c_int),
+        ("q", POINTER(c_double)),
+        ("delta_size", c_int * 3),
+        ("delta_p_l_k", POINTER(c_double)),
+        ("l_size", c_int),
+        ("L", POINTER(c_int)),
     ]
 
 
@@ -71,8 +73,8 @@ def save_cmb_power_array(filename, array, labels, lmin=0):
     np.savetxt(
         filename,
         np.hstack((ls, array[lmin:, :])),
-        fmt=['%4u'] + ['%12.7e'] * ncol,
-        header=' L ' + ' '.join(['{:13s}'.format(lab) for lab in labels]),
+        fmt=["%4u"] + ["%12.7e"] * ncol,
+        header=" L " + " ".join(["{:13s}".format(lab) for lab in labels]),
     )
 
 
@@ -125,7 +127,7 @@ class MatterTransferData:
         """
 
         if name not in model.transfer_names:
-            raise CAMBError('Unknown name %s; must be one of %s' % (name, model.transfer_names))
+            raise CAMBError("Unknown name %s; must be one of %s" % (name, model.transfer_names))
         return self.transfer_data[model.transfer_names.index(name), :, z_index]
 
 
@@ -170,55 +172,55 @@ class CAMBdata(F2003Class):
 
     """
 
-    _fortran_class_module_ = 'results'
+    _fortran_class_module_ = "results"
 
     _fields_ = [
-        ('Params', CAMBparams),
+        ("Params", CAMBparams),
         (
-            'ThermoDerivedParams',
+            "ThermoDerivedParams",
             c_double * model.nthermo_derived,
-            'array of derived parameters, see :meth:`get_derived_params` to get as a dictionary',
+            "array of derived parameters, see :meth:`get_derived_params` to get as a dictionary",
         ),
-        ('flat', c_bool, 'flat universe'),
-        ('closed', c_bool, 'closed universe'),
+        ("flat", c_bool, "flat universe"),
+        ("closed", c_bool, "closed universe"),
         # grho gives the contribution to the expansion rate from: (g) photons,
         # (r) one flavor of relativistic neutrino (2 degrees of freedom),
         #  grho is actually 8*pi*G*rho/c^2 at a=1, with units of Mpc**(-2).
-        ('grhocrit', c_double, 'kappa*a^2*rho_c(0)/c^2 with units of Mpc**(-2)'),
-        ('grhog', c_double, 'kappa/c^2*4*sigma_B/c^3 T_CMB^4'),
-        ('grhor', c_double, '7/8*(4/11)^(4/3)*grhog (per massless neutrino species)'),
-        ('grhob', c_double, 'baryon contribution'),
-        ('grhoc', c_double, 'CDM contribution'),
-        ('grhov', c_double, 'Dark energy contribution'),
-        ('grhornomass', c_double, 'grhor*number of massless neutrino species'),
-        ('grhok', c_double, 'curvature contribution to critical density'),
-        ('taurst', c_double, 'time at start of recombination'),
-        ('dtaurec', c_double, 'time step in recombination'),
-        ('taurend', c_double, 'time at end of recombination'),
-        ('tau_maxvis', c_double, 'time at peak visibility'),
-        ('adotrad', c_double, 'da/d tau in early radiation-dominated era'),
-        ('omega_de', c_double, 'Omega for dark energy today'),
-        ('curv', c_double, 'curvature K'),
-        ('curvature_radius', c_double, r':math:`1/\sqrt{|K|}`'),
-        ('Ksign', c_double, 'Ksign = 1,0 or -1'),
-        ('tau0', c_double, 'conformal time today'),
-        ('chi0', c_double, 'comoving angular diameter distance of big bang; rofChi(tau0/curvature_radius)'),
-        ('scale', c_double, 'relative to flat. e.g. for scaling L sampling'),
-        ('akthom', c_double, 'sigma_T * (number density of protons now)'),
-        ('fHe', c_double, 'n_He_tot / n_H_tot'),
-        ('Nnow', c_double, 'number density today'),
-        ('z_eq', c_double, 'matter-radiation equality redshift assuming all neutrinos relativistic'),
-        ('grhormass', c_double * model.max_nu),
-        ('nu_masses', c_double * model.max_nu),
+        ("grhocrit", c_double, "kappa*a^2*rho_c(0)/c^2 with units of Mpc**(-2)"),
+        ("grhog", c_double, "kappa/c^2*4*sigma_B/c^3 T_CMB^4"),
+        ("grhor", c_double, "7/8*(4/11)^(4/3)*grhog (per massless neutrino species)"),
+        ("grhob", c_double, "baryon contribution"),
+        ("grhoc", c_double, "CDM contribution"),
+        ("grhov", c_double, "Dark energy contribution"),
+        ("grhornomass", c_double, "grhor*number of massless neutrino species"),
+        ("grhok", c_double, "curvature contribution to critical density"),
+        ("taurst", c_double, "time at start of recombination"),
+        ("dtaurec", c_double, "time step in recombination"),
+        ("taurend", c_double, "time at end of recombination"),
+        ("tau_maxvis", c_double, "time at peak visibility"),
+        ("adotrad", c_double, "da/d tau in early radiation-dominated era"),
+        ("omega_de", c_double, "Omega for dark energy today"),
+        ("curv", c_double, "curvature K"),
+        ("curvature_radius", c_double, r":math:`1/\sqrt{|K|}`"),
+        ("Ksign", c_double, "Ksign = 1,0 or -1"),
+        ("tau0", c_double, "conformal time today"),
+        ("chi0", c_double, "comoving angular diameter distance of big bang; rofChi(tau0/curvature_radius)"),
+        ("scale", c_double, "relative to flat. e.g. for scaling L sampling"),
+        ("akthom", c_double, "sigma_T * (number density of protons now)"),
+        ("fHe", c_double, "n_He_tot / n_H_tot"),
+        ("Nnow", c_double, "number density today"),
+        ("z_eq", c_double, "matter-radiation equality redshift assuming all neutrinos relativistic"),
+        ("grhormass", c_double * model.max_nu),
+        ("nu_masses", c_double * model.max_nu),
         (
-            'num_transfer_redshifts',
+            "num_transfer_redshifts",
             c_int,
-            'Number of calculated redshift outputs for the matter transfer (including those for CMB lensing)',
+            "Number of calculated redshift outputs for the matter transfer (including those for CMB lensing)",
         ),
-        ('transfer_redshifts', AllocatableArrayDouble, 'Calculated output redshifts'),
-        ('PK_redshifts_index', c_int * model.max_transfer_redshifts, 'Indices of the requested PK_redshifts'),
-        ('OnlyTransfers', c_bool, 'Only calculating transfer functions, not power spectra'),
-        ('HasScalarTimeSources', c_bool, 'calculate and save time source functions, not power spectra'),
+        ("transfer_redshifts", AllocatableArrayDouble, "Calculated output redshifts"),
+        ("PK_redshifts_index", c_int * model.max_transfer_redshifts, "Indices of the requested PK_redshifts"),
+        ("OnlyTransfers", c_bool, "Only calculating transfer functions, not power spectra"),
+        ("HasScalarTimeSources", c_bool, "calculate and save time source functions, not power spectra"),
     ]
 
     # Note there are many more fields in Fortran. Since F2003Class is memory-managed by Fortran, we don't need
@@ -226,34 +228,34 @@ class CAMBdata(F2003Class):
     # _methods_ refer to the imported functions in the corresponding fortran class.
 
     _methods_ = [
-        ('AngularDiameterDistance', [d_arg], c_double),
-        ('AngularDiameterDistanceArr', [numpy_1d, numpy_1d, int_arg]),
-        ('AngularDiameterDistance2', [d_arg, d_arg], c_double),
-        ('AngularDiameterDistance2Arr', [numpy_1d, numpy_1d, numpy_1d, int_arg]),
-        ('ComovingRadialDistance', [d_arg], c_double),
-        ('ComovingRadialDistanceArr', [numpy_1d, numpy_1d, int_arg, d_arg]),
-        ('Hofz', [d_arg], c_double),
-        ('HofzArr', [numpy_1d, numpy_1d, int_arg]),
-        ('DeltaPhysicalTimeGyr', [d_arg, d_arg, d_arg], c_double),
-        ('DeltaPhysicalTimeGyrArr', [numpy_1d, numpy_1d, numpy_1d, int_arg, d_arg]),
-        ('GetBackgroundDensities', [int_arg, numpy_1d, numpy_2d]),
-        ('DeltaTime', [d_arg, d_arg, d_arg], c_double),
-        ('DeltaTimeArr', [numpy_1d, numpy_1d, numpy_1d, int_arg, d_arg]),
-        ('TimeOfzArr', [numpy_1d, numpy_1d, int_arg, d_arg]),
-        ('sound_horizon_zArr', [numpy_1d, numpy_1d, int_arg]),
-        ('RedshiftAtTimeArr', [numpy_1d, numpy_1d, int_arg]),
-        ('CosmomcTheta', [], c_double),
-        ('DarkEnergyStressEnergy', [numpy_1d, numpy_1d, numpy_1d, int_arg]),
-        ('get_lmax_lensed', [], c_int),
-        ('get_zstar', [d_arg], c_double),
-        ('SetParams', [POINTER(CAMBparams), int_arg, int_arg, int_arg, int_arg]),
+        ("AngularDiameterDistance", [d_arg], c_double),
+        ("AngularDiameterDistanceArr", [numpy_1d, numpy_1d, int_arg]),
+        ("AngularDiameterDistance2", [d_arg, d_arg], c_double),
+        ("AngularDiameterDistance2Arr", [numpy_1d, numpy_1d, numpy_1d, int_arg]),
+        ("ComovingRadialDistance", [d_arg], c_double),
+        ("ComovingRadialDistanceArr", [numpy_1d, numpy_1d, int_arg, d_arg]),
+        ("Hofz", [d_arg], c_double),
+        ("HofzArr", [numpy_1d, numpy_1d, int_arg]),
+        ("DeltaPhysicalTimeGyr", [d_arg, d_arg, d_arg], c_double),
+        ("DeltaPhysicalTimeGyrArr", [numpy_1d, numpy_1d, numpy_1d, int_arg, d_arg]),
+        ("GetBackgroundDensities", [int_arg, numpy_1d, numpy_2d]),
+        ("DeltaTime", [d_arg, d_arg, d_arg], c_double),
+        ("DeltaTimeArr", [numpy_1d, numpy_1d, numpy_1d, int_arg, d_arg]),
+        ("TimeOfzArr", [numpy_1d, numpy_1d, int_arg, d_arg]),
+        ("sound_horizon_zArr", [numpy_1d, numpy_1d, int_arg]),
+        ("RedshiftAtTimeArr", [numpy_1d, numpy_1d, int_arg]),
+        ("CosmomcTheta", [], c_double),
+        ("DarkEnergyStressEnergy", [numpy_1d, numpy_1d, numpy_1d, int_arg]),
+        ("get_lmax_lensed", [], c_int),
+        ("get_zstar", [d_arg], c_double),
+        ("SetParams", [POINTER(CAMBparams), int_arg, int_arg, int_arg, int_arg]),
     ]
 
     def __init__(self):
         set_default_params(self.Params)
 
     def __getstate__(self):
-        raise TypeError('Cannot save CAMB result objects')
+        raise TypeError("Cannot save CAMB result objects")
 
     def set_params(self, params):
         """
@@ -279,8 +281,8 @@ class CAMBdata(F2003Class):
         """
         if not (n := len(self.Params.z_outputs)):
             raise CAMBError(
-                'Set z_outputs with required redshifts (and then calculate transfers/results)'
-                ' before calling get_background_outputs'
+                "Set z_outputs with required redshifts (and then calculate transfers/results)"
+                " before calling get_background_outputs"
             )
         outputs = np.empty((n, 4))
         CAMB_GetBackgroundOutputs(byref(self), outputs, byref(c_int(n)))
@@ -302,9 +304,9 @@ class CAMBdata(F2003Class):
     @staticmethod
     def _check_params(params):
         if not isinstance(params, CAMBparams):
-            raise CAMBValueError('Must pass a CAMBparams instance')
+            raise CAMBValueError("Must pass a CAMBparams instance")
         if not params.ombh2:
-            raise CAMBValueError('Parameter values not set')
+            raise CAMBValueError("Parameter values not set")
 
     def calc_background_no_thermo(self, params, do_reion=False):
         """
@@ -316,7 +318,7 @@ class CAMBdata(F2003Class):
         """
         self._check_params(params)
         self.f_SetParams(byref(params), None, byref(c_int(1 if do_reion else 0)), None, byref(c_int(1)))
-        config.check_global_error('calc_background_no_thermo')
+        config.check_global_error("calc_background_no_thermo")
 
     def calc_background(self, params):
         """
@@ -327,7 +329,7 @@ class CAMBdata(F2003Class):
         """
         self._check_params(params)
         if CAMBdata_CalcBackgroundTheory(byref(self), byref(params)):
-            config.check_global_error('calc_background')
+            config.check_global_error("calc_background")
 
     def calc_transfers(self, params, only_transfers=True, only_time_sources=False):
         """
@@ -349,15 +351,15 @@ class CAMBdata(F2003Class):
             byref(c_int(1 if only_transfers else 0)),
             byref(c_int(1 if only_time_sources else 0)),
         ):
-            config.check_global_error('calc_transfer')
+            config.check_global_error("calc_transfer")
 
     def _check_powers(self, params=None):
         if params is None:
             params = self.Params
         if params.InitPower.has_tensors() and not params.WantTensors:
-            raise CAMBError('r>0 but params.WantTensors = F')
+            raise CAMBError("r>0 but params.WantTensors = F")
         if params.WantScalars and params.WantCls and params.DoLensing and params.scalar_power(0.05) > 2e-8:
-            raise CAMBError('Lensing requires a realistically normalized spectrum, you have P(k=0.05/Mpc) > 2e-8')
+            raise CAMBError("Lensing requires a realistically normalized spectrum, you have P(k=0.05/Mpc) > 2e-8")
 
     def calc_power_spectra(self, params=None):
         """
@@ -382,7 +384,8 @@ class CAMBdata(F2003Class):
         they are calculated, so using this function with a different initial power spectrum will not give quite the
         same results as doing a full recalculation.
 
-        :param initial_power_params: :class:`.initialpower.InitialPowerLaw` or :class:`.initialpower.SplinedInitialPower`
+        :param initial_power_params: :class:`.initialpower.InitialPowerLaw`
+               or :class:`.initialpower.SplinedInitialPower`
                instance with new primordial power spectrum parameters, or None to use current power spectrum.
         :param silent: suppress warnings about non-linear corrections not being recalculated
         """
@@ -392,10 +395,10 @@ class CAMBdata(F2003Class):
             and self.Params.NonLinear in [model.NonLinear_lens, model.NonLinear_both]
             and self.Params.WantScalars
             and self.Params.WantCls
-            and not getattr(self, '_suppress_power_warn', False)
+            and not getattr(self, "_suppress_power_warn", False)
         ):
             logging.warning(
-                'power_spectra_from_transfer with non-linear lensing does not recalculate the non-linear correction'
+                "power_spectra_from_transfer with non-linear lensing does not recalculate the non-linear correction"
             )
             self._suppress_power_warn = True
         if initial_power_params:
@@ -406,12 +409,12 @@ class CAMBdata(F2003Class):
 
     def _CMB_unit(self, CMB_unit):
         if isinstance(CMB_unit, str):
-            if CMB_unit == 'muK':
+            if CMB_unit == "muK":
                 CMB_unit = self.Params.TCMB * 1e6
-            elif CMB_unit == 'K':
+            elif CMB_unit == "K":
                 CMB_unit = self.Params.TCMB
             else:
-                raise CAMBValueError('Unknown CMB_unit: %s' % CMB_unit)
+                raise CAMBValueError("Unknown CMB_unit: %s" % CMB_unit)
         return CMB_unit
 
     def _scale_cls(self, cls, CMB_unit=None, raw_cl=False, lens_potential=False):
@@ -437,16 +440,16 @@ class CAMBdata(F2003Class):
         if self.Params.DoLensing and not unlensed:
             lmax_calc = self.f_get_lmax_lensed()
             if not lmax_calc:
-                raise CAMBError('lensed CL have not been calculated')
+                raise CAMBError("lensed CL have not been calculated")
         else:
             lmax_calc = self.Params.max_l
         if lmax is None:
             lmax = lmax_calc
         elif lmax > lmax_calc:
-            logging.warning('getting CMB power spectra to higher L than calculated, may be inaccurate/zeroed.')
+            logging.warning("getting CMB power spectra to higher L than calculated, may be inaccurate/zeroed.")
         return lmax
 
-    def save_cmb_power_spectra(self, filename, lmax=None, CMB_unit='muK'):
+    def save_cmb_power_spectra(self, filename, lmax=None, CMB_unit="muK"):
         r"""
         Save CMB power to a plain text file. Output is lensed total :math:`\ell(\ell+1)C_\ell/2\pi` then
         lensing potential and cross: L TT EE BB TE PP PT PE.
@@ -459,13 +462,13 @@ class CAMBdata(F2003Class):
         lmax = self._lmax_setting(lmax)
         cmb = self.get_total_cls(lmax, CMB_unit=CMB_unit)
         lens = self.get_lens_potential_cls(lmax, CMB_unit=CMB_unit)
-        save_cmb_power_array(filename, np.hstack((cmb, lens)), 'TT EE BB TE PP PT PE')
+        save_cmb_power_array(filename, np.hstack((cmb, lens)), "TT EE BB TE PP PT PE")
 
     def get_cmb_power_spectra(
         self,
         params=None,
         lmax=None,
-        spectra=('total', 'unlensed_scalar', 'unlensed_total', 'lensed_scalar', 'tensor', 'lens_potential'),
+        spectra=("total", "unlensed_scalar", "unlensed_total", "lensed_scalar", "tensor", "lens_potential"),
         CMB_unit=None,
         raw_cl=False,
     ):
@@ -494,11 +497,11 @@ class CAMBdata(F2003Class):
             self.calc_power_spectra(params)
         lmax = self._lmax_setting(lmax)
         for spectrum in spectra:
-            P[spectrum] = getattr(self, 'get_' + spectrum + '_cls')(lmax, CMB_unit=CMB_unit, raw_cl=raw_cl)
+            P[spectrum] = getattr(self, "get_" + spectrum + "_cls")(lmax, CMB_unit=CMB_unit, raw_cl=raw_cl)
         return P
 
     def get_cmb_correlation_functions(
-        self, params=None, lmax=None, spectrum='lensed_scalar', xvals=None, sampling_factor=1
+        self, params=None, lmax=None, spectrum="lensed_scalar", xvals=None, sampling_factor=1
     ):
         r"""
         Get the CMB correlation functions from the power spectra.
@@ -518,8 +521,8 @@ class CAMBdata(F2003Class):
           corrs is 2D array corrs[i, ix], where ix=0,1,2,3 are T, Q+U, Q-U and cross, and i indexes xvals
         """
 
-        if spectrum not in ['total', 'unlensed_scalar', 'unlensed_total', 'lensed_scalar', 'tensor']:
-            raise CAMBValueError('Can only get CMB correlation functions for known CMB spectrum')
+        if spectrum not in ["total", "unlensed_scalar", "unlensed_total", "lensed_scalar", "tensor"]:
+            raise CAMBValueError("Can only get CMB correlation functions for known CMB spectrum")
         from . import correlations
 
         cls = self.get_cmb_power_spectra(params, lmax, spectra=[spectrum])[spectrum]
@@ -528,7 +531,7 @@ class CAMBdata(F2003Class):
         else:
             return correlations.cl2corr(cls, xvals, lmax=lmax)
 
-    def get_cmb_transfer_data(self, tp='scalar'):
+    def get_cmb_transfer_data(self, tp="scalar"):
         r"""
         Get :math:`C_\ell` transfer functions
 
@@ -536,7 +539,7 @@ class CAMBdata(F2003Class):
         """
 
         cdata = _ClTransferData()
-        CAMBdata_cltransferdata(byref(self), byref(cdata), byref(c_int(['scalar', 'vector', 'tensor'].index(tp))))
+        CAMBdata_cltransferdata(byref(self), byref(cdata), byref(c_int(["scalar", "vector", "tensor"].index(tp))))
         data = ClTransferData()
         data.NumSources = cdata.NumSources
         data.q = fortran_array(cdata.q, cdata.q_size)
@@ -544,7 +547,7 @@ class CAMBdata(F2003Class):
         data.delta_p_l_k = fortran_array(cdata.delta_p_l_k, cdata.delta_size)
         return data
 
-    def get_time_evolution(self, q, eta, vars=model.evolve_names, lAccuracyBoost=4, frame='CDM'):
+    def get_time_evolution(self, q, eta, vars=model.evolve_names, lAccuracyBoost=4, frame="CDM"):
         """
         Get the mode evolution as a function of conformal time for some k values.
 
@@ -573,7 +576,7 @@ class CAMBdata(F2003Class):
             named_vars = [var for var in vars if isinstance(var, str)]
 
             if unknown := set(named_vars).difference(model.evolve_names):
-                raise CAMBError('Unknown names %s; valid names are %s' % (unknown, model.evolve_names))
+                raise CAMBError("Unknown names %s; valid names are %s" % (unknown, model.evolve_names))
 
             num_standard_names = len(model.evolve_names)
 
@@ -587,7 +590,7 @@ class CAMBdata(F2003Class):
                     ix[i] = num_standard_names + len(custom_vars) - 1
                 else:
                     raise CAMBError(
-                        'Variables must be variable names, or a sympy expression (using camb.symbolic variables)'
+                        "Variables must be variable names, or a sympy expression (using camb.symbolic variables)"
                     )
 
             if np.isscalar(q):
@@ -606,7 +609,7 @@ class CAMBdata(F2003Class):
             nvars = num_standard_names + n_custom
             outputs = np.empty((k.shape[0], times.shape[0], nvars))
             if times[indices[0]] <= 1e-8:
-                raise CAMBError('Initial time nearly zero or negative for time evolution calculation')
+                raise CAMBError("Initial time nearly zero or negative for time evolution calculation")
             if CAMB_TimeEvolution(
                 byref(self),
                 byref(c_int(k.shape[0])),
@@ -618,7 +621,7 @@ class CAMBdata(F2003Class):
                 byref(c_int(n_custom)),
                 byref(custom_source_func),
             ):
-                config.check_global_error('get_time_evolution')
+                config.check_global_error("get_time_evolution")
             i_rev = np.zeros(times.shape, dtype=int)
             i_rev[indices] = np.arange(times.shape[0])
             outputs = outputs[:, i_rev, :]
@@ -642,7 +645,7 @@ class CAMBdata(F2003Class):
         return self.get_time_evolution(q, self.conformal_time(z), vars, lAccuracyBoost)
 
     def get_background_time_evolution(
-        self, eta: np.ndarray, vars: str | list[str] = model.background_names, format: str = 'dict'
+        self, eta: np.ndarray, vars: str | list[str] = model.background_names, format: str = "dict"
     ) -> dict[str, np.ndarray] | np.ndarray:
         """
         Get the evolution of background variables a function of conformal time.
@@ -657,17 +660,17 @@ class CAMBdata(F2003Class):
         if isinstance(vars, str):
             vars = [vars]
         if unknown := set(vars).difference(model.background_names):
-            raise CAMBError('Unknown names %s; valid names are %s' % (unknown, model.background_names))
+            raise CAMBError("Unknown names %s; valid names are %s" % (unknown, model.background_names))
         outputs = np.zeros((eta.shape[0], 9))
         CAMB_BackgroundThermalEvolution(byref(self), byref(c_int(eta.shape[0])), eta, outputs)
         indices = [model.background_names.index(var) for var in vars]
-        if format == 'dict':
+        if format == "dict":
             return {var: outputs[:, index] for var, index in zip(vars, indices)}
         else:
-            assert format == 'array', 'format must be dict or array'
+            assert format == "array", "format must be dict or array"
             return outputs[:, np.array(indices)]
 
-    def get_background_redshift_evolution(self, z, vars=model.background_names, format='dict'):
+    def get_background_redshift_evolution(self, z, vars=model.background_names, format="dict"):
         """
         Get the evolution of background variables a function of redshift.
         For the moment a and H are rather perversely only available via :meth:`get_time_evolution`
@@ -680,7 +683,7 @@ class CAMBdata(F2003Class):
 
         return self.get_background_time_evolution(self.conformal_time(z), vars, format)
 
-    def get_background_densities(self, a, vars=model.density_names, format='dict') -> dict | np.ndarray:
+    def get_background_densities(self, a, vars=model.density_names, format="dict") -> dict | np.ndarray:
         r"""
         Get the individual densities as a function of scale factor. Returns :math:`8\pi G a^4 \rho_i` in Mpc units.
         :math:`\Omega_i` can be simply obtained by taking the ratio of the components to tot.
@@ -693,15 +696,15 @@ class CAMBdata(F2003Class):
         if isinstance(vars, str):
             vars = [vars]
         if unknown := set(vars).difference(model.density_names):
-            raise CAMBError('Unknown names %s; valid names are %s' % (unknown, model.density_names))
+            raise CAMBError("Unknown names %s; valid names are %s" % (unknown, model.density_names))
         arr = np.atleast_1d(a)
         outputs = np.zeros((arr.shape[0], 8))
         self.f_GetBackgroundDensities(byref(c_int(arr.shape[0])), arr, outputs)
         indices = [model.density_names.index(var) for var in vars]
-        if format == 'dict':
+        if format == "dict":
             return {var: outputs[:, index] for var, index in zip(vars, indices)}
         else:
-            assert format == 'array', 'format must be dict or array'
+            assert format == "array", "format must be dict or array"
             return outputs[:, np.array(indices)]
 
     def get_dark_energy_rho_w(self, a):
@@ -732,8 +735,8 @@ class CAMBdata(F2003Class):
         :param z: redshift
         :return:  :math:`\Omega_i(a)`
         """
-        dic = self.get_background_densities(1.0 / (1 + z), ['tot', var])
-        res = dic[var] / dic['tot']
+        dic = self.get_background_densities(1.0 / (1 + z), ["tot", var])
+        res = dic[var] / dic["tot"]
         return res[0] if np.isscalar(z) else res
 
     def get_matter_transfer_data(self) -> MatterTransferData:
@@ -743,7 +746,7 @@ class CAMBdata(F2003Class):
         :return: :class:`.MatterTransferData` instance holding output arrays (copies, not pointers)
         """
         if not self.Params.WantTransfer:
-            raise CAMBError('must have Params.WantTransfer to get matter transfers and power')
+            raise CAMBError("must have Params.WantTransfer to get matter transfers and power")
 
         cdata = _MatterTransferData()
         CAMBdata_mattertransferdata(byref(self), byref(cdata))
@@ -810,7 +813,7 @@ class CAMBdata(F2003Class):
         CAMBdata_mattertransferks(byref(self), byref(num_k), np.array([]))
         nk = num_k.value
         if not nk:
-            raise CAMBError('No k values available for matter power spectrum')
+            raise CAMBError("No k values available for matter power spectrum")
 
         ks = np.empty(nk, dtype=np.float64)
         CAMBdata_mattertransferks(byref(self), byref(num_k), ks)
@@ -828,7 +831,7 @@ class CAMBdata(F2003Class):
             CAMBdata_GetNonLinearMatterPower(byref(self), PK, byref(var1), byref(var2), byref(hubble_units))
         else:
             CAMBdata_GetLinearMatterPower(byref(self), PK, byref(var1), byref(var2), byref(hubble_units))
-        config.check_global_error('get_[non]linear_matter_power_spectrum')
+        config.check_global_error("get_[non]linear_matter_power_spectrum")
 
         z = self.Params.Transfer.PK_redshifts[:nz]
         z.reverse()
@@ -937,7 +940,7 @@ class CAMBdata(F2003Class):
         """
         nz = self.Params.Transfer.PK_num_redshifts
         if not nz or self.Params.Transfer.PK_redshifts[nz - 1] > 1e-5:
-            raise CAMBError('sigma8 requested at z=0, but P(z=0) not calculated')
+            raise CAMBError("sigma8 requested at z=0, but P(z=0) not calculated")
         return self.get_sigma8()[-1]
 
     def get_fsigma8(self):
@@ -977,13 +980,13 @@ class CAMBdata(F2003Class):
             self.calc_power_spectra(params)
 
         if not npoints >= 2:
-            raise CAMBError('Need at least two points in get_matter_power_spectrum')
+            raise CAMBError("Need at least two points in get_matter_power_spectrum")
 
         assert self.Params.WantTransfer
         if self.Params.Transfer.kmax < maxkh * self.Params.h:
-            logging.warning('get_matter_power_spectrum using larger k_max than input parameter Transfer.kmax')
+            logging.warning("get_matter_power_spectrum using larger k_max than input parameter Transfer.kmax")
         if self.Params.NonLinear != model.NonLinear_none and self.Params.Transfer.kmax < 1:
-            logging.warning('get_matter_power_spectrum Transfer.kmax small to get non-linear spectrum')
+            logging.warning("get_matter_power_spectrum Transfer.kmax small to get non-linear spectrum")
 
         nz = self.Params.Transfer.PK_num_redshifts
         PK = np.empty((nz, npoints))
@@ -1025,7 +1028,7 @@ class CAMBdata(F2003Class):
         .. code-block:: python
 
            PK = results.get_matter_power_interpolator()
-           print('Power spectrum at z=0.5, k/h=0.1 is %s (Mpc/h)^3 ' % (PK.P(0.5, 0.1)))
+           print("Power spectrum at z=0.5, k/h=0.1 is %s (Mpc/h)^3 " % (PK.P(0.5, 0.1)))
 
         For a description of outputs for different var1, var2 see :ref:`transfer-variables`.
 
@@ -1068,13 +1071,13 @@ class CAMBdata(F2003Class):
 
             def __init__(self, *args, **kwargs):
                 self._single_z = np.array(args[0])
-                super().__init__(*(args[1:]), kind=kwargs.get('ky'))
+                super().__init__(*(args[1:]), kind=kwargs.get("ky"))
 
             def check_z(self, z):
                 if not np.allclose(z, self._single_z):
                     raise CAMBError(
-                        'P(z,k) requested at z=%g, but only computed for z=%s. '
-                        'Cannot extrapolate!' % (z, self._single_z)
+                        "P(z,k) requested at z=%g, but only computed for z=%s. "
+                        "Cannot extrapolate!" % (z, self._single_z)
                     )
 
             def __call__(self, *args):
@@ -1110,12 +1113,12 @@ class CAMBdata(F2003Class):
             # TODO: use more physical extrapolation function for linear case
             if not silent and (kh_max < 3 and extrap_kmax > 2 and nonlinear or kh_max < 0.4):
                 logging.warning(
-                    'Extrapolating to higher k with matter transfer functions '
-                    'only to k=%.3g Mpc^{-1} may be inaccurate.\n ' % (kh_max * self.Params.H0 / 100)
+                    "Extrapolating to higher k with matter transfer functions "
+                    "only to k=%.3g Mpc^{-1} may be inaccurate.\n " % (kh_max * self.Params.H0 / 100)
                 )
             if not log_interp:
                 raise CAMBValueError(
-                    'Cannot use extrap_kmax with log_inter=False (e.g. PK crossing zero for %s, %s.)' % (var1, var2)
+                    "Cannot use extrap_kmax with log_inter=False (e.g. PK crossing zero for %s, %s.)" % (var1, var2)
                 )
 
             logextrap = np.log(extrap_kmax)
@@ -1253,10 +1256,10 @@ class CAMBdata(F2003Class):
 
         lmax = self._lmax_setting(lmax, unlensed=True)
         if not self.Params.Want_cl_2D_array:
-            raise CAMBError('unlensed_scalar_array not calculated (set Want_cl_2D_array)')
+            raise CAMBError("unlensed_scalar_array not calculated (set Want_cl_2D_array)")
 
         n = 3 + len(self.Params.SourceWindows) + self.Params.CustomSources.num_custom_sources
-        res = np.empty((n, n, lmax + 1), order='F')
+        res = np.empty((n, n, lmax + 1), order="F")
         CAMB_SetUnlensedScalarArray(byref(self), byref(c_int(lmax)), res, byref(c_int(n)))
         return res
 
@@ -1283,21 +1286,21 @@ class CAMBdata(F2003Class):
                 params.Want_cl_2D_array = True
                 self.calc_power_spectra(params)
             elif not self.Params.Want_cl_2D_array:
-                raise CAMBValueError('Want_cl_2D_array must be true to have array C_L')
+                raise CAMBValueError("Want_cl_2D_array must be true to have array C_L")
             nwindows = len(self.Params.SourceWindows)
             lmax = lmax or self.Params.max_l
             arr = self.get_unlensed_scalar_array_cls(lmax)
             custom_source_names = self.Params.get_custom_source_names()
-            names = ['T', 'E', 'P'] + ['W%s' % (i + 1) for i in range(nwindows)] + custom_source_names
+            names = ["T", "E", "P"] + ["W%s" % (i + 1) for i in range(nwindows)] + custom_source_names
             CMB_unit = self._CMB_unit(CMB_unit) or 1
             CMB_units = [CMB_unit, CMB_unit, 1] + [1] * nwindows + [CMB_unit] * len(custom_source_names)
 
             result = {}
             for i, name in enumerate(names):
                 for j, name2 in enumerate(names):
-                    tag = name + 'x' + name2
+                    tag = name + "x" + name2
                     if j < i:
-                        result[tag] = result[name2 + 'x' + name]
+                        result[tag] = result[name2 + "x" + name]
                     else:
                         cls = arr[i, j, :]
                         if raw_cl:
@@ -1336,18 +1339,18 @@ class CAMBdata(F2003Class):
                 params.Want_cl_2D_array = True
                 self.calc_power_spectra(params)
             elif not self.Params.Want_cl_2D_array:
-                raise CAMBValueError('Want_cl_2D_array must be true to have array C_L')
+                raise CAMBValueError("Want_cl_2D_array must be true to have array C_L")
             nwindows = len(self.Params.SourceWindows)
             lmax = lmax or self.Params.max_l
             arr = self.get_unlensed_scalar_array_cls(lmax)
-            names = ['P'] + ['W%s' % (i + 1) for i in range(nwindows)]
+            names = ["P"] + ["W%s" % (i + 1) for i in range(nwindows)]
 
             result = {}
             for i, name in enumerate(names):
                 for j, name2 in enumerate(names):
-                    tag = name + 'x' + name2
+                    tag = name + "x" + name2
                     if j < i:
-                        result[tag] = result[name2 + 'x' + name]
+                        result[tag] = result[name2 + "x" + name]
                     else:
                         cls = arr[i + 2, j + 2, :]
                         if raw_cl:
@@ -1388,13 +1391,13 @@ class CAMBdata(F2003Class):
         opt = c_int(lmax)
         if clpp is not None:
             if clpp.shape[0] < self.Params.max_l + 1:
-                raise CAMBValueError('clpp must go to at least Params.max_l (zero based)')
+                raise CAMBValueError("clpp must go to at least Params.max_l (zero based)")
             clpp = np.array(clpp, dtype=np.float64)
-            GetFlatSkyCgrads = lib_import('lensing', '', 'getflatskycgradswithspectrum')
+            GetFlatSkyCgrads = lib_import("lensing", "", "getflatskycgradswithspectrum")
             GetFlatSkyCgrads.argtypes = [POINTER(CAMBdata), numpy_1d, int_arg, numpy_1d]
             GetFlatSkyCgrads(byref(self), clpp, byref(opt), res)
         else:
-            GetFlatSkyCgrads = lib_import('lensing', '', 'getflatskycgrads')
+            GetFlatSkyCgrads = lib_import("lensing", "", "getflatskycgrads")
             GetFlatSkyCgrads.argtypes = [POINTER(CAMBdata), int_arg, numpy_1d]
             GetFlatSkyCgrads(byref(self), byref(opt), res)
         self._scale_cls(res, CMB_unit, raw_cl)
@@ -1414,10 +1417,10 @@ class CAMBdata(F2003Class):
         assert self.Params.DoLensing
         lmax_unlens = self.Params.max_l
         if clpp.shape[0] < lmax_unlens + 1:
-            raise CAMBValueError('clpp must go to at least Params.max_l (zero based)')
+            raise CAMBValueError("clpp must go to at least Params.max_l (zero based)")
         res = np.zeros((lmax_unlens + 1, 4), dtype=np.float64)
         lmax_lensed = c_int(0)
-        lensClsWithSpectrum = lib_import('lensing', '', 'lensclswithspectrum')
+        lensClsWithSpectrum = lib_import("lensing", "", "lensclswithspectrum")
         lensClsWithSpectrum.argtypes = [POINTER(CAMBdata), numpy_1d, numpy_2d, int_arg]
         clpp = np.array(clpp, dtype=np.float64)
         lensClsWithSpectrum(byref(self), clpp, res, byref(lmax_lensed))
@@ -1483,7 +1486,7 @@ class CAMBdata(F2003Class):
             else:
                 z2 = np.ascontiguousarray(z2, dtype=np.float64)
                 if len(z1) != len(z2):
-                    raise CAMBError('z1 nand z2 must be scalar or same-length 1D arrays')
+                    raise CAMBError("z1 nand z2 must be scalar or same-length 1D arrays")
         return z1, z2
 
     def angular_diameter_distance2(self, z1, z2):
@@ -1554,7 +1557,7 @@ class CAMBdata(F2003Class):
             times = np.ascontiguousarray(eta, dtype=np.float64)
         redshifts = np.empty(times.shape)
         self.f_RedshiftAtTimeArr(redshifts, times, byref(c_int(times.shape[0])))
-        config.check_global_error('redshift_at_conformal_time')
+        config.check_global_error("redshift_at_conformal_time")
         if scalar:
             return redshifts[0]
         else:
@@ -1778,7 +1781,7 @@ CAMB_SetUnlensedScalarArray = camblib.__handles_MOD_camb_setunlensedscalararray
 CAMB_SetUnlensedScalarArray.argtypes = [
     POINTER(CAMBdata),
     int_arg,
-    ndpointer(c_double, flags='F_CONTIGUOUS', ndim=3),
+    ndpointer(c_double, flags="F_CONTIGUOUS", ndim=3),
     int_arg,
 ]
 
@@ -1793,7 +1796,7 @@ CAMB_TimeEvolution.argtypes = [
     int_arg,
     numpy_1d,
     int_arg,
-    ndpointer(c_double, flags='C_CONTIGUOUS', ndim=3),
+    ndpointer(c_double, flags="C_CONTIGUOUS", ndim=3),
     int_arg,
     POINTER(ctypes.c_void_p),
 ]
