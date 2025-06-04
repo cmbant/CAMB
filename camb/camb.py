@@ -7,9 +7,12 @@ from inspect import getfullargspec
 
 from . import constants, model
 from ._config import config
-from .baseconfig import CAMBError, CAMBUnknownArgumentError, CAMBValueError, camblib, np
+from .baseconfig import CAMBError as CAMBError
+from .baseconfig import CAMBUnknownArgumentError, CAMBValueError, camblib, np
 from .model import CAMBparams
-from .results import CAMBdata, ClTransferData, MatterTransferData
+from .results import CAMBdata
+from .results import ClTransferData as ClTransferData
+from .results import MatterTransferData as MatterTransferData
 
 _debug_params = False
 

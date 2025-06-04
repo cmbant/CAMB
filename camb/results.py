@@ -10,7 +10,6 @@ from .baseconfig import (
     AllocatableArrayDouble,
     CAMB_Structure,
     CAMBError,
-    CAMBUnknownArgumentError,
     CAMBValueError,
     F2003Class,
     camblib,
@@ -23,6 +22,7 @@ from .baseconfig import (
     numpy_1d_int,
     numpy_2d,
 )
+from .baseconfig import CAMBUnknownArgumentError as CAMBUnknownArgumentError
 from .model import CAMBparams, set_default_params
 
 int_arg = POINTER(c_int)

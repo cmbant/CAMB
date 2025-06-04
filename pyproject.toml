@@ -56,8 +56,6 @@ extend-select = ["I"]
 
 [tool.ruff.lint.per-file-ignores]
 "camb/__init__.py" = ["F401", "E402"]
-"camb/camb.py" = ["F401"]
-"camb/results.py" = ["F401"]
 "camb/emission_angle.py" = ["E741"]
 "camb/postborn.py" = ["E741"]
 "fortran/tests/CAMB_test_files.py" = ["E731"]
