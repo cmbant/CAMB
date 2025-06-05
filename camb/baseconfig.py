@@ -1,12 +1,13 @@
 # type: ignore
-import os.path as osp
-import sys
-import platform
 import ctypes
 import inspect
-from ctypes import Structure, POINTER, byref, c_int, c_double, c_bool, c_float
-from numpy.ctypeslib import ndpointer
+import os.path as osp
+import platform
+import sys
+from ctypes import POINTER, Structure, byref, c_bool, c_double, c_float, c_int
+
 import numpy as np
+from numpy.ctypeslib import ndpointer
 
 
 def ndpointer_or_null(*args, **kwargs):
@@ -19,41 +20,40 @@ def ndpointer_or_null(*args, **kwargs):
             return obj
         return base.from_param(obj)
 
-    return type(base.__name__, (base,), {'from_param': classmethod(from_param)})
+    return type(base.__name__, (base,), {"from_param": classmethod(from_param)})
 
 
-numpy_3d = ndpointer(c_double, flags='C_CONTIGUOUS', ndim=3)
-numpy_2d = ndpointer(c_double, flags='C_CONTIGUOUS', ndim=2)
-numpy_1d = ndpointer(c_double, flags='C_CONTIGUOUS')
-numpy_1d_or_null = ndpointer_or_null(c_double, flags='C_CONTIGUOUS')
-numpy_1d_int = ndpointer(c_int, flags='C_CONTIGUOUS')
+numpy_3d = ndpointer(c_double, flags="C_CONTIGUOUS", ndim=3)
+numpy_2d = ndpointer(c_double, flags="C_CONTIGUOUS", ndim=2)
+numpy_1d = ndpointer(c_double, flags="C_CONTIGUOUS")
+numpy_1d_or_null = ndpointer_or_null(c_double, flags="C_CONTIGUOUS")
+numpy_1d_int = ndpointer(c_int, flags="C_CONTIGUOUS")
 
 BASEDIR = osp.abspath(osp.dirname(__file__))
 if platform.system() == "Windows":
-    DLLNAME = 'cambdll.dll'
+    DLLNAME = "cambdll.dll"
 
 else:
-    DLLNAME = 'camblib.so'
+    DLLNAME = "camblib.so"
 CAMBL = osp.join(BASEDIR, DLLNAME)
 
 gfortran = True
 
 
 class IfortGfortranLoader(ctypes.CDLL):
-
     def __getitem__(self, name_or_ordinal):
         if gfortran:
             res = super().__getitem__(name_or_ordinal)
         else:
-            res = super().__getitem__(name_or_ordinal.replace('_MOD_', '_mp_').replace('__', '') + '_')
+            res = super().__getitem__(name_or_ordinal.replace("_MOD_", "_mp_").replace("__", "") + "_")
         return res
 
 
 if not osp.isfile(CAMBL):
     sys.exit(
-        'Library file %s does not exist.\nMake sure you have installed or built the camb package '
-        '(e.g. using "python setup.py make"); or remove any old conflicting installation and install again.'
-        % CAMBL)
+        "Library file %s does not exist.\nMake sure you have installed or built the camb package "
+        '(e.g. using "python setup.py make"); or remove any old conflicting installation and install again.' % CAMBL
+    )
 
 camblib = ctypes.LibraryLoader(IfortGfortranLoader).LoadLibrary(CAMBL)
 
@@ -65,7 +65,7 @@ except Exception:
 
 
 class _dll_value:
-    __slots__ = ['f']
+    __slots__ = ["f"]
 
     def __init__(self, f):
         self.f = f
@@ -85,9 +85,8 @@ def import_property(tp, module, func):
 
 def lib_import(module_name, class_name, func_name, restype=None):
     if class_name:
-        class_name += '_'
-    func = getattr(camblib, '__' + module_name.lower() +
-                   '_MOD_' + (class_name + func_name).lower())
+        class_name += "_"
+    func = getattr(camblib, "__" + module_name.lower() + "_MOD_" + (class_name + func_name).lower())
     if restype:
         func.restype = restype
     return func
@@ -95,14 +94,11 @@ def lib_import(module_name, class_name, func_name, restype=None):
 
 def set_cl_template_file(cl_template_file=None):
     if cl_template_file and not osp.exists(cl_template_file):
-        raise ValueError('File not found : %s' % cl_template_file)
+        raise ValueError("File not found : %s" % cl_template_file)
 
-    template = cl_template_file or osp.join(BASEDIR,
-                                            "HighLExtrapTemplate_lenspotentialCls.dat")
+    template = cl_template_file or osp.join(BASEDIR, "HighLExtrapTemplate_lenspotentialCls.dat")
     if not osp.exists(template):
-        template = osp.abspath(
-            osp.join(BASEDIR, "..", "fortran",
-                     "HighLExtrapTemplate_lenspotentialCls.dat"))
+        template = osp.abspath(osp.join(BASEDIR, "..", "fortran", "HighLExtrapTemplate_lenspotentialCls.dat"))
     template = template.encode("latin-1")
     func = camblib.__handles_MOD_set_cls_template
     func.argtypes = [ctypes.c_char_p, ctypes.c_long]
@@ -115,13 +111,13 @@ def check_fortran_version(version):
     func.argtypes = [ctypes.c_char_p, ctypes.c_long]
     s = ctypes.create_string_buffer(33)
     func(s, ctypes.c_long(32))
-    fortran_version = s.value.decode('ascii').strip()
+    fortran_version = s.value.decode("ascii").strip()
     if fortran_version != version:
         raise CAMBFortranError(
-            'Version %s of fortran library does not match python version (%s).' %
-            (fortran_version,
-             version) + '\nUpdate install or use "setup.py make" to rebuild library.'
-            + '\n(also check camb.__file__ is actually at the path you think you are loading)')
+            "Version %s of fortran library does not match python version (%s)." % (fortran_version, version)
+            + '\nUpdate install or use "setup.py make" to rebuild library.'
+            + "\n(also check camb.__file__ is actually at the path you think you are loading)"
+        )
 
 
 set_cl_template_file()
@@ -132,25 +128,26 @@ def _get_fortran_sizes():
     allocatable = c_int()
     allocatable_array = c_int()
     allocatable_object_array = c_int()
-    _get_allocatable_size(byref(allocatable), byref(allocatable_array),
-                          byref(allocatable_object_array))
+    _get_allocatable_size(byref(allocatable), byref(allocatable_array), byref(allocatable_object_array))
     return allocatable.value, allocatable_array.value, allocatable_object_array.value
 
 
 _f_allocatable_size, _f_allocatable_array_size, _f_allocatable_object_array_size = _get_fortran_sizes()
-assert _f_allocatable_size % ctypes.sizeof(ctypes.c_void_p) == 0 and \
-       _f_allocatable_array_size % ctypes.sizeof(ctypes.c_void_p) == 0 and \
-       _f_allocatable_object_array_size % ctypes.sizeof(ctypes.c_void_p) == 0
+assert (
+    _f_allocatable_size % ctypes.sizeof(ctypes.c_void_p) == 0
+    and _f_allocatable_array_size % ctypes.sizeof(ctypes.c_void_p) == 0
+    and _f_allocatable_object_array_size % ctypes.sizeof(ctypes.c_void_p) == 0
+)
 
 # make dummy type of right size to hold fortran allocatable; must be ctypes pointer type to keep auto-alignment correct
 f_pointer = ctypes.c_void_p * (_f_allocatable_size // ctypes.sizeof(ctypes.c_void_p))
 
 # These are used for general types, so avoid type checking (and making problematic temporary cast objects)
-_get_allocatable = lib_import('handles', 'F2003Class', 'GetAllocatable')
-_set_allocatable = lib_import('handles', 'F2003Class', 'SetAllocatable')
-_new_instance = lib_import('handles', 'F2003Class', 'new')
-_free_instance = lib_import('handles', 'F2003Class', 'free')
-_get_id = lib_import('handles', 'F2003Class', 'get_id')
+_get_allocatable = lib_import("handles", "F2003Class", "GetAllocatable")
+_set_allocatable = lib_import("handles", "F2003Class", "SetAllocatable")
+_new_instance = lib_import("handles", "F2003Class", "new")
+_free_instance = lib_import("handles", "F2003Class", "free")
+_get_id = lib_import("handles", "F2003Class", "get_id")
 
 
 class FortranAllocatable(Structure):
@@ -168,15 +165,13 @@ class _AllocatableObject(FortranAllocatable):
     def get_allocatable(self):
         _get_allocatable(byref(self), byref(_reuse_typed_id), byref(_reuse_pointer))
         if _reuse_pointer:
-            return ctypes.cast(_reuse_pointer, POINTER(
-                F2003Class._class_pointers[tuple(_reuse_typed_id)])).contents
+            return ctypes.cast(_reuse_pointer, POINTER(F2003Class._class_pointers[tuple(_reuse_typed_id)])).contents
         else:
             return None
 
     def set_allocatable(self, instance, name):
         if instance and not isinstance(instance, self._baseclass):
-            raise TypeError(
-                '{} expects an object that is an instance of {}'.format(name, self._baseclass.__name__))
+            raise TypeError("{} expects an object that is an instance of {}".format(name, self._baseclass.__name__))
         _set_allocatable(byref(self), byref(instance.fortran_self) if instance else None)
 
 
@@ -193,15 +188,13 @@ def AllocatableObject(cls=None):
     if res:
         return res
     else:
-        res = type("Allocatable" + cls.__name__, (_AllocatableObject,),
-                   {"_baseclass": cls})
+        res = type("Allocatable" + cls.__name__, (_AllocatableObject,), {"_baseclass": cls})
         _class_cache[cls] = res
         return res
 
 
 class _AllocatableArray(FortranAllocatable):  # member corresponding to allocatable :: d(:) member in fortran
-    _fields_ = [("allocatable", ctypes.c_void_p * (
-            _f_allocatable_array_size // ctypes.sizeof(ctypes.c_void_p)))]
+    _fields_ = [("allocatable", ctypes.c_void_p * (_f_allocatable_array_size // ctypes.sizeof(ctypes.c_void_p)))]
 
     def get_allocatable(self):
         size = self._get_allocatable_1D_array(byref(self), byref(_reuse_pointer))
@@ -211,8 +204,9 @@ class _AllocatableArray(FortranAllocatable):  # member corresponding to allocata
             return np.empty(0, dtype=self._dtype)
 
     def set_allocatable(self, array, name):
-        self._set_allocatable_1D_array(byref(self), np.array(array, dtype=self._dtype),
-                                       byref(c_int(0 if array is None else len(array))))
+        self._set_allocatable_1D_array(
+            byref(self), np.array(array, dtype=self._dtype), byref(c_int(0 if array is None else len(array)))
+        )
 
 
 class _ArrayOfAllocatable(FortranAllocatable):
@@ -231,12 +225,11 @@ class _ArrayOfAllocatable(FortranAllocatable):
         return len(self.allocatables)
 
     def __str__(self):
-        s = ''
+        s = ""
         for i in range(len(self.allocatables)):
             item = self[i]
             content = item._as_string() if isinstance(item, CAMB_Structure) else str(item)
-            s += ('{}: <{}>\n  '.format(i, item.__class__.__name__)
-                  + content.replace('\n', '\n  ')).strip(' ')
+            s += ("{}: <{}>\n  ".format(i, item.__class__.__name__) + content.replace("\n", "\n  ")).strip(" ")
         return s
 
     def __repr__(self):
@@ -258,14 +251,12 @@ def _make_array_class(baseclass, size):
 
 class _AllocatableObjectArray(FortranAllocatable):
     # member corresponding to allocatable :: d(:) array of allocatable classes
-    _fields_ = [("allocatable", ctypes.c_void_p * (
-            _f_allocatable_object_array_size // ctypes.sizeof(ctypes.c_void_p)))]
+    _fields_ = [("allocatable", ctypes.c_void_p * (_f_allocatable_object_array_size // ctypes.sizeof(ctypes.c_void_p)))]
 
     def get_allocatable(self):
         size = self._get_allocatable_object_1D_array(byref(self), byref(_reuse_pointer))
         if size:
-            return ctypes.cast(_reuse_pointer,
-                               POINTER(_make_array_class(self._baseclass, size))).contents
+            return ctypes.cast(_reuse_pointer, POINTER(_make_array_class(self._baseclass, size))).contents
         else:
             return []
 
@@ -275,8 +266,7 @@ class _AllocatableObjectArray(FortranAllocatable):
         pointers = (f_pointer * len(array))()
         for i, instance in enumerate(array):
             if not isinstance(instance, self._baseclass):
-                raise TypeError(
-                    '{} expects an object that is an instance of {}'.format(name, self._baseclass.__name__))
+                raise TypeError("{} expects an object that is an instance of {}".format(name, self._baseclass.__name__))
             pointers[i] = instance.fortran_self
 
         self._set_allocatable_object_1D_array(byref(self), byref(pointers), byref(c_int(len(array))))
@@ -293,8 +283,7 @@ def AllocatableObjectArray(cls=None):
         cls = F2003Class
     if not issubclass(cls, F2003Class):
         raise ValueError("AllocatableObject type must be descended from F2003Class")
-    return type("AllocatableArray" + cls.__name__, (_AllocatableObjectArray,),
-                {"_baseclass": cls})
+    return type("AllocatableArray" + cls.__name__, (_AllocatableObjectArray,), {"_baseclass": cls})
 
 
 class AllocatableArrayInt(_AllocatableArray):
@@ -319,8 +308,8 @@ AllocatableArrayDouble._set_allocatable_1D_array = camblib.__handles_MOD_set_all
 AllocatableArrayDouble._set_allocatable_1D_array.argtypes = [POINTER(AllocatableArrayDouble), numpy_1d, POINTER(c_int)]
 
 
-def fortran_array(c_pointer, shape, dtype: type = np.float64, order='F', own_data=True):
-    if not hasattr(shape, '__len__'):
+def fortran_array(c_pointer, shape, dtype: type = np.float64, order="F", own_data=True):
+    if not hasattr(shape, "__len__"):
         shape = np.atleast_1d(shape)
     arr_size = np.prod(shape[:]) * np.dtype(dtype).itemsize
     buf_from_mem = ctypes.pythonapi.PyMemoryView_FromMemory
@@ -354,8 +343,7 @@ class CAMBFortranError(Exception):
     pass
 
 
-def method_import(module_name, class_name, func_name, restype=None, extra_args=(),
-                  nopass=False):
+def method_import(module_name, class_name, func_name, restype=None, extra_args=(), nopass=False):
     func = lib_import(module_name, class_name, func_name, restype)
     if extra_args is not None and len(extra_args):
         func.argtypes = ([] if nopass else [POINTER(f_pointer)]) + list(extra_args)
@@ -365,7 +353,7 @@ def method_import(module_name, class_name, func_name, restype=None, extra_args=(
 # Handle custom field types inspired by:
 # https://stackoverflow.com/questions/45527945/extend-ctypes-to-specify-field-overloading
 class FortranManagedField:
-    __slots__ = ['name', 'real_name', 'type_']
+    __slots__ = ["name", "real_name", "type_"]
 
     def __init__(self, name, type_):
         self.name = name
@@ -390,7 +378,7 @@ class FortranManagedField:
 
 
 class NamedIntField:
-    __slots__ = ['real_name', 'values', 'name_values']
+    __slots__ = ["real_name", "values", "name_values"]
 
     def __init__(self, name, **kwargs):
         self.real_name = "_" + name
@@ -421,7 +409,7 @@ class NamedIntField:
 
 
 class BoolField:  # fortran-compatible boolean (actually c_int internally)
-    __slots__ = ['real_name']
+    __slots__ = ["real_name"]
 
     def __init__(self, name):
         self.real_name = "_" + name
@@ -434,7 +422,7 @@ class BoolField:  # fortran-compatible boolean (actually c_int internally)
 
 
 class SizedArrayField:  # statically sized array with another field determining size
-    __slots__ = ['real_name', 'size_name']
+    __slots__ = ["real_name", "size_name"]
 
     def __init__(self, name, size_name):
         self.real_name = "_" + name
@@ -450,9 +438,8 @@ class SizedArrayField:  # statically sized array with another field determining 
     def __set__(self, instance, value):
         field = getattr(instance, self.real_name)
         if len(value) > len(field):
-            raise CAMBParamRangeError(
-                "{} can be of max length {}".format(self.real_name[1:], len(field)))
-        field[:len(value)] = value
+            raise CAMBParamRangeError("{} can be of max length {}".format(self.real_name[1:], len(field)))
+        field[: len(value)] = value
         setattr(instance, self.size_name, len(value))
 
 
@@ -464,15 +451,20 @@ class CAMBStructureMeta(type(Structure)):
         try:
             F2003 = F2003Class
         except NameError:
+
             class F2003:
                 pass
 
-        tps = {c_bool: "boolean", c_double: "float64", c_int: "integer",
-               c_float: "float32",
-               AllocatableArrayDouble: "float64 array",
-               AllocatableArrayInt: "integer array",
-               ctypes.c_void_p: "pointer"}
-        field_doc = ''
+        tps = {
+            c_bool: "boolean",
+            c_double: "float64",
+            c_int: "integer",
+            c_float: "float32",
+            AllocatableArrayDouble: "float64 array",
+            AllocatableArrayInt: "integer array",
+            ctypes.c_void_p: "pointer",
+        }
+        field_doc = ""
         for field in _fields:
             field_name = field[0]
             field_type = field[1]
@@ -491,26 +483,26 @@ class CAMBStructureMeta(type(Structure)):
                     ctypes_fields.append(("_" + field_name, c_int))
                 elif "size" in dic:
                     if not issubclass(field_type, ctypes.Array):
-                        raise CAMBFortranError(
-                            "sized fields only allowed for ctypes Arrays")
+                        raise CAMBFortranError("sized fields only allowed for ctypes Arrays")
                     if dic["size"] not in [x[0] for x in _fields]:
                         raise CAMBFortranError(
                             "size must be the name of a field in same structure ({} for {})".format(
-                                dic["size"], field_name))
+                                dic["size"], field_name
+                            )
+                        )
                     new_field = SizedArrayField(field_name, dic["size"])
                     ctypes_fields.append(("_" + field_name, field_type))
                 else:
-                    raise CAMBFortranError(
-                        "Unknown dictionary content for {}, {}".format(field_name, dic))
+                    raise CAMBFortranError("Unknown dictionary content for {}, {}".format(field_name, dic))
             else:
                 new_field = None
             if new_field:
                 namespace[field_name] = new_field
             else:
                 ctypes_fields.append((field_name, field_type))
-            if field[0][0] != '_':  # add :ivar: documentation for each field
+            if field[0][0] != "_":  # add :ivar: documentation for each field
                 field_doc += "\n:ivar %s:" % field[0]
-                if isinstance(field[-1], dict) and field[-1].get('names', None):
+                if isinstance(field[-1], dict) and field[-1].get("names", None):
                     field_doc += " (integer/string, one of: %s) " % (", ".join(field[-1]["names"]))
                 else:
                     tp = tps.get(field[1], None)
@@ -522,10 +514,12 @@ class CAMBStructureMeta(type(Structure)):
                         field_doc += " :class:`{}.{}`".format(field[1].__module__, field[1].__name__)
                     elif issubclass(field[1], _AllocatableObject):
                         field_doc += " :class:`{}.{}`".format(
-                            field[1]._baseclass.__module__, field[1]._baseclass.__name__)
+                            field[1]._baseclass.__module__, field[1]._baseclass.__name__
+                        )
                     elif issubclass(field[1], _AllocatableObjectArray):
                         field_doc += " array of :class:`{}.{}`".format(
-                            field[1]._baseclass.__module__, field[1]._baseclass.__name__)
+                            field[1]._baseclass.__module__, field[1]._baseclass.__name__
+                        )
 
                 if len(field) > 2 and not isinstance(field[-1], dict):
                     field_doc += " " + field[-1]
@@ -533,7 +527,7 @@ class CAMBStructureMeta(type(Structure)):
         namespace["_fields_"] = ctypes_fields
 
         if field_doc:
-            namespace['__doc__'] = inspect.cleandoc(namespace.get('__doc__', "")) + "\n" + field_doc
+            namespace["__doc__"] = inspect.cleandoc(namespace.get("__doc__", "")) + "\n" + field_doc
 
         # noinspection PyTypeChecker
         cls: CAMB_Structure = super().__new__(metacls, name, bases, namespace)
@@ -543,16 +537,19 @@ class CAMBStructureMeta(type(Structure)):
             if "_fortran_class_name_" not in cls.__dict__:
                 cls._fortran_class_name_ = name
 
-        prefix = getattr(cls, '_method_prefix_', "f_")
+        prefix = getattr(cls, "_method_prefix_", "f_")
         methods = cls.__dict__.get("_methods_", "")
 
         def make_method(_func, _name, _nopass, doc):
             if _nopass:
+
                 def method_func(self, *args):
                     return _func(*args)
             else:
+
                 def method_func(self, *args):
                     return _func(self.fortran_self, *args)
+
             if doc:
                 method_func.__doc__ = doc
             method_func.__name__ = _name
@@ -565,11 +562,20 @@ class CAMBStructureMeta(type(Structure)):
             opts = method[3] if len(method) > 3 else {}
             nopass = opts.get("nopass", False)
             try:
-                func = method_import(cls._fortran_class_module_, cls._fortran_class_name_,
-                                     method_name, extra_args=extra_args, nopass=nopass, restype=restype)
+                func = method_import(
+                    cls._fortran_class_module_,
+                    cls._fortran_class_name_,
+                    method_name,
+                    extra_args=extra_args,
+                    nopass=nopass,
+                    restype=restype,
+                )
             except AttributeError:
-                raise AttributeError('No function {}_{} found in module {}'.format(
-                    cls._fortran_class_name_, method_name, cls._fortran_class_module_))
+                raise AttributeError(
+                    "No function {}_{} found in module {}".format(
+                        cls._fortran_class_name_, method_name, cls._fortran_class_module_
+                    )
+                )
             new_method = make_method(func, prefix + method_name, nopass, opts.get("doc", ""))
             setattr(cls, prefix + method_name, new_method)
 
@@ -588,9 +594,11 @@ class CAMB_Structure(Structure, metaclass=CAMBStructureMeta):
             fields = cls.__bases__[0].get_all_fields()
         else:
             fields = []
-        fields += [(name[1:], value) if name.startswith('_') else (name, value) for name, value in
-                   cls.__dict__.get('_fields_', []) if
-                   not name.startswith('__')]
+        fields += [
+            (name[1:], value) if name.startswith("_") else (name, value)
+            for name, value in cls.__dict__.get("_fields_", [])
+            if not name.startswith("__")
+        ]
         return fields
 
     @classmethod
@@ -598,20 +606,20 @@ class CAMB_Structure(Structure, metaclass=CAMBStructureMeta):
         return {field[0] for field in cls.get_all_fields()}
 
     def _as_string(self):
-        s = ''
+        s = ""
         for field_name, field_type in self.get_all_fields():
             obj = getattr(self, field_name)
             if isinstance(obj, (CAMB_Structure, FortranAllocatable)):
                 content = obj._as_string() if isinstance(obj, CAMB_Structure) else str(obj)
-                s += (field_name + ': <%s>\n  ' % obj.__class__.__name__ + content.replace('\n', '\n  ')).strip(' ')
+                s += (field_name + ": <%s>\n  " % obj.__class__.__name__ + content.replace("\n", "\n  ")).strip(" ")
             else:
                 if isinstance(obj, ctypes.Array):
                     if len(obj) > 20:
-                        s += field_name + ' = ' + str(obj[:7])[:-1] + ', ...]\n'
+                        s += field_name + " = " + str(obj[:7])[:-1] + ", ...]\n"
                     else:
-                        s += field_name + ' = ' + str(obj[:len(obj)]) + '\n'
+                        s += field_name + " = " + str(obj[: len(obj)]) + "\n"
                 else:
-                    s += field_name + ' = ' + str(obj) + '\n'
+                    s += field_name + " = " + str(obj) + "\n"
         return s
 
     @classmethod
@@ -631,12 +639,12 @@ class CAMB_Structure(Structure, metaclass=CAMBStructureMeta):
 
     def _repr_pretty_(self, p, cycle):
         if cycle:
-            p.text(self.__class__.__name__ + '(...)')
+            p.text(self.__class__.__name__ + "(...)")
         else:
             p.text(str(self))
 
     def __str__(self):
-        return 'class: <%s>\n ' % self.__class__.__name__ + self._as_string().replace('\n', '\n ')
+        return "class: <%s>\n " % self.__class__.__name__ + self._as_string().replace("\n", "\n ")
 
     def __reduce__(self):
         return self.__class__, (), self.__getstate__()
@@ -646,7 +654,7 @@ class CAMB_Structure(Structure, metaclass=CAMBStructureMeta):
         for field_name, _ in self.get_all_fields():
             obj = getattr(self, field_name)
             if isinstance(obj, (ctypes.Array, np.ndarray, _ArrayOfAllocatable)):
-                state[field_name] = list(obj[:len(obj)])
+                state[field_name] = list(obj[: len(obj)])
             elif isinstance(obj, ctypes.c_void_p):
                 if obj.value is not None:
                     raise CAMBFortranError("Cannot save class with general pointer")
@@ -689,7 +697,7 @@ class F2003Class(CAMB_Structure):
     __slots__ = ()
 
     # _methods_ for calling fortran functions name, arguments and optional return value
-    _methods_: list[tuple[str, list | None, type] | tuple[str, list]]
+    _methods_: list[tuple[str, list | None, type] | tuple[str, list] | tuple[str, list, type, dict]]
 
     # pointer to fortran class; generated once per instance using _fortran_selfpointer_function then replaced with
     # the actual value
@@ -701,7 +709,7 @@ class F2003Class(CAMB_Structure):
     def __init__(self, **kwargs):
         if kwargs:
             if unknowns := set(kwargs).difference(self.get_valid_field_names()):
-                raise ValueError('Unknown argument(s): %s' % unknowns)
+                raise ValueError("Unknown argument(s): %s" % unknowns)
         super().__init__(**kwargs)
 
     @classmethod
@@ -710,14 +718,16 @@ class F2003Class(CAMB_Structure):
             _key = POINTER(cls)()
         else:
             _key = POINTER(cls)(source)
-        pointer_func = getattr(cls, '_fortran_selfpointer_function', None)
+        pointer_func = getattr(cls, "_fortran_selfpointer_function", None)
         if pointer_func is None:
-            if getattr(cls, '_optional_compile', False):
+            if getattr(cls, "_optional_compile", False):
                 raise CAMBFortranError(
-                    'Class %s has not been built into the Fortran binary,'
-                    ' edit Makefile_main and rebuild to use.' % cls.__name__)
+                    "Class %s has not been built into the Fortran binary,"
+                    " edit Makefile_main and rebuild to use." % cls.__name__
+                )
             raise CAMBFortranError(
-                'Cannot instantiate %s, is base class or needs @fortran_class decorator' % cls.__name__)
+                "Cannot instantiate %s, is base class or needs @fortran_class decorator" % cls.__name__
+            )
         _new_instance(byref(_key), byref(pointer_func))
         instance = _key.contents
         instance._key = _key
@@ -734,13 +744,18 @@ class F2003Class(CAMB_Structure):
     __copy__ = copy
 
     @classmethod
-    def import_method(cls, tag, extra_args=(), restype=None, nopass=False,
-                      allow_inherit=True):
+    def import_method(cls, tag, extra_args=(), restype=None, nopass=False, allow_inherit=True):
         func = cls._class_imports.get(tag, None)
         if func is None:
             try:
-                func = method_import(cls._fortran_class_module_, cls._fortran_class_name_,
-                                     tag, extra_args=extra_args, nopass=nopass, restype=restype)
+                func = method_import(
+                    cls._fortran_class_module_,
+                    cls._fortran_class_name_,
+                    tag,
+                    extra_args=extra_args,
+                    nopass=nopass,
+                    restype=restype,
+                )
             except AttributeError:
                 try:
                     if not allow_inherit or cls.__bases__[0] == F2003Class:
@@ -748,21 +763,21 @@ class F2003Class(CAMB_Structure):
                     # noinspection PyUnresolvedReferences
                     func = cls.__bases__[0].import_method(tag, extra_args, restype, nopass=nopass)
                 except AttributeError:
-                    raise AttributeError(
-                        'No function {}_{} found '.format(cls._fortran_class_name_, tag))
+                    raise AttributeError("No function {}_{} found ".format(cls._fortran_class_name_, tag))
             cls._class_imports[tag] = func
         return func
 
     def call_method(self, tag, extra_args=(), args=(), restype=None, nopass=False, allow_inherit=True):
-        func = self.import_method(tag, extra_args=extra_args, restype=restype,
-                                  nopass=nopass, allow_inherit=allow_inherit)
+        func = self.import_method(
+            tag, extra_args=extra_args, restype=restype, nopass=nopass, allow_inherit=allow_inherit
+        )
         if nopass:
             return func(*args)
         else:
             return func(byref(self.fortran_self), *args)
 
     def __del__(self):
-        key = getattr(self, '_key', None)
+        key = getattr(self, "_key", None)
         if key:
             _free_instance(byref(key), byref(self.__class__._fortran_selfpointer_function))
 
@@ -774,9 +789,11 @@ class F2003Class(CAMB_Structure):
         """
         if type(instance) is not type(self):
             raise TypeError(
-                'Cannot assign non-identical types ({} to {}, non-allocatable)'.format(type(instance), type(self)))
-        self.call_method('Replace', extra_args=[POINTER(f_pointer)], allow_inherit=False,
-                         args=[byref(instance.fortran_self)])
+                "Cannot assign non-identical types ({} to {}, non-allocatable)".format(type(instance), type(self))
+            )
+        self.call_method(
+            "Replace", extra_args=[POINTER(f_pointer)], allow_inherit=False, args=[byref(instance.fortran_self)]
+        )
 
     @staticmethod
     def make_class_named(name, base_class=None):
@@ -789,8 +806,7 @@ class F2003Class(CAMB_Structure):
         if base_class is None or issubclass(cls, base_class):
             return cls()
         else:
-            raise CAMBValueError(
-                "class {} is not a type of {}".format(cls.__name__, base_class.__name__))
+            raise CAMBValueError("class {} is not a type of {}".format(cls.__name__, base_class.__name__))
 
 
 # Decorator to get function to get class pointers to each class type, and build index of classes
@@ -802,16 +818,17 @@ def fortran_class(cls, optional=False):
         print(msg)
         raise CAMBFortranError(msg)
     try:
-        cls._fortran_selfpointer_function = lib_import(class_module, cls._fortran_class_name_,
-                                                       'selfpointer')
+        cls._fortran_selfpointer_function = lib_import(class_module, cls._fortran_class_name_, "selfpointer")
     except AttributeError as e:
         if optional:
             cls._optional_compile = True
             return cls
         else:
             print(e)
-            raise CAMBFortranError("Class %s cannot find fortran %s_SelfPointer method in module %s." %
-                                   (cls.__name__, cls._fortran_class_name_, class_module))
+            raise CAMBFortranError(
+                "Class %s cannot find fortran %s_SelfPointer method in module %s."
+                % (cls.__name__, cls._fortran_class_name_, class_module)
+            )
 
     _get_id(byref(cls._fortran_selfpointer_function), byref(_reuse_typed_id))
     F2003Class._class_pointers[tuple(_reuse_typed_id)] = cls

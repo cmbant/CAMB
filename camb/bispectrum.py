@@ -1,4 +1,4 @@
-from ctypes import c_int, c_double, c_char
+from ctypes import c_char, c_double, c_int
 
 # Note currently there is no python interface for getting bispectrum results.
 

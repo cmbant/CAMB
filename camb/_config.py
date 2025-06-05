@@ -1,6 +1,7 @@
 import os
-from .baseconfig import import_property, CAMBError
-from ctypes import c_char, c_int, c_bool, c_double
+from ctypes import c_bool, c_char, c_double, c_int
+
+from .baseconfig import CAMBError, import_property
 
 lensing_method_curv_corr = 1
 lensing_method_flat_corr = 2
@@ -36,31 +37,31 @@ class _config:
     _global_error_message = import_property(c_char * 1024, "config", "global_error_message")
 
     def global_error_message(self):
-        return bytearray(self._global_error_message).decode('ascii').strip()
+        return bytearray(self._global_error_message).decode("ascii").strip()
 
-    def check_global_error(self, reference=''):
+    def check_global_error(self, reference=""):
         if code := self.global_error_flag:
             self.global_error_flag = 0
             if reference:
-                reference = 'Error in Fortran called from %s:\n' % reference
+                reference = "Error in Fortran called from %s:\n" % reference
             else:
-                reference = ''
+                reference = ""
             if err := config.global_error_message():
-                raise CAMBError(reference + '%s' % err)
+                raise CAMBError(reference + "%s" % err)
             else:
-                raise CAMBError(reference + 'Error code: %s' % code)
+                raise CAMBError(reference + "Error code: %s" % code)
 
     def __repr__(self):
-        s = ''
+        s = ""
         for x in dir(self):
-            if x[0] != '_':
+            if x[0] != "_":
                 value = getattr(self, x)
                 if not callable(value):
-                    s += '%s = %s\n' % (x, value)
+                    s += "%s = %s\n" % (x, value)
         return s
 
 
 config = _config()
 
-if os.environ.get('BINDER_LAUNCH_HOST'):
+if os.environ.get("BINDER_LAUNCH_HOST"):
     config.ThreadNum = 1  # binder is very slow with more than 1 CPU, force 1 by default

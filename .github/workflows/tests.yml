@@ -10,52 +10,47 @@ jobs:
       fail-fast: false
       matrix:
         include:
-        - name: "Latest Python 3.x"
-          os: ubuntu-latest
-          python-version: "3.x"
-        - name: "OS X Python 3.10"
-          os: macos-latest
-          python-version: "3.10"
-        - name: "Windows Python 3.12"
-          os: windows-latest
-          python-version: "3.12"
+          - name: "Latest Python 3.10"
+            os: ubuntu-latest
+            python-version: "3.10"
+          - name: "Windows Python 3.13"
+            os: windows-latest
+            python-version: "3.13"
 
     steps:
-    - uses: actions/checkout@v4
-      with:
-        submodules: recursive
-        fetch-depth: 0
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
 
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
-      with:
-        python-version: ${{ matrix.python-version }}
-        allow-prereleases: true
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          allow-prereleases: true
 
-    - run: ln -s $(which gfortran-14) /usr/local/bin/gfortran
-      if: matrix.os == 'macos-latest'
+      - run: ln -s $(which gfortran-14) /usr/local/bin/gfortran
+        if: matrix.os == 'macos-latest'
 
-    - name: flake8 Lint
-      if: matrix.os == 'ubuntu-latest'
-      uses: py-actions/flake8@v2
-      with:
-          args: --select=E713,E704,E703,E714,E10,E11,E20,E22,E23,E25,E27,E301,E302,E304,E9,F405,F406,F5,F6,F7,F8,W1,W2,W3,W6 --show-source --statistics
-          path: camb
-          max-line-length: "120"
+      - name: Ruff Lint
+        if: matrix.os == 'ubuntu-latest'
+        uses: astral-sh/ruff-action@v3
+        with:
+          args: check camb
 
-    - name: Install dependencies
-      run: |
-        python --version
-        gfortran --version
-        pip install -e . 
+      - name: Install dependencies
+        run: |
+          python --version
+          gfortran --version
+          pip install -e .
 
-    - name: Run tests
-      run: |
-        python -c "import camb; print(camb.__version__)"
-        python -m unittest camb.tests.camb_test
+      - name: Run tests
+        run: |
+          python -c "import camb; print(camb.__version__)"
+          python -m unittest camb.tests.camb_test
 
-    - name: HM code tests
-      if: matrix.os == 'ubuntu-latest'
-      run: |
-        git clone https://github.com/alexander-mead/HMcode_test_outputs.git
-        python -m unittest camb.tests.hmcode_test
+      - name: HM code tests
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          git clone https://github.com/alexander-mead/HMcode_test_outputs.git
+          python -m unittest camb.tests.hmcode_test

@@ -3,11 +3,11 @@
 Fortran compilers
 =================
 
-CAMB internally uses modern (object-oriented) Fortran 2008 for most numerical calculations, and needs a recent
-fortran compiler to build the numerical library. The recommended compilers are
+CAMB internally uses modern (object-oriented) Fortran 2008 for most numerical calculations (see `docs <https://camb.info/doc/>`_), 
+and needs a fortran compiler to build the numerical library. The recommended compilers are
 
 - gfortran version 6.3 or higher
-- Intel Fortran (ifort), version 18.0.1 or higher (some things may work with version 14+)
+- Intel Fortran (ifort), version 18.0.1 or higher
 
 The gfortran compiler is part of the standard "gcc" compiler package, and may be pre-installed on recent unix systems.
 Check the version using "gfortran --version".

@@ -17,7 +17,6 @@ import numpy as np
 try:
     from scipy.special import legendre_p_all
 
-
     def legendrep(n, z):
         return legendre_p_all(n, z, diff_n=1)
 
@@ -75,7 +74,7 @@ def legendre_funcs(lmax, x, m=(0, 2), lfacs=None, lfacs2=None, lrootfacs=None):
 
     if 1 in m:
         lfacs1 = np.arange(1, lmax + 1, dtype=np.float64)
-        lfacs1 *= (1 + lfacs1)
+        lfacs1 *= 1 + lfacs1
         d11 = fac1 * alldP[1:] / lfacs1 + allP[1:]
         dm11 = fac2 * alldP[1:] / lfacs1 - allP[1:]
         res.append((d11, dm11))
@@ -90,19 +89,19 @@ def legendre_funcs(lmax, x, m=(0, 2), lfacs=None, lfacs2=None, lrootfacs=None):
         dP = alldP[2:]
 
         fac = fac1 / fac2
-        d22 = (((4 * x - 8) / fac2 + lfacs) * P
-               + 4 * fac * (fac2 + (x - 2) / lfacs) * dP) / lfacs2
+        d22 = (((4 * x - 8) / fac2 + lfacs) * P + 4 * fac * (fac2 + (x - 2) / lfacs) * dP) / lfacs2
         if x > 0.998:
             # for stability use series at small angles (thanks Pavel Motloch)
             d2m2 = np.empty(lmax - 1)
-            indser = int(np.sqrt((400.0 + 3 / (1 - x ** 2)) / 150)) - 1
-            d2m2[indser:] = ((lfacs[indser:] - (4 * x + 8) / fac1) * P[indser:]
-                             + 4 / fac * (-fac1 + (x + 2) / lfacs[indser:]) * dP[indser:]) / lfacs2[indser:]
-            sin2 = 1 - x ** 2
-            d2m2[:indser] = lfacs[:indser] * lfacs2[:indser] * sin2 ** 2 / 7680 * (20 + sin2 * (16 - lfacs[:indser]))
+            indser = int(np.sqrt((400.0 + 3 / (1 - x**2)) / 150)) - 1
+            d2m2[indser:] = (
+                (lfacs[indser:] - (4 * x + 8) / fac1) * P[indser:]
+                + 4 / fac * (-fac1 + (x + 2) / lfacs[indser:]) * dP[indser:]
+            ) / lfacs2[indser:]
+            sin2 = 1 - x**2
+            d2m2[:indser] = lfacs[:indser] * lfacs2[:indser] * sin2**2 / 7680 * (20 + sin2 * (16 - lfacs[:indser]))
         else:
-            d2m2 = ((lfacs - (4 * x + 8) / fac1) * P
-                    + 4 / fac * (-fac1 + (x + 2) / lfacs) * dP) / lfacs2
+            d2m2 = ((lfacs - (4 * x + 8) / fac1) * P + 4 / fac * (-fac1 + (x + 2) / lfacs) * dP) / lfacs2
         d20 = (2 * x * dP - lfacs * P) / lrootfacs
         res.append((d20, d22, d2m2))
 
@@ -131,11 +130,11 @@ def cl2corr(cls, xvals, lmax=None):
     lfacs[0] = 1
     facs = (2 * ls + 1) / (4 * np.pi) * 2 * np.pi / lfacs
 
-    ct = facs * cls[:lmax + 1, 0]
+    ct = facs * cls[: lmax + 1, 0]
     # For polarization, all arrays start at 2
-    cp = facs[2:] * (cls[2:lmax + 1, 1] + cls[2:lmax + 1, 2])
-    cm = facs[2:] * (cls[2:lmax + 1, 1] - cls[2:lmax + 1, 2])
-    cc = facs[2:] * cls[2:lmax + 1, 3]
+    cp = facs[2:] * (cls[2 : lmax + 1, 1] + cls[2 : lmax + 1, 2])
+    cm = facs[2:] * (cls[2 : lmax + 1, 1] - cls[2 : lmax + 1, 2])
+    cc = facs[2:] * cls[2 : lmax + 1, 3]
     ls = ls[2:]
     lfacs = lfacs[2:]
     lfacs2 = (ls + 2) * (ls - 1)
@@ -248,8 +247,7 @@ def lensing_R(clpp, lmax=None):
     return np.sum(cphil3)
 
 
-def lensed_correlations(cls, clpp, xvals, weights=None, lmax=None, delta=False, theta_max=None,
-                        apodize_point_width=10):
+def lensed_correlations(cls, clpp, xvals, weights=None, lmax=None, delta=False, theta_max=None, apodize_point_width=10):
     r"""
     Get the lensed correlation function from the unlensed power spectra, evaluated at
     points :math:`\cos(\theta)` = xvals.
@@ -282,15 +280,15 @@ def lensed_correlations(cls, clpp, xvals, weights=None, lmax=None, delta=False, 
     lfacs = ls * (ls + 1)
     lfacsall = lfacs.copy()
     lfacs[0] = 1
-    cldd = clpp[1:lmax + 1] / lfacs[1:]
+    cldd = clpp[1 : lmax + 1] / lfacs[1:]
     cphil3 = (2 * ls[1:] + 1) * cldd / 2  # (2*L+1)L(L+1)/4pi C_phi_phi
     facs = (2 * ls + 1) / (4 * np.pi) * 2 * np.pi / lfacs
 
-    ct = facs * cls[:lmax + 1, 0]
+    ct = facs * cls[: lmax + 1, 0]
     # For polarization, all arrays start at 2
-    cp = facs[2:] * (cls[2:lmax + 1, 1] + cls[2:lmax + 1, 2])
-    cm = facs[2:] * (cls[2:lmax + 1, 1] - cls[2:lmax + 1, 2])
-    cc = facs[2:] * cls[2:lmax + 1, 3]
+    cp = facs[2:] * (cls[2 : lmax + 1, 1] + cls[2 : lmax + 1, 2])
+    cm = facs[2:] * (cls[2 : lmax + 1, 1] - cls[2 : lmax + 1, 2])
+    cc = facs[2:] * cls[2 : lmax + 1, 3]
     ls = ls[2:]
     lfacs = lfacs[2:]
     lfacs2 = (ls + 2) * (ls - 1)
@@ -315,8 +313,7 @@ def lensed_correlations(cls, clpp, xvals, weights=None, lmax=None, delta=False, 
     corrs = np.zeros((len(xvals[imin:]), 4))
 
     for i, x in enumerate(xvals[imin:]):
-        (P, dP), (d11, dm11), (d20, d22, d2m2) = legendre_funcs(lmax, x, [0, 1, 2], lfacs, lfacs2,
-                                                                lrootfacs)
+        (P, dP), (d11, dm11), (d20, d22, d2m2) = legendre_funcs(lmax, x, [0, 1, 2], lfacs, lfacs2, lrootfacs)
         sigma2 = np.dot(1 - d11, cphil3)
         Cg2 = np.dot(dm11, cphil3)
 
@@ -326,42 +323,54 @@ def lensed_correlations(cls, clpp, xvals, weights=None, lmax=None, delta=False, 
         difffac = fac - delta_diff
         f = ct * fac
         # T (don't really need the term second order Cg2 here, but include for consistency)
-        corrs[i, 0] = np.dot(ct * difffac, P) + np.dot(f[1:], c2fac * (dm11 + c2fac * P[1:] / 4)) \
-                      + np.dot(f[2:], c2fac2 * d2m2) / 4
-        sinth = np.sqrt(1 - x ** 2)
+        corrs[i, 0] = (
+            np.dot(ct * difffac, P)
+            + np.dot(f[1:], c2fac * (dm11 + c2fac * P[1:] / 4))
+            + np.dot(f[2:], c2fac2 * d2m2) / 4
+        )
+        sinth = np.sqrt(1 - x**2)
         sinfac = 4 / sinth
         fac1 = 1 - x
         fac2 = 1 + x
         d1m2 = sinth / rootfac1 * (dP[2:] - 2 / fac1 * dm11[1:])
         d12 = sinth / rootfac1 * (dP[2:] - 2 / fac2 * d11[1:])
-        d1m3 = (-(x + 0.5) * sinfac * d1m2[1:] / rootfac2 - rootrat * dm11[2:])
+        d1m3 = -(x + 0.5) * sinfac * d1m2[1:] / rootfac2 - rootrat * dm11[2:]
         d2m3 = (-fac2 * d2m2[1:] * sinfac - rootfac1[1:] * d1m2[1:]) / rootfac2
         d3m3 = (-(x + 1.5) * d2m3 * sinfac - rootfac1[1:] * d1m3) / rootfac2
-        d13 = ((x - 0.5) * sinfac * d12[1:] / rootfac2 - rootrat * d11[2:])
-        d04 = ((-lfacs[2:] + (18 * x ** 2 + 6) / sinth ** 2) * d20[2:] -
-               6 * x * lfacs2[2:] * dP[4:] / lrootfacs[2:]) / (rootfac2[1:] * rootfac3)
+        d13 = (x - 0.5) * sinfac * d12[1:] / rootfac2 - rootrat * d11[2:]
+        d04 = ((-lfacs[2:] + (18 * x**2 + 6) / sinth**2) * d20[2:] - 6 * x * lfacs2[2:] * dP[4:] / lrootfacs[2:]) / (
+            rootfac2[1:] * rootfac3
+        )
         d2m4 = (-(6 * x + 4) / sinth * d2m3[1:] - rootfac2[1:] * d2m2[2:]) / rootfac3
-        d4m4 = (-7 / 5.0 * (lfacs2[2:] - 6) * d2m2[2:] +
-                12 / 5.0 * (-lfacs2[2:] + (9 * x + 26) / fac1) * d3m3[1:]) / (lfacs2[2:] - 12)
+        d4m4 = (-7 / 5.0 * (lfacs2[2:] - 6) * d2m2[2:] + 12 / 5.0 * (-lfacs2[2:] + (9 * x + 26) / fac1) * d3m3[1:]) / (
+            lfacs2[2:] - 12
+        )
         # + (second order Cg2 terms are needed for <1% accuracy on BB)
         f = cp * fac[2:]
-        corrs[i, 1] = np.dot(cp * difffac[2:], d22) + np.dot(f[1:], c2fac[2:] * d13) \
-                      + (np.dot(f, c2fac2 * d22) + np.dot(f[2:], c2fac2[2:] * d04)) / 4
+        corrs[i, 1] = (
+            np.dot(cp * difffac[2:], d22)
+            + np.dot(f[1:], c2fac[2:] * d13)
+            + (np.dot(f, c2fac2 * d22) + np.dot(f[2:], c2fac2[2:] * d04)) / 4
+        )
         # -
         f = cm * fac[2:]
-        corrs[i, 2] = np.dot(cm * difffac[2:], d2m2) + (np.dot(f, c2fac[1:] * dm11[1:])
-                                                        + np.dot(f[1:], c2fac[2:] * d3m3)) / 2 \
-                      + (np.dot(f, c2fac2 * (2 * d2m2 + P[2:])) + np.dot(f[2:], c2fac2[2:] * d4m4)) / 8
+        corrs[i, 2] = (
+            np.dot(cm * difffac[2:], d2m2)
+            + (np.dot(f, c2fac[1:] * dm11[1:]) + np.dot(f[1:], c2fac[2:] * d3m3)) / 2
+            + (np.dot(f, c2fac2 * (2 * d2m2 + P[2:])) + np.dot(f[2:], c2fac2[2:] * d4m4)) / 8
+        )
 
         # cross
         f = cc * fac[2:]
-        corrs[i, 3] = np.dot(cc * difffac[2:], d20) + (np.dot(f, c2fac[1:] * d11[1:])
-                                                       + np.dot(f[1:], c2fac[2:] * d1m3)) / 2 \
-                      + (3 * np.dot(f, c2fac2 * d20) + np.dot(f[2:], c2fac2[2:] * d2m4)) / 8
+        corrs[i, 3] = (
+            np.dot(cc * difffac[2:], d20)
+            + (np.dot(f, c2fac[1:] * d11[1:]) + np.dot(f[1:], c2fac[2:] * d1m3)) / 2
+            + (3 * np.dot(f, c2fac2 * d20) + np.dot(f[2:], c2fac2[2:] * d2m4)) / 8
+        )
         if weights is not None:
             weight = weights[i + imin]
             if theta_max is not None and i < apodize_point_width * 4:
-                weight *= 1 - np.exp(-((i + 1.) / apodize_point_width) ** 2 / 2)
+                weight *= 1 - np.exp(-(((i + 1.0) / apodize_point_width) ** 2) / 2)
 
             lensedcls[:, 0] += (weight * corrs[i, 0]) * P
             T2 = (corrs[i, 1] * weight / 2) * d22
@@ -378,8 +387,18 @@ def lensed_correlations(cls, clpp, xvals, weights=None, lmax=None, delta=False, 
         return corrs
 
 
-def lensed_cls(cls, clpp, lmax=None, lmax_lensed=None, sampling_factor=1.4, delta_cls=False,
-               theta_max=np.pi / 32, apodize_point_width=10, leggaus=True, cache=True):
+def lensed_cls(
+    cls,
+    clpp,
+    lmax=None,
+    lmax_lensed=None,
+    sampling_factor=1.4,
+    delta_cls=False,
+    theta_max=np.pi / 32,
+    apodize_point_width=10,
+    leggaus=True,
+    cache=True,
+):
     r"""
     Get the lensed power spectra from the unlensed power spectra and the lensing potential power.
     Uses the non-perturbative curved-sky results from Eqs 9.12 and 9.16-9.18 of
@@ -421,19 +440,25 @@ def lensed_cls(cls, clpp, lmax=None, lmax_lensed=None, sampling_factor=1.4, delt
         theta = np.arange(1, npoints + 1) * np.pi / (npoints + 1)
         xvals = np.cos(theta[::-1])
         weights = np.pi / npoints * np.sin(theta)
-    _, lensedcls = lensed_correlations(cls, clpp, xvals, weights, lmax, delta=True,
-                                       theta_max=theta_max,
-                                       apodize_point_width=int(apodize_point_width * sampling_factor))
+    _, lensedcls = lensed_correlations(
+        cls,
+        clpp,
+        xvals,
+        weights,
+        lmax,
+        delta=True,
+        theta_max=theta_max,
+        apodize_point_width=int(apodize_point_width * sampling_factor),
+    )
     if not delta_cls:
-        lensedcls += cls[:lmax + 1, :]
+        lensedcls += cls[: lmax + 1, :]
     if lmax_lensed is not None:
-        return lensedcls[:lmax_lensed + 1, :]
+        return lensedcls[: lmax_lensed + 1, :]
     else:
         return lensedcls
 
 
-def lensed_cl_derivatives(cls, clpp, lmax=None, theta_max=np.pi / 32,
-                          apodize_point_width=10, sampling_factor=1.4):
+def lensed_cl_derivatives(cls, clpp, lmax=None, theta_max=np.pi / 32, apodize_point_width=10, sampling_factor=1.4):
     r"""
     Get derivative dcl of lensed :math:`D_\ell\equiv \ell(\ell+1)C_\ell/2\pi` with respect to :math:`\log(C^{\phi}_L)`.
     To leading order (and hence not actually accurate), the lensed correction to power spectrum is
@@ -464,15 +489,15 @@ def lensed_cl_derivatives(cls, clpp, lmax=None, theta_max=np.pi / 32,
     lfacs = ls * (ls + 1)
     lfacsall = lfacs.copy()
     lfacs[0] = 1
-    cldd = clpp[1:lmax + 1] / lfacs[1:]
+    cldd = clpp[1 : lmax + 1] / lfacs[1:]
     cphil3 = (2 * ls[1:] + 1) * cldd / 2  # (2*L+1)L(L+1)/4pi C_phi_phi
     facs = (2 * ls + 1) / (4 * np.pi) * 2 * np.pi / lfacs
 
-    ct = facs * cls[:lmax + 1, 0]
+    ct = facs * cls[: lmax + 1, 0]
     # For polarization, all arrays start at 2
-    cp = facs[2:] * (cls[2:lmax + 1, 1] + cls[2:lmax + 1, 2])
-    cm = facs[2:] * (cls[2:lmax + 1, 1] - cls[2:lmax + 1, 2])
-    cc = facs[2:] * cls[2:lmax + 1, 3]
+    cp = facs[2:] * (cls[2 : lmax + 1, 1] + cls[2 : lmax + 1, 2])
+    cm = facs[2:] * (cls[2 : lmax + 1, 1] - cls[2 : lmax + 1, 2])
+    cc = facs[2:] * cls[2 : lmax + 1, 3]
     ls = ls[2:]
     lfacs = lfacs[2:]
     lfacs2 = (ls + 2) * (ls - 1)
@@ -492,8 +517,7 @@ def lensed_cl_derivatives(cls, clpp, lmax=None, theta_max=np.pi / 32,
     corrs = np.zeros((4, lmax + 1))
 
     for i, x in enumerate(xvals[imin:]):
-        (P, dP), (d11, dm11), (d20, d22, d2m2) = legendre_funcs(lmax, x, [0, 1, 2], lfacs, lfacs2,
-                                                                lrootfacs)
+        (P, dP), (d11, dm11), (d20, d22, d2m2) = legendre_funcs(lmax, x, [0, 1, 2], lfacs, lfacs2, lrootfacs)
         sigma2 = np.dot(1 - d11, cphil3)
         dsigma2 = 1 - d11
         Cg2 = np.dot(dm11, cphil3)
@@ -505,59 +529,74 @@ def lensed_cl_derivatives(cls, clpp, lmax=None, theta_max=np.pi / 32,
         f = -lfacsall / 2 * ct * fac
         orderfac = 1  # set to zero to neglect second order in cg2 (doesn't make much difference)
         # T (don't really need the term second order Cg2 here, but include for consistency)
-        corr = np.dot(f[1:], P[1:] + c2fac * (dm11 + orderfac * c2fac * P[1:] / 4)) \
-               + orderfac * np.dot(f[2:], c2fac2 * d2m2) / 4
+        corr = (
+            np.dot(f[1:], P[1:] + c2fac * (dm11 + orderfac * c2fac * P[1:] / 4))
+            + orderfac * np.dot(f[2:], c2fac2 * d2m2) / 4
+        )
         f = -f
-        corr2 = np.dot(f[1:], (dm11 + orderfac * 2 * c2fac * P[1:] / 4)) + orderfac * 2 * np.dot(f[2:],
-                                                                                                 c2fac[1:] * d2m2) / 4
+        corr2 = (
+            np.dot(f[1:], (dm11 + orderfac * 2 * c2fac * P[1:] / 4))
+            + orderfac * 2 * np.dot(f[2:], c2fac[1:] * d2m2) / 4
+        )
         corrs[0, 1:] = (dsigma2 * corr + dCg2 * corr2) * cphil3
-        sinth = np.sqrt(1 - x ** 2)
+        sinth = np.sqrt(1 - x**2)
         sinfac = 4 / sinth
         fac1 = 1 - x
         fac2 = 1 + x
         d1m2 = sinth / rootfac1 * (dP[2:] - 2 / fac1 * dm11[1:])
         d12 = sinth / rootfac1 * (dP[2:] - 2 / fac2 * d11[1:])
-        d1m3 = (-(x + 0.5) * sinfac * d1m2[1:] / rootfac2 - rootrat * dm11[2:])
+        d1m3 = -(x + 0.5) * sinfac * d1m2[1:] / rootfac2 - rootrat * dm11[2:]
         d2m3 = (-fac2 * d2m2[1:] * sinfac - rootfac1[1:] * d1m2[1:]) / rootfac2
         d3m3 = (-(x + 1.5) * d2m3 * sinfac - rootfac1[1:] * d1m3) / rootfac2
-        d13 = ((x - 0.5) * sinfac * d12[1:] / rootfac2 - rootrat * d11[2:])
-        d04 = ((-lfacs[2:] + (18 * x ** 2 + 6) / sinth ** 2) * d20[2:] -
-               6 * x * lfacs2[2:] * dP[4:] / lrootfacs[2:]) / (rootfac2[1:] * rootfac3)
+        d13 = (x - 0.5) * sinfac * d12[1:] / rootfac2 - rootrat * d11[2:]
+        d04 = ((-lfacs[2:] + (18 * x**2 + 6) / sinth**2) * d20[2:] - 6 * x * lfacs2[2:] * dP[4:] / lrootfacs[2:]) / (
+            rootfac2[1:] * rootfac3
+        )
         d2m4 = (-(6 * x + 4) / sinth * d2m3[1:] - rootfac2[1:] * d2m2[2:]) / rootfac3
-        d4m4 = (-7 / 5.0 * (lfacs2[2:] - 6) * d2m2[2:] +
-                12 / 5.0 * (-lfacs2[2:] + (9 * x + 26) / fac1) * d3m3[1:]) / (lfacs2[2:] - 12)
+        d4m4 = (-7 / 5.0 * (lfacs2[2:] - 6) * d2m2[2:] + 12 / 5.0 * (-lfacs2[2:] + (9 * x + 26) / fac1) * d3m3[1:]) / (
+            lfacs2[2:] - 12
+        )
         # + (second order Cg2 terms are needed for <1% accuracy on BB)
         f = -lfacsall[2:] / 2 * cp * fac[2:]
-        corr = np.dot(f, d22) + np.dot(f[1:], c2fac[2:] * d13) \
-               + orderfac * (np.dot(f, c2fac2 * d22) + np.dot(f[2:], c2fac2[2:] * d04)) / 4
+        corr = (
+            np.dot(f, d22)
+            + np.dot(f[1:], c2fac[2:] * d13)
+            + orderfac * (np.dot(f, c2fac2 * d22) + np.dot(f[2:], c2fac2[2:] * d04)) / 4
+        )
         f = lfacsall[2:] / 2 * cp * fac[2:]
         corr2 = np.dot(f[1:], d13) + orderfac * 2 * (np.dot(f, c2fac[1:] * d22) + np.dot(f[2:], c2fac[3:] * d04)) / 4
         corrs[1, 1:] = (dsigma2 * corr + dCg2 * corr2) * cphil3
         # -
         f = -lfacsall[2:] / 2 * cm * fac[2:]
-        corr = np.dot(f, d2m2) + (np.dot(f, c2fac[1:] * dm11[1:])
-                                  + np.dot(f[1:], c2fac[2:] * d3m3)) / 2 \
-               + orderfac * (np.dot(f, c2fac2 * (2 * d2m2 + P[2:])) + np.dot(f[2:], c2fac2[2:] * d4m4)) / 8
+        corr = (
+            np.dot(f, d2m2)
+            + (np.dot(f, c2fac[1:] * dm11[1:]) + np.dot(f[1:], c2fac[2:] * d3m3)) / 2
+            + orderfac * (np.dot(f, c2fac2 * (2 * d2m2 + P[2:])) + np.dot(f[2:], c2fac2[2:] * d4m4)) / 8
+        )
         f = -f
-        corr2 = (np.dot(f, dm11[1:]) + np.dot(f[1:], d3m3)) / 2 \
-                + orderfac * 2 * (np.dot(f, c2fac[1:] * (2 * d2m2 + P[2:])) + np.dot(f[2:], c2fac[3:] * d4m4)) / 8
+        corr2 = (np.dot(f, dm11[1:]) + np.dot(f[1:], d3m3)) / 2 + orderfac * 2 * (
+            np.dot(f, c2fac[1:] * (2 * d2m2 + P[2:])) + np.dot(f[2:], c2fac[3:] * d4m4)
+        ) / 8
 
         corrs[2, 1:] = (dsigma2 * corr + dCg2 * corr2) * cphil3
 
         # cross
         f = -lfacsall[2:] / 2 * cc * fac[2:]
-        corr = np.dot(f, d20) + (np.dot(f, c2fac[1:] * d11[1:])
-                                 + np.dot(f[1:], c2fac[2:] * d1m3)) / 2 \
-               + orderfac * (3 * np.dot(f, c2fac2 * d20) + np.dot(f[2:], c2fac2[2:] * d2m4)) / 8
+        corr = (
+            np.dot(f, d20)
+            + (np.dot(f, c2fac[1:] * d11[1:]) + np.dot(f[1:], c2fac[2:] * d1m3)) / 2
+            + orderfac * (3 * np.dot(f, c2fac2 * d20) + np.dot(f[2:], c2fac2[2:] * d2m4)) / 8
+        )
         f = -f
-        corr2 = (np.dot(f, d11[1:]) + np.dot(f[1:], d1m3)) / 2 \
-                + orderfac * 2 * (3 * np.dot(f, c2fac[1:] * d20) + np.dot(f[2:], c2fac[3:] * d2m4)) / 8
+        corr2 = (np.dot(f, d11[1:]) + np.dot(f[1:], d1m3)) / 2 + orderfac * 2 * (
+            3 * np.dot(f, c2fac[1:] * d20) + np.dot(f[2:], c2fac[3:] * d2m4)
+        ) / 8
 
         corrs[3, 1:] = (dsigma2 * corr + dCg2 * corr2) * cphil3
 
         weight = weights[i + imin]
         if theta_max is not None and i < apodize_point_width * 4:
-            weight *= 1 - np.exp(-((i + 1.) / apodize_point_width) ** 2 / 2)
+            weight *= 1 - np.exp(-(((i + 1.0) / apodize_point_width) ** 2) / 2)
 
         dcl[0, :, :] += np.outer(P, (weight * corrs[0, :]))
         T2 = np.outer(d22, (corrs[1, :] * weight / 2))
@@ -573,8 +612,7 @@ def lensed_cl_derivatives(cls, clpp, lmax=None, theta_max=np.pi / 32,
     return dcl
 
 
-def lensed_cl_derivative_unlensed(clpp, lmax=None, theta_max=np.pi / 32,
-                                  apodize_point_width=10, sampling_factor=1.4):
+def lensed_cl_derivative_unlensed(clpp, lmax=None, theta_max=np.pi / 32, apodize_point_width=10, sampling_factor=1.4):
     r"""
     Get derivative dcl of lensed minus unlensed power :math:`D_\ell \equiv \ell(\ell+1)\Delta C_\ell/2\pi` with respect
     to :math:`\ell(\ell+1)C^{\rm unlens}_\ell/2\pi`
@@ -605,7 +643,7 @@ def lensed_cl_derivative_unlensed(clpp, lmax=None, theta_max=np.pi / 32,
     lfacs = ls * (ls + 1)
     lfacsall = lfacs.copy()
     lfacs[0] = 1
-    cldd = clpp[1:lmax + 1] / lfacs[1:]
+    cldd = clpp[1 : lmax + 1] / lfacs[1:]
     cphil3 = (2 * ls[1:] + 1) * cldd / 2  # (2*L+1)L(L+1)/4pi C_phi_phi
     facs = (2 * ls + 1) / (4 * np.pi) * 2 * np.pi / lfacs
 
@@ -633,8 +671,7 @@ def lensed_cl_derivative_unlensed(clpp, lmax=None, theta_max=np.pi / 32,
     corr = np.zeros((4, lmax + 1))
 
     for i, x in enumerate(xvals[imin:]):
-        (P, dP), (d11, dm11), (d20, d22, d2m2) = legendre_funcs(lmax, x, [0, 1, 2], lfacs, lfacs2,
-                                                                lrootfacs)
+        (P, dP), (d11, dm11), (d20, d22, d2m2) = legendre_funcs(lmax, x, [0, 1, 2], lfacs, lfacs2, lrootfacs)
         sigma2 = np.dot(1 - d11, cphil3)
         Cg2 = np.dot(dm11, cphil3)
 
@@ -648,21 +685,23 @@ def lensed_cl_derivative_unlensed(clpp, lmax=None, theta_max=np.pi / 32,
         corr[0, 1:] += f[1:] * c2fac * (dm11 + c2fac * P[1:] / 4)
         corr[0, 2:] += f[2:] * c2fac2 * d2m2 / 4
 
-        sinth = np.sqrt(1 - x ** 2)
+        sinth = np.sqrt(1 - x**2)
         sinfac = 4 / sinth
         fac1 = 1 - x
         fac2 = 1 + x
         d1m2 = sinth / rootfac1 * (dP[2:] - 2 / fac1 * dm11[1:])
         d12 = sinth / rootfac1 * (dP[2:] - 2 / fac2 * d11[1:])
-        d1m3 = (-(x + 0.5) * sinfac * d1m2[1:] / rootfac2 - rootrat * dm11[2:])
+        d1m3 = -(x + 0.5) * sinfac * d1m2[1:] / rootfac2 - rootrat * dm11[2:]
         d2m3 = (-fac2 * d2m2[1:] * sinfac - rootfac1[1:] * d1m2[1:]) / rootfac2
         d3m3 = (-(x + 1.5) * d2m3 * sinfac - rootfac1[1:] * d1m3) / rootfac2
-        d13 = ((x - 0.5) * sinfac * d12[1:] / rootfac2 - rootrat * d11[2:])
-        d04 = ((-lfacs[2:] + (18 * x ** 2 + 6) / sinth ** 2) * d20[2:] -
-               6 * x * lfacs2[2:] * dP[4:] / lrootfacs[2:]) / (rootfac2[1:] * rootfac3)
+        d13 = (x - 0.5) * sinfac * d12[1:] / rootfac2 - rootrat * d11[2:]
+        d04 = ((-lfacs[2:] + (18 * x**2 + 6) / sinth**2) * d20[2:] - 6 * x * lfacs2[2:] * dP[4:] / lrootfacs[2:]) / (
+            rootfac2[1:] * rootfac3
+        )
         d2m4 = (-(6 * x + 4) / sinth * d2m3[1:] - rootfac2[1:] * d2m2[2:]) / rootfac3
-        d4m4 = (-7 / 5.0 * (lfacs2[2:] - 6) * d2m2[2:] +
-                12 / 5.0 * (-lfacs2[2:] + (9 * x + 26) / fac1) * d3m3[1:]) / (lfacs2[2:] - 12)
+        d4m4 = (-7 / 5.0 * (lfacs2[2:] - 6) * d2m2[2:] + 12 / 5.0 * (-lfacs2[2:] + (9 * x + 26) / fac1) * d3m3[1:]) / (
+            lfacs2[2:] - 12
+        )
         # + (second order Cg2 terms are needed for <1% accuracy on BB)
 
         f = cp * fac[2:]
@@ -678,13 +717,13 @@ def lensed_cl_derivative_unlensed(clpp, lmax=None, theta_max=np.pi / 32,
 
         # cross
         f = cc * fac[2:]
-        corr[3, 2:] = cc * difffac[2:] * d20 + f * c2fac[1:] * d11[1:] / 2 + 3 / 8. * f * c2fac2 * d20
+        corr[3, 2:] = cc * difffac[2:] * d20 + f * c2fac[1:] * d11[1:] / 2 + 3 / 8.0 * f * c2fac2 * d20
         corr[3, 3:] += f[1:] * c2fac[2:] * d1m3 / 2
         corr[3, 4:] += f[2:] * c2fac2[2:] * d2m4 / 8
 
         weight = weights[i + imin]
         if theta_max is not None and i < apodize_point_width * 4:
-            weight *= 1 - np.exp(-((i + 1.) / apodize_point_width) ** 2 / 2)
+            weight *= 1 - np.exp(-(((i + 1.0) / apodize_point_width) ** 2) / 2)
 
         dcl[0, :, :] += np.outer(P, (weight * corr[0, :]))
         T2 = np.outer(d22, (corr[1, :] * weight / 2))
