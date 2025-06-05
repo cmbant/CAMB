@@ -78,7 +78,7 @@ lensing_cgrads.f90
 prompts.txt
 
 # Ignore AI-related files
-AI_notes.txt
+AI*
 .augment-guidelines
 
 scripts

@@ -83,6 +83,8 @@ map Python and strongly typed Fortran classes consistently (not something that i
 The `ReadParams` function is only needed if you want to also be able to load parameters from `.ini` files, rather than just
 using them via Python. The `PythonClass` method is not strictly needed.
 
+There are separate `fortran code docs <https://camb.info/doc/>`_.
+
 Other code changes
 ------------------
 
