@@ -1634,7 +1634,7 @@ class CAMBdata(F2003Class):
     @overload
     def luminosity_distance(self, z: Array1D) -> np.ndarray: ...
 
-    def luminosity_distance(self, z):
+    def luminosity_distance(self, z: NumberOrArray1D):
         """
         Get luminosity distance from to redshift z.
 
@@ -1644,8 +1644,9 @@ class CAMBdata(F2003Class):
         :param z: redshift or array of redshifts
         :return: luminosity distance (matches rank of z)
         """
-
-        return self.angular_diameter_distance(z) * (1.0 + z) ** 2
+        if not np.isscalar(z):
+            z = np.ascontiguousarray(z, dtype=np.float64)
+        return self.angular_diameter_distance(z) * (1.0 + z) ** 2  # type: ignore
 
     @overload
     def h_of_z(self, z: float) -> float: ...
