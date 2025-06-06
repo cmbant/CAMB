@@ -3,9 +3,9 @@ repos:
     rev: v5.0.0
     hooks:
       - id: trailing-whitespace
-        files: '^camb/.*\.(py|ipynb|f90)$'
+        files: '^(camb|fortran)/.*\.(py|ipynb|f90)$'
       - id: end-of-file-fixer
-        files: '^camb/.*\.(py|ipynb|f90)$'
+        files: '^(camb|fortran)/.*\.(py|ipynb|f90)$'
       - id: check-added-large-files
       - id: check-merge-conflict
 

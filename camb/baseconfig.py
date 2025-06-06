@@ -5,9 +5,11 @@ import os.path as osp
 import platform
 import sys
 from ctypes import POINTER, Structure, byref, c_bool, c_double, c_float, c_int
+from typing import Sequence, TypeAlias
 
 import numpy as np
 from numpy.ctypeslib import ndpointer
+from numpy.typing import NDArray
 
 
 def ndpointer_or_null(*args, **kwargs):
@@ -28,6 +30,9 @@ numpy_2d = ndpointer(c_double, flags="C_CONTIGUOUS", ndim=2)
 numpy_1d = ndpointer(c_double, flags="C_CONTIGUOUS")
 numpy_1d_or_null = ndpointer_or_null(c_double, flags="C_CONTIGUOUS")
 numpy_1d_int = ndpointer(c_int, flags="C_CONTIGUOUS")
+
+Array1D: TypeAlias = Sequence[np.number | float | int] | NDArray[np.number]
+NumberOrArray1D: TypeAlias = float | Array1D
 
 BASEDIR = osp.abspath(osp.dirname(__file__))
 if platform.system() == "Windows":

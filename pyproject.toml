@@ -26,11 +26,12 @@ classifiers = [
     "Programming Language :: Python :: 3.13"
 ]
 dependencies = [
-    "numpy", "scipy>=1.0", "sympy>=1.0", "packaging>=24"
+    "numpy>=1.22", "scipy>=1.0", "sympy>=1.0", "packaging>=24"
 ]
 
 [project.optional-dependencies]
 docs = ["sphinx>=4.0", "sphinx_rtd_theme>=1.0", "sphinxcontrib-jquery", "sphinx_markdown_builder", "jupytext"]
+dev = ["ruff>=0.11.0", "pre-commit>=3.0.0"]
 
 [project.scripts]
 camb = "camb._command_line:run_command_line"

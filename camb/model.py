@@ -1,6 +1,7 @@
 import ctypes
 import logging
 from ctypes import POINTER, byref, c_bool, c_double, c_int, c_void_p
+from typing import overload
 
 from . import bbn, constants
 from . import recombination as recomb
@@ -10,6 +11,7 @@ from .baseconfig import (
     AllocatableArrayInt,
     AllocatableObject,
     AllocatableObjectArray,
+    Array1D,
     CAMB_Structure,
     CAMBError,
     CAMBParamRangeError,
@@ -386,6 +388,7 @@ class CAMBparams(F2003Class):
     ]
 
     H0: float
+    SourceWindows: list[SourceWindow]
 
     _fortran_class_module_ = "model"
 
@@ -992,6 +995,12 @@ class CAMBparams(F2003Class):
             self.set_nonlinear_lensing(nonlinear)
         return self
 
+    @overload
+    def scalar_power(self, k: float) -> float: ...
+
+    @overload
+    def scalar_power(self, k: Array1D) -> np.ndarray: ...
+
     def scalar_power(self, k):
         r"""
         Get the primordial scalar curvature power spectrum at :math:`k`
@@ -1000,6 +1009,12 @@ class CAMBparams(F2003Class):
         :return: power spectrum at :math:`k`
         """
         return self.primordial_power(k, 0)
+
+    @overload
+    def tensor_power(self, k: float) -> float: ...
+
+    @overload
+    def tensor_power(self, k: Array1D) -> np.ndarray: ...
 
     def tensor_power(self, k):
         r"""

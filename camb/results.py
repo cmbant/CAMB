@@ -1,6 +1,7 @@
 import ctypes
 import logging
 from ctypes import POINTER, byref, c_bool, c_double, c_float, c_int
+from typing import overload
 
 from scipy.interpolate import RectBivariateSpline, interp1d
 
@@ -8,10 +9,12 @@ from . import constants, model
 from ._config import config
 from .baseconfig import (
     AllocatableArrayDouble,
+    Array1D,
     CAMB_Structure,
     CAMBError,
     CAMBValueError,
     F2003Class,
+    NumberOrArray1D,
     camblib,
     fortran_array,
     fortran_class,
@@ -683,6 +686,12 @@ class CAMBdata(F2003Class):
 
         return self.get_background_time_evolution(self.conformal_time(z), vars, format)
 
+    @overload
+    def get_background_densities(self, a: float, vars=model.density_names, format="dict") -> dict | np.ndarray: ...
+
+    @overload
+    def get_background_densities(self, a: Array1D, vars=model.density_names, format="dict") -> dict | np.ndarray: ...
+
     def get_background_densities(self, a, vars=model.density_names, format="dict") -> dict | np.ndarray:
         r"""
         Get the individual densities as a function of scale factor. Returns :math:`8\pi G a^4 \rho_i` in Mpc units.
@@ -707,6 +716,12 @@ class CAMBdata(F2003Class):
             assert format == "array", "format must be dict or array"
             return outputs[:, np.array(indices)]
 
+    @overload
+    def get_dark_energy_rho_w(self, a: float) -> tuple[float, float]: ...
+
+    @overload
+    def get_dark_energy_rho_w(self, a: Array1D) -> tuple[np.ndarray, np.ndarray]: ...
+
     def get_dark_energy_rho_w(self, a):
         r"""
         Get dark energy density in units of the dark energy density today, and equation of state parameter
@@ -727,7 +742,13 @@ class CAMBdata(F2003Class):
         else:
             return rho, w
 
-    def get_Omega(self, var, z=0):
+    @overload
+    def get_Omega(self, var, z: float = 0) -> float: ...
+
+    @overload
+    def get_Omega(self, var, z: Array1D) -> np.ndarray: ...
+
+    def get_Omega(self, var, z: NumberOrArray1D = 0.0):
         r"""
         Get density relative to critical density of variables var
 
@@ -866,6 +887,22 @@ class CAMBdata(F2003Class):
             params=params,
             nonlinear=True,
         )
+
+    @overload
+    def get_sigmaR(
+        self, R: float, z_indices: int, var1=None, var2=None, hubble_units=True, return_R_z=False
+    ) -> float: ...
+
+    @overload
+    def get_sigmaR(
+        self,
+        R: NumberOrArray1D,
+        z_indices: int | list[int] | None = None,
+        var1=None,
+        var2=None,
+        hubble_units=True,
+        return_R_z=False,
+    ) -> np.ndarray: ...
 
     def get_sigmaR(self, R, z_indices=None, var1=None, var2=None, hubble_units=True, return_R_z=False):
         r"""
@@ -1449,6 +1486,12 @@ class CAMBdata(F2003Class):
             clpp[: Alens.size] *= Alens
         return self.get_lensed_cls_with_spectrum(clpp, lmax, CMB_unit, raw_cl)
 
+    @overload
+    def angular_diameter_distance(self, z: float) -> float: ...
+
+    @overload
+    def angular_diameter_distance(self, z: Array1D) -> np.ndarray: ...
+
     def angular_diameter_distance(self, z):
         """
         Get (non-comoving) angular diameter distance to redshift z.
@@ -1471,9 +1514,7 @@ class CAMBdata(F2003Class):
             return arr
 
     @staticmethod
-    def _make_scalar_or_arrays(
-        z1: float | np.ndarray, z2: float | np.ndarray
-    ) -> tuple[np.ndarray | float, np.ndarray | float]:
+    def _make_scalar_or_arrays(z1: NumberOrArray1D, z2: NumberOrArray1D) -> tuple[NumberOrArray1D, NumberOrArray1D]:
         if np.isscalar(z1):
             if np.isscalar(z2):
                 return z1, z2  # type: ignore
@@ -1488,6 +1529,12 @@ class CAMBdata(F2003Class):
                 if len(z1) != len(z2):
                     raise CAMBError("z1 nand z2 must be scalar or same-length 1D arrays")
         return z1, z2
+
+    @overload
+    def angular_diameter_distance2(self, z1: float, z2: float) -> float: ...
+
+    @overload
+    def angular_diameter_distance2(self, z1: NumberOrArray1D, z2: NumberOrArray1D) -> np.ndarray: ...
 
     def angular_diameter_distance2(self, z1, z2):
         r"""
@@ -1511,7 +1558,13 @@ class CAMBdata(F2003Class):
         else:
             return self.f_AngularDiameterDistance2(byref(c_double(z1)), byref(c_double(z2)))
 
-    def comoving_radial_distance(self, z: float | np.ndarray, tol=1e-4):
+    @overload
+    def comoving_radial_distance(self, z: float, tol=1e-4) -> float: ...
+
+    @overload
+    def comoving_radial_distance(self, z: Array1D, tol=1e-4) -> np.ndarray: ...
+
+    def comoving_radial_distance(self, z: NumberOrArray1D, tol=1e-4):
         """
         Get comoving radial distance from us to redshift z in Mpc. This is efficient for arrays.
 
@@ -1532,6 +1585,12 @@ class CAMBdata(F2003Class):
         else:
             return self.f_ComovingRadialDistance(byref(c_double(z)))
 
+    @overload
+    def redshift_at_comoving_radial_distance(self, chi: float) -> float: ...
+
+    @overload
+    def redshift_at_comoving_radial_distance(self, chi: Array1D) -> np.ndarray: ...
+
     def redshift_at_comoving_radial_distance(self, chi):
         """
         Convert comoving radial distance array to redshift array.
@@ -1540,6 +1599,12 @@ class CAMBdata(F2003Class):
         :return: redshift at chi, scalar or array
         """
         return self.redshift_at_conformal_time(self.tau0 - chi)
+
+    @overload
+    def redshift_at_conformal_time(self, eta: float) -> float: ...
+
+    @overload
+    def redshift_at_conformal_time(self, eta: Array1D) -> np.ndarray: ...
 
     def redshift_at_conformal_time(self, eta):
         """
@@ -1563,6 +1628,12 @@ class CAMBdata(F2003Class):
         else:
             return redshifts
 
+    @overload
+    def luminosity_distance(self, z: float) -> float: ...
+
+    @overload
+    def luminosity_distance(self, z: Array1D) -> np.ndarray: ...
+
     def luminosity_distance(self, z):
         """
         Get luminosity distance from to redshift z.
@@ -1574,11 +1645,15 @@ class CAMBdata(F2003Class):
         :return: luminosity distance (matches rank of z)
         """
 
-        if not np.isscalar(z):
-            z = np.ascontiguousarray(z, dtype=np.float64)
         return self.angular_diameter_distance(z) * (1.0 + z) ** 2
 
-    def h_of_z(self, z: float | np.ndarray):
+    @overload
+    def h_of_z(self, z: float) -> float: ...
+
+    @overload
+    def h_of_z(self, z: Array1D) -> np.ndarray: ...
+
+    def h_of_z(self, z):
         r"""
         Get Hubble rate at redshift z, in :math:`{\rm Mpc}^{-1}` units, scalar or array
 
@@ -1598,7 +1673,13 @@ class CAMBdata(F2003Class):
         else:
             return self.f_Hofz(byref(c_double(z)))
 
-    def hubble_parameter(self, z: float | np.ndarray):
+    @overload
+    def hubble_parameter(self, z: float) -> float: ...
+
+    @overload
+    def hubble_parameter(self, z: Array1D) -> np.ndarray: ...
+
+    def hubble_parameter(self, z: NumberOrArray1D):
         """
         Get Hubble rate at redshift z, in km/s/Mpc units. Scalar or array.
 
@@ -1629,6 +1710,12 @@ class CAMBdata(F2003Class):
         else:
             return self.f_DeltaPhysicalTimeGyr(byref(c_double(a1)), byref(c_double(a2)), None)
 
+    @overload
+    def physical_time(self, z: float) -> float: ...
+
+    @overload
+    def physical_time(self, z: Array1D) -> np.ndarray: ...
+
     def physical_time(self, z):
         """
         Get physical time from hot big bang to redshift z in Julian Gigayears.
@@ -1640,7 +1727,13 @@ class CAMBdata(F2003Class):
             z = np.ascontiguousarray(z, dtype=np.float64)
         return self.physical_time_a1_a2(0, 1.0 / (1 + z))
 
-    def conformal_time_a1_a2(self, a1: float | np.ndarray, a2: float | np.ndarray):
+    @overload
+    def conformal_time_a1_a2(self, a1: float, a2: float) -> float: ...
+
+    @overload
+    def conformal_time_a1_a2(self, a1: NumberOrArray1D, a2: NumberOrArray1D) -> np.ndarray: ...
+
+    def conformal_time_a1_a2(self, a1: NumberOrArray1D, a2: NumberOrArray1D):
         """
         Get conformal time between two scale factors (=comoving radial distance travelled by light on light cone)
 
@@ -1655,6 +1748,12 @@ class CAMBdata(F2003Class):
             return times
         else:
             return self.f_DeltaTime(byref(c_double(a1)), byref(c_double(a2)), None)
+
+    @overload
+    def conformal_time(self, z: float, presorted=None, tol=None) -> float: ...
+
+    @overload
+    def conformal_time(self, z: Array1D, presorted=None, tol=None) -> np.ndarray: ...
 
     def conformal_time(self, z, presorted=None, tol=None):
         """
@@ -1691,6 +1790,12 @@ class CAMBdata(F2003Class):
             else:
                 eta[indices] = eta.copy()
                 return eta
+
+    @overload
+    def sound_horizon(self, z: float) -> float: ...
+
+    @overload
+    def sound_horizon(self, z: Array1D) -> np.ndarray: ...
 
     def sound_horizon(self, z):
         """
