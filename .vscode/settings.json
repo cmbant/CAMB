@@ -13,7 +13,7 @@
         "-s",
         "./camb/tests",
         "-p",
-        "*_test.py"
+        "camb_test.py"
     ],
     // Pylance/Pyright settings to silence NumPy-related type errors
     "python.analysis.diagnosticSeverityOverrides": {
@@ -28,7 +28,6 @@
         "reportUnknownParameterType": "none",
         "reportMissingTypeStubs": "none",
         "reportUnknownLambdaType": "none",
-        "reportImportCycles": "none",
         "reportOptionalCall": "none",
         "reportOptionalContextManager": "none",
         "reportTypedDictNotRequiredAccess": "none",
@@ -37,6 +36,9 @@
         "reportAttributeAccessIssue": "none"
     },
     "python.analysis.typeCheckingMode": "basic",
+    "python.analysis.extraPaths": [
+        "./fortran/tests"
+    ],
     // Ruff settings
     "[python]": {
         "editor.defaultFormatter": "charliermarsh.ruff",

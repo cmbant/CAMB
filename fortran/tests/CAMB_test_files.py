@@ -7,7 +7,7 @@ import subprocess
 import sys
 import time
 
-from .inifile import IniFile
+from inifile import IniFile
 
 parser = argparse.ArgumentParser(description="Run CAMB tests")
 parser.add_argument("ini_dir", help="ini file directory")
