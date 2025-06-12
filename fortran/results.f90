@@ -2557,8 +2557,8 @@
                         else
                             !evo bias is computed with total derivative
                             RedWin%Wingtau(ix) =  -tmp2(ix) * RedWin%Wing(ix) / (back_count_tmp(ix,i)*hubble_tmp(ix)) &
-                                !+ 5*RedWin%dlog10Ndm * ( RedWin%Wing(ix)- int_tmp(ix,i)/hubble_tmp(ix))
-                                !The correction from total to partial derivative takes 1/adot(tau0-tau) cancels
+                            !+ 5*RedWin%dlog10Ndm * ( RedWin%Wing(ix)- int_tmp(ix,i)/hubble_tmp(ix))
+                            !The correction from total to partial derivative takes 1/adot(tau0-tau) cancels
                                 + 10*RedWin%Window%dlog10Ndm * RedWin%Wing(ix)
                         end if
                     end do
@@ -3049,7 +3049,7 @@
     integer, parameter :: Transfer_kh =1, Transfer_cdm=2,Transfer_b=3,Transfer_g=4, &
         Transfer_r=5, Transfer_nu = 6,  & !massless and massive neutrino
         Transfer_tot=7, Transfer_nonu=8, Transfer_tot_de=9,  &
-        ! total perturbations with and without neutrinos, with neutrinos+dark energy in the numerator
+    ! total perturbations with and without neutrinos, with neutrinos+dark energy in the numerator
         Transfer_Weyl = 10, & ! the Weyl potential, for lensing and ISW
         Transfer_Newt_vel_cdm=11, Transfer_Newt_vel_baryon=12,   & ! -k v_Newtonian/H
         Transfer_vel_baryon_cdm = 13 !relative velocity of baryons and CDM

@@ -5,15 +5,15 @@
     use Interpolation
     implicit none
     contains
-    
+
     subroutine spline_def(x,y,n,d2)
-    !Low-level initialize spline arrays with default boundary conditions 
+    !Low-level initialize spline arrays with default boundary conditions
     integer, intent(in) :: n
     real(sp_acc), intent(in) :: x(n), y(n)
     real(sp_acc), intent(out) :: d2(n)
-    
+
     call spline(x,y,n,SPLINE_DANGLE,SPLINE_DANGLE,d2)
-    
+
     end subroutine spline_def
 
     subroutine splder(y,dy,n, g)
@@ -881,7 +881,3 @@
     call GlobalError('DVERK error', error_evolution)
     !
     end subroutine dverk
-
-
-
-

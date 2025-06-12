@@ -16,4 +16,3 @@
     deallocate(InputFile) ! Just so no memory leaks in valgrind
 
     end program driver
-

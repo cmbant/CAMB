@@ -4,7 +4,9 @@
         120
     ],
     "editor.wordWrapColumn": 120,
-    "editor.formatOnSave": false,
+    "editor.formatOnSave": true,
+    "files.trimTrailingWhitespace": true,
+    "files.trimFinalNewlines": true,
     // Python test settings
     "python.testing.pytestEnabled": false,
     "python.testing.unittestEnabled": true,
@@ -67,6 +69,12 @@
         "**/build": true,
         "**/*.dll": true,
         "**/*.egg-info": true,
+        ".venv/": true,
+        "**/VisualStudio/": true,
+        "**/Release*": true,
+        "**/Debug*": true,
+        "**/WinDLL": true,
+        "**/uv.lock": true,
     },
     "search.exclude": {
         "**/__pycache__": true,
@@ -80,6 +88,25 @@
         "**/.ruff_cache": true,
         ".idea/": true,
         "**/.ipynb_checkpoints": true,
-        ".venv/": true
-    }
+        ".venv/": true,
+        "**/VisualStudio/": true,
+        "**/Release*": true,
+        "**/Debug*": true,
+        "**/WinDLL": true,
+        "**/uv.lock": true,
+    },
+    "fortran.formatting.findentArgs": [
+        "--indent=4",
+        "--indent_module=0",
+        "--indent_procedure=0",
+        "--start_indent=4",
+        "--indent_contains=0",
+        "--openmp=0",
+        "--indent_contains=restart",
+        "--indent_select=4",
+        "--indent_case=4",
+        "--indent_interface=0",
+        "--indent_continuation=4",
+        "--indent_ampersand",
+    ],
 }

@@ -22,12 +22,14 @@ This will automatically format your code and check for issues before each commit
 
 ### 3. Code Formatting Standards
 
-CAMB uses [Ruff](https://docs.astral.sh/ruff/) for code formatting and linting:
+CAMB uses [Ruff](https://docs.astral.sh/ruff/) for python formatting and linting:
 
 - **Line length**: 120 characters
 - **Quote style**: Double quotes
 - **Python version**: 3.10+
 - **Import sorting**: Automatic via ruff
+
+For fortran, you can use `findent` to auto-format consistently. .vscode settings.json is included.
 
 ### 4. Before Committing
 

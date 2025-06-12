@@ -6,9 +6,9 @@
     use results
     implicit none
     private
-    
+
     !Default tanh reionization, and an alternative exponential model with fixed minimum z_re
-    
+
     !This module has smooth tanh reionization of specified mid-point (z_{re}) and width
     !The tanh function is in the variable (1+z)**Rionization_zexp
     !Rionization_zexp=1.5 has the property that for the same z_{re}
@@ -16,13 +16,13 @@
     !So tau and zre can be mapped into each other easily (for any symmetric window)
     !However for generality the module maps tau into z_{re} using a binary search
     !so could be easily modified for other monatonic parameterizations.
-    
+
     !The ionization history must be twice differentiable.
 
     !AL March 2008
     !AL July 2008 - added trap for setting optical depth without use_optical_depth
     !AL Aug 2023 - added exponential model and refactored classes
-    
+
     !See CAMB notes for further discussion: http://cosmologist.info/notes/CAMB.pdf
 
     real(dl), parameter :: Reionization_DefFraction = -1._dl

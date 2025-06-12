@@ -192,4 +192,3 @@
     end subroutine TCosmoRec_SelfPointer
 
     end module CosmoRec
-

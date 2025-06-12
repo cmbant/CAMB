@@ -758,8 +758,8 @@
             end if
             if (BispectrumParams%FullOutputFile/='') then
                 call bispectrum_files(bispectrum_type)%CreateFile(concat(trim(output_root), &
-                BispectrumParams%FullOutputFile, '_', BispectrumNames(bispectrum_type), &
-                file_tag, '.dat'))
+                    BispectrumParams%FullOutputFile, '_', BispectrumNames(bispectrum_type), &
+                    file_tag, '.dat'))
             end if
         end do
         do il1= 1, SampleL%nl

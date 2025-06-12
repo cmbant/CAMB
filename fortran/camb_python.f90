@@ -285,7 +285,7 @@
 
     subroutine CAMBdata_GetSigmaRArray(State, sigma, R, nR, z_ix, nz, var1, var2)
     Type(CAMBdata) :: State
-    integer, intent(in) :: nR, nz  
+    integer, intent(in) :: nR, nz
     real(dl) :: sigma(nR,nz)
     real(dl) :: R(nR)
     integer var1, var2, z_ix(nz)
