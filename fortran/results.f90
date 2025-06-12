@@ -274,6 +274,9 @@
     procedure :: binary_search
     procedure, nopass :: PythonClass => CAMBdata_PythonClass
     procedure, nopass :: SelfPointer => CAMBdata_SelfPointer
+#ifndef __INTEL_COMPILER
+    final :: CAMBdata_final !Workaround for gfortran bug https://gcc.gnu.org/bugzilla/show_bug.cgi?id=120637
+#endif
     end type CAMBdata
 
     interface
@@ -584,6 +587,13 @@
     end if
 
     end subroutine CAMBdata_SetParams
+
+    subroutine CAMBdata_final(this)
+    type(CAMBdata) :: this
+
+    call this%Free()
+
+    end subroutine CAMBdata_final
 
     subroutine CAMBdata_Free(this)
     class(CAMBdata) :: this
@@ -2719,7 +2729,7 @@
     Type(ClTransferData) :: CTrans
     integer st
 
-    deallocate(CTrans%Delta_p_l_k, STAT = st)
+    if (allocated(CTrans%Delta_p_l_k)) deallocate(CTrans%Delta_p_l_k)
     call CTrans%q%getArray(.true.)
 
     allocate(CTrans%Delta_p_l_k(CTrans%NumSources,&
@@ -2746,6 +2756,7 @@
     Type(ClTransferData) :: CTrans
 
     if (allocated(CTrans%Delta_p_l_k)) deallocate(CTrans%Delta_p_l_k)
+    if (allocated(CTrans%ls%l)) deallocate(CTrans%ls%l)
     call CTrans%q%Free()
     call Free_Limber(CTrans)
 

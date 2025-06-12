@@ -115,7 +115,7 @@
 
     procedure(obj_function), private :: dtauda
 
-    public cmbmain, TimeSourcesToCl, ClTransferToCl, InitVars, GetTauStart !InitVars for BAO hack
+    public cmbmain, TimeSourcesToCl, ClTransferToCl, InitVars, GetTauStart, CAMBmain_Free !InitVars for BAO hack
 
     contains
 
@@ -125,7 +125,7 @@
     type(EvolutionVars) EV
     Type(TTimer) :: Timer
     real(dl) starttime
-    Type(ClTransferData), pointer :: ThisCT 
+    Type(ClTransferData), pointer :: ThisCT
 
     WantLateTime =  CP%DoLensing .or. State%num_redshiftwindows > 0 .or. CP%CustomSources%num_custom_sources>0
 
@@ -232,7 +232,7 @@
     end subroutine cmbmain
 
     subroutine TimeSourcesToCl(ThisCT)
-    Type(ClTransferData) :: ThisCT 
+    Type(ClTransferData) :: ThisCT
     integer q_ix
     Type(TTimer) :: Timer
 
@@ -400,7 +400,7 @@
     end subroutine CalcLimberScalCls
 
     subroutine GetLimberTransfers(ThisCT)
-    Type(ClTransferData), target :: ThisCT 
+    Type(ClTransferData), target :: ThisCT
     integer ell, ell_needed
     integer i, s_ix, s_ix_lens
     type(TRedWin), pointer :: W
@@ -520,7 +520,7 @@
     end subroutine GetLimberTransfers
 
     subroutine SourceToTransfers(ThisCT, q_ix)
-    type(ClTransferData), target :: ThisCT 
+    type(ClTransferData), target :: ThisCT
     integer q_ix
     type(IntegrationVars) :: IV
 
@@ -758,7 +758,7 @@
     allocate(ThisSources%LinearSrc(ThisSources%Evolve_q%npoints,&
         ThisSources%SourceNum,State%TimeSteps%npoints), source=0._dl, stat=err)
     if (err/=0) call GlobalError('Sources requires too much memory to allocate', &
-        error_unsupported_params)                                                                               
+        error_unsupported_params)
 
     end subroutine GetSourceMem
 
@@ -1235,7 +1235,7 @@
 
 
     subroutine SetkValuesForInt(ThisCT)
-    Type(ClTransferData) :: ThisCT 
+    Type(ClTransferData) :: ThisCT
     integer no
     real(dl) dk,dk0,dlnk1, dk2, max_k_dk, k_max_log, k_max_0
     integer lognum
@@ -1398,7 +1398,7 @@
 
     subroutine DoSourceIntegration(IV, ThisCT) !for particular wave number q
     type(IntegrationVars) IV
-    Type(ClTransferData) :: ThisCT    
+    Type(ClTransferData) :: ThisCT
     integer j,ll,llmax
     real(dl) nu
     real(dl) :: sixpibynu
@@ -1457,7 +1457,7 @@
     subroutine DoFlatIntegration(IV, ThisCT, llmax)
     implicit none
     type(IntegrationVars) IV
-    Type(ClTransferData) :: ThisCT 
+    Type(ClTransferData) :: ThisCT
     integer llmax
     integer j
     logical DoInt
@@ -1650,7 +1650,7 @@
     subroutine IntegrateSourcesBessels(IV,ThisCT,j,l,nu)
     use SpherBessels
     type(IntegrationVars) IV
-    Type(ClTransferData) :: ThisCT 
+    Type(ClTransferData) :: ThisCT
     logical DoInt
     integer l,j, nstart,nDissipative,ntop,nbot,nrange,nnow
     real(dl) nu,ChiDissipative,ChiStart,tDissipative,y1,y2,y1dis,y2dis
@@ -2607,6 +2607,15 @@
     end if
 
     end subroutine InterpolateCls
+
+    subroutine CAMBMain_Free()
+    ! Not needed, only used to clean up for mem leak testing
+    if (allocated(iCl_scalar)) deallocate(iCl_scalar)
+    if (allocated(iCl_vector)) deallocate(iCl_vector)
+    if (allocated(iCl_tensor)) deallocate(iCl_tensor)
+    if (allocated(iCl_Array)) deallocate(iCl_Array)
+    if (allocated(TempSources)) deallocate(TempSources)
+    end subroutine CAMBMain_Free
 
 
     end module CAMBmain

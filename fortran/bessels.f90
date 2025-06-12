@@ -130,6 +130,9 @@
     if (allocated(ajl)) deallocate(ajl)
     if (allocated(ajlpr)) deallocate(ajlpr)
     if (allocated(ddajlpr)) deallocate(ddajlpr)
+    if (allocated(file_l%l)) deallocate(file_l%l)
+    file_l%nl=0
+
     call BessRanges%Free()
 
     end subroutine Bessels_Free
@@ -1340,4 +1343,3 @@
     call BJL(L,X,JL)
 
     END SUBROUTINE BJL_EXTERNAL
-

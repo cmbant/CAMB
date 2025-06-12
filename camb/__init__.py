@@ -1,4 +1,3 @@
-# coding: utf8
 """
 
 CAMB, Code for Anisotropies in the Microwave Background (https://camb.info)
@@ -18,6 +17,7 @@ from . import dark_energy, initialpower, model, nonlinear, reionization
 from ._config import config
 from .baseconfig import CAMBError, CAMBFortranError, CAMBParamRangeError, CAMBUnknownArgumentError, CAMBValueError
 from .camb import (
+    free_global_memory,
     get_age,
     get_background,
     get_matter_power_interpolator,

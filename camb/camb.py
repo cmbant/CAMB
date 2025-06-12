@@ -454,6 +454,16 @@ def get_matter_power_interpolator(
     )
 
 
+def free_global_memory():
+    """
+    Clean up all globally allocated Fortran memory.
+
+    This function calls various Fortran cleanup routines to deallocate
+    global allocatable arrays, particularly useful for memory leak testing.
+    """
+    camblib.__camb_MOD_camb_freeglobalmemory()
+
+
 CAMB_GetAge = camblib.__camb_MOD_camb_getage
 CAMB_GetAge.restype = c_double
 CAMB_GetAge.argtypes = [POINTER(model.CAMBparams)]

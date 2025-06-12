@@ -834,4 +834,20 @@
     ver = version
     end subroutine CAMB_GetVersion
 
+    subroutine CAMB_FreeGlobalMemory()
+    use SpherBessels
+    use CAMBmain
+    call Bessels_Free()
+    !flat sky lensing also allocates bessels, but not normally used.
+    call CAMBMain_Free()
+    if (allocated(highL_CL_template)) deallocate(highL_CL_template)
+    if (allocated(nu_tau_notmassless)) deallocate(nu_tau_notmassless)
+    if (allocated(ThermalNuBackground%r1)) deallocate(ThermalNuBackground%r1)
+    if (allocated(ThermalNuBackground%p1)) deallocate(ThermalNuBackground%p1)
+    if (allocated(ThermalNuBackground%dr1)) deallocate(ThermalNuBackground%dr1)
+    if (allocated(ThermalNuBackground%dp1)) deallocate(ThermalNuBackground%dp1)
+    if (allocated(ThermalNuBackground%ddr1)) deallocate(ThermalNuBackground%ddr1)
+
+    end subroutine CAMB_FreeGlobalMemory
+
     end module CAMB

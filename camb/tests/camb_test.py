@@ -863,6 +863,8 @@ class CambTest(unittest.TestCase):
                     raise Exception("Apparent memory leak")
                 last_usage = usage
 
+        camb.free_global_memory()
+
     def test_quintessence(self):
         n = 3
         # set zc and fde_zc

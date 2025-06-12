@@ -4,7 +4,7 @@
         120
     ],
     "editor.wordWrapColumn": 120,
-    "editor.formatOnSave": true,
+    "editor.formatOnSave": false,
     // Python test settings
     "python.testing.pytestEnabled": false,
     "python.testing.unittestEnabled": true,

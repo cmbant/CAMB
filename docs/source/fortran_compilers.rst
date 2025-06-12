@@ -6,7 +6,7 @@ Fortran compilers
 CAMB internally uses modern (object-oriented) Fortran 2008 for most numerical calculations (see `docs <https://camb.info/doc/>`_), 
 and needs a fortran compiler to build the numerical library. The recommended compilers are
 
-- gfortran version 6.3 or higher
+- gfortran
 - Intel Fortran (ifort), version 18.0.1 or higher
 
 The gfortran compiler is part of the standard "gcc" compiler package, and may be pre-installed on recent unix systems.
@@ -38,6 +38,10 @@ pulled or local changes use::
     python setup.py make
 
 This will also work on Windows as long as you have MinGW-w64 installed under Program Files as described above.
+
+NOTE: gfortran occasionally produces `memory leaks <https://gcc.gnu.org/bugzilla/show_bug.cgi?id=120637>`_: if you see 
+leaks running your code, try adding final methods to explicitly free any allocatable arrays or subcomponents. 
+
 
 Note that you will need to close all python instances using camb before you can re-load with an updated library.
 This includes in Jupyter notebooks; just re-start the kernel or use::
