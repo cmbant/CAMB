@@ -1,0 +1,10 @@
+{
+    "pp_suffixes": [
+        ".f90"
+    ],
+    "pp_defs": {},
+    "source_dirs": [
+        "fortran",
+        "forutils"
+    ]
+}

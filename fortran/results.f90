@@ -613,7 +613,7 @@
     real(dl), intent(IN) :: a1,a2
     real(dl), optional, intent(in) :: in_tol
 
-    atol = PresentDefault(tol/1000/exp(this%CP%Accuracy%AccuracyBoost*this%CP%Accuracy%IntTolBoost-1), in_tol)
+    atol = PresentDefault(base_tol/1000/exp(this%CP%Accuracy%AccuracyBoost*this%CP%Accuracy%IntTolBoost-1), in_tol)
     CAMBdata_DeltaTime = Integrate_Romberg(this, dtauda,a1,a2,atol)
 
     end function CAMBdata_DeltaTime

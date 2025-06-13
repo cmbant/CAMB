@@ -18,8 +18,8 @@
     procedure :: PerturbationEvolve
     procedure :: PrintFeedback
     ! do not have to implement w_de or grho_de if BackgroundDensityAndPressure is inherited directly
-    procedure :: w_de
-    procedure :: grho_de
+    procedure :: w_de => TDarkEnergyModel_w_de
+    procedure :: grho_de => TDarkEnergyModel_grho_de
     procedure :: Effective_w_wa !Used as approximate values for non-linear corrections
     end type TDarkEnergyModel
 
@@ -45,23 +45,23 @@
     public TDarkEnergyModel, TDarkEnergyEqnOfState
     contains
 
-    function w_de(this, a)
+    function TDarkEnergyModel_w_de(this, a)
     class(TDarkEnergyModel) :: this
-    real(dl) :: w_de, al
+    real(dl) :: TDarkEnergyModel_w_de, al
     real(dl), intent(IN) :: a
 
-    w_de = -1._dl
+    TDarkEnergyModel_w_de = -1._dl
 
-    end function w_de  ! equation of state of the PPF DE
+    end function TDarkEnergyModel_w_de  ! equation of state of the PPF DE
 
-    function grho_de(this, a)  !relative density (8 pi G a^4 rho_de /grhov)
+    function TDarkEnergyModel_grho_de(this, a)  !relative density (8 pi G a^4 rho_de /grhov)
     class(TDarkEnergyModel) :: this
-    real(dl) :: grho_de, al, fint
+    real(dl) :: TDarkEnergyModel_grho_de, al, fint
     real(dl), intent(IN) :: a
 
-    grho_de =0._dl
+    TDarkEnergyModel_grho_de =0._dl
 
-    end function grho_de
+    end function TDarkEnergyModel_grho_de
 
     subroutine PrintFeedback(this, FeedbackLevel)
     class(TDarkEnergyModel) :: this

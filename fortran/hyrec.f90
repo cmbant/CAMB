@@ -46,9 +46,9 @@
     function THyRec_tm(this,a)
     class(THyRec) :: this
     real(dl), intent(in) :: a
-    real(dl) THyRec_tm,hyrec_tm
+    real(dl) THyRec_tm
     real(dl) z
-    external hyrec_tm
+    real(dl), external :: hyrec_tm
 
     z=1/a-1
     associate( Calc => this%Calc)
@@ -69,9 +69,9 @@
     function THyRec_xe(this,a)
     class(THyRec) :: this
     real(dl), intent(in) :: a
-    real(dl) THyRec_xe,hyrec_xe
+    real(dl) THyRec_xe
     real(dl) z
-    external hyrec_xe
+    real(dl), external :: hyrec_xe
 
     z=1/a-1
     associate( Calc => this%Calc)
@@ -92,9 +92,8 @@
     class(THyRec) :: this
     real(dl), intent(in) :: a
     real(dl), intent(out) :: xe, Tm
-    real(dl) hyrec_xe, hyrec_tm
     real(dl) z
-    external hyrec_xe, hyrec_tm
+    real(dl), external :: hyrec_xe, hyrec_tm
 
     z=1/a-1
     associate(Calc => this%Calc)

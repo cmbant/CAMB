@@ -2141,7 +2141,7 @@
     !  Evaluate the time derivatives of the scalar perturbations
     use constants, only : barssc0, Compton_CT, line21_const
     use MassiveNu
-    use Recombination
+    use Recombination, only : CB1
     implicit none
     type(EvolutionVars) EV
     integer n,nu_i

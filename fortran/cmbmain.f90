@@ -59,7 +59,7 @@
     use MassiveNu
     use InitialPower
     use SourceWindows
-    use Recombination
+    use Recombination, only: TRecfast
     use RangeUtils
     use constants
     use DarkEnergyInterface
@@ -291,10 +291,10 @@
 
     end subroutine TimeSourcesToCl
 
-    subroutine ClTransferToCl(State)
-    class(CAMBdata) :: State
+    subroutine ClTransferToCl(ActiveState)
+    class(CAMBdata) :: ActiveState
 
-    call SetActiveState(State)
+    call SetActiveState(ActiveState)
     if (State%CP%WantScalars .and. State%CP%WantCls .and. global_error_flag==0) then
         allocate(iCl_Scalar(State%CLdata%CTransScal%ls%nl,C_Temp:State%Scalar_C_last), source=0._dl)
         if (State%CP%want_cl_2D_array) then
@@ -342,7 +342,7 @@
     subroutine CalcLimberScalCls(CTrans)
     Type(ClTransferData), target :: CTrans
     integer ell, i, s_ix
-    real(dl) CL, reall,fac
+    real(dl) Cl, reall,fac
     integer s_ix2,j,n
     integer winmin
     Type(LimberRec), pointer :: LimbRec, LimbRec2
@@ -765,12 +765,12 @@
 
 
     !  initial variables, number of steps, etc.
-    subroutine InitVars(state)
-    type(CAMBdata) :: state
+    subroutine InitVars(ActiveState)
+    type(CAMBdata) :: ActiveState
     real(dl) taumin, maxq, initAccuracyBoost
     integer itf
 
-    call SetActiveState(state)
+    call SetActiveState(ActiveState)
 
     initAccuracyBoost = CP%Accuracy%AccuracyBoost * CP%Accuracy%TimeStepBoost
 
@@ -985,7 +985,7 @@
 
     !     Begin timestep loop.
     itf=1
-    tol1=tol/exp(CP%Accuracy%AccuracyBoost*CP%Accuracy%IntTolBoost-1)
+    tol1=base_tol/exp(CP%Accuracy%AccuracyBoost*CP%Accuracy%IntTolBoost-1)
     if (CP%WantTransfer) then
         if  (CP%Transfer%high_precision) tol1=tol1/100
         do while (itf <= State%num_transfer_redshifts .and. State%TimeSteps%points(2) > State%Transfer_Times(itf))
@@ -1043,7 +1043,7 @@
     subroutine CalcTensorSources(EV,taustart)
     implicit none
     type(EvolutionVars) EV
-    real(dl) tau,tol1,tauend, taustart
+    real(dl) tau,tol,tauend, taustart
     integer j,ind
     real(dl) c(24),wt(EV%nvart,9), yt(EV%nvart)
 
@@ -1051,7 +1051,7 @@
 
     tau=taustart
     ind=1
-    tol1=tol/exp(CP%Accuracy%AccuracyBoost*CP%Accuracy%IntTolBoost-1)
+    tol=base_tol/exp(CP%Accuracy%AccuracyBoost*CP%Accuracy%IntTolBoost-1)
 
     !     Begin timestep loop.
     do j=2,State%TimeSteps%npoints
@@ -1059,7 +1059,7 @@
         if (EV%q*tauend > max_etak_tensor) then
             ThisSources%LinearSrc(EV%q_ix,:,j) = 0
         else
-            call GaugeInterface_EvolveTens(EV,tau,yt,tauend,tol1,ind,c,wt)
+            call GaugeInterface_EvolveTens(EV,tau,yt,tauend,tol,ind,c,wt)
 
             call outputt(EV,yt,EV%nvart,tau,ThisSources%LinearSrc(EV%q_ix,CT_Temp,j),&
                 ThisSources%LinearSrc(EV%q_ix,CT_E,j),ThisSources%LinearSrc(EV%q_ix,CT_B,j))
@@ -1072,7 +1072,7 @@
     subroutine CalcVectorSources(EV,taustart)
     implicit none
     type(EvolutionVars) EV
-    real(dl) tau,tol1,tauend, taustart
+    real(dl) tau,tol,tauend, taustart
     integer j,ind
     real(dl) c(24),wt(EV%nvarv,9), yv(EV%nvarv)
 
@@ -1080,7 +1080,7 @@
 
     tau=taustart
     ind=1
-    tol1=tol*0.01/exp(CP%Accuracy%AccuracyBoost*CP%Accuracy%IntTolBoost-1)
+    tol=base_tol*0.01/exp(CP%Accuracy%AccuracyBoost*CP%Accuracy%IntTolBoost-1)
 
 
     !     Begin timestep loop.
@@ -1090,7 +1090,7 @@
         if ( EV%q*tauend > max_etak_vector) then
             ThisSources%LinearSrc(EV%q_ix,:,j) = 0
         else
-            call dverk(EV,EV%nvarv,derivsv,tau,yv,tauend,tol1,ind,c,EV%nvarv,wt) !tauend
+            call dverk(EV,EV%nvarv,derivsv,tau,yv,tauend,tol,ind,c,EV%nvarv,wt) !tauend
 
             call outputv(EV,yv,EV%nvarv,tau,ThisSources%LinearSrc(EV%q_ix,CT_Temp,j),&
                 ThisSources%LinearSrc(EV%q_ix,CT_E,j),ThisSources%LinearSrc(EV%q_ix,CT_B,j))
@@ -1139,7 +1139,7 @@
     real(dl) c(24),w(EV%nvar,9), y(EV%nvar)
     real(dl) atol
 
-    atol=tol/exp(CP%Accuracy%AccuracyBoost*CP%Accuracy%IntTolBoost-1)
+    atol=base_tol/exp(CP%Accuracy%AccuracyBoost*CP%Accuracy%IntTolBoost-1)
     if (CP%Transfer%high_precision) atol=atol/10000 !CHECKTHIS
 
     ind=1

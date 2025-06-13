@@ -162,7 +162,7 @@ def set_params(cp=None, verbose=False, **params):
         used_params.update(kwargs)
         if kwargs:
             if verbose:
-                logging.warning("Calling %s(**%s)" % (setter.__name__, kwargs))
+                logging.warning(f"Calling {setter.__name__}(**{kwargs})")
             setter(**kwargs)
 
     # Note order is important: must call DarkEnergy.set_params before set_cosmology if setting theta rather than H0
@@ -307,7 +307,7 @@ def validate_ini_file(filename):
 
     try:
         err = ""
-        command = '"%s" "%s" "%s" --validate' % (
+        command = '"{}" "{}" "{}" --validate'.format(
             sys.executable,
             os.path.join(os.path.dirname(__file__), "_command_line.py"),
             filename,
@@ -352,7 +352,10 @@ def read_ini(ini_filename, no_validate=False):
     if ini_filename.startswith("http"):
         import tempfile
 
-        import requests
+        try:
+            import requests
+        except ImportError:
+            raise ImportError("install 'requests' package, required for reading ini files from URLs")
 
         data = requests.get(ini_filename)
         ini_filename = tempfile.NamedTemporaryFile(suffix=".ini", delete=False).name

@@ -273,12 +273,12 @@
 
     ! Early Quintessence example, axion potential from e.g. arXiv: 1908.06995
 
-    function TEarlyQuintessence_VofPhi(this, phi, deriv) result(VofPhi)
+    function TEarlyQuintessence_VofPhi(this, phi, deriv) result(V)
     !The input variable phi is sqrt(8*Pi*G)*psi
     !Returns (8*Pi*G)^(1-deriv/2)*d^{deriv}V(psi)/d^{deriv}psi evaluated at psi
     !return result is in 1/Mpc^2 units [so times (Mpc/c)^2 to get units in 1/Mpc^2]
     class(TEarlyQuintessence) :: this
-    real(dl) phi,Vofphi
+    real(dl) phi, V
     integer deriv
     real(dl) theta, costheta
     real(dl), parameter :: units = MPC_in_sec**2 /Tpl**2  !convert to units of 1/Mpc^2
@@ -287,12 +287,12 @@
     ! m = m_theory/M_Pl
     theta = phi/this%f
     if (deriv==0) then
-        Vofphi = units*this%m**2*this%f**2*(1 - cos(theta))**this%n + this%frac_lambda0*this%State%grhov
+        V = units*this%m**2*this%f**2*(1 - cos(theta))**this%n + this%frac_lambda0*this%State%grhov
     else if (deriv ==1) then
-        Vofphi = units*this%m**2*this%f*this%n*(1 - cos(theta))**(this%n-1)*sin(theta)
+        V = units*this%m**2*this%f*this%n*(1 - cos(theta))**(this%n-1)*sin(theta)
     else if (deriv ==2) then
         costheta = cos(theta)
-        Vofphi = units*this%m**2*this%n*(1 - costheta)**(this%n-1)*(this%n*(1+costheta) -1)
+        V = units*this%m**2*this%n*(1 - costheta)**(this%n-1)*(this%n*(1+costheta) -1)
     end if
 
     end function TEarlyQuintessence_VofPhi

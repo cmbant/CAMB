@@ -349,7 +349,6 @@
     !Recursive evaluation of 3j symbols. Does minimal error checking on input parameters.
     use MpiUtils, only : MpiStop
     implicit none
-    integer, parameter :: dl = KIND(1.d0)
     integer, intent(in) :: l2in,l3in, m2in,m3in
     real(dl), dimension(*) :: thrcof
     INTEGER, PARAMETER :: i8 = selected_int_kind(18)

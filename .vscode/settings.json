@@ -69,9 +69,6 @@
         "--indent_continuation=4",
         "--indent_ampersand",
     ],
-    "fortran.fortls.preprocessor.suffixes": [
-        ".f90"
-    ],
     "files.exclude": {
         "**/__pycache__": true,
         "**/.ruff_cache": true,

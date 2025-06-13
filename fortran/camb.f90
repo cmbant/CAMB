@@ -6,7 +6,7 @@
     use GaugeInterface
     use InitialPower
     use Reionization
-    use Recombination
+    use Recombination, only : TRecFast
     use lensing
     use DarkEnergyFluid
     implicit none
@@ -38,7 +38,7 @@
             Cdata%OnlyTransfer = .false.
         end if
         call ClTransferToCl(CData)
-        if (State%CP%DoLensing .and. global_error_flag==0) call lens_Cls(Cdata)
+        if (CData%CP%DoLensing .and. global_error_flag==0) call lens_Cls(Cdata)
         if (global_error_flag/=0) return
     end if
 
@@ -65,7 +65,7 @@
     OutData%HasScalarTimeSources= DefaultFalse(onlytimesources)
     OutData%OnlyTransfer = DefaultFalse(onlytransfer) .or. OutData%HasScalarTimeSources
 
-    !Vector and tensors first, so at end time steps in state are for scalars
+    !Vector and tensors first, so at end time steps in OutData are for scalars
     if (Params%WantCls .and. Params%WantTensors) then
         P=Params
         P%WantTransfer = .false.
@@ -102,7 +102,7 @@
         P%WantTensors = .false.
         P%WantVectors = .false.
         if ((P%NonLinear==NonLinear_lens .or. P%NonLinear==NonLinear_both) .and. &
-            (P%DoLensing .or. State%num_redshiftwindows > 0)) then
+            (P%DoLensing .or. OutData%num_redshiftwindows > 0)) then
             P%WantTransfer  = .true.
         end if
         call OutData%SetParams(P)
@@ -155,8 +155,8 @@
     !Output is l(l+1)C_l/2pi
     !If GC_Conventions = .false. use E-B conventions (as the rest of CAMB does)
     !Used by WriteFits only
-    subroutine CAMB_GetCls(State, Cls, lmax,GC_conventions)
-    Type(CAMBdata) :: State
+    subroutine CAMB_GetCls(OutData, Cls, lmax,GC_conventions)
+    Type(CAMBdata) :: OutData
     integer, intent(IN) :: lmax
     logical, intent(IN) :: GC_conventions
     real, intent(OUT) :: Cls(2:lmax,1:4)
@@ -164,17 +164,17 @@
 
     Cls = 0
     do l=2, lmax
-        if (State%CP%WantScalars .and. l<= State%CP%Max_l) then
-            if (State%CP%DoLensing) then
-                if (l<=State%CLData%lmax_lensed) &
-                    Cls(l,1:4) = State%CLData%Cl_lensed(l, CT_Temp:CT_Cross)
+        if (OutData%CP%WantScalars .and. l<= OutData%CP%Max_l) then
+            if (OutData%CP%DoLensing) then
+                if (l<=OutData%CLData%lmax_lensed) &
+                    Cls(l,1:4) = OutData%CLData%Cl_lensed(l, CT_Temp:CT_Cross)
             else
-                Cls(l,1:2) = State%CLData%Cl_scalar(l, C_Temp:C_E)
-                Cls(l,4) = State%CLData%Cl_scalar(l, C_Cross)
+                Cls(l,1:2) = OutData%CLData%Cl_scalar(l, C_Temp:C_E)
+                Cls(l,4) = OutData%CLData%Cl_scalar(l, C_Cross)
             endif
         end if
-        if (State%CP%WantTensors .and. l <= State%CP%Max_l_tensor) then
-            Cls(l,1:4) = Cls(l,1:4) + State%CLData%Cl_tensor(l, CT_Temp:CT_Cross)
+        if (OutData%CP%WantTensors .and. l <= OutData%CP%Max_l_tensor) then
+            Cls(l,1:4) = Cls(l,1:4) + OutData%CLData%Cl_tensor(l, CT_Temp:CT_Cross)
         end if
     end do
     if (GC_conventions) then
@@ -189,21 +189,20 @@
     type(CAMBparams), intent(in) :: P
     real(dl) CAMB_GetAge
     integer error
-    Type(CAMBdata) :: State
+    Type(CAMBdata) :: OutData
 
-    call  State%SetParams(P, error, .false., .false., .true.)
+    call  OutData%SetParams(P, error, .false., .false., .true.)
 
     if (error/=0) then
         CAMB_GetAge = -1
     else
-        CAMB_GetAge = State%DeltaPhysicalTimeGyr(0.0_dl,1.0_dl)
+        CAMB_GetAge = OutData%DeltaPhysicalTimeGyr(0.0_dl,1.0_dl)
     end if
 
     end function CAMB_GetAge
 
     subroutine CAMB_SetDefParams(P)
     use NonLinear
-    use Recombination
     type(CAMBparams), intent(inout), target :: P
     type(CAMBparams) :: emptyP
 

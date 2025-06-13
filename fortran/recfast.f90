@@ -488,11 +488,11 @@
     end associate
     end subroutine TRecfast_xe_Tm
 
-    function TRecfast_version(this) result(version)
+    function TRecfast_version(this) result(this_version)
     class(TRecfast) :: this
-    character(LEN=:), allocatable :: version
+    character(LEN=:), allocatable :: this_version
 
-    version = Recfast_Version
+    this_version = Recfast_Version
 
     end function TRecfast_version
 

@@ -28,7 +28,7 @@ try:
 except Exception:
     # use np.polynomial.legendre if can't load fast native (so can use module without compiling camb)
     # Fortran version is much faster than current np.polynomial
-    gauss_legendre = None
+    gauss_legendre = None  # type: ignore
 
 _gauss_legendre_cache: dict[int, tuple[np.ndarray, np.ndarray]] = {}
 
