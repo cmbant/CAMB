@@ -29,8 +29,6 @@ CAMB uses [Ruff](https://docs.astral.sh/ruff/) for python formatting and linting
 - **Python version**: 3.10+
 - **Import sorting**: Automatic via ruff
 
-For fortran, you can use `findent` to auto-format consistently. .vscode settings.json is included.
-
 ### 4. Before Committing
 
 The pre-commit hooks will run automatically, but you can also run them manually:
@@ -47,6 +45,18 @@ Run the test suite to ensure your changes don't break anything:
 ```bash
 python -m unittest camb.tests.camb_test
 ```
+
+## VS Code config
+
+Setting files with consistent indentation and formatting settings are included.
+For Fortran, install the recommended extensions, and related command line tools:
+
+```bash
+pip install findent fortls fypp
+```
+
+You may need to change your global vscode settings to set the respective paths.
+Note that fortls wants the full path including the executable name, findent just the path.
 
 ## Pull Request Guidelines
 

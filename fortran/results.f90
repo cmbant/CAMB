@@ -24,6 +24,7 @@
     !     for restrictions on the modification and distribution of this software.
 
     module results
+    use Precision
     use constants, only : const_pi, const_twopi
     use MiscUtils
     use RangeUtils
@@ -274,7 +275,7 @@
     procedure :: binary_search
     procedure, nopass :: PythonClass => CAMBdata_PythonClass
     procedure, nopass :: SelfPointer => CAMBdata_SelfPointer
-#ifndef __INTEL_COMPILER
+#ifdef __GFORTRAN__
     final :: CAMBdata_final !Workaround for gfortran bug https://gcc.gnu.org/bugzilla/show_bug.cgi?id=120637
 #endif
     end type CAMBdata
@@ -282,7 +283,7 @@
     interface
     FUNCTION state_function(obj, a)
     use precision
-    import
+    import CAMBdata
     class(CAMBdata) :: obj
     real(dl), intent(in) :: a
     real(dl) :: state_function

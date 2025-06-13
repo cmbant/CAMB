@@ -44,7 +44,6 @@
     // Ruff settings
     "[python]": {
         "editor.defaultFormatter": "charliermarsh.ruff",
-        "editor.formatOnSave": true,
         "editor.formatOnPaste": false,
         "editor.formatOnType": false,
         "editor.rulers": [
@@ -56,6 +55,23 @@
         }
     },
     "ruff.organizeImports": true,
+    "fortran.formatting.findentArgs": [
+        "--indent=4",
+        "--indent_module=0",
+        "--indent_procedure=0",
+        "--start_indent=4",
+        "--indent_contains=0",
+        "--openmp=0",
+        "--indent_contains=restart",
+        "--indent_select=4",
+        "--indent_case=4",
+        "--indent_interface=0",
+        "--indent_continuation=4",
+        "--indent_ampersand",
+    ],
+    "fortran.fortls.preprocessor.suffixes": [
+        ".f90"
+    ],
     "files.exclude": {
         "**/__pycache__": true,
         "**/.ruff_cache": true,
@@ -75,6 +91,9 @@
         "**/Debug*": true,
         "**/WinDLL": true,
         "**/uv.lock": true,
+        "**/x64/": true,
+        "**/*.vfproj": true,
+        "**/*.u2d": true,
     },
     "search.exclude": {
         "**/__pycache__": true,
@@ -94,19 +113,8 @@
         "**/Debug*": true,
         "**/WinDLL": true,
         "**/uv.lock": true,
+        "**/x64/": true,
+        "**/*.vfproj": true,
+        "**/*.u2d": true,
     },
-    "fortran.formatting.findentArgs": [
-        "--indent=4",
-        "--indent_module=0",
-        "--indent_procedure=0",
-        "--start_indent=4",
-        "--indent_contains=0",
-        "--openmp=0",
-        "--indent_contains=restart",
-        "--indent_select=4",
-        "--indent_case=4",
-        "--indent_interface=0",
-        "--indent_continuation=4",
-        "--indent_ampersand",
-    ],
 }
