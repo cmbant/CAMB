@@ -289,8 +289,8 @@
     subroutine TDarkEnergyEqnOfState_Free(this)
     type(TDarkEnergyEqnOfState), intent(inout) :: this
 
-    if (allocated(this%equation_of_state)) deallocate(this%equation_of_state)
-    if (allocated(this%logdensity)) deallocate(this%logdensity)
+    call this%equation_of_state%Clear()
+    call this%logdensity%Clear()
 
     end subroutine TDarkEnergyEqnOfState_Free
 #endif
