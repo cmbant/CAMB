@@ -40,6 +40,9 @@
     procedure :: w_de => TDarkEnergyEqnOfState_w_de
     procedure :: grho_de => TDarkEnergyEqnOfState_grho_de
     procedure :: Effective_w_wa => TDarkEnergyEqnOfState_Effective_w_wa
+#ifdef __GFORTRAN__
+    final :: TDarkEnergyEqnOfState_Free ! safer for gcc mem-leak bug
+#endif
     end type TDarkEnergyEqnOfState
 
     public TDarkEnergyModel, TDarkEnergyEqnOfState
@@ -282,5 +285,14 @@
 
     end subroutine TDarkEnergyEqnOfState_Init
 
+#ifdef __GFORTRAN__
+    subroutine TDarkEnergyEqnOfState_Free(this)
+    type(TDarkEnergyEqnOfState), intent(inout) :: this
+
+    if (allocated(this%equation_of_state)) deallocate(this%equation_of_state)
+    if (allocated(this%logdensity)) deallocate(this%logdensity)
+
+    end subroutine TDarkEnergyEqnOfState_Free
+#endif
 
     end module DarkEnergyInterface
