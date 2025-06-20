@@ -424,11 +424,11 @@ def getTestParams():
         for val in vals:
             params.append(
                 [
-                    "%s_%.3f" % (par, val),
+                    f"{par}_{val:.3f}",
                     "get_transfer= T",
                     "do_nonlinear=1",
                     "transfer_high_precision = T",
-                    "%s = %s" % (par, val),
+                    f"{par} = {val}",
                 ]
             )
 
@@ -437,7 +437,7 @@ def getTestParams():
             for w in [-1.2, -0.998, -0.7]:
                 params.append(
                     [
-                        "ppf_w%s_wa%s" % (w, wa),
+                        f"ppf_w{w}_wa{wa}",
                         "w = %s" % w,
                         "wa =%s" % wa,
                         "do_nonlinear = 2",
@@ -466,11 +466,11 @@ def getTestParams():
 
         def make_win(i, z, kind, bias, sigma, s):
             return [
-                "redshift(%s) = %s" % (i, z),
-                "redshift_kind(%s) = %s" % (i, kind),
-                "redshift_bias(%s) = %s" % (i, bias),
-                "redshift_sigma(%s) = %s" % (i, sigma),
-                "redshift_dlog10Ndm(%s) = %s" % (i, s),
+                f"redshift({i}) = {z}",
+                f"redshift_kind({i}) = {kind}",
+                f"redshift_bias({i}) = {bias}",
+                f"redshift_sigma({i}) = {sigma}",
+                f"redshift_dlog10Ndm({i}) = {s}",
             ]
 
         counts_def = ["DEFAULT(../inifiles/params_counts.ini)"]
@@ -809,13 +809,13 @@ if not args.no_run_test:
             printlog("error %s" % return_code)
         nfiles = output_file_num(out_files_dir)
         if nfiles > files:
-            msg = "..OK, produced %s files in %.2fs" % (nfiles - files, timing)
+            msg = f"..OK, produced {nfiles - files} files in {timing:.2f}s"
         else:
             errors += 1
             error_list.append(os.path.basename(ini))
             msg = "..no files in %.2fs" % timing
         printlog(msg)
         files = nfiles
-    printlog("Done, %s errors in %.2fs (outputs not checked yet)" % (errors, time.time() - start))
+    printlog(f"Done, {errors} errors in {time.time() - start:.2f}s (outputs not checked yet)")
     if errors:
         printlog("Fails in : %s" % error_list)

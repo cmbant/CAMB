@@ -54,7 +54,7 @@ def build_markdown_docs():
     temp_conf_dir = os.path.join(os.path.dirname(build_dir), "temp_conf")
     os.makedirs(temp_conf_dir, exist_ok=True)
     temp_conf_path = os.path.join(temp_conf_dir, "conf.py")
-    with open("docs/source/conf.py", "r", encoding="utf-8") as f:
+    with open("docs/source/conf.py", encoding="utf-8") as f:
         conf_content = f.read()
 
     # Disable intersphinx extension for markdown build
@@ -96,7 +96,7 @@ def build_markdown_docs():
 def extract_toctree_order(index_rst_path="docs/source/index.rst"):
     """Extract the order of files from the index.rst toctree."""
     try:
-        with open(index_rst_path, "r", encoding="utf-8") as f:
+        with open(index_rst_path, encoding="utf-8") as f:
             content = f.read()
 
         # Find all toctree sections
@@ -225,7 +225,7 @@ def combine_markdown_files(build_dir, exclude_files, output_file):
             outfile.write(f"## {link_name}\n\n")
 
             # Add file content
-            with open(file_path, "r", encoding="utf-8") as infile:
+            with open(file_path, encoding="utf-8") as infile:
                 content = infile.read()
                 outfile.write(content)
                 outfile.write("\n\n")
@@ -298,7 +298,7 @@ def main():
             print(f"Appending CAMBdemo.md to {args.output}...")
             with open(args.output, "a", encoding="utf-8") as outfile:
                 outfile.write("## Usage examples from CAMBdemo jupyter notebook\n\n")
-                with open(CAMBdemo_md, "r", encoding="utf-8") as infile:
+                with open(CAMBdemo_md, encoding="utf-8") as infile:
                     content = infile.read()
                     outfile.write(content)
 

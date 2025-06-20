@@ -57,7 +57,7 @@ class _config:
             if x[0] != "_":
                 value = getattr(self, x)
                 if not callable(value):
-                    s += "%s = %s\n" % (x, value)
+                    s += f"{x} = {value}\n"
         return s
 
 

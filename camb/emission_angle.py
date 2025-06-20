@@ -148,10 +148,10 @@ def get_emission_delay_BB(
         cd = cl_psi_d_sp(lsarr) / llp1 * (2 * lsarr + 1)
         cxdd = cl_psi_d_x_lens_sp(lsarr) * (2 * lsarr + 1)
         cxd = cxdd / llp1
-        cEE = cmb["%sx%s" % (tag_E, tag_E)][2 : lmax_e + 1] / llp1 * (2 * lsarr + 1)  # raw CL
-        cEx = cmb["%sx%s" % (tag_E, tag_zeta)][2 : lmax_e + 1] * (2 * lsarr + 1)
+        cEE = cmb[f"{tag_E}x{tag_E}"][2 : lmax_e + 1] / llp1 * (2 * lsarr + 1)  # raw CL
+        cEx = cmb[f"{tag_E}x{tag_zeta}"][2 : lmax_e + 1] * (2 * lsarr + 1)
         cExx = cEx / llp1
-        czeta = cmb["%sx%s" % (tag_zeta, tag_zeta)][2 : lmax_e + 1] / llp1 * (2 * lsarr + 1)
+        czeta = cmb[f"{tag_zeta}x{tag_zeta}"][2 : lmax_e + 1] / llp1 * (2 * lsarr + 1)
 
         for i, ll in enumerate(lsampvelcl):
             if reion and ll > lmax_e:

@@ -66,7 +66,7 @@ class CambTest(unittest.TestCase):
         with self.assertRaises(CAMBParamRangeError):
             pars.nu_mass_degeneracies = np.zeros(7)
         pars.nu_mass_eigenstates = 0
-        self.assertFalse(len((pars.nu_mass_degeneracies[:1])))
+        self.assertFalse(len(pars.nu_mass_degeneracies[:1]))
         pars = camb.set_params(**{"InitPower.ns": 1.2, "WantTransfer": True})
         self.assertEqual(pars.InitPower.ns, 1.2)
         self.assertTrue(pars.WantTransfer)
@@ -859,7 +859,7 @@ class CambTest(unittest.TestCase):
                 gc.collect()
                 usage = round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0, 1)
                 if 0 < last_usage != usage:
-                    print("Memory usage: %2.2f KB vs %2.2f KB" % (usage, last_usage))
+                    print(f"Memory usage: {usage:2.2f} KB vs {last_usage:2.2f} KB")
                     raise Exception("Apparent memory leak")
                 last_usage = usage
 

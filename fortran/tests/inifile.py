@@ -143,7 +143,7 @@ class IniFile:
 
     def fileLines(self):
         def asIniText(value):
-            if isinstance(value, type("")):
+            if isinstance(value, str):
                 return value
             if type(value) == bool:
                 return str(value)[0]

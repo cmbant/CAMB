@@ -95,7 +95,7 @@ def check_gfortran(version=gfortran_min, msg=False, retry=False):
 
 def makefile_dict(filename):
     # this is very non-general, just enough for pulling source file names from Makefile
-    with open(filename, "r") as f:
+    with open(filename) as f:
         lines = f.readlines()
     vals = {}
     lastval = None

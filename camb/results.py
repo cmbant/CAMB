@@ -77,7 +77,7 @@ def save_cmb_power_array(filename, array, labels, lmin=0):
         filename,
         np.hstack((ls, array[lmin:, :])),
         fmt=["%4u"] + ["%12.7e"] * ncol,
-        header=" L " + " ".join(["{:13s}".format(lab) for lab in labels]),
+        header=" L " + " ".join([f"{lab:13s}" for lab in labels]),
     )
 
 
@@ -130,7 +130,7 @@ class MatterTransferData:
         """
 
         if name not in model.transfer_names:
-            raise CAMBError("Unknown name %s; must be one of %s" % (name, model.transfer_names))
+            raise CAMBError(f"Unknown name {name}; must be one of {model.transfer_names}")
         return self.transfer_data[model.transfer_names.index(name), :, z_index]
 
 
@@ -579,7 +579,7 @@ class CAMBdata(F2003Class):
             named_vars = [var for var in vars if isinstance(var, str)]
 
             if unknown := set(named_vars).difference(model.evolve_names):
-                raise CAMBError("Unknown names %s; valid names are %s" % (unknown, model.evolve_names))
+                raise CAMBError(f"Unknown names {unknown}; valid names are {model.evolve_names}")
 
             num_standard_names = len(model.evolve_names)
 
@@ -663,7 +663,7 @@ class CAMBdata(F2003Class):
         if isinstance(vars, str):
             vars = [vars]
         if unknown := set(vars).difference(model.background_names):
-            raise CAMBError("Unknown names %s; valid names are %s" % (unknown, model.background_names))
+            raise CAMBError(f"Unknown names {unknown}; valid names are {model.background_names}")
         outputs = np.zeros((eta.shape[0], 9))
         CAMB_BackgroundThermalEvolution(byref(self), byref(c_int(eta.shape[0])), eta, outputs)
         indices = [model.background_names.index(var) for var in vars]
@@ -705,7 +705,7 @@ class CAMBdata(F2003Class):
         if isinstance(vars, str):
             vars = [vars]
         if unknown := set(vars).difference(model.density_names):
-            raise CAMBError("Unknown names %s; valid names are %s" % (unknown, model.density_names))
+            raise CAMBError(f"Unknown names {unknown}; valid names are {model.density_names}")
         arr = np.atleast_1d(a)
         outputs = np.zeros((arr.shape[0], 8))
         self.f_GetBackgroundDensities(byref(c_int(arr.shape[0])), arr, outputs)
@@ -1155,7 +1155,7 @@ class CAMBdata(F2003Class):
                 )
             if not log_interp:
                 raise CAMBValueError(
-                    "Cannot use extrap_kmax with log_inter=False (e.g. PK crossing zero for %s, %s.)" % (var1, var2)
+                    f"Cannot use extrap_kmax with log_inter=False (e.g. PK crossing zero for {var1}, {var2}.)"
                 )
 
             logextrap = np.log(extrap_kmax)

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 #
 # MyProj documentation build configuration file, created by
 # sphinx-quickstart on Thu Jun 18 20:57:49 2015.

@@ -116,7 +116,7 @@ def make_library(cluster=False):
             print("        - go to Files, and download MinGW-W64 Online Installer.")
             print("        Alternatively newer versions at https://github.com/niXman/mingw-builds-binaries")
             if _compile.is_32_bit:
-                raise IOError("No 32bit Windows DLL provided, you need to build or use 64 bit python")
+                raise OSError("No 32bit Windows DLL provided, you need to build or use 64 bit python")
             else:
                 print("Using pre-compiled binary instead - any local changes will be ignored...")
         else:
@@ -136,7 +136,7 @@ def make_library(cluster=False):
             new_compiler = True
             ver_file = os.path.join(tmpdir, "compiler.ver")
             if os.path.exists(ver_file):
-                with open(ver_file, "r") as f:
+                with open(ver_file) as f:
                     new_compiler = gfortran_version != f.readline().strip()
             if new_compiler:
                 clean_dir(tmpdir)
@@ -156,7 +156,7 @@ def make_library(cluster=False):
                     o_time = os.path.getmtime(fout)
                     modified = o_time < os.path.getmtime(source + ".f90") or not os.path.exists(outroot + ".d")
                     if not modified:
-                        with open(outroot + ".d", "r") as f:
+                        with open(outroot + ".d") as f:
                             for dependence in " ".join(f.readlines()).replace("\\\n", "").split(":")[1].strip().split():
                                 if os.path.getmtime(dependence) > o_time:
                                     modified = True
@@ -164,10 +164,10 @@ def make_library(cluster=False):
 
                 if modified:
                     need_compile = True
-                    cmd = COMPILER + " " + FFLAGS + " " + source + ".f90 -MMD -c -o %s -J%s" % (fout, tmpdir)
+                    cmd = COMPILER + " " + FFLAGS + " " + source + f".f90 -MMD -c -o {fout} -J{tmpdir}"
                     print(cmd)
                     if subprocess.call(cmd, shell=True, env=_compile.compiler_environ) != 0:
-                        raise IOError("Compilation failed")
+                        raise OSError("Compilation failed")
                 elif not need_compile and dll_time < o_time:
                     need_compile = True
 
@@ -177,17 +177,17 @@ def make_library(cluster=False):
                     try:
                         os.remove(lib_file)
                     except OSError:
-                        raise IOError("dll file in use. Stop python codes and notebook kernels that are using camb.")
+                        raise OSError("dll file in use. Stop python codes and notebook kernels that are using camb.")
                 print("Compiling sources...")
-                cmd = COMPILER + " " + FFLAGS + " " + " ".join(ofiles) + " -o %s -J%s" % (lib_file, tmpdir)
+                cmd = COMPILER + " " + FFLAGS + " " + " ".join(ofiles) + f" -o {lib_file} -J{tmpdir}"
                 print(cmd)
                 if subprocess.call(cmd, shell=True, env=_compile.compiler_environ) != 0:
-                    raise IOError("Compilation failed")
+                    raise OSError("Compilation failed")
             else:
                 print("DLL up to date.")
     else:
         if not _compile.call_command("make -v"):
-            raise IOError(
+            raise OSError(
                 'Build failed - you must have "make" installed. '
                 'E.g. on ubuntu install with "sudo apt install make" (or use build-essential package).'
             )
