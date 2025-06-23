@@ -625,7 +625,7 @@ def J_eq(L):
     eq = -k / (2 * L + 1) * ((L + 1) * Kf[L] * Glp - L * Glm) - opacity * Gl
     if L == 2:
         eq = eq + 8 * k / 15 * sigma + opacity * polter
-    return Eq(diff(Gl, t), eq).subs({sympy.sympify("J_2(t)"): pi_g, sympy.sympify("J_1(t)"): q_g})
+    return Eq(diff(Gl, t), eq).subs({_make_index_func("J", 2): pi_g, _make_index_func("J", 1): q_g})
 
 
 def G_eq(L):
@@ -637,7 +637,7 @@ def G_eq(L):
     eq = -k / (2 * L + 1) * ((L + 1) * Kf[L] * Glp - L * Glm)
     if L == 2:
         eq = eq + 8 * k / 15 * sigma
-    return Eq(diff(Gl, t), eq).subs({sympy.sympify("G_2(t)"): pi_r, sympy.sympify("G_1(t)"): q_r})
+    return Eq(diff(Gl, t), eq).subs({_make_index_func("G", 2): pi_r, _make_index_func("G", 1): q_r})
 
 
 def E_eq(L):
@@ -649,7 +649,7 @@ def E_eq(L):
     eq = -k / (2 * L + 1) * ((L + 3) * (L - 1) * Kf[L] * Elp / (L + 1) - L * Elm) - opacity * El
     if L == 2:
         eq = eq + polter * opacity
-    return Eq(diff(El, t), eq).subs(sympy.sympify("E_1(t)"), 0)
+    return Eq(diff(El, t), eq).subs(_make_index_func("E", 1), 0)
 
 
 def get_hierarchies(lmax=5):
@@ -965,7 +965,7 @@ def compile_source_function_code(code_body, file_path="", compiler=None, fflags=
         with open(source_file, "w") as f:
             f.write(template % code_body)
 
-        command = " ".join([compiler, fflags, source_file, "-o", dll_name])
+        command = " ".join([compiler, fflags or "", source_file, "-o", dll_name])
         try:
             subprocess.check_output(command, stderr=subprocess.STDOUT, shell=True, cwd=workdir, env=compiler_environ)
         except subprocess.CalledProcessError as E:
