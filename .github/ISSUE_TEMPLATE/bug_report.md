@@ -8,7 +8,7 @@ assignees: ''
 ---
 
 **Describe the bug**
-A clear and concise description of what the bug is. 
+A clear and concise description of what the bug is.
 If you just want help, see the CosmoCoffee [help forum](https://cosmocoffee.info/viewforum.php?f=11) and [help assistant](https://cosmocoffee.info/help_assist.php).
 
 **To Reproduce**

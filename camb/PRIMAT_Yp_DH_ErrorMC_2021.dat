@@ -1,7 +1,7 @@
 # BBN prediction of the primordial abundances (He-4 and Deuterium) as a function of
-# 1)the baryon density $\Omega_b h^2$ and 
+# 1)the baryon density $\Omega_b h^2$ and
 # 2)the number of extra relativistic degrees of freedom $\Delta N$
-# 
+#
 # If $\Delta N=0$, then $N_{eff} = 3.0440$ because of QED effects and Incomplete Neurino decoupling (arXiv:2008.01074).
 #
 # Computation performed with PRIMAT (by Cyril Pitrou 2018-2021 http://www2.iap.fr/users/pitrou/primat.htm)
@@ -12,18 +12,18 @@
 # CMB temperature is 2.7255 K (without taking into account a possible uncertainty)
 #
 # He4 is given either as $Y^BBN_P = 4 Y_{He4}$ where $Y_{He4}$ is the ratio of He-4 number density to baryons number density.
-# He4 is also provided as $Y_P = Y_{He4} * m_ {He4} /[Y_{He4} m_{He4} + (1 - 4*Y_{He4}) m_H1]$ 
-# where $m_{He4}=4.0026032541$ and $m_{H1}=1.00782503223$ are atomic masses. 
+# He4 is also provided as $Y_P = Y_{He4} * m_ {He4} /[Y_{He4} m_{He4} + (1 - 4*Y_{He4}) m_H1]$
+# where $m_{He4}=4.0026032541$ and $m_{H1}=1.00782503223$ are atomic masses.
 #
 # Deuterium is given as the ratio of its number density to the H1 number density and noted $D/H$.
-# 
-# eta10 is $10^10 eta_0$ where $eta_0$ is the density ratio between baryons and photons AT THE END OF BBN.
-# Hence eta10 ignores the extra production of He4 by stars after BBN. Whenever possible, working with $\Omega_b h^2$ is better. 
 #
-# Errors are computed with a Monte-Carlo method on nuclear rates and also on tau_n. 
-# See PRIMAT paper (2018) for details. 
-# 
-#  ombh2        eta10           DeltaN          Yp              Yp^BBN          sig(Yp^BBN)     D/H             sig(D/H)  
+# eta10 is $10^10 eta_0$ where $eta_0$ is the density ratio between baryons and photons AT THE END OF BBN.
+# Hence eta10 ignores the extra production of He4 by stars after BBN. Whenever possible, working with $\Omega_b h^2$ is better.
+#
+# Errors are computed with a Monte-Carlo method on nuclear rates and also on tau_n.
+# See PRIMAT paper (2018) for details.
+#
+#  ombh2        eta10           DeltaN          Yp              Yp^BBN          sig(Yp^BBN)     D/H             sig(D/H)
 
 0.005000	1.368060	-3.000000	0.176341	0.177381	0.000118449	0.000154273	1.16754e-6
 0.006000	1.641710	-3.000000	0.178870	0.179922	0.000117761	0.000115909	9.05376e-7

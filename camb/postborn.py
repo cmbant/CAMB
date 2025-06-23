@@ -20,8 +20,8 @@ def cl_kappa_limber(results, PK, ls, nz, chi_source, chi_source2=None):
     win = (1 / chis - 1 / chi_source) * (1 / chis - 1 / chi_source2) / chis**2
     cl = np.zeros(ls.shape)
     w = np.ones(chis.shape)
-    for i, l in enumerate(ls):
-        k = (l + 0.5) / chis
+    for i, ell in enumerate(ls):
+        k = (ell + 0.5) / chis
         w[:] = 1
         w[k < 1e-4] = 0
         w[k >= PK.kmax] = 0

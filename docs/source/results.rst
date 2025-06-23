@@ -18,5 +18,3 @@ The CMB lensing spectrun is returned by default as :math:`[\ell(\ell+1)]^2C_\ell
 
 .. autoclass:: camb.results.ClTransferData
    :members:
-
-

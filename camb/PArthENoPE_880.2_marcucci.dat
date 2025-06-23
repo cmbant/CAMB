@@ -1,7 +1,7 @@
-#BBN prediction of the primordial Helium abundance $Y_p$ as 
-#function of the baryon density $\omega_b h^2$ and number of 
+#BBN prediction of the primordial Helium abundance $Y_p$ as
+#function of the baryon density $\omega_b h^2$ and number of
 #extra radiation degrees of freedom $\Delta N$.
-#Calculated from PArthENoPE by Ofelia Pisanti May 2017. Errors are not given. 
+#Calculated from PArthENoPE by Ofelia Pisanti May 2017. Errors are not given.
 #neutron lifetime of 880.2 s and CMB temperature 2.7255 K
 #Yp^BBN is the BBN-standard nucleon number fraction, Yp is the mass fraction for CMB codes
 #Mapping between ombh2, Yp and eta10 is not quite consistent to 0.1% level except at DeltaN=0

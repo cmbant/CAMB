@@ -16,6 +16,3 @@ Recombination models
 .. autoclass:: camb.recombination.HyRec
    :show-inheritance:
    :members:
-
-
-

@@ -12,4 +12,3 @@ exclude camb/HighLExtrapTemplate_lenspotentialCls.dat
 exclude fortran/sigma8.f90
 exclude fortran/writefits.f90
 include docs/README_pypi.rst
-
