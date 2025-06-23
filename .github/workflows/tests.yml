@@ -32,23 +32,22 @@ jobs:
       - run: ln -s $(which gfortran-14) /usr/local/bin/gfortran
         if: matrix.os == 'macos-latest'
 
-      - name: Ruff Format Check
+      - name: Pre-commit checks
         if: matrix.os == 'ubuntu-latest'
-        uses: astral-sh/ruff-action@v3
-        with:
-          args: format --check camb fortran/tests
-        continue-on-error: false
+        run: |
+          pip install pre-commit
+          pre-commit run --all-files
 
       - name: Format Help Message
         if: failure() && matrix.os == 'ubuntu-latest'
         run: |
-          echo "❌ Code formatting issues detected!"
+          echo "❌ Code formatting or style issues detected!"
           echo ""
           echo "Install pre-commit hooks to auto-format on commit:"
           echo "  pip install -e .[dev]"
           echo "  pre-commit install"
           echo ""
-          echo "See the formatting errors above for details."
+          echo "See the errors above for details."
           exit 1
 
       - name: Install dependencies
