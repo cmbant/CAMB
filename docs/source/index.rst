@@ -13,7 +13,7 @@ with up-to-date knowledge of the full Python documentation,
 and you can use with code execution in `CMB Agent <https://github.com/CMBAgents/cmbagent/>`_.
 
 There are also `technical notes <https://cosmologist.info/notes/CAMB.pdf>`_,
-the `symbolic equation notebook <https://camb.readthedocs.io/en/latest/scalEqs.html>`_,
+the `symbolic equation notebook <https://camb.readthedocs.io/en/latest/ScalEqs.html>`_,
 and an `LLM context file <https://camb.readthedocs.io/en/latest/_static/camb_docs_combined.md>`_ that you can use in
 system prompts or as part of a documentation database.
 
