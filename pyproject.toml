@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=77", "packaging>=24", "wheel"]
+requires = ["setuptools>=77", "packaging>=24.2", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -26,7 +26,7 @@ classifiers = [
     "Programming Language :: Python :: 3.13"
 ]
 dependencies = [
-    "numpy>=1.22", "scipy>=1.0", "sympy>=1.0", "packaging>=24"
+    "numpy>=1.22", "scipy>=1.0", "sympy>=1.0", "packaging>=24.2"
 ]
 
 [project.optional-dependencies]
