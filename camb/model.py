@@ -30,6 +30,9 @@ from .recombination import RecombinationModel
 from .reionization import ReionizationModel
 from .sources import SourceWindow
 
+from camb.active_eigenvectors import BaseClass #Import class structure for active source eigenvector storage
+
+
 # Union and Optional types are now built-in to Python 3.10+
 
 max_nu = 5
@@ -336,6 +339,7 @@ class CAMBparams(F2003Class):
         ("Reion", AllocatableObject(reion.ReionizationModel)),
         ("DarkEnergy", AllocatableObject(DarkEnergyModel)),
         ("NonLinearModel", AllocatableObject(NonLinearModel)),
+        ("ActiveSources", AllocatableObject(BaseClass), "Holder active source correlator eigenvectors"),
         ("Accuracy", AccuracyParams),
         ("SourceTerms", SourceTermParams),
         ("z_outputs", AllocatableArrayDouble, "redshifts to always calculate BAO output parameters"),
