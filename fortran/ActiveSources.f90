@@ -5,7 +5,7 @@ module ActiveSources
     implicit none
 
     private
-    public :: Tactivesources,Tactivesources_SetCorrelatorTable, Tactivesources_SetActiveEigenmode
+    public :: Tactivesources, Tactivesources_SetCorrelatorTable, Tactivesources_SetActiveEigenmode
 
     type, extends(TPythonInterfacedClass) :: Tactivesources
 
@@ -46,14 +46,14 @@ module ActiveSources
         
         logical                  :: interp_objects_are_set = .false. ! Flag for interpolators
 
-        integer                  :: active_mode_idx_uetc = 0 ! 0 means no active source, 1 to N for modes
+        integer                  :: active_mode_idx = 0 ! 0 means no active source, 1 to N for modes
 
         !Storage for derivatives
         real(dl), allocatable :: eigenfunc_derivs_table(:,:,:,:) ! Raw table (nk, ntypes, nmodes, ntau)
         type(TInterpGrid2D), allocatable :: ef_deriv_interp_00(:)     ! Interpolators for 00 component derivatives
         type(TInterpGrid2D), allocatable :: ef_deriv_interp_S(:)      ! Interpolators for S component derivatives
         ! We might add V and T derivatives later if needed
-        logical :: uetc_deriv_interp_objects_are_set = .false. ! Flag for derivative interpolators
+        logical :: deriv_interp_objects_are_set = .false. ! Flag for derivative interpolators
 
     contains
         procedure, nopass :: PythonClass => Tactivesources_PythonClass
@@ -69,16 +69,16 @@ contains
         integer, intent(in)           :: mode_to_set
 
         if (mode_to_set >= 0 .and. (mode_to_set == 0 .or. mode_to_set <= this%nmodes) ) then
-            this%active_mode_idx_uetc = mode_to_set
+            this%active_mode_idx = mode_to_set
             if (mode_to_set > 0) then
-                print *, "Fortran Tactivesources: Active UETC eigenmode set to: ", this%active_mode_idx_uetc
+                print *, "Fortran Tactivesources: Active UETC eigenmode set to: ", this%active_mode_idx
             else
-                print *, "Fortran Tactivesources: UETC sources turned OFF (active_mode_idx_uetc = 0)."
+                print *, "Fortran Tactivesources: UETC sources turned OFF (active_mode_idx = 0)."
             endif
         else
             print *, "Fortran Tactivesources Warning: Invalid active_mode_idx requested: ", mode_to_set, &
                      " Max modes available: ", this%nmodes, ". Setting to 0 (OFF)."
-            this%active_mode_idx_uetc = 0
+            this%active_mode_idx = 0
         endif
     end subroutine Tactivesources_SetActiveEigenmode
 
@@ -106,7 +106,7 @@ contains
         call DeallocateCorrelatorTable(this) 
         this%interp_objects_are_set = .false.
         this%eigenvalue_interpolators_set = .false.
-        this%uetc_deriv_interp_objects_are_set = .false. 
+        this%deriv_interp_objects_are_set = .false. 
 
         nk_local = nk_in; ntau_local = ntau_in
         nmodes_local = nmodes_in; num_eigen_types_local = num_eigen_types_in
@@ -192,7 +192,7 @@ contains
             call this%ef_deriv_interp_S(mode_idx)%Init(this%k_grid, this%tau_grid, slice_2d_deriv_for_interp)
         end do
         deallocate(slice_2d_deriv_for_interp)
-        this%uetc_deriv_interp_objects_are_set = .true.
+        this%deriv_interp_objects_are_set = .true.
         print *, "Fortran SetCorrelatorTable: Initialized TInterpGrid2D for eigenfunction derivatives (00, S)."
         
         ! Initialize eigenvalue interpolators (TCubicSpline)
@@ -257,7 +257,7 @@ contains
                 do mode_idx_loop=1,size(obj_internal%ef_deriv_interp_S); call obj_internal%ef_deriv_interp_S(mode_idx_loop)%Clear(); enddo
                 deallocate(obj_internal%ef_deriv_interp_S)
             endif
-            obj_internal%uetc_deriv_interp_objects_are_set = .false.
+            obj_internal%deriv_interp_objects_are_set = .false.
 
             ! Deallocate eigenvalue TCubicSpline interpolators
             if (allocated(obj_internal%lambda_interp_S)) then 
@@ -306,7 +306,7 @@ contains
     end subroutine Tactivesources_SetCorrelatorTable
 
     function Tactivesources_PythonClass() result(pyClassName)
-        character(LEN=:), allocatable :: pyClassName; pyClassName = 'customclass'
+        character(LEN=:), allocatable :: pyClassName; pyClassName = 'ActiveSources'
     end function Tactivesources_PythonClass
     subroutine Tactivesources_SelfPointer(cptr, P)
         use iso_c_binding; Type(C_PTR) :: cptr
