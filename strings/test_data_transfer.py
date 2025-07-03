@@ -10,8 +10,8 @@ if CAMB_dir not in sys.path:
 
 from camb.active_eigenvectors import activesources
 
-# --- Eigenvector data ---
-NPZ_FILENAME = "correlator_table.npz"
+script_dir = os.path.dirname(os.path.abspath(__file__))
+NPZ_FILENAME = os.path.join(script_dir, "correlator_table.npz")
 
 # ------------------------------------------------------------------------------
 # Load Correlator Data and Initialize Custom Class

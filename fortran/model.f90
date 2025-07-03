@@ -7,6 +7,7 @@
     use MassiveNu
     use config
     use iso_c_binding
+    use ActiveSources
     implicit none
 
     integer, parameter :: outNone=1
@@ -152,6 +153,8 @@
         class(TReionizationModel), allocatable :: Reion
         class(TDarkEnergyModel), allocatable :: DarkEnergy
         class(TNonLinearModel), allocatable :: NonLinearModel
+        class(Tactivesources), allocatable :: ActiveSources
+
         type(AccuracyParams)     :: Accuracy
         type(SourceTermParams)   :: SourceTerms
 

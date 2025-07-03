@@ -71,13 +71,13 @@ class activesources(BaseClass):
             byref(c_double(string_params_mu)),
             byref(c_double(weighting_param))
         )
-        print("Python: Fortran call to SetUETCTable completed.")
+        print("Python: Fortran call to SetcorrelatorTable completed.")
         return self
     
     def set_active_eigenmode(self, mode_idx):
             if not isinstance(mode_idx, int):
                 raise TypeError("mode_idx must be an integer.")
             
-            print(f"Python: Setting active UETC eigenmode to: {mode_idx}")
+            print(f"Python: Setting active correlator eigenmode to: {mode_idx}")
             self.f_SetActiveEigenmode(byref(c_int(mode_idx)))
             return self
