@@ -1216,6 +1216,25 @@ class CAMBdata(F2003Class):
         CAMB_SetTensorCls(byref(self), byref(opt), res)
         self._scale_cls(res, CMB_unit, raw_cl)
         return res
+    
+    def get_vector_cls(self, lmax=None, CMB_unit=None, raw_cl=False):
+        r"""
+        Get vector CMB power spectra. Must have already calculated power spectra.
+    
+        :param lmax: lmax to output to
+        :param CMB_unit: scale results from dimensionless. Use 'muK' for :math:`\mu K^2` units for CMB :math:`C_\ell`
+        :param raw_cl: return :math:`C_\ell` rather than :math:`\ell(\ell+1)C_\ell/2\pi`
+        :return: numpy array CL[0:lmax+1,0:4], where 0..3 indexes TT, EE, BB, TE
+        """
+    
+        if lmax is None:
+            lmax = self.Params.max_l
+        lmax = self._lmax_setting(lmax, unlensed=True)
+        res = np.empty((lmax + 1, 4))
+        opt = c_int(lmax)
+        CAMB_SetVectorCls(byref(self), byref(opt), res)
+        self._scale_cls(res, CMB_unit, raw_cl)
+        return res
 
     def get_unlensed_scalar_cls(self, lmax=None, CMB_unit=None, raw_cl=False):
         r"""
@@ -1873,6 +1892,8 @@ CAMB_SetLensPotentialCls = camblib.__handles_MOD_camb_setlenspotentialcls
 CAMB_SetUnlensedScalCls = camblib.__handles_MOD_camb_setunlensedscalcls
 CAMB_SetLensedScalCls = camblib.__handles_MOD_camb_setlensedscalcls
 CAMB_SetTensorCls = camblib.__handles_MOD_camb_settensorcls
+CAMB_SetVectorCls = camblib.__handles_MOD_camb_setvectorcls
+
 
 _set_cl_args = [POINTER(CAMBdata), int_arg, numpy_1d]
 
@@ -1881,6 +1902,7 @@ CAMB_SetUnlensedCls.argtypes = _set_cl_args
 CAMB_SetLensPotentialCls.argtypes = _set_cl_args
 CAMB_SetUnlensedScalCls.argtypes = _set_cl_args
 CAMB_SetTensorCls.argtypes = _set_cl_args
+CAMB_SetVectorCls.argtypes = _set_cl_args
 CAMB_SetLensedScalCls.argtypes = _set_cl_args
 
 CAMB_SetUnlensedScalarArray = camblib.__handles_MOD_camb_setunlensedscalararray
