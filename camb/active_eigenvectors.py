@@ -57,7 +57,7 @@ class activesources(BaseClass):
 
         print(f"  Python Sending: nk={nk}, ntau={ntau}, Ntypes={num_eigen_types}, Nmodes={nmodes_param}")
 
-        self.f_SetUETCTable( 
+        self.f_SetCorrelatorTable( 
             k_grid_c, byref(c_int(nk)),
             tau_grid_c, byref(c_int(ntau)),
             eigenfunctions_flat_c, byref(c_int(num_eigen_types)),
