@@ -12,6 +12,8 @@ model you'll generally need to modify the code. Simple cases that do not need co
 
 In these cases, you can just pass in an interpolation table from Python to encapsulate the modified physics.
 
+For understanding CAMB's variable naming conventions and gauge choices when modifying the code, see the :doc:`variables_guide`.
+
 Defining new classes
 --------------------
 

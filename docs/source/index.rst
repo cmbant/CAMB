@@ -84,9 +84,9 @@ Other modules:
 
    transfer_variables
    modifying_code
+   variables_guide
    fortran_compilers
    mathutils
-   development
 
 * `Example notebook <https://camb.readthedocs.io/en/latest/CAMBdemo.html>`_
 * :ref:`genindex`
