@@ -49,9 +49,12 @@ H0 = (100 * 1000 * hH) / c_m_per_s # H0 is now in units of Mpc^-1
 # Parameters for correlator calculations
 # ======================================================
 
-string_tension=2.0e-7 #Gmu
+# string_tension=2.0e-7 #Gmu
+# string_wigglyness=1.9
+# string_decay=0.99
+string_tension=1.0 #Gmu
 string_wigglyness=1.9
-string_decay=0.99
+string_decay=0.95
 
 class StringParams:
     def __init__(self, mu=1.0e-6, alpha=1.9, L=0.99):
@@ -59,7 +62,7 @@ class StringParams:
 SPRa = StringParams(mu=string_tension, alpha=string_wigglyness, L=string_decay)
 
 # The ranges for k and ktau for which correlators are calculated in final table
-k_min = 1e-8; k_max= 100; nk = 5
+k_min = 1e-6; k_max= 10; nk = 100
 ktau_min= 1e-4; ktau_max = 1e3; nktau = 256
 
 # Number of eigenmodes to include in final table
