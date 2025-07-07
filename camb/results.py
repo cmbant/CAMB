@@ -271,8 +271,10 @@ class CAMBdata(F2003Class):
         self.Params = params
 
     def get_derived_params(self):
-        """
-        :return: dictionary of derived parameter values, indexed by name ('kd', 'age', etc..)
+        f"""
+        :return: dictionary of derived parameter values, indexed by name ({model.derived_names})
+                 Definitions of derived parmeters follow those in the Planck parameter papers.
+                 Note that all `theta__` derived parameters here are scaled by a factor of 100 for historical reasons.
         """
         return dict(zip(model.derived_names, self.ThermoDerivedParams))
 
