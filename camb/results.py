@@ -182,7 +182,7 @@ class CAMBdata(F2003Class):
         (
             "ThermoDerivedParams",
             c_double * model.nthermo_derived,
-            "array of derived parameters, see :meth:`get_derived_params` to get as a dictionary",
+            "array of derived parameters, see :meth:`results.CAMBdata.get_derived_params` to get as a dictionary",
         ),
         ("flat", c_bool, "flat universe"),
         ("closed", c_bool, "closed universe"),
@@ -271,8 +271,8 @@ class CAMBdata(F2003Class):
         self.Params = params
 
     def get_derived_params(self):
-        f"""
-        :return: dictionary of derived parameter values, indexed by name ({model.derived_names})
+        """
+        :return: dictionary of derived parameter values, indexed by name (age, zstar, thetastar, etc.)
                  Definitions of derived parmeters follow those in the Planck parameter papers.
                  Note that all `theta__` derived parameters here are scaled by a factor of 100 for historical reasons.
         """
