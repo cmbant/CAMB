@@ -184,6 +184,7 @@ axs[1].grid(True, which="both", ls="-", alpha=0.5)
 plt.tight_layout()
 # plt.savefig("cl_comparison_side_by_side.png")
 # print("Plot saved to cl_comparison_side_by_side.png")
+
 plt.show()
 
 print("--- Script Finished ---")

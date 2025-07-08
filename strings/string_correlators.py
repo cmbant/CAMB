@@ -62,7 +62,9 @@ class StringParams:
 SPRa = StringParams(mu=string_tension, alpha=string_wigglyness, L=string_decay)
 
 # The ranges for k and ktau for which correlators are calculated in final table
+
 k_min = 1e-6; k_max= 10; nk = 200
+
 ktau_min= 1e-4; ktau_max = 1e3; nktau = 256
 
 # Number of eigenmodes to include in final table
@@ -978,7 +980,6 @@ if __name__ == "__main__":
     print(f"\n--- Table Generation Finished ---")
     print(f"Total time: {overall_end_time - overall_start_time:.2f} seconds.")
 
-
     script_dir = os.path.dirname(os.path.abspath(__file__))
     NPZ_FILENAME = os.path.join(script_dir, "correlator_table.npz")    
 
@@ -1000,3 +1001,4 @@ if __name__ == "__main__":
         print("\nSaved data to correlator_table.npz") 
     except Exception as e:
         print(f"\nError saving data to correlator_table.npz file: {e}")
+
