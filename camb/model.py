@@ -12,9 +12,11 @@ from .dark_energy import DarkEnergyModel, DarkEnergyEqnOfState
 from .recombination import RecombinationModel
 from .reionization import ReionizationModel
 from .sources import SourceWindow
+
 from . import bbn
 import logging
 from typing import Union, Optional
+
 from camb.active_sources import BaseClass #Import class structure for active source eigenvector storage
 
 

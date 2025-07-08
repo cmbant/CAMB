@@ -2235,7 +2235,12 @@
             ks(q_ix) = sqrt(CTrans%q%points(q_ix)**2 - State%curv)
             dlnks(q_ix) = CTrans%q%dpoints(q_ix)*CTrans%q%points(q_ix)/ks(q_ix)**2
         end if
-        pows(q_ix) = CP%InitPower%ScalarPower(ks(q_ix))
+!         pows(q_ix) = CP%InitPower%ScalarPower(ks(q_ix))
+        if (CP%ActiveSources%active_mode_idx > 0) then
+            pows(q_ix) = 1/(2*const_pi**2) * ks(q_ix)**3 
+        else
+           pows(q_ix) = CP%InitPower%ScalarPower(ks(q_ix))
+        endif
         if (global_error_flag/=0) return
     end do
 
@@ -2406,7 +2411,12 @@
             dlnks(q_ix) = CTrans%q%dpoints(q_ix)*CTrans%q%points(q_ix)/ks(q_ix)**2
         end if
 
-        pows(q_ix) =  CP%InitPower%ScalarPower(ks(q_ix))
+!         pows(q_ix) =  CP%InitPower%ScalarPower(ks(q_ix))
+        if (CP%ActiveSources%active_mode_idx > 0) then
+            pows(q_ix) = 1/(2*const_pi**2) * ks(q_ix)**3 
+        else
+           pows(q_ix) = CP%InitPower%ScalarPower(ks(q_ix))
+        endif
         if (global_error_flag/=0) return
     end do
 
@@ -2488,6 +2498,9 @@
     !$OMP & PRIVATE(q_ix, measure, apowert, ctnorm, dbletmp)
     do j=1,CTrans%ls%nl
         do q_ix = 1, CTrans%q%npoints
+            if (CP%ActiveSources%active_mode_idx > 0) then
+                pows(q_ix) = 16/(2*const_pi**2) * ks(q_ix)**3 
+            endif
             if (.not.(State%closed.and. nint(CTrans%q%points(q_ix)*State%curvature_radius)<=CTrans%ls%l(j))) then
                 !cut off at nu = l+1
                 apowert = pows(q_ix)
@@ -2526,6 +2539,10 @@
     do q_ix = 1, CTrans%q%npoints
         ks(q_ix) = CTrans%q%points(q_ix)
         measures(q_ix) = CTrans%q%dpoints(q_ix)/CTrans%q%points(q_ix)
+        
+        if (CP%ActiveSources%active_mode_idx > 0) then
+            pows(q_ix) = 8/(2*const_pi**2) * ks(q_ix)**3 
+        endif
     end do
 
     call GetInitPowers(pows,ks,CTrans%q%npoints)
