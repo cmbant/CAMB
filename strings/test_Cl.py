@@ -37,10 +37,10 @@ pars.WantVectors = False
 pars.WantTensors = True
 pars.DoLensing = False
 
-if pars.WantTensors:
-    pars.InitPower.set_params(As=2e-9, ns=0.965, r=0.1) 
-else:
-    pars.InitPower.set_params(As=2e-9, ns=0.965, r=0.0) 
+# if pars.WantTensors:
+#     pars.InitPower.set_params(As=2e-9, ns=0.965, r=0.1) 
+# else:
+#     pars.InitPower.set_params(As=2e-9, ns=0.965, r=0.0) 
 
 # ------------------------------------------------------------------------------
 # 2. Load UETC Data and Initialize Custom Object
@@ -102,16 +102,19 @@ print(f"Baseline C_l^{{EE}} calculated up to LMAX={lmax_calc}.")
 # ------------------------------------------------------------------------------
 
 if pars.WantTensors and not pars.WantVectors and not pars.WantScalars:
-    pars.InitPower.set_params(As=1, ns=4, r=1, nt=3, pivot_scalar=1.0, pivot_tensor=1.0) 
-    scale_factor = 16/(2*np.pi**2)
+    # pars.InitPower.set_params(As=1, ns=4, r=1, nt=3, pivot_scalar=1.0, pivot_tensor=1.0) 
+    # scale_factor = 16/(2*np.pi**2)
+    scale_factor=1
 elif pars.WantVectors and not pars.WantTensors and not pars.WantScalars:
     pars.InitPower.set_params(As=1, ns=4, r=0, nt=3, pivot_scalar=1.0, pivot_tensor=1.0) 
     # Fudge factor of 2
-    scale_factor = 2 * 8/(2*np.pi**2)
+    # scale_factor = 2 * 8/(2*np.pi**2)
+    scale_factor=1
 elif pars.WantScalars and not pars.WantTensors and not pars.WantVectors:
-    pars.InitPower.set_params(As=1, ns=4, r=0, nt=3, pivot_scalar=1.0, pivot_tensor=1.0) 
+    # pars.InitPower.set_params(As=1, ns=4, r=0, nt=3, pivot_scalar=1.0, pivot_tensor=1.0) 
     pars.scalar_initial_condition = 0
-    scale_factor = 1/(2*np.pi**2)
+    scale_factor=1
+    # scale_factor = 1/(2*np.pi**2)
 else:
     print("Error: Invalid combination of modes.")
     exit()
@@ -179,8 +182,8 @@ axs[1].legend()
 axs[1].grid(True, which="both", ls="-", alpha=0.5)
 
 plt.tight_layout()
-plt.savefig("cl_comparison_side_by_side.png")
-print("Plot saved to cl_comparison_side_by_side.png")
+# plt.savefig("cl_comparison_side_by_side.png")
+# print("Plot saved to cl_comparison_side_by_side.png")
 plt.show()
 
 print("--- Script Finished ---")
