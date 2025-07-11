@@ -980,7 +980,6 @@ if __name__ == "__main__":
     print(f"\n--- Table Generation Finished ---")
     print(f"Total time: {overall_end_time - overall_start_time:.2f} seconds.")
 
-
     script_dir = os.path.dirname(os.path.abspath(__file__))
     NPZ_FILENAME = os.path.join(script_dir, "correlator_table.npz")    
 
@@ -1002,3 +1001,4 @@ if __name__ == "__main__":
         print("\nSaved data to correlator_table.npz") 
     except Exception as e:
         print(f"\nError saving data to correlator_table.npz file: {e}")
+
