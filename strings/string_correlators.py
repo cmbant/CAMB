@@ -62,7 +62,7 @@ class StringParams:
 SPRa = StringParams(mu=string_tension, alpha=string_wigglyness, L=string_decay)
 
 # The ranges for k and ktau for which correlators are calculated in final table
-k_min = 1e-6; k_max= 10; nk = 200
+k_min = 1e-6; k_max= 10; nk = 100
 ktau_min= 1e-4; ktau_max = 1e3; nktau = 256
 
 # Number of eigenmodes to include in final table
@@ -145,6 +145,8 @@ def VOS_equations(tau, y, cr, H_c_interp):
     #VOS ODEs
     dxi_dtau = 1/tau*(v**2 * xi*tau*H_c - xi + cr * v / 2.0)
     dv_dtau =  (1.0 - v**2) * (k_tilde / (xi*tau) - 2.0 * v*H_c)
+    # dxi_dtau = 0
+    # dv_dtau =  0
     
     return [dxi_dtau, dv_dtau]
 
@@ -153,7 +155,7 @@ def VOS_solver(cr=0.23):
     Solves the VOS equations and returns the solutions as interpolators.
     """
     # Solution time range in seconds
-    tau_min_s, tau_max_s = 1e-5, 5e17
+    tau_min_s, tau_max_s = 1e-4, 8e17
     
     #Convert time to conformal time
     s_per_mpc = Mpc_in_m / c_m_per_s
@@ -162,12 +164,12 @@ def VOS_solver(cr=0.23):
     
     #Get cosmology
     tau_span = [tau_min*0.9, tau_max*1.1]
-    tau_eval = np.logspace(np.log10(tau_min), np.log10(tau_max), 500)
+    tau_eval = np.logspace(np.log10(tau_min), np.log10(tau_max), 5000)
     a_interp, H_c_interp, tau_cosmo, a_cosmo, Hc_cosmo = solve_cosmology(tau_eval)
 
     #Solve VOS
     # Initial conditions for ξ and v
-    xi0 = 0.15
+    xi0 = 0.13
     v0 = 0.65
     y0 = [xi0, v0]
 
@@ -178,8 +180,8 @@ def VOS_solver(cr=0.23):
     )
     xi, v = sol.y
     
-    xi_interp = interp1d(tau_eval, xi, kind='cubic', fill_value="extrapolate")
-    v_interp = interp1d(tau_eval, v, kind='cubic', fill_value="extrapolate")
+    xi_interp = interp1d(tau_eval, xi, kind='linear', fill_value="extrapolate")
+    v_interp = interp1d(tau_eval, v, kind='linear', fill_value="extrapolate")
     
     return xi_interp, v_interp
 

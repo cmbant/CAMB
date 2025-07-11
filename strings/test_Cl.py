@@ -32,9 +32,9 @@ pars = camb.CAMBparams()
 pars.set_cosmology(H0=67.5, ombh2=0.022, omch2=0.122, mnu=0.0, omk=0, tau=0.06)
 pars.max_l_tensor = 1500
 
-pars.WantScalars = False
+pars.WantScalars = True
 pars.WantVectors = False
-pars.WantTensors = True
+pars.WantTensors = False
 pars.DoLensing = False
 
 # if pars.WantTensors:
