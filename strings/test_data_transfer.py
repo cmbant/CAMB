@@ -8,7 +8,7 @@ CAMB_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if CAMB_dir not in sys.path:
     sys.path.insert(0, CAMB_dir)
 
-from camb.active_eigenvectors import activesources
+from camb.active_sources import ActiveSources
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
 NPZ_FILENAME = os.path.join(script_dir, "correlator_table.npz")
@@ -36,7 +36,7 @@ weighting_from_file = correlator_data['weighting_gamma'].item()
 print("Correlator data loaded.")
 
 print("Initializing custom Fortran object...")
-my_custom_obj = activesources()
+my_custom_obj = ActiveSources()
 my_custom_obj.set_correlator_table(
     k_grid=k_grid,
     tau_grid=tau_grid,

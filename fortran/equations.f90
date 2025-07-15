@@ -1,4 +1,4 @@
-    ! Equations module for background and ! To avoid circular module issues, some things are not part of module    
+    ! Equations module for background and ! To avoid circular module issues, some things are not part of module
     ! Background evolution, return d tau/ d a, where tau is the conformal time
     function dtauda(this,a)
     use results
@@ -31,7 +31,7 @@
     use MassiveNu
     use DarkEnergyInterface
     use Transfer
-    use ActiveSources, only: Tactivesources
+    use ActiveSources, only: TActiveSources
 
     implicit none
     public
@@ -150,9 +150,8 @@
         real(dl), pointer :: OutputSources(:) => null()
         real(dl), pointer :: CustomSources(:) => null()
         integer :: OutputStep = 0
-        
+
         integer :: s_ix ! For string conservation equation
-        real(dl) :: pi = const_pi
 
     end type EvolutionVars
 
@@ -566,7 +565,7 @@
     else
         EV%w_ix = 0
     end if
-    
+
     ! string conservation equation
     EV%s_ix=neq+1
     neq=neq+1
@@ -1621,8 +1620,8 @@
     real(dl) tau
     real(dl), target :: sources(:)
     integer, intent(in) :: num_custom_sources
-    
-    real(dl) :: a 
+
+    real(dl) :: a
     real(dl) :: adotoa
     integer  :: eigenmode
     real(dl) :: pi=const_pi
@@ -1931,7 +1930,7 @@
         !InitVec = initv(CP%Scalar_initial_condition,:)
         InitVec = 0
         if (CP%Scalar_initial_condition==initial_adiabatic) InitVec = -InitVec
-    else 
+    else
 
         if (CP%Scalar_initial_condition==initial_vector) then
             InitVec = 0
@@ -1959,7 +1958,7 @@
     !  Photons
     y(EV%g_ix)=InitVec(i_clxg)
     y(EV%g_ix+1)=InitVec(i_qg)
-    
+
     ! Strings
     y(EV%s_ix)=0.0d0
 
@@ -2062,7 +2061,7 @@
     x=k*tau
 
     tens0 = 1
-    
+
     if (CP%ActiveSources%active_mode_idx > 0) then
         tens0=0.0
     end if
@@ -2101,7 +2100,7 @@
     type(EvolutionVars) EV
     real(dl) k,k2 ,a, omtau
     real(dl) yv(EV%nvarv)
-    
+
     if (CP%ActiveSources%active_mode_idx > 0) then
         vec_sig0=0.0
         Magnetic = 0.0
@@ -2216,7 +2215,7 @@
     real(dl) ddopacity, visibility, dvisibility, ddvisibility, exptau, lenswindow
     real(dl) ISW, quadrupole_source, doppler, monopole_source, tau0, ang_dist
     real(dl) dgrho_de, dgq_de, cs2_de
-    
+
     ! Variables for active correlator source terms
     integer  :: eigenmode
     real(dl) :: k_val, tau_val, ktau
@@ -2229,7 +2228,7 @@
     real(dl) :: dot_numerator_00, dot_numerator_S
     real(dl) :: pi=const_pi
     real(dl) :: common_scaling_den, dot_terms_den
-    
+
     k=EV%k_buf
     k2=EV%k2_buf
 
@@ -2289,7 +2288,7 @@
     end if
 
     dgrho = dgrho_matter
-    
+
     eigenmode = 0          ! Default to active sources off
 
     ! Initialize emt... terms to ensure they are defined even if active sources are off
@@ -2301,14 +2300,14 @@
     emtP=0.0d0
 
     if (allocated(CP%ActiveSources)) then
-        if (CP%ActiveSources%active_mode_idx > 0) then 
-            
+        if (CP%ActiveSources%active_mode_idx > 0) then
+
             eigenmode = CP%ActiveSources%active_mode_idx
-            
+
             k_val = EV%k_buf
             tau_val = tau
             ktau = k_val * tau_val
-            
+
             ! Density and scalar components
             u_00 = CP%ActiveSources%ef_interp_00(eigenmode)%Value(k_val, ktau)
             u_S  = CP%ActiveSources%ef_interp_S(eigenmode)%Value(k_val, ktau)
@@ -2317,7 +2316,7 @@
             duS_dlogkt  = CP%ActiveSources%ef_deriv_interp_S(eigenmode)%Value(k_val, ktau)
 
             eigenvalue_k = CP%ActiveSources%lambda_interp_S(eigenmode)%Value(k_val)
-                
+
             gamma_loc = 0.25_dl ! hardcode weigthing gamma, as for some reason the gamma fed from python does not work -- INVESTIGATE
 
             common_scaling_den = (ktau**gamma_loc) * sqrt(tau_val)
@@ -2340,13 +2339,13 @@
                 emtSdot   = 0.0_dl
             endif
 
-            emtD = ay(EV%s_ix) 
+            emtD = ay(EV%s_ix)
             emtP = (emtD - emt00dot)/adotoa - emt00
 
             ayprime(EV%s_ix)=-2.0d0*adotoa*emtD-(k2/3.0d0)*(emtP+2.0d0*emtS)
-            
+
         endif
-    endif 
+    endif
 
     if (EV%no_nu_multpoles) then
         !RSA approximation of arXiv:1104.2933, dropping opactity terms in the velocity
@@ -2386,7 +2385,7 @@
 
     !  8*pi*a*a*SUM[(rho_i+p_i)*v_i]
     dgq=dgq + grhog_t*qg+grhor_t*qr
-    
+
     ! Add active sources to total density
     dgrho = dgrho + 8.0d0*pi*emt00
     dgq = dgq - 8.0d0*pi*emtD/k
@@ -2873,11 +2872,11 @@
                 + (k**2*polter + 3*polterddot)*visibility)/k**2
 
             EV%OutputSources(1) = ISW + doppler + monopole_source + quadrupole_source
-            
+
             ! Add active sources to line of sight integral
             EV%OutputSources(1) = EV%OutputSources(1) + 8.0*pi*exptau*(emtSdot-2.0*adotoa*emtS)/k2
             EV%OutputSources(1) = EV%OutputSources(1) + 8.0*pi*visibility*(21.0/10.0)*emtS/k2
-            
+
             ang_dist = f_K(tau0-tau)
             if (tau < tau0) then
                 !E polarization source
@@ -2947,7 +2946,7 @@
     real(dl) k,k2,a,a2, adotdota
     real(dl) pir,adotoa
     real(dl) w_dark_energy_t
-    
+
     ! Active source correlator variables
     real(dl) emtV, ktau, tau_val, k_val, u_V
     real(dl) :: common_scaling_corr, eigenvalue_k, gamma, pi=const_pi
@@ -2967,7 +2966,7 @@
     a=yv(1)
 
     sigma=yv(2)
-    
+
     eigenmode = 0
     if (allocated(CP%ActiveSources)) then
     ! Check if Custom object exists
@@ -2977,9 +2976,9 @@
             CP%ActiveSources%deriv_interp_objects_are_set) then ! Check derivative interpolators
             gamma = 0.25
             eigenmode = CP%ActiveSources%active_mode_idx
-            
+
             k_val = EV%k_buf
-            tau_val = tau 
+            tau_val = tau
             ktau = k_val * tau_val
             ! eigenvectors
             u_V = CP%ActiveSources%ef_interp_V(eigenmode)%Value(k_val, ktau)
@@ -3128,7 +3127,7 @@
     !  Get the propagation equation for the shear
 
     rhopi=grhog_t*pig+grhor_t*pir+ grhog_t*Magnetic
-    
+
     ! Add active sources to density
     rhopi = rhopi + 8.0*pi*emtV
 
@@ -3151,7 +3150,7 @@
     real(dl) k,k2,a,a2,grhog_t, grhor_t
     real(dl) pir, adot, adotoa, rhonu, shear
     real(dl) cothxor
-    
+
     ! Active source correlator params
     real(dl) emtT, ktau, tau_val, k_val, u_T
     real(dl) :: common_scaling_corr, eigenvalue_k, gamma, pi=const_pi
@@ -3168,7 +3167,7 @@
 
     a2=a*a
     adotoa = adot/a
-    
+
     eigenmode = 0
     if (allocated(CP%ActiveSources)) then
     ! Check if Custom object exists
@@ -3178,13 +3177,13 @@
             CP%ActiveSources%deriv_interp_objects_are_set) then ! Check derivative interpolators
             gamma = 0.25
             eigenmode = CP%ActiveSources%active_mode_idx
-            
+
             k_val = EV%k_buf
-            tau_val = tau 
+            tau_val = tau
             ktau = k_val * tau_val
             ! eigenvectors
             u_T = CP%ActiveSources%ef_interp_T(eigenmode)%Value(k_val, ktau)
-                
+
             eigenvalue_k = CP%ActiveSources%lambda_interp_T(eigenmode)%Value(k_val)
 
             common_scaling_corr = sqrt(abs(eigenvalue_k)) / &
@@ -3333,7 +3332,7 @@
     end if
 
     !  Get the propagation equation for the shear
-    
+
     ! Add active sources to density
     rhopi = rhopi + 8.0*pi*emtT
 

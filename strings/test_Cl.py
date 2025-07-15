@@ -8,14 +8,14 @@ CAMB_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if CAMB_dir not in sys.path:
     sys.path.insert(0, CAMB_dir)
 
-from camb.active_sources import activesources
+from camb.active_sources import ActiveSources
 import camb
 import matplotlib.pyplot as plt
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
 NPZ_FILENAME = os.path.join(script_dir, "correlator_table.npz")
 
-N_MODES_TO_SUM = 32  # Number of UETC eigenmodes to sum for the string signal
+N_MODES_TO_SUM = 1  # Number of UETC eigenmodes to sum for the string signal
 LMAX_PLOT = 4000    # Max multipole for plotting
 CMB_UNIT_OUTPUT = 'muK' # 'muK' for muK^2 units, 'K' for K^2 units
 pol_mode_idx=0;# !indices: TT, EE, BB, TE
@@ -38,9 +38,9 @@ pars.WantTensors = False
 pars.DoLensing = False
 
 # if pars.WantTensors:
-#     pars.InitPower.set_params(As=2e-9, ns=0.965, r=0.1) 
+#     pars.InitPower.set_params(As=2e-9, ns=0.965, r=0.1)
 # else:
-#     pars.InitPower.set_params(As=2e-9, ns=0.965, r=0.0) 
+#     pars.InitPower.set_params(As=2e-9, ns=0.965, r=0.0)
 
 # ------------------------------------------------------------------------------
 # 2. Load UETC Data and Initialize Custom Object
@@ -61,7 +61,7 @@ weighting_from_file = correlator_data['weighting_gamma'].item()
 print("Correlator data loaded.")
 
 print("Initializing custom Fortran object...")
-my_custom_obj = activesources()
+my_custom_obj = ActiveSources()
 my_custom_obj.set_correlator_table(
     k_grid=k_grid,
     tau_grid=tau_grid,
@@ -76,13 +76,13 @@ my_custom_obj.set_correlator_table(
     weighting_param=weighting_from_file
 )
 print("Fortran data transfer successful")
-pars.ActiveSources = my_custom_obj 
+pars.ActiveSources = my_custom_obj
 
 # ------------------------------------------------------------------------------
 # 3. Calculate Baseline C_l^{EE} (No UETC Sources)
 # ------------------------------------------------------------------------------
 print("Calculating baseline C_l^{EE} (UETC sources OFF)...")
-my_custom_obj.set_active_eigenmode(0) 
+my_custom_obj.set_active_eigenmode(0)
 results_baseline = camb.get_results(pars)
 
 if pars.WantVectors:
@@ -102,16 +102,16 @@ print(f"Baseline C_l^{{EE}} calculated up to LMAX={lmax_calc}.")
 # ------------------------------------------------------------------------------
 
 if pars.WantTensors and not pars.WantVectors and not pars.WantScalars:
-    # pars.InitPower.set_params(As=1, ns=4, r=1, nt=3, pivot_scalar=1.0, pivot_tensor=1.0) 
+    # pars.InitPower.set_params(As=1, ns=4, r=1, nt=3, pivot_scalar=1.0, pivot_tensor=1.0)
     # scale_factor = 16/(2*np.pi**2)
     scale_factor=1
 elif pars.WantVectors and not pars.WantTensors and not pars.WantScalars:
-    pars.InitPower.set_params(As=1, ns=4, r=0, nt=3, pivot_scalar=1.0, pivot_tensor=1.0) 
+    pars.InitPower.set_params(As=1, ns=4, r=0, nt=3, pivot_scalar=1.0, pivot_tensor=1.0)
     # Fudge factor of 2
     # scale_factor = 2 * 8/(2*np.pi**2)
     scale_factor=1
 elif pars.WantScalars and not pars.WantTensors and not pars.WantVectors:
-    # pars.InitPower.set_params(As=1, ns=4, r=0, nt=3, pivot_scalar=1.0, pivot_tensor=1.0) 
+    # pars.InitPower.set_params(As=1, ns=4, r=0, nt=3, pivot_scalar=1.0, pivot_tensor=1.0)
     pars.scalar_initial_condition = 0
     scale_factor=1
     # scale_factor = 1/(2*np.pi**2)
@@ -124,11 +124,11 @@ print(f"Calculating UETC C_l^{{EE}} by summing {actual_n_modes_to_sum} eigenmode
 
 cl_strings_sum_dl = np.zeros_like(cl_baseline_dl)
 
-# pars.InitPower.set_params(As=1, ns=1, r=1) 
+# pars.InitPower.set_params(As=1, ns=1, r=1)
 for i_mode in range(1, actual_n_modes_to_sum + 1):
     print(f"  Processing eigenmode {i_mode}/{actual_n_modes_to_sum}...")
     my_custom_obj.set_active_eigenmode(i_mode)
-    
+
     pars.ActiveSources = my_custom_obj # Re-assign to ensure CAMB sees the updated active_mode
 
     results_mode_i = camb.get_results(pars)
@@ -139,12 +139,12 @@ for i_mode in range(1, actual_n_modes_to_sum + 1):
     else:
         power_spectra_mode_i = results_mode_i.get_cmb_power_spectra(pars, CMB_unit=CMB_UNIT_OUTPUT, raw_cl=False)
         cl_mode_i_dl = power_spectra_mode_i['total'][:,pol_mode_idx] # !indices: TT, EE, BB, TE
-        
+
     min_len = min(len(cl_strings_sum_dl), len(cl_mode_i_dl))
-    
+
     cl_strings_sum_dl[:min_len] += cl_mode_i_dl[:min_len]
 
-my_custom_obj.set_active_eigenmode(0) 
+my_custom_obj.set_active_eigenmode(0)
 print("UETC C_l^{EE} calculation finished.")
 
 # Assumes linear addition of power spectra.

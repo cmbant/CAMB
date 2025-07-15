@@ -154,8 +154,8 @@
         class(TReionizationModel), allocatable :: Reion
         class(TDarkEnergyModel), allocatable :: DarkEnergy
         class(TNonLinearModel), allocatable :: NonLinearModel
-        
-        class(Tactivesources), allocatable :: ActiveSources
+
+        class(TActiveSources), allocatable :: ActiveSources
 
         type(AccuracyParams)     :: Accuracy
         type(SourceTermParams)   :: SourceTerms
