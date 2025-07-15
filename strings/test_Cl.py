@@ -20,6 +20,9 @@ LMAX_PLOT = 4000    # Max multipole for plotting
 CMB_UNIT_OUTPUT = 'muK' # 'muK' for muK^2 units, 'K' for K^2 units
 pol_mode_idx=0;# !indices: TT, EE, BB, TE
 
+# --- Custom gamma parameter for scaling ---
+GAMMA_PARAMETER = 0.25  # Change this value to modify the scaling behavior
+
 # --- Plotting Style (Optional) ---
 plt.style.use('seaborn-v0_8-colorblind') # Or any other style you prefer
 
@@ -32,9 +35,9 @@ pars = camb.CAMBparams()
 pars.set_cosmology(H0=67.5, ombh2=0.022, omch2=0.122, mnu=0.0, omk=0, tau=0.06)
 pars.max_l_tensor = 1500
 
-pars.WantScalars = True
+pars.WantScalars = False
 pars.WantVectors = False
-pars.WantTensors = False
+pars.WantTensors = True
 pars.DoLensing = False
 
 # if pars.WantTensors:
@@ -77,6 +80,10 @@ my_custom_obj.set_correlator_table(
 )
 print("Fortran data transfer successful")
 pars.ActiveSources = my_custom_obj
+
+# --- Set custom gamma parameter ---
+print(f"Setting gamma parameter to: {GAMMA_PARAMETER}")
+my_custom_obj.gamma = GAMMA_PARAMETER
 
 # ------------------------------------------------------------------------------
 # 3. Calculate Baseline C_l^{EE} (No UETC Sources)

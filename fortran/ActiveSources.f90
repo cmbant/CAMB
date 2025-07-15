@@ -5,7 +5,8 @@ module ActiveSources
     implicit none
 
     private
-    public :: TActiveSources, TActiveSources_SetCorrelatorTable, TActiveSources_SetActiveEigenmode
+    public :: TActiveSources, TActiveSources_SetCorrelatorTable, TActiveSources_SetActiveEigenmode, &
+              TActiveSources_GetScalarSources, TActiveSources_GetVectorSources, TActiveSources_GetTensorSources
 
     type, extends(TPythonInterfacedClass) :: TActiveSources
 
@@ -43,6 +44,7 @@ module ActiveSources
         integer                  :: ntypes = 0
         real(dl)                 :: string_mu = 0.0_dl
         real(dl)                 :: weighting = 0.0_dl
+        real(dl)                 :: gamma = 0.25_dl  ! Scaling parameter for source terms
 
         logical                  :: interp_objects_are_set = .false. ! Flag for interpolators
 
@@ -60,6 +62,9 @@ module ActiveSources
         procedure, nopass :: SelfPointer => TActiveSources_SelfPointer
         procedure :: SetCorrelatorTable => TActiveSources_SetCorrelatorTable
         procedure :: SetActiveEigenmode => TActiveSources_SetActiveEigenmode
+        procedure :: GetScalarSources => TActiveSources_GetScalarSources
+        procedure :: GetVectorSources => TActiveSources_GetVectorSources
+        procedure :: GetTensorSources => TActiveSources_GetTensorSources
     end type TActiveSources
 
 contains
@@ -81,6 +86,123 @@ contains
             this%active_mode_idx = 0
         endif
     end subroutine TActiveSources_SetActiveEigenmode
+
+    subroutine TActiveSources_GetScalarSources(this, k_val, tau_val, emt00, emtS, emt00dot, emtSdot)
+        class(TActiveSources), intent(in) :: this
+        real(dl), intent(in) :: k_val, tau_val
+        real(dl), intent(out) :: emt00, emtS, emt00dot, emtSdot
+
+        real(dl) :: ktau, common_scaling_corr, eigenvalue_k
+        real(dl) :: u_00, u_S
+        real(dl) :: du00_dlogkt, duS_dlogkt, dot_numerator_00, dot_numerator_S
+        real(dl) :: dot_terms_den
+        integer :: eigenmode
+
+        ! Initialize outputs to zero
+        emt00 = 0.0_dl
+        emtS = 0.0_dl
+        emt00dot = 0.0_dl
+        emtSdot = 0.0_dl
+
+        ! Check if active sources are enabled and properly initialized
+        if (this%active_mode_idx <= 0 .or. &
+            .not. this%interp_objects_are_set .or. &
+            .not. this%eigenvalue_interpolators_set .or. &
+            .not. this%deriv_interp_objects_are_set) then
+            return
+        endif
+
+        eigenmode = this%active_mode_idx
+        ktau = k_val * tau_val
+
+        ! Calculate 00 and S components
+        u_00 = this%ef_interp_00(eigenmode)%Value(k_val, ktau)
+        u_S = this%ef_interp_S(eigenmode)%Value(k_val, ktau)
+        eigenvalue_k = this%lambda_interp_S(eigenmode)%Value(k_val)
+
+        common_scaling_corr = sqrt(abs(eigenvalue_k)) / ((ktau**this%gamma) * sqrt(tau_val))
+        emt00 = u_00 * common_scaling_corr
+        emtS = u_S * common_scaling_corr
+
+        ! Calculate derivatives
+        du00_dlogkt = this%ef_deriv_interp_00(eigenmode)%Value(k_val, ktau)
+        duS_dlogkt = this%ef_deriv_interp_S(eigenmode)%Value(k_val, ktau)
+
+        dot_numerator_00 = du00_dlogkt - (this%gamma + 0.5_dl) * u_00
+        dot_numerator_S = duS_dlogkt - (this%gamma + 0.5_dl) * u_S
+
+        dot_terms_den = tau_val
+        if (abs(dot_terms_den) > 1.0d-150) then
+            emt00dot = dot_numerator_00 * common_scaling_corr / dot_terms_den
+            emtSdot = dot_numerator_S * common_scaling_corr / dot_terms_den
+        else
+            emt00dot = 0.0_dl
+            emtSdot = 0.0_dl
+        endif
+
+    end subroutine TActiveSources_GetScalarSources
+
+    subroutine TActiveSources_GetVectorSources(this, k_val, tau_val, emtV)
+        class(TActiveSources), intent(in) :: this
+        real(dl), intent(in) :: k_val, tau_val
+        real(dl), intent(out) :: emtV
+
+        real(dl) :: ktau, common_scaling_corr, eigenvalue_k
+        real(dl) :: u_V
+        integer :: eigenmode
+
+        ! Initialize output to zero
+        emtV = 0.0_dl
+
+        ! Check if active sources are enabled and properly initialized
+        if (this%active_mode_idx <= 0 .or. &
+            .not. this%interp_objects_are_set .or. &
+            .not. this%eigenvalue_interpolators_set) then
+            return
+        endif
+
+        eigenmode = this%active_mode_idx
+        ktau = k_val * tau_val
+
+        ! Calculate V component
+        u_V = this%ef_interp_V(eigenmode)%Value(k_val, ktau)
+        eigenvalue_k = this%lambda_interp_V(eigenmode)%Value(k_val)
+
+        common_scaling_corr = sqrt(abs(eigenvalue_k)) / ((ktau**this%gamma) * sqrt(tau_val))
+        emtV = u_V * common_scaling_corr
+
+    end subroutine TActiveSources_GetVectorSources
+
+    subroutine TActiveSources_GetTensorSources(this, k_val, tau_val, emtT)
+        class(TActiveSources), intent(in) :: this
+        real(dl), intent(in) :: k_val, tau_val
+        real(dl), intent(out) :: emtT
+
+        real(dl) :: ktau, common_scaling_corr, eigenvalue_k
+        real(dl) :: u_T
+        integer :: eigenmode
+
+        ! Initialize output to zero
+        emtT = 0.0_dl
+
+        ! Check if active sources are enabled and properly initialized
+        if (this%active_mode_idx <= 0 .or. &
+            .not. this%interp_objects_are_set .or. &
+            .not. this%eigenvalue_interpolators_set) then
+            return
+        endif
+
+        eigenmode = this%active_mode_idx
+        ktau = k_val * tau_val
+
+        ! Calculate T component
+        u_T = this%ef_interp_T(eigenmode)%Value(k_val, ktau)
+        eigenvalue_k = this%lambda_interp_T(eigenmode)%Value(k_val)
+
+        common_scaling_corr = sqrt(abs(eigenvalue_k)) / ((ktau**this%gamma) * sqrt(tau_val))
+        emtT = u_T * common_scaling_corr
+
+    end subroutine TActiveSources_GetTensorSources
 
     subroutine TActiveSources_SetCorrelatorTable(this, &
         k_grid_in, nk_in, &

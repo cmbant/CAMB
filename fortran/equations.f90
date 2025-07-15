@@ -2217,17 +2217,7 @@
     real(dl) dgrho_de, dgq_de, cs2_de
 
     ! Variables for active correlator source terms
-    integer  :: eigenmode
-    real(dl) :: k_val, tau_val, ktau
-    real(dl) :: u_00, u_S
-    real(dl) :: du00_dlogkt, duS_dlogkt
-    real(dl) :: eigenvalue_k
-    real(dl) :: gamma_loc
-    real(dl) :: common_scaling_corr
     real(dl) :: emt00, emtS,emt00dot, emtSdot, emtD, emtP
-    real(dl) :: dot_numerator_00, dot_numerator_S
-    real(dl) :: pi=const_pi
-    real(dl) :: common_scaling_den, dot_terms_den
 
     k=EV%k_buf
     k2=EV%k2_buf
@@ -2289,8 +2279,6 @@
 
     dgrho = dgrho_matter
 
-    eigenmode = 0          ! Default to active sources off
-
     ! Initialize emt... terms to ensure they are defined even if active sources are off
     emt00=0.0d0
     emt00dot=0.0d0
@@ -2301,49 +2289,10 @@
 
     if (allocated(CP%ActiveSources)) then
         if (CP%ActiveSources%active_mode_idx > 0) then
-
-            eigenmode = CP%ActiveSources%active_mode_idx
-
-            k_val = EV%k_buf
-            tau_val = tau
-            ktau = k_val * tau_val
-
-            ! Density and scalar components
-            u_00 = CP%ActiveSources%ef_interp_00(eigenmode)%Value(k_val, ktau)
-            u_S  = CP%ActiveSources%ef_interp_S(eigenmode)%Value(k_val, ktau)
-
-            du00_dlogkt = CP%ActiveSources%ef_deriv_interp_00(eigenmode)%Value(k_val, ktau)
-            duS_dlogkt  = CP%ActiveSources%ef_deriv_interp_S(eigenmode)%Value(k_val, ktau)
-
-            eigenvalue_k = CP%ActiveSources%lambda_interp_S(eigenmode)%Value(k_val)
-
-            gamma_loc = 0.25_dl ! hardcode weigthing gamma, as for some reason the gamma fed from python does not work -- INVESTIGATE
-
-            common_scaling_den = (ktau**gamma_loc) * sqrt(tau_val)
-            dot_terms_den = tau_val
-
-            common_scaling_corr = sqrt(abs(eigenvalue_k)) / &
-                                            ( (ktau**gamma_loc) * sqrt(tau_val) )
-
-            emt00 = u_00 * common_scaling_corr
-            emtS  = u_S  * common_scaling_corr
-
-            dot_numerator_00 = du00_dlogkt - (gamma_loc + 0.5_dl) * u_00
-            dot_numerator_S = duS_dlogkt - (gamma_loc + 0.5_dl) * u_S
-
-            if (abs(dot_terms_den) > 1.0d-150) then
-                emt00dot  = dot_numerator_00 * common_scaling_corr / dot_terms_den
-                emtSdot   = dot_numerator_S  * common_scaling_corr / dot_terms_den
-            else
-                emt00dot  = 0.0_dl
-                emtSdot   = 0.0_dl
-            endif
-
+            call CP%ActiveSources%GetScalarSources(EV%k_buf, tau, emt00, emtS, emt00dot, emtSdot)
             emtD = ay(EV%s_ix)
             emtP = (emtD - emt00dot)/adotoa - emt00
-
             ayprime(EV%s_ix)=-2.0d0*adotoa*emtD-(k2/3.0d0)*(emtP+2.0d0*emtS)
-
         endif
     endif
 
@@ -2387,8 +2336,8 @@
     dgq=dgq + grhog_t*qg+grhor_t*qr
 
     ! Add active sources to total density
-    dgrho = dgrho + 8.0d0*pi*emt00
-    dgq = dgq - 8.0d0*pi*emtD/k
+    dgrho = dgrho + 8.0d0*const_pi*emt00
+    dgq = dgq - 8.0d0*const_pi*emtD/k
 
     !  Photon mass density over baryon mass density
     photbar=grhog_t/grhob_t
@@ -2874,8 +2823,8 @@
             EV%OutputSources(1) = ISW + doppler + monopole_source + quadrupole_source
 
             ! Add active sources to line of sight integral
-            EV%OutputSources(1) = EV%OutputSources(1) + 8.0*pi*exptau*(emtSdot-2.0*adotoa*emtS)/k2
-            EV%OutputSources(1) = EV%OutputSources(1) + 8.0*pi*visibility*(21.0/10.0)*emtS/k2
+            EV%OutputSources(1) = EV%OutputSources(1) + 8.0*const_pi*exptau*(emtSdot-2.0*adotoa*emtS)/k2
+            EV%OutputSources(1) = EV%OutputSources(1) + 8.0*const_pi*visibility*(21.0/10.0)*emtS/k2
 
             ang_dist = f_K(tau0-tau)
             if (tau < tau0) then
@@ -2948,9 +2897,7 @@
     real(dl) w_dark_energy_t
 
     ! Active source correlator variables
-    real(dl) emtV, ktau, tau_val, k_val, u_V
-    real(dl) :: common_scaling_corr, eigenvalue_k, gamma, pi=const_pi
-    integer eigenmode
+    real(dl) emtV
 
     k2=EV%k2_buf
     k=EV%k_buf
@@ -2967,34 +2914,11 @@
 
     sigma=yv(2)
 
-    eigenmode = 0
+    emtV = 0.0_dl
     if (allocated(CP%ActiveSources)) then
-    ! Check if Custom object exists
-        if (CP%ActiveSources%active_mode_idx > 0 .and. &
-            CP%ActiveSources%interp_objects_are_set .and. &     ! Check eigenfunction interpolators
-            CP%ActiveSources%eigenvalue_interpolators_set .and. &    ! Check eigenvalue interpolators
-            CP%ActiveSources%deriv_interp_objects_are_set) then ! Check derivative interpolators
-            gamma = 0.25
-            eigenmode = CP%ActiveSources%active_mode_idx
-
-            k_val = EV%k_buf
-            tau_val = tau
-            ktau = k_val * tau_val
-            ! eigenvectors
-            u_V = CP%ActiveSources%ef_interp_V(eigenmode)%Value(k_val, ktau)
-            eigenvalue_k = CP%ActiveSources%lambda_interp_V(eigenmode)%Value(k_val)
-
-            ! Calculate scaled source terms
-            common_scaling_corr = sqrt(abs(eigenvalue_k)) / &
-                                                ( (ktau**gamma) * sqrt(tau_val) )
-
-            emtV = u_V* common_scaling_corr
-
-        else
-            emtV = 0.0_dl
+        if (CP%ActiveSources%active_mode_idx > 0) then
+            call CP%ActiveSources%GetVectorSources(EV%k_buf, tau, emtV)
         endif
-    else
-        emtV = 0.0_dl
     endif
 
     !  Get sound speed and opacity, and see if should use tight-coupling
@@ -3129,7 +3053,7 @@
     rhopi=grhog_t*pig+grhor_t*pir+ grhog_t*Magnetic
 
     ! Add active sources to density
-    rhopi = rhopi + 8.0*pi*emtV
+    rhopi = rhopi + 8.0*const_pi*emtV
 
     yvprime(2)=-2*adotoa*sigma -rhopi/k
 
@@ -3152,9 +3076,7 @@
     real(dl) cothxor
 
     ! Active source correlator params
-    real(dl) emtT, ktau, tau_val, k_val, u_T
-    real(dl) :: common_scaling_corr, eigenvalue_k, gamma, pi=const_pi
-    integer eigenmode
+    real(dl) emtT
 
     k2=EV%k2_buf
     k= EV%k_buf
@@ -3168,33 +3090,11 @@
     a2=a*a
     adotoa = adot/a
 
-    eigenmode = 0
+    emtT = 0.0_dl
     if (allocated(CP%ActiveSources)) then
-    ! Check if Custom object exists
-        if (CP%ActiveSources%active_mode_idx > 0 .and. &
-            CP%ActiveSources%interp_objects_are_set .and. &     ! Check eigenfunction interpolators
-            CP%ActiveSources%eigenvalue_interpolators_set .and. &    ! Check eigenvalue interpolators
-            CP%ActiveSources%deriv_interp_objects_are_set) then ! Check derivative interpolators
-            gamma = 0.25
-            eigenmode = CP%ActiveSources%active_mode_idx
-
-            k_val = EV%k_buf
-            tau_val = tau
-            ktau = k_val * tau_val
-            ! eigenvectors
-            u_T = CP%ActiveSources%ef_interp_T(eigenmode)%Value(k_val, ktau)
-
-            eigenvalue_k = CP%ActiveSources%lambda_interp_T(eigenmode)%Value(k_val)
-
-            common_scaling_corr = sqrt(abs(eigenvalue_k)) / &
-                                               ( (ktau**gamma) * sqrt(tau_val) )
-
-            emtT = u_T* common_scaling_corr
-        else
-            emtT = 0.0_dl
+        if (CP%ActiveSources%active_mode_idx > 0) then
+            call CP%ActiveSources%GetTensorSources(EV%k_buf, tau, emtT)
         endif
-    else
-        emtT = 0.0_dl
     endif
 
     if (State%flat) then
@@ -3334,7 +3234,7 @@
     !  Get the propagation equation for the shear
 
     ! Add active sources to density
-    rhopi = rhopi + 8.0*pi*emtT
+    rhopi = rhopi + 8.0*const_pi*emtT
 
     if (State%flat) then
         aytprime(ixt_shear)=-2*adotoa*shear+k*Hchi-rhopi/k

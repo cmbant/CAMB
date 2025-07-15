@@ -11,7 +11,9 @@ class BaseClass(F2003Class):
 class ActiveSources(BaseClass):
     _fortran_class_module_ = 'ActiveSources'
     _fortran_class_name_ = 'TActiveSources'
-    _fields_ = []
+    #_fields_ = [
+    #    ("gamma", c_double)
+    #]
 
     _methods_ = [
 
