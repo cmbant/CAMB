@@ -63,14 +63,6 @@ def parse_arguments():
         help='CMB units for output'
     )
 
-    # Gamma parameter
-    parser.add_argument(
-        '--gamma', '-g',
-        type=float,
-        default=0.25,
-        help='Custom gamma parameter for scaling'
-    )
-
     # Data file path
     parser.add_argument(
         '--datafile', '-d',
@@ -167,10 +159,6 @@ def setup_active_sources(correlator_data, args):
     )
     print("Fortran data transfer successful")
 
-    # Set custom gamma parameter
-    print(f"Setting gamma parameter to: {args.gamma}")
-    # my_custom_obj.gamma = args.gamma  # Uncomment if this method exists
-
     return active_sources
 
 def get_polarization_index(pol_component):
@@ -189,18 +177,18 @@ def get_eigenvalues_for_mode(correlator_data, mode):
     else:
         raise ValueError(f"Unknown mode: {mode}")
 
-def calculate_power_spectra(pars, my_custom_obj, args):
+def calculate_power_spectra(pars, args):
     """Calculate power spectra for baseline and UETC sources"""
     pol_mode_idx = get_polarization_index(args.pol)
 
     # Calculate baseline (no UETC sources)
     print("Calculating baseline C_l (UETC sources OFF)...")
-    my_custom_obj.set_active_eigenmode(0)
+    pars.ActiveSources.set_active_eigenmode(0)
     results_baseline = camb.get_results(pars)
 
     if pars.WantVectors:
-        power_spectra_baseline = results_baseline.get_vector_cls(CMB_unit=args.units, raw_cl=False)
-        cl_baseline_dl = power_spectra_baseline[:,pol_mode_idx]
+        power_spectra_baseline = results_baseline.get_cmb_power_spectra(pars, CMB_unit=args.units, raw_cl=False, spectra=("vector",))
+        cl_baseline_dl = power_spectra_baseline['vector'][:,pol_mode_idx]
     else:
         power_spectra_baseline = results_baseline.get_cmb_power_spectra(pars, CMB_unit=args.units, raw_cl=False)
         cl_baseline_dl = power_spectra_baseline['total'][:,pol_mode_idx]
@@ -220,15 +208,13 @@ def calculate_power_spectra(pars, my_custom_obj, args):
 
     for i_mode in range(1, actual_n_modes_to_sum + 1):
         print(f"  Processing eigenmode {i_mode}/{actual_n_modes_to_sum}...")
-        my_custom_obj.set_active_eigenmode(i_mode)
-
-        pars.ActiveSources = my_custom_obj
+        pars.ActiveSources.set_active_eigenmode(i_mode)
 
         results_mode_i = camb.get_results(pars)
 
         if pars.WantVectors:
-            power_spectra_mode_i = results_mode_i.get_vector_cls(CMB_unit=args.units, raw_cl=False)
-            cl_mode_i_dl = power_spectra_mode_i[:,pol_mode_idx]
+            power_spectra_mode_i = results_mode_i.get_cmb_power_spectra(pars, CMB_unit=args.units, raw_cl=False, spectra=("vector",))
+            cl_mode_i_dl = power_spectra_mode_i['vector'][:,pol_mode_idx]
         else:
             power_spectra_mode_i = results_mode_i.get_cmb_power_spectra(pars, CMB_unit=args.units, raw_cl=False)
             cl_mode_i_dl = power_spectra_mode_i['total'][:,pol_mode_idx]
@@ -236,7 +222,7 @@ def calculate_power_spectra(pars, my_custom_obj, args):
         min_len = min(len(cl_strings_sum_dl), len(cl_mode_i_dl))
         cl_strings_sum_dl[:min_len] += cl_mode_i_dl[:min_len]
 
-    my_custom_obj.set_active_eigenmode(0)
+    pars.ActiveSources.set_active_eigenmode(0)
     print("UETC C_l calculation finished.")
 
     # Assumes linear addition of power spectra.
@@ -305,7 +291,6 @@ def main():
     print(f"  Polarization: {args.pol}")
     print(f"  Max multipole: {args.lmax}")
     print(f"  Units: {args.units}")
-    print(f"  Gamma: {args.gamma}")
     print()
 
     # Setup CAMB parameters
@@ -319,7 +304,7 @@ def main():
     pars.ActiveSources = active_sources
 
     # Calculate power spectra
-    ls_calc, cl_baseline_dl, Cl_strings = calculate_power_spectra(pars, active_sources, args)
+    ls_calc, cl_baseline_dl, Cl_strings = calculate_power_spectra(pars, args)
 
     # Plot results
     plot_results(ls_calc, cl_baseline_dl, Cl_strings, args)

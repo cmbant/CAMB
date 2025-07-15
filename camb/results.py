@@ -471,7 +471,7 @@ class CAMBdata(F2003Class):
         self,
         params=None,
         lmax=None,
-        spectra=("total", "unlensed_scalar", "unlensed_total", "lensed_scalar", "tensor", "lens_potential"),
+        spectra=("total", "unlensed_scalar", "unlensed_total", "lensed_scalar", "tensor", "lens_potential", "vector"),
         CMB_unit=None,
         raw_cl=False,
     ):
@@ -1216,17 +1216,17 @@ class CAMBdata(F2003Class):
         CAMB_SetTensorCls(byref(self), byref(opt), res)
         self._scale_cls(res, CMB_unit, raw_cl)
         return res
-    
+
     def get_vector_cls(self, lmax=None, CMB_unit=None, raw_cl=False):
         r"""
         Get vector CMB power spectra. Must have already calculated power spectra.
-    
+
         :param lmax: lmax to output to
         :param CMB_unit: scale results from dimensionless. Use 'muK' for :math:`\mu K^2` units for CMB :math:`C_\ell`
         :param raw_cl: return :math:`C_\ell` rather than :math:`\ell(\ell+1)C_\ell/2\pi`
         :return: numpy array CL[0:lmax+1,0:4], where 0..3 indexes TT, EE, BB, TE
         """
-    
+
         if lmax is None:
             lmax = self.Params.max_l
         lmax = self._lmax_setting(lmax, unlensed=True)

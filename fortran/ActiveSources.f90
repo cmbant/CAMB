@@ -43,8 +43,7 @@ module ActiveSources
         integer                  :: nmodes = 0
         integer                  :: ntypes = 0
         real(dl)                 :: string_mu = 0.0_dl
-        real(dl)                 :: weighting = 0.0_dl
-        real(dl)                 :: gamma = 0.25_dl  ! Scaling parameter for source terms
+        real(dl)                 :: weighting = 0.25_dl ! Scaling parameter for source terms
 
         logical                  :: interp_objects_are_set = .false. ! Flag for interpolators
 
@@ -120,7 +119,7 @@ contains
         u_S = this%ef_interp_S(eigenmode)%Value(k_val, ktau)
         eigenvalue_k = this%lambda_interp_S(eigenmode)%Value(k_val)
 
-        common_scaling_corr = sqrt(abs(eigenvalue_k)) / ((ktau**this%gamma) * sqrt(tau_val))
+        common_scaling_corr = sqrt(abs(eigenvalue_k)) / ((ktau**this%weighting) * sqrt(tau_val))
         emt00 = u_00 * common_scaling_corr
         emtS = u_S * common_scaling_corr
 
@@ -128,8 +127,8 @@ contains
         du00_dlogkt = this%ef_deriv_interp_00(eigenmode)%Value(k_val, ktau)
         duS_dlogkt = this%ef_deriv_interp_S(eigenmode)%Value(k_val, ktau)
 
-        dot_numerator_00 = du00_dlogkt - (this%gamma + 0.5_dl) * u_00
-        dot_numerator_S = duS_dlogkt - (this%gamma + 0.5_dl) * u_S
+        dot_numerator_00 = du00_dlogkt - (this%weighting + 0.5_dl) * u_00
+        dot_numerator_S = duS_dlogkt - (this%weighting + 0.5_dl) * u_S
 
         dot_terms_den = tau_val
         if (abs(dot_terms_den) > 1.0d-150) then
@@ -168,7 +167,7 @@ contains
         u_V = this%ef_interp_V(eigenmode)%Value(k_val, ktau)
         eigenvalue_k = this%lambda_interp_V(eigenmode)%Value(k_val)
 
-        common_scaling_corr = sqrt(abs(eigenvalue_k)) / ((ktau**this%gamma) * sqrt(tau_val))
+        common_scaling_corr = sqrt(abs(eigenvalue_k)) / ((ktau**this%weighting) * sqrt(tau_val))
         emtV = u_V * common_scaling_corr
 
     end subroutine TActiveSources_GetVectorSources
@@ -199,7 +198,7 @@ contains
         u_T = this%ef_interp_T(eigenmode)%Value(k_val, ktau)
         eigenvalue_k = this%lambda_interp_T(eigenmode)%Value(k_val)
 
-        common_scaling_corr = sqrt(abs(eigenvalue_k)) / ((ktau**this%gamma) * sqrt(tau_val))
+        common_scaling_corr = sqrt(abs(eigenvalue_k)) / ((ktau**this%weighting) * sqrt(tau_val))
         emtT = u_T * common_scaling_corr
 
     end subroutine TActiveSources_GetTensorSources
