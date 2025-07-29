@@ -4,6 +4,7 @@ This directory contains a minimal Julia implementation of basic CAMB functionali
 The goal is to provide a pure Julia port that demonstrates high-performance
 computations without relying on Fortran code.  The package is organised in a
 standard layout with all source files under `src/`.  Currently implemented features
+
 include:
 
 - Definition of cosmological parameters
@@ -50,6 +51,7 @@ include:
 
 This is a proof-of-concept and does not yet match the full capabilities of the
 original CAMB code.
+
 
 ## Using the package locally
 
