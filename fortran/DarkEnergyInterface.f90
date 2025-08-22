@@ -40,7 +40,7 @@
     procedure :: w_de => TDarkEnergyEqnOfState_w_de
     procedure :: grho_de => TDarkEnergyEqnOfState_grho_de
     procedure :: Effective_w_wa => TDarkEnergyEqnOfState_Effective_w_wa
-#ifdef __GFORTRAN__
+#if defined(__GFORTRAN__) && (( __GNUC__ < 15 ) || ( __GNUC__ == 15 && __GNUC_MINOR__ < 2 ))
     final :: TDarkEnergyEqnOfState_Free ! safer for gcc mem-leak bug
 #endif
     end type TDarkEnergyEqnOfState
@@ -285,7 +285,7 @@
 
     end subroutine TDarkEnergyEqnOfState_Init
 
-#ifdef __GFORTRAN__
+#if defined(__GFORTRAN__) && defined(__GNUC__) && (( __GNUC__ < 15 ) || ( __GNUC__ == 15 && __GNUC_MINOR__ < 2 ))
     subroutine TDarkEnergyEqnOfState_Free(this)
     type(TDarkEnergyEqnOfState), intent(inout) :: this
 

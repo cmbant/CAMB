@@ -275,7 +275,7 @@
     procedure :: binary_search
     procedure, nopass :: PythonClass => CAMBdata_PythonClass
     procedure, nopass :: SelfPointer => CAMBdata_SelfPointer
-#ifdef __GFORTRAN__
+#if defined(__GFORTRAN__) && (( __GNUC__ < 15 ) || ( __GNUC__ == 15 && __GNUC_MINOR__ < 2 ))
     final :: CAMBdata_final !Workaround for gfortran bug https://gcc.gnu.org/bugzilla/show_bug.cgi?id=120637
 #endif
     end type CAMBdata
