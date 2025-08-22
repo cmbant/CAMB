@@ -1989,7 +1989,8 @@
 
         !  approximate Baryon sound speed squared (over c**2).
         !  Use pre-reionization ionization fraction for cs2-related terms for consistency
-        !  (not correct, but avoids odd behviour at very high k)
+        !  (not correct, but avoids odd behaviour at very high k)
+        !  https://github.com/cmbant/CAMB/issues/171
         fe=(1._dl-CP%yhe)*xe_a(i)/(1._dl-0.75d0*CP%yhe+(1._dl-CP%yhe)*xe_a(i))
         dtbdla=-2._dl*this%tb(i)
         if (a*this%tb(i)-CP%tcmb < -1e-8) then
