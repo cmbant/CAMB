@@ -202,7 +202,7 @@
         !gets sigma_vdelta, like sigma8 but using velocity-density cross power,
         !in late LCDM f*sigma8 = sigma_vdelta^2/sigma8
 
-        logical :: needs_good_pk_sampling = .false.
+        logical :: needs_good_pk_sampling = .false. !not currently used
 
         logical ::call_again = .false.
         !if being called again with same parameters to get different thing
@@ -997,12 +997,10 @@
     real(dl), intent(in), optional :: eta_k_max
 
     NLL_num_redshifts = 0
-    this%needs_good_pk_sampling = .false.
     associate(P => Params%Transfer)
         if ((Params%NonLinear==NonLinear_lens .or. Params%NonLinear==NonLinear_both) .and. &
             (Params%DoLensing .or. this%num_redshiftwindows > 0)) then
             ! Want non-linear lensing or other sources
-            this%needs_good_pk_sampling = .false.
             NL_Boost = Params%Accuracy%AccuracyBoost*Params%Accuracy%NonlinSourceBoost
             if (Params%Do21cm) then
                 !Sources
