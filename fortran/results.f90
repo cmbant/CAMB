@@ -1988,12 +1988,14 @@
         end if
 
         !  approximate Baryon sound speed squared (over c**2).
-        fe=(1._dl-CP%yhe)*this%xe(i)/(1._dl-0.75d0*CP%yhe+(1._dl-CP%yhe)*this%xe(i))
+        !  Use pre-reionization ionization fraction for cs2-related terms to avoid
+        !  reionization perturbations affecting baryon thermodynamics here
+        fe=(1._dl-CP%yhe)*xe_a(i)/(1._dl-0.75d0*CP%yhe+(1._dl-CP%yhe)*xe_a(i))
         dtbdla=-2._dl*this%tb(i)
         if (a*this%tb(i)-CP%tcmb < -1e-8) then
             dtbdla= dtbdla -thomc0*fe/adot*(a*this%tb(i)-CP%tcmb)/a**3
         end if
-        barssc=barssc0*(1._dl-0.75d0*CP%yhe+(1._dl-CP%yhe)*this%xe(i))
+        barssc=barssc0*(1._dl-0.75d0*CP%yhe+(1._dl-CP%yhe)*xe_a(i))
         this%cs2(i)=barssc*this%tb(i)*(1-dtbdla/this%tb(i)/3._dl)
 
         ! Calculation of the visibility function
