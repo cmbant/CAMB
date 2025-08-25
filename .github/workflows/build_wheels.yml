@@ -1,6 +1,6 @@
 name: Wheels
 
-on: [ push, pull_request ]
+on: [push, pull_request]
 
 jobs:
   build_wheels:
@@ -10,14 +10,21 @@ jobs:
     strategy:
       matrix:
         # see https://github.com/actions/runner-images/tree/main
-        os: [ macos-13, macos-13-xlarge, macos-14, ubuntu-latest, windows-latest ]
+        os:
+          [
+            macos-13,
+            macos-13-xlarge,
+            macos-14,
+            ubuntu-latest,
+            ubuntu-24.04-arm,
+            windows-latest,
+          ]
     steps:
+      - run: ln -s $(which gfortran-12) /usr/local/bin/gfortran
+        if: startsWith(matrix.os, 'ubuntu')
 
       - run: ln -s $(which gfortran-14) /usr/local/bin/gfortran
-        if: matrix.os != 'windows-latest' && matrix.os != 'ubuntu-latest'
-
-      - run: ln -s $(which gfortran-12) /usr/local/bin/gfortran
-        if: matrix.os == 'ubuntu-latest'
+        if: startsWith(matrix.os, 'macos')
 
       - run: gfortran --version
 
@@ -49,7 +56,7 @@ jobs:
         run: python -m cibuildwheel --output-dir wheelhouse
 
       - name: Build wheels
-        if: matrix.os == 'macos-14' || matrix.os == 'ubuntu-latest' || matrix.os == 'windows-latest'
+        if: matrix.os == 'macos-14' || startsWith(matrix.os, 'ubuntu') || matrix.os == 'windows-latest'
         env:
           MACOSX_DEPLOYMENT_TARGET: 14
           CIBW_BUILD: cp311-*
@@ -65,7 +72,7 @@ jobs:
 
   build-sdist-and-upload:
     runs-on: ubuntu-latest
-    needs: [ 'build_wheels' ]
+    needs: ["build_wheels"]
     environment: wheels
     if: github.repository_owner == 'cmbant'
     permissions:
@@ -130,7 +137,15 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ macos-12, macos-13, macos-14, ubuntu-20.04, windows-latest ]
+        os:
+          [
+            macos-12,
+            macos-13,
+            macos-14,
+            ubuntu-20.04,
+            ubuntu-24.04-arm,
+            windows-latest,
+          ]
 
     steps:
       - uses: actions/setup-python@v5
