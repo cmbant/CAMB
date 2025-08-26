@@ -8,7 +8,7 @@ Computational modules are wrapped Fortran 2003, but can be used entirely from Py
 __author__ = "Antony Lewis"
 __contact__ = "antony at cosmologist dot info"
 __url__ = "https://camb.readthedocs.io"
-__version__ = "1.6.3"
+__version__ = "1.6.4"
 
 from . import baseconfig
 
