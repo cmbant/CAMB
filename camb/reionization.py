@@ -9,7 +9,8 @@ class ReionizationModel(F2003Class):
     """
 
     _fields_ = [
-        ("Reionization", c_bool, "Is there reionization? (can be off for matter power, which is independent of it)")
+        ("Reionization", c_bool, "Is there reionization? (can be off for matter power, which is independent of it)"),
+        ("include_heating", c_bool, "Whether to include smooth heating up to ~1e4K following x_e shape"),
     ]
 
 
