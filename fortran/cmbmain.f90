@@ -1693,7 +1693,7 @@
         if (ThisSources%SourceNum > 3) call MpiStop('Non-flat not implemented for extra sources')
         !Integrate chi down in dissipative region
         ! cuts off when ujl gets small
-        miny1= 0.5d-4/l/BessIntBoost
+        miny1= 0.5d-4/(l+10)/BessIntBoost
         sums=0
         qmax_int= max(850,ThisCT%ls%l(j))*3*BessIntBoost/(State%chi0*State%curvature_radius)*1.2
         DoInt =  ThisSources%SourceNum/=3 .or. IV%q < qmax_int
@@ -1758,7 +1758,7 @@
 
         !Integrate chi down in dissipative region
         !DoRangeInt cuts off when ujl gets small
-        miny1= 1.d-6/l/BessIntBoost
+        miny1= 1.d-6/(l+10)/BessIntBoost
         if ((nstart < State%TimeSteps%npoints-1).and.(y1dis>miny1)) then
             y1=y1dis
             y2=y2dis
