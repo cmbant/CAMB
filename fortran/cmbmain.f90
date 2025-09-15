@@ -1693,7 +1693,8 @@
         if (ThisSources%SourceNum > 3) call MpiStop('Non-flat not implemented for extra sources')
         !Integrate chi down in dissipative region
         ! cuts off when ujl gets small
-        miny1= 0.5d-4/l/BessIntBoost
+        ! Fix for ujl discontinuity in near-flat models - adaptive formula provides superior performance
+        miny1= 0.5d-4/(l+max(0,30-l))/BessIntBoost  ! Adaptive formula for Omega_k discontinuity fix, see https://github.com/cmbant/CAMB/pull/185
         sums=0
         qmax_int= max(850,ThisCT%ls%l(j))*3*BessIntBoost/(State%chi0*State%curvature_radius)*1.2
         DoInt =  ThisSources%SourceNum/=3 .or. IV%q < qmax_int
