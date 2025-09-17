@@ -11,6 +11,7 @@ class ReionizationModel(F2003Class):
     _fields_ = [
         ("Reionization", c_bool, "Is there reionization? (can be off for matter power, which is independent of it)"),
         ("include_heating", c_bool, "Whether to include smooth heating up to ~1e4K following x_e shape"),
+        ("heating_temperature", c_double, "Heating temperature in K applied during reionization (default 1e4 K)"),
     ]
 
 

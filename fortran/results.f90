@@ -1990,7 +1990,7 @@
         ! Reionization heating model: smoothly raise Tb to T_reion following x_e shape
         ! and map cs^2 smoothly from the original formula to ideal-gas form.
         ! Use mu^{-1} = (1 - 0.75 Y_He) + (1 - Y_He) x_e.
-        T_reion = 1.0d4
+        T_reion = CP%Reion%heating_temperature
 
         ! Original cs^2 (pre-reionization / default)
         fe=(1._dl-CP%yhe)*xe_a(i)/(1._dl-0.75d0*CP%yhe+(1._dl-CP%yhe)*xe_a(i))
@@ -2002,23 +2002,26 @@
         cs2_orig = barssc*this%tb(i)*(1-dtbdla/this%tb(i)/3._dl)
 
         Tb_orig = this%tb(i)
-        if (CP%Reion%Reionization .and. CP%Reion%include_heating) then
+        if (CP%Reion%Reionization .and. CP%Reion%include_heating .and. tau > State%reion_tau_start) then
             ! yheat follows the reionization x_e shape, 0 before reionization, ->1 when x_e~1
             denom = max(1.0d-12, 1._dl - xe_a(i))
             yheat = (this%xe(i) - xe_a(i))/denom
             if (yheat < 0) yheat = 0
             if (yheat > 1) yheat = 1
+            if (yheat > 0) then
+                Tg = Tb_orig + yheat*(T_reion - Tb_orig)
+                muinv = (1._dl-0.75d0*CP%yhe+(1._dl-CP%yhe)*this%xe(i))
+                cs2_heat = (5._dl/3._dl) * barssc0 * muinv * Tg
+                ! Smooth mapping
+                this%cs2(i) = (1._dl - yheat)*cs2_orig + yheat*cs2_heat
+                this%tb(i) = Tg
+            else
+                this%cs2(i) = cs2_orig
+            end if
         else
-            yheat = 0
+            ! Before reionization (or if heating disabled), keep original values
+            this%cs2(i) = cs2_orig
         end if
-
-        Tg = Tb_orig + yheat*(T_reion - Tb_orig)
-        muinv = (1._dl-0.75d0*CP%yhe+(1._dl-CP%yhe)*this%xe(i))
-        cs2_heat = (5._dl/3._dl) * barssc0 * muinv * Tg
-
-        ! Smooth mapping
-        this%cs2(i) = (1._dl - yheat)*cs2_orig + yheat*cs2_heat
-        this%tb(i) = Tg
 
         ! Calculation of the visibility function
         this%dotmu(i)=this%xe(i)*State%akthom/a2

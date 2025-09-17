@@ -110,6 +110,7 @@
     Type, extends(TCambComponent) :: TReionizationModel
         logical  :: Reionization = .true.
         logical  :: include_heating = .true.
+        real(dl) :: heating_temperature = 1.0d4
     contains
     procedure :: Init => TReionizationModel_Init
     procedure :: x_e => TReionizationModel_xe
