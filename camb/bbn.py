@@ -13,6 +13,7 @@ from .constants import default_nnu, m_H, m_He4
 
 # previously (< 1.4.0) default_interpolation_table = 'PArthENoPE_880.2_standard.dat'
 default_interpolation_table = "PRIMAT_Yp_DH_ErrorMC_2021.dat"
+# latest is  default_interpolation_table = "PRIMAT_Yp_DH_ErrorMC_2024.dat"
 
 
 def yhe_to_ypBBN(Yp):
@@ -69,7 +70,8 @@ class BBN_table_interpolator(BBNPredictor):
 
     Tables are supplied for `Parthenope <http://parthenope.na.infn.it/>`_ 2017 (PArthENoPE_880.2_standard.dat),
     similar but with Marucci rates (PArthENoPE_880.2_marcucci.dat),
-    `PRIMAT <http://www2.iap.fr/users/pitrou/primat.htm>`_ (PRIMAT_Yp_DH_Error.dat, PRIMAT_Yp_DH_ErrorMC_2021.dat).
+    `PRIMAT <http://www2.iap.fr/users/pitrou/primat.htm>`_
+    (PRIMAT_Yp_DH_Error.dat, PRIMAT_Yp_DH_ErrorMC_2021.dat, PRIMAT_Yp_DH_ErrorMC_2024.dat).
 
     :param interpolation_table: filename of interpolation table to use.
     :param function_of: two variables that determine the interpolation grid (x,y) in the table,

@@ -311,6 +311,7 @@ if __name__ == "__main__":
                 "PArthENoPE_880.2_standard.dat",
                 "PRIMAT_Yp_DH_Error.dat",
                 "PRIMAT_Yp_DH_ErrorMC_2021.dat",
+                "PRIMAT_Yp_DH_ErrorMC_2024.dat",
             ]
         },
     )
