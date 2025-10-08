@@ -50,7 +50,7 @@ def get_forutils():
             path = os.path.join(_dir, "forutils")
             if os.path.isdir(path):
                 fpath = path
-                main_dir = _dir
+                main_dir = os.path.abspath(_dir)
                 break
         if not fpath:
             fpath = git_install_forutils()
@@ -97,7 +97,7 @@ def make_library(cluster=False):
     pycamb_path = ".."
     lib_file = os.path.join(pycamb_path, "camb", DLLNAME)
     if _compile.is_windows or not _compile.check_ifort():
-        ok, gfortran_version = _compile.check_gfortran(msg=not _compile.is_windows)
+        ok, gfortran_version = _compile.check_gfortran(msg=True)
         if ok and "8.2.0" in gfortran_version:
             print("WARNING: gfortran 8.2.0 may be buggy and give unreliable results or crashes, upgrade gfortran.")
     if _compile.is_windows:
@@ -107,84 +107,72 @@ def make_library(cluster=False):
         #         "-fbounds-check -fmax-errors=4"
         if _compile.is_32_bit:
             FFLAGS = "-m32 " + FFLAGS
-        if not ok:
-            print(
-                "WARNING: gfortran %s or higher not in path (if you just installed "
-                "you may need to log off and on again)." % _compile.gfortran_min
-            )
-            print("        You can get a Windows gfortran build from https://sourceforge.net/projects/mingw-w64/files/")
-            print("        - go to Files, and download MinGW-W64 Online Installer.")
-            print("        Alternatively newer versions at https://github.com/niXman/mingw-builds-binaries")
-            if _compile.is_32_bit:
-                raise OSError("No 32bit Windows DLL provided, you need to build or use 64 bit python")
-            else:
-                print("Using pre-compiled binary instead - any local changes will be ignored...")
-        else:
-            fpath = get_forutils()
-            makefile = _compile.makefile_dict("Makefile_main")
-            SOURCES = makefile["SOURCEFILES"].split()
-            FORUTILS = [
-                os.path.join(fpath, f.replace(".f90", ""))
-                for f in _compile.makefile_dict(os.path.join(fpath, "Makefile"))["SRCS"]
-                .replace("MatrixUtils.f90", "")
-                .split()
-            ]
-            tmpdir = "WinDLL"
-            if not os.path.isdir(tmpdir):
-                os.mkdir(tmpdir)
-            ofiles = []
-            new_compiler = True
-            ver_file = os.path.join(tmpdir, "compiler.ver")
-            if os.path.exists(ver_file):
-                with open(ver_file) as f:
-                    new_compiler = gfortran_version != f.readline().strip()
-            if new_compiler:
-                clean_dir(tmpdir)
-                with open(ver_file, "w") as f:
-                    f.write(gfortran_version)
 
-            need_compile = not os.path.exists(lib_file)
-            if not need_compile:
-                dll_time = os.path.getmtime(lib_file)
-            for source in FORUTILS + SOURCES:
-                # manual Make using dependency files if available
-                outroot = os.path.join(tmpdir, os.path.split(source)[1])
-                fout = outroot + ".o"
-                ofiles += [fout]
-                modified = new_compiler or not os.path.exists(fout)
+        fpath = get_forutils()
+        makefile = _compile.makefile_dict("Makefile_main")
+        SOURCES = makefile["SOURCEFILES"].split()
+        FORUTILS = [
+            os.path.join(fpath, f.replace(".f90", ""))
+            for f in _compile.makefile_dict(os.path.join(fpath, "Makefile"))["SRCS"]
+            .replace("MatrixUtils.f90", "")
+            .split()
+        ]
+        tmpdir = "WinDLL"
+        if not os.path.isdir(tmpdir):
+            os.mkdir(tmpdir)
+        ofiles = []
+        new_compiler = True
+        ver_file = os.path.join(tmpdir, "compiler.ver")
+        if os.path.exists(ver_file):
+            with open(ver_file) as f:
+                new_compiler = gfortran_version != f.readline().strip()
+        if new_compiler:
+            clean_dir(tmpdir)
+            with open(ver_file, "w") as f:
+                f.write(gfortran_version)
+
+        need_compile = not os.path.exists(lib_file)
+        if not need_compile:
+            dll_time = os.path.getmtime(lib_file)
+        for source in FORUTILS + SOURCES:
+            # manual Make using dependency files if available
+            outroot = os.path.join(tmpdir, os.path.split(source)[1])
+            fout = outroot + ".o"
+            ofiles += [fout]
+            modified = new_compiler or not os.path.exists(fout)
+            if not modified:
+                o_time = os.path.getmtime(fout)
+                modified = o_time < os.path.getmtime(source + ".f90") or not os.path.exists(outroot + ".d")
                 if not modified:
-                    o_time = os.path.getmtime(fout)
-                    modified = o_time < os.path.getmtime(source + ".f90") or not os.path.exists(outroot + ".d")
-                    if not modified:
-                        with open(outroot + ".d") as f:
-                            for dependence in " ".join(f.readlines()).replace("\\\n", "").split(":")[1].strip().split():
-                                if os.path.getmtime(dependence) > o_time:
-                                    modified = True
-                                    break
+                    with open(outroot + ".d") as f:
+                        for dependence in " ".join(f.readlines()).replace("\\\n", "").split(":")[1].strip().split():
+                            if os.path.getmtime(dependence) > o_time:
+                                modified = True
+                                break
 
-                if modified:
-                    need_compile = True
-                    cmd = COMPILER + " " + FFLAGS + " " + source + f".f90 -MMD -c -o {fout} -J{tmpdir}"
-                    print(cmd)
-                    if subprocess.call(cmd, shell=True, env=_compile.compiler_environ) != 0:
-                        raise OSError("Compilation failed")
-                elif not need_compile and dll_time < o_time:
-                    need_compile = True
-
-            if need_compile or not os.path.exists(lib_file):
-                if os.path.exists(lib_file):
-                    # raise an exception if the file in use and cannot be deleted
-                    try:
-                        os.remove(lib_file)
-                    except OSError:
-                        raise OSError("dll file in use. Stop python codes and notebook kernels that are using camb.")
-                print("Compiling sources...")
-                cmd = COMPILER + " " + FFLAGS + " " + " ".join(ofiles) + f" -o {lib_file} -J{tmpdir}"
+            if modified:
+                need_compile = True
+                cmd = COMPILER + " " + FFLAGS + " " + source + f".f90 -MMD -c -o {fout} -J{tmpdir}"
                 print(cmd)
                 if subprocess.call(cmd, shell=True, env=_compile.compiler_environ) != 0:
                     raise OSError("Compilation failed")
-            else:
-                print("DLL up to date.")
+            elif not need_compile and dll_time < o_time:
+                need_compile = True
+
+        if need_compile or not os.path.exists(lib_file):
+            if os.path.exists(lib_file):
+                # raise an exception if the file in use and cannot be deleted
+                try:
+                    os.remove(lib_file)
+                except OSError:
+                    raise OSError("dll file in use. Stop python codes and notebook kernels that are using camb.")
+            print("Compiling sources...")
+            cmd = COMPILER + " " + FFLAGS + " " + " ".join(ofiles) + f" -o {lib_file} -J{tmpdir}"
+            print(cmd)
+            if subprocess.call(cmd, shell=True, env=_compile.compiler_environ) != 0:
+                raise OSError("Compilation failed")
+        else:
+            print("DLL up to date.")
     else:
         if not _compile.call_command("make -v"):
             raise OSError(

@@ -60,7 +60,7 @@ def check_gfortran(version=gfortran_min, msg=False, retry=False):
                     for name in os.listdir(mingw)
                     if gfortran_bits in name and os.path.isdir(os.path.join(mingw, name))
                 ]
-                for i, x in enumerate(dirs):
+                for x in dirs:
                     if "." in x:
                         ver = x.split("-")[1]
                         if parse_version(best_version) <= parse_version(ver):
@@ -86,8 +86,9 @@ def check_gfortran(version=gfortran_min, msg=False, retry=False):
         ok = gfortran_bits in version_str
     if not ok and msg:
         raise Exception(
-            "You need ifort or gfortran %s or higher to compile (found: %s).\nSee %s"
-            % (version, gfortran_version, "https://camb.readthedocs.io/en/latest/fortran_compilers.html")
+            f"You need ifort or gfortran {version} or higher to compile (found: {gfortran_version}).\n"
+            "See https://camb.readthedocs.io/en/latest/fortran_compilers.htm\n"
+            "or install from pypi using pip ('pip install camb') to just use pre-built binary wheels."
         )
 
     return ok, gfortran_version
