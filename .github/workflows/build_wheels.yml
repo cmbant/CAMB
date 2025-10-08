@@ -28,11 +28,11 @@ jobs:
 
       - run: gfortran --version
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
 
@@ -81,12 +81,12 @@ jobs:
       id-token: write
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.x"
           cache: pip
@@ -139,18 +139,10 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os:
-          [
-            macos-12,
-            macos-13,
-            macos-14,
-            ubuntu-20.04,
-            ubuntu-24.04-arm,
-            windows-latest,
-          ]
+        os: [macos-14, ubuntu-20.04, ubuntu-24.04-arm, windows-latest]
 
     steps:
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
 
       - name: install
         run: python -m pip install -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ camb
