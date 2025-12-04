@@ -38,16 +38,25 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
 
     _methods_ = [("SetWTable", [numpy_1d, numpy_1d, POINTER(c_int)])]
 
-    def set_params(self, w=-1.0, wa=0, cs2=1.0):
+    def set_params(self, w=-1.0, wa=0, cs2=1.0, use_tabulated_w=False, wde_a_array='', wde_w_array=''):
         """
          Set the parameters so that P(a)/rho(a) = w(a) = w + (1-a)*wa
 
         :param w: w(0)
         :param wa: -dw/da(0)
         :param cs2: fluid rest-frame sound speed squared
+        :param use_tabulated_w: whether use interpolated w
+        :param wde_a_array: array of scale factors
+        :param wde_w_array: array of w(a)
         """
-        self.w = w
-        self.wa = wa
+        self.use_tabulated_w = use_tabulated_w
+        if self.use_tabulated_w:
+            a_array = np.fromstring(wde_a_array, sep=',')
+            w_array = np.fromstring(wde_w_array, sep=',')
+            self.set_w_a_table(a_array, w_array)
+        else:
+            self.w = w
+            self.wa = wa
         self.cs2 = cs2
         self.validate_params()
 
