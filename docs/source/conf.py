@@ -64,7 +64,6 @@ autodoc_type_aliases = {
 
 # Suppress nitpick warnings for type aliases (they are data, not classes)
 nitpick_ignore = [
-    ("py:class", "Array1D"),
     ("py:class", "NumberOrArray1D"),
 ]
 

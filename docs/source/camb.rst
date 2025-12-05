@@ -9,8 +9,7 @@ Basic functions
 Type aliases
 ------------
 
-.. py:data:: camb.Array1D
-   :type: TypeAlias
+.. py:class:: camb.Array1D
 
    Type alias for 1D array-like inputs: ``Sequence[np.number | float | int] | NDArray[np.number]``.
    Functions accepting Array1D can take lists, tuples, or numpy arrays of numbers.
