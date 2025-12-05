@@ -56,6 +56,18 @@ plot_html_show_source_link = False
 
 autosummary_generate = True
 
+# Keep type alias names instead of expanding them in documentation
+autodoc_type_aliases = {
+    "Array1D": "camb.baseconfig.Array1D",
+    "NumberOrArray1D": "float | Array1D",
+}
+
+# Suppress nitpick warnings for type aliases (they are data, not classes)
+nitpick_ignore = [
+    ("py:class", "Array1D"),
+    ("py:class", "NumberOrArray1D"),
+]
+
 # The suffix(es) of source filenames.
 # You can specify multiple suffix as a list of string:
 # source_suffix = ['.rst', '.md']

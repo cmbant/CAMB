@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import ctypes
 import logging
 from ctypes import POINTER, byref, c_bool, c_double, c_int, c_void_p
