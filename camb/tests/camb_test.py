@@ -123,6 +123,9 @@ class CambTest(unittest.TestCase):
                 "w",
                 "omch2",
                 "max_zrei",
+                "wde_a_array",
+                "wde_w_array",
+                "use_tabulated_w",
             },
         )
         params2 = camb.get_valid_numerical_params(dark_energy_model="AxionEffectiveFluid")
