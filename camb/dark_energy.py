@@ -38,7 +38,7 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
 
     _methods_ = [("SetWTable", [numpy_1d, numpy_1d, POINTER(c_int)])]
 
-    def set_params(self, w=-1.0, wa=0, cs2=1.0, use_tabulated_w=False, wde_a_array='', wde_w_array=''):
+    def set_params(self, w=-1.0, wa=0, cs2=1.0, use_tabulated_w=False, wde_a_array=None, wde_w_array=None):
         """
          Set the parameters so that P(a)/rho(a) = w(a) = w + (1-a)*wa
 
@@ -51,8 +51,8 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
         """
         self.use_tabulated_w = use_tabulated_w
         if self.use_tabulated_w:
-            a_array = np.fromstring(wde_a_array, sep=',')
-            w_array = np.fromstring(wde_w_array, sep=',')
+            a_array = np.array(wde_a_array)
+            w_array = np.array(wde_w_array)
             self.set_w_a_table(a_array, w_array)
         else:
             self.w = w
