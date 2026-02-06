@@ -383,13 +383,13 @@ class CAMBdata(F2003Class):
             config.check_global_error()
 
     def power_spectra_from_transfer(self, initial_power_params=None, silent=False):
-        """
+        r"""
         Assuming :meth:`calc_transfers` or :meth:`calc_power_spectra` have already been used, re-calculate the
         power spectra using a new set of initial power spectrum parameters with otherwise the same cosmology.
         This is typically much faster that re-calculating everything, as the transfer functions can be re-used.
-        NOTE: if non-linear lensing is on, the transfer functions have the non-linear correction included when
-        they are calculated, so using this function with a different initial power spectrum will not give quite the
-        same results as doing a full recalculation.
+        NOTE: if non-linear lensing is on, the :math:`C_\ell` transfer functions have the non-linear correction included
+        when they are calculated, so using this function with a different initial power spectrum will not give quite the
+        same results as doing a full recalculation unless transfers are generated with only_time_sources=True.
 
         :param initial_power_params: :class:`.initialpower.InitialPowerLaw`
                or :class:`.initialpower.SplinedInitialPower`
