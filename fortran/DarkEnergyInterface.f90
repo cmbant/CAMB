@@ -202,7 +202,7 @@
         endif
     endif
 
-    end function TDarkEnergyEqnOfState_w_de  ! equation of state of the PPF DE
+    end function TDarkEnergyEqnOfState_w_de
 
 
     subroutine TDarkEnergyEqnOfState_Effective_w_wa(this, w, wa)

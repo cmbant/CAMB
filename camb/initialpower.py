@@ -22,7 +22,10 @@ class InitialPower(F2003Class):
 @fortran_class
 class SplinedInitialPower(InitialPower):
     """
-    Object to store a generic primordial spectrum set from a set of sampled k_i, P(k_i) values
+    Object to store a generic primordial spectrum set from a set of sampled k_i, P(k_i) values.
+
+    See :meth:`.model.CAMBparams.set_initial_power_function` for a convenience constructor function to
+    set a general interpolated P(k) model from a python function.
     """
 
     _fortran_class_name_ = "TSplinedInitialPower"

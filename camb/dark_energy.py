@@ -20,9 +20,6 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
     or call set_w_a_table to set another tabulated w(a). If tabulated w(a) is used, w and wa are set
     to approximate values at z=0.
 
-    See :meth:`.model.CAMBparams.set_initial_power_function` for a convenience constructor function to
-    set a general interpolated P(k) model from a python function.
-
     """
 
     _fortran_class_module_ = "DarkEnergyInterface"
