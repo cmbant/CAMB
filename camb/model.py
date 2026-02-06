@@ -813,7 +813,16 @@ class CAMBparams(F2003Class):
         if reionization_model:
             self.Reion = self.make_class_named(reionization_model, ReionizationModel)
 
-    def set_dark_energy(self, w=-1.0, cs2=1.0, wa=0, dark_energy_model="fluid"):
+    def set_dark_energy(
+        self,
+        w=-1.0,
+        cs2=1.0,
+        wa=0,
+        use_tabulated_w=False,
+        wde_a_array=None,
+        wde_w_array=None,
+        dark_energy_model="fluid",
+    ):
         r"""
         Set dark energy parameters (use set_dark_energy_w_a to set w(a) from numerical table instead)
         To use a custom dark energy model, assign the class instance to the DarkEnergy field instead.
@@ -821,12 +830,17 @@ class CAMBparams(F2003Class):
         :param w: :math:`w\equiv p_{\rm de}/\rho_{\rm de}`, assumed constant
         :param wa: evolution of w (for dark_energy_model=ppf)
         :param cs2: rest-frame sound speed squared of dark energy fluid
+        :param use_tabulated_w: whether use interpolated w
+        :param wde_a_array: array of scale factors
+        :param wde_w_array: array of w(a)
         :param dark_energy_model: model to use ('fluid' or 'ppf'), default is 'fluid'
         :return: self
         """
 
         de = self.make_class_named(dark_energy_model, DarkEnergyEqnOfState)
-        de.set_params(w=w, wa=wa, cs2=cs2)
+        de.set_params(
+            w=w, wa=wa, cs2=cs2, use_tabulated_w=use_tabulated_w, wde_a_array=wde_a_array, wde_w_array=wde_w_array
+        )
         self.DarkEnergy = de
         return self
 
