@@ -126,7 +126,7 @@
     subroutine AmplitudeError
 
     call GlobalError('You need to normalize realistically to use lensing. ' &
-        //'See http://cosmocoffee.info/viewtopic.php?t=94')
+        //'See https://cosmocoffee.info/viewtopic.php?t=94')
 
     end subroutine AmplitudeError
 

@@ -856,7 +856,7 @@ class CambTest(unittest.TestCase):
             for i in range(3):
                 pars = camb.CAMBparams()
                 pars.set_cosmology(H0=70, ombh2=0.022, omch2=0.12, mnu=0.06, omk=0, tau=0.17)
-                results = camb.get_results(pars)  # noqa
+                results = camb.get_results(pars)
                 del pars, results
                 gc.collect()
                 usage = round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0, 1)
