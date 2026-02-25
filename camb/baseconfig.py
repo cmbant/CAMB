@@ -384,7 +384,7 @@ class FortranManagedField:
 
 
 class NamedIntField:
-    __slots__ = ["real_name", "values", "name_values"]
+    __slots__ = ["name_values", "real_name", "values"]
 
     def __init__(self, name, **kwargs):
         self.real_name = "_" + name
@@ -519,12 +519,10 @@ class CAMBStructureMeta(type(Structure)):
                     elif issubclass(field[1], CAMB_Structure):
                         field_doc += f" :class:`{field[1].__module__}.{field[1].__name__}`"
                     elif issubclass(field[1], _AllocatableObject):
-                        field_doc += " :class:`{}.{}`".format(
-                            field[1]._baseclass.__module__, field[1]._baseclass.__name__
-                        )
+                        field_doc += f" :class:`{field[1]._baseclass.__module__}.{field[1]._baseclass.__name__}`"
                     elif issubclass(field[1], _AllocatableObjectArray):
-                        field_doc += " array of :class:`{}.{}`".format(
-                            field[1]._baseclass.__module__, field[1]._baseclass.__name__
+                        field_doc += (
+                            f" array of :class:`{field[1]._baseclass.__module__}.{field[1]._baseclass.__name__}`"
                         )
 
                 if len(field) > 2 and not isinstance(field[-1], dict):
@@ -578,9 +576,7 @@ class CAMBStructureMeta(type(Structure)):
                 )
             except AttributeError:
                 raise AttributeError(
-                    "No function {}_{} found in module {}".format(
-                        cls._fortran_class_name_, method_name, cls._fortran_class_module_
-                    )
+                    f"No function {cls._fortran_class_name_}_{method_name} found in module {cls._fortran_class_module_}"
                 )
             new_method = make_method(func, prefix + method_name, nopass, opts.get("doc", ""))
             setattr(cls, prefix + method_name, new_method)

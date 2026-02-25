@@ -192,7 +192,7 @@ class HMcodeTest(unittest.TestCase):
 
         # Whitespace
         if verbose:
-            print("")
+            print()
 
         # Loop over cosmologies
         for icos in [26, 56, 241, 242, 243, 244, 245, 246, 247, 248, 249, 250, 251]:

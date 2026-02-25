@@ -35,16 +35,25 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
 
     _methods_ = [("SetWTable", [numpy_1d, numpy_1d, POINTER(c_int)])]
 
-    def set_params(self, w=-1.0, wa=0, cs2=1.0):
+    def set_params(self, w=-1.0, wa=0, cs2=1.0, use_tabulated_w=False, wde_a_array=None, wde_w_array=None):
         """
          Set the parameters so that P(a)/rho(a) = w(a) = w + (1-a)*wa
 
         :param w: w(0)
         :param wa: -dw/da(0)
         :param cs2: fluid rest-frame sound speed squared
+        :param use_tabulated_w: whether use interpolated w
+        :param wde_a_array: array of scale factors
+        :param wde_w_array: array of w(a)
         """
-        self.w = w
-        self.wa = wa
+        self.use_tabulated_w = use_tabulated_w
+        if self.use_tabulated_w:
+            if w != -1.0 or wa != 0:
+                raise ValueError("cannot use w, wa as well as use_tabulated_w")
+            self.set_w_a_table(wde_a_array, wde_w_array)
+        else:
+            self.w = w
+            self.wa = wa
         self.cs2 = cs2
         self.validate_params()
 
@@ -60,15 +69,15 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
         :param w: array of w(a)
         :return: self
         """
+        a = np.ascontiguousarray(a, dtype=np.float64)
+        w = np.ascontiguousarray(w, dtype=np.float64)
+
         if len(a) != len(w):
             raise ValueError("Dark energy w(a) table non-equal sized arrays")
         if not np.isclose(a[-1], 1):
             raise ValueError("Dark energy w(a) arrays must end at a=1")
         if np.any(a <= 0):
             raise ValueError("Dark energy w(a) table cannot be set for a<=0")
-
-        a = np.ascontiguousarray(a, dtype=np.float64)
-        w = np.ascontiguousarray(w, dtype=np.float64)
 
         self.f_SetWTable(a, w, byref(c_int(len(a))))
         return self
