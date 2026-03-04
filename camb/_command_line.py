@@ -25,7 +25,7 @@ def run_command_line():
     args = parser.parse_args()
 
     if not os.path.exists(args.ini_file):
-        sys.exit("File not found: %s" % args.ini_file)
+        sys.exit(f"File not found: {args.ini_file}")
 
     s = ctypes.create_string_buffer(args.ini_file.encode("latin-1"))
 

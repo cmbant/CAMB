@@ -30,17 +30,17 @@ class SplinedInitialPower(InitialPower):
 
     _fortran_class_name_ = "TSplinedInitialPower"
 
-    _fields_ = [
-        ("effective_ns_for_nonlinear", c_double, "Effective n_s to use for approximate non-linear correction models")
-    ]
+    _fields_ = (
+        ("effective_ns_for_nonlinear", c_double, "Effective n_s to use for approximate non-linear correction models"),
+    )
 
-    _methods_ = [
+    _methods_ = (
         ("HasTensors", [], c_int),
         ("SetScalarTable", [POINTER(c_int), numpy_1d, numpy_1d]),
         ("SetTensorTable", [POINTER(c_int), numpy_1d, numpy_1d]),
         ("SetScalarLogRegular", [POINTER(c_double), POINTER(c_double), POINTER(c_int), numpy_1d]),
         ("SetTensorLogRegular", [POINTER(c_double), POINTER(c_double), POINTER(c_int), numpy_1d]),
-    ]
+    )
 
     def __init__(self, **kwargs):
         if kwargs.get("PK") is not None:
@@ -123,7 +123,7 @@ class InitialPowerLaw(InitialPower):
 
     """
 
-    _fields_ = [
+    _fields_ = (
         ("tensor_parameterization", c_int, {"names": tensor_parameterization_names, "start": 1}),
         ("ns", c_double),
         ("nrun", c_double),
@@ -135,7 +135,7 @@ class InitialPowerLaw(InitialPower):
         ("pivot_tensor", c_double),
         ("As", c_double),
         ("At", c_double),
-    ]
+    )
 
     _fortran_class_name_ = "TInitialPowerLaw"
 
@@ -190,7 +190,7 @@ class InitialPowerLaw(InitialPower):
             # set from inflationary consistency
             if ntrun:
                 raise CAMBError("ntrun set but using inflation consistency (nt=None)")
-            if tensor_param_rpivot != tensor_param_rpivot:
+            if self.tensor_parameterization != tensor_param_rpivot:
                 raise CAMBError("tensor parameterization not tensor_param_rpivot with inflation consistency")
             self.nt = -r / 8.0 * (2.0 - ns - r / 8.0)
             self.ntrun = r / 8.0 * (r / 8.0 + ns - 1)

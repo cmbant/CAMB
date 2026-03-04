@@ -8,7 +8,7 @@ class DarkEnergyModel(F2003Class):
     Abstract base class for dark energy model implementations.
     """
 
-    _fields_ = [("__is_cosmological_constant", c_bool), ("__num_perturb_equations", c_int)]
+    _fields_ = (("__is_cosmological_constant", c_bool), ("__num_perturb_equations", c_int))
 
     def validate_params(self) -> None:
         pass
@@ -25,15 +25,15 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
     _fortran_class_module_ = "DarkEnergyInterface"
     _fortran_class_name_ = "TDarkEnergyEqnOfState"
 
-    _fields_ = [
+    _fields_ = (
         ("w", c_double, "w(0)"),
         ("wa", c_double, "-dw/da(0)"),
         ("cs2", c_double, "fluid rest-frame sound speed squared"),
         ("use_tabulated_w", c_bool, "using an interpolated tabulated w(a) rather than w, wa above"),
         ("__no_perturbations", c_bool, "turn off perturbations (unphysical, so hidden in Python)"),
-    ]
+    )
 
-    _methods_ = [("SetWTable", [numpy_1d, numpy_1d, POINTER(c_int)])]
+    _methods_ = (("SetWTable", [numpy_1d, numpy_1d, POINTER(c_int)]),)
 
     def set_params(self, w=-1.0, wa=0, cs2=1.0, use_tabulated_w=False, wde_a_array=None, wde_w_array=None):
         """
@@ -101,9 +101,8 @@ class DarkEnergyFluid(DarkEnergyEqnOfState):
 
     def validate_params(self) -> None:
         super().validate_params()
-        if not self.use_tabulated_w:
-            if self.wa and (self.w < -1 - 1e-6 or 1 + self.w + self.wa < -1e-6):
-                raise CAMBError("fluid dark energy model does not support w crossing -1")
+        if not self.use_tabulated_w and self.wa and (self.w < -1 - 1e-6 or 1 + self.w + self.wa < -1e-6):
+            raise CAMBError("fluid dark energy model does not support w crossing -1")
 
     def set_w_a_table(self, a, w) -> "DarkEnergyEqnOfState":
         # check w array has elements that do not cross -1
@@ -137,12 +136,12 @@ class AxionEffectiveFluid(DarkEnergyModel):
     Not well tested, but should serve to demonstrate how to make your own custom classes.
     """
 
-    _fields_ = [
+    _fields_ = (
         ("w_n", c_double, "effective equation of state parameter"),
         ("fde_zc", c_double, "energy density fraction at z=zc"),
         ("zc", c_double, "decay transition redshift (not same as peak of energy density fraction)"),
         ("theta_i", c_double, "initial condition field value"),
-    ]
+    )
 
     _fortran_class_name_ = "TAxionEffectiveFluid"
     _fortran_class_module_ = "DarkEnergyFluid"
@@ -167,7 +166,7 @@ class Quintessence(DarkEnergyModel):
 
     """
 
-    _fields_ = [
+    _fields_ = (
         ("DebugLevel", c_int),
         ("astart", c_double),
         ("integrate_tol", c_double),
@@ -183,7 +182,7 @@ class Quintessence(DarkEnergyModel):
         ("__ddphi_a", AllocatableArrayDouble),
         ("__ddphidot_a", AllocatableArrayDouble),
         ("__state", f_pointer),
-    ]
+    )
     _fortran_class_module_ = "Quintessence"
 
     def __getstate__(self):
@@ -199,7 +198,7 @@ class EarlyQuintessence(Quintessence):
 
     """
 
-    _fields_ = [
+    _fields_ = (
         ("n", c_double, "power index for potential"),
         ("f", c_double, r"f/Mpl (sqrt(8\piG)f); only used for initial search value when use_zc is True"),
         (
@@ -220,7 +219,7 @@ class EarlyQuintessence(Quintessence):
             "after initialized, the calculated background early dark energy fractions at sampled_a",
         ),
         ("__ddfde", AllocatableArrayDouble),
-    ]
+    )
     _fortran_class_name_ = "TEarlyQuintessence"
 
     def set_params(self, n, f=0.05, m=5e-54, theta_i=0.0, use_zc=True, zc=None, fde_zc=None):

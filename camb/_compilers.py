@@ -4,6 +4,8 @@ import re
 import struct
 import subprocess
 
+from camb.baseconfig import CAMBError
+
 is_windows = platform.system() == "Windows"
 
 is_32_bit = struct.calcsize("P") == 4
@@ -17,7 +19,7 @@ gfortran_bits = ("x86_64", "i686")[is_32_bit]
 def call_command(cmd):
     try:
         return subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT, env=compiler_environ).decode().strip()
-    except Exception:
+    except subprocess.CalledProcessError:
         return None
 
 
@@ -76,16 +78,15 @@ def check_gfortran(version=gfortran_min, msg=False, retry=False):
                     if ver and parse_version(best_version) <= parse_version(ver):
                         best_version = ver
                         newpath = bin_path
-        if newpath:
-            if os.path.exists(os.path.join(newpath, "gfortran.exe")):
-                if not compiler_environ["PATH"].startswith(newpath):
-                    compiler_environ["PATH"] = newpath + ";" + compiler_environ["PATH"]
-                return check_gfortran(version, msg, retry=True)
+        if newpath and os.path.exists(os.path.join(newpath, "gfortran.exe")):
+            if not compiler_environ["PATH"].startswith(newpath):
+                compiler_environ["PATH"] = newpath + ";" + compiler_environ["PATH"]
+            return check_gfortran(version, msg, retry=True)
     if ok and is_windows:
         version_str = str(subprocess.check_output("gfortran -dumpmachine", shell=True, env=compiler_environ))
         ok = gfortran_bits in version_str
     if not ok and msg:
-        raise Exception(
+        raise CAMBError(
             f"You need ifort or gfortran {version} or higher to compile (found: {gfortran_version}).\n"
             "See https://camb.readthedocs.io/en/latest/fortran_compilers.htm\n"
             "or install from pypi using pip ('pip install camb') to just use pre-built binary wheels."
@@ -105,9 +106,8 @@ def makefile_dict(filename):
         parts = line.split("\\")
         line = parts[0].strip()
         if "?=" in line:
-            key, val = line.split("?=")
-            env = os.environ.get(key.strip(), None)
-            if env:
+            key, _ = line.split("?=")
+            if env := os.environ.get(key.strip(), None):
                 vals[key] = env
                 lastval = None
                 append = False
