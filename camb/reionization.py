@@ -8,7 +8,7 @@ class ReionizationModel(F2003Class):
     Abstract base class for reionization models.
     """
 
-    _fields_ = [
+    _fields_ = (
         ("Reionization", c_bool, "Is there reionization? (can be off for matter power, which is independent of it)"),
         (
             "include_heating",
@@ -16,7 +16,7 @@ class ReionizationModel(F2003Class):
             "Whether to include smooth heating up to ~1e4K following x_e shape (default False)",
         ),
         ("heating_temperature", c_double, "Heating temperature in K applied during reionization (default 1e4 K)"),
-    ]
+    )
 
 
 class BaseTauWithHeReionization(ReionizationModel):
@@ -24,7 +24,7 @@ class BaseTauWithHeReionization(ReionizationModel):
     Abstract class for models that map z_re to tau, and include second reionization of Helium
     """
 
-    _fields_ = [
+    _fields_ = (
         ("use_optical_depth", c_bool, "Whether to use the optical depth or redshift parameters"),
         ("redshift", c_double, "Reionization redshift (xe=0.5) if use_optical_depth=False"),
         ("optical_depth", c_double, "Optical depth if use_optical_depth=True"),
@@ -48,12 +48,12 @@ class BaseTauWithHeReionization(ReionizationModel):
         ("__min_redshift", c_double, "Minimum redshift allowed when mapping tau into reionization redshift"),
         ("__fHe", c_double, "Helium fraction"),
         ("__state", f_pointer),
-    ]
+    )
 
     _fortran_class_module_ = "Reionization"
     _fortran_class_name_ = "TBaseTauWithHeReionization"
 
-    _methods_ = [("GetZreFromTau", [c_void_p, POINTER(c_double)], c_double, {"nopass": True})]
+    _methods_ = (("GetZreFromTau", [c_void_p, POINTER(c_double)], c_double, {"nopass": True}),)
 
     def get_zre(self, params, tau=None):
         """
@@ -110,7 +110,7 @@ class TanhReionization(BaseTauWithHeReionization):
     Appendix B of `arXiv:0804.3865 <https://arxiv.org/abs/0804.3865>`_
     """
 
-    _fields_ = [("delta_redshift", c_double, "Duration of reionization")]
+    _fields_ = (("delta_redshift", c_double, "Duration of reionization"),)
 
     _fortran_class_name_ = "TTanhReionization"
 
@@ -134,11 +134,11 @@ class ExpReionization(BaseTauWithHeReionization):
     Similar to e.g. arXiv:1509.02785, arXiv:2006.16828, but not attempting to fit shape near x_e~1 at z<6.1
     """
 
-    _fields_ = [
+    _fields_ = (
         ("reion_redshift_complete", c_double, "end of reionization"),
         ("reion_exp_smooth_width", c_double, "redshift scale to smooth exponential"),
         ("reion_exp_power", c_double, "power in exponential, exp(-lambda(z-redshift_complete)^exp_power)"),
-    ]
+    )
 
     _fortran_class_name_ = "TExpReionization"
 

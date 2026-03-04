@@ -98,7 +98,10 @@ DEBUGFLAGS = -g -fbacktrace -ffpe-trap=invalid,overflow,zero -fbounds-check $(CO
 ifeq ($(shell uname -s),Darwin)
 SFFLAGS = -dynamiclib #-fpic
 ifneq ($(shell echo $(compiler_ver) | awk '{print ($$1 >= 14.0)}'),0)
-SFFLAGS += -static-libgfortran -static-libgcc -static-libquadmath
+LIBGFORTRAN_A := $(shell $(F90C) -print-file-name=libgfortran.a)
+ifneq ($(shell [ -f "$(LIBGFORTRAN_A)" ] && echo yes),)
+SFFLAGS += -static-libgfortran -static-libquadmath -static-libgcc
+endif
 endif
 else
 SFFLAGS = -shared -fpic

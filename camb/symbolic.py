@@ -412,7 +412,7 @@ def make_frame_invariant(expr, frame="CDM"):
 
     if isinstance(frame, str):
         if frame not in frame_names:
-            raise ValueError("Unknown frame names: %s" % frame)
+            raise ValueError(f"Unknown frame names: {frame}")
         frame = frame_names[frame]
     if isinstance(expr, Eq):
         return simplify(Eq(make_frame_invariant(expr.lhs, frame), make_frame_invariant(expr.rhs, frame)))
@@ -425,7 +425,7 @@ def make_frame_invariant(expr, frame="CDM"):
     delta_u = solve(frame_change(frame, total=True), delta_frame)
     if delta_frame in delta_u.atoms(Function):
         raise ValueError(
-            "Cannot solve for change of frame. Currently only supports algebraic frame changes: %s" % delta_u
+            f"Cannot solve for change of frame. Currently only supports algebraic frame changes: {delta_u}"
         )
     return frame_change(expr, delta_u=delta_u, total=True)
 
@@ -802,7 +802,7 @@ def camb_fortran(expr, name="camb_function", frame="CDM", expand=False):
     res = cdm_gauge(subs(background_eqs + total_eqs, expr).subs(camb_diff_subs))
 
     if "Derivative" in str(res):
-        raise Exception(
+        raise ValueError(
             "Unknown derivatives, generally can only handle up to second.\nRemaining derivatives: " + str(res)
         )
 
@@ -816,7 +816,7 @@ def camb_fortran(expr, name="camb_function", frame="CDM", expand=False):
                     define_variable(x)
                 camb_sub = getattr(var, "camb_sub", None)
                 if not camb_sub:
-                    raise Exception("must have camb_sub if camb_var has more than one variable")
+                    raise ValueError("must have camb_sub if camb_var has more than one variable")
             else:
                 camb_var = define_variable(camb_var)
                 camb_sub = getattr(var, "camb_sub", None) or camb_var
@@ -952,13 +952,13 @@ def compile_source_function_code(code_body, file_path="", compiler=None, fflags=
         os.chdir(workdir)
         _source_file_count += 1
         while True:
-            name_tag = "camb_source%s" % _source_file_count
+            name_tag = f"camb_source{_source_file_count}"
             dll_name = name_tag + ".dll"
             if not os.path.exists(dll_name):
                 break
             try:
                 os.remove(dll_name)
-            except Exception:
+            except OSError:
                 _source_file_count += 1
 
         source_file = name_tag + ".f90"
@@ -972,7 +972,7 @@ def compile_source_function_code(code_body, file_path="", compiler=None, fflags=
             print(command)
             print("Error compiling generated code:")
             print(E.output)
-            print("Source is:\n %s" % code_body)
+            print(f"Source is:\n {code_body}")
             raise
     finally:
         if not file_path and source_file:
@@ -990,7 +990,7 @@ def compile_source_function_code(code_body, file_path="", compiler=None, fflags=
         # won't work on Windows while DLL in use
         try:
             os.remove(dll_name)
-        except Exception:
+        except OSError:
             pass
 
     return func_lib.source_func_

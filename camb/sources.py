@@ -11,11 +11,11 @@ class SourceWindow(F2003Class):
     Note that source windows can currently only be used in flat models.
     """
 
-    _fields_ = [
+    _fields_ = (
         ("source_type", c_int, {"names": ["21cm", "counts", "lensing"], "start": 1}),
         ("bias", c_double),
         ("dlog10Ndm", c_double),
-    ]
+    )
 
     _fortran_class_module_ = "SourceWindows"
     _fortran_class_name_ = "TSourceWindow"
@@ -27,7 +27,10 @@ class GaussianSourceWindow(SourceWindow):
     A Gaussian W(z) source window function.
     """
 
-    _fields_ = [("redshift", c_double), ("sigma", c_double)]
+    _fields_ = (
+        ("redshift", c_double),
+        ("sigma", c_double),
+    )
 
     _fortran_class_name_ = "TGaussianSourceWindow"
 
@@ -40,10 +43,10 @@ class SplinedSourceWindow(SourceWindow):
 
     _fortran_class_name_ = "TSplinedSourceWindow"
 
-    _methods_ = [
+    _methods_ = (
         ("SetTable", [POINTER(c_int), numpy_1d, numpy_1d, numpy_1d_or_null]),
         ("SetTable2DBias", [POINTER(c_int), POINTER(c_int), numpy_1d, numpy_1d, numpy_1d, numpy_2d]),
-    ]
+    )
 
     def __init__(self, **kwargs):
         z = kwargs.pop("z", None)

@@ -188,11 +188,11 @@ class HMcodeTest(unittest.TestCase):
 
         # Input file name
         def HMcode_benchmark_file(icos, ihm):
-            return "HMcode_test_outputs/HMcode_cos%d_hm%d.txt" % (icos, ihm)
+            return f"HMcode_test_outputs/HMcode_cos{icos}_hm{ihm}.txt"
 
         # Whitespace
         if verbose:
-            print("")
+            print()
 
         # Loop over cosmologies
         for icos in [26, 56, 241, 242, 243, 244, 245, 246, 247, 248, 249, 250, 251]:

@@ -7,7 +7,7 @@ max_bispectrum_deltas = 5
 
 
 class TBispectrumParams:
-    _fields_ = [
+    _fields_ = (
         ("do_lensing_bispectrum", c_int),  # logical
         ("do_primordial_bispectrum", c_int),  # logical
         ("nfields", c_int),
@@ -21,4 +21,4 @@ class TBispectrumParams:
         ("FisherNoiseFwhmArcmin", c_double),
         ("FullOutputFile", c_char * Ini_max_string_len),
         ("SparseFullOutput", c_int),  # logical
-    ]
+    )

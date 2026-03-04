@@ -199,7 +199,7 @@ def set_params(cp=None, verbose=False, **params):
             if hasattr(obj, par):
                 setattr(obj, par, params[k])
             else:
-                raise CAMBUnknownArgumentError("Unrecognized parameter: %s" % k)
+                raise CAMBUnknownArgumentError(f"Unrecognized parameter: {k}")
     return cp
 
 
@@ -221,7 +221,7 @@ def get_valid_numerical_params(transfer_only=False, **class_names):
             params.add(arg)
         if pars.defaults:
             for arg, v in zip(pars.args[len(pars.args) - len(pars.defaults) :], pars.defaults):
-                if (isinstance(v, numbers.Number) or v is None) and "version" not in arg:
+                if (isinstance(v, numbers.Number) and not isinstance(v, bool) or v is None) and "version" not in arg:
                     params.add(arg)
 
     extract_params(cp.DarkEnergy.set_params)
@@ -316,7 +316,7 @@ def validate_ini_file(filename):
     except subprocess.CalledProcessError as E:
         err = E.output.decode().replace("ERROR STOP", "").strip()
     if err:
-        raise CAMBValueError(err + " (%s)" % filename)
+        raise CAMBValueError(err + f" ({filename})")
     return True
 
 
@@ -330,7 +330,7 @@ def run_ini(ini_filename, no_validate=False):
     :param no_validate: do not pre-validate the ini file (faster, but may crash kernel if error)
     """
     if not os.path.exists(ini_filename):
-        raise CAMBValueError("File not found: %s" % ini_filename)
+        raise CAMBValueError(f"File not found: {ini_filename}")
     if not no_validate:
         validate_ini_file(ini_filename)
     run_inifile = camblib.__camb_MOD_camb_runinifile
@@ -358,13 +358,14 @@ def read_ini(ini_filename, no_validate=False):
             raise ImportError("install 'requests' package, required for reading ini files from URLs")
 
         data = requests.get(ini_filename)
-        ini_filename = tempfile.NamedTemporaryFile(suffix=".ini", delete=False).name
+        with tempfile.NamedTemporaryFile(suffix=".ini", delete=False) as f:
+            ini_filename = f.name
         with open(ini_filename, "wb") as file:
             file.write(data.content)
     else:
         data = None
     if not os.path.exists(ini_filename):
-        raise CAMBValueError("File not found: %s" % ini_filename)
+        raise CAMBValueError(f"File not found: {ini_filename}")
     try:
         if not no_validate:
             validate_ini_file(ini_filename)

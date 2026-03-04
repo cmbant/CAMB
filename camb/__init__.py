@@ -8,14 +8,21 @@ Computational modules are wrapped Fortran 2003, but can be used entirely from Py
 __author__ = "Antony Lewis"
 __contact__ = "antony at cosmologist dot info"
 __url__ = "https://camb.readthedocs.io"
-__version__ = "1.6.2"
+__version__ = "1.6.5"
 
 from . import baseconfig
 
 baseconfig.check_fortran_version(__version__)
 from . import dark_energy, initialpower, model, nonlinear, reionization
 from ._config import config
-from .baseconfig import CAMBError, CAMBFortranError, CAMBParamRangeError, CAMBUnknownArgumentError, CAMBValueError
+from .baseconfig import (
+    Array1D,
+    CAMBError,
+    CAMBFortranError,
+    CAMBParamRangeError,
+    CAMBUnknownArgumentError,
+    CAMBValueError,
+)
 from .camb import (
     free_global_memory,
     get_age,

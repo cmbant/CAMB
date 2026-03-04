@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import ctypes
 import logging
 from ctypes import POINTER, byref, c_bool, c_double, c_float, c_int
@@ -25,7 +27,6 @@ from .baseconfig import (
     numpy_1d_int,
     numpy_2d,
 )
-from .baseconfig import CAMBUnknownArgumentError as CAMBUnknownArgumentError
 from .model import CAMBparams, set_default_params
 
 int_arg = POINTER(c_int)
@@ -34,7 +35,7 @@ d_arg = POINTER(c_double)
 
 class _MatterTransferData(CAMB_Structure):
     # contains complex types with pointers, so just set up dummy
-    _fields_ = [
+    _fields_ = (
         ("num_q_trans", c_int),
         ("q_trans", POINTER(c_double)),
         ("sigma_8", POINTER(c_double)),
@@ -43,11 +44,11 @@ class _MatterTransferData(CAMB_Structure):
         ("sigma_8_size", c_int),
         ("sigma2_vdelta_8_size", c_int),
         ("TransferData_size", c_int * 3),
-    ]
+    )
 
 
 class _ClTransferData(CAMB_Structure):
-    _fields_ = [
+    _fields_ = (
         ("NumSources", c_int),
         ("q_size", c_int),
         ("q", POINTER(c_double)),
@@ -55,7 +56,7 @@ class _ClTransferData(CAMB_Structure):
         ("delta_p_l_k", POINTER(c_double)),
         ("l_size", c_int),
         ("L", POINTER(c_int)),
-    ]
+    )
 
 
 def save_cmb_power_array(filename, array, labels, lmin=0):
@@ -177,7 +178,7 @@ class CAMBdata(F2003Class):
 
     _fortran_class_module_ = "results"
 
-    _fields_ = [
+    _fields_ = (
         ("Params", CAMBparams),
         (
             "ThermoDerivedParams",
@@ -224,13 +225,13 @@ class CAMBdata(F2003Class):
         ("PK_redshifts_index", c_int * model.max_transfer_redshifts, "Indices of the requested PK_redshifts"),
         ("OnlyTransfers", c_bool, "Only calculating transfer functions, not power spectra"),
         ("HasScalarTimeSources", c_bool, "calculate and save time source functions, not power spectra"),
-    ]
+    )
 
     # Note there are many more fields in Fortran. Since F2003Class is memory-managed by Fortran, we don't need
     # need to define them all in python.
     # _methods_ refer to the imported functions in the corresponding fortran class.
 
-    _methods_ = [
+    _methods_ = (
         ("AngularDiameterDistance", [d_arg], c_double),
         ("AngularDiameterDistanceArr", [numpy_1d, numpy_1d, int_arg]),
         ("AngularDiameterDistance2", [d_arg, d_arg], c_double),
@@ -252,7 +253,7 @@ class CAMBdata(F2003Class):
         ("get_lmax_lensed", [], c_int),
         ("get_zstar", [d_arg], c_double),
         ("SetParams", [POINTER(CAMBparams), int_arg, int_arg, int_arg, int_arg]),
-    ]
+    )
 
     def __init__(self):
         set_default_params(self.Params)
@@ -381,13 +382,13 @@ class CAMBdata(F2003Class):
             config.check_global_error()
 
     def power_spectra_from_transfer(self, initial_power_params=None, silent=False):
-        """
+        r"""
         Assuming :meth:`calc_transfers` or :meth:`calc_power_spectra` have already been used, re-calculate the
         power spectra using a new set of initial power spectrum parameters with otherwise the same cosmology.
         This is typically much faster that re-calculating everything, as the transfer functions can be re-used.
-        NOTE: if non-linear lensing is on, the transfer functions have the non-linear correction included when
-        they are calculated, so using this function with a different initial power spectrum will not give quite the
-        same results as doing a full recalculation.
+        NOTE: if non-linear lensing is on, the :math:`C_\ell` transfer functions have the non-linear correction included
+        when they are calculated, so using this function with a different initial power spectrum will not give quite the
+        same results as doing a full recalculation unless transfers are generated with only_time_sources=True.
 
         :param initial_power_params: :class:`.initialpower.InitialPowerLaw`
                or :class:`.initialpower.SplinedInitialPower`
@@ -419,7 +420,7 @@ class CAMBdata(F2003Class):
             elif CMB_unit == "K":
                 CMB_unit = self.Params.TCMB
             else:
-                raise CAMBValueError("Unknown CMB_unit: %s" % CMB_unit)
+                raise CAMBValueError(f"Unknown CMB_unit: {CMB_unit}")
         return CMB_unit
 
     def _scale_cls(self, cls, CMB_unit=None, raw_cl=False, lens_potential=False):
@@ -1115,14 +1116,14 @@ class CAMBdata(F2003Class):
             def check_z(self, z):
                 if not np.allclose(z, self._single_z):
                     raise CAMBError(
-                        "P(z,k) requested at z=%g, but only computed for z=%s. "
-                        "Cannot extrapolate!" % (z, self._single_z)
+                        f"P(z,k) requested at z={z:g}, but only computed for z={self._single_z}. Cannot extrapolate!"
                     )
 
             def __call__(self, *args):
                 self.check_z(args[0])
                 # NB returns dimensionality as the 2D one: 1 dimension if z single
-                return (lambda x: x[0] if np.isscalar(args[0]) else x)(super().__call__(*(args[1:])))
+                result = super().__call__(*(args[1:]))
+                return result[0] if np.isscalar(args[0]) else result
 
             def P(self, z, kh, **_kwargs):
                 # grid kwarg is ignored

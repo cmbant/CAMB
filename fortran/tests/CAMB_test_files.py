@@ -88,8 +88,6 @@ class Ignore:
     Ignore() files of this class completely.
     """
 
-    pass
-
 
 def diffnsqrt(old, new, tol, c1, c2):
     """
