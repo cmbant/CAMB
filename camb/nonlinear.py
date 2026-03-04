@@ -126,11 +126,16 @@ class ExternalNonLinearRatio(NonLinearModel):
     _fortran_class_name_ = "TExternalNonLinearRatio"
 
     _methods_ = [
-        ("SetRatio", [
-            POINTER(c_int), POINTER(c_int),
-            numpy_1d, numpy_1d,
-            ndpointer(c_double, flags="F_CONTIGUOUS", ndim=2),
-        ]),
+        (
+            "SetRatio",
+            [
+                POINTER(c_int),
+                POINTER(c_int),
+                numpy_1d,
+                numpy_1d,
+                ndpointer(c_double, flags="F_CONTIGUOUS", ndim=2),
+            ],
+        ),
         ("ClearRatio", []),
     ]
 
@@ -146,9 +151,7 @@ class ExternalNonLinearRatio(NonLinearModel):
         k_h = np.ascontiguousarray(k_h, dtype=np.float64)
         z = np.ascontiguousarray(z, dtype=np.float64)
         if ratio.shape != (len(z), len(k_h)):
-            raise ValueError(
-                f"ratio shape {ratio.shape} must be (len(z), len(k_h)) = ({len(z)}, {len(k_h)})"
-            )
+            raise ValueError(f"ratio shape {ratio.shape} must be (len(z), len(k_h)) = ({len(z)}, {len(k_h)})")
         # Fortran expects (nk, nz) column-major; C-order (nz, nk) has the same memory layout
         ratio_f = np.asfortranarray(ratio.T, dtype=np.float64)
         self.f_SetRatio(byref(c_int(len(k_h))), byref(c_int(len(z))), k_h, z, ratio_f)
