@@ -4,8 +4,6 @@ import re
 import struct
 import subprocess
 
-from camb.baseconfig import CAMBError
-
 is_windows = platform.system() == "Windows"
 
 is_32_bit = struct.calcsize("P") == 4
@@ -86,7 +84,7 @@ def check_gfortran(version=gfortran_min, msg=False, retry=False):
         version_str = str(subprocess.check_output("gfortran -dumpmachine", shell=True, env=compiler_environ))
         ok = gfortran_bits in version_str
     if not ok and msg:
-        raise CAMBError(
+        raise RuntimeError(
             f"You need ifort or gfortran {version} or higher to compile (found: {gfortran_version}).\n"
             "See https://camb.readthedocs.io/en/latest/fortran_compilers.htm\n"
             "or install from pypi using pip ('pip install camb') to just use pre-built binary wheels."
