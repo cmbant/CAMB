@@ -120,12 +120,15 @@ class ExternalNonLinearRatio(NonLinearModel):
 
     Use :meth:`set_ratio` to provide the ratio grid, then assign this
     as ``params.NonLinearModel`` before calling :func:`camb.get_results`.
+    Can be called after only time transfers computed to then get
+    lensed C_l with a consistent non-linear model. If linear P_k sampling
+    points in k_h are used, no interpolation from provided grid is required.
     """
 
     _fortran_class_module_ = "ExternalNonLinearRatio"
     _fortran_class_name_ = "TExternalNonLinearRatio"
 
-    _methods_ = [
+    _methods_ = (
         (
             "SetRatio",
             [
@@ -137,7 +140,7 @@ class ExternalNonLinearRatio(NonLinearModel):
             ],
         ),
         ("ClearRatio", []),
-    ]
+    )
 
     def set_ratio(self, k_h, z, ratio):
         """
