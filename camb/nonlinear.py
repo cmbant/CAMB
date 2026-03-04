@@ -8,7 +8,7 @@ class NonLinearModel(F2003Class):
     Abstract base class for non-linear correction models
     """
 
-    _fields_ = [("Min_kh_nonlinear", c_double, "minimum k/h at which to apply non-linear corrections")]
+    _fields_ = (("Min_kh_nonlinear", c_double, "minimum k/h at which to apply non-linear corrections"),)
 
 
 halofit_original = "original"
@@ -46,12 +46,12 @@ class Halofit(NonLinearModel):
     Various specific approximate non-linear correction models based on HaloFit.
     """
 
-    _fields_ = [
+    _fields_ = (
         ("halofit_version", c_int, {"names": halofit_version_names}),
         ("HMCode_A_baryon", c_double, "HMcode parameter A_baryon"),
         ("HMCode_eta_baryon", c_double, "HMcode parameter eta_baryon"),
         ("HMCode_logT_AGN", c_double, "HMcode parameter log10(T_AGN/K)"),
-    ]
+    )
 
     _fortran_class_module_ = "NonLinear"
     _fortran_class_name_ = "THalofit"

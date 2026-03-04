@@ -8,14 +8,14 @@ class RecombinationModel(F2003Class):
     Abstract base class for recombination models
     """
 
-    _fields_ = [
+    _fields_ = (
         (
             "min_a_evolve_Tm",
             c_double,
             "minimum scale factor at which to solve matter temperature "
             "perturbation if evolving sound speed or ionization fraction perturbations",
-        )
-    ]
+        ),
+    )
 
 
 @fortran_class
@@ -25,7 +25,7 @@ class Recfast(RecombinationModel):
 
     """
 
-    _fields_ = [
+    _fields_ = (
         ("RECFAST_fudge", c_double),
         ("RECFAST_fudge_He", c_double),
         ("RECFAST_Heswitch", c_int),
@@ -36,7 +36,7 @@ class Recfast(RecombinationModel):
         ("zGauss2", c_double),
         ("wGauss1", c_double),
         ("wGauss2", c_double),
-    ]
+    )
 
     _fortran_class_module_ = "Recombination"
     _fortran_class_name_ = "TRecfast"
@@ -56,7 +56,7 @@ class CosmoRec(RecombinationModel):
     _fortran_class_module_ = "CosmoRec"
     _fortran_class_name_ = "TCosmoRec"
 
-    _fields_ = [
+    _fields_ = (
         (
             "runmode",
             c_int,
@@ -64,7 +64,7 @@ class CosmoRec(RecombinationModel):
         ),
         ("fdm", c_double, "Dark matter annihilation efficiency"),
         ("accuracy", c_double, "0-normal, 3-most accurate"),
-    ]
+    )
 
 
 @optional_fortran_class

@@ -346,7 +346,7 @@
 
                         if (rk > this%Min_kh_nonlinear) then
 
-                            ! linear power spectrum !! Remeber => plin = k^3 * P(k) * constant
+                            ! linear power spectrum !! Remember => plin = k^3 * P(k) * constant
                             ! constant = 4*pi*V/(2*pi)^3
 
                             plin= MatterPowerData_k(CAMB_PK, rk, itf)*(rk**3/(2*const_pi**2))

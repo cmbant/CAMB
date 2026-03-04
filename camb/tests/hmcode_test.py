@@ -188,7 +188,7 @@ class HMcodeTest(unittest.TestCase):
 
         # Input file name
         def HMcode_benchmark_file(icos, ihm):
-            return "HMcode_test_outputs/HMcode_cos%d_hm%d.txt" % (icos, ihm)
+            return f"HMcode_test_outputs/HMcode_cos{icos}_hm{ihm}.txt"
 
         # Whitespace
         if verbose:

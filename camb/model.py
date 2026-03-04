@@ -3,7 +3,7 @@ from __future__ import annotations
 import ctypes
 import logging
 from ctypes import POINTER, byref, c_bool, c_double, c_int, c_void_p
-from typing import overload
+from typing import ClassVar, overload
 
 from . import bbn, constants
 from . import recombination as recomb
@@ -135,7 +135,7 @@ class TransferParams(CAMB_Structure):
     Not intended to be separately instantiated, only used as part of CAMBparams.
     """
 
-    _fields_ = [
+    _fields_ = (
         ("high_precision", c_bool, "True for more accuracy"),
         (
             "accurate_massive_neutrinos",
@@ -151,7 +151,7 @@ class TransferParams(CAMB_Structure):
             {"size": "PK_num_redshifts"},
             "redshifts to output for the matter transfer and power",
         ),
-    ]
+    )
 
 
 class AccuracyParams(CAMB_Structure):
@@ -165,7 +165,7 @@ class AccuracyParams(CAMB_Structure):
     If you want to set fields with :func:`.camb.set_params`, use 'Accuracy.xxx':yyy in the parameter dictionary.
     """
 
-    _fields_ = [
+    _fields_ = (
         (
             "AccuracyBoost",
             c_double,
@@ -200,7 +200,7 @@ class AccuracyParams(CAMB_Structure):
         ("SourceLimberBoost", c_double, "Scales when to switch to Limber for source windows"),
         ("KmaxBoost", c_double, "Boost max k for source window functions"),
         ("neutrino_q_boost", c_double, "Number of momenta integrated for neutrino perturbations"),
-    ]
+    )
 
 
 class SourceTermParams(CAMB_Structure):
@@ -210,7 +210,7 @@ class SourceTermParams(CAMB_Structure):
     Not intended to be separately instantiated, only used as part of CAMBparams.
     """
 
-    _fields_ = [
+    _fields_ = (
         (
             "limber_windows",
             c_bool,
@@ -244,7 +244,7 @@ class SourceTermParams(CAMB_Structure):
         ("line_extra", c_bool, "Include other sources"),
         ("line_reionization", c_bool, "Replace the E modes with 21cm polarization"),
         ("use_21cm_mK", c_bool, "Use mK units for 21cm"),
-    ]
+    )
 
 
 class CustomSources(CAMB_Structure):
@@ -253,11 +253,11 @@ class CustomSources(CAMB_Structure):
     Don't change this directly, instead call  :meth:`.model.CAMBparams.set_custom_scalar_sources`.
     """
 
-    _fields_ = [
+    _fields_ = (
         ("num_custom_sources", c_int, "number of sources set"),
         ("c_source_func", c_void_p, "Don't directly change this"),
         ("custom_source_ell_scales", AllocatableArrayInt, "scaling in L for outputs"),
-    ]
+    )
 
 
 @fortran_class
@@ -279,7 +279,7 @@ class CAMBparams(F2003Class):
 
     """
 
-    _fields_ = [
+    _fields_ = (
         ("WantCls", c_bool, "Calculate C_L"),
         ("WantTransfer", c_bool, "Calculate matter transfer functions and matter power spectrum"),
         ("WantScalars", c_bool, "Calculates scalar modes"),
@@ -387,14 +387,14 @@ class CAMBparams(F2003Class):
         ("min_l_logl_sampling", c_int, "Minimum L to use log sampling for L"),
         ("SourceWindows", AllocatableObjectArray(SourceWindow)),
         ("CustomSources", CustomSources),
-    ]
+    )
 
     H0: float
     SourceWindows: list[SourceWindow]
 
     _fortran_class_module_ = "model"
 
-    _methods_ = [
+    _methods_ = (
         (
             "SetNeutrinoHierarchy",
             [POINTER(c_double), POINTER(c_double), POINTER(c_double), POINTER(c_int), POINTER(c_int)],
@@ -402,7 +402,7 @@ class CAMBparams(F2003Class):
         ("Validate", None, c_int),
         ("PrimordialPower", [numpy_1d, numpy_1d, POINTER(c_int), POINTER(c_int)]),
         ("SetCustomSourcesFunc", [POINTER(c_int), POINTER(ctypes.c_void_p), numpy_1d_int]),
-    ]
+    )
 
     def __init__(self, **kwargs):
         set_default_params(self)
@@ -703,7 +703,7 @@ class CAMBparams(F2003Class):
             omnuh2 = mnu / neutrino_mass_fac * (nnu / 3.0) ** 0.75
         omnuh2_sterile = meffsterile / neutrino_mass_fac
         if omnuh2_sterile > 0 and nnu < standard_neutrino_neff:
-            raise CAMBError("sterile neutrino mass required Neff> %.3g" % constants.default_nnu)
+            raise CAMBError(f"sterile neutrino mass required Neff> {constants.default_nnu:.3g}")
         if omnuh2 and not num_massive_neutrinos:
             raise CAMBError("non-zero mnu with zero num_massive_neutrinos")
 
@@ -937,7 +937,7 @@ class CAMBparams(F2003Class):
                 else:
                     self.NonLinear = NonLinear_pk
                 if not silent and (kmax < 5 or kmax < 20 and np.max(zs) > 4):
-                    logging.warning("Using kmax=%s with Halofit non-linear models may give inaccurate results" % kmax)
+                    logging.warning(f"Using kmax={kmax} with Halofit non-linear models may give inaccurate results")
             else:
                 if self.NonLinear in [NonLinear_lens, NonLinear_both]:
                     self.NonLinear = NonLinear_lens
@@ -947,7 +947,7 @@ class CAMBparams(F2003Class):
         if not silent and np.any(np.array(zs) - np.array(redshifts) != 0):
             print("Note: redshifts have been re-sorted (earliest first)")
         if len(redshifts) > max_transfer_redshifts:
-            raise CAMBError("You can have at most %s redshifts" % max_transfer_redshifts)
+            raise CAMBError(f"You can have at most {max_transfer_redshifts} redshifts")
         self.Transfer.PK_redshifts = zs
         return self
 
@@ -1052,7 +1052,7 @@ class CAMBparams(F2003Class):
         else:
             return powers
 
-    _custom_source_name_dict: dict = {}
+    _custom_source_name_dict: ClassVar[dict] = {}
 
     def set_custom_scalar_sources(
         self, custom_sources, source_names=None, source_ell_scales=None, frame="CDM", code_path=None
@@ -1077,7 +1077,7 @@ class CAMBparams(F2003Class):
                 raise CAMBValueError("source_ell_scales must be a dictionary if custom_sources is")
             lst = []
             source_names = []
-            for name in custom_sources.keys():
+            for name in custom_sources:
                 source_names.append(name)
                 lst.append(custom_sources[name])
             custom_sources = lst

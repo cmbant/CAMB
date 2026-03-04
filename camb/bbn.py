@@ -41,7 +41,7 @@ class BBNPredictor:
         :param delta_neff:  additional N_eff relative to standard value (of 3.044)
         :return:  Y_p helium nucleon fraction predicted by BBN
         """
-        raise Exception("Not implemented")
+        raise NotImplementedError("Y_p must be implemented by subclass")
 
     def Y_He(self, ombh2, delta_neff=0.0):
         r"""
@@ -61,7 +61,7 @@ class BBNPredictor:
         :param delta_neff:  additional N_eff relative to standard value (of 3.044)
         :return: D/H
         """
-        raise Exception("Not implemented")
+        raise NotImplementedError("DH must be implemented by subclass")
 
 
 class BBN_table_interpolator(BBNPredictor):
@@ -105,7 +105,7 @@ class BBN_table_interpolator(BBNPredictor):
         assert table.shape[0] == len(ombh2s) * len(deltans)
         self.interpolators = {}
         for i, col in enumerate(columns):
-            if i != ombh2_i and i != DeltaN_i and np.count_nonzero(table[:, i]):
+            if i not in (ombh2_i, DeltaN_i) and np.count_nonzero(table[:, i]):
                 grid = np.zeros((len(ombh2s), len(deltans)))
                 for ix in range(table.shape[0]):
                     grid[ombh2s.index(table[ix, ombh2_i]), deltans.index(table[ix, DeltaN_i])] = table[ix, i]
@@ -152,7 +152,7 @@ class BBN_table_interpolator(BBNPredictor):
         :return:  Interpolated value (or grid)
         """
         if name not in self.interpolators:
-            raise ValueError('Unknown BBN table column index "%s"' % name)
+            raise ValueError(f'Unknown BBN table column index "{name}"')
         res = self.interpolators[name](ombh2, delta_neff, grid=grid)
         if np.isscalar(ombh2) and np.isscalar(delta_neff):
             return np.float64(res)

@@ -43,13 +43,13 @@ class _config:
         if code := self.global_error_flag:
             self.global_error_flag = 0
             if reference:
-                reference = "Error in Fortran called from %s:\n" % reference
+                reference = f"Error in Fortran called from {reference}:\n"
             else:
                 reference = ""
             if err := config.global_error_message():
-                raise CAMBError(reference + "%s" % err)
+                raise CAMBError(reference + f"{err}")
             else:
-                raise CAMBError(reference + "Error code: %s" % code)
+                raise CAMBError(reference + f"Error code: {code}")
 
     def __repr__(self):
         s = ""
