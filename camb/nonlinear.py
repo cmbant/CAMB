@@ -1,6 +1,9 @@
-from ctypes import c_double, c_int
+from ctypes import POINTER, byref, c_double, c_int
 
-from .baseconfig import F2003Class, fortran_class
+import numpy as np
+from numpy.ctypeslib import ndpointer
+
+from .baseconfig import F2003Class, fortran_class, numpy_1d
 
 
 class NonLinearModel(F2003Class):
@@ -107,3 +110,57 @@ class SecondOrderPK(NonLinearModel):
 
     def set_params(self):
         pass
+
+
+@fortran_class
+class ExternalNonLinearRatio(NonLinearModel):
+    """
+    Non-linear model that applies a user-supplied ratio sqrt(P_NL/P_L)
+    from an external source (e.g. CCL, axionHMcode).
+
+    Use :meth:`set_ratio` to provide the ratio grid, then assign this
+    as ``params.NonLinearModel`` before calling :func:`camb.get_results`.
+    Can be called after only time transfers computed to then get
+    lensed C_l with a consistent non-linear model. If linear P_k sampling
+    points in k_h are used, no interpolation from provided grid is required.
+    """
+
+    _fortran_class_module_ = "ExternalNonLinearRatio"
+    _fortran_class_name_ = "TExternalNonLinearRatio"
+
+    _methods_ = (
+        (
+            "SetRatio",
+            [
+                POINTER(c_int),
+                POINTER(c_int),
+                numpy_1d,
+                numpy_1d,
+                ndpointer(c_double, flags="F_CONTIGUOUS", ndim=2),
+            ],
+        ),
+        ("ClearRatio", []),
+    )
+
+    def set_ratio(self, k_h, z, ratio):
+        """
+        Set the non-linear ratio grid sqrt(P_NL/P_L).
+
+        :param k_h: 1D array of k values in h/Mpc units (ascending)
+        :param z: 1D array of redshift values (ascending)
+        :param ratio: 2D array of sqrt(P_NL/P_L), shape (len(z), len(k_h)),
+                      matching the convention of CAMB's get_matter_power_spectrum
+        """
+        k_h = np.ascontiguousarray(k_h, dtype=np.float64)
+        z = np.ascontiguousarray(z, dtype=np.float64)
+        if ratio.shape != (len(z), len(k_h)):
+            raise ValueError(f"ratio shape {ratio.shape} must be (len(z), len(k_h)) = ({len(z)}, {len(k_h)})")
+        # Fortran expects (nk, nz) column-major; C-order (nz, nk) has the same memory layout
+        ratio_f = np.asfortranarray(ratio.T, dtype=np.float64)
+        self.f_SetRatio(byref(c_int(len(k_h))), byref(c_int(len(z))), k_h, z, ratio_f)
+
+    def clear_ratio(self):
+        """
+        Clear the stored ratio, releasing interpolation data.
+        """
+        self.f_ClearRatio()
