@@ -200,7 +200,7 @@ def AllocatableObject(cls=None):
 
 
 class _AllocatableArray(FortranAllocatable):  # member corresponding to allocatable :: d(:) member in fortran
-    _fields_ = ("allocatable", ctypes.c_void_p * (_f_allocatable_array_size // ctypes.sizeof(ctypes.c_void_p)))
+    _fields_ = (("allocatable", ctypes.c_void_p * (_f_allocatable_array_size // ctypes.sizeof(ctypes.c_void_p))),)
 
     def get_allocatable(self):
         size = self._get_allocatable_1D_array(byref(self), byref(_reuse_pointer))

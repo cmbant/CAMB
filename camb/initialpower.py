@@ -190,8 +190,11 @@ class InitialPowerLaw(InitialPower):
             # set from inflationary consistency
             if ntrun:
                 raise CAMBError("ntrun set but using inflation consistency (nt=None)")
-            if self.tensor_parameterization != tensor_param_rpivot:
-                raise CAMBError("tensor parameterization not tensor_param_rpivot with inflation consistency")
+            if self.tensor_parameterization != "tensor_param_rpivot":
+                raise CAMBError(
+                    "tensor parameterization not tensor_param_rpivot with inflation consistency: "
+                    f"{self.tensor_parameterization}"
+                )
             self.nt = -r / 8.0 * (2.0 - ns - r / 8.0)
             self.ntrun = r / 8.0 * (r / 8.0 + ns - 1)
         else:
