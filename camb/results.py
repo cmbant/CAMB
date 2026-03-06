@@ -29,6 +29,8 @@ from .baseconfig import (
 )
 from .model import CAMBparams, set_default_params
 
+logger = logging.getLogger(__name__)
+
 int_arg = POINTER(c_int)
 d_arg = POINTER(c_double)
 
@@ -403,7 +405,7 @@ class CAMBdata(F2003Class):
             and self.Params.WantCls
             and not getattr(self, "_suppress_power_warn", False)
         ):
-            logging.warning(
+            logger.warning(
                 "power_spectra_from_transfer with non-linear lensing does not recalculate the non-linear correction"
             )
             self._suppress_power_warn = True
@@ -452,7 +454,7 @@ class CAMBdata(F2003Class):
         if lmax is None:
             lmax = lmax_calc
         elif lmax > lmax_calc:
-            logging.warning("getting CMB power spectra to higher L than calculated, may be inaccurate/zeroed.")
+            logger.warning("getting CMB power spectra to higher L than calculated, may be inaccurate/zeroed.")
         return lmax
 
     def save_cmb_power_spectra(self, filename, lmax=None, CMB_unit="muK"):
@@ -1024,9 +1026,9 @@ class CAMBdata(F2003Class):
 
         assert self.Params.WantTransfer
         if self.Params.Transfer.kmax < maxkh * self.Params.h:
-            logging.warning("get_matter_power_spectrum using larger k_max than input parameter Transfer.kmax")
+            logger.warning("get_matter_power_spectrum using larger k_max than input parameter Transfer.kmax")
         if self.Params.NonLinear != model.NonLinear_none and self.Params.Transfer.kmax < 1:
-            logging.warning("get_matter_power_spectrum Transfer.kmax small to get non-linear spectrum")
+            logger.warning("get_matter_power_spectrum Transfer.kmax small to get non-linear spectrum")
 
         nz = self.Params.Transfer.PK_num_redshifts
         PK = np.empty((nz, npoints))
@@ -1152,7 +1154,7 @@ class CAMBdata(F2003Class):
             # extrapolate to ultimate power law
             # TODO: use more physical extrapolation function for linear case
             if not silent and (kh_max < 3 and extrap_kmax > 2 and nonlinear or kh_max < 0.4):
-                logging.warning(
+                logger.warning(
                     "Extrapolating to higher k with matter transfer functions "
                     "only to k=%.3g Mpc^{-1} may be inaccurate.\n " % (kh_max * self.Params.H0 / 100)
                 )

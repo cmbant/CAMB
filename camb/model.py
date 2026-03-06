@@ -32,6 +32,8 @@ from .recombination import RecombinationModel
 from .reionization import ReionizationModel
 from .sources import SourceWindow
 
+logger = logging.getLogger(__name__)
+
 # Union and Optional types are now built-in to Python 3.10+
 
 max_nu = 5
@@ -937,7 +939,7 @@ class CAMBparams(F2003Class):
                 else:
                     self.NonLinear = NonLinear_pk
                 if not silent and (kmax < 5 or kmax < 20 and np.max(zs) > 4):
-                    logging.warning(f"Using kmax={kmax} with Halofit non-linear models may give inaccurate results")
+                    logger.warning(f"Using kmax={kmax} with Halofit non-linear models may give inaccurate results")
             else:
                 if self.NonLinear in [NonLinear_lens, NonLinear_both]:
                     self.NonLinear = NonLinear_lens

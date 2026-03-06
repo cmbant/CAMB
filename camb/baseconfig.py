@@ -66,7 +66,7 @@ camblib = ctypes.LibraryLoader(IfortGfortranLoader).LoadLibrary(CAMBL)
 try:
     c_int.in_dll(camblib, "handles_mp_set_cls_template_")
     gfortran = False
-except Exception:
+except (OSError, AttributeError):
     pass
 
 

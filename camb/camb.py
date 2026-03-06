@@ -14,6 +14,8 @@ from .results import CAMBdata
 from .results import ClTransferData as ClTransferData
 from .results import MatterTransferData as MatterTransferData
 
+logger = logging.getLogger(__name__)
+
 _debug_params = False
 
 
@@ -162,7 +164,7 @@ def set_params(cp=None, verbose=False, **params):
         used_params.update(kwargs)
         if kwargs:
             if verbose:
-                logging.warning(f"Calling {setter.__name__}(**{kwargs})")
+                logger.warning(f"Calling {setter.__name__}(**{kwargs})")
             setter(**kwargs)
 
     # Note order is important: must call DarkEnergy.set_params before set_cosmology if setting theta rather than H0
@@ -182,7 +184,7 @@ def set_params(cp=None, verbose=False, **params):
 
     if unused_params := set(params) - used_params:
         if "share_delta_neff" in unused_params:
-            logging.warning(
+            logger.warning(
                 "share_delta_neff is deprecated in python interface, "
                 "use delta_neff is only for backward compatibility with .ini files"
             )
