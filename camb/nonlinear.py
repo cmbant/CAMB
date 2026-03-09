@@ -142,6 +142,9 @@ class ExternalNonLinearRatio(NonLinearModel):
         ("ClearRatio", []),
     )
 
+    def set_params(self):
+        pass
+
     def set_ratio(self, k_h, z, ratio):
         """
         Set the non-linear ratio grid sqrt(P_NL/P_L).
