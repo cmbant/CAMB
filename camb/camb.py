@@ -3,7 +3,7 @@ import logging
 import numbers
 import os
 from ctypes import POINTER, byref, c_bool, c_double
-from inspect import getfullargspec
+from inspect import FullArgSpec, getfullargspec
 
 from . import constants, model
 from ._config import config
@@ -17,6 +17,17 @@ from .results import MatterTransferData as MatterTransferData
 logger = logging.getLogger(__name__)
 
 _debug_params = False
+_setter_spec_cache: dict[object, FullArgSpec] = {}
+
+
+def _get_setter_spec(setter) -> FullArgSpec:
+    func = getattr(setter, "__func__", setter)
+    try:
+        return _setter_spec_cache[func]
+    except KeyError:
+        spec = getfullargspec(func)
+        _setter_spec_cache[func] = spec
+        return spec
 
 
 def set_feedback_level(level=1):
@@ -160,7 +171,7 @@ def set_params(cp=None, verbose=False, **params):
     used_params = set()
 
     def do_set(setter):
-        kwargs = {kk: params[kk] for kk in getfullargspec(setter).args[1:] if kk in params}
+        kwargs = {kk: params[kk] for kk in _get_setter_spec(setter).args[1:] if kk in params}
         used_params.update(kwargs)
         if kwargs:
             if verbose:
@@ -218,7 +229,7 @@ def get_valid_numerical_params(transfer_only=False, **class_names):
     params = set()
 
     def extract_params(set_func):
-        pars = getfullargspec(set_func)
+        pars = _get_setter_spec(set_func)
         for arg in pars.args[1 : len(pars.args) - len(pars.defaults or [])]:
             params.add(arg)
         if pars.defaults:
