@@ -12,9 +12,9 @@ jobs:
         # see https://github.com/actions/runner-images/tree/main
         os:
           [
-            macos-13,
-            macos-13-xlarge,
             macos-14,
+            macos-14-xlarge,
+            macos-latest,
             ubuntu-latest,
             ubuntu-24.04-arm,
             windows-latest,
