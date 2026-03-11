@@ -11,12 +11,12 @@ from inifile import IniFile
 
 parser = argparse.ArgumentParser(description="Run CAMB tests")
 parser.add_argument("ini_dir", help="ini file directory")
-parser.add_argument("--make_ini", action="store_true", help="if set, output ini files to ini_dir")
+parser.add_argument("--make_ini", action="store_true", help="If set, output ini files to ini_dir")
 parser.add_argument("--out_files_dir", default="test_outputs", help="output files directory")
 parser.add_argument(
     "--base_settings", default="../inifiles/params.ini", help="settings to include as defaults for all combinations"
 )
-parser.add_argument("--no_run_test", action="store_true", help="dont run tests on files")
+parser.add_argument("--no_run_test", action="store_true", help="Don't run tests on files")
 parser.add_argument("--prog", default="./camb", help="executable to run")
 parser.add_argument("--clean", action="store_true", help="delete output dir before run")
 parser.add_argument("--diff_to", help="output directory to compare to, e.g. test_outputs2")
@@ -29,7 +29,7 @@ parser.add_argument(
 parser.add_argument("--verbose_diff_output", action="store_true", help="during diff_to print more error messages")
 parser.add_argument("--num_diff", action="store_true", help="during diff_to print more error messages")
 parser.add_argument("--no_sources", action="store_true", help="turn off CAMB sources (counts/lensing/21cm) tests")
-parser.add_argument("--no_de", action="store_true", help="dont run dark energy tests")
+parser.add_argument("--no_de", action="store_true", help="Don't run dark energy tests")
 parser.add_argument("--max_tests", type=int, help="maximum tests to run (for quick testing of pipeline)")
 
 args = parser.parse_args()
@@ -42,12 +42,12 @@ def printlog(text):
     print(text)
     sys.stdout.flush()
     if logfile is None:
-        logfile = open(os.path.join(args.ini_dir, "test_results.log"), "a")
+        logfile = open(os.path.join(args.ini_dir, "test_results.log"), "a", encoding="utf-8")
     logfile.write(text + "\n")
 
 
 # The tolerance matrix gives the tolerances for comparing two values of the actual results with
-# results given in a diff_to. Filename globing is supported by fnmatch. The first glob matching
+# results given in a diff_to. Filename globbing is supported by fnmatch. The first glob matching
 # is the winner and its tolerances will be used. To implement a first match order, a regular array
 # had to be used instead of a dictionary for the filetolmatrix. The first match is then implemented
 # in the routine getToleranceVector().

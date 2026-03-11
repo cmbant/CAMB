@@ -8,7 +8,7 @@ from inspect import FullArgSpec, getfullargspec
 from . import constants, model
 from ._config import config
 from .baseconfig import CAMBError as CAMBError
-from .baseconfig import CAMBUnknownArgumentError, CAMBValueError, camblib, np
+from .baseconfig import CAMBUnknownArgumentError, CAMBValueError, camblib, filepath_to_fortran, np
 from .model import CAMBparams
 from .results import CAMBdata
 from .results import ClTransferData as ClTransferData
@@ -320,14 +320,15 @@ def validate_ini_file(filename):
 
     try:
         err = ""
-        command = '"{}" "{}" "{}" --validate'.format(
+        command = [
             sys.executable,
             os.path.join(os.path.dirname(__file__), "_command_line.py"),
             filename,
-        )
-        subprocess.check_output(command, stderr=subprocess.STDOUT, shell=True)
-    except subprocess.CalledProcessError as E:
-        err = E.output.decode().replace("ERROR STOP", "").strip()
+            "--validate",
+        ]
+        subprocess.run(command, capture_output=True, text=True, check=True)
+    except subprocess.CalledProcessError as error:
+        err = "\n".join(filter(None, [error.stdout, error.stderr])).replace("ERROR STOP", "").strip()
     if err:
         raise CAMBValueError(err + f" ({filename})")
     return True
@@ -349,8 +350,8 @@ def run_ini(ini_filename, no_validate=False):
     run_inifile = camblib.__camb_MOD_camb_runinifile
     run_inifile.argtypes = [ctypes.c_char_p, POINTER(ctypes.c_long)]
     run_inifile.restype = c_bool
-    s = ctypes.create_string_buffer(ini_filename.encode("latin-1"))
-    if not run_inifile(s, ctypes.c_long(len(ini_filename))):
+    s, path_len = filepath_to_fortran(ini_filename)
+    if not run_inifile(s, path_len):
         config.check_global_error("run_ini")
 
 
@@ -386,8 +387,8 @@ def read_ini(ini_filename, no_validate=False):
         read_inifile = camblib.__camb_MOD_camb_readparamfile
         read_inifile.argtypes = [POINTER(CAMBparams), ctypes.c_char_p, POINTER(ctypes.c_long)]
         read_inifile.restype = ctypes.c_bool
-        s = ctypes.create_string_buffer(ini_filename.encode("latin-1"))
-        if not read_inifile(cp, s, ctypes.c_long(len(ini_filename))):
+        s, path_len = filepath_to_fortran(ini_filename)
+        if not read_inifile(cp, s, path_len):
             config.check_global_error("read_ini")
     finally:
         if data:

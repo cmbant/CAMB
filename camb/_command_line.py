@@ -6,7 +6,7 @@ from argparse import RawTextHelpFormatter
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 import camb
-from camb.baseconfig import lib_import
+from camb.baseconfig import filepath_to_fortran, lib_import
 
 
 def run_command_line():
@@ -19,7 +19,7 @@ def run_command_line():
     )
     parser.add_argument("ini_file", help="text .ini file with parameter settings")
     parser.add_argument(
-        "--validate", action="store_true", help="Just validate the .ini file, dont actually run anything"
+        "--validate", action="store_true", help="Just validate the .ini file, don't actually run anything"
     )
     parser.add_argument("-V", "--version", action="version", version=camb.__version__)
     args = parser.parse_args()
@@ -27,12 +27,12 @@ def run_command_line():
     if not os.path.exists(args.ini_file):
         sys.exit(f"File not found: {args.ini_file}")
 
-    s = ctypes.create_string_buffer(args.ini_file.encode("latin-1"))
+    s, path_len = filepath_to_fortran(args.ini_file)
 
     # Import wrapper function round fortran command line program
     CAMB_RunCommandLine = lib_import("camb", "camb", "CommandLineValidate" if args.validate else "CommandLineRun")
     CAMB_RunCommandLine.argtypes = [ctypes.c_char_p, ctypes.c_long]
-    CAMB_RunCommandLine(s, ctypes.c_long(len(args.ini_file)))
+    CAMB_RunCommandLine(s, path_len)
     if args.validate:
         print("OK")
 

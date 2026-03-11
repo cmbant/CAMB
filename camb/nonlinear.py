@@ -8,7 +8,7 @@ from .baseconfig import F2003Class, fortran_class, numpy_1d
 
 class NonLinearModel(F2003Class):
     """
-    Abstract base class for non-linear correction models
+    Abstract base class for non-linear correction models.
     """
 
     _fields_ = (("Min_kh_nonlinear", c_double, "minimum k/h at which to apply non-linear corrections"),)
@@ -115,14 +115,15 @@ class SecondOrderPK(NonLinearModel):
 @fortran_class
 class ExternalNonLinearRatio(NonLinearModel):
     """
-    Non-linear model that applies a user-supplied ratio sqrt(P_NL/P_L)
-    from an external source (e.g. CCL, axionHMcode).
+    Non-linear model that applies a user-supplied ratio ``sqrt(P_NL/P_L)``
+    from an external source, for example CCL or axionHMcode.
 
-    Use :meth:`set_ratio` to provide the ratio grid, then assign this
-    as ``params.NonLinearModel`` before calling :func:`camb.get_results`.
-    Can be called after only time transfers computed to then get
-    lensed C_l with a consistent non-linear model. If linear P_k sampling
-    points in k_h are used, no interpolation from provided grid is required.
+    Use :meth:`set_ratio` to provide the ratio grid, then assign the instance
+    to ``params.NonLinearModel`` before calling :func:`camb.get_results`.
+    This can also be used after computing time transfers, so lensed ``C_l``
+    values are generated with a consistent external non-linear prescription.
+    Requested ``k_h`` or ``z`` values outside the supplied grid are clamped to
+    the nearest grid boundary.
     """
 
     _fortran_class_module_ = "ExternalNonLinearRatio"
@@ -152,7 +153,9 @@ class ExternalNonLinearRatio(NonLinearModel):
         :param k_h: 1D array of k values in h/Mpc units (ascending)
         :param z: 1D array of redshift values (ascending)
         :param ratio: 2D array of sqrt(P_NL/P_L), shape (len(z), len(k_h)),
-                      matching the convention of CAMB's get_matter_power_spectrum
+                      matching the convention of CAMB's get_matter_power_spectrum.
+                      Values requested outside the supplied grid are clamped to
+                      the nearest tabulated boundary.
         """
         k_h = np.ascontiguousarray(k_h, dtype=np.float64)
         z = np.ascontiguousarray(z, dtype=np.float64)
@@ -164,6 +167,6 @@ class ExternalNonLinearRatio(NonLinearModel):
 
     def clear_ratio(self):
         """
-        Clear the stored ratio, releasing interpolation data.
+        Clear the stored ratio grid and release the interpolation data.
         """
         self.f_ClearRatio()

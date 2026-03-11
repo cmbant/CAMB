@@ -185,7 +185,7 @@ class CAMBdata(F2003Class):
         (
             "ThermoDerivedParams",
             c_double * model.nthermo_derived,
-            "array of derived parameters, see :meth:`results.CAMBdata.get_derived_params` to get as a dictionary",
+            "array of derived parameters, see :meth:`~camb.results.CAMBdata.get_derived_params` to get as a dictionary",
         ),
         ("flat", c_bool, "flat universe"),
         ("closed", c_bool, "closed universe"),

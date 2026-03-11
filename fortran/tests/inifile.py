@@ -44,28 +44,38 @@ class IniFile:
 
     def expand_placeholders(self, s):
         """Expand shell variables of the forms $(var), like in Makefiles"""
-        if "$(" not in s:
+        if "$" not in s:
             return s
-        res = ""
+
+        res = []
         index = 0
-        pathlen = len(s)
-        while index < pathlen:
+        while index < len(s):
             c = s[index]
             if c == "$":
+                if index + 1 >= len(s):
+                    res.append(c)
+                    break
+
                 if s[index + 1] == "$":
-                    res = res + c
-                    index += 1
-                elif s[index + 1] == "(":
-                    s = s[index + 2 :]
-                    pathlen = len(s)
-                    index = s.index(")")
-                    var = s[:index]
-                    if var in os.environ:
-                        res = res + os.environ[var]
+                    res.append(c)
+                    index += 2
+                    continue
+
+                if s[index + 1] == "(":
+                    close_index = s.find(")", index + 2)
+                    if close_index == -1:
+                        raise IniError(f"Unterminated environment variable placeholder in {s!r}")
+
+                    var = s[index + 2 : close_index]
+                    res.append(os.environ.get(var, s[index : close_index + 1]))
+                    index = close_index + 1
+                    continue
+
+                res.append(c)
             else:
-                res = res + c
+                res.append(c)
             index += 1
-        return res
+        return "".join(res)
 
     def readFile(self, filename, keep_includes=False, if_not_defined=False):
         try:
@@ -120,7 +130,7 @@ class IniFile:
                         self.readFile(os.path.join(os.path.dirname(filename), ffile), if_not_defined=True)
 
             return self.params
-        except:
+        except Exception:
             print("Error in " + filename)
             raise
 

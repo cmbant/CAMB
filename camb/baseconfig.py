@@ -1,6 +1,7 @@
 # type: ignore
 import ctypes
 import inspect
+import os
 import os.path as osp
 import platform
 import sys
@@ -98,6 +99,11 @@ def lib_import(module_name, class_name, func_name, restype=None):
     return func
 
 
+def filepath_to_fortran(path):
+    encoded = os.fsencode(os.fspath(path))
+    return ctypes.create_string_buffer(encoded), ctypes.c_long(len(encoded))
+
+
 def set_cl_template_file(cl_template_file=None):
     if cl_template_file and not osp.exists(cl_template_file):
         raise ValueError(f"File not found : {cl_template_file}")
@@ -105,11 +111,10 @@ def set_cl_template_file(cl_template_file=None):
     template = cl_template_file or osp.join(BASEDIR, "HighLExtrapTemplate_lenspotentialCls.dat")
     if not osp.exists(template):
         template = osp.abspath(osp.join(BASEDIR, "..", "fortran", "HighLExtrapTemplate_lenspotentialCls.dat"))
-    template = template.encode("latin-1")
     func = camblib.__handles_MOD_set_cls_template
     func.argtypes = [ctypes.c_char_p, ctypes.c_long]
-    s = ctypes.create_string_buffer(template)
-    func(s, ctypes.c_long(len(template)))
+    s, path_len = filepath_to_fortran(template)
+    func(s, path_len)
 
 
 def check_fortran_version(version):
