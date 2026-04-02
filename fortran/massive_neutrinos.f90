@@ -8,7 +8,7 @@
     real(dl), parameter  :: const2 = 5._dl/7._dl/const_pi**2   !0.072372274_dl
 
     !Steps for spline interpolation (use series outside this range)
-    integer, parameter  :: nrhopn=1400
+    integer, parameter  :: nrhopn=400
     real(dl), parameter :: am_min = 0.3_dl
     !smallest a*m_nu to integrate distribution function rather than using series
     real(dl), parameter :: am_max = 70._dl
@@ -17,6 +17,15 @@
     !Actual range for using series (to avoid inaccurate ends of spline)
     real(dl), parameter :: am_minp=am_min + am_max/(nrhopn-1)*1.01_dl
     real(dl), parameter :: am_maxp=am_max*0.9_dl
+    !Optimized 8-point background quadrature (derived via minimax/least-squares fit in scripts/nu_background_quadrature.py)
+    ! set legacy toggle true to use (less accurate and slower) original 100-step grid.
+    logical, parameter :: use_legacy_nu_background_grid = .false.
+    real(dl), parameter :: nu_background_q(8) = (/0.2937822_dl, 0.73583979_dl, 1.49222507_dl, 2.68795368_dl, &
+        4.30678084_dl, 4.63078102_dl, 7.37122449_dl, 11.91683009_dl/)
+    real(dl), parameter :: nu_background_rho_weights(8) = (/0.000640376236953801_dl, 0.01312614_dl, 0.10233804_dl, &
+        0.31935253_dl, 0.12193422_dl, 0.27616318_dl, 0.15455734_dl, 0.01189232_dl/)
+    real(dl), parameter :: nu_background_pressure_weights(8) = (/0.0002028435952467642_dl, 0.00440170_dl, 0.03405480_dl, &
+        0.10658874_dl, 0.03987692_dl, 0.09276772_dl, 0.05146992_dl, 0.00396969_dl/)
 
     Type TNuPerturbations
         !Sample for massive neutrino momentum
@@ -30,7 +39,7 @@
     Type TThermalNuBackground
         !Quantities for the neutrino background momentum distribution assuming thermal
         real(dl) dam !step in a*m
-        real(dl), dimension(:), allocatable ::  r1,p1,dr1,dp1,ddr1
+        real(dl), dimension(:), allocatable ::  r1,p1,dr1,dp1
         real(dl), private :: target_rho
     contains
     procedure :: init => ThermalNuBackground_init
@@ -86,7 +95,7 @@
         this%nu_q(1:3) = (/0.913201, 3.37517, 7.79184/)
         this%nu_int_kernel(1:3) = (/0.0687359, 3.31435, 2.29911/)
     else if (this%nqmax==4) then
-        !Best 4-point rule from compiled CAMB tests: free-node least-squares fit for n=-4,-2..2 and v(am/q), 1/v(am/q)
+        !Free-node least-squares fit for n=-4,-2..2 and v(am/q), 1/v(am/q)
         !Original rule kept here for reference:
         !this%nu_q(1:4) = (/0.7, 2.62814, 5.90428, 12.0/)
         !this%nu_int_kernel(1:4) = (/0.0200251, 1.84539, 3.52736, 0.289427/)
@@ -94,7 +103,7 @@
         this%nu_int_kernel(1:4) = (/0.0082119845039711_dl, 1.1143258498419168_dl, &
             3.6819104154615907_dl, 0.8777790167504481_dl/)
     else if (this%nqmax==5) then
-        !Best 5-point rule from compiled CAMB tests: exact for n=-4,-2..2 with remaining freedom fit to v(am/q), 1/v(am/q)
+        !Exact for n=-4,-2..2 with remaining freedom fit to v(am/q), 1/v(am/q)
         !Original rule kept here for reference:
         !this%nu_q(1:5) = (/0.583165, 2.0, 4.0, 7.26582, 13.0/)
         !this%nu_int_kernel(1:5) = (/0.0081201, 0.689407, 2.8063, 2.05156, 0.126817/)
@@ -118,32 +127,45 @@
     subroutine ThermalNuBackground_init(this)
     use splines
     class(TThermalNuBackground) :: this
-    !  Initialize interpolation tables for massive neutrinos.
-    !  Use cubic splines interpolation of log rhonu and pnu vs. log a*m.
+    !  Initialize interpolation tables for massive neutrino background.
     integer i
-    real(dl) am, rhonu,pnu
+    real(dl) am, rhonu,pnu, drhonu_dam, dpnu_dam
     real(dl) spline_data(nrhopn)
 
     if (allocated(this%r1)) return
     ThermalNuBack => ThermalNuBackground !ifort bug workaround
 
-    allocate(this%r1(nrhopn),this%p1(nrhopn),this%dr1(nrhopn),this%dp1(nrhopn),this%ddr1(nrhopn))
+    allocate(this%r1(nrhopn),this%p1(nrhopn),this%dr1(nrhopn),this%dp1(nrhopn))
     this%dam=(am_max-am_min)/(nrhopn-1)
 
-    !$OMP PARALLEL DO DEFAULT(SHARED), SCHEDULE(STATIC), &
-    !$OMP& PRIVATE(am,rhonu,pnu)
-    do i=1,nrhopn
-        am=am_min + (i-1)*this%dam
-        call nuRhoPres(am,rhonu,pnu)
-        this%r1(i)=rhonu
-        this%p1(i)=pnu
-    end do
-    !$OMP END PARALLEL DO
+    if (use_legacy_nu_background_grid) then
+        !$OMP PARALLEL DO DEFAULT(SHARED), SCHEDULE(STATIC), &
+        !$OMP& PRIVATE(am,rhonu,pnu)
+        do i=1,nrhopn
+            am=am_min + (i-1)*this%dam
+            call nuRhoPres(am,rhonu,pnu)
+            this%r1(i)=rhonu
+            this%p1(i)=pnu
+        end do
+        !$OMP END PARALLEL DO
 
-    call splini(spline_data,nrhopn)
-    call splder(this%r1,this%dr1,nrhopn,spline_data)
-    call splder(this%p1,this%dp1,nrhopn,spline_data)
-    call splder(this%dr1,this%ddr1,nrhopn,spline_data)
+        call splini(spline_data,nrhopn)
+        call splder(this%r1,this%dr1,nrhopn,spline_data)
+        call splder(this%p1,this%dp1,nrhopn,spline_data)
+    else
+        !$OMP PARALLEL DO DEFAULT(SHARED), SCHEDULE(STATIC), &
+        !$OMP& PRIVATE(am,rhonu,pnu,drhonu_dam,dpnu_dam)
+        do i=1,nrhopn
+            am=am_min + (i-1)*this%dam
+            call nuRhoPres_8point(am,rhonu,pnu)
+            call nuRhoPres_8point_derivs(am,drhonu_dam,dpnu_dam)
+            this%r1(i)=rhonu
+            this%p1(i)=pnu
+            this%dr1(i)=drhonu_dam*this%dam
+            this%dp1(i)=dpnu_dam*this%dam
+        end do
+        !$OMP END PARALLEL DO
+    end if
 
     end subroutine ThermalNuBackground_init
 
@@ -180,6 +202,43 @@
     pnu=(pnu+dum2(nq+1)/adq)/fermi_dirac_const/3._dl
 
     end subroutine nuRhoPres
+
+    subroutine nuRhoPres_8point(am,rhonu,pnu)
+    !  Optimized 8-point shared-node quadrature for ThermalNuBackground table generation.
+    real(dl), intent(in) :: am
+    real(dl), intent(out) :: rhonu, pnu
+    real(dl) inv_v, v
+    integer i
+
+    rhonu = 0._dl
+    pnu = 0._dl
+    do i=1,size(nu_background_q)
+        inv_v = sqrt(1._dl + (am/nu_background_q(i))**2)
+        v = 1._dl/inv_v
+        rhonu = rhonu + nu_background_rho_weights(i)*inv_v
+        pnu = pnu + nu_background_pressure_weights(i)*v
+    end do
+
+    end subroutine nuRhoPres_8point
+
+    subroutine nuRhoPres_8point_derivs(am,drhonu_dam,dpnu_dam)
+    !  Exact a*m derivatives of the optimized 8-point background quadrature.
+    real(dl), intent(in) :: am
+    real(dl), intent(out) :: drhonu_dam, dpnu_dam
+    real(dl) :: inv_v, v, q2
+    integer i
+
+    drhonu_dam = 0._dl
+    dpnu_dam = 0._dl
+    do i=1,size(nu_background_q)
+        q2 = nu_background_q(i)**2
+        inv_v = sqrt(1._dl + (am/nu_background_q(i))**2)
+        v = 1._dl/inv_v
+        drhonu_dam = drhonu_dam + nu_background_rho_weights(i)*am*v/q2
+        dpnu_dam = dpnu_dam - nu_background_pressure_weights(i)*am*v**3/q2
+    end do
+
+    end subroutine nuRhoPres_8point_derivs
 
     subroutine ThermalNuBackground_rho_P(this,am,rhonu,pnu)
     class(TThermalNuBackground) :: this
@@ -312,9 +371,8 @@
     !  Compute the time derivative of the mean density in massive neutrinos
     class(TThermalNuBackground) :: this
     real(dl) adotoa,rhonudot
-    real(dl) d, am2
+    real(dl) am2, rhonu, pnu
     real(dl), intent(IN) :: am
-    integer i
 
     if (am< am_minp) then
         !rhonudot = 2*const2*am**2*adotoa
@@ -324,15 +382,9 @@
     else if (am>am_maxp) then
         rhonudot = 3/(2*fermi_dirac_const)*(zeta3*am +( -(15*zeta5)/2 + 2835._dl/16*zeta7/am**2)/am)*adotoa
     else
-        d=(am-am_min)/this%dam+1._dl
-        i=int(d)
-        d=d-i
-        !  Cubic spline interpolation for rhonudot.
-        rhonudot=this%dr1(i)+d*(this%ddr1(i)+d*(3._dl*(this%dr1(i+1)-this%dr1(i)) &
-            -2._dl*this%ddr1(i)-this%ddr1(i+1)+d*(this%ddr1(i)+this%ddr1(i+1) &
-            +2._dl*(this%dr1(i)-this%dr1(i+1)))))
-
-        rhonudot=adotoa*rhonudot/this%dam*am
+        call this%rho_P(am,rhonu,pnu)
+        ! am * (d rho_nu / d am) analytically simplifies exactly to (rho_nu - 3 P_nu)
+        rhonudot = (rhonu - 3._dl*pnu)*adotoa
     end if
 
     end function ThermalNuBackground_drho
