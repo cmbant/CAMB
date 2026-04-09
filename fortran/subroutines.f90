@@ -124,12 +124,12 @@
     !This version is modified to pass an object parameter to the function on each call
     !Fortunately Fortran doesn't do type checking on functions, so we can pretend the
     !passed object parameter (EV) is any type we like. In reality it is just a pointer.
-    subroutine dverk (EV,n, fcn, x, y, xend, tol, ind, c, nw, w)
+    subroutine dverk (EV,n, fcn, x, y, xend, tol_in, ind, c, nw, w)
     use Precision
     use MpiUtils
     use Config, only : GlobalError, error_evolution
     integer n, ind, nw, k
-    real(dl) x, y(n), xend, tol, c(*), w(nw,9), temp
+    real(dl) x, y(n), xend, tol_in, tol, c(*), w(nw,9), temp
     real(dl), parameter :: one_fifth = 1._dl / 5._dl
     real(dl), parameter :: dp_a21 = 1._dl / 5._dl
     real(dl), parameter :: dp_a31 = 3._dl / 40._dl
@@ -493,6 +493,9 @@
     !     * begin initialization, parameter checking, interrupt re-entries *
     !     ******************************************************************
     !
+
+    tol = tol_in/5
+
     !  ......abort if ind out of range 1 to 6
     if (ind.lt.1 .or. ind.gt.6) go to 500
     !
