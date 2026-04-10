@@ -1,38 +1,89 @@
 import argparse
 import copy
+import filecmp
 import fnmatch
+import math
 import os
 import shutil
+import stat
 import subprocess
 import sys
+import tempfile
 import time
 
 from inifile import IniFile
 
-parser = argparse.ArgumentParser(description="Run CAMB tests")
-parser.add_argument("ini_dir", help="ini file directory")
-parser.add_argument("--make_ini", action="store_true", help="If set, output ini files to ini_dir")
-parser.add_argument("--out_files_dir", default="test_outputs", help="output files directory")
-parser.add_argument(
-    "--base_settings", default="../inifiles/params.ini", help="settings to include as defaults for all combinations"
-)
-parser.add_argument("--no_run_test", action="store_true", help="Don't run tests on files")
-parser.add_argument("--prog", default="./camb", help="executable to run")
-parser.add_argument("--clean", action="store_true", help="delete output dir before run")
-parser.add_argument("--diff_to", help="output directory to compare to, e.g. test_outputs2")
-parser.add_argument(
-    "--diff_tolerance",
-    type=float,
-    help="the tolerance for the numerical diff when no explicit " + "diff is given [default: 1e-4]",
-    default=1e-4,
-)
-parser.add_argument("--verbose_diff_output", action="store_true", help="during diff_to print more error messages")
-parser.add_argument("--num_diff", action="store_true", help="during diff_to print more error messages")
-parser.add_argument("--no_sources", action="store_true", help="turn off CAMB sources (counts/lensing/21cm) tests")
-parser.add_argument("--no_de", action="store_true", help="Don't run dark energy tests")
-parser.add_argument("--max_tests", type=int, help="maximum tests to run (for quick testing of pipeline)")
+TESTS_DIR = os.path.dirname(os.path.abspath(__file__))
+FORTRAN_DIR = os.path.abspath(os.path.join(TESTS_DIR, ".."))
+REPO_ROOT = os.path.abspath(os.path.join(FORTRAN_DIR, ".."))
+DEFAULT_BASE_SETTINGS = os.path.join(REPO_ROOT, "inifiles", "params.ini")
 
-args = parser.parse_args()
+
+def parse_override_assignment(text):
+    if "=" not in text:
+        raise argparse.ArgumentTypeError("Overrides must use KEY=VALUE syntax")
+    key, value = text.split("=", 1)
+    key = key.strip()
+    if not key:
+        raise argparse.ArgumentTypeError("Override key cannot be empty")
+    return key, value.strip()
+
+
+def build_parser():
+    parser = argparse.ArgumentParser(description="Run CAMB tests")
+    parser.add_argument("ini_dir", help="ini file directory")
+    parser.add_argument("--make_ini", "--make-ini", action="store_true", help="If set, output ini files to ini_dir")
+    parser.add_argument("--out_files_dir", "--out-files-dir", default="test_outputs", help="output files directory")
+    parser.add_argument(
+        "--base_settings",
+        "--base-settings",
+        default=DEFAULT_BASE_SETTINGS,
+        help="settings to include as defaults for all combinations",
+    )
+    parser.add_argument("--no_run_test", "--no-run-test", action="store_true", help="Don't run tests on files")
+    parser.add_argument(
+        "--runner",
+        choices=("module", "command"),
+        default="module",
+        help="Use the compiled Python camb module or the legacy command-line executable",
+    )
+    parser.add_argument("--prog", default="./camb", help="executable to run when --runner=command")
+    parser.add_argument("--no_validate", "--no-validate", action="store_true", help="Skip ini validation")
+    parser.add_argument("--clean", action="store_true", help="delete output dir before run")
+    parser.add_argument("--diff_to", "--diff-to", help="output directory to compare to, e.g. test_outputs2")
+    parser.add_argument(
+        "--diff_tolerance",
+        "--diff-tolerance",
+        type=float,
+        help="the tolerance for the numerical diff when no explicit diff is given [default: 1e-4]",
+        default=1e-4,
+    )
+    parser.add_argument(
+        "--verbose_diff_output",
+        "--verbose-diff-output",
+        "--verbose",
+        action="store_true",
+        help="during diff_to print more error messages",
+    )
+    parser.add_argument("--num_diff", "--num-diff", action="store_true", help="during diff_to use absolute diffs")
+    parser.add_argument("--no_sources", "--no-sources", action="store_true", help="turn off CAMB sources tests")
+    parser.add_argument("--no_de", "--no-de", action="store_true", help="Don't run dark energy tests")
+    parser.add_argument("--max_tests", "--max-tests", type=int, help="maximum tests to run")
+    parser.add_argument(
+        "--override",
+        "--set",
+        action="append",
+        type=parse_override_assignment,
+        default=[],
+        metavar="KEY=VALUE",
+        help="override an ini parameter for every test; can be repeated",
+    )
+    return parser
+
+
+args = argparse.Namespace()
+prog = ""
+out_files_dir = ""
 
 logfile = None
 
@@ -44,6 +95,58 @@ def printlog(text):
     if logfile is None:
         logfile = open(os.path.join(args.ini_dir, "test_results.log"), "a", encoding="utf-8")
     logfile.write(text + "\n")
+
+
+def close_logfile():
+    global logfile
+    if logfile is not None:
+        logfile.close()
+        logfile = None
+
+
+def repo_inifile(name):
+    return os.path.join(REPO_ROOT, "inifiles", name)
+
+
+def resolve_from_ini_dir(path):
+    if os.path.isabs(path):
+        return path
+    return os.path.join(args.ini_dir, path)
+
+
+def ensure_camb_on_path():
+    if REPO_ROOT not in sys.path:
+        sys.path.insert(0, REPO_ROOT)
+
+
+def apply_ini_overrides(filename):
+    if not args.override:
+        return filename
+    ini = IniFile()
+    ini.readFile(filename, keep_includes=True)
+    for key, value in args.override:
+        if key not in ini.params:
+            ini.readOrder.append(key)
+        ini.params[key] = value
+    ini.saveFile(filename)
+    return filename
+
+
+def remove_tree(path):
+    def onerror(func, target, exc_info):
+        for _ in range(10):
+            try:
+                os.chmod(target, stat.S_IWRITE | stat.S_IREAD)
+            except OSError:
+                pass
+            try:
+                func(target)
+                return
+            except PermissionError:
+                time.sleep(0.2)
+        raise exc_info[1]
+
+    shutil.rmtree(path, onerror=onerror)
 
 
 # The tolerance matrix gives the tolerances for comparing two values of the actual results with
@@ -235,37 +338,34 @@ filetolmatrix = [
         ),
     ],
     ["*sharp_cl_*.dat", ColTol({"CL": (True, 1e-3), "P": (True, 1e-3), "P_vv": (True, 1e-3), "*": Ignore()})],
-    ["*", ColTol({"*": (True, args.diff_tolerance)})],
+    ["*", ColTol({"*": (True, 1e-4)})],
 ]
-
-prog = os.path.abspath(args.prog)
-if not os.path.exists(args.ini_dir):
-    os.mkdir(args.ini_dir)
-
-out_files_dir = os.path.join(args.ini_dir, args.out_files_dir)
-
-if args.clean:
-    if os.path.exists(out_files_dir):
-        shutil.rmtree(out_files_dir)
-
-if not os.path.exists(out_files_dir):
-    os.mkdir(out_files_dir)
 
 
 def runScript(fname):
     now = time.time()
     try:
-        res = str(subprocess.check_output([prog, fname]))
+        if args.runner == "module":
+            ensure_camb_on_path()
+            import camb
+
+            camb.run_ini(fname, no_validate=args.no_validate)
+            res = ""
+        else:
+            res = subprocess.check_output([prog, fname], stderr=subprocess.STDOUT, text=True)
         code = 0
-    except subprocess.CalledProcessError as e:
-        res = e.output
-        code = e.returncode
+    except subprocess.CalledProcessError as error:
+        res = error.output
+        code = error.returncode
+    except Exception as error:
+        res = str(error)
+        code = 1
     return time.time() - now, res, code
 
 
 def getInis(ini_dir):
     ini_files = []
-    for fname in os.listdir(ini_dir):
+    for fname in sorted(os.listdir(ini_dir)):
         if fnmatch.fnmatch(fname, "*.ini"):
             ini_files.append(os.path.join(args.ini_dir, fname))
     return ini_files
@@ -471,7 +571,7 @@ def getTestParams():
                 f"redshift_dlog10Ndm({i}) = {s}",
             ]
 
-        counts_def = ["DEFAULT(../inifiles/params_counts.ini)"]
+        counts_def = [f"DEFAULT({repo_inifile('params_counts.ini')})"]
         source_counts = (
             ["num_redshiftwindows = 2"]
             + make_win(1, 0.3, "counts", 1.5, 0.06, 0.42)
@@ -500,11 +600,11 @@ def getTestParams():
             + make_win(1, 0.17, "counts", 1.2, 0.04, -0.2)
             + make_win(2, 0.2, "counts", 1.2, 0.04, -0.2)
         )
-        params.append(["lensing_base", "DEFAULT(../inifiles/params_lensing.ini)"])
-        params.append(["21cm_base", "DEFAULT(../inifiles/params_21cm.ini)"])
-        params.append(["21cm_base2", "DEFAULT(../inifiles/params_21cm.ini)", "get_transfer = T"])
+        params.append(["lensing_base", f"DEFAULT({repo_inifile('params_lensing.ini')})"])
+        params.append(["21cm_base", f"DEFAULT({repo_inifile('params_21cm.ini')})"])
+        params.append(["21cm_base2", f"DEFAULT({repo_inifile('params_21cm.ini')})", "get_transfer = T"])
         params.append(
-            ["counts_lens", "DEFAULT(../inifiles/params_counts.ini)"]
+            ["counts_lens", f"DEFAULT({repo_inifile('params_counts.ini')})"]
             + ["num_redshiftwindows = 2"]
             + make_win(1, 0.17, "counts", 1.2, 0.04, -0.2)
             + make_win(2, 0.5, "lensing", 0, 0.07, 0.2)
@@ -528,8 +628,9 @@ def makeIniFiles():
     printlog("Making test ini files...")
     params = getTestParams()
     ini_files = []
-    base_ini = "inheritbase_" + os.path.basename(args.base_settings)
-    shutil.copy(args.base_settings, os.path.join(args.ini_dir, base_ini))
+    base_settings = os.path.abspath(args.base_settings)
+    base_ini = "inheritbase_" + os.path.basename(base_settings)
+    shutil.copy(base_settings, os.path.join(args.ini_dir, base_ini))
     for pars in params:
         name = "params_" + pars[0]
         fname = os.path.join(args.ini_dir, name + ".ini")
@@ -544,8 +645,26 @@ def makeIniFiles():
                 + base_ini
                 + ")\n"
             )
+        apply_ini_overrides(fname)
     printlog("Made test ini files.")
     return ini_files
+
+
+def getPreparedIniFiles():
+    if args.make_ini:
+        return makeIniFiles(), None
+
+    ini_files = getInis(args.ini_dir)
+    if not args.override:
+        return ini_files, None
+
+    override_dir = tempfile.mkdtemp(prefix="test_ini_overrides_", dir=args.ini_dir)
+    prepared = []
+    for ini in ini_files:
+        copied_ini = os.path.join(override_dir, os.path.basename(ini))
+        shutil.copy(ini, copied_ini)
+        prepared.append(apply_ini_overrides(copied_ini))
+    return prepared, override_dir
 
 
 def get_tolerance_vector(filename, cols):
@@ -573,7 +692,7 @@ def num_unequal(filename, cmpFcn):
     :param cmpFcn: The default comparison function. Can be overriden by the filetolmatrix.
     :return: True, when the files do not match, false else.
     """
-    orig_name = os.path.join(args.ini_dir, args.diff_to, filename)
+    orig_name = os.path.join(resolve_from_ini_dir(args.diff_to), filename)
     with open(orig_name) as f:
         origMat = [[_x for _x in ln.split()] for ln in f]
         # Check if the first row has one more column, which is the #
@@ -752,29 +871,25 @@ def textualcmp(o, n, tolerance):
     return math.fabs(float(o) - float(n)) >= tolerance
 
 
-if args.diff_to:
-    import filecmp
-    import math
-
+def run_diff():
     printlog("Running diff_to...")
     if args.num_diff:
         defCmpFcn = lambda o, n, t: math.fabs(float(o) - float(n)) >= t
     else:
         defCmpFcn = normabs
-    out_files_dir2 = os.path.join(args.ini_dir, args.diff_to)
-    match, mismatch, errors = filecmp.cmpfiles(
+    out_files_dir2 = resolve_from_ini_dir(args.diff_to)
+    _, mismatch, errors = filecmp.cmpfiles(
         out_files_dir, out_files_dir2, list(set(list_files(out_files_dir)) | set(list_files(out_files_dir2)))
     )
     len_errors = len(errors)
     if len_errors and len_errors != 1 and errors[0] != args.diff_to:
         printlog("Missing/Extra files:")
         for err in errors:
-            # Only print files that are not the diff_to
             if err != args.diff_to:
                 printlog("  " + err)
-    if len(mismatch):
+    if mismatch:
         numerical_mismatch = [f for f in mismatch if num_unequal(f, defCmpFcn)]
-        if len(numerical_mismatch):
+        if numerical_mismatch:
             printlog("Files do not match:")
             for err in numerical_mismatch:
                 printlog("  " + err)
@@ -783,37 +898,66 @@ if args.diff_to:
         len_num_mismatch = 0
 
     printlog("Done with %d numerical accuracy mismatches and %d extra/missing files" % (len_num_mismatch, len_errors))
-    if len_errors > 0 or len_num_mismatch > 0:
-        sys.exit(1)
-    else:
-        sys.exit()
+    return 1 if len_errors > 0 or len_num_mismatch > 0 else 0
 
-if args.make_ini:
-    inis = makeIniFiles()
-else:
-    inis = getInis(args.ini_dir)
-if not args.no_run_test:
-    errors = 0
-    files = output_file_num(out_files_dir)
-    if files:
-        printlog("Output directory is not empty (run with --clean to force delete): %s" % out_files_dir)
-        sys.exit()
-    start = time.time()
-    error_list = []
-    for ini in inis:
-        printlog(os.path.basename(ini) + "...")
-        timing, output, return_code = runScript(ini)
-        if return_code:
-            printlog("error %s" % return_code)
-        nfiles = output_file_num(out_files_dir)
-        if nfiles > files:
-            msg = f"..OK, produced {nfiles - files} files in {timing:.2f}s"
-        else:
-            errors += 1
-            error_list.append(os.path.basename(ini))
-            msg = "..no files in %.2fs" % timing
-        printlog(msg)
-        files = nfiles
-    printlog(f"Done, {errors} errors in {time.time() - start:.2f}s (outputs not checked yet)")
-    if errors:
-        printlog("Fails in : %s" % error_list)
+
+def main(argv=None):
+    global args, prog, out_files_dir
+
+    args = build_parser().parse_args(argv)
+    args.ini_dir = os.path.abspath(args.ini_dir)
+    args.base_settings = os.path.abspath(args.base_settings)
+    filetolmatrix[-1][1]["*"] = (True, args.diff_tolerance)
+    prog = os.path.abspath(args.prog)
+
+    os.makedirs(args.ini_dir, exist_ok=True)
+    out_files_dir = os.path.join(args.ini_dir, args.out_files_dir)
+
+    if args.clean and os.path.exists(out_files_dir):
+        remove_tree(out_files_dir)
+    os.makedirs(out_files_dir, exist_ok=True)
+
+    override_dir = None
+    try:
+        if args.diff_to:
+            return run_diff()
+
+        inis, override_dir = getPreparedIniFiles()
+        if args.no_run_test:
+            return 0
+
+        errors = 0
+        files = output_file_num(out_files_dir)
+        if files:
+            printlog("Output directory is not empty (run with --clean to force delete): %s" % out_files_dir)
+            return 1
+        start = time.time()
+        error_list = []
+        for ini in inis:
+            printlog(os.path.basename(ini) + "...")
+            timing, output, return_code = runScript(ini)
+            if return_code:
+                printlog("error %s" % return_code)
+                if output:
+                    printlog(str(output).strip())
+            nfiles = output_file_num(out_files_dir)
+            if nfiles > files:
+                msg = f"..OK, produced {nfiles - files} files in {timing:.2f}s"
+            else:
+                errors += 1
+                error_list.append(os.path.basename(ini))
+                msg = "..no files in %.2fs" % timing
+            printlog(msg)
+            files = nfiles
+        printlog(f"Done, {errors} errors in {time.time() - start:.2f}s (outputs not checked yet)")
+        if errors:
+            printlog("Fails in : %s" % error_list)
+        return 1 if errors else 0
+    finally:
+        if override_dir and os.path.exists(override_dir):
+            remove_tree(override_dir)
+        close_logfile()
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -53,6 +53,7 @@ testfile*
 *.pdf
 .vs
 *.mp4
+*.exe
 
 # Ignore all .dat and .ini files except those already tracked in git
 *.dat
@@ -82,3 +83,4 @@ prompts.txt
 scripts
 uv.lock
 .venv
+__pycache__

@@ -253,9 +253,11 @@
     logical PK_WantTransfer
     integer i, status
     real(dl) nmassive
-    character(LEN=*), intent(inout) :: ErrMsg
+    character(LEN=*), intent(out) :: ErrMsg
     character(LEN=:), allocatable :: NumStr, S, DarkEneryModel, RecombinationModel
     logical :: DoCounts
+
+    ErrMsg = ''
 
     CAMB_ReadParams = .false.
     call CAMB_SetDefParams(P)
@@ -277,7 +279,8 @@
     if (num_redshiftwindows > 0) then
         allocate(P%SourceWindows(num_redshiftwindows))
         P%SourceTerms%counts_lensing = Ini%Read_Logical('DoRedshiftLensing', .false.)
-        call Ini%Read('Kmax_Boost', P%Accuracy%KmaxBoost)
+        call ReadAccuracyReal(P%Accuracy%KmaxBoost, 'KmaxBoost', 'Kmax_Boost')
+        if (ErrMsg /= '') return
     end if
     P%Do21cm = Ini%Read_Logical('Do21cm', .false.)
     DoCounts = .false.
@@ -355,8 +358,23 @@
 
     PK_WantTransfer = Ini%Read_Logical('get_transfer')
 
-    call Ini%Read('accuracy_boost', P%Accuracy%AccuracyBoost)
-    call Ini%Read('l_accuracy_boost', P%Accuracy%lAccuracyBoost)
+    call ReadAccuracyReal(P%Accuracy%AccuracyBoost, 'AccuracyBoost', 'accuracy_boost')
+    call ReadAccuracyReal(P%Accuracy%lAccuracyBoost, 'lAccuracyBoost', 'l_accuracy_boost')
+    call ReadAccuracyReal(P%Accuracy%TimeStepBoost, 'TimeStepBoost')
+    call ReadAccuracyReal(P%Accuracy%BackgroundTimeStepBoost, 'BackgroundTimeStepBoost')
+    call ReadAccuracyReal(P%Accuracy%IntTolBoost, 'IntTolBoost')
+    call ReadAccuracyReal(P%Accuracy%SourcekAccuracyBoost, 'SourcekAccuracyBoost')
+    call ReadAccuracyReal(P%Accuracy%IntkAccuracyBoost, 'IntkAccuracyBoost')
+    call ReadAccuracyReal(P%Accuracy%TransferkBoost, 'TransferkBoost')
+    call ReadAccuracyReal(P%Accuracy%NonFlatIntAccuracyBoost, 'NonFlatIntAccuracyBoost')
+    call ReadAccuracyReal(P%Accuracy%BessIntBoost, 'BessIntBoost')
+    call ReadAccuracyReal(P%Accuracy%LensingBoost, 'LensingBoost')
+    call ReadAccuracyReal(P%Accuracy%NonlinSourceBoost, 'NonlinSourceBoost')
+    call ReadAccuracyReal(P%Accuracy%BesselBoost, 'BesselBoost')
+    call ReadAccuracyReal(P%Accuracy%LimberBoost, 'LimberBoost')
+    call ReadAccuracyReal(P%Accuracy%SourceLimberBoost, 'SourceLimberBoost')
+    call ReadAccuracyReal(P%Accuracy%neutrino_q_boost, 'neutrino_q_boost')
+    if (ErrMsg /= '') return
 
     P%NonLinear = Ini%Read_Int('do_nonlinear', NonLinear_none)
 
@@ -559,9 +577,10 @@
 
     !optional parameters controlling the computation
 
-    P%Accuracy%AccuratePolarization = Ini%Read_Logical('accurate_polarization', .true.)
-    P%Accuracy%AccurateReionization = Ini%Read_Logical('accurate_reionization', .true.)
-    P%Accuracy%AccurateBB = Ini%Read_Logical('accurate_BB', .false.)
+    call ReadAccuracyLogical(P%Accuracy%AccuratePolarization, 'AccuratePolarization', 'accurate_polarization')
+    call ReadAccuracyLogical(P%Accuracy%AccurateReionization, 'AccurateReionization', 'accurate_reionization')
+    call ReadAccuracyLogical(P%Accuracy%AccurateBB, 'AccurateBB', 'accurate_BB')
+    if (ErrMsg /= '') return
     if (P%Accuracy%AccurateBB .and. P%WantCls .and. (P%Max_l < 3500 .or. &
         (P%NonLinear/=NonLinear_lens .and. P%NonLinear/=NonLinear_both) .or. P%Max_eta_k < 18000)) &
         write(*,*) 'WARNING: for accurate lensing BB you need high l_max_scalar, k_eta_max_scalar and non-linear lensing'
@@ -575,9 +594,52 @@
     end if
     P%MassiveNuMethod = Ini%Read_Int('massive_nu_approx', Nu_best)
 
-    call Ini%Read('l_sample_boost', P%Accuracy%lSampleBoost)
+    call ReadAccuracyReal(P%Accuracy%lSampleBoost, 'lSampleBoost', 'l_sample_boost')
+    if (ErrMsg /= '') return
 
     CAMB_ReadParams = .true.
+
+    contains
+
+    subroutine ReadAccuracyReal(Value, Name, IniName)
+    real(dl), intent(inout) :: Value
+    character(LEN=*), intent(in) :: Name
+    character(LEN=*), optional, intent(in) :: IniName
+
+    if (present(IniName)) then
+        if (Ini%HasKey(Name) .and. Ini%HasKey(IniName)) then
+            ErrMsg = 'Cannot set both '//trim(Name)//' and '//trim(IniName)
+            return
+        end if
+    end if
+
+    if (Ini%HasKey(Name)) then
+        call Ini%Read(Name, Value)
+    else if (present(IniName)) then
+        call Ini%Read(IniName, Value)
+    end if
+
+    end subroutine ReadAccuracyReal
+
+    subroutine ReadAccuracyLogical(Value, Name, IniName)
+    logical, intent(inout) :: Value
+    character(LEN=*), intent(in) :: Name
+    character(LEN=*), optional, intent(in) :: IniName
+
+    if (present(IniName)) then
+        if (Ini%HasKey(Name) .and. Ini%HasKey(IniName)) then
+            ErrMsg = 'Cannot set both '//trim(Name)//' and '//trim(IniName)
+            return
+        end if
+    end if
+
+    if (Ini%HasKey(Name)) then
+        call Ini%Read(Name, Value)
+    else if (present(IniName)) then
+        call Ini%Read(IniName, Value)
+    end if
+
+    end subroutine ReadAccuracyLogical
 
     end function CAMB_ReadParams
 

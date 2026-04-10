@@ -22,11 +22,14 @@ jobs:
         with:
           python-version: "3.x"
 
-      - name: Install python requirements
-        run: python -m pip install numpy
+      - name: Install dependencies and build module
+        run: |
+          python --version
+          gfortran --version
+          python -m pip install -e .
 
       - name: Run Build and Test Script
-        run: bash fortran/tests/run_tests.sh
+        run: python fortran/tests/run_tests.py
 
       - name: Upload Test Files on Failure
         if: failure()
