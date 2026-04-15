@@ -84,3 +84,6 @@ scripts
 uv.lock
 .venv
 __pycache__
+external/
+!.devcontainer/
+!.devcontainer/**

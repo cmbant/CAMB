@@ -1,0 +1,42 @@
+{
+  "name": "camb-py314",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": "..",
+    "args": {
+      "VARIANT": "3.14-bookworm"
+    }
+  },
+  "runArgs": [
+    "--cpus=8"
+  ],
+  "containerEnv": {
+    "COSMOREC_PATH": "${containerWorkspaceFolder}/external/CosmoRec/",
+    "FORUTILSPATH": "${containerWorkspaceFolder}/forutils",
+    "HYREC_PATH": "${containerWorkspaceFolder}/external/HYREC-2/",
+    "OMP_NUM_THREADS": "8",
+    "OPENBLAS_NUM_THREADS": "8",
+    "RECOMBINATION_FILES": "recfast cosmorec hyrec",
+    "CAMB_DEVCONTAINER_VENV": "/home/vscode/.local/share/camb-devcontainer/.venv",
+    "CAMB_INSTALL_PRECOMMIT": "0",
+    "UV_CACHE_DIR": "/home/vscode/.cache/uv",
+    "UV_LINK_MODE": "copy",
+    "UV_PROJECT_ENVIRONMENT": "/home/vscode/.local/share/camb-devcontainer/.venv"
+  },
+  "postCreateCommand": "bash .devcontainer/scripts/post-create.sh",
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "python.defaultInterpreterPath": "/home/vscode/.local/share/camb-devcontainer/.venv/bin/python",
+        "python.terminal.activateEnvironment": true,
+        "terminal.integrated.defaultProfile.linux": "bash"
+      },
+      "extensions": [
+        "charliermarsh.ruff",
+        "fortran-lang.linter-gfortran",
+        "ms-python.debugpy",
+        "ms-python.python"
+      ]
+    }
+  }
+}

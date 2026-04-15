@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+repo_root="$(cd "$(dirname "$0")/.." && pwd)"
+config_file="${repo_root}/.pre-commit-config.yaml"
+hook_dir="${repo_root}/.githooks"
+container_precommit="${CAMB_DEVCONTAINER_VENV:-/home/vscode/.local/share/camb-devcontainer/.venv}/bin/pre-commit"
+
+if [[ -x "${repo_root}/.venv/bin/pre-commit" ]]; then
+    precommit_bin="${repo_root}/.venv/bin/pre-commit"
+elif [[ -x "${repo_root}/.venv/Scripts/pre-commit.exe" ]]; then
+    precommit_bin="${repo_root}/.venv/Scripts/pre-commit.exe"
+elif [[ -x "${container_precommit}" ]]; then
+    precommit_bin="${container_precommit}"
+elif command -v pre-commit >/dev/null 2>&1; then
+    precommit_bin="$(command -v pre-commit)"
+else
+    echo "pre-commit executable not found. Install the dev environment first." >&2
+    exit 1
+fi
+
+cd "${repo_root}"
+exec "${precommit_bin}" hook-impl --config "${config_file}" --hook-type pre-commit --hook-dir "${hook_dir}" --skip-on-missing-config -- "$@"

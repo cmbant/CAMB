@@ -180,11 +180,16 @@ def make_library(cluster=False):
                 'E.g. on ubuntu install with "sudo apt install make" (or use build-essential package).'
             )
         get_forutils()
+        if os.path.exists(lib_file) and not os.access(lib_file, os.W_OK):
+            os.remove(lib_file)
+        make_env = os.environ.copy()
+        make_env.pop("MAKEFLAGS", None)
         print("Compiling source...")
         subprocess.call(
             "make python PYCAMB_OUTPUT_DIR=%s/camb/ CLUSTER_SAFE=%d"
             % (pycamb_path, int(cluster if not os.getenv("GITHUB_ACTIONS") else 1)),
             shell=True,
+            env=make_env,
         )
         subprocess.call("chmod 755 %s" % lib_file, shell=True)
 
