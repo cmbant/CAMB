@@ -121,12 +121,18 @@ class IniFile:
                     if os.path.isabs(ffile):
                         self.readFile(ffile, if_not_defined=if_not_defined)
                     else:
-                        self.readFile(os.path.join(os.path.dirname(filename), ffile), if_not_defined=if_not_defined)
+                        self.readFile(
+                            os.path.join(os.path.dirname(filename), ffile),
+                            if_not_defined=if_not_defined,
+                        )
                 for ffile in filedefaults:
                     if os.path.isabs(ffile):
                         self.readFile(ffile, if_not_defined=True)
                     else:
-                        self.readFile(os.path.join(os.path.dirname(filename), ffile), if_not_defined=True)
+                        self.readFile(
+                            os.path.join(os.path.dirname(filename), ffile),
+                            if_not_defined=True,
+                        )
 
             return self.params
         except Exception:
@@ -232,7 +238,11 @@ class IniFile:
         :param allowEmpty: whether to allow empty values
         """
         default = getattr(instance, name, default)
-        setattr(instance, name, self.asType(name, type(default), default, allowEmpty=allowEmpty))
+        setattr(
+            instance,
+            name,
+            self.asType(name, type(default), default, allowEmpty=allowEmpty),
+        )
 
     def getAttr(self, instance, name, default=None, comment=None):
         val = getattr(instance, name, default)

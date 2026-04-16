@@ -5,7 +5,7 @@ import os
 from ctypes import POINTER, byref, c_bool, c_double
 from inspect import FullArgSpec, getfullargspec
 
-from . import _ini, constants, model
+from . import constants, model
 from ._config import config
 from .baseconfig import CAMBError as CAMBError
 from .baseconfig import CAMBUnknownArgumentError, CAMBValueError, camblib, filepath_to_fortran, np
