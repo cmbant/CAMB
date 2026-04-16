@@ -195,8 +195,11 @@ class InitialPowerLaw(InitialPower):
                     "tensor parameterization not tensor_param_rpivot with inflation consistency: "
                     f"{self.tensor_parameterization}"
                 )
-            self.nt = -r / 8.0 * (2.0 - ns - r / 8.0)
-            self.ntrun = r / 8.0 * (r / 8.0 + ns - 1)
+            if r:
+                self.nt = -r / 8.0 * (2.0 - ns - r / 8.0)
+                self.ntrun = r / 8.0 * (r / 8.0 + ns - 1)
+            else:
+                self.nt = self.ntrun = 0.0
         else:
             self.nt = nt
             self.ntrun = ntrun

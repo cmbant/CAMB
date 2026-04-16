@@ -101,6 +101,10 @@ def _update_reionization_ini(params: model.CAMBparams, state: CambIniFile) -> No
             set_param(state, "re_optical_depth", reion_model.optical_depth)
         else:
             set_param(state, "re_redshift", reion_model.redshift)
+        set_param(state, "re_ionization_frac", reion_model.fraction)
+        set_param(state, "include_helium_fullreion", reion_model.include_helium_fullreion)
+        set_param(state, "re_helium_redshift", reion_model.helium_redshift)
+        set_param(state, "re_helium_delta_redshift", reion_model.helium_delta_redshift)
         set_param(state, "re_helium_redshiftstart", reion_model.helium_redshiftstart)
         set_param(state, "max_zrei", reion_model.max_redshift)
     if isinstance(reion_model, reionization.TanhReionization):
@@ -121,18 +125,17 @@ def _update_initial_power_ini(params: model.CAMBparams, state: CambIniFile) -> N
         set_param(state, "scalar_spectral_index(1)", initial_power_model.ns)
         set_param(state, "scalar_nrun(1)", initial_power_model.nrun)
         set_param(state, "scalar_nrunrun(1)", initial_power_model.nrunrun)
-        if params.WantTensors:
-            set_param(
-                state,
-                "tensor_parameterization",
-                initialpower.tensor_parameterization_names.index(initial_power_model.tensor_parameterization) + 1,
-            )
-            set_param(state, "tensor_spectral_index(1)", initial_power_model.nt)
-            set_param(state, "tensor_nrun(1)", initial_power_model.ntrun)
-            if initial_power_model.tensor_parameterization == "tensor_param_AT":
-                set_param(state, "tensor_amp(1)", initial_power_model.At)
-            else:
-                set_param(state, "initial_ratio(1)", initial_power_model.r)
+        set_param(
+            state,
+            "tensor_parameterization",
+            initialpower.tensor_parameterization_names.index(initial_power_model.tensor_parameterization) + 1,
+        )
+        set_param(state, "tensor_spectral_index(1)", initial_power_model.nt)
+        set_param(state, "tensor_nrun(1)", initial_power_model.ntrun)
+        if initial_power_model.tensor_parameterization == "tensor_param_AT":
+            set_param(state, "tensor_amp(1)", initial_power_model.At)
+        else:
+            set_param(state, "initial_ratio(1)", initial_power_model.r)
         return
 
     raise CAMBValueError(f"write_ini does not support initial power class {initial_power_model.__class__.__name__}")
@@ -149,8 +152,17 @@ def _update_recombination_ini(params: model.CAMBparams, state: CambIniFile) -> N
         set_param(state, "RECFAST_fudge_He", recomb_model.RECFAST_fudge_He)
         set_param(state, "RECFAST_Heswitch", recomb_model.RECFAST_Heswitch)
         set_param(state, "RECFAST_Hswitch", recomb_model.RECFAST_Hswitch)
+        set_param(state, "AGauss1", recomb_model.AGauss1)
+        set_param(state, "AGauss2", recomb_model.AGauss2)
+        set_param(state, "zGauss1", recomb_model.zGauss1)
+        set_param(state, "zGauss2", recomb_model.zGauss2)
+        set_param(state, "wGauss1", recomb_model.wGauss1)
+        set_param(state, "wGauss2", recomb_model.wGauss2)
     elif isinstance(recomb_model, recombination.CosmoRec):
         set_param(state, "recombination_model", "CosmoRec")
+        set_param(state, "cosmorec_runmode", recomb_model.runmode)
+        set_param(state, "cosmorec_accuracy", recomb_model.accuracy)
+        set_param(state, "cosmorec_fdm", recomb_model.fdm)
     elif isinstance(recomb_model, recombination.HyRec):
         set_param(state, "recombination_model", "HyRec")
 
@@ -219,7 +231,10 @@ def _update_ini_state_from_params(params: model.CAMBparams, state: CambIniFile) 
     set_param(state, "helium_fraction", params.YHe)
     set_param(state, "massless_neutrinos", params.num_nu_massless)
     set_param(state, "nu_mass_eigenstates", params.nu_mass_eigenstates)
-    _set_ini_sequence(state, "massive_neutrinos", params.nu_mass_numbers[: params.nu_mass_eigenstates])
+    if params.nu_mass_eigenstates:
+        _set_ini_sequence(state, "massive_neutrinos", params.nu_mass_numbers[: params.nu_mass_eigenstates])
+    else:
+        set_param(state, "massive_neutrinos", 0)
     set_param(state, "share_delta_neff", params.share_delta_neff)
     if params.num_nu_massive > 0:
         if not params.share_delta_neff:

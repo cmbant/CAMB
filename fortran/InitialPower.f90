@@ -41,7 +41,7 @@
     integer, parameter, public :: tensor_param_indeptilt=1,  tensor_param_rpivot = 2, tensor_param_AT = 3
 
     Type, extends(TInitialPower) :: TInitialPowerLaw
-        integer :: tensor_parameterization = tensor_param_indeptilt
+        integer :: tensor_parameterization = tensor_param_rpivot
         !For the default implementation return power spectra based on spectral indices
         real(dl) :: ns = 1._dl !scalar spectral indices
         real(dl) :: nrun = 0._dl !running of spectral index
@@ -197,28 +197,29 @@
     call Ini%Read('pivot_scalar', this%pivot_scalar)
     call Ini%Read('pivot_tensor', this%pivot_tensor)
     if (Ini%Read_Int('initial_power_num', 1) /= 1) call MpiStop('initial_power_num>1 no longer supported')
-    if (WantTensors) then
-        this%tensor_parameterization =  Ini%Read_Int('tensor_parameterization', tensor_param_indeptilt)
-        if (this%tensor_parameterization < tensor_param_indeptilt .or. &
-            &   this%tensor_parameterization > tensor_param_AT) &
-            &   call MpiStop('InitialPower: unknown tensor_parameterization')
-    end if
-    this%r = 1
     this%ns = Ini%Read_Double(CompatKey(Ini,'scalar_spectral_index'))
     call Ini%Read(CompatKey(Ini,'scalar_nrun'), this%nrun)
     call Ini%Read(CompatKey(Ini,'scalar_nrunrun'), this%nrunrun)
 
     if (WantTensors) then
-        this%nt = Ini%Read_Double(CompatKey(Ini,'tensor_spectral_index'))
+        call Ini%Read('tensor_parameterization', this%tensor_parameterization)
+        if (this%tensor_parameterization < tensor_param_indeptilt .or. &
+            &   this%tensor_parameterization > tensor_param_AT) &
+            &   call MpiStop('InitialPower: unknown tensor_parameterization')
+        call Ini%Read(CompatKey(Ini,'tensor_spectral_index'), this%nt)
         call Ini%Read(CompatKey(Ini,'tensor_nrun'),this%ntrun)
         if (this%tensor_parameterization == tensor_param_AT) then
-            this%At = Ini%Read_Double(CompatKey(Ini,'tensor_amp'))
+            call Ini%Read(CompatKey(Ini,'tensor_amp'), this%At)
+            this%r = 0
         else
-            this%r = Ini%Read_Double(CompatKey(Ini,'initial_ratio'))
+            call Ini%Read(CompatKey(Ini,'initial_ratio'), this%r)
         end if
     else
-        this%r =0
-        this%At=0
+        this%tensor_parameterization = tensor_param_rpivot
+        this%nt = 0._dl
+        this%ntrun = 0._dl
+        this%r = 0._dl
+        this%At = 1._dl
     end if
 
     call Ini%Read(CompatKey(Ini,'scalar_amp'),this%As)

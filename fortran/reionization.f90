@@ -173,6 +173,7 @@
         end if
 
         call Ini%Read('re_ionization_frac',this%fraction)
+        call Ini%Read('include_helium_fullreion',this%include_helium_fullreion)
         call Ini%Read('re_helium_redshift',this%helium_redshift)
         call Ini%Read('re_helium_delta_redshift',this%helium_delta_redshift)
 
