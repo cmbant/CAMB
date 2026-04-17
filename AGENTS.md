@@ -12,6 +12,8 @@
 - /forutils is a git submodule with shared fortran utilities and classes
 - For fortran/wrapped fortran code modifications see /docs/modifying_code.rst
 - When updating version, update both python __version__ and version defined near the top of fortran/config.f90
-- can use "python setup.py make" to rebuild fortran for use with python
+- Use pip -e for editable first install. After that use "python setup.py make" to quickly rebuild fortran for use with python.
 - Default test: python -m unittest camb.tests.camb_test (do not run hmcode_test unless specifically relevant)
 - Installation/clone/modification/contributing/pre-commit/vscode config: see /CONTRIBUTING.md
+- When plotting fractional differences for cross-spectra, use e.g. Delta TE/sqrt(TT*EE)
+- High accuracy lensing needs lens_potential_accuracy = 8 or so (mainly increases kmax)
