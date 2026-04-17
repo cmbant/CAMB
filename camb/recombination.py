@@ -36,6 +36,7 @@ class Recfast(RecombinationModel):
         ("zGauss2", c_double),
         ("wGauss1", c_double),
         ("wGauss2", c_double),
+        ("Nz", c_int),
     )
 
     _fortran_class_module_ = "Recombination"

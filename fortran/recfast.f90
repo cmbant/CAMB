@@ -56,7 +56,8 @@
     !CA     x_H is ionized fraction of H - y(1) in R-K routine
     !CA     x_He is ionized fraction of He - y(2) in R-K routine
     !CA       (note that x_He=n_He+/n_He here and not n_He+/n_H)
-    !CA     Tmat is matter temperature - y(3) in R-K routine
+    !CA     Tmat is matter temperature
+    !CA     aTmat=a*Tmat=Tmat/(1+z) is the stored temperature variable - y(3) in R-K routine
     !CA     f's are the derivatives of the Y's
     !CA     alphaB is case B recombination rate
     !CA     alpHe is the singlet only HeII recombination rate
@@ -201,14 +202,16 @@
     !CH              to match x_e(z) for new H physics)
     !AL             June 2012 updated fudge parameters to match HyRec and CosmoRec (AML)
     !AL             Sept 2012 changes now in public recfast, version number changed to match Recfast 1.5.2.
-
+    !AL             Apr 2026 updated to use variable nZ and evolve/interpolate a*T_m
 
 
     module Recombination
     use constants
     use classes
     use DarkAge21cm
+    use Interpolation, only : spline, SPLINE_DANGLE
     use MathUtils
+    use Config, only : GlobalError, error_recombination
     use results
     use MpiUtils, only : MpiStop
     implicit none
@@ -216,19 +219,24 @@
 
     real(dl), parameter ::  zinitial = 1e4_dl !highest redshift
     real(dl), parameter ::  zfinal=0._dl
-    integer,  parameter :: Nz=10000
-    real(dl), parameter :: delta_z = (zinitial-zfinal)/Nz
 
     integer, parameter ::  RECFAST_Heswitch_default = 6
     real(dl), parameter :: RECFAST_fudge_He_default = 0.86_dl !Helium fudge parameter
     logical, parameter  :: RECFAST_Hswitch_default = .true. !include H corrections (v1.5, 2010)
     real(dl), parameter :: RECFAST_fudge_default = 1.14_dl !1.14_dl
     real(dl), parameter :: RECFAST_fudge_default2 = 1.105d0 + 0.02d0
+    integer, parameter :: RECFAST_nz_default = 10000
+    real(dl), parameter :: RECFAST_x_He_freeze_threshold = 1.e-8_dl
 
     Type RecombinationData
         real(dl) :: Recombination_saha_z !Redshift at which saha OK
         real(dl), private :: NNow, fHe
-        real(dl), private :: zrec(Nz),xrec(Nz),dxrec(Nz), Tsrec(Nz) ,dTsrec(Nz), tmrec(Nz),dtmrec(Nz)
+        integer, private :: nz = 0
+        real(dl), private :: delta_z = 0._dl
+        real(dl), allocatable, private :: zrec(:), xrec(:), dxrec(:), Tsrec(:), dTsrec(:), tmrec(:), dtmrec(:), &
+            xrec_horner(:, :), tsrec_horner(:, :), tmrec_horner(:, :)
+        ! tmrec stores a*Tmat = Tmat/(1+z)
+        ! tsrec stores a*Tspin = Tspin/(1+z)
         real(dl), private :: DeltaB,DeltaB_He,Lalpha,mu_H,mu_T
 
         real(dl), private :: HO, Tnow, fu
@@ -265,6 +273,7 @@
         real(dl) :: zGauss2=        6.73D0  !ln(1+z) of 2nd Gaussian
         real(dl) :: wGauss1=        0.18D0  !Width of 1st Gaussian
         real(dl) :: wGauss2=        0.33D0  !Width of 2nd Gaussian
+        integer  :: Nz = RECFAST_nz_default
         Type(RecombinationData), allocatable :: Calc
     contains
     procedure :: ReadParams => TRecfast_ReadParams
@@ -357,6 +366,7 @@
     call Ini%Read('zGauss2',this%zGauss2)
     call Ini%Read('wGauss1',this%wGauss1)
     call Ini%Read('wGauss2',this%wGauss2)
+    this%Nz = Ini%Read_Int("RECFAST_nz", this%Nz)
     if (this%RECFAST_Hswitch) then
         this%RECFAST_fudge = this%RECFAST_fudge - (RECFAST_fudge_default - RECFAST_fudge_default2)
     end if
@@ -370,14 +380,17 @@
         OK = .false.
         write(*,*) 'RECFAST_Heswitch unknown'
     end if
-
+    if (this%Nz < 2) then
+        OK = .false.
+        write(*,*) "RECFAST_nz must be at least 2"
+    end if
     end subroutine TRecfast_Validate
 
 
     function TRecfast_tm(this,a)
     class(TRecfast) :: this
     real(dl), intent(in) :: a
-    real(dl) zst,z,az,bz,TRecfast_tm
+    real(dl) z, zst, TRecfast_tm, aTmat_stored, az
     integer ilo,ihi
 
     z=1/a-1
@@ -385,16 +398,16 @@
         if (z >= Calc%zrec(1)) then
             TRecfast_tm=Calc%Tnow/a
         else
-            if (z <=Calc%zrec(nz)) then
-                TRecfast_tm=Calc%Tmrec(nz)
+            if (z <= zfinal) then
+                TRecfast_tm=(1._dl + zfinal)*Calc%Tmrec(Calc%nz)
             else
-                zst=(zinitial-z)/delta_z
-                ihi= int(zst)
-                ilo = ihi+1
-                az=zst - ihi
-                bz=1-az
-                TRecfast_tm=az*Calc%Tmrec(ilo)+bz*Calc%Tmrec(ihi)+ &
-                    ((az**3-az)*Calc%dTmrec(ilo)+(bz**3-bz)*Calc%dTmrec(ihi))/6._dl
+                zst = (zinitial - z)/Calc%delta_z
+                ihi = int(zst)
+                ilo = ihi + 1
+                az = zst - real(ihi, dl)
+                aTmat_stored = Calc%tmrec_horner(1, ihi) + az*(Calc%tmrec_horner(2, ihi) + az*(Calc%tmrec_horner(3, ihi) + &
+                    az*Calc%tmrec_horner(4, ihi)))
+                TRecfast_tm=(1._dl + z)*aTmat_stored
             endif
         endif
     end associate
@@ -406,25 +419,24 @@
     class(TRecfast) :: this
     !zrec(1) is zinitial-delta_z
     real(dl), intent(in) :: a
-    real(dl) zst,z,az,bz,TRecfast_ts
+    real(dl) zst,z,az,TRecfast_ts, aTspin_stored
     integer ilo,ihi
 
     z=1/a-1
     associate(Calc => this%Calc)
         if (z.ge.Calc%zrec(1)) then
-            TRecfast_ts=Calc%tsrec(1)
+            TRecfast_ts=(1._dl + z)*Calc%tsrec(1)
         else
-            if (z.le.Calc%zrec(nz)) then
-                TRecfast_ts=Calc%tsrec(nz)
+            if (z.le.zfinal) then
+                TRecfast_ts=(1._dl + zfinal)*Calc%tsrec(Calc%nz)
             else
-                zst=(zinitial-z)/delta_z
-                ihi= int(zst)
-                ilo = ihi+1
-                az=zst - ihi
-                bz=1-az
-
-                TRecfast_ts=az*Calc%tsrec(ilo)+bz*Calc%tsrec(ihi)+ &
-                    ((az**3-az)*Calc%dtsrec(ilo)+(bz**3-bz)*Calc%dtsrec(ihi))/6._dl
+                zst = (zinitial - z)/Calc%delta_z
+                ihi = int(zst)
+                ilo = ihi + 1
+                az = zst - real(ihi, dl)
+                aTspin_stored = Calc%tsrec_horner(1, ihi) + az*(Calc%tsrec_horner(2, ihi) + az*(Calc%tsrec_horner(3, ihi) + &
+                    az*Calc%tsrec_horner(4, ihi)))
+                TRecfast_ts = (1._dl + z)*aTspin_stored
             endif
         endif
     end associate
@@ -433,7 +445,7 @@
     function TRecfast_xe(this,a)
     class(TRecfast) :: this
     real(dl), intent(in) :: a
-    real(dl) zst,z,az,bz,TRecfast_xe
+    real(dl) zst,z,az,TRecfast_xe
     integer ilo,ihi
 
     z=1/a-1
@@ -441,16 +453,15 @@
         if (z.ge.Calc%zrec(1)) then
             TRecfast_xe=Calc%xrec(1)
         else
-            if (z.le.Calc%zrec(nz)) then
-                TRecfast_xe=Calc%xrec(nz)
+            if (z.le.zfinal) then
+                TRecfast_xe=Calc%xrec(Calc%nz)
             else
-                zst=(zinitial-z)/delta_z
-                ihi= int(zst)
-                ilo = ihi+1
-                az=zst - ihi
-                bz=1-az
-                TRecfast_xe=az*Calc%xrec(ilo)+bz*Calc%xrec(ihi)+ &
-                    ((az**3-az)*Calc%dxrec(ilo)+(bz**3-bz)*Calc%dxrec(ihi))/6._dl
+                zst = (zinitial - z)/Calc%delta_z
+                ihi = int(zst)
+                ilo = ihi + 1
+                az = zst - real(ihi, dl)
+                TRecfast_xe = Calc%xrec_horner(1, ihi) + az*(Calc%xrec_horner(2, ihi) + az*(Calc%xrec_horner(3, ihi) + &
+                    az*Calc%xrec_horner(4, ihi)))
             endif
         endif
     end associate
@@ -460,7 +471,7 @@
     class(TRecfast) :: this
     real(dl), intent(in) :: a
     real(dl), intent(out) :: xe, Tm
-    real(dl) zst,z,az,bz
+    real(dl) z, zst, aTmat_stored, az
     integer ilo,ihi
 
     z=1/a-1
@@ -469,24 +480,72 @@
             xe=Calc%xrec(1)
             Tm = Calc%Tnow/a
         else
-            if (z.le.Calc%zrec(nz)) then
-                xe=Calc%xrec(nz)
-                TM =  Calc%Tmrec(nz)
+            if (z.le.zfinal) then
+                xe=Calc%xrec(Calc%nz)
+                Tm = (1._dl + zfinal)*Calc%Tmrec(Calc%nz)
             else
-                zst=(zinitial-z)/delta_z
-                ihi= int(zst)
-                ilo = ihi+1
-                az=zst - ihi
-                bz=1-az
-                xe=az*Calc%xrec(ilo)+bz*Calc%xrec(ihi)+ &
-                    ((az**3-az)*Calc%dxrec(ilo)+(bz**3-bz)*Calc%dxrec(ihi))/6._dl
-                Tm=az*Calc%Tmrec(ilo)+bz*Calc%Tmrec(ihi)+ &
-                    ((az**3-az)*Calc%dTmrec(ilo)+(bz**3-bz)*Calc%dTmrec(ihi))/6._dl
-
+                zst = (zinitial - z)/Calc%delta_z
+                ihi = int(zst)
+                ilo = ihi + 1
+                az = zst - real(ihi, dl)
+                xe = Calc%xrec_horner(1, ihi) + az*(Calc%xrec_horner(2, ihi) + az*(Calc%xrec_horner(3, ihi) + &
+                    az*Calc%xrec_horner(4, ihi)))
+                aTmat_stored = Calc%tmrec_horner(1, ihi) + az*(Calc%tmrec_horner(2, ihi) + az*(Calc%tmrec_horner(3, ihi) + &
+                    az*Calc%tmrec_horner(4, ihi)))
+                Tm=(1._dl + z)*aTmat_stored
             endif
         endif
     end associate
     end subroutine TRecfast_xe_Tm
+
+    subroutine SetRecfastCubicSplineHorner(x, y, y2, horner, n)
+    integer, intent(in) :: n
+    real(dl), intent(in) :: x(n), y(n), y2(n)
+    real(dl), intent(out) :: horner(:, :)
+    integer :: i
+    real(dl) :: h2over6, three_h2over6
+
+    h2over6 = (x(2) - x(1))**2/6._dl
+    three_h2over6 = 3._dl*h2over6
+    do i = 1, n - 1
+        horner(1, i) = y(i)
+        horner(2, i) = y(i + 1) - y(i) - h2over6*(2._dl*y2(i) + y2(i + 1))
+        horner(3, i) = three_h2over6*y2(i)
+        horner(4, i) = h2over6*(y2(i + 1) - y2(i))
+    end do
+
+    end subroutine SetRecfastCubicSplineHorner
+
+    subroutine EnsureRecfastStorage(this, Calc, OK)
+    class(TRecfast), intent(in) :: this
+    type(RecombinationData), intent(inout) :: Calc
+    logical, intent(out) :: OK
+    logical :: needs_allocate
+
+    OK = .false.
+    if (this%Nz < 2) then
+        call GlobalError("recfast_nz must be at least 2", error_recombination)
+        return
+    end if
+
+    needs_allocate = .not. allocated(Calc%zrec)
+    if (.not. needs_allocate) needs_allocate = size(Calc%zrec) /= this%Nz
+
+    if (needs_allocate .and. allocated(Calc%zrec)) then
+        deallocate(Calc%zrec, Calc%xrec, Calc%dxrec, Calc%tsrec, Calc%dtsrec, Calc%tmrec, Calc%dtmrec, &
+            Calc%xrec_horner, Calc%tsrec_horner, Calc%tmrec_horner)
+    end if
+
+    Calc%nz = this%Nz
+    Calc%delta_z = (zinitial-zfinal)/real(Calc%nz, dl)
+    if (needs_allocate) then
+        allocate(Calc%zrec(Calc%nz), Calc%xrec(Calc%nz), Calc%dxrec(Calc%nz), Calc%tsrec(Calc%nz), &
+            Calc%dtsrec(Calc%nz), Calc%tmrec(Calc%nz), Calc%dtmrec(Calc%nz), Calc%xrec_horner(4, Calc%nz - 1), &
+            Calc%tsrec_horner(4, Calc%nz - 1), Calc%tmrec_horner(4, Calc%nz - 1))
+    end if
+    OK = .true.
+
+    end subroutine EnsureRecfastStorage
 
     function TRecfast_version(this) result(this_version)
     class(TRecfast) :: this
@@ -501,7 +560,7 @@
     implicit none
     class(TRecfast), target :: this
     class(TCAMBdata), target :: State
-    real(dl) :: Trad,Tmat,Tspin
+    real(dl) :: Trad,Tmat,Tspin, ainv
     integer :: I
     Type(RecombinationData), pointer :: Calc
     logical, intent(in), optional :: WantTSpin
@@ -514,10 +573,13 @@
     integer :: ind, nw
     real(dl), parameter :: tol=1.D-5                !Tolerance for R-K
     procedure(TClassDverk) :: dverk
+    logical :: storage_ok
 
 
     if (.not. allocated(this%Calc)) allocate(this%Calc)
     Calc => this%Calc
+    call EnsureRecfastStorage(this, Calc, storage_ok)
+    if (.not. storage_ok) return
 
     select type(State)
     class is (CAMBdata)
@@ -540,6 +602,7 @@
         Calc%Tnow = State%CP%tcmb
         !       These are easy to inquire as input, but let's use simple values
         z = zinitial
+        ainv = 1._dl + z
         !       will output every 1 in z, but this is easily changed also
 
         H = State%CP%H0/100._dl
@@ -561,16 +624,16 @@
 
         Calc%Nnow = 3._dl*bigH**2*State%CP%ombh2/(const_eightpi*G*Calc%mu_H*m_H)
 
-        n = Calc%Nnow * (1._dl+z)**3
+        n = Calc%Nnow*ainv**3
         Calc%z_eq = State%z_eq
 
         !       Fudge factor to approximate for low z out of equilibrium effect
         Calc%fu=this%RECFAST_fudge
 
-        !       Set initial matter temperature
-        y(3) = Calc%Tnow*(1._dl+z)            !Initial rad. & mat. temperature
-        Tmat = y(3)
-        y(4) = Tmat
+        !       Set initial matter temperature. y(3) stores a*Tmat directly.
+        Tmat = Calc%Tnow*ainv                 !Initial rad. & mat. temperature
+        y(3) = Calc%Tnow
+        y(4) = Calc%Tnow
         Tspin = Tmat
 
         call get_init(Calc,z,x_H0,x_He0,x0)
@@ -587,11 +650,11 @@
             cw(i) = 0._dl
         end do
 
-        do i = 1,Nz
+        do i = 1,Calc%nz
             !       calculate the start and end redshift for the interval at each z
             !       or just at each z
-            zstart = zinitial  - real(i-1,dl)*delta_z
-            zend   = zinitial  - real(i,dl)*delta_z
+            zstart = zinitial  - real(i-1,dl)*Calc%delta_z
+            zend   = zinitial  - real(i,dl)*Calc%delta_z
 
             ! Use Saha to get x_e, using the equation for x_e for ionized helium
             ! and for neutral helium.
@@ -600,7 +663,8 @@
             ! He is 99% singly ionized, and *then* switch to joint H/He recombination.
 
             z = zend
-            z_scale = Calc%Tnow/COBE_CMBTemp * (1+z) -1
+            ainv = 1._dl + z
+            z_scale = Calc%Tnow/COBE_CMBTemp*ainv - 1
 
             if (z_scale > 8000._dl) then
 
@@ -609,22 +673,23 @@
                 x0 = 1._dl+2._dl*Calc%fHe
                 y(1) = x_H0
                 y(2) = x_He0
-                y(3) = Calc%Tnow*(1._dl+z)
-                y(4) = y(3)
+                Tmat = Calc%Tnow*ainv
+                y(3) = Calc%Tnow
+                y(4) = Calc%Tnow
 
             else if(z_scale > 5000._dl)then
 
                 x_H0 = 1._dl
                 x_He0 = 1._dl
-                rhs = exp( 1.5d0 * log(CR*Calc%Tnow/(1._dl+z)) &
-                    - CB1_He2/(Calc%Tnow*(1._dl+z)) ) / Calc%Nnow
+                rhs = exp(1.5d0*log(CR*Calc%Tnow/ainv) - CB1_He2/(Calc%Tnow*ainv)) / Calc%Nnow
                 rhs = rhs*1._dl            !ratio of g's is 1 for He++ <-> He+
                 x0 = 0.5d0 * ( sqrt( (rhs-1._dl-Calc%fHe)**2 &
                     + 4._dl*(1._dl+2._dl*Calc%fHe)*rhs) - (rhs-1._dl-Calc%fHe) )
                 y(1) = x_H0
                 y(2) = x_He0
-                y(3) = Calc%Tnow*(1._dl+z)
-                y(4) = y(3)
+                Tmat = Calc%Tnow*ainv
+                y(3) = Calc%Tnow
+                y(4) = Calc%Tnow
 
             else if(z_scale > 3500._dl)then
 
@@ -633,14 +698,14 @@
                 x0 = x_H0 + Calc%fHe*x_He0
                 y(1) = x_H0
                 y(2) = x_He0
-                y(3) = Calc%Tnow*(1._dl+z)
-                y(4) = y(3)
+                Tmat = Calc%Tnow*ainv
+                y(3) = Calc%Tnow
+                y(4) = Calc%Tnow
 
             else if(y(2) > 0.99)then
 
                 x_H0 = 1._dl
-                rhs = exp( 1.5d0 * log(CR*Calc%Tnow/(1._dl+z)) &
-                    - CB1_He1/(Calc%Tnow*(1._dl+z)) ) / Calc%Nnow
+                rhs = exp(1.5d0*log(CR*Calc%Tnow/ainv) - CB1_He1/(Calc%Tnow*ainv)) / Calc%Nnow
                 rhs = rhs*4._dl            !ratio of g's is 4 for He+ <-> He0
                 x_He0 = 0.5d0 * ( sqrt( (rhs-1._dl)**2 &
                     + 4._dl*(1._dl+Calc%fHe)*rhs )- (rhs-1._dl))
@@ -648,13 +713,13 @@
                 x_He0 = (x0 - 1._dl)/Calc%fHe
                 y(1) = x_H0
                 y(2) = x_He0
-                y(3) = Calc%Tnow*(1._dl+z)
-                y(4) = y(3)
+                Tmat = Calc%Tnow*ainv
+                y(3) = Calc%Tnow
+                y(4) = Calc%Tnow
 
             else if (y(1) > 0.99d0) then
 
-                rhs = exp( 1.5d0 * log(CR*Calc%Tnow/(1._dl+z)) &
-                    - CB1/(Calc%Tnow*(1._dl+z)) ) / Calc%Nnow
+                rhs = exp(1.5d0*log(CR*Calc%Tnow/ainv) - CB1/(Calc%Tnow*ainv)) / Calc%Nnow
                 x_H0 = 0.5d0 * (sqrt( rhs**2+4._dl*rhs ) - rhs )
 
                 call DVERK(this,3,ION,zstart,y,zend,tol,ind,cw,nw,w)
@@ -669,42 +734,48 @@
 
             end if
 
-            Trad = Calc%Tnow * (1._dl+zend)
-            Tmat = y(3)
+            ainv = 1._dl + zend
+            Trad = Calc%Tnow*ainv
+            Tmat = ainv*y(3)
             x_H = y(1)
             x_He = y(2)
             x = x0
 
             Calc%zrec(i)=zend
             Calc%xrec(i)=x
-            Calc%tmrec(i) = Tmat
+            Calc%tmrec(i) = y(3)
 
 
             if (Calc%doTspin) then
                 if (Evolve_Ts .and. zend< 1/Do21cm_minev-1 ) then
-                    Tspin = y(4)
+                    Tspin = ainv*y(4)
                 else
-                    C10 = Calc%Nnow * (1._dl+zend)**3*(kappa_HH_21cm(Tmat,.false.)*(1-x_H) &
+                    C10 = Calc%Nnow*ainv**3*(kappa_HH_21cm(Tmat,.false.)*(1-x_H) &
                         + kappa_eH_21cm(Tmat,.false.)*x)
-                    tau_21Ts = line21_const*Calc%NNow*(1+zend)*dtauda(State,1/(1+zend))/1000
+                    tau_21Ts = line21_const*Calc%NNow*ainv*dtauda(State,1/ainv)/1000
 
                     Tspin = Trad*( C10/Trad + A10/T_21cm)/(C10/Tmat + A10/T_21cm) + &
                         tau_21Ts/2*A10*( 1/(C10*T_21cm/Tmat+A10) -  1/(C10*T_21cm/Trad+A10) )
 
-                    y(4) = Tspin
+                    y(4) = Tspin/ainv
                 end if
 
-                Calc%tsrec(i) = Tspin
+                Calc%tsrec(i) = y(4)
 
             end if
 
             !          write (*,'(5E15.5)') zend, Trad, Tmat, Tspin, x
         end do
 
-        call spline_def(Calc%zrec,Calc%xrec,nz,Calc%dxrec)
-        call spline_def(Calc%zrec,Calc%tmrec,nz,Calc%dtmrec)
+        call spline_def(Calc%zrec,Calc%xrec,Calc%nz,Calc%dxrec)
+        ! At low z, adiabatic cooling gives Tmat ~ (1+z)^2, so a*Tmat ~ (1+z).
+        call spline(Calc%zrec, Calc%tmrec, Calc%nz, SPLINE_DANGLE, &
+            Calc%tmrec(Calc%nz)/(1._dl + zfinal), Calc%dtmrec)
+        call SetRecfastCubicSplineHorner(Calc%zrec, Calc%xrec, Calc%dxrec, Calc%xrec_horner, Calc%nz)
+        call SetRecfastCubicSplineHorner(Calc%zrec, Calc%tmrec, Calc%dtmrec, Calc%tmrec_horner, Calc%nz)
         if (Calc%doTspin) then
-            call spline_def(Calc%zrec,Calc%tsrec,nz,Calc%dtsrec)
+            call spline_def(Calc%zrec,Calc%tsrec,Calc%nz,Calc%dtsrec)
+            call SetRecfastCubicSplineHorner(Calc%zrec, Calc%tsrec, Calc%dtsrec, Calc%tsrec_horner, Calc%nz)
         end if
     class default
         call MpiStop('Wrong state type')
@@ -763,7 +834,7 @@
     class(TRecfast), target :: this
     integer Ndim
 
-    real(dl) z,x,n,n_He,Trad,Tmat,Tspin,x_H,x_He, Hz
+    real(dl) z,x,n,n_He,Trad,Tmat,Tspin,x_H,x_He, Hz, aTmat, ainv, aTs
     real(dl) y(Ndim),f(Ndim)
     real(dl) Rup,Rdown,K,K_He,Rup_He,Rdown_He,He_Boltz
     real(dl) timeTh,timeH
@@ -772,7 +843,7 @@
     real(dl) a_trip,b_trip,Rdown_trip,Rup_trip
     real(dl) Doppler,gamma_2Ps,pb,qb,AHcon
     real(dl) tauHe_t,pHe_t,CL_PSt,CfHe_t,gamma_2Pt
-    real(dl) epsilon
+    real(dl) epsilon, daTmat_dz, dTspin_dz
     integer Heflag
     real(dl) C10, dHdz, z_scale
     type(RecombinationData), pointer :: Recomb
@@ -800,14 +871,15 @@
     x_H = y(1)
     x_He = y(2)
     x = x_H + Recomb%fHe * x_He
-    Tmat = y(3)
-    !        Tspin = y(4)
+    ainv = 1._dl + z
+    aTmat = y(3)
+    Tmat = ainv*aTmat
 
-    n = Recomb%Nnow * (1._dl+z)**3
-    n_He = Recomb%fHe * Recomb%Nnow * (1._dl+z)**3
-    Trad = Recomb%Tnow * (1._dl+z)
+    n = Recomb%Nnow*ainv**3
+    n_He = Recomb%fHe*Recomb%Nnow*ainv**3
+    Trad = Recomb%Tnow*ainv
 
-    Hz = 1/dtauda(Recomb%State,1/(1._dl+z))*(1._dl+z)**2/MPC_in_sec
+    Hz = ainv**2/dtauda(Recomb%State,1/ainv)/MPC_in_sec
 
 
     !       Get the radiative rates using PPQ fit, identical to Hummer's table
@@ -835,7 +907,7 @@
         K = CK/Hz !Peebles coefficient K=lambda_a^3/8piH
     else
         !c  fit a double Gaussian correction function
-        z_scale = this%Calc%Tnow/COBE_CMBTemp*(1+z)-1
+        z_scale = this%Calc%Tnow/COBE_CMBTemp*ainv-1
         K = CK/Hz*(1.0d0 &
             +this%AGauss1*exp(-((log(1.0d0+z_scale)-this%zGauss1)/this%wGauss1)**2.d0) &
             +this%AGauss2*exp(-((log(1.0d0+z_scale)-this%zGauss2)/this%wGauss2)**2.d0))
@@ -850,7 +922,7 @@
     !   last factor here is the statistical weight
 
     !       try to avoid "NaN" when x_He gets too small
-    if ((x_He.lt.5.d-9) .or. (x_He.gt.0.98d0)) then
+    if ((x_He < RECFAST_x_He_freeze_threshold) .or. (x_He.gt.0.98d0)) then
         Heflag = 0
     else
         Heflag = this%RECFAST_Heswitch
@@ -906,7 +978,7 @@
 
     !       Estimates of Thomson scattering time and Hubble time
     timeTh=(1._dl/(CT*Trad**4))*(1._dl+x+Recomb%fHe)/x       !Thomson time
-    timeH=2./(3.*Recomb%HO*(1._dl+z)**1.5)      !Hubble time
+    timeH=2./(3.*Recomb%HO*ainv**1.5)      !Hubble time
 
     !       calculate the derivatives
     !       turn on H only for x_H<0.99, and use Saha derivative for 0.98<x_H<0.99
@@ -915,7 +987,7 @@
         f(1) = 0._dl
         !!        else if (x_H > 0.98_dl) then
     else if (x_H.gt.0.985d0) then     !use Saha rate for Hydrogen
-        f(1) = (x*x_H*n*Rdown - Rup*(1.d0-x_H)*dexp(-CL/Tmat)) /(Hz*(1.d0+z))
+        f(1) = (x*x_H*n*Rdown - Rup*(1.d0-x_H)*dexp(-CL/Tmat)) /(Hz*ainv)
         Recomb%Recombination_saha_z = z
         !AL: following commented as not used
         !   for interest, calculate the correction factor compared to Saha
@@ -927,62 +999,67 @@
 
         f(1) = ((x*x_H*n*Rdown - Rup*(1.d0-x_H)*exp(-CL/Tmat)) &
             *(1.d0 + K*Lambda*n*(1.d0-x_H))) &
-            /(Hz*(1.d0+z)*(1.d0/Recomb%fu+K*Lambda*n*(1.d0-x_H)/Recomb%fu &
+            /(Hz*ainv*(1.d0/Recomb%fu+K*Lambda*n*(1.d0-x_H)/Recomb%fu &
             +K*Rup*n*(1.d0-x_H)))
 
     end if
 
     !       turn off the He once it is small
-    if (x_He < 1.e-15) then
+    if (x_He < RECFAST_x_He_freeze_threshold) then
         f(2)=0.d0
     else
 
         f(2) = ((x*x_He*n*Rdown_He &
             - Rup_He*(1-x_He)*exp(-CL_He/Tmat)) &
             *(1 + K_He*Lambda_He*n_He*(1.d0-x_He)*He_Boltz)) &
-            /(Hz*(1+z) &
+            /(Hz*ainv &
             * (1 + K_He*(Lambda_He+Rup_He)*n_He*(1.d0-x_He)*He_Boltz))
 
         !   Modification to HeI recombination including channel via triplets
         if (Heflag.ge.3) then
             f(2) = f(2)+ (x*x_He*n*Rdown_trip &
                 - (1.d0-x_He)*3.d0*Rup_trip*dexp(-h_P*C*L_He_2st/(k_B*Tmat))) &
-                *CfHe_t/(Hz*(1.d0+z))
+                *CfHe_t/(Hz*ainv)
         end if
 
     end if
 
     if (timeTh < H_frac*timeH) then
-        !                f(3)=Tmat/(1._dl+z)      !Tmat follows Trad
-        !   additional term to smooth transition to Tmat evolution,
-        !   (suggested by Adam Moss)
-        dHdz = (Recomb%HO**2/2.d0/Hz)*(4.d0*(1.d0+z)**3/(1.d0+Recomb%z_eq)*Recomb%OmegaT &
-            + 3.d0*Recomb%OmegaT*(1.d0+z)**2 + 2.d0*Recomb%OmegaK*(1.d0+z) )
+        ! Original RECFAST formula here is for dTmat/dz; written directly for aTmat.
+        ! The first term is the exact tightly-coupled limit aTmat -> Tnow.
+        dHdz = (Recomb%HO**2/2.d0/Hz)*(4.d0*ainv**3/(1.d0+Recomb%z_eq)*Recomb%OmegaT &
+            + 3.d0*Recomb%OmegaT*ainv**2 + 2.d0*Recomb%OmegaK*ainv )
 
         epsilon = Hz*(1.d0+x+Recomb%fHe)/(CT*Trad**3*x)
-        f(3) = Recomb%Tnow &
-            + epsilon*((1.d0+Recomb%fHe)/(1.d0+Recomb%fHe+x))*((f(1)+Recomb%fHe*f(2))/x) &
-            - epsilon* dHdz/Hz + 3.0d0*epsilon/(1.d0+z)
+        daTmat_dz = (Recomb%Tnow - aTmat)/ainv &
+            + epsilon*((1.d0+Recomb%fHe)/(1.d0+Recomb%fHe+x))*((f(1)+Recomb%fHe*f(2))/x)/ainv &
+            - epsilon*dHdz/(Hz*ainv) + 3.0d0*epsilon/ainv**2
 
     else
-        f(3)= CT * (Trad**4) * x / (1._dl+x+Recomb%fHe) &
-            * (Tmat-Trad) / (Hz*(1._dl+z)) + 2._dl*Tmat/(1._dl+z)
+        ! Original RECFAST formula is for dTmat/dz. Using Tmat=(1+z)*aTmat and Trad=(1+z)*Tnow gives:
+        ! d(aTmat)/dz = [CT*Trad^4*x*(aTmat-Tnow)/(Hz*(1+x+fHe)) + aTmat]/(1+z).
+        daTmat_dz = (CT*(Trad**4)*x*(aTmat-Recomb%Tnow)/(Hz*(1._dl+x+Recomb%fHe)) + aTmat)/ainv
     end if
+
+    f(3) = daTmat_dz
 
     if (evolve_Ts) then
 
         !       follow the matter temperature once it has a chance of diverging
         if (timeTh < H_frac*timeH) then
-            f(4) = Recomb%Tnow !spin follows Trad and Tmat
+            f(4) = 0._dl !a*Tspin follows a*Trad and a*Tmat
         else
             if (z< 1/Do21cm_minev-1) then
 
-                Tspin = y(4)
+                aTs = y(4)
+                Tspin = ainv*aTs
                 C10 = n*(kappa_HH_21cm(Tmat,.false.)*(1-x_H) + kappa_eH_21cm(Tmat,.false.)*x)
 
-                f(4) = 4*Tspin/Hz/(1+z)*( (Tspin/Tmat-1._dl)*C10 + Trad/T_21cm*(Tspin/Trad-1._dl)*A10) - f(1)*Tspin/(1-x_H)
+                dTspin_dz = 4*Tspin/(Hz*ainv)*((Tspin/Tmat-1._dl)*C10 + Trad/T_21cm*(Tspin/Trad-1._dl)*A10) - &
+                    f(1)*Tspin/(1-x_H)
+                f(4) = (dTspin_dz - aTs)/ainv
             else
-                f(4)=f(3)
+                f(4)=daTmat_dz
             end if
         end if
 
