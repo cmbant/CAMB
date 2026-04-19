@@ -128,8 +128,12 @@
     use Precision
     use MpiUtils
     use Config, only : GlobalError, error_evolution
-    integer n, ind, nw, k
-    real(dl) x, y(n), xend, tol_in, tol, c(*), w(nw,9), temp
+    implicit none
+    integer, intent(in) :: n, nw
+    integer, intent(inout) :: ind
+    real(dl), intent(inout) :: x, y(n), c(*), w(nw,9)
+    real(dl), intent(in) :: xend, tol_in
+    real(dl) :: tol, temp
     real(dl), parameter :: one_fifth = 1._dl / 5._dl
     real(dl), parameter :: dp_a21 = 1._dl / 5._dl
     real(dl), parameter :: dp_a31 = 3._dl / 40._dl
@@ -157,44 +161,33 @@
     real(dl), parameter :: dp_e5 = -17253._dl / 339200._dl
     real(dl), parameter :: dp_e6 = 22._dl / 525._dl
     real(dl), parameter :: dp_e7 = -1._dl / 40._dl
-    real EV !it isn't, but as long as it maintains it as a pointer we are OK
+    real(dl), parameter :: machine_roundoff = epsilon(1._dl)
+    real(dl), parameter :: machine_tiny = tiny(1._dl)
+    logical :: resume_after_interrupt1, resume_after_interrupt2
+    real :: EV !it isn't, but as long as it maintains it as a pointer we are OK
     !
     !***********************************************************************
     !                                                                      *
-    ! note added 11/14/85.                                                 *
+    ! This entry point preserves the historical DVERK interface, interrupt *
+    ! handling, and work-array layout used by CAMB. The integration        *
+    ! formula itself is the Dormand-Prince 5(4) embedded pair, and this    *
+    ! copy has been refactored to modern Fortran syntax for readability    *
+    ! while keeping the original control flow semantics. A PI-controller   *
+    ! experiment is left commented in the accepted-step branch for         *
+    ! reference; it used w(1,8) as spare workspace for the previous        *
+    ! accepted error estimate, and showed mixed timings with no robust     *
+    ! default speedup.                                                     *
     !                                                                      *
-    ! if you discover any errors in this subroutine, please contact        *
-    !                                                                      *
-    !        kenneth r. jackson                                            *
-    !        department of computer science                                *
-    !        university of toronto                                         *
-    !        toronto, ontario,                                             *
-    !        canada   m5s 1a4                                              *
-    !                                                                      *
-    !        phone: 416-978-7075                                           *
-    !                                                                      *
-    !        electronic mail:                                              *
-    !        uucp:   {cornell,decvax,ihnp4,linus,uw-beaver}!utcsri!krj     *
-    !        csnet:  krj@toronto                                           *
-    !        arpa:   krj.toronto@csnet-relay                               *
-    !        bitnet: krj%toronto@csnet-relay.arpa                          *
-    !                                                                      *
-    ! dverk is written in fortran 66.                                      *
-    !                                                                      *
-    ! the constants dwarf and rreb -- c(10) and c(11), respectively -- are *
-    ! set for a  vax  in  double  precision.  they  should  be  reset,  as *
-    ! described below, if this program is run on another machine.          *
+    ! The machine constants stored in c(10) and c(11) are initialized from *
+    ! epsilon(1._dl) and tiny(1._dl), rather than from machine-specific    *
+    ! literals.                                                            *
     !                                                                      *
     ! the c array is declared in this subroutine to have one element only, *
     ! although  more  elements  are  referenced  in this subroutine.  this *
     ! causes some compilers to issue warning messages.  there is,  though, *
     ! no  error  provided  c is declared sufficiently large in the calling *
     ! program, as described below.                                         *
-    !                                                                      *
-    ! the following external statement  for  fcn  was  added  to  avoid  a *
-    ! warning  message  from  the  unix  f77 compiler.  the original dverk *
-    ! comments and code follow it.                                         *
-    !                                                                      *
+    !
     !***********************************************************************
     !
     external fcn
@@ -222,7 +215,7 @@
     ! solution values by interpolation, as might be the case  for  example *
     ! with graphical output.                                               *
     !                                                                      *
-    !                                    hull-enright-jackson   1/10/76    *
+    !      historical interface after hull-enright-jackson   1/10/76       *
     !                                                                      *
     !***********************************************************************
     !                                                                      *
@@ -411,7 +404,7 @@
     !     prescribed at the option       determined by the program         *
     !           of the user                                                *
     !                                                                      *
-    !                                    c(10) rreb(rel roundoff err bnd)  *
+    !                                    c(10) machine roundoff estimate   *
     !     c(1) error control indicator   c(11) dwarf (very small mach no)  *
     !     c(2) floor value               c(12) weighted norm y             *
     !     c(3) hmin specification        c(13) hmin                        *
@@ -444,7 +437,7 @@
     !  .           make c(1) to c(9) non-negative                          *
     !  .           make floor values non-negative if they are to be used   *
     !  .        end if                                                     *
-    !  .        initialize rreb, dwarf, prev xend, flag, counts            *
+    !  .        initialize machine constants, prev xend, flag, counts      *
     !  .     case 2 - normal re-entry (ind .eq. 3)                         *
     !  .........abort if xend reached, and either x changed or xend not    *
     !  .        re-initialize flag                                         *
@@ -463,7 +456,7 @@
     !***********interrupt no 1 (with ind=4) if requested.......re-entry.v  *
     !  .        calc hmag, xtrial and htrial                            .  *
     !  .     end stage 1                                                .  *
-    !  v     stage 2 - calc ytrial (adding 7 to no of fcn evals)        .  *
+    !  v     stage 2 - calc ytrial (adding 6 to no of fcn evals)        .  *
     !  .     stage 3 - calc the error estimate                          .  *
     !  .     stage 4 - make decisions                                   .  *
     !  .        set ind=5 if step acceptable, else set ind=6            .  *
@@ -494,378 +487,288 @@
     !     * begin initialization, parameter checking, interrupt re-entries *
     !     ******************************************************************
     !
-    !  ......abort if ind out of range 1 to 6
-    if (ind.lt.1 .or. ind.gt.6) go to 500
-    !
-    !        cases - initial entry, normal re-entry, interrupt re-entries
-    !         go to (5, 5, 45, 1111, 2222, 2222), ind
-    if (ind==3) goto 45
-    if (ind==4) goto 1111
-    if (ind==5 .or. ind==6) goto 2222
 
-    !        case 1 - initial entry (ind .eq. 1 or 2)
-    !  .........abort if n.gt.nw or tol.le.0
-    if (n.gt.nw .or. tol.le.0._dl) go to 500
-    if (ind.eq. 2) go to 15
-    !              initial entry without options (ind .eq. 1)
-    !              set c(1) to c(9) equal to 0
-    do k = 1, 9
-        c(k) = 0._dl
-    end do
-    go to 35
-15  continue
-    !              initial entry with options (ind .eq. 2)
-    !              make c(1) to c(9) non-negative
-    do k = 1, 9
-        c(k) = dabs(c(k))
-    end do
-    !              make floor values non-negative if they are to be used
-    if (c(1).ne.4._dl .and. c(1).ne.5._dl) go to 30
-    do k = 1, n
-        c(k+30) = dabs(c(k+30))
-    end do
-30  continue
-35  continue
-    !           initialize rreb, dwarf, prev xend, flag, counts
-    c(10) = 2._dl**(-56)
-    c(11) = 1.d-35
-    !           set previous xend initially to initial value of x
-    c(20) = x
-    do k = 21, 24
-        c(k) = 0._dl
-    end do
-    go to 50
-    !        case 2 - normal re-entry (ind .eq. 3)
-    !  .........abort if xend reached, and either x changed or xend not
-45  if (c(21).ne.0._dl .and. &
-        (x.ne.c(20) .or. xend.eq.c(20))) go to 500
-    !           re-initialize flag
-    c(21) = 0._dl
-    go to 50
-    !        case 3 - re-entry following an interrupt (ind .eq. 4 to 6)
-    !           transfer control to the appropriate re-entry point..........
-    !           this has already been handled by the computed go to        .
-    !        end cases                                                     v
-50  continue
-    !
-    !     end initialization, etc.
-    !
-    !     ******************************************************************
-    !     * loop through the following 4 stages, once for each trial  step *
-    !     * until the occurrence of one of the following                   *
-    !     *    (a) the normal return (with ind .eq. 3) on reaching xend in *
-    !     *        stage 4                                                 *
-    !     *    (b) an error return (with ind .lt. 0) in stage 1 or stage 4 *
-    !     *    (c) an interrupt return (with ind  .eq.  4,  5  or  6),  if *
-    !     *        requested, in stage 1 or stage 4                        *
-    !     ******************************************************************
-    !
-99999 continue
-    !
-    !        ***************************************************************
-    !        * stage 1 - prepare - do calculations of  hmin,  hmax,  etc., *
-    !        * and some parameter  checking,  and  end  up  with  suitable *
-    !        * values of hmag, xtrial and htrial in preparation for taking *
-    !        * an integration step.                                        *
-    !        ***************************************************************
-    !
-    !***********error return (with ind=-1) if no of fcn evals too great
-    if (c(7).eq.0._dl .or. c(24).lt.c(7)) go to 100
-    ind = -1
-    return
-100 continue
-    !
-    !           calculate slope (adding 1 to no of fcn evals) if ind .ne. 6
-    if (ind .eq. 6) go to 105
-    call fcn(EV,n, x, y, w(1,1))
-    c(24) = c(24) + 1._dl
-105 continue
-    !
-    !           calculate hmin - use default unless value prescribed
-    c(13) = c(3)
-    if (c(3) .ne. 0._dl) go to 165
-    !              calculate default value of hmin
-    !              first calculate weighted norm y - c(12) - as specified
-    !              by the error control indicator c(1)
-    temp = 0._dl
-    if (c(1) .ne. 1._dl) go to 115
-    !                 absolute error control - weights are 1
-    do 110 k = 1, n
-        temp = dmax1(temp, dabs(y(k)))
-110 continue
-    c(12) = temp
-    go to 160
-115 if (c(1) .ne. 2._dl) go to 120
-    !                 relative error control - weights are 1/dabs(y(k)) so
-    !                 weighted norm y is 1
-    c(12) = 1._dl
-    go to 160
-120 if (c(1) .ne. 3._dl) go to 130
-    !                 weights are 1/max(c(2),abs(y(k)))
-    do 125 k = 1, n
-        temp = dmax1(temp, dabs(y(k))/c(2))
-125 continue
-    c(12) = dmin1(temp, 1._dl)
-    go to 160
-130 if (c(1) .ne. 4._dl) go to 140
-    !                 weights are 1/max(c(k+30),abs(y(k)))
-    do 135 k = 1, n
-        temp = dmax1(temp, dabs(y(k))/c(k+30))
-135 continue
-    c(12) = dmin1(temp, 1._dl)
-    go to 160
-140 if (c(1) .ne. 5._dl) go to 150
-    !                 weights are 1/c(k+30)
-    do 145 k = 1, n
-        temp = dmax1(temp, dabs(y(k))/c(k+30))
-145 continue
-    c(12) = temp
-    go to 160
-150 continue
-    !                 default case - weights are 1/max(1,abs(y(k)))
-    do 155 k = 1, n
-        temp = dmax1(temp, dabs(y(k)))
-155 continue
-    c(12) = dmin1(temp, 1._dl)
-160 continue
-    c(13) = 10._dl*dmax1(c(11),c(10)*dmax1(c(12)/tol,dabs(x)))
-165 continue
-    !
-    !           calculate scale - use default unless value prescribed
-    c(15) = c(5)
-    if (c(5) .eq. 0._dl) c(15) = 1._dl
-    !
-    !           calculate hmax - consider 4 cases
-    !           case 1 both hmax and scale prescribed
-    if (c(6).ne.0._dl .and. c(5).ne.0._dl) &
-        c(16) = dmin1(c(6), 2._dl/c(5))
-    !           case 2 - hmax prescribed, but scale not
-    if (c(6).ne.0._dl .and. c(5).eq.0._dl) c(16) = c(6)
-    !           case 3 - hmax not prescribed, but scale is
-    if (c(6).eq.0._dl .and. c(5).ne.0._dl) c(16) = 2._dl/c(5)
-    !           case 4 - neither hmax nor scale is provided
-    if (c(6).eq.0._dl .and. c(5).eq.0._dl) c(16) = 2._dl
-    !
-    !***********error return (with ind=-2) if hmin .gt. hmax
-    if (c(13) .le. c(16)) go to 170
-    ind = -2
-    return
-170 continue
-    !
-    !           calculate preliminary hmag - consider 3 cases
-    if (ind .gt. 2) go to 175
-    !           case 1 - initial entry - use prescribed value of hstart, if
-    !              any, else default
-    c(14) = c(4)
-    if (c(4) .eq. 0._dl) c(14) = c(16)*tol**one_fifth
-    go to 185
-175 if (c(23) .gt. 1._dl) go to 180
-    !           case 2 - after a successful step, or at most  one  failure,
-    !              use min(2, .9*(tol/est)**(1/5))*hmag, but avoid possible
-    !              overflow. then avoid reduction by more than half.
-    temp = 2._dl*c(14)
-    if (tol .lt. (2._dl/.9d0)**5*c(19)) &
-        temp = .9d0*(tol/c(19))**one_fifth*c(14)
-    c(14) = dmax1(temp, .5d0*c(14))
-    go to 185
-180 continue
-    !           case 3 - after two or more successive failures
-    c(14) = .5d0*c(14)
-185 continue
-    !
-    !           check against hmax
-    c(14) = dmin1(c(14), c(16))
-    !
-    !           check against hmin
-    c(14) = dmax1(c(14), c(13))
-    !
-    !***********interrupt no 1 (with ind=4) if requested
-    if (c(8) .eq. 0._dl) go to 1111
-    ind = 4
-    return
-    !           resume here on re-entry with ind .eq. 4   ........re-entry..
-1111 continue
-    !
-    !           calculate hmag, xtrial - depending on preliminary hmag, xend
-    if (c(14) .ge. dabs(xend - x)) go to 190
-    !              do not step more than half way to xend
-    c(14) = dmin1(c(14), .5d0*dabs(xend - x))
-    c(17) = x + dsign(c(14), xend - x)
-    go to 195
-190 continue
-    !              hit xend exactly
-    c(14) = dabs(xend - x)
-    c(17) = xend
-195 continue
-    !
-    !           calculate htrial
-    c(18) = c(17) - x
-    !
-    !        end stage 1
-    !
-    !        ***************************************************************
-    !        * stage 2 - calculate ytrial using the Dormand-Prince 5(4)    *
-    !        * pair (adding 6 to the number of function evaluations).      *
-    !        * w(*,1), ... w(*,7) hold stage derivatives, with w(*,9) the  *
-    !        * fifth-order trial solution.                                 *
-    !        ***************************************************************
-    !
-    do 200 k = 1, n
-        w(k,9) = y(k) + c(18)*dp_a21*w(k,1)
-200 continue
-    call fcn(EV,n, x + c(18)/5._dl, w(1,9), w(1,2))
-    !
-    do 205 k = 1, n
-        w(k,9) = y(k) + c(18)*(dp_a31*w(k,1) + dp_a32*w(k,2))
-205 continue
-    call fcn(EV,n, x + c(18)*(3._dl/10._dl), w(1,9), w(1,3))
-    !
-    do 210 k = 1, n
-        w(k,9) = y(k) + c(18)*(dp_a41*w(k,1) + dp_a42*w(k,2) + dp_a43*w(k,3))
-210 continue
-    call fcn(EV,n, x + c(18)*(4._dl/5._dl), w(1,9), w(1,4))
-    !
-    do 215 k = 1, n
-        w(k,9) = y(k) + c(18)*(dp_a51*w(k,1) + dp_a52*w(k,2) + dp_a53*w(k,3) + dp_a54*w(k,4))
-215 continue
-    call fcn(EV,n, x + c(18)*(8._dl/9._dl), w(1,9), w(1,5))
-    !
-    do 220 k = 1, n
-        w(k,9) = y(k) + c(18)*(dp_a61*w(k,1) + dp_a62*w(k,2) + dp_a63*w(k,3) &
-            + dp_a64*w(k,4) + dp_a65*w(k,5))
-220 continue
-    call fcn(EV,n, x + c(18), w(1,9), w(1,6))
-    !
-    do 225 k = 1, n
-        w(k,9) = y(k) + c(18)*(dp_b1*w(k,1) + dp_b3*w(k,3) + dp_b4*w(k,4) &
-            + dp_b5*w(k,5) + dp_b6*w(k,6))
-225 continue
-    call fcn(EV,n, x + c(18), w(1,9), w(1,7))
-    !
-    !           add 6 to the no of fcn evals
-    c(24) = c(24) + 6._dl
-    !
-    !        end stage 2
-    !
-    !        ***************************************************************
-    !        * stage 3 - calculate the error estimate est from the         *
-    !        * difference between the embedded fifth and fourth order      *
-    !        * solutions. w(*,2) stores the per-unit-step error estimate. *
-    !        ***************************************************************
-    !
-    !           calculate the unweighted absolute error estimate vector
-    do 300 k = 1, n
-        w(k,2) = dp_e1*w(k,1) + dp_e3*w(k,3) + dp_e4*w(k,4) &
-            + dp_e5*w(k,5) + dp_e6*w(k,6) + dp_e7*w(k,7)
-300 continue
-    !
-    !           calculate the weighted max norm of w(*,2) as specified by
-    !           the error control indicator c(1)
-    temp = 0._dl
-    if (c(1) .ne. 1._dl) go to 310
-    !              absolute error control
-    do 305 k = 1, n
-        temp = dmax1(temp,dabs(w(k,2)))
-305 continue
-    go to 360
-310 if (c(1) .ne. 2._dl) go to 320
-    !              relative error control
-    do 315 k = 1, n
-        temp = dmax1(temp, dabs(w(k,2)/y(k)))
-315 continue
-    go to 360
-320 if (c(1) .ne. 3._dl) go to 330
-    !              weights are 1/max(c(2),abs(y(k)))
-    do 325 k = 1, n
-        temp = dmax1(temp, dabs(w(k,2)) &
-            / dmax1(c(2), dabs(y(k))) )
-325 continue
-    go to 360
-330 if (c(1) .ne. 4._dl) go to 340
-    !              weights are 1/max(c(k+30),abs(y(k)))
-    do 335 k = 1, n
-        temp = dmax1(temp, dabs(w(k,2)) &
-            / dmax1(c(k+30), dabs(y(k))) )
-335 continue
-    go to 360
-340 if (c(1) .ne. 5._dl) go to 350
-    !              weights are 1/c(k+30)
-    do 345 k = 1, n
-        temp = dmax1(temp, dabs(w(k,2)/c(k+30)))
-345 continue
-    go to 360
-350 continue
-    !              default case - weights are 1/max(1,abs(y(k)))
-    do 355 k = 1, n
-        temp = dmax1(temp, dabs(w(k,2)) &
-            / dmax1(1._dl, dabs(y(k))) )
-355 continue
-360 continue
-    !
-    !           calculate est - (the weighted max norm of w(*,2))*hmag*scale
-    !              - est is intended to be a measure of the error  per  unit
-    !              step in ytrial
-    c(19) = temp*c(14)*c(15)
-    !
-    !        end stage 3
-    !
-    !        ***************************************************************
-    !        * stage 4 - make decisions.                                   *
-    !        ***************************************************************
-    !
-    !           set ind=5 if step acceptable, else set ind=6
-    ind = 5
-    if (c(19) .gt. tol) ind = 6
-    !
-    !***********interrupt no 2 if requested
-    if (c(9) .eq. 0._dl) go to 2222
-    return
-    !           resume here on re-entry with ind .eq. 5 or 6   ...re-entry..
-2222 continue
-    !
-    if (ind .eq. 6) go to 410
-    !              step accepted (ind .eq. 5), so update x, y from xtrial,
-    !                 ytrial, add 1 to the no of successful steps, and set
-    !                 the no of successive failures to zero
-    x = c(17)
-    do 400 k = 1, n
-        y(k) = w(k,9)
-400 continue
-    c(22) = c(22) + 1._dl
-    c(23) = 0._dl
-    !**************return(with ind=3, xend saved, flag set) if x .eq. xend
-    if (x .ne. xend) go to 405
-    ind = 3
-    c(20) = xend
-    c(21) = 1._dl
-    return
-405 continue
-    do 406 k = 1, n
-        w(k,1) = w(k,7)
-406 continue
-    ind = 6
-    go to 420
-410 continue
-    !              step not accepted (ind .eq. 6), so add 1 to the no of
-    !                 successive failures
-    c(23) = c(23) + 1._dl
-    !**************error return (with ind=-3) if hmag .le. hmin
-    if (c(14) .gt. c(13)) go to 415
-    ind = -3
-    return
-415 continue
-420 continue
-    !
-    !        end stage 4
-    !
-    go to 99999
-    !     end loop
-    !
-    !  begin abort action
-500 continue
-    !
+    resume_after_interrupt1 = .false.
+    resume_after_interrupt2 = .false.
 
-    write (*,*) 'Error in dverk, x =',x, 'xend=', xend
+    select case (ind)
+    case (1, 2)
+        if (n > nw .or. tol <= 0._dl) call abort_dverk()
+
+        if (ind == 1) then
+            c(1:9) = 0._dl
+        else
+            c(1:9) = abs(c(1:9))
+            if (c(1) == 4._dl .or. c(1) == 5._dl) then
+                c(31:n+30) = abs(c(31:n+30))
+            end if
+        end if
+
+        ! Initialize machine constants, previous xend, flag, and counts.
+        c(10)    = machine_roundoff
+        c(11)    = machine_tiny
+        c(20)    = x
+        c(21:24) = 0._dl
+
+    case (3)
+        ! Abort if xend was previously reached and x has changed,
+        ! or xend has an invalid value.
+        if (c(21) /= 0._dl .and. (x /= c(20) .or. xend == c(20))) then
+            call abort_dverk()
+        end if
+        c(21) = 0._dl
+
+    case (4)
+        resume_after_interrupt1 = .true.
+
+    case (5, 6)
+        resume_after_interrupt2 = .true.
+
+    case default
+        call abort_dverk()
+    end select
+
+    step_loop: do
+
+        !------------------------------------------------------------------
+        ! Stage 1: prepare step size etc.
+        ! Skip this part when resuming from interrupt 1 or 2.
+        !------------------------------------------------------------------
+        if (.not. resume_after_interrupt1 .and. .not. resume_after_interrupt2) then
+
+            ! Error return (ind = -1) if number of function evaluations too great.
+            if (c(7) /= 0._dl .and. c(24) >= c(7)) then
+                ind = -1
+                return
+            end if
+
+            ! Calculate slope (adding 1 to number of function evals) if ind /= 6.
+            if (ind /= 6) then
+                call fcn(EV, n, x, y, w(1, 1))
+                c(24) = c(24) + 1._dl
+            end if
+
+            ! Calculate hmin - use default unless prescribed.
+            c(13) = c(3)
+            if (c(3) == 0._dl) then
+                if (c(1) == 1._dl) then
+                    ! Absolute error control.
+                    c(12) = maxval(abs(y(1:n)))
+
+                else if (c(1) == 2._dl) then
+                    ! Relative error control.
+                    c(12) = 1._dl
+
+                else if (c(1) == 3._dl) then
+                    ! Weights are 1 / max(c(2), abs(y(k))).
+                    temp  = maxval(abs(y(1:n)) / c(2))
+                    c(12) = min(temp, 1._dl)
+
+                else if (c(1) == 4._dl) then
+                    ! Weights are 1 / max(c(k+30), abs(y(k))).
+                    temp  = maxval(abs(y(1:n)) / c(31:n+30))
+                    c(12) = min(temp, 1._dl)
+
+                else if (c(1) == 5._dl) then
+                    ! Weights are 1 / c(k+30).
+                    c(12) = maxval(abs(y(1:n)) / c(31:n+30))
+
+                else
+                    ! Default: weights are 1 / max(1, abs(y(k))).
+                    temp  = maxval(abs(y(1:n)))
+                    c(12) = min(temp, 1._dl)
+                end if
+
+                c(13) = 10._dl * max(c(11), c(10) * max(c(12) / tol, abs(x)))
+            end if
+
+            ! Calculate scale - use default unless prescribed.
+            c(15) = c(5)
+            if (c(5) == 0._dl) c(15) = 1._dl
+
+            ! Calculate hmax.
+            if (c(6) /= 0._dl .and. c(5) /= 0._dl) then
+                c(16) = min(c(6), 2._dl / c(5))
+            else if (c(6) /= 0._dl) then
+                c(16) = c(6)
+            else if (c(5) /= 0._dl) then
+                c(16) = 2._dl / c(5)
+            else
+                c(16) = 2._dl
+            end if
+
+            ! Error return (ind = -2) if hmin > hmax.
+            if (c(13) > c(16)) then
+                ind = -2
+                return
+            end if
+
+            ! Calculate preliminary hmag.
+            if (ind <= 2) then
+                ! Initial entry.
+                c(14) = c(4)
+                if (c(4) == 0._dl) c(14) = c(16) * tol**one_fifth
+
+            else if (c(23) <= 1._dl) then
+                ! Successful step, or at most one failure: original
+                ! proportional controller.
+                ! PI-controller experiment left for reference only:
+                ! mixed timings, no robust default speedup on tested CAMB workloads.
+                ! If re-enabled, w(1,8) must be initialized on entry and
+                ! updated after each accepted step with max(c(19), c(11)).
+                ! if (c(19) <= c(11)) then
+                !     temp = 2._dl
+                ! else if (c(22) <= 1._dl .or. w(1, 8) <= c(11)) then
+                !     temp = 0.9_dl * (tol / c(19))**0.20_dl
+                ! else
+                !     temp = 0.9_dl * (tol / c(19))**0.20_dl * (w(1, 8) / c(19))**0.04_dl
+                ! end if
+                ! temp = min(2._dl, max(0.5_dl, temp))
+                ! c(14) = temp * c(14)
+                temp = 2._dl * c(14)
+                if (tol < (2._dl / 0.9_dl)**5 * c(19)) then
+                    temp = 0.9_dl * (tol / c(19))**one_fifth * c(14)
+                end if
+                c(14) = max(temp, 0.5_dl * c(14))
+
+            else
+                ! Two or more successive failures.
+                c(14) = 0.5_dl * c(14)
+            end if
+
+            c(14) = min(c(14), c(16))
+            c(14) = max(c(14), c(13))
+
+            ! Interrupt no. 1.
+            if (c(8) /= 0._dl) then
+                ind = 4
+                return
+            end if
+        end if
+
+        !------------------------------------------------------------------
+        ! Resume point for ind = 4.
+        ! Skip this block when resuming from interrupt 2.
+        !------------------------------------------------------------------
+        if (.not. resume_after_interrupt2) then
+
+            ! Calculate hmag, xtrial.
+            if (c(14) < abs(xend - x)) then
+                c(14) = min(c(14), 0.5_dl * abs(xend - x))
+                c(17) = x + sign(c(14), xend - x)
+            else
+                c(14) = abs(xend - x)
+                c(17) = xend
+            end if
+
+            c(18) = c(17) - x
+
+            !------------------------------------------------------------------
+            ! Stage 2: Dormand-Prince 5(4) trial step.
+            !------------------------------------------------------------------
+            w(1:n, 9) = y(1:n) + c(18) * dp_a21 * w(1:n, 1)
+            call fcn(EV, n, x + c(18) / 5._dl, w(1, 9), w(1, 2))
+
+            w(1:n, 9) = y(1:n) + c(18) * (dp_a31 * w(1:n, 1) + dp_a32 * w(1:n, 2))
+            call fcn(EV, n, x + c(18) * (3._dl / 10._dl), w(1, 9), w(1, 3))
+
+            w(1:n, 9) = y(1:n) + c(18) * (dp_a41 * w(1:n, 1) + dp_a42 * w(1:n, 2) + &
+                dp_a43 * w(1:n, 3))
+            call fcn(EV, n, x + c(18) * (4._dl / 5._dl), w(1, 9), w(1, 4))
+
+            w(1:n, 9) = y(1:n) + c(18) * (dp_a51 * w(1:n, 1) + dp_a52 * w(1:n, 2) + &
+                dp_a53 * w(1:n, 3) + dp_a54 * w(1:n, 4))
+            call fcn(EV, n, x + c(18) * (8._dl / 9._dl), w(1, 9), w(1, 5))
+
+            w(1:n, 9) = y(1:n) + c(18) * (dp_a61 * w(1:n, 1) + dp_a62 * w(1:n, 2) + &
+                dp_a63 * w(1:n, 3) + dp_a64 * w(1:n, 4) + &
+                dp_a65 * w(1:n, 5))
+            call fcn(EV, n, x + c(18), w(1, 9), w(1, 6))
+
+            w(1:n, 9) = y(1:n) + c(18) * (dp_b1 * w(1:n, 1) + dp_b3 * w(1:n, 3) + &
+                dp_b4 * w(1:n, 4) + dp_b5 * w(1:n, 5) + &
+                dp_b6 * w(1:n, 6))
+            call fcn(EV, n, x + c(18), w(1, 9), w(1, 7))
+
+            c(24) = c(24) + 6._dl
+
+            !------------------------------------------------------------------
+            ! Stage 3: error estimate.
+            !------------------------------------------------------------------
+            w(1:n, 2) = dp_e1 * w(1:n, 1) + dp_e3 * w(1:n, 3) + dp_e4 * w(1:n, 4) + &
+                dp_e5 * w(1:n, 5) + dp_e6 * w(1:n, 6) + dp_e7 * w(1:n, 7)
+
+            if (c(1) == 1._dl) then
+                temp = maxval(abs(w(1:n, 2)))
+
+            else if (c(1) == 2._dl) then
+                temp = maxval(abs(w(1:n, 2) / y(1:n)))
+
+            else if (c(1) == 3._dl) then
+                temp = maxval(abs(w(1:n, 2)) / max(c(2), abs(y(1:n))))
+
+            else if (c(1) == 4._dl) then
+                temp = maxval(abs(w(1:n, 2)) / max(c(31:n+30), abs(y(1:n))))
+
+            else if (c(1) == 5._dl) then
+                temp = maxval(abs(w(1:n, 2) / c(31:n+30)))
+
+            else
+                temp = maxval(abs(w(1:n, 2)) / max(1._dl, abs(y(1:n))))
+            end if
+
+            c(19) = temp * c(14) * c(15)
+
+            !------------------------------------------------------------------
+            ! Stage 4: accept/reject decision.
+            !------------------------------------------------------------------
+            ind = 5
+            if (c(19) > tol) ind = 6
+
+            ! Interrupt no. 2.
+            if (c(9) /= 0._dl) return
+        end if
+
+        !------------------------------------------------------------------
+        ! Resume point for ind = 5 or 6.
+        !------------------------------------------------------------------
+        if (ind == 5) then
+            ! Step accepted.
+            x        = c(17)
+            y(1:n)   = w(1:n, 9)
+            c(22)    = c(22) + 1._dl
+            c(23)    = 0._dl
+
+            if (x == xend) then
+                ind   = 3
+                c(20) = xend
+                c(21) = 1._dl
+                return
+            end if
+
+            w(1:n, 1) = w(1:n, 7)
+            ind = 6
+
+        else
+            ! Step rejected.
+            c(23) = c(23) + 1._dl
+
+            if (c(14) <= c(13)) then
+                ind = -3
+                return
+            end if
+        end if
+
+        resume_after_interrupt1 = .false.
+        resume_after_interrupt2 = .false.
+
+    end do step_loop
+
+    contains
+
+    subroutine abort_dverk()
+    write (*,*) 'Error in dverk, x =', x, ' xend =', xend
     call GlobalError('DVERK error', error_evolution)
-    !
+    end subroutine abort_dverk
+
     end subroutine dverk
