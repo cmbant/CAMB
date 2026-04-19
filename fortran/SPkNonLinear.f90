@@ -122,6 +122,8 @@ class(TCAMBdata) :: State
 type(MatterPowerData), target :: CAMB_Pk
 integer :: itf, i
 real(dl) :: rk, spk_sup, spk_href, spk_eratio
+logical, save :: warned_spk_z_outside = .false.
+logical, save :: warned_spk_k_clamped = .false.
 
 if (.not. allocated(this%BaseModel)) allocate(THalofit::this%BaseModel)
 
@@ -142,7 +144,14 @@ class default
 end select
 
 do itf = 1, CAMB_Pk%num_z
-    if (CAMB_Pk%redshifts(itf) < SPk_calibrated_z_min .or. CAMB_Pk%redshifts(itf) > SPk_calibrated_z_max) cycle
+    if (CAMB_Pk%redshifts(itf) < SPk_calibrated_z_min .or. CAMB_Pk%redshifts(itf) > SPk_calibrated_z_max) then
+        if (FeedbackLevel > 0 .and. .not. warned_spk_z_outside) then
+            write(*,'(A,F8.3,A,F6.2,A,F6.2,A)') 'WARNING: SP(k) skipped outside calibrated redshift range. z=', &
+                CAMB_Pk%redshifts(itf), ', calibrated range=[', SPk_calibrated_z_min, ',', SPk_calibrated_z_max, '].'
+            warned_spk_z_outside = .true.
+        end if
+        cycle
+    end if
     select type (State)
     class is (CAMBdata)
         if (this%SPk_relation_kind == SPk_rel_cosmo_power_law .or. this%SPk_relation_kind == SPk_rel_double_power_law) then
@@ -157,6 +166,13 @@ do itf = 1, CAMB_Pk%num_z
         rk = exp(CAMB_Pk%log_kh(i))
         if (rk > this%Min_kh_nonlinear) then
             if (rk < SPk_calibrated_k_min) cycle
+            if (rk > SPk_calibrated_k_max) then
+                if (FeedbackLevel > 0 .and. .not. warned_spk_k_clamped) then
+                    write(*,'(A,F8.3,A,F6.2,A)') 'WARNING: SP(k) input k exceeds calibrated range; clamping to k_max=', &
+                        rk, ' -> ', SPk_calibrated_k_max, ' h/Mpc.'
+                    warned_spk_k_clamped = .true.
+                end if
+            end if
             spk_sup = SPk_Suppression(this%SPk_SO, min(rk, SPk_calibrated_k_max), CAMB_Pk%redshifts(itf), &
                 this%SPk_relation_kind, this%SPk_fb_a, this%SPk_fb_pow, this%SPk_fb_pivot, &
                 this%SPk_alpha, this%SPk_beta, this%SPk_gamma, &

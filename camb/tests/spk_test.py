@@ -1,6 +1,8 @@
 import os
 import sys
+import tempfile
 import unittest
+import warnings
 
 import numpy as np
 
@@ -32,6 +34,20 @@ class _CambEFunc:
 
 
 class SPkTest(unittest.TestCase):
+    def _capture_c_stdout(self, call):
+        saved_fd = os.dup(1)
+        try:
+            with tempfile.TemporaryFile(mode="w+b") as tmp:
+                os.dup2(tmp.fileno(), 1)
+                call()
+                tmp.flush()
+                tmp.seek(0)
+                out = tmp.read().decode("utf-8", errors="replace")
+        finally:
+            os.dup2(saved_fd, 1)
+            os.close(saved_fd)
+        return out
+
     def _get_pk(self, model_obj, z=0.5):
         pars = camb.CAMBparams()
         pars.set_cosmology(H0=67.5, ombh2=0.02237, omch2=0.12, mnu=0.06)
@@ -190,19 +206,53 @@ class SPkTest(unittest.TestCase):
         )
         _, pk_spk, _ = self._get_pk_range(spk, z=0.125, kmax=12.0, npoints=400)
 
-        _, sup_ref = pyspk.sup_model(
-            SO=200,
-            z=0.125,
-            fb_a=0.4,
-            fb_pow=0.3,
-            fb_pivot=1e14,
-            k_array=k,
-            errors=False,
-        )
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore",
+                message=r"Scales with k_max > k_ny = 8\.0 \[h/Mpc\] may not be accurately reproduced by the model\.",
+                category=UserWarning,
+            )
+            _, sup_ref = pyspk.sup_model(
+                SO=200,
+                z=0.125,
+                fb_a=0.4,
+                fb_pow=0.3,
+                fb_pivot=1e14,
+                k_array=k,
+                errors=False,
+            )
         measured_sup = pk_spk / pk_base
         rel = np.abs(measured_sup / sup_ref - 1.0)
 
-        self.assertLess(float(np.max(rel[k <= 12.0])), 1e-3)
+        self.assertLess(float(np.max(rel[k <= 12.0])), 1e-4)
+
+    def test_spk_out_of_range_warnings(self):
+        pars = camb.CAMBparams()
+        pars.set_cosmology(H0=67.5, ombh2=0.02237, omch2=0.12, mnu=0.06)
+        pars.InitPower.set_params(As=2.1e-9, ns=0.965)
+        pars.set_matter_power(redshifts=[4.0, 1.0], kmax=20.0, k_per_logint=100)
+        pars.NonLinear = camb.model.NonLinear_both
+
+        spk = camb.SPkNonLinear()
+        spk.BaseModel.set_params(halofit_version="mead2020")
+        spk.set_params(
+            SPk_feedback=True,
+            SPk_SO=200,
+            SPk_relation_kind=1,
+            SPk_fb_a=0.4,
+            SPk_fb_pow=0.3,
+            SPk_fb_pivot=1e14,
+        )
+        pars.NonLinearModel = spk
+
+        camb.set_feedback_level(1)
+        try:
+            output = self._capture_c_stdout(lambda: camb.get_results(pars))
+        finally:
+            camb.set_feedback_level(0)
+
+        self.assertIn("WARNING: SP(k) skipped outside calibrated redshift range.", output)
+        self.assertIn("WARNING: SP(k) input k exceeds calibrated range; clamping to k_max=", output)
 
 
 if __name__ == "__main__":
