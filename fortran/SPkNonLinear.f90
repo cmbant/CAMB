@@ -141,15 +141,6 @@ class default
     call MpiStop('SP(k): unsupported state type for Hofz evaluation')
 end select
 
-do i = 1, CAMB_Pk%num_k
-    rk = exp(CAMB_Pk%log_kh(i))
-    if (rk > this%Min_kh_nonlinear) then
-        if (rk < SPk_calibrated_k_min .or. rk > SPk_calibrated_k_max) then
-            call MpiStop('SP(k): k/h outside calibrated range [1e-12, 12.0]')
-        end if
-    end if
-end do
-
 do itf = 1, CAMB_Pk%num_z
     if (CAMB_Pk%redshifts(itf) < SPk_calibrated_z_min .or. CAMB_Pk%redshifts(itf) > SPk_calibrated_z_max) cycle
     select type (State)
@@ -165,6 +156,7 @@ do itf = 1, CAMB_Pk%num_z
     do i = 1, CAMB_Pk%num_k
         rk = exp(CAMB_Pk%log_kh(i))
         if (rk > this%Min_kh_nonlinear) then
+            if (rk < SPk_calibrated_k_min .or. rk > SPk_calibrated_k_max) cycle
             spk_sup = SPk_Suppression(this%SPk_SO, rk, CAMB_Pk%redshifts(itf), this%SPk_relation_kind, &
                 this%SPk_fb_a, this%SPk_fb_pow, this%SPk_fb_pivot, this%SPk_alpha, this%SPk_beta, this%SPk_gamma, &
                 this%SPk_epsilon, this%SPk_m_pivot, spk_eratio)
