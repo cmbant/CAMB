@@ -222,6 +222,31 @@ class CambTest(unittest.TestCase):
         self.assertAlmostEqual(DA, bao[0][2], 3)
         self.assertAlmostEqual(H, bao[1][1], 3)
 
+    def testSPkNonLinearClassSelection(self):
+        pars = camb.CAMBparams()
+        pars.set_classes(non_linear_model="SPkNonLinear")
+        self.assertEqual(pars.NonLinearModel.__class__.__name__, "SPkNonLinear")
+
+        pars.set_cosmology(H0=67.5, ombh2=0.02237, omch2=0.12, mnu=0.06)
+        pars.InitPower.set_params(As=2.1e-9, ns=0.965)
+        pars.set_matter_power(redshifts=[0.5], kmax=3.0)
+        pars.NonLinear = model.NonLinear_both
+        pars.NonLinearModel.BaseModel.set_params(halofit_version="mead2020")
+        pars.NonLinearModel.set_params(
+            SPk_feedback=True,
+            SPk_SO=200,
+            SPk_relation_kind=1,
+            SPk_fb_a=0.4,
+            SPk_fb_pow=0.2,
+            SPk_fb_pivot=1e14,
+        )
+
+        data = camb.get_results(pars)
+        k, z, pk = data.get_matter_power_spectrum(minkh=1e-2, maxkh=1.0, npoints=8)
+        self.assertEqual(len(z), 1)
+        self.assertTrue(np.all(np.isfinite(k)))
+        self.assertTrue(np.all(np.isfinite(pk)))
+
         age2 = data.physical_time(0)
         self.assertAlmostEqual(age, age2, 4)
 

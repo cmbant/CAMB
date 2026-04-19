@@ -4,9 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "camb"
-authors = [
-    { name = "Antony Lewis" },
-]
+authors = [{ name = "Antony Lewis" }]
 description = "Code for Anisotropies in the Microwave Background"
 keywords = ['cosmology', 'CAMB', 'CMB']
 readme = "docs/README_pypi.rst"
@@ -26,13 +24,17 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
 ]
-dependencies = [
-    "numpy>=1.22", "scipy>=1.0", "sympy>=1.0", "packaging>=24.2"
-]
+dependencies = ["numpy>=1.22", "scipy>=1.0", "sympy>=1.0", "packaging>=24.2"]
 
 [project.optional-dependencies]
-docs = ["sphinx>=4.0", "sphinx_rtd_theme>=1.0", "sphinxcontrib-jquery", "sphinx_markdown_builder", "jupytext"]
-dev = ["ruff>=0.11.0", "pre-commit>=3.0.0"]
+docs = [
+    "sphinx>=4.0",
+    "sphinx_rtd_theme>=1.0",
+    "sphinxcontrib-jquery",
+    "sphinx_markdown_builder",
+    "jupytext",
+]
+dev = ["ruff>=0.11.0", "pre-commit>=3.0.0", "pyspk>=2.0.0"]
 
 [project.scripts]
 camb = "camb._command_line:run_command_line"
@@ -70,6 +72,30 @@ docstring-code-format = true
 
 [tool.flake8]
 select = [
-    "E713", "E704", "E703", "E714", "E741", "E10", "E11", "E20", "E22", "E23", "E25", "E27",
-    "E301", "E302", "E304", "E9", "F405", "F406", "F5", "F6", "F7", "F8", "W1", "W2", "W3", "W6"
+    "E713",
+    "E704",
+    "E703",
+    "E714",
+    "E741",
+    "E10",
+    "E11",
+    "E20",
+    "E22",
+    "E23",
+    "E25",
+    "E27",
+    "E301",
+    "E302",
+    "E304",
+    "E9",
+    "F405",
+    "F406",
+    "F5",
+    "F6",
+    "F7",
+    "F8",
+    "W1",
+    "W2",
+    "W3",
+    "W6",
 ]
