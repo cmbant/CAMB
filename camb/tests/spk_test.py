@@ -36,11 +36,23 @@ class SPkTest(unittest.TestCase):
         pars = camb.CAMBparams()
         pars.set_cosmology(H0=67.5, ombh2=0.02237, omch2=0.12, mnu=0.06)
         pars.InitPower.set_params(As=2.1e-9, ns=0.965)
-        pars.set_matter_power(redshifts=[z], kmax=6.0)
+        # Use dense transfer sampling to reduce interpolation noise in reference comparisons.
+        pars.set_matter_power(redshifts=[z], kmax=6.0, k_per_logint=100)
         pars.NonLinear = camb.model.NonLinear_both
         pars.NonLinearModel = model_obj
         results = camb.get_results(pars)
         k, _z, pk = results.get_matter_power_spectrum(minkh=1e-2, maxkh=5.0, npoints=28)
+        return k, pk[0], results
+
+    def _get_pk_range(self, model_obj, z=0.125, kmax=12.0, npoints=400):
+        pars = camb.CAMBparams()
+        pars.set_cosmology(H0=67.5, ombh2=0.02237, omch2=0.12, mnu=0.06)
+        pars.InitPower.set_params(As=2.1e-9, ns=0.965)
+        pars.set_matter_power(redshifts=[z], kmax=kmax, k_per_logint=100)
+        pars.NonLinear = camb.model.NonLinear_both
+        pars.NonLinearModel = model_obj
+        results = camb.get_results(pars)
+        k, _z, pk = results.get_matter_power_spectrum(minkh=1e-4, maxkh=kmax, npoints=npoints)
         return k, pk[0], results
 
     def _assert_relation_match(self, relation_kind, z=0.5, so=200, rtol=1e-5, atol=1e-8, **kwargs):
@@ -125,6 +137,8 @@ class SPkTest(unittest.TestCase):
             relation_kind=1,
             z=0.5,
             so=200,
+            rtol=1e-6,
+            atol=1e-9,
             SPk_fb_a=0.4,
             SPk_fb_pow=0.2,
             SPk_fb_pivot=1e14,
@@ -136,8 +150,8 @@ class SPkTest(unittest.TestCase):
             relation_kind=2,
             z=1.0,
             so=500,
-            rtol=1e-3,
-            atol=1e-6,
+            rtol=1e-6,
+            atol=1e-9,
             SPk_alpha=3.4,
             SPk_beta=1.0,
             SPk_gamma=0.15,
@@ -149,14 +163,46 @@ class SPkTest(unittest.TestCase):
             relation_kind=3,
             z=1.5,
             so=200,
-            rtol=1e-3,
-            atol=1e-6,
+            rtol=1e-6,
+            atol=1e-9,
             SPk_epsilon=0.55,
             SPk_alpha=0.2,
             SPk_beta=0.9,
             SPk_gamma=0.1,
             SPk_m_pivot=1e14,
         )
+
+    @unittest.skipIf(pyspk is None, "pyspk not installed")
+    def test_spk_high_k_boundary_continuity(self):
+        base = camb.Halofit()
+        base.set_params(halofit_version="mead2020")
+        k, pk_base, _ = self._get_pk_range(base, z=0.125, kmax=12.0, npoints=400)
+
+        spk = camb.SPkNonLinear()
+        spk.BaseModel.set_params(halofit_version="mead2020")
+        spk.set_params(
+            SPk_feedback=True,
+            SPk_SO=200,
+            SPk_relation_kind=1,
+            SPk_fb_a=0.4,
+            SPk_fb_pow=0.3,
+            SPk_fb_pivot=1e14,
+        )
+        _, pk_spk, _ = self._get_pk_range(spk, z=0.125, kmax=12.0, npoints=400)
+
+        _, sup_ref = pyspk.sup_model(
+            SO=200,
+            z=0.125,
+            fb_a=0.4,
+            fb_pow=0.3,
+            fb_pivot=1e14,
+            k_array=k,
+            errors=False,
+        )
+        measured_sup = pk_spk / pk_base
+        rel = np.abs(measured_sup / sup_ref - 1.0)
+
+        self.assertLess(float(np.max(rel[k <= 12.0])), 1e-3)
 
 
 if __name__ == "__main__":

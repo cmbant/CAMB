@@ -42,6 +42,7 @@ testfile*
 *.ipynb
 !CAMBdemo.ipynb
 !ScalEqs.ipynb
+!docs/SPk_demo.ipynb
 *.dll
 *.a
 *.o
