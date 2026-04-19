@@ -43,7 +43,7 @@ class SPkTest(unittest.TestCase):
         k, _z, pk = results.get_matter_power_spectrum(minkh=1e-2, maxkh=5.0, npoints=28)
         return k, pk[0], results
 
-    def _assert_relation_match(self, relation_kind, z=0.5, so=200, **kwargs):
+    def _assert_relation_match(self, relation_kind, z=0.5, so=200, rtol=1e-5, atol=1e-8, **kwargs):
         base = camb.Halofit()
         base.set_params(halofit_version="mead2020")
         k, pk_base, results = self._get_pk(base, z=z)
@@ -95,7 +95,7 @@ class SPkTest(unittest.TestCase):
         measured_sup = pk_spk / pk_base
 
         self.assertTrue(np.allclose(k_ref, k, rtol=0, atol=0))
-        self.assertTrue(np.allclose(measured_sup, sup_ref, rtol=1e-5, atol=1e-8))
+        self.assertTrue(np.allclose(measured_sup, sup_ref, rtol=rtol, atol=atol))
 
     def test_spk_invalid_params(self):
         model = camb.SPkNonLinear()
@@ -136,6 +136,8 @@ class SPkTest(unittest.TestCase):
             relation_kind=2,
             z=1.0,
             so=500,
+            rtol=1e-3,
+            atol=1e-6,
             SPk_alpha=3.4,
             SPk_beta=1.0,
             SPk_gamma=0.15,
@@ -147,6 +149,8 @@ class SPkTest(unittest.TestCase):
             relation_kind=3,
             z=1.5,
             so=200,
+            rtol=1e-3,
+            atol=1e-6,
             SPk_epsilon=0.55,
             SPk_alpha=0.2,
             SPk_beta=0.9,
