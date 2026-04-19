@@ -43,6 +43,6 @@ from .dark_energy import DarkEnergyFluid, DarkEnergyPPF
 from .initialpower import InitialPowerLaw, SplinedInitialPower
 from .mathutils import threej
 from .model import CAMBparams, TransferParams
-from .nonlinear import Halofit
+from .nonlinear import Halofit, SPkNonLinear
 from .reionization import ExpReionization, TanhReionization
 from .results import CAMBdata, ClTransferData, MatterTransferData

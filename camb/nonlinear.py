@@ -1,9 +1,10 @@
-from ctypes import POINTER, byref, c_double, c_int
+import math
+from ctypes import POINTER, byref, c_bool, c_double, c_int
 
 import numpy as np
 from numpy.ctypeslib import ndpointer
 
-from .baseconfig import F2003Class, fortran_class, numpy_1d
+from .baseconfig import AllocatableObject, CAMBValueError, F2003Class, fortran_class, numpy_1d
 
 
 class NonLinearModel(F2003Class):
@@ -91,6 +92,130 @@ class Halofit(NonLinearModel):
         self.HMCode_A_baryon = HMCode_A_baryon
         self.HMCode_eta_baryon = HMCode_eta_baryon
         self.HMCode_logT_AGN = HMCode_logT_AGN
+
+
+@fortran_class
+class SPkNonLinear(NonLinearModel):
+    """
+    SP(k) baryon suppression model applied on top of a base non-linear model.
+
+    The base model is evaluated first (Halofit by default), then SP(k)
+    suppression is applied multiplicatively as
+    ``sqrt(P_NL/P_L) -> sqrt(P_NL/P_L) * sqrt(SPk_suppression)``.
+    """
+
+    _fields_ = (
+        ("BaseModel", AllocatableObject(NonLinearModel)),
+        ("SPk_feedback", c_bool, "Enable SP(k) suppression"),
+        ("SPk_SO", c_int, "SP(k) spherical overdensity (200 or 500)"),
+        (
+            "SPk_relation_kind",
+            c_int,
+            "SP(k) relation kind: 1=power_law, 2=cosmo_power_law, 3=double_power_law",
+        ),
+        ("SPk_fb_a", c_double, "Power-law relation normalization"),
+        ("SPk_fb_pow", c_double, "Power-law relation exponent"),
+        ("SPk_fb_pivot", c_double, "Power-law relation pivot mass [M_sun]"),
+        ("SPk_alpha", c_double, "Relation alpha parameter (kinds 2/3)"),
+        ("SPk_beta", c_double, "Relation beta parameter (kinds 2/3)"),
+        ("SPk_gamma", c_double, "Relation gamma parameter (kinds 2/3)"),
+        ("SPk_epsilon", c_double, "Relation epsilon parameter (kind 3)"),
+        ("SPk_m_pivot", c_double, "Relation pivot mass [M_sun] (kind 3)"),
+    )
+
+    _fortran_class_module_ = "SPkNonLinear"
+    _fortran_class_name_ = "TSPkNonLinear"
+
+    def __init__(self, **kwargs):
+        super().__init__()
+        self.BaseModel = Halofit()
+        self.set_params(**kwargs)
+
+    def _validate(self):
+        if self.SPk_SO not in (200, 500):
+            raise CAMBValueError("SPk_SO must be 200 or 500")
+        if self.SPk_relation_kind not in (1, 2, 3):
+            raise CAMBValueError(
+                "SPk_relation_kind must be 1 (power_law), 2 (cosmo_power_law), or 3 (double_power_law)"
+            )
+        if self.SPk_relation_kind == 1 and self.SPk_fb_pivot <= 0:
+            raise CAMBValueError("SPk_fb_pivot must be > 0 for power_law relation")
+        if self.SPk_relation_kind == 3 and self.SPk_m_pivot <= 0:
+            raise CAMBValueError("SPk_m_pivot must be > 0 for double_power_law relation")
+
+        if self.SPk_feedback and isinstance(self.BaseModel, Halofit):
+            if isinstance(self.BaseModel.halofit_version, str):
+                halofit_version_int = halofit_version_names[self.BaseModel.halofit_version]
+            else:
+                halofit_version_int = int(self.BaseModel.halofit_version)
+            if halofit_version_int == halofit_version_names[halofit_mead2020_feedback]:
+                raise CAMBValueError(
+                    "SP(k) is not compatible with halofit_version='mead2020_feedback'. "
+                    "Use halofit_version='mead2020' (or another non-feedback option) when enabling SPk_feedback."
+                )
+
+            hmcode_2015_2016_versions = {
+                halofit_version_names[halofit_mead],
+                halofit_version_names[halofit_mead2015],
+                halofit_version_names[halofit_mead2016],
+            }
+            if halofit_version_int in hmcode_2015_2016_versions and (
+                (not math.isclose(self.BaseModel.HMCode_A_baryon, 3.13, rel_tol=0.0, abs_tol=1e-12))
+                or (not math.isclose(self.BaseModel.HMCode_eta_baryon, 0.603, rel_tol=0.0, abs_tol=1e-12))
+            ):
+                raise CAMBValueError(
+                    "SP(k) cannot be combined with HMCode_A_baryon/HMCode_eta_baryon baryonic corrections in HMCode 2015/2016"
+                )
+
+    def set_params(
+        self,
+        base_model=None,
+        SPk_feedback=False,
+        SPk_SO=200,
+        SPk_relation_kind=1,
+        SPk_fb_a=1.0,
+        SPk_fb_pow=0.0,
+        SPk_fb_pivot=1.0,
+        SPk_alpha=0.0,
+        SPk_beta=0.0,
+        SPk_gamma=0.0,
+        SPk_epsilon=0.0,
+        SPk_m_pivot=1.0,
+    ):
+        """
+        Set SP(k) suppression parameters.
+
+        :param base_model: Base non-linear model to wrap. Defaults to :class:`Halofit`.
+        :param SPk_feedback: Enable SP(k) suppression.
+        :param SPk_SO: Spherical overdensity calibration, 200 or 500.
+        :param SPk_relation_kind: 1=power_law, 2=cosmo_power_law, 3=double_power_law.
+        :param SPk_fb_a: Power-law relation normalization (kind 1).
+        :param SPk_fb_pow: Power-law relation exponent (kind 1).
+        :param SPk_fb_pivot: Power-law relation pivot mass [M_sun] (kind 1).
+        :param SPk_alpha: Relation alpha parameter (kinds 2/3).
+        :param SPk_beta: Relation beta parameter (kinds 2/3).
+        :param SPk_gamma: Relation gamma parameter (kinds 2/3).
+        :param SPk_epsilon: Relation epsilon parameter (kind 3).
+        :param SPk_m_pivot: Relation pivot mass [M_sun] (kind 3).
+        """
+        if base_model is not None:
+            self.BaseModel = base_model
+        elif self.BaseModel is None:
+            self.BaseModel = Halofit()
+
+        self.SPk_feedback = SPk_feedback
+        self.SPk_SO = SPk_SO
+        self.SPk_relation_kind = SPk_relation_kind
+        self.SPk_fb_a = SPk_fb_a
+        self.SPk_fb_pow = SPk_fb_pow
+        self.SPk_fb_pivot = SPk_fb_pivot
+        self.SPk_alpha = SPk_alpha
+        self.SPk_beta = SPk_beta
+        self.SPk_gamma = SPk_gamma
+        self.SPk_epsilon = SPk_epsilon
+        self.SPk_m_pivot = SPk_m_pivot
+        self._validate()
+        return self
 
 
 @fortran_class

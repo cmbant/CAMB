@@ -8,6 +8,10 @@ Non-linear models
    :show-inheritance:
    :members:
 
+.. autoclass:: camb.nonlinear.SPkNonLinear
+   :show-inheritance:
+   :members:
+
 .. autoclass:: camb.nonlinear.ExternalNonLinearRatio
    :show-inheritance:
    :members:
