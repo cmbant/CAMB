@@ -99,9 +99,11 @@ class SPkNonLinear(NonLinearModel):
     """
     SP(k) baryon suppression model applied on top of a base non-linear model.
 
-        Reference:
+        References:
         - SP(k) model: `arXiv:2305.09710 <https://arxiv.org/abs/2305.09710>`_,
             `MNRAS 523, 2247 (2023) <https://doi.org/10.1093/mnras/stad1474>`_
+        - pyspk implementation details and mode definitions:
+            https://github.com/jemme07/pyspk
 
     The base model is evaluated first (Halofit by default), then SP(k)
     suppression is applied to CAMB's non-linear ratio as
@@ -196,16 +198,25 @@ class SPkNonLinear(NonLinearModel):
         """
         Set SP(k) model and relation parameters.
 
-                Reference:
+                References:
                 - SP(k) model: `arXiv:2305.09710 <https://arxiv.org/abs/2305.09710>`_,
                     `MNRAS 523, 2247 (2023) <https://doi.org/10.1093/mnras/stad1474>`_
+                - For mode details and examples, see https://github.com/jemme07/pyspk
 
-        Relation-specific groups:
+                SP(k) modes:
 
-        - ``1`` (power_law): ``SPk_fb_a``, ``SPk_fb_pow``, ``SPk_fb_pivot``
-        - ``2`` (cosmo_power_law): ``SPk_alpha``, ``SPk_beta``, ``SPk_gamma``
-        - ``3`` (double_power_law): ``SPk_epsilon``, ``SPk_alpha``,
-          ``SPk_beta``, ``SPk_gamma``, ``SPk_m_pivot``
+                - ``1`` (``power_law``):
+                    ``f_b/(Omega_b/Omega_m) = a * (M_SO/M_pivot)^b``
+                    with ``a=SPk_fb_a``, ``b=SPk_fb_pow``, ``M_pivot=SPk_fb_pivot``.
+
+                - ``2`` (``cosmo_power_law``, redshift-dependent power law):
+                    ``f_b/(Omega_b/Omega_m) = (exp(alpha)/100) * (M_500c/1e14 Msun)^(beta-1) * (E(z)/E(0.3))^gamma``
+                    with ``alpha=SPk_alpha``, ``beta=SPk_beta``, ``gamma=SPk_gamma``.
+
+                - ``3`` (``double_power_law``, redshift-dependent double power law):
+                    ``f_b/(Omega_b/Omega_m) = 0.5 * epsilon * ((M_500c/M_pivot)^alpha + (M_500c/M_pivot)^beta) * (E(z)/E(0.3))^gamma``
+                    with ``epsilon=SPk_epsilon``, ``alpha=SPk_alpha``, ``beta=SPk_beta``,
+                    ``gamma=SPk_gamma``, ``M_pivot=SPk_m_pivot``.
 
         Parameter definitions:
 
