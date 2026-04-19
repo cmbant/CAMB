@@ -99,9 +99,20 @@ class SPkNonLinear(NonLinearModel):
     """
     SP(k) baryon suppression model applied on top of a base non-linear model.
 
+        Reference:
+        - SP(k) model: `arXiv:2305.09710 <https://arxiv.org/abs/2305.09710>`_,
+            `MNRAS 523, 2247 (2023) <https://doi.org/10.1093/mnras/stad1474>`_
+
     The base model is evaluated first (Halofit by default), then SP(k)
-    suppression is applied multiplicatively as
+    suppression is applied to CAMB's non-linear ratio as
+
     ``sqrt(P_NL/P_L) -> sqrt(P_NL/P_L) * sqrt(SPk_suppression)``.
+
+    Notes:
+    - SP(k) calibration is defined for ``0 <= z <= 3`` and ``k <= 12 h/Mpc``.
+        Outside these ranges, behavior follows the Fortran implementation.
+    - SP(k) cannot be combined with HMCode baryon-feedback modes
+        (for example ``halofit_version='mead2020_feedback'``).
     """
 
     _fields_ = (
@@ -183,20 +194,39 @@ class SPkNonLinear(NonLinearModel):
         SPk_m_pivot=1.0,
     ):
         """
-        Set SP(k) suppression parameters.
+        Set SP(k) model and relation parameters.
 
-        :param base_model: Base non-linear model to wrap. Defaults to :class:`Halofit`.
-        :param SPk_feedback: Enable SP(k) suppression.
-        :param SPk_SO: Spherical overdensity calibration, 200 or 500.
-        :param SPk_relation_kind: 1=power_law, 2=cosmo_power_law, 3=double_power_law.
-        :param SPk_fb_a: Power-law relation normalization (kind 1).
-        :param SPk_fb_pow: Power-law relation exponent (kind 1).
-        :param SPk_fb_pivot: Power-law relation pivot mass [M_sun] (kind 1).
-        :param SPk_alpha: Relation alpha parameter (kinds 2/3).
-        :param SPk_beta: Relation beta parameter (kinds 2/3).
-        :param SPk_gamma: Relation gamma parameter (kinds 2/3).
-        :param SPk_epsilon: Relation epsilon parameter (kind 3).
-        :param SPk_m_pivot: Relation pivot mass [M_sun] (kind 3).
+                Reference:
+                - SP(k) model: `arXiv:2305.09710 <https://arxiv.org/abs/2305.09710>`_,
+                    `MNRAS 523, 2247 (2023) <https://doi.org/10.1093/mnras/stad1474>`_
+
+        Relation-specific groups:
+
+        - ``1`` (power_law): ``SPk_fb_a``, ``SPk_fb_pow``, ``SPk_fb_pivot``
+        - ``2`` (cosmo_power_law): ``SPk_alpha``, ``SPk_beta``, ``SPk_gamma``
+        - ``3`` (double_power_law): ``SPk_epsilon``, ``SPk_alpha``,
+          ``SPk_beta``, ``SPk_gamma``, ``SPk_m_pivot``
+
+        Parameter definitions:
+
+        :param base_model: Base non-linear model instance to wrap.
+            If None, keeps current base model (default Halofit).
+        :param SPk_feedback: If True, apply SP(k) suppression on top of the base model.
+        :param SPk_SO: Spherical overdensity calibration. Allowed values: 200 or 500.
+        :param SPk_relation_kind: Relation type.
+            Allowed values: 1 (power_law), 2 (cosmo_power_law), 3 (double_power_law).
+        :param SPk_fb_a: Power-law normalization.
+        :param SPk_fb_pow: Power-law exponent.
+        :param SPk_fb_pivot: Power-law pivot mass in solar masses.
+        :param SPk_alpha: Alpha parameter.
+        :param SPk_beta: Beta parameter.
+        :param SPk_gamma: Gamma parameter.
+        :param SPk_epsilon: Epsilon parameter.
+        :param SPk_m_pivot: Pivot mass in solar masses.
+        :return: Self, for fluent configuration.
+        :raises CAMBValueError: If relation or pivot constraints are invalid,
+            or if configuration is incompatible with the selected Halofit
+            baryon-feedback mode.
         """
         if base_model is not None:
             self.BaseModel = base_model
