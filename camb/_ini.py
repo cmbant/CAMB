@@ -159,6 +159,9 @@ def _update_recombination_ini(params: model.CAMBparams, state: CambIniFile) -> N
         set_param(state, "wGauss1", recomb_model.wGauss1)
         set_param(state, "wGauss2", recomb_model.wGauss2)
         set_param(state, "RECFAST_nz", recomb_model.Nz)
+        set_param(state, "RECFAST_use_rosenbrock", recomb_model.use_rosenbrock)
+        set_param(state, "RECFAST_rosenbrock_handoff_xH", recomb_model.rosenbrock_handoff_xH)
+        set_param(state, "RECFAST_rosenbrock_tol", recomb_model.rosenbrock_tol)
     elif isinstance(recomb_model, recombination.CosmoRec):
         set_param(state, "recombination_model", "CosmoRec")
         set_param(state, "cosmorec_runmode", recomb_model.runmode)

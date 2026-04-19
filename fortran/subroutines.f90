@@ -124,12 +124,39 @@
     !This version is modified to pass an object parameter to the function on each call
     !Fortunately Fortran doesn't do type checking on functions, so we can pretend the
     !passed object parameter (EV) is any type we like. In reality it is just a pointer.
-    subroutine dverk (EV,n, fcn, x, y, xend, tol, ind, c, nw, w)
+    subroutine dverk (EV,n, fcn, x, y, xend, tol_in, ind, c, nw, w)
     use Precision
     use MpiUtils
     use Config, only : GlobalError, error_evolution
     integer n, ind, nw, k
-    real(dl) x, y(n), xend, tol, c(*), w(nw,9), temp
+    real(dl) x, y(n), xend, tol_in, tol, c(*), w(nw,9), temp
+    real(dl), parameter :: one_fifth = 1._dl / 5._dl
+    real(dl), parameter :: dp_a21 = 1._dl / 5._dl
+    real(dl), parameter :: dp_a31 = 3._dl / 40._dl
+    real(dl), parameter :: dp_a32 = 9._dl / 40._dl
+    real(dl), parameter :: dp_a41 = 44._dl / 45._dl
+    real(dl), parameter :: dp_a42 = -56._dl / 15._dl
+    real(dl), parameter :: dp_a43 = 32._dl / 9._dl
+    real(dl), parameter :: dp_a51 = 19372._dl / 6561._dl
+    real(dl), parameter :: dp_a52 = -25360._dl / 2187._dl
+    real(dl), parameter :: dp_a53 = 64448._dl / 6561._dl
+    real(dl), parameter :: dp_a54 = -212._dl / 729._dl
+    real(dl), parameter :: dp_a61 = 9017._dl / 3168._dl
+    real(dl), parameter :: dp_a62 = -355._dl / 33._dl
+    real(dl), parameter :: dp_a63 = 46732._dl / 5247._dl
+    real(dl), parameter :: dp_a64 = 49._dl / 176._dl
+    real(dl), parameter :: dp_a65 = -5103._dl / 18656._dl
+    real(dl), parameter :: dp_b1 = 35._dl / 384._dl
+    real(dl), parameter :: dp_b3 = 500._dl / 1113._dl
+    real(dl), parameter :: dp_b4 = 125._dl / 192._dl
+    real(dl), parameter :: dp_b5 = -2187._dl / 6784._dl
+    real(dl), parameter :: dp_b6 = 11._dl / 84._dl
+    real(dl), parameter :: dp_e1 = 71._dl / 57600._dl
+    real(dl), parameter :: dp_e3 = -71._dl / 16695._dl
+    real(dl), parameter :: dp_e4 = 71._dl / 1920._dl
+    real(dl), parameter :: dp_e5 = -17253._dl / 339200._dl
+    real(dl), parameter :: dp_e6 = 22._dl / 525._dl
+    real(dl), parameter :: dp_e7 = -1._dl / 40._dl
     real EV !it isn't, but as long as it maintains it as a pointer we are OK
     !
     !***********************************************************************
@@ -171,11 +198,12 @@
     !***********************************************************************
     !
     external fcn
+    tol = tol_in/5._dl
     !
     !***********************************************************************
     !                                                                      *
-    !     purpose - this is a runge-kutta  subroutine  based  on  verner's *
-    ! fifth and sixth order pair of formulas for finding approximations to *
+    !     purpose - this is a runge-kutta  subroutine  based  on Dormand-  *
+    ! Prince's fifth and fourth order pair of formulas for finding approx- *
     ! the solution of  a  system  of  first  order  ordinary  differential *
     ! equations  with  initial  conditions. it attempts to keep the global *
     ! error proportional to  a  tolerance  specified  by  the  user.  (the *
@@ -328,7 +356,7 @@
     !  c(4)  hstart specification - if not zero, the subroutine  will  use *
     !           an  initial  hmag equal to abs(c(4)), except of course for *
     !           the restrictions imposed by hmin and hmax  -  otherwise it *
-    !           uses the default value of hmax*(tol)**(1/6)                *
+    !           uses the default value of hmax*(tol)**(1/5)                *
     !                                                                      *
     !  c(5)  scale specification - this is intended to be a measure of the *
     !           scale of the problem - larger values of scale tend to make *
@@ -629,15 +657,15 @@
     !           case 1 - initial entry - use prescribed value of hstart, if
     !              any, else default
     c(14) = c(4)
-    if (c(4) .eq. 0._dl) c(14) = c(16)*tol**(1._dl/6._dl)
+    if (c(4) .eq. 0._dl) c(14) = c(16)*tol**one_fifth
     go to 185
 175 if (c(23) .gt. 1._dl) go to 180
     !           case 2 - after a successful step, or at most  one  failure,
-    !              use min(2, .9*(tol/est)**(1/6))*hmag, but avoid possible
+    !              use min(2, .9*(tol/est)**(1/5))*hmag, but avoid possible
     !              overflow. then avoid reduction by more than half.
     temp = 2._dl*c(14)
-    if (tol .lt. (2._dl/.9d0)**6*c(19)) &
-        temp = .9d0*(tol/c(19))**(1._dl/6._dl)*c(14)
+    if (tol .lt. (2._dl/.9d0)**5*c(19)) &
+        temp = .9d0*(tol/c(19))**one_fifth*c(14)
     c(14) = dmax1(temp, .5d0*c(14))
     go to 185
 180 continue
@@ -676,103 +704,59 @@
     !        end stage 1
     !
     !        ***************************************************************
-    !        * stage 2 - calculate ytrial (adding 7 to no of  fcn  evals). *
-    !        * w(*,2), ... w(*,8)  hold  intermediate  results  needed  in *
-    !        * stage 3. w(*,9) is temporary storage until finally it holds *
-    !        * ytrial.                                                     *
+    !        * stage 2 - calculate ytrial using the Dormand-Prince 5(4)    *
+    !        * pair (adding 6 to the number of function evaluations).      *
+    !        * w(*,1), ... w(*,7) hold stage derivatives, with w(*,9) the  *
+    !        * fifth-order trial solution.                                 *
     !        ***************************************************************
     !
-    temp = c(18)/1398169080000._dl
-    !
     do 200 k = 1, n
-        w(k,9) = y(k) + temp*w(k,1)*233028180000._dl
+        w(k,9) = y(k) + c(18)*dp_a21*w(k,1)
 200 continue
-    call fcn(EV,n, x + c(18)/6._dl, w(1,9), w(1,2))
+    call fcn(EV,n, x + c(18)/5._dl, w(1,9), w(1,2))
     !
     do 205 k = 1, n
-        w(k,9) = y(k) + temp*(   w(k,1)*74569017600._dl &
-            + w(k,2)*298276070400._dl  )
+        w(k,9) = y(k) + c(18)*(dp_a31*w(k,1) + dp_a32*w(k,2))
 205 continue
-    call fcn(EV,n, x + c(18)*(4._dl/15._dl), w(1,9), w(1,3))
+    call fcn(EV,n, x + c(18)*(3._dl/10._dl), w(1,9), w(1,3))
     !
     do 210 k = 1, n
-        w(k,9) = y(k) + temp*(   w(k,1)*1165140900000._dl &
-            - w(k,2)*3728450880000._dl &
-            + w(k,3)*3495422700000._dl )
+        w(k,9) = y(k) + c(18)*(dp_a41*w(k,1) + dp_a42*w(k,2) + dp_a43*w(k,3))
 210 continue
-    call fcn(EV,n, x + c(18)*(2._dl/3._dl), w(1,9), w(1,4))
+    call fcn(EV,n, x + c(18)*(4._dl/5._dl), w(1,9), w(1,4))
     !
     do 215 k = 1, n
-        w(k,9) = y(k) + temp*( - w(k,1)*3604654659375._dl &
-            + w(k,2)*12816549900000._dl &
-            - w(k,3)*9284716546875._dl &
-            + w(k,4)*1237962206250._dl )
+        w(k,9) = y(k) + c(18)*(dp_a51*w(k,1) + dp_a52*w(k,2) + dp_a53*w(k,3) + dp_a54*w(k,4))
 215 continue
-    call fcn(EV,n, x + c(18)*(5._dl/6._dl), w(1,9), w(1,5))
+    call fcn(EV,n, x + c(18)*(8._dl/9._dl), w(1,9), w(1,5))
     !
     do 220 k = 1, n
-        w(k,9) = y(k) + temp*(   w(k,1)*3355605792000._dl &
-            - w(k,2)*11185352640000._dl &
-            + w(k,3)*9172628850000._dl &
-            - w(k,4)*427218330000._dl &
-            + w(k,5)*482505408000._dl  )
+        w(k,9) = y(k) + c(18)*(dp_a61*w(k,1) + dp_a62*w(k,2) + dp_a63*w(k,3) &
+            + dp_a64*w(k,4) + dp_a65*w(k,5))
 220 continue
     call fcn(EV,n, x + c(18), w(1,9), w(1,6))
     !
     do 225 k = 1, n
-        w(k,9) = y(k) + temp*( - w(k,1)*770204740536._dl &
-            + w(k,2)*2311639545600._dl &
-            - w(k,3)*1322092233000._dl &
-            - w(k,4)*453006781920._dl &
-            + w(k,5)*326875481856._dl  )
+        w(k,9) = y(k) + c(18)*(dp_b1*w(k,1) + dp_b3*w(k,3) + dp_b4*w(k,4) &
+            + dp_b5*w(k,5) + dp_b6*w(k,6))
 225 continue
-    call fcn(EV,n, x + c(18)/15._dl, w(1,9), w(1,7))
+    call fcn(EV,n, x + c(18), w(1,9), w(1,7))
     !
-    do 230 k = 1, n
-        w(k,9) = y(k) + temp*(   w(k,1)*2845924389000._dl &
-            - w(k,2)*9754668000000._dl &
-            + w(k,3)*7897110375000._dl &
-            - w(k,4)*192082660000._dl &
-            + w(k,5)*400298976000._dl &
-            + w(k,7)*201586000000._dl  )
-230 continue
-    call fcn(EV,n, x + c(18), w(1,9), w(1,8))
-    !
-    !           calculate ytrial, the extrapolated approximation and store
-    !              in w(*,9)
-    do 235 k = 1, n
-        w(k,9) = y(k) + temp*(   w(k,1)*104862681000._dl &
-            + w(k,3)*545186250000._dl &
-            + w(k,4)*446637345000._dl &
-            + w(k,5)*188806464000._dl &
-            + w(k,7)*15076875000._dl &
-            + w(k,8)*97599465000._dl   )
-235 continue
-    !
-    !           add 7 to the no of fcn evals
-    c(24) = c(24) + 7._dl
+    !           add 6 to the no of fcn evals
+    c(24) = c(24) + 6._dl
     !
     !        end stage 2
     !
     !        ***************************************************************
-    !        * stage 3 - calculate the error estimate est. first calculate *
-    !        * the  unweighted  absolute  error  estimate vector (per unit *
-    !        * step) for the unextrapolated approximation and store it  in *
-    !        * w(*,2).  then  calculate the weighted max norm of w(*,2) as *
-    !        * specified by the error  control  indicator  c(1).  finally, *
-    !        * modify  this result to produce est, the error estimate (per *
-    !        * unit step) for the extrapolated approximation ytrial.       *
+    !        * stage 3 - calculate the error estimate est from the         *
+    !        * difference between the embedded fifth and fourth order      *
+    !        * solutions. w(*,2) stores the per-unit-step error estimate. *
     !        ***************************************************************
     !
     !           calculate the unweighted absolute error estimate vector
     do 300 k = 1, n
-        w(k,2) = (   w(k,1)*8738556750._dl &
-            + w(k,3)*9735468750._dl &
-            - w(k,4)*9709507500._dl &
-            + w(k,5)*8582112000._dl &
-            + w(k,6)*95329710000._dl &
-            - w(k,7)*15076875000._dl &
-            - w(k,8)*97599465000._dl)/1398169080000._dl
+        w(k,2) = dp_e1*w(k,1) + dp_e3*w(k,3) + dp_e4*w(k,4) &
+            + dp_e5*w(k,5) + dp_e6*w(k,6) + dp_e7*w(k,7)
 300 continue
     !
     !           calculate the weighted max norm of w(*,2) as specified by
@@ -856,6 +840,10 @@
     c(21) = 1._dl
     return
 405 continue
+    do 406 k = 1, n
+        w(k,1) = w(k,7)
+406 continue
+    ind = 6
     go to 420
 410 continue
     !              step not accepted (ind .eq. 6), so add 1 to the no of

@@ -37,6 +37,9 @@ class Recfast(RecombinationModel):
         ("wGauss1", c_double),
         ("wGauss2", c_double),
         ("Nz", c_int),
+        ("use_rosenbrock", c_bool),
+        ("rosenbrock_handoff_xH", c_double),
+        ("rosenbrock_tol", c_double),
     )
 
     _fortran_class_module_ = "Recombination"

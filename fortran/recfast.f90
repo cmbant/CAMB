@@ -97,7 +97,7 @@
     !CA     Lambda: 2s-1s two photon rate for Hydrogen
     !CA     Lambda_He: 2s-1s two photon rate for Helium
     !CA     DeltaB: energy of first excited state from continuum = 3.4eV
-    !CA     DeltaB_He: energy of first excited state from cont. for He = 3.4eV
+    !CA     DeltaB_He: energy of first excited state from cont. for He = 3.97eV
     !CA     L_H_ion: level for H ionization in m^-1
     !CA     L_H_alpha: level for H Ly alpha in m^-1
     !CA     L_He1_ion: level for HeI ionization
@@ -206,6 +206,7 @@
 
 
     module Recombination
+    use, intrinsic :: ieee_arithmetic, only : ieee_is_finite
     use constants
     use classes
     use DarkAge21cm
@@ -225,8 +226,25 @@
     logical, parameter  :: RECFAST_Hswitch_default = .true. !include H corrections (v1.5, 2010)
     real(dl), parameter :: RECFAST_fudge_default = 1.14_dl !1.14_dl
     real(dl), parameter :: RECFAST_fudge_default2 = 1.105d0 + 0.02d0
-    integer, parameter :: RECFAST_nz_default = 10000
+    integer, parameter :: RECFAST_nz_default = 2046
     real(dl), parameter :: RECFAST_x_He_freeze_threshold = 1.e-8_dl
+    logical, parameter :: RECFAST_use_rosenbrock_default = .true.
+    real(dl), parameter :: RECFAST_rosenbrock_handoff_xH_default = 0.976_dl
+
+    real(dl), parameter :: ROS2_gamma = 1._dl + 1._dl/sqrt(2._dl)
+    real(dl), parameter :: ROS2_a21 = 1._dl/ROS2_gamma
+    real(dl), parameter :: ROS2_c21 = -2._dl/ROS2_gamma
+    real(dl), parameter :: ROS2_m1 = 3._dl/(2._dl*ROS2_gamma)
+    real(dl), parameter :: ROS2_m2 = 1._dl/(2._dl*ROS2_gamma)
+    real(dl), parameter :: ROS2_safety = 0.9_dl
+    real(dl), parameter :: ROS2_min_scale = 0.2_dl
+    real(dl), parameter :: ROS2_max_scale = 2.5_dl
+    ! Keep the ionization fractions on a smaller absolute scale than temperature
+    ! so full-range Rosenbrock does not tolerate O(1) relative tail errors.
+    real(dl), parameter :: RECFAST_rosenbrock_ion_scale_floor = 1.e-3_dl
+    ! Tuned for the fast handoff path; full-range Rosenbrock should use a tighter tol.
+    real(dl), parameter :: RECFAST_rosenbrock_tol_default = 3.e-4_dl
+    integer, parameter :: RECFAST_rosenbrock_max_steps = 4096
 
     Type RecombinationData
         real(dl) :: Recombination_saha_z !Redshift at which saha OK
@@ -274,6 +292,9 @@
         real(dl) :: wGauss1=        0.18D0  !Width of 1st Gaussian
         real(dl) :: wGauss2=        0.33D0  !Width of 2nd Gaussian
         integer  :: Nz = RECFAST_nz_default
+        logical  :: use_rosenbrock = RECFAST_use_rosenbrock_default
+        real(dl) :: rosenbrock_handoff_xH = RECFAST_rosenbrock_handoff_xH_default
+        real(dl) :: rosenbrock_tol = RECFAST_rosenbrock_tol_default
         Type(RecombinationData), allocatable :: Calc
     contains
     procedure :: ReadParams => TRecfast_ReadParams
@@ -367,6 +388,9 @@
     call Ini%Read('wGauss1',this%wGauss1)
     call Ini%Read('wGauss2',this%wGauss2)
     this%Nz = Ini%Read_Int("RECFAST_nz", this%Nz)
+    this%use_rosenbrock = Ini%Read_Logical("RECFAST_use_rosenbrock", this%use_rosenbrock)
+    this%rosenbrock_handoff_xH = Ini%Read_Double("RECFAST_rosenbrock_handoff_xH", this%rosenbrock_handoff_xH)
+    this%rosenbrock_tol = Ini%Read_Double("RECFAST_rosenbrock_tol", this%rosenbrock_tol)
     if (this%RECFAST_Hswitch) then
         this%RECFAST_fudge = this%RECFAST_fudge - (RECFAST_fudge_default - RECFAST_fudge_default2)
     end if
@@ -383,6 +407,14 @@
     if (this%Nz < 2) then
         OK = .false.
         write(*,*) "RECFAST_nz must be at least 2"
+    end if
+    if (this%rosenbrock_handoff_xH < 0._dl .or. this%rosenbrock_handoff_xH >= 1._dl) then
+        OK = .false.
+        write(*,*) "RECFAST_rosenbrock_handoff_xH must be in [0, 1)"
+    end if
+    if (this%rosenbrock_tol <= 0._dl) then
+        OK = .false.
+        write(*,*) "RECFAST_rosenbrock_tol must be > 0"
     end if
     end subroutine TRecfast_Validate
 
@@ -516,27 +548,27 @@
 
     end subroutine SetRecfastCubicSplineHorner
 
-    subroutine EnsureRecfastStorage(this, Calc, OK)
-    class(TRecfast), intent(in) :: this
+    subroutine EnsureRecfastStorage(Calc, target_nz, OK)
     type(RecombinationData), intent(inout) :: Calc
+    integer, intent(in) :: target_nz
     logical, intent(out) :: OK
     logical :: needs_allocate
 
     OK = .false.
-    if (this%Nz < 2) then
+    if (target_nz < 2) then
         call GlobalError("recfast_nz must be at least 2", error_recombination)
         return
     end if
 
     needs_allocate = .not. allocated(Calc%zrec)
-    if (.not. needs_allocate) needs_allocate = size(Calc%zrec) /= this%Nz
+    if (.not. needs_allocate) needs_allocate = size(Calc%zrec) /= target_nz
 
     if (needs_allocate .and. allocated(Calc%zrec)) then
         deallocate(Calc%zrec, Calc%xrec, Calc%dxrec, Calc%tsrec, Calc%dtsrec, Calc%tmrec, Calc%dtmrec, &
             Calc%xrec_horner, Calc%tsrec_horner, Calc%tmrec_horner)
     end if
 
-    Calc%nz = this%Nz
+    Calc%nz = target_nz
     Calc%delta_z = (zinitial-zfinal)/real(Calc%nz, dl)
     if (needs_allocate) then
         allocate(Calc%zrec(Calc%nz), Calc%xrec(Calc%nz), Calc%dxrec(Calc%nz), Calc%tsrec(Calc%nz), &
@@ -565,26 +597,28 @@
     Type(RecombinationData), pointer :: Calc
     logical, intent(in), optional :: WantTSpin
     real(dl) :: z,n,x,x0,rhs,x_H,x_He,x_H0,x_He0,H, Yp
-    real(dl) :: zstart,zend,z_scale
+    real(dl) :: zstart,zend,z_scale, rosenbrock_tol, dverk_tol_use, background_step_boost
     real(dl) :: cw(24)
     real(dl), dimension(:,:), allocatable :: w
-    real(dl) :: y(4)
+    real(dl) :: y(4), y_rosen_start(4)
     real(dl) :: C10, tau_21Ts
-    integer :: ind, nw
-    real(dl), parameter :: tol=1.D-5                !Tolerance for R-K
+    integer :: ind, nw, internal_nz
+    real(dl), parameter :: dverk_tol=1.5D-5         !Input tolerance for DVERK; internally scaled by 1/5
     procedure(TClassDverk) :: dverk
-    logical :: storage_ok
+    logical :: storage_ok, rosenbrock_handed_off, rosenbrock_ok
 
 
     if (.not. allocated(this%Calc)) allocate(this%Calc)
     Calc => this%Calc
-    call EnsureRecfastStorage(this, Calc, storage_ok)
-    if (.not. storage_ok) return
 
     select type(State)
     class is (CAMBdata)
         Calc%State => State
         Calc%doTspin = DefaultFalse(WantTSpin)
+        background_step_boost = max(State%CP%Accuracy%BackgroundTimeStepBoost, 1.e-12_dl)
+        internal_nz = max(2, nint(this%Nz*background_step_boost))
+        call EnsureRecfastStorage(Calc, internal_nz, storage_ok)
+        if (.not. storage_ok) return
 
 
         !       write(*,*)'recfast version 1.0'
@@ -629,6 +663,8 @@
 
         !       Fudge factor to approximate for low z out of equilibrium effect
         Calc%fu=this%RECFAST_fudge
+        rosenbrock_tol = this%rosenbrock_tol/State%CP%Accuracy%IntTolBoost
+        dverk_tol_use = dverk_tol/State%CP%Accuracy%IntTolBoost
 
         !       Set initial matter temperature. y(3) stores a*Tmat directly.
         Tmat = Calc%Tnow*ainv                 !Initial rad. & mat. temperature
@@ -646,6 +682,7 @@
         !       Set up work-space stuff for DVERK
         ind  = 1
         nw   = Calc%n_eq
+        rosenbrock_handed_off = .not. this%use_rosenbrock
         do i = 1,24
             cw(i) = 0._dl
         end do
@@ -665,6 +702,9 @@
             z = zend
             ainv = 1._dl + z
             z_scale = Calc%Tnow/COBE_CMBTemp*ainv - 1
+            if (.not. rosenbrock_handed_off .and. y(1) <= this%rosenbrock_handoff_xH) then
+                rosenbrock_handed_off = .true.
+            end if
 
             if (z_scale > 8000._dl) then
 
@@ -717,18 +757,49 @@
                 y(3) = Calc%Tnow
                 y(4) = Calc%Tnow
 
+            else if (.not. rosenbrock_handed_off) then
+
+                ! Integrate the full smooth H/He/Tm system with Rosenbrock until the
+                ! hydrogen fraction has dropped enough to hand back to DVERK.
+                y_rosen_start = y
+                call RecfastRosenbrockAdvance(this, zstart, y(1:Calc%n_eq), zend, rosenbrock_tol, &
+                    rosenbrock_ok)
+                if (.not. rosenbrock_ok) return
+                if (.not. Evolve_Ts) y(4) = y(3)
+                if (y(1) <= this%rosenbrock_handoff_xH) then
+                    ! Snap the handoff to the higher-redshift grid node by redoing the
+                    ! crossing interval with the original DVERK evolution.
+                    y = y_rosen_start
+                    rosenbrock_handed_off = .true.
+                    if (y(1) > 0.99d0) then
+                        rhs = exp(1.5d0*log(CR*Calc%Tnow/ainv) - CB1/(Calc%Tnow*ainv)) / Calc%Nnow
+                        x_H0 = 0.5d0 * (sqrt(rhs**2 + 4._dl*rhs) - rhs)
+
+                        call DVERK(this,3,ION,zstart,y,zend,dverk_tol_use,ind,cw,nw,w)
+                        y(1) = x_H0
+                        x0 = y(1) + Calc%fHe*y(2)
+                        y(4) = y(3)
+                    else
+                        call DVERK(this,nw,ION,zstart,y,zend,dverk_tol_use,ind,cw,nw,w)
+                        x0 = y(1) + Calc%fHe*y(2)
+                    end if
+                else
+                    x0 = y(1) + Calc%fHe*y(2)
+                    if (y(1) > 0.985d0) Calc%Recombination_saha_z = zend
+                end if
+
             else if (y(1) > 0.99d0) then
 
                 rhs = exp(1.5d0*log(CR*Calc%Tnow/ainv) - CB1/(Calc%Tnow*ainv)) / Calc%Nnow
                 x_H0 = 0.5d0 * (sqrt( rhs**2+4._dl*rhs ) - rhs )
 
-                call DVERK(this,3,ION,zstart,y,zend,tol,ind,cw,nw,w)
+                call DVERK(this,3,ION,zstart,y,zend,dverk_tol_use,ind,cw,nw,w)
                 y(1) = x_H0
                 x0 = y(1) + Calc%fHe*y(2)
                 y(4)=y(3)
             else
 
-                call DVERK(this,nw,ION,zstart,y,zend,tol,ind,cw,nw,w)
+                call DVERK(this,nw,ION,zstart,y,zend,dverk_tol_use,ind,cw,nw,w)
 
                 x0 = y(1) + Calc%fHe*y(2)
 
@@ -830,25 +901,287 @@
 
     end subroutine GET_INIT
 
-    subroutine ION(this,Ndim,z,Y,f)
-    class(TRecfast), target :: this
-    integer Ndim
+    subroutine EscapeProbabilityAndDerivative(tau, p_escape, dp_dtau)
+    real(dl), intent(in) :: tau
+    real(dl), intent(out) :: p_escape, dp_dtau
+    real(dl) :: tau2
 
-    real(dl) z,x,n,n_He,Trad,Tmat,Tspin,x_H,x_He, Hz, aTmat, ainv, aTs
-    real(dl) y(Ndim),f(Ndim)
-    real(dl) Rup,Rdown,K,K_He,Rup_He,Rdown_He,He_Boltz
-    real(dl) timeTh,timeH
-    real(dl) a_VF,b_VF,T_0,T_1,sq_0,sq_1,a_PPB,b_PPB,c_PPB,d_PPB
-    real(dl) tauHe_s,pHe_s
-    real(dl) a_trip,b_trip,Rdown_trip,Rup_trip
-    real(dl) Doppler,gamma_2Ps,pb,qb,AHcon
-    real(dl) tauHe_t,pHe_t,CL_PSt,CfHe_t,gamma_2Pt
-    real(dl) epsilon, daTmat_dz, dTspin_dz
-    integer Heflag
-    real(dl) C10, dHdz, z_scale
+    if (abs(tau) < 1.e-6_dl) then
+        tau2 = tau*tau
+        p_escape = 1._dl - tau/2._dl + tau2/6._dl
+        dp_dtau = -0.5_dl + tau/3._dl - tau2/8._dl
+    else
+        p_escape = (1._dl - exp(-tau))/tau
+        dp_dtau = (exp(-tau)*(tau + 1._dl) - 1._dl)/(tau*tau)
+    end if
+
+    end subroutine EscapeProbabilityAndDerivative
+
+    subroutine SolveSmallLinearSystem(matrix, rhs, solution, ok)
+    real(dl), intent(in) :: matrix(:, :), rhs(:)
+    real(dl), intent(out) :: solution(:)
+    logical, intent(out) :: ok
+    real(dl) :: a(size(rhs), size(rhs)), b(size(rhs))
+    real(dl) :: factor, maxabs, temp, pivot_scale
+    integer :: i, j, k, n, pivot
+
+    n = size(rhs)
+    a = matrix
+    b = rhs
+    ok = .false.
+    if (.not. all(ieee_is_finite(a)) .or. .not. all(ieee_is_finite(b))) return
+
+    do k = 1, n - 1
+        pivot = k
+        maxabs = abs(a(k, k))
+        do i = k + 1, n
+            if (abs(a(i, k)) > maxabs) then
+                pivot = i
+                maxabs = abs(a(i, k))
+            end if
+        end do
+        pivot_scale = max(1._dl, maxval(abs(a(pivot, k:n))))
+        if (maxabs <= 100._dl*epsilon(1._dl)*pivot_scale) return
+        if (pivot /= k) then
+            do j = 1, n
+                temp = a(k, j)
+                a(k, j) = a(pivot, j)
+                a(pivot, j) = temp
+            end do
+            temp = b(k)
+            b(k) = b(pivot)
+            b(pivot) = temp
+        end if
+        do i = k + 1, n
+            factor = a(i, k)/a(k, k)
+            a(i, k) = 0._dl
+            do j = k + 1, n
+                a(i, j) = a(i, j) - factor*a(k, j)
+            end do
+            b(i) = b(i) - factor*b(k)
+        end do
+    end do
+
+    pivot_scale = max(1._dl, maxval(abs(a(n, :))))
+    if (abs(a(n, n)) <= 100._dl*epsilon(1._dl)*pivot_scale) return
+
+    solution(n) = b(n)/a(n, n)
+    do i = n - 1, 1, -1
+        solution(i) = b(i)
+        do j = i + 1, n
+            solution(i) = solution(i) - a(i, j)*solution(j)
+        end do
+        solution(i) = solution(i)/a(i, i)
+    end do
+    if (.not. all(ieee_is_finite(solution))) return
+    ok = .true.
+
+    end subroutine SolveSmallLinearSystem
+
+    logical function RecfastRosenbrockStateOK(y)
+    real(dl), intent(in) :: y(:)
+
+    RecfastRosenbrockStateOK = all(ieee_is_finite(y))
+    if (.not. RecfastRosenbrockStateOK) return
+    if (size(y) >= 2) then
+        RecfastRosenbrockStateOK = minval(y(1:2)) >= -1.e-8_dl
+        if (.not. RecfastRosenbrockStateOK) return
+    end if
+    RecfastRosenbrockStateOK = y(3) > 0._dl
+
+    end function RecfastRosenbrockStateOK
+
+    subroutine EvaluateRecfastODETimeDerivative(this, Ndim, z, y, h, f_t, force_full_hydrogen)
+    class(TRecfast), target :: this
+    integer, intent(in) :: Ndim
+    real(dl), intent(in) :: z, y(Ndim), h
+    real(dl), intent(out) :: f_t(Ndim)
+    logical, intent(in), optional :: force_full_hydrogen
+    real(dl) :: delta_z, delta_z_floor, z_hi, z_lo
+    real(dl) :: f_hi(Ndim), f_lo(Ndim)
+    logical :: full_hydrogen
+
+    full_hydrogen = .false.
+    if (present(force_full_hydrogen)) full_hydrogen = force_full_hydrogen
+
+    delta_z = min(0.05_dl, max(1.e-4_dl, 1.e-5_dl*max(1._dl, abs(z))))
+    if (abs(h) > 0._dl) then
+        delta_z = min(delta_z, 0.5_dl*abs(h))
+        delta_z_floor = 1.e-8_dl*max(1._dl, abs(z))
+        delta_z = max(delta_z, delta_z_floor)
+    end if
+    z_hi = min(zinitial, z + delta_z)
+    z_lo = max(zfinal, z - delta_z)
+
+    if (z_hi > z_lo) then
+        call EvaluateRecfastODE(this, Ndim, z_hi, y, f_hi, full_hydrogen)
+        call EvaluateRecfastODE(this, Ndim, z_lo, y, f_lo, full_hydrogen)
+        f_t = (f_hi - f_lo)/(z_hi - z_lo)
+    else
+        f_t = 0._dl
+    end if
+
+    end subroutine EvaluateRecfastODETimeDerivative
+
+    subroutine RecfastROS2Step(this, z, y, h, yout, yerr, ok)
+    class(TRecfast), target :: this
+    real(dl), intent(in) :: z, y(:), h
+    real(dl), intent(out) :: yout(:)
+    real(dl), intent(out) :: yerr(:)
+    logical, intent(out) :: ok
+    real(dl) :: f(size(y)), f_stage(size(y)), jac(size(y), size(y)), matrix(size(y), size(y))
+    real(dl) :: f_t(size(y)), k1(size(y)), k2(size(y)), rhs(size(y)), y_stage(size(y))
+    real(dl) :: gamma_h, gamma_h2
+    integer :: i, n
+
+    n = size(y)
+    ok = .false.
+
+    ! Jacobians are only consumed by the Rosenbrock path, which always uses the
+    ! full smooth hydrogen system rather than the old piecewise H switch.
+    call EvaluateRecfastODE(this, n, z, y, f, .true., jac)
+    call EvaluateRecfastODETimeDerivative(this, n, z, y, h, f_t, .true.)
+    matrix = -ROS2_gamma*h*jac
+    do i = 1, n
+        matrix(i, i) = matrix(i, i) + 1._dl
+    end do
+    gamma_h = ROS2_gamma*h
+    gamma_h2 = gamma_h*gamma_h
+
+    rhs = gamma_h*f + gamma_h2*f_t
+    call SolveSmallLinearSystem(matrix, rhs, k1, ok)
+    if (.not. ok) return
+
+    y_stage = y + ROS2_a21*k1
+    call EvaluateRecfastODE(this, n, z + h, y_stage, f_stage, .true.)
+
+    rhs = gamma_h*f_stage + ROS2_gamma*ROS2_c21*k1 - gamma_h2*f_t
+    call SolveSmallLinearSystem(matrix, rhs, k2, ok)
+    if (.not. ok) return
+
+    yout = y + ROS2_m1*k1 + ROS2_m2*k2
+    yerr = (k1 + k2)/(2._dl*ROS2_gamma)
+    ok = RecfastRosenbrockStateOK(yout) .and. all(ieee_is_finite(yerr))
+
+    end subroutine RecfastROS2Step
+
+    subroutine RecfastRosenbrockAdvance(this, zstart, y, zend, tol, ok)
+    class(TRecfast), target :: this
+    real(dl), intent(in) :: zstart, zend, tol
+    real(dl), intent(inout) :: y(:)
+    logical, intent(out) :: ok
+    real(dl) :: direction, err, factor, min_step, scale, step, z
+    real(dl) :: y_err(size(y)), y_trial(size(y))
+    integer :: attempt, i
+    logical :: step_ok
+
+    ok = .false.
+    if (zend == zstart) then
+        ok = .true.
+        return
+    end if
+
+    direction = sign(1._dl, zend - zstart)
+    z = zstart
+    step = zend - zstart
+    min_step = max(abs(step)*1.e-8_dl, 1.e-10_dl)
+
+    do attempt = 1, RECFAST_rosenbrock_max_steps
+        if (direction*(zend - z) <= 0._dl) then
+            ok = .true.
+            return
+        end if
+        if (direction*(zend - (z + step)) < 0._dl) step = zend - z
+
+        call RecfastROS2Step(this, z, y, step, y_trial, y_err, step_ok)
+
+        if (step_ok) then
+            err = 0._dl
+            do i = 1, size(y)
+                if (i <= 2) then
+                    scale = max(RECFAST_rosenbrock_ion_scale_floor, abs(y(i)), abs(y_trial(i)))
+                else
+                    scale = max(1._dl, abs(y(i)), abs(y_trial(i)))
+                end if
+                err = max(err, abs(y_err(i))/scale)
+            end do
+            if (.not. ieee_is_finite(err)) step_ok = .false.
+        end if
+
+        if (step_ok .and. err <= tol) then
+            y = y_trial
+            y(1:min(2, size(y))) = max(y(1:min(2, size(y))), 0._dl)
+            z = z + step
+            if (direction*(zend - z) <= 0._dl) then
+                ok = .true.
+                return
+            end if
+            if (err == 0._dl) then
+                factor = ROS2_max_scale
+            else
+                factor = ROS2_safety*(tol/err)**0.5_dl
+                factor = min(ROS2_max_scale, max(ROS2_min_scale, factor))
+            end if
+            step = direction*min(abs(step)*factor, abs(zend - z))
+        else
+            if (step_ok) then
+                factor = ROS2_safety*(tol/max(err, tiny(1._dl)))**0.5_dl
+                factor = min(0.9_dl, max(ROS2_min_scale, factor))
+            else
+                factor = ROS2_min_scale
+            end if
+            step = step*factor
+            if (abs(step) < min_step) return
+        end if
+    end do
+
+    end subroutine RecfastRosenbrockAdvance
+
+    recursive subroutine EvaluateRecfastODE(this, Ndim, z, y, f, force_full_hydrogen, jacobian)
+    class(TRecfast), target :: this
+    integer, intent(in) :: Ndim
+    real(dl), intent(in) :: z, y(Ndim)
+    real(dl), intent(out) :: f(Ndim)
+    logical, intent(in), optional :: force_full_hydrogen
+    real(dl), intent(out), optional :: jacobian(Ndim, Ndim)
+    real(dl) :: x, n, n_He, Trad, Tmat, Tspin, x_H, x_He, Hz, aTmat, ainv, aTs
+    real(dl) :: Rup, Rdown, K, K_He, Rup_He, Rdown_He, He_Boltz
+    real(dl) :: timeTh, timeH
+    real(dl) :: a_VF, b_VF, T_0, T_1, sq_0, sq_1, a_PPB, b_PPB, c_PPB, d_PPB
+    real(dl) :: tauHe_s, pHe_s, dpHe_s_dtau
+    real(dl) :: a_trip, b_trip, Rdown_trip, Rup_trip
+    real(dl) :: Doppler, gamma_2Ps, pb, qb, AHcon
+    real(dl) :: tauHe_t, pHe_t, dpHe_t_dtau, CL_PSt, CfHe_t, gamma_2Pt, AHcon_t
+    real(dl) :: epsilon, daTmat_dz, dTspin_dz
+    real(dl) :: C10, dHdz, z_scale
+    real(dl) :: A_H, A_H_xH, A_H_xHe, A_H_T, B_H, C_H, C_H_xH, C_H_T
+    real(dl) :: A_He, A_He_xH, A_He_xHe, A_He_T
+    real(dl) :: A_trip_term, A_trip_xH, A_trip_xHe, A_trip_T
+    real(dl) :: BHe, BHe_xH, BHe_xHe, BHe_T, CHe, CHe_xH, CHe_xHe, CHe_T
+    real(dl) :: K_He_xH, K_He_xHe, K_He_T
+    real(dl) :: AHcon_xH, AHcon_xHe, AHcon_dT
+    real(dl) :: AHcon_t_xH, AHcon_t_xHe, AHcon_t_dT
+    real(dl) :: dlnRdown, dRdown, dRup, dRupE
+    real(dl) :: dlnRdown_He, dRdown_He, dRup_He, dHe_Boltz, dRupHeE
+    real(dl) :: dlnRdown_trip, dRdown_trip, dRup_trip, dRupTripE, dEPSt
+    real(dl) :: denH, EHe, EPSt, ETrip, LHe, LHe_xHe, LHe_T
+    real(dl) :: MHe, MHe_xHe, MHe_T, pHe_s_xHe, pHe_t_xHe
+    real(dl) :: RupE, RupHeE, RupTripE, S, S_T, eps_x, P, P_xH, P_xHe
+    real(dl) :: Q, Q_xH, Q_xHe, Q_T, coupling_prefac, loose_prefac
+    real(dl) :: Trip_source, Trip_source_xH, Trip_source_xHe, Trip_source_T
+    real(dl) :: CfHe_t_xH, CfHe_t_xHe, CfHe_t_T, ypert_plus(Ndim), ypert_minus(Ndim), fpert_plus(Ndim), &
+        fpert_minus(Ndim), delta
+    real(dl) :: tauHe_s_const, tauHe_t_const
+    integer :: Heflag, col
+    logical :: full_hydrogen
     type(RecombinationData), pointer :: Recomb
 
     Recomb => this%Calc
+    full_hydrogen = .false.
+    if (present(force_full_hydrogen)) full_hydrogen = force_full_hydrogen
+
+    f = 0._dl
+    if (present(jacobian)) jacobian = 0._dl
 
     !       the Pequignot, Petitjean & Boisson fitting parameters for Hydrogen
     a_PPB = 4.309d0
@@ -859,18 +1192,16 @@
     !       fixed to match those in the SSS papers, and now correct
     a_VF = 10.d0**(-16.744d0)
     b_VF = 0.711d0
-    T_0 = 10.d0**(0.477121d0)   !3K
+    T_0 = 10.d0**(0.477121d0)
     T_1 = 10.d0**(5.114d0)
     !      fitting parameters for HeI triplets
     !      (matches Hummer's table with <1% error for 10^2.8 < T/K < 10^4)
-
     a_trip = 10.d0**(-16.306d0)
     b_trip = 0.761D0
 
-
     x_H = y(1)
     x_He = y(2)
-    x = x_H + Recomb%fHe * x_He
+    x = x_H + Recomb%fHe*x_He
     ainv = 1._dl + z
     aTmat = y(3)
     Tmat = ainv*aTmat
@@ -878,192 +1209,376 @@
     n = Recomb%Nnow*ainv**3
     n_He = Recomb%fHe*Recomb%Nnow*ainv**3
     Trad = Recomb%Tnow*ainv
-
-    Hz = ainv**2/dtauda(Recomb%State,1/ainv)/MPC_in_sec
-
+    Hz = ainv**2/dtauda(Recomb%State, 1/ainv)/MPC_in_sec
+    denH = Hz*ainv
 
     !       Get the radiative rates using PPQ fit, identical to Hummer's table
-
-    Rdown=1.d-19*a_PPB*(Tmat/1.d4)**b_PPB &
-        /(1._dl+c_PPB*(Tmat/1.d4)**d_PPB)
-    Rup = Rdown * (CR*Tmat)**(1.5d0)*exp(-CDB/Tmat)
+    Rdown = 1.d-19*a_PPB*(Tmat/1.d4)**b_PPB/(1._dl + c_PPB*(Tmat/1.d4)**d_PPB)
+    Rup = Rdown*(CR*Tmat)**1.5d0*exp(-CDB/Tmat)
 
     !       calculate He using a fit to a Verner & Ferland type formula
     sq_0 = sqrt(Tmat/T_0)
     sq_1 = sqrt(Tmat/T_1)
     !       typo here corrected by Wayne Hu and Savita Gahlaut
-    Rdown_He = a_VF/(sq_0*(1.d0+sq_0)**(1.d0-b_VF))
-    Rdown_He = Rdown_He/(1.d0+sq_1)**(1.d0+b_VF)
-    Rup_He = Rdown_He*(CR*Tmat)**(1.5d0)*exp(-CDB_He/Tmat)
-    Rup_He = 4.d0*Rup_He    !statistical weights factor for HeI
+    Rdown_He = a_VF/(sq_0*(1.d0 + sq_0)**(1.d0 - b_VF))
+    Rdown_He = Rdown_He/(1.d0 + sq_1)**(1.d0 + b_VF)
+    Rup_He = 4.d0*Rdown_He*(CR*Tmat)**1.5d0*exp(-CDB_He/Tmat)
     !       Avoid overflow (pointed out by Jacques Roland)
-    if((Bfact/Tmat) > 680.d0)then
+    if ((Bfact/Tmat) > 680.d0) then
         He_Boltz = exp(680.d0)
     else
         He_Boltz = exp(Bfact/Tmat)
     end if
+
     !   now deal with H and its fudges
     if (.not. this%RECFAST_Hswitch) then
-        K = CK/Hz !Peebles coefficient K=lambda_a^3/8piH
+        K = CK/Hz
     else
         !c  fit a double Gaussian correction function
-        z_scale = this%Calc%Tnow/COBE_CMBTemp*ainv-1
-        K = CK/Hz*(1.0d0 &
-            +this%AGauss1*exp(-((log(1.0d0+z_scale)-this%zGauss1)/this%wGauss1)**2.d0) &
-            +this%AGauss2*exp(-((log(1.0d0+z_scale)-this%zGauss2)/this%wGauss2)**2.d0))
+        z_scale = this%Calc%Tnow/COBE_CMBTemp*ainv - 1
+        K = CK/Hz*(1.0d0 + this%AGauss1*exp(-((log(1.0d0 + z_scale) - this%zGauss1)/this%wGauss1)**2.d0) &
+            + this%AGauss2*exp(-((log(1.0d0 + z_scale) - this%zGauss2)/this%wGauss2)**2.d0))
     end if
 
-
     !  add the HeI part, using same T_0 and T_1 values
-    Rdown_trip = a_trip/(sq_0*(1.d0+sq_0)**(1.0-b_trip))
-    Rdown_trip = Rdown_trip/((1.d0+sq_1)**(1.d0+b_trip))
-    Rup_trip = Rdown_trip*dexp(-h_P*C*L_He2St_ion/(k_B*Tmat))
-    Rup_trip = Rup_trip*((CR*Tmat)**(1.5d0))*(4.d0/3.d0)
+    Rdown_trip = a_trip/(sq_0*(1.d0 + sq_0)**(1.0d0 - b_trip))
+    Rdown_trip = Rdown_trip/(1.d0 + sq_1)**(1.d0 + b_trip)
+    Rup_trip = Rdown_trip*exp(-h_P*C*L_He2St_ion/(k_B*Tmat))*(CR*Tmat)**1.5d0*(4.d0/3.d0)
     !   last factor here is the statistical weight
 
     !       try to avoid "NaN" when x_He gets too small
-    if ((x_He < RECFAST_x_He_freeze_threshold) .or. (x_He.gt.0.98d0)) then
+    if ((x_He < RECFAST_x_He_freeze_threshold) .or. (x_He > 0.98d0)) then
         Heflag = 0
     else
         Heflag = this%RECFAST_Heswitch
     end if
-    if (Heflag.eq.0)then        !use Peebles coeff. for He
-        K_He = CK_He/Hz
-    else    !for Heflag>0       !use Sobolev escape probability
-        tauHe_s = A2P_s*CK_He*3.d0*n_He*(1.d0-x_He)/Hz
-        pHe_s = (1.d0 - dexp(-tauHe_s))/tauHe_s
-        K_He = 1.d0/(A2P_s*pHe_s*3.d0*n_He*(1.d0-x_He))
-        !      if (((Heflag.eq.2) .or. (Heflag.ge.5)) .and. x_H < 0.99999d0) then
-        if (((Heflag.eq.2) .or. (Heflag.ge.5)) .and. x_H < 0.9999999d0) then
+
+    tauHe_s = 0._dl
+    pHe_s = 1._dl
+    dpHe_s_dtau = -0.5_dl
+    K_He = CK_He/Hz
+    AHcon = 0._dl
+    AHcon_t = 0._dl
+    CfHe_t = 0._dl
+    CL_PSt = 0._dl
+    EPSt = 0._dl
+
+    !use Peebles coeff. for He by default; for Heflag>0 use Sobolev escape probability
+    if (Heflag /= 0) then
+        tauHe_s = A2P_s*CK_He*3.d0*n_He*(1.d0 - x_He)/Hz
+        call EscapeProbabilityAndDerivative(tauHe_s, pHe_s, dpHe_s_dtau)
+        K_He = 1.d0/(A2P_s*pHe_s*3.d0*n_He*(1.d0 - x_He))
+        if (((Heflag == 2) .or. (Heflag >= 5)) .and. x_H < 0.9999999d0) then
             !AL changed July 08 to get smoother Helium
 
             !   use fitting formula for continuum opacity of H
             !   first get the Doppler width parameter
-            Doppler = 2.D0*k_B*Tmat/(m_H*not4*C*C)
-            Doppler = C*L_He_2p*dsqrt(Doppler)
-            gamma_2Ps = 3.d0*A2P_s*Recomb%fHe*(1.d0-x_He)*C*C &
-                /(dsqrt(const_pi)*sigma_He_2Ps*const_eightpi*Doppler*(1.d0-x_H)) &
-                /((C*L_He_2p)**2.d0)
-            pb = 0.36d0  !value from KIV (2007)
+            Doppler = 2.d0*k_B*Tmat/(m_H*not4*C*C)
+            Doppler = C*L_He_2p*sqrt(Doppler)
+            gamma_2Ps = 3.d0*A2P_s*Recomb%fHe*(1.d0 - x_He)*C*C
+            gamma_2Ps = gamma_2Ps/(sqrt(const_pi)*sigma_He_2Ps*const_eightpi*Doppler*(1.d0 - x_H))
+            gamma_2Ps = gamma_2Ps/((C*L_He_2p)**2)
+            pb = 0.36d0
             qb = this%RECFAST_fudge_He
             !   calculate AHcon, the value of A*p_(con,H) for H continuum opacity
-            AHcon = A2P_s/(1.d0+pb*(gamma_2Ps**qb))
-            K_He=1.d0/((A2P_s*pHe_s+AHcon)*3.d0*n_He*(1.d0-x_He))
+            AHcon = A2P_s/(1.d0 + pb*(gamma_2Ps**qb))
+            K_He = 1.d0/((A2P_s*pHe_s + AHcon)*3.d0*n_He*(1.d0 - x_He))
         end if
-        if (Heflag.ge.3) then     !include triplet effects
-            tauHe_t = A2P_t*n_He*(1.d0-x_He)*3.d0
-            tauHe_t = tauHe_t /(const_eightpi*Hz*L_He_2Pt**(3.d0))
-            pHe_t = (1.d0 - dexp(-tauHe_t))/tauHe_t
+        !include triplet effects
+        if (Heflag >= 3) then
+            tauHe_t = A2P_t*n_He*(1.d0 - x_He)*3.d0
+            tauHe_t = tauHe_t/(const_eightpi*Hz*L_He_2Pt**3)
+            call EscapeProbabilityAndDerivative(tauHe_t, pHe_t, dpHe_t_dtau)
             CL_PSt = h_P*C*(L_He_2Pt - L_He_2st)/k_B
-            if ((Heflag.eq.3) .or. (Heflag.eq.5).or.(x_H.gt.0.99999d0)) then !Recfast 1.4.2 (?)
-                !        if ((Heflag.eq.3) .or. (Heflag.eq.5) .or. x_H >= 0.9999999d0) then    !no H cont. effect
-                CfHe_t = A2P_t*pHe_t*dexp(-CL_PSt/Tmat)
-                CfHe_t = CfHe_t/(Rup_trip+CfHe_t)   !"C" factor for triplets
-            else                  !include H cont. effect
+            EPSt = exp(-CL_PSt/Tmat)
+            !Recfast 1.4.2 (?)
+            if ((Heflag == 3) .or. (Heflag == 5) .or. (x_H > 0.99999d0)) then
+                CfHe_t = A2P_t*pHe_t*EPSt
+                CfHe_t = CfHe_t/(Rup_trip + CfHe_t)
+            else
+                !include H cont. effect
                 Doppler = 2.d0*k_B*Tmat/(m_H*not4*C*C)
-                Doppler = C*L_He_2Pt*dsqrt(Doppler)
-                gamma_2Pt = 3.d0*A2P_t*Recomb%fHe*(1.d0-x_He)*C*C &
-                    /(dsqrt(const_pi)*sigma_He_2Pt*const_eightpi*Doppler*(1.d0-x_H)) &
-                    /((C*L_He_2Pt)**2.d0)
+                Doppler = C*L_He_2Pt*sqrt(Doppler)
+                gamma_2Pt = 3.d0*A2P_t*Recomb%fHe*(1.d0 - x_He)*C*C
+                gamma_2Pt = gamma_2Pt/(sqrt(const_pi)*sigma_He_2Pt*const_eightpi*Doppler*(1.d0 - x_H))
+                gamma_2Pt = gamma_2Pt/((C*L_He_2Pt)**2)
                 !   use the fitting parameters from KIV (2007) in this case
                 pb = 0.66d0
                 qb = 0.9d0
-                AHcon = A2P_t/(1.d0+pb*gamma_2Pt**qb)/3.d0
-                CfHe_t = (A2P_t*pHe_t+AHcon)*dexp(-CL_PSt/Tmat)
-                CfHe_t = CfHe_t/(Rup_trip+CfHe_t)   !"C" factor for triplets
+                AHcon_t = A2P_t/(1.d0 + pb*gamma_2Pt**qb)/3.d0
+                CfHe_t = (A2P_t*pHe_t + AHcon_t)*EPSt
+                CfHe_t = CfHe_t/(Rup_trip + CfHe_t)
             end if
         end if
     end if
 
-
     !       Estimates of Thomson scattering time and Hubble time
-    timeTh=(1._dl/(CT*Trad**4))*(1._dl+x+Recomb%fHe)/x       !Thomson time
-    timeH=2./(3.*Recomb%HO*ainv**1.5)      !Hubble time
+    timeTh = (1._dl/(CT*Trad**4))*(1._dl + x + Recomb%fHe)/x
+    timeH = 2._dl/(3._dl*Recomb%HO*ainv**1.5)
 
     !       calculate the derivatives
     !       turn on H only for x_H<0.99, and use Saha derivative for 0.98<x_H<0.99
     !       (clunky, but seems to work)
-    if (x_H > 0.99) then   !don't change at all
-        f(1) = 0._dl
-        !!        else if (x_H > 0.98_dl) then
-    else if (x_H.gt.0.985d0) then     !use Saha rate for Hydrogen
-        f(1) = (x*x_H*n*Rdown - Rup*(1.d0-x_H)*dexp(-CL/Tmat)) /(Hz*ainv)
-        Recomb%Recombination_saha_z = z
-        !AL: following commented as not used
-        !   for interest, calculate the correction factor compared to Saha
-        !   (without the fudge)
-        !       factor=(1.d0 + K*Lambda*n*(1.d0-x_H))
-        !       /(Hz*(1.d0+z)*(1.d0+K*Lambda*n*(1.d0-x)
-        !       +K*Rup*n*(1.d0-x)))
-    else !use full rate for H
-
-        f(1) = ((x*x_H*n*Rdown - Rup*(1.d0-x_H)*exp(-CL/Tmat)) &
-            *(1.d0 + K*Lambda*n*(1.d0-x_H))) &
-            /(Hz*ainv*(1.d0/Recomb%fu+K*Lambda*n*(1.d0-x_H)/Recomb%fu &
-            +K*Rup*n*(1.d0-x_H)))
-
+    RupE = Rup*exp(-CL/Tmat)
+    A_H = x*x_H*n*Rdown - RupE*(1.d0 - x_H)
+    if (.not. full_hydrogen) then
+        if (x_H > 0.99d0) then
+            f(1) = 0._dl
+        else if (x_H > 0.985d0) then
+            f(1) = A_H/denH
+            Recomb%Recombination_saha_z = z
+        else
+            B_H = 1.d0 + K*Lambda*n*(1.d0 - x_H)
+            C_H = 1.d0/Recomb%fu + K*Lambda*n*(1.d0 - x_H)/Recomb%fu + K*Rup*n*(1.d0 - x_H)
+            f(1) = A_H*B_H/(denH*C_H)
+        end if
+    else
+        B_H = 1.d0 + K*Lambda*n*(1.d0 - x_H)
+        C_H = 1.d0/Recomb%fu + K*Lambda*n*(1.d0 - x_H)/Recomb%fu + K*Rup*n*(1.d0 - x_H)
+        f(1) = A_H*B_H/(denH*C_H)
     end if
 
     !       turn off the He once it is small
     if (x_He < RECFAST_x_He_freeze_threshold) then
-        f(2)=0.d0
+        f(2) = 0._dl
     else
+        EHe = exp(-CL_He/Tmat)
+        RupHeE = Rup_He*EHe
+        A_He = x*x_He*n*Rdown_He - RupHeE*(1.d0 - x_He)
+        LHe = Lambda_He*n_He*(1.d0 - x_He)*He_Boltz
+        MHe = (Lambda_He + Rup_He)*n_He*(1.d0 - x_He)*He_Boltz
+        BHe = 1.d0 + K_He*LHe
+        CHe = 1.d0 + K_He*MHe
+        f(2) = A_He*BHe/(denH*CHe)
 
-        f(2) = ((x*x_He*n*Rdown_He &
-            - Rup_He*(1-x_He)*exp(-CL_He/Tmat)) &
-            *(1 + K_He*Lambda_He*n_He*(1.d0-x_He)*He_Boltz)) &
-            /(Hz*ainv &
-            * (1 + K_He*(Lambda_He+Rup_He)*n_He*(1.d0-x_He)*He_Boltz))
-
-        !   Modification to HeI recombination including channel via triplets
-        if (Heflag.ge.3) then
-            f(2) = f(2)+ (x*x_He*n*Rdown_trip &
-                - (1.d0-x_He)*3.d0*Rup_trip*dexp(-h_P*C*L_He_2st/(k_B*Tmat))) &
-                *CfHe_t/(Hz*ainv)
+        if (Heflag >= 3) then
+            ETrip = exp(-h_P*C*L_He_2st/(k_B*Tmat))
+            RupTripE = 3.d0*Rup_trip*ETrip
+            A_trip_term = x*x_He*n*Rdown_trip - (1.d0 - x_He)*RupTripE
+            f(2) = f(2) + A_trip_term*CfHe_t/denH
         end if
-
     end if
 
     if (timeTh < H_frac*timeH) then
         ! Original RECFAST formula here is for dTmat/dz; written directly for aTmat.
         ! The first term is the exact tightly-coupled limit aTmat -> Tnow.
-        dHdz = (Recomb%HO**2/2.d0/Hz)*(4.d0*ainv**3/(1.d0+Recomb%z_eq)*Recomb%OmegaT &
-            + 3.d0*Recomb%OmegaT*ainv**2 + 2.d0*Recomb%OmegaK*ainv )
+        dHdz = (Recomb%HO**2/2.d0/Hz)*(4.d0*ainv**3/(1.d0 + Recomb%z_eq)*Recomb%OmegaT &
+            + 3.d0*Recomb%OmegaT*ainv**2 + 2.d0*Recomb%OmegaK*ainv)
 
-        epsilon = Hz*(1.d0+x+Recomb%fHe)/(CT*Trad**3*x)
+        epsilon = Hz*(1.d0 + x + Recomb%fHe)/(CT*Trad**3*x)
         daTmat_dz = (Recomb%Tnow - aTmat)/ainv &
-            + epsilon*((1.d0+Recomb%fHe)/(1.d0+Recomb%fHe+x))*((f(1)+Recomb%fHe*f(2))/x)/ainv &
-            - epsilon*dHdz/(Hz*ainv) + 3.0d0*epsilon/ainv**2
-
+            + epsilon*((1.d0 + Recomb%fHe)/(1.d0 + Recomb%fHe + x))*((f(1) + Recomb%fHe*f(2))/x)/ainv &
+            - epsilon*dHdz/(Hz*ainv) + 3.d0*epsilon/ainv**2
     else
         ! Original RECFAST formula is for dTmat/dz. Using Tmat=(1+z)*aTmat and Trad=(1+z)*Tnow gives:
         ! d(aTmat)/dz = [CT*Trad^4*x*(aTmat-Tnow)/(Hz*(1+x+fHe)) + aTmat]/(1+z).
-        daTmat_dz = (CT*(Trad**4)*x*(aTmat-Recomb%Tnow)/(Hz*(1._dl+x+Recomb%fHe)) + aTmat)/ainv
+        daTmat_dz = (CT*Trad**4*x*(aTmat - Recomb%Tnow)/(Hz*(1.d0 + x + Recomb%fHe)) + aTmat)/ainv
     end if
 
     f(3) = daTmat_dz
 
-    if (evolve_Ts) then
-
-        !       follow the matter temperature once it has a chance of diverging
+    if (Evolve_Ts) then
         if (timeTh < H_frac*timeH) then
-            f(4) = 0._dl !a*Tspin follows a*Trad and a*Tmat
+            f(4) = 0._dl
         else
-            if (z< 1/Do21cm_minev-1) then
-
+            if (z < 1/Do21cm_minev - 1) then
                 aTs = y(4)
                 Tspin = ainv*aTs
-                C10 = n*(kappa_HH_21cm(Tmat,.false.)*(1-x_H) + kappa_eH_21cm(Tmat,.false.)*x)
-
-                dTspin_dz = 4*Tspin/(Hz*ainv)*((Tspin/Tmat-1._dl)*C10 + Trad/T_21cm*(Tspin/Trad-1._dl)*A10) - &
-                    f(1)*Tspin/(1-x_H)
+                C10 = n*(kappa_HH_21cm(Tmat, .false.)*(1.d0 - x_H) + kappa_eH_21cm(Tmat, .false.)*x)
+                dTspin_dz = 4*Tspin/(Hz*ainv)*((Tspin/Tmat - 1._dl)*C10 + Trad/T_21cm*(Tspin/Trad - 1._dl)*A10)
+                dTspin_dz = dTspin_dz - f(1)*Tspin/(1.d0 - x_H)
                 f(4) = (dTspin_dz - aTs)/ainv
             else
-                f(4)=daTmat_dz
+                f(4) = daTmat_dz
             end if
         end if
-
     end if
+
+    if (.not. present(jacobian)) return
+
+    dlnRdown = (b_PPB + c_PPB*(Tmat/1.d4)**d_PPB*(b_PPB - d_PPB))/(1.d0 + c_PPB*(Tmat/1.d4)**d_PPB)/Tmat
+    dRdown = Rdown*dlnRdown
+    dRup = Rup*(dlnRdown + 1.5d0/Tmat + CDB/Tmat**2)
+    dRupE = RupE*(dlnRdown + 1.5d0/Tmat + CB1/Tmat**2)
+
+    A_H_xH = n*Rdown*(x + x_H) + RupE
+    A_H_xHe = n*Rdown*Recomb%fHe*x_H
+    A_H_T = n*x*x_H*dRdown - (1.d0 - x_H)*dRupE
+
+    if (.not. full_hydrogen .and. x_H > 0.99d0) then
+        jacobian(1, 1:3) = 0._dl
+    else if (.not. full_hydrogen .and. x_H > 0.985d0) then
+        jacobian(1, 1) = A_H_xH/denH
+        jacobian(1, 2) = A_H_xHe/denH
+        jacobian(1, 3) = ainv*A_H_T/denH
+    else
+        B_H = 1.d0 + K*Lambda*n*(1.d0 - x_H)
+        C_H = 1.d0/Recomb%fu + K*Lambda*n*(1.d0 - x_H)/Recomb%fu + K*Rup*n*(1.d0 - x_H)
+        C_H_xH = -K*n*(Lambda/Recomb%fu + Rup)
+        C_H_T = K*n*(1.d0 - x_H)*dRup
+        jacobian(1, 1) = ((A_H_xH*B_H - A_H*K*Lambda*n)*C_H - A_H*B_H*C_H_xH)/(denH*C_H**2)
+        jacobian(1, 2) = A_H_xHe*B_H/(denH*C_H)
+        jacobian(1, 3) = ainv*(A_H_T*B_H*C_H - A_H*B_H*C_H_T)/(denH*C_H**2)
+    end if
+
+    dlnRdown_He = -(1.d0 + (1.d0 - b_VF)*sq_0/(1.d0 + sq_0) + (1.d0 + b_VF)*sq_1/(1.d0 + sq_1))
+    dlnRdown_He = dlnRdown_He/(2.d0*Tmat)
+    dRdown_He = Rdown_He*dlnRdown_He
+    dRup_He = Rup_He*(dlnRdown_He + 1.5d0/Tmat + CDB_He/Tmat**2)
+    if ((Bfact/Tmat) > 680.d0) then
+        dHe_Boltz = 0._dl
+    else
+        dHe_Boltz = -He_Boltz*Bfact/Tmat**2
+    end if
+
+    K_He_xH = 0._dl
+    K_He_xHe = 0._dl
+    K_He_T = 0._dl
+    AHcon_xH = 0._dl
+    AHcon_xHe = 0._dl
+    AHcon_dT = 0._dl
+    if (Heflag /= 0) then
+        tauHe_s_const = A2P_s*CK_He*3.d0*n_He/Hz
+        pHe_s_xHe = dpHe_s_dtau*(-tauHe_s_const)
+        if (((Heflag == 2) .or. (Heflag >= 5)) .and. x_H < 0.9999999d0) then
+            AHcon_xH = -A2P_s*pb*qb*gamma_2Ps**(qb - 1.d0)
+            AHcon_xH = AHcon_xH*gamma_2Ps/((1.d0 + pb*gamma_2Ps**qb)**2*(1.d0 - x_H))
+            AHcon_xHe = A2P_s*pb*qb*gamma_2Ps**qb
+            AHcon_xHe = AHcon_xHe/((1.d0 + pb*gamma_2Ps**qb)**2*(1.d0 - x_He))
+            AHcon_dT = A2P_s*pb*qb*gamma_2Ps**qb
+            AHcon_dT = AHcon_dT/(2.d0*Tmat*(1.d0 + pb*gamma_2Ps**qb)**2)
+        end if
+        K_He_xH = -K_He**2*AHcon_xH*3.d0*n_He*(1.d0 - x_He)
+        K_He_xHe = -K_He**2*((A2P_s*pHe_s_xHe + AHcon_xHe)*3.d0*n_He*(1.d0 - x_He) &
+            - (A2P_s*pHe_s + AHcon)*3.d0*n_He)
+        K_He_T = -K_He**2*AHcon_dT*3.d0*n_He*(1.d0 - x_He)
+    end if
+
+    if (x_He >= RECFAST_x_He_freeze_threshold) then
+        EHe = exp(-CL_He/Tmat)
+        RupHeE = Rup_He*EHe
+        dRupHeE = RupHeE*(dlnRdown_He + 1.5d0/Tmat + CB1_He1/Tmat**2)
+        A_He = x*x_He*n*Rdown_He - RupHeE*(1.d0 - x_He)
+        A_He_xH = n*Rdown_He*x_He
+        A_He_xHe = n*Rdown_He*(x + Recomb%fHe*x_He) + RupHeE
+        A_He_T = n*x*x_He*dRdown_He - (1.d0 - x_He)*dRupHeE
+
+        LHe = Lambda_He*n_He*(1.d0 - x_He)*He_Boltz
+        LHe_xHe = -Lambda_He*n_He*He_Boltz
+        LHe_T = Lambda_He*n_He*(1.d0 - x_He)*dHe_Boltz
+        MHe = (Lambda_He + Rup_He)*n_He*(1.d0 - x_He)*He_Boltz
+        MHe_xHe = -(Lambda_He + Rup_He)*n_He*He_Boltz
+        MHe_T = n_He*(1.d0 - x_He)*(dRup_He*He_Boltz + (Lambda_He + Rup_He)*dHe_Boltz)
+
+        BHe = 1.d0 + K_He*LHe
+        CHe = 1.d0 + K_He*MHe
+        BHe_xH = K_He_xH*LHe
+        BHe_xHe = K_He_xHe*LHe + K_He*LHe_xHe
+        BHe_T = K_He_T*LHe + K_He*LHe_T
+        CHe_xH = K_He_xH*MHe
+        CHe_xHe = K_He_xHe*MHe + K_He*MHe_xHe
+        CHe_T = K_He_T*MHe + K_He*MHe_T
+
+        jacobian(2, 1) = ((A_He_xH*BHe + A_He*BHe_xH)*CHe - A_He*BHe*CHe_xH)/(denH*CHe**2)
+        jacobian(2, 2) = ((A_He_xHe*BHe + A_He*BHe_xHe)*CHe - A_He*BHe*CHe_xHe)/(denH*CHe**2)
+        jacobian(2, 3) = ainv*((A_He_T*BHe + A_He*BHe_T)*CHe - A_He*BHe*CHe_T)/(denH*CHe**2)
+
+        if (Heflag >= 3) then
+            dlnRdown_trip = -(1.d0 + (1.d0 - b_trip)*sq_0/(1.d0 + sq_0) + (1.d0 + b_trip)*sq_1/(1.d0 + sq_1))
+            dlnRdown_trip = dlnRdown_trip/(2.d0*Tmat)
+            dRdown_trip = Rdown_trip*dlnRdown_trip
+            dRup_trip = Rup_trip*(dlnRdown_trip + 1.5d0/Tmat + h_P*C*L_He2St_ion/(k_B*Tmat**2))
+            ETrip = exp(-h_P*C*L_He_2st/(k_B*Tmat))
+            RupTripE = 3.d0*Rup_trip*ETrip
+            dRupTripE = RupTripE*(dlnRdown_trip + 1.5d0/Tmat + CB1_He1/Tmat**2)
+
+            A_trip_term = x*x_He*n*Rdown_trip - (1.d0 - x_He)*RupTripE
+            A_trip_xH = n*Rdown_trip*x_He
+            A_trip_xHe = n*Rdown_trip*(x + Recomb%fHe*x_He) + RupTripE
+            A_trip_T = n*x*x_He*dRdown_trip - (1.d0 - x_He)*dRupTripE
+
+            AHcon_t_xH = 0._dl
+            AHcon_t_xHe = 0._dl
+            AHcon_t_dT = 0._dl
+            pHe_t_xHe = dpHe_t_dtau*(-A2P_t*3.d0*n_He/(const_eightpi*Hz*L_He_2Pt**3))
+            dEPSt = EPSt*CL_PSt/Tmat**2
+            if (.not. ((Heflag == 3) .or. (Heflag == 5) .or. (x_H > 0.99999d0))) then
+                AHcon_t_xH = -A2P_t*pb*qb*gamma_2Pt**(qb - 1.d0)
+                AHcon_t_xH = AHcon_t_xH*gamma_2Pt/(3.d0*(1.d0 + pb*gamma_2Pt**qb)**2*(1.d0 - x_H))
+                AHcon_t_xHe = A2P_t*pb*qb*gamma_2Pt**qb
+                AHcon_t_xHe = AHcon_t_xHe/(3.d0*(1.d0 + pb*gamma_2Pt**qb)**2*(1.d0 - x_He))
+                AHcon_t_dT = A2P_t*pb*qb*gamma_2Pt**qb
+                AHcon_t_dT = AHcon_t_dT/(6.d0*Tmat*(1.d0 + pb*gamma_2Pt**qb)**2)
+            end if
+
+            Trip_source = (A2P_t*pHe_t + AHcon_t)*EPSt
+            Trip_source_xH = AHcon_t_xH*EPSt
+            Trip_source_xHe = (A2P_t*pHe_t_xHe + AHcon_t_xHe)*EPSt
+            Trip_source_T = AHcon_t_dT*EPSt + (A2P_t*pHe_t + AHcon_t)*dEPSt
+            CfHe_t_xH = Trip_source_xH*Rup_trip/(Rup_trip + Trip_source)**2
+            CfHe_t_xHe = Trip_source_xHe*Rup_trip/(Rup_trip + Trip_source)**2
+            CfHe_t_T = (Trip_source_T*Rup_trip - Trip_source*dRup_trip)/(Rup_trip + Trip_source)**2
+
+            jacobian(2, 1) = jacobian(2, 1) + (A_trip_xH*CfHe_t + A_trip_term*CfHe_t_xH)/denH
+            jacobian(2, 2) = jacobian(2, 2) + (A_trip_xHe*CfHe_t + A_trip_term*CfHe_t_xHe)/denH
+            jacobian(2, 3) = jacobian(2, 3) + ainv*(A_trip_T*CfHe_t + A_trip_term*CfHe_t_T)/denH
+        end if
+    else
+        jacobian(2, 1:3) = 0._dl
+    end if
+
+    if (timeTh < H_frac*timeH) then
+        S = f(1) + Recomb%fHe*f(2)
+        S_T = jacobian(1, 3)/ainv + Recomb%fHe*jacobian(2, 3)/ainv
+        eps_x = -Hz*(1.d0 + Recomb%fHe)/(CT*Trad**3*x**2)
+        P = (1.d0 + Recomb%fHe)/(1.d0 + Recomb%fHe + x)
+        P_xH = -P/(1.d0 + Recomb%fHe + x)
+        P_xHe = Recomb%fHe*P_xH
+        Q = S/x
+        Q_xH = ((jacobian(1, 1) + Recomb%fHe*jacobian(2, 1))*x - S)/x**2
+        Q_xHe = ((jacobian(1, 2) + Recomb%fHe*jacobian(2, 2))*x - S*Recomb%fHe)/x**2
+        Q_T = S_T/x
+        coupling_prefac = -dHdz/(Hz*ainv) + 3.d0/ainv**2
+
+        jacobian(3, 1) = (eps_x*P*Q + epsilon*P_xH*Q + epsilon*P*Q_xH)/ainv + eps_x*coupling_prefac
+        jacobian(3, 2) = (Recomb%fHe*eps_x*P*Q + epsilon*P_xHe*Q + epsilon*P*Q_xHe)/ainv
+        jacobian(3, 2) = jacobian(3, 2) + Recomb%fHe*eps_x*coupling_prefac
+        jacobian(3, 3) = -1._dl/ainv + epsilon*P*Q_T
+    else
+        loose_prefac = CT*Trad**4*(aTmat - Recomb%Tnow)/(Hz*(1.d0 + x + Recomb%fHe)**2)
+        jacobian(3, 1) = loose_prefac*(1.d0 + Recomb%fHe)/ainv
+        jacobian(3, 2) = loose_prefac*(1.d0 + Recomb%fHe)*Recomb%fHe/ainv
+        jacobian(3, 3) = (CT*Trad**4*x/(Hz*(1.d0 + x + Recomb%fHe)) + 1.d0)/ainv
+    end if
+
+    if (Ndim > 3) then
+        jacobian(1:3, 4) = 0._dl
+        do col = 1, Ndim
+            delta = 1.e-7_dl*max(1._dl, abs(y(col)))
+            ypert_plus = y
+            ypert_plus(col) = ypert_plus(col) + delta
+            if (col <= 2 .and. y(col) - delta < 0._dl) then
+                call EvaluateRecfastODE(this, Ndim, z, ypert_plus, fpert_plus, full_hydrogen)
+                jacobian(4, col) = (fpert_plus(4) - f(4))/delta
+            else
+                ypert_minus = y
+                ypert_minus(col) = ypert_minus(col) - delta
+                call EvaluateRecfastODE(this, Ndim, z, ypert_plus, fpert_plus, full_hydrogen)
+                call EvaluateRecfastODE(this, Ndim, z, ypert_minus, fpert_minus, full_hydrogen)
+                jacobian(4, col) = (fpert_plus(4) - fpert_minus(4))/(2._dl*delta)
+            end if
+        end do
+    end if
+
+    end subroutine EvaluateRecfastODE
+
+    subroutine ION(this,Ndim,z,Y,f)
+    class(TRecfast), target :: this
+    integer Ndim
+    real(dl) :: z
+    real(dl) :: y(Ndim), f(Ndim)
+
+    call EvaluateRecfastODE(this, Ndim, z, y, f)
 
     end subroutine ION
 
