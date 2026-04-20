@@ -603,7 +603,7 @@
     real(dl) :: y(4), y_rosen_start(4)
     real(dl) :: C10, tau_21Ts
     integer :: ind, nw, internal_nz
-    real(dl), parameter :: dverk_tol=1.5D-5         !Input tolerance for DVERK; internally scaled by 1/5
+    real(dl), parameter :: dverk_tol=3D-6           !Input tolerance for DVERK
     procedure(TClassDverk) :: dverk
     logical :: storage_ok, rosenbrock_handed_off, rosenbrock_ok
 
