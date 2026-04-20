@@ -183,7 +183,6 @@ def make_library(cluster=False):
         if os.path.exists(lib_file) and not os.access(lib_file, os.W_OK):
             os.remove(lib_file)
         make_env = os.environ.copy()
-        make_env.pop("MAKEFLAGS", None)
         print("Compiling source...")
         subprocess.call(
             "make python PYCAMB_OUTPUT_DIR=%s/camb/ CLUSTER_SAFE=%d"

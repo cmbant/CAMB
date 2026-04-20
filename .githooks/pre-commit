@@ -2,23 +2,57 @@
 
 set -euo pipefail
 
-repo_root="$(cd "$(dirname "$0")/.." && pwd)"
+repo_root="$(git rev-parse --show-toplevel)"
 config_file="${repo_root}/.pre-commit-config.yaml"
 hook_dir="${repo_root}/.githooks"
-container_precommit="${CAMB_DEVCONTAINER_VENV:-/home/vscode/.local/share/camb-devcontainer/.venv}/bin/pre-commit"
+platform="$(uname -s)"
 
-if [[ -x "${repo_root}/.venv/bin/pre-commit" ]]; then
-    precommit_bin="${repo_root}/.venv/bin/pre-commit"
-elif [[ -x "${repo_root}/.venv/Scripts/pre-commit.exe" ]]; then
-    precommit_bin="${repo_root}/.venv/Scripts/pre-commit.exe"
-elif [[ -x "${container_precommit}" ]]; then
-    precommit_bin="${container_precommit}"
-elif command -v pre-commit >/dev/null 2>&1; then
-    precommit_bin="$(command -v pre-commit)"
-else
-    echo "pre-commit executable not found. Install the dev environment first." >&2
-    exit 1
+if [[ ! -f "${config_file}" ]]; then
+    exit 0
 fi
 
-cd "${repo_root}"
-exec "${precommit_bin}" hook-impl --config "${config_file}" --hook-type pre-commit --hook-dir "${hook_dir}" --skip-on-missing-config -- "$@"
+python_candidates=()
+
+if [[ -n "${CAMB_DEVCONTAINER_VENV:-}" ]]; then
+    python_candidates+=("${CAMB_DEVCONTAINER_VENV}/bin/python")
+fi
+
+python_candidates+=("${repo_root}/.venv/bin/python")
+
+case "${platform}" in
+    CYGWIN*|MINGW*|MSYS*)
+        python_candidates+=("${repo_root}/.venv/Scripts/python.exe")
+        ;;
+esac
+
+for python_bin in "${python_candidates[@]}"; do
+    if [[ -x "${python_bin}" ]]; then
+        exec "${python_bin}" -m pre_commit hook-impl \
+            --config "${config_file}" \
+            --hook-type pre-commit \
+            --hook-dir "${hook_dir}" \
+            --skip-on-missing-config \
+            -- "$@"
+    fi
+done
+
+if command -v python >/dev/null 2>&1 && python -c "import pre_commit" >/dev/null 2>&1; then
+    exec python -m pre_commit hook-impl \
+        --config "${config_file}" \
+        --hook-type pre-commit \
+        --hook-dir "${hook_dir}" \
+        --skip-on-missing-config \
+        -- "$@"
+fi
+
+if command -v pre-commit >/dev/null 2>&1; then
+    exec pre-commit hook-impl \
+        --config "${config_file}" \
+        --hook-type pre-commit \
+        --hook-dir "${hook_dir}" \
+        --skip-on-missing-config \
+        -- "$@"
+fi
+
+echo "pre-commit is not installed for this checkout. Install CAMB's dev dependencies or use the devcontainer bootstrap." >&2
+exit 1

@@ -18,7 +18,6 @@
     "OPENBLAS_NUM_THREADS": "8",
     "RECOMBINATION_FILES": "recfast cosmorec hyrec",
     "CAMB_DEVCONTAINER_VENV": "/home/vscode/.local/share/camb-devcontainer/.venv",
-    "CAMB_INSTALL_PRECOMMIT": "0",
     "UV_CACHE_DIR": "/home/vscode/.cache/uv",
     "UV_LINK_MODE": "copy",
     "UV_PROJECT_ENVIRONMENT": "/home/vscode/.local/share/camb-devcontainer/.venv"
@@ -27,8 +26,7 @@
   "customizations": {
     "vscode": {
       "settings": {
-        "python.defaultInterpreterPath": "/home/vscode/.local/share/camb-devcontainer/.venv/bin/python",
-        "python.terminal.activateEnvironment": true,
+        "python.defaultInterpreterPath": "/home/vscode/.local/share/camb-devcontainer/.venv",
         "terminal.integrated.defaultProfile.linux": "bash"
       },
       "extensions": [

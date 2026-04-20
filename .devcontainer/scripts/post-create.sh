@@ -41,8 +41,9 @@ print(site.getsitepackages()[0])
 PY
 )"
 
-# CAMB's clean Fortran build is not dependency-safe under parallel make, so force a serial build here.
-MAKEFLAGS= "${venv_python}" setup.py make
+# Keep any caller-provided MAKEFLAGS; CAMB falls back to a one-time serial sub-build
+# automatically when compiler-generated dependency files do not exist yet.
+"${venv_python}" setup.py make
 
 # Modern editable installs spend a long time in setuptools metadata generation on this bind mount.
 # Add the workspace directly to site-packages so imports resolve immediately in the devcontainer.
@@ -53,10 +54,8 @@ if [[ -d .git ]]; then
         echo "Failed to configure repository-local Git hooks." >&2
     fi
 
-    if [[ "${CAMB_INSTALL_PRECOMMIT:-0}" == "1" ]]; then
-        if ! uv run pre-commit install-hooks; then
-            echo "pre-commit hook environment installation failed; run 'uv run pre-commit install-hooks' manually if needed." >&2
-        fi
+    if [[ -f .githooks/pre-commit ]]; then
+        chmod +x .githooks/pre-commit || true
     fi
 fi
 
