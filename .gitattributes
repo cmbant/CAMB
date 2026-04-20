@@ -1,3 +1,4 @@
+*               text=auto eol=lf
 *.txt           text
 *.f90           text
 *.F90           text
@@ -5,4 +6,6 @@ Makefile*	text
 *.m             text
 *.dat           text
 *.ini           text
-*.sh            text
+*.sh            text eol=lf
+Dockerfile*     text eol=lf
+.devcontainer/** text eol=lf
