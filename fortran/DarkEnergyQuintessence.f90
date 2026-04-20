@@ -23,6 +23,7 @@
     use constants
     use classes
     use Interpolation
+    use RungeKuttaDP45Module, only : RungeKuttaDP45Settings, TClassRungeKuttaDP45
     implicit none
     private
 
@@ -79,9 +80,8 @@
 
     end type TEarlyQuintessence
 
-    procedure(TClassDverk) :: dverk
-
     public TQuintessence, TEarlyQuintessence
+    procedure(TClassRungeKuttaDP45) :: RungeKuttaDP45
     contains
 
     function VofPhi(this, phi, deriv)
@@ -304,7 +304,8 @@
     class(TCAMBdata), intent(in), target :: State
     real(dl) aend, afrom
     integer, parameter ::  NumEqs=2
-    real(dl) c(24),w(NumEqs,9), y(NumEqs)
+    type(RungeKuttaDP45Settings) :: rk_settings
+    real(dl) w(NumEqs,9), y(NumEqs)
     integer ind, i, ix
     real(dl), parameter :: splZero = 0._dl
     real(dl) lastsign, da_osc, last_a, a_c
@@ -460,7 +461,8 @@
         ix = i+1
         sampled_a(ix)=exp(aend)
         a2 = sampled_a(ix)**2
-        call dverk(this,NumEqs,EvolveBackgroundLog,afrom,y,aend,this%integrate_tol,ind,c,NumEqs,w)
+        call RungeKuttaDP45(this, NumEqs, EvolveBackgroundLog, afrom, y, aend, this%integrate_tol, ind, &
+            rk_settings, NumEqs, w)
         if (.not. this%check_error(exp(afrom), exp(aend))) return
         call EvolveBackgroundLog(this,NumEqs,aend,y,w(:,1))
         phi_a(ix)=y(1)
@@ -511,7 +513,8 @@
         aend = this%max_a_log + this%da*i
         a2 =aend**2
         this%sampled_a(ix)=aend
-        call dverk(this,NumEqs,EvolveBackground,afrom,y,aend,this%integrate_tol,ind,c,NumEqs,w)
+        call RungeKuttaDP45(this, NumEqs, EvolveBackground, afrom, y, aend, this%integrate_tol, ind, &
+            rk_settings, NumEqs, w)
         if (.not. this%check_error(afrom, aend)) return
         call EvolveBackground(this,NumEqs,aend,y,w(:,1))
         this%phi_a(ix)=y(1)
@@ -640,7 +643,8 @@
     real(dl), intent(out) :: z_c, fde_zc
     real(dl) aend, afrom
     integer, parameter ::  NumEqs=2
-    real(dl) c(24),w(NumEqs,9), y(NumEqs)
+    type(RungeKuttaDP45Settings) :: rk_settings
+    real(dl) w(NumEqs,9), y(NumEqs)
     integer ind, i, ix
     real(dl), parameter :: splZero = 0._dl
     real(dl) a_c
@@ -672,7 +676,8 @@
         ix = i+1
         sampled_a(ix)=exp(aend)
         a2 = sampled_a(ix)**2
-        call dverk(this,NumEqs,EvolveBackgroundLog,afrom,y,aend,this%integrate_tol,ind,c,NumEqs,w)
+        call RungeKuttaDP45(this, NumEqs, EvolveBackgroundLog, afrom, y, aend, this%integrate_tol, ind, &
+            rk_settings, NumEqs, w)
         if (.not. this%check_error(exp(afrom), exp(aend))) return
         call EvolveBackgroundLog(this,NumEqs,aend,y,w(:,1))
         fde(ix) = 1/((this%state%grho_no_de(sampled_a(ix)) +  this%frac_lambda0*this%State%grhov*a2**2) &
@@ -753,14 +758,15 @@
     !class(TQuintessence) :: this
     !real(dl), intent(IN) :: astart, phi,phidot, atol
     !integer, parameter ::  NumEqs=2
-    !real(dl) c(24),w(NumEqs,9), y(NumEqs), ast
+    !type(RungeKuttaDP45Settings) :: rk_settings
+    !real(dl) w(NumEqs,9), y(NumEqs), ast
     !integer ind, i
     !
     !ast=astart
     !ind=1
     !y(1)=phi
     !y(2)=phidot*astart**2
-    !call dverk(this,NumEqs,EvolveBackground,ast,y,1._dl,atol,ind,c,NumEqs,w)
+    !call RungeKuttaDP45(this, NumEqs, EvolveBackground, ast, y, 1._dl, atol, ind, rk_settings, NumEqs, w)
     !call EvolveBackground(this,NumEqs,1._dl,y,w(:,1))
     !
     !GetOmegaFromInitial=(0.5d0*y(2)**2 + Vofphi(y(1),0))/this%State%grhocrit !(3*adot**2)

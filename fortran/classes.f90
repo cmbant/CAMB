@@ -115,18 +115,6 @@
     procedure :: get_timesteps => TReionizationModel_get_timesteps
     end Type TReionizationModel
 
-
-    interface
-    subroutine TClassDverk (this,n, fcn, x, y, xend, tol, ind, c, nw, w)
-    use Precision
-    import TCambComponent
-    class(TCambComponent), target :: this
-    integer n, nw, ind
-    real(dl) x, y(n), xend, tol, c(*), w(nw,9)
-    external fcn
-    end subroutine
-    end interface
-
     contains
 
     subroutine TCambComponent_ReadParams(this, Ini)

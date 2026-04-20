@@ -146,17 +146,17 @@
 
 
     !CA     tol: tolerance for the integrator
-    !CA     cw(24),w(3,9): work space for DVERK
+    !CA     rk_settings,w(3,9): work space for RungeKuttaDP45
     !CA     Ndim: number of d.e.'s to solve (integer)
     !CA     Nz: number of output redshitf (integer)
     !CA     I: loop index (integer)
-    !CA     ind,nw: work-space for DVERK (integer)
+    !CA     ind,nw: work-space for RungeKuttaDP45 (integer)
     !C
     !CF     File & device access:
     !CF     Unit /I,IO,O  /Name (if known)
     !C
     !CM     Modules called:
-    !CM     DVERK (numerical integrator)
+    !CM     RungeKuttaDP45 (numerical integrator)
     !CM     GET_INIT (initial values for ionization fractions)
     !CM     ION (ionization and Temp derivatives)
     !C
@@ -167,7 +167,7 @@
     !CH     CREATED            (simplest version) 19th March 1989
     !CH     RECREATED    11th January 1995
     !CH               includes variable Cosmology
-    !CH               uses DVERK integrator
+    !CH               uses RungeKuttaDP45 integrator
     !CH               initial conditions are Saha
     !CH     TESTED              a bunch, well, OK, not really
     !CH     MODIFIED     January 1995 (include Hummer's 1994 alpha table)
@@ -212,6 +212,7 @@
     use DarkAge21cm
     use Interpolation, only : spline, SPLINE_DANGLE
     use MathUtils
+    use RungeKuttaDP45Module, only : RungeKuttaDP45Settings, TClassRungeKuttaDP45
     use Config, only : GlobalError, error_recombination
     use results
     use MpiUtils, only : MpiStop
@@ -597,14 +598,14 @@
     Type(RecombinationData), pointer :: Calc
     logical, intent(in), optional :: WantTSpin
     real(dl) :: z,n,x,x0,rhs,x_H,x_He,x_H0,x_He0,H, Yp
-    real(dl) :: zstart,zend,z_scale, rosenbrock_tol, dverk_tol_use, background_step_boost
-    real(dl) :: cw(24)
+    real(dl) :: zstart,zend,z_scale, rosenbrock_tol, rk45_tol_use, background_step_boost
+    type(RungeKuttaDP45Settings) :: rk_settings
     real(dl), dimension(:,:), allocatable :: w
     real(dl) :: y(4), y_rosen_start(4)
     real(dl) :: C10, tau_21Ts
     integer :: ind, nw, internal_nz
-    real(dl), parameter :: dverk_tol=3D-6           !Input tolerance for DVERK
-    procedure(TClassDverk) :: dverk
+    real(dl), parameter :: rk45_tol=3D-6            !Input tolerance for RungeKuttaDP45
+    procedure(TClassRungeKuttaDP45) :: RungeKuttaDP45
     logical :: storage_ok, rosenbrock_handed_off, rosenbrock_ok
 
 
@@ -664,7 +665,7 @@
         !       Fudge factor to approximate for low z out of equilibrium effect
         Calc%fu=this%RECFAST_fudge
         rosenbrock_tol = this%rosenbrock_tol/State%CP%Accuracy%IntTolBoost
-        dverk_tol_use = dverk_tol/State%CP%Accuracy%IntTolBoost
+        rk45_tol_use = rk45_tol/State%CP%Accuracy%IntTolBoost
 
         !       Set initial matter temperature. y(3) stores a*Tmat directly.
         Tmat = Calc%Tnow*ainv                 !Initial rad. & mat. temperature
@@ -679,13 +680,11 @@
 
         !       OK that's the initial conditions, now start writing output file
 
-        !       Set up work-space stuff for DVERK
+        !       Set up work-space stuff for RungeKuttaDP45
         ind  = 1
         nw   = Calc%n_eq
         rosenbrock_handed_off = .not. this%use_rosenbrock
-        do i = 1,24
-            cw(i) = 0._dl
-        end do
+        rk_settings = RungeKuttaDP45Settings()
 
         do i = 1,Calc%nz
             !       calculate the start and end redshift for the interval at each z
@@ -760,7 +759,7 @@
             else if (.not. rosenbrock_handed_off) then
 
                 ! Integrate the full smooth H/He/Tm system with Rosenbrock until the
-                ! hydrogen fraction has dropped enough to hand back to DVERK.
+                ! hydrogen fraction has dropped enough to hand back to RungeKuttaDP45.
                 y_rosen_start = y
                 call RecfastRosenbrockAdvance(this, zstart, y(1:Calc%n_eq), zend, rosenbrock_tol, &
                     rosenbrock_ok)
@@ -768,19 +767,19 @@
                 if (.not. Evolve_Ts) y(4) = y(3)
                 if (y(1) <= this%rosenbrock_handoff_xH) then
                     ! Snap the handoff to the higher-redshift grid node by redoing the
-                    ! crossing interval with the original DVERK evolution.
+                    ! crossing interval with the original RungeKuttaDP45 evolution.
                     y = y_rosen_start
                     rosenbrock_handed_off = .true.
                     if (y(1) > 0.99d0) then
                         rhs = exp(1.5d0*log(CR*Calc%Tnow/ainv) - CB1/(Calc%Tnow*ainv)) / Calc%Nnow
                         x_H0 = 0.5d0 * (sqrt(rhs**2 + 4._dl*rhs) - rhs)
 
-                        call DVERK(this,3,ION,zstart,y,zend,dverk_tol_use,ind,cw,nw,w)
+                        call RungeKuttaDP45(this, 3, ION, zstart, y, zend, rk45_tol_use, ind, rk_settings, nw, w)
                         y(1) = x_H0
                         x0 = y(1) + Calc%fHe*y(2)
                         y(4) = y(3)
                     else
-                        call DVERK(this,nw,ION,zstart,y,zend,dverk_tol_use,ind,cw,nw,w)
+                        call RungeKuttaDP45(this, nw, ION, zstart, y, zend, rk45_tol_use, ind, rk_settings, nw, w)
                         x0 = y(1) + Calc%fHe*y(2)
                     end if
                 else
@@ -793,13 +792,13 @@
                 rhs = exp(1.5d0*log(CR*Calc%Tnow/ainv) - CB1/(Calc%Tnow*ainv)) / Calc%Nnow
                 x_H0 = 0.5d0 * (sqrt( rhs**2+4._dl*rhs ) - rhs )
 
-                call DVERK(this,3,ION,zstart,y,zend,dverk_tol_use,ind,cw,nw,w)
+                call RungeKuttaDP45(this, 3, ION, zstart, y, zend, rk45_tol_use, ind, rk_settings, nw, w)
                 y(1) = x_H0
                 x0 = y(1) + Calc%fHe*y(2)
                 y(4)=y(3)
             else
 
-                call DVERK(this,nw,ION,zstart,y,zend,dverk_tol_use,ind,cw,nw,w)
+                call RungeKuttaDP45(this, nw, ION, zstart, y, zend, rk45_tol_use, ind, rk_settings, nw, w)
 
                 x0 = y(1) + Calc%fHe*y(2)
 

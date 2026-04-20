@@ -9,6 +9,7 @@
     use ObjectLists
     use classes
     use Interpolation
+    use RungeKuttaDP45Module, only : RungeKuttaDP45Settings
     implicit none
 
     Type c_MatterTransferData
@@ -577,7 +578,8 @@
     integer, intent(in) :: nsources, ncustomsources
     real(dl) tau,tol1,tauend, taustart
     integer j,ind
-    real(dl) c(24),w(EV%nvar,9), y(EV%nvar), cs2, opacity
+    type(RungeKuttaDP45Settings) :: rk_settings
+    real(dl) w(EV%nvar,9), y(EV%nvar), cs2, opacity
     real(dl) yprime(EV%nvar), ddelta, delta, adotoa,growth, a
     real(dl), target :: sources(nsources), custom_sources(ncustomsources)
     real, target :: Arr(Transfer_max)
@@ -595,7 +597,7 @@
         tauend = times(j)
         if (tauend<taustart) cycle
 
-        call GaugeInterface_EvolveScal(EV,tau,y,tauend,tol1,ind,c,w)
+        call GaugeInterface_EvolveScal(EV, tau, y, tauend, tol1, ind, rk_settings, w)
         yprime = 0
         EV%OutputTransfer =>  Arr
         EV%OutputSources => sources

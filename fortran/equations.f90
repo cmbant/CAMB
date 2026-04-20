@@ -31,6 +31,7 @@
     use results
     use MassiveNu
     use DarkEnergyInterface
+    use RungeKuttaDP45Module, only : RungeKuttaDP45Settings
     use Transfer
     implicit none
     public
@@ -202,14 +203,15 @@
     end subroutine SetActiveState
 
 
-    subroutine GaugeInterface_ScalEv(EV,y,tau,tauend,tol1,ind,c,w)
+    subroutine GaugeInterface_ScalEv(EV,y,tau,tauend,tol1,ind,rk_settings,w)
     type(EvolutionVars) EV
-    real(dl) c(24),w(EV%nvar,9), y(EV%nvar), tol1, tau, tauend
+    type(RungeKuttaDP45Settings), intent(inout) :: rk_settings
+    real(dl) w(EV%nvar,9), y(EV%nvar), tol1, tau, tauend
     integer ind
 
-    call dverk(EV,EV%ScalEqsToPropagate,derivs,tau,y,tauend,tol1,ind,c,EV%nvar,w)
+    call RungeKuttaDP45(EV, EV%ScalEqsToPropagate, derivs, tau, y, tauend, tol1, ind, rk_settings, EV%nvar, w)
     if (ind==-3) then
-        call GlobalError('Dverk error -3: the subroutine was unable  to  satisfy  the  error ' &
+        call GlobalError('RungeKuttaDP45 error -3: the subroutine was unable  to  satisfy  the  error ' &
             //'requirement  with a particular step-size that is less than or * ' &
             //'equal to hmin, which may mean that tol is too small' &
             //'--- but most likely you''ve messed up the y array indexing; ' &
@@ -242,10 +244,11 @@
 
     end function next_nu_nq
 
-    recursive subroutine GaugeInterface_EvolveScal(EV,tau,y,tauend,tol1,ind,c,w)
+    recursive subroutine GaugeInterface_EvolveScal(EV,tau,y,tauend,tol1,ind,rk_settings,w)
     use Recombination, only : CB1
     type(EvolutionVars) EV, EVout
-    real(dl) c(24),w(EV%nvar,9), y(EV%nvar), yout(EV%nvar), tol1, tau, tauend
+    type(RungeKuttaDP45Settings), intent(inout) :: rk_settings
+    real(dl) w(EV%nvar,9), y(EV%nvar), yout(EV%nvar), tol1, tau, tauend
     integer ind, nu_i
     real(dl) cs2, opacity, dopacity
     real(dl) tau_switch_ktau, tau_switch_nu_massless, tau_switch_nu_massive, next_switch
@@ -305,7 +308,7 @@
 
     if (next_switch < tauend) then
         if (next_switch > tau+smallTime) then
-            call GaugeInterface_ScalEv(EV, y, tau,next_switch,tol1,ind,c,w)
+            call GaugeInterface_ScalEv(EV, y, tau, next_switch, tol1, ind, rk_settings, w)
             if (global_error_flag/=0) return
         end if
 
@@ -424,23 +427,25 @@
             y(EV%Tg_ix) =y(EV%g_ix)/4 ! assume delta_TM = delta_T_gamma
         end if
 
-        call GaugeInterface_EvolveScal(EV,tau,y,tauend,tol1,ind,c,w)
+        call GaugeInterface_EvolveScal(EV, tau, y, tauend, tol1, ind, rk_settings, w)
         return
     end if
 
-    call GaugeInterface_ScalEv(EV,y,tau,tauend,tol1,ind,c,w)
+    call GaugeInterface_ScalEv(EV, y, tau, tauend, tol1, ind, rk_settings, w)
 
     end subroutine GaugeInterface_EvolveScal
 
-    subroutine GaugeInterface_EvolveTens(EV,tau,y,tauend,tol1,ind,c,w)
+    subroutine GaugeInterface_EvolveTens(EV,tau,y,tauend,tol1,ind,rk_settings,w)
     type(EvolutionVars) EV, EVOut
-    real(dl) c(24),w(EV%nvart,9), y(EV%nvart),yout(EV%nvart), tol1, tau, tauend
+    type(RungeKuttaDP45Settings), intent(inout) :: rk_settings
+    real(dl) w(EV%nvart,9), y(EV%nvart),yout(EV%nvart), tol1, tau, tauend
     integer ind
     real(dl) opacity, cs2, a
 
     if (EV%TensTightCoupling .and. tauend > EV%TightSwitchoffTime) then
         if (EV%TightSwitchoffTime > tau) then
-            call dverk(EV,EV%TensEqsToPropagate, derivst,tau,y,EV%TightSwitchoffTime,tol1,ind,c,EV%nvart,w)
+            call RungeKuttaDP45(EV, EV%TensEqsToPropagate, derivst, tau, y, EV%TightSwitchoffTime, tol1, ind, &
+                rk_settings, EV%nvart, w)
         end if
         EVOut=EV
         EVOut%TensTightCoupling = .false.
@@ -453,7 +458,7 @@
         y(EV%E_ix+2) = y(EV%g_ix+2)/4
     end if
 
-    call dverk(EV,EV%TensEqsToPropagate, derivst,tau,y,tauend,tol1,ind,c,EV%nvart,w)
+    call RungeKuttaDP45(EV, EV%TensEqsToPropagate, derivst, tau, y, tauend, tol1, ind, rk_settings, EV%nvart, w)
 
     end subroutine GaugeInterface_EvolveTens
 
