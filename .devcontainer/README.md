@@ -17,6 +17,7 @@ When the container is created it:
 - patches the CosmoRec makefile to add `-fPIC`, which CAMB's Python wrapper requires
 - installs the small Python dependency/tool set into a container-local virtual environment, rebuilds `camb` with `recfast`, `cosmorec`, and `hyrec` enabled, and adds the workspace to the environment with a `.pth` file
 - configures `core.hooksPath` to use the tracked `.githooks/pre-commit` wrapper, which can use `pre-commit` from the container venv or from a host `.venv`
+- pre-installs the `pre-commit` hook environments into a container-local cache so later hook runs can work offline
 
 The bootstrap intentionally avoids `pip install -e .` during container creation:
 
@@ -26,6 +27,9 @@ The bootstrap intentionally avoids `pip install -e .` during container creation:
 
 Clean-tree CAMB builds automatically do the first Fortran sub-build with `-j1` until compiler-generated `.d` files
 exist, after which `make -j` and `python setup.py make` can safely respect any `MAKEFLAGS` you set.
+
+The first container bootstrap still needs network access to fetch the hook repositories listed in
+`.pre-commit-config.yaml`, but once bootstrap succeeds the tracked Git hook can run later without internet access.
 
 The `external/` directory stays in the workspace, so the downloaded sources are visible from Windows as normal files.
 

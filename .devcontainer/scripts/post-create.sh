@@ -21,6 +21,8 @@ if [[ ! -x "${venv_python}" ]]; then
     uv venv "${venv_dir}" --python /usr/local/bin/python3
 fi
 
+mkdir -p "${PRE_COMMIT_HOME:-/home/vscode/.cache/pre-commit}"
+
 # Install the small declared tool/runtime set directly, then do the editable CAMB build separately.
 uv pip install \
     --python "${venv_python}" \
@@ -56,6 +58,10 @@ if [[ -d .git ]]; then
 
     if [[ -f .githooks/pre-commit ]]; then
         chmod +x .githooks/pre-commit || true
+    fi
+
+    if ! "${venv_python}" -m pre_commit install-hooks; then
+        echo "pre-commit hook environment installation failed; offline hook runs may not work until you rerun '${venv_python} -m pre_commit install-hooks' with network access." >&2
     fi
 fi
 

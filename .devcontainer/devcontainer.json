@@ -18,6 +18,7 @@
     "OPENBLAS_NUM_THREADS": "8",
     "RECOMBINATION_FILES": "recfast cosmorec hyrec",
     "CAMB_DEVCONTAINER_VENV": "/home/vscode/.local/share/camb-devcontainer/.venv",
+    "PRE_COMMIT_HOME": "/home/vscode/.cache/pre-commit",
     "UV_CACHE_DIR": "/home/vscode/.cache/uv",
     "UV_LINK_MODE": "copy",
     "UV_PROJECT_ENVIRONMENT": "/home/vscode/.local/share/camb-devcontainer/.venv"
