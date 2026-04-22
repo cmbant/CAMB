@@ -87,7 +87,7 @@
     type(RungeKuttaDP45Settings), intent(inout) :: settings
     real(dl) :: tol, temp
     real(dl), parameter :: one_fifth = 1._dl / 5._dl
-    real(dl), parameter :: default_max_step_size = 20._dl
+    real(dl), parameter :: default_max_step_size = 2._dl
     real(dl), parameter :: dp_a21 = 1._dl / 5._dl
     real(dl), parameter :: dp_a31 = 3._dl / 40._dl
     real(dl), parameter :: dp_a32 = 9._dl / 40._dl
@@ -154,7 +154,10 @@
 
     select case (ind)
     case (1, 2)
-        if (n > nw .or. tol <= 0._dl) call abort_runge_kutta_dp45()
+        if (n > nw .or. tol <= 0._dl) then
+            call abort_runge_kutta_dp45()
+            return
+        end if
 
         if (ind == 1) then
             settings = RungeKuttaDP45Settings()
@@ -171,6 +174,7 @@
     case (3)
         if (settings%xend_reached .and. (x /= settings%previous_xend .or. xend == settings%previous_xend)) then
             call abort_runge_kutta_dp45()
+            return
         end if
         settings%xend_reached = .false.
 
@@ -182,6 +186,7 @@
 
     case default
         call abort_runge_kutta_dp45()
+        return
     end select
 
     step_loop: do
