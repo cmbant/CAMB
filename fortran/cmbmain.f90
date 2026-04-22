@@ -988,6 +988,7 @@
     !     Begin timestep loop.
     itf=1
     tol1=base_tol/exp(CP%Accuracy%AccuracyBoost*CP%Accuracy%IntTolBoost-1)
+    if (.not. State%Params%DarkEnergy%is_cosmological_constant) tol1 = tol1/5
     if (CP%WantTransfer) then
         if  (CP%Transfer%high_precision) tol1=tol1/100
         do while (itf <= State%num_transfer_redshifts .and. State%TimeSteps%points(2) > State%Transfer_Times(itf))
@@ -1085,7 +1086,7 @@
 
     tau=taustart
     ind=1
-    tol=base_tol*0.01/exp(CP%Accuracy%AccuracyBoost*CP%Accuracy%IntTolBoost-1)
+    tol=base_tol/100/exp(CP%Accuracy%AccuracyBoost*CP%Accuracy%IntTolBoost-1)
 
 
     !     Begin timestep loop.

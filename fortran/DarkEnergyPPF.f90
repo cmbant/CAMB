@@ -132,6 +132,7 @@
     if (ckH * ckH > 1000) then
         ! Was ckH^2 > 30 originally, but this is better behaved (closer to fluid)
         ! for some extreme models (thanks Yanhui Yang, Simeon Bird 2024)
+        ! though a bit more unstable on closer to LCDM
         Gamma = 0
         Gammadot = 0.d0
     else
