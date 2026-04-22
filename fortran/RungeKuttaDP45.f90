@@ -87,7 +87,7 @@
     type(RungeKuttaDP45Settings), intent(inout) :: settings
     real(dl) :: tol, temp
     real(dl), parameter :: one_fifth = 1._dl / 5._dl
-    real(dl), parameter :: default_max_step_size = 2._dl
+    real(dl), parameter :: default_max_step_size = 20._dl
     real(dl), parameter :: dp_a21 = 1._dl / 5._dl
     real(dl), parameter :: dp_a31 = 3._dl / 40._dl
     real(dl), parameter :: dp_a32 = 9._dl / 40._dl
