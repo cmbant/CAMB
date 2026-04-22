@@ -10,9 +10,19 @@
   "runArgs": [
     "--cpus=8"
   ],
+  "mounts": [
+    "source=${localEnv:HOME}${localEnv:USERPROFILE}/.gitconfig,target=/tmp/devcontainer-host.gitconfig,type=bind,readonly",
+    "source=${localWorkspaceFolder}/../.git,target=/workspaces/camb-common-git,type=bind"
+  ],
+  "initializeCommand": "git submodule update --init --recursive forutils",
   "containerEnv": {
     "COSMOREC_PATH": "${containerWorkspaceFolder}/external/CosmoRec/",
     "FORUTILSPATH": "${containerWorkspaceFolder}/forutils",
+    "GIT_CONFIG_COUNT": "1",
+    "GIT_CONFIG_KEY_0": "submodule.forutils.ignore",
+    "GIT_CONFIG_VALUE_0": "all",
+    "GIT_DIR": "/workspaces/camb-common-git/worktrees/${containerWorkspaceFolderBasename}",
+    "GIT_WORK_TREE": "${containerWorkspaceFolder}",
     "HYREC_PATH": "${containerWorkspaceFolder}/external/HYREC-2/",
     "OMP_NUM_THREADS": "8",
     "OPENBLAS_NUM_THREADS": "8",
@@ -24,6 +34,7 @@
     "UV_PROJECT_ENVIRONMENT": "/home/vscode/.local/share/camb-devcontainer/.venv"
   },
   "postCreateCommand": "bash .devcontainer/scripts/post-create.sh",
+  "postStartCommand": "bash .devcontainer/scripts/post-start.sh",
   "customizations": {
     "vscode": {
       "settings": {

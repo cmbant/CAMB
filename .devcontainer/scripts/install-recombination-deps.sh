@@ -25,7 +25,7 @@ if [[ ! -f "${cosmorec_dir}/Makefile" ]]; then
     fi
 
     mkdir -p "${temp_dir}/extract"
-    tar -xzf "${archive_path}" -C "${temp_dir}/extract"
+    tar --no-same-owner --no-same-permissions -xzf "${archive_path}" -C "${temp_dir}/extract"
 
     extracted_root="$(find "${temp_dir}/extract" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
     if [[ -z "${extracted_root}" ]]; then
@@ -36,6 +36,8 @@ if [[ ! -f "${cosmorec_dir}/Makefile" ]]; then
     rm -rf "${cosmorec_dir}"
     mv "${extracted_root}" "${cosmorec_dir}"
 fi
+
+chmod -R u+rwX "${cosmorec_dir}" >/dev/null 2>&1 || true
 
 cosmorec_makefile_in="${cosmorec_dir}/Makefile.in"
 if [[ -f "${cosmorec_makefile_in}" ]] && ! grep -Eq '^[[:space:]]*CXXFLAGS.*-fPIC' "${cosmorec_makefile_in}"; then
@@ -69,6 +71,8 @@ if [[ ! -d "${hyrec_dir}/.git" ]]; then
     rm -rf "${hyrec_dir}"
     git clone --depth 1 --filter=blob:none "${hyrec_repo}" "${hyrec_dir}"
 fi
+
+chmod -R u+rwX "${hyrec_dir}" >/dev/null 2>&1 || true
 
 if [[ ! -f "${hyrec_dir}/Makefile" ]]; then
     echo "HYREC-2 checkout at ${hyrec_dir} does not contain a Makefile" >&2

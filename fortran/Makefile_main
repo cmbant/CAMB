@@ -113,6 +113,8 @@ libcamb: libforutils directories
 
 python: libforutils_so directories_so
 	$(call run_build_submake,$(DLL_LIBRARY_DEPFILES),$(DLL_DIR),camblib.so F90FLAGS="$(SF90FLAGS)" OUTPUT_DIR=$(DLL_DIR))
+	@mkdir -p $(PYCAMB_OUTPUT_DIR)
+	cp $(DLL_DIR)/camblib.so $(PYCAMB_OUTPUT_DIR)
 
 ../camb: $(CAMBLIB) $(DRIVER).o | silent
 	+@$(MAKE) -C .. $(MAKEOPT) -f Makefile_main camb_exe
@@ -131,7 +133,6 @@ libcambobj:
 $(DLL_DIR)/camblib.so: libcambobj
 	$(F90C) $(SF90FLAGS) $(SMODOUT) $(IFLAG)$(DLL_DIR)/ $(IFLAG)"$(FORUTILS_DIR)"  \
 		$(LIBCAMBOBJ) $(F90CRLINK) $(LIBLINK) -o $(DLL_DIR)/camblib.so
-	cp $(DLL_DIR)/camblib.so $(PYCAMB_OUTPUT_DIR)
 
 
 $(CAMBLIB): $(CAMBOBJ)
