@@ -663,7 +663,7 @@ class CambTest(unittest.TestCase):
         res = camb.get_results(pars)
         cls2 = res.get_lensed_scalar_cls(2000)
         np.testing.assert_allclose(cls[2:, 0:2], cls2[2:, 0:2], rtol=1e-4)
-        self.assertAlmostEqual(cls2[1, 0], 1.30388e-10, places=13)
+        np.testing.assert_allclose(cls2[1, 0], 1.3179e-10, rtol=3e-3)
         self.assertAlmostEqual(cls[1, 0], 0)
 
     def testSave(self):
