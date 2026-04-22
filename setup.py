@@ -209,13 +209,11 @@ def make_library(cluster=False):
         remove_stale_dependency_files(os.path.join(file_dir, "fortran", "Debuglib"), fpath)
         if os.path.exists(lib_file) and not os.access(lib_file, os.W_OK):
             os.remove(lib_file)
-        make_env = os.environ.copy()
         print("Compiling source...")
         subprocess.call(
             "make python PYCAMB_OUTPUT_DIR=%s/camb/ CLUSTER_SAFE=%d"
             % (pycamb_path, int(cluster if not os.getenv("GITHUB_ACTIONS") else 1)),
             shell=True,
-            env=make_env,
         )
 
         if os.path.isfile(lib_file):
