@@ -1,3 +1,18 @@
+"""
+High-accuracy CAMB regression helper.
+
+Example workflow:
+1) Generate reference outputs with default high-accuracy settings
+   python fortran/tests/run_high_accuracy_tests.py generate_reference /tmp/camb_hiacc_work \\
+       --reference_dir /tmp/camb_hiacc_ref --max_tests 3 --no_sources --clean
+2) Compare default-accuracy runs to that reference
+   python fortran/tests/run_high_accuracy_tests.py compare /tmp/camb_hiacc_work \\
+       --reference_dir /tmp/camb_hiacc_ref --max_tests 3 --no_sources --clean
+
+The compare command is expected to return non-zero whenever default-accuracy outputs differ from
+the high-accuracy reference, and it always prints RMS/worst-case summaries.
+"""
+
 import argparse
 import math
 import os
