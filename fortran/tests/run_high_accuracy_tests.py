@@ -23,6 +23,8 @@ import tempfile
 import time
 from pathlib import Path
 
+PASSTHROUGH_KEYS = {"CMB_outputscale"}
+
 TESTS_DIR = os.path.dirname(os.path.abspath(__file__))
 FORTRAN_DIR = os.path.abspath(os.path.join(TESTS_DIR, ".."))
 REPO_ROOT = os.path.abspath(os.path.join(FORTRAN_DIR, ".."))
@@ -189,7 +191,12 @@ def make_reference_inis(parsed_args, ini_dir, output_dir):
                 output_ini.readOrder.insert(0, "output_root")
             output_ini.params["output_root"] = output_root
             for key in flat_ini.readOrder:
-                if key == "output_root" or key.startswith("output_") or key.endswith("_output_file"):
+                if (
+                    key == "output_root"
+                    or key in PASSTHROUGH_KEYS
+                    or key.startswith("output_")
+                    or key.endswith("_output_file")
+                ):
                     if key not in output_ini.params:
                         output_ini.readOrder.append(key)
                     output_ini.params[key] = flat_ini.params[key]
@@ -256,17 +263,55 @@ def extend_common_compare_args(cmd_args, parsed_args, *, include_clean):
 
 def _read_numeric_table(path):
     rows = []
+    columns = None
     with open(path, encoding="utf-8") as handle:
         for line in handle:
             stripped = line.strip()
-            if not stripped or stripped.startswith("#"):
+            if not stripped:
+                continue
+            if stripped.startswith("#"):
+                header_tokens = stripped.lstrip("#").split()
+                if header_tokens:
+                    columns = [token.replace("nu", "nu") for token in header_tokens]
                 continue
             values = stripped.split()
             try:
                 rows.append([float(item) for item in values])
             except ValueError:
                 continue
-    return rows
+    if columns is None and rows:
+        columns = [str(index) for index in range(len(rows[0]))]
+    return columns or [], rows
+
+
+def _normalized_error(column, old_value, new_value, old_row):
+    delta = abs(new_value - old_value)
+    if column in {"L", "l", "ell", "k/h", "k"}:
+        return None
+
+    if "x" in column:
+        first, second = column.split("x", 1)
+        if first != second:
+            auto_1 = old_row.get(f"{first}x{first}")
+            auto_2 = old_row.get(f"{second}x{second}")
+            if auto_1 is not None and auto_2 is not None:
+                product = auto_1 * auto_2
+                if product > 0:
+                    return delta / math.sqrt(product)
+    elif len(column) == 2 and column.isalpha():
+        first, second = column[0], column[1]
+        if first != second:
+            auto_1 = old_row.get(first + first)
+            auto_2 = old_row.get(second + second)
+            if auto_1 is not None and auto_2 is not None:
+                product = auto_1 * auto_2
+                if product > 0:
+                    return delta / math.sqrt(product)
+
+    denom = abs(old_value)
+    if denom > 1e-30:
+        return delta / denom
+    return delta
 
 
 def summarize_differences(current_output_dir, reference_output_dir):
@@ -282,8 +327,11 @@ def summarize_differences(current_output_dir, reference_output_dir):
     stats = []
 
     for name in common_names:
-        current_rows = _read_numeric_table(current_files[name])
-        reference_rows = _read_numeric_table(reference_files[name])
+        columns, current_rows = _read_numeric_table(current_files[name])
+        reference_columns, reference_rows = _read_numeric_table(reference_files[name])
+        if columns != reference_columns:
+            min_len = min(len(columns), len(reference_columns))
+            columns = columns[:min_len]
         if not current_rows or not reference_rows:
             continue
 
@@ -296,14 +344,16 @@ def summarize_differences(current_output_dir, reference_output_dir):
             col_count = min(len(left_row), len(right_row))
             if col_count == 0:
                 continue
-            for left_value, right_value in zip(left_row[:col_count], right_row[:col_count]):
-                diff = left_value - right_value
-                denom = abs(right_value)
-                rel = abs(diff) if denom <= 1e-30 else abs(diff) / denom
+            active_columns = columns[:col_count] if columns else [str(index) for index in range(col_count)]
+            old_row_map = {column: value for column, value in zip(active_columns, right_row[:col_count])}
+            for column, left_value, right_value in zip(active_columns, left_row[:col_count], right_row[:col_count]):
+                rel = _normalized_error(column, right_value, left_value, old_row_map)
+                if rel is None:
+                    continue
                 file_sq += rel * rel
                 file_points += 1
                 worst_rel = max(worst_rel, rel)
-                worst_abs = max(worst_abs, abs(diff))
+                worst_abs = max(worst_abs, abs(left_value - right_value))
 
         if not file_points:
             continue
