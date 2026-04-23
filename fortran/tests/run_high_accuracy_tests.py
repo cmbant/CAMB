@@ -53,6 +53,10 @@ def build_parser():
     parser.add_argument("--max_tests", "--max-tests", type=int, help="maximum number of tests to run")
     parser.add_argument("--no_sources", "--no-sources", action="store_true", help="turn off CAMB sources tests")
     parser.add_argument("--no_de", "--no-de", action="store_true", help="skip dark energy tests")
+    parser.add_argument("--skip_non_flat", "--skip-non-flat", action="store_true", help="skip tests with non-zero omk")
+    parser.add_argument(
+        "--only_non_flat", "--only-non-flat", action="store_true", help="only run tests with non-zero omk"
+    )
     parser.add_argument(
         "--override",
         "--set",
@@ -84,6 +88,12 @@ def build_parser():
     parser.add_argument("--lens_margin", "--lens-margin", type=int, default=2050)
     parser.add_argument("--stability_factor", "--stability-factor", type=float, default=1.0)
     parser.add_argument("--do_late_rad_truncation", "--do-late-rad-truncation", action="store_true", default=False)
+    parser.add_argument(
+        "--skip_lensing_range_changes",
+        "--skip-lensing-range-changes",
+        action="store_true",
+        help="do not modify lens_potential_accuracy or lens_margin",
+    )
     parser.add_argument("--reference_ini_dir", "--reference-ini-dir", default="reference_inis")
     parser.add_argument("--reference_out_dir", "--reference-out-dir", default="test_outputs")
     return parser
@@ -126,7 +136,28 @@ def get_test_params(parsed_args):
     ctf.args = argparse.Namespace(
         no_de=parsed_args.no_de, no_sources=parsed_args.no_sources, max_tests=parsed_args.max_tests
     )
-    return ctf.getTestParams()
+    params = ctf.getTestParams()
+    if parsed_args.skip_non_flat and parsed_args.only_non_flat:
+        raise ValueError("Cannot use both --skip_non_flat and --only_non_flat")
+    if parsed_args.skip_non_flat:
+        return [p for p in params if not _is_non_flat(p)]
+    if parsed_args.only_non_flat:
+        return [p for p in params if _is_non_flat(p)]
+    return params
+
+
+def _is_non_flat(parameter_lines):
+    for line in parameter_lines[1:]:
+        if "=" not in line:
+            continue
+        key, value = (part.strip() for part in line.split("=", 1))
+        if key.lower() != "omk":
+            continue
+        try:
+            return abs(float(value)) > 1e-12
+        except ValueError:
+            return True
+    return False
 
 
 def _apply_high_accuracy_settings(params, parsed_args):
@@ -143,11 +174,12 @@ def _apply_high_accuracy_settings(params, parsed_args):
         parsed_args.l_accuracy_boost * parsed_args.stability_factor,
     )
     params.DoLateRadTruncation = parsed_args.do_late_rad_truncation
-    params.set_for_lmax(
-        lmax=params.max_l,
-        lens_potential_accuracy=parsed_args.lens_potential_accuracy * parsed_args.stability_factor,
-        lens_margin=int(round(parsed_args.lens_margin * parsed_args.stability_factor)),
-    )
+    if not parsed_args.skip_lensing_range_changes:
+        params.set_for_lmax(
+            lmax=params.max_l,
+            lens_potential_accuracy=parsed_args.lens_potential_accuracy * parsed_args.stability_factor,
+            lens_margin=int(round(parsed_args.lens_margin * parsed_args.stability_factor)),
+        )
 
 
 def make_reference_inis(parsed_args, ini_dir, output_dir):
@@ -227,6 +259,83 @@ def run_camb_test_files(arguments):
     from CAMB_test_files import main as camb_test_files_main
 
     return camb_test_files_main(arguments)
+
+
+def make_default_inis(parsed_args):
+    from CAMB_test_files import write_flat_ini_file
+
+    from camb.inifile import IniFile
+
+    os.makedirs(parsed_args.work_dir, exist_ok=True)
+    out_dir = os.path.join(parsed_args.work_dir, parsed_args.out_files_dir)
+    os.makedirs(out_dir, exist_ok=True)
+
+    generated = []
+    overrides = [parse_override(item) for item in parsed_args.override]
+    for pars in get_test_params(parsed_args):
+        name = f"params_{pars[0]}"
+        ini_path = os.path.join(parsed_args.work_dir, f"{name}.ini")
+        write_flat_ini_file(
+            ini_path,
+            [
+                f"output_root={os.path.join(out_dir, name)}",
+                *pars[1:],
+                f"DEFAULT({os.path.abspath(parsed_args.base_settings)})",
+            ],
+        )
+        ini = IniFile(ini_path)
+        apply_overrides(ini, overrides)
+        ini.saveFile(ini_path)
+        generated.append(ini_path)
+    return generated
+
+
+def run_inis(inis, parsed_args):
+    import camb
+
+    failures = 0
+    for ini in inis:
+        print(f"Running {os.path.basename(ini)}")
+        try:
+            if parsed_args.runner == "module":
+                camb.run_ini(ini, no_validate=parsed_args.no_validate)
+            else:
+                import subprocess
+
+                subprocess.run([parsed_args.prog, ini], check=True)
+        except Exception as error:  # noqa: BLE001
+            failures += 1
+            print(f"  ERROR: {error}")
+    return failures
+
+
+def compare_with_camb_method(parsed_args, reference_outputs):
+    import filecmp
+
+    import CAMB_test_files as ctf
+
+    ctf.args = argparse.Namespace(
+        diff_to=reference_outputs,
+        ini_dir=parsed_args.work_dir,
+        out_files_dir=parsed_args.out_files_dir,
+        verbose_diff_output=parsed_args.verbose_diff_output,
+        num_diff=parsed_args.num_diff,
+        diff_tolerance=parsed_args.diff_tolerance,
+    )
+    ctf.out_files_dir = os.path.join(parsed_args.work_dir, parsed_args.out_files_dir)
+    ctf.filetolmatrix[-1][1]["*"] = (True, parsed_args.diff_tolerance)
+    if parsed_args.num_diff:
+
+        def def_cmp(old, new, tol):
+            return math.fabs(float(old) - float(new)) >= tol
+
+    else:
+        def_cmp = ctf.normabs
+
+    files = [name for name in os.listdir(reference_outputs) if ".ini" not in name]
+    _, mismatch, errors = filecmp.cmpfiles(reference_outputs, ctf.out_files_dir, files, shallow=False)
+    numerical = [name for name in mismatch if ctf.num_unequal(name, def_cmp)]
+    return errors, numerical
 
 
 def extend_common_compare_args(cmd_args, parsed_args, *, include_clean):
@@ -407,15 +516,30 @@ def generate_reference(parsed_args):
 def compare_to_reference(parsed_args):
     parsed_args.work_dir = os.path.abspath(parsed_args.work_dir)
     parsed_args.base_settings = os.path.abspath(parsed_args.base_settings)
-
-    run_args = ["--make_ini"]
-    extend_common_compare_args(run_args, parsed_args, include_clean=True)
-    run_status = run_camb_test_files(run_args)
-
     reference_outputs = os.path.join(os.path.abspath(parsed_args.reference_dir), parsed_args.reference_out_dir)
-    diff_args = ["--diff_to", reference_outputs, "--diff_tolerance", str(parsed_args.diff_tolerance)]
-    extend_common_compare_args(diff_args, parsed_args, include_clean=False)
-    diff_status = run_camb_test_files(diff_args)
+    use_custom_flow = parsed_args.skip_non_flat or parsed_args.only_non_flat
+
+    if use_custom_flow:
+        out_dir = os.path.join(parsed_args.work_dir, parsed_args.out_files_dir)
+        if parsed_args.clean and os.path.exists(out_dir):
+            remove_tree(out_dir)
+        os.makedirs(out_dir, exist_ok=True)
+        inis = make_default_inis(parsed_args)
+        run_status = 1 if run_inis(inis, parsed_args) else 0
+        missing_or_extra, numerical = compare_with_camb_method(parsed_args, reference_outputs)
+        print(
+            "CAMB_test_files-style comparison: "
+            f"{len(numerical)} numerical mismatches, {len(missing_or_extra)} missing/extra files"
+        )
+        diff_status = 1 if missing_or_extra or numerical else 0
+    else:
+        run_args = ["--make_ini"]
+        extend_common_compare_args(run_args, parsed_args, include_clean=True)
+        run_status = run_camb_test_files(run_args)
+
+        diff_args = ["--diff_to", reference_outputs, "--diff_tolerance", str(parsed_args.diff_tolerance)]
+        extend_common_compare_args(diff_args, parsed_args, include_clean=False)
+        diff_status = run_camb_test_files(diff_args)
 
     summarize_differences(
         os.path.join(parsed_args.work_dir, parsed_args.out_files_dir),
