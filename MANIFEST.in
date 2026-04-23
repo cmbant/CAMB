@@ -1,15 +1,39 @@
-include *.rst *.txt
+# Start from an explicit whitelist so nested worktrees and scratch clones do
+# not leak into the source distribution just because they live under the repo
+# root.
+prune *
+exclude *
+
+# Root metadata and packaging files.
+include LICENCE.txt
+include MANIFEST.in
+include README.rst
+include pyproject.toml
+include requirements.txt
+include setup.py
+
+# Package sources and bundled data.
 recursive-include camb *.py
 recursive-include fortran Makefile* *.dat *.?90
 recursive-include forutils Makefile* *.?90
-exclude camb/cambdll.dll
-exclude camb/camblib.so
+
 include camb/PArthENoPE_880.2_marcucci.dat
 include camb/PArthENoPE_880.2_standard.dat
 include camb/PRIMAT_Yp_DH_Error.dat
 include camb/PRIMAT_Yp_DH_ErrorMC_2021.dat
 include camb/PRIMAT_Yp_DH_ErrorMC_2024.dat
+
+# PyPI long description.
+include docs/README_pypi.rst
+
+# Built artifacts and optional/generated files are shipped separately or
+# rebuilt locally.
+exclude .gitattributes
+exclude .gitignore
+exclude .gitmodules
+exclude .readthedocs.yml
+exclude camb/cambdll.dll
+exclude camb/camblib.so
 exclude camb/HighLExtrapTemplate_lenspotentialCls.dat
 exclude fortran/sigma8.f90
 exclude fortran/writefits.f90
-include docs/README_pypi.rst

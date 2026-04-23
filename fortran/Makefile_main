@@ -33,6 +33,20 @@ SOURCEFILES      = constants config classes MathUtils RungeKuttaDP45 subroutines
         $(RECOMBINATION_FILES) $(DARKENERGY_FILES) equations \
         $(REIONIZATION_FILES) $(POWERSPECTRUM_FILES) $(NONLINEAR_FILES) \
         lensing $(BISPECTRUM) cmbmain camb camb_python
+CAMB_DEPFILES = $(addsuffix .d,$(SOURCEFILES))
+CAMB_DRIVER_DEPFILES = $(CAMB_DEPFILES) $(DRIVER).d
+OUTPUT_LIBRARY_DEPFILES = $(addprefix $(OUTPUT_DIR)/,$(CAMB_DEPFILES))
+OUTPUT_DRIVER_DEPFILES = $(addprefix $(OUTPUT_DIR)/,$(CAMB_DRIVER_DEPFILES))
+DLL_LIBRARY_DEPFILES = $(addprefix $(DLL_DIR)/,$(CAMB_DEPFILES))
+
+define run_build_submake
+	+@if test -n "$(strip $(filter-out $(wildcard $(1)),$(1)))"; then \
+		echo "Bootstrapping $(2) with -j1 until dependency files are generated."; \
+		$(MAKE) -j1 -C $(2) $(MAKEOPT) -r -f ../Makefile_main $(3); \
+	else \
+		$(MAKE) -C $(2) $(MAKEOPT) -r -f ../Makefile_main $(3); \
+	fi
+endef
 
 
 F90WFLAGS     = -Waliasing -Wampersand -Wconversion -Wc-binding-type -Wintrinsics-std \
@@ -92,23 +106,25 @@ compiler.ver:
 	@rm -f *.d
 
 camb: libforutils directories
-	@$(MAKE) -C $(OUTPUT_DIR) $(MAKEOPT) -r -f ../Makefile_main $(CAMBLIB) ../camb
+	$(call run_build_submake,$(OUTPUT_DRIVER_DEPFILES),$(OUTPUT_DIR),$(CAMBLIB) ../camb)
 
 libcamb: libforutils directories
-	@$(MAKE) -C $(OUTPUT_DIR) $(MAKEOPT) -r -f ../Makefile_main $(CAMBLIB)
+	$(call run_build_submake,$(OUTPUT_LIBRARY_DEPFILES),$(OUTPUT_DIR),$(CAMBLIB))
 
 python: libforutils_so directories_so
-	@$(MAKE) -C $(DLL_DIR) $(MAKEOPT) -r -f ../Makefile_main camblib.so F90FLAGS="$(SF90FLAGS)" OUTPUT_DIR=$(DLL_DIR)
+	$(call run_build_submake,$(DLL_LIBRARY_DEPFILES),$(DLL_DIR),camblib.so F90FLAGS="$(SF90FLAGS)" OUTPUT_DIR=$(DLL_DIR))
+	@mkdir -p $(PYCAMB_OUTPUT_DIR)
+	cp $(DLL_DIR)/camblib.so $(PYCAMB_OUTPUT_DIR)
 
 ../camb: $(CAMBLIB) $(DRIVER).o | silent
-	@$(MAKE) -C .. $(MAKEOPT) -f Makefile_main camb_exe
+	+@$(MAKE) -C .. $(MAKEOPT) -f Makefile_main camb_exe
 
 camb_exe:
 	$(F90C) $(F90FLAGS) $(MODOUT) $(IFLAG)$(OUTPUT_DIR)/ $(IFLAG)"$(FORUTILS_DIR)" \
 		$(OUTPUT_DIR)/$(DRIVER).o $(OUTPUT_DIR)/$(CAMBLIB) $(F90CRLINK) $(LIBLINK) -o camb
 
 camblib.so: $(CAMBOBJ)
-	@$(MAKE) -C .. $(MAKEOPT) -f Makefile_main $(DLL_DIR)/camblib.so
+	+@$(MAKE) -C .. $(MAKEOPT) -f Makefile_main $(DLL_DIR)/camblib.so
 
 libcambobj:
     LIBCAMBOBJ = $(patsubst %,$(DLL_DIR)/%.o,$(SOURCEFILES))
@@ -117,7 +133,6 @@ libcambobj:
 $(DLL_DIR)/camblib.so: libcambobj
 	$(F90C) $(SF90FLAGS) $(SMODOUT) $(IFLAG)$(DLL_DIR)/ $(IFLAG)"$(FORUTILS_DIR)"  \
 		$(LIBCAMBOBJ) $(F90CRLINK) $(LIBLINK) -o $(DLL_DIR)/camblib.so
-	cp $(DLL_DIR)/camblib.so $(PYCAMB_OUTPUT_DIR)
 
 
 $(CAMBLIB): $(CAMBOBJ)
@@ -138,12 +153,10 @@ directories_so:
 	@mkdir -p $(DLL_DIR)
 
 libforutils_so:
-	@cd "$(FORUTILSPATH)" && \
-	$(MAKE) $(MAKEOPT) $(DLL_DIR)
+	+@$(MAKE) -C "$(FORUTILSPATH)" $(MAKEOPT) $(DLL_DIR)
 
 libforutils:
-	@cd "$(FORUTILSPATH)" && \
-	$(MAKE) $(MAKEOPT) $(OUTPUT_DIR)
+	+@$(MAKE) -C "$(FORUTILSPATH)" $(MAKEOPT) $(OUTPUT_DIR)
 
 
 clean:
@@ -156,13 +169,13 @@ delete:
 
 ## CosmoRec make parts
 cleanCR:
-	cd $(COSMOREC_PATH); make tidy;
+	+@$(MAKE) -C $(COSMOREC_PATH) $(MAKEOPT) tidy
 
 libCosmoRec.a:
-	cd $(COSMOREC_PATH); make lib;
+	+@$(MAKE) -C $(COSMOREC_PATH) $(MAKEOPT) lib
 
 libhyrec.a:
-	cd $(HYREC_PATH); make libhyrec.a;
+	+@$(MAKE) -C $(HYREC_PATH) $(MAKEOPT) libhyrec.a
 
 silent:
 	@:

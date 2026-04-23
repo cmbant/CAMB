@@ -15,10 +15,13 @@ pip install -e .[dev]
 ### 2. Install Pre-commit Hooks
 
 ```bash
-pre-commit install
+git config core.hooksPath .githooks
 ```
 
-This will automatically format your code and check for issues before each commit.
+The repository ships a portable `.githooks/pre-commit` wrapper that looks for `pre-commit` in the CAMB devcontainer
+environment first, then in the current checkout's `.venv`, then in the main checkout's `.venv` when you are committing
+from a linked worktree, then on your `PATH`. This keeps the same checkout working on a Linux devcontainer and a Windows
+host without rewriting the hook each time you switch environments.
 
 ### 3. Code Formatting Standards
 
@@ -85,6 +88,9 @@ The following extensions will be suggested when you open the project:
 - `ms-python.debugpy` - Python debugging
 - `charliermarsh.ruff` - Ruff formatter and linter
 - `fortran-lang.linter-gfortran` - Fortran support
+
+The committed workspace settings only help VS Code discover a local `./.venv`; the devcontainer sets its
+container-local interpreter separately, so host and container environments do not fight each other.
 
 ### Optional Fortran Tools
 

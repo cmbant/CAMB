@@ -42,7 +42,7 @@ Then install using::
 For development, install with dev dependencies and setup pre-commit hooks::
 
     pip install -e ./CAMB[dev] [--user]
-    pre-commit install
+    git config core.hooksPath .githooks
 
 See `CONTRIBUTING.md <CONTRIBUTING.md>`_ for full development setup instructions.
 

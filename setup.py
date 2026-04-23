@@ -6,10 +6,14 @@ from typing import Any
 
 from setuptools import Command, Extension, setup
 from setuptools.command.build_ext import build_ext
+
+try:
+    from setuptools.command.bdist_wheel import bdist_wheel as _bdist_wheel
+except ImportError:
+    from wheel.bdist_wheel import bdist_wheel as _bdist_wheel
 from setuptools.command.build_py import build_py
 from setuptools.command.develop import develop
 from setuptools.command.install import install
-from wheel.bdist_wheel import bdist_wheel as _bdist_wheel
 
 file_dir = os.path.abspath(os.path.dirname(__file__))
 os.chdir(file_dir)
@@ -90,6 +94,27 @@ def clean_dir(path, rmdir=False):
             os.remove(os.path.join(path, f))
         if rmdir:
             os.rmdir(path)
+
+
+def remove_stale_dependency_files(build_dir, expected_forutils_path):
+    if not os.path.isdir(build_dir):
+        return
+
+    normalized_forutils_path = os.path.abspath(expected_forutils_path).replace("\\", "/")
+
+    for name in os.listdir(build_dir):
+        if not name.endswith(".d"):
+            continue
+
+        dep_path = os.path.join(build_dir, name)
+        try:
+            with open(dep_path, encoding="utf-8") as dep_file:
+                dep_contents = dep_file.read().replace("\\", "/")
+        except OSError:
+            continue
+
+        if "/forutils/" in dep_contents and normalized_forutils_path not in dep_contents:
+            os.remove(dep_path)
 
 
 def make_library(cluster=False):
@@ -179,14 +204,20 @@ def make_library(cluster=False):
                 'Build failed - you must have "make" installed. '
                 'E.g. on ubuntu install with "sudo apt install make" (or use build-essential package).'
             )
-        get_forutils()
+        fpath = get_forutils()
+        remove_stale_dependency_files(os.path.join(file_dir, "fortran", "Releaselib"), fpath)
+        remove_stale_dependency_files(os.path.join(file_dir, "fortran", "Debuglib"), fpath)
+        if os.path.exists(lib_file) and not os.access(lib_file, os.W_OK):
+            os.remove(lib_file)
         print("Compiling source...")
         subprocess.call(
             "make python PYCAMB_OUTPUT_DIR=%s/camb/ CLUSTER_SAFE=%d"
             % (pycamb_path, int(cluster if not os.getenv("GITHUB_ACTIONS") else 1)),
             shell=True,
         )
-        subprocess.call("chmod 755 %s" % lib_file, shell=True)
+
+        if os.path.isfile(lib_file):
+            subprocess.call("chmod 755 %s" % lib_file, shell=True)
 
     if not os.path.isfile(os.path.join(pycamb_path, "camb", DLLNAME)):
         sys.exit("Compilation failed")

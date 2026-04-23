@@ -4,6 +4,7 @@
 *.o
 *.so
 *.sm
+*.json
 *~*
 .metadata
 .project
@@ -83,3 +84,6 @@ scripts
 uv.lock
 .venv
 __pycache__
+external/
+!.devcontainer/
+!.devcontainer/**
