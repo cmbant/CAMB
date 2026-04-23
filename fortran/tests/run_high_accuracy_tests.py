@@ -227,6 +227,9 @@ def make_reference_inis(parsed_args, ini_dir, output_dir):
                     key == "output_root"
                     or key in PASSTHROUGH_KEYS
                     or key.startswith("output_")
+                    or key.startswith("transfer_filename(")
+                    or key.startswith("transfer_matterpower(")
+                    or key == "transfer_interp_matterpower"
                     or key.endswith("_output_file")
                 ):
                     if key not in output_ini.params:
@@ -307,35 +310,6 @@ def run_inis(inis, parsed_args):
             failures += 1
             print(f"  ERROR: {error}")
     return failures
-
-
-def compare_with_camb_method(parsed_args, reference_outputs):
-    import filecmp
-
-    import CAMB_test_files as ctf
-
-    ctf.args = argparse.Namespace(
-        diff_to=reference_outputs,
-        ini_dir=parsed_args.work_dir,
-        out_files_dir=parsed_args.out_files_dir,
-        verbose_diff_output=parsed_args.verbose_diff_output,
-        num_diff=parsed_args.num_diff,
-        diff_tolerance=parsed_args.diff_tolerance,
-    )
-    ctf.out_files_dir = os.path.join(parsed_args.work_dir, parsed_args.out_files_dir)
-    ctf.filetolmatrix[-1][1]["*"] = (True, parsed_args.diff_tolerance)
-    if parsed_args.num_diff:
-
-        def def_cmp(old, new, tol):
-            return math.fabs(float(old) - float(new)) >= tol
-
-    else:
-        def_cmp = ctf.normabs
-
-    files = [name for name in os.listdir(reference_outputs) if ".ini" not in name]
-    _, mismatch, errors = filecmp.cmpfiles(reference_outputs, ctf.out_files_dir, files, shallow=False)
-    numerical = [name for name in mismatch if ctf.num_unequal(name, def_cmp)]
-    return errors, numerical
 
 
 def extend_common_compare_args(cmd_args, parsed_args, *, include_clean):
@@ -526,12 +500,9 @@ def compare_to_reference(parsed_args):
         os.makedirs(out_dir, exist_ok=True)
         inis = make_default_inis(parsed_args)
         run_status = 1 if run_inis(inis, parsed_args) else 0
-        missing_or_extra, numerical = compare_with_camb_method(parsed_args, reference_outputs)
-        print(
-            "CAMB_test_files-style comparison: "
-            f"{len(numerical)} numerical mismatches, {len(missing_or_extra)} missing/extra files"
-        )
-        diff_status = 1 if missing_or_extra or numerical else 0
+        diff_args = ["--diff_to", reference_outputs, "--diff_tolerance", str(parsed_args.diff_tolerance)]
+        extend_common_compare_args(diff_args, parsed_args, include_clean=False)
+        diff_status = run_camb_test_files(diff_args)
     else:
         run_args = ["--make_ini"]
         extend_common_compare_args(run_args, parsed_args, include_clean=True)
