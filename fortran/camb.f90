@@ -656,7 +656,7 @@
     character(len=:), allocatable :: outroot, VectorFileName, &
         ScalarFileName, TensorFileName, TotalFileName, LensedFileName,&
         LensedTotFileName, LensPotentialFileName, ScalarCovFileName, &
-        version_check, DefaultFileName
+        version_check, ArrayKey
     integer :: i
     character(len=Ini_max_string_len), allocatable :: TransferFileNames(:), &
         MatterPowerFileNames(:), TransferClFileNames(:)
@@ -683,24 +683,22 @@
         allocate (MatterPowerFileNames(P%Transfer%PK_num_redshifts))
         allocate (TransferClFileNames(P%Transfer%PK_num_redshifts))
         do i=1, P%transfer%PK_num_redshifts
+            ArrayKey = Ini%Key_To_Arraykey('transfer_filename', i)
             if (i == 1) then
-                DefaultFileName = 'transfer_out.dat'
+                TransferFileNames(i) = Ini%Read_String_Default(ArrayKey, 'transfer_out.dat')
             else
-                DefaultFileName = trim(numcat('transfer_',i))//'.dat'
+                TransferFileNames(i) = Ini%Read_String_Default(ArrayKey, trim(numcat('transfer_',i))//'.dat')
             end if
-            TransferFileNames(i) = Ini%Read_String_Default( &
-                Ini%Key_To_Arraykey('transfer_filename', i), DefaultFileName)
 
+            ArrayKey = Ini%Key_To_Arraykey('transfer_matterpower', i)
             if (i == 1) then
-                DefaultFileName = 'matterpower.dat'
+                MatterPowerFilenames(i) = Ini%Read_String_Default(ArrayKey, 'matterpower.dat')
             else
-                DefaultFileName = trim(numcat('matterpower_',i))//'.dat'
+                MatterPowerFilenames(i) = Ini%Read_String_Default(ArrayKey, trim(numcat('matterpower_',i))//'.dat')
             end if
-            MatterPowerFilenames(i) = Ini%Read_String_Default( &
-                Ini%Key_To_Arraykey('transfer_matterpower', i), DefaultFileName)
 
-            TransferFileNames(i) = trim(outroot)//TransferFileNames(i)
-            MatterPowerFilenames(i) = trim(outroot)//MatterPowerFilenames(i)
+            TransferFileNames(i) = outroot // TransferFileNames(i)
+            MatterPowerFilenames(i) = outroot // MatterPowerFilenames(i)
 
             if (P%Do21cm) then
                 TransferClFileNames(i) = Ini%Read_String_Array('transfer_cl_filename',i)
@@ -711,7 +709,7 @@
             end if
 
             if (TransferClFileNames(i)/= '') &
-                TransferClFileNames(i) = trim(outroot)//TransferClFileNames(i)
+                TransferClFileNames(i) = outroot // TransferClFileNames(i)
         end do
     end if
 
@@ -720,15 +718,17 @@
     output_factor = Ini%Read_Double('CMB_outputscale', 1.d0)
 
     if (P%WantScalars) then
-        ScalarFileName = trim(outroot) // Ini%Read_String_Default('scalar_output_file', 'scalCls.dat')
-        LensedFileName = trim(outroot) // Ini%Read_String_Default('lensed_output_file', 'lensedCls.dat')
-        LensPotentialFileName = concat(outroot, &
-            Ini%Read_String_Default('lens_potential_output_file', 'lenspotentialCls.dat'))
+        ScalarFileName = Ini%Read_String_Default('scalar_output_file', 'scalCls.dat')
+        ScalarFileName = outroot // ScalarFileName
+        LensedFileName = Ini%Read_String_Default('lensed_output_file', 'lensedCls.dat')
+        LensedFileName = outroot // LensedFileName
+        LensPotentialFileName = Ini%Read_String_Default('lens_potential_output_file', 'lenspotentialCls.dat')
+        LensPotentialFileName = outroot // LensPotentialFileName
         ScalarCovFileName = Ini%Read_String_Default('scalar_covariance_output_file', &
             'scalarCovCls.dat', .false.)
         if (ScalarCovFileName /= '') then
             P%want_cl_2D_array = .true.
-            ScalarCovFileName = concat(outroot, ScalarCovFileName)
+            ScalarCovFileName = outroot // ScalarCovFileName
         end if
     else
         ScalarFileName = ''
@@ -737,11 +737,13 @@
         ScalarCovFileName = ''
     end if
     if (P%WantTensors) then
-        TensorFileName = trim(outroot) // Ini%Read_String_Default('tensor_output_file', 'tensCls.dat')
+        TensorFileName = Ini%Read_String_Default('tensor_output_file', 'tensCls.dat')
+        TensorFileName = outroot // TensorFileName
         if (P%WantScalars) then
-            TotalFileName = trim(outroot) // Ini%Read_String_Default('total_output_file', 'totCls.dat')
-            LensedTotFileName = trim(outroot) // &
-                Ini%Read_String_Default('lensed_total_output_file', 'lensedtotCls.dat')
+            TotalFileName = Ini%Read_String_Default('total_output_file', 'totCls.dat')
+            TotalFileName = outroot // TotalFileName
+            LensedTotFileName = Ini%Read_String_Default('lensed_total_output_file', 'lensedtotCls.dat')
+            LensedTotFileName = outroot // LensedTotFileName
         else
             TotalFileName = ''
             LensedTotFileName = ''
@@ -752,14 +754,15 @@
         LensedTotFileName = ''
     end if
     if (P%WantVectors) then
-        VectorFileName = trim(outroot) // Ini%Read_String_Default('vector_output_file', 'vecCls.dat')
+        VectorFileName = Ini%Read_String_Default('vector_output_file', 'vecCls.dat')
+        VectorFileName = outroot // VectorFileName
     else
         VectorFileName = ''
     end if
 
 #ifdef WRITE_FITS
     if (P%WantCls) then
-        FITSfilename = trim(outroot) // Ini%Read_String('FITS_filename', .true.)
+        FITSfilename = outroot // Ini%Read_String('FITS_filename', .true.)
         if (FITSfilename /= '') then
             inquire(file=FITSfilename, exist=bad)
             if (bad) then

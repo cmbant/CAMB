@@ -251,7 +251,7 @@
         real(dl) :: Recombination_saha_z !Redshift at which saha OK
         real(dl), private :: NNow, fHe
         integer, private :: nz = 0
-        real(dl), private :: delta_z = 0._dl
+        real(dl), private :: delta_z = 0._dl, minz = zfinal, maxz = zinitial
         real(dl), allocatable, private :: zrec(:), xrec(:), dxrec(:), Tsrec(:), dTsrec(:), tmrec(:), dtmrec(:), &
             xrec_horner(:, :), tsrec_horner(:, :), tmrec_horner(:, :)
         ! tmrec stores a*Tmat = Tmat/(1+z)
@@ -424,19 +424,18 @@
     class(TRecfast) :: this
     real(dl), intent(in) :: a
     real(dl) z, zst, TRecfast_tm, aTmat_stored, az
-    integer ilo,ihi
+    integer ihi
 
     z=1/a-1
     associate( Calc => this%Calc)
-        if (z >= Calc%zrec(1)) then
+        if (z >= Calc%maxz) then
             TRecfast_tm=Calc%Tnow/a
         else
-            if (z <= zfinal) then
+            if (z <= Calc%minz) then
                 TRecfast_tm=(1._dl + zfinal)*Calc%Tmrec(Calc%nz)
             else
                 zst = (zinitial - z)/Calc%delta_z
                 ihi = int(zst)
-                ilo = ihi + 1
                 az = zst - real(ihi, dl)
                 aTmat_stored = Calc%tmrec_horner(1, ihi) + az*(Calc%tmrec_horner(2, ihi) + az*(Calc%tmrec_horner(3, ihi) + &
                     az*Calc%tmrec_horner(4, ihi)))
@@ -453,19 +452,18 @@
     !zrec(1) is zinitial-delta_z
     real(dl), intent(in) :: a
     real(dl) zst,z,az,TRecfast_ts, aTspin_stored
-    integer ilo,ihi
+    integer ihi
 
     z=1/a-1
     associate(Calc => this%Calc)
-        if (z.ge.Calc%zrec(1)) then
+        if (z >= Calc%maxz) then
             TRecfast_ts=(1._dl + z)*Calc%tsrec(1)
         else
-            if (z.le.zfinal) then
+            if (z <= Calc%minz) then
                 TRecfast_ts=(1._dl + zfinal)*Calc%tsrec(Calc%nz)
             else
                 zst = (zinitial - z)/Calc%delta_z
                 ihi = int(zst)
-                ilo = ihi + 1
                 az = zst - real(ihi, dl)
                 aTspin_stored = Calc%tsrec_horner(1, ihi) + az*(Calc%tsrec_horner(2, ihi) + az*(Calc%tsrec_horner(3, ihi) + &
                     az*Calc%tsrec_horner(4, ihi)))
@@ -479,19 +477,18 @@
     class(TRecfast) :: this
     real(dl), intent(in) :: a
     real(dl) zst,z,az,TRecfast_xe
-    integer ilo,ihi
+    integer ihi
 
     z=1/a-1
     associate(Calc => this%Calc)
-        if (z.ge.Calc%zrec(1)) then
+        if (z >= Calc%maxz) then
             TRecfast_xe=Calc%xrec(1)
         else
-            if (z.le.zfinal) then
+            if (z <= Calc%minz) then
                 TRecfast_xe=Calc%xrec(Calc%nz)
             else
                 zst = (zinitial - z)/Calc%delta_z
                 ihi = int(zst)
-                ilo = ihi + 1
                 az = zst - real(ihi, dl)
                 TRecfast_xe = Calc%xrec_horner(1, ihi) + az*(Calc%xrec_horner(2, ihi) + az*(Calc%xrec_horner(3, ihi) + &
                     az*Calc%xrec_horner(4, ihi)))
@@ -505,21 +502,20 @@
     real(dl), intent(in) :: a
     real(dl), intent(out) :: xe, Tm
     real(dl) z, zst, aTmat_stored, az
-    integer ilo,ihi
+    integer ihi
 
     z=1/a-1
     associate(Calc => this%Calc)
-        if (z.ge.Calc%zrec(1)) then
+        if (z >= Calc%maxz) then
             xe=Calc%xrec(1)
             Tm = Calc%Tnow/a
         else
-            if (z.le.zfinal) then
+            if (z <= Calc%minz) then
                 xe=Calc%xrec(Calc%nz)
                 Tm = (1._dl + zfinal)*Calc%Tmrec(Calc%nz)
             else
                 zst = (zinitial - z)/Calc%delta_z
                 ihi = int(zst)
-                ilo = ihi + 1
                 az = zst - real(ihi, dl)
                 xe = Calc%xrec_horner(1, ihi) + az*(Calc%xrec_horner(2, ihi) + az*(Calc%xrec_horner(3, ihi) + &
                     az*Calc%xrec_horner(4, ihi)))
@@ -571,6 +567,8 @@
 
     Calc%nz = target_nz
     Calc%delta_z = (zinitial-zfinal)/real(Calc%nz, dl)
+    Calc%minz = zfinal + 1.e-12_dl*Calc%delta_z
+    Calc%maxz = zinitial - Calc%delta_z - 1.e-12_dl*Calc%delta_z
     if (needs_allocate) then
         allocate(Calc%zrec(Calc%nz), Calc%xrec(Calc%nz), Calc%dxrec(Calc%nz), Calc%tsrec(Calc%nz), &
             Calc%dtsrec(Calc%nz), Calc%tmrec(Calc%nz), Calc%dtmrec(Calc%nz), Calc%xrec_horner(4, Calc%nz - 1), &
