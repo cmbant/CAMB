@@ -9,7 +9,8 @@ on:
 jobs:
   fortran-test:
     runs-on: ubuntu-latest
-    if: github.event_name != 'pull_request' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != 'cmbant/camb')
+    if: github.event_name != 'pull_request' || (github.event_name == 'pull_request'
+      && github.event.pull_request.head.repo.full_name != 'cmbant/camb')
 
     steps:
       - uses: actions/checkout@v5
@@ -29,7 +30,7 @@ jobs:
           python -m pip install -e .
 
       - name: Run Build and Test Script
-        run: python fortran/tests/run_tests.py
+        run: python fortran/tests/run_tests.py --verbose_diff_output
 
       - name: Upload Test Files on Failure
         if: failure()
