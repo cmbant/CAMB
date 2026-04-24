@@ -3339,8 +3339,14 @@
             ( PK%log_kh(2)-PK%log_kh(1) )
         outpower = PK%matpower(1,itf) + dp*(logk - PK%log_kh(1))
     else if (logk > PK%log_kh(PK%num_k)) then
-        !Do dodgy linear extrapolation on assumption accuracy of result won't matter
+        if (PK%matpower(PK%num_k,itf) >= PK%matpower(PK%num_k-1,itf)) then
+            call GlobalError(FormatString('MatterPowerData_k: cannot extrapolate rising high-k matter power tail' // &
+                ' from k/h=%f to requested k/h=%f', exp(PK%log_kh(PK%num_k)), kh), error_nonlinear)
+            outpower = 0
+            return
+        end if
 
+        !Do dodgy linear extrapolation on assumption accuracy of result won't matter
         dp = (PK%matpower(PK%num_k,itf) -  PK%matpower(PK%num_k-1,itf)) / &
             ( PK%log_kh(PK%num_k)-PK%log_kh(PK%num_k-1) )
         outpower = PK%matpower(PK%num_k,itf) + dp*(logk - PK%log_kh(PK%num_k))
