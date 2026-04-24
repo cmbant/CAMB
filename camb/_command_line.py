@@ -4,9 +4,19 @@ import os
 import sys
 from argparse import RawTextHelpFormatter
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-import camb
-from camb.baseconfig import filepath_to_fortran, lib_import
+sys.path.insert(0, os.path.dirname(__file__))
+
+from baseconfig import filepath_to_fortran, lib_import
+
+
+def _get_version() -> str:
+    init_path = os.path.join(os.path.dirname(__file__), "__init__.py")
+    with open(init_path, encoding="utf-8") as handle:
+        for line in handle:
+            if line.startswith("__version__"):
+                _, value = line.split("=", 1)
+                return value.strip().strip("\"'")
+    raise RuntimeError(f"Could not determine CAMB version from {init_path}")
 
 
 def run_command_line():
@@ -21,7 +31,7 @@ def run_command_line():
     parser.add_argument(
         "--validate", action="store_true", help="Just validate the .ini file, don't actually run anything"
     )
-    parser.add_argument("-V", "--version", action="version", version=camb.__version__)
+    parser.add_argument("-V", "--version", action="version", version=_get_version())
     args = parser.parse_args()
 
     if not os.path.exists(args.ini_file):

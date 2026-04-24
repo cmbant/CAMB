@@ -30,7 +30,7 @@ def format_value(value) -> str:
     if isinstance(value, int):
         return str(value)
     if isinstance(value, float):
-        return f"{value:.17g}"
+        return repr(value)
     return str(value)
 
 
