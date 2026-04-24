@@ -8,6 +8,11 @@ The repository-level VS Code settings stay host-friendly and only help VS Code d
 The devcontainer sets its own interpreter path separately, so a Windows host virtual environment and the Linux
 container virtual environment can coexist cleanly.
 
+The devcontainer is designed to open either the main CAMB checkout or a linked Git worktree. It mounts the parent
+directory of the opened folder so the container can always see the repository `.git` metadata, and the startup script
+normalizes linked-worktree metadata to portable relative paths so the same checkout works from both Windows and the
+Linux container.
+
 When the container is created it:
 
 - installs the CAMB build toolchain, including `gfortran`, `g++`, `make`, and `libgsl-dev`

@@ -10,9 +10,10 @@
   "runArgs": [
     "--cpus=8"
   ],
+  "workspaceMount": "source=${localWorkspaceFolder}/..,target=/workspaces/camb-parent,type=bind",
+  "workspaceFolder": "/workspaces/camb-parent/${localWorkspaceFolderBasename}",
   "mounts": [
-    "source=${localEnv:HOME}${localEnv:USERPROFILE}/.gitconfig,target=/tmp/devcontainer-host.gitconfig,type=bind,readonly",
-    "source=${localWorkspaceFolder}/../.git,target=/workspaces/camb-common-git,type=bind"
+    "source=${localEnv:HOME}${localEnv:USERPROFILE}/.gitconfig,target=/tmp/devcontainer-host.gitconfig,type=bind,readonly"
   ],
   "initializeCommand": "git submodule update --init --recursive forutils",
   "containerEnv": {
@@ -21,8 +22,6 @@
     "GIT_CONFIG_COUNT": "1",
     "GIT_CONFIG_KEY_0": "submodule.forutils.ignore",
     "GIT_CONFIG_VALUE_0": "all",
-    "GIT_DIR": "/workspaces/camb-common-git/worktrees/${containerWorkspaceFolderBasename}",
-    "GIT_WORK_TREE": "${containerWorkspaceFolder}",
     "HYREC_PATH": "${containerWorkspaceFolder}/external/HYREC-2/",
     "OMP_NUM_THREADS": "8",
     "OPENBLAS_NUM_THREADS": "8",
@@ -33,12 +32,17 @@
     "UV_LINK_MODE": "copy",
     "UV_PROJECT_ENVIRONMENT": "/home/vscode/.local/share/camb-devcontainer/.venv"
   },
+  "remoteEnv": {
+    "PATH": "/home/vscode/.local/share/camb-devcontainer/.venv/bin:${containerEnv:PATH}",
+    "VIRTUAL_ENV": "/home/vscode/.local/share/camb-devcontainer/.venv"
+  },
   "postCreateCommand": "bash .devcontainer/scripts/post-create.sh",
   "postStartCommand": "bash .devcontainer/scripts/post-start.sh",
   "customizations": {
     "vscode": {
       "settings": {
-        "python.defaultInterpreterPath": "/home/vscode/.local/share/camb-devcontainer/.venv",
+        "python.defaultInterpreterPath": "/home/vscode/.local/share/camb-devcontainer/.venv/bin/python3",
+        "python.venvPath": "/home/vscode/.local/share/camb-devcontainer",
         "terminal.integrated.defaultProfile.linux": "bash"
       },
       "extensions": [

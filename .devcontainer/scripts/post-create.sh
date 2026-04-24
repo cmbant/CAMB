@@ -7,6 +7,22 @@ venv_dir="${CAMB_DEVCONTAINER_VENV:-${UV_PROJECT_ENVIRONMENT:-/home/vscode/.loca
 venv_python="${venv_dir}/bin/python3"
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 has_git_worktree=0
+workspace_git_dir="${GIT_DIR:-}"
+workspace_git_work_tree="${GIT_WORK_TREE:-}"
+
+workspace_git() {
+    local -a git_args
+
+    git_args=()
+    if [[ -n "${workspace_git_dir}" ]]; then
+        git_args+=("--git-dir=${workspace_git_dir}")
+    fi
+    if [[ -n "${workspace_git_work_tree}" ]]; then
+        git_args+=("--work-tree=${workspace_git_work_tree}")
+    fi
+
+    env -u GIT_DIR -u GIT_WORK_TREE -u GIT_COMMON_DIR -u GIT_INDEX_FILE git "${git_args[@]}" "$@"
+}
 
 repair_writable_path() {
     local path="$1"
@@ -32,12 +48,14 @@ cd "${workspace_dir}"
 
 bash "${script_dir}/post-start.sh"
 
-if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+if workspace_git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     has_git_worktree=1
 fi
 
+unset GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_INDEX_FILE
+
 if [[ ! -f "${FORUTILSPATH:-${workspace_dir}/forutils}/Makefile" ]] && [[ "${has_git_worktree}" == "1" ]]; then
-    git submodule update --init --recursive forutils
+    workspace_git submodule update --init --recursive forutils
 fi
 
 repair_writable_path "${workspace_dir}/external"
@@ -87,7 +105,7 @@ PY
 printf '%s\n' "${workspace_dir}" > "${site_packages_dir}/camb-devcontainer.pth"
 
 if [[ "${has_git_worktree}" == "1" ]]; then
-    if ! git config core.hooksPath .githooks; then
+    if ! workspace_git config core.hooksPath .githooks; then
         echo "Failed to configure repository-local Git hooks." >&2
     fi
 

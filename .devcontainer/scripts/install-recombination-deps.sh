@@ -9,6 +9,10 @@ hyrec_dir="${HYREC_PATH:-${external_dir}/HYREC-2}"
 cosmorec_url="${COSMOREC_URL:-https://www.cita.utoronto.ca/~jchluba/Recombination/_Downloads_/CosmoRec.v2.0.3b.tar.gz}"
 hyrec_repo="${HYREC_REPO:-https://github.com/nanoomlee/HYREC-2.git}"
 
+safe_git() {
+    env -u GIT_DIR -u GIT_WORK_TREE -u GIT_COMMON_DIR -u GIT_INDEX_FILE git "$@"
+}
+
 cosmorec_dir="${cosmorec_dir%/}"
 hyrec_dir="${hyrec_dir%/}"
 patched_cosmorec_flags=0
@@ -69,7 +73,7 @@ fi
 
 if [[ ! -d "${hyrec_dir}/.git" ]]; then
     rm -rf "${hyrec_dir}"
-    git clone --depth 1 --filter=blob:none "${hyrec_repo}" "${hyrec_dir}"
+    safe_git clone --depth 1 --filter=blob:none "${hyrec_repo}" "${hyrec_dir}"
 fi
 
 chmod -R u+rwX "${hyrec_dir}" >/dev/null 2>&1 || true
