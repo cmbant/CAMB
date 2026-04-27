@@ -362,6 +362,7 @@
     call ReadAccuracyReal(P%Accuracy%lAccuracyBoost, 'lAccuracyBoost', 'l_accuracy_boost')
     call ReadAccuracyReal(P%Accuracy%TimeStepBoost, 'TimeStepBoost')
     call ReadAccuracyReal(P%Accuracy%BackgroundTimeStepBoost, 'BackgroundTimeStepBoost')
+    call ReadAccuracyReal(P%Accuracy%TimeSwitchBoost, 'TimeSwitchBoost')
     call ReadAccuracyReal(P%Accuracy%IntTolBoost, 'IntTolBoost')
     call ReadAccuracyReal(P%Accuracy%SourcekAccuracyBoost, 'SourcekAccuracyBoost')
     call ReadAccuracyReal(P%Accuracy%IntkAccuracyBoost, 'IntkAccuracyBoost')

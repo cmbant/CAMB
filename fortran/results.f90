@@ -1811,7 +1811,8 @@
     last_dotmu = 0
 
     this%matter_verydom_tau = 0
-    a_verydom = CP%Accuracy%AccuracyBoost*5*(State%grhog+State%grhornomass)/(State%grhoc+State%grhob)
+    a_verydom = CP%Accuracy%AccuracyBoost*CP%Accuracy%TimeSwitchBoost &
+        *5*(State%grhog+State%grhornomass)/(State%grhoc+State%grhob)
     if (CP%Reion%Reionization) then
         call CP%Reion%get_timesteps(State%reion_n_steps, reion_z_start, reion_z_complete)
         State%reion_tau_start = max(0.05_dl, State%TimeOfZ(reion_z_start, 1d-3))
@@ -2350,7 +2351,7 @@
 
 
     if (State%CP%Reion%Reionization) then
-        nri0=int(State%reion_n_steps*State%CP%Accuracy%AccuracyBoost)
+        nri0=int(State%reion_n_steps * TimeSampleBoost)
         !Steps while reionization going from zero to maximum
         call TimeSteps%Add(State%reion_tau_start,State%reion_tau_complete,nri0)
     end if

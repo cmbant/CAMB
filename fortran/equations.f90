@@ -296,10 +296,13 @@
     if (CP%DoLateRadTruncation) then
         if (.not. EV%no_nu_multpoles) & !!.and. .not. EV%has_nu_relativistic .and. tau_switch_nu_massless ==noSwitch)  &
             tau_switch_no_nu_multpoles= &
-            max(15/EV%k_buf*CP%Accuracy%AccuracyBoost,min(State%taurend,EV%ThermoData%matter_verydom_tau))
+            max(15/EV%k_buf*CP%Accuracy%AccuracyBoost*CP%Accuracy%TimeSwitchBoost,&
+            min(State%taurend,EV%ThermoData%matter_verydom_tau))
 
-        if (.not. EV%no_phot_multpoles .and. (.not.CP%WantCls .or. EV%k_buf>0.03*CP%Accuracy%AccuracyBoost)) &
-            tau_switch_no_phot_multpoles =max(15/EV%k_buf,State%taurend)*CP%Accuracy%AccuracyBoost
+        if (.not. EV%no_phot_multpoles .and. (.not.CP%WantCls .or. &
+            EV%k_buf>0.03*CP%Accuracy%AccuracyBoost*CP%Accuracy%TimeSwitchBoost)) &
+            tau_switch_no_phot_multpoles =max(15/EV%k_buf,State%taurend)*CP%Accuracy%AccuracyBoost &
+            *CP%Accuracy%TimeSwitchBoost
     end if
 
     next_switch = min(tau_switch_ktau, tau_switch_nu_massless,EV%TightSwitchoffTime, tau_switch_nu_massive, &
@@ -513,9 +516,9 @@
                     nu_tau_notmassless(j, nu_i) = time
                 end do
 
-                a_nonrel =  2.5d0/nu_mass*CP%Accuracy%AccuracyBoost
+                a_nonrel =  2.5d0/nu_mass*CP%Accuracy%AccuracyBoost*CP%Accuracy%TimeSwitchBoost
                 nu_tau_nonrelativistic(nu_i) =DeltaTimeMaxed(0._dl,a_nonrel)
-                a_massive =  17.d0/nu_mass*CP%Accuracy%AccuracyBoost
+                a_massive =  17.d0/nu_mass*CP%Accuracy%AccuracyBoost*CP%Accuracy%TimeSwitchBoost
                 nu_tau_massive(nu_i) =nu_tau_nonrelativistic(nu_i) + DeltaTimeMaxed(a_nonrel,a_massive)
             end do
         end associate
@@ -1964,11 +1967,14 @@
 
     do nu_i = 1, CP%Nu_mass_eigenstates
         EV%MassiveNuApproxTime(nu_i) = Nu_tau_massive(nu_i)
-        a_massive =  20000*k/State%nu_masses(nu_i)*CP%Accuracy%AccuracyBoost*CP%Accuracy%lAccuracyBoost
+        a_massive =  20000*k/State%nu_masses(nu_i)*CP%Accuracy%AccuracyBoost &
+            *CP%Accuracy%TimeSwitchBoost*CP%Accuracy%lAccuracyBoost
         if (a_massive >=0.99) then
             EV%MassiveNuApproxTime(nu_i)=State%tau0+1
-        else if (a_massive > 17.d0/State%nu_masses(nu_i)*CP%Accuracy%AccuracyBoost) then
-            EV%MassiveNuApproxTime(nu_i)=max(EV%MassiveNuApproxTime(nu_i),State%DeltaTime(0._dl,a_massive, 0.01_dl))
+        else if (a_massive > 17.d0/State%nu_masses(nu_i)*CP%Accuracy%AccuracyBoost &
+            *CP%Accuracy%TimeSwitchBoost) then
+            EV%MassiveNuApproxTime(nu_i)=max(EV%MassiveNuApproxTime(nu_i), &
+                State%DeltaTime(0._dl,a_massive, 0.01_dl))
         end if
         ind = EV%nu_ix(nu_i)
         do  i=1,EV%nq(nu_i)
