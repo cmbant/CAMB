@@ -40,6 +40,7 @@ extensions = [
     "sphinx.ext.mathjax",
     "sphinx_rtd_theme",
     "sphinxcontrib.jquery",
+    "sphinxcontrib.programoutput",
     "sphinx_markdown_builder",
 ]
 

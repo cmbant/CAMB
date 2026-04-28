@@ -19,13 +19,26 @@ def _get_version() -> str:
     raise RuntimeError(f"Could not determine CAMB version from {init_path}")
 
 
+def _run_check_accuracy(argv: list[str]) -> int:
+    try:
+        from . import check_accuracy
+    except ImportError:
+        import check_accuracy
+
+    return check_accuracy.main(argv, prog="camb check_accuracy")
+
+
 def run_command_line():
+    if len(sys.argv) > 1 and sys.argv[1] == "check_accuracy":
+        raise SystemExit(_run_check_accuracy(sys.argv[2:]))
+
     parser = argparse.ArgumentParser(
         formatter_class=RawTextHelpFormatter,
         description="Python command line CAMB reading parameters from a .ini file."
         + "\n\nSample .ini files are provided in the source distribution, "
         "e.g. see inifiles/planck_2018.ini at "
-        "https://github.com/cmbant/CAMB/tree/master/inifiles",
+        "https://github.com/cmbant/CAMB/tree/master/inifiles"
+        + "\n\nUse 'camb check_accuracy INI_FILE ...' to compare results against a boosted-accuracy run.",
     )
     parser.add_argument("ini_file", help="text .ini file with parameter settings")
     parser.add_argument(
