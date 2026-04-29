@@ -7,6 +7,7 @@
     "editor.formatOnSave": true,
     "files.trimTrailingWhitespace": true,
     "files.trimFinalNewlines": true,
+    "files.eol": "\n",
     "python-envs.workspaceSearchPaths": [
         "./.venv"
     ],
