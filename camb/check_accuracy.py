@@ -74,10 +74,7 @@ GLOBAL_BOOST_COMPONENT_KEYS = (
     "KmaxBoost",
     "neutrino_q_boost",
 )
-COMPONENT_REFINEMENT_KEYS = (
-    "lSampleBoost",
-    "lAccuracyBoost",
-) + GLOBAL_BOOST_COMPONENT_KEYS
+COMPONENT_REFINEMENT_KEYS = GLOBAL_BOOST_COMPONENT_KEYS
 DISCRETE_ACCURACY_VALUES = {"neutrino_q_boost": (1.0, 1.5, 2.5)}
 
 
@@ -201,6 +198,25 @@ class AccuracyCheckResult:
     reference: RunOutput
     comparison: ComparisonResult
     chi2: ChiSquaredResult | None = None
+
+
+@dataclass(frozen=True)
+class PassingCandidate:
+    settings: dict[str, float | bool]
+    comparison: ComparisonResult
+    run: RunOutput | None
+
+
+@dataclass(frozen=True)
+class SearchResult:
+    settings: dict[str, float | bool]
+    comparison: ComparisonResult
+    run: RunOutput | None = None
+    fastest: PassingCandidate | None = None
+
+    def __iter__(self):
+        yield self.settings
+        yield self.comparison
 
 
 def tolerance_ranges(spec: list[tuple[int, float]]) -> list[RangeTolerance]:
@@ -530,6 +546,10 @@ def run_case(
 
 def run_timing_summary(run: RunOutput) -> str:
     return f"cpu={run.cpu_time:.2f}s wall={run.wall_time:.2f}s"
+
+
+def run_timing_key(run: RunOutput) -> tuple[float, float]:
+    return run.cpu_time, run.wall_time
 
 
 def get_lensed_cls(results, lmax: int | None) -> np.ndarray | None:
@@ -1079,6 +1099,28 @@ def comparison_status(comparison: ComparisonResult) -> str:
     )
 
 
+def search_timing_summary(result: SearchResult) -> list[str]:
+    lines = []
+    if result.run is not None:
+        lines.append(f"  selected timing: {run_timing_summary(result.run)}")
+    fastest = result.fastest
+    if (
+        fastest is not None
+        and fastest.run is not None
+        and settings_key(fastest.settings) != settings_key(result.settings)
+    ):
+        lines.append(
+            "  fastest passing candidate seen: "
+            f"{run_timing_summary(fastest.run)} with {format_settings(changed_settings(fastest.settings, result.settings))}"
+        )
+    return lines
+
+
+def print_search_timing_summary(result: SearchResult) -> None:
+    for line in search_timing_summary(result):
+        print(line)
+
+
 def plot_errors(standard: RunOutput, reference: RunOutput, plot_dir: Path) -> None:
     import matplotlib.pyplot as plt
 
@@ -1346,7 +1388,8 @@ def find_minimal_boosts(
     reference: RunOutput,
     high_accuracy_settings: dict[str, float | bool],
     raw_comparison: ComparisonResult | None = None,
-) -> tuple[dict[str, float | bool] | None, ComparisonResult | None]:
+    raw_run: RunOutput | None = None,
+) -> SearchResult | tuple[None, None]:
     raw_params = load_params(
         ini_file,
         no_validate=args.no_validate,
@@ -1358,12 +1401,23 @@ def find_minimal_boosts(
     target_settings = accuracy_search_target_settings(raw_settings, high_accuracy_settings)
     candidates = search_candidates(raw_settings, target_settings, args.search_grid)
     comparisons: dict[tuple, ComparisonResult] = {}
+    runs: dict[tuple, RunOutput] = {}
+    comparison_runs: dict[int, RunOutput] = {}
     if raw_comparison is not None:
-        comparisons[settings_key(raw_settings)] = raw_comparison
+        raw_key = settings_key(raw_settings)
+        comparisons[raw_key] = raw_comparison
+        if raw_run is not None:
+            runs[raw_key] = raw_run
+            comparison_runs[id(raw_comparison)] = raw_run
+    fastest: PassingCandidate | None = None
     runs_done = 0
 
+    def make_result(settings: dict[str, float | bool], comparison: ComparisonResult) -> SearchResult:
+        key = settings_key(refine_discrete_accuracy_settings(settings, raw_settings))
+        return SearchResult(settings, comparison, runs.get(key) or comparison_runs.get(id(comparison)), fastest)
+
     def run_candidate(settings: dict[str, float | bool]) -> ComparisonResult | None:
-        nonlocal runs_done
+        nonlocal fastest, runs_done
         settings = refine_discrete_accuracy_settings(settings, raw_settings)
         key = settings_key(settings)
         if key in comparisons:
@@ -1384,6 +1438,7 @@ def find_minimal_boosts(
             mpk_kmin=args.mpk_kmin,
             mpk_npoints=args.mpk_npoints,
         )
+        runs[key] = candidate
         print(f"      {run_timing_summary(candidate)}")
         comparison = compare_runs(
             candidate,
@@ -1392,6 +1447,11 @@ def find_minimal_boosts(
             mpk_tolerance=args.mpk_tolerance,
         )
         comparisons[key] = comparison
+        comparison_runs[id(comparison)] = candidate
+        if comparison.passed:
+            passing = PassingCandidate(settings, comparison, candidate)
+            if fastest is None or run_timing_key(candidate) < run_timing_key(fastest.run):
+                fastest = passing
         print(f"      {comparison_status(comparison)}")
         return comparison
 
@@ -1399,7 +1459,7 @@ def find_minimal_boosts(
     if raw_comparison is None:
         return None, None
     if raw_comparison.passed:
-        return raw_settings, raw_comparison
+        return make_result(raw_settings, raw_comparison)
 
     numeric_keys = BASE_ACCURACY_KEYS
     late_rad_values = [bool(raw_settings["DoLateRadTruncation"])]
@@ -1413,7 +1473,7 @@ def find_minimal_boosts(
         if comparison is None:
             return None, None
         if comparison.passed:
-            return settings, comparison
+            return make_result(settings, comparison)
 
     print("\nSearching single boost parameters from values close to raw...")
     best_settings = None
@@ -1421,7 +1481,7 @@ def find_minimal_boosts(
     best_cost = None
     for subset_size in range(1, len(numeric_keys) + 1):
         if subset_size == 2 and best_settings is not None and not exhaustive:
-            return best_settings, best_comparison
+            return make_result(best_settings, best_comparison)
         if subset_size == 2:
             if best_settings is None:
                 print("\nNo single-parameter path passed; searching boost parameter combinations...")
@@ -1445,7 +1505,7 @@ def find_minimal_boosts(
                 if refined_comparison is None:
                     if best_settings is not None:
                         print("Search run budget exhausted; returning the best passing subset found so far.")
-                        return best_settings, best_comparison
+                        return make_result(best_settings, best_comparison)
                     print("Search run budget exhausted before finding a passing subset.")
                     return None, None
                 cost = settings_cost(refined_settings, raw_settings)
@@ -1454,9 +1514,9 @@ def find_minimal_boosts(
                     best_comparison = refined_comparison
                     best_cost = cost
         if best_settings is not None and not exhaustive:
-            return best_settings, best_comparison
+            return make_result(best_settings, best_comparison)
     if best_settings is not None:
-        return best_settings, best_comparison
+        return make_result(best_settings, best_comparison)
 
     if not candidates:
         return None, None
@@ -1467,18 +1527,19 @@ def find_minimal_boosts(
         if comparison is None:
             if best_settings is not None:
                 print("Search run budget exhausted; returning the best passing settings found so far.")
-                return best_settings, best_comparison
+                return make_result(best_settings, best_comparison)
             print("Search run budget exhausted before finding a passing coarse candidate.")
             return None, None
         if comparison.passed:
             print("Found passing coarse settings; refining numeric boosts.")
-            return refine_numeric_boosts(
+            refined_settings, refined_comparison = refine_numeric_boosts(
                 settings,
                 raw_settings,
                 run_candidate,
                 args.search_tolerance,
                 cost_function=settings_cost,
             )
+            return make_result(refined_settings, refined_comparison)
     return None, None
 
 
@@ -1487,7 +1548,7 @@ def refine_accuracy_components(
     args: argparse.Namespace,
     reference: RunOutput,
     reference_accuracy_settings: dict[str, float | bool],
-) -> tuple[dict[str, float | bool] | None, ComparisonResult | None]:
+) -> SearchResult | tuple[None, ComparisonResult | None]:
     raw_params = load_params(
         ini_file,
         no_validate=args.no_validate,
@@ -1501,10 +1562,17 @@ def refine_accuracy_components(
     raw_settings = component_accuracy_settings(raw_params)
     target_settings = component_target_settings(raw_settings, target_accuracy_settings)
     comparisons: dict[tuple, ComparisonResult] = {}
+    runs: dict[tuple, RunOutput] = {}
+    comparison_runs: dict[int, RunOutput] = {}
+    fastest: PassingCandidate | None = None
     runs_done = 0
 
+    def make_result(settings: dict[str, float | bool], comparison: ComparisonResult) -> SearchResult:
+        key = settings_key(refine_discrete_accuracy_settings(settings, raw_settings))
+        return SearchResult(settings, comparison, runs.get(key) or comparison_runs.get(id(comparison)), fastest)
+
     def run_candidate(settings: dict[str, float | bool]) -> ComparisonResult | None:
-        nonlocal runs_done
+        nonlocal fastest, runs_done
         settings = refine_discrete_accuracy_settings(settings, raw_settings)
         key = settings_key(settings)
         if key in comparisons:
@@ -1525,6 +1593,7 @@ def refine_accuracy_components(
             mpk_kmin=args.mpk_kmin,
             mpk_npoints=args.mpk_npoints,
         )
+        runs[key] = candidate
         print(f"      {run_timing_summary(candidate)}")
         comparison = compare_runs(
             candidate,
@@ -1533,6 +1602,11 @@ def refine_accuracy_components(
             mpk_tolerance=args.mpk_tolerance,
         )
         comparisons[key] = comparison
+        comparison_runs[id(comparison)] = candidate
+        if comparison.passed:
+            passing = PassingCandidate(settings, comparison, candidate)
+            if fastest is None or run_timing_key(candidate) < run_timing_key(fastest.run):
+                fastest = passing
         print(f"      {comparison_status(comparison)}")
         return comparison
 
@@ -1575,7 +1649,7 @@ def refine_accuracy_components(
     if component_settings_cost(pruned_settings, raw_settings) < component_settings_cost(all_target, raw_settings):
         print(f"Greedy pruning reduced component count to {len(pruned_keys)}.")
     if not pruned_keys:
-        return pruned_settings, pruned_comparison
+        return make_result(pruned_settings, pruned_comparison)
 
     best_settings = None
     best_cost = None
@@ -1602,22 +1676,24 @@ def refine_accuracy_components(
                 best_cost = cost
         if best_settings is not None:
             print("Found passing component subset; refining values.")
-            return refine_numeric_boosts(
+            refined_settings, refined_comparison = refine_numeric_boosts(
                 best_settings,
                 raw_settings,
                 run_candidate,
                 args.search_tolerance,
                 cost_function=component_settings_cost,
             )
+            return make_result(refined_settings, refined_comparison)
 
     print("No smaller target-valued subset passed; refining the pruned component set.")
-    return refine_numeric_boosts(
+    refined_settings, refined_comparison = refine_numeric_boosts(
         pruned_settings,
         raw_settings,
         run_candidate,
         args.search_tolerance,
         cost_function=component_settings_cost,
     )
+    return make_result(refined_settings, refined_comparison)
 
 
 def greedy_prune_component_settings(
@@ -2003,25 +2079,28 @@ def main(argv: list[str] | None = None, *, prog: str | None = None) -> int:
         plot_errors(standard, reference, args.plot_dir)
 
     if args.find_minimal_boosts:
-        settings, search_comparison = find_minimal_boosts(
+        search_result = find_minimal_boosts(
             ini_file,
             args,
             reference,
             high_accuracy_settings,
             raw_comparison=comparison,
+            raw_run=standard,
         )
+        settings, search_comparison = search_result
         if settings is None:
             print("\nNo passing candidate settings found.")
             print(f"\n{failure_summary(comparison)}")
             return 1
         else:
             print(f"\nMinimal passing settings from search: {format_settings(settings)}")
+            if isinstance(search_result, SearchResult):
+                print_search_timing_summary(search_result)
             if search_comparison:
                 print_comparison(search_comparison)
             if args.refine_accuracy_components:
-                component_settings, component_comparison = refine_accuracy_components(
-                    ini_file, args, reference, high_accuracy_settings
-                )
+                component_result = refine_accuracy_components(ini_file, args, reference, high_accuracy_settings)
+                component_settings, component_comparison = component_result
                 if component_settings is None:
                     print("\nNo passing AccuracyBoost=1 component settings found.")
                 else:
@@ -2029,6 +2108,8 @@ def main(argv: list[str] | None = None, *, prog: str | None = None) -> int:
                         "\nPassing AccuracyBoost=1 component settings: "
                         f"{format_settings(changed_settings(component_settings, component_accuracy_settings(base_params)))}"
                     )
+                    if isinstance(component_result, SearchResult):
+                        print_search_timing_summary(component_result)
                     if component_comparison:
                         print_comparison(component_comparison)
             return 0

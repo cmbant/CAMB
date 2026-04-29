@@ -85,6 +85,11 @@ important, keeping ``AccuracyBoost=1``::
 
     camb check_accuracy inifiles/planck_2018.ini --find-minimal-boosts --refine-accuracy-components
 
+This component refinement varies ``IntTolBoost`` and the lower-level component
+accuracy settings affected by ``AccuracyBoost``. It does not vary
+``lSampleBoost`` or ``lAccuracyBoost``; those remain top-level boost parameters
+handled by ``--find-minimal-boosts``.
+
 Assess the physical effect of changing lensing reference settings without
 changing the comparison run::
 
@@ -127,6 +132,9 @@ API reference
 .. autofunction:: camb.check_accuracy.compare_params_accuracy
 
 .. autoclass:: camb.check_accuracy.AccuracyCheckResult
+   :members:
+
+.. autoclass:: camb.check_accuracy.SearchResult
    :members:
 
 .. autoclass:: camb.check_accuracy.ComparisonResult
