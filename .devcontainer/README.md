@@ -24,6 +24,9 @@ When the container is created it:
 - configures `core.hooksPath` to use the tracked `.githooks/pre-commit` wrapper, which can use `pre-commit` from the container venv or from a host `.venv`
 - pre-installs the `pre-commit` hook environments into a container-local cache so later hook runs can work offline
 
+The devcontainer also installs `findent` and `fortls` into the container-local virtual environment so the Modern Fortran
+extension can format and index code without depending on host-side tools.
+
 The bootstrap intentionally avoids `pip install -e .` during container creation:
 
 - `uv pip install ...` to install the small runtime and dev tool set directly
@@ -48,5 +51,9 @@ uv run python -m unittest camb.tests.camb_test
 
 On the host, keep using a normal workspace `.venv` if you want. The tracked Git hook resolves the right
 `pre-commit` executable at runtime instead of baking in one interpreter path during installation.
+
+Because the workspace may still contain a host-side `.venv` that is not usable inside Linux, tools that do not honor the
+devcontainer's selected interpreter may need to be pointed explicitly at
+`/home/vscode/.local/share/camb-devcontainer/.venv/bin/python3`.
 
 If you explicitly want a standards-based editable install after the container is up, you can still run `python -m pip install --no-build-isolation --no-deps -e .`, but that setuptools metadata phase is the part that remains slow on this bind-mounted checkout.

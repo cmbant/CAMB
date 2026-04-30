@@ -13,7 +13,9 @@
   "workspaceMount": "source=${localWorkspaceFolder}/..,target=/workspaces/camb-parent,type=bind",
   "workspaceFolder": "/workspaces/camb-parent/${localWorkspaceFolderBasename}",
   "mounts": [
-    "source=${localEnv:HOME}${localEnv:USERPROFILE}/.gitconfig,target=/tmp/devcontainer-host.gitconfig,type=bind,readonly"
+    "source=${localEnv:HOME}${localEnv:USERPROFILE}/.gitconfig,target=/tmp/devcontainer-host.gitconfig,type=bind,readonly",
+    "source=${localEnv:HOME}${localEnv:USERPROFILE}/.codex,target=/tmp/devcontainer-host-codex,type=bind,readonly",
+    "source=${localEnv:HOME}${localEnv:USERPROFILE}/.claude,target=/home/vscode/.claude,type=bind"
   ],
   "initializeCommand": "git submodule update --init --recursive forutils",
   "containerEnv": {
@@ -41,15 +43,23 @@
   "customizations": {
     "vscode": {
       "settings": {
+        "fortran.formatting.formatter": "findent",
+        "fortran.formatting.path": "/home/vscode/.local/share/camb-devcontainer/.venv/bin",
         "python.defaultInterpreterPath": "/home/vscode/.local/share/camb-devcontainer/.venv/bin/python3",
+        "python-envs.workspaceSearchPaths": [
+          "/home/vscode/.local/share/camb-devcontainer"
+        ],
         "python.venvPath": "/home/vscode/.local/share/camb-devcontainer",
-        "terminal.integrated.defaultProfile.linux": "bash"
+        "terminal.integrated.defaultProfile.linux": "bash",
+        "python-envs.terminal.autoActivationType": "off"
       },
       "extensions": [
         "charliermarsh.ruff",
         "fortran-lang.linter-gfortran",
         "ms-python.debugpy",
-        "ms-python.python"
+        "ms-python.python",
+        "openai.chatgpt",
+        "anthropic.claude-code"
       ]
     }
   }

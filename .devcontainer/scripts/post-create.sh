@@ -82,6 +82,8 @@ uv pip install \
     pip \
     setuptools \
     wheel \
+    findent \
+    fortls \
     numpy \
     scipy \
     sympy \

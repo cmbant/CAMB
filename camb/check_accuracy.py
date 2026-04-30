@@ -6,7 +6,8 @@ can also plot fractional differences, estimate a fiducial CMB delta chi-squared,
 search for minimal top-level boosts, and refine which underlying component
 accuracy settings are most relevant.
 
-Examples:
+Examples::
+
     camb check_accuracy inifiles/params.ini
     camb check_accuracy inifiles/params.ini --plot-dir accuracy_plots
     camb check_accuracy inifiles/params.ini --find-minimal-boosts --refine-accuracy-components
