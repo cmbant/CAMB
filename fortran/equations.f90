@@ -209,6 +209,12 @@
     real(dl) w(EV%nvar,9), y(EV%nvar), tol1, tau, tauend
     integer ind
 
+    if (Ev%q < 2e-3_dl .and. tau <= State%taurend .and. CP%WantCls) then
+        rk_settings%max_step_size = 2._dl
+    else
+        rk_settings%max_step_size = 20._dl / CP%Accuracy%IntTolBoost
+    end if
+
     call RungeKuttaDP45(EV, EV%ScalEqsToPropagate, derivs, tau, y, tauend, tol1, ind, rk_settings, EV%nvar, w)
     if (ind==-3) then
         call GlobalError('RungeKuttaDP45 error -3: the subroutine was unable  to  satisfy  the  error ' &
