@@ -7,6 +7,8 @@
 
     integer :: FeedbackLevel = 0 !if >0 print out useful information about the model
 
+    integer :: AccuracyTarget = 1 !if >0 enable targeted accuracy improvements
+
     logical :: output_file_headers = .true.
 
     logical :: DebugMsgs =.false. !Set to true to view progress and timing

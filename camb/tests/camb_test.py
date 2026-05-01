@@ -557,25 +557,21 @@ class CambTest(unittest.TestCase):
         pk_interp2 = PKnonlin2.P(z, kh)
         self.assertTrue(np.sum((pk_interp / pk_interp2 - 1) ** 2) < 0.005)
 
-        pars.NonLinearModel.set_params(halofit_version="mead")
-        _, _, pk = results.get_nonlinear_matter_power_spectrum(params=pars)
-        self.assertAlmostEqual(pk[0][160], 814.9, delta=0.5)
+        # The nonlinear matter grid can move when CMB source sampling changes; compare at a fixed physical k/h.
+        def pk_at_fixed_kh(halofit_version, kh_value=0.44223076105117803):
+            pars.NonLinearModel.set_params(halofit_version=halofit_version)
+            kh, _, pk = results.get_nonlinear_matter_power_spectrum(params=pars)
+            return np.exp(np.interp(np.log(kh_value), np.log(kh), np.log(pk[0])))
 
-        pars.NonLinearModel.set_params(halofit_version="mead2016")
-        _, _, pk = results.get_nonlinear_matter_power_spectrum(params=pars)
-        self.assertAlmostEqual(pk[0][160], 814.9, delta=0.5)
+        self.assertAlmostEqual(pk_at_fixed_kh("mead"), 814.9, delta=0.5)
 
-        pars.NonLinearModel.set_params(halofit_version="mead2015")
-        _, _, pk = results.get_nonlinear_matter_power_spectrum(params=pars)
-        self.assertAlmostEqual(pk[0][160], 791.3, delta=0.5)
+        self.assertAlmostEqual(pk_at_fixed_kh("mead2016"), 814.9, delta=0.5)
 
-        pars.NonLinearModel.set_params(halofit_version="mead2020")
-        _, _, pk = results.get_nonlinear_matter_power_spectrum(params=pars)
-        self.assertAlmostEqual(pk[0][160], 815.8, delta=0.5)
+        self.assertAlmostEqual(pk_at_fixed_kh("mead2015"), 791.3, delta=0.5)
 
-        pars.NonLinearModel.set_params(halofit_version="mead2020_feedback")
-        _, _, pk = results.get_nonlinear_matter_power_spectrum(params=pars)
-        self.assertAlmostEqual(pk[0][160], 799.0, delta=0.5)
+        self.assertAlmostEqual(pk_at_fixed_kh("mead2020"), 815.8, delta=0.5)
+
+        self.assertAlmostEqual(pk_at_fixed_kh("mead2020_feedback"), 799.0, delta=0.5)
 
         lmax = 4000
         pars.set_for_lmax(lmax)

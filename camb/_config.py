@@ -12,6 +12,9 @@ class _config:
     # print feedback if > 0 (note in Jupyter notebook this will appear in the terminal, not the notebook)
     FeedbackLevel = import_property(c_int, "config", "FeedbackLevel")
 
+    # enable targeted accuracy improvements if > 0, AccuracyTarget being SO-like.
+    AccuracyTarget = import_property(c_int, "config", "AccuracyTarget")
+
     # print additional timing and progress (when FeedbackLevel>0)
     DebugMsgs = import_property(c_bool, "config", "DebugMsgs")
 

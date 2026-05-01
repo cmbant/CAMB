@@ -850,12 +850,15 @@
     implicit none
     real(dl) dlnk0, dkn1, dkn2, q_switch, q_cmb, dksmooth
     real(dl) qmax_log
-    real(dl) SourceAccuracyBoost
+    real(dl) SourceAccuracyBoost, transferLogDensity
+    logical highPrecisionTransferSources
     !     set k values for which the sources for the anisotropy and
     !     polarization will be calculated. For low values of k we
     !     use a logarithmic spacing. closed case dealt with by SetClosedkValues
 
     SourceAccuracyBoost = CP%Accuracy%AccuracyBoost * CP%Accuracy%SourcekAccuracyBoost
+    highPrecisionTransferSources = AccuracyTarget > 0 .and. CP%Want_CMB .and. CP%WantScalars .and. CP%WantTransfer &
+        .and. CP%Transfer%high_precision
     if (CP%WantScalars .and. CP%Reion%Reionization .and. CP%Accuracy%AccuratePolarization) then
         dlnk0=2._dl/10/SourceAccuracyBoost
         !Need this to get accurate low l polarization
@@ -865,17 +868,31 @@
     end if
 
     if (CP%Accuracy%AccurateReionization) dlnk0 = dlnk0/2
+    !Low-l reionization polarization benefits from a modest cap on the low-k logarithmic source grid.
+    if (AccuracyTarget > 0 .and. CP%Want_CMB .and. CP%WantScalars .and. CP%Reion%Reionization .and. &
+        CP%Accuracy%AccuratePolarization .and. CP%Accuracy%AccurateReionization) dlnk0 = min(dlnk0, 0.075_dl)
+    if (highPrecisionTransferSources) then
+        !High-precision transfer output reuses this CMB source q grid up to q_cmb.
+        !Use 20/log interval for automatic transfer sampling, or the requested denser transfer grid.
+        transferLogDensity = max(20._dl, real(CP%Transfer%k_per_logint, dl))
+        dlnk0 = min(dlnk0, 1._dl/transferLogDensity)
+    end if
 
     dkn1=0.6_dl/State%taurst/SourceAccuracyBoost
     dkn2=0.9_dl/State%taurst/SourceAccuracyBoost/1.2
+    if (highPrecisionTransferSources) then
+        dkn1 = dkn1/1.5_dl
+        dkn2 = dkn2/1.5_dl
+    end if
     if (CP%WantTensors .or. CP%WantVectors) then
         dkn1=dkn1  *0.8_dl
         dlnk0=dlnk0/2 !*0.3_dl
         dkn2=dkn2*0.85_dl
     end if
 
-    qmax_log = dkn1/dlnk0
     q_switch = 2*6.3/State%taurst
+    !If the low-k logarithmic grid reaches the horizon-entry switch, skip the intermediate linear interval.
+    qmax_log = min(dkn1/dlnk0, q_switch)
     !Want linear spacing for wavenumbers which come inside horizon
     !Could use sound horizon, but for tensors that is not relevant
 
@@ -889,7 +906,7 @@
     associate(Evolve_q => ThisSources%Evolve_q)
         call Evolve_q%Init()
         call Evolve_q%Add_delta(qmin, qmax_log, dlnk0, IsLog = .true.)
-        if (qmax > qmax_log) &
+        if (qmax > qmax_log .and. q_switch > qmax_log) &
             call Evolve_q%Add_delta(qmax_log, min(qmax,q_switch), dkn1)
         if (qmax > q_switch) then
             call Evolve_q%Add_delta(q_switch, min(q_cmb,qmax), dkn2)
@@ -1271,6 +1288,8 @@
         !then no-lognum*dk0 linearly spaced at dk0 up to no*dk0
         !then at dk up to max_k_dk, then dk2 up to qmax_int
         lognum=nint(10*IntSampleBoost)
+        if (AccuracyTarget > 0 .and. CP%Want_CMB .and. CP%Accuracy%AccuratePolarization &
+            .and. CP%Accuracy%AccurateReionization) lognum = max(lognum, 11)
         dlnk1=1._dl/lognum
         no=nint(600*IntSampleBoost)
         dk0=1.8_dl/State%curvature_radius/State%chi0/IntSampleBoost
