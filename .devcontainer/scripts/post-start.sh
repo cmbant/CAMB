@@ -5,6 +5,8 @@ set -euo pipefail
 workspace_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 host_gitconfig="/tmp/devcontainer-host.gitconfig"
 host_codex_dir="/tmp/devcontainer-host-codex"
+host_claude_dir="/tmp/devcontainer-host-claude"
+host_claude_json="/tmp/devcontainer-host.claude.json"
 
 safe_git() {
     env -u GIT_DIR -u GIT_WORK_TREE -u GIT_COMMON_DIR -u GIT_INDEX_FILE git "$@"
@@ -101,6 +103,82 @@ setup_codex_dir() {
 }
 
 setup_codex_dir
+
+setup_claude_dir() {
+    local claude_dir source_path target_path
+
+    claude_dir="${HOME}/.claude"
+    if [[ -e "${claude_dir}" && ! -w "${claude_dir}" ]] && command -v sudo >/dev/null 2>&1; then
+        sudo chown -R "$(id -u):$(id -g)" "${claude_dir}" >/dev/null 2>&1 || true
+    fi
+
+    mkdir -p "${claude_dir}"
+    chmod 700 "${claude_dir}" >/dev/null 2>&1 || true
+
+    if [[ -f "${host_claude_json}" && ! -e "${HOME}/.claude.json" ]]; then
+        cp -p "${host_claude_json}" "${HOME}/.claude.json" >/dev/null 2>&1 || cp "${host_claude_json}" "${HOME}/.claude.json"
+        chmod 600 "${HOME}/.claude.json" >/dev/null 2>&1 || true
+    fi
+
+    if [[ ! -d "${host_claude_dir}" ]]; then
+        return 0
+    fi
+
+    for name in config.json settings.json policy-limits.json; do
+        source_path="${host_claude_dir}/${name}"
+        target_path="${claude_dir}/${name}"
+        if [[ -f "${source_path}" && ! -e "${target_path}" ]]; then
+            cp -p "${source_path}" "${target_path}" >/dev/null 2>&1 || cp "${source_path}" "${target_path}"
+            chmod 600 "${target_path}" >/dev/null 2>&1 || true
+        fi
+    done
+
+    for name in plugins; do
+        source_path="${host_claude_dir}/${name}"
+        target_path="${claude_dir}/${name}"
+        if [[ -d "${source_path}" ]]; then
+            mkdir -p "${target_path}"
+            cp -a "${source_path}/." "${target_path}/" >/dev/null 2>&1 || true
+        fi
+    done
+
+    mkdir -p \
+        "${claude_dir}/cache" \
+        "${claude_dir}/downloads" \
+        "${claude_dir}/file-history" \
+        "${claude_dir}/ide" \
+        "${claude_dir}/projects" \
+        "${claude_dir}/sessions" \
+        "${claude_dir}/telemetry"
+    chmod -R u+rwX \
+        "${claude_dir}/cache" \
+        "${claude_dir}/downloads" \
+        "${claude_dir}/file-history" \
+        "${claude_dir}/ide" \
+        "${claude_dir}/projects" \
+        "${claude_dir}/sessions" \
+        "${claude_dir}/telemetry" \
+        >/dev/null 2>&1 || true
+}
+
+setup_claude_dir
+
+setup_workspace_claude_link() {
+    local claude_link="${workspace_dir}/.claude"
+    local agents_dir="${workspace_dir}/.agents"
+
+    if [[ ! -d "${agents_dir}" ]]; then
+        return 0
+    fi
+
+    if [[ -L "${claude_link}" || -e "${claude_link}" ]]; then
+        return 0
+    fi
+
+    ln -s ".agents" "${claude_link}"
+}
+
+setup_workspace_claude_link
 
 if [[ ! -f "${host_gitconfig}" ]]; then
     exit 0

@@ -15,7 +15,8 @@
   "mounts": [
     "source=${localEnv:HOME}${localEnv:USERPROFILE}/.gitconfig,target=/tmp/devcontainer-host.gitconfig,type=bind,readonly",
     "source=${localEnv:HOME}${localEnv:USERPROFILE}/.codex,target=/tmp/devcontainer-host-codex,type=bind,readonly",
-    "source=${localEnv:HOME}${localEnv:USERPROFILE}/.claude,target=/home/vscode/.claude,type=bind"
+    "source=${localEnv:HOME}${localEnv:USERPROFILE}/.claude,target=/tmp/devcontainer-host-claude,type=bind,readonly",
+    "source=${localEnv:HOME}${localEnv:USERPROFILE}/.claude.json,target=/tmp/devcontainer-host.claude.json,type=bind,readonly"
   ],
   "initializeCommand": "git submodule update --init --recursive forutils",
   "containerEnv": {
