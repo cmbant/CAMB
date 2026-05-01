@@ -56,6 +56,7 @@ testfile*
 .vs
 *.mp4
 *.exe
+*_tmp*
 
 # Ignore all .dat and .ini files except those already tracked in git
 *.dat
