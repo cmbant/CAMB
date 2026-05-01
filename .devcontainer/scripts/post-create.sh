@@ -75,21 +75,6 @@ fi
 
 mkdir -p "${PRE_COMMIT_HOME:-/home/vscode/.cache/pre-commit}"
 
-# Install the small declared tool/runtime set directly, then do the editable CAMB build separately.
-uv pip install \
-    --upgrade \
-    --python "${venv_python}" \
-    pip \
-    setuptools \
-    wheel \
-    findent \
-    fortls \
-    numpy \
-    scipy \
-    sympy \
-    packaging \
-    ruff \
-    pre-commit
 
 site_packages_dir="$("${venv_python}" - <<'PY'
 import site

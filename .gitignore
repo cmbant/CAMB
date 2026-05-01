@@ -88,3 +88,4 @@ __pycache__
 external/
 !.devcontainer/
 !.devcontainer/**
+.claude

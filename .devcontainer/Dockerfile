@@ -1,6 +1,12 @@
 ARG VARIANT="3.14-bookworm"
 FROM mcr.microsoft.com/devcontainers/python:${VARIANT}
 
+ENV CAMB_DEVCONTAINER_VENV=/home/vscode/.local/share/camb-devcontainer/.venv \
+    PRE_COMMIT_HOME=/home/vscode/.cache/pre-commit \
+    UV_CACHE_DIR=/home/vscode/.cache/uv \
+    UV_LINK_MODE=copy \
+    UV_PROJECT_ENVIRONMENT=/home/vscode/.local/share/camb-devcontainer/.venv
+
 RUN apt-get update \
     && export DEBIAN_FRONTEND=noninteractive \
     && apt-get install -y --no-install-recommends \
@@ -21,3 +27,24 @@ RUN apt-get update \
     && rm -f /tmp/install-uv.sh \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
+
+RUN mkdir -p \
+    /home/vscode/.local/share/camb-devcontainer \
+    "${PRE_COMMIT_HOME}" \
+    "${UV_CACHE_DIR}" \
+    && chown -R vscode:vscode /home/vscode/.local /home/vscode/.cache \
+    && su vscode -c 'uv venv /home/vscode/.local/share/camb-devcontainer/.venv --python /usr/local/bin/python3' \
+    && su vscode -c 'uv pip install \
+        --upgrade \
+        --python /home/vscode/.local/share/camb-devcontainer/.venv/bin/python3 \
+        pip \
+        setuptools \
+        wheel \
+        findent \
+        fortls \
+        numpy \
+        scipy \
+        sympy \
+        packaging \
+        ruff \
+        pre-commit'

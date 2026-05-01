@@ -22,9 +22,11 @@
   "containerEnv": {
     "COSMOREC_PATH": "${containerWorkspaceFolder}/external/CosmoRec/",
     "FORUTILSPATH": "${containerWorkspaceFolder}/forutils",
-    "GIT_CONFIG_COUNT": "1",
+    "GIT_CONFIG_COUNT": "2",
     "GIT_CONFIG_KEY_0": "submodule.forutils.ignore",
     "GIT_CONFIG_VALUE_0": "all",
+    "GIT_CONFIG_KEY_1": "core.fileMode",
+    "GIT_CONFIG_VALUE_1": "false",
     "HYREC_PATH": "${containerWorkspaceFolder}/external/HYREC-2/",
     "OMP_NUM_THREADS": "8",
     "OPENBLAS_NUM_THREADS": "8",
