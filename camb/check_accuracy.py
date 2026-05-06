@@ -304,7 +304,7 @@ def build_parser(prog: str | None = None) -> argparse.ArgumentParser:
         default=1e-4,
         help="minimum k/h for matter power comparison",
     )
-    parser.add_argument("--mpk-tolerance", type=float, default=MPK_TOLERANCE)
+    parser.add_argument("--mpk-tolerance", type=float, default=None)
     parser.add_argument("--derived-tolerance", type=float, default=DERIVED_TOLERANCE)
     parser.add_argument(
         "--plot-dir",
@@ -819,7 +819,7 @@ def compare_params_accuracy(
     mpk_kmin: float = 1e-4,
     mpk_npoints: int = 500,
     derived_tolerance: float = DERIVED_TOLERANCE,
-    mpk_tolerance: float = MPK_TOLERANCE,
+    mpk_tolerance: float | None = None,
     chi2_config: NoiseConfig | None = None,
 ) -> AccuracyCheckResult:
     """Compare a :class:`~camb.model.CAMBparams` object against a higher-accuracy copy.
@@ -828,6 +828,8 @@ def compare_params_accuracy(
     includes both CAMB runs, row-wise comparison statistics, and optionally a
     fiducial CMB delta chi-squared estimate.
     """
+    if mpk_tolerance is None:
+        mpk_tolerance = MPK_TOLERANCE if params.Transfer.high_precision else 3e-3
     reference_accuracy_settings = reference_accuracy_settings or DEFAULT_ACCURACY_SETTINGS
 
     standard_params = copy_params(params)
@@ -2045,6 +2047,8 @@ def main(argv: list[str] | None = None, *, prog: str | None = None) -> int:
     print(f"High-accuracy settings: {format_settings(high_accuracy_settings)}")
 
     base_params = load_params(ini_file, no_validate=args.no_validate)
+    if args.mpk_tolerance is None:
+        args.mpk_tolerance = MPK_TOLERANCE if base_params.Transfer.high_precision else 3e-3
     noise_config = None
     if args.chi2:
         try:
