@@ -1445,15 +1445,16 @@ class CAMBdata(F2003Class):
         self._scale_cls(res, CMB_unit, raw_cl)
         return res
 
-    def get_lensed_cls_with_spectrum(self, clpp, lmax=None, CMB_unit=None, raw_cl=False):
+    def get_lensed_cls_with_spectrum(self, clpp, lmax=None, CMB_unit=None, raw_cl=False, lensing_method=None):
         r"""
-        Get lensed CMB power spectra using curved-sky correlation function method, using
+        Get lensed CMB power spectra using a correlation-function lensing method, using
         cpp as the lensing spectrum. Useful for e.g. getting partially-delensed spectra.
 
         :param clpp: array of :math:`[L(L+1)]^2 C_L^{\phi\phi}/2\pi` lensing potential power spectrum (zero based)
         :param lmax: lmax to output to
         :param CMB_unit: scale results from dimensionless. Use 'muK' for :math:`\mu K^2` units for CMB :math:`C_\ell`
         :param raw_cl: return :math:`C_\ell` rather than :math:`\ell(\ell+1)C_\ell/2\pi`
+        :param lensing_method: optional temporary override for :attr:`camb.config.lensing_method`
         :return: numpy array CL[0:lmax+1,0:4], where 0..3 indexes TT, EE, BB, TE.
         """
         assert self.Params.DoLensing
@@ -1465,14 +1466,24 @@ class CAMBdata(F2003Class):
         lensClsWithSpectrum = lib_import("lensing", "", "lensclswithspectrum")
         lensClsWithSpectrum.argtypes = [POINTER(CAMBdata), numpy_1d, numpy_2d, int_arg]
         clpp = np.array(clpp, dtype=np.float64)
-        lensClsWithSpectrum(byref(self), clpp, res, byref(lmax_lensed))
+        original_method = None
+        if lensing_method is not None:
+            original_method = config.lensing_method
+            config.lensing_method = lensing_method
+        try:
+            lensClsWithSpectrum(byref(self), clpp, res, byref(lmax_lensed))
+        finally:
+            if original_method is not None:
+                config.lensing_method = original_method
         res = res[: min(lmax_lensed.value, lmax or lmax_lensed.value) + 1, :]
         self._scale_cls(res, CMB_unit, raw_cl)
         return res
 
-    def get_partially_lensed_cls(self, Alens: float | np.ndarray, lmax=None, CMB_unit=None, raw_cl=False):
+    def get_partially_lensed_cls(
+        self, Alens: float | np.ndarray, lmax=None, CMB_unit=None, raw_cl=False, lensing_method=None
+    ):
         r"""
-        Get lensed CMB power spectra using curved-sky correlation function method, using
+        Get lensed CMB power spectra using a correlation-function lensing method, using
         true lensing spectrum scaled by Alens. Alens can be an array in L for realistic delensing estimates.
         Note that if Params.Alens is also set, the result is scaled by the product of both
 
@@ -1482,6 +1493,7 @@ class CAMBdata(F2003Class):
         :param lmax: lmax to output to
         :param CMB_unit: scale results from dimensionless. Use 'muK' for :math:`\mu K^2` units for CMB :math:`C_\ell`
         :param raw_cl: return :math:`C_\ell` rather than :math:`\ell(\ell+1)C_\ell/2\pi`
+        :param lensing_method: optional temporary override for :attr:`camb.config.lensing_method`
         :return: numpy array CL[0:lmax+1,0:4], where 0..3 indexes TT, EE, BB, TE.
         """
         clpp = self.get_lens_potential_cls()[:, 0]
@@ -1489,7 +1501,7 @@ class CAMBdata(F2003Class):
             clpp *= Alens
         else:
             clpp[: Alens.size] *= Alens
-        return self.get_lensed_cls_with_spectrum(clpp, lmax, CMB_unit, raw_cl)
+        return self.get_lensed_cls_with_spectrum(clpp, lmax, CMB_unit, raw_cl, lensing_method=lensing_method)
 
     @overload
     def angular_diameter_distance(self, z: float) -> float: ...

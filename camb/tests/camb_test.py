@@ -604,6 +604,24 @@ class CambTest(unittest.TestCase):
             )
         )
 
+        direct_method = camb.lensing_method_curv_corr_direct
+        cls_lensed_direct = data.get_lensed_cls_with_spectrum(
+            data.get_lens_potential_cls()[:, 0], lmax=3000, lensing_method=direct_method
+        )
+        np.testing.assert_allclose(cls_lensed_direct[2:2000, 2], cls_lensed2[2:2000, 2], rtol=1e-3)
+        np.testing.assert_allclose(cls_lensed_direct[2:2000, 1], cls_lensed2[2:2000, 1], rtol=1e-3)
+        np.testing.assert_allclose(cls_lensed_direct[2:2000, 0], cls_lensed2[2:2000, 0], rtol=1e-3)
+        self.assertTrue(
+            np.all(
+                np.abs(
+                    (cls_lensed_direct[2:3000, 3] - cls_lensed2[2:3000, 3])
+                    / np.sqrt(cls_lensed_direct[2:3000, 0] * cls_lensed_direct[2:3000, 1])
+                )
+                < 1e-4
+            )
+        )
+        self.assertEqual(camb.config.lensing_method, camb.lensing_method_curv_corr)
+
         corr, xvals, weights = correlations.gauss_legendre_correlation(cls["lensed_scalar"])
         clout = correlations.corr2cl(corr, xvals, weights, 2500)
         self.assertTrue(np.all(np.abs(clout[2:2300, 2] / cls["lensed_scalar"][2:2300, 2] - 1) < 1e-3))

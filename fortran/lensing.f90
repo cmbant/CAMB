@@ -39,10 +39,11 @@
     use Precision
     use results
     use constants, only : const_pi, const_twopi, const_fourpi
+    use MathUtils, only : Gauss_Legendre
     use splines
     implicit none
     integer, parameter :: lensing_method_curv_corr=1,lensing_method_flat_corr=2, &
-        lensing_method_harmonic=3
+        lensing_method_harmonic=3, lensing_method_curv_corr_direct=4
 
     integer :: lensing_method = lensing_method_curv_corr
 
@@ -64,8 +65,11 @@
     integer :: lmax_donelnfa = 0
     real(dl), dimension(:), allocatable  :: lnfa
 
+    integer :: gauss_legendre_cache_npoints = 0
+    real(dl), dimension(:), allocatable, target :: gauss_legendre_cache_xvals, gauss_legendre_cache_weights
+
     public lens_Cls, lensing_includes_tensors, lensing_method, lensing_method_flat_corr,&
-        lensing_method_curv_corr,lensing_method_harmonic, BessI, ALens_Fiducial, &
+        lensing_method_curv_corr,lensing_method_harmonic, lensing_method_curv_corr_direct, BessI, ALens_Fiducial, &
         lensing_sanity_check_amplitude, lensClsWithSpectrum, &
         GetFlatSkyCGrads, GetFlatSkyCgradsWithSpectrum
     contains
@@ -76,6 +80,8 @@
 
     if (lensing_method == lensing_method_curv_corr) then
         call CorrFuncFullSky(State)
+    elseif (lensing_method == lensing_method_curv_corr_direct) then
+        call CorrFuncFullSkyDirect(State)
     elseif (lensing_method == lensing_method_flat_corr) then
         call CorrFuncFlatSky(State)
     elseif (lensing_method == lensing_method_harmonic) then
@@ -101,6 +107,22 @@
 
     end subroutine CorrFuncFullSky
 
+    subroutine CorrFuncFullSkyDirect(State)
+    class(CAMBdata) :: State
+    integer :: lmax_extrap,l
+    real(dl) CPP(0:State%CP%max_l)
+
+    lmax_extrap = State%CP%Max_l - lensed_convolution_margin + 750
+    lmax_extrap = min(lmax_extrap_highl,lmax_extrap)
+    do l= State%CP%min_l,State%CP%max_l
+        ! Cl_scalar(l,1,C_Phi) is l^4 C_phi_phi
+        CPP(l) = State%CLdata%Cl_scalar(l,C_Phi)*(l+1)**2/real(l,dl)**2/const_twopi
+    end do
+    call CorrFuncFullSkyDirectImpl(State, State%ClData, State%ClData, CPP, &
+        State%CP%min_l,max(lmax_extrap,State%CP%max_l))
+
+    end subroutine CorrFuncFullSkyDirect
+
     subroutine lensClsWithSpectrum(State, CPP, lensedCls, lmax_lensed)
     !Get lensed CL using CPP as the lensing specturm
     !CPP is [L(L+1)]^2C_phi_phi/2/pi
@@ -113,8 +135,13 @@
 
     lmax_extrap = State%CP%Max_l - lensed_convolution_margin + 750
     lmax_extrap = min(lmax_extrap_highl,lmax_extrap)
-    call CorrFuncFullSkyImpl(State, State%ClData, CLout, CPP, &
-        State%CP%min_l,max(lmax_extrap,State%CP%max_l))
+    if (lensing_method == lensing_method_curv_corr_direct) then
+        call CorrFuncFullSkyDirectImpl(State, State%ClData, CLout, CPP, &
+            State%CP%min_l,max(lmax_extrap,State%CP%max_l))
+    else
+        call CorrFuncFullSkyImpl(State, State%ClData, CLout, CPP, &
+            State%CP%min_l,max(lmax_extrap,State%CP%max_l))
+    end if
     lmax_lensed = CLout%lmax_lensed
 
     do l=State%CP%min_l, lmax_lensed
@@ -129,6 +156,20 @@
         //'See https://cosmocoffee.info/viewtopic.php?t=94')
 
     end subroutine AmplitudeError
+
+    subroutine GetCachedGaussLegendre(npoints, xvals, weights)
+    integer, intent(in) :: npoints
+    real(dl), pointer :: xvals(:), weights(:)
+
+    if (.not. allocated(gauss_legendre_cache_xvals) .or. gauss_legendre_cache_npoints /= npoints) then
+        if (allocated(gauss_legendre_cache_xvals)) deallocate(gauss_legendre_cache_xvals, gauss_legendre_cache_weights)
+        allocate(gauss_legendre_cache_xvals(npoints), gauss_legendre_cache_weights(npoints))
+        call Gauss_Legendre(gauss_legendre_cache_xvals, gauss_legendre_cache_weights, npoints)
+        gauss_legendre_cache_npoints = npoints
+    end if
+    xvals => gauss_legendre_cache_xvals
+    weights => gauss_legendre_cache_weights
+    end subroutine GetCachedGaussLegendre
 
     subroutine CorrFuncFullSkyImpl(State,CL,CLout,CPP,lmin,lmax)
     !Accurate curved sky correlation function method
@@ -151,8 +192,6 @@
     real(dl) d_22(lmax),d_2m2(lmax),d_20(lmax)
     real(dl) Cphil3(lmin:lmax), CTT(lmin:lmax), CTE(lmin:lmax),CEE(lmin:lmax)
     real(dl) ls(lmax)
-    real(dl) xl(lmax)
-    real(dl), allocatable :: ddcontribs(:,:),corrcontribs(:,:)
     real(dl), allocatable :: lens_contrib(:,:,:)
     integer thread_ix
     real(dl) pmm, pmmp1
@@ -162,8 +201,7 @@
     real(dl) dX000,dX022
     integer  interp_fac
     integer j,jmax
-    integer llo, lhi
-    real(dl) a0,b0,ho, sc
+    real(dl) sc
     integer apodize_point_width
     logical :: short_integral_range
     real(dl) range_fac
@@ -218,13 +256,14 @@
             if (l<=15 .or. mod(l-15,interp_fac)==interp_fac/2) then
                 jmax =jmax+1
                 ls(jmax)=l
-                xl(jmax)=l
             end if
             lfacs(l) = real(l*(l+1),dl)
             lfacs2(l) = real((l+2)*(l-1),dl)
             lrootfacs(l) = sqrt(lfacs(l)*lfacs2(l))
         end do
         do l=2,lmax
+            ! Equivalent to the Python correlations.py indser threshold, but written
+            ! as a per-l cutoff in theta rather than a per-x split in l.
             theta_cut(l) = 0.244949_dl/sqrt(3._dl*lfacs(l) - 8._dl)
         end do
 
@@ -236,7 +275,6 @@
         thread_ix = 1
         !$ thread_ix = OMP_GET_MAX_THREADS()
         allocate(lens_contrib(4,CLout%lmax_lensed,thread_ix))
-        allocate(ddcontribs(lmax,4),corrcontribs(lmax,4))
 
         do l=lmin,CP%Max_l
             ! (2*l+1)l(l+1)/4pi C_phi_phi: Cl_scalar(l,1,C_Phi) is l^4 C_phi_phi
@@ -280,7 +318,7 @@
         !$OMP PARALLEL DO DEFAULT(PRIVATE),  &
         !$OMP SHARED(lfacs,lfacs2,lrootfacs,Cphil3,CTT,CTE,CEE,lens_contrib,theta_cut), &
         !$OMP SHARED(lmin, lmax,dtheta,CL,CLout,roots, npoints,interp_fac), &
-        !$OMP SHARED(jmax,ls,xl,short_integral_range,apodize_point_width)
+        !$OMP SHARED(jmax,ls,short_integral_range,apodize_point_width)
         do i=1,npoints-1
 
             theta = i * dtheta
@@ -337,6 +375,7 @@
 
             end do
 
+            corr = 0._dl
             do j=1,jmax
                 l =ls(j)
 
@@ -428,31 +467,32 @@
                 fac = ( (X000**2-1) + Cg2sq*fac1)*P(l)+ Cg2sq*fac3*d2m2 &
                     + 8/llp1* fac1*Cg2*dm11
 
-                corrcontribs(j,1)=  CTT(l) * fac
+                if (j > 14) then
+                    sc = real(interp_fac, dl)
+                else
+                    sc = 1._dl
+                end if
+                corr(1) = corr(1) + sc*CTT(l)*fac
 
                 fac2=(Cg2*dX022)**2+(X022**2-1)
                 !Q+U
                 fac = 2*Cg2*X121*X132*d13 + fac2*d22 +Cg2sq*X242*X220*d04
 
-                corrcontribs(j,2)= CEE(l) * fac
+                corr(2) = corr(2) + sc*CEE(l)*fac
 
                 !Q-U
                 fac = ( fac3*P(l) + X242**2*d4m4)*Cg2sq/2 &
                     + Cg2*(X121**2*dm11+ X132**2*d3m3) + fac2*d2m2
 
-                corrcontribs(j,3)= CEE(l) * fac
+                corr(3) = corr(3) + sc*CEE(l)*fac
 
                 !TE
                 fac = (X000*X022-1)*d20+ &
                     2*dX000*Cg2*(X121*d11 + X132*d1m3)/rootllp1 &
                     + Cg2sq*(X220/2*d2m4*X242 +( fac3/2 + dX022*dX000)*d20)
 
-                corrcontribs(j,4)= CTE(l) * fac
+                corr(4) = corr(4) + sc*CTE(l)*fac
 
-            end do
-
-            do j=1,4
-                corr(j) = sum(corrcontribs(1:14,j))+interp_fac*sum(corrcontribs(15:jmax,j))
             end do
 
             !if (short_integral_range .and. i>npoints-20) &
@@ -461,40 +501,6 @@
             if (short_integral_range .and. i>npoints-apodize_point_width*3) &
                 corr=corr*exp(-(i-npoints+apodize_point_width*3)**2/real(2*apodize_point_width**2))
             !taper the end to help prevent ringing
-
-
-            !Interpolate contributions
-            !Increasing interp_fac and using this seems to be slower than above
-            if (.false.) then
-                if (abs(sum(corrcontribs(1:jmax,1)))>1e-11) print *,i,sum(corrcontribs(1:jmax,1))
-                do j=1,4
-                    call spline_def(xl,corrcontribs(:,j),jmax,ddcontribs(:,j))
-                end do
-                corr=0
-                llo=1
-                do l=lmin,lmax
-                    if ((l > ls(llo+1)).and.(llo < jmax)) then
-                        llo=llo+1
-                    end if
-                    lhi=llo+1
-                    ho=ls(lhi)-ls(llo)
-                    a0=(ls(lhi)-l)/ho
-                    b0=(l-ls(llo))/ho
-                    fac1 = ho**2/6
-                    fac2 = (b0**3-b0)*fac1
-                    fac1 = (a0**3-a0)*fac1
-
-                    corr(1) = Corr(1)+ a0*corrcontribs(llo,1)+ b0*corrcontribs(lhi,1)+ &
-                        fac1* ddcontribs(llo,1) +fac2*ddcontribs(lhi,1)
-                    corr(2) = Corr(2)+ a0*corrcontribs(llo,2)+ b0*corrcontribs(lhi,2)+ &
-                        fac1* ddcontribs(llo,2) +fac2*ddcontribs(lhi,2)
-                    corr(3) = Corr(3)+ a0*corrcontribs(llo,3)+ b0*corrcontribs(lhi,3)+ &
-                        fac1* ddcontribs(llo,3) +fac2*ddcontribs(lhi,3)
-                    corr(4) = Corr(4)+ a0*corrcontribs(llo,4)+ b0*corrcontribs(lhi,4)+ &
-                        fac1* ddcontribs(llo,4) +fac2*ddcontribs(lhi,4)
-
-                end do
-            end if
 
             !$  thread_ix = OMP_GET_THREAD_NUM()+1
 
@@ -538,6 +544,293 @@
     end associate
 
     end subroutine CorrFuncFullSkyImpl
+
+    subroutine DirectCorrPointAccumulate(x, weight, lmin, lmax, lmax_lensed, lfacs, lfacs2, lrootfacs, &
+        Cphil3, CTT, CEE, CTE, thread_contrib)
+    real(dl), intent(in) :: x, weight
+    integer, intent(in) :: lmin, lmax, lmax_lensed
+    real(dl), intent(in) :: lfacs(1:lmax), lfacs2(1:lmax), lrootfacs(1:lmax)
+    real(dl), intent(in) :: Cphil3(1:lmax), CTT(1:lmax), CEE(1:lmax), CTE(1:lmax)
+    real(dl), intent(inout) :: thread_contrib(4, lmax_lensed)
+    integer :: l
+    real(dl) :: sigma2, Cg2, fac, fac1, fac2, sinth, sin2, sinfac, theta, theta_cut
+    real(dl) :: rootfac1, rootfac2, rootfac3, c2fac, c2fac2, facexp, T2, T4
+    real(dl) :: corr(4), pmm, pmmp1
+    real(dl) :: P(1:lmax), dP(1:lmax), d11(1:lmax), dm11(1:lmax), d20(1:lmax), d22(1:lmax), d2m2(1:lmax)
+    real(dl) :: d1m2(1:lmax), d12(1:lmax), d1m3(1:lmax), d2m3(1:lmax), d3m3(1:lmax), d13(1:lmax)
+    real(dl) :: d04(1:lmax), d2m4(1:lmax), d4m4(1:lmax)
+
+    fac1 = 1._dl - x
+    fac2 = 1._dl + x
+    sin2 = max(1e-30_dl,1._dl - x**2)
+    sinth = sqrt(sin2)
+    sinfac = 4._dl/sinth
+    theta = acos(x)
+
+    P = 0._dl
+    dP = 0._dl
+    d11 = 0._dl
+    dm11 = 0._dl
+    d20 = 0._dl
+    d22 = 0._dl
+    d2m2 = 0._dl
+    d1m2 = 0._dl
+    d12 = 0._dl
+    d1m3 = 0._dl
+    d2m3 = 0._dl
+    d3m3 = 0._dl
+    d13 = 0._dl
+    d04 = 0._dl
+    d2m4 = 0._dl
+    d4m4 = 0._dl
+
+    sigma2 = 0._dl
+    Cg2 = 0._dl
+    pmm = 1._dl
+    pmmp1 = x
+    if (lmin <= 1) then
+        P(1) = x
+        dP(1) = 1._dl
+        d11(1) = fac1*dP(1)/lfacs(1) + P(1)
+        dm11(1) = fac2*dP(1)/lfacs(1) - P(1)
+        sigma2 = sigma2 + (1._dl - d11(1))*Cphil3(1)
+        Cg2 = Cg2 + dm11(1)*Cphil3(1)
+    end if
+    do l=2,lmax
+        P(l)= ((2*l-1)*x*pmmp1 - (l-1)*pmm)/l
+        dP(l) = l*(pmmp1 - x*P(l))/sin2
+        pmm = pmmp1
+        pmmp1 = P(l)
+        fac = fac1/fac2
+
+        d11(l) = fac1*dP(l)/lfacs(l) + P(l)
+        dm11(l) = fac2*dP(l)/lfacs(l) - P(l)
+
+        sigma2 = sigma2 + (1._dl - d11(l))*Cphil3(l)
+        Cg2 = Cg2 + dm11(l)*Cphil3(l)
+
+        d22(l) = (((4*x-8)/fac2 + lfacs(l))*P(l) + 4*fac*(fac2 + (x - 2._dl)/lfacs(l))*dP(l))/lfacs2(l)
+        ! Same stability switch as correlations.py, expressed as a local theta cutoff.
+        theta_cut = 0.244949_dl/sqrt(3._dl*lfacs(l) - 8._dl)
+        if (theta > theta_cut) then
+            d2m2(l) = (((lfacs(l) - (4*x+8)/fac1) * P(l)) + 4._dl/fac * (-fac1 + (x+2._dl)/lfacs(l))*dP(l))/lfacs2(l)
+        else
+            d2m2(l) = lfacs(l)*lfacs2(l)*(1._dl - x**2)**2/7680._dl * (20._dl + (1._dl - x**2)*(16._dl - lfacs(l)))
+        end if
+        d20(l) = (2*x*dP(l) - lfacs(l)*P(l))/lrootfacs(l)
+    end do
+
+    do l=2,lmax
+        rootfac1 = sqrt(lfacs2(l))
+        d1m2(l) = sinth/rootfac1*(dP(l) - 2._dl/fac1*dm11(l))
+        d12(l) = sinth/rootfac1*(dP(l) - 2._dl/fac2*d11(l))
+    end do
+    do l=3,lmax
+        rootfac1 = sqrt(lfacs2(l))
+        rootfac2 = sqrt(real((l+3)*(l-2),dl))
+        fac = lfacs2(l)/(rootfac1*rootfac2)
+        d1m3(l) = -(x + 0.5_dl)*sinfac*d1m2(l)/rootfac2 - fac*dm11(l)
+        d2m3(l) = (-fac2*d2m2(l)*sinfac - rootfac1*d1m2(l))/rootfac2
+        d3m3(l) = (-(x + 1.5_dl)*d2m3(l)*sinfac - rootfac1*d1m3(l))/rootfac2
+        d13(l) = (x - 0.5_dl)*sinfac*d12(l)/rootfac2 - fac*d11(l)
+    end do
+    do l=4,lmax
+        rootfac2 = sqrt(real((l+3)*(l-2),dl))
+        rootfac3 = sqrt(real((l-3)*(l+4),dl))
+        d04(l) = ((-lfacs(l) + (18._dl*x**2 + 6._dl)/sin2)*d20(l) - &
+            6._dl*x*lfacs2(l)*dP(l)/lrootfacs(l))/(rootfac2*rootfac3)
+        d2m4(l) = (-(6._dl*x + 4._dl)/sinth*d2m3(l) - rootfac2*d2m2(l))/rootfac3
+        d4m4(l) = (-7._dl/5._dl*(lfacs2(l) - 6._dl)*d2m2(l) + &
+            12._dl/5._dl*(-lfacs2(l) + (9._dl*x + 26._dl)/fac1)*d3m3(l))/(lfacs2(l) - 12._dl)
+    end do
+
+    corr = 0._dl
+    do l=max(1,lmin), lmax
+        facexp = exp(-lfacs(l)*sigma2/2._dl)
+        c2fac = lfacs(l)*Cg2/2._dl
+        c2fac2 = c2fac**2
+        corr(1) = corr(1) + CTT(l)*((facexp - 1._dl)*P(l) + facexp*c2fac*(dm11(l) + c2fac*P(l)/4._dl))
+        if (l >= 2) corr(1) = corr(1) + CTT(l)*facexp*c2fac2*d2m2(l)/4._dl
+    end do
+    do l=max(2,lmin), lmax
+        facexp = exp(-lfacs(l)*sigma2/2._dl)
+        c2fac = lfacs(l)*Cg2/2._dl
+        c2fac2 = c2fac**2
+        corr(2) = corr(2) + CEE(l)*((facexp - 1._dl)*d22(l) + facexp*c2fac2*d22(l)/4._dl)
+        corr(3) = corr(3) + CEE(l)*((facexp - 1._dl)*d2m2(l) + facexp*c2fac*dm11(l)/2._dl + &
+            facexp*c2fac2*(2._dl*d2m2(l) + P(l))/8._dl)
+        corr(4) = corr(4) + CTE(l)*((facexp - 1._dl)*d20(l) + facexp*c2fac*d11(l)/2._dl + &
+            3._dl*facexp*c2fac2*d20(l)/8._dl)
+        if (l >= 3) then
+            corr(2) = corr(2) + CEE(l)*facexp*c2fac*d13(l)
+            corr(3) = corr(3) + CEE(l)*facexp*c2fac*d3m3(l)/2._dl
+            corr(4) = corr(4) + CTE(l)*facexp*c2fac*d1m3(l)/2._dl
+        end if
+        if (l >= 4) then
+            corr(2) = corr(2) + CEE(l)*facexp*c2fac2*d04(l)/4._dl
+            corr(3) = corr(3) + CEE(l)*facexp*c2fac2*d4m4(l)/8._dl
+            corr(4) = corr(4) + CTE(l)*facexp*c2fac2*d2m4(l)/8._dl
+        end if
+    end do
+
+    if (lmin <= 1 .and. lmax_lensed >= 1) then
+        thread_contrib(CT_Temp,1) = thread_contrib(CT_Temp,1) + weight*corr(1)*P(1)
+    end if
+    do l=max(2,lmin), lmax_lensed
+        thread_contrib(CT_Temp,l) = thread_contrib(CT_Temp,l) + weight*corr(1)*P(l)
+        T2 = (corr(2)*weight/2._dl)*d22(l)
+        T4 = (corr(3)*weight/2._dl)*d2m2(l)
+        thread_contrib(CT_E,l) = thread_contrib(CT_E,l) + T2 + T4
+        thread_contrib(CT_B,l) = thread_contrib(CT_B,l) + T2 - T4
+        thread_contrib(CT_Cross,l) = thread_contrib(CT_Cross,l) + weight*corr(4)*d20(l)
+    end do
+    end subroutine DirectCorrPointAccumulate
+
+    subroutine CorrFuncFullSkyDirectImpl(State,CL,CLout,CPP,lmin,lmax)
+    !Direct Gauss-Legendre implementation matching camb.correlations.lensed_cls,
+    !with the same high-L template extension used by the standard Fortran code.
+    class(CAMBdata), target :: State
+    Type(TCLData) :: CL, CLout
+    real(dl) :: CPP(0:State%CP%max_l) ! [L(L+1)]^2 C_L_phi_phi/2pi
+    integer, intent(in) :: lmin,lmax
+    integer :: l, i, npoints, imin
+    integer :: max_lensed_ix, apodize_point_width, thread_ix
+    real(dl) :: LensAccuracyBoost, sampling_factor, range_fac, theta_max, xmin
+    real(dl) :: fac, sc, fac2, weight, ramp
+    real(dl), pointer :: xvals(:), weights(:)
+    real(dl), allocatable :: lfacs(:), lfacs2(:), lrootfacs(:)
+    real(dl), allocatable :: Cphil3(:), CTT(:), CTE(:), CEE(:)
+    real(dl), allocatable :: lens_contrib(:,:,:)
+    Type(TTimer) :: Timer
+
+    !$ integer  OMP_GET_THREAD_NUM, OMP_GET_MAX_THREADS
+    !$ external OMP_GET_THREAD_NUM, OMP_GET_MAX_THREADS
+
+    if (lensing_includes_tensors) call MpiStop('Haven''t implemented tensor lensing')
+    associate(lSamp => State%CLData%CTransScal%ls, CP=>State%CP)
+
+        LensAccuracyBoost = CP%Accuracy%AccuracyBoost*CP%Accuracy%LensingBoost
+        max_lensed_ix = lSamp%nl-1
+        do while(lSamp%l(max_lensed_ix) > CP%Max_l - lensed_convolution_margin)
+            max_lensed_ix = max_lensed_ix -1
+        end do
+        CLout%lmax_lensed = max(lSamp%l(max_lensed_ix), CP%Max_l - 150)
+
+        if (allocated(CLout%Cl_lensed)) deallocate(CLout%Cl_lensed)
+        allocate(CLout%Cl_lensed(lmin:CLout%lmax_lensed,1:4), source = 0._dl)
+
+        sampling_factor = 1.4_dl*LensAccuracyBoost
+        npoints = int(sampling_factor*lmax) + 1
+        call GetCachedGaussLegendre(npoints, xvals, weights)
+
+        if (.not. CP%Accuracy%AccurateBB) then
+            range_fac = max(1._dl,32._dl/LensAccuracyBoost)
+            theta_max = const_pi/range_fac
+            xmin = cos(theta_max)
+            imin = 1
+            do while (imin <= npoints .and. xvals(imin) < xmin)
+                imin = imin + 1
+            end do
+            ! Slightly broader taper reduces short-range ringing without changing the
+            ! quadrature size or theta cut.
+            apodize_point_width = max(1,nint(12._dl*sampling_factor))
+        else
+            imin = 1
+            apodize_point_width = 0
+        end if
+
+        allocate(Cphil3(1:lmax), CTT(1:lmax), CTE(1:lmax), CEE(1:lmax))
+        allocate(lfacs(1:lmax), lfacs2(1:lmax), lrootfacs(1:lmax))
+
+        lfacs = 0._dl
+        lfacs2 = 0._dl
+        lrootfacs = 0._dl
+        Cphil3 = 0._dl
+        CTT = 0._dl
+        CTE = 0._dl
+        CEE = 0._dl
+
+        do l=1,lmax
+            lfacs(l) = real(l*(l+1),dl)
+            if (l >= 2) then
+                lfacs2(l) = real((l+2)*(l-1),dl)
+                lrootfacs(l) = sqrt(lfacs(l)*lfacs2(l))
+            end if
+        end do
+
+        do l=lmin,CP%Max_l
+            Cphil3(l) = CPP(l)*(l+0.5_dl)/real((l+1)*l, dl)
+            fac = (2*l+1)/const_fourpi * const_twopi/(l*(l+1))
+            CTT(l) = CL%Cl_scalar(l,C_Temp)*fac
+            CEE(l) = CL%Cl_scalar(l,C_E)*fac
+            CTE(l) = CL%Cl_scalar(l,C_Cross)*fac
+        end do
+        if (lmax >= 10 .and. Cphil3(10) > lensing_sanity_check_amplitude) then
+            call AmplitudeError()
+            return
+        end if
+        if (lmax > CP%Max_l) then
+            l=CP%Max_l
+            sc = (2*l+1)/const_fourpi * const_twopi/(l*(l+1))
+            fac2 = CTT(CP%Max_l)/(sc*highL_CL_template(CP%Max_l, C_Temp))
+            fac = Cphil3(CP%Max_l)/(sc*highL_CL_template(CP%Max_l, C_Phi))
+            do l=CP%Max_l+1, lmax
+                sc = (2*l+1)/const_fourpi * const_twopi/(l*(l+1))
+                Cphil3(l) = highL_CL_template(l, C_Phi)*fac*sc
+                CTT(l) = highL_CL_template(l, C_Temp)*fac2*sc
+                CEE(l) = highL_CL_template(l, C_E)*fac2*sc
+                CTE(l) = highL_CL_template(l, C_Cross)*fac2*sc
+                if (Cphil3(CP%Max_l+1) > 1e-7_dl) then
+                    call MpiStop('You need to normalize the high-L template so it is dimensionless')
+                end if
+            end do
+        end if
+        if (ALens_Fiducial > 0) then
+            do l=2, lmax
+                sc = (2*l+1)/const_fourpi * const_twopi/(l*(l+1))
+                Cphil3(l) = sc * highL_CL_template(l, C_Phi) * ALens_Fiducial
+            end do
+        end if
+
+        thread_ix = 1
+        !$ thread_ix = OMP_GET_MAX_THREADS()
+        allocate(lens_contrib(4,CLout%lmax_lensed,thread_ix), source = 0._dl)
+
+        if (DebugMsgs) call Timer%Start()
+
+        !$OMP PARALLEL DO DEFAULT(SHARED), PRIVATE(i,weight,ramp,thread_ix)
+        do i=imin, npoints
+            weight = weights(i)
+            if (apodize_point_width > 0 .and. i-imin < apodize_point_width*4) then
+                ramp = real(i - imin + 1, dl)/apodize_point_width
+                weight = weight*(1._dl - exp(-(ramp**2)/2._dl))
+            end if
+
+            thread_ix = 1
+            !$ thread_ix = OMP_GET_THREAD_NUM()+1
+            call DirectCorrPointAccumulate(xvals(i), weight, lmin, lmax, CLout%lmax_lensed, &
+                lfacs, lfacs2, lrootfacs, Cphil3, CTT, CEE, CTE, lens_contrib(:,:,thread_ix))
+        end do
+        !$OMP END PARALLEL DO
+
+        if (lmin <= 1 .and. CLout%lmax_lensed >= 1) then
+            CLout%Cl_lensed(1,CT_Temp) = sum(lens_contrib(CT_Temp,1,:))*2._dl*const_twopi/OutputDenominator + CL%Cl_scalar(1,C_Temp)
+            CLout%Cl_lensed(1,CT_E) = CL%Cl_scalar(1,C_E)
+            CLout%Cl_lensed(1,CT_B) = 0._dl
+            CLout%Cl_lensed(1,CT_Cross) = CL%Cl_scalar(1,C_Cross)
+        end if
+        do l=max(2,lmin), CLout%lmax_lensed
+            fac = lfacs(l)*const_twopi/OutputDenominator
+            CLout%Cl_lensed(l,CT_Temp) = sum(lens_contrib(CT_Temp,l,:))*fac + CL%Cl_scalar(l,C_Temp)
+            CLout%Cl_lensed(l,CT_E) = sum(lens_contrib(CT_E,l,:))*fac + CL%Cl_scalar(l,C_E)
+            CLout%Cl_lensed(l,CT_B) = sum(lens_contrib(CT_B,l,:))*fac
+            CLout%Cl_lensed(l,CT_Cross) = sum(lens_contrib(CT_Cross,l,:))*fac + CL%Cl_scalar(l,C_Cross)
+        end do
+
+        if (DebugMsgs) call Timer%WriteTime('Time for direct corr lensing')
+    end associate
+
+    end subroutine CorrFuncFullSkyDirectImpl
 
     subroutine CorrFuncFlatSky(State)
     !Do flat sky approx partially non-perturbative lensing, lensing_method=2

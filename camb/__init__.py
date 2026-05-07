@@ -14,7 +14,13 @@ from . import baseconfig
 
 baseconfig.check_fortran_version(__version__)
 from . import dark_energy, initialpower, model, nonlinear, reionization
-from ._config import config
+from ._config import (
+    config,
+    lensing_method_curv_corr,
+    lensing_method_curv_corr_direct,
+    lensing_method_flat_corr,
+    lensing_method_harmonic,
+)
 from .baseconfig import (
     Array1D,
     CAMBError,
