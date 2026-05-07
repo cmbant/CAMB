@@ -6,6 +6,7 @@ from .baseconfig import CAMBError, import_property
 lensing_method_curv_corr = 1
 lensing_method_flat_corr = 2
 lensing_method_harmonic = 3
+lensing_method_curv_corr_direct = 4
 
 
 class _config:
