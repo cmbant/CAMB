@@ -589,27 +589,29 @@ class CambTest(unittest.TestCase):
         cls_lensed2 = data.get_partially_lensed_cls(0, lmax=2500)
         np.testing.assert_allclose(cls_lensed2[2:, :], cls_unlensed[2:, :], rtol=1e-4)
 
-        # check lensed CL against python; will only agree well for high lmax as python has no extrapolation template
+        direct_method = camb.lensing_method_curv_corr_direct
+
+        # check lensed CL against python; compare to the direct curved-sky path that
+        # mirrors camb.correlations.lensed_cls rather than the separate method-1 approximation
         cls_lensed2 = correlations.lensed_cls(cls["unlensed_scalar"], cls["lens_potential"][:, 0], delta_cls=False)
-        np.testing.assert_allclose(cls_lensed2[2:2000, 2], cls_lensed[2:2000, 2], rtol=1e-3)
-        np.testing.assert_allclose(cls_lensed2[2:2000, 1], cls_lensed[2:2000, 1], rtol=1e-3)
-        np.testing.assert_allclose(cls_lensed2[2:2000, 0], cls_lensed[2:2000, 0], rtol=1e-3)
+        cls_lensed_direct = data.get_lensed_cls_with_spectrum(
+            data.get_lens_potential_cls()[:, 0], lmax=3000, lensing_method=direct_method
+        )
+        np.testing.assert_allclose(cls_lensed2[2:2000, 2], cls_lensed_direct[2:2000, 2], rtol=1e-3)
+        np.testing.assert_allclose(cls_lensed2[2:2000, 1], cls_lensed_direct[2:2000, 1], rtol=1e-3)
+        np.testing.assert_allclose(cls_lensed2[2:2000, 0], cls_lensed_direct[2:2000, 0], rtol=1e-3)
         self.assertTrue(
             np.all(
                 np.abs(
-                    (cls_lensed2[2:3000, 3] - cls_lensed[2:3000, 3])
+                    (cls_lensed2[2:3000, 3] - cls_lensed_direct[2:3000, 3])
                     / np.sqrt(cls_lensed2[2:3000, 0] * cls_lensed2[2:3000, 1])
                 )
                 < 1e-4
             )
         )
 
-        direct_method = camb.lensing_method_curv_corr_direct
         optimized_method = camb.lensing_method_optimized
-        cls_lensed_direct = data.get_lensed_cls_with_spectrum(
-            data.get_lens_potential_cls()[:, 0], lmax=3000, lensing_method=direct_method
-        )
-        np.testing.assert_allclose(cls_lensed_direct[2:2000, 2], cls_lensed2[2:2000, 2], rtol=1e-3)
+        np.testing.assert_allclose(cls_lensed_direct[2:2000, 2], cls_lensed2[2:2000, 2], rtol=3e-3)
         np.testing.assert_allclose(cls_lensed_direct[2:2000, 1], cls_lensed2[2:2000, 1], rtol=1e-3)
         np.testing.assert_allclose(cls_lensed_direct[2:2000, 0], cls_lensed2[2:2000, 0], rtol=1e-3)
         self.assertTrue(

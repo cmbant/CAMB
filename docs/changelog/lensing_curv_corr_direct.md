@@ -227,11 +227,11 @@ it is worse at `lmax=2000`:
 | `lmax_out` | method | `BB(l<400)` max | `BB(400..1200)` max |
 | --- | --- | ---: | ---: |
 | `2000` | method 1 | `3.89e-3` | `6.23e-4` |
-| `2000` | method 4 | `3.21e-3` | `1.15e-3` |
+| `2000` | method 4 | `2.22e-3` | `1.15e-3` |
 | `4000` | method 1 | `3.98e-3` | `6.77e-4` |
-| `4000` | method 4 | `3.85e-3` | `6.48e-4` |
+| `4000` | method 4 | `3.35e-3` | `6.47e-4` |
 | `6000` | method 1 | `3.98e-3` | `6.64e-4` |
-| `6000` | method 4 | `4.02e-3` | `6.45e-4` |
+| `6000` | method 4 | `3.71e-3` | `6.43e-4` |
 
 So the current short-range mode is still not suitable for low-`l` BB science,
 which is exactly why `AccurateBB=True` exists. The non-accurate mode is mainly a
@@ -245,9 +245,9 @@ One-thread custom-spectrum CPU-time averages are:
 
 | `lmax_out` | method 1 custom | method 4 custom |
 | --- | ---: | ---: |
-| `2000` | `0.010 s` | `0.029 s` |
-| `4000` | `0.032 s` | `0.065 s` |
-| `6000` | `0.064 s` | `0.119 s` |
+| `2000` | `0.010-0.017 s` | `0.027 s` |
+| `4000` | `0.030-0.034 s` | `0.064 s` |
+| `6000` | `0.058-0.064 s` | `0.117 s` |
 
 So in `AccurateBB=False`, method 4 is only marginally better in the
 `400..1200` band at high `lmax`, but it is still about two to three times slower
@@ -270,11 +270,29 @@ Main outcome:
   degrades the `400..1200` band too much.
 - `range_fac = 32` remains the best compromise when both BB bands matter.
 
-For the taper, a slightly broader apodization than the original value reduced
-ringing modestly at little cost. The Fortran short-range direct method now uses
-`apodize_point_width = nint(12 * sampling_factor)` instead of `10 * sampling_factor`.
-This slightly improves the non-accurate BB bands while leaving the cut itself
-unchanged.
+For the taper, replacing the point-index half-Gaussian with a C2 smoothstep in
+the physical angle gave a cleaner improvement, but only once the transition was
+made broader than the nominal Gaussian width. The retained Fortran short-range
+direct method uses
+
+```fortran
+apodize_theta_width = min(theta_max, 48*pi/lmax)
+```
+
+and applies the smoothstep over `theta_max - apodize_theta_width < theta <
+theta_max`. Narrower smoothstep widths, including `12*pi/lmax`, did not improve
+the old taper: they left the `400..1200` band essentially unchanged and made the
+low-`l` tensor band slightly worse. The wider C2 window improves the
+tensor-sensitive `l < 400` BB band while leaving `400..1200` BB at the previous
+level.
+
+A cheap coarse correction for the omitted large-angle range was also tested by
+adding a low-output-`l` correction from the complementary window. This was not
+kept. With a correction capped at `l <= 400`, the direct method's `l < 400` BB
+maximum error worsened to about `9.2e-3` at `lmax=2000` and `6.3e-3` at
+`lmax=4000`, while the isolated lensing time increased substantially. The
+omitted large-angle contribution is therefore not well enough captured by that
+cheap coarse quadrature to be a useful correction.
 
 Main points:
 
