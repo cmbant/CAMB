@@ -1,0 +1,89 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel)"
+config_file="${repo_root}/.pre-commit-config.yaml"
+hook_dir="${repo_root}/.githooks"
+git_common_dir="$(git rev-parse --git-common-dir)"
+shared_checkout_root=""
+platform="$(uname -s)"
+
+if [[ ! -f "${config_file}" ]]; then
+    exit 0
+fi
+
+if [[ "${git_common_dir}" != /* ]] && [[ ! "${git_common_dir}" =~ ^[A-Za-z]:[/\\] ]]; then
+    git_common_dir="$(cd "${repo_root}" && cd "${git_common_dir}" && pwd)"
+fi
+
+if [[ "$(basename "${git_common_dir}")" == ".git" ]]; then
+    shared_checkout_root="$(cd "${git_common_dir}/.." && pwd)"
+fi
+
+python_candidates=()
+
+add_python_candidate() {
+    local python_bin="$1"
+
+    for existing_bin in "${python_candidates[@]:-}"; do
+        if [[ "${existing_bin}" == "${python_bin}" ]]; then
+            return 0
+        fi
+    done
+
+    python_candidates+=("${python_bin}")
+}
+
+if [[ -n "${CAMB_DEVCONTAINER_VENV:-}" ]]; then
+    add_python_candidate "${CAMB_DEVCONTAINER_VENV}/bin/python"
+    add_python_candidate "${CAMB_DEVCONTAINER_VENV}/bin/python3"
+fi
+
+add_python_candidate "${repo_root}/.venv/bin/python"
+
+if [[ -n "${shared_checkout_root}" ]] && [[ "${shared_checkout_root}" != "${repo_root}" ]]; then
+    add_python_candidate "${shared_checkout_root}/.venv/bin/python"
+fi
+
+case "${platform}" in
+    CYGWIN*|MINGW*|MSYS*)
+        add_python_candidate "${repo_root}/.venv/Scripts/python.exe"
+
+        if [[ -n "${shared_checkout_root}" ]] && [[ "${shared_checkout_root}" != "${repo_root}" ]]; then
+            add_python_candidate "${shared_checkout_root}/.venv/Scripts/python.exe"
+        fi
+        ;;
+esac
+
+for python_bin in "${python_candidates[@]}"; do
+    if [[ -x "${python_bin}" ]]; then
+        exec "${python_bin}" -m pre_commit hook-impl \
+            --config "${config_file}" \
+            --hook-type pre-commit \
+            --hook-dir "${hook_dir}" \
+            --skip-on-missing-config \
+            -- "$@"
+    fi
+done
+
+if command -v python >/dev/null 2>&1 && python -c "import pre_commit" >/dev/null 2>&1; then
+    exec python -m pre_commit hook-impl \
+        --config "${config_file}" \
+        --hook-type pre-commit \
+        --hook-dir "${hook_dir}" \
+        --skip-on-missing-config \
+        -- "$@"
+fi
+
+if command -v pre-commit >/dev/null 2>&1; then
+    exec pre-commit hook-impl \
+        --config "${config_file}" \
+        --hook-type pre-commit \
+        --hook-dir "${hook_dir}" \
+        --skip-on-missing-config \
+        -- "$@"
+fi
+
+echo "pre-commit is not installed for this checkout. Install CAMB's dev dependencies or use the devcontainer bootstrap." >&2
+exit 1

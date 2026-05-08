@@ -7,6 +7,10 @@
     "editor.formatOnSave": true,
     "files.trimTrailingWhitespace": true,
     "files.trimFinalNewlines": true,
+    "files.eol": "\n",
+    "python-envs.workspaceSearchPaths": [
+        "./.venv"
+    ],
     // Python test settings
     "python.testing.pytestEnabled": false,
     "python.testing.unittestEnabled": true,
@@ -114,6 +118,4 @@
         "**/*.vfproj": true,
         "**/*.u2d": true,
     },
-    "python-envs.defaultEnvManager": "ms-python.python:venv",
-    "python-envs.defaultPackageManager": "ms-python.python:pip",
 }

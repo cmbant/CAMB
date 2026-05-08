@@ -1811,7 +1811,8 @@
     last_dotmu = 0
 
     this%matter_verydom_tau = 0
-    a_verydom = CP%Accuracy%AccuracyBoost*5*(State%grhog+State%grhornomass)/(State%grhoc+State%grhob)
+    a_verydom = CP%Accuracy%AccuracyBoost*CP%Accuracy%TimeSwitchBoost &
+        *5*(State%grhog+State%grhornomass)/(State%grhoc+State%grhob)
     if (CP%Reion%Reionization) then
         call CP%Reion%get_timesteps(State%reion_n_steps, reion_z_start, reion_z_complete)
         State%reion_tau_start = max(0.05_dl, State%TimeOfZ(reion_z_start, 1d-3))
@@ -2350,7 +2351,7 @@
 
 
     if (State%CP%Reion%Reionization) then
-        nri0=int(State%reion_n_steps*State%CP%Accuracy%AccuracyBoost)
+        nri0=int(State%reion_n_steps * TimeSampleBoost)
         !Steps while reionization going from zero to maximum
         call TimeSteps%Add(State%reion_tau_start,State%reion_tau_complete,nri0)
     end if
@@ -3339,8 +3340,14 @@
             ( PK%log_kh(2)-PK%log_kh(1) )
         outpower = PK%matpower(1,itf) + dp*(logk - PK%log_kh(1))
     else if (logk > PK%log_kh(PK%num_k)) then
-        !Do dodgy linear extrapolation on assumption accuracy of result won't matter
+        if (PK%matpower(PK%num_k,itf) >= PK%matpower(PK%num_k-1,itf)) then
+            call GlobalError(FormatString('MatterPowerData_k: cannot extrapolate rising high-k matter power tail' // &
+                ' from k/h=%f to requested k/h=%f', exp(PK%log_kh(PK%num_k)), kh), error_nonlinear)
+            outpower = 0
+            return
+        end if
 
+        !Do dodgy linear extrapolation on assumption accuracy of result won't matter
         dp = (PK%matpower(PK%num_k,itf) -  PK%matpower(PK%num_k-1,itf)) / &
             ( PK%log_kh(PK%num_k)-PK%log_kh(PK%num_k-1) )
         outpower = PK%matpower(PK%num_k,itf) + dp*(logk - PK%log_kh(PK%num_k))

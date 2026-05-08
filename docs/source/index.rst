@@ -28,7 +28,7 @@ If you want to work on the code from `GitHub <https://github.com/cmbant/camb>`_,
     git clone --recursive https://github.com/cmbant/CAMB.git
     pip install -e ./CAMB [--user]
 
-You will need ifort or gfortran 6 or higher installed (and on your path) to compile from source;
+You will need ifort or gfortran installed (and on your path) to compile from source;
 you can see :ref:`fortran-compilers` for compiler installation details if needed.
 If you have gfortran installed, "python setup.py make" will build
 the Fortran library on all systems (including Windows without directly using a Makefile), and can be used to update
@@ -52,6 +52,7 @@ You can also run CAMB from the command line reading parameters from a .ini file,
 
 
 Sample .ini files can be obtained from the `repository <https://github.com/cmbant/CAMB/tree/master/inifiles>`_. You can load parameters programmatically from an .ini file or URL using :func:`.camb.read_ini`.
+For stability testing against higher-accuracy settings, see :ref:`check-accuracy`.
 
 Main high-level modules:
 
@@ -83,6 +84,7 @@ Other modules:
    :maxdepth: 1
 
    transfer_variables
+   check_accuracy
    modifying_code
    variables_guide
    fortran_compilers

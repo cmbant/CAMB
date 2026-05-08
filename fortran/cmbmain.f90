@@ -64,6 +64,7 @@
     use constants
     use DarkEnergyInterface
     use MathUtils
+    use RungeKuttaDP45Module, only : RungeKuttaDP45Settings
     implicit none
     private
 
@@ -973,7 +974,8 @@
     type(EvolutionVars) EV
     real(dl) tau,tol1,tauend, taustart
     integer j,ind,itf
-    real(dl) c(24),w(EV%nvar,9), y(EV%nvar), sources(ThisSources%SourceNum)
+    type(RungeKuttaDP45Settings) :: rk_settings
+    real(dl) w(EV%nvar,9), y(EV%nvar), sources(ThisSources%SourceNum)
 
     w=0
     y=0
@@ -986,11 +988,12 @@
     !     Begin timestep loop.
     itf=1
     tol1=base_tol/exp(CP%Accuracy%AccuracyBoost*CP%Accuracy%IntTolBoost-1)
+
     if (CP%WantTransfer) then
         if  (CP%Transfer%high_precision) tol1=tol1/100
         do while (itf <= State%num_transfer_redshifts .and. State%TimeSteps%points(2) > State%Transfer_Times(itf))
             !Just in case someone wants to get the transfer outputs well before recombination
-            call GaugeInterface_EvolveScal(EV,tau,y,State%Transfer_Times(itf),tol1,ind,c,w)
+            call GaugeInterface_EvolveScal(EV, tau, y, State%Transfer_Times(itf), tol1, ind, rk_settings, w)
             if (global_error_flag/=0) return
             call outtransf(EV,y, tau, State%MT%TransferData(:,EV%q_ix,itf))
             itf = itf+1
@@ -1005,7 +1008,7 @@
             ThisSources%LinearSrc(EV%q_ix,:,j)=0
         else
             !Integrate over time, calulate end point derivs and calc output
-            call GaugeInterface_EvolveScal(EV,tau,y,tauend,tol1,ind,c,w)
+            call GaugeInterface_EvolveScal(EV, tau, y, tauend, tol1, ind, rk_settings, w)
             if (global_error_flag/=0) return
 
             call output(EV,y,j, tau,sources, CP%CustomSources%num_custom_sources)
@@ -1015,7 +1018,8 @@
 101         if (CP%WantTransfer.and.itf <= State%num_transfer_redshifts) then
                 if (j < State%TimeSteps%npoints) then
                     if (tauend < State%Transfer_Times(itf) .and. State%TimeSteps%points(j+1)  > State%Transfer_Times(itf)) then
-                        call GaugeInterface_EvolveScal(EV,tau,y,State%Transfer_Times(itf),tol1,ind,c,w)
+                        call GaugeInterface_EvolveScal(EV, tau, y, State%Transfer_Times(itf), tol1, ind, &
+                            rk_settings, w)
                         if (global_error_flag/=0) return
                     endif
                 end if
@@ -1045,7 +1049,8 @@
     type(EvolutionVars) EV
     real(dl) tau,tol,tauend, taustart
     integer j,ind
-    real(dl) c(24),wt(EV%nvart,9), yt(EV%nvart)
+    type(RungeKuttaDP45Settings) :: rk_settings
+    real(dl) wt(EV%nvart,9), yt(EV%nvart)
 
     call initialt(EV,yt, taustart)
 
@@ -1059,7 +1064,7 @@
         if (EV%q*tauend > max_etak_tensor) then
             ThisSources%LinearSrc(EV%q_ix,:,j) = 0
         else
-            call GaugeInterface_EvolveTens(EV,tau,yt,tauend,tol,ind,c,wt)
+            call GaugeInterface_EvolveTens(EV, tau, yt, tauend, tol, ind, rk_settings, wt)
 
             call outputt(EV,yt,EV%nvart,tau,ThisSources%LinearSrc(EV%q_ix,CT_Temp,j),&
                 ThisSources%LinearSrc(EV%q_ix,CT_E,j),ThisSources%LinearSrc(EV%q_ix,CT_B,j))
@@ -1074,13 +1079,14 @@
     type(EvolutionVars) EV
     real(dl) tau,tol,tauend, taustart
     integer j,ind
-    real(dl) c(24),wt(EV%nvarv,9), yv(EV%nvarv)
+    type(RungeKuttaDP45Settings) :: rk_settings
+    real(dl) wt(EV%nvarv,9), yv(EV%nvarv)
 
     call initialv(EV,yv, taustart)
 
     tau=taustart
     ind=1
-    tol=base_tol*0.01/exp(CP%Accuracy%AccuracyBoost*CP%Accuracy%IntTolBoost-1)
+    tol=base_tol/100/exp(CP%Accuracy%AccuracyBoost*CP%Accuracy%IntTolBoost-1)
 
 
     !     Begin timestep loop.
@@ -1090,7 +1096,7 @@
         if ( EV%q*tauend > max_etak_vector) then
             ThisSources%LinearSrc(EV%q_ix,:,j) = 0
         else
-            call dverk(EV,EV%nvarv,derivsv,tau,yv,tauend,tol,ind,c,EV%nvarv,wt) !tauend
+            call RungeKuttaDP45(EV, EV%nvarv, derivsv, tau, yv, tauend, tol, ind, rk_settings, EV%nvarv, wt)
 
             call outputv(EV,yv,EV%nvarv,tau,ThisSources%LinearSrc(EV%q_ix,CT_Temp,j),&
                 ThisSources%LinearSrc(EV%q_ix,CT_E,j),ThisSources%LinearSrc(EV%q_ix,CT_B,j))
@@ -1136,18 +1142,19 @@
     type(EvolutionVars) EV
     real(dl) tau
     integer ind, i
-    real(dl) c(24),w(EV%nvar,9), y(EV%nvar)
+    type(RungeKuttaDP45Settings) :: rk_settings
+    real(dl) w(EV%nvar,9), y(EV%nvar)
     real(dl) atol
 
     atol=base_tol/exp(CP%Accuracy%AccuracyBoost*CP%Accuracy%IntTolBoost-1)
-    if (CP%Transfer%high_precision) atol=atol/10000 !CHECKTHIS
+    if (CP%Transfer%high_precision) atol=atol/100
 
     ind=1
     call initial(EV,y, tau)
     if (global_error_flag/=0) return
 
     do i=1,State%num_transfer_redshifts
-        call GaugeInterface_EvolveScal(EV,tau,y,State%Transfer_Times(i),atol,ind,c,w)
+        call GaugeInterface_EvolveScal(EV, tau, y, State%Transfer_Times(i), atol, ind, rk_settings, w)
         if (global_error_flag/=0) return
         call outtransf(EV,y,tau,State%MT%TransferData(:,EV%q_ix,i))
     end do

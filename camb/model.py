@@ -189,6 +189,11 @@ class AccuracyParams(CAMB_Structure):
             c_double,
             "Number of time steps for background thermal history and source window interpolation",
         ),
+        (
+            "TimeSwitchBoost",
+            c_double,
+            "Accuracy for limit/domination approximation switches",
+        ),
         ("IntTolBoost", c_double, "Tolerances for integrating differential equations"),
         ("SourcekAccuracyBoost", c_double, "Accuracy of k sampling for source time integration"),
         ("IntkAccuracyBoost", c_double, "Accuracy of k sampling for integration"),

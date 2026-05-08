@@ -106,8 +106,9 @@
     real(dl), intent(in) :: ay(*)
     real(dl), intent(inout) :: ayprime(*)
     integer, intent(in) :: w_ix
-    real(dl) :: Gamma, S_Gamma, ckH, Gammadot, Fa, sigma
+    real(dl) :: Gamma, S_Gamma, ckH, ckH2, Gamma_quasi_static, Gammadot, Fa, sigma
     real(dl) :: vT, grhoT, k2
+    real(dl), parameter :: quasi_static_ckH2 = 30._dl
 
     if (this%no_perturbations) then
         dgrhoe=0
@@ -128,14 +129,18 @@
 
     S_Gamma = grhov_t * (1 + w) * (vT + sigma) * k / adotoa / 2._dl / k2
     ckH = this%c_Gamma_ppf * k / adotoa
+    ckH2 = ckH * ckH
 
-    if (ckH * ckH > 1000) then
-        ! Was ckH^2 > 30 originally, but this is better behaved (closer to fluid)
-        ! for some extreme models (thanks Yanhui Yang, Simeon Bird 2024)
-        Gamma = 0
-        Gammadot = 0.d0
+    if (ckH2 > quasi_static_ckH2) then
+        ! Relax to the algebraic quasi-static fixed point of the same PPF equation, but cap relaxation speed
+
+        ! Had Gamma = 0 historically, but need to allow non-zero to higher ckH2 for some extreme models
+        ! to stay closish to fluid and well behaved (thanks Yanhui Yang, Simeon Bird 2024)
+        ! However Gamma = 0 at ckH2 > 1000 was more unstable on near-LCDM models (needs finer integration tol)
+        Gamma_quasi_static = S_Gamma / (1._dl + ckH2)**2
+        Gammadot = (1._dl + quasi_static_ckH2) * adotoa * (Gamma_quasi_static - Gamma)
     else
-        Gammadot = S_Gamma / (1 + ckH * ckH) - Gamma - ckH * ckH * Gamma
+        Gammadot = S_Gamma / (1._dl + ckH2) - (1._dl + ckH2) * Gamma
         Gammadot = Gammadot * adotoa
     endif
     ayprime(w_ix) = Gammadot !Set this here, and don't use PerturbationEvolve

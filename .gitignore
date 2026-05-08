@@ -4,11 +4,13 @@
 *.o
 *.so
 *.sm
+*.json
 *~*
 .metadata
 .project
 .pydevproject
 x64/
+_build/
 Debug/
 Debuglib/
 Release/
@@ -54,12 +56,12 @@ testfile*
 .vs
 *.mp4
 *.exe
+*_tmp*
 
 # Ignore all .dat and .ini files except those already tracked in git
 *.dat
 *.ini
 *compatibility.txt
-camb_test.py
 temp_test.py
 *.layout
 lensing_cgrads.f90
@@ -84,3 +86,7 @@ scripts
 uv.lock
 .venv
 __pycache__
+external/
+!.devcontainer/
+!.devcontainer/**
+.claude

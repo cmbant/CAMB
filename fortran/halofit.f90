@@ -596,6 +596,7 @@
         !Currently this needs to be done at each z (mainly because of scale-dependent growth with neutrinos)
         !For non-massive-neutrino models this could only be done once, which would speed things up a bit
         CALL initialise_HM_cosmology(this,j,cosi,CAMB_PK)
+        if (global_error_flag/=0) return
 
         !Sets the current redshift from the table
         z=CAMB_Pk%Redshifts(j)
@@ -955,6 +956,7 @@
         Pk(i)=MatterPowerData_k(CAMB_PK,k(i),iz, index_cache)*(k(i)**3/(2*pi**2))
         Pkc(i)=Pk(i)*Tcb_Tcbnu_ratio(k(i),z,cosm)**2
     END DO
+    if (global_error_flag/=0) return
 
     IF(HM_verbose) WRITE(*,*) 'LINEAR POWER: Delta2_min:', Pk(1)
     IF(HM_verbose) WRITE(*,*) 'LINEAR POWER: Delta2_max:', Pk(nk)
@@ -1094,6 +1096,7 @@
 
     !Fill linear power table and grows it to z=0
     CALL fill_plintab(iz,cosm,CAMB_PK)
+    if (global_error_flag/=0) return
 
     !Fill sigma(r) table
     CALL fill_sigtab(this,cosm)

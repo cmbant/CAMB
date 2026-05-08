@@ -65,6 +65,8 @@
 
         real(dl) :: BackgroundTimeStepBoost = 1._dl !number of time steps for background thermal history interpolation
 
+        real(dl) :: TimeSwitchBoost = 1._dl !Accuracy for physical time/transition switches
+
         real(dl) :: IntTolBoost = 1._dl !Tolerances for integrating differential equations
 
         real(dl) :: SourcekAccuracyBoost = 1._dl !Accuracy of k sampling for source time integration

@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=77", "packaging>=24.2", "wheel"]
+requires = ["setuptools>=77", "packaging>=24.2"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -31,7 +31,14 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-docs = ["sphinx>=4.0", "sphinx_rtd_theme>=1.0", "sphinxcontrib-jquery", "sphinx_markdown_builder", "jupytext"]
+docs = [
+    "sphinx>=4.0",
+    "sphinx_rtd_theme>=1.0",
+    "sphinxcontrib-jquery",
+    "sphinxcontrib-programoutput",
+    "sphinx_markdown_builder",
+    "jupytext",
+]
 dev = ["ruff>=0.11.0", "pre-commit>=3.0.0"]
 
 [project.scripts]

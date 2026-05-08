@@ -14,6 +14,7 @@
 - When updating version, update both python __version__ and version defined near the top of fortran/config.f90
 - Use pip -e for editable first install. After that use "python setup.py make" to quickly rebuild fortran for use with python.
 - Default test: python -m unittest camb.tests.camb_test (do not run hmcode_test unless specifically relevant)
+- Long test against precomputed results: fortran/tests/run_tests.py which calls CAMB_test_files.py (only if asked)
 - Installation/clone/modification/contributing/pre-commit/vscode config: see /CONTRIBUTING.md
 - When plotting fractional differences for cross-spectra, use e.g. Delta TE/sqrt(TT*EE)
 - High accuracy lensing needs lens_potential_accuracy = 8 or so (mainly increases kmax)

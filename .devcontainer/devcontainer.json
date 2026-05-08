@@ -1,0 +1,69 @@
+{
+  "name": "camb-py314",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": "..",
+    "args": {
+      "VARIANT": "3.14-bookworm"
+    }
+  },
+  "runArgs": [
+    "--cpus=8"
+  ],
+  "workspaceMount": "source=${localWorkspaceFolder}/..,target=/workspaces/camb-parent,type=bind",
+  "workspaceFolder": "/workspaces/camb-parent/${localWorkspaceFolderBasename}",
+  "mounts": [
+    "source=${localEnv:HOME}${localEnv:USERPROFILE}/.gitconfig,target=/tmp/devcontainer-host.gitconfig,type=bind,readonly",
+    "source=${localEnv:HOME}${localEnv:USERPROFILE}/.codex,target=/tmp/devcontainer-host-codex,type=bind,readonly",
+    "source=${localEnv:HOME}${localEnv:USERPROFILE}/.claude,target=/tmp/devcontainer-host-claude,type=bind,readonly",
+    "source=${localEnv:HOME}${localEnv:USERPROFILE}/.claude.json,target=/tmp/devcontainer-host.claude.json,type=bind,readonly"
+  ],
+  "initializeCommand": "git submodule update --init --recursive forutils",
+  "containerEnv": {
+    "COSMOREC_PATH": "${containerWorkspaceFolder}/external/CosmoRec/",
+    "FORUTILSPATH": "${containerWorkspaceFolder}/forutils",
+    "GIT_CONFIG_COUNT": "2",
+    "GIT_CONFIG_KEY_0": "submodule.forutils.ignore",
+    "GIT_CONFIG_VALUE_0": "all",
+    "GIT_CONFIG_KEY_1": "core.fileMode",
+    "GIT_CONFIG_VALUE_1": "false",
+    "HYREC_PATH": "${containerWorkspaceFolder}/external/HYREC-2/",
+    "OMP_NUM_THREADS": "8",
+    "OPENBLAS_NUM_THREADS": "8",
+    "RECOMBINATION_FILES": "recfast cosmorec hyrec",
+    "CAMB_DEVCONTAINER_VENV": "/home/vscode/.local/share/camb-devcontainer/.venv",
+    "PRE_COMMIT_HOME": "/home/vscode/.cache/pre-commit",
+    "UV_CACHE_DIR": "/home/vscode/.cache/uv",
+    "UV_LINK_MODE": "copy",
+    "UV_PROJECT_ENVIRONMENT": "/home/vscode/.local/share/camb-devcontainer/.venv"
+  },
+  "remoteEnv": {
+    "PATH": "/home/vscode/.local/share/camb-devcontainer/.venv/bin:${containerEnv:PATH}",
+    "VIRTUAL_ENV": "/home/vscode/.local/share/camb-devcontainer/.venv"
+  },
+  "postCreateCommand": "bash .devcontainer/scripts/post-create.sh",
+  "postStartCommand": "bash .devcontainer/scripts/post-start.sh",
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "fortran.formatting.formatter": "findent",
+        "fortran.formatting.path": "/home/vscode/.local/share/camb-devcontainer/.venv/bin",
+        "python.defaultInterpreterPath": "/home/vscode/.local/share/camb-devcontainer/.venv/bin/python3",
+        "python-envs.workspaceSearchPaths": [
+          "/home/vscode/.local/share/camb-devcontainer"
+        ],
+        "python.venvPath": "/home/vscode/.local/share/camb-devcontainer",
+        "terminal.integrated.defaultProfile.linux": "bash",
+        "python-envs.terminal.autoActivationType": "off"
+      },
+      "extensions": [
+        "charliermarsh.ruff",
+        "fortran-lang.linter-gfortran",
+        "ms-python.debugpy",
+        "ms-python.python",
+        "openai.chatgpt",
+        "anthropic.claude-code"
+      ]
+    }
+  }
+}
