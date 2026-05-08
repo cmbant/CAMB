@@ -685,8 +685,14 @@ def compare_cls(standard: RunOutput, reference: RunOutput) -> list[StatRow]:
     rows.extend(compare_l_ranges("TE", te_errors, ell, tolerance_ranges(TT_EE_TOLERANCES), min_ell=2))
 
     bb_errors = fractional_delta(standard_cls[:, CL_COLUMNS["BB"]], reference_cls[:, CL_COLUMNS["BB"]])
-    rows.extend(compare_l_ranges("BB", bb_errors, ell, tolerance_ranges(BB_TOLERANCES), min_ell=2))
+    rows.extend(compare_l_ranges("BB", bb_errors, ell, tolerance_ranges(bb_tolerances(standard.params)), min_ell=2))
     return rows
+
+
+def bb_tolerances(params) -> list[tuple[int, float]]:
+    if not bool(params.Accuracy.AccurateBB):
+        return [(0, 2e-2), (8000, 1e-1)]
+    return BB_TOLERANCES
 
 
 def compare_lensing(standard: RunOutput, reference: RunOutput) -> list[StatRow]:
