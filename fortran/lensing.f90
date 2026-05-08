@@ -720,9 +720,9 @@
     real(dl) :: CPP(0:State%CP%max_l) ! [L(L+1)]^2 C_L_phi_phi/2pi
     integer, intent(in) :: lmin,lmax
     integer :: l, i, npoints, imin
-    integer :: max_lensed_ix, apodize_point_width, thread_ix
-    real(dl) :: LensAccuracyBoost, sampling_factor, range_fac, theta_max, xmin
-    real(dl) :: fac, sc, fac2, weight, ramp
+    integer :: max_lensed_ix, thread_ix
+    real(dl) :: LensAccuracyBoost, sampling_factor, range_fac, theta_max, xmin, xtaper_start
+    real(dl) :: fac, sc, fac2, weight, theta, taper, apodize_theta_width
     real(dl), pointer :: xvals(:), weights(:)
     real(dl), allocatable :: lfacs(:), lfacs2(:), lrootfacs(:)
     real(dl), allocatable :: Cphil3(:), CTT(:), CTE(:), CEE(:)
@@ -757,12 +757,14 @@
             do while (imin <= npoints .and. xvals(imin) < xmin)
                 imin = imin + 1
             end do
-            ! Slightly broader taper reduces short-range ringing without changing the
-            ! quadrature size or theta cut.
-            apodize_point_width = max(1,nint(12._dl*sampling_factor))
+            ! C2 taper over a fixed angular width. This damps short-range ringing
+            ! without tying the window shape to the local Gauss-Legendre point spacing.
+            apodize_theta_width = min(theta_max,48._dl*const_pi/lmax)
+            xtaper_start = cos(theta_max - apodize_theta_width)
         else
             imin = 1
-            apodize_point_width = 0
+            apodize_theta_width = 0._dl
+            xtaper_start = -1._dl
         end if
 
         allocate(Cphil3(1:lmax), CTT(1:lmax), CTE(1:lmax), CEE(1:lmax))
@@ -824,12 +826,13 @@
 
         if (DebugMsgs) call Timer%Start()
 
-        !$OMP PARALLEL DO DEFAULT(SHARED), PRIVATE(i,weight,ramp,thread_ix)
+        !$OMP PARALLEL DO DEFAULT(SHARED), PRIVATE(i,weight,theta,taper,thread_ix)
         do i=imin, npoints
             weight = weights(i)
-            if (apodize_point_width > 0 .and. i-imin < apodize_point_width*4) then
-                ramp = real(i - imin + 1, dl)/apodize_point_width
-                weight = weight*(1._dl - exp(-(ramp**2)/2._dl))
+            if (apodize_theta_width > 0._dl .and. xvals(i) < xtaper_start) then
+                theta = acos(xvals(i))
+                taper = max(0._dl,min(1._dl,(theta_max - theta)/apodize_theta_width))
+                weight = weight*taper**3*(10._dl + taper*(-15._dl + 6._dl*taper))
             end if
 
             thread_ix = 1

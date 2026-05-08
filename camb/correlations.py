@@ -50,6 +50,19 @@ def _cached_gauss_legendre(npoints, cache=True):
         return xvals, weights
 
 
+def _apodize_theta_width(theta_max, lmax, apodize_point_width):
+    if theta_max is None or apodize_point_width <= 0:
+        return 0.0
+    return min(theta_max, 4.8 * float(apodize_point_width) * np.pi / lmax)
+
+
+def _c2_apodized_weight(weight, theta, theta_max, apodize_theta_width):
+    if apodize_theta_width <= 0 or theta <= theta_max - apodize_theta_width:
+        return weight
+    taper = np.clip((theta_max - theta) / apodize_theta_width, 0.0, 1.0)
+    return weight * taper**3 * (10.0 + taper * (-15.0 + 6.0 * taper))
+
+
 def legendre_funcs(lmax, x, m=(0, 2), lfacs=None, lfacs2=None, lrootfacs=None):
     r"""
     Utility function to return array of Legendre and :math:`d_{mn}` functions for all :math:`\ell` up to lmax.
@@ -268,7 +281,8 @@ def lensed_correlations(cls, clpp, xvals, weights=None, lmax=None, delta=False, 
     :param lmax: optional maximum L to use from the cls arrays
     :param delta: if true, calculate the difference between lensed and unlensed (default False)
     :param theta_max: maximum angle (in radians) to keep in the correlation functions
-    :param apodize_point_width: smoothing scale for apodization at truncation of correlation function
+    :param apodize_point_width: scale factor for the fixed-angle C2 apodization at the truncation cut;
+        the default corresponds to a transition width of about 48*pi/lmax
     :return: 2D array of corrs[i, ix], where ix=0,1,2,3 are T, Q+U, Q-U and cross;
         if weights is not None, then return corrs, lensed_cls
     """
@@ -307,8 +321,10 @@ def lensed_correlations(cls, clpp, xvals, weights=None, lmax=None, delta=False, 
     if theta_max is not None:
         xmin = np.cos(theta_max)
         imin = np.searchsorted(xvals, xmin)  # assume xvals sorted
+        apodize_theta_width = _apodize_theta_width(theta_max, lmax, apodize_point_width)
     else:
         imin = 0
+        apodize_theta_width = 0.0
 
     corrs = np.zeros((len(xvals[imin:]), 4))
 
@@ -369,8 +385,8 @@ def lensed_correlations(cls, clpp, xvals, weights=None, lmax=None, delta=False, 
         )
         if weights is not None:
             weight = weights[i + imin]
-            if theta_max is not None and i < apodize_point_width * 4:
-                weight *= 1 - np.exp(-(((i + 1.0) / apodize_point_width) ** 2) / 2)
+            if apodize_theta_width > 0.0:
+                weight = _c2_apodized_weight(weight, np.arccos(x), theta_max, apodize_theta_width)
 
             lensedcls[:, 0] += (weight * corrs[i, 0]) * P
             T2 = (corrs[i, 1] * weight / 2) * d22
@@ -424,8 +440,8 @@ def lensed_cls(
     :param sampling_factor: npoints = int(sampling_factor*lmax)+1
     :param delta_cls: if true, return the difference between lensed and unlensed (optional, default False)
     :param theta_max: maximum angle (in radians) to keep in the correlation functions; default: pi/32
-    :param apodize_point_width: if theta_max is set, apodize around the cut using half Gaussian of approx
-        width apodize_point_width/lmax*pi
+    :param apodize_point_width: if theta_max is set, scale the fixed-angle C2 apodization around the cut;
+        the default corresponds to a transition width of about 48*pi/lmax
     :param leggaus: whether to use Gauss-Legendre integration (default True)
     :param cache: if leggaus = True, set cache to save the x values and weights between calls (most of the time)
     :return: 2D array of cls[L, ix], with L starting at zero and ix=0,1,2,3 in order TT, EE, BB, TE.
@@ -439,7 +455,7 @@ def lensed_cls(
     else:
         theta = np.arange(1, npoints + 1) * np.pi / (npoints + 1)
         xvals = np.cos(theta[::-1])
-        weights = np.pi / npoints * np.sin(theta)
+        weights = np.pi / (npoints + 1) * np.sin(theta)
     _, lensedcls = lensed_correlations(
         cls,
         clpp,
@@ -448,7 +464,7 @@ def lensed_cls(
         lmax,
         delta=True,
         theta_max=theta_max,
-        apodize_point_width=int(apodize_point_width * sampling_factor),
+        apodize_point_width=apodize_point_width,
     )
     if not delta_cls:
         lensedcls += cls[: lmax + 1, :]
@@ -472,8 +488,8 @@ def lensed_cl_derivatives(cls, clpp, lmax=None, theta_max=np.pi / 32, apodize_po
     :param clpp: array of :math:`[L(L+1)]^2 C_L^{\phi\phi}/2\pi` lensing potential power spectrum (zero based)
     :param lmax: optional maximum L to use from the cls arrays
     :param theta_max: maximum angle (in radians) to keep in the correlation functions
-    :param apodize_point_width: if theta_max is set, apodize around the cut using half Gaussian of approx
-        width apodize_point_width/lmax*pi
+    :param apodize_point_width: if theta_max is set, scale the fixed-angle C2 apodization around the cut;
+        the default corresponds to a transition width of about 48*pi/lmax
     :param sampling_factor: npoints = int(sampling_factor*lmax)+1
     :return: array dCL[ix, ell, L], where ix=0,1,2,3 are T, EE, BB, TE and result
                is :math:`d[D^{\rm ix}_\ell]/ d (\log C^{\phi}_L)`
@@ -511,8 +527,10 @@ def lensed_cl_derivatives(cls, clpp, lmax=None, theta_max=np.pi / 32, apodize_po
     if theta_max is not None:
         xmin = np.cos(theta_max)
         imin = np.searchsorted(xvals, xmin)  # assume xvals sorted
+        apodize_theta_width = _apodize_theta_width(theta_max, lmax, apodize_point_width)
     else:
         imin = 0
+        apodize_theta_width = 0.0
 
     corrs = np.zeros((4, lmax + 1))
 
@@ -595,8 +613,8 @@ def lensed_cl_derivatives(cls, clpp, lmax=None, theta_max=np.pi / 32, apodize_po
         corrs[3, 1:] = (dsigma2 * corr + dCg2 * corr2) * cphil3
 
         weight = weights[i + imin]
-        if theta_max is not None and i < apodize_point_width * 4:
-            weight *= 1 - np.exp(-(((i + 1.0) / apodize_point_width) ** 2) / 2)
+        if apodize_theta_width > 0.0:
+            weight = _c2_apodized_weight(weight, np.arccos(x), theta_max, apodize_theta_width)
 
         dcl[0, :, :] += np.outer(P, (weight * corrs[0, :]))
         T2 = np.outer(d22, (corrs[1, :] * weight / 2))
@@ -626,8 +644,8 @@ def lensed_cl_derivative_unlensed(clpp, lmax=None, theta_max=np.pi / 32, apodize
     :param clpp: array of :math:`[L(L+1)]^2 C_L^{\phi\phi}/2\pi` lensing potential power spectrum (zero based)
     :param lmax: optional maximum L to use from the clpp array
     :param theta_max: maximum angle (in radians) to keep in the correlation functions
-    :param apodize_point_width: if theta_max is set, apodize around the cut using half Gaussian of approx
-        width apodize_point_width/lmax*pi
+    :param apodize_point_width: if theta_max is set, scale the fixed-angle C2 apodization around the cut;
+        the default corresponds to a transition width of about 48*pi/lmax
     :param sampling_factor: npoints = int(sampling_factor*lmax)+1
     :return: array dCL[ix, ell, L], where ix=0,1,2,3 are TT, EE, BB, TE and result is
          :math:`d\left(\Delta D^{\rm ix}_\ell\right) / d D^{{\rm unlens},j}_L` where j[ix] are TT, EE, EE, TE
@@ -665,8 +683,10 @@ def lensed_cl_derivative_unlensed(clpp, lmax=None, theta_max=np.pi / 32, apodize
     if theta_max is not None:
         xmin = np.cos(theta_max)
         imin = np.searchsorted(xvals, xmin)  # assume xvals sorted
+        apodize_theta_width = _apodize_theta_width(theta_max, lmax, apodize_point_width)
     else:
         imin = 0
+        apodize_theta_width = 0.0
 
     corr = np.zeros((4, lmax + 1))
 
@@ -722,8 +742,8 @@ def lensed_cl_derivative_unlensed(clpp, lmax=None, theta_max=np.pi / 32, apodize
         corr[3, 4:] += f[2:] * c2fac2[2:] * d2m4 / 8
 
         weight = weights[i + imin]
-        if theta_max is not None and i < apodize_point_width * 4:
-            weight *= 1 - np.exp(-(((i + 1.0) / apodize_point_width) ** 2) / 2)
+        if apodize_theta_width > 0.0:
+            weight = _c2_apodized_weight(weight, np.arccos(x), theta_max, apodize_theta_width)
 
         dcl[0, :, :] += np.outer(P, (weight * corr[0, :]))
         T2 = np.outer(d22, (corr[1, :] * weight / 2))
