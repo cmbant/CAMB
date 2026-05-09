@@ -259,12 +259,13 @@
     real(dl) cs2, opacity, dopacity
     real(dl) tau_switch_ktau, tau_switch_nu_massless, tau_switch_nu_massive, next_switch
     real(dl) tau_switch_no_nu_multpoles, tau_switch_no_phot_multpoles,tau_switch_nu_nonrel
-    real(dl) noSwitch, smallTime
+    real(dl) noSwitch, smallTime, switchBoost, latePhotSwitchBoost
     !Sources
     real(dl) tau_switch_saha, Delta_TM, xe,a,tau_switch_evolve_TM
 
     noSwitch= State%tau0+1
     smallTime =  min(tau, 1/EV%k_buf)/100
+    switchBoost = CP%Accuracy%AccuracyBoost*CP%Accuracy%TimeSwitchBoost
 
     tau_switch_ktau = noSwitch
     tau_switch_no_nu_multpoles= noSwitch
@@ -302,13 +303,20 @@
     if (CP%DoLateRadTruncation) then
         if (.not. EV%no_nu_multpoles) & !!.and. .not. EV%has_nu_relativistic .and. tau_switch_nu_massless ==noSwitch)  &
             tau_switch_no_nu_multpoles= &
-            max(15/EV%k_buf*CP%Accuracy%AccuracyBoost*CP%Accuracy%TimeSwitchBoost,&
+            max(15/EV%k_buf*switchBoost,&
             min(State%taurend,EV%ThermoData%matter_verydom_tau))
 
-        if (.not. EV%no_phot_multpoles .and. (.not.CP%WantCls .or. &
-            EV%k_buf>0.03*CP%Accuracy%AccuracyBoost*CP%Accuracy%TimeSwitchBoost)) &
-            tau_switch_no_phot_multpoles =max(15/EV%k_buf,State%taurend)*CP%Accuracy%AccuracyBoost &
-            *CP%Accuracy%TimeSwitchBoost
+        if (.not. EV%no_phot_multpoles) then
+
+            !High-precision transfer matter power is sensitive to late photon hierarchy truncation.
+            if (AccuracyTarget > 0 .and. CP%WantTransfer .and. CP%Transfer%high_precision) then
+                latePhotSwitchBoost = max(switchBoost, 2._dl)
+            else
+                latePhotSwitchBoost = switchBoost
+            end if
+            if (.not.CP%WantCls .or. EV%k_buf>0.03*latePhotSwitchBoost) &
+                tau_switch_no_phot_multpoles =max(15/EV%k_buf,State%taurend)*latePhotSwitchBoost
+        end if
     end if
 
     next_switch = min(tau_switch_ktau, tau_switch_nu_massless,EV%TightSwitchoffTime, tau_switch_nu_massive, &

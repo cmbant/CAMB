@@ -168,7 +168,7 @@
     logical :: short_integral_range
     real(dl) range_fac
     logical, parameter :: approx = .false.
-    real(dl) theta_cut(lmax), LensAccuracyBoost
+    real(dl) theta_cut(lmax), LensAccuracyBoost, ThetaSampleBoost
     Type(TTimer) :: Timer
 
     !$ integer  OMP_GET_THREAD_NUM, OMP_GET_MAX_THREADS
@@ -178,6 +178,12 @@
     associate(lSamp => State%CLData%CTransScal%ls, CP=>State%CP)
 
         LensAccuracyBoost = CP%Accuracy%AccuracyBoost*CP%Accuracy%LensingBoost
+        ThetaSampleBoost = LensAccuracyBoost
+        !High-l lensed spectra need denser correlation-function angular sampling.
+        if (CP%Max_l > 3500) then
+            ThetaSampleBoost = ThetaSampleBoost*1.3_dl
+            if (AccuracyTarget > 0) ThetaSampleBoost = max(ThetaSampleBoost, 1.8_dl)
+        end if
         max_lensed_ix = lSamp%nl-1
         do while(lSamp%l(max_lensed_ix) > CP%Max_l - lensed_convolution_margin)
             max_lensed_ix = max_lensed_ix -1
@@ -188,10 +194,9 @@
         if (allocated(CLout%Cl_lensed)) deallocate(CLout%Cl_lensed)
         allocate(CLout%Cl_lensed(lmin:CLout%lmax_lensed,1:4), source = 0._dl)
 
-        npoints = CP%Max_l  * 2 *LensAccuracyBoost
+        npoints = CP%Max_l  * 2 * ThetaSampleBoost
         short_integral_range = .not. CP%Accuracy%AccurateBB
         dtheta = const_pi / npoints
-        if (CP%Max_l > 3500) dtheta=dtheta/1.3
         apodize_point_width = nint(0.003 / dtheta)
         npoints = int(const_pi/dtheta)
         if (short_integral_range) then
