@@ -6,10 +6,17 @@ can also plot fractional differences, estimate a fiducial CMB delta chi-squared,
 search for minimal top-level boosts, and refine which underlying component
 accuracy settings are most relevant.
 
+For lensed CMB spectra near the output cutoff, this is not automatically a test
+of lens-margin convergence: by default the boosted reference keeps the same
+``lens_margin`` as the standard run unless ``--reference-lens-margin`` is set,
+and even a larger reference margin is only a support-sensitivity probe unless
+the underlying high-``l`` reference spectra are themselves well converged.
+
 Examples::
 
     camb check_accuracy inifiles/params.ini
     camb check_accuracy inifiles/params.ini --plot-dir accuracy_plots
+    camb check_accuracy inifiles/params.ini --strict-reference --reference-lens-margin 1500
     camb check_accuracy inifiles/params.ini --find-minimal-boosts --refine-accuracy-components
 """
 
@@ -35,6 +42,13 @@ DEFAULT_ACCURACY_SETTINGS = {
     # of 5000 leaves a wide gap in the log block right above 5000 that makes the reference itself
     # under-sampled at high l.
     "min_l_logl_sampling": 100000,
+}
+
+STRICT_REFERENCE_SETTINGS = {
+    "AccuracyBoost": 3.0,
+    "lSampleBoost": 3.0,
+    "lAccuracyBoost": 3.0,
+    "min_l_logl_sampling": 10000,
 }
 
 DEFAULT_NOISE_CONFIGS = {
@@ -297,7 +311,7 @@ def build_parser(prog: str | None = None) -> argparse.ArgumentParser:
     parser.add_argument(
         "--reference-lens-margin",
         type=int,
-        help="lens margin override for the boosted reference only",
+        help="lens margin override for the boosted reference only; use this with sufficiently converged reference accuracy settings to probe lensed-spectrum support sensitivity near the output cutoff",
     )
     parser.add_argument(
         "--reference-lens-potential-accuracy",
@@ -394,6 +408,11 @@ def build_parser(prog: str | None = None) -> argparse.ArgumentParser:
         default=DEFAULT_ACCURACY_SETTINGS["AccuracyBoost"],
     )
     parser.add_argument(
+        "--strict-reference",
+        action="store_true",
+        help="use a stricter boosted reference preset with AccuracyBoost=lSampleBoost=lAccuracyBoost=3 and min_l_logl_sampling=10000",
+    )
+    parser.add_argument(
         "--l-sample-boost",
         type=float,
         default=DEFAULT_ACCURACY_SETTINGS["lSampleBoost"],
@@ -413,13 +432,20 @@ def build_parser(prog: str | None = None) -> argparse.ArgumentParser:
 
 
 def requested_accuracy_settings(args: argparse.Namespace) -> dict[str, float | bool]:
-    return {
+    settings: dict[str, float | bool] = {
         "AccuracyBoost": args.accuracy_boost,
         "lSampleBoost": args.l_sample_boost,
         "lAccuracyBoost": args.l_accuracy_boost,
         "IntTolBoost": args.int_tol_boost,
         "DoLateRadTruncation": args.do_late_rad_truncation,
     }
+    if args.strict_reference:
+        for key, value in STRICT_REFERENCE_SETTINGS.items():
+            if key in settings:
+                settings[key] = max(float(settings[key]), float(value))
+            else:
+                settings[key] = value
+    return settings
 
 
 def apply_accuracy_settings(params, settings: dict[str, float | bool], *, boost_from_raw: bool = False) -> None:
@@ -428,17 +454,18 @@ def apply_accuracy_settings(params, settings: dict[str, float | bool], *, boost_
             params.DoLateRadTruncation = bool(setting)
             continue
         if hasattr(params.Accuracy, key):
-            target = params.Accuracy
-        elif hasattr(params, key):
-            target = params
-        else:
-            raise ValueError(f"Unknown accuracy setting {key}")
-        value = float(setting)
-        if boost_from_raw:
-            value = max(float(getattr(target, key)), value)
-        if isinstance(getattr(target, key), int) and not isinstance(getattr(target, key), bool):
-            value = int(value)
-        setattr(target, key, value)
+            value = float(setting)
+            if boost_from_raw:
+                value = max(float(getattr(params.Accuracy, key)), value)
+            setattr(params.Accuracy, key, value)
+            continue
+        if key == "min_l_logl_sampling":
+            value = int(setting)
+            if boost_from_raw:
+                value = max(int(params.min_l_logl_sampling), value)
+            params.min_l_logl_sampling = value
+            continue
+        raise ValueError(f"Unknown accuracy setting {key}")
 
 
 def copy_params(params):
@@ -2144,6 +2171,12 @@ def main(argv: list[str] | None = None, *, prog: str | None = None) -> int:
     base_params = load_params(ini_file, no_validate=args.no_validate)
     if args.mpk_tolerance is None:
         args.mpk_tolerance = MPK_TOLERANCE_RANGES if base_params.Transfer.high_precision else 3e-3
+    if base_params.DoLensing and base_params.WantCls and base_params.Want_CMB:
+        if args.reference_lens_margin is not None:
+            print(
+                "Note: --reference-lens-margin probes support sensitivity near the output cutoff, but it is not by itself "
+                "a truth test unless the high-l reference spectra are also well converged."
+            )
     noise_config = None
     if args.chi2:
         try:

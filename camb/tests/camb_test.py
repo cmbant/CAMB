@@ -605,6 +605,7 @@ class CambTest(unittest.TestCase):
         )
 
         direct_method = camb.lensing_method_curv_corr_direct
+        optimized_method = camb.lensing_method_optimized
         cls_lensed_direct = data.get_lensed_cls_with_spectrum(
             data.get_lens_potential_cls()[:, 0], lmax=3000, lensing_method=direct_method
         )
@@ -620,7 +621,29 @@ class CambTest(unittest.TestCase):
                 < 1e-4
             )
         )
-        self.assertEqual(camb.config.lensing_method, camb.lensing_method_curv_corr)
+
+        pars = camb.CAMBparams()
+        pars.set_cosmology(H0=67)
+        pars.set_for_lmax(2500, lens_potential_accuracy=1)
+        pars.Accuracy.AccurateBB = True
+        data = camb.get_results(pars)
+        clpp = data.get_lens_potential_cls()[:, 0]
+        cls_lensed_direct = data.get_lensed_cls_with_spectrum(clpp, lmax=2500, lensing_method=direct_method)
+        cls_lensed_optimized = data.get_lensed_cls_with_spectrum(clpp, lmax=2500, lensing_method=optimized_method)
+        np.testing.assert_allclose(cls_lensed_optimized[2:, :], cls_lensed_direct[2:, :], rtol=1e-12)
+
+        pars = camb.CAMBparams()
+        pars.set_cosmology(H0=67)
+        pars.set_for_lmax(2500, lens_potential_accuracy=1)
+        pars.Accuracy.AccurateBB = False
+        data = camb.get_results(pars)
+        clpp = data.get_lens_potential_cls()[:, 0]
+        cls_lensed_curv = data.get_lensed_cls_with_spectrum(
+            clpp, lmax=2500, lensing_method=camb.lensing_method_curv_corr
+        )
+        cls_lensed_optimized = data.get_lensed_cls_with_spectrum(clpp, lmax=2500, lensing_method=optimized_method)
+        np.testing.assert_allclose(cls_lensed_optimized[2:, :], cls_lensed_curv[2:, :], rtol=1e-7)
+        self.assertEqual(camb.config.lensing_method, camb.lensing_method_optimized)
 
         corr, xvals, weights = correlations.gauss_legendre_correlation(cls["lensed_scalar"])
         clout = correlations.corr2cl(corr, xvals, weights, 2500)
