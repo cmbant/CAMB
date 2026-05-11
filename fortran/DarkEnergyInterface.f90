@@ -220,6 +220,8 @@
     real(dl), intent(IN) :: a
 
     if(.not. this%use_tabulated_w) then
+        ! grho_de is proportional to a^4 rho_de/rho_de0, so for CPL w(a)=w0+wa(1-a)
+        ! it differs from rho_de/rho_de0 by an extra factor of a^4.
         grho_de = a ** (1._dl - 3. * this%w_lam - 3. * this%wa)
         if (this%wa/=0) grho_de=grho_de*exp(-3. * this%wa * (1._dl - a))
     else
