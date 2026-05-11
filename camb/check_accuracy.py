@@ -165,12 +165,7 @@ class ComparisonResult:
     @property
     def worst_failure(self) -> StatRow | None:
         failures = [
-            row
-            for row in self.derived_rows
-            + self.cl_rows
-            + self.lensing_rows
-            + self.mpk_rows
-            if not row.passed
+            row for row in self.derived_rows + self.cl_rows + self.lensing_rows + self.mpk_rows if not row.passed
         ]
         if not failures:
             return None
@@ -178,12 +173,7 @@ class ComparisonResult:
 
 
 def comparison_rows(comparison: ComparisonResult) -> list[StatRow]:
-    return (
-        comparison.derived_rows
-        + comparison.cl_rows
-        + comparison.lensing_rows
-        + comparison.mpk_rows
-    )
+    return comparison.derived_rows + comparison.cl_rows + comparison.lensing_rows + comparison.mpk_rows
 
 
 def stat_score(row: StatRow) -> float:
@@ -257,9 +247,7 @@ class SearchResult:
 
 def tolerance_ranges(spec: list[tuple[int, float]]) -> list[RangeTolerance]:
     return [
-        RangeTolerance(
-            start, spec[index + 1][0] if index + 1 < len(spec) else None, tolerance
-        )
+        RangeTolerance(start, spec[index + 1][0] if index + 1 < len(spec) else None, tolerance)
         for index, (start, tolerance) in enumerate(spec)
     ]
 
@@ -279,16 +267,10 @@ def comma_separated_floats(value: str) -> list[float]:
 
 
 def cmb_fields(value: str) -> tuple[str, ...]:
-    fields = tuple(
-        field.strip().upper()
-        for field in value.replace(",", " ").split()
-        if field.strip()
-    )
+    fields = tuple(field.strip().upper() for field in value.replace(",", " ").split() if field.strip())
     allowed = {"T", "E", "B"}
     if not fields or any(field not in allowed for field in fields):
-        raise argparse.ArgumentTypeError(
-            "fields must be a comma- or space-separated subset of T,E,B"
-        )
+        raise argparse.ArgumentTypeError("fields must be a comma- or space-separated subset of T,E,B")
     if len(set(fields)) != len(fields):
         raise argparse.ArgumentTypeError("fields must not contain duplicates")
     return fields
@@ -378,15 +360,9 @@ def build_parser(prog: str | None = None) -> argparse.ArgumentParser:
         help="maximum L for --chi2; defaults to comparison lmax",
     )
     parser.add_argument("--chi2-fields", type=cmb_fields, default=("T", "E", "B"))
-    parser.add_argument(
-        "--noise-muk-arcmin-t", type=float, help="temperature white noise for --chi2"
-    )
-    parser.add_argument(
-        "--noise-muk-arcmin-p", type=float, help="polarization white noise for --chi2"
-    )
-    parser.add_argument(
-        "--beam-fwhm-arcmin", type=float, help="Gaussian beam FWHM for --chi2"
-    )
+    parser.add_argument("--noise-muk-arcmin-t", type=float, help="temperature white noise for --chi2")
+    parser.add_argument("--noise-muk-arcmin-p", type=float, help="polarization white noise for --chi2")
+    parser.add_argument("--beam-fwhm-arcmin", type=float, help="Gaussian beam FWHM for --chi2")
     parser.add_argument("--fsky", type=float, help="sky fraction for --chi2")
     parser.add_argument(
         "--find-minimal-boosts",
@@ -446,9 +422,7 @@ def build_parser(prog: str | None = None) -> argparse.ArgumentParser:
         type=float,
         default=DEFAULT_ACCURACY_SETTINGS["lAccuracyBoost"],
     )
-    parser.add_argument(
-        "--int-tol-boost", type=float, default=DEFAULT_ACCURACY_SETTINGS["IntTolBoost"]
-    )
+    parser.add_argument("--int-tol-boost", type=float, default=DEFAULT_ACCURACY_SETTINGS["IntTolBoost"])
     parser.add_argument(
         "--do-late-rad-truncation",
         action=argparse.BooleanOptionalAction,
@@ -474,9 +448,7 @@ def requested_accuracy_settings(args: argparse.Namespace) -> dict[str, float | b
     return settings
 
 
-def apply_accuracy_settings(
-    params, settings: dict[str, float | bool], *, boost_from_raw: bool = False
-) -> None:
+def apply_accuracy_settings(params, settings: dict[str, float | bool], *, boost_from_raw: bool = False) -> None:
     for key, setting in settings.items():
         if key == "DoLateRadTruncation":
             params.DoLateRadTruncation = bool(setting)
@@ -660,14 +632,10 @@ def get_matter_power(results, minkh: float, npoints: int) -> MatterPowerData | N
     mask = k >= minkh
     if not np.any(mask):
         return None
-    return MatterPowerData(
-        k=k[mask], z=z, pk=pk[:, mask], requested_kmax=requested_kmax, npoints=npoints
-    )
+    return MatterPowerData(k=k[mask], z=z, pk=pk[:, mask], requested_kmax=requested_kmax, npoints=npoints)
 
 
-def fractional_delta(
-    values: np.ndarray, reference: np.ndarray, *, floor: float = 0.0
-) -> np.ndarray:
+def fractional_delta(values: np.ndarray, reference: np.ndarray, *, floor: float = 0.0) -> np.ndarray:
     denominator = np.abs(reference)
     if floor:
         denominator = np.maximum(denominator, floor)
@@ -677,13 +645,9 @@ def fractional_delta(
 
 
 def normalized_te_delta(values: np.ndarray, reference: np.ndarray) -> np.ndarray:
-    denominator = np.sqrt(
-        np.maximum(reference[:, CL_COLUMNS["TT"]] * reference[:, CL_COLUMNS["EE"]], 0.0)
-    )
+    denominator = np.sqrt(np.maximum(reference[:, CL_COLUMNS["TT"]] * reference[:, CL_COLUMNS["EE"]], 0.0))
     with np.errstate(divide="ignore", invalid="ignore"):
-        delta = (
-            values[:, CL_COLUMNS["TE"]] - reference[:, CL_COLUMNS["TE"]]
-        ) / denominator
+        delta = (values[:, CL_COLUMNS["TE"]] - reference[:, CL_COLUMNS["TE"]]) / denominator
     return delta
 
 
@@ -726,14 +690,10 @@ def finite_stats(
     location = ""
     if locations is not None:
         location = str(locations[finite][max_index])
-    return StatRow(
-        quantity, range_label, max_abs, rms, tolerance, max_abs <= tolerance, location
-    )
+    return StatRow(quantity, range_label, max_abs, rms, tolerance, max_abs <= tolerance, location)
 
 
-def compare_derived(
-    standard: RunOutput, reference: RunOutput, tolerance: float
-) -> list[StatRow]:
+def compare_derived(standard: RunOutput, reference: RunOutput, tolerance: float) -> list[StatRow]:
     rows = []
     for name in reference.derived:
         if name not in standard.derived:
@@ -769,22 +729,12 @@ def compare_cls(standard: RunOutput, reference: RunOutput) -> list[StatRow]:
             standard_cls[:, CL_COLUMNS[quantity]],
             reference_cls[:, CL_COLUMNS[quantity]],
         )
-        rows.extend(
-            compare_l_ranges(
-                quantity, errors, ell, tolerance_ranges(TT_EE_TOLERANCES), min_ell=2
-            )
-        )
+        rows.extend(compare_l_ranges(quantity, errors, ell, tolerance_ranges(TT_EE_TOLERANCES), min_ell=2))
 
     te_errors = normalized_te_delta(standard_cls, reference_cls)
-    rows.extend(
-        compare_l_ranges(
-            "TE", te_errors, ell, tolerance_ranges(TT_EE_TOLERANCES), min_ell=2
-        )
-    )
+    rows.extend(compare_l_ranges("TE", te_errors, ell, tolerance_ranges(TT_EE_TOLERANCES), min_ell=2))
 
-    bb_errors = fractional_delta(
-        standard_cls[:, CL_COLUMNS["BB"]], reference_cls[:, CL_COLUMNS["BB"]]
-    )
+    bb_errors = fractional_delta(standard_cls[:, CL_COLUMNS["BB"]], reference_cls[:, CL_COLUMNS["BB"]])
     rows.extend(
         compare_l_ranges(
             "BB",
@@ -806,17 +756,12 @@ def bb_tolerances(params) -> list[tuple[int, float]]:
 def compare_lensing(standard: RunOutput, reference: RunOutput) -> list[StatRow]:
     if standard.lens_potential_cls is None or reference.lens_potential_cls is None:
         return []
-    lmax = (
-        min(standard.lens_potential_cls.shape[0], reference.lens_potential_cls.shape[0])
-        - 1
-    )
+    lmax = min(standard.lens_potential_cls.shape[0], reference.lens_potential_cls.shape[0]) - 1
     standard_pp = standard.lens_potential_cls[: lmax + 1, 0]
     reference_pp = reference.lens_potential_cls[: lmax + 1, 0]
     ell = np.arange(lmax + 1)
     errors = fractional_delta(standard_pp, reference_pp)
-    return compare_l_ranges(
-        "lens PP", errors, ell, tolerance_ranges(LENSING_TOLERANCES), min_ell=2
-    )
+    return compare_l_ranges("lens PP", errors, ell, tolerance_ranges(LENSING_TOLERANCES), min_ell=2)
 
 
 def compare_l_ranges(
@@ -872,18 +817,11 @@ def compare_matter_power(
 ) -> list[StatRow]:
     if standard.matter_power is None or reference.matter_power is None:
         return []
-    common_k, z, standard_pk, reference_pk = common_matter_power_grid(
-        standard.matter_power, reference.matter_power
-    )
+    common_k, z, standard_pk, reference_pk = common_matter_power_grid(standard.matter_power, reference.matter_power)
     errors = fractional_delta(standard_pk, reference_pk)
     if isinstance(tolerance, float):
         z_grid, k_grid = np.meshgrid(z, common_k, indexing="ij")
-        locations = np.array(
-            [
-                f"z={z_value:.6g}, k/h={k:.6g}"
-                for z_value, k in zip(z_grid.ravel(), k_grid.ravel())
-            ]
-        )
+        locations = np.array([f"z={z_value:.6g}, k/h={k:.6g}" for z_value, k in zip(z_grid.ravel(), k_grid.ravel())])
         range_label = f"all z, {common_k[0]:.4g} <= k/h <= {common_k[-1]:.4g}"
         return [
             finite_stats(
@@ -907,12 +845,7 @@ def compare_matter_power(
         selected_k = common_k[mask]
         selected_errors = errors[:, mask]
         z_grid, k_grid = np.meshgrid(z, selected_k, indexing="ij")
-        locations = np.array(
-            [
-                f"z={z_value:.6g}, k/h={k:.6g}"
-                for z_value, k in zip(z_grid.ravel(), k_grid.ravel())
-            ]
-        )
+        locations = np.array([f"z={z_value:.6g}, k/h={k:.6g}" for z_value, k in zip(z_grid.ravel(), k_grid.ravel())])
         rows.append(
             finite_stats(
                 "matter P(k)",
@@ -943,9 +876,7 @@ def common_matter_power_grid(
         raise ValueError("Matter power redshift grids differ")
 
     kmin = max(float(std_k[0]), float(ref_k[0]))
-    requested_kmax = min(
-        standard_matter_power.requested_kmax, reference_matter_power.requested_kmax
-    )
+    requested_kmax = min(standard_matter_power.requested_kmax, reference_matter_power.requested_kmax)
     kmax = min(float(std_k[-1]), float(ref_k[-1]), requested_kmax)
     if kmax <= kmin:
         raise ValueError("Matter power k grids do not overlap")
@@ -956,9 +887,7 @@ def common_matter_power_grid(
     return common_k, std_z, standard_pk, reference_pk
 
 
-def interpolate_pk_to_grid(
-    k: np.ndarray, pk: np.ndarray, common_k: np.ndarray
-) -> np.ndarray:
+def interpolate_pk_to_grid(k: np.ndarray, pk: np.ndarray, common_k: np.ndarray) -> np.ndarray:
     log_k = np.log(k)
     log_common_k = np.log(common_k)
     interpolated = np.empty((pk.shape[0], len(common_k)))
@@ -1010,9 +939,7 @@ def compare_params_accuracy(
     """
     if mpk_tolerance is None:
         mpk_tolerance = MPK_TOLERANCE_RANGES if params.Transfer.high_precision else 3e-3
-    reference_accuracy_settings = (
-        reference_accuracy_settings or DEFAULT_ACCURACY_SETTINGS
-    )
+    reference_accuracy_settings = reference_accuracy_settings or DEFAULT_ACCURACY_SETTINGS
 
     standard_params = copy_params(params)
     apply_lensing_settings(
@@ -1028,18 +955,14 @@ def compare_params_accuracy(
     apply_lensing_settings(
         reference_params,
         set_for_lmax=set_for_lmax,
-        lens_margin=reference_lens_margin
-        if reference_lens_margin is not None
-        else lens_margin,
+        lens_margin=reference_lens_margin if reference_lens_margin is not None else lens_margin,
         lens_potential_accuracy=(
             reference_lens_potential_accuracy
             if reference_lens_potential_accuracy is not None
             else lens_potential_accuracy
         ),
     )
-    apply_accuracy_settings(
-        reference_params, reference_accuracy_settings, boost_from_raw=True
-    )
+    apply_accuracy_settings(reference_params, reference_accuracy_settings, boost_from_raw=True)
 
     lmax = lmax or set_for_lmax
     standard = run_params_case(
@@ -1062,14 +985,8 @@ def compare_params_accuracy(
         derived_tolerance=derived_tolerance,
         mpk_tolerance=mpk_tolerance,
     )
-    chi2 = (
-        calculate_cmb_delta_chi2(standard, reference, chi2_config)
-        if chi2_config
-        else None
-    )
-    return AccuracyCheckResult(
-        standard=standard, reference=reference, comparison=comparison, chi2=chi2
-    )
+    chi2 = calculate_cmb_delta_chi2(standard, reference, chi2_config) if chi2_config else None
+    return AccuracyCheckResult(standard=standard, reference=reference, comparison=comparison, chi2=chi2)
 
 
 def chi2_noise_config(args: argparse.Namespace) -> NoiseConfig:
@@ -1121,9 +1038,7 @@ def white_noise_from_muK_arcmin(noise_muK_arcmin: float) -> float:
     return (noise_muK_arcmin * np.pi / (180.0 * 60.0)) ** 2
 
 
-def make_cmb_noise_spectra(
-    ell: np.ndarray, config: NoiseConfig
-) -> dict[str, np.ndarray]:
+def make_cmb_noise_spectra(ell: np.ndarray, config: NoiseConfig) -> dict[str, np.ndarray]:
     noise_var_t = white_noise_from_muK_arcmin(config.noise_muK_arcmin_T)
     noise_var_p = white_noise_from_muK_arcmin(config.noise_muK_arcmin_P)
     fwhm_degrees = config.fwhm_arcmin / 60.0
@@ -1138,14 +1053,9 @@ def make_cmb_noise_spectra(
     }
 
 
-def calculate_cmb_delta_chi2(
-    standard: RunOutput, reference: RunOutput, config: NoiseConfig
-) -> ChiSquaredResult | None:
+def calculate_cmb_delta_chi2(standard: RunOutput, reference: RunOutput, config: NoiseConfig) -> ChiSquaredResult | None:
     if not (
-        standard.params.WantCls
-        and reference.params.WantCls
-        and standard.params.Want_CMB
-        and reference.params.Want_CMB
+        standard.params.WantCls and reference.params.WantCls and standard.params.Want_CMB and reference.params.Want_CMB
     ):
         return None
 
@@ -1165,15 +1075,9 @@ def calculate_cmb_delta_chi2(
     worst_ell = lmin
     worst_delta_chi2 = -math.inf
     for multipole in range(lmin, lmax_available + 1):
-        model_cov = cmb_covariance_at_l(
-            standard_cls[multipole], noise, multipole, config.fields
-        )
-        fiducial_cov = cmb_covariance_at_l(
-            reference_cls[multipole], noise, multipole, config.fields
-        )
-        ell_chi2 = gaussian_delta_chi2_at_l(
-            model_cov, fiducial_cov, multipole, config.fsky
-        )
+        model_cov = cmb_covariance_at_l(standard_cls[multipole], noise, multipole, config.fields)
+        fiducial_cov = cmb_covariance_at_l(reference_cls[multipole], noise, multipole, config.fields)
+        ell_chi2 = gaussian_delta_chi2_at_l(model_cov, fiducial_cov, multipole, config.fsky)
         delta_chi2 += ell_chi2
         if ell_chi2 > worst_delta_chi2:
             worst_delta_chi2 = ell_chi2
@@ -1193,16 +1097,12 @@ def calculate_cmb_delta_chi2(
     )
 
 
-def cmb_covariance_at_l(
-    cls: np.ndarray, noise: dict[str, np.ndarray], ell: int, fields: tuple[str, ...]
-) -> np.ndarray:
+def cmb_covariance_at_l(cls: np.ndarray, noise: dict[str, np.ndarray], ell: int, fields: tuple[str, ...]) -> np.ndarray:
     covariance = np.zeros((len(fields), len(fields)))
     for i, field_i in enumerate(fields):
         for j, field_j in enumerate(fields):
             if i == j:
-                covariance[i, j] = (
-                    cls[CL_COLUMNS[field_i + field_i]] + noise[field_i][ell]
-                )
+                covariance[i, j] = cls[CL_COLUMNS[field_i + field_i]] + noise[field_i][ell]
             elif {field_i, field_j} == {"T", "E"}:
                 covariance[i, j] = cls[CL_COLUMNS["TE"]]
     return covariance
@@ -1219,11 +1119,7 @@ def gaussian_delta_chi2_at_l(
     if sign_model <= 0 or sign_fiducial <= 0:
         return math.inf
     trace = np.trace(np.linalg.solve(model_cov, fiducial_cov))
-    return float(
-        fsky
-        * (2 * ell + 1)
-        * (trace + logdet_model - logdet_fiducial - model_cov.shape[0])
-    )
+    return float(fsky * (2 * ell + 1) * (trace + logdet_model - logdet_fiducial - model_cov.shape[0]))
 
 
 def print_chi2_result(result: ChiSquaredResult | None, config_name: str) -> None:
@@ -1236,9 +1132,7 @@ def print_chi2_result(result: ChiSquaredResult | None, config_name: str) -> None
         f"  config={config_name}, fields={fields}, L={result.lmin}..{result.lmax}, "
         f"fsky={result.fsky:g}, beam={result.fwhm_arcmin:g} arcmin"
     )
-    print(
-        f"  noise T={result.noise_muK_arcmin_T:g} muK-arcmin, P={result.noise_muK_arcmin_P:g} muK-arcmin"
-    )
+    print(f"  noise T={result.noise_muK_arcmin_T:g} muK-arcmin, P={result.noise_muK_arcmin_P:g} muK-arcmin")
     print(
         f"  delta chi2={result.delta_chi2:.6g}; largest per-L contribution={result.worst_delta_chi2:.6g} at L={result.worst_ell}"
     )
@@ -1249,13 +1143,9 @@ def print_run_summary(standard: RunOutput, reference: RunOutput) -> None:
     for run in (standard, reference):
         print(f"  {run.label}: {run_timing_summary(run)}")
     if reference.cpu_time:
-        print(
-            f"  cpu ratio {standard.label}/{reference.label}: {standard.cpu_time / reference.cpu_time:.3g}"
-        )
+        print(f"  cpu ratio {standard.label}/{reference.label}: {standard.cpu_time / reference.cpu_time:.3g}")
     if reference.wall_time:
-        print(
-            f"  wall ratio {standard.label}/{reference.label}: {standard.wall_time / reference.wall_time:.3g}"
-        )
+        print(f"  wall ratio {standard.label}/{reference.label}: {standard.wall_time / reference.wall_time:.3g}")
 
 
 def print_table(title: str, rows: list[StatRow]) -> None:
@@ -1263,18 +1153,12 @@ def print_table(title: str, rows: list[StatRow]) -> None:
         print(f"\n{title}: not calculated")
         return
     print(f"\n{title}:")
-    print(
-        f"  {'quantity':<20} {'range':<20} {'max abs':>12} {'rms':>12} {'tol':>12} status"
-    )
+    print(f"  {'quantity':<20} {'range':<20} {'max abs':>12} {'rms':>12} {'tol':>12} status")
     for row in rows:
         max_abs = "nan" if math.isnan(row.max_abs) else f"{row.max_abs:.4g}"
         rms = "nan" if math.isnan(row.rms) else f"{row.rms:.4g}"
         status = "OK" if row.passed else "FAIL"
-        location = (
-            f" at {row.location}"
-            if row.location and row.location != "no finite samples"
-            else ""
-        )
+        location = f" at {row.location}" if row.location and row.location != "no finite samples" else ""
         print(
             f"  {row.quantity:<20} {row.range_label:<20} {max_abs:>12} {rms:>12} "
             f"{row.tolerance:>12.4g} {status}{location}"
@@ -1360,13 +1244,9 @@ def plot_errors(standard: RunOutput, reference: RunOutput, plot_dir: Path) -> No
         ref_cls = reference.lensed_cls[: lmax + 1]
         plt.figure(figsize=(9, 5))
         for quantity in ("TT", "EE", "BB"):
-            errors = fractional_delta(
-                std_cls[:, CL_COLUMNS[quantity]], ref_cls[:, CL_COLUMNS[quantity]]
-            )
+            errors = fractional_delta(std_cls[:, CL_COLUMNS[quantity]], ref_cls[:, CL_COLUMNS[quantity]])
             plot_log_l_errors(plt, ell, errors, quantity)
-        plot_log_l_errors(
-            plt, ell, normalized_te_delta(std_cls, ref_cls), "TE/sqrt(TT*EE)"
-        )
+        plot_log_l_errors(plt, ell, normalized_te_delta(std_cls, ref_cls), "TE/sqrt(TT*EE)")
         plt.axhline(0, color="black", linewidth=0.8)
         plt.xlabel("L")
         plt.ylabel("fractional error")
@@ -1377,10 +1257,7 @@ def plot_errors(standard: RunOutput, reference: RunOutput, plot_dir: Path) -> No
         plt.close()
         print(f"Wrote {path}")
 
-    if (
-        standard.lens_potential_cls is not None
-        and reference.lens_potential_cls is not None
-    ):
+    if standard.lens_potential_cls is not None and reference.lens_potential_cls is not None:
         lmax = (
             min(
                 standard.lens_potential_cls.shape[0],
@@ -1406,9 +1283,7 @@ def plot_errors(standard: RunOutput, reference: RunOutput, plot_dir: Path) -> No
         print(f"Wrote {path}")
 
     if standard.matter_power is not None and reference.matter_power is not None:
-        std_k, std_z, std_pk, ref_pk = common_matter_power_grid(
-            standard.matter_power, reference.matter_power
-        )
+        std_k, std_z, std_pk, ref_pk = common_matter_power_grid(standard.matter_power, reference.matter_power)
         errors = fractional_delta(std_pk, ref_pk)
         plt.figure(figsize=(9, 5))
         for index, z in enumerate(std_z):
@@ -1430,15 +1305,11 @@ def plot_log_l_errors(plt, ell: np.ndarray, errors: np.ndarray, label: str) -> N
         plt.semilogx(ell[mask], errors[mask], label=label, alpha=0.85)
 
 
-def settings_cost(
-    settings: dict[str, float | bool], raw_settings: dict[str, float | bool]
-) -> tuple[float, int, tuple]:
+def settings_cost(settings: dict[str, float | bool], raw_settings: dict[str, float | bool]) -> tuple[float, int, tuple]:
     changed = 0
     product = 1.0
     values = []
-    numeric_keys = sorted(
-        key for key in set(settings) | set(raw_settings) if key != "DoLateRadTruncation"
-    )
+    numeric_keys = sorted(key for key in set(settings) | set(raw_settings) if key != "DoLateRadTruncation")
     for key in numeric_keys:
         value = float(settings[key])
         raw_value = float(raw_settings[key])
@@ -1446,10 +1317,7 @@ def settings_cost(
         product *= value
         values.append(value)
     if "DoLateRadTruncation" in settings or "DoLateRadTruncation" in raw_settings:
-        changed += int(
-            settings.get("DoLateRadTruncation")
-            != raw_settings.get("DoLateRadTruncation")
-        )
+        changed += int(settings.get("DoLateRadTruncation") != raw_settings.get("DoLateRadTruncation"))
         values.append(int(bool(settings.get("DoLateRadTruncation"))))
     return product, changed, tuple(values)
 
@@ -1521,9 +1389,7 @@ def component_target_settings(
             direct_value,
             boosted_value,
         )
-        target[key] = next_meaningful_accuracy_value(
-            key, float(raw_settings[key]), target_value
-        )
+        target[key] = next_meaningful_accuracy_value(key, float(raw_settings[key]), target_value)
     for key in ("lSampleBoost", "lAccuracyBoost"):
         if key in raw_settings:
             target[key] = max(
@@ -1544,9 +1410,7 @@ def accuracy_search_target_settings(
     return target
 
 
-def next_meaningful_accuracy_value(
-    key: str, raw_value: float, target_value: float
-) -> float:
+def next_meaningful_accuracy_value(key: str, raw_value: float, target_value: float) -> float:
     if key not in DISCRETE_ACCURACY_VALUES:
         return target_value
     for value in DISCRETE_ACCURACY_VALUES[key]:
@@ -1566,10 +1430,7 @@ def search_candidates(
     for key in BASE_ACCURACY_KEYS:
         raw_value = float(raw_settings[key])
         high_value = max(raw_value, float(high_accuracy_settings[key]))
-        candidate_values[key] = sorted(
-            {max(raw_value, value) for value in grid if value <= high_value}
-            | {high_value}
-        )
+        candidate_values[key] = sorted({max(raw_value, value) for value in grid if value <= high_value} | {high_value})
     late_rad_values = sorted(
         {
             bool(raw_settings["DoLateRadTruncation"]),
@@ -1593,9 +1454,7 @@ def search_candidates(
             late_rad_values,
         )
     ]
-    return sorted(
-        candidates, key=lambda settings: settings_cost(settings, raw_settings)
-    )
+    return sorted(candidates, key=lambda settings: settings_cost(settings, raw_settings))
 
 
 def bracket_then_refine_boost_subset(
@@ -1606,14 +1465,10 @@ def bracket_then_refine_boost_subset(
     evaluator,
     tolerance: float,
 ) -> tuple[dict[str, float | bool], ComparisonResult | None] | None:
-    if not any(
-        float(target_settings[key]) > float(raw_settings[key]) for key in subset
-    ):
+    if not any(float(target_settings[key]) > float(raw_settings[key]) for key in subset):
         return None
 
-    settings = subset_target_settings(
-        raw_settings, target_settings, subset, late_rad_value
-    )
+    settings = subset_target_settings(raw_settings, target_settings, subset, late_rad_value)
     comparison = evaluator(settings)
     if comparison is None:
         return settings, None
@@ -1658,9 +1513,7 @@ def find_minimal_boosts(
         lens_potential_accuracy=args.lens_potential_accuracy,
     )
     raw_settings = raw_accuracy_settings(raw_params)
-    target_settings = accuracy_search_target_settings(
-        raw_settings, high_accuracy_settings
-    )
+    target_settings = accuracy_search_target_settings(raw_settings, high_accuracy_settings)
     candidates = search_candidates(raw_settings, target_settings, args.search_grid)
     comparisons: dict[tuple, ComparisonResult] = {}
     runs: dict[tuple, RunOutput] = {}
@@ -1674,9 +1527,7 @@ def find_minimal_boosts(
     fastest: PassingCandidate | None = None
     runs_done = 0
 
-    def make_result(
-        settings: dict[str, float | bool], comparison: ComparisonResult
-    ) -> SearchResult:
+    def make_result(settings: dict[str, float | bool], comparison: ComparisonResult) -> SearchResult:
         key = settings_key(refine_discrete_accuracy_settings(settings, raw_settings))
         return SearchResult(
             settings,
@@ -1719,9 +1570,7 @@ def find_minimal_boosts(
         comparison_runs[id(comparison)] = candidate
         if comparison.passed:
             passing = PassingCandidate(settings, comparison, candidate)
-            if fastest is None or run_timing_key(candidate) < run_timing_key(
-                fastest.run
-            ):
+            if fastest is None or run_timing_key(candidate) < run_timing_key(fastest.run):
                 fastest = passing
         print(f"      {comparison_status(comparison)}")
         return comparison
@@ -1755,13 +1604,9 @@ def find_minimal_boosts(
             return make_result(best_settings, best_comparison)
         if subset_size == 2:
             if best_settings is None:
-                print(
-                    "\nNo single-parameter path passed; searching boost parameter combinations..."
-                )
+                print("\nNo single-parameter path passed; searching boost parameter combinations...")
             else:
-                print(
-                    "\nExhaustive search requested; searching boost parameter combinations..."
-                )
+                print("\nExhaustive search requested; searching boost parameter combinations...")
         elif subset_size > 2:
             print(f"\nSearching {subset_size}-parameter boost combinations...")
         for late_rad_value in late_rad_values:
@@ -1779,13 +1624,9 @@ def find_minimal_boosts(
                 refined_settings, refined_comparison = result
                 if refined_comparison is None:
                     if best_settings is not None:
-                        print(
-                            "Search run budget exhausted; returning the best passing subset found so far."
-                        )
+                        print("Search run budget exhausted; returning the best passing subset found so far.")
                         return make_result(best_settings, best_comparison)
-                    print(
-                        "Search run budget exhausted before finding a passing subset."
-                    )
+                    print("Search run budget exhausted before finding a passing subset.")
                     return None, None
                 cost = settings_cost(refined_settings, raw_settings)
                 if best_cost is None or cost < best_cost:
@@ -1800,20 +1641,14 @@ def find_minimal_boosts(
     if not candidates:
         return None, None
 
-    print(
-        f"\nAdaptive combination search did not pass; trying {len(candidates)} optional seed candidates..."
-    )
+    print(f"\nAdaptive combination search did not pass; trying {len(candidates)} optional seed candidates...")
     for settings in candidates:
         comparison = run_candidate(settings)
         if comparison is None:
             if best_settings is not None:
-                print(
-                    "Search run budget exhausted; returning the best passing settings found so far."
-                )
+                print("Search run budget exhausted; returning the best passing settings found so far.")
                 return make_result(best_settings, best_comparison)
-            print(
-                "Search run budget exhausted before finding a passing coarse candidate."
-            )
+            print("Search run budget exhausted before finding a passing coarse candidate.")
             return None, None
         if comparison.passed:
             print("Found passing coarse settings; refining numeric boosts.")
@@ -1852,9 +1687,7 @@ def refine_accuracy_components(
     fastest: PassingCandidate | None = None
     runs_done = 0
 
-    def make_result(
-        settings: dict[str, float | bool], comparison: ComparisonResult
-    ) -> SearchResult:
+    def make_result(settings: dict[str, float | bool], comparison: ComparisonResult) -> SearchResult:
         key = settings_key(refine_discrete_accuracy_settings(settings, raw_settings))
         return SearchResult(
             settings,
@@ -1872,9 +1705,7 @@ def refine_accuracy_components(
         if args.max_search_runs is not None and runs_done >= args.max_search_runs:
             return None
         runs_done += 1
-        print(
-            f"  [component {runs_done}] {format_settings(changed_settings(settings, raw_settings))}"
-        )
+        print(f"  [component {runs_done}] {format_settings(changed_settings(settings, raw_settings))}")
         candidate = run_case(
             ini_file,
             "component-candidate",
@@ -1899,17 +1730,13 @@ def refine_accuracy_components(
         comparison_runs[id(comparison)] = candidate
         if comparison.passed:
             passing = PassingCandidate(settings, comparison, candidate)
-            if fastest is None or run_timing_key(candidate) < run_timing_key(
-                fastest.run
-            ):
+            if fastest is None or run_timing_key(candidate) < run_timing_key(fastest.run):
                 fastest = passing
         print(f"      {comparison_status(comparison)}")
         return comparison
 
     keys = tuple(
-        key
-        for key in raw_settings
-        if key != "DoLateRadTruncation" and target_settings[key] > raw_settings[key]
+        key for key in raw_settings if key != "DoLateRadTruncation" and target_settings[key] > raw_settings[key]
     )
     max_size = min(args.component_search_size, len(keys))
     print("\nRefining with AccuracyBoost=1 and component accuracy parameters...")
@@ -1944,9 +1771,7 @@ def refine_accuracy_components(
         print("Component search run budget exhausted.")
         return None, None
     pruned_keys = component_changed_numeric_keys(pruned_settings, raw_settings)
-    if component_settings_cost(pruned_settings, raw_settings) < component_settings_cost(
-        all_target, raw_settings
-    ):
+    if component_settings_cost(pruned_settings, raw_settings) < component_settings_cost(all_target, raw_settings):
         print(f"Greedy pruning reduced component count to {len(pruned_keys)}.")
     if not pruned_keys:
         return make_result(pruned_settings, pruned_comparison)
@@ -2008,10 +1833,7 @@ def greedy_prune_component_settings(
         return current, current_comparison
 
     removable_keys = [
-        key
-        for key in keys
-        if key in current
-        and not math.isclose(float(current[key]), float(raw_settings[key]))
+        key for key in keys if key in current and not math.isclose(float(current[key]), float(raw_settings[key]))
     ]
     improved = True
     while improved:
@@ -2064,9 +1886,7 @@ def changed_settings(
     }
 
 
-def component_settings_cost(
-    settings: dict[str, float | bool], raw_settings: dict[str, float | bool]
-) -> tuple:
+def component_settings_cost(settings: dict[str, float | bool], raw_settings: dict[str, float | bool]) -> tuple:
     changed = changed_settings(settings, raw_settings)
     numeric = [
         float(value) / max(float(raw_settings[key]), 1e-30)
@@ -2087,15 +1907,12 @@ def refine_numeric_boosts(
     initial_settings = refine_discrete_accuracy_settings(settings, raw_settings)
     initial_comparison = evaluator(initial_settings)
     if initial_comparison is None or not initial_comparison.passed:
-        raise RuntimeError(
-            "refine_numeric_boosts requires an initially passing settings point"
-        )
+        raise RuntimeError("refine_numeric_boosts requires an initially passing settings point")
 
     numeric_keys = tuple(
         key
         for key in initial_settings
-        if key != "DoLateRadTruncation"
-        and float(initial_settings[key]) - float(raw_settings[key]) > tolerance
+        if key != "DoLateRadTruncation" and float(initial_settings[key]) - float(raw_settings[key]) > tolerance
     )
     best_settings, best_comparison = maybe_restore_late_rad_truncation(
         initial_settings, raw_settings, evaluator, initial_comparison
@@ -2119,17 +1936,13 @@ def refine_numeric_boosts(
         )
         return rounded_numeric_settings(best_settings), best_comparison
 
-    starts: list[tuple[dict[str, float | bool], ComparisonResult]] = [
-        (best_settings, best_comparison)
-    ]
+    starts: list[tuple[dict[str, float | bool], ComparisonResult]] = [(best_settings, best_comparison)]
     balanced_settings, balanced_comparison = refine_balanced_path(
         initial_settings, raw_settings, evaluator, tolerance, numeric_keys
     )
     if balanced_comparison is not None:
         starts.append(
-            maybe_restore_late_rad_truncation(
-                balanced_settings, raw_settings, evaluator, balanced_comparison
-            )
+            maybe_restore_late_rad_truncation(balanced_settings, raw_settings, evaluator, balanced_comparison)
         )
 
     key_orders = refinement_key_orders(numeric_keys)
@@ -2143,9 +1956,7 @@ def refine_numeric_boosts(
                 key_order,
                 start_comparison,
             )
-            if cost_function(refined_settings, raw_settings) < cost_function(
-                best_settings, raw_settings
-            ):
+            if cost_function(refined_settings, raw_settings) < cost_function(best_settings, raw_settings):
                 best_settings = refined_settings
                 best_comparison = refined_comparison
 
@@ -2177,9 +1988,7 @@ def refine_balanced_path(
     tolerance: float,
     numeric_keys: tuple[str, ...],
 ) -> tuple[dict[str, float | bool], ComparisonResult | None]:
-    continuous_keys = tuple(
-        key for key in numeric_keys if key not in DISCRETE_ACCURACY_VALUES
-    )
+    continuous_keys = tuple(key for key in numeric_keys if key not in DISCRETE_ACCURACY_VALUES)
     if len(continuous_keys) != len(numeric_keys):
         settings = refine_discrete_accuracy_settings(settings, raw_settings)
     if not numeric_keys:
@@ -2189,9 +1998,7 @@ def refine_balanced_path(
         comparison = evaluator(settings)
         return dict(settings), comparison
 
-    span = max(
-        float(settings[key]) - float(raw_settings[key]) for key in continuous_keys
-    )
+    span = max(float(settings[key]) - float(raw_settings[key]) for key in continuous_keys)
     if span <= tolerance:
         comparison = evaluator(settings)
         return dict(settings), comparison
@@ -2204,9 +2011,7 @@ def refine_balanced_path(
         mid = (low + high) / 2
         trial = dict(settings)
         for key in continuous_keys:
-            trial[key] = float(raw_settings[key]) + mid * (
-                float(settings[key]) - float(raw_settings[key])
-            )
+            trial[key] = float(raw_settings[key]) + mid * (float(settings[key]) - float(raw_settings[key]))
         comparison = evaluator(trial)
         if comparison is None:
             break
@@ -2223,10 +2028,7 @@ def refinement_key_orders(numeric_keys: tuple[str, ...]) -> list[tuple[str, ...]
     if not numeric_keys:
         return [()]
     orders = [numeric_keys, tuple(reversed(numeric_keys))]
-    orders.extend(
-        numeric_keys[index:] + numeric_keys[:index]
-        for index in range(1, len(numeric_keys))
-    )
+    orders.extend(numeric_keys[index:] + numeric_keys[:index] for index in range(1, len(numeric_keys)))
     return list(dict.fromkeys(orders))
 
 
@@ -2263,9 +2065,7 @@ def refine_single_numeric_boost(
     current = dict(settings)
     current_comparison = comparison
     if key in DISCRETE_ACCURACY_VALUES:
-        return refine_discrete_numeric_boost(
-            current, raw_settings, evaluator, key, current_comparison
-        )
+        return refine_discrete_numeric_boost(current, raw_settings, evaluator, key, current_comparison)
     low = float(raw_settings[key])
     high = float(current[key])
     if high - low <= tolerance:
@@ -2286,15 +2086,11 @@ def refine_single_numeric_boost(
     return current, current_comparison
 
 
-def refine_discrete_accuracy_settings(
-    settings: dict[str, float | bool], raw_settings: dict[str, float | bool]
-):
+def refine_discrete_accuracy_settings(settings: dict[str, float | bool], raw_settings: dict[str, float | bool]):
     refined = dict(settings)
     for key in DISCRETE_ACCURACY_VALUES:
         if key in refined and key in raw_settings:
-            refined[key] = next_meaningful_accuracy_value(
-                key, float(raw_settings[key]), float(refined[key])
-            )
+            refined[key] = next_meaningful_accuracy_value(key, float(raw_settings[key]), float(refined[key]))
     return refined
 
 
@@ -2307,9 +2103,7 @@ def refine_discrete_numeric_boost(
 ) -> tuple[dict[str, float | bool], ComparisonResult]:
     current = dict(settings)
     current_comparison = comparison
-    candidates = discrete_accuracy_candidates(
-        key, float(raw_settings[key]), float(current[key])
-    )
+    candidates = discrete_accuracy_candidates(key, float(raw_settings[key]), float(current[key]))
     for value in candidates:
         trial = dict(current)
         trial[key] = value
@@ -2321,15 +2115,9 @@ def refine_discrete_numeric_boost(
     return current, current_comparison
 
 
-def discrete_accuracy_candidates(
-    key: str, raw_value: float, high_value: float
-) -> tuple[float, ...]:
+def discrete_accuracy_candidates(key: str, raw_value: float, high_value: float) -> tuple[float, ...]:
     values = [raw_value]
-    values.extend(
-        value
-        for value in DISCRETE_ACCURACY_VALUES[key]
-        if raw_value < value <= high_value
-    )
+    values.extend(value for value in DISCRETE_ACCURACY_VALUES[key] if raw_value < value <= high_value)
     if high_value not in values:
         values.append(high_value)
     return tuple(dict.fromkeys(values))
@@ -2382,9 +2170,7 @@ def main(argv: list[str] | None = None, *, prog: str | None = None) -> int:
 
     base_params = load_params(ini_file, no_validate=args.no_validate)
     if args.mpk_tolerance is None:
-        args.mpk_tolerance = (
-            MPK_TOLERANCE_RANGES if base_params.Transfer.high_precision else 3e-3
-        )
+        args.mpk_tolerance = MPK_TOLERANCE_RANGES if base_params.Transfer.high_precision else 3e-3
     if base_params.DoLensing and base_params.WantCls and base_params.Want_CMB:
         if args.reference_lens_margin is not None:
             print(
@@ -2440,17 +2226,13 @@ def main(argv: list[str] | None = None, *, prog: str | None = None) -> int:
             print(f"\n{failure_summary(comparison)}")
             return 1
         else:
-            print(
-                f"\nMinimal passing settings from search: {format_settings(settings)}"
-            )
+            print(f"\nMinimal passing settings from search: {format_settings(settings)}")
             if isinstance(search_result, SearchResult):
                 print_search_timing_summary(search_result)
             if search_comparison:
                 print_comparison(search_comparison)
             if args.refine_accuracy_components:
-                component_result = refine_accuracy_components(
-                    ini_file, args, reference, high_accuracy_settings
-                )
+                component_result = refine_accuracy_components(ini_file, args, reference, high_accuracy_settings)
                 component_settings, component_comparison = component_result
                 if component_settings is None:
                     print("\nNo passing AccuracyBoost=1 component settings found.")
