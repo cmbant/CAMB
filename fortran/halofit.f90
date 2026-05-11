@@ -516,7 +516,7 @@
 
     function omega_m(aa,om_m0,om_v0,wval,waval)
     real(dl) omega_m,omega_t,om_m0,om_v0,aa,wval,waval,Qa2
-    ! Qa2 is a^2*rho_de/rho_de,0, matching the a^2 H^2 form used below.
+    ! Qa2 is a^2*rho_de/rho_de0, matching the a^2 H^2 form used below.
     Qa2= aa**(-1.0-3.0*(wval+waval))*dexp(-3.0*(1-aa)*waval)
     omega_t=1.0+(om_m0+om_v0-1.0)/(1-om_m0-om_v0+om_v0*Qa2+om_m0/aa)
     omega_m=omega_t*om_m0/(om_m0+om_v0*aa*Qa2)
@@ -528,7 +528,7 @@
 
     function omega_v(aa,om_m0,om_v0,wval,waval)
     real(dl) aa,omega_v,om_m0,om_v0,omega_t,wval,waval,Qa2
-    ! Qa2 is a^2*rho_de/rho_de,0, matching the a^2 H^2 form used below.
+    ! Qa2 is a^2*rho_de/rho_de0, matching the a^2 H^2 form used below.
     Qa2= aa**(-1.0-3.0*(wval+waval))*dexp(-3.0*(1-aa)*waval)
     omega_t=1.0+(om_m0+om_v0-1.0)/(1-om_m0-om_v0+om_v0*Qa2+om_m0/aa)
     omega_v=omega_t*om_v0*Qa2/(om_v0*Qa2+om_m0/aa)
@@ -2466,7 +2466,7 @@
     REAL(dl) :: a
 
     a=1./(1.+z)
-    ! X_de is the physical rho_de/rho_de,0 for CPL w(a)=w0+wa(1-a).
+    ! X_de is the physical rho_de/rho_de0 for CPL w(a)=w0+wa(1-a).
     X_de=(a**(-3*(1+cosm%w+cosm%wa)))*exp(-3*cosm%wa*(1-a))
 
     END FUNCTION X_de
