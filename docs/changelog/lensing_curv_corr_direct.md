@@ -286,13 +286,6 @@ low-`l` tensor band slightly worse. The wider C2 window improves the
 tensor-sensitive `l < 400` BB band while leaving `400..1200` BB at the previous
 level.
 
-A cheap coarse correction for the omitted large-angle range was also tested by
-adding a low-output-`l` correction from the complementary window. This was not
-kept. With a correction capped at `l <= 400`, the direct method's `l < 400` BB
-maximum error worsened to about `9.2e-3` at `lmax=2000` and `6.3e-3` at
-`lmax=4000`, while the isolated lensing time increased substantially. The
-omitted large-angle contribution is therefore not well enough captured by that
-cheap coarse quadrature to be a useful correction.
 
 Main points:
 
