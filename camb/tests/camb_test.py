@@ -723,6 +723,16 @@ class CambTest(unittest.TestCase):
             pars3 = pars2.copy()
             self.assertAlmostEqual(-0.7, pars3.DarkEnergy.w)
 
+        w0 = -0.7
+        wa = 0.2
+        pars.set_dark_energy(w=w0, wa=wa, dark_energy_model="ppf")
+        rho, w = camb.get_background(pars, no_thermo=True).get_dark_energy_rho_w(np.array([0.3, 0.5, 0.8, 1.0]))
+        a = np.array([0.3, 0.5, 0.8, 1.0])
+        expected_rho = a ** (-3 * (1 + w0 + wa)) * np.exp(-3 * wa * (1 - a))
+        expected_w = w0 + wa * (1 - a)
+        np.testing.assert_allclose(rho, expected_rho, rtol=1e-10)
+        np.testing.assert_allclose(w, expected_w, rtol=1e-12)
+
     def testInitialPower(self):
         pars = camb.CAMBparams()
         pars.set_cosmology(H0=67)
