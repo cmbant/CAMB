@@ -90,3 +90,4 @@ external/
 !.devcontainer/
 !.devcontainer/**
 .claude
+devcontainer-lock.json

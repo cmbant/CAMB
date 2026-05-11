@@ -31,6 +31,10 @@ DEFAULT_ACCURACY_SETTINGS = {
     "lAccuracyBoost": 2.0,
     "IntTolBoost": 2.0,
     "DoLateRadTruncation": True,
+    # Force linear l-sampling all the way to max_l in the reference; the default min_l_logl_sampling
+    # of 5000 leaves a wide gap in the log block right above 5000 that makes the reference itself
+    # under-sampled at high l.
+    "min_l_logl_sampling": 100000,
 }
 
 DEFAULT_NOISE_CONFIGS = {
@@ -52,6 +56,11 @@ TT_EE_TOLERANCES = [(0, 3e-3), (600, 1e-3), (3500, 3e-3), (6000, 2e-2)]
 BB_TOLERANCES = [(0, 5e-3), (1000, 1e-2), (6000, 2e-2), (8000, 1e-1)]
 LENSING_TOLERANCES = [(0, 5e-3), (2000, 5e-3), (6000, 2e-2)]
 MPK_TOLERANCE = 1e-3
+MPK_TOLERANCE_RANGES = [
+    (None, 5e-3, 3e-3),
+    (5e-3, 2.0, MPK_TOLERANCE),
+    (2.0, None, 3e-3),
+]
 DERIVED_TOLERANCE = 1e-3
 
 CL_COLUMNS = {"TT": 0, "EE": 1, "BB": 2, "TE": 3}
@@ -77,6 +86,8 @@ GLOBAL_BOOST_COMPONENT_KEYS = (
 )
 COMPONENT_REFINEMENT_KEYS = GLOBAL_BOOST_COMPONENT_KEYS
 DISCRETE_ACCURACY_VALUES = {"neutrino_q_boost": (1.0, 1.5, 2.5)}
+
+MatterPowerToleranceSpec = list[tuple[float | None, float | None, float]]
 
 
 @dataclass(frozen=True)
@@ -254,7 +265,8 @@ def cmb_fields(value: str) -> tuple[str, ...]:
 def build_parser(prog: str | None = None) -> argparse.ArgumentParser:
     """Build the command-line parser for the accuracy checker."""
     parser = argparse.ArgumentParser(
-        prog=prog, description="Check stability of one CAMB ini file against a boosted-accuracy calculation."
+        prog=prog,
+        description="Check stability of one CAMB ini file against a boosted-accuracy calculation.",
     )
     parser.add_argument("ini_file", help="CAMB ini file to load with camb.read_ini")
     parser.add_argument(
@@ -304,7 +316,12 @@ def build_parser(prog: str | None = None) -> argparse.ArgumentParser:
         default=1e-4,
         help="minimum k/h for matter power comparison",
     )
-    parser.add_argument("--mpk-tolerance", type=float, default=None)
+    parser.add_argument(
+        "--mpk-tolerance",
+        type=float,
+        default=None,
+        help="override matter power tolerance for all k/h ranges",
+    )
     parser.add_argument("--derived-tolerance", type=float, default=DERIVED_TOLERANCE)
     parser.add_argument(
         "--plot-dir",
@@ -410,12 +427,18 @@ def apply_accuracy_settings(params, settings: dict[str, float | bool], *, boost_
         if key == "DoLateRadTruncation":
             params.DoLateRadTruncation = bool(setting)
             continue
-        if not hasattr(params.Accuracy, key):
+        if hasattr(params.Accuracy, key):
+            target = params.Accuracy
+        elif hasattr(params, key):
+            target = params
+        else:
             raise ValueError(f"Unknown accuracy setting {key}")
         value = float(setting)
         if boost_from_raw:
-            value = max(float(getattr(params.Accuracy, key)), value)
-        setattr(params.Accuracy, key, value)
+            value = max(float(getattr(target, key)), value)
+        if isinstance(getattr(target, key), int) and not isinstance(getattr(target, key), bool):
+            value = int(value)
+        setattr(target, key, value)
 
 
 def copy_params(params):
@@ -685,7 +708,15 @@ def compare_cls(standard: RunOutput, reference: RunOutput) -> list[StatRow]:
     rows.extend(compare_l_ranges("TE", te_errors, ell, tolerance_ranges(TT_EE_TOLERANCES), min_ell=2))
 
     bb_errors = fractional_delta(standard_cls[:, CL_COLUMNS["BB"]], reference_cls[:, CL_COLUMNS["BB"]])
-    rows.extend(compare_l_ranges("BB", bb_errors, ell, tolerance_ranges(bb_tolerances(standard.params)), min_ell=2))
+    rows.extend(
+        compare_l_ranges(
+            "BB",
+            bb_errors,
+            ell,
+            tolerance_ranges(bb_tolerances(standard.params)),
+            min_ell=2,
+        )
+    )
     return rows
 
 
@@ -744,15 +775,60 @@ def ell_range_label(selected_ell: np.ndarray, range_tolerance: RangeTolerance) -
     return range_tolerance.label
 
 
-def compare_matter_power(standard: RunOutput, reference: RunOutput, tolerance: float) -> list[StatRow]:
+def matter_power_range_label(start: float | None, stop: float | None) -> str:
+    if start is None:
+        return f"all z, k/h < {stop:.4g}"
+    if stop is None:
+        return f"all z, {start:.4g} <= k/h"
+    return f"all z, {start:.4g} <= k/h < {stop:.4g}"
+
+
+def compare_matter_power(
+    standard: RunOutput,
+    reference: RunOutput,
+    tolerance: float | MatterPowerToleranceSpec,
+) -> list[StatRow]:
     if standard.matter_power is None or reference.matter_power is None:
         return []
     common_k, z, standard_pk, reference_pk = common_matter_power_grid(standard.matter_power, reference.matter_power)
     errors = fractional_delta(standard_pk, reference_pk)
-    z_grid, k_grid = np.meshgrid(z, common_k, indexing="ij")
-    locations = np.array([f"z={z_value:.6g}, k/h={k:.6g}" for z_value, k in zip(z_grid.ravel(), k_grid.ravel())])
-    range_label = f"all z, {common_k[0]:.4g} <= k/h <= {common_k[-1]:.4g}"
-    return [finite_stats("matter P(k)", range_label, errors.ravel(), tolerance, locations=locations)]
+    if isinstance(tolerance, float):
+        z_grid, k_grid = np.meshgrid(z, common_k, indexing="ij")
+        locations = np.array([f"z={z_value:.6g}, k/h={k:.6g}" for z_value, k in zip(z_grid.ravel(), k_grid.ravel())])
+        range_label = f"all z, {common_k[0]:.4g} <= k/h <= {common_k[-1]:.4g}"
+        return [
+            finite_stats(
+                "matter P(k)",
+                range_label,
+                errors.ravel(),
+                tolerance,
+                locations=locations,
+            )
+        ]
+
+    rows = []
+    for start, stop, range_tolerance in tolerance:
+        mask = np.ones_like(common_k, dtype=bool)
+        if start is not None:
+            mask &= common_k >= start
+        if stop is not None:
+            mask &= common_k < stop
+        if not np.any(mask):
+            continue
+        selected_k = common_k[mask]
+        selected_errors = errors[:, mask]
+        z_grid, k_grid = np.meshgrid(z, selected_k, indexing="ij")
+        locations = np.array([f"z={z_value:.6g}, k/h={k:.6g}" for z_value, k in zip(z_grid.ravel(), k_grid.ravel())])
+        rows.append(
+            finite_stats(
+                "matter P(k)",
+                matter_power_range_label(start, stop),
+                selected_errors.ravel(),
+                range_tolerance,
+                locations=locations,
+            )
+        )
+    return rows
 
 
 def common_matter_power_grid(
@@ -801,7 +877,7 @@ def compare_runs(
     reference: RunOutput,
     *,
     derived_tolerance: float,
-    mpk_tolerance: float,
+    mpk_tolerance: float | MatterPowerToleranceSpec,
 ) -> ComparisonResult:
     return ComparisonResult(
         derived_rows=compare_derived(standard, reference, derived_tolerance),
@@ -825,7 +901,7 @@ def compare_params_accuracy(
     mpk_kmin: float = 1e-4,
     mpk_npoints: int = 500,
     derived_tolerance: float = DERIVED_TOLERANCE,
-    mpk_tolerance: float | None = None,
+    mpk_tolerance: float | MatterPowerToleranceSpec | None = None,
     chi2_config: NoiseConfig | None = None,
 ) -> AccuracyCheckResult:
     """Compare a :class:`~camb.model.CAMBparams` object against a higher-accuracy copy.
@@ -835,7 +911,7 @@ def compare_params_accuracy(
     fiducial CMB delta chi-squared estimate.
     """
     if mpk_tolerance is None:
-        mpk_tolerance = MPK_TOLERANCE if params.Transfer.high_precision else 3e-3
+        mpk_tolerance = MPK_TOLERANCE_RANGES if params.Transfer.high_precision else 3e-3
     reference_accuracy_settings = reference_accuracy_settings or DEFAULT_ACCURACY_SETTINGS
 
     standard_params = copy_params(params)
@@ -1250,7 +1326,10 @@ def component_refinement_keys(params) -> tuple[str, ...]:
 
 
 def uses_nonlinear_sources(params) -> bool:
-    return str(getattr(params, "NonLinear", "NonLinear_none")) in {"NonLinear_pk", "NonLinear_both"}
+    return str(getattr(params, "NonLinear", "NonLinear_none")) in {
+        "NonLinear_pk",
+        "NonLinear_both",
+    }
 
 
 def has_redshift_windows(params) -> bool:
@@ -1423,7 +1502,12 @@ def find_minimal_boosts(
 
     def make_result(settings: dict[str, float | bool], comparison: ComparisonResult) -> SearchResult:
         key = settings_key(refine_discrete_accuracy_settings(settings, raw_settings))
-        return SearchResult(settings, comparison, runs.get(key) or comparison_runs.get(id(comparison)), fastest)
+        return SearchResult(
+            settings,
+            comparison,
+            runs.get(key) or comparison_runs.get(id(comparison)),
+            fastest,
+        )
 
     def run_candidate(settings: dict[str, float | bool]) -> ComparisonResult | None:
         nonlocal fastest, runs_done
@@ -1578,7 +1662,12 @@ def refine_accuracy_components(
 
     def make_result(settings: dict[str, float | bool], comparison: ComparisonResult) -> SearchResult:
         key = settings_key(refine_discrete_accuracy_settings(settings, raw_settings))
-        return SearchResult(settings, comparison, runs.get(key) or comparison_runs.get(id(comparison)), fastest)
+        return SearchResult(
+            settings,
+            comparison,
+            runs.get(key) or comparison_runs.get(id(comparison)),
+            fastest,
+        )
 
     def run_candidate(settings: dict[str, float | bool]) -> ComparisonResult | None:
         nonlocal fastest, runs_done
@@ -2054,7 +2143,7 @@ def main(argv: list[str] | None = None, *, prog: str | None = None) -> int:
 
     base_params = load_params(ini_file, no_validate=args.no_validate)
     if args.mpk_tolerance is None:
-        args.mpk_tolerance = MPK_TOLERANCE if base_params.Transfer.high_precision else 3e-3
+        args.mpk_tolerance = MPK_TOLERANCE_RANGES if base_params.Transfer.high_precision else 3e-3
     noise_config = None
     if args.chi2:
         try:

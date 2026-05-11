@@ -307,13 +307,10 @@
             min(State%taurend,EV%ThermoData%matter_verydom_tau))
 
         if (.not. EV%no_phot_multpoles) then
-
+            latePhotSwitchBoost = switchBoost
             !High-precision transfer matter power is sensitive to late photon hierarchy truncation.
-            if (AccuracyTarget > 0 .and. CP%WantTransfer .and. CP%Transfer%high_precision) then
-                latePhotSwitchBoost = max(switchBoost, 2._dl)
-            else
-                latePhotSwitchBoost = switchBoost
-            end if
+            if (AccuracyTarget > 0 .and. CP%WantTransfer .and. CP%Transfer%high_precision) &
+                latePhotSwitchBoost = max(latePhotSwitchBoost, 2._dl)
             if (.not.CP%WantCls .or. EV%k_buf>0.03*latePhotSwitchBoost) &
                 tau_switch_no_phot_multpoles =max(15/EV%k_buf,State%taurend)*latePhotSwitchBoost
         end if
