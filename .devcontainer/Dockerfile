@@ -19,6 +19,7 @@ RUN apt-get update \
     libgsl-dev \
     make \
     pkg-config \
+    ripgrep \
     tar \
     unzip \
     xz-utils \

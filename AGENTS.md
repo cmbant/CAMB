@@ -8,7 +8,8 @@
 - Use double-quotes for strings; line length 120
 - Code is auto-formatted by ruff, including import reordering.
 - Fortran uses modern Fortran 2003, compiled with gfortran or ifort
-- Install and run pre-commit hooks as needed for checking
+- All code should be fortran or python, no bash scripts etc except for devcontainer setup and actions.
+- Run pre-commit as needed for formatting/checking (ruff/pyupgrade config: .pre-commit-config.yaml)
 - /forutils is a git submodule with shared fortran utilities and classes
 - For fortran/wrapped fortran code modifications see /docs/modifying_code.rst
 - When updating version, update both python __version__ and version defined near the top of fortran/config.f90
@@ -18,3 +19,4 @@
 - Installation/clone/modification/contributing/pre-commit/vscode config: see /CONTRIBUTING.md
 - When plotting fractional differences for cross-spectra, use e.g. Delta TE/sqrt(TT*EE)
 - High accuracy lensing needs lens_potential_accuracy = 8 or so (mainly increases kmax)
+- camb/check_accuracy.py script can be used to assess numerical stability by comparing default to high-accuracy run
