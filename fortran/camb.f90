@@ -388,7 +388,8 @@
     if (P%WantCls) then
         if (P%WantScalars  .or. P%WantVectors) then
             P%Max_l = Ini%Read_Int('l_max_scalar')
-            P%Max_eta_k = Ini%Read_Double('k_eta_max_scalar', P%Max_l*2._dl)
+            P%Max_eta_k = Ini%Read_Double('k_eta_max_scalar', P%Max_l*2.5_dl)
+            P%lens_output_margin = Ini%Read_Int('lens_output_margin', P%lens_output_margin)
             if (P%WantScalars) then
                 P%DoLensing = Ini%Read_Logical('do_lensing', .false.)
                 if (P%DoLensing) lensing_method = Ini%Read_Int('lensing_method', 1)

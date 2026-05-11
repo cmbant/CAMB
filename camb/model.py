@@ -304,6 +304,13 @@ class CAMBparams(F2003Class):
         ("min_l", c_int, "l_min for the scalar C_L (1 or 2, L=1 dipoles are Newtonian Gauge)"),
         ("max_l", c_int, "l_max for the scalar C_L"),
         ("max_l_tensor", c_int, "l_max for the tensor C_L"),
+        (
+            "lens_output_margin",
+            c_int,
+            "Number of L below max_l down to which lensed C_L are guaranteed to be output; "
+            "the unlensed C_L used in the lensing convolution is treated as reliable to "
+            "max_l - (lens_output_margin - 50), so this also sets the lensed convolution margin.",
+        ),
         ("max_eta_k", c_double, "Maximum k*eta_0 for scalar C_L, where eta_0 is the conformal time today"),
         ("max_eta_k_tensor", c_double, "Maximum k*eta_0 for tensor C_L, where eta_0 is the conformal time today"),
         ("ombh2", c_double, "Omega_baryon h^2"),
@@ -990,7 +997,7 @@ class CAMBparams(F2003Class):
         lmax,
         max_eta_k=None,
         lens_potential_accuracy=0,
-        lens_margin=150,
+        lens_output_margin=150,
         k_eta_fac=2.5,
         lens_k_eta_reference=18000.0,
         nonlinear=None,
@@ -1006,8 +1013,10 @@ class CAMBparams(F2003Class):
                           If None, sensible value set automatically.
         :param lens_potential_accuracy: Set to 1 or higher if you want to get the lensing potential accurate
                                         (1 is only Planck-level accuracy)
-        :param lens_margin: the :math:`\Delta \ell_{\rm max}` to use to ensure lensed :math:`C_\ell` are correct
-                            at :math:`\ell_{\rm max}`
+        :param lens_output_margin: the :math:`\Delta \ell_{\rm max}` margin added to ``max_l`` when ``DoLensing``
+                                   is true, so that the lensed :math:`C_\ell` output reaches the requested
+                                   :math:`\ell_{\rm max}`. Also written to ``pars.lens_output_margin`` so the
+                                   Fortran lensing code uses the matching floor.
         :param k_eta_fac:  k_eta_fac default factor for setting max_eta_k = k_eta_fac*lmax if max_eta_k=None
         :param lens_k_eta_reference:  value of max_eta_k to use when lens_potential_accuracy>0; use
                                       k_eta_max = lens_k_eta_reference*lens_potential_accuracy
@@ -1015,8 +1024,9 @@ class CAMBparams(F2003Class):
                           preserves current setting
         :return: self
         """
+        self.lens_output_margin = lens_output_margin
         if self.DoLensing:
-            self.max_l = lmax + lens_margin
+            self.max_l = lmax + lens_output_margin
         else:
             self.max_l = lmax
         self.max_eta_k = max_eta_k or self.max_l * k_eta_fac

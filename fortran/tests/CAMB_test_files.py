@@ -475,7 +475,7 @@ def getTestParams():
     # AM - End of edits
 
     params.append(["zre", "re_use_optical_depth = F", "re_redshift  = 8.5"])
-    params.append(["nolens", "lensing = F"])
+    params.append(["nolens", "do_lensing = F"])
     params.append(["noderived", "derived_parameters = F"])
     params.append(["no_rad_trunc", "do_late_rad_truncation   = F"])
 

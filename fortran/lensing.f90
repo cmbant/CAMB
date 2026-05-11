@@ -121,7 +121,7 @@
     integer :: lmax_extrap,l
     real(dl) CPP(0:State%CP%max_l)
 
-    lmax_extrap = State%CP%Max_l - lensed_convolution_margin + 750
+    lmax_extrap = State%CP%Max_l - (State%CP%lens_output_margin - lens_convolution_gap) + 750
     lmax_extrap = min(lmax_extrap_highl,lmax_extrap)
     do l= State%CP%min_l,State%CP%max_l
         ! Cl_scalar(l,1,C_Phi) is l^4 C_phi_phi
@@ -137,7 +137,7 @@
     integer :: lmax_extrap,l
     real(dl) CPP(0:State%CP%max_l)
 
-    lmax_extrap = State%CP%Max_l - lensed_convolution_margin + 750
+    lmax_extrap = State%CP%Max_l - (State%CP%lens_output_margin - lens_convolution_gap) + 750
     lmax_extrap = min(lmax_extrap_highl,lmax_extrap)
     do l= State%CP%min_l,State%CP%max_l
         ! Cl_scalar(l,1,C_Phi) is l^4 C_phi_phi
@@ -158,7 +158,7 @@
     Type(TCLData) :: CLout
     integer :: lmax_extrap, l, method
 
-    lmax_extrap = State%CP%Max_l - lensed_convolution_margin + 750
+    lmax_extrap = State%CP%Max_l - (State%CP%lens_output_margin - lens_convolution_gap) + 750
     lmax_extrap = min(lmax_extrap_highl,lmax_extrap)
     method = effective_lensing_method(State%CP)
     if (method == lensing_method_curv_corr_direct) then
@@ -249,11 +249,10 @@
             if (AccuracyTarget > 0) ThetaSampleBoost = max(ThetaSampleBoost, 1.8_dl)
         end if
         max_lensed_ix = lSamp%nl-1
-        do while(lSamp%l(max_lensed_ix) > CP%Max_l - lensed_convolution_margin)
+        do while(lSamp%l(max_lensed_ix) > CP%Max_l - (CP%lens_output_margin - lens_convolution_gap))
             max_lensed_ix = max_lensed_ix -1
         end do
-        !150 is the default margin added in python by set_for_lmax
-        CLout%lmax_lensed = max(lSamp%l(max_lensed_ix), CP%Max_l - 150)
+        CLout%lmax_lensed = max(lSamp%l(max_lensed_ix), CP%Max_l - CP%lens_output_margin)
 
         if (allocated(CLout%Cl_lensed)) deallocate(CLout%Cl_lensed)
         allocate(CLout%Cl_lensed(lmin:CLout%lmax_lensed,1:4), source = 0._dl)
@@ -737,10 +736,10 @@
 
         LensAccuracyBoost = CP%Accuracy%AccuracyBoost*CP%Accuracy%LensingBoost
         max_lensed_ix = lSamp%nl-1
-        do while(lSamp%l(max_lensed_ix) > CP%Max_l - lensed_convolution_margin)
+        do while(lSamp%l(max_lensed_ix) > CP%Max_l - (CP%lens_output_margin - lens_convolution_gap))
             max_lensed_ix = max_lensed_ix -1
         end do
-        CLout%lmax_lensed = max(lSamp%l(max_lensed_ix), CP%Max_l - 150)
+        CLout%lmax_lensed = max(lSamp%l(max_lensed_ix), CP%Max_l - CP%lens_output_margin)
 
         if (allocated(CLout%Cl_lensed)) deallocate(CLout%Cl_lensed)
         allocate(CLout%Cl_lensed(lmin:CLout%lmax_lensed,1:4), source = 0._dl)
