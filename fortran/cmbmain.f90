@@ -1263,7 +1263,7 @@
     integer no
     real(dl) dk,dk0,dlnk1, dk2, max_k_dk, k_max_log, k_max_0
     integer lognum
-    real(dl)  qmax_int,IntSampleBoost
+    real(dl)  qmax_int,IntSampleBoost,LowQIntBoost
 
 
     qmax_int = min(qmax,max_bessels_etak/State%tau0)
@@ -1284,15 +1284,18 @@
         call Init_ClTransfer(ThisCT)
         call ThisCT%q%Getdpoints(half_ends = .false.) !Jun08
     else
+        !Accurate-reionization polarization needs denser CMB integration sampling at low q (reionization bump
+        !is at low l). Only the log block (lognum) and the first linear block step (dk0) are scaled here.
+        LowQIntBoost = IntSampleBoost
+        if (AccuracyTarget > 0 .and. CP%Want_CMB .and. CP%Accuracy%AccuratePolarization &
+            .and. CP%Accuracy%AccurateReionization) LowQIntBoost = max(LowQIntBoost, 1.8_dl)
         !Split up into logarithmically spaced intervals from qmin up to k=lognum*dk0
         !then no-lognum*dk0 linearly spaced at dk0 up to no*dk0
         !then at dk up to max_k_dk, then dk2 up to qmax_int
-        lognum=nint(10*IntSampleBoost)
-        if (AccuracyTarget > 0 .and. CP%Want_CMB .and. CP%Accuracy%AccuratePolarization &
-            .and. CP%Accuracy%AccurateReionization) lognum = max(lognum, 11)
+        lognum=nint(10*LowQIntBoost)
         dlnk1=1._dl/lognum
         no=nint(600*IntSampleBoost)
-        dk0=1.8_dl/State%curvature_radius/State%chi0/IntSampleBoost
+        dk0=1.8_dl/State%curvature_radius/State%chi0/LowQIntBoost
         dk=3._dl/State%curvature_radius/State%chi0/IntSampleBoost/1.6
 
         k_max_log = lognum*dk0

@@ -1340,7 +1340,7 @@
     integer, intent(IN) :: lmin,max_l
     integer lind, lvar, step, top, bot, lmin_log
     integer, allocatable :: ls(:)
-    real(dl) AScale
+    real(dl) AScale, growth
 
     allocate(ls(max_l))
     if (allocated(this%l)) deallocate(this%l)
@@ -1475,15 +1475,25 @@
                     end do
 
                     if (max_l > lmin_log) then
-                        !Should be pretty smooth or tiny out here
-                        step=max(nint(400*Ascale),50)
+                        !Above lmin_log the unlensed C_L are smoothly damping. The default initial
+                        !step ~ 400 with 1.5x growth produces few, widely-spaced samples just above
+                        !lmin_log where the unlensed is not yet exponentially small, driving lensed
+                        !C_L interpolation errors. Use a smaller initial step and slower growth
+                        !when AccuracyTarget is on for lensed scalar CMB.
+                        if (AccuracyTarget > 0 .and. State%CP%Want_CMB .and. State%CP%WantScalars) then
+                            step=max(nint(100*Ascale),50)
+                            growth = 1.1_dl
+                        else
+                            step=max(nint(400*Ascale),50)
+                            growth = 1.5_dl
+                        end if
                         lvar = ls(lind)
                         do
                             lvar = lvar + step
                             if (lvar > max_l) exit
                             lind=lind+1
                             ls(lind)=lvar
-                            step = nint(step*1.5) !log spacing
+                            step = nint(step*growth) !log spacing
                         end do
                         if (ls(lind) < max_l - 100) then
                             !Try to keep lensed spectra up to specified lmax

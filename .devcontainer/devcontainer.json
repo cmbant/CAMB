@@ -10,6 +10,9 @@
   "runArgs": [
     "--cpus=8"
   ],
+  "features": {
+    "ghcr.io/anthropics/devcontainer-features/claude-code:1.0": {}
+  },
   "workspaceMount": "source=${localWorkspaceFolder}/..,target=/workspaces/camb-parent,type=bind",
   "workspaceFolder": "/workspaces/camb-parent/${localWorkspaceFolderBasename}",
   "mounts": [
