@@ -4,6 +4,10 @@
     !lensing_method=2: using the flat-sky lower order result of astro-ph/9505109
     !                  and astro-ph/9803150 as in CMBFAST
     !lensing_method=3: using inaccurate full sky harmonic method of astro-ph/0001303
+    !lensing_method=4: using direct Gauss-Legendre curved-sky integration following
+    !                  the structure of camb.correlations.lensed_cls
+    !lensing_method=5: optimized May 2026 default; use method 1 when AccurateBB=F
+    !                  and method 4 when AccurateBB=T
 
     !The flat sky result is accurate to about 0.1% in TT, and 0.4% in EE and is
     !about a factor of two faster than lensing_method=1.
@@ -34,6 +38,8 @@
     !obtainable from the CPC program library (www.cpc.cs.qub.ac.uk).
 
     !March 2006: fixed problem with l_max when generating with tensors (thanks Chad Fendt)
+    !May 2026: added direct curved-sky method 4 and optimized selector method 5;
+    !method 5 is now the default lensing method.
 
     module lensing
     use Precision
@@ -43,9 +49,9 @@
     use splines
     implicit none
     integer, parameter :: lensing_method_curv_corr=1,lensing_method_flat_corr=2, &
-        lensing_method_harmonic=3, lensing_method_curv_corr_direct=4
+        lensing_method_harmonic=3, lensing_method_curv_corr_direct=4, lensing_method_optimized=5
 
-    integer :: lensing_method = lensing_method_curv_corr
+    integer :: lensing_method = lensing_method_optimized
 
     real(dl) :: lensing_sanity_check_amplitude = 1e-7_dl
 
@@ -69,22 +75,41 @@
     real(dl), dimension(:), allocatable, target :: gauss_legendre_cache_xvals, gauss_legendre_cache_weights
 
     public lens_Cls, lensing_includes_tensors, lensing_method, lensing_method_flat_corr,&
-        lensing_method_curv_corr,lensing_method_harmonic, lensing_method_curv_corr_direct, BessI, ALens_Fiducial, &
+        lensing_method_curv_corr,lensing_method_harmonic, lensing_method_curv_corr_direct, lensing_method_optimized, &
+        BessI, ALens_Fiducial, &
         lensing_sanity_check_amplitude, lensClsWithSpectrum, &
         GetFlatSkyCGrads, GetFlatSkyCgradsWithSpectrum
     contains
 
 
+    integer function effective_lensing_method(CP) result(method)
+    use model, only : CAMBparams
+    type(CAMBparams), intent(in) :: CP
+
+    method = lensing_method
+    if (method == lensing_method_optimized) then
+        if (CP%Accuracy%AccurateBB) then
+            method = lensing_method_curv_corr_direct
+        else
+            method = lensing_method_curv_corr
+        end if
+    end if
+    end function effective_lensing_method
+
+
     subroutine lens_Cls(State)
     class(CAMBdata) :: State
+    integer :: method
 
-    if (lensing_method == lensing_method_curv_corr) then
+    method = effective_lensing_method(State%CP)
+
+    if (method == lensing_method_curv_corr) then
         call CorrFuncFullSky(State)
-    elseif (lensing_method == lensing_method_curv_corr_direct) then
+    elseif (method == lensing_method_curv_corr_direct) then
         call CorrFuncFullSkyDirect(State)
-    elseif (lensing_method == lensing_method_flat_corr) then
+    elseif (method == lensing_method_flat_corr) then
         call CorrFuncFlatSky(State)
-    elseif (lensing_method == lensing_method_harmonic) then
+    elseif (method == lensing_method_harmonic) then
         call BadHarmonic(State)
     else
         error stop 'Unknown lensing method'
@@ -131,11 +156,12 @@
     real(dl) :: lensedCls(4, 0:State%CP%Max_l)
     integer :: lmax_lensed
     Type(TCLData) :: CLout
-    integer :: lmax_extrap, l
+    integer :: lmax_extrap, l, method
 
     lmax_extrap = State%CP%Max_l - lensed_convolution_margin + 750
     lmax_extrap = min(lmax_extrap_highl,lmax_extrap)
-    if (lensing_method == lensing_method_curv_corr_direct) then
+    method = effective_lensing_method(State%CP)
+    if (method == lensing_method_curv_corr_direct) then
         call CorrFuncFullSkyDirectImpl(State, State%ClData, CLout, CPP, &
             State%CP%min_l,max(lmax_extrap,State%CP%max_l))
     else

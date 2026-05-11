@@ -7,6 +7,10 @@ This change adds a new Fortran lensing option,
 integrals directly with Gauss-Legendre quadrature in the same overall style as
 `camb.correlations.lensed_cls`.
 
+It also adds `lensing_method_optimized = 5`, which uses the old curved-sky
+method when `AccurateBB = False` and the direct Gauss-Legendre implementation
+when `AccurateBB = True`.
+
 The main implementation work was:
 
 - add method-4 dispatch in `fortran/lensing.f90` for the normal lensing path and
