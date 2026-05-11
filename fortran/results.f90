@@ -1495,12 +1495,12 @@
                             ls(lind)=lvar
                             step = nint(step*growth) !log spacing
                         end do
-                        if (ls(lind) < max_l - 100) then
+                        if (ls(lind) < max_l - (State%CP%lens_output_margin - lens_convolution_gap)) then
                             !Try to keep lensed spectra up to specified lmax
                             lind=lind+1
-                            ls(lind)=max_l - lensed_convolution_margin
-                        else if (ls(lind) - ls(lind-1) > lensed_convolution_margin) then
-                            ls(lind)=max_l - lensed_convolution_margin
+                            ls(lind)=max_l - (State%CP%lens_output_margin - lens_convolution_gap)
+                        else if (ls(lind) - ls(lind-1) > State%CP%lens_output_margin - lens_convolution_gap) then
+                            ls(lind)=max_l - (State%CP%lens_output_margin - lens_convolution_gap)
                         end if
                     end if
                 end if !log_lvalues

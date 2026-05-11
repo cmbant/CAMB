@@ -3,7 +3,7 @@
     use constants, only: const_twopi
     implicit none
 
-    character(LEN=*), parameter :: version = '1.6.7'
+    character(LEN=*), parameter :: version = '1.6.8'
 
     integer :: FeedbackLevel = 0 !if >0 print out useful information about the model
 
@@ -47,8 +47,9 @@
     integer, parameter :: lmax_extrap_highl = 8000
     real(dl), allocatable :: highL_CL_template(:,:)
 
-    integer, parameter :: lensed_convolution_margin = 100
-    !Number of L less than L max at which the lensed power spectrum is calculated
+    !Gap between the lensed output margin (CP%lens_output_margin) and the
+    !unlensed-spectrum convolution margin: convolution_margin = output_margin - lens_convolution_gap.
+    integer, parameter :: lens_convolution_gap = 50
 
     integer :: global_error_flag=0
 

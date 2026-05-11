@@ -206,7 +206,7 @@ This shows two things.
 
 So the right way to improve the top end is first to increase the lensing margin
 or internal support. In normal CAMB use, the relevant user-facing control is the
-`lens_margin` argument to `set_for_lmax`.
+`lens_output_margin` argument to `set_for_lmax`.
 
 ## AccurateBB = False
 

@@ -129,7 +129,11 @@
         integer   :: Min_l = 2 ! 1 or larger, usually 1 or 2
         integer   :: Max_l = 2500
         integer   :: Max_l_tensor = 600
-        real(dl)  :: Max_eta_k = 5000
+        integer   :: lens_output_margin = 150
+        !Number of L below Max_l down to which lensed C_L are guaranteed to be output;
+        !the unlensed C_L used in the lensing convolution is treated as reliable to
+        !Max_l - (lens_output_margin - 50), so this also fixes the lensed convolution margin.
+        real(dl)  :: Max_eta_k = 6250
         real(dl)  :: Max_eta_k_tensor = 1200
         ! _tensor settings only used in initialization,
         !Max_l and Max_eta_k are set to the tensor variables if only tensors requested

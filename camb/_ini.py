@@ -258,6 +258,7 @@ def _update_ini_state_from_params(params: model.CAMBparams, state: CambIniFile) 
     if params.WantCls and (params.WantScalars or params.WantVectors):
         set_param(state, "l_max_scalar", params.max_l)
         set_param(state, "k_eta_max_scalar", params.max_eta_k)
+        set_param(state, "lens_output_margin", params.lens_output_margin)
         if params.WantScalars:
             set_param(state, "do_lensing", params.DoLensing)
     if params.WantCls and params.WantTensors:

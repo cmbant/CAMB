@@ -8,15 +8,15 @@ accuracy settings are most relevant.
 
 For lensed CMB spectra near the output cutoff, this is not automatically a test
 of lens-margin convergence: by default the boosted reference keeps the same
-``lens_margin`` as the standard run unless ``--reference-lens-margin`` is set,
-and even a larger reference margin is only a support-sensitivity probe unless
-the underlying high-``l`` reference spectra are themselves well converged.
+``lens_output_margin`` as the standard run unless ``--reference-lens-output-margin``
+is set, and even a larger reference margin is only a support-sensitivity probe
+unless the underlying high-``l`` reference spectra are themselves well converged.
 
 Examples::
 
     camb check_accuracy inifiles/params.ini
     camb check_accuracy inifiles/params.ini --plot-dir accuracy_plots
-    camb check_accuracy inifiles/params.ini --strict-reference --reference-lens-margin 1500
+    camb check_accuracy inifiles/params.ini --strict-reference --reference-lens-output-margin 1500
     camb check_accuracy inifiles/params.ini --find-minimal-boosts --refine-accuracy-components
 """
 
@@ -299,9 +299,9 @@ def build_parser(prog: str | None = None) -> argparse.ArgumentParser:
         help="call params.set_for_lmax before running; if --lmax is unset, this is also used for comparison",
     )
     parser.add_argument(
-        "--lens-margin",
+        "--lens-output-margin",
         type=int,
-        help="lens margin to use for both runs; can be set with or without --set-for-lmax",
+        help="lens output margin to use for both runs; can be set with or without --set-for-lmax",
     )
     parser.add_argument(
         "--lens-potential-accuracy",
@@ -309,9 +309,9 @@ def build_parser(prog: str | None = None) -> argparse.ArgumentParser:
         help="lens_potential_accuracy to use for both runs; can be set with or without --set-for-lmax",
     )
     parser.add_argument(
-        "--reference-lens-margin",
+        "--reference-lens-output-margin",
         type=int,
-        help="lens margin override for the boosted reference only; use this with sufficiently converged reference accuracy settings to probe lensed-spectrum support sensitivity near the output cutoff",
+        help="lens output margin override for the boosted reference only; use this with sufficiently converged reference accuracy settings to probe lensed-spectrum support sensitivity near the output cutoff",
     )
     parser.add_argument(
         "--reference-lens-potential-accuracy",
@@ -476,29 +476,29 @@ def apply_lensing_settings(
     params,
     *,
     set_for_lmax: int | None = None,
-    lens_margin: int | None = None,
+    lens_output_margin: int | None = None,
     lens_potential_accuracy: float | None = None,
 ) -> None:
-    if set_for_lmax is None and lens_margin is None and lens_potential_accuracy is None:
+    if set_for_lmax is None and lens_output_margin is None and lens_potential_accuracy is None:
         return
 
     lens_accuracy = 0.0 if lens_potential_accuracy is None else lens_potential_accuracy
     if set_for_lmax is not None:
         params.set_for_lmax(
             set_for_lmax,
-            lens_margin=150 if lens_margin is None else lens_margin,
+            lens_output_margin=150 if lens_output_margin is None else lens_output_margin,
             lens_potential_accuracy=lens_accuracy,
             nonlinear=current_uses_nonlinear_lensing(params),
         )
         return
 
-    margin = 0 if lens_margin is None else lens_margin
+    margin = 0 if lens_output_margin is None else lens_output_margin
     target_lmax = params.max_l - margin if params.DoLensing else params.max_l
     max_eta_k = params.max_eta_k if lens_potential_accuracy is None else None
     params.set_for_lmax(
         max(1, target_lmax),
         max_eta_k=max_eta_k,
-        lens_margin=margin,
+        lens_output_margin=margin,
         lens_potential_accuracy=lens_accuracy,
         nonlinear=current_uses_nonlinear_lensing(params),
     )
@@ -514,7 +514,7 @@ def load_params(
     no_validate: bool,
     settings: dict[str, float | bool] | None = None,
     set_for_lmax: int | None = None,
-    lens_margin: int | None = None,
+    lens_output_margin: int | None = None,
     lens_potential_accuracy: float | None = None,
 ):
     import camb
@@ -523,7 +523,7 @@ def load_params(
     apply_lensing_settings(
         params,
         set_for_lmax=set_for_lmax,
-        lens_margin=lens_margin,
+        lens_output_margin=lens_output_margin,
         lens_potential_accuracy=lens_potential_accuracy,
     )
     if settings:
@@ -573,7 +573,7 @@ def run_case(
     accuracy_settings: dict[str, float | bool] | None,
     lmax: int | None,
     set_for_lmax: int | None,
-    lens_margin: int | None,
+    lens_output_margin: int | None,
     lens_potential_accuracy: float | None,
     mpk_kmin: float,
     mpk_npoints: int,
@@ -583,7 +583,7 @@ def run_case(
         no_validate=no_validate,
         settings=accuracy_settings,
         set_for_lmax=set_for_lmax,
-        lens_margin=lens_margin,
+        lens_output_margin=lens_output_margin,
         lens_potential_accuracy=lens_potential_accuracy,
     )
     return run_params_case(
@@ -921,9 +921,9 @@ def compare_params_accuracy(
     comparator_accuracy_settings: dict[str, float | bool] | None = None,
     lmax: int | None = None,
     set_for_lmax: int | None = None,
-    lens_margin: int | None = None,
+    lens_output_margin: int | None = None,
     lens_potential_accuracy: float | None = None,
-    reference_lens_margin: int | None = None,
+    reference_lens_output_margin: int | None = None,
     reference_lens_potential_accuracy: float | None = None,
     mpk_kmin: float = 1e-4,
     mpk_npoints: int = 500,
@@ -945,7 +945,7 @@ def compare_params_accuracy(
     apply_lensing_settings(
         standard_params,
         set_for_lmax=set_for_lmax,
-        lens_margin=lens_margin,
+        lens_output_margin=lens_output_margin,
         lens_potential_accuracy=lens_potential_accuracy,
     )
     if comparator_accuracy_settings:
@@ -955,7 +955,9 @@ def compare_params_accuracy(
     apply_lensing_settings(
         reference_params,
         set_for_lmax=set_for_lmax,
-        lens_margin=reference_lens_margin if reference_lens_margin is not None else lens_margin,
+        lens_output_margin=reference_lens_output_margin
+        if reference_lens_output_margin is not None
+        else lens_output_margin,
         lens_potential_accuracy=(
             reference_lens_potential_accuracy
             if reference_lens_potential_accuracy is not None
@@ -1509,7 +1511,7 @@ def find_minimal_boosts(
         ini_file,
         no_validate=args.no_validate,
         set_for_lmax=args.set_for_lmax,
-        lens_margin=args.lens_margin,
+        lens_output_margin=args.lens_output_margin,
         lens_potential_accuracy=args.lens_potential_accuracy,
     )
     raw_settings = raw_accuracy_settings(raw_params)
@@ -1553,7 +1555,7 @@ def find_minimal_boosts(
             accuracy_settings=settings,
             lmax=effective_lmax(args),
             set_for_lmax=args.set_for_lmax,
-            lens_margin=args.lens_margin,
+            lens_output_margin=args.lens_output_margin,
             lens_potential_accuracy=args.lens_potential_accuracy,
             mpk_kmin=args.mpk_kmin,
             mpk_npoints=args.mpk_npoints,
@@ -1673,7 +1675,7 @@ def refine_accuracy_components(
         ini_file,
         no_validate=args.no_validate,
         set_for_lmax=args.set_for_lmax,
-        lens_margin=args.lens_margin,
+        lens_output_margin=args.lens_output_margin,
         lens_potential_accuracy=args.lens_potential_accuracy,
     )
     target_accuracy_settings = accuracy_search_target_settings(
@@ -1713,7 +1715,7 @@ def refine_accuracy_components(
             accuracy_settings=settings,
             lmax=effective_lmax(args),
             set_for_lmax=args.set_for_lmax,
-            lens_margin=args.lens_margin,
+            lens_output_margin=args.lens_output_margin,
             lens_potential_accuracy=args.lens_potential_accuracy,
             mpk_kmin=args.mpk_kmin,
             mpk_npoints=args.mpk_npoints,
@@ -2172,9 +2174,9 @@ def main(argv: list[str] | None = None, *, prog: str | None = None) -> int:
     if args.mpk_tolerance is None:
         args.mpk_tolerance = MPK_TOLERANCE_RANGES if base_params.Transfer.high_precision else 3e-3
     if base_params.DoLensing and base_params.WantCls and base_params.Want_CMB:
-        if args.reference_lens_margin is not None:
+        if args.reference_lens_output_margin is not None:
             print(
-                "Note: --reference-lens-margin probes support sensitivity near the output cutoff, but it is not by itself "
+                "Note: --reference-lens-output-margin probes support sensitivity near the output cutoff, but it is not by itself "
                 "a truth test unless the high-l reference spectra are also well converged."
             )
     noise_config = None
@@ -2188,9 +2190,9 @@ def main(argv: list[str] | None = None, *, prog: str | None = None) -> int:
         reference_accuracy_settings=high_accuracy_settings,
         lmax=effective_lmax(args),
         set_for_lmax=args.set_for_lmax,
-        lens_margin=args.lens_margin,
+        lens_output_margin=args.lens_output_margin,
         lens_potential_accuracy=args.lens_potential_accuracy,
-        reference_lens_margin=args.reference_lens_margin,
+        reference_lens_output_margin=args.reference_lens_output_margin,
         reference_lens_potential_accuracy=args.reference_lens_potential_accuracy,
         mpk_kmin=args.mpk_kmin,
         mpk_npoints=args.mpk_npoints,
