@@ -2085,7 +2085,7 @@
     end if
 
     IntAccuracyBoost=CP%Accuracy%AccuracyBoost*CP%Accuracy%NonFlatIntAccuracyBoost
-    minujl=MINUJL1*IntAccuracyBoost/l
+    minujl=MINUJl1/l/IntAccuracyBoost
     isgn=sign(1,nstart-nend)!direction of chi integration
     !higher n, later time, smaller chi
 
