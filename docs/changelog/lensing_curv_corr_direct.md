@@ -395,6 +395,38 @@ negligible at the quoted precision.
 
 So the extra high-`l` bump was not retained.
 
+### 5. Method-1 theta-floor retune after the later C2 taper change
+
+This note mainly covers method 4, but the later `AccurateBB=False` work on method 1 changed the
+short-range taper enough that the original follow-up `ThetaSampleBoost` floors were worth revisiting.
+
+After switching method 1 to the C2 taper with
+
+```fortran
+apodize_width = 0.012_dl
+apodize_point_width = nint(apodize_width/dtheta)
+```
+
+the earlier high-l `ThetaSampleBoost = 2.6` floor from the follow-up note stopped being the minimal
+passing value. With the low-l floor fixed at `1.6`, the current strict-reference
+`params_lmax6000.ini` scan gives:
+
+| high-l `ThetaSampleBoost` floor | pass? | score | standard wall time |
+| --- | --- | ---: | ---: |
+| `2.0` | pass | `0.8687158` | `0.444 s` |
+| `2.2` | pass | `0.8687197` | `0.489 s` |
+| `2.4` | pass | `0.8687231` | `0.479 s` |
+| `2.6` | pass | `0.8687261` | `0.482 s` |
+
+while the no-uplift case (`ThetaSampleBoost = max(., 1.6)` with no `Max_l > 3500` override) fails
+TT in the top tail at `L = 5894` with `0.00421` against the `0.003` tolerance. So the current
+method-1 short-range path still needs a dedicated high-l uplift, but `2.6` is no longer carrying a
+visible accuracy advantage over `2.0` on this check. The retained method-1 setting uses `2.2` as a
+small cushion above the minimal tested passing value.
+
+The associated plots are in `accuracy_plots/theta_highl_scan/`, with TT/EE fractional-difference
+curves against the strict reference and against the current `2.6` baseline.
+
 ## Current Takeaway
 
 Method 4 is now a practical additional option rather than just a direct port of

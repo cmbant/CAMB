@@ -454,9 +454,15 @@ def apply_accuracy_settings(params, settings: dict[str, float | bool], *, boost_
             params.DoLateRadTruncation = bool(setting)
             continue
         if hasattr(params.Accuracy, key):
-            value = float(setting)
-            if boost_from_raw:
-                value = max(float(getattr(params.Accuracy, key)), value)
+            current_value = getattr(params.Accuracy, key)
+            if isinstance(current_value, bool):
+                value = bool(setting)
+                if boost_from_raw:
+                    value = current_value or value
+            else:
+                value = float(setting)
+                if boost_from_raw:
+                    value = max(float(current_value), value)
             setattr(params.Accuracy, key, value)
             continue
         if key == "min_l_logl_sampling":
