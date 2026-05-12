@@ -227,10 +227,10 @@
     real(dl) dX000,dX022
     integer  interp_fac
     integer j,jmax
-    real(dl) sc
+    real(dl) sc, taper
     integer apodize_point_width
     logical :: short_integral_range
-    real(dl) range_fac
+    real(dl) range_fac, apodize_width
     logical, parameter :: approx = .false.
     real(dl) theta_cut(lmax), LensAccuracyBoost, ThetaSampleBoost
     Type(TTimer) :: Timer
@@ -243,10 +243,12 @@
 
         LensAccuracyBoost = CP%Accuracy%AccuracyBoost*CP%Accuracy%LensingBoost
         ThetaSampleBoost = LensAccuracyBoost
-        !High-l lensed spectra need denser correlation-function angular sampling.
-        if (CP%Max_l > 3500) then
-            ThetaSampleBoost = ThetaSampleBoost*1.3_dl
-            if (AccuracyTarget > 0) ThetaSampleBoost = max(ThetaSampleBoost, 1.8_dl)
+
+        if (AccuracyTarget > 0) then
+            ThetaSampleBoost = ThetaSampleBoost * 1.6_dl
+            if (CP%Max_l > 3500) ThetaSampleBoost = ThetaSampleBoost * (2.2_dl/1.6_dl)
+        else if (CP%Max_l > 3500) then
+            ThetaSampleBoost = ThetaSampleBoost * 1.3_dl
         end if
         max_lensed_ix = lSamp%nl-1
         do while(lSamp%l(max_lensed_ix) > CP%Max_l - (CP%lens_output_margin - lens_convolution_gap))
@@ -260,7 +262,8 @@
         npoints = CP%Max_l  * 2 * ThetaSampleBoost
         short_integral_range = .not. CP%Accuracy%AccurateBB
         dtheta = const_pi / npoints
-        apodize_point_width = nint(0.003 / dtheta)
+        apodize_width = 0.012_dl
+        apodize_point_width = nint(apodize_width / dtheta)
         npoints = int(const_pi/dtheta)
         if (short_integral_range) then
             range_fac= max(1._dl,32/LensAccuracyBoost) !fraction of range to integrate
@@ -523,8 +526,11 @@
             !if (short_integral_range .and. i>npoints-20) &
             !        corr=corr*exp(-(i-npoints+20)**2/150.0) !taper the end to help prevent ringing
 
-            if (short_integral_range .and. i>npoints-apodize_point_width*3) &
-                corr=corr*exp(-(i-npoints+apodize_point_width*3)**2/real(2*apodize_point_width**2))
+            if (short_integral_range .and. i>npoints-apodize_point_width) then
+                taper = real(npoints-i, dl)/real(apodize_point_width, dl)
+                taper = max(0._dl, min(1._dl, taper))
+                corr = corr*taper**3*(10._dl + taper*(-15._dl + 6._dl*taper))
+            end if
             !taper the end to help prevent ringing
 
             !$  thread_ix = OMP_GET_THREAD_NUM()+1

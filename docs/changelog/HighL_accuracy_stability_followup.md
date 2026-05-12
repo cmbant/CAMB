@@ -55,6 +55,28 @@ EE at the upper edge of the lensed range (max abs ~`1.3e-3`/`1.1e-3` against `1e
 tolerance at `L ~ 5853`). The floors stay even though `AccurateBB` is false because they are
 controlling TT/EE/TE accuracy at the upper edge of the lensed range, not just BB.
 
+After the later method-1 short-range updates to the C2 taper and the direct
+`apodize_width = 0.012`-radian convention (`apodize_point_width = nint(apodize_width/dtheta)`),
+those original `ThetaSampleBoost` floors turned out to be conservative rather than minimal.
+Repeating the strict-reference `params_lmax6000.ini` check on the current code with the low-l floor
+fixed at `1.6` and scanning only the `Max_l > 3500` floor gives:
+
+| high-l `ThetaSampleBoost` floor | pass? | score | standard wall time |
+| --- | --- | ---: | ---: |
+| `2.0` | pass | `0.8687158` | `0.444 s` |
+| `2.2` | pass | `0.8687197` | `0.489 s` |
+| `2.4` | pass | `0.8687231` | `0.479 s` |
+| `2.6` | pass | `0.8687261` | `0.482 s` |
+
+The no-uplift case (`ThetaSampleBoost = max(., 1.6)` with no `Max_l > 3500` override) still fails the
+same strict reference with TT = `0.00421` against `0.003` at `L = 5894`, so some dedicated high-l
+uplift is still needed. But on the current `0.012`-radian C2-taper path, the minimal tested
+passing high-l floor is `2.0`, not `2.6`. The retained code now uses `2.2` as a small cushion
+above that minimal passing value.
+
+Plots and machine-readable data for this retune are in `accuracy_plots/theta_highl_scan/` and
+`accuracy_plots/theta_highl_scan/data/params_lmax6000_theta_highl_scan.json`.
+
 ## High-l C_L l-sampling
 
 `params_lmax6000.ini` needs denser C_L sampling above the default `min_l_logl_sampling = 5000`.
