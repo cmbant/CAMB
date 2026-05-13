@@ -77,7 +77,7 @@
         integer q_ix
         real(dl) q, dq    !q value we are doing and delta q
         !Contribution to C_l integral from this k
-        real(dl), dimension(:,:), pointer :: Source_q, ddSource_q
+        real(dl), dimension(:,:), pointer :: Source_q
         !Interpolated sources for this k
         integer SourceSteps !number of steps up to where source is zero
     end type IntegrationVars
@@ -526,7 +526,6 @@
     type(IntegrationVars) :: IV
 
     allocate(IV%Source_q(State%TimeSteps%npoints,ThisSources%SourceNum))
-    if (.not.State%flat) allocate(IV%ddSource_q(State%TimeSteps%npoints,ThisSources%SourceNum))
 
     call IntegrationVars_init(IV)
 
@@ -538,7 +537,6 @@
 
     call DoSourceIntegration(IV, ThisCT)
 
-    if (.not.State%flat) deallocate(IV%ddSource_q)
     deallocate(IV%Source_q)
 
     end subroutine SourceToTransfers
@@ -788,7 +786,6 @@
     !     where taurst is the time when recombination starts - see inithermo
 
     dtaurec_q=4/qmax/initAccuracyBoost
-    if (.not. State%flat) dtaurec_q=dtaurec_q/6
     !AL:Changed Dec 2003, dtaurec feeds back into the non-flat integration via the step size
     State%dtaurec = dtaurec_q
     !dtau rec may be changed by ThermoData_init
@@ -1339,80 +1336,134 @@
 
     subroutine InterpolateSources(IV)
     implicit none
-    integer i,khi,klo, step
-    real(dl) xf,b0,ho,a0,ho2o6,a03,b03
-    type(IntegrationVars) IV
-    Type(TRanges), pointer :: Evolve_q
+
+    type(IntegrationVars), intent(inout) :: IV
+
+    integer :: i, j
+    integer :: klo, khi, lo, hi, mid
+    integer :: ntime, nsrc, npoints
+    integer :: step
+
+    real(dl) :: q, tau, qtau, xf
+    real(dl) :: ho, ho2o6
+    real(dl) :: a0, b0, a03, b03
+    real(dl) :: max_etak
+    real(dl), parameter :: eps_xf = 1.e-8_dl
+
+    logical :: ignore_etak
+
+    type(TRanges), pointer :: Evolve_q
 
     Evolve_q => ThisSources%Evolve_q
 
-    !     finding position of k in table Evolve_q to do the interpolation.
+    q       = IV%q
+    ntime   = State%TimeSteps%npoints
+    npoints = Evolve_q%npoints
+    nsrc    = size(IV%Source_q, 2)
 
-    !Can't use the following in closed case because regions are not set up (only points)
-    !           klo = min(Evolve_q%npoints-1,Evolve_q%IndexOf(IV%q))
-    !This is a bit inefficient, but thread safe
-    klo=1
-    do while ((IV%q > Evolve_q%points(klo+1)).and.(klo < (Evolve_q%npoints-1)))
-        klo=klo+1
-    end do
-
-    khi=klo+1
-
-
-    ho=Evolve_q%points(khi)-Evolve_q%points(klo)
-    a0=(Evolve_q%points(khi)-IV%q)/ho
-    b0=(IV%q-Evolve_q%points(klo))/ho
-    ho2o6 = ho**2/6
-    a03=(a0**3-a0)
-    b03=(b0**3-b0)
-    IV%SourceSteps = 0
-
-    !     Interpolating the source as a function of time for the present
-    !     wavelength.
-    step=2
-    do i=2, State%TimeSteps%npoints
-        xf=IV%q*(State%tau0-State%TimeSteps%points(i))
-        if (CP%WantTensors) then
-            if (IV%q*State%TimeSteps%points(i) < max_etak_tensor.and. xf > 1.e-8_dl) then
-                step=i
-                IV%Source_q(i,:) =a0*scaledSrc(klo,:,i)+&
-                    b0*scaledSrc(khi,:,i)+(a03 *ddScaledSrc(klo,:,i)+ &
-                    b03*ddScaledSrc(khi,:,i)) *ho2o6
-            else
-                IV%Source_q(i,:) = 0
-            end if
-        end if
-        if (CP%WantVectors) then
-            if (IV%q*State%TimeSteps%points(i) < max_etak_vector.and. xf > 1.e-8_dl) then
-                step=i
-                IV%Source_q(i,:) =a0*ScaledSrc(klo,:,i) + b0*ScaledSrc(khi,:,i)+(a03 *ddScaledSrc(klo,:,i)+ &
-                    b03*ddScaledSrc(khi,:,i)) *ho2o6
-            else
-                IV%Source_q(i,:) = 0
-            end if
-        end if
-
-        if (CP%WantScalars) then
-            if ((DebugEvolution .or. WantLateTime .or. IV%q*State%TimeSteps%points(i) < max_etak_scalar) &
-                .and. xf > 1.e-8_dl) then
-                step=i
-                IV%Source_q(i,:) = a0 * ScaledSrc(klo,:,i) +  b0 * ScaledSrc(khi,:,i) + (a03*ddScaledSrc(klo,:,i) + &
-                    b03 * ddScaledSrc(khi,:,i)) * ho2o6
-            else
-                IV%Source_q(i,:) = 0
-            end if
-        end if
-    end do
+    ! Preserve original default behaviour: step starts at 2.
+    step = 2
     IV%SourceSteps = step
 
-    if (.not.State%flat) then
-        do i=1, ThisSources%SourceNum
-            call spline_def(State%TimeSteps%points,IV%Source_q(:,i),State%TimeSteps%npoints,&
-                IV%ddSource_q(:,i))
-        end do
+    ! Zero all rows that this routine is responsible for.
+    if (ntime >= 2) then
+        IV%Source_q(2:ntime, :) = 0._dl
+    else
+        return
     end if
 
-    end subroutine
+    ! Determine active source type.
+    ! This preserves the original overwrite order:
+    ! tensors first, then vectors, then scalars.
+    ignore_etak = .false.
+    max_etak = 0._dl
+
+    if (CP%WantScalars) then
+        if (DebugEvolution .or. WantLateTime) then
+            ignore_etak = .true.
+        else
+            max_etak = max_etak_scalar
+        end if
+    else if (CP%WantTensors) then
+        max_etak = max_etak_tensor
+    else if (CP%WantVectors) then
+        max_etak = max_etak_vector
+    end if
+
+    ! ------------------------------------------------------------------
+    ! Thread-safe binary search for interpolation interval.
+    ! Assumes Evolve_q%points is monotonically increasing.
+    ! Clamp outside range to the nearest interval, matching typical
+    ! interpolation-table behaviour.
+    ! ------------------------------------------------------------------
+    if (q <= Evolve_q%points(1)) then
+        klo = 1
+    else if (q >= Evolve_q%points(npoints)) then
+        klo = npoints - 1
+    else
+        lo = 1
+        hi = npoints
+
+        do while (hi - lo > 1)
+            mid = (lo + hi) / 2
+
+            if (q >= Evolve_q%points(mid)) then
+                lo = mid
+            else
+                hi = mid
+            end if
+        end do
+
+        klo = lo
+    end if
+
+    khi = klo + 1
+
+    ho = Evolve_q%points(khi) - Evolve_q%points(klo)
+
+    if (ho == 0._dl) then
+        error stop 'InterpolateSources: duplicate Evolve_q points give zero interval'
+    end if
+
+    a0 = (Evolve_q%points(khi) - q) / ho
+    b0 = (q - Evolve_q%points(klo)) / ho
+
+    ho2o6 = ho * ho / 6._dl
+
+    a03 = a0 * a0 * a0 - a0
+    b03 = b0 * b0 * b0 - b0
+
+    ! ------------------------------------------------------------------
+    ! Interpolate source as a function of time for current q.
+    !
+    ! Because IV%Source_q(2:ntime,:) was already zeroed, only valid
+    ! source rows need to be filled.
+    !
+    ! If State%TimeSteps%points is monotonically increasing, once the
+    ! condition fails it will keep failing, so we can exit early.
+    ! ------------------------------------------------------------------
+    do i = 2, ntime
+        tau  = State%TimeSteps%points(i)
+        qtau = q * tau
+        xf   = q * (State%tau0 - tau)
+
+        if ((ignore_etak .or. qtau < max_etak) .and. xf > eps_xf) then
+            step = i
+
+            do j = 1, nsrc
+                IV%Source_q(i, j) = a0 * ScaledSrc(klo, j, i) + &
+                    b0 * ScaledSrc(khi, j, i) + &
+                    (a03 * ddScaledSrc(klo, j, i) + &
+                    b03 * ddScaledSrc(khi, j, i)) * ho2o6
+            end do
+        else
+            exit
+        end if
+    end do
+
+    IV%SourceSteps = step
+
+    end subroutine InterpolateSources
 
 
     subroutine IntegrationVars_Init(IV)
@@ -1422,7 +1473,7 @@
     IV%Source_q(State%TimeSteps%npoints,:) = 0
     IV%Source_q(State%TimeSteps%npoints-1,:) = 0
 
-    end  subroutine IntegrationVars_Init
+    end subroutine IntegrationVars_Init
 
 
     subroutine DoSourceIntegration(IV, ThisCT) !for particular wave number q
@@ -1699,9 +1750,9 @@
     type(IntegrationVars) IV
     Type(ClTransferData) :: ThisCT
     logical DoInt
-    integer l,j, nstart,nDissipative,ntop,nbot,nrange,nnow
+    integer l,j, nstart,nDissipative,ntop,nbot,nrange,nnow,nmin_osc,nbot_eff
     real(dl) nu,ChiDissipative,ChiStart,tDissipative,y1,y2,y1dis,y2dis
-    real(dl) xf,x,chi, miny1
+    real(dl) xf,x,chi, miny1,xlmax1,tmin
     real(dl) sums(ThisSources%SourceNum),out_arr(ThisSources%SourceNum), qmax_int
     real(dl) BessIntBoost
 
@@ -1766,22 +1817,48 @@
                 end do
             end if !integrate down chi
 
-            !Integrate chi up in oscillatory region
+            !Integrate chi up in oscillatory region, but optionally cut off very high-x tail
             if (nstart > 2) then
                 y1=y1dis
                 y2=y2dis
                 chi=ChiStart
                 nnow=nstart
-                do nrange = State%TimeSteps%Count,1,-1
-                    nbot = State%TimeSteps%R(nrange)%start_index
-                    if (nnow >  nbot) then
-                        call DoRangeInt(IV,chi,ChiDissipative,nnow,nbot,State%TimeSteps%R(nrange)%delta, &
-                            nu,l,y1,y2,out_arr)
-                        sums=sums+out_arr
-                        if (chi==0) exit !small for remaining region
-                        nnow = nbot
+
+                if (full_bessel_integration .or. do_bispectrum) then
+                    nmin_osc = 2
+                else
+                    xlmax1 = 80._dl * l * BessIntBoost
+                    if (State%num_redshiftwindows > 0 .and. CP%WantScalars) then
+                        xlmax1 = xlmax1 * 8._dl
                     end if
-                end do
+
+                    tmin = State%tau0 - xlmax1 / IV%q
+                    tmin = max(State%TimeSteps%points(2), tmin)
+
+                    if (tmin >= State%TimeSteps%points(nstart)) then
+                        nmin_osc = nstart
+                    else
+                        nmin_osc = max(2, State%TimeSteps%IndexOf(tmin))
+                    end if
+                end if
+
+                if (nstart > nmin_osc) then
+                    do nrange = State%TimeSteps%Count,1,-1
+                        if (nnow <= nmin_osc) exit
+
+                        nbot = State%TimeSteps%R(nrange)%start_index
+                        nbot_eff = max(nbot, nmin_osc)
+                        if (nnow > nbot_eff) then
+                            call DoRangeInt(IV,chi,ChiDissipative,nnow,nbot_eff,State%TimeSteps%R(nrange)%delta, &
+                                nu,l,y1,y2,out_arr)
+                            sums=sums+out_arr
+                            if (chi==0) exit !small for remaining region
+                            nnow = nbot_eff
+                        end if
+
+                        if (nnow == nmin_osc) exit
+                    end do
+                end if
             end if
         end if !DoInt
         if (ThisSources%SourceNum==3 .and. (.not. DoInt .or. UseLimber(l))) then
@@ -1855,6 +1932,62 @@
     end subroutine IntegrateSourcesBessels
 
 
+    subroutine StepUSpherBesselRK4(ap1, nu2, delchi, chi, y1, y2, sh, potential)
+    real(dl), intent(in) :: ap1, nu2, delchi
+    real(dl), intent(inout) :: chi, y1, y2, sh, potential
+    real(dl) :: dydchi1, dydchi2, yt1, yt2, dyt1, dyt2, dym1, dym2
+    real(dl) :: hh, h6, xh
+
+    hh = 0.5_dl * delchi
+    h6 = delchi / 6._dl
+
+    dydchi1 = y2
+    dydchi2 = potential * y1
+    xh = chi + hh
+    yt1 = y1 + hh * dydchi1
+    yt2 = y2 + hh * dydchi2
+    dyt1 = yt2
+    potential = ap1 / State%rofChi(xh)**2 - nu2
+
+    dyt2 = potential * yt1
+    yt1 = y1 + hh * dyt1
+    yt2 = y2 + hh * dyt2
+    dym1 = yt2
+    dym2 = potential * yt1
+    yt1 = y1 + delchi * dym1
+    dym1 = dyt1 + dym1
+    yt2 = y2 + delchi * dym2
+    dym2 = dyt2 + dym2
+
+    chi = chi + delchi
+    sh = State%rofChi(chi)
+    dyt1 = yt2
+    potential = ap1 / sh**2 - nu2
+    dyt2 = potential * yt1
+    y1 = y1 + h6 * (dydchi1 + dyt1 + 2._dl * dym1)
+    y2 = y2 + h6 * (dydchi2 + dyt2 + 2._dl * dym2)
+
+    end subroutine StepUSpherBesselRK4
+
+
+    subroutine StepUSpherBesselNumerov(ap1, nu2, delchi, chi, y_prev, y_now, y2_prev, q_prev, q_now, sh, y_next, y2_next, q_next)
+    real(dl), intent(in) :: ap1, nu2, delchi, y_prev, y_now, y2_prev, q_prev, q_now
+    real(dl), intent(inout) :: chi, sh
+    real(dl), intent(out) :: y_next, y2_next, q_next
+    real(dl) :: h2
+
+    chi = chi + delchi
+    sh = State%rofChi(chi)
+    q_next = ap1 / sh**2 - nu2
+    h2 = delchi**2
+
+    y_next = (2._dl * (1._dl + 5._dl * h2 * q_now / 12._dl) * y_now - (1._dl - h2 * q_prev / 12._dl) * y_prev) / &
+        (1._dl - h2 * q_next / 12._dl)
+    y2_next = y2_prev + delchi * (q_prev * y_prev + 4._dl * q_now * y_now + q_next * y_next) / 3._dl
+
+    end subroutine StepUSpherBesselNumerov
+
+
 
     subroutine DoRangeInt(IV,chi,chiDisp,nstart,nend,dtau,nu,l,y1,y2,out)
     !Non-flat version
@@ -1867,18 +2000,17 @@
 
     use precision
     type(IntegrationVars) IV
-    integer l,nIntSteps,nstart,nend,nlowest,isgn,i,is,Startn
-    real(dl) nu,dtau,num1,num2,Deltachi,aux1,aux2
-    real(dl) a,b,tmpa,tmpb,hh,h6,xh,delchi,taui
-    real(dl) nu2,chi,chiDisp,dydchi1,dydchi2,yt1,yt2,dyt1,dyt2,dym1,dym2
+    integer l,nIntSteps,nstart,nend,isgn,i,Startn,step_ix,nSubSteps,last_ix
+    real(dl) nu,dtau,num1,Deltachi,delchi
+    real(dl) nu2,chi,chiDisp
 
-    real(dl) tmp,dtau2o6,y1,y2,ap1,sh,ujl,chiDispTop
+    real(dl) tmp,y1,y2,ap1,sh,ujl,chiDispTop
     real(dl) dchimax,dchisource,sgn,sgndelchi,minujl
+    real(dl) y_prev, y2_prev, y_next, y2_next, q_prev, q_next
     real(dl), parameter:: MINUJl1 = 0.5d-4  !cut-off point for small ujl l=1
-    logical Interpolate
     real(dl) scalel
     real(dl) IntAccuracyBoost
-    real(dl) sources(ThisSources%SourceNum), out(ThisSources%SourceNum)
+    real(dl) out(ThisSources%SourceNum), ujl_vals(abs(nstart - nend) + 1)
 
     IntAccuracyBoost=CP%Accuracy%AccuracyBoost*CP%Accuracy%NonFlatIntAccuracyBoost
 
@@ -1888,34 +2020,22 @@
         return
     end if
 
-    dchisource=dtau/State%curvature_radius
-
-    num1=1._dl/nu
-
-    scalel=l/State%scale
-    if (scalel>=2400) then
-        num2=num1*2.5
-    else if (scalel< 50) then
-        num2=num1*0.8_dl
-    else
-        num2=num1*1.5_dl
-    end if
-    !Dec 2003, since decrease dtaurec, can make this smaller
-    if (dtau==dtaurec_q) then
-        num2=num2/4
-    end if
-
-    if (scalel<1500 .and. scalel > 150) &
-        IntAccuracyBoost=IntAccuracyBoost*(1+(2000-scalel)*0.6/2000 )
-
-    if (num2*IntAccuracyBoost < dchisource .and. (.not. WantLateTime .or. UseLimber(l)) &
-        .or. (nstart>IV%SourceSteps.and.nend>IV%SourceSteps)) then
+    if (nstart>IV%SourceSteps.and.nend>IV%SourceSteps) then
         out = 0
         y1=0._dl !So we know to calculate starting y1,y2 if there is next range
         y2=0._dl
         chi=(State%tau0-State%TimeSteps%points(nend))/State%curvature_radius
         return
     end if
+
+    dchisource=dtau/State%curvature_radius
+
+    num1=1._dl/nu
+
+    scalel=l/State%scale
+
+    if (scalel<1500 .and. scalel > 150) &
+        IntAccuracyBoost=IntAccuracyBoost*(1+(2000-scalel)*0.6/2000 )
 
     Startn=nstart
     if (nstart>IV%SourceSteps .and. nend < IV%SourceSteps) then
@@ -1939,10 +2059,6 @@
 
     sgn= isgn
 
-    nlowest=min(Startn,nend)
-    aux1=1._dl*State%curvature_radius/dtau  !used to calculate nearest timestep quickly
-    aux2=(State%tau0-State%TimeSteps%points(nlowest))/dtau + nlowest
-
     nu2=nu*nu
     ap1=l*(l+1)
     sh=State%rofChi(chi)
@@ -1958,98 +2074,72 @@
     dchimax=dchimax/IntAccuracyBoost
 
     ujl=y1/sh
-    sources = IV%Source_q(Startn, :)
+    out = 0
+    ujl_vals(1) = ujl
 
-    out = 0.5_dl*ujl*sources
+    nIntSteps=isgn*(Startn-nend)
+    if (nIntSteps <= 0) return
 
-    Interpolate = dchisource > dchimax
-    if (Interpolate) then !split up smaller than source step size
-        delchi=dchimax
-        Deltachi=sgn*(State%TimeSteps%points(Startn)-State%TimeSteps%points(nend))/State%curvature_radius
-        nIntSteps=int(Deltachi/delchi+0.99_dl)
-        delchi=Deltachi/nIntSteps
-        dtau2o6=(State%curvature_radius*delchi)**2/6._dl
-    else !step size is that of source
-        delchi=dchisource
-        nIntSteps=isgn*(Startn-nend)
-    end if
+    nSubSteps = max(1, int(dchisource/dchimax + 0.99_dl))
+    delchi = dchisource/nSubSteps
 
     sgndelchi=delchi*sgn
     tmp=(ap1/sh**2 - nu2)
-    hh=0.5_dl*sgndelchi
-    h6=sgndelchi/6._dl
 
+    y_prev = y1
+    y2_prev = y2
+    q_prev = tmp
 
     do i=1,nIntSteps
-        ! One step in the ujl integration
-        ! fourth-order Runge-Kutta method to integrate equation for ujl
-
-        dydchi1=y2         !deriv y1
-        dydchi2=tmp*y1     !deriv y2
-        xh=chi+hh          !midpoint of step
-        yt1=y1+hh*dydchi1  !y1 at midpoint
-        yt2=y2+hh*dydchi2  !y2 at midpoint
-        dyt1=yt2           !deriv y1 at mid
-        tmp=(ap1/State%rofChi(xh)**2 - nu2)
-
-
-        dyt2=tmp*yt1       !deriv y2 at mid
-
-        yt1=y1+hh*dyt1     !y1 at mid
-        yt2=y2+hh*dyt2     !y2 at mid
-
-        dym1=yt2           !deriv y1 at mid
-        dym2=tmp*yt1       !deriv y2 at mid
-        yt1=y1+sgndelchi*dym1 !y1 at end
-        dym1=dyt1+dym1
-        yt2=y2+sgndelchi*dym2 !y2 at end
-        dym2=dyt2+dym2
-
-        chi=chi+sgndelchi     !end point
-        sh=State%rofChi(chi)
-        dyt1=yt2           !deriv y1 at end
-        tmp=(ap1/sh**2 - nu2)
-        dyt2=tmp*yt1       !deriv y2 at end
-        y1=y1+h6*(dydchi1+dyt1+2*dym1) !add up
-        y2=y2+h6*(dydchi2+dyt2+2*dym2)
-
-        ujl=y1/sh
-        if ((isgn<0).and.(y1*y2<0._dl).or.((chi>chiDispTop).and.((chi>3.14).or.(y1*y2>0)))) then
-            chi=0._dl
-            exit   !If this happens we are small, so stop integration
-        end if
-
-
-        if (Interpolate) then
-            ! Interpolate the source
-            taui=aux2-aux1*chi
-            is=int(taui)
-            b=taui-is
-
-            if (b > 0.998) then
-                !may save time, and prevents numerical error leading to access violation of IV%Source_q(0)
-                sources = IV%Source_q(is+1,:)
+        do step_ix = 1, nSubSteps
+            if (i == 1 .and. step_ix == 1) then
+                call StepUSpherBesselRK4(ap1, nu2, sgndelchi, chi, y1, y2, sh, tmp)
             else
-                a=1._dl-b
-                tmpa=(a**3-a)
-                tmpb=(b**3-b)
-                sources=a*IV%Source_q(is,:)+b*IV%Source_q(is+1,:)+ &
-                    (tmpa*IV%ddSource_q(is,:)+ &
-                    tmpb*IV%ddSource_q(is+1,:))*dtau2o6
+                call StepUSpherBesselNumerov(ap1, nu2, sgndelchi, chi, y_prev, y1, y2_prev, q_prev, tmp, sh, y_next, y2_next, q_next)
+                y_prev = y1
+                y2_prev = y2
+                q_prev = tmp
+                y1 = y_next
+                y2 = y2_next
+                tmp = q_next
             end if
-        else
-            sources = IV%Source_q(Startn - i*isgn,:)
-        end if
 
-        out = out + ujl*sources
+            ujl=y1/sh
+            if ((isgn<0).and.(y1*y2<0._dl).or.((chi>chiDispTop).and.((chi>3.14).or.(y1*y2>0)))) then
+                chi=0._dl
+                exit   !If this happens we are small, so stop integration
+            end if
 
-        if (((isgn<0).or.(chi>chiDispTop)).and.(abs(ujl) < minujl)) then
-            chi=0
-            exit !break when getting  exponentially small in dissipative region
-        end if
+            if (((isgn<0).or.(chi>chiDispTop)).and.(abs(ujl) < minujl)) then
+                chi=0._dl
+                exit !break when getting  exponentially small in dissipative region
+            end if
+        end do
+
+        if (chi==0._dl) exit
+        ujl_vals(i + 1) = ujl
     end do
 
-    out = (out - sources*ujl/2)*delchi*State%curvature_radius
+    last_ix = i
+    if (last_ix > 0) then
+        ujl_vals(1) = 0.5_dl * ujl_vals(1)
+        ujl_vals(last_ix) = 0.5_dl * ujl_vals(last_ix)
+
+        if (ThisSources%SourceNum==3) then
+            do step_ix = 0, last_ix - 1
+                ujl = ujl_vals(step_ix + 1)
+                out(1) = out(1) + ujl * IV%Source_q(Startn - step_ix*isgn,1)
+                out(2) = out(2) + ujl * IV%Source_q(Startn - step_ix*isgn,2)
+                out(3) = out(3) + ujl * IV%Source_q(Startn - step_ix*isgn,3)
+            end do
+        else
+            do step_ix = 0, last_ix - 1
+                out = out + ujl_vals(step_ix + 1) * IV%Source_q(Startn - step_ix*isgn,:)
+            end do
+        end if
+    end if
+
+    out = out * dchisource*State%curvature_radius
 
     end subroutine DoRangeInt
 
@@ -2060,23 +2150,17 @@
     ! integration.
     ! dtau is the spacing of the timesteps (they must be equally spaced)
 
-    type(IntegrationVars), target :: IV
-    integer l,nIntSteps,nstart,nend,nlowest,isgn,i,is
-    real(dl) nu,dtau,num1,num2,Deltachi,aux1,aux2
-    real(dl) a,b,tmpa,tmpb,hh,h6,xh,delchi,taui,scalel
+    type(IntegrationVars) :: IV
+    integer l,nIntSteps,nstart,nend,isgn,i,step_ix,nSubSteps,last_ix
+    real(dl) nu,dtau,num1,num2,Deltachi,delchi,scalel
     real(dl) nu2,chi,chiDisp,chiDispTop
-    real(dl) dydchi1,dydchi2,yt1,yt2,dyt1,dyt2,dym1,dym2
 
-    real(dl) tmp,dtau2o6,y1,y2,ap1,sh,ujl
+    real(dl) tmp,y1,y2,ap1,sh,ujl
     real(dl) dchimax,dchisource,sgn,sgndelchi,minujl
+    real(dl) y_prev, y2_prev, y_next, y2_next, q_prev, q_next
     real(dl), parameter:: MINUJl1 = 1.D-6  !cut-off point for smal ujl l=1
-    logical Interpolate
-    real(dl) out(ThisSources%SourceNum), source(ThisSources%SourceNum)
-    real(dl), dimension(:,:), pointer :: sourcep, ddsourcep
+    real(dl) out(ThisSources%SourceNum), ujl_vals(abs(nstart - nend) + 1)
     real(dl) IntAccuracyBoost
-
-    sourcep => IV%Source_q(:,1:)
-    ddsourcep => IV%ddSource_q(:,1:)
 
 
     if (nend==nstart) then
@@ -2125,11 +2209,6 @@
 
     sgn=isgn
 
-    nlowest=min(nstart,nend)
-    aux1=1._dl*State%curvature_radius/dtau  !used to calculate nearest timestep quickly
-    aux2=(State%tau0-State%TimeSteps%points(nlowest))/dtau + nlowest
-
-
     nu2=nu*nu
     ap1=l*(l+1)
 
@@ -2146,93 +2225,67 @@
     dchimax=dchimax/IntAccuracyBoost
 
     ujl=y1/sh
-    out = ujl * sourcep(nstart,:)/2
+    out = 0
+    ujl_vals(1) = ujl
 
-    Interpolate = dchisource > dchimax
-    if (Interpolate) then !split up smaller than source step size
-        delchi=dchimax
-        Deltachi=sgn*(State%TimeSteps%points(nstart)-State%TimeSteps%points(nend))/State%curvature_radius
-        nIntSteps=int(Deltachi/delchi+0.99_dl)
-        delchi=Deltachi/nIntSteps
-        dtau2o6=(State%curvature_radius*delchi)**2/6._dl
-    else !step size is that of source
-        delchi=dchisource
-        nIntSteps=isgn*(nstart-nend)
-    end if
+    nIntSteps=isgn*(nstart-nend)
+    if (nIntSteps <= 0) return
+
+    nSubSteps = max(1, int(dchisource/dchimax + 0.99_dl))
+    delchi = dchisource/nSubSteps
 
 
     sgndelchi=delchi*sgn
     tmp=(ap1/sh**2 - nu2)
-    hh=0.5_dl*sgndelchi
-    h6=sgndelchi/6._dl
 
+    y_prev = y1
+    y2_prev = y2
+    q_prev = tmp
 
     do i=1,nIntSteps
-        ! One step in the ujl integration
-        ! fourth-order Runge-Kutta method to integrate equation for ujl
-
-        dydchi1=y2         !deriv y1
-        dydchi2=tmp*y1     !deriv y2
-        xh=chi+hh          !midpoint of step
-        yt1=y1+hh*dydchi1  !y1 at midpoint
-        yt2=y2+hh*dydchi2  !y2 at midpoint
-        dyt1=yt2           !deriv y1 at mid
-        tmp=(ap1/State%rofChi(xh)**2 - nu2)
-
-
-        dyt2=tmp*yt1       !deriv y2 at mid
-        yt1=y1+hh*dyt1     !y1 at mid
-        yt2=y2+hh*dyt2     !y2 at mid
-
-        dym1=yt2           !deriv y1 at mid
-        dym2=tmp*yt1       !deriv y2 at mid
-        yt1=y1+sgndelchi*dym1 !y1 at end
-        dym1=dyt1+dym1
-        yt2=y2+sgndelchi*dym2 !y2 at end
-        dym2=dyt2+dym2
-
-        chi=chi+sgndelchi     !end point
-        sh=State%rofChi(chi)
-        dyt1=yt2           !deriv y1 at end
-        tmp=(ap1/sh**2 - nu2)
-        dyt2=tmp*yt1       !deriv y2 at end
-        y1=y1+h6*(dydchi1+dyt1+2._dl*dym1) !add up
-        y2=y2+h6*(dydchi2+dyt2+2._dl*dym2)
-
-        ujl=y1/sh
-        if ((isgn<0).and.(y1*y2<0._dl).or.((chi>chiDispTop).and.((chi>3.14).or.(y1*y2>0)))) then
-            chi=0._dl
-            exit   !exit because ujl now small
-        end if
-
-        if (Interpolate) then
-            ! Interpolate the source
-            taui=aux2-aux1*chi
-            is=int(taui)
-            b=taui-is
-            if (b > 0.995) then
-                !may save time, and prevents numerical error leading to access violation of zero index
-                is=is+1
-                source = sourcep(is,:)
+        do step_ix = 1, nSubSteps
+            if (i == 1 .and. step_ix == 1) then
+                call StepUSpherBesselRK4(ap1, nu2, sgndelchi, chi, y1, y2, sh, tmp)
             else
-                a=1._dl-b
-                tmpa=(a**3-a)
-                tmpb=(b**3-b)
-                source = a*sourcep(is,:)+b*sourcep(is+1,:)+ &
-                    (tmpa*ddsourcep(is,:) +  tmpb*ddsourcep(is+1,:))*dtau2o6
+                call StepUSpherBesselNumerov(ap1, nu2, sgndelchi, chi, y_prev, y1, y2_prev, q_prev, tmp, sh, y_next, y2_next, q_next)
+                y_prev = y1
+                y2_prev = y2
+                q_prev = tmp
+                y1 = y_next
+                y2 = y2_next
+                tmp = q_next
             end if
-        else
-            source = sourcep(nstart - i*isgn,:)
-        end if
-        out = out + source * ujl
 
-        if (((isgn<0).or.(chi>chiDispTop)).and.(abs(ujl) < minujl)) then
-            chi=0
-            exit  !break when getting  exponentially small in dissipative region
-        end if
+            ujl=y1/sh
+            if ((isgn<0).and.(y1*y2<0._dl).or.((chi>chiDispTop).and.((chi>3.14).or.(y1*y2>0)))) then
+                chi=0._dl
+                exit   !exit because ujl now small
+            end if
+
+            if (((isgn<0).or.(chi>chiDispTop)).and.(abs(ujl) < minujl)) then
+                chi=0._dl
+                exit  !break when getting exponentially small in dissipative region
+            end if
+        end do
+
+        if (chi==0._dl) exit
+        ujl_vals(i + 1) = ujl
     end do
 
-    out = (out - source * ujl /2)*delchi*State%curvature_radius
+    last_ix = i
+    if (last_ix > 0) then
+        ujl_vals(1) = 0.5_dl * ujl_vals(1)
+        ujl_vals(last_ix) = 0.5_dl * ujl_vals(last_ix)
+
+        do step_ix = 0, last_ix - 1
+            ujl = ujl_vals(step_ix + 1)
+            out(1) = out(1) + ujl * IV%Source_q(nstart - step_ix*isgn,1)
+            out(2) = out(2) + ujl * IV%Source_q(nstart - step_ix*isgn,2)
+            out(3) = out(3) + ujl * IV%Source_q(nstart - step_ix*isgn,3)
+        end do
+    end if
+
+    out = out*dchisource*State%curvature_radius
 
     end subroutine DoRangeIntTensor
 
