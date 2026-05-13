@@ -1868,7 +1868,7 @@
                 nbot=State%TimeSteps%IndexOf(xf)
                 xf= (xf-State%TimeSteps%points(nbot))/(State%TimeSteps%points(nbot+1)-State%TimeSteps%points(nbot))
                 sums(3) = (IV%Source_q(nbot,3)*(1-xf) + xf*IV%Source_q(nbot+1,3))*&
-                    sqrt(const_pi/2/(l+0.5_dl)/sqrt(1-State%Ksign*real(l**2)/nu**2))/IV%q
+                    sqrt(const_pi/2/(l+0.5_dl)/sqrt(1-State%Ksign*real(l**2, dl)/nu**2))/IV%q
             else
                 sums(3) = 0
             end if
@@ -2001,7 +2001,7 @@
     use precision
     type(IntegrationVars) IV
     integer l,nIntSteps,nstart,nend,isgn,i,Startn,step_ix,nSubSteps,last_ix
-    real(dl) nu,dtau,num1,Deltachi,delchi
+    real(dl) nu,dtau,num1,num2,Deltachi,delchi
     real(dl) nu2,chi,chiDisp
 
     real(dl) tmp,y1,y2,ap1,sh,ujl,chiDispTop
@@ -2033,9 +2033,24 @@
     num1=1._dl/nu
 
     scalel=l/State%scale
+    if (scalel>=2400) then
+        num2=num1*2.5_dl
+    else if (scalel<50) then
+        num2=num1*0.8_dl
+    else
+        num2=num1*1.5_dl
+    end if
 
     if (scalel<1500 .and. scalel > 150) &
         IntAccuracyBoost=IntAccuracyBoost*(1+(2000-scalel)*0.6/2000 )
+
+    if (num2*IntAccuracyBoost < dchisource .and. (.not. WantLateTime .or. UseLimber(l))) then
+        out = 0
+        y1=0._dl !So we know to calculate starting y1,y2 if there is next range
+        y2=0._dl
+        chi=(State%tau0-State%TimeSteps%points(nend))/State%curvature_radius
+        return
+    end if
 
     Startn=nstart
     if (nstart>IV%SourceSteps .and. nend < IV%SourceSteps) then
