@@ -20,3 +20,4 @@
 - When plotting fractional differences for cross-spectra, use e.g. Delta TE/sqrt(TT*EE)
 - High accuracy lensing needs lens_potential_accuracy = 8 or so (mainly increases kmax)
 - camb/check_accuracy.py script can be used to assess numerical stability by comparing default to high-accuracy run
+- When adding new .ini file parameters, also add ini write in camb/_ini.py

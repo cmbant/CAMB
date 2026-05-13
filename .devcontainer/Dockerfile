@@ -43,6 +43,7 @@ RUN mkdir -p \
         wheel \
         findent \
         fortls \
+        matplotlib \
         numpy \
         scipy \
         sympy \
