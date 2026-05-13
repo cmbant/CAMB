@@ -210,7 +210,7 @@ class CAMBdata(F2003Class):
         ("curvature_radius", c_double, r":math:`1/\sqrt{|K|}`"),
         ("Ksign", c_double, "Ksign = 1,0 or -1"),
         ("tau0", c_double, "conformal time today"),
-        ("chi0", c_double, "comoving angular diameter distance of big bang; rofChi(tau0/curvature_radius)"),
+        ("DMt0", c_double, "comoving angular diameter distance to the big bang"),
         ("scale", c_double, "relative to flat. e.g. for scaling L sampling"),
         ("akthom", c_double, "sigma_T * (number density of protons now)"),
         ("fHe", c_double, "n_He_tot / n_H_tot"),
