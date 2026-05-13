@@ -63,6 +63,14 @@ Run the test suite to ensure your changes don't break anything:
 python -m unittest camb.tests.camb_test
 ```
 
+To run the full suite including the slower symbolic and emission-angle tests:
+
+```bash
+python -m unittest camb.tests.camb_test camb.tests.camb_test_slow
+```
+
+The GitHub workflows include `camb.tests.camb_test_slow` by default, and skip it when `CAMB_TEST_FAST` is set.
+
 For HMcode tests (Linux only):
 
 ```bash
