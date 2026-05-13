@@ -59,7 +59,7 @@ jobs:
       - name: Run tests
         run: |
           python -c "import camb; print(camb.__version__)"
-          python -m unittest camb.tests.camb_test
+          python -c "import os, subprocess, sys; modules=['camb.tests.camb_test']; modules += [] if os.getenv('CAMB_TEST_FAST') else ['camb.tests.camb_test_slow']; print('Running', ', '.join(modules)); subprocess.run([sys.executable, '-m', 'unittest', *modules], check=True)"
 
       - name: HM code tests
         if: matrix.os == 'ubuntu-latest'
