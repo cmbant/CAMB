@@ -101,7 +101,7 @@
     integer maximum_l !Max value of l to compute
     real(dl) :: maximum_qeta = 3000._dl
 
-    integer :: l_smooth_sample = 3000 !assume transfer functions effectively small for k*chi0>2*l_smooth_sample
+    integer :: l_smooth_sample = 3000 !assume transfer functions effectively small for q*DMt0>2*l_smooth_sample
 
     integer :: max_bessels_l_index  = 1000000
     real(dl) :: max_bessels_etak = 1000000*2
@@ -778,8 +778,8 @@
         qmax=maximum_qeta/State%tau0
         qmin=qmin0/State%tau0/initAccuracyBoost
     else
-        qmax=maximum_qeta/State%curvature_radius/State%chi0
-        qmin=qmin0/State%curvature_radius/State%chi0/initAccuracyBoost
+        qmax=maximum_qeta/State%DMt0
+        qmin=qmin0/State%DMt0/initAccuracyBoost
     end if
     !     Timesteps during recombination (tentative, the actual
     !     timestep is the minimum between this value and taurst/40,
@@ -893,7 +893,7 @@
     !Want linear spacing for wavenumbers which come inside horizon
     !Could use sound horizon, but for tensors that is not relevant
 
-    q_cmb = 2*l_smooth_sample/State%chi0*SourceAccuracyBoost  !assume everything is smooth at l > l_smooth_sample
+    q_cmb = 2*l_smooth_sample/State%DMt0*SourceAccuracyBoost  !assume everything is smooth at l > l_smooth_sample
     if (CP%Want_CMB .and. maximum_l > 5000 .and. CP%Accuracy%AccuratePolarization) q_cmb = q_cmb*1.4
     q_cmb = max(q_switch*2, q_cmb)
     !prevent EE going wild in tail
@@ -1292,8 +1292,8 @@
         lognum=nint(10*LowQIntBoost)
         dlnk1=1._dl/lognum
         no=nint(600*IntSampleBoost)
-        dk0=1.8_dl/State%curvature_radius/State%chi0/LowQIntBoost
-        dk=3._dl/State%curvature_radius/State%chi0/IntSampleBoost/1.6
+        dk0=1.8_dl/State%DMt0/LowQIntBoost
+        dk=3._dl/State%DMt0/IntSampleBoost/1.6
 
         k_max_log = lognum*dk0
         k_max_0  = no*dk0
@@ -1494,7 +1494,7 @@
             llmax=min(llmax,nint(nu)-1)  !nu >= l+1
         end if
     else
-        llmax=nint(nu*State%chi0)
+        llmax=nint(IV%q*State%DMt0)
         if (llmax<15) then
             llmax=17 !AL Sept2010 changed from 15 to get l=16 smooth
         else
@@ -1794,7 +1794,7 @@
         ! Fix for ujl discontinuity in near-flat models - adaptive formula provides superior performance
         miny1= 0.5d-4/(l+max(0,30-l))/BessIntBoost  ! Adaptive formula for Omega_k discontinuity fix, see https://github.com/cmbant/CAMB/pull/185
         sums=0
-        qmax_int= max(850,ThisCT%ls%l(j))*3*BessIntBoost/(State%chi0*State%curvature_radius)*1.2
+        qmax_int= max(850,ThisCT%ls%l(j))*3*BessIntBoost/State%DMt0*1.2
         DoInt =  ThisSources%SourceNum/=3 .or. IV%q < qmax_int
         if (DoInt) then
             if ((nstart < min(State%TimeSteps%npoints-1,IV%SourceSteps)).and.(y1dis > miny1)) then

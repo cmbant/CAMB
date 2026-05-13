@@ -179,7 +179,7 @@
 
         real(dl) Omega_de
         real(dl) curv, curvature_radius, Ksign !curvature_radius = 1/sqrt(|curv|), Ksign = 1,0 or -1
-        real(dl) tau0,chi0 !time today and rofChi(tau0/curvature_radius)
+        real(dl) tau0, DMt0 !time today and comoving angular diameter distance to the big bang
         real(dl) scale !relative to flat. e.g. for scaling lSamp%l sampling.
 
         real(dl) akthom !sigma_T * (number density of protons now)
@@ -497,8 +497,8 @@
         call this%CP%DarkEnergy%Init(this)
         if (global_error_flag==0) this%tau0=this%TimeOfz(0._dl)
         if (global_error_flag==0) then
-            this%chi0=this%rofChi(this%tau0/this%curvature_radius)
-            this%scale= this%chi0*this%curvature_radius/this%tau0  !e.g. change l sampling depending on approx peak spacing
+            this%DMt0 = this%curvature_radius*this%rofChi(this%tau0/this%curvature_radius)
+            this%scale = this%DMt0/this%tau0  !e.g. change l sampling depending on approx peak spacing
             if (this%closed .and. this%tau0/this%curvature_radius >3.14) then
                 call GlobalError('chi >= pi in closed model not supported',error_unsupported_params)
             end if

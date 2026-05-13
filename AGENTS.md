@@ -16,8 +16,10 @@
 - Use pip -e for editable first install. After that use "python setup.py make" to quickly rebuild fortran for use with python.
 - Default test: python -m unittest camb.tests.camb_test (do not run hmcode_test unless specifically relevant)
 - Long test against precomputed results: fortran/tests/run_tests.py which calls CAMB_test_files.py (only if asked)
-- Installation/clone/modification/contributing/pre-commit/vscode config: see /CONTRIBUTING.md
+- Installation/clone/modification/contributing/pre-commit/vscode config: see CONTRIBUTING.md
 - When plotting fractional differences for cross-spectra, use e.g. Delta TE/sqrt(TT*EE)
 - High accuracy lensing needs lens_potential_accuracy = 8 or so (mainly increases kmax)
 - camb/check_accuracy.py script can be used to assess numerical stability by comparing default to high-accuracy run
-- When adding new .ini file parameters, also add ini write in camb/_ini.py
+- When add new .ini file parameters, also add ini write in camb/_ini.py
+
+- If `python setup.py make` gives stale `.mod` type-mismatch errors run "python setup.py clean" first (not normally needed)
