@@ -235,6 +235,7 @@
     subroutine TimeSourcesToCl(ThisCT)
     Type(ClTransferData) :: ThisCT
     integer q_ix
+    real(dl) :: spline_bessels_etak
     Type(TTimer) :: Timer
 
     if (CP%WantScalars) ThisSources => State%ScalarTimeSources
@@ -260,7 +261,13 @@
         if (CP%WantScalars) call GetLimberTransfers(ThisCT)
         ThisCT%max_index_nonlimber = max_bessels_l_index
 
-        if (State%flat) call InitSpherBessels(ThisCT%ls, CP, max_bessels_l_index,max_bessels_etak )
+        if (State%flat .or. (CP%WantScalars .and. abs(State%scale - 1._dl) <= near_flat_scale_tol)) then
+            spline_bessels_etak = max_bessels_etak
+            if (CP%WantScalars .and. .not. State%flat) then
+                spline_bessels_etak = ShiftedQBesselTableMaxEtak(ThisCT%ls%l(max_bessels_l_index), max_bessels_etak)
+            end if
+            call InitSpherBessels(ThisCT%ls, CP, max_bessels_l_index, spline_bessels_etak)
+        end if
         !This is only slow if not called before with same (or higher) Max_l, Max_eta_k
         !Preferably stick to Max_l being a multiple of 50
 
@@ -1479,12 +1486,16 @@
     subroutine DoSourceIntegration(IV, ThisCT) !for particular wave number q
     type(IntegrationVars) IV
     Type(ClTransferData) :: ThisCT
-    integer j,ll,llmax
-    real(dl) nu
+    integer j,ll,llmax,n
+    real(dl) nu, chi_full_max, chi_here, sh
     real(dl) :: sixpibynu
+    real(dl) :: near_flat_time_weight(IV%SourceSteps)
+    logical :: use_near_flat_scalar, have_near_flat_time_weight
 
     nu=IV%q*State%curvature_radius
     sixpibynu  = 6._dl*const_pi/nu
+    chi_full_max = (State%tau0 - State%TimeSteps%points(2)) / State%curvature_radius
+    have_near_flat_time_weight = .false.
 
     if (State%closed) then
         if (nu<20 .or. State%tau0/State%curvature_radius+sixpibynu > const_pi/2) then
@@ -1508,11 +1519,54 @@
         do j=1,ThisCT%ls%nl
             ll=ThisCT%ls%l(j)
             if (ll>llmax) exit
-            call IntegrateSourcesBessels(IV,ThisCT,j,ll,nu)
+            use_near_flat_scalar = CP%WantScalars .and. ThisSources%SourceNum <= 3 .and. &
+                UseNearFlatScalarIntegration(ll, nu, chi_full_max)
+
+            if (use_near_flat_scalar) then
+                if (.not. have_near_flat_time_weight) then
+                    do n = 1, IV%SourceSteps
+                        chi_here = (State%tau0 - State%TimeSteps%points(n)) / State%curvature_radius
+                        if (abs(chi_here) < 1.e-8_dl) then
+                            near_flat_time_weight(n) = State%TimeSteps%dpoints(n)
+                        else
+                            sh = State%rofChi(chi_here)
+                            near_flat_time_weight(n) = State%TimeSteps%dpoints(n) * chi_here / sh
+                        end if
+                    end do
+                    have_near_flat_time_weight = .true.
+                end if
+
+                call DoNearFlatIntegration(IV, ThisCT, j, ll, nu, near_flat_time_weight)
+            else
+                call IntegrateSourcesBessels(IV,ThisCT,j,ll,nu)
+            end if
         end do !j loop
     end if
 
     end subroutine DoSourceIntegration
+
+    logical function UseNearFlatScalarIntegration(l, nu, chi_max) result(use_near_flat)
+    integer, intent(in) :: l
+    real(dl), intent(in) :: nu, chi_max
+
+    real(dl) :: chi_disp, qeff2, err_tol, err_est, boost_scale, chi_limit_eff
+
+    qeff2 = nu**2 - State%Ksign * real(l * (l + 1), dl) / 3._dl
+    chi_disp = State%invsinfunc(sqrt(real(l * (l + 1), dl)) / nu)
+
+    boost_scale = max(CP%Accuracy%NonFlatIntAccuracyBoost * CP%Accuracy%AccuracyBoost, 1._dl)
+    chi_limit_eff = near_flat_approx_chi_limit / sqrt(boost_scale)
+
+    err_tol = 1.0e-3_dl / boost_scale
+    err_est = real(l * (l + 1), dl) * chi_max**2 / max(15._dl * qeff2, 1._dl)
+
+    use_near_flat = enable_do_near_flat_integration .and. (abs(State%scale - 1._dl) <= near_flat_scale_tol) .and. &
+        (chi_max < chi_limit_eff) .and. &
+        (chi_disp < near_flat_approx_chidisp_limit) .and. &
+        (err_est < err_tol) .and. (qeff2 > 0._dl)
+
+
+    end function UseNearFlatScalarIntegration
 
     function UseLimber(l)
     !Calculate lensing potential power using Limber rather than j_l integration
@@ -1591,11 +1645,9 @@
         tmin=max(State%TimeSteps%points(2),tmin)
         if (.not. CP%Want_CMB .and. .not. CP%Want_CMB_lensing) &
             tmin = max(tmin, State%ThermoData%tau_start_redshiftwindows)
-
-
         if (tmax < State%TimeSteps%points(2)) exit
-        sums = 0
 
+        sums = 0
         !As long as we sample the source well enough, it is sufficient to
         !interpolate the Bessel functions only
 
@@ -1742,6 +1794,117 @@
     end subroutine DoFlatIntegration
 
 
+    subroutine DoNearFlatIntegration(IV, ThisCT, j, l, nu, near_flat_time_weight)
+    use SpherBessels, only: BessRanges, bessel_horner
+    implicit none
+    type(IntegrationVars) IV
+    Type(ClTransferData) :: ThisCT
+    integer, intent(in) :: j, l
+    real(dl), intent(in) :: nu
+    real(dl), intent(in) :: near_flat_time_weight(IV%SourceSteps)
+
+    integer :: n, bes_ix, bes_index(IV%SourceSteps)
+    logical :: DoInt
+    real(dl) :: xlim, xlmax1, tmin, tmax
+    real(dl) :: a2, base, coeff1, coeff2, coeff3, dx, J_l, x_hi, xf
+    real(dl) :: qeff2, qeff, qeff_tau, chi_here, sh, chi_over_sh, weight
+    real(dl) :: qmax_int, sums(ThisSources%SourceNum), left_weight(IV%SourceSteps)
+    real(dl) :: BessIntBoost
+
+    BessIntBoost = CP%Accuracy%AccuracyBoost*CP%Accuracy%BessIntBoost
+
+    qeff2 = nu**2 - State%Ksign * real(l * (l + 1), dl) / 3._dl
+    if (qeff2 <= 0._dl) return
+    qeff = sqrt(qeff2)
+    qeff_tau = qeff / State%curvature_radius
+
+    xlim = xlimfrac * l
+    xlim = max(xlim, xlimmin)
+    xlim = l - xlim
+    if (full_bessel_integration .or. do_bispectrum) then
+        tmin = State%TimeSteps%points(2)
+    else
+        xlmax1 = 80._dl * l * BessIntBoost
+        tmin = State%tau0 - xlmax1 / qeff_tau
+        tmin = max(State%TimeSteps%points(2), tmin)
+    end if
+    tmax = State%tau0 - xlim / qeff_tau
+    tmax = min(State%tau0, tmax)
+    tmin = max(State%TimeSteps%points(2), tmin)
+    if (tmax < State%TimeSteps%points(2)) return
+
+    sums = 0._dl
+    DoInt = .true.
+    if (ThisSources%SourceNum /= 2) then
+        qmax_int = max(850, l) * 3 * BessIntBoost / State%tau0 * 1.2_dl
+        DoInt = qeff_tau < qmax_int
+    end if
+
+    if (DoInt) then
+        ! Avoid the per-l spline lookup setup entirely when this mode only contributes via Limber.
+        associate(BesselPoints => BessRanges%points, TimePoints => State%TimeSteps%points)
+            do n=1,IV%SourceSteps
+                left_weight(n) = abs(qeff_tau * (State%tau0 - TimePoints(n)))
+            end do
+            call BessRanges%IndexOfOrdered(left_weight, IV%SourceSteps, bes_index)
+            do n=1,IV%SourceSteps
+                bes_ix = bes_index(n)
+                x_hi = BesselPoints(bes_ix + 1)
+                dx = x_hi - BesselPoints(bes_ix)
+                left_weight(n) = (x_hi - left_weight(n)) / dx
+            end do
+        end associate
+    end if
+
+    if (ThisSources%SourceNum == 2) then
+        do n = State%TimeSteps%IndexOf(tmin), min(IV%SourceSteps, State%TimeSteps%IndexOf(tmax))
+            a2 = left_weight(n)
+            bes_ix = bes_index(n)
+            base = bessel_horner(1, bes_ix, j)
+            coeff1 = bessel_horner(2, bes_ix, j)
+            coeff2 = bessel_horner(3, bes_ix, j)
+            coeff3 = bessel_horner(4, bes_ix, j)
+            J_l = base + a2 * (coeff1 + a2 * (coeff2 + a2 * coeff3))
+
+            weight = near_flat_time_weight(n) * J_l
+            sums(1) = sums(1) + IV%Source_q(n,1) * weight
+            sums(2) = sums(2) + IV%Source_q(n,2) * weight
+        end do
+    else
+        if (DoInt) then
+            do n = State%TimeSteps%IndexOf(tmin), min(IV%SourceSteps, State%TimeSteps%IndexOf(tmax))
+                a2 = left_weight(n)
+                bes_ix = bes_index(n)
+                base = bessel_horner(1, bes_ix, j)
+                coeff1 = bessel_horner(2, bes_ix, j)
+                coeff2 = bessel_horner(3, bes_ix, j)
+                coeff3 = bessel_horner(4, bes_ix, j)
+                J_l = base + a2 * (coeff1 + a2 * (coeff2 + a2 * coeff3))
+
+                weight = near_flat_time_weight(n) * J_l
+                sums(1) = sums(1) + IV%Source_q(n,1) * weight
+                sums(2) = sums(2) + IV%Source_q(n,2) * weight
+                sums(3) = sums(3) + IV%Source_q(n,3) * weight
+            end do
+        end if
+        if (.not. DoInt .or. UseLimber(l)) then
+            xf = State%tau0 - State%invsinfunc((l + 0.5_dl) / nu) * State%curvature_radius
+            if (xf < State%TimeSteps%Highest .and. xf > State%TimeSteps%Lowest) then
+                n = State%TimeSteps%IndexOf(xf)
+                xf = (xf - State%TimeSteps%points(n)) / (State%TimeSteps%points(n + 1) - State%TimeSteps%points(n))
+                sums(3) = (IV%Source_q(n,3) * (1 - xf) + xf * IV%Source_q(n + 1,3)) * &
+                    sqrt(const_pi / 2 / (l + 0.5_dl) / sqrt(1._dl - State%Ksign * real(l**2, dl) / nu**2)) / IV%q
+            else
+                sums(3) = 0._dl
+            end if
+        end if
+    end if
+
+    ThisCT%Delta_p_l_k(:,j,IV%q_ix) = ThisCT%Delta_p_l_k(:,j,IV%q_ix) + sums
+
+    end subroutine DoNearFlatIntegration
+
+
 
     !non-flat source integration
 
@@ -1809,7 +1972,7 @@
                     end if
                     if (nnow < ntop) then
                         call DoRangeInt(IV,chi,ChiDissipative,nnow,ntop,State%TimeSteps%R(nrange)%delta, &
-                            nu,l,y1,y2,out_arr)
+                            nu,j,l,y1,y2,out_arr)
                         sums  = sums + out_arr
                         nnow = ntop
                         if (chi==0) exit !small enough to cut off
@@ -1850,7 +2013,7 @@
                         nbot_eff = max(nbot, nmin_osc)
                         if (nnow > nbot_eff) then
                             call DoRangeInt(IV,chi,ChiDissipative,nnow,nbot_eff,State%TimeSteps%R(nrange)%delta, &
-                                nu,l,y1,y2,out_arr)
+                                nu,j,l,y1,y2,out_arr)
                             sums=sums+out_arr
                             if (chi==0) exit !small for remaining region
                             nnow = nbot_eff
@@ -1988,8 +2151,109 @@
     end subroutine StepUSpherBesselNumerov
 
 
+    real(dl) function ShiftedQBesselTableMaxEtak(lmax, base_etak) result(bessel_etak)
+    integer, intent(in) :: lmax
+    real(dl), intent(in) :: base_etak
+    real(dl), parameter :: safety_margin = 10._dl
+    real(dl) :: max_scale_x, max_curvature_x
 
-    subroutine DoRangeInt(IV,chi,chiDisp,nstart,nend,dtau,nu,l,y1,y2,out)
+    bessel_etak = base_etak
+
+    if (State%flat .or. abs(State%scale - 1._dl) > near_flat_scale_tol) return
+    if (.not. enable_do_near_flat_integration .and. .not. enable_shifted_q_scalar_approx) return
+
+    ! For any model using either near-flat scalar approximation path we have chi <= near_flat_approx_chi_limit
+    ! and scale >= 1 - near_flat_scale_tol, so this cache-stable bound safely covers q_eff * chi.
+    max_scale_x = base_etak / (1._dl - near_flat_scale_tol)
+    max_curvature_x = near_flat_approx_chi_limit * sqrt(real(lmax * (lmax + 1), dl) / 3._dl)
+    bessel_etak = sqrt(max_scale_x**2 + max_curvature_x**2) + safety_margin
+
+    end function ShiftedQBesselTableMaxEtak
+
+
+    logical function UseShiftedQScalarApprox(l, nu, chi, chiDisp, dchisource, sgn, nIntSteps) result(use_shifted_q)
+    integer, intent(in) :: l, nIntSteps
+    real(dl), intent(in) :: nu, chi, chiDisp, dchisource, sgn
+
+    real(dl) :: chi_end, chi_max, qeff2, err_tol, err_est, boost_scale, chi_limit_eff
+
+    chi_end = chi + real(nIntSteps, dl) * dchisource * sgn
+    chi_max = max(abs(chi), abs(chi_end))
+    qeff2 = nu**2 - State%Ksign * real(l * (l + 1), dl) / 3._dl
+
+    boost_scale = max(CP%Accuracy%NonFlatIntAccuracyBoost * CP%Accuracy%AccuracyBoost, 1._dl)
+    chi_limit_eff = near_flat_approx_chi_limit / sqrt(boost_scale)
+
+    err_tol = 1.0e-3_dl / boost_scale
+    err_est = real(l * (l + 1), dl) * chi_max**2 / max(15._dl * qeff2, 1._dl)
+
+    use_shifted_q = enable_shifted_q_scalar_approx .and. (abs(State%scale - 1._dl) <= near_flat_scale_tol) .and. &
+        (chi_max < chi_limit_eff) .and. &
+        (chiDisp < near_flat_approx_chidisp_limit) .and. (err_est < err_tol) .and. (qeff2 > 0._dl)
+
+    end function UseShiftedQScalarApprox
+
+
+    subroutine FillShiftedQUjlVals(j, l, nu, chi_start, dchisource, sgn, nIntSteps, ujl_vals, y1, y2, chi)
+    use SpherBessels, only: BessRanges, bessel_horner, bjl
+
+    integer, intent(in) :: j, l, nIntSteps
+    real(dl), intent(in) :: nu, chi_start, dchisource, sgn
+    real(dl), intent(out) :: ujl_vals(nIntSteps + 1)
+    real(dl), intent(inout) :: y1, y2, chi
+
+    integer :: step_ix, bes_ix(nIntSteps + 1)
+    real(dl) :: qeff, qeff2, chi_here, sh, chi_over_sh
+    real(dl) :: x_vals(nIntSteps + 1), left_weight(nIntSteps + 1)
+    real(dl) :: x_hi, dx, base, coeff1, coeff2, coeff3, jl
+    logical :: use_splines
+
+    qeff2 = nu**2 - State%Ksign * real(l * (l + 1), dl) / 3._dl
+    qeff = sqrt(max(qeff2, 0._dl))
+    use_splines = allocated(bessel_horner) .and. j <= ubound(bessel_horner, 3) .and. BessRanges%npoints > 1
+
+    if (use_splines) then
+        do step_ix = 0, nIntSteps
+            x_vals(step_ix + 1) = qeff * (chi_start + step_ix * dchisource * sgn)
+        end do
+        call BessRanges%IndexOfOrdered(x_vals, nIntSteps + 1, bes_ix)
+    end if
+
+    do step_ix = 0, nIntSteps
+        chi_here = chi_start + step_ix * dchisource * sgn
+        if (use_splines) then
+            bes_ix(step_ix + 1) = min(bes_ix(step_ix + 1), BessRanges%npoints - 1)
+            x_hi = BessRanges%points(bes_ix(step_ix + 1) + 1)
+            dx = x_hi - BessRanges%points(bes_ix(step_ix + 1))
+            left_weight(step_ix + 1) = (x_hi - x_vals(step_ix + 1)) / dx
+            base = bessel_horner(1, bes_ix(step_ix + 1), j)
+            coeff1 = bessel_horner(2, bes_ix(step_ix + 1), j)
+            coeff2 = bessel_horner(3, bes_ix(step_ix + 1), j)
+            coeff3 = bessel_horner(4, bes_ix(step_ix + 1), j)
+            jl = base + left_weight(step_ix + 1) * (coeff1 + left_weight(step_ix + 1) * (coeff2 + left_weight(step_ix + 1) * coeff3))
+        else
+            call bjl(l, qeff * chi_here, jl)
+        end if
+
+        if (abs(chi_here) < 1.e-8_dl) then
+            chi_over_sh = 1._dl
+        else
+            sh = State%rofChi(chi_here)
+            chi_over_sh = chi_here / sh
+        end if
+
+        ujl_vals(step_ix + 1) = chi_over_sh * jl
+    end do
+
+    chi = chi_start + real(nIntSteps, dl) * dchisource * sgn
+    y1 = 0._dl
+    y2 = 0._dl
+
+    end subroutine FillShiftedQUjlVals
+
+
+
+    subroutine DoRangeInt(IV,chi,chiDisp,nstart,nend,dtau,nu,j,l,y1,y2,out)
     !Non-flat version
 
     !returns chi at end of integral (where integral stops, not neccessarily end)
@@ -2000,7 +2264,7 @@
 
     use precision
     type(IntegrationVars) IV
-    integer l,nIntSteps,nstart,nend,isgn,i,Startn,step_ix,nSubSteps,last_ix
+    integer j,l,nIntSteps,nstart,nend,isgn,i,Startn,step_ix,nSubSteps,src_ix,last_ix
     real(dl) nu,dtau,num1,num2,Deltachi,delchi
     real(dl) nu2,chi,chiDisp
 
@@ -2056,9 +2320,6 @@
     if (nstart>IV%SourceSteps .and. nend < IV%SourceSteps) then
         chi=(State%tau0-State%TimeSteps%points(IV%SourceSteps))/State%curvature_radius
         Startn=IV%SourceSteps
-        call USpherBesselWithDeriv(State%closed,State%CP,chi,l,nu,y1,y2)
-    else if ((y2==0._dl).and.(y1==0._dl)) then
-        call USpherBesselWithDeriv(State%closed,State%CP,chi,l,nu,y1,y2)
     end if
 
     if (State%closed) then
@@ -2076,7 +2337,6 @@
 
     nu2=nu*nu
     ap1=l*(l+1)
-    sh=State%rofChi(chi)
 
     if (scalel < 1100) then
         dchimax= 0.3*num1
@@ -2088,68 +2348,85 @@
 
     dchimax=dchimax/IntAccuracyBoost
 
-    ujl=y1/sh
-    out = 0
-    ujl_vals(1) = ujl
-
     nIntSteps=isgn*(Startn-nend)
     if (nIntSteps <= 0) return
 
-    nSubSteps = max(1, int(dchisource/dchimax + 0.99_dl))
-    delchi = dchisource/nSubSteps
+    if (UseShiftedQScalarApprox(l, nu, chi, chiDisp, dchisource, sgn, nIntSteps)) then
+        ! In the local chi << 1 regime, fill the source-grid values directly from the
+        ! shifted-q near-flat approximation instead of stepping the full hyperspherical ODE.
+        out = 0
+        call FillShiftedQUjlVals(j, l, nu, chi, dchisource, sgn, nIntSteps, ujl_vals(1:nIntSteps + 1), y1, y2, chi)
+        last_ix = nIntSteps + 1
+    else
+        if ((y2==0._dl).and.(y1==0._dl)) then
+            call USpherBesselWithDeriv(State%closed,State%CP,chi,l,nu,y1,y2)
+        end if
 
-    sgndelchi=delchi*sgn
-    tmp=(ap1/sh**2 - nu2)
+        sh=State%rofChi(chi)
+        ujl=y1/sh
+        out = 0
+        ujl_vals(1) = ujl
 
-    y_prev = y1
-    y2_prev = y2
-    q_prev = tmp
+        nSubSteps = max(1, int(dchisource/dchimax + 0.99_dl))
+        delchi = dchisource/nSubSteps
 
-    do i=1,nIntSteps
-        do step_ix = 1, nSubSteps
-            if (i == 1 .and. step_ix == 1) then
-                call StepUSpherBesselRK4(ap1, nu2, sgndelchi, chi, y1, y2, sh, tmp)
-            else
-                call StepUSpherBesselNumerov(ap1, nu2, sgndelchi, chi, y_prev, y1, y2_prev, q_prev, tmp, sh, y_next, y2_next, q_next)
-                y_prev = y1
-                y2_prev = y2
-                q_prev = tmp
-                y1 = y_next
-                y2 = y2_next
-                tmp = q_next
-            end if
+        sgndelchi=delchi*sgn
+        tmp=(ap1/sh**2 - nu2)
 
-            ujl=y1/sh
-            if ((isgn<0).and.(y1*y2<0._dl).or.((chi>chiDispTop).and.((chi>3.14).or.(y1*y2>0)))) then
-                chi=0._dl
-                exit   !If this happens we are small, so stop integration
-            end if
+        y_prev = y1
+        y2_prev = y2
+        q_prev = tmp
 
-            if (((isgn<0).or.(chi>chiDispTop)).and.(abs(ujl) < minujl)) then
-                chi=0._dl
-                exit !break when getting  exponentially small in dissipative region
-            end if
+        do i=1,nIntSteps
+            do step_ix = 1, nSubSteps
+                if (i == 1 .and. step_ix == 1) then
+                    call StepUSpherBesselRK4(ap1, nu2, sgndelchi, chi, y1, y2, sh, tmp)
+                else
+                    call StepUSpherBesselNumerov(ap1, nu2, sgndelchi, chi, y_prev, y1, y2_prev, q_prev, tmp, sh, y_next, y2_next, q_next)
+                    y_prev = y1
+                    y2_prev = y2
+                    q_prev = tmp
+                    y1 = y_next
+                    y2 = y2_next
+                    tmp = q_next
+                end if
+
+                ujl=y1/sh
+                if ((isgn<0).and.(y1*y2<0._dl).or.((chi>chiDispTop).and.((chi>3.14).or.(y1*y2>0)))) then
+                    chi=0._dl
+                    exit   !If this happens we are small, so stop integration
+                end if
+
+                if (((isgn<0).or.(chi>chiDispTop)).and.(abs(ujl) < minujl)) then
+                    chi=0._dl
+                    exit !break when getting  exponentially small in dissipative region
+                end if
+            end do
+
+            if (chi==0._dl) exit
+            ujl_vals(i + 1) = ujl
         end do
 
-        if (chi==0._dl) exit
-        ujl_vals(i + 1) = ujl
-    end do
+        last_ix = i
+    end if
 
-    last_ix = i
     if (last_ix > 0) then
         ujl_vals(1) = 0.5_dl * ujl_vals(1)
-        ujl_vals(last_ix) = 0.5_dl * ujl_vals(last_ix)
+        if (last_ix > 1) ujl_vals(last_ix) = 0.5_dl * ujl_vals(last_ix)
+        src_ix = Startn
 
         if (ThisSources%SourceNum==3) then
-            do step_ix = 0, last_ix - 1
-                ujl = ujl_vals(step_ix + 1)
-                out(1) = out(1) + ujl * IV%Source_q(Startn - step_ix*isgn,1)
-                out(2) = out(2) + ujl * IV%Source_q(Startn - step_ix*isgn,2)
-                out(3) = out(3) + ujl * IV%Source_q(Startn - step_ix*isgn,3)
+            do step_ix = 1, last_ix
+                ujl = ujl_vals(step_ix)
+                out(1) = out(1) + ujl * IV%Source_q(src_ix,1)
+                out(2) = out(2) + ujl * IV%Source_q(src_ix,2)
+                out(3) = out(3) + ujl * IV%Source_q(src_ix,3)
+                src_ix = src_ix - isgn
             end do
         else
-            do step_ix = 0, last_ix - 1
-                out = out + ujl_vals(step_ix + 1) * IV%Source_q(Startn - step_ix*isgn,:)
+            do step_ix = 1, last_ix
+                out = out + ujl_vals(step_ix) * IV%Source_q(src_ix,:)
+                src_ix = src_ix - isgn
             end do
         end if
     end if
@@ -2166,7 +2443,7 @@
     ! dtau is the spacing of the timesteps (they must be equally spaced)
 
     type(IntegrationVars) :: IV
-    integer l,nIntSteps,nstart,nend,isgn,i,step_ix,nSubSteps,last_ix
+    integer l,nIntSteps,nstart,nend,isgn,i,step_ix,nSubSteps,src_ix, last_ix
     real(dl) nu,dtau,num1,num2,Deltachi,delchi,scalel
     real(dl) nu2,chi,chiDisp,chiDispTop
 
@@ -2290,13 +2567,14 @@
     last_ix = i
     if (last_ix > 0) then
         ujl_vals(1) = 0.5_dl * ujl_vals(1)
-        ujl_vals(last_ix) = 0.5_dl * ujl_vals(last_ix)
-
-        do step_ix = 0, last_ix - 1
-            ujl = ujl_vals(step_ix + 1)
-            out(1) = out(1) + ujl * IV%Source_q(nstart - step_ix*isgn,1)
-            out(2) = out(2) + ujl * IV%Source_q(nstart - step_ix*isgn,2)
-            out(3) = out(3) + ujl * IV%Source_q(nstart - step_ix*isgn,3)
+        if (last_ix > 1) ujl_vals(last_ix) = 0.5_dl * ujl_vals(last_ix)
+        src_ix  = nstart
+        do step_ix = 1, last_ix
+            ujl = ujl_vals(step_ix)
+            out(1) = out(1) + ujl * IV%Source_q(src_ix,1)
+            out(2) = out(2) + ujl * IV%Source_q(src_ix,2)
+            out(3) = out(3) + ujl * IV%Source_q(src_ix,3)
+            src_ix = src_ix - isgn
         end do
     end if
 

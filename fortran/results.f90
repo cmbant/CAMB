@@ -44,6 +44,7 @@
         derived_zdrag=6, derived_rdrag=7,derived_kD=8,derived_thetaD=9, derived_zEQ =10, derived_keq =11, &
         derived_thetaEQ=12, derived_theta_rs_EQ = 13
     integer, parameter :: nthermo_derived = 13
+    real(dl), parameter :: near_flat_scale_tol = 0.03_dl
 
     Type lSamples
         integer :: nl = 0
@@ -1348,7 +1349,11 @@
     this%use_spline_template = State%CP%use_cl_spline_template
     lmin_log = State%CP%min_l_logl_sampling
     associate(Accuracy => State%CP%Accuracy)
-        Ascale=State%scale/Accuracy%lSampleBoost
+        if (abs(State%scale - 1._dl) > near_flat_scale_tol) then
+            Ascale = State%scale/Accuracy%lSampleBoost
+        else
+            Ascale = 1._dl/Accuracy%lSampleBoost
+        end if
 
         if (Accuracy%lSampleBoost >=50) then
             !just do all of them

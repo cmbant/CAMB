@@ -48,12 +48,12 @@
     if (lSamp%nl <= file_l%nl) then
         if (allocated(bessel_horner) .and. all(file_l%l(1:lSamp%nl)==lSamp%l(1:lSamp%nl) &
             .and. (max_bessels_l_index <= max_ix)) &
-            .and. (int(min(max_bessels_etak,CP%Max_eta_k))+1 <= kmaxfile) &
+            .and. (int(max_bessels_etak)+1 <= kmaxfile) &
             .and. (abs(CP%Accuracy%BesselBoost*CP%Accuracy%AccuracyBoost - file_acc) < 1d-2)) return
     end if
 
     !Haven't made them before, so make them now
-    kmaxfile = int(min(CP%Max_eta_k,max_bessels_etak))+1
+    kmaxfile = int(max_bessels_etak)+1
     max_ix = min(max_bessels_l_index,lSamp%nl)
 
     call GenerateBessels(lSamp, CP)
