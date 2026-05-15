@@ -17,6 +17,14 @@ class _config:
     # enable targeted accuracy improvements if > 0, AccuracyTarget being SO-like.
     AccuracyTarget = import_property(c_int, "config", "AccuracyTarget")
 
+    near_flat_approx_chi_limit = import_property(c_double, "config", "near_flat_approx_chi_limit")
+
+    near_flat_approx_chidisp_limit = import_property(c_double, "config", "near_flat_approx_chidisp_limit")
+
+    enable_do_near_flat_integration = import_property(c_bool, "config", "enable_do_near_flat_integration")
+
+    enable_shifted_q_scalar_approx = import_property(c_bool, "config", "enable_shifted_q_scalar_approx")
+
     # print additional timing and progress (when FeedbackLevel>0)
     DebugMsgs = import_property(c_bool, "config", "DebugMsgs")
 

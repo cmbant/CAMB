@@ -523,15 +523,12 @@
 
             end do
 
-            !if (short_integral_range .and. i>npoints-20) &
-            !        corr=corr*exp(-(i-npoints+20)**2/150.0) !taper the end to help prevent ringing
-
             if (short_integral_range .and. i>npoints-apodize_point_width) then
+                !taper the end to help prevent ringing
                 taper = real(npoints-i, dl)/real(apodize_point_width, dl)
                 taper = max(0._dl, min(1._dl, taper))
                 corr = corr*taper**3*(10._dl + taper*(-15._dl + 6._dl*taper))
             end if
-            !taper the end to help prevent ringing
 
             !$  thread_ix = OMP_GET_THREAD_NUM()+1
 
