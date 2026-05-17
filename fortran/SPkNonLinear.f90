@@ -164,21 +164,19 @@ do itf = 1, CAMB_Pk%num_z
     end select
     do i = 1, CAMB_Pk%num_k
         rk = exp(CAMB_Pk%log_kh(i))
-        if (rk > this%Min_kh_nonlinear) then
-            if (rk < SPk_calibrated_k_min) cycle
-            if (rk > SPk_calibrated_k_max) then
-                if (FeedbackLevel > 0 .and. .not. warned_spk_k_clamped) then
-                    write(*,'(A,F8.3,A,F6.2,A)') 'WARNING: SP(k) input k exceeds calibrated range; clamping to k_max=', &
-                        rk, ' -> ', SPk_calibrated_k_max, ' h/Mpc.'
-                    warned_spk_k_clamped = .true.
-                end if
+        if (rk < SPk_calibrated_k_min) cycle
+        if (rk > SPk_calibrated_k_max) then
+            if (FeedbackLevel > 0 .and. .not. warned_spk_k_clamped) then
+                write(*,'(A,F8.3,A,F6.2,A)') 'WARNING: SP(k) input k exceeds calibrated range; clamping to k_max=', &
+                    rk, ' -> ', SPk_calibrated_k_max, ' h/Mpc.'
+                warned_spk_k_clamped = .true.
             end if
-            spk_sup = SPk_Suppression(this%SPk_SO, min(rk, SPk_calibrated_k_max), CAMB_Pk%redshifts(itf), &
-                this%SPk_relation_kind, this%SPk_fb_a, this%SPk_fb_pow, this%SPk_fb_pivot, &
-                this%SPk_alpha, this%SPk_beta, this%SPk_gamma, &
-                this%SPk_epsilon, this%SPk_m_pivot, spk_eratio)
-            CAMB_Pk%nonlin_ratio(i, itf) = CAMB_Pk%nonlin_ratio(i, itf) * sqrt(spk_sup)
         end if
+        spk_sup = SPk_Suppression(this%SPk_SO, min(rk, SPk_calibrated_k_max), CAMB_Pk%redshifts(itf), &
+            this%SPk_relation_kind, this%SPk_fb_a, this%SPk_fb_pow, this%SPk_fb_pivot, &
+            this%SPk_alpha, this%SPk_beta, this%SPk_gamma, &
+            this%SPk_epsilon, this%SPk_m_pivot, spk_eratio)
+        CAMB_Pk%nonlin_ratio(i, itf) = CAMB_Pk%nonlin_ratio(i, itf) * sqrt(spk_sup)
     end do
 end do
 
