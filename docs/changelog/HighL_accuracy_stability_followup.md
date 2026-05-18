@@ -27,12 +27,32 @@ step (`dk`), the high-k linear step (`dk2`), and the linear block extent (`no`) 
 - both `lognum` and `dk0` boosted, `no` unboosted: EE = 0.002947 (pass).
 - all three boosted (the broad version): EE = 0.002949 (essentially identical).
 
-`LowQIntBoost` is gated on the physical condition only — accurate-reionization polarization with CMB
-output, no transfer/`kmax` dependence. The 1.8 floor is bisected (1.5 narrow pass, 1.6/1.7 fail at the
-discrete-grid level, 1.8 stable pass). The variable is computed inside the `else` branch of
-`SetkValuesForInt`, immediately before use in `lognum` and `dk0`, after the existing bispectrum
-doubling of `IntSampleBoost`. The previous broad `IntSampleBoost = max(., 2._dl)` floor and the
-redundant `lognum = max(., 11)` are removed.
+`LowQIntBoost` is gated on the physical condition only — accurate-reionization scalar polarization
+with CMB output, no transfer/`kmax` dependence. The original high-l follow-up bisection found that
+`1.8` was enough for the flat `params_nolens.ini` failure. The later non-flat low-l sweep showed
+that the same low-q integration quantities need a slightly higher floor for closed source
+stability.
+
+## Non-flat low-l C_L sampling
+
+The non-flat low-l EE residual at `lmax = 4000`, `lens_potential_accuracy = 4` was partly an output
+sampling issue around the reionization bump. A closed-only dense sampling block from `ell = 15..37`
+fixed the symptom but is not acceptable because near-flat non-flat runs can share Bessel-cache
+assumptions with the flat-like path; curvature-specific l sampling would make that cache contract
+fragile. A full `15..37` unit-step block is also broader than needed.
+
+The retained l-sampling change is global for scalar CMB when `AccuracyTarget > 0`: keep the default
+odd samples `15, 17, 19, ... 37`, and add only the missing even sample `ell = 18`. This removes the
+closed `ell = 18` EE interpolation spike without changing the l grid differently for open and
+closed models. The existing `lSampleBoost > 1` path still uses every integer from `15..37`.
+
+The plotted strict reference cases are:
+
+| Case | Worst TT | Worst EE | Worst TE norm |
+| --- | ---: | ---: | ---: |
+| `Omega_k = -1e-3`, lensed, `lpa = 4` | `8.50e-4` | `2.42e-3` | `2.30e-3` |
+| `Omega_k = +1e-3`, lensed, `lpa = 4` | `7.86e-4` | `2.48e-3` | `2.61e-3` |
+| `Omega_k = -1e-2`, unlensed source check, `set_for_lmax = 4000` | `2.93e-3` | `2.66e-3` | `2.74e-3` |
 
 ## Lensing correlation-function sampling
 

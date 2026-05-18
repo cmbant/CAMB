@@ -1384,6 +1384,15 @@
                     lind=lind+1
                     ls(lind)=lvar
                 end do
+            else if (AccuracyTarget > 0 .and. State%CP%WantScalars) then
+                do lvar=15, 18, 1
+                    lind=lind+1
+                    ls(lind)=lvar
+                end do
+                do lvar=19, 37, 2
+                    lind=lind+1
+                    ls(lind)=lvar
+                end do
             else
                 do lvar=15, 37, 2
                     lind=lind+1

@@ -647,6 +647,7 @@ def fractional_delta(values: np.ndarray, reference: np.ndarray, *, floor: float 
         denominator = np.maximum(denominator, floor)
     with np.errstate(divide="ignore", invalid="ignore"):
         delta = (values - reference) / denominator
+    delta[(denominator == 0) & (values == reference)] = 0.0
     return delta
 
 
@@ -936,6 +937,7 @@ def compare_params_accuracy(
     derived_tolerance: float = DERIVED_TOLERANCE,
     mpk_tolerance: float | MatterPowerToleranceSpec | None = None,
     chi2_config: NoiseConfig | None = None,
+    plot_dir: Path | None = None,
 ) -> AccuracyCheckResult:
     """Compare a :class:`~camb.model.CAMBparams` object against a higher-accuracy copy.
 
@@ -994,6 +996,8 @@ def compare_params_accuracy(
         mpk_tolerance=mpk_tolerance,
     )
     chi2 = calculate_cmb_delta_chi2(standard, reference, chi2_config) if chi2_config else None
+    if plot_dir:
+        plot_errors(standard, reference, plot_dir)
     return AccuracyCheckResult(standard=standard, reference=reference, comparison=comparison, chi2=chi2)
 
 
@@ -2205,6 +2209,7 @@ def main(argv: list[str] | None = None, *, prog: str | None = None) -> int:
         derived_tolerance=args.derived_tolerance,
         mpk_tolerance=args.mpk_tolerance,
         chi2_config=noise_config,
+        plot_dir=args.plot_dir,
     )
     standard = result.standard
     reference = result.reference
@@ -2215,9 +2220,6 @@ def main(argv: list[str] | None = None, *, prog: str | None = None) -> int:
 
     if args.chi2:
         print_chi2_result(result.chi2, noise_config.name)
-
-    if args.plot_dir:
-        plot_errors(standard, reference, args.plot_dir)
 
     if args.find_minimal_boosts:
         search_result = find_minimal_boosts(

@@ -1284,15 +1284,18 @@
 
     if (State%closed.and.ExactClosedSum) then
         call ThisCT%q%Add(3/State%curvature_radius, nint(qmax_int*State%curvature_radius)/State%curvature_radius, &
-            nint(qmax_int*State%curvature_radius)-3) !fix jun08
+            nint(qmax_int*State%curvature_radius)-3)
         call Init_ClTransfer(ThisCT)
-        call ThisCT%q%Getdpoints(half_ends = .false.) !Jun08
+        call ThisCT%q%Getdpoints(half_ends = .false.)
     else
         !Accurate-reionization polarization needs denser CMB integration sampling at low q (reionization bump
         !is at low l). Only the log block (lognum) and the first linear block step (dk0) are scaled here.
         LowQIntBoost = IntSampleBoost
-        if (AccuracyTarget > 0 .and. CP%Want_CMB .and. CP%Accuracy%AccuratePolarization &
-            .and. CP%Accuracy%AccurateReionization) LowQIntBoost = max(LowQIntBoost, 1.8_dl)
+        if (AccuracyTarget > 0 .and. CP%Want_CMB .and. CP%WantScalars .and. CP%Accuracy%AccuratePolarization &
+            .and. CP%Accuracy%AccurateReionization) then
+            LowQIntBoost = LowQIntBoost*1.8_dl
+            if (.not. State%flat) LowQIntBoost = max(LowQIntBoost, 2.2_dl)
+        end if
         !Split up into logarithmically spaced intervals from qmin up to k=lognum*dk0
         !then no-lognum*dk0 linearly spaced at dk0 up to no*dk0
         !then at dk up to max_k_dk, then dk2 up to qmax_int
@@ -1627,21 +1630,25 @@
 
     do j=1,max_bessels_l_index
         if (ThisCT%ls%l(j) > llmax) return
-        xlim=xlimfrac*ThisCT%ls%l(j)
-        xlim=max(xlim,xlimmin)
-        xlim=ThisCT%ls%l(j)-xlim
+        ! For x = l-d below the turning point, j_l is suppressed roughly as
+        ! exp[-(2*sqrt(2)/3)*d**(3/2)/sqrt(l)].  Requiring ~1e-4 of peak
+        ! gives d ~ 4.2*l**(1/3), with a small safety margin.
+        xlim = max(0._dl, ThisCT%ls%l(j) - 4.2_dl*ThisCT%ls%l(j)**(1._dl/3._dl))
+!       Old criterion
+!        xlim=xlimfrac*ThisCT%ls%l(j)
+!        xlim=max(xlim,xlimmin)
+!        xlim=ThisCT%ls%l(j)-xlim
         if (full_bessel_integration .or. do_bispectrum) then
             tmin = State%TimeSteps%points(2)
         else
             xlmax1=80*ThisCT%ls%l(j)*BessIntBoost
             if (State%num_redshiftwindows>0 .and. CP%WantScalars) then
-                xlmax1=80*ThisCT%ls%l(j)*8*BessIntBoost !Have to be careful if sharp spikes due to late time sources
+                xlmax1=xlmax1*8 !Have to be careful if sharp spikes due to late time sources
             end if
             tmin=State%tau0-xlmax1/IV%q
             tmin=max(State%TimeSteps%points(2),tmin)
         end if
         tmax=State%tau0-xlim/IV%q
-        tmax=min(State%tau0,tmax)
         tmin=max(State%TimeSteps%points(2),tmin)
         if (.not. CP%Want_CMB .and. .not. CP%Want_CMB_lensing) &
             tmin = max(tmin, State%ThermoData%tau_start_redshiftwindows)
@@ -1818,9 +1825,11 @@
     qeff = sqrt(qeff2)
     qeff_tau = qeff / State%curvature_radius
 
-    xlim = xlimfrac * l
-    xlim = max(xlim, xlimmin)
-    xlim = l - xlim
+    ! Cut where the near-flat hyperspherical Bessel, approximated by
+    ! j_l(x_eff) with x_eff=q_eff*chi, is <~1e-4 of its peak.
+    ! The Airy turning-point tail gives l - x_eff ~= 4.2*l**(1/3).
+    xlim = real(l, dl) - 4.2_dl * real(l, dl)**(1._dl/3._dl)
+    xlim = max(0._dl, xlim)
     if (full_bessel_integration .or. do_bispectrum) then
         tmin = State%TimeSteps%points(2)
     else
@@ -1829,7 +1838,6 @@
         tmin = max(State%TimeSteps%points(2), tmin)
     end if
     tmax = State%tau0 - xlim / qeff_tau
-    tmax = min(State%tau0, tmax)
     tmin = max(State%TimeSteps%points(2), tmin)
     if (tmax < State%TimeSteps%points(2)) return
 
@@ -2303,6 +2311,7 @@
         num2=num1*0.8_dl
     else
         num2=num1*1.5_dl
+        if (AccuracyTarget > 0) num2=num2*1.2_dl
     end if
 
     if (scalel<1500 .and. scalel > 150) &
