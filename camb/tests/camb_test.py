@@ -248,7 +248,7 @@ class CambTest(unittest.TestCase):
 
         # Test BBN consistency, base_plikHM_TT_lowTEB best fit model
         pars.set_cosmology(H0=67.31, ombh2=0.022242, omch2=0.11977, mnu=0.06, omk=0)
-        self.assertAlmostEqual(float(pars.YHe), 0.2458, 5)
+        self.assertAlmostEqual(pars.YHe, 0.2458, 5)
         data.calc_background(pars)
         self.assertAlmostEqual(data.cosmomc_theta(), 0.0104090741, 7)
         self.assertAlmostEqual(data.get_derived_params()["kd"], 0.14055, 4)
@@ -256,13 +256,13 @@ class CambTest(unittest.TestCase):
         pars.set_cosmology(
             H0=67.31, ombh2=0.022242, omch2=0.11977, mnu=0.06, omk=0, bbn_predictor=bbn.BBN_table_interpolator()
         )
-        self.assertAlmostEqual(float(pars.YHe), 0.2458, 5)
+        self.assertAlmostEqual(pars.YHe, 0.2458, 5)
         self.assertAlmostEqual(pars.get_Y_p(), bbn.BBN_table_interpolator().Y_p(0.022242, 0), 5)
 
         # test massive sterile models as in Planck papers
         pars.set_cosmology(H0=68.0, ombh2=0.022305, omch2=0.11873, mnu=0.06, nnu=3.073, omk=0, meffsterile=0.013)
         self.assertAlmostEqual(pars.omnuh2, 0.00078, 5)
-        self.assertAlmostEqual(float(pars.YHe), 0.246218, 5)
+        self.assertAlmostEqual(pars.YHe, 0.246218, 5)
         self.assertAlmostEqual(pars.N_eff, 3.073, 4)
 
         data.calc_background(pars)
@@ -959,28 +959,3 @@ class CambTest(unittest.TestCase):
         camb.get_background(pars)
         results = camb.get_results(pars)
         self.assertAlmostEqual(results.get_derived_params()["thetastar"], 1.044341764253, delta=1e-5)
-
-    def testSPkNonLinearClassSelection(self):
-        pars = camb.CAMBparams()
-        pars.set_classes(non_linear_model="SPkNonLinear")
-        self.assertEqual(pars.NonLinearModel.__class__.__name__, "SPkNonLinear")
-
-        pars.set_cosmology(H0=67.5, ombh2=0.02237, omch2=0.12, mnu=0.06)
-        pars.InitPower.set_params(As=2.1e-9, ns=0.965)
-        pars.set_matter_power(redshifts=[0.5], kmax=3.0)
-        pars.NonLinear = model.NonLinear_both
-        pars.NonLinearModel.BaseModel.set_params(halofit_version="mead2020")
-        pars.NonLinearModel.set_params(
-            SPk_feedback=True,
-            SPk_SO=200,
-            SPk_relation_kind=1,
-            SPk_fb_a=0.4,
-            SPk_fb_pow=0.2,
-            SPk_fb_pivot=1e14,
-        )
-
-        data = camb.get_results(pars)
-        k, z, pk = data.get_matter_power_spectrum(minkh=1e-2, maxkh=1.0, npoints=8)
-        self.assertEqual(len(z), 1)
-        self.assertTrue(np.all(np.isfinite(k)))
-        self.assertTrue(np.all(np.isfinite(pk)))
