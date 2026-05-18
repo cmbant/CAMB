@@ -26,14 +26,17 @@
 
     integer  num_xx, kmaxfile, max_ix
     Type(lSamples), save :: file_l
-    ! parameters for working out where the flat Bessel functions are small
-    ! Both should increase for higher accuracy
-    real(dl), parameter :: xlimmin=35._dl  , xlimfrac = 0.05_dl
+    ! parameter for working out where the flat Bessel functions are small
+    ! Should increase for higher accuracy
+    ! For x = l-delta below the turning point, j_l is suppressed roughly as
+    ! exp[-(2*sqrt(2)/3)*d**(3/2)/sqrt(l)].  Requiring ~1e-4 of peak
+    ! gives delta ~ 4.2*l**(1/3), with a small safety margin.
+    real(dl), parameter :: bjl_pre_peak_start_factor  = 4.2_dl
     real(dl) file_acc
 
     type(TRanges), save:: BessRanges
 
-    public bessel_horner, BessRanges, InitSpherBessels, xlimmin, xlimfrac
+    public bessel_horner, BessRanges, InitSpherBessels, bjl_pre_peak_start_factor
     public USpherBesselWithDeriv, phi_recurs,phi_langer, bjl, Bessels_Free
 
     contains
@@ -103,9 +106,7 @@
 
             do  i=1,num_xx
                 x=BessRanges%points(i)
-                xlim=xlimfrac*lSamp%l(j)
-                xlim=max(xlim,xlimmin)
-                xlim=lSamp%l(j)-xlim
+                xlim = lSamp%l(j) - bjl_pre_peak_start_factor*lSamp%l(j)**(1._dl/3._dl)
                 if (x > xlim) then
                     if ((lSamp%l(j)==3).and.(x <=0.2) .or. (lSamp%l(j) > 3).and.(x < 0.5) .or. &
                         (lSamp%l(j)>5).and.(x < 1.0)) then
@@ -146,8 +147,341 @@
 
     end subroutine Bessels_Free
 
+! Optimized spherical Bessel wrapper.
+! Strategy:
+!   L <= 40 use (v accurate and still fast) recursive result
+!   Elsewhere use a two-term corrected uniform Airy asymptotic
+!   in the transition bands, using fast approximate bjl_approx
+!   elsewhere where it is accurate.
+!
+! The Airy Ai and Ai' used by the uniform expansion are evaluated by Chebyshev
+! fits on tau in [-12,12], which covers the transition bands used below.
+! Should be accurate to 2e-4 of peak everywhere, RMS error O(5e-6) of peak.
 
-    SUBROUTINE BJL(L,X,JL)
+    SUBROUTINE BJL(L, X, JL)
+    IMPLICIT NONE
+    INTEGER, INTENT(IN) :: L
+    REAL(dl), INTENT(IN) :: X
+    REAL(dl), INTENT(OUT) :: JL
+
+    REAL(dl) :: AX, NU, L3, LOGELL
+    REAL(dl) :: SMALL_BOUNDARY
+    REAL(dl) :: PATCH_LOW, PATCH_HIGH, KEEP
+    REAL(dl) :: PATCH_LOWER, KEEP_LOWER, KEEP_UPPER, PATCH_UPPER
+
+    IF (L <= 40) THEN
+        CALL BJL_RECURRENCE_FAST(L, X, JL)
+        RETURN
+    END IF
+
+    AX = ABS(X)
+    NU = REAL(L, dl) + 0.5E0_dl
+    L3 = NU**0.325E0_dl
+    ! l-dependent switch scaling fitted to the original error envelope.
+    LOGELL = LOG(REAL(L, dl))
+
+    PATCH_LOW  = 3.25E0_dl + 0.195E0_dl * LOGELL
+    PATCH_HIGH = 5.75E0_dl - 0.075E0_dl * LOGELL
+    KEEP       = 1.02E0_dl - 0.065E0_dl * LOGELL
+
+    PATCH_LOW  = MIN(MAX(PATCH_LOW,  4.00E0_dl), 5.00E0_dl)
+    PATCH_HIGH = MIN(MAX(PATCH_HIGH, 5.10E0_dl), 5.60E0_dl)
+    KEEP       = MIN(MAX(KEEP,       0.46E0_dl), 0.76E0_dl)
+
+    PATCH_LOWER = NU - PATCH_LOW  * L3
+    KEEP_LOWER  = NU - KEEP       * L3
+    KEEP_UPPER  = NU + KEEP       * L3
+    PATCH_UPPER = NU + PATCH_HIGH * L3
+
+    IF ((AX >= PATCH_LOWER .AND. AX < KEEP_LOWER) .OR. &
+        (AX > KEEP_UPPER .AND. AX <= PATCH_UPPER)) THEN
+        CALL BJL_UNIFORM_AIRY_FAST(L, X, JL)
+    ELSE
+        CALL BJL_approx(L, X, JL)
+    END IF
+
+    END SUBROUTINE BJL
+
+
+    SUBROUTINE BJL_UNIFORM_AIRY_FAST(L, X, JL)
+    ! Two-term corrected Olver uniform Airy approximation.
+    ! Approximation:
+    !   j_l(x) ~= pref * [ Ai(tau)
+    !       + eps  * (P1(tau) Ai(tau) + Q1(tau) Ai'(tau))
+    !       + eps^2* (P2(tau) Ai(tau) + Q2(tau) Ai'(tau)) ]
+    !
+    ! tau = nu^(2/3) zeta, eps = nu^(-2/3), nu = l+1/2.
+    IMPLICIT NONE
+    INTEGER, INTENT(IN) :: L
+    REAL(dl), INTENT(IN) :: X
+    REAL(dl), INTENT(OUT) :: JL
+
+    REAL(dl), PARAMETER :: PI = 3.141592653589793238462643383279502884197E0_dl
+    REAL(dl) :: AX, NU, Z, ZETA, TAU, EPS, PREF, RATIO
+    REAL(dl) :: T, S, VAL, DENOM, U
+    REAL(dl) :: AI, AIP
+    REAL(dl) :: P1, Q1, P2, Q2
+    REAL(dl) :: TP
+    INTEGER :: K
+
+    REAL(dl), PARAMETER :: C(24) = (/ &
+        4.81502374337493077E-07_dl, -1.87522439870112289E-06_dl, &
+        -1.11305295897351383E-06_dl, -2.89777271445998149E-07_dl, &
+        -3.48111180648441153E-08_dl, -1.57354481091355548E-09_dl, &
+        -1.41836617103132354E-06_dl, -4.61232617135839578E-06_dl, &
+        -6.48886700555859207E-07_dl, -1.16224520831995270E-07_dl, &
+        -1.02956540597622431E-08_dl, -3.43777513084833349E-10_dl, &
+        -1.11167415383081530E-04_dl, 1.19534251378777641E-04_dl, &
+        7.14265945828958346E-05_dl, 1.86355754418775254E-05_dl, &
+        2.24263843582428684E-06_dl, 1.01509455560594789E-07_dl, &
+        1.80901156999900073E-02_dl, 4.55607386738270928E-04_dl, &
+        4.19331037632725916E-05_dl, 7.39760269245082157E-06_dl, &
+        6.52981293257690021E-07_dl, 2.17019722971137658E-08_dl /)
+
+    AX = ABS(X)
+    IF (AX == 0.0E0_dl) THEN
+        IF (L == 0) THEN
+            JL = 1.0E0_dl
+        ELSE
+            JL = 0.0E0_dl
+        END IF
+        RETURN
+    END IF
+
+    NU = REAL(L, dl) + 0.5E0_dl
+    Z = AX / NU
+
+    IF (ABS(Z - 1.0E0_dl) < 1.0E-5_dl) THEN
+        ! Turning-point series in U = Z-1.  This avoids cancellation in
+        ! DENOM = 1-Z**2 and in the defining formulae for zeta.
+        ! zeta = -2^(-1/3) U + O(U**2), ratio = 4*zeta/(1-Z**2).
+        U = Z - 1.0E0_dl
+        ZETA = -7.9370052598409973738E-1_dl * U &
+            +9.5244063118091968485E-1_dl * U**2 &
+            +3.9911797878057586794E-1_dl * U**3 &
+            +1.4430735404495669892E0_dl  * U**4
+        RATIO =  1.5874010519681994748E0_dl &
+            -2.6985817883459391071E0_dl * U &
+            +5.5105493661181781766E-1_dl * U**2 &
+            -3.1616745492050428872E0_dl * U**3
+    ELSE IF (Z < 1.0E0_dl) THEN
+        T = SQRT(MAX(0.0E0_dl, 1.0E0_dl - Z*Z))
+        VAL = LOG((1.0E0_dl + T)/Z) - T
+        ZETA = (1.5E0_dl * VAL)**(2.0E0_dl/3.0E0_dl)
+        DENOM = 1.0E0_dl - Z*Z
+        RATIO = 4.0E0_dl * ZETA / DENOM
+    ELSE
+        S = SQRT(MAX(0.0E0_dl, Z*Z - 1.0E0_dl))
+        VAL = S - ACOS(1.0E0_dl/Z)
+        ZETA = - (1.5E0_dl * VAL)**(2.0E0_dl/3.0E0_dl)
+        DENOM = 1.0E0_dl - Z*Z
+        RATIO = 4.0E0_dl * ZETA / DENOM
+    END IF
+
+    TAU = NU**(2.0E0_dl/3.0E0_dl) * ZETA
+    EPS = NU**(-2.0E0_dl/3.0E0_dl)
+
+    CALL AIRY_CHEB_FAST(TAU, AI, AIP)
+
+    PREF = SQRT(PI/(2.0E0_dl*AX)) * RATIO**0.25E0_dl * NU**(-1.0E0_dl/3.0E0_dl)
+
+    P1 = 0.0E0_dl
+    Q1 = 0.0E0_dl
+    P2 = 0.0E0_dl
+    Q2 = 0.0E0_dl
+
+    TP = 1.0E0_dl
+    DO K = 0, 5
+        P1 = P1 + C(1+K)  * TP
+        Q1 = Q1 + C(7+K)  * TP
+        P2 = P2 + C(13+K) * TP
+        Q2 = Q2 + C(19+K) * TP
+        TP = TP * TAU
+    END DO
+
+    JL = PREF * (AI + EPS*(P1*AI + Q1*AIP) + EPS*EPS*(P2*AI + Q2*AIP))
+
+    IF (X < 0.0E0_dl .AND. MOD(L, 2) /= 0) JL = -JL
+    END SUBROUTINE BJL_UNIFORM_AIRY_FAST
+
+
+    SUBROUTINE AIRY_CHEB_FAST(TAU, AI, AIP)
+    ! Chebyshev approximations for Ai(tau) and Ai'(tau) on tau in [-12,12].
+    ! The optimized switch bands stay within this interval for the tested range.
+    IMPLICIT NONE
+    REAL(dl), INTENT(IN) :: TAU
+    REAL(dl), INTENT(OUT) :: AI, AIP
+    REAL(dl), PARAMETER :: TAUMAX = 12.0E0_dl
+    INTEGER, PARAMETER :: NCH = 49
+    REAL(dl) :: Y
+    REAL(dl), PARAMETER :: CAI(49) = (/ &
+        3.67140658697826597E-02_dl, -1.99751439414667734E-02_dl, &
+        -3.41762326623453530E-02_dl, -1.67750467094326429E-02_dl, &
+        6.71366158587720085E-02_dl, -1.13241923209836410E-02_dl, &
+        -4.76492104400855560E-02_dl, 3.85955837615974736E-03_dl, &
+        4.52493472760705718E-02_dl, 8.29096190136223606E-03_dl, &
+        -7.58176041266856171E-02_dl, 4.41761547089038961E-02_dl, &
+        1.35879305038624412E-02_dl, 1.89559796444455607E-02_dl, &
+        -8.68651535410744496E-02_dl, 6.65937643093631876E-02_dl, &
+        1.66713073406534670E-02_dl, -3.96297908340825372E-02_dl, &
+        -9.34820068952497453E-03_dl, 2.11900420130676920E-02_dl, &
+        4.77357045561378965E-02_dl, -1.05176463189850355E-01_dl, &
+        6.24466107775550061E-02_dl, 4.15631228131559533E-02_dl, &
+        -9.82507249723497539E-02_dl, 6.34238506638137994E-02_dl, &
+        9.40561442934194879E-03_dl, -4.80943816424271309E-02_dl, &
+        3.51470757861736399E-02_dl, -2.83804954209487771E-03_dl, &
+        -1.52654658523515060E-02_dl, 1.28623481152699646E-02_dl, &
+        -2.71715411111256994E-03_dl, -3.40378045210267075E-03_dl, &
+        3.41767141693773754E-03_dl, -1.02382039712440925E-03_dl, &
+        -5.46499340987120361E-04_dl, 6.97213602665852248E-04_dl, &
+        -2.56537878579261251E-04_dl, -6.12608517858434303E-05_dl, &
+        1.13311568865214212E-04_dl, -4.84622008993750009E-05_dl, &
+        -3.73020804249622709E-06_dl, 1.49498633805381015E-05_dl, &
+        -7.26067278073866751E-06_dl, 1.21023373676782330E-07_dl, &
+        1.69447071344048720E-06_dl, -9.82534241096600431E-07_dl, &
+        1.31943186974874696E-07_dl /)
+
+    REAL(dl), PARAMETER :: CAIP(49) = (/ &
+        5.49590481839003359E-02_dl, -1.15203430487495359E-01_dl, &
+        1.13247283961502757E-01_dl, -1.03811349380324769E-01_dl, &
+        1.21634798100134126E-01_dl, -1.48569086148776369E-01_dl, &
+        1.31071609585384830E-01_dl, -1.00877864923676633E-01_dl, &
+        1.26568769662971869E-01_dl, -1.61266313429072605E-01_dl, &
+        1.14132298432619336E-01_dl, -3.49036214783497387E-02_dl, &
+        3.31426462704221408E-02_dl, -6.20794600315453318E-02_dl, &
+        -7.92868529771147655E-03_dl, 1.40605924948946581E-01_dl, &
+        -1.74413145954548904E-01_dl, 9.61449366198371222E-02_dl, &
+        -6.21287965102367071E-02_dl, 1.24193774784428335E-01_dl, &
+        -1.29230662766108673E-01_dl, -3.49251990664248418E-02_dl, &
+        2.38886882506026132E-01_dl, -2.63896058201616546E-01_dl, &
+        7.95614922882794673E-02_dl, 1.24906895024454549E-01_dl, &
+        -1.84704649500547602E-01_dl, 8.83492928251033288E-02_dl, &
+        3.17199579985788030E-02_dl, -7.56703259868984207E-02_dl, &
+        4.54370734424599035E-02_dl, 6.57080422634312845E-04_dl, &
+        -2.10185319338494052E-02_dl, 1.51486565257752982E-02_dl, &
+        -2.29789821237973277E-03_dl, -4.21804844573481132E-03_dl, &
+        3.67420666929695570E-03_dl, -9.36417935614738831E-04_dl, &
+        -6.25484556555607201E-04_dl, 6.88454778612563982E-04_dl, &
+        -2.27529472887237719E-04_dl, -6.67989945778023515E-05_dl, &
+        1.03345358981762645E-04_dl, -4.04977085846905318E-05_dl, &
+        -4.43972730639412674E-06_dl, 1.29883764166673586E-05_dl, &
+        -5.78352315636758214E-06_dl, 3.37404844247331436E-07_dl, &
+        1.29828717416097097E-06_dl /)
+
+    Y = TAU / TAUMAX
+
+    ! Guard: the chosen switch bands should not reach this, but if they do,
+    ! clamp rather than crash.  Accuracy outside [-12,12] is not guaranteed.
+    IF (Y > 1.0E0_dl) Y = 1.0E0_dl
+    IF (Y < -1.0E0_dl) Y = -1.0E0_dl
+
+    AI  = CHEBEVAL_FAST(Y, CAI,  NCH)
+    AIP = CHEBEVAL_FAST(Y, CAIP, NCH)
+    END SUBROUTINE AIRY_CHEB_FAST
+
+
+    REAL(dl) FUNCTION CHEBEVAL_FAST(Y, COEF, N)
+    IMPLICIT NONE
+    INTEGER, INTENT(IN) :: N
+    REAL(dl), INTENT(IN) :: Y
+    REAL(dl), INTENT(IN) :: COEF(N)
+
+    INTEGER :: J
+    REAL(dl) :: B0, B1, B2
+
+    B1 = 0.0E0_dl
+    B2 = 0.0E0_dl
+
+    DO J = N, 2, -1
+        B0 = 2.0E0_dl*Y*B1 - B2 + COEF(J)
+        B2 = B1
+        B1 = B0
+    END DO
+
+    CHEBEVAL_FAST = Y*B1 - B2 + COEF(1)
+    END FUNCTION CHEBEVAL_FAST
+
+
+    SUBROUTINE BJL_RECURRENCE_FAST(L, X, JL)
+    ! Stable recurrence for relevant L
+    ! Uses upward recurrence for x>l and Miller downward recurrence for x<=l.
+    IMPLICIT NONE
+    INTEGER, INTENT(IN) :: L
+    REAL(dl), INTENT(IN) :: X
+    REAL(dl), INTENT(OUT) :: JL
+
+    INTEGER :: n, Nstart, margin
+    REAL(dl) :: ax, j0, j1, jm1, jcur, jp1, scale
+    REAL(dl), ALLOCATABLE :: work(:)
+    REAL(dl), PARAMETER :: big = 1.0E200_dl
+    REAL(dl), PARAMETER :: small = 1.0E-200_dl
+
+    IF (L < 0) ERROR STOP 'Can not evaluate Spherical Bessel Function with index l<0'
+
+    ax = ABS(X)
+
+    IF (ax == 0.0E0_dl) THEN
+        IF (L == 0) THEN
+            JL = 1.0E0_dl
+        ELSE
+            JL = 0.0E0_dl
+        END IF
+        RETURN
+    END IF
+
+    IF (ax < 1.0E-4_dl) THEN
+        j0 = 1.0E0_dl - ax**2/6.0E0_dl + ax**4/120.0E0_dl - ax**6/5040.0E0_dl
+        j1 = ax/3.0E0_dl * (1.0E0_dl - ax**2/10.0E0_dl + ax**4/280.0E0_dl - ax**6/15120.0E0_dl)
+    ELSE
+        j0 = SIN(ax)/ax
+        j1 = SIN(ax)/ax**2 - COS(ax)/ax
+    END IF
+
+    IF (L == 0) THEN
+        JL = j0
+    ELSE IF (L == 1) THEN
+        JL = j1
+    ELSE IF (ax > REAL(L, dl)) THEN
+        jm1 = j0
+        jcur = j1
+        DO n = 1, L-1
+            jp1 = (REAL(2*n+1, dl)/ax)*jcur - jm1
+            jm1 = jcur
+            jcur = jp1
+        END DO
+        JL = jcur
+    ELSE
+        margin = MAX(80, INT(12.0E0_dl*SQRT(REAL(L+1, dl))))
+        Nstart = MAX(L + margin, INT(ax) + margin)
+
+        ALLOCATE(work(0:Nstart+1))
+        work(Nstart+1) = 0.0E0_dl
+        work(Nstart) = 1.0E0_dl
+
+        DO n = Nstart, 1, -1
+            work(n-1) = (REAL(2*n+1, dl)/ax)*work(n) - work(n+1)
+            IF (ABS(work(n-1)) > big) THEN
+                work(n-1:Nstart+1) = work(n-1:Nstart+1) * small
+            END IF
+        END DO
+
+        ! Normalize with the most reliable of j0 or j1.  Normalizing only
+        ! by j0 is unsafe near roots of j0, where both j0 and work(0)
+        ! are small and the quotient can lose many digits or produce NaNs.
+        IF (ABS(work(0)) > ABS(work(1))) THEN
+            scale = j0 / work(0)
+        ELSE
+            scale = j1 / work(1)
+        END IF
+        JL = work(L) * scale
+        DEALLOCATE(work)
+    END IF
+
+    IF (X < 0.0E0_dl .AND. MOD(L, 2) /= 0) JL = -JL
+    END SUBROUTINE BJL_RECURRENCE_FAST
+
+
+    SUBROUTINE BJL_approx(L,X,JL)
     !!== MODIFIED SUBROUTINE FOR SPHERICAL BESSEL FUNCTIONS.                       ==!!
     !!== CORRECTED THE SMALL BUGS IN PACKAGE CMBFAST&CAMB(for l=4,5, x~0.001-0.002)==!!
     !!== CORRECTED THE SIGN OF J_L(X) FOR X<0 CASE                                 ==!!
@@ -290,7 +624,7 @@
         ENDIF
     ENDIF
     IF(X.LT.0.AND.MOD(L,2).NE.0)JL=-JL
-    END SUBROUTINE BJL
+    END SUBROUTINE BJL_approx
 
 
     !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc

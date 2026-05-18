@@ -1630,14 +1630,9 @@
 
     do j=1,max_bessels_l_index
         if (ThisCT%ls%l(j) > llmax) return
-        ! For x = l-d below the turning point, j_l is suppressed roughly as
-        ! exp[-(2*sqrt(2)/3)*d**(3/2)/sqrt(l)].  Requiring ~1e-4 of peak
-        ! gives d ~ 4.2*l**(1/3), with a small safety margin.
-        xlim = max(0._dl, ThisCT%ls%l(j) - 4.2_dl*ThisCT%ls%l(j)**(1._dl/3._dl))
-!       Old criterion
-!        xlim=xlimfrac*ThisCT%ls%l(j)
-!        xlim=max(xlim,xlimmin)
-!        xlim=ThisCT%ls%l(j)-xlim
+        ! Cut where the hyperspherical Bessel before peak, approximated by
+        ! j_l(x_eff) with x_eff=q_eff*chi, is <~1e-4 of its peak.
+        xlim = max(0._dl, ThisCT%ls%l(j) - bjl_pre_peak_start_factor*ThisCT%ls%l(j)**(1._dl/3._dl))
         if (full_bessel_integration .or. do_bispectrum) then
             tmin = State%TimeSteps%points(2)
         else
@@ -1825,11 +1820,13 @@
     qeff = sqrt(qeff2)
     qeff_tau = qeff / State%curvature_radius
 
-    ! Cut where the near-flat hyperspherical Bessel, approximated by
+    ! Cut where the near-flat hyperspherical Bessel before peak, approximated by
     ! j_l(x_eff) with x_eff=q_eff*chi, is <~1e-4 of its peak.
-    ! The Airy turning-point tail gives l - x_eff ~= 4.2*l**(1/3).
-    xlim = real(l, dl) - 4.2_dl * real(l, dl)**(1._dl/3._dl)
+    xlim = real(l, dl) - bjl_pre_peak_start_factor * real(l, dl)**(1._dl/3._dl)
     xlim = max(0._dl, xlim)
+    tmax = State%tau0 - xlim / qeff_tau
+    if (tmax < State%TimeSteps%points(2)) return
+
     if (full_bessel_integration .or. do_bispectrum) then
         tmin = State%TimeSteps%points(2)
     else
@@ -1837,9 +1834,7 @@
         tmin = State%tau0 - xlmax1 / qeff_tau
         tmin = max(State%TimeSteps%points(2), tmin)
     end if
-    tmax = State%tau0 - xlim / qeff_tau
     tmin = max(State%TimeSteps%points(2), tmin)
-    if (tmax < State%TimeSteps%points(2)) return
 
     sums = 0._dl
     DoInt = .true.

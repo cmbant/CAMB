@@ -105,7 +105,7 @@
     real(dl), intent(in) :: r
     integer q_ix, j, bes_ix
     integer n, nP, ellmax
-    real(dl) xf , J_l, a2, base, coeff1, coeff2, coeff3, dx, k, dlnk, term, P, kpow, kpowP, x_hi
+    real(dl) xf , J_l, a2, base, coeff1, coeff2, coeff3, dx, k, dlnk, term, P, kpow, kpowP, x_hi, xsafe
 
     n = size(ind)
     nP =size(indP)
@@ -121,7 +121,10 @@
         dlnk = CTrans%q%dpoints(q_ix) /k
         P = CP%InitPower%ScalarPower(k)*InternalScale  !!only first index for now
 
-        ellmax = max(xf/(1-xlimfrac), xf + xlimmin) * CP%Accuracy%AccuracyBoost
+        !ellmax = max(xf/(1-xlimfrac), xf + xlimmin) * CP%Accuracy%AccuracyBoost
+        xsafe = max(xf, 1._dl)
+        ellmax = ceiling((xf + bjl_pre_peak_start_factor *xsafe**(1._dl/3._dl) + &
+            bjl_pre_peak_start_factor**2/(3._dl*xsafe**(1._dl/3._dl)) + 2._dl) * CP%Accuracy%AccuracyBoost)
         kpow =  k**(ind(1)+3)
         kpowP = k**indP(1) * P
         do j=1,CTrans%ls%nl
@@ -169,7 +172,7 @@
     integer q_ix, j, bes_ix, i
     integer n, nP, ellmax
     real(dl) xf , J_l, a2, base, coeff1, coeff2, coeff3, dx, k, dlnk, term, P, kpow(size(ind)), &
-        kpow2(size(indP)), x_hi
+        kpow2(size(indP)), x_hi, xsafe
 
     if (shape == shape_local) then
         call NonGauss_l_r_localOpt(CP,CTrans, ind, indP,res, resP, nfields, r)
@@ -190,7 +193,10 @@
         dlnk = CTrans%q%dpoints(q_ix) /k
         P = CP%InitPower%ScalarPower(k)*InternalScale  !!only first index for now
 
-        ellmax = max(xf/(1-xlimfrac), xf + xlimmin) * CP%Accuracy%AccuracyBoost
+        !ellmax = max(xf/(1-xlimfrac), xf + xlimmin) * CP%Accuracy%AccuracyBoost
+        xsafe = max(xf, 1._dl)
+        ellmax = ceiling((xf + bjl_pre_peak_start_factor *xsafe**(1._dl/3._dl) + &
+            bjl_pre_peak_start_factor**2/(3._dl*xsafe**(1._dl/3._dl)) + 2._dl) * CP%Accuracy%AccuracyBoost)
         do i=1,n
             kpow(i)=k**(ind(i)+3)
         end do
@@ -1299,7 +1305,7 @@
     real(dl), intent(in) :: r
     integer q_ix, j, bes_ix, i
     integer nP, ellmax
-    real(dl) xf , dJ_l, fac, a2,  k, dlnk, term, P
+    real(dl) xf , dJ_l, fac, a2,  k, dlnk, term, P, xsafe
 
     nP =size(indP)
     resP = 0
@@ -1313,7 +1319,10 @@
         fac=fac**2*a2/6
         dlnk = CTrans%q%dpoints(q_ix) /k
         P = CP%InitPower%ScalarPower(k)  !!only first index for now
-        ellmax = max(xf/(1-xlimfrac), xf + xlimmin) * CP%Accuracy%AccuracyBoost
+        !ellmax = max(xf/(1-xlimfrac), xf + xlimmin) * CP%Accuracy%AccuracyBoost
+        xsafe = max(xf, 1._dl)
+        ellmax = ceiling((xf + bjl_pre_peak_start_factor *xsafe**(1._dl/3._dl) + &
+            bjl_pre_peak_start_factor**2/(3._dl*xsafe**(1._dl/3._dl)) + 2._dl) * CP%Accuracy%AccuracyBoost)
 
         do j=1,CTrans%ls%nl
             if (CTrans%ls%l(j) <= ellmax) then
