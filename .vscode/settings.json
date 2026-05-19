@@ -116,8 +116,4 @@
     },
     "python-envs.defaultEnvManager": "ms-python.python:venv",
     "python-envs.defaultPackageManager": "ms-python.python:pip",
-    "fortran.linter.includePaths": [
-        "${workspaceFolder}/fortran/Releaselib",
-        "${workspaceFolder}/forutils/Releaselib"
-    ]
 }
