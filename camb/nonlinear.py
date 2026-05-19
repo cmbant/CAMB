@@ -225,25 +225,26 @@ class SPkNonLinear(NonLinearModel):
 
         Example YAML (kind=3, double_power_law)::
 
+            params:
+              SPk_epsilon:
+                prior: {min: 0.24, max: 0.35}
+                ref: {dist: norm, loc: 0.30, scale: 0.02}
+              SPk_alpha:
+                prior: {min: -0.12, max: 0.34}
+              SPk_beta:
+                prior: {min: -0.74, max: 0.77}
+              SPk_gamma:
+                prior: {min: -0.5, max: 1.20}
+
             theory:
               camb:
                 extra_args:
-                  non_linear_model: camb.nonlinear.SPkNonLinear
+                  non_linear_model: SPkNonLinear
                   halofit_version: mead2020
                   SPk_feedback: true
                   SPk_SO: 200
                   SPk_relation_kind: 3
-                  SPk_m_pivot: 1.0e14
-                params:
-                  SPk_epsilon:
-                    prior: {min: 0.24, max: 0.35}
-                    ref: {dist: norm, loc: 0.30, scale: 0.02}
-                  SPk_alpha:
-                    prior: {min: -0.12, max: 0.34}
-                  SPk_beta:
-                    prior: {min: -0.74, max: 0.77}
-                  SPk_gamma:
-                    prior: {min: -0.5, max: 1.20}
+                  SPk_m_pivot: 1.0e13
 
         **Notes:**
 
