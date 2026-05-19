@@ -13,9 +13,9 @@ except ImportError:
     sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
     import camb
 
-from camb.nonlinear import Halofit, SPkNonLinear  # type: ignore[attr-defined]
-
 from _spk_helpers import get_pk, pyspk_kwargs
+
+from camb.nonlinear import Halofit, SPkNonLinear  # type: ignore[attr-defined]
 
 try:
     import pyspk
@@ -33,7 +33,9 @@ class SPkTest(unittest.TestCase):
         k, pk_base, results = self._get_pk(base, z=z)
 
         spk = SPkNonLinear()
-        spk.set_params(halofit_version="mead2020", SPk_feedback=True, SPk_SO=so, SPk_relation_kind=relation_kind, **kwargs)
+        spk.set_params(
+            halofit_version="mead2020", SPk_feedback=True, SPk_SO=so, SPk_relation_kind=relation_kind, **kwargs
+        )
         _, pk_spk, _ = self._get_pk(spk, z=z)
 
         assert pyspk is not None

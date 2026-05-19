@@ -5,9 +5,7 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
-
 from _spk_helpers import compute_suppression_data
-
 
 _RELATION_NAMES = {1: "power_law", 2: "cosmo_power_law", 3: "double_power_law"}
 _COLORS = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd"]
@@ -33,8 +31,9 @@ def _plot_validation(data, relation_kinds, redshifts, so, out_dir):
                 k, sup_camb, sup_ref, rel = data[(relation_kind, so, ip, z)]
                 color = _COLORS[ic % len(_COLORS)]
                 ax_top.plot(k, sup_camb, lw=1.6, color=color, label=f"z={z}" if icol == 0 and ip == 0 else None)
-                ax_top.plot(k, sup_ref, lw=1.0, ls="--", color="k",
-                            label="pySPK" if ic == 0 and icol == 0 and ip == 0 else None)
+                ax_top.plot(
+                    k, sup_ref, lw=1.0, ls="--", color="k", label="pySPK" if ic == 0 and icol == 0 and ip == 0 else None
+                )
                 ax_bot.plot(k, rel, lw=1.2, color=color)
 
             ax_top.axvline(8.0, color="grey", ls=":", lw=0.9, alpha=0.6)
