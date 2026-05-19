@@ -3,27 +3,18 @@
 Not collected by pytest (underscore prefix).
 """
 
+from types import SimpleNamespace
+
 import numpy as np
 
 import camb
 from camb.nonlinear import Halofit, SPkNonLinear  # type: ignore[attr-defined]
 
 
-class CambEFunc:
-    """Wrapper providing E(z) = H(z)/H0 from CAMB results, for pySPK."""
-
-    def __init__(self, results):
-        self._results = results
-        self._h0 = results.Params.H0
-
-    def efunc(self, z):
-        z_arr = np.asarray(z, dtype=float)
-        flat = z_arr.reshape(-1)
-        vals = np.array([self._results.hubble_parameter(float(zz)) / self._h0 for zz in flat], dtype=float)
-        vals = vals.reshape(z_arr.shape)
-        if np.isscalar(z):
-            return float(vals)
-        return vals
+def make_cosmo(results):
+    """Create a pyspk-compatible cosmo object from CAMB results (E(z) = H(z)/H(0))."""
+    h0_inv = 1.0 / results.h_of_z(0.0)
+    return SimpleNamespace(efunc=lambda z: results.h_of_z(z) * h0_inv)
 
 
 def get_pk(model_obj, z=0.5, kmax=12.0, k_per_logint=100):
@@ -50,7 +41,7 @@ def pyspk_kwargs(relation_kind, so, z, k, camb_results, params):
                 "alpha": params["SPk_alpha"],
                 "beta": params["SPk_beta"],
                 "gamma": params["SPk_gamma"],
-                "cosmo": CambEFunc(camb_results),
+                "cosmo": make_cosmo(camb_results),
             }
         )
     elif relation_kind == 3:
@@ -61,7 +52,7 @@ def pyspk_kwargs(relation_kind, so, z, k, camb_results, params):
                 "beta": params["SPk_beta"],
                 "gamma": params["SPk_gamma"],
                 "m_pivot": params["SPk_m_pivot"],
-                "cosmo": CambEFunc(camb_results),
+                "cosmo": make_cosmo(camb_results),
             }
         )
     else:
