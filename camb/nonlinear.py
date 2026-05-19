@@ -96,26 +96,7 @@ class Halofit(NonLinearModel):
 
 @fortran_class
 class SPkNonLinear(NonLinearModel):
-    """
-    SP(k) baryon suppression model applied on top of a base non-linear model.
-
-        References:
-        - SP(k) model: `arXiv:2305.09710 <https://arxiv.org/abs/2305.09710>`_,
-            `MNRAS 523, 2247 (2023) <https://doi.org/10.1093/mnras/stad1474>`_
-        - pyspk implementation details and mode definitions:
-            https://github.com/jemme07/pyspk
-
-    The base model is evaluated first (Halofit by default), then SP(k)
-    suppression is applied to CAMB's non-linear ratio as
-
-    ``sqrt(P_NL/P_L) -> sqrt(P_NL/P_L) * sqrt(SPk_suppression)``.
-
-    Notes:
-    - SP(k) calibration is defined for ``0 <= z <= 3`` and ``k <= 12 h/Mpc``.
-        Outside these ranges, behavior follows the Fortran implementation.
-    - SP(k) cannot be combined with HMCode baryon-feedback modes
-        (for example ``halofit_version='mead2020_feedback'``).
-    """
+    """SP(k) baryon suppression model applied on top of a base non-linear model."""
 
     _fields_ = (
         ("BaseModel", AllocatableObject(NonLinearModel)),
@@ -182,7 +163,6 @@ class SPkNonLinear(NonLinearModel):
 
     def set_params(
         self,
-        base_model=None,
         SPk_feedback=False,
         SPk_SO=200,
         SPk_relation_kind=1,
@@ -194,55 +174,86 @@ class SPkNonLinear(NonLinearModel):
         SPk_gamma=0.0,
         SPk_epsilon=0.0,
         SPk_m_pivot=1.0,
+        halofit_version=halofit_default,
     ):
         """
-        Set SP(k) model and relation parameters.
+        Configure the SP(k) baryon suppression model.
 
-                References:
-                - SP(k) model: `arXiv:2305.09710 <https://arxiv.org/abs/2305.09710>`_,
-                    `MNRAS 523, 2247 (2023) <https://doi.org/10.1093/mnras/stad1474>`_
-                - For mode details and examples, see https://github.com/jemme07/pyspk
+        References:
+          - SP(k) model: `MNRAS 523, 2247 (2023) <https://doi.org/10.1093/mnras/stad1474>`_
+          - pyspk: https://github.com/jemme07/pyspk
 
-                SP(k) modes:
+        The base model is evaluated first (Halofit by default), then SP(k)
+        suppression is applied to CAMB's non-linear ratio as:
 
-                - ``1`` (``power_law``):
-                    ``f_b/(Omega_b/Omega_m) = a * (M_SO/M_pivot)^b``
-                    where ``a=SPk_fb_a``, ``b=SPk_fb_pow``, ``M_pivot=SPk_fb_pivot``.
+        ``sqrt(P_NL/P_L) -> sqrt(P_NL/P_L) * sqrt(SPk_suppression)``
 
-                - ``2`` (``cosmo_power_law``; redshift-dependent power law):
-                    ``f_b/(Omega_b/Omega_m) = (exp(alpha)/100) * (M_500c/1e14 M_sun)^(beta-1) * (E(z)/E(0.3))^gamma``
-                    where ``alpha=SPk_alpha``, ``beta=SPk_beta``, ``gamma=SPk_gamma``.
+        **SP(k) relation kinds:**
 
-                - ``3`` (``double_power_law``; redshift-dependent double power law):
-                    ``f_b/(Omega_b/Omega_m) = 0.5 * epsilon * ((M_500c/M_pivot)^alpha + (M_500c/M_pivot)^beta) * (E(z)/E(0.3))^gamma``
-                    where ``epsilon=SPk_epsilon``, ``alpha=SPk_alpha``, ``beta=SPk_beta``,
-                    ``gamma=SPk_gamma``, ``M_pivot=SPk_m_pivot``.
+        - **kind=1** (power_law):
+          ``f_b / (Omega_b/Omega_m) = a * (M_SO / M_pivot)^b``
 
-        Parameter definitions:
+        - **kind=2** (cosmo_power_law):
+          ``f_b / (Omega_b/Omega_m) = (exp(alpha)/100) * (M_500c/1e14)^(beta-1) * (E(z)/E(0.3))^gamma``
 
-        :param base_model: Base non-linear model instance to wrap.
-            If None, keeps current base model (default Halofit).
+        - **kind=3** (double_power_law):
+          ``f_b / (Omega_b/Omega_m) = 0.5 * eps * ((M/M_piv)^alpha + (M/M_piv)^beta) * (E(z)/E(0.3))^gamma``
+
         :param SPk_feedback: If True, apply SP(k) suppression on top of the base model.
-        :param SPk_SO: Spherical overdensity calibration. Allowed values: 200 or 500.
-        :param SPk_relation_kind: Relation type.
-            Allowed values: 1 (power_law), 2 (cosmo_power_law), 3 (double_power_law).
-        :param SPk_fb_a: Power-law normalization.
-        :param SPk_fb_pow: Power-law exponent.
-        :param SPk_fb_pivot: Power-law pivot mass in solar masses.
-        :param SPk_alpha: Alpha parameter.
-        :param SPk_beta: Beta parameter.
-        :param SPk_gamma: Gamma parameter.
-        :param SPk_epsilon: Epsilon parameter.
-        :param SPk_m_pivot: Pivot mass in solar masses.
+        :param SPk_SO: Spherical overdensity calibration (200 or 500).
+        :param SPk_relation_kind: Relation type: 1 (power_law), 2 (cosmo_power_law), 3 (double_power_law).
+        :param SPk_fb_a: Power-law normalization (kind=1).
+        :param SPk_fb_pow: Power-law exponent (kind=1).
+        :param SPk_fb_pivot: Power-law pivot mass in M_sun (kind=1).
+        :param SPk_alpha: Alpha parameter (kinds 2, 3).
+        :param SPk_beta: Beta parameter (kinds 2, 3).
+        :param SPk_gamma: Gamma parameter (kinds 2, 3).
+        :param SPk_epsilon: Epsilon parameter (kind=3).
+        :param SPk_m_pivot: Pivot mass in M_sun (kind=3).
+        :param halofit_version: Base Halofit version for the wrapped non-linear model.
         :return: Self, for fluent configuration.
-        :raises CAMBValueError: If relation or pivot constraints are invalid,
-            or if configuration is incompatible with the selected Halofit
-            baryon-feedback mode.
+        :raises CAMBValueError: If parameters are invalid or incompatible with the base model.
+
+        **Cobaya usage:**
+
+        Cobaya passes keys from ``extra_args`` directly to ``set_params()``.
+        Parameters under the theory ``params:`` block are also forwarded and can be sampled.
+
+        - **extra_args** (fixed): ``non_linear_model``, ``halofit_version``, ``SPk_feedback``,
+          ``SPk_SO``, ``SPk_relation_kind``, and pivot masses.
+        - **params** (sampled): continuous relation parameters (e.g. ``SPk_fb_a``, ``SPk_fb_pow``).
+
+        Example YAML (kind=3, double_power_law)::
+
+            theory:
+              camb:
+                extra_args:
+                  non_linear_model: camb.nonlinear.SPkNonLinear
+                  halofit_version: mead2020
+                  SPk_feedback: true
+                  SPk_SO: 200
+                  SPk_relation_kind: 3
+                  SPk_m_pivot: 1.0e14
+                params:
+                  SPk_epsilon:
+                    prior: {min: 0.24, max: 0.35}
+                    ref: {dist: norm, loc: 0.30, scale: 0.02}
+                  SPk_alpha:
+                    prior: {min: -0.12, max: 0.34}
+                  SPk_beta:
+                    prior: {min: -0.74, max: 0.77}
+                  SPk_gamma:
+                    prior: {min: -0.5, max: 1.20}
+
+        **Notes:**
+
+        - Calibrated for ``0 <= z <= 3`` and ``k <= 12 h/Mpc``.
+        - Cannot be combined with ``halofit_version='mead2020_feedback'``.
         """
-        if base_model is not None:
-            self.BaseModel = base_model
-        elif self.BaseModel is None:
+        if self.BaseModel is None:
             self.BaseModel = Halofit()
+        if isinstance(self.BaseModel, Halofit):
+            self.BaseModel.set_params(halofit_version=halofit_version)
 
         self.SPk_feedback = SPk_feedback
         self.SPk_SO = SPk_SO
