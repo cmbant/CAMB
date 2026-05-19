@@ -191,13 +191,13 @@ class SPkNonLinear(NonLinearModel):
         **SP(k) relation kinds:**
 
         - **kind=1** (power_law):
-          ``f_b / (Omega_b/Omega_m) = a * (M_SO / M_pivot)^b``
+          ``f_b / (Omega_b/Omega_m) = SPk_fb_a * (M / SPk_fb_pivot)^SPk_fb_pow``
 
         - **kind=2** (cosmo_power_law):
-          ``f_b / (Omega_b/Omega_m) = (exp(alpha)/100) * (M_500c/1e14)^(beta-1) * (E(z)/E(0.3))^gamma``
+          ``f_b / (Omega_b/Omega_m) = (exp(SPk_alpha)/100) * (M_500c/1e14)^(SPk_beta - 1) * (E(z)/E(0.3))^SPk_gamma``
 
         - **kind=3** (double_power_law):
-          ``f_b / (Omega_b/Omega_m) = 0.5 * eps * ((M/M_piv)^alpha + (M/M_piv)^beta) * (E(z)/E(0.3))^gamma``
+          ``f_b / (Omega_b/Omega_m) = 0.5 * SPk_epsilon * ((M/SPk_m_pivot)^SPk_alpha + (M/SPk_m_pivot)^SPk_beta) * (E(z)/E(0.3))^SPk_gamma``
 
         :param SPk_feedback: If True, apply SP(k) suppression on top of the base model.
         :param SPk_SO: Spherical overdensity calibration (200 or 500).
