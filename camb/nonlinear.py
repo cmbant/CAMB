@@ -235,6 +235,11 @@ class SPkNonLinear(NonLinearModel):
                 prior: {min: -0.74, max: 0.77}
               SPk_gamma:
                 prior: {min: -0.5, max: 1.20}
+              log10_SPk_m_pivot:
+                prior: {min: 13, max: 14}
+                drop: true
+              SPk_m_pivot:
+                value: "lambda log10_SPk_m_pivot: 10**log10_SPk_m_pivot"
 
             theory:
               camb:
@@ -244,7 +249,6 @@ class SPkNonLinear(NonLinearModel):
                   SPk_feedback: true
                   SPk_SO: 200
                   SPk_relation_kind: 3
-                  SPk_m_pivot: 1.0e13
 
         **Notes:**
 
