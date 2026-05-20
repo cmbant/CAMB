@@ -42,6 +42,7 @@ testfile*
 *.ipynb
 !CAMBdemo.ipynb
 !ScalEqs.ipynb
+!docs/SPk_demo.ipynb
 *.dll
 *.a
 *.o
@@ -75,6 +76,7 @@ lensing_cgrads.f90
 !inifiles/params_21cm.ini
 !inifiles/params_counts.ini
 !inifiles/params_lensing.ini
+!inifiles/params_spk.ini
 !inifiles/planck_2018.ini
 !inifiles/planck_2018_acc.ini
 !inifiles/sources_defaults.ini
