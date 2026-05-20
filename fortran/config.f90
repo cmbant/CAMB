@@ -9,9 +9,8 @@
 
     integer :: AccuracyTarget = 1 !if >0 enable targeted accuracy improvements
 
-    real(dl) :: near_flat_approx_chi_limit = 0.2_dl
-    real(dl) :: near_flat_approx_chidisp_limit = 0.1_dl
     logical :: enable_do_near_flat_integration = .true.
+    logical :: enable_near_flat_smallchi_integration = .true.
     logical :: enable_shifted_q_scalar_approx = .true.
 
     logical :: output_file_headers = .true.

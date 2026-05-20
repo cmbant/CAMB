@@ -1539,7 +1539,17 @@
                     have_near_flat_time_weight = .true.
                 end if
 
-                call DoNearFlatIntegration(IV, ThisCT, j, ll, nu, near_flat_time_weight)
+                if (enable_shifted_q_scalar_approx .and. UseShiftedQNearFlatIntegration(ll, nu, chi_full_max)) then
+                    call DoNearFlatIntegration(IV, ThisCT, j, ll, nu, near_flat_time_weight)
+                    cycle
+                end if
+
+                if (UseSmallChiNearFlatIntegration(ll, nu, chi_full_max)) then
+                    call DoNearFlatSmallChiIntegration(IV, ThisCT, j, ll, nu, near_flat_time_weight)
+                    cycle
+                end if
+
+                call GlobalError('No selected near-flat scalar integration method', error_evolution)
             else
                 call IntegrateSourcesBessels(IV,ThisCT,j,ll,nu)
             end if
@@ -1552,24 +1562,60 @@
     integer, intent(in) :: l
     real(dl), intent(in) :: nu, chi_max
 
-    real(dl) :: chi_disp, qeff2, err_tol, err_est, boost_scale, chi_limit_eff
-
-    qeff2 = nu**2 - State%Ksign * real(l * (l + 1), dl) / 3._dl
-    chi_disp = State%invsinfunc(sqrt(real(l * (l + 1), dl)) / nu)
+    real(dl) :: boost_scale
 
     boost_scale = max(CP%Accuracy%NonFlatIntAccuracyBoost * CP%Accuracy%AccuracyBoost, 1._dl)
-    chi_limit_eff = near_flat_approx_chi_limit / sqrt(boost_scale)
-
-    err_tol = 1.0e-3_dl / boost_scale
-    err_est = real(l * (l + 1), dl) * chi_max**2 / max(15._dl * qeff2, 1._dl)
 
     use_near_flat = enable_do_near_flat_integration .and. (abs(State%scale - 1._dl) <= near_flat_scale_tol) .and. &
-        (chi_max < chi_limit_eff) .and. &
-        (chi_disp < near_flat_approx_chidisp_limit) .and. &
-        (err_est < err_tol) .and. (qeff2 > 0._dl)
-
+        ((enable_shifted_q_scalar_approx .and. UseShiftedQNearFlatIntegration(l, nu, chi_max, boost_scale)) .or. &
+        UseSmallChiNearFlatIntegration(l, nu, chi_max, boost_scale))
 
     end function UseNearFlatScalarIntegration
+
+
+    logical function UseShiftedQNearFlatIntegration(l, nu, chi_max, boost_scale_in) result(use_shifted_q)
+    integer, intent(in) :: l
+    real(dl), intent(in) :: nu, chi_max
+    real(dl), intent(in), optional :: boost_scale_in
+
+    real(dl) :: boost_scale, ell, alpha, tmax, q2, arg_err, amp_err, err_shift
+
+    boost_scale = max(CP%Accuracy%NonFlatIntAccuracyBoost * CP%Accuracy%AccuracyBoost, 1._dl)
+    if (present(boost_scale_in)) boost_scale = boost_scale_in
+
+    ell = sqrt(real(l, dl) * (real(l, dl) + 1._dl))
+    alpha = nu / ell
+    tmax = alpha * chi_max
+    q2 = nu**2 - State%Ksign * ell**2 / 3._dl
+    arg_err = ell * tmax * (tmax**2 + 2._dl) / (90._dl * alpha**4)
+    amp_err = abs(tmax**2 - 2._dl) / (180._dl * alpha**4)
+    err_shift = 0.5_dl * arg_err + amp_err
+    use_shifted_q = (err_shift < 7.e-4_dl / boost_scale) .and. (q2 > 0._dl)
+
+    end function UseShiftedQNearFlatIntegration
+
+
+    logical function UseSmallChiNearFlatIntegration(l, nu, chi_max, boost_scale_in) result(use_smallchi)
+    integer, intent(in) :: l
+    real(dl), intent(in) :: nu, chi_max
+    real(dl), intent(in), optional :: boost_scale_in
+
+    real(dl) :: alpha, boost_scale, ell2, smallchi_metric
+
+    boost_scale = max(CP%Accuracy%NonFlatIntAccuracyBoost * CP%Accuracy%AccuracyBoost, 1._dl)
+    if (present(boost_scale_in)) boost_scale = boost_scale_in
+
+    if (.not. enable_near_flat_smallchi_integration .or. l <= 0) then
+        use_smallchi = .false.
+        return
+    end if
+
+    ell2 = real(l, dl) * real(l + 1, dl)
+    alpha = nu / sqrt(ell2)
+    smallchi_metric = real(l, dl)**2 * chi_max**7 / nu
+    use_smallchi = alpha > 3._dl .and. smallchi_metric < 0.3_dl / boost_scale
+
+    end function UseSmallChiNearFlatIntegration
 
     function UseLimber(l)
     !Calculate lensing potential power using Limber rather than j_l integration
@@ -1809,7 +1855,7 @@
     logical :: DoInt
     real(dl) :: xlim, xlmax1, tmin, tmax
     real(dl) :: a2, base, coeff1, coeff2, coeff3, dx, J_l, x_hi, xf
-    real(dl) :: qeff2, qeff, qeff_tau, chi_here, sh, chi_over_sh, weight
+    real(dl) :: qeff2, qeff, qeff_tau, q_amp, chi_here, sh, chi_over_sh, weight
     real(dl) :: qmax_int, sums(ThisSources%SourceNum), left_weight(IV%SourceSteps)
     real(dl) :: BessIntBoost
 
@@ -1819,6 +1865,7 @@
     if (qeff2 <= 0._dl) return
     qeff = sqrt(qeff2)
     qeff_tau = qeff / State%curvature_radius
+    q_amp = sqrt(qeff / nu)
 
     ! Cut where the near-flat hyperspherical Bessel before peak, approximated by
     ! j_l(x_eff) with x_eff=q_eff*chi, is <~1e-4 of its peak.
@@ -1869,7 +1916,7 @@
             coeff3 = bessel_horner(4, bes_ix, j)
             J_l = base + a2 * (coeff1 + a2 * (coeff2 + a2 * coeff3))
 
-            weight = near_flat_time_weight(n) * J_l
+            weight = near_flat_time_weight(n) * q_amp * J_l
             sums(1) = sums(1) + IV%Source_q(n,1) * weight
             sums(2) = sums(2) + IV%Source_q(n,2) * weight
         end do
@@ -1884,7 +1931,7 @@
                 coeff3 = bessel_horner(4, bes_ix, j)
                 J_l = base + a2 * (coeff1 + a2 * (coeff2 + a2 * coeff3))
 
-                weight = near_flat_time_weight(n) * J_l
+                weight = near_flat_time_weight(n) * q_amp * J_l
                 sums(1) = sums(1) + IV%Source_q(n,1) * weight
                 sums(2) = sums(2) + IV%Source_q(n,2) * weight
                 sums(3) = sums(3) + IV%Source_q(n,3) * weight
@@ -1907,6 +1954,142 @@
 
     end subroutine DoNearFlatIntegration
 
+
+    subroutine DoNearFlatSmallChiIntegration(IV, ThisCT, j, l, nu, near_flat_time_weight)
+    use SpherBessels, only: BessRanges, bessel_horner
+    implicit none
+    type(IntegrationVars) IV
+    Type(ClTransferData) :: ThisCT
+    integer, intent(in) :: j, l
+    real(dl), intent(in) :: nu
+    real(dl), intent(in) :: near_flat_time_weight(IV%SourceSteps)
+
+    integer :: n, n_first, n_last, bes_ix, bes_index(IV%SourceSteps)
+    logical :: DoInt
+    real(dl) :: xlim, xlmax1, qmax_int, BessIntBoost
+    real(dl) :: a2, base, coeff1, coeff2, coeff3, dx, J_l, x_hi, xf
+    real(dl) :: alpha2, chi, chi2, chi4, D, D0, D2, D4, ell2, F, F0, F2, F4, h, h2, h3
+    real(dl) :: x_vals(IV%SourceSteps), weights(IV%SourceSteps), left_weight(IV%SourceSteps)
+    real(dl) :: sums(ThisSources%SourceNum)
+
+    BessIntBoost = CP%Accuracy%AccuracyBoost * CP%Accuracy%BessIntBoost
+    xlim = max(0._dl, real(l, dl) - bjl_pre_peak_start_factor * real(l, dl)**(1._dl / 3._dl))
+    if (full_bessel_integration .or. do_bispectrum) then
+        xlmax1 = huge(1._dl)
+    else
+        xlmax1 = 80._dl * l * BessIntBoost
+    end if
+
+    ! The small-chi map has z = chi*F and Jacobian amplitude D^(-1/2),
+    ! where F and D are even quartic polynomials in chi for fixed l and nu.
+    ! Precompute the curvature-dependent coefficients once per source integral.
+    ell2 = real(l, dl) * real(l + 1, dl)
+    alpha2 = nu**2 / ell2
+    h = State%Ksign / alpha2
+    h2 = h * h
+    h3 = h2 * h
+
+    F0 = 1._dl - h / 6._dl - 13._dl * h2 / 360._dl - 737._dl * h3 / 45360._dl
+    F2 = -4._dl * h2 * alpha2 / 360._dl - 148._dl * h3 * alpha2 / 45360._dl
+    F4 = -48._dl * h3 * alpha2 * alpha2 / 45360._dl
+
+    D0 = F0
+    D2 = -12._dl * h2 * alpha2 / 360._dl - 444._dl * h3 * alpha2 / 45360._dl
+    D4 = -240._dl * h3 * alpha2 * alpha2 / 45360._dl
+
+    associate(TimePoints => State%TimeSteps%points)
+        do n = 1, IV%SourceSteps
+            chi = (State%tau0 - TimePoints(n)) / State%curvature_radius
+            if (abs(chi) < 1.e-8_dl) then
+                x_vals(n) = nu * chi
+                weights(n) = near_flat_time_weight(n)
+            else
+                chi2 = chi * chi
+                chi4 = chi2 * chi2
+                F = F0 + F2 * chi2 + F4 * chi4
+                D = D0 + D2 * chi2 + D4 * chi4
+
+                x_vals(n) = nu * chi * F
+                weights(n) = near_flat_time_weight(n) * F / sqrt(max(D, 1.e-30_dl))
+            end if
+        end do
+    end associate
+
+    n_first = 1
+    do while (n_first < IV%SourceSteps .and. x_vals(n_first) > xlmax1)
+        n_first = n_first + 1
+    end do
+    if (x_vals(n_first) > xlmax1) return
+    n_last = IV%SourceSteps
+    do while (n_last > n_first .and. x_vals(n_last) < xlim)
+        n_last = n_last - 1
+    end do
+    if (n_last < n_first .or. x_vals(n_first) < xlim) return
+
+    sums = 0._dl
+    DoInt = .true.
+    if (ThisSources%SourceNum /= 2) then
+        qmax_int = max(850, l) * 3 * BessIntBoost / State%tau0 * 1.2_dl
+        DoInt = nu / State%curvature_radius < qmax_int
+    end if
+
+    if (DoInt) then
+        call BessRanges%IndexOfOrdered(x_vals(n_first:n_last), n_last - n_first + 1, bes_index(n_first:n_last))
+        associate(BesselPoints => BessRanges%points)
+            do n = n_first, n_last
+                bes_ix = min(bes_index(n), BessRanges%npoints - 1)
+                x_hi = BesselPoints(bes_ix + 1)
+                dx = x_hi - BesselPoints(bes_ix)
+                left_weight(n) = (x_hi - x_vals(n)) / dx
+            end do
+        end associate
+    end if
+
+    if (ThisSources%SourceNum == 2) then
+        do n = n_first, n_last
+            a2 = left_weight(n)
+            bes_ix = min(bes_index(n), BessRanges%npoints - 1)
+            base = bessel_horner(1, bes_ix, j)
+            coeff1 = bessel_horner(2, bes_ix, j)
+            coeff2 = bessel_horner(3, bes_ix, j)
+            coeff3 = bessel_horner(4, bes_ix, j)
+            J_l = base + a2 * (coeff1 + a2 * (coeff2 + a2 * coeff3))
+
+            sums(1) = sums(1) + IV%Source_q(n,1) * weights(n) * J_l
+            sums(2) = sums(2) + IV%Source_q(n,2) * weights(n) * J_l
+        end do
+    else
+        if (DoInt) then
+            do n = n_first, n_last
+                a2 = left_weight(n)
+                bes_ix = min(bes_index(n), BessRanges%npoints - 1)
+                base = bessel_horner(1, bes_ix, j)
+                coeff1 = bessel_horner(2, bes_ix, j)
+                coeff2 = bessel_horner(3, bes_ix, j)
+                coeff3 = bessel_horner(4, bes_ix, j)
+                J_l = base + a2 * (coeff1 + a2 * (coeff2 + a2 * coeff3))
+
+                sums(1) = sums(1) + IV%Source_q(n,1) * weights(n) * J_l
+                sums(2) = sums(2) + IV%Source_q(n,2) * weights(n) * J_l
+                sums(3) = sums(3) + IV%Source_q(n,3) * weights(n) * J_l
+            end do
+        end if
+        if (.not. DoInt .or. UseLimber(l)) then
+            xf = State%tau0 - State%invsinfunc((l + 0.5_dl) / nu) * State%curvature_radius
+            if (xf < State%TimeSteps%Highest .and. xf > State%TimeSteps%Lowest) then
+                n = State%TimeSteps%IndexOf(xf)
+                xf = (xf - State%TimeSteps%points(n)) / (State%TimeSteps%points(n + 1) - State%TimeSteps%points(n))
+                sums(3) = (IV%Source_q(n,3) * (1 - xf) + xf * IV%Source_q(n + 1,3)) * &
+                    sqrt(const_pi / 2 / (l + 0.5_dl) / sqrt(1._dl - State%Ksign * real(l**2, dl) / nu**2)) / IV%q
+            else
+                sums(3) = 0._dl
+            end if
+        end if
+    end if
+
+    ThisCT%Delta_p_l_k(:,j,IV%q_ix) = ThisCT%Delta_p_l_k(:,j,IV%q_ix) + sums
+
+    end subroutine DoNearFlatSmallChiIntegration
 
 
     !non-flat source integration
@@ -2158,41 +2341,43 @@
     integer, intent(in) :: lmax
     real(dl), intent(in) :: base_etak
     real(dl), parameter :: safety_margin = 10._dl
-    real(dl) :: max_scale_x, max_curvature_x
+    real(dl) :: ell, chi_max, scale_x, curve_x
 
-    bessel_etak = base_etak
+    ell = real(lmax, dl)
 
-    if (State%flat .or. abs(State%scale - 1._dl) > near_flat_scale_tol) return
-    if (.not. enable_do_near_flat_integration .and. .not. enable_shifted_q_scalar_approx) return
+    ! Conservative model-independent near-flat curvature limit implied by
+    ! |S_K(chi0)/chi0 - 1| <= near_flat_scale_tol.
+    chi_max = sqrt(max(0._dl, 6._dl * near_flat_scale_tol / (1._dl - near_flat_scale_tol)))
 
-    ! For any model using either near-flat scalar approximation path we have chi <= near_flat_approx_chi_limit
-    ! and scale >= 1 - near_flat_scale_tol, so this cache-stable bound safely covers q_eff * chi.
-    max_scale_x = base_etak / (1._dl - near_flat_scale_tol)
-    max_curvature_x = near_flat_approx_chi_limit * sqrt(real(lmax * (lmax + 1), dl) / 3._dl)
-    bessel_etak = sqrt(max_scale_x**2 + max_curvature_x**2) + safety_margin
+    scale_x = base_etak / (1._dl - near_flat_scale_tol)
+    curve_x = chi_max * sqrt(ell * (ell + 1._dl) / 3._dl)
 
+    bessel_etak = hypot(scale_x, curve_x) + safety_margin
     end function ShiftedQBesselTableMaxEtak
 
 
-    logical function UseShiftedQScalarApprox(l, nu, chi, chiDisp, dchisource, sgn, nIntSteps) result(use_shifted_q)
+    logical function UseShiftedQScalarApprox(l, nu, chi, dchisource, sgn, nIntSteps) result(use_shifted_q)
     integer, intent(in) :: l, nIntSteps
-    real(dl), intent(in) :: nu, chi, chiDisp, dchisource, sgn
+    real(dl), intent(in) :: nu, chi, dchisource, sgn
 
-    real(dl) :: chi_end, chi_max, qeff2, err_tol, err_est, boost_scale, chi_limit_eff
+    real(dl) :: chi_end, chi_max
+    real(dl) :: boost_scale, ell, alpha, tmax, q2, arg_err, amp_err, err_shift
 
     chi_end = chi + real(nIntSteps, dl) * dchisource * sgn
     chi_max = max(abs(chi), abs(chi_end))
-    qeff2 = nu**2 - State%Ksign * real(l * (l + 1), dl) / 3._dl
 
     boost_scale = max(CP%Accuracy%NonFlatIntAccuracyBoost * CP%Accuracy%AccuracyBoost, 1._dl)
-    chi_limit_eff = near_flat_approx_chi_limit / sqrt(boost_scale)
 
-    err_tol = 1.0e-3_dl / boost_scale
-    err_est = real(l * (l + 1), dl) * chi_max**2 / max(15._dl * qeff2, 1._dl)
+    ell = sqrt(real(l, dl) * (real(l, dl) + 1._dl))
+    alpha = nu / ell
+    tmax = alpha * chi_max
+    q2 = nu**2 - State%Ksign * ell**2 / 3._dl
+    arg_err = ell * tmax * (tmax**2 + 2._dl) / (90._dl * alpha**4)
+    amp_err = abs(tmax**2 - 2._dl) / (180._dl * alpha**4)
+    err_shift = 0.5_dl * arg_err + amp_err
 
     use_shifted_q = enable_shifted_q_scalar_approx .and. (abs(State%scale - 1._dl) <= near_flat_scale_tol) .and. &
-        (chi_max < chi_limit_eff) .and. &
-        (chiDisp < near_flat_approx_chidisp_limit) .and. (err_est < err_tol) .and. (qeff2 > 0._dl)
+        (err_shift < 7.e-4_dl / boost_scale) .and. (q2 > 0._dl)
 
     end function UseShiftedQScalarApprox
 
@@ -2355,7 +2540,7 @@
     nIntSteps=isgn*(Startn-nend)
     if (nIntSteps <= 0) return
 
-    if (UseShiftedQScalarApprox(l, nu, chi, chiDisp, dchisource, sgn, nIntSteps)) then
+    if (UseShiftedQScalarApprox(l, nu, chi, dchisource, sgn, nIntSteps)) then
         ! In the local chi << 1 regime, fill the source-grid values directly from the
         ! shifted-q near-flat approximation instead of stepping the full hyperspherical ODE.
         out = 0
