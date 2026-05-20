@@ -34,7 +34,7 @@ docs = [
     "sphinx_markdown_builder",
     "jupytext",
 ]
-dev = ["ruff>=0.11.0", "pre-commit>=3.0.0", "pyspk>=2.0.0"]
+dev = ["ruff>=0.11.0", "pre-commit>=3.0.0"]
 
 [project.scripts]
 camb = "camb._command_line:run_command_line"

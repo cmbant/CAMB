@@ -62,7 +62,6 @@ testfile*
 *compatibility.txt
 camb_test.py
 temp_test.py
-spk_validation/
 *.layout
 lensing_cgrads.f90
 # Exceptions for tracked .dat files
