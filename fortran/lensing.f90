@@ -232,7 +232,7 @@
     logical :: short_integral_range
     real(dl) range_fac, apodize_width
     logical, parameter :: approx = .false.
-    real(dl) theta_cut(lmax), LensAccuracyBoost, ThetaSampleBoost
+    real(dl) theta_cut(lmax), LensAccuracyBoost, ThetaSampleBoost, LensRangeBoost
     Type(TTimer) :: Timer
 
     !$ integer  OMP_GET_THREAD_NUM, OMP_GET_MAX_THREADS
@@ -242,11 +242,16 @@
     associate(lSamp => State%CLData%CTransScal%ls, CP=>State%CP)
 
         LensAccuracyBoost = CP%Accuracy%AccuracyBoost*CP%Accuracy%LensingBoost
+        LensRangeBoost = LensAccuracyBoost
         ThetaSampleBoost = LensAccuracyBoost
 
         if (AccuracyTarget > 0) then
             ThetaSampleBoost = ThetaSampleBoost * 1.6_dl
             if (CP%Max_l > 3500) ThetaSampleBoost = ThetaSampleBoost * (2.2_dl/1.6_dl)
+            ! Open models have a larger angular-diameter distance than the flat case, so the
+            ! truncated short-range correlation integral needs extra angular support and denser
+            ! l interpolation to track the same physical lensing scale near the output cutoff.
+            if (CP%Max_l > 3500) LensRangeBoost = max(LensRangeBoost, min(2._dl, 1._dl + 32._dl*max(0._dl, State%scale - 1._dl)))
         else if (CP%Max_l > 3500) then
             ThetaSampleBoost = ThetaSampleBoost * 1.3_dl
         end if
@@ -266,7 +271,7 @@
         apodize_point_width = nint(apodize_width / dtheta)
         npoints = int(const_pi/dtheta)
         if (short_integral_range) then
-            range_fac= max(1._dl,32/LensAccuracyBoost) !fraction of range to integrate
+            range_fac= max(1._dl,32/LensRangeBoost) !fraction of range to integrate
             npoints = int(npoints /range_fac)
             !OK for TT, EE, TE but inaccurate for low l BB
             !this induces high frequency ringing on very small scales
@@ -277,7 +282,7 @@
 
         if (DebugMsgs) call Timer%Start()
 
-        interp_fac = max(1,min(nint(10/LensAccuracyBoost),int(range_fac*2)-1))
+        interp_fac = max(1,min(nint(10/LensRangeBoost),int(range_fac*2)-1))
 
         jmax = 0
         do l=lmin,lmax

@@ -76,29 +76,24 @@ The production implementation is in `fortran/olver_hyperspherical_bessel.f90`.
 - `qintegral_exact` evaluates the curved action analytically for open and
   closed models. The inverse trigonometric branches use `atan2` forms to avoid
   quadrant/sign mistakes.
-- `invert_flat_action` inverts the universal flat action. The action is written
-  as $q$, and the cache coordinate is
+- `invert_flat_action` inverts the universal flat action using hard-coded
+  polynomial/asymptotic approximations. The action is written as $q$, with
   $p=(3q)^{1/3}$ so the turning point is regular.
-- The evanescent cache stores
-  $u = \alpha z = \operatorname{sech} t$, where $q=t-\tanh t$.
-- The oscillatory cache stores
-  $\theta$, where $q=\tan\theta-\theta$, and evaluates
-  $u=\alpha z=\sec\theta$ after spline lookup.
+- The evanescent branch uses $q=t-\tanh t$ and $u=\alpha z=\operatorname{sech}t$.
+- The oscillatory branch uses $q=\tan\theta-\theta$ and
+  $u=\alpha z=\sec\theta$.
 - Very close to the turning point, the code uses the analytic local limit of
   the action map,
   $z-z_t\simeq (dS_K/d\chi|_{\chi_t})^{1/3}(\chi-\chi_t)$, with the matching
   amplitude limit. This avoids cancellation in the closed-form action before
-  the universal inverse-action spline is used.
-
-Splining $\theta(p)$, rather than $u(p)=\sec\theta(p)$, is important near the
-turning point. The earlier broad spline of $u$ was too coarse just above the
-turning point and produced errors such as $\beta\,\Delta z\simeq 5\times10^{-2}$
-in high-$L$ cases. With the current $\theta$ spline, the same checks give
-$|\beta\,\Delta z|\sim 5\times10^{-8}$.
-
-The cache is universal: it depends only on whether the point is below or above
-the turning point, not on $K$, $\ell$, or $\beta$. Runtime evaluation is one
-analytic action plus one direct-indexed spline lookup.
+  the universal inverse-action approximation is used.
+- `phi_olver`, `phi_olver_raw`, and `u_olver` share the same internal reduced
+  evaluation path. `u_olver` returns $u_\ell=S_K\phi_\ell$ directly for callers
+  that do not need the final trigonometric division.
+- The production `phi_olver` path may use the small-$\chi$ map as a fast local
+  approximation when its pointwise gate is satisfied. The diagnostic
+  `phi_olver_raw` path always uses the full action map, except for the exact
+  flat and low-$\ell$ stable-reference paths.
 
 ## Small-Chi Approximation
 
@@ -201,42 +196,84 @@ The main harnesses are:
 - `accuracy_plots/olver_hyperspherical/scan_olver_chi_bins.py`
 - `accuracy_plots/olver_hyperspherical/phi_qapprox_peaknorm_cases.f90`
 
-### Full Olver Cached Tests
+### Full Olver Tests
 
-The full cached action map is tested against `phi_recurs_stable`; it does not
-call `compute_olver_z_amp_smallchi`. The focused open/flat/closed grid uses
-$\chi_t<0.1$, representative $1\le\ell\le6000$, and samples $\alpha$ from just
-above the $\chi_t<0.1$ boundary up to $2\times10^4$. The output is recorded in
-`accuracy_plots/olver_hyperspherical/qapprox_fullolver_l1_gates_summary.csv`,
-with the later relaxed-gate check in
-`accuracy_plots/olver_hyperspherical/qapprox_err1e3_gate_l1_summary.csv`.
+The current broad validation grid compares `phi_olver`, diagnostic
+`phi_olver_raw`, `phi_olver_smallchi`, and `phi_langer` against
+`phi_recurs_stable`. It uses open/flat/closed cases, every integer
+$1\le\ell\le20$, representative larger multipoles up to $\ell=6000$, alpha
+targets from near the curvature scale to $2\times10^4$, and
+$\chi_{\max}=0.01,0.1,0.3,0.5,1.0,1.57,2.0$. Closed modes are rounded to
+allowed integer $\beta$ and skipped when $\beta\le\ell$.
 
-For open, near-flat cases with $\chi<0.2$, $\chi_t<0.2$, and
-$k\le 2\,\mathrm{Mpc}^{-1}$, the current full Olver implementation removes the
-previous turning-point spline error. In the Fortran-end-to-end comparison the
-remaining visible floor is now about $4.4\times10^{-5}$ of the peak, consistent
-with direct checks of the current Fortran `bjl` transition floor against SciPy
-`spherical_jn`.
+The production `phi_olver` gate uses the simple gate alpha
 
-On the focused grid, the full cached result stays at that same floor over all
-tested endpoints:
+$$
+\alpha_g=\frac{\beta}{\ell}
+$$
 
-| $\chi_{\max}$ | worst full-Olver cached error | worst cached-smallchi delta |
-| ---: | ---: | ---: |
-| 0.1 | $4.4\times10^{-5}$ | $8.8\times10^{-6}$ |
-| 0.2 | $4.4\times10^{-5}$ | $8.6\times10^{-6}$ |
-| 0.3 | $4.4\times10^{-5}$ | $8.1\times10^{-6}$ |
-| 0.5 | $4.4\times10^{-5}$ | $2.9\times10^{-5}$ |
-| 0.75 | $4.4\times10^{-5}$ | $3.8\times10^{-4}$ |
-| 1.0 | $4.4\times10^{-5}$ | $2.4\times10^{-3}$ |
-| 1.5 | $4.4\times10^{-5}$ | $3.5\times10^{-2}$ |
-| 2.0 | $4.4\times10^{-5}$ | $4.6\times10^{-2}$ |
+rather than $\beta/\sqrt{\ell(\ell+1)}$. The action map itself still uses
+$\lambda=\sqrt{\ell(\ell+1)}$. With the $\alpha_g$ convention the calibrated
+pointwise fallback is
 
-The direct cached-smallchi delta is included to show where the small-chi series
-is still a useful independent test of the full action map. In this grid the
-delta is below $10^{-5}$ through $\chi_{\max}=0.3$ and below
-$3\times10^{-5}$ at $\chi_{\max}=0.5$; at larger endpoints the series, not the
-full map, is leaving its validity range.
+$$
+\alpha_g\ge4
+\quad\hbox{or}\quad
+\frac{\chi}{2\beta}\le2.6\times10^{-2}\quad (K=-1),
+\quad\hbox{or}\quad
+\frac{\chi}{2(\beta-\ell)}\le6.2\times10^{-3}\quad (K=+1).
+$$
+
+The small-$\chi$ fast path inside `phi_olver` uses a stricter pointwise version
+of the near-flat integration gate,
+
+$$
+\alpha_g>4,\qquad \frac{\ell^2\chi^7}{\beta}<5\times10^{-2}.
+$$
+
+This keeps the pointwise `phi_olver` envelope at the original target while still
+using the cheaper small-$\chi$ map where it is clearly safe. The broader
+integration-level gate remains looser because it is applied to a controlled
+near-flat integration interval rather than to arbitrary pointwise calls.
+
+The latest broad-grid comparison gives:
+
+| method | total CPU time | time per evaluation | worst peak-normalized error |
+| --- | ---: | ---: | ---: |
+| `phi_recurs_stable` | 50.5 s | 9.73 us | reference |
+| `phi_olver` | 0.573 s | 0.110 us | $9.9\times10^{-5}$ |
+| `phi_olver_smallchi` gated | 0.152 s | 0.072 us | $6.2\times10^{-5}$ |
+| `phi_langer` | 0.450 s | 0.087 us | $5.0\times10^{-2}$ |
+
+The raw full action map without any low-alpha fallback is not bounded at this
+level on the broad grid: accepting all raw points gives a worst error
+$3.0\times10^{-2}$, from a closed low-alpha case around $\ell=30$,
+$\beta=31$, and $\chi\simeq1.57$.
+
+Earlier focused full-Olver tests gave smaller errors, about
+$4.4\times10^{-5}$, because they were a much narrower near-flat/high-alpha
+scan, with $\chi_t<0.1$ and endpoints chosen around the intended near-flat
+small-$\chi$ use case. In that restricted region the full action-map error is
+mostly hidden below the current Fortran `bjl` transition floor. The broad grid
+now deliberately includes low-alpha and large-endpoint cases, where the raw
+action map needs either the stable fallback or the stricter pointwise gate.
+
+### Langer And Timing Comparison
+
+The broad-grid timing comparison above also scores the existing `phi_langer`
+WKB/Langer approximation from `fortran/bessels.f90`. `phi_langer` is slightly
+faster than `phi_olver` on this grid, but is not competitive as a general
+replacement: the worst errors are low-alpha curved cases, reaching about
+$5.0\times10^{-2}$ of peak at $\ell=2$. Restricting to higher multipoles helps
+only gradually:
+
+| multipole cut | worst `phi_langer` error |
+| ---: | ---: |
+| $\ell\ge20$ | $2.5\times10^{-2}$ |
+| $\ell\ge50$ | $2.5\times10^{-2}$ |
+| $\ell\ge100$ | $9.7\times10^{-3}$ |
+| $\ell\ge500$ | $2.6\times10^{-3}$ |
+| $\ell\ge1000$ | $1.3\times10^{-3}$ |
 
 ### Small-Chi Series Tests
 
@@ -285,8 +322,10 @@ $\chi_t<0.1$ alone is not a useful accuracy condition:
 | 0.2 | $1.1\times10^{-2}$ |
 | 0.3 | $2.0\times10^{-2}$ |
 | 0.5 | $5.1\times10^{-2}$ |
+| 0.75 | $8.4\times10^{-2}$ |
 | 1.0 | $8.4\times10^{-2}$ |
-| 2.0 | $9.7\times10^{-2}$ |
+| 1.5 | $8.3\times10^{-2}$ |
+| 2.0 | $1.1\times10^{-1}$ |
 
 The proposed shifted-correction gate,
 $q_\lambda^2>0$ and $\epsilon_\mathrm{shift}<3\times10^{-4}$, works without an
@@ -360,6 +399,8 @@ inside the small-chi series improved every scanned case. The worst errors were:
 | $\chi_t \le 0.30$ | $8.7\times10^{-4}$ | $2.9\times10^{-5}$ |
 
 The worst low-$\ell$ case is $\ell=2$ at the largest tested $\chi_t$. The
-public cached path therefore uses the same $\sqrt{\ell(\ell+1)}$ curvature
-scale. It remains the full cached Olver action map for all $\ell\ge1$; the
-small-chi series is kept as an independent test/diagnostic path.
+public Olver map therefore uses the same $\sqrt{\ell(\ell+1)}$ curvature scale
+inside the action and small-$\chi$ maps. The runtime gates use the simpler
+$\beta/\ell$ alpha convention, with a retuned alpha cutoff, because that is
+sufficient for deciding when to use the small-$\chi$ fast path or stable
+fallback.

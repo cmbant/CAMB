@@ -1,24 +1,23 @@
     module OlverHypersphericalBessel
     use Precision
     use MpiUtils
-    use SpherBessels, only: bjl, phi_recurs
-    use splines, only: spline_def
+    use FlatBessels, only: bjl
+    use SpherBessels, only: phi_recurs_stable
     implicit none
     private
 
     real(dl), parameter :: PI = 3.1415926535897932384626433832795_dl
     real(dl), parameter :: CACHE_EPS = 1.0e-12_dl
+    ! Pointwise raw-Olver gate calibrated to keep peak-normalized errors below
+    ! about 1e-4 on the open/closed validation grid.
+    real(dl), parameter :: OLVER_GATE_ALPHA = 3._dl
+    real(dl), parameter :: OLVER_GATE_OPEN_EPS = 2.6e-2_dl
+    real(dl), parameter :: OLVER_GATE_CLOSED_EPS = 6.2e-3_dl
+    real(dl), parameter :: SMALLCHI_GATE_ALPHA = 3._dl
+    real(dl), parameter :: SMALLCHI_GATE_METRIC = 5.0e-2_dl
 
-    ! Universal flat-action splines, parameterized by p = (3 q)^(1/3),
-    ! sampled uniformly in p so runtime lookup is direct-indexed (no bisection).
-    ! Depend only on the sign of (z - z_turn), not on l, beta, or K.
-    real(dl), allocatable, save :: univ_u_ev(:), univ_y2_ev(:)
-    real(dl), allocatable, save :: univ_theta_os(:), univ_y2_theta_os(:)
-    real(dl), save :: univ_dp_ev = 0._dl, univ_dp_os = 0._dl
-    real(dl), save :: univ_p_max_ev = 0._dl, univ_p_max_os = 0._dl
-    logical, save :: univ_cache_initialized = .false.
-
-    public :: phi_olver_cached, phi_olver_smallchi, olver_cached_coordinate, compute_olver_z_amp_smallchi
+    public :: phi_olver, phi_olver_raw, u_olver, phi_olver_smallchi
+    public :: olver_cached_coordinate, compute_olver_z_amp_smallchi
 
     contains
 
@@ -32,39 +31,160 @@
     end function olver_cached_coordinate
 
 
-    function phi_olver_cached(l, K, beta, chi) result(phi)
+    function phi_olver(l, K, beta, chi) result(phi)
     integer, intent(in) :: l, K
     real(dl), intent(in) :: beta, chi
     real(dl) :: phi
 
-    real(dl) :: achi, symm, z, amp, sin_k, j_l, u
+    phi = olver_value(l, K, beta, chi, reduced=.false., raw=.false.)
+    end function phi_olver
 
-    call validate_inputs(l, K, beta)
+
+    function phi_olver_raw(l, K, beta, chi) result(phi)
+    integer, intent(in) :: l, K
+    real(dl), intent(in) :: beta, chi
+    real(dl) :: phi
+
+    phi = olver_value(l, K, beta, chi, reduced=.false., raw=.true.)
+    end function phi_olver_raw
+
+
+    function u_olver(l, K, beta, chi) result(u)
+    integer, intent(in) :: l, K
+    real(dl), intent(in) :: beta, chi
+    real(dl) :: u
+
+    u = olver_value(l, K, beta, chi, reduced=.true., raw=.false.)
+    end function u_olver
+
+
+    function olver_value(l, K, beta, chi, reduced, raw) result(val)
+    integer, intent(in) :: l, K
+    real(dl), intent(in) :: beta, chi
+    logical, intent(in) :: reduced, raw
+    real(dl) :: val
+    real(dl) :: achi, radius, symm, j_l
+
     call normalize_chi(l, K, beta, chi, achi, symm)
 
-    if (l <= 1) then
-        phi = phi_recurs(l, K, beta, achi)
-        if (K == 1) phi = symm * phi
-        return
-    end if
-
     if (achi <= CACHE_EPS) then
-        phi = 0._dl
+        val = 0._dl
         return
     end if
 
     if (K == 0) then
-        call bjl(l, beta * achi, phi)
+        call bjl(l, beta * achi, j_l)
+        if (reduced) then
+            val = achi * j_l
+        else
+            val = j_l
+        end if
         return
     end if
 
+    radius = curved_radius(K, achi)
+    if (l <= 1) then
+        val = symm * phi_recurs_stable(l, K, beta, achi)
+        if (reduced) val = val * radius
+        return
+    end if
+
+    val = olver_reduced(l, K, beta, achi, symm, raw)
+    if (.not. reduced) val = val / radius
+    end function olver_value
+
+
+    function olver_reduced(l, K, beta, achi, symm, raw) result(u)
+    integer, intent(in) :: l, K
+    real(dl), intent(in) :: beta, achi, symm
+    logical, intent(in) :: raw
+    real(dl) :: u
+    real(dl) :: alpha_gate, metric, denom, z, amp, j_l
+
+    alpha_gate = beta / real(l, dl)
+
+    if (.not. raw) then
+        if (use_smallchi_map(l, beta, achi, alpha_gate)) then
+            u = olver_smallchi_reduced(l, K, beta, achi, symm)
+            return
+        end if
+
+        ! Empirical stable-recursion fallback for the low-alpha corner of the
+        ! full Olver map. With alpha ~= beta/l, the raw
+        ! curved Olver remainder falls rapidly once alpha is moderately large
+        ! (consistent with the expected curvature expansion order O(alpha^-4)).
+        ! For alpha below the cutoff the peak-normalized error is governed more
+        ! directly by the small endpoint parameter
+        !
+        !   open:   eps_peak = O(chi / (2 beta))
+        !   closed: eps_peak = O(chi / (2 (beta-l))).
+        !
+        ! The constants below are grid-calibrated thresholds on these metrics.
+        if (alpha_gate < OLVER_GATE_ALPHA) then
+            if (K == 1) then
+                denom = beta - real(l, dl)
+                if (denom <= 0._dl) then
+                    u = stable_reduced(l, K, beta, achi, symm)
+                    return
+                end if
+                metric = achi / (2._dl * denom)
+                if (metric > OLVER_GATE_CLOSED_EPS) then
+                    u = stable_reduced(l, K, beta, achi, symm)
+                    return
+                end if
+            else if (K == -1) then
+                metric = achi / (2._dl * max(beta, tiny(1._dl)))
+                if (metric > OLVER_GATE_OPEN_EPS) then
+                    u = stable_reduced(l, K, beta, achi, symm)
+                    return
+                end if
+            end if
+        end if
+    end if
+
     call compute_olver_z_amp(l, K, beta, achi, z, amp)
-    sin_k = curved_radius(K, achi)
+    call bjl(l, beta * z, j_l)
+    u = symm * amp * z * j_l
+    end function olver_reduced
+
+
+    real(dl) function stable_reduced(l, K, beta, achi, symm) result(u)
+    integer, intent(in) :: l, K
+    real(dl), intent(in) :: beta, achi, symm
+
+    u = symm * phi_recurs_stable(l, K, beta, achi) * curved_radius(K, achi)
+    end function stable_reduced
+
+
+    logical function use_smallchi_map(l, beta, achi, alpha_gate) result(use_smallchi)
+    integer, intent(in) :: l
+    real(dl), intent(in) :: beta, achi, alpha_gate
+
+    ! Pointwise version of the near-flat small-chi integration gate. The
+    ! full integration uses 0.3 with chi_max; using the current achi as the
+    ! local endpoint needs a smaller threshold to preserve the 1e-4 pointwise
+    ! phi_olver envelope near alpha ~= 3. The gate uses beta/l; the map below
+    ! still uses the more accurate sqrt(l(l+1)) curvature scale.
+    use_smallchi = l > 0 .and. alpha_gate > SMALLCHI_GATE_ALPHA .and. &
+        real(l, dl)**2 * achi**7 / beta < SMALLCHI_GATE_METRIC
+    end function use_smallchi_map
+
+
+    function olver_smallchi_reduced(l, K, beta, achi, symm) result(u)
+    integer, intent(in) :: l, K
+    real(dl), intent(in) :: beta, achi, symm
+    real(dl) :: u
+    real(dl) :: z, amp, j_l
+
+    call compute_olver_z_amp_smallchi(l, K, beta, achi, z, amp)
+    if (amp <= 0._dl) then
+        u = 0._dl
+        return
+    end if
 
     call bjl(l, beta * z, j_l)
-    u = amp * z * j_l
-    phi = symm * u / sin_k
-    end function phi_olver_cached
+    u = symm * amp * z * j_l
+    end function olver_smallchi_reduced
 
 
     function phi_olver_smallchi(l, K, beta, chi) result(phi)
@@ -72,7 +192,7 @@
     real(dl), intent(in) :: beta, chi
     real(dl) :: phi
 
-    real(dl) :: achi, symm, z, amp, sin_k, j_l
+    real(dl) :: achi, symm
 
     call validate_inputs(l, K, beta)
     call normalize_chi(l, K, beta, chi, achi, symm)
@@ -87,15 +207,7 @@
         return
     end if
 
-    call compute_olver_z_amp_smallchi(l, K, beta, achi, z, amp)
-    if (amp <= 0._dl) then
-        phi = 0._dl
-        return
-    end if
-
-    sin_k = curved_radius(K, achi)
-    call bjl(l, beta * z, j_l)
-    phi = symm * amp * z * j_l / sin_k
+    phi = olver_smallchi_reduced(l, K, beta, achi, symm) / curved_radius(K, achi)
     end function phi_olver_smallchi
 
 
@@ -113,11 +225,7 @@
         return
     end if
 
-    if (l > 0) then
-        ell = sqrt(real(l, dl) * (real(l, dl) + 1._dl))
-    else
-        ell = real(l, dl) + 0.5_dl
-    end if
+    ell = sqrt(real(l, dl) * real(l + 1, dl))
     alpha = beta / ell
     turn_z = ell / beta
     turn_chi = turning_point(ell, beta, K)
@@ -165,53 +273,57 @@
     real(dl), intent(in) :: beta, chi
     real(dl), intent(out) :: z, amp
 
-    real(dl) :: ell, alpha, t, t2, t4, h, h2, h3, F, D
+    real(dl) :: ell2, beta2, chi2
+    real(dl) :: rk, h, h2, a, a2, ha
+    real(dl) :: F, D
 
-    if (K == 0) then
+    real(dl), parameter :: c6     = 1._dl / 6._dl
+    real(dl), parameter :: c360   = 1._dl / 360._dl
+    real(dl), parameter :: c45360 = 1._dl / 45360._dl
+
+    if (K == 0 .or. abs(chi) <= CACHE_EPS) then
         z = chi
         amp = 1._dl
         return
     end if
 
-    if (abs(chi) <= CACHE_EPS) then
-        z = chi
-        amp = 1._dl
-        return
-    end if
+    rk = real(K, dl)
 
-    if (l > 0) then
-        ell = sqrt(real(l, dl) * (real(l, dl) + 1._dl))
-    else
-        ell = real(l, dl) + 0.5_dl
-    end if
-    alpha = beta / ell
+    ! ell^2 = l(l+1), avoiding sqrt(l(l+1)).
+    ell2 = real(l * (l + 1), dl)
 
-    t = alpha * chi
-    t2 = t * t
-    t4 = t2 * t2
+    beta2 = beta * beta
+    chi2  = chi * chi
 
-    h = real(K, dl) / (alpha * alpha)
+    ! h = K / alpha^2 = K * ell^2 / beta^2.
+    h = rk * ell2 / beta2
+
+    ! a = h * t^2 = K * chi^2.
+    a  = rk * chi2
+    a2 = a * a
+
     h2 = h * h
-    h3 = h2 * h
+    ha = h * a
 
-    F = 1._dl &
-        - h / 6._dl &
-        - h2 * (4._dl * t2 + 13._dl) / 360._dl &
-        - h3 * (48._dl * t4 + 148._dl * t2 + 737._dl) / 45360._dl
+    F = 1._dl - h * ( &
+        c6 &
+        + c360   * (4._dl   * a  + 13._dl  * h) &
+        + c45360 * (48._dl  * a2 + 148._dl * ha + 737._dl * h2) )
 
-    D = 1._dl &
-        - h / 6._dl &
-        - h2 * (12._dl * t2 + 13._dl) / 360._dl &
-        - h3 * (240._dl * t4 + 444._dl * t2 + 737._dl) / 45360._dl
+    D = 1._dl - h * ( &
+        c6 &
+        + c360   * (12._dl  * a  + 13._dl  * h) &
+        + c45360 * (240._dl * a2 + 444._dl * ha + 737._dl * h2) )
 
     z = chi * F
-    if (D <= 0._dl) then
-        amp = 0._dl
-    else
-        amp = 1._dl / sqrt(D)
-    end if
-    end subroutine compute_olver_z_amp_smallchi
 
+    if (D > 0._dl) then
+        amp = 1._dl / sqrt(D)
+    else
+        amp = 0._dl
+    end if
+
+    end subroutine compute_olver_z_amp_smallchi
 
     subroutine validate_inputs(l, K, beta)
     integer, intent(in) :: l, K
@@ -331,178 +443,147 @@
     analytic_amplitude = abs(flat_term / curved_term)**0.25_dl
     end function analytic_amplitude
 
-
     real(dl) function invert_flat_action(action, z_turn, below_turn)
     real(dl), intent(in) :: action, z_turn
     logical, intent(in) :: below_turn
 
-    real(dl) :: q, p, u, theta
-
-    if (.not. univ_cache_initialized) call init_universal_olver_cache()
+    real(dl) :: q, p, s, u
+    real(dl) :: A, e
+    real(dl) :: x, num, den, qplus, invqplus, invqplus2
 
     q = max(action, 0._dl)
     p = (3._dl * q)**(1._dl / 3._dl)
 
     if (below_turn) then
-        if (p < univ_p_max_ev) then
-            u = uniform_spline_eval(univ_u_ev, univ_y2_ev, univ_dp_ev, p)
+
+        ! Evanescent branch:
+        !   q = t - tanh(t),  u = sech(t)
+        !
+        ! Near the turning point use a polynomial in p^2.
+        ! Farther out use the large-q asymptotic inversion.
+        if (p < 1.8_dl) then
+            s = p * p
+
+            u = (((((( &
+                2.2687533176976695e-05_dl * s &
+                - 1.7210470362266376e-04_dl) * s &
+                - 3.1231653154203167e-04_dl) * s &
+                + 2.1586618823186233e-04_dl) * s &
+                + 7.5055874727872618e-02_dl) * s &
+                - 5.0000720190143755e-01_dl) * s &
+                + 1.0000000000000000_dl)
+
         else
-            u = 1._dl / cosh(q + 1._dl)
+            A = q + 1._dl
+            x = exp(-A)
+            e = x * x
+
+            u = 2._dl * x * (1._dl + e * (1._dl + 3._dl * e))
         end if
+
     else
-        if (p < univ_p_max_os) then
-            theta = uniform_spline_eval(univ_theta_os, univ_y2_theta_os, univ_dp_os, p)
-            u = 1._dl / cos(theta)
+
+        ! oscillatory inverse:
+        !
+        !   q = tan(theta) - theta
+        !   u = sec(theta)
+        !
+        ! Uses a 6/6 rational in x=(p/3)^2 for p<3, and a high-order
+        ! asymptotic expansion in q + pi/2 for p>=3.
+
+
+        if (p < 2._dl) then
+            s = p * p
+
+            u = ((((((( &
+                3.4828644185221886e-07_dl * s &
+                - 8.3097833638549810e-06_dl) * s &
+                + 8.8500265224195657e-05_dl) * s &
+                - 4.8620948599887724e-04_dl) * s &
+                - 3.5056578112088423e-04_dl) * s &
+                + 7.4998103457285289e-02_dl) * s &
+                + 5.0000018483290443e-01_dl) * s &
+                + 1.0000000000000000_dl)
+
         else
-            u = q + PI / 2._dl
+            qplus = q + PI / 2._dl
+            invqplus = 1._dl / qplus
+            invqplus2 = invqplus * invqplus
+
+            u = qplus - invqplus * ( &
+                0.5_dl + invqplus2 * ( &
+                7._dl / 24._dl + invqplus2 * ( &
+                83._dl / 240._dl + invqplus2 * ( &
+                6949._dl / 13440._dl + invqplus2 * ( &
+                23399._dl / 26880._dl + invqplus2 * &
+                266317._dl / 168960._dl)))))
         end if
+
     end if
 
     invert_flat_action = z_turn * u
     end function invert_flat_action
 
-
-    subroutine init_universal_olver_cache()
-    integer, parameter :: n_ev = 1000, n_os = 2000
-    real(dl), parameter :: t_max = 12._dl
-    real(dl), parameter :: theta_max = PI / 2._dl - 1.0e-5_dl
-    integer :: i
-    real(dl) :: p, q
-    real(dl) :: p_ev(n_ev), p_os(n_os)
-
-    !$OMP CRITICAL (olver_univ_cache_init)
-    if (.not. univ_cache_initialized) then
-        univ_p_max_ev = (3._dl * (t_max - tanh(t_max)))**(1._dl / 3._dl)
-        univ_p_max_os = (3._dl * (tan(theta_max) - theta_max))**(1._dl / 3._dl)
-        univ_dp_ev = univ_p_max_ev / real(n_ev - 1, dl)
-        univ_dp_os = univ_p_max_os / real(n_os - 1, dl)
-
-        allocate(univ_u_ev(n_ev), univ_y2_ev(n_ev))
-        p_ev(1) = 0._dl
-        univ_u_ev(1) = 1._dl
-        do i = 2, n_ev
-            p = real(i - 1, dl) * univ_dp_ev
-            q = p**3 / 3._dl
-            p_ev(i) = p
-            univ_u_ev(i) = 1._dl / cosh(solve_evanescent_t(q))
-        end do
-        call spline_def(p_ev, univ_u_ev, n_ev, univ_y2_ev)
-
-        allocate(univ_theta_os(n_os), univ_y2_theta_os(n_os))
-        p_os(1) = 0._dl
-        univ_theta_os(1) = 0._dl
-        do i = 2, n_os
-            p = real(i - 1, dl) * univ_dp_os
-            q = p**3 / 3._dl
-            p_os(i) = p
-            univ_theta_os(i) = solve_oscillatory_theta(q)
-        end do
-        call spline_def(p_os, univ_theta_os, n_os, univ_y2_theta_os)
-
-        univ_cache_initialized = .true.
-    end if
-    !$OMP END CRITICAL (olver_univ_cache_init)
-    end subroutine init_universal_olver_cache
-
-
-    real(dl) function solve_evanescent_t(q) result(t)
-    real(dl), intent(in) :: q
-    real(dl) :: low, high, mid
-    integer :: iter
-
-    low = q
-    high = q + 1._dl
-    do iter = 1, 60
-        mid = 0.5_dl * (low + high)
-        if (mid - tanh(mid) > q) then
-            high = mid
-        else
-            low = mid
-        end if
-    end do
-    t = 0.5_dl * (low + high)
-    end function solve_evanescent_t
-
-
-    real(dl) function solve_oscillatory_theta(q) result(theta)
-    real(dl), intent(in) :: q
-    real(dl) :: low, high, mid
-    integer :: iter
-
-    low = 0._dl
-    high = PI / 2._dl - 1.0e-15_dl
-    do iter = 1, 70
-        mid = 0.5_dl * (low + high)
-        if (tan(mid) - mid > q) then
-            high = mid
-        else
-            low = mid
-        end if
-    end do
-    theta = 0.5_dl * (low + high)
-    end function solve_oscillatory_theta
-
-
-    real(dl) function uniform_spline_eval(y, y2, dx, x0) result(val)
-    real(dl), intent(in) :: y(:), y2(:), dx, x0
-    integer :: idx, n
-    real(dl) :: a, b, t
-
-    n = size(y)
-    t = x0 / dx
-    idx = min(max(int(t), 0), n - 2)
-    b = t - real(idx, dl)
-    a = 1._dl - b
-    val = a * y(idx + 1) + b * y(idx + 2) + &
-        ((a**3 - a) * y2(idx + 1) + (b**3 - b) * y2(idx + 2)) * dx**2 / 6._dl
-    end function uniform_spline_eval
-
-
-    real(dl) function qintegral_exact(sin_K, alpha, K)
+    pure real(dl) function qintegral_exact(sin_K, alpha, K) result(q)
     real(dl), intent(in) :: sin_K, alpha
     integer, intent(in) :: K
 
-    real(dl) :: arg, root1, root2, dummyarg
+    real(dl), parameter :: zero = 0._dl, one = 1._dl, two = 2._dl, half = 0.5_dl
+    real(dl) :: x, x2, a2, ha, r1, r2, u, v, m
 
-    arg = alpha * sin_K
+    x  = alpha * sin_K
+    x2 = x * x
+    a2 = alpha * alpha
+    ha = half * alpha
 
-    if (K == 0) then
-        if (arg > 1._dl) then
-            qintegral_exact = sqrt(arg * arg - 1._dl) - acos(1._dl / arg)
+    select case (K)
+
+    case (0)
+        if (x > one) then
+            r1 = sqrt(x2 - one)
+            q = r1 - acos(one / x)
         else
-            root1 = sqrt(max(0._dl, 1._dl - arg * arg))
-            qintegral_exact = log((1._dl + root1) / max(arg, CACHE_EPS)) - root1
+            r1 = sqrt(max(zero, one - x2))
+            q = log((one + r1) / max(x, CACHE_EPS)) - r1
         end if
-        return
-    end if
 
-    if (K == -1) then
-        if (arg > 1._dl) then
-            root1 = sqrt(arg * arg - 1._dl)
-            root2 = sqrt(arg * arg + alpha * alpha)
-            qintegral_exact = alpha / 2._dl * log((2._dl * arg * arg + alpha * alpha - 1._dl + &
-                2._dl * root1 * root2) / (1._dl + alpha * alpha)) - atan2(alpha * root1, root2)
+    case (-1)
+        if (x > one) then
+            r1 = sqrt(x2 - one)
+            r2 = sqrt(x2 + a2)
+
+            q = ha * log((two*x2 + a2 - one + two*r1*r2) / (one + a2)) &
+                - atan2(alpha*r1, r2)
         else
-            root1 = sqrt(max(0._dl, (1._dl - arg * arg) * (arg * arg + alpha * alpha)))
-            qintegral_exact = alpha / 2._dl * atan2(-2._dl * root1, 2._dl * arg * arg + alpha * alpha - 1._dl) + &
-                0.5_dl * log((2._dl * alpha * root1 + 2._dl * alpha * alpha + arg * arg * (1._dl - alpha * alpha)) / &
-                max(arg * arg * (1._dl + alpha * alpha), CACHE_EPS))
-        end if
-        return
-    end if
+            r1 = sqrt(max(zero, (one - x2) * (x2 + a2)))
 
-    if (arg > 1._dl) then
-        root1 = sqrt(arg * arg - 1._dl)
-        root2 = sqrt(max(0._dl, alpha * alpha - arg * arg))
-        qintegral_exact = alpha / 2._dl * atan2(2._dl * root1 * root2, alpha * alpha + 1._dl - 2._dl * arg * arg) - &
-            atan2(root1 * alpha, root2)
-    else
-        root1 = sqrt(max(0._dl, (1._dl - arg * arg) * (alpha * alpha - arg * arg)))
-        dummyarg = alpha * (1._dl - arg * arg) / max(root1, CACHE_EPS)
-        dummyarg = min(max(dummyarg, -1._dl + 1.0e-12_dl), 1._dl - 1.0e-12_dl)
-        qintegral_exact = 0.5_dl * log((1._dl + dummyarg) / (1._dl - dummyarg)) - alpha / 2._dl * &
-            log((alpha * alpha - 2._dl * arg * arg + 1._dl + 2._dl * root1) / max(alpha * alpha - 1._dl, CACHE_EPS))
-    end if
+            q = ha * atan2(-two*r1, two*x2 + a2 - one) &
+                + half * log((two*alpha*r1 + two*a2 + x2*(one - a2)) / &
+                max(x2*(one + a2), CACHE_EPS))
+        end if
+
+    case default
+        if (x > one) then
+            r1 = sqrt(x2 - one)
+            r2 = sqrt(max(zero, a2 - x2))
+
+            q = ha * atan2(two*r1*r2, a2 + one - two*x2) &
+                - atan2(alpha*r1, r2)
+        else
+            m = a2 - one
+
+            if (m > CACHE_EPS) then
+                u = sqrt(max(zero, one - x2))
+                v = sqrt(max(zero, a2 - x2))
+                q = log(v + alpha*u) - alpha*log(v + u) &
+                    - half*log(max(x2, CACHE_EPS)) &
+                    + half*(alpha - one)*log(m)
+            else
+                q = -half*log(max(x2, CACHE_EPS))
+            end if
+        end if
+
+    end select
     end function qintegral_exact
 
     end module OlverHypersphericalBessel

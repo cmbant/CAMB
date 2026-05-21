@@ -55,6 +55,7 @@
     use precision
     use results
     use GaugeInterface
+    use HypersphericalBesselDerivatives, only: USpherBesselWithDeriv
     use SpherBessels
     use MassiveNu
     use InitialPower
@@ -422,6 +423,8 @@
 
     if (.not. CP%SourceTerms%limber_windows .or. State%num_redshiftwindows==0 &
         .and. CP%SourceTerms%limber_phi_lmin==0) return
+
+    ! Only if there are extra source windows. Note only flat models supported for sources.
 
     if (ThisCT%ls%l(ThisCT%ls%nl) > 5000) then
         max_bessels_l_index = ThisCT%ls%indexOf(5000)
@@ -1295,6 +1298,7 @@
             .and. CP%Accuracy%AccurateReionization) then
             LowQIntBoost = LowQIntBoost*1.8_dl
             if (.not. State%flat) LowQIntBoost = max(LowQIntBoost, 2.2_dl)
+            if (State%closed) LowQIntBoost = max(LowQIntBoost, 2.2_dl + 15._dl*(1._dl - State%scale))
         end if
         !Split up into logarithmically spaced intervals from qmin up to k=lognum*dk0
         !then no-lognum*dk0 linearly spaced at dk0 up to no*dk0
@@ -1311,6 +1315,11 @@
         if (do_bispectrum) k_max_0 = max(10.d0,k_max_0)
 
         dk2 = 0.04/IntSampleBoost  !very small scales
+        if (AccuracyTarget > 0 .and. State%closed .and. CP%Want_CMB_lensing .and. maximum_l > 3500) then
+            ! Keep the final high-q tail at a fixed q*tau0 spacing before the closed-mode
+            ! quantization step turns it into a geometry-dependent delta-nu.
+            dk2 = min(dk2, 380._dl/State%tau0)
+        end if
         if (State%num_redshiftwindows>0) dk2 = dk  !very small scales
 
         call ThisCT%q%Add_delta(qmin, k_max_log, dlnk1, IsLog = .true.)
@@ -2095,7 +2104,6 @@
     !non-flat source integration
 
     subroutine IntegrateSourcesBessels(IV,ThisCT,j,l,nu)
-    use SpherBessels
     type(IntegrationVars) IV
     Type(ClTransferData) :: ThisCT
     logical DoInt
