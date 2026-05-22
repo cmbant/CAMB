@@ -87,7 +87,7 @@
     integer, intent(in) :: l, K
     real(dl), intent(in) :: achi, symm
     logical, intent(in) :: raw
-    real(dl) :: u
+    real(dl) :: u, beta
     real(dl) :: alpha_gate, metric, denom, z, amp, j_l
 
     alpha_gate = beta / real(l, dl)
