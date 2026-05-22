@@ -232,7 +232,7 @@
     logical :: short_integral_range
     real(dl) range_fac, apodize_width
     logical, parameter :: approx = .false.
-    real(dl) theta_cut(lmax), LensAccuracyBoost, ThetaSampleBoost, LensRangeBoost
+    real(dl) theta_cut(lmax), LensAccuracyBoost, ThetaSampleBoost, LensRangeBoost, ClosedSupportBoost
     Type(TTimer) :: Timer
 
     !$ integer  OMP_GET_THREAD_NUM, OMP_GET_MAX_THREADS
@@ -242,16 +242,23 @@
     associate(lSamp => State%CLData%CTransScal%ls, CP=>State%CP)
 
         LensAccuracyBoost = CP%Accuracy%AccuracyBoost*CP%Accuracy%LensingBoost
+        ClosedSupportBoost = 1._dl
         LensRangeBoost = LensAccuracyBoost
         ThetaSampleBoost = LensAccuracyBoost
 
         if (AccuracyTarget > 0) then
             ThetaSampleBoost = ThetaSampleBoost * 1.6_dl
             if (CP%Max_l > 3500) ThetaSampleBoost = ThetaSampleBoost * (2.2_dl/1.6_dl)
+            if (CP%Max_l > 3500 .and. State%closed .and. .not. CP%Accuracy%AccurateBB) then
+                ClosedSupportBoost = min(2._dl, 1._dl + 32._dl*max(0._dl, 1._dl - State%scale))
+                LensRangeBoost = max(LensRangeBoost, ClosedSupportBoost)
+                ThetaSampleBoost = max(ThetaSampleBoost, 2.2_dl*ClosedSupportBoost)
+            end if
             ! Open models have a larger angular-diameter distance than the flat case, so the
             ! truncated short-range correlation integral needs extra angular support and denser
             ! l interpolation to track the same physical lensing scale near the output cutoff.
-            if (CP%Max_l > 3500) LensRangeBoost = max(LensRangeBoost, min(2._dl, 1._dl + 32._dl*max(0._dl, State%scale - 1._dl)))
+            if (CP%Max_l > 3500) LensRangeBoost =  max(LensRangeBoost, &
+                min(2._dl, 1._dl + 32._dl*max(0._dl, State%scale - 1._dl)))
         else if (CP%Max_l > 3500) then
             ThetaSampleBoost = ThetaSampleBoost * 1.3_dl
         end if

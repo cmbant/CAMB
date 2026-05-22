@@ -16,7 +16,7 @@
     real(dl), parameter :: SMALLCHI_GATE_ALPHA = 3._dl
     real(dl), parameter :: SMALLCHI_GATE_METRIC = 5.0e-2_dl
 
-    public :: phi_olver, phi_olver_raw, u_olver, phi_olver_smallchi
+    public :: phi_olver, u_olver, phi_olver_smallchi
     public :: olver_cached_coordinate, compute_olver_z_amp_smallchi
 
     contains
@@ -39,16 +39,6 @@
     phi = olver_value(l, K, beta, chi, reduced=.false., raw=.false.)
     end function phi_olver
 
-
-    function phi_olver_raw(l, K, beta, chi) result(phi)
-    integer, intent(in) :: l, K
-    real(dl), intent(in) :: beta, chi
-    real(dl) :: phi
-
-    phi = olver_value(l, K, beta, chi, reduced=.false., raw=.true.)
-    end function phi_olver_raw
-
-
     function u_olver(l, K, beta, chi) result(u)
     integer, intent(in) :: l, K
     real(dl), intent(in) :: beta, chi
@@ -63,14 +53,9 @@
     real(dl), intent(in) :: beta, chi
     logical, intent(in) :: reduced, raw
     real(dl) :: val
-    real(dl) :: achi, radius, symm, j_l
+    real(dl) :: achi, symm, j_l
 
     call normalize_chi(l, K, beta, chi, achi, symm)
-
-    if (achi <= CACHE_EPS) then
-        val = 0._dl
-        return
-    end if
 
     if (K == 0) then
         call bjl(l, beta * achi, j_l)
@@ -82,21 +67,25 @@
         return
     end if
 
-    radius = curved_radius(K, achi)
-    if (l <= 1) then
+    if (l <= 2) then
         val = symm * phi_recurs_stable(l, K, beta, achi)
-        if (reduced) val = val * radius
+        if (reduced) val = val * curved_radius(K, achi)
+        return
+    end if
+
+    if (achi <= CACHE_EPS) then
+        val = 0._dl
         return
     end if
 
     val = olver_reduced(l, K, beta, achi, symm, raw)
-    if (.not. reduced) val = val / radius
+    if (.not. reduced) val = val / curved_radius(K, achi)
     end function olver_value
 
 
     function olver_reduced(l, K, beta, achi, symm, raw) result(u)
     integer, intent(in) :: l, K
-    real(dl), intent(in) :: beta, achi, symm
+    real(dl), intent(in) :: achi, symm
     logical, intent(in) :: raw
     real(dl) :: u
     real(dl) :: alpha_gate, metric, denom, z, amp, j_l
@@ -122,20 +111,15 @@
         ! The constants below are grid-calibrated thresholds on these metrics.
         if (alpha_gate < OLVER_GATE_ALPHA) then
             if (K == 1) then
-                denom = beta - real(l, dl)
-                if (denom <= 0._dl) then
-                    u = stable_reduced(l, K, beta, achi, symm)
-                    return
-                end if
-                metric = achi / (2._dl * denom)
+                metric = achi / (2._dl * (beta - real(l, dl)))
                 if (metric > OLVER_GATE_CLOSED_EPS) then
-                    u = stable_reduced(l, K, beta, achi, symm)
+                    u = symm * phi_recurs_stable(l, K, beta, achi) * curved_radius(K, achi)
                     return
                 end if
             else if (K == -1) then
                 metric = achi / (2._dl * max(beta, tiny(1._dl)))
                 if (metric > OLVER_GATE_OPEN_EPS) then
-                    u = stable_reduced(l, K, beta, achi, symm)
+                    u = symm * phi_recurs_stable(l, K, beta, achi) * curved_radius(K, achi)
                     return
                 end if
             end if
@@ -146,15 +130,6 @@
     call bjl(l, beta * z, j_l)
     u = symm * amp * z * j_l
     end function olver_reduced
-
-
-    real(dl) function stable_reduced(l, K, beta, achi, symm) result(u)
-    integer, intent(in) :: l, K
-    real(dl), intent(in) :: beta, achi, symm
-
-    u = symm * phi_recurs_stable(l, K, beta, achi) * curved_radius(K, achi)
-    end function stable_reduced
-
 
     logical function use_smallchi_map(l, beta, achi, alpha_gate) result(use_smallchi)
     integer, intent(in) :: l
@@ -241,8 +216,6 @@
         z = turn_z + turn_scale**(1._dl / 3._dl) * (achi - turn_chi)
         if (present(amp)) amp = turn_scale**(-1._dl / 6._dl)
         return
-    else if (abs(achi - turn_chi) <= 1.0e-10_dl * max(1._dl, turn_chi)) then
-        z = turn_z
     else
         sin_k = curved_radius(K, achi)
         action = qintegral_exact(sin_k, alpha, K)
@@ -449,7 +422,7 @@
 
     real(dl) :: q, p, s, u
     real(dl) :: A, e
-    real(dl) :: x, num, den, qplus, invqplus, invqplus2
+    real(dl) :: x, qplus, invqplus, invqplus2
 
     q = max(action, 0._dl)
     p = (3._dl * q)**(1._dl / 3._dl)
@@ -459,8 +432,8 @@
         ! Evanescent branch:
         !   q = t - tanh(t),  u = sech(t)
         !
-        ! Near the turning point use a polynomial in p^2.
-        ! Farther out use the large-q asymptotic inversion.
+        ! Near the turning point use a polynomial fit in p^2.
+        ! Farther out use the large-q asymptotic inversion for sech(t).
         if (p < 1.8_dl) then
             s = p * p
 
@@ -488,8 +461,8 @@
         !   q = tan(theta) - theta
         !   u = sec(theta)
         !
-        ! Uses a 6/6 rational in x=(p/3)^2 for p<3, and a high-order
-        ! asymptotic expansion in q + pi/2 for p>=3.
+        ! Uses a polynomial fit in p^2 near the turning point and a high-order
+        ! asymptotic expansion in q + pi/2 farther out.
 
 
         if (p < 2._dl) then

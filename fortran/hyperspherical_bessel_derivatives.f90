@@ -1,7 +1,6 @@
     module HypersphericalBesselDerivatives
     use Precision
     use results
-    use SpherBessels, only: phi_langer
     use OlverHypersphericalBessel, only: u_olver
     implicit none
     private
@@ -13,6 +12,7 @@
     subroutine USpherBesselWithDeriv(closed,CP,Chi,l,beta,y1,y2)
     !returns y1=ujl*sinhChi and y2=diff(y1,Chi)
     !Olver should be accurate to 1e-4 (falls back to recursive if needed)
+    ! - and much better at high L, beta/l
     real(dl) Chi,beta,y1,y2
     real(dl) sin_K, cot_K
     integer l,K

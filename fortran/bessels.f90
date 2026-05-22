@@ -1,11 +1,6 @@
-    !CAMB spherical and hyperspherical Bessel function routines
-    !This version May 2006 - minor changes to bjl (http://cosmocoffee.info/viewtopic.php?t=530)
-    !Feb 2007: fixed for high l, uses Ranges
-    !Feb 2009: minor fix for non-flat compiled with non-smart IF evaluation
-    !Dec 2011: minor tweak to DoRecurs for smoother errors across flat for L~O(30)
-    !May 2026: updated bjl; direct peak-normalized checks now give a ~4.4e-5 floor
-    !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-    !Flat bessel function module
+    !CAMB flat spherical Bessel function routines
+    !May 2026: updated bjl, accurate to peak-normalized fraction 1e-5 at L>50, max ~4.4e-5 at BJL_RECURRENCE_MAX_L
+    !          (pre-splining). Spline table accurate to 2e-4 in tail, better round peak.
 
     module FlatBessels
     use Precision
@@ -33,6 +28,7 @@
     ! exp[-(2*sqrt(2)/3)*d**(3/2)/sqrt(l)].  Requiring ~1e-4 of peak
     ! gives delta ~ 4.2*l**(1/3), with a small safety margin.
     real(dl), parameter :: bjl_pre_peak_start_factor  = 4.2_dl
+    integer, parameter :: BJL_RECURRENCE_MAX_L = 25
     real(dl) file_acc
 
     type(TRanges), save:: BessRanges
@@ -69,8 +65,15 @@
     subroutine GenerateBessels(lSamp, CP)
     Type(lSamples) lSamp
     Type(CAMBParams) :: CP
-    real(dl) x, xlim
-    integer i,j
+    integer j
+    integer, parameter :: cut_max_l = 25
+    real(dl), parameter :: cut(1:cut_max_l) = (/ &
+        0.000000_dl, 0.000000_dl, 0.063316_dl, 0.208916_dl, &
+        0.448187_dl, 0.769530_dl, 1.158338_dl, 1.601506_dl, 2.088363_dl, &
+        2.610505_dl, 3.161369_dl, 3.735827_dl, 4.329841_dl, 4.940211_dl, &
+        5.564374_dl, 6.200262_dl, 6.846189_dl, 7.500771_dl, 8.162861_dl, &
+        8.831502_dl, 9.505890_dl,10.185346_dl,10.869292_dl,11.557230_dl, &
+        12.248737_dl /)
 
     if (DebugMsgs .and. FeedbackLevel > 0) write (*,*) 'Generating flat Bessels...'
 
@@ -86,7 +89,7 @@
     call BessRanges%Add_delta(5._dl, 25._dl,0.2_dl/CP%Accuracy%BesselBoost)
     file_acc = CP%Accuracy%BesselBoost*CP%Accuracy%AccuracyBoost
     call BessRanges%Add_delta(25._dl, 150._dl,0.5_dl/file_acc)
-    call BessRanges%Add_delta(150._dl, real(kmaxfile,dl),0.8_dl/file_acc)
+    call BessRanges%Add_delta(150._dl, real(kmaxfile,dl),0.7_dl/file_acc) !2e-4 accuracy
 
     call BessRanges%GetArray(.false.)
     num_xx = BessRanges%npoints
@@ -99,29 +102,24 @@
         allocate(bessel_horner(1:4,1:num_xx-1,1:max_ix))
     end if
 
-    !$OMP PARALLEL DO DEFAULT(SHARED), SCHEDULE(STATIC), PRIVATE(i, x, xlim)
+    !$OMP PARALLEL DO DEFAULT(SHARED), SCHEDULE(STATIC)
     do j=1,max_ix
         block
-            real(dl) :: h2over6, y0, y1, d0, d1
+            real(dl) :: h2over6, y0, y1, d0, d1, xlim
             real(dl) :: knot_vals(num_xx), spline_y2(num_xx)
+            integer :: min_ix, i
 
-            do  i=1,num_xx
-                x=BessRanges%points(i)
-                xlim = lSamp%l(j) - bjl_pre_peak_start_factor*lSamp%l(j)**(1._dl/3._dl)
-                if (x > xlim) then
-                    if ((lSamp%l(j)==3).and.(x <=0.2) .or. (lSamp%l(j) > 3).and.(x < 0.5) .or. &
-                        (lSamp%l(j)>5).and.(x < 1.0)) then
-                        knot_vals(i)=0
-                    else
-                        call bjl(lSamp%l(j),x,knot_vals(i))
-                    end if
-                else
-                    knot_vals(i)=0
-                end if
+            xlim = max(lSamp%l(j) - bjl_pre_peak_start_factor*lSamp%l(j)**(1._dl/3._dl) - 1, &
+                cut(min(cut_max_l, lSamp%l(j))))
+            min_ix = max(1, BessRanges%IndexOf(xlim) - 1)
+            knot_vals(1:max(min_ix-1,1)) = 0
+            do  i=min_ix,num_xx
+                call bjl(lSamp%l(j),BessRanges%points(i),knot_vals(i))
             end do
 
             call spline_def(BessRanges%points,knot_vals,num_xx,spline_y2)
-            do i=1,num_xx-1
+            bessel_horner(:,1:max(min_ix-1,1),j) = 0
+            do i=max(1,min_ix-1),num_xx-1
                 y0 = knot_vals(i)
                 y1 = knot_vals(i+1)
                 d0 = spline_y2(i)
@@ -149,60 +147,200 @@
     end subroutine Bessels_Free
 
 ! Optimized spherical Bessel wrapper.
-! Strategy:
-!   For low L use (v accurate and still fast) recursive result
-!   Elsewhere use a two-term corrected uniform Airy asymptotic
-!   in the transition bands, using fast approximate bjl_approx
-!   elsewhere where it is accurate.
 !
 ! The Airy Ai and Ai' used by the uniform expansion are evaluated by Chebyshev
 ! fits on tau in [-6.5,6.5], which covers the transition bands used below.
-! Max peak-normalized error is about 4.4e-5 in the current scan. Typical error < 2e-6.
 
     SUBROUTINE BJL(L, X, JL)
+    ! Optimized spherical Bessel j_l(x).
+    ! Branches are ordered from most robust/cheap special cases to the
+    ! large-order asymptotic regions.
     IMPLICIT NONE
     INTEGER, INTENT(IN) :: L
     REAL(dl), INTENT(IN) :: X
     REAL(dl), INTENT(OUT) :: JL
 
-    REAL(dl) :: AX, NU, L3, LOGELL
-    REAL(dl) :: SMALL_BOUNDARY
-    REAL(dl) :: PATCH_LOW, PATCH_HIGH, KEEP
-    REAL(dl) :: PATCH_LOWER, KEEP_LOWER, KEEP_UPPER, PATCH_UPPER
+    REAL(dl), PARAMETER :: LN2      = 0.6931471805599453094E0_dl
+    REAL(dl), PARAMETER :: ONEMLN2  = 0.30685281944005469058277E0_dl
+    REAL(dl), PARAMETER :: PID2     = 1.5707963267948966192313217E0_dl
+    REAL(dl), PARAMETER :: PID4     = 0.78539816339744830961566084582E0_dl
+    REAL(dl), PARAMETER :: ROOTPI12 = 21.269446210866192327578E0_dl
+    REAL(dl), PARAMETER :: GAMMA1   = 2.6789385347077476336556E0_dl
+    REAL(dl), PARAMETER :: GAMMA2   = 1.3541179394264004169452E0_dl
 
-    IF (L < 7) THEN
-        CALL BJL_approx(L, X, JL) !acutually exact..
-        RETURN
-    ELSE IF (L <= 25) THEN
-        CALL BJL_RECURRENCE_FAST(L, X, JL)
-        RETURN
+    REAL(dl) :: AX, AX2, NU, NU2, BETA, BETA2, COSB
+    REAL(dl) :: SX, SX2, COTB, COT3B, COT6B, SECB, SEC2B
+    REAL(dl) :: TRIGARG, EXPTERM, L3, ETA
+
+    REAL(dl), PARAMETER :: BJL_RECURRENCE_ETA_LOW  = -5.0E0_dl
+    REAL(dl), PARAMETER :: BJL_RECURRENCE_ETA_HIGH =  5.6E0_dl
+    REAL(dl), PARAMETER :: BJL_AIRY_ETA_LOW        = -2.3E0_dl
+    REAL(dl), PARAMETER :: BJL_PEAK_ETA_LOW        = -0.65E0_dl
+    REAL(dl), PARAMETER :: BJL_PEAK_ETA_HIGH       =  0.65E0_dl
+    REAL(dl), PARAMETER :: BJL_AIRY_ETA_HIGH       =  4.0E0_dl
+
+    IF (L < 0) THEN
+        ERROR STOP 'Can not evaluate Spherical Bessel Function with index l<0'
     END IF
 
     AX = ABS(X)
-    NU = REAL(L, dl) + 0.5E0_dl
-    L3 = NU**0.325E0_dl
-    ! l-dependent switch scaling fitted to the original error envelope.
-    LOGELL = LOG(REAL(L, dl))
+    AX2 = AX**2
 
-    PATCH_LOW  = 3.25E0_dl + 0.195E0_dl * LOGELL
-    PATCH_HIGH = 5.75E0_dl - 0.075E0_dl * LOGELL
-    KEEP       = 1.02E0_dl - 0.065E0_dl * LOGELL
+    ! Low orders: use explicit formulas, with small-x series to avoid cancellation.
+    IF (L < 7) THEN
+        SELECT CASE (L)
+        CASE (0)
+            IF (AX < 1.0E-1_dl) THEN
+                JL = 1.0E0_dl - AX2/6.0E0_dl*(1.0E0_dl - AX2/20.0E0_dl)
+            ELSE
+                JL = SIN(AX)/AX
+            END IF
+        CASE (1)
+            IF (AX < 2.0E-1_dl) THEN
+                JL = AX/3.0E0_dl*(1.0E0_dl - AX2/10.0E0_dl*(1.0E0_dl - AX2/28.0E0_dl))
+            ELSE
+                JL = (SIN(AX)/AX - COS(AX))/AX
+            END IF
+        CASE (2)
+            IF (AX < 3.0E-1_dl) THEN
+                JL = AX2/15.0E0_dl*(1.0E0_dl - AX2/14.0E0_dl*(1.0E0_dl - AX2/36.0E0_dl))
+            ELSE
+                JL = (-3.0E0_dl*COS(AX)/AX - SIN(AX)*(1.0E0_dl - 3.0E0_dl/AX2))/AX
+            END IF
+        CASE (3)
+            IF (AX < 4.0E-1_dl) THEN
+                JL = AX*AX2/105.0E0_dl*(1.0E0_dl - AX2/18.0E0_dl*(1.0E0_dl - AX2/44.0E0_dl))
+            ELSE
+                JL = (COS(AX)*(1.0E0_dl - 15.0E0_dl/AX2) - SIN(AX)*(6.0E0_dl - 15.0E0_dl/AX2)/AX)/AX
+            END IF
+        CASE (4)
+            IF (AX < 6.0E-1_dl) THEN
+                JL = AX2**2/945.0E0_dl*(1.0E0_dl - AX2/22.0E0_dl*(1.0E0_dl - AX2/52.0E0_dl))
+            ELSE
+                JL = (SIN(AX)*(1.0E0_dl - (45.0E0_dl - 105.0E0_dl/AX2)/AX2) + COS(AX)*(10.0E0_dl - 105.0E0_dl/AX2)/AX)/AX
+            END IF
+        CASE (5)
+            IF (AX < 1.0E0_dl) THEN
+                JL = AX2**2*AX/10395.0E0_dl*(1.0E0_dl - AX2/26.0E0_dl*(1.0E0_dl - AX2/60.0E0_dl))
+            ELSE
+                JL = (SIN(AX)*(15.0E0_dl - (420.0E0_dl - 945.0E0_dl/AX2)/AX2)/AX - &
+                    COS(AX)*(1.0E0_dl - (105.0E0_dl - 945.0E0_dl/AX2)/AX2))/AX
+            END IF
+        CASE DEFAULT
+            IF (AX < 1.0E0_dl) THEN
+                JL = AX2**3/135135.0E0_dl*(1.0E0_dl - AX2/30.0E0_dl*(1.0E0_dl - AX2/68.0E0_dl))
+            ELSE
+                JL = (SIN(AX)*(-1.0E0_dl + (210.0E0_dl - (4725.0E0_dl - 10395.0E0_dl/AX2)/AX2)/AX2) + &
+                    COS(AX)*(-21.0E0_dl + (1260.0E0_dl - 10395.0E0_dl/AX2)/AX2)/AX)/AX
+            END IF
+        END SELECT
 
-    PATCH_LOW  = MIN(MAX(PATCH_LOW,  4.00E0_dl), 5.00E0_dl)
-    PATCH_HIGH = MIN(MAX(PATCH_HIGH, 5.10E0_dl), 5.60E0_dl)
-    KEEP       = MIN(MAX(KEEP,       0.46E0_dl), 0.76E0_dl)
-
-    PATCH_LOWER = NU - PATCH_LOW  * L3
-    KEEP_LOWER  = NU - KEEP       * L3
-    KEEP_UPPER  = NU + KEEP       * L3
-    PATCH_UPPER = NU + PATCH_HIGH * L3
-
-    IF ((AX >= PATCH_LOWER .AND. AX < KEEP_LOWER) .OR. &
-        (AX > KEEP_UPPER .AND. AX <= PATCH_UPPER)) THEN
-        CALL BJL_UNIFORM_AIRY_FAST(L, X, JL)
-    ELSE
-        CALL BJL_approx(L, X, JL)
+        IF (X < 0.0E0_dl .AND. MOD(L, 2) /= 0) JL = -JL
+        RETURN
     END IF
+
+
+    NU = REAL(L, dl) + 0.5E0_dl
+    NU2 = NU**2
+
+    IF (AX < 1.0E-40_dl) THEN
+        ! Very small x: j_l(x) is negligible here for l >= 7.
+        JL = 0.0E0_dl
+    ELSE IF ((AX2/REAL(L, dl)) < 5.0E-1_dl) THEN
+        ! Deep pre-peak: exponentially small ascending expansion.
+        JL = EXP(REAL(L, dl)*LOG(AX/NU) - LN2 + NU*ONEMLN2 &
+            - (1.0E0_dl - (1.0E0_dl - 3.5E0_dl/NU2)/NU2/30.0E0_dl)/12.0E0_dl/NU) &
+            /NU*(1.0E0_dl - AX2/(4.0E0_dl*NU + 4.0E0_dl) &
+            *(1.0E0_dl - AX2/(8.0E0_dl*NU + 16.0E0_dl) &
+            *(1.0E0_dl - AX2/(12.0E0_dl*NU + 36.0E0_dl))))
+    ELSE IF ((REAL(L, dl)**2/AX) < 5.0E-1_dl) THEN
+        ! Far past the peak: oscillatory large-x expansion.
+        BETA = AX - PID2*REAL(L + 1, dl)
+        JL = (COS(BETA)*(1.0E0_dl - (NU2 - 0.25E0_dl)*(NU2 - 2.25E0_dl)/8.0E0_dl/AX2 &
+            *(1.0E0_dl - (NU2 - 6.25E0_dl)*(NU2 - 12.25E0_dl)/48.0E0_dl/AX2)) &
+            - SIN(BETA)*(NU2 - 0.25E0_dl)/2.0E0_dl/AX &
+            *(1.0E0_dl - (NU2 - 2.25E0_dl)*(NU2 - 6.25E0_dl)/24.0E0_dl/AX2 &
+            *(1.0E0_dl - (NU2 - 12.25E0_dl)*(NU2 - 20.25E0_dl)/80.0E0_dl/AX2)))/AX
+    ELSE
+        ! Broad transition region: classify once by normalized distance from
+        ! the peak. The lower Airy shoulder is kept only where the below-peak
+        ! form loses accuracy; the upper shoulder is deliberately shorter
+        ! because the post-peak asymptotic form becomes accurate and faster.
+        L3 = NU**0.325E0_dl
+        ETA = (AX - NU)/L3
+
+        ! For moderate orders, use recurrence only where the asymptotic
+        ! transition forms lose accuracy. Deep pre-peak and far-x cases have
+        ! already returned through faster asymptotic branches.
+        IF (L <= BJL_RECURRENCE_MAX_L) THEN
+            IF (ETA >= BJL_RECURRENCE_ETA_LOW .AND. ETA <= BJL_RECURRENCE_ETA_HIGH) THEN
+                CALL BJL_RECURRENCE_FAST(L, X, JL)
+                RETURN
+            END IF
+        END IF
+
+        IF (ETA < BJL_AIRY_ETA_LOW) THEN
+            ! Below the peak but outside the exponentially tiny region.
+            COSB = NU/AX
+            SX = SQRT(NU2 - AX2)
+            COTB = NU/SX
+            SECB = AX/NU
+            BETA = LOG(COSB + SX/AX)
+            COT3B = COTB**3
+            COT6B = COT3B**2
+            SEC2B = SECB**2
+            EXPTERM = ((2.0E0_dl + 3.0E0_dl*SEC2B)*COT3B/24.0E0_dl &
+                - ((4.0E0_dl + SEC2B)*SEC2B*COT6B/16.0E0_dl &
+                + ((16.0E0_dl - (1512.0E0_dl + (3654.0E0_dl + 375.0E0_dl*SEC2B)*SEC2B)*SEC2B)*COT3B/5760.0E0_dl &
+                + (32.0E0_dl + (288.0E0_dl + (232.0E0_dl + 13.0E0_dl*SEC2B)*SEC2B)*SEC2B)*SEC2B*COT6B/128.0E0_dl/NU)*COT6B/NU) &
+                /NU)/NU
+            JL = SQRT(COTB*COSB)/(2.0E0_dl*NU)*EXP(-NU*BETA + NU/COTB - EXPTERM)
+        ELSE IF (ETA < BJL_PEAK_ETA_LOW) THEN
+            ! Lower shoulder: uniform Airy form covers the pre-peak transition.
+            CALL BJL_UNIFORM_AIRY_FAST(L, X, JL)
+            RETURN
+        ELSE IF (ETA <= BJL_PEAK_ETA_HIGH) THEN
+            ! Very close to the peak: polynomial transition expansion.
+            BETA = AX - NU
+            BETA2 = BETA**2
+            SX = 6.0E0_dl/AX
+            SX2 = SX**2
+            SECB = SX**(1.0E0_dl/3.0E0_dl)
+            SEC2B = SECB**2
+            JL = (GAMMA1*SECB + BETA*GAMMA2*SEC2B &
+                - (BETA2/18.0E0_dl - 1.0E0_dl/45.0E0_dl)*BETA*SX*SECB*GAMMA1 &
+                - ((BETA2 - 1.0E0_dl)*BETA2/36.0E0_dl + 1.0E0_dl/420.0E0_dl)*SX*SEC2B*GAMMA2 &
+                + (((BETA2/1620.0E0_dl - 7.0E0_dl/3240.0E0_dl)*BETA2 + 1.0E0_dl/648.0E0_dl)*BETA2 &
+                - 1.0E0_dl/8100.0E0_dl)*SX2*SECB*GAMMA1 &
+                + (((BETA2/4536.0E0_dl - 1.0E0_dl/810.0E0_dl)*BETA2 + 19.0E0_dl/11340.0E0_dl)*BETA2 &
+                - 13.0E0_dl/28350.0E0_dl)*BETA*SX2*SEC2B*GAMMA2 &
+                - ((((BETA2/349920.0E0_dl - 1.0E0_dl/29160.0E0_dl)*BETA2 + 71.0E0_dl/583200.0E0_dl)*BETA2 &
+                - 121.0E0_dl/874800.0E0_dl)*BETA2 + 7939.0E0_dl/224532000.0E0_dl)*BETA*SX2*SX*SECB*GAMMA1) &
+                *SQRT(SX)/ROOTPI12
+        ELSE IF (ETA <= BJL_AIRY_ETA_HIGH) THEN
+            ! Upper shoulder: uniform Airy form only until the oscillatory form is better.
+            CALL BJL_UNIFORM_AIRY_FAST(L, X, JL)
+            RETURN
+        ELSE
+            ! Above the peak but not yet in the far-x regime.
+            COSB = NU/AX
+            SX = SQRT(AX2 - NU2)
+            COTB = NU/SX
+            SECB = AX/NU
+            BETA = ACOS(COSB)
+            COT3B = COTB**3
+            COT6B = COT3B**2
+            SEC2B = SECB**2
+            TRIGARG = NU/COTB - NU*BETA - PID4 &
+                - ((2.0E0_dl + 3.0E0_dl*SEC2B)*COT3B/24.0E0_dl &
+                + (16.0E0_dl - (1512.0E0_dl + (3654.0E0_dl + 375.0E0_dl*SEC2B)*SEC2B)*SEC2B)*COT3B*COT6B/5760.0E0_dl/NU2)/NU
+            EXPTERM = ((4.0E0_dl + SEC2B)*SEC2B*COT6B/16.0E0_dl &
+                - (32.0E0_dl + (288.0E0_dl + (232.0E0_dl + 13.0E0_dl*SEC2B)*SEC2B)*SEC2B)*SEC2B*COT6B**2/128.0E0_dl/NU2)/NU2
+            JL = SQRT(COTB*COSB)/NU*EXP(-EXPTERM)*COS(TRIGARG)
+        END IF
+    END IF
+
+    IF (X < 0.0E0_dl .AND. MOD(L, 2) /= 0) JL = -JL
 
     END SUBROUTINE BJL
 
@@ -321,7 +459,7 @@
     !       corrections.  Used only as an out-of-range fallback.
     !
     !   -6.5 <= x < -2.09
-    !       Local Chebyshev fits for Ai and Ai' on [-6.5, -2.09].
+    !       Local Chebyshev fits for Ai and Ai' on the active upper-shoulder range [-3.6, -2.09].
     !       This avoids sin/cos/rational derivative work in the usual
     !       tau range.
     !
@@ -330,7 +468,7 @@
     !       truncated for speed rather than full double precision.
     !
     !   2.09 <= x <= 6.5
-    !       Local Chebyshev fits for Ai and Ai' on [2.09, 6.5].
+    !       Local Chebyshev fits for Ai and Ai' on the active lower-shoulder range [2.09, 3.05].
     !
     !   x > 6.5
     !       Exponentially decaying Cephes-style asymptotic form with
@@ -441,12 +579,12 @@
     END IF
 
     IF (X >= -6.5E0_dl .AND. X < -2.09E0_dl) THEN
-        CALL AIRY_NEG_CHEB15_FAST(X, AI, AIP)
+        CALL AIRY_NEG_CHEB_FAST(X, AI, AIP)
         RETURN
     END IF
 
     IF (X >= 2.09E0_dl .AND. X <= 6.5E0_dl) THEN
-        CALL AIRY_POS_CHEB10_FAST(X, AI, AIP)
+        CALL AIRY_POS_CHEB_FAST(X, AI, AIP)
         RETURN
     END IF
 
@@ -559,41 +697,39 @@
 
     CONTAINS
 
-    SUBROUTINE AIRY_NEG_CHEB15_FAST(XV, AIV, AIPV)
+    SUBROUTINE AIRY_NEG_CHEB_FAST(XV, AIV, AIPV)
     IMPLICIT NONE
     REAL(dl), INTENT(IN)  :: XV
     REAL(dl), INTENT(OUT) :: AIV, AIPV
 
-    INTEGER, PARAMETER :: NCH = 16
+    INTEGER, PARAMETER :: NCH = 14
 
-    ! Maps XV in [-6.5, -2.09] to Y in [-1, 1].
-    REAL(dl), PARAMETER :: XMID  = -4.295E0_dl
-    REAL(dl), PARAMETER :: XHALF =  2.205E0_dl
+    ! Maps the used upper-shoulder tau range [-4.75, -2.09] to [-1, 1].
+    REAL(dl), PARAMETER :: XMID  = -3.42000000000000037E0_dl
+    REAL(dl), PARAMETER :: XHALF =  1.33000000000000007E0_dl
 
     REAL(dl) :: Y, TWOY
     REAL(dl) :: A0, A1, A2
     REAL(dl) :: P0, P1, P2
     INTEGER :: J
 
-    REAL(dl), PARAMETER :: CAI(16) = (/ &
-        -9.55550193128158892E-02_dl,  7.41177823586725154E-02_dl, &
-        -7.87017962013092653E-02_dl,  2.44917931901850044E-01_dl, &
-        1.61840769749720559E-01_dl, -1.42496606118389518E-01_dl, &
-        -1.96787835450132759E-02_dl,  3.03118074085087612E-02_dl, &
-        -2.53992015279218145E-03_dl, -2.92924621494435305E-03_dl, &
-        7.10714331325374348E-04_dl,  1.11224040935810749E-04_dl, &
-        -6.35725583267568239E-05_dl,  3.03034309182473455E-06_dl, &
-        2.77692484870453487E-06_dl, -5.21087238783824334E-07_dl /)
+    REAL(dl), PARAMETER :: CAI(14) = (/ &
+        -4.03840442579786723E-03_dl, -1.59160239850393986E-01_dl, &
+        3.32033428954130960E-01_dl, 5.52816344806841692E-02_dl, &
+        -5.87380789439008039E-02_dl, 1.42594167224066983E-03_dl, &
+        3.83320765503384524E-03_dl, -5.15288734810007577E-04_dl, &
+        -9.88229869572182192E-05_dl, 2.78689025935962363E-05_dl, &
+        -9.86711248543552530E-08_dl, -6.64164643179690834E-07_dl, &
+        6.67078851235519155E-08_dl, 6.23584827668025404E-09_dl /)
 
-    REAL(dl), PARAMETER :: CAIP(16) = (/ &
-        1.28554846638544606E-01_dl,  3.24671075566074663E-01_dl, &
-        1.89882679799835141E-01_dl,  4.67440773890445471E-01_dl, &
-        -4.76560672314042921E-01_dl, -1.19736622026907338E-01_dl, &
-        1.69682439333981833E-01_dl, -1.26412013737734301E-02_dl, &
-        -2.27734807200423474E-02_dl,  5.78905823832411796E-03_dl, &
-        1.13873327950330771E-03_dl, -6.57330254424061703E-04_dl, &
-        2.90149572409112524E-05_dl,  3.46159586568294970E-05_dl, &
-        -6.71697944266892732E-06_dl, -6.46579102281296447E-07_dl /)
+    REAL(dl), PARAMETER :: CAIP(14) = (/ &
+        7.85785534099702615E-03_dl, 6.78681155842563721E-01_dl, &
+        2.55054417201942774E-01_dl, -3.19915621638119096E-01_dl, &
+        5.66358489047926600E-03_dl, 3.33961341634626263E-02_dl, &
+        -5.05778118575379246E-03_dl, -1.18919365301728679E-03_dl, &
+        3.66310575640137399E-04_dl, -3.39181185274878346E-07_dl, &
+        -1.08628175993337255E-05_dl, 1.15412678791436187E-06_dl, &
+        1.22925519235653169E-07_dl, -3.46284641833705560E-08_dl /)
 
     Y = (XV - XMID) / XHALF
     TWOY = 2.0E0_dl * Y
@@ -617,38 +753,38 @@
     AIV  = Y*A1 - A2 + CAI(1)
     AIPV = Y*P1 - P2 + CAIP(1)
 
-    END SUBROUTINE AIRY_NEG_CHEB15_FAST
+    END SUBROUTINE AIRY_NEG_CHEB_FAST
 
 
-    SUBROUTINE AIRY_POS_CHEB10_FAST(XV, AIV, AIPV)
+    SUBROUTINE AIRY_POS_CHEB_FAST(XV, AIV, AIPV)
     IMPLICIT NONE
     REAL(dl), INTENT(IN)  :: XV
     REAL(dl), INTENT(OUT) :: AIV, AIPV
 
-    INTEGER, PARAMETER :: NCH = 10
+    INTEGER, PARAMETER :: NCH = 7
 
-    ! Maps XV in [2.09, 6.5] to Y in [-1, 1].
-    REAL(dl), PARAMETER :: XMID  = 4.295E0_dl
-    REAL(dl), PARAMETER :: XHALF = 2.205E0_dl
+    ! Maps the actually used lower-shoulder tau range [2.09, 3.05] to [-1, 1].
+    ! Degree 6 is enough over this final interval; the central Airy polynomial
+    ! handles tau < 2.09.
+    REAL(dl), PARAMETER :: XMID  = 2.57000000000000028E+00_dl
+    REAL(dl), PARAMETER :: XHALF = 4.79999999999999982E-01_dl
 
     REAL(dl) :: Y, TWOY
     REAL(dl) :: A0, A1, A2
     REAL(dl) :: P0, P1, P2
     INTEGER :: J
 
-    REAL(dl), PARAMETER :: CAI(10) = (/ &
-        6.56835345885114271E-03_dl, -1.13188735137325670E-02_dl, &
-        7.28898522549794800E-03_dl, -3.54092182656727842E-03_dl, &
-        1.29632234600740061E-03_dl, -3.47294929101679922E-04_dl, &
-        6.03481025954715256E-05_dl, -2.54640404330824147E-06_dl, &
-        -2.29226532514133926E-06_dl,  8.50239953409589462E-07_dl /)
+    REAL(dl), PARAMETER :: CAI(7) = (/ &
+        1.60886772887947720E-02_dl, -1.19842055007600909E-02_dl, &
+        2.11908265584750044E-03_dl, -2.16014564156138982E-04_dl, &
+        1.22427404493726490E-05_dl, -1.38037935759893120E-07_dl, &
+        -3.87577561695252637E-08_dl /)
 
-    REAL(dl), PARAMETER :: CAIP(10) = (/ &
-        -1.07428727333418600E-02_dl,  1.82362021582016497E-02_dl, &
-        -1.12191935268355983E-02_dl,  5.01355322437066573E-03_dl, &
-        -1.58403210409663363E-03_dl,  3.10342928248546947E-04_dl, &
-        -8.99822672257408064E-06_dl, -1.80849377841010130E-05_dl, &
-        7.18604938632310802E-06_dl, -1.48852216585817192E-06_dl /)
+    REAL(dl), PARAMETER :: CAIP(7) = (/ &
+        -2.63185722252196816E-02_dl, 1.78620943233821147E-02_dl, &
+        -2.70295486393902365E-03_dl, 2.03072191319627753E-04_dl, &
+        -2.77281198728709877E-06_dl, -9.73482836631669391E-07_dl, &
+        1.02978341010519716E-07_dl /)
 
     Y = (XV - XMID) / XHALF
     TWOY = 2.0E0_dl * Y
@@ -672,7 +808,7 @@
     AIV  = Y*A1 - A2 + CAI(1)
     AIPV = Y*P1 - P2 + CAIP(1)
 
-    END SUBROUTINE AIRY_POS_CHEB10_FAST
+    END SUBROUTINE AIRY_POS_CHEB_FAST
 
 
     SUBROUTINE POLEVL_DER_FAST(XP, COEF, N, P, DP)
@@ -824,166 +960,12 @@
 
     END SUBROUTINE BJL_RECURRENCE_FAST
 
-
-
-    SUBROUTINE BJL_approx(L,X,JL)
-    !!== MODIFIED SUBROUTINE FOR SPHERICAL BESSEL FUNCTIONS.                       ==!!
-    !!== CORRECTED THE SMALL BUGS IN PACKAGE CMBFAST&CAMB(for l=4,5, x~0.001-0.002)==!!
-    !!== CORRECTED THE SIGN OF J_L(X) FOR X<0 CASE                                 ==!!
-    !!== WORKS FASTER AND MORE ACCURATE FOR LOW L, X<<L, AND L<<X cases            ==!!
-    !!== zqhuang@astro.utoronto.ca                                                 ==!!
-    IMPLICIT NONE
-    INTEGER L
-    real(dl) X,JL
-    real(dl) AX,AX2
-    real(dl),PARAMETER::LN2=0.6931471805599453094D0
-    real(dl),PARAMETER::ONEMLN2=0.30685281944005469058277D0
-    real(dl),PARAMETER::PID2=1.5707963267948966192313217D0
-    real(dl),PARAMETER::PID4=0.78539816339744830961566084582D0
-    real(dl),parameter::ROOTPI12 = 21.269446210866192327578D0
-    real(dl),parameter::GAMMA1 =   2.6789385347077476336556D0 !/* Gamma function of 1/3 */
-    real(dl),parameter::GAMMA2 =   1.3541179394264004169452D0 !/* Gamma function of 2/3 */
-    real(dl),PARAMETER::PI=3.141592653589793238463D0
-    real(dl) NU,NU2,BETA,BETA2,COSB
-    real(dl) sx,sx2
-    real(dl) cotb,cot3b,cot6b,secb,sec2b
-    real(dl) trigarg,expterm,L3
-
-    IF(L.LT.0)THEN
-        error stop 'Can not evaluate Spherical Bessel Function with index l<0'
-    ENDIF
-    AX=DABS(X)
-    AX2=AX**2
-    IF(L.LT.7)THEN
-        IF(L.EQ.0)THEN
-            IF(AX.LT.1.D-1)THEN
-                JL=1.D0-AX2/6.D0*(1.D0-AX2/20.D0)
-            ELSE
-                JL=DSIN(AX)/AX
-            ENDIF
-
-        ELSEIF(L.EQ.1)THEN
-            IF(AX.LT.2.D-1)THEN
-                JL=AX/3.D0*(1.D0-AX2/10.D0*(1.D0-AX2/28.D0))
-            ELSE
-                JL=(DSIN(AX)/AX-DCOS(AX))/AX
-            ENDIF
-        ELSEIF(L.EQ.2)THEN
-            IF(AX.LT.3.D-1)THEN
-                JL=AX2/15.D0*(1.D0-AX2/14.D0*(1.D0-AX2/36.D0))
-            ELSE
-                JL=(-3.0D0*DCOS(AX)/AX-DSIN(AX)*(1.D0-3.D0/AX2))/AX
-            ENDIF
-        ELSEIF(L.EQ.3)THEN
-            IF(AX.LT.4.D-1)THEN
-                JL=AX*AX2/105.D0*(1.D0-AX2/18.D0*(1.D0-AX2/44.D0))
-            ELSE
-                JL=(DCOS(AX)*(1.D0-15.D0/AX2)-DSIN(AX)*(6.D0-15.D0/AX2)/AX)/AX
-            ENDIF
-        ELSEIF(L.EQ.4)THEN
-            IF(AX.LT.6.D-1)THEN
-                JL=AX2**2/945.D0*(1.D0-AX2/22.D0*(1.D0-AX2/52.D0))
-            ELSE
-                JL=(DSIN(AX)*(1.D0-(45.D0-105.D0/AX2)/AX2)+DCOS(AX)*(10.D0-105.D0/AX2)/AX)/AX
-            ENDIF
-        ELSEIF(L.EQ.5)THEN
-            IF(AX.LT.1.D0)THEN
-                JL=AX2**2*AX/10395.D0*(1.D0-AX2/26.D0*(1.D0-AX2/60.D0))
-            ELSE
-                JL=(DSIN(AX)*(15.D0-(420.D0-945.D0/AX2)/AX2)/AX-DCOS(AX)*(1.D0-(105.D0-945.0d0/AX2)/AX2))/AX
-            ENDIF
-        ELSE
-            IF(AX.LT.1.D0)THEN
-                JL=AX2**3/135135.D0*(1.D0-AX2/30.D0*(1.D0-AX2/68.D0))
-            ELSE
-                JL=(DSIN(AX)*(-1.D0+(210.D0-(4725.D0-10395.D0/AX2)/AX2)/AX2)+ &
-                    DCOS(AX)*(-21.D0+(1260.D0-10395.D0/AX2)/AX2)/AX)/AX
-            ENDIF
-        ENDIF
-    ELSE
-        NU=0.5D0+L
-        NU2=NU**2
-        IF(AX.LT.1.D-40)THEN
-            JL=0.D0
-        ELSEIF((AX2/L).LT.5.D-1)THEN
-            JL=DEXP(L*DLOG(AX/NU)-LN2+NU*ONEMLN2-(1.D0-(1.D0-3.5D0/NU2)/NU2/30.D0)/12.D0/NU) &
-                /NU*(1.D0-AX2/(4.D0*NU+4.D0)*(1.D0-AX2/(8.D0*NU+16.D0)*(1.D0-AX2/(12.D0*NU+36.D0))))
-        ELSEIF((real(L,dl)**2/AX).LT.5.D-1)THEN
-            BETA=AX-PID2*(L+1)
-            JL=(DCOS(BETA)*(1.D0-(NU2-0.25D0)*(NU2-2.25D0)/8.D0/AX2*(1.D0-(NU2-6.25)*(NU2-12.25D0)/48.D0/AX2)) &
-                -DSIN(BETA)*(NU2-0.25D0)/2.D0/AX* (1.D0-(NU2-2.25D0)*(NU2-6.25D0)/24.D0/AX2*(1.D0-(NU2-12.25)* &
-                (NU2-20.25)/80.D0/AX2)) )/AX
-        ELSE
-            L3=NU**0.325
-            IF(AX .LT. NU-1.31*L3) then
-                COSB=NU/AX
-                SX = DSQRT(NU2-AX2)
-                COTB=NU/SX
-                SECB=AX/NU
-                BETA=DLOG(COSB+SX/AX)
-                COT3B=COTB**3
-                COT6B=COT3B**2
-                SEC2B=SECB**2
-                EXPTERM=( (2.D0+3.D0*SEC2B)*COT3B/24.D0 &
-                    - ( (4.D0+SEC2B)*SEC2B*COT6B/16.D0 &
-                    + ((16.D0-(1512.D0+(3654.D0+375.D0*SEC2B)*SEC2B)*SEC2B)*COT3B/5760.D0 &
-                    + (32.D0+(288.D0+(232.D0+13.D0*SEC2B)*SEC2B)*SEC2B)*SEC2B*COT6B/128.D0/NU)*COT6B/NU) &
-                    /NU)/NU
-                JL=DSQRT(COTB*COSB)/(2.D0*NU)*DEXP(-NU*BETA+NU/COTB-EXPTERM)
-
-                !          /**************** Region 2: x >> l ****************/
-
-            ELSEIF (AX .GT. NU+1.48*L3) then
-                COSB=NU/AX
-                SX=DSQRT(AX2-NU2)
-                COTB=NU/SX
-                SECB=AX/NU
-                BETA=DACOS(COSB)
-                COT3B=COTB**3
-                COT6B=COT3B**2
-                SEC2B=SECB**2
-                TRIGARG=NU/COTB-NU*BETA-PID4 &
-                    -((2.0+3.0*SEC2B)*COT3B/24.D0  &
-                    +(16.D0-(1512.D0+(3654.D0+375.D0*SEC2B)*SEC2B)*SEC2B)*COT3B*COT6B/5760.D0/NU2)/NU
-                EXPTERM=( (4.D0+sec2b)*sec2b*cot6b/16.D0 &
-                    -(32.D0+(288.D0+(232.D0+13.D0*SEC2B)*SEC2B)*SEC2B)*SEC2B*COT6B**2/128.D0/NU2)/NU2
-                JL=DSQRT(COTB*COSB)/NU*DEXP(-EXPTERM)*DCOS(TRIGARG)
-
-                !          /***************** Region 3: x near l ****************/
-
-            ELSE
-                BETA=AX-NU
-                BETA2=BETA**2
-                SX=6.D0/AX
-                SX2=SX**2
-                SECB=SX**0.3333333333333333d0
-                SEC2B=SECB**2
-                JL=( GAMMA1*SECB + BETA*GAMMA2*SEC2B &
-                    -(BETA2/18.D0-1.D0/45.D0)*BETA*SX*SECB*GAMMA1 &
-                    -((BETA2-1.D0)*BETA2/36.D0+1.D0/420.D0)*SX*SEC2B*GAMMA2   &
-                    +(((BETA2/1620.D0-7.D0/3240.D0)*BETA2+1.D0/648.D0)*BETA2-1.D0/8100.D0)*SX2*SECB*GAMMA1 &
-                    +(((BETA2/4536.D0-1.D0/810.D0)*BETA2+19.D0/11340.D0)*BETA2-13.D0/28350.D0)*BETA*SX2*SEC2B*GAMMA2 &
-                    -((((BETA2/349920.D0-1.D0/29160.D0)*BETA2+71.D0/583200.D0)*BETA2-121.D0/874800.D0)* &
-                    BETA2+7939.D0/224532000.D0)*BETA*SX2*SX*SECB*GAMMA1)*DSQRT(SX)/ROOTPI12
-            ENDIF
-        ENDIF
-    ENDIF
-    IF(X.LT.0.AND.MOD(L,2).NE.0)JL=-JL
-    END SUBROUTINE BJL_approx
-
-
     end module FlatBessels
-
 
 
     SUBROUTINE BJL_EXTERNAL(L,X,JL)
     use FlatBessels
     use Precision
-    !!== MODIFIED SUBROUTINE FOR SPHERICAL BESSEL FUNCTIONS.                       ==!!
-    !!== CORRECTED THE SMALL BUGS IN PACKAGE CMBFAST&CAMB(for l=4,5, x~0.001-0.002)==!!
-    !!== CORRECTED THE SIGN OF J_L(X) FOR X<0 CASE                                 ==!!
-    !!== WORKS FASTER AND MORE ACCURATE FOR LOW L, X<<L, AND L<<X cases            ==!!
-    !!== zqhuang@astro.utoronto.ca                                                 ==!!
     IMPLICIT NONE
     INTEGER L
     real(dl) X,JL

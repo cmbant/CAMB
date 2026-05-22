@@ -29,8 +29,68 @@ def chi_squared(covinv, x):
 
 
 int_arg = POINTER(c_int)
+double_arg = POINTER(c_double)
 _3j = camblib.__mathutils_MOD_getthreejs
 _3j.argtypes = [numpy_1d, int_arg, int_arg, int_arg, int_arg]
+
+_phi_olver = camblib.camb_getphiolver
+_phi_olver.argtypes = [c_int, c_int, c_double, c_double]
+_phi_olver.restype = c_double
+
+_phi_olver_array = camblib.camb_getphiolverarray
+_phi_olver_array.argtypes = [numpy_1d, c_int, c_int, c_double, numpy_1d, c_int]
+
+_phi_recurs_stable = camblib.camb_getphirecursstable
+_phi_recurs_stable.argtypes = [c_int, c_int, c_double, c_double]
+_phi_recurs_stable.restype = c_double
+
+_phi_recurs_stable_array = camblib.camb_getphirecursstablearray
+_phi_recurs_stable_array.argtypes = [numpy_1d, c_int, c_int, c_double, numpy_1d, c_int]
+
+
+def _hyperspherical_bessel_dispatch(function, vector_function, L, K, beta, chi):
+    chi_array = np.asarray(chi, dtype=np.float64)
+    beta_in = c_double(beta)
+
+    if chi_array.ndim == 0:
+        return function(c_int(L), c_int(K), beta_in, c_double(float(chi_array)))
+
+    if chi_array.ndim != 1:
+        raise ValueError("chi must be a scalar or 1D array")
+
+    chi_array = np.ascontiguousarray(chi_array)
+    result = np.empty_like(chi_array)
+    vector_function(result, c_int(L), c_int(K), beta_in, chi_array, c_int(len(chi_array)))
+    return result
+
+
+def phi_olver(L, K, beta, chi):
+    """
+    Evaluate hyperspherical Phi using the Olver approximation.
+    Peak-relative accuracy 1e-4.
+
+    :param L: multipole index
+    :param K: curvature sign, one of -1, 0, 1
+    :param beta: hyperspherical wavenumber
+    :param chi: scalar chi or 1D array of chi values
+    :return: scalar value or 1D array matching chi
+    """
+
+    return _hyperspherical_bessel_dispatch(_phi_olver, _phi_olver_array, L, K, beta, chi)
+
+
+def phi_recurs_stable(L, K, beta, chi):
+    """
+    Evaluate hyperspherical Phi using the stable recursion implementation.
+
+    :param L: multipole index
+    :param K: curvature sign, one of -1, 0, 1
+    :param beta: hyperspherical wavenumber
+    :param chi: scalar chi or 1D array of chi values
+    :return: scalar value or 1D array matching chi
+    """
+
+    return _hyperspherical_bessel_dispatch(_phi_recurs_stable, _phi_recurs_stable_array, L, K, beta, chi)
 
 
 def threej(l2, l3, m2, m3):
@@ -74,7 +134,14 @@ def threej_pt(l1, l2, l3, m1, m2, m3):
 
 # Utils_3j_integrate(W,lmax_w, n, dopol, M, lmax)
 _coupling_3j = camblib.__mathutils_MOD_integrate_3j
-_coupling_3j.argtypes = [numpy_2d, POINTER(c_int), POINTER(c_int), POINTER(c_bool), numpy_3d, POINTER(c_int)]
+_coupling_3j.argtypes = [
+    numpy_2d,
+    POINTER(c_int),
+    POINTER(c_int),
+    POINTER(c_bool),
+    numpy_3d,
+    POINTER(c_int),
+]
 
 
 def threej_coupling(W, lmax, pol=False):
