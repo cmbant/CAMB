@@ -882,8 +882,8 @@
         if (.not.CP%Accuracy%AccuratePolarization) then
             EV%lmaxgpol=max(nint(4*CP%Accuracy%lAccuracyBoost),3)
         elseif (AccuracyTarget > 0 .and. CP%Want_CMB .and. EV%q > 0.15_dl) then
-            EV%lmaxg = max(EV%lmaxg, 13*CP%Accuracy%lAccuracyBoost)
-            EV%lmaxgpol = max(EV%lmaxgpol, 14*CP%Accuracy%lAccuracyBoost)
+            EV%lmaxg = max(EV%lmaxg, nint(13*CP%Accuracy%lAccuracyBoost))
+            EV%lmaxgpol = max(EV%lmaxgpol, nint(14*CP%Accuracy%lAccuracyBoost))
         end if
 
         if (EV%q < 0.05) then

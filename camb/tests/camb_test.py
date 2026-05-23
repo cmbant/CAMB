@@ -940,7 +940,7 @@ class CambTest(unittest.TestCase):
         results = camb.get_results(pars)
         cls = results.get_source_cls_dict()
         self.assertAlmostEqual(np.sum(cls["PxW1"][10:3000:20]), 0.00020001, places=5)
-        self.assertAlmostEqual(np.sum(cls["W1xW1"][10:3000:20]), 2.26413, places=3)
+        self.assertAlmostEqual(np.sum(cls["W1xW1"][10:3000:20]), 2.26350, places=3)
         self.assertAlmostEqual(np.sum(cls["W1xW1"][10]), 0.0001097, places=6)
 
     def test_mathutils(self):
