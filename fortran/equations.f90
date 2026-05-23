@@ -879,7 +879,12 @@
         if (max_nu_mass>700) EV%lmaxnr = max(nint(32*CP%Accuracy%lAccuracyBoost),3) !Feb13 tweak
 
         EV%lmaxgpol = EV%lmaxg
-        if (.not.CP%Accuracy%AccuratePolarization) EV%lmaxgpol=max(nint(4*CP%Accuracy%lAccuracyBoost),3)
+        if (.not.CP%Accuracy%AccuratePolarization) then
+            EV%lmaxgpol=max(nint(4*CP%Accuracy%lAccuracyBoost),3)
+        elseif (AccuracyTarget > 0 .and. CP%Want_CMB .and. EV%q > 0.15_dl) then
+            EV%lmaxg = max(EV%lmaxg, 13*CP%Accuracy%lAccuracyBoost)
+            EV%lmaxgpol = max(EV%lmaxgpol, 14*CP%Accuracy%lAccuracyBoost)
+        end if
 
         if (EV%q < 0.05) then
             !Large scales need fewer equations

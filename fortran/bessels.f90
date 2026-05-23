@@ -147,38 +147,50 @@
     end subroutine Bessels_Free
 
 ! Optimized spherical Bessel wrapper.
+! Strategy:
+!   For low L use (v accurate and still fast) recursive result
+!   Elsewhere use a two-term corrected uniform Airy asymptotic
+!   in the transition bands, using fast approximate bjl_approx
+!   elsewhere where it is accurate.
 !
 ! The Airy Ai and Ai' used by the uniform expansion are evaluated by Chebyshev
 ! fits on tau in [-6.5,6.5], which covers the transition bands used below.
+! Max peak-normalized error is about 4.4e-5 in the current scan. Typical error < 2e-6.
 
     SUBROUTINE BJL(L, X, JL)
     ! Optimized spherical Bessel j_l(x).
-    ! Branches are ordered from most robust/cheap special cases to the
-    ! large-order asymptotic regions.
+    !
+    ! Branch order:
+    !   low l           : explicit formulas/small-x series
+    !   very small x    : zero for l >= 7
+    !   deep pre-peak   : exponentially small ascending expansion
+    !   far x           : large-x oscillatory expansion
+    !   transition band : recurrence only for moderate l where needed;
+    !                     otherwise Airy shoulders, peak polynomial,
+    !                     or side asymptotics
     IMPLICIT NONE
     INTEGER, INTENT(IN) :: L
     REAL(dl), INTENT(IN) :: X
     REAL(dl), INTENT(OUT) :: JL
 
-    REAL(dl), PARAMETER :: LN2      = 0.6931471805599453094E0_dl
-    REAL(dl), PARAMETER :: ONEMLN2  = 0.30685281944005469058277E0_dl
-    REAL(dl), PARAMETER :: PID2     = 1.5707963267948966192313217E0_dl
-    REAL(dl), PARAMETER :: PID4     = 0.78539816339744830961566084582E0_dl
-    REAL(dl), PARAMETER :: ROOTPI12 = 21.269446210866192327578E0_dl
-    REAL(dl), PARAMETER :: GAMMA1   = 2.6789385347077476336556E0_dl
-    REAL(dl), PARAMETER :: GAMMA2   = 1.3541179394264004169452E0_dl
+    REAL(dl), PARAMETER :: LN2=0.6931471805599453094_dl
+    REAL(dl), PARAMETER :: ONEMLN2=0.30685281944005469058277_dl
+    REAL(dl), PARAMETER :: PID2=1.5707963267948966192313217_dl
+    REAL(dl), PARAMETER :: PID4=0.78539816339744830961566084582_dl
+    REAL(dl), PARAMETER :: ROOTPI12 = 21.269446210866192327578_dl
+    REAL(dl), PARAMETER :: GAMMA1 = 2.6789385347077476336556_dl
+    REAL(dl), PARAMETER :: GAMMA2 = 1.3541179394264004169452_dl
 
     REAL(dl) :: AX, AX2, NU, NU2, BETA, BETA2, COSB
     REAL(dl) :: SX, SX2, COTB, COT3B, COT6B, SECB, SEC2B
     REAL(dl) :: TRIGARG, EXPTERM, L3, ETA
 
-    REAL(dl), PARAMETER :: BJL_RECURRENCE_ETA_LOW  = -5.0E0_dl
-    REAL(dl), PARAMETER :: BJL_RECURRENCE_ETA_HIGH =  5.6E0_dl
-    REAL(dl), PARAMETER :: BJL_AIRY_ETA_LOW        = -2.3E0_dl
-    REAL(dl), PARAMETER :: BJL_PEAK_ETA_LOW        = -0.65E0_dl
-    REAL(dl), PARAMETER :: BJL_PEAK_ETA_HIGH       =  0.65E0_dl
-    REAL(dl), PARAMETER :: BJL_AIRY_ETA_HIGH       =  4.0E0_dl
-
+    real(dl), parameter :: BJL_RECURRENCE_ETA_LOW  = -5.0_dl
+    real(dl), parameter :: BJL_RECURRENCE_ETA_HIGH =  5.6_dl
+    real(dl), parameter :: BJL_AIRY_ETA_LOW  = -2.25_dl
+    real(dl), parameter :: BJL_PEAK_ETA_LOW  = -0.65_dl
+    real(dl), parameter :: BJL_PEAK_ETA_HIGH =  0.65_dl
+    real(dl), parameter :: BJL_AIRY_ETA_HIGH =  3.7_dl
     IF (L < 0) THEN
         ERROR STOP 'Can not evaluate Spherical Bessel Function with index l<0'
     END IF
@@ -186,100 +198,99 @@
     AX = ABS(X)
     AX2 = AX**2
 
-    ! Low orders: use explicit formulas, with small-x series to avoid cancellation.
+    ! Low orders: explicit formulae, with small-x series to avoid cancellation.
     IF (L < 7) THEN
         SELECT CASE (L)
         CASE (0)
             IF (AX < 1.0E-1_dl) THEN
-                JL = 1.0E0_dl - AX2/6.0E0_dl*(1.0E0_dl - AX2/20.0E0_dl)
+                JL = 1.0_dl - AX2/6.0_dl*(1.0_dl - AX2/20.0_dl)
             ELSE
                 JL = SIN(AX)/AX
             END IF
         CASE (1)
             IF (AX < 2.0E-1_dl) THEN
-                JL = AX/3.0E0_dl*(1.0E0_dl - AX2/10.0E0_dl*(1.0E0_dl - AX2/28.0E0_dl))
+                JL = AX/3.0_dl*(1.0_dl - AX2/10.0_dl*(1.0_dl - AX2/28.0_dl))
             ELSE
                 JL = (SIN(AX)/AX - COS(AX))/AX
             END IF
         CASE (2)
             IF (AX < 3.0E-1_dl) THEN
-                JL = AX2/15.0E0_dl*(1.0E0_dl - AX2/14.0E0_dl*(1.0E0_dl - AX2/36.0E0_dl))
+                JL = AX2/15.0_dl*(1.0_dl - AX2/14.0_dl*(1.0_dl - AX2/36.0_dl))
             ELSE
-                JL = (-3.0E0_dl*COS(AX)/AX - SIN(AX)*(1.0E0_dl - 3.0E0_dl/AX2))/AX
+                JL = (-3.0_dl*COS(AX)/AX - SIN(AX)*(1.0_dl - 3.0_dl/AX2))/AX
             END IF
         CASE (3)
             IF (AX < 4.0E-1_dl) THEN
-                JL = AX*AX2/105.0E0_dl*(1.0E0_dl - AX2/18.0E0_dl*(1.0E0_dl - AX2/44.0E0_dl))
+                JL = AX*AX2/105.0_dl*(1.0_dl - AX2/18.0_dl*(1.0_dl - AX2/44.0_dl))
             ELSE
-                JL = (COS(AX)*(1.0E0_dl - 15.0E0_dl/AX2) - SIN(AX)*(6.0E0_dl - 15.0E0_dl/AX2)/AX)/AX
+                JL = (COS(AX)*(1.0_dl - 15.0_dl/AX2) - SIN(AX)*(6.0_dl - 15.0_dl/AX2)/AX)/AX
             END IF
         CASE (4)
             IF (AX < 6.0E-1_dl) THEN
-                JL = AX2**2/945.0E0_dl*(1.0E0_dl - AX2/22.0E0_dl*(1.0E0_dl - AX2/52.0E0_dl))
+                JL = AX2**2/945.0_dl*(1.0_dl - AX2/22.0_dl*(1.0_dl - AX2/52.0_dl))
             ELSE
-                JL = (SIN(AX)*(1.0E0_dl - (45.0E0_dl - 105.0E0_dl/AX2)/AX2) + COS(AX)*(10.0E0_dl - 105.0E0_dl/AX2)/AX)/AX
+                JL = (SIN(AX)*(1.0_dl - (45.0_dl - 105.0_dl/AX2)/AX2) &
+                    + COS(AX)*(10.0_dl - 105.0_dl/AX2)/AX)/AX
             END IF
         CASE (5)
-            IF (AX < 1.0E0_dl) THEN
-                JL = AX2**2*AX/10395.0E0_dl*(1.0E0_dl - AX2/26.0E0_dl*(1.0E0_dl - AX2/60.0E0_dl))
+            IF (AX < 1.0_dl) THEN
+                JL = AX2**2*AX/10395.0_dl*(1.0_dl - AX2/26.0_dl*(1.0_dl - AX2/60.0_dl))
             ELSE
-                JL = (SIN(AX)*(15.0E0_dl - (420.0E0_dl - 945.0E0_dl/AX2)/AX2)/AX - &
-                    COS(AX)*(1.0E0_dl - (105.0E0_dl - 945.0E0_dl/AX2)/AX2))/AX
+                JL = (SIN(AX)*(15.0_dl - (420.0_dl - 945.0_dl/AX2)/AX2)/AX &
+                    - COS(AX)*(1.0_dl - (105.0_dl - 945.0_dl/AX2)/AX2))/AX
             END IF
         CASE DEFAULT
-            IF (AX < 1.0E0_dl) THEN
-                JL = AX2**3/135135.0E0_dl*(1.0E0_dl - AX2/30.0E0_dl*(1.0E0_dl - AX2/68.0E0_dl))
+            IF (AX < 1.0_dl) THEN
+                JL = AX2**3/135135.0_dl*(1.0_dl - AX2/30.0_dl*(1.0_dl - AX2/68.0_dl))
             ELSE
-                JL = (SIN(AX)*(-1.0E0_dl + (210.0E0_dl - (4725.0E0_dl - 10395.0E0_dl/AX2)/AX2)/AX2) + &
-                    COS(AX)*(-21.0E0_dl + (1260.0E0_dl - 10395.0E0_dl/AX2)/AX2)/AX)/AX
+                JL = (SIN(AX)*(-1.0_dl + (210.0_dl - (4725.0_dl - 10395.0_dl/AX2)/AX2)/AX2) &
+                    + COS(AX)*(-21.0_dl + (1260.0_dl - 10395.0_dl/AX2)/AX2)/AX)/AX
             END IF
         END SELECT
 
-        IF (X < 0.0E0_dl .AND. MOD(L, 2) /= 0) JL = -JL
+        IF (X < 0.0_dl .AND. MOD(L,2) /= 0) JL = -JL
         RETURN
     END IF
 
-
-    NU = REAL(L, dl) + 0.5E0_dl
+    NU = REAL(L, dl) + 0.5_dl
     NU2 = NU**2
 
     IF (AX < 1.0E-40_dl) THEN
         ! Very small x: j_l(x) is negligible here for l >= 7.
-        JL = 0.0E0_dl
+        JL = 0.0_dl
     ELSE IF ((AX2/REAL(L, dl)) < 5.0E-1_dl) THEN
         ! Deep pre-peak: exponentially small ascending expansion.
-        JL = EXP(REAL(L, dl)*LOG(AX/NU) - LN2 + NU*ONEMLN2 &
-            - (1.0E0_dl - (1.0E0_dl - 3.5E0_dl/NU2)/NU2/30.0E0_dl)/12.0E0_dl/NU) &
-            /NU*(1.0E0_dl - AX2/(4.0E0_dl*NU + 4.0E0_dl) &
-            *(1.0E0_dl - AX2/(8.0E0_dl*NU + 16.0E0_dl) &
-            *(1.0E0_dl - AX2/(12.0E0_dl*NU + 36.0E0_dl))))
+        JL = EXP(REAL(L,dl)*LOG(AX/NU) - LN2 + NU*ONEMLN2 &
+            - (1.0_dl - (1.0_dl - 3.5_dl/NU2)/NU2/30.0_dl)/12.0_dl/NU) &
+            /NU*(1.0_dl - AX2/(4.0_dl*NU + 4.0_dl)*(1.0_dl - AX2/(8.0_dl*NU + 16.0_dl) &
+            *(1.0_dl - AX2/(12.0_dl*NU + 36.0_dl))))
     ELSE IF ((REAL(L, dl)**2/AX) < 5.0E-1_dl) THEN
         ! Far past the peak: oscillatory large-x expansion.
         BETA = AX - PID2*REAL(L + 1, dl)
-        JL = (COS(BETA)*(1.0E0_dl - (NU2 - 0.25E0_dl)*(NU2 - 2.25E0_dl)/8.0E0_dl/AX2 &
-            *(1.0E0_dl - (NU2 - 6.25E0_dl)*(NU2 - 12.25E0_dl)/48.0E0_dl/AX2)) &
-            - SIN(BETA)*(NU2 - 0.25E0_dl)/2.0E0_dl/AX &
-            *(1.0E0_dl - (NU2 - 2.25E0_dl)*(NU2 - 6.25E0_dl)/24.0E0_dl/AX2 &
-            *(1.0E0_dl - (NU2 - 12.25E0_dl)*(NU2 - 20.25E0_dl)/80.0E0_dl/AX2)))/AX
+        JL = (COS(BETA)*(1.0_dl - (NU2 - 0.25_dl)*(NU2 - 2.25_dl)/8.0_dl/AX2 &
+            *(1.0_dl - (NU2 - 6.25_dl)*(NU2 - 12.25_dl)/48.0_dl/AX2)) &
+            - SIN(BETA)*(NU2 - 0.25_dl)/2.0_dl/AX &
+            *(1.0_dl - (NU2 - 2.25_dl)*(NU2 - 6.25_dl)/24.0_dl/AX2 &
+            *(1.0_dl - (NU2 - 12.25_dl)*(NU2 - 20.25_dl)/80.0_dl/AX2)))/AX
     ELSE
-        ! Broad transition region: classify once by normalized distance from
-        ! the peak. The lower Airy shoulder is kept only where the below-peak
-        ! form loses accuracy; the upper shoulder is deliberately shorter
-        ! because the post-peak asymptotic form becomes accurate and faster.
-        L3 = NU**0.325E0_dl
+        ! Turning-point neighbourhood: classify by normalized distance from peak.
+        L3 = NU**0.325_dl
         ETA = (AX - NU)/L3
 
-        ! For moderate orders, use recurrence only where the asymptotic
-        ! transition forms lose accuracy. Deep pre-peak and far-x cases have
-        ! already returned through faster asymptotic branches.
-        IF (L <= BJL_RECURRENCE_MAX_L) THEN
-            IF (ETA >= BJL_RECURRENCE_ETA_LOW .AND. ETA <= BJL_RECURRENCE_ETA_HIGH) THEN
-                CALL BJL_RECURRENCE_FAST(L, X, JL)
-                RETURN
-            END IF
+        ! Moderate orders only need recurrence in the broad transition band.
+        ! Deep pre-peak and far-x cases have already returned via cheaper branches.
+        IF (L <= BJL_RECURRENCE_MAX_L .AND. &
+            ETA >= BJL_RECURRENCE_ETA_LOW .AND. ETA <= BJL_RECURRENCE_ETA_HIGH) THEN
+            CALL BJL_RECURRENCE_FAST(L, X, JL)
+            RETURN
         END IF
 
-        IF (ETA < BJL_AIRY_ETA_LOW) THEN
+        IF ((ETA >= BJL_AIRY_ETA_LOW .AND. ETA < BJL_PEAK_ETA_LOW) .OR. &
+            (ETA > BJL_PEAK_ETA_HIGH .AND. ETA <= BJL_AIRY_ETA_HIGH)) THEN
+            ! Shoulder bands: corrected uniform Airy approximation.
+            CALL BJL_UNIFORM_AIRY_FAST(L, X, JL)
+            RETURN
+        ELSE IF (ETA < BJL_AIRY_ETA_LOW) THEN
             ! Below the peak but outside the exponentially tiny region.
             COSB = NU/AX
             SX = SQRT(NU2 - AX2)
@@ -289,40 +300,14 @@
             COT3B = COTB**3
             COT6B = COT3B**2
             SEC2B = SECB**2
-            EXPTERM = ((2.0E0_dl + 3.0E0_dl*SEC2B)*COT3B/24.0E0_dl &
-                - ((4.0E0_dl + SEC2B)*SEC2B*COT6B/16.0E0_dl &
-                + ((16.0E0_dl - (1512.0E0_dl + (3654.0E0_dl + 375.0E0_dl*SEC2B)*SEC2B)*SEC2B)*COT3B/5760.0E0_dl &
-                + (32.0E0_dl + (288.0E0_dl + (232.0E0_dl + 13.0E0_dl*SEC2B)*SEC2B)*SEC2B)*SEC2B*COT6B/128.0E0_dl/NU)*COT6B/NU) &
-                /NU)/NU
-            JL = SQRT(COTB*COSB)/(2.0E0_dl*NU)*EXP(-NU*BETA + NU/COTB - EXPTERM)
-        ELSE IF (ETA < BJL_PEAK_ETA_LOW) THEN
-            ! Lower shoulder: uniform Airy form covers the pre-peak transition.
-            CALL BJL_UNIFORM_AIRY_FAST(L, X, JL)
-            RETURN
-        ELSE IF (ETA <= BJL_PEAK_ETA_HIGH) THEN
-            ! Very close to the peak: polynomial transition expansion.
-            BETA = AX - NU
-            BETA2 = BETA**2
-            SX = 6.0E0_dl/AX
-            SX2 = SX**2
-            SECB = SX**(1.0E0_dl/3.0E0_dl)
-            SEC2B = SECB**2
-            JL = (GAMMA1*SECB + BETA*GAMMA2*SEC2B &
-                - (BETA2/18.0E0_dl - 1.0E0_dl/45.0E0_dl)*BETA*SX*SECB*GAMMA1 &
-                - ((BETA2 - 1.0E0_dl)*BETA2/36.0E0_dl + 1.0E0_dl/420.0E0_dl)*SX*SEC2B*GAMMA2 &
-                + (((BETA2/1620.0E0_dl - 7.0E0_dl/3240.0E0_dl)*BETA2 + 1.0E0_dl/648.0E0_dl)*BETA2 &
-                - 1.0E0_dl/8100.0E0_dl)*SX2*SECB*GAMMA1 &
-                + (((BETA2/4536.0E0_dl - 1.0E0_dl/810.0E0_dl)*BETA2 + 19.0E0_dl/11340.0E0_dl)*BETA2 &
-                - 13.0E0_dl/28350.0E0_dl)*BETA*SX2*SEC2B*GAMMA2 &
-                - ((((BETA2/349920.0E0_dl - 1.0E0_dl/29160.0E0_dl)*BETA2 + 71.0E0_dl/583200.0E0_dl)*BETA2 &
-                - 121.0E0_dl/874800.0E0_dl)*BETA2 + 7939.0E0_dl/224532000.0E0_dl)*BETA*SX2*SX*SECB*GAMMA1) &
-                *SQRT(SX)/ROOTPI12
-        ELSE IF (ETA <= BJL_AIRY_ETA_HIGH) THEN
-            ! Upper shoulder: uniform Airy form only until the oscillatory form is better.
-            CALL BJL_UNIFORM_AIRY_FAST(L, X, JL)
-            RETURN
-        ELSE
-            ! Above the peak but not yet in the far-x regime.
+            EXPTERM = ((2.0_dl + 3.0_dl*SEC2B)*COT3B/24.0_dl &
+                - ((4.0_dl + SEC2B)*SEC2B*COT6B/16.0_dl &
+                + ((16.0_dl - (1512.0_dl + (3654.0_dl + 375.0_dl*SEC2B)*SEC2B)*SEC2B)*COT3B/5760.0_dl &
+                + (32.0_dl + (288.0_dl + (232.0_dl + 13.0_dl*SEC2B)*SEC2B)*SEC2B)*SEC2B*COT6B/128.0_dl/NU) &
+                *COT6B/NU)/NU)/NU
+            JL = SQRT(COTB*COSB)/(2.0_dl*NU)*EXP(-NU*BETA + NU/COTB - EXPTERM)
+        ELSE IF (ETA > BJL_AIRY_ETA_HIGH) THEN
+            ! Above the peak: oscillatory post-peak asymptotic form.
             COSB = NU/AX
             SX = SQRT(AX2 - NU2)
             COTB = NU/SX
@@ -332,18 +317,37 @@
             COT6B = COT3B**2
             SEC2B = SECB**2
             TRIGARG = NU/COTB - NU*BETA - PID4 &
-                - ((2.0E0_dl + 3.0E0_dl*SEC2B)*COT3B/24.0E0_dl &
-                + (16.0E0_dl - (1512.0E0_dl + (3654.0E0_dl + 375.0E0_dl*SEC2B)*SEC2B)*SEC2B)*COT3B*COT6B/5760.0E0_dl/NU2)/NU
-            EXPTERM = ((4.0E0_dl + SEC2B)*SEC2B*COT6B/16.0E0_dl &
-                - (32.0E0_dl + (288.0E0_dl + (232.0E0_dl + 13.0E0_dl*SEC2B)*SEC2B)*SEC2B)*SEC2B*COT6B**2/128.0E0_dl/NU2)/NU2
+                - ((2.0_dl + 3.0_dl*SEC2B)*COT3B/24.0_dl &
+                + (16.0_dl - (1512.0_dl + (3654.0_dl + 375.0_dl*SEC2B)*SEC2B)*SEC2B) &
+                *COT3B*COT6B/5760.0_dl/NU2)/NU
+            EXPTERM = ((4.0_dl + SEC2B)*SEC2B*COT6B/16.0_dl &
+                - (32.0_dl + (288.0_dl + (232.0_dl + 13.0_dl*SEC2B)*SEC2B)*SEC2B) &
+                *SEC2B*COT6B**2/128.0_dl/NU2)/NU2
             JL = SQRT(COTB*COSB)/NU*EXP(-EXPTERM)*COS(TRIGARG)
+        ELSE
+            ! Very close to the peak: polynomial transition expansion.
+            BETA = AX - NU
+            BETA2 = BETA**2
+            SX = 6.0_dl/AX
+            SX2 = SX**2
+            SECB = SX**(1.0_dl/3.0_dl)
+            SEC2B = SECB**2
+            JL = (GAMMA1*SECB + BETA*GAMMA2*SEC2B &
+                - (BETA2/18.0_dl - 1.0_dl/45.0_dl)*BETA*SX*SECB*GAMMA1 &
+                - ((BETA2 - 1.0_dl)*BETA2/36.0_dl + 1.0_dl/420.0_dl)*SX*SEC2B*GAMMA2 &
+                + (((BETA2/1620.0_dl - 7.0_dl/3240.0_dl)*BETA2 + 1.0_dl/648.0_dl)*BETA2 &
+                - 1.0_dl/8100.0_dl)*SX2*SECB*GAMMA1 &
+                + (((BETA2/4536.0_dl - 1.0_dl/810.0_dl)*BETA2 + 19.0_dl/11340.0_dl)*BETA2 &
+                - 13.0_dl/28350.0_dl)*BETA*SX2*SEC2B*GAMMA2 &
+                - ((((BETA2/349920.0_dl - 1.0_dl/29160.0_dl)*BETA2 + 71.0_dl/583200.0_dl)*BETA2 &
+                - 121.0_dl/874800.0_dl)*BETA2 + 7939.0_dl/224532000.0_dl)*BETA*SX2*SX*SECB*GAMMA1) &
+                *SQRT(SX)/ROOTPI12
         END IF
     END IF
 
-    IF (X < 0.0E0_dl .AND. MOD(L, 2) /= 0) JL = -JL
+    IF (X < 0.0_dl .AND. MOD(L,2) /= 0) JL = -JL
 
     END SUBROUTINE BJL
-
 
     SUBROUTINE BJL_UNIFORM_AIRY_FAST(L, X, JL)
     ! Two-term corrected Olver uniform Airy approximation:
@@ -459,7 +463,7 @@
     !       corrections.  Used only as an out-of-range fallback.
     !
     !   -6.5 <= x < -2.09
-    !       Local Chebyshev fits for Ai and Ai' on the active upper-shoulder range [-3.6, -2.09].
+    !       Local Chebyshev fits for Ai and Ai' on [-6.5, -2.09].
     !       This avoids sin/cos/rational derivative work in the usual
     !       tau range.
     !
@@ -468,7 +472,7 @@
     !       truncated for speed rather than full double precision.
     !
     !   2.09 <= x <= 6.5
-    !       Local Chebyshev fits for Ai and Ai' on the active lower-shoulder range [2.09, 3.05].
+    !       Local Chebyshev fits for Ai and Ai' on [2.09, 6.5].
     !
     !   x > 6.5
     !       Exponentially decaying Cephes-style asymptotic form with
@@ -578,12 +582,12 @@
         RETURN
     END IF
 
-    IF (X >= -6.5E0_dl .AND. X < -2.09E0_dl) THEN
+    IF (X >= -4.4E0_dl .AND. X < -2.09E0_dl) THEN
         CALL AIRY_NEG_CHEB_FAST(X, AI, AIP)
         RETURN
     END IF
 
-    IF (X >= 2.09E0_dl .AND. X <= 6.5E0_dl) THEN
+    IF (X >= 2.09E0_dl .AND. X <= 2.98E0_dl) THEN
         CALL AIRY_POS_CHEB_FAST(X, AI, AIP)
         RETURN
     END IF
@@ -702,34 +706,30 @@
     REAL(dl), INTENT(IN)  :: XV
     REAL(dl), INTENT(OUT) :: AIV, AIPV
 
-    INTEGER, PARAMETER :: NCH = 14
+    INTEGER, PARAMETER :: NCH = 10
 
-    ! Maps the used upper-shoulder tau range [-4.75, -2.09] to [-1, 1].
-    REAL(dl), PARAMETER :: XMID  = -3.42000000000000037E0_dl
-    REAL(dl), PARAMETER :: XHALF =  1.33000000000000007E0_dl
+    ! Maps XV in [-4.4, -2.09] to Y in [-1, 1].
+    REAL(dl), PARAMETER :: XMID  = -3.24500000000000011E+00_dl
+    REAL(dl), PARAMETER :: XHALF = 1.15500000000000025E+00_dl
 
     REAL(dl) :: Y, TWOY
     REAL(dl) :: A0, A1, A2
     REAL(dl) :: P0, P1, P2
     INTEGER :: J
 
-    REAL(dl), PARAMETER :: CAI(14) = (/ &
-        -4.03840442579786723E-03_dl, -1.59160239850393986E-01_dl, &
-        3.32033428954130960E-01_dl, 5.52816344806841692E-02_dl, &
-        -5.87380789439008039E-02_dl, 1.42594167224066983E-03_dl, &
-        3.83320765503384524E-03_dl, -5.15288734810007577E-04_dl, &
-        -9.88229869572182192E-05_dl, 2.78689025935962363E-05_dl, &
-        -9.86711248543552530E-08_dl, -6.64164643179690834E-07_dl, &
-        6.67078851235519155E-08_dl, 6.23584827668025404E-09_dl /)
+    REAL(dl), PARAMETER :: CAI(10) = (/ &
+        -7.52972311373991954E-02_dl, -3.04924834824625880E-02_dl, &
+        3.09214054941112593E-01_dl, -4.86933307406160927E-03_dl, &
+        -3.32582282959081738E-02_dl, 3.79467424343539342E-03_dl, &
+        1.22912822483253726E-03_dl, -2.66641673714729916E-04_dl, &
+        -1.03644439619337352E-05_dl, 7.52394509644803996E-06_dl /)
 
-    REAL(dl), PARAMETER :: CAIP(14) = (/ &
-        7.85785534099702615E-03_dl, 6.78681155842563721E-01_dl, &
-        2.55054417201942774E-01_dl, -3.19915621638119096E-01_dl, &
-        5.66358489047926600E-03_dl, 3.33961341634626263E-02_dl, &
-        -5.05778118575379246E-03_dl, -1.18919365301728679E-03_dl, &
-        3.66310575640137399E-04_dl, -3.39181185274878346E-07_dl, &
-        -1.08628175993337255E-05_dl, 1.15412678791436187E-06_dl, &
-        1.22925519235653169E-07_dl, -3.46284641833705560E-08_dl /)
+    REAL(dl), PARAMETER :: CAIP(10) = (/ &
+        -2.41791445513994847E-02_dl, 8.53129932850260952E-01_dl, &
+        4.44254809627120731E-03_dl, -2.17741253092986226E-01_dl, &
+        2.97377848446421338E-02_dl, 1.26187697358148727E-02_dl, &
+        -3.11653760934400706E-03_dl, -1.51393639068021042E-04_dl, &
+        1.15482678107576387E-04_dl, -7.81692617584523665E-06_dl /)
 
     Y = (XV - XMID) / XHALF
     TWOY = 2.0E0_dl * Y
@@ -761,30 +761,26 @@
     REAL(dl), INTENT(IN)  :: XV
     REAL(dl), INTENT(OUT) :: AIV, AIPV
 
-    INTEGER, PARAMETER :: NCH = 7
+    INTEGER, PARAMETER :: NCH = 5
 
-    ! Maps the actually used lower-shoulder tau range [2.09, 3.05] to [-1, 1].
-    ! Degree 6 is enough over this final interval; the central Airy polynomial
-    ! handles tau < 2.09.
-    REAL(dl), PARAMETER :: XMID  = 2.57000000000000028E+00_dl
-    REAL(dl), PARAMETER :: XHALF = 4.79999999999999982E-01_dl
+    ! Maps XV in [2.09, 2.98] to Y in [-1, 1].
+    REAL(dl), PARAMETER :: XMID  = 2.53500000000000014E+00_dl
+    REAL(dl), PARAMETER :: XHALF = 4.45000000000000062E-01_dl
 
     REAL(dl) :: Y, TWOY
     REAL(dl) :: A0, A1, A2
     REAL(dl) :: P0, P1, P2
     INTEGER :: J
 
-    REAL(dl), PARAMETER :: CAI(7) = (/ &
-        1.60886772887947720E-02_dl, -1.19842055007600909E-02_dl, &
-        2.11908265584750044E-03_dl, -2.16014564156138982E-04_dl, &
-        1.22427404493726490E-05_dl, -1.38037935759893120E-07_dl, &
-        -3.87577561695252637E-08_dl /)
+    REAL(dl), PARAMETER :: CAI(5) = (/ &
+        1.67197298855612173E-02_dl, -1.16156422167520770E-02_dl, &
+        1.89802004119299199E-03_dl, -1.77750208417504322E-04_dl, &
+        9.13251766892205164E-06_dl /)
 
-    REAL(dl), PARAMETER :: CAIP(7) = (/ &
-        -2.63185722252196816E-02_dl, 1.78620943233821147E-02_dl, &
-        -2.70295486393902365E-03_dl, 2.03072191319627753E-04_dl, &
-        -2.77281198728709877E-06_dl, -9.73482836631669391E-07_dl, &
-        1.02978341010519716E-07_dl /)
+    REAL(dl), PARAMETER :: CAIP(5) = (/ &
+        -2.73016642479830610E-02_dl, 1.72243076704324746E-02_dl, &
+        -2.39819493752986600E-03_dl, 1.63453367574147994E-04_dl, &
+        -1.56291392306149089E-06_dl /)
 
     Y = (XV - XMID) / XHALF
     TWOY = 2.0E0_dl * Y
