@@ -55,7 +55,7 @@
     use precision
     use results
     use GaugeInterface
-    use HypersphericalBesselDerivatives, only: USpherBesselWithDeriv
+    use OlverHypersphericalBessel, only: u_olver
     use SpherBessels
     use MassiveNu
     use InitialPower
@@ -2109,8 +2109,8 @@
     type(IntegrationVars) IV
     Type(ClTransferData) :: ThisCT
     logical DoInt
-    integer l,j, nstart,nDissipative,ntop,nbot,nrange,nnow,nmin_osc,nbot_eff
-    real(dl) nu,ChiDissipative,ChiStart,tDissipative,y1,y2,y1dis,y2dis
+    integer l,j, nstart,nDissipative,ntop,nbot,nrange,nnow,nmin_osc,nbot_eff,K
+    real(dl) nu,ChiDissipative,ChiStart,tDissipative,y1,y1dis
     real(dl) xf,x,chi, miny1,xlmax1,tmin
     real(dl) sums(ThisSources%SourceNum),out_arr(ThisSources%SourceNum), qmax_int
     real(dl) BessIntBoost
@@ -2140,8 +2140,8 @@
     ChiStart =  max(1d-8,(State%tau0-tDissipative)/State%curvature_radius)
 
     !Get values at ChiStart
-
-    call USpherBesselWithDeriv(State%closed,CP,ChiStart,l,nu,y1dis,y2dis)
+    K = merge(1, -1, State%closed)
+    y1dis = u_olver(l, K, nu, ChiStart)
 
     nstart=nDissipative
     chi=ChiStart
@@ -2158,7 +2158,6 @@
         if (DoInt) then
             if ((nstart < min(State%TimeSteps%npoints-1,IV%SourceSteps)).and.(y1dis > miny1)) then
                 y1=y1dis
-                y2=y2dis
                 nnow=nstart
                 do nrange = 1,State%TimeSteps%Count
                     if (nrange == State%TimeSteps%count) then
@@ -2168,7 +2167,7 @@
                     end if
                     if (nnow < ntop) then
                         call DoRangeInt(IV,chi,ChiDissipative,nnow,ntop,State%TimeSteps%R(nrange)%delta, &
-                            nu,j,l,y1,y2,out_arr)
+                            nu,j,l,y1,out_arr)
                         sums  = sums + out_arr
                         nnow = ntop
                         if (chi==0) exit !small enough to cut off
@@ -2179,7 +2178,6 @@
             !Integrate chi up in oscillatory region, but optionally cut off very high-x tail
             if (nstart > 2) then
                 y1=y1dis
-                y2=y2dis
                 chi=ChiStart
                 nnow=nstart
 
@@ -2209,7 +2207,7 @@
                         nbot_eff = max(nbot, nmin_osc)
                         if (nnow > nbot_eff) then
                             call DoRangeInt(IV,chi,ChiDissipative,nnow,nbot_eff,State%TimeSteps%R(nrange)%delta, &
-                                nu,j,l,y1,y2,out_arr)
+                                nu,j,l,y1,out_arr)
                             sums=sums+out_arr
                             if (chi==0) exit !small for remaining region
                             nnow = nbot_eff
@@ -2245,7 +2243,6 @@
         miny1= 1.d-6/l/BessIntBoost
         if ((nstart < State%TimeSteps%npoints-1).and.(y1dis>miny1)) then
             y1=y1dis
-            y2=y2dis
             nnow=nstart
             do nrange = 1,State%TimeSteps%Count
                 if (nrange == State%TimeSteps%count) then
@@ -2255,7 +2252,7 @@
                 end if
                 if (nnow < ntop) then
                     call DoRangeIntTensor(IV,chi,ChiDissipative,nnow,ntop,State%TimeSteps%R(nrange)%delta, &
-                        nu,l,y1,y2,out_arr)
+                        nu,l,y1,out_arr)
 
                     ThisCT%Delta_p_l_k(:,j,IV%q_ix) = ThisCT%Delta_p_l_k(:,j,IV%q_ix) + out_arr
 
@@ -2269,7 +2266,6 @@
         !Integrate chi up in oscillatory region
         if (nstart > 2) then
             y1=y1dis
-            y2=y2dis
             chi=ChiStart
 
             nnow=nstart
@@ -2277,7 +2273,7 @@
                 nbot = State%TimeSteps%R(nrange)%start_index
                 if (nnow >  nbot) then
                     call DoRangeIntTensor(IV,chi,ChiDissipative,nnow,nbot,State%TimeSteps%R(nrange)%delta, &
-                        nu,l,y1,y2,out_arr)
+                        nu,l,y1,out_arr)
                     ThisCT%Delta_p_l_k(:,j,IV%q_ix) = ThisCT%Delta_p_l_k(:,j,IV%q_ix) + out_arr
 
                     nnow = nbot
@@ -2289,62 +2285,6 @@
     end if !Do Tensors
 
     end subroutine IntegrateSourcesBessels
-
-
-    subroutine StepUSpherBesselRK4(ap1, nu2, delchi, chi, y1, y2, sh, potential)
-    real(dl), intent(in) :: ap1, nu2, delchi
-    real(dl), intent(inout) :: chi, y1, y2, sh, potential
-    real(dl) :: dydchi1, dydchi2, yt1, yt2, dyt1, dyt2, dym1, dym2
-    real(dl) :: hh, h6, xh
-
-    hh = 0.5_dl * delchi
-    h6 = delchi / 6._dl
-
-    dydchi1 = y2
-    dydchi2 = potential * y1
-    xh = chi + hh
-    yt1 = y1 + hh * dydchi1
-    yt2 = y2 + hh * dydchi2
-    dyt1 = yt2
-    potential = ap1 / State%rofChi(xh)**2 - nu2
-
-    dyt2 = potential * yt1
-    yt1 = y1 + hh * dyt1
-    yt2 = y2 + hh * dyt2
-    dym1 = yt2
-    dym2 = potential * yt1
-    yt1 = y1 + delchi * dym1
-    dym1 = dyt1 + dym1
-    yt2 = y2 + delchi * dym2
-    dym2 = dyt2 + dym2
-
-    chi = chi + delchi
-    sh = State%rofChi(chi)
-    dyt1 = yt2
-    potential = ap1 / sh**2 - nu2
-    dyt2 = potential * yt1
-    y1 = y1 + h6 * (dydchi1 + dyt1 + 2._dl * dym1)
-    y2 = y2 + h6 * (dydchi2 + dyt2 + 2._dl * dym2)
-
-    end subroutine StepUSpherBesselRK4
-
-
-    subroutine StepUSpherBesselNumerov(ap1, nu2, delchi, chi, y_prev, y_now, y2_prev, q_prev, q_now, sh, y_next, y2_next, q_next)
-    real(dl), intent(in) :: ap1, nu2, delchi, y_prev, y_now, y2_prev, q_prev, q_now
-    real(dl), intent(inout) :: chi, sh
-    real(dl), intent(out) :: y_next, y2_next, q_next
-    real(dl) :: h2
-
-    chi = chi + delchi
-    sh = State%rofChi(chi)
-    q_next = ap1 / sh**2 - nu2
-    h2 = delchi**2
-
-    y_next = (2._dl * (1._dl + 5._dl * h2 * q_now / 12._dl) * y_now - (1._dl - h2 * q_prev / 12._dl) * y_prev) / &
-        (1._dl - h2 * q_next / 12._dl)
-    y2_next = y2_prev + delchi * (q_prev * y_prev + 4._dl * q_now * y_now + q_next * y_next) / 3._dl
-
-    end subroutine StepUSpherBesselNumerov
 
 
     real(dl) function ShiftedQBesselTableMaxEtak(lmax, base_etak) result(bessel_etak)
@@ -2392,13 +2332,13 @@
     end function UseShiftedQScalarApprox
 
 
-    subroutine FillShiftedQUjlVals(j, l, nu, chi_start, dchisource, sgn, nIntSteps, ujl_vals, y1, y2, chi)
+    subroutine FillShiftedQUjlVals(j, l, nu, chi_start, dchisource, sgn, nIntSteps, ujl_vals, y1, chi)
     use SpherBessels, only: BessRanges, bessel_horner, bjl
 
     integer, intent(in) :: j, l, nIntSteps
     real(dl), intent(in) :: nu, chi_start, dchisource, sgn
     real(dl), intent(out) :: ujl_vals(nIntSteps + 1)
-    real(dl), intent(inout) :: y1, y2, chi
+    real(dl), intent(inout) :: y1, chi
 
     integer :: step_ix, bes_ix(nIntSteps + 1)
     real(dl) :: qeff, qeff2, chi_here, sh, chi_over_sh
@@ -2428,7 +2368,8 @@
             coeff1 = bessel_horner(2, bes_ix(step_ix + 1), j)
             coeff2 = bessel_horner(3, bes_ix(step_ix + 1), j)
             coeff3 = bessel_horner(4, bes_ix(step_ix + 1), j)
-            jl = base + left_weight(step_ix + 1) * (coeff1 + left_weight(step_ix + 1) * (coeff2 + left_weight(step_ix + 1) * coeff3))
+            jl = base + left_weight(step_ix + 1) * (coeff1 + left_weight(step_ix + 1) * &
+                (coeff2 + left_weight(step_ix + 1) * coeff3))
         else
             call bjl(l, qeff * chi_here, jl)
         end if
@@ -2445,18 +2386,17 @@
 
     chi = chi_start + real(nIntSteps, dl) * dchisource * sgn
     y1 = 0._dl
-    y2 = 0._dl
 
     end subroutine FillShiftedQUjlVals
 
 
-    subroutine FillSmallChiUjlVals(j, l, nu, chi_start, dchisource, sgn, nIntSteps, ujl_vals, y1, y2, chi)
+    subroutine FillSmallChiUjlVals(j, l, nu, chi_start, dchisource, sgn, nIntSteps, ujl_vals, y1, chi)
     use SpherBessels, only: BessRanges, bessel_horner, bjl
 
     integer, intent(in) :: j, l, nIntSteps
     real(dl), intent(in) :: nu, chi_start, dchisource, sgn
     real(dl), intent(out) :: ujl_vals(nIntSteps + 1)
-    real(dl), intent(inout) :: y1, y2, chi
+    real(dl), intent(inout) :: y1, chi
 
     integer :: step_ix, bes_ix(nIntSteps + 1)
     real(dl) :: alpha2, base, chi2, chi4, chi_here, chi_over_sh, coeff1, coeff2, coeff3, D, D0, D2, D4
@@ -2516,7 +2456,8 @@
             coeff1 = bessel_horner(2, bes_ix(step_ix + 1), j)
             coeff2 = bessel_horner(3, bes_ix(step_ix + 1), j)
             coeff3 = bessel_horner(4, bes_ix(step_ix + 1), j)
-            jl = base + left_weight(step_ix + 1) * (coeff1 + left_weight(step_ix + 1) * (coeff2 + left_weight(step_ix + 1) * coeff3))
+            jl = base + left_weight(step_ix + 1) * (coeff1 + left_weight(step_ix + 1) * &
+                (coeff2 + left_weight(step_ix + 1) * coeff3))
         else
             call bjl(l, x_vals(step_ix + 1), jl)
         end if
@@ -2533,34 +2474,34 @@
 
     chi = chi_start + real(nIntSteps, dl) * dchisource * sgn
     y1 = 0._dl
-    y2 = 0._dl
 
     end subroutine FillSmallChiUjlVals
 
 
 
-    subroutine DoRangeInt(IV,chi,chiDisp,nstart,nend,dtau,nu,j,l,y1,y2,out)
+    subroutine DoRangeInt(IV,chi,chiDisp,nstart,nend,dtau,nu,j,l,y1,out)
     !Non-flat version
 
     !returns chi at end of integral (where integral stops, not neccessarily end)
-    ! This subroutine integrates the source*ujl for steps nstart to nend
-    ! It calculates ujl by integrating a second order
-    ! differential equation from initial values.
-    ! dtau is the spacing of the timesteps (they must be equally spaced)
+    ! Integrates source*ujl for steps nstart to nend.
+    ! ujl is obtained from Numerov stepping of the hyperspherical Bessel ODE,
+    ! bootstrapped by two Olver evaluations (at chi and chi+delchi).
+    ! dtau is the spacing of the timesteps (they must be equally spaced).
 
     use precision
     type(IntegrationVars) IV
-    integer j,l,nIntSteps,nstart,nend,isgn,i,Startn,step_ix,nSubSteps,src_ix,last_ix
+    integer j,l,nIntSteps,nstart,nend,isgn,i,Startn,step_ix,nSubSteps,src_ix,last_ix,K
     real(dl) nu,dtau,num1,num2,Deltachi,delchi
     real(dl) nu2,chi,chiDisp,chi_end,chi_max_range
 
-    real(dl) tmp,y1,y2,ap1,sh,ujl,chiDispTop
+    real(dl) q_now,y1,ap1,sh,ujl,chiDispTop
     real(dl) dchimax,dchisource,sgn,sgndelchi,minujl
-    real(dl) y_prev, y2_prev, y_next, y2_next, q_prev, q_next
+    real(dl) y_prev, y_next, y2_est, q_prev, q_next
     real(dl), parameter:: MINUJl1 = 0.5d-4  !cut-off point for small ujl l=1
     real(dl) scalel
     real(dl) IntAccuracyBoost
     real(dl) out(ThisSources%SourceNum), ujl_vals(abs(nstart - nend) + 1)
+    logical need_y2
 
     IntAccuracyBoost=CP%Accuracy%AccuracyBoost*CP%Accuracy%NonFlatIntAccuracyBoost
 
@@ -2572,8 +2513,7 @@
 
     if (nstart>IV%SourceSteps.and.nend>IV%SourceSteps) then
         out = 0
-        y1=0._dl !So we know to calculate starting y1,y2 if there is next range
-        y2=0._dl
+        y1=0._dl !So we know to calculate starting y1 if there is next range
         chi=(State%tau0-State%TimeSteps%points(nend))/State%curvature_radius
         return
     end if
@@ -2597,8 +2537,7 @@
 
     if (num2*IntAccuracyBoost < dchisource .and. (.not. WantLateTime .or. UseLimber(l))) then
         out = 0
-        y1=0._dl !So we know to calculate starting y1,y2 if there is next range
-        y2=0._dl
+        y1=0._dl !So we know to calculate starting y1 if there is next range
         chi=(State%tau0-State%TimeSteps%points(nend))/State%curvature_radius
         return
     end if
@@ -2621,6 +2560,7 @@
     !higher n, later time, smaller chi
 
     sgn= isgn
+    need_y2 = isgn < 0 .or. State%closed  !y2_est is only consulted by the dissipative-region cut-off
 
     nu2=nu*nu
     ap1=l*(l+1)
@@ -2644,19 +2584,17 @@
         ! In the local chi << 1 regime, fill the source-grid values directly from the
         ! shifted-q near-flat approximation instead of stepping the full hyperspherical ODE.
         out = 0
-        call FillShiftedQUjlVals(j, l, nu, chi, dchisource, sgn, nIntSteps, ujl_vals(1:nIntSteps + 1), y1, y2, chi)
+        call FillShiftedQUjlVals(j, l, nu, chi, dchisource, sgn, nIntSteps, ujl_vals(1:nIntSteps + 1), y1, chi)
         last_ix = nIntSteps + 1
     else if (abs(State%scale - 1._dl) <= near_flat_scale_tol .and. &
         UseSmallChiNearFlatIntegration(l, nu, chi_max_range, IntAccuracyBoost)) then
         out = 0
-        call FillSmallChiUjlVals(j, l, nu, chi, dchisource, sgn, nIntSteps, ujl_vals(1:nIntSteps + 1), y1, y2, chi)
+        call FillSmallChiUjlVals(j, l, nu, chi, dchisource, sgn, nIntSteps, ujl_vals(1:nIntSteps + 1), y1, chi)
         last_ix = nIntSteps + 1
     else
-        if ((y2==0._dl).and.(y1==0._dl)) then
-            call USpherBesselWithDeriv(State%closed,State%CP,chi,l,nu,y1,y2)
-        end if
-
+        K = merge(1, -1, State%closed)
         sh=State%rofChi(chi)
+        if (y1 == 0._dl) y1 = u_olver(l, K, nu, chi)
         ujl=y1/sh
         out = 0
         ujl_vals(1) = ujl
@@ -2665,35 +2603,45 @@
         delchi = dchisource/nSubSteps
 
         sgndelchi=delchi*sgn
-        tmp=(ap1/sh**2 - nu2)
-
-        y_prev = y1
-        y2_prev = y2
-        q_prev = tmp
+        q_now=(ap1/sh**2 - nu2)
 
         do i=1,nIntSteps
             do step_ix = 1, nSubSteps
                 if (i == 1 .and. step_ix == 1) then
-                    call StepUSpherBesselRK4(ap1, nu2, sgndelchi, chi, y1, y2, sh, tmp)
-                else
-                    call StepUSpherBesselNumerov(ap1, nu2, sgndelchi, chi, y_prev, y1, y2_prev, q_prev, tmp, sh, y_next, y2_next, q_next)
+                    !Bootstrap Numerov with a second Olver evaluation at chi+sgndelchi
                     y_prev = y1
-                    y2_prev = y2
-                    q_prev = tmp
+                    q_prev = q_now
+                    chi = chi + sgndelchi
+                    sh = State%rofChi(chi)
+                    q_now = ap1 / sh**2 - nu2
+                    y1 = u_olver(l, K, nu, chi)
+                else
+                    chi = chi + sgndelchi
+                    sh = State%rofChi(chi)
+                    q_next = ap1 / sh**2 - nu2
+                    y_next = (2._dl * (1._dl + 5._dl * sgndelchi**2 * q_now / 12._dl) * y1 - &
+                        (1._dl - sgndelchi**2 * q_prev / 12._dl) * y_prev) / &
+                        (1._dl - sgndelchi**2 * q_next / 12._dl)
+                    y_prev = y1
+                    q_prev = q_now
                     y1 = y_next
-                    y2 = y2_next
-                    tmp = q_next
+                    q_now = q_next
                 end if
 
                 ujl=y1/sh
-                if ((isgn<0).and.(y1*y2<0._dl).or.((chi>chiDispTop).and.((chi>3.14).or.(y1*y2>0)))) then
-                    chi=0._dl
-                    exit   !If this happens we are small, so stop integration
+                if (need_y2) then
+                    !2-point backward-difference proxy for dy/dchi; only the sign matters for the cut-off
+                    y2_est = (y1 - y_prev) / sgndelchi
+                    if ((isgn<0 .and. y1*y2_est<0._dl) .or. &
+                        (chi>chiDispTop .and. (chi>3.14 .or. y1*y2_est>0))) then
+                        chi=0._dl
+                        exit   !If this happens we are small, so stop integration
+                    end if
                 end if
 
                 if (((isgn<0).or.(chi>chiDispTop)).and.(abs(ujl) < minujl)) then
                     chi=0._dl
-                    exit !break when getting  exponentially small in dissipative region
+                    exit !break when getting exponentially small in dissipative region
                 end if
             end do
 
@@ -2729,24 +2677,24 @@
 
     end subroutine DoRangeInt
 
-    subroutine DoRangeIntTensor(IV,chi,chiDisp,nstart,nend,dtau,nu,l,y1,y2,out)
-    ! It calculates ujl by integrating a second order
-    ! differential equation from initial values for calculating ujl.
-    ! nstart and nend are the starting and finishing values of the
-    ! integration.
-    ! dtau is the spacing of the timesteps (they must be equally spaced)
+    subroutine DoRangeIntTensor(IV,chi,chiDisp,nstart,nend,dtau,nu,l,y1,out)
+    ! Tensor analogue of DoRangeInt: integrates source*ujl for steps nstart to nend.
+    ! ujl is obtained from Numerov stepping of the hyperspherical Bessel ODE,
+    ! bootstrapped by two Olver evaluations (at chi and chi+delchi).
+    ! dtau is the spacing of the timesteps (they must be equally spaced).
 
     type(IntegrationVars) :: IV
-    integer l,nIntSteps,nstart,nend,isgn,i,step_ix,nSubSteps,src_ix, last_ix
+    integer l,nIntSteps,nstart,nend,isgn,i,step_ix,nSubSteps,src_ix,last_ix,K
     real(dl) nu,dtau,num1,num2,Deltachi,delchi,scalel
     real(dl) nu2,chi,chiDisp,chiDispTop
 
-    real(dl) tmp,y1,y2,ap1,sh,ujl
+    real(dl) q_now,y1,ap1,sh,ujl
     real(dl) dchimax,dchisource,sgn,sgndelchi,minujl
-    real(dl) y_prev, y2_prev, y_next, y2_next, q_prev, q_next
-    real(dl), parameter:: MINUJl1 = 1.D-6  !cut-off point for smal ujl l=1
+    real(dl) y_prev, y_next, y2_est, q_prev, q_next
+    real(dl), parameter:: MINUJl1 = 1.D-6  !cut-off point for small ujl l=1
     real(dl) out(ThisSources%SourceNum), ujl_vals(abs(nstart - nend) + 1)
     real(dl) IntAccuracyBoost
+    logical need_y2
 
 
     if (nend==nstart) then
@@ -2786,17 +2734,17 @@
 
     if ((isgn==1).and.(num2*IntAccuracyBoost < dchisource)) then  !Oscillating fast
         out = 0
-        y1=0._dl !!So we know to calculate starting y1,y2 if there is next range
-        y2=0._dl
+        y1=0._dl !So we know to calculate starting y1 if there is next range
         chi=(State%tau0-State%TimeSteps%points(nend))/State%curvature_radius
         return
     end if
-    if ((y2==0._dl).and.(y1==0._dl)) call USpherBesselWithDeriv(State%closed,State%CP,chi,l,nu,y1,y2)
 
     sgn=isgn
+    need_y2 = isgn < 0 .or. State%closed  !y2_est is only consulted by the dissipative-region cut-off
 
     nu2=nu*nu
     ap1=l*(l+1)
+    K = merge(1, -1, State%closed)
 
     sh=State%rofChi(chi)
 
@@ -2810,6 +2758,7 @@
 
     dchimax=dchimax/IntAccuracyBoost
 
+    if (y1 == 0._dl) y1 = u_olver(l, K, nu, chi)
     ujl=y1/sh
     out = 0
     ujl_vals(1) = ujl
@@ -2822,30 +2771,40 @@
 
 
     sgndelchi=delchi*sgn
-    tmp=(ap1/sh**2 - nu2)
-
-    y_prev = y1
-    y2_prev = y2
-    q_prev = tmp
+    q_now=(ap1/sh**2 - nu2)
 
     do i=1,nIntSteps
         do step_ix = 1, nSubSteps
             if (i == 1 .and. step_ix == 1) then
-                call StepUSpherBesselRK4(ap1, nu2, sgndelchi, chi, y1, y2, sh, tmp)
-            else
-                call StepUSpherBesselNumerov(ap1, nu2, sgndelchi, chi, y_prev, y1, y2_prev, q_prev, tmp, sh, y_next, y2_next, q_next)
+                !Bootstrap Numerov with a second Olver evaluation at chi+sgndelchi
                 y_prev = y1
-                y2_prev = y2
-                q_prev = tmp
+                q_prev = q_now
+                chi = chi + sgndelchi
+                sh = State%rofChi(chi)
+                q_now = ap1 / sh**2 - nu2
+                y1 = u_olver(l, K, nu, chi)
+            else
+                chi = chi + sgndelchi
+                sh = State%rofChi(chi)
+                q_next = ap1 / sh**2 - nu2
+                y_next = (2._dl * (1._dl + 5._dl * sgndelchi**2 * q_now / 12._dl) * y1 - &
+                    (1._dl - sgndelchi**2 * q_prev / 12._dl) * y_prev) / &
+                    (1._dl - sgndelchi**2 * q_next / 12._dl)
+                y_prev = y1
+                q_prev = q_now
                 y1 = y_next
-                y2 = y2_next
-                tmp = q_next
+                q_now = q_next
             end if
 
             ujl=y1/sh
-            if ((isgn<0).and.(y1*y2<0._dl).or.((chi>chiDispTop).and.((chi>3.14).or.(y1*y2>0)))) then
-                chi=0._dl
-                exit   !exit because ujl now small
+            if (need_y2) then
+                !2-point backward-difference proxy for dy/dchi; only the sign matters for the cut-off
+                y2_est = (y1 - y_prev) / sgndelchi
+                if ((isgn<0 .and. y1*y2_est<0._dl) .or. &
+                    (chi>chiDispTop .and. (chi>3.14 .or. y1*y2_est>0))) then
+                    chi=0._dl
+                    exit   !exit because ujl now small
+                end if
             end if
 
             if (((isgn<0).or.(chi>chiDispTop)).and.(abs(ujl) < minujl)) then
