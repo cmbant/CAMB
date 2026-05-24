@@ -237,6 +237,7 @@
 
     logical function CAMB_ReadParams(P, Ini, ErrMsg)
     use NonLinear
+    use SPkNonLinear, only: TSPkNonLinear
     use DarkEnergyFluid
     use DarkEnergyPPF
     use Quintessence
@@ -503,7 +504,19 @@
     else
         P%Transfer%accurate_massive_neutrinos = .false.
     end if
-    if (P%NonLinear/=NonLinear_none) call P%NonLinearModel%ReadParams(Ini)
+    if (P%NonLinear/=NonLinear_none) then
+        S = UpperCase(Ini%Read_String_Default('nonlinear_model', 'Halofit'))
+        if (allocated(P%NonLinearModel)) deallocate(P%NonLinearModel)
+        if (S == 'SPKNONLINEAR') then
+            allocate(TSPkNonLinear::P%NonLinearModel)
+        else if (S == 'HALOFIT') then
+            allocate(THalofit::P%NonLinearModel)
+        else
+            ErrMsg = 'Unknown non-linear model: '//trim(S)
+            return
+        end if
+        call P%NonLinearModel%ReadParams(Ini)
+    end if
 
     if (PK_WantTransfer)  then
         P%WantTransfer  = .true.
