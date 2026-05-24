@@ -4,6 +4,7 @@ use results
 use NonLinear, only: THalofit, halofit_mead, halofit_mead2015, halofit_mead2016, halofit_mead2020_feedback
 use SPkModel
 use config
+use ieee_arithmetic, only: ieee_value, ieee_quiet_nan
 implicit none
 private
 
@@ -121,9 +122,11 @@ class(TSPkNonLinear) :: this
 class(TCAMBdata) :: State
 type(MatterPowerData), target :: CAMB_Pk
 integer :: itf, i
-real(dl) :: rk, spk_sup, spk_href, spk_eratio
+real(dl) :: rk, rk_eval, spk_sup, spk_href, spk_eratio
+real(dl) :: spk_fb, spk_m_opt, spk_fb_min, spk_fb_max
 logical, save :: warned_spk_z_outside = .false.
 logical, save :: warned_spk_k_clamped = .false.
+logical, save :: warned_spk_fb_outside = .false.
 
 if (.not. allocated(this%BaseModel)) allocate(THalofit::this%BaseModel)
 
@@ -172,7 +175,20 @@ do itf = 1, CAMB_Pk%num_z
                 warned_spk_k_clamped = .true.
             end if
         end if
-        spk_sup = SPk_Suppression(this%SPk_SO, min(rk, SPk_calibrated_k_max), CAMB_Pk%redshifts(itf), &
+        rk_eval = min(rk, SPk_calibrated_k_max)
+        call SPk_ComputeFb(this%SPk_SO, rk_eval, CAMB_Pk%redshifts(itf), this%SPk_relation_kind, &
+            this%SPk_fb_a, this%SPk_fb_pow, this%SPk_fb_pivot, this%SPk_alpha, this%SPk_beta, this%SPk_gamma, &
+            this%SPk_epsilon, this%SPk_m_pivot, spk_eratio, spk_fb, spk_m_opt)
+        call SPk_GetFbLimits(this%SPk_SO, CAMB_Pk%redshifts(itf), spk_m_opt, spk_fb_min, spk_fb_max)
+        if (spk_fb < spk_fb_min .or. spk_fb > spk_fb_max) then
+            if (FeedbackLevel > 0 .and. .not. warned_spk_fb_outside) then
+                write(*,'(A)') 'WARNING: SP(k) baryon fraction outside calibrated fitting limits; setting out-of-range points to NaN.'
+                warned_spk_fb_outside = .true.
+            end if
+            CAMB_Pk%nonlin_ratio(i, itf) = ieee_value(1.0_dl, ieee_quiet_nan)
+            cycle
+        end if
+        spk_sup = SPk_Suppression(this%SPk_SO, rk_eval, CAMB_Pk%redshifts(itf), &
             this%SPk_relation_kind, this%SPk_fb_a, this%SPk_fb_pow, this%SPk_fb_pivot, &
             this%SPk_alpha, this%SPk_beta, this%SPk_gamma, &
             this%SPk_epsilon, this%SPk_m_pivot, spk_eratio)

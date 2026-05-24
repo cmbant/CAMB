@@ -101,6 +101,48 @@ class SPkTest(unittest.TestCase):
         mask = (k_spk > 0.1) & (k_spk <= 12.0)
         self.assertFalse(np.allclose(sup[mask], 1.0, atol=1e-4))
 
+    def test_spk_fb_outside_calibrated_limits_produces_nan(self):
+        """When fb is pushed far outside the calibrated fitting limits, P(k) should contain NaN."""
+        pars = camb.CAMBparams()
+        pars.set_cosmology(H0=67.5, ombh2=0.02237, omch2=0.12, mnu=0.06)
+        pars.InitPower.set_params(As=2.1e-9, ns=0.965)
+        pars.set_matter_power(redshifts=[0.5], kmax=3.0)
+        pars.NonLinear = camb.model.NonLinear_both
+        pars.NonLinearModel = SPkNonLinear()
+        pars.NonLinearModel.set_params(
+            halofit_version="mead2020",
+            SPk_feedback=True,
+            SPk_SO=200,
+            SPk_relation_kind=1,
+            SPk_fb_a=100.0,
+            SPk_fb_pow=0.0,
+            SPk_fb_pivot=1.0,
+        )
+        data = camb.get_results(pars)
+        interp = data.get_matter_power_interpolator(nonlinear=True)
+        k_test = np.logspace(-1, 0.4, 10)
+        pk = interp.P(0.5, k_test)  # type: ignore[union-attr]
+        self.assertTrue(np.any(np.isnan(pk)), "Expected NaN for out-of-limits fb")
+
+        # Verify valid params remain finite
+        pars2 = camb.CAMBparams()
+        pars2.set_cosmology(H0=67.5, ombh2=0.02237, omch2=0.12, mnu=0.06)
+        pars2.InitPower.set_params(As=2.1e-9, ns=0.965)
+        pars2.set_matter_power(redshifts=[0.5], kmax=3.0)
+        pars2.NonLinear = camb.model.NonLinear_both
+        pars2.NonLinearModel = SPkNonLinear()
+        pars2.NonLinearModel.set_params(
+            halofit_version="mead2020",
+            SPk_feedback=True,
+            SPk_fb_a=0.4,
+            SPk_fb_pow=0.2,
+            SPk_fb_pivot=1e14,
+        )
+        data2 = camb.get_results(pars2)
+        interp2 = data2.get_matter_power_interpolator(nonlinear=True)
+        pk2 = interp2.P(0.5, k_test)  # type: ignore[union-attr]
+        self.assertTrue(np.all(np.isfinite(pk2)), "Expected finite P(k) for valid fb")
+
     def test_spk_class_selection_via_set_classes(self):
         pars = camb.CAMBparams()
         pars.set_classes(non_linear_model="SPkNonLinear")
