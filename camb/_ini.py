@@ -278,10 +278,34 @@ def _update_ini_state_from_params(params: model.CAMBparams, state: CambIniFile) 
         set_param(state, "transfer_21cm_cl", params.transfer_21cm_cl)
 
     if isinstance(params.NonLinearModel, nonlinear.Halofit):
+        set_param(state, "nonlinear_model", "Halofit")
         set_param(state, "halofit_version", nonlinear.halofit_version_names[params.NonLinearModel.halofit_version])
         set_param(state, "HMCode_A_baryon", params.NonLinearModel.HMCode_A_baryon)
         set_param(state, "HMCode_eta_baryon", params.NonLinearModel.HMCode_eta_baryon)
         set_param(state, "HMcode_logT_AGN", params.NonLinearModel.HMCode_logT_AGN)
+    elif isinstance(params.NonLinearModel, nonlinear.SPkNonLinear):
+        base_model = params.NonLinearModel.BaseModel
+        if not isinstance(base_model, nonlinear.Halofit):
+            raise CAMBValueError(
+                f"write_ini does not support SPkNonLinear base model class {base_model.__class__.__name__}"
+            )
+
+        set_param(state, "nonlinear_model", "SPkNonLinear")
+        set_param(state, "halofit_version", nonlinear.halofit_version_names[base_model.halofit_version])
+        set_param(state, "HMCode_A_baryon", base_model.HMCode_A_baryon)
+        set_param(state, "HMCode_eta_baryon", base_model.HMCode_eta_baryon)
+        set_param(state, "HMcode_logT_AGN", base_model.HMCode_logT_AGN)
+        set_param(state, "SPk_feedback", params.NonLinearModel.SPk_feedback)
+        set_param(state, "SPk_SO", params.NonLinearModel.SPk_SO)
+        set_param(state, "SPk_relation_kind", params.NonLinearModel.SPk_relation_kind)
+        set_param(state, "SPk_fb_a", params.NonLinearModel.SPk_fb_a)
+        set_param(state, "SPk_fb_pow", params.NonLinearModel.SPk_fb_pow)
+        set_param(state, "SPk_fb_pivot", params.NonLinearModel.SPk_fb_pivot)
+        set_param(state, "SPk_alpha", params.NonLinearModel.SPk_alpha)
+        set_param(state, "SPk_beta", params.NonLinearModel.SPk_beta)
+        set_param(state, "SPk_gamma", params.NonLinearModel.SPk_gamma)
+        set_param(state, "SPk_epsilon", params.NonLinearModel.SPk_epsilon)
+        set_param(state, "SPk_m_pivot", params.NonLinearModel.SPk_m_pivot)
     elif params.NonLinear != model.NonLinear_none:
         raise CAMBValueError(
             f"write_ini does not support non-linear model class {params.NonLinearModel.__class__.__name__}"
