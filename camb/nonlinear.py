@@ -250,10 +250,17 @@ class SPkNonLinear(NonLinearModel):
                   SPk_SO: 200
                   SPk_relation_kind: 3
 
-        **Notes:**
+        **Boundary behavior:**
 
-        - Calibrated for ``0 <= z <= 3`` and ``k <= 12 h/Mpc``.
-        - Cannot be combined with ``halofit_version='mead2020_feedback'``.
+        - z outside [0, 3]: no suppression applied (identity).
+        - k > 12 h/Mpc: suppression clamped to value at k = 12 (saturates).
+        - f_b outside calibrated limits: ``nonlin_ratio`` set to NaN.
+
+        NaN propagates through
+        :meth:`~camb.results.CAMBdata.get_matter_power_interpolator`
+        (Cobaya rejects the sample). Set priors to keep f_b in range.
+
+        Cannot be combined with ``halofit_version='mead2020_feedback'``.
         """
         if self.BaseModel is None:
             self.BaseModel = Halofit()
