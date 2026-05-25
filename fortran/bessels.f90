@@ -1,5 +1,5 @@
     !CAMB flat spherical Bessel function routines
-    !May 2026: updated bjl, accurate to peak-normalized fraction 1e-5 at L>50, max ~4.4e-5 at BJL_RECURRENCE_MAX_L
+    !May 2026: updated bjl, accurate to peak-normalized fraction 1e-5 at L>50, max ~4e-5 at BJL_RECURRENCE_MAX_L+1
     !          (pre-splining). Spline table accurate to 2e-4 in tail, better round peak.
 
     module FlatBessels
@@ -150,12 +150,10 @@
 ! Strategy:
 !   For low L use (v accurate and still fast) recursive result
 !   Elsewhere use a two-term corrected uniform Airy asymptotic
-!   in the transition bands, using fast approximate bjl_approx
-!   elsewhere where it is accurate.
+!   in the transition bands, using fast approximation elsewhere
+!   where they are accurate.
 !
-! The Airy Ai and Ai' used by the uniform expansion are evaluated by Chebyshev
-! fits on tau in [-6.5,6.5], which covers the transition bands used below.
-! Max peak-normalized error is about 4.4e-5 in the current scan. Typical error < 2e-6.
+! accurate to peak-normalized fraction 1e-5 at L>50, max ~4e-5 at BJL_RECURRENCE_MAX_L+1.
 
     SUBROUTINE BJL(L, X, JL)
     ! Optimized spherical Bessel j_l(x).
@@ -281,7 +279,7 @@
         ! Deep pre-peak and far-x cases have already returned via cheaper branches.
         IF (L <= BJL_RECURRENCE_MAX_L .AND. &
             ETA >= BJL_RECURRENCE_ETA_LOW .AND. ETA <= BJL_RECURRENCE_ETA_HIGH) THEN
-            CALL BJL_RECURRENCE_FAST(L, X, JL)
+            CALL BJL_RECURRENCE(L, X, JL)
             RETURN
         END IF
 
@@ -349,507 +347,517 @@
 
     END SUBROUTINE BJL
 
-    SUBROUTINE BJL_UNIFORM_AIRY_FAST(L, X, JL)
+
+
+
+    subroutine bjl_uniform_airy_fast(l, x, jl)
     ! Two-term corrected Olver uniform Airy approximation:
     !
     !   j_l(x) ~= pref * [ Ai(tau)
     !       + eps  * (P1(tau) Ai(tau) + Q1(tau) Ai'(tau))
     !       + eps^2* (P2(tau) Ai(tau) + Q2(tau) Ai'(tau)) ]
     !
-    ! tau = nu^(2/3) zeta, eps = nu^(-2/3), nu = l+1/2.
+    ! Intended domain: turning-point region with
+    !   tau = nu^(2/3) zeta in roughly [-6.5, 6.5].
+    ! Dense-grid validation against scipy.special.spherical_jn, using
+    ! l = 1,2,5,10,20,50,100,200,500,1000,2000,5000 and 2601 tau values:
+    !
+    !   full tau [-6.5,6.5], max absolute error:
+    !     l>=10: 2.77e-5, l>=20: 4.75e-6,
+    !     l>=50: 3.08e-7, l>=100: 2.78e-8, l>=200: 1.04e-8.
+    !
+    !   first positive maximum of j_l, found from exact derivative zero;
+    !   maximum relative error over tested l>=lmin:
+    !     l>=10: 2.28e-5, l>=20: 5.72e-6,
+    !     l>=50: 6.76e-7, l>=100: 7.98e-8, l>=200: 6.35e-9.
 
-    IMPLICIT NONE
-    INTEGER, INTENT(IN) :: L
-    REAL(dl), INTENT(IN) :: X
-    REAL(dl), INTENT(OUT) :: JL
+    implicit none
+    integer, intent(in) :: l
+    real(dl), intent(in) :: x
+    real(dl), intent(out) :: jl
 
-    REAL(dl), PARAMETER :: PI = 3.141592653589793238462643383279502884197E0_dl
-    REAL(dl) :: AX, NU, Z, ZETA, TAU, EPS, PREF, RATIO
-    REAL(dl) :: T, S, VAL, DENOM, U
-    REAL(dl) :: AI, AIP
-    REAL(dl) :: P1, Q1, P2, Q2
-    INTEGER :: K
+    real(dl), parameter :: pi = 3.141592653589793238462643383279502884197_dl
+    real(dl) :: ax, nu, nu13, nu23, z, zeta, tau, eps, eps2, pref, ratio
+    real(dl) :: t, s, val, denom, u
+    real(dl) :: ai, aip
+    real(dl) :: p1, q1, p2, q2
+    integer :: k
 
-    REAL(dl), PARAMETER :: C(24) = (/ &
-        -1.57687029733452188E-04_dl, -2.86291841602745543E-04_dl, &
-        -1.64967917049690195E-04_dl, -4.20144950724723239E-05_dl, &
-        -4.91866087021318015E-06_dl, -2.16160522018663616E-07_dl, &
-        -2.19528732498613553E-04_dl, -2.36964997600504554E-04_dl, &
-        -9.00604510654162075E-05_dl, -1.59170174801830321E-05_dl, &
-        -1.26798459743804658E-06_dl, -3.48372195594890281E-08_dl, &
-        6.66207928274303168E-03_dl,  1.23061280051791379E-02_dl, &
-        7.08775888397744549E-03_dl,  1.80375527531944258E-03_dl, &
-        2.10966849276599796E-04_dl,  9.26086631302043278E-06_dl, &
-        2.74389063894026689E-02_dl,  1.04229584215560795E-02_dl, &
-        3.86950969205413983E-03_dl,  6.82819070773826560E-04_dl, &
-        5.42682642617796167E-05_dl,  1.48342002616123936E-06_dl /)
+    real(dl), parameter :: c(24) = (/ &
+        -1.57687029733452188e-04_dl, -2.86291841602745543e-04_dl, &
+        -1.64967917049690195e-04_dl, -4.20144950724723239e-05_dl, &
+        -4.91866087021318015e-06_dl, -2.16160522018663616e-07_dl, &
+        -2.19528732498613553e-04_dl, -2.36964997600504554e-04_dl, &
+        -9.00604510654162075e-05_dl, -1.59170174801830321e-05_dl, &
+        -1.26798459743804658e-06_dl, -3.48372195594890281e-08_dl, &
+        6.66207928274303168e-03_dl,  1.23061280051791379e-02_dl, &
+        7.08775888397744549e-03_dl,  1.80375527531944258e-03_dl, &
+        2.10966849276599796e-04_dl,  9.26086631302043278e-06_dl, &
+        2.74389063894026689e-02_dl,  1.04229584215560795e-02_dl, &
+        3.86950969205413983e-03_dl,  6.82819070773826560e-04_dl, &
+        5.42682642617796167e-05_dl,  1.48342002616123936e-06_dl /)
 
-    AX = ABS(X)
+    ax = abs(x)
 
-    IF (AX == 0.0E0_dl) THEN
-        IF (L == 0) THEN
-            JL = 1.0E0_dl
-        ELSE
-            JL = 0.0E0_dl
-        END IF
-        RETURN
-    END IF
+    if (ax == 0.0_dl) then
+        if (l == 0) then
+            jl = 1.0_dl
+        else
+            jl = 0.0_dl
+        end if
+        return
+    end if
 
-    NU = REAL(L, dl) + 0.5E0_dl
-    Z = AX / NU
+    nu = real(l, dl) + 0.5_dl
+    z = ax / nu
 
-    IF (ABS(Z - 1.0E0_dl) < 1.0E-5_dl) THEN
-        U = Z - 1.0E0_dl
+    ! Stable series through the turning point z=1.
+    ! zeta = -2^(1/3)*(z-1) + O((z-1)^2)
+    ! ratio = 4*zeta/(1-z^2), whose limit is 2^(4/3).
+    if (abs(z - 1.0_dl) < 1.0e-3_dl) then
+        u = z - 1.0_dl
 
-        ZETA = -7.9370052598409973738E-1_dl * U &
-            +9.5244063118091968485E-1_dl * U**2 &
-            +3.9911797878057586794E-1_dl * U**3 &
-            +1.4430735404495669892E0_dl  * U**4
+        zeta = ((((-1.2931387086451008907e-1_dl * u &
+            +1.6590960364964869484e-1_dl) * u &
+            -2.3038556340934823584e-1_dl) * u &
+            +3.7797631496846194943e-1_dl) * u &
+            -1.2599210498948731648e0_dl) * u
 
-        RATIO =  1.5874010519681994748E0_dl &
-            -2.6985817883459391071E0_dl * U &
-            +5.5105493661181781766E-1_dl * U**2 &
-            -3.1616745492050428872E0_dl * U**3
+        ratio = (((( 7.9171433706231762385e-1_dl * u &
+            -1.0661731906665948914e0_dl) * u &
+            +1.4687079667345950035e0_dl) * u &
+            -2.0158736798317970636e0_dl) * u &
+            +2.5198420997897463295e0_dl)
 
-    ELSE IF (Z < 1.0E0_dl) THEN
-        T = SQRT(MAX(0.0E0_dl, 1.0E0_dl - Z*Z))
-        VAL = LOG((1.0E0_dl + T)/Z) - T
-        ZETA = (1.5E0_dl * VAL)**(2.0E0_dl/3.0E0_dl)
-        DENOM = 1.0E0_dl - Z*Z
-        RATIO = 4.0E0_dl * ZETA / DENOM
+    else if (z < 1.0_dl) then
+        t = sqrt(max(0.0_dl, 1.0_dl - z*z))
+        val = log((1.0_dl + t)/z) - t
+        zeta = (1.5_dl * val)**(2.0_dl/3.0_dl)
+        denom = 1.0_dl - z*z
+        ratio = 4.0_dl * zeta / denom
 
-    ELSE
-        S = SQRT(MAX(0.0E0_dl, Z*Z - 1.0E0_dl))
-        VAL = S - ACOS(1.0E0_dl/Z)
-        ZETA = - (1.5E0_dl * VAL)**(2.0E0_dl/3.0E0_dl)
-        DENOM = 1.0E0_dl - Z*Z
-        RATIO = 4.0E0_dl * ZETA / DENOM
-    END IF
+    else
+        s = sqrt(max(0.0_dl, z*z - 1.0_dl))
+        val = s - acos(1.0_dl/z)
+        zeta = - (1.5_dl * val)**(2.0_dl/3.0_dl)
+        denom = 1.0_dl - z*z
+        ratio = 4.0_dl * zeta / denom
+    end if
 
-    TAU = NU**(2.0E0_dl/3.0E0_dl) * ZETA
-    EPS = NU**(-2.0E0_dl/3.0E0_dl)
+    nu13 = nu**(1.0_dl/3.0_dl)
+    nu23 = nu13 * nu13
+    eps = 1.0_dl / nu23
+    eps2 = eps * eps
 
-    CALL AIRY_FAST(TAU, AI, AIP)
+    tau = nu23 * zeta
 
-    PREF = SQRT(PI/(2.0E0_dl*AX)) * RATIO**0.25E0_dl * NU**(-1.0E0_dl/3.0E0_dl)
+    call airy_fast(tau, ai, aip)
+
+    pref = sqrt(pi/(2.0_dl*ax)) * sqrt(sqrt(ratio)) / nu13
 
     ! Horner evaluation of correction polynomials.
-    P1 = C(6)
-    Q1 = C(12)
-    P2 = C(18)
-    Q2 = C(24)
+    p1 = c(6)
+    q1 = c(12)
+    p2 = c(18)
+    q2 = c(24)
 
-    DO K = 4, 0, -1
-        P1 = P1*TAU + C(1+K)
-        Q1 = Q1*TAU + C(7+K)
-        P2 = P2*TAU + C(13+K)
-        Q2 = Q2*TAU + C(19+K)
-    END DO
+    do k = 4, 0, -1
+        p1 = p1*tau + c(1+k)
+        q1 = q1*tau + c(7+k)
+        p2 = p2*tau + c(13+k)
+        q2 = q2*tau + c(19+k)
+    end do
 
-    JL = PREF * (AI + EPS*(P1*AI + Q1*AIP) + EPS*EPS*(P2*AI + Q2*AIP))
+    jl = pref * (ai + eps*(p1*ai + q1*aip) + eps2*(p2*ai + q2*aip))
 
-    IF (X < 0.0E0_dl .AND. MOD(L, 2) /= 0) JL = -JL
+    if (x < 0.0_dl .and. mod(l, 2) /= 0) jl = -jl
 
-    END SUBROUTINE BJL_UNIFORM_AIRY_FAST
+    end subroutine bjl_uniform_airy_fast
 
-    SUBROUTINE AIRY_FAST(X, AI, AIP)
-    ! Fast real Airy Ai(x) and Ai'(x), targeting about 1e-6 absolute
-    ! accuracy for use in the Olver/uniform Bessel expansion.
+
+    subroutine airy_fast(x, ai, aip)
+    ! Fast real Airy Ai(x) and Ai'(x).
     !
-    ! Method:
+    ! Branches:
+    !   x < -4.4               Cephes-style oscillatory asymptotic fallback
+    !  -4.4 <= x < -2.09       Chebyshev fit
+    !  -2.09 <= x <  2.09      shortened Taylor/Horner series
+    !   2.09 <= x <= 2.98      Chebyshev fit
+    !   2.98 < x <= 25.77      Cephes-style decaying asymptotic fallback
+    !   x > 25.77              returns zero for Ai and Ai'
     !
-    !   x < -6.5
-    !       Oscillatory Cephes-style asymptotic form with rational
-    !       corrections.  Used only as an out-of-range fallback.
+    ! Measured on 130001 points in [-6.5,6.5] against scipy.special.airy:
+    !   full interval:        max |Ai error|  = 5.46e-7,
+    !                         max |Ai' error| = 2.08e-6.
+    !   central branch:       max |Ai error|  = 5.05e-8,
+    !                         max |Ai' error| = 5.11e-7.
+    !   negative Cheb branch: max |Ai error|  = 5.46e-7,
+    !                         max |Ai' error| = 2.08e-6.
+    !   positive Cheb branch: max |Ai error|  = 9.67e-8,
+    !                         max |Ai' error| = 7.98e-7.
     !
-    !   -6.5 <= x < -2.09
-    !       Local Chebyshev fits for Ai and Ai' on [-6.5, -2.09].
-    !       This avoids sin/cos/rational derivative work in the usual
-    !       tau range.
-    !
-    !   -2.09 <= x < 2.09
-    !       Fixed Taylor/Horner polynomials for Ai and Ai', deliberately
-    !       truncated for speed rather than full double precision.
-    !
-    !   2.09 <= x <= 6.5
-    !       Local Chebyshev fits for Ai and Ai' on [2.09, 6.5].
-    !
-    !   x > 6.5
-    !       Exponentially decaying Cephes-style asymptotic form with
-    !       rational correction, or zero once x > AMAXAIRY.
-    !
-    ! Expected checked accuracy against a double-precision Airy reference:
-    !
-    !   On x in [-6.5, 6.5]:
-    !       max |Ai error|                 ~ 2e-7
-    !       max |Ai' error|                ~ 5.2e-7
-    !       max sqrt(dAi**2 + dAiPrime**2) ~ 5.2e-7
-    !
-    ! The worst error is set by the deliberately shortened central branch
-    ! near the transition points.  Outside [-6.5,6.5], this remains a useful
-    ! all-real fallback, but the strongest 1e-6 statement is for the finite
-    ! tau interval used by the uniform expansion.
+    ! Relative Airy errors can be large near Airy zeros; Bessel accuracy is
+    ! better characterized by the j_l first-maximum relative errors above.
+    implicit none
 
-    IMPLICIT NONE
+    real(dl), intent(in)  :: x
+    real(dl), intent(out) :: ai, aip
 
-    REAL(dl), INTENT(IN)  :: X
-    REAL(dl), INTENT(OUT) :: AI, AIP
+    real(dl), parameter :: amaxairy = 25.77_dl
+    real(dl), parameter :: pi = 3.141592653589793238462643383279502884197_dl
+    real(dl), parameter :: c1 = 0.35502805388781723926_dl
+    real(dl), parameter :: c2 = 0.258819403792806798405_dl
+    real(dl), parameter :: sqpii = 5.64189583547756286948e-1_dl
 
-    REAL(dl), PARAMETER :: AMAXAIRY = 25.77E0_dl
-    REAL(dl), PARAMETER :: PI = 3.141592653589793238462643383279502884197E0_dl
-    REAL(dl), PARAMETER :: C1 = 0.35502805388781723926E0_dl
-    REAL(dl), PARAMETER :: C2 = 0.258819403792806798405E0_dl
-    REAL(dl), PARAMETER :: SQPII = 5.64189583547756286948E-1_dl
+    real(dl), parameter :: an(8) = (/ &
+        3.46538101525629032477e-1_dl, &
+        1.20075952739645805542e1_dl, &
+        7.62796053615234516538e1_dl, &
+        1.68089224934630576269e2_dl, &
+        1.59756391350164413639e2_dl, &
+        7.05360906840444183113e1_dl, &
+        1.40264691163389668864e1_dl, &
+        9.99999999999999995305e-1_dl /)
 
-    REAL(dl), PARAMETER :: AN(8) = (/ &
-        3.46538101525629032477E-1_dl, &
-        1.20075952739645805542E1_dl, &
-        7.62796053615234516538E1_dl, &
-        1.68089224934630576269E2_dl, &
-        1.59756391350164413639E2_dl, &
-        7.05360906840444183113E1_dl, &
-        1.40264691163389668864E1_dl, &
-        9.99999999999999995305E-1_dl /)
+    real(dl), parameter :: ad(8) = (/ &
+        5.67594532638770212846e-1_dl, &
+        1.47562562584847203173e1_dl, &
+        8.45138970141474626562e1_dl, &
+        1.77318088145400459522e2_dl, &
+        1.64234692871529701831e2_dl, &
+        7.14778400825575695274e1_dl, &
+        1.40959135607834029598e1_dl, &
+        1.00000000000000000470e0_dl /)
 
-    REAL(dl), PARAMETER :: AD(8) = (/ &
-        5.67594532638770212846E-1_dl, &
-        1.47562562584847203173E1_dl, &
-        8.45138970141474626562E1_dl, &
-        1.77318088145400459522E2_dl, &
-        1.64234692871529701831E2_dl, &
-        7.14778400825575695274E1_dl, &
-        1.40959135607834029598E1_dl, &
-        1.00000000000000000470E0_dl /)
+    real(dl), parameter :: afn(9) = (/ &
+        -1.31696323418331795333e-1_dl, &
+        -6.26456544431912369773e-1_dl, &
+        -6.93158036036933542233e-1_dl, &
+        -2.79779981545119124951e-1_dl, &
+        -4.91900132609500318020e-2_dl, &
+        -4.06265923594885404393e-3_dl, &
+        -1.59276496239262096340e-4_dl, &
+        -2.77649108155232920844e-6_dl, &
+        -1.67787698489114633780e-8_dl /)
 
-    REAL(dl), PARAMETER :: AFN(9) = (/ &
-        -1.31696323418331795333E-1_dl, &
-        -6.26456544431912369773E-1_dl, &
-        -6.93158036036933542233E-1_dl, &
-        -2.79779981545119124951E-1_dl, &
-        -4.91900132609500318020E-2_dl, &
-        -4.06265923594885404393E-3_dl, &
-        -1.59276496239262096340E-4_dl, &
-        -2.77649108155232920844E-6_dl, &
-        -1.67787698489114633780E-8_dl /)
+    real(dl), parameter :: afd(9) = (/ &
+        1.33560420706553243746e1_dl, &
+        3.26825032795224613948e1_dl, &
+        2.67367040941499554804e1_dl, &
+        9.18707402907259625840e0_dl, &
+        1.47529146771666414581e0_dl, &
+        1.15687173795188044134e-1_dl, &
+        4.40291641615211203805e-3_dl, &
+        7.54720348287414296618e-5_dl, &
+        4.51850092970580378464e-7_dl /)
 
-    REAL(dl), PARAMETER :: AFD(9) = (/ &
-        1.33560420706553243746E1_dl, &
-        3.26825032795224613948E1_dl, &
-        2.67367040941499554804E1_dl, &
-        9.18707402907259625840E0_dl, &
-        1.47529146771666414581E0_dl, &
-        1.15687173795188044134E-1_dl, &
-        4.40291641615211203805E-3_dl, &
-        7.54720348287414296618E-5_dl, &
-        4.51850092970580378464E-7_dl /)
+    real(dl), parameter :: agn(11) = (/ &
+        1.97339932091685679179e-2_dl, &
+        3.91103029615688277255e-1_dl, &
+        1.06579897599595591108e0_dl, &
+        9.39169229816650230044e-1_dl, &
+        3.51465656105547619242e-1_dl, &
+        6.33888919628925490927e-2_dl, &
+        5.85804113048388458567e-3_dl, &
+        2.82851600836737019778e-4_dl, &
+        6.98793669997260967291e-6_dl, &
+        8.11789239554389293311e-8_dl, &
+        3.41551784765923618484e-10_dl /)
 
-    REAL(dl), PARAMETER :: AGN(11) = (/ &
-        1.97339932091685679179E-2_dl, &
-        3.91103029615688277255E-1_dl, &
-        1.06579897599595591108E0_dl, &
-        9.39169229816650230044E-1_dl, &
-        3.51465656105547619242E-1_dl, &
-        6.33888919628925490927E-2_dl, &
-        5.85804113048388458567E-3_dl, &
-        2.82851600836737019778E-4_dl, &
-        6.98793669997260967291E-6_dl, &
-        8.11789239554389293311E-8_dl, &
-        3.41551784765923618484E-10_dl /)
+    real(dl), parameter :: agd(10) = (/ &
+        9.30892908077441974853e0_dl, &
+        1.98352928718312140417e1_dl, &
+        1.55646628932864612953e1_dl, &
+        5.47686069422975497931e0_dl, &
+        9.54293611618961883998e-1_dl, &
+        8.64580826352392193095e-2_dl, &
+        4.12656523824222607191e-3_dl, &
+        1.01259085116509135510e-4_dl, &
+        1.17166733214413521882e-6_dl, &
+        4.91834570062930015649e-9_dl /)
 
-    REAL(dl), PARAMETER :: AGD(10) = (/ &
-        9.30892908077441974853E0_dl, &
-        1.98352928718312140417E1_dl, &
-        1.55646628932864612953E1_dl, &
-        5.47686069422975497931E0_dl, &
-        9.54293611618961883998E-1_dl, &
-        8.64580826352392193095E-2_dl, &
-        4.12656523824222607191E-3_dl, &
-        1.01259085116509135510E-4_dl, &
-        1.17166733214413521882E-6_dl, &
-        4.91834570062930015649E-9_dl /)
+    real(dl) :: q, rt, qtr, zeta, z, zz
+    real(dl) :: theta, sn, cs, ak, h
+    real(dl) :: pn, pd, dpn, dpd
+    real(dl) :: r, dr, rf, drf, rg, drg
+    real(dl) :: uf, ug, duf_dz, dug_dz
+    real(dl) :: dzdx, dthdx, dakdx
+    real(dl) :: f, g, df, dg, z3
 
-    REAL(dl) :: Q, RT, QTR, ZETA, Z, ZZ
-    REAL(dl) :: THETA, SN, CS, AK, H
-    REAL(dl) :: PN, PD, DPN, DPD
-    REAL(dl) :: R, DR, RF, DRF, RG, DRG
-    REAL(dl) :: UF, UG, DUF_DZ, DUG_DZ
-    REAL(dl) :: DZDX, DTHDX, DAKDX
-    REAL(dl) :: F, G, DF, DG, Z3
+    if (x > amaxairy) then
+        ai = 0.0_dl
+        aip = 0.0_dl
+        return
+    end if
 
-    IF (X > AMAXAIRY) THEN
-        AI = 0.0E0_dl
-        AIP = 0.0E0_dl
-        RETURN
-    END IF
+    if (x >= -4.4_dl .and. x < -2.09_dl) then
+        call airy_neg_cheb_fast(x, ai, aip)
+        return
+    end if
 
-    IF (X >= -4.4E0_dl .AND. X < -2.09E0_dl) THEN
-        CALL AIRY_NEG_CHEB_FAST(X, AI, AIP)
-        RETURN
-    END IF
+    if (x >= 2.09_dl .and. x <= 2.98_dl) then
+        call airy_pos_cheb_fast(x, ai, aip)
+        return
+    end if
 
-    IF (X >= 2.09E0_dl .AND. X <= 2.98E0_dl) THEN
-        CALL AIRY_POS_CHEB_FAST(X, AI, AIP)
-        RETURN
-    END IF
+    ! Negative fallback: x < -4.4.
+    if (x < -4.4_dl) then
+        q = -x
+        rt = sqrt(q)
 
-    ! Negative fallback: x < -6.5.
-    IF (X < -6.5E0_dl) THEN
-        Q = -X
-        RT = SQRT(Q)
+        zeta = 2.0_dl * q * rt / 3.0_dl
+        qtr = sqrt(rt)
+        ak = sqpii / qtr
 
-        ZETA = 2.0E0_dl * Q * RT / 3.0E0_dl
-        QTR = SQRT(RT)
-        AK = SQPII / QTR
+        z = 1.0_dl / zeta
+        zz = z * z
 
-        Z = 1.0E0_dl / ZETA
-        ZZ = Z * Z
+        call polevl_der_fast(zz, afn, 8, pn, dpn)
+        call p1evl_der_fast(zz, afd, 9, pd, dpd)
+        rf = pn / pd
+        drf = (dpn*pd - pn*dpd) / (pd*pd)
 
-        CALL POLEVL_DER_FAST(ZZ, AFN, 8, PN, DPN)
-        CALL P1EVL_DER_FAST(ZZ, AFD, 9, PD, DPD)
-        RF = PN / PD
-        DRF = (DPN*PD - PN*DPD) / (PD*PD)
+        call polevl_der_fast(zz, agn, 10, pn, dpn)
+        call p1evl_der_fast(zz, agd, 10, pd, dpd)
+        rg = pn / pd
+        drg = (dpn*pd - pn*dpd) / (pd*pd)
 
-        CALL POLEVL_DER_FAST(ZZ, AGN, 10, PN, DPN)
-        CALL P1EVL_DER_FAST(ZZ, AGD, 10, PD, DPD)
-        RG = PN / PD
-        DRG = (DPN*PD - PN*DPD) / (PD*PD)
+        uf = 1.0_dl + zz * rf
+        duf_dz = 2.0_dl * z * (rf + zz*drf)
 
-        UF = 1.0E0_dl + ZZ * RF
-        DUF_DZ = 2.0E0_dl * Z * (RF + ZZ*DRF)
+        ug = z * rg
+        dug_dz = rg + 2.0_dl * zz * drg
 
-        UG = Z * RG
-        DUG_DZ = RG + 2.0E0_dl * ZZ * DRG
+        theta = zeta + 0.25_dl * pi
+        sn = sin(theta)
+        cs = cos(theta)
 
-        THETA = ZETA + 0.25E0_dl * PI
-        SN = SIN(THETA)
-        CS = COS(THETA)
+        h = sn*uf - cs*ug
+        ai = ak * h
 
-        H = SN*UF - CS*UG
-        AI = AK * H
+        dzdx = 1.5_dl * z / q
+        dthdx = -rt
+        dakdx = ak / (4.0_dl * q)
 
-        DZDX = 1.5E0_dl * Z / Q
-        DTHDX = -RT
-        DAKDX = AK / (4.0E0_dl * Q)
+        aip = dakdx*h + ak * ( &
+            dthdx*(cs*uf + sn*ug) &
+            + sn*duf_dz*dzdx &
+            - cs*dug_dz*dzdx )
 
-        AIP = DAKDX*H + AK * ( &
-            DTHDX*(CS*UF + SN*UG) &
-            + SN*DUF_DZ*DZDX &
-            - CS*DUG_DZ*DZDX )
+        return
+    end if
 
-        RETURN
-    END IF
+    ! Positive fallback: x > 2.98 and x <= AMAXAIRY.
+    if (x > 2.98_dl) then
+        rt = sqrt(x)
 
-    ! Positive fallback: x > 6.5 and x <= AMAXAIRY.
-    IF (X > 6.5E0_dl) THEN
-        RT = SQRT(X)
+        zeta = 2.0_dl * x * rt / 3.0_dl
+        qtr = sqrt(rt)
+        z = 1.0_dl / zeta
 
-        ZETA = 2.0E0_dl * X * RT / 3.0E0_dl
-        QTR = SQRT(RT)
-        Z = 1.0E0_dl / ZETA
+        call polevl_der_fast(z, an, 7, pn, dpn)
+        call polevl_der_fast(z, ad, 7, pd, dpd)
 
-        CALL POLEVL_DER_FAST(Z, AN, 7, PN, DPN)
-        CALL POLEVL_DER_FAST(Z, AD, 7, PD, DPD)
+        r = pn / pd
+        dr = (dpn*pd - pn*dpd) / (pd*pd)
 
-        R = PN / PD
-        DR = (DPN*PD - PN*DPD) / (PD*PD)
+        ai = 0.5_dl * sqpii * r * exp(-zeta) / qtr
 
-        AI = 0.5E0_dl * SQPII * R * EXP(-ZETA) / QTR
+        dzdx = -1.5_dl * z / x
+        aip = ai * ((dr/r)*dzdx - 0.25_dl/x - rt)
 
-        DZDX = -1.5E0_dl * Z / X
-        AIP = AI * ((DR/R)*DZDX - 0.25E0_dl/X - RT)
-
-        RETURN
-    END IF
+        return
+    end if
 
     ! Central branch: -2.09 <= x < 2.09.
-    Z3 = X*X*X
+    z3 = x*x*x
 
-    F = 9.09662613850461810E-12_dl
-    F = 2.78356759838241336E-09_dl + Z3*F
-    F = 5.84549195660306779E-07_dl + Z3*F
-    F = 7.71604938271604923E-05_dl + Z3*F
-    F = 5.55555555555555577E-03_dl + Z3*F
-    F = 1.66666666666666657E-01_dl + Z3*F
-    F = 1.0E0_dl + Z3*F
+    f = 9.09662613850461810e-12_dl
+    f = 2.78356759838241336e-09_dl + z3*f
+    f = 5.84549195660306779e-07_dl + z3*f
+    f = 7.71604938271604923e-05_dl + z3*f
+    f = 5.55555555555555577e-03_dl + z3*f
+    f = 1.66666666666666657e-01_dl + z3*f
+    f = 1.0_dl + z3*f
 
-    G = 1.72172984605299955E-12_dl
-    G = 5.88831607350125831E-10_dl + Z3*G
-    G = 1.41319585764030204E-07_dl + Z3*G
-    G = 2.20458553791887140E-05_dl + Z3*G
-    G = 1.98412698412698402E-03_dl + Z3*G
-    G = 8.33333333333333287E-02_dl + Z3*G
-    G = X * (1.0E0_dl + Z3*G)
+    g = 1.72172984605299955e-12_dl
+    g = 5.88831607350125831e-10_dl + z3*g
+    g = 1.41319585764030204e-07_dl + z3*g
+    g = 2.20458553791887140e-05_dl + z3*g
+    g = 1.98412698412698402e-03_dl + z3*g
+    g = 8.33333333333333287e-02_dl + z3*g
+    g = x * (1.0_dl + z3*g)
 
-    DF = 1.63739270493083139E-10_dl
-    DF = 4.17535139757362004E-08_dl + Z3*DF
-    DF = 7.01459034792368135E-06_dl + Z3*DF
-    DF = 6.94444444444444471E-04_dl + Z3*DF
-    DF = 3.33333333333333329E-02_dl + Z3*DF
-    DF = 5.00000000000000000E-01_dl + Z3*DF
-    DF = X*X * DF
+    df = 1.63739270493083139e-10_dl
+    df = 4.17535139757362004e-08_dl + z3*df
+    df = 7.01459034792368135e-06_dl + z3*df
+    df = 6.94444444444444471e-04_dl + z3*df
+    df = 3.33333333333333329e-02_dl + z3*df
+    df = 5.00000000000000000e-01_dl + z3*df
+    df = x*x * df
 
-    DG = 3.27128670750069899E-11_dl
-    DG = 9.42130571760201330E-09_dl + Z3*DG
-    DG = 1.83715461493239276E-06_dl + Z3*DG
-    DG = 2.20458553791887113E-04_dl + Z3*DG
-    DG = 1.38888888888888881E-02_dl + Z3*DG
-    DG = 3.33333333333333315E-01_dl + Z3*DG
-    DG = 1.0E0_dl + Z3*DG
+    dg = 3.27128670750069899e-11_dl
+    dg = 9.42130571760201330e-09_dl + z3*dg
+    dg = 1.83715461493239276e-06_dl + z3*dg
+    dg = 2.20458553791887113e-04_dl + z3*dg
+    dg = 1.38888888888888881e-02_dl + z3*dg
+    dg = 3.33333333333333315e-01_dl + z3*dg
+    dg = 1.0_dl + z3*dg
 
-    AI  = C1*F  - C2*G
-    AIP = C1*DF - C2*DG
+    ai  = c1*f  - c2*g
+    aip = c1*df - c2*dg
 
     CONTAINS
 
-    SUBROUTINE AIRY_NEG_CHEB_FAST(XV, AIV, AIPV)
-    IMPLICIT NONE
-    REAL(dl), INTENT(IN)  :: XV
-    REAL(dl), INTENT(OUT) :: AIV, AIPV
 
-    INTEGER, PARAMETER :: NCH = 10
+    subroutine airy_neg_cheb_fast(xv, aiv, aipv)
+    implicit none
+    real(dl), intent(in)  :: xv
+    real(dl), intent(out) :: aiv, aipv
 
-    ! Maps XV in [-4.4, -2.09] to Y in [-1, 1].
-    REAL(dl), PARAMETER :: XMID  = -3.24500000000000011E+00_dl
-    REAL(dl), PARAMETER :: XHALF = 1.15500000000000025E+00_dl
+    integer, parameter :: nch = 10
+    real(dl), parameter :: xmid  = -3.24500000000000011e+00_dl
+    real(dl), parameter :: xhalf =  1.15500000000000025e+00_dl
 
-    REAL(dl) :: Y, TWOY
-    REAL(dl) :: A0, A1, A2
-    REAL(dl) :: P0, P1, P2
-    INTEGER :: J
+    real(dl) :: y, twoy
+    real(dl) :: a0, a1, a2
+    real(dl) :: p0, p1, p2
+    integer :: j
 
-    REAL(dl), PARAMETER :: CAI(10) = (/ &
-        -7.52972311373991954E-02_dl, -3.04924834824625880E-02_dl, &
-        3.09214054941112593E-01_dl, -4.86933307406160927E-03_dl, &
-        -3.32582282959081738E-02_dl, 3.79467424343539342E-03_dl, &
-        1.22912822483253726E-03_dl, -2.66641673714729916E-04_dl, &
-        -1.03644439619337352E-05_dl, 7.52394509644803996E-06_dl /)
+    real(dl), parameter :: cai(10) = (/ &
+        -7.52972311373991954e-02_dl, -3.04924834824625880e-02_dl, &
+        3.09214054941112593e-01_dl, -4.86933307406160927e-03_dl, &
+        -3.32582282959081738e-02_dl,  3.79467424343539342e-03_dl, &
+        1.22912822483253726e-03_dl, -2.66641673714729916e-04_dl, &
+        -1.03644439619337352e-05_dl,  7.52394509644803996e-06_dl /)
 
-    REAL(dl), PARAMETER :: CAIP(10) = (/ &
-        -2.41791445513994847E-02_dl, 8.53129932850260952E-01_dl, &
-        4.44254809627120731E-03_dl, -2.17741253092986226E-01_dl, &
-        2.97377848446421338E-02_dl, 1.26187697358148727E-02_dl, &
-        -3.11653760934400706E-03_dl, -1.51393639068021042E-04_dl, &
-        1.15482678107576387E-04_dl, -7.81692617584523665E-06_dl /)
+    real(dl), parameter :: caip(10) = (/ &
+        -2.41791445513994847e-02_dl,  8.53129932850260952e-01_dl, &
+        4.44254809627120731e-03_dl, -2.17741253092986226e-01_dl, &
+        2.97377848446421338e-02_dl,  1.26187697358148727e-02_dl, &
+        -3.11653760934400706e-03_dl, -1.51393639068021042e-04_dl, &
+        1.15482678107576387e-04_dl, -7.81692617584523665e-06_dl /)
 
-    Y = (XV - XMID) / XHALF
-    TWOY = 2.0E0_dl * Y
+    y = (xv - xmid) / xhalf
+    twoy = 2.0_dl * y
 
-    A1 = 0.0E0_dl
-    A2 = 0.0E0_dl
-    P1 = 0.0E0_dl
-    P2 = 0.0E0_dl
+    a1 = 0.0_dl
+    a2 = 0.0_dl
+    p1 = 0.0_dl
+    p2 = 0.0_dl
 
-    DO J = NCH, 2, -1
-        A0 = TWOY*A1 - A2 + CAI(J)
-        P0 = TWOY*P1 - P2 + CAIP(J)
+    do j = nch, 2, -1
+        a0 = twoy*a1 - a2 + cai(j)
+        p0 = twoy*p1 - p2 + caip(j)
 
-        A2 = A1
-        A1 = A0
+        a2 = a1
+        a1 = a0
 
-        P2 = P1
-        P1 = P0
-    END DO
+        p2 = p1
+        p1 = p0
+    end do
 
-    AIV  = Y*A1 - A2 + CAI(1)
-    AIPV = Y*P1 - P2 + CAIP(1)
+    aiv  = y*a1 - a2 + cai(1)
+    aipv = y*p1 - p2 + caip(1)
 
-    END SUBROUTINE AIRY_NEG_CHEB_FAST
-
-
-    SUBROUTINE AIRY_POS_CHEB_FAST(XV, AIV, AIPV)
-    IMPLICIT NONE
-    REAL(dl), INTENT(IN)  :: XV
-    REAL(dl), INTENT(OUT) :: AIV, AIPV
-
-    INTEGER, PARAMETER :: NCH = 5
-
-    ! Maps XV in [2.09, 2.98] to Y in [-1, 1].
-    REAL(dl), PARAMETER :: XMID  = 2.53500000000000014E+00_dl
-    REAL(dl), PARAMETER :: XHALF = 4.45000000000000062E-01_dl
-
-    REAL(dl) :: Y, TWOY
-    REAL(dl) :: A0, A1, A2
-    REAL(dl) :: P0, P1, P2
-    INTEGER :: J
-
-    REAL(dl), PARAMETER :: CAI(5) = (/ &
-        1.67197298855612173E-02_dl, -1.16156422167520770E-02_dl, &
-        1.89802004119299199E-03_dl, -1.77750208417504322E-04_dl, &
-        9.13251766892205164E-06_dl /)
-
-    REAL(dl), PARAMETER :: CAIP(5) = (/ &
-        -2.73016642479830610E-02_dl, 1.72243076704324746E-02_dl, &
-        -2.39819493752986600E-03_dl, 1.63453367574147994E-04_dl, &
-        -1.56291392306149089E-06_dl /)
-
-    Y = (XV - XMID) / XHALF
-    TWOY = 2.0E0_dl * Y
-
-    A1 = 0.0E0_dl
-    A2 = 0.0E0_dl
-    P1 = 0.0E0_dl
-    P2 = 0.0E0_dl
-
-    DO J = NCH, 2, -1
-        A0 = TWOY*A1 - A2 + CAI(J)
-        P0 = TWOY*P1 - P2 + CAIP(J)
-
-        A2 = A1
-        A1 = A0
-
-        P2 = P1
-        P1 = P0
-    END DO
-
-    AIV  = Y*A1 - A2 + CAI(1)
-    AIPV = Y*P1 - P2 + CAIP(1)
-
-    END SUBROUTINE AIRY_POS_CHEB_FAST
+    end subroutine airy_neg_cheb_fast
 
 
-    SUBROUTINE POLEVL_DER_FAST(XP, COEF, N, P, DP)
-    IMPLICIT NONE
-    INTEGER, INTENT(IN) :: N
-    REAL(dl), INTENT(IN) :: XP
-    REAL(dl), INTENT(IN) :: COEF(N+1)
-    REAL(dl), INTENT(OUT) :: P, DP
+    subroutine airy_pos_cheb_fast(xv, aiv, aipv)
+    implicit none
+    real(dl), intent(in)  :: xv
+    real(dl), intent(out) :: aiv, aipv
 
-    INTEGER :: I
+    integer, parameter :: nch = 5
+    real(dl), parameter :: xmid  = 2.53500000000000014e+00_dl
+    real(dl), parameter :: xhalf = 4.45000000000000062e-01_dl
 
-    P = COEF(1)
-    DP = 0.0E0_dl
+    real(dl) :: y, twoy
+    real(dl) :: a0, a1, a2
+    real(dl) :: p0, p1, p2
+    integer :: j
 
-    DO I = 2, N+1
-        DP = DP*XP + P
-        P = P*XP + COEF(I)
-    END DO
+    real(dl), parameter :: cai(5) = (/ &
+        1.67197298855612173e-02_dl, -1.16156422167520770e-02_dl, &
+        1.89802004119299199e-03_dl, -1.77750208417504322e-04_dl, &
+        9.13251766892205164e-06_dl /)
 
-    END SUBROUTINE POLEVL_DER_FAST
+    real(dl), parameter :: caip(5) = (/ &
+        -2.73016642479830610e-02_dl,  1.72243076704324746e-02_dl, &
+        -2.39819493752986600e-03_dl,  1.63453367574147994e-04_dl, &
+        -1.56291392306149089e-06_dl /)
+
+    y = (xv - xmid) / xhalf
+    twoy = 2.0_dl * y
+
+    a1 = 0.0_dl
+    a2 = 0.0_dl
+    p1 = 0.0_dl
+    p2 = 0.0_dl
+
+    do j = nch, 2, -1
+        a0 = twoy*a1 - a2 + cai(j)
+        p0 = twoy*p1 - p2 + caip(j)
+
+        a2 = a1
+        a1 = a0
+
+        p2 = p1
+        p1 = p0
+    end do
+
+    aiv  = y*a1 - a2 + cai(1)
+    aipv = y*p1 - p2 + caip(1)
+
+    end subroutine airy_pos_cheb_fast
 
 
-    SUBROUTINE P1EVL_DER_FAST(XP, COEF, N, P, DP)
-    IMPLICIT NONE
-    INTEGER, INTENT(IN) :: N
-    REAL(dl), INTENT(IN) :: XP
-    REAL(dl), INTENT(IN) :: COEF(N)
-    REAL(dl), INTENT(OUT) :: P, DP
+    subroutine polevl_der_fast(xp, coef, n, p, dp)
+    implicit none
+    integer, intent(in) :: n
+    real(dl), intent(in) :: xp
+    real(dl), intent(in) :: coef(n+1)
+    real(dl), intent(out) :: p, dp
 
-    INTEGER :: I
+    integer :: i
 
-    P = 1.0E0_dl
-    DP = 0.0E0_dl
+    p = coef(1)
+    dp = 0.0_dl
 
-    DO I = 1, N
-        DP = DP*XP + P
-        P = P*XP + COEF(I)
-    END DO
+    do i = 2, n+1
+        dp = dp*xp + p
+        p = p*xp + coef(i)
+    end do
 
-    END SUBROUTINE P1EVL_DER_FAST
-
-    END SUBROUTINE AIRY_FAST
+    end subroutine polevl_der_fast
 
 
-    SUBROUTINE BJL_RECURRENCE_FAST(L, X, JL)
+    subroutine p1evl_der_fast(xp, coef, n, p, dp)
+    implicit none
+    integer, intent(in) :: n
+    real(dl), intent(in) :: xp
+    real(dl), intent(in) :: coef(n)
+    real(dl), intent(out) :: p, dp
+
+    integer :: i
+
+    p = 1.0_dl
+    dp = 0.0_dl
+
+    do i = 1, n
+        dp = dp*xp + p
+        p = p*xp + coef(i)
+    end do
+
+    end subroutine p1evl_der_fast
+
+    end subroutine airy_fast
+
+
+
+
+
+    SUBROUTINE BJL_RECURRENCE(L, X, JL)
     IMPLICIT NONE
 
     INTEGER, INTENT(IN) :: L
@@ -954,7 +962,7 @@
 
     IF (X < 0.0E0_dl .AND. MOD(L, 2) /= 0) JL = -JL
 
-    END SUBROUTINE BJL_RECURRENCE_FAST
+    END SUBROUTINE BJL_RECURRENCE
 
     end module FlatBessels
 
