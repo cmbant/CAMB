@@ -201,6 +201,39 @@ class CambTest(unittest.TestCase):
             pars.write_ini(ini_file)
             self.assertTrue(os.path.exists(ini_file))
 
+    def testIniThetaInput(self):
+        base_ini = os.path.join(os.path.dirname(__file__), "..", "..", "inifiles", "planck_2018.ini")
+        base = camb.read_ini(base_ini)
+        theta = camb.get_background(base).get_derived_params()["thetastar"] / 100
+
+        py_pars = camb.read_ini(base_ini)
+        py_pars.set_H0_for_theta(theta)
+
+        with open(base_ini, encoding="utf-8") as handle:
+            text = handle.read()
+
+        theta_text = text.replace("hubble         = 67.32117", f"theta          = {theta:.12f}")
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            theta_ini = os.path.join(temp_dir, "theta.ini")
+            with open(theta_ini, "w", encoding="utf-8") as handle:
+                handle.write(theta_text)
+
+            ini_pars = camb.read_ini(theta_ini)
+            ini_theta = camb.get_background(ini_pars).get_derived_params()["thetastar"] / 100
+            py_theta = camb.get_background(py_pars).get_derived_params()["thetastar"] / 100
+            self.assertAlmostEqual(ini_pars.H0, base.H0, places=4)
+            self.assertAlmostEqual(ini_pars.H0, py_pars.H0, delta=1e-3)
+            self.assertAlmostEqual(ini_theta, theta, places=7)
+            self.assertAlmostEqual(ini_theta, py_theta, places=7)
+
+            both_ini = os.path.join(temp_dir, "theta_and_hubble.ini")
+            with open(both_ini, "w", encoding="utf-8") as handle:
+                handle.write(theta_text + f"\nhubble         = {base.H0:.5f}\n")
+
+            with self.assertRaises(CAMBValueError):
+                camb.read_ini(both_ini)
+
     def testBackground(self):
         pars = camb.CAMBparams()
         pars.set_cosmology(H0=68.5, ombh2=0.022, omch2=0.122, YHe=0.2453, mnu=0.07, omk=0)

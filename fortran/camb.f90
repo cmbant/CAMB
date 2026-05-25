@@ -2,6 +2,7 @@
 
     module CAMB
     use Precision
+    use MathUtils, only: brentq
     use results
     use GaugeInterface
     use InitialPower
@@ -10,6 +11,15 @@
     use lensing
     use DarkEnergyFluid
     implicit none
+
+    type TCAMBThetaH0Solver
+        type(CAMBparams) :: Params
+        type(CAMBdata) :: Data
+        real(dl) :: theta = 0._dl
+        real(dl) :: zstar = 0._dl
+        logical :: cosmomc_approx = .false.
+    end type TCAMBThetaH0Solver
+
     contains
 
     subroutine CAMB_TransfersToPowers(CData)
@@ -219,6 +229,97 @@
 
     end subroutine CAMB_SetDefParams
 
+    real(dl) function CAMB_ThetaH0Difference(obj, H0)
+    class(*) :: obj
+    real(dl), intent(in) :: H0
+    integer :: error
+
+    select type (solver => obj)
+    type is (TCAMBThetaH0Solver)
+        solver%Params%H0 = H0
+        call solver%Data%SetParams(solver%Params, error=error, background_only=.true.)
+        if (error /= 0) then
+            CAMB_ThetaH0Difference = huge(1._dl)
+            return
+        end if
+        if (solver%cosmomc_approx) then
+            CAMB_ThetaH0Difference = solver%Data%CosmomcTheta() - solver%theta
+        else
+            CAMB_ThetaH0Difference = solver%Data%sound_horizon(solver%zstar) / &
+                (solver%Data%AngularDiameterDistance(solver%zstar) * (1 + solver%zstar)) - solver%theta
+        end if
+    class default
+        error stop 'CAMB_ThetaH0Difference: unexpected solver state'
+    end select
+
+    end function CAMB_ThetaH0Difference
+
+    logical function CAMB_SetH0ForTheta(P, theta, ErrMsg, cosmomc_approx, theta_H0_range, est_H0, iteration_threshold)
+    type(CAMBparams), intent(inout) :: P
+    real(dl), intent(in) :: theta
+    character(LEN=*), intent(out) :: ErrMsg
+    logical, intent(in), optional :: cosmomc_approx
+    real(dl), intent(in), optional :: theta_H0_range(2)
+    real(dl), intent(in), optional :: est_H0, iteration_threshold
+    type(TCAMBThetaH0Solver) :: solver
+    real(dl) :: H0_range(2), initial_H0, H0_iteration_threshold
+    real(dl) :: xzero, fzero
+    integer :: error, iflag
+
+    CAMB_SetH0ForTheta = .false.
+    ErrMsg = ''
+
+    H0_range = [10._dl, 100._dl]
+    if (present(theta_H0_range)) H0_range = theta_H0_range
+    initial_H0 = 67._dl
+    if (present(est_H0)) initial_H0 = est_H0
+    H0_iteration_threshold = 8._dl
+    if (present(iteration_threshold)) H0_iteration_threshold = iteration_threshold
+
+    if (.not. (theta > 0.001_dl .and. theta < 0.1_dl)) then
+        ErrMsg = 'theta looks wrong (parameter is just theta, not 100*theta)'
+        return
+    end if
+
+    solver%Params = P
+    solver%theta = theta
+    solver%cosmomc_approx = PresentDefault(.false., cosmomc_approx)
+    if (.not. solver%cosmomc_approx) solver%Params%H0 = initial_H0
+
+    call solver%Data%SetParams(solver%Params, error=error, background_only=.true.)
+    if (error /= 0) then
+        ErrMsg = trim(global_error_message)
+        return
+    end if
+
+    if (.not. solver%cosmomc_approx) solver%zstar = solver%Data%get_zstar()
+
+    call brentq(solver, CAMB_ThetaH0Difference, H0_range(1), H0_range(2), 5e-5_dl, xzero, fzero, iflag)
+    if (iflag /= 0) then
+        ErrMsg = 'No solution for H0 inside of theta_H0_range'
+        return
+    end if
+
+    solver%Params%H0 = xzero
+    if (.not. solver%cosmomc_approx .and. abs(xzero - initial_H0) > H0_iteration_threshold) then
+        call solver%Data%SetParams(solver%Params, error=error, background_only=.true.)
+        if (error /= 0) then
+            ErrMsg = trim(global_error_message)
+            return
+        end if
+        solver%zstar = solver%Data%get_zstar()
+        call brentq(solver, CAMB_ThetaH0Difference, H0_range(1), H0_range(2), 5e-5_dl, xzero, fzero, iflag)
+        if (iflag /= 0) then
+            ErrMsg = 'No solution for H0 inside of theta_H0_range'
+            return
+        end if
+    end if
+
+    P%H0 = xzero
+    CAMB_SetH0ForTheta = .true.
+
+    end function CAMB_SetH0ForTheta
+
     logical function CAMB_ReadParamFile(P, InputFile, InpLen)
     Type(CAMBParams) :: P
     integer, intent(in) :: InpLen
@@ -251,11 +352,11 @@
     Type(CAMBParams) :: P
     integer num_redshiftwindows
     logical PK_WantTransfer
-    integer i, status
-    real(dl) nmassive
+    integer i, status, num_theta_inputs
+    real(dl) nmassive, theta
     character(LEN=*), intent(out) :: ErrMsg
     character(LEN=:), allocatable :: NumStr, S, DarkEneryModel, RecombinationModel
-    logical :: DoCounts
+    logical :: DoCounts, has_hubble, has_thetastar, has_cosmomc_theta
 
     ErrMsg = ''
 
@@ -436,7 +537,23 @@
     end if
     call P%DarkEnergy%ReadParams(Ini)
 
-    P%h0 = Ini%Read_Double('hubble')
+    has_hubble = Ini%HasKey('hubble')
+    has_thetastar = Ini%HasKey('thetastar')
+    has_cosmomc_theta = Ini%HasKey('cosmomc_theta')
+    num_theta_inputs = merge(1, 0, has_hubble) + merge(1, 0, has_thetastar) + merge(1, 0, has_cosmomc_theta)
+    if (num_theta_inputs > 1) then
+        ErrMsg = 'Can only set one of hubble, thetastar, cosmomc_theta'
+        return
+    else if (num_theta_inputs == 0) then
+        ErrMsg = 'Must set one of hubble, thetastar, cosmomc_theta'
+        return
+    else if (has_hubble) then
+        P%h0 = Ini%Read_Double('hubble')
+    else if (has_thetastar) then
+        theta = Ini%Read_Double('thetastar')
+    else
+        theta = Ini%Read_Double('cosmomc_theta')
+    end if
 
     if (Ini%Read_Logical('use_physical', .true.)) then
         P%ombh2 = Ini%Read_Double('ombh2')
@@ -493,6 +610,10 @@
         else
             read(numstr,*) P%Nu_mass_fractions(1:P%Nu_mass_eigenstates)
         end if
+    end if
+
+    if (has_thetastar .or. has_cosmomc_theta) then
+        if (.not. CAMB_SetH0ForTheta(P, theta, ErrMsg, cosmomc_approx=has_cosmomc_theta)) return
     end if
 
     if (((P%NonLinear==NonLinear_lens .or. P%NonLinear==NonLinear_both) .and. P%DoLensing) .or. PK_WantTransfer) then
