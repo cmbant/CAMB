@@ -12,6 +12,7 @@
     logical :: enable_do_near_flat_integration = .true.
     logical :: enable_near_flat_smallchi_integration = .true.
     logical :: enable_shifted_q_scalar_approx = .true.
+    logical :: enable_olver_source_integration = .false.
 
     logical :: output_file_headers = .true.
 

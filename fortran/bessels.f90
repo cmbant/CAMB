@@ -43,17 +43,32 @@
     Type(CAMBParams) :: CP
     integer, intent(in) :: max_bessels_l_index
     real(dl), intent(in) :: max_bessels_etak
+    integer :: new_kmaxfile, old_num_xx
+    logical :: same_lsamp_and_acc
+
+    new_kmaxfile = int(max_bessels_etak)+1
 
     !See if already loaded with enough (and correct) lSamp%l values and k*eta values
-    if (lSamp%nl <= file_l%nl) then
-        if (allocated(bessel_horner) .and. all(file_l%l(1:lSamp%nl)==lSamp%l(1:lSamp%nl) &
-            .and. (max_bessels_l_index <= max_ix)) &
-            .and. (int(max_bessels_etak)+1 <= kmaxfile) &
-            .and. (abs(CP%Accuracy%BesselBoost*CP%Accuracy%AccuracyBoost - file_acc) < 1d-2)) return
+    same_lsamp_and_acc = .false.
+    if (allocated(bessel_horner) .and. lSamp%nl <= file_l%nl) then
+        if (all(file_l%l(1:lSamp%nl)==lSamp%l(1:lSamp%nl)) .and. max_bessels_l_index <= max_ix .and. &
+            abs(CP%Accuracy%BesselBoost*CP%Accuracy%AccuracyBoost - file_acc) < 1d-2) then
+            same_lsamp_and_acc = .true.
+        end if
+    end if
+
+    if (same_lsamp_and_acc) then
+        if (new_kmaxfile <= kmaxfile) return
+        ! Extend existing table to cover the larger x range
+        old_num_xx = num_xx
+        kmaxfile = new_kmaxfile
+        call ExtendBessels(lSamp, CP, old_num_xx)
+        if (DebugMsgs .and. FeedbackLevel > 0) write(*,*) 'Extended Bessels'
+        return
     end if
 
     !Haven't made them before, so make them now
-    kmaxfile = int(max_bessels_etak)+1
+    kmaxfile = new_kmaxfile
     max_ix = min(max_bessels_l_index,lSamp%nl)
 
     call GenerateBessels(lSamp, CP)
@@ -135,6 +150,78 @@
     !$OMP END PARALLEL DO
 
     end subroutine GenerateBessels
+
+    subroutine ExtendBessels(lSamp, CP, old_num_xx)
+    ! Extend bessel_horner to the new (larger) kmaxfile without recomputing the
+    ! already-stored intervals.  The x-grid points in [0, old_kmaxfile] are
+    ! identical in old and new BessRanges (same step 0.7/file_acc in the sparse
+    ! segment [150, kmaxfile]), so we only need to compute bjl for the junction
+    ! overlap and the new tail.
+    Type(lSamples) lSamp
+    Type(CAMBParams) :: CP
+    integer, intent(in) :: old_num_xx
+    integer :: j, ext_start_ix, n_ext
+    integer, parameter :: JUNCTION_N = 10  ! overlap points kept from old grid
+
+    if (do_bispectrum) kmaxfile = kmaxfile*2
+
+    if (DebugMsgs .and. FeedbackLevel > 0) write (*,*) 'Extending flat Bessels to x_max', kmaxfile
+
+    call BessRanges%Init()
+    call BessRanges%Add_delta(0._dl,  1._dl,   0.01_dl/CP%Accuracy%BesselBoost)
+    call BessRanges%Add_delta(1._dl,  5._dl,   0.1_dl /CP%Accuracy%BesselBoost)
+    call BessRanges%Add_delta(5._dl,  25._dl,  0.2_dl /CP%Accuracy%BesselBoost)
+    call BessRanges%Add_delta(25._dl, 150._dl, 0.5_dl /file_acc)
+    call BessRanges%Add_delta(150._dl, real(kmaxfile,dl), 0.7_dl/file_acc)
+    call BessRanges%GetArray(.false.)
+    num_xx = BessRanges%npoints
+
+    ext_start_ix = old_num_xx - JUNCTION_N   ! first point of overlap region (1-based)
+    n_ext = num_xx - ext_start_ix + 1        ! points: ext_start_ix .. num_xx
+
+    ! Reallocate bessel_horner, keeping all old intervals intact
+    block
+        real(dl), allocatable :: old_horner(:,:,:)
+        call move_alloc(bessel_horner, old_horner)
+        allocate(bessel_horner(1:4,1:num_xx-1,1:max_ix))
+        bessel_horner(:, 1:old_num_xx-1, :) = old_horner
+    end block
+
+    !$OMP PARALLEL DO DEFAULT(SHARED), SCHEDULE(STATIC)
+    do j=1,max_ix
+        block
+            real(dl) :: ext_x(n_ext), ext_y(n_ext), ext_y2(n_ext)
+            real(dl) :: h2over6, y0, y1, d0, d1
+            integer :: i, store_ix
+
+            do i=1,n_ext
+                ext_x(i) = BessRanges%points(ext_start_ix + i - 1)
+            end do
+            do i=1,n_ext
+                call bjl(lSamp%l(j), ext_x(i), ext_y(i))
+            end do
+
+            call spline_def(ext_x, ext_y, n_ext, ext_y2)
+
+            ! Store Horner only for strictly new intervals (from old_num_xx onward);
+            ! the JUNCTION_N overlap intervals serve only to anchor the spline.
+            do i=JUNCTION_N+1,n_ext-1
+                store_ix = ext_start_ix + i - 1   ! = old_num_xx when i = JUNCTION_N+1
+                y0 = ext_y(i)
+                y1 = ext_y(i+1)
+                d0 = ext_y2(i)
+                d1 = ext_y2(i+1)
+                h2over6 = (ext_x(i+1) - ext_x(i))**2/6
+                bessel_horner(1,store_ix,j) = y1
+                bessel_horner(2,store_ix,j) = y0 - y1 - h2over6*(d0 + 2*d1)
+                bessel_horner(3,store_ix,j) = 3*h2over6*d1
+                bessel_horner(4,store_ix,j) = y0 - y1 - bessel_horner(2,store_ix,j) - bessel_horner(3,store_ix,j)
+            end do
+        end block
+    end do
+    !$OMP END PARALLEL DO
+
+    end subroutine ExtendBessels
 
     subroutine Bessels_Free
 

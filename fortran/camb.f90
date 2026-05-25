@@ -890,6 +890,8 @@
     call Ini%Read('number_of_threads', ThreadNum)
     call Ini%Read('AccuracyTarget', AccuracyTarget)
     call Ini%Read('DebugParam', DebugParam)
+    if (Ini%HasKey('enable_olver_source_integration')) &
+        call Ini%Read('enable_olver_source_integration', enable_olver_source_integration)
     call Ini%Read('feedback_level', FeedbackLevel)
     if (Ini%HasKey('DebugMsgs')) call Ini%Read('DebugMsgs', DebugMsgs)
 
