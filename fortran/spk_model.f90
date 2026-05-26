@@ -97,7 +97,7 @@ real(dl), intent(in) :: x_nodes(:), y_nodes(:)
 real(dl) :: y
 integer :: i, n
 real(dl) :: h, s, w1, w2
-real(dl), allocatable :: delta(:), mext(:), t(:)
+real(dl) :: delta(5), mext(9), t(6)
 real(dl) :: h00, h10, h01, h11
 
 n = size(x_nodes)
@@ -114,8 +114,6 @@ if (n < 2) then
     y = y_nodes(1)
     return
 end if
-
-allocate(delta(n - 1), mext(n + 3), t(n))
 
 do i = 1, n - 1
     delta(i) = (y_nodes(i + 1) - y_nodes(i)) / (x_nodes(i + 1) - x_nodes(i))
