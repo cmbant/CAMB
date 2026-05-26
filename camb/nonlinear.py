@@ -260,6 +260,12 @@ class SPkNonLinear(NonLinearModel):
         :meth:`~camb.results.CAMBdata.get_matter_power_interpolator`
         (Cobaya rejects the sample). Set priors to keep f_b in range.
 
+        .. warning::
+           :meth:`~camb.results.CAMBdata.get_matter_power_spectrum` does not
+           preserve NaN — use
+           :meth:`~camb.results.CAMBdata.get_linear_matter_power_spectrum`
+           with ``nonlinear=True`` to inspect which (z, k) cells are invalid.
+
         Cannot be combined with ``halofit_version='mead2020_feedback'``.
         """
         if self.BaseModel is None:
