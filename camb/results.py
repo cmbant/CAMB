@@ -212,6 +212,7 @@ class CAMBdata(F2003Class):
         ("tau0", c_double, "conformal time today"),
         ("DMt0", c_double, "comoving angular diameter distance to the big bang"),
         ("scale", c_double, "relative to flat. e.g. for scaling L sampling"),
+        ("curv_flat_DM_ratio", c_double, "DMt0/tau0 ratio used to measure curvature effects on geometry"),
         ("akthom", c_double, "sigma_T * (number density of protons now)"),
         ("fHe", c_double, "n_He_tot / n_H_tot"),
         ("Nnow", c_double, "number density today"),
