@@ -50,3 +50,37 @@ This note summarizes the current non-flat integration changes in `fortran/cmbmai
 ## Scope
 
 These changes are localized to the non-flat hyperspherical Bessel integration path in `cmbmain.f90` and its reuse of the flat Bessel spline tables in `bessels.f90` for near-flat scalar runs. Flat-space integration itself is unchanged.
+
+## Current lpa=4 edge-status follow-up
+
+The current high-accuracy follow-up now has a checked-in repro and plotting
+entry point, [../../compare_nonflat_accuracy_sweep.py](../../compare_nonflat_accuracy_sweep.py),
+which writes per-case `.npz`, difference plots, and a `summary.json` under
+`accuracy_plots/nonflat_accuracy_sweep/<tag>/`. The current default rerun is in
+`accuracy_plots/nonflat_accuracy_sweep/default_ab1_ab2_lpa4/`.
+
+The key result from the `lmax = 4000`, `lens_potential_accuracy = 4`
+`AccuracyBoost = 1` versus `2` follow-up is that the remaining edge `PP` miss is
+still controlled by the source-integration path, not only by downstream
+lensing support:
+
+1. At default settings, `Omega_k = \pm 0.03` each still carry a low-`L`
+  `lens PP` row at `L = 2` in addition to the dominant source-side `EE`
+  failures.
+2. Turning on `enable_olver_source_integration` removes that `PP` row for both
+  edge signs, while leaving the leading `EE` failures essentially unchanged.
+3. The runtime cost is very large: `+0.03` rises from about `7.15 / 144.82 s`
+  CPU for AB1 / AB2 to `28.45 / 517.86 s`, and `-0.03` rises from about
+  `8.16 / 237.93 s` to `33.36 / 812.29 s`.
+
+So the low-`L` `PP` edge miss is sensitive to the scalar source integration
+scheme, but the current `olver` path is much slower than the default Numerov
+path.
+
+A temporary follow-up tightened the low-`L` Numerov rebootstrap interval in
+`cmbmain.f90` from `100` to `50` while keeping `enable_olver_source_integration`
+off. That did not recover the edge `PP` improvement: at `Omega_k = -0.03`, the
+`L = 2` `PP` row remained and slightly worsened (`0.007451`, score `1.490`,
+versus the default `0.007444`, score `1.489`). So the present evidence does not
+support a simple rebootstrap-frequency substitution for the `olver` source
+integration path.

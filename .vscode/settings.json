@@ -118,4 +118,8 @@
         "**/*.vfproj": true,
         "**/*.u2d": true,
     },
+    {
+        "git.autoRepositoryDetection": false,
+        "git.detectSubmodules": false
+    },
 }

@@ -96,3 +96,4 @@ Report should include (for each separate physical issue):
 - Before/after numbers for the failing diagnostic.
 - Runtime impact on a representative non-failing run (cpu times).
 - Physical justification for why the change targets the right scale/domain.
+- Check that your changes scale with the relevant accuracy parameters, so future tests can test stability of your change
