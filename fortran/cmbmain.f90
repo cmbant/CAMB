@@ -2711,8 +2711,15 @@
     range_sampling_boost = 1._dl
     if (scalel < 700._dl) then
         range_sampling_boost = 1.25_dl
-    else if (scalel < 1100._dl) then
-        range_sampling_boost = 1._dl - (scalel - 700._dl) / 960._dl
+    else if (State%closed) then
+        if (scalel < 1100._dl) then
+            ! Closed models already converge with the shorter mid-L taper.
+            range_sampling_boost = 1.25_dl - 0.25_dl * (scalel - 700._dl) / 400._dl
+        end if
+    else if (scalel < 1200._dl) then
+        ! Open models need the denser mid-L non-flat source integration to extend a bit
+        ! farther through the TT-sensitive l~800-1000 band.
+        range_sampling_boost = 1.25_dl - 0.25_dl * (scalel - 700._dl) / 500._dl
     end if
     numerov_step_boost = range_sampling_boost
 

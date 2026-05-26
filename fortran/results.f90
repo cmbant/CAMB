@@ -45,12 +45,14 @@
         derived_thetaEQ=12, derived_theta_rs_EQ = 13
     integer, parameter :: nthermo_derived = 13
     real(dl), parameter :: near_flat_scale_tol = 0.03_dl
+    real(dl), parameter :: template_shift_scale_tol = 0.01_dl
 
     Type lSamples
         integer :: nl = 0
         integer :: lmin = 2
         integer, allocatable :: l(:)
         logical :: use_spline_template = .true.
+        real(dl) :: template_l_scale = 1._dl
     contains
     procedure :: Init => lSamples_init
     procedure :: IndexOf => lSamples_indexOf
@@ -1349,6 +1351,9 @@
     if (allocated(this%l)) deallocate(this%l)
     this%lmin = lmin
     this%use_spline_template = State%CP%use_cl_spline_template
+    this%template_l_scale = 1._dl
+    if (this%use_spline_template .and. abs(State%scale - 1._dl) > template_shift_scale_tol) &
+        this%template_l_scale = State%scale
     lmin_log = State%CP%min_l_logl_sampling
     associate(Accuracy => State%CP%Accuracy)
         if (abs(State%scale - 1._dl) > near_flat_scale_tol) then
@@ -1575,9 +1580,10 @@
     real(dl), intent(out):: all_Cl(lSet%lmin:*)
     integer, intent(in) :: max_ind
     integer, intent(in), optional :: template_index
-    integer maxdelta, il
+    integer maxdelta, il, lo, hi
+    real(dl) template_scale, template_l, frac
     real(dl) DeltaCL(lSet%nl)
-    real(dl), allocatable :: tmpall(:)
+    real(dl), allocatable :: tmpall(:), template_cl(:)
 
     if (max_ind > lSet%nl) call MpiStop('Wrong max_ind in InterpolateClArrTemplated')
     if (lSet%use_spline_template .and. present(template_index)) then
@@ -1585,21 +1591,58 @@
             !interpolate only the difference between the C_l and an accurately interpolated template.
             !Using unlensed for template, seems to be good enough
             maxdelta=max_ind
-            do while (lSet%l(maxdelta) > lmax_extrap_highl)
-                maxdelta=maxdelta-1
-            end do
-            DeltaCL(1:maxdelta)=iCL(1:maxdelta)- highL_CL_template(lSet%l(1:maxdelta), template_index)
+            template_scale = lSet%template_l_scale
+            if (template_scale == 1._dl) then
+                do while (lSet%l(maxdelta) > lmax_extrap_highl)
+                    maxdelta=maxdelta-1
+                end do
+                DeltaCL(1:maxdelta)=iCL(1:maxdelta)- highL_CL_template(lSet%l(1:maxdelta), template_index)
 
-            call lSet%InterpolateClArr(DeltaCl, all_Cl, maxdelta)
+                call lSet%InterpolateClArr(DeltaCl, all_Cl, maxdelta)
 
-            do il=lSet%lmin,lSet%l(maxdelta)
-                all_Cl(il) = all_Cl(il) +  highL_CL_template(il,template_index)
-            end do
+                do il=lSet%lmin,lSet%l(maxdelta)
+                    all_Cl(il) = all_Cl(il) +  highL_CL_template(il,template_index)
+                end do
+            else
+                do while (maxdelta > 1 .and. lSet%l(maxdelta)/template_scale > lmax_extrap_highl)
+                    maxdelta=maxdelta-1
+                end do
+                if (lSet%l(maxdelta)/template_scale > lmax_extrap_highl) then
+                    call lSet%InterpolateClArr(iCl, all_Cl, max_ind)
+                    return
+                end if
+
+                allocate(template_cl(lSet%lmin:lSet%l(maxdelta)))
+                do il=lSet%lmin,lSet%l(maxdelta)
+                    template_l = real(il, dl)/template_scale
+                    if (template_l <= 1._dl) then
+                        template_cl(il) = highL_CL_template(1, template_index)
+                    else if (template_l >= lmax_extrap_highl) then
+                        template_cl(il) = highL_CL_template(lmax_extrap_highl, template_index)
+                    else
+                        lo = int(template_l)
+                        hi = lo + 1
+                        frac = template_l - lo
+                        template_cl(il) = (1._dl - frac)*highL_CL_template(lo, template_index) &
+                            + frac*highL_CL_template(hi, template_index)
+                    end if
+                end do
+                do il=1,maxdelta
+                    DeltaCL(il) = iCL(il) - template_cl(lSet%l(il))
+                end do
+
+                call lSet%InterpolateClArr(DeltaCl, all_Cl, maxdelta)
+
+                do il=lSet%lmin,lSet%l(maxdelta)
+                    all_Cl(il) = all_Cl(il) + template_cl(il)
+                end do
+                deallocate(template_cl)
+            end if
 
             if (maxdelta < max_ind) then
-                !directly interpolate high L where no t  emplate (doesn't effect lensing spectrum much anyway)
+                !directly interpolate high L where no template (doesn't effect lensing spectrum much anyway)
                 allocate(tmpall(lSet%lmin:lSet%l(max_ind)))
-                call InterpolateClArr(lSet,iCl, tmpall, max_ind)
+                call lSet%InterpolateClArr(iCl, tmpall, max_ind)
                 !overlap to reduce interpolation artefacts
                 all_cl(lSet%l(maxdelta-2):lSet%l(max_ind) ) = tmpall(lSet%l(maxdelta-2):lSet%l(max_ind))
                 deallocate(tmpall)
@@ -1608,7 +1651,7 @@
         end if
     end if
 
-    call InterpolateClArr(lSet,iCl, all_Cl, max_ind)
+    call lSet%InterpolateClArr(iCl, all_Cl, max_ind)
 
     end subroutine InterpolateClArrTemplated
 
