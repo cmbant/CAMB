@@ -91,11 +91,14 @@ end if
 
 end subroutine SPk_GetParams
 
-pure function SPk_LinearInterp(z, x_nodes, y_nodes) result(y)
+pure function SPk_AkimaInterp(z, x_nodes, y_nodes) result(y)
 real(dl), intent(in) :: z
 real(dl), intent(in) :: x_nodes(:), y_nodes(:)
 real(dl) :: y
 integer :: i, n
+real(dl) :: h, s, w1, w2
+real(dl), allocatable :: delta(:), mext(:), t(:)
+real(dl) :: h00, h10, h01, h11
 
 n = size(x_nodes)
 if (z <= x_nodes(1)) then
@@ -107,16 +110,50 @@ if (z >= x_nodes(n)) then
     return
 end if
 
+if (n < 2) then
+    y = y_nodes(1)
+    return
+end if
+
+allocate(delta(n - 1), mext(n + 3), t(n))
+
+do i = 1, n - 1
+    delta(i) = (y_nodes(i + 1) - y_nodes(i)) / (x_nodes(i + 1) - x_nodes(i))
+end do
+
+! Extend slopes at both ends using Akima endpoint construction.
+mext(3:n + 1) = delta
+mext(2) = 2.0_dl * mext(3) - mext(4)
+mext(1) = 2.0_dl * mext(2) - mext(3)
+mext(n + 2) = 2.0_dl * mext(n + 1) - mext(n)
+mext(n + 3) = 2.0_dl * mext(n + 2) - mext(n + 1)
+
+do i = 1, n
+    w1 = abs(mext(i + 3) - mext(i + 2))
+    w2 = abs(mext(i + 1) - mext(i))
+    if (w1 + w2 > 0.0_dl) then
+        t(i) = (w1 * mext(i + 1) + w2 * mext(i + 2)) / (w1 + w2)
+    else
+        t(i) = 0.5_dl * (mext(i + 1) + mext(i + 2))
+    end if
+end do
+
 do i = 1, n - 1
     if (z < x_nodes(i + 1)) then
-        y = y_nodes(i) + (z - x_nodes(i)) * (y_nodes(i + 1) - y_nodes(i)) / (x_nodes(i + 1) - x_nodes(i))
+        h = x_nodes(i + 1) - x_nodes(i)
+        s = (z - x_nodes(i)) / h
+        h00 = (1.0_dl + 2.0_dl * s) * (1.0_dl - s) * (1.0_dl - s)
+        h10 = s * (1.0_dl - s) * (1.0_dl - s)
+        h01 = s * s * (3.0_dl - 2.0_dl * s)
+        h11 = s * s * (s - 1.0_dl)
+        y = h00 * y_nodes(i) + h10 * h * t(i) + h01 * y_nodes(i + 1) + h11 * h * t(i + 1)
         return
     end if
 end do
 
 y = y_nodes(n)
 
-end function SPk_LinearInterp
+end function SPk_AkimaInterp
 
 pure subroutine SPk_ComputeFb(SO, kh, z, relation_kind, fb_a, fb_pow, fb_pivot, rel_alpha, rel_beta, rel_gamma, &
     rel_epsilon, rel_m_pivot, e_ratio, fb, m_opt)
@@ -154,19 +191,19 @@ real(dl), intent(out) :: min_fb, max_fb
 real(dl) :: logm, min_c0, min_c1, min_c2, max_c0, max_c1, max_c2
 
 if (SO == 500) then
-    min_c0 = SPk_LinearInterp(z, SPk_limit_z_nodes, SPk_limit_min_x0_500)
-    min_c1 = SPk_LinearInterp(z, SPk_limit_z_nodes, SPk_limit_min_x1_500)
-    min_c2 = SPk_LinearInterp(z, SPk_limit_z_nodes, SPk_limit_min_x2_500)
-    max_c0 = SPk_LinearInterp(z, SPk_limit_z_nodes, SPk_limit_max_x0_500)
-    max_c1 = SPk_LinearInterp(z, SPk_limit_z_nodes, SPk_limit_max_x1_500)
-    max_c2 = SPk_LinearInterp(z, SPk_limit_z_nodes, SPk_limit_max_x2_500)
+    min_c0 = SPk_AkimaInterp(z, SPk_limit_z_nodes, SPk_limit_min_x0_500)
+    min_c1 = SPk_AkimaInterp(z, SPk_limit_z_nodes, SPk_limit_min_x1_500)
+    min_c2 = SPk_AkimaInterp(z, SPk_limit_z_nodes, SPk_limit_min_x2_500)
+    max_c0 = SPk_AkimaInterp(z, SPk_limit_z_nodes, SPk_limit_max_x0_500)
+    max_c1 = SPk_AkimaInterp(z, SPk_limit_z_nodes, SPk_limit_max_x1_500)
+    max_c2 = SPk_AkimaInterp(z, SPk_limit_z_nodes, SPk_limit_max_x2_500)
 else
-    min_c0 = SPk_LinearInterp(z, SPk_limit_z_nodes, SPk_limit_min_x0_200)
-    min_c1 = SPk_LinearInterp(z, SPk_limit_z_nodes, SPk_limit_min_x1_200)
-    min_c2 = SPk_LinearInterp(z, SPk_limit_z_nodes, SPk_limit_min_x2_200)
-    max_c0 = SPk_LinearInterp(z, SPk_limit_z_nodes, SPk_limit_max_x0_200)
-    max_c1 = SPk_LinearInterp(z, SPk_limit_z_nodes, SPk_limit_max_x1_200)
-    max_c2 = SPk_LinearInterp(z, SPk_limit_z_nodes, SPk_limit_max_x2_200)
+    min_c0 = SPk_AkimaInterp(z, SPk_limit_z_nodes, SPk_limit_min_x0_200)
+    min_c1 = SPk_AkimaInterp(z, SPk_limit_z_nodes, SPk_limit_min_x1_200)
+    min_c2 = SPk_AkimaInterp(z, SPk_limit_z_nodes, SPk_limit_min_x2_200)
+    max_c0 = SPk_AkimaInterp(z, SPk_limit_z_nodes, SPk_limit_max_x0_200)
+    max_c1 = SPk_AkimaInterp(z, SPk_limit_z_nodes, SPk_limit_max_x1_200)
+    max_c2 = SPk_AkimaInterp(z, SPk_limit_z_nodes, SPk_limit_max_x2_200)
 end if
 
 logm = log10(m_halo)

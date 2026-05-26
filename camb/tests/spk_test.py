@@ -101,6 +101,99 @@ class SPkTest(unittest.TestCase):
         mask = (k_spk > 0.1) & (k_spk <= 12.0)
         self.assertFalse(np.allclose(sup[mask], 1.0, atol=1e-4))
 
+    def test_spk_off_node_boundary_regression(self):
+        """Off-node z boundary cases should remain finite with Akima limit interpolation.
+
+        At off-node redshifts the linear-interpolated min_fb is slightly higher
+        than the Akima-interpolated value.  These test points sit in the gap:
+        Akima says in-range (finite P(k)), linear would say out-of-range (NaN).
+
+        Uses get_linear_matter_power_spectrum(nonlinear=True) which returns raw
+        per-(z, k) nonlinear P(k) without spline smoothing — the only accessor
+        that faithfully preserves per-cell NaN (see docs/source/spk.rst).
+        """
+        # (z, k_target, fb_a) tuples where fb_a sits between Akima and linear min_fb.
+        cases = [
+            (1.5, 0.5, 0.15399),
+            (2.5, 11.5, 0.1805),
+        ]
+
+        # Limit coefficient arrays for SO=200 (from spk_model.f90).
+        z_nodes = np.array([0.0, 0.125, 0.5, 1.0, 2.0, 3.0])
+        min_x0_200 = np.array(
+            [
+                63.59373179416563,
+                59.88726319810792,
+                56.365373020207954,
+                39.64033211739476,
+                91.48777680660496,
+                45.013496639467114,
+            ]
+        )
+        min_x1_200 = np.array(
+            [
+                -9.731727022847117,
+                -9.176876134517682,
+                -8.677101127391419,
+                -6.141984569473165,
+                -14.545324008239655,
+                -7.155837194116757,
+            ]
+        )
+        min_x2_200 = np.array(
+            [
+                0.36717360571115487,
+                0.34646698848026913,
+                0.32901138538950075,
+                0.23315608004243354,
+                0.5737424941339003,
+                0.280547072910215,
+            ]
+        )
+
+        for z, k_target, fb_a in cases:
+            with self.subTest(z=z, k=k_target, fb_a=fb_a):
+                pars = camb.CAMBparams()
+                pars.set_cosmology(H0=67.5, ombh2=0.02237, omch2=0.12, mnu=0.06)
+                pars.InitPower.set_params(As=2.1e-9, ns=0.965)
+                pars.set_matter_power(redshifts=[z], kmax=12.0, k_per_logint=80)
+                pars.NonLinear = camb.model.NonLinear_both
+                pars.NonLinearModel = SPkNonLinear()
+                pars.NonLinearModel.set_params(
+                    halofit_version="mead2020",
+                    SPk_feedback=True,
+                    SPk_SO=200,
+                    SPk_relation_kind=1,
+                    SPk_fb_a=fb_a,
+                    SPk_fb_pow=0.0,
+                    SPk_fb_pivot=1.0e14,
+                )
+
+                data = camb.get_results(pars)
+                kh, zs, pk = data.get_linear_matter_power_spectrum(nonlinear=True)
+                self.assertEqual(len(zs), 1)
+
+                idx = np.argmin(np.abs(kh - k_target))
+                self.assertLess(abs(kh[idx] - k_target), 0.5)
+                self.assertTrue(
+                    np.isfinite(pk[0, idx]),
+                    f"Expected finite P(k) at z={z}, k/h~{k_target} (Akima in-range)",
+                )
+
+                # Verify that the old linear limit would have rejected this point.
+                x = 1.0 + z
+                spk_a = 15.24311120000861 - 1.2436699435560352 * x + 0.14837558774401766 * x * x
+                spk_b = 14.969187892657688 - 1.0993025612653198 * x + 0.12905587245129102 * x * x
+                spk_g = 0.8000441576980428 - 0.01715621131893159 * x + 0.06131887249968379 * x * x
+                best_mass = spk_a - (spk_a - spk_b) * (k_target**spk_g)
+                m_opt = 10.0**best_mass
+                logm = np.log10(m_opt)
+                min_c0_lin = np.interp(z, z_nodes, min_x0_200)
+                min_c1_lin = np.interp(z, z_nodes, min_x1_200)
+                min_c2_lin = np.interp(z, z_nodes, min_x2_200)
+                min_fb_lin = 0.8 * 10.0 ** (min_c0_lin + min_c1_lin * logm + min_c2_lin * logm * logm)
+                self.assertLess(fb_a, min_fb_lin)
+
     def test_spk_fb_outside_calibrated_limits_produces_nan(self):
         """When fb is pushed far outside the calibrated fitting limits, P(k) should contain NaN."""
         pars = camb.CAMBparams()
