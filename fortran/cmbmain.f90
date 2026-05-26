@@ -1301,7 +1301,7 @@
             LowQIntBoost = LowQIntBoost*1.8_dl
             if (State%closed) then
                 LowQCurvBoost = min(1._dl, abs(State%curv_flat_DM_ratio - 1._dl)/0.01_dl)
-                LowQIntBoost = max(LowQIntBoost, 1.8_dl + 0.4_dl*LowQCurvBoost)
+                LowQIntBoost = LowQIntBoost*(1._dl + 0.4_dl*LowQCurvBoost)
             end if
         end if
         !Split up into logarithmically spaced intervals from qmin up to k=lognum*dk0

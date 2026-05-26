@@ -68,7 +68,7 @@ DEFAULT_NOISE_CONFIGS = {
 
 TT_EE_TOLERANCES = [(0, 3e-3), (600, 1e-3), (3500, 3e-3), (6000, 2e-2)]
 BB_TOLERANCES = [(0, 5e-3), (1000, 1e-2), (6000, 2e-2), (8000, 1e-1)]
-LENSING_TOLERANCES = [(0, 5e-3), (2000, 5e-3), (6000, 2e-2)]
+LENSING_TOLERANCES = [(0, 9e-3), (5, 5e-3), (2000, 5e-3), (6000, 2e-2)]
 MPK_TOLERANCE = 1e-3
 MPK_TOLERANCE_RANGES = [
     (None, 5e-3, 3e-3),

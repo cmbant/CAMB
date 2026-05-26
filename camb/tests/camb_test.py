@@ -797,7 +797,7 @@ class CambTest(unittest.TestCase):
         pars.Accuracy.AccuracyBoost = 2
         results = camb.get_results(pars)
         sigmas2 = results.get_sigmaR(np.arange(1, 20, 1), hubble_units=False, z_indices=None)
-        self.assertTrue(np.all(np.abs(sigmas / sigmas2 - 1) < 1e-3))
+        np.testing.assert_allclose(sigmas, sigmas2, rtol=1e-3)
         pars.Accuracy.AccuracyBoost = 1
         pars.set_matter_power(nonlinear=False, k_per_logint=100, kmax=10, redshifts=np.arange(0, 10, 2))
         results = camb.get_results(pars)

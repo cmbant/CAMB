@@ -23,6 +23,8 @@ class _config:
 
     enable_shifted_q_scalar_approx = import_property(c_bool, "config", "enable_shifted_q_scalar_approx")
 
+    enable_olver_source_integration = import_property(c_bool, "config", "enable_olver_source_integration")
+
     # print additional timing and progress (when FeedbackLevel>0)
     DebugMsgs = import_property(c_bool, "config", "DebugMsgs")
 
