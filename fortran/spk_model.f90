@@ -97,6 +97,7 @@ real(dl), intent(in) :: x_nodes(:), y_nodes(:)
 real(dl) :: y
 integer :: i, n
 real(dl) :: h, s, w1, w2
+! Fixed sizes for 6 z-nodes: delta(n-1), mext(n+3), t(n).
 real(dl) :: delta(5), mext(9), t(6)
 real(dl) :: h00, h10, h01, h11
 
