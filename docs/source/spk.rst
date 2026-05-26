@@ -83,7 +83,9 @@ The boundary choices are designed for stable sampling:
    For diagnostics (locating *which* (z, k) cells are NaN), use
    :meth:`~camb.results.CAMBdata.get_linear_matter_power_spectrum` with
    ``nonlinear=True``, which returns the raw nonlinear P(k) on the internal
-   transfer-function k-grid without any interpolation.
+   transfer-function k-grid without any interpolation.  When comparing against
+   other spectra, interpolate *those* onto this k-grid (not vice versa) to
+   avoid spurious oscillations from resampling through BAO features.
 
 **Prior guidance:** set priors on the SP(k) relation parameters to keep f_b
 within calibrated limits for the bulk of your parameter space.  The NaN
