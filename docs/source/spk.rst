@@ -70,11 +70,20 @@ The boundary choices are designed for stable sampling:
 
 .. note::
 
-   :meth:`~camb.results.CAMBdata.get_matter_power_spectrum` uses spline
-   interpolation that does **not** preserve NaN (it produces tiny finite
-   garbage values ~10⁻²²).  Use
-   :meth:`~camb.results.CAMBdata.get_matter_power_interpolator` when NaN
-   detection matters (e.g. in tests or custom likelihoods).
+   :meth:`~camb.results.CAMBdata.get_matter_power_spectrum` uses Fortran-side
+   spline interpolation onto a regular log-k grid that does **not** preserve
+   NaN (it produces tiny finite unphysical values ~10⁻²²).
+
+   :meth:`~camb.results.CAMBdata.get_matter_power_interpolator` builds a 2D
+   ``RectBivariateSpline`` over the internal (z, k) grid.  Any NaN on that
+   grid propagates through the entire spline, so **all** evaluations return
+   NaN — not just the invalid (z, k) cells.  This is the correct behaviour
+   for MCMC: a single out-of-range point invalidates the whole sample.
+
+   For diagnostics (locating *which* (z, k) cells are NaN), use
+   :meth:`~camb.results.CAMBdata.get_linear_matter_power_spectrum` with
+   ``nonlinear=True``, which returns the raw nonlinear P(k) on the internal
+   transfer-function k-grid without any interpolation.
 
 **Prior guidance:** set priors on the SP(k) relation parameters to keep f_b
 within calibrated limits for the bulk of your parameter space.  The NaN
