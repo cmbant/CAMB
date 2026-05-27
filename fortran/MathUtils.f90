@@ -22,7 +22,7 @@
     ! (min steps useful to stop wrong results on periodic or sharp functions)
     use iso_c_binding
     use MiscUtils
-    use config, only : global_error_flag
+    use config, only : global_error_flag, print_fortran_warnings
     class(*) :: obj
     real(dl), external :: fin !a class function
     procedure(obj_function), pointer :: f
@@ -84,7 +84,7 @@
     end do
 
     Integrate_Romberg=g0
-    if (i > max_it .and. abs(error) > tol)  then
+    if (i > max_it .and. abs(error) > tol .and. print_fortran_warnings)  then
         write(*,*) 'Warning: Integrate_Romberg failed to converge; '
         write (*,*)'integral, error, tol:', Integrate_Romberg,error, tol
     end if

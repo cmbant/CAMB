@@ -1722,10 +1722,10 @@
         associate(a_coeffs => this%thermo_horner(i)%a, &
             opacity_coeffs => this%thermo_horner(i)%opacity)
             a = (a_coeffs(1) + d*(a_coeffs(2) + d*(a_coeffs(3) + d*a_coeffs(4))))*tau
+            opacity = opacity_coeffs(1) + d*(opacity_coeffs(2) + d*(opacity_coeffs(3) + d*opacity_coeffs(4)))
             adot = (this%adot(i)+d*(this%dadot(i)+d*(3*(this%adot(i+1)-this%adot(i)) &
                 -2*this%dadot(i)-this%dadot(i+1)+d*(this%dadot(i)+this%dadot(i+1) &
                 +2*(this%adot(i)-this%adot(i+1))))))
-            opacity = opacity_coeffs(1) + d*(opacity_coeffs(2) + d*(opacity_coeffs(3) + d*opacity_coeffs(4)))
         end associate
     end if
 
@@ -1789,7 +1789,7 @@
 
     !Allocate memory outside parallel region to keep ifort happy
     background_boost = CP%Accuracy%BackgroundTimeStepBoost*CP%Accuracy%AccuracyBoost
-    if (background_boost > 20) then
+    if (background_boost > 20 .and. print_fortran_warnings) then
         write(*,*) 'Warning: very small time steps can give less accurate spline derivatives'
         write(*,*) 'e.g. around reionization if not matched very smoothly'
     end if
@@ -2076,7 +2076,7 @@
         !Tight coupling switch time when k/opacity is smaller than 1/(tau*opacity)
     end do
 
-    if (CP%Reion%Reionization .and. (this%xe(nthermo) < 0.999d0)) then
+    if (CP%Reion%Reionization .and. (this%xe(nthermo) < 0.999d0) .and. print_fortran_warnings) then
         write(*,*)'Warning: xe at redshift zero is < 1'
         write(*,*) 'Check input parameters an Reionization_xe'
         write(*,*) 'function in the Reionization module'
@@ -2199,7 +2199,7 @@
         write (*,*) 'taurst, taurend = ', State%taurst, State%taurend
     end if
 
-    !$OMP PARALLEL SECTIONS DEFAULT(SHARED)
+    !$OMP PARALLEL SECTIONS DEFAULT(SHARED), PRIVATE(j2, sf1, sf2, dSF1, dSF2, delta)
     !$OMP SECTION
     call splder(this%dotmu,this%ddotmu,nthermo,spline_data)
     call splder(this%ddotmu,this%dddotmu,nthermo,spline_data)
@@ -2237,7 +2237,7 @@
         this%z_drag = State%binary_search(dragoptdepth, 1.d0, 800*z_scale, &
         & max(zstar_max*1.1_dl,1200._dl*z_scale), 2d-3/background_boost, 100.d0*z_scale, 4000._dl*z_scale)
     !$OMP SECTION
-    this%ScaleFactor(:) = this%scaleFactor/taus !a/tau for dynamic range
+    this%ScaleFactor(:) = this%ScaleFactor/taus !a/tau for dynamic range
     sf1  = this%ScaleFactor(1)
     dSF1 = (this%adot(1) - sf1)*this%dlntau
     do j2 = 1, nthermo - 1
@@ -2295,7 +2295,6 @@
             ThermoDerivedParams( derived_kEQ ) = 1/(a_eq*dtauda(State,a_eq))
             rs_eq = State%sound_horizon(State%z_eq)
             tau_eq = State%timeOfz(State%z_eq)
-            !$OMP SECTION
             !$OMP END PARALLEL SECTIONS
 
             ThermoDerivedParams( derived_zstar ) = this%z_star
@@ -3598,7 +3597,7 @@
     if (npoints < 2) call MpiStop('Need at least 2 points in Transfer_GetMatterPower')
 
     if (minkh*exp((npoints-1)*dlnkh) > MTrans%TransferData(Transfer_kh,MTrans%num_q_trans,itf) &
-        .and. FeedbackLevel > 0 ) &
+        .and. FeedbackLevel > 0 .and. print_fortran_warnings) &
         write(*,*) 'Warning: extrapolating matter power in Transfer_GetMatterPower'
 
 

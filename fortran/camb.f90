@@ -406,7 +406,7 @@
             else
                 P%Do21cm = .true.
                 RedWin%sigma = Ini%Read_Double_Array('redshift_sigma_Mhz', i)
-                if (RedWin%sigma < 0.003) then
+                if (RedWin%sigma < 0.003 .and. print_fortran_warnings) then
                     write(*,*) 'WARNING:Window very narrow.'
                     write(*,*) ' --> use transfer functions and transfer_21cm_cl =T ?'
                 end if
@@ -592,7 +592,8 @@
         P%share_delta_neff = Ini%Read_Logical('share_delta_neff', .true.)
         numstr = Ini%Read_String('nu_mass_degeneracies')
         if (P%share_delta_neff) then
-            if (numstr/='') write (*,*) 'WARNING: nu_mass_degeneracies ignored when share_delta_neff'
+            if (numstr/='' .and. print_fortran_warnings) &
+                write (*,*) 'WARNING: nu_mass_degeneracies ignored when share_delta_neff'
         else
             if (numstr=='') then
                 ErrMsg = 'must give degeneracies for each eigenstate if share_delta_neff=F'
@@ -635,7 +636,7 @@
         P%transfer%PK_num_redshifts = Ini%Read_Int('transfer_num_redshifts')
 
         if (P%Do21cm) P%transfer_21cm_cl = Ini%Read_Logical('transfer_21cm_cl',.false.)
-        if (P%transfer_21cm_cl .and. P%transfer%kmax > 800) then
+        if (P%transfer_21cm_cl .and. P%transfer%kmax > 800 .and. print_fortran_warnings) then
             !Actually line widths are important at significantly larger scales too
             write (*,*) 'WARNING: kmax very large. '
             write(*,*) ' -- Neglected line width effects will dominate'
@@ -704,7 +705,7 @@
     call ReadAccuracyLogical(P%Accuracy%AccurateReionization, 'AccurateReionization', 'accurate_reionization')
     call ReadAccuracyLogical(P%Accuracy%AccurateBB, 'AccurateBB', 'accurate_BB')
     if (ErrMsg /= '') return
-    if (P%Accuracy%AccurateBB .and. P%WantCls .and. (P%Max_l < 3500 .or. &
+    if (print_fortran_warnings .and. P%Accuracy%AccurateBB .and. P%WantCls .and. (P%Max_l < 3500 .or. &
         (P%NonLinear/=NonLinear_lens .and. P%NonLinear/=NonLinear_both) .or. P%Max_eta_k < 18000)) &
         write(*,*) 'WARNING: for accurate lensing BB you need high l_max_scalar, k_eta_max_scalar and non-linear lensing'
 
@@ -900,7 +901,7 @@
     if (version_check == '') then
         !tag the output used parameters .ini file with the version of CAMB being used now
         call Ini%ReadValues%Add('version_check', version)
-    else if (version_check /= version) then
+    else if (version_check /= version .and. print_fortran_warnings) then
         write(*,*) 'WARNING: version_check does not match this CAMB version'
     end if
 
@@ -1014,6 +1015,7 @@
     if (Ini%HasKey('enable_olver_source_integration')) &
         call Ini%Read('enable_olver_source_integration', enable_olver_source_integration)
     call Ini%Read('feedback_level', FeedbackLevel)
+    call Ini%Read('print_fortran_warnings', print_fortran_warnings)
     if (Ini%HasKey('DebugMsgs')) call Ini%Read('DebugMsgs', DebugMsgs)
 
     Ini%Fail_on_not_found = .false.

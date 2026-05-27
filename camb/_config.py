@@ -14,6 +14,9 @@ class _config:
     # print feedback if > 0 (note in Jupyter notebook this will appear in the terminal, not the notebook)
     FeedbackLevel = import_property(c_int, "config", "FeedbackLevel")
 
+    # if True, the Fortran code prints warnings (e.g. low-resolution, narrow window, parameter sanity checks)
+    print_fortran_warnings = import_property(c_bool, "config", "print_fortran_warnings")
+
     # enable targeted accuracy improvements if > 0, AccuracyTarget being SO-like.
     AccuracyTarget = import_property(c_int, "config", "AccuracyTarget")
 

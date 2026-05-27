@@ -104,7 +104,7 @@
         this%fHe =  State%CP%YHe/(mass_ratio_He_H*(1.d0-State%CP%YHe))
         if (this%Reionization) then
 
-            if (this%optical_depth /= 0._dl .and. .not. this%use_optical_depth) &
+            if (this%optical_depth /= 0._dl .and. .not. this%use_optical_depth .and. print_fortran_warnings) &
                 write (*,*) 'WARNING: You seem to have set the optical depth, but use_optical_depth = F'
 
             if (this%use_optical_depth.and.this%optical_depth<0.001 &

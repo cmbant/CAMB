@@ -7,6 +7,8 @@
 
     integer :: FeedbackLevel = 0 !if >0 print out useful information about the model
 
+    logical :: print_fortran_warnings = .true. !if true, Fortran code prints warnings (e.g. low resolution, narrow window, etc.)
+
     integer :: AccuracyTarget = 1 !if >0 enable targeted accuracy improvements
 
     logical :: enable_do_near_flat_integration = .true.
