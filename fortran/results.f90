@@ -1,4 +1,4 @@
-    ! Modules used by cmbmain and other routines.
+! Modules used by cmbmain and other routines.
 
     !     Code for Anisotropies in the Microwave Background
     !     by Antony Lewis (http://cosmologist.info) and Anthony Challinor
@@ -74,8 +74,8 @@
         !baryon temperature, sound speed, ionization fractions, and opacity
         real(dl), dimension(:), allocatable :: tb, cs2, xe, dotmu
         ! e^(-tau) and derivatives
-        real(dl), dimension(:), allocatable :: emmu, dcs2,demmu, ddotmu, dddotmu, ddddotmu
-        real(dl), dimension(:), allocatable :: ScaleFactor, dScaleFactor, adot, dadot
+        real(dl), dimension(:), allocatable :: emmu, demmu, ddotmu, dddotmu, ddddotmu
+        real(dl), dimension(:), allocatable :: ScaleFactor, adot, dadot
         real(dl), dimension(:), allocatable :: winlens, dwinlens
         Type(TThermoHorner), dimension(:), allocatable :: thermo_horner
         real(dl) tauminn,dlntau
@@ -1719,17 +1719,14 @@
         a=1
         adot=this%adot(this%nthermo)
     else
-        a = (this%ScaleFactor(i)+d*(this%dScaleFactor(i)+d*(3*(this%ScaleFactor(i+1)-this%ScaleFactor(i)) &
-            -2*this%dScaleFactor(i)-this%dScaleFactor(i+1)+d*(this%dScaleFactor(i)+this%dScaleFactor(i+1) &
-            +2*(this%ScaleFactor(i)-this%ScaleFactor(i+1))))))*tau
-
-        adot = (this%adot(i)+d*(this%dadot(i)+d*(3*(this%adot(i+1)-this%adot(i)) &
-            -2*this%dadot(i)-this%dadot(i+1)+d*(this%dadot(i)+this%dadot(i+1) &
-            +2*(this%adot(i)-this%adot(i+1))))))
-
-        opacity=this%dotmu(i)+d*(this%ddotmu(i)+d*(3*(this%dotmu(i+1)-this%dotmu(i)) &
-            -2*this%ddotmu(i)-this%ddotmu(i+1)+d*(this%ddotmu(i)+this%ddotmu(i+1) &
-            +2*(this%dotmu(i)-this%dotmu(i+1)))))
+        associate(a_coeffs => this%thermo_horner(i)%a, &
+            opacity_coeffs => this%thermo_horner(i)%opacity)
+            a = (a_coeffs(1) + d*(a_coeffs(2) + d*(a_coeffs(3) + d*a_coeffs(4))))*tau
+            adot = (this%adot(i)+d*(this%dadot(i)+d*(3*(this%adot(i+1)-this%adot(i)) &
+                -2*this%dadot(i)-this%dadot(i+1)+d*(this%dadot(i)+this%dadot(i+1) &
+                +2*(this%adot(i)-this%adot(i+1))))))
+            opacity = opacity_coeffs(1) + d*(opacity_coeffs(2) + d*(opacity_coeffs(3) + d*opacity_coeffs(4)))
+        end associate
     end if
 
     end subroutine Thermo_expansion_values
@@ -1778,8 +1775,9 @@
     integer RW_i, j2
     real(dl) Tb21cm, winamp, z, background_boost
     character(len=:), allocatable :: outstr
-    real(dl), allocatable ::  taus(:)
+    real(dl), allocatable ::  taus(:), dcs2(:)
     real(dl), allocatable :: xe_a(:), sdotmu(:), opts(:)
+    real(dl) dSF1, dSF2, delta, sf1, sf2
     real(dl), allocatable :: scale_factors(:), times(:), dt(:)
     Type(TCubicSpline) :: dotmuSp
     integer ninverse, nlin
@@ -1812,19 +1810,19 @@
         end associate
     end do
     this%nthermo = nthermo
-    allocate(spline_data(nthermo), sdotmu(nthermo))
+    allocate(spline_data(nthermo), sdotmu(nthermo), dcs2(nthermo))
 
     if (allocated(this%tb) .and. this%nthermo/=size(this%tb)) then
-        deallocate(this%scaleFactor, this%cs2, this%dcs2, this%ddotmu)
-        deallocate(this%dscaleFactor, this%adot, this%dadot)
+        deallocate(this%scaleFactor, this%cs2, this%ddotmu)
+        deallocate(this%adot, this%dadot)
         deallocate(this%tb, this%xe, this%emmu, this%dotmu)
         deallocate(this%demmu, this%dddotmu, this%ddddotmu)
         deallocate(this%thermo_horner)
         if (dowinlens .and. allocated(this%winlens)) deallocate(this%winlens, this%dwinlens)
     endif
     if (.not. allocated(this%tb)) then
-        allocate(this%scaleFactor(nthermo), this%cs2(nthermo), this%dcs2(nthermo), this%ddotmu(nthermo))
-        allocate(this%dscaleFactor(nthermo), this%adot(nthermo), this%dadot(nthermo))
+        allocate(this%scaleFactor(nthermo), this%cs2(nthermo), this%ddotmu(nthermo))
+        allocate(this%adot(nthermo), this%dadot(nthermo))
         allocate(this%tb(nthermo), this%xe(nthermo), this%emmu(nthermo),this%dotmu(nthermo))
         allocate(this%demmu(nthermo), this%dddotmu(nthermo), this%ddddotmu(nthermo))
         allocate(this%thermo_horner(nthermo))
@@ -2163,7 +2161,7 @@
     end do
 
     if (iv /= 2) then
-        call GlobalError('ThemoData Init: failed to find end of recombination',error_reionization)
+        call GlobalError('ThermoData Init: failed to find end of recombination',error_reionization)
         return
     end if
 
@@ -2206,42 +2204,54 @@
     call splder(this%dotmu,this%ddotmu,nthermo,spline_data)
     call splder(this%ddotmu,this%dddotmu,nthermo,spline_data)
     call splder(this%dddotmu,this%ddddotmu,nthermo,spline_data)
-    if (CP%want_zstar .or. CP%WantDerivedParameters) &
-        this%z_star = State%binary_search(noreion_optdepth, 1.d0, zstar_min, zstar_max, &
-        & 1d-3/background_boost, 100._dl*z_scale, 4000._dl*z_scale)
-    !$OMP SECTION
-    call splder(this%cs2,this%dcs2,nthermo,spline_data)
-    call splder(this%emmu,this%demmu,nthermo,spline_data)
-    call splder(this%adot,this%dadot,nthermo,spline_data)
-    if (dowinlens) call splder(this%winlens,this%dwinlens,nthermo,spline_data)
-    if (CP%want_zdrag .or. CP%WantDerivedParameters) &
-        this%z_drag = State%binary_search(dragoptdepth, 1.d0, 800*z_scale, &
-        & max(zstar_max*1.1_dl,1200._dl*z_scale), 2d-3/background_boost, 100.d0*z_scale, 4000._dl*z_scale)
-    !$OMP SECTION
-    this%ScaleFactor(:) = this%scaleFactor/taus !a/tau
-    this%dScaleFactor(:) = (this%adot - this%ScaleFactor)*this%dlntau !derivative of a/tau
     do j2 = 1, nthermo - 1
         associate(horner => this%thermo_horner(j2))
-            horner%cs2b(1) = this%cs2(j2)
-            horner%cs2b(2) = this%dcs2(j2)
-            horner%cs2b(3) = 3*(this%cs2(j2+1) - this%cs2(j2)) - 2*this%dcs2(j2) - this%dcs2(j2+1)
-            horner%cs2b(4) = this%dcs2(j2) + this%dcs2(j2+1) + 2*(this%cs2(j2) - this%cs2(j2+1))
-
             horner%opacity(1) = this%dotmu(j2)
             horner%opacity(2) = this%ddotmu(j2)
             horner%opacity(3) = 3*(this%dotmu(j2+1) - this%dotmu(j2)) - 2*this%ddotmu(j2) - this%ddotmu(j2+1)
             horner%opacity(4) = this%ddotmu(j2) + this%ddotmu(j2+1) + 2*(this%dotmu(j2) - this%dotmu(j2+1))
-
-            horner%a(1) = this%ScaleFactor(j2)
-            horner%a(2) = this%dScaleFactor(j2)
-            horner%a(3) = 3*(this%ScaleFactor(j2+1) - this%ScaleFactor(j2)) - 2*this%dScaleFactor(j2) - this%dScaleFactor(j2+1)
-            horner%a(4) = this%dScaleFactor(j2) + this%dScaleFactor(j2+1) + 2*(this%ScaleFactor(j2) - this%ScaleFactor(j2+1))
 
             horner%dopacity(1) = this%ddotmu(j2)
             horner%dopacity(2) = this%dddotmu(j2)
             horner%dopacity(3) = 3*(this%ddotmu(j2+1) - this%ddotmu(j2)) - 2*this%dddotmu(j2) - this%dddotmu(j2+1)
             horner%dopacity(4) = this%dddotmu(j2) + this%dddotmu(j2+1) + 2*(this%ddotmu(j2) - this%ddotmu(j2+1))
         end associate
+    end do
+    if (CP%want_zstar .or. CP%WantDerivedParameters) &
+        this%z_star = State%binary_search(noreion_optdepth, 1.d0, zstar_min, zstar_max, &
+        & 1d-3/background_boost, 100._dl*z_scale, 4000._dl*z_scale)
+    !$OMP SECTION
+    call splder(this%cs2,dcs2,nthermo,spline_data)
+    call splder(this%emmu,this%demmu,nthermo,spline_data)
+    call splder(this%adot,this%dadot,nthermo,spline_data)
+    do j2 = 1, nthermo - 1
+        associate(horner => this%thermo_horner(j2))
+            horner%cs2b(1) = this%cs2(j2)
+            horner%cs2b(2) = dcs2(j2)
+            horner%cs2b(3) = 3*(this%cs2(j2+1) - this%cs2(j2)) - 2*dcs2(j2) - dcs2(j2+1)
+            horner%cs2b(4) = dcs2(j2) + dcs2(j2+1) + 2*(this%cs2(j2) - this%cs2(j2+1))
+        end associate
+    end do
+    if (dowinlens) call splder(this%winlens,this%dwinlens,nthermo,spline_data)
+    if (CP%want_zdrag .or. CP%WantDerivedParameters) &
+        this%z_drag = State%binary_search(dragoptdepth, 1.d0, 800*z_scale, &
+        & max(zstar_max*1.1_dl,1200._dl*z_scale), 2d-3/background_boost, 100.d0*z_scale, 4000._dl*z_scale)
+    !$OMP SECTION
+    this%ScaleFactor(:) = this%scaleFactor/taus !a/tau for dynamic range
+    sf1  = this%ScaleFactor(1)
+    dSF1 = (this%adot(1) - sf1)*this%dlntau
+    do j2 = 1, nthermo - 1
+        sf2  = this%ScaleFactor(j2+1)
+        dSF2 = (this%adot(j2+1) - sf2)*this%dlntau
+        delta = sf2 - sf1
+        associate(a => this%thermo_horner(j2)%a)
+            a(1) = sf1
+            a(2) = dSF1
+            a(3) = 3*delta - 2*dSF1 - dSF2
+            a(4) = dSF1 + dSF2 - 2*delta
+        end associate
+        sf1  = sf2
+        dSF1 = dSF2
     end do
     if (State%num_redshiftwindows >0) then
         call splder(this%redshift_time,this%dredshift_time,nthermo,spline_data)

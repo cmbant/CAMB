@@ -369,13 +369,13 @@ class CambTest(unittest.TestCase):
             8,
         )
         redshifts = np.array([0.005, 0.01, 0.3, 0.9342, 4, 27, 321.5, 932, 1049, 1092, 2580, 1e4, 2.1e7])
-        self.assertTrue(
-            np.allclose(data.redshift_at_conformal_time(data.conformal_time(redshifts)), redshifts, rtol=1e-7)
+        np.testing.assert_allclose(
+            data.redshift_at_conformal_time(data.conformal_time(redshifts)), redshifts, rtol=1e-7
         )
         pars.set_dark_energy(w=-1.8)
         data.calc_background(pars)
-        self.assertTrue(
-            np.allclose(data.redshift_at_conformal_time(data.conformal_time(redshifts)), redshifts, rtol=1e-7)
+        np.testing.assert_allclose(
+            data.redshift_at_conformal_time(data.conformal_time(redshifts)), redshifts, rtol=1e-7
         )
         pars.set_cosmology(cosmomc_theta=0.0104085)
         data.calc_background(pars)
@@ -538,7 +538,7 @@ class CambTest(unittest.TestCase):
         del data3
         data4 = camb.get_results(pars2)
         cl4 = data4.get_lensed_scalar_cls(1000)
-        self.assertTrue(np.allclose(cl4, cl3))
+        np.testing.assert_allclose(cl4, cl3)
 
     def testPowers(self):
         pars = camb.CAMBparams()
@@ -695,7 +695,7 @@ class CambTest(unittest.TestCase):
             inflation_params.set_params(ns=0.96, r=r, nt=0)
             results.power_spectra_from_transfer(inflation_params, silent=True)
             cls += [results.get_total_cls(CMB_unit="muK")]
-        self.assertTrue(np.allclose((cls[1] - cls[0])[2:300, 2] * 2, (cls[2] - cls[0])[2:300, 2], rtol=1e-3))
+        np.testing.assert_allclose((cls[1] - cls[0])[2:300, 2] * 2, (cls[2] - cls[0])[2:300, 2], rtol=1e-3)
 
         # Check generating tensors and scalars together
         pars = camb.CAMBparams()
@@ -718,10 +718,10 @@ class CambTest(unittest.TestCase):
         results.power_spectra_from_transfer(inflation_params, silent=True)
         cl3 = results.get_lensed_scalar_cls(lmax, CMB_unit="muK")
         ctensor3 = results.get_tensor_cls(lmax, CMB_unit="muK")
-        self.assertTrue(np.allclose(ctensor2, ctensor3 * 2, rtol=1e-4))
-        self.assertTrue(np.allclose(cl1, cl2, rtol=1e-4))
+        np.testing.assert_allclose(ctensor2, ctensor3 * 2, rtol=1e-4)
+        np.testing.assert_allclose(cl1, cl2, rtol=1e-4)
         # These are identical because all scalar spectra were identical (non-linear corrections change it  otherwise)
-        self.assertTrue(np.allclose(cl1, cl3, rtol=1e-4))
+        np.testing.assert_allclose(cl1, cl3, rtol=1e-4)
 
         pars = camb.CAMBparams()
         pars.set_cosmology(H0=67.5, ombh2=0.022, omch2=0.122, mnu=0.07, omk=0)
@@ -838,7 +838,7 @@ class CambTest(unittest.TestCase):
             inflation_params.set_params(ns=0.96, r=r, nt=0)
             results.power_spectra_from_transfer(inflation_params)
             cls += [results.get_total_cls(CMB_unit="muK")]
-        self.assertTrue(np.allclose((cls[1] - cls[0])[2:300, 2] * 2, (cls[2] - cls[0])[2:300, 2], rtol=1e-3))
+        np.testing.assert_allclose((cls[1] - cls[0])[2:300, 2] * 2, (cls[2] - cls[0])[2:300, 2], rtol=1e-3)
 
     def testDarkEnergy(self):
         pars = camb.CAMBparams()
@@ -853,7 +853,7 @@ class CambTest(unittest.TestCase):
             pars2.set_dark_energy_w_a(a, w, dark_energy_model=m)
             C2 = camb.get_results(pars2).get_cmb_power_spectra()
             for f in ["lens_potential", "lensed_scalar"]:
-                self.assertTrue(np.allclose(C1[f][2:, 0], C2[f][2:, 0]))
+                np.testing.assert_allclose(C1[f][2:, 0], C2[f][2:, 0])
             pars3 = pars2.copy()
             self.assertAlmostEqual(-0.7, pars3.DarkEnergy.w)
 
@@ -908,7 +908,7 @@ class CambTest(unittest.TestCase):
         pars.InitPower.set_params(As=As, ns=ns)
         results2 = camb.get_results(pars)
         cl2 = results2.get_lensed_scalar_cls(CMB_unit="muK")
-        self.assertTrue(np.allclose(cl, cl2, rtol=1e-4))
+        np.testing.assert_allclose(cl, cl2, rtol=1e-4)
         P = camb.InitialPowerLaw(As=2.1e-9, ns=0.9)
         pars2.set_initial_power(P)
         pars.InitPower.set_params(As=2.1e-9, ns=0.9)
@@ -950,15 +950,15 @@ class CambTest(unittest.TestCase):
             pars.SourceWindows[0] = window
             results = camb.get_results(pars)
             cls2 = results.get_source_cls_dict()
-            self.assertTrue(np.allclose(cls2["W1xW1"][2:1200], cls["W1xW1"][2:1200], rtol=1e-3))
+            np.testing.assert_allclose(cls2["W1xW1"][2:1200], cls["W1xW1"][2:1200], rtol=1e-3)
 
         pars.SourceWindows = [GaussianSourceWindow(redshift=1089, source_type="lensing", sigma=30)]
         results = camb.get_results(pars)
         cls = results.get_source_cls_dict()
         PP = cls["PxP"]
         ls = np.arange(0, PP.shape[0])
-        self.assertTrue(np.allclose(PP / 4 * (ls * (ls + 1)), cls["W1xW1"], rtol=1e-3))
-        self.assertTrue(np.allclose(PP / 2 * np.sqrt(ls * (ls + 1)), cls["PxW1"], rtol=1e-3))
+        np.testing.assert_allclose(PP / 4 * (ls * (ls + 1)), cls["W1xW1"], rtol=1e-3)
+        np.testing.assert_allclose(PP / 2 * np.sqrt(ls * (ls + 1)), cls["PxW1"], rtol=1e-3)
         # test something sharp with redshift distortions (tricky..)
         from scipy import signal
 
