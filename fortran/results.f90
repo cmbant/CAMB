@@ -63,6 +63,10 @@
     logical, parameter :: dowinlens = .false. !not used, test getting CMB lensing using visibility
     integer, parameter :: thermal_history_def_timesteps = 20000
 
+    Type TThermoHorner
+        real(dl) :: cs2b(4), opacity(4), a(4), dopacity(4)
+    end Type TThermoHorner
+
     Type TThermoData
         logical :: HasThermoData = .false. !Has it been computed yet for current parameters?
         !Background thermal history, interpolated from precomputed tables
@@ -73,6 +77,7 @@
         real(dl), dimension(:), allocatable :: emmu, dcs2,demmu, ddotmu, dddotmu, ddddotmu
         real(dl), dimension(:), allocatable :: ScaleFactor, dScaleFactor, adot, dadot
         real(dl), dimension(:), allocatable :: winlens, dwinlens
+        Type(TThermoHorner), dimension(:), allocatable :: thermo_horner
         real(dl) tauminn,dlntau
         real(dl) :: tight_tau, actual_opt_depth
         !Times when 1/(opacity*tau) = 0.01, for use switching tight coupling approximation
@@ -1682,20 +1687,18 @@
             dopacity = this%ddotmu(this%nthermo)/(tau*this%dlntau)
         end if
     else
-        cs2b=this%cs2(i)+d*(this%dcs2(i)+d*(3*(this%cs2(i+1)-this%cs2(i))  &
-            -2*this%dcs2(i)-this%dcs2(i+1)+d*(this%dcs2(i)+this%dcs2(i+1)  &
-            +2*(this%cs2(i)-this%cs2(i+1)))))
-        opacity=this%dotmu(i)+d*(this%ddotmu(i)+d*(3*(this%dotmu(i+1)-this%dotmu(i)) &
-            -2*this%ddotmu(i)-this%ddotmu(i+1)+d*(this%ddotmu(i)+this%ddotmu(i+1) &
-            +2*(this%dotmu(i)-this%dotmu(i+1)))))
-        a = (this%ScaleFactor(i)+d*(this%dScaleFactor(i)+d*(3*(this%ScaleFactor(i+1)-this%ScaleFactor(i)) &
-            -2*this%dScaleFactor(i)-this%dScaleFactor(i+1)+d*(this%dScaleFactor(i)+this%dScaleFactor(i+1) &
-            +2*(this%ScaleFactor(i)-this%ScaleFactor(i+1))))))*tau
-        if (present(dopacity)) then
-            dopacity=(this%ddotmu(i)+d*(this%dddotmu(i)+d*(3*(this%ddotmu(i+1)  &
-                -this%ddotmu(i))-2*this%dddotmu(i)-this%dddotmu(i+1)+d*(this%dddotmu(i) &
-                +this%dddotmu(i+1)+2*(this%ddotmu(i)-this%ddotmu(i+1))))))/(tau*this%dlntau)
-        end if
+        associate(cs2_coeffs => this%thermo_horner(i)%cs2b, &
+            opacity_coeffs => this%thermo_horner(i)%opacity, &
+            a_coeffs => this%thermo_horner(i)%a, &
+            dopacity_coeffs => this%thermo_horner(i)%dopacity)
+            cs2b = cs2_coeffs(1) + d*(cs2_coeffs(2) + d*(cs2_coeffs(3) + d*cs2_coeffs(4)))
+            opacity = opacity_coeffs(1) + d*(opacity_coeffs(2) + d*(opacity_coeffs(3) + d*opacity_coeffs(4)))
+            a = (a_coeffs(1) + d*(a_coeffs(2) + d*(a_coeffs(3) + d*a_coeffs(4))))*tau
+            if (present(dopacity)) then
+                dopacity = (dopacity_coeffs(1) + d*(dopacity_coeffs(2) + d*(dopacity_coeffs(3) + &
+                    d*dopacity_coeffs(4))))/(tau*this%dlntau)
+            end if
+        end associate
     end if
     end subroutine Thermo_values
 
@@ -1816,6 +1819,7 @@
         deallocate(this%dscaleFactor, this%adot, this%dadot)
         deallocate(this%tb, this%xe, this%emmu, this%dotmu)
         deallocate(this%demmu, this%dddotmu, this%ddddotmu)
+        deallocate(this%thermo_horner)
         if (dowinlens .and. allocated(this%winlens)) deallocate(this%winlens, this%dwinlens)
     endif
     if (.not. allocated(this%tb)) then
@@ -1823,6 +1827,7 @@
         allocate(this%dscaleFactor(nthermo), this%adot(nthermo), this%dadot(nthermo))
         allocate(this%tb(nthermo), this%xe(nthermo), this%emmu(nthermo),this%dotmu(nthermo))
         allocate(this%demmu(nthermo), this%dddotmu(nthermo), this%ddddotmu(nthermo))
+        allocate(this%thermo_horner(nthermo))
         if (dowinlens) allocate(this%winlens(nthermo), this%dwinlens(nthermo))
     end if
 
@@ -1831,7 +1836,6 @@
         allocate(this%arhos_fac(nthermo), this%darhos_fac(nthermo), this%ddarhos_fac(nthermo))
         allocate(RW(State%num_redshiftwindows))
     end if
-
 
     do RW_i = 1, State%num_redshiftwindows
         associate (RedWin => State%Redshift_w(RW_i))
@@ -2216,6 +2220,29 @@
     !$OMP SECTION
     this%ScaleFactor(:) = this%scaleFactor/taus !a/tau
     this%dScaleFactor(:) = (this%adot - this%ScaleFactor)*this%dlntau !derivative of a/tau
+    do j2 = 1, nthermo - 1
+        associate(horner => this%thermo_horner(j2))
+            horner%cs2b(1) = this%cs2(j2)
+            horner%cs2b(2) = this%dcs2(j2)
+            horner%cs2b(3) = 3*(this%cs2(j2+1) - this%cs2(j2)) - 2*this%dcs2(j2) - this%dcs2(j2+1)
+            horner%cs2b(4) = this%dcs2(j2) + this%dcs2(j2+1) + 2*(this%cs2(j2) - this%cs2(j2+1))
+
+            horner%opacity(1) = this%dotmu(j2)
+            horner%opacity(2) = this%ddotmu(j2)
+            horner%opacity(3) = 3*(this%dotmu(j2+1) - this%dotmu(j2)) - 2*this%ddotmu(j2) - this%ddotmu(j2+1)
+            horner%opacity(4) = this%ddotmu(j2) + this%ddotmu(j2+1) + 2*(this%dotmu(j2) - this%dotmu(j2+1))
+
+            horner%a(1) = this%ScaleFactor(j2)
+            horner%a(2) = this%dScaleFactor(j2)
+            horner%a(3) = 3*(this%ScaleFactor(j2+1) - this%ScaleFactor(j2)) - 2*this%dScaleFactor(j2) - this%dScaleFactor(j2+1)
+            horner%a(4) = this%dScaleFactor(j2) + this%dScaleFactor(j2+1) + 2*(this%ScaleFactor(j2) - this%ScaleFactor(j2+1))
+
+            horner%dopacity(1) = this%ddotmu(j2)
+            horner%dopacity(2) = this%dddotmu(j2)
+            horner%dopacity(3) = 3*(this%ddotmu(j2+1) - this%ddotmu(j2)) - 2*this%dddotmu(j2) - this%dddotmu(j2+1)
+            horner%dopacity(4) = this%dddotmu(j2) + this%dddotmu(j2+1) + 2*(this%ddotmu(j2) - this%ddotmu(j2+1))
+        end associate
+    end do
     if (State%num_redshiftwindows >0) then
         call splder(this%redshift_time,this%dredshift_time,nthermo,spline_data)
         call splder(this%arhos_fac,this%darhos_fac,nthermo,spline_data)
