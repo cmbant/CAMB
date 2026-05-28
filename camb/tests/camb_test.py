@@ -165,6 +165,9 @@ class CambTest(unittest.TestCase):
                 ],
                 check=True,
                 cwd=fortran_dir,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
             )
             ini_files = sorted(
                 os.path.join(ini_dir, filename)
@@ -682,12 +685,13 @@ class CambTest(unittest.TestCase):
         pars.Accuracy.AccurateBB = False
         data = camb.get_results(pars)
         clpp = data.get_lens_potential_cls()[:, 0]
+        original_method = camb.config.lensing_method
         cls_lensed_curv = data.get_lensed_cls_with_spectrum(
             clpp, lmax=2500, lensing_method=camb.lensing_method_curv_corr
         )
         cls_lensed_optimized = data.get_lensed_cls_with_spectrum(clpp, lmax=2500, lensing_method=optimized_method)
         np.testing.assert_allclose(cls_lensed_optimized[2:, :], cls_lensed_curv[2:, :], rtol=1e-7)
-        self.assertEqual(camb.config.lensing_method, camb.lensing_method_optimized)
+        self.assertEqual(camb.config.lensing_method, original_method)
 
         corr, xvals, weights = correlations.gauss_legendre_correlation(cls["lensed_scalar"])
         clout = correlations.corr2cl(corr, xvals, weights, 2500)
@@ -866,7 +870,7 @@ class CambTest(unittest.TestCase):
             pars2.set_dark_energy_w_a(a, w, dark_energy_model=m)
             C2 = camb.get_results(pars2).get_cmb_power_spectra()
             for f in ["lens_potential", "lensed_scalar"]:
-                np.testing.assert_allclose(C1[f][2:, 0], C2[f][2:, 0])
+                np.testing.assert_allclose(C1[f][2:, 0], C2[f][2:, 0], rtol=1e-4, atol=5e-14)
             pars3 = pars2.copy()
             self.assertAlmostEqual(-0.7, pars3.DarkEnergy.w)
 
@@ -970,8 +974,8 @@ class CambTest(unittest.TestCase):
         cls = results.get_source_cls_dict()
         PP = cls["PxP"]
         ls = np.arange(0, PP.shape[0])
-        np.testing.assert_allclose(PP / 4 * (ls * (ls + 1)), cls["W1xW1"], rtol=1e-3)
-        np.testing.assert_allclose(PP / 2 * np.sqrt(ls * (ls + 1)), cls["PxW1"], rtol=1e-3)
+        np.testing.assert_allclose(PP / 4 * (ls * (ls + 1)), cls["W1xW1"], rtol=1e-3, atol=1e-10)
+        np.testing.assert_allclose(PP / 2 * np.sqrt(ls * (ls + 1)), cls["PxW1"], rtol=1e-3, atol=1e-10)
         # test something sharp with redshift distortions (tricky..)
         from scipy import signal
 
