@@ -92,6 +92,33 @@ within calibrated limits for the bulk of your parameter space.  The NaN
 boundary then acts only as a safety net for rare excursions, not a dominant
 rejection mechanism.
 
+Base non-linear model configuration
+-------------------------------------
+
+``SPkNonLinear`` wraps a ``Halofit`` instance as its base non-linear model.
+The full set of Halofit/HMCode parameters — ``halofit_version``,
+``HMCode_A_baryon``, ``HMCode_eta_baryon``, and ``HMCode_logT_AGN`` — can be
+passed directly to :meth:`~camb.nonlinear.SPkNonLinear.set_params` and are
+forwarded to the wrapped base model::
+
+    spk = camb.SPkNonLinear()
+    spk.set_params(
+        halofit_version="mead2020_feedback",
+        HMCode_logT_AGN=8.0,
+        SPk_feedback=False,
+    )
+
+These parameters are also accepted as flat keyword arguments by
+``camb.set_params()``, and as ``extra_args`` in Cobaya.
+
+.. warning::
+
+   ``SPk_feedback=True`` cannot be combined with
+   ``halofit_version='mead2020_feedback'`` or non-default
+   ``HMCode_A_baryon``/``HMCode_eta_baryon`` values (HMCode 2015/2016), as
+   this would double-count baryonic corrections.  A ``CAMBValueError`` is
+   raised if this combination is detected.
+
 API reference
 -------------
 

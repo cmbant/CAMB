@@ -175,6 +175,9 @@ class SPkNonLinear(NonLinearModel):
         SPk_epsilon=0.0,
         SPk_m_pivot=1.0,
         halofit_version=halofit_default,
+        HMCode_A_baryon=3.13,
+        HMCode_eta_baryon=0.603,
+        HMCode_logT_AGN=7.8,
     ):
         """
         Configure the SP(k) baryon suppression model.
@@ -211,6 +214,9 @@ class SPkNonLinear(NonLinearModel):
         :param SPk_epsilon: Epsilon parameter (kind=3).
         :param SPk_m_pivot: Pivot mass in M_sun (kind=3).
         :param halofit_version: Base Halofit version for the wrapped non-linear model.
+        :param HMCode_A_baryon: HMcode A_baryon parameter (mead2015/2016 only). Default 3.13.
+        :param HMCode_eta_baryon: HMcode eta_baryon parameter (mead2015/2016 only). Default 0.603.
+        :param HMCode_logT_AGN: HMcode log10(T_AGN/K) parameter (mead2020_feedback only). Default 7.8.
         :return: Self, for fluent configuration.
         :raises CAMBValueError: If parameters are invalid or incompatible with the base model.
 
@@ -271,7 +277,12 @@ class SPkNonLinear(NonLinearModel):
         if self.BaseModel is None:
             self.BaseModel = Halofit()
         if isinstance(self.BaseModel, Halofit):
-            self.BaseModel.set_params(halofit_version=halofit_version)
+            self.BaseModel.set_params(
+                halofit_version=halofit_version,
+                HMCode_A_baryon=HMCode_A_baryon,
+                HMCode_eta_baryon=HMCode_eta_baryon,
+                HMCode_logT_AGN=HMCode_logT_AGN,
+            )
 
         self.SPk_feedback = SPk_feedback
         self.SPk_SO = SPk_SO

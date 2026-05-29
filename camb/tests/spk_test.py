@@ -58,6 +58,22 @@ class SPkTest(unittest.TestCase):
     def test_spk_cobaya_friendly_set_params_signature(self):
         signature = inspect.signature(SPkNonLinear.set_params)
         self.assertIn("halofit_version", signature.parameters)
+        self.assertIn("HMCode_A_baryon", signature.parameters)
+        self.assertIn("HMCode_eta_baryon", signature.parameters)
+        self.assertIn("HMCode_logT_AGN", signature.parameters)
+
+    def test_spk_hmcode_params_passed_to_base(self):
+        """HMCode parameters set via SPkNonLinear.set_params() are forwarded to BaseModel."""
+        model = SPkNonLinear()
+        model.set_params(
+            halofit_version="mead2020_feedback",
+            HMCode_A_baryon=3.5,
+            HMCode_eta_baryon=0.7,
+            HMCode_logT_AGN=8.0,
+        )
+        self.assertAlmostEqual(model.BaseModel.HMCode_A_baryon, 3.5)
+        self.assertAlmostEqual(model.BaseModel.HMCode_eta_baryon, 0.7)
+        self.assertAlmostEqual(model.BaseModel.HMCode_logT_AGN, 8.0)
 
     def test_spk_disabled_matches_base(self):
         base = Halofit()
