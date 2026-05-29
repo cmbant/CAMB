@@ -7,7 +7,7 @@
     use results
     use RangeUtils
     use MpiUtils
-    use splines
+    use Interpolation, only: spline, SPLINE_DANGLE
     implicit none
     private
 
@@ -29,7 +29,7 @@
     ! gives delta ~ 4.2*l**(1/3), with a small safety margin.
     real(dl), parameter :: bjl_pre_peak_start_factor  = 4.2_dl
     integer, parameter :: BJL_RECURRENCE_MAX_L = 25
-    real(dl) file_acc
+    real(dl) file_acc, file_bessel_boost
     real(dl) bessel_xmaxfile
 
     type(TRanges), save:: BessRanges
@@ -59,6 +59,7 @@
     if (allocated(bessel_horner) .and. lSamp%nl <= file_l%nl) then
         if (all(file_l%l(1:lSamp%nl) == lSamp%l(1:lSamp%nl)) .and. &
             max_bessels_l_index <= max_ix .and. &
+            abs(CP%Accuracy%BesselBoost - file_bessel_boost) < 1d-2 .and. &
             abs(CP%Accuracy%BesselBoost*CP%Accuracy%AccuracyBoost - file_acc) < 1d-2) then
             same_lsamp_and_acc = .true.
         end if
@@ -83,6 +84,29 @@
     if (DebugMsgs .and. FeedbackLevel > 0) write(*,*) 'Calculated Bessels'
 
     end subroutine InitSpherBessels
+
+    subroutine bjl_deriv(l, x, jl, djl)
+    integer, intent(in) :: l
+    real(dl), intent(in) :: x, jl
+    real(dl), intent(out) :: djl
+
+    real(dl) :: jm1
+
+    if (x == 0._dl) then
+        if (l == 1) then
+            djl = 1._dl/3._dl
+        else
+            djl = 0._dl
+        end if
+    else if (l == 0) then
+        call bjl(1, x, jm1)
+        djl = -jm1
+    else
+        call bjl(l - 1, x, jm1)
+        djl = jm1 - real(l + 1, dl)*jl/x
+    end if
+
+    end subroutine bjl_deriv
 
     subroutine GenerateBessels(lSamp, CP, requested_xmax)
     Type(lSamples) lSamp
@@ -111,7 +135,8 @@
     call BessRanges%Add_delta(1._dl, 5._dl, 0.1_dl/CP%Accuracy%BesselBoost)
     call BessRanges%Add_delta(5._dl, 25._dl, 0.2_dl/CP%Accuracy%BesselBoost)
 
-    file_acc = CP%Accuracy%BesselBoost*CP%Accuracy%AccuracyBoost
+    file_bessel_boost = CP%Accuracy%BesselBoost
+    file_acc = file_bessel_boost*CP%Accuracy%AccuracyBoost
 
     call BessRanges%Add_delta(25._dl, 150._dl, 0.5_dl/file_acc)
     call BessRanges%Add_delta(150._dl, requested_xmax, 0.7_dl/file_acc) ! 2e-4 accuracy
@@ -132,7 +157,7 @@
 !$OMP PARALLEL DO DEFAULT(SHARED), SCHEDULE(STATIC)
     do j = 1, max_ix
         block
-            real(dl) :: h2over6, y0, y1, d0, d1, xlim
+            real(dl) :: h2over6, y0, y1, d0, d1, xlim, d_end
             real(dl) :: knot_vals(num_xx), spline_y2(num_xx)
             integer :: min_ix, i
 
@@ -146,7 +171,8 @@
                 call bjl(lSamp%l(j), BessRanges%points(i), knot_vals(i))
             end do
 
-            call spline_def(BessRanges%points, knot_vals, num_xx, spline_y2)
+            call bjl_deriv(lSamp%l(j), BessRanges%points(num_xx), knot_vals(num_xx), d_end)
+            call spline(BessRanges%points, knot_vals, num_xx, SPLINE_DANGLE, d_end, spline_y2)
 
             bessel_horner(:, 1:max(min_ix-1, 1), j) = 0
 
@@ -251,7 +277,7 @@
     do j = 1, max_ix
         block
             real(dl) :: ext_x(n_ext), ext_y(n_ext), ext_y2(n_ext)
-            real(dl) :: h2over6, y0, y1, d0, d1
+            real(dl) :: h2over6, y0, y1, d0, d1, d_end
             integer :: i, store_ix, first_new_i, overwrite_start
 
             do i = 1, n_ext
@@ -262,7 +288,8 @@
                 call bjl(file_l%l(j), ext_x(i), ext_y(i))
             end do
 
-            call spline_def(ext_x, ext_y, n_ext, ext_y2)
+            call bjl_deriv(file_l%l(j), ext_x(n_ext), ext_y(n_ext), d_end)
+            call spline(ext_x, ext_y, n_ext, SPLINE_DANGLE, d_end, ext_y2)
 
             ! Local index of the first strictly new interval.  Its global interval
             ! index is old_num_xx.

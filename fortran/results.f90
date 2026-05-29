@@ -46,6 +46,8 @@
     integer, parameter :: nthermo_derived = 13
     real(dl), parameter :: near_flat_scale_tol = 0.03_dl
     real(dl), parameter :: template_shift_scale_tol = 0.01_dl
+    ! Fiducial r_s(zdrag)/D_M from inifiles/planck_2018.ini, matching the high-l template cosmology.
+    real(dl), parameter :: planck2018_drag_angle = 0.010606796116333_dl
 
     Type lSamples
         integer :: nl = 0
@@ -507,7 +509,7 @@
         if (global_error_flag==0) this%tau0=this%TimeOfz(0._dl)
         if (global_error_flag==0) then
             this%DMt0 = this%curvature_radius*this%rofChi(this%tau0/this%curvature_radius)
-            this%scale = this%DMt0/14150 !e.g. change l sampling depending on approx peak spacing relative to Planck
+            this%scale = 1._dl !set to actual measure of peak scale relative to fiducial later.
             this%curv_flat_DM_ratio = this%DMt0/this%tau0
             if (this%closed .and. this%tau0/this%curvature_radius >3.14) then
                 call GlobalError('chi >= pi in closed model not supported',error_unsupported_params)
@@ -2233,9 +2235,11 @@
         end associate
     end do
     if (dowinlens) call splder(this%winlens,this%dwinlens,nthermo,spline_data)
-    if (CP%want_zdrag .or. CP%WantDerivedParameters) &
+    if (CP%want_zdrag .or. CP%WantDerivedParameters .or. CP%WantCls) &
         this%z_drag = State%binary_search(dragoptdepth, 1.d0, 800*z_scale, &
         & max(zstar_max*1.1_dl,1200._dl*z_scale), 2d-3/background_boost, 100.d0*z_scale, 4000._dl*z_scale)
+    if (this%z_drag > 0) rs = State%sound_horizon(this%z_drag)
+    if (this%z_drag > 0 .and. State%DMt0 > 0) State%scale = (rs/State%DMt0)/planck2018_drag_angle
     !$OMP SECTION
     this%ScaleFactor(:) = this%ScaleFactor/taus !a/tau for dynamic range
     sf1  = this%ScaleFactor(1)
@@ -2285,7 +2289,6 @@
             DA = State%AngularDiameterDistance(this%z_star)/(1/(this%z_star+1))
             ThermoDerivedParams( derived_zdrag ) = this%z_drag
             !$OMP SECTION
-            rs =State%sound_horizon(this%z_drag)
             ThermoDerivedParams( derived_rdrag ) = rs
             ThermoDerivedParams( derived_kD ) =  &
                 sqrt(1.d0/(Integrate_Romberg(State,ddamping_da, 1d-8, 1/(this%z_star+1), 1d-6)/6))
