@@ -33,7 +33,7 @@
     "HYREC_PATH": "${containerWorkspaceFolder}/external/HYREC-2/",
     "OMP_NUM_THREADS": "8",
     "OPENBLAS_NUM_THREADS": "8",
-    "RECOMBINATION_FILES": "recfast cosmorec hyrec",
+    "RECOMBINATION_FILES": "recfast",
     "CAMB_DEVCONTAINER_VENV": "/home/vscode/.local/share/camb-devcontainer/.venv",
     "PRE_COMMIT_HOME": "/home/vscode/.cache/pre-commit",
     "UV_CACHE_DIR": "/home/vscode/.cache/uv",

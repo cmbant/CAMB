@@ -64,4 +64,4 @@ devcontainer's selected interpreter may need to be pointed explicitly at
 If you explicitly want a standards-based editable install after the container is up, you can still run `python -m pip install --no-build-isolation --no-deps -e .`, but that setuptools metadata phase is the part that remains slow on this bind-mounted checkout.
 
 
-The container includes CosmoRec and HyRec. If not needed, you can speed builds by doing `export RECOMBINATION_FILES=recfast`
+The container includes builds of CosmoRec and HyRec. If needed, you can build with these by doing `export RECOMBINATION_FILES=recfast cosmorec hyrec`

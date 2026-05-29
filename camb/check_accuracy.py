@@ -1,10 +1,19 @@
 """Check numerical stability of CAMB parameters against a higher-accuracy reference run.
 
 The command-line interface compares spectra and derived parameters from an input
-``.ini`` file with a reference calculation using boosted accuracy settings. It
-can also plot fractional differences, estimate a fiducial CMB delta chi-squared,
-search for minimal top-level boosts, and refine which underlying component
-accuracy settings are most relevant.
+``.ini`` file with a reference calculation using boosted accuracy settings.
+Options such as ``--accuracy-boost``, ``--l-sample-boost``,
+``--l-accuracy-boost``, ``--int-tol-boost``, ``--do-late-rad-truncation``, and
+``--strict-reference`` set the boosted reference run; they do not change the
+standard run being compared to that reference. The standard run is the input
+``.ini`` calculation, except for shared setup overrides such as ``--lmax``,
+``--set-for-lmax``, ``--lens-output-margin``, and
+``--lens-potential-accuracy`` that are applied to both runs.
+
+The tool can also plot fractional differences, estimate a fiducial CMB delta
+chi-squared, search for minimal top-level boosts that pass against the same
+high-accuracy reference, and refine which underlying component accuracy settings
+are most relevant.
 
 For lensed CMB spectra near the output cutoff, this is not automatically a test
 of lens-margin convergence: by default the boosted reference keeps the same
