@@ -816,8 +816,11 @@
     use MassiveNu
     !Set the numer of equations in each hierarchy, and get total number of equations for this k
     type(EvolutionVars) EV
-    real(dl) scal, max_nu_mass
-    integer nu_i,q_rel,j
+    real(dl) scal, max_nu_mass, l_accuracy_boost
+    integer nu_i,q_rel,j, min_lmaxnr
+
+    l_accuracy_boost = CP%Accuracy%lAccuracyBoost
+    min_lmaxnr = max(3, nint(3*l_accuracy_boost))
 
     if (CP%Num_Nu_massive == 0) then
         EV%lmaxnu=0
@@ -847,10 +850,10 @@
         if (EV%NuMethod == Nu_Best) EV%NuMethod = Nu_Trunc
         !l_max for massive neutrinos
         if (CP%Transfer%high_precision) then
-            EV%lmaxnu=nint(25*CP%Accuracy%lAccuracyBoost)
+            EV%lmaxnu=nint(25*l_accuracy_boost)
         else
-            EV%lmaxnu=max(3,nint(10*CP%Accuracy%lAccuracyBoost))
-            if (max_nu_mass>700) EV%lmaxnu=max(3,nint(15*CP%Accuracy%lAccuracyBoost)) !Feb13 tweak
+            EV%lmaxnu=max(3,nint(10*l_accuracy_boost))
+            if (max_nu_mass>700) EV%lmaxnu=max(3,nint(15*l_accuracy_boost)) !Feb13 tweak
         endif
     end if
 
@@ -871,33 +874,33 @@
         EV%Evolve_TM = .false.
 
         if (CP%Accuracy%AccuratePolarization) then
-            EV%lmaxg  = max(nint(11*CP%Accuracy%lAccuracyBoost),3)
+            EV%lmaxg  = max(nint(11*l_accuracy_boost),3)
         else
-            EV%lmaxg  = max(nint(8*CP%Accuracy%lAccuracyBoost),3)
+            EV%lmaxg  = max(nint(8*l_accuracy_boost),3)
         end if
-        EV%lmaxnr = max(nint(14*CP%Accuracy%lAccuracyBoost),3)
-        if (max_nu_mass>700) EV%lmaxnr = max(nint(32*CP%Accuracy%lAccuracyBoost),3) !Feb13 tweak
+        EV%lmaxnr = max(nint(14*l_accuracy_boost),min_lmaxnr)
+        if (max_nu_mass>700) EV%lmaxnr = max(nint(32*l_accuracy_boost),min_lmaxnr) !Feb13 tweak
 
         EV%lmaxgpol = EV%lmaxg
         if (.not.CP%Accuracy%AccuratePolarization) then
-            EV%lmaxgpol=max(nint(4*CP%Accuracy%lAccuracyBoost),3)
+            EV%lmaxgpol=max(nint(4*l_accuracy_boost),3)
         elseif (AccuracyTarget > 0 .and. CP%Want_CMB .and. EV%q > 0.15_dl) then
-            EV%lmaxg = max(EV%lmaxg, nint(13*CP%Accuracy%lAccuracyBoost))
-            EV%lmaxgpol = max(EV%lmaxgpol, nint(14*CP%Accuracy%lAccuracyBoost))
+            EV%lmaxg = max(EV%lmaxg, nint(13*l_accuracy_boost))
+            EV%lmaxgpol = max(EV%lmaxgpol, nint(14*l_accuracy_boost))
         end if
 
         if (EV%q < 0.05) then
             !Large scales need fewer equations
             scal  = 1
             if (CP%Accuracy%AccuratePolarization) scal = 4  !But need more to get polarization right
-            EV%lmaxgpol=max(3,nint(min(8,nint(scal* 150* EV%q))*CP%Accuracy%lAccuracyBoost))
-            EV%lmaxnr=max(3,nint(min(7,nint(sqrt(scal)* 150 * EV%q))*CP%Accuracy%lAccuracyBoost))
+            EV%lmaxgpol=max(3,nint(min(8,nint(scal* 150* EV%q))*l_accuracy_boost))
+            EV%lmaxnr=max(min_lmaxnr,nint(min(7,nint(sqrt(scal)* 150 * EV%q))*l_accuracy_boost))
             if (EV%lmaxnr < EV%lmaxnu) then
                 ! Nov 2020 change following Pavel Motloch report
                 EV%lmaxnr = EV%lmaxnu
                 !EV%lmaxnu = min(EV%lmaxnu, EV%lmaxnr) ! may be better but have not tested and makes small result changes
             endif
-            EV%lmaxg=max(3,nint(min(8,nint(sqrt(scal) *300 * EV%q))*CP%Accuracy%lAccuracyBoost))
+            EV%lmaxg=max(3,nint(min(8,nint(sqrt(scal) *300 * EV%q))*l_accuracy_boost))
             !Sources
             if (CP%SourceTerms%line_phot_quadrupole) then
                 EV%lmaxg=EV%lmaxg*8
@@ -909,13 +912,24 @@
         end if
 
         if (EV%TransferOnly) then
-            EV%lmaxgpol = min(EV%lmaxgpol,nint(5*CP%Accuracy%lAccuracyBoost))
-            EV%lmaxg = min(EV%lmaxg,nint(6*CP%Accuracy%lAccuracyBoost))
+            EV%lmaxgpol = min(EV%lmaxgpol,nint(5*l_accuracy_boost))
+            EV%lmaxg = min(EV%lmaxg,nint(6*l_accuracy_boost))
+        end if
+        if (AccuracyTarget > 0 .and. CP%WantTransfer .and. CP%Transfer%high_precision .and. &
+            EV%q > 0.03_dl .and. EV%q < 0.2_dl) then
+            EV%lmaxg = max(EV%lmaxg, nint(12*l_accuracy_boost))
+            EV%lmaxgpol = max(EV%lmaxgpol, nint(5*l_accuracy_boost))
         end if
         if (CP%Transfer%high_precision .or. CP%Do21cm) then
-            EV%lmaxnr=max(nint(45*CP%Accuracy%lAccuracyBoost),3)
+            if (EV%q >= 0.10_dl .and. EV%q < 0.12_dl) then
+                EV%lmaxnr = max(EV%lmaxnr, nint(real(EV%lmaxnr, dl) + &
+                    (max(real(min_lmaxnr, dl), 45._dl*l_accuracy_boost) - real(EV%lmaxnr, dl))* &
+                    (EV%q - 0.10_dl)/0.02_dl))
+            elseif (EV%q >= 0.12_dl) then
+                EV%lmaxnr=max(nint(45*l_accuracy_boost),min_lmaxnr)
+            end if
             if (EV%q > 0.04 .and. EV%q < 0.5) then !baryon oscillation scales
-                EV%lmaxg=max(EV%lmaxg,10)
+                EV%lmaxg=max(EV%lmaxg,nint(10*l_accuracy_boost))
             end if
         end if
 

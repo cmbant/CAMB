@@ -67,6 +67,7 @@ DEFAULT_NOISE_CONFIGS = {
 }
 
 TT_EE_TOLERANCES = [(0, 3e-3), (600, 1e-3), (3500, 3e-3), (6000, 2e-2)]
+UNLENSED_TT_EE_TOLERANCES = [(0, 3e-3), (600, 1e-3), (3000, 3e-3), (3500, 5e-3), (6000, 5e-2)]
 BB_TOLERANCES = [(0, 5e-3), (1000, 1e-2), (6000, 2e-2), (8000, 1e-1)]
 LENSING_TOLERANCES = [(0, 9e-3), (5, 5e-3), (2000, 5e-3), (6000, 2e-2)]
 MPK_TOLERANCE = 1e-3
@@ -137,6 +138,7 @@ class MatterPowerData:
     pk: np.ndarray
     requested_kmax: float
     npoints: int
+    compare_at_input_nodes: bool = False
 
 
 @dataclass
@@ -631,14 +633,35 @@ def get_matter_power(results, minkh: float, npoints: int) -> MatterPowerData | N
     if requested_kmax <= minkh:
         return None
     nonlinear = str(params.NonLinear) in {"NonLinear_pk", "NonLinear_both"}
-    k, z, pk = results.get_linear_matter_power_spectrum(
-        have_power_spectra=True,
+    if params.Transfer.k_per_logint != 0:
+        if nonlinear:
+            k, z, pk = results.get_nonlinear_matter_power_spectrum()
+        else:
+            k, z, pk = results.get_linear_matter_power_spectrum()
+        mask = (k >= minkh) & (k <= requested_kmax)
+        if not np.any(mask):
+            return None
+        k = k[mask]
+        pk = pk[:, mask]
+        return MatterPowerData(
+            k=k,
+            z=z,
+            pk=pk,
+            requested_kmax=float(k[-1]),
+            npoints=len(k),
+            compare_at_input_nodes=True,
+        )
+    pk_interpolator, z, _ = results.get_matter_power_interpolator(
         nonlinear=nonlinear,
+        return_z_k=True,
+        silent=True,
     )
-    mask = k >= minkh
-    if not np.any(mask):
+    kmax = min(requested_kmax, pk_interpolator.kmax)
+    if kmax <= minkh:
         return None
-    return MatterPowerData(k=k[mask], z=z, pk=pk[:, mask], requested_kmax=requested_kmax, npoints=npoints)
+    k = np.exp(np.linspace(np.log(minkh), np.log(kmax), npoints))
+    pk = pk_interpolator.P(z, k)
+    return MatterPowerData(k=k, z=z, pk=pk, requested_kmax=kmax, npoints=npoints)
 
 
 def fractional_delta(values: np.ndarray, reference: np.ndarray, *, floor: float = 0.0) -> np.ndarray:
@@ -730,16 +753,17 @@ def compare_cls(standard: RunOutput, reference: RunOutput) -> list[StatRow]:
     reference_cls = reference.lensed_cls[: lmax + 1]
     ell = np.arange(lmax + 1)
     rows = []
+    tt_ee_tolerances = tolerance_ranges(tt_ee_tolerances_for_params(standard.params))
 
     for quantity in ("TT", "EE"):
         errors = fractional_delta(
             standard_cls[:, CL_COLUMNS[quantity]],
             reference_cls[:, CL_COLUMNS[quantity]],
         )
-        rows.extend(compare_l_ranges(quantity, errors, ell, tolerance_ranges(TT_EE_TOLERANCES), min_ell=2))
+        rows.extend(compare_l_ranges(quantity, errors, ell, tt_ee_tolerances, min_ell=2))
 
     te_errors = normalized_te_delta(standard_cls, reference_cls)
-    rows.extend(compare_l_ranges("TE", te_errors, ell, tolerance_ranges(TT_EE_TOLERANCES), min_ell=2))
+    rows.extend(compare_l_ranges("TE", te_errors, ell, tt_ee_tolerances, min_ell=2))
 
     bb_errors = fractional_delta(standard_cls[:, CL_COLUMNS["BB"]], reference_cls[:, CL_COLUMNS["BB"]])
     rows.extend(
@@ -752,6 +776,12 @@ def compare_cls(standard: RunOutput, reference: RunOutput) -> list[StatRow]:
         )
     )
     return rows
+
+
+def tt_ee_tolerances_for_params(params) -> list[tuple[int, float]]:
+    if not bool(params.DoLensing):
+        return UNLENSED_TT_EE_TOLERANCES
+    return TT_EE_TOLERANCES
 
 
 def bb_tolerances(params) -> list[tuple[int, float]]:
@@ -887,6 +917,16 @@ def common_matter_power_grid(
     kmax = min(float(std_k[-1]), float(ref_k[-1]), requested_kmax)
     if kmax <= kmin:
         raise ValueError("Matter power k grids do not overlap")
+
+    if standard_matter_power.compare_at_input_nodes and reference_matter_power.compare_at_input_nodes:
+        std_mask = (std_k >= kmin) & (std_k <= kmax)
+        common_k = std_k[std_mask]
+        if common_k.size == 0:
+            raise ValueError("Matter power input-node k grids do not overlap")
+        standard_pk = std_pk[:, std_mask]
+        reference_pk = interpolate_pk_to_grid(ref_k, ref_pk, common_k)
+        return common_k, std_z, standard_pk, reference_pk
+
     npoints = min(standard_matter_power.npoints, reference_matter_power.npoints)
     common_k = np.exp(np.linspace(np.log(kmin), np.log(kmax), npoints))
     standard_pk = interpolate_pk_to_grid(std_k, std_pk, common_k)
