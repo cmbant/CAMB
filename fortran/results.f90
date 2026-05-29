@@ -47,7 +47,7 @@
     real(dl), parameter :: near_flat_scale_tol = 0.03_dl
     real(dl), parameter :: template_shift_scale_tol = 0.01_dl
     ! Fiducial r_s(zdrag)/D_M from inifiles/planck_2018.ini, matching the high-l template cosmology.
-    real(dl), parameter :: planck2018_drag_angle = 0.010606796116333_dl
+    real(dl), parameter :: planck2018_drag_angle = 0.010392206684501_dl
 
     Type lSamples
         integer :: nl = 0
@@ -2239,7 +2239,7 @@
         this%z_drag = State%binary_search(dragoptdepth, 1.d0, 800*z_scale, &
         & max(zstar_max*1.1_dl,1200._dl*z_scale), 2d-3/background_boost, 100.d0*z_scale, 4000._dl*z_scale)
     if (this%z_drag > 0) rs = State%sound_horizon(this%z_drag)
-    if (this%z_drag > 0 .and. State%DMt0 > 0) State%scale = (rs/State%DMt0)/planck2018_drag_angle
+    if (this%z_drag > 0 .and. State%DMt0 > 0) State%scale = planck2018_drag_angle/(rs/State%DMt0)
     !$OMP SECTION
     this%ScaleFactor(:) = this%ScaleFactor/taus !a/tau for dynamic range
     sf1  = this%ScaleFactor(1)

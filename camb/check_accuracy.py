@@ -77,6 +77,7 @@ DEFAULT_NOISE_CONFIGS = {
 
 TT_EE_TOLERANCES = [(0, 3e-3), (600, 1e-3), (3500, 3e-3), (6000, 2e-2)]
 UNLENSED_TT_EE_TOLERANCES = [(0, 3e-3), (600, 1e-3), (3000, 3e-3), (3500, 5e-3), (6000, 5e-2)]
+TENSOR_ONLY_TT_EE_TOLERANCES = [(0, 1e-1), (600, 3e-2), (2500, 1e-1)]
 BB_TOLERANCES = [(0, 5e-3), (1000, 1e-2), (6000, 2e-2), (8000, 1e-1)]
 LENSING_TOLERANCES = [(0, 9e-3), (5, 5e-3), (2000, 5e-3), (6000, 2e-2)]
 MPK_TOLERANCE = 1e-3
@@ -624,6 +625,9 @@ def get_lensed_cls(results, lmax: int | None) -> np.ndarray | None:
     params = results.Params
     if not (params.WantCls and params.Want_CMB):
         return None
+    if bool(params.WantTensors) and not bool(params.WantScalars):
+        tensor_lmax = int(params.max_l_tensor)
+        lmax = tensor_lmax if lmax is None else min(lmax, tensor_lmax)
     return results.get_total_cls(lmax)
 
 
@@ -687,6 +691,7 @@ def normalized_te_delta(values: np.ndarray, reference: np.ndarray) -> np.ndarray
     denominator = np.sqrt(np.maximum(reference[:, CL_COLUMNS["TT"]] * reference[:, CL_COLUMNS["EE"]], 0.0))
     with np.errstate(divide="ignore", invalid="ignore"):
         delta = (values[:, CL_COLUMNS["TE"]] - reference[:, CL_COLUMNS["TE"]]) / denominator
+    delta[(denominator == 0) & (values[:, CL_COLUMNS["TE"]] == reference[:, CL_COLUMNS["TE"]])] = 0.0
     return delta
 
 
@@ -788,6 +793,8 @@ def compare_cls(standard: RunOutput, reference: RunOutput) -> list[StatRow]:
 
 
 def tt_ee_tolerances_for_params(params) -> list[tuple[int, float]]:
+    if bool(params.WantTensors) and not bool(params.WantScalars):
+        return TENSOR_ONLY_TT_EE_TOLERANCES
     if not bool(params.DoLensing):
         return UNLENSED_TT_EE_TOLERANCES
     return TT_EE_TOLERANCES
