@@ -214,9 +214,9 @@ def _update_source_terms_ini(params: model.CAMBparams, state: CambIniFile) -> No
 
 
 def _update_ini_state_from_params(params: model.CAMBparams, state: CambIniFile) -> None:
-    set_param(state, "get_scalar_cls", params.WantScalars)
-    set_param(state, "get_vector_cls", params.WantVectors)
-    set_param(state, "get_tensor_cls", params.WantTensors)
+    set_param(state, "get_scalar_cls", params.WantCls and params.WantScalars)
+    set_param(state, "get_vector_cls", params.WantCls and params.WantVectors)
+    set_param(state, "get_tensor_cls", params.WantCls and params.WantTensors)
     set_param(state, "want_CMB", params.Want_CMB)
     set_param(state, "want_CMB_lensing", params.Want_CMB_lensing)
     set_param(state, "get_transfer", params.WantTransfer)
@@ -297,6 +297,23 @@ def _update_ini_state_from_params(params: model.CAMBparams, state: CambIniFile) 
     set_param(state, "use_cl_spline_template", params.use_cl_spline_template)
 
 
+def _roundtrip_expected_params(params: model.CAMBparams) -> model.CAMBparams:
+    expected = params.copy()
+    if not expected.WantCls:
+        defaults = model.CAMBparams()
+        expected.WantScalars = False
+        expected.WantVectors = False
+        expected.WantTensors = False
+        expected.DoLensing = False
+        expected.max_l = defaults.max_l
+        expected.max_eta_k = defaults.max_eta_k
+        expected.lens_output_margin = defaults.lens_output_margin
+        expected.InitPower.r = 0
+        expected.InitPower.nt = 0
+        expected.InitPower.ntrun = 0
+    return expected
+
+
 def write_ini(
     params: model.CAMBparams,
     ini_filename,
@@ -314,5 +331,5 @@ def write_ini(
         from .camb import read_ini
 
         reparsed = read_ini(ini_path)
-        if repr(reparsed) != repr(params):
+        if repr(reparsed) != repr(_roundtrip_expected_params(params)):
             raise CAMBValueError(f"Saved ini did not round-trip via read_ini ({ini_path})")
