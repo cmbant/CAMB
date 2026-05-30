@@ -895,11 +895,6 @@
             if (CP%Accuracy%AccuratePolarization) scal = 4  !But need more to get polarization right
             EV%lmaxgpol=max(3,nint(min(8,nint(scal* 150* EV%q))*l_accuracy_boost))
             EV%lmaxnr=max(min_lmaxnr,nint(min(7,nint(sqrt(scal)* 150 * EV%q))*l_accuracy_boost))
-            if (EV%lmaxnr < EV%lmaxnu) then
-                ! Nov 2020 change following Pavel Motloch report
-                EV%lmaxnr = EV%lmaxnu
-                !EV%lmaxnu = min(EV%lmaxnu, EV%lmaxnr) ! may be better but have not tested and makes small result changes
-            endif
             EV%lmaxg=max(3,nint(min(8,nint(sqrt(scal) *300 * EV%q))*l_accuracy_boost))
             !Sources
             if (CP%SourceTerms%line_phot_quadrupole) then
@@ -932,6 +927,10 @@
                 EV%lmaxg=max(EV%lmaxg,nint(10*l_accuracy_boost))
             end if
         end if
+        if (EV%lmaxnr < EV%lmaxnu) then
+            ! Massive-neutrino relativistic corrections subtract the massless hierarchy up to lmaxnu_pert.
+            EV%lmaxnr = EV%lmaxnu
+        endif
 
         if (CP%Do21cm .and. CP%SourceTerms%line_reionization) then
             EV%lmaxg =  EV%lmaxg*8

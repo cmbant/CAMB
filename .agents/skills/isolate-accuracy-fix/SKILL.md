@@ -65,6 +65,8 @@ Find the narrowest code path and the narrowest phase-space region that controls 
     (e.g. `dlnk`, `dk`, `lognum`, sample number, switch location, integration limit). Prefer changing that quantity directly rather than keeping a boost that also
     changes unrelated ranges.
 
+13. If a failure is a comparison-contract issue, such as near-endpoint failure, 0/0 normalization, etc, suggest user possible update to the checker policy separately from numerical physics changes.
+
 ## Acceptance Matrix
 
 For each proposed local fix, test:
@@ -96,4 +98,5 @@ Report should include (for each separate physical issue):
 - Before/after numbers for the failing diagnostic.
 - Runtime impact on a representative non-failing run (cpu times).
 - Physical justification for why the change targets the right scale/domain.
+- Plot of the relevant fractional difference to the reference, before and after the change
 - Check that your changes scale with the relevant accuracy parameters, so future tests can test stability of your change
