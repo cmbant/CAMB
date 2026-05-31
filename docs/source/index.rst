@@ -73,6 +73,7 @@ Other modules:
    dark_energy
    initialpower
    nonlinear
+   spk
    reionization
    recombination
    sources
