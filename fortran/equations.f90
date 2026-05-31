@@ -816,7 +816,7 @@
     use MassiveNu
     !Set the numer of equations in each hierarchy, and get total number of equations for this k
     type(EvolutionVars) EV
-    real(dl) scal, max_nu_mass, l_accuracy_boost
+    real(dl) scal, max_nu_mass, l_accuracy_boost, transfer_lmaxnr
     integer nu_i,q_rel,j, min_lmaxnr
 
     l_accuracy_boost = CP%Accuracy%lAccuracyBoost
@@ -916,10 +916,14 @@
             EV%lmaxgpol = max(EV%lmaxgpol, nint(5*l_accuracy_boost))
         end if
         if (CP%Transfer%high_precision .or. CP%Do21cm) then
-            if (EV%q >= 0.10_dl .and. EV%q < 0.12_dl) then
-                EV%lmaxnr = max(EV%lmaxnr, nint(real(EV%lmaxnr, dl) + &
-                    (max(real(min_lmaxnr, dl), 45._dl*l_accuracy_boost) - real(EV%lmaxnr, dl))* &
-                    (EV%q - 0.10_dl)/0.02_dl))
+            ! Resolve the massless-neutrino hierarchy smoothly across transfer scales:
+            ! enough low-k hierarchy by equality scales, default depth by q=0.05, then the high-k target.
+            if (EV%q >= 0.010_dl .and. EV%q < 0.05_dl) then
+                transfer_lmaxnr = (8._dl + 6._dl*(EV%q - 0.010_dl)/0.040_dl)*l_accuracy_boost
+                EV%lmaxnr = max(EV%lmaxnr, nint(transfer_lmaxnr), min_lmaxnr)
+            elseif (EV%q >= 0.05_dl .and. EV%q < 0.12_dl) then
+                transfer_lmaxnr = (14._dl + 31._dl*(EV%q - 0.05_dl)/0.07_dl)*l_accuracy_boost
+                EV%lmaxnr = max(EV%lmaxnr, nint(transfer_lmaxnr), min_lmaxnr)
             elseif (EV%q >= 0.12_dl) then
                 EV%lmaxnr=max(nint(45*l_accuracy_boost),min_lmaxnr)
             end if
