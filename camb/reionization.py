@@ -12,6 +12,9 @@ class ReionizationModel(F2003Class):
         ("Reionization", c_bool, "Is there reionization? (can be off for matter power, which is independent of it)"),
     )
 
+    def write_ini(self, state) -> None:
+        state.set("reionization", self.Reionization)
+
 
 class BaseTauWithHeReionization(ReionizationModel):
     """
@@ -96,6 +99,20 @@ class BaseTauWithHeReionization(ReionizationModel):
         if max_zrei is not None:
             self.max_redshift = max_zrei
 
+    def write_ini(self, state) -> None:
+        super().write_ini(state)
+        state.set("re_use_optical_depth", self.use_optical_depth)
+        if self.use_optical_depth:
+            state.set("re_optical_depth", self.optical_depth)
+        else:
+            state.set("re_redshift", self.redshift)
+        state.set("re_ionization_frac", self.fraction)
+        state.set("include_helium_fullreion", self.include_helium_fullreion)
+        state.set("re_helium_redshift", self.helium_redshift)
+        state.set("re_helium_delta_redshift", self.helium_delta_redshift)
+        state.set("re_helium_redshiftstart", self.helium_redshiftstart)
+        state.set("max_zrei", self.max_redshift)
+
 
 @fortran_class
 class TanhReionization(BaseTauWithHeReionization):
@@ -118,6 +135,10 @@ class TanhReionization(BaseTauWithHeReionization):
         super().set_extra_params(max_zrei)
         if deltazrei is not None:
             self.delta_redshift = deltazrei
+
+    def write_ini(self, state) -> None:
+        super().write_ini(state)
+        state.set("re_delta_redshift", self.delta_redshift)
 
 
 @fortran_class
@@ -154,3 +175,7 @@ class ExpReionization(BaseTauWithHeReionization):
             self.reion_exp_power = reion_exp_power
         if reion_exp_smooth_width is not None:
             self.reion_exp_smooth_width = reion_exp_smooth_width
+
+    def write_ini(self, state) -> None:
+        super().write_ini(state)
+        state.write_fields(self, names=("reion_redshift_complete", "reion_exp_power", "reion_exp_smooth_width"))

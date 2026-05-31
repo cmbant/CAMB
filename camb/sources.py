@@ -1,6 +1,7 @@
 from ctypes import POINTER, byref, c_double, c_int
 
-from .baseconfig import F2003Class, fortran_class, np, numpy_1d, numpy_1d_or_null, numpy_2d
+from . import constants
+from .baseconfig import CAMBValueError, F2003Class, fortran_class, np, numpy_1d, numpy_1d_or_null, numpy_2d
 
 
 class SourceWindow(F2003Class):
@@ -20,6 +21,9 @@ class SourceWindow(F2003Class):
     _fortran_class_module_ = "SourceWindows"
     _fortran_class_name_ = "TSourceWindow"
 
+    def write_ini(self, state, index: int) -> None:
+        raise CAMBValueError(f"write_ini does not support source window class {self.__class__.__name__}")
+
 
 @fortran_class
 class GaussianSourceWindow(SourceWindow):
@@ -33,6 +37,17 @@ class GaussianSourceWindow(SourceWindow):
     )
 
     _fortran_class_name_ = "TGaussianSourceWindow"
+
+    def write_ini(self, state, index: int) -> None:
+        state.set(f"redshift({index})", self.redshift)
+        state.set(f"redshift_kind({index})", self.source_type)
+        if self.source_type == "21cm":
+            state.set(f"redshift_sigma_Mhz({index})", self.sigma * constants.f_21cm / 1e6)
+        else:
+            state.set(f"redshift_sigma({index})", self.sigma)
+        if self.source_type == "counts":
+            state.set(f"redshift_bias({index})", self.bias)
+            state.set(f"redshift_dlog10Ndm({index})", self.dlog10Ndm)
 
 
 @fortran_class

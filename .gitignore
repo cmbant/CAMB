@@ -58,6 +58,8 @@ testfile*
 *.mp4
 *.exe
 *_tmp*
+*.npz
+*_old.*
 
 # Ignore all .dat and .ini files except those already tracked in git
 *.dat

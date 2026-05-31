@@ -1,6 +1,17 @@
 # Initial power spectrum parameters
 
-from .baseconfig import POINTER, CAMBError, F2003Class, byref, c_double, c_int, fortran_class, np, numpy_1d
+from .baseconfig import (
+    POINTER,
+    CAMBError,
+    CAMBValueError,
+    F2003Class,
+    byref,
+    c_double,
+    c_int,
+    fortran_class,
+    np,
+    numpy_1d,
+)
 
 tensor_parameterization_names = ["tensor_param_indeptilt", "tensor_param_rpivot", "tensor_param_AT"]
 tensor_param_indeptilt = 1
@@ -17,6 +28,9 @@ class InitialPower(F2003Class):
 
     def set_params(self, **kwargs):
         pass
+
+    def write_ini(self, state) -> None:
+        raise CAMBValueError(f"write_ini does not support initial power class {self.__class__.__name__}")
 
 
 @fortran_class
@@ -48,6 +62,9 @@ class SplinedInitialPower(InitialPower):
         ns_eff = kwargs.get("effective_ns_for_nonlinear")
         if ns_eff is not None:
             self.effective_ns_for_nonlinear = ns_eff
+
+    def write_ini(self, state) -> None:
+        raise CAMBValueError("write_ini cannot serialize splined initial power")
 
     def __getstate__(self):
         raise TypeError("Cannot save class with splines")
@@ -207,6 +224,25 @@ class InitialPowerLaw(InitialPower):
         self.pivot_scalar = pivot_scalar
         self.pivot_tensor = pivot_tensor
         return self
+
+    def write_ini(self, state) -> None:
+        tensor_parameterization = self.tensor_parameterization
+        if isinstance(tensor_parameterization, str):
+            tensor_parameterization = tensor_parameterization_names.index(tensor_parameterization) + 1
+
+        state.write_fields(self, names=("pivot_scalar", "pivot_tensor"))
+        state.set("initial_power_num", 1)
+        state.set("scalar_amp(1)", self.As)
+        state.set("scalar_spectral_index(1)", self.ns)
+        state.set("scalar_nrun(1)", self.nrun)
+        state.set("scalar_nrunrun(1)", self.nrunrun)
+        state.set("tensor_parameterization", tensor_parameterization)
+        state.set("tensor_spectral_index(1)", self.nt)
+        state.set("tensor_nrun(1)", self.ntrun)
+        if self.tensor_parameterization == "tensor_param_AT":
+            state.set("tensor_amp(1)", self.At)
+        else:
+            state.set("initial_ratio(1)", self.r)
 
     def has_tensors(self):
         """

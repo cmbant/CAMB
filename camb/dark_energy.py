@@ -1,6 +1,15 @@
 from ctypes import POINTER, byref, c_bool, c_double, c_int
 
-from .baseconfig import AllocatableArrayDouble, CAMBError, F2003Class, f_pointer, fortran_class, np, numpy_1d
+from .baseconfig import (
+    AllocatableArrayDouble,
+    CAMBError,
+    CAMBValueError,
+    F2003Class,
+    f_pointer,
+    fortran_class,
+    np,
+    numpy_1d,
+)
 
 
 class DarkEnergyModel(F2003Class):
@@ -12,6 +21,9 @@ class DarkEnergyModel(F2003Class):
 
     def validate_params(self) -> None:
         pass
+
+    def write_ini(self, state) -> None:
+        raise CAMBValueError(f"write_ini does not support dark energy class {self.__class__.__name__}")
 
 
 class DarkEnergyEqnOfState(DarkEnergyModel):
@@ -82,6 +94,13 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
         self.f_SetWTable(a, w, byref(c_int(len(a))))
         return self
 
+    def write_ini(self, state) -> None:
+        if self.use_tabulated_w:
+            raise CAMBValueError("write_ini cannot serialize tabulated dark energy")
+        state.set("dark_energy_model", getattr(self, "_ini_name", self.__class__.__name__))
+        state.write_fields(self, names=("w", "wa"))
+        state.set("cs2_lam", self.cs2)
+
     def __getstate__(self):
         if self.use_tabulated_w:
             raise TypeError("Cannot save class with splines")
@@ -98,6 +117,7 @@ class DarkEnergyFluid(DarkEnergyEqnOfState):
 
     _fortran_class_module_ = "DarkEnergyFluid"
     _fortran_class_name_ = "TDarkEnergyFluid"
+    _ini_name = "fluid"
 
     def validate_params(self) -> None:
         super().validate_params()
@@ -126,6 +146,7 @@ class DarkEnergyPPF(DarkEnergyEqnOfState):
     # cannot declare c_Gamma_ppf directly here as have not defined all fields in DarkEnergyEqnOfState (TCubicSpline)
     _fortran_class_module_ = "DarkEnergyPPF"
     _fortran_class_name_ = "TDarkEnergyPPF"
+    _ini_name = "ppf"
 
 
 @fortran_class
@@ -152,6 +173,19 @@ class AxionEffectiveFluid(DarkEnergyModel):
         self.zc = zc
         if theta_i is not None:
             self.theta_i = theta_i
+
+    def write_ini(self, state) -> None:
+        state.set("dark_energy_model", "AxionEffectiveFluid")
+        state.write_fields(
+            self,
+            names=("w_n", "fde_zc", "zc", "theta_i"),
+            rename={
+                "w_n": "AxionEffectiveFluid_w_n",
+                "fde_zc": "AxionEffectiveFluid_fde_zc",
+                "zc": "AxionEffectiveFluid_zc",
+                "theta_i": "AxionEffectiveFluid_theta_i",
+            },
+        )
 
 
 # base class for scalar field quintessence models
@@ -184,6 +218,9 @@ class Quintessence(DarkEnergyModel):
         ("__state", f_pointer),
     )
     _fortran_class_module_ = "Quintessence"
+
+    def write_ini(self, state) -> None:
+        raise CAMBValueError(f"write_ini does not support dark energy class {self.__class__.__name__}")
 
     def __getstate__(self):
         raise TypeError("Cannot save class with splines")

@@ -17,6 +17,9 @@ class RecombinationModel(F2003Class):
         ),
     )
 
+    def write_ini(self, state) -> None:
+        state.set("recombination_model", self.__class__.__name__)
+
 
 @fortran_class
 class Recfast(RecombinationModel):
@@ -45,6 +48,37 @@ class Recfast(RecombinationModel):
     _fortran_class_module_ = "Recombination"
     _fortran_class_name_ = "TRecfast"
 
+    def write_ini(self, state) -> None:
+        super().write_ini(state)
+        recfast_fudge = self.RECFAST_fudge
+        if self.RECFAST_Hswitch:
+            recfast_fudge += 1.14 - (1.105 + 0.02)
+        state.set("RECFAST_fudge", recfast_fudge)
+        state.write_fields(
+            self,
+            names=(
+                "RECFAST_fudge_He",
+                "RECFAST_Heswitch",
+                "RECFAST_Hswitch",
+                "AGauss1",
+                "AGauss2",
+                "zGauss1",
+                "zGauss2",
+                "wGauss1",
+                "wGauss2",
+                "Nz",
+                "use_rosenbrock",
+                "rosenbrock_handoff_xH",
+                "rosenbrock_tol",
+            ),
+            rename={
+                "Nz": "RECFAST_nz",
+                "use_rosenbrock": "RECFAST_use_rosenbrock",
+                "rosenbrock_handoff_xH": "RECFAST_rosenbrock_handoff_xH",
+                "rosenbrock_tol": "RECFAST_rosenbrock_tol",
+            },
+        )
+
 
 @optional_fortran_class
 class CosmoRec(RecombinationModel):
@@ -69,6 +103,18 @@ class CosmoRec(RecombinationModel):
         ("fdm", c_double, "Dark matter annihilation efficiency"),
         ("accuracy", c_double, "0-normal, 3-most accurate"),
     )
+
+    def write_ini(self, state) -> None:
+        super().write_ini(state)
+        state.write_fields(
+            self,
+            names=("runmode", "accuracy", "fdm"),
+            rename={
+                "runmode": "cosmorec_runmode",
+                "accuracy": "cosmorec_accuracy",
+                "fdm": "cosmorec_fdm",
+            },
+        )
 
 
 @optional_fortran_class

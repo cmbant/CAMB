@@ -14,6 +14,9 @@ class NonLinearModel(F2003Class):
 
     _fields_ = (("Min_kh_nonlinear", c_double, "minimum k/h at which to apply non-linear corrections"),)
 
+    def write_ini(self, state) -> None:
+        raise CAMBValueError(f"write_ini does not support non-linear model class {self.__class__.__name__}")
+
 
 halofit_original = "original"
 halofit_bird = "bird"
@@ -62,6 +65,19 @@ class Halofit(NonLinearModel):
 
     def get_halofit_version(self):
         return self.halofit_version
+
+    def write_ini(self, state, *, write_model_name: bool = True) -> None:
+        if write_model_name:
+            state.set("nonlinear_model", "Halofit")
+        halofit_version = self.halofit_version
+        if isinstance(halofit_version, str):
+            halofit_version = halofit_version_names[halofit_version]
+        state.set("halofit_version", halofit_version)
+        state.write_fields(
+            self,
+            names=("HMCode_A_baryon", "HMCode_eta_baryon", "HMCode_logT_AGN"),
+            rename={"HMCode_logT_AGN": "HMcode_logT_AGN"},
+        )
 
     def set_params(
         self, halofit_version=halofit_default, HMCode_A_baryon=3.13, HMCode_eta_baryon=0.603, HMCode_logT_AGN=7.8
@@ -297,6 +313,32 @@ class SPkNonLinear(NonLinearModel):
         self.SPk_m_pivot = SPk_m_pivot
         self._validate()
         return self
+
+    def write_ini(self, state) -> None:
+        base_model = self.BaseModel
+        if not isinstance(base_model, Halofit):
+            raise CAMBValueError(
+                f"write_ini does not support SPkNonLinear base model class {base_model.__class__.__name__}"
+            )
+
+        state.set("nonlinear_model", "SPkNonLinear")
+        base_model.write_ini(state, write_model_name=False)
+        state.write_fields(
+            self,
+            names=(
+                "SPk_feedback",
+                "SPk_SO",
+                "SPk_relation_kind",
+                "SPk_fb_a",
+                "SPk_fb_pow",
+                "SPk_fb_pivot",
+                "SPk_alpha",
+                "SPk_beta",
+                "SPk_gamma",
+                "SPk_epsilon",
+                "SPk_m_pivot",
+            ),
+        )
 
 
 @fortran_class
