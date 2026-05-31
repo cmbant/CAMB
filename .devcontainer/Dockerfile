@@ -23,6 +23,7 @@ RUN apt-get update \
     tar \
     unzip \
     xz-utils \
+    && git config --system --add safe.directory '*' \
     && curl -LsSf https://astral.sh/uv/install.sh -o /tmp/install-uv.sh \
     && env UV_INSTALL_DIR=/usr/local/bin sh /tmp/install-uv.sh \
     && rm -f /tmp/install-uv.sh \

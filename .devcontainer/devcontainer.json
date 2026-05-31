@@ -15,6 +15,7 @@
   },
   "workspaceMount": "source=${localWorkspaceFolder}/..,target=/workspaces/camb-parent,type=bind",
   "workspaceFolder": "/workspaces/camb-parent/${localWorkspaceFolderBasename}",
+  "remoteUser": "vscode",
   "mounts": [
     "source=${localEnv:HOME}${localEnv:USERPROFILE}/.gitconfig,target=/tmp/devcontainer-host.gitconfig,type=bind,readonly",
     "source=${localEnv:HOME}${localEnv:USERPROFILE}/.codex,target=/home/vscode/.codex,type=bind",
