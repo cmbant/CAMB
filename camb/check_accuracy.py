@@ -53,6 +53,8 @@ DEFAULT_ACCURACY_SETTINGS = {
     "min_l_logl_sampling": 100000,
 }
 
+REFERENCE_MIN_TRANSFER_K_PER_LOGINT = 100
+
 STRICT_REFERENCE_SETTINGS = {
     "AccuracyBoost": 3.0,
     "lSampleBoost": 3.0,
@@ -1029,6 +1031,14 @@ def compare_params_accuracy(
         ),
     )
     apply_accuracy_settings(reference_params, reference_accuracy_settings, boost_from_raw=True)
+    if int(reference_params.Transfer.k_per_logint) > 0:
+        # Fixed transfer-output checks compare on the standard requested nodes.
+        # Use a denser boosted native grid so reference interpolation is not the
+        # limiting error for sparse requested output grids.
+        reference_params.Transfer.k_per_logint = max(
+            int(reference_params.Transfer.k_per_logint),
+            REFERENCE_MIN_TRANSFER_K_PER_LOGINT,
+        )
 
     lmax = lmax or set_for_lmax
     standard = run_params_case(
