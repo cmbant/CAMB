@@ -7,12 +7,21 @@
     !fermi_dirac_const = int q^3 F(q) dq = 7/120*pi^4
     real(dl), parameter  :: const2 = 5._dl/7._dl/const_pi**2   !0.072372274_dl
 
-    ! Smallest/largest a*m_nu values using direct fits rather than series expansions.
+    ! Smallest/largest a*m_nu values using the rho/P direct fits rather than series expansions.
+    real(dl), parameter :: nu_rhop_am_min = 0.42_dl
+    real(dl), parameter :: nu_rhop_am_max = 70._dl
+
+    ! Cut values used by the D = rho - 3P fit in ThermalNuBackground_drho.
     real(dl), parameter :: am_min = 0.3_dl
     real(dl), parameter :: am_max = 70._dl
 
-    ! Direct smooth fit for thermal neutrino background over am_min < am < am_max.
-    ! z maps [am_min,am_max] to [-1,1].
+    ! Direct smooth fit for thermal neutrino rho/P over nu_rhop_am_min < am < nu_rhop_am_max.
+    ! z maps [nu_rhop_am_min,nu_rhop_am_max] to [-1,1].
+    real(dl), parameter :: nu_rhop_fit_c = sqrt(nu_rhop_am_min*nu_rhop_am_max)
+    real(dl), parameter :: nu_rhop_fit_inv_zmax = &
+        (nu_rhop_am_max + nu_rhop_fit_c)/(nu_rhop_am_max - nu_rhop_fit_c)
+
+    ! D-fit mapping over am_min < am < am_max.
     real(dl), parameter :: nu_fit_c = sqrt(am_min*am_max)
     real(dl), parameter :: nu_fit_inv_zmax = (am_max + nu_fit_c)/(am_max - nu_fit_c)
 
@@ -22,17 +31,30 @@
     real(dl), parameter :: nu_fit_rho_scale = 3._dl*zeta3/(2._dl*fermi_dirac_const)
     real(dl), parameter :: nu_fit_p_denom_scale = fermi_dirac_const/((900._dl/120._dl)*zeta5)
 
-    ! Power coefficients in z, increasing order. Max relative error is about 3e-5 in rho and 6e-5 in P.
+    ! Power coefficients in z, increasing order. rho is fitted for absolute error;
+    ! P is fitted for relative error. The rho/P cut points are separate from
+    ! the D-fit cut points so drho keeps the original fit below.
+    ! Max relative errors over 1e-4 <= am <= 1e4 are about 2.4e-5 in rho
+    ! and 4.7e-5 in P against direct quadrature.
     real(dl), parameter :: nu_fit_rho_c(0:5) = (/ &
-        7.398879376394745799e-01_dl, 8.756290636082231238e-02_dl, &
-        1.931731517648923591e-01_dl, -6.947249296646902661e-02_dl, &
-        5.473894789091467497e-03_dl, 1.555915729900643127e-03_dl /)
+        7.499710425926954249e-01_dl,  1.188066888581748443e-01_dl, &
+        1.545077526625578401e-01_dl, -8.378996019212282820e-02_dl, &
+        2.123075360029347963e-02_dl, -2.544964203886362908e-03_dl /)
 
     real(dl), parameter :: nu_fit_p_c(0:6) = (/ &
-        8.950919347217149991e-01_dl, 3.686437227810797634e-01_dl, &
-        -2.148136727808478419e-01_dl, -7.605981188576167729e-02_dl, &
-        2.870584407985930786e-02_dl, 1.364727361569663573e-02_dl, &
-        1.150088857291501091e-03_dl /)
+        9.283417043601330798e-01_dl,  3.156134695375645838e-01_dl, &
+        -2.435843189264263742e-01_dl, -2.509793530357270000e-02_dl, &
+        4.067958090718486880e-02_dl,  2.378742143669706002e-03_dl, &
+        -1.965863329520473827e-03_dl /)
+
+    ! Low-am polynomial replacing the small-am logarithmic expansion in rho/P.
+    ! rho = 1 + const2*am**2 + am**4*(c0 + c1*am**2)
+    ! P   = (1 - const2*am**2)/3 + am**4*(c0 + c1*am**2)
+    ! Coefficients are chosen to match the mid fit at nu_rhop_am_min.
+    real(dl), parameter :: nu_low_rho_c(0:1) = (/ &
+        -1.872929199948838302e-02_dl,  1.831728681837861694e-02_dl /)
+    real(dl), parameter :: nu_low_p_c(0:1) = (/ &
+        1.667044572156534468e-02_dl, -2.277471498716537868e-02_dl /)
 
     ! ~1e-4 fit for D = rho - 3P over am_min < am < am_max.
     ! D(am) = am**2/(1 + 2*am) * poly(D_c,z)
@@ -144,31 +166,25 @@
     class(TThermalNuBackground), intent(in) :: this
     real(dl), intent(in) :: am
     real(dl), intent(out) :: rhonu, pnu
-    real(dl) logam, am2, z, rfit, pfit
+    real(dl) am2, am4, z, rfit, pfit
     !  Compute massive neutrino density and pressure in units of the mean
     !  density of one eigenstate of massless neutrinos. Use series solutions or
     !  direct smooth fits.
 
-    if (am <= am_min) then
-        if (am< 0.01_dl) then
-            rhonu=1._dl + const2*am**2
-            pnu=(2-rhonu)/3._dl
-        else
-            !Higher order expansion result less obvious, Appendix A of arXiv:0911.2714
-            am2=am**2
-            logam = log(am)
-            rhonu = 1+am2*(const2+am2*(.1099926669d-1*logam-.3492416767d-2-.5866275571d-2*am))
-            pnu = (1+am2*(-const2+am2*(-.3299780009d-1*logam-.5219952794d-3+.2346510229d-1*am)))/3
-        end if
+    if (am <= nu_rhop_am_min) then
+        am2 = am**2
+        am4 = am2**2
+        rhonu = 1._dl + const2*am2 + am4*(nu_low_rho_c(0) + am2*nu_low_rho_c(1))
+        pnu = (1._dl - const2*am2)/3._dl + am4*(nu_low_p_c(0) + am2*nu_low_p_c(1))
         return
-    else if (am >= am_max) then
+    else if (am >= nu_rhop_am_max) then
         !Simple series solution (expanded in 1/(a*m))
         rhonu = 3/(2*fermi_dirac_const)*(zeta3*am + ((15*zeta5)/2 - 945._dl/16*zeta7/am**2)/am)
         pnu = 900._dl/120._dl/fermi_dirac_const*(zeta5-63._dl/4*Zeta7/am**2)/am
         return
     end if
 
-    z = ((am - nu_fit_c)/(am + nu_fit_c))*nu_fit_inv_zmax
+    z = ((am - nu_rhop_fit_c)/(am + nu_rhop_fit_c))*nu_rhop_fit_inv_zmax
 
     rfit = (((((nu_fit_rho_c(5)*z + nu_fit_rho_c(4))*z + nu_fit_rho_c(3))*z &
         + nu_fit_rho_c(2))*z + nu_fit_rho_c(1))*z + nu_fit_rho_c(0))
@@ -186,26 +202,23 @@
     class(TThermalNuBackground), intent(in) :: this
     real(dl), intent(in) :: am
     real(dl), intent(out) :: rhonu
-    real(dl) am2, z, rfit
+    real(dl) am2, am4, z, rfit
 
     !  Compute massive neutrino density in units of the mean
     !  density of one eigenstate of massless neutrinos. Use series solutions or
     !  direct smooth fits.
 
-    if (am <= am_min) then
-        if (am < 0.01_dl) then
-            rhonu=1._dl + const2*am**2
-        else
-            am2=am**2
-            rhonu = 1+am2*(const2+am2*(.1099926669d-1*log(am)-.3492416767d-2-.5866275571d-2*am))
-        end if
+    if (am <= nu_rhop_am_min) then
+        am2 = am**2
+        am4 = am2**2
+        rhonu = 1._dl + const2*am2 + am4*(nu_low_rho_c(0) + am2*nu_low_rho_c(1))
         return
-    else if (am >= am_max) then
+    else if (am >= nu_rhop_am_max) then
         rhonu = 3/(2*fermi_dirac_const)*(zeta3*am + ((15*zeta5)/2 - 945._dl/16*zeta7/am**2)/am)
         return
     end if
 
-    z = ((am - nu_fit_c)/(am + nu_fit_c))*nu_fit_inv_zmax
+    z = ((am - nu_rhop_fit_c)/(am + nu_rhop_fit_c))*nu_rhop_fit_inv_zmax
 
     rfit = (((((nu_fit_rho_c(5)*z + nu_fit_rho_c(4))*z + nu_fit_rho_c(3))*z &
         + nu_fit_rho_c(2))*z + nu_fit_rho_c(1))*z + nu_fit_rho_c(0))
