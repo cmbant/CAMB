@@ -60,6 +60,7 @@ testfile*
 *_tmp*
 *.npz
 *_old.*
+*_old/
 
 # Ignore all .dat and .ini files except those already tracked in git
 *.dat

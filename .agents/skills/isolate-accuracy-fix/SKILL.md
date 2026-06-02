@@ -134,11 +134,16 @@ it does NOT redo discovery:
 - known residual risks or deliberately ignored failures.
 
 Act on the verdict:
-- PASS / PASS_WITH_NOTES: proceed (note any minor follow-ups).
-- BLOCK: fix the issue or explicitly downgrade the claim. If the blocker needs
-  new experiments, run them LOCALLY yourself, rebuild, re-run the affected
-  acceptance-matrix rows, then you may re-spawn the checker ONCE on the updated
-  evidence.
+- PASS: proceed.
+- PASS_WITH_NOTES: proceed only when the notes are clearly optional extensions,
+  residual caveats, or documentation notes that do not require changing the code,
+  scope, evidence bundle, acceptance matrix, or final claim. Record them in the
+  changelog/final report.
+- BLOCK, or any PASS_WITH_NOTES item that actually requires refinement: continue
+  the fix loop. Fix the issue or gather the missing evidence LOCALLY yourself,
+  rebuild, re-run the affected acceptance-matrix rows, then you may re-spawn the
+  checker ONCE on the updated evidence. Only downgrade the claim instead when
+  the checker identified a clear extension outside this selected physical issue.
 
 ## Step 7 — Finalize this issue (you)
 

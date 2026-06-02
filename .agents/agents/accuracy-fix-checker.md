@@ -26,42 +26,58 @@ risks. Use them; cross-check the diff against the report and the matrix.
 One of: PASS | PASS_WITH_NOTES | BLOCK.
 BLOCK only for issues that could make the fix wrong, mis-scoped, unsupported, or
 unsafe to report as final.
+Use PASS_WITH_NOTES only for clear extensions, residual caveats, or documentation
+notes that do not require changing the code, scope, evidence bundle, acceptance
+matrix, or final claim. If an item the orchestrator should normally continue to
+refine is spotted, make the verdict BLOCK or tag the evidence as needed before
+final.
 
 ### Findings
-Prioritized bullets with file/line refs where possible. Check for:
-- BLOCK if the diff applies a broad boost, constant floor, or component-wide
-  multiplier while the affected code exposes a narrower physical/numerical
-  coordinate and the bundle lacks a locality audit explaining why that coordinate
-  is not the best lever;
-- BLOCK if the final scope is justified only by "it passes" or by a broad
-  accuracy parameter, with no comparison against a narrower physical lever when
-  one is available;
-- BLOCK if the trigger/gate is a proxy input or broad mode flag while a more
-  direct computed quantity is available in the affected code path but untested;
-- BLOCK if multiple coupled controls are raised together without evidence that a
-  single narrower lever, or coordinate-dependent scaling, was insufficient;
-- a broad global boost where a local physical gate would be cheaper AND the
-  breadth carries real runtime cost (too broad). Do NOT flag a slightly broader,
-  more conservative change as too broad if its runtime cost is negligible — that
-  is acceptable and often preferable to a brittle just-barely-passing threshold;
-- a fix that stops at a boost/sub-parameter instead of the code lines the
-  drilldown identified;
-- a fix conditioned on a flag/branch that EXCLUDES a co-affected family the
-  probe evidenced — e.g. gated on WantTransfer when Cls share the controlling
-  quantity (too narrow); name the missed path;
+Prioritized bullets with file/line refs where possible. Prefix every finding
+with `[BLOCK]` or `[NOTE]`.
+
+Use `[BLOCK]` for anything that means the orchestrator should continue the fix
+loop before finalizing, including:
+- broad boost, constant floor, or component-wide multiplier where the affected
+  code exposes a narrower physical/numerical coordinate and the bundle lacks a
+  locality audit explaining why that coordinate is not the best lever;
+- final scope justified only by "it passes" or by a broad accuracy parameter,
+  with no comparison against a narrower physical lever when one is available;
+- trigger/gate is a proxy input or broad mode flag while a more direct computed
+  quantity is available in the affected code path but untested;
+- multiple coupled controls raised together without evidence that a single
+  narrower lever, or coordinate-dependent scaling, was insufficient;
+- broad global boost where a local physical gate would be cheaper AND the
+  breadth carries real runtime cost. Do not flag a slightly broader, more
+  conservative change as too broad if its runtime cost is negligible;
+- fix stops at a boost/sub-parameter instead of the code lines the drilldown
+  identified;
+- fix is conditioned on a flag/branch that EXCLUDES a co-affected family the
+  probe evidenced, e.g. gated on WantTransfer when Cls share the controlling
+  quantity;
 - hard floors where multiplicative scaling should be used;
 - missing precision gates (AccuracyTarget > 0, WantTransfer, or the relevant one);
 - non-monotone or discontinuous parameter scaling without justification;
-- thresholds unsupported by sweeps on BOTH sides;
-- inconsistent treatment of related quantities (e.g. hierarchy depth vs switch
-  timing);
+- thresholds unsupported by sweeps on both sides;
+- inconsistent treatment of related quantities, e.g. hierarchy depth vs switch
+  timing;
 - claims resting on an unconverged or mismatched reference;
 - trigger_is_causal reported "inconclusive" but treated as causal in the fix;
 - timing claims that do not discard the first CAMB call;
-- acceptance-matrix evidence that tests were NOT run on a rebuild, or rows
-  missing / failing / inconsistent with the diff scope;
+- acceptance-matrix evidence that tests were not run on a rebuild, or rows are
+  missing, failing, or inconsistent with the diff scope;
 - diff scope inconsistent with the probe's full_physical_extent table;
-- temporary diagnostic edits or stale explanatory text left in the tree.
+- temporary diagnostic edits or stale explanatory text left in the tree;
+- new code partly duplicates existing nearby accuracy-related settings;
+- new code might interact in non-trivial ways with other parameter gates, and
+  this is not tested.
+
+Use `[NOTE]` only for clear extensions, report caveats, or follow-up ideas that
+do not require code changes, new evidence, acceptance-matrix changes, or a
+different final claim.
 
 ### Missing Evidence
 Short list. Each item tagged "needed before final" or "nice follow-up".
+Use "needed before final" for anything required to support the final claim.
+Use "nice follow-up" only for clear extensions or note-worthy caveats outside
+the selected fix.
