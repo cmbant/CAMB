@@ -18,12 +18,12 @@ diff plus its own changelog entry. Never combine fixes for different issues.
 
 ## Disposable tracked copy
 
-For every `/tmp` reproduction or A/B copy, use
-`scripts/make_tmp_tracked_copy.py`. It creates a detached git worktree at HEAD,
+For every `/tmp` reproduction or A/B copy, use this skill's
+`isolate-accuracy-fix/scripts/make_tmp_tracked_copy.py`. It creates a detached git worktree at HEAD,
 initializes submodules, applies staged tracked changes, then applies unstaged
-tracked changes, including tracked submodule diffs. It intentionally ignores
-untracked files. Record the printed copy path and source HEAD in the evidence
-bundle.
+tracked changes, including tracked submodule diffs, then builds CAMB in the
+copy. It intentionally ignores untracked files. Record the printed copy path,
+source HEAD, and build summary in the evidence bundle.
 
 ## Step 1 — Triage (you)
 

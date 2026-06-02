@@ -17,11 +17,11 @@ not a fix and not a boost.
 - Never run an in-place edit (e.g. `sed -i`) against a working-tree path.
 
 ## Making the /tmp copy
-Use `.agents/skills/isolate-accuracy-fix/scripts/make_tmp_tracked_copy.py`.
+Use `isolate-accuracy-fix/scripts/make_tmp_tracked_copy.py`.
 It creates a detached git worktree at HEAD, initializes submodules, applies
 staged tracked changes, then applies unstaged tracked changes, including tracked
-submodule diffs. It intentionally ignores untracked files. Record the printed
-copy path and source HEAD. Verify the copy builds clean before A/B.
+submodule diffs, then builds CAMB in the copy. It intentionally ignores
+untracked files. Record the printed copy path, source HEAD, and build summary.
 
 ## Procedure
 1. Make the code-only /tmp copy as above. Build it. Run all A/B there.

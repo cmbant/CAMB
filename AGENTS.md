@@ -52,5 +52,5 @@ This is the CAMB Python cosmology code, wrapping Fortran 2003 for numerics.
 # Physics & Numerical Guidance
 - When plotting fractional differences for cross-spectra, use e.g. $\Delta TE / \sqrt{TT \cdot EE}$.
 - High-accuracy lensing requires `lens_potential_accuracy = 8` or so (this mainly increases `kmax`).
-- Use `camb/check_accuracy.py` to assess numerical stability by comparing a default run to a high-accuracy run.
+- Use `python -m camb.check_accuracy` to assess numerical stability by comparing a default run to a high-accuracy run.
 - When testing timing, always discard first camb call (which precomputed bessels etc.)

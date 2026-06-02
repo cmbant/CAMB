@@ -5,9 +5,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import subprocess
+import sys
 import tempfile
+from collections.abc import Mapping
 from pathlib import Path
 
 
@@ -15,10 +18,11 @@ def run(
     args: list[str],
     *,
     cwd: Path | None = None,
+    env: Mapping[str, str] | None = None,
     input_bytes: bytes | None = None,
     check: bool = True,
 ) -> subprocess.CompletedProcess[bytes]:
-    return subprocess.run(args, cwd=cwd, input=input_bytes, capture_output=True, check=check)
+    return subprocess.run(args, cwd=cwd, env=env, input=input_bytes, capture_output=True, check=check)
 
 
 def git(repo: Path, args: list[str], **kwargs: object) -> subprocess.CompletedProcess[bytes]:
@@ -67,11 +71,40 @@ def apply_patch(repo: Path, patch: bytes, label: str) -> bool:
     return True
 
 
+def output_tail(output: bytes, max_lines: int = 20) -> list[str]:
+    lines = text(output).splitlines()
+    return lines[-max_lines:]
+
+
+def build_camb(repo: Path, python: str) -> dict[str, object]:
+    command = [python, "setup.py", "make"]
+    forutils_path = repo / "forutils"
+    env = os.environ.copy()
+    env["FORUTILSPATH"] = str(forutils_path)
+    result = run(command, cwd=repo, env=env, check=False)
+    if result.returncode != 0:
+        print(text(result.stdout), file=sys.stderr)
+        print(text(result.stderr), file=sys.stderr)
+        raise RuntimeError(f"build failed: {' '.join(command)}")
+
+    library_candidates = [repo / "camb" / "camblib.so", repo / "camb" / "cambdll.dll"]
+    built_library = next((path for path in library_candidates if path.exists()), None)
+    return {
+        "command": command,
+        "forutils_path": str(forutils_path),
+        "returncode": result.returncode,
+        "built_library": str(built_library) if built_library else None,
+        "stdout_tail": output_tail(result.stdout),
+        "stderr_tail": output_tail(result.stderr),
+    }
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
             "Create a detached /tmp git worktree at HEAD, initialize submodules, "
-            "then replay staged and unstaged tracked changes from the source repo. "
+            "replay staged and unstaged tracked changes from the source repo, "
+            "then build CAMB in the copy. "
             "Untracked files are intentionally ignored."
         )
     )
@@ -96,6 +129,16 @@ def parse_args() -> argparse.Namespace:
         "--ignore-dirty-submodules",
         action="store_true",
         help="Do not replay tracked staged/unstaged changes from submodules.",
+    )
+    parser.add_argument(
+        "--python",
+        default=sys.executable,
+        help="Python executable to use for the CAMB build. Defaults to the interpreter running this helper.",
+    )
+    parser.add_argument(
+        "--no-build",
+        action="store_true",
+        help="Create the tracked source copy but do not run the CAMB build.",
     )
     return parser.parse_args()
 
@@ -127,11 +170,13 @@ def main() -> int:
                 "staged_patch_applied": apply_patch(submodule, sub_staged_patch, f"{path} staged"),
                 "unstaged_patch_applied": apply_patch(submodule, sub_unstaged_patch, f"{path} unstaged"),
             }
+        build_summary = None if args.no_build else build_camb(destination, args.python)
     except Exception:
         shutil.rmtree(destination, ignore_errors=True)
         raise
 
     summary = {
+        "build": build_summary,
         "copy_path": str(destination),
         "source_repo": str(source),
         "source_head": head,
