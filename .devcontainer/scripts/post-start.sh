@@ -58,23 +58,63 @@ ensure_codex_full_access() {
 ensure_codex_full_access
 
 normalize_worktree_metadata() {
-    local workspace_name git_file admin_dir gitdir_file
+    local admin_dir candidate git_file gitdir_file gitdir_path gitdir_path_normalized search_dir worktree_id
+    local admin_gitdir_rel workspace_gitdir_rel
 
     git_file="${workspace_dir}/.git"
     if [[ ! -f "${git_file}" ]] || [[ -d "${git_file}" ]]; then
         return 0
     fi
 
-    workspace_name="$(basename "${workspace_dir}")"
-    admin_dir="$(cd "${workspace_dir}/.." && pwd)/.git/worktrees/${workspace_name}"
-    gitdir_file="${admin_dir}/gitdir"
-
-    if [[ ! -d "${admin_dir}" ]] || [[ ! -f "${gitdir_file}" ]]; then
+    gitdir_path="$(sed -n 's/^[[:space:]]*gitdir:[[:space:]]*//p' "${git_file}" | head -n 1)"
+    if [[ -z "${gitdir_path}" ]]; then
         return 0
     fi
 
-    printf 'gitdir: ../.git/worktrees/%s\n' "${workspace_name}" > "${git_file}"
-    printf '../../%s/.git\n' "${workspace_name}" > "${gitdir_file}"
+    gitdir_path_normalized="${gitdir_path//\\//}"
+    case "${gitdir_path_normalized}" in
+        /*)
+            if [[ -d "${gitdir_path_normalized}" ]]; then
+                admin_dir="$(realpath --no-symlinks "${gitdir_path_normalized}")"
+            fi
+            ;;
+        *:/*)
+            ;;
+        *)
+            candidate="${workspace_dir}/${gitdir_path_normalized}"
+            if [[ -d "${candidate}" ]]; then
+                admin_dir="$(realpath --no-symlinks "${candidate}")"
+            fi
+            ;;
+    esac
+
+    if [[ -z "${admin_dir:-}" ]]; then
+        case "${gitdir_path_normalized}" in
+            *"/worktrees/"*)
+                worktree_id="${gitdir_path_normalized##*/worktrees/}"
+                search_dir="${workspace_dir}"
+                while [[ "${search_dir}" != "/" ]]; do
+                    candidate="${search_dir}/.git/worktrees/${worktree_id}"
+                    if [[ -d "${candidate}" ]]; then
+                        admin_dir="$(realpath --no-symlinks "${candidate}")"
+                        break
+                    fi
+                    search_dir="$(dirname "${search_dir}")"
+                done
+                ;;
+        esac
+    fi
+
+    gitdir_file="${admin_dir:-}/gitdir"
+    if [[ -z "${admin_dir:-}" ]] || [[ ! -f "${gitdir_file}" ]]; then
+        return 0
+    fi
+
+    workspace_gitdir_rel="$(realpath --no-symlinks --relative-to="${workspace_dir}" "${admin_dir}")"
+    admin_gitdir_rel="$(realpath --no-symlinks --relative-to="${admin_dir}" "${git_file}")"
+
+    printf 'gitdir: %s\n' "${workspace_gitdir_rel}" > "${git_file}"
+    printf '%s\n' "${admin_gitdir_rel}" > "${gitdir_file}"
 }
 
 normalize_worktree_metadata
