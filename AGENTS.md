@@ -13,6 +13,9 @@ This is the CAMB Python cosmology code, wrapping Fortran 2003 for numerics.
 - Use the **pre-commit** command line to run ruff check/format (e.g., `pre-commit run --all-files`); do not invoke `ruff` directly.
 - Ruff/pyupgrade hooks and their configuration live in `.pre-commit-config.yaml`
 - All code must be Python or Fortran only—no bash scripts except for devcontainer setup and GitHub Actions.
+- In the devcontainer use this python env:
+
+`/home/vscode/.local/share/camb-devcontainer/.venv/`
 
 ## Fortran
 - Use modern Fortran 2003, compiled with **gfortran** or **ifort**.
