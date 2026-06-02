@@ -18,7 +18,8 @@
   "remoteUser": "vscode",
   "mounts": [
     "source=${localEnv:HOME}${localEnv:USERPROFILE}/.gitconfig,target=/tmp/devcontainer-host.gitconfig,type=bind,readonly",
-    "source=${localEnv:HOME}${localEnv:USERPROFILE}/.codex,target=/home/vscode/.codex,type=bind",
+    "source=camb-codex,target=/home/vscode/.codex,type=volume",
+    "source=${localEnv:HOME}${localEnv:USERPROFILE}/.codex/auth.json,target=/home/vscode/.codex/auth.json,type=bind",
     "source=${localEnv:HOME}${localEnv:USERPROFILE}/.claude,target=/home/vscode/.claude,type=bind",
     "source=${localEnv:HOME}${localEnv:USERPROFILE}/.claude.json,target=/home/vscode/.claude.json,type=bind"
   ],
@@ -58,11 +59,21 @@
         ],
         "python.venvPath": "/home/vscode/.local/share/camb-devcontainer",
         "terminal.integrated.defaultProfile.linux": "bash",
-        "python-envs.terminal.autoActivationType": "off"
+        "python-envs.terminal.autoActivationType": "off",
+        "claudeCode.allowDangerouslySkipPermissions": true,
+        "claudeCode.initialPermissionMode": "bypassPermissions",
+        "chat.permissions.default": "autoApprove",
+        "chat.tools.global.autoApprove": true,
+        "chat.tools.terminal.enableAutoApprove": true,
+        "chat.agent.sandbox.enabled": "off",
+        "chat.agent.networkFilter": false,
+        "github.copilot.chat.claudeAgent.allowDangerouslySkipPermissions": true
       },
       "extensions": [
         "charliermarsh.ruff",
         "fortran-lang.linter-gfortran",
+        "GitHub.copilot",
+        "GitHub.copilot-chat",
         "ms-python.debugpy",
         "ms-python.python",
         "openai.chatgpt",

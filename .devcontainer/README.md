@@ -32,6 +32,15 @@ When the container is created it:
 The devcontainer also installs `findent` and `fortls` into the container-local virtual environment so the Modern Fortran
 extension can format and index code without depending on host-side tools.
 
+Codex state is stored in the Docker volume `camb-codex`, so sessions and container-side caches survive devcontainer
+rebuilds and are shared across CAMB worktrees using this devcontainer. Only the host `~/.codex/auth.json` file is bind
+mounted into the volume, which gives the container the host login without mounting host-specific Codex logs, caches,
+SQLite state, or plugin files.
+
+The container is configured as a trusted AI-agent sandbox: Codex starts with `approval_policy = "never"` and
+`sandbox_mode = "danger-full-access"` in its container `config.toml`, Claude Code starts new sessions in
+`bypassPermissions` mode, and VS Code Copilot agent approvals are auto-approved in the devcontainer.
+
 The image and bootstrap intentionally avoid `pip install -e .`:
 
 - the Dockerfile uses `uv pip install ...` to install the small runtime and dev tool set directly into the container-local virtual environment

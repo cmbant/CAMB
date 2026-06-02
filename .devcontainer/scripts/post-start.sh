@@ -9,6 +9,54 @@ safe_git() {
     env -u GIT_DIR -u GIT_WORK_TREE -u GIT_COMMON_DIR -u GIT_INDEX_FILE git "$@"
 }
 
+ensure_writable_dir() {
+    local path="$1"
+
+    mkdir -p "${path}"
+
+    if [[ -w "${path}" ]]; then
+        return 0
+    fi
+
+    if command -v sudo >/dev/null 2>&1; then
+        sudo chown "$(id -u):$(id -g)" "${path}" >/dev/null 2>&1 || true
+    fi
+}
+
+ensure_writable_dir "${HOME}/.codex"
+
+ensure_codex_full_access() {
+    local config_dir config_file tmp_file
+
+    config_dir="${HOME}/.codex"
+    config_file="${config_dir}/config.toml"
+
+    mkdir -p "${config_dir}"
+    tmp_file="$(mktemp)"
+
+    if [[ -f "${config_file}" ]]; then
+        awk '
+            BEGIN { in_table = 0 }
+            /^[[:space:]]*\[/ { in_table = 1 }
+            !in_table && /^[[:space:]]*(approval_policy|sandbox_mode)[[:space:]]*=/ { next }
+            { print }
+        ' "${config_file}" > "${tmp_file}"
+    fi
+
+    {
+        printf 'approval_policy = "never"\n'
+        printf 'sandbox_mode = "danger-full-access"\n'
+        if [[ -s "${tmp_file}" ]]; then
+            printf '\n'
+            cat "${tmp_file}"
+        fi
+    } > "${config_file}"
+
+    rm -f "${tmp_file}"
+}
+
+ensure_codex_full_access
+
 normalize_worktree_metadata() {
     local workspace_name git_file admin_dir gitdir_file
 
