@@ -62,6 +62,10 @@ progressive drill-down at CODE LINES, not at a boost:
 - sub_parameter: the specific sub-accuracy parameter under that axis;
 - functions: where that sub-parameter enters the calculation;
 - controlling_quantity: concrete var + file:line (the drill-down endpoint);
+- coordinate_locality_table: whether the failure localizes in available
+  physical/numerical coordinates, with code vars and measured evidence;
+- candidate_physical_levers: narrower direct levers tested or rejected, with
+  accuracy and timing evidence;
 - full_physical_extent: an EVIDENCE TABLE, one row per co-affected output
   family, each with a code link AND a measured or shared-grid justification.
 
@@ -72,6 +76,16 @@ If accuracy_controlled is false, STOP and report a likely bug. Do not patch.
 Change ONE direct control variable named in the report, scoped to the FULL
 physical extent the probe evidenced — no narrower (do not gate on a flag that
 excludes a co-affected path).
+
+Hard locality gate:
+- Reject a constant floor, broad boost, or component-wide multiplier unless the
+  probe's locality audit shows why narrower physical/numerical coordinates are
+  unavailable, ineffective, unstable, or more expensive than the broad change.
+- If the affected code is evaluated over a coordinate such as k, l, time,
+  redshift, mass, sample/momentum index, or output family, either gate/scale the
+  change in that coordinate or include measured evidence explaining why not.
+- Do not use a proxy gate when a more direct computed quantity is available and
+  untested.
 
 On breadth, balance scope against COST:
 - Prefer a local override to a global default WHEN the broad change carries real
@@ -94,6 +108,9 @@ never against a stale build. Record results; the checker cannot run them:
 - the default regression test covering the shared path;
 - cpu time before/after on a representative NON-failing run, DISCARDING the
   first CAMB call;
+- broad-vs-local comparison: if the final patch uses a broad boost/floor, show
+  at least one narrower physical-lever attempt with accuracy and timing, or
+  explain why no such lever exists in the affected code path;
 - like-for-like check: a passing BOOSTED comparison is not sufficient —
   interpolate to fixed physical coords before blessing index-based values.
 
@@ -112,6 +129,8 @@ it does NOT redo discovery:
 - reference-convergence evidence (boosted/higher-accuracy comparison);
 - the timing summary (first CAMB call discarded);
 - the probe's complete Sensitivity Report (esp. full_physical_extent table);
+- the coordinate_locality_table and candidate_physical_levers, including any
+  narrower alternatives rejected before accepting a broad boost/floor;
 - known residual risks or deliberately ignored failures.
 
 Act on the verdict:
@@ -137,6 +156,8 @@ Changelog template:
     controlling quantity (var + file:line)
   - Full physical extent: output families / k / z / l affected, with the evidence
     that the fix scope matches it (not too narrow; not broader than cost justifies)
+  - Locality / rejected alternatives: narrower coordinates or physical levers
+    tested, with accuracy/timing reason for accepting the final scope
   - Change: file + lines
   - Before/after numbers for the failing diagnostic
   - Acceptance-matrix summary (note tests ran on a rebuild)
@@ -155,6 +176,7 @@ between issues.
 
 1. One physical issue at a time; one diff + one changelog entry per issue.
 2. No proxy boost in the final patch if a specific k/z/l/output fix exists.
+   Broad boosts/floors must pass the locality audit first.
 3. Reproduce A/B only in a helper-created clean /tmp copy of the CODE (not
    output/plot/data directories); never disturb user edits.
 4. Always rebuild before running any test or timing; never test a stale binary.
@@ -163,3 +185,6 @@ between issues.
 7. Scope must fit the cause: never too narrow; broader than minimal only when the
    extra accuracy is essentially free in runtime. Narrow hard when the fix costs.
 8. Runtime is a first-class constraint; discard the first CAMB call when timing.
+9. If a controlling quantity lives inside a coordinate-indexed calculation, the
+   final patch must either scale/gate in that coordinate or document measured
+   evidence that doing so is not the best physical lever.
