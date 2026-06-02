@@ -96,3 +96,4 @@ external/
 .claude
 devcontainer-lock.json
 accuracy_plots/
+HMcode_test_outputs/

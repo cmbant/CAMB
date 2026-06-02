@@ -44,9 +44,27 @@ if ! command -v uv >/dev/null 2>&1; then
     exit 1
 fi
 
+ensure_codex_cli() {
+    local npm_bin
+
+    if command -v codex >/dev/null 2>&1; then
+        return 0
+    fi
+
+    npm_bin="$(command -v npm || true)"
+    if [[ -z "${npm_bin}" ]]; then
+        echo "npm is required to install the Codex CLI." >&2
+        exit 1
+    fi
+
+    sudo env "PATH=${PATH}" "${npm_bin}" install -g @openai/codex
+}
+
 cd "${workspace_dir}"
 
 bash "${script_dir}/post-start.sh"
+
+ensure_codex_cli
 
 if workspace_git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     has_git_worktree=1
