@@ -38,14 +38,14 @@ ensure_codex_full_access() {
         awk '
             BEGIN { in_table = 0 }
             /^[[:space:]]*\[/ { in_table = 1 }
-            !in_table && /^[[:space:]]*(approval_policy|sandbox_mode)[[:space:]]*=/ { next }
+            !in_table && /^[[:space:]]*(approval_policy|default_permissions|sandbox_mode)[[:space:]]*=/ { next }
             { print }
         ' "${config_file}" > "${tmp_file}"
     fi
 
     {
         printf 'approval_policy = "never"\n'
-        printf 'sandbox_mode = "danger-full-access"\n'
+        printf 'default_permissions = ":danger-full-access"\n'
         if [[ -s "${tmp_file}" ]]; then
             printf '\n'
             cat "${tmp_file}"
