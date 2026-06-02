@@ -7,25 +7,39 @@
     !fermi_dirac_const = int q^3 F(q) dq = 7/120*pi^4
     real(dl), parameter  :: const2 = 5._dl/7._dl/const_pi**2   !0.072372274_dl
 
-    !Steps for spline interpolation (use series outside this range)
-    integer, parameter  :: nrhopn=400
+    ! Smallest/largest a*m_nu values using direct fits rather than series expansions.
     real(dl), parameter :: am_min = 0.3_dl
-    !smallest a*m_nu to integrate distribution function rather than using series
     real(dl), parameter :: am_max = 70._dl
-    !max a*m_nu to integrate
 
-    !Actual range for using series (to avoid inaccurate ends of spline)
-    real(dl), parameter :: am_minp=am_min + am_max/(nrhopn-1)*1.01_dl
-    real(dl), parameter :: am_maxp=am_max*0.9_dl
-    !Optimized 8-point background quadrature (derived via minimax/least-squares fit)
-    ! set legacy toggle true to use (less accurate and slower) original 100-step grid.
-    logical, parameter :: use_legacy_nu_background_grid = .false.
-    real(dl), parameter :: nu_background_q(8) = (/0.2937822_dl, 0.73583979_dl, 1.49222507_dl, 2.68795368_dl, &
-        4.30678084_dl, 4.63078102_dl, 7.37122449_dl, 11.91683009_dl/)
-    real(dl), parameter :: nu_background_rho_weights(8) = (/0.000640376236953801_dl, 0.01312614_dl, 0.10233804_dl, &
-        0.31935253_dl, 0.12193422_dl, 0.27616318_dl, 0.15455734_dl, 0.01189232_dl/)
-    real(dl), parameter :: nu_background_pressure_weights(8) = (/0.0002028435952467642_dl, 0.00440170_dl, 0.03405480_dl, &
-        0.10658874_dl, 0.03987692_dl, 0.09276772_dl, 0.05146992_dl, 0.00396969_dl/)
+    ! Direct smooth fit for thermal neutrino background over am_min < am < am_max.
+    ! z maps [am_min,am_max] to [-1,1].
+    real(dl), parameter :: nu_fit_c = sqrt(am_min*am_max)
+    real(dl), parameter :: nu_fit_inv_zmax = (am_max + nu_fit_c)/(am_max - nu_fit_c)
+
+    ! Large-am scaling coefficients:
+    ! rho ~ nu_fit_rho_scale * am
+    ! P   ~ (1/nu_fit_p_denom_scale) / am
+    real(dl), parameter :: nu_fit_rho_scale = 3._dl*zeta3/(2._dl*fermi_dirac_const)
+    real(dl), parameter :: nu_fit_p_denom_scale = fermi_dirac_const/((900._dl/120._dl)*zeta5)
+
+    ! Power coefficients in z, increasing order. Max relative error is about 3e-5 in rho and 6e-5 in P.
+    real(dl), parameter :: nu_fit_rho_c(0:5) = (/ &
+        7.398879376394745799e-01_dl, 8.756290636082231238e-02_dl, &
+        1.931731517648923591e-01_dl, -6.947249296646902661e-02_dl, &
+        5.473894789091467497e-03_dl, 1.555915729900643127e-03_dl /)
+
+    real(dl), parameter :: nu_fit_p_c(0:6) = (/ &
+        8.950919347217149991e-01_dl, 3.686437227810797634e-01_dl, &
+        -2.148136727808478419e-01_dl, -7.605981188576167729e-02_dl, &
+        2.870584407985930786e-02_dl, 1.364727361569663573e-02_dl, &
+        1.150088857291501091e-03_dl /)
+
+    ! ~1e-4 fit for D = rho - 3P over am_min < am < am_max.
+    ! D(am) = am**2/(1 + 2*am) * poly(D_c,z)
+    real(dl), parameter :: nu_fit_D_c(0:5) = (/ &
+        5.800497880734221123e-01_dl,  1.801974470841860576e-01_dl, &
+        -1.602709049602861757e-01_dl,  3.167230341650149189e-02_dl, &
+        1.056591590995091534e-02_dl, -3.877662402660121861e-03_dl /)
 
     Type TNuPerturbations
         !Sample for massive neutrino momentum
@@ -37,26 +51,23 @@
     end type TNuPerturbations
 
     Type TThermalNuBackground
-        !Quantities for the neutrino background momentum distribution assuming thermal
-        real(dl) dam !step in a*m
-        real(dl), dimension(:), allocatable ::  r1,p1,dr1,dp1
+        ! Thermal massive-neutrino background. rho/P are direct fit evaluations;
+        ! target_rho is only temporary state for the mass-inversion root solve.
         real(dl), private :: target_rho
     contains
-    procedure :: init => ThermalNuBackground_init
     procedure :: rho_P => ThermalNuBackground_rho_P
     procedure :: rho => ThermalNuBackground_rho
     procedure :: drho => ThermalNuBackground_drho
     procedure :: find_nu_mass_for_rho => ThermalNuBackground_find_nu_mass_for_rho
     end type TThermalNuBackground
 
-    Type(TThermalNuBackground), target :: ThermalNuBackground
-    class(TThermalNuBackground), pointer :: ThermalNuBack !ifort workaround
+    Type(TThermalNuBackground) :: ThermalNuBackground
 
     public fermi_dirac_const,  sum_mnu_for_m1, neutrino_mass_fac, TNuPerturbations, &
-        ThermalNuBackground, ThermalNuBack
+        ThermalNuBackground
     contains
 
-    subroutine sum_mnu_for_m1(summnu,dsummnu, m1, targ, sgn)
+    pure subroutine sum_mnu_for_m1(summnu,dsummnu, m1, targ, sgn)
     use constants
     real(dl), intent(in) :: m1, targ, sgn
     real(dl), intent(out) :: summnu, dsummnu
@@ -77,10 +88,15 @@
     real(dl) :: dq,dlfdlq, q
     integer i
 
-    this%nqmax=3
-    if (Accuracy>1) this%nqmax=4
-    if (Accuracy>2) this%nqmax=5
-    if (Accuracy>3) this%nqmax=nint(Accuracy*10)
+    if (Accuracy > 3) then
+        this%nqmax = nint(Accuracy*10)
+    else if (Accuracy > 2) then
+        this%nqmax = 5
+    else if (Accuracy > 1) then
+        this%nqmax = 4
+    else
+        this%nqmax = 3
+    end if
     !note this may well be worse than the 5 optimized points
 
     !We evolve evolve 4F_l/dlfdlq(i), so kernel includes dlfdlnq factor
@@ -124,133 +140,16 @@
 
     end subroutine TNuPerturbations_init
 
-    subroutine ThermalNuBackground_init(this)
-    use splines
-    class(TThermalNuBackground) :: this
-    !  Initialize interpolation tables for massive neutrino background.
-    integer i
-    real(dl) am, rhonu,pnu, drhonu_dam, dpnu_dam
-    real(dl) spline_data(nrhopn)
-
-    if (allocated(this%r1)) return
-    ThermalNuBack => ThermalNuBackground !ifort bug workaround
-
-    allocate(this%r1(nrhopn),this%p1(nrhopn),this%dr1(nrhopn),this%dp1(nrhopn))
-    this%dam=(am_max-am_min)/(nrhopn-1)
-
-    if (use_legacy_nu_background_grid) then
-        !$OMP PARALLEL DO DEFAULT(SHARED), SCHEDULE(STATIC), &
-        !$OMP& PRIVATE(am,rhonu,pnu)
-        do i=1,nrhopn
-            am=am_min + (i-1)*this%dam
-            call nuRhoPres(am,rhonu,pnu)
-            this%r1(i)=rhonu
-            this%p1(i)=pnu
-        end do
-        !$OMP END PARALLEL DO
-
-        call splini(spline_data,nrhopn)
-        call splder(this%r1,this%dr1,nrhopn,spline_data)
-        call splder(this%p1,this%dp1,nrhopn,spline_data)
-    else
-        !$OMP PARALLEL DO DEFAULT(SHARED), SCHEDULE(STATIC), &
-        !$OMP& PRIVATE(am,rhonu,pnu,drhonu_dam,dpnu_dam)
-        do i=1,nrhopn
-            am=am_min + (i-1)*this%dam
-            call nuRhoPres_8point(am,rhonu,pnu)
-            call nuRhoPres_8point_derivs(am,drhonu_dam,dpnu_dam)
-            this%r1(i)=rhonu
-            this%p1(i)=pnu
-            this%dr1(i)=drhonu_dam*this%dam
-            this%dp1(i)=dpnu_dam*this%dam
-        end do
-        !$OMP END PARALLEL DO
-    end if
-
-    end subroutine ThermalNuBackground_init
-
-    subroutine nuRhoPres(am,rhonu,pnu)
-    !  Compute the density and pressure of one eigenstate of massive neutrinos,
-    !  in units of the mean density of one flavor of massless neutrinos.
-    use splines
-    real(dl),  parameter :: qmax=30._dl
-    integer, parameter :: nq=100
-    real(dl) dum1(nq+1),dum2(nq+1)
-    real(dl), intent(in) :: am
-    real(dl), intent(out) ::  rhonu,pnu
-    integer i
-    real(dl) q,aq,v,aqdn,adq
-
-    !  q is the comoving momentum in units of k_B*T_nu0/c.
-    !  Integrate up to qmax and then use asymptotic expansion for remainder.
-    adq=qmax/nq
-    dum1(1)=0._dl
-    dum2(1)=0._dl
-    do  i=1,nq
-        q=i*adq
-        aq=am/q
-        v=1._dl/sqrt(1._dl+aq*aq)
-        aqdn=adq*q*q*q/(exp(q)+1._dl)
-        dum1(i+1)=aqdn/v
-        dum2(i+1)=aqdn*v
-    end do
-    call splint(dum1,rhonu,nq+1)
-    call splint(dum2,pnu,nq+1)
-    !  Apply asymptotic corrrection for q>qmax and normalize by relativistic
-    !  energy density.
-    rhonu=(rhonu+dum1(nq+1)/adq)/fermi_dirac_const
-    pnu=(pnu+dum2(nq+1)/adq)/fermi_dirac_const/3._dl
-
-    end subroutine nuRhoPres
-
-    subroutine nuRhoPres_8point(am,rhonu,pnu)
-    !  Optimized 8-point shared-node quadrature for ThermalNuBackground table generation.
+    pure subroutine ThermalNuBackground_rho_P(this,am,rhonu,pnu)
+    class(TThermalNuBackground), intent(in) :: this
     real(dl), intent(in) :: am
     real(dl), intent(out) :: rhonu, pnu
-    real(dl) inv_v, v
-    integer i
-
-    rhonu = 0._dl
-    pnu = 0._dl
-    do i=1,size(nu_background_q)
-        inv_v = sqrt(1._dl + (am/nu_background_q(i))**2)
-        v = 1._dl/inv_v
-        rhonu = rhonu + nu_background_rho_weights(i)*inv_v
-        pnu = pnu + nu_background_pressure_weights(i)*v
-    end do
-
-    end subroutine nuRhoPres_8point
-
-    subroutine nuRhoPres_8point_derivs(am,drhonu_dam,dpnu_dam)
-    !  Exact a*m derivatives of the optimized 8-point background quadrature.
-    real(dl), intent(in) :: am
-    real(dl), intent(out) :: drhonu_dam, dpnu_dam
-    real(dl) :: inv_v, v, q2
-    integer i
-
-    drhonu_dam = 0._dl
-    dpnu_dam = 0._dl
-    do i=1,size(nu_background_q)
-        q2 = nu_background_q(i)**2
-        inv_v = sqrt(1._dl + (am/nu_background_q(i))**2)
-        v = 1._dl/inv_v
-        drhonu_dam = drhonu_dam + nu_background_rho_weights(i)*am*v/q2
-        dpnu_dam = dpnu_dam - nu_background_pressure_weights(i)*am*v**3/q2
-    end do
-
-    end subroutine nuRhoPres_8point_derivs
-
-    subroutine ThermalNuBackground_rho_P(this,am,rhonu,pnu)
-    class(TThermalNuBackground) :: this
-    real(dl), intent(in) :: am
-    real(dl), intent(out) :: rhonu, pnu
-    real(dl) d, logam, am2
-    integer i
+    real(dl) logam, am2, z, rfit, pfit
     !  Compute massive neutrino density and pressure in units of the mean
-    !  density of one eigenstate of massless neutrinos.  Use cubic splines to
-    !  interpolate from a table. Accuracy generally better than 1e-5.
+    !  density of one eigenstate of massless neutrinos. Use series solutions or
+    !  direct smooth fits.
 
-    if (am <= am_minp) then
+    if (am <= am_min) then
         if (am< 0.01_dl) then
             rhonu=1._dl + const2*am**2
             pnu=(2-rhonu)/3._dl
@@ -262,37 +161,38 @@
             pnu = (1+am2*(-const2+am2*(-.3299780009d-1*logam-.5219952794d-3+.2346510229d-1*am)))/3
         end if
         return
-    else if (am >= am_maxp) then
+    else if (am >= am_max) then
         !Simple series solution (expanded in 1/(a*m))
         rhonu = 3/(2*fermi_dirac_const)*(zeta3*am + ((15*zeta5)/2 - 945._dl/16*zeta7/am**2)/am)
         pnu = 900._dl/120._dl/fermi_dirac_const*(zeta5-63._dl/4*Zeta7/am**2)/am
         return
     end if
 
-    d=(am-am_min)/this%dam+1._dl
-    i=int(d)
-    d=d-i
+    z = ((am - nu_fit_c)/(am + nu_fit_c))*nu_fit_inv_zmax
 
-    !  Cubic spline interpolation.
-    rhonu=this%r1(i)+d*(this%dr1(i)+d*(3._dl*(this%r1(i+1)-this%r1(i))-2._dl*this%dr1(i) &
-        -this%dr1(i+1)+d*(this%dr1(i)+this%dr1(i+1)+2._dl*(this%r1(i)-this%r1(i+1)))))
-    pnu=this%p1(i)+d*(this%dp1(i)+d*(3._dl*(this%p1(i+1)-this%p1(i))-2._dl*this%dp1(i) &
-        -this%dp1(i+1)+d*(this%dp1(i)+this%dp1(i+1)+2._dl*(this%p1(i)-this%p1(i+1)))))
+    rfit = (((((nu_fit_rho_c(5)*z + nu_fit_rho_c(4))*z + nu_fit_rho_c(3))*z &
+        + nu_fit_rho_c(2))*z + nu_fit_rho_c(1))*z + nu_fit_rho_c(0))
+
+    pfit = ((((((nu_fit_p_c(6)*z + nu_fit_p_c(5))*z + nu_fit_p_c(4))*z &
+        + nu_fit_p_c(3))*z + nu_fit_p_c(2))*z + nu_fit_p_c(1))*z &
+        + nu_fit_p_c(0))
+
+    rhonu = (1._dl + nu_fit_rho_scale*am)*rfit
+    pnu = pfit/(1._dl + nu_fit_p_denom_scale*am)
 
     end subroutine ThermalNuBackground_rho_P
 
-    subroutine ThermalNuBackground_rho(this,am,rhonu)
-    class(TThermalNuBackground) :: this
+    pure subroutine ThermalNuBackground_rho(this,am,rhonu)
+    class(TThermalNuBackground), intent(in) :: this
     real(dl), intent(in) :: am
     real(dl), intent(out) :: rhonu
-    real(dl) d, am2
-    integer i
+    real(dl) am2, z, rfit
 
     !  Compute massive neutrino density in units of the mean
-    !  density of one eigenstate of massless neutrinos.  Use series solutions or
-    !  cubic splines to interpolate from a table.
+    !  density of one eigenstate of massless neutrinos. Use series solutions or
+    !  direct smooth fits.
 
-    if (am <= am_minp) then
+    if (am <= am_min) then
         if (am < 0.01_dl) then
             rhonu=1._dl + const2*am**2
         else
@@ -300,24 +200,24 @@
             rhonu = 1+am2*(const2+am2*(.1099926669d-1*log(am)-.3492416767d-2-.5866275571d-2*am))
         end if
         return
-    else if (am >= am_maxp) then
+    else if (am >= am_max) then
         rhonu = 3/(2*fermi_dirac_const)*(zeta3*am + ((15*zeta5)/2 - 945._dl/16*zeta7/am**2)/am)
         return
     end if
 
-    d=(am-am_min)/this%dam+1._dl
-    i=int(d)
-    d=d-i
+    z = ((am - nu_fit_c)/(am + nu_fit_c))*nu_fit_inv_zmax
 
-    !  Cubic spline interpolation.
-    rhonu=this%r1(i)+d*(this%dr1(i)+d*(3._dl*(this%r1(i+1)-this%r1(i))-2._dl*this%dr1(i) &
-        -this%dr1(i+1)+d*(this%dr1(i)+this%dr1(i+1)+2._dl*(this%r1(i)-this%r1(i+1)))))
+    rfit = (((((nu_fit_rho_c(5)*z + nu_fit_rho_c(4))*z + nu_fit_rho_c(3))*z &
+        + nu_fit_rho_c(2))*z + nu_fit_rho_c(1))*z + nu_fit_rho_c(0))
+
+    rhonu = (1._dl + nu_fit_rho_scale*am)*rfit
 
     end subroutine ThermalNuBackground_rho
 
-    function rho_err(this, nu_mass)
-    class(TThermalNuBackground) :: this
-    real(dl) rho_err, nu_mass, rhonu
+    pure function rho_err(this, nu_mass)
+    class(TThermalNuBackground), intent(in) :: this
+    real(dl), intent(in) :: nu_mass
+    real(dl) rho_err, rhonu
 
     call this%rho(nu_mass, rhonu)
     rho_err = rhonu - this%target_rho
@@ -367,24 +267,28 @@
     end function ThermalNuBackground_find_nu_mass_for_rho
 
 
-    function ThermalNuBackground_drho(this,am,adotoa) result (rhonudot)
+    pure function ThermalNuBackground_drho(this,am,adotoa) result (rhonudot)
     !  Compute the time derivative of the mean density in massive neutrinos
-    class(TThermalNuBackground) :: this
-    real(dl) adotoa,rhonudot
-    real(dl) am2, rhonu, pnu
+    class(TThermalNuBackground), intent(in) :: this
+    real(dl), intent(in) :: adotoa
+    real(dl) rhonudot
+    real(dl) am2, z, Dfit
     real(dl), intent(IN) :: am
 
-    if (am< am_minp) then
+    if (am <= am_min) then
         !rhonudot = 2*const2*am**2*adotoa
         am2 = am**2
         rhonudot = am2 * (2 * const2 + am2 * (.4399706676d-1 * log(am) &
             - .2970400378d-2 - .29331377855d-1 * am)) * adotoa
-    else if (am>am_maxp) then
+    else if (am >= am_max) then
         rhonudot = 3/(2*fermi_dirac_const)*(zeta3*am +( -(15*zeta5)/2 + 2835._dl/16*zeta7/am**2)/am)*adotoa
     else
-        call this%rho_P(am,rhonu,pnu)
-        ! am * (d rho_nu / d am) analytically simplifies exactly to (rho_nu - 3 P_nu)
-        rhonudot = (rhonu - 3._dl*pnu)*adotoa
+        z = ((am - nu_fit_c)/(am + nu_fit_c))*nu_fit_inv_zmax
+
+        Dfit = (((((nu_fit_D_c(5)*z + nu_fit_D_c(4))*z + nu_fit_D_c(3))*z &
+            + nu_fit_D_c(2))*z + nu_fit_D_c(1))*z + nu_fit_D_c(0))
+
+        rhonudot = am**2/(1._dl + 2._dl*am)*Dfit*adotoa
     end if
 
     end function ThermalNuBackground_drho

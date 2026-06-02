@@ -332,7 +332,9 @@
     logical, optional :: call_again, background_only
     logical WantReion, calling_again
     integer nu_i,actual_massless
-    real(dl) nu_massless_degeneracy, neff_i, eta_k, h2
+    real(dl) nu_massless_degeneracy, neff_i, eta_k, h2, nu_perturb_accuracy, max_nu_mass
+    real(dl), parameter :: massive_nu_transfer_q_boost_mass = 600._dl
+    real(dl), parameter :: massive_nu_transfer_q_5point_mass = 4300._dl
     real(dl) zpeak, sigma_z, zpeakstart, zpeakend
     Type(TRedWin), pointer :: Win
     logical back_only
@@ -487,9 +489,6 @@
         this%z_eq = (this%grhob+this%grhoc)/(this%grhog+this%grhornomass+sum(this%grhormass(1:this%CP%Nu_mass_eigenstates))) -1
 
         if (this%CP%omnuh2/=0) then
-            !Initialize things for massive neutrinos
-            call ThermalNuBackground%Init()
-            call this%NuPerturbations%Init(P%Accuracy%AccuracyBoost*P%Accuracy%neutrino_q_boost)
             !  nu_masses=m_nu(i)*c**2/(k_B*T_nu0)
             do nu_i=1, this%CP%Nu_mass_eigenstates
                 this%nu_masses(nu_i)= ThermalNuBackground%find_nu_mass_for_rho(this%CP%omnuh2/h2*this%CP%Nu_mass_fractions(nu_i)&
@@ -502,6 +501,18 @@
             end if
             !Just prevent divide by zero
             this%nu_masses(1:this%CP%Nu_mass_eigenstates) = max(this%nu_masses(1:this%CP%Nu_mass_eigenstates),1e-3_dl)
+            nu_perturb_accuracy = P%Accuracy%AccuracyBoost*P%Accuracy%neutrino_q_boost
+            if (AccuracyTarget > 0) then
+                ! Use 4 q points once massive neutrinos are nonrelativistic through the transfer range.
+                ! The heaviest transfer cases need the 5-point rule.
+                max_nu_mass = maxval(this%nu_masses(1:this%CP%Nu_mass_eigenstates))
+                if (max_nu_mass > massive_nu_transfer_q_5point_mass) then
+                    nu_perturb_accuracy = max(nu_perturb_accuracy, 2.001_dl)
+                else if (max_nu_mass > massive_nu_transfer_q_boost_mass) then
+                    nu_perturb_accuracy = max(nu_perturb_accuracy, 1.001_dl)
+                end if
+            end if
+            call this%NuPerturbations%Init(nu_perturb_accuracy)
         else
             this%nu_masses = 0
         end if
@@ -1245,7 +1256,7 @@
     if (this%CP%Num_Nu_massive /= 0) then
         !Get massive neutrino density relative to massless
         do nu_i = 1, this%CP%nu_mass_eigenstates
-            call ThermalNuBack%rho(a * this%nu_masses(nu_i), rhonu)
+            call ThermalNuBackground%rho(a * this%nu_masses(nu_i), rhonu)
             grhoa2 = grhoa2 + rhonu * this%grhormass(nu_i)
         end do
     end if
