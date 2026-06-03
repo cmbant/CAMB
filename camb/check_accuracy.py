@@ -88,6 +88,21 @@ MPK_TOLERANCE_RANGES = [
     (5e-3, 2.0, MPK_TOLERANCE),
     (2.0, None, 3e-3),
 ]
+LOW_PRECISION_MPK_TOLERANCE_RANGES = [
+    (None, 1.0, 3e-3),
+    (1.0, None, 5e-3),
+]
+NONLINEAR_MPK_TOLERANCE_RANGES = [
+    (None, 1.0, 3e-3),
+    (1.0, 10.0, 5e-3),
+    (10.0, None, 2e-2),
+]
+HIGH_PRECISION_NONLINEAR_MPK_TOLERANCE_RANGES = [
+    (None, 5e-3, 3e-3),
+    (5e-3, 2.0, MPK_TOLERANCE),
+    (2.0, 10.0, 3e-3),
+    (10.0, None, 1e-2),
+]
 DERIVED_TOLERANCE = 1e-3
 
 CL_COLUMNS = {"TT": 0, "EE": 1, "BB": 2, "TE": 3}
@@ -528,6 +543,14 @@ def current_uses_nonlinear_lensing(params) -> bool:
     return str(params.NonLinear) in {"NonLinear_lens", "NonLinear_both"}
 
 
+def default_mpk_tolerance(params) -> float | MatterPowerToleranceSpec:
+    high_precision = bool(params.Transfer.high_precision)
+    nonlinear = str(params.NonLinear) in {"NonLinear_pk", "NonLinear_both"}
+    if nonlinear:
+        return HIGH_PRECISION_NONLINEAR_MPK_TOLERANCE_RANGES if high_precision else NONLINEAR_MPK_TOLERANCE_RANGES
+    return MPK_TOLERANCE_RANGES if high_precision else LOW_PRECISION_MPK_TOLERANCE_RANGES
+
+
 def load_params(
     ini_file: Path,
     *,
@@ -561,6 +584,7 @@ def run_params_case(
 ) -> RunOutput:
     import camb
 
+    requested_matter_kmax = params.Transfer.kmax / (params.H0 / 100.0) if params.WantTransfer else None
     cpu_start = time.process_time()
     wall_start = time.perf_counter()
     results = camb.get_results(params)
@@ -570,7 +594,7 @@ def run_params_case(
     derived = results.get_derived_params() if params.WantDerivedParameters else {}
     lensed_cls = get_lensed_cls(results, lmax)
     lens_potential_cls = get_lens_potential_cls(results, lmax)
-    matter_power = get_matter_power(results, mpk_kmin, mpk_npoints)
+    matter_power = get_matter_power(results, mpk_kmin, mpk_npoints, requested_kmax=requested_matter_kmax)
 
     return RunOutput(
         label=label,
@@ -640,11 +664,16 @@ def get_lens_potential_cls(results, lmax: int | None) -> np.ndarray | None:
     return results.get_lens_potential_cls(lmax)
 
 
-def get_matter_power(results, minkh: float, npoints: int) -> MatterPowerData | None:
+def get_matter_power(
+    results,
+    minkh: float,
+    npoints: int,
+    requested_kmax: float | None = None,
+) -> MatterPowerData | None:
     params = results.Params
     if not params.WantTransfer:
         return None
-    requested_kmax = params.Transfer.kmax / (params.H0 / 100.0)
+    requested_kmax = requested_kmax if requested_kmax is not None else params.Transfer.kmax / (params.H0 / 100.0)
     if requested_kmax <= minkh:
         return None
     nonlinear = str(params.NonLinear) in {"NonLinear_pk", "NonLinear_both"}
@@ -1005,7 +1034,7 @@ def compare_params_accuracy(
     fiducial CMB delta chi-squared estimate.
     """
     if mpk_tolerance is None:
-        mpk_tolerance = MPK_TOLERANCE_RANGES if params.Transfer.high_precision else 3e-3
+        mpk_tolerance = default_mpk_tolerance(params)
     reference_accuracy_settings = reference_accuracy_settings or DEFAULT_ACCURACY_SETTINGS
 
     standard_params = copy_params(params)
@@ -2249,7 +2278,7 @@ def main(argv: list[str] | None = None, *, prog: str | None = None) -> int:
 
     base_params = load_params(ini_file, no_validate=args.no_validate)
     if args.mpk_tolerance is None:
-        args.mpk_tolerance = MPK_TOLERANCE_RANGES if base_params.Transfer.high_precision else 3e-3
+        args.mpk_tolerance = default_mpk_tolerance(base_params)
     if base_params.DoLensing and base_params.WantCls and base_params.Want_CMB:
         if args.reference_lens_output_margin is not None:
             print(

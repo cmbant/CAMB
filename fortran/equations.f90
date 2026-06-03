@@ -946,7 +946,11 @@
                 EV%lmaxg=EV%lmaxg*8
                 EV%lmaxgpol=EV%lmaxgpol*4
             elseif (CP%Accuracy%AccurateReionization) then
-                EV%lmaxg=EV%lmaxg*4
+                if (AccuracyTarget > 0) then
+                    EV%lmaxg=EV%lmaxg*8
+                else
+                    EV%lmaxg=EV%lmaxg*4
+                end if
                 EV%lmaxgpol=EV%lmaxgpol*2
             end if
         end if
@@ -1158,16 +1162,55 @@
 
     end subroutine MassiveNuVarsOut
 
-    subroutine Nu_Integrate_L012(EV,y,a,nu_i,drhonu,fnu,dpnu,pinu)
-    type(EvolutionVars) EV
+    subroutine Nu_Integrate_L01(EV,y,a,nu_i,drhonu,fnu)
+    type(EvolutionVars), intent(in) :: EV
     !  Compute the perturbations of density and energy flux
     !  of one eigenstate of massive neutrinos, in units of the mean
     !  density of one eigenstate of massless neutrinos, by integrating over
     !  momentum.
     integer, intent(in) :: nu_i
     real(dl), intent(in) :: a, y(EV%nvar)
-    real(dl), intent(OUT) ::  drhonu,fnu
-    real(dl), optional, intent(OUT) :: dpnu,pinu
+    real(dl), intent(out) ::  drhonu, fnu
+    real(dl) tmp, am, aq, pert_scale, mass
+    integer iq, ind
+
+    !  q is the comoving momentum in units of k_B*T_nu0/c.
+
+    drhonu=0
+    fnu=0
+    mass = State%nu_masses(nu_i)
+    am=a*mass
+    ind=EV%nu_ix(nu_i)
+    associate(nu_q=>State%NuPerturbations%nu_q, nu_int_kernel=>State%NuPerturbations%nu_int_kernel)
+        do iq=1,EV%nq(nu_i)
+            aq=am/nu_q(iq)
+            drhonu=drhonu + nu_int_kernel(iq) * y(ind) * sqrt(1._dl+aq*aq)
+            fnu=fnu + nu_int_kernel(iq) * y(ind+1)
+            ind=ind + EV%lmaxnu_tau(nu_i)+1
+        end do
+        ind = EV%nu_pert_ix
+        do iq=EV%nq(nu_i)+1,State%NuPerturbations%nqmax
+            !Get the rest from perturbatively relativistic expansion
+            aq=am/nu_q(iq)
+            pert_scale=(mass/nu_q(iq))**2/2
+            tmp = nu_int_kernel(iq)*(y(EV%r_ix)  + pert_scale*y(ind))
+            drhonu=drhonu + tmp * sqrt(1._dl+aq*aq)
+            fnu=fnu+nu_int_kernel(iq)*(y(EV%r_ix+1)+ pert_scale*y(ind+1))
+        end do
+    end associate
+
+    end subroutine Nu_Integrate_L01
+
+    subroutine Nu_Integrate_L012(EV,y,a,nu_i,drhonu,fnu,dpnu,pinu)
+    type(EvolutionVars), intent(in) :: EV
+    !  Compute the perturbations of density and energy flux
+    !  of one eigenstate of massive neutrinos, in units of the mean
+    !  density of one eigenstate of massless neutrinos, by integrating over
+    !  momentum.
+    integer, intent(in) :: nu_i
+    real(dl), intent(in) :: a, y(EV%nvar)
+    real(dl), intent(out) ::  drhonu, fnu
+    real(dl), intent(out) :: dpnu,pinu
     real(dl) tmp, am, aq,v, pert_scale
     integer iq, ind
 
@@ -1175,10 +1218,8 @@
 
     drhonu=0
     fnu=0
-    if (present(dpnu)) then
-        dpnu=0
-        pinu=0
-    end if
+    dpnu=0
+    pinu=0
     am=a*State%nu_masses(nu_i)
     ind=EV%nu_ix(nu_i)
     associate(nu_q=>State%NuPerturbations%nu_q, nu_int_kernel=>State%NuPerturbations%nu_int_kernel)
@@ -1187,10 +1228,8 @@
             v=1._dl/sqrt(1._dl+aq*aq)
             drhonu=drhonu+ nu_int_kernel(iq)* y(ind)/v
             fnu=fnu+nu_int_kernel(iq)* y(ind+1)
-            if (present(dpnu)) then
-                dpnu=dpnu+  nu_int_kernel(iq)* y(ind)*v
-                pinu=pinu+ nu_int_kernel(iq)*y(ind+2)*v
-            end if
+            dpnu=dpnu+  nu_int_kernel(iq)* y(ind)*v
+            pinu=pinu+ nu_int_kernel(iq)*y(ind+2)*v
             ind=ind+EV%lmaxnu_tau(nu_i)+1
         end do
         ind = EV%nu_pert_ix
@@ -1202,15 +1241,11 @@
             tmp = nu_int_kernel(iq)*(y(EV%r_ix)  + pert_scale*y(ind))
             drhonu=drhonu+ tmp/v
             fnu=fnu+nu_int_kernel(iq)*(y(EV%r_ix+1)+ pert_scale*y(ind+1))
-            if (present(dpnu)) then
-                dpnu=dpnu+ tmp*v
-                pinu = pinu+ nu_int_kernel(iq)*(y(EV%r_ix+2)+ pert_scale*y(ind+2))*v
-            end if
+            dpnu=dpnu+ tmp*v
+            pinu = pinu+ nu_int_kernel(iq)*(y(EV%r_ix+2)+ pert_scale*y(ind+2))*v
         end do
     end associate
-    if (present(dpnu)) then
-        dpnu = dpnu/3
-    end if
+    dpnu = dpnu/3
 
     end subroutine Nu_Integrate_L012
 
@@ -1255,7 +1290,6 @@
 
     end subroutine Nu_pinudot
 
-    !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
     function Nu_pi(EV, y, a, nu_i) result(pinu)
     type(EvolutionVars) EV
     integer, intent(in) :: nu_i
@@ -1278,7 +1312,6 @@
 
     end function Nu_pi
 
-    !cccccccccccccccccccccccccccccccccccccccccccccc
     subroutine Nu_Intvsq(EV,y, a, nu_i, G11,G30)
     type(EvolutionVars) EV
     integer, intent(in) :: nu_i
@@ -1312,7 +1345,7 @@
 
     subroutine MassiveNuVars(EV,y,a,grho,gpres,dgrho,dgq, wnu_arr)
     implicit none
-    type(EvolutionVars) EV
+    type(EvolutionVars), intent(in) :: EV
     real(dl) :: y(EV%nvar), a, grho,gpres,dgrho,dgq
     real(dl), intent(out), optional :: wnu_arr(max_nu)
     !grho = a^2 kappa rho
@@ -1334,7 +1367,7 @@
             qnu=y(EV%nu_ix(nu_i)+2)
         else
             !Integrate over q
-            call Nu_Integrate_L012(EV, y, a, nu_i, clxnu,qnu)
+            call Nu_Integrate_L01(EV, y, a, nu_i, clxnu, qnu)
             !clxnu_here  = rhonu*clxnu, qnu_here = qnu*rhonu
             qnu=qnu/rhonu
             clxnu = clxnu/rhonu

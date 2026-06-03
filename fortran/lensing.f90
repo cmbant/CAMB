@@ -103,10 +103,8 @@
 
     method = effective_lensing_method(State%CP)
 
-    if (method == lensing_method_curv_corr) then
-        call CorrFuncFullSky(State)
-    elseif (method == lensing_method_curv_corr_direct) then
-        call CorrFuncFullSkyDirect(State)
+    if (method == lensing_method_curv_corr .or. method == lensing_method_curv_corr_direct) then
+        call LensClsWithDefaultSpectrum(State, method == lensing_method_curv_corr_direct)
     elseif (method == lensing_method_flat_corr) then
         call CorrFuncFlatSky(State)
     elseif (method == lensing_method_harmonic) then
@@ -116,37 +114,14 @@
     end if
     end subroutine lens_Cls
 
-    subroutine CorrFuncFullSky(State)
+    subroutine LensClsWithDefaultSpectrum(State, direct)
     class(CAMBdata) :: State
-    integer :: lmax_extrap,l
+    logical, intent(in) :: direct
     real(dl) CPP(0:State%CP%max_l)
 
-    lmax_extrap = State%CP%Max_l - (State%CP%lens_output_margin - lens_convolution_gap) + 750
-    lmax_extrap = min(lmax_extrap_highl,lmax_extrap)
-    do l= State%CP%min_l,State%CP%max_l
-        ! Cl_scalar(l,1,C_Phi) is l^4 C_phi_phi
-        CPP(l) = State%CLdata%Cl_scalar(l,C_Phi)*(l+1)**2/real(l,dl)**2/const_twopi
-    end do
-    call CorrFuncFullSkyImpl(State, State%ClData, State%ClData, CPP, &
-        State%CP%min_l,max(lmax_extrap,State%CP%max_l))
-
-    end subroutine CorrFuncFullSky
-
-    subroutine CorrFuncFullSkyDirect(State)
-    class(CAMBdata) :: State
-    integer :: lmax_extrap,l
-    real(dl) CPP(0:State%CP%max_l)
-
-    lmax_extrap = State%CP%Max_l - (State%CP%lens_output_margin - lens_convolution_gap) + 750
-    lmax_extrap = min(lmax_extrap_highl,lmax_extrap)
-    do l= State%CP%min_l,State%CP%max_l
-        ! Cl_scalar(l,1,C_Phi) is l^4 C_phi_phi
-        CPP(l) = State%CLdata%Cl_scalar(l,C_Phi)*(l+1)**2/real(l,dl)**2/const_twopi
-    end do
-    call CorrFuncFullSkyDirectImpl(State, State%ClData, State%ClData, CPP, &
-        State%CP%min_l,max(lmax_extrap,State%CP%max_l))
-
-    end subroutine CorrFuncFullSkyDirect
+    call SetLensingPotentialSpectrum(State, CPP)
+    call CorrFuncFullSkyWithSpectrum(State, State%ClData, CPP, direct)
+    end subroutine LensClsWithDefaultSpectrum
 
     subroutine lensClsWithSpectrum(State, CPP, lensedCls, lmax_lensed)
     !Get lensed CL using CPP as the lensing specturm
@@ -156,18 +131,10 @@
     real(dl) :: lensedCls(4, 0:State%CP%Max_l)
     integer :: lmax_lensed
     Type(TCLData) :: CLout
-    integer :: lmax_extrap, l, method
+    integer :: l, method
 
-    lmax_extrap = State%CP%Max_l - (State%CP%lens_output_margin - lens_convolution_gap) + 750
-    lmax_extrap = min(lmax_extrap_highl,lmax_extrap)
     method = effective_lensing_method(State%CP)
-    if (method == lensing_method_curv_corr_direct) then
-        call CorrFuncFullSkyDirectImpl(State, State%ClData, CLout, CPP, &
-            State%CP%min_l,max(lmax_extrap,State%CP%max_l))
-    else
-        call CorrFuncFullSkyImpl(State, State%ClData, CLout, CPP, &
-            State%CP%min_l,max(lmax_extrap,State%CP%max_l))
-    end if
+    call CorrFuncFullSkyWithSpectrum(State, CLout, CPP, method == lensing_method_curv_corr_direct)
     lmax_lensed = CLout%lmax_lensed
 
     do l=State%CP%min_l, lmax_lensed
@@ -175,6 +142,38 @@
     end do
 
     end subroutine lensClsWithSpectrum
+
+    integer function LensingExtrapLmax(State) result(lmax)
+    class(CAMBdata), intent(in) :: State
+
+    lmax = State%CP%Max_l - (State%CP%lens_output_margin - lens_convolution_gap) + 750
+    lmax = min(lmax_extrap_highl, lmax)
+    lmax = max(lmax, State%CP%Max_l)
+    end function LensingExtrapLmax
+
+    subroutine SetLensingPotentialSpectrum(State, CPP)
+    class(CAMBdata), intent(in) :: State
+    real(dl), intent(out) :: CPP(0:State%CP%max_l)
+    integer :: l
+
+    do l=State%CP%min_l, State%CP%max_l
+        ! Cl_scalar(l,1,C_Phi) is l^4 C_phi_phi.
+        CPP(l) = State%CLdata%Cl_scalar(l,C_Phi)*(l+1)**2/real(l,dl)**2/const_twopi
+    end do
+    end subroutine SetLensingPotentialSpectrum
+
+    subroutine CorrFuncFullSkyWithSpectrum(State, CLout, CPP, direct)
+    class(CAMBdata), target :: State
+    Type(TCLData) :: CLout
+    real(dl), intent(in) :: CPP(0:State%CP%max_l)
+    logical, intent(in) :: direct
+
+    if (direct) then
+        call CorrFuncFullSkyDirectImpl(State, State%ClData, CLout, CPP, State%CP%min_l, LensingExtrapLmax(State))
+    else
+        call CorrFuncFullSkyImpl(State, State%ClData, CLout, CPP, State%CP%min_l, LensingExtrapLmax(State))
+    end if
+    end subroutine CorrFuncFullSkyWithSpectrum
 
     subroutine AmplitudeError
 
@@ -229,8 +228,9 @@
     integer j,jmax
     real(dl) sc, taper
     integer apodize_point_width
-    logical :: short_integral_range
+    logical :: high_l_fast_lensing, short_integral_range
     real(dl) range_fac, apodize_width
+    real(dl), parameter :: high_l_fast_lensing_boost = 2.5_dl
     logical, parameter :: approx = .false.
     real(dl) theta_cut(lmax), LensAccuracyBoost, ThetaSampleBoost, LensRangeBoost, ClosedSupportBoost
     Type(TTimer) :: Timer
@@ -241,6 +241,7 @@
     if (lensing_includes_tensors) call MpiStop('Haven''t implemented tensor lensing')
     associate(lSamp => State%CLData%CTransScal%ls, CP=>State%CP)
 
+        high_l_fast_lensing = AccuracyTarget > 0 .and. CP%Max_l > 3500 .and. .not. CP%Accuracy%AccurateBB
         LensAccuracyBoost = CP%Accuracy%AccuracyBoost*CP%Accuracy%LensingBoost
         ClosedSupportBoost = 1._dl
         LensRangeBoost = LensAccuracyBoost
@@ -249,10 +250,15 @@
         if (AccuracyTarget > 0) then
             ThetaSampleBoost = ThetaSampleBoost * 1.6_dl
             if (CP%Max_l > 3500) ThetaSampleBoost = ThetaSampleBoost * (2.2_dl/1.6_dl)
-            if (CP%Max_l > 3500 .and. State%closed .and. .not. CP%Accuracy%AccurateBB) then
-                ClosedSupportBoost = min(2._dl, 1._dl + 32._dl*max(0._dl, 1._dl - State%scale))
-                LensRangeBoost = max(LensRangeBoost, ClosedSupportBoost)
-                ThetaSampleBoost = max(ThetaSampleBoost, 2.2_dl*ClosedSupportBoost)
+            if (high_l_fast_lensing) then
+                ! Keep the fast short-range convolution stable near the high-L lensed output cutoff.
+                LensRangeBoost = max(LensRangeBoost, high_l_fast_lensing_boost)
+                ThetaSampleBoost = max(ThetaSampleBoost, 2.2_dl*high_l_fast_lensing_boost)
+                if (State%closed) then
+                    ClosedSupportBoost = min(2._dl, 1._dl + 32._dl*max(0._dl, 1._dl - State%scale))
+                    LensRangeBoost = max(LensRangeBoost, ClosedSupportBoost)
+                    ThetaSampleBoost = max(ThetaSampleBoost, 2.2_dl*ClosedSupportBoost)
+                end if
             end if
             ! Open models have a larger angular-diameter distance than the flat case, so the
             ! truncated short-range correlation integral needs extra angular support and denser
