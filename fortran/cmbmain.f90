@@ -1339,7 +1339,8 @@
 
         if (State%closed) then
             call SetClosedkValuesFromArr(ThisCT%q,.true.)
-            call ThisCT%q%Getdpoints(half_ends = .false.)
+            ! half end at top for consistency with flat if tail not converged
+            call ThisCT%q%Getdpoints(half_ends = .true.)
             ThisCT%q%dpoints(1) = 1/State%curvature_radius
             deallocate(ThisCT%Delta_p_l_k) !Re-do this from Init_ClTransfer because number of points changed
             allocate(ThisCT%Delta_p_l_k(ThisCT%NumSources, &
