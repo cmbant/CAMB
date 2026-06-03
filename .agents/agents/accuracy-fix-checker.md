@@ -41,6 +41,9 @@ loop before finalizing, including:
 - broad boost, constant floor, or component-wide multiplier where the affected
   code exposes a narrower physical/numerical coordinate and the bundle lacks a
   locality audit explaining why that coordinate is not the best lever;
+- broad boost, constant floor, or component-wide multiplier with non-negligible
+  runtime cost where the bundle does not test smaller floors and coordinate-local
+  gates, or does not record the accuracy/timing reason they were rejected;
 - final scope justified only by "it passes" or by a broad accuracy parameter,
   with no comparison against a narrower physical lever when one is available;
 - trigger/gate is a proxy input or broad mode flag while a more direct computed
@@ -58,10 +61,19 @@ loop before finalizing, including:
 - hard floors where multiplicative scaling should be used;
 - missing precision gates (AccuracyTarget > 0, WantTransfer, or the relevant one);
 - non-monotone or discontinuous parameter scaling without justification;
+- hard gates, branch predicates, or thresholds over otherwise continuous
+  physical/numerical controls without boundary-side continuity evidence and a
+  justification for any discontinuity. This applies generally: curvature,
+  l/k/z/time limits, sample counts, precision switches, output-family flags,
+  and similar control parameters;
 - thresholds unsupported by sweeps on both sides;
 - inconsistent treatment of related quantities, e.g. hierarchy depth vs switch
   timing;
 - claims resting on an unconverged or mismatched reference;
+- final default validated only against a reference sharing the same boosted
+  controlling quantity. Require independent convergence evidence, such as a
+  still-higher value of that control, a different physically justified reference,
+  or a fixed-coordinate convergence sequence;
 - trigger_is_causal reported "inconclusive" but treated as causal in the fix;
 - timing claims that do not discard the first CAMB call;
 - acceptance-matrix evidence that tests were not run on a rebuild, or rows are
@@ -71,8 +83,8 @@ loop before finalizing, including:
 - new code partly duplicates existing nearby accuracy-related settings;
 - new code might interact in non-trivial ways with other parameter gates, and
   this is not tested.
-- if effective parameter boost size is comparable in size to the reference boost,
-  and no confirmation that the reference itself is converged wrt higher boosts.
+- effective parameter boost size comparable in size to the reference boost, with
+  no confirmation that the reference itself is converged wrt higher boosts.
 
 Use `[NOTE]` only for clear extensions, report caveats, or follow-up ideas that
 do not require code changes, new evidence, acceptance-matrix changes, or a

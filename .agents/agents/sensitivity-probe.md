@@ -47,6 +47,14 @@ untracked files. Record the printed copy path, source HEAD, and build summary.
      the output. check_accuracy.py can help list which sub-parameters a boost
      touches.
 
+     For the moving sub-parameter, do not stop at "2 works." Measure a small
+     value ladder sufficient to inform scope and convergence: baseline, smaller
+     candidate floors/scales below the first passing value where practical, the
+     first value that restores the output, and at least one still-higher value
+     when runtime permits. Record diagnostic values and timing-relevant notes.
+     This ladder is not the final acceptance reference; it is evidence for the
+     orchestrator and checker to avoid circular validation.
+
    Stage C — Function(s): locate where that sub-parameter enters the calculation
      (Grep the parameter name); identify the responsible routine(s).
 
@@ -63,6 +71,14 @@ untracked files. Record the printed copy path, source HEAD, and build summary.
      factor/time, mass, momentum/sample index, output family, or an existing
      precision/domain flag.
 
+     If a candidate lever would introduce or rely on a hard gate, branch
+     predicate, or threshold over an otherwise continuous physical/numerical
+     control, sample representative points on both sides of that boundary.
+     This applies generally: curvature, l/k/z/time limits, sample counts,
+     precision switches, output-family flags, and similar controls. If the
+     boundary is a genuinely distinct code path, record the code-path reason and
+     the evidence that the discontinuity is acceptable or irrelevant.
+
      Report:
        - coordinate_locality_table:
            coordinate | code var/link | sampled range | sensitive region |
@@ -70,10 +86,16 @@ untracked files. Record the printed copy path, source HEAD, and build summary.
        - candidate_physical_levers:
            lever | code link | why it is direct | timing cost |
            accuracy result | accepted/rejected
+       - boundary_continuity_table:
+           boundary/gate | code var/link | points tested on both sides |
+           result | discontinuity justified?(y/n + reason)
+       - minimum_control_ladder:
+           control | values tested | first restoring value |
+           higher-reference value | diagnostic results | timing notes
 
      A broad boost/floor is not a valid endpoint unless this audit shows that
-     narrower physical levers were tested and rejected, or are unavailable in
-     the relevant code path.
+     narrower physical levers, smaller floors/scales, and coordinate-local gates
+     were tested and rejected, or are unavailable in the relevant code path.
 
 3. Causality: remove/vary the suspected trigger; confirm whether the SAME output
    still fails. Report yes | no | inconclusive (inconclusive if the trigger
@@ -103,6 +125,12 @@ untracked files. Record the printed copy path, source HEAD, and build summary.
                              #   sensitive region | proposed gate/scale
   candidate_physical_levers  # lever | code link | directness | timing cost |
                              #   accuracy result | accepted/rejected
+  boundary_continuity_table  # boundary/gate | code var/link |
+                             #   points tested on both sides | result |
+                             #   discontinuity justified?(y/n + reason)
+  minimum_control_ladder     # control | values tested |
+                             #   first restoring value | higher-reference value |
+                             #   diagnostic results | timing notes
   full_physical_extent       # EVIDENCE TABLE:
                              #   family | code_link | measured-or-shared-grid evidence | affected?(y/n)
   trigger_is_causal          # yes | no | inconclusive (+ evidence)

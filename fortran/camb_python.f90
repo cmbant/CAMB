@@ -421,7 +421,7 @@
 
     cData%NumSources = CTrans%NumSources
     if (allocated(CTrans%q%points)) then
-        cData%q_size = size(CTrans%q%points)
+        cData%q_size = CTrans%q%npoints
         cData%q = c_loc(CTrans%q%points)
     else
         cData%q_size = 0

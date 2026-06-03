@@ -90,6 +90,9 @@ Hard locality gate:
 On breadth, balance scope against COST:
 - Prefer a local override to a global default WHEN the broad change carries real
   runtime cost.
+- If the final change has non-negligible runtime cost, test smaller floors and
+  coordinate-local gates before accepting the chosen value/scope. Record the
+  accuracy and timing reason they were rejected.
 - BUT if a slightly broader / more conservative change (e.g. a bit more accuracy
   than the minimum that passes) has NEGLIGIBLE numerical cost, prefer the safe
   conservative choice over a brittle just-barely-passing threshold.
@@ -105,12 +108,22 @@ never against a stale build. Record results; the checker cannot run them:
 - same physical output with the suspected trigger removed/varied;
 - adjacent path sharing the changed grid/switch/tolerance;
 - EVERY co-affected output family the probe flagged (under-scope check);
+- continuity/edge checks for every new or decisive hard gate, branch predicate,
+  or threshold in the final fix. For any gate over an otherwise continuous
+  physical or numerical control, test representative points on both sides of the
+  boundary, and record why any remaining discontinuity is physically/code-path
+  justified. Prefer physically continuous accuracy changes where sensible
+  (with k, q, time, momentum, etc.).
 - the default regression test covering the shared path;
 - cpu time before/after on a representative NON-failing run, DISCARDING the
   first CAMB call;
 - broad-vs-local comparison: if the final patch uses a broad boost/floor, show
   at least one narrower physical-lever attempt with accuracy and timing, or
   explain why no such lever exists in the affected code path;
+- reference independence: the final default must not be validated only against a
+  reference sharing the same boosted controlling quantity. Include an independent
+  convergence check, e.g. a still-higher value of the same control, a different
+  physically justified reference, or a fixed-coordinate convergence sequence;
 - like-for-like check: a passing BOOSTED comparison is not sufficient —
   interpolate to fixed physical coords before blessing index-based values.
 

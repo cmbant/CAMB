@@ -82,6 +82,8 @@ UNLENSED_TT_EE_TOLERANCES = [(0, 3e-3), (600, 1e-3), (3000, 3e-3), (3500, 5e-3),
 TENSOR_ONLY_TT_EE_TOLERANCES = [(0, 1e-1), (600, 3e-2), (2500, 1e-1)]
 BB_TOLERANCES = [(0, 5e-3), (1000, 1e-2), (6000, 2e-2), (8000, 1e-1)]
 LENSING_TOLERANCES = [(0, 9e-3), (5, 5e-3), (2000, 5e-3), (6000, 2e-2)]
+TENSOR_ONLY_RELATIVE_LMAX = 2000
+TENSOR_ONLY_TAIL_RATIO_TOLERANCE = 1e-2
 MPK_TOLERANCE = 1e-3
 MPK_TOLERANCE_RANGES = [
     (None, 5e-3, 3e-3),
@@ -320,7 +322,10 @@ def build_parser(prog: str | None = None) -> argparse.ArgumentParser:
     parser.add_argument(
         "--lmax",
         type=positive_int,
-        help="maximum L to compare; default is common calculated lmax",
+        help=(
+            "maximum L to compare; default is the requested lensed-CMB/lensing-potential lmax "
+            "(l_max_scalar-lens_output_margin) and common calculated lmax for other spectra"
+        ),
     )
     parser.add_argument(
         "--set-for-lmax",
@@ -654,6 +659,9 @@ def get_lensed_cls(results, lmax: int | None) -> np.ndarray | None:
     if bool(params.WantTensors) and not bool(params.WantScalars):
         tensor_lmax = int(params.max_l_tensor)
         lmax = tensor_lmax if lmax is None else min(lmax, tensor_lmax)
+    elif bool(params.DoLensing):
+        requested_lmax = max(0, int(params.max_l) - int(params.lens_output_margin))
+        lmax = requested_lmax if lmax is None else min(lmax, requested_lmax)
     return results.get_total_cls(lmax)
 
 
@@ -661,6 +669,9 @@ def get_lens_potential_cls(results, lmax: int | None) -> np.ndarray | None:
     params = results.Params
     if not (params.WantCls and params.Want_CMB_lensing):
         return None
+    if bool(params.DoLensing):
+        requested_lmax = max(0, int(params.max_l) - int(params.lens_output_margin))
+        lmax = requested_lmax if lmax is None else min(lmax, requested_lmax)
     return results.get_lens_potential_cls(lmax)
 
 
@@ -798,6 +809,9 @@ def compare_cls(standard: RunOutput, reference: RunOutput) -> list[StatRow]:
     standard_cls = standard.lensed_cls[: lmax + 1]
     reference_cls = reference.lensed_cls[: lmax + 1]
     ell = np.arange(lmax + 1)
+    if bool(standard.params.WantTensors) and not bool(standard.params.WantScalars):
+        return compare_tensor_only_cls(standard_cls, reference_cls, ell)
+
     rows = []
     tt_ee_tolerances = tolerance_ranges(tt_ee_tolerances_for_params(standard.params))
 
@@ -821,6 +835,76 @@ def compare_cls(standard: RunOutput, reference: RunOutput) -> list[StatRow]:
             min_ell=2,
         )
     )
+    return rows
+
+
+def compare_tensor_only_cls(standard_cls: np.ndarray, reference_cls: np.ndarray, ell: np.ndarray) -> list[StatRow]:
+    rows = []
+    relative_lmax = min(int(ell[-1]), TENSOR_ONLY_RELATIVE_LMAX)
+    relative_ranges = [
+        RangeTolerance(0, 600, 1e-1),
+        RangeTolerance(600, relative_lmax + 1, 3e-2),
+    ]
+    relative_ranges = [range_tolerance for range_tolerance in relative_ranges if range_tolerance.start <= relative_lmax]
+
+    for quantity in ("TT", "EE"):
+        errors = fractional_delta(
+            standard_cls[:, CL_COLUMNS[quantity]],
+            reference_cls[:, CL_COLUMNS[quantity]],
+        )
+        rows.extend(compare_l_ranges(quantity, errors, ell, relative_ranges, min_ell=2))
+
+    te_errors = normalized_te_delta(standard_cls, reference_cls)
+    rows.extend(compare_l_ranges("TE", te_errors, ell, relative_ranges, min_ell=2))
+
+    bb_errors = fractional_delta(standard_cls[:, CL_COLUMNS["BB"]], reference_cls[:, CL_COLUMNS["BB"]])
+    rows.extend(
+        compare_l_ranges(
+            "BB",
+            bb_errors,
+            ell,
+            [RangeTolerance(0, relative_lmax + 1, 2e-2)],
+            min_ell=2,
+        )
+    )
+
+    rows.extend(compare_tensor_only_tail(standard_cls, reference_cls, ell, relative_lmax))
+    return rows
+
+
+def compare_tensor_only_tail(
+    standard_cls: np.ndarray,
+    reference_cls: np.ndarray,
+    ell: np.ndarray,
+    relative_lmax: int,
+) -> list[StatRow]:
+    tail_mask = ell > relative_lmax
+    if not np.any(tail_mask):
+        return []
+
+    low_mask = (ell >= 2) & (ell <= relative_lmax)
+    rows = []
+    for quantity, column in CL_COLUMNS.items():
+        low_scale = max(
+            float(np.max(np.abs(standard_cls[low_mask, column]))),
+            float(np.max(np.abs(reference_cls[low_mask, column]))),
+        )
+        tail_values = np.maximum(np.abs(standard_cls[tail_mask, column]), np.abs(reference_cls[tail_mask, column]))
+        if low_scale == 0:
+            errors = tail_values
+            tolerance = 0.0
+        else:
+            errors = tail_values / low_scale
+            tolerance = TENSOR_ONLY_TAIL_RATIO_TOLERANCE
+        rows.append(
+            finite_stats(
+                f"{quantity} tensor tail",
+                f"L > {relative_lmax}",
+                errors,
+                tolerance,
+                locations=ell[tail_mask],
+            )
+        )
     return rows
 
 
