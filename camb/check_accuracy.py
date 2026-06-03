@@ -671,10 +671,11 @@ def get_matter_power(results, minkh: float, npoints: int) -> MatterPowerData | N
         return_z_k=True,
         silent=True,
     )
+    kmin = max(minkh, pk_interpolator.kmin)
     kmax = min(requested_kmax, pk_interpolator.kmax)
-    if kmax <= minkh:
+    if kmax <= kmin:
         return None
-    k = np.exp(np.linspace(np.log(minkh), np.log(kmax), npoints))
+    k = np.exp(np.linspace(np.log(kmin), np.log(kmax), npoints))
     pk = pk_interpolator.P(z, k)
     return MatterPowerData(k=k, z=z, pk=pk, requested_kmax=kmax, npoints=npoints)
 

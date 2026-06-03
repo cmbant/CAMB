@@ -71,6 +71,8 @@ loop before finalizing, including:
 - new code partly duplicates existing nearby accuracy-related settings;
 - new code might interact in non-trivial ways with other parameter gates, and
   this is not tested.
+- if effective parameter boost size is comparable in size to the reference boost,
+  and no confirmation that the reference itself is converged wrt higher boosts.
 
 Use `[NOTE]` only for clear extensions, report caveats, or follow-up ideas that
 do not require code changes, new evidence, acceptance-matrix changes, or a
