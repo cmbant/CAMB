@@ -6,12 +6,96 @@ import numpy as np
 
 try:
     import camb
+    from camb import check_accuracy
 except ImportError:
     sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
     import camb
+    from camb import check_accuracy
+
+
+def _accuracy_failure_message(comparison):
+    rows = check_accuracy.comparison_rows(comparison)
+    failures = [row for row in rows if not row.passed]
+    if not failures:
+        return "accuracy comparison passed"
+    return "\n".join(
+        f"{row.quantity} {row.range_label}: max={row.max_abs:.4g}, tolerance={row.tolerance:.4g}, L={row.location}"
+        for row in failures
+    )
+
+
+def _standard_model(omk=0, lmax=None, lens_potential_accuracy=None, matter_power=False):
+    params = camb.set_params(
+        H0=67.5,
+        ombh2=0.022,
+        omch2=0.122,
+        omk=omk,
+        mnu=0.06,
+        tau=0.054,
+        As=2.1e-9,
+        ns=0.965,
+    )
+    params.set_dark_energy(w=-0.95, wa=0.15, dark_energy_model="ppf")
+    if matter_power:
+        params.set_matter_power(redshifts=[0.0, 0.5, 1.0], kmax=2.0, silent=True)
+    if lmax is not None:
+        lens_accuracy = 0 if lens_potential_accuracy is None else lens_potential_accuracy
+        params.set_for_lmax(lmax, lens_potential_accuracy=lens_accuracy)
+    return params
 
 
 class CambSlowTest(unittest.TestCase):
+    def test_high_l_lensing_accuracy_and_near_flat_continuity(self):
+        lmax = 4000
+        lens_potential_accuracy = 8
+
+        accuracy_result = check_accuracy.compare_params_accuracy(
+            _standard_model(matter_power=True),
+            lmax=lmax,
+            set_for_lmax=lmax,
+            lens_potential_accuracy=lens_potential_accuracy,
+        )
+        self.assertTrue(
+            accuracy_result.comparison.passed,
+            _accuracy_failure_message(accuracy_result.comparison),
+        )
+
+        flat_cls = camb.get_results(
+            _standard_model(lmax=lmax, lens_potential_accuracy=lens_potential_accuracy)
+        ).get_total_cls(
+            lmax,
+        )
+        ell = np.arange(lmax + 1)
+        min_ell = 2
+        spectra_slice = slice(min_ell, lmax + 1)
+        high_tt_slice = slice(20, lmax + 1)
+
+        for omk in (-1e-6, 1e-6):
+            near_flat_cls = camb.get_results(
+                _standard_model(omk=omk, lmax=lmax, lens_potential_accuracy=lens_potential_accuracy)
+            ).get_total_cls(lmax)
+
+            with np.errstate(divide="ignore", invalid="ignore"):
+                low_tt_delta = (near_flat_cls[min_ell:20, 0] - flat_cls[min_ell:20, 0]) / flat_cls[min_ell:20, 0]
+            self.assertLess(np.max(np.abs(low_tt_delta)), 1.1e-3)
+            np.testing.assert_allclose(
+                near_flat_cls[high_tt_slice, 0],
+                flat_cls[high_tt_slice, 0],
+                rtol=1e-3,
+            )
+            np.testing.assert_allclose(
+                near_flat_cls[spectra_slice, 1],
+                flat_cls[spectra_slice, 1],
+                rtol=1e-3,
+            )
+            np.testing.assert_allclose(
+                near_flat_cls[spectra_slice, 2],
+                flat_cls[spectra_slice, 2],
+                rtol=1e-3,
+            )
+            te_delta = check_accuracy.normalized_te_delta(near_flat_cls, flat_cls)
+            self.assertLess(np.max(np.abs(te_delta[ell >= min_ell])), 1e-3)
+
     def testSymbolic(self):
         import camb.symbolic as s
 

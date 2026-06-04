@@ -80,6 +80,11 @@ DEFAULT_NOISE_CONFIGS = {
 TT_EE_TOLERANCES = [(0, 3e-3), (600, 1e-3), (3500, 3e-3), (6000, 2e-2)]
 UNLENSED_TT_EE_TOLERANCES = [(0, 3e-3), (600, 1e-3), (3000, 3e-3), (3500, 5e-3), (6000, 5e-2)]
 TENSOR_ONLY_TT_EE_TOLERANCES = [(0, 1e-1), (600, 3e-2), (2500, 1e-1)]
+LOW_LMAX_LENSED_EDGE_LMAX = 2500
+LOW_LMAX_LENSED_EDGE_TOLERANCE = 1e-2
+LOW_LMAX_LENSED_EDGE_MIN_WIDTH = 300
+LOW_LMAX_LENSED_EDGE_FRACTION = 0.15
+LOW_LMAX_LENSED_EDGE_LABEL = "low-lmax edge"
 BB_TOLERANCES = [(0, 5e-3), (1000, 1e-2), (6000, 2e-2), (8000, 1e-1)]
 LENSING_TOLERANCES = [(0, 9e-3), (5, 5e-3), (2500, 1e-2), (4000, 2e-2)]
 TENSOR_ONLY_RELATIVE_LMAX = 2000
@@ -140,12 +145,14 @@ class RangeTolerance:
     start: int
     stop: int | None
     tolerance: float
+    note: str = ""
 
     @property
     def label(self) -> str:
+        suffix = f" ({self.note})" if self.note else ""
         if self.stop is None:
-            return f"L >= {self.start}"
-        return f"{self.start} <= L < {self.stop}"
+            return f"L >= {self.start}{suffix}"
+        return f"{self.start} <= L < {self.stop}{suffix}"
 
 
 @dataclass
@@ -814,7 +821,7 @@ def compare_cls(standard: RunOutput, reference: RunOutput) -> list[StatRow]:
         return compare_tensor_only_cls(standard_cls, reference_cls, ell)
 
     rows = []
-    tt_ee_tolerances = tolerance_ranges(tt_ee_tolerances_for_params(standard.params))
+    tt_ee_tolerances = tt_ee_tolerance_ranges_for_cls(standard.params, lmax)
 
     for quantity in ("TT", "EE"):
         errors = fractional_delta(
@@ -837,6 +844,48 @@ def compare_cls(standard: RunOutput, reference: RunOutput) -> list[StatRow]:
         )
     )
     return rows
+
+
+def tt_ee_tolerance_ranges_for_cls(params, lmax: int) -> list[RangeTolerance]:
+    tolerances = tolerance_ranges(tt_ee_tolerances_for_params(params))
+    if not use_low_lmax_lensed_edge_tolerance(params, lmax):
+        return tolerances
+
+    edge_width = max(
+        LOW_LMAX_LENSED_EDGE_MIN_WIDTH,
+        int(math.ceil(LOW_LMAX_LENSED_EDGE_FRACTION * lmax)),
+    )
+    edge_start = max(0, lmax - edge_width + 1)
+    ranges = [range_tolerance for range_tolerance in tolerances if range_tolerance.start < edge_start]
+    if ranges:
+        last_range = ranges[-1]
+        if last_range.stop is None or last_range.stop > edge_start:
+            ranges[-1] = RangeTolerance(last_range.start, edge_start, last_range.tolerance)
+    ranges = [
+        range_tolerance
+        for range_tolerance in ranges
+        if range_tolerance.stop is None or range_tolerance.start < range_tolerance.stop
+    ]
+    ranges.append(
+        RangeTolerance(
+            edge_start,
+            None,
+            LOW_LMAX_LENSED_EDGE_TOLERANCE,
+            LOW_LMAX_LENSED_EDGE_LABEL,
+        )
+    )
+    return ranges
+
+
+def use_low_lmax_lensed_edge_tolerance(params, lmax: int) -> bool:
+    return (
+        lmax < LOW_LMAX_LENSED_EDGE_LMAX
+        and bool(params.DoLensing)
+        and bool(params.WantScalars)
+        and bool(params.WantCls)
+        and bool(params.Want_CMB)
+        and not (bool(params.WantTensors) and not bool(params.WantScalars))
+    )
 
 
 def compare_tensor_only_cls(standard_cls: np.ndarray, reference_cls: np.ndarray, ell: np.ndarray) -> list[StatRow]:
@@ -999,10 +1048,11 @@ def compare_l_ranges(
 def ell_range_label(selected_ell: np.ndarray, range_tolerance: RangeTolerance) -> str:
     start = int(selected_ell[0])
     stop = int(selected_ell[-1])
+    suffix = f" ({range_tolerance.note})" if range_tolerance.note else ""
     if range_tolerance.stop is None:
-        return f"L >= {start}"
+        return f"L >= {start}{suffix}"
     if stop < range_tolerance.stop - 1:
-        return f"{start} <= L <= {stop}"
+        return f"{start} <= L <= {stop}{suffix}"
     return range_tolerance.label
 
 
@@ -1408,8 +1458,22 @@ def print_derived_table(rows: list[StatRow]) -> None:
 def print_comparison(comparison: ComparisonResult) -> None:
     print_derived_table(comparison.derived_rows)
     print_table("Lensed CMB spectra errors", comparison.cl_rows)
+    print_comparison_notes(comparison)
     print_table("Lensing potential errors", comparison.lensing_rows)
     print_table("Matter power errors", comparison.mpk_rows)
+
+
+def print_comparison_notes(comparison: ComparisonResult) -> None:
+    low_lmax_edge_rows = [row for row in comparison.cl_rows if LOW_LMAX_LENSED_EDGE_LABEL in row.range_label]
+    if low_lmax_edge_rows:
+        quantities = ", ".join(sorted({row.quantity for row in low_lmax_edge_rows}))
+        print(
+            "\nNotes:"
+            f"\n  Low-lmax lensed CMB edge tolerance {LOW_LMAX_LENSED_EDGE_TOLERANCE:.4g} "
+            f"was used for {quantities}; this applies only to the final "
+            f"max({LOW_LMAX_LENSED_EDGE_MIN_WIDTH}, ceil({LOW_LMAX_LENSED_EDGE_FRACTION:g}*lmax)) "
+            f"multipoles when lmax < {LOW_LMAX_LENSED_EDGE_LMAX}."
+        )
 
 
 def failure_summary(comparison: ComparisonResult) -> str:

@@ -119,9 +119,9 @@ never against a stale build. Record results; the checker cannot run them:
 - the default regression test covering the shared path;
 - cpu time before/after on a representative NON-failing run, DISCARDING the
   first CAMB call;
-- broad-vs-local comparison: if the final patch uses a broad boost/floor, show
-  at least one narrower physical-lever attempt with accuracy and timing, or
-  explain why no such lever exists in the affected code path;
+- broad-vs-local comparison: if the final patch uses a broad boost/floor,
+  include the Step 4 narrower-lever evidence (accuracy + timing), or note why no
+  such lever exists in the affected code path;
 - reference independence: the final default must not be validated only against a
   reference sharing the same boosted controlling quantity. Include an independent
   convergence check, e.g. a still-higher value of the same control, a different
@@ -196,17 +196,12 @@ between issues.
 
 ## Hard rules
 
-1. One physical issue at a time; one diff + one changelog entry per issue.
-2. No proxy boost in the final patch if a specific k/z/l/output fix exists.
-   Broad boosts/floors must pass the locality audit first.
-3. Reproduce A/B only in a helper-created clean /tmp copy of the CODE (not
+Cross-cutting invariants not fully covered by a single step above (the breadth /
+locality / scope doctrine lives in Step 4; do not restate it here):
+
+1. Reproduce A/B only in a helper-created clean /tmp copy of the CODE (not
    output/plot/data directories); never disturb user edits.
-4. Always rebuild before running any test or timing; never test a stale binary.
-5. Do not infer causality from a command option just because it is present.
-6. Treat index-based regression tests as grid-fragile.
-7. Scope must fit the cause: never too narrow; broader than minimal only when the
-   extra accuracy is essentially free in runtime. Narrow hard when the fix costs.
-8. Runtime is a first-class constraint; discard the first CAMB call when timing.
-9. If a controlling quantity lives inside a coordinate-indexed calculation, the
-   final patch must either scale/gate in that coordinate or document measured
-   evidence that doing so is not the best physical lever.
+2. Always rebuild before running any test or timing; never test a stale binary.
+3. Do not infer causality from a command option just because it is present.
+4. Treat index-based regression tests as grid-fragile.
+5. Runtime is a first-class constraint; discard the first CAMB call when timing.
