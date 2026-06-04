@@ -2671,6 +2671,7 @@
     real(dl), parameter:: MINUJl1 = 0.5d-4  !cut-off point for small ujl l=1
     integer, parameter :: numerov_rebootstrap_steps = 200
     integer, parameter :: numerov_low_l_rebootstrap_steps = 100
+    integer, parameter :: numerov_very_low_l_rebootstrap_steps = 50
     integer, parameter :: numerov_min_rebootstrap_steps = 25
     real(dl) scalel, range_sampling_boost, numerov_step_boost
     real(dl) IntAccuracyBoost
@@ -2810,7 +2811,11 @@
         end if
         q_now=(ap1/sh**2 - nu2)
         rebootstrap_interval = numerov_rebootstrap_steps
-        if (scalel < 50._dl) rebootstrap_interval = numerov_low_l_rebootstrap_steps
+        if (scalel < 50._dl) then
+            rebootstrap_interval = numerov_low_l_rebootstrap_steps
+            if (AccuracyTarget > 0 .and. scalel < 25._dl) &
+                rebootstrap_interval = numerov_very_low_l_rebootstrap_steps
+        end if
         rebootstrap_interval = max(numerov_min_rebootstrap_steps, &
             nint(rebootstrap_interval / IntAccuracyBoost))
         numerov_step_count = 0

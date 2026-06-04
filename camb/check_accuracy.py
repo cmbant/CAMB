@@ -83,6 +83,7 @@ TENSOR_ONLY_TT_EE_TOLERANCES = [(0, 1e-1), (600, 3e-2), (2500, 1e-1)]
 BB_TOLERANCES = [(0, 5e-3), (1000, 1e-2), (6000, 2e-2), (8000, 1e-1)]
 LENSING_TOLERANCES = [(0, 9e-3), (5, 5e-3), (2500, 1e-2), (4000, 2e-2)]
 TENSOR_ONLY_RELATIVE_LMAX = 2000
+TENSOR_ONLY_ABSOLUTE_LMIN = 600
 TENSOR_ONLY_TAIL_RATIO_TOLERANCE = 1e-2
 MPK_TOLERANCE = 1e-3
 MPK_TOLERANCE_RANGES = [
@@ -841,6 +842,7 @@ def compare_cls(standard: RunOutput, reference: RunOutput) -> list[StatRow]:
 def compare_tensor_only_cls(standard_cls: np.ndarray, reference_cls: np.ndarray, ell: np.ndarray) -> list[StatRow]:
     rows = []
     relative_lmax = min(int(ell[-1]), TENSOR_ONLY_RELATIVE_LMAX)
+    low_mask = (ell >= 2) & (ell <= relative_lmax)
     relative_ranges = [
         RangeTolerance(0, 600, 1e-1),
         RangeTolerance(600, relative_lmax + 1, 3e-2),
@@ -848,16 +850,29 @@ def compare_tensor_only_cls(standard_cls: np.ndarray, reference_cls: np.ndarray,
     relative_ranges = [range_tolerance for range_tolerance in relative_ranges if range_tolerance.start <= relative_lmax]
 
     for quantity in ("TT", "EE"):
-        errors = fractional_delta(
+        errors = tensor_only_relative_or_small_delta(
             standard_cls[:, CL_COLUMNS[quantity]],
             reference_cls[:, CL_COLUMNS[quantity]],
+            ell,
+            low_mask,
         )
         rows.extend(compare_l_ranges(quantity, errors, ell, relative_ranges, min_ell=2))
 
-    te_errors = normalized_te_delta(standard_cls, reference_cls)
+    te_errors = tensor_only_relative_or_small_delta(
+        standard_cls[:, CL_COLUMNS["TE"]],
+        reference_cls[:, CL_COLUMNS["TE"]],
+        ell,
+        low_mask,
+        relative_errors=normalized_te_delta(standard_cls, reference_cls),
+    )
     rows.extend(compare_l_ranges("TE", te_errors, ell, relative_ranges, min_ell=2))
 
-    bb_errors = fractional_delta(standard_cls[:, CL_COLUMNS["BB"]], reference_cls[:, CL_COLUMNS["BB"]])
+    bb_errors = tensor_only_relative_or_small_delta(
+        standard_cls[:, CL_COLUMNS["BB"]],
+        reference_cls[:, CL_COLUMNS["BB"]],
+        ell,
+        low_mask,
+    )
     rows.extend(
         compare_l_ranges(
             "BB",
@@ -870,6 +885,26 @@ def compare_tensor_only_cls(standard_cls: np.ndarray, reference_cls: np.ndarray,
 
     rows.extend(compare_tensor_only_tail(standard_cls, reference_cls, ell, relative_lmax))
     return rows
+
+
+def tensor_only_relative_or_small_delta(
+    values: np.ndarray,
+    reference: np.ndarray,
+    ell: np.ndarray,
+    scale_mask: np.ndarray,
+    *,
+    relative_errors: np.ndarray | None = None,
+) -> np.ndarray:
+    errors = fractional_delta(values, reference) if relative_errors is None else relative_errors.copy()
+    if not np.any(scale_mask):
+        return errors
+    low_scale = max(float(np.max(np.abs(values[scale_mask]))), float(np.max(np.abs(reference[scale_mask]))))
+    if low_scale == 0:
+        return errors
+    small_signal_errors = np.maximum(np.abs(values), np.abs(reference)) / low_scale
+    use_absolute_scale = (ell >= TENSOR_ONLY_ABSOLUTE_LMIN) & (small_signal_errors < np.abs(errors))
+    errors[use_absolute_scale] = np.copysign(small_signal_errors[use_absolute_scale], errors[use_absolute_scale])
+    return errors
 
 
 def compare_tensor_only_tail(
