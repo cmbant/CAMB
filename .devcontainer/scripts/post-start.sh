@@ -119,6 +119,10 @@ normalize_worktree_metadata() {
 
 normalize_worktree_metadata
 
+if [[ -f "${workspace_dir}/.githooks/pre-commit" ]]; then
+    chmod +x "${workspace_dir}/.githooks/pre-commit" >/dev/null 2>&1 || true
+fi
+
 ensure_safe_directory() {
     local repo_dir="$1"
     local existing_dir

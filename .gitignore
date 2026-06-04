@@ -55,6 +55,9 @@ testfile*
 *.whl
 *.pdf
 .vs
+*.toc
+*.aux
+*.out
 *.mp4
 *.exe
 *_tmp*
