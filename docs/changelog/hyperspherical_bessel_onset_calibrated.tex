@@ -1,0 +1,450 @@
+\documentclass[11pt]{article}
+
+\usepackage[a4paper,margin=1in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{amsmath,amssymb,mathtools,bm}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{hyperref}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=blue!60!black,
+  citecolor=blue!60!black,
+  urlcolor=blue!60!black
+}
+
+\newcommand{\SK}{S_K}
+\newcommand{\chip}{\chi_{\rm t}}
+\newcommand{\chistart}{\chi_{\rm start}}
+\newcommand{\Acal}{\mathcal{A}}
+\newcommand{\Ical}{\mathcal{I}}
+\newcommand{\dd}{\,\mathrm{d}}
+\newcommand{\e}{\mathrm{e}}
+\newcommand{\lam}{\lambda}
+\newcommand{\phipeak}{\phi_{\rm peak}}
+
+\title{Onset location for hyperspherical Bessel functions\\[3pt]
+\large Airy/action derivation and numerical calibration of practical start rules}
+\author{}
+\date{Updated May 2026}
+
+\begin{document}
+\maketitle
+
+\section{Goal}
+
+For numerical integration or sampling of regular hyperspherical Bessel functions
+one often wants a start point before which the function is negligible compared
+with its peak amplitude.  The target used here is not pointwise relative error,
+but
+\[
+  \frac{|\phi_l(\chi)|}{\max_\chi |\phi_l(\chi)|} < \varepsilon,
+\]
+with practical values \(\varepsilon=10^{-5}\) and \(10^{-4}\).
+
+In flat space a familiar rule for the onset of the spherical Bessel function is
+\[
+  x=\beta\chi \simeq l-5l^{1/3},
+\]
+for a roughly \(10^{-5}\)-of-peak start.  This note derives the curved-space
+action generalisation and gives a numerical calibration, including open and
+closed geometries up to \(l=4000\).
+
+Throughout the calibrated formulae use the Langer order
+\[
+  \boxed{\lam=l+\frac12}
+\]
+unless otherwise stated.  Replacing \(\lam\) by
+\(\ell=\sqrt{l(l+1)}\) gives a very similar large-\(l\) rule, but the Langer
+form is the more natural one for Airy/Olver turning-point formulae.
+
+\section{Equation, turning point, and notation}
+
+The regular hyperspherical Bessel function satisfies
+\[
+\phi_l''(\chi)
++2\frac{\SK'(\chi)}{\SK(\chi)}\phi_l'(\chi)
++\left[\beta^2-K-\frac{l(l+1)}{\SK^2(\chi)}\right]\phi_l(\chi)=0,
+\]
+where
+\[
+\SK(\chi)=
+\begin{cases}
+\sin\chi, & K=1,\\
+\chi, & K=0,\\
+\sinh\chi, & K=-1.
+\end{cases}
+\]
+Writing \(\tilde u=\SK\phi_l\) gives
+\[
+  \tilde u''(\chi)
+  +\left[\beta^2-\frac{l(l+1)}{\SK^2(\chi)}\right]\tilde u(\chi)=0.
+\]
+The onset rule replaces \(l(l+1)\) by \(\lam^2\), giving the effective local
+wavenumber
+\[
+  Q_K(\chi)=\beta^2-\frac{\lam^2}{\SK^2(\chi)}.
+\]
+The turning point is
+\[
+  Q_K(\chip)=0,
+  \qquad
+  \SK(\chip)=\frac{\lam}{\beta}.
+\]
+Thus
+\[
+\chip=
+\begin{cases}
+\arcsin(\lam/\beta), & K=1,\\
+\lam/\beta, & K=0,\\
+\operatorname{arsinh}(\lam/\beta), & K=-1.
+\end{cases}
+\]
+For \(K=1\) the folded interval \(0\leq\chi\leq\pi/2\) is assumed.
+
+Define also
+\[
+  r=\frac{\beta}{\lam}.
+\]
+For closed models \(K=1\) one has \(r>1\).  For open models \(K=-1\), all
+positive \(r\) are possible, and the low-\(r\) regime is the only place where a
+single flat-space constant \(c\simeq5\) noticeably mis-calibrates the onset.
+
+\section{Flat-space action calibration}
+
+In flat space \(\SK(\chi)=\chi\) and the exact solution is
+\[
+  \phi_l(\chi)=j_l(\beta\chi).
+\]
+Put
+\[
+  x=\beta\chi,
+  \qquad
+  y=\frac{x}{\lam}.
+\]
+The flat forbidden action from \(x\) to the turning point \(x=\lam\) is
+\[
+\Acal_0(y)
+=\lam\int_y^1\left(\frac{1}{u^2}-1\right)^{1/2}\dd u.
+\]
+The elementary integral is
+\[
+  \Ical_0(y)
+  =
+  \log\left(\frac{1+\sqrt{1-y^2}}{y}\right)-\sqrt{1-y^2},
+  \qquad y<1.
+\]
+The flat onset ansatz
+\[
+  x_{\rm start}=\lam-c\lam^{1/3}
+\]
+has
+\[
+  y_c=1-c\lam^{-2/3}
+\]
+and hence action level
+\begin{equation}
+\boxed{
+T_{\lam,c}
+=\lam\Ical_0(y_c)
+=\lam\left[
+\log\left(\frac{1+\sqrt{1-y_c^2}}{y_c}\right)-\sqrt{1-y_c^2}
+\right].
+}
+\label{eq:T_exact}
+\end{equation}
+For large \(\lam\),
+\[
+  T_{\lam,c}=\frac{2\sqrt2}{3}c^{3/2}+O(\lam^{-2/3}).
+\]
+Thus \(c=5\) corresponds to the nearly \(l\)-independent action level
+\[
+  T\simeq \frac{2\sqrt2}{3}5^{3/2}\simeq 10.54.
+\]
+The action, rather than \(x\) itself, is the invariant quantity to preserve in
+curved space.
+
+\section{Curved-space action start rule}
+
+For \(\chi<\chip\), define the forbidden-region action
+\begin{equation}
+\Acal_K(\chi)
+=
+\int_\chi^{\chip}
+\left[
+\frac{\lam^2}{\SK^2(s)}-\beta^2
+\right]^{1/2}\dd s.
+\label{eq:curved_action}
+\end{equation}
+The curved generalisation of the flat start rule is
+\begin{equation}
+\boxed{
+\Acal_K(\chistart)=T_{\lam,c}.
+}
+\label{eq:action_rule}
+\end{equation}
+Equivalently,
+\[
+\Ical_K(\chistart)
+=
+\Ical_0(1-c\lam^{-2/3}),
+\]
+where
+\[
+\Ical_K(\chi)=
+\int_\chi^{\chip}
+\left[\frac{1}{\SK^2(s)}-r^2\right]^{1/2}\dd s,
+\qquad r=\beta/\lam.
+\]
+This is the recommended general recipe.  It is a scalar root find in
+\(0<\chi<\chip\), using either numerical quadrature or the closed analytic
+actions already used in uniform Olver mappings.
+
+\section{Explicit local formula}
+
+The action rule has a simple explicit approximation from expanding about the
+turning point.  Let
+\[
+  \Delta=\chip-\chi,
+  \qquad
+  \sigma_t=|\SK'(\chip)|=
+  \sqrt{1-K\frac{\lam^2}{\beta^2}}.
+\]
+For \(\chi=\chip-\Delta\),
+\[
+  \SK(\chi)=\SK(\chip)-\sigma_t\Delta+O(\Delta^2),
+\]
+and therefore
+\[
+  \frac{\lam^2}{\SK^2(\chi)}-\beta^2
+  =\frac{2\beta^3\sigma_t}{\lam}\Delta+O(\Delta^2).
+\]
+Hence
+\[
+\Acal_K(\chip-\Delta)
+=\frac{2}{3}\left(\frac{2\beta^3\sigma_t}{\lam}\right)^{1/2}
+\Delta^{3/2}+O(\Delta^{5/2}).
+\]
+Equating this to the asymptotic flat value
+\((2\sqrt2/3)c^{3/2}\) gives
+\begin{equation}
+\boxed{
+\chistart
+\simeq
+\chip-
+\frac{c\lam^{1/3}}
+{\beta\left(1-K\lam^2/\beta^2\right)^{1/6}}.
+}
+\label{eq:explicit_rule}
+\end{equation}
+In practice clamp to the lower boundary:
+\begin{equation}
+\boxed{
+\chistart^{\rm fast}
+=
+\max\left[0,
+\chip-
+\frac{c\lam^{1/3}}
+{\beta\left(1-K\lam^2/\beta^2\right)^{1/6}}
+\right].
+}
+\label{eq:fast_rule}
+\end{equation}
+This is exact in form for the flat scaling and is useful as a cheap start guess.
+The action-inverted rule, Eq.~\eqref{eq:action_rule}, is preferred near the
+closed equator \(K=1\), \(\lam/\beta\simeq1\), or whenever the start location
+matters sharply.
+
+\section{Numerical calibration}
+
+The calibration used exact numerical values of \(\phi_l\) obtained from a stable
+recurrence: upward recurrence in the safe oscillatory region and Miller backward
+recurrence in the tail, with a Gegenbauer logarithmic derivative for the closed
+\(K=1\) tail.  The sweep covered open and closed cases up to \(l=4000\), with a
+broad range of \(r=\beta/\lam\).
+
+For each model the exact start point was defined by
+\[
+  |\phi_l(\chistart)|=\varepsilon\max_\chi |\phi_l(\chi)|,
+\]
+using the first crossing before the main peak.  This exact start was then
+converted to an effective \(c_{\rm eff}\) through the action equation
+\[
+\Acal_K(\chi_{\varepsilon})=T_{\lam,c_{\rm eff}}.
+\]
+Large \(c_{\rm eff}\) means the rule must start earlier to reach the requested
+threshold.
+
+\subsection{Results for \texorpdfstring{\(10^{-5}\)}{1e-5}}
+
+For \(\varepsilon=10^{-5}\), the flat/closed/moderate-open calibration is very
+close to \(c=5\), but the open low-\(r\) tail requires a larger value.
+
+\begin{center}
+\begin{tabular}{lcc}
+\toprule
+Region & 95th percentile \(c_{\rm eff}\) & max observed \(c_{\rm eff}\) \\
+\midrule
+Closed \(K=+1\), all tested ratios & 4.924 & 4.933 \\
+Open \(K=-1\), \(r\ge0.2\) & 4.933 & 4.945 \\
+Open \(0.05\le r<0.2\) & 4.981 & 4.986 \\
+Open \(0.02\le r<0.05\) & 5.113 & 5.118 \\
+Open \(0.01\le r<0.02\) & 5.242 & 5.250 \\
+Open \(0.005\le r<0.01\) & 5.380 & 5.386 \\
+Open \(0.003\le r<0.005\) & 5.473 & 5.474 \\
+Open \(0.001\le r<0.003\) & 5.626 & 5.635 \\
+Open \(r<0.001\) & 5.835 & 5.840 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Thus \(c=5\) is slightly conservative in the ordinary flat/closed/moderate-open
+regime, but not conservative enough for very small open \(r\).  A single global
+safe choice for \(10^{-5}\) is \(c\simeq5.85\), but this is unnecessarily early
+for most cases.
+
+\subsection{Results for \texorpdfstring{\(10^{-4}\)}{1e-4}}
+
+For \(\varepsilon=10^{-4}\), the corresponding constants are lower:
+
+\begin{center}
+\begin{tabular}{lcc}
+\toprule
+Region & 95th percentile \(c_{\rm eff}\) & max observed \(c_{\rm eff}\) \\
+\midrule
+Closed \(K=+1\), all tested ratios & 4.189 & 4.193 \\
+Open \(K=-1\), \(r\ge0.2\) & 4.195 & 4.204 \\
+Open \(0.05\le r<0.2\) & 4.285 & 4.289 \\
+Open \(0.02\le r<0.05\) & 4.449 & 4.455 \\
+Open \(0.01\le r<0.02\) & 4.590 & 4.594 \\
+Open \(0.005\le r<0.01\) & 4.718 & 4.728 \\
+Open \(0.003\le r<0.005\) & 4.810 & 4.813 \\
+Open \(0.001\le r<0.003\) & 4.943 & 4.962 \\
+Open \(r<0.001\) & 5.127 & 5.141 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+So \(c\simeq4.2\) is the normal-use \(10^{-4}\) value, while a single global
+low-open-safe choice is \(c\simeq5.15\).
+
+\begin{figure}[p]
+\centering
+\includegraphics[width=0.92\linewidth]{c_eff_vs_beta_ratio_eps1em05.png}
+\caption{Effective \(c\) values for the \(10^{-5}\)-of-peak threshold as a
+function of \(r=\beta/\lambda\).  The closed and moderate-open cases cluster
+near \(c\simeq5\), while the low-\(r\) open tail requires larger \(c\).}
+\label{fig:ceff1e5}
+\end{figure}
+
+\begin{figure}[p]
+\centering
+\includegraphics[width=0.92\linewidth]{c_eff_vs_beta_ratio_eps0.0001.png}
+\caption{Effective \(c\) values for the \(10^{-4}\)-of-peak threshold.  The
+normal-use constant is \(c\simeq4.2\), again with a low-\(r\) open correction.}
+\label{fig:ceff1e4}
+\end{figure}
+
+\section{Practical calibrated constants}
+
+For best practical behaviour use the action equation, Eq.~\eqref{eq:action_rule},
+with a constant depending on the target threshold and, only for open models, on
+\(r=\beta/\lambda\).
+
+\subsection{Recommended \texorpdfstring{\(10^{-5}\)}{1e-5} rule}
+
+\begin{equation}
+\boxed{
+ c_{10^{-5}}(K,r)=
+ \begin{cases}
+ 4.95, & K=1,\\
+ 4.95, & K=-1,\ r\ge0.2,\\
+ 5.00, & K=-1,\ 0.05\le r<0.2,\\
+ 4.95+0.42\log_{10}(0.05/r), & K=-1,\ r<0.05,
+ \end{cases}
+}
+\label{eq:c1e5}
+\end{equation}
+with the cap
+\[
+  c_{10^{-5}}\le5.85.
+\]
+This is designed to start near the \(10^{-5}\)-of-peak level without using the
+overly conservative global low-\(r\) value in ordinary cases.
+
+\subsection{Recommended \texorpdfstring{\(10^{-4}\)}{1e-4} rule}
+
+\begin{equation}
+\boxed{
+ c_{10^{-4}}(K,r)=
+ \begin{cases}
+ 4.20, & K=1,\\
+ 4.21, & K=-1,\ r\ge0.2,\\
+ 4.30, & K=-1,\ 0.05\le r<0.2,\\
+ 4.21+0.60\log_{10}(0.05/r), & K=-1,\ r<0.05,
+ \end{cases}
+}
+\label{eq:c1e4}
+\end{equation}
+with the cap
+\[
+  c_{10^{-4}}\le5.15.
+\]
+
+\section{Algorithm}
+
+Given \(l,K,\beta\), and a threshold \(\varepsilon\):
+\begin{enumerate}[label=\arabic*.]
+\item Set \(\lambda=l+1/2\) and \(r=\beta/\lambda\).
+\item Choose \(c\) from Eq.~\eqref{eq:c1e5} or Eq.~\eqref{eq:c1e4}.
+\item Compute the turning point \(\chip\) from \(\SK(\chip)=\lambda/\beta\).
+      For \(K=1\), work in the folded interval.
+\item Preferably solve the action equation
+      \[
+      \int_{\chistart}^{\chip}
+      \sqrt{\lambda^2/\SK^2(\chi)-\beta^2}\,\dd\chi
+      =T_{\lambda,c}.
+      \]
+\item If speed matters more than exact calibration, use the explicit formula
+      \[
+      \chistart
+      =\max\left[0,
+      \chip-
+      \frac{c\lambda^{1/3}}
+      {\beta(1-K\lambda^2/\beta^2)^{1/6}}
+      \right].
+      \]
+\end{enumerate}
+
+For small \(l\), or whenever \(1-c\lambda^{-2/3}\le0\), the Airy start formula
+is no longer meaningful.  In that case use \(\chistart=0\), or determine the
+threshold directly from recurrence if avoiding unnecessary integration is
+important.
+
+\section{Summary}
+
+The action-inversion recipe is the cleanest generalisation of the flat
+\(l-c l^{1/3}\) onset rule:
+\[
+\boxed{
+\int_{\chistart}^{\chip}
+\sqrt{\lambda^2/S_K^2(\chi)-\beta^2}\,\dd\chi
+= T_{\lambda,c},
+\qquad
+\lambda=l+\frac12.
+}
+\]
+For \(10^{-5}\)-of-peak accuracy, use \(c\simeq4.95\) in closed and normal open
+cases, with the low-open correction in Eq.~\eqref{eq:c1e5}.  For
+\(10^{-4}\)-of-peak accuracy, use \(c\simeq4.2\) with Eq.~\eqref{eq:c1e4}.
+A single conservative global choice is \(c\simeq5.85\) for \(10^{-5}\) and
+\(c\simeq5.15\) for \(10^{-4}\), but these values are unnecessarily early for
+most integrations.
+
+\end{document}

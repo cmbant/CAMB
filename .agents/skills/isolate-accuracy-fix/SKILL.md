@@ -53,8 +53,10 @@ controlling quantity, or split one. Report that back rather than assuming.
 
 ## Step 3 — Diagnose (delegate to `sensitivity-probe`)
 
-Spawn the probe for the ONE chosen issue. Pass it the ini, exact command, the
-single failing output, and the suspected trigger.
+Spawn and wait for the probe for the ONE chosen issue. Pass it the ini, exact
+command, the single failing output, and the suspected trigger. The probe may need many minutes for rebuilds,
+sensitivity runs, or `check_accuracy.py`; wait for its report rather than
+timing out early.
 
 Require back the full Sensitivity Report defined in that agent. It must end the
 progressive drill-down at CODE LINES, not at a boost:
@@ -131,9 +133,9 @@ If any row fails, return to Step 4 (or Step 3) before continuing.
 
 ## Step 6 — Final Checker Review (delegate to `accuracy-fix-checker`)
 
-Once the acceptance matrix passes, spawn the checker ONCE. It runs nothing; it
-audits reasoning and the evidence you already produced. Send the full bundle so
-it does NOT redo discovery:
+Once the acceptance matrix passes for the current candidate fix, spawn and wait
+for one checker round. It runs nothing; it audits reasoning and the evidence you
+already produced. Send the full bundle so it does NOT redo discovery:
 
 - the proposed final diff (or key changed files);
 - the physical mechanism explanation;
@@ -154,9 +156,11 @@ Act on the verdict:
   changelog/final report.
 - BLOCK, or any PASS_WITH_NOTES item that actually requires refinement: continue
   the fix loop. Fix the issue or gather the missing evidence LOCALLY yourself,
-  rebuild, re-run the affected acceptance-matrix rows, then you may re-spawn the
-  checker ONCE on the updated evidence. Only downgrade the claim instead when
-  the checker identified a clear extension outside this selected physical issue.
+  rebuild, re-run the affected acceptance-matrix rows, then run one new checker
+  round on the updated evidence. Do not finalize after a BLOCK without a
+  subsequent PASS or acceptable PASS_WITH_NOTES. Only downgrade the claim instead
+  when the checker identified a clear extension outside this selected physical
+  issue.
 
 ## Step 7 — Finalize this issue (you)
 

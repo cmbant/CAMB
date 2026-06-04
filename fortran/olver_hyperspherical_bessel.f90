@@ -21,7 +21,7 @@
 
     contains
 
-    function olver_cached_coordinate(l, K, beta, chi) result(z)
+    pure function olver_cached_coordinate(l, K, beta, chi) result(z)
     integer, intent(in) :: l, K
     real(dl), intent(in) :: beta, chi
     real(dl) :: z, achi, symm
@@ -131,7 +131,7 @@
     u = symm * amp * z * j_l
     end function olver_reduced
 
-    logical function use_smallchi_map(l, beta, achi, alpha_gate) result(use_smallchi)
+    elemental logical function use_smallchi_map(l, beta, achi, alpha_gate) result(use_smallchi)
     integer, intent(in) :: l
     real(dl), intent(in) :: beta, achi, alpha_gate
 
@@ -186,7 +186,7 @@
     end function phi_olver_smallchi
 
 
-    subroutine compute_olver_z_amp(l, K, beta, achi, z, amp)
+    pure subroutine compute_olver_z_amp(l, K, beta, achi, z, amp)
     integer, intent(in) :: l, K
     real(dl), intent(in) :: beta, achi
     real(dl), intent(out) :: z
@@ -228,7 +228,7 @@
     end subroutine compute_olver_z_amp
 
 
-    subroutine compute_olver_z_amp_smallchi(l, K, beta, chi, z, amp)
+    elemental subroutine compute_olver_z_amp_smallchi(l, K, beta, chi, z, amp)
     ! Small-chi curvature expansion for the Olver action map.
     !
     ! This solves the differentiated Liouville-Green map perturbatively for
@@ -315,7 +315,7 @@
     end subroutine validate_inputs
 
 
-    subroutine normalize_chi(l, K, beta, chi, achi, symm)
+    elemental subroutine normalize_chi(l, K, beta, chi, achi, symm)
     integer, intent(in) :: l, K
     real(dl), intent(in) :: beta, chi
     real(dl), intent(out) :: achi, symm
@@ -339,7 +339,7 @@
     end subroutine normalize_chi
 
 
-    real(dl) function turning_point(ell, beta, K)
+    elemental real(dl) function turning_point(ell, beta, K)
     real(dl), intent(in) :: ell, beta
     integer, intent(in) :: K
 
@@ -356,7 +356,7 @@
     end function turning_point
 
 
-    real(dl) function curved_radius(K, chi)
+    elemental real(dl) function curved_radius(K, chi)
     integer, intent(in) :: K
     real(dl), intent(in) :: chi
 
@@ -373,7 +373,7 @@
     end function curved_radius
 
 
-    real(dl) function analytic_amplitude(chi, z, K, alpha, turn_chi)
+    elemental real(dl) function analytic_amplitude(chi, z, K, alpha, turn_chi)
     real(dl), intent(in) :: chi, z, alpha, turn_chi
     integer, intent(in) :: K
 
@@ -416,7 +416,7 @@
     analytic_amplitude = abs(flat_term / curved_term)**0.25_dl
     end function analytic_amplitude
 
-    real(dl) function invert_flat_action(action, z_turn, below_turn)
+    elemental real(dl) function invert_flat_action(action, z_turn, below_turn)
     real(dl), intent(in) :: action, z_turn
     logical, intent(in) :: below_turn
 
@@ -427,6 +427,8 @@
     q = max(action, 0._dl)
     p = (3._dl * q)**(1._dl / 3._dl)
 
+    ! The near-turning coefficients below are numerical polynomial fits for u(p^2),
+    ! not Taylor coefficients. This avoids a root solve in the hot Olver map path.
     if (below_turn) then
 
         ! Evanescent branch:
@@ -497,7 +499,7 @@
     invert_flat_action = z_turn * u
     end function invert_flat_action
 
-    pure real(dl) function qintegral_exact(sin_K, alpha, K) result(q)
+    elemental real(dl) function qintegral_exact(sin_K, alpha, K) result(q)
     real(dl), intent(in) :: sin_K, alpha
     integer, intent(in) :: K
 

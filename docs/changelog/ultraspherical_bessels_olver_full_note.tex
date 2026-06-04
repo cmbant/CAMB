@@ -1,0 +1,1077 @@
+
+\documentclass[11pt,a4paper]{article}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{amsmath,amssymb,mathtools}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{geometry}
+\usepackage{hyperref}
+\usepackage{microtype}
+\geometry{margin=1in}
+\hypersetup{colorlinks=true,linkcolor=blue!55!black,citecolor=blue!55!black,urlcolor=blue!55!black}
+
+\lstdefinestyle{fortran}{
+  basicstyle=\ttfamily\small,
+  columns=fullflexible,
+  breaklines=true,
+  frame=single,
+  xleftmargin=0.5em,
+  xrightmargin=0.5em,
+  language=Fortran,
+  keywordstyle=\color{blue!60!black},
+  commentstyle=\color{green!45!black},
+  stringstyle=\color{red!50!black}
+}
+
+\newcommand{\dd}{\mathrm{d}}
+\newcommand{\code}[1]{\texttt{\detokenize{#1}}}
+\newcommand{\SK}{S_K}
+\newcommand{\CK}{C_K}
+\newcommand{\cotK}{\cot_K}
+\newcommand{\PhiB}{\Phi_\ell^\beta}
+\newcommand{\phinu}{\phi_l^\nu}
+\newcommand{\uell}{u_l^\nu}
+\newcommand{\jl}{j_l}
+\newcommand{\Ai}{\operatorname{Ai}}
+\newcommand{\abs}[1]{\left|#1\right|}
+\newcommand{\order}{\mathcal{O}}
+\newcommand{\asinh}{\operatorname{asinh}}
+\newcommand{\asin}{\operatorname{asin}}
+\newcommand{\sgn}{\operatorname{sgn}}
+\newcommand{\atanTwo}{\operatorname{atan2}}
+\newcommand{\sech}{\operatorname{sech}}
+\newcommand{\cosech}{\operatorname{csch}}
+\emergencystretch=3em
+
+\title{Hyperspherical Bessel functions in CAMB: Olver mapping, recurrence fallback, shifted-\(q\), and Numerov source integration}
+\author{Implementation note for CAMB non-flat Bessel calculations}
+\date{May 2026}
+
+\begin{document}
+\sloppy
+\maketitle
+
+\begin{abstract}
+This note explains how CAMB evaluates the regular hyperspherical Bessel functions (also called ultraspherical Bessel functions) used in non-flat source integration.  The mathematical object is the curved-space radial function \(\phi_l^\nu(K,\chi)\), whose flat limit is the spherical Bessel function \(j_l(\nu\chi)\).  The main fast point approximation is a leading-order Olver, or uniform Liouville-Green, mapping: the curved radial equation is transformed into a flat spherical-Bessel equation at an effective radius \(z(\chi)\), with a transport amplitude \(A(\chi)\).  This makes the calculation exact in the flat limit and smooth through the turning point, but it does not evaluate the higher Olver correction terms.  The note also compares this with earlier Langer/Airy WKB and \textsc{CLASS} flat-rescaling approaches, explains the stable recursive fallback \code{phi_recurs_stable}, the closed-space Gegenbauer logarithmic derivative used to start Miller recursion, how CAMB obtains nearby Bessel values by Numerov integration during source integration, and how the current shifted-\(q\) shortcut is the constant-map, fastest small-\(\chi\) limit of the Olver expansion.
+\end{abstract}
+
+\tableofcontents
+
+\section{What is the function and why does CAMB need it?}
+
+In a curved Friedmann-Robertson-Walker spatial section, scalar harmonics separate into angular spherical harmonics and a radial function,
+\begin{equation}
+  Q_{\nu lm}(\chi,\theta,\varphi)=\phi_l^\nu(K,\chi)Y_{lm}(\theta,\varphi).
+\end{equation}
+The radial function \(\phi_l^\nu\) is the hyperspherical Bessel function.  It is the non-flat generalization of the ordinary spherical Bessel function used in line-of-sight integration.  These definitions and normalizations follow the standard curved-space CMB convention \cite{abbott-schaefer,kosowsky1998,tram2013,lesgourgues-tram2013}.  CAMB has to evaluate it many times for many source times, many wavenumbers and many multipoles, so direct special-function evaluation at every source point would be too slow.
+
+The dimensional FRW spatial curvature will be denoted by \(\mathcal K\).  It has
+units of inverse length squared and is not restricted to \(\pm1\).  For the
+dimensionless Olver equations used in the Bessel routines, distances are
+rescaled by
+\begin{equation}
+  R_K=\abs{\mathcal K}^{-1/2},\qquad \chi=\frac{r}{R_K},
+  \qquad \mathcal K\ne0,
+\end{equation}
+and only the sign remains:
+\begin{equation}
+  K=\sgn(\mathcal K)=+1,0,-1,
+\end{equation}
+for closed, flat and open spaces.  Equivalently,
+\(\mathcal K=K/R_K^2\) for \(K=\pm1\), with the flat case obtained as the
+limit \(\mathcal K\to0\).  The radial metric function in the dimensionless
+coordinate \(\chi\) is
+\begin{equation}
+  \SK(\chi)=
+  \begin{cases}
+    \sin\chi, & K=+1,\\
+    \chi, & K=0,\\
+    \sinh\chi, & K=-1,
+  \end{cases}
+  \qquad
+  \CK(\chi)=\frac{\dd\SK}{\dd\chi}=
+  \begin{cases}
+    \cos\chi, & K=+1,\\
+    1, & K=0,\\
+    \cosh\chi, & K=-1.
+  \end{cases}
+\end{equation}
+We also use
+\begin{equation}
+  \cotK\chi=\frac{\CK(\chi)}{\SK(\chi)}.
+\end{equation}
+Thus \(\cot_K\chi\) means \(\cot\chi\), \(1/\chi\), or \(\coth\chi\) in the closed, flat or open cases.
+
+The symbols \(q\), \(\nu\), \(\beta\), and \(k\) are not interchangeable in all
+curvature conventions.  The transfer-grid variable \(q\) is dimensional.  In a
+non-flat Bessel call the dimensionless radial eigenvalue is
+\begin{equation}
+  \nu=qR_K,
+\end{equation}
+and the low-level Bessel routines often use the argument name \(\code{beta}\) for
+this same quantity.  For scalar spectra the primordial power is evaluated at the
+physical wavenumber
+\begin{equation}
+  k^2=q^2-\mathcal K,
+\end{equation}
+so, in dimensionless form, \((kR_K)^2=\nu^2-K\).  For tensors the corresponding
+relation is \(k^2=q^2-3\mathcal K\).  In the flat limit \(q=k\); away from
+flatness, \(\nu\) or \(\beta\) labels the radial
+hyperspherical-Bessel eigenvalue while \(k\) is the physical wavenumber used by
+the primordial spectrum.
+
+CAMB distinguishes between the unreduced radial function and a reduced function,
+\begin{equation}
+  u_l^\nu(K,\chi)=\SK(\chi)\phi_l^\nu(K,\chi).
+\end{equation}
+The reduced function is the natural one for asymptotics and Numerov integration because it obeys a second-order equation without a first-derivative term.  The functions in the code therefore appear in two forms:
+\begin{align}
+  \code{phi_olver}(l,K,\nu,\chi)&\longrightarrow \phi_l^\nu(K,\chi),\\
+  \code{u_olver}(l,K,\nu,\chi)&\longrightarrow u_l^\nu(K,\chi).
+\end{align}
+
+\section{Differential equation and normalization}
+
+The unreduced equation is
+\begin{equation}
+  \phi''+2\cotK\chi\,\phi'
+  +\left[\nu^2-K-\frac{l(l+1)}{\SK^2(\chi)}\right]\phi=0.
+  \label{eq:phi-equation}
+\end{equation}
+Multiplying by \(\SK\) gives the reduced equation
+\begin{equation}
+  u''=\left[\frac{l(l+1)}{\SK^2(\chi)}-\nu^2\right]u.
+  \label{eq:reduced-equation}
+\end{equation}
+Equivalently,
+\begin{equation}
+  u''+\left[\nu^2-\frac{l(l+1)}{\SK^2(\chi)}\right]u=0.
+  \label{eq:oscillator-form}
+\end{equation}
+This is the equation used for Numerov stepping in the source integration code.  It is also the Schr\"odinger-form equation used by the earlier Langer/WKB treatments of hyperspherical Bessel functions \cite{kosowsky1998,tram2013}; CAMB's new approximation changes the comparison solution, not the underlying radial equation.
+
+The regular solution is fixed by its behaviour at the origin.  Define
+\begin{equation}
+  b_j(K,\nu)=\sqrt{\nu^2-Kj^2}.
+\end{equation}
+Then
+\begin{equation}
+  \phi_l^\nu(K,\chi)\sim
+  \frac{\prod_{j=1}^{l} b_j(K,\nu)}{(2l+1)!!}\,\chi^l,
+  \qquad \chi\to0.
+  \label{eq:normalization}
+\end{equation}
+For \(K=0\), this becomes
+\begin{equation}
+  j_l(\nu\chi)\sim \frac{(\nu\chi)^l}{(2l+1)!!}.
+\end{equation}
+For \(K=+1\), \(\nu\) is a discrete integer mode and the code requires \(\nu>l\).
+In the closed case the coordinate is also folded into the fundamental interval,
+as explained below; the same closed-spectrum and symmetry constraints are
+discussed in the WKB and stable-recurrence references
+\cite{kosowsky1998,tram2013}.  The closed full interval is \(0<\chi<\pi\), so
+any statement about being ``below'' or ``above'' the turning point should be
+read in the folded coordinate unless the second closed turning point is
+explicitly being discussed.
+
+\section{The turning point and the qualitative regimes}
+
+Let
+\begin{equation}
+  L=l(l+1),\qquad \ell=\sqrt{L},\qquad \alpha=\frac{\nu}{\ell}.
+\end{equation}
+Then equation \eqref{eq:oscillator-form} can be written as
+\begin{equation}
+  u''+\ell^2\left[\alpha^2-\frac{1}{\SK^2(\chi)}\right]u=0.
+\end{equation}
+The sign of the bracket tells us whether the regular solution is exponentially small or oscillatory.  The turning point is where the bracket vanishes:
+\begin{equation}
+  \SK(\chi_t)=\frac{1}{\alpha}=\frac{\ell}{\nu}.
+  \label{eq:turning-condition}
+\end{equation}
+Thus, using the \(\ell=\sqrt{l(l+1)}\) convention used in the code paths discussed here,
+\begin{equation}
+  \chi_t=
+  \begin{cases}
+    \asin(\ell/\nu), & K=+1,\\
+    \ell/\nu, & K=0,\\
+    \asinh(\ell/\nu), & K=-1.
+  \end{cases}
+  \label{eq:turning-chi}
+\end{equation}
+This is the turning point of the reduced equation as written, with the exact
+\(l(l+1)\) centrifugal coefficient.  It is also the
+\(\sqrt{l(l+1)}\) balance used in the \textsc{CLASS} hyperspherical WKB/Airy
+code and in the WKB formulae of Refs.~\cite{kosowsky1998,tram2013}.  CAMB and
+other transfer codes also use the nearby \(l+1/2\) convention in separate
+flat-Bessel peak, onset, or Limber estimates.  The two conventions differ
+relative to \(l\) only at \(O(l^{-2})\), but they are not the same object: the
+Olver action map in this note follows \(l(l+1)\) because the comparison solution
+\(zj_l(\nu z)\) satisfies the exact reduced flat spherical-Bessel equation with
+that coefficient.
+
+For \(K=+1\) on the full closed interval, \(\SK(\chi)=\sin\chi\) gives two
+turning points, \(\chi_t\) and \(\pi-\chi_t\).  The solution is evanescent near
+both closed poles and oscillatory between the two turning points.  CAMB folds
+the argument into \([0,\pi/2]\), carrying the corresponding parity sign
+separately, so the local discussion in most of this note refers to the first
+turning point only: below it means the pre-peak or evanescent side, and above it
+means the oscillatory side.  A direct WKB formula would have a singular-looking
+amplitude at the turning point.  The true solution is finite, so the numerical
+method must be uniform through this transition.
+
+The same parameter \(\alpha\) is also a useful numerical gate.  In the local
+small-\(\chi\) curvature expansion the constant expansion parameter is
+\begin{equation}
+  h=K\frac{l(l+1)}{\nu^2}=\frac{K}{\alpha^2}.
+\end{equation}
+Thus larger \(\alpha\) means both weaker curvature corrections in the local map
+and a smaller turning-point radius, \(\SK(\chi_t)=1/\alpha\).  This is why the
+fast small-\(\chi\) shortcuts below require \(\alpha>3\): it keeps
+\(\abs{h}<1/9\) and puts the turning point inside the regime where the local
+series is useful, with the numerical value calibrated against the accuracy
+tests.
+
+This is also why the approximation is normally used in its comfortable regime
+for the near-flat cosmologies of most practical interest.  If
+\(\abs{\mathcal K}^{-1/2}\) is much larger than the current horizon, then every
+source point in the line-of-sight integral has
+\(\chi\lesssim \chi_0=\tau_0\sqrt{\abs{\mathcal K}}\ll1\).  The Bessel factor
+contributing to multipole \(l\) is largest near its peak or turning point, where
+\(\SK(\chi)\simeq \ell/\nu\).  Thus the contributing modes obey
+\begin{equation}
+  \alpha=\frac{\nu}{\ell}\simeq \frac{1}{\SK(\chi)}
+  \gtrsim \frac{1}{\chi_0}\gg1,
+\end{equation}
+or equivalently \(\nu\gg l\) except in very low-\(l\), endpoint, or exponentially
+small tail regions.  Those exceptional corners are exactly where the code uses
+the calibrated gates, Numerov re-seeding, or stable recurrence rather than
+blindly trusting a near-flat shortcut.
+
+\section{What ``Olver'' means in this calculation}
+
+Olver asymptotics are a systematic form of the Liouville-Green or WKB method for second-order differential equations with a large parameter and turning points \cite{olver}.  The practical recipe is:
+\begin{quote}
+Choose a comparison equation whose solution is already known, map the independent variable so that the action integral from the turning point agrees in the original and comparison equations, and include the corresponding amplitude transport factor.
+\end{quote}
+A textbook first-order Langer approximation uses the Airy equation as the comparison problem.  That is the uniform WKB strategy applied to hyperspherical Bessel functions by Kosowsky and later used as a comparison method by Tram and by Lesgourgues--Tram \cite{kosowsky1998,tram2013,lesgourgues-tram2013}.  It works because the Airy function decays on one side of its turning point and oscillates on the other.  CAMB's newer idea is better adapted to the present problem: use the flat spherical-Bessel equation as the comparison equation.  Then the comparison solution is not merely a local Airy function; it is \(zj_l(\nu z)\), evaluated by the fast flat routine \code{BJL}.  The Airy behaviour near the turning point is already built into the flat Bessel calculation.
+
+This is related in spirit to the \textsc{CLASS} flat-rescaling approximation, which also replaces expensive hyperspherical-Bessel evaluations by calls to flat spherical Bessel functions in a high-\(\nu\), near-flat regime \cite{lesgourgues-tram2013}.  The CAMB map below is different: the effective radius and amplitude are determined by local action matching, so the same formula is a pointwise curved-space approximation rather than a fixed turning-point rescaling with an empirical smooth amplitude.
+
+This choice has two important consequences.  First, the method is exact when \(K=0\).  Second, most of the special-function complexity is delegated to the well-optimized flat Bessel implementation.  The curved part of the problem becomes a coordinate map \(z(\chi)\) and an amplitude factor \(A(\chi)\).
+
+\section{The flat comparison equation}
+
+The reduced flat spherical-Bessel function is
+\begin{equation}
+  v(z)=zj_l(\nu z).
+\end{equation}
+It satisfies
+\begin{equation}
+  v''=\left[\frac{l(l+1)}{z^2}-\nu^2\right]v
+  =\ell^2\left[\frac{1}{z^2}-\alpha^2\right]v.
+  \label{eq:flat-comparison}
+\end{equation}
+Compare this with the curved reduced equation \eqref{eq:reduced-equation}.  The only structural difference is
+\begin{equation}
+  z \quad \hbox{versus} \quad \SK(\chi).
+\end{equation}
+Therefore the leading-order Olver-to-flat approximation has the form
+\begin{equation}
+  u_l^\nu(K,\chi)\simeq A(\chi)z(\chi)j_l(\nu z(\chi)),
+  \label{eq:basic-olver-u}
+\end{equation}
+with a closed-space sign factor inserted when \(K=+1\).  The unreduced function is
+\begin{equation}
+  \phi_l^\nu(K,\chi)\simeq \frac{A(\chi)z(\chi)}{\SK(\chi)}j_l(\nu z(\chi)).
+  \label{eq:basic-olver-phi}
+\end{equation}
+The implementation is literally this composition: compute \(z\) and \(A\), call \code{BJL(l,nu*z,j_l)}, multiply by \(A z\), and divide by \(\SK\) if the public result requested is \(\phi\) rather than \(u\).
+
+\section{The Olver action map}
+
+Define
+\begin{equation}
+  f_K(\chi)=\alpha^2-\frac{1}{\SK^2(\chi)},\qquad
+  f_0(z)=\alpha^2-\frac{1}{z^2}.
+\end{equation}
+The Olver coordinate is defined by equality of positive action distances from
+the turning point.  For the curved equation define
+\begin{equation}
+  Q_K(\chi)=
+  \begin{cases}
+  \displaystyle
+  \int_\chi^{\chi_t}\sqrt{-f_K(s)}\,\dd s, & \chi<\chi_t,\\[1.5ex]
+  \displaystyle
+  \int_{\chi_t}^{\chi}\sqrt{f_K(s)}\,\dd s, & \chi>\chi_t,
+  \end{cases}
+  \label{eq:curved-action}
+\end{equation}
+with \(Q_K(\chi_t)=0\).  In WKB language this is the accumulated action: below
+the turning point it measures the amount of exponential tunnelling, and above
+the turning point it measures the accumulated oscillatory phase.  Points below
+the turning point map to \(z<z_t\), and points above it map to \(z>z_t\), where
+\(z_t=1/\alpha=\ell/\nu\).
+
+The flat side is the same construction with \(f_0\).  It is convenient to remove
+the explicit \(\alpha\) by setting \(x=\alpha z\) and \(y=\alpha r\).  This
+defines the dimensionless flat action \(I_0\):
+\begin{equation}
+  I_0(x)=
+  \begin{cases}
+  \displaystyle
+  \int_x^1\sqrt{y^{-2}-1}\,\dd y
+  =\log\left(\frac{1+\sqrt{1-x^2}}{x}\right)-\sqrt{1-x^2}, & x<1,\\[1.5ex]
+  \displaystyle
+  \int_1^x\sqrt{1-y^{-2}}\,\dd y
+  =\sqrt{x^2-1}-\arccos\left(\frac{1}{x}\right), & x>1,
+  \end{cases}
+  \label{eq:flat-action}
+\end{equation}
+with \(I_0(1)=0\).  This definition is the flat side of
+\eqref{eq:curved-action}: \(x<1\) is the evanescent side and \(x>1\) is the
+oscillatory side.  The Olver map chooses \(z\) so that the flat comparison
+problem has the same action,
+\begin{equation}
+  Q_K(\chi)=I_0(\alpha z),
+  \qquad z_t=\frac{1}{\alpha}=\frac{\ell}{\nu}.
+  \label{eq:action-map}
+\end{equation}
+For the curved cases the integral \(Q_K(\chi)\)
+has analytic logarithm and \(\atanTwo\) forms, using
+\(x=\alpha\SK(\chi)\).  These are the same action integrals that appear in the
+older Langer/WKB formulae \cite{kosowsky1998,tram2013}; CAMB uses them to define
+a map to the flat spherical-Bessel equation rather than to build an Airy
+argument directly.  These closed forms are the expressions implemented in
+\code{qintegral_exact}; they avoid quadrature in a hot loop.
+
+The remaining numerical task is to solve \eqref{eq:action-map} for
+\(x=\alpha z\).  There is no simple elementary formula for the inverse of
+\(I_0\), but each branch has a stable parameterization.  Below the turning point
+write \(x=\sech t\).  Then
+\begin{equation}
+  I_0(x)=t-\tanh t.
+\end{equation}
+Above the turning point write \(x=1/\cos\theta\).  Then
+\begin{equation}
+  I_0(x)=\tan\theta-\theta.
+\end{equation}
+Thus the code is not approximating the curved action at this stage; it is only
+inverting the exact flat comparison action.  Near the turning point the action
+is small and both parameterizations have the same leading behaviour,
+\(I_0\simeq t^3/3\) or \(I_0\simeq\theta^3/3\).  This is why
+\code{invert_flat_action} first forms
+\begin{equation}
+  p=(3Q_K)^{1/3}
+\end{equation}
+and uses a numerical polynomial fit in \(p^2\) for \(x\).  These coefficients
+are not meant to be read as an analytic Taylor expansion of the Olver
+solution; they are fitted inverse-action formulae for the flat comparison
+problem in the narrow region where a direct root solve would be wasteful and
+where subtracting nearly equal logarithmic or trigonometric terms would lose
+precision.  Away from the turning point the code switches to the natural
+asymptotic inverses: in the evanescent tail \(t\simeq Q_K+1\) and
+\(x=\sech t\) is expanded in powers of \(\exp[-(Q_K+1)]\); on the oscillatory
+side \(\theta\) is close to \(\pi/2\), so the inverse is expanded in powers of
+\((Q_K+\pi/2)^{-1}\).  This keeps the Olver call fast: the map requires the
+closed-form curved action, one branch choice, and a Horner polynomial or
+asymptotic formula before the final \code{BJL} call.  Finally
+\(z=x/\alpha=z_t x\), with the sign of the branch supplied by whether \(\chi\)
+is below or above \(\chi_t\).
+
+The amplitude transport follows by differentiating the action relation.  The result is
+\begin{equation}
+  A(\chi)=\left|
+  \frac{\alpha^2-z^{-2}}{\alpha^2-\SK(\chi)^{-2}}
+  \right|^{1/4}.
+  \label{eq:amplitude}
+\end{equation}
+At the turning point both numerator and denominator vanish, but the limit is finite.  With \(C_t=\CK(\chi_t)\),
+\begin{equation}
+  z-z_t\simeq C_t^{1/3}(\chi-\chi_t),\qquad
+  A(\chi_t)=C_t^{-1/6}.
+  \label{eq:turning-limit}
+\end{equation}
+For \(K=0\), \(\SK=\chi\), \(z=\chi\), and \(A=1\).  Equations \eqref{eq:basic-olver-u} and \eqref{eq:basic-olver-phi} then reduce exactly to the flat result.
+
+\section{Small-\texorpdfstring{\(\chi\)}{chi} Olver expansion}
+
+Very near the origin the exact action map involves nearly equal quantities.  The code therefore uses a local expansion of the differentiated map,
+\begin{equation}
+  \left(\frac{\dd z}{\dd\chi}\right)^2
+  \left(\alpha^2-\frac{1}{z^2}\right)
+  =\alpha^2-\frac{1}{\SK^2(\chi)}.
+  \label{eq:differentiated-map}
+\end{equation}
+Write
+\begin{equation}
+  z=\chi F,\qquad
+  h=\frac{K}{\alpha^2}=K\frac{l(l+1)}{\nu^2},\qquad
+  a=K\chi^2.
+\end{equation}
+The code's cubic-order expansion is
+\begin{equation}
+  F=1-h\left[\frac{1}{6}+\frac{4a+13h}{360}
+  +\frac{48a^2+148ha+737h^2}{45360}\right],
+  \label{eq:F-smallchi}
+\end{equation}
+with
+\begin{equation}
+  D=\frac{\dd z}{\dd\chi}=1-h\left[\frac{1}{6}+\frac{12a+13h}{360}
+  +\frac{240a^2+444ha+737h^2}{45360}\right].
+  \label{eq:D-smallchi}
+\end{equation}
+The local approximation is then
+\begin{equation}
+  \phi_l^\nu(\chi)\simeq
+  \frac{\chi F}{\SK(\chi)}\frac{1}{\sqrt D}\,j_l(\nu\chi F).
+  \label{eq:smallchi-olver-phi}
+\end{equation}
+In source-integration code this appears as an argument \(x=\nu\chi F\) for the flat Bessel table and a weight proportional to \(F/\sqrt D\), together with the geometrical factor \(\chi/\SK(\chi)\).
+
+\section{Shifted-\texorpdfstring{\(q\)}{q}: the constant-map small-\texorpdfstring{\(\chi\)}{chi} shortcut}
+
+Flat-Bessel replacements in the near-flat regime were also the central acceleration idea in the \textsc{CLASS} flat-rescaling approximation \cite{lesgourgues-tram2013}.  The shortcut here has the same computational purpose, but its constant rescaling is the constant part of CAMB's local Olver map rather than the \textsc{CLASS} turning-point rescaling \(\gamma\) with a fitted smooth amplitude.
+
+The fastest source-integration shortcut is obtained by taking the local
+small-\(\chi\) Olver map and keeping only its \(\chi\)-independent part.  In
+other words, the map is treated as a constant rescaling of the flat Bessel
+argument over the source interval.  This keeps the computation as cheap as a
+flat table lookup, while still retaining the constant curvature corrections
+from the local Olver expansion.
+
+Recall the small-\(\chi\) variables
+\begin{equation}
+  h=K\frac{l(l+1)}{\nu^2},\qquad a=K\chi^2,
+\end{equation}
+and write the local map as
+\begin{equation}
+  F(\chi)=F_0+F_2\chi^2+F_4\chi^4+\cdots,\qquad
+  D(\chi)=\frac{\dd z}{\dd\chi}=D_0+D_2\chi^2+D_4\chi^4+\cdots.
+\end{equation}
+Setting \(a=0\) in \eqref{eq:F-smallchi} and \eqref{eq:D-smallchi} gives the
+constant terms
+\begin{equation}
+  F_0=D_0
+  =1-\frac{h}{6}-\frac{13h^2}{360}-\frac{737h^3}{45360}.
+  \label{eq:F0-shift}
+\end{equation}
+The shifted branch freezes the map at this value:
+\begin{equation}
+  z\simeq F_0\chi,\qquad D\simeq F_0.
+\end{equation}
+Substituting this into the local Olver expression \eqref{eq:smallchi-olver-phi}
+therefore gives
+\begin{equation}
+  \phi_l^\nu(K,\chi)\simeq
+  \frac{\chi F_0}{\SK(\chi)}\frac{1}{\sqrt{F_0}}\,
+  j_l(\nu F_0\chi)
+  =
+  \sqrt{F_0}\,\frac{\chi}{\SK(\chi)}j_l(q_{\rm eff}\chi),
+  \qquad q_{\rm eff}=\nu F_0.
+  \label{eq:shifted-q}
+\end{equation}
+For the reduced function this is equivalently
+\begin{equation}
+  u_l^\nu(K,\chi)\simeq \sqrt{F_0}\,\chi j_l(q_{\rm eff}\chi).
+\end{equation}
+This is exactly what the production code implements in the shifted near-flat
+paths:
+\begin{equation}
+  \code{qeff}=\nu\,\code{F0},\qquad
+  \code{q_amp}=\sqrt{\code{F0}},
+\end{equation}
+followed by a lookup of the already-tabulated flat \(j_l\) at
+\(q_{\rm eff}\chi\), multiplication by \(\code{q_amp}\), and the geometrical
+factor \(\chi/\SK(\chi)\) for the unreduced value.
+
+It is useful to expand the effective wavenumber squared:
+\begin{equation}
+  q_{\rm eff}^2
+  =\nu^2F_0^2
+  =\nu^2\left[
+  1-\frac{h}{3}-\frac{2h^2}{45}-\frac{58h^3}{2835}
+  +\order(h^4)\right].
+  \label{eq:qeff-F0-expanded}
+\end{equation}
+The first correction in \eqref{eq:qeff-F0-expanded} is
+\(-\nu^2 h/3=-K l(l+1)/3\).  This is the same leading constant curvature
+correction obtained by expanding \(1/\SK^2\) in the radial equation, as shown in
+the note below.  The implemented \(F_0\) form also keeps the constant \(h^2\)
+and \(h^3\) corrections from the Olver map at essentially no extra per-sample
+cost.
+
+The shifted-\(q\) gate is tied to the part of the local Olver map that this
+constant shortcut omits.  With
+\begin{equation}
+  t=\alpha\chi,\qquad \alpha=\frac{\nu}{\ell},\qquad \ell=\sqrt{l(l+1)},
+\end{equation}
+the first omitted coordinate term is
+\begin{equation}
+  F(\chi)-F_0=-\frac{ha}{90}+\cdots
+  =-\frac{t^2}{90\alpha^4}+\cdots,
+\end{equation}
+where the second equality uses \(K^2=1\), which holds on every non-flat
+(\(K=\pm1\)) code path that takes this branch, so that
+\(ha=K^2\chi^2/\alpha^2=\chi^2/\alpha^2=t^2/\alpha^4\).  The leading omitted
+flat-Bessel argument shift is then
+\begin{equation}
+  \abs{\delta x}
+  =\abs{\nu\chi\,[F(\chi)-F_0]}
+  \simeq \frac{\ell t^3}{90\alpha^4}.
+\end{equation}
+The leading omitted amplitude correction follows from
+\(F/\sqrt{D}\) relative to \(\sqrt{F_0}\):
+\begin{equation}
+  \frac{F/\sqrt D}{\sqrt{F_0}}-1
+  \simeq \frac{t^2}{180\alpha^4}.
+\end{equation}
+At the endpoint \(t_{\max}=\alpha\chi_{\max}\), the current code combines these
+as
+\begin{equation}
+  \epsilon_{\rm shift}=
+  \frac{1}{2}\frac{\ell\,t_{\max}^3}{90\alpha^4}
+  +\frac{t_{\max}^2}{180\alpha^4},
+  \label{eq:shift-error}
+\end{equation}
+with a threshold scaled by the requested accuracy.  This shifted-\(q\) test is
+not the whole gate.  The same branch first requires the full small-\(\chi\)
+Olver map to be valid on the interval,
+\begin{equation}
+  \alpha>3,\qquad l(l+1)\frac{\chi_{\max}^7}{\nu}
+  <\frac{0.3}{B_{\rm acc}}.
+\end{equation}
+The \(\alpha>3\) condition is a guard on the asymptotic regime rather than a
+new physical boundary.  Since
+\begin{equation}
+  h=\frac{K}{\alpha^2},
+\end{equation}
+it keeps the constant expansion parameter small, \(\abs{h}<1/9\), and places
+the turning point at \(\SK(\chi_t)=1/\alpha<1/3\), where the local
+small-\(\chi\) curvature expansion is the relevant approximation.  Below this
+range the correction terms are no longer parametrically small enough for the
+cheap shifted shortcut to be trusted, so the code uses the fuller small-\(\chi\)
+map, Numerov stepping, or stable recurrence depending on the surrounding
+regime.  The numerical value \(3\) is also used by the pointwise gates, where
+the implementation uses \(\nu/l\) as a high-\(l\) proxy for
+\(\nu/\sqrt{l(l+1)}\).  The error estimate above is a comparison against the
+omitted local Olver terms, rather than a pointwise relative-error test, which
+would be inappropriate near Bessel zeros.
+
+\subsection*{Note: a simpler constant-potential shift that is not used}
+
+There is a nearby approximation that looks slightly simpler algebraically, and
+it is useful for understanding the leading term.  Expand the curvature
+centrifugal factor directly:
+\begin{equation}
+  \frac{1}{\SK^2(\chi)}
+  =\frac{1}{\chi^2}+\frac{K}{3}+\frac{K^2\chi^2}{15}
+  +\frac{2K^3\chi^4}{189}+\cdots.
+  \label{eq:SK-inverse-expansion}
+\end{equation}
+Substituting this into the reduced oscillator equation gives
+\begin{align}
+  u''+\left[\nu^2-\frac{L}{\SK^2(\chi)}\right]u&=0,
+  \qquad L=l(l+1),\\
+  u''+\left[\nu^2-\frac{L}{\chi^2}-\frac{KL}{3}
+  +\order(K^2L\chi^2)\right]u&=0.
+\end{align}
+If only the constant curvature correction is retained, the result is a flat
+reduced spherical-Bessel equation with
+\begin{equation}
+  q_{\rm pot}^2=\nu^2-\frac{K l(l+1)}{3}
+  =\nu^2\left(1-\frac{h}{3}\right).
+  \label{eq:qeff-constant-potential}
+\end{equation}
+The corresponding amplitude-corrected form would be
+\begin{equation}
+  \phi_l^\nu(\chi)\approx
+  \left(\frac{q_{\rm pot}}{\nu}\right)^{1/2}
+  \frac{\chi}{\SK(\chi)}j_l(q_{\rm pot}\chi).
+  \label{eq:constant-potential-shift}
+\end{equation}
+This agrees with the implemented formula through first order in \(h\), since
+\begin{equation}
+  \frac{q_{\rm pot}}{\nu}
+  =\sqrt{1-\frac{h}{3}}
+  =1-\frac{h}{6}-\frac{h^2}{72}+\cdots,
+\end{equation}
+whereas
+\begin{equation}
+  F_0=1-\frac{h}{6}-\frac{13h^2}{360}+\cdots.
+\end{equation}
+The constant-potential version is therefore a legitimate additional
+approximation, but it is not the one used in the current code: it has similar
+numerical cost and drops constant higher-order Olver information that is already
+available in \(F_0\).
+
+\section{Accuracy gates and approximation hierarchy}
+
+The formulas above are used as a controlled hierarchy, not as a single
+unconditional replacement for the exact hyperspherical Bessel function.  It is
+helpful to separate the pointwise Bessel call from the source-integration
+fillers.
+
+\subsection{What the full-Olver error estimate is based on}
+
+The ``full Olver'' path in the code means the full analytic action map
+\(z(\chi)\) and amplitude \(A(\chi)\), but it is still the leading-order
+uniform Olver approximation.  Higher Olver terms are not evaluated.  A useful
+way to see the first omitted term is to substitute
+\[
+  u(\chi)=A(\chi)w(z(\chi)),\qquad A=(\dd z/\dd\chi)^{-1/2},
+\]
+back into the exact reduced equation.  The comparison function \(w\) then obeys
+\begin{equation}
+  \frac{\dd^2 w}{\dd z^2}
+  +\left[\ell^2 f_0(z)+\Psi(z)\right]w=0,
+  \qquad
+  \Psi(z)=
+  -\frac{1}{2(\dd z/\dd\chi)^2}\{z,\chi\}_{S},
+  \label{eq:olver-residual}
+\end{equation}
+where
+\begin{equation}
+  \{z,\chi\}_{S}
+  =\frac{z'''}{z'}-\frac{3}{2}\left(\frac{z''}{z'}\right)^2
+\end{equation}
+is the Schwarzian derivative.  The leading approximation drops \(\Psi\) and
+solves only the flat comparison equation.  The next Olver correction is driven
+by this residual term, or equivalently by its integral against the flat
+comparison solutions.
+
+This gives the form of the gates, but not trustworthy constants by itself.  In
+the near-flat regime the local expansion of the omitted curvature terms is
+controlled by powers of \(h=K/\alpha^2\); after the leading action and amplitude
+matching, the relevant curvature-dependent remainder falls rapidly with
+\(\alpha\), with the observed raw-Olver envelope consistent with an
+\(\alpha^{-4}\) scaling.  This motivates the \(\alpha\simeq3\) boundary.  Below
+that boundary the asymptotic remainder is no longer parametrically small, and
+the validation errors are better organized by the endpoint metrics
+\(\chi/(2\nu)\) in open models and \(\chi/[2(\nu-l)]\) in closed models.  The
+code therefore uses those metrics to decide when the leading full-Olver value is
+still acceptable and otherwise falls back to stable recurrence.  The numerical
+thresholds are calibrated on peak-normalized errors; a local relative error or
+the pointwise ratio \(\Psi/(\ell^2 f_0)\) would be misleading near turning
+points and Bessel zeros.
+
+\subsection{Pointwise Bessel calls}
+
+The full action-map value means the \code{compute_olver_z_amp} path: compute
+\(z\) and \(A\), call \code{BJL(l,nu*z,j_l)}, and multiply by the transport
+amplitude.  This leading-order value is exact in the flat limit, but for
+\(K=\pm1\) it is still an asymptotic approximation.  The public pointwise calls
+therefore apply empirical gates before accepting that raw full Olver value.
+
+The decision order in \code{olver_reduced} is:
+\begin{enumerate}[leftmargin=*]
+\item For \(l\le2\), use \code{phi_recurs_stable}.
+\item For \(l>2\), first try the local small-\(\chi\) approximation to the
+Olver map, if
+\begin{equation}
+  \frac{\nu}{l}>3,\qquad
+  \frac{l^2\chi^7}{\nu}<5\times10^{-2}.
+\end{equation}
+This pointwise gate deliberately uses \(\nu/l\) and \(l^2\) as cheap high-\(l\)
+proxies; the map itself still uses the more accurate
+\(\sqrt{l(l+1)}\) curvature scale.
+\item If the small-\(\chi\) map is not used, accept the full action-map Olver
+value whenever \(\nu/l\ge3\).
+\item If \(\nu/l<3\), accept the full action-map value only in the small
+endpoint corner where the calibrated metric is below threshold:
+\begin{equation}
+  \hbox{open:}\quad \frac{\chi}{2\nu}\le2.6\times10^{-2},
+  \qquad
+  \hbox{closed:}\quad \frac{\chi}{2(\nu-l)}\le6.2\times10^{-3}.
+\end{equation}
+Otherwise fall back to \code{phi_recurs_stable}.
+\end{enumerate}
+These thresholds are calibrated on peak-normalized Bessel error, with the raw
+Olver envelope kept at roughly the \(10^{-4}\) level on the open and closed
+validation grid.  A simple pointwise relative error would be a poor gate near
+Bessel zeros, so the implementation uses envelope and endpoint metrics instead.
+
+\subsection{Source-integration gates}
+
+In the line-of-sight source integration, \code{u_olver} is usually not called at
+every source time.  It supplies starting and re-seeding values for Numerov
+stepping, while neighbouring values are advanced with the differential equation.
+As above, \(B_{\rm acc}\) denotes the accuracy-boost factor used for non-flat
+source integration, bounded below by one.  The Numerov step size and re-bootstrap
+interval are scaled by \(B_{\rm acc}\).
+
+Before Numerov, near-flat scalar source ranges can be filled directly from flat
+Bessel tables.  These shortcuts are also tied to a peak-position sampling ratio,
+not to the cosmological scale factor \(a\).  Define
+\begin{equation}
+  \theta_{\rm drag}
+  =\frac{r_s(z_{\rm drag})}{D_M(\tau_0)},\qquad
+  \theta_{\rm drag}^{\rm P18}
+  =\left[
+  \frac{r_s(z_{\rm drag})}{D_M(\tau_0)}
+  \right]_{\rm Planck\,2018},
+\end{equation}
+where \(D_M(\tau_0)\) is the comoving angular-diameter distance over the present
+conformal time.  The sampling ratio is
+\begin{equation}
+  s_{\rm peak}=\frac{\theta_{\rm drag}^{\rm P18}}{\theta_{\rm drag}}.
+\end{equation}
+When \(\abs{s_{\rm peak}-1}\le0.03\), the acoustic peak positions and the
+multipole sampling are close enough to the fiducial flat sampling that CAMB can
+keep the same \(l\)-sampling strategy and reuse the flat spherical-Bessel table
+machinery, enlarging the maximum tabulated argument when needed for shifted-\(q\)
+calls.  This avoids recomputing a different Bessel sampling for a small
+geometric rescaling.  If the ratio is outside this tolerance, the geometry has
+shifted the peaks enough that these near-flat table shortcuts are not assumed.
+When this bookkeeping gate passes, the table paths still have to pass a
+two-stage accuracy test:
+\begin{enumerate}[leftmargin=*]
+\item First, the local small-\(\chi\) approximation to the full Olver map must
+be valid over the whole source range,
+\begin{equation}
+  \alpha=\frac{\nu}{\sqrt{l(l+1)}}>3,\qquad
+  l(l+1)\frac{\chi_{\max}^7}{\nu}
+  <\frac{0.3}{B_{\rm acc}}.
+\end{equation}
+If this passes, \code{UseSmallChiNearFlatIntegration} may fill the range using
+\(j_l(\nu\chi F)\) and the \(F/\sqrt D\) weight.
+\item The shifted-\(q\) filler must pass the same small-\(\chi\) Olver-validity
+gate, and then a second test that freezing \(F(\chi)\) and \(D(\chi)\) to their
+constant values is accurate enough:
+\begin{equation}
+  \epsilon_{\rm shift}<\frac{10^{-3}}{B_{\rm acc}},
+\end{equation}
+with \(\epsilon_{\rm shift}\) defined in \eqref{eq:shift-error}.  Thus
+shifted-\(q\) is used only when the small-\(\chi\) Olver map is valid and the
+constant-map approximation to that map is valid.
+\end{enumerate}
+If neither table filler passes, the code uses the general non-flat route:
+\code{u_olver} for seed values, Numerov for nearby samples, and
+\code{phi_recurs_stable} only where the pointwise Bessel gate has selected it.
+The overall source accuracy is therefore controlled jointly by the pointwise
+Olver gates, the near-flat filler gates, and the Numerov sampling, not by the
+raw Olver asymptotic formula alone.
+
+\section{Stable recursive fallback: exact seeds, upward recurrence and Miller recurrence}
+
+The action-map Olver path is a high-throughput leading-order uniform approximation.  For low \(l\), invalid asymptotic corners, and some fallback regions, CAMB uses direct recurrence through \code{phi_recurs_stable}.  This recurrence machinery follows the standard hyperspherical-Bessel relations and the later stable-recursion improvements developed for \textsc{CLASS} \cite{abbott-schaefer,tram2013,lesgourgues-tram2013}.  This section explains that routine because it is part of the actual new path.
+
+The exact seed functions are
+\begin{equation}
+  \phi_0^\nu(K,\chi)=\frac{\sin(\nu\chi)}{\nu\SK(\chi)},
+  \label{eq:phi0}
+\end{equation}
+with Taylor safeguards for small arguments, and
+\begin{equation}
+  \phi_1^\nu(K,\chi)=
+  \frac{\cotK\chi\,\sin(\nu\chi)/\nu-\cos(\nu\chi)}{\SK(\chi)b_1(K,\nu)}.
+  \label{eq:phi1}
+\end{equation}
+For \(K=0\), these reduce to \(j_0(\nu\chi)\) and \(j_1(\nu\chi)\).
+
+The exact recurrence is
+\begin{equation}
+  b_j\phi_j^\nu
+  =(2j-1)\cotK\chi\,\phi_{j-1}^\nu
+  -b_{j-1}\phi_{j-2}^\nu,
+  \qquad j\ge2.
+  \label{eq:up-recurrence}
+\end{equation}
+Forward recurrence from \(j=0,1\) is used only where it is stable, essentially the safely oscillatory region.  The code tests a condition of the form
+\begin{equation}
+  b_l>0,\qquad \abs{\cotK\chi}<\frac{b_l}{\max(1,l)}.
+\end{equation}
+Outside this region, forward recurrence would amplify the unwanted independent solution.  The code then uses Miller downward recurrence,
+\begin{equation}
+  \phi_{j-1}^\nu
+  =\frac{(2j+1)\cotK\chi\,\phi_j^\nu-b_{j+1}\phi_{j+1}^\nu}{b_j},
+  \qquad j=l,l-1,\ldots,1.
+  \label{eq:down-recurrence}
+\end{equation}
+Downward recurrence gives the correct ratios but needs a top boundary condition.  This is supplied by a logarithmic derivative.
+
+\subsection{The logarithmic derivative used to start downward recurrence}
+
+The derivative identity is
+\begin{equation}
+  \frac{\dd\phi_j^\nu}{\dd\chi}
+  =j\cotK\chi\,\phi_j^\nu-b_{j+1}\phi_{j+1}^\nu.
+  \label{eq:deriv-id}
+\end{equation}
+Define
+\begin{equation}
+  D_j=\frac{(\phi_j^\nu)'}{\phi_j^\nu}.
+\end{equation}
+Then
+\begin{equation}
+  b_{j+1}\frac{\phi_{j+1}^\nu}{\phi_j^\nu}=j\cotK\chi-D_j.
+  \label{eq:ratio-logderiv}
+\end{equation}
+The Miller start is therefore: set an arbitrary \(\widetilde\phi_l=1\), compute \(D_l\), set
+\begin{equation}
+  b_{l+1}\widetilde\phi_{l+1}=l\cotK\chi-D_l,
+  \label{eq:miller-start}
+\end{equation}
+then recur downward with \eqref{eq:down-recurrence}.  At the end the arbitrary sequence is normalized by matching the exact seed values \eqref{eq:phi0} or \eqref{eq:phi1}, whichever is numerically safer.
+
+For \(K=0\) and \(K=-1\), \(D_l\) is obtained from a continued fraction.  Let
+\begin{equation}
+  R_j=b_{j+1}\frac{\phi_{j+1}}{\phi_j}.
+\end{equation}
+The recurrence gives
+\begin{equation}
+  R_j=\frac{b_{j+1}^2}{(2j+3)\cotK\chi-R_{j+1}},
+\end{equation}
+so
+\begin{equation}
+  D_l=l\cotK\chi-
+  \frac{b_{l+1}^2}{(2l+3)\cotK\chi-
+  \dfrac{b_{l+2}^2}{(2l+5)\cotK\chi-\cdots}}.
+  \label{eq:cf-logderiv}
+\end{equation}
+The implementation evaluates this with a modified continued-fraction iteration.
+
+\subsection{Closed-space Gegenbauer logarithmic derivative}
+
+For \(K=+1\), the regular solution has an exact finite Gegenbauer-polynomial form,
+\begin{equation}
+  \phi_l^\nu(+1,\chi)=N_{l\nu}\,\sin^l\chi\,
+  C_{\nu-l-1}^{l+1}(\cos\chi).
+  \label{eq:gegenbauer-form}
+\end{equation}
+This identity is the key observation in Tram's closed-space stable-recursion algorithm, and Lesgourgues--Tram use it to remove the old obstruction to closed-space backward recurrence \cite{tram2013,lesgourgues-tram2013}.
+Let
+\begin{equation}
+  n=\nu-l-1,\qquad \lambda=l+1,\qquad x=\cos\chi,\qquad G(x)=C_n^\lambda(x).
+\end{equation}
+Since the normalization cancels in a logarithmic derivative,
+\begin{equation}
+  D_l=l\cot\chi-\sin\chi\,\frac{G'(\cos\chi)}{G(\cos\chi)}.
+  \label{eq:gegenbauer-logderiv}
+\end{equation}
+This is the closed-case \code{phi_logderiv_closed_gegenbauer}.  The code computes \(G\) and \(G'\) together by the Gegenbauer recurrence
+\begin{equation}
+  C_0^\lambda(x)=1,\qquad C_1^\lambda(x)=2\lambda x,
+\end{equation}
+\begin{equation}
+  C_k^\lambda(x)=\frac{2(k+\lambda-1)xC_{k-1}^\lambda(x)-(k+2\lambda-2)C_{k-2}^\lambda(x)}{k},
+\end{equation}
+with the derivative recurrence obtained by differentiating this relation.  This provides a stable top boundary condition for the Miller recurrence in a finite closed spectrum.  The Gegenbauer calculation is not used as a separate final approximation; it only supplies \(D_l\) in \eqref{eq:miller-start}.
+
+\section{How CAMB actually uses the approximations in source integration}
+
+The line-of-sight source integral needs the Bessel function at many neighbouring time points.  The computational pressure is the same one discussed in the non-flat \textsc{CLASS} implementation: hyperspherical Bessel functions are too expensive to store globally and too common in the transfer integral to evaluate with a slow special-function path \cite{lesgourgues-tram2013}.  CAMB's main path therefore uses a hierarchy rather than calling \code{u_olver} independently at every source time.
+
+For flat models, \code{DoFlatIntegration} uses precomputed flat Bessel tables.  It converts each time point to a flat argument \(x=q(\tau_0-\tau)\), finds the bracketing table point, and evaluates a cubic spline in Horner form.  This is the baseline fast method.
+
+For near-flat models there are two table-based shortcuts.  \code{DoNearFlatIntegration} uses the shifted-\(q\) argument \(x=q_{\rm eff}\chi\), with
+\begin{equation}
+  h=K\frac{l(l+1)}{\nu^2},\qquad
+  F_0=1-\frac{h}{6}-\frac{13h^2}{360}-\frac{737h^3}{45360},
+  \qquad
+  q_{\rm eff}=\nu F_0,\qquad
+  q_{\rm amp}=\sqrt{F_0}.
+\end{equation}
+The tabulated \(j_l\) value is multiplied by this amplitude factor and by precomputed time/geometric weights.  \code{DoNearFlatSmallChiIntegration} instead uses the small-\(\chi\) Olver map \(x=\nu\chi F\) and weights proportional to \(F/\sqrt D\).  Both paths reduce the curved Bessel problem to looking up the existing flat Bessel table.
+
+For genuinely non-flat source integration, \code{IntegrateSourcesBessels} first chooses a starting point near the turning point,
+\begin{equation}
+  \chi_{\rm diss}=\SK^{-1}(\ell/\nu),
+\end{equation}
+then evaluates \(u_l^\nu\) there using \code{u_olver}.  The source integral is split into ranges above and below this starting point.  On each range, \code{DoRangeInt} either fills all grid values with a near-flat approximation, or steps the reduced differential equation by Numerov integration.
+
+\section{Nearby values by Numerov integration}
+
+Numerov integration is used because the reduced equation has the special form
+\begin{equation}
+  y''=Q(\chi)y,\qquad
+  Q(\chi)=\frac{l(l+1)}{\SK^2(\chi)}-\nu^2,
+  \label{eq:numerov-ode}
+\end{equation}
+with no first-derivative term.  This is precisely the form for which Numerov's method is efficient and high-order accurate.
+
+Suppose the integration step is \(h\), including its sign.  Write \(Q_n=Q(\chi_n)\) and \(y_n=y(\chi_n)\).  The Numerov update used in the code is
+\begin{equation}
+  y_{n+1}=
+  \frac{2\left(1+\frac{5h^2Q_n}{12}\right)y_n
+  -\left(1-\frac{h^2Q_{n-1}}{12}\right)y_{n-1}}
+  {1-\frac{h^2Q_{n+1}}{12}}.
+  \label{eq:numerov-update}
+\end{equation}
+This is a fourth-order local correction to the ordinary three-point second-derivative formula.  Because \eqref{eq:numerov-update} is a three-point (two-step) recurrence, it needs \emph{two} consecutive accurate values to start; once these are known from \code{u_olver}, the neighbouring values satisfy the same smooth ODE.
+
+The code initializes as follows.  At the start of a range it takes \(y_0\) from the end of the previous range if one is available, and otherwise evaluates
+\begin{equation}
+  y_0=u_l^\nu(K,\chi_0)
+\end{equation}
+using \code{u_olver}.  For the very first substep it then evaluates the next point \(y_1=u_l^\nu(K,\chi_0+\Delta\chi_{\rm sub})\) with a second \code{u_olver} call; these two values are what start the Numerov recurrence.  After that, the update \eqref{eq:numerov-update} propagates \(y\) to all intermediate substeps.  At each source grid point the stored value is
+\begin{equation}
+  \phi_l^\nu(\chi_n)=\frac{y_n}{\SK(\chi_n)}.
+\end{equation}
+Two implementation details keep this loop both cheap and stable.  First, the
+metric factor \(\SK(\chi)\) (and \(\CK(\chi)\), needed to advance it) is not
+recomputed with a fresh \code{sin}/\code{sinh} call at every substep.  Instead
+the code steps \(\SK,\CK\) forward by the fixed substep \(\Delta\chi_{\rm sub}\)
+using the angle-addition formulae, which for the constant step reduce to a
+two-term linear update with precomputed coefficients
+\(\SK(\Delta\chi_{\rm sub}),\CK(\Delta\chi_{\rm sub})\):
+\begin{equation}
+  \begin{aligned}
+  K=+1:&\quad
+  \begin{cases}
+    s_{n+1}=s_n\cos\Delta\chi_{\rm sub}+c_n\sin\Delta\chi_{\rm sub},\\
+    c_{n+1}=c_n\cos\Delta\chi_{\rm sub}-s_n\sin\Delta\chi_{\rm sub},
+  \end{cases}\\[1ex]
+  K=-1:&\quad
+  \begin{cases}
+    s_{n+1}=s_n\cosh\Delta\chi_{\rm sub}+c_n\sinh\Delta\chi_{\rm sub},\\
+    c_{n+1}=c_n\cosh\Delta\chi_{\rm sub}+s_n\sinh\Delta\chi_{\rm sub},
+  \end{cases}
+  \end{aligned}
+\end{equation}
+with \(s_n=\SK(\chi_n)\), \(c_n=\CK(\chi_n)\).  Then \(Q_n\) follows from
+\(s_n\) alone.  Second, both the angle-addition recursion and the Numerov
+recursion accumulate floating-point drift over many steps, so after a fixed
+number of substeps (a re-bootstrap interval of order a hundred steps, reduced
+at higher accuracy boost) the code re-seeds: it recomputes \(\SK,\CK\) directly
+from \(\chi\), and re-evaluates the two Numerov starting values with fresh
+\code{u_olver} calls before continuing.  This bounds the accumulated error
+without paying for an \code{u_olver} call at every step.
+
+The source integral is then accumulated by a trapezoidal rule: the first and last stored Bessel values in the range get half weight, and the final sum is multiplied by \(\Delta\chi/\sqrt{\abs{\mathcal K}}\), equivalently the conformal-time step.
+
+This explains why the Olver approximation is used differently inside source integration than in a standalone point call.  It supplies a robust starting value near the peak or turning point.  Nearby values are cheaper and sufficiently accurate from the differential equation itself.  The step size is limited to a fraction of \(1/\nu\), with accuracy-boost factors, so that the oscillation is well sampled.  The integration stops early in dissipative tails when \(|\phi_l^\nu|\) is below a threshold or when the solution is clearly moving into the exponentially small closed-space tail.
+
+\section{Near-flat grid fillers inside \code{DoRangeInt}}
+
+Before doing Numerov, \code{DoRangeInt} checks two fast fillers:
+\begin{enumerate}[leftmargin=*]
+\item \code{UseShiftedQScalarApprox}: if the model is sufficiently near flat and the shifted-\(q\) error estimate passes, fill all source-grid Bessel values directly from \(j_l(\nu F_0\chi)\) with the amplitude \(\sqrt{F_0}\) and the \(\chi/\SK\) geometrical factor.
+\item \code{UseSmallChiNearFlatIntegration}: if the small-\(\chi\) Olver map is accurate on the whole range, fill all values from \(j_l(\nu\chi F)\) with the \(F/\sqrt D\) amplitude and \(\chi/\SK\) geometrical factor.
+\end{enumerate}
+These branches avoid stepping the full hyperspherical ODE at all.  They are particularly useful in nearly flat models, where the exact curved function is very close to a flat Bessel function but a discontinuous switch between exact flat and non-flat treatment would be numerically undesirable.  This is the same continuity goal emphasized for the \textsc{CLASS} flat-rescaling approximation, although the CAMB fillers use the local Olver coefficients \(F,D\) and \(F_0\) rather than the \textsc{CLASS} \(\gamma,A_\nu^l\) model \cite{lesgourgues-tram2013}.
+
+A useful way to think about the hierarchy is:
+\begin{center}
+\small
+\begin{tabular}{p{0.24\linewidth}p{0.33\linewidth}p{0.34\linewidth}}
+\toprule
+Regime & Computation & Reason \\
+\midrule
+Flat & table/spline of \(j_l(q\chi)\) & exact flat result. \\
+Near-flat, very small curvature effect & constant-map shifted-\(q\) table lookup & fastest limit of small-\(\chi\) Olver. \\
+Near-flat, local small-\(\chi\) range & table lookup at \(\nu\chi F\), weight \(F/\sqrt D\) & retains next curvature terms in Olver map. \\
+General non-flat range & start with \code{u_olver}, propagate by Numerov & avoids expensive repeated Olver calls. \\
+Low-order or low-\(\alpha\) fallback & \code{phi_recurs_stable} & exact recurrence is safer. \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{Closed-space symmetry handling}
+
+For \(K=+1\), the code folds \(\chi\) into \([0,\pi/2]\).  The signs come from the exact closed-space representation \eqref{eq:gegenbauer-form} and the closed-space parity relations described in the earlier hyperspherical-Bessel literature \cite{kosowsky1998,tram2013}.  Reducing \(\chi\) modulo \(2\pi\), reflecting around \(\pi\), and reflecting around \(\pi/2\) introduces factors \((-1)^l\) and \((-1)^{\nu-l-1}\).  The accumulated factor is called \code{symm}.  The final reduced result is therefore really
+\begin{equation}
+  u_l^\nu(+1,\chi)\simeq \code{symm}\,A z j_l(\nu z).
+\end{equation}
+This is not an approximation; it is an exact parity property of the closed eigenfunctions.
+
+\section{How all pieces fit together}
+
+For a single standalone call in the main Olver region, the compact formula is
+\begin{equation}
+  \boxed{
+  u_l^\nu(K,\chi)\simeq \sigma A(\chi)z(\chi)j_l(\nu z(\chi))
+  }
+\end{equation}
+with \(\sigma=1\) for \(K=0,-1\) and \(\sigma=\code{symm}\) for \(K=+1\).  The public unreduced function is
+\begin{equation}
+  \boxed{
+  \phi_l^\nu(K,\chi)\simeq
+  \frac{\sigma A(\chi)z(\chi)}{\SK(\chi)}j_l(\nu z(\chi)).
+  }
+\end{equation}
+For many neighbouring source points, CAMB usually does not repeat this full calculation.  It either replaces it with the shifted-\(q\) or small-\(\chi\) table approximation, or uses two Olver values to start Numerov stepping of the reduced ODE (re-seeding periodically from fresh Olver evaluations).  This is the practical distinction between the mathematical point approximation and how it is used inside the transfer integration.
+
+\section{Why this is better than a first-order Langer/Airy approximation}
+
+A first-order Langer approximation maps the curved equation near a turning point directly to an Airy function.  This is the approach in the original hyperspherical-Bessel WKB calculation and the later WKB comparison formulae \cite{kosowsky1998,tram2013,lesgourgues-tram2013}.  It is uniform, but only at the level of the universal local turning-point shape.  The CAMB Olver-to-flat method uses the flat spherical Bessel function as the comparison solution.  Since the flat spherical Bessel function already contains its Airy transition, Debye tails, oscillatory phase, and low-order safeguards through \code{BJL}, the curved calculation only has to describe how curvature changes the effective coordinate and amplitude.
+
+Thus the comparison is not
+\begin{equation}
+  \hbox{curved Bessel}\to\hbox{Airy},
+\end{equation}
+but rather
+\begin{equation}
+  \hbox{curved Bessel}\to\hbox{flat spherical Bessel at }z(\chi).
+\end{equation}
+This is why the shifted-\(q\) limit is so natural: in the local near-flat regime, the Olver coordinate map becomes almost a constant rescaling of the flat argument.
+
+\section{Relation to the reference papers}
+
+The latest CAMB implementation is closest to the earlier work in its definitions and constraints, but differs in the main approximation used for production:
+\begin{center}
+\small
+\begin{tabular}{p{0.24\linewidth}p{0.37\linewidth}p{0.31\linewidth}}
+\toprule
+Reference & Main relevant idea & CAMB relation \\
+\midrule
+Kosowsky, arXiv:astro-ph/9805173 \cite{kosowsky1998}
+& First-order uniform WKB/Langer approximation for hyperspherical Bessel functions, with analytic action integrals and closed-space symmetry handling.
+& CAMB uses the same reduced equation, the same \(\sqrt{l(l+1)}\) turning-point balance, and the same action integrals, but maps to a flat spherical Bessel comparison solution instead of evaluating an Airy comparison function. \\
+Tram, arXiv:1311.0839 \cite{tram2013}
+& Stable recurrence algorithm, continued-fraction logarithmic derivative, and the closed-space Gegenbauer identity used to cure the backward-recursion obstruction.
+& \code{phi_recurs_stable} uses the same recurrence structure and the Gegenbauer logarithmic derivative as a fallback/start mechanism. \\
+Lesgourgues--Tram, arXiv:1312.2697 \cite{lesgourgues-tram2013}
+& Non-flat \textsc{CLASS} transfer implementation, interpolation strategy, curved-space Limber discussion, and a high-\(\nu\) flat-rescaling approximation.
+& CAMB shares the goal of avoiding repeated expensive hyperspherical evaluations and ensuring a smooth flat limit, but uses pointwise Olver-to-flat mapping plus local \(F,D,F_0\) near-flat fillers rather than the \textsc{CLASS} \(\gamma,A_\nu^l\) flat-rescaling model. \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{Minimal dictionary between mathematics and code}
+
+\begin{center}
+\small
+\begin{tabular}{ll}
+\toprule
+Mathematical quantity & Code name or code path \\
+\midrule
+\(\SK(\chi)\) & \code{State\%rofChi(chi)} or \code{curved_radius} \\
+\(u_l^\nu\) & \code{u_olver} / Numerov variable \code{y1} \\
+\(\phi_l^\nu=u/\SK\) & \code{phi_olver}; in source integration \code{ujl=y1/sh} \\
+\(Q=l(l+1)/\SK^2-\nu^2\) & \code{q_now}, \code{q_prev}, \code{q_next} in Numerov stepping \\
+\(z(\chi),A(\chi)\) & \code{compute_olver_z_amp} / \code{compute_olver_z_amp_smallchi} \\
+\(q_{\rm eff}=\nu F_0\), \(q_{\rm amp}=\sqrt{F_0}\) & \code{F0}, \code{qeff}, \code{q_amp} in near-flat shifted-\(q\) paths \\
+\(F,D\) small-\(\chi\) map & \code{F0,F2,F4,D0,D2,D4} polynomial coefficients \\
+Flat Bessel lookup & \code{BessRanges}, \code{bessel_horner}, \code{BJL} \\
+Recursive fallback & \code{phi_recurs_stable} \\
+Closed log derivative & \code{phi_logderiv_closed_gegenbauer} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{Summary}
+
+The current non-flat Bessel calculation is best understood as a hierarchy.  At the mathematical core is the reduced equation \(u''+[\nu^2-l(l+1)/\SK^2]u=0\).  The Olver-to-flat method maps this to \(zj_l(\nu z)\) with an amplitude factor, making the approximation uniform through the turning point and exact for \(K=0\).  Stable recurrence is retained for low multipoles and difficult corners, with the closed case using a Gegenbauer logarithmic derivative to start Miller recurrence.  In the line-of-sight integration code, a pair of Olver values seeds Numerov integration to get nearby values cheaply (with periodic re-seeding to bound drift), while near-flat and small-\(\chi\) ranges are accelerated further by flat Bessel table lookups.  The current shifted-\(q\) approximation is the \(\chi\)-independent part of the local Olver expansion, \(q_{\rm eff}=\nu F_0\), with the simpler \(q^2=\nu^2-Kl(l+1)/3\) formula retained only as a first-order explanatory limit.
+
+\begin{thebibliography}{99}
+\bibitem{olver}
+F. W. J. Olver, \emph{Asymptotics and Special Functions}, Academic Press, 1974; AKP Classics reprint, 1997.
+\bibitem{dlmf}
+NIST Digital Library of Mathematical Functions, Chapters 9, 10 and 18.
+\bibitem{abbott-schaefer}
+L. F. Abbott and R. K. Schaefer, ``A general, gauge-invariant analysis of the cosmic microwave anisotropy,'' \emph{Astrophysical Journal} 308, 546 (1986).
+\bibitem{kosowsky1998}
+A. Kosowsky, ``Efficient Computation of Hyperspherical Bessel Functions,'' arXiv:astro-ph/9805173.
+\bibitem{tram2013}
+T. Tram, ``Computation of hyperspherical Bessel functions,'' \emph{Communications in Computational Physics} 22, 852--862 (2017), arXiv:1311.0839.
+\bibitem{lesgourgues-tram2013}
+J. Lesgourgues and T. Tram, ``Fast and accurate CMB computations in non-flat FLRW universes,'' \emph{Journal of Cosmology and Astroparticle Physics} 09, 032 (2014), arXiv:1312.2697.
+\end{thebibliography}
+
+\end{document}

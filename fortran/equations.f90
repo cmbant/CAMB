@@ -191,7 +191,7 @@
     real(dl), parameter :: massive_nu_transfer_l_boost_mass = 600._dl
     real(dl), parameter :: massive_nu_transfer_l_boost_ktau = 500._dl
     real(dl), parameter :: massive_nu_transfer_l_extra_boost = 2.15_dl
-    real(dl), parameter :: massive_nu_cmb_l_extra_boost = 1.5_dl
+    real(dl), parameter :: massive_nu_cmb_l_extra_boost = 2.0_dl
     real(dl), parameter :: massive_nu_transfer_switch_extra_boost = 2._dl
 
     real(dl) epsw
@@ -899,6 +899,13 @@
         else
             EV%lmaxnu=max(3,nint(10*l_accuracy_boost))
             if (max_nu_mass>700) EV%lmaxnu=max(3,nint(15*l_accuracy_boost)) !Feb13 tweak
+            do nu_i = 1, CP%Nu_mass_eigenstates
+                nu_l_accuracy_boost = MassiveNuTransferLAccuracyBoost(State%nu_masses(nu_i), EV%q, &
+                    nu_tau_nonrelativistic_physical(nu_i))
+                EV%lmaxnu = max(EV%lmaxnu, nint(10*nu_l_accuracy_boost))
+                if (State%nu_masses(nu_i)>700) &
+                    EV%lmaxnu = max(EV%lmaxnu, nint(15*nu_l_accuracy_boost))
+            end do
         endif
     end if
 
@@ -967,6 +974,7 @@
         if (CP%Transfer%high_precision .or. CP%Do21cm) then
             ! Resolve the massless-neutrino hierarchy smoothly across transfer scales:
             ! enough low-k hierarchy by equality scales, default depth by q=0.05, then the high-k target.
+            if (EV%q >= 0.005_dl) EV%lmaxnr = max(EV%lmaxnr, nint(4*l_accuracy_boost))
             if (EV%q >= 0.010_dl .and. EV%q < 0.05_dl) then
                 transfer_lmaxnr = (8._dl + 6._dl*(EV%q - 0.010_dl)/0.040_dl)*l_accuracy_boost
                 EV%lmaxnr = max(EV%lmaxnr, nint(transfer_lmaxnr), min_lmaxnr)

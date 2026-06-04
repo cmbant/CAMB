@@ -61,6 +61,8 @@
     private
 
     logical  :: lensing_includes_tensors = .false.
+    real(dl), parameter :: low_l_ee_lensing_taper_lmin = 2._dl
+    real(dl), parameter :: low_l_ee_lensing_taper_lmax = 20._dl
 
     !flat method stores
     real(dl), parameter :: dbessel = 0.05_dl
@@ -80,6 +82,17 @@
         lensing_sanity_check_amplitude, lensClsWithSpectrum, &
         GetFlatSkyCGrads, GetFlatSkyCgradsWithSpectrum
     contains
+
+
+    pure function LowLEELensingTaper(l) result(taper)
+    integer, intent(in) :: l
+    real(dl) :: taper, x
+
+    x = (real(l, dl) - low_l_ee_lensing_taper_lmin) / &
+        (low_l_ee_lensing_taper_lmax - low_l_ee_lensing_taper_lmin)
+    taper = max(0._dl, min(1._dl, x))
+    taper = taper**2*(3._dl - 2._dl*taper)
+    end function LowLEELensingTaper
 
 
     integer function effective_lensing_method(CP) result(method)
@@ -215,7 +228,7 @@
     integer max_lensed_ix
     real(dl) d_11(lmax),d_m11(lmax)
     real(dl) d_22(lmax),d_2m2(lmax),d_20(lmax)
-    real(dl) Cphil3(lmin:lmax), CTT(lmin:lmax), CTE(lmin:lmax),CEE(lmin:lmax)
+    real(dl) Cphil3(lmin:lmax), CTT(lmin:lmax), CTE(lmin:lmax), CEE(lmin:lmax)
     real(dl) ls(lmax)
     real(dl), allocatable :: lens_contrib(:,:,:)
     integer thread_ix
@@ -231,8 +244,10 @@
     logical :: high_l_fast_lensing, short_integral_range
     real(dl) range_fac, apodize_width
     real(dl), parameter :: high_l_fast_lensing_boost = 2.5_dl
+    real(dl), parameter :: mid_l_fast_lensing_boost = 5._dl
     logical, parameter :: approx = .false.
     real(dl) theta_cut(lmax), LensAccuracyBoost, ThetaSampleBoost, LensRangeBoost, ClosedSupportBoost
+    real(dl) high_l_lensed_lmax, high_l_ramp, high_l_support_boost, mid_l_ramp, mid_l_fall_ramp
     Type(TTimer) :: Timer
 
     !$ integer  OMP_GET_THREAD_NUM, OMP_GET_MAX_THREADS
@@ -241,30 +256,46 @@
     if (lensing_includes_tensors) call MpiStop('Haven''t implemented tensor lensing')
     associate(lSamp => State%CLData%CTransScal%ls, CP=>State%CP)
 
-        high_l_fast_lensing = AccuracyTarget > 0 .and. CP%Max_l > 3500 .and. .not. CP%Accuracy%AccurateBB
+        high_l_lensed_lmax = real(CP%Max_l - CP%lens_output_margin, dl)
+        high_l_ramp = min(1._dl, max(0._dl, (high_l_lensed_lmax - 2500._dl)/1000._dl))
+        high_l_ramp = high_l_ramp**2*(3._dl - 2._dl*high_l_ramp)
+        if (high_l_lensed_lmax <= 3000._dl) then
+            mid_l_ramp = min(1._dl, max(0._dl, (high_l_lensed_lmax - 2500._dl)/500._dl))
+            mid_l_ramp = mid_l_ramp**2*(3._dl - 2._dl*mid_l_ramp)
+            high_l_support_boost = 1._dl + (mid_l_fast_lensing_boost - 1._dl)*mid_l_ramp
+        else if (high_l_lensed_lmax < 3500._dl) then
+            mid_l_fall_ramp = min(1._dl, max(0._dl, (high_l_lensed_lmax - 3000._dl)/500._dl))
+            mid_l_fall_ramp = mid_l_fall_ramp**2*(3._dl - 2._dl*mid_l_fall_ramp)
+            high_l_support_boost = mid_l_fast_lensing_boost + &
+                (high_l_fast_lensing_boost - mid_l_fast_lensing_boost)*mid_l_fall_ramp
+        else
+            high_l_support_boost = high_l_fast_lensing_boost
+        end if
+        high_l_fast_lensing = AccuracyTarget > 0 .and. high_l_ramp > 0._dl .and. .not. CP%Accuracy%AccurateBB
         LensAccuracyBoost = CP%Accuracy%AccuracyBoost*CP%Accuracy%LensingBoost
         ClosedSupportBoost = 1._dl
         LensRangeBoost = LensAccuracyBoost
         ThetaSampleBoost = LensAccuracyBoost
 
         if (AccuracyTarget > 0) then
-            ThetaSampleBoost = ThetaSampleBoost * 1.6_dl
-            if (CP%Max_l > 3500) ThetaSampleBoost = ThetaSampleBoost * (2.2_dl/1.6_dl)
+            ThetaSampleBoost = ThetaSampleBoost * (1.6_dl + 0.6_dl*high_l_ramp)
             if (high_l_fast_lensing) then
-                ! Keep the fast short-range convolution stable near the high-L lensed output cutoff.
-                LensRangeBoost = max(LensRangeBoost, high_l_fast_lensing_boost)
-                ThetaSampleBoost = max(ThetaSampleBoost, 2.2_dl*high_l_fast_lensing_boost)
+                ! Keep the fast short-range convolution stable near the lensed output cutoff.
+                ! Requested L around 3000 still uses the stricter mid-L tolerance, so use
+                ! more support there, then return smoothly to the cheaper high-L floor.
+                LensRangeBoost = max(LensRangeBoost, LensAccuracyBoost*high_l_support_boost)
+                ThetaSampleBoost = max(ThetaSampleBoost, 2.2_dl*LensAccuracyBoost*high_l_support_boost)
                 if (State%closed) then
                     ClosedSupportBoost = min(2._dl, 1._dl + 32._dl*max(0._dl, 1._dl - State%scale))
-                    LensRangeBoost = max(LensRangeBoost, ClosedSupportBoost)
-                    ThetaSampleBoost = max(ThetaSampleBoost, 2.2_dl*ClosedSupportBoost)
+                    LensRangeBoost = max(LensRangeBoost, LensAccuracyBoost*ClosedSupportBoost)
+                    ThetaSampleBoost = max(ThetaSampleBoost, 2.2_dl*LensAccuracyBoost*ClosedSupportBoost)
                 end if
             end if
             ! Open models have a larger angular-diameter distance than the flat case, so the
             ! truncated short-range correlation integral needs extra angular support and denser
             ! l interpolation to track the same physical lensing scale near the output cutoff.
-            if (CP%Max_l > 3500) LensRangeBoost =  max(LensRangeBoost, &
-                min(2._dl, 1._dl + 32._dl*max(0._dl, State%scale - 1._dl)))
+            if (high_l_ramp > 0._dl) LensRangeBoost =  max(LensRangeBoost, LensAccuracyBoost*(1._dl + high_l_ramp*&
+                (min(2._dl, 1._dl + 32._dl*max(0._dl, State%scale - 1._dl)) - 1._dl)))
         else if (CP%Max_l > 3500) then
             ThetaSampleBoost = ThetaSampleBoost * 1.3_dl
         end if
@@ -327,7 +358,9 @@
             Cphil3(l) = CPP(l)*(l+0.5_dl)/real((l+1)*l, dl)
             fac = (2*l+1)/const_fourpi * const_twopi/(l*(l+1))
             CTT(l) =  CL%Cl_scalar(l,C_Temp)*fac
-            CEE(l) =  CL%Cl_scalar(l,C_E)*fac
+            ! In the short-range convolution, reionization-bump EE has negligible
+            ! impact but makes the lowest-L polarization correction window-sensitive.
+            CEE(l) =  CL%Cl_scalar(l,C_E)*fac*LowLEELensingTaper(l)
             CTE(l) =  CL%Cl_scalar(l,C_Cross)*fac
         end do
         if (Cphil3(10) > lensing_sanity_check_amplitude) then
@@ -345,7 +378,7 @@
                 Cphil3(l) = highL_CL_template(l, C_Phi)*fac*sc
 
                 CTT(l) =  highL_CL_template(l, C_Temp)*fac2*sc
-                CEE(l) =  highL_CL_template(l, C_E)*fac2 *sc
+                CEE(l) =  highL_CL_template(l, C_E)*fac2*sc
                 CTE(l) =  highL_CL_template(l, C_Cross)*fac2*sc
                 if (Cphil3(CP%Max_l+1) > 1e-7) then
                     call MpiStop('You need to normalize the high-L template so it is dimensionless')
@@ -545,7 +578,8 @@
                 !taper the end to help prevent ringing
                 taper = real(npoints-i, dl)/real(apodize_point_width, dl)
                 taper = max(0._dl, min(1._dl, taper))
-                corr = corr*taper**3*(10._dl + taper*(-15._dl + 6._dl*taper))
+                taper = taper**3*(10._dl + taper*(-15._dl + 6._dl*taper))
+                corr = corr*taper
             end if
 
             !$  thread_ix = OMP_GET_THREAD_NUM()+1
@@ -558,7 +592,6 @@
 
                 T2 = corr(2)* d_22(l)
                 T4 = corr(3)* d_2m2(l)
-
 
                 lens_contrib(CT_E, l, thread_ix)= lens_contrib(CT_E,l, thread_ix) + &
                     (T2+T4)*halfsinth

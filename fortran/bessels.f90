@@ -85,7 +85,7 @@
 
     end subroutine InitSpherBessels
 
-    subroutine bjl_deriv(l, x, jl, djl)
+    elemental subroutine bjl_deriv(l, x, jl, djl)
     integer, intent(in) :: l
     real(dl), intent(in) :: x, jl
     real(dl), intent(out) :: djl
@@ -342,7 +342,7 @@
 !
 ! accurate to peak-normalized fraction 1e-5 at L>50, max ~4e-5 at BJL_RECURRENCE_MAX_L+1.
 
-    SUBROUTINE BJL(L, X, JL)
+    ELEMENTAL SUBROUTINE BJL(L, X, JL)
     ! Optimized spherical Bessel j_l(x).
     !
     ! Branch order:
@@ -537,7 +537,7 @@
 
 
 
-    subroutine bjl_uniform_airy_fast(l, x, jl)
+    elemental subroutine bjl_uniform_airy_fast(l, x, jl)
     ! Two-term corrected Olver uniform Airy approximation:
     !
     !   j_l(x) ~= pref * [ Ai(tau)
@@ -662,7 +662,7 @@
     end subroutine bjl_uniform_airy_fast
 
 
-    subroutine airy_fast(x, ai, aip)
+    elemental subroutine airy_fast(x, ai, aip)
     ! Fast real Airy Ai(x) and Ai'(x).
     !
     ! Branches:
@@ -897,7 +897,7 @@
     CONTAINS
 
 
-    subroutine airy_neg_cheb_fast(xv, aiv, aipv)
+    elemental subroutine airy_neg_cheb_fast(xv, aiv, aipv)
     implicit none
     real(dl), intent(in)  :: xv
     real(dl), intent(out) :: aiv, aipv
@@ -950,7 +950,7 @@
     end subroutine airy_neg_cheb_fast
 
 
-    subroutine airy_pos_cheb_fast(xv, aiv, aipv)
+    elemental subroutine airy_pos_cheb_fast(xv, aiv, aipv)
     implicit none
     real(dl), intent(in)  :: xv
     real(dl), intent(out) :: aiv, aipv
@@ -999,7 +999,7 @@
     end subroutine airy_pos_cheb_fast
 
 
-    subroutine polevl_der_fast(xp, coef, n, p, dp)
+    pure subroutine polevl_der_fast(xp, coef, n, p, dp)
     implicit none
     integer, intent(in) :: n
     real(dl), intent(in) :: xp
@@ -1019,7 +1019,7 @@
     end subroutine polevl_der_fast
 
 
-    subroutine p1evl_der_fast(xp, coef, n, p, dp)
+    pure subroutine p1evl_der_fast(xp, coef, n, p, dp)
     implicit none
     integer, intent(in) :: n
     real(dl), intent(in) :: xp
@@ -1044,7 +1044,7 @@
 
 
 
-    SUBROUTINE BJL_RECURRENCE(L, X, JL)
+    ELEMENTAL SUBROUTINE BJL_RECURRENCE(L, X, JL)
     IMPLICIT NONE
 
     INTEGER, INTENT(IN) :: L
