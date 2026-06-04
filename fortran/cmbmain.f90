@@ -62,7 +62,7 @@
     use SourceWindows
     use Recombination, only: TRecfast
     use RangeUtils
-    use constants
+    use constants, only: const_fourpi, const_pi
     use DarkEnergyInterface
     use MathUtils
     use RungeKuttaDP45Module, only : RungeKuttaDP45Settings
@@ -889,10 +889,7 @@
 
     dkn1=0.6_dl/State%taurst/SourceAccuracyBoost
     dkn2=0.9_dl/State%taurst/SourceAccuracyBoost/1.2
-    if (highPrecisionTransferSources) then
-        dkn1 = dkn1/1.5_dl
-        dkn2 = dkn2/1.5_dl
-    end if
+
     if (CP%WantTensors .or. CP%WantVectors) then
         dkn1=dkn1  *0.8_dl
         dlnk0=dlnk0/2 !*0.3_dl

@@ -8,7 +8,7 @@
     use DarkEnergyPPF
     use OlverHypersphericalBessel, only: phi_olver
     use ObjectLists
-    use SpherBessels, only: phi_recurs_stable
+    use SpherBessels, only: phi_recurs
     use classes
     use Interpolation
     use RungeKuttaDP45Module, only : RungeKuttaDP45Settings
@@ -180,17 +180,17 @@
 
     end function get_effective_null
 
-    function CAMB_GetPhiOlver(l, K, beta, chi) result(phi) bind(C, name="camb_getphiolver")
+    function CAMB_GetPhiOlver(l, K, nu, chi) result(phi) bind(C, name="camb_getphiolver")
     integer(c_int), value :: l, K
-    real(c_double), value :: beta, chi
+    real(c_double), value :: nu, chi
     real(c_double) :: phi
 
-    phi = phi_olver(int(l), int(K), real(beta, dl), real(chi, dl))
+    phi = phi_olver(int(l), int(K), real(nu, dl), real(chi, dl))
     end function CAMB_GetPhiOlver
 
-    subroutine CAMB_GetPhiOlverArray(phi, l, K, beta, chi, n) bind(C, name="camb_getphiolverarray")
+    subroutine CAMB_GetPhiOlverArray(phi, l, K, nu, chi, n) bind(C, name="camb_getphiolverarray")
     integer(c_int), value :: l, K, n
-    real(c_double), value :: beta
+    real(c_double), value :: nu
     real(c_double), intent(out) :: phi(*)
     real(c_double), intent(in) :: chi(*)
     integer :: i
@@ -198,27 +198,27 @@
     if (n >= OMP_VECTOR_THRESHOLD) then
         !$OMP parallel do default(shared) private(i) schedule(static)
         do i = 1, n
-            phi(i) = phi_olver(int(l), int(K), real(beta, dl), real(chi(i), dl))
+            phi(i) = phi_olver(int(l), int(K), real(nu, dl), real(chi(i), dl))
         end do
         !$OMP end parallel do
     else
         do i = 1, n
-            phi(i) = phi_olver(int(l), int(K), real(beta, dl), real(chi(i), dl))
+            phi(i) = phi_olver(int(l), int(K), real(nu, dl), real(chi(i), dl))
         end do
     end if
     end subroutine CAMB_GetPhiOlverArray
 
-    function CAMB_GetPhiRecursStable(l, K, beta, chi) result(phi) bind(C, name="camb_getphirecursstable")
+    function CAMB_GetPhiRecurs(l, K, nu, chi) result(phi) bind(C, name="camb_getphirecurs")
     integer(c_int), value :: l, K
-    real(c_double), value :: beta, chi
+    real(c_double), value :: nu, chi
     real(c_double) :: phi
 
-    phi = phi_recurs_stable(int(l), int(K), real(beta, dl), real(chi, dl))
-    end function CAMB_GetPhiRecursStable
+    phi = phi_recurs(int(l), int(K), real(nu, dl), real(chi, dl))
+    end function CAMB_GetPhiRecurs
 
-    subroutine CAMB_GetPhiRecursStableArray(phi, l, K, beta, chi, n) bind(C, name="camb_getphirecursstablearray")
+    subroutine CAMB_GetPhiRecursArray(phi, l, K, nu, chi, n) bind(C, name="camb_getphirecursarray")
     integer(c_int), value :: l, K, n
-    real(c_double), value :: beta
+    real(c_double), value :: nu
     real(c_double), intent(out) :: phi(*)
     real(c_double), intent(in) :: chi(*)
     integer :: i
@@ -226,15 +226,15 @@
     if (n >= OMP_VECTOR_THRESHOLD) then
         !$OMP parallel do default(shared) private(i) schedule(static)
         do i = 1, n
-            phi(i) = phi_recurs_stable(int(l), int(K), real(beta, dl), real(chi(i), dl))
+            phi(i) = phi_recurs(int(l), int(K), real(nu, dl), real(chi(i), dl))
         end do
         !$OMP end parallel do
     else
         do i = 1, n
-            phi(i) = phi_recurs_stable(int(l), int(K), real(beta, dl), real(chi(i), dl))
+            phi(i) = phi_recurs(int(l), int(K), real(nu, dl), real(chi(i), dl))
         end do
     end if
-    end subroutine CAMB_GetPhiRecursStableArray
+    end subroutine CAMB_GetPhiRecursArray
 
     subroutine F2003Class_get_id(SelfPtr, pSource)
     TYPE(C_FUNPTR), INTENT(IN) :: SelfPtr

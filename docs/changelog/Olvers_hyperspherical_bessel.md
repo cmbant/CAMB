@@ -200,7 +200,7 @@ The main harnesses are:
 
 The current broad validation grid compares `phi_olver`, diagnostic
 `phi_olver_raw`, `phi_olver_smallchi`, and `phi_langer` against
-`phi_recurs_stable`. It uses open/flat/closed cases, every integer
+`phi_recurs`. It uses open/flat/closed cases, every integer
 $1\le\ell\le20$, representative larger multipoles up to $\ell=6000$, alpha
 targets from near the curvature scale to $2\times10^4$, and
 $\chi_{\max}=0.01,0.1,0.3,0.5,1.0,1.57,2.0$. Closed modes are rounded to
@@ -240,7 +240,7 @@ The latest broad-grid comparison gives:
 
 | method | total CPU time | time per evaluation | worst peak-normalized error |
 | --- | ---: | ---: | ---: |
-| `phi_recurs_stable` | 50.5 s | 9.73 us | reference |
+| `phi_recurs` | 50.5 s | 9.73 us | reference |
 | `phi_olver` | 0.573 s | 0.110 us | $9.9\times10^{-5}$ |
 | `phi_olver_smallchi` gated | 0.152 s | 0.072 us | $6.2\times10^{-5}$ |
 | `phi_langer` | 0.450 s | 0.087 us | $5.0\times10^{-2}$ |
@@ -313,7 +313,7 @@ the nearby relaxation $\eta_\chi<0.35$ is already slightly too loose.
 ### Shifted-q Approximation Tests
 
 For the shifted-$q$ approximation above, the same focused open/flat/closed grid
-was compared against `phi_recurs_stable`. Without the phase/amplitude gate,
+was compared against `phi_recurs`. Without the phase/amplitude gate,
 $\chi_t<0.1$ alone is not a useful accuracy condition:
 
 | $\chi_{\max}$ | worst shifted-$q$ error |

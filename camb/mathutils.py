@@ -40,57 +40,69 @@ _phi_olver.restype = c_double
 _phi_olver_array = camblib.camb_getphiolverarray
 _phi_olver_array.argtypes = [numpy_1d, c_int, c_int, c_double, numpy_1d, c_int]
 
-_phi_recurs_stable = camblib.camb_getphirecursstable
-_phi_recurs_stable.argtypes = [c_int, c_int, c_double, c_double]
-_phi_recurs_stable.restype = c_double
+_phi_recurs = camblib.camb_getphirecurs
+_phi_recurs.argtypes = [c_int, c_int, c_double, c_double]
+_phi_recurs.restype = c_double
 
-_phi_recurs_stable_array = camblib.camb_getphirecursstablearray
-_phi_recurs_stable_array.argtypes = [numpy_1d, c_int, c_int, c_double, numpy_1d, c_int]
+_phi_recurs_array = camblib.camb_getphirecursarray
+_phi_recurs_array.argtypes = [numpy_1d, c_int, c_int, c_double, numpy_1d, c_int]
 
 
-def _hyperspherical_bessel_dispatch(function, vector_function, L, K, beta, chi):
+def _hyperspherical_bessel_dispatch(function, vector_function, L, K, nu, chi):
     chi_array = np.asarray(chi, dtype=np.float64)
-    beta_in = c_double(beta)
+    nu_in = c_double(nu)
 
     if chi_array.ndim == 0:
-        return function(c_int(L), c_int(K), beta_in, c_double(float(chi_array)))
+        return function(c_int(L), c_int(K), nu_in, c_double(float(chi_array)))
 
     if chi_array.ndim != 1:
         raise ValueError("chi must be a scalar or 1D array")
 
     chi_array = np.ascontiguousarray(chi_array)
     result = np.empty_like(chi_array)
-    vector_function(result, c_int(L), c_int(K), beta_in, chi_array, c_int(len(chi_array)))
+    vector_function(result, c_int(L), c_int(K), nu_in, chi_array, c_int(len(chi_array)))
     return result
 
 
-def phi_olver(L, K, beta, chi):
-    """
-    Evaluate hyperspherical Phi using the Olver approximation.
-    Peak-relative accuracy 1e-4.
+def phi_olver(L, K, nu, chi):
+    r"""
+    Evaluate the regular hyperspherical Bessel function :math:`\phi_L^\nu(K,\chi)` using the
+    leading-order Olver map to a flat spherical Bessel function.
+
+    Fast with peak-relative accuracy around 1e-4; use :func:`phi_recurs` for a slower high-accuracy reference.
+    For ``K=0`` this returns the spherical Bessel function :math:`j_L(\nu\chi)`.
+    Falls back to the recursive result where the Olver approximation may be unreliable.
 
     :param L: multipole index
-    :param K: curvature sign, one of -1, 0, 1
-    :param beta: hyperspherical wavenumber
-    :param chi: scalar chi or 1D array of chi values
+    :param K: dimensionless curvature sign, one of -1, 0, 1
+    :param nu: dimensionless radial eigenvalue; for closed models (``K=1``), an integer mode with ``nu >= 3``
+        and ``nu > L``
+    :param chi: scalar dimensionless radial distance or 1D array of values
     :return: scalar value or 1D array matching chi
     """
 
-    return _hyperspherical_bessel_dispatch(_phi_olver, _phi_olver_array, L, K, beta, chi)
+    return _hyperspherical_bessel_dispatch(_phi_olver, _phi_olver_array, L, K, nu, chi)
 
 
-def phi_recurs_stable(L, K, beta, chi):
-    """
-    Evaluate hyperspherical Phi using the stable recursion implementation.
+def phi_recurs(L, K, nu, chi):
+    r"""
+    Evaluate the regular hyperspherical Bessel function :math:`\phi_L^\nu(K,\chi)` by recurrence.
+
+    Uses upward recurrence in the safe oscillatory region and Miller backward recurrence elsewhere,
+    normalized by the exact low-order solution. The recurrence follows Abbott and Schaefer (1986)
+    for the seed and recurrence formulae, with the stable-recursion logarithmic-derivative start
+    of Tram (2017) and Lesgourgues and Tram (2014), including the closed-space Gegenbauer start
+    for ``K=1``.
 
     :param L: multipole index
-    :param K: curvature sign, one of -1, 0, 1
-    :param beta: hyperspherical wavenumber
-    :param chi: scalar chi or 1D array of chi values
+    :param K: dimensionless curvature sign, one of -1, 0, 1
+    :param nu: dimensionless radial eigenvalue; for closed models (``K=1``), an integer mode with ``nu >= 3``
+        and ``nu > L``
+    :param chi: scalar dimensionless radial distance or 1D array of values
     :return: scalar value or 1D array matching chi
     """
 
-    return _hyperspherical_bessel_dispatch(_phi_recurs_stable, _phi_recurs_stable_array, L, K, beta, chi)
+    return _hyperspherical_bessel_dispatch(_phi_recurs, _phi_recurs_array, L, K, nu, chi)
 
 
 def threej(l2, l3, m2, m3):

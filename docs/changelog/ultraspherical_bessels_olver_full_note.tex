@@ -33,7 +33,7 @@
 \newcommand{\SK}{S_K}
 \newcommand{\CK}{C_K}
 \newcommand{\cotK}{\cot_K}
-\newcommand{\PhiB}{\Phi_\ell^\beta}
+\newcommand{\PhiNu}{\Phi_\ell^\nu}
 \newcommand{\phinu}{\phi_l^\nu}
 \newcommand{\uell}{u_l^\nu}
 \newcommand{\jl}{j_l}
@@ -57,7 +57,7 @@
 \maketitle
 
 \begin{abstract}
-This note explains how CAMB evaluates the regular hyperspherical Bessel functions (also called ultraspherical Bessel functions) used in non-flat source integration.  The mathematical object is the curved-space radial function \(\phi_l^\nu(K,\chi)\), whose flat limit is the spherical Bessel function \(j_l(\nu\chi)\).  The main fast point approximation is a leading-order Olver, or uniform Liouville-Green, mapping: the curved radial equation is transformed into a flat spherical-Bessel equation at an effective radius \(z(\chi)\), with a transport amplitude \(A(\chi)\).  This makes the calculation exact in the flat limit and smooth through the turning point, but it does not evaluate the higher Olver correction terms.  The note also compares this with earlier Langer/Airy WKB and \textsc{CLASS} flat-rescaling approaches, explains the stable recursive fallback \code{phi_recurs_stable}, the closed-space Gegenbauer logarithmic derivative used to start Miller recursion, how CAMB obtains nearby Bessel values by Numerov integration during source integration, and how the current shifted-\(q\) shortcut is the constant-map, fastest small-\(\chi\) limit of the Olver expansion.
+This note explains how CAMB evaluates the regular hyperspherical Bessel functions (also called ultraspherical Bessel functions) used in non-flat source integration.  The mathematical object is the curved-space radial function \(\phi_l^\nu(K,\chi)\), whose flat limit is the spherical Bessel function \(j_l(\nu\chi)\).  The main fast point approximation is a leading-order Olver, or uniform Liouville-Green, mapping: the curved radial equation is transformed into a flat spherical-Bessel equation at an effective radius \(z(\chi)\), with a transport amplitude \(A(\chi)\).  This makes the calculation exact in the flat limit and smooth through the turning point, but it does not evaluate the higher Olver correction terms.  The note also compares this with earlier Langer/Airy WKB and \textsc{CLASS} flat-rescaling approaches, explains the stable recursive fallback \code{phi_recurs}, the closed-space Gegenbauer logarithmic derivative used to start Miller recursion, how CAMB obtains nearby Bessel values by Numerov integration during source integration, and how the current shifted-\(q\) shortcut is the constant-map, fastest small-\(\chi\) limit of the Olver expansion.
 \end{abstract}
 
 \tableofcontents
@@ -107,23 +107,21 @@ We also use
 \end{equation}
 Thus \(\cot_K\chi\) means \(\cot\chi\), \(1/\chi\), or \(\coth\chi\) in the closed, flat or open cases.
 
-The symbols \(q\), \(\nu\), \(\beta\), and \(k\) are not interchangeable in all
-curvature conventions.  The transfer-grid variable \(q\) is dimensional.  In a
-non-flat Bessel call the dimensionless radial eigenvalue is
+The symbols \(q\), \(\nu\), and \(k\) are not interchangeable in all curvature
+conventions.  The transfer-grid variable \(q\) is dimensional.  In a non-flat
+Bessel call the dimensionless radial eigenvalue is
 \begin{equation}
   \nu=qR_K,
 \end{equation}
-and the low-level Bessel routines often use the argument name \(\code{beta}\) for
-this same quantity.  For scalar spectra the primordial power is evaluated at the
-physical wavenumber
+which is also the argument name used by the low-level Bessel routines.  For
+scalar spectra the primordial power is evaluated at the physical wavenumber
 \begin{equation}
   k^2=q^2-\mathcal K,
 \end{equation}
 so, in dimensionless form, \((kR_K)^2=\nu^2-K\).  For tensors the corresponding
 relation is \(k^2=q^2-3\mathcal K\).  In the flat limit \(q=k\); away from
-flatness, \(\nu\) or \(\beta\) labels the radial
-hyperspherical-Bessel eigenvalue while \(k\) is the physical wavenumber used by
-the primordial spectrum.
+flatness, \(\nu\) labels the radial hyperspherical-Bessel eigenvalue while
+\(k\) is the physical wavenumber used by the primordial spectrum.
 
 CAMB distinguishes between the unreduced radial function and a reduced function,
 \begin{equation}
@@ -670,7 +668,7 @@ therefore apply empirical gates before accepting that raw full Olver value.
 
 The decision order in \code{olver_reduced} is:
 \begin{enumerate}[leftmargin=*]
-\item For \(l\le2\), use \code{phi_recurs_stable}.
+\item For \(l\le2\), use \code{phi_recurs}.
 \item For \(l>2\), first try the local small-\(\chi\) approximation to the
 Olver map, if
 \begin{equation}
@@ -689,7 +687,7 @@ endpoint corner where the calibrated metric is below threshold:
   \qquad
   \hbox{closed:}\quad \frac{\chi}{2(\nu-l)}\le6.2\times10^{-3}.
 \end{equation}
-Otherwise fall back to \code{phi_recurs_stable}.
+Otherwise fall back to \code{phi_recurs}.
 \end{enumerate}
 These thresholds are calibrated on peak-normalized Bessel error, with the raw
 Olver envelope kept at roughly the \(10^{-4}\) level on the open and closed
@@ -752,14 +750,14 @@ constant-map approximation to that map is valid.
 \end{enumerate}
 If neither table filler passes, the code uses the general non-flat route:
 \code{u_olver} for seed values, Numerov for nearby samples, and
-\code{phi_recurs_stable} only where the pointwise Bessel gate has selected it.
+\code{phi_recurs} only where the pointwise Bessel gate has selected it.
 The overall source accuracy is therefore controlled jointly by the pointwise
 Olver gates, the near-flat filler gates, and the Numerov sampling, not by the
 raw Olver asymptotic formula alone.
 
 \section{Stable recursive fallback: exact seeds, upward recurrence and Miller recurrence}
 
-The action-map Olver path is a high-throughput leading-order uniform approximation.  For low \(l\), invalid asymptotic corners, and some fallback regions, CAMB uses direct recurrence through \code{phi_recurs_stable}.  This recurrence machinery follows the standard hyperspherical-Bessel relations and the later stable-recursion improvements developed for \textsc{CLASS} \cite{abbott-schaefer,tram2013,lesgourgues-tram2013}.  This section explains that routine because it is part of the actual new path.
+The action-map Olver path is a high-throughput leading-order uniform approximation.  For low \(l\), invalid asymptotic corners, and some fallback regions, CAMB uses direct recurrence through \code{phi_recurs}.  This recurrence machinery follows the standard hyperspherical-Bessel relations and the later stable-recursion improvements developed for \textsc{CLASS} \cite{abbott-schaefer,tram2013,lesgourgues-tram2013}.\footnote{A direct comparison with \textsc{CLASS} v3.3.4 shows the same seed formulae, upward recurrence, Miller downward recurrence, continued-fraction logarithmic derivative, and closed-space Gegenbauer logarithmic derivative.  The main implementation differences are that \textsc{CLASS} builds interpolation tables over \(l\) and \(\chi\), while CAMB's \code{phi_recurs} is a pointwise reference routine; \textsc{CLASS} uses its \code{get_CF1} continued-fraction helper for some closed-space starts before falling back to Gegenbauer, while CAMB always uses the Gegenbauer start for \(K=+1\); \textsc{CLASS} normalizes the Miller sequence with \(\phi_0\), while CAMB normalizes with whichever of \(\phi_0\) or \(\phi_1\) is numerically safer; and CAMB computes \(G\) and \(G'\) together in the Gegenbauer recurrence rather than using the final derivative identity with a division by \(1-x^2\).  Here \code{get_CF1} is the \textsc{CLASS} routine evaluating the modified continued fraction for \(D_l=(\phi_l^\nu)'/\phi_l^\nu\), with an auxiliary sign used to choose the arbitrary Miller start amplitude.}  This section explains that routine because it is part of the actual new path.
 
 The exact seed functions are
 \begin{equation}
@@ -967,7 +965,7 @@ Flat & table/spline of \(j_l(q\chi)\) & exact flat result. \\
 Near-flat, very small curvature effect & constant-map shifted-\(q\) table lookup & fastest limit of small-\(\chi\) Olver. \\
 Near-flat, local small-\(\chi\) range & table lookup at \(\nu\chi F\), weight \(F/\sqrt D\) & retains next curvature terms in Olver map. \\
 General non-flat range & start with \code{u_olver}, propagate by Numerov & avoids expensive repeated Olver calls. \\
-Low-order or low-\(\alpha\) fallback & \code{phi_recurs_stable} & exact recurrence is safer. \\
+Low-order or low-\(\alpha\) fallback & \code{phi_recurs} & exact recurrence is safer. \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -1025,7 +1023,7 @@ Kosowsky, arXiv:astro-ph/9805173 \cite{kosowsky1998}
 & CAMB uses the same reduced equation, the same \(\sqrt{l(l+1)}\) turning-point balance, and the same action integrals, but maps to a flat spherical Bessel comparison solution instead of evaluating an Airy comparison function. \\
 Tram, arXiv:1311.0839 \cite{tram2013}
 & Stable recurrence algorithm, continued-fraction logarithmic derivative, and the closed-space Gegenbauer identity used to cure the backward-recursion obstruction.
-& \code{phi_recurs_stable} uses the same recurrence structure and the Gegenbauer logarithmic derivative as a fallback/start mechanism. \\
+& \code{phi_recurs} uses the same recurrence structure and the Gegenbauer logarithmic derivative as a fallback/start mechanism. \\
 Lesgourgues--Tram, arXiv:1312.2697 \cite{lesgourgues-tram2013}
 & Non-flat \textsc{CLASS} transfer implementation, interpolation strategy, curved-space Limber discussion, and a high-\(\nu\) flat-rescaling approximation.
 & CAMB shares the goal of avoiding repeated expensive hyperspherical evaluations and ensuring a smooth flat limit, but uses pointwise Olver-to-flat mapping plus local \(F,D,F_0\) near-flat fillers rather than the \textsc{CLASS} \(\gamma,A_\nu^l\) flat-rescaling model. \\
@@ -1049,7 +1047,7 @@ Mathematical quantity & Code name or code path \\
 \(q_{\rm eff}=\nu F_0\), \(q_{\rm amp}=\sqrt{F_0}\) & \code{F0}, \code{qeff}, \code{q_amp} in near-flat shifted-\(q\) paths \\
 \(F,D\) small-\(\chi\) map & \code{F0,F2,F4,D0,D2,D4} polynomial coefficients \\
 Flat Bessel lookup & \code{BessRanges}, \code{bessel_horner}, \code{BJL} \\
-Recursive fallback & \code{phi_recurs_stable} \\
+Recursive fallback & \code{phi_recurs} \\
 Closed log derivative & \code{phi_logderiv_closed_gegenbauer} \\
 \bottomrule
 \end{tabular}

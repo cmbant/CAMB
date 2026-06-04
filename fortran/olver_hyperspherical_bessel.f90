@@ -2,7 +2,7 @@
     use Precision
     use MpiUtils
     use FlatBessels, only: bjl
-    use SpherBessels, only: phi_recurs_stable
+    use SpherBessels, only: phi_recurs
     implicit none
     private
 
@@ -21,44 +21,44 @@
 
     contains
 
-    pure function olver_cached_coordinate(l, K, beta, chi) result(z)
+    pure function olver_cached_coordinate(l, K, nu, chi) result(z)
     integer, intent(in) :: l, K
-    real(dl), intent(in) :: beta, chi
+    real(dl), intent(in) :: nu, chi
     real(dl) :: z, achi, symm
 
-    call normalize_chi(l, K, beta, chi, achi, symm)
-    call compute_olver_z_amp(l, K, beta, achi, z)
+    call normalize_chi(l, K, nu, chi, achi, symm)
+    call compute_olver_z_amp(l, K, nu, achi, z)
     end function olver_cached_coordinate
 
 
-    function phi_olver(l, K, beta, chi) result(phi)
+    function phi_olver(l, K, nu, chi) result(phi)
     integer, intent(in) :: l, K
-    real(dl), intent(in) :: beta, chi
+    real(dl), intent(in) :: nu, chi
     real(dl) :: phi
 
-    phi = olver_value(l, K, beta, chi, reduced=.false., raw=.false.)
+    phi = olver_value(l, K, nu, chi, reduced=.false., raw=.false.)
     end function phi_olver
 
-    function u_olver(l, K, beta, chi) result(u)
+    function u_olver(l, K, nu, chi) result(u)
     integer, intent(in) :: l, K
-    real(dl), intent(in) :: beta, chi
+    real(dl), intent(in) :: nu, chi
     real(dl) :: u
 
-    u = olver_value(l, K, beta, chi, reduced=.true., raw=.false.)
+    u = olver_value(l, K, nu, chi, reduced=.true., raw=.false.)
     end function u_olver
 
 
-    function olver_value(l, K, beta, chi, reduced, raw) result(val)
+    function olver_value(l, K, nu, chi, reduced, raw) result(val)
     integer, intent(in) :: l, K
-    real(dl), intent(in) :: beta, chi
+    real(dl), intent(in) :: nu, chi
     logical, intent(in) :: reduced, raw
     real(dl) :: val
     real(dl) :: achi, symm, j_l
 
-    call normalize_chi(l, K, beta, chi, achi, symm)
+    call normalize_chi(l, K, nu, chi, achi, symm)
 
     if (K == 0) then
-        call bjl(l, beta * achi, j_l)
+        call bjl(l, nu * achi, j_l)
         if (reduced) then
             val = achi * j_l
         else
@@ -68,7 +68,7 @@
     end if
 
     if (l <= 2) then
-        val = symm * phi_recurs_stable(l, K, beta, achi)
+        val = symm * phi_recurs(l, K, nu, achi)
         if (reduced) val = val * curved_radius(K, achi)
         return
     end if
@@ -78,99 +78,99 @@
         return
     end if
 
-    val = olver_reduced(l, K, beta, achi, symm, raw)
+    val = olver_reduced(l, K, nu, achi, symm, raw)
     if (.not. reduced) val = val / curved_radius(K, achi)
     end function olver_value
 
 
-    function olver_reduced(l, K, beta, achi, symm, raw) result(u)
+    function olver_reduced(l, K, nu, achi, symm, raw) result(u)
     integer, intent(in) :: l, K
-    real(dl), intent(in) :: achi, symm
+    real(dl), intent(in) :: nu, achi, symm
     logical, intent(in) :: raw
-    real(dl) :: u, beta
+    real(dl) :: u
     real(dl) :: alpha_gate, metric, denom, z, amp, j_l
 
-    alpha_gate = beta / real(l, dl)
+    alpha_gate = nu / real(l, dl)
 
     if (.not. raw) then
-        if (use_smallchi_map(l, beta, achi, alpha_gate)) then
-            u = olver_smallchi_reduced(l, K, beta, achi, symm)
+        if (use_smallchi_map(l, nu, achi, alpha_gate)) then
+            u = olver_smallchi_reduced(l, K, nu, achi, symm)
             return
         end if
 
-        ! Empirical stable-recursion fallback for the low-alpha corner of the
-        ! full Olver map. With alpha ~= beta/l, the raw
+        ! Empirical recurrence fallback for the low-alpha corner of the
+        ! full Olver map. With alpha ~= nu/l, the raw
         ! curved Olver remainder falls rapidly once alpha is moderately large
         ! (consistent with the expected curvature expansion order O(alpha^-4)).
         ! For alpha below the cutoff the peak-normalized error is governed more
         ! directly by the small endpoint parameter
         !
-        !   open:   eps_peak = O(chi / (2 beta))
-        !   closed: eps_peak = O(chi / (2 (beta-l))).
+        !   open:   eps_peak = O(chi / (2 nu))
+        !   closed: eps_peak = O(chi / (2 (nu-l))).
         !
         ! The constants below are grid-calibrated thresholds on these metrics.
         if (alpha_gate < OLVER_GATE_ALPHA) then
             if (K == 1) then
-                metric = achi / (2._dl * (beta - real(l, dl)))
+                metric = achi / (2._dl * (nu - real(l, dl)))
                 if (metric > OLVER_GATE_CLOSED_EPS) then
-                    u = symm * phi_recurs_stable(l, K, beta, achi) * curved_radius(K, achi)
+                    u = symm * phi_recurs(l, K, nu, achi) * curved_radius(K, achi)
                     return
                 end if
             else if (K == -1) then
-                metric = achi / (2._dl * max(beta, tiny(1._dl)))
+                metric = achi / (2._dl * max(nu, tiny(1._dl)))
                 if (metric > OLVER_GATE_OPEN_EPS) then
-                    u = symm * phi_recurs_stable(l, K, beta, achi) * curved_radius(K, achi)
+                    u = symm * phi_recurs(l, K, nu, achi) * curved_radius(K, achi)
                     return
                 end if
             end if
         end if
     end if
 
-    call compute_olver_z_amp(l, K, beta, achi, z, amp)
-    call bjl(l, beta * z, j_l)
+    call compute_olver_z_amp(l, K, nu, achi, z, amp)
+    call bjl(l, nu * z, j_l)
     u = symm * amp * z * j_l
     end function olver_reduced
 
-    elemental logical function use_smallchi_map(l, beta, achi, alpha_gate) result(use_smallchi)
+    elemental logical function use_smallchi_map(l, nu, achi, alpha_gate) result(use_smallchi)
     integer, intent(in) :: l
-    real(dl), intent(in) :: beta, achi, alpha_gate
+    real(dl), intent(in) :: nu, achi, alpha_gate
 
     ! Pointwise version of the near-flat small-chi integration gate. The
     ! full integration uses 0.3 with chi_max; using the current achi as the
     ! local endpoint needs a smaller threshold to preserve the 1e-4 pointwise
-    ! phi_olver envelope near alpha ~= 3. The gate uses beta/l; the map below
+    ! phi_olver envelope near alpha ~= 3. The gate uses nu/l; the map below
     ! still uses the more accurate sqrt(l(l+1)) curvature scale.
     use_smallchi = l > 0 .and. alpha_gate > SMALLCHI_GATE_ALPHA .and. &
-        real(l, dl)**2 * achi**7 / beta < SMALLCHI_GATE_METRIC
+        real(l, dl)**2 * achi**7 / nu < SMALLCHI_GATE_METRIC
     end function use_smallchi_map
 
 
-    function olver_smallchi_reduced(l, K, beta, achi, symm) result(u)
+    function olver_smallchi_reduced(l, K, nu, achi, symm) result(u)
     integer, intent(in) :: l, K
-    real(dl), intent(in) :: beta, achi, symm
+    real(dl), intent(in) :: nu, achi, symm
     real(dl) :: u
     real(dl) :: z, amp, j_l
 
-    call compute_olver_z_amp_smallchi(l, K, beta, achi, z, amp)
+    call compute_olver_z_amp_smallchi(l, K, nu, achi, z, amp)
     if (amp <= 0._dl) then
         u = 0._dl
         return
     end if
 
-    call bjl(l, beta * z, j_l)
+    call bjl(l, nu * z, j_l)
     u = symm * amp * z * j_l
     end function olver_smallchi_reduced
 
 
-    function phi_olver_smallchi(l, K, beta, chi) result(phi)
+    function phi_olver_smallchi(l, K, nu, chi) result(phi)
     integer, intent(in) :: l, K
-    real(dl), intent(in) :: beta, chi
+    real(dl), intent(in) :: nu, chi
     real(dl) :: phi
 
     real(dl) :: achi, symm
 
-    call validate_inputs(l, K, beta)
-    call normalize_chi(l, K, beta, chi, achi, symm)
+    call validate_inputs(l, K, nu)
+    call normalize_chi(l, K, nu, chi, achi, symm)
 
     if (achi <= CACHE_EPS) then
         phi = 0._dl
@@ -178,17 +178,17 @@
     end if
 
     if (K == 0) then
-        call bjl(l, beta * achi, phi)
+        call bjl(l, nu * achi, phi)
         return
     end if
 
-    phi = olver_smallchi_reduced(l, K, beta, achi, symm) / curved_radius(K, achi)
+    phi = olver_smallchi_reduced(l, K, nu, achi, symm) / curved_radius(K, achi)
     end function phi_olver_smallchi
 
 
-    pure subroutine compute_olver_z_amp(l, K, beta, achi, z, amp)
+    pure subroutine compute_olver_z_amp(l, K, nu, achi, z, amp)
     integer, intent(in) :: l, K
-    real(dl), intent(in) :: beta, achi
+    real(dl), intent(in) :: nu, achi
     real(dl), intent(out) :: z
     real(dl), intent(out), optional :: amp
 
@@ -201,9 +201,9 @@
     end if
 
     ell = sqrt(real(l, dl) * real(l + 1, dl))
-    alpha = beta / ell
-    turn_z = ell / beta
-    turn_chi = turning_point(ell, beta, K)
+    alpha = nu / ell
+    turn_z = ell / nu
+    turn_chi = turning_point(ell, nu, K)
 
     if (achi <= min(1.0e-6_dl, 1.0e-4_dl * max(turn_chi, 1._dl))) then
         z = achi
@@ -228,7 +228,7 @@
     end subroutine compute_olver_z_amp
 
 
-    elemental subroutine compute_olver_z_amp_smallchi(l, K, beta, chi, z, amp)
+    elemental subroutine compute_olver_z_amp_smallchi(l, K, nu, chi, z, amp)
     ! Small-chi curvature expansion for the Olver action map.
     !
     ! This solves the differentiated Liouville-Green map perturbatively for
@@ -243,10 +243,10 @@
     ! is indistinguishable from it at high ell. The full cached Olver map uses
     ! the same coefficient in compute_olver_z_amp.
     integer, intent(in) :: l, K
-    real(dl), intent(in) :: beta, chi
+    real(dl), intent(in) :: nu, chi
     real(dl), intent(out) :: z, amp
 
-    real(dl) :: ell2, beta2, chi2
+    real(dl) :: ell2, nu2, chi2
     real(dl) :: rk, h, h2, a, a2, ha
     real(dl) :: F, D
 
@@ -265,11 +265,11 @@
     ! ell^2 = l(l+1), avoiding sqrt(l(l+1)).
     ell2 = real(l * (l + 1), dl)
 
-    beta2 = beta * beta
+    nu2 = nu * nu
     chi2  = chi * chi
 
-    ! h = K / alpha^2 = K * ell^2 / beta^2.
-    h = rk * ell2 / beta2
+    ! h = K / alpha^2 = K * ell^2 / nu^2.
+    h = rk * ell2 / nu2
 
     ! a = h * t^2 = K * chi^2.
     a  = rk * chi2
@@ -298,35 +298,35 @@
 
     end subroutine compute_olver_z_amp_smallchi
 
-    subroutine validate_inputs(l, K, beta)
+    subroutine validate_inputs(l, K, nu)
     integer, intent(in) :: l, K
-    real(dl), intent(in) :: beta
-    integer :: ibeta
+    real(dl), intent(in) :: nu
+    integer :: inu
 
     if (l < 0) call MpiStop("Bessel function index ell < 0")
-    if (beta < 0._dl) call MpiStop("Wavenumber beta < 0")
+    if (nu < 0._dl) call MpiStop("Wavenumber nu < 0")
     if ((abs(K) /= 1) .and. (K /= 0)) call MpiStop("K must be 1, 0 or -1")
 
     if (K == 1) then
-        ibeta = nint(beta)
-        if (ibeta < 3) call MpiStop("Wavenumber beta < 3 for K=1")
-        if (ibeta <= l) call MpiStop("Wavenumber beta <= l")
+        inu = nint(nu)
+        if (inu < 3) call MpiStop("Wavenumber nu < 3 for K=1")
+        if (inu <= l) call MpiStop("Wavenumber nu <= l")
     end if
     end subroutine validate_inputs
 
 
-    elemental subroutine normalize_chi(l, K, beta, chi, achi, symm)
+    elemental subroutine normalize_chi(l, K, nu, chi, achi, symm)
     integer, intent(in) :: l, K
-    real(dl), intent(in) :: beta, chi
+    real(dl), intent(in) :: nu, chi
     real(dl), intent(out) :: achi, symm
-    integer :: ibeta
+    integer :: inu
 
     achi = abs(chi)
     symm = 1._dl
 
     if (K /= 1) return
 
-    ibeta = nint(beta)
+    inu = nint(nu)
     achi = achi - 2._dl * PI * floor(achi / (2._dl * PI))
     if (achi > PI) then
         achi = 2._dl * PI - achi
@@ -334,22 +334,22 @@
     end if
     if (achi > PI / 2._dl) then
         achi = PI - achi
-        if (mod(ibeta - l - 1, 2) /= 0) symm = -symm
+        if (mod(inu - l - 1, 2) /= 0) symm = -symm
     end if
     end subroutine normalize_chi
 
 
-    elemental real(dl) function turning_point(ell, beta, K)
-    real(dl), intent(in) :: ell, beta
+    elemental real(dl) function turning_point(ell, nu, K)
+    real(dl), intent(in) :: ell, nu
     integer, intent(in) :: K
 
     select case (K)
     case (-1)
-        turning_point = asinh(ell / beta)
+        turning_point = asinh(ell / nu)
     case (0)
-        turning_point = ell / beta
+        turning_point = ell / nu
     case (1)
-        turning_point = asin(ell / beta)
+        turning_point = asin(ell / nu)
     case default
         turning_point = 0._dl
     end select

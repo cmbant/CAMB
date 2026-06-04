@@ -1,6 +1,6 @@
     module SpherBessels
     !Calculation of ultraspherical Bessel functions for non-flat universe
-    !(and imports from FlatBessels for standard sphecrical bessel bjl).
+    !(and imports from FlatBessels for standard spherical Bessel bjl).
     use Precision
     use results
     use RangeUtils
@@ -11,43 +11,28 @@
     private
 
     public bessel_horner, BessRanges, InitSpherBessels, bjl_pre_peak_start_factor
-    public phi_recurs_stable, bjl, Bessels_Free
+    public phi_recurs, bjl, Bessels_Free
 
     contains
 
-    !***********************************************************************
-    !                                                                      *
-    ! Calculates Phi(l,beta,chi) using recursion on l.                     *
-    ! See Abbot and Schaefer, ApJ 308, 546 (1986) for needed               *
-    ! recursion relations and closed-form expressions for l=0,1.           *
-    ! (Note: Their variable y is the same as chi here.)                    *
-    !                                                                      *
-    ! When the flag direction is negative, downwards recursion on l        *
-    ! must be used because the upwards direction is unstable to roundoff   *
-    ! errors. The downwards recursion begins with arbitrary values and     *
-    ! continues downwards to l=1, where the desired l value is normalized  *
-    ! using the closed form solution for l=1. (See, e.g., Numerical        *
-    ! Recipes of Bessel functions for more detail)                         *
-    !                                                                      *
-    !***********************************************************************
-
-    function phi_recurs_stable(l, K, beta, chi) result(phi)
-    ! Stable hyperspherical recursion for Phi(l,K,beta,chi).
+    function phi_recurs(l, K, nu, chi) result(phi)
+    ! Recursive evaluation of the regular hyperspherical Bessel function phi_l^nu(K,chi).
     !
-    ! Uses ordinary upward recurrence only in the safe oscillatory region.
-    ! In the evanescent/tail region it uses Miller backward recurrence,
-    ! initialized by the logarithmic derivative phi'_l/phi_l.
-    !
-    ! For K=+1 the logarithmic derivative is computed from the exact
-    ! Gegenbauer representation, avoiding the unstable forced upward
-    ! recurrence in the closed I-tail.
+    ! The recurrence and exact l=0,1 seeds follow Abbott & Schaefer
+    ! (1986, ApJ 308, 546). As in Tram (2017, arXiv:1311.0839) and
+    ! Lesgourgues & Tram (2014, arXiv:1312.2697), upward recurrence is used
+    ! only in the safe oscillatory region; elsewhere Miller backward
+    ! recurrence is started from the logarithmic derivative phi'_l/phi_l.
+    ! For K=+1 the logarithmic derivative is computed from the closed-space
+    ! Gegenbauer representation, which is the CLASS stable-recursion cure for
+    ! the finite closed-spectrum tail.
     integer, intent(in) :: l, K
-    real(dl), intent(in) :: beta, chi
+    real(dl), intent(in) :: nu, chi
     real(dl) :: phi
 
-    integer :: j, ibeta
+    integer :: j, inu
     logical :: use_up, ok
-    real(dl) :: beta2, kay, ell, arg
+    real(dl) :: nu2, kay, ell, arg
     real(dl) :: sin_K, cot_K, root_K
     real(dl) :: phi0, phi1, phi_top
     real(dl) :: phi_minus, phi_zero, phi_plus
@@ -58,20 +43,20 @@
     real(dl), parameter :: BIG = 1.d100, TINY = 1.d-280
 
     if (l < 0) call MpiStop("Bessel function index ell < 0")
-    if (beta < 0._dl) call MpiStop("Wavenumber beta < 0")
+    if (nu < 0._dl) call MpiStop("Wavenumber nu < 0")
     if ((abs(K) /= 1) .and. (K /= 0)) call MpiStop("K must be 1, 0 or -1")
 
-    beta2 = beta**2
+    nu2 = nu**2
     kay = dble(K)
     ell = dble(l)
-    arg = beta * chi
+    arg = nu * chi
 
     if (K == 1) then
-        ibeta = nint(beta)
-        if (ibeta < 3) call MpiStop("Wavenumber beta < 3 for K=1")
-        if (ibeta <= l) call MpiStop("Wavenumber beta <= l")
+        inu = nint(nu)
+        if (inu < 3) call MpiStop("Wavenumber nu < 3 for K=1")
+        if (inu <= l) call MpiStop("Wavenumber nu <= l")
     else
-        ibeta = huge(ibeta)
+        inu = huge(inu)
     end if
 
     if (abs(chi) < 1.d-14) then
@@ -95,7 +80,7 @@
         cot_K = 1._dl / tanh(chi)
     end select
 
-    call phi01_exact_stable(K, beta, chi, sin_K, cot_K, phi0, phi1)
+    call phi01_exact(K, nu, chi, sin_K, cot_K, phi0, phi1)
 
     if (l == 0) then
         phi = phi0
@@ -106,9 +91,9 @@
     end if
 
     if (K == 0) then
-        root_K = beta
+        root_K = nu
     else
-        root_K = sqrt(max(0._dl, beta2 - kay * ell * ell))
+        root_K = sqrt(max(0._dl, nu2 - kay * ell * ell))
     end if
 
     use_up = (root_K > 0._dl) .and. (abs(cot_K) < root_K / max(1._dl, ell))
@@ -118,16 +103,16 @@
         phi_zero = phi1
 
         if (K == 0) then
-            b_minus = beta
+            b_minus = nu
         else
-            b_minus = sqrt(max(0._dl, beta2 - kay))
+            b_minus = sqrt(max(0._dl, nu2 - kay))
         end if
 
         do j = 2, l
             if (K == 0) then
-                b_zero = beta
+                b_zero = nu
             else
-                b_zero = sqrt(max(0._dl, beta2 - kay * dble(j) * dble(j)))
+                b_zero = sqrt(max(0._dl, nu2 - kay * dble(j) * dble(j)))
             end if
 
             phi_plus = ((2 * j - 1) * cot_K * phi_zero - b_minus * phi_minus) / b_zero
@@ -141,8 +126,8 @@
         return
     end if
 
-    call phi_logderiv_stable(l, K, beta, sin_K, cot_K, cf, ok)
-    if (.not. ok) call MpiStop("phi_recurs_stable: failed to get log-derivative")
+    call phi_logderiv(l, K, nu, sin_K, cot_K, cf, ok)
+    if (.not. ok) call MpiStop("phi_recurs: failed to get log-derivative")
 
     phi_cur = 1._dl
     phi_top = 1._dl
@@ -152,12 +137,12 @@
 
     do j = l, 1, -1
         if (K == 0) then
-            b_zero = beta
+            b_zero = nu
         else
-            b_zero = sqrt(max(0._dl, beta2 - kay * dble(j) * dble(j)))
+            b_zero = sqrt(max(0._dl, nu2 - kay * dble(j) * dble(j)))
         end if
 
-        if (b_zero <= 0._dl) call MpiStop("phi_recurs_stable: zero recurrence coefficient")
+        if (b_zero <= 0._dl) call MpiStop("phi_recurs: zero recurrence coefficient")
 
         phi_lm1 = ((2 * j + 1) * cot_K * phi_cur - bphi_plus) / b_zero
 
@@ -181,7 +166,7 @@
         else if (abs(phi1_down) > TINY) then
             scale = phi1 / phi1_down
         else
-            call MpiStop("phi_recurs_stable: zero normalization")
+            call MpiStop("phi_recurs: zero normalization")
         end if
     else
         if (abs(phi1_down) > TINY) then
@@ -189,7 +174,7 @@
         else if (abs(phi0_down) > TINY) then
             scale = phi0 / phi0_down
         else
-            call MpiStop("phi_recurs_stable: zero normalization")
+            call MpiStop("phi_recurs: zero normalization")
         end if
     end if
 
@@ -197,16 +182,19 @@
 
     contains
 
-    subroutine phi01_exact_stable(K, beta, chi, sin_K, cot_K, phi0, phi1)
+    subroutine phi01_exact(K, nu, chi, sin_K, cot_K, phi0, phi1)
+    ! Exact phi_0^nu and phi_1^nu seeds from Abbott & Schaefer
+    ! (1986, ApJ 308, 546), with Taylor branches for the small-argument
+    ! limits used to normalize Miller recurrence.
     integer, intent(in) :: K
-    real(dl), intent(in) :: beta, chi, sin_K, cot_K
+    real(dl), intent(in) :: nu, chi, sin_K, cot_K
     real(dl), intent(out) :: phi0, phi1
 
-    real(dl) :: beta2, kay, arg, arg2, sinc, root1
+    real(dl) :: nu2, kay, arg, arg2, sinc, root1
 
-    beta2 = beta**2
+    nu2 = nu**2
     kay = dble(K)
-    arg = beta * chi
+    arg = nu * chi
     arg2 = arg**2
 
     if (abs(arg) < 1.d-4) then
@@ -225,45 +213,49 @@
         end if
 
     else
-        root1 = sqrt(max(0._dl, beta2 - kay))
+        root1 = sqrt(max(0._dl, nu2 - kay))
 
         if (abs(chi) < 1.d-4) then
             if (abs(arg) < 1.d-4) then
-                phi0 = 1._dl - chi**2 * (beta2 - kay) / 6._dl
+                phi0 = 1._dl - chi**2 * (nu2 - kay) / 6._dl
                 phi1 = chi * root1 / 3._dl
             else
                 phi0 = sinc
                 phi1 = (sinc - cos(arg)) / (root1 * chi)
             end if
         else
-            phi0 = sin(arg) / (beta * sin_K)
-            phi1 = sin(arg) * cot_K / (beta * sin_K) - cos(arg) / sin_K
+            phi0 = sin(arg) / (nu * sin_K)
+            phi1 = sin(arg) * cot_K / (nu * sin_K) - cos(arg) / sin_K
             phi1 = phi1 / root1
         end if
     end if
 
-    end subroutine phi01_exact_stable
+    end subroutine phi01_exact
 
 
-    subroutine phi_logderiv_stable(l, K, beta, sin_K, cot_K, cf, ok)
+    subroutine phi_logderiv(l, K, nu, sin_K, cot_K, cf, ok)
+    ! Continued-fraction logarithmic derivative used to start Miller recurrence
+    ! for K=0,-1; this is the stable-recursion construction described by
+    ! Tram (2017, arXiv:1311.0839) and used in the non-flat CLASS
+    ! implementation of Lesgourgues & Tram (2014, arXiv:1312.2697).
     integer, intent(in) :: l, K
-    real(dl), intent(in) :: beta, sin_K, cot_K
+    real(dl), intent(in) :: nu, sin_K, cot_K
     real(dl), intent(out) :: cf
     logical, intent(out) :: ok
 
     integer :: iter, maxiter
-    real(dl) :: beta2, aj, bj, fj, Cj, Dj, Delj, sqrttmp
+    real(dl) :: nu2, aj, bj, fj, Cj, Dj, Delj, sqrttmp
     real(dl), parameter :: SMALL = 1.d-100
 
     ok = .false.
     cf = 0._dl
 
     if (K == 1) then
-        call phi_logderiv_closed_gegenbauer(l, nint(beta), sin_K, cot_K, cf, ok)
+        call phi_logderiv_closed_gegenbauer(l, nint(nu), sin_K, cot_K, cf, ok)
         return
     end if
 
-    beta2 = beta**2
+    nu2 = nu**2
     maxiter = 1000000
 
     bj = dble(l) * cot_K
@@ -274,11 +266,11 @@
     if (abs(Cj) < SMALL) Cj = sign(SMALL, Cj + SMALL)
 
     do iter = 1, maxiter
-        sqrttmp = sqrt(max(0._dl, beta2 - dble(K) * dble(l + iter + 1)**2))
+        sqrttmp = sqrt(max(0._dl, nu2 - dble(K) * dble(l + iter + 1)**2))
         if (sqrttmp <= 0._dl) return
 
-        aj = -sqrt(max(0._dl, beta2 - dble(K) * dble(l + iter)**2)) / sqrttmp
-        if (iter == 1) aj = sqrt(max(0._dl, beta2 - dble(K) * dble(l + 1)**2)) * aj
+        aj = -sqrt(max(0._dl, nu2 - dble(K) * dble(l + iter)**2)) / sqrttmp
+        if (iter == 1) aj = sqrt(max(0._dl, nu2 - dble(K) * dble(l + 1)**2)) * aj
 
         bj = dble(2 * (l + iter) + 1) * cot_K / sqrttmp
 
@@ -299,11 +291,15 @@
         end if
     end do
 
-    end subroutine phi_logderiv_stable
+    end subroutine phi_logderiv
 
 
-    subroutine phi_logderiv_closed_gegenbauer(l, ibeta, sin_K, cot_K, cf, ok)
-    integer, intent(in) :: l, ibeta
+    subroutine phi_logderiv_closed_gegenbauer(l, inu, sin_K, cot_K, cf, ok)
+    ! Closed-space replacement for the open continued fraction. The finite
+    ! Gegenbauer form of phi_l^nu gives D_l directly, following Tram
+    ! (2017, arXiv:1311.0839) and Lesgourgues & Tram
+    ! (2014, arXiv:1312.2697).
+    integer, intent(in) :: l, inu
     real(dl), intent(in) :: sin_K, cot_K
     real(dl), intent(out) :: cf
     logical, intent(out) :: ok
@@ -317,7 +313,7 @@
     ok = .false.
     cf = 0._dl
 
-    n = ibeta - l - 1
+    n = inu - l - 1
     if (n < 0) return
 
     alpha = l + 1
@@ -369,6 +365,6 @@
 
     end subroutine phi_logderiv_closed_gegenbauer
 
-    end function phi_recurs_stable
+    end function phi_recurs
 
     end module SpherBessels
