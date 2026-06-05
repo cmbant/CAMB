@@ -145,7 +145,7 @@
     end function use_smallchi_map
 
 
-    function olver_smallchi_reduced(l, K, nu, achi, symm) result(u)
+    pure function olver_smallchi_reduced(l, K, nu, achi, symm) result(u)
     integer, intent(in) :: l, K
     real(dl), intent(in) :: nu, achi, symm
     real(dl) :: u
@@ -162,14 +162,13 @@
     end function olver_smallchi_reduced
 
 
-    function phi_olver_smallchi(l, K, nu, chi) result(phi)
+    pure function phi_olver_smallchi(l, K, nu, chi) result(phi)
     integer, intent(in) :: l, K
     real(dl), intent(in) :: nu, chi
     real(dl) :: phi
 
     real(dl) :: achi, symm
 
-    call validate_inputs(l, K, nu)
     call normalize_chi(l, K, nu, chi, achi, symm)
 
     if (achi <= CACHE_EPS) then
@@ -297,24 +296,6 @@
     end if
 
     end subroutine compute_olver_z_amp_smallchi
-
-    subroutine validate_inputs(l, K, nu)
-    integer, intent(in) :: l, K
-    real(dl), intent(in) :: nu
-    integer :: inu
-
-    if (l < 0) call MpiStop("Bessel function index ell < 0")
-    if (nu < 0._dl) call MpiStop("Wavenumber nu < 0")
-    if ((abs(K) /= 1) .and. (K /= 0)) call MpiStop("K must be 1, 0 or -1")
-
-    if (K == 1) then
-        inu = nint(nu)
-        if (inu < 3) call MpiStop("Wavenumber nu < 3 for K=1")
-        if (inu <= l) call MpiStop("Wavenumber nu <= l")
-    end if
-    end subroutine validate_inputs
-
-
     elemental subroutine normalize_chi(l, K, nu, chi, achi, symm)
     integer, intent(in) :: l, K
     real(dl), intent(in) :: nu, chi

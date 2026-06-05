@@ -25,6 +25,7 @@ WinDLL/
 *.user
 *.save
 *.log
+*.csv
 .idea
 .DS_Store
 *egg*

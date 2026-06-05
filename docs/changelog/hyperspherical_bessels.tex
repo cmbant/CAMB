@@ -757,7 +757,7 @@ raw Olver asymptotic formula alone.
 
 \section{Stable recursive fallback: exact seeds, upward recurrence and Miller recurrence}
 
-The action-map Olver path is a high-throughput leading-order uniform approximation.  For low \(l\), invalid asymptotic corners, and some fallback regions, CAMB uses direct recurrence through \code{phi_recurs}.  This recurrence machinery follows the standard hyperspherical-Bessel relations and the later stable-recursion improvements developed for \textsc{CLASS} \cite{abbott-schaefer,tram2013,lesgourgues-tram2013}.\footnote{A direct comparison with \textsc{CLASS} v3.3.4 shows the same seed formulae, upward recurrence, Miller downward recurrence, continued-fraction logarithmic derivative, and closed-space Gegenbauer logarithmic derivative.  The main implementation differences are that \textsc{CLASS} builds interpolation tables over \(l\) and \(\chi\), while CAMB's \code{phi_recurs} is a pointwise reference routine; \textsc{CLASS} uses its \code{get_CF1} continued-fraction helper for some closed-space starts before falling back to Gegenbauer, while CAMB always uses the Gegenbauer start for \(K=+1\); \textsc{CLASS} normalizes the Miller sequence with \(\phi_0\), while CAMB normalizes with whichever of \(\phi_0\) or \(\phi_1\) is numerically safer; and CAMB computes \(G\) and \(G'\) together in the Gegenbauer recurrence rather than using the final derivative identity with a division by \(1-x^2\).  Here \code{get_CF1} is the \textsc{CLASS} routine evaluating the modified continued fraction for \(D_l=(\phi_l^\nu)'/\phi_l^\nu\), with an auxiliary sign used to choose the arbitrary Miller start amplitude.}  This section explains that routine because it is part of the actual new path.
+The action-map Olver path is a high-throughput leading-order uniform approximation.  For low \(l\), invalid asymptotic corners, and some fallback regions, CAMB uses direct recurrence through \code{phi_recurs}.  This recurrence machinery follows the standard hyperspherical-Bessel relations and the later stable-recursion improvements developed for \textsc{CLASS} \cite{abbott-schaefer,tram2013,lesgourgues-tram2013}.\footnote{A direct comparison with \textsc{CLASS} v3.3.4 shows the same seed formulae, upward recurrence, Miller downward recurrence, continued-fraction logarithmic derivative, and closed-space Gegenbauer logarithmic derivative.  The main implementation differences are that \textsc{CLASS} builds interpolation tables over \(l\) and \(\chi\), while CAMB's \code{phi_recurs} is a pointwise reference routine; \textsc{CLASS} uses its \code{get_CF1} continued-fraction helper for some closed-space Miller starts before falling back to Gegenbauer, while CAMB either starts closed-space Miller recursion from the finite endpoint condition \(b_\nu\phi_\nu=0\) or, near the finite-spectrum endpoint, uses the Gegenbauer logarithmic derivative directly; \textsc{CLASS} normalizes the Miller sequence with \(\phi_0\), while CAMB normalizes with whichever of \(\phi_0\) or \(\phi_1\) is numerically safer; and CAMB computes \(G\) and \(G'\) together in the Gegenbauer recurrence rather than using the final derivative identity with a division by \(1-x^2\).  Here \code{get_CF1} is the \textsc{CLASS} routine evaluating the modified continued fraction for \(D_l=(\phi_l^\nu)'/\phi_l^\nu\), with an auxiliary sign used to choose the arbitrary Miller start amplitude.}  This section explains that routine because it is part of the actual new path.
 
 The exact seed functions are
 \begin{equation}
@@ -780,6 +780,7 @@ The exact recurrence is
   \qquad j\ge2.
   \label{eq:up-recurrence}
 \end{equation}
+where \(b_j=b_j(K,\nu)=\sqrt{\nu^2-Kj^2}\).
 Forward recurrence from \(j=0,1\) is used only where it is stable, essentially the safely oscillatory region.  The code tests a condition of the form
 \begin{equation}
   b_l>0,\qquad \abs{\cotK\chi}<\frac{b_l}{\max(1,l)}.
@@ -791,7 +792,7 @@ Outside this region, forward recurrence would amplify the unwanted independent s
   \qquad j=l,l-1,\ldots,1.
   \label{eq:down-recurrence}
 \end{equation}
-Downward recurrence gives the correct ratios but needs a top boundary condition.  This is supplied by a logarithmic derivative.
+Downward recurrence gives the correct ratios but needs a top boundary condition.  For flat and open models this is supplied by a logarithmic derivative.  For closed models CAMB can also use the finite endpoint of the discrete spectrum.
 
 \subsection{The logarithmic derivative used to start downward recurrence}
 
@@ -810,12 +811,14 @@ Then
   b_{j+1}\frac{\phi_{j+1}^\nu}{\phi_j^\nu}=j\cotK\chi-D_j.
   \label{eq:ratio-logderiv}
 \end{equation}
-The Miller start is therefore: set an arbitrary \(\widetilde\phi_l=1\), compute \(D_l\), set
+For the logarithmic-derivative start, set an arbitrary \(\widetilde\phi_l=1\), compute \(D_l\), set
 \begin{equation}
   b_{l+1}\widetilde\phi_{l+1}=l\cotK\chi-D_l,
   \label{eq:miller-start}
 \end{equation}
 then recur downward with \eqref{eq:down-recurrence}.  At the end the arbitrary sequence is normalized by matching the exact seed values \eqref{eq:phi0} or \eqref{eq:phi1}, whichever is numerically safer.
+
+For \(K=+1\), \(\nu\) is an integer and the regular closed spectrum ends at \(l=\nu-1\).  The recurrence coefficient is then \(b_j(+1,\nu)=\sqrt{\nu^2-j^2}\), so \(b_\nu=0\).  CAMB can choose an arbitrary \(\widetilde\phi_{\nu-1}\), set the endpoint product \(b_\nu\widetilde\phi_\nu\) to zero, and run the same Miller recurrence downward to the desired \(l\) and then to the exact low-order seeds.  The code uses this finite-endpoint start when \(\nu-l>64\), equivalently when the Gegenbauer degree \(n=\nu-l-1\) is at least \(64\).  For smaller \(n\), the Gegenbauer logarithmic derivative below is cheaper and is used directly.
 
 For \(K=0\) and \(K=-1\), \(D_l\) is obtained from a continued fraction.  Let
 \begin{equation}

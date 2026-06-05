@@ -49,6 +49,7 @@ _phi_recurs_array.argtypes = [numpy_1d, c_int, c_int, c_double, numpy_1d, c_int]
 
 
 def _hyperspherical_bessel_dispatch(function, vector_function, L, K, nu, chi):
+    _validate_hyperspherical_bessel_inputs(L, K, nu)
     chi_array = np.asarray(chi, dtype=np.float64)
     nu_in = c_double(nu)
 
@@ -62,6 +63,23 @@ def _hyperspherical_bessel_dispatch(function, vector_function, L, K, nu, chi):
     result = np.empty_like(chi_array)
     vector_function(result, c_int(L), c_int(K), nu_in, chi_array, c_int(len(chi_array)))
     return result
+
+
+def _validate_hyperspherical_bessel_inputs(L, K, nu):
+    if L < 0:
+        raise ValueError("Bessel function index L must be non-negative")
+    if K not in (-1, 0, 1):
+        raise ValueError("K must be one of -1, 0 or 1")
+    if nu < 0:
+        raise ValueError("nu must be non-negative")
+    if K == 1:
+        inu = round(nu)
+        if abs(nu - inu) > 100 * np.finfo(float).eps * max(1.0, abs(nu)):
+            raise ValueError("nu must be an integer mode for K=1")
+        if inu < 3:
+            raise ValueError("nu must be >= 3 for K=1")
+        if inu <= L:
+            raise ValueError("nu must be > L for K=1")
 
 
 def phi_olver(L, K, nu, chi):
@@ -90,9 +108,9 @@ def phi_recurs(L, K, nu, chi):
 
     Uses upward recurrence in the safe oscillatory region and Miller backward recurrence elsewhere,
     normalized by the exact low-order solution. The recurrence follows Abbott and Schaefer (1986)
-    for the seed and recurrence formulae, with the stable-recursion logarithmic-derivative start
-    of Tram (2017) and Lesgourgues and Tram (2014), including the closed-space Gegenbauer start
-    for ``K=1``.
+    for the seed and recurrence formulae. Miller starts use the continued-fraction construction of
+    Tram (2017) and Lesgourgues and Tram (2014) for ``K=0,-1``; for ``K=1`` they use either the
+    finite closed-spectrum endpoint or the closed-space Gegenbauer Miller start.
 
     :param L: multipole index
     :param K: dimensionless curvature sign, one of -1, 0, 1
