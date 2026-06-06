@@ -1,6 +1,6 @@
     module SpherBessels
-    !Calculation of ultraspherical Bessel functions for non-flat universe
-    !(and imports from FlatBessels for standard spherical Bessel bjl).
+    !Accurate calculation of ultraspherical Bessel functions for non-flat universe
+    !(and imports from FlatBessels for standard approximate spherical Bessel bjl).
     use Precision
     use results
     use RangeUtils
@@ -17,6 +17,8 @@
 
     function phi_recurs(l, K, nu, chi) result(phi)
     ! Recursive evaluation of the regular hyperspherical Bessel function phi_l^nu(K,chi).
+    ! Precondition: chi >= 0. For closed K=+1, non-negative chi is folded
+    ! into [0,pi/2] using the closed-space parity relations.
     !
     ! The recurrence and exact l=0,1 seeds follow Abbott & Schaefer
     ! (1986, ApJ 308, 546). As in Tram (2017, arXiv:1311.0839) and
@@ -33,7 +35,7 @@
 
     integer :: j, inu
     logical :: use_up, ok
-    real(dl) :: nu_use, nu2, kay, ell, chi_use, symm
+    real(dl) :: nu_use, nu2, kay, ell, chi_use, symm, amp_arg
     real(dl) :: sin_K, cot_K, cos_K, root_K
     real(dl) :: phi0, phi1, phi_top
     real(dl) :: phi_minus, phi_zero, phi_plus
@@ -42,6 +44,8 @@
     real(dl) :: phi_cur, phi_lm1, phi0_down, phi1_down
     real(dl) :: scale
     real(dl), parameter :: BIG = 1.d100, TINY = 1.d-280
+    real(dl), parameter :: UNDERFLOW_LOG = -744.4400719213812_dl
+    real(dl), parameter :: OPEN_TURNING_TOL = 1.d-5
     real(dl), parameter :: PI = 3.1415926535897932384626433832795_dl
     integer, parameter :: closed_endpoint_min_degree = 64
 
@@ -60,8 +64,7 @@
     chi_use = chi
     symm = 1._dl
     if (K == 1) then
-        chi_use = abs(chi_use)
-        chi_use = chi_use - 2._dl * PI * floor(chi_use / (2._dl * PI))
+        chi_use = modulo(chi_use, 2._dl * PI)
         if (chi_use > PI) then
             chi_use = 2._dl * PI - chi_use
             if (mod(l, 2) /= 0) symm = -symm
@@ -72,13 +75,29 @@
         end if
     end if
 
-    if (abs(chi_use) < 1.d-14) then
+    if (chi_use == 0._dl) then
         if (l == 0) then
             phi = symm
         else
             phi = 0._dl
         end if
         return
+    end if
+
+    if (l > 0) then
+        if (K == -1) then
+            amp_arg = chi_use * sqrt(nu2 + ell * ell)
+        else
+            amp_arg = chi_use * abs(nu_use)
+        end if
+
+        if (amp_arg == 0._dl) then
+            phi = 0._dl
+            return
+        else if (amp_arg < 1._dl .and. ell * log(amp_arg) < UNDERFLOW_LOG) then
+            phi = 0._dl
+            return
+        end if
     end if
 
     select case (K)
@@ -88,7 +107,7 @@
     case (1)
         sin_K = sin(chi_use)
         cos_K = cos(chi_use)
-        cot_K = 1._dl / tan(chi_use)
+        cot_K = cos_K / sin_K
     case (-1)
         sin_K = sinh(chi_use)
         cot_K = 1._dl / tanh(chi_use)
@@ -102,46 +121,125 @@
     else if (l == 1) then
         phi = symm * phi1
         return
+    else if (K == 0 .and. nu_use == 0._dl) then
+        phi = 0._dl
+        return
     end if
 
     if (K == 0) then
         root_K = nu
+        use_up = (root_K > 0._dl) .and. (abs(cot_K) < root_K / max(1._dl, ell))
+
+        if (use_up) then
+            phi_minus = phi0
+            phi_zero = phi1
+
+            do j = 2, l
+                phi_plus = ((2 * j - 1) * cot_K * phi_zero - nu * phi_minus) / nu
+
+                phi_minus = phi_zero
+                phi_zero = phi_plus
+            end do
+
+            phi = phi_zero
+            return
+        end if
+
+        call phi_logderiv(l, K, nu_use, cot_K, cf, ok)
+        if (.not. ok) call MpiStop("phi_recurs: failed to get log-derivative")
+
+        phi_cur = 1._dl
+        phi_top = 1._dl
+        bphi_plus = ell * cot_K - cf
+        phi1_down = 0._dl
+
+        do j = l, 1, -1
+            phi_lm1 = ((2 * j + 1) * cot_K * phi_cur - bphi_plus) / nu
+
+            if (j == 1) phi1_down = phi_cur
+
+            bphi_plus = nu * phi_cur
+            phi_cur = phi_lm1
+
+            if (max(abs(phi_cur), abs(bphi_plus)) > BIG) then
+                phi_cur = phi_cur / BIG
+                bphi_plus = bphi_plus / BIG
+                phi_top = phi_top / BIG
+                if (j == 1) phi1_down = phi1_down / BIG
+            end if
+        end do
+
+        phi0_down = phi_cur
+
+        if (abs(phi0) >= abs(phi1)) then
+            if (abs(phi0_down) > TINY) then
+                scale = phi0 / phi0_down
+            else if (abs(phi1_down) > TINY) then
+                scale = phi1 / phi1_down
+            else
+                call MpiStop("phi_recurs: zero normalization")
+            end if
+        else
+            if (abs(phi1_down) > TINY) then
+                scale = phi1 / phi1_down
+            else if (abs(phi0_down) > TINY) then
+                scale = phi0 / phi0_down
+            else
+                call MpiStop("phi_recurs: zero normalization")
+            end if
+        end if
+
+        phi = scale * phi_top
+        return
+    else if (K == 1) then
+        root_K = sqrt(dble(inu - l) * dble(inu + l))
     else
-        root_K = sqrt(max(0._dl, nu2 - kay * ell * ell))
+        root_K = sqrt(nu2 + ell * ell)
     end if
 
     use_up = (root_K > 0._dl) .and. (abs(cot_K) < root_K / max(1._dl, ell))
+    if (.not. use_up .and. K == -1 .and. root_K > 0._dl) then
+        ! Just below the open-space turning boundary the continued fraction can
+        ! converge very slowly; upward recurrence remains well conditioned here.
+        use_up = abs(cot_K) <= root_K / max(1._dl, ell) * (1._dl + OPEN_TURNING_TOL)
+    end if
 
     if (use_up) then
         phi_minus = phi0
         phi_zero = phi1
 
-        if (K == 0) then
-            b_minus = nu
+        if (K == 1) then
+            b_minus = sqrt(dble(inu - 1) * dble(inu + 1))
+
+            do j = 2, l
+                b_zero = sqrt(dble(inu - j) * dble(inu + j))
+
+                phi_plus = ((2 * j - 1) * cot_K * phi_zero - b_minus * phi_minus) / b_zero
+
+                phi_minus = phi_zero
+                phi_zero = phi_plus
+                b_minus = b_zero
+            end do
         else
-            b_minus = sqrt(max(0._dl, nu2 - kay))
+            b_minus = sqrt(nu2 + 1._dl)
+
+            do j = 2, l
+                b_zero = sqrt(nu2 + dble(j) * dble(j))
+
+                phi_plus = ((2 * j - 1) * cot_K * phi_zero - b_minus * phi_minus) / b_zero
+
+                phi_minus = phi_zero
+                phi_zero = phi_plus
+                b_minus = b_zero
+            end do
         end if
-
-        do j = 2, l
-            if (K == 0) then
-                b_zero = nu
-            else
-                b_zero = sqrt(max(0._dl, nu2 - kay * dble(j) * dble(j)))
-            end if
-
-            phi_plus = ((2 * j - 1) * cot_K * phi_zero - b_minus * phi_minus) / b_zero
-
-            phi_minus = phi_zero
-            phi_zero = phi_plus
-            b_minus = b_zero
-        end do
 
         phi = symm * phi_zero
         return
     end if
 
     if (K == 1 .and. inu - l > closed_endpoint_min_degree) then
-        call phi_closed_endpoint_down(l, inu, nu2, cot_K, phi0, phi1, phi, ok)
+        call phi_closed_endpoint_down(l, inu, cot_K, phi0, phi1, phi, ok)
         if (ok) then
             phi = symm * phi
             return
@@ -153,7 +251,7 @@
         if (.not. ok) call MpiStop("phi_recurs: failed to get closed Miller start")
         phi_top = phi_cur
     else
-        call phi_logderiv(l, K, nu_use, sin_K, cot_K, cf, ok)
+        call phi_logderiv(l, K, nu_use, cot_K, cf, ok)
         if (.not. ok) call MpiStop("phi_recurs: failed to get log-derivative")
 
         phi_cur = 1._dl
@@ -163,29 +261,45 @@
 
     phi1_down = 0._dl
 
-    do j = l, 1, -1
-        if (K == 0) then
-            b_zero = nu
-        else
-            b_zero = sqrt(max(0._dl, nu2 - kay * dble(j) * dble(j)))
-        end if
+    if (K == 1) then
+        do j = l, 1, -1
+            b_zero = sqrt(dble(inu - j) * dble(inu + j))
 
-        if (b_zero <= 0._dl) call MpiStop("phi_recurs: zero recurrence coefficient")
+            if (b_zero <= 0._dl) call MpiStop("phi_recurs: zero recurrence coefficient")
 
-        phi_lm1 = ((2 * j + 1) * cot_K * phi_cur - bphi_plus) / b_zero
+            phi_lm1 = ((2 * j + 1) * cot_K * phi_cur - bphi_plus) / b_zero
 
-        if (j == 1) phi1_down = phi_cur
+            if (j == 1) phi1_down = phi_cur
 
-        bphi_plus = b_zero * phi_cur
-        phi_cur = phi_lm1
+            bphi_plus = b_zero * phi_cur
+            phi_cur = phi_lm1
 
-        if (max(abs(phi_cur), abs(bphi_plus)) > BIG) then
-            phi_cur = phi_cur / BIG
-            bphi_plus = bphi_plus / BIG
-            phi_top = phi_top / BIG
-            if (j == 1) phi1_down = phi1_down / BIG
-        end if
-    end do
+            if (max(abs(phi_cur), abs(bphi_plus)) > BIG) then
+                phi_cur = phi_cur / BIG
+                bphi_plus = bphi_plus / BIG
+                phi_top = phi_top / BIG
+                if (j == 1) phi1_down = phi1_down / BIG
+            end if
+        end do
+    else
+        do j = l, 1, -1
+            b_zero = sqrt(nu2 + dble(j) * dble(j))
+
+            phi_lm1 = ((2 * j + 1) * cot_K * phi_cur - bphi_plus) / b_zero
+
+            if (j == 1) phi1_down = phi_cur
+
+            bphi_plus = b_zero * phi_cur
+            phi_cur = phi_lm1
+
+            if (max(abs(phi_cur), abs(bphi_plus)) > BIG) then
+                phi_cur = phi_cur / BIG
+                bphi_plus = bphi_plus / BIG
+                phi_top = phi_top / BIG
+                if (j == 1) phi1_down = phi1_down / BIG
+            end if
+        end do
+    end if
 
     phi0_down = phi_cur
 
@@ -219,15 +333,16 @@
     real(dl), intent(in) :: nu, chi, sin_K, cot_K
     real(dl), intent(out) :: phi0, phi1
 
-    real(dl) :: nu2, kay, arg, arg2, sinc, root1
+    real(dl) :: nu2, kay, arg, arg2, arg4, chi2, chi_over_sin, chi_cot_m1, sinc, sinc_minus_cos, root1
 
     nu2 = nu**2
     kay = dble(K)
     arg = nu * chi
     arg2 = arg**2
+    arg4 = arg2**2
 
     if (abs(arg) < 1.d-4) then
-        sinc = 1._dl - arg2 / 6._dl + arg2 * arg2 / 120._dl
+        sinc = 1._dl - arg2 / 6._dl + arg4 / 120._dl
     else
         sinc = sin(arg) / arg
     end if
@@ -235,8 +350,8 @@
     if (K == 0) then
         phi0 = sinc
 
-        if (abs(arg) < 1.d-4) then
-            phi1 = arg / 3._dl * (1._dl - arg2 / 10._dl)
+        if (abs(arg) <= 1.d-3) then
+            phi1 = arg * (1._dl / 3._dl - arg2 / 30._dl + arg4 / 840._dl)
         else
             phi1 = (sinc - cos(arg)) / arg
         end if
@@ -245,24 +360,37 @@
         root1 = sqrt(max(0._dl, nu2 - kay))
 
         if (abs(chi) < 1.d-4) then
+            chi2 = chi**2
             if (abs(arg) < 1.d-4) then
-                phi0 = 1._dl - chi**2 * (nu2 - kay) / 6._dl
-                phi1 = chi * root1 / 3._dl
+                phi0 = 1._dl - chi2 * (nu2 - kay) / 6._dl
+                phi1 = chi * root1 / 3._dl * (1._dl - (3._dl * nu2 - 7._dl * kay) * chi2 / 30._dl)
             else
-                phi0 = sinc
-                phi1 = (sinc - cos(arg)) / (root1 * chi)
+                chi_over_sin = 1._dl + kay * chi2 / 6._dl + 7._dl * chi2**2 / 360._dl
+                chi_cot_m1 = -kay * chi2 / 3._dl - chi2**2 / 45._dl
+                phi0 = sinc * chi_over_sin
+                if (abs(arg) < 1.d-3) then
+                    sinc_minus_cos = arg2 / 3._dl - arg4 / 30._dl + arg4 * arg2 / 840._dl
+                else
+                    sinc_minus_cos = sinc - cos(arg)
+                end if
+                phi1 = (sinc_minus_cos + sinc * chi_cot_m1) * chi_over_sin / (root1 * chi)
             end if
         else
-            phi0 = sin(arg) / (nu * sin_K)
-            phi1 = sin(arg) * cot_K / (nu * sin_K) - cos(arg) / sin_K
-            phi1 = phi1 / root1
+            if (K == -1 .and. nu == 0._dl) then
+                phi0 = chi / sin_K
+                phi1 = (chi * cot_K - 1._dl) / sin_K
+            else
+                phi0 = sin(arg) / (nu * sin_K)
+                phi1 = sin(arg) * cot_K / (nu * sin_K) - cos(arg) / sin_K
+                phi1 = phi1 / root1
+            end if
         end if
     end if
 
     end subroutine phi01_exact
 
 
-    pure subroutine phi_closed_endpoint_down(l, inu, nu2, cot_K, phi0, phi1, phi, ok)
+    pure subroutine phi_closed_endpoint_down(l, inu, cot_K, phi0, phi1, phi, ok)
     ! Closed-space Miller recurrence from the finite endpoint
     ! b_nu phi_nu=0, where b_j=sqrt(nu^2-j^2) for K=+1.
     ! This is algebraically equivalent to the closed finite-spectrum condition
@@ -270,12 +398,11 @@
     ! (2014, arXiv:1312.2697). It is used when the equivalent Gegenbauer
     ! start would require degree n=nu-l-1 >= 64.
     integer, intent(in) :: l, inu
-    real(dl), intent(in) :: nu2, cot_K, phi0, phi1
+    real(dl), intent(in) :: cot_K, phi0, phi1
     real(dl), intent(out) :: phi
     logical, intent(out) :: ok
 
     integer :: j
-    logical :: have_target
     real(dl) :: b_zero, bphi_plus
     real(dl) :: phi_cur, phi_lm1, phi_target, phi0_down, phi1_down, scale
 
@@ -283,17 +410,27 @@
     phi = 0._dl
     phi_cur = 1._dl
     bphi_plus = 0._dl
-    phi_target = 0._dl
     phi1_down = 0._dl
-    have_target = .false.
 
-    do j = inu - 1, 1, -1
-        if (j == l) then
-            phi_target = phi_cur
-            have_target = .true.
+    do j = inu - 1, l + 1, -1
+        b_zero = sqrt(dble(inu - j) * dble(inu + j))
+        if (b_zero <= 0._dl) return
+
+        phi_lm1 = ((2 * j + 1) * cot_K * phi_cur - bphi_plus) / b_zero
+
+        bphi_plus = b_zero * phi_cur
+        phi_cur = phi_lm1
+
+        if (max(abs(phi_cur), abs(bphi_plus)) > BIG) then
+            phi_cur = phi_cur / BIG
+            bphi_plus = bphi_plus / BIG
         end if
+    end do
 
-        b_zero = sqrt(max(0._dl, nu2 - dble(j) * dble(j)))
+    phi_target = phi_cur
+
+    do j = l, 1, -1
+        b_zero = sqrt(dble(inu - j) * dble(inu + j))
         if (b_zero <= 0._dl) return
 
         phi_lm1 = ((2 * j + 1) * cot_K * phi_cur - bphi_plus) / b_zero
@@ -306,12 +443,10 @@
         if (max(abs(phi_cur), abs(bphi_plus), abs(phi_target)) > BIG) then
             phi_cur = phi_cur / BIG
             bphi_plus = bphi_plus / BIG
-            if (have_target) phi_target = phi_target / BIG
+            phi_target = phi_target / BIG
             if (j == 1) phi1_down = phi1_down / BIG
         end if
     end do
-
-    if (.not. have_target) return
 
     phi0_down = phi_cur
 
@@ -339,18 +474,18 @@
     end subroutine phi_closed_endpoint_down
 
 
-    pure subroutine phi_logderiv(l, K, nu, sin_K, cot_K, cf, ok)
+    pure subroutine phi_logderiv(l, K, nu, cot_K, cf, ok)
     ! Continued-fraction logarithmic derivative used to start Miller recurrence
     ! for K=0,-1; this is the stable-recursion construction described by
     ! Tram (2017, arXiv:1311.0839) and used in the non-flat CLASS
     ! implementation of Lesgourgues & Tram (2014, arXiv:1312.2697).
     integer, intent(in) :: l, K
-    real(dl), intent(in) :: nu, sin_K, cot_K
+    real(dl), intent(in) :: nu, cot_K
     real(dl), intent(out) :: cf
     logical, intent(out) :: ok
 
     integer :: iter, maxiter
-    real(dl) :: nu2, aj, bj, fj, Cj, Dj, Delj, sqrttmp
+    real(dl) :: nu2, aj, bj, fj, Cj, Dj, Delj, root_cur, root_next
     real(dl), parameter :: SMALL = 1.d-100
 
     ok = .false.
@@ -366,14 +501,17 @@
 
     if (abs(Cj) < SMALL) Cj = sign(SMALL, Cj + SMALL)
 
+    root_cur = sqrt(max(0._dl, nu2 - dble(K) * dble(l + 1)**2))
+    if (root_cur <= 0._dl) return
+
     do iter = 1, maxiter
-        sqrttmp = sqrt(max(0._dl, nu2 - dble(K) * dble(l + iter + 1)**2))
-        if (sqrttmp <= 0._dl) return
+        root_next = sqrt(max(0._dl, nu2 - dble(K) * dble(l + iter + 1)**2))
+        if (root_next <= 0._dl) return
 
-        aj = -sqrt(max(0._dl, nu2 - dble(K) * dble(l + iter)**2)) / sqrttmp
-        if (iter == 1) aj = sqrt(max(0._dl, nu2 - dble(K) * dble(l + 1)**2)) * aj
+        aj = -root_cur / root_next
+        if (iter == 1) aj = root_cur * aj
 
-        bj = dble(2 * (l + iter) + 1) * cot_K / sqrttmp
+        bj = dble(2 * (l + iter) + 1) * cot_K / root_next
 
         Dj = bj + aj * Dj
         if (abs(Dj) < SMALL) Dj = sign(SMALL, Dj + SMALL)
@@ -390,6 +528,8 @@
             ok = .true.
             return
         end if
+
+        root_cur = root_next
     end do
 
     end subroutine phi_logderiv

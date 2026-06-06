@@ -51,6 +51,8 @@ _phi_recurs_array.argtypes = [numpy_1d, c_int, c_int, c_double, numpy_1d, c_int]
 def _hyperspherical_bessel_dispatch(function, vector_function, L, K, nu, chi):
     _validate_hyperspherical_bessel_inputs(L, K, nu)
     chi_array = np.asarray(chi, dtype=np.float64)
+    if np.any(chi_array < 0):
+        raise ValueError("chi must be non-negative")
     nu_in = c_double(nu)
 
     if chi_array.ndim == 0:
@@ -95,7 +97,7 @@ def phi_olver(L, K, nu, chi):
     :param K: dimensionless curvature sign, one of -1, 0, 1
     :param nu: dimensionless radial eigenvalue; for closed models (``K=1``), an integer mode with ``nu >= 3``
         and ``nu > L``
-    :param chi: scalar dimensionless radial distance or 1D array of values
+    :param chi: non-negative scalar dimensionless radial distance or 1D array of non-negative values
     :return: scalar value or 1D array matching chi
     """
 
@@ -116,7 +118,7 @@ def phi_recurs(L, K, nu, chi):
     :param K: dimensionless curvature sign, one of -1, 0, 1
     :param nu: dimensionless radial eigenvalue; for closed models (``K=1``), an integer mode with ``nu >= 3``
         and ``nu > L``
-    :param chi: scalar dimensionless radial distance or 1D array of values
+    :param chi: non-negative scalar dimensionless radial distance or 1D array of non-negative values
     :return: scalar value or 1D array matching chi
     """
 

@@ -6,6 +6,10 @@
 \usepackage{amsmath,amssymb,mathtools}
 \usepackage{booktabs}
 \usepackage{array}
+\usepackage{tabularx}
+% Ragged-right weighted X column (avoids underfull boxes from justified narrow
+% p-columns); the #1 weights must sum to the number of X columns in the table.
+\newcolumntype{Z}[1]{>{\hsize=#1\hsize\raggedright\arraybackslash}X}
 \usepackage{enumitem}
 \usepackage{xcolor}
 \usepackage{listings}
@@ -57,7 +61,7 @@
 \maketitle
 
 \begin{abstract}
-This note explains how CAMB evaluates the regular hyperspherical Bessel functions (also called ultraspherical Bessel functions) used in non-flat source integration.  The mathematical object is the curved-space radial function \(\phi_l^\nu(K,\chi)\), whose flat limit is the spherical Bessel function \(j_l(\nu\chi)\).  The main fast point approximation is a leading-order Olver, or uniform Liouville-Green, mapping: the curved radial equation is transformed into a flat spherical-Bessel equation at an effective radius \(z(\chi)\), with a transport amplitude \(A(\chi)\).  This makes the calculation exact in the flat limit and smooth through the turning point, but it does not evaluate the higher Olver correction terms.  The note also compares this with earlier Langer/Airy WKB and \textsc{CLASS} flat-rescaling approaches, explains the stable recursive fallback \code{phi_recurs}, the closed-space Gegenbauer logarithmic derivative used to start Miller recursion, how CAMB obtains nearby Bessel values by Numerov integration during source integration, and how the current shifted-\(q\) shortcut is the constant-map, fastest small-\(\chi\) limit of the Olver expansion.
+This note explains how CAMB evaluates the regular hyperspherical Bessel functions (also called ultraspherical Bessel functions) used in non-flat source integration.  The mathematical object is the curved-space radial function \(\phi_l^\nu(K,\chi)\), whose flat limit is the spherical Bessel function \(j_l(\nu\chi)\).  The main fast point approximation is a leading-order Olver, or uniform Liouville-Green, mapping: the curved radial equation is transformed into a flat spherical-Bessel equation at an effective radius \(z(\chi)\), with a transport amplitude \(A(\chi)\).  This makes the calculation exact in the flat limit and smooth through the turning point, but it does not evaluate the higher Olver correction terms.  The note also compares this with earlier Langer/Airy WKB and \textsc{CLASS} flat-rescaling approaches, explains the stable recursive fallback \code{phi_recurs}, the closed-space Gegenbauer Miller start, how CAMB obtains nearby Bessel values by Numerov integration during source integration, and how the current shifted-\(q\) shortcut is the constant-map, fastest small-\(\chi\) limit of the Olver expansion.
 \end{abstract}
 
 \tableofcontents
@@ -179,7 +183,12 @@ explicitly being discussed.
 
 \section{The turning point and the qualitative regimes}
 
-Let
+The picture in this section is a large-\(l\) one: the Olver and WKB asymptotics
+treat \(\ell=\sqrt{l(l+1)}\) as the large parameter, so the turning-point
+language and the numerical gates built from it apply to moderate and high
+multipoles, not to the lowest few.  For \(l\le2\), and in the other difficult
+corners noted below, the code does not rely on this picture at all and falls
+back to the exact recurrence \code{phi_recurs}.  With that caveat, let
 \begin{equation}
   L=l(l+1),\qquad \ell=\sqrt{L},\qquad \alpha=\frac{\nu}{\ell}.
 \end{equation}
@@ -340,6 +349,24 @@ problem has the same action,
   \qquad z_t=\frac{1}{\alpha}=\frac{\ell}{\nu}.
   \label{eq:action-map}
 \end{equation}
+
+Why is the action the right thing to match?  The intuition is the familiar WKB
+one from the Schr\"odinger equation.  Away from the turning
+point the regular solution of \(u''=-\ell^2 f\,u\) behaves like
+\(|f|^{-1/4}\exp(\pm\ell Q)\) on the evanescent side and
+\(|f|^{-1/4}\cos(\ell Q-\tfrac\pi4)\) on the oscillatory side, where \(\ell Q\) is
+the action integral \eqref{eq:curved-action}.  The action is the leading
+Liouville--Green invariant of the equation -- the large, rapidly varying part of
+the solution -- counting accumulated wavelengths above the turning point and
+tunnelling \(e\)-foldings below it.  Two equations with different potentials
+\(f_K\) and \(f_0\) but the same action measured from their turning points
+therefore have solutions that stay in step everywhere: same phase, same node
+count, same suppression.  So by construction \eqref{eq:action-map} the flat
+Bessel function \(j_l(\nu z)\) at the mapped radius \(z(\chi)\) already carries
+the curved phase and tunnelling.  And because the turning point maps to the
+turning point (\(Q_K=0\to I_0=0\)), the construction is automatically smooth
+there, unlike a bare WKB amplitude \(|f|^{-1/4}\).
+
 For the curved cases the integral \(Q_K(\chi)\)
 has analytic logarithm and \(\atanTwo\) forms, using
 \(x=\alpha\SK(\chi)\).  These are the same action integrals that appear in the
@@ -382,13 +409,28 @@ asymptotic formula before the final \code{BJL} call.  Finally
 \(z=x/\alpha=z_t x\), with the sign of the branch supplied by whether \(\chi\)
 is below or above \(\chi_t\).
 
-The amplitude transport follows by differentiating the action relation.  The result is
+Matching the action fixes the phase but not the overall size; the amplitude
+follows by the same flux- (Wronskian-) conservation argument that gives the
+\(|f|^{-1/4}\) prefactor of ordinary WKB.  Differentiating the action-matching
+condition \eqref{eq:action-map} gives the local Liouville map,
 \begin{equation}
-  A(\chi)=\left|
+  \frac{\dd z}{\dd\chi}=\sqrt{\frac{f_K(\chi)}{f_0(z)}},
+  \label{eq:dzdchi}
+\end{equation}
+the ratio of the curved and flat local momenta.  Writing the curved solution as
+the flat one carried through this map, \(u(\chi)=A(\chi)\,zj_l(\nu z)\), the
+spurious first-derivative term cancels precisely when the amplitude is the
+Jacobian factor
+\begin{equation}
+  A(\chi)=\left(\frac{\dd z}{\dd\chi}\right)^{-1/2}
+  =\left(\frac{f_0(z)}{f_K(\chi)}\right)^{1/4}
+  =\left|
   \frac{\alpha^2-z^{-2}}{\alpha^2-\SK(\chi)^{-2}}
-  \right|^{1/4}.
+  \right|^{1/4},
   \label{eq:amplitude}
 \end{equation}
+which keeps the Wronskian constant and reduces to the WKB \(|f|^{-1/4}\) in the
+flat limit.
 At the turning point both numerator and denominator vanish, but the limit is finite.  With \(C_t=\CK(\chi_t)\),
 \begin{equation}
   z-z_t\simeq C_t^{1/3}(\chi-\chi_t),\qquad
@@ -615,10 +657,10 @@ unconditional replacement for the exact hyperspherical Bessel function.  It is
 helpful to separate the pointwise Bessel call from the source-integration
 fillers.
 
-\subsection{What the full-Olver error estimate is based on}
+\subsection{What the full action-map Olver error estimate is based on}
 
-The ``full Olver'' path in the code means the full analytic action map
-\(z(\chi)\) and amplitude \(A(\chi)\), but it is still the leading-order
+The ``full action-map Olver'' path in the code means the full analytic action
+map \(z(\chi)\) and amplitude \(A(\chi)\), but it is still the leading-order
 uniform Olver approximation.  Higher Olver terms are not evaluated.  A useful
 way to see the first omitted term is to substitute
 \[
@@ -652,19 +694,20 @@ matching, the relevant curvature-dependent remainder falls rapidly with
 that boundary the asymptotic remainder is no longer parametrically small, and
 the validation errors are better organized by the endpoint metrics
 \(\chi/(2\nu)\) in open models and \(\chi/[2(\nu-l)]\) in closed models.  The
-code therefore uses those metrics to decide when the leading full-Olver value is
-still acceptable and otherwise falls back to stable recurrence.  The numerical
+code therefore uses those metrics to decide when the leading full action-map
+Olver value is still acceptable and otherwise falls back to stable recurrence.  The numerical
 thresholds are calibrated on peak-normalized errors; a local relative error or
 the pointwise ratio \(\Psi/(\ell^2 f_0)\) would be misleading near turning
 points and Bessel zeros.
 
 \subsection{Pointwise Bessel calls}
 
-The full action-map value means the \code{compute_olver_z_amp} path: compute
-\(z\) and \(A\), call \code{BJL(l,nu*z,j_l)}, and multiply by the transport
-amplitude.  This leading-order value is exact in the flat limit, but for
-\(K=\pm1\) it is still an asymptotic approximation.  The public pointwise calls
-therefore apply empirical gates before accepting that raw full Olver value.
+The full action-map Olver value means the \code{compute_olver_z_amp} path:
+compute \(z\) and \(A\), call \code{BJL(l,nu*z,j_l)}, and multiply by the
+transport amplitude.  This leading-order value is exact in the flat limit, but
+for \(K=\pm1\) it is still an asymptotic approximation.  The public pointwise
+calls therefore apply empirical gates before accepting that raw full action-map
+Olver value.
 
 The decision order in \code{olver_reduced} is:
 \begin{enumerate}[leftmargin=*]
@@ -680,7 +723,7 @@ proxies; the map itself still uses the more accurate
 \(\sqrt{l(l+1)}\) curvature scale.
 \item If the small-\(\chi\) map is not used, accept the full action-map Olver
 value whenever \(\nu/l\ge3\).
-\item If \(\nu/l<3\), accept the full action-map value only in the small
+\item If \(\nu/l<3\), accept the full action-map Olver value only in the small
 endpoint corner where the calibrated metric is below threshold:
 \begin{equation}
   \hbox{open:}\quad \frac{\chi}{2\nu}\le2.6\times10^{-2},
@@ -714,8 +757,14 @@ not to the cosmological scale factor \(a\).  Define
   \frac{r_s(z_{\rm drag})}{D_M(\tau_0)}
   \right]_{\rm Planck\,2018},
 \end{equation}
-where \(D_M(\tau_0)\) is the comoving angular-diameter distance over the present
-conformal time.  The sampling ratio is
+where \(D_M(\tau_0)\) is the comoving angular-diameter distance corresponding to
+the full present conformal time \(\tau_0\).  This \(\theta_{\rm drag}\) is
+deliberately not the usual acoustic angular scale: the standard quantity divides
+the sound horizon by the comoving angular-diameter distance \emph{to the drag (or
+last-scattering) epoch}, whereas here the denominator is the distance over the
+\emph{total} present conformal time.  It is used only as a cheap, close
+approximate proxy for the acoustic peak positions in the sampling-ratio gate
+below, not as a physical \(\theta_{\rm drag}\).  The sampling ratio is
 \begin{equation}
   s_{\rm peak}=\frac{\theta_{\rm drag}^{\rm P18}}{\theta_{\rm drag}}.
 \end{equation}
@@ -729,7 +778,7 @@ shifted the peaks enough that these near-flat table shortcuts are not assumed.
 When this bookkeeping gate passes, the table paths still have to pass a
 two-stage accuracy test:
 \begin{enumerate}[leftmargin=*]
-\item First, the local small-\(\chi\) approximation to the full Olver map must
+\item First, the local small-\(\chi\) approximation to the full action-map Olver construction must
 be valid over the whole source range,
 \begin{equation}
   \alpha=\frac{\nu}{\sqrt{l(l+1)}}>3,\qquad
@@ -757,7 +806,7 @@ raw Olver asymptotic formula alone.
 
 \section{Stable recursive fallback: exact seeds, upward recurrence and Miller recurrence}
 
-The action-map Olver path is a high-throughput leading-order uniform approximation.  For low \(l\), invalid asymptotic corners, and some fallback regions, CAMB uses direct recurrence through \code{phi_recurs}.  This recurrence machinery follows the standard hyperspherical-Bessel relations and the later stable-recursion improvements developed for \textsc{CLASS} \cite{abbott-schaefer,tram2013,lesgourgues-tram2013}.\footnote{A direct comparison with \textsc{CLASS} v3.3.4 shows the same seed formulae, upward recurrence, Miller downward recurrence, continued-fraction logarithmic derivative, and closed-space Gegenbauer logarithmic derivative.  The main implementation differences are that \textsc{CLASS} builds interpolation tables over \(l\) and \(\chi\), while CAMB's \code{phi_recurs} is a pointwise reference routine; \textsc{CLASS} uses its \code{get_CF1} continued-fraction helper for some closed-space Miller starts before falling back to Gegenbauer, while CAMB either starts closed-space Miller recursion from the finite endpoint condition \(b_\nu\phi_\nu=0\) or, near the finite-spectrum endpoint, uses the Gegenbauer logarithmic derivative directly; \textsc{CLASS} normalizes the Miller sequence with \(\phi_0\), while CAMB normalizes with whichever of \(\phi_0\) or \(\phi_1\) is numerically safer; and CAMB computes \(G\) and \(G'\) together in the Gegenbauer recurrence rather than using the final derivative identity with a division by \(1-x^2\).  Here \code{get_CF1} is the \textsc{CLASS} routine evaluating the modified continued fraction for \(D_l=(\phi_l^\nu)'/\phi_l^\nu\), with an auxiliary sign used to choose the arbitrary Miller start amplitude.}  This section explains that routine because it is part of the actual new path.
+The action-map Olver path is a high-throughput leading-order uniform approximation.  For low \(l\), invalid asymptotic corners, and some fallback regions, CAMB uses direct recurrence through \code{phi_recurs}.  This recurrence machinery follows the standard hyperspherical-Bessel relations and the later stable-recursion improvements developed for \textsc{CLASS} \cite{abbott-schaefer,tram2013,lesgourgues-tram2013}.\footnote{A direct comparison with \textsc{CLASS} v3.3.4 shows the same seed formulae, upward recurrence, Miller downward recurrence, continued-fraction logarithmic derivative, and closed-space Gegenbauer start.  The main implementation differences are that \textsc{CLASS} builds interpolation tables over \(l\) and \(\chi\), while CAMB's \code{phi_recurs} is a pointwise reference routine; \textsc{CLASS} uses its \code{get_CF1} continued-fraction helper for some closed-space Miller starts before falling back to Gegenbauer, while CAMB either starts closed-space Miller recursion from the finite endpoint condition \(b_\nu\phi_\nu=0\) or, near the finite-spectrum endpoint, uses \(G\) and \(G'\) from the Gegenbauer recurrence to set the Miller pair directly; \textsc{CLASS} normalizes the Miller sequence with \(\phi_0\), while CAMB normalizes with whichever of \(\phi_0\) or \(\phi_1\) is numerically safer; and CAMB computes \(G\) and \(G'\) together in the Gegenbauer recurrence rather than using the final derivative identity with a division by \(1-x^2\).  Here \code{get_CF1} is the \textsc{CLASS} routine evaluating the modified continued fraction for \(D_l=(\phi_l^\nu)'/\phi_l^\nu\), with an auxiliary sign used to choose the arbitrary Miller start amplitude.}  This section explains that routine because it is part of the actual new path.
 
 The exact seed functions are
 \begin{equation}
@@ -818,7 +867,7 @@ For the logarithmic-derivative start, set an arbitrary \(\widetilde\phi_l=1\), c
 \end{equation}
 then recur downward with \eqref{eq:down-recurrence}.  At the end the arbitrary sequence is normalized by matching the exact seed values \eqref{eq:phi0} or \eqref{eq:phi1}, whichever is numerically safer.
 
-For \(K=+1\), \(\nu\) is an integer and the regular closed spectrum ends at \(l=\nu-1\).  The recurrence coefficient is then \(b_j(+1,\nu)=\sqrt{\nu^2-j^2}\), so \(b_\nu=0\).  CAMB can choose an arbitrary \(\widetilde\phi_{\nu-1}\), set the endpoint product \(b_\nu\widetilde\phi_\nu\) to zero, and run the same Miller recurrence downward to the desired \(l\) and then to the exact low-order seeds.  The code uses this finite-endpoint start when \(\nu-l>64\), equivalently when the Gegenbauer degree \(n=\nu-l-1\) is at least \(64\).  For smaller \(n\), the Gegenbauer logarithmic derivative below is cheaper and is used directly.
+For \(K=+1\), \(\nu\) is an integer and the regular closed spectrum ends at \(l=\nu-1\).  The recurrence coefficient is then \(b_j(+1,\nu)=\sqrt{\nu^2-j^2}\), so \(b_\nu=0\).  CAMB can choose an arbitrary \(\widetilde\phi_{\nu-1}\), set the endpoint product \(b_\nu\widetilde\phi_\nu\) to zero, and run the same Miller recurrence downward to the desired \(l\) and then to the exact low-order seeds.  The code uses this finite-endpoint start when \(\nu-l>64\), equivalently when the Gegenbauer degree \(n=\nu-l-1\) is at least \(64\).  For smaller \(n\), the Gegenbauer start below is cheaper and is used directly.
 
 For \(K=0\) and \(K=-1\), \(D_l\) is obtained from a continued fraction.  Let
 \begin{equation}
@@ -837,7 +886,7 @@ so
 \end{equation}
 The implementation evaluates this with a modified continued-fraction iteration.
 
-\subsection{Closed-space Gegenbauer logarithmic derivative}
+\subsection{Closed-space Gegenbauer Miller start}
 
 For \(K=+1\), the regular solution has an exact finite Gegenbauer-polynomial form,
 \begin{equation}
@@ -850,19 +899,25 @@ Let
 \begin{equation}
   n=\nu-l-1,\qquad \lambda=l+1,\qquad x=\cos\chi,\qquad G(x)=C_n^\lambda(x).
 \end{equation}
-Since the normalization cancels in a logarithmic derivative,
+The corresponding logarithmic derivative would be
 \begin{equation}
   D_l=l\cot\chi-\sin\chi\,\frac{G'(\cos\chi)}{G(\cos\chi)}.
   \label{eq:gegenbauer-logderiv}
 \end{equation}
-This is the closed-case \code{phi_logderiv_closed_gegenbauer}.  The code computes \(G\) and \(G'\) together by the Gegenbauer recurrence
+However the Miller recurrence does not need \(D_l\) itself.  It needs the starting pair \(\widetilde\phi_l\) and \(b_{l+1}\widetilde\phi_{l+1}\).  CAMB therefore first forms the algebraically equivalent pair
+\begin{equation}
+  \widetilde\phi_l=G(\cos\chi),\qquad
+  b_{l+1}\widetilde\phi_{l+1}=\sin\chi\,G'(\cos\chi).
+  \label{eq:gegenbauer-direct-start}
+\end{equation}
+When \(G\) is safely non-zero, the arbitrary Miller amplitude is rescaled to \(\widetilde\phi_l=1\) and \(b_{l+1}\widetilde\phi_{l+1}=\sin\chi\,G'/G\); near a zero of \(G\), CAMB keeps the unscaled pair in \eqref{eq:gegenbauer-direct-start}.  This prevents a zero of \(\phi_l^\nu\) from becoming a log-derivative failure, while still using the cheapest scaled start away from zeros.  It also avoids cancellation between \(l\cot\chi\) and \(D_l\) near the closed poles.  This is the closed-case \code{phi_closed_gegenbauer_start}.  The code computes \(G\) and \(G'\) together by the Gegenbauer recurrence
 \begin{equation}
   C_0^\lambda(x)=1,\qquad C_1^\lambda(x)=2\lambda x,
 \end{equation}
 \begin{equation}
   C_k^\lambda(x)=\frac{2(k+\lambda-1)xC_{k-1}^\lambda(x)-(k+2\lambda-2)C_{k-2}^\lambda(x)}{k},
 \end{equation}
-with the derivative recurrence obtained by differentiating this relation.  This provides a stable top boundary condition for the Miller recurrence in a finite closed spectrum.  The Gegenbauer calculation is not used as a separate final approximation; it only supplies \(D_l\) in \eqref{eq:miller-start}.
+with the derivative recurrence obtained by differentiating this relation.  This provides a stable top boundary condition for the Miller recurrence in a finite closed spectrum.  The Gegenbauer calculation is not used as a separate final approximation; it only supplies the Miller start in \eqref{eq:gegenbauer-direct-start}.
 
 \section{How CAMB actually uses the approximations in source integration}
 
@@ -896,12 +951,15 @@ Numerov integration is used because the reduced equation has the special form
 \end{equation}
 with no first-derivative term.  This is precisely the form for which Numerov's method is efficient and high-order accurate.
 
-Suppose the integration step is \(h\), including its sign.  Write \(Q_n=Q(\chi_n)\) and \(y_n=y(\chi_n)\).  The Numerov update used in the code is
+Let the integration step (the signed substep \(\Delta\chi_{\rm sub}\)) be
+denoted \(\eta\); it is distinct from the curvature parameter \(h\) of the Olver
+sections above.  Write \(Q_n=Q(\chi_n)\) and \(y_n=y(\chi_n)\).  The Numerov
+update used in the code is
 \begin{equation}
   y_{n+1}=
-  \frac{2\left(1+\frac{5h^2Q_n}{12}\right)y_n
-  -\left(1-\frac{h^2Q_{n-1}}{12}\right)y_{n-1}}
-  {1-\frac{h^2Q_{n+1}}{12}}.
+  \frac{2\left(1+\frac{5\eta^2Q_n}{12}\right)y_n
+  -\left(1-\frac{\eta^2Q_{n-1}}{12}\right)y_{n-1}}
+  {1-\frac{\eta^2Q_{n+1}}{12}}.
   \label{eq:numerov-update}
 \end{equation}
 This is a fourth-order local correction to the ordinary three-point second-derivative formula.  Because \eqref{eq:numerov-update} is a three-point (two-step) recurrence, it needs \emph{two} consecutive accurate values to start; once these are known from \code{u_olver}, the neighbouring values satisfy the same smooth ODE.
@@ -960,7 +1018,7 @@ These branches avoid stepping the full hyperspherical ODE at all.  They are part
 A useful way to think about the hierarchy is:
 \begin{center}
 \small
-\begin{tabular}{p{0.24\linewidth}p{0.33\linewidth}p{0.34\linewidth}}
+\begin{tabularx}{\linewidth}{Z{0.81}Z{1.05}Z{1.14}}
 \toprule
 Regime & Computation & Reason \\
 \midrule
@@ -970,16 +1028,20 @@ Near-flat, local small-\(\chi\) range & table lookup at \(\nu\chi F\), weight \(
 General non-flat range & start with \code{u_olver}, propagate by Numerov & avoids expensive repeated Olver calls. \\
 Low-order or low-\(\alpha\) fallback & \code{phi_recurs} & exact recurrence is safer. \\
 \bottomrule
-\end{tabular}
+\end{tabularx}
 \end{center}
 
 \section{Closed-space symmetry handling}
 
-For \(K=+1\), the code folds \(\chi\) into \([0,\pi/2]\).  The signs come from the exact closed-space representation \eqref{eq:gegenbauer-form} and the closed-space parity relations described in the earlier hyperspherical-Bessel literature \cite{kosowsky1998,tram2013}.  Reducing \(\chi\) modulo \(2\pi\), reflecting around \(\pi\), and reflecting around \(\pi/2\) introduces factors \((-1)^l\) and \((-1)^{\nu-l-1}\).  The accumulated factor is called \code{symm}.  The final reduced result is therefore really
+For \(K=+1\), both the Olver path and \code{phi_recurs} fold \(\chi\) into \([0,\pi/2]\).  The signs come from the exact closed-space representation \eqref{eq:gegenbauer-form} and the closed-space parity relations described in the earlier hyperspherical-Bessel literature \cite{kosowsky1998,tram2013}.  Reducing \(\chi\) modulo \(2\pi\), reflecting around \(\pi\), and reflecting around \(\pi/2\) introduces factors \((-1)^l\) and \((-1)^{\nu-l-1}\).  The accumulated factor is called \code{symm}.  The final reduced result is therefore really
 \begin{equation}
   u_l^\nu(+1,\chi)\simeq \code{symm}\,A z j_l(\nu z).
 \end{equation}
-This is not an approximation; it is an exact parity property of the closed eigenfunctions.
+It is only the \code{symm} factor that is being claimed exact here: the folding
+into \([0,\pi/2]\) and its sign are an exact parity property of the closed
+eigenfunctions, not an approximation.  The remaining \(Azj_l(\nu z)\) is still
+the leading-order Olver approximation, as the \(\simeq\) indicates; folding
+changes the sign, not the accuracy.
 
 \section{How all pieces fit together}
 
@@ -1017,7 +1079,7 @@ This is why the shifted-\(q\) limit is so natural: in the local near-flat regime
 The latest CAMB implementation is closest to the earlier work in its definitions and constraints, but differs in the main approximation used for production:
 \begin{center}
 \small
-\begin{tabular}{p{0.24\linewidth}p{0.37\linewidth}p{0.31\linewidth}}
+\begin{tabularx}{\linewidth}{Z{0.84}Z{1.11}Z{1.05}}
 \toprule
 Reference & Main relevant idea & CAMB relation \\
 \midrule
@@ -1026,12 +1088,12 @@ Kosowsky, arXiv:astro-ph/9805173 \cite{kosowsky1998}
 & CAMB uses the same reduced equation, the same \(\sqrt{l(l+1)}\) turning-point balance, and the same action integrals, but maps to a flat spherical Bessel comparison solution instead of evaluating an Airy comparison function. \\
 Tram, arXiv:1311.0839 \cite{tram2013}
 & Stable recurrence algorithm, continued-fraction logarithmic derivative, and the closed-space Gegenbauer identity used to cure the backward-recursion obstruction.
-& \code{phi_recurs} uses the same recurrence structure and the Gegenbauer logarithmic derivative as a fallback/start mechanism. \\
+& \code{phi_recurs} uses the same recurrence structure and a direct Gegenbauer Miller start as a fallback/start mechanism. \\
 Lesgourgues--Tram, arXiv:1312.2697 \cite{lesgourgues-tram2013}
 & Non-flat \textsc{CLASS} transfer implementation, interpolation strategy, curved-space Limber discussion, and a high-\(\nu\) flat-rescaling approximation.
 & CAMB shares the goal of avoiding repeated expensive hyperspherical evaluations and ensuring a smooth flat limit, but uses pointwise Olver-to-flat mapping plus local \(F,D,F_0\) near-flat fillers rather than the \textsc{CLASS} \(\gamma,A_\nu^l\) flat-rescaling model. \\
 \bottomrule
-\end{tabular}
+\end{tabularx}
 \end{center}
 
 \section{Minimal dictionary between mathematics and code}
@@ -1051,14 +1113,14 @@ Mathematical quantity & Code name or code path \\
 \(F,D\) small-\(\chi\) map & \code{F0,F2,F4,D0,D2,D4} polynomial coefficients \\
 Flat Bessel lookup & \code{BessRanges}, \code{bessel_horner}, \code{BJL} \\
 Recursive fallback & \code{phi_recurs} \\
-Closed log derivative & \code{phi_logderiv_closed_gegenbauer} \\
+Closed Miller start & \code{phi_closed_gegenbauer_start} \\
 \bottomrule
 \end{tabular}
 \end{center}
 
 \section{Summary}
 
-The current non-flat Bessel calculation is best understood as a hierarchy.  At the mathematical core is the reduced equation \(u''+[\nu^2-l(l+1)/\SK^2]u=0\).  The Olver-to-flat method maps this to \(zj_l(\nu z)\) with an amplitude factor, making the approximation uniform through the turning point and exact for \(K=0\).  Stable recurrence is retained for low multipoles and difficult corners, with the closed case using a Gegenbauer logarithmic derivative to start Miller recurrence.  In the line-of-sight integration code, a pair of Olver values seeds Numerov integration to get nearby values cheaply (with periodic re-seeding to bound drift), while near-flat and small-\(\chi\) ranges are accelerated further by flat Bessel table lookups.  The current shifted-\(q\) approximation is the \(\chi\)-independent part of the local Olver expansion, \(q_{\rm eff}=\nu F_0\), with the simpler \(q^2=\nu^2-Kl(l+1)/3\) formula retained only as a first-order explanatory limit.
+The current non-flat Bessel calculation is best understood as a hierarchy.  At the mathematical core is the reduced equation \(u''+[\nu^2-l(l+1)/\SK^2]u=0\).  The Olver-to-flat method maps this to \(zj_l(\nu z)\) with an amplitude factor, making the approximation uniform through the turning point and exact for \(K=0\).  Stable recurrence is retained for low multipoles and difficult corners, with the closed case using the finite endpoint or a direct Gegenbauer start for Miller recurrence.  In the line-of-sight integration code, a pair of Olver values seeds Numerov integration to get nearby values cheaply (with periodic re-seeding to bound drift), while near-flat and small-\(\chi\) ranges are accelerated further by flat Bessel table lookups.  The current shifted-\(q\) approximation is the \(\chi\)-independent part of the local Olver expansion, \(q_{\rm eff}=\nu F_0\), with the simpler \(q^2=\nu^2-Kl(l+1)/3\) formula retained only as a first-order explanatory limit.
 
 \begin{thebibliography}{99}
 \bibitem{olver}
