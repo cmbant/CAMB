@@ -1,6 +1,7 @@
     module OlverHypersphericalBessel
     ! Approximate calculation of ultraspherical Bessel functions for non-flat universe
-    ! Uses the Olver approximateion, with recursive fallback where that may not be reliable.
+    ! Uses the Olver approximation, with recursive fallback where that may not be reliable.
+    ! Precision target 1e-4 of peak, with max error < 2e-4.
     use Precision
     use MpiUtils
     use FlatBessels, only: bjl
