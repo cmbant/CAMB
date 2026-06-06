@@ -690,15 +690,15 @@ the near-flat regime the local expansion of the omitted curvature terms is
 controlled by powers of \(h=K/\alpha^2\); after the leading action and amplitude
 matching, the relevant curvature-dependent remainder falls rapidly with
 \(\alpha\), with the observed raw-Olver envelope consistent with an
-\(\alpha^{-4}\) scaling.  This motivates the \(\alpha\simeq3\) boundary.  Below
-that boundary the asymptotic remainder is no longer parametrically small, and
-the validation errors are better organized by the endpoint metrics
-\(\chi/(2\nu)\) in open models and \(\chi/[2(\nu-l)]\) in closed models.  The
-code therefore uses those metrics to decide when the leading full action-map
-Olver value is still acceptable and otherwise falls back to stable recurrence.  The numerical
-thresholds are calibrated on peak-normalized errors; a local relative error or
-the pointwise ratio \(\Psi/(\ell^2 f_0)\) would be misleading near turning
-points and Bessel zeros.
+\(\alpha^{-4}\) scaling in the high-\(l\) open-space regime.  This motivates an
+\(\alpha\)-based fast-path guard there.  At low \(l\), in open cases with very
+small \(\nu/l\), and in closed-space endpoint tails, the validation errors are
+better organized by the endpoint metrics \(\chi/(2\nu)\) in open models and
+\(\chi/[2(\nu-l)]\) in closed models.  The code therefore combines a high-\(l\)
+open-space \(\alpha\) shortcut with metric gates, and otherwise falls back to
+stable recurrence.  The numerical thresholds are calibrated on peak-normalized
+errors; a local relative error or the pointwise ratio \(\Psi/(\ell^2 f_0)\)
+would be misleading near turning points and Bessel zeros.
 
 \subsection{Pointwise Bessel calls}
 
@@ -715,27 +715,49 @@ The decision order in \code{olver_reduced} is:
 \item For \(l>2\), first try the local small-\(\chi\) approximation to the
 Olver map, if
 \begin{equation}
-  \frac{\nu}{l}>3,\qquad
+  \left[\frac{\nu}{l}>2.5\quad\hbox{or}\quad
+  \left(l\ge50\ \hbox{and}\ \frac{\nu}{l}>1\right)\right],\qquad
   \frac{l^2\chi^7}{\nu}<5\times10^{-2}.
 \end{equation}
 This pointwise gate deliberately uses \(\nu/l\) and \(l^2\) as cheap high-\(l\)
 proxies; the map itself still uses the more accurate
 \(\sqrt{l(l+1)}\) curvature scale.
-\item If the small-\(\chi\) map is not used, accept the full action-map Olver
-value whenever \(\nu/l\ge3\).
-\item If \(\nu/l<3\), accept the full action-map Olver value only in the small
-endpoint corner where the calibrated metric is below threshold:
+\item If the small-\(\chi\) map is not used, the open model accepts the full
+action-map Olver value throughout the sampled interval only when \(\nu/l\)
+clears the calibrated continuous cutoff
 \begin{equation}
-  \hbox{open:}\quad \frac{\chi}{2\nu}\le2.6\times10^{-2},
+  \frac{\nu}{l}\ge\alpha_{\rm open}(l),
   \qquad
-  \hbox{closed:}\quad \frac{\chi}{2(\nu-l)}\le6.2\times10^{-3}.
+  \alpha_{\rm open}(l)=\max\!\left[
+  0.095,\,
+  0.12\left(\frac{500}{l}\right)^{p(l)}
+  \right],
 \end{equation}
-Otherwise fall back to \code{phi_recurs}.
+with \(p(l)=0.70\) for \(l<500\) and \(p(l)=0.14\) for \(l\ge500\).  This is a
+smooth replacement for the old \(l\ge500,\nu/l\ge0.12\) corner; raw open-space
+cutoff scans give \(\alpha_{\rm open}\simeq0.12\) near \(l=500\) and
+\(\alpha_{\rm open}\simeq0.095\) by \(l\simeq2000\), remaining there through
+\(l=10000\).
+Outside that regime, open models accept the full action-map value only in the
+small endpoint corner
+\begin{equation}
+  \frac{\chi}{2\nu}\le3.0\times10^{-3}.
+\end{equation}
+\item In closed models, accept the full action-map Olver value only where the
+finite-spectrum endpoint metric is below threshold:
+\begin{equation}
+  \frac{\chi}{2(\nu-l)}\le7.0\times10^{-3}.
+\end{equation}
+Otherwise fall back to \code{phi_recurs}.  This closed-space metric is still
+applied at large \(\nu/l\): low-\(l\) and endpoint cases showed that an
+unconditional \(\nu/l\ge3\) pointwise shortcut is too broad.
 \end{enumerate}
-These thresholds are calibrated on peak-normalized Bessel error, with the raw
-Olver envelope kept at roughly the \(10^{-4}\) level on the open and closed
-validation grid.  A simple pointwise relative error would be a poor gate near
-Bessel zeros, so the implementation uses envelope and endpoint metrics instead.
+These thresholds are calibrated on peak-normalized Bessel error on a validation
+grid that includes dense low-\(\chi\) points, turning-point stencils, closed
+endpoints, \(l\le10000\), and open-space tails about eighty oscillations past the
+turning region.  The strict envelope is kept close to \(10^{-4}\); a small number
+of small-\(\chi\) fast-path points can sit between \(10^{-4}\) and
+\(2\times10^{-4}\), which is accepted to retain the faster local map.
 
 \subsection{Source-integration gates}
 

@@ -12,25 +12,30 @@
     real(dl), parameter :: CACHE_EPS = 1.0e-12_dl
     ! Pointwise raw-Olver gate calibrated to keep peak-normalized errors below
     ! about 1e-4 on the open/closed validation grid.
-    real(dl), parameter :: OLVER_GATE_ALPHA = 3._dl
-    real(dl), parameter :: OLVER_GATE_OPEN_EPS = 2.6e-2_dl
-    real(dl), parameter :: OLVER_GATE_CLOSED_EPS = 6.2e-3_dl
-    real(dl), parameter :: SMALLCHI_GATE_ALPHA = 3._dl
+    real(dl), parameter :: OLVER_OPEN_ALPHA_FLOOR = 0.095_dl
+    real(dl), parameter :: OLVER_OPEN_ALPHA_JOIN = 0.12_dl
+    real(dl), parameter :: OLVER_OPEN_L_JOIN = 500._dl
+    real(dl), parameter :: OLVER_OPEN_ALPHA_LOW_EXP = 0.70_dl
+    real(dl), parameter :: OLVER_OPEN_ALPHA_HIGH_EXP = 0.14_dl
+    real(dl), parameter :: OLVER_GATE_OPEN_EPS = 3.0e-3_dl
+    real(dl), parameter :: OLVER_GATE_CLOSED_EPS = 7.0e-3_dl
+    real(dl), parameter :: SMALLCHI_GATE_ALPHA = 2.5_dl
+    integer, parameter :: SMALLCHI_GATE_LOW_ALPHA_L_MIN = 50
     real(dl), parameter :: SMALLCHI_GATE_METRIC = 5.0e-2_dl
 
     public :: phi_olver, u_olver, phi_olver_smallchi
-    public :: olver_cached_coordinate, compute_olver_z_amp_smallchi
+    public :: olver_coordinate, compute_olver_z_amp_smallchi
 
     contains
 
-    pure function olver_cached_coordinate(l, K, nu, chi) result(z)
+    pure function olver_coordinate(l, K, nu, chi) result(z)
     integer, intent(in) :: l, K
     real(dl), intent(in) :: nu, chi
     real(dl) :: z, achi, symm
 
     call normalize_chi(l, K, nu, chi, achi, symm)
     call compute_olver_z_amp(l, K, nu, achi, z)
-    end function olver_cached_coordinate
+    end function olver_coordinate
 
 
     function phi_olver(l, K, nu, chi) result(phi)
@@ -100,25 +105,28 @@
             return
         end if
 
-        ! Empirical recurrence fallback for the low-alpha corner of the
-        ! full Olver map. With alpha ~= nu/l, the raw
-        ! curved Olver remainder falls rapidly once alpha is moderately large
-        ! (consistent with the expected curvature expansion order O(alpha^-4)).
-        ! For alpha below the cutoff the peak-normalized error is governed more
-        ! directly by the small endpoint parameter
+        ! Empirical recurrence fallback for corners where the leading Olver map
+        ! is not pointwise reliable at the 1e-4 peak-normalized level.
+        ! The raw open-space approximation is accepted over the full sampled
+        ! interval when alpha ~= nu/l clears a smooth, grid-calibrated cutoff
+        ! in l. Below that cutoff, and for closed-space endpoint tails, the
+        ! accepted region is limited by the small endpoint parameter
         !
         !   open:   eps_peak = O(chi / (2 nu))
         !   closed: eps_peak = O(chi / (2 (nu-l))).
         !
-        ! The constants below are grid-calibrated thresholds on these metrics.
-        if (alpha_gate < OLVER_GATE_ALPHA) then
-            if (K == 1) then
-                metric = achi / (2._dl * (nu - real(l, dl)))
-                if (metric > OLVER_GATE_CLOSED_EPS) then
-                    u = symm * phi_recurs(l, K, nu, achi) * curved_radius(K, achi)
-                    return
-                end if
-            else if (K == -1) then
+        ! Constants are grid-calibrated against phi_recurs, including low-l
+        ! cases, high-l cases to l=10000, dense turning samples, very small chi,
+        ! and open-space tails about 80 oscillations past the turning region.
+        if (K == 1) then
+            denom = 2._dl * (nu - real(l, dl))
+            metric = achi / denom
+            if (metric > OLVER_GATE_CLOSED_EPS) then
+                u = symm * phi_recurs(l, K, nu, achi) * curved_radius(K, achi)
+                return
+            end if
+        else if (K == -1) then
+            if (alpha_gate < open_alpha_cut(l)) then
                 metric = achi / (2._dl * max(nu, tiny(1._dl)))
                 if (metric > OLVER_GATE_OPEN_EPS) then
                     u = symm * phi_recurs(l, K, nu, achi) * curved_radius(K, achi)
@@ -133,16 +141,33 @@
     u = symm * amp * z * j_l
     end function olver_reduced
 
+
+    elemental real(dl) function open_alpha_cut(l) result(alpha_cut)
+    integer, intent(in) :: l
+    real(dl) :: ell
+
+    ell = real(l, dl)
+    if (ell < OLVER_OPEN_L_JOIN) then
+        alpha_cut = OLVER_OPEN_ALPHA_JOIN * (OLVER_OPEN_L_JOIN / ell)**OLVER_OPEN_ALPHA_LOW_EXP
+    else
+        alpha_cut = OLVER_OPEN_ALPHA_JOIN * (OLVER_OPEN_L_JOIN / ell)**OLVER_OPEN_ALPHA_HIGH_EXP
+    end if
+    alpha_cut = max(OLVER_OPEN_ALPHA_FLOOR, alpha_cut)
+    end function open_alpha_cut
+
+
     elemental logical function use_smallchi_map(l, nu, achi, alpha_gate) result(use_smallchi)
     integer, intent(in) :: l
     real(dl), intent(in) :: nu, achi, alpha_gate
 
     ! Pointwise version of the near-flat small-chi integration gate. The
     ! full integration uses 0.3 with chi_max; using the current achi as the
-    ! local endpoint needs a smaller threshold to preserve the 1e-4 pointwise
-    ! phi_olver envelope near alpha ~= 3. The gate uses nu/l; the map below
-    ! still uses the more accurate sqrt(l(l+1)) curvature scale.
-    use_smallchi = l > 0 .and. alpha_gate > SMALLCHI_GATE_ALPHA .and. &
+    ! local endpoint needs a smaller threshold to preserve the pointwise
+    ! phi_olver envelope. The gate uses nu/l; the map below still uses the
+    ! more accurate sqrt(l(l+1)) curvature scale.
+    use_smallchi = l > 0 .and. &
+        (alpha_gate > SMALLCHI_GATE_ALPHA .or. &
+        (l >= SMALLCHI_GATE_LOW_ALPHA_L_MIN .and. alpha_gate > 1._dl)) .and. &
         real(l, dl)**2 * achi**7 / nu < SMALLCHI_GATE_METRIC
     end function use_smallchi_map
 

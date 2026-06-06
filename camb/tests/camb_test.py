@@ -1102,7 +1102,7 @@ class CambTest(unittest.TestCase):
                 np.testing.assert_allclose(function(ell, curvature, nu, shifted_chi), sign * base, rtol=1e-12)
 
         for args in [
-            (80, -1, 100.0, 6.0),
+            (80, -1, 20.0, 6.0),
             (80, 1, 90.0, 1.0),
         ]:
             np.testing.assert_allclose(phi_olver(*args), phi_recurs(*args), rtol=1e-14, atol=0)
