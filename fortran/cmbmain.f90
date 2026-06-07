@@ -1497,13 +1497,16 @@
     Type(ClTransferData) :: ThisCT
     integer j,ll,llmax,n
     real(dl) nu, chi_full_max, chi_here, sh
+    real(dl) :: near_flat_boost
     real(dl) :: sixpibynu
     real(dl) :: near_flat_time_weight(IV%SourceSteps)
-    logical :: use_near_flat_scalar, have_near_flat_time_weight
+    logical :: use_near_flat_gate, use_shifted_q_near_flat
+    logical :: have_near_flat_time_weight
 
     nu=IV%q*State%curvature_radius
     sixpibynu  = 6._dl*const_pi/nu
     chi_full_max = (State%tau0 - State%TimeSteps%points(2)) / State%curvature_radius
+    near_flat_boost = NearFlatIntegrationBoost()
     have_near_flat_time_weight = .false.
 
     if (State%closed) then
@@ -1532,10 +1535,17 @@
                 call DoCurvedOlverIntegration(IV, ThisCT, j, ll, nu)
                 cycle
             end if
-            use_near_flat_scalar = CP%WantScalars .and. ThisSources%SourceNum <= 3 .and. &
-                UseNearFlatScalarIntegration(ll, nu, chi_full_max)
+            use_shifted_q_near_flat = .false.
+            use_near_flat_gate = CP%WantScalars .and. ThisSources%SourceNum <= 3 .and. &
+                enable_do_near_flat_integration .and. &
+                UseNearFlatSmallChiApprox(ll, nu, chi_full_max, near_flat_boost)
+            if (use_near_flat_gate) then
+                use_shifted_q_near_flat = enable_shifted_q_scalar_approx .and. &
+                    UseShiftedQNearFlatIntegration(ll, nu, chi_full_max, near_flat_boost)
+                use_near_flat_gate = use_shifted_q_near_flat .or. enable_near_flat_smallchi_integration
+            end if
 
-            if (use_near_flat_scalar) then
+            if (use_near_flat_gate) then
                 if (.not. have_near_flat_time_weight) then
                     do n = 1, IV%SourceSteps
                         chi_here = (State%tau0 - State%TimeSteps%points(n)) / State%curvature_radius
@@ -1549,17 +1559,11 @@
                     have_near_flat_time_weight = .true.
                 end if
 
-                if (enable_shifted_q_scalar_approx .and. UseShiftedQNearFlatIntegration(ll, nu, chi_full_max)) then
+                if (use_shifted_q_near_flat) then
                     call DoNearFlatIntegration(IV, ThisCT, j, ll, nu, near_flat_time_weight)
-                    cycle
-                end if
-
-                if (UseSmallChiNearFlatIntegration(ll, nu, chi_full_max)) then
+                else
                     call DoNearFlatSmallChiIntegration(IV, ThisCT, j, ll, nu, near_flat_time_weight)
-                    cycle
                 end if
-
-                call GlobalError('No selected near-flat scalar integration method', error_evolution)
             else
                 call IntegrateSourcesBessels(IV,ThisCT,j,ll,nu)
             end if
@@ -1568,38 +1572,23 @@
 
     end subroutine DoSourceIntegration
 
-    logical function UseNearFlatScalarIntegration(l, nu, chi_max) result(use_near_flat)
-    integer, intent(in) :: l
-    real(dl), intent(in) :: nu, chi_max
-
-    real(dl) :: boost_scale
+    real(dl) function NearFlatIntegrationBoost() result(boost_scale)
 
     boost_scale = max(CP%Accuracy%NonFlatIntAccuracyBoost * CP%Accuracy%AccuracyBoost, 1._dl)
 
-    use_near_flat = enable_do_near_flat_integration .and. (abs(State%scale - 1._dl) <= near_flat_scale_tol) .and. &
-        ((enable_shifted_q_scalar_approx .and. UseShiftedQNearFlatIntegration(l, nu, chi_max, boost_scale)) .or. &
-        UseSmallChiNearFlatIntegration(l, nu, chi_max, boost_scale))
+    end function NearFlatIntegrationBoost
 
-    end function UseNearFlatScalarIntegration
-
-    logical function UseShiftedQNearFlatIntegration(l, nu, chi_max, boost_scale_in) result(use_shifted_q)
+    logical function UseShiftedQNearFlatIntegration(l, nu, chi_max, boost_scale) result(use_shifted_q)
     integer, intent(in) :: l
     real(dl), intent(in) :: nu, chi_max
-    real(dl), intent(in), optional :: boost_scale_in
+    real(dl), intent(in) :: boost_scale
     integer ell2
-    real(dl) :: boost_scale, ell, alpha, tmax
+    real(dl) :: ell, alpha, tmax
     real(dl) :: arg_err, amp_err, err_shift
-
-    boost_scale = max(CP%Accuracy%NonFlatIntAccuracyBoost * CP%Accuracy%AccuracyBoost, 1._dl)
-    if (present(boost_scale_in)) boost_scale = boost_scale_in
 
     ell2 = l * (l + 1)
     ell = sqrt(real(ell2, dl))
     alpha = nu / ell
-
-    !Full small chi series valid
-    use_shifted_q = (alpha > 3._dl) .and. ell2 * chi_max**7 / nu < 0.3_dl / boost_scale
-    if (.not. use_shifted_q) return
 
     tmax = alpha * chi_max
 
@@ -1613,27 +1602,24 @@
     end function UseShiftedQNearFlatIntegration
 
 
-    logical function UseSmallChiNearFlatIntegration(l, nu, chi_max, boost_scale_in) result(use_smallchi)
+    logical function UseNearFlatSmallChiApprox(l, nu, chi_max, boost_scale) result(use_smallchi)
     integer, intent(in) :: l
     real(dl), intent(in) :: nu, chi_max
-    real(dl), intent(in), optional :: boost_scale_in
+    real(dl), intent(in) :: boost_scale
 
-    real(dl) :: alpha, boost_scale, ell2, smallchi_metric
+    real(dl) :: alpha_gate, smallchi_metric
 
-    boost_scale = max(CP%Accuracy%NonFlatIntAccuracyBoost * CP%Accuracy%AccuracyBoost, 1._dl)
-    if (present(boost_scale_in)) boost_scale = boost_scale_in
-
-    if (.not. enable_near_flat_smallchi_integration .or. l <= 0) then
+    if (abs(State%scale - 1._dl) > near_flat_scale_tol) then
         use_smallchi = .false.
         return
     end if
 
-    ell2 = real(l, dl) * real(l + 1, dl)
-    alpha = nu / sqrt(ell2)
-    smallchi_metric = ell2 * chi_max**7 / nu
-    use_smallchi = alpha > 3._dl .and. smallchi_metric < 0.3_dl / boost_scale
+    alpha_gate = nu / real(l, dl)
+    smallchi_metric = real(l, dl)**2 * chi_max**7 / nu
+    use_smallchi = (alpha_gate > 2.5_dl .or. (l >= 50 .and. alpha_gate > 1._dl)) .and. &
+        smallchi_metric < 0.1_dl / boost_scale
 
-    end function UseSmallChiNearFlatIntegration
+    end function UseNearFlatSmallChiApprox
 
     function UseLimber(l)
     !Calculate lensing potential power using Limber rather than j_l integration
@@ -2211,7 +2197,7 @@
     real(dl) :: c_start, denom, lambda, ratio, turn_chi
 
     lambda = real(l, dl) + 0.5_dl
-    if (l <= 0 .or. nu <= 0._dl) then
+    if (nu <= 0._dl) then
         chi_start = 0._dl
         return
     end if
@@ -2443,39 +2429,6 @@
     bessel_etak = hypot(scale_x, curve_x) + safety_margin
     end function ShiftedQBesselTableMaxEtak
 
-
-    logical function UseShiftedQScalarApprox(l, nu, chi, dchisource, sgn, nIntSteps) result(use_shifted_q)
-    integer, intent(in) :: l, nIntSteps
-    real(dl), intent(in) :: nu, chi, dchisource, sgn
-
-    real(dl) :: chi_end, chi_max
-    real(dl) :: boost_scale, ell, alpha, tmax
-    real(dl) :: arg_err, amp_err, err_shift
-    integer ell2
-
-    chi_end = chi + real(nIntSteps, dl) * dchisource * sgn
-    chi_max = max(abs(chi), abs(chi_end))
-
-    boost_scale = max(CP%Accuracy%NonFlatIntAccuracyBoost * CP%Accuracy%AccuracyBoost, 1._dl)
-    ell2 = l * (l + 1)
-    ell = sqrt(real(ell2, dl))
-    alpha = nu / ell
-
-    use_shifted_q = enable_shifted_q_scalar_approx .and.  (abs(State%scale - 1._dl) <= near_flat_scale_tol) &
-        .and. (alpha > 3._dl) .and. ell2 * chi_max**7 / nu < 0.3_dl / boost_scale
-    if (.not. use_shifted_q) return
-
-    tmax = alpha * chi_max
-
-    arg_err = ell * tmax**3 / (90._dl * alpha**4)
-    amp_err = tmax**2 / (180._dl * alpha**4)
-    err_shift = 0.5_dl * arg_err + amp_err
-
-    use_shifted_q = (err_shift < NEARFLAT_TOL / boost_scale)
-
-    end function UseShiftedQScalarApprox
-
-
     subroutine FillShiftedQUjlVals(j, l, nu, chi_start, dchisource, sgn, nIntSteps, ujl_vals, y1, chi)
     use SpherBessels, only: BessRanges, bessel_horner
 
@@ -2667,16 +2620,16 @@
     real(dl) y_prev, y_next, y2_est, q_prev, q_next, chi_prev_reset
     real(dl), parameter:: MINUJl1 = 0.5d-4  !cut-off point for small ujl l=1
     integer, parameter :: numerov_rebootstrap_steps = 200
-    integer, parameter :: numerov_low_l_rebootstrap_steps = 100
-    integer, parameter :: numerov_very_low_l_rebootstrap_steps = 50
-    integer, parameter :: numerov_min_rebootstrap_steps = 25
-    real(dl) scalel, range_sampling_boost, numerov_step_boost
-    real(dl) IntAccuracyBoost
+    integer, parameter :: numerov_low_l_rebootstrap_steps = 25
+    integer, parameter :: numerov_very_low_l_rebootstrap_steps = 25
+    real(dl) scalel, alpha_rebootstrap, range_sampling_boost, numerov_step_boost
+    real(dl) IntAccuracyBoost, near_flat_boost
     real(dl) out(ThisSources%SourceNum), ujl_vals(abs(nstart - nend) + 1)
     real(dl) h2_12, ch, step_c, step_s, step_s_for_ch, sh_new, ch_new
-    logical need_y2
+    logical need_y2, use_near_flat_gate, use_shifted_q_near_flat
 
     IntAccuracyBoost=CP%Accuracy%AccuracyBoost*CP%Accuracy%NonFlatIntAccuracyBoost
+    near_flat_boost = max(IntAccuracyBoost, 1._dl)
 
     ! atau0 is the array with the time where the sources are stored.
     if (nend==nstart) then
@@ -2767,17 +2720,23 @@
     if (nIntSteps <= 0) return
     chi_end = chi + real(nIntSteps, dl) * dchisource * sgn
     chi_max_range = max(abs(chi), abs(chi_end))
-
-    if (UseShiftedQScalarApprox(l, nu, chi, dchisource, sgn, nIntSteps)) then
+    use_shifted_q_near_flat = .false.
+    use_near_flat_gate = UseNearFlatSmallChiApprox(l, nu, chi_max_range, near_flat_boost)
+    if (use_near_flat_gate) then
         ! In the local chi << 1 regime, fill the source-grid values directly from the
         ! shifted-q near-flat approximation instead of stepping the full hyperspherical ODE.
+        use_shifted_q_near_flat = enable_shifted_q_scalar_approx .and. &
+            UseShiftedQNearFlatIntegration(l, nu, chi_max_range, near_flat_boost)
+        use_near_flat_gate = use_shifted_q_near_flat .or. enable_near_flat_smallchi_integration
+    end if
+
+    if (use_near_flat_gate) then
         out = 0
-        call FillShiftedQUjlVals(j, l, nu, chi, dchisource, sgn, nIntSteps, ujl_vals(1:nIntSteps + 1), y1, chi)
-        last_ix = nIntSteps + 1
-    else if (abs(State%scale - 1._dl) <= near_flat_scale_tol .and. &
-        UseSmallChiNearFlatIntegration(l, nu, chi_max_range, IntAccuracyBoost)) then
-        out = 0
-        call FillSmallChiUjlVals(j, l, nu, chi, dchisource, sgn, nIntSteps, ujl_vals(1:nIntSteps + 1), y1, chi)
+        if (use_shifted_q_near_flat) then
+            call FillShiftedQUjlVals(j, l, nu, chi, dchisource, sgn, nIntSteps, ujl_vals(1:nIntSteps + 1), y1, chi)
+        else
+            call FillSmallChiUjlVals(j, l, nu, chi, dchisource, sgn, nIntSteps, ujl_vals(1:nIntSteps + 1), y1, chi)
+        end if
         last_ix = nIntSteps + 1
     else
         if (State%closed) then
@@ -2808,13 +2767,16 @@
         end if
         q_now=(ap1/sh**2 - nu2)
         rebootstrap_interval = numerov_rebootstrap_steps
-        if (scalel < 50._dl) then
+        ! Low-L EE is sensitive to small Numerov phase drift when nu/l is
+        ! moderately large: there are too few source-weighted oscillations for
+        ! the integration to average it down, so re-sync more often in this band.
+        alpha_rebootstrap = nu / max(1._dl, dble(l))
+        if (scalel < 25._dl .or. (nu < 1000._dl .and. alpha_rebootstrap > 2._dl)) then
             rebootstrap_interval = numerov_low_l_rebootstrap_steps
             if (AccuracyTarget > 0 .and. scalel < 25._dl) &
                 rebootstrap_interval = numerov_very_low_l_rebootstrap_steps
         end if
-        rebootstrap_interval = max(numerov_min_rebootstrap_steps, &
-            nint(rebootstrap_interval / IntAccuracyBoost))
+        rebootstrap_interval = nint(rebootstrap_interval / IntAccuracyBoost)
         numerov_step_count = 0
         do i=1,nIntSteps
             do step_ix = 1, nSubSteps
