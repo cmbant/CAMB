@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import ctypes
 import logging
 from ctypes import POINTER, byref, c_bool, c_double, c_int, c_void_p
@@ -33,8 +31,6 @@ from .reionization import ReionizationModel
 from .sources import SourceWindow
 
 logger = logging.getLogger(__name__)
-
-# Union and Optional types are now built-in to Python 3.10+
 
 max_nu = 5
 max_transfer_redshifts = 256
