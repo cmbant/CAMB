@@ -63,6 +63,7 @@
     logical  :: lensing_includes_tensors = .false.
     real(dl), parameter :: low_l_ee_lensing_taper_lmin = 2._dl
     real(dl), parameter :: low_l_ee_lensing_taper_lmax = 20._dl
+    integer, parameter :: default_lensing_extrap_lmax_margin = 750
 
     !flat method stores
     real(dl), parameter :: dbessel = 0.05_dl
@@ -158,8 +159,17 @@
 
     integer function LensingExtrapLmax(State) result(lmax)
     class(CAMBdata), intent(in) :: State
+    integer :: extrap_margin, output_lmax
+    real(dl) :: LensAccuracyBoost
 
-    lmax = State%CP%Max_l - (State%CP%lens_output_margin - lens_convolution_gap) + 750
+    output_lmax = State%CP%Max_l - State%CP%lens_output_margin
+    LensAccuracyBoost = State%CP%Accuracy%AccuracyBoost * State%CP%Accuracy%LensingBoost
+    extrap_margin = default_lensing_extrap_lmax_margin
+    if (AccuracyTarget > 0) then
+        extrap_margin = max(extrap_margin, ceiling((0.45_dl * output_lmax + 400._dl) * LensAccuracyBoost))
+    end if
+
+    lmax = output_lmax + lens_convolution_gap + extrap_margin
     lmax = min(lmax_extrap_highl, lmax)
     lmax = max(lmax, State%CP%Max_l)
     end function LensingExtrapLmax
@@ -239,7 +249,7 @@
     real(dl) dX000,dX022
     integer  interp_fac
     integer j,jmax
-    real(dl) sc, taper
+    real(dl) sc, taper, tail_te_fac
     integer apodize_point_width
     logical :: high_l_fast_lensing, short_integral_range
     real(dl) range_fac, apodize_width
@@ -370,16 +380,18 @@
         if (lmax > CP%Max_l) then
             l=CP%Max_l
             sc = (2*l+1)/const_fourpi * const_twopi/(l*(l+1))
-            fac2=CTT(CP%Max_l)/(sc*highL_CL_template(CP%Max_l, C_Temp))
-            fac=Cphil3(CP%Max_l)/(sc*highL_CL_template(CP%Max_l, C_Phi))
+            fac2 = CTT(CP%Max_l)/(sc*highL_CL_template(CP%Max_l, C_Temp))
+            fac3 = CEE(CP%Max_l)/(sc*highL_CL_template(CP%Max_l, C_E))
+            tail_te_fac = sqrt(max(0._dl, fac2*fac3))
+            fac = Cphil3(CP%Max_l)/(sc*highL_CL_template(CP%Max_l, C_Phi))
             do l=CP%Max_l+1, lmax
                 !Fill in tail from template
                 sc = (2*l+1)/const_fourpi * const_twopi/(l*(l+1))
                 Cphil3(l) = highL_CL_template(l, C_Phi)*fac*sc
 
                 CTT(l) =  highL_CL_template(l, C_Temp)*fac2*sc
-                CEE(l) =  highL_CL_template(l, C_E)*fac2*sc
-                CTE(l) =  highL_CL_template(l, C_Cross)*fac2*sc
+                CEE(l) =  highL_CL_template(l, C_E)*fac3*sc
+                CTE(l) =  highL_CL_template(l, C_Cross)*tail_te_fac*sc
                 if (Cphil3(CP%Max_l+1) > 1e-7) then
                     call MpiStop('You need to normalize the high-L template so it is dimensionless')
                 end if
@@ -775,7 +787,7 @@
     integer :: l, i, npoints, imin
     integer :: max_lensed_ix, thread_ix
     real(dl) :: LensAccuracyBoost, sampling_factor, range_fac, theta_max, xmin, xtaper_start
-    real(dl) :: fac, sc, fac2, weight, theta, taper, apodize_theta_width
+    real(dl) :: fac, sc, fac2, fac3, tail_te_fac, weight, theta, taper, apodize_theta_width
     real(dl), pointer :: xvals(:), weights(:)
     real(dl), allocatable :: lfacs(:), lfacs2(:), lrootfacs(:)
     real(dl), allocatable :: Cphil3(:), CTT(:), CTE(:), CEE(:)
@@ -854,13 +866,15 @@
             l=CP%Max_l
             sc = (2*l+1)/const_fourpi * const_twopi/(l*(l+1))
             fac2 = CTT(CP%Max_l)/(sc*highL_CL_template(CP%Max_l, C_Temp))
+            fac3 = CEE(CP%Max_l)/(sc*highL_CL_template(CP%Max_l, C_E))
+            tail_te_fac = sqrt(max(0._dl, fac2*fac3))
             fac = Cphil3(CP%Max_l)/(sc*highL_CL_template(CP%Max_l, C_Phi))
             do l=CP%Max_l+1, lmax
                 sc = (2*l+1)/const_fourpi * const_twopi/(l*(l+1))
                 Cphil3(l) = highL_CL_template(l, C_Phi)*fac*sc
                 CTT(l) = highL_CL_template(l, C_Temp)*fac2*sc
-                CEE(l) = highL_CL_template(l, C_E)*fac2*sc
-                CTE(l) = highL_CL_template(l, C_Cross)*fac2*sc
+                CEE(l) = highL_CL_template(l, C_E)*fac3*sc
+                CTE(l) = highL_CL_template(l, C_Cross)*tail_te_fac*sc
                 if (Cphil3(CP%Max_l+1) > 1e-7_dl) then
                     call MpiStop('You need to normalize the high-L template so it is dimensionless')
                 end if

@@ -16,7 +16,7 @@ The Fortran type `CAMBparams` (mirrored in Python as
   Newtonian gauge).
 - `max_l` — `l_max` for the **scalar** `C_L`.
 - `max_l_tensor` — `l_max` for the **tensor** `C_L`.
-- `lens_output_margin` (default `150`) — number of L below `max_l` down
+- `lens_output_margin` (default `200`) — number of L below `max_l` down
   to which lensed `C_L` are guaranteed to be output. The unlensed
   spectrum used in the lensing convolution is treated as reliable to
   `max_l − (lens_output_margin − 50)`, so this field also fixes the
@@ -43,7 +43,7 @@ The `.ini` reader is in [`fortran/camb.f90`](../fortran/camb.f90) (see
 | `l_min`               | `P%Min_l`                 | `2`                                                  |
 | `l_max_scalar`        | `P%Max_l`                 | *required when `get_scalar_cls = T` or `get_vector_cls = T`* |
 | `k_eta_max_scalar`    | `P%Max_eta_k`             | `2.5 * l_max_scalar`                                 |
-| `lens_output_margin`  | `P%lens_output_margin`    | `150`                                                |
+| `lens_output_margin`  | `P%lens_output_margin`    | `200`                                                |
 | `l_max_tensor`        | `P%Max_l_tensor`          | *required when `get_tensor_cls = T`*                 |
 | `k_eta_max_tensor`    | `P%Max_eta_k_tensor`      | `max(500, 2 * l_max_tensor)`                         |
 
@@ -52,7 +52,7 @@ The sample [`inifiles/params.ini`](../inifiles/params.ini) sets:
 ```
 l_max_scalar       = 2200
 # k_eta_max_scalar = 4000    (commented out, so default 2.5*l_max_scalar used)
-# lens_output_margin = 150   (commented out, so default 150 used)
+# lens_output_margin = 200   (commented out, so default 200 used)
 l_max_tensor       = 1500
 k_eta_max_tensor   = 3000
 ```
@@ -103,8 +103,8 @@ So if we write `M = CP%lens_output_margin` and `G = 50`:
 So `lmax_lensed ∈ [Max_l − M, Max_l − (M − G)]` — the exact value
 depends on where the sparse L-sampling falls in that band.
 
-With the default `M = 150` and `G = 50`, that becomes
-`[Max_l − 150, Max_l − 100]`, matching the historical behaviour.
+With the default `M = 200` and `G = 50`, that becomes
+`[Max_l − 200, Max_l − 150]`.
 
 ### Why `set_for_lmax` adds the full margin
 
@@ -115,8 +115,8 @@ reaches the user's target `L` even in the worst sparse-sampling case.
 If the floor were e.g. `Max_l − (M − G)`, the lensed output would
 fall up to `G = 50` L short of the request in the worst case.
 
-The Python and Fortran sides used to use hardcoded `150` and `100`
-constants here; they are now derived from `CP%lens_output_margin` so
+The Python and Fortran sides used to use hardcoded margin constants here;
+they are now derived from `CP%lens_output_margin` so
 that changing the margin from one side (Python or `.ini`) propagates
 through to the lensing convolution and the L-sampling logic.
 
@@ -125,9 +125,11 @@ through to the lensing convolution and the L-sampling logic.
 When convolving the unlensed `C_L` with the lensing potential, the
 unlensed `C_L` is extrapolated past `Max_l` using a fiducial high-L
 template up to
-`min(lmax_extrap_highl, Max_l − (lens_output_margin − 50) + 750)`,
-where `lmax_extrap_highl = 8000` is a `parameter` constant in
-[`fortran/config.f90`](../fortran/config.f90).
+`min(lmax_extrap_highl, output_lmax + lens_convolution_gap + extrap_margin)`,
+where `output_lmax = Max_l - lens_output_margin`,
+`extrap_margin = max(750, ceiling((0.45 * output_lmax + 400) * LensAccuracyBoost))`
+when `AccuracyTarget > 0`, and `lmax_extrap_highl = 8000` is a
+`parameter` constant in [`fortran/config.f90`](../fortran/config.f90).
 
 ## 4. Setting `l_max` from Python
 
@@ -143,7 +145,7 @@ pars.set_for_lmax(
     lmax,
     max_eta_k=None,
     lens_potential_accuracy=0,
-    lens_output_margin=150,
+    lens_output_margin=200,
     k_eta_fac=2.5,
     lens_k_eta_reference=18000.0,
     nonlinear=None,
@@ -157,7 +159,7 @@ Behaviour:
 - `pars.lens_output_margin` is set to `lens_output_margin` so the
   Fortran lensing code uses the matching floor (§3).
 - If `DoLensing` is true, the internal `max_l` is set to `lmax +
-  lens_output_margin` (default `+150`). If `DoLensing` is false,
+  lens_output_margin` (default `+200`). If `DoLensing` is false,
   `max_l = lmax`.
 - `max_eta_k` is set to `max_eta_k` if given, otherwise
   `k_eta_fac * max_l` (default `k_eta_fac = 2.5`).
@@ -192,7 +194,7 @@ pars.max_l = 2500
 pars.max_l_tensor = 1500
 pars.max_eta_k = 10000.0
 pars.max_eta_k_tensor = 3000.0
-pars.lens_output_margin = 150
+pars.lens_output_margin = 200
 pars.min_l = 2
 ```
 
@@ -243,7 +245,7 @@ length per `k`:
   has a sample to interpolate from there.
 - Inside lensing (`lensing.f90`), the per-method internal extrapolation
   upper bound is
-  `min(lmax_extrap_highl, Max_l − (lens_output_margin − 50) + 750)`
+  `min(lmax_extrap_highl, output_lmax + lens_convolution_gap + extrap_margin)`
   (see §3).
 
 ## 7. Quick checklist
@@ -251,9 +253,9 @@ length per `k`:
 If you want the **lensed** scalar `C_L` accurate to some target `L*`:
 
 1. Either call `pars.set_for_lmax(L*, lens_potential_accuracy=k)` —
-   which sets `pars.max_l = L* + 150`, `pars.lens_output_margin = 150`,
-   and bumps `max_eta_k` — or set `pars.max_l = L* + 150`,
-   `pars.lens_output_margin = 150`, and `pars.max_eta_k`
+   which sets `pars.max_l = L* + 200`, `pars.lens_output_margin = 200`,
+   and bumps `max_eta_k` — or set `pars.max_l = L* + 200`,
+   `pars.lens_output_margin = 200`, and `pars.max_eta_k`
    (≥ `2.5 * pars.max_l`, and ≥ `18000 * k` for accurate lensing) by
    hand. The two margins must agree.
 2. Read the lensed spectrum back with
@@ -267,8 +269,8 @@ If you want the **unlensed** scalar `C_L` accurate to `L*`:
 2. Read back with `results.get_unlensed_scalar_cls(lmax=L*)`.
 
 If you are reading parameters from a `.ini` file, `l_max_scalar` plays
-the role of `pars.max_l` directly. There is no automatic `+150` margin
+the role of `pars.max_l` directly. There is no automatic `+200` margin
 applied for you on the `.ini` path, so set `l_max_scalar` high enough
 that `l_max_scalar − lens_output_margin` covers the L range you
 actually care about for the lensed output. The default
-`lens_output_margin = 150` can be overridden with the same-named key.
+`lens_output_margin = 200` can be overridden with the same-named key.

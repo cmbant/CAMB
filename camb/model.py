@@ -993,7 +993,7 @@ class CAMBparams(F2003Class):
         lmax,
         max_eta_k=None,
         lens_potential_accuracy=0,
-        lens_output_margin=150,
+        lens_output_margin=200,
         k_eta_fac=2.5,
         lens_k_eta_reference=18000.0,
         nonlinear=None,

@@ -129,7 +129,7 @@
         integer   :: Min_l = 2 ! 1 or larger, usually 1 or 2
         integer   :: Max_l = 2500
         integer   :: Max_l_tensor = 600
-        integer   :: lens_output_margin = 150
+        integer   :: lens_output_margin = 200
         !Number of L below Max_l down to which lensed C_L are guaranteed to be output;
         !the unlensed C_L used in the lensing convolution is treated as reliable to
         !Max_l - (lens_output_margin - 50), so this also fixes the lensed convolution margin.

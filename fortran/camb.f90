@@ -220,6 +220,7 @@
     P%Nu_mass_numbers=0
     P%Nu_mass_degeneracies=0
     P%Nu_mass_fractions=0
+    P%lens_output_margin = 200
 
     allocate(THalofit::P%NonLinearModel)
     allocate(TDarkEnergyFluid::P%DarkEnergy)
