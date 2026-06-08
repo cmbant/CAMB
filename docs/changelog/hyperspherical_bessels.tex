@@ -54,7 +54,7 @@
 
 \title{Hyperspherical Bessel functions in CAMB: Olver mapping, recurrence fallback, shifted-\(q\), and Numerov source integration}
 \author{Implementation note for CAMB non-flat Bessel calculations}
-\date{May 2026}
+\date{June 2026}
 
 \begin{document}
 \sloppy
@@ -238,11 +238,11 @@ small-\(\chi\) curvature expansion the constant expansion parameter is
   h=K\frac{l(l+1)}{\nu^2}=\frac{K}{\alpha^2}.
 \end{equation}
 Thus larger \(\alpha\) means both weaker curvature corrections in the local map
-and a smaller turning-point radius, \(\SK(\chi_t)=1/\alpha\).  This is why the
-fast small-\(\chi\) shortcuts below require \(\alpha>3\): it keeps
-\(\abs{h}<1/9\) and puts the turning point inside the regime where the local
-series is useful, with the numerical value calibrated against the accuracy
-tests.
+and a smaller turning-point radius, \(\SK(\chi_t)=1/\alpha\).  The near-flat
+table shortcuts use calibrated endpoint gates based on \(\nu/l\) and the
+small-\(\chi\) range metric \(l^2\chi_{\max}^7/\nu\).  The exact source-range
+gate is given once in \eqref{eq:source-range-gate}; the shifted-\(q\) path then
+adds the constant-map residual test described below.
 
 This is also why the approximation is normally used in its comfortable regime
 for the near-flat cosmologies of most practical interest.  If
@@ -429,8 +429,11 @@ Jacobian factor
   \right|^{1/4},
   \label{eq:amplitude}
 \end{equation}
-which keeps the Wronskian constant and reduces to the WKB \(|f|^{-1/4}\) in the
-flat limit.
+which keeps the Wronskian constant.  This Jacobian is not by itself the curved
+WKB amplitude: for \(K=0\), \(z=\chi\) and \(A=1\).  Rather, away from the
+turning point, if the flat comparison solution is also expanded in WKB form, its
+flat \(|f_0|^{-1/4}\) amplitude multiplied by \(A=(f_0/f_K)^{1/4}\) gives the
+curved \(|f_K|^{-1/4}\) amplitude.
 At the turning point both numerator and denominator vanish, but the limit is finite.  With \(C_t=\CK(\chi_t)\),
 \begin{equation}
   z-z_t\simeq C_t^{1/3}(\chi-\chi_t),\qquad
@@ -580,28 +583,12 @@ as
   \label{eq:shift-error}
 \end{equation}
 with a threshold scaled by the requested accuracy.  This shifted-\(q\) test is
-not the whole gate.  The same branch first requires the full small-\(\chi\)
-Olver map to be valid on the interval,
-\begin{equation}
-  \alpha>3,\qquad l(l+1)\frac{\chi_{\max}^7}{\nu}
-  <\frac{0.3}{B_{\rm acc}}.
-\end{equation}
-The \(\alpha>3\) condition is a guard on the asymptotic regime rather than a
-new physical boundary.  Since
-\begin{equation}
-  h=\frac{K}{\alpha^2},
-\end{equation}
-it keeps the constant expansion parameter small, \(\abs{h}<1/9\), and places
-the turning point at \(\SK(\chi_t)=1/\alpha<1/3\), where the local
-small-\(\chi\) curvature expansion is the relevant approximation.  Below this
-range the correction terms are no longer parametrically small enough for the
-cheap shifted shortcut to be trusted, so the code uses the fuller small-\(\chi\)
-map, Numerov stepping, or stable recurrence depending on the surrounding
-regime.  The numerical value \(3\) is also used by the pointwise gates, where
-the implementation uses \(\nu/l\) as a high-\(l\) proxy for
-\(\nu/\sqrt{l(l+1)}\).  The error estimate above is a comparison against the
-omitted local Olver terms, rather than a pointwise relative-error test, which
-would be inappropriate near Bessel zeros.
+not the whole source-range decision: the caller first requires the common
+near-flat range gate \eqref{eq:source-range-gate}.  Thus the shifted-\(q\)
+branch is used only when the local small-\(\chi\) Olver map is valid across the
+range and freezing that map to \(F_0\) is accurate enough.  The error estimate
+above is a comparison against omitted local Olver terms, rather than a
+pointwise relative-error test, which would be inappropriate near Bessel zeros.
 
 \subsection*{Note: a simpler constant-potential shift that is not used}
 
@@ -723,8 +710,8 @@ This pointwise gate deliberately uses \(\nu/l\) and \(l^2\) as cheap high-\(l\)
 proxies; the map itself still uses the more accurate
 \(\sqrt{l(l+1)}\) curvature scale.
 \item If the small-\(\chi\) map is not used, the open model accepts the full
-action-map Olver value throughout the sampled interval only when \(\nu/l\)
-clears the calibrated continuous cutoff
+action-map Olver value without an additional endpoint metric restriction only
+when \(\nu/l\) clears the calibrated continuous cutoff
 \begin{equation}
   \frac{\nu}{l}\ge\alpha_{\rm open}(l),
   \qquad
@@ -770,25 +757,26 @@ interval are scaled by \(B_{\rm acc}\).
 
 Before Numerov, near-flat scalar source ranges can be filled directly from flat
 Bessel tables.  These shortcuts are also tied to a peak-position sampling ratio,
-not to the cosmological scale factor \(a\).  Define
+not to the cosmological scale factor \(a\).  Define the sampling proxy
 \begin{equation}
-  \theta_{\rm drag}
+  \vartheta_{\rm samp}
   =\frac{r_s(z_{\rm drag})}{D_M(\tau_0)},\qquad
-  \theta_{\rm drag}^{\rm P18}
+  \vartheta_{\rm samp}^{\rm P18}
   =\left[
   \frac{r_s(z_{\rm drag})}{D_M(\tau_0)}
   \right]_{\rm Planck\,2018},
 \end{equation}
 where \(D_M(\tau_0)\) is the comoving angular-diameter distance corresponding to
-the full present conformal time \(\tau_0\).  This \(\theta_{\rm drag}\) is
-deliberately not the usual acoustic angular scale: the standard quantity divides
-the sound horizon by the comoving angular-diameter distance \emph{to the drag (or
-last-scattering) epoch}, whereas here the denominator is the distance over the
-\emph{total} present conformal time.  It is used only as a cheap, close
-approximate proxy for the acoustic peak positions in the sampling-ratio gate
-below, not as a physical \(\theta_{\rm drag}\).  The sampling ratio is
+the full present conformal time \(\tau_0\).  Although the numerator uses
+\(r_s(z_{\rm drag})\), \(\vartheta_{\rm samp}\) is deliberately not the usual
+drag or acoustic angular scale: the standard quantity divides the sound horizon
+by the comoving angular-diameter distance \emph{to the drag (or last-scattering)
+epoch}, whereas here the denominator is the distance over the \emph{total}
+present conformal time.  It is used only as a cheap, close approximate proxy for
+the acoustic peak positions in the sampling-ratio gate below.  The sampling
+ratio is
 \begin{equation}
-  s_{\rm peak}=\frac{\theta_{\rm drag}^{\rm P18}}{\theta_{\rm drag}}.
+  s_{\rm peak}=\frac{\vartheta_{\rm samp}^{\rm P18}}{\vartheta_{\rm samp}}.
 \end{equation}
 When \(\abs{s_{\rm peak}-1}\le0.03\), the acoustic peak positions and the
 multipole sampling are close enough to the fiducial flat sampling that CAMB can
@@ -797,29 +785,38 @@ machinery, enlarging the maximum tabulated argument when needed for shifted-\(q\
 calls.  This avoids recomputing a different Bessel sampling for a small
 geometric rescaling.  If the ratio is outside this tolerance, the geometry has
 shifted the peaks enough that these near-flat table shortcuts are not assumed.
-When this bookkeeping gate passes, the table paths still have to pass a
-two-stage accuracy test:
-\begin{enumerate}[leftmargin=*]
-\item First, the local small-\(\chi\) approximation to the full action-map Olver construction must
-be valid over the whole source range,
+When this bookkeeping gate passes, the table paths still have to pass their
+accuracy gates.  Both source table fillers first require the common near-flat
+range gate
 \begin{equation}
-  \alpha=\frac{\nu}{\sqrt{l(l+1)}}>3,\qquad
-  l(l+1)\frac{\chi_{\max}^7}{\nu}
-  <\frac{0.3}{B_{\rm acc}}.
+  \left[\frac{\nu}{l}>2.5\quad\hbox{or}\quad
+  \left(l\ge50\ \hbox{and}\ \frac{\nu}{l}>1\right)\right],\qquad
+  \frac{l^2\chi_{\max}^7}{\nu}
+  <\frac{0.1}{B_{\rm acc}}.
+  \label{eq:source-range-gate}
 \end{equation}
-If this passes, \code{UseSmallChiNearFlatIntegration} may fill the range using
+This gate uses \(\nu/l\) and \(l^2\) as cheap high-\(l\) proxies for the
+curvature scale in the hot source-integration path.  Relative to the earlier
+source gate, it is stricter in the endpoint metric but less restrictive in
+\(\nu/l\), which keeps the tested high-\(l\), low-\(\nu/l\) near-flat band.
+\begin{enumerate}[leftmargin=*]
+\item If the common range gate passes, \code{UseSmallChiNearFlatIntegration} may fill the range using
 \(j_l(\nu\chi F)\) and the \(F/\sqrt D\) weight.
-\item The shifted-\(q\) filler must pass the same small-\(\chi\) Olver-validity
-gate, and then a second test that freezing \(F(\chi)\) and \(D(\chi)\) to their
-constant values is accurate enough:
+\item The shifted-\(q\) filler uses the same common range gate, and then adds the
+constant-map residual test from \eqref{eq:shift-error}:
 \begin{equation}
   \epsilon_{\rm shift}<\frac{10^{-3}}{B_{\rm acc}},
 \end{equation}
 with \(\epsilon_{\rm shift}\) defined in \eqref{eq:shift-error}.  Thus
-shifted-\(q\) is used only when the small-\(\chi\) Olver map is valid and the
+shifted-\(q\) is used only when the constant-map Olver limit is valid and the
 constant-map approximation to that map is valid.
 \end{enumerate}
-If neither table filler passes, the code uses the general non-flat route:
+The pointwise \code{phi_olver} small-\(\chi\) fast path remains separate and
+keeps the tighter local threshold
+\(l^2\chi^7/\nu<5\times10^{-2}\), because it must preserve the pointwise
+peak-normalized Bessel envelope at individual \(\chi\) values rather than
+integrated source weights.  If neither table filler passes, the code uses the
+general non-flat route:
 \code{u_olver} for seed values, Numerov for nearby samples, and
 \code{phi_recurs} only where the pointwise Bessel gate has selected it.
 The overall source accuracy is therefore controlled jointly by the pointwise
@@ -852,11 +849,39 @@ The exact recurrence is
   \label{eq:up-recurrence}
 \end{equation}
 where \(b_j=b_j(K,\nu)=\sqrt{\nu^2-Kj^2}\).
-Forward recurrence from \(j=0,1\) is used only where it is stable, essentially the safely oscillatory region.  The code tests a condition of the form
+Forward recurrence from \(j=0,1\) is used only where it is stable, essentially the safely oscillatory region.  Away from the open-space refinements described below, the code tests a condition of the form
 \begin{equation}
   b_l>0,\qquad \abs{\cotK\chi}<\frac{b_l}{\max(1,l)}.
 \end{equation}
-Outside this region, forward recurrence would amplify the unwanted independent solution.  The code then uses Miller downward recurrence,
+For \(K=-1\) this comparison is made in the algebraically equivalent variable
+\begin{equation}
+  y_{\rm open}=\frac{\nu\sinh\chi}{l},
+  \qquad
+  \coth\chi<\frac{\sqrt{\nu^2+l^2}}{l}
+  \quad\Longleftrightarrow\quad
+  y_{\rm open}>1.
+  \label{eq:open-recurrence-turning-ratio}
+\end{equation}
+This avoids comparing two quantities that are both very close to one when
+\(\nu/l\ll1\).  Since the continued fraction used to start Miller recurrence
+can be slow just below the open turning boundary, CAMB also uses forward
+recurrence for
+\begin{equation}
+  y_{\rm open}\ge 1-5\times10^{-3}.
+  \label{eq:open-recurrence-boundary-layer}
+\end{equation}
+Peak-normalized forward/Miller scans show that the very small-\(\nu/l\) family
+has a wider safe forward region, so CAMB also uses
+\begin{equation}
+  \frac{\nu}{l}\le2.1\times10^{-3},
+  \qquad
+  y_{\rm open}\ge0.9.
+  \label{eq:open-recurrence-low-beta}
+\end{equation}
+Tiny-\(\chi\), small-\(\nu/l\) cases such as \(l=4,\nu/l=0.002\) remain on
+Miller recurrence.
+
+Outside the stable forward region, forward recurrence would amplify the unwanted independent solution.  The code then uses Miller downward recurrence,
 \begin{equation}
   \phi_{j-1}^\nu
   =\frac{(2j+1)\cotK\chi\,\phi_j^\nu-b_{j+1}\phi_{j+1}^\nu}{b_j},
@@ -1017,12 +1042,22 @@ two-term linear update with precomputed coefficients
 \end{equation}
 with \(s_n=\SK(\chi_n)\), \(c_n=\CK(\chi_n)\).  Then \(Q_n\) follows from
 \(s_n\) alone.  Second, both the angle-addition recursion and the Numerov
-recursion accumulate floating-point drift over many steps, so after a fixed
-number of substeps (a re-bootstrap interval of order a hundred steps, reduced
-at higher accuracy boost) the code re-seeds: it recomputes \(\SK,\CK\) directly
-from \(\chi\), and re-evaluates the two Numerov starting values with fresh
-\code{u_olver} calls before continuing.  This bounds the accumulated error
-without paying for an \code{u_olver} call at every step.
+recursion accumulate floating-point drift over many steps, so the code
+periodically re-seeds: it recomputes \(\SK,\CK\) directly from \(\chi\), and
+re-evaluates the two Numerov starting values with fresh \code{u_olver} calls
+before continuing.  The default re-bootstrap interval is 200 substeps, reduced
+by the non-flat integration accuracy boost.  A shorter 25-substep interval is
+used for very low effective multipoles, \(l/s_{\rm peak}<25\), and for the
+moderate-\(\nu\), high-\(\nu/l\) band
+\begin{equation}
+  \nu<1000,\qquad \frac{\nu}{l}>2,
+\end{equation}
+where low- and mid-\(L\) EE is sensitive to small Numerov phase drift.  This
+nu-aware gate avoids applying the frequent re-seeding to all low \(l\) modes,
+while correcting the modes where source integration has too few weighted
+oscillations to average the drift away.  The minimum interval after accuracy
+scaling is 25 substeps.  This bounds the accumulated error without paying for
+an \code{u_olver} call at every step.
 
 The source integral is then accumulated by a trapezoidal rule: the first and last stored Bessel values in the range get half weight, and the final sum is multiplied by \(\Delta\chi/\sqrt{\abs{\mathcal K}}\), equivalently the conformal-time step.
 
@@ -1080,7 +1115,7 @@ with \(\sigma=1\) for \(K=0,-1\) and \(\sigma=\code{symm}\) for \(K=+1\).  The p
   \frac{\sigma A(\chi)z(\chi)}{\SK(\chi)}j_l(\nu z(\chi)).
   }
 \end{equation}
-For many neighbouring source points, CAMB usually does not repeat this full calculation.  It either replaces it with the shifted-\(q\) or small-\(\chi\) table approximation, or uses two Olver values to start Numerov stepping of the reduced ODE (re-seeding periodically from fresh Olver evaluations).  This is the practical distinction between the mathematical point approximation and how it is used inside the transfer integration.
+For many neighbouring source points, CAMB usually does not repeat this full calculation: table fillers or Numerov stepping take over as described above.
 
 \section{Why this is better than a first-order Langer/Airy approximation}
 
@@ -1142,7 +1177,7 @@ Closed Miller start & \code{phi_closed_gegenbauer_start} \\
 
 \section{Summary}
 
-The current non-flat Bessel calculation is best understood as a hierarchy.  At the mathematical core is the reduced equation \(u''+[\nu^2-l(l+1)/\SK^2]u=0\).  The Olver-to-flat method maps this to \(zj_l(\nu z)\) with an amplitude factor, making the approximation uniform through the turning point and exact for \(K=0\).  Stable recurrence is retained for low multipoles and difficult corners, with the closed case using the finite endpoint or a direct Gegenbauer start for Miller recurrence.  In the line-of-sight integration code, a pair of Olver values seeds Numerov integration to get nearby values cheaply (with periodic re-seeding to bound drift), while near-flat and small-\(\chi\) ranges are accelerated further by flat Bessel table lookups.  The current shifted-\(q\) approximation is the \(\chi\)-independent part of the local Olver expansion, \(q_{\rm eff}=\nu F_0\), with the simpler \(q^2=\nu^2-Kl(l+1)/3\) formula retained only as a first-order explanatory limit.
+The current non-flat Bessel calculation combines a leading-order Olver-to-flat map with exact recurrence fallbacks and source-integration accelerations.  The map sends the reduced equation \(u''+[\nu^2-l(l+1)/\SK^2]u=0\) to the flat comparison solution \(zj_l(\nu z)\), with the Jacobian amplitude above, so it is uniform through the turning point and exact for \(K=0\).  In source integration, CAMB uses this point approximation mainly to seed Numerov stepping, while near-flat ranges can be filled from flat Bessel tables.  The shifted-\(q\) approximation is the \(\chi\)-independent part of the local Olver expansion, \(q_{\rm eff}=\nu F_0\), with the simpler \(q^2=\nu^2-Kl(l+1)/3\) formula retained only as a first-order explanatory limit.
 
 \begin{thebibliography}{99}
 \bibitem{olver}

@@ -45,7 +45,9 @@
     real(dl) :: scale
     real(dl), parameter :: BIG = 1.d100, TINY = 1.d-280
     real(dl), parameter :: UNDERFLOW_LOG = -744.4400719213812_dl
-    real(dl), parameter :: OPEN_TURNING_TOL = 2.d-3
+    real(dl), parameter :: OPEN_TURNING_TOL = 5.d-3
+    real(dl), parameter :: OPEN_LOW_BETA_RATIO = 2.1d-3
+    real(dl), parameter :: OPEN_LOW_BETA_MIN_TURNING_RATIO = 0.9_dl
     real(dl), parameter :: PI = 3.1415926535897932384626433832795_dl
     integer, parameter :: closed_endpoint_min_degree = 64
 
@@ -201,6 +203,13 @@
         ! well conditioned in this narrow boundary layer.
         open_turning_ratio = abs(nu_use) * sin_K / ell
         use_up = open_turning_ratio >= 1._dl - OPEN_TURNING_TOL
+        if (.not. use_up .and. abs(nu_use) <= OPEN_LOW_BETA_RATIO * ell) then
+            ! For very small beta/l, upward recurrence remains accurate
+            ! somewhat farther below the formal turning boundary, avoiding
+            ! thousands of continued-fraction iterations in common open
+            ! low-beta cases.
+            use_up = open_turning_ratio >= OPEN_LOW_BETA_MIN_TURNING_RATIO
+        end if
     else !closed
         root_K = sqrt(dble(inu - l) * dble(inu + l))
         use_up = (root_K > 0._dl) .and. (abs(cot_K) < root_K / max(1._dl, ell))

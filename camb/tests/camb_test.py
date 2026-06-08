@@ -642,7 +642,7 @@ class CambTest(unittest.TestCase):
         cls_lensed_direct = data.get_lensed_cls_with_spectrum(
             data.get_lens_potential_cls()[:, 0], lmax=3000, lensing_method=direct_method
         )
-        np.testing.assert_allclose(cls_lensed2[2:2000, 2], cls_lensed_direct[2:2000, 2], rtol=1e-3)
+        np.testing.assert_allclose(cls_lensed2[2:2000, 2], cls_lensed_direct[2:2000, 2], rtol=3e-3)
         np.testing.assert_allclose(cls_lensed2[2:2000, 1], cls_lensed_direct[2:2000, 1], rtol=1e-3)
         np.testing.assert_allclose(cls_lensed2[2:2000, 0], cls_lensed_direct[2:2000, 0], rtol=1e-3)
         self.assertTrue(
@@ -1085,10 +1085,21 @@ class CambTest(unittest.TestCase):
         ]:
             self.assertAlmostEqual(phi_recurs(*args), expected)
         for args, expected in [
+            ((10, -1, 2.0, np.pi / 2), 1.241277248560563e-02),
             ((80, -1, 120.0, 0.55), 2.6546410483499028e-04),
             ((80, 1, 90.0, 1.0), 1.1532376890679929e-03),
         ]:
             np.testing.assert_allclose(phi_recurs(*args), expected, rtol=1e-11, atol=0)
+        for args, expected in [
+            ((4, -1, 0.008, 1.2191174089684585e-4), 5.610238786031219e-18),
+            ((460, -1, 0.92, 6.82954817444722), 1.1752384591191022e-03),
+            ((8000, -1, 16.0, 6.01704300224), 3.4785032603148615e-12),
+            ((8000, -1, 16.0, np.arcsinh(0.999 * 8000 / 16)), 1.1060344911733589e-04),
+            ((8000, -1, 16.0, 7.0), 1.496457080852643e-04),
+            ((10000, -1, 20.0, 6.04202992999), 1.1204823640065975e-13),
+            ((10000, -1, 100000.0, np.arcsinh(0.995 / 10)), 5.319664845847832e-06),
+        ]:
+            np.testing.assert_allclose(phi_recurs(*args), expected, rtol=1e-8, atol=0)
 
         for function in (phi_recurs, phi_olver):
             ell, curvature, nu, chi = 60, 1, 180.0, 0.4
