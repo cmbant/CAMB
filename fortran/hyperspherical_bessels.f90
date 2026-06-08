@@ -1,11 +1,8 @@
     module SpherBessels
     !Accurate calculation of ultraspherical Bessel functions for non-flat universe
     !(and imports from FlatBessels for standard approximate spherical Bessel bjl).
-    use Precision
-    use results
-    use RangeUtils
-    use MpiUtils
-    use splines
+    use Precision, only: dl
+    use MpiUtils, only: MpiStop
     use FlatBessels, only: bessel_horner, BessRanges, InitSpherBessels, bjl_pre_peak_start_factor, bjl, Bessels_Free
     implicit none
     private
@@ -35,7 +32,7 @@
 
     integer :: j, inu
     logical :: use_up, ok
-    real(dl) :: nu_use, nu2, kay, ell, chi_use, symm, amp_arg
+    real(dl) :: nu_use, nu2, ell, chi_use, symm, amp_arg
     real(dl) :: sin_K, cot_K, cos_K, root_K, open_turning_ratio
     real(dl) :: phi0, phi1, phi_top
     real(dl) :: phi_minus, phi_zero, phi_plus
@@ -43,25 +40,24 @@
     real(dl) :: cf, bphi_plus
     real(dl) :: phi_cur, phi_lm1, phi0_down, phi1_down
     real(dl) :: scale
-    real(dl), parameter :: BIG = 1.d100, TINY = 1.d-280
+    real(dl), parameter :: BIG = 1.e100_dl, TINY = 1.e-280_dl
     real(dl), parameter :: UNDERFLOW_LOG = -744.4400719213812_dl
-    real(dl), parameter :: OPEN_TURNING_TOL = 5.d-3
-    real(dl), parameter :: OPEN_LOW_BETA_RATIO = 2.1d-3
+    real(dl), parameter :: OPEN_TURNING_TOL = 5.e-3_dl
+    real(dl), parameter :: OPEN_LOW_BETA_RATIO = 2.1e-3_dl
     real(dl), parameter :: OPEN_LOW_BETA_MIN_TURNING_RATIO = 0.9_dl
     real(dl), parameter :: PI = 3.1415926535897932384626433832795_dl
     integer, parameter :: closed_endpoint_min_degree = 64
 
     if (K == 1) then
         inu = nint(nu)
-        nu_use = dble(inu)
+        nu_use = real(inu, dl)
     else
         inu = huge(inu)
         nu_use = nu
     end if
 
     nu2 = nu_use**2
-    kay = dble(K)
-    ell = dble(l)
+    ell = real(l, dl)
 
     chi_use = chi
     symm = 1._dl
@@ -153,6 +149,7 @@
         phi_cur = 1._dl
         phi_top = 1._dl
         bphi_plus = ell * cot_K - cf
+        call rescale_miller_state(phi_cur, bphi_plus, phi_top)
         phi1_down = 0._dl
 
         do j = l, 1, -1
@@ -211,7 +208,7 @@
             use_up = open_turning_ratio >= OPEN_LOW_BETA_MIN_TURNING_RATIO
         end if
     else !closed
-        root_K = sqrt(dble(inu - l) * dble(inu + l))
+        root_K = sqrt(real(inu - l, dl) * real(inu + l, dl))
         use_up = (root_K > 0._dl) .and. (abs(cot_K) < root_K / max(1._dl, ell))
     end if
 
@@ -220,10 +217,10 @@
         phi_zero = phi1
 
         if (K == 1) then
-            b_minus = sqrt(dble(inu - 1) * dble(inu + 1))
+            b_minus = sqrt(real(inu - 1, dl) * real(inu + 1, dl))
 
             do j = 2, l
-                b_zero = sqrt(dble(inu - j) * dble(inu + j))
+                b_zero = sqrt(real(inu - j, dl) * real(inu + j, dl))
 
                 phi_plus = ((2 * j - 1) * cot_K * phi_zero - b_minus * phi_minus) / b_zero
 
@@ -235,7 +232,7 @@
             b_minus = sqrt(nu2 + 1._dl)
 
             do j = 2, l
-                b_zero = sqrt(nu2 + dble(j) * dble(j))
+                b_zero = sqrt(nu2 + real(j, dl) * real(j, dl))
 
                 phi_plus = ((2 * j - 1) * cot_K * phi_zero - b_minus * phi_minus) / b_zero
 
@@ -270,11 +267,12 @@
         bphi_plus = ell * cot_K - cf
     end if
 
+    call rescale_miller_state(phi_cur, bphi_plus, phi_top)
     phi1_down = 0._dl
 
     if (K == 1) then
         do j = l, 1, -1
-            b_zero = sqrt(dble(inu - j) * dble(inu + j))
+            b_zero = sqrt(real(inu - j, dl) * real(inu + j, dl))
 
             if (b_zero <= 0._dl) call MpiStop("phi_recurs: zero recurrence coefficient")
 
@@ -294,7 +292,7 @@
         end do
     else
         do j = l, 1, -1
-            b_zero = sqrt(nu2 + dble(j) * dble(j))
+            b_zero = sqrt(nu2 + real(j, dl) * real(j, dl))
 
             phi_lm1 = ((2 * j + 1) * cot_K * phi_cur - bphi_plus) / b_zero
 
@@ -347,12 +345,12 @@
     real(dl) :: nu2, kay, arg, arg2, arg4, chi2, chi_over_sin, chi_cot_m1, sinc, sinc_minus_cos, root1
 
     nu2 = nu**2
-    kay = dble(K)
+    kay = real(K, dl)
     arg = nu * chi
     arg2 = arg**2
     arg4 = arg2**2
 
-    if (abs(arg) < 1.d-4) then
+    if (abs(arg) < 1.e-4_dl) then
         sinc = 1._dl - arg2 / 6._dl + arg4 / 120._dl
     else
         sinc = sin(arg) / arg
@@ -361,7 +359,7 @@
     if (K == 0) then
         phi0 = sinc
 
-        if (abs(arg) <= 1.d-3) then
+        if (abs(arg) <= 1.e-3_dl) then
             phi1 = arg * (1._dl / 3._dl - arg2 / 30._dl + arg4 / 840._dl)
         else
             phi1 = (sinc - cos(arg)) / arg
@@ -370,16 +368,16 @@
     else
         root1 = sqrt(max(0._dl, nu2 - kay))
 
-        if (abs(chi) < 1.d-4) then
+        if (abs(chi) < 1.e-4_dl) then
             chi2 = chi**2
-            if (abs(arg) < 1.d-4) then
+            if (abs(arg) < 1.e-4_dl) then
                 phi0 = 1._dl - chi2 * (nu2 - kay) / 6._dl
                 phi1 = chi * root1 / 3._dl * (1._dl - (3._dl * nu2 - 7._dl * kay) * chi2 / 30._dl)
             else
                 chi_over_sin = 1._dl + kay * chi2 / 6._dl + 7._dl * chi2**2 / 360._dl
                 chi_cot_m1 = -kay * chi2 / 3._dl - chi2**2 / 45._dl
                 phi0 = sinc * chi_over_sin
-                if (abs(arg) < 1.d-3) then
+                if (abs(arg) < 1.e-3_dl) then
                     sinc_minus_cos = arg2 / 3._dl - arg4 / 30._dl + arg4 * arg2 / 840._dl
                 else
                     sinc_minus_cos = sinc - cos(arg)
@@ -387,18 +385,37 @@
                 phi1 = (sinc_minus_cos + sinc * chi_cot_m1) * chi_over_sin / (root1 * chi)
             end if
         else
-            if (K == -1 .and. nu == 0._dl) then
-                phi0 = chi / sin_K
-                phi1 = (chi * cot_K - 1._dl) / sin_K
+            chi_over_sin = chi / sin_K
+            chi_cot_m1 = chi * cot_K - 1._dl
+            phi0 = sinc * chi_over_sin
+
+            if (abs(arg) < 1.e-3_dl) then
+                sinc_minus_cos = arg2 / 3._dl - arg4 / 30._dl + arg4 * arg2 / 840._dl
             else
-                phi0 = sin(arg) / (nu * sin_K)
-                phi1 = sin(arg) * cot_K / (nu * sin_K) - cos(arg) / sin_K
-                phi1 = phi1 / root1
+                sinc_minus_cos = sinc - cos(arg)
+            end if
+
+            if (root1 > 0._dl) then
+                phi1 = (sinc_minus_cos + sinc * chi_cot_m1) * chi_over_sin / (root1 * chi)
+            else
+                phi1 = 0._dl
             end if
         end if
     end if
 
     end subroutine phi01_exact
+
+
+    pure subroutine rescale_miller_state(phi_cur, bphi_plus, phi_top)
+    real(dl), intent(inout) :: phi_cur, bphi_plus, phi_top
+
+    do while (max(abs(phi_cur), abs(bphi_plus)) > BIG)
+        phi_cur = phi_cur / BIG
+        bphi_plus = bphi_plus / BIG
+        phi_top = phi_top / BIG
+    end do
+
+    end subroutine rescale_miller_state
 
 
     pure subroutine phi_closed_endpoint_down(l, inu, cot_K, phi0, phi1, phi, ok)
@@ -424,7 +441,7 @@
     phi1_down = 0._dl
 
     do j = inu - 1, l + 1, -1
-        b_zero = sqrt(dble(inu - j) * dble(inu + j))
+        b_zero = sqrt(real(inu - j, dl) * real(inu + j, dl))
         if (b_zero <= 0._dl) return
 
         phi_lm1 = ((2 * j + 1) * cot_K * phi_cur - bphi_plus) / b_zero
@@ -441,7 +458,7 @@
     phi_target = phi_cur
 
     do j = l, 1, -1
-        b_zero = sqrt(dble(inu - j) * dble(inu + j))
+        b_zero = sqrt(real(inu - j, dl) * real(inu + j, dl))
         if (b_zero <= 0._dl) return
 
         phi_lm1 = ((2 * j + 1) * cot_K * phi_cur - bphi_plus) / b_zero
@@ -497,7 +514,7 @@
 
     integer :: iter, maxiter
     real(dl) :: nu2, aj, bj, fj, Cj, Dj, Delj, root_cur, root_next
-    real(dl), parameter :: SMALL = 1.d-100
+    real(dl), parameter :: SMALL = 1.e-100_dl
 
     ok = .false.
     cf = 0._dl
@@ -505,24 +522,24 @@
     nu2 = nu**2
     maxiter = 1000000
 
-    bj = dble(l) * cot_K
+    bj = real(l, dl) * cot_K
     fj = bj
     Cj = bj
     Dj = 0._dl
 
     if (abs(Cj) < SMALL) Cj = sign(SMALL, Cj + SMALL)
 
-    root_cur = sqrt(max(0._dl, nu2 - dble(K) * dble(l + 1)**2))
+    root_cur = sqrt(max(0._dl, nu2 - real(K, dl) * real(l + 1, dl)**2))
     if (root_cur <= 0._dl) return
 
     do iter = 1, maxiter
-        root_next = sqrt(max(0._dl, nu2 - dble(K) * dble(l + iter + 1)**2))
+        root_next = sqrt(max(0._dl, nu2 - real(K, dl) * real(l + iter + 1, dl)**2))
         if (root_next <= 0._dl) return
 
         aj = -root_cur / root_next
         if (iter == 1) aj = root_cur * aj
 
-        bj = dble(2 * (l + iter) + 1) * cot_K / root_next
+        bj = real(2 * (l + iter) + 1, dl) * cot_K / root_next
 
         Dj = bj + aj * Dj
         if (abs(Dj) < SMALL) Dj = sign(SMALL, Dj + SMALL)
@@ -562,7 +579,7 @@
     real(dl) :: Gm2, Gm1, Gk
     real(dl) :: dGm2, dGm1, dGk
     real(dl) :: G, dG
-    real(dl), parameter :: SAFE_RATIO = 1.d-100
+    real(dl), parameter :: SAFE_RATIO = 1.e-100_dl
 
     ok = .false.
     phi_l = 0._dl
@@ -581,17 +598,19 @@
         Gm2 = 1._dl
         dGm2 = 0._dl
 
-        Gm1 = 2._dl * dble(alpha) * x
-        dGm1 = 2._dl * dble(alpha)
+        Gm1 = 2._dl * real(alpha, dl) * x
+        dGm1 = 2._dl * real(alpha, dl)
 
         if (n == 1) then
             G = Gm1
             dG = dGm1
         else
             do k = 2, n
-                Gk = (2._dl * dble(k + alpha - 1) * x * Gm1 - dble(k + 2 * alpha - 2) * Gm2) / dble(k)
+                Gk = (2._dl * real(k + alpha - 1, dl) * x * Gm1 - &
+                    real(k + 2 * alpha - 2, dl) * Gm2) / real(k, dl)
 
-                dGk = (2._dl * dble(k + alpha - 1) * (Gm1 + x * dGm1) - dble(k + 2 * alpha - 2) * dGm2) / dble(k)
+                dGk = (2._dl * real(k + alpha - 1, dl) * (Gm1 + x * dGm1) - &
+                    real(k + 2 * alpha - 2, dl) * dGm2) / real(k, dl)
 
                 if (max(abs(Gk), abs(dGk), abs(Gm1), abs(dGm1)) > BIG) then
                     Gm2 = Gm2 / BIG
