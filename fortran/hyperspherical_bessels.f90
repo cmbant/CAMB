@@ -36,7 +36,7 @@
     integer :: j, inu
     logical :: use_up, ok
     real(dl) :: nu_use, nu2, kay, ell, chi_use, symm, amp_arg
-    real(dl) :: sin_K, cot_K, cos_K, root_K
+    real(dl) :: sin_K, cot_K, cos_K, root_K, open_turning_ratio
     real(dl) :: phi0, phi1, phi_top
     real(dl) :: phi_minus, phi_zero, phi_plus
     real(dl) :: b_minus, b_zero
@@ -45,7 +45,7 @@
     real(dl) :: scale
     real(dl), parameter :: BIG = 1.d100, TINY = 1.d-280
     real(dl), parameter :: UNDERFLOW_LOG = -744.4400719213812_dl
-    real(dl), parameter :: OPEN_TURNING_TOL = 1.d-5
+    real(dl), parameter :: OPEN_TURNING_TOL = 2.d-3
     real(dl), parameter :: PI = 3.1415926535897932384626433832795_dl
     integer, parameter :: closed_endpoint_min_degree = 64
 
@@ -86,7 +86,7 @@
 
     if (l > 0) then
         if (K == -1) then
-            amp_arg = chi_use * sqrt(nu2 + ell * ell)
+            amp_arg = chi_use * (abs(nu_use) + ell)
         else
             amp_arg = chi_use * abs(nu_use)
         end if
@@ -191,17 +191,19 @@
 
         phi = scale * phi_top
         return
-    else if (K == 1) then
+    else if (K == -1) then
+        ! For open space the oscillatory/upward-recursion condition
+        ! coth(chi) < sqrt(nu^2+l^2)/l is equivalent to
+        ! nu*sinh(chi)/l > 1.  Using this form avoids comparing two
+        ! quantities that are both very close to one when nu << l.
+        ! Just below the open-space turning boundary the continued
+        ! fraction can converge slowly; upward recurrence remains
+        ! well conditioned in this narrow boundary layer.
+        open_turning_ratio = abs(nu_use) * sin_K / ell
+        use_up = open_turning_ratio >= 1._dl - OPEN_TURNING_TOL
+    else !closed
         root_K = sqrt(dble(inu - l) * dble(inu + l))
-    else
-        root_K = sqrt(nu2 + ell * ell)
-    end if
-
-    use_up = (root_K > 0._dl) .and. (abs(cot_K) < root_K / max(1._dl, ell))
-    if (.not. use_up .and. K == -1 .and. root_K > 0._dl) then
-        ! Just below the open-space turning boundary the continued fraction can
-        ! converge very slowly; upward recurrence remains well conditioned here.
-        use_up = abs(cot_K) <= root_K / max(1._dl, ell) * (1._dl + OPEN_TURNING_TOL)
+        use_up = (root_K > 0._dl) .and. (abs(cot_K) < root_K / max(1._dl, ell))
     end if
 
     if (use_up) then
