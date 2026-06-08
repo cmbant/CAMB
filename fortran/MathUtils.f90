@@ -653,6 +653,7 @@
     end function GetChiSquared
 
     subroutine integrate_3j(W,lmax_w, n, dopol, M, lmax)
+    use omp_lib, only: omp_get_thread_num, omp_get_max_threads
     !Get coupling matrix, eg for pesudo-CL
     integer, intent(in) :: lmax, lmax_w, n
     real(dl), intent(in) :: W(0:lmax_w,n)
@@ -660,9 +661,6 @@
     real(dl), intent(out) :: M(0:lmax,0:lmax, n)
     integer l1, l2, lplus, lminus, thread_ix, ix
     real(dl), allocatable :: threejj0(:,:), threejj2(:,:)
-
-    !$ integer  OMP_GET_THREAD_NUM, OMP_GET_MAX_THREADS
-    !$ external OMP_GET_THREAD_NUM, OMP_GET_MAX_THREADS
 
     thread_ix = 1
     !$ thread_ix = OMP_GET_MAX_THREADS()

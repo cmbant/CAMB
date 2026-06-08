@@ -1374,7 +1374,7 @@
         this%template_l_scale = State%scale
     lmin_log = State%CP%min_l_logl_sampling
     associate(Accuracy => State%CP%Accuracy)
-        if (abs(State%scale - 1._dl) > near_flat_scale_tol) then
+        if (State%scale < 1._dl - near_flat_scale_tol) then
             Ascale = State%scale/Accuracy%lSampleBoost
         else
             Ascale = 1._dl/Accuracy%lSampleBoost

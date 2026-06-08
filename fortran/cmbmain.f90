@@ -264,7 +264,7 @@
         if (CP%WantScalars) call GetLimberTransfers(ThisCT)
         ThisCT%max_index_nonlimber = max_bessels_l_index
 
-        if (State%flat .or. abs(State%scale - 1._dl) <= near_flat_scale_tol) then
+        if (State%flat .or. State%scale >= 1._dl - near_flat_scale_tol) then
             spline_bessels_etak = max_bessels_etak
             if (.not. State%flat) then
                 spline_bessels_etak = ShiftedQBesselTableMaxEtak(ThisCT%ls%l(max_bessels_l_index), max_bessels_etak)
@@ -1609,7 +1609,7 @@
 
     real(dl) :: alpha_gate, smallchi_metric
 
-    if (abs(State%scale - 1._dl) > near_flat_scale_tol) then
+    if (State%scale < 1._dl - near_flat_scale_tol) then
         use_smallchi = .false.
         return
     end if
@@ -2622,7 +2622,7 @@
     integer, parameter :: numerov_rebootstrap_steps = 200
     integer, parameter :: numerov_low_l_rebootstrap_steps = 25
     integer, parameter :: numerov_very_low_l_rebootstrap_steps = 25
-    real(dl) scalel, alpha_rebootstrap, range_sampling_boost, numerov_step_boost
+    real(dl) scalel, alpha_rebootstrap, numerov_step_boost
     real(dl) IntAccuracyBoost, near_flat_boost
     real(dl) out(ThisSources%SourceNum), ujl_vals(abs(nstart - nend) + 1)
     real(dl) h2_12, ch, step_c, step_s, step_s_for_ch, sh_new, ch_new
@@ -2656,32 +2656,34 @@
         num2=num1*0.8_dl
     else
         num2=num1*1.5_dl
-        if (AccuracyTarget > 0) num2=num2*1.2_dl
-    end if
-
-    ! Mid-L modes need both enough source ranges retained and enough Numerov substeps.
-    range_sampling_boost = 1._dl
-    if (scalel < 700._dl) then
-        range_sampling_boost = 1.25_dl
-    else if (State%closed) then
-        if (scalel < 1100._dl) then
-            ! Closed models already converge with the shorter mid-L taper.
-            range_sampling_boost = 1.25_dl - 0.25_dl * (scalel - 700._dl) / 400._dl
+        if (AccuracyTarget > 0) then
+            num2=num2*1.2_dl
+            if (scalel >= 700._dl .and. scalel < 1200._dl) num2=num2*1.3_dl
         end if
-    else if (scalel < 1200._dl) then
-        ! Open models need the denser mid-L non-flat source integration to extend a bit
-        ! farther through the TT-sensitive l~800-1000 band.
-        range_sampling_boost = 1.25_dl - 0.25_dl * (scalel - 700._dl) / 500._dl
     end if
-    numerov_step_boost = range_sampling_boost
-
-    if (num2*IntAccuracyBoost*range_sampling_boost < dchisource .and. &
+    if (num2*IntAccuracyBoost < dchisource .and. &
         (.not. WantLateTime .or. UseLimber(l))) then
         out = 0
         y1=0._dl !So we know to calculate starting y1 if there is next range
         chi=(State%tau0-State%TimeSteps%points(nend))/State%curvature_radius
         return
     end if
+
+    ! Mid-L modes need both enough source ranges retained and enough Numerov substeps.
+    numerov_step_boost = 1._dl
+    if (scalel < 700._dl) then
+        numerov_step_boost = 1.25_dl
+    else if (State%closed) then
+        if (scalel < 1100._dl) then
+            ! Closed models already converge with the shorter mid-L taper.
+            numerov_step_boost = 1.25_dl - 0.25_dl * (scalel - 700._dl) / 400._dl
+        end if
+    else if (scalel < 1200._dl) then
+        ! Open models need the denser mid-L non-flat source integration to extend a bit
+        ! farther through the TT-sensitive l~800-1000 band.
+        numerov_step_boost = 1.25_dl - 0.25_dl * (scalel - 700._dl) / 500._dl
+    end if
+
 
     Startn=nstart
     if (nstart>IV%SourceSteps .and. nend < IV%SourceSteps) then

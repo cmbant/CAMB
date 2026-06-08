@@ -47,6 +47,7 @@
     use constants, only : const_pi, const_twopi, const_fourpi
     use MathUtils, only : Gauss_Legendre
     use splines
+    use omp_lib, only: omp_get_thread_num, omp_get_max_threads
     implicit none
     integer, parameter :: lensing_method_curv_corr=1,lensing_method_flat_corr=2, &
         lensing_method_harmonic=3, lensing_method_curv_corr_direct=4, lensing_method_optimized=5
@@ -239,7 +240,7 @@
     real(dl) d_11(lmax),d_m11(lmax)
     real(dl) d_22(lmax),d_2m2(lmax),d_20(lmax)
     real(dl) Cphil3(lmin:lmax), CTT(lmin:lmax), CTE(lmin:lmax), CEE(lmin:lmax)
-    real(dl) ls(lmax)
+    integer ls(lmax)
     real(dl), allocatable :: lens_contrib(:,:,:)
     integer thread_ix
     real(dl) pmm, pmmp1
@@ -251,17 +252,12 @@
     integer j,jmax
     real(dl) sc, taper, tail_te_fac
     integer apodize_point_width
-    logical :: high_l_fast_lensing, short_integral_range
+    logical :: short_integral_range
     real(dl) range_fac, apodize_width
-    real(dl), parameter :: high_l_fast_lensing_boost = 2.5_dl
-    real(dl), parameter :: mid_l_fast_lensing_boost = 5._dl
     logical, parameter :: approx = .false.
-    real(dl) theta_cut(lmax), LensAccuracyBoost, ThetaSampleBoost, LensRangeBoost, ClosedSupportBoost
-    real(dl) high_l_lensed_lmax, high_l_ramp, high_l_support_boost, mid_l_ramp, mid_l_fall_ramp
+    real(dl) theta_cut(lmax), LensAccuracyBoost, ThetaSampleBoost, LensRangeBoost
+    real(dl) high_l_lensed_lmax, high_l_ramp
     Type(TTimer) :: Timer
-
-    !$ integer  OMP_GET_THREAD_NUM, OMP_GET_MAX_THREADS
-    !$ external OMP_GET_THREAD_NUM, OMP_GET_MAX_THREADS
 
     if (lensing_includes_tensors) call MpiStop('Haven''t implemented tensor lensing')
     associate(lSamp => State%CLData%CTransScal%ls, CP=>State%CP)
@@ -269,43 +265,12 @@
         high_l_lensed_lmax = real(CP%Max_l - CP%lens_output_margin, dl)
         high_l_ramp = min(1._dl, max(0._dl, (high_l_lensed_lmax - 2500._dl)/1000._dl))
         high_l_ramp = high_l_ramp**2*(3._dl - 2._dl*high_l_ramp)
-        if (high_l_lensed_lmax <= 3000._dl) then
-            mid_l_ramp = min(1._dl, max(0._dl, (high_l_lensed_lmax - 2500._dl)/500._dl))
-            mid_l_ramp = mid_l_ramp**2*(3._dl - 2._dl*mid_l_ramp)
-            high_l_support_boost = 1._dl + (mid_l_fast_lensing_boost - 1._dl)*mid_l_ramp
-        else if (high_l_lensed_lmax < 3500._dl) then
-            mid_l_fall_ramp = min(1._dl, max(0._dl, (high_l_lensed_lmax - 3000._dl)/500._dl))
-            mid_l_fall_ramp = mid_l_fall_ramp**2*(3._dl - 2._dl*mid_l_fall_ramp)
-            high_l_support_boost = mid_l_fast_lensing_boost + &
-                (high_l_fast_lensing_boost - mid_l_fast_lensing_boost)*mid_l_fall_ramp
-        else
-            high_l_support_boost = high_l_fast_lensing_boost
-        end if
-        high_l_fast_lensing = AccuracyTarget > 0 .and. high_l_ramp > 0._dl .and. .not. CP%Accuracy%AccurateBB
         LensAccuracyBoost = CP%Accuracy%AccuracyBoost*CP%Accuracy%LensingBoost
-        ClosedSupportBoost = 1._dl
         LensRangeBoost = LensAccuracyBoost
         ThetaSampleBoost = LensAccuracyBoost
 
         if (AccuracyTarget > 0) then
             ThetaSampleBoost = ThetaSampleBoost * (1.6_dl + 0.6_dl*high_l_ramp)
-            if (high_l_fast_lensing) then
-                ! Keep the fast short-range convolution stable near the lensed output cutoff.
-                ! Requested L around 3000 still uses the stricter mid-L tolerance, so use
-                ! more support there, then return smoothly to the cheaper high-L floor.
-                LensRangeBoost = max(LensRangeBoost, LensAccuracyBoost*high_l_support_boost)
-                ThetaSampleBoost = max(ThetaSampleBoost, 2.2_dl*LensAccuracyBoost*high_l_support_boost)
-                if (State%closed) then
-                    ClosedSupportBoost = min(2._dl, 1._dl + 32._dl*max(0._dl, 1._dl - State%scale))
-                    LensRangeBoost = max(LensRangeBoost, LensAccuracyBoost*ClosedSupportBoost)
-                    ThetaSampleBoost = max(ThetaSampleBoost, 2.2_dl*LensAccuracyBoost*ClosedSupportBoost)
-                end if
-            end if
-            ! Open models have a larger angular-diameter distance than the flat case, so the
-            ! truncated short-range correlation integral needs extra angular support and denser
-            ! l interpolation to track the same physical lensing scale near the output cutoff.
-            if (high_l_ramp > 0._dl) LensRangeBoost =  max(LensRangeBoost, LensAccuracyBoost*(1._dl + high_l_ramp*&
-                (min(2._dl, 1._dl + 32._dl*max(0._dl, State%scale - 1._dl)) - 1._dl)))
         else if (CP%Max_l > 3500) then
             ThetaSampleBoost = ThetaSampleBoost * 1.3_dl
         end if
@@ -794,9 +759,6 @@
     real(dl), allocatable :: lens_contrib(:,:,:)
     Type(TTimer) :: Timer
 
-    !$ integer  OMP_GET_THREAD_NUM, OMP_GET_MAX_THREADS
-    !$ external OMP_GET_THREAD_NUM, OMP_GET_MAX_THREADS
-
     if (lensing_includes_tensors) call MpiStop('Haven''t implemented tensor lensing')
     associate(lSamp => State%CLData%CTransScal%ls, CP=>State%CP)
 
@@ -947,9 +909,6 @@
     integer, parameter :: bess_need(4) = (/ 0,2,4,6 /)
     integer thread_ix
     Type(TTimer) :: Timer
-
-    !$ integer OMP_GET_THREAD_NUM, OMP_GET_MAX_THREADS
-    !$ external OMP_GET_THREAD_NUM, OMP_GET_MAX_THREADS
 
     if (lensing_includes_tensors) stop 'Haven''t implemented tensor lensing'
 
@@ -1138,12 +1097,9 @@
     real(dl) T2,T4,a0, b0
     real(dl) lfacs(State%CP%Max_l), LensAccuracyBoost
     real(dl), allocatable, dimension(:,:,:) :: lens_contrib(:,:,:)
-    integer, parameter :: bess_need(8) = (/ 0,1,2,3,4, 5,7,9 /)
+    integer, parameter :: bess_need(8) = (/ 0,1,2,3,4,5,7,9 /)
     integer thread_ix
     Type(TTimer) :: Timer
-
-    !$ integer OMP_GET_THREAD_NUM, OMP_GET_MAX_THREADS
-    !$ external OMP_GET_THREAD_NUM, OMP_GET_MAX_THREADS
 
     if (lensing_includes_tensors) stop 'Haven''t implemented tensor lensing'
 

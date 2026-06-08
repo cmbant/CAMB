@@ -51,7 +51,7 @@ controlling quantity, or split one. Report that back rather than assuming.
   PRESENT THE LIST AND ASK THE USER WHICH ONE TO ADDRESS.
   Do NOT auto-pick. Do NOT begin a fix for more than one.
 
-## Step 3 — Diagnose (delegate to `sensitivity-probe`)
+## Step 3 — Diagnose (delegate to `sensitivity-probe` subagent)
 
 Spawn and wait for the probe for the ONE chosen issue. Pass it the ini, exact
 command, the single failing output, and the suspected trigger. The probe may need many minutes for rebuilds,
@@ -131,7 +131,7 @@ never against a stale build. Record results; the checker cannot run them:
 
 If any row fails, return to Step 4 (or Step 3) before continuing.
 
-## Step 6 — Final Checker Review (delegate to `accuracy-fix-checker`)
+## Step 6 — Final Checker Review (delegate to `accuracy-fix-checker` subagent)
 
 Once the acceptance matrix passes for the current candidate fix, spawn and wait
 for one checker round. It runs nothing; it audits reasoning and the evidence you

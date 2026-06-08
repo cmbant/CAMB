@@ -15,11 +15,14 @@ chi-squared, search for minimal top-level boosts that pass against the same
 high-accuracy reference, and refine which underlying component accuracy settings
 are most relevant.
 
-For lensed CMB spectra near the output cutoff, this is not automatically a test
-of lens-margin convergence: by default the boosted reference keeps the same
-``lens_output_margin`` as the standard run unless ``--reference-lens-output-margin``
-is set, and even a larger reference margin is only a support-sensitivity probe
-unless the underlying high-``l`` reference spectra are themselves well converged.
+The main options generally probe numerical convergence rather than physical
+convergence: the physical ``k_max`` is not normally changed between the input and
+reference.  Exceptions include optional lensing parameters that increase the
+convolution margin or ``k_max``, and nonlinear lensing runs where
+``AccuracyBoost * NonlinSourceBoost`` can increase the nonlinear source
+``Transfer.kmax`` through ``P%kmax = max(P%kmax, 5 * NL_Boost)`` in
+``results.f90``.  Nonlinear power-spectrum modelling uncertainties may of course
+be much larger than either numerical or ``k_max`` effects.
 
 Examples::
 
@@ -534,7 +537,7 @@ def apply_lensing_settings(
     if set_for_lmax is not None:
         params.set_for_lmax(
             set_for_lmax,
-            lens_output_margin=150 if lens_output_margin is None else lens_output_margin,
+            lens_output_margin=200 if lens_output_margin is None else lens_output_margin,
             lens_potential_accuracy=lens_accuracy,
             nonlinear=current_uses_nonlinear_lensing(params),
         )
@@ -1474,6 +1477,47 @@ def print_comparison_notes(comparison: ComparisonResult) -> None:
             f"max({LOW_LMAX_LENSED_EDGE_MIN_WIDTH}, ceil({LOW_LMAX_LENSED_EDGE_FRACTION:g}*lmax)) "
             f"multipoles when lmax < {LOW_LMAX_LENSED_EDGE_LMAX}."
         )
+
+
+def failure_kmax_note(
+    standard: RunOutput,
+    reference: RunOutput,
+    comparison: ComparisonResult,
+    *,
+    lens_output_margin: int | None = None,
+    lens_potential_accuracy: float | None = None,
+    reference_lens_output_margin: int | None = None,
+    reference_lens_potential_accuracy: float | None = None,
+) -> str | None:
+    if comparison.passed:
+        return None
+    if any(
+        value is not None
+        for value in (
+            lens_output_margin,
+            lens_potential_accuracy,
+            reference_lens_output_margin,
+            reference_lens_potential_accuracy,
+        )
+    ):
+        return None
+
+    standard_params = getattr(standard.results, "Params", standard.params)
+    reference_params = getattr(reference.results, "Params", reference.params)
+    if not current_uses_nonlinear_lensing(standard_params):
+        return None
+
+    standard_kmax = float(getattr(standard_params.Transfer, "kmax", 0.0))
+    reference_kmax = float(getattr(reference_params.Transfer, "kmax", 0.0))
+    if not (reference_kmax > standard_kmax * (1.0 + 1e-12)):
+        return None
+
+    return (
+        "The boosted nonlinear-lensing reference used a larger nonlinear-source "
+        f"Transfer.kmax ({reference_kmax:.6g}) than the standard run ({standard_kmax:.6g}). "
+        "Some failing high-L lensing/CMB rows may therefore reflect the changed nonlinear "
+        "matter-power k range, not just numerical convergence at fixed kmax."
+    )
 
 
 def failure_summary(comparison: ComparisonResult) -> str:
@@ -2512,6 +2556,17 @@ def main(argv: list[str] | None = None, *, prog: str | None = None) -> int:
         settings, search_comparison = search_result
         if settings is None:
             print("\nNo passing candidate settings found.")
+            note = failure_kmax_note(
+                standard,
+                reference,
+                comparison,
+                lens_output_margin=args.lens_output_margin,
+                lens_potential_accuracy=args.lens_potential_accuracy,
+                reference_lens_output_margin=args.reference_lens_output_margin,
+                reference_lens_potential_accuracy=args.reference_lens_potential_accuracy,
+            )
+            if note:
+                print(f"\nNote: {note}")
             print(f"\n{failure_summary(comparison)}")
             return 1
         else:
@@ -2539,6 +2594,17 @@ def main(argv: list[str] | None = None, *, prog: str | None = None) -> int:
     if comparison.passed:
         print("\nPASS: standard results are stable against boosted accuracy settings.")
         return 0
+    note = failure_kmax_note(
+        standard,
+        reference,
+        comparison,
+        lens_output_margin=args.lens_output_margin,
+        lens_potential_accuracy=args.lens_potential_accuracy,
+        reference_lens_output_margin=args.reference_lens_output_margin,
+        reference_lens_potential_accuracy=args.reference_lens_potential_accuracy,
+    )
+    if note:
+        print(f"\nNote: {note}")
     print(f"\n{failure_summary(comparison)}")
     return 1
 
