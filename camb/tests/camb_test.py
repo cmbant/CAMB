@@ -636,39 +636,43 @@ class CambTest(unittest.TestCase):
 
         direct_method = camb.lensing_method_curv_corr_direct
 
-        # check lensed CL against python; compare to the direct curved-sky path that
-        # mirrors camb.correlations.lensed_cls rather than the separate method-1 approximation
-        cls_lensed2 = correlations.lensed_cls(cls["unlensed_scalar"], cls["lens_potential"][:, 0], delta_cls=False)
-        cls_lensed_direct = data.get_lensed_cls_with_spectrum(
-            data.get_lens_potential_cls()[:, 0], lmax=3000, lensing_method=direct_method
+        # Check lensed CL against python, including the same high-L template extension
+        # used by the direct Fortran curved-sky path.
+        unlensed_scalar = data.get_unlensed_scalar_cls(data.Params.max_l)
+        clpp = data.get_lens_potential_cls(data.Params.max_l)[:, 0]
+        lens_lmax = data.Params.max_l - data.Params.lens_output_margin + 50 + 750
+        if camb.config.AccuracyTarget > 0:
+            boost = data.Params.Accuracy.AccuracyBoost * data.Params.Accuracy.LensingBoost
+            lens_lmax = (
+                data.Params.max_l
+                - data.Params.lens_output_margin
+                + 50
+                + max(750, int(np.ceil((0.45 * (data.Params.max_l - data.Params.lens_output_margin) + 400) * boost)))
+            )
+        lens_lmax = min(8000, lens_lmax)
+        cls_lensed2 = correlations.lensed_cls(
+            unlensed_scalar,
+            clpp,
+            lmax=lens_lmax,
+            lmax_lensed=3000,
+            delta_cls=False,
+            use_lensing_template=True,
         )
-        np.testing.assert_allclose(cls_lensed2[2:2000, 2], cls_lensed_direct[2:2000, 2], rtol=3e-3)
-        np.testing.assert_allclose(cls_lensed2[2:2000, 1], cls_lensed_direct[2:2000, 1], rtol=1e-3)
-        np.testing.assert_allclose(cls_lensed2[2:2000, 0], cls_lensed_direct[2:2000, 0], rtol=1e-3)
+        cls_lensed_direct = data.get_lensed_cls_with_spectrum(clpp, lmax=3000, lensing_method=direct_method)
+        np.testing.assert_allclose(cls_lensed2[2:3000, 2], cls_lensed_direct[2:3000, 2], rtol=1e-6)
+        np.testing.assert_allclose(cls_lensed2[2:3000, 1], cls_lensed_direct[2:3000, 1], rtol=1e-6)
+        np.testing.assert_allclose(cls_lensed2[2:3000, 0], cls_lensed_direct[2:3000, 0], rtol=1e-6)
         self.assertTrue(
             np.all(
                 np.abs(
                     (cls_lensed2[2:3000, 3] - cls_lensed_direct[2:3000, 3])
                     / np.sqrt(cls_lensed2[2:3000, 0] * cls_lensed2[2:3000, 1])
                 )
-                < 1e-4
+                < 1e-8
             )
         )
 
         optimized_method = camb.lensing_method_optimized
-        np.testing.assert_allclose(cls_lensed_direct[2:2000, 2], cls_lensed2[2:2000, 2], rtol=3e-3)
-        np.testing.assert_allclose(cls_lensed_direct[2:2000, 1], cls_lensed2[2:2000, 1], rtol=1e-3)
-        np.testing.assert_allclose(cls_lensed_direct[2:2000, 0], cls_lensed2[2:2000, 0], rtol=1e-3)
-        self.assertTrue(
-            np.all(
-                np.abs(
-                    (cls_lensed_direct[2:3000, 3] - cls_lensed2[2:3000, 3])
-                    / np.sqrt(cls_lensed_direct[2:3000, 0] * cls_lensed_direct[2:3000, 1])
-                )
-                < 1e-4
-            )
-        )
-
         pars = camb.CAMBparams()
         pars.set_cosmology(H0=67)
         pars.set_for_lmax(2500, lens_potential_accuracy=1)

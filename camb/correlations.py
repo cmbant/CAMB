@@ -12,6 +12,8 @@ factors :math:`\ell(\ell+1)/2\pi` (for CMB) and :math:`[L(L+1)]^2/2\pi` (for len
 A. Lewis December 2016
 """
 
+import os.path as osp
+
 import numpy as np
 
 try:
@@ -31,6 +33,61 @@ except ImportError:
     gauss_legendre = None  # type: ignore
 
 _gauss_legendre_cache: dict[int, tuple[np.ndarray, np.ndarray]] = {}
+_lensing_template_cache = None
+
+
+def _lensing_template():
+    global _lensing_template_cache
+    if _lensing_template_cache is None:
+        template = osp.join(osp.dirname(__file__), "HighLExtrapTemplate_lenspotentialCls.dat")
+        if not osp.exists(template):
+            template = osp.abspath(
+                osp.join(osp.dirname(__file__), "..", "fortran", "HighLExtrapTemplate_lenspotentialCls.dat")
+            )
+        data = np.loadtxt(template)
+        lmax = int(data[-1, 0])
+        template_cls = np.zeros((lmax + 1, 5))
+        ell = data[:, 0].astype(int)
+        template_cls[ell, :4] = data[:, 1:5]
+        template_cls[ell, 4] = data[:, 5]
+        template_cls.flags.writeable = False
+        _lensing_template_cache = template_cls
+    return _lensing_template_cache
+
+
+def _extrapolate_lensing_inputs(cls, clpp, lmax):
+    cls_lmax = cls.shape[0] - 1
+    clpp_lmax = clpp.shape[0] - 1
+    if lmax <= cls_lmax and lmax <= clpp_lmax:
+        return cls, clpp
+
+    template = _lensing_template()
+    if lmax >= template.shape[0]:
+        raise ValueError(f"High-L lensing template only goes to lmax={template.shape[0] - 1}")
+
+    cls_out = np.zeros((lmax + 1, 4), dtype=np.float64)
+    cls_out[: min(cls_lmax, lmax) + 1] = cls[: min(cls_lmax, lmax) + 1]
+    clpp_out = np.zeros(lmax + 1, dtype=np.float64)
+    clpp_out[: min(clpp_lmax, lmax) + 1] = clpp[: min(clpp_lmax, lmax) + 1]
+
+    if lmax > cls_lmax:
+        if cls_lmax < 2:
+            raise ValueError("CMB cls must include l>=2 to extrapolate with the high-L template")
+        tt_scale = cls_out[cls_lmax, 0] / template[cls_lmax, 0]
+        ee_scale = cls_out[cls_lmax, 1] / template[cls_lmax, 1]
+        te_scale = np.sqrt(max(0.0, tt_scale * ee_scale))
+        cls_out[cls_lmax + 1 :, 0] = template[cls_lmax + 1 : lmax + 1, 0] * tt_scale
+        cls_out[cls_lmax + 1 :, 1] = template[cls_lmax + 1 : lmax + 1, 1] * ee_scale
+        cls_out[cls_lmax + 1 :, 2] = template[cls_lmax + 1 : lmax + 1, 2]
+        cls_out[cls_lmax + 1 :, 3] = template[cls_lmax + 1 : lmax + 1, 3] * te_scale
+
+    if lmax > clpp_lmax:
+        if clpp_lmax < 2:
+            raise ValueError("clpp must include l>=2 to extrapolate with the high-L template")
+        clpp_scale = clpp_out[clpp_lmax] / template[clpp_lmax, 4]
+        clpp_out[clpp_lmax + 1 :] = template[clpp_lmax + 1 : lmax + 1, 4] * clpp_scale
+
+    return cls_out, clpp_out
 
 
 def _cached_gauss_legendre(npoints, cache=True):
@@ -414,6 +471,7 @@ def lensed_cls(
     apodize_point_width=10,
     leggaus=True,
     cache=True,
+    use_lensing_template=False,
 ):
     r"""
     Get the lensed power spectra from the unlensed power spectra and the lensing potential power.
@@ -426,9 +484,10 @@ def lensed_cls(
 
     For a reference implementation with the full integral range and no apodization set theta_max=None.
 
-    Note that this function does not pad high :math:`\ell` with a smooth fit (like CAMB's main functions); for
-    accurate results should be called with lmax high enough that input cls are effectively band limited
-    (lmax >= 2500, or higher for accurate BB to small scales).
+    By default this function does not pad high :math:`\ell` with a smooth fit; for accurate results it should be
+    called with lmax high enough that input cls are effectively band limited (lmax >= 2500, or higher for accurate
+    BB to small scales). Set ``use_lensing_template=True`` to extend inputs above their supplied maximum using
+    CAMB's high-L lensing template, matching the Fortran lensing convention.
     Usually lmax truncation errors are far larger than other numerical errors for lmax<4000.
     For a faster result use get_lensed_cls_with_spectrum.
 
@@ -444,11 +503,22 @@ def lensed_cls(
         the default corresponds to a transition width of about 48*pi/lmax
     :param leggaus: whether to use Gauss-Legendre integration (default True)
     :param cache: if leggaus = True, set cache to save the x values and weights between calls (most of the time)
+    :param use_lensing_template: if True, allow lmax above the input arrays by extrapolating TT, EE, TE and PP
+        with the bundled high-L template scaled at the last supplied multipole
     :return: 2D array of cls[L, ix], with L starting at zero and ix=0,1,2,3 in order TT, EE, BB, TE.
         cls include :math:`\ell(\ell+1)/2\pi` factors.
     """
     if lmax is None:
         lmax = cls.shape[0] - 1
+    cls = np.asarray(cls)
+    clpp = np.asarray(clpp)
+    if cls.ndim == 2 and cls.shape[1] > 4:
+        # only TT, EE, BB, TE columns are used; tolerate extra trailing columns
+        cls = cls[:, :4]
+    if use_lensing_template:
+        cls, clpp = _extrapolate_lensing_inputs(cls, clpp, lmax)
+    elif lmax >= cls.shape[0] or lmax >= clpp.shape[0]:
+        raise ValueError("lmax is larger than the input arrays; set use_lensing_template=True to extrapolate")
     npoints = int(sampling_factor * lmax) + 1
     if leggaus:
         xvals, weights = _cached_gauss_legendre(npoints, cache)

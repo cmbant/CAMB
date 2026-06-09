@@ -371,10 +371,13 @@
 
         lens_contrib=0
 
-        !$OMP PARALLEL DO DEFAULT(PRIVATE),  &
+        !$OMP PARALLEL DEFAULT(PRIVATE),  &
         !$OMP SHARED(lfacs,lfacs2,lrootfacs,Cphil3,CTT,CTE,CEE,lens_contrib,theta_cut), &
         !$OMP SHARED(lmin, lmax,dtheta,CL,CLout,roots, npoints,interp_fac), &
         !$OMP SHARED(jmax,ls,short_integral_range,apodize_point_width)
+        thread_ix = 1
+        !$ thread_ix = OMP_GET_THREAD_NUM()+1
+        !$OMP DO
         do i=1,npoints-1
 
             theta = i * dtheta
@@ -559,8 +562,6 @@
                 corr = corr*taper
             end if
 
-            !$  thread_ix = OMP_GET_THREAD_NUM()+1
-
             do l=lmin, CLout%lmax_lensed
                 !theta factors were put in earlier (already in corr)
 
@@ -581,18 +582,20 @@
             end do
 
         end do
-        !$OMP END PARALLEL DO
+        !$OMP END DO
+        !$OMP END PARALLEL
 
         do l=lmin, CLout%lmax_lensed
+            corr = 0._dl
+            do thread_ix = 1, size(lens_contrib, 3)
+                corr = corr + lens_contrib(:, l, thread_ix)
+            end do
             !sign from d(cos theta) = -sin theta dtheta
             fac = l*(l+1)/OutputDenominator*dtheta*const_twopi
-            CLout%Cl_lensed(l,CT_Temp) = sum(lens_contrib(CT_Temp,l,:))*fac &
-                + CL%Cl_scalar(l,C_Temp)
-            CLout%Cl_lensed(l,CT_E) = sum(lens_contrib(CT_E,l,:))*fac &
-                + CL%Cl_scalar(l,C_E)
-            CLout%Cl_lensed(l,CT_B) = sum(lens_contrib(CT_B,l,:))*fac
-            CLout%Cl_lensed(l,CT_Cross) = sum(lens_contrib(CT_Cross,l,:))*fac &
-                + CL%Cl_scalar(l,C_Cross)
+            CLout%Cl_lensed(l,CT_Temp) = corr(CT_Temp)*fac + CL%Cl_scalar(l,C_Temp)
+            CLout%Cl_lensed(l,CT_E) = corr(CT_E)*fac + CL%Cl_scalar(l,C_E)
+            CLout%Cl_lensed(l,CT_B) = corr(CT_B)*fac
+            CLout%Cl_lensed(l,CT_Cross) = corr(CT_Cross)*fac + CL%Cl_scalar(l,C_Cross)
 
         end do
 
@@ -753,6 +756,7 @@
     integer :: max_lensed_ix, thread_ix
     real(dl) :: LensAccuracyBoost, sampling_factor, range_fac, theta_max, xmin, xtaper_start
     real(dl) :: fac, sc, fac2, fac3, tail_te_fac, weight, theta, taper, apodize_theta_width
+    real(dl) :: contrib_sum(4)
     real(dl), pointer :: xvals(:), weights(:)
     real(dl), allocatable :: lfacs(:), lfacs2(:), lrootfacs(:)
     real(dl), allocatable :: Cphil3(:), CTT(:), CTE(:), CEE(:)
@@ -855,7 +859,10 @@
 
         if (DebugMsgs) call Timer%Start()
 
-        !$OMP PARALLEL DO DEFAULT(SHARED), PRIVATE(i,weight,theta,taper,thread_ix)
+        !$OMP PARALLEL DEFAULT(SHARED), PRIVATE(thread_ix)
+        thread_ix = 1
+        !$ thread_ix = OMP_GET_THREAD_NUM()+1
+        !$OMP DO PRIVATE(i,weight,theta,taper)
         do i=imin, npoints
             weight = weights(i)
             if (apodize_theta_width > 0._dl .and. xvals(i) < xtaper_start) then
@@ -864,25 +871,33 @@
                 weight = weight*taper**3*(10._dl + taper*(-15._dl + 6._dl*taper))
             end if
 
-            thread_ix = 1
-            !$ thread_ix = OMP_GET_THREAD_NUM()+1
             call DirectCorrPointAccumulate(xvals(i), weight, lmin, lmax, CLout%lmax_lensed, &
                 lfacs, lfacs2, lrootfacs, Cphil3, CTT, CEE, CTE, lens_contrib(:,:,thread_ix))
         end do
-        !$OMP END PARALLEL DO
+        !$OMP END DO
+        !$OMP END PARALLEL
 
         if (lmin <= 1 .and. CLout%lmax_lensed >= 1) then
-            CLout%Cl_lensed(1,CT_Temp) = sum(lens_contrib(CT_Temp,1,:))*2._dl*const_twopi/OutputDenominator + CL%Cl_scalar(1,C_Temp)
+            contrib_sum = 0._dl
+            do thread_ix = 1, size(lens_contrib, 3)
+                contrib_sum = contrib_sum + lens_contrib(:, 1, thread_ix)
+            end do
+            CLout%Cl_lensed(1,CT_Temp) = contrib_sum(CT_Temp)*2._dl*const_twopi/OutputDenominator &
+                + CL%Cl_scalar(1,C_Temp)
             CLout%Cl_lensed(1,CT_E) = CL%Cl_scalar(1,C_E)
             CLout%Cl_lensed(1,CT_B) = 0._dl
             CLout%Cl_lensed(1,CT_Cross) = CL%Cl_scalar(1,C_Cross)
         end if
         do l=max(2,lmin), CLout%lmax_lensed
+            contrib_sum = 0._dl
+            do thread_ix = 1, size(lens_contrib, 3)
+                contrib_sum = contrib_sum + lens_contrib(:, l, thread_ix)
+            end do
             fac = lfacs(l)*const_twopi/OutputDenominator
-            CLout%Cl_lensed(l,CT_Temp) = sum(lens_contrib(CT_Temp,l,:))*fac + CL%Cl_scalar(l,C_Temp)
-            CLout%Cl_lensed(l,CT_E) = sum(lens_contrib(CT_E,l,:))*fac + CL%Cl_scalar(l,C_E)
-            CLout%Cl_lensed(l,CT_B) = sum(lens_contrib(CT_B,l,:))*fac
-            CLout%Cl_lensed(l,CT_Cross) = sum(lens_contrib(CT_Cross,l,:))*fac + CL%Cl_scalar(l,C_Cross)
+            CLout%Cl_lensed(l,CT_Temp) = contrib_sum(CT_Temp)*fac + CL%Cl_scalar(l,C_Temp)
+            CLout%Cl_lensed(l,CT_E) = contrib_sum(CT_E)*fac + CL%Cl_scalar(l,C_E)
+            CLout%Cl_lensed(l,CT_B) = contrib_sum(CT_B)*fac
+            CLout%Cl_lensed(l,CT_Cross) = contrib_sum(CT_Cross)*fac + CL%Cl_scalar(l,C_Cross)
         end do
 
         if (DebugMsgs) call Timer%WriteTime('Time for direct corr lensing')
@@ -962,9 +977,12 @@
 
         lens_contrib=0
 
-        !$OMP PARALLEL DO DEFAULT(SHARED), &
+        !$OMP PARALLEL DEFAULT(SHARED), &
         !$OMP PRIVATE(theta, sigmasq,cgl2,b_lo,a0,b0,fac,fac1,fac2), &
         !$OMP PRIVATE(Bessel,ix,corr,expsig,C2term,T2,T4,i,l, thread_ix)
+        thread_ix = 1
+        !$ thread_ix = OMP_GET_THREAD_NUM()+1
+        !$OMP DO
         do i=1,npoints-1
 
             theta = i * dtheta
@@ -1024,8 +1042,6 @@
 
             end do
 
-            !$ thread_ix = OMP_GET_THREAD_NUM()+1
-
             do l=lmin, CL%lmax_lensed
                 !theta factors were put in earlier (already in corr)
                 lens_contrib(C_Temp, l, thread_ix)= lens_contrib(C_Temp,l, thread_ix) + &
@@ -1039,18 +1055,20 @@
             end do
 
         end do
-        !$OMP END PARALLEL DO
+        !$OMP END DO
+        !$OMP END PARALLEL
 
         do l=lmin, CL%lmax_lensed
+            corr = 0._dl
+            do thread_ix = 1, size(lens_contrib, 3)
+                corr = corr + lens_contrib(:, l, thread_ix)
+            end do
             fac = l*(l+1)* const_twopi/OutputDenominator*dtheta
-            CL%Cl_lensed(l,CT_Temp) = sum(lens_contrib(CT_Temp,l,:))*fac &
-                + CL%Cl_scalar(l,CT_Temp)
-            CL%Cl_lensed(l,CT_Cross) = sum(lens_contrib(CT_Cross,l,:))*fac &
-                +CL%Cl_scalar(l,C_Cross)
+            CL%Cl_lensed(l,CT_Temp) = corr(CT_Temp)*fac + CL%Cl_scalar(l,CT_Temp)
+            CL%Cl_lensed(l,CT_Cross) = corr(CT_Cross)*fac +CL%Cl_scalar(l,C_Cross)
             fac = fac /2 !(factor of 1/2 should have been in T2+/-T4 above
-            CL%Cl_lensed(l,CT_E) = sum(lens_contrib(CT_E,l,:))*fac &
-                + CL%Cl_scalar(l,CT_E)
-            CL%Cl_lensed(l,CT_B) = sum(lens_contrib(CT_B,l,:))*fac
+            CL%Cl_lensed(l,CT_E) = corr(CT_E)*fac + CL%Cl_scalar(l,CT_E)
+            CL%Cl_lensed(l,CT_B) = corr(CT_B)*fac
         end do
 
         deallocate(lens_contrib)
@@ -1136,9 +1154,12 @@
             return
         end if
 
-        !$OMP PARALLEL DO DEFAULT(SHARED), &
+        !$OMP PARALLEL DEFAULT(SHARED), &
         !$OMP PRIVATE(theta, sigmasq,cgl2,b_lo,a0,b0,fac,fac1,fac2), &
         !$OMP PRIVATE(Bessel,ix,corr,expsig,C2term,T2,T4,i,l, thread_ix)
+        thread_ix = 1
+        !$ thread_ix = OMP_GET_THREAD_NUM()+1
+        !$OMP DO
         do i=1,npoints-1
 
             theta = i * dtheta
@@ -1210,8 +1231,6 @@
 
             end do
 
-            !$ thread_ix = OMP_GET_THREAD_NUM()+1
-
             do l=lmin, CL%lmax_lensed
                 !theta factors were put in earlier (already in corr)
 
@@ -1241,19 +1260,24 @@
             end do
 
         end do
-        !$OMP END PARALLEL DO
+        !$OMP END DO
+        !$OMP END PARALLEL
 
         CGrads = 0
         do l=lmin, min(CL%lmax_lensed, lmax)
+            corr = 0._dl
+            do thread_ix = 1, size(lens_contrib, 3)
+                corr = corr + lens_contrib(:, l, thread_ix)
+            end do
             fac = l*(l+1)* const_twopi/OutputDenominator*dtheta
-            CGrads(1,l) = sum(lens_contrib(1,l,:))*fac + CL%Cl_scalar(l,CT_Temp)
-            CGrads(2,l) = sum(lens_contrib(2,l,:))*fac + CL%Cl_scalar(l,CT_E)
-            CGrads(3,l) = sum(lens_contrib(3,l,:))*fac !BB
-            CGrads(4,l) = sum(lens_contrib(4,l,:))*fac !Perp
-            CGrads(5,l) = sum(lens_contrib(5,l,:))*fac + CL%Cl_scalar(l,C_Cross)
-            CGrads(6,l) = sum(lens_contrib(6,l,:))*fac
-            CGrads(7,l) = sum(lens_contrib(7,l,:))*fac + CL%Cl_scalar(l,CT_Temp)
-            CGrads(8,l) = sum(lens_contrib(8,l,:))*fac + CL%Cl_scalar(l,CT_Temp)
+            CGrads(1,l) = corr(1)*fac + CL%Cl_scalar(l,CT_Temp)
+            CGrads(2,l) = corr(2)*fac + CL%Cl_scalar(l,CT_E)
+            CGrads(3,l) = corr(3)*fac !BB
+            CGrads(4,l) = corr(4)*fac !Perp
+            CGrads(5,l) = corr(5)*fac + CL%Cl_scalar(l,C_Cross)
+            CGrads(6,l) = corr(6)*fac
+            CGrads(7,l) = corr(7)*fac + CL%Cl_scalar(l,CT_Temp)
+            CGrads(8,l) = corr(8)*fac + CL%Cl_scalar(l,CT_Temp)
         end do
 
         deallocate(lens_contrib)
