@@ -4,7 +4,7 @@
     !lensing_method=2: using the flat-sky lower order result of astro-ph/9505109
     !                  and astro-ph/9803150 as in CMBFAST
     !lensing_method=3: using inaccurate full sky harmonic method of astro-ph/0001303
-    !lensing_method=4: using direct Gauss-Legendre curved-sky integration following
+    !lensing_method=4: using full Gauss-Legendre curved-sky integration following
     !                  the structure of camb.correlations.lensed_cls
     !lensing_method=5: optimized May 2026 default; use method 1 when AccurateBB=F
     !                  and method 4 when AccurateBB=T
@@ -38,7 +38,7 @@
     !obtainable from the CPC program library (www.cpc.cs.qub.ac.uk).
 
     !March 2006: fixed problem with l_max when generating with tensors (thanks Chad Fendt)
-    !May 2026: added direct curved-sky method 4 and optimized selector method 5;
+    !May 2026: added full curved-sky method 4 and optimized selector method 5;
     !method 5 is now the default lensing method.
 
     module lensing
@@ -50,7 +50,7 @@
     use omp_lib, only: omp_get_thread_num, omp_get_max_threads
     implicit none
     integer, parameter :: lensing_method_curv_corr=1,lensing_method_flat_corr=2, &
-        lensing_method_harmonic=3, lensing_method_curv_corr_direct=4, lensing_method_optimized=5
+        lensing_method_harmonic=3, lensing_method_curv_corr_full=4, lensing_method_optimized=5
 
     integer :: lensing_method = lensing_method_optimized
 
@@ -79,7 +79,7 @@
     real(dl), dimension(:), allocatable, target :: gauss_legendre_cache_xvals, gauss_legendre_cache_weights
 
     public lens_Cls, lensing_includes_tensors, lensing_method, lensing_method_flat_corr,&
-        lensing_method_curv_corr,lensing_method_harmonic, lensing_method_curv_corr_direct, lensing_method_optimized, &
+        lensing_method_curv_corr,lensing_method_harmonic, lensing_method_curv_corr_full, lensing_method_optimized, &
         BessI, ALens_Fiducial, &
         lensing_sanity_check_amplitude, lensClsWithSpectrum, &
         GetFlatSkyCGrads, GetFlatSkyCgradsWithSpectrum
@@ -104,7 +104,7 @@
     method = lensing_method
     if (method == lensing_method_optimized) then
         if (CP%Accuracy%AccurateBB) then
-            method = lensing_method_curv_corr_direct
+            method = lensing_method_curv_corr_full
         else
             method = lensing_method_curv_corr
         end if
@@ -118,8 +118,8 @@
 
     method = effective_lensing_method(State%CP)
 
-    if (method == lensing_method_curv_corr .or. method == lensing_method_curv_corr_direct) then
-        call LensClsWithDefaultSpectrum(State, method == lensing_method_curv_corr_direct)
+    if (method == lensing_method_curv_corr .or. method == lensing_method_curv_corr_full) then
+        call LensClsWithDefaultSpectrum(State, method == lensing_method_curv_corr_full)
     elseif (method == lensing_method_flat_corr) then
         call CorrFuncFlatSky(State)
     elseif (method == lensing_method_harmonic) then
@@ -129,13 +129,13 @@
     end if
     end subroutine lens_Cls
 
-    subroutine LensClsWithDefaultSpectrum(State, direct)
+    subroutine LensClsWithDefaultSpectrum(State, full_range)
     class(CAMBdata) :: State
-    logical, intent(in) :: direct
+    logical, intent(in) :: full_range
     real(dl) CPP(0:State%CP%max_l)
 
     call SetLensingPotentialSpectrum(State, CPP)
-    call CorrFuncFullSkyWithSpectrum(State, State%ClData, CPP, direct)
+    call CorrFuncFullSkyWithSpectrum(State, State%ClData, CPP, full_range)
     end subroutine LensClsWithDefaultSpectrum
 
     subroutine lensClsWithSpectrum(State, CPP, lensedCls, lmax_lensed)
@@ -149,7 +149,7 @@
     integer :: l, method
 
     method = effective_lensing_method(State%CP)
-    call CorrFuncFullSkyWithSpectrum(State, CLout, CPP, method == lensing_method_curv_corr_direct)
+    call CorrFuncFullSkyWithSpectrum(State, CLout, CPP, method == lensing_method_curv_corr_full)
     lmax_lensed = CLout%lmax_lensed
 
     do l=State%CP%min_l, lmax_lensed
@@ -186,16 +186,16 @@
     end do
     end subroutine SetLensingPotentialSpectrum
 
-    subroutine CorrFuncFullSkyWithSpectrum(State, CLout, CPP, direct)
+    subroutine CorrFuncFullSkyWithSpectrum(State, CLout, CPP, full_range)
     class(CAMBdata), target :: State
     Type(TCLData) :: CLout
     real(dl), intent(in) :: CPP(0:State%CP%max_l)
-    logical, intent(in) :: direct
+    logical, intent(in) :: full_range
 
-    if (direct) then
-        call CorrFuncFullSkyDirectImpl(State, State%ClData, CLout, CPP, State%CP%min_l, LensingExtrapLmax(State))
+    if (full_range) then
+        call CorrFuncFullSky(State, State%ClData, CLout, CPP, State%CP%min_l, LensingExtrapLmax(State))
     else
-        call CorrFuncFullSkyImpl(State, State%ClData, CLout, CPP, State%CP%min_l, LensingExtrapLmax(State))
+        call CorrFuncFullSkyApodized(State, State%ClData, CLout, CPP, State%CP%min_l, LensingExtrapLmax(State))
     end if
     end subroutine CorrFuncFullSkyWithSpectrum
 
@@ -220,7 +220,7 @@
     weights => gauss_legendre_cache_weights
     end subroutine GetCachedGaussLegendre
 
-    subroutine CorrFuncFullSkyImpl(State,CL,CLout,CPP,lmin,lmax)
+    subroutine CorrFuncFullSkyApodized(State,CL,CLout,CPP,lmin,lmax)
     !Accurate curved sky correlation function method
     !Uses non-perturbative isotropic term with 2nd order expansion in C_{gl,2}
     !Neglects C_{gl}(theta) terms (very good approx)
@@ -602,9 +602,9 @@
         if (DebugMsgs) call Timer%WriteTime('Time for corr lensing')
     end associate
 
-    end subroutine CorrFuncFullSkyImpl
+    end subroutine CorrFuncFullSkyApodized
 
-    subroutine DirectCorrPointAccumulate(x, weight, lmin, lmax, lmax_lensed, lfacs, lfacs2, lrootfacs, &
+    subroutine CorrFuncFullSkyPointAccumulate(x, weight, lmin, lmax, lmax_lensed, lfacs, lfacs2, lrootfacs, &
         Cphil3, CTT, CEE, CTE, thread_contrib)
     real(dl), intent(in) :: x, weight
     integer, intent(in) :: lmin, lmax, lmax_lensed
@@ -743,10 +743,10 @@
         thread_contrib(CT_B,l) = thread_contrib(CT_B,l) + T2 - T4
         thread_contrib(CT_Cross,l) = thread_contrib(CT_Cross,l) + weight*corr(4)*d20(l)
     end do
-    end subroutine DirectCorrPointAccumulate
+    end subroutine CorrFuncFullSkyPointAccumulate
 
-    subroutine CorrFuncFullSkyDirectImpl(State,CL,CLout,CPP,lmin,lmax)
-    !Direct Gauss-Legendre implementation matching camb.correlations.lensed_cls,
+    subroutine CorrFuncFullSky(State,CL,CLout,CPP,lmin,lmax)
+    !Full Gauss-Legendre implementation matching camb.correlations.lensed_cls,
     !with the same high-L template extension used by the standard Fortran code.
     class(CAMBdata), target :: State
     Type(TCLData) :: CL, CLout
@@ -871,7 +871,7 @@
                 weight = weight*taper**3*(10._dl + taper*(-15._dl + 6._dl*taper))
             end if
 
-            call DirectCorrPointAccumulate(xvals(i), weight, lmin, lmax, CLout%lmax_lensed, &
+            call CorrFuncFullSkyPointAccumulate(xvals(i), weight, lmin, lmax, CLout%lmax_lensed, &
                 lfacs, lfacs2, lrootfacs, Cphil3, CTT, CEE, CTE, lens_contrib(:,:,thread_ix))
         end do
         !$OMP END DO
@@ -900,10 +900,10 @@
             CLout%Cl_lensed(l,CT_Cross) = contrib_sum(CT_Cross)*fac + CL%Cl_scalar(l,C_Cross)
         end do
 
-        if (DebugMsgs) call Timer%WriteTime('Time for direct corr lensing')
+        if (DebugMsgs) call Timer%WriteTime('Time for full corr lensing')
     end associate
 
-    end subroutine CorrFuncFullSkyDirectImpl
+    end subroutine CorrFuncFullSky
 
     subroutine CorrFuncFlatSky(State)
     !Do flat sky approx partially non-perturbative lensing, lensing_method=2

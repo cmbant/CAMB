@@ -17,7 +17,7 @@ from . import dark_energy, initialpower, model, nonlinear, reionization
 from ._config import (
     config,
     lensing_method_curv_corr,
-    lensing_method_curv_corr_direct,
+    lensing_method_curv_corr_full,
     lensing_method_flat_corr,
     lensing_method_harmonic,
     lensing_method_optimized,

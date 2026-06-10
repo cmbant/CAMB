@@ -634,10 +634,10 @@ class CambTest(unittest.TestCase):
         cls_lensed2 = data.get_partially_lensed_cls(0, lmax=2500)
         np.testing.assert_allclose(cls_lensed2[2:, :], cls_unlensed[2:, :], rtol=1e-4)
 
-        direct_method = camb.lensing_method_curv_corr_direct
+        full_method = camb.lensing_method_curv_corr_full
 
         # Check lensed CL against python, including the same high-L template extension
-        # used by the direct Fortran curved-sky path.
+        # used by the full Fortran curved-sky path.
         unlensed_scalar = data.get_unlensed_scalar_cls(data.Params.max_l)
         clpp = data.get_lens_potential_cls(data.Params.max_l)[:, 0]
         lens_lmax = data.Params.max_l - data.Params.lens_output_margin + 50 + 750
@@ -658,14 +658,14 @@ class CambTest(unittest.TestCase):
             delta_cls=False,
             use_lensing_template=True,
         )
-        cls_lensed_direct = data.get_lensed_cls_with_spectrum(clpp, lmax=3000, lensing_method=direct_method)
-        np.testing.assert_allclose(cls_lensed2[2:3000, 2], cls_lensed_direct[2:3000, 2], rtol=1e-6)
-        np.testing.assert_allclose(cls_lensed2[2:3000, 1], cls_lensed_direct[2:3000, 1], rtol=1e-6)
-        np.testing.assert_allclose(cls_lensed2[2:3000, 0], cls_lensed_direct[2:3000, 0], rtol=1e-6)
+        cls_lensed_full = data.get_lensed_cls_with_spectrum(clpp, lmax=3000, lensing_method=full_method)
+        np.testing.assert_allclose(cls_lensed2[2:3000, 2], cls_lensed_full[2:3000, 2], rtol=1e-6)
+        np.testing.assert_allclose(cls_lensed2[2:3000, 1], cls_lensed_full[2:3000, 1], rtol=1e-6)
+        np.testing.assert_allclose(cls_lensed2[2:3000, 0], cls_lensed_full[2:3000, 0], rtol=1e-6)
         self.assertTrue(
             np.all(
                 np.abs(
-                    (cls_lensed2[2:3000, 3] - cls_lensed_direct[2:3000, 3])
+                    (cls_lensed2[2:3000, 3] - cls_lensed_full[2:3000, 3])
                     / np.sqrt(cls_lensed2[2:3000, 0] * cls_lensed2[2:3000, 1])
                 )
                 < 1e-8
@@ -679,9 +679,9 @@ class CambTest(unittest.TestCase):
         pars.Accuracy.AccurateBB = True
         data = camb.get_results(pars)
         clpp = data.get_lens_potential_cls()[:, 0]
-        cls_lensed_direct = data.get_lensed_cls_with_spectrum(clpp, lmax=2500, lensing_method=direct_method)
+        cls_lensed_full = data.get_lensed_cls_with_spectrum(clpp, lmax=2500, lensing_method=full_method)
         cls_lensed_optimized = data.get_lensed_cls_with_spectrum(clpp, lmax=2500, lensing_method=optimized_method)
-        np.testing.assert_allclose(cls_lensed_optimized[2:, :], cls_lensed_direct[2:, :], rtol=1e-12)
+        np.testing.assert_allclose(cls_lensed_optimized[2:, :], cls_lensed_full[2:, :], rtol=1e-12)
 
         pars = camb.CAMBparams()
         pars.set_cosmology(H0=67)
