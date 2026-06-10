@@ -43,8 +43,8 @@
     real(dl), parameter :: BIG = 1.e100_dl, TINY = 1.e-280_dl
     real(dl), parameter :: UNDERFLOW_LOG = -744.4400719213812_dl
     real(dl), parameter :: OPEN_TURNING_TOL = 5.e-3_dl
-    real(dl), parameter :: OPEN_LOW_BETA_RATIO = 2.1e-3_dl
-    real(dl), parameter :: OPEN_LOW_BETA_MIN_TURNING_RATIO = 0.9_dl
+    real(dl), parameter :: OPEN_LOW_BETA_RATIO = 2.0e-3_dl
+    real(dl), parameter :: OPEN_LOW_BETA_MIN_TURNING_RATIO = 0.8_dl
     real(dl), parameter :: PI = 3.1415926535897932384626433832795_dl
     integer, parameter :: closed_endpoint_min_degree = 64
 
@@ -202,9 +202,8 @@
         use_up = open_turning_ratio >= 1._dl - OPEN_TURNING_TOL
         if (.not. use_up .and. abs(nu_use) <= OPEN_LOW_BETA_RATIO * ell) then
             ! For very small beta/l, upward recurrence remains accurate
-            ! somewhat farther below the formal turning boundary, avoiding
-            ! thousands of continued-fraction iterations in common open
-            ! low-beta cases.
+            ! farther below the formal turning boundary, avoiding slow or
+            ! stalled continued fractions in open low-beta cases.
             use_up = open_turning_ratio >= OPEN_LOW_BETA_MIN_TURNING_RATIO
         end if
     else !closed
@@ -213,36 +212,8 @@
     end if
 
     if (use_up) then
-        phi_minus = phi0
-        phi_zero = phi1
-
-        if (K == 1) then
-            b_minus = sqrt(real(inu - 1, dl) * real(inu + 1, dl))
-
-            do j = 2, l
-                b_zero = sqrt(real(inu - j, dl) * real(inu + j, dl))
-
-                phi_plus = ((2 * j - 1) * cot_K * phi_zero - b_minus * phi_minus) / b_zero
-
-                phi_minus = phi_zero
-                phi_zero = phi_plus
-                b_minus = b_zero
-            end do
-        else
-            b_minus = sqrt(nu2 + 1._dl)
-
-            do j = 2, l
-                b_zero = sqrt(nu2 + real(j, dl) * real(j, dl))
-
-                phi_plus = ((2 * j - 1) * cot_K * phi_zero - b_minus * phi_minus) / b_zero
-
-                phi_minus = phi_zero
-                phi_zero = phi_plus
-                b_minus = b_zero
-            end do
-        end if
-
-        phi = symm * phi_zero
+        call phi_upward_recur(l, K, inu, nu2, cot_K, phi0, phi1, phi)
+        phi = symm * phi
         return
     end if
 
@@ -260,7 +231,14 @@
         phi_top = phi_cur
     else
         call phi_logderiv(l, K, nu_use, cot_K, cf, ok)
-        if (.not. ok) call MpiStop("phi_recurs: failed to get log-derivative")
+        if (.not. ok) then
+            if (K == -1 .and. abs(nu_use) <= OPEN_LOW_BETA_RATIO * ell) then
+                call phi_upward_recur(l, K, inu, nu2, cot_K, phi0, phi1, phi)
+                phi = symm * phi
+                return
+            end if
+            call MpiStop("phi_recurs: failed to get log-derivative")
+        end if
 
         phi_cur = 1._dl
         phi_top = 1._dl
@@ -333,6 +311,47 @@
     phi = symm * scale * phi_top
 
     contains
+
+    pure subroutine phi_upward_recur(l, K, inu, nu2, cot_K, phi0, phi1, phi)
+    integer, intent(in) :: l, K, inu
+    real(dl), intent(in) :: nu2, cot_K, phi0, phi1
+    real(dl), intent(out) :: phi
+
+    integer :: j
+    real(dl) :: phi_minus, phi_zero, phi_plus, b_minus, b_zero
+
+    phi_minus = phi0
+    phi_zero = phi1
+
+    if (K == 1) then
+        b_minus = sqrt(real(inu - 1, dl) * real(inu + 1, dl))
+
+        do j = 2, l
+            b_zero = sqrt(real(inu - j, dl) * real(inu + j, dl))
+
+            phi_plus = ((2 * j - 1) * cot_K * phi_zero - b_minus * phi_minus) / b_zero
+
+            phi_minus = phi_zero
+            phi_zero = phi_plus
+            b_minus = b_zero
+        end do
+    else
+        b_minus = sqrt(nu2 + 1._dl)
+
+        do j = 2, l
+            b_zero = sqrt(nu2 + real(j, dl) * real(j, dl))
+
+            phi_plus = ((2 * j - 1) * cot_K * phi_zero - b_minus * phi_minus) / b_zero
+
+            phi_minus = phi_zero
+            phi_zero = phi_plus
+            b_minus = b_zero
+        end do
+    end if
+
+    phi = phi_zero
+    end subroutine phi_upward_recur
+
 
     pure subroutine phi01_exact(K, nu, chi, sin_K, cot_K, phi0, phi1)
     ! Exact phi_0^nu and phi_1^nu seeds from Abbott & Schaefer
