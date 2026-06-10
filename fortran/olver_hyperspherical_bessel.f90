@@ -1,11 +1,14 @@
     module OlverHypersphericalBessel
     ! Approximate calculation of ultraspherical Bessel functions for non-flat universe
-    ! Uses the Olver approximation, with recursive fallback where that may not be reliable.
+    ! Uses the Olver approximation to relate to normal spherical bessels,
+    ! with fallback where not reliable to next order Olver/Airy approx or recursion.
     ! Precision target 1e-4 of peak, with max error < 2e-4.
     use Precision
     use MpiUtils
     use FlatBessels, only: bjl
     use SpherBessels, only: phi_recurs
+    use HypersphericalBesselUtils, only: normalize_chi, turning_point, curved_radius, qintegral_exact
+    use AiryUniformOnePoint, only: airy_u_secondorder_normalized, airy_second_ok
     implicit none
     private
 
@@ -23,6 +26,8 @@
     real(dl), parameter :: SMALLCHI_GATE_ALPHA = 2.5_dl
     integer, parameter :: SMALLCHI_GATE_LOW_ALPHA_L_MIN = 50
     real(dl), parameter :: SMALLCHI_GATE_METRIC = 5.0e-2_dl
+    integer, parameter :: AIRY_FALLBACK_OPEN_L_MIN = 100
+    integer, parameter :: AIRY_FALLBACK_CLOSED_L_MIN = 150
 
     public :: phi_olver, u_olver, phi_olver_smallchi
     public :: olver_coordinate, compute_olver_z_amp_smallchi
@@ -123,14 +128,14 @@
             denom = 2._dl * (nu - real(l, dl))
             metric = achi / denom
             if (metric > OLVER_GATE_CLOSED_EPS) then
-                u = symm * phi_recurs(l, K, nu, achi) * curved_radius(K, achi)
+                u = fallback_reduced(l, K, nu, achi, symm)
                 return
             end if
         else if (K == -1) then
             if (alpha_gate < open_alpha_cut(l)) then
                 metric = achi / (2._dl * max(nu, tiny(1._dl)))
                 if (metric > OLVER_GATE_OPEN_EPS) then
-                    u = symm * phi_recurs(l, K, nu, achi) * curved_radius(K, achi)
+                    u = fallback_reduced(l, K, nu, achi, symm)
                     return
                 end if
             end if
@@ -141,6 +146,43 @@
     call bjl(l, nu * z, j_l)
     u = symm * amp * z * j_l
     end function olver_reduced
+
+
+    function fallback_reduced(l, K, nu, achi, symm) result(u)
+    ! The Olver gates above are unchanged; within their recursive fallback
+    ! region, use the validated second-order Airy one-point approximation at
+    ! high L where it is faster than phi_recurs.
+    integer, intent(in) :: l, K
+    real(dl), intent(in) :: nu, achi, symm
+    real(dl) :: u
+    logical :: ok
+
+    if (use_airy_fallback(l, K, nu, achi)) then
+        u = airy_u_secondorder_normalized(l, K, nu, achi, ok)
+        if (ok) then
+            u = symm * u
+            return
+        end if
+    end if
+
+    u = symm * phi_recurs(l, K, nu, achi) * curved_radius(K, achi)
+    end function fallback_reduced
+
+
+    logical function use_airy_fallback(l, K, nu, achi) result(use_airy)
+    integer, intent(in) :: l, K
+    real(dl), intent(in) :: nu, achi
+
+    use_airy = .false.
+    if (.not. airy_second_ok(l, K, nu, achi)) return
+
+    select case (K)
+    case (-1)
+        use_airy = l >= AIRY_FALLBACK_OPEN_L_MIN
+    case (1)
+        use_airy = l >= AIRY_FALLBACK_CLOSED_L_MIN
+    end select
+    end function use_airy_fallback
 
 
     elemental real(dl) function open_alpha_cut(l) result(alpha_cut)
@@ -234,12 +276,10 @@
 
     if (achi <= min(1.0e-6_dl, 1.0e-4_dl * max(turn_chi, 1._dl))) then
         z = achi
+        sin_k = curved_radius(K, achi)
     else if (abs(achi - turn_chi) <= 1.0e-4_dl * max(turn_chi, turn_z)) then
-        if (K == 1) then
-            turn_scale = cos(turn_chi)
-        else
-            turn_scale = cosh(turn_chi)
-        end if
+        ! cos(asin(x)) and cosh(asinh(x)) both reduce to sqrt(1 - K x^2)
+        turn_scale = sqrt(1._dl - real(K, dl) * turn_z * turn_z)
         z = turn_z + turn_scale**(1._dl / 3._dl) * (achi - turn_chi)
         if (present(amp)) amp = turn_scale**(-1._dl / 6._dl)
         return
@@ -250,7 +290,7 @@
     end if
 
     if (present(amp)) then
-        amp = analytic_amplitude(achi, z, K, alpha, turn_chi)
+        amp = analytic_amplitude(achi, sin_k, z, K, alpha, turn_chi)
     end if
     end subroutine compute_olver_z_amp
 
@@ -324,69 +364,13 @@
     end if
 
     end subroutine compute_olver_z_amp_smallchi
-    elemental subroutine normalize_chi(l, K, nu, chi, achi, symm)
-    integer, intent(in) :: l, K
-    real(dl), intent(in) :: nu, chi
-    real(dl), intent(out) :: achi, symm
-    integer :: inu
-
-    achi = abs(chi)
-    symm = 1._dl
-
-    if (K /= 1) return
-
-    inu = nint(nu)
-    achi = achi - 2._dl * PI * floor(achi / (2._dl * PI))
-    if (achi > PI) then
-        achi = 2._dl * PI - achi
-        if (mod(l, 2) /= 0) symm = -symm
-    end if
-    if (achi > PI / 2._dl) then
-        achi = PI - achi
-        if (mod(inu - l - 1, 2) /= 0) symm = -symm
-    end if
-    end subroutine normalize_chi
 
 
-    elemental real(dl) function turning_point(ell, nu, K)
-    real(dl), intent(in) :: ell, nu
+    elemental real(dl) function analytic_amplitude(chi, sin_k, z, K, alpha, turn_chi)
+    real(dl), intent(in) :: chi, sin_k, z, alpha, turn_chi
     integer, intent(in) :: K
 
-    select case (K)
-    case (-1)
-        turning_point = asinh(ell / nu)
-    case (0)
-        turning_point = ell / nu
-    case (1)
-        turning_point = asin(ell / nu)
-    case default
-        turning_point = 0._dl
-    end select
-    end function turning_point
-
-
-    elemental real(dl) function curved_radius(K, chi)
-    integer, intent(in) :: K
-    real(dl), intent(in) :: chi
-
-    select case (K)
-    case (-1)
-        curved_radius = sinh(chi)
-    case (0)
-        curved_radius = chi
-    case (1)
-        curved_radius = sin(chi)
-    case default
-        curved_radius = chi
-    end select
-    end function curved_radius
-
-
-    elemental real(dl) function analytic_amplitude(chi, z, K, alpha, turn_chi)
-    real(dl), intent(in) :: chi, z, alpha, turn_chi
-    integer, intent(in) :: K
-
-    real(dl) :: sin_k, flat_term, curved_term, turn_scale
+    real(dl) :: alpha2, flat_term, curved_term, turn_scale
 
     if (K == 0) then
         analytic_amplitude = 1._dl
@@ -398,43 +382,39 @@
         return
     end if
 
+    alpha2 = alpha * alpha
     if (abs(chi - turn_chi) <= 1.0e-10_dl * max(1._dl, turn_chi)) then
-        if (K == 1) then
-            turn_scale = cos(turn_chi)
-        else
-            turn_scale = cosh(turn_chi)
-        end if
+        turn_scale = sqrt(1._dl - real(K, dl) / alpha2)
         analytic_amplitude = turn_scale**(-1._dl / 6._dl)
         return
     end if
 
-    sin_k = curved_radius(K, chi)
-    flat_term = alpha**2 - 1._dl / z**2
-    curved_term = alpha**2 - 1._dl / sin_k**2
+    flat_term = alpha2 - 1._dl / z**2
+    curved_term = alpha2 - 1._dl / sin_k**2
 
-    if (abs(flat_term) + abs(curved_term) <= 100._dl * CACHE_EPS * max(1._dl, alpha**2)) then
-        if (K == 1) then
-            turn_scale = cos(turn_chi)
-        else
-            turn_scale = cosh(turn_chi)
-        end if
+    if (abs(flat_term) + abs(curved_term) <= 100._dl * CACHE_EPS * max(1._dl, alpha2)) then
+        turn_scale = sqrt(1._dl - real(K, dl) / alpha2)
         analytic_amplitude = turn_scale**(-1._dl / 6._dl)
         return
     end if
 
-    analytic_amplitude = abs(flat_term / curved_term)**0.25_dl
+    analytic_amplitude = sqrt(sqrt(abs(flat_term / curved_term)))
     end function analytic_amplitude
 
     elemental real(dl) function invert_flat_action(action, z_turn, below_turn)
     real(dl), intent(in) :: action, z_turn
     logical, intent(in) :: below_turn
 
-    real(dl) :: q, p, s, u
+    real(dl) :: q, s, u
     real(dl) :: A, e
     real(dl) :: x, qplus, invqplus, invqplus2
 
+    ! Branch cuts in q equivalent to p = (3q)^(1/3) < 1.8 and < 2, so the
+    ! cube root is only taken on the near-turning polynomial branches.
+    real(dl), parameter :: Q_CUT_EVAN = 1.8_dl**3 / 3._dl
+    real(dl), parameter :: Q_CUT_OSC = 2._dl**3 / 3._dl
+
     q = max(action, 0._dl)
-    p = (3._dl * q)**(1._dl / 3._dl)
 
     ! The near-turning coefficients below are numerical polynomial fits for u(p^2),
     ! not Taylor coefficients. This avoids a root solve in the hot Olver map path.
@@ -445,8 +425,8 @@
         !
         ! Near the turning point use a polynomial fit in p^2.
         ! Farther out use the large-q asymptotic inversion for sech(t).
-        if (p < 1.8_dl) then
-            s = p * p
+        if (q < Q_CUT_EVAN) then
+            s = (3._dl * q)**(2._dl / 3._dl)
 
             u = (((((( &
                 2.2687533176976695e-05_dl * s &
@@ -476,8 +456,8 @@
         ! asymptotic expansion in q + pi/2 farther out.
 
 
-        if (p < 2._dl) then
-            s = p * p
+        if (q < Q_CUT_OSC) then
+            s = (3._dl * q)**(2._dl / 3._dl)
 
             u = ((((((( &
                 3.4828644185221886e-07_dl * s &
@@ -508,66 +488,5 @@
     invert_flat_action = z_turn * u
     end function invert_flat_action
 
-    elemental real(dl) function qintegral_exact(sin_K, alpha, K) result(q)
-    real(dl), intent(in) :: sin_K, alpha
-    integer, intent(in) :: K
-
-    real(dl), parameter :: zero = 0._dl, one = 1._dl, two = 2._dl, half = 0.5_dl
-    real(dl) :: x, x2, a2, ha, r1, r2, u, v, m
-
-    x  = alpha * sin_K
-    x2 = x * x
-    a2 = alpha * alpha
-    ha = half * alpha
-
-    select case (K)
-
-    case (0)
-        if (x > one) then
-            r1 = sqrt(x2 - one)
-            q = r1 - acos(one / x)
-        else
-            r1 = sqrt(max(zero, one - x2))
-            q = log((one + r1) / max(x, CACHE_EPS)) - r1
-        end if
-
-    case (-1)
-        if (x > one) then
-            r1 = sqrt(x2 - one)
-            r2 = sqrt(x2 + a2)
-
-            q = ha * log((two*x2 + a2 - one + two*r1*r2) / (one + a2)) &
-                - atan2(alpha*r1, r2)
-        else
-            r1 = sqrt(max(zero, (one - x2) * (x2 + a2)))
-
-            q = ha * atan2(-two*r1, two*x2 + a2 - one) &
-                + half * log((two*alpha*r1 + two*a2 + x2*(one - a2)) / &
-                max(x2*(one + a2), CACHE_EPS))
-        end if
-
-    case default
-        if (x > one) then
-            r1 = sqrt(x2 - one)
-            r2 = sqrt(max(zero, a2 - x2))
-
-            q = ha * atan2(two*r1*r2, a2 + one - two*x2) &
-                - atan2(alpha*r1, r2)
-        else
-            m = a2 - one
-
-            if (m > CACHE_EPS) then
-                u = sqrt(max(zero, one - x2))
-                v = sqrt(max(zero, a2 - x2))
-                q = log(v + alpha*u) - alpha*log(v + u) &
-                    - half*log(max(x2, CACHE_EPS)) &
-                    + half*(alpha - one)*log(m)
-            else
-                q = -half*log(max(x2, CACHE_EPS))
-            end if
-        end if
-
-    end select
-    end function qintegral_exact
 
     end module OlverHypersphericalBessel

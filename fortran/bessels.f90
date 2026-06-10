@@ -35,7 +35,7 @@
     type(TRanges), save:: BessRanges
 
     public bessel_horner, BessRanges, InitSpherBessels, bjl_pre_peak_start_factor
-    public bjl, Bessels_Free
+    public bjl, Bessels_Free, airy_fast
 
     contains
 
@@ -370,6 +370,9 @@
     REAL(dl) :: SX, SX2, COTB, COT3B, COT6B, SECB, SEC2B
     REAL(dl) :: TRIGARG, EXPTERM, L3, ETA
 
+    ! Note: bjl_uniform_airy_fast uses a polynomial turning-point mapping fitted
+    ! for the shoulder bands below; widening BJL_AIRY_ETA_LOW/HIGH beyond
+    ! [-2.25, 3.7] requires refitting its zeta/u coefficients.
     real(dl), parameter :: BJL_RECURRENCE_ETA_LOW  = -5.0_dl
     real(dl), parameter :: BJL_RECURRENCE_ETA_HIGH =  5.6_dl
     real(dl), parameter :: BJL_AIRY_ETA_LOW  = -2.25_dl
@@ -544,19 +547,23 @@
     !       + eps  * (P1(tau) Ai(tau) + Q1(tau) Ai'(tau))
     !       + eps^2* (P2(tau) Ai(tau) + Q2(tau) Ai'(tau)) ]
     !
-    ! Intended domain: turning-point region with
-    !   tau = nu^(2/3) zeta in roughly [-6.5, 6.5].
-    ! Dense-grid validation against scipy.special.spherical_jn, using
-    ! l = 1,2,5,10,20,50,100,200,500,1000,2000,5000 and 2601 tau values:
+    ! Intended domain: the BJL shoulder bands, eta = (x-nu)/nu^0.325 in
+    ! [-2.25,-0.65) U (0.65,3.7] with l >= 26, i.e. u = x/nu - 1 in
+    ! [-0.25, 0.41] and tau = nu^(2/3) zeta in roughly [-4.4, 3.0].
     !
-    !   full tau [-6.5,6.5], max absolute error:
-    !     l>=10: 2.77e-5, l>=20: 4.75e-6,
-    !     l>=50: 3.08e-7, l>=100: 2.78e-8, l>=200: 1.04e-8.
+    ! The Olver mapping is evaluated through a single polynomial
+    !   P(u) = zeta/u  (analytic through the turning point),
+    ! with ratio = 4 zeta/(1-z^2) = -4 P(u)/(2+u), fitted on
+    ! u in [-0.26, 0.42] with max |delta zeta| ~ 2e-10. This reproduces the
+    ! exact log/acos mapping to ~9e-10 peak-normalized over the gate domain
+    ! (dense scan, l = 26..79 and up to 50000) and is ~1.7x faster.
+    ! Calls outside the fitted u range are inaccurate; widen the fit if the
+    ! eta gates in BJL change.
     !
-    !   first positive maximum of j_l, found from exact derivative zero;
-    !   maximum relative error over tested l>=lmin:
-    !     l>=10: 2.28e-5, l>=20: 5.72e-6,
-    !     l>=50: 6.76e-7, l>=100: 7.98e-8, l>=200: 6.35e-9.
+    ! Peak-normalized accuracy against scipy.special.spherical_jn over the
+    ! gate domain (401x2 eta points per l):
+    !   l=26: 3.4e-5, l=45: 1.0e-5, l=100: 1.6e-6, l>=200: ~1.0e-6
+    ! (low-l worst errors come from the two-term Olver truncation).
 
     implicit none
     integer, intent(in) :: l
@@ -564,11 +571,20 @@
     real(dl), intent(out) :: jl
 
     real(dl), parameter :: pi = 3.141592653589793238462643383279502884197_dl
-    real(dl) :: ax, nu, nu13, nu23, z, zeta, tau, eps, eps2, pref, ratio
-    real(dl) :: t, s, val, denom, u
+    real(dl) :: ax, nu, nu13, nu23, zeta, tau, eps, eps2, pref, ratio
+    real(dl) :: u, pu
     real(dl) :: ai, aip
     real(dl) :: p1, q1, p2, q2
     integer :: k
+
+    ! P(u) = zeta/u monomial fit on u in [-0.26, 0.42], max fit error 6.6e-10.
+    real(dl), parameter :: pc(0:10) = (/ &
+        -1.25992104996821208e+00_dl, +3.77976310917083169e-01_dl, &
+        -2.30385514085488935e-01_dl, +1.65910344421374395e-01_dl, &
+        -1.29319657869220062e-01_dl, +1.05647827110811374e-01_dl, &
+        -8.89230826554308490e-02_dl, +7.73642310050780407e-02_dl, &
+        -7.19131136272972149e-02_dl, +6.33363780675322147e-02_dl, &
+        -3.21834319307111594e-02_dl /)
 
     real(dl), parameter :: c(24) = (/ &
         -1.57687029733452188e-04_dl, -2.86291841602745543e-04_dl, &
@@ -596,43 +612,17 @@
     end if
 
     nu = real(l, dl) + 0.5_dl
-    z = ax / nu
+    u = ax/nu - 1.0_dl
 
-    ! Stable series through the turning point z=1.
-    ! zeta = -2^(1/3)*(z-1) + O((z-1)^2)
-    ! ratio = 4*zeta/(1-z^2), whose limit is 2^(4/3).
-    if (abs(z - 1.0_dl) < 1.0e-3_dl) then
-        u = z - 1.0_dl
+    pu = pc(10)
+    do k = 9, 0, -1
+        pu = pu*u + pc(k)
+    end do
+    zeta = u*pu
+    ratio = -4.0_dl*pu/(2.0_dl + u)
 
-        zeta = ((((-1.2931387086451008907e-1_dl * u &
-            +1.6590960364964869484e-1_dl) * u &
-            -2.3038556340934823584e-1_dl) * u &
-            +3.7797631496846194943e-1_dl) * u &
-            -1.2599210498948731648e0_dl) * u
-
-        ratio = (((( 7.9171433706231762385e-1_dl * u &
-            -1.0661731906665948914e0_dl) * u &
-            +1.4687079667345950035e0_dl) * u &
-            -2.0158736798317970636e0_dl) * u &
-            +2.5198420997897463295e0_dl)
-
-    else if (z < 1.0_dl) then
-        t = sqrt(max(0.0_dl, 1.0_dl - z*z))
-        val = log((1.0_dl + t)/z) - t
-        zeta = (1.5_dl * val)**(2.0_dl/3.0_dl)
-        denom = 1.0_dl - z*z
-        ratio = 4.0_dl * zeta / denom
-
-    else
-        s = sqrt(max(0.0_dl, z*z - 1.0_dl))
-        val = s - acos(1.0_dl/z)
-        zeta = - (1.5_dl * val)**(2.0_dl/3.0_dl)
-        denom = 1.0_dl - z*z
-        ratio = 4.0_dl * zeta / denom
-    end if
-
-    nu13 = nu**(1.0_dl/3.0_dl)
-    nu23 = nu13 * nu13
+    nu23 = nu**(2.0_dl/3.0_dl)
+    nu13 = sqrt(nu23)
     eps = 1.0_dl / nu23
     eps2 = eps * eps
 

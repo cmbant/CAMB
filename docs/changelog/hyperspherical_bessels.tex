@@ -45,6 +45,7 @@
 \newcommand{\abs}[1]{\left|#1\right|}
 \newcommand{\order}{\mathcal{O}}
 \newcommand{\asinh}{\operatorname{asinh}}
+\newcommand{\atanh}{\operatorname{atanh}}
 \newcommand{\asin}{\operatorname{asin}}
 \newcommand{\sgn}{\operatorname{sgn}}
 \newcommand{\atanTwo}{\operatorname{atan2}}
@@ -266,9 +267,33 @@ Olver asymptotics are a systematic form of the Liouville-Green or WKB method for
 \begin{quote}
 Choose a comparison equation whose solution is already known, map the independent variable so that the action integral from the turning point agrees in the original and comparison equations, and include the corresponding amplitude transport factor.
 \end{quote}
-A textbook first-order Langer approximation uses the Airy equation as the comparison problem.  That is the uniform WKB strategy applied to hyperspherical Bessel functions by Kosowsky and later used as a comparison method by Tram and by Lesgourgues--Tram \cite{kosowsky1998,tram2013,lesgourgues-tram2013}.  It works because the Airy function decays on one side of its turning point and oscillates on the other.  CAMB's newer idea is better adapted to the present problem: use the flat spherical-Bessel equation as the comparison equation.  Then the comparison solution is not merely a local Airy function; it is \(zj_l(\nu z)\), evaluated by the fast flat routine \code{BJL}.  The Airy behaviour near the turning point is already built into the flat Bessel calculation.
+For CAMB's default pointwise Olver path, the comparison equation is the
+\emph{flat spherical-Bessel equation}.  The reference solution is the reduced
+flat mode
+\[
+  v(z)=zj_l(\nu z),
+\]
+so the implementation evaluates the curved function by mapping
+\(\chi\mapsto z(\chi)\), applying the transport amplitude, and then calling
+the ordinary flat spherical-Bessel routine \code{BJL}.  In this note, unless
+otherwise stated, ``the Olver approximation'' means this spherical-Bessel
+reference problem, not an Airy reference problem.
 
-This is related in spirit to the \textsc{CLASS} flat-rescaling approximation, which also replaces expensive hyperspherical-Bessel evaluations by calls to flat spherical Bessel functions in a high-\(\nu\), near-flat regime \cite{lesgourgues-tram2013}.  The CAMB map below is different: the effective radius and amplitude are determined by local action matching, so the same formula is a pointwise curved-space approximation rather than a fixed turning-point rescaling with an empirical smooth amplitude.
+This should be separated from two related comparison choices in the older
+literature.  The Langer/Airy uniform WKB approximation, used by Kosowsky and
+as a WKB reference in the later hyperspherical-Bessel papers
+\cite{kosowsky1998,tram2013,lesgourgues-tram2013}, maps the curved radial
+equation directly to an Airy equation.  The \textsc{CLASS} high-\(\nu\),
+near-flat rescaling approximation also avoids expensive hyperspherical
+evaluations by calling ordinary flat spherical Bessel functions at a mapped
+argument \cite{lesgourgues-tram2013}.  CAMB's default map is closest in
+computational purpose to the flat-Bessel replacement, but the map is local
+rather than a fixed turning-point rescaling: the effective radius and amplitude
+are determined by action matching at the requested \(\chi\).  The Airy
+behaviour near the turning point is already built into the flat Bessel
+calculation.  The separate second-order Airy formula discussed in
+Appendix~\ref{app:second-order-airy} is a fallback approximation, not the
+definition of the main Olver-to-flat map.
 
 This choice has two important consequences.  First, the method is exact when \(K=0\).  Second, most of the special-function complexity is delegated to the well-optimized flat Bessel implementation.  The curved part of the problem becomes a coordinate map \(z(\chi)\) and an amplitude factor \(A(\chi)\).
 
@@ -720,8 +745,7 @@ when \(\nu/l\) clears the calibrated continuous cutoff
   0.12\left(\frac{500}{l}\right)^{p(l)}
   \right],
 \end{equation}
-with \(p(l)=0.70\) for \(l<500\) and \(p(l)=0.14\) for \(l\ge500\).  This is a
-smooth replacement for the old \(l\ge500,\nu/l\ge0.12\) corner; raw open-space
+with \(p(l)=0.70\) for \(l<500\) and \(p(l)=0.14\) for \(l\ge500\). Raw open-space
 cutoff scans give \(\alpha_{\rm open}\simeq0.12\) near \(l=500\) and
 \(\alpha_{\rm open}\simeq0.095\) by \(l\simeq2000\), remaining there through
 \(l=10000\).
@@ -739,6 +763,30 @@ Otherwise fall back to \code{phi_recurs}.  This closed-space metric is still
 applied at large \(\nu/l\): low-\(l\) and endpoint cases showed that an
 unconditional \(\nu/l\ge3\) pointwise shortcut is too broad.
 \end{enumerate}
+For closed models the leading-Olver fallback is not a large uncontrolled slow
+region.  The argument has already been folded into \(0\le\chi\le\pi/2\), so
+failing the closed Olver gate implies
+\[
+  \nu-l < \frac{\chi}{2(7.0\times10^{-3})}\le 112.3 .
+\]
+This is only the region rejected by the leading Olver map.  Inside it the
+fallback first tries the second-order Airy approximation for closed
+\(l\ge150\), with the additional gate
+\[
+  \lambda(\beta^2-1)=
+  \frac{\nu^2-\lambda^2}{\lambda}
+  =
+  \frac{(l+d)^2-(l+1/2)^2}{l+1/2}
+  \ge15,\qquad d=\nu-l .
+\]
+For large \(l\) this is approximately \(2d-1\ge15\), so the Airy branch covers
+roughly \(d\gtrsim8\).  High-\(l\) closed points that miss both the leading
+Olver and Airy gates are therefore very close to the finite spectral endpoint,
+with small Gegenbauer degree \(n=d-1\).  For \(l<150\), direct recurrence is
+cheap because the requested order itself is modest.  In both cases the
+finite-spectrum endpoint or Gegenbauer start keeps the exact fallback cheap
+enough for the occasional seed and re-seed values used by the source
+integrator.
 These thresholds are calibrated on peak-normalized Bessel error on a validation
 grid that includes dense low-\(\chi\) points, turning-point stencils, closed
 endpoints, \(l\le10000\), and open-space tails about eighty oscillations past the
@@ -1083,7 +1131,7 @@ Flat & table/spline of \(j_l(q\chi)\) & exact flat result. \\
 Near-flat, very small curvature effect & constant-map shifted-\(q\) table lookup & fastest limit of small-\(\chi\) Olver. \\
 Near-flat, local small-\(\chi\) range & table lookup at \(\nu\chi F\), weight \(F/\sqrt D\) & retains next curvature terms in Olver map. \\
 General non-flat range & start with \code{u_olver}, propagate by Numerov & avoids expensive repeated Olver calls. \\
-Low-order or low-\(\alpha\) fallback & \code{phi_recurs} & exact recurrence is safer. \\
+Low-order, low-\(\alpha\), or closed finite-endpoint fallback & \code{phi_recurs} & exact recurrence is safer; high-\(l\) closed modes left after Airy have very small \(n=\nu-l-1\). \\
 \bottomrule
 \end{tabularx}
 \end{center}
@@ -1178,6 +1226,675 @@ Closed Miller start & \code{phi_closed_gegenbauer_start} \\
 \section{Summary}
 
 The current non-flat Bessel calculation combines a leading-order Olver-to-flat map with exact recurrence fallbacks and source-integration accelerations.  The map sends the reduced equation \(u''+[\nu^2-l(l+1)/\SK^2]u=0\) to the flat comparison solution \(zj_l(\nu z)\), with the Jacobian amplitude above, so it is uniform through the turning point and exact for \(K=0\).  In source integration, CAMB uses this point approximation mainly to seed Numerov stepping, while near-flat ranges can be filled from flat Bessel tables.  The shifted-\(q\) approximation is the \(\chi\)-independent part of the local Olver expansion, \(q_{\rm eff}=\nu F_0\), with the simpler \(q^2=\nu^2-Kl(l+1)/3\) formula retained only as a first-order explanatory limit.
+
+\appendix
+
+\section{Second-order Olver Airy approximation}
+\label{app:second-order-airy}
+
+The main text describes the approximation used most often in the current
+hyperspherical-Bessel path: map the curved equation to a flat spherical Bessel
+equation.  There is also a closely related one-point Airy form.  It is useful
+near a turning point, and it is the form used by the optimized second-order
+Airy code.  This appendix derives that approximation in a self-contained way.
+The aim is to show what the second-order terms mean mathematically before
+describing how they are evaluated cheaply.
+
+\subsection{Langer form of the radial equation}
+
+Start again from the reduced equation
+\begin{equation}
+  u''=\left[\frac{l(l+1)}{\SK^2(\chi)}-\nu^2\right]u.
+  \label{eq:app-u-equation}
+\end{equation}
+For an Airy expansion it is convenient to use the standard Langer large
+parameter\footnote{This \(\lambda\) is local to the Airy appendix and is
+unrelated to the Gegenbauer parameter \(\lambda=l+1\) used in the main-text
+discussion of the closed-space Miller start.  The corresponding ratio
+\(\beta=\nu/\lambda\) is also local to this appendix; the main text used
+\(\alpha=\nu/\sqrt{l(l+1)}\) for the leading Olver map.}
+\begin{equation}
+  \lambda=l+\frac12,\qquad
+  \beta=\frac{\nu}{\lambda}.
+\end{equation}
+Since \(l(l+1)=\lambda^2-1/4\), equation
+\eqref{eq:app-u-equation} becomes
+\begin{equation}
+  u''=\left[\lambda^2 q(\chi)+r(\chi)\right]u,
+  \qquad
+  q(\chi)=\frac{1}{\SK^2(\chi)}-\beta^2,\qquad
+  r(\chi)=-\frac{1}{4\SK^2(\chi)}.
+  \label{eq:app-airy-start}
+\end{equation}
+The \(q(\chi)\) in this appendix is the local Airy potential, not the
+dimensional transfer-grid wavenumber \(q\) used elsewhere in CAMB.
+This is the canonical situation for an Olver Airy approximation: there is a
+large parameter \(\lambda\), a main potential \(q\), and a smaller residual
+potential \(r\).  The turning point is the zero of \(q\),
+\begin{equation}
+  \SK(\chi_t)=\frac{1}{\beta}=\frac{\lambda}{\nu}.
+  \label{eq:app-airy-turn}
+\end{equation}
+On the origin side of this point \(q>0\), so the regular solution is
+exponentially small for large \(l\); on the other side \(q<0\), and the solution
+oscillates.  The Airy function is the simplest special function with exactly
+this behaviour.
+
+\subsection{The Airy coordinate}
+
+Define the Airy coordinate \(\zeta\) by matching the action from the turning
+point:
+\begin{equation}
+  \frac23\zeta^{3/2}=
+  \int_{\chi}^{\chi_t}\sqrt{q(s)}\,\dd s,\qquad \chi<\chi_t,
+  \label{eq:app-zeta-positive}
+\end{equation}
+and
+\begin{equation}
+  \frac23(-\zeta)^{3/2}=
+  \int_{\chi_t}^{\chi}\sqrt{-q(s)}\,\dd s,\qquad \chi>\chi_t.
+  \label{eq:app-zeta-negative}
+\end{equation}
+Thus \(\zeta>0\) on the evanescent side, \(\zeta=0\) at the turning point, and
+\(\zeta<0\) on the oscillatory side.  Differentiating either branch gives the
+local identity
+\begin{equation}
+  \left(\frac{\dd\zeta}{\dd\chi}\right)^2=\frac{q(\chi)}{\zeta}.
+  \label{eq:app-zeta-identity}
+\end{equation}
+The ratio \(q/\zeta\) remains positive on both sides of the turning point,
+because \(q\) and \(\zeta\) change sign together.
+
+Now make the Liouville transformation
+\begin{equation}
+  u(\chi)=\left(\frac{\zeta}{q}\right)^{1/4}W(\zeta),
+  \label{eq:app-liouville-transform}
+\end{equation}
+where the prefactor is understood as its continuous real limit through the
+turning point.  The transformed equation is
+\begin{equation}
+  \frac{\dd^2 W}{\dd\zeta^2}
+  =\left[\lambda^2\zeta+\psi(\zeta)\right]W.
+  \label{eq:app-W-equation}
+\end{equation}
+The leading term is exactly the Airy equation.  The function
+\(\psi(\zeta)\) is the residual left over after the action and amplitude have
+been matched:
+\begin{equation}
+  \psi(\zeta)=
+  \frac{\zeta r}{q}
+  +\frac{\zeta q''}{4q^2}
+  -\frac{5\zeta(q')^2}{16q^3}
+  +\frac{5}{16\zeta^2}.
+  \label{eq:app-psi}
+\end{equation}
+Here primes denote derivatives with respect to \(\chi\), evaluated at the
+\(\chi\) corresponding to \(\zeta\).  For the hyperspherical problem these
+derivatives are explicit:
+\begin{equation}
+  q'=-\frac{2\CK}{\SK^3},\qquad
+  q''=\frac{6}{\SK^4}-\frac{4K}{\SK^2},\qquad
+  r=-\frac{1}{4\SK^2}.
+  \label{eq:app-q-derivatives}
+\end{equation}
+Equation \eqref{eq:app-psi} looks singular at \(\zeta=0\), but the singular
+pieces cancel.  The finite turning-point limit is
+\begin{equation}
+  \psi_t\equiv\psi(0)=
+  \frac{2^{1/3}(K-4\beta^2)(4K-\beta^2)}
+  {280\,\beta^{4/3}(\beta^2-K)^{4/3}}.
+  \label{eq:app-psi-turn}
+\end{equation}
+This analytic limit is important numerically, because evaluating
+\eqref{eq:app-psi} directly very close to the turning point would subtract
+large nearly equal terms.
+
+\subsection{The second-order Airy expansion}
+
+If \(\psi\) were zero, equation \eqref{eq:app-W-equation} would have the
+decaying solution
+\begin{equation}
+  W(\zeta)=\Ai(\lambda^{2/3}\zeta).
+\end{equation}
+The second-order Olver expansion corrects this Airy solution by allowing both
+an \(\Ai\) coefficient and an \(\Ai'\) coefficient to vary slowly with
+\(\zeta\).  Let
+\begin{equation}
+  X=\lambda^{2/3}\zeta,\qquad Y(X)=\Ai(X),
+\end{equation}
+where \(Y'\) below denotes differentiation with respect to the Airy argument
+\(X\).  Write
+\begin{equation}
+  W(\zeta)=
+  Y(X)\left[1+\frac{A_1(\zeta)}{\lambda^2}\right]
+  +\frac{Y'(X)}{\lambda^{4/3}}B_0(\zeta)
+  +\cdots .
+  \label{eq:app-second-ansatz}
+\end{equation}
+The powers of \(\lambda\) are fixed by the Airy scaling:
+\(\dd/\dd\zeta\) acting on \(Y(\lambda^{2/3}\zeta)\) brings down a factor
+\(\lambda^{2/3}\), and \(Y''=XY\).
+
+Substituting \eqref{eq:app-second-ansatz} into
+\eqref{eq:app-W-equation}, then matching the independent \(Y\) and \(Y'\)
+pieces order by order, gives
+\begin{equation}
+  2\zeta B_0' + B_0=\psi,
+  \label{eq:app-B0-ode}
+\end{equation}
+and
+\begin{equation}
+  2A_1' + B_0''=\psi B_0.
+  \label{eq:app-A1-ode}
+\end{equation}
+Regularity at the turning point fixes the solution of the first equation:
+\begin{equation}
+  B_0(\zeta)=
+  \frac{1}{2\sqrt{\zeta}}\int_0^\zeta
+  \frac{\psi(v)}{\sqrt v}\,\dd v.
+  \label{eq:app-B0-integral}
+\end{equation}
+For \(\zeta<0\) this is best read in the equivalent real form
+\begin{equation}
+  B_0(\zeta)=\frac12\int_0^1\psi(t\zeta)t^{-1/2}\,\dd t.
+  \label{eq:app-B0-real}
+\end{equation}
+The convention used here is \(A_1(0)=0\), so
+\begin{equation}
+  A_1(\zeta)=\frac12\int_0^\zeta
+  \left[\psi(v)B_0(v)-B_0''(v)\right]\dd v.
+  \label{eq:app-A1-integral}
+\end{equation}
+Different choices of the constant part of \(A_1\) are possible; they simply
+move a scalar factor between the coefficient functions and the overall
+normalization.  The code uses the convention \eqref{eq:app-A1-integral}, with
+the corresponding normalization correction described below.
+
+Combining the Liouville prefactor and the coefficient functions gives the
+second-order one-point approximation
+\begin{equation}
+  u_l^\nu(K,\chi)\simeq
+  \sigma\,\mathcal N
+  \left(\frac{\zeta}{q}\right)^{1/4}
+  \left[
+  \Ai(X)\left(1+\frac{A_1(\zeta)}{\lambda^2}\right)
+  +\frac{B_0(\zeta)}{\lambda^{4/3}}\Ai'(X)
+  \right],
+  \qquad X=\lambda^{2/3}\zeta.
+  \label{eq:app-second-order-u}
+\end{equation}
+The sign \(\sigma\) is one except for the closed-space foldings described in
+the main text.  The unreduced hyperspherical Bessel function is then
+\begin{equation}
+  \phi_l^\nu(K,\chi)\simeq
+  \frac{u_l^\nu(K,\chi)}{\SK(\chi)}.
+  \label{eq:app-second-order-phi}
+\end{equation}
+
+\subsection{Normalization at the origin}
+
+The Airy solution \(\Ai(\lambda^{2/3}\zeta)\) selects the solution that decays
+on the origin side of the turning point, but it does not by itself fix the
+normalization.  The exact regular small-\(\chi\) behaviour is
+\begin{equation}
+  u_l^\nu(K,\chi)\sim u_0\,\chi^{l+1},\qquad
+  u_0=
+  \frac{\prod_{j=1}^{l}\sqrt{\nu^2-Kj^2}}{(2l+1)!!}.
+  \label{eq:app-origin-u0}
+\end{equation}
+Near the origin the action has the form
+\begin{equation}
+  \int_\chi^{\chi_t}\sqrt{q(s)}\,\dd s
+  =-\log\chi+q_0+\order(\chi^2),
+  \label{eq:app-origin-action}
+\end{equation}
+with
+\begin{equation}
+  q_0=
+  \begin{cases}
+  \displaystyle
+  \log\!\left(\frac{2}{\sqrt{\beta^2-1}}\right)
+  -\frac{\beta}{2}
+  \log\!\left(\frac{1+\beta^{-1}}{1-\beta^{-1}}\right),
+  & K=+1,\\[2ex]
+  \displaystyle
+  \log\!\left(\frac{2}{\beta}\right)-1,
+  & K=0,\\[2ex]
+  \displaystyle
+  \log\!\left(\frac{2}{\sqrt{\beta^2+1}}\right)
+  -\beta\arctan(\beta^{-1}),
+  & K=-1.
+  \end{cases}
+  \label{eq:app-origin-q0}
+\end{equation}
+Using the large-positive-\(X\) asymptotic form of \(\Ai(X)\), the normalization
+needed in \eqref{eq:app-second-order-u} is
+\begin{equation}
+  \mathcal N=
+  2\sqrt{\pi}\,\lambda^{1/6}u_0\,e^{\lambda q_0}R,
+  \label{eq:app-airy-norm}
+\end{equation}
+where \(R\) contains the scalar higher-order correction used with the
+\(A_1(0)=0\) convention:
+\begin{equation}
+  \log R=
+  \frac{1}{\lambda}\left[
+  \frac{1}{12}-\frac{K}{24(\beta^2-K)}
+  \right]
+  -\frac{1}{225\lambda^2}
+  -\frac{1}{360\lambda^3}
+  +\frac{1}{1260\lambda^5}.
+  \label{eq:app-airy-logR}
+\end{equation}
+For \(K=0\) the curvature term in the square brackets vanishes.  This
+normalization is evaluated in logarithmic form in the implementation so that
+large \(l\), very small tails, and closed-space products do not overflow or
+underflow prematurely.
+
+\subsection{How the optimized implementation evaluates the second-order terms}
+
+The optimized one-point code follows equation
+\eqref{eq:app-second-order-u} directly, but avoids any expensive global
+construction of \(B_0\) and \(A_1\).
+
+First it folds closed-space \(\chi\) into the fundamental interval, keeping the
+exact parity sign \(\sigma\).  It then forms
+\(\lambda=l+1/2\), \(\beta=\nu/\lambda\), the turning point
+\(\chi_t\), the action coordinate \(\zeta\), the local value \(q(\chi)\), and
+the Airy argument \(X=\lambda^{2/3}\zeta\).  The Liouville amplitude is
+\((\zeta/q)^{1/4}\), with the turning-point limit used when either quantity is
+too small for the direct ratio.
+
+The second-order coefficient calculation is local to the requested point.  The
+code samples \(\psi\) along the same side of the turning point as the requested
+\(\chi\), using the segment
+\begin{equation}
+  \chi_i=\chi_t+\tau_i(\chi-\chi_t),
+  \qquad
+  \tau_i=\left\{0,\,
+  0.1464466094,\,
+  0.5,\,
+  0.8535533906,\,
+  1\right\}.
+  \label{eq:app-second-nodes}
+\end{equation}
+At each sample point it computes \(\zeta_i\) from the analytic action and then
+evaluates \(\psi(\zeta_i)\) from \eqref{eq:app-psi}.  Very near the turning
+point, \(\abs{\zeta}\le2\times10^{-3}\), it uses the finite value \(\psi_t\)
+from \eqref{eq:app-psi-turn} instead of the subtractive formula.  If the
+requested \(\abs{\zeta}\) is below \(1.6\times10^{-2}\), the fit segment is
+enlarged to this fixed magnitude on the same side of the turn; this keeps the
+polynomial fit well conditioned while still evaluating the final coefficients
+at the requested \(\zeta\).
+
+The sampled values are converted to a degree-four polynomial in a scaled
+coordinate,
+\begin{equation}
+  \psi(v)\simeq \sum_{i=0}^{4}c_i\left(\frac{v}{\zeta_s}\right)^i,
+  \label{eq:app-psi-poly}
+\end{equation}
+where normally \(\zeta_s=\zeta\), with a small fixed lower magnitude used close
+to the turning point.  The interpolation uses Newton divided differences,
+which is cheaper than a dense linear solve for this fixed small degree.
+Because the Olver functionals \eqref{eq:app-B0-real} and
+\eqref{eq:app-A1-integral} are integrals of \(\psi\), the polynomial makes
+\(B_0\) and \(A_1\) analytic sums.  With
+\(\rho=\zeta/\zeta_s\), and for \(\zeta\ne0\),
+\begin{equation}
+  B_0(\zeta)\simeq
+  \sum_{i=0}^{4}\frac{c_i\rho^i}{2i+1},
+  \label{eq:app-code-B0}
+\end{equation}
+and
+\begin{equation}
+  A_1(\zeta)\simeq
+  \frac12\left[
+  \zeta
+  \sum_{i=0}^{4}\sum_{j=0}^{4}
+  \frac{c_i c_j\rho^{i+j}}{(2j+1)(i+j+1)}
+  -\frac{1}{\zeta}
+  \sum_{i=2}^{4}\frac{i\,c_i\rho^i}{2i+1}
+  \right].
+  \label{eq:app-code-A1}
+\end{equation}
+At the turning point the limiting convention is used instead:
+\begin{equation}
+  B_0(0)=\psi_t,\qquad A_1(0)=0.
+  \label{eq:app-code-turn-limit}
+\end{equation}
+Thus the apparent \(1/\zeta\) in \eqref{eq:app-code-A1} is not evaluated at
+\(\zeta=0\); it is only the finite-\(\zeta\) polynomial form of the integral
+\eqref{eq:app-A1-integral}.  This turning-point coefficient limit is separate
+from the Liouville-amplitude limit \((\zeta/q)^{1/4}\).
+For the fitted polynomial approximation to \(\psi\), these sums evaluate the
+Olver functionals analytically.  The remaining error is the local interpolation
+error in \(\psi\).  No inverse \(\zeta\mapsto\chi\) solve and no whole-window
+residual fit is needed.
+
+The final value is then obtained by evaluating \(\Ai(X)\) and \(\Ai'(X)\),
+forming the bracket in \eqref{eq:app-second-order-u}, multiplying by the
+logarithmic normalization \(\mathcal N\) and the Liouville amplitude, and
+dividing by \(\SK(\chi)\) if the unreduced \(\phi_l^\nu\) is requested.  The
+acceptance gates are deliberately simple.  The branch is considered only for
+\(l\ge10\), positive \(\nu\), and nonzero \(\chi\).  Flat models then pass this
+base gate.  Open models require \(\nu\ge7\), excluding the low-frequency regime
+where the asymptotic normalization and local residual fit are no longer the
+best cheap approximation.  Closed models require \(\beta>1\) and
+\(\lambda(\beta^2-1)\ge15\), keeping the calculation away from the
+near-degenerate endpoint where the closed turning point approaches the pole
+and recurrence is more reliable.  There is no symmetric high-\(\abs{X}\)
+acceptance cut.  Instead, when \(X>25.77\) the code returns zero, since this is
+the exponentially small positive Airy tail and is negligible on the
+peak-normalized accuracy scale.  Outside the remaining gates the caller can use
+the other approximations or the stable recurrence fallback.
+
+Relative to the leading Airy approximation, the new content is therefore not
+the Airy action map itself, but the local second-order residual correction:
+\(B_0(\zeta)\) supplies the \(\Ai'\) admixture, and \(A_1(\zeta)\) supplies the
+next scalar correction to the \(\Ai\) amplitude.  The implementation keeps just
+enough local information about \(\psi\) to evaluate these two functions at the
+single point being requested.
+
+\section{Open-space small-\texorpdfstring{\(\nu\)}{nu} approximation}
+\label{app:smallnu-open}
+
+There is one open-space corner where the usual high-frequency Olver map is not
+the most efficient description.  For \(K=-1\), when \(\nu\) is small compared
+with the angular barrier, the turning point
+\(\sinh\chi_t= \sqrt{l(l+1)}/\nu\) moves far out in the open tail.  The
+radial equation then spends a long range in a slowly varying exponential
+barrier.  This appendix describes the special small-\(\nu\) approximation used
+for that regime.
+
+\subsection{Macdonald comparison solution}
+
+For open models the reduced equation is
+\begin{equation}
+  u''+\left[\nu^2-\frac{l(l+1)}{\sinh^2\chi}\right]u=0.
+  \label{eq:app-smallnu-open-eq}
+\end{equation}
+Let
+\begin{equation}
+  a_l=\sqrt{l(l+1)},\qquad b=\abs{\nu}.
+\end{equation}
+The symbol \(a_l\) is local to this appendix.  At large \(\chi\),
+\(a_l^2/\sinh^2\chi\simeq4a_l^2e^{-2\chi}\), so the tail of
+\eqref{eq:app-smallnu-open-eq} resembles an exponential-barrier equation.  The
+comparison equation is solved by a modified Bessel, or Macdonald, function of
+imaginary order.  Define the scaled real function
+\begin{equation}
+  \mathcal K_b(x)=
+  \left[\frac{\sinh(\pi b)}{\pi b}\right]^{1/2}K_{ib}(x),
+  \label{eq:app-scaled-K}
+\end{equation}
+with the limiting \(K_0(x)\) interpretation as \(b\to0\).  The simplest
+small-\(\nu\) approximation is then
+\begin{equation}
+  u_l^\nu(-1,\chi)\simeq
+  \mathcal K_b\!\left(2\Lambda_{l\nu}e^{-\chi}\right),\qquad
+  \phi_l^\nu(-1,\chi)\simeq\frac{u_l^\nu(-1,\chi)}{\sinh\chi}.
+  \label{eq:app-smallnu-simple}
+\end{equation}
+Here \(\Lambda_{l\nu}\) is a phase-matching constant.  It is fixed by the large-\(\chi\) phase.  As \(x\to0\),
+\begin{equation}
+  \mathcal K_b(x)\sim
+  -\frac{1}{b}\sin\!\left[
+  b\log\!\left(\frac{x}{2}\right)-\arg\Gamma(1+ib)
+  \right].
+  \label{eq:app-smallnu-K-smallx}
+\end{equation}
+The exact open hyperspherical Bessel has the asymptotic phase
+\begin{equation}
+  u_l^\nu(-1,\chi)\sim
+  \frac{1}{b}\sin\!\left[
+  b\chi-\sum_{j=1}^{l}\arctan\!\left(\frac{b}{j}\right)
+  \right].
+  \label{eq:app-smallnu-tail-phase}
+\end{equation}
+Using
+\begin{equation}
+  \arg\Gamma(l+1+ib)=
+  \arg\Gamma(1+ib)+
+  \sum_{j=1}^{l}\arctan\!\left(\frac{b}{j}\right),
+\end{equation}
+the comparison phase matches \eqref{eq:app-smallnu-tail-phase} if
+\begin{equation}
+  \log\Lambda_{l\nu}
+  =\frac{\Im\log\Gamma(l+1+i b)}{b}.
+  \label{eq:app-smallnu-loglambda}
+\end{equation}
+This expression has a smooth \(b\to0\) limit:
+\begin{equation}
+  \log\Lambda_{l0}=H_l-\gamma,
+\end{equation}
+where \(H_l\) is the harmonic number and \(\gamma\) is Euler's constant.  For
+small \(b/(l+1)\), the branch-continuous expansion used in the code is
+\begin{equation}
+  \log\Lambda_{l\nu}=
+  H_l-\gamma+
+  \sum_{m=1}^{\infty}
+  \frac{(-1)^{m+1}b^{2m}}{2m+1}
+  \sum_{n=l+1}^{\infty}\frac{1}{n^{2m+1}}.
+  \label{eq:app-smallnu-loglambda-series}
+\end{equation}
+This is just the small-\(b\) expansion of the gamma-function phase, written as
+a rapidly convergent tail sum.
+
+\subsection{Action-matched argument}
+
+Equation \eqref{eq:app-smallnu-simple} matches the asymptotic phase, but its
+effective exponential barrier is still only an approximation to
+\(a_l^2/\sinh^2\chi\).  The optimized version keeps the same comparison
+function \(\mathcal K_b\), but replaces the argument
+\(2\Lambda_{l\nu}e^{-\chi}\) by an action-matched argument \(x_*(\chi)\).
+
+The useful variable for the exact open problem is
+\begin{equation}
+  y=\frac{a_l}{\sinh\chi}.
+\end{equation}
+Then \(\dd\chi=-\dd y/[y\sqrt{1+y^2/a_l^2}]\), and the exact WKB action from
+the turning point \(y=b\) is
+\begin{equation}
+  S_{\rm osc}(y)=
+  \int_y^b
+  \frac{\sqrt{b^2-t^2}}{t\sqrt{1+t^2/a_l^2}}\,\dd t,\qquad 0\le y\le b,
+  \label{eq:app-smallnu-true-osc}
+\end{equation}
+on the oscillatory side, and
+\begin{equation}
+  S_{\rm forb}(y)=
+  \int_b^y
+  \frac{\sqrt{t^2-b^2}}{t\sqrt{1+t^2/a_l^2}}\,\dd t,\qquad y\ge b,
+  \label{eq:app-smallnu-true-forb}
+\end{equation}
+on the forbidden side.  These integrals have stable closed forms.  For
+\(0\le y\le b\), with \(s=\sqrt{b^2-y^2}\),
+\begin{equation}
+  S_{\rm osc}(y)=
+  b\,\atanh\!\left[
+  \frac{s}{b\sqrt{1+y^2/a_l^2}}
+  \right]
+  -a_l\asin\!\left[
+  \frac{s}{\sqrt{a_l^2+b^2}}
+  \right].
+  \label{eq:app-smallnu-Sosc}
+\end{equation}
+For \(y\ge b\), with \(s=\sqrt{y^2-b^2}\),
+\begin{equation}
+  S_{\rm forb}(y)=
+  a_l\,\atanh\!\left[
+  \frac{s}{\sqrt{a_l^2+y^2}}
+  \right]
+  -b\asin\!\left[
+  \frac{a_l s}{y\sqrt{a_l^2+b^2}}
+  \right].
+  \label{eq:app-smallnu-Sforb}
+\end{equation}
+The comparison Macdonald equation has the simpler actions
+\begin{equation}
+  C_{\rm osc}(x)=
+  \int_x^b\frac{\sqrt{b^2-t^2}}{t}\,\dd t
+  =b\log\!\left(\frac{b+\sqrt{b^2-x^2}}{x}\right)
+  -\sqrt{b^2-x^2},
+  \label{eq:app-smallnu-Cosc}
+\end{equation}
+for \(0<x\le b\), and
+\begin{equation}
+  C_{\rm forb}(x)=
+  \int_b^x\frac{\sqrt{t^2-b^2}}{t}\,\dd t
+  =\sqrt{x^2-b^2}-b\arccos\!\left(\frac{b}{x}\right),
+  \label{eq:app-smallnu-Cforb}
+\end{equation}
+for \(x\ge b\).
+
+The additive constant is chosen so that the action-matched argument has the
+same far-tail limit as the phase-matched approximation:
+\begin{equation}
+  x_*(\chi)\longrightarrow 2\Lambda_{l\nu}e^{-\chi},
+  \qquad \chi\to\infty.
+\end{equation}
+This gives
+\begin{equation}
+  c_\infty=
+  b\left[\frac12\log(a_l^2+b^2)-\log\Lambda_{l\nu}\right]
+  -b+a_l\arctan\!\left(\frac{b}{a_l}\right).
+  \label{eq:app-smallnu-cphase}
+\end{equation}
+Define the signed target action
+\begin{equation}
+  T(y)=
+  \begin{cases}
+  S_{\rm osc}(y)+c_\infty, & y<b,\\
+  -S_{\rm forb}(y)+c_\infty, & y\ge b.
+  \end{cases}
+  \label{eq:app-smallnu-target}
+\end{equation}
+The argument \(x_*\) is then the point in the comparison problem with the same
+signed action:
+\begin{equation}
+  C_{\rm osc}(x_*)=T,\qquad T\ge0,
+  \label{eq:app-smallnu-xstar-osc}
+\end{equation}
+and
+\begin{equation}
+  C_{\rm forb}(x_*)=-T,\qquad T<0.
+  \label{eq:app-smallnu-xstar-forb}
+\end{equation}
+The final action-matched approximation is
+\begin{equation}
+  u_l^\nu(-1,\chi)\simeq \mathcal K_b(x_*(\chi)),\qquad
+  \phi_l^\nu(-1,\chi)\simeq \frac{\mathcal K_b(x_*(\chi))}{\sinh\chi}.
+  \label{eq:app-smallnu-action-result}
+\end{equation}
+No extra Liouville amplitude is applied.  This is a calibrated pointwise
+replacement: the action-matched argument corrects the leading phase and
+turning-region location, while the normalization remains that of the
+phase-matched Macdonald comparison solution.
+
+\subsection{Scaled \texorpdfstring{\(K_{i\nu}\)}{Kinu} evaluation}
+
+The numerical problem is not only to choose \(x_*\), but also to evaluate
+\(\mathcal K_b(x)\) without forming a huge \(e^{\pi b/2}\) factor times a tiny
+Macdonald function.  The implementation uses the identity
+\begin{equation}
+  \mathcal K_b(x)=
+  -\frac{1}{b}\Im\left[
+  e^{i\theta}
+  \sum_{k=0}^{\infty}
+  \frac{(x^2/4)^k}{k!\,(1+ib)_k}
+  \right],
+  \qquad
+  \theta=b\log\!\left(\frac{x}{2}\right)-\arg\Gamma(1+ib),
+  \label{eq:app-smallnu-K-series}
+\end{equation}
+where \((1+ib)_k\) is the rising Pochhammer symbol.  The normalization in
+\eqref{eq:app-scaled-K} cancels the modulus of \(\Gamma(1+ib)\), leaving only
+the phase \(\theta\).  For very small \(x\) the series is replaced by its
+leading term, which is the small-\(x\) phase formula
+\eqref{eq:app-smallnu-K-smallx}.
+
+For \(b\gtrsim20\) the power series becomes cancellation-prone near the
+Macdonald turning point \(x\simeq b\).  The code then uses a leading uniform
+Airy approximation to the Macdonald function.  Write \(x=bz\).  Define a local
+Macdonald Airy coordinate \(\zeta_K\), unrelated to the hyperspherical Airy
+coordinate in Appendix~\ref{app:second-order-airy}, by
+\begin{equation}
+  \frac23\zeta_K^{3/2}
+  =\atanh\!\sqrt{1-z^2}-\sqrt{1-z^2},\qquad z<1,
+  \label{eq:app-smallnu-K-zeta-osc}
+\end{equation}
+and
+\begin{equation}
+  \frac23(-\zeta_K)^{3/2}
+  =\sqrt{z^2-1}-\arctan\!\sqrt{z^2-1},\qquad z>1.
+  \label{eq:app-smallnu-K-zeta-forb}
+\end{equation}
+Thus \(\zeta_K>0\) on the oscillatory side of \(K_{ib}\) and
+\(\zeta_K<0\) on the decaying side.  With
+\begin{equation}
+  \Phi_K(z)=
+  \left(\frac{4\abs{\zeta_K}}{\abs{1-z^2}}\right)^{1/4},
+  \qquad \Phi_K(1)=2^{1/3},
+\end{equation}
+the leading approximation used by the router is
+\begin{equation}
+  \mathcal K_b(bz)\simeq
+  \exp\!\left[
+  \frac12\log\!\left(\frac{\sinh(\pi b)}{\pi b}\right)
+  +\log\pi-\frac{\pi b}{2}-\frac13\log b
+  \right]
+  \Phi_K(z)\,\Ai\!\left(-b^{2/3}\zeta_K\right).
+  \label{eq:app-smallnu-K-airy}
+\end{equation}
+For \(z<1\) the Airy argument is negative and oscillatory; for \(z>1\) it is
+positive and exponentially decaying.
+
+\subsection{Implementation details and gates}
+
+The small-\(\nu\) branch is open-space only.  The intended peak-normalized
+validity region is
+\begin{equation}
+  l>20,\qquad
+  \nu\le
+  \max\!\left[
+  1.2\times10^{-4}\,l^{3/2},\,
+  \min\!\left(12\left(\frac{l}{1000}\right)^3,\,0.032\,l\right)
+  \right].
+  \label{eq:app-smallnu-gate}
+\end{equation}
+Outside this calibrated corner the ordinary Olver, Airy, or recurrence
+paths are preferable.
+
+The implementation first computes \(\log\Lambda_{l\nu}\).  For
+\(b<10^{-8}\) it uses \(H_l-\gamma\).  For \(l\ge8\) and
+\(b/(l+1)<0.30\), it evaluates the tail series
+\eqref{eq:app-smallnu-loglambda-series} with Euler--Maclaurin estimates for
+the zeta tails, keeping terms through \(m=4\), and adding the \(m=5,6\) terms
+when \(b/(l+1)\ge0.20\); otherwise it evaluates
+\(\arg\Gamma(1+ib)+\sum_{j=1}^{l}\arctan(b/j)\) directly with a real
+Lanczos phase calculation.  The action-matched argument uses
+\(y=a_l/\sinh\chi\), or \(y\simeq2a_l e^{-\chi}\) for very large \(\chi\), and
+uses stable endpoint forms of \eqref{eq:app-smallnu-Sosc}--\eqref{eq:app-smallnu-Sforb}.
+The inverse comparison actions \eqref{eq:app-smallnu-xstar-osc} and
+\eqref{eq:app-smallnu-xstar-forb} are solved by a few safeguarded Halley steps
+using small-action and tail asymptotic starting values.  If \(x_*\) underflows
+to zero, the code falls back to the non-action small-\(x\) phase form, which is
+the same asymptotic limit.
+
+The scaled Macdonald evaluator is also routed by regime.  It works with
+\(\log(x/2)\) whenever possible.  If \(\log(x/2)>120\), it returns zero; if
+\(\log(x/2)<-20\), it uses the leading small-\(x\) phase.  For \(b<20\), it
+keeps the older conservative route: the \(I_{ib}\) series for
+\(x\le\min[20,\max(3,0.85b+1)]\), a large-\(x\) asymptotic expansion when
+\(x>45+4b^2\), and otherwise a robust real-axis quadrature of the defining
+\(K_{ib}\) integral.  For \(b\ge20\), it uses the checked series while
+\begin{equation}
+  Q_{\rm ser}\equiv\frac{x^2}{4b}\le25
+\end{equation}
+and the terms converge, with at most 384 terms and a squared-term tolerance of
+\(4\times10^{-32}\); once this test fails, or when \(x>b+5\), it switches to
+the Airy formula \eqref{eq:app-smallnu-K-airy}.  This keeps the fast series in
+the region where it is accurate, but avoids its near-turning cancellation.
 
 \begin{thebibliography}{99}
 \bibitem{olver}

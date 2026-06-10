@@ -38,7 +38,7 @@
 
 \title{Fast spherical Bessel functions in \code{FlatBessels}: origin and flow of the current \code{BJL} approximation}
 \author{Implementation note for the CAMB flat Bessel routine}
-\date{May 2026}
+\date{May 2026; updated June 2026}
 
 \begin{document}
 \maketitle
@@ -121,7 +121,7 @@ Very small argument & $a<10^{-40}$, after low orders & High-order near-origin sc
 Deep pre-peak & $a^2/\ell<0.5$ & Ascending $J_\nu$ series; large-$\nu$ prefactor. \\
 Far after peak & $\ell^2/a<0.5$ & Fixed-order, large-argument Hankel expansion. \\
 Moderate transition & $\ell\le25$ and $-5\le\eta\le5.6$ & Stable recurrence while cheap. \\
-Airy shoulders & $-2.25\le\eta<-0.65$ or $0.65<\eta\le3.7$ & Olver turning-point form, with fitted finite-order corrections. \\
+Airy shoulders & $-2.25\le\eta<-0.65$ or $0.65<\eta\le3.7$ & Olver turning-point form with a polynomial turning-point mapping and fitted finite-order corrections. \\
 Below-peak side & $\eta<-2.25$ & Exponential Debye large-order expansion for $a<\nu$. \\
 Above-peak side & $\eta>3.7$ & Oscillatory Debye large-order expansion for $a>\nu$. \\
 Peak centre & Remaining transition points & Local expansion of the turning-point solution about $a=\nu$. \\
@@ -410,7 +410,18 @@ and is roughly $j_\ell(a)\simeq\mathcal{P}\Ai(\tau)$.  The word ``uniform'' mean
 \begin{equation}
   \lim_{z\to1}\frac{4\zeta}{1-z^2}=2^{4/3}.
 \end{equation}
-Direct evaluation nevertheless loses precision near $z=1$ because numerator and denominator both vanish.  The code therefore uses short polynomial expansions in $U=z-1$ when $|z-1|<10^{-3}$.
+
+The logarithmic and inverse-trigonometric definitions above are the mathematical origin of $\zeta$, but the current code does not evaluate them at all.  Writing $u=z-1$, the function
+\begin{equation}
+  P(u)=\frac{\zeta}{u}
+\end{equation}
+is analytic through the turning point, and both required quantities follow from it:
+\begin{equation}
+  \zeta=u\,P(u),
+  \qquad
+  \frac{4\zeta}{1-z^2}=-\frac{4P(u)}{2+u}.
+\end{equation}
+The code evaluates $P$ as a single degree-ten Horner polynomial fitted on $u\in[-0.26,0.42]$, which covers the shoulder gate domain for all $\ell\ge26$ (the band in $u$ is widest at $\ell=26$, $u\in[-0.247,0.406]$, and shrinks like $\nu^{-0.675}$).  The fit error is $|\D\zeta|\lesssim2\times10^{-10}$, and because $\tau=\nu^{2/3}\zeta$ with $\nu^{2/3}u=\eta\,\nu^{2/3-0.675}=\mathcal{O}(\eta)$, the induced $\tau$ error is uniformly negligible in $\ell$; the polynomial mapping reproduces the exact $\log$/$\arccos$ evaluation to about $9\times10^{-10}$ peak-normalized over the gate domain.  This replaces two transcendental library calls (a fractional power and a $\log$ or $\arccos$) and a data-dependent branch by a short pipelined multiply--add chain, making the shoulder routine about $1.7\times$ faster, and it removes the cancellation safeguard that was previously needed for $|z-1|<10^{-3}$, since the polynomial is uniform through $z=1$ by construction.  The fitted interval is tied to the shoulder gates: widening \code{BJL\_AIRY\_ETA\_LOW}/\code{BJL\_AIRY\_ETA\_HIGH} beyond $[-2.25,3.7]$ requires refitting the $P(u)$ coefficients.
 
 \section{What the corrected Airy branch is correcting}
 
@@ -599,6 +610,7 @@ The routine combines several kinds of information, and it is useful not to confu
 \item[Analytic identities:] the low-order closed forms and the three-term recurrence are exact.
 \item[Standard asymptotic expansions:] the small-argument branch, far-argument branch, Debye side formulae, and leading Airy variables come from standard Bessel asymptotics.
 \item[Algebraic local expansion:] the peak polynomial is the $a\simeq\nu$ local expansion of the Airy transition solution, expressed with $\Gamma(1/3)$ and $\Gamma(2/3)$ values.
+\item[Polynomial representation of an exact mapping:] the degree-ten fit of $\zeta/u$ in the Airy shoulder branch is a numerical representation of the exact Olver variable, accurate to $|\D\zeta|\sim2\times10^{-10}$ on its fitted interval $u\in[-0.26,0.42]$.  Unlike the correction fits below it approximates a known analytic function, but it is valid only on the interval implied by the shoulder gates.
 \item[Numerical correction fits:] the four Airy correction polynomials are compact finite-interval corrections in the Olver-inspired $\Ai,\Ai'$ basis.  They should not be interpreted as universal symbolic Debye polynomials.
 \item[Tuned switch constants:] the numerical branch boundaries, the empirical $\nu^{0.325}$ switching scale, and the recurrence cap are implementation choices chosen to balance speed, continuity, and peak-normalized error for the current CAMB use.
 \end{description}
