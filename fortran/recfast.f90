@@ -761,7 +761,10 @@
                 y_rosen_start = y
                 call RecfastRosenbrockAdvance(this, zstart, y(1:Calc%n_eq), zend, rosenbrock_tol, &
                     rosenbrock_ok)
-                if (.not. rosenbrock_ok) return
+                if (.not. rosenbrock_ok) then
+                    call GlobalError("Recfast: Rosenbrock integration failed", error_recombination)
+                    return
+                end if
                 if (.not. Evolve_Ts) y(4) = y(3)
                 if (y(1) <= this%rosenbrock_handoff_xH) then
                     ! Snap the handoff to the higher-redshift grid node by redoing the
@@ -914,19 +917,17 @@
 
     end subroutine EscapeProbabilityAndDerivative
 
-    subroutine SolveSmallLinearSystem(matrix, rhs, solution, ok)
-    real(dl), intent(in) :: matrix(:, :), rhs(:)
-    real(dl), intent(out) :: solution(:)
+    subroutine FactorSmallLinearSystem(a, ipiv, ok)
+    !In-place LU factorization with partial pivoting; multipliers stored below the diagonal
+    real(dl), intent(inout) :: a(:, :)
+    integer, intent(out) :: ipiv(:)
     logical, intent(out) :: ok
-    real(dl) :: a(size(rhs), size(rhs)), b(size(rhs))
     real(dl) :: factor, maxabs, temp, pivot_scale
     integer :: i, j, k, n, pivot
 
-    n = size(rhs)
-    a = matrix
-    b = rhs
+    n = size(ipiv)
     ok = .false.
-    if (.not. all(ieee_is_finite(a)) .or. .not. all(ieee_is_finite(b))) return
+    if (.not. all(ieee_is_finite(a))) return
 
     do k = 1, n - 1
         pivot = k
@@ -939,28 +940,54 @@
         end do
         pivot_scale = max(1._dl, maxval(abs(a(pivot, k:n))))
         if (maxabs <= 100._dl*epsilon(1._dl)*pivot_scale) return
+        ipiv(k) = pivot
         if (pivot /= k) then
             do j = 1, n
                 temp = a(k, j)
                 a(k, j) = a(pivot, j)
                 a(pivot, j) = temp
             end do
-            temp = b(k)
-            b(k) = b(pivot)
-            b(pivot) = temp
         end if
         do i = k + 1, n
             factor = a(i, k)/a(k, k)
-            a(i, k) = 0._dl
+            a(i, k) = factor
             do j = k + 1, n
                 a(i, j) = a(i, j) - factor*a(k, j)
             end do
-            b(i) = b(i) - factor*b(k)
         end do
     end do
+    ipiv(n) = n
 
-    pivot_scale = max(1._dl, maxval(abs(a(n, :))))
+    pivot_scale = max(1._dl, abs(a(n, n)))
     if (abs(a(n, n)) <= 100._dl*epsilon(1._dl)*pivot_scale) return
+    ok = .true.
+
+    end subroutine FactorSmallLinearSystem
+
+    subroutine SolveFactoredSmallLinearSystem(a, ipiv, rhs, solution, ok)
+    !Forward/back substitution using the output of FactorSmallLinearSystem
+    real(dl), intent(in) :: a(:, :), rhs(:)
+    integer, intent(in) :: ipiv(:)
+    real(dl), intent(out) :: solution(:)
+    logical, intent(out) :: ok
+    real(dl) :: b(size(rhs)), temp
+    integer :: i, j, k, n
+
+    n = size(rhs)
+    ok = .false.
+    if (.not. all(ieee_is_finite(rhs))) return
+
+    b = rhs
+    do k = 1, n - 1
+        if (ipiv(k) /= k) then
+            temp = b(k)
+            b(k) = b(ipiv(k))
+            b(ipiv(k)) = temp
+        end if
+        do i = k + 1, n
+            b(i) = b(i) - a(i, k)*b(k)
+        end do
+    end do
 
     solution(n) = b(n)/a(n, n)
     do i = n - 1, 1, -1
@@ -973,7 +1000,7 @@
     if (.not. all(ieee_is_finite(solution))) return
     ok = .true.
 
-    end subroutine SolveSmallLinearSystem
+    end subroutine SolveFactoredSmallLinearSystem
 
     logical function RecfastRosenbrockStateOK(y)
     real(dl), intent(in) :: y(:)
@@ -988,18 +1015,15 @@
 
     end function RecfastRosenbrockStateOK
 
-    subroutine EvaluateRecfastODETimeDerivative(this, Ndim, z, y, h, f_t, force_full_hydrogen)
+    subroutine EvaluateRecfastODETimeDerivative(this, Ndim, z, y, h, f0, f_t)
+    !One-sided difference in z of the full smooth (force_full_hydrogen) system,
+    !reusing the already-computed f0 = f(z, y)
     class(TRecfast), target :: this
     integer, intent(in) :: Ndim
-    real(dl), intent(in) :: z, y(Ndim), h
+    real(dl), intent(in) :: z, y(Ndim), h, f0(Ndim)
     real(dl), intent(out) :: f_t(Ndim)
-    logical, intent(in), optional :: force_full_hydrogen
-    real(dl) :: delta_z, delta_z_floor, z_hi, z_lo
-    real(dl) :: f_hi(Ndim), f_lo(Ndim)
-    logical :: full_hydrogen
-
-    full_hydrogen = .false.
-    if (present(force_full_hydrogen)) full_hydrogen = force_full_hydrogen
+    real(dl) :: delta_z, delta_z_floor, z_pert
+    real(dl) :: f_pert(Ndim)
 
     delta_z = min(0.05_dl, max(1.e-4_dl, 1.e-5_dl*max(1._dl, abs(z))))
     if (abs(h) > 0._dl) then
@@ -1007,53 +1031,52 @@
         delta_z_floor = 1.e-8_dl*max(1._dl, abs(z))
         delta_z = max(delta_z, delta_z_floor)
     end if
-    z_hi = min(zinitial, z + delta_z)
-    z_lo = max(zfinal, z - delta_z)
+    !step in the direction of integration where possible
+    z_pert = max(zfinal, min(zinitial, z + sign(delta_z, h)))
+    if (z_pert == z) z_pert = max(zfinal, min(zinitial, z - sign(delta_z, h)))
 
-    if (z_hi > z_lo) then
-        call EvaluateRecfastODE(this, Ndim, z_hi, y, f_hi, full_hydrogen)
-        call EvaluateRecfastODE(this, Ndim, z_lo, y, f_lo, full_hydrogen)
-        f_t = (f_hi - f_lo)/(z_hi - z_lo)
+    if (z_pert /= z) then
+        call EvaluateRecfastODE(this, Ndim, z_pert, y, f_pert, .true.)
+        f_t = (f_pert - f0)/(z_pert - z)
     else
         f_t = 0._dl
     end if
 
     end subroutine EvaluateRecfastODETimeDerivative
 
-    subroutine RecfastROS2Step(this, z, y, h, yout, yerr, ok)
+    subroutine RecfastROS2Step(this, z, y, h, f, f_t, jac, yout, yerr, ok)
     class(TRecfast), target :: this
-    real(dl), intent(in) :: z, y(:), h
+    real(dl), intent(in) :: z, y(:), h, f(:), f_t(:), jac(:, :)
     real(dl), intent(out) :: yout(:)
     real(dl), intent(out) :: yerr(:)
     logical, intent(out) :: ok
-    real(dl) :: f(size(y)), f_stage(size(y)), jac(size(y), size(y)), matrix(size(y), size(y))
-    real(dl) :: f_t(size(y)), k1(size(y)), k2(size(y)), rhs(size(y)), y_stage(size(y))
+    real(dl) :: f_stage(size(y)), matrix(size(y), size(y))
+    real(dl) :: k1(size(y)), k2(size(y)), rhs(size(y)), y_stage(size(y))
     real(dl) :: gamma_h, gamma_h2
-    integer :: i, n
+    integer :: i, n, ipiv(size(y))
 
     n = size(y)
     ok = .false.
 
-    ! Jacobians are only consumed by the Rosenbrock path, which always uses the
-    ! full smooth hydrogen system rather than the old piecewise H switch.
-    call EvaluateRecfastODE(this, n, z, y, f, .true., jac)
-    call EvaluateRecfastODETimeDerivative(this, n, z, y, h, f_t, .true.)
     matrix = -ROS2_gamma*h*jac
     do i = 1, n
         matrix(i, i) = matrix(i, i) + 1._dl
     end do
+    !factor once and reuse for both stage solves
+    call FactorSmallLinearSystem(matrix, ipiv, ok)
+    if (.not. ok) return
     gamma_h = ROS2_gamma*h
     gamma_h2 = gamma_h*gamma_h
 
     rhs = gamma_h*f + gamma_h2*f_t
-    call SolveSmallLinearSystem(matrix, rhs, k1, ok)
+    call SolveFactoredSmallLinearSystem(matrix, ipiv, rhs, k1, ok)
     if (.not. ok) return
 
     y_stage = y + ROS2_a21*k1
     call EvaluateRecfastODE(this, n, z + h, y_stage, f_stage, .true.)
 
     rhs = gamma_h*f_stage + ROS2_gamma*ROS2_c21*k1 - gamma_h2*f_t
-    call SolveSmallLinearSystem(matrix, rhs, k2, ok)
+    call SolveFactoredSmallLinearSystem(matrix, ipiv, rhs, k2, ok)
     if (.not. ok) return
 
     yout = y + ROS2_m1*k1 + ROS2_m2*k2
@@ -1069,8 +1092,9 @@
     logical, intent(out) :: ok
     real(dl) :: direction, err, factor, min_step, scale, step, z
     real(dl) :: y_err(size(y)), y_trial(size(y))
+    real(dl) :: f(size(y)), f_t(size(y)), jac(size(y), size(y))
     integer :: attempt, i
-    logical :: step_ok
+    logical :: step_ok, need_derivs
 
     ok = .false.
     if (zend == zstart) then
@@ -1082,6 +1106,7 @@
     z = zstart
     step = zend - zstart
     min_step = max(abs(step)*1.e-8_dl, 1.e-10_dl)
+    need_derivs = .true.
 
     do attempt = 1, RECFAST_rosenbrock_max_steps
         if (direction*(zend - z) <= 0._dl) then
@@ -1090,7 +1115,17 @@
         end if
         if (direction*(zend - (z + step)) < 0._dl) step = zend - z
 
-        call RecfastROS2Step(this, z, y, step, y_trial, y_err, step_ok)
+        if (need_derivs) then
+            ! f, jacobian and f_t depend only on (z, y), so can be reused across
+            ! step-size retries (f_t's stencil is sized from the first attempt's step, but
+            ! it estimates an h-independent derivative on scales far below f's z-smoothness,
+            ! so reuse at smaller h is fine). The Rosenbrock path always uses the full
+            ! smooth hydrogen system rather than the old piecewise H switch.
+            call EvaluateRecfastODE(this, size(y), z, y, f, .true., jac)
+            call EvaluateRecfastODETimeDerivative(this, size(y), z, y, step, f, f_t)
+            need_derivs = .false.
+        end if
+        call RecfastROS2Step(this, z, y, step, f, f_t, jac, y_trial, y_err, step_ok)
 
         if (step_ok) then
             err = 0._dl
@@ -1109,6 +1144,7 @@
             y = y_trial
             y(1:min(2, size(y))) = max(y(1:min(2, size(y))), 0._dl)
             z = z + step
+            need_derivs = .true.
             if (direction*(zend - z) <= 0._dl) then
                 ok = .true.
                 return
@@ -1144,12 +1180,24 @@
     real(dl) :: x, n, n_He, Trad, Tmat, Tspin, x_H, x_He, Hz, aTmat, ainv, aTs
     real(dl) :: Rup, Rdown, K, K_He, Rup_He, Rdown_He, He_Boltz
     real(dl) :: timeTh, timeH
-    real(dl) :: a_VF, b_VF, T_0, T_1, sq_0, sq_1, a_PPB, b_PPB, c_PPB, d_PPB
+    !       the Pequignot, Petitjean & Boisson fitting parameters for Hydrogen
+    real(dl), parameter :: a_PPB = 4.309d0, b_PPB = -0.6166d0, c_PPB = 0.6703d0, d_PPB = 0.5300d0
+    !       the Verner and Ferland type fitting parameters for Helium
+    !       fixed to match those in the SSS papers, and now correct
+    real(dl), parameter :: a_VF = 10.d0**(-16.744d0), b_VF = 0.711d0
+    real(dl), parameter :: T_0 = 10.d0**(0.477121d0), T_1 = 10.d0**(5.114d0)
+    !      fitting parameters for HeI triplets
+    !      (matches Hummer's table with <1% error for 10^2.8 < T/K < 10^4)
+    real(dl), parameter :: a_trip = 10.d0**(-16.306d0), b_trip = 0.761D0
+    real(dl) :: sq_0, sq_1, cpd, pgq, AH_fac
     real(dl) :: tauHe_s, pHe_s, dpHe_s_dtau
-    real(dl) :: a_trip, b_trip, Rdown_trip, Rup_trip
-    real(dl) :: Doppler, gamma_2Ps, pb, qb, AHcon
+    real(dl) :: Rdown_trip, Rup_trip
+    real(dl) :: Doppler, gamma_2Ps, qb_s, AHcon
+    !KIV (2007) H continuum opacity fit shapes; separate constants for the singlet
+    !and triplet channels so the Jacobian cannot pick up stale values
+    real(dl), parameter :: pb_s = 0.36d0, pb_t = 0.66d0, qb_t = 0.9d0
     real(dl) :: tauHe_t, pHe_t, dpHe_t_dtau, CL_PSt, CfHe_t, gamma_2Pt, AHcon_t
-    real(dl) :: epsilon, daTmat_dz, dTspin_dz
+    real(dl) :: eps_tc, daTmat_dz, dTspin_dz
     real(dl) :: C10, dHdz, z_scale
     real(dl) :: A_H, A_H_xH, A_H_xHe, A_H_T, B_H, C_H, C_H_xH, C_H_T
     real(dl) :: A_He, A_He_xH, A_He_xHe, A_He_T
@@ -1180,22 +1228,6 @@
     f = 0._dl
     if (present(jacobian)) jacobian = 0._dl
 
-    !       the Pequignot, Petitjean & Boisson fitting parameters for Hydrogen
-    a_PPB = 4.309d0
-    b_PPB = -0.6166d0
-    c_PPB = 0.6703d0
-    d_PPB = 0.5300d0
-    !       the Verner and Ferland type fitting parameters for Helium
-    !       fixed to match those in the SSS papers, and now correct
-    a_VF = 10.d0**(-16.744d0)
-    b_VF = 0.711d0
-    T_0 = 10.d0**(0.477121d0)
-    T_1 = 10.d0**(5.114d0)
-    !      fitting parameters for HeI triplets
-    !      (matches Hummer's table with <1% error for 10^2.8 < T/K < 10^4)
-    a_trip = 10.d0**(-16.306d0)
-    b_trip = 0.761D0
-
     x_H = y(1)
     x_He = y(2)
     x = x_H + Recomb%fHe*x_He
@@ -1210,7 +1242,8 @@
     denH = Hz*ainv
 
     !       Get the radiative rates using PPQ fit, identical to Hummer's table
-    Rdown = 1.d-19*a_PPB*(Tmat/1.d4)**b_PPB/(1._dl + c_PPB*(Tmat/1.d4)**d_PPB)
+    cpd = c_PPB*(Tmat/1.d4)**d_PPB
+    Rdown = 1.d-19*a_PPB*(Tmat/1.d4)**b_PPB/(1._dl + cpd)
     Rup = Rdown*(CR*Tmat)**1.5d0*exp(-CDB/Tmat)
 
     !       calculate He using a fit to a Verner & Ferland type formula
@@ -1275,10 +1308,9 @@
             gamma_2Ps = 3.d0*A2P_s*Recomb%fHe*(1.d0 - x_He)*C*C
             gamma_2Ps = gamma_2Ps/(sqrt(const_pi)*sigma_He_2Ps*const_eightpi*Doppler*(1.d0 - x_H))
             gamma_2Ps = gamma_2Ps/((C*L_He_2p)**2)
-            pb = 0.36d0
-            qb = this%RECFAST_fudge_He
+            qb_s = this%RECFAST_fudge_He
             !   calculate AHcon, the value of A*p_(con,H) for H continuum opacity
-            AHcon = A2P_s/(1.d0 + pb*(gamma_2Ps**qb))
+            AHcon = A2P_s/(1.d0 + pb_s*(gamma_2Ps**qb_s))
             K_He = 1.d0/((A2P_s*pHe_s + AHcon)*3.d0*n_He*(1.d0 - x_He))
         end if
         !include triplet effects
@@ -1300,9 +1332,7 @@
                 gamma_2Pt = gamma_2Pt/(sqrt(const_pi)*sigma_He_2Pt*const_eightpi*Doppler*(1.d0 - x_H))
                 gamma_2Pt = gamma_2Pt/((C*L_He_2Pt)**2)
                 !   use the fitting parameters from KIV (2007) in this case
-                pb = 0.66d0
-                qb = 0.9d0
-                AHcon_t = A2P_t/(1.d0 + pb*gamma_2Pt**qb)/3.d0
+                AHcon_t = A2P_t/(1.d0 + pb_t*gamma_2Pt**qb_t)/3.d0
                 CfHe_t = (A2P_t*pHe_t + AHcon_t)*EPSt
                 CfHe_t = CfHe_t/(Rup_trip + CfHe_t)
             end if
@@ -1362,10 +1392,10 @@
         dHdz = (Recomb%HO**2/2.d0/Hz)*(4.d0*ainv**3/(1.d0 + Recomb%z_eq)*Recomb%OmegaT &
             + 3.d0*Recomb%OmegaT*ainv**2 + 2.d0*Recomb%OmegaK*ainv)
 
-        epsilon = Hz*(1.d0 + x + Recomb%fHe)/(CT*Trad**3*x)
+        eps_tc = Hz*(1.d0 + x + Recomb%fHe)/(CT*Trad**3*x)
         daTmat_dz = (Recomb%Tnow - aTmat)/ainv &
-            + epsilon*((1.d0 + Recomb%fHe)/(1.d0 + Recomb%fHe + x))*((f(1) + Recomb%fHe*f(2))/x)/ainv &
-            - epsilon*dHdz/(Hz*ainv) + 3.d0*epsilon/ainv**2
+            + eps_tc*((1.d0 + Recomb%fHe)/(1.d0 + Recomb%fHe + x))*((f(1) + Recomb%fHe*f(2))/x)/ainv &
+            - eps_tc*dHdz/(Hz*ainv) + 3.d0*eps_tc/ainv**2
     else
         ! Original RECFAST formula is for dTmat/dz. Using Tmat=(1+z)*aTmat and Trad=(1+z)*Tnow gives:
         ! d(aTmat)/dz = [CT*Trad^4*x*(aTmat-Tnow)/(Hz*(1+x+fHe)) + aTmat]/(1+z).
@@ -1393,7 +1423,7 @@
 
     if (.not. present(jacobian)) return
 
-    dlnRdown = (b_PPB + c_PPB*(Tmat/1.d4)**d_PPB*(b_PPB - d_PPB))/(1.d0 + c_PPB*(Tmat/1.d4)**d_PPB)/Tmat
+    dlnRdown = (b_PPB + cpd*(b_PPB - d_PPB))/(1.d0 + cpd)/Tmat
     dRdown = Rdown*dlnRdown
     dRup = Rup*(dlnRdown + 1.5d0/Tmat + CDB/Tmat**2)
     dRupE = RupE*(dlnRdown + 1.5d0/Tmat + CB1/Tmat**2)
@@ -1438,12 +1468,11 @@
         tauHe_s_const = A2P_s*CK_He*3.d0*n_He/Hz
         pHe_s_xHe = dpHe_s_dtau*(-tauHe_s_const)
         if (((Heflag == 2) .or. (Heflag >= 5)) .and. x_H < 0.9999999d0) then
-            AHcon_xH = -A2P_s*pb*qb*gamma_2Ps**(qb - 1.d0)
-            AHcon_xH = AHcon_xH*gamma_2Ps/((1.d0 + pb*gamma_2Ps**qb)**2*(1.d0 - x_H))
-            AHcon_xHe = A2P_s*pb*qb*gamma_2Ps**qb
-            AHcon_xHe = AHcon_xHe/((1.d0 + pb*gamma_2Ps**qb)**2*(1.d0 - x_He))
-            AHcon_dT = A2P_s*pb*qb*gamma_2Ps**qb
-            AHcon_dT = AHcon_dT/(2.d0*Tmat*(1.d0 + pb*gamma_2Ps**qb)**2)
+            pgq = pb_s*gamma_2Ps**qb_s
+            AH_fac = A2P_s*qb_s*pgq/(1.d0 + pgq)**2
+            AHcon_xH = -AH_fac/(1.d0 - x_H)
+            AHcon_xHe = AH_fac/(1.d0 - x_He)
+            AHcon_dT = AH_fac/(2.d0*Tmat)
         end if
         K_He_xH = -K_He**2*AHcon_xH*3.d0*n_He*(1.d0 - x_He)
         K_He_xHe = -K_He**2*((A2P_s*pHe_s_xHe + AHcon_xHe)*3.d0*n_He*(1.d0 - x_He) &
@@ -1487,6 +1516,8 @@
             dRup_trip = Rup_trip*(dlnRdown_trip + 1.5d0/Tmat + h_P*C*L_He2St_ion/(k_B*Tmat**2))
             ETrip = exp(-h_P*C*L_He_2st/(k_B*Tmat))
             RupTripE = 3.d0*Rup_trip*ETrip
+            !exact exponent in RupTripE is h_P*C*(L_He2St_ion + L_He_2St)/k_B, which equals
+            !CB1_He1 up to ~5e-6 relative (atomic-data rounding); good enough for the Jacobian
             dRupTripE = RupTripE*(dlnRdown_trip + 1.5d0/Tmat + CB1_He1/Tmat**2)
 
             A_trip_term = x*x_He*n*Rdown_trip - (1.d0 - x_He)*RupTripE
@@ -1500,12 +1531,11 @@
             pHe_t_xHe = dpHe_t_dtau*(-A2P_t*3.d0*n_He/(const_eightpi*Hz*L_He_2Pt**3))
             dEPSt = EPSt*CL_PSt/Tmat**2
             if (.not. ((Heflag == 3) .or. (Heflag == 5) .or. (x_H > 0.99999d0))) then
-                AHcon_t_xH = -A2P_t*pb*qb*gamma_2Pt**(qb - 1.d0)
-                AHcon_t_xH = AHcon_t_xH*gamma_2Pt/(3.d0*(1.d0 + pb*gamma_2Pt**qb)**2*(1.d0 - x_H))
-                AHcon_t_xHe = A2P_t*pb*qb*gamma_2Pt**qb
-                AHcon_t_xHe = AHcon_t_xHe/(3.d0*(1.d0 + pb*gamma_2Pt**qb)**2*(1.d0 - x_He))
-                AHcon_t_dT = A2P_t*pb*qb*gamma_2Pt**qb
-                AHcon_t_dT = AHcon_t_dT/(6.d0*Tmat*(1.d0 + pb*gamma_2Pt**qb)**2)
+                pgq = pb_t*gamma_2Pt**qb_t
+                AH_fac = A2P_t*qb_t*pgq/(3.d0*(1.d0 + pgq)**2)
+                AHcon_t_xH = -AH_fac/(1.d0 - x_H)
+                AHcon_t_xHe = AH_fac/(1.d0 - x_He)
+                AHcon_t_dT = AH_fac/(2.d0*Tmat)
             end if
 
             Trip_source = (A2P_t*pHe_t + AHcon_t)*EPSt
@@ -1537,10 +1567,10 @@
         Q_T = S_T/x
         coupling_prefac = -dHdz/(Hz*ainv) + 3.d0/ainv**2
 
-        jacobian(3, 1) = (eps_x*P*Q + epsilon*P_xH*Q + epsilon*P*Q_xH)/ainv + eps_x*coupling_prefac
-        jacobian(3, 2) = (Recomb%fHe*eps_x*P*Q + epsilon*P_xHe*Q + epsilon*P*Q_xHe)/ainv
+        jacobian(3, 1) = (eps_x*P*Q + eps_tc*P_xH*Q + eps_tc*P*Q_xH)/ainv + eps_x*coupling_prefac
+        jacobian(3, 2) = (Recomb%fHe*eps_x*P*Q + eps_tc*P_xHe*Q + eps_tc*P*Q_xHe)/ainv
         jacobian(3, 2) = jacobian(3, 2) + Recomb%fHe*eps_x*coupling_prefac
-        jacobian(3, 3) = -1._dl/ainv + epsilon*P*Q_T
+        jacobian(3, 3) = -1._dl/ainv + eps_tc*P*Q_T
     else
         loose_prefac = CT*Trad**4*(aTmat - Recomb%Tnow)/(Hz*(1.d0 + x + Recomb%fHe)**2)
         jacobian(3, 1) = loose_prefac*(1.d0 + Recomb%fHe)/ainv
@@ -1589,7 +1619,8 @@
     real(dl) Delta_Tg
     real(dl) xedot,z,x,n,n_He,Trad,Tmat,x_H,Hz, C_r, dlnC_r
     real(dl) Rup,Rdown,K
-    real(dl) a_PPB,b_PPB,c_PPB,d_PPB
+    !       the Pequignot, Petitjean & Boisson fitting parameters for Hydrogen
+    real(dl), parameter :: a_PPB = 4.309d0, b_PPB = -0.6166d0, c_PPB = 0.6703d0, d_PPB = 0.5300d0
     real(dl) delta_alpha, delta_beta, delta_K, clh
     real(dl) xe
 
@@ -1597,12 +1628,6 @@
         Delta_tg =Delta_Tm
         call this%xe_Tm(a, xe, Tmat)
         x_H = min(1._dl,xe)
-
-        !       the Pequignot, Petitjean & Boisson fitting parameters for Hydrogen
-        a_PPB = 4.309d0
-        b_PPB = -0.6166d0
-        c_PPB = 0.6703d0
-        d_PPB = 0.5300d0
 
         z=1/a-1
 
