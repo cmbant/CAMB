@@ -1119,6 +1119,7 @@
         if ( EV%q*tauend > max_etak_vector) then
             ThisSources%LinearSrc(EV%q_ix,:,j) = 0
         else
+            rk_settings%reuse_first_derivative = .true.
             call RungeKuttaDP45(EV, EV%nvarv, derivsv, tau, yv, tauend, tol, ind, rk_settings, EV%nvarv, wt)
 
             call outputv(EV,yv,EV%nvarv,tau,ThisSources%LinearSrc(EV%q_ix,CT_Temp,j),&

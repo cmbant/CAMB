@@ -38,6 +38,17 @@
         ! Return with ind = 5 or 6 after estimating trial-step error and before
         ! applying the accept/reject update.
         logical :: interrupt_after_trial_step = .false.
+        ! Reuse the first-same-as-last (FSAL) stage across calls: on reaching xend
+        ! save the last stage-7 derivative (= fcn at the returned x, y) so the next
+        ! ind = 3 continuation skips the initial derivative evaluation. Only valid
+        ! if the caller does not change x, y, n or the equations between calls;
+        ! callers that do must reset ind or set first_derivative_valid = .false.
+        logical :: reuse_first_derivative = .false.
+        ! Allow the step to stretch by up to this factor beyond the natural step
+        ! size to reach xend in one step instead of two clipped ones. The stretched
+        ! step must still pass the error test and respect the maximum step size.
+        ! Values <= 1 recover the historical clip to half the remaining interval.
+        real(dl) :: xend_stretch = 1.2_dl
         ! Persistent solver state below this point, maintained across re-entry.
         ! These correspond to the historical c(12:24) bookkeeping values.
         real(dl) :: weighted_norm_y = 0._dl
@@ -50,6 +61,7 @@
         real(dl) :: estimated_error = 0._dl
         real(dl) :: previous_xend = 0._dl
         logical :: xend_reached = .false.
+        logical :: first_derivative_valid = .false.
         integer :: successful_steps = 0
         integer :: successive_failures = 0
         integer :: function_evaluations = 0
@@ -134,8 +146,8 @@
 !   settings: named replacement for the old c(*) vector.
 !       Configurable fields are error_control, error_floor, min_step_size,
 !       initial_step_size, problem_scale, max_step_size,
-!       max_function_evaluations, interrupt_before_trial_step, and
-!       interrupt_after_trial_step.
+!       max_function_evaluations, interrupt_before_trial_step,
+!       interrupt_after_trial_step, reuse_first_derivative, and xend_stretch.
 !       The remaining fields store persistent solver state between calls.
 !   nw, w: work array dimensions retained for compatibility with existing
 !       CAMB callers.
@@ -167,6 +179,7 @@
 
         settings%previous_xend = x
         settings%xend_reached = .false.
+        settings%first_derivative_valid = .false.
         settings%successful_steps = 0
         settings%successive_failures = 0
         settings%function_evaluations = 0
@@ -198,8 +211,14 @@
             end if
 
             if (ind /= 6) then
-                call fcn(EV, n, x, y, w(1, 1))
-                settings%function_evaluations = settings%function_evaluations + 1
+                if (settings%reuse_first_derivative .and. settings%first_derivative_valid) then
+                    ! w(:,1) still holds fcn(x, y) saved from the final stage of the
+                    ! step that reached the previous xend.
+                    settings%first_derivative_valid = .false.
+                else
+                    call fcn(EV, n, x, y, w(1, 1))
+                    settings%function_evaluations = settings%function_evaluations + 1
+                end if
             end if
 
             settings%computed_min_step_size = abs(settings%min_step_size)
@@ -265,11 +284,14 @@
         end if
 
         if (.not. resume_after_interrupt2) then
-            if (settings%current_step_size < abs(xend - x)) then
-                settings%current_step_size = min(settings%current_step_size, 0.5_dl * abs(xend - x))
+            temp = abs(xend - x)
+            if (settings%current_step_size < temp .and. &
+                (temp > settings%xend_stretch * settings%current_step_size .or. &
+                temp > settings%computed_max_step_size)) then
+                settings%current_step_size = min(settings%current_step_size, 0.5_dl * temp)
                 settings%trial_x = x + sign(settings%current_step_size, xend - x)
             else
-                settings%current_step_size = abs(xend - x)
+                settings%current_step_size = temp
                 settings%trial_x = xend
             end if
 
@@ -331,6 +353,12 @@
                 ind = 3
                 settings%previous_xend = xend
                 settings%xend_reached = .true.
+                if (settings%reuse_first_derivative) then
+                    ! FSAL: stage 7 was evaluated at (xend, y(xend)), so it can seed
+                    ! the first stage of the next continuation call.
+                    w(1:n, 1) = w(1:n, 7)
+                    settings%first_derivative_valid = .true.
+                end if
                 return
             end if
 
@@ -361,6 +389,7 @@
     settings%problem_scale = abs(settings%problem_scale)
     settings%max_step_size = abs(settings%max_step_size)
     settings%max_function_evaluations = abs(settings%max_function_evaluations)
+    settings%xend_stretch = abs(settings%xend_stretch)
 
     end subroutine normalize_settings
 

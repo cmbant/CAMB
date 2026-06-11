@@ -221,6 +221,7 @@
     else
         rk_settings%max_step_size = 20._dl / CP%Accuracy%IntTolBoost
     end if
+    rk_settings%reuse_first_derivative = .true.
 
     call RungeKuttaDP45(EV, EV%ScalEqsToPropagate, derivs, tau, y, tauend, tol1, ind, rk_settings, EV%nvar, w)
     if (ind==-3) then
@@ -448,6 +449,8 @@
             y(EV%Tg_ix) =y(EV%g_ix)/4 ! assume delta_TM = delta_T_gamma
         end if
 
+        !Equations or variable layout changed, so any saved first-stage derivative is stale
+        rk_settings%first_derivative_valid = .false.
         call GaugeInterface_EvolveScal(EV, tau, y, tauend, tol1, ind, rk_settings, w)
         return
     end if
@@ -463,6 +466,7 @@
     integer ind
     real(dl) opacity, cs2, a
 
+    rk_settings%reuse_first_derivative = .true.
     if (EV%TensTightCoupling .and. tauend > EV%TightSwitchoffTime) then
         if (EV%TightSwitchoffTime > tau) then
             call RungeKuttaDP45(EV, EV%TensEqsToPropagate, derivst, tau, y, EV%TightSwitchoffTime, tol1, ind, &
@@ -477,6 +481,8 @@
         call EV%ThermoData%Values(tau,a,cs2,opacity)
         y(EV%g_ix+2)= 32._dl/45._dl*EV%k_buf/opacity*y(ixt_shear)
         y(EV%E_ix+2) = y(EV%g_ix+2)/4
+        !Equations and variable layout changed, so any saved first-stage derivative is stale
+        rk_settings%first_derivative_valid = .false.
     end if
 
     call RungeKuttaDP45(EV, EV%TensEqsToPropagate, derivst, tau, y, tauend, tol1, ind, rk_settings, EV%nvart, w)
