@@ -25,7 +25,10 @@
 !     outside the safe series region;
 !   * the old real-axis integral only for nu < 20.
 !
-! O(1e-4) validity: l > 20 and nu <= max(1.2e-4 l^1.5,  min(12 * (l/1000)^3, 0.032 l) )
+! O(1e-4) validity:
+!   l > 20 and nu <= max(1.2e-4 l^1.5, min(12*(l/1000)^3, 0.032*l)).
+! For l >= 3000, a leading Liouville amplitude correction broadens the
+! validated high-l gate to max(old_gate, 0.04*l, min(8*(l/1000)^2, 0.16*l)).
 ! Assume inputs all pre-validated
 
     module open_smallnu_action_bessel
@@ -51,6 +54,8 @@
     real(dp), parameter :: nu_airy_min = 20.0_dp
     real(dp), parameter :: series_q_max  = 25.0_dp
     real(dp), parameter :: series_term2_tol = 4.0e-32_dp
+    integer, parameter :: smallnu_l_min = 20
+    integer, parameter :: smallnu_amp_l_min = 3000
 
     public :: open_smallnu_loglambda
     public :: open_smallnu_setup
@@ -65,6 +70,9 @@
     public :: open_action_u_from_loglambda
     public :: open_action_phi_from_loglambda
     public :: open_action_argument_x
+    public :: open_smallnu_action_ok
+    public :: open_smallnu_u_normalized
+    public :: open_smallnu_phi_normalized
 
     contains
 
@@ -131,6 +139,91 @@
     end if
     phi = u*inv_sinh
     end function open_action_phi_from_loglambda
+
+
+    function open_smallnu_u_normalized(l, nu, chi, ok) result(u)
+    ! Validated small-nu reduced radial approximation for the regular open
+    ! hyperspherical Bessel.  The high-l branch applies only the leading
+    ! Liouville amplitude A0 = sqrt(asinh(csch chi)/csch chi), which was
+    ! calibrated separately from the action-matched x_* argument.
+    integer, intent(in) :: l
+    real(dp), intent(in) :: nu, chi
+    logical, intent(out) :: ok
+    real(dp) :: u, loglambda
+
+    ok = open_smallnu_action_ok(l, nu)
+    if (.not. ok) then
+        u = 0.0_dp
+        return
+    end if
+
+    loglambda = open_smallnu_loglambda(l, nu)
+    u = open_smallnu_u_normalized_from_loglambda(l, nu, chi, loglambda)
+    end function open_smallnu_u_normalized
+
+
+    function open_smallnu_phi_normalized(l, nu, chi, ok) result(phi)
+    integer, intent(in) :: l
+    real(dp), intent(in) :: nu, chi
+    logical, intent(out) :: ok
+    real(dp) :: phi, u, inv_sinh
+
+    u = open_smallnu_u_normalized(l, nu, chi, ok)
+    if (.not. ok) then
+        phi = 0.0_dp
+        return
+    end if
+
+    if (chi < 350.0_dp) then
+        inv_sinh = 1.0_dp/sinh(chi)
+    else
+        inv_sinh = 2.0_dp*exp(-chi)
+    end if
+    phi = u*inv_sinh
+    end function open_smallnu_phi_normalized
+
+
+    function open_smallnu_u_normalized_from_loglambda(l, nu, chi, loglambda) result(u)
+    integer, intent(in) :: l
+    real(dp), intent(in) :: nu, chi, loglambda
+    real(dp) :: u, x, kval
+
+    if (l >= smallnu_amp_l_min) then
+        x = open_action_argument_x(l, nu, chi, loglambda)
+        if (x <= 0.0_dp) then
+            kval = open_smallnu_u_from_loglambda(nu, chi, loglambda)
+        else
+            kval = scaled_ki_nu(abs(nu), x)
+        end if
+        u = open_smallnu_liouville_amp_a0(l, abs(nu), chi) * kval
+    else
+        u = open_action_u_from_loglambda(l, nu, chi, loglambda)
+    end if
+    end function open_smallnu_u_normalized_from_loglambda
+
+
+    elemental logical function open_smallnu_action_ok(l, nu) result(ok)
+    integer, intent(in) :: l
+    real(dp), intent(in) :: nu
+
+    ok = l > smallnu_l_min .and. nu > 0.0_dp .and. nu <= open_smallnu_action_gate(l)
+    end function open_smallnu_action_ok
+
+
+    elemental real(dp) function open_smallnu_action_gate(l) result(nu_max)
+    integer, intent(in) :: l
+    real(dp) :: ell, old_gate
+
+    ell = real(l, dp)
+    old_gate = max(1.2e-4_dp * ell**1.5_dp, &
+        min(12.0_dp * (ell / 1000.0_dp)**3, 0.032_dp * ell))
+    if (l >= smallnu_amp_l_min) then
+        nu_max = max(old_gate, 0.04_dp * ell, &
+            min(8.0_dp * (ell / 1000.0_dp)**2, 0.16_dp * ell))
+    else
+        nu_max = old_gate
+    end if
+    end function open_smallnu_action_gate
 
 
     function open_action_argument_x(l, nu, chi, loglambda) result(x)
@@ -416,7 +509,7 @@
         corr = corr + powb/7.0_dp * zeta_tail_em(7, a)
         powb = powb*b2
         corr = corr - powb/9.0_dp * zeta_tail_em(9, a)
-        if (b/a >= 0.20_dl) then
+        if (b/a >= 0.20_dp) then
             powb = powb*b2
             corr = corr + powb/11.0_dp * zeta_tail_em(11, a)
             powb = powb*b2
@@ -954,6 +1047,43 @@
         val = k0_approx(x)
     end if
     end function k0_from_logz2
+
+
+    pure function open_smallnu_liouville_amp_a0(l, nu, chi) result(amp)
+    ! Leading fast Liouville amplitude for the high-l small-nu branch:
+    ! A0 = sqrt(asinh(eta)/eta), eta = csch(chi).  The higher-order
+    ! exp((nu/sqrt(l(l+1)))^2 H) correction is deliberately omitted; it
+    ! worsened the calibrated mid-l gate while giving negligible benefit.
+    integer, intent(in) :: l
+    real(dp), intent(in) :: nu, chi
+    real(dp) :: amp
+    real(dp), parameter :: chi_large = 40.0_dp
+    real(dp) :: eta, p
+
+    if (l <= 0 .or. nu <= 0.0_dp .or. chi <= 0.0_dp) then
+        amp = 1.0_dp
+        return
+    end if
+
+    if (chi > chi_large) then
+        eta = 2.0_dp * exp(-chi)
+    else
+        eta = 1.0_dp / sinh(chi)
+    end if
+
+    if (eta < 1.e-3_dp) then
+        amp = 1.0_dp
+        return
+    end if
+
+    if (eta > 1.e100_dp) then
+        p = log(eta) + log_two
+    else
+        p = log(eta + sqrt(1.0_dp + eta * eta))
+    end if
+
+    amp = sqrt(p / eta)
+    end function open_smallnu_liouville_amp_a0
 
 
     function k0_approx(x) result(ans)

@@ -29,12 +29,13 @@ This is the CAMB Python cosmology code, wrapping Fortran 2003 for numerics.
 ## Installation & Build
 - Use `pip install -e .` for the initial editable install.
 - After the first install, use `python setup.py make` to quickly rebuild the Fortran for use with Python after any fortran changes.
-- If `python setup.py make` produces stale `.mod` type-mismatch errors, run `python setup.py clean` first (not normally needed).
+- If `python setup.py make` produces stale `.mod` type-mismatch errors, or errors after changing fortran type layout, run `python setup.py clean` first (not normally needed).
 
 ## Testing
 - **Default test:** `python -m unittest camb.tests.camb_test`.
   - Do **not** run `camb.tests.hmcode_test` unless specifically relevant.
 - **Long test** against precomputed results: `python fortran/tests/run_tests.py`, which calls `CAMB_test_files.py`. Only run this if explicitly asked.
+- For (hyper-)spherical Bessel function and other mathutils run `python -m unittest camb.tests.mathutils_test`.
 
 ## Configuration
 - See `CONTRIBUTING.md` for installation, cloning, modification guidelines, contribution instructions, pre-commit setup, and VS Code configuration.
@@ -45,7 +46,7 @@ This is the CAMB Python cosmology code, wrapping Fortran 2003 for numerics.
 - When updating the version, update **both**:
   - the Python `__version__`, and
   - the version defined near the top of `fortran/config.f90`.
-- When adding new `.ini` file parameters, also add the corresponding `.ini` write logic in `camb/_ini.py`.
+- When adding new `.ini` file parameters, make sure to check python class write_ini or the corresponding `.ini` write logic in `camb/_ini.py`.
 
 ---
 

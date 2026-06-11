@@ -9,6 +9,7 @@
     use SpherBessels, only: phi_recurs
     use HypersphericalBesselUtils, only: normalize_chi, turning_point, curved_radius, qintegral_exact
     use AiryUniformOnePoint, only: airy_u_secondorder_normalized, airy_second_ok
+    use open_smallnu_action_bessel, only: open_smallnu_u_normalized
     implicit none
     private
 
@@ -150,8 +151,8 @@
 
     function fallback_reduced(l, K, nu, achi, symm) result(u)
     ! The Olver gates above are unchanged; within their recursive fallback
-    ! region, use the validated second-order Airy one-point approximation at
-    ! high L where it is faster than phi_recurs.
+    ! region, use validated faster approximations where available before
+    ! falling back to phi_recurs.
     integer, intent(in) :: l, K
     real(dl), intent(in) :: nu, achi, symm
     real(dl) :: u
@@ -159,6 +160,14 @@
 
     if (use_airy_fallback(l, K, nu, achi)) then
         u = airy_u_secondorder_normalized(l, K, nu, achi, ok)
+        if (ok) then
+            u = symm * u
+            return
+        end if
+    end if
+
+    if (K == -1) then
+        u = open_smallnu_u_normalized(l, nu, achi, ok)
         if (ok) then
             u = symm * u
             return

@@ -86,9 +86,9 @@ The important qualitative change occurs at the turning point $a\simeq \nu$.  Bel
 
 The branch order is part of the approximation.  Cheap and unambiguous cases are tested before the code forms the normalized turning-point distance
 \begin{equation}
-  L_3=\nu^{0.325},\qquad \eta=\frac{a-\nu}{L_3}.
+  L_3=\nu^{1/3},\qquad \eta=\frac{a-\nu}{L_3}.
 \end{equation}
-The exponent $0.325$ is an empirical version of the natural $\nu^{1/3}$ transition width.  It is used only for switching; it is not a new asymptotic variable.
+This is the natural Airy turning-point width.  The normalized distance $\eta$ is used only for switching; it is not a new asymptotic variable.
 
 The current switch constants are:
 \begin{center}
@@ -99,13 +99,27 @@ Constant & Value \\
 \code{BJL\_RECURRENCE\_MAX\_L} & $25$ \\
 \code{BJL\_RECURRENCE\_ETA\_LOW} & $-5.0$ \\
 \code{BJL\_RECURRENCE\_ETA\_HIGH} & $5.6$ \\
-\code{BJL\_AIRY\_ETA\_LOW} & $-2.25$ \\
+\code{BJL\_AIRY\_ETA\_LOW} & $-2.4$ \\
 \code{BJL\_PEAK\_ETA\_LOW} & $-0.65$ \\
 \code{BJL\_PEAK\_ETA\_HIGH} & $0.65$ \\
-\code{BJL\_AIRY\_ETA\_HIGH} & $3.7$ \\
+\code{BJL\_AIRY\_ETA\_HIGH} & $3.85$ \\
+\code{BJL\_AIRY\_U\_LOW} & $0.26$ \\
+\code{BJL\_AIRY\_U\_HIGH} & $0.42$ \\
 \bottomrule
 \end{tabular}
 \end{center}
+
+The last two constants cap the Airy shoulder domain in
+\begin{equation}
+  u=\frac{a}{\nu}-1,
+\end{equation}
+so the actual Airy limits used by the dispatcher are
+\begin{equation}
+  \eta_{\rm A,low}=\max\left(-2.4,-0.26\,\frac{\nu}{L_3}\right),
+  \qquad
+  \eta_{\rm A,high}=\min\left(3.85,0.42\,\frac{\nu}{L_3}\right).
+\end{equation}
+The $u$ caps bind only at the lowest orders that can reach the Airy path.
 
 The first matching branch is used:
 \begin{table}[htbp]
@@ -119,11 +133,12 @@ Invalid order & $\ell<0$ & Not defined for this routine. \\
 Low order & $\ell<7$ & Exact half-integer Bessel identities, with near-origin Taylor series to avoid cancellation. \\
 Very small argument & $a<10^{-40}$, after low orders & High-order near-origin scale is negligible for the intended use. \\
 Deep pre-peak & $a^2/\ell<0.5$ & Ascending $J_\nu$ series; large-$\nu$ prefactor. \\
-Far after peak & $\ell^2/a<0.5$ & Fixed-order, large-argument Hankel expansion. \\
+Far after peak & $\ell^2/a<1.2$ & Fixed-order, large-argument Hankel expansion. \\
+Post-peak shortcut & $a>1.5\nu$ and either $\ell>25$ or $a>2.5\nu$ & Oscillatory Debye expansion, reached before forming $\eta$. \\
 Moderate transition & $\ell\le25$ and $-5\le\eta\le5.6$ & Stable recurrence while cheap. \\
-Airy shoulders & $-2.25\le\eta<-0.65$ or $0.65<\eta\le3.7$ & Olver turning-point form with a polynomial turning-point mapping and fitted finite-order corrections. \\
-Below-peak side & $\eta<-2.25$ & Exponential Debye large-order expansion for $a<\nu$. \\
-Above-peak side & $\eta>3.7$ & Oscillatory Debye large-order expansion for $a>\nu$. \\
+Airy shoulders & $\eta_{\rm A,low}\le\eta<-0.65$ or $0.65<\eta\le\eta_{\rm A,high}$ & Olver turning-point form with a polynomial turning-point mapping and fitted finite-order corrections. \\
+Below-peak side & $\eta<\eta_{\rm A,low}$ & Exponential Debye large-order expansion for $a<\nu$. \\
+Above-peak side & $\eta>\eta_{\rm A,high}$ & Oscillatory Debye large-order expansion for $a>\nu$. \\
 Peak centre & Remaining transition points & Local expansion of the turning-point solution about $a=\nu$. \\
 \bottomrule
 \end{tabular}
@@ -197,7 +212,7 @@ is just the first few alternating terms of the ascending $J_\nu$ series, written
 
 The test
 \begin{equation}
-  \frac{\ell^2}{a}<0.5
+  \frac{\ell^2}{a}<1.2
 \end{equation}
 selects the region where $a$ is so large compared with the order that the fixed-order Hankel expansion is efficient.  For cylindrical Bessel functions,
 \begin{equation}
@@ -225,7 +240,7 @@ with
       \left[1-\frac{(\nu^2-9/4)(\nu^2-25/4)}{24a^2}
       \left(1-\frac{(\nu^2-49/4)(\nu^2-81/4)}{80a^2}\right)\right].
 \end{align}
-This is a corrected oscillatory approximation in the standard asymptotic sense: $A$ corrects the cosine amplitude series and $B$ supplies the sine quadrature series.  It is not used near the peak because the expansion parameter is then not small enough.
+This is a corrected oscillatory approximation in the standard asymptotic sense: $A$ corrects the cosine amplitude series and $B$ supplies the sine quadrature series.  It is not used near the peak because the expansion parameter is then not small enough.  At the current gate, $\ell^2/a=1.2$, the source comments record peak-normalized truncation errors below about $6\times10^{-6}$ for low orders in this branch, below $3\times10^{-6}$ by $\ell\ge25$, and improving rapidly as $a$ increases.
 
 \section{Moderate-order transition: why recurrence is still used}
 
@@ -240,6 +255,9 @@ The helper \code{BJL\_RECURRENCE} therefore uses two cases.  If $a>\ell$, it rec
   j_0(a)=\frac{\sin a}{a},\qquad
   j_1(a)=\frac{\sin a}{a^2}-\frac{\cos a}{a}.
 \end{equation}
+For $a<10^{-4}$ these two starting values are evaluated with their Taylor
+series instead, avoiding cancellation before either the upward recurrence or
+Miller normalization starts.
 If $a\le\ell$, it chooses
 \begin{equation}
   N_{\rm start}=\max\{\ell+m,\lfloor a\rfloor+m\},\qquad
@@ -286,38 +304,34 @@ The actual retained correction formula is easiest to read by setting
 \begin{equation}
   r=z^2,\qquad c=\code{COTB}.
 \end{equation}
-The code uses the following Debye-polynomial combinations:
+The inlined below-peak branch uses the following collected combinations:
 \begin{align}
-  D_1 &= \frac{(2+3r)c^3}{24},\\
-  D_2 &= \frac{(4+r)r c^6}{16},\\
-  D_3 &= \frac{\left[16-\left(1512+(3654+375r)r\right)r\right]c^9}{5760},\\
-  D_4 &= \frac{\left[32+\left(288+(232+13r)r\right)r\right]r c^{12}}{128}.
-  \label{eq:debye-d-polys}
+  B_1 &= \frac{(2+3r)c^3}{24},\\
+  B_2 &= \frac{(4+r)r c^{12}}{16},\\
+  B_3 &= \frac{\left[16-\left(1512+(3654+375r)r\right)r\right]c^{15}}{5760},\\
+  B_4 &= \frac{\left[32+\left(288+(232+13r)r\right)r\right]r c^{18}}{128}.
+  \label{eq:below-debye-polys}
 \end{align}
 Derivationally, start from the usual Debye series
-$1+\sum_k U_k(z)/\nu^k$ multiplying the leading large-order form.  Below the
-peak the code takes the logarithm of that correction series and truncates it;
-above the peak the same logarithm is analytically continued, with its imaginary
-part becoming a phase correction and its real part becoming a logarithmic
-amplitude correction.  The $D_i$ are the resulting Debye-polynomial
-combinations after converting from $J_\nu(\nu z)$ to the spherical Bessel
-normalization.  The code keeps this already collected form rather than
-evaluating the symbolic Debye polynomials one by one.
+$1+\sum_k U_k(z)/\nu^k$ multiplying the leading large-order form.  The
+Fortran does not evaluate the symbolic Debye polynomials one by one; it keeps
+the already collected expression after converting from $J_\nu(\nu z)$ to the
+spherical Bessel normalization.
 
 After converting from $J_\nu$ to $j_\ell$, the code evaluates
 \begin{equation}
   j_\ell(a) \approx \frac{1}{2\nu}\sqrt{\frac{c}{z}}\,
   \exp\left[-\nu\beta+u-E_{<}\right],
   \qquad
-  E_{<}=\frac{D_1}{\nu}-\frac{D_2}{\nu^2}
-        -\frac{D_3}{\nu^3}-\frac{D_4}{\nu^4}.
+  E_{<}=\frac{B_1}{\nu^2}-\frac{B_2}{\nu^3}
+        -\frac{B_3}{\nu^4}-\frac{B_4}{\nu^5}.
   \label{eq:below-debye-code}
 \end{equation}
 The term $E_{<}$ is the code's \code{EXPTERM}.  Writing the correction in the
 exponent is numerically sensible because the branch is already dominated by an
 exponential scale.  The first correction is proportional to
 \begin{equation}
-  \frac{(2+3\code{SECB}^2)\code{COTB}^3}{24\nu},
+  \frac{(2+3\code{SECB}^2)\code{COTB}^3}{24\nu^2},
 \end{equation}
 with higher nested terms carrying additional powers of $\code{COTB}^3$ and $1/\nu$.  The powers of \code{COTB} are the warning sign: as $a\to\nu$ they become large, so this branch is deliberately kept away from the turning point even though the true Bessel function remains finite.
 
@@ -354,7 +368,15 @@ The leading spherical-Bessel form is
   \cos\left[u-\nu\beta-\frac{\pi}{4}\right].
 \end{equation}
 With the same definitions $r=z^2$ and $c=\code{COTB}$, now using
-$c=(z^2-1)^{-1/2}$, the code evaluates
+$c=(z^2-1)^{-1/2}$, define
+\begin{align}
+  D_1 &= \frac{(2+3r)c^3}{24},&
+  D_2 &= \frac{(4+r)r c^6}{16},\\
+  D_3 &= \frac{\left[16-\left(1512+(3654+375r)r\right)r\right]c^9}{5760},&
+  D_4 &= \frac{\left[32+\left(288+(232+13r)r\right)r\right]r c^{12}}{128}.
+  \label{eq:above-debye-polys}
+\end{align}
+The post-peak helper evaluates
 \begin{align}
   j_\ell(a) &\approx \frac{1}{\nu}\sqrt{\frac{c}{z}}\,
     \exp(-E_{>})\cos\Phi,\\
@@ -364,12 +386,13 @@ $c=(z^2-1)^{-1/2}$, the code evaluates
   \label{eq:above-debye-code}
 \end{align}
 Here $\Phi$ is the code's \code{TRIGARG} and $E_{>}$ is the code's
-\code{EXPTERM}.  This is the same Debye information as in
-Eq.~\eqref{eq:below-debye-code} after analytic continuation through the turning
-point: odd powers contribute to the oscillatory phase, while even powers
-contribute to the logarithmic amplitude.  This branch is accurate quickly above
-the peak, but like the below-peak form it is not used in the immediate
-turning-point layer where the Debye powers become ill-conditioned.
+\code{EXPTERM}.  In the oscillatory continuation, odd correction orders
+contribute to the phase and even correction orders contribute to the
+logarithmic amplitude.  This branch is accurate quickly above the peak, but
+like the below-peak form it is not used in the immediate turning-point layer
+where the Debye powers become ill-conditioned.
+
+The implementation of \code{BJL\_POSTPEAK\_DEBYE} is algebraically arranged for speed.  The leading prefactor is evaluated as $1/\sqrt{u\,a}$, with $u=\sqrt{a^2-\nu^2}$; the small logarithmic amplitude correction is applied as the second-order expansion $1-E_{>}+E_{>}^2/2$; and, when $a$ is far enough above the peak, $\arccos(\nu/a)$ is replaced by a polynomial approximation to $\arcsin(\nu/a)/(\nu/a)$.  For $\ell\ge26$ and $a\ge3\nu$ the routine uses a still shorter far-tail form retaining the dominant phase correction, which the source comments bound below about $5\times10^{-6}$ peak-normalized at the gate and better farther out.
 
 \section{The turning point: why Airy functions appear}
 
@@ -421,17 +444,17 @@ is analytic through the turning point, and both required quantities follow from 
   \qquad
   \frac{4\zeta}{1-z^2}=-\frac{4P(u)}{2+u}.
 \end{equation}
-The code evaluates $P$ as a single degree-ten Horner polynomial fitted on $u\in[-0.26,0.42]$, which covers the shoulder gate domain for all $\ell\ge26$ (the band in $u$ is widest at $\ell=26$, $u\in[-0.247,0.406]$, and shrinks like $\nu^{-0.675}$).  The fit error is $|\D\zeta|\lesssim2\times10^{-10}$, and because $\tau=\nu^{2/3}\zeta$ with $\nu^{2/3}u=\eta\,\nu^{2/3-0.675}=\mathcal{O}(\eta)$, the induced $\tau$ error is uniformly negligible in $\ell$; the polynomial mapping reproduces the exact $\log$/$\arccos$ evaluation to about $9\times10^{-10}$ peak-normalized over the gate domain.  This replaces two transcendental library calls (a fractional power and a $\log$ or $\arccos$) and a data-dependent branch by a short pipelined multiply--add chain, making the shoulder routine about $1.7\times$ faster, and it removes the cancellation safeguard that was previously needed for $|z-1|<10^{-3}$, since the polynomial is uniform through $z=1$ by construction.  The fitted interval is tied to the shoulder gates: widening \code{BJL\_AIRY\_ETA\_LOW}/\code{BJL\_AIRY\_ETA\_HIGH} beyond $[-2.25,3.7]$ requires refitting the $P(u)$ coefficients.
+The code evaluates $P$ as a single degree-ten Horner polynomial fitted on $u\in[-0.26,0.42]$, which covers the shoulder gate domain for all $\ell\ge26$.  The nominal $\eta$ limits would give $u=\eta\nu^{-2/3}$, so the allowed $u$ band shrinks with increasing order; the explicit $u$ caps keep the lowest-order Airy calls inside the fitted interval.  The current source comment gives a maximum polynomial fit error of about $6.6\times10^{-10}$ in $P(u)$, corresponding to $|\D\zeta|\sim2\times10^{-10}$ on the fitted interval.  The mapping reproduces the exact $\log$/$\arccos$ evaluation to about $9\times10^{-10}$ peak-normalized over the gate domain.  This replaces two transcendental library calls (a fractional power and a $\log$ or $\arccos$) and a data-dependent branch by a short pipelined multiply--add chain, making the shoulder routine about $1.7\times$ faster, and it removes the cancellation safeguard that was previously needed for $|z-1|<10^{-3}$, since the polynomial is uniform through $z=1$ by construction.  The fitted interval is tied to the shoulder gates: widening \code{BJL\_AIRY\_ETA\_LOW}/\code{BJL\_AIRY\_ETA\_HIGH} beyond $[-2.4,3.85]$, or the $u$ caps beyond $[-0.26,0.42]$, requires refitting the $P(u)$ and correction coefficients.
 
 \section{What the corrected Airy branch is correcting}
 
 The Airy branch is used in the two shoulder intervals
 \begin{equation}
-  -2.25\le\eta<-0.65,
+  \eta_{\rm A,low}\le\eta<-0.65,
   \qquad
-  0.65<\eta\le3.7 .
+  0.65<\eta\le\eta_{\rm A,high}.
 \end{equation}
-These are the places where the Debye side formulae are becoming unreliable but the very centre peak polynomial is not used.
+Ignoring the lowest-order $u$ caps, these are the nominal bands $-2.4\le\eta<-0.65$ and $0.65<\eta\le3.85$.  They are the places where the Debye side formulae are becoming unreliable but the very centre peak polynomial is not used.
 
 The leading Airy expression $\mathcal{P}\Ai(\tau)$ captures the turning point qualitatively, but at finite $\nu$ it is not accurate enough.  In the canonical Olver expansion the higher terms are coefficient functions of $\zeta$ multiplying $\Ai(\tau)$ and $\Ai'(\tau)$; the formal series is normally organized in powers of $\nu^{-2}$, with additional powers attached to the $\Ai'$ part.  The Fortran does not evaluate those coefficient functions directly.  Instead it uses a compact finite-band correction, organized in powers of $\eps=\nu^{-2/3}$, in the same natural $\Ai,\Ai'$ basis.  Over the shoulder intervals used in this routine, the finite-order residual can be represented efficiently by low-degree polynomials in $\tau$ multiplying $\Ai$ and $\Ai'$.
 
@@ -467,12 +490,12 @@ These coefficients should therefore be read as compact numerical correction fits
 \toprule
 $k$ & $p_{1k}$ & $q_{1k}$ & $p_{2k}$ & $q_{2k}$ \\
 \midrule
-0 & $-1.5768702973\times10^{-4}$ & $-2.1952873250\times10^{-4}$ & $ 6.6620792827\times10^{-3}$ & $ 2.7438906389\times10^{-2}$ \\
-1 & $-2.8629184160\times10^{-4}$ & $-2.3696499760\times10^{-4}$ & $ 1.2306128005\times10^{-2}$ & $ 1.0422958422\times10^{-2}$ \\
-2 & $-1.6496791705\times10^{-4}$ & $-9.0060451065\times10^{-5}$ & $ 7.0877588840\times10^{-3}$ & $ 3.8695096921\times10^{-3}$ \\
-3 & $-4.2014495072\times10^{-5}$ & $-1.5917017480\times10^{-5}$ & $ 1.8037552753\times10^{-3}$ & $ 6.8281907077\times10^{-4}$ \\
-4 & $-4.9186608702\times10^{-6}$ & $-1.2679845974\times10^{-6}$ & $ 2.1096684928\times10^{-4}$ & $ 5.4268264262\times10^{-5}$ \\
-5 & $-2.1616052202\times10^{-7}$ & $-3.4837219559\times10^{-8}$ & $ 9.2608663130\times10^{-6}$ & $ 1.4834200262\times10^{-6}$ \\
+0 & $-3.6800729338\times10^{-2}$ & $-5.0297202010\times10^{-2}$ & $-4.7820363876\times10^{-1}$ & $-6.3886712569\times10^{-1}$ \\
+1 & $ 1.5209712539\times10^{-2}$ & $ 5.7857396612\times10^{-2}$ & $-8.7017334982\times10^{-2}$ & $ 3.5871563343\times10^{-1}$ \\
+2 & $ 9.4534385571\times10^{-2}$ & $ 7.9503104620\times10^{-2}$ & $ 7.2286318415\times10^{-1}$ & $ 6.3191310208\times10^{-1}$ \\
+3 & $ 5.2945746497\times10^{-2}$ & $ 2.6021984803\times10^{-2}$ & $ 4.1155943336\times10^{-1}$ & $ 1.9633553919\times10^{-1}$ \\
+4 & $ 1.0167386509\times10^{-2}$ & $ 3.0185147830\times10^{-3}$ & $ 7.1556595979\times10^{-2}$ & $ 1.9020992559\times10^{-2}$ \\
+5 & $ 6.3209647897\times10^{-4}$ & $ 9.3642965225\times10^{-5}$ & $ 3.5735729420\times10^{-3}$ & $ 2.9883205214\times10^{-4}$ \\
 \bottomrule
 \end{tabular}%
 }
@@ -568,14 +591,9 @@ The uniform branch needs $\Ai(\tau)$ and $\Ai'(\tau)$.  The code does not call a
 
 There are three mathematical ingredients:
 \begin{enumerate}[leftmargin=*]
-\item Near zero, the Airy equation $y''=\tau y$ gives two power-series solutions.  The code writes
-\begin{align}
-  \Ai(\tau)&=C_1F(\tau)-C_2G(\tau),\\
-  \Ai'(\tau)&=C_1F'(\tau)-C_2G'(\tau),
-\end{align}
-where $C_1=\Ai(0)$ and $C_2=-\Ai'(0)$.  The functions $F,G,F',G'$ are truncated Horner polynomials in $\tau^3$, with the expected extra factors of $\tau$ or $\tau^2$.
-\item On selected noncentral intervals, the code uses Chebyshev fits evaluated by Clenshaw recurrence.  This is a speed optimization: Chebyshev coefficients are a compact way of approximating smooth functions on a finite interval.
-\item Outside the Taylor and Chebyshev intervals, the code falls back to Cephes-style rational asymptotic forms for the decaying and oscillatory Airy tails.  For $\tau>25.77$ it returns zero because $\Ai$ and $\Ai'$ are exponentially tiny for this use.
+\item On the hot interval $[-6.5,6.5]$, the code uses ordinary Horner polynomials in a linearly mapped variable $y\in[-1,1]$.  The coefficients were generated by Chebyshev-node interpolation of reference Airy values, then converted to power form so the runtime path is a straight multiply--add chain rather than a Clenshaw recurrence.
+\item Outside the hot interval, the code uses simplified asymptotic fallbacks: a first-corrected decaying form on the positive side and first-degree correction polynomials in the oscillatory negative tail.
+\item For $\tau>25.77$ it returns zero because $\Ai$ and $\Ai'$ are exponentially tiny for this use.
 \end{enumerate}
 
 The actual dispatch in the current code is:
@@ -586,21 +604,28 @@ The actual dispatch in the current code is:
 $\tau$ interval & Method & Comment \\
 \midrule
 $\tau>25.77$ & Return $\Ai=\Aip=0$ & Exponentially tiny. \\
-$-4.4\le\tau<-2.09$ & Chebyshev fit & 10 coefficients for both $\Ai$ and $\Aip$. \\
-$2.09\le\tau\le2.98$ & Chebyshev fit & 5 coefficients for both $\Ai$ and $\Aip$. \\
-$\tau<-4.4$ & Oscillatory rational asymptotic fallback & Used outside the negative Chebyshev interval. \\
-$2.98<\tau\le25.77$ & Decaying rational asymptotic fallback & Used before the zero cutoff. \\
-$-2.09\le\tau<2.09$ & Taylor/Horner Airy series & Central finite interval. \\
+$\tau<-6.5$ & Simplified oscillatory asymptotic fallback & Negative tail outside the hot interval. \\
+$-6.5\le\tau<-4.4$ & Horner polynomial fit & Negative tail interval. \\
+$-4.4\le\tau<-2.09$ & Horner polynomial fit & Negative middle interval. \\
+$-2.09\le\tau<0$ & Horner polynomial fit & Central negative interval. \\
+$0\le\tau<2.09$ & Horner polynomial fit & Central positive interval. \\
+$2.09\le\tau\le2.98$ & Horner polynomial fit & Positive middle interval. \\
+$2.98<\tau\le6.5$ & Horner polynomial fit & Positive tail interval. \\
+$6.5<\tau\le25.77$ & First-corrected decaying asymptotic fallback & Positive tail before the zero cutoff. \\
 \bottomrule
 \end{tabular}
 \end{center}
 
 The source comments record checked Airy errors on $[-6.5,6.5]$ of roughly
 \begin{equation}
-  \max |\Delta\Ai|\sim5.46\times10^{-7},
+  \max |\Delta\Ai|\sim7.52\times10^{-8},
   \qquad
-  \max |\Delta\Aip|\sim2.08\times10^{-6}.
+  \max |\Delta\Aip|\sim7.36\times10^{-8}.
 \end{equation}
+The same comments quote asymptotic-tail absolute errors of about
+$2.3\times10^{-8}$/$5.9\times10^{-8}$ for $\Ai/\Aip$ on the negative side
+and $7.9\times10^{-10}$/$2.4\times10^{-9}$ on the positive side before the
+zero cutoff.
 The Bessel accuracy is not simply these numbers multiplied by the prefactor, because the Airy-branch correction polynomials and the switching ranges also matter.  The point is that the Airy routine is intentionally accurate enough for the surrounding \code{BJL} approximation, not unnecessarily more accurate.
 
 \section{Which pieces are analytic, fitted, or tuned}
@@ -612,7 +637,7 @@ The routine combines several kinds of information, and it is useful not to confu
 \item[Algebraic local expansion:] the peak polynomial is the $a\simeq\nu$ local expansion of the Airy transition solution, expressed with $\Gamma(1/3)$ and $\Gamma(2/3)$ values.
 \item[Polynomial representation of an exact mapping:] the degree-ten fit of $\zeta/u$ in the Airy shoulder branch is a numerical representation of the exact Olver variable, accurate to $|\D\zeta|\sim2\times10^{-10}$ on its fitted interval $u\in[-0.26,0.42]$.  Unlike the correction fits below it approximates a known analytic function, but it is valid only on the interval implied by the shoulder gates.
 \item[Numerical correction fits:] the four Airy correction polynomials are compact finite-interval corrections in the Olver-inspired $\Ai,\Ai'$ basis.  They should not be interpreted as universal symbolic Debye polynomials.
-\item[Tuned switch constants:] the numerical branch boundaries, the empirical $\nu^{0.325}$ switching scale, and the recurrence cap are implementation choices chosen to balance speed, continuity, and peak-normalized error for the current CAMB use.
+\item[Tuned switch constants:] the numerical branch boundaries, the Airy-domain $u$ caps, and the recurrence cap are implementation choices chosen to balance speed, continuity, and peak-normalized error for the current CAMB use.
 \end{description}
 
 This division explains why some numbers in the code are recognizable mathematical constants, while others are simply fitted coefficients or branch thresholds.
@@ -641,7 +666,7 @@ The factor $4.2$ comes from the below-peak Airy/Debye suppression estimate
 \end{equation}
 which puts a peak-normalized floor of order $10^{-4}$ near $\delta\simeq4.2\ell^{1/3}$, with a small safety margin.
 
-The source comments state that the current direct \code{BJL} has peak-normalized accuracy about $10^{-5}$ for $\ell>50$, with maximum about $4\times10^{-5}$ near \code{BJL\_RECURRENCE\_MAX\_L}+1 before splining.  The sampled table is intentionally coarser: the code comment on the grid gives about $2\times10^{-4}$ accuracy in the tail, with better accuracy around the peak.  Thus table users can be limited by interpolation and pre-peak zeroing rather than by the direct \code{BJL} formula.
+The source comments state that the current direct \code{BJL} has peak-normalized accuracy below $7\times10^{-6}$ for $\ell\ge28$, with maximum about $9\times10^{-6}$ near \code{BJL\_RECURRENCE\_MAX\_L}+1 and about $1.5\times10^{-6}$ at high $\ell$, before splining.  The sampled table is intentionally coarser: the code comment on the grid gives about $2\times10^{-4}$ accuracy in the tail, with better accuracy around the peak.  Thus table users can be limited by interpolation and pre-peak zeroing rather than by the direct \code{BJL} formula.
 
 \section{Practical reading of the final routine}
 

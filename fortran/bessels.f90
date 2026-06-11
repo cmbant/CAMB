@@ -1,7 +1,12 @@
     !CAMB flat spherical Bessel function routines
-    !May 2026: updated bjl, accurate to peak-normalized fraction 1e-5 at L>50, max ~4e-5 at BJL_RECURRENCE_MAX_L+1
-    !          (pre-splining). Spline table accurate to 2e-4 in tail, better round peak.
-
+    !June 2026: updated bjl, accurate to peak-normalized fraction <7e-6 at L>=28
+    !           (max ~9e-6 at BJL_RECURRENCE_MAX_L+1, ~1.5e-6 at high L), pre-splining.
+    !           Spline table accurate to 2e-4 in tail, better round peak.
+    ! Tolerance note: first positive peak of spherical Bessel function j_l(x), l >= 1:
+    ! nu = l + 1/2
+    ! x_peak ~ nu + 0.80861652*nu^(1/3) - 0.23669965*nu^(-1/3) - 0.20430105*nu^(-1)
+    ! A_peak ~ 0.845843*nu^(-5/6)*(1 - 0.55424*nu^(-2/3) + 0.25865*nu^(-4/3))
+    ! where A_peak = j_l(x_peak); max relative error < 0.7%, better at high l.
     module FlatBessels
     use Precision
     use results
@@ -35,7 +40,7 @@
     type(TRanges), save:: BessRanges
 
     public bessel_horner, BessRanges, InitSpherBessels, bjl_pre_peak_start_factor
-    public bjl, Bessels_Free, airy_fast
+    public bjl, Bessels_Free, airy_fast, BJL_RECURRENCE
 
     contains
 
@@ -337,10 +342,11 @@
 ! Strategy:
 !   For low L use (v accurate and still fast) recursive result
 !   Elsewhere use a two-term corrected uniform Airy asymptotic
-!   in the transition bands, using fast approximation elsewhere
+!   in the transition bands, using fast approximations elsewhere
 !   where they are accurate.
 !
-! accurate to peak-normalized fraction 1e-5 at L>50, max ~4e-5 at BJL_RECURRENCE_MAX_L+1.
+! accurate to peak-normalized fraction <7e-6 at L>=28 (worst at the
+! Airy/Debye band edges), max ~9e-6 at BJL_RECURRENCE_MAX_L+1.
 
     ELEMENTAL SUBROUTINE BJL(L, X, JL)
     ! Optimized spherical Bessel j_l(x).
@@ -368,17 +374,24 @@
 
     REAL(dl) :: AX, AX2, NU, NU2, BETA, BETA2, COSB
     REAL(dl) :: SX, SX2, COTB, COT3B, COT6B, SECB, SEC2B
-    REAL(dl) :: TRIGARG, EXPTERM, L3, ETA
+    REAL(dl) :: EXPTERM, L3, ETA, ETA_AIRY_LOW, ETA_AIRY_HIGH
 
+    ! Gates below are in eta = (x - nu)/nu^(1/3) units (so tau ~ -1.26*eta
+    ! in the Airy band, nearly independent of l).
     ! Note: bjl_uniform_airy_fast uses a polynomial turning-point mapping fitted
     ! for the shoulder bands below; widening BJL_AIRY_ETA_LOW/HIGH beyond
-    ! [-2.25, 3.7] requires refitting its zeta/u coefficients.
+    ! [-2.4, 3.85] (or the u caps beyond [-0.26, 0.42]) requires refitting its
+    ! zeta/u and correction coefficients.
     real(dl), parameter :: BJL_RECURRENCE_ETA_LOW  = -5.0_dl
     real(dl), parameter :: BJL_RECURRENCE_ETA_HIGH =  5.6_dl
-    real(dl), parameter :: BJL_AIRY_ETA_LOW  = -2.25_dl
+    real(dl), parameter :: BJL_AIRY_ETA_LOW  = -2.4_dl
     real(dl), parameter :: BJL_PEAK_ETA_LOW  = -0.65_dl
     real(dl), parameter :: BJL_PEAK_ETA_HIGH =  0.65_dl
-    real(dl), parameter :: BJL_AIRY_ETA_HIGH =  3.7_dl
+    real(dl), parameter :: BJL_AIRY_ETA_HIGH =  3.85_dl
+    ! Caps on u = x/nu - 1 so the Airy-branch zeta/u polynomial fit stays in
+    ! range; they only bind for l <= 28 where the eta limits would exceed them.
+    real(dl), parameter :: BJL_AIRY_U_LOW  = 0.26_dl
+    real(dl), parameter :: BJL_AIRY_U_HIGH = 0.42_dl
     IF (L < 0) THEN
         ERROR STOP 'Can not evaluate Spherical Bessel Function with index l<0'
     END IF
@@ -452,17 +465,26 @@
             - (1.0_dl - (1.0_dl - 3.5_dl/NU2)/NU2/30.0_dl)/12.0_dl/NU) &
             /NU*(1.0_dl - AX2/(4.0_dl*NU + 4.0_dl)*(1.0_dl - AX2/(8.0_dl*NU + 16.0_dl) &
             *(1.0_dl - AX2/(12.0_dl*NU + 36.0_dl))))
-    ELSE IF ((REAL(L, dl)**2/AX) < 5.0E-1_dl) THEN
+    ELSE IF ((REAL(L, dl)**2/AX) < 1.2_dl) THEN
         ! Far past the peak: oscillatory large-x expansion.
+        ! At the q = l^2/x = 1.2 gate the truncation error is < ~6e-6 of peak
+        ! for l <= 15, < 3e-6 for l >= 25, falling rapidly with l and with x.
         BETA = AX - PID2*REAL(L + 1, dl)
         JL = (COS(BETA)*(1.0_dl - (NU2 - 0.25_dl)*(NU2 - 2.25_dl)/8.0_dl/AX2 &
             *(1.0_dl - (NU2 - 6.25_dl)*(NU2 - 12.25_dl)/48.0_dl/AX2)) &
             - SIN(BETA)*(NU2 - 0.25_dl)/2.0_dl/AX &
             *(1.0_dl - (NU2 - 2.25_dl)*(NU2 - 6.25_dl)/24.0_dl/AX2 &
             *(1.0_dl - (NU2 - 12.25_dl)*(NU2 - 20.25_dl)/80.0_dl/AX2)))/AX
+    ELSE IF (AX > 1.5_dl*NU .AND. (L > BJL_RECURRENCE_MAX_L .OR. AX > 2.5_dl*NU)) THEN
+        ! Well past the turning point every classification below lands in the
+        ! post-peak Debye branch, so skip the slow nu**0.325 eta normalization.
+        ! For l >= 26, ax > 1.5*nu gives u = ax/nu - 1 > 0.42, past the Airy
+        ! gate; for 7 <= l <= 25, ax > 2.5*nu gives eta > 5.6, past the
+        ! recurrence band.
+        CALL BJL_POSTPEAK_DEBYE(NU, AX, JL)
     ELSE
         ! Turning-point neighbourhood: classify by normalized distance from peak.
-        L3 = NU**0.325_dl
+        L3 = NU**(1.0_dl/3.0_dl)
         ETA = (AX - NU)/L3
 
         ! Moderate orders only need recurrence in the broad transition band.
@@ -473,12 +495,15 @@
             RETURN
         END IF
 
-        IF ((ETA >= BJL_AIRY_ETA_LOW .AND. ETA < BJL_PEAK_ETA_LOW) .OR. &
-            (ETA > BJL_PEAK_ETA_HIGH .AND. ETA <= BJL_AIRY_ETA_HIGH)) THEN
+        ETA_AIRY_LOW  = MAX(BJL_AIRY_ETA_LOW, -BJL_AIRY_U_LOW*NU/L3)
+        ETA_AIRY_HIGH = MIN(BJL_AIRY_ETA_HIGH, BJL_AIRY_U_HIGH*NU/L3)
+
+        IF ((ETA >= ETA_AIRY_LOW .AND. ETA < BJL_PEAK_ETA_LOW) .OR. &
+            (ETA > BJL_PEAK_ETA_HIGH .AND. ETA <= ETA_AIRY_HIGH)) THEN
             ! Shoulder bands: corrected uniform Airy approximation.
-            CALL BJL_UNIFORM_AIRY_FAST(L, X, JL)
+            CALL BJL_UNIFORM_AIRY_FAST(L, X, L3*L3, JL)
             RETURN
-        ELSE IF (ETA < BJL_AIRY_ETA_LOW) THEN
+        ELSE IF (ETA < ETA_AIRY_LOW) THEN
             ! Below the peak but outside the exponentially tiny region.
             COSB = NU/AX
             SX = SQRT(NU2 - AX2)
@@ -494,24 +519,9 @@
                 + (32.0_dl + (288.0_dl + (232.0_dl + 13.0_dl*SEC2B)*SEC2B)*SEC2B)*SEC2B*COT6B/128.0_dl/NU) &
                 *COT6B/NU)/NU)/NU
             JL = SQRT(COTB*COSB)/(2.0_dl*NU)*EXP(-NU*BETA + NU/COTB - EXPTERM)
-        ELSE IF (ETA > BJL_AIRY_ETA_HIGH) THEN
+        ELSE IF (ETA > ETA_AIRY_HIGH) THEN
             ! Above the peak: oscillatory post-peak asymptotic form.
-            COSB = NU/AX
-            SX = SQRT(AX2 - NU2)
-            COTB = NU/SX
-            SECB = AX/NU
-            BETA = ACOS(COSB)
-            COT3B = COTB**3
-            COT6B = COT3B**2
-            SEC2B = SECB**2
-            TRIGARG = NU/COTB - NU*BETA - PID4 &
-                - ((2.0_dl + 3.0_dl*SEC2B)*COT3B/24.0_dl &
-                + (16.0_dl - (1512.0_dl + (3654.0_dl + 375.0_dl*SEC2B)*SEC2B)*SEC2B) &
-                *COT3B*COT6B/5760.0_dl/NU2)/NU
-            EXPTERM = ((4.0_dl + SEC2B)*SEC2B*COT6B/16.0_dl &
-                - (32.0_dl + (288.0_dl + (232.0_dl + 13.0_dl*SEC2B)*SEC2B)*SEC2B) &
-                *SEC2B*COT6B**2/128.0_dl/NU2)/NU2
-            JL = SQRT(COTB*COSB)/NU*EXP(-EXPTERM)*COS(TRIGARG)
+            CALL BJL_POSTPEAK_DEBYE(NU, AX, JL)
         ELSE
             ! Very close to the peak: polynomial transition expansion.
             BETA = AX - NU
@@ -538,40 +548,120 @@
     END SUBROUTINE BJL
 
 
+    elemental subroutine bjl_postpeak_debye(nu, ax, jl)
+    ! Oscillatory Debye asymptotic above the turning point, valid above the
+    ! Airy band (u = ax/nu - 1 > 0.42, or eta above the gates in BJL).
+    ! Identical to the standard two-correction form but with
+    !   sqrt(cotb*cosb)/nu = 1/sqrt(sx*ax),  nu/cotb = sx,
+    ! exp(-expterm) expanded to second order (expterm < ~1e-3 over the
+    ! accepted domain, so the expansion error is < ~1e-9), and
+    ! nu*acos(cosb) = nu*(pi/2 - asin(cosb)) evaluated via a polynomial fit
+    ! of asin(c)/c in c^2 on [0, 0.4975] (max |asin error| 3.7e-11) when in
+    ! range, i.e. for ax > ~1.42*nu; acos is only called close to the
+    ! turning point.
+    implicit none
+    real(dl), intent(in) :: nu, ax
+    real(dl), intent(out) :: jl
+
+    real(dl), parameter :: pid2 = 1.5707963267948966192313217_dl
+    real(dl), parameter :: pid4 = 0.78539816339744830961566084582_dl
+    real(dl), parameter :: a(0:10) = (/ &
+        +1.00000000003854628e+00_dl, +1.66666648374737825e-01_dl, &
+        +7.50014285476487963e-02_dl, +4.45995913792991625e-02_dl, &
+        +3.10488804563286078e-02_dl, +1.64373788064744349e-02_dl, &
+        +4.97790102349004449e-02_dl, -9.71772607183009063e-02_dl, &
+        +2.46755256321489758e-01_dl, -2.76229262323224423e-01_dl, &
+        +1.68861570948557360e-01_dl /)
+    real(dl) :: nu2, sx, cotb, cot3b, cot6b, sec2b, trigarg, expterm
+    real(dl) :: cb, s, p
+    integer :: k
+
+    nu2 = nu*nu
+    sx = sqrt(ax*ax - nu2)
+
+    cb = nu/ax
+    s = cb*cb
+
+    if (nu > real(BJL_RECURRENCE_MAX_L, dl) + 0.5_dl .and. ax >= 3.0_dl*nu) then
+        ! In the far post-peak tail the first phase correction dominates the
+        ! remaining Debye terms.  For L >= 26 and ax >= 3*nu this stays below
+        ! 5e-6 peak-normalized error, improving rapidly with ax/nu.
+        ! Here cb = nu/ax <= 1/3, so a short asin(cb)/cb series is accurate
+        ! enough and faster than the broad-domain polynomial used below.
+        p = 1.0_dl + s*(1.0_dl/6.0_dl + s*(3.0_dl/40.0_dl + s*(5.0_dl/112.0_dl &
+            + s*(35.0_dl/1152.0_dl + s*(63.0_dl/2816.0_dl + s*(231.0_dl/13312.0_dl))))))
+        trigarg = sx + nu*(cb*p - pid2)
+        cotb = nu/sx
+        cot3b = cotb*cotb*cotb
+        sec2b = 1.0_dl/s
+        trigarg = trigarg - pid4 - (2.0_dl + 3.0_dl*sec2b)*cot3b/(24.0_dl*nu)
+        jl = cos(trigarg)/sqrt(sx*ax)
+        return
+    end if
+
+    if (s < 0.4975_dl) then
+        p = a(10)
+        do k = 9, 0, -1
+            p = p*s + a(k)
+        end do
+        trigarg = sx + nu*(cb*p - pid2)
+    else
+        trigarg = sx - nu*acos(cb)
+    end if
+
+    cotb = nu/sx
+    sec2b = 1.0_dl/s
+    cot3b = cotb*cotb*cotb
+    cot6b = cot3b*cot3b
+
+    trigarg = trigarg - pid4 &
+        - ((2.0_dl + 3.0_dl*sec2b)*cot3b/24.0_dl &
+        + (16.0_dl - (1512.0_dl + (3654.0_dl + 375.0_dl*sec2b)*sec2b)*sec2b) &
+        *cot3b*cot6b/5760.0_dl/nu2)/nu
+    expterm = ((4.0_dl + sec2b)*sec2b*cot6b/16.0_dl &
+        - (32.0_dl + (288.0_dl + (232.0_dl + 13.0_dl*sec2b)*sec2b)*sec2b) &
+        *sec2b*cot6b**2/128.0_dl/nu2)/nu2
+    jl = (1.0_dl - expterm*(1.0_dl - 0.5_dl*expterm))*cos(trigarg)/sqrt(sx*ax)
+
+    end subroutine bjl_postpeak_debye
 
 
-    elemental subroutine bjl_uniform_airy_fast(l, x, jl)
+    elemental subroutine bjl_uniform_airy_fast(l, x, nu23, jl)
     ! Two-term corrected Olver uniform Airy approximation:
     !
     !   j_l(x) ~= pref * [ Ai(tau)
     !       + eps  * (P1(tau) Ai(tau) + Q1(tau) Ai'(tau))
     !       + eps^2* (P2(tau) Ai(tau) + Q2(tau) Ai'(tau)) ]
     !
-    ! Intended domain: the BJL shoulder bands, eta = (x-nu)/nu^0.325 in
-    ! [-2.25,-0.65) U (0.65,3.7] with l >= 26, i.e. u = x/nu - 1 in
-    ! [-0.25, 0.41] and tau = nu^(2/3) zeta in roughly [-4.4, 3.0].
+    ! nu23 must be (l + 0.5)**(2/3) (passed in to avoid a second power;
+    ! the caller already has nu**(1/3)).
+    !
+    ! Intended domain: the BJL shoulder bands, eta = (x-nu)/nu^(1/3) in
+    ! [-2.4,-0.65) U (0.65,3.85] (capped so u = x/nu - 1 is in [-0.26, 0.42])
+    ! with l >= 26, i.e. tau = nu^(2/3) zeta in roughly [-4.85, 3.3].
     !
     ! The Olver mapping is evaluated through a single polynomial
     !   P(u) = zeta/u  (analytic through the turning point),
     ! with ratio = 4 zeta/(1-z^2) = -4 P(u)/(2+u), fitted on
     ! u in [-0.26, 0.42] with max |delta zeta| ~ 2e-10. This reproduces the
     ! exact log/acos mapping to ~9e-10 peak-normalized over the gate domain
-    ! (dense scan, l = 26..79 and up to 50000) and is ~1.7x faster.
-    ! Calls outside the fitted u range are inaccurate; widen the fit if the
-    ! eta gates in BJL change.
+    ! and is ~1.7x faster. Calls outside the fitted u range are inaccurate;
+    ! widen the fit if the eta/u gates in BJL change.
     !
-    ! Peak-normalized accuracy against scipy.special.spherical_jn over the
-    ! gate domain (401x2 eta points per l):
-    !   l=26: 3.4e-5, l=45: 1.0e-5, l=100: 1.6e-6, l>=200: ~1.0e-6
-    ! (low-l worst errors come from the two-term Olver truncation).
+    ! The P1..Q2 corrections are a single weighted least-squares fit of
+    ! exact j_l residuals over the gate domain for l >= 26 (so they are
+    ! effective coefficients absorbing mapping and higher-order truncation
+    ! effects, not the analytic Olver functions); the fit is accurate to
+    ! ~3.5e-6 peak-normalized at l = 26, improving towards high l, on top
+    ! of the ~1e-6 airy_fast floor (see below).
 
     implicit none
     integer, intent(in) :: l
-    real(dl), intent(in) :: x
+    real(dl), intent(in) :: x, nu23
     real(dl), intent(out) :: jl
 
     real(dl), parameter :: pi = 3.141592653589793238462643383279502884197_dl
-    real(dl) :: ax, nu, nu13, nu23, zeta, tau, eps, eps2, pref, ratio
+    real(dl) :: ax, nu, zeta, tau, eps, pref, ratio
     real(dl) :: u, pu
     real(dl) :: ai, aip
     real(dl) :: p1, q1, p2, q2
@@ -587,18 +677,18 @@
         -3.21834319307111594e-02_dl /)
 
     real(dl), parameter :: c(24) = (/ &
-        -1.57687029733452188e-04_dl, -2.86291841602745543e-04_dl, &
-        -1.64967917049690195e-04_dl, -4.20144950724723239e-05_dl, &
-        -4.91866087021318015e-06_dl, -2.16160522018663616e-07_dl, &
-        -2.19528732498613553e-04_dl, -2.36964997600504554e-04_dl, &
-        -9.00604510654162075e-05_dl, -1.59170174801830321e-05_dl, &
-        -1.26798459743804658e-06_dl, -3.48372195594890281e-08_dl, &
-        6.66207928274303168e-03_dl,  1.23061280051791379e-02_dl, &
-        7.08775888397744549e-03_dl,  1.80375527531944258e-03_dl, &
-        2.10966849276599796e-04_dl,  9.26086631302043278e-06_dl, &
-        2.74389063894026689e-02_dl,  1.04229584215560795e-02_dl, &
-        3.86950969205413983e-03_dl,  6.82819070773826560e-04_dl, &
-        5.42682642617796167e-05_dl,  1.48342002616123936e-06_dl /)
+        -3.68007293378092709e-02_dl, +1.52097125394687113e-02_dl, &
+        +9.45343855707463099e-02_dl, +5.29457464968014282e-02_dl, &
+        +1.01673865085949999e-02_dl, +6.32096478967918564e-04_dl, &
+        -5.02972020102563366e-02_dl, +5.78573966116145630e-02_dl, &
+        +7.95031046204105196e-02_dl, +2.60219848032685157e-02_dl, &
+        +3.01851478297665045e-03_dl, +9.36429652248560787e-05_dl, &
+        -4.78203638758779526e-01_dl, -8.70173349815381719e-02_dl, &
+        +7.22863184145759674e-01_dl, +4.11559433361555371e-01_dl, &
+        +7.15565959786843286e-02_dl, +3.57357294204752518e-03_dl, &
+        -6.38867125689511428e-01_dl, +3.58715633433204339e-01_dl, &
+        +6.31913102077036770e-01_dl, +1.96335539191201919e-01_dl, &
+        +1.90209925594464375e-02_dl, +2.98832052141368223e-04_dl /)
 
     ax = abs(x)
 
@@ -621,16 +711,12 @@
     zeta = u*pu
     ratio = -4.0_dl*pu/(2.0_dl + u)
 
-    nu23 = nu**(2.0_dl/3.0_dl)
-    nu13 = sqrt(nu23)
     eps = 1.0_dl / nu23
-    eps2 = eps * eps
-
     tau = nu23 * zeta
 
     call airy_fast(tau, ai, aip)
 
-    pref = sqrt(pi/(2.0_dl*ax)) * sqrt(sqrt(ratio)) / nu13
+    pref = sqrt(pi/(2.0_dl*ax*nu23) * sqrt(ratio))
 
     ! Horner evaluation of correction polynomials.
     p1 = c(6)
@@ -645,392 +731,331 @@
         q2 = q2*tau + c(19+k)
     end do
 
-    jl = pref * (ai + eps*(p1*ai + q1*aip) + eps2*(p2*ai + q2*aip))
+    jl = pref * (ai*(1.0_dl + eps*(p1 + eps*p2)) + aip*eps*(q1 + eps*q2))
 
     if (x < 0.0_dl .and. mod(l, 2) /= 0) jl = -jl
 
     end subroutine bjl_uniform_airy_fast
 
 
+
     elemental subroutine airy_fast(x, ai, aip)
-    ! Fast real Airy Ai(x) and Ai'(x).
+    ! Fast real Airy Ai(x) and Ai'(x), optimized for < 1e-7 absolute error.
     !
     ! Branches:
-    !   x < -4.4               Cephes-style oscillatory asymptotic fallback
-    !  -4.4 <= x < -2.09       Chebyshev fit
-    !  -2.09 <= x <  2.09      shortened Taylor/Horner series
-    !   2.09 <= x <= 2.98      Chebyshev fit
-    !   2.98 < x <= 25.77      Cephes-style decaying asymptotic fallback
+    !   x < -6.5               simplified oscillatory asymptotic fallback
+    !  -6.5 <= x < -4.4        inline Horner polynomial fit, negative tail
+    !  -4.4 <= x < -2.09       inline Horner polynomial fit, negative middle interval
+    !  -2.09 <= x <  0.0       inline Horner polynomial fit, central negative interval
+    !   0.0 <= x <  2.09       inline Horner polynomial fit, central positive interval
+    !   2.09 <= x <= 2.98      inline Horner polynomial fit, positive middle interval
+    !   2.98 < x <= 6.5        inline Horner polynomial fit, positive tail
+    !   6.5 < x <= 25.77       first-corrected decaying asymptotic fallback
     !   x > 25.77              returns zero for Ai and Ai'
     !
-    ! Measured on 130001 points in [-6.5,6.5] against scipy.special.airy:
-    !   full interval:        max |Ai error|  = 5.46e-7,
-    !                         max |Ai' error| = 2.08e-6.
-    !   central branch:       max |Ai error|  = 5.05e-8,
-    !                         max |Ai' error| = 5.11e-7.
-    !   negative Cheb branch: max |Ai error|  = 5.46e-7,
-    !                         max |Ai' error| = 2.08e-6.
-    !   positive Cheb branch: max |Ai error|  = 9.67e-8,
-    !                         max |Ai' error| = 7.98e-7.
     !
-    ! Relative Airy errors can be large near Airy zeros; Bessel accuracy is
-    ! better characterized by the j_l first-maximum relative errors above.
+    ! Hot-interval fits are ordinary Horner polynomials in y, where y maps
+    ! each subinterval to [-1,1].  Coefficients were generated by Chebyshev-node
+    ! interpolation of scipy.special.airy and then converted to power form to
+    ! remove Clenshaw recurrence overhead.
+    !
+    ! Measured on 130001 points in [-6.5,6.5] against scipy.special.airy:
+    !   full interval:          max |Ai error|  = 7.52e-08,
+    !                           max |Ai' error| = 7.36e-08.
+    !   negative tail:     max |Ai error|  = 7.52e-08,
+    !                   max |Ai' error| = 6.32e-08.
+    !   negative middle:   max |Ai error|  = 1.56e-08,
+    !                   max |Ai' error| = 1.14e-08.
+    !   central negative:  max |Ai error|  = 5.76e-08,
+    !                   max |Ai' error| = 4.86e-09.
+    !   central positive:  max |Ai error|  = 3.75e-08,
+    !                   max |Ai' error| = 6.21e-08.
+    !   positive middle:   max |Ai error|  = 3.14e-08,
+    !                   max |Ai' error| = 7.36e-08.
+    !   positive tail:     max |Ai error|  = 7.52e-08,
+    !                   max |Ai' error| = 6.30e-08.
+    !
+    ! Relative Airy errors can be large near Airy zeros, so absolute error
+    ! is the intended accuracy diagnostic for this routine.
+    !
+    ! Outside the hot interval the fallbacks are deliberately simplified for
+    ! speed at the existing +/-6.5 cut points: the positive fallback keeps one
+    ! correction term in the decaying asymptotic form, while the negative
+    ! fallback uses first-degree polynomial corrections to the oscillatory
+    ! asymptotic form.  They are not intended to be moved much closer to the
+    ! origin without refitting.
+    !
+    ! Asymptotic-branch accuracy, measured against scipy.special.airy on
+    ! [-50,-6.5) and (6.5,25.77], has max absolute errors about 2.3e-8/5.9e-8
+    ! for Ai/Ai' on the negative side and 7.9e-10/2.4e-9 on the positive side.
+    ! The positive decaying branch has worst relative errors about 2.9e-4 for
+    ! Ai and 3.3e-4 for Ai' before the x > 25.77 zero cutoff; beyond the
+    ! cutoff relative error is 100%, but absolute error is below 1e-38 at
+    ! entry.  On the oscillatory negative side, relative error is meaningful
+    ! only away from zeros; at sampled oscillation peaks it is below 6.4e-8.
+    ! The positive-tail polynomial is endpoint-matched to the first-corrected
+    ! asymptotic value at x = 6.5, avoiding a visible branch jump there.
     implicit none
 
     real(dl), intent(in)  :: x
     real(dl), intent(out) :: ai, aip
 
+    real(dl), parameter :: xneg_tail = -6.5_dl
+    real(dl), parameter :: xneg1 = -4.4_dl
+    real(dl), parameter :: xneg2 = -2.09_dl
+    real(dl), parameter :: xpos1 = 2.09_dl
+    real(dl), parameter :: xpos2 = 2.98_dl
+    real(dl), parameter :: xpos_tail = 6.5_dl
     real(dl), parameter :: amaxairy = 25.77_dl
-    real(dl), parameter :: pi = 3.141592653589793238462643383279502884197_dl
-    real(dl), parameter :: c1 = 0.35502805388781723926_dl
-    real(dl), parameter :: c2 = 0.258819403792806798405_dl
+
     real(dl), parameter :: sqpii = 5.64189583547756286948e-1_dl
+    real(dl), parameter :: half_sqpii = 2.82094791773878143474e-1_dl
+    real(dl), parameter :: piq = 7.85398163397448309616e-1_dl
+    real(dl), parameter :: twothird = 6.66666666666666666667e-1_dl
+    real(dl), parameter :: threehalf = 1.5_dl
 
-    real(dl), parameter :: an(8) = (/ &
-        3.46538101525629032477e-1_dl, &
-        1.20075952739645805542e1_dl, &
-        7.62796053615234516538e1_dl, &
-        1.68089224934630576269e2_dl, &
-        1.59756391350164413639e2_dl, &
-        7.05360906840444183113e1_dl, &
-        1.40264691163389668864e1_dl, &
-        9.99999999999999995305e-1_dl /)
-
-    real(dl), parameter :: ad(8) = (/ &
-        5.67594532638770212846e-1_dl, &
-        1.47562562584847203173e1_dl, &
-        8.45138970141474626562e1_dl, &
-        1.77318088145400459522e2_dl, &
-        1.64234692871529701831e2_dl, &
-        7.14778400825575695274e1_dl, &
-        1.40959135607834029598e1_dl, &
-        1.00000000000000000470e0_dl /)
-
-    real(dl), parameter :: afn(9) = (/ &
-        -1.31696323418331795333e-1_dl, &
-        -6.26456544431912369773e-1_dl, &
-        -6.93158036036933542233e-1_dl, &
-        -2.79779981545119124951e-1_dl, &
-        -4.91900132609500318020e-2_dl, &
-        -4.06265923594885404393e-3_dl, &
-        -1.59276496239262096340e-4_dl, &
-        -2.77649108155232920844e-6_dl, &
-        -1.67787698489114633780e-8_dl /)
-
-    real(dl), parameter :: afd(9) = (/ &
-        1.33560420706553243746e1_dl, &
-        3.26825032795224613948e1_dl, &
-        2.67367040941499554804e1_dl, &
-        9.18707402907259625840e0_dl, &
-        1.47529146771666414581e0_dl, &
-        1.15687173795188044134e-1_dl, &
-        4.40291641615211203805e-3_dl, &
-        7.54720348287414296618e-5_dl, &
-        4.51850092970580378464e-7_dl /)
-
-    real(dl), parameter :: agn(11) = (/ &
-        1.97339932091685679179e-2_dl, &
-        3.91103029615688277255e-1_dl, &
-        1.06579897599595591108e0_dl, &
-        9.39169229816650230044e-1_dl, &
-        3.51465656105547619242e-1_dl, &
-        6.33888919628925490927e-2_dl, &
-        5.85804113048388458567e-3_dl, &
-        2.82851600836737019778e-4_dl, &
-        6.98793669997260967291e-6_dl, &
-        8.11789239554389293311e-8_dl, &
-        3.41551784765923618484e-10_dl /)
-
-    real(dl), parameter :: agd(10) = (/ &
-        9.30892908077441974853e0_dl, &
-        1.98352928718312140417e1_dl, &
-        1.55646628932864612953e1_dl, &
-        5.47686069422975497931e0_dl, &
-        9.54293611618961883998e-1_dl, &
-        8.64580826352392193095e-2_dl, &
-        4.12656523824222607191e-3_dl, &
-        1.01259085116509135510e-4_dl, &
-        1.17166733214413521882e-6_dl, &
-        4.91834570062930015649e-9_dl /)
-
-    real(dl) :: q, rt, qtr, zeta, z, zz
-    real(dl) :: theta, sn, cs, ak, h
-    real(dl) :: pn, pd, dpn, dpd
-    real(dl) :: r, dr, rf, drf, rg, drg
+    real(dl) :: y, a0, p0
+    real(dl) :: q, rt, qtr, zeta, z, zz, invq
+    real(dl) :: theta, sn, cs, ak, h, t
+    real(dl) :: rf, drf, rg, drg
     real(dl) :: uf, ug, duf_dz, dug_dz
-    real(dl) :: dzdx, dthdx, dakdx
-    real(dl) :: f, g, df, dg, z3
+    real(dl) :: dzdx, dakdx
 
-    if (x > amaxairy) then
-        ai = 0.0_dl
-        aip = 0.0_dl
-        return
+    if (x >= 0.0_dl) then
+        if (x < xpos1) then
+            y = (x - 1.04499999999999993e+0_dl) * 9.56937799043062309e-1_dl
+
+            a0 = 6.51840630617294678e-5_dl
+            a0 = a0*y - 1.41820887227489902e-4_dl
+            a0 = a0*y - 5.41899097043535300e-4_dl
+            a0 = a0*y + 3.84764097766738741e-3_dl
+            a0 = a0*y - 8.25368803111877630e-3_dl
+            a0 = a0*y - 6.03495061405065480e-3_dl
+            a0 = a0*y + 7.31872209255700207e-2_dl
+            a0 = a0*y - 1.59974703563899756e-1_dl
+            a0 = a0*y + 1.28267372044362643e-1_dl
+
+            p0 = -7.67433498257096941e-5_dl
+            p0 = p0*y + 4.94942129462562475e-4_dl
+            p0 = p0*y - 8.15070380453042321e-4_dl
+            p0 = p0*y - 3.10529357109378757e-3_dl
+            p0 = p0*y + 1.83370369686281925e-2_dl
+            p0 = p0*y - 3.15955876925410259e-2_dl
+            p0 = p0*y - 1.73129913754885845e-2_dl
+            p0 = p0*y + 1.40071486522548944e-1_dl
+            p0 = p0*y - 1.53086150287526923e-1_dl
+
+            ai  = a0
+            aip = p0
+            return
+        else if (x <= xpos2) then
+            y = (x - 2.53500000000000014e+0_dl) * 2.24719101123595477e+0_dl
+
+            a0 = -1.19619719384582610e-6_dl
+            a0 = a0*y + 7.30607372423890670e-5_dl
+            a0 = a0*y - 7.09505585931523709e-4_dl
+            a0 = a0*y + 3.72297934482035409e-3_dl
+            a0 = a0*y - 1.10827654040494637e-2_dl
+            a0 = a0*y + 1.48308424366850235e-2_dl
+
+            p0 = -1.15848713346688742e-5_dl
+            p0 = p0*y - 1.25032074830176718e-5_dl
+            p0 = p0*y + 6.68294530383771890e-4_dl
+            p0 = p0*y - 4.78388666680492399e-3_dl
+            p0 = p0*y + 1.67303273172219359e-2_dl
+            p0 = p0*y - 2.49050322117747754e-2_dl
+
+            ai  = a0
+            aip = p0
+            return
+        else if (x <= xpos_tail) then
+            y = (x - 4.74000000000000021e+0_dl) * 5.68181818181818232e-1_dl
+
+            a0 = 4.88795369996967941e-6_dl
+            a0 = a0*y - 9.70309364545231360e-5_dl
+            a0 = a0*y + 3.89113179462119549e-4_dl
+            a0 = a0*y - 8.69120696960508647e-4_dl
+            a0 = a0*y + 1.39931440824699808e-3_dl
+            a0 = a0*y - 1.68525416034986312e-3_dl
+            a0 = a0*y + 1.43003674608063172e-3_dl
+            a0 = a0*y - 7.63904323725029025e-4_dl
+            a0 = a0*y + 1.94752926593294709e-4_dl
+
+            p0 = -2.77619561700030726e-5_dl
+            p0 = p0*y + 5.01739366022296743e-5_dl
+            p0 = p0*y + 7.70886695526835241e-5_dl
+            p0 = p0*y - 4.82613277256875291e-4_dl
+            p0 = p0*y + 1.29184781654615517e-3_dl
+            p0 = p0*y - 2.41087049189967146e-3_dl
+            p0 = p0*y + 3.18769569668455807e-3_dl
+            p0 = p0*y - 2.88379934388740405e-3_dl
+            p0 = p0*y + 1.62470517339803242e-3_dl
+            p0 = p0*y - 4.33700533338538723e-4_dl
+
+            ai  = a0
+            aip = p0
+            return
+        else
+            if (x > amaxairy) then
+                ai = 0.0_dl
+                aip = 0.0_dl
+                return
+            end if
+
+            ! Positive fallback: x > 6.5 and x <= AMAXAIRY.
+            ! Keep the first correction term in z = 1/zeta.  This is still
+            ! much cheaper than the full rational fallback, reduces relative
+            ! error near the cutoff, and matches the positive-tail polynomial
+            ! endpoint at x = 6.5.
+            rt = sqrt(x)
+
+            zeta = twothird * x * rt
+            qtr = sqrt(rt)
+            z = 1.0_dl / zeta
+
+            a0 = half_sqpii * exp(-zeta) / qtr
+            ai = a0 * (1.0_dl - 6.94444444444444444e-2_dl*z)
+            aip = -a0 * rt * (1.0_dl + 9.72222222222222222e-2_dl*z)
+            return
+        end if
+    else
+        if (x >= xneg2) then
+            y = (x + 1.04499999999999993e+0_dl) * 9.56937799043062309e-1_dl
+
+            a0 = 5.06580358435135449e-6_dl
+            a0 = a0*y - 4.61082668202196131e-4_dl
+            a0 = a0*y + 1.46688819390411451e-3_dl
+            a0 = a0*y + 2.55013843603054671e-3_dl
+            a0 = a0*y - 2.30836607936877845e-2_dl
+            a0 = a0*y + 3.05136923162561725e-2_dl
+            a0 = a0*y + 9.89646761942541003e-2_dl
+            a0 = a0*y - 3.05531198486228894e-1_dl
+            a0 = a0*y + 1.51357911442611820e-2_dl
+            a0 = a0*y + 5.35467705092311230e-1_dl
+
+            p0 = -5.15798967096810657e-5_dl
+            p0 = p0*y + 2.36129299092830948e-4_dl
+            p0 = p0*y + 1.49302570673894751e-4_dl
+            p0 = p0*y - 4.00216684041114143e-3_dl
+            p0 = p0*y + 9.75397014554868838e-3_dl
+            p0 = p0*y + 1.49519953817788265e-2_dl
+            p0 = p0*y - 1.10429690672384659e-1_dl
+            p0 = p0*y + 1.16724977031110524e-1_dl
+            p0 = p0*y + 2.84107726562980778e-1_dl
+            p0 = p0*y - 5.84744087911635013e-1_dl
+            p0 = p0*y + 1.44840201291639853e-2_dl
+
+            ai  = a0
+            aip = p0
+            return
+        else if (x >= xneg1) then
+            y = (x + 3.24500000000000011e+0_dl) * 8.65800865800865571e-1_dl
+
+            a0 = -9.54841120863266526e-5_dl
+            a0 = a0*y - 2.40218737639588486e-4_dl
+            a0 = a0*y + 2.18870768526106905e-3_dl
+            a0 = a0*y - 7.26102098338769265e-4_dl
+            a0 = a0*y - 2.16614327619476833e-2_dl
+            a0 = a0*y + 4.14599225907353111e-2_dl
+            a0 = a0*y + 9.39438729129915828e-2_dl
+            a0 = a0*y - 3.26534621448200502e-1_dl
+            a0 = a0*y - 1.11226136786098134e-1_dl
+            a0 = a0*y + 9.06926447670876823e-1_dl
+            a0 = a0*y + 5.02411976022500845e-3_dl
+            a0 = a0*y - 4.19008537866886632e-1_dl
+
+            p0 = 3.22834884762855353e-4_dl
+            p0 = p0*y - 9.08270311970813633e-4_dl
+            p0 = p0*y - 2.88893546837624927e-3_dl
+            p0 = p0*y + 1.70524592992353889e-2_dl
+            p0 = p0*y - 4.29883302410300362e-3_dl
+            p0 = p0*y - 1.31279611846237987e-1_dl
+            p0 = p0*y + 2.15091069681845409e-1_dl
+            p0 = p0*y + 4.06682899587775981e-1_dl
+            p0 = p0*y - 1.13081105767151313e+0_dl
+            p0 = p0*y - 2.88899003685929689e-1_dl
+            p0 = p0*y + 1.57043347576836512e+0_dl
+            p0 = p0*y + 4.34988645555066042e-3_dl
+
+            ai  = a0
+            aip = p0
+            return
+        else if (x >= xneg_tail) then
+            y = (x + 5.45000000000000018e+0_dl) * 9.52380952380952550e-1_dl
+
+            a0 = -1.07510299195806721e-3_dl
+            a0 = a0*y + 1.61081861596598392e-3_dl
+            a0 = a0*y + 1.25898167350718959e-2_dl
+            a0 = a0*y - 3.17287935514204492e-2_dl
+            a0 = a0*y - 6.97215951205423234e-2_dl
+            a0 = a0*y + 2.55547774507571435e-1_dl
+            a0 = a0*y + 1.77851990438656710e-1_dl
+            a0 = a0*y - 8.85682387350856803e-1_dl
+            a0 = a0*y - 1.82574851147874584e-1_dl
+            a0 = a0*y + 8.96114353477748704e-1_dl
+            a0 = a0*y + 6.07711584563111612e-2_dl
+
+            p0 = 7.27402496617779817e-4_dl
+            p0 = p0*y + 1.71964876060855081e-4_dl
+            p0 = p0*y - 1.19077060916135732e-2_dl
+            p0 = p0*y + 1.34154904279652990e-2_dl
+            p0 = p0*y + 9.72590787238585691e-2_dl
+            p0 = p0*y - 2.11216276860003105e-1_dl
+            p0 = p0*y - 3.98848523137400046e-1_dl
+            p0 = p0*y + 1.21679578395402688e+0_dl
+            p0 = p0*y + 6.77583856837294385e-1_dl
+            p0 = p0*y - 2.53051030517908737e+0_dl
+            p0 = p0*y - 3.47762941229583233e-1_dl
+            p0 = p0*y + 8.53442055237177311e-1_dl
+
+            ai  = a0
+            aip = p0
+            return
+        else
+            ! Negative fallback: x < -6.5.
+            ! The correction functions are first-degree polynomial fits in
+            ! zz = z**2 over the actual fallback domain.  This keeps the
+            ! boundary errors matched to the hot interval while avoiding two
+            ! high-degree rational evaluations and their derivatives.
+            q = -x
+            invq = 1.0_dl / q
+            rt = sqrt(q)
+
+            zeta = twothird * q * rt
+            qtr = sqrt(rt)
+            ak = sqpii / qtr
+
+            z = 1.0_dl / zeta
+            zz = z*z
+
+            rf = -3.71305224980621948e-2_dl + zz*5.54256415602097374e-2_dl
+            drf = 5.54256415602097374e-2_dl
+            rg = 6.94432325868511585e-2_dl - zz*3.70901829479361872e-2_dl
+            drg = -3.70901829479361872e-2_dl
+
+            uf = 1.0_dl + zz*rf
+            duf_dz = (2.0_dl*z) * (rf + zz*drf)
+
+            ug = z*rg
+            dug_dz = rg + (2.0_dl*zz)*drg
+
+            theta = zeta + piq
+            sn = sin(theta)
+            cs = cos(theta)
+
+            h = sn*uf - cs*ug
+            ai = ak*h
+
+            dzdx = threehalf*z*invq
+            dakdx = 0.25_dl*ak*invq
+            t = (-rt)*(cs*uf + sn*ug) + dzdx*(sn*duf_dz - cs*dug_dz)
+            aip = dakdx*h + ak*t
+            return
+        end if
     end if
 
-    if (x >= -4.4_dl .and. x < -2.09_dl) then
-        call airy_neg_cheb_fast(x, ai, aip)
-        return
-    end if
-
-    if (x >= 2.09_dl .and. x <= 2.98_dl) then
-        call airy_pos_cheb_fast(x, ai, aip)
-        return
-    end if
-
-    ! Negative fallback: x < -4.4.
-    if (x < -4.4_dl) then
-        q = -x
-        rt = sqrt(q)
-
-        zeta = 2.0_dl * q * rt / 3.0_dl
-        qtr = sqrt(rt)
-        ak = sqpii / qtr
-
-        z = 1.0_dl / zeta
-        zz = z * z
-
-        call polevl_der_fast(zz, afn, 8, pn, dpn)
-        call p1evl_der_fast(zz, afd, 9, pd, dpd)
-        rf = pn / pd
-        drf = (dpn*pd - pn*dpd) / (pd*pd)
-
-        call polevl_der_fast(zz, agn, 10, pn, dpn)
-        call p1evl_der_fast(zz, agd, 10, pd, dpd)
-        rg = pn / pd
-        drg = (dpn*pd - pn*dpd) / (pd*pd)
-
-        uf = 1.0_dl + zz * rf
-        duf_dz = 2.0_dl * z * (rf + zz*drf)
-
-        ug = z * rg
-        dug_dz = rg + 2.0_dl * zz * drg
-
-        theta = zeta + 0.25_dl * pi
-        sn = sin(theta)
-        cs = cos(theta)
-
-        h = sn*uf - cs*ug
-        ai = ak * h
-
-        dzdx = 1.5_dl * z / q
-        dthdx = -rt
-        dakdx = ak / (4.0_dl * q)
-
-        aip = dakdx*h + ak * ( &
-            dthdx*(cs*uf + sn*ug) &
-            + sn*duf_dz*dzdx &
-            - cs*dug_dz*dzdx )
-
-        return
-    end if
-
-    ! Positive fallback: x > 2.98 and x <= AMAXAIRY.
-    if (x > 2.98_dl) then
-        rt = sqrt(x)
-
-        zeta = 2.0_dl * x * rt / 3.0_dl
-        qtr = sqrt(rt)
-        z = 1.0_dl / zeta
-
-        call polevl_der_fast(z, an, 7, pn, dpn)
-        call polevl_der_fast(z, ad, 7, pd, dpd)
-
-        r = pn / pd
-        dr = (dpn*pd - pn*dpd) / (pd*pd)
-
-        ai = 0.5_dl * sqpii * r * exp(-zeta) / qtr
-
-        dzdx = -1.5_dl * z / x
-        aip = ai * ((dr/r)*dzdx - 0.25_dl/x - rt)
-
-        return
-    end if
-
-    ! Central branch: -2.09 <= x < 2.09.
-    z3 = x*x*x
-
-    f = 9.09662613850461810e-12_dl
-    f = 2.78356759838241336e-09_dl + z3*f
-    f = 5.84549195660306779e-07_dl + z3*f
-    f = 7.71604938271604923e-05_dl + z3*f
-    f = 5.55555555555555577e-03_dl + z3*f
-    f = 1.66666666666666657e-01_dl + z3*f
-    f = 1.0_dl + z3*f
-
-    g = 1.72172984605299955e-12_dl
-    g = 5.88831607350125831e-10_dl + z3*g
-    g = 1.41319585764030204e-07_dl + z3*g
-    g = 2.20458553791887140e-05_dl + z3*g
-    g = 1.98412698412698402e-03_dl + z3*g
-    g = 8.33333333333333287e-02_dl + z3*g
-    g = x * (1.0_dl + z3*g)
-
-    df = 1.63739270493083139e-10_dl
-    df = 4.17535139757362004e-08_dl + z3*df
-    df = 7.01459034792368135e-06_dl + z3*df
-    df = 6.94444444444444471e-04_dl + z3*df
-    df = 3.33333333333333329e-02_dl + z3*df
-    df = 5.00000000000000000e-01_dl + z3*df
-    df = x*x * df
-
-    dg = 3.27128670750069899e-11_dl
-    dg = 9.42130571760201330e-09_dl + z3*dg
-    dg = 1.83715461493239276e-06_dl + z3*dg
-    dg = 2.20458553791887113e-04_dl + z3*dg
-    dg = 1.38888888888888881e-02_dl + z3*dg
-    dg = 3.33333333333333315e-01_dl + z3*dg
-    dg = 1.0_dl + z3*dg
-
-    ai  = c1*f  - c2*g
-    aip = c1*df - c2*dg
-
-    CONTAINS
-
-
-    elemental subroutine airy_neg_cheb_fast(xv, aiv, aipv)
-    implicit none
-    real(dl), intent(in)  :: xv
-    real(dl), intent(out) :: aiv, aipv
-
-    integer, parameter :: nch = 10
-    real(dl), parameter :: xmid  = -3.24500000000000011e+00_dl
-    real(dl), parameter :: xhalf =  1.15500000000000025e+00_dl
-
-    real(dl) :: y, twoy
-    real(dl) :: a0, a1, a2
-    real(dl) :: p0, p1, p2
-    integer :: j
-
-    real(dl), parameter :: cai(10) = (/ &
-        -7.52972311373991954e-02_dl, -3.04924834824625880e-02_dl, &
-        3.09214054941112593e-01_dl, -4.86933307406160927e-03_dl, &
-        -3.32582282959081738e-02_dl,  3.79467424343539342e-03_dl, &
-        1.22912822483253726e-03_dl, -2.66641673714729916e-04_dl, &
-        -1.03644439619337352e-05_dl,  7.52394509644803996e-06_dl /)
-
-    real(dl), parameter :: caip(10) = (/ &
-        -2.41791445513994847e-02_dl,  8.53129932850260952e-01_dl, &
-        4.44254809627120731e-03_dl, -2.17741253092986226e-01_dl, &
-        2.97377848446421338e-02_dl,  1.26187697358148727e-02_dl, &
-        -3.11653760934400706e-03_dl, -1.51393639068021042e-04_dl, &
-        1.15482678107576387e-04_dl, -7.81692617584523665e-06_dl /)
-
-    y = (xv - xmid) / xhalf
-    twoy = 2.0_dl * y
-
-    a1 = 0.0_dl
-    a2 = 0.0_dl
-    p1 = 0.0_dl
-    p2 = 0.0_dl
-
-    do j = nch, 2, -1
-        a0 = twoy*a1 - a2 + cai(j)
-        p0 = twoy*p1 - p2 + caip(j)
-
-        a2 = a1
-        a1 = a0
-
-        p2 = p1
-        p1 = p0
-    end do
-
-    aiv  = y*a1 - a2 + cai(1)
-    aipv = y*p1 - p2 + caip(1)
-
-    end subroutine airy_neg_cheb_fast
-
-
-    elemental subroutine airy_pos_cheb_fast(xv, aiv, aipv)
-    implicit none
-    real(dl), intent(in)  :: xv
-    real(dl), intent(out) :: aiv, aipv
-
-    integer, parameter :: nch = 5
-    real(dl), parameter :: xmid  = 2.53500000000000014e+00_dl
-    real(dl), parameter :: xhalf = 4.45000000000000062e-01_dl
-
-    real(dl) :: y, twoy
-    real(dl) :: a0, a1, a2
-    real(dl) :: p0, p1, p2
-    integer :: j
-
-    real(dl), parameter :: cai(5) = (/ &
-        1.67197298855612173e-02_dl, -1.16156422167520770e-02_dl, &
-        1.89802004119299199e-03_dl, -1.77750208417504322e-04_dl, &
-        9.13251766892205164e-06_dl /)
-
-    real(dl), parameter :: caip(5) = (/ &
-        -2.73016642479830610e-02_dl,  1.72243076704324746e-02_dl, &
-        -2.39819493752986600e-03_dl,  1.63453367574147994e-04_dl, &
-        -1.56291392306149089e-06_dl /)
-
-    y = (xv - xmid) / xhalf
-    twoy = 2.0_dl * y
-
-    a1 = 0.0_dl
-    a2 = 0.0_dl
-    p1 = 0.0_dl
-    p2 = 0.0_dl
-
-    do j = nch, 2, -1
-        a0 = twoy*a1 - a2 + cai(j)
-        p0 = twoy*p1 - p2 + caip(j)
-
-        a2 = a1
-        a1 = a0
-
-        p2 = p1
-        p1 = p0
-    end do
-
-    aiv  = y*a1 - a2 + cai(1)
-    aipv = y*p1 - p2 + caip(1)
-
-    end subroutine airy_pos_cheb_fast
-
-
-    pure subroutine polevl_der_fast(xp, coef, n, p, dp)
-    implicit none
-    integer, intent(in) :: n
-    real(dl), intent(in) :: xp
-    real(dl), intent(in) :: coef(n+1)
-    real(dl), intent(out) :: p, dp
-
-    integer :: i
-
-    p = coef(1)
-    dp = 0.0_dl
-
-    do i = 2, n+1
-        dp = dp*xp + p
-        p = p*xp + coef(i)
-    end do
-
-    end subroutine polevl_der_fast
-
-
-    pure subroutine p1evl_der_fast(xp, coef, n, p, dp)
-    implicit none
-    integer, intent(in) :: n
-    real(dl), intent(in) :: xp
-    real(dl), intent(in) :: coef(n)
-    real(dl), intent(out) :: p, dp
-
-    integer :: i
-
-    p = 1.0_dl
-    dp = 0.0_dl
-
-    do i = 1, n
-        dp = dp*xp + p
-        p = p*xp + coef(i)
-    end do
-
-    end subroutine p1evl_der_fast
 
     end subroutine airy_fast
-
-
 
 
 
