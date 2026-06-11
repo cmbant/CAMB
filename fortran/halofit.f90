@@ -123,7 +123,9 @@
     TYPE HM_tables
         !Stuff that needs to be recalculated for each new z
         REAL(dl), ALLOCATABLE :: c(:), rv(:), nu(:), sig(:), zc(:), m(:), rr(:), sigf(:)
+        REAL(dl), ALLOCATABLE :: p1h_weight(:), nu_eta(:), baryon_mass_fraction(:)
         REAL(dl) :: sigv, sigv100, knl, rnl, neff, sig8z, z, dc, sig8z_cold
+        REAL(dl) :: eta_hm, kstar_hm, alpha_hm, fdamp_hm, one_minus_fnu_sq, f_star_hm
         INTEGER :: n
     END TYPE HM_tables
     !!AM - End of my additions
@@ -866,7 +868,7 @@
     END IF
 
     IF (this%imead==1 .OR. this%imead==2 .OR. this%imead==3) THEN
-        a=this%alpha(lut)
+        a=lut%alpha_hm
         pfull=(p2h**a+p1h**a)**(1./a)
     ELSE
         pfull=p2h+p1h
@@ -1116,6 +1118,7 @@
         lut%n =n
         ALLOCATE(lut%zc(n),lut%m(n),lut%c(n),lut%rv(n))
         ALLOCATE(lut%nu(n),lut%rr(n),lut%sigf(n),lut%sig(n))
+        ALLOCATE(lut%p1h_weight(n),lut%nu_eta(n),lut%baryon_mass_fraction(n))
     end if
     lut%zc=0
     lut%m=0
@@ -1125,6 +1128,15 @@
     lut%rr=0
     lut%sigf=0
     lut%sig=0
+    lut%p1h_weight=0
+    lut%nu_eta=0
+    lut%baryon_mass_fraction=0
+    lut%eta_hm=0
+    lut%kstar_hm=0
+    lut%alpha_hm=1
+    lut%fdamp_hm=0
+    lut%one_minus_fnu_sq=1
+    lut%f_star_hm=0
 
     END SUBROUTINE allocate_LUT
 
@@ -1135,6 +1147,7 @@
     REAL(dl), INTENT(IN) :: z
     INTEGER :: i,nm
     REAL(dl) :: Dv, dc, m, nu, r, sig, mmin, mmax
+    REAL(dl) :: fb, fc, fs, mb, beta, ratio
     TYPE(HM_cosmology) :: cosm
     TYPE(HM_tables) :: lut
     REAL(dl), PARAMETER :: f_Bullock=0.01_dl**(1/3._dl)
@@ -1189,6 +1202,7 @@
         lut%sig(i)=sig
         lut%nu(i)=nu
         lut%sigf(i)=sigma_lut(r*f_Bullock,z,cosm)
+        lut%p1h_weight(i)=gnu(nu)*m
 
     END DO
     !$OMP END PARALLEL DO
@@ -1222,6 +1236,26 @@
 
     !Get the concentration for all the haloes
     CALL this%conc_bull(z,lut,cosm)
+
+    !Cache redshift-only halo-model factors used in every k evaluation.
+    lut%eta_hm=this%eta(lut,cosm)
+    lut%kstar_hm=this%kstar(lut)
+    lut%fdamp_hm=this%fdamp(lut)
+    lut%alpha_hm=this%alpha(lut)
+    lut%one_minus_fnu_sq=(1._dl-cosm%f_nu)**2
+    lut%nu_eta=lut%nu**lut%eta_hm
+    IF(this%imead==5) THEN
+        mb=m_baryon(lut,cosm)
+        beta=2._dl
+        fb=cosm%Om_b/cosm%Om_m
+        fc=cosm%Om_c/cosm%Om_m
+        fs=f_star(lut,cosm)
+        lut%f_star_hm=fs
+        DO i=1,lut%n
+            ratio=(lut%m(i)/mb)**beta
+            lut%baryon_mass_fraction(i)=fc+(fb-fs)*ratio/(1._dl+ratio)
+        END DO
+    END IF
 
     IF(HM_verbose) WRITE(*,*) 'HALOMOD: c HM_tables filled'
     IF(HM_verbose) WRITE(*,*) 'HALOMOD: c min [Msun/h]:', lut%c(lut%n)
@@ -1698,7 +1732,7 @@
     TYPE(HM_cosmology), INTENT(IN) :: cosm
 
     !Damping function
-    frac=this%fdamp(lut)
+    frac=lut%fdamp_hm
 
     IF(this%imead==0 .OR. this%imead==4 .OR. this%imead==5 .OR. frac<1.e-3) THEN
         p_2h=plin
@@ -1724,26 +1758,21 @@
     REAL(dl), INTENT(IN) :: k
     TYPE(HM_tables), INTENT(IN) :: lut
     TYPE(HM_cosmology), INTENT(IN) :: cosm
-    REAL(dl) :: g, fac, et, ks, wk, x, m
+    REAL(dl) :: fac, ks, wk, x
     REAL(dl) :: integrand(lut%n)
     REAL(dl) :: sum
     INTEGER :: i
     REAL(dl), PARAMETER :: pi=pi_HM
     INTEGER, PARAMETER :: iorder=iorder_integration_1h
 
-    !Only call eta once
-    et=this%eta(lut,cosm)
-
     !Calculates the value of the integrand at all nu values!
     DO i=1,lut%n
-        m=lut%m(i)
-        g=gnu(lut%nu(i))
-        wk=win(k*lut%nu(i)**et,lut%rv(i),lut%c(i))
-        IF(this%imead==5) wk=baryonify_wk(wk, m, lut, cosm)
-        integrand(i)=g*(wk**2)*lut%m(i)
+        wk=win(k*lut%nu_eta(i),lut%rv(i),lut%c(i))
+        IF(this%imead==5) wk=wk*lut%baryon_mass_fraction(i)+lut%f_star_hm
+        integrand(i)=lut%p1h_weight(i)*(wk**2)
     END DO
 
-    IF(this%imead==3 .OR. this%imead==4) integrand=integrand*(1.-cosm%f_nu)**2
+    IF(this%imead==3 .OR. this%imead==4) integrand=integrand*lut%one_minus_fnu_sq
 
     !Carries out the integration
     sum=inttab(lut%nu,integrand,1,lut%n,iorder)/cosmic_density(cosm)
@@ -1753,7 +1782,7 @@
 
     IF(this%imead==1 .OR. this%imead==2) THEN
         !Damping of the 1-halo term at very large scales
-        ks=this%kstar(lut)
+        ks=lut%kstar_hm
         IF(ks==0.) THEN
             fac=0.
         ELSE IF((k/ks)**2.>ks_limit) THEN
@@ -1764,14 +1793,14 @@
         !Damping of the one-halo term at very large scales
         p_1h=p_1h*(1.-fac)
     ELSE IF(this%imead==3 .OR. this%imead==4 .OR. this%imead==5) THEN
-        ks=this%kstar(lut)
+        ks=lut%kstar_hm
         x=(k/ks)**4
         p_1h=p_1h*x/(1.+x)
     END IF
 
     END FUNCTION p_1h
 
-    REAL FUNCTION p_dewiggle(k, z, p_linear, sigv, cosm)
+    REAL(dl) FUNCTION p_dewiggle(k, z, p_linear, sigv, cosm)
     ! Call the dewiggled power spectrum, which is linear but with damped wiggles
     REAL(dl), INTENT(IN) :: k, z, p_linear, sigv
     TYPE(HM_cosmology), INTENT(IN) :: cosm
@@ -1903,7 +1932,7 @@
 
     END SUBROUTINE calculate_nowiggle
 
-    REAL FUNCTION Pk_nowiggle(k, cosm)
+    REAL(dl) FUNCTION Pk_nowiggle(k, cosm)
     ! Calculates the un-normalised no-wiggle power spectrum
     ! Comes from the Eisenstein & Hu approximation
     REAL(dl), INTENT(IN) :: k
@@ -1913,7 +1942,7 @@
 
     END FUNCTION Pk_nowiggle
 
-    REAL FUNCTION Tk_nw(k, cosm)
+    REAL(dl) FUNCTION Tk_nw(k, cosm)
     ! No-wiggle transfer function from Eisenstein & Hu: astro-ph:9709112
     REAL(dl), INTENT(IN) :: k ! Wavenumber [h/Mpc]
     TYPE(HM_cosmology), INTENT(IN) :: cosm
@@ -2206,7 +2235,7 @@
 
     END IF
 
-    inttab=REAL(sum)
+    inttab=sum
 
     END FUNCTION inttab
 
@@ -3201,9 +3230,9 @@
 
         DO i=1,n-1
 
-            x4=real(x8(i))
-            v4=real(v8(i))
-            t4=real(t8(i))
+            x4=x8(i)
+            v4=v8(i)
+            t4=t8(i)
 
             IF(imeth==1) THEN
 
@@ -3272,9 +3301,9 @@
 
         IF(ifail==0) THEN
             ALLOCATE(x(n),t(n),v(n))
-            x=real(x8)
-            v=real(v8)
-            t=real(t8)
+            x=x8
+            v=v8
+            t=t8
             EXIT
         END IF
 
