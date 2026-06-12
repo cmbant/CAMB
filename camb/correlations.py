@@ -415,8 +415,8 @@ def lensed_correlations(cls, clpp, xvals, weights=None, lmax=None, delta=False, 
             rootfac2[1:] * rootfac3
         )
         d2m4 = (-(6 * x + 4) / sinth * d2m3[1:] - rootfac2[1:] * d2m2[2:]) / rootfac3
-        d4m4 = (-7 / 5.0 * (lfacs2[2:] - 6) * d2m2[2:] + 12 / 5.0 * (-lfacs2[2:] + (9 * x + 26) / fac1) * d3m3[1:]) / (
-            lfacs2[2:] - 12
+        d4m4 = (-7 / 5.0 * (lfacs[2:] - 6) * d2m2[2:] + 12 / 5.0 * (-lfacs[2:] + (9 * x + 26) / fac1) * d3m3[1:]) / (
+            lfacs[2:] - 12
         )
         # + (second order Cg2 terms are needed for <1% accuracy on BB)
         f = cp * fac[2:]
@@ -641,8 +641,8 @@ def lensed_cl_derivatives(cls, clpp, lmax=None, theta_max=np.pi / 32, apodize_po
             rootfac2[1:] * rootfac3
         )
         d2m4 = (-(6 * x + 4) / sinth * d2m3[1:] - rootfac2[1:] * d2m2[2:]) / rootfac3
-        d4m4 = (-7 / 5.0 * (lfacs2[2:] - 6) * d2m2[2:] + 12 / 5.0 * (-lfacs2[2:] + (9 * x + 26) / fac1) * d3m3[1:]) / (
-            lfacs2[2:] - 12
+        d4m4 = (-7 / 5.0 * (lfacs[2:] - 6) * d2m2[2:] + 12 / 5.0 * (-lfacs[2:] + (9 * x + 26) / fac1) * d3m3[1:]) / (
+            lfacs[2:] - 12
         )
         # + (second order Cg2 terms are needed for <1% accuracy on BB)
         f = -lfacsall[2:] / 2 * cp * fac[2:]
@@ -789,8 +789,8 @@ def lensed_cl_derivative_unlensed(clpp, lmax=None, theta_max=np.pi / 32, apodize
             rootfac2[1:] * rootfac3
         )
         d2m4 = (-(6 * x + 4) / sinth * d2m3[1:] - rootfac2[1:] * d2m2[2:]) / rootfac3
-        d4m4 = (-7 / 5.0 * (lfacs2[2:] - 6) * d2m2[2:] + 12 / 5.0 * (-lfacs2[2:] + (9 * x + 26) / fac1) * d3m3[1:]) / (
-            lfacs2[2:] - 12
+        d4m4 = (-7 / 5.0 * (lfacs[2:] - 6) * d2m2[2:] + 12 / 5.0 * (-lfacs[2:] + (9 * x + 26) / fac1) * d3m3[1:]) / (
+            lfacs[2:] - 12
         )
         # + (second order Cg2 terms are needed for <1% accuracy on BB)
 
