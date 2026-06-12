@@ -55,7 +55,7 @@
     use precision
     use results
     use GaugeInterface
-    use HypersphericalBesselOlver, only: u_olver
+    use HypersphericalBesselOlver, only: u_olver, phi_olver
     use SpherBessels
     use MassiveNu
     use InitialPower
@@ -108,6 +108,11 @@
 
     integer :: max_bessels_l_index  = 1000000
     real(dl) :: max_bessels_etak = 1000000*2
+
+    !Evaluate u_olver directly at each source time step, instead of Numerov stepping in chi,
+    !once a single time step would need at least this many Numerov substeps (one u_olver
+    !evaluation costs about the same as 13 substeps, and avoids accumulated phase drift).
+    integer, parameter :: direct_olver_min_substeps = 10
 
     Type(TTimeSources) , pointer :: ThisSources => null()
     Type(TTimeSources), allocatable, target :: TempSources
@@ -1986,7 +1991,7 @@
 
     BessIntBoost = CP%Accuracy%AccuracyBoost * CP%Accuracy%BessIntBoost
 
-    ! ujl small where chi <~  chi_t- \frac{5\eta^{1/3}}{\nu\left(1-K\eta^2/\nu^2\right)^{1/6}}
+    ! phi small where chi <~  chi_t- \frac{5\eta^{1/3}}{\nu\left(1-K\eta^2/\nu^2\right)^{1/6}}
     ! but here x is the j_l argument, so looks like flat formula.
     xlim = max(0._dl, real(l, dl) - bjl_pre_peak_start_factor * real(l, dl)**(1._dl / 3._dl))
     if (full_bessel_integration .or. do_bispectrum) then
@@ -2121,12 +2126,12 @@
 
     integer :: K, n, n_first, n_last
     logical :: DoInt
-    real(dl) :: BessIntBoost, chi, chi_start, sh, ujl, xlmax1, tmin, tmax, xf
-    real(dl) :: qmax_int, sums(ThisSources%SourceNum), ujl_vals(IV%SourceSteps)
+    real(dl) :: BessIntBoost, chi, chi_start, sh, phi, xlmax1, tmin, tmax, xf
+    real(dl) :: qmax_int, sums(ThisSources%SourceNum), phi_vals(IV%SourceSteps)
 
     BessIntBoost = CP%Accuracy%AccuracyBoost * CP%Accuracy%BessIntBoost
 
-    chi_start = HypersphericalUjlOnsetChi(l, nu, merge(1, -1, State%closed))
+    chi_start = HypersphericalPhiOnsetChi(l, nu, merge(1, -1, State%closed))
     tmax = State%tau0 - chi_start * State%curvature_radius
     if (tmax < State%TimeSteps%points(2)) return
 
@@ -2152,23 +2157,23 @@
                 chi = (State%tau0 - State%TimeSteps%points(n)) / State%curvature_radius
                 sh = State%rofChi(chi)
                 if (abs(sh) > 1.e-30_dl) then
-                    ujl = u_olver(l, K, nu, chi) / sh
+                    phi = u_olver(l, K, nu, chi) / sh
                 else
-                    ujl = 0._dl
+                    phi = 0._dl
                 end if
-                ujl_vals(n) = ujl * State%TimeSteps%dpoints(n)
+                phi_vals(n) = phi * State%TimeSteps%dpoints(n)
             end do
 
             if (ThisSources%SourceNum == 2) then
                 do n = n_first, n_last
-                    sums(1) = sums(1) + IV%Source_q(n,1) * ujl_vals(n)
-                    sums(2) = sums(2) + IV%Source_q(n,2) * ujl_vals(n)
+                    sums(1) = sums(1) + IV%Source_q(n,1) * phi_vals(n)
+                    sums(2) = sums(2) + IV%Source_q(n,2) * phi_vals(n)
                 end do
             else
                 do n = n_first, n_last
-                    sums(1) = sums(1) + IV%Source_q(n,1) * ujl_vals(n)
-                    sums(2) = sums(2) + IV%Source_q(n,2) * ujl_vals(n)
-                    sums(3) = sums(3) + IV%Source_q(n,3) * ujl_vals(n)
+                    sums(1) = sums(1) + IV%Source_q(n,1) * phi_vals(n)
+                    sums(2) = sums(2) + IV%Source_q(n,2) * phi_vals(n)
+                    sums(3) = sums(3) + IV%Source_q(n,3) * phi_vals(n)
                 end do
             end if
         end if
@@ -2191,7 +2196,7 @@
     end subroutine DoCurvedOlverIntegration
 
 
-    real(dl) function HypersphericalUjlOnsetChi(l, nu, K) result(chi_start)
+    real(dl) function HypersphericalPhiOnsetChi(l, nu, K) result(chi_start)
     implicit none
     integer, intent(in) :: l, K
     real(dl), intent(in) :: nu
@@ -2225,7 +2230,7 @@
     denom = (1._dl - real(K, dl) * (lambda / nu)**2)**(1._dl / 6._dl)
     chi_start = max(0._dl, turn_chi - c_start * lambda**(1._dl / 3._dl) / (nu * denom))
 
-    end function HypersphericalUjlOnsetChi
+    end function HypersphericalPhiOnsetChi
 
 
     !non-flat source integration
@@ -2274,8 +2279,8 @@
     if (CP%WantScalars) then !Do Scalars
         if (ThisSources%SourceNum > 3) call MpiStop('Non-flat not implemented for extra sources')
         !Integrate chi down in dissipative region
-        ! cuts off when ujl gets small
-        ! Fix for ujl discontinuity in near-flat models - adaptive formula provides superior performance
+        ! cuts off when phi gets small
+        ! Fix for phi discontinuity in near-flat models - adaptive formula provides superior performance
         miny1= 0.5d-4/(l+max(0,30-l))/BessIntBoost  ! Adaptive formula for Omega_k discontinuity fix, see https://github.com/cmbant/CAMB/pull/185
         sums=0
         qmax_int= max(850,ThisCT%ls%l(j))*3*BessIntBoost/State%DMt0*1.2
@@ -2364,7 +2369,7 @@
         chi=ChiStart
 
         !Integrate chi down in dissipative region
-        !DoRangeInt cuts off when ujl gets small
+        !DoRangeInt cuts off when phi gets small
         miny1= 1.d-6/l/BessIntBoost
         if ((nstart < State%TimeSteps%npoints-1).and.(y1dis>miny1)) then
             y1=y1dis
@@ -2431,12 +2436,12 @@
     bessel_etak = hypot(scale_x, curve_x) + safety_margin
     end function ShiftedQBesselTableMaxEtak
 
-    subroutine FillShiftedQUjlVals(j, l, nu, chi_start, dchisource, sgn, nIntSteps, ujl_vals, y1, chi)
+    subroutine FillShiftedQPhiVals(j, l, nu, chi_start, dchisource, sgn, nIntSteps, phi_vals, y1, chi)
     use SpherBessels, only: BessRanges, bessel_horner
 
     integer, intent(in) :: j, l, nIntSteps
     real(dl), intent(in) :: nu, chi_start, dchisource, sgn
-    real(dl), intent(out) :: ujl_vals(nIntSteps + 1)
+    real(dl), intent(out) :: phi_vals(nIntSteps + 1)
     real(dl), intent(inout) :: y1, chi
 
     integer :: step_ix, ix, nVals, max_ix
@@ -2496,7 +2501,7 @@
             chi_over_sh = chi_here / sh
         end if
 
-        ujl_vals(step_ix) = q_amp * chi_over_sh * jl
+        phi_vals(step_ix) = q_amp * chi_over_sh * jl
 
         chi_here = chi_here + chi_step
     end do
@@ -2504,15 +2509,15 @@
     chi = chi_start + real(nIntSteps, dl) * chi_step
     y1 = 0._dl
 
-    end subroutine FillShiftedQUjlVals
+    end subroutine FillShiftedQPhiVals
 
 
-    subroutine FillSmallChiUjlVals(j, l, nu, chi_start, dchisource, sgn, nIntSteps, ujl_vals, y1, chi)
+    subroutine FillSmallChiPhiVals(j, l, nu, chi_start, dchisource, sgn, nIntSteps, phi_vals, y1, chi)
     use SpherBessels, only: BessRanges, bessel_horner
 
     integer, intent(in) :: j, l, nIntSteps
     real(dl), intent(in) :: nu, chi_start, dchisource, sgn
-    real(dl), intent(out) :: ujl_vals(nIntSteps + 1)
+    real(dl), intent(out) :: phi_vals(nIntSteps + 1)
     real(dl), intent(inout) :: y1, chi
 
     integer :: step_ix, ix, npts_m1
@@ -2591,13 +2596,13 @@
 
         jl = base + w * (coeff1 + w * (coeff2 + w * coeff3))
 
-        ujl_vals(step_ix) = chi_over_sh * F * jl / sqrt(max(D, min_D))
+        phi_vals(step_ix) = chi_over_sh * F * jl / sqrt(max(D, min_D))
     end do
 
     chi = chi_start + real(nIntSteps, dl) * dchi
     y1 = 0._dl
 
-    end subroutine FillSmallChiUjlVals
+    end subroutine FillSmallChiPhiVals
 
 
 
@@ -2605,9 +2610,10 @@
     !Non-flat version
 
     !returns chi at end of integral (where integral stops, not neccessarily end)
-    ! Integrates source*ujl for steps nstart to nend.
-    ! ujl is obtained from Numerov stepping of the hyperspherical Bessel ODE,
-    ! bootstrapped by two Olver evaluations (at chi and chi+delchi).
+    ! Integrates source*phi for steps nstart to nend.
+    ! phi is obtained from Numerov stepping of the hyperspherical Bessel ODE,
+    ! bootstrapped by two Olver evaluations (at chi and chi+delchi), or by direct
+    ! Olver evaluation per time step when many Numerov substeps would be needed.
     ! dtau is the spacing of the timesteps (they must be equally spaced).
 
     use precision
@@ -2617,16 +2623,16 @@
     real(dl) nu,dtau,num1,num2,Deltachi,delchi
     real(dl) nu2,chi,chiDisp,chi_end,chi_max_range
 
-    real(dl) q_now,y1,ap1,sh,ujl,chiDispTop
-    real(dl) dchimax,dchisource,sgn,sgndelchi,minujl
+    real(dl) q_now,y1,ap1,sh,phi,chiDispTop
+    real(dl) dchimax,dchisource,sgn,sgndelchi,minphi
     real(dl) y_prev, y_next, y2_est, q_prev, q_next, chi_prev_reset
-    real(dl), parameter:: MINUJl1 = 0.5d-4  !cut-off point for small ujl l=1
+    real(dl), parameter:: MINPHI1 = 0.5d-4  !cut-off point for small phi l=1
     integer, parameter :: numerov_rebootstrap_steps = 200
     integer, parameter :: numerov_low_l_rebootstrap_steps = 25
     integer, parameter :: numerov_very_low_l_rebootstrap_steps = 25
     real(dl) scalel, alpha_rebootstrap, numerov_step_boost
     real(dl) IntAccuracyBoost, near_flat_boost
-    real(dl) out(ThisSources%SourceNum), ujl_vals(abs(nstart - nend) + 1)
+    real(dl) out(ThisSources%SourceNum), phi_vals(abs(nstart - nend) + 1)
     real(dl) h2_12, ch, step_c, step_s, step_s_for_ch, sh_new, ch_new
     logical need_y2, use_near_flat_gate, use_shifted_q_near_flat
 
@@ -2694,13 +2700,13 @@
     end if
 
     if (State%closed) then
-        !Need to cut off when ujl gets exponentially small as it approaches Pi
+        !Need to cut off when phi gets exponentially small as it approaches Pi
         chiDispTop = const_pi - chiDisp
     else
         chiDispTop = 1d20
     end if
 
-    minujl=MINUJl1/l/IntAccuracyBoost
+    minphi=MINPHI1/l/IntAccuracyBoost
     isgn=sign(1,Startn-nend)!direction of chi integration
     !higher n, later time, smaller chi
 
@@ -2737,9 +2743,9 @@
     if (use_near_flat_gate) then
         out = 0
         if (use_shifted_q_near_flat) then
-            call FillShiftedQUjlVals(j, l, nu, chi, dchisource, sgn, nIntSteps, ujl_vals(1:nIntSteps + 1), y1, chi)
+            call FillShiftedQPhiVals(j, l, nu, chi, dchisource, sgn, nIntSteps, phi_vals(1:nIntSteps + 1), y1, chi)
         else
-            call FillSmallChiUjlVals(j, l, nu, chi, dchisource, sgn, nIntSteps, ujl_vals(1:nIntSteps + 1), y1, chi)
+            call FillSmallChiPhiVals(j, l, nu, chi, dchisource, sgn, nIntSteps, phi_vals(1:nIntSteps + 1), y1, chi)
         end if
         last_ix = nIntSteps + 1
     else
@@ -2749,120 +2755,126 @@
             sh = sinh(chi); ch = cosh(chi)
         end if
         if (y1 == 0._dl) y1 = u_olver(l, K, nu, chi)
-        ujl=y1/sh
+        phi=y1/sh
         out = 0
-        ujl_vals(1) = ujl
+        phi_vals(1) = phi
 
         nSubSteps = max(1, int(dchisource/dchimax + 0.99_dl))
-        delchi = dchisource/nSubSteps
 
-        sgndelchi=delchi*sgn
-        h2_12 = sgndelchi*sgndelchi / 12._dl
-        ! Angle-addition step factors: advance sh,ch by sgndelchi per substep
-        ! without calling sin/sinh in the hot loop.
-        if (State%closed) then
-            step_c = cos(sgndelchi)
-            step_s = sin(sgndelchi)
-            step_s_for_ch = -step_s
+        if (nSubSteps >= direct_olver_min_substeps) then
+            call FillDirectOlverPhiVals(l, K, nu, dchisource, sgn, isgn, nIntSteps, &
+                chiDispTop, minphi, chi, y1, phi_vals, last_ix)
         else
-            step_c = cosh(sgndelchi)
-            step_s = sinh(sgndelchi)
-            step_s_for_ch = step_s
-        end if
-        q_now=(ap1/sh**2 - nu2)
-        rebootstrap_interval = numerov_rebootstrap_steps
-        ! Low-L EE is sensitive to small Numerov phase drift when nu/l is
-        ! moderately large: there are too few source-weighted oscillations for
-        ! the integration to average it down, so re-sync more often in this band.
-        alpha_rebootstrap = nu / max(1._dl, dble(l))
-        if (scalel < 25._dl .or. (nu < 1000._dl .and. alpha_rebootstrap > 2._dl)) then
-            rebootstrap_interval = numerov_low_l_rebootstrap_steps
-            if (AccuracyTarget > 0 .and. scalel < 25._dl) &
-                rebootstrap_interval = numerov_very_low_l_rebootstrap_steps
-        end if
-        rebootstrap_interval = nint(rebootstrap_interval / IntAccuracyBoost)
-        numerov_step_count = 0
-        do i=1,nIntSteps
-            do step_ix = 1, nSubSteps
-                numerov_step_count = numerov_step_count + 1
-                if (i == 1 .and. step_ix == 1) then
-                    !Bootstrap Numerov with a second Olver evaluation at chi+sgndelchi
-                    y_prev = y1
-                    q_prev = q_now
-                    chi = chi + sgndelchi
-                    sh_new = sh*step_c + ch*step_s
-                    ch_new = ch*step_c + sh*step_s_for_ch
-                    sh = sh_new; ch = ch_new
-                    q_now = ap1 / sh**2 - nu2
-                    y1 = u_olver(l, K, nu, chi)
-                else if (mod(numerov_step_count, rebootstrap_interval) == 0) then
-                    chi_prev_reset = chi
-                    y_prev = u_olver(l, K, nu, chi_prev_reset)
-                    q_prev = q_now
-                    chi = chi + sgndelchi
-                    ! Re-sync sh,ch from chi to bound drift accumulated over rebootstrap interval
-                    if (State%closed) then
-                        sh = sin(chi); ch = cos(chi)
+            delchi = dchisource/nSubSteps
+
+            sgndelchi=delchi*sgn
+            h2_12 = sgndelchi*sgndelchi / 12._dl
+            ! Angle-addition step factors: advance sh,ch by sgndelchi per substep
+            ! without calling sin/sinh in the hot loop.
+            if (State%closed) then
+                step_c = cos(sgndelchi)
+                step_s = sin(sgndelchi)
+                step_s_for_ch = -step_s
+            else
+                step_c = cosh(sgndelchi)
+                step_s = sinh(sgndelchi)
+                step_s_for_ch = step_s
+            end if
+            q_now=(ap1/sh**2 - nu2)
+            rebootstrap_interval = numerov_rebootstrap_steps
+            ! Low-L EE is sensitive to small Numerov phase drift when nu/l is
+            ! moderately large: there are too few source-weighted oscillations for
+            ! the integration to average it down, so re-sync more often in this band.
+            alpha_rebootstrap = nu / max(1._dl, dble(l))
+            if (scalel < 25._dl .or. (nu < 1000._dl .and. alpha_rebootstrap > 2._dl)) then
+                rebootstrap_interval = numerov_low_l_rebootstrap_steps
+                if (AccuracyTarget > 0 .and. scalel < 25._dl) &
+                    rebootstrap_interval = numerov_very_low_l_rebootstrap_steps
+            end if
+            rebootstrap_interval = nint(rebootstrap_interval / IntAccuracyBoost)
+            numerov_step_count = 0
+            do i=1,nIntSteps
+                do step_ix = 1, nSubSteps
+                    numerov_step_count = numerov_step_count + 1
+                    if (i == 1 .and. step_ix == 1) then
+                        !Bootstrap Numerov with a second Olver evaluation at chi+sgndelchi
+                        y_prev = y1
+                        q_prev = q_now
+                        chi = chi + sgndelchi
+                        sh_new = sh*step_c + ch*step_s
+                        ch_new = ch*step_c + sh*step_s_for_ch
+                        sh = sh_new; ch = ch_new
+                        q_now = ap1 / sh**2 - nu2
+                        y1 = u_olver(l, K, nu, chi)
+                    else if (mod(numerov_step_count, rebootstrap_interval) == 0) then
+                        chi_prev_reset = chi
+                        y_prev = u_olver(l, K, nu, chi_prev_reset)
+                        q_prev = q_now
+                        chi = chi + sgndelchi
+                        ! Re-sync sh,ch from chi to bound drift accumulated over rebootstrap interval
+                        if (State%closed) then
+                            sh = sin(chi); ch = cos(chi)
+                        else
+                            sh = sinh(chi); ch = cosh(chi)
+                        end if
+                        q_now = ap1 / sh**2 - nu2
+                        y1 = u_olver(l, K, nu, chi)
                     else
-                        sh = sinh(chi); ch = cosh(chi)
+                        chi = chi + sgndelchi
+                        sh_new = sh*step_c + ch*step_s
+                        ch_new = ch*step_c + sh*step_s_for_ch
+                        sh = sh_new; ch = ch_new
+                        q_next = ap1 / sh**2 - nu2
+                        y_next = (2._dl * (1._dl + 5._dl * h2_12 * q_now) * y1 - &
+                            (1._dl - h2_12 * q_prev) * y_prev) / &
+                            (1._dl - h2_12 * q_next)
+                        y_prev = y1
+                        q_prev = q_now
+                        y1 = y_next
+                        q_now = q_next
                     end if
-                    q_now = ap1 / sh**2 - nu2
-                    y1 = u_olver(l, K, nu, chi)
-                else
-                    chi = chi + sgndelchi
-                    sh_new = sh*step_c + ch*step_s
-                    ch_new = ch*step_c + sh*step_s_for_ch
-                    sh = sh_new; ch = ch_new
-                    q_next = ap1 / sh**2 - nu2
-                    y_next = (2._dl * (1._dl + 5._dl * h2_12 * q_now) * y1 - &
-                        (1._dl - h2_12 * q_prev) * y_prev) / &
-                        (1._dl - h2_12 * q_next)
-                    y_prev = y1
-                    q_prev = q_now
-                    y1 = y_next
-                    q_now = q_next
-                end if
 
-                ujl=y1/sh
-                if (need_y2) then
-                    !2-point backward-difference proxy for dy/dchi; only the sign matters for the cut-off
-                    y2_est = (y1 - y_prev) / sgndelchi
-                    if ((isgn<0 .and. y1*y2_est<0._dl) .or. &
-                        (chi>chiDispTop .and. (chi>3.14 .or. y1*y2_est>0))) then
+                    phi=y1/sh
+                    if (need_y2) then
+                        !2-point backward-difference proxy for dy/dchi; only the sign matters for the cut-off
+                        y2_est = (y1 - y_prev) / sgndelchi
+                        if ((isgn<0 .and. y1*y2_est<0._dl) .or. &
+                            (chi>chiDispTop .and. (chi>3.14 .or. y1*y2_est>0))) then
+                            chi=0._dl
+                            exit   !If this happens we are small, so stop integration
+                        end if
+                    end if
+
+                    if (((isgn<0).or.(chi>chiDispTop)).and.(abs(phi) < minphi)) then
                         chi=0._dl
-                        exit   !If this happens we are small, so stop integration
+                        exit !break when getting exponentially small in dissipative region
                     end if
-                end if
+                end do
 
-                if (((isgn<0).or.(chi>chiDispTop)).and.(abs(ujl) < minujl)) then
-                    chi=0._dl
-                    exit !break when getting exponentially small in dissipative region
-                end if
+                if (chi==0._dl) exit
+                phi_vals(i + 1) = phi
             end do
 
-            if (chi==0._dl) exit
-            ujl_vals(i + 1) = ujl
-        end do
-
-        last_ix = i
+            last_ix = i
+        end if
     end if
 
     if (last_ix > 0) then
-        ujl_vals(1) = 0.5_dl * ujl_vals(1)
-        if (last_ix > 1) ujl_vals(last_ix) = 0.5_dl * ujl_vals(last_ix)
+        phi_vals(1) = 0.5_dl * phi_vals(1)
+        if (last_ix > 1) phi_vals(last_ix) = 0.5_dl * phi_vals(last_ix)
         src_ix = Startn
 
         if (ThisSources%SourceNum==3) then
             do step_ix = 1, last_ix
-                ujl = ujl_vals(step_ix)
-                out(1) = out(1) + ujl * IV%Source_q(src_ix,1)
-                out(2) = out(2) + ujl * IV%Source_q(src_ix,2)
-                out(3) = out(3) + ujl * IV%Source_q(src_ix,3)
+                phi = phi_vals(step_ix)
+                out(1) = out(1) + phi * IV%Source_q(src_ix,1)
+                out(2) = out(2) + phi * IV%Source_q(src_ix,2)
+                out(3) = out(3) + phi * IV%Source_q(src_ix,3)
                 src_ix = src_ix - isgn
             end do
         else
             do step_ix = 1, last_ix
-                out = out + ujl_vals(step_ix) * IV%Source_q(src_ix,:)
+                out = out + phi_vals(step_ix) * IV%Source_q(src_ix,:)
                 src_ix = src_ix - isgn
             end do
         end if
@@ -2872,22 +2884,64 @@
 
     end subroutine DoRangeInt
 
+    subroutine FillDirectOlverPhiVals(l, K, nu, dchisource, sgn, isgn, nIntSteps, &
+        chiDispTop, minphi, chi, y1, phi_vals, last_ix)
+    ! Fill phi at each source time step by direct Olver evaluation, rather than Numerov
+    ! stepping the hyperspherical Bessel ODE on a finer chi grid. The caller has already
+    ! set phi_vals(1) from y1 at the incoming chi; chi=0 on exit signals the cut-off.
+    ! The Numerov loop's derivative-sign test is not needed here (it guarded against
+    ! Numerov instability in the dissipative tail); the smallness cut alone suffices.
+    integer, intent(in) :: l, K, isgn, nIntSteps
+    real(dl), intent(in) :: nu, dchisource, sgn, chiDispTop, minphi
+    real(dl), intent(inout) :: chi
+    real(dl), intent(out) :: y1
+    real(dl), intent(out) :: phi_vals(:)
+    integer, intent(out) :: last_ix
+    integer i
+    real(dl) phi
+
+    do i = 1, nIntSteps
+        chi = chi + dchisource*sgn
+        phi = phi_olver(l, K, nu, chi)
+        if (((isgn<0).or.(chi>chiDispTop)).and.(abs(phi) < minphi)) then
+            chi=0._dl
+            exit !break when getting exponentially small in dissipative region
+        end if
+        phi_vals(i + 1) = phi
+    end do
+    last_ix = i
+
+    if (chi /= 0._dl) then
+        !u value at the final chi for Numerov continuation into the next range
+        if (State%closed) then
+            y1 = phi*sin(chi)
+        else
+            y1 = phi*sinh(chi)
+        end if
+    else
+        y1 = 0._dl
+    end if
+
+    end subroutine FillDirectOlverPhiVals
+
     subroutine DoRangeIntTensor(IV,chi,chiDisp,nstart,nend,dtau,nu,l,y1,out)
-    ! Tensor analogue of DoRangeInt: integrates source*ujl for steps nstart to nend.
-    ! ujl is obtained from Numerov stepping of the hyperspherical Bessel ODE,
+    ! Tensor analogue of DoRangeInt: integrates source*phi for steps nstart to nend.
+    ! phi is obtained from Numerov stepping of the hyperspherical Bessel ODE,
     ! bootstrapped by two Olver evaluations (at chi and chi+delchi).
     ! dtau is the spacing of the timesteps (they must be equally spaced).
+    ! (The direct-Olver high-substep path in DoRangeInt is not needed here: the denser
+    ! tensor time sampling and lower tensor k range keep nSubSteps well below the gate.)
 
     type(IntegrationVars) :: IV
     integer l,nIntSteps,nstart,nend,isgn,i,step_ix,nSubSteps,src_ix,last_ix,K
     real(dl) nu,dtau,num1,num2,Deltachi,delchi,scalel
     real(dl) nu2,chi,chiDisp,chiDispTop
 
-    real(dl) q_now,y1,ap1,sh,ujl
-    real(dl) dchimax,dchisource,sgn,sgndelchi,minujl
+    real(dl) q_now,y1,ap1,sh,phi
+    real(dl) dchimax,dchisource,sgn,sgndelchi,minphi
     real(dl) y_prev, y_next, y2_est, q_prev, q_next
-    real(dl), parameter:: MINUJl1 = 1.D-6  !cut-off point for small ujl l=1
-    real(dl) out(ThisSources%SourceNum), ujl_vals(abs(nstart - nend) + 1)
+    real(dl), parameter:: MINPHI1 = 1.D-6  !cut-off point for small phi l=1
+    real(dl) out(ThisSources%SourceNum), phi_vals(abs(nstart - nend) + 1)
     real(dl) IntAccuracyBoost
     real(dl) h2_12, ch, step_c, step_s, step_s_for_ch, sh_new, ch_new
     logical need_y2
@@ -2899,12 +2953,12 @@
     end if
 
     IntAccuracyBoost=CP%Accuracy%AccuracyBoost*CP%Accuracy%NonFlatIntAccuracyBoost
-    minujl=MINUJl1/l/IntAccuracyBoost
+    minphi=MINPHI1/l/IntAccuracyBoost
     isgn=sign(1,nstart-nend)!direction of chi integration
     !higher n, later time, smaller chi
 
     if (State%closed) then
-        !Need to cut off when ujl gets exponentially small as it approaches Pi
+        !Need to cut off when phi gets exponentially small as it approaches Pi
         chiDispTop = const_pi - chiDisp
     else
         chiDispTop = 1d20
@@ -2959,9 +3013,9 @@
     dchimax=dchimax/IntAccuracyBoost
 
     if (y1 == 0._dl) y1 = u_olver(l, K, nu, chi)
-    ujl=y1/sh
+    phi=y1/sh
     out = 0
-    ujl_vals(1) = ujl
+    phi_vals(1) = phi
 
     nIntSteps=isgn*(nstart-nend)
     if (nIntSteps <= 0) return
@@ -3012,37 +3066,37 @@
                 q_now = q_next
             end if
 
-            ujl=y1/sh
+            phi=y1/sh
             if (need_y2) then
                 !2-point backward-difference proxy for dy/dchi; only the sign matters for the cut-off
                 y2_est = (y1 - y_prev) / sgndelchi
                 if ((isgn<0 .and. y1*y2_est<0._dl) .or. &
                     (chi>chiDispTop .and. (chi>3.14 .or. y1*y2_est>0))) then
                     chi=0._dl
-                    exit   !exit because ujl now small
+                    exit   !exit because phi now small
                 end if
             end if
 
-            if (((isgn<0).or.(chi>chiDispTop)).and.(abs(ujl) < minujl)) then
+            if (((isgn<0).or.(chi>chiDispTop)).and.(abs(phi) < minphi)) then
                 chi=0._dl
                 exit  !break when getting exponentially small in dissipative region
             end if
         end do
 
         if (chi==0._dl) exit
-        ujl_vals(i + 1) = ujl
+        phi_vals(i + 1) = phi
     end do
 
     last_ix = i
     if (last_ix > 0) then
-        ujl_vals(1) = 0.5_dl * ujl_vals(1)
-        if (last_ix > 1) ujl_vals(last_ix) = 0.5_dl * ujl_vals(last_ix)
+        phi_vals(1) = 0.5_dl * phi_vals(1)
+        if (last_ix > 1) phi_vals(last_ix) = 0.5_dl * phi_vals(last_ix)
         src_ix  = nstart
         do step_ix = 1, last_ix
-            ujl = ujl_vals(step_ix)
-            out(1) = out(1) + ujl * IV%Source_q(src_ix,1)
-            out(2) = out(2) + ujl * IV%Source_q(src_ix,2)
-            out(3) = out(3) + ujl * IV%Source_q(src_ix,3)
+            phi = phi_vals(step_ix)
+            out(1) = out(1) + phi * IV%Source_q(src_ix,1)
+            out(2) = out(2) + phi * IV%Source_q(src_ix,2)
+            out(3) = out(3) + phi * IV%Source_q(src_ix,3)
             src_ix = src_ix - isgn
         end do
     end if
