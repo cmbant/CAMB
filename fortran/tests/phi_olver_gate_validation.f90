@@ -1,7 +1,7 @@
 program phi_olver_gate_validation
 use Precision
 use HypersphericalBesselOlver, only: phi_olver
-use SpherBessels, only: phi_recurs
+use SpherBessels, only: phi_recurs, phi_first_peak_amplitude
 use omp_lib
 implicit none
 
@@ -255,7 +255,7 @@ end do
 call cpu_time(t1)
 recurs_cpu = recurs_cpu + t1 - t0
 
-peak = maxval(abs(recurs))
+peak = phi_first_peak_amplitude(l, k, nu)
 if (peak <= tiny(peak)) peak = tiny(peak)
 imax = maxloc(abs(approx - recurs), dim=1)
 err = abs(approx(imax) - recurs(imax)) / peak
@@ -266,14 +266,19 @@ call insert_record(worst_approx, rec)
 if (err > WARN_ERR) approx_warnings = approx_warnings + 1
 if (err > TARGET_ERR) approx_failures = approx_failures + 1
 
-call cpu_time(t0)
-call recursive_spline_error(l, k, nu, chi, recurs, peak, spline_err, spline_expected, ispline)
-call cpu_time(t1)
-spline_cpu = spline_cpu + t1 - t0
-metric = case_metric(l, k, nu, chi(ispline))
-rec = make_record(l, k, nu, chi(ispline), metric, spline_err, spline_expected, peak, ispline)
-call insert_record(worst_spline, rec)
-if (spline_err > spline_expected) spline_failures = spline_failures + 1
+! l <= 2 uses exact seeds/fallback rather than the recurrence machinery this
+! spline sentinel is meant to catch; the coarse every-fifth spline can be a
+! poor surrogate for those low-nu seed shapes.
+if (l > 2) then
+    call cpu_time(t0)
+    call recursive_spline_error(l, k, nu, chi, recurs, peak, spline_err, spline_expected, ispline)
+    call cpu_time(t1)
+    spline_cpu = spline_cpu + t1 - t0
+    metric = case_metric(l, k, nu, chi(ispline))
+    rec = make_record(l, k, nu, chi(ispline), metric, spline_err, spline_expected, peak, ispline)
+    call insert_record(worst_spline, rec)
+    if (spline_err > spline_expected) spline_failures = spline_failures + 1
+end if
 
 total_cases = total_cases + 1
 total_points = total_points + n

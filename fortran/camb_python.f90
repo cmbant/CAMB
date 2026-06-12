@@ -8,7 +8,7 @@
     use DarkEnergyPPF
     use HypersphericalBesselOlver, only: phi_olver
     use ObjectLists
-    use SpherBessels, only: phi_recurs
+    use SpherBessels, only: phi_recurs, phi_derivative, phi_first_peak_chi, phi_first_peak_amplitude
     use classes
     use Interpolation
     use RungeKuttaDP45Module, only : RungeKuttaDP45Settings
@@ -235,6 +235,42 @@
         end do
     end if
     end subroutine CAMB_GetPhiRecursArray
+
+    function CAMB_GetPhiDerivative(l, K, nu, chi) result(dphi) bind(C, name="camb_getphiderivative")
+    integer(c_int), value :: l, K
+    real(c_double), value :: nu, chi
+    real(c_double) :: dphi
+
+    dphi = phi_derivative(int(l), int(K), real(nu, dl), real(chi, dl))
+    end function CAMB_GetPhiDerivative
+
+    function CAMB_GetPhiFirstPeakChi(l, K, nu) result(chi) bind(C, name="camb_getphifirstpeakchi")
+    integer(c_int), value :: l, K
+    real(c_double), value :: nu
+    real(c_double) :: chi
+
+    chi = phi_first_peak_chi(int(l), int(K), real(nu, dl))
+    end function CAMB_GetPhiFirstPeakChi
+
+    function CAMB_GetPhiFirstPeakNoPeakFound(l, K, nu) result(no_peak) &
+        bind(C, name="camb_getphifirstpeaknopeakfound")
+    integer(c_int), value :: l, K
+    real(c_double), value :: nu
+    integer(c_int) :: no_peak
+    logical :: no_peak_found
+    real(dl) :: chi
+
+    chi = phi_first_peak_chi(int(l), int(K), real(nu, dl), no_peak_found)
+    no_peak = merge(1_c_int, 0_c_int, no_peak_found)
+    end function CAMB_GetPhiFirstPeakNoPeakFound
+
+    function CAMB_GetPhiFirstPeakAmplitude(l, K, nu) result(peak) bind(C, name="camb_getphifirstpeakamplitude")
+    integer(c_int), value :: l, K
+    real(c_double), value :: nu
+    real(c_double) :: peak
+
+    peak = phi_first_peak_amplitude(int(l), int(K), real(nu, dl))
+    end function CAMB_GetPhiFirstPeakAmplitude
 
     subroutine F2003Class_get_id(SelfPtr, pSource)
     TYPE(C_FUNPTR), INTENT(IN) :: SelfPtr

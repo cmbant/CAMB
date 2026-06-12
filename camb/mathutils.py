@@ -47,6 +47,22 @@ _phi_recurs.restype = c_double
 _phi_recurs_array = camblib.camb_getphirecursarray
 _phi_recurs_array.argtypes = [numpy_1d, c_int, c_int, c_double, numpy_1d, c_int]
 
+_phi_derivative = camblib.camb_getphiderivative
+_phi_derivative.argtypes = [c_int, c_int, c_double, c_double]
+_phi_derivative.restype = c_double
+
+_phi_first_peak_chi = camblib.camb_getphifirstpeakchi
+_phi_first_peak_chi.argtypes = [c_int, c_int, c_double]
+_phi_first_peak_chi.restype = c_double
+
+_phi_first_peak_no_peak_found = camblib.camb_getphifirstpeaknopeakfound
+_phi_first_peak_no_peak_found.argtypes = [c_int, c_int, c_double]
+_phi_first_peak_no_peak_found.restype = c_int
+
+_phi_first_peak_amplitude = camblib.camb_getphifirstpeakamplitude
+_phi_first_peak_amplitude.argtypes = [c_int, c_int, c_double]
+_phi_first_peak_amplitude.restype = c_double
+
 _airy_ai_fast_array = camblib.__mathutils_MOD_airyaifastarray
 _airy_ai_fast_array.argtypes = [numpy_1d, numpy_1d, int_arg]
 
@@ -166,6 +182,45 @@ def phi_recurs(L, K, nu, chi):
     """
 
     return _hyperspherical_bessel_dispatch(_phi_recurs, _phi_recurs_array, L, K, nu, chi)
+
+
+def phi_derivative(L, K, nu, chi):
+    r"""
+    Evaluate ``d phi_L^nu(K, chi) / d chi`` using the adjacent-order recurrence.
+    """
+
+    _validate_hyperspherical_bessel_inputs(L, K, nu)
+    if chi < 0:
+        raise ValueError("chi must be non-negative")
+    return _phi_derivative(c_int(L), c_int(K), c_double(nu), c_double(chi))
+
+
+def phi_first_peak_chi(L, K, nu, return_status=False):
+    r"""
+    Return the first peak position at or after the hyperspherical Bessel turning point.
+
+    If ``return_status`` is true, also return whether no stationary peak was found before
+    the search boundary, in which case the returned position is that boundary.
+    """
+
+    _validate_hyperspherical_bessel_inputs(L, K, nu)
+    chi = _phi_first_peak_chi(c_int(L), c_int(K), c_double(nu))
+    if return_status:
+        no_peak_found = bool(_phi_first_peak_no_peak_found(c_int(L), c_int(K), c_double(nu)))
+        return chi, no_peak_found
+    return chi
+
+
+def phi_first_peak_amplitude(L, K, nu):
+    r"""
+    Return ``abs(phi_recurs(L, K, nu, phi_first_peak_chi(L, K, nu)))``.
+
+    If ``phi_first_peak_chi(..., return_status=True)`` reports no peak found, this is the
+    amplitude at the search boundary rather than at a stationary point.
+    """
+
+    _validate_hyperspherical_bessel_inputs(L, K, nu)
+    return _phi_first_peak_amplitude(c_int(L), c_int(K), c_double(nu))
 
 
 def threej(l2, l3, m2, m3):

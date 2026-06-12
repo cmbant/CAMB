@@ -19,6 +19,9 @@ from camb.mathutils import (
     airy_fast,
     chi_squared,
     pcl_coupling_matrix,
+    phi_derivative,
+    phi_first_peak_amplitude,
+    phi_first_peak_chi,
     phi_olver,
     phi_recurs,
     scalar_coupling_matrix,
@@ -67,7 +70,7 @@ def first_peak_after_turn(ell, curvature, nu):
     hi = min(turn + 2 * delta, upper)
     while hyperspherical_derivative(ell, curvature, nu, hi) > 0:
         if hi >= upper:
-            return upper  # closed endpoint modes peak at pi/2
+            return upper  # search boundary reached before bracketing a stationary peak
         hi = min(turn + 2 * (hi - turn), upper)
     return brentq(lambda chi: hyperspherical_derivative(ell, curvature, nu, chi), turn, hi, xtol=1e-7)
 
@@ -93,8 +96,7 @@ class MathutilsTest(unittest.TestCase):
     def assert_hyperspherical_peak_relative(self, ell, curvature, nu, chi_grid, max_peak_error=2e-4):
         recurs_grid = phi_recurs(ell, curvature, nu, chi_grid)
         olver_grid = phi_olver(ell, curvature, nu, chi_grid)
-        peak_chi = first_peak_after_turn(ell, curvature, nu)
-        peak_norm = abs(phi_recurs(ell, curvature, nu, peak_chi))
+        peak_norm = phi_first_peak_amplitude(ell, curvature, nu)
         self.assertGreater(peak_norm, 0)
         error = np.max(np.abs(olver_grid - recurs_grid)) / peak_norm
         self.assertLess(
@@ -208,6 +210,42 @@ class MathutilsTest(unittest.TestCase):
             ((10000, -1, 100000.0, np.arcsinh(0.995 / 10)), 5.319664845847832e-06),
         ]:
             np.testing.assert_allclose(phi_recurs(*args), expected, rtol=1e-8, atol=0)
+
+        for ell, curvature, nu in [
+            (80, -1, 120.0),
+            (500, -1, 25.0),
+            (80, 1, 90.0),
+            (500, 1, 700.0),
+            (2000, 1, 2500.0),
+        ]:
+            peak_chi = first_peak_after_turn(ell, curvature, nu)
+            fortran_peak_chi, no_peak_found = phi_first_peak_chi(ell, curvature, nu, return_status=True)
+            self.assertFalse(no_peak_found)
+            np.testing.assert_allclose(fortran_peak_chi, peak_chi, rtol=5e-7, atol=5e-8)
+            np.testing.assert_allclose(
+                phi_first_peak_amplitude(ell, curvature, nu),
+                abs(phi_recurs(ell, curvature, nu, peak_chi)),
+                rtol=5e-7,
+                atol=0,
+            )
+            np.testing.assert_allclose(phi_derivative(ell, curvature, nu, fortran_peak_chi), 0, atol=1e-7)
+
+        boundary_chi, no_peak_found = phi_first_peak_chi(80, 1, 81.0, return_status=True)
+        self.assertTrue(no_peak_found)
+        np.testing.assert_allclose(boundary_chi, np.pi / 2, rtol=0, atol=1e-12)
+
+        for ell, curvature, nu, chi in [
+            (80, -1, 120.0, 0.7),
+            (500, -1, 25.0, 6.0),
+            (80, 1, 90.0, 1.0),
+            (500, 1, 700.0, 0.2),
+        ]:
+            np.testing.assert_allclose(
+                phi_derivative(ell, curvature, nu, chi),
+                hyperspherical_derivative(ell, curvature, nu, chi),
+                rtol=1e-10,
+                atol=1e-14,
+            )
 
         for function in (phi_recurs, phi_olver):
             ell, curvature, nu, chi = 60, 1, 180.0, 0.4

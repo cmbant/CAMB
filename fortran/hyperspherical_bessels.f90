@@ -1,16 +1,218 @@
     module SpherBessels
     !Accurate calculation of ultraspherical Bessel functions for non-flat universe
     !(and imports from FlatBessels for standard approximate spherical Bessel bjl).
+
+    !Hyperspherical bessel routines assume arguments have been pre-validated to be valid.
     use Precision, only: dl
+    use MathUtils, only: brentq
     use MpiUtils, only: MpiStop
     use FlatBessels, only: bessel_horner, BessRanges, InitSpherBessels, bjl_pre_peak_start_factor, bjl, Bessels_Free
     implicit none
     private
 
     public bessel_horner, BessRanges, InitSpherBessels, bjl_pre_peak_start_factor
-    public phi_recurs, bjl, Bessels_Free
+    public phi_recurs, phi_derivative, phi_first_peak_chi, phi_first_peak_amplitude
+    public bjl, Bessels_Free
+
+    type, private :: phi_derivative_root_params
+        integer :: l, K
+        real(dl) :: nu
+    end type phi_derivative_root_params
 
     contains
+
+    function phi_derivative(l, K, nu, chi) result(dphi)
+    ! Derivative d phi_l^nu(K, chi) / d chi from the adjacent-l recurrence.
+    integer, intent(in) :: l, K
+    real(dl), intent(in) :: nu, chi
+    real(dl) :: dphi
+    real(dl) :: cot_K, root_l
+
+    if (l <= 0) then
+        dphi = phi_derivative_l0(K, nu, chi)
+        return
+    end if
+
+    cot_K = cot_curvature(K, chi)
+    select case (K)
+    case (-1)
+        root_l = sqrt(nu**2 + real(l, dl)**2)
+    case (1)
+        root_l = sqrt(max(0._dl, nu**2 - real(l, dl)**2))
+    case default
+        root_l = nu
+    end select
+
+    dphi = root_l * phi_recurs(l - 1, K, nu, chi) - real(l + 1, dl) * cot_K * phi_recurs(l, K, nu, chi)
+    end function phi_derivative
+
+
+    function phi_first_peak_chi(l, K, nu, no_peak_found) result(chi_peak)
+    ! First maximum at or after the classical turning point, matching the
+    ! normalization convention used by the Python mathutils tests.
+    !
+    ! If the derivative is still positive when the finite search boundary is
+    ! reached, no stationary peak has been found. In that case chi_peak is the
+    ! search boundary and optional no_peak_found is returned true.
+    integer, intent(in) :: l, K
+    real(dl), intent(in) :: nu
+    logical, intent(out), optional :: no_peak_found
+    real(dl) :: chi_peak
+
+    type(phi_derivative_root_params) :: params
+    integer :: iter, iflag
+    real(dl) :: turn, upper, hi, delta, cot_t, fturn, fhi
+    real(dl) :: froot
+    real(dl), parameter :: PI = 3.1415926535897932384626433832795_dl
+    real(dl), parameter :: ROOT_X = 1.0188_dl
+    real(dl), parameter :: MIN_CHI = 1.0e-8_dl
+    real(dl), parameter :: MAX_OPEN_CHI = 1.0e4_dl
+
+    if (present(no_peak_found)) no_peak_found = .false.
+
+    turn = hyperspherical_turning_point(l, K, nu)
+    if (K == 1) then
+        upper = PI / 2._dl
+    else
+        upper = MAX_OPEN_CHI
+    end if
+    turn = min(max(turn, MIN_CHI), upper)
+
+    fturn = phi_derivative(l, K, nu, turn)
+    if (fturn <= 0._dl .or. turn >= upper) then
+        chi_peak = turn
+        if (turn >= upper .and. present(no_peak_found)) no_peak_found = .true.
+        return
+    end if
+
+    cot_t = cot_curvature(K, turn)
+    delta = ROOT_X / max(2._dl * nu**2 * abs(cot_t), 1.0e-30_dl)**(1._dl / 3._dl)
+    hi = min(turn + 2._dl * delta, upper)
+    fhi = phi_derivative(l, K, nu, hi)
+    do iter = 1, 100
+        if (fhi <= 0._dl) exit
+        if (hi >= upper) then
+            chi_peak = upper
+            if (present(no_peak_found)) no_peak_found = .true.
+            return
+        end if
+        hi = min(turn + 2._dl * (hi - turn), upper)
+        fhi = phi_derivative(l, K, nu, hi)
+    end do
+
+    if (fhi > 0._dl) then
+        chi_peak = hi
+        if (present(no_peak_found)) no_peak_found = .true.
+    else
+        params%l = l
+        params%K = K
+        params%nu = nu
+        call brentq(params, phi_derivative_root, turn, hi, 1.0e-10_dl * max(1._dl, abs(hi)), &
+            chi_peak, froot, iflag, fturn, fhi)
+        if (iflag /= 0) call MpiStop("phi_first_peak_chi: brentq failed")
+    end if
+    end function phi_first_peak_chi
+
+
+    function phi_first_peak_amplitude(l, K, nu, peak_chi, no_peak_found) result(peak)
+    ! Absolute amplitude at the first maximum at or after the turning point.
+    !
+    ! If optional no_peak_found is true, the returned amplitude is evaluated at
+    ! peak_chi/search-boundary rather than at a stationary point.
+    integer, intent(in) :: l, K
+    real(dl), intent(in) :: nu
+    real(dl), intent(out), optional :: peak_chi
+    logical, intent(out), optional :: no_peak_found
+    real(dl) :: peak
+    real(dl) :: chi
+    logical :: no_peak
+
+    chi = phi_first_peak_chi(l, K, nu, no_peak)
+    if (present(peak_chi)) peak_chi = chi
+    if (present(no_peak_found)) no_peak_found = no_peak
+    peak = abs(phi_recurs(l, K, nu, chi))
+    end function phi_first_peak_amplitude
+
+
+    pure function hyperspherical_turning_point(l, K, nu) result(turn)
+    integer, intent(in) :: l, K
+    real(dl), intent(in) :: nu
+    real(dl) :: turn
+    real(dl) :: arg
+
+    if (nu <= 0._dl) then
+        turn = 0._dl
+        return
+    end if
+
+    arg = sqrt(real(l, dl) * real(l + 1, dl)) / nu
+    select case (K)
+    case (-1)
+        turn = asinh(arg)
+    case (1)
+        turn = asin(min(arg, 1._dl))
+    case default
+        turn = arg
+    end select
+    end function hyperspherical_turning_point
+
+
+    pure function cot_curvature(K, chi) result(cot_K)
+    integer, intent(in) :: K
+    real(dl), intent(in) :: chi
+    real(dl) :: cot_K
+
+    select case (K)
+    case (-1)
+        cot_K = 1._dl / tanh(chi)
+    case (1)
+        cot_K = 1._dl / tan(chi)
+    case default
+        cot_K = 1._dl / chi
+    end select
+    end function cot_curvature
+
+
+    pure function phi_derivative_l0(K, nu, chi) result(dphi)
+    integer, intent(in) :: K
+    real(dl), intent(in) :: nu, chi
+    real(dl) :: dphi
+    real(dl) :: sin_K, cos_K, cot_K, phi0
+
+    if (chi == 0._dl .or. nu == 0._dl) then
+        dphi = 0._dl
+        return
+    end if
+
+    select case (K)
+    case (0)
+        sin_K = chi
+        cos_K = 1._dl
+    case (1)
+        sin_K = sin(chi)
+        cos_K = cos(chi)
+    case default
+        sin_K = sinh(chi)
+        cos_K = cosh(chi)
+    end select
+    cot_K = cos_K / sin_K
+    phi0 = sin(nu * chi) / (nu * sin_K)
+    dphi = cos(nu * chi) / sin_K - phi0 * cot_K
+    end function phi_derivative_l0
+
+
+    function phi_derivative_root(obj, chi) result(dphi)
+    class(*) :: obj
+    real(dl) :: chi
+    real(dl) :: dphi
+
+    select type(params => obj)
+    type is (phi_derivative_root_params)
+        dphi = phi_derivative(params%l, params%K, params%nu, chi)
+    class default
+        call MpiStop("phi_derivative_root: unexpected parameter type")
+    end select
+    end function phi_derivative_root
 
     function phi_recurs(l, K, nu, chi) result(phi)
     ! Recursive evaluation of the regular hyperspherical Bessel function phi_l^nu(K,chi).
