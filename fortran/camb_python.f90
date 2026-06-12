@@ -7,7 +7,6 @@
     use DarkEnergyFluid
     use DarkEnergyPPF
     use HypersphericalBesselOlver, only: phi_olver
-    use MathUtils, only: airy_ai_fast, airy_fast
     use ObjectLists
     use SpherBessels, only: phi_recurs
     use classes
@@ -236,58 +235,6 @@
         end do
     end if
     end subroutine CAMB_GetPhiRecursArray
-
-    function CAMB_AiryAiFast(x) result(ai) bind(C, name="camb_airy_ai_fast")
-    real(c_double), value :: x
-    real(c_double) :: ai
-
-    ai = airy_ai_fast(real(x, dl))
-    end function CAMB_AiryAiFast
-
-    subroutine CAMB_AiryAiFastArray(ai, x, n) bind(C, name="camb_airy_ai_fast_array")
-    integer(c_int), value :: n
-    real(c_double), intent(out) :: ai(*)
-    real(c_double), intent(in) :: x(*)
-    integer :: i
-
-    if (n >= OMP_VECTOR_THRESHOLD) then
-        !$OMP parallel do default(shared) private(i) schedule(static)
-        do i = 1, n
-            ai(i) = airy_ai_fast(real(x(i), dl))
-        end do
-        !$OMP end parallel do
-    else
-        do i = 1, n
-            ai(i) = airy_ai_fast(real(x(i), dl))
-        end do
-    end if
-    end subroutine CAMB_AiryAiFastArray
-
-    subroutine CAMB_AiryFast(ai, aip, x) bind(C, name="camb_airy_fast")
-    real(c_double), intent(out) :: ai, aip
-    real(c_double), value :: x
-
-    call airy_fast(real(x, dl), ai, aip)
-    end subroutine CAMB_AiryFast
-
-    subroutine CAMB_AiryFastArray(ai, aip, x, n) bind(C, name="camb_airy_fast_array")
-    integer(c_int), value :: n
-    real(c_double), intent(out) :: ai(*), aip(*)
-    real(c_double), intent(in) :: x(*)
-    integer :: i
-
-    if (n >= OMP_VECTOR_THRESHOLD) then
-        !$OMP parallel do default(shared) private(i) schedule(static)
-        do i = 1, n
-            call airy_fast(real(x(i), dl), ai(i), aip(i))
-        end do
-        !$OMP end parallel do
-    else
-        do i = 1, n
-            call airy_fast(real(x(i), dl), ai(i), aip(i))
-        end do
-    end if
-    end subroutine CAMB_AiryFastArray
 
     subroutine F2003Class_get_id(SelfPtr, pSource)
     TYPE(C_FUNPTR), INTENT(IN) :: SelfPtr

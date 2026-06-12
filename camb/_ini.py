@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import math
+import numbers
 import os
 
 from . import model
-from .baseconfig import CAMBValueError
+from .baseconfig import CAMB_Structure, CAMBValueError
 from .inifile import IniFile
 
 _initial_condition_names = [
@@ -15,6 +17,7 @@ _initial_condition_names = [
     "initial_iso_neutrino_vel",
 ]
 _massive_nu_method_names = ["Nu_int", "Nu_trunc", "Nu_approx", "Nu_best"]
+_roundtrip_float_tolerance_paths = {"params.Transfer.kmax"}
 
 
 class CambIniFile(IniFile):
@@ -192,6 +195,41 @@ def _roundtrip_expected_params(params: model.CAMBparams) -> model.CAMBparams:
     return expected
 
 
+def _roundtrip_mismatch(actual, expected, path: str = "params") -> str | None:
+    if isinstance(actual, dict) and isinstance(expected, dict):
+        if actual.keys() != expected.keys():
+            return f"{path} keys differ: {actual.keys()} != {expected.keys()}"
+        for key in actual:
+            if mismatch := _roundtrip_mismatch(actual[key], expected[key], f"{path}.{key}"):
+                return mismatch
+        return None
+    if isinstance(actual, (list, tuple)) and isinstance(expected, (list, tuple)):
+        if len(actual) != len(expected):
+            return f"{path} lengths differ: {len(actual)} != {len(expected)}"
+        for index, (actual_value, expected_value) in enumerate(zip(actual, expected, strict=True)):
+            if mismatch := _roundtrip_mismatch(actual_value, expected_value, f"{path}[{index}]"):
+                return mismatch
+        return None
+    if isinstance(actual, CAMB_Structure) and isinstance(expected, CAMB_Structure):
+        return _roundtrip_mismatch(actual.__getstate__(), expected.__getstate__(), path)
+    if (
+        isinstance(actual, numbers.Real)
+        and isinstance(expected, numbers.Real)
+        and not isinstance(actual, (bool, numbers.Integral))
+        and not isinstance(expected, (bool, numbers.Integral))
+    ):
+        if path in _roundtrip_float_tolerance_paths:
+            if not math.isclose(float(actual), float(expected), rel_tol=1e-12, abs_tol=1e-14):
+                return f"{path} differs: {actual!r} != {expected!r}"
+            return None
+        if actual != expected:
+            return f"{path} differs: {actual!r} != {expected!r}"
+        return None
+    if actual != expected:
+        return f"{path} differs: {actual!r} != {expected!r}"
+    return None
+
+
 def write_ini(
     params: model.CAMBparams,
     ini_filename,
@@ -209,5 +247,8 @@ def write_ini(
         from .camb import read_ini
 
         reparsed = read_ini(ini_path)
-        if repr(reparsed) != repr(_roundtrip_expected_params(params)):
-            raise CAMBValueError(f"Saved ini did not round-trip via read_ini ({ini_path})")
+        expected = _roundtrip_expected_params(params)
+        if repr(reparsed) == repr(expected):
+            return
+        if mismatch := _roundtrip_mismatch(reparsed, expected):
+            raise CAMBValueError(f"Saved ini did not round-trip via read_ini ({ini_path}): {mismatch}")

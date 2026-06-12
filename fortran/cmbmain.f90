@@ -2112,6 +2112,7 @@
 
 
     subroutine DoCurvedOlverIntegration(IV, ThisCT, j, l, nu)
+    ! Not used, just for accuracy checking
     implicit none
     type(IntegrationVars) IV
     Type(ClTransferData) :: ThisCT

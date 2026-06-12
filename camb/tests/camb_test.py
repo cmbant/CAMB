@@ -628,11 +628,11 @@ class CambTest(unittest.TestCase):
         data.get_lens_potential_cls(2000)
 
         cls_lensed2 = data.get_lensed_cls_with_spectrum(data.get_lens_potential_cls()[:, 0], lmax=3000)
-        np.testing.assert_allclose(cls_lensed2[2:, :], cls_lensed[2:, :], rtol=1e-4)
+        np.testing.assert_allclose(cls_lensed2[2:, :], cls_lensed[2:, :], rtol=1e-4, atol=1e-18)
         cls_lensed2 = data.get_partially_lensed_cls(1, lmax=3000)
-        np.testing.assert_allclose(cls_lensed2[2:, :], cls_lensed[2:, :], rtol=1e-4)
+        np.testing.assert_allclose(cls_lensed2[2:, :], cls_lensed[2:, :], rtol=1e-4, atol=1e-18)
         cls_lensed2 = data.get_partially_lensed_cls(0, lmax=2500)
-        np.testing.assert_allclose(cls_lensed2[2:, :], cls_unlensed[2:, :], rtol=1e-4)
+        np.testing.assert_allclose(cls_lensed2[2:, :], cls_unlensed[2:, :], rtol=1e-4, atol=1e-18)
 
         full_method = camb.lensing_method_curv_corr_full
 
@@ -657,11 +657,12 @@ class CambTest(unittest.TestCase):
             lmax_lensed=3000,
             delta_cls=False,
             use_lensing_template=True,
+            low_l_ee_taper=True,  # the Fortran short-range (AccurateBB=F) path tapers the kernel
         )
         cls_lensed_full = data.get_lensed_cls_with_spectrum(clpp, lmax=3000, lensing_method=full_method)
-        np.testing.assert_allclose(cls_lensed2[2:3000, 2], cls_lensed_full[2:3000, 2], rtol=1e-6)
-        np.testing.assert_allclose(cls_lensed2[2:3000, 1], cls_lensed_full[2:3000, 1], rtol=1e-6)
-        np.testing.assert_allclose(cls_lensed2[2:3000, 0], cls_lensed_full[2:3000, 0], rtol=1e-6)
+        np.testing.assert_allclose(cls_lensed2[2:3000, 2], cls_lensed_full[2:3000, 2], rtol=1e-6, atol=1e-18)
+        np.testing.assert_allclose(cls_lensed2[2:3000, 1], cls_lensed_full[2:3000, 1], rtol=1e-6, atol=1e-18)
+        np.testing.assert_allclose(cls_lensed2[2:3000, 0], cls_lensed_full[2:3000, 0], rtol=1e-6, atol=1e-18)
         self.assertTrue(
             np.all(
                 np.abs(

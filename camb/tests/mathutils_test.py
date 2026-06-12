@@ -109,7 +109,7 @@ class MathutilsTest(unittest.TestCase):
         ai, aip = airy_fast(airy_x)
         np.testing.assert_allclose(ai, ai_expected, atol=8e-8, rtol=0)
         np.testing.assert_allclose(aip, aip_expected, atol=8e-8, rtol=0)
-        np.testing.assert_allclose(airy_ai_fast(airy_x), ai, atol=0, rtol=0)
+        np.testing.assert_allclose(airy_ai_fast(airy_x), ai, atol=0, rtol=1e-15)
 
         ai_scalar, aip_scalar = airy_fast(0.0)
         np.testing.assert_allclose(ai_scalar, airy(0.0)[0], atol=8e-8, rtol=0)

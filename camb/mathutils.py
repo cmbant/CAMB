@@ -4,7 +4,7 @@ independent of the main camb code.
 
 """
 
-from ctypes import POINTER, byref, c_bool, c_double, c_int
+from ctypes import POINTER, c_bool, c_double, c_int
 
 import numpy as np
 
@@ -47,33 +47,28 @@ _phi_recurs.restype = c_double
 _phi_recurs_array = camblib.camb_getphirecursarray
 _phi_recurs_array.argtypes = [numpy_1d, c_int, c_int, c_double, numpy_1d, c_int]
 
-_airy_ai_fast = camblib.camb_airy_ai_fast
-_airy_ai_fast.argtypes = [c_double]
-_airy_ai_fast.restype = c_double
+_airy_ai_fast_array = camblib.__mathutils_MOD_airyaifastarray
+_airy_ai_fast_array.argtypes = [numpy_1d, numpy_1d, int_arg]
 
-_airy_ai_fast_array = camblib.camb_airy_ai_fast_array
-_airy_ai_fast_array.argtypes = [numpy_1d, numpy_1d, c_int]
-
-_airy_fast = camblib.camb_airy_fast
-_airy_fast.argtypes = [POINTER(c_double), POINTER(c_double), c_double]
-
-_airy_fast_array = camblib.camb_airy_fast_array
-_airy_fast_array.argtypes = [numpy_1d, numpy_1d, numpy_1d, c_int]
+_airy_fast_array = camblib.__mathutils_MOD_airyfastarray
+_airy_fast_array.argtypes = [numpy_1d, numpy_1d, numpy_1d, int_arg]
 
 
 def airy_ai_fast(x):
     """
     Fast Airy :math:`Ai(x)` approximation.
 
-    Uses a fitted Fortran implementation optimized for modest absolute accuracy. Accepts a scalar or array-like input.
+    Uses a fitted Fortran implementation optimized for < 1e-7 absolute accuracy.
+
+    :param x: scalar or array-like input values
+    :return: Airy :math:`Ai(x)`, with scalar or array shape matching ``x``
     """
     x_array = np.asarray(x, dtype=np.float64)
-    if x_array.ndim == 0:
-        return _airy_ai_fast(c_double(float(x_array)))
-
-    flat = np.ascontiguousarray(x_array.ravel())
+    flat = np.ascontiguousarray(x_array.reshape(-1))
     result = np.empty_like(flat)
     _airy_ai_fast_array(result, flat, c_int(flat.size))
+    if x_array.ndim == 0:
+        return result.item()
     return result.reshape(x_array.shape)
 
 
@@ -81,20 +76,18 @@ def airy_fast(x):
     """
     Fast Airy :math:`Ai(x)` and derivative :math:`Ai'(x)` approximation.
 
-    Uses a fitted Fortran implementation optimized for modest absolute accuracy. Accepts a scalar or array-like input,
-    returning ``(ai, aip)``.
+    Uses a fitted Fortran implementation optimized for < 1e-7 absolute accuracy.
+
+    :param x: scalar or array-like input values
+    :return: tuple ``(ai, aip)`` for Airy :math:`Ai(x)` and :math:`Ai'(x)`, with scalar or array shapes matching ``x``
     """
     x_array = np.asarray(x, dtype=np.float64)
-    if x_array.ndim == 0:
-        ai = c_double()
-        aip = c_double()
-        _airy_fast(byref(ai), byref(aip), c_double(float(x_array)))
-        return ai.value, aip.value
-
-    flat = np.ascontiguousarray(x_array.ravel())
+    flat = np.ascontiguousarray(x_array.reshape(-1))
     ai = np.empty_like(flat)
     aip = np.empty_like(flat)
     _airy_fast_array(ai, aip, flat, c_int(flat.size))
+    if x_array.ndim == 0:
+        return ai.item(), aip.item()
     return ai.reshape(x_array.shape), aip.reshape(x_array.shape)
 
 

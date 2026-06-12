@@ -2,6 +2,8 @@
     use precision
     implicit none
 
+    integer, parameter, private :: MATHUTILS_OMP_VECTOR_THRESHOLD = 256
+
     interface
     FUNCTION obj_function(obj, x)
     use precision
@@ -459,6 +461,48 @@
     end if
 
     end subroutine airy_fast
+
+
+    subroutine AiryAiFastArray(ai, x, n)
+    implicit none
+
+    integer, intent(in) :: n
+    real(dl), intent(out) :: ai(n)
+    real(dl), intent(in) :: x(n)
+    integer :: i
+
+    if (n >= MATHUTILS_OMP_VECTOR_THRESHOLD) then
+        !$OMP parallel do default(shared) private(i) schedule(static)
+        do i = 1, n
+            ai(i) = airy_ai_fast(x(i))
+        end do
+        !$OMP end parallel do
+    else
+        ai = airy_ai_fast(x)
+    end if
+
+    end subroutine AiryAiFastArray
+
+
+    subroutine AiryFastArray(ai, aip, x, n)
+    implicit none
+
+    integer, intent(in) :: n
+    real(dl), intent(out) :: ai(n), aip(n)
+    real(dl), intent(in) :: x(n)
+    integer :: i
+
+    if (n >= MATHUTILS_OMP_VECTOR_THRESHOLD) then
+        !$OMP parallel do default(shared) private(i) schedule(static)
+        do i = 1, n
+            call airy_fast(x(i), ai(i), aip(i))
+        end do
+        !$OMP end parallel do
+    else
+        call airy_fast(x, ai, aip)
+    end if
+
+    end subroutine AiryFastArray
 
 
 
