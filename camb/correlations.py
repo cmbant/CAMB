@@ -25,12 +25,14 @@ try:
 except ImportError:
     from scipy.special import lpn as legendrep
 
+
 try:
-    from .mathutils import gauss_legendre
+    from .mathutils import gauss_legendre, legendre_polynomials
 except ImportError:
-    # use np.polynomial.legendre if can't load fast native (so can use module without compiling camb)
-    # Fortran version is much faster than current np.polynomial
+    # use np.polynomial.legendre/scipy if can't load fast native (so can use module without compiling camb)
+    # Fortran versions are much faster than current np.polynomial and per-point scipy
     gauss_legendre = None  # type: ignore
+    legendre_polynomials = None  # type: ignore
 
 _gauss_legendre_cache: dict[int, tuple[np.ndarray, np.ndarray]] = {}
 _lensing_template_cache = None
@@ -120,6 +122,14 @@ def _c2_apodized_weight(weight, theta, theta_max, apodize_theta_width):
     return weight * taper**3 * (10.0 + taper * (-15.0 + 6.0 * taper))
 
 
+def _low_l_ee_taper(lmax):
+    # Smoothstep from zero at l=2 to one at l>=20, matching the Fortran LowLEELensingTaper.
+    # Used to remove the reionization-bump EE from the lensing kernel, whose low-L lensed
+    # BB contribution is otherwise window-sensitive with a truncated integration range.
+    taper = np.clip((np.arange(2, lmax + 1, dtype=np.float64) - 2) / 18, 0, 1)
+    return taper**2 * (3 - 2 * taper)
+
+
 def legendre_funcs(lmax, x, m=(0, 2), lfacs=None, lfacs2=None, lrootfacs=None):
     r"""
     Utility function to return array of Legendre and :math:`d_{mn}` functions for all :math:`\ell` up to lmax.
@@ -134,7 +144,10 @@ def legendre_funcs(lmax, x, m=(0, 2), lfacs=None, lfacs2=None, lrootfacs=None):
     :return: :math:`(P,P'),(d_{11},d_{-1,1}), (d_{20}, d_{22}, d_{2,-2})` as requested, where P starts
              at :math:`\ell=0`, but spin functions start at :math:`\ell=\ell_{\rm min}`
     """
-    allP, alldP = legendrep(lmax, x)
+    if legendre_polynomials is not None:
+        allP, alldP = legendre_polynomials(x, lmax)
+    else:
+        allP, alldP = legendrep(lmax, x)
     # Polarization functions all start at L=2
     fac1 = 1 - x
     fac2 = 1 + x
@@ -317,7 +330,17 @@ def lensing_R(clpp, lmax=None):
     return np.sum(cphil3)
 
 
-def lensed_correlations(cls, clpp, xvals, weights=None, lmax=None, delta=False, theta_max=None, apodize_point_width=10):
+def lensed_correlations(
+    cls,
+    clpp,
+    xvals,
+    weights=None,
+    lmax=None,
+    delta=False,
+    theta_max=None,
+    apodize_point_width=10,
+    low_l_ee_taper=False,
+):
     r"""
     Get the lensed correlation function from the unlensed power spectra, evaluated at
     points :math:`\cos(\theta)` = xvals.
@@ -340,6 +363,8 @@ def lensed_correlations(cls, clpp, xvals, weights=None, lmax=None, delta=False, 
     :param theta_max: maximum angle (in radians) to keep in the correlation functions
     :param apodize_point_width: scale factor for the fixed-angle C2 apodization at the truncation cut;
         the default corresponds to a transition width of about 48*pi/lmax
+    :param low_l_ee_taper: smoothly taper the reionization-bump EE (l<20) out of the lensing kernel, matching
+        the Fortran short-range convention; otherwise its low-L lensed BB is window-sensitive when theta_max is set
     :return: 2D array of corrs[i, ix], where ix=0,1,2,3 are T, Q+U, Q-U and cross;
         if weights is not None, then return corrs, lensed_cls
     """
@@ -357,8 +382,12 @@ def lensed_correlations(cls, clpp, xvals, weights=None, lmax=None, delta=False, 
 
     ct = facs * cls[: lmax + 1, 0]
     # For polarization, all arrays start at 2
-    cp = facs[2:] * (cls[2 : lmax + 1, 1] + cls[2 : lmax + 1, 2])
-    cm = facs[2:] * (cls[2 : lmax + 1, 1] - cls[2 : lmax + 1, 2])
+    ee = cls[2 : lmax + 1, 1]
+    if low_l_ee_taper:
+        # taper only the convolution kernel; any unlensed EE added back is unchanged
+        ee = ee * _low_l_ee_taper(lmax)
+    cp = facs[2:] * (ee + cls[2 : lmax + 1, 2])
+    cm = facs[2:] * (ee - cls[2 : lmax + 1, 2])
     cc = facs[2:] * cls[2 : lmax + 1, 3]
     ls = ls[2:]
     lfacs = lfacs[2:]
@@ -472,6 +501,7 @@ def lensed_cls(
     leggaus=True,
     cache=True,
     use_lensing_template=False,
+    low_l_ee_taper=False,
 ):
     r"""
     Get the lensed power spectra from the unlensed power spectra and the lensing potential power.
@@ -505,6 +535,8 @@ def lensed_cls(
     :param cache: if leggaus = True, set cache to save the x values and weights between calls (most of the time)
     :param use_lensing_template: if True, allow lmax above the input arrays by extrapolating TT, EE, TE and PP
         with the bundled high-L template scaled at the last supplied multipole
+    :param low_l_ee_taper: smoothly taper the reionization-bump EE (l<20) out of the lensing kernel, matching
+        the Fortran short-range convention; otherwise its low-L lensed BB is window-sensitive when theta_max is set
     :return: 2D array of cls[L, ix], with L starting at zero and ix=0,1,2,3 in order TT, EE, BB, TE.
         cls include :math:`\ell(\ell+1)/2\pi` factors.
     """
@@ -535,6 +567,7 @@ def lensed_cls(
         delta=True,
         theta_max=theta_max,
         apodize_point_width=apodize_point_width,
+        low_l_ee_taper=low_l_ee_taper,
     )
     if not delta_cls:
         lensedcls += cls[: lmax + 1, :]

@@ -321,3 +321,25 @@ _gauss_legendre.argtypes = [numpy_1d, numpy_1d, int_arg]
 
 def gauss_legendre(xvals, weights, npoints):
     _gauss_legendre(xvals, weights, c_int(npoints))
+
+
+_legendre_table = camblib.__mathutils_MOD_legendre_table
+_legendre_table.argtypes = [numpy_1d, numpy_2d, numpy_2d, int_arg, int_arg]
+
+
+def legendre_polynomials(x, lmax):
+    """
+    Legendre polynomials :math:`P_\\ell(x)` and derivatives :math:`dP_\\ell/dx` for all
+    :math:`0\\le \\ell \\le` lmax (requires :math:`|x| < 1`).
+
+    :param x: scalar or 1D array of x values
+    :param lmax: maximum :math:`\\ell`
+    :return: P, dP arrays; shape (lmax+1,) for scalar x, else (len(x), lmax+1)
+    """
+    xarr = np.ascontiguousarray(np.atleast_1d(x), dtype=np.float64)
+    P = np.empty((len(xarr), lmax + 1))
+    dP = np.empty((len(xarr), lmax + 1))
+    _legendre_table(xarr, P, dP, c_int(lmax), c_int(len(xarr)))
+    if np.ndim(x) == 0:
+        return P[0], dP[0]
+    return P, dP

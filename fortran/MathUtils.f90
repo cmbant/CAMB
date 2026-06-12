@@ -1007,6 +1007,44 @@
 
     end subroutine Gauss_Legendre
 
+    subroutine Legendre_Table(x, P, dP, lmax, npoints)
+    ! Legendre polynomials P_l(x_i) and derivatives dP_l(x_i)/dx for all 0 <= l <= lmax
+    ! at each of the npoints x values, requiring |x| < 1.
+    ! P and dP are (0:lmax, npoints) arrays (C-ordered (npoints, lmax+1) from python).
+
+    use constants, only : dl
+    implicit none
+
+    integer, intent(in) :: lmax, npoints
+    real(dl), intent(in) :: x(npoints)
+    real(dl), intent(out) :: P(0:lmax, npoints), dP(0:lmax, npoints)
+    integer :: i, l
+    real(dl) :: xi, pmm, pmmp1, pl, rsin2
+
+    !$omp parallel do default(shared) schedule(static) if(npoints >= 8) &
+    !$omp& private(i, l, xi, pmm, pmmp1, pl, rsin2)
+    do i = 1, npoints
+        xi = x(i)
+        P(0, i) = 1._dl
+        dP(0, i) = 0._dl
+        if (lmax < 1) cycle
+        P(1, i) = xi
+        dP(1, i) = 1._dl
+        rsin2 = 1._dl / (1._dl - xi*xi)
+        pmm = 1._dl
+        pmmp1 = xi
+        do l = 2, lmax
+            pl = ((2*l - 1)*xi*pmmp1 - (l - 1)*pmm) / l
+            P(l, i) = pl
+            dP(l, i) = l*(pmmp1 - xi*pl)*rsin2
+            pmm = pmmp1
+            pmmp1 = pl
+        end do
+    end do
+    !$omp end parallel do
+
+    end subroutine Legendre_Table
+
     subroutine GetThreeJs(thrcof,l2in,l3in,m2in,m3in)
     !Recursive evaluation of 3j symbols. Does minimal error checking on input parameters.
     !
