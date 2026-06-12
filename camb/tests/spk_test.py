@@ -134,7 +134,7 @@ class SPkTest(unittest.TestCase):
             (2.5, 11.5, 0.1805),
         ]
 
-        # Limit coefficient arrays for SO=200 (from spk_model.f90).
+        # Limit coefficient arrays for SO=200 (from SPkNonLinear.f90).
         z_nodes = np.array([0.0, 0.125, 0.5, 1.0, 2.0, 3.0])
         min_x0_200 = np.array(
             [
