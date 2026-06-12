@@ -34,6 +34,7 @@
     module HypersphericalBesselSmallNu
     use, intrinsic :: iso_fortran_env, only : real64
     use, intrinsic :: ieee_arithmetic, only : ieee_value, ieee_quiet_nan, ieee_is_finite
+    use MathUtils, only: airy_ai_fast
     implicit none
     private
 
@@ -703,106 +704,6 @@
     ai = airy_ai_fast(arg)
     val = scale*phi*ai
     end function scaled_ki_airy_leading
-
-
-    function airy_ai_fast(x) result(ai)
-    ! Fast real Airy Ai(x), tuned for the uniform K_{i nu} approximation.
-    ! Around the origin it uses the exact Taylor recurrence y''=x y.  Outside
-    ! |x|<=5 it uses the standard exponentially decaying/oscillatory Airy
-    ! asymptotic expansions with a few terms, more than enough for 1e-4 peak-normalized.
-    real(dp), intent(in) :: x
-    real(dp) :: ai
-
-    if (x > 5.0_dp) then
-        ai = airy_ai_pos_asym(x)
-    else if (x < -5.0_dp) then
-        ai = airy_ai_neg_asym(x)
-    else
-        ai = airy_ai_series(x)
-    end if
-    end function airy_ai_fast
-
-
-    function airy_ai_series(x) result(ai)
-    real(dp), intent(in) :: x
-    real(dp) :: ai, term0, term1, x3, scale
-    integer :: k
-    real(dp), parameter :: ai0  = 0.355028053887817239260063186004183176398_dp
-    real(dp), parameter :: aip0 = -0.258819403792806798405183560189203963479_dp
-
-    term0 = ai0
-    term1 = aip0*x
-    ai = term0 + term1
-    x3 = x*x*x
-    do k = 0, 36
-        term0 = term0*x3/real((3*k+3)*(3*k+2),dp)
-        term1 = term1*x3/real((3*k+4)*(3*k+3),dp)
-        ai = ai + term0 + term1
-        scale = max(1.0_dp, abs(ai))
-        if (abs(term0) + abs(term1) < 1.0e-18_dp*scale) exit
-    end do
-    end function airy_ai_series
-
-
-    function airy_ai_pos_asym(x) result(ai)
-    real(dp), intent(in) :: x
-    real(dp) :: ai, zeta, term, sum
-    integer :: k
-
-    zeta = (2.0_dp/3.0_dp)*x*sqrt(x)
-    if (zeta > 745.0_dp) then
-        ai = 0.0_dp
-        return
-    end if
-
-    term = 1.0_dp
-    sum = 1.0_dp
-    do k = 1, 7
-        term = term * real((6*k-5)*(6*k-1),dp) / (72.0_dp*real(k,dp)*zeta)
-        if (mod(k,2) == 1) then
-            sum = sum - term
-        else
-            sum = sum + term
-        end if
-    end do
-
-    ai = 0.5_dp/sqrt(pi_dp) * x**(-0.25_dp) * exp(-zeta) * sum
-    end function airy_ai_pos_asym
-
-
-    function airy_ai_neg_asym(x) result(ai)
-    real(dp), intent(in) :: x
-    real(dp) :: ai, t, zeta, theta, uk, term, even_sum, odd_sum
-    integer :: k
-
-    t = -x
-    zeta = (2.0_dp/3.0_dp)*t*sqrt(t)
-    theta = zeta - 0.25_dp*pi_dp
-
-    uk = 1.0_dp
-    even_sum = 1.0_dp
-    odd_sum = 0.0_dp
-    do k = 1, 11
-        uk = uk * real((6*k-5)*(6*k-1),dp) / (72.0_dp*real(k,dp))
-        term = uk/(zeta**k)
-        if (mod(k,2) == 0) then
-            if (mod(k/2,2) == 0) then
-                even_sum = even_sum + term
-            else
-                even_sum = even_sum - term
-            end if
-        else
-            if (mod((k-1)/2,2) == 0) then
-                odd_sum = odd_sum + term
-            else
-                odd_sum = odd_sum - term
-            end if
-        end if
-    end do
-
-    ai = (1.0_dp/sqrt(pi_dp))*t**(-0.25_dp) * &
-        (cos(theta)*even_sum + sin(theta)*odd_sum)
-    end function airy_ai_neg_asym
 
 
     function scaled_ki_integral(nu, x) result(val)

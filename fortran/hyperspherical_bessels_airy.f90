@@ -171,7 +171,7 @@
     ! Assume L > 0 and other variables already checked for physical limits
     use iso_fortran_env, only: real64
     use HypersphericalBesselUtils, only: curved_radius, qintegral_exact, turning_point, normalize_chi
-    use FlatBessels, only: airy_fast
+    use MathUtils, only: airy_fast
     implicit none
     private
 

@@ -6,7 +6,7 @@ import unittest
 
 import numpy as np
 from scipy.optimize import brentq
-from scipy.special import spherical_jn
+from scipy.special import airy, spherical_jn
 
 try:
     import camb  # noqa: F401
@@ -15,6 +15,8 @@ except ImportError:
     import camb  # noqa: F401
 
 from camb.mathutils import (
+    airy_ai_fast,
+    airy_fast,
     chi_squared,
     pcl_coupling_matrix,
     phi_olver,
@@ -102,6 +104,18 @@ class MathutilsTest(unittest.TestCase):
         )
 
     def test_mathutils(self):
+        airy_x = np.array([-20.0, -6.5, -4.4, -2.09, -1.0, 0.0, 2.09, 2.98, 6.5, 20.0, 30.0])
+        ai_expected, aip_expected, _, _ = airy(airy_x)
+        ai, aip = airy_fast(airy_x)
+        np.testing.assert_allclose(ai, ai_expected, atol=8e-8, rtol=0)
+        np.testing.assert_allclose(aip, aip_expected, atol=8e-8, rtol=0)
+        np.testing.assert_allclose(airy_ai_fast(airy_x), ai, atol=0, rtol=0)
+
+        ai_scalar, aip_scalar = airy_fast(0.0)
+        np.testing.assert_allclose(ai_scalar, airy(0.0)[0], atol=8e-8, rtol=0)
+        np.testing.assert_allclose(aip_scalar, airy(0.0)[1], atol=8e-8, rtol=0)
+        self.assertAlmostEqual(airy_ai_fast(0.0), ai_scalar)
+
         cinv = np.linalg.inv(np.array([[1.2, 3], [3, 18.2]]))
         vec = np.array([0.5, 5.0])
         self.assertAlmostEqual(chi_squared(cinv, vec), cinv.dot(vec).dot(vec))
