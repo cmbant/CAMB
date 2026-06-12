@@ -12,6 +12,9 @@
     real(dl), parameter :: SPk_calibrated_z_max = 3.0_dl
     real(dl), parameter :: SPk_calibrated_k_min = 1e-12_dl
     real(dl), parameter :: SPk_calibrated_k_max = 12.0_dl
+    real(dl), parameter :: SPk_log_calibrated_k_min = log(SPk_calibrated_k_min)
+    real(dl), parameter :: SPk_log_calibrated_k_max = log(SPk_calibrated_k_max)
+    real(dl), parameter :: SPk_inv_log_10 = 1.0_dl / log(10.0_dl)
     real(dl), parameter :: SPk_min_suppression = 1e-6_dl
 
     integer, parameter :: SPk_rel_power_law = 1
@@ -182,20 +185,16 @@
 
     end function SPk_AkimaInterp
 
-    pure subroutine SPk_ComputeFb(SO, kh, z, relation_kind, fb_a, fb_pow, fb_pivot, rel_alpha, rel_beta, rel_gamma, &
-        rel_epsilon, rel_m_pivot, e_ratio, fb, m_opt)
-    integer, intent(in) :: SO, relation_kind
-    real(dl), intent(in) :: kh, z, fb_a, fb_pow, fb_pivot
+    pure subroutine SPk_ComputeFbFromParams(log_kh, spk_a, spk_b, spk_g, relation_kind, fb_a, fb_pow, fb_pivot, &
+        rel_alpha, rel_beta, rel_gamma, rel_epsilon, rel_m_pivot, e_ratio, fb, m_opt)
+    integer, intent(in) :: relation_kind
+    real(dl), intent(in) :: log_kh, spk_a, spk_b, spk_g, fb_a, fb_pow, fb_pivot
     real(dl), intent(in) :: rel_alpha, rel_beta, rel_gamma, rel_epsilon, rel_m_pivot
     real(dl), intent(in) :: e_ratio
     real(dl), intent(out) :: fb, m_opt
-    real(dl) :: spk_a, spk_b, spk_g
-    real(dl) :: lambda_a, lambda_b, mu_a, mu_b, mu_c, nu_a, nu_b, nu_c
     real(dl) :: best_mass, e_ratio_eff
 
-    call SPk_GetParams(SO, z, spk_a, spk_b, spk_g, lambda_a, lambda_b, mu_a, mu_b, mu_c, nu_a, nu_b, nu_c)
-
-    best_mass = spk_a - (spk_a - spk_b) * (kh ** spk_g)
+    best_mass = spk_a - (spk_a - spk_b) * exp(spk_g * log_kh)
     m_opt = 10.0_dl ** best_mass
     e_ratio_eff = max(e_ratio, SPk_calibrated_k_min)
 
@@ -210,13 +209,12 @@
         fb = fb_a * ((m_opt / fb_pivot) ** fb_pow)
     end select
 
-    end subroutine SPk_ComputeFb
+    end subroutine SPk_ComputeFbFromParams
 
-    pure subroutine SPk_GetFbLimits(SO, z, m_halo, min_fb, max_fb)
+    pure subroutine SPk_GetFbLimitCoefficients(SO, z, min_c0, min_c1, min_c2, max_c0, max_c1, max_c2)
     integer, intent(in) :: SO
-    real(dl), intent(in) :: z, m_halo
-    real(dl), intent(out) :: min_fb, max_fb
-    real(dl) :: logm, min_c0, min_c1, min_c2, max_c0, max_c1, max_c2
+    real(dl), intent(in) :: z
+    real(dl), intent(out) :: min_c0, min_c1, min_c2, max_c0, max_c1, max_c2
 
     if (SO == 500) then
         min_c0 = SPk_AkimaInterp(z, SPk_limit_z_nodes, SPk_limit_min_x0_500)
@@ -234,32 +232,29 @@
         max_c2 = SPk_AkimaInterp(z, SPk_limit_z_nodes, SPk_limit_max_x2_200)
     end if
 
+    end subroutine SPk_GetFbLimitCoefficients
+
+    pure subroutine SPk_GetFbLimitsFromCoefficients(m_halo, min_c0, min_c1, min_c2, max_c0, max_c1, max_c2, &
+        min_fb, max_fb)
+    real(dl), intent(in) :: m_halo, min_c0, min_c1, min_c2, max_c0, max_c1, max_c2
+    real(dl), intent(out) :: min_fb, max_fb
+    real(dl) :: logm
+
     logm = log10(m_halo)
     min_fb = 0.8_dl * 10.0_dl ** (min_c0 + min_c1 * logm + min_c2 * logm * logm)
     max_fb = 1.2_dl * 10.0_dl ** (max_c0 + max_c1 * logm + max_c2 * logm * logm)
 
-    end subroutine SPk_GetFbLimits
+    end subroutine SPk_GetFbLimitsFromCoefficients
 
-    pure function SPk_Suppression(SO, kh, z, relation_kind, fb_a, fb_pow, fb_pivot, rel_alpha, rel_beta, rel_gamma, &
-        rel_epsilon, rel_m_pivot, e_ratio) result(sup)
+    pure function SPk_Suppression(log10_kh, fb, lambda_a, lambda_b, mu_a, mu_b, mu_c, nu_a, nu_b, nu_c) result(sup)
     ! Compute the SP(k) suppression factor for a single (k, z) point.
     ! Shape function uses fitting parameters from Salcido et al. (2023, MNRAS 523, 2247).
-    integer, intent(in) :: SO, relation_kind
-    real(dl), intent(in) :: kh, z, fb_a, fb_pow, fb_pivot
-    real(dl), intent(in) :: rel_alpha, rel_beta, rel_gamma, rel_epsilon, rel_m_pivot
-    real(dl), intent(in) :: e_ratio
+    real(dl), intent(in) :: log10_kh, fb
+    real(dl), intent(in) :: lambda_a, lambda_b, mu_a, mu_b, mu_c, nu_a, nu_b, nu_c
     real(dl) :: sup
-    real(dl) :: lambda_a, lambda_b, mu_a, mu_b, mu_c, nu_a, nu_b, nu_c
-    real(dl) :: spk_a, spk_b, spk_g
-    real(dl) :: m_opt, fb, x, x0, x1, x2
+    real(dl) :: x, x0, x1, x2
 
-    ! Get redshift-dependent fitting parameters (also used by SPk_ComputeFb internally,
-    ! but we need lambda/mu/nu for the shape function here).
-    call SPk_GetParams(SO, z, spk_a, spk_b, spk_g, lambda_a, lambda_b, mu_a, mu_b, mu_c, nu_a, nu_b, nu_c)
-    call SPk_ComputeFb(SO, kh, z, relation_kind, fb_a, fb_pow, fb_pivot, rel_alpha, rel_beta, rel_gamma, &
-        rel_epsilon, rel_m_pivot, e_ratio, fb, m_opt)
-
-    x = log10(kh)
+    x = log10_kh
     x0 = 1.0_dl + lambda_a * exp(lambda_b * x)
     x1 = mu_a + ((1.0_dl - mu_a) / (1.0_dl + exp(mu_b * x + mu_c)))
     x2 = nu_a * exp(-0.5_dl * ((x - nu_b) / nu_c) ** 2)
@@ -360,8 +355,11 @@
     class(TCAMBdata) :: State
     type(MatterPowerData), target :: CAMB_Pk
     integer :: itf, i
-    real(dl) :: rk, rk_eval, spk_sup, spk_href, spk_eratio
+    real(dl) :: rk, log_rk, log_rk_eval, spk_sup, spk_href, spk_eratio
     real(dl) :: spk_fb, spk_m_opt, spk_fb_min, spk_fb_max
+    real(dl) :: spk_a, spk_b, spk_g
+    real(dl) :: lambda_a, lambda_b, mu_a, mu_b, mu_c, nu_a, nu_b, nu_c
+    real(dl) :: min_c0, min_c1, min_c2, max_c0, max_c1, max_c2
     logical, save :: warned_spk_z_outside = .false.
     logical, save :: warned_spk_k_clamped = .false.
     logical, save :: warned_spk_fb_outside = .false.
@@ -406,22 +404,28 @@
         class default
             call MpiStop('SP(k): unsupported state type for Hofz evaluation')
         end select
+        call SPk_GetParams(this%SPk_SO, CAMB_Pk%redshifts(itf), spk_a, spk_b, spk_g, lambda_a, lambda_b, &
+            mu_a, mu_b, mu_c, nu_a, nu_b, nu_c)
+        call SPk_GetFbLimitCoefficients(this%SPk_SO, CAMB_Pk%redshifts(itf), min_c0, min_c1, min_c2, &
+            max_c0, max_c1, max_c2)
         do i = 1, CAMB_Pk%num_k
-            rk = exp(CAMB_Pk%log_kh(i))
-            if (rk < SPk_calibrated_k_min) cycle
-            if (rk > SPk_calibrated_k_max) then
+            log_rk = CAMB_Pk%log_kh(i)
+            if (log_rk < SPk_log_calibrated_k_min) cycle
+            if (log_rk > SPk_log_calibrated_k_max) then
                 if (FeedbackLevel > 0 .and. .not. warned_spk_k_clamped) then
+                    rk = exp(log_rk)
                     write(*,'(A,F8.3,A,F6.2,A)') &
                         'WARNING: SP(k) input k exceeds calibrated range; clamping to k_max=', &
                         rk, ' -> ', SPk_calibrated_k_max, ' h/Mpc.'
                     warned_spk_k_clamped = .true.
                 end if
             end if
-            rk_eval = min(rk, SPk_calibrated_k_max)
-            call SPk_ComputeFb(this%SPk_SO, rk_eval, CAMB_Pk%redshifts(itf), this%SPk_relation_kind, &
-                this%SPk_fb_a, this%SPk_fb_pow, this%SPk_fb_pivot, this%SPk_alpha, this%SPk_beta, this%SPk_gamma, &
-                this%SPk_epsilon, this%SPk_m_pivot, spk_eratio, spk_fb, spk_m_opt)
-            call SPk_GetFbLimits(this%SPk_SO, CAMB_Pk%redshifts(itf), spk_m_opt, spk_fb_min, spk_fb_max)
+            log_rk_eval = min(log_rk, SPk_log_calibrated_k_max)
+            call SPk_ComputeFbFromParams(log_rk_eval, spk_a, spk_b, spk_g, this%SPk_relation_kind, &
+                this%SPk_fb_a, this%SPk_fb_pow, this%SPk_fb_pivot, this%SPk_alpha, this%SPk_beta, &
+                this%SPk_gamma, this%SPk_epsilon, this%SPk_m_pivot, spk_eratio, spk_fb, spk_m_opt)
+            call SPk_GetFbLimitsFromCoefficients(spk_m_opt, min_c0, min_c1, min_c2, max_c0, max_c1, max_c2, &
+                spk_fb_min, spk_fb_max)
             if (spk_fb < spk_fb_min .or. spk_fb > spk_fb_max) then
                 if (FeedbackLevel > 0 .and. .not. warned_spk_fb_outside) then
                     write(*,'(A)') 'WARNING: SP(k) baryon fraction outside calibrated fitting limits; ' &
@@ -431,10 +435,8 @@
                 CAMB_Pk%nonlin_ratio(i, itf) = ieee_value(1.0_dl, ieee_quiet_nan)
                 cycle
             end if
-            spk_sup = SPk_Suppression(this%SPk_SO, rk_eval, CAMB_Pk%redshifts(itf), &
-                this%SPk_relation_kind, this%SPk_fb_a, this%SPk_fb_pow, this%SPk_fb_pivot, &
-                this%SPk_alpha, this%SPk_beta, this%SPk_gamma, &
-                this%SPk_epsilon, this%SPk_m_pivot, spk_eratio)
+            spk_sup = SPk_Suppression(log_rk_eval * SPk_inv_log_10, spk_fb, &
+                lambda_a, lambda_b, mu_a, mu_b, mu_c, nu_a, nu_b, nu_c)
             CAMB_Pk%nonlin_ratio(i, itf) = CAMB_Pk%nonlin_ratio(i, itf) * sqrt(spk_sup)
         end do
     end do

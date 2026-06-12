@@ -92,12 +92,9 @@
     end subroutine spline_integrate
 
 
-    !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-    !  this is not the splint given in numerical recipes
 
-
-    subroutine splint(y,z,n)
-    !  Splint integrates a cubic spline, providing the output value
+    subroutine spline_integral(y,z,n)
+    !  Integrates a cubic spline, providing the output value
     !  z = integral from 1 to n of s(i)di, where s(i) is the spline fit
     !  to y(i).
     !
@@ -116,6 +113,6 @@
     !
     z=0.5d0*(y(1)+y(n))+(dy1-dyn)/12._dl
     z= z + sum(y(2:n1))
-    end subroutine splint
+    end subroutine spline_integral
 
     end module splines
