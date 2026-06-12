@@ -6,7 +6,7 @@
     use iso_c_binding
     use DarkEnergyFluid
     use DarkEnergyPPF
-    use OlverHypersphericalBessel, only: phi_olver
+    use HypersphericalBesselOlver, only: phi_olver
     use ObjectLists
     use SpherBessels, only: phi_recurs
     use classes

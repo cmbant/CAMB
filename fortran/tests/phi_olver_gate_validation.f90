@@ -1,6 +1,6 @@
 program phi_olver_gate_validation
 use Precision
-use OlverHypersphericalBessel, only: phi_olver
+use HypersphericalBesselOlver, only: phi_olver
 use SpherBessels, only: phi_recurs
 use omp_lib
 implicit none

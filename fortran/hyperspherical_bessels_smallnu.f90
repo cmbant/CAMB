@@ -31,13 +31,13 @@
 ! validated high-l gate to max(old_gate, 0.04*l, min(8*(l/1000)^2, 0.16*l)).
 ! Assume inputs all pre-validated
 
-    module open_smallnu_action_bessel
+    module HypersphericalBesselSmallNu
     use, intrinsic :: iso_fortran_env, only : real64
     use, intrinsic :: ieee_arithmetic, only : ieee_value, ieee_quiet_nan, ieee_is_finite
     implicit none
     private
 
-    integer, parameter, public :: dp = real64
+    integer, parameter :: dp = real64
 
     real(dp), parameter :: pi_dp      = 3.141592653589793238462643383279502884197_dp
     real(dp), parameter :: twopi_dp   = 6.283185307179586476925286766559005768394_dp
@@ -58,45 +58,23 @@
     integer, parameter :: smallnu_amp_l_min = 3000
 
     public :: open_smallnu_loglambda
-    public :: open_smallnu_setup
+    public :: open_smallnu_action_u
+    public :: open_smallnu_action_u_from_loglambda
+    public :: open_smallnu_ok
     public :: open_smallnu_u
-    public :: open_smallnu_phi
-    public :: open_smallnu_u_from_loglambda
-    public :: open_smallnu_phi_from_loglambda
-    public :: scaled_ki_nu
-
-    public :: open_action_u
-    public :: open_action_phi
-    public :: open_action_u_from_loglambda
-    public :: open_action_phi_from_loglambda
-    public :: open_action_argument_x
-    public :: open_smallnu_action_ok
-    public :: open_smallnu_u_normalized
-    public :: open_smallnu_phi_normalized
 
     contains
 
-    function open_action_u(l, nu, chi) result(u)
+    function open_smallnu_action_u(l, nu, chi) result(u)
     integer,  intent(in) :: l
     real(dp), intent(in) :: nu, chi
     real(dp) :: u, loglambda
 
     loglambda = open_smallnu_loglambda(l, nu)
-    u = open_action_u_from_loglambda(l, nu, chi, loglambda)
-    end function open_action_u
+    u = open_smallnu_action_u_from_loglambda(l, nu, chi, loglambda)
+    end function open_smallnu_action_u
 
-
-    function open_action_phi(l, nu, chi) result(phi)
-    integer,  intent(in) :: l
-    real(dp), intent(in) :: nu, chi
-    real(dp) :: phi, loglambda
-
-    loglambda = open_smallnu_loglambda(l, nu)
-    phi = open_action_phi_from_loglambda(l, nu, chi, loglambda)
-    end function open_action_phi
-
-
-    function open_action_u_from_loglambda(l, nu, chi, loglambda) result(u)
+    function open_smallnu_action_u_from_loglambda(l, nu, chi, loglambda) result(u)
     ! Action-matched reduced radial approximation.
     !
     ! It keeps the same scaled K_{i nu} comparison solution as
@@ -110,38 +88,23 @@
     real(dp) :: u, x
 
     if (l < 1 .or. abs(nu) < nu_zero) then
-        u = open_smallnu_u_from_loglambda(nu, chi, loglambda)
+        u = comparison_u_from_loglambda(nu, chi, loglambda)
         return
     end if
 
-    x = open_action_argument_x(l, nu, chi, loglambda)
+    x = action_argument_x(l, nu, chi, loglambda)
     if (x <= 0.0_dp) then
         ! Extremely far into the oscillatory tail with underflowed x.  The
         ! non-action version can still evaluate the leading small-x phase from
         ! log Lambda - chi, and the two coincide asymptotically.
-        u = open_smallnu_u_from_loglambda(nu, chi, loglambda)
+        u = comparison_u_from_loglambda(nu, chi, loglambda)
     else
         u = scaled_ki_nu(abs(nu), x)
     end if
-    end function open_action_u_from_loglambda
+    end function open_smallnu_action_u_from_loglambda
 
 
-    function open_action_phi_from_loglambda(l, nu, chi, loglambda) result(phi)
-    integer,  intent(in) :: l
-    real(dp), intent(in) :: nu, chi, loglambda
-    real(dp) :: phi, u, inv_sinh
-
-    u = open_action_u_from_loglambda(l, nu, chi, loglambda)
-    if (chi < 350.0_dp) then
-        inv_sinh = 1.0_dp/sinh(chi)
-    else
-        inv_sinh = 2.0_dp*exp(-chi)
-    end if
-    phi = u*inv_sinh
-    end function open_action_phi_from_loglambda
-
-
-    function open_smallnu_u_normalized(l, nu, chi, ok) result(u)
+    function open_smallnu_u(l, nu, chi, ok) result(u)
     ! Validated small-nu reduced radial approximation for the regular open
     ! hyperspherical Bessel.  The high-l branch applies only the leading
     ! Liouville amplitude A0 = sqrt(asinh(csch chi)/csch chi), which was
@@ -151,66 +114,45 @@
     logical, intent(out) :: ok
     real(dp) :: u, loglambda
 
-    ok = open_smallnu_action_ok(l, nu)
+    ok = open_smallnu_ok(l, nu)
     if (.not. ok) then
         u = 0.0_dp
         return
     end if
 
     loglambda = open_smallnu_loglambda(l, nu)
-    u = open_smallnu_u_normalized_from_loglambda(l, nu, chi, loglambda)
-    end function open_smallnu_u_normalized
+    u = open_smallnu_u_from_loglambda(l, nu, chi, loglambda)
+    end function open_smallnu_u
 
 
-    function open_smallnu_phi_normalized(l, nu, chi, ok) result(phi)
-    integer, intent(in) :: l
-    real(dp), intent(in) :: nu, chi
-    logical, intent(out) :: ok
-    real(dp) :: phi, u, inv_sinh
-
-    u = open_smallnu_u_normalized(l, nu, chi, ok)
-    if (.not. ok) then
-        phi = 0.0_dp
-        return
-    end if
-
-    if (chi < 350.0_dp) then
-        inv_sinh = 1.0_dp/sinh(chi)
-    else
-        inv_sinh = 2.0_dp*exp(-chi)
-    end if
-    phi = u*inv_sinh
-    end function open_smallnu_phi_normalized
-
-
-    function open_smallnu_u_normalized_from_loglambda(l, nu, chi, loglambda) result(u)
+    function open_smallnu_u_from_loglambda(l, nu, chi, loglambda) result(u)
     integer, intent(in) :: l
     real(dp), intent(in) :: nu, chi, loglambda
     real(dp) :: u, x, kval
 
     if (l >= smallnu_amp_l_min) then
-        x = open_action_argument_x(l, nu, chi, loglambda)
+        x = action_argument_x(l, nu, chi, loglambda)
         if (x <= 0.0_dp) then
-            kval = open_smallnu_u_from_loglambda(nu, chi, loglambda)
+            kval = comparison_u_from_loglambda(nu, chi, loglambda)
         else
             kval = scaled_ki_nu(abs(nu), x)
         end if
         u = open_smallnu_liouville_amp_a0(l, abs(nu), chi) * kval
     else
-        u = open_action_u_from_loglambda(l, nu, chi, loglambda)
+        u = open_smallnu_action_u_from_loglambda(l, nu, chi, loglambda)
     end if
-    end function open_smallnu_u_normalized_from_loglambda
+    end function open_smallnu_u_from_loglambda
 
 
-    elemental logical function open_smallnu_action_ok(l, nu) result(ok)
+    elemental logical function open_smallnu_ok(l, nu) result(ok)
     integer, intent(in) :: l
     real(dp), intent(in) :: nu
 
-    ok = l > smallnu_l_min .and. nu > 0.0_dp .and. nu <= open_smallnu_action_gate(l)
-    end function open_smallnu_action_ok
+    ok = l > smallnu_l_min .and. nu > 0.0_dp .and. nu <= open_smallnu_gate(l)
+    end function open_smallnu_ok
 
 
-    elemental real(dp) function open_smallnu_action_gate(l) result(nu_max)
+    elemental real(dp) function open_smallnu_gate(l) result(nu_max)
     integer, intent(in) :: l
     real(dp) :: ell, old_gate
 
@@ -223,10 +165,10 @@
     else
         nu_max = old_gate
     end if
-    end function open_smallnu_action_gate
+    end function open_smallnu_gate
 
 
-    function open_action_argument_x(l, nu, chi, loglambda) result(x)
+    function action_argument_x(l, nu, chi, loglambda) result(x)
     ! Return the action-matched comparison argument x_*(chi).
     integer,  intent(in) :: l
     real(dp), intent(in) :: nu, chi, loglambda
@@ -267,7 +209,7 @@
     else
         x = inv_comp_forb(b, -target)
     end if
-    end function open_action_argument_x
+    end function action_argument_x
 
 
     function true_action_osc(A, b, y) result(act)
@@ -414,42 +356,7 @@
     x = b*sqrt(1.0_dp + s*s)
     end function inv_comp_forb
 
-    subroutine open_smallnu_setup(l, nu, loglambda, ok)
-    integer,  intent(in)  :: l
-    real(dp), intent(in)  :: nu
-    real(dp), intent(out) :: loglambda
-    logical,  intent(out) :: ok
-
-    ok = (l >= 0)
-    if (.not. ok) then
-        loglambda = 0.0_dp
-        return
-    end if
-    loglambda = open_smallnu_loglambda(l, nu)
-    end subroutine open_smallnu_setup
-
-
-    function open_smallnu_u(l, nu, chi) result(u)
-    integer,  intent(in) :: l
-    real(dp), intent(in) :: nu, chi
-    real(dp) :: u, loglambda
-
-    loglambda = open_smallnu_loglambda(l, nu)
-    u = open_smallnu_u_from_loglambda(nu, chi, loglambda)
-    end function open_smallnu_u
-
-
-    function open_smallnu_phi(l, nu, chi) result(phi)
-    integer,  intent(in) :: l
-    real(dp), intent(in) :: nu, chi
-    real(dp) :: phi, loglambda
-
-    loglambda = open_smallnu_loglambda(l, nu)
-    phi = open_smallnu_phi_from_loglambda(nu, chi, loglambda)
-    end function open_smallnu_phi
-
-
-    function open_smallnu_u_from_loglambda(nu, chi, loglambda) result(u)
+    function comparison_u_from_loglambda(nu, chi, loglambda) result(u)
     ! Reduced radial function, with log Lambda already precomputed.
     ! Centralized through the same scaled-K router as scaled_ki_nu().
     real(dp), intent(in) :: nu, chi, loglambda
@@ -458,21 +365,7 @@
     b = abs(nu)
     logz2 = loglambda - chi        ! x/2 = Lambda exp(-chi)
     u = scaled_ki_from_logz2(b, logz2)
-    end function open_smallnu_u_from_loglambda
-
-
-    function open_smallnu_phi_from_loglambda(nu, chi, loglambda) result(phi)
-    real(dp), intent(in) :: nu, chi, loglambda
-    real(dp) :: phi, u, inv_sinh
-
-    u = open_smallnu_u_from_loglambda(nu, chi, loglambda)
-    if (chi < 350.0_dp) then
-        inv_sinh = 1.0_dp/sinh(chi)
-    else
-        inv_sinh = 2.0_dp*exp(-chi)
-    end if
-    phi = u*inv_sinh
-    end function open_smallnu_phi_from_loglambda
+    end function comparison_u_from_loglambda
 
 
     function open_smallnu_loglambda(l, nu) result(loglambda)
@@ -528,12 +421,11 @@
 
 
     function scaled_ki_nu(nu, x) result(val)
-    ! Public standalone evaluator of
+    ! Standalone evaluator of
     !    sqrt(sinh(pi nu)/(pi nu))*K_{i nu}(x), x>0.
     !
     ! Accuracy target: fast O(1e-4) peak-normalized use, not full double
-    ! precision everywhere.  For nu >= nu_airy_min, this replaces the old
-    ! empirical x <= nu+const rule by:
+    ! precision everywhere.
     !   - I_{i nu} power series while q=x^2/(4 nu) <= series_q_max;
     !   - uniform Airy turning-point approximation otherwise.
     real(dp), intent(in) :: nu, x
@@ -1235,4 +1127,4 @@
     x = ieee_value(1.0_dp, ieee_quiet_nan)
     end function ieee_nan
 
-    end module open_smallnu_action_bessel
+    end module HypersphericalBesselSmallNu

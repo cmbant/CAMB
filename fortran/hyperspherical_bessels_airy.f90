@@ -162,16 +162,15 @@
     end module HypersphericalBesselUtils
 
 
-    module AiryUniformOnePoint
-    ! One-point Airy/Olver approximation for hyperspherical Bessel functions.
+    module HypersphericalBesselAiry
+    ! One-point second-order Airy/Olver approximation for hyperspherical Bessel functions.
     ! It solves the reduced equation u'' = lambda^2 q(chi) u + r(chi) u with
     ! u = S_K(chi) phi_l^nu(chi), normalized to the exact origin amplitude.
-    ! First-order and local second-order corrections are calibrated to about
-    ! 1e-4 peak-relative accuracy in their gates against phi_recurs.
+    ! The local second-order correction is calibrated to about 1e-4 peak-relative
+    ! accuracy in its gate against phi_recurs.
     ! Assume L > 0 and other variables already checked for physical limits
     use iso_fortran_env, only: real64
-    use HypersphericalBesselUtils, only: curved_radius, qintegral_exact, turning_point, &
-        normalize_chi_airy => normalize_chi
+    use HypersphericalBesselUtils, only: curved_radius, qintegral_exact, turning_point, normalize_chi
     use FlatBessels, only: airy_fast
     implicit none
     private
@@ -180,12 +179,6 @@
     real(dp), parameter :: PI = acos(-1.0_dp)
     real(dp), parameter :: LOG2PI = log(2.0_dp * PI)
     real(dp), parameter :: CACHE_EPS = 1.0e-12_dp
-
-    ! First-order/constant-B0 one-point gate, retained for comparison.
-    integer, parameter :: AIRY_L_MIN = 50
-    real(dp), parameter :: AIRY_X_MAX = 4.0_dp
-    real(dp), parameter :: AIRY_OPEN_GATE = 300.0_dp
-    real(dp), parameter :: AIRY_CLOSED_GATE = 500.0_dp
 
     ! Fast second-order one-point Airy/Olver patch.  The correction is
     ! evaluated from local samples on the single requested chi segment; no
@@ -205,176 +198,10 @@
     real(dp), parameter :: AIRY_PSI_ZETA_LOCAL = 2.0e-3_dp
     real(dp), parameter :: AIRY_SECOND_FIT_ZETA_MIN = 1.6e-2_dp
 
-    public :: airy_u_onepoint, airy_u_onepoint_normalized, airy_phi_onepoint
-    public :: airy_uniform_ok, compute_airy_uniform_norm_fast
-    public :: log_origin_u0_fast, airy_q0, airy_B0_turn
-    public :: airy_zeta_q, normalize_chi_airy
-    public :: airy_u_secondorder_onepoint, airy_u_secondorder_normalized
-    public :: airy_phi_secondorder_onepoint
-    public :: airy_second_ok, compute_airy_second_norm_fast
+    public :: airy_u, airy_u_normalized
+    public :: airy_ok
 
     contains
-
-    function airy_u_onepoint(l, K, nu, chi, ok, log_norm_in) result(u)
-    !First order Olver/Airy approximation only
-    integer, intent(in) :: l, K
-    real(dp), intent(in) :: nu, chi
-    logical, intent(out), optional :: ok
-    real(dp), intent(in), optional :: log_norm_in
-    real(dp) :: u
-
-    real(dp) :: achi, symm
-    logical :: lok
-
-    call normalize_chi_airy(l, K, nu, chi, achi, symm)
-    u = symm * airy_u_onepoint_normalized(l, K, nu, achi, lok, log_norm_in)
-    if (present(ok)) ok = lok
-    end function airy_u_onepoint
-
-
-    function airy_u_onepoint_normalized(l, K, nu, achi, ok, log_norm_in) result(u)
-    ! First-order approximation for already-normalized achi; no parity sign.
-    integer, intent(in) :: l, K
-    real(dp), intent(in) :: nu, achi
-    logical, intent(out), optional :: ok
-    real(dp), intent(in), optional :: log_norm_in
-    real(dp) :: u
-
-    real(dp) :: lambda, beta, turn_chi, zeta, q
-    real(dp) :: xairy, amp, ai, aip, b0, series, log_norm, lambda23
-    logical :: lok
-
-    u = 0.0_dp
-    if (present(ok)) ok = .false.
-
-    lok = airy_uniform_ok(l, K, nu, achi)
-    if (present(ok)) ok = lok
-    if (.not. lok) return
-
-    lambda = real(l, dp) + 0.5_dp
-    beta = nu / lambda
-    turn_chi = turning_point(lambda, nu, K)
-
-    call airy_zeta_q(K, beta, achi, turn_chi, zeta, q)
-    lambda23 = lambda**(2.0_dp/3.0_dp)
-    xairy = lambda23 * zeta
-
-    amp = airy_liouville_amp(K, beta, zeta, q)
-
-    call airy_fast(xairy, ai, aip)
-    b0 = airy_B0_turn(K, beta)
-    series = ai + b0 * aip / (lambda23 * lambda23)
-
-    if (present(log_norm_in)) then
-        log_norm = log_norm_in
-    else
-        call compute_airy_uniform_norm_fast(l, K, nu, log_norm)
-    end if
-
-    if (log_norm <= log(tiny(1.0_dp))) then
-        u = 0.0_dp
-    else if (log_norm >= log(huge(1.0_dp))) then
-        u = sign(huge(1.0_dp), amp * series)
-    else
-        u = exp(log_norm) * amp * series
-    end if
-    end function airy_u_onepoint_normalized
-
-
-    function airy_phi_onepoint(l, K, nu, chi, ok, log_norm_in) result(phi)
-    integer, intent(in) :: l, K
-    real(dp), intent(in) :: nu, chi
-    logical, intent(out), optional :: ok
-    real(dp), intent(in), optional :: log_norm_in
-    real(dp) :: phi
-
-    real(dp) :: u, achi, symm, s
-    logical :: lok
-
-    call normalize_chi_airy(l, K, nu, chi, achi, symm)
-    u = airy_u_onepoint_normalized(l, K, nu, achi, lok, log_norm_in)
-
-    if (present(ok)) ok = lok
-    if (.not. lok) then
-        phi = 0.0_dp
-        return
-    end if
-
-    s = curved_radius(K, achi)
-    if (abs(s) <= CACHE_EPS) then
-        phi = 0.0_dp
-    else
-        phi = symm * u / s
-    end if
-    end function airy_phi_onepoint
-
-
-    logical function airy_uniform_ok(l, K, nu, achi) result(ok)
-    integer, intent(in) :: l, K
-    real(dp), intent(in) :: nu, achi
-
-    real(dp) :: lambda, beta, turn_chi, zeta, q, xairy
-
-    ok = .false.
-
-    if (K == 0) return
-    if (l < AIRY_L_MIN) return
-    if (nu <= 0.0_dp) return
-    if (achi <= CACHE_EPS) return
-
-    lambda = real(l, dp) + 0.5_dp
-    beta = nu / lambda
-
-    select case (K)
-    case (-1)
-        if (lambda * beta * min(beta, 2.0_dp) < AIRY_OPEN_GATE) return
-    case (1)
-        if (lambda * (beta*beta - 1.0_dp) < AIRY_CLOSED_GATE) return
-    case default
-        return
-    end select
-
-    turn_chi = turning_point(lambda, nu, K)
-    call airy_zeta_q(K, beta, achi, turn_chi, zeta, q)
-    xairy = lambda**(2.0_dp/3.0_dp) * zeta
-
-    if (abs(xairy) > AIRY_X_MAX) return
-
-    ok = .true.
-    end function airy_uniform_ok
-
-
-    subroutine compute_airy_uniform_norm_fast(l, K, nu, log_norm)
-    integer, intent(in) :: l, K
-    real(dp), intent(in) :: nu
-    real(dp), intent(out) :: log_norm
-
-    real(dp) :: lambda, beta, q0, logu0, log_r, inv_lambda, inv_lambda2
-
-    log_norm = -huge(1.0_dp)
-
-    lambda = real(l, dp) + 0.5_dp
-    beta = nu / lambda
-
-    logu0 = log_origin_u0_fast(l, K, nu)
-    if (logu0 <= -0.5_dp * huge(1.0_dp)) return
-
-    q0 = airy_q0(K, beta)
-
-    inv_lambda = 1.0_dp / lambda
-    inv_lambda2 = inv_lambda * inv_lambda
-
-    log_r = inv_lambda * ( 1.0_dp / 12.0_dp &
-        + inv_lambda2 * ( -1.0_dp / 360.0_dp &
-        + inv_lambda2 * (  1.0_dp / 1260.0_dp ) ) )
-
-    log_norm = log(2.0_dp * sqrt(PI)) &
-        + log(lambda) / 6.0_dp &
-        + logu0 &
-        + lambda * q0 &
-        + log_r
-    end subroutine compute_airy_uniform_norm_fast
-
 
     real(dp) function log_origin_u0_fast(l, K, nu) result(logu0)
     integer, intent(in) :: l, K
@@ -526,7 +353,7 @@
     end function airy_turn_a
 
 
-    function airy_u_secondorder_onepoint(l, K, nu, chi, ok, log_norm_in) result(u)
+    function airy_u(l, K, nu, chi, ok, log_norm_in) result(u)
     ! Fast second-order Airy/Olver one-point approximation to reduced u=S_K phi.
     ! It builds only the local psi data needed for
     ! the requested point, sampling directly in chi between the turn and chi.
@@ -539,13 +366,13 @@
     real(dp) :: achi, symm
     logical :: lok
 
-    call normalize_chi_airy(l, K, nu, chi, achi, symm)
-    u = symm * airy_u_secondorder_normalized(l, K, nu, achi, lok, log_norm_in)
+    call normalize_chi(l, K, nu, chi, achi, symm)
+    u = symm * airy_u_normalized(l, K, nu, achi, lok, log_norm_in)
     if (present(ok)) ok = lok
-    end function airy_u_secondorder_onepoint
+    end function airy_u
 
 
-    function airy_u_secondorder_normalized(l, K, nu, achi, ok, log_norm_in) result(u)
+    function airy_u_normalized(l, K, nu, achi, ok, log_norm_in) result(u)
     ! Second-order approximation for already-normalized achi; no parity sign.
     integer, intent(in) :: l, K
     real(dp), intent(in) :: nu, achi
@@ -596,7 +423,7 @@
     else
         u = exp(log_norm) * amp * series
     end if
-    end function airy_u_secondorder_normalized
+    end function airy_u_normalized
 
 
     subroutine second_coeffs_onepoint_fast(K, beta, turn_chi, chi, zeta, b0, a1)
@@ -757,36 +584,7 @@
     end subroutine eval_second_scaled_poly
 
 
-    function airy_phi_secondorder_onepoint(l, K, nu, chi, ok, log_norm_in) result(phi)
-    ! Full second-order Airy/Olver one-point approximation to phi.
-    integer, intent(in) :: l, K
-    real(dp), intent(in) :: nu, chi
-    logical, intent(out), optional :: ok
-    real(dp), intent(in), optional :: log_norm_in
-    real(dp) :: phi
-
-    real(dp) :: u, achi, symm, s
-    logical :: lok
-
-    call normalize_chi_airy(l, K, nu, chi, achi, symm)
-    u = airy_u_secondorder_normalized(l, K, nu, achi, lok, log_norm_in)
-
-    if (present(ok)) ok = lok
-    if (.not. lok) then
-        phi = 0.0_dp
-        return
-    end if
-
-    s = curved_radius(K, achi)
-    if (abs(s) <= CACHE_EPS) then
-        phi = 0.0_dp
-    else
-        phi = symm * u / s
-    end if
-    end function airy_phi_secondorder_onepoint
-
-
-    logical function airy_second_ok(l, K, nu, achi) result(ok)
+    logical function airy_ok(l, K, nu, achi) result(ok)
     integer, intent(in) :: l, K
     real(dp), intent(in) :: nu, achi
 
@@ -795,7 +593,7 @@
     if (achi <= CACHE_EPS) return
 
     ok = .true.
-    end function airy_second_ok
+    end function airy_ok
 
 
     logical function airy_second_base_ok(l, K, nu) result(ok)
@@ -1040,4 +838,4 @@
     end function log1p_stable
 
 
-    end module AiryUniformOnePoint
+    end module HypersphericalBesselAiry

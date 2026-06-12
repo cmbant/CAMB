@@ -1,4 +1,4 @@
-    module OlverHypersphericalBessel
+    module HypersphericalBesselOlver
     ! Approximate calculation of ultraspherical Bessel functions for non-flat universe
     ! Uses the Olver approximation to relate to normal spherical bessels,
     ! with fallback where not reliable to next order Olver/Airy approx or recursion.
@@ -8,8 +8,8 @@
     use FlatBessels, only: bjl
     use SpherBessels, only: phi_recurs
     use HypersphericalBesselUtils, only: normalize_chi, turning_point, curved_radius, qintegral_exact
-    use AiryUniformOnePoint, only: airy_u_secondorder_normalized, airy_second_ok
-    use open_smallnu_action_bessel, only: open_smallnu_u_normalized
+    use HypersphericalBesselAiry, only: airy_u_normalized, airy_ok
+    use HypersphericalBesselSmallNu, only: open_smallnu_u
     implicit none
     private
 
@@ -159,7 +159,7 @@
     logical :: ok
 
     if (use_airy_fallback(l, K, nu, achi)) then
-        u = airy_u_secondorder_normalized(l, K, nu, achi, ok)
+        u = airy_u_normalized(l, K, nu, achi, ok)
         if (ok) then
             u = symm * u
             return
@@ -167,7 +167,7 @@
     end if
 
     if (K == -1) then
-        u = open_smallnu_u_normalized(l, nu, achi, ok)
+        u = open_smallnu_u(l, nu, achi, ok)
         if (ok) then
             u = symm * u
             return
@@ -183,7 +183,7 @@
     real(dl), intent(in) :: nu, achi
 
     use_airy = .false.
-    if (.not. airy_second_ok(l, K, nu, achi)) return
+    if (.not. airy_ok(l, K, nu, achi)) return
 
     select case (K)
     case (-1)
@@ -498,4 +498,4 @@
     end function invert_flat_action
 
 
-    end module OlverHypersphericalBessel
+    end module HypersphericalBesselOlver

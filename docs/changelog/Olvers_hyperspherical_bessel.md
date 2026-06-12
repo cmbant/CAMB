@@ -71,7 +71,7 @@ $(dS_K/d\chi|_{\chi_t})^{-1/6}$.
 
 ## Fast Implementation Details
 
-The production implementation is in `fortran/olver_hyperspherical_bessel.f90`.
+The production implementation is in `fortran/hyperspherical_bessel_olver.f90`.
 
 - `qintegral_exact` evaluates the curved action analytically for open and
   closed models. The inverse trigonometric branches use `atan2` forms to avoid

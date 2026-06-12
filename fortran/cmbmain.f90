@@ -55,7 +55,7 @@
     use precision
     use results
     use GaugeInterface
-    use OlverHypersphericalBessel, only: u_olver
+    use HypersphericalBesselOlver, only: u_olver
     use SpherBessels
     use MassiveNu
     use InitialPower
