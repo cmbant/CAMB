@@ -82,16 +82,18 @@
     real(dl), intent(in) :: dgrhoe, dgqe, grho, gpres, w, grhok, adotoa, &
         k, grhov_t, z, k2, yprime(:), y(:), Kf1
     integer, intent(in) :: w_ix
-    real(dl) :: ppiedot, hdotoh
+    real(dl) :: ppiedot, hdotoh, adotoa_rec, k_rec
 
     if (this%is_cosmological_constant .or. this%no_perturbations) then
         ppiedot = 0
     else
-        hdotoh = (-3._dl * grho - 3._dl * gpres - 2._dl * grhok) / 6._dl / adotoa
+        adotoa_rec = 1._dl / adotoa
+        k_rec = 1._dl / k
+        hdotoh = (-3._dl * grho - 3._dl * gpres - 2._dl * grhok) / 6._dl * adotoa_rec
         ppiedot = 3._dl * dgrhoe + dgqe * &
-            (12._dl / k * adotoa + k / adotoa - 3._dl / k * (adotoa + hdotoh)) + &
-            grhov_t * (1 + w) * k * z / adotoa - 2._dl * k2 * Kf1 * &
-            (yprime(w_ix) / adotoa - 2._dl * y(w_ix))
+            (12._dl * k_rec * adotoa + k * adotoa_rec - 3._dl * k_rec * (adotoa + hdotoh)) + &
+            grhov_t * (1 + w) * k * z * adotoa_rec - 2._dl * k2 * Kf1 * &
+            (yprime(w_ix) * adotoa_rec - 2._dl * y(w_ix))
         ppiedot = ppiedot * adotoa / Kf1
     end if
 
@@ -107,7 +109,7 @@
     real(dl), intent(inout) :: ayprime(*)
     integer, intent(in) :: w_ix
     real(dl) :: Gamma, S_Gamma, ckH, ckH2, Gamma_quasi_static, Gammadot, Fa, sigma
-    real(dl) :: vT, grhoT, k2
+    real(dl) :: vT, grhoT, k2, adotoa_rec
     real(dl), parameter :: quasi_static_ckH2 = 30._dl
 
     if (this%no_perturbations) then
@@ -117,18 +119,18 @@
     end if
 
     k2=k**2
+    adotoa_rec = 1._dl / adotoa
     !ppf
     grhoT = grho - grhov_t
     vT = dgq / (grhoT + gpres_noDE)
     Gamma = ay(w_ix)
 
     !sigma for ppf
-    sigma = (etak + (dgrho + 3 * adotoa / k * dgq) / 2._dl / k) / kf1 - &
-        k * Gamma
-    sigma = sigma / adotoa
+    sigma = ((etak + (dgrho + 3 * adotoa / k * dgq) / (2._dl * k)) / kf1 - &
+        k * Gamma) * adotoa_rec
 
-    S_Gamma = grhov_t * (1 + w) * (vT + sigma) * k / adotoa / 2._dl / k2
-    ckH = this%c_Gamma_ppf * k / adotoa
+    S_Gamma = grhov_t * (1 + w) * (vT + sigma) * adotoa_rec / (2._dl * k)
+    ckH = this%c_Gamma_ppf * k * adotoa_rec
     ckH2 = ckH * ckH
 
     if (ckH2 > quasi_static_ckH2) then
@@ -145,10 +147,10 @@
     endif
     ayprime(w_ix) = Gammadot !Set this here, and don't use PerturbationEvolve
 
-    Fa = 1 + 3 * (grhoT + gpres_noDE) / 2._dl / k2 / kf1
-    dgqe = S_Gamma - Gammadot / adotoa - Gamma
+    Fa = 1 + 3 * (grhoT + gpres_noDE) / (2._dl * k2 * kf1)
+    dgqe = S_Gamma - Gammadot * adotoa_rec - Gamma
     dgqe = -dgqe / Fa * 2._dl * k * adotoa + vT * grhov_t * (1 + w)
-    dgrhoe = -2 * k2 * kf1 * Gamma - 3 / k * adotoa * dgqe
+    dgrhoe = -2 * k2 * kf1 * Gamma - 3 * adotoa / k * dgqe
 
     end subroutine TDarkEnergyPPF_PerturbedStressEnergy
 

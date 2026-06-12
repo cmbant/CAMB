@@ -120,12 +120,13 @@
     real(dl), intent(inout) :: ayprime(:)
     real(dl), intent(in) :: a, adotoa, w, k, z, y(:)
     integer, intent(in) :: w_ix
-    real(dl) Hv3_over_k, loga
+    real(dl) Hv3_over_k, loga, one_plus_w
 
+    one_plus_w = 1 + w
     Hv3_over_k =  3*adotoa* y(w_ix + 1) / k
     !density perturbation
-    ayprime(w_ix) = -3 * adotoa * (this%cs2_lam - w) *  (y(w_ix) + (1 + w) * Hv3_over_k) &
-        -  (1 + w) * k * y(w_ix + 1) - (1 + w) * k * z
+    ayprime(w_ix) = -3 * adotoa * (this%cs2_lam - w) *  (y(w_ix) + one_plus_w * Hv3_over_k) &
+        -  one_plus_w * k * (y(w_ix + 1) + z)
     if (this%use_tabulated_w) then
         !account for derivatives of w
         loga = log(a)
@@ -136,9 +137,9 @@
         ayprime(w_ix) = ayprime(w_ix) + Hv3_over_k*this%wa*adotoa*a
     end if
     !velocity
-    if (abs(w+1) > 1e-6) then
+    if (abs(one_plus_w) > 1e-6) then
         ayprime(w_ix + 1) = -adotoa * (1 - 3 * this%cs2_lam) * y(w_ix + 1) + &
-            k * this%cs2_lam * y(w_ix) / (1 + w)
+            k * this%cs2_lam * y(w_ix) / one_plus_w
     else
         ayprime(w_ix + 1) = 0
     end if
@@ -222,26 +223,26 @@
     class(TAxionEffectiveFluid) :: this
     real(dl) :: TAxionEffectiveFluid_w_de
     real(dl), intent(IN) :: a
-    real(dl) :: rho, apow, acpow
+    real(dl) :: om_t, apow, apc
 
     apow = a**this%pow
-    acpow = this%acpow
-    rho = this%omL+ this%om*(1+acpow)/(apow+acpow)
-    TAxionEffectiveFluid_w_de = this%om*(1+acpow)/(apow+acpow)**2*(1+this%w_n)*apow/rho - 1
+    apc = apow + this%acpow
+    om_t = this%om*(1+this%acpow)/apc !early DE contribution to relative density
+    TAxionEffectiveFluid_w_de = om_t*(1+this%w_n)*apow/(apc*(this%omL+om_t)) - 1
 
     end function TAxionEffectiveFluid_w_de
 
     function TAxionEffectiveFluid_grho_de(this, a)  !relative density (8 pi G a^4 rho_de /grhov)
     class(TAxionEffectiveFluid) :: this
-    real(dl) :: TAxionEffectiveFluid_grho_de, apow
+    real(dl) :: TAxionEffectiveFluid_grho_de, apc
     real(dl), intent(IN) :: a
 
     if(a == 0.d0)then
         TAxionEffectiveFluid_grho_de = 0.d0
     else
-        apow = a**this%pow
-        TAxionEffectiveFluid_grho_de = (this%omL*(apow+this%acpow)+this%om*(1+this%acpow))*a**4 &
-            /((apow+this%acpow)*(this%omL+this%om))
+        apc = a**this%pow + this%acpow
+        TAxionEffectiveFluid_grho_de = (this%omL*apc+this%om*(1+this%acpow))*a**4 &
+            /(apc*(this%omL+this%om))
     endif
 
     end function TAxionEffectiveFluid_grho_de
@@ -252,20 +253,23 @@
     real(dl), intent(inout) :: ayprime(:)
     real(dl), intent(in) :: a, adotoa, w, k, z, y(:)
     integer, intent(in) :: w_ix
-    real(dl) Hv3_over_k, deriv, apow, acpow, cs2, fac
+    real(dl) Hv3_over_k, deriv, apow, acpow, apc, cs2, fac, k2
 
+    k2 = k**2
+    apow = a**this%pow
+    acpow = this%acpow
     if (this%w_n < 0.9999) then
-        fac = 2*a**(2-6*this%w_n)*this%freq**2
-        cs2 = (fac*(this%n-1) + k**2)/(fac*(this%n+1) + k**2)
+        !a**(2-6*this%w_n) = a**8/apow**2 since pow = 3*(1+w_n)
+        fac = 2*this%freq**2*a**8/apow**2
+        cs2 = (fac*(this%n-1) + k2)/(fac*(this%n+1) + k2)
     else
         cs2 = 1
     end if
-    apow = a**this%pow
-    acpow = this%acpow
+    apc = apow + acpow
     Hv3_over_k =  3*adotoa* y(w_ix + 1) / k
     ! dw/dlog a/(1+w)
     deriv  = (acpow**2*(this%om+this%omL)+this%om*acpow-apow**2*this%omL)*this%pow &
-        /((apow+acpow)*(this%omL*(apow+acpow)+this%om*(1+acpow)))
+        /(apc*(this%omL*apc+this%om*(1+acpow)))
     !density perturbation
     ayprime(w_ix) = -3 * adotoa * (cs2 - w) *  (y(w_ix) + Hv3_over_k) &
         -   k * y(w_ix + 1) - (1 + w) * k * z  - adotoa*deriv* Hv3_over_k

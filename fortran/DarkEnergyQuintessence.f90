@@ -67,6 +67,8 @@
         integer :: npoints = 5000 !baseline number of log a steps; will be increased if needed when there are oscillations
         integer :: min_steps_per_osc = 10
         real(dl), dimension(:), allocatable :: fde, ddfde
+        integer, private :: int_n = 0
+        logical, private :: n_is_int = .false.
     contains
     procedure :: Vofphi => TEarlyQuintessence_VofPhi
     procedure :: Init => TEarlyQuintessence_Init
@@ -136,18 +138,18 @@
     real(dl), intent(in) :: grhov, a
     real(dl), intent(out) :: grhov_t
     real(dl), optional, intent(out) :: w
-    real(dl) V, a2, grhov_lambda, phi, phidot
+    real(dl) a2V, kin, phi, phidot
 
     if (this%is_cosmological_constant) then
         grhov_t = grhov * a * a
         if (present(w)) w = -1_dl
     elseif (a >= this%astart) then
-        a2 = a**2
         call this%ValsAta(a,phi,phidot)
-        V = this%Vofphi(phi,0)
-        grhov_t = phidot**2/2 + a2*V
+        a2V = a**2*this%Vofphi(phi,0)
+        kin = phidot**2/2
+        grhov_t = kin + a2V
         if (present(w)) then
-            w = (phidot**2/2 - a2*V)/grhov_t
+            w = (kin - a2V)/grhov_t
         end if
     else
         grhov_t=0
@@ -280,19 +282,32 @@
     class(TEarlyQuintessence) :: this
     real(dl) phi, V
     integer deriv
-    real(dl) theta, costheta
+    real(dl) theta, costheta, x, xpow
     real(dl), parameter :: units = MPC_in_sec**2 /Tpl**2  !convert to units of 1/Mpc^2
 
     ! Assume f = sqrt(kappa)*f_theory = f_theory/M_pl
     ! m = m_theory/M_Pl
     theta = phi/this%f
+    costheta = cos(theta)
+    x = 1 - costheta
     if (deriv==0) then
-        V = units*this%m**2*this%f**2*(1 - cos(theta))**this%n + this%frac_lambda0*this%State%grhov
-    else if (deriv ==1) then
-        V = units*this%m**2*this%f*this%n*(1 - cos(theta))**(this%n-1)*sin(theta)
-    else if (deriv ==2) then
-        costheta = cos(theta)
-        V = units*this%m**2*this%n*(1 - costheta)**(this%n-1)*(this%n*(1+costheta) -1)
+        if (this%n_is_int) then
+            xpow = x**this%int_n
+        else
+            xpow = x**this%n
+        end if
+        V = units*this%m**2*this%f**2*xpow + this%frac_lambda0*this%State%grhov
+    else
+        if (this%n_is_int) then
+            xpow = x**(this%int_n-1)
+        else
+            xpow = x**(this%n-1)
+        end if
+        if (deriv ==1) then
+            V = units*this%m**2*this%f*this%n*xpow*sin(theta)
+        else !deriv==2
+            V = units*this%m**2*this%n*xpow*(this%n*(1+costheta) -1)
+        end if
     end if
 
     end function TEarlyQuintessence_VofPhi
@@ -324,6 +339,9 @@
     !so grho_no_de can be used to get density and pressure of other components at scale factor a
 
     call this%TQuintessence%Init(State)
+
+    this%int_n = nint(this%n)
+    this%n_is_int = abs(this%n - this%int_n) < 1.e-12_dl
 
     if (this%use_zc) then
         !Find underlying parameters m,f to give specified zc and fde_zc (peak early dark energy fraction)
@@ -503,7 +521,6 @@
     this%sampled_a(1:ix) = sampled_a(1:ix)
     this%phi_a(1:ix) = phi_a(1:ix)
     this%phidot_a(1:ix) = phidot_a(1:ix)
-    this%sampled_a(1:ix) = sampled_a(1:ix)
     this%fde(1:ix) = fde(1:ix)
 
     ind=1
@@ -572,24 +589,24 @@
     real(dl), intent(out) :: peak
     real(dl) Delta
     real(dl), intent(in) :: xlo, xhi, ddFlo, ddFhi,Flo, Fhi
-    real(dl) a, b, c, fac
+    real(dl) qa, qb, qc, fac
 
     !See if derivative has zero in spline interval xlo .. xhi
 
     Delta = xhi - xlo
 
-    a = 0.5_dl*(ddFhi-ddFlo)/Delta
-    b = (xhi*ddFlo-xlo*ddFhi)/Delta
-    c = (Fhi-Flo)/Delta+ Delta/6._dl*((1-3*xhi**2/Delta**2)*ddFlo+(3*xlo**2/Delta**2-1)*ddFhi)
-    fac = b**2-4*a*c
+    qa = 0.5_dl*(ddFhi-ddFlo)/Delta
+    qb = (xhi*ddFlo-xlo*ddFhi)/Delta
+    qc = (Fhi-Flo)/Delta+ Delta/6._dl*((1-3*xhi**2/Delta**2)*ddFlo+(3*xlo**2/Delta**2-1)*ddFhi)
+    fac = qb**2-4*qa*qc
     if (fac>=0) then
         fac = sqrt(fac)
-        peak = (-b + fac)/2/a
+        peak = (-qb + fac)/2/qa
         if (peak >= xlo .and. peak <= xhi) then
             fde_peak = .true.
             return
         else
-            peak = (-b - fac)/2/a
+            peak = (-qb - fac)/2/qa
             if (peak >= xlo .and. peak <= xhi) then
                 fde_peak = .true.
                 return
