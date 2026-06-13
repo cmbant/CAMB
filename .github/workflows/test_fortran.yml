@@ -4,6 +4,8 @@ on:
   push:
     branches-ignore:
       - "test**"
+    tags:
+      - "fortran-test-artifacts*"
   pull_request:
 
 jobs:
@@ -29,13 +31,34 @@ jobs:
           gfortran --version
           python -m pip install -e .
 
+      - name: Check failure artifact request
+        id: failure_artifacts
+        env:
+          COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          upload=false
+          if [[ "${GITHUB_REF}" == refs/tags/fortran-test-artifacts* ]]; then
+            upload=true
+          fi
+          if git log -1 --pretty=%B "${COMMIT_SHA}" | grep -qi '\[fortran-test-artifacts\]'; then
+            upload=true
+          fi
+          echo "upload=${upload}" >> "${GITHUB_OUTPUT}"
+
       - name: Run Build and Test Script
         run: python fortran/tests/run_tests.py --verbose_diff_output
 
       - name: Upload Test Files on Failure
-        if: failure()
+        if: failure() && steps.failure_artifacts.outputs.upload == 'true'
         uses: actions/upload-artifact@v7
         with:
           name: test-output-${{ github.sha }}
           path: fortran/testfiles/
           if-no-files-found: warn
+          retention-days: 7
+
+      - name: Skip Failure Artifact Upload
+        if: failure() && steps.failure_artifacts.outputs.upload != 'true'
+        run: |
+          echo "Skipping fortran/testfiles upload."
+          echo "Add [fortran-test-artifacts] to the commit message or push a fortran-test-artifacts* tag to request it."

@@ -71,6 +71,7 @@ jobs:
           name: wheels-${{ matrix.os }}
           path: |
             wheelhouse/*.whl
+          retention-days: 7
 
   build-sdist-and-upload:
     runs-on: ubuntu-latest
