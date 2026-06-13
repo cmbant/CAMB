@@ -2606,171 +2606,200 @@
 
 
 
-    subroutine DoRangeInt(IV,chi,chiDisp,nstart,nend,dtau,nu,j,l,y1,out)
-    !Non-flat version
-
-    !returns chi at end of integral (where integral stops, not neccessarily end)
-    ! Integrates source*phi for steps nstart to nend.
-    ! phi is obtained from Numerov stepping of the hyperspherical Bessel ODE,
-    ! bootstrapped by two Olver evaluations (at chi and chi+delchi), or by direct
-    ! Olver evaluation per time step when many Numerov substeps would be needed.
-    ! dtau is the spacing of the timesteps (they must be equally spaced).
+    subroutine DoRangeInt(IV, chi, chiDisp, nstart, nend, dtau, nu, j, l, y1, out)
+    ! Non-flat version.
+    !
+    ! Returns chi at the end of the integral, where the integral stops, not
+    ! necessarily at nend.
+    !
+    ! Integrates source*phi from nstart to nend. phi is obtained from Numerov
+    ! stepping of the hyperspherical Bessel ODE, bootstrapped by Olver
+    ! evaluations, or by direct Olver evaluation when too many Numerov substeps
+    ! would be needed. dtau is the spacing of the equally spaced time steps.
 
     use precision
-    type(IntegrationVars) IV
-    integer j,l,nIntSteps,nstart,nend,isgn,i,Startn,step_ix,nSubSteps,src_ix,last_ix,K
-    integer numerov_step_count, rebootstrap_interval
-    real(dl) nu,dtau,num1,num2,Deltachi,delchi
-    real(dl) nu2,chi,chiDisp,chi_end,chi_max_range
+    implicit none
 
-    real(dl) q_now,y1,ap1,sh,phi,chiDispTop
-    real(dl) dchimax,dchisource,sgn,sgndelchi,minphi
-    real(dl) y_prev, y_next, y2_est, q_prev, q_next, chi_prev_reset
-    real(dl), parameter:: MINPHI1 = 0.5d-4  !cut-off point for small phi l=1
+    type(IntegrationVars), intent(in) :: IV
+
+    integer, intent(in) :: nstart, nend, j, l
+    real(dl), intent(in) :: chiDisp, dtau, nu
+    real(dl), intent(inout) :: chi, y1
+    real(dl), intent(out) :: out(ThisSources%SourceNum)
+
+    integer :: i, isgn, step_ix, src_ix
+    integer :: start_n, nIntSteps, nSubSteps, last_ix
+    integer :: numerov_step_count, rebootstrap_interval
+    integer :: K
+
+    real(dl) :: IntAccuracyBoost, near_flat_boost, numerov_step_boost
+    real(dl) :: num1, num2, scalel
+    real(dl) :: dchisource, dchimax, delchi, sgndelchi, sgn
+    real(dl) :: nu2, ap1, minphi
+    real(dl) :: chi_end, chi_max_range, chiDispTop
+
+    real(dl) :: sh, ch, sh_new, ch_new
+    real(dl) :: step_c, step_s, step_s_for_ch
+    real(dl) :: h2_12
+    real(dl) :: phi
+    real(dl) :: q_now, q_prev, q_next
+    real(dl) :: y_prev, y_next, y2_est
+
+    real(dl) :: alpha_rebootstrap
+
+    real(dl), parameter :: MINPHI1 = 0.5e-4_dl
     integer, parameter :: numerov_rebootstrap_steps = 200
     integer, parameter :: numerov_low_l_rebootstrap_steps = 25
     integer, parameter :: numerov_very_low_l_rebootstrap_steps = 25
-    real(dl) scalel, alpha_rebootstrap, numerov_step_boost
-    real(dl) IntAccuracyBoost, near_flat_boost
-    real(dl) out(ThisSources%SourceNum), phi_vals(abs(nstart - nend) + 1)
-    real(dl) h2_12, ch, step_c, step_s, step_s_for_ch, sh_new, ch_new
-    logical need_y2, use_near_flat_gate, use_shifted_q_near_flat
 
-    IntAccuracyBoost=CP%Accuracy%AccuracyBoost*CP%Accuracy%NonFlatIntAccuracyBoost
+    real(dl) :: phi_vals(abs(nstart - nend) + 1)
+
+    logical :: need_y2
+    logical :: use_near_flat_gate, use_shifted_q_near_flat
+    logical :: do_rebootstrap
+
+    out = 0._dl
+    last_ix = 0
+
+    IntAccuracyBoost = CP%Accuracy%AccuracyBoost * CP%Accuracy%NonFlatIntAccuracyBoost
     near_flat_boost = max(IntAccuracyBoost, 1._dl)
 
-    ! atau0 is the array with the time where the sources are stored.
-    if (nend==nstart) then
-        out = 0
+    if (nend == nstart) return
+
+    if (nstart > IV%SourceSteps .and. nend > IV%SourceSteps) then
+        y1 = 0._dl
+        chi = (State%tau0 - State%TimeSteps%points(nend)) / State%curvature_radius
         return
     end if
 
-    if (nstart>IV%SourceSteps.and.nend>IV%SourceSteps) then
-        out = 0
-        y1=0._dl !So we know to calculate starting y1 if there is next range
-        chi=(State%tau0-State%TimeSteps%points(nend))/State%curvature_radius
-        return
-    end if
+    dchisource = dtau / State%curvature_radius
 
-    dchisource=dtau/State%curvature_radius
-
-    num1=1._dl/nu
-
-    scalel=l/State%scale
+    num1 = 1._dl / nu
+    scalel = real(l, dl) / State%scale
     K = merge(1, -1, State%closed)
-    if (scalel>=2400) then
-        num2=num1*2.5_dl
-    else if (scalel<50) then
-        num2=num1*0.8_dl
+
+    if (scalel >= 2400._dl) then
+        num2 = 2.5_dl * num1
+    else if (scalel < 50._dl) then
+        num2 = 0.8_dl * num1
     else
-        num2=num1*1.5_dl
+        num2 = 1.5_dl * num1
+
         if (AccuracyTarget > 0) then
-            num2=num2*1.2_dl
-            if (scalel >= 700._dl .and. scalel < 1200._dl) num2=num2*1.3_dl
+            num2 = 1.2_dl * num2
+            if (scalel >= 700._dl .and. scalel < 1200._dl) num2 = 1.3_dl * num2
         end if
     end if
-    if (num2*IntAccuracyBoost < dchisource .and. &
+
+    if (num2 * IntAccuracyBoost < dchisource .and. &
         (.not. WantLateTime .or. UseLimber(l))) then
-        out = 0
-        y1=0._dl !So we know to calculate starting y1 if there is next range
-        chi=(State%tau0-State%TimeSteps%points(nend))/State%curvature_radius
+        y1 = 0._dl
+        chi = (State%tau0 - State%TimeSteps%points(nend)) / State%curvature_radius
         return
     end if
 
     ! Mid-L modes need both enough source ranges retained and enough Numerov substeps.
     numerov_step_boost = 1._dl
+
     if (scalel < 700._dl) then
         numerov_step_boost = 1.25_dl
+
     else if (State%closed) then
         if (scalel < 1100._dl) then
             ! Closed models already converge with the shorter mid-L taper.
             numerov_step_boost = 1.25_dl - 0.25_dl * (scalel - 700._dl) / 400._dl
         end if
+
     else if (scalel < 1200._dl) then
-        ! Open models need the denser mid-L non-flat source integration to extend a bit
-        ! farther through the TT-sensitive l~800-1000 band.
+        ! Open models need denser mid-L non-flat source integration extending
+        ! through the TT-sensitive l~800-1000 band.
         numerov_step_boost = 1.25_dl - 0.25_dl * (scalel - 700._dl) / 500._dl
     end if
 
-
-    Startn=nstart
-    if (nstart>IV%SourceSteps .and. nend < IV%SourceSteps) then
-        chi=(State%tau0-State%TimeSteps%points(IV%SourceSteps))/State%curvature_radius
-        Startn=IV%SourceSteps
+    start_n = nstart
+    if (nstart > IV%SourceSteps .and. nend < IV%SourceSteps) then
+        chi = (State%tau0 - State%TimeSteps%points(IV%SourceSteps)) / State%curvature_radius
+        start_n = IV%SourceSteps
     end if
 
-    if (State%closed) then
-        !Need to cut off when phi gets exponentially small as it approaches Pi
-        chiDispTop = const_pi - chiDisp
-    else
-        chiDispTop = 1d20
-    end if
+    chiDispTop = 1.0e20_dl
+    if (State%closed) chiDispTop = const_pi - chiDisp
 
-    minphi=MINPHI1/l/IntAccuracyBoost
-    isgn=sign(1,Startn-nend)!direction of chi integration
-    !higher n, later time, smaller chi
+    isgn = sign(1, start_n - nend)   ! Direction of chi integration.
+    sgn = real(isgn, dl)
 
-    sgn= isgn
-    need_y2 = isgn < 0 .or. State%closed  !y2_est is only consulted by the dissipative-region cut-off
-
-    nu2=nu*nu
-    ap1=l*(l+1)
-
-    if (scalel < 1100) then
-        dchimax= 0.3*num1
-    else if (scalel < 1400) then
-        dchimax=0.25_dl*num1 *1.5
-    else
-        dchimax=0.35_dl*num1 *1.5
-    end if
-
-    dchimax=dchimax/(IntAccuracyBoost * numerov_step_boost)
-
-    nIntSteps=isgn*(Startn-nend)
+    nIntSteps = isgn * (start_n - nend)
     if (nIntSteps <= 0) return
+
+    minphi = MINPHI1 / real(l, dl) / IntAccuracyBoost
+    need_y2 = isgn < 0 .or. State%closed
+
+    nu2 = nu * nu
+    ap1 = real(l, dl) * real(l + 1, dl)
+
+    if (scalel < 1100._dl) then
+        dchimax = 0.3_dl * num1
+    else if (scalel < 1400._dl) then
+        dchimax = 0.25_dl * num1 * 1.5_dl
+    else
+        dchimax = 0.35_dl * num1 * 1.5_dl
+    end if
+
+    dchimax = dchimax / (IntAccuracyBoost * numerov_step_boost)
+
     chi_end = chi + real(nIntSteps, dl) * dchisource * sgn
     chi_max_range = max(abs(chi), abs(chi_end))
+
     use_shifted_q_near_flat = .false.
     use_near_flat_gate = UseNearFlatSmallChiApprox(l, nu, chi_max_range, near_flat_boost)
+
     if (use_near_flat_gate) then
-        ! In the local chi << 1 regime, fill the source-grid values directly from the
-        ! shifted-q near-flat approximation instead of stepping the full hyperspherical ODE.
+        ! In the local chi << 1 regime, fill source-grid values directly from
+        ! the near-flat approximation instead of stepping the full ODE.
         use_shifted_q_near_flat = enable_shifted_q_scalar_approx .and. &
             UseShiftedQNearFlatIntegration(l, nu, chi_max_range, near_flat_boost)
-        use_near_flat_gate = use_shifted_q_near_flat .or. enable_near_flat_smallchi_integration
+
+        use_near_flat_gate = use_shifted_q_near_flat .or. &
+            enable_near_flat_smallchi_integration
     end if
 
     if (use_near_flat_gate) then
-        out = 0
         if (use_shifted_q_near_flat) then
-            call FillShiftedQPhiVals(j, l, nu, chi, dchisource, sgn, nIntSteps, phi_vals(1:nIntSteps + 1), y1, chi)
+            call FillShiftedQPhiVals(j, l, nu, chi, dchisource, sgn, nIntSteps, &
+                phi_vals(1:nIntSteps + 1), y1, chi)
         else
-            call FillSmallChiPhiVals(j, l, nu, chi, dchisource, sgn, nIntSteps, phi_vals(1:nIntSteps + 1), y1, chi)
+            call FillSmallChiPhiVals(j, l, nu, chi, dchisource, sgn, nIntSteps, &
+                phi_vals(1:nIntSteps + 1), y1, chi)
         end if
+
         last_ix = nIntSteps + 1
+
     else
         if (State%closed) then
-            sh = sin(chi); ch = cos(chi)
+            sh = sin(chi)
+            ch = cos(chi)
         else
-            sh = sinh(chi); ch = cosh(chi)
+            sh = sinh(chi)
+            ch = cosh(chi)
         end if
+
         if (y1 == 0._dl) y1 = u_olver(l, K, nu, chi)
-        phi=y1/sh
-        out = 0
+
+        phi = y1 / sh
         phi_vals(1) = phi
 
-        nSubSteps = max(1, int(dchisource/dchimax + 0.99_dl))
+        nSubSteps = max(1, ceiling(dchisource / dchimax))
 
         if (nSubSteps >= direct_olver_min_substeps) then
             call FillDirectOlverPhiVals(l, K, nu, dchisource, sgn, isgn, nIntSteps, &
                 chiDispTop, minphi, chi, y1, phi_vals, last_ix)
-        else
-            delchi = dchisource/nSubSteps
 
-            sgndelchi=delchi*sgn
-            h2_12 = sgndelchi*sgndelchi / 12._dl
-            ! Angle-addition step factors: advance sh,ch by sgndelchi per substep
-            ! without calling sin/sinh in the hot loop.
+        else
+            delchi = dchisource / real(nSubSteps, dl)
+            sgndelchi = sgn * delchi
+            h2_12 = sgndelchi * sgndelchi / 12._dl
+
+            ! Step sh,ch by angle addition to avoid sin/sinh calls in the hot loop.
             if (State%closed) then
                 step_c = cos(sgndelchi)
                 step_s = sin(sgndelchi)
@@ -2780,78 +2809,91 @@
                 step_s = sinh(sgndelchi)
                 step_s_for_ch = step_s
             end if
-            q_now=(ap1/sh**2 - nu2)
+
+            q_now = ap1 / sh**2 - nu2
+
             rebootstrap_interval = numerov_rebootstrap_steps
+
             ! Low-L EE is sensitive to small Numerov phase drift when nu/l is
-            ! moderately large: there are too few source-weighted oscillations for
-            ! the integration to average it down, so re-sync more often in this band.
-            alpha_rebootstrap = nu / max(1._dl, dble(l))
-            if (scalel < 25._dl .or. (nu < 1000._dl .and. alpha_rebootstrap > 2._dl)) then
+            ! moderately large. There are too few source-weighted oscillations
+            ! for the integration to average it down, so re-sync more often.
+            alpha_rebootstrap = nu / max(1._dl, real(l, dl))
+
+            if (scalel < 25._dl .or. &
+                (nu < 1000._dl .and. alpha_rebootstrap > 2._dl)) then
+
                 rebootstrap_interval = numerov_low_l_rebootstrap_steps
-                if (AccuracyTarget > 0 .and. scalel < 25._dl) &
+
+                if (AccuracyTarget > 0 .and. scalel < 25._dl) then
                     rebootstrap_interval = numerov_very_low_l_rebootstrap_steps
+                end if
             end if
-            rebootstrap_interval = nint(rebootstrap_interval / IntAccuracyBoost)
+
+            rebootstrap_interval = max(1, nint(rebootstrap_interval / IntAccuracyBoost))
             numerov_step_count = 0
-            do i=1,nIntSteps
+
+            do i = 1, nIntSteps
                 do step_ix = 1, nSubSteps
                     numerov_step_count = numerov_step_count + 1
-                    if (i == 1 .and. step_ix == 1) then
-                        !Bootstrap Numerov with a second Olver evaluation at chi+sgndelchi
-                        y_prev = y1
-                        q_prev = q_now
-                        chi = chi + sgndelchi
-                        sh_new = sh*step_c + ch*step_s
-                        ch_new = ch*step_c + sh*step_s_for_ch
-                        sh = sh_new; ch = ch_new
-                        q_now = ap1 / sh**2 - nu2
-                        y1 = u_olver(l, K, nu, chi)
-                    else if (mod(numerov_step_count, rebootstrap_interval) == 0) then
-                        chi_prev_reset = chi
-                        y_prev = u_olver(l, K, nu, chi_prev_reset)
-                        q_prev = q_now
-                        chi = chi + sgndelchi
-                        ! Re-sync sh,ch from chi to bound drift accumulated over rebootstrap interval
-                        if (State%closed) then
-                            sh = sin(chi); ch = cos(chi)
+
+                    do_rebootstrap = i == 1 .and. step_ix == 1
+                    do_rebootstrap = do_rebootstrap .or. &
+                        mod(numerov_step_count, rebootstrap_interval) == 0
+
+                    if (do_rebootstrap) then
+                        if (i == 1 .and. step_ix == 1) then
+                            y_prev = y1
                         else
-                            sh = sinh(chi); ch = cosh(chi)
+                            y_prev = u_olver(l, K, nu, chi)
                         end if
-                        q_now = ap1 / sh**2 - nu2
+                        q_prev = q_now
+                    end if
+
+                    chi = chi + sgndelchi
+
+                    sh_new = sh * step_c + ch * step_s
+                    ch_new = ch * step_c + sh * step_s_for_ch
+                    sh = sh_new
+                    ch = ch_new
+
+                    q_next = ap1 / sh**2 - nu2
+
+                    if (do_rebootstrap) then
                         y1 = u_olver(l, K, nu, chi)
+                        q_now = q_next
                     else
-                        chi = chi + sgndelchi
-                        sh_new = sh*step_c + ch*step_s
-                        ch_new = ch*step_c + sh*step_s_for_ch
-                        sh = sh_new; ch = ch_new
-                        q_next = ap1 / sh**2 - nu2
                         y_next = (2._dl * (1._dl + 5._dl * h2_12 * q_now) * y1 - &
                             (1._dl - h2_12 * q_prev) * y_prev) / &
                             (1._dl - h2_12 * q_next)
+
                         y_prev = y1
                         q_prev = q_now
                         y1 = y_next
                         q_now = q_next
                     end if
 
-                    phi=y1/sh
+                    phi = y1 / sh
+
                     if (need_y2) then
-                        !2-point backward-difference proxy for dy/dchi; only the sign matters for the cut-off
+                        ! Two-point backward-difference proxy for dy/dchi.
+                        ! Only the sign matters for the cut-off.
                         y2_est = (y1 - y_prev) / sgndelchi
-                        if ((isgn<0 .and. y1*y2_est<0._dl) .or. &
-                            (chi>chiDispTop .and. (chi>3.14 .or. y1*y2_est>0))) then
-                            chi=0._dl
-                            exit   !If this happens we are small, so stop integration
+
+                        if ((isgn < 0 .and. y1 * y2_est < 0._dl) .or. &
+                            (chi > chiDispTop .and. &
+                            (chi > 3.14_dl .or. y1 * y2_est > 0._dl))) then
+                            chi = 0._dl
+                            exit
                         end if
                     end if
 
-                    if (((isgn<0).or.(chi>chiDispTop)).and.(abs(phi) < minphi)) then
-                        chi=0._dl
-                        exit !break when getting exponentially small in dissipative region
+                    if (((isgn < 0) .or. chi > chiDispTop) .and. abs(phi) < minphi) then
+                        chi = 0._dl
+                        exit
                     end if
                 end do
 
-                if (chi==0._dl) exit
+                if (chi == 0._dl) exit
                 phi_vals(i + 1) = phi
             end do
 
@@ -2862,25 +2904,28 @@
     if (last_ix > 0) then
         phi_vals(1) = 0.5_dl * phi_vals(1)
         if (last_ix > 1) phi_vals(last_ix) = 0.5_dl * phi_vals(last_ix)
-        src_ix = Startn
 
-        if (ThisSources%SourceNum==3) then
+        src_ix = start_n
+
+        if (ThisSources%SourceNum == 3) then
             do step_ix = 1, last_ix
                 phi = phi_vals(step_ix)
-                out(1) = out(1) + phi * IV%Source_q(src_ix,1)
-                out(2) = out(2) + phi * IV%Source_q(src_ix,2)
-                out(3) = out(3) + phi * IV%Source_q(src_ix,3)
+
+                out(1) = out(1) + phi * IV%Source_q(src_ix, 1)
+                out(2) = out(2) + phi * IV%Source_q(src_ix, 2)
+                out(3) = out(3) + phi * IV%Source_q(src_ix, 3)
+
                 src_ix = src_ix - isgn
             end do
         else
             do step_ix = 1, last_ix
-                out = out + phi_vals(step_ix) * IV%Source_q(src_ix,:)
+                out = out + phi_vals(step_ix) * IV%Source_q(src_ix, :)
                 src_ix = src_ix - isgn
             end do
         end if
     end if
 
-    out = out * dchisource*State%curvature_radius
+    out = out * dchisource * State%curvature_radius
 
     end subroutine DoRangeInt
 

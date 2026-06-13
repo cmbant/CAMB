@@ -1133,6 +1133,27 @@ oscillations to average the drift away.  The minimum interval after accuracy
 scaling is 25 substeps.  This bounds the accumulated error without paying for
 an \code{u_olver} call at every step.
 
+\subsection{Direct Olver evaluation for high-substep ranges}
+
+The Numerov step \(\eta=\Delta\chi_{\rm sub}\) is capped at
+\(\Delta\chi_{\max}\simeq0.3/\nu\) (the precise coefficient depends on
+\(\ell\) and is scaled by \(B_{\rm acc}\)), independent of the source-grid
+spacing \(\Delta\chi_{\rm source}\).  In genuinely non-flat models
+\(\Delta\chi_{\rm source}\) can be several times \(\Delta\chi_{\max}\), so a
+single source-grid step then requires
+\begin{equation}
+  n_{\rm sub}=\max\!\left(1,\left\lceil
+  \frac{\Delta\chi_{\rm source}}{\Delta\chi_{\max}}\right\rceil\right)
+\end{equation}
+Numerov substeps.  Profiling shows one \code{u_olver}/\code{phi_olver}
+evaluation costs about the same as \(13\) Numerov substeps, while closed
+models spend most of their substeps in ranges with \(n_{\rm sub}\) of order
+ten to a few tens.  When \(n_{\rm sub}\ge n_\star=10\), \code{DoRangeInt}
+therefore fills \(\phi_l^\nu\) at every source-grid point directly from
+\code{phi_olver}, in \code{FillDirectOlverPhiVals}, rather than
+Numerov-stepping the finer \(\Delta\chi_{\max}\) grid between them. This is a
+strict accuracy improvement as well as a speed-up.
+
 The source integral is then accumulated by a trapezoidal rule: the first and last stored Bessel values in the range get half weight, and the final sum is multiplied by \(\Delta\chi/\sqrt{\abs{\mathcal K}}\), equivalently the conformal-time step.
 
 This explains why the Olver approximation is used differently inside source integration than in a standalone point call.  It supplies a robust starting value near the peak or turning point.  Nearby values are cheaper and sufficiently accurate from the differential equation itself.  The step size is limited to a fraction of \(1/\nu\), with accuracy-boost factors, so that the oscillation is well sampled.  The integration stops early in dissipative tails when \(|\phi_l^\nu|\) is below a threshold or when the solution is clearly moving into the exponentially small closed-space tail.
@@ -1157,6 +1178,7 @@ Flat & table/spline of \(j_l(q\chi)\) & exact flat result. \\
 Near-flat, very small curvature effect & constant-map shifted-\(q\) table lookup & fastest limit of small-\(\chi\) Olver. \\
 Near-flat, local small-\(\chi\) range & table lookup at \(\nu\chi F\), weight \(F/\sqrt D\) & retains next curvature terms in Olver map. \\
 General non-flat range & start with \code{u_olver}, propagate by Numerov & avoids expensive repeated Olver calls. \\
+Non-flat range needing \(\ge10\) Numerov substeps per source step & direct \code{phi_olver} at each source-grid point (\code{FillDirectOlverPhiVals}) & one \code{phi_olver} call \(\approx\) 13 substeps; removes accumulated Numerov phase drift. \\
 High-\(l\) pointwise fallback & second-order Airy one-point approximation & cheaper than recurrence in its calibrated gates; derived in Appendix~\ref{app:second-order-airy}. \\
 Open post-Airy, very small \(\nu\) & action-matched scaled \(K_{i\nu}\) & rare fallback for \(K=-1\), described in Appendix~\ref{app:smallnu-open}. \\
 Low-order or post-fallback remainder & \code{phi_recurs} & exact recurrence is safer; high-\(l\) closed modes left after Airy have very small \(n=\nu-l-1\). \\
@@ -1257,7 +1279,7 @@ Mathematical quantity & Code name or code path \\
 \midrule
 \(\SK(\chi)\) & \code{State\%rofChi(chi)} or \code{curved_radius} \\
 \(u_l^\nu\) & \code{u_olver} / Numerov variable \code{y1} \\
-\(\phi_l^\nu=u/\SK\) & \code{phi_olver}; in source integration \code{ujl=y1/sh} \\
+\(\phi_l^\nu=u/\SK\) & \code{phi_olver}; in source integration \code{phi=y1/sh} \\
 \(Q=l(l+1)/\SK^2-\nu^2\) & \code{q_now}, \code{q_prev}, \code{q_next} in Numerov stepping \\
 \(z(\chi),A(\chi)\) & \code{compute_olver_z_amp} / \code{compute_olver_z_amp_smallchi} \\
 \(q_{\rm eff}=\nu F_0\), \(q_{\rm amp}=\sqrt{F_0}\) & \code{F0}, \code{qeff}, \code{q_amp} in near-flat shifted-\(q\) paths \\
