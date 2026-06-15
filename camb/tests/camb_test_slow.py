@@ -44,6 +44,27 @@ def _standard_model(omk=0, lmax=None, lens_potential_accuracy=None, matter_power
     return params
 
 
+def _early_quintessence_zc_model(lmax):
+    params = camb.set_params(
+        ombh2=0.022,
+        omch2=0.122,
+        thetastar=0.01044341764253,
+        tau=0.054,
+        As=2.1e-9,
+        ns=0.965,
+        dark_energy_model="EarlyQuintessence",
+        m=8e-53,
+        f=0.05,
+        n=3,
+        theta_i=3.1,
+        use_zc=True,
+        zc=1e4,
+        fde_zc=0.1,
+    )
+    params.set_for_lmax(lmax, lens_potential_accuracy=2)
+    return params
+
+
 class CambSlowTest(unittest.TestCase):
     def test_high_l_lensing_accuracy_and_near_flat_continuity(self):
         lmax = 4000
@@ -95,6 +116,58 @@ class CambSlowTest(unittest.TestCase):
             )
             te_delta = check_accuracy.normalized_te_delta(near_flat_cls, flat_cls)
             self.assertLess(np.max(np.abs(te_delta[ell >= min_ell])), 1e-3)
+
+    def test_early_quintessence_zc(self):
+        lmax = 3000
+        ells = np.array([2, 30, 200, 800, 1500, 2200, 3000])
+
+        params = _early_quintessence_zc_model(lmax)
+        initial_f = params.DarkEnergy.f
+        initial_m = params.DarkEnergy.m
+        check_accuracy.apply_accuracy_settings(
+            params,
+            check_accuracy.DEFAULT_ACCURACY_SETTINGS,
+            boost_from_raw=True,
+        )
+
+        results = camb.get_results(params)
+        cls = results.get_total_cls(lmax, CMB_unit="muK")[ells]
+
+        expected_cls = np.array(
+            [
+                [1104.8428258612453, 0.031118209932062244, 1.7530056084010762e-06, 2.521738556950359],
+                [1076.1534132202387, 0.02247526929810628, 0.00027627960706897017, 1.8899344615722558],
+                [5777.393503170297, 0.7152341210465719, 0.01366510306073773, -13.433213018230875],
+                [2495.755257027903, 15.806790607613841, 0.08778164147013787, -90.24965796847151],
+                [643.0331491240672, 12.44092350461682, 0.07388691749865438, 0.14644890169170868],
+                [130.51273192310643, 5.664825489133673, 0.03826361179618117, -3.4916061553207958],
+                [25.119348025453995, 0.8532249117931314, 0.017771645129931284, -1.4875535223366039],
+            ]
+        )
+        np.testing.assert_allclose(cls, expected_cls, rtol=5e-4, atol=5e-8)
+
+        dark_energy = results.Params.DarkEnergy
+        self.assertGreater(abs(np.log(dark_energy.f / initial_f)), 0.1)
+        self.assertGreater(abs(np.log(dark_energy.m / initial_m)), 1.0)
+        expected_dark_energy = {
+            "f": 0.07349231493298547,
+            "m": 2.1483074472631176e-54,
+            "zc": 9999.78625792854,
+            "fde_zc": 0.10000009623280172,
+        }
+        for name, expected_value in expected_dark_energy.items():
+            self.assertAlmostEqual(getattr(dark_energy, name), expected_value, delta=5e-5 * abs(expected_value))
+
+        derived = results.get_derived_params()
+        expected_derived = {
+            "DAstar": 13.584692323897139,
+            "age": 13.254490156058628,
+            "rstar": 141.870718621703,
+            "thetastar": 1.0443425234750072,
+            "zstar": 1090.7421270560465,
+        }
+        for name, expected_value in expected_derived.items():
+            self.assertAlmostEqual(derived[name], expected_value, delta=5e-5 * abs(expected_value))
 
     def testSymbolic(self):
         import camb.symbolic as s

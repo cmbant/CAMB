@@ -779,46 +779,34 @@
 
 
     subroutine GetBackgroundThermalEvolution(this, ntimes, times, outputs)
-    use splines
+    use Interpolation, only : TLogRegularCubicSpline
     Type(CAMBdata) :: this
     integer, intent(in) :: ntimes
     real(dl), intent(in) :: times(ntimes)
     real(dl) :: outputs(9, ntimes)
-    real(dl), allocatable :: spline_data(:), ddxe(:), ddTb(:)
-    real(dl) :: a, d, tau, cs2b, opacity, Tbaryon, dopacity, ddopacity, &
+    Type(TLogRegularCubicSpline) :: xe_spline, Tb_spline
+    real(dl) :: a, tau, tau_max, tau_spline, cs2b, opacity, Tbaryon, dopacity, ddopacity, &
         visibility, dvisibility, ddvisibility, exptau, lenswindow
-    integer i, ix
+    integer ix
 
     if (.not. this%ThermoData%HasTHermoData) call this%ThermoData%Init(this,min(1d-3,max(1d-5,minval(times))))
 
     associate(T=>this%ThermoData)
-        allocate(spline_data(T%nthermo), ddxe(T%nthermo), ddTb(T%nthermo))
-        call splini(spline_data,T%nthermo)
-        call splder(T%xe,ddxe,T%nthermo,spline_data)
-        call splder(T%Tb,ddTb,T%nthermo,spline_data)
+        tau_max = T%tauminn*exp((T%nthermo - 1)*T%dlntau)
+        call xe_spline%Init(T%tauminn, tau_max, T%nthermo, T%xe)
+        call Tb_spline%Init(T%tauminn, tau_max, T%nthermo, T%Tb)
 
         outputs = 0
         do ix = 1, ntimes
             tau = times(ix)
             if (tau < T%tauminn*1.01) cycle
-            d=log(tau/T%tauminn)/T%dlntau+1._dl
-            i=int(d)
-            d=d-i
+            tau_spline = min(tau, tau_max)
             call T%Values(tau,a,cs2b, opacity)
             call T%IonizationFunctionsAtTime(tau, a, opacity, dopacity, ddopacity, &
                 visibility, dvisibility, ddvisibility, exptau, lenswindow)
 
-            if (i < T%nthermo) then
-                outputs(1,ix)=T%xe(i)+d*(ddxe(i)+d*(3._dl*(T%xe(i+1)-T%xe(i)) &
-                    -2._dl*ddxe(i)-ddxe(i+1)+d*(ddxe(i)+ddxe(i+1) &
-                    +2._dl*(T%xe(i)-T%xe(i+1)))))
-                Tbaryon = T%tb(i)+d*(ddtb(i)+d*(3._dl*(T%tb(i+1)-T%tb(i)) &
-                    -2._dl*ddtb(i)-ddtb(i+1)+d*(ddtb(i)+ddtb(i+1) &
-                    +2._dl*(T%tb(i)-T%tb(i+1)))))
-            else
-                outputs(1,ix)=T%xe(T%nthermo)
-                Tbaryon = T%Tb(T%nthermo)
-            end if
+            outputs(1,ix) = xe_spline%Value(tau_spline)
+            Tbaryon = Tb_spline%Value(tau_spline)
 
             outputs(2, ix) = opacity
             outputs(3, ix) = visibility

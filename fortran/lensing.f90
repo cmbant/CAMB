@@ -46,7 +46,6 @@
     use results
     use constants, only : const_pi, const_twopi, const_fourpi
     use MathUtils, only : Gauss_Legendre
-    use splines
     use omp_lib, only: omp_get_thread_num, omp_get_max_threads
     implicit none
     integer, parameter :: lensing_method_curv_corr=1,lensing_method_flat_corr=2, &
@@ -1497,6 +1496,7 @@
     end subroutine BadHarmonic
 
     subroutine GetBessels(MaxArg)
+    use Interpolation, only : cubic_spline_second_derivs
     real(dl), intent(in):: MaxArg
     integer i
     real(dl), allocatable, dimension(:) :: x
@@ -1520,7 +1520,7 @@
             Bess(i,:)=Bessel_jn(0, maxbessel,x(i))
         end do
         do ix=0,maxbessel
-            call spline_def(x,Bess(:,ix),max_bes_ix,ddBess(:,ix))
+            call cubic_spline_second_derivs(x,Bess(:,ix),max_bes_ix,ddBess(:,ix))
         end do
 
         deallocate(x)

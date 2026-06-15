@@ -210,7 +210,7 @@
     use constants
     use classes
     use DarkAge21cm
-    use Interpolation, only : spline, SPLINE_DANGLE
+    use Interpolation, only : cubic_spline_regular_horner_coefficients, cubic_spline_regular_second_derivs
     use MathUtils
     use RungeKuttaDP45Module, only : RungeKuttaDP45Settings, TClassRungeKuttaDP45
     use Config, only : GlobalError, error_recombination
@@ -312,7 +312,7 @@
 
     end type TRecfast
 
-    character(LEN=*), parameter :: Recfast_Version = 'Recfast_1.5.2'
+    character(LEN=*), parameter :: Recfast_Version = 'Recfast_1.5.3'
 
     logical, parameter :: evolve_Ts = .false. !local equilibrium is very accurate
     real(dl), parameter :: Do21cm_minev = 1/(1+400.) !at which to evolve T_s
@@ -322,8 +322,6 @@
     real(dl), parameter :: not4  = mass_ratio_He_H    !mass He/H atom
 
     real(dl), parameter :: B01 = 3*B10
-    !Fundamental constants in SI units
-    !      ("not4" pointed out by Gary Steigman)
 
     real(dl), parameter ::  Lambda = 8.2245809d0
     real(dl), parameter :: Lambda_He = 51.3d0    !new value from Dalgarno
@@ -437,8 +435,8 @@
                 zst = (zinitial - z)/Calc%delta_z
                 ihi = int(zst)
                 az = zst - real(ihi, dl)
-                aTmat_stored = Calc%tmrec_horner(1, ihi) + az*(Calc%tmrec_horner(2, ihi) + az*(Calc%tmrec_horner(3, ihi) + &
-                    az*Calc%tmrec_horner(4, ihi)))
+                aTmat_stored = Calc%tmrec_horner(1, ihi) + az*(Calc%tmrec_horner(2, ihi) &
+                    + az*(Calc%tmrec_horner(3, ihi) +     az*Calc%tmrec_horner(4, ihi)))
                 TRecfast_tm=(1._dl + z)*aTmat_stored
             endif
         endif
@@ -465,8 +463,8 @@
                 zst = (zinitial - z)/Calc%delta_z
                 ihi = int(zst)
                 az = zst - real(ihi, dl)
-                aTspin_stored = Calc%tsrec_horner(1, ihi) + az*(Calc%tsrec_horner(2, ihi) + az*(Calc%tsrec_horner(3, ihi) + &
-                    az*Calc%tsrec_horner(4, ihi)))
+                aTspin_stored = Calc%tsrec_horner(1, ihi) + az*(Calc%tsrec_horner(2, ihi) &
+                    + az*(Calc%tsrec_horner(3, ihi) + az*Calc%tsrec_horner(4, ihi)))
                 TRecfast_ts = (1._dl + z)*aTspin_stored
             endif
         endif
@@ -519,31 +517,13 @@
                 az = zst - real(ihi, dl)
                 xe = Calc%xrec_horner(1, ihi) + az*(Calc%xrec_horner(2, ihi) + az*(Calc%xrec_horner(3, ihi) + &
                     az*Calc%xrec_horner(4, ihi)))
-                aTmat_stored = Calc%tmrec_horner(1, ihi) + az*(Calc%tmrec_horner(2, ihi) + az*(Calc%tmrec_horner(3, ihi) + &
-                    az*Calc%tmrec_horner(4, ihi)))
+                aTmat_stored = Calc%tmrec_horner(1, ihi) + az*(Calc%tmrec_horner(2, ihi) &
+                    + az*(Calc%tmrec_horner(3, ihi) +  az*Calc%tmrec_horner(4, ihi)))
                 Tm=(1._dl + z)*aTmat_stored
             endif
         endif
     end associate
     end subroutine TRecfast_xe_Tm
-
-    subroutine SetRecfastCubicSplineHorner(x, y, y2, horner, n)
-    integer, intent(in) :: n
-    real(dl), intent(in) :: x(n), y(n), y2(n)
-    real(dl), intent(out) :: horner(:, :)
-    integer :: i
-    real(dl) :: h2over6, three_h2over6
-
-    h2over6 = (x(2) - x(1))**2/6._dl
-    three_h2over6 = 3._dl*h2over6
-    do i = 1, n - 1
-        horner(1, i) = y(i)
-        horner(2, i) = y(i + 1) - y(i) - h2over6*(2._dl*y2(i) + y2(i + 1))
-        horner(3, i) = three_h2over6*y2(i)
-        horner(4, i) = h2over6*(y2(i + 1) - y2(i))
-    end do
-
-    end subroutine SetRecfastCubicSplineHorner
 
     subroutine EnsureRecfastStorage(Calc, target_nz, OK)
     type(RecombinationData), intent(inout) :: Calc
@@ -838,15 +818,18 @@
             !          write (*,'(5E15.5)') zend, Trad, Tmat, Tspin, x
         end do
 
-        call spline_def(Calc%zrec,Calc%xrec,Calc%nz,Calc%dxrec)
+        call cubic_spline_regular_second_derivs(-Calc%delta_z,Calc%xrec,Calc%nz,Calc%dxrec)
         ! At low z, adiabatic cooling gives Tmat ~ (1+z)^2, so a*Tmat ~ (1+z).
-        call spline(Calc%zrec, Calc%tmrec, Calc%nz, SPLINE_DANGLE, &
-            Calc%tmrec(Calc%nz)/(1._dl + zfinal), Calc%dtmrec)
-        call SetRecfastCubicSplineHorner(Calc%zrec, Calc%xrec, Calc%dxrec, Calc%xrec_horner, Calc%nz)
-        call SetRecfastCubicSplineHorner(Calc%zrec, Calc%tmrec, Calc%dtmrec, Calc%tmrec_horner, Calc%nz)
+        call cubic_spline_regular_second_derivs(-Calc%delta_z, Calc%tmrec, Calc%nz, Calc%dtmrec, &
+            End2=Calc%tmrec(Calc%nz)/(1._dl + zfinal))
+        call cubic_spline_regular_horner_coefficients(Calc%delta_z, Calc%xrec, Calc%dxrec, &
+            Calc%xrec_horner, Calc%nz)
+        call cubic_spline_regular_horner_coefficients(Calc%delta_z, Calc%tmrec, Calc%dtmrec, &
+            Calc%tmrec_horner, Calc%nz)
         if (Calc%doTspin) then
-            call spline_def(Calc%zrec,Calc%tsrec,Calc%nz,Calc%dtsrec)
-            call SetRecfastCubicSplineHorner(Calc%zrec, Calc%tsrec, Calc%dtsrec, Calc%tsrec_horner, Calc%nz)
+            call cubic_spline_regular_second_derivs(-Calc%delta_z,Calc%tsrec,Calc%nz,Calc%dtsrec)
+            call cubic_spline_regular_horner_coefficients(Calc%delta_z, Calc%tsrec, Calc%dtsrec, &
+                Calc%tsrec_horner, Calc%nz)
         end if
     class default
         call MpiStop('Wrong state type')

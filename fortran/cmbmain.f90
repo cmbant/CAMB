@@ -54,6 +54,7 @@
 
     use precision
     use results
+    use Interpolation, only : cubic_spline_second_derivs
     use GaugeInterface
     use HypersphericalBesselOlver, only: u_olver, phi_olver
     use SpherBessels
@@ -1221,7 +1222,7 @@
             !Do not use an associate for scaling. It does not work.
             scaling = State%CAMB_Pk%nonlin_ratio(ik,1:State%num_transfer_redshifts)
             if (all(abs(scaling-1) < 5e-4)) cycle
-            call spline_def(State%Transfer_Times, scaling, State%num_transfer_redshifts,ddScaling)
+            call cubic_spline_second_derivs(State%Transfer_Times, scaling, State%num_transfer_redshifts,ddScaling)
 
             tf_lo=1
             tf_hi=tf_lo+1
@@ -1261,7 +1262,7 @@
     !$OMP PARALLEL DO DEFAULT(SHARED), SCHEDULE(STATIC), PRIVATE(i,j)
     do  i=1,State%TimeSteps%npoints
         do j=1, ThisSources%SourceNum
-            call spline_def(ThisSources%Evolve_q%points,ScaledSrc(:,j,i), &
+            call cubic_spline_second_derivs(ThisSources%Evolve_q%points,ScaledSrc(:,j,i), &
                 ThisSources%Evolve_q%npoints, ddScaledSrc(:,j,i))
         end do
     end do

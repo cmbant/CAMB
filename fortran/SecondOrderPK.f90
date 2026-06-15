@@ -176,7 +176,7 @@
     subroutine GetRatios(this,CAMB_Pk, DoVel)
     !Fill the CAMB_Pk%nonlin_scaling array with sqrt(non-linear power/linear power)
     !for each redshift and wavenumber
-    use splines
+    use Interpolation, only : cubic_spline_derivatives_from_second_derivs
     class(TSecondOrderPK) :: this
     type(MatterPowerData), target :: CAMB_Pk
     logical, intent(in):: DoVel
@@ -213,7 +213,8 @@
 
             allocate(dPdLogK(CAMB_PK%num_k))
             !Get first derivative needed for series expansion at low r
-            call spline_deriv(CAMB_Pk%log_kh, CAMB_Pk%matpower(:,it), CAMB_Pk%ddmat(:,it), dPdLogK,CAMB_PK%num_k)
+            call cubic_spline_derivatives_from_second_derivs(CAMB_Pk%log_kh, CAMB_Pk%matpower(:,it), &
+                CAMB_Pk%ddmat(:,it), dPdLogK, CAMB_PK%num_k)
 
             do i=1, CAMB_PK%num_k
 

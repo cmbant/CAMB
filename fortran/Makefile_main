@@ -28,7 +28,7 @@ DLL_DIR ?= Releaselib
 
 CAMBLIB       = libcamb.a
 
-SOURCEFILES      = constants config classes MathUtils RungeKuttaDP45 subroutines DarkAge21cm \
+SOURCEFILES      = constants config classes MathUtils RungeKuttaDP45 DarkAge21cm \
 	DarkEnergyInterface SourceWindows massive_neutrinos model results bessels \
 	hyperspherical_bessels hyperspherical_bessels_airy hyperspherical_bessels_smallnu hyperspherical_bessel_olver \
         $(RECOMBINATION_FILES) $(DARKENERGY_FILES) equations \
