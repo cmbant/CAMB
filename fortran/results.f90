@@ -3856,8 +3856,11 @@
     Type(MatterTransferData) :: MTrans
     real(dl), intent(in), optional :: R
     integer, intent(in), optional :: var_delta, var_v
-    real(dl) :: radius
-    integer :: s1, s2
+    real(dl) :: radius, kh, k, h, x, win, lnk, dlnk, lnko, powers
+    real(dl), dimension(State%CP%Transfer%PK_num_redshifts) :: delta, dsig8, dsig8o, sig8, dsigv, dsigvo, sigv
+    integer, dimension(State%CP%Transfer%PK_num_redshifts) :: redshifts_index
+    integer :: s1, s2, ik, nred
+    logical :: do_growth
 
     if (global_error_flag /= 0) return
 
@@ -3865,9 +3868,54 @@
     s1 = PresentDefault (transfer_power_var, var_delta)
     s2 = PresentDefault (Transfer_Newt_vel_cdm, var_v)
 
-    call Transfer_Get_SigmaR(State, MTrans, radius, MTrans%sigma_8, s1,s1)
-    if (State%get_growth_sigma8) call Transfer_Get_SigmaR(State, MTrans, radius, &
-        MTrans%sigma2_vdelta_8(:), s1, s2, root=.false.)
+    nred = State%CP%Transfer%PK_num_redshifts
+    h=State%CP%h0/100._dl
+    lnko=0
+    dsig8o=0
+    sig8=0
+    dsigvo=0
+    sigv=0
+    redshifts_index = State%PK_redshifts_index(1:nred)
+    do_growth = State%get_growth_sigma8
+
+    do ik=1, MTrans%num_q_trans
+        kh = MTrans%TransferData(Transfer_kh,ik,1)
+        if (kh==0) cycle
+        k = kh*h
+
+        delta = MTrans%TransferData(s1,ik,redshifts_index)
+        dsig8 = delta**2
+        if (do_growth) dsigv = delta*MTrans%TransferData(s2,ik,redshifts_index)
+
+        x= kh*radius
+        if (x < 1e-2_dl) then
+            win = 1._dl - x**2/10
+        else
+            win = 3*(sin(x)-x*cos(x))/x**3
+        end if
+        lnk=log(k)
+        if (ik==1) then
+            dlnk=0.5_dl
+            !Approx for 2._dl/(Params%InitPower%an(in)+3)  [From int_0^k_1 dk/k k^4 P(k)]
+            !Contribution should be very small in any case
+        else
+            dlnk=lnk-lnko
+        end if
+        powers = (win*k**2)**2*State%CP%InitPower%ScalarPower(k)
+
+        dsig8=powers*dsig8
+        sig8=sig8+(dsig8+dsig8o)*dlnk/2
+        dsig8o=dsig8
+        if (do_growth) then
+            dsigv=powers*dsigv
+            sigv=sigv+(dsigv+dsigvo)*dlnk/2
+            dsigvo=dsigv
+        end if
+        lnko=lnk
+    end do
+
+    MTrans%sigma_8(1:nred) = sqrt(sig8)
+    if (do_growth) MTrans%sigma2_vdelta_8(1:nred) = sigv
 
     end subroutine Transfer_Get_sigmas
 

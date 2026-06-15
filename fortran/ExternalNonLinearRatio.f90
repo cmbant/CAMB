@@ -63,8 +63,9 @@
     class(TCAMBdata) :: State
     type(MatterPowerData), target :: CAMB_Pk
     integer :: ik, iz
-    real(dl) :: kh, z, kh_clamped, z_clamped
+    real(dl) :: z_clamped
     real(dl) :: k_min, k_max, z_min, z_max
+    real(dl) :: kh_clamped(CAMB_Pk%num_k), z_work(CAMB_Pk%num_k)
 
     if (.not. this%ratio_set) &
         error stop 'ExternalNonLinearRatio: ratio not set. Call SetRatio first.'
@@ -75,15 +76,16 @@
     z_min = this%Ratio%y(1)
     z_max = this%Ratio%y(this%Ratio%ny)
 
-    CAMB_Pk%nonlin_ratio = 1.0_dl
+    if (CAMB_Pk%num_k <= 0 .or. CAMB_Pk%num_z <= 0) return
+
+    do ik = 1, CAMB_Pk%num_k
+        kh_clamped(ik) = max(k_min, min(k_max, exp(CAMB_Pk%log_kh(ik))))
+    end do
+
     do iz = 1, CAMB_Pk%num_z
-        z = CAMB_Pk%redshifts(iz)
-        z_clamped = max(z_min, min(z_max, z))
-        do ik = 1, CAMB_Pk%num_k
-            kh = exp(CAMB_Pk%log_kh(ik))
-            kh_clamped = max(k_min, min(k_max, kh))
-            CAMB_Pk%nonlin_ratio(ik, iz) = this%Ratio%Value(kh_clamped, z_clamped)
-        end do
+        z_clamped = max(z_min, min(z_max, CAMB_Pk%redshifts(iz)))
+        z_work = z_clamped
+        call this%Ratio%Values(CAMB_Pk%num_k, kh_clamped, z_work, CAMB_Pk%nonlin_ratio(:, iz))
     end do
 
     end subroutine TExternalNonLinearRatio_GetNonLinRatios

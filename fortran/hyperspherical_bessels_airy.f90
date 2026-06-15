@@ -203,7 +203,7 @@
 
     contains
 
-    real(dp) function log_origin_u0_fast(l, K, nu) result(logu0)
+    pure real(dp) function log_origin_u0_fast(l, K, nu) result(logu0)
     integer, intent(in) :: l, K
     real(dp), intent(in) :: nu
 
@@ -290,7 +290,7 @@
     end function airy_B0_turn
 
 
-    subroutine airy_zeta_q(K, beta, chi, turn_chi, zeta, q)
+    pure elemental subroutine airy_zeta_q(K, beta, chi, turn_chi, zeta, q)
     integer, intent(in) :: K
     real(dp), intent(in) :: beta, chi, turn_chi
     real(dp), intent(out) :: zeta, q
@@ -426,7 +426,7 @@
     end function airy_u_normalized
 
 
-    subroutine second_coeffs_onepoint_fast(K, beta, turn_chi, chi, zeta, b0, a1)
+    pure subroutine second_coeffs_onepoint_fast(K, beta, turn_chi, chi, zeta, b0, a1)
     ! Build B0(zeta) and A1(zeta) for this one point only.
     !
     ! This version avoids both expensive zeta->chi inversion and the small
@@ -491,7 +491,7 @@
     end subroutine second_coeffs_onepoint_fast
 
 
-    subroutine interp_power_from_nodes(x, y, c)
+    pure subroutine interp_power_from_nodes(x, y, c)
     ! Convert interpolation data (x_i,y_i), i=0..n, to power coefficients
     ! c such that p(x)=sum_i c(i)*x**i.  Uses Newton divided differences;
     ! for n<=4 this is cheaper and better conditioned than a dense solve.
@@ -536,7 +536,7 @@
     end subroutine interp_power_from_nodes
 
 
-    subroutine eval_second_scaled_poly(c, zscale, zeta, b0, a1)
+    pure subroutine eval_second_scaled_poly(c, zscale, zeta, b0, a1)
     ! psi(v) = sum_i c(i) * (v/zscale)**i.
     !
     ! Then
@@ -584,7 +584,7 @@
     end subroutine eval_second_scaled_poly
 
 
-    logical function airy_ok(l, K, nu, achi) result(ok)
+    pure elemental logical function airy_ok(l, K, nu, achi) result(ok)
     integer, intent(in) :: l, K
     real(dp), intent(in) :: nu, achi
 
@@ -596,7 +596,7 @@
     end function airy_ok
 
 
-    logical function airy_second_base_ok(l, K, nu) result(ok)
+    pure elemental logical function airy_second_base_ok(l, K, nu) result(ok)
     integer, intent(in) :: l, K
     real(dp), intent(in) :: nu
 
@@ -623,7 +623,7 @@
     end function airy_second_base_ok
 
 
-    subroutine compute_airy_second_norm_fast(l, K, nu, log_norm)
+    pure subroutine compute_airy_second_norm_fast(l, K, nu, log_norm)
     integer, intent(in) :: l, K
     real(dp), intent(in) :: nu
     real(dp), intent(out) :: log_norm
@@ -664,7 +664,7 @@
 
 
 
-    real(dp) function airy_psi_from_chi(K, beta, zeta, chi) result(psi)
+    pure elemental real(dp) function airy_psi_from_chi(K, beta, zeta, chi) result(psi)
     integer, intent(in) :: K
     real(dp), intent(in) :: beta, zeta, chi
 
@@ -680,7 +680,7 @@
     end function airy_psi_from_chi
 
 
-    real(dp) function airy_psi_from_s(K, beta, s, zeta) result(psi)
+    pure elemental real(dp) function airy_psi_from_s(K, beta, s, zeta) result(psi)
     integer, intent(in) :: K
     real(dp), intent(in) :: beta, s, zeta
 
@@ -713,7 +713,7 @@
 
 
     ! Fast one-shot approximation to log product_{j=1}^l (nu^2+j^2), accurate at O(1e-6)
-    function log_prod_plus_one(l, nu) result(lp)
+    pure elemental function log_prod_plus_one(l, nu) result(lp)
     integer, intent(in) :: l
     real(dp), intent(in) :: nu
     real(dp) :: lp
@@ -797,7 +797,7 @@
     end function log_prod_plus_one
 
 
-    pure function exact_small_l(l, a) result(s)
+    pure elemental function exact_small_l(l, a) result(s)
     integer, intent(in) :: l
     real(dp), intent(in) :: a
     real(dp) :: s
@@ -808,7 +808,7 @@
     end function exact_small_l
 
 
-    pure function log_y2_plus_j2(a, j) result(v)
+    pure elemental function log_y2_plus_j2(a, j) result(v)
     real(dp), intent(in) :: a, j
     real(dp) :: v, q
 

@@ -26,32 +26,32 @@
     ! func = ...f(x)...
     ! end function func
 
-    MODULE Powell
+    module Powell
+    use precision, only: dl
     implicit none
     private
 
-    INTEGER, PARAMETER  :: dp = KIND(1.d0) !SELECTED_REAL_KIND(12, 60)
-    INTEGER, PARAMETER  :: func_dp = dp  !SELECTED_REAL_KIND(12, 60)
-    INTEGER, PARAMETER :: Powell_CO_prec = dp
+    integer, parameter :: dp = dl
+    integer, parameter :: Powell_CO_prec = dp
 
     ! the type of function minimized, a class procedure taking in an array of values
     interface
-    FUNCTION obj_vec_function(obj, x)
-    use precision
-    class(*) :: obj
-    real(dl) :: obj_vec_function
-    real(dl) :: x(:)
-    END FUNCTION  obj_vec_function
+    function obj_vec_function(obj, x)
+    import :: dp
+    class(*), intent(inout) :: obj
+    real(dp), intent(in) :: x(:)
+    real(dp) :: obj_vec_function
+    end function obj_vec_function
     end interface
 
     type TMinimizer
-        REAL(dp) :: Last_bestfit
-        procedure(obj_vec_function), pointer, nopass :: funkk
-        class(*), pointer :: obj
+        real(dp) :: Last_bestfit = huge(1._dp)
+        procedure(obj_vec_function), pointer, nopass :: funkk => null()
+        class(*), pointer :: obj => null()
     end type
 
     type, extends(TMinimizer) :: TBOBYQA
-        REAL(dp) :: FVAL_Converge_difference = 0._dp
+        real(dp) :: FVAL_Converge_difference = 0._dp
     contains
     procedure :: BOBYQA
     end type
@@ -62,25 +62,24 @@
     procedure, private :: newuob
     end type
 
-    PUBLIC  :: TBOBYQA , TNEWUOA, Powell_CO_prec
-    CONTAINS
+    public :: TBOBYQA, TNEWUOA, Powell_CO_prec
+    contains
 
 
-    function BOBYQA (this, obj, funk, N,NPT,X,XL,XU,RHOBEG,RHOEND,IPRINT,MAXFUN)
+    logical function BOBYQA(this, obj, funk, n, npt, x, xl, xu, rhobeg, rhoend, iprint, maxfun)
     !Main function for bounded minimization
     use iso_c_binding
-    class(TBOBYQA) this
+    class(TBOBYQA) :: this
     class(*), target :: obj
     real(dp), external :: funk !a class function f(obj,x) where obj is any class instance
-    integer, intent(in)::n, npt, maxfun, iPrint
-    real(dp), intent(in) :: RHOBEG, RHOEND
-    logical BOBYQA
-    INTEGER ibmat , id , ifv , igo , ihq , ipq , isl , isu , &
-        & ivl , iw , ixa , ixb , ixn , ixo , ixp , izmat , j , jsl ,&
-        & jsu, ndim , np
-    REAL(dp) temp ,  zero
-    REAL(dp) X(*),XL(*),XU(*)
-    real(dp), allocatable :: W(:)
+    integer, intent(in) :: n, npt, maxfun, iprint
+    real(dp), intent(in) :: rhobeg, rhoend
+    real(dp), intent(inout) :: x(*)
+    real(dp), intent(in) :: xl(*), xu(*)
+    integer :: ibmat, id, ifv, igo, ihq, ipq, isl, isu
+    integer :: ivl, iw, ixa, ixb, ixn, ixo, ixp, izmat, j, jsl, jsu, ndim, np
+    real(dp) :: temp
+    real(dp), allocatable :: w(:)
     !   This subroutine seeks the least value of a function of many variables,
     !   by applying a trust region method that forms quadratic models by
     !   interpolation. There is usually some freedom in the interpolation
@@ -128,40 +127,38 @@
     this%obj => obj
 
     BOBYQA = .false.
-    this%Last_bestfit = 1d30
+    this%Last_bestfit = huge(1._dp)
 
-    NP=N+1
-    IF (NPT  <  N+2 .OR. NPT  >  ((N+2)*NP)/2) THEN
-        PRINT 10
-10      FORMAT (/4X,'Return from BOBYQA because NPT is not in',&
-            &      ' the required interval')
+    np = n + 1
+    if (npt < n+2 .or. npt > ((n+2)*np)/2) then
+        write(*, *) "Return from BOBYQA because NPT is not in the required interval"
         return
-    END IF
+    end if
 
-    allocate(W((NPT+5)*(NPT+N)+3*N*(N+5)/2))
+    allocate(w((npt+5)*(npt+n)+3*n*(n+5)/2))
 
     !  Partition the working space array, so that different parts of it can
     !  be treated separately during the calculation of BOBYQB. The partition
     !  requires the first (NPT+2)*(NPT+N)+3*N*(N+5)/2 elements of W plus the
     !  space that is taken by the last array in the argument list of BOBYQB.
     !
-    NDIM=NPT+N
-    IXB=1
-    IXP=IXB+N
-    IFV=IXP+N*NPT
-    IXO=IFV+NPT
-    IGO=IXO+N
-    IHQ=IGO+N
-    IPQ=IHQ+(N*NP)/2
-    IBMAT=IPQ+NPT
-    IZMAT=IBMAT+NDIM*N
-    ISL=IZMAT+NPT*(NPT-NP)
-    ISU=ISL+N
-    IXN=ISU+N
-    IXA=IXN+N
-    ID=IXA+N
-    IVL=ID+N
-    IW=IVL+NDIM
+    ndim = npt + n
+    ixb = 1
+    ixp = ixb + n
+    ifv = ixp + n * npt
+    ixo = ifv + npt
+    igo = ixo + n
+    ihq = igo + n
+    ipq = ihq + (n*np) / 2
+    ibmat = ipq + npt
+    izmat = ibmat + ndim * n
+    isl = izmat + npt * (npt-np)
+    isu = isl + n
+    ixn = isu + n
+    ixa = ixn + n
+    id = ixa + n
+    ivl = id + n
+    iw = ivl + ndim
     !
     !  Return if there is insufficient space between the bounds. Modify the
     !  initial X if necessary in order to avoid conflicts between the bounds
@@ -170,47 +167,44 @@
     !  partitions of W, in order to provide useful and exact information about
     !  components of X that become within distance RHOBEG from their bounds.
     !
-    ZERO=0.0D0
-    DO J=1,N
-        TEMP=XU(J)-XL(J)
-        IF (TEMP  <  RHOBEG+RHOBEG) THEN
-            PRINT 20
-20          FORMAT (/4X,'Return from BOBYQA because one of the',&
-                &      ' differences XU(I)-XL(I)'/6X,' is less than 2*RHOBEG.')
+    do j = 1, n
+        temp = xu(j) - xl(j)
+        if (temp < rhobeg+rhobeg) then
+            write(*, *) "Return from BOBYQA because one of the differences XU(I)-XL(I) is less than 2*RHOBEG."
             return
-        END IF
-        JSL=ISL+J-1
-        JSU=JSL+N
-        W(JSL)=XL(J)-X(J)
-        W(JSU)=XU(J)-X(J)
-        IF (W(JSL)  >=  -RHOBEG) THEN
-            IF (W(JSL)  >=  ZERO) THEN
-                X(J)=XL(J)
-                W(JSL)=ZERO
-                W(JSU)=TEMP
-            ELSE
-                X(J)=XL(J)+RHOBEG
-                W(JSL)=-RHOBEG
-                W(JSU)=DMAX1(XU(J)-X(J),RHOBEG)
-            END IF
-        ELSE IF (W(JSU)  <=  RHOBEG) THEN
-            IF (W(JSU)  <=  ZERO) THEN
-                X(J)=XU(J)
-                W(JSL)=-TEMP
-                W(JSU)=ZERO
-            ELSE
-                X(J)=XU(J)-RHOBEG
-                W(JSL)=DMIN1(XL(J)-X(J),-RHOBEG)
-                W(JSU)=RHOBEG
-            END IF
-        END IF
-    END DO
+        end if
+        jsl = isl + j - 1
+        jsu = jsl + n
+        w(jsl) = xl(j) - x(j)
+        w(jsu) = xu(j) - x(j)
+        if (w(jsl) >= -rhobeg) then
+            if (w(jsl) >= 0._dp) then
+                x(j) = xl(j)
+                w(jsl) = 0._dp
+                w(jsu) = temp
+            else
+                x(j) = xl(j) + rhobeg
+                w(jsl) = -rhobeg
+                w(jsu) = max(xu(j)-x(j), rhobeg)
+            end if
+        else if (w(jsu) <= rhobeg) then
+            if (w(jsu) <= 0._dp) then
+                x(j) = xu(j)
+                w(jsl) = -temp
+                w(jsu) = 0._dp
+            else
+                x(j) = xu(j) - rhobeg
+                w(jsl) = min(xl(j)-x(j), -rhobeg)
+                w(jsu) = rhobeg
+            end if
+        end if
+    end do
     !
     !     Make the call of BOBYQB.
     !
-    BOBYQA = BOBYQB (this,N,NPT,X,XL,XU,RHOBEG,RHOEND,IPRINT,MAXFUN,W(IXB),&
-        &  W(IXP),W(IFV),W(IXO),W(IGO),W(IHQ),W(IPQ),W(IBMAT),W(IZMAT),&
-        &  NDIM,W(ISL),W(ISU),W(IXN),W(IXA),W(ID),W(IVL),W(IW))
+    bobyqa = BOBYQB(this, n, npt, x, xl, xu, rhobeg, rhoend, iprint, maxfun, w(ixb), &
+        w(ixp), w(ifv), w(ixo), w(igo), w(ihq), w(ipq), w(ibmat), w(izmat), &
+        ndim, w(isl), w(isu), w(ixn), w(ixa), w(id), w(ivl), w(iw))
 
     end function BOBYQA
 
@@ -300,7 +294,7 @@
     END DO
     FSAVE=FVAL(1)
     IF (NF  <  NPT) THEN
-        IF (IPRINT  >  0) PRINT 390
+        IF (IPRINT  >  0) write(*, *) "Return from BOBYQA because funkk has been called MAXFUN times."
         GOTO 720
     END IF
     KBASE=1
@@ -351,7 +345,7 @@
     !
 60  CALL TRSBOX (N,NPT,XPT,XOPT,GOPT,HQ,PQ,SL,SU,DELTA,XNEW,D,&
         &  W,W(NP),W(NP+N),W(NP+2*N),W(NP+3*N),DSQ,CRVMIN)
-    DNORM=DMIN1(DELTA,DSQRT(DSQ))
+    DNORM=min(DELTA,sqrt(DSQ))
     IF (DNORM  <  HALF*RHO) THEN
         NTRITS=-1
         DISTSQ=(TEN*RHO)**2
@@ -363,7 +357,7 @@
         !  the last three interpolation points compare favourably with predictions
         !  of likely improvements to the model within distance HALF*RHO of XOPT.
         !
-        ERRBIG=DMAX1(DIFFA,DIFFB,DIFFC)
+        ERRBIG=max(DIFFA,DIFFB,DIFFC)
         FRHOSQ=0.125D0*RHO*RHO
         IF (CRVMIN  >  ZERO .AND. ERRBIG  >  FRHOSQ*CRVMIN)&
             &       GOTO 650
@@ -497,7 +491,7 @@
     END IF
     IF (NF  <  0) THEN
         NF=MAXFUN
-        IF (IPRINT  >  0) PRINT 390
+        IF (IPRINT  >  0) write(*, *) "Return from BOBYQA because funkk has been called MAXFUN times."
         GOTO 720
     END IF
     NRESC=NF
@@ -589,9 +583,7 @@
         END IF
         IF (DENOM  <=  HALF*VLAG(KNEW)**2) THEN
             IF (NF  >  NRESC) GOTO 190
-            IF (IPRINT  >  0) PRINT 320
-320         FORMAT (/5X,'Return from BOBYQA because of much',&
-                &          ' cancellation in a denominator.')
+            IF (IPRINT  >  0) write(*, *) "Return from BOBYQA because of much cancellation in a denominator."
             GOTO 720
         END IF
         !
@@ -617,17 +609,17 @@
             DO J=1,N
                 DISTSQ=DISTSQ+(XPT(K,J)-XOPT(J))**2
             END DO
-            TEMP=DMAX1(ONE,(DISTSQ/DELSQ)**2)
+            TEMP=max(ONE,(DISTSQ/DELSQ)**2)
             IF (TEMP*DEN  >  SCADEN) THEN
                 SCADEN=TEMP*DEN
                 KNEW=K
                 DENOM=DEN
             END IF
-            BIGLSQ=DMAX1(BIGLSQ,TEMP*VLAG(K)**2)
+            BIGLSQ=max(BIGLSQ,TEMP*VLAG(K)**2)
         END DO
         IF (SCADEN  <=  HALF*BIGLSQ) THEN
             IF (NF  >  NRESC) GOTO 190
-            IF (IPRINT  >  0) PRINT 320
+            IF (IPRINT  >  0) write(*, *) "Return from BOBYQA because of much cancellation in a denominator."
             GOTO 720
         END IF
     END IF
@@ -640,23 +632,20 @@
     !    the limit on the number of calculations of F has been reached.
     !
 360 DO I=1,N
-        X(I)=DMIN1(DMAX1(XL(I),XBASE(I)+XNEW(I)),XU(I))
+        X(I)=min(max(XL(I),XBASE(I)+XNEW(I)),XU(I))
         IF (XNEW(I) .EQ. SL(I)) X(I)=XL(I)
         IF (XNEW(I) .EQ. SU(I)) X(I)=XU(I)
     END DO
     IF (NF  >=  MAXFUN) THEN
-        IF (IPRINT  >  0) PRINT 390
-390     FORMAT (/4X,'Return from BOBYQA because funkk has been',&
-            &      ' called MAXFUN times.')
+        IF (IPRINT  >  0) write(*, *) "Return from BOBYQA because funkk has been called MAXFUN times."
         BOBYQB = .false.
         GOTO 720
     END IF
     NF=NF+1
     F = this%funkk(this%obj, X(1:N))
     IF (IPRINT .EQ. 3) THEN
-        PRINT 400, NF,F,(X(I),I=1,N)
-400     FORMAT (/4X,'Function number',I6,'    F =',1PD18.10,&
-            &       '    The corresponding X is:'/(2X,5D15.6))
+        write(*, "(/4X,'Function number',I6,'    F =',1PD18.10,'    The corresponding X is:'/(2X,5D15.6))") &
+            NF, F, (X(I), I=1,N)
     END IF
     IF (NTRITS .EQ. -1) THEN
         FSAVE=F
@@ -684,26 +673,24 @@
     DIFF=F-FOPT-VQUAD
     DIFFC=DIFFB
     DIFFB=DIFFA
-    DIFFA=DABS(DIFF)
+    DIFFA=abs(DIFF)
     IF (DNORM  >  RHO) NFSAV=NF
     !
     !     Pick the next value of DELTA after a trust region step.
     !
     IF (NTRITS  >  0) THEN
         IF (VQUAD  >=  ZERO) THEN
-            IF (IPRINT  >  0) PRINT 430
-430         FORMAT (/4X,'Return from BOBYQA because a trust',&
-                &          ' region step has failed to reduce Q.')
+            IF (IPRINT  >  0) write(*, *) "Return from BOBYQA because a trust region step has failed to reduce Q."
             BOBYQB = .false.
             GOTO 720
         END IF
         RATIO=(F-FOPT)/VQUAD
         IF (RATIO  <=  TENTH) THEN
-            DELTA=DMIN1(HALF*DELTA,DNORM)
+            DELTA=min(HALF*DELTA,DNORM)
         ELSEIF (RATIO  <=  0.7D0) THEN
-            DELTA=DMAX1(HALF*DELTA,DNORM)
+            DELTA=max(HALF*DELTA,DNORM)
         ELSE
-            DELTA=DMAX1(HALF*DELTA,DNORM+DNORM)
+            DELTA=max(HALF*DELTA,DNORM+DNORM)
         END IF
         IF (DELTA  <=  1.5D0*RHO) DELTA=RHO
         !
@@ -726,13 +713,13 @@
                 DO J=1,N
                     DISTSQ=DISTSQ+(XPT(K,J)-XNEW(J))**2
                 END DO
-                TEMP=DMAX1(ONE,(DISTSQ/DELSQ)**2)
+                TEMP=max(ONE,(DISTSQ/DELSQ)**2)
                 IF (TEMP*DEN  >  SCADEN) THEN
                     SCADEN=TEMP*DEN
                     KNEW=K
                     DENOM=DEN
                 END IF
-                BIGLSQ=DMAX1(BIGLSQ,TEMP*VLAG(K)**2)
+                BIGLSQ=max(BIGLSQ,TEMP*VLAG(K)**2)
             END DO
             IF (SCADEN  <=  HALF*BIGLSQ) THEN
                 KNEW=KSAV
@@ -849,11 +836,11 @@
                 SUM=SUM+BMAT(K,I)*VLAG(K)+XPT(K,I)*W(K)
             END DO
             IF (XOPT(I) .EQ. SL(I)) THEN
-                GQSQ=GQSQ+DMIN1(ZERO,GOPT(I))**2
-                GISQ=GISQ+DMIN1(ZERO,SUM)**2
+                GQSQ=GQSQ+min(ZERO,GOPT(I))**2
+                GISQ=GISQ+min(ZERO,SUM)**2
             ELSE IF (XOPT(I) .EQ. SU(I)) THEN
-                GQSQ=GQSQ+DMAX1(ZERO,GOPT(I))**2
-                GISQ=GISQ+DMAX1(ZERO,SUM)**2
+                GQSQ=GQSQ+max(ZERO,GOPT(I))**2
+                GISQ=GISQ+max(ZERO,SUM)**2
             ELSE
                 GQSQ=GQSQ+GOPT(I)**2
                 GISQ=GISQ+SUM*SUM
@@ -867,7 +854,7 @@
         ITEST=ITEST+1
         IF (GQSQ  <  TEN*GISQ) ITEST=0
         IF (ITEST  >=  3) THEN
-            DO I=1,MAX0(NPT,NH)
+            DO I=1,max(NPT,NH)
                 IF (I  <=  N) GOPT(I)=VLAG(NPT+I)
                 IF (I  <=  NPT) PQ(I)=W(NPT+I)
                 IF (I  <=  NH) HQ(I)=ZERO
@@ -886,7 +873,7 @@
     !     Alternatively, find out if the interpolation points are close enough
     !       to the best point so far.
     !
-    DISTSQ=DMAX1((TWO*DELTA)**2,(TEN*RHO)**2)
+    DISTSQ=max((TWO*DELTA)**2,(TEN*RHO)**2)
 650 KNEW=0
     DO K=1,NPT
         SUM=ZERO
@@ -906,19 +893,19 @@
     !  current RHO are complete.
     !
     IF (KNEW  >  0) THEN
-        DIST=DSQRT(DISTSQ)
+        DIST=sqrt(DISTSQ)
         IF (NTRITS .EQ. -1) THEN
-            DELTA=DMIN1(TENTH*DELTA,HALF*DIST)
+            DELTA=min(TENTH*DELTA,HALF*DIST)
             IF (DELTA  <=  1.5D0*RHO) DELTA=RHO
         END IF
         NTRITS=0
-        ADELT=DMAX1(DMIN1(TENTH*DIST,DELTA),RHO)
+        ADELT=max(min(TENTH*DIST,DELTA),RHO)
         DSQ=ADELT*ADELT
         GOTO 90
     END IF
     IF (NTRITS .EQ. -1) GOTO 680
     IF (RATIO  >  ZERO) GOTO 60
-    IF (DMAX1(DELTA,DNORM)  >  RHO) GOTO 60
+    IF (max(DELTA,DNORM)  >  RHO) GOTO 60
     !
     !  The calculations with the current value of RHO are complete. Pick the
     !    next values of RHO and DELTA.
@@ -930,21 +917,17 @@
         IF (RATIO  <=  16.0D0) THEN
             RHO=RHOEND
         ELSE IF (RATIO  <=  250.0D0) THEN
-            RHO=DSQRT(RATIO)*RHOEND
+            RHO=sqrt(RATIO)*RHOEND
         ELSE
             RHO=TENTH*RHO
         END IF
-        DELTA=DMAX1(DELTA,RHO)
+        DELTA=max(DELTA,RHO)
         this%Last_bestfit = FVAL(KOPT)
         IF (IPRINT  >=  2) THEN
-            IF (IPRINT  >=  3) PRINT 690
-690         FORMAT (5X)
-            PRINT 700, RHO,NF
-700         FORMAT (/4X,'New RHO =',1PD11.4,5X,'Number of',&
-                &          ' function values =',I6)
-            PRINT 710, FVAL(KOPT),(XBASE(I)+XOPT(I),I=1,N)
-710         FORMAT (4X,'Least value of F =',1PD23.15,9X,&
-                &          'The corresponding X is:'/(2X,5D15.6))
+            IF (IPRINT  >=  3) print "(5X)"
+            write(*, "(/4X,'New RHO =',1PD11.4,5X,'Number of function values =',I6)") RHO, NF
+            write(*, "(4X,'Least value of F =',1PD23.15,9X,'The corresponding X is:'/(2X,5D15.6))") &
+                FVAL(KOPT), (XBASE(I)+XOPT(I), I=1,N)
         END IF
         NTRITS=0
         NFSAV=NF
@@ -957,7 +940,7 @@
     IF (NTRITS .EQ. -1) GOTO 360
 720 IF (FVAL(KOPT)  <=  FSAVE) THEN
         DO I=1,N
-            X(I)=DMIN1(DMAX1(XL(I),XBASE(I)+XOPT(I)),XU(I))
+            X(I)=min(max(XL(I),XBASE(I)+XOPT(I)),XU(I))
             IF (XOPT(I) .EQ. SL(I)) X(I)=XL(I)
             IF (XOPT(I) .EQ. SU(I)) X(I)=XU(I)
         END DO
@@ -965,10 +948,9 @@
     END IF
     IF (IPRINT  >=  1) THEN
         if (RHO  >  RHOEND) write(*,*) '    FVAL_Converge_difference reached'
-        PRINT 740, NF
-740     FORMAT (/4X,'At the return from BOBYQA',5X,&
-            &      'Number of function values =',I6)
-        PRINT 710, F,(X(I),I=1,N)
+        write(*, "(/4X,'At the return from BOBYQA',5X,'Number of function values =',I6)") NF
+        write(*, "(4X,'Least value of F =',1PD23.15,9X,'The corresponding X is:'/(2X,5D15.6))") &
+            F, (X(I), I=1,N)
     END IF
     end function BOBYQB
 
@@ -1018,7 +1000,7 @@
     HALF=0.5D0
     ONE=1.0D0
     ZERO=0.0D0
-    CONST=ONE+DSQRT(2.0D0)
+    CONST=ONE+sqrt(2.0D0)
     DO K=1,NPT
         HCOL(K)=ZERO
     END DO
@@ -1062,11 +1044,11 @@
             DDERIV=DDERIV+GLAG(I)*TEMP
             DISTSQ=DISTSQ+TEMP*TEMP
         END DO
-        SUBD=ADELT/DSQRT(DISTSQ)
+        SUBD=ADELT/sqrt(DISTSQ)
         SLBD=-SUBD
         ILBD=0
         IUBD=0
-        SUMIN=DMIN1(ONE,SUBD)
+        SUMIN=min(ONE,SUBD)
         !
         !     Revise SLBD and SUBD if necessary because of the bounds in SL and
         !
@@ -1078,7 +1060,7 @@
                     ILBD=-I
                 END IF
                 IF (SUBD*TEMP  >  SU(I)-XOPT(I)) THEN
-                    SUBD=DMAX1(SUMIN,(SU(I)-XOPT(I))/TEMP)
+                    SUBD=max(SUMIN,(SU(I)-XOPT(I))/TEMP)
                     IUBD=I
                 END IF
             ELSE IF (TEMP  <  ZERO) THEN
@@ -1087,7 +1069,7 @@
                     ILBD=I
                 END IF
                 IF (SUBD*TEMP  <  SL(I)-XOPT(I)) THEN
-                    SUBD=DMAX1(SUMIN,(SL(I)-XOPT(I))/TEMP)
+                    SUBD=max(SUMIN,(SL(I)-XOPT(I))/TEMP)
                     IUBD=-I
                 END IF
             END IF
@@ -1102,7 +1084,7 @@
             VLAG=SLBD*(DDERIV-SLBD*DIFF)
             ISBD=ILBD
             TEMP=SUBD*(DDERIV-SUBD*DIFF)
-            IF (DABS(TEMP)  >  DABS(VLAG)) THEN
+            IF (abs(TEMP)  >  abs(VLAG)) THEN
                 STEP=SUBD
                 VLAG=TEMP
                 ISBD=IUBD
@@ -1112,7 +1094,7 @@
             TEMPB=TEMPD-DIFF*SUBD
             IF (TEMPA*TEMPB  <  ZERO) THEN
                 TEMP=TEMPD*TEMPD/DIFF
-                IF (DABS(TEMP)  >  DABS(VLAG)) THEN
+                IF (abs(TEMP)  >  abs(VLAG)) THEN
                     STEP=TEMPD/DIFF
                     VLAG=TEMP
                     ISBD=0
@@ -1126,13 +1108,13 @@
             VLAG=SLBD*(ONE-SLBD)
             ISBD=ILBD
             TEMP=SUBD*(ONE-SUBD)
-            IF (DABS(TEMP)  >  DABS(VLAG)) THEN
+            IF (abs(TEMP)  >  abs(VLAG)) THEN
                 STEP=SUBD
                 VLAG=TEMP
                 ISBD=IUBD
             END IF
             IF (SUBD  >  HALF) THEN
-                IF (DABS(VLAG)  <  0.25D0) THEN
+                IF (abs(VLAG)  <  0.25D0) THEN
                     STEP=HALF
                     VLAG=0.25D0
                     ISBD=0
@@ -1157,7 +1139,7 @@
     !
     DO I=1,N
         TEMP=XOPT(I)+STPSAV*(XPT(KSAV,I)-XOPT(I))
-        XNEW(I)=DMAX1(SL(I),DMIN1(SU(I),TEMP))
+        XNEW(I)=max(SL(I),min(SU(I),TEMP))
     END DO
     IF (IBDSAV  <  0) XNEW(-IBDSAV)=SL(-IBDSAV)
     IF (IBDSAV  >  0) XNEW(IBDSAV)=SU(IBDSAV)
@@ -1172,8 +1154,8 @@
     GGFREE=ZERO
     DO I=1,N
         W(I)=ZERO
-        TEMPA=DMIN1(XOPT(I)-SL(I),GLAG(I))
-        TEMPB=DMAX1(XOPT(I)-SU(I),GLAG(I))
+        TEMPA=min(XOPT(I)-SL(I),GLAG(I))
+        TEMPB=max(XOPT(I)-SU(I),GLAG(I))
         IF (TEMPA  >  ZERO .OR. TEMPB  <  ZERO) THEN
             W(I)=BIGSTP
             GGFREE=GGFREE+GLAG(I)**2
@@ -1189,7 +1171,7 @@
 120 TEMP=ADELT*ADELT-WFIXSQ
     IF (TEMP  >  ZERO) THEN
         WSQSAV=WFIXSQ
-        STEP=DSQRT(TEMP/GGFREE)
+        STEP=sqrt(TEMP/GGFREE)
         GGFREE=ZERO
         DO I=1,N
             IF (W(I) .EQ. BIGSTP) THEN
@@ -1215,7 +1197,7 @@
     DO I=1,N
         IF (W(I) .EQ. BIGSTP) THEN
             W(I)=-STEP*GLAG(I)
-            XALT(I)=DMAX1(SL(I),DMIN1(SU(I),XOPT(I)+W(I)))
+            XALT(I)=max(SL(I),min(SU(I),XOPT(I)+W(I)))
         ELSE IF (W(I) .EQ. ZERO) THEN
             XALT(I)=XOPT(I)
         ELSE IF (GLAG(I)  >  ZERO) THEN
@@ -1244,7 +1226,7 @@
         SCALE=-GW/CURV
         DO I=1,N
             TEMP=XOPT(I)+SCALE*W(I)
-            XALT(I)=DMAX1(SL(I),DMIN1(SU(I),TEMP))
+            XALT(I)=max(SL(I),min(SU(I),TEMP))
         END DO
         CAUCHY=(HALF*GW*SCALE)**2
     ELSE
@@ -1314,24 +1296,12 @@
     !     Set XBASE to the initial vector of variables, and set the initial
     !     elements of XPT, BMAT, HQ, PQ and ZMAT to zero.
     !
-    DO J=1,N
-        XBASE(J)=X(J)
-        DO K=1,NPT
-            XPT(K,J)=ZERO
-        END DO
-        DO I=1,NDIM
-            BMAT(I,J)=ZERO
-        END DO
-    END DO
-    DO IH=1,(N*NP)/2
-        HQ(IH)=ZERO
-    END DO
-    DO K=1,NPT
-        PQ(K)=ZERO
-        DO J=1,NPT-NP
-            ZMAT(K,J)=ZERO
-        END DO
-    END DO
+    XBASE(1:N)=X(1:N)
+    XPT(1:NPT,1:N)=ZERO
+    BMAT(1:NDIM,1:N)=ZERO
+    HQ(1:(N*NP)/2)=ZERO
+    PQ(1:NPT)=ZERO
+    ZMAT(1:NPT,1:NPT-NP)=ZERO
     !
     !  Begin the initialization procedure. NF becomes one more than the number
     !  of function values so far. The coordinates of the displacement of the
@@ -1349,8 +1319,8 @@
         ELSE IF (NFM  >  N) THEN
             STEPA=XPT(NF-N,NFX)
             STEPB=-RHOBEG
-            IF (SL(NFX) .EQ. ZERO) STEPB=DMIN1(TWO*RHOBEG,SU(NFX))
-            IF (SU(NFX) .EQ. ZERO) STEPB=DMAX1(-TWO*RHOBEG,SL(NFX))
+            IF (SL(NFX) .EQ. ZERO) STEPB=min(TWO*RHOBEG,SU(NFX))
+            IF (SU(NFX) .EQ. ZERO) STEPB=max(-TWO*RHOBEG,SL(NFX))
             XPT(NF,NFX)=STEPB
         END IF
     ELSE
@@ -1370,15 +1340,14 @@
     !     its index are required.
     !
     DO J=1,N
-        X(J)=DMIN1(DMAX1(XL(J),XBASE(J)+XPT(NF,J)),XU(J))
+        X(J)=min(max(XL(J),XBASE(J)+XPT(NF,J)),XU(J))
         IF (XPT(NF,J) .EQ. SL(J)) X(J)=XL(J)
         IF (XPT(NF,J) .EQ. SU(J)) X(J)=XU(J)
     END DO
     F = this%funkk(this%obj,X(1:N))
     IF (IPRINT .EQ. 3) THEN
-        PRINT 70, NF,F,(X(I),I=1,N)
-70      FORMAT (/4X,'Function number',I6,'    F =',1PD18.10,&
-            &       '    The corresponding X is:'/(2X,5D15.6))
+        write(*, "(/4X,'Function number',I6,'    F =',1PD18.10,'    The corresponding X is:'/(2X,5D15.6))") &
+            NF, F, (X(I), I=1,N)
     END IF
     FVAL(NF)=F
     IF (NF .EQ. 1) THEN
@@ -1420,8 +1389,8 @@
             BMAT(1,NFX)=-(STEPA+STEPB)/(STEPA*STEPB)
             BMAT(NF,NFX)=-HALF/XPT(NF-N,NFX)
             BMAT(NF-N,NFX)=-BMAT(1,NFX)-BMAT(NF,NFX)
-            ZMAT(1,NFX)=DSQRT(TWO)/(STEPA*STEPB)
-            ZMAT(NF,NFX)=DSQRT(HALF)/RHOSQ
+            ZMAT(1,NFX)=sqrt(TWO)/(STEPA*STEPB)
+            ZMAT(NF,NFX)=sqrt(HALF)/RHOSQ
             ZMAT(NF-N,NFX)=-ZMAT(1,NFX)-ZMAT(NF,NFX)
         END IF
         !
@@ -1519,7 +1488,7 @@
         END DO
         SUMPQ=SUMPQ+PQ(K)
         W(NDIM+K)=DISTSQ
-        WINC=DMAX1(WINC,DISTSQ)
+        WINC=max(WINC,DISTSQ)
         DO J=1,NPTM
             ZMAT(K,J)=ZERO
         END DO
@@ -1548,14 +1517,14 @@
         SL(J)=SL(J)-XOPT(J)
         SU(J)=SU(J)-XOPT(J)
         XOPT(J)=ZERO
-        PTSAUX(1,J)=DMIN1(DELTA,SU(J))
-        PTSAUX(2,J)=DMAX1(-DELTA,SL(J))
+        PTSAUX(1,J)=min(DELTA,SU(J))
+        PTSAUX(2,J)=max(-DELTA,SL(J))
         IF (PTSAUX(1,J)+PTSAUX(2,J)  <  ZERO) THEN
             TEMP=PTSAUX(1,J)
             PTSAUX(1,J)=PTSAUX(2,J)
             PTSAUX(2,J)=TEMP
         END IF
-        IF (DABS(PTSAUX(2,J))  <  HALF*DABS(PTSAUX(1,J))) THEN
+        IF (abs(PTSAUX(2,J))  <  HALF*abs(PTSAUX(1,J))) THEN
             PTSAUX(2,J)=HALF*PTSAUX(1,J)
         END IF
         DO I=1,NDIM
@@ -1579,7 +1548,7 @@
             BMAT(JP,J)=-TEMP+ONE/PTSAUX(1,J)
             BMAT(JPN,J)=TEMP+ONE/PTSAUX(2,J)
             BMAT(1,J)=-BMAT(JP,J)-BMAT(JPN,J)
-            ZMAT(1,J)=DSQRT(2.0D0)/DABS(PTSAUX(1,J)*PTSAUX(2,J))
+            ZMAT(1,J)=sqrt(2.0D0)/abs(PTSAUX(1,J)*PTSAUX(2,J))
             ZMAT(JP,J)=ZMAT(1,J)*PTSAUX(2,J)*TEMP
             ZMAT(JPN,J)=-ZMAT(1,J)*PTSAUX(1,J)*TEMP
         ELSE
@@ -1639,7 +1608,7 @@
         CALL UPDATE (N,NPT,BMAT,ZMAT,NDIM,VLAG,BETA,DENOM,KNEW,W)
         IF (NREM .EQ. 0) return
         DO K=1,NPT
-            W(NDIM+K)=DABS(W(NDIM+K))
+            W(NDIM+K)=abs(W(NDIM+K))
         END DO
     END IF
     !
@@ -1743,7 +1712,7 @@
                 DENOM=DEN
             END IF
         END IF
-        VLMXSQ=DMAX1(VLMXSQ,VLAG(K)**2)
+        VLMXSQ=max(VLMXSQ,VLAG(K)**2)
     END DO
     IF (DENOM  <=  1.0D-2*VLMXSQ) THEN
         W(NDIM+KNEW)=-W(NDIM+KNEW)-WINC
@@ -1799,7 +1768,7 @@
             IHQ=(IQ+IQ*IQ)/2
             VQUAD=VQUAD+XQ*(GOPT(IQ)+HALF*XQ*HQ(IHQ))
             IF (IP  >  0) THEN
-                IW=MAX0(IHP,IHQ)-IABS(IP-IQ)
+                IW=max(IHP,IHQ)-abs(IP-IQ)
                 VQUAD=VQUAD+XP*XQ*HQ(IW)
             END IF
         END IF
@@ -1815,16 +1784,15 @@
         !  is updated to provide interpolation to the new function value.
         !
         DO I=1,N
-            W(I)=DMIN1(DMAX1(XL(I),XBASE(I)+XPT(KPT,I)),XU(I))
+            W(I)=min(max(XL(I),XBASE(I)+XPT(KPT,I)),XU(I))
             IF (XPT(KPT,I) .EQ. SL(I)) W(I)=XL(I)
             IF (XPT(KPT,I) .EQ. SU(I)) W(I)=XU(I)
         END DO
         NF=NF+1
         F = this%funkk(this%obj, W(1:N))
         IF (IPRINT .EQ. 3) THEN
-            PRINT 300, NF,F,(W(I),I=1,N)
-300         FORMAT (/4X,'Function number',I6,'    F =',1PD18.10,&
-                &      '    The corresponding X is:'/(2X,5D15.6))
+            write(*, "(/4X,'Function number',I6,'    F =',1PD18.10,'    The corresponding X is:'/(2X,5D15.6))") &
+                NF, F, (W(I), I=1,N)
         END IF
         FVAL(KPT)=F
         IF (F  <  FVAL(KOPT)) KOPT=KPT
@@ -1855,7 +1823,7 @@
                     HQ(IHP)=HQ(IHP)+TEMP*PTSAUX(1,IP)**2
                     IF (IQ  >  0) THEN
                         HQ(IHQ)=HQ(IHQ)+TEMP*PTSAUX(1,IQ)**2
-                        IW=MAX0(IHP,IHQ)-IABS(IQ-IP)
+                        IW=max(IHP,IHQ)-abs(IQ-IP)
                         HQ(IW)=HQ(IW)+TEMP*PTSAUX(1,IP)*PTSAUX(1,IQ)
                     END IF
                 END IF
@@ -1985,15 +1953,15 @@
 50  RESID=DELSQ
     DS=ZERO
     SHS=ZERO
-    DO 60 I=1,N
+    DO I=1,N
         IF (XBDI(I) .EQ. ZERO) THEN
             RESID=RESID-D(I)**2
             DS=DS+S(I)*D(I)
             SHS=SHS+S(I)*HS(I)
         END IF
-60  CONTINUE
+    END DO
     IF (RESID  <=  ZERO) GOTO 90
-    TEMP=DSQRT(STEPSQ*RESID+DS*DS)
+    TEMP=sqrt(STEPSQ*RESID+DS*DS)
     IF (DS  <  ZERO) THEN
         BLEN=(TEMP-DS)/STEPSQ
     ELSE
@@ -2001,7 +1969,7 @@
     END IF
     STPLEN=BLEN
     IF (SHS  >  ZERO) THEN
-        STPLEN=DMIN1(BLEN,GREDSQ/SHS)
+        STPLEN=min(BLEN,GREDSQ/SHS)
     END IF
 
     !
@@ -2009,7 +1977,7 @@
     !     letting IACT be the index of the new constrained variable.
     !
     IACT=0
-    DO 70 I=1,N
+    DO I=1,N
         IF (S(I) .NE. ZERO) THEN
             XSUM=XOPT(I)+D(I)
             IF (S(I)  >  ZERO) THEN
@@ -2022,7 +1990,7 @@
                 IACT=I
             END IF
         END IF
-70  CONTINUE
+    END DO
     !
     !     Update CRVMIN, GNEW and D. Set SDEC to the decrease that occurs in
     !
@@ -2031,7 +1999,7 @@
         ITERC=ITERC+1
         TEMP=SHS/STEPSQ
         IF (IACT .EQ. 0 .AND. TEMP  >  ZERO) THEN
-            CRVMIN=DMIN1(CRVMIN,TEMP)
+            CRVMIN=min(CRVMIN,TEMP)
             IF (CRVMIN .EQ. ONEMIN) CRVMIN=TEMP
         END IF
         GGSAV=GREDSQ
@@ -2041,7 +2009,7 @@
             IF (XBDI(I) .EQ. ZERO) GREDSQ=GREDSQ+GNEW(I)**2
             D(I)=D(I)+STPLEN*S(I)
         END DO
-        SDEC=DMAX1(STPLEN*(GGSAV-HALF*STPLEN*SHS),ZERO)
+        SDEC=max(STPLEN*(GGSAV-HALF*STPLEN*SHS),ZERO)
         QRED=QRED+SDEC
     END IF
     !
@@ -2094,7 +2062,7 @@
 120 ITERC=ITERC+1
     TEMP=GREDSQ*DREDSQ-DREDG*DREDG
     IF (TEMP  <=  1.0D-4*QRED*QRED) GOTO 190
-    TEMP=DSQRT(TEMP)
+    TEMP=sqrt(TEMP)
     DO I=1,N
         IF (XBDI(I) .EQ. ZERO) THEN
             S(I)=(DREDG*D(I)-DREDSQ*GNEW(I))/TEMP
@@ -2128,7 +2096,7 @@
             SSQ=D(I)**2+S(I)**2
             TEMP=SSQ-(XOPT(I)-SL(I))**2
             IF (TEMP  >  ZERO) THEN
-                TEMP=DSQRT(TEMP)-S(I)
+                TEMP=sqrt(TEMP)-S(I)
                 IF (ANGBD*TEMP  >  TEMPA) THEN
                     ANGBD=TEMPA/TEMP
                     IACT=I
@@ -2137,7 +2105,7 @@
             END IF
             TEMP=SSQ-(SU(I)-XOPT(I))**2
             IF (TEMP  >  ZERO) THEN
-                TEMP=DSQRT(TEMP)+S(I)
+                TEMP=sqrt(TEMP)+S(I)
                 IF (ANGBD*TEMP  >  TEMPB) THEN
                     ANGBD=TEMPB/TEMP
                     IACT=I
@@ -2225,7 +2193,7 @@
     IF (SDEC  >  0.01D0*QRED) GOTO 120
 190 DSQ=ZERO
     DO I=1,N
-        XNEW(I)=DMAX1(DMIN1(XOPT(I)+D(I),SU(I)),SL(I))
+        XNEW(I)=max(min(XOPT(I)+D(I),SU(I)),SL(I))
         IF (XBDI(I) .EQ. ONEMIN) XNEW(I)=SL(I)
         IF (XBDI(I) .EQ. ONE) XNEW(I)=SU(I)
         D(I)=XNEW(I)-XOPT(I)
@@ -2288,20 +2256,15 @@
     ONE=1.0D0
     ZERO=0.0D0
     NPTM=NPT-N-1
-    ZTEST=ZERO
-    DO K=1,NPT
-        DO J=1,NPTM
-            ZTEST=DMAX1(ZTEST,DABS(ZMAT(K,J)))
-        END DO
-    END DO
+    ZTEST=maxval(abs(ZMAT(1:NPT,1:NPTM)))
     ZTEST=1.0D-20*ZTEST
     !
     !     Apply the rotations that put zeros in the KNEW-th row of ZMAT.
     !
     JL=1
     DO J=2,NPTM
-        IF (DABS(ZMAT(KNEW,J))  >  ZTEST) THEN
-            TEMP=DSQRT(ZMAT(KNEW,1)**2+ZMAT(KNEW,J)**2)
+        IF (abs(ZMAT(KNEW,J))  >  ZTEST) THEN
+            TEMP=sqrt(ZMAT(KNEW,1)**2+ZMAT(KNEW,J)**2)
             TEMPA=ZMAT(KNEW,1)/TEMP
             TEMPB=ZMAT(KNEW,J)/TEMP
             DO I=1,NPT
@@ -2316,16 +2279,14 @@
     !     Put the first NPT components of the KNEW-th column of HLAG into W,
     !     and calculate the parameters of the updating formula.
     !
-    DO I=1,NPT
-        W(I)=ZMAT(KNEW,1)*ZMAT(I,1)
-    END DO
+    W(1:NPT)=ZMAT(KNEW,1)*ZMAT(1:NPT,1)
     ALPHA=W(KNEW)
     TAU=VLAG(KNEW)
     VLAG(KNEW)=VLAG(KNEW)-ONE
     !
     !     Complete the updating of ZMAT.
     !
-    TEMP=DSQRT(DENOM)
+    TEMP=sqrt(DENOM)
     TEMPB=ZMAT(KNEW,1)/TEMP
     TEMPA=TAU/TEMP
     DO I=1,NPT
@@ -2394,7 +2355,7 @@
 
     call C_F_PROCPOINTER(c_funloc(funk), this%funkk)
     this%obj => obj
-    this%Last_bestfit = 1d30
+    this%Last_bestfit = huge(1._dp)
 
     np = n + 1
     nptm = npt - np
@@ -2492,24 +2453,12 @@
     !
     !     Set the initial elements of XPT, BMAT, HQ, PQ and ZMAT to zero.
     !
-    do j = 1, n
-        xbase (j) = x (j)
-        do k = 1, npt
-            xpt (k, j) = zero
-        end do
-        do i = 1, ndim
-            bmat (i, j) = zero
-        end do
-    end do
-    do ih = 1, nh
-        hq (ih) = zero
-    end do
-    do k = 1, npt
-        pq (k) = zero
-        do j = 1, nptm
-            zmat (k, j) = zero
-        end do
-    end do
+    xbase(1:n) = x(1:n)
+    xpt(1:npt,1:n) = zero
+    bmat(1:ndim,1:n) = zero
+    hq(1:nh) = zero
+    pq(1:npt) = zero
+    zmat(1:npt,1:nptm) = zero
     !
     !     Begin the initialization procedure. NF becomes one more than the number
     !     of function values so far. The coordinates of the displacement of the
@@ -2797,17 +2746,14 @@
     nf = nf + 1
 310 if (nf > nftest) then
         nf = nf - 1
-        if (iprint > 0) print 320
-320     format (/ 4 x, 'Return from NEWUOA because CALFUN has been',&
-            ' called MAXFUN times.')
+        if (iprint > 0) write(*, *) "Return from NEWUOA because CALFUN has been called MAXFUN times."
         newuob = .false.
         go to 530
     end if
     f = this%funkk(this%obj, X(1:N))
     if (iprint == 3) then
-        print 330, nf, f, (x(i), i=1, n)
-330     format (/ 4 x, 'Function number', i6, '    F =', 1 pd18.10,&
-            '    The corresponding X is:' / (2 x, 5d15.6))
+        write(*, "(/4X,'Function number',I6,'    F =',1PD18.10,'    The corresponding X is:'/(2X,5D15.6))") &
+            nf, f, (x(i), i=1,n)
     end if
     if (nf <= npt) go to 70
     if (knew ==-1) go to 530
@@ -2854,9 +2800,7 @@
     !     Pick the next value of DELTA after a trust region step.
     !
     if (vquad >= zero) then
-        if (iprint > 0) print 370
-370     format (/ 4 x, 'Return from NEWUOA because a trust',&
-            ' region step has failed to reduce Q.')
+        if (iprint > 0) write(*, *) "Return from NEWUOA because a trust region step has failed to reduce Q."
         newuob = .false.
         go to 530
     end if
@@ -3034,14 +2978,10 @@
         delta = max (delta, rho)
         this%Last_bestfit = fopt
         if (iprint >= 2) then
-            if (iprint >= 3) print 500
-500         format (5 x)
-            print 510, rho, nf
-510         format (/ 4 x, 'New RHO =', 1 pd11.4, 5 x, 'Number of',&
-                ' function values =', i6)
-            print 520, fopt, (xbase(i)+xopt(i), i=1, n)
-520         format (4 x, 'Least value of F =', 1 pd23.15, 9 x,&
-                'The corresponding X is:'/(2 x, 5d15.6))
+            if (iprint >= 3) print "(5X)"
+            write(*, "(/4X,'New RHO =',1PD11.4,5X,'Number of function values =',I6)") rho, nf
+            write(*, "(4X,'Least value of F =',1PD23.15,9X,'The corresponding X is:'/(2X,5D15.6))") &
+                fopt, (xbase(i)+xopt(i), i=1,n)
         end if
         go to 90
     end if
@@ -3057,10 +2997,9 @@
         f = fopt
     end if
     if (iprint >= 1) then
-        print 550, nf
-550     format (/ 4 x, 'At the return from NEWUOA', 5 x,&
-            'Number of function values =', i6)
-        print 520, f, (x(i), i=1, n)
+        write(*, "(/4X,'At the return from NEWUOA',5X,'Number of function values =',I6)") nf
+        write(*, "(4X,'Least value of F =',1PD23.15,9X,'The corresponding X is:'/(2X,5D15.6))") &
+            f, (x(i), i=1,n)
     end if
 
     end function newuob

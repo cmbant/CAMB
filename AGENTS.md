@@ -20,7 +20,7 @@ This is the CAMB Python cosmology code, wrapping Fortran 2003 for numerics.
 ## Fortran
 - Use modern Fortran 2003, compiled with **gfortran** or **ifort**.
 - `/forutils` is a git submodule containing shared Fortran utilities and classes.
-- For guidance on modifying Fortran or wrapped Fortran code, see `/docs/modifying_code.rst`.
+- For guidance on modifying Fortran or wrapped Fortran code, see `/docs/source/modifying_code.rst`.
 
 ---
 
@@ -32,10 +32,10 @@ This is the CAMB Python cosmology code, wrapping Fortran 2003 for numerics.
 - If `python setup.py make` produces stale `.mod` type-mismatch errors, or errors after changing fortran type layout, run `python setup.py clean` first (not normally needed).
 
 ## Testing
-- **Default test:** `python -m unittest camb.tests.camb_test`.
+- **Default test:** `python -m unittest camb.tests.camb_test`. This may take more than 2 minutes, allow enough timeout.
   - Do **not** run `camb.tests.hmcode_test` unless specifically relevant.
 - **Long test** against precomputed results: `python fortran/tests/run_tests.py`, which calls `CAMB_test_files.py`. Only run this if explicitly asked.
-- For (hyper-)spherical Bessel function and other mathutils run `python -m unittest camb.tests.mathutils_test`.
+- For (hyper-)spherical Bessel functions and other mathutils run `python -m unittest camb.tests.mathutils_test`.
 
 ## Configuration
 - See `CONTRIBUTING.md` for installation, cloning, modification guidelines, contribution instructions, pre-commit setup, and VS Code configuration.

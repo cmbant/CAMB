@@ -212,45 +212,72 @@
 
     subroutine TBaseTauWithHeReionization_zreFromOptDepth(this)
     !General routine to find zre parameter given optical depth
+    use MathUtils, only: brentq
     class(TBaseTauWithHeReionization) :: this
-    real(dl) try_b, try_t
-    real(dl) tau, last_top, last_bot
-    integer i
+    real(dl) try_b, try_t, z_tol
+    real(dl) f_bot, f_top, fzero, xzero
+    integer iflag
 
     try_b = this%min_redshift
     try_t = this%max_redshift
-    i=0
-    do
-        i=i+1
-        this%redshift = (try_t + try_b)/2
-        call this%SetParamsForZre()
-        tau = this%State%GetReionizationOptDepth()
+    z_tol = 1e-3_dl/this%tau_solve_accuracy_boost
+    ! Avoid evaluating exactly at a non-zero lower boundary, where some models are singular.
+    if (try_b > 0._dl) try_b = min(try_b + z_tol, try_t)
 
-        if (tau > this%optical_depth) then
-            try_t = this%redshift
-            last_top = tau
-        else
-            try_b = this%redshift
-            last_bot = tau
-        end if
-        if (abs(try_b - try_t) < 1e-2_dl/this%tau_solve_accuracy_boost) then
-            if (try_b==this%min_redshift) last_bot = this%min_redshift
-            if (try_t/=this%max_redshift) this%redshift  = &
-                (try_t*(this%optical_depth-last_bot) + try_b*(last_top-this%optical_depth))/(last_top-last_bot)
-            exit
-        end if
-        if (i>100) call GlobalError('TBaseTauWithHeReionization_zreFromOptDepth: failed to converge',error_reionization)
-    end do
+    f_bot = TBaseTauWithHeReionization_tau_minus_optical_depth(this, try_b)
+    if (global_error_flag/=0) return
+    f_top = TBaseTauWithHeReionization_tau_minus_optical_depth(this, try_t)
+    if (global_error_flag/=0) return
 
-    if (abs(tau - this%optical_depth) > 0.002 .and. global_error_flag==0) then
+    if (f_bot == 0._dl) then
+        this%redshift = try_b
+        fzero = f_bot
+    else if (f_top == 0._dl) then
+        this%redshift = try_t
+        fzero = f_top
+    else if (f_bot*(f_top/abs(f_top)) < 0._dl) then
+        call brentq(this, TBaseTauWithHeReionization_tau_minus_optical_depth, try_b, try_t, z_tol, &
+            xzero, fzero, iflag, f_bot, f_top)
+        if (iflag/=0) then
+            call GlobalError('TBaseTauWithHeReionization_zreFromOptDepth: failed to converge',error_reionization)
+            return
+        end if
+        this%redshift = xzero
+    else if (abs(f_bot) < abs(f_top)) then
+        this%redshift = try_b
+        fzero = f_bot
+    else
+        this%redshift = try_t
+        fzero = f_top
+    end if
+
+    call this%SetParamsForZre()
+
+    if (abs(fzero) > 0.002 .and. global_error_flag==0) then
         write (*,*) 'TBaseTauWithHeReionization_zreFromOptDepth: Did not converge to optical depth'
-        write (*,*) 'tau =',tau, 'optical_depth = ', this%optical_depth
+        write (*,*) 'tau =',fzero + this%optical_depth, 'optical_depth = ', this%optical_depth
         write (*,*) try_t, try_b
         write (*,*) '(If running a chain, have you put a constraint on tau?)'
         call GlobalError('Reionization did not converge to optical depth',error_reionization)
     end if
 
     end subroutine TBaseTauWithHeReionization_zreFromOptDepth
+
+    real(dl) function TBaseTauWithHeReionization_tau_minus_optical_depth(obj, zre)
+    class(*) :: obj
+    real(dl), intent(in) :: zre
+
+    select type (this => obj)
+    class is (TBaseTauWithHeReionization)
+        this%redshift = zre
+        call this%SetParamsForZre()
+        TBaseTauWithHeReionization_tau_minus_optical_depth = &
+            this%State%GetReionizationOptDepth() - this%optical_depth
+    class default
+        error stop 'TBaseTauWithHeReionization_tau_minus_optical_depth: unexpected solver state'
+    end select
+
+    end function TBaseTauWithHeReionization_tau_minus_optical_depth
 
     real(dl) function TBaseTauWithHeReionization_GetZreFromTau(P, tau)
     type(CAMBparams) :: P, P2
