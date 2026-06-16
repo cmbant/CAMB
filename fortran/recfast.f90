@@ -202,7 +202,7 @@
     !CH              to match x_e(z) for new H physics)
     !AL             June 2012 updated fudge parameters to match HyRec and CosmoRec (AML)
     !AL             Sept 2012 changes now in public recfast, version number changed to match Recfast 1.5.2.
-    !AL             Apr 2026 updated to use variable nZ and evolve/interpolate a*T_m
+    !AL             Apr 2026 updated to use variable nZ and evolve/interpolate a*T_m with Rosenbrock while stiff
 
 
     module Recombination
@@ -599,13 +599,6 @@
         call EnsureRecfastStorage(Calc, internal_nz, storage_ok)
         if (.not. storage_ok) return
 
-
-        !       write(*,*)'recfast version 1.0'
-        !       write(*,*)'Using Hummer''s case B recombination rates for H'
-        !       write(*,*)' with fudge factor = 1.14'
-        !       write(*,*)'and tabulated HeII singlet recombination rates'
-        !       write(*,*)
-
         Calc%n_eq = 3
         if (Evolve_Ts) Calc%n_eq=4
         allocate(w(Calc%n_eq,9))
@@ -613,10 +606,9 @@
         Calc%Recombination_saha_z=0.d0
 
         Calc%Tnow = State%CP%tcmb
-        !       These are easy to inquire as input, but let's use simple values
+
         z = zinitial
         ainv = 1._dl + z
-        !       will output every 1 in z, but this is easily changed also
 
         H = State%CP%H0/100._dl
 
