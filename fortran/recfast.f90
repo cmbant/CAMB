@@ -379,7 +379,14 @@
     this%RECFAST_fudge_He = Ini%Read_Double('RECFAST_fudge_He', RECFAST_fudge_He_default)
     this%RECFAST_Heswitch = Ini%Read_Int('RECFAST_Heswitch', RECFAST_Heswitch_default)
     this%RECFAST_Hswitch = Ini%Read_Logical('RECFAST_Hswitch', RECFAST_Hswitch_default)
-    this%RECFAST_fudge = Ini%Read_Double('RECFAST_fudge', RECFAST_fudge_default)
+    if (Ini%HasKey('RECFAST_H_fudge')) then
+        this%RECFAST_fudge = Ini%Read_Double('RECFAST_H_fudge', RECFAST_fudge_default2)
+    else
+        this%RECFAST_fudge = Ini%Read_Double('RECFAST_fudge', RECFAST_fudge_default)
+        if (this%RECFAST_Hswitch) then
+            this%RECFAST_fudge = this%RECFAST_fudge - (RECFAST_fudge_default - RECFAST_fudge_default2)
+        end if
+    end if
     call Ini%Read('AGauss1',this%AGauss1)
     call Ini%Read('AGauss2',this%AGauss2)
     call Ini%Read('zGauss1',this%zGauss1)
@@ -390,9 +397,6 @@
     this%use_rosenbrock = Ini%Read_Logical("RECFAST_use_rosenbrock", this%use_rosenbrock)
     this%rosenbrock_handoff_xH = Ini%Read_Double("RECFAST_rosenbrock_handoff_xH", this%rosenbrock_handoff_xH)
     this%rosenbrock_tol = Ini%Read_Double("RECFAST_rosenbrock_tol", this%rosenbrock_tol)
-    if (this%RECFAST_Hswitch) then
-        this%RECFAST_fudge = this%RECFAST_fudge - (RECFAST_fudge_default - RECFAST_fudge_default2)
-    end if
     end subroutine TRecfast_ReadParams
 
     subroutine TRecfast_Validate(this, OK)
@@ -784,8 +788,8 @@
             x_He = y(2)
             x = x0
 
-            Calc%zrec(i)=zend
-            Calc%xrec(i)=x
+            Calc%zrec(i) = zend
+            Calc%xrec(i) = x
             Calc%tmrec(i) = y(3)
 
 
@@ -807,7 +811,6 @@
 
             end if
 
-            !          write (*,'(5E15.5)') zend, Trad, Tmat, Tspin, x
         end do
 
         call cubic_spline_regular_second_derivs(-Calc%delta_z,Calc%xrec,Calc%nz,Calc%dxrec)

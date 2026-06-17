@@ -1,6 +1,51 @@
 from ctypes import c_bool, c_double, c_int
 
-from .baseconfig import F2003Class, fortran_class, optional_fortran_class
+from .baseconfig import CAMBValueError, F2003Class, fortran_class, optional_fortran_class
+
+recfast_planck = "planck"
+recfast_cosmorec = "cosmorec"
+recfast_hyrec = "hyrec"
+
+recfast_default = recfast_planck
+
+recfast_approx_model_params = {
+    recfast_planck: {
+        "RECFAST_fudge": 1.125,
+        "RECFAST_fudge_He": 0.86,
+        "RECFAST_Heswitch": 6,
+        "RECFAST_Hswitch": True,
+        "AGauss1": -0.14,
+        "AGauss2": 0.079,
+        "zGauss1": 7.28,
+        "zGauss2": 6.73,
+        "wGauss1": 0.18,
+        "wGauss2": 0.33,
+    },
+    recfast_cosmorec: {
+        "RECFAST_fudge": 1.125,
+        "RECFAST_fudge_He": 0.8472384364,
+        "RECFAST_Heswitch": 6,
+        "RECFAST_Hswitch": True,
+        "AGauss1": -0.1421246011,
+        "AGauss2": 0.0747533979,
+        "zGauss1": 7.2841557503,
+        "zGauss2": 6.7306248459,
+        "wGauss1": 0.1741263787,
+        "wGauss2": 0.3349828575,
+    },
+    recfast_hyrec: {
+        "RECFAST_fudge": 1.125,
+        "RECFAST_fudge_He": 0.8658491370,
+        "RECFAST_Heswitch": 6,
+        "RECFAST_Hswitch": True,
+        "AGauss1": -0.1417072428,
+        "AGauss2": 0.0733978462,
+        "zGauss1": 7.2841809376,
+        "zGauss2": 6.7316088397,
+        "wGauss1": 0.1734480042,
+        "wGauss2": 0.3373321220,
+    },
+}
 
 
 class RecombinationModel(F2003Class):
@@ -19,6 +64,9 @@ class RecombinationModel(F2003Class):
 
     def write_ini(self, state) -> None:
         state.set("recombination_model", self.__class__.__name__)
+
+    def set_params(self, **kwargs):
+        pass
 
 
 @fortran_class
@@ -48,12 +96,34 @@ class Recfast(RecombinationModel):
     _fortran_class_module_ = "Recombination"
     _fortran_class_name_ = "TRecfast"
 
+    def set_params(self, recfast_approx_model=None):
+        """
+        Set RECFAST approximation parameters.
+
+        :param recfast_approx_model: optional named approximation parameter set. One of
+
+            - ``planck``: CAMB v1.x/RECFAST 1.5.2 Planck-era fudge parameters.
+            - ``cosmorec``: seven-parameter RECFAST fit to direct CosmoRec ``accuracy=6`` with 10 H shells.
+            - ``hyrec``: seven-parameter RECFAST fit to direct HyRec-2.
+
+        :return: self
+        """
+        if recfast_approx_model is not None:
+            try:
+                params = recfast_approx_model_params[recfast_approx_model]
+            except KeyError as err:
+                allowed = ", ".join(sorted(recfast_approx_model_params))
+                raise CAMBValueError(
+                    f"Unknown RECFAST recfast_approx_model '{recfast_approx_model}'. Use one of: {allowed}"
+                ) from err
+            for name, value in params.items():
+                setattr(self, name, value)
+
+        return self
+
     def write_ini(self, state) -> None:
         super().write_ini(state)
-        recfast_fudge = self.RECFAST_fudge
-        if self.RECFAST_Hswitch:
-            recfast_fudge += 1.14 - (1.105 + 0.02)
-        state.set("RECFAST_fudge", recfast_fudge)
+        state.set("RECFAST_H_fudge", self.RECFAST_fudge)
         state.write_fields(
             self,
             names=(
@@ -101,18 +171,40 @@ class CosmoRec(RecombinationModel):
             "Default 0, with diffusion; 1: without diffusion; 2: RECFAST++, 3: RECFAST++ run with correction",
         ),
         ("fdm", c_double, "Dark matter annihilation efficiency"),
-        ("accuracy", c_double, "0-normal, 3-most accurate"),
+        ("accuracy", c_double, "CosmoRec accuracy preset; see CosmoRec source for supported values"),
+        ("diff_iteration_max", c_int, "Override CosmoRec diffusion iteration count; negative uses batch default (2)"),
+        ("n_shells", c_int, "Override CosmoRec hydrogen shells; negative uses selected accuracy preset"),
+        ("n_shells_hei", c_int, "Override CosmoRec helium shells; negative uses selected accuracy preset"),
+        ("flag_hi_absorption", c_int, "Override CosmoRec HI absorption flag; negative uses selected accuracy preset"),
+        ("ntg_max", c_int, "Override CosmoRec two-photon/Raman truncation; negative uses selected accuracy preset"),
+        ("nr_max", c_int, "Override CosmoRec Raman truncation; negative uses selected accuracy preset"),
     )
 
     def write_ini(self, state) -> None:
         super().write_ini(state)
         state.write_fields(
             self,
-            names=("runmode", "accuracy", "fdm"),
+            names=(
+                "runmode",
+                "accuracy",
+                "fdm",
+                "diff_iteration_max",
+                "n_shells",
+                "n_shells_hei",
+                "flag_hi_absorption",
+                "ntg_max",
+                "nr_max",
+            ),
             rename={
                 "runmode": "cosmorec_runmode",
                 "accuracy": "cosmorec_accuracy",
                 "fdm": "cosmorec_fdm",
+                "diff_iteration_max": "cosmorec_diff_iteration_max",
+                "n_shells": "cosmorec_n_shells",
+                "n_shells_hei": "cosmorec_n_shells_hei",
+                "flag_hi_absorption": "cosmorec_flag_hi_absorption",
+                "ntg_max": "cosmorec_ntg_max",
+                "nr_max": "cosmorec_nr_max",
             },
         )
 

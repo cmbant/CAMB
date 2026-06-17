@@ -9,6 +9,13 @@ try:
 except ImportError:
     sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
     import camb
+from camb.recombination import recfast_planck
+
+
+def _planck_recfast_params(**kwargs):
+    pars = camb.CAMBparams(**kwargs)
+    pars.Recomb.set_params(recfast_approx_model=recfast_planck)
+    return pars
 
 
 class HMcodeTest(unittest.TestCase):
@@ -129,7 +136,7 @@ class HMcodeTest(unittest.TestCase):
 
             # Set parameters using the traditional Fortran language
             # TODO: Check carefully against my ini files
-            pars = camb.CAMBparams(
+            pars = _planck_recfast_params(
                 WantCls=False,
                 H0=H0,
                 ombh2=wb,

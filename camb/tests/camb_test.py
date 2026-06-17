@@ -17,13 +17,24 @@ from camb import bbn, correlations, dark_energy, initialpower, model, recombinat
 from camb.baseconfig import CAMBError, CAMBParamRangeError, CAMBValueError
 
 
+def new_def_params(**kwargs):
+    pars = camb.CAMBparams(**kwargs)
+    pars.Recomb.set_params(recfast_approx_model=recombination.recfast_planck)
+    return pars
+
+
+def def_set_params(**kwargs):
+    kwargs.setdefault("recfast_approx_model", recombination.recfast_planck)
+    return camb.set_params(**kwargs)
+
+
 class CambTest(unittest.TestCase):
     def testAssigments(self):
         ini = os.path.join(os.path.dirname(__file__), "..", "inifiles", "planck_2018.ini")
         if os.path.exists(ini):
             pars = camb.read_ini(ini)
             self.assertTrue(np.abs(camb.get_background(pars).cosmomc_theta() * 100 / 1.040909 - 1) < 2e-5)
-        pars = camb.CAMBparams()
+        pars = new_def_params()
         pars.set_cosmology(H0=68.5, ombh2=0.022, mnu=0, omch2=0.1)
         self.assertAlmostEqual(pars.omegam, (0.022 + 0.1) / 0.685**2)
         with self.assertRaises(AttributeError):
@@ -67,16 +78,16 @@ class CambTest(unittest.TestCase):
             pars.nu_mass_degeneracies = np.zeros(7)
         pars.nu_mass_eigenstates = 0
         self.assertFalse(len(pars.nu_mass_degeneracies[:1]))
-        pars = camb.set_params(**{"InitPower.ns": 1.2, "WantTransfer": True})
+        pars = def_set_params(**{"InitPower.ns": 1.2, "WantTransfer": True})
         self.assertEqual(pars.InitPower.ns, 1.2)
         self.assertTrue(pars.WantTransfer)
         pars.DarkEnergy = None
-        pars = camb.set_params(**{"H0": 67, "ombh2": 0.002, "r": 0.1, "Accuracy.AccurateBB": True})
+        pars = def_set_params(**{"H0": 67, "ombh2": 0.002, "r": 0.1, "Accuracy.AccurateBB": True})
         self.assertEqual(pars.Accuracy.AccurateBB, True)
 
         from camb.sources import GaussianSourceWindow
 
-        pars = camb.CAMBparams()
+        pars = new_def_params()
         pars.SourceWindows = [GaussianSourceWindow(), GaussianSourceWindow(redshift=1)]
         self.assertEqual(pars.SourceWindows[1].redshift, 1)
         pars.SourceWindows[0].redshift = 2
@@ -129,7 +140,7 @@ class CambTest(unittest.TestCase):
         )
         params2 = camb.get_valid_numerical_params(dark_energy_model="AxionEffectiveFluid")
         self.assertEqual(params2.difference(params), {"fde_zc", "w_n", "zc", "theta_i"})
-        pars = camb.set_params(
+        pars = def_set_params(
             H0=67,
             ombh2=0.022,
             omch2=0.12,
@@ -194,7 +205,7 @@ class CambTest(unittest.TestCase):
                 os.chdir(cwd)
 
     def testWriteIniFromPythonParams(self):
-        pars = camb.CAMBparams()
+        pars = new_def_params()
         pars.set_cosmology(H0=67, ombh2=0.0224, omch2=0.119, tau=0.054, mnu=0.06)
         pars.set_dark_energy(w=-0.95, wa=0.15, dark_energy_model="ppf")
         pars.InitPower.set_params(As=2.1e-9, ns=0.965, nrun=0.01, r=0.03, nt=0.0)
@@ -245,7 +256,7 @@ class CambTest(unittest.TestCase):
                 camb.read_ini(both_ini)
 
     def testBackground(self):
-        pars = camb.CAMBparams()
+        pars = new_def_params()
         pars.set_cosmology(H0=68.5, ombh2=0.022, omch2=0.122, YHe=0.2453, mnu=0.07, omk=0)
         zre = camb.get_zre_from_tau(pars, 0.06)
         age = camb.get_age(pars)
@@ -327,21 +338,19 @@ class CambTest(unittest.TestCase):
         self.assertAlmostEqual(pars.H0, 67.537, 2)
         with self.assertRaises(CAMBParamRangeError):
             pars.set_cosmology(cosmomc_theta=0.0204085, ombh2=0.022271, omch2=0.11914, mnu=0.06, omk=0)
-        pars = camb.set_params(cosmomc_theta=0.0104077, ombh2=0.022, omch2=0.122, w=-0.95)
+        pars = def_set_params(cosmomc_theta=0.0104077, ombh2=0.022, omch2=0.122, w=-0.95)
         self.assertAlmostEqual(camb.get_background(pars, no_thermo=True).cosmomc_theta(), 0.0104077, 7)
 
-        pars = camb.set_params(thetastar=0.010311, ombh2=0.022, omch2=0.122)
+        pars = def_set_params(thetastar=0.010311, ombh2=0.022, omch2=0.122)
         self.assertAlmostEqual(camb.get_background(pars).get_derived_params()["thetastar"] / 100, 0.010311, 7)
-        pars = camb.set_params(thetastar=0.010311, ombh2=0.022, omch2=0.122, omk=-0.05)
+        pars = def_set_params(thetastar=0.010311, ombh2=0.022, omch2=0.122, omk=-0.05)
         self.assertAlmostEqual(camb.get_background(pars).get_derived_params()["thetastar"] / 100, 0.010311, 7)
         self.assertAlmostEqual(pars.H0, 49.70624, places=3)
 
-        pars = camb.set_params(
-            cosmomc_theta=0.0104077, ombh2=0.022, omch2=0.122, w=-0.95, wa=0, dark_energy_model="ppf"
-        )
+        pars = def_set_params(cosmomc_theta=0.0104077, ombh2=0.022, omch2=0.122, w=-0.95, wa=0, dark_energy_model="ppf")
         self.assertAlmostEqual(camb.get_background(pars, no_thermo=True).cosmomc_theta(), 0.0104077, 7)
 
-        pars = camb.set_params(
+        pars = def_set_params(
             cosmomc_theta=0.0104077,
             ombh2=0.022,
             omch2=0.122,
@@ -352,7 +361,7 @@ class CambTest(unittest.TestCase):
         self.assertAlmostEqual(camb.get_background(pars, no_thermo=True).cosmomc_theta(), 0.0104077, 7)
 
         with self.assertRaises(CAMBValueError):
-            camb.set_params(dark_energy_model="InitialPowerLaw")
+            def_set_params(dark_energy_model="InitialPowerLaw")
         data.calc_background(pars)
         h2 = (data.Params.H0 / 100) ** 2
         self.assertAlmostEqual(data.get_Omega("baryon"), data.Params.ombh2 / h2, 7)
@@ -401,12 +410,12 @@ class CambTest(unittest.TestCase):
         self.assertEqual(pars.nu_mass_eigenstates, 2)
         self.assertAlmostEqual(pars.nu_mass_fractions[0], 0.915197, places=4)
 
-        pars = camb.CAMBparams()
+        pars = new_def_params()
         pars.set_cosmology(H0=68.5, ombh2=0.022, omch2=0.122, YHe=0.2453, mnu=0.07, omk=0, zrei=zre)
         results = camb.get_background(pars)
         self.assertEqual(results.Params.Reion.redshift, zre)
 
-        pars = camb.CAMBparams()
+        pars = new_def_params()
         pars.set_cosmology(H0=68.5, ombh2=0.022, omch2=0.122, YHe=0.2453, mnu=0.07, omk=-0.05)
         data = camb.get_background(pars)
         delta2 = (
@@ -432,15 +441,13 @@ class CambTest(unittest.TestCase):
         redshifts = np.geomspace(1.0, 3001.0, 400) - 1.0
 
         def make_pars(nz, use_rosenbrock=False, handoff=0.985):
-            pars = camb.CAMBparams()
+            pars = new_def_params()
             pars.set_cosmology(H0=67.4, ombh2=0.02237, omch2=0.12, mnu=0.06, tau=0.054, YHe=0.2453)
             pars.InitPower.set_params(As=2.1e-9, ns=0.965)
-            rec = recombination.Recfast()
-            rec.Nz = nz
-            rec.use_rosenbrock = use_rosenbrock
-            rec.rosenbrock_handoff_xH = handoff
-            rec.rosenbrock_tol = 3e-4
-            pars.Recomb = rec
+            pars.Recomb.Nz = nz
+            pars.Recomb.use_rosenbrock = use_rosenbrock
+            pars.Recomb.rosenbrock_handoff_xH = handoff
+            pars.Recomb.rosenbrock_tol = 3e-4
             return pars
 
         for nz, handoff in [(2048, 0.976), (10000, 0.985)]:
@@ -491,10 +498,53 @@ class CambTest(unittest.TestCase):
             self.assertEqual(roundtrip.Recomb.Nz, 2048)
             self.assertAlmostEqual(roundtrip.Recomb.rosenbrock_handoff_xH, 0.985)
             self.assertAlmostEqual(roundtrip.Recomb.rosenbrock_tol, 3e-4)
+            self.assertAlmostEqual(roundtrip.Recomb.RECFAST_fudge, 1.125)
+
+            with open(ini_path) as ini_file:
+                ini_lines = ini_file.readlines()
+            self.assertTrue(any(line.startswith("RECFAST_H_fudge") for line in ini_lines))
+            self.assertFalse(any(line.startswith("RECFAST_fudge =") for line in ini_lines))
+
+            legacy_ini_path = os.path.join(temp_dir, "legacy_recfast_fudge.ini")
+            with open(legacy_ini_path, "w") as legacy_ini:
+                for line in ini_lines:
+                    if line.startswith("RECFAST_H_fudge"):
+                        legacy_ini.write("RECFAST_fudge = 1.14\n")
+                    else:
+                        legacy_ini.write(line)
+            legacy_roundtrip = camb.read_ini(legacy_ini_path)
+            self.assertAlmostEqual(legacy_roundtrip.Recomb.RECFAST_fudge, 1.125)
+
+    def testRecfastApproxModels(self):
+        rec = recombination.Recfast()
+        rec.set_params(recfast_approx_model=recombination.recfast_cosmorec)
+        expected = recombination.recfast_approx_model_params[recombination.recfast_cosmorec]
+        for name, value in expected.items():
+            self.assertAlmostEqual(getattr(rec, name), value)
+
+        rec.set_params(recfast_approx_model=recombination.recfast_hyrec)
+        rec.RECFAST_fudge_He = 0.85
+        rec.Nz = 4096
+        self.assertAlmostEqual(rec.RECFAST_fudge_He, 0.85)
+        self.assertAlmostEqual(
+            rec.AGauss1, recombination.recfast_approx_model_params[recombination.recfast_hyrec]["AGauss1"]
+        )
+        self.assertEqual(rec.Nz, 4096)
+
+        pars = def_set_params(recfast_approx_model=recombination.recfast_planck)
+        self.assertIsInstance(pars.Recomb, recombination.Recfast)
+        pars.Recomb.RECFAST_fudge_He = 0.851
+        self.assertAlmostEqual(pars.Recomb.RECFAST_fudge_He, 0.851)
+        self.assertAlmostEqual(
+            pars.Recomb.AGauss2, recombination.recfast_approx_model_params[recombination.recfast_planck]["AGauss2"]
+        )
+
+        with self.assertRaises(CAMBValueError):
+            recombination.Recfast().set_params(recfast_approx_model="not_a_fit")
 
     def testErrors(self):
         redshifts = np.logspace(-1, np.log10(1089))
-        pars = camb.set_params(
+        pars = def_set_params(
             H0=67.5, ombh2=0.022, omch2=0.122, As=2e-9, ns=0.95, redshifts=redshifts, kmax=0.1, silent=True
         )
 
@@ -504,7 +554,7 @@ class CambTest(unittest.TestCase):
 
     def testEvolution(self):
         redshifts = [0.4, 31.5]
-        pars = camb.set_params(
+        pars = def_set_params(
             H0=67.5, ombh2=0.022, omch2=0.122, As=2e-9, ns=0.95, redshifts=redshifts, kmax=0.1, silent=True
         )
         pars.WantCls = False
@@ -525,13 +575,11 @@ class CambTest(unittest.TestCase):
         self.assertAlmostEqual(transfer_k2[ix] * kh[ix] ** 2 * (pars.H0 / 100) ** 2, ev[ix, 1, 0], 4)
 
     def testInstances(self):
-        pars = camb.set_params(
-            H0=69.1, ombh2=0.032, omch2=0.122, As=3e-9, ns=0.91, omk=0.013, redshifts=[0.0], kmax=0.5
-        )
+        pars = def_set_params(H0=69.1, ombh2=0.032, omch2=0.122, As=3e-9, ns=0.91, omk=0.013, redshifts=[0.0], kmax=0.5)
         data = camb.get_background(pars)
         res1 = data.angular_diameter_distance(0.7)
         drag1 = data.get_derived_params()["rdrag"]
-        pars2 = camb.set_params(H0=65, ombh2=0.022, omch2=0.122, As=3e-9, ns=0.91)
+        pars2 = def_set_params(H0=65, ombh2=0.022, omch2=0.122, As=3e-9, ns=0.91)
         data2 = camb.get_background(pars2)
         res2 = data2.angular_diameter_distance(1.7)
         drag2 = data2.get_derived_params()["rdrag"]
@@ -555,7 +603,7 @@ class CambTest(unittest.TestCase):
         np.testing.assert_allclose(cl4, cl3, atol=1e-20, rtol=1e-5)
 
     def testPowers(self):
-        pars = camb.CAMBparams()
+        pars = new_def_params()
         pars.set_cosmology(H0=67.5, ombh2=0.022, omch2=0.122, mnu=0.07, omk=0)
         pars.set_dark_energy()  # re-set defaults
         pars.InitPower.set_params(ns=0.965, As=2e-9)
@@ -674,7 +722,7 @@ class CambTest(unittest.TestCase):
         )
 
         optimized_method = camb.lensing_method_optimized
-        pars = camb.CAMBparams()
+        pars = new_def_params()
         pars.set_cosmology(H0=67)
         pars.set_for_lmax(2500, lens_potential_accuracy=1)
         pars.Accuracy.AccurateBB = True
@@ -684,7 +732,7 @@ class CambTest(unittest.TestCase):
         cls_lensed_optimized = data.get_lensed_cls_with_spectrum(clpp, lmax=2500, lensing_method=optimized_method)
         np.testing.assert_allclose(cls_lensed_optimized[2:, :], cls_lensed_full[2:, :], rtol=1e-12)
 
-        pars = camb.CAMBparams()
+        pars = new_def_params()
         pars.set_cosmology(H0=67)
         pars.set_for_lmax(2500, lens_potential_accuracy=1)
         pars.Accuracy.AccurateBB = False
@@ -702,7 +750,7 @@ class CambTest(unittest.TestCase):
         clout = correlations.corr2cl(corr, xvals, weights, 2500)
         self.assertTrue(np.all(np.abs(clout[2:2300, 2] / cls["lensed_scalar"][2:2300, 2] - 1) < 1e-3))
 
-        pars = camb.CAMBparams()
+        pars = new_def_params()
         pars.set_cosmology(H0=78, YHe=0.22)
         pars.set_for_lmax(2000, lens_potential_accuracy=1)
         pars.WantTensors = True
@@ -718,7 +766,7 @@ class CambTest(unittest.TestCase):
         np.testing.assert_allclose((cls[1] - cls[0])[2:300, 2] * 2, (cls[2] - cls[0])[2:300, 2], rtol=1e-3)
 
         # Check generating tensors and scalars together
-        pars = camb.CAMBparams()
+        pars = new_def_params()
         pars.set_cosmology(H0=67)
         lmax = 2000
         pars.set_for_lmax(lmax, lens_potential_accuracy=1)
@@ -743,7 +791,7 @@ class CambTest(unittest.TestCase):
         # These are identical because all scalar spectra were identical (non-linear corrections change it  otherwise)
         np.testing.assert_allclose(cl1, cl3, rtol=1e-4)
 
-        pars = camb.CAMBparams()
+        pars = new_def_params()
         pars.set_cosmology(H0=67.5, ombh2=0.022, omch2=0.122, mnu=0.07, omk=0)
         pars.set_for_lmax(2500)
         pars.min_l = 2
@@ -757,7 +805,7 @@ class CambTest(unittest.TestCase):
         self.assertAlmostEqual(cls[1, 0], 0)
 
     def testSave(self):
-        pars = camb.set_params(
+        pars = def_set_params(
             H0=67.5, ombh2=0.022, omch2=0.122, As=2e-9, ns=0.95, redshifts=[0.4, 31.5], kmax=0.1, silent=True
         )
         pars.set_dark_energy(w=-0.7, wa=0.2, dark_energy_model="ppf")
@@ -776,7 +824,7 @@ class CambTest(unittest.TestCase):
             repr(pars2)
 
     def testSigmaR(self):
-        pars = camb.CAMBparams()
+        pars = new_def_params()
         pars.set_cosmology(H0=67.5, ombh2=0.022, omch2=0.122, mnu=0.07, omk=0)
         pars.InitPower.set_params(ns=0.965, As=2e-9)
         pars.set_matter_power(nonlinear=False)
@@ -831,11 +879,11 @@ class CambTest(unittest.TestCase):
     def testTimeTransfers(self):
         from camb import initialpower
 
-        pars = camb.set_params(H0=69, YHe=0.22, lmax=2000, lens_potential_accuracy=1, ns=0.96, As=2.5e-9)
+        pars = def_set_params(H0=69, YHe=0.22, lmax=2000, lens_potential_accuracy=1, ns=0.96, As=2.5e-9)
         results1 = camb.get_results(pars)
         cl1 = results1.get_total_cls()
 
-        pars = camb.set_params(H0=69, YHe=0.22, lmax=2000, lens_potential_accuracy=1)
+        pars = def_set_params(H0=69, YHe=0.22, lmax=2000, lens_potential_accuracy=1)
         results = camb.get_transfer_functions(pars, only_time_sources=True)
         inflation_params = initialpower.InitialPowerLaw()
         inflation_params.set_params(ns=0.96, As=2.5e-9)
@@ -849,7 +897,7 @@ class CambTest(unittest.TestCase):
         cl2 = results.get_total_cls()
         np.testing.assert_allclose(cl1, cl2, rtol=1e-4)
 
-        pars = camb.CAMBparams()
+        pars = new_def_params()
         pars.set_cosmology(H0=78, YHe=0.22)
         pars.set_for_lmax(2000, lens_potential_accuracy=1)
         pars.WantTensors = True
@@ -863,7 +911,7 @@ class CambTest(unittest.TestCase):
         np.testing.assert_allclose((cls[1] - cls[0])[2:300, 2] * 2, (cls[2] - cls[0])[2:300, 2], rtol=1e-3)
 
     def testDarkEnergy(self):
-        pars = camb.CAMBparams()
+        pars = new_def_params()
         pars.set_cosmology(H0=71)
         pars.InitPower.set_params(ns=0.965, r=0)
         for m in ["fluid", "ppf"]:
@@ -880,7 +928,7 @@ class CambTest(unittest.TestCase):
             self.assertAlmostEqual(-0.7, pars3.DarkEnergy.w)
 
     def testInitialPower(self):
-        pars = camb.CAMBparams()
+        pars = new_def_params()
         pars.set_cosmology(H0=67)
         import ctypes
 
@@ -893,7 +941,7 @@ class CambTest(unittest.TestCase):
         self.assertEqual(P.As, As)
         self.assertEqual(P2.contents.As, As)
 
-        pars2 = camb.CAMBparams()
+        pars2 = new_def_params()
         pars2.set_cosmology(H0=67)
         pars2.InitPower.set_params(As=1.7e-9, ns=ns)
         self.assertEqual(pars2.InitPower.As, 1.7e-9)
@@ -947,7 +995,7 @@ class CambTest(unittest.TestCase):
     def testSources(self):
         from camb.sources import GaussianSourceWindow, SplinedSourceWindow
 
-        pars = camb.CAMBparams()
+        pars = new_def_params()
         pars.set_cosmology(H0=64, mnu=0)
         pars.set_for_lmax(1200)
         pars.Want_CMB = False
@@ -986,7 +1034,7 @@ class CambTest(unittest.TestCase):
 
         zs = np.arange(1.9689, 2.1057, (2.1057 - 1.9689) / 2000)
         W = signal.windows.tukey(len(zs), alpha=0.1)
-        pars = camb.CAMBparams()
+        pars = new_def_params()
         pars.set_cosmology(H0=67.5, ombh2=0.022, omch2=0.122)
         pars.InitPower.set_params(As=2e-9, ns=0.965)
         pars.set_for_lmax(4000)
@@ -1005,7 +1053,7 @@ class CambTest(unittest.TestCase):
 
             last_usage = -1
             for i in range(3):
-                pars = camb.CAMBparams()
+                pars = new_def_params()
                 pars.set_cosmology(H0=70, ombh2=0.022, omch2=0.12, mnu=0.06, omk=0, tau=0.17)
                 results = camb.get_results(pars)
                 del pars, results
@@ -1021,7 +1069,7 @@ class CambTest(unittest.TestCase):
     def test_quintessence(self):
         n = 3
         # set zc and fde_zc
-        pars = camb.set_params(
+        pars = def_set_params(
             ombh2=0.022,
             omch2=0.122,
             thetastar=0.01044341764253,

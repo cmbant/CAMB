@@ -6,11 +6,16 @@ import numpy as np
 
 try:
     import camb
-    from camb import check_accuracy
+    from camb import check_accuracy, recombination
 except ImportError:
     sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
     import camb
-    from camb import check_accuracy
+    from camb import check_accuracy, recombination
+
+
+def _planck_recfast_set_params(**kwargs):
+    kwargs.setdefault("recfast_approx_model", recombination.recfast_planck)
+    return camb.set_params(**kwargs)
 
 
 def _accuracy_failure_message(comparison):
@@ -25,7 +30,7 @@ def _accuracy_failure_message(comparison):
 
 
 def _standard_model(omk=0, lmax=None, lens_potential_accuracy=None, matter_power=False):
-    params = camb.set_params(
+    params = _planck_recfast_set_params(
         H0=67.5,
         ombh2=0.022,
         omch2=0.122,
@@ -45,7 +50,7 @@ def _standard_model(omk=0, lmax=None, lens_potential_accuracy=None, matter_power
 
 
 def _early_quintessence_zc_model(lmax):
-    params = camb.set_params(
+    params = _planck_recfast_set_params(
         ombh2=0.022,
         omch2=0.122,
         thetastar=0.01044341764253,
@@ -175,7 +180,7 @@ class CambSlowTest(unittest.TestCase):
         monopole_source, ISW, doppler, quadrupole_source = s.get_scalar_temperature_sources()
         temp_source = monopole_source + ISW + doppler + quadrupole_source
 
-        pars = camb.set_params(H0=67.5, ombh2=0.022, omch2=0.122, As=2e-9, ns=0.95, omk=0.1)
+        pars = _planck_recfast_set_params(H0=67.5, ombh2=0.022, omch2=0.122, As=2e-9, ns=0.95, omk=0.1)
         data = camb.get_background(pars)
         tau = np.linspace(1, 1200, 300)
         ks = [0.001, 0.05, 1]
@@ -192,7 +197,7 @@ class CambSlowTest(unittest.TestCase):
         self.assertTrue(np.allclose(ev[:, :, 4], ev[:, :, 5]))
         self.assertTrue(np.allclose(ev[:, :, 6], ev[:, :, 7]))
 
-        pars = camb.set_params(H0=67.5, ombh2=0.022, omch2=0.122, As=2e-9, ns=0.95)
+        pars = _planck_recfast_set_params(H0=67.5, ombh2=0.022, omch2=0.122, As=2e-9, ns=0.95)
         pars.set_accuracy(lSampleBoost=2)
         try:
             pars.set_custom_scalar_sources(
@@ -217,7 +222,7 @@ class CambSlowTest(unittest.TestCase):
     def test_extra_EmissionAnglePostBorn(self):
         from camb import emission_angle, postborn
 
-        pars = camb.set_params(H0=67.5, ombh2=0.022, omch2=0.122, As=2e-9, ns=0.95, tau=0.055)
+        pars = _planck_recfast_set_params(H0=67.5, ombh2=0.022, omch2=0.122, As=2e-9, ns=0.95, tau=0.055)
         BB = emission_angle.get_emission_delay_BB(pars, lmax=3500)
         self.assertAlmostEqual(BB(80) * 2 * np.pi / 80 / 81.0, 1.1e-10, delta=1e-11)  # type: ignore
 

@@ -145,6 +145,7 @@ def set_params(cp=None, verbose=False, **params):
 
     * :meth:`.model.CAMBparams.set_accuracy`
     * :meth:`.model.CAMBparams.set_classes`
+    * :meth:`.recombination.RecombinationModel.set_params` (or equivalent if a different recombination class used)
     * :meth:`.dark_energy.DarkEnergyEqnOfState.set_params` (or equivalent if a different dark energy model class used)
     * :meth:`.reionization.TanhReionization.set_extra_params` (or equivalent if a different reionization class used)
     * :meth:`.model.CAMBparams.set_cosmology`
@@ -182,6 +183,7 @@ def set_params(cp=None, verbose=False, **params):
     # set_classes allows redefinition of the classes used, so must be called before setting class parameters
     do_set(cp.set_accuracy)
     do_set(cp.set_classes)
+    do_set(cp.Recomb.set_params)
     do_set(cp.DarkEnergy.set_params)
     do_set(cp.Reion.set_extra_params)
     do_set(cp.set_cosmology)

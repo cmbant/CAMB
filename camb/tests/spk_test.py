@@ -12,11 +12,18 @@ except ImportError:
     import camb
 
 from camb.nonlinear import Halofit, SPkNonLinear  # type: ignore[attr-defined]
+from camb.recombination import recfast_planck
+
+
+def _planck_recfast_params(**kwargs):
+    pars = camb.CAMBparams(**kwargs)
+    pars.Recomb.set_params(recfast_approx_model=recfast_planck)
+    return pars
 
 
 class SPkTest(unittest.TestCase):
     def _get_pk(self, model_obj, z=0.5, kmax=5.0):
-        pars = camb.CAMBparams()
+        pars = _planck_recfast_params()
         pars.set_cosmology(H0=67.5, ombh2=0.02237, omch2=0.12, mnu=0.06)
         pars.InitPower.set_params(As=2.1e-9, ns=0.965)
         pars.set_matter_power(redshifts=[z], kmax=kmax, k_per_logint=100)
@@ -169,7 +176,7 @@ class SPkTest(unittest.TestCase):
 
         for z, k_target, fb_a in cases:
             with self.subTest(z=z, k=k_target, fb_a=fb_a):
-                pars = camb.CAMBparams()
+                pars = _planck_recfast_params()
                 pars.set_cosmology(H0=67.5, ombh2=0.02237, omch2=0.12, mnu=0.06)
                 pars.InitPower.set_params(As=2.1e-9, ns=0.965)
                 pars.set_matter_power(redshifts=[z], kmax=12.0, k_per_logint=80)
@@ -212,7 +219,7 @@ class SPkTest(unittest.TestCase):
 
     def test_spk_fb_outside_calibrated_limits_produces_nan(self):
         """When fb is pushed far outside the calibrated fitting limits, P(k) should contain NaN."""
-        pars = camb.CAMBparams()
+        pars = _planck_recfast_params()
         pars.set_cosmology(H0=67.5, ombh2=0.02237, omch2=0.12, mnu=0.06)
         pars.InitPower.set_params(As=2.1e-9, ns=0.965)
         pars.set_matter_power(redshifts=[0.5], kmax=3.0)
@@ -234,7 +241,7 @@ class SPkTest(unittest.TestCase):
         self.assertTrue(np.any(np.isnan(pk)), "Expected NaN for out-of-limits fb")
 
         # Verify valid params remain finite
-        pars2 = camb.CAMBparams()
+        pars2 = _planck_recfast_params()
         pars2.set_cosmology(H0=67.5, ombh2=0.02237, omch2=0.12, mnu=0.06)
         pars2.InitPower.set_params(As=2.1e-9, ns=0.965)
         pars2.set_matter_power(redshifts=[0.5], kmax=3.0)
@@ -253,7 +260,7 @@ class SPkTest(unittest.TestCase):
         self.assertTrue(np.all(np.isfinite(pk2)), "Expected finite P(k) for valid fb")
 
     def test_spk_class_selection_via_set_classes(self):
-        pars = camb.CAMBparams()
+        pars = _planck_recfast_params()
         pars.set_classes(non_linear_model="SPkNonLinear")
         self.assertEqual(pars.NonLinearModel.__class__.__name__, "SPkNonLinear")
 

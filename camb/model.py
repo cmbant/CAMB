@@ -651,10 +651,10 @@ class CAMBparams(F2003Class):
 
         Instead of setting the Hubble parameter directly, you can instead set the acoustic scale parameter
         (cosmomc_theta, which is based on a fitting formula for simple models, or thetastar, which is numerically
-        calculated more generally). Note that you must have already set the dark energy model, you can't use
-        set_cosmology with theta and then change the background evolution (which would change theta at the calculated
-        H0 value). Likewise, the dark energy model cannot depend explicitly on H0 unless you provide a custom
-        setter_H0 function to update the model for each H0 iteration used to search for thetastar.
+        calculated more generally). Note that you must have already set the dark energy and recombination model,
+        you can't use set_cosmology with theta and then change the background evolution (which would change theta
+        at the calculated H0 value). Likewise, the dark energy model cannot depend explicitly on H0 unless you provide
+        a custom setter_H0 function to update the model for each H0 iteration used to search for thetastar.
 
         If in doubt, print CAMBparams after setting parameters to see the underlying values that have been set.
 

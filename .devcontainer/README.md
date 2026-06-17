@@ -70,7 +70,7 @@ Because the workspace may still contain a host-side `.venv` that is not usable i
 devcontainer's selected interpreter may need to be pointed explicitly at
 `/home/vscode/.local/share/camb-devcontainer/.venv/bin/python3`.
 
-If you explicitly want a standards-based editable install after the container is up, you can still run `python -m pip install --no-build-isolation --no-deps -e .`, but that setuptools metadata phase is the part that remains slow on this bind-mounted checkout.
+If you explicitly want a standards-based editable install after the container is up, you can still run `python -m pip install --no-build-isolation --no-deps -e .`.
 
 
 The container includes builds of CosmoRec and HyRec. If needed, you can build with these by doing `export RECOMBINATION_FILES="recfast cosmorec hyrec"`
