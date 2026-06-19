@@ -40,13 +40,17 @@ This is the CAMB Python cosmology code, wrapping Fortran 2003 for numerics.
 ## Configuration
 - See `CONTRIBUTING.md` for installation, cloning, modification guidelines, contribution instructions, pre-commit setup, and VS Code configuration.
 
+## Temporary Worktrees
+- if a temp worktree is needed can use this script: .agents/skills/isolate-accuracy-fix/scripts/make_tmp_tracked_copy.py
+  (isolate-accuracy-fix fill should not usually be read unless specifically requested; script can be used separately)
+
 ---
 
 # Maintenance & Versioning
 - When updating the version, update **both**:
   - the Python `__version__`, and
   - the version defined near the top of `fortran/config.f90`.
-- When adding new `.ini` file parameters, make sure to check python class write_ini or the corresponding `.ini` write logic in `camb/_ini.py`.
+- When adding new class or `.ini` file parameters, make sure to check python class write_ini or the corresponding `.ini` write logic in `camb/_ini.py`.
 
 ---
 

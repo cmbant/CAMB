@@ -69,6 +69,10 @@ python: FORUTILS_DIR=$(FORUTILSPATH)/$(DLL_DIR)/
 
 LIBLINK = -L"$(FORUTILS_DIR)" -lforutils
 
+ifneq ($(FISHER),)
+LIBLINK += -lblas -llapack
+endif
+
 
 ## CosmoRec
 ifneq (,$(findstring cosmorec,$(RECOMBINATION_FILES)))

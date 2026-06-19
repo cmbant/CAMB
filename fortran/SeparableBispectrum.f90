@@ -307,12 +307,12 @@
     integer, parameter :: lens_bispectrum_approx = first_order_lensed
 #ifdef FISHER
     Type(TBispectrum), pointer :: Bispectrum2
-    real(dl) Cl(4,lmin:CTrans%ls%l(CTrans%ls%nl))
+    real(dl), allocatable :: Cl(:,:)
     real(dl)  a3j_00(0:CTrans%ls%l(CTrans%ls%nl)*2+1)
     integer lstart
     real(dl) Noise, NoiseP, bias
     real(dl), allocatable:: fish_contribs(:,:,:)
-    real(dl) fish_contribs_sig(lmin:CTrans%ls%l(CTrans%ls%nl))
+    real(dl), allocatable :: fish_contribs_sig(:)
     real(dl), allocatable :: ifish_contribs(:,:,:,:,:), Fisher(:,:), tmpFisher(:,:),OptimalFisher(:,:)
     real(dl), allocatable :: tmpBigFisher(:,:), Fisher_L1(:,:,:),tmpProjFisher(:,:)
     real(dl), allocatable :: fish_l1(:,:,:,:), fish_L_ij(:,:), fish_L_noise(:,:)
@@ -322,7 +322,6 @@
     integer sz,corrsize
     Type(TCov), allocatable :: InvC(:)
     integer ix1,ix2
-    real(dl) tmpArr(lmin:CTrans%ls%l(CTrans%ls%nl))
 #endif
     type(TTextFile) :: file_alpha, file_beta, file_alpha_beta_r
     type(TTextFile), allocatable, dimension(:) :: bispectrum_files
@@ -876,20 +875,23 @@
 
         print *,'Getting Fisher for lmax = ', lmax
 
+        allocate(Cl(4,lmin:CTrans%ls%l(CTrans%ls%nl)))
+        allocate(fish_contribs_sig(lmin:CTrans%ls%l(CTrans%ls%nl)))
+
         Noise = BispectrumParams%FisherNoise/ (COBE_CMBTemp*1e6)**2  !Planckish, dimensionless units
         NoiseP = BispectrumParams%FisherNoisePol/ (COBE_CMBTemp*1e6)**2
 
         do i=lmin,lmax
             if (CP%DoLensing) then
-                cl(:,i) = CL_lensed(i,1,CT_Temp:CT_Cross)
+                cl(:,i) = State%CLData%CL_lensed(i,CT_Temp:CT_Cross)
             else
-                cl(1,i) = CL_Scalar(i,1,C_Temp)
-                cl(2,i) = CL_Scalar(i,1,C_E)
-                cl(4,i) = CL_Scalar(i,1,C_Cross)
+                cl(1,i) = State%CLData%CL_Scalar(i,C_Temp)
+                cl(2,i) = State%CLData%CL_Scalar(i,C_E)
+                cl(4,i) = State%CLData%CL_Scalar(i,C_Cross)
                 cl(3,i) = 0
             end if
             if (CP%WantTensors .and. i<= CP%Max_l_tensor .and. i>=2) then
-                cl(:,i) = cl(:,i) + Cl_tensor(i,1,CT_Temp:CT_Cross)
+                cl(:,i) = cl(:,i) + State%CLData%Cl_tensor(i,CT_Temp:CT_Cross)
             end if
         end do
         if (.false.) then
@@ -928,11 +930,11 @@
         end do
 
         if (debugMsgs) call Timer%Start()
-        allocate(ifish_contribs(SampleL%l0,nbispectra,nbispectra,nfields,nfields) )
+        allocate(ifish_contribs(SampleL%nl,nbispectra,nbispectra,nfields,nfields) )
         !This loop is just in case want to plot out lmax dependence
-        do lmaxcuti=SampleL%l0, SampleL%l0
+        do lmaxcuti=SampleL%nl, SampleL%nl
             !    call CreateTxtFile('TE-Planck-LensFish.txt',20)
-            !   do lmaxcuti=1, SampleL%l0
+            !   do lmaxcuti=1, SampleL%nl
             !   if (SampleL%l(lmaxcuti) < 425) cycle
 
             lmax= SampleL%l(lmaxcuti)
@@ -943,7 +945,7 @@
             !$OMP PRIVATE(il1,l1,l2,l3,fish_l1,bi_ix,min_l,max_l,a3j_00,a3j), &
             !$OMP PRIVATE(Bispectrum,Bispectrum2,minl2,bix,tmp,tmp1,tmp2,tmpf), &
             !$OMP PRIVATE(field1,field2,field3,f1,f2,f3,bispectrum_type,bispectrum_type2)
-            do il1= 1,  lmaxcuti !!!SampleL%l0
+            do il1= 1,  lmaxcuti !!!SampleL%nl
                 allocate(fish_l1(nbispectra,nbispectra,nfields,nfields)) !last indices are field1,f1
                 l1 = SampleL%l(il1)
                 if (l1< lstart) cycle
@@ -1052,7 +1054,7 @@
                     do field1=1,nfields
                         do f1=1,nfields
                             call InterpolateClArr(SampleL,ifish_contribs(1,bispectrum_type,bispectrum_type2,field1,f1), &
-                                fish_contribs(lmin,field1,f1),lmaxcuti)  !SampleL%l0)
+                                fish_contribs(lmin,field1,f1),lmaxcuti)  !SampleL%nl)
                         end do
                     end do
                     Fisher(bispectrum_type,bispectrum_type2)=0
@@ -1121,7 +1123,7 @@
                     if (bispectrum_type == lens_bispectrum_ix .and. bispectrum_type2 == lens_bispectrum_ix ) then
                         print *,'doing signal part of the lensing variance'
                         fish_contribs_sig=0
-                        do i=lmin, lmax_lensing_corrT
+                        do i=lmin, min(lmax, lmax_lensing_corrT)
                             corrsize = count(CPhi(2:1+nfields,i)/=0)
                             allocate(fish_L_ij(corrsize,corrsize))
                             allocate(fish_L_noise(corrsize,corrsize))
@@ -1194,7 +1196,9 @@
                         tmpBigFisher=Fisher_L1(i,:,:)
                         if (lens_bispectrum_ix/=0 .and. i<=lmax_lensing_corrT) then
 
-                            call Matrix_Inverse(tmpBigFisher)
+                            tmpBigFisher = (tmpBigFisher + transpose(tmpBigFisher))/2
+                            call Matrix_InverseAsymm(tmpBigFisher)
+                            tmpBigFisher = (tmpBigFisher + transpose(tmpBigFisher))/2
                             do field1 = 1,nfields
                                 do field2 =1, nfields
                                     tmpBigFisher((lens_bispectrum_ix-1)*nfields+field1, &
@@ -1204,7 +1208,9 @@
                                         (CPhi(1+field1,i)*CPhi(1+field2,i) + CPhi(1,i)*CForLensing(i)%C(field1,field2))/(2*i+1)
                                 end do
                             end do
-                            call Matrix_Inverse(tmpBigFisher)
+                            tmpBigFisher = (tmpBigFisher + transpose(tmpBigFisher))/2
+                            call Matrix_InverseAsymm(tmpBigFisher)
+                            tmpBigFisher = (tmpBigFisher + transpose(tmpBigFisher))/2
 
                         end if
 
@@ -1258,6 +1264,7 @@
 
         deallocate(ifish_contribs)
         deallocate(InvC)
+        deallocate(Cl, fish_contribs_sig)
 
     end if !DoFIsher
 #else

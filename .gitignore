@@ -59,6 +59,8 @@ testfile*
 *.toc
 *.aux
 *.out
+*.blg
+*.bbl
 *.mp4
 *.exe
 *_tmp*
