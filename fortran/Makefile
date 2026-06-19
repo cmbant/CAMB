@@ -111,10 +111,7 @@ endif
 
 MODOUT =  -J$(OUTPUT_DIR)
 SMODOUT = -J$(DLL_DIR)
-
-ifneq ($(FISHER),)
-F90CRLINK += -lblas -llapack
-endif
+FISHER_LINK = -lblas -llapack
 
 ifeq ($(shell uname -s),Darwin)
 NONNATIVE = 1
