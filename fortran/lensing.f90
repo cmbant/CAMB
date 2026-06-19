@@ -46,7 +46,7 @@
     use results
     use constants, only : const_pi, const_twopi, const_fourpi
     use MathUtils, only : Gauss_Legendre
-    use omp_lib, only: omp_get_thread_num, omp_get_max_threads
+    !$ use omp_lib, only: omp_get_thread_num, omp_get_max_threads
     implicit none
     integer, parameter :: lensing_method_curv_corr=1,lensing_method_flat_corr=2, &
         lensing_method_harmonic=3, lensing_method_curv_corr_full=4, lensing_method_optimized=5

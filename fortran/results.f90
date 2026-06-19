@@ -33,6 +33,7 @@
     use config
     use model
     use Interpolation
+    !$ use omp_lib, only: omp_get_max_threads
     implicit none
     public
 
@@ -1798,6 +1799,7 @@
     real(dl), allocatable :: scale_factors(:), times(:), dt(:)
     ! Thermodynamic sound-speed temporaries.
     real(dl) :: T_reion, denom, yheat, Tg, muinv, cs2_orig, cs2_heat, Tb_orig
+    logical :: thermo_use_omp
     Type(TCubicSpline) :: dotmuSp
     integer ninverse, nlin
     real(dl) dlna, zstar_min, zstar_max
@@ -1805,6 +1807,8 @@
     Type(CAMBParams), pointer :: CP
 
     CP => State%CP
+    thermo_use_omp = .false.
+    !$ thermo_use_omp = omp_get_max_threads() > 1
     this%has_lensing_windows = .false.
 
     !Allocate memory outside parallel region to keep ifort happy
@@ -1878,9 +1882,9 @@
     allocate(dt(ninverse+nlin))
     allocate(taus(nthermo), xe_a(nthermo))
 
-    !$OMP PARALLEL SECTIONS DEFAULT(SHARED)
+    !$OMP PARALLEL SECTIONS DEFAULT(SHARED) NUM_THREADS(2) IF(thermo_use_omp)
     !$OMP SECTION
-    call CP%Recomb%Init(State,WantTSpin=CP%Do21cm)    !almost all the time spent here
+    call CP%Recomb%Init(State,WantTSpin=CP%Do21cm)  ! slowest individual step
 
     if (CP%Evolve_delta_xe) this%recombination_saha_tau  = State%TimeOfZ(CP%Recomb%get_saha_z(), tol=1e-4_dl)
     if (CP%Evolve_baryon_cs .or. CP%Evolve_delta_xe .or. CP%Evolve_delta_Ts .or. CP%Do21cm) &
@@ -2047,7 +2051,7 @@
     this%dotmu(1)=this%xe(1)*State%akthom/a0**2
 
 
-    !$OMP PARALLEL DO DEFAULT(SHARED), SCHEDULE(STATIC,16)
+    !$OMP PARALLEL DO DEFAULT(SHARED), SCHEDULE(STATIC,16) NUM_THREADS(2) IF(thermo_use_omp)
     do i=2,nthermo
         call CP%Recomb%xe_tm(this%scaleFactor(i), xe_a(i), this%tb(i))
     end do
@@ -2263,7 +2267,8 @@
         write (*,*) 'taurst, taurend = ', State%taurst, State%taurend
     end if
 
-    !$OMP PARALLEL SECTIONS DEFAULT(SHARED), PRIVATE(j2, sf1, sf2, dSF1, dSF2, delta)
+    !$OMP PARALLEL SECTIONS DEFAULT(SHARED), PRIVATE(j2, sf1, sf2, dSF1, dSF2, delta) &
+    !$OMP NUM_THREADS(2) IF(thermo_use_omp)
     !$OMP SECTION
     call unit_grid_pade_derivative(this%dotmu,this%ddotmu,nthermo,spline_data)
     call unit_grid_pade_derivative(this%ddotmu,this%dddotmu,nthermo,spline_data)
@@ -2284,25 +2289,6 @@
     if (CP%want_zstar .or. CP%WantDerivedParameters) &
         this%z_star = State%binary_search(noreion_optdepth, 1.d0, zstar_min, zstar_max, &
         & 1d-3/background_boost, 100._dl*z_scale, 4000._dl*z_scale)
-    !$OMP SECTION
-    call unit_grid_pade_derivative(this%cs2,dcs2,nthermo,spline_data)
-    call unit_grid_pade_derivative(this%emmu,this%demmu,nthermo,spline_data)
-    call unit_grid_pade_derivative(this%adot,this%dadot,nthermo,spline_data)
-    do j2 = 1, nthermo - 1
-        associate(horner => this%thermo_horner(j2))
-            horner%cs2b(1) = this%cs2(j2)
-            horner%cs2b(2) = dcs2(j2)
-            horner%cs2b(3) = 3*(this%cs2(j2+1) - this%cs2(j2)) - 2*dcs2(j2) - dcs2(j2+1)
-            horner%cs2b(4) = dcs2(j2) + dcs2(j2+1) + 2*(this%cs2(j2) - this%cs2(j2+1))
-        end associate
-    end do
-    if (dowinlens) call unit_grid_pade_derivative(this%winlens,this%dwinlens,nthermo,spline_data)
-    if (CP%want_zdrag .or. CP%WantDerivedParameters .or. CP%WantCls) &
-        this%z_drag = State%binary_search(dragoptdepth, 1.d0, 800*z_scale, &
-        & max(zstar_max*1.1_dl,1200._dl*z_scale), 2d-3/background_boost, 100.d0*z_scale, 4000._dl*z_scale)
-    if (this%z_drag > 0) rs = State%sound_horizon(this%z_drag)
-    if (this%z_drag > 0 .and. State%DMt0 > 0) State%scale = planck2018_drag_angle/(rs/State%DMt0)
-    !$OMP SECTION
     this%ScaleFactor(:) = this%ScaleFactor/taus !a/tau for dynamic range
     sf1  = this%ScaleFactor(1)
     dSF1 = (this%adot(1) - sf1)*this%dlntau
@@ -2330,6 +2316,24 @@
         end do
     end if
     call this%SetTimeSteps(State,State%TimeSteps)
+    !$OMP SECTION
+    call unit_grid_pade_derivative(this%cs2,dcs2,nthermo,spline_data)
+    call unit_grid_pade_derivative(this%emmu,this%demmu,nthermo,spline_data)
+    call unit_grid_pade_derivative(this%adot,this%dadot,nthermo,spline_data)
+    do j2 = 1, nthermo - 1
+        associate(horner => this%thermo_horner(j2))
+            horner%cs2b(1) = this%cs2(j2)
+            horner%cs2b(2) = dcs2(j2)
+            horner%cs2b(3) = 3*(this%cs2(j2+1) - this%cs2(j2)) - 2*dcs2(j2) - dcs2(j2+1)
+            horner%cs2b(4) = dcs2(j2) + dcs2(j2+1) + 2*(this%cs2(j2) - this%cs2(j2+1))
+        end associate
+    end do
+    if (dowinlens) call unit_grid_pade_derivative(this%winlens,this%dwinlens,nthermo,spline_data)
+    if (CP%want_zdrag .or. CP%WantDerivedParameters .or. CP%WantCls) &
+        this%z_drag = State%binary_search(dragoptdepth, 1.d0, 800*z_scale, &
+        & max(zstar_max*1.1_dl,1200._dl*z_scale), 2d-3/background_boost, 100.d0*z_scale, 4000._dl*z_scale)
+    if (this%z_drag > 0) rs = State%sound_horizon(this%z_drag)
+    if (this%z_drag > 0 .and. State%DMt0 > 0) State%scale = planck2018_drag_angle/(rs/State%DMt0)
     !$OMP END PARALLEL SECTIONS
 
     if (State%num_redshiftwindows>0) then
@@ -2343,23 +2347,22 @@
 
     if (CP%WantDerivedParameters) then
         associate(ThermoDerivedParams => State%ThermoDerivedParams)
-            !$OMP PARALLEL SECTIONS DEFAULT(SHARED)
+            !$OMP PARALLEL SECTIONS DEFAULT(SHARED) NUM_THREADS(2) IF(thermo_use_omp)
             !$OMP SECTION
             ThermoDerivedParams( derived_Age ) = State%DeltaPhysicalTimeGyr(0.0_dl,1.0_dl)
             rstar =State%sound_horizon(this%z_star)
             ThermoDerivedParams( derived_rstar ) = rstar
             DA = State%AngularDiameterDistance(this%z_star)/(1/(this%z_star+1))
             ThermoDerivedParams( derived_zdrag ) = this%z_drag
-            !$OMP SECTION
-            ThermoDerivedParams( derived_rdrag ) = rs
-            ThermoDerivedParams( derived_kD ) =  &
-                sqrt(1.d0/(Integrate_Romberg(State,ddamping_da, 1d-8, 1/(this%z_star+1), 1d-6)/6))
-            !$OMP SECTION
             ThermoDerivedParams( derived_zEQ ) = State%z_eq
             a_eq = 1/(1+State%z_eq)
             ThermoDerivedParams( derived_kEQ ) = 1/(a_eq*dtauda(State,a_eq))
             rs_eq = State%sound_horizon(State%z_eq)
             tau_eq = State%timeOfz(State%z_eq)
+            !$OMP SECTION
+            ThermoDerivedParams( derived_rdrag ) = rs
+            ThermoDerivedParams( derived_kD ) =  &
+                sqrt(1.d0/(Integrate_Romberg(State,ddamping_da, 1d-8, 1/(this%z_star+1), 1d-6)/6))
             !$OMP END PARALLEL SECTIONS
 
             ThermoDerivedParams( derived_zstar ) = this%z_star
