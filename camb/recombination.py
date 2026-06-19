@@ -12,8 +12,8 @@ recfast_approx_model_params = {
     recfast_planck: {
         "RECFAST_fudge": 1.125,
         "RECFAST_fudge_He": 0.86,
-        "RECFAST_Heswitch": 6,
         "RECFAST_Hswitch": True,
+        "RECFAST_He_rate_correction": False,
         "AGauss1": -0.14,
         "AGauss2": 0.079,
         "zGauss1": 7.28,
@@ -23,21 +23,21 @@ recfast_approx_model_params = {
     },
     recfast_cosmorec: {
         "RECFAST_fudge": 1.125,
-        "RECFAST_fudge_He": 0.8472384364,
-        "RECFAST_Heswitch": 6,
+        "RECFAST_fudge_He": 0.8472367977,
         "RECFAST_Hswitch": True,
-        "AGauss1": -0.1421246011,
-        "AGauss2": 0.0747533979,
-        "zGauss1": 7.2841557503,
-        "zGauss2": 6.7306248459,
-        "wGauss1": 0.1741263787,
-        "wGauss2": 0.3349828575,
+        "RECFAST_He_rate_correction": True,
+        "AGauss1": -0.1395272483,
+        "AGauss2": 0.0729891952,
+        "zGauss1": 7.2813061282,
+        "zGauss2": 6.7667038679,
+        "wGauss1": 0.1638966410,
+        "wGauss2": 0.2785834127,
     },
     recfast_hyrec: {
         "RECFAST_fudge": 1.125,
         "RECFAST_fudge_He": 0.8658491370,
-        "RECFAST_Heswitch": 6,
         "RECFAST_Hswitch": True,
+        "RECFAST_He_rate_correction": False,
         "AGauss1": -0.1417072428,
         "AGauss2": 0.0733978462,
         "zGauss1": 7.2841809376,
@@ -79,8 +79,8 @@ class Recfast(RecombinationModel):
     _fields_ = (
         ("RECFAST_fudge", c_double),
         ("RECFAST_fudge_He", c_double),
-        ("RECFAST_Heswitch", c_int),
         ("RECFAST_Hswitch", c_bool),
+        ("RECFAST_He_rate_correction", c_bool),
         ("AGauss1", c_double),
         ("AGauss2", c_double),
         ("zGauss1", c_double),
@@ -103,7 +103,8 @@ class Recfast(RecombinationModel):
         :param recfast_approx_model: optional named approximation parameter set. One of
 
             - ``planck``: CAMB v1.x/RECFAST 1.5.2 Planck-era fudge parameters.
-            - ``cosmorec``: seven-parameter RECFAST fit to direct CosmoRec ``accuracy=6`` with 10 H shells.
+            - ``cosmorec``: RECFAST fit with an He rate correction to direct CosmoRec ``accuracy=6`` with
+              10 H shells.
             - ``hyrec``: seven-parameter RECFAST fit to direct HyRec-2.
 
         :return: self
@@ -128,8 +129,8 @@ class Recfast(RecombinationModel):
             self,
             names=(
                 "RECFAST_fudge_He",
-                "RECFAST_Heswitch",
                 "RECFAST_Hswitch",
+                "RECFAST_He_rate_correction",
                 "AGauss1",
                 "AGauss2",
                 "zGauss1",
@@ -176,8 +177,8 @@ class CosmoRec(RecombinationModel):
         ("n_shells", c_int, "Override CosmoRec hydrogen shells; negative uses selected accuracy preset"),
         ("n_shells_hei", c_int, "Override CosmoRec helium shells; negative uses selected accuracy preset"),
         ("flag_hi_absorption", c_int, "Override CosmoRec HI absorption flag; negative uses selected accuracy preset"),
-        ("ntg_max", c_int, "Override CosmoRec two-photon/Raman truncation; negative uses selected accuracy preset"),
-        ("nr_max", c_int, "Override CosmoRec Raman truncation; negative uses selected accuracy preset"),
+        ("n_s_2gamma", c_int, "Override CosmoRec two-photon shell limit; negative uses selected accuracy preset"),
+        ("n_s_raman", c_int, "Override CosmoRec Raman shell limit; negative uses selected accuracy preset"),
     )
 
     def write_ini(self, state) -> None:
@@ -192,8 +193,8 @@ class CosmoRec(RecombinationModel):
                 "n_shells",
                 "n_shells_hei",
                 "flag_hi_absorption",
-                "ntg_max",
-                "nr_max",
+                "n_s_2gamma",
+                "n_s_raman",
             ),
             rename={
                 "runmode": "cosmorec_runmode",
@@ -203,8 +204,8 @@ class CosmoRec(RecombinationModel):
                 "n_shells": "cosmorec_n_shells",
                 "n_shells_hei": "cosmorec_n_shells_hei",
                 "flag_hi_absorption": "cosmorec_flag_hi_absorption",
-                "ntg_max": "cosmorec_ntg_max",
-                "nr_max": "cosmorec_nr_max",
+                "n_s_2gamma": "cosmorec_n_s_2gamma",
+                "n_s_raman": "cosmorec_n_s_raman",
             },
         )
 

@@ -13,7 +13,7 @@ try:
 except ImportError:
     sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
     import camb
-from camb import bbn, correlations, dark_energy, initialpower, model, recombination
+from camb import bbn, constants, correlations, dark_energy, initialpower, model, recombination
 from camb.baseconfig import CAMBError, CAMBParamRangeError, CAMBValueError
 
 
@@ -514,6 +514,40 @@ class CambTest(unittest.TestCase):
                         legacy_ini.write(line)
             legacy_roundtrip = camb.read_ini(legacy_ini_path)
             self.assertAlmostEqual(legacy_roundtrip.Recomb.RECFAST_fudge, 1.125)
+
+    def testTCMBRecombinationConsistency(self):
+        default_tcmb = constants.COBE_CMBTemp
+        low_tcmb = 1.7
+        density_scale = (low_tcmb / default_tcmb) ** 3
+        default_redshifts = np.geomspace(801.0, 3001.0, 80) - 1.0
+        low_tcmb_redshifts = default_tcmb / low_tcmb * (1.0 + default_redshifts) - 1.0
+
+        def make_pars(TCMB, scale, recfast_approx_model):
+            pars = new_def_params()
+            pars.Recomb.set_params(recfast_approx_model=recfast_approx_model)
+            pars.set_cosmology(
+                H0=67.4,
+                ombh2=0.02237 * scale,
+                omch2=0.12 * scale,
+                mnu=0,
+                YHe=0.2453,
+                TCMB=TCMB,
+            )
+            pars.InitPower.set_params(As=2.1e-9, ns=0.965)
+            return pars
+
+        for recfast_approx_model in [recombination.recfast_planck, recombination.recfast_cosmorec]:
+            with self.subTest(recfast_approx_model=recfast_approx_model):
+                default = camb.get_background(make_pars(default_tcmb, 1.0, recfast_approx_model))
+                low_tcmb_model = camb.get_background(make_pars(low_tcmb, density_scale, recfast_approx_model))
+                default_xe = default.get_background_redshift_evolution(default_redshifts, vars=["x_e"], format="array")[
+                    :, 0
+                ]
+                low_tcmb_xe = low_tcmb_model.get_background_redshift_evolution(
+                    low_tcmb_redshifts, vars=["x_e"], format="array"
+                )[:, 0]
+
+                np.testing.assert_allclose(low_tcmb_xe, default_xe, rtol=5e-5, atol=0)
 
     def testRecfastApproxModels(self):
         rec = recombination.Recfast()

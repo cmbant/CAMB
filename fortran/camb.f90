@@ -361,6 +361,8 @@
     logical :: DoCounts, has_hubble, has_thetastar, has_cosmomc_theta
 
     ErrMsg = ''
+    global_error_flag = 0
+    global_error_message = ''
 
     CAMB_ReadParams = .false.
     call CAMB_SetDefParams(P)
@@ -698,6 +700,10 @@
     end if
 
     call P%Recomb%ReadParams(Ini)
+    if (global_error_flag /= 0) then
+        ErrMsg = trim(global_error_message)
+        return
+    end if
 
     if (P%WantScalars .or. P%WantTransfer) then
         P%Scalar_initial_condition = Ini%Read_Int('initial_condition', initial_adiabatic)

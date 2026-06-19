@@ -5,7 +5,7 @@ import os
 from ctypes import POINTER, byref, c_bool, c_double
 from inspect import FullArgSpec, getfullargspec
 
-from . import constants, model
+from . import constants, model, recombination
 from ._config import config
 from .baseconfig import CAMBError as CAMBError
 from .baseconfig import CAMBUnknownArgumentError, CAMBValueError, camblib, filepath_to_fortran, np
@@ -290,6 +290,7 @@ def set_params_cosmomc(
     if p.get("alpha1", 0) or p.get("Aphiphi", 1) != 1:
         raise ValueError("Parameter not currently supported by set_params_cosmomc")
 
+    pars.Recomb.set_params(recfast_approx_model=recombination.recfast_planck)
     pars.set_dark_energy(w=p.get("w", -1), wa=p.get("wa", 0), dark_energy_model=dark_energy_model)
     pars.Reion.set_extra_params(deltazrei=p.get("deltazrei", None))
     pars.set_cosmology(

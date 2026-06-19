@@ -10,7 +10,9 @@
 
     type, public :: RungeKuttaDP45Settings
         ! User-configurable controls. Defaults mainly preserves CAMB's historical usage
-        ! unless the caller overrides fields and enters with ind = 2.
+        ! unless the caller overrides fields and enters with ind = 2. The
+        ! reuse_first_derivative request is also preserved across an ind = 1 reset
+        ! so callers can enable FSAL without bypassing the normal state reset.
         ! error_control chooses the max-norm weighting:
         !   RK45ErrorMixed         1/max(1, abs(y(k))) (default).
         !   RK45ErrorAbsolute      1.
@@ -140,10 +142,11 @@
 !   n, x, y, xend, tol_in: standard ODE system size, state, target x, and
 !       caller-provided tolerance. tol_in is used directly.
 !   ind: solver entry/return status.
-!       1 reset with default settings, 2 reset using caller-populated settings,
+!       1 reset with default settings, preserving reuse_first_derivative,
+!       2 reset using caller-populated settings,
 !       3 continue normal re-entry, 4/5/6 resume after interrupts,
 !       returns 3/4/5/6 or -1/-2/-3.
-!   settings: named replacement for the old c(*) vector.
+!   settings:
 !       Configurable fields are error_control, error_floor, min_step_size,
 !       initial_step_size, problem_scale, max_step_size,
 !       max_function_evaluations, interrupt_before_trial_step,
@@ -172,7 +175,7 @@
         end if
 
         if (ind == 1) then
-            settings = RungeKuttaDP45Settings()
+            settings = RungeKuttaDP45Settings(reuse_first_derivative=settings%reuse_first_derivative)
         else
             call normalize_settings(settings)
         end if

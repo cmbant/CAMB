@@ -801,12 +801,12 @@
     end if
     !     Timesteps during recombination (tentative, the actual
     !     timestep is the minimum between this value and taurst/40,
-    !     where taurst is the time when recombination starts - see inithermo
+    !     where taurst is the time when recombination starts - see Thermo_Init
 
     dtaurec_q=4/qmax/initAccuracyBoost
     !AL:Changed Dec 2003, dtaurec feeds back into the non-flat integration via the step size
     State%dtaurec = dtaurec_q
-    !dtau rec may be changed by ThermoData_init
+    !dtau rec may be changed by Thermo_Init
 
     max_etak_tensor = initAccuracyBoost*maximum_qeta /10
     max_etak_scalar = initAccuracyBoost*max(1700._dl,maximum_qeta) /20
