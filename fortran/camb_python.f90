@@ -12,6 +12,7 @@
     use classes
     use Interpolation
     use RungeKuttaDP45Module, only : RungeKuttaDP45Settings
+    use Bispectrum, only: TBispectrumParams, TBispectrumResult
     implicit none
 
     Type c_MatterTransferData
@@ -350,6 +351,30 @@
     call CAMB_GetResults(Data, Params, error, onlytransfer, onlytimesources)
 
     end function CAMBdata_GetTransfers
+
+    function CAMBdata_GetBispectrum(Data, Params, BParams, BResult, output_root) result(error)
+    Type(CAMBdata) :: Data
+    type(CAMBparams) :: Params
+    Type(TBispectrumParams) :: BParams
+    Type(TBispectrumResult) :: BResult
+    character(LEN=*), intent(in) :: output_root
+    integer :: error
+
+    error = 0
+    call CAMB_GetResults(Data, Params, error, .false., .false., BParams, BResult, output_root)
+
+    end function CAMBdata_GetBispectrum
+
+    function CAMB_BispectrumFisherCompiled() result(compiled)
+    integer :: compiled
+
+#ifdef FISHER
+    compiled = 1
+#else
+    compiled = 0
+#endif
+
+    end function CAMB_BispectrumFisherCompiled
 
     function CAMBdata_CalcBackgroundTheory(Data, P) result(error)
     use cambmain, only: initvars

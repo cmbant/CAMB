@@ -55,6 +55,22 @@ def get_results(params):
     return res
 
 
+def get_bispectrum(params, bispectrum_params=None, output_root=""):
+    """
+    Calculate local primordial and/or CMB lensing bispectrum outputs.
+
+    :param params: :class:`.model.CAMBparams` instance
+    :param bispectrum_params: optional :class:`.bispectrum.BispectrumParams` instance or dict
+    :param output_root: filename prefix for requested large file outputs
+    :return: :class:`.bispectrum.BispectrumResult`
+    """
+    if isinstance(params, dict):
+        params = set_params(**params)
+    from .bispectrum import get_bispectrum as _get_bispectrum
+
+    return _get_bispectrum(params, bispectrum_params, output_root=output_root, _debug_params=_debug_params)
+
+
 def get_transfer_functions(params, only_time_sources=False):
     """
     Calculate transfer functions for specified parameters and return :class:`~.results.CAMBdata` instance for

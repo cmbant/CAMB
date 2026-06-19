@@ -57,7 +57,8 @@
     end subroutine CAMB_TransfersToPowers
 
     !Call this routine with a set of parameters to generate the results you want.
-    subroutine CAMB_GetResults(OutData, Params, error, onlytransfer, onlytimesources)
+    subroutine CAMB_GetResults(OutData, Params, error, onlytransfer, onlytimesources, &
+        BispectrumConfig, BispectrumResult, bispectrum_output_root)
     use CAMBmain
     use lensing
     use Bispectrum
@@ -65,10 +66,20 @@
     type(CAMBparams) :: Params
     integer, optional :: error !Zero if OK
     logical, optional :: onlytransfer, onlytimesources
+    Type(TBispectrumParams), optional, intent(in) :: BispectrumConfig
+    Type(TBispectrumResult), optional :: BispectrumResult
+    character(LEN=*), optional, intent(in) :: bispectrum_output_root
     type(CAMBparams) P
-    logical :: call_again
+    logical :: call_again, calc_bispectrum, old_do_bispectrum
 
     global_error_flag = 0
+    old_do_bispectrum = do_bispectrum
+    if (present(BispectrumConfig)) then
+        calc_bispectrum = BispectrumConfig%do_lensing_bispectrum .or. BispectrumConfig%do_primordial_bispectrum
+        do_bispectrum = calc_bispectrum
+    else
+        calc_bispectrum = do_bispectrum
+    end if
     call_again = .false.
     call OutData%Free()
     call SetActiveState(OutData)
@@ -86,6 +97,7 @@
         if (global_error_flag==0) call cmbmain
         if (global_error_flag/=0) then
             if (present(error)) error =global_error_flag
+            do_bispectrum = old_do_bispectrum
             return
         end if
         call_again = .true.
@@ -101,6 +113,7 @@
         if (global_error_flag==0) call cmbmain
         if (global_error_flag/=0) then
             if (present(error)) error =global_error_flag
+            do_bispectrum = old_do_bispectrum
             return
         end if
         call_again = .true.
@@ -108,6 +121,7 @@
 
     if (Params%WantCls .and. Params%WantScalars) then
         P = Params
+        if (calc_bispectrum) P%Accuracy%lSampleBoost = max(P%Accuracy%lSampleBoost, 50._dl)
         P%Max_eta_k=max(min(P%max_l,3000)*2.5_dl,P%Max_eta_k)
         P%WantTensors = .false.
         P%WantVectors = .false.
@@ -119,6 +133,7 @@
         if (global_error_flag==0) call cmbmain
         if (global_error_flag/=0) then
             if (present(error)) error =global_error_flag
+            do_bispectrum = old_do_bispectrum
             return
         end if
         call_again = .true.
@@ -135,6 +150,7 @@
         if (global_error_flag==0) call cmbmain
         if (global_error_flag/=0) then
             if (present(error)) error =global_error_flag
+            do_bispectrum = old_do_bispectrum
             return
         end if
     end if
@@ -144,6 +160,7 @@
     OutData%CP%WantVectors = Params%WantVectors
     OutData%CP%WantTransfer = Params%WantTransfer
     OutData%CP%Accuracy = Params%Accuracy
+    if (calc_bispectrum) OutData%CP%Accuracy%lSampleBoost = max(OutData%CP%Accuracy%lSampleBoost, 50._dl)
     OutData%CP%Reion%Reionization = Params%Reion%Reionization
     OutData%CP%Transfer%high_precision = Params%Transfer%high_precision
     OutData%CP%WantDerivedParameters = Params%WantDerivedParameters
@@ -153,10 +170,21 @@
             call lens_Cls(OutData)
         end if
 
-        if (do_bispectrum .and. global_error_flag==0) &
-            call GetBispectrum(OutData,OutData%CLData%CTransScal)
+        if (calc_bispectrum .and. global_error_flag==0) then
+            if (present(BispectrumConfig)) then
+                if (present(bispectrum_output_root)) then
+                    call GetBispectrum(OutData, OutData%CLData%CTransScal, &
+                        BispectrumConfig, BispectrumResult, bispectrum_output_root)
+                else
+                    call GetBispectrum(OutData, OutData%CLData%CTransScal, BispectrumConfig, BispectrumResult)
+                end if
+            else
+                call GetBispectrum(OutData,OutData%CLData%CTransScal)
+            end if
+        end if
     end if
     if (global_error_flag/=0 .and. present(error)) error =global_error_flag
+    do_bispectrum = old_do_bispectrum
 
     end subroutine CAMB_GetResults
 
