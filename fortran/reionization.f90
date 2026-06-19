@@ -180,6 +180,9 @@
         this%helium_redshiftstart  = Ini%Read_Double('re_helium_redshiftstart', &
             this%helium_redshift + 5*this%helium_delta_redshift)
 
+        call Ini%Read('reion_include_heating',this%include_heating)
+        call Ini%Read('reion_temperature',this%reion_temperature)
+
     end if
 
     end subroutine TBaseTauWithHeReionization_ReadParams

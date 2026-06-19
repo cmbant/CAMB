@@ -6,14 +6,35 @@ from .baseconfig import F2003Class, f_pointer, fortran_class
 class ReionizationModel(F2003Class):
     """
     Abstract base class for reionization models.
+
+    The optional ``include_heating`` switch adds an approximate model of the photo-heating of the
+    intergalactic medium during reionization. It is a very crude instantaneous-Jeans approximation for
+    an order of magnitude estimate. When enabled, the baryon temperature is smoothly raised
+    towards ``reion_temperature`` (default :math:`10^4` K) following the ionization-fraction shape, and the
+    baryon sound speed is mapped towards the corresponding ideal-gas value. This raises the baryon pressure,
+    suppressing small-scale baryon (and hence total matter) power. It is off by default and only affects the
+    low-redshift matter power spectrum.
+
     """
 
     _fields_ = (
         ("Reionization", c_bool, "Is there reionization? (can be off for matter power, which is independent of it)"),
+        (
+            "include_heating",
+            c_bool,
+            "Whether to include approximate smooth reionization heating following the x_e shape (default False)",
+        ),
+        (
+            "reion_temperature",
+            c_double,
+            "Asymptotic gas temperature in K reached during reionization heating (default 1e4 K)",
+        ),
     )
 
     def write_ini(self, state) -> None:
         state.set("reionization", self.Reionization)
+        state.set("reion_include_heating", self.include_heating)
+        state.set("reion_temperature", self.reion_temperature)
 
 
 class BaseTauWithHeReionization(ReionizationModel):
