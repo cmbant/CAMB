@@ -856,7 +856,7 @@ def tt_ee_tolerance_ranges_for_cls(params, lmax: int) -> list[RangeTolerance]:
 
     edge_width = max(
         LOW_LMAX_LENSED_EDGE_MIN_WIDTH,
-        int(math.ceil(LOW_LMAX_LENSED_EDGE_FRACTION * lmax)),
+        math.ceil(LOW_LMAX_LENSED_EDGE_FRACTION * lmax),
     )
     edge_start = max(0, lmax - edge_width + 1)
     ranges = [range_tolerance for range_tolerance in tolerances if range_tolerance.start < edge_start]

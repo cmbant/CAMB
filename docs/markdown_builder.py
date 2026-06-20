@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 """
 This script builds Sphinx documentation in Markdown format and combines it into a single file
 for use as context with Large Language Models (LLMs).

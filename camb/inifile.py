@@ -30,8 +30,8 @@ class IniFile:
                using environment variables
         """
 
-        self.params = dict()
-        self.comments = dict()
+        self.params = {}
+        self.comments = {}
         self.readOrder = []
         self.defaults = []
         self.includes = []

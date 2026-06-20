@@ -703,7 +703,7 @@ class CambTest(unittest.TestCase):
 
         kh, z, pk = data.get_matter_power_spectrum(1e-4, 1, 20)
 
-        kh2, z2, pk2 = data.get_linear_matter_power_spectrum()
+        _kh2, _z2, pk2 = data.get_linear_matter_power_spectrum()
 
         s8 = data.get_sigma8()
         self.assertAlmostEqual(s8[0], 0.24686, 3)
@@ -715,7 +715,7 @@ class CambTest(unittest.TestCase):
         pars.NonLinear = model.NonLinear_both
 
         data.calc_power_spectra(pars)
-        kh3, z3, pk3 = data.get_matter_power_spectrum(1e-4, 1, 20)
+        _kh3, _z3, pk3 = data.get_matter_power_spectrum(1e-4, 1, 20)
         self.assertAlmostEqual(pk[-1][-3], 51.924, 2)
         self.assertAlmostEqual(pk3[-1][-3], 57.723, 2)
         self.assertAlmostEqual(pk2[-2][-4], 56.454, 2)
@@ -920,7 +920,7 @@ class CambTest(unittest.TestCase):
         pars.set_matter_power(nonlinear=False, k_per_logint=0, kmax=2)
 
         results = camb.get_results(pars)
-        P, z, k = results.get_matter_power_interpolator(
+        P, _z, k = results.get_matter_power_interpolator(
             nonlinear=False, hubble_units=False, k_hunit=False, return_z_k=True, extrap_kmax=100, silent=True
         )
         truth = 0.800679  # from high kmax, high accuracy boost

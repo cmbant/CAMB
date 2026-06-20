@@ -38,7 +38,7 @@ def get_forutils():
             try:
                 if (
                     subprocess.call(
-                        "git clone --branch %s --depth=1 https://github.com/cmbant/forutils" % fbranch, shell=True
+                        f"git clone --branch {fbranch} --depth=1 https://github.com/cmbant/forutils", shell=True
                     )
                     == 0
                 ):
@@ -217,7 +217,7 @@ def make_library(cluster=False):
         )
 
         if os.path.isfile(lib_file):
-            subprocess.call("chmod 755 %s" % lib_file, shell=True)
+            subprocess.call(f"chmod 755 {lib_file}", shell=True)
 
     if not os.path.isfile(os.path.join(pycamb_path, "camb", DLLNAME)):
         sys.exit("Compilation failed")

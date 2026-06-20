@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Create a disposable CAMB worktree with tracked local changes replayed."""
 
 from __future__ import annotations

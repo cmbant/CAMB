@@ -232,8 +232,7 @@ def diffnsqrt(old, new, tol, c1, c2):
     res = math.fabs(new[c1 + "x" + c2] - old[c1 + "x" + c2]) / math.sqrt(oc1c1 * oc2c2) < tol
     if args.verbose_diff_output and not res:
         printlog(
-            "diffnsqrt: |%g - %g|/sqrt(%g * %g) = %g > %g"
-            % (
+            "diffnsqrt: |{:g} - {:g}|/sqrt({:g} * {:g}) = {:g} > {:g}".format(
                 new[c1 + "x" + c2],
                 old[c1 + "x" + c2],
                 oc1c1,
@@ -256,8 +255,7 @@ def normabs(o, n, tol):
     res = (math.fabs(o - n) / math.fabs(o) if o != 0.0 else math.fabs(o - n)) < tol
     if args.verbose_diff_output and not res:
         printlog(
-            "normabs: |%g - %g| / |%g| = %g > %g"
-            % (o, n, o, math.fabs(o - n) / math.fabs(o) if o != 0.0 else math.fabs(o - n), tol)
+            f"normabs: |{o:g} - {n:g}| / |{o:g}| = {math.fabs(o - n) / math.fabs(o) if o != 0.0 else math.fabs(o - n):g} > {tol:g}"
         )
     return res
 
@@ -396,15 +394,15 @@ def getTestParams():
     params = [["base"]]
 
     for lmax in [1000, 2000, 2500, 3000, 4500, 6000]:
-        params.append(["lmax%s" % lmax, "l_max_scalar = %s" % lmax, "k_eta_max_scalar  = %s" % (lmax * 2.5)])
+        params.append([f"lmax{lmax}", f"l_max_scalar = {lmax}", "k_eta_max_scalar  = %s" % (lmax * 2.5)])
 
     for lmax in [1000, 2000, 2500, 3000, 4500]:
         params.append(
             [
-                "nonlin_lmax%s" % lmax,
+                f"nonlin_lmax{lmax}",
                 "do_nonlinear =2",
                 "get_transfer= T",
-                "l_max_scalar = %s" % lmax,
+                f"l_max_scalar = {lmax}",
                 "k_eta_max_scalar  = %s" % (lmax * 2.5),
             ]
         )
@@ -412,9 +410,9 @@ def getTestParams():
     for lmax in [400, 600, 1000]:
         params.append(
             [
-                "tensor_lmax%s" % lmax,
+                f"tensor_lmax{lmax}",
                 "get_tensor_cls = T",
-                "l_max_tensor = %s" % lmax,
+                f"l_max_tensor = {lmax}",
                 "k_eta_max_tensor  = %s" % (lmax * 2),
             ]
         )
@@ -480,10 +478,10 @@ def getTestParams():
     params.append(["no_rad_trunc", "do_late_rad_truncation   = F"])
 
     for acc in [1.1, 1.5, 2.2]:
-        params.append(["accuracy_boost%s" % acc, "accuracy_boost = %s" % acc])
+        params.append([f"accuracy_boost{acc}", f"accuracy_boost = {acc}"])
 
     for acc in [1, 1.5, 2]:
-        params.append(["l_accuracy_boost%s" % acc, "l_accuracy_boost = %s" % acc])
+        params.append([f"l_accuracy_boost{acc}", f"l_accuracy_boost = {acc}"])
 
     params.append(["acc", "l_accuracy_boost =2", "accuracy_boost=2"])
     params.append(["accsamp", "l_accuracy_boost =2", "accuracy_boost=2", "l_sample_boost = 1.5"])
@@ -492,7 +490,7 @@ def getTestParams():
 
     for mnu in [0, 0.01, 0.03, 0.1]:
         omnu = mnu / 100.0
-        params.append(["mu_mass%s" % mnu, "omnuh2 =%s" % omnu, "massive_neutrinos  = 3"])
+        params.append([f"mu_mass{mnu}", f"omnuh2 ={omnu}", "massive_neutrinos  = 3"])
     params.append(
         [
             "mu_masssplit",
@@ -508,10 +506,10 @@ def getTestParams():
     for etamax in [10000, 14000, 20000, 40000]:
         params.append(
             [
-                "acclens_ketamax%s" % etamax,
+                f"acclens_ketamax{etamax}",
                 "do_nonlinear = 2",
                 "l_max_scalar  = 6000",
-                "k_eta_max_scalar  = %s" % etamax,
+                f"k_eta_max_scalar  = {etamax}",
                 "accurate_BB = F",
             ]
         )
@@ -519,10 +517,10 @@ def getTestParams():
     for etamax in [10000, 14000, 20000, 40000]:
         params.append(
             [
-                "acclensBB_ketamax%s" % etamax,
+                f"acclensBB_ketamax{etamax}",
                 "do_nonlinear = 2",
                 "l_max_scalar = 2500",
-                "k_eta_max_scalar  = %s" % etamax,
+                f"k_eta_max_scalar  = {etamax}",
                 "accurate_BB = T",
             ]
         )
@@ -557,8 +555,8 @@ def getTestParams():
                 params.append(
                     [
                         f"ppf_w{w}_wa{wa}",
-                        "w = %s" % w,
-                        "wa =%s" % wa,
+                        f"w = {w}",
+                        f"wa ={wa}",
                         "do_nonlinear = 2",
                         "get_transfer= T",
                         "dark_energy_model=PPF",
@@ -748,14 +746,14 @@ def num_unequal(filename, cmpFcn):
                 if "sharp_cl_params" in inifilename:
                     inifile = make_ini_file()
                 else:
-                    printlog("ini filename does not exist: %s" % inifilename)
+                    printlog(f"ini filename does not exist: {inifilename}")
             else:
                 try:
                     # The following split fails for *_transfer_out.* files where it not needed anyway.
                     inifile = make_ini_file()
                     inifile.readFile(inifilename)
                 except OSError:
-                    printlog("Could not open ini filename: %s" % inifilename)
+                    printlog(f"Could not open ini filename: {inifilename}")
             for o_row, n_row in zip(origMat[origBase:], newMat[newBase:]):
                 row += 1
                 if len(o_row) != len(n_row):
@@ -946,7 +944,7 @@ def main(argv=None):
         errors = 0
         files = output_file_num(out_files_dir)
         if files:
-            printlog("Output directory is not empty (run with --clean to force delete): %s" % out_files_dir)
+            printlog(f"Output directory is not empty (run with --clean to force delete): {out_files_dir}")
             return 1
         start = time.time()
         error_list = []
@@ -954,7 +952,7 @@ def main(argv=None):
             printlog(os.path.basename(ini) + "...")
             timing, output, return_code = runScript(ini)
             if return_code:
-                printlog("error %s" % return_code)
+                printlog(f"error {return_code}")
                 if output:
                     printlog(str(output).strip())
             nfiles = output_file_num(out_files_dir)
@@ -963,12 +961,12 @@ def main(argv=None):
             else:
                 errors += 1
                 error_list.append(os.path.basename(ini))
-                msg = "..no files in %.2fs" % timing
+                msg = f"..no files in {timing:.2f}s"
             printlog(msg)
             files = nfiles
         printlog(f"Done, {errors} errors in {time.time() - start:.2f}s (outputs not checked yet)")
         if errors:
-            printlog("Fails in : %s" % error_list)
+            printlog(f"Fails in : {error_list}")
         return 1 if errors else 0
     finally:
         if override_dir and os.path.exists(override_dir):

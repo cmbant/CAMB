@@ -99,7 +99,7 @@ class SPkTest(unittest.TestCase):
         # z=4 is beyond calibrated range [0, 3]: suppression should not be applied.
         base = Halofit()
         base.set_params(halofit_version="mead2020")
-        k_base, pk_base_z4, _ = self._get_pk(base, z=4.0, kmax=20.0)
+        _k_base, pk_base_z4, _ = self._get_pk(base, z=4.0, kmax=20.0)
 
         spk = SPkNonLinear()
         spk.set_params(
