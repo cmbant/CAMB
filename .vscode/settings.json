@@ -59,6 +59,12 @@
         }
     },
     "ruff.organizeImports": true,
+    "[fortran]": {
+        "editor.rulers": [
+            132
+        ],
+        "editor.wordWrapColumn": 132
+    },
     "fortran.formatting.findentArgs": [
         "--indent=4",
         "--indent_module=0",

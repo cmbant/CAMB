@@ -241,7 +241,8 @@
     end subroutine CAMBparams_Replace
 
     subroutine CAMBparams_SetNeutrinoHierarchy(this, omnuh2, omnuh2_sterile, nnu, neutrino_hierarchy, num_massive_neutrinos)
-    !Set neutrino hierarchy in the approximate two-eigenstate model (treating two as exactly degenerate, and assuming non-relativistic),
+    !Set neutrino hierarchy in the approximate two-eigenstate model (treating two as exactly degenerate,
+    !and assuming non-relativistic),
     !or use degenerate mass approximation.
     !omnuh2 is the massive total neutrino density today, omnuh2_sterile is the component of that due to steriles
     !omnuh2_sterile is interpreted as in the Planck parameter papers

@@ -291,7 +291,8 @@
                 CALL this%HMcode(State,CAMB_Pk)
             ELSE
 
-                !!BR09 putting neutrinos into the matter as well, not sure if this is correct, but at least one will get a consisent omk.
+                !!BR09 putting neutrinos into the matter as well, not sure if this is correct, but at least one
+                !!will get a consisent omk.
                 h2 = (Params%H0/100)**2
                 this%omm0 = (Params%omch2+Params%ombh2+Params%omnuh2)/h2
                 this%fnu = Params%omnuh2/h2/this%omm0

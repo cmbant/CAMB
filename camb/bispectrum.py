@@ -263,4 +263,4 @@ def get_bispectrum(params, bispectrum_params=None, output_root="", _debug_params
     return result
 
 
-__all__ = ["BispectrumParams", "BispectrumResult", "get_bispectrum", "max_bispectrum_deltas", "max_bispectra"]
+__all__ = ["BispectrumParams", "BispectrumResult", "get_bispectrum", "max_bispectra", "max_bispectrum_deltas"]

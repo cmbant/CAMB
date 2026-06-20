@@ -2282,7 +2282,8 @@
         !Integrate chi down in dissipative region
         ! cuts off when phi gets small
         ! Fix for phi discontinuity in near-flat models - adaptive formula provides superior performance
-        miny1= 0.5d-4/(l+max(0,30-l))/BessIntBoost  ! Adaptive formula for Omega_k discontinuity fix, see https://github.com/cmbant/CAMB/pull/185
+        ! Adaptive formula for Omega_k discontinuity fix, see https://github.com/cmbant/CAMB/pull/185
+        miny1= 0.5d-4/(l+max(0,30-l))/BessIntBoost
         sums=0
         qmax_int= max(850,ThisCT%ls%l(j))*3*BessIntBoost/State%DMt0*1.2
         DoInt =  ThisSources%SourceNum/=3 .or. IV%q < qmax_int

@@ -1111,8 +1111,10 @@
                     do i=lmin, CTrans%ls%l(CTrans%ls%nl)
                         do field1=1,nfields
                             do f1=1,nfields
-                                Fisher_L1(i,(bispectrum_type-1)*nfields+field1,(bispectrum_type2-1)*nfields+f1) = fish_contribs(i,field1,f1)
-                                Fisher_L1(i,(bispectrum_type2-1)*nfields+f1,(bispectrum_type-1)*nfields+field1) = fish_contribs(i,field1,f1)
+                                Fisher_L1(i,(bispectrum_type-1)*nfields+field1, &
+                                    (bispectrum_type2-1)*nfields+f1) = fish_contribs(i,field1,f1)
+                                Fisher_L1(i,(bispectrum_type2-1)*nfields+f1, &
+                                    (bispectrum_type-1)*nfields+field1) = fish_contribs(i,field1,f1)
                                 tmp=fish_contribs(i,field1,f1)
                                 if (bispectrum_type==lens_bispectrum_ix) then
                                     tmp = tmp * CPhi(1+field1,i)
@@ -1126,7 +1128,8 @@
                     end do
                     Fisher(bispectrum_type2,bispectrum_type) = Fisher(bispectrum_type,bispectrum_type2)
 
-                    print *,'Zero-signal Fisher ',trim(BispectrumNames(bispectrum_type))//'-'//trim(BispectrumNames(bispectrum_type2)), &
+                    print *,'Zero-signal Fisher ', &
+                        trim(BispectrumNames(bispectrum_type))//'-'//trim(BispectrumNames(bispectrum_type2)), &
                         ':', Fisher(bispectrum_type2,bispectrum_type)
 
                     !!!! contribution of lensing to the fnl variance for temperature:
@@ -1140,7 +1143,8 @@
                     !                  tmpArr(i)**2*(1+ CPhi(1,i)*CForLensing(i)%C(1,1)/(CPhi(1+1,i)*CPhi(1+1,i)))/(2*i+1)
                     !               end if
                     !              end do
-                    !              print *,'signal contribution to fnl variance', sum(fish_contribs_sig)/Fisher(bispectrum_type,bispectrum_type2)**2
+                    !              print *,'signal contribution to fnl variance', &
+                    !                  sum(fish_contribs_sig)/Fisher(bispectrum_type,bispectrum_type2)**2
                     !           end if
                     !!! same with polarization
                     !  if (bispectrum_type == fnl_bispectrum_ix .and. bispectrum_type2 == lens_bispectrum_ix ) then
@@ -1287,7 +1291,8 @@
                                         if (bispectrum_type2==lens_bispectrum_ix) then
                                             tmp=tmp*CPhi(1+field2,i)
                                         end if
-                                        OptimalFisher(bispectrum_type,bispectrum_type2)=OptimalFisher(bispectrum_type,bispectrum_type2)+ &
+                                        OptimalFisher(bispectrum_type,bispectrum_type2) = &
+                                            OptimalFisher(bispectrum_type,bispectrum_type2) + &
                                             tmp*tmpBigFisher((bispectrum_type-1)*nfields+field1,(bispectrum_type2-1)*nfields+field2)
                                     end do
                                 end do
