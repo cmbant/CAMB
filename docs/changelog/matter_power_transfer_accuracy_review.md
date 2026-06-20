@@ -1,5 +1,11 @@
 # Matter-Power Transfer Accuracy Review
 
+Branch scope: the template-residual interpolation changes described here were
+implemented on the separate `mpk-interpolation` branch/prototype
+(`550f93f4 mpk interpolation`). They are not active in the current `devel_acc`
+checkout unless that branch is merged. The hierarchy-tuning discussion below is
+still useful context for v2 matter-power accuracy.
+
 This note summarizes the follow-up review of the matter-power interpolation change
 and the targeted transfer hierarchy and massive-neutrino accuracy retuning.
 
