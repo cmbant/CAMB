@@ -298,7 +298,9 @@ def set_params_cosmomc(
     :param halofit_version: name of the specific Halofit model to use for non-linear modelling
     :param dark_energy_model: ppf or fluid dark energy model
     :param lmax: lmax for accuracy settings
-    :param lens_potential_accuracy: lensing accuracy parameter
+    :param lens_potential_accuracy: lensing accuracy parameter; defaults to the historical CosmoMC value of 1.
+                                    Set to None for the automatic high-accuracy default from
+                                    :meth:`.model.CAMBparams.set_for_lmax`
     :param inpars: optional input CAMBParams to set
     :return:
     """

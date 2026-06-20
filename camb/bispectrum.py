@@ -23,8 +23,17 @@ class BispectrumParams(CAMB_Structure):
     """
     Settings for calculating local primordial and CMB lensing bispectra.
 
+    The default settings calculate the CMB lensing bispectrum using temperature and polarization fields. To calculate
+    the local primordial bispectrum instead, set ``do_lensing_bispectrum=False`` and
+    ``do_primordial_bispectrum=True``. The primordial bispectrum is normalized to ``f_NL=1``.
+
     Full and sparse bispectrum outputs can be too large to return directly to Python, so set
-    :attr:`full_output_file` and/or :attr:`Slice_Base_L` to write them from the Fortran calculation.
+    :attr:`full_output_file` and/or :attr:`Slice_Base_L` to write them from the Fortran calculation. Slice outputs
+    write rows for fixed ``L1=Slice_Base_L`` and ``L3-L2`` values from :attr:`deltas`.
+
+    The Fisher matrix calculation is optional and requires building CAMB from source with ``FISHER=Y`` and LAPACK
+    linked. On a normal binary or source build without this flag, requesting ``DoFisher=True`` raises
+    ``CAMBValueError`` rather than aborting the Python process.
     """
 
     _fields_ = (
@@ -130,6 +139,14 @@ class BispectrumParams(CAMB_Structure):
 
 
 class BispectrumResult(CAMB_Structure):
+    """
+    Small in-memory summary returned by :func:`get_bispectrum`.
+
+    Large bispectrum tables are written directly to files requested by :class:`BispectrumParams`. This object contains
+    Fisher matrices and corresponding one-sigma errors when the Fisher calculation was requested and the library was
+    built with ``FISHER=Y``. Use ``has_fisher`` and ``has_optimal_fisher`` to check which arrays were filled.
+    """
+
     _fields_ = (
         ("nbispectra", c_int),
         ("nfields", c_int),
@@ -185,7 +202,24 @@ def get_bispectrum(params, bispectrum_params=None, output_root="", _debug_params
     """
     Calculate local primordial and/or CMB lensing bispectrum outputs.
 
-    :param params: :class:`.model.CAMBparams` instance
+    The wrapper runs the Fortran bispectrum calculation using a normal :class:`.model.CAMBparams` instance, without
+    going through ``.ini`` files. The default :class:`BispectrumParams` calculates the CMB lensing bispectrum, so
+    ``params.DoLensing`` must be true. For requested large outputs, pass an ``output_root`` prefix and set
+    ``bispectrum_params.full_output_file`` or ``bispectrum_params.Slice_Base_L``.
+
+    For example::
+
+        from camb import bispectrum
+
+        pars = camb.set_params(lmax=600, lens_potential_accuracy=1)
+        bpars = bispectrum.BispectrumParams(Slice_Base_L=10, deltas=[0, 2])
+        result = bispectrum.get_bispectrum(pars, bpars, output_root="run1_")
+        print(bpars.expected_output_files("run1_"))
+
+    Fisher outputs require a source build with the make variable ``FISHER=Y`` and LAPACK available, for example
+    ``cd fortran && make python FISHER=Y`` for gfortran builds using the default ``-lblas -llapack`` link flags.
+
+    :param params: :class:`.model.CAMBparams` instance, or a dict passed to :func:`camb.set_params`
     :param bispectrum_params: optional :class:`.BispectrumParams` instance or dict
     :param output_root: filename prefix for requested large file outputs
     :return: :class:`.BispectrumResult`

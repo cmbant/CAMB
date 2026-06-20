@@ -85,6 +85,56 @@ class CambTest(unittest.TestCase):
         pars = def_set_params(**{"H0": 67, "ombh2": 0.002, "r": 0.1, "Accuracy.AccurateBB": True})
         self.assertEqual(pars.Accuracy.AccurateBB, True)
 
+        pars = new_def_params()
+        pars.set_for_lmax(2500)
+        self.assertEqual(pars.max_eta_k, 72000)
+        self.assertEqual(pars.NonLinear, model.NonLinear_lens)
+        pars = new_def_params()
+        pars.set_for_lmax(2500, lens_potential_accuracy=0)
+        self.assertEqual(pars.max_eta_k, (2500 + 200) * 2.5)
+        self.assertEqual(pars.NonLinear, model.NonLinear_none)
+        pars = def_set_params(lmax=4000)
+        self.assertEqual(pars.max_eta_k, 90000)
+        pars = def_set_params(lmax=4000, lens_potential_accuracy=0)
+        self.assertEqual(pars.max_eta_k, (4000 + 200) * 2.5)
+        cosmomc_params = {
+            "H0": 67,
+            "omegabh2": 0.022,
+            "omegach2": 0.12,
+            "tau": 0.054,
+            "ns": 0.965,
+            "A": 2.1,
+        }
+        pars = camb.set_params_cosmomc(cosmomc_params)
+        self.assertEqual(pars.max_eta_k, 18000)
+        pars = camb.set_params_cosmomc(cosmomc_params, lens_potential_accuracy=None)
+        self.assertEqual(pars.max_eta_k, 72000)
+
+        from camb import check_accuracy
+
+        class FakeAccuracyParams:
+            DoLensing = True
+            max_l = 1000
+            max_eta_k = 2500.0
+            NonLinear = model.NonLinear_none
+
+            def __init__(self):
+                self.set_for_lmax_calls = []
+
+            def set_for_lmax(self, lmax, **kwargs):
+                self.set_for_lmax_calls.append((lmax, kwargs))
+                self.max_l = lmax + kwargs.get("lens_output_margin", 200)
+                self.max_eta_k = kwargs.get("max_eta_k") or self.max_l * kwargs.get("k_eta_fac", 2.5)
+
+        fake = FakeAccuracyParams()
+        check_accuracy.apply_lensing_settings(fake, set_for_lmax=4000)
+        self.assertEqual(fake.set_for_lmax_calls[0][1]["lens_potential_accuracy"], 0.0)
+        self.assertFalse(fake.set_for_lmax_calls[0][1]["nonlinear"])
+        fake = FakeAccuracyParams()
+        check_accuracy.apply_lensing_settings(fake, lens_output_margin=200)
+        self.assertEqual(fake.set_for_lmax_calls[0][1]["lens_potential_accuracy"], 0.0)
+        self.assertEqual(fake.set_for_lmax_calls[0][1]["max_eta_k"], 2500.0)
+
         from camb.sources import GaussianSourceWindow
 
         pars = new_def_params()
@@ -701,7 +751,7 @@ class CambTest(unittest.TestCase):
         self.assertAlmostEqual(pk_at_fixed_kh("mead2020_feedback"), 799.0, delta=0.5)
 
         lmax = 4000
-        pars.set_for_lmax(lmax)
+        pars.set_for_lmax(lmax, lens_potential_accuracy=0)
         cls = data.get_cmb_power_spectra(pars)
         data.get_total_cls(2000)
         cls_unlensed = data.get_unlensed_scalar_cls(2500)
@@ -827,7 +877,7 @@ class CambTest(unittest.TestCase):
 
         pars = new_def_params()
         pars.set_cosmology(H0=67.5, ombh2=0.022, omch2=0.122, mnu=0.07, omk=0)
-        pars.set_for_lmax(2500)
+        pars.set_for_lmax(2500, lens_potential_accuracy=0)
         pars.min_l = 2
         res = camb.get_results(pars)
         cls = res.get_lensed_scalar_cls(2000)
@@ -1031,7 +1081,7 @@ class CambTest(unittest.TestCase):
 
         pars = new_def_params()
         pars.set_cosmology(H0=64, mnu=0)
-        pars.set_for_lmax(1200)
+        pars.set_for_lmax(1200, lens_potential_accuracy=0)
         pars.Want_CMB = False
         pars.SourceWindows = [
             GaussianSourceWindow(redshift=0.17, source_type="counts", bias=1.2, sigma=0.04, dlog10Ndm=-0.2),
@@ -1071,7 +1121,7 @@ class CambTest(unittest.TestCase):
         pars = new_def_params()
         pars.set_cosmology(H0=67.5, ombh2=0.022, omch2=0.122)
         pars.InitPower.set_params(As=2e-9, ns=0.965)
-        pars.set_for_lmax(4000)
+        pars.set_for_lmax(4000, lens_potential_accuracy=0)
         pars.SourceWindows = [SplinedSourceWindow(z=zs, W=W, source_type="counts")]
         pars.SourceTerms.counts_redshift = True
         results = camb.get_results(pars)

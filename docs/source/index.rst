@@ -62,6 +62,7 @@ Main high-level modules:
    camb
    model
    results
+   bispectrum
    symbolic
 
 Other modules:

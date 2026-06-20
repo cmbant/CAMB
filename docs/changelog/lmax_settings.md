@@ -144,7 +144,7 @@ There are two convenience setters; both end up writing to `max_l`,
 pars.set_for_lmax(
     lmax,
     max_eta_k=None,
-    lens_potential_accuracy=0,
+    lens_potential_accuracy=None,
     lens_output_margin=200,
     k_eta_fac=2.5,
     lens_k_eta_reference=18000.0,
@@ -163,10 +163,20 @@ Behaviour:
   `max_l = lmax`.
 - `max_eta_k` is set to `max_eta_k` if given, otherwise
   `k_eta_fac * max_l` (default `k_eta_fac = 2.5`).
+- If `lens_potential_accuracy is None`, CAMB uses the automatic high-accuracy
+  default `max(4, (lmax - 1500) / 500)`. Set `lens_potential_accuracy=0` to
+  reproduce the previous low-accuracy default.
+- The automatic rule is calibrated for target accuracy in the lensed CMB
+  spectra. The lensing potential spectrum may not be equally converged at every
+  multipole, but is expected to be easily good enough for CMB lensing
+  reconstruction applications.
 - If `lens_potential_accuracy > 0`, `max_eta_k` is further bumped up to at
   least `lens_k_eta_reference * lens_potential_accuracy` (default
   `18000 * lens_potential_accuracy`). This is what controls `k_max` for
   accurate lensing.
+- At high `L`, the remaining numerical error in the lensed CMB spectra can be
+  much smaller than the theoretical uncertainty from non-linear matter-power
+  modelling.
 - `max_l_tensor` is **not** touched here — set it directly on `pars` if
   you want tensors.
 

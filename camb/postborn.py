@@ -208,7 +208,7 @@ def get_field_rotation_BB(params, lmax=None, acc=1, CMB_unit="muK", raw_cl=False
 
     par_CMB = params.copy()
     lmax = (lmax or 10000) * 2
-    par_CMB.set_for_lmax(lmax)
+    par_CMB.set_for_lmax(lmax, lens_potential_accuracy=0)
     par_CMB.WantScalars = True
     par_CMB.WantCls = True
     results = camb.get_results(par_CMB)

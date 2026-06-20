@@ -992,7 +992,7 @@ class CAMBparams(F2003Class):
         self,
         lmax,
         max_eta_k=None,
-        lens_potential_accuracy=0,
+        lens_potential_accuracy=None,
         lens_output_margin=200,
         k_eta_fac=2.5,
         lens_k_eta_reference=18000.0,
@@ -1007,8 +1007,11 @@ class CAMBparams(F2003Class):
         :param lmax: :math:`\ell_{\rm max}` you want
         :param max_eta_k: maximum value of :math:`k \eta_0\approx k\chi_*` to use, which indirectly sets k_max.
                           If None, sensible value set automatically.
-        :param lens_potential_accuracy: Set to 1 or higher if you want to get the lensing potential accurate
-                                        (1 is only Planck-level accuracy)
+        :param lens_potential_accuracy: Set to 1 or higher to manually set lensing potential accuracy, or 0 to
+                                        reproduce the previous low-accuracy default. If None, use an automatic
+                                        high-accuracy default of ``max(4, (lmax - 1500) / 500)``. The floor of 4
+                                        is set by lensing-potential convergence (the lensed CMB needs less); both
+                                        are within check_accuracy tolerances.
         :param lens_output_margin: the :math:`\Delta \ell_{\rm max}` margin added to ``max_l`` when ``DoLensing``
                                    is true, so that the lensed :math:`C_\ell` output reaches the requested
                                    :math:`\ell_{\rm max}`. Also written to ``pars.lens_output_margin`` so the
@@ -1026,6 +1029,8 @@ class CAMBparams(F2003Class):
         else:
             self.max_l = lmax
         self.max_eta_k = max_eta_k or self.max_l * k_eta_fac
+        if lens_potential_accuracy is None:
+            lens_potential_accuracy = max(4.0, (lmax - 1500.0) / 500.0)
         if lens_potential_accuracy:
             self.set_nonlinear_lensing(nonlinear is not False)
             self.max_eta_k = max(self.max_eta_k, lens_k_eta_reference * lens_potential_accuracy)
