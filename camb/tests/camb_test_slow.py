@@ -103,7 +103,7 @@ class CambSlowTest(unittest.TestCase):
 
             with np.errstate(divide="ignore", invalid="ignore"):
                 low_tt_delta = (near_flat_cls[min_ell:20, 0] - flat_cls[min_ell:20, 0]) / flat_cls[min_ell:20, 0]
-            self.assertLess(np.max(np.abs(low_tt_delta)), 1.1e-3)
+            np.testing.assert_allclose(low_tt_delta, 0, atol=1.1e-3)
             np.testing.assert_allclose(
                 near_flat_cls[high_tt_slice, 0],
                 flat_cls[high_tt_slice, 0],
@@ -120,7 +120,7 @@ class CambSlowTest(unittest.TestCase):
                 rtol=1e-3,
             )
             te_delta = check_accuracy.normalized_te_delta(near_flat_cls, flat_cls)
-            self.assertLess(np.max(np.abs(te_delta[ell >= min_ell])), 1e-3)
+            np.testing.assert_allclose(te_delta[ell >= min_ell], 0, atol=1e-3)
 
     def test_early_quintessence_zc(self):
         lmax = 3000
@@ -149,7 +149,9 @@ class CambSlowTest(unittest.TestCase):
                 [25.119348025453995, 0.8532249117931314, 0.017771645129931284, -1.4875535223366039],
             ]
         )
-        np.testing.assert_allclose(cls, expected_cls, rtol=5e-4, atol=5e-8)
+        np.testing.assert_allclose(cls[:, :3], expected_cls[:, :3], rtol=5e-4, atol=5e-8)
+        te_delta = check_accuracy.normalized_te_delta(cls, expected_cls)
+        np.testing.assert_allclose(te_delta, 0, atol=5e-4)
 
         dark_energy = results.Params.DarkEnergy
         self.assertGreater(abs(np.log(dark_energy.f / initial_f)), 0.1)

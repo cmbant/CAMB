@@ -510,16 +510,16 @@ class CambTest(unittest.TestCase):
 
                 xe_denom = np.maximum(np.maximum(np.abs(base_hist[:, 0]), np.abs(ros_hist[:, 0])), 1e-12)
                 tb_denom = np.maximum(np.maximum(np.abs(base_hist[:, 1]), np.abs(ros_hist[:, 1])), 1e-12)
-                xe_rel = np.max(np.abs(base_hist[:, 0] - ros_hist[:, 0]) / xe_denom)
-                tb_rel = np.max(np.abs(base_hist[:, 1] - ros_hist[:, 1]) / tb_denom)
+                xe_rel = (base_hist[:, 0] - ros_hist[:, 0]) / xe_denom
+                tb_rel = (base_hist[:, 1] - ros_hist[:, 1]) / tb_denom
 
                 base_derived = base.get_derived_params()
                 ros_derived = ros.get_derived_params()
                 theta_rel = abs(ros_derived["thetastar"] / base_derived["thetastar"] - 1.0)
                 zstar_rel = abs(ros_derived["zstar"] / base_derived["zstar"] - 1.0)
 
-                self.assertLess(xe_rel, 1e-3)
-                self.assertLess(tb_rel, 1e-6)
+                np.testing.assert_allclose(xe_rel, 0, atol=1e-3)
+                np.testing.assert_allclose(tb_rel, 0, atol=1e-6)
                 self.assertLess(theta_rel, 1e-6)
                 self.assertLess(zstar_rel, 1e-6)
 
@@ -538,7 +538,7 @@ class CambTest(unittest.TestCase):
         ros_b = camb.get_background(make_pars(nz, use_rosenbrock=True, handoff=handoff_b))
         hist_a = ros_a.get_background_redshift_evolution(redshifts, vars=["x_e", "T_b"], format="array")
         hist_b = ros_b.get_background_redshift_evolution(redshifts, vars=["x_e", "T_b"], format="array")
-        self.assertLess(np.max(np.abs(hist_a - hist_b)), 1e-15)
+        np.testing.assert_allclose(hist_a, hist_b, rtol=0, atol=1e-15)
 
         with tempfile.TemporaryDirectory() as temp_dir:
             ini_path = os.path.join(temp_dir, "recfast_rosenbrock.ini")

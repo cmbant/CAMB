@@ -98,11 +98,11 @@ class MathutilsTest(unittest.TestCase):
         olver_grid = phi_olver(ell, curvature, nu, chi_grid)
         peak_norm = phi_first_peak_amplitude(ell, curvature, nu)
         self.assertGreater(peak_norm, 0)
-        error = np.max(np.abs(olver_grid - recurs_grid)) / peak_norm
-        self.assertLess(
-            error,
-            max_peak_error,
-            msg=f"peak-relative hyperspherical Bessel error {error:g} for L={ell}, K={curvature}, nu={nu:g}",
+        np.testing.assert_allclose(
+            (olver_grid - recurs_grid) / peak_norm,
+            0,
+            atol=max_peak_error,
+            err_msg=f"peak-relative hyperspherical Bessel error for L={ell}, K={curvature}, nu={nu:g}",
         )
 
     def test_mathutils(self):
@@ -274,7 +274,7 @@ class MathutilsTest(unittest.TestCase):
 
             peak_norm = np.max(np.abs(recurs_grid))
             self.assertGreater(peak_norm, 0)
-            self.assertLess(np.max(np.abs(olver_grid - recurs_grid)) / peak_norm, 1e-4)
+            np.testing.assert_allclose((olver_grid - recurs_grid) / peak_norm, 0, atol=1e-4)
 
         for args in [
             (100, -1, 130.0, 1.0),
