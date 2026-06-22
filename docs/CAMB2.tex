@@ -1,8 +1,8 @@
+\ifdefined\pdfoutput\pdfoutput=1\fi
 \documentclass[prd, twocolumn, superscriptaddress, tightenlines, longbibliography, nofootinbib, eqsecnum, amsfonts, amsmath, floatfix, notitlepage]{revtex4-2}
 % Drafted from docs/changelog/hyperspherical_bessels.tex as a base (Sec.~III and
 % App.~A reuse its derivations). The body is set two-column for paper format; the
 % appendices switch back to a full-width grid for the heavier display mathematics.
-\pdfoutput=1
 
 \usepackage{hyperref}
 \usepackage{amsmath,amssymb,mathtools}
@@ -535,6 +535,56 @@ acoustic scales of interest.
 
 \section{Recombination and the background}
 \label{sec:recomb}
+
+\subsection{BBN and helium abundance}
+\label{sec:bbn}
+
+The primordial helium abundance is not an independent late-time parameter in the
+minimal model. Big-bang nucleosynthesis predicts it from the baryon density, the
+early expansion rate (usually parameterized by \(N_{\rm eff}\)), the neutron
+lifetime and the nuclear reaction network~\cite{Hamann:2007sb,Pisanti:2007hk,
+Consiglio:2017pot,Pitrou:2018cgg}. This matters for the CMB because helium
+changes the number of free electrons per baryon before and during recombination,
+and hence the visibility function and diffusion damping scale; the CMB can also
+measure a free helium abundance directly, but much less accurately than BBN
+predicts it in the standard model~\cite{Trotta:2003xg,PCP2018}. The other
+light-element abundances are not direct inputs to the standard CMB recombination
+calculation: deuterium, \(^{3}{\rm He}\) and lithium have number fractions many
+orders of magnitude below hydrogen and helium, so they make a negligible
+contribution to the electron density, baryon mass density and Thomson opacity.
+They are important external BBN observables, especially deuterium, but not CMB
+recombination inputs.
+
+In its BBN-consistency mode, \textsc{CAMB} interpolates a two-dimensional
+prediction in \(\Omega_{\rm b}h^2\) and \(\Delta N_{\rm eff}\), reads the BBN
+helium nucleon fraction \(Y_p^{\rm BBN}\), and converts it to the mass fraction
+\(Y_{\rm He}\) used by the recombination and reionization modules.\footnote{In
+the Python interface this is selected by leaving \code{YHe} unset.} Older
+\textsc{CAMB} releases used PArthENoPE-based calculations~\cite{Pisanti:2007hk,
+Consiglio:2017pot}; current predictions are generated with \textsc{PRIMAT}, whose
+weak-rate treatment changed the helium prediction; later updates mainly affected
+deuterium through improved nuclear rates, with smaller helium shifts from the
+updated neutron lifetime and convention choices~\cite{Pitrou:2018cgg,
+Pitrou:2020etk}. For the release described here we use the September 2024
+\textsc{PRIMAT} calculation as the default BBN prediction.\footnote{The
+corresponding \textsc{CAMB} interpolation file is
+\code{PRIMAT_Yp_DH_ErrorMC_2024.dat}.}
+
+The differences between the supported BBN predictions are small for the CMB. For a
+Planck-like model with \(\Omega_{\rm b}h^2=0.02237\) and
+\(\Delta N_{\rm eff}=0\), the 2024 \textsc{PRIMAT} calculation gives
+\(Y_{\rm He}=0.245656\); the older PArthENoPE calculation with
+\(\tau_n=880.2\,{\rm s}\) is lower by \(2.6\times10^{-4}\), and the 2021
+\textsc{PRIMAT} calculation is higher by \(2.0\times10^{-4}\). Across the
+representative range
+\(0.0218\le\Omega_{\rm b}h^2\le0.0230\) and
+\(-0.5\le\Delta N_{\rm eff}\le0.5\), the largest helium shift relative to the
+2024 \textsc{PRIMAT} prediction is \(3.0\times10^{-4}\), and at fixed cosmological
+parameters the lensed \(TT\) and \(EE\) spectra shift by less than
+\(7\times10^{-4}\) for \(30\le\ell\le4000\). The corresponding deuterium changes
+can be larger -- for example the old standard PArthENoPE prediction is about \(5.7\%\)
+high in D/H at the same point -- but this only matters when using an external BBN
+abundance likelihood.
 
 \subsection{Recombination model and calibration}
 \label{sec:recomb-model}

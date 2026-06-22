@@ -59,6 +59,8 @@ testfile*
 *.toc
 *.aux
 *.out
+*.fdb_latexmk
+*.fls
 *.blg
 *.bbl
 *.mp4

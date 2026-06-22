@@ -24,7 +24,7 @@
 # Errors are computed with a Monte-Carlo method on nuclear rates and also on tau_n.
 # See PRIMAT paper (2018) for details.
 #
-#  Ombh2        eta10           DeltaN          Yp              Yp^BBN          sig(Yp^BBN)     D/H             sig(D/H)
+#  ombh2        eta10           DeltaN          Yp              Yp^BBN          sig(Yp^BBN)     D/H             sig(D/H)
 0.005000	1.368067	-3.000000	0.176816	0.177858	0.0001098311	0.0001553966 	1.174778e-6
 0.006000	1.64171 	-3.000000	0.179351	0.180405	0.0001078463	0.0001167318 	8.964215e-7
 0.007000	1.915356	-3.000000	0.181322	0.182385	0.0001066708	0.00009180601	7.203427e-7

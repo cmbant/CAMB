@@ -12,8 +12,8 @@ from scipy.interpolate import RectBivariateSpline
 from .constants import default_nnu, m_H, m_He4
 
 # previously (< 1.4.0) default_interpolation_table = 'PArthENoPE_880.2_standard.dat'
-default_interpolation_table = "PRIMAT_Yp_DH_ErrorMC_2021.dat"
-# latest is  default_interpolation_table = "PRIMAT_Yp_DH_ErrorMC_2024.dat"
+# Prior to 2.0 default_interpolation_table = "PRIMAT_Yp_DH_ErrorMC_2021.dat"
+default_interpolation_table = "PRIMAT_Yp_DH_ErrorMC_2024.dat"
 
 
 def yhe_to_ypBBN(Yp):
@@ -213,7 +213,7 @@ _predictors: dict[str, BBNPredictor] = {}
 
 def get_predictor(predictor_name=None):
     """
-    Get instance of default BBNPredictor class. Currently numerical table interpolation as Planck 2018 analysis.
+    Get instance of default BBNPredictor class. Currently numerical table interpolation from the 2024 PRIMAT table.
     """
     predictor_name = predictor_name or default_interpolation_table
     predictor = _predictors.get(predictor_name, None)

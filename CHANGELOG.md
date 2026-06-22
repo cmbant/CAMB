@@ -84,6 +84,10 @@ all tuning, validation, and implementation details.
 
 ## Recombination, Reionization, And Backgrounds
 
+- The default BBN consistency relation now uses the September 2024 PRIMAT
+  helium and deuterium table, replacing the 2021 PRIMAT table. For typical
+  Planck-like models this lowers the default helium mass fraction by about
+  2e-4, with sub-per-mille effects on fixed-parameter CMB spectra.
 - RECFAST now uses a fast Rosenbrock-to-RK45 handoff mode by default. The new
   path is tuned against high-accuracy internal references and scales with CAMB
   accuracy boosts. It is intended to improve the speed/accuracy tradeoff of the

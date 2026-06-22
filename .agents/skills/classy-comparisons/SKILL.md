@@ -119,6 +119,21 @@ pars.set_classes(recombination_model="Recfast")
 class_params["recombination"] = "RECFAST"
 ```
 
+Set the helium mass fraction explicitly on both sides; do not rely on a BBN
+default or a code-specific inferred value:
+
+```python
+pars.set_cosmology(..., YHe=0.245, TCMB=2.7255)
+class_params["YHe"] = 0.245
+class_params["T_cmb"] = 2.7255
+```
+
+For Planck-era RECFAST matching in CAMB, use
+`pars.Recomb.set_params(recfast_approx_model="planck")`.  CLASS/RecFastCLASS
+defaults are close to these Planck-era RECFAST knobs, but robust comparison
+drivers should still set them explicitly when the exact RECFAST approximation is
+part of the test.
+
 ## CAMB Neutrino Mapping
 
 Map CAMB massive neutrinos after `pars.set_cosmology(...)` as one CLASS
