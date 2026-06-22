@@ -155,7 +155,7 @@ class BBN_table_interpolator(BBNPredictor):
             raise ValueError(f'Unknown BBN table column index "{name}"')
         res = self.interpolators[name](ombh2, delta_neff, grid=grid)
         if np.isscalar(ombh2) and np.isscalar(delta_neff):
-            return np.float64(res)
+            return np.float64(res.item())
         return res
 
 
