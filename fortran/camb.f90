@@ -569,6 +569,34 @@
     end if
     call P%DarkEnergy%ReadParams(Ini)
 
+    RecombinationModel = UpperCase(Ini%Read_String_Default('recombination_model', 'Recfast'))
+    if (RecombinationModel == 'COSMOREC') then
+#ifdef COSMOREC
+        deallocate(P%Recomb)
+        allocate(TCosmoRec::P%Recomb)
+#else
+        ErrMsg = 'Compile with CosmoRec to use recombination_model=CosmoRec'
+        return
+#endif
+    else if (RecombinationModel == 'HYREC') then
+#ifdef HYREC
+        deallocate(P%Recomb)
+        allocate(THyRec::P%Recomb)
+#else
+        ErrMsg = 'Compile with HyRec to use recombination_model=HyRec'
+        return
+#endif
+    else if (RecombinationModel /= 'RECFAST') then
+        ErrMsg =  'Unknown recombination_model: '//trim(RecombinationModel)
+        return
+    end if
+
+    call P%Recomb%ReadParams(Ini)
+    if (global_error_flag /= 0) then
+        ErrMsg = trim(global_error_message)
+        return
+    end if
+
     has_hubble = Ini%HasKey('hubble')
     has_thetastar = Ini%HasKey('thetastar')
     has_cosmomc_theta = Ini%HasKey('cosmomc_theta')
@@ -705,34 +733,6 @@
     call P%Reion%ReadParams(Ini)
     call P%InitPower%ReadParams(Ini)
 
-    RecombinationModel = UpperCase(Ini%Read_String_Default('recombination_model', 'Recfast'))
-    if (RecombinationModel == 'COSMOREC') then
-#ifdef COSMOREC
-        deallocate(P%Recomb)
-        allocate(TCosmoRec::P%Recomb)
-#else
-        ErrMsg = 'Compile with CosmoRec to use recombination_model=CosmoRec'
-        return
-#endif
-    else if (RecombinationModel == 'HYREC') then
-#ifdef HYREC
-        deallocate(P%Recomb)
-        allocate(THyRec::P%Recomb)
-#else
-        ErrMsg = 'Compile with HyRec to use recombination_model=HyRec'
-        return
-#endif
-    else if (RecombinationModel /= 'RECFAST') then
-        ErrMsg =  'Unknown recombination_model: '//trim(RecombinationModel)
-        return
-    end if
-
-    call P%Recomb%ReadParams(Ini)
-    if (global_error_flag /= 0) then
-        ErrMsg = trim(global_error_message)
-        return
-    end if
-
     if (P%WantScalars .or. P%WantTransfer) then
         P%Scalar_initial_condition = Ini%Read_Int('initial_condition', initial_adiabatic)
         if (P%Scalar_initial_condition == initial_vector) then
@@ -767,6 +767,7 @@
     P%MassiveNuMethod = Ini%Read_Int('massive_nu_approx', Nu_best)
 
     call ReadAccuracyReal(P%Accuracy%lSampleBoost, 'lSampleBoost', 'l_sample_boost')
+    call Ini%Read('min_l_logl_sampling', P%min_l_logl_sampling)
     if (ErrMsg /= '') return
 
     CAMB_ReadParams = .true.
@@ -864,13 +865,13 @@
 
             ArrayKey = Ini%Key_To_Arraykey('transfer_matterpower', i)
             if (i == 1) then
-                MatterPowerFilenames(i) = Ini%Read_String_Default(ArrayKey, 'matterpower.dat')
+                MatterPowerFilenames(i) = Ini%Read_String_Default(ArrayKey, 'matterpower.dat', .true.)
             else
-                MatterPowerFilenames(i) = Ini%Read_String_Default(ArrayKey, trim(numcat('matterpower_',i))//'.dat')
+                MatterPowerFilenames(i) = Ini%Read_String_Default(ArrayKey, trim(numcat('matterpower_',i))//'.dat', .true.)
             end if
 
             TransferFileNames(i) = outroot // TransferFileNames(i)
-            MatterPowerFilenames(i) = outroot // MatterPowerFilenames(i)
+            if (MatterPowerFilenames(i) /= '') MatterPowerFilenames(i) = outroot // MatterPowerFilenames(i)
 
             if (P%Do21cm) then
                 TransferClFileNames(i) = Ini%Read_String_Array('transfer_cl_filename',i)
@@ -890,8 +891,8 @@
     output_factor = Ini%Read_Double('CMB_outputscale', 1.d0)
 
     if (P%WantScalars) then
-        ScalarFileName = Ini%Read_String_Default('scalar_output_file', 'scalCls.dat')
-        ScalarFileName = outroot // ScalarFileName
+        ScalarFileName = Ini%Read_String_Default('scalar_output_file', 'scalCls.dat', .true.)
+        if (ScalarFileName /= '') ScalarFileName = outroot // ScalarFileName
         LensedFileName = Ini%Read_String_Default('lensed_output_file', 'lensedCls.dat')
         LensedFileName = outroot // LensedFileName
         LensPotentialFileName = Ini%Read_String_Default('lens_potential_output_file', 'lenspotentialCls.dat')
@@ -912,8 +913,8 @@
         TensorFileName = Ini%Read_String_Default('tensor_output_file', 'tensCls.dat')
         TensorFileName = outroot // TensorFileName
         if (P%WantScalars) then
-            TotalFileName = Ini%Read_String_Default('total_output_file', 'totCls.dat')
-            TotalFileName = outroot // TotalFileName
+            TotalFileName = Ini%Read_String_Default('total_output_file', 'totCls.dat', .true.)
+            if (TotalFileName /= '') TotalFileName = outroot // TotalFileName
             LensedTotFileName = Ini%Read_String_Default('lensed_total_output_file', 'lensedtotCls.dat')
             LensedTotFileName = outroot // LensedTotFileName
         else

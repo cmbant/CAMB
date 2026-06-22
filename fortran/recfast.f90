@@ -203,7 +203,7 @@
     !AL             June 2012 updated fudge parameters to match HyRec and CosmoRec (AML)
     !AL             Sept 2012 changes now in public recfast, version number changed to match Recfast 1.5.2.
     !AL             Apr 2026 updated to use variable nZ and evolve/interpolate a*T_m with Rosenbrock while stiff,
-    !AL                      and added optional HeI recombination rate correction fit
+    !AL                      and added optional HeI recombination rate correction fit. New CosmoRec fudges.
 
 
     module Recombination
@@ -223,9 +223,9 @@
     real(dl), parameter ::  zinitial = 1e4_dl !highest redshift
     real(dl), parameter ::  zfinal=0._dl
 
-    real(dl), parameter :: RECFAST_fudge_He_default = 0.86_dl !Helium fudge parameter
+    real(dl), parameter :: RECFAST_fudge_He_default = 0.8472367977_dl !Helium fudge parameter
     logical, parameter  :: RECFAST_Hswitch_default = .true. !include H corrections (v1.5, 2010)
-    logical, parameter  :: RECFAST_He_rate_correction_default = .false.
+    logical, parameter  :: RECFAST_He_rate_correction_default = .true.
     real(dl), parameter :: RECFAST_He_rate_zmin = 1500._dl
     real(dl), parameter :: RECFAST_He_rate_zmax = 3000._dl
     real(dl), parameter :: RECFAST_He_rate_a0 = 0.07805480599148856_dl
@@ -287,13 +287,13 @@
         ! triplet recombination, and H continuum opacity in the triplet channel.
 
         !fudge parameter if RECFAST_Hswitch
-        !Gaussian fits for extra H physics (fit by Adam Moss , modified by Antony Lewis)
-        real(dl) :: AGauss1 =      -0.14D0  !Amplitude of 1st Gaussian
-        real(dl) :: AGauss2 =       0.079D0 ! 0.05D0  !Amplitude of 2nd Gaussian
-        real(dl) :: zGauss1 =       7.28D0  !ln(1+z) of 1st Gaussian
-        real(dl) :: zGauss2=        6.73D0  !ln(1+z) of 2nd Gaussian
-        real(dl) :: wGauss1=        0.18D0  !Width of 1st Gaussian
-        real(dl) :: wGauss2=        0.33D0  !Width of 2nd Gaussian
+        !Gaussian fits for extra H physics (fit to CosmoRec accuracy6 H10, 2026)
+        real(dl) :: AGauss1 =      -0.1395272483D0  !Amplitude of 1st Gaussian
+        real(dl) :: AGauss2 =       0.0729891952D0  !Amplitude of 2nd Gaussian
+        real(dl) :: zGauss1 =       7.2813061282D0  !ln(1+z) of 1st Gaussian
+        real(dl) :: zGauss2=        6.7667038679D0  !ln(1+z) of 2nd Gaussian
+        real(dl) :: wGauss1=        0.1638966410D0  !Width of 1st Gaussian
+        real(dl) :: wGauss2=        0.2785834127D0  !Width of 2nd Gaussian
         integer  :: Nz = RECFAST_nz_default
         logical  :: use_rosenbrock = RECFAST_use_rosenbrock_default
         real(dl) :: rosenbrock_handoff_xH = RECFAST_rosenbrock_handoff_xH_default
@@ -314,7 +314,7 @@
 
     end type TRecfast
 
-    character(LEN=*), parameter :: Recfast_Version = 'Recfast_1.5.3'
+    character(LEN=*), parameter :: Recfast_Version = 'Recfast_2.0.0'
 
     logical, parameter :: evolve_Ts = .false. !local equilibrium is very accurate
     real(dl), parameter :: Do21cm_minev = 1/(1+400.) !at which to evolve T_s

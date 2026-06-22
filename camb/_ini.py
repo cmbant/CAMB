@@ -137,6 +137,7 @@ def _update_ini_state_from_params(params: model.CAMBparams, state: CambIniFile) 
     state.set("accuracy_boost", params.Accuracy.AccuracyBoost)
     state.set("l_accuracy_boost", params.Accuracy.lAccuracyBoost)
     state.set("l_sample_boost", params.Accuracy.lSampleBoost)
+    state.set("min_l_logl_sampling", params.min_l_logl_sampling)
     state.set("do_late_rad_truncation", params.DoLateRadTruncation)
     state.set("massive_nu_approx", _massive_nu_method_value(params.MassiveNuMethod))
 

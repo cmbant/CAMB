@@ -6,7 +6,7 @@ recfast_planck = "planck"
 recfast_cosmorec = "cosmorec"
 recfast_hyrec = "hyrec"
 
-recfast_default = recfast_planck
+recfast_default = recfast_cosmorec
 
 recfast_approx_model_params = {
     recfast_planck: {

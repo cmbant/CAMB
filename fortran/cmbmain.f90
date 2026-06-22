@@ -1653,7 +1653,7 @@
     type(IntegrationVars) IV
     Type(ClTransferData) :: ThisCT
     integer llmax
-    integer j
+    integer j, win_ix
     logical DoInt
     real(dl) xlim,xlmax1
     real(dl) tmin, tmax
@@ -1663,10 +1663,28 @@
     integer bes_ix,n, bes_index(IV%SourceSteps)
     integer custom_source_off, s_ix
     integer nwin
-    real(dl) :: BessIntBoost
+    real(dl) :: BessIntBoost, BessIntBoostL, source_window_tail_lmax
+    logical :: has_narrow_source_window
 
     BessIntBoost = CP%Accuracy%AccuracyBoost*CP%Accuracy%BessIntBoost
     custom_source_off = State%num_redshiftwindows + State%num_extra_redshiftwindows + 4
+    has_narrow_source_window = .false.
+    source_window_tail_lmax = 0._dl
+    if (State%num_redshiftwindows > 0 .and. CP%WantScalars) then
+        source_window_tail_lmax = 20._dl
+        do win_ix = 1, State%num_redshiftwindows
+            associate(Win => State%Redshift_w(win_ix))
+                if (Win%kind == window_21cm) then
+                    has_narrow_source_window = .true.
+                    source_window_tail_lmax = max(source_window_tail_lmax, 160._dl)
+                else if (Win%kind /= window_lensing .and. Win%chi0 > 0._dl .and. Win%sigma_tau > 0._dl) then
+                    source_window_tail_lmax = max(source_window_tail_lmax, &
+                        min(160._dl, max(20._dl, 4._dl*Win%chi0/Win%sigma_tau)))
+                    if (Win%sigma_tau < 0.02_dl*Win%chi0) has_narrow_source_window = .true.
+                end if
+            end associate
+        end do
+    end if
 
     !     Find the position in the xx table for the x correponding to each
     !     timestep
@@ -1687,16 +1705,19 @@
 
     do j=1,max_bessels_l_index
         if (ThisCT%ls%l(j) > llmax) return
+        BessIntBoostL = BessIntBoost
+        ! Very narrow redshift windows need a minimum low-L Bessel tail, xlmax1 ~ L*BessIntBoost.
+        if (has_narrow_source_window) &
+            BessIntBoostL = max(BessIntBoostL, 20._dl/ThisCT%ls%l(j))
         ! Cut where the hyperspherical Bessel before peak, approximated by
         ! j_l(x_eff) with x_eff=q_eff*chi, is <~1e-4 of its peak.
         xlim = max(0._dl, ThisCT%ls%l(j) - bjl_pre_peak_start_factor*ThisCT%ls%l(j)**(1._dl/3._dl))
         if (full_bessel_integration .or. do_bispectrum) then
             tmin = State%TimeSteps%points(2)
         else
-            xlmax1=80*ThisCT%ls%l(j)*BessIntBoost
-            if (State%num_redshiftwindows>0 .and. CP%WantScalars) then
-                xlmax1=xlmax1*8 !Have to be careful if sharp spikes due to late time sources
-            end if
+            xlmax1=80*ThisCT%ls%l(j)*BessIntBoostL
+            if (source_window_tail_lmax > 0._dl) &
+                xlmax1 = xlmax1 * max(1._dl, min(8._dl, source_window_tail_lmax/ThisCT%ls%l(j)))
             tmin=State%tau0-xlmax1/IV%q
             tmin=max(State%TimeSteps%points(2),tmin)
         end if
@@ -1727,7 +1748,7 @@
                 sums(2) = sums(2) + IV%Source_q(n,2)*J_l
             end do
         else
-            qmax_int= max(850,ThisCT%ls%l(j))*3*BessIntBoost/State%tau0*1.2
+            qmax_int= max(850,ThisCT%ls%l(j))*3*BessIntBoostL/State%tau0*1.2
             DoInt = .not. CP%WantScalars .or. IV%q < qmax_int
             !Do integral if any useful contribution to the CMB, or large scale effects
 

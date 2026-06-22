@@ -600,6 +600,12 @@ class CambTest(unittest.TestCase):
                 np.testing.assert_allclose(low_tcmb_xe, default_xe, rtol=5e-5, atol=0)
 
     def testRecfastApproxModels(self):
+        self.assertEqual(recombination.recfast_default, recombination.recfast_cosmorec)
+        default_rec = recombination.Recfast()
+        default_expected = recombination.recfast_approx_model_params[recombination.recfast_cosmorec]
+        for name, value in default_expected.items():
+            self.assertAlmostEqual(getattr(default_rec, name), value)
+
         rec = recombination.Recfast()
         rec.set_params(recfast_approx_model=recombination.recfast_cosmorec)
         expected = recombination.recfast_approx_model_params[recombination.recfast_cosmorec]

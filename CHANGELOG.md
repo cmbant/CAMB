@@ -88,10 +88,10 @@ all tuning, validation, and implementation details.
   path is tuned against high-accuracy internal references and scales with CAMB
   accuracy boosts. It is intended to improve the speed/accuracy tradeoff of the
   recombination background calculation.
-- Optional RECFAST helium-rate correction parameters were added to improve
-  agreement with direct CosmoRec histories in the helium recombination window.
-  The correction is off by default unless a RECFAST approximation preset enables
-  it.
+- The default RECFAST approximation is now the `recfast_cosmorec` fit, including
+  the helium-rate correction calibrated against direct CosmoRec histories.
+  Planck-era RECFAST parameters remain available as `recfast_planck` and are
+  explicitly used by Planck-specific compatibility inputs.
 - The CosmoRec wrapper was updated for the newer CosmoRec vX interface and
   exposes the relevant CosmoRec controls through CAMB's recombination model.
 - Reionization models now have an optional approximate heating switch that
@@ -129,5 +129,4 @@ all tuning, validation, and implementation details.
   high-l lensing.
 - Some new options are deliberately off by default because they change the
   physical model rather than only the numerical method, for example reionization
-  heating and the optional RECFAST helium-rate correction outside presets that
-  explicitly enable it.
+  heating.

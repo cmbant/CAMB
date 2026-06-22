@@ -1,0 +1,1558 @@
+\documentclass[prd, twocolumn, superscriptaddress, tightenlines, longbibliography, nofootinbib, eqsecnum, amsfonts, amsmath, floatfix, notitlepage]{revtex4-2}
+% Drafted from docs/changelog/hyperspherical_bessels.tex as a base (Sec.~III and
+% App.~A reuse its derivations). The body is set two-column for paper format; the
+% appendices switch back to a full-width grid for the heavier display mathematics.
+\pdfoutput=1
+
+\usepackage{hyperref}
+\usepackage{amsmath,amssymb,mathtools}
+\usepackage{graphicx}
+\usepackage{bm}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage[usenames,dvipsnames,svgnames,table]{xcolor}
+\definecolor{linkcolor}{rgb}{0.6,0,0}
+\definecolor{citecolor}{rgb}{0,0,0.75}
+\definecolor{urlcolor}{rgb}{0.12,0.46,0.7}
+
+\usepackage[capitalize]{cleveref}
+\Crefname{equation}{Equation}{Equations}
+\crefname{equation}{Eq.}{Eqs.}
+\Crefname{figure}{Figure}{Figures}
+\crefname{figure}{Fig.}{Figs.}
+\Crefname{table}{Table}{Tables}
+\crefname{table}{Tab.}{Tabs.}
+\Crefname{section}{Section}{Sections}
+\crefname{section}{Sec.}{Secs.}
+\Crefname{appendix}{Appendix}{Appendices}
+
+% Ragged-right weighted X column; the #1 weights sum to the number of X columns.
+\newcolumntype{Z}[1]{>{\hsize=#1\hsize\raggedright\arraybackslash}X}
+
+\newcommand{\AL}[1]{\textcolor{blue}{AL@: #1}}
+\newcommand{\todo}[1]{\textcolor{red}{[TODO: #1]}}
+\newcommand{\Sussex}{Department of Physics \& Astronomy, University of Sussex, Brighton BN1 9QH, UK}
+
+\newcommand{\code}[1]{\texttt{\detokenize{#1}}}
+\newcommand{\dd}{\mathrm{d}}
+\newcommand{\SK}{S_K}
+\newcommand{\CK}{C_K}
+\newcommand{\cotK}{\cot{}_K}
+\newcommand{\jl}{j_l}
+\newcommand{\Ai}{\operatorname{Ai}}
+\newcommand{\abs}[1]{\left|#1\right|}
+\newcommand{\order}{\mathcal{O}}
+\newcommand{\asinh}{\operatorname{asinh}}
+\newcommand{\asin}{\operatorname{asin}}
+\newcommand{\sgn}{\operatorname{sgn}}
+\newcommand{\atanTwo}{\operatorname{atan2}}
+\newcommand{\sech}{\operatorname{sech}}
+
+% Journal-abbreviation macros used by the shared cosmomc.bib entries.
+\providecommand{\apj}{Astrophys. J.}
+\providecommand{\apjs}{Astrophys. J. Suppl.}
+\providecommand{\apjl}{Astrophys. J. Lett.}
+\providecommand{\mnras}{Mon. Not. Roy. Astron. Soc.}
+\providecommand{\prd}{Phys. Rev. D}
+\providecommand{\prl}{Phys. Rev. Lett.}
+\providecommand{\jcap}{JCAP}
+\providecommand{\aap}{Astron. Astrophys.}
+\providecommand{\nat}{Nature}
+
+\begin{document}
+
+\title{CAMB~2: high-precision cosmological power spectra for next-generation surveys}
+
+\author{Antony Lewis}
+\affiliation{\Sussex}
+% \AL{co-authors TBD}
+
+\begin{abstract}
+The next generation of cosmological surveys demand CMB theoretical power spectra
+that are accurate to around the $0.1\%$ level out to high angular multipoles. We
+describe a substantial update to the \textsc{CAMB} code aimed at a fast physics-based calculation
+to the required accuracy. We focus on the two products that drive most analyses: the lensed CMB power
+spectra and the matter power spectrum. The new unboosted default settings are
+designed to reach the $10^{-3}$ level for the interior lensed CMB spectra and for
+the matter power spectrum across the quasi-linear regime. We give a new line-of-sight
+integration scheme built on a flat-Bessel comparison (leading-order Olver)
+mapping of the hyperspherical Bessel functions, which is exact in the flat limit,
+smooth through the turning point, and delegates almost all of the special-function
+work to a fast flat spherical Bessel routine; near-flat models reduce to a
+rescaling of the flat argument, and a Numerov integrator advances
+neighbouring source points cheaply between occasional reference evaluations. We
+also describe a fast updated recombination model fit, a stabilized parameterized post-Friedmann dark-energy
+evolution, CMB lensing accuracy work, and discuss possible different definitions of the linear matter power spectrum in the presence of strongly non-linear sources from reionization. Accuracy is assessed
+with a deterministic validation harness that compares default runs to
+boosted references. Essentially all of the new code and algorithms were co-developed with AI agents under human supervision. The non-flat implementation is an example of building \emph{custom-precision} numerical libraries --
+numerical implementations AI-generated and calibrated to exactly the accuracy a problem need instead of wasting compute on the unnecessary precision of standard libraries.
+\end{abstract}
+
+\maketitle
+
+\tableofcontents
+
+\section{Introduction}
+\label{sec:intro}
+
+The cosmic microwave background (CMB) and the large-scale matter distribution are
+the two pillars of precision cosmology, and both are computed for a given model
+by Einstein--Boltzmann codes such as \textsc{CAMB}~\cite{Lewis:1999bs} and
+\textsc{CLASS}~\cite{Blas:2011rf}. These codes solve the linearized perturbation
+equations and project them onto observable angular power spectra using
+line-of-sight integration~\cite{Seljak:1996is}. \textsc{CAMB} descends directly
+from \textsc{CMBFAST}~\cite{Seljak:1996is}, which introduced the line-of-sight
+method as a fast replacement for the explicit integration of the full Boltzmann
+hierarchy used in earlier codes such as
+\textsc{COSMICS}~\cite{Ma:1995ey,Bertschinger:1995ag} and the closely related
+all-sky FRW treatments of the 1990s~\cite{Hu:1998mn}. \textsc{CMBFAST} was later
+generalized to non-flat geometries using hyperspherical Bessel
+functions~\cite{Zaldarriaga:1997va}, and \textsc{CAMB} itself originated as a
+rewrite supporting closed as well as open and flat FRW models~\cite{Lewis:1999bs},
+built on the covariant CMB formalism of Refs.~\cite{Hu:1998mn,Challinor:2000as}.
+The accuracy required of them is set by the data. For the \textit{Planck} satellite, default settings tuned to
+roughly the $0.1\%$ level were sufficient~\cite{Howlett:2012mh}. Ground-based CMB
+experiments such as the Simons Observatory and its planned
+extension~\cite{SO:2018sim}, together with the matter-power measurements from
+\textit{Euclid}, DESI and the Vera Rubin Observatory, demand both higher
+precision and a wider range of scales, and over a broader set of models.
+
+The last systematic description of \textsc{CAMB}'s accuracy and sampling
+machinery was given by Ref.~\cite{Howlett:2012mh}, in the context of
+\textit{Planck}. Much has changed since then, and the most substantial changes
+have no published description. This paper fills that gap. It is not a review of
+the underlying physics, which is standard and documented
+elsewhere~\cite{Challinor:2000as,Lewis:2006fu,Lewis:1999bs}: we reproduce
+established results only as far as needed to state a numerical problem precisely,
+and concentrate on what is new.
+
+We concentrate on the two outputs that dominate practical analyses, the lensed
+CMB spectra and the matter power spectrum. \textsc{CAMB} of course also computes
+cross-correlations, number-count and lensing observables, and a range of
+extended models; these are not the focus here, although the line-of-sight and
+accuracy improvements we describe benefit them as well.
+
+The main innovation is a new treatment of the hyperspherical Bessel
+functions used in curved-space line-of-sight integration
+(\cref{sec:bessel}), which is the technical heart of the paper. Instead of
+mapping the curved radial equation onto an Airy function near its turning point,
+as in the uniform WKB treatments of
+Refs.~\cite{Kosowsky:1998nc}, we map it onto the
+\emph{flat} spherical Bessel equation. The comparison solution is then the
+ordinary flat spherical Bessel function, evaluated by a fast dedicated
+routine~\cite{cambflatbessel}, which already carries the Airy transition, the
+Debye tails and the oscillatory phase; the curved problem reduces to a coordinate
+map and an amplitude. The method is exact when the universe is flat, smooth
+through the turning point, and in near-flat models collapses to a rescaling of the flat Bessel argument and an
+amplitude. The flat bessel mapping is very similar in spirit to the
+mapping approximation used by~\cite{tram2013,lesgourgues-tram2013}, but more general and implemented differently.
+We also describe a new fast fit to recombination models, direct fits for the massive-neutrino background and
+momentum sampling (\cref{sec:recomb,sec:neutrinos}), a stabilized parameterized
+post-Friedmann (PPF) dark-energy evolution (\cref{sec:de}), and the curvature and
+lensing accuracy work (\cref{sec:lensing,sec:curvature}).
+
+The second contribution is methodological. Almost all of this work was
+co-developed with AI agents, with a human in the loop, driven by an objective
+accuracy harness (\cref{sec:validation,sec:agentic}). This is a concrete example
+of a shift that we expect to become widespread: away from general-purpose
+special-function libraries with a fixed accuracy/speed trade-off, and towards
+\emph{custom-precision} numerical methods, hand-fitted and exhaustively
+calibrated to exactly the accuracy a given problem needs on the grid it actually
+samples. The hyperspherical Bessel routine is the clearest example, but the same
+philosophy -- spend accuracy where it matters, and prove it with a reproducible
+test -- runs through all of the changes.
+
+We begin with conventions and code notation (\cref{sec:conventions}), then
+describe the line-of-sight and hyperspherical-Bessel calculation
+(\cref{sec:bessel}), recombination, reionization and background evolution
+(\cref{sec:recomb}), massive-neutrino background and momentum sampling
+(\cref{sec:neutrinos}), stabilized dark-energy evolution (\cref{sec:de}), lensed
+CMB and matter-power accuracy (\cref{sec:lensing}), and curvature-specific
+checks (\cref{sec:curvature}). We then describe the validation methodology
+(\cref{sec:validation}), the agentic development approach (\cref{sec:agentic}),
+performance (\cref{sec:performance}), and recommended settings
+(\cref{sec:summary}). \Cref{app:bessel} collects the detailed Bessel mathematics
+and \cref{app:accuracy} the accuracy-parameter reference.
+
+\section{Conventions and the code}
+\label{sec:conventions}
+
+\textsc{CAMB} works in conformal time and megaparsec units, propagating the
+covariant perturbation equations in the zero-acceleration (CDM) frame, which is
+equivalent to the synchronous gauge. The variables, the multipole hierarchy, the
+scalar/vector/tensor harmonic expansion and the $C_\ell$ normalization follow
+Refs.~\cite{Challinor:2000as,Lewis:2004ef} and are documented in the long-standing
+\textsc{CAMB} working notes that accompany the code~\cite{camb_notes}; we do not
+repeat them. The curvature conventions used by the Bessel routines are given at
+the start of \cref{sec:bessel}.
+
+A reader who needs to relate \textsc{CAMB}'s internal variables to equations
+written in another gauge can use the \code{camb.symbolic} module, which expresses
+the linearized scalar perturbation equations symbolically in the covariant
+notation, projects them into the Newtonian or synchronous gauge, constructs
+gauge-invariant combinations, and records how each symbolic quantity maps onto the
+corresponding code variable. The same module can convert a symbolic source
+expression into compiled code for custom line-of-sight sources, which is the
+mechanism behind \textsc{CAMB}'s custom-source and time-evolution interfaces.
+This makes the source and gauge conventions of the code programmatically explicit,
+which is useful both for adapting external results and for checking the
+implementation.
+
+\section{Line-of-sight integration and hyperspherical Bessel functions}
+\label{sec:bessel}
+
+The line-of-sight solution writes each transfer function as an integral of a
+source against a radial Bessel function~\cite{Seljak:1996is,Challinor:2000as}. In
+a flat universe the radial function is the ordinary spherical Bessel function
+$\jl(k\chi)$; in a curved Friedmann--Robertson--Walker (FRW) section it is the
+hyperspherical (ultraspherical) Bessel function $\phi_l^\nu(K,\chi)$, the
+non-flat generalization of $\jl$ \cite{abbott-schaefer,Kosowsky:1998nc,tram2013}.
+\textsc{CAMB} evaluates it for many source times, wavenumbers and multipoles, so a
+direct special-function call at every source point would be far too slow. This
+section describes how we avoid that. The detailed formulae are collected in
+\cref{app:bessel}; here we give the construction and the results.
+
+\subsection{The radial function and its turning point}
+\label{sec:bessel-eq}
+
+We denote the dimensional spatial curvature by $\mathcal K$. Distances are
+rescaled by $R_K=\abs{\mathcal K}^{-1/2}$, so that $\chi=r/R_K$ and only the sign
+$K=\sgn(\mathcal K)=+1,0,-1$ (closed, flat, open) remains. The radial metric
+function and its derivative are
+\begin{equation}
+  \begin{aligned}
+  \SK(\chi)&=\{\sin\chi,\;\chi,\;\sinh\chi\},\\
+  \CK(\chi)&=\{\cos\chi,\;1,\;\cosh\chi\},
+  \end{aligned}
+\end{equation}
+for $K=\{+1,0,-1\}$, and $\cotK\chi\equiv\CK/\SK$. The dimensionless radial
+eigenvalue is $\nu=qR_K$, where $q$ is the transfer-grid wavenumber; the
+primordial power is evaluated at the physical wavenumber $k$ with
+$(kR_K)^2=\nu^2-K$ for scalars. In the flat limit $q=k=\nu/R_K$.
+
+It is convenient to work with the reduced function
+$u_l^\nu=\SK\,\phi_l^\nu$, which obeys a Schr\"odinger-form equation with no
+first-derivative term,
+\begin{equation}
+  u''=\left[\frac{l(l+1)}{\SK^2(\chi)}-\nu^2\right]u .
+  \label{eq:reduced}
+\end{equation}
+The regular solution is fixed by $\phi_l^\nu\sim
+\big[\textstyle\prod_{j=1}^l b_j\big]\chi^l/(2l+1)!!$ as $\chi\to0$, with
+$b_j(K,\nu)=\sqrt{\nu^2-Kj^2}$; for $K=0$ this is the usual
+$\jl(\nu\chi)\sim(\nu\chi)^l/(2l+1)!!$. For $K=+1$, $\nu$ is a positive integer
+and the regular spectrum requires $\nu>l$.
+
+Writing $\ell=\sqrt{l(l+1)}$ and $\alpha=\nu/\ell$, \cref{eq:reduced} becomes
+$u''+\ell^2[\alpha^2-\SK^{-2}]u=0$, with a turning point where the bracket
+vanishes,
+\begin{equation}
+  \SK(\chi_t)=\frac1\alpha=\frac{\ell}{\nu}.
+  \label{eq:turning}
+\end{equation}
+Below $\chi_t$ the regular solution is exponentially small; above it the solution
+oscillates. A direct WKB amplitude diverges at the turning point even though the
+true function is finite, so any practical method must be uniform through this
+transition. This large-$\ell$ turning-point language organizes the moderate- and
+high-$l$ behaviour; for $l\le2$ and a few other corners the code uses the exact
+recurrence of \cref{sec:bessel-recur} instead.
+
+For most cosmologies of interest the curvature radius is far larger than the
+horizon, so every source point has $\chi\lesssim\chi_0=\tau_0\sqrt{\abs{\mathcal
+K}}\ll1$. The Bessel factor for multipole $l$ peaks near $\SK(\chi)\simeq\ell/\nu$,
+so the contributing modes have $\alpha\simeq1/\SK(\chi)\gtrsim1/\chi_0\gg1$,
+i.e.\ $\nu\gg l$ except in low-$l$, endpoint, or deep-tail regions. The near-flat
+shortcuts below live in exactly this comfortable regime.
+
+\subsection{A flat-Bessel comparison: the Olver action map}
+\label{sec:bessel-olver}
+
+Olver (uniform Liouville--Green) asymptotics map a second-order equation with a
+large parameter onto a comparison equation by matching the action integral from
+the turning point and including the corresponding amplitude
+factor~\cite{olver}. The textbook choice is the Airy equation, giving the uniform
+WKB/Langer treatment used for hyperspherical Bessel functions by
+Refs.~\cite{Kosowsky:1998nc}. Our choice is different
+and better adapted to the problem: we use the \emph{flat} spherical Bessel
+equation as the comparison equation. Its reduced solution $v(z)=z\jl(\nu z)$
+satisfies
+\begin{equation}
+  v''=\left[\frac{l(l+1)}{z^2}-\nu^2\right]v,
+  \label{eq:flat-comparison}
+\end{equation}
+which differs from \cref{eq:reduced} only in $z$ versus $\SK(\chi)$. The
+leading-order Olver map is therefore
+\begin{equation}
+  \begin{aligned}
+  u_l^\nu(K,\chi)&\simeq A(\chi)\,z(\chi)\,\jl\!\big(\nu z(\chi)\big),\\
+  \phi_l^\nu&\simeq \frac{A(\chi)z(\chi)}{\SK(\chi)}\jl\!\big(\nu z(\chi)\big),
+  \end{aligned}
+  \label{eq:basic-olver}
+\end{equation}
+with a closed-space sign inserted for $K=+1$ (\cref{app:bessel-recur}). The
+implementation is literally this composition: compute $z$ and $A$, call the flat
+routine for $\jl(\nu z)$, multiply by $Az$, and divide by $\SK$ for the unreduced
+value.
+
+The coordinate $z(\chi)$ is fixed by equality of the action measured from the
+turning point. With $f_K=\alpha^2-\SK^{-2}$ and $f_0=\alpha^2-z^{-2}$, and the
+dimensionless flat action $I_0$ defined in \cref{eq:flat-action}, the map is
+\begin{equation}
+  Q_K(\chi)=I_0(\alpha z),\qquad z_t=\frac1\alpha=\frac{\ell}{\nu},
+  \label{eq:action-map}
+\end{equation}
+where $Q_K$ is the curved action integral \cref{eq:curved-action}. The intuition
+is the usual WKB one: away from the turning point the regular solution behaves as
+$|f|^{-1/4}\exp(\pm\ell Q)$ on the evanescent side and
+$|f|^{-1/4}\cos(\ell Q-\pi/4)$ on the oscillatory side, with $\ell Q$ the action.
+Two equations with the same action measured from their turning points have
+solutions that stay in step everywhere -- same phase, same node count, same
+suppression -- so $\jl(\nu z(\chi))$ already carries the curved phase and
+tunnelling. Because the turning point maps to the turning point ($Q_K=0\to
+I_0=0$), the construction is automatically smooth there, unlike a bare WKB
+amplitude. The curved action $Q_K$ has closed analytic forms
+(\cref{app:bessel-action}), so no quadrature is needed in the hot loop; inverting
+the flat action for $z$ uses stable branch parameterizations, also given in the
+appendix.
+
+\subsection{Amplitude, the flat limit, and the turning point}
+\label{sec:bessel-amp}
+
+Matching the action fixes the phase; the amplitude follows from flux (Wronskian)
+conservation. Differentiating \cref{eq:action-map} gives the local map
+$\dd z/\dd\chi=\sqrt{f_K/f_0}$, and writing $u=A\,z\jl(\nu z)$ the spurious
+first-derivative term cancels when
+\begin{equation}
+  A(\chi)=\left(\frac{\dd z}{\dd\chi}\right)^{-1/2}
+  =\left|\frac{\alpha^2-z^{-2}}{\alpha^2-\SK^{-2}(\chi)}\right|^{1/4},
+  \label{eq:amplitude}
+\end{equation}
+which keeps the Wronskian constant and reduces to the WKB $|f|^{-1/4}$ in the flat
+limit. At the turning point both numerator and denominator vanish but the limit is
+finite: with $C_t=\CK(\chi_t)$, $z-z_t\simeq C_t^{1/3}(\chi-\chi_t)$ and
+$A(\chi_t)=C_t^{-1/6}$. For $K=0$ we have $\SK=\chi$, $z=\chi$, $A=1$, so
+\cref{eq:basic-olver} reduces \emph{exactly} to the flat result. This exactness in
+the flat limit, and the smoothness through the turning point, are the two
+properties that make the flat comparison the right choice; both are a consequence
+of using $z\jl(\nu z)$, which solves the exact reduced flat equation, rather than
+a local Airy function.
+
+\subsection{The near-flat shifted-\texorpdfstring{$q$}{q} shortcut}
+\label{sec:bessel-shifted}
+
+Very near the origin the exact action map subtracts nearly equal quantities, so we
+use a local small-$\chi$ expansion of the differentiated map (\cref{app:bessel-smallchi}).
+Its leading, $\chi$-independent part gives the cheapest useful approximation.
+With the curvature expansion parameter
+\begin{equation}
+  h=K\frac{l(l+1)}{\nu^2}=\frac{K}{\alpha^2},
+\end{equation}
+the constant coefficient of the coordinate map is
+\begin{equation}
+  F_0=1-\frac{h}{6}-\frac{13h^2}{360}-\frac{737h^3}{45360},
+  \label{eq:F0}
+\end{equation}
+and freezing the map at this value gives
+\begin{equation}
+  \phi_l^\nu(K,\chi)\simeq \sqrt{F_0}\,\frac{\chi}{\SK(\chi)}\,\jl(q_{\rm eff}\chi),
+  \qquad q_{\rm eff}=\nu F_0 .
+  \label{eq:shifted-q}
+\end{equation}
+This is as cheap as a flat-table lookup: a flat $\jl$ evaluated at a shifted
+argument $q_{\rm eff}\chi$, multiplied by $\sqrt{F_0}$ and the geometrical factor
+$\chi/\SK$. Expanding, $q_{\rm eff}^2=\nu^2[1-h/3-2h^2/45-\dots]$, whose leading
+correction $-\nu^2 h/3=-Kl(l+1)/3$ is exactly the leading constant curvature shift
+obtained by expanding $1/\SK^2$ directly; the $F_0$ form retains the next two
+constant Olver terms at no extra cost. This near-flat behaviour is what makes the
+flat comparison so natural: in the near-flat regime the Olver coordinate map is
+almost a constant rescaling of the flat argument.
+
+\subsection{Accuracy gates and the approximation hierarchy}
+\label{sec:bessel-gates}
+
+The formulae above are used as a controlled hierarchy, not as a single
+unconditional replacement. The leading-order Olver value is exact for $K=0$ but
+remains an asymptotic approximation for $K=\pm1$, so each path is gated. The
+gates are calibrated on peak-normalized Bessel error -- a pointwise relative
+error would be meaningless near Bessel zeros -- and keep the raw Olver envelope at
+roughly the $10^{-4}$ level across the open and closed validation grid. The
+controlling combination is $\alpha\simeq\nu/l$: larger $\alpha$ means weaker
+curvature corrections and a smaller turning radius. The first omitted Olver term
+scales as $\alpha^{-4}$, which sets the broad $\alpha\simeq$ few boundary; the
+source fillers also allow a calibrated high-$l$ near-flat branch where the
+small-$\chi$ endpoint metric is tighter. Below the accepted regions the code
+organizes the residual by endpoint metrics, then tries validated Airy and open
+small-$\nu$ fallbacks before using the exact recurrence. The precise pointwise
+decision order and the source-integration filler gates are given in
+\cref{app:bessel-gates}.
+
+For source integration the hierarchy is summarized in \cref{tab:hierarchy}. The
+overall accuracy is controlled jointly by the pointwise Olver gates, the near-flat
+filler gates, and the Numerov sampling described next, not by the raw asymptotic
+formula alone.
+
+\begin{table*}[t]
+\centering
+\small
+\begin{tabularx}{0.92\textwidth}{Z{0.78}Z{1.08}Z{1.14}}
+\toprule
+Regime & Computation & Reason \\
+\midrule
+Flat & table/spline of $\jl(q\chi)$ & exact flat result \\
+Near-flat, tiny curvature & constant-map shifted-$q$ lookup, \cref{eq:shifted-q} & fastest limit of small-$\chi$ Olver \\
+Near-flat, small-$\chi$ range & lookup at $\nu\chi F$, weight $F/\sqrt D$ & retains next curvature terms \\
+General non-flat range & start from Olver, propagate by Numerov & avoids repeated Olver calls \\
+Non-flat range, $n_{\rm sub}\ge10$ per step & direct Olver at each source point & one Olver call $\approx$ 13 substeps; avoids phase drift \\
+Low-$l$ / low-$\alpha$ & Airy/open-small-$\nu$ fallbacks, then \code{phi_recurs} & asymptotics not valid \\
+\bottomrule
+\end{tabularx}
+\caption{The source-integration approximation hierarchy. Each near-flat path is
+accepted only when its calibrated accuracy gate passes (\cref{app:bessel-gates}).}
+\label{tab:hierarchy}
+\end{table*}
+
+\subsection{Source integration: Numerov stepping and re-seeding}
+\label{sec:bessel-numerov}
+
+Inside the line-of-sight integral the Bessel function is needed at many
+neighbouring times. Rather than call the Olver routine independently at each one,
+we use it only to supply starting values and then advance the reduced equation by
+Numerov integration. The reduced equation has the special form $y''=Q(\chi)y$ with
+$Q=l(l+1)/\SK^2-\nu^2$ and no first-derivative term, which is exactly the case for
+which Numerov's method is fourth-order accurate:
+\begin{multline}
+  y_{n+1}=
+  \Big[2\big(1+\tfrac{5\eta^2Q_n}{12}\big)y_n
+  -\big(1-\tfrac{\eta^2Q_{n-1}}{12}\big)y_{n-1}\Big] \\
+  {}\times\left(1-\tfrac{\eta^2Q_{n+1}}{12}\right)^{-1},
+  \label{eq:numerov}
+\end{multline}
+where $\eta$ is the (signed) substep. Being a two-step recurrence it needs two
+consecutive accurate values to start; these come from two Olver evaluations near
+the turning point, after which \cref{eq:numerov} propagates the solution across the
+range, and the stored value at each source grid point is $\phi_l^\nu=y_n/\SK$.
+
+Two details keep the loop cheap and stable. The metric factors $\SK,\CK$ are not
+recomputed with fresh transcendental calls at each substep but stepped forward by
+the fixed substep using angle-addition (a two-term linear update with precomputed
+coefficients), and after a fixed re-bootstrap interval -- of order a hundred
+steps, reduced at higher accuracy -- the code re-seeds by recomputing $\SK,\CK$
+directly and re-evaluating the two Numerov starting values from fresh Olver calls.
+This bounds the accumulated drift of both recursions without paying for an Olver
+call at every step. The substep is a fraction of $1/\nu$ so the oscillation is well
+sampled, with accuracy-boost factors scaling the step and the re-bootstrap
+interval, and the integration stops early in the exponentially small tails.
+
+The Numerov substep is capped independently of the source time-grid spacing, so
+in genuinely non-flat models a single source step can require many substeps. When
+it would require $n_{\rm sub}\ge10$ -- one Olver evaluation costs about as much as
+$13$ substeps, and closed-model ranges commonly need ten to a few tens -- the code
+instead evaluates $\phi_l^\nu$ directly from the Olver map at each source-grid
+point and skips the intermediate Numerov grid entirely. This is also an accuracy
+improvement, not just a speed-up: in this regime the re-bootstrap logic above was
+already re-seeding from Olver every few source points, so Olver's absolute
+accuracy was already load-bearing, and the direct evaluation simply removes the
+residual inter-seed Numerov phase drift ($C_\ell$ shifts $\lesssim2\times10^{-5}$).
+The gate cuts non-flat source-integration cost by roughly a third for closed
+models; it is essentially inactive for open models and for the tensor source,
+whose denser time grid and lower-$k$ reach keep $n_{\rm sub}$ well below ten.
+
+Before stepping the ODE, the code first tries the two near-flat fillers of
+\cref{tab:hierarchy}, which fill an entire range directly from the flat Bessel
+table when their gates pass. These avoid stepping the curved ODE at all and, just
+as importantly, vary continuously into the exact flat result as $\mathcal K\to0$,
+avoiding a discontinuous switch between flat and non-flat treatments -- the same
+continuity goal as the \textsc{CLASS} flat-rescaling
+approximation~\cite{lesgourgues-tram2013}, here achieved with the local Olver
+coefficients rather than an empirical amplitude.
+
+\subsection{Stable recurrence fallback}
+\label{sec:bessel-recur}
+
+For low $l$, for $\alpha$ below the leading-Olver regime, and in a few invalid
+corners, \textsc{CAMB} uses a fallback sequence. The first fallback is a
+second-order one-point Airy approximation in validated high-$l$ regions; open
+models also have a narrow small-$\nu$ approximation for the remaining very low
+$\nu/l$ tail. If neither applies, the code evaluates $\phi_l^\nu$ by direct
+recurrence in \code{phi_recurs}. This recurrence machinery is essentially
+standard: exact $l=0,1$ seeds, upward recurrence in calibrated stable regions, and
+Miller downward recurrence elsewhere started either from a continued-fraction
+logarithmic derivative (flat and open) or from the finite closed-spectrum
+endpoint, with a closed-space Gegenbauer identity supplying the start near that
+endpoint. It follows the hyperspherical-Bessel relations of Abbott \&
+Schaefer~\cite{abbott-schaefer} and the stable-recursion improvements of
+Refs.~\cite{tram2013,lesgourgues-tram2013}, and a direct comparison with
+\textsc{CLASS} v3.3.4 shows the same seeds, recurrences and closed-space start.
+Because the recurrence is standard, we relegate the formulae and the detailed
+\textsc{CLASS} comparison to \cref{app:bessel-recur}.
+
+\subsection{Why the flat comparison helps}
+\label{sec:bessel-why}
+
+A first-order Langer approximation maps the curved equation onto an Airy function,
+uniform only at the level of the universal local turning-point shape. Our map
+instead sends
+\begin{equation}
+  \text{curved Bessel}\;\to\;\text{flat spherical Bessel at }z(\chi),
+\end{equation}
+and the flat spherical Bessel routine already contains its own Airy transition,
+Debye tails, oscillatory phase and low-order safeguards. The curved calculation
+therefore only has to describe how curvature changes the effective coordinate and
+amplitude, which is a smooth, slowly varying problem. It is also why the
+shifted-$q$ limit is so natural, and why the whole construction is exact in the
+flat limit: the comparison object is the exact flat solution, not a local model of
+it. The remaining error is the leading omitted Olver (Schwarzian) term of
+\cref{eq:olver-residual}, which is parametrically small in the gated regime.
+
+\subsection{Multipole sampling and template interpolation}
+\label{sec:bessel-lsampling}
+
+The transfer functions, and hence the $C_\ell$, are computed at a sparse set of
+multipoles and interpolated to every $\ell$, as in
+Ref.~\cite{Howlett:2012mh}. The sampling is dense at low $\ell$ and coarsens to a
+step of about $50$ in $\ell$ at high $\ell$, up to a transition multipole (default
+$5000$) above which the unlensed spectra are smoothly damping and a widening
+logarithmic spacing is used; computing every $\ell$ is available as a reference
+limit. Interpolating the $C_\ell$ directly at a $\Delta\ell\sim50$ spacing would
+not resolve the acoustic peaks, so for $TT$, $EE$ and $TE$ we instead
+spline-interpolate the \emph{difference} between the computed $C_\ell$ and a smooth
+fiducial template, adding the accurately interpolated template back afterwards;
+the residual is small and featureless, so the coarse sampling suffices.
+
+The ingredient we add here is to shift the template to the model's acoustic scale
+before taking the difference. With $s$ the ratio of the model's acoustic scale to
+the template's -- set from the sound-horizon angle, the same geometric scale used
+by the near-flat source-integration gate of \cref{app:bessel-gates} -- the
+template is evaluated at $\ell/s$ so that its acoustic peaks line up with the
+model's. The residual then stays smooth even when the peaks are displaced from the
+fiducial, so a model with a different acoustic scale can reuse the same sparse
+$\ell$ sampling instead of needing a denser grid; the sampling step is scaled by
+$s$ for the same reason. Both the template shift and the step scaling are applied
+only once $s$ departs appreciably from one, so flat and near-fiducial models are
+left unchanged. This keeps the high-$\ell$ cost roughly fixed across the range of
+acoustic scales of interest.
+
+\section{Recombination and the background}
+\label{sec:recomb}
+
+\subsection{Recombination model and calibration}
+\label{sec:recomb-model}
+
+The CMB anisotropies are sensitive to the free-electron fraction $x_e(z)$ and the
+baryon temperature through the visibility function, the baryon sound speed and
+the photon diffusion scale. Future CMB data require per-mille-level predictions
+for the relevant spectra, so small recombination-history errors in the damping
+tail can no longer be treated as harmless implementation details. The statistical
+weight of many high-$\ell$ modes means that coherent $10^{-3}$-level residuals
+can give non-negligible shifts in spectra and likelihoods. We have therefore
+revisited both parts of the default recombination calculation: the effective
+recombination history used in the standard run, and the numerical integration of
+the resulting equations. This subsection describes the physical calibration of
+the effective model; the next subsection describes the new semi-stiff integrator
+used to solve it.
+
+The basic physical bottleneck has been understood since the classic effective
+atom treatments of Peebles and of Zel'dovich, Kurt and
+Sunyaev~\cite{Peebles:1968ja,Zeldovich:1968}: direct recombination to the ground
+state mostly re-ionizes another atom, so the net rate is controlled by escape
+from Ly$\alpha$ and by the two-photon $2s\to1s$ channel. Modern CMB calculations
+need this picture refined to the percent-to-subpercent level in $x_e$, including
+excited states, feedback between lines, two-photon and Raman processes, and
+radiative-transfer effects.
+
+The most complete public recombination calculations used for this purpose are
+\textsc{CosmoRec}, \textsc{HyRec} and
+\textsc{HyRec-2}~\cite{Chluba:2010ca,Ali-Haimoud:2010tlj,AliHaimoud:2010dx,
+Lee:2020obi}. \textsc{CosmoRec} and full \textsc{HyRec} replace the simplest
+few-level picture by effective multilevel-atom calculations of the highly
+excited states, using precomputed effective rates to a small set of interface
+states rather than solving a brute-force many-level atom at runtime. Their main
+difference is how this backbone is coupled to radiative transfer. \textsc{HyRec}
+uses a compact helium module, treating He\,{\sc iii} recombination in Saha
+equilibrium and He\,{\sc ii}\(\to\)He\,{\sc i} with a Peebles-style ODE including
+the \(2^1S\) two-photon channel, escape in the 584\,\AA\ singlet line,
+H\,{\sc i} continuum opacity, the 591\,\AA\ intercombination line, and feedback
+between the main helium lines in an on-the-spot approximation. \textsc{CosmoRec}
+can instead solve the radiative-transfer problem for helium photons explicitly,
+including overlapping singlet, triplet and quadrupole series, line scattering,
+electron scattering, H\,{\sc i} absorption, and feedback between helium
+lines~\cite{Chluba:2011hw}. \textsc{HyRec-2} further accelerates the hydrogen
+calculation by tabulating a cosmology-dependent correction to the Ly\(\alpha\)
+net decay rate calibrated on full \textsc{HyRec}~\cite{Lee:2020obi}; it does not
+introduce a comparably new helium calculation. For the helium radiative-transfer
+modelling tested here, this makes \textsc{CosmoRec} the more complete baseline;
+\textsc{HyRec-2} remains a valuable independent high-accuracy comparison with a
+different set of approximations.
+
+\textsc{CAMB}'s default model remains based on the \textsc{RECFAST} effective
+few-level approximation~\cite{Seager:1999bc,Seager:1999km}. \textsc{RECFAST}
+evolves separate hydrogen and helium ionization fractions plus the matter
+temperature, using Saha solutions while they are accurate and then switching to
+effective rate equations. Its helium treatment uses effective rates and
+phenomenological correction factors to approximate the main continuum-opacity and
+triplet-channel effects, and its hydrogen history is corrected by calibrated
+Gaussian terms~\cite{Wong:2007ym}. This model remains useful because it is fast,
+robust, and easy to vary inside larger parameter scans. The price is that the
+effective parameters must be calibrated to a more complete
+calculation~\cite{Shaw:2011wq}. We keep the usual \textsc{RECFAST} structure,
+but update the calibration against a high-accuracy \textsc{CosmoRec} reference,
+using the same default \textsc{CAMB} time sampling as in ordinary spectrum
+calculations. Refitting only the existing hydrogen Gaussians and helium
+normalization already gives very small CMB-spectrum residuals, but leaves a
+coherent feature through He\,{\sc i} recombination, where \textsc{CosmoRec}'s
+explicit helium radiative transfer is doing more than can be represented by a
+single overall helium normalization.
+
+We therefore add a small phenomenological correction to the \textsc{RECFAST}
+He\,{\sc i} rate equation. After summing the usual singlet and triplet
+contributions to \(dx_{\rm He}/dz\), the updated fit applies
+\begin{equation}
+  \begin{aligned}
+    \left.\frac{dx_{\rm He}}{dz}\right|_{\rm fit}
+    &= F_{\rm He}\left.\frac{dx_{\rm He}}{dz}\right|_{\rm RECFAST},\\
+    F_{\rm He}
+    &= 1+\frac{a_0+a_1u+a_2u^2}{1+d_2u^2+d_4u^4},\\
+    u&=\frac{z_{\rm scale}-z_0}{w}.
+  \end{aligned}
+\end{equation}
+Here \(z_{\rm scale}=(T_{\rm CMB}/T_{\rm COBE})(1+z)-1\), so the correction
+tracks photon temperature rather than raw redshift, and the factor is used only
+over the He\,{\sc i} recombination range \(1500\lesssim z_{\rm scale}\lesssim
+3000\). The constants in \(F_{\rm He}\) were fitted to the total
+\(x_e(z)\) residual relative to \textsc{CosmoRec}, not to a pointwise inferred
+helium derivative, and then the existing hydrogen Gaussians and helium
+normalization were jointly refitted.\footnote{The rounded fitted \textsc{CAMB}
+\code{Recfast} parameters are \code{RECFAST_fudge}=1.125,
+\code{RECFAST_fudge_He}=0.84724, \code{RECFAST_He_rate_correction}=T, and
+$(\code{AGauss1},\code{AGauss2},\code{zGauss1},\code{zGauss2},\code{wGauss1},
+\code{wGauss2})=(-0.1395,0.07299,7.281,6.767,0.1639,0.2786)$, with the default
+\textsc{RECFAST} switches. The rounded helium-rate constants are
+\((a_0,a_1,a_2,d_2,d_4,z_0,w)=(0.0781,0.899,-3.06,3.75,18.1,1968,774)\).}
+This extra factor is not needed to meet the default \(C_\ell\) accuracy target:
+the no-He-rate fit is already well within that tolerance. It is nevertheless
+cheap to evaluate, removes the visible helium-history residual, and keeps the
+fast \textsc{RECFAST} approximation consistent with the chosen \textsc{CosmoRec}
+reference to a level well below the remaining physical and numerical
+uncertainties in the detailed recombination calculation.
+
+The \textsc{HyRec-2} strategy of tabulating a cosmology-dependent effective
+correction to the hydrogen recombination rate is arguably a more physical fast
+approximation, and is faster than direct effective multilevel-atom evolution. We
+do not adopt that form for the default \textsc{CAMB} update because a
+\textsc{RECFAST}-based fit preserves easy reproducibility of older calculations,
+including Planck-era analyses, while reducing the dominant residuals with only a
+minimal extension of the existing effective model. Direct \textsc{HyRec-2} can
+also be used as a \textsc{CAMB} recombination backend, and retuning the same
+fast \textsc{RECFAST} machinery to its helium prediction would be
+straightforward if that reference were preferred.
+
+The fitted corrections are cosmology-independent, so they do not capture the
+small cosmology dependence of the higher-order recombination corrections
+themselves. We checked that the same \textsc{RECFAST} fit remains consistent
+with direct \textsc{CosmoRec} in early-dark-energy stress tests, and the
+expected impact of these corrections to corrections is small; this is consistent
+with the \textsc{HyRec-2} result that its tabulated hydrogen radiative-transfer
+correction gives no noticeable parameter bias even for an ideal
+cosmic-variance-limited CMB experiment to $\ell=5000$~\cite{Lee:2020obi}.
+
+\begin{figure*}[t!]
+  \centering
+  \includegraphics[width=0.82\textwidth]{changelog/recfast_cosmorec_head_fits/xe_recfast_best_fit_cosmorec_hyrec_default.pdf}
+  \caption{Upper panel: the direct \textsc{CosmoRec} reference $x_e(z)$ and the
+  peak-normalized visibility density per unit redshift and Silk damping
+  integrand, shown on a logarithmic vertical scale. The visibility curve is
+  obtained from the \textsc{CAMB} conformal-time visibility by multiplying by
+  $|d\eta/dz|=H(z)^{-1}$ before normalization. The damping curve is the positive
+  redshift integrand whose integral gives the inverse squared photon diffusion
+  scale $k_D^{-2}(z_\ast)$, plotted for $z\ge z_\ast$ and normalized to its
+  maximum. The gray dashed vertical line marks $z_\ast$. The upper horizontal
+  axis gives the conformal time $\eta(z)$ in Mpc. Lower panel: fractional
+  ionization-history residuals relative to the direct \textsc{CosmoRec}
+  reference used for the updated
+  \textsc{RECFAST} approximation. The reference is the
+  \textsc{CosmoRec} with \code{accuracy=6}, ten hydrogen shells, \code{n_s_2gamma=8},
+  \code{n_s_raman=7} and two diffusion iterations. The ``No He-rate fit'' curve
+  uses the same \textsc{RECFAST} refit but without the new multiplicative
+  He\,{\sc i} rate correction.}
+  \label{fig:recfast-cosmorec-fit}
+\end{figure*}
+
+\begin{figure}[t!]
+  \centering
+  \includegraphics[width=\columnwidth]{changelog/recfast_cosmorec_head_fits/lensed_ee_recfast_cosmorec_hyrec_default.pdf}
+  \caption{Fractional differences in the lensed $EE$ spectrum relative to the
+  direct \textsc{CosmoRec} reference used for the updated \textsc{RECFAST}
+  calibration, computed to $\ell_{\rm max}=4000$. The dashed horizontal lines show
+  $\pm10^{-3}$, the default interior tolerance scale used for lensed $TT$ and
+  $EE$ spectra in the \textsc{CAMB} accuracy checks.}
+  \label{fig:recfast-ee-fit}
+\end{figure}
+
+\Cref{fig:recfast-cosmorec-fit} shows the resulting ionization-history
+residuals. The upper panel shows the reference ionization history, the
+visibility density per unit redshift, and the positive contribution per unit
+redshift to the photon diffusion damping scale (Silk damping)~\cite{Silk:1968}. The
+visibility illustrates that $800<z<1600$ contains the main last-scattering event,
+while the damping kernel shows why earlier helium recombination still matters
+for small-scale spectra: the damping scale accumulates the Thomson mean free
+path before decoupling, and therefore retains a tail through the helium
+recombination epoch even when the visibility is negligible. In the hydrogen
+recombination window the maximum fractional residual relative to direct
+\textsc{CosmoRec} falls from $9.82\times10^{-4}$ for the Planck-era \textsc{RECFAST}
+parameters to $1.14\times10^{-4}$ for the updated fit; the previous
+seven-parameter \textsc{CosmoRec} fit without the He-rate correction gave
+$1.74\times10^{-4}$. In the helium window, $1600<z<3000$, where the helium
+radiative-transfer correction matters most, the maximum residual falls from
+$3.31\times10^{-3}$ for the Planck-era parameters, and $1.39\times10^{-3}$ for
+that no-He-rate fit, to $7.75\times10^{-5}$. The figure also
+shows direct \textsc{HyRec-2}. Its maximum difference from the \textsc{CosmoRec}
+reference is $3.46\times10^{-4}$ in the hydrogen window and $4.51\times10^{-3}$
+in the helium window, consistent with the two codes agreeing well on the main
+hydrogen recombination physics while differing mainly in their helium
+radiative-transfer approximations.
+
+\Cref{fig:recfast-ee-fit} shows the corresponding effect on the lensed
+$EE$ damping tail. The Planck-era \textsc{RECFAST} parameters remain within the
+default $10^{-3}$ interior tolerance used in the \textsc{CAMB} accuracy checks,
+but produce a coherent high-$\ell$ residual. The no-He-rate \textsc{CosmoRec}
+fit and the updated helium-rate fit are both comfortably below this tolerance;
+the latter mainly improves the physical consistency of the helium part of
+\(x_e(z)\), while leaving the spectrum-level residual negligible at the target
+accuracy. \textsc{HyRec-2} is marginally outside the $10^{-3}$ band at
+$\ell\gtrsim3000$, again reflecting the residual modelling difference relative
+to the more detailed \textsc{CosmoRec} helium radiative-transfer calculation
+used as the reference.
+
+As a quantitative CMB-impact diagnostic, the accuracy checking code use a simple Gaussian
+mean likelihood, applied to lensed $TT,EE,BB$ spectra. At each
+multipole we use the covariance expected from cosmic variance on sky fraction
+$f_{\rm sky}=0.6$, a 1.4 arcmin beam, and white noise levels of 2.6 and
+3.67 $\mu{\rm K}$-arcmin in temperature and polarization, then sum the
+quadratic spectral differences over $2\le \ell\le4000$.
+This is a deliberately compact, conservative proxy for the more complete Simons
+Observatory forecasting likelihoods~\cite{SO:2018sim,SOEnhancedLAT:2025}.
+Against the direct \textsc{CosmoRec} reference the resulting $\Delta\chi^2$
+values are 0.555 for the Planck-era \textsc{RECFAST} parameters, 0.02 for the
+seven-parameter \textsc{CosmoRec} fit without the He-rate correction, 0.03 for
+the updated helium-rate fit, and 3.8 for direct \textsc{HyRec-2}. The updated
+helium-rate correction was fitted to improve the physical helium part of
+\(x_e(z)\), not to minimize this spectrum-level distance, and the small reversal
+between the two fitted \textsc{RECFAST} variants has no practical
+\(C_\ell\)-accuracy significance. The last number is the mismatch to the chosen
+\textsc{CosmoRec} reference, and for \textsc{HyRec-2} is dominated by the less
+detailed helium modelling. For the matter power spectrum all models agree at the
+$< 2\times 10^{-5}$ level.
+The residual physical uncertainty is therefore not set by the fast
+\textsc{RECFAST} fit, but by effects that are approximated or neglected,
+together with remaining uncertainties in atomic rates, helium radiative transfer,
+and any non-standard energy injection, varying constants, or other non-standard
+physics not included in the baseline model.
+
+For the \textsc{RECFAST} default model, the coupled hydrogen, helium and matter-temperature
+system is mildly stiff in its early phase, where a purely explicit integration
+wastes work. An alternative is the post-Saha quasi-equilibrium expansion used in
+\textsc{HyRec}, which solves algebraically for the small departure from Saha
+equilibrium before starting the effective ODEs~\cite{AliHaimoud:2010dx}. Here
+\textsc{CAMB} instead keeps the original \textsc{RECFAST} equations and
+integrates the early phase with the two-stage, second-order, L-stable Rosenbrock
+method ROS2~\cite{Rosenbrock:1963,Verwer:1999}, a linearly implicit scheme with
+stabilizing parameter $\gamma = 1 + 1/\sqrt{2}$ that uses the analytic Jacobian
+of the right-hand side together with its explicit time-derivative term, and an
+embedded lower-order solution for adaptive step control. Once the ionization
+fraction has fallen enough that the system is safely
+non-stiff (by default at $x_{\rm H}\simeq 0.976$), it hands off to the explicit
+Dormand--Prince solver. The Rosenbrock and Dormand--Prince tolerances and the
+recombination sampling scale with the global accuracy settings, so the
+recombination history converges smoothly as the overall calculation is tightened.
+The default overall recombination calculation is under a millisecond, very similar
+to \textsc{HyRec-2}, and highly subdominant to the perturbation calculation time
+except when only the background is being calculated.
+
+\subsection{Reionization}
+\label{sec:reion}
+
+After recombination the first luminous sources reionize the intergalactic medium,
+and the free electrons rescatter a fraction of the CMB photons. The main
+consequences are a near-uniform suppression of the primary anisotropies by
+$e^{-2\tau}$ on the small scales that dominate the high-$\ell$ spectra, and a
+large-scale reionization bump in the $E$-mode polarization. The suppression
+depends only on the total Thomson optical depth $\tau$; the large-scale $E$-mode
+bump carries some additional information about the shape of $x_e(z)$, but for the
+smooth low-redshift histories of interest here it too is controlled mainly by
+$\tau$~\cite{Mortonson:2007hq}. \textsc{CAMB} therefore models reionization with a
+smooth,
+low-dimensional ionization fraction that joins onto the residual recombination
+history of \cref{sec:recomb} at high redshift and is integrated on the same time
+grid.
+
+The default model is the phenomenological $\tanh$ parameterization of
+Ref.~\cite{Lewis:2008wr}, which places a smooth step in $x_e$,
+\begin{equation}
+  \label{eq:reion-tanh}
+  \begin{aligned}
+  x_e(z)&=x_e^{\rm rec} + \frac{f - x_e^{\rm rec}}{2}
+  \left[1 + \tanh\frac{y_{\rm re}-y}{\Delta y}\right],\\
+  y&\equiv (1+z)^{3/2},
+  \end{aligned}
+\end{equation}
+centred on $y_{\rm re}=(1+z_{\rm re})^{3/2}$ with width
+$\Delta y = \tfrac{3}{2}(1+z_{\rm re})^{1/2}\,\Delta z$, where $f$ is the fully
+ionized fraction (hydrogen plus the first ionization of helium) and
+$x_e^{\rm rec}$ the residual electron fraction left by recombination. Writing the
+step in the variable $(1+z)^{3/2}$ is convenient because, for a fixed midpoint
+$z_{\rm re}$, it gives the same $\tau$ as an infinitely sharp transition during
+matter domination, so $\tau$ and $z_{\rm re}$ map onto each other almost
+analytically. \textsc{CAMB} nonetheless obtains $z_{\rm re}(\tau)$ by a monotonic
+root find, so any other monotonic shape can be substituted without changing the
+interface. The second, full ionization of helium near $z\simeq3.5$ is added as a
+separate narrow $\tanh$ of fixed width; its precise placement has a negligible
+effect on the spectra.
+
+The symmetric $\tanh$ shape is a poor description of the actual history. Non-CMB
+probes show that hydrogen reionization ends late and inhomogeneously: large-scale
+scatter in the Ly$\alpha$ forest opacity persists to $z\simeq5.3$, pointing to a
+late and patchy end to reionization~\cite{Bosman:2021obf,Fan:2006dp}, while the
+intergalactic medium is still substantially neutral at $z\gtrsim7$, from quasar
+damping wings~\cite{Davies:2018yfp} and the declining visibility of Ly$\alpha$
+emitters~\cite{Mason:2017eqr}. The inferred history is therefore markedly
+asymmetric in redshift, rising gradually at early times and completing rapidly
+near $z\simeq6$. Because the CMB constrains mainly the integral $\tau$ rather than
+the shape, this mismatch has little effect on parameter estimation at current
+sensitivity; but it biases reionization histories inferred under the $\tanh$
+assumption~\cite{Qin:2020xrg,Planck:2016mks}, and the residual shape information in
+the large-scale polarization is relevant for future tests of the history.
+
+\textsc{CAMB} therefore also provides an exponential model
+(\code{ExpReionization}) closer to the data-motivated asymmetric form. Here the
+ionization fraction saturates to full ionization below a fixed completion
+redshift $z_{\rm end}$ and decays above it,
+\begin{equation}
+  \label{eq:reion-exp}
+  \begin{aligned}
+  x_e(z)={}&x_e^{\rm rec} + (f - x_e^{\rm rec})\\
+  &{}\times\exp\!\left[-\lambda\,(z-z_{\rm end})^{p}\,s(z)\right],
+  \qquad z > z_{\rm end},
+  \end{aligned}
+\end{equation}
+with $x_e=f$ for $z\le z_{\rm end}$. The decay rate
+$\lambda=\ln 2/(z_{\rm re}-z_{\rm end})^{p}$ sets the midpoint, so that $x_e$ falls
+to half its ionized value at $z_{\rm re}$ up to the small effect of the smoothing
+factor $s$ (equivalently the model is set through $\tau$); the power $p$ controls
+the steepness (default $p=1$); and $s(z)=[1+w/(z-z_{\rm end})^2]^{-1}$ keeps the
+derivative continuous at $z_{\rm end}$. Pinning the completion redshift near
+$z_{\rm end}\simeq6$, consistent with the forest data, gives the model a non-zero
+floor on the optical depth ($\tau\gtrsim0.04$ for $z_{\rm end}=6.1$), unlike the
+$\tanh$ model which extends smoothly to $\tau\to0$. This form is similar in spirit
+to the asymmetric parameterizations of Refs.~\cite{Douspis:2015nca,Qin:2020xrg},
+but it is meant only to capture the gross asymmetry of the history as seen by the
+CMB, and is not intended as a precision fit to non-CMB data. In particular it does
+not model the detailed residual ionization structure at $z<z_{\rm end}$ --- the
+slow final approach of $x_e$ to unity probed by the Ly$\alpha$ forest --- which
+has a negligible effect on the CMB. Both models use the same $\tau$ mapping and
+time-sampling machinery, so either can be driven by an input optical depth or by a
+midpoint redshift, and further reionization parameterizations are
+straightforward to add as new model classes sharing the same interface.
+
+\subsubsection{Reionization heating and low-redshift linear matter power}
+
+The ionization history also enters the late-time matter calculation through the
+baryon temperature and sound speed. This is a less clean problem than the CMB
+optical depth. Reionization is intrinsically an inhomogeneous, non-linear
+radiative-transfer process, but a Boltzmann code evolves a single background
+ionization fraction and linear perturbations about it. Treating $x_e(z)$ as a
+homogeneous background is already an effective description of the volume-averaged
+free-electron density. The gas temperature is even less directly described by a
+single number: ionized regions are photo-heated to roughly $10^4\,{\rm K}$, but
+the heating is patchy and coupled to sources, sinks, shocks, and the evolving
+thermal state of the intergalactic medium.
+
+This matters because the high-$k$ ``linear'' matter power spectrum at low
+redshift is not a uniquely physical observable once strongly non-linear
+astrophysical processes have acted on the baryons. The ambiguity shows up in
+practical calculations at very high $k$, where apparently small choices about
+which late-time quantities are evolved can change the nominally linear matter
+power at $z=0$. The underlying problem is not that one choice should change the
+physical linear solution, but that the baryon sound speed after reionization is
+itself an effective convention in a calculation that has deliberately omitted the
+non-linear physics that set the ionization and temperature fields.
+
+\textsc{CAMB} therefore keeps its default linear calculation conservative, using
+the residual pre-reionization ionization fraction in the baryon sound-speed terms
+to avoid introducing a sharp, model-dependent high-$k$ feature from the
+homogeneous reionization step. An optional, disabled-by-default diagnostic
+alternative can instead include a crude homogeneous heating prescription. When
+\code{include_heating} is enabled, the code defines a clipped heating weight
+\begin{equation}
+  y_{\rm heat} =
+  \operatorname{clip}\!\left[\frac{x_e-x_e^{\rm rec}}{1-x_e^{\rm rec}},\,0,\,1\right],
+\end{equation}
+where $x_e^{\rm rec}$ is the recombination residual at the same time. It then
+interpolates the gas temperature from the recombination value to an input
+$T_{\rm reion}$, defaulting to $10^4\,{\rm K}$, and interpolates the baryon
+sound speed from the usual \textsc{CAMB} expression to the ideal-gas value
+\begin{equation}
+  c_s^2 = \frac{5}{3}\,\frac{k_{\rm B}T_{\rm gas}}{\mu m_p}.
+\end{equation}
+Here $\mu$ is the effective mean molecular weight. This construction follows the
+shape of the homogeneous reionization history, not the physics of patchy heating.
+It is intentionally crude.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\columnwidth]{changelog/reion_heating_effect_T1e4_nicer.pdf}
+  \caption{Fractional change in the $z=0,1,2$ matter power spectrum from enabling
+  the crude homogeneous reionization-heating option with
+  $T_{\rm reion}=10^4\,{\rm K}$ and $z_{\rm re}=7.7$, for linear theory,
+  HMCode 2020~\cite{Mead:2020vgs} and Takahashi Halofit~\cite{Takahashi:2012em}.
+  The calculation is a diagnostic of the size of
+  the convention-dependent high-$k$ effect, not a physical model of the
+  reionized intergalactic medium. In particular, halo-model curves should not be
+  interpreted as physical predictions for reionization feedback. The vertical range
+  is restricted to show the quasi-linear behaviour, so the linear curves leave the
+  bottom of the panel at $k\gtrsim$ a few $\,{\rm Mpc}^{-1}$.}
+  \label{fig:reion-heating}
+\end{figure}
+
+\Cref{fig:reion-heating} illustrates the scale of the effect in a simple
+$\Lambda$CDM example. The linear calculation shows the expected suppression of
+small-scale baryon clustering from the larger post-reionization sound speed, which
+persists to low redshift. This suppression is small on large scales, around a
+percent at $k\sim1\,{\rm Mpc}^{-1}$ at $z=0$, but grows rapidly towards smaller
+scales and is notionally very large, reaching several tens of percent by
+$k\sim10$--$20\,{\rm Mpc}^{-1}$, where the linear curves run off the bottom of the
+panel. These are scales on which the linear spectrum is not itself a physical
+observable, so the precise size is only indicative.
+
+The halo-model curves are shown as a warning about propagation through common
+non-linear post-processing prescriptions. Fitting functions such as these are
+calibrated on $N$-body simulations with standard $\Lambda$CDM linear input, and
+are not calibrated for a linear spectrum carrying a localized high-$k$ feature of
+this kind; their response is therefore not a physical prediction of reionization
+feedback, and in detail depends on which linear model the non-linear prescription
+was tuned against. The most striking artefact is not the mild small-scale
+suppression but a percent-level \emph{increase} of power on quasi-linear scales
+($k\sim0.3$--$1\,{\rm Mpc}^{-1}$, most pronounced at the higher redshifts shown),
+where the heating should physically remove rather than add power. Since these are
+among the scales most often used in practice, this spurious quasi-linear gain is
+arguably a more relevant caution than the small-scale suppression. More
+generally, a homogeneous heating prescription makes an additional low-redshift
+contribution to the scale dependence of growth, so it is not consistent with the
+scale-independent growth approximation often used to rescale linear spectra or
+combine transfer functions outside the code.
+
+The purpose of the option is therefore modest. It is not a model of reionization
+heating, and it should not be used to infer the thermal history of the
+intergalactic medium. It is a way to estimate the order of magnitude of one
+definition-dependent effect in what users call the low-redshift linear matter
+power spectrum. It is also a reminder that when a calculation asks for linear
+results after non-linear astrophysics has changed the baryon state, the exact
+question being answered needs to be specified carefully.
+
+
+\section{Massive neutrinos}
+\label{sec:neutrinos}
+
+The thermal massive-neutrino background density and pressure are needed throughout
+the evolution and were previously interpolated from a precomputed table. We now use
+direct low-order fits in the intermediate regime, with small- and large-mass
+series limits outside it. Here $m_\nu$ denotes the dimensionless mass
+$m_\nu c^2/(k_{\rm B}T_{\nu0})$ used by the code, so the expansion variable is
+$a m_\nu$. The density and pressure use a smooth fit for
+$0.42<a m_\nu<70$, while the combination
+$D_\nu\equiv\rho_\nu-3P_\nu$, which enters
+$\dot\rho_\nu=\mathcal H D_\nu$, uses a separate fit over
+$0.3<a m_\nu<70$. Against direct Fermi--Dirac quadrature these fits reach a
+maximum relative error below $10^{-4}$ in $\rho_\nu$, $P_\nu$ and $D_\nu$, which
+is amply sufficient; they remove the table and its global state and are
+marginally faster in the hot path.
+
+The perturbations are the more delicate part. Massive neutrinos free-stream at a
+momentum-dependent velocity, so their phase-space distribution is evolved as a
+separate Boltzmann hierarchy for each sampled comoving momentum $q$, with the
+density, heat flux and anisotropic stress that source the metric obtained as
+Fermi--Dirac-weighted integrals over $q$~\cite{Ma:1995ey,Lewis:2002nc}. Sampling
+$q$ finely would be costly, so \textsc{CAMB} uses a sparse quadrature: a handful of
+momenta and weights chosen to integrate the Fermi--Dirac moment kernels accurately,
+as detailed in the appendix of Ref.~\cite{Howlett:2012mh}. The default three-point
+rule is adequate for the minimal-mass neutrino case. With the targeted-accuracy
+settings used here, \textsc{CAMB} automatically raises this to four points once the
+largest eigenstate has dimensionless mass
+$m_\nu c^2/(k_{\rm B}T_{\nu0})\gtrsim600$ (roughly $0.1\,{\rm eV}$), and to five
+points above $m_\nu c^2/(k_{\rm B}T_{\nu0})\gtrsim4300$ for the heaviest transfer
+cases.
+Gauss--Laguerre abscissae are a useful guide at high
+$q$~\cite{Lesgourgues:2011rh}, but the four- and five-point rules used here are
+free-node fits for the \textsc{CAMB} kernels: the four-point rule is a
+least-squares refit, and the five-point rule keeps the relativistic moment
+constraints while using the remaining freedom to improve velocity-dependent
+integrals as the neutrinos slow down.
+
+There are three distinct approximation switches. The first is the perturbatively
+relativistic \textsc{CAMB} expansion documented by
+Howlett et al.~\cite{Howlett:2012mh}: while a momentum bin is still highly
+relativistic its hierarchy is independent of $q$ and coincides with the massless
+one to leading order in $(a m_\nu/q)^2$, so \textsc{CAMB} evolves the massless
+hierarchy plus a single first-order correction until that bin becomes mildly
+relativistic. This lets the per-momentum integration start later and at lower
+$l_{\max}$. The second switch is the late-time non-relativistic
+velocity-integrated hierarchy of Lewis and Challinor~\cite{Lewis:2002nc},
+implemented by the \code{Nu_trunc} scheme. Once the neutrinos are safely
+non-relativistic, the default \code{Nu_best} path integrates the distribution into
+a four-variable hierarchy for $\delta\rho_\nu$, $\delta P_\nu$, heat flux and
+anisotropic stress, with higher velocity moments redshifting analytically.
+Separately, \textsc{CAMB} uses the high-$k\tau$ subhorizon massless-neutrino
+closure described for \textsc{CLASS}~\cite{Blas:2011rf}: the ultra-relativistic
+fluid approximation replaces the full radiation hierarchy after $k\tau$ is large,
+and the late radiation hierarchy is then switched off once the multipoles are
+dynamically negligible (\code{tau\_switch\_no\_nu\_multpoles}). These schemes are
+standard; we summarize them only to record the momentum sampling and switching
+used in the runs validated below.
+
+\section{Dark energy}
+\label{sec:de}
+
+\textsc{CAMB}'s default dark energy is a fluid with equation of state $w(a)$ and a
+rest-frame sound speed $c_s$. This fluid description is singular where $w$ crosses
+$-1$, so for general $w(a)$ we use the parameterized post-Friedmann (PPF)
+prescription of Hu and of Fang, Hu \& Lewis~\cite{Hu:2008zd,Fang:2008sn}, which
+stays regular through the phantom divide. PPF does not model a physical field: it
+parameterizes the dark-energy momentum density in terms of the other species,
+with a single transition scale $c_\Gamma k/\mathcal H$ separating the
+super-horizon regime, where dark energy can support perturbations, from small
+scales, where it cannot. We summarize the equations because the small-scale
+behaviour is where the numerical problem and our fix lie; the full derivation and
+the meaning of the variables are in Refs.~\cite{Hu:2008zd,Fang:2008sn}.
+
+Write $\mathcal H$ for the conformal Hubble rate and, following the code, absorb a
+factor $8\pi G a^2$ into density and pressure variables (so $\bar\rho\equiv8\pi G
+a^2\rho$ and $\bar h\equiv\bar\rho+\bar p$ is an enthalpy density). The PPF
+dynamics are carried by a single variable $\Gamma$ with source
+\begin{equation}
+  S_\Gamma=\frac{\bar h_{de}\,(V_T+\sigma)}{2 k\,\mathcal H},
+  \label{eq:ppf-source}
+\end{equation}
+where $V_T$ and $\sigma$ are the velocity and shear of the total non-dark-energy
+fluid. With $c_\Gamma=0.4\,c_s$ and the transition variable
+$\beta\equiv(c_\Gamma k/\mathcal H)^2$, the PPF evolution equation is
+\begin{equation}
+  \dot\Gamma=\mathcal H\left[\frac{S_\Gamma}{1+\beta}-(1+\beta)\,\Gamma\right],
+  \label{eq:ppf-gamma}
+\end{equation}
+For fixed source this is a relaxation equation: $\Gamma$ is driven at the rate
+$(1+\beta)\mathcal H$ towards the algebraic quasi-static value obtained by
+setting $\dot\Gamma=0$,
+\begin{equation}
+  \Gamma_{\rm qs}=\frac{S_\Gamma}{(1+\beta)^2}.
+  \label{eq:ppf-gamma-qs}
+\end{equation}
+The dark-energy momentum and density perturbations are reconstructed algebraically
+from $\Gamma$,
+\begin{align}
+  \bar h_{de}V_{de}
+  &=-\frac{2k\mathcal H}{F}\Big(S_\Gamma-\frac{\dot\Gamma}{\mathcal H}-\Gamma\Big)
+  \nonumber\\
+  &\quad{}+\bar h_{de}V_T,
+  \nonumber\\
+  \bar{\delta\rho}_{de}&=-2k^2 k_f\,\Gamma-\frac{3\mathcal H}{k}\,\bar h_{de}V_{de},
+  \label{eq:ppf-close}
+\end{align}
+with $F=1+3\,\bar h_{\rm noDE}/(2k^2 k_f)$ and $k_f$ the curvature factor
+($k_f=1$ for a flat model), closing the system~\cite{Hu:2008zd}.
+
+The difficulty is that the relaxation rate $(1+\beta)\mathcal H$ grows as
+$(k/\mathcal H)^2$. For high-redshift, high-$k/\mathcal H$ modes, where dark energy
+is dynamically negligible, \cref{eq:ppf-gamma} becomes very stiff: the source is
+large, the physical response is tiny, and integrating it directly produces
+enormous normalized dark-energy perturbations and a spectrum sensitive to the
+integration tolerance. Historically this was avoided by setting $\Gamma=0$ above a
+high threshold, but a hard cutoff is discontinuous and, for some extended models,
+leaves the dark energy far from a sensible fluid value.
+
+We instead keep the same quasi-static fixed point but cap the relaxation rate. For
+$\beta>\beta_\star$ with $\beta_\star=30$ we replace \cref{eq:ppf-gamma} by
+\begin{equation}
+  \dot\Gamma=(1+\beta_\star)\,\mathcal H\,(\Gamma_{\rm qs}-\Gamma),
+  \label{eq:ppf-fix}
+\end{equation}
+which is \cref{eq:ppf-gamma} with the relaxation rate frozen at its threshold
+value, so it is continuous across $\beta=\beta_\star$ and leaves the equation
+unchanged below it. This removes the stiffness while keeping $\Gamma$ close to
+$\Gamma_{\rm qs}$, and avoids the matter-power and $C_\ell$ artifacts of a hard
+cutoff. For a near-$\Lambda$CDM example the peak normalized dark-energy density
+perturbation at $k=0.1\,\mathrm{Mpc}^{-1}$ falls from $\sim3\times10^{3}$ to
+$\sim3\times10^{-2}$, and the sensitivity of the lensed $TT$ and lensing-potential
+spectra to the integration tolerance falls by roughly an order of magnitude, while
+the matter power and $C_\ell$ stay consistent with a stable fluid reference. This
+is the default PPF behaviour. \todo{add before/after $\Delta_{de}$ and
+tolerance-sensitivity figure}
+
+We stress that PPF is a phenomenological parameterization, not a physical model of
+dark-energy perturbations. The variable $\Gamma$, and especially its small-scale
+behaviour, is a device for giving the correct large-scale momentum and a smooth
+$w=-1$ crossing; the stabilized high-$k/\mathcal H$ evolution
+(\cref{eq:ppf-fix}) is a regularization in a regime where dark-energy
+perturbations have no observable effect, and the dark-energy ``perturbations''
+there should not be over-interpreted as physical.
+
+Beyond the fluid and PPF parameterizations, the dark-energy sector is modular:
+each model is a user-facing Python class mirrored by a Fortran implementation
+that carries the numerics, so alternative models can be added by deriving a new
+class that supplies $w(a)$, the background density and the perturbation evolution
+(and, for field models, the potential). \textsc{CAMB} ships a few such models in
+addition to the default fluid. The \texttt{AxionEffectiveFluid} model implements
+an axion-like (ultralight-field) early-dark-energy fluid~\cite{Poulin:2018dzj},
+and \texttt{EarlyQuintessence} integrates a single scalar field in an axion-like
+potential $V(\phi)=m^2f^2\,[1-\cos(\phi/f)]^n$~\cite{Smith:2019ihp}, both
+motivated by attempts to ease the Hubble tension; a general \texttt{Quintessence}
+base class provides the field sampling and spline machinery for other
+single-field models. These early-dark-energy implementations can serve as worked
+examples of how to add a custom dark-energy class.
+
+\section{Lensed CMB and matter power}
+\label{sec:lensing}
+
+The lensed CMB spectra and the matter power spectrum are the two outputs we have
+worked hardest to make accurate, because they dominate current and forthcoming
+analyses.
+
+\textsc{CAMB} lenses the CMB with the curved-sky correlation-function
+method~\cite{Challinor:2005jy,Lewis:2006fu}: it forms the lensed correlation
+functions from the unlensed spectra and the lensing-potential spectrum, using the
+non-perturbative isotropic factor $\exp[-l(l+1)\sigma^2/4]$ together with a
+second-order expansion in the deflection correlation $C_{\mathrm{gl},2}$, and
+transforms back to the lensed spectra. Two implementations are available, chosen
+automatically according to whether accurate $B$-mode polarization is requested.
+When accurate $BB$ is not required the angular transform is truncated to small
+separations, where the lensing correction is concentrated, which is much faster;
+the truncation is apodized with a new $C^2$-continuous (quintic) taper that brings
+the correlation function smoothly to zero over a narrow window, suppressing the
+ringing that a sharp cut would alias into the spectra (the taper replaces a cruder
+earlier treatment)\footnote{At low multipoles the reionization bump in $EE$
+can cause instabilities in the apodized trucated correlation function calculation.
+We apply a smooth taper that removes the low-$\ell$ bump to regularize the lensing
+calculation. We do not attempt to accurately model the tiny linear signal of lensed
+reionization rescattering, which the full angular range calculation slightly
+overestimtes due to the lower source redshift than the primary CMB.}. When accurate $BB$ is required -- for tensor B-mode analysis for
+example -- the correlation integrals are instead evaluated over the full angular
+range by Gauss--Legendre quadrature, accumulating the curved-sky Wigner-$d$
+combinations directly.
+
+High-accuracy lensing requires the unlensed CMB and the lensing potential to be
+computed accurately to high multipoles, which in practice means a larger maximum
+wavenumber $k_{\max}$. By default $k_{\max}$
+is now set automatically from the requested maximum multipole, large enough that
+both the lensed CMB spectra and the lensing-potential spectrum $C_L^{\phi\phi}$
+reach the target accuracy without the user having to choose it by hand. The binding
+requirement is the slower convergence of the lensing-potential spectrum -- the
+lensed CMB alone converges at a lower $k_{\max}$ -- which also sets a floor at low
+$\ell_{\max}$.\footnote{In the code this is the \code{lens_potential_accuracy}
+parameter; left unset it follows the automatic rule of \cref{app:accuracy}, while
+an explicit value can still be passed, with $0$ recovering the earlier Planck-era
+low-$k_{\max}$ default.}
+
+
+For the matter power spectrum the accuracy is set by the transfer-function
+sampling and, for nonlinear spectra, by the nonlinear model
+(\textsc{halofit}~\cite{Takahashi:2012em} or
+\textsc{hmcode}~\cite{Mead:2020vgs}). The validation work of
+\cref{sec:validation} drove a number of small, physically scoped fixes to the
+sampling and hierarchy settings -- for example the massive-neutrino multipole
+hierarchy depth at high mass -- which we do not enumerate individually; they are
+recorded in the code history and, more usefully, are captured by the validation
+suite, which now passes at the target tolerances across the model grid. Baryonic
+feedback on the small-scale matter power can be included with the \textsc{SP(k)}
+model~\cite{Salcido:2023etq}.
+
+\section{Curvature}
+\label{sec:curvature}
+
+The near-flat shortcuts of \cref{sec:bessel} are designed so that the curved
+calculation varies continuously into the flat one as $\Omega_K\to0$. We verify
+this explicitly by sweeping $\Omega_K$ through zero at fixed cosmology and
+checking that the lensed $C_\ell$ vary smoothly and agree with the flat result in
+the limit, with no discontinuity at the switch between flat and non-flat
+treatments. This continuity is a practical requirement for parameter estimation,
+where a sampler must be able to cross $\Omega_K=0$ without seeing a step in the
+likelihood. \todo{add the $\Omega_K\to0$ continuity figure (data in
+nearflat\_omk\_pm1e-6 sweep)}
+
+For genuinely non-flat models the source integration uses the Numerov path of
+\cref{sec:bessel-numerov}, re-seeded periodically from Olver reference values; the
+sampling in $l$ and the maximum wavenumber are adjusted for the geometric shift of
+the acoustic peaks, with the near-flat table shortcuts used only when a
+sampling-ratio test confirms the peak positions are close enough to the fiducial
+flat sampling.
+
+\section{Validating accuracy}
+\label{sec:validation}
+
+Every accuracy claim in this paper rests on a deterministic validation harness,
+\code{camb.check_accuracy}, which compares a default run to a boosted reference and
+reports the fractional differences per output, multipole or wavenumber range. The
+reference doubles the main accuracy controls (\code{AccuracyBoost},
+\code{lSampleBoost}, \code{lAccuracyBoost}, \code{IntTolBoost}), which empirically
+brackets the converged result. The default, unboosted settings are designed so
+that the interior lensed CMB spectra and the matter power spectrum in the
+quasi-linear regime agree with this reference at the $10^{-3}$ level -- the
+accuracy relevant for extended SO and the matter-power surveys. The per-output
+acceptance tolerances that encode this are listed in \cref{app:accuracy}: in
+brief, $10^{-3}$ for the lensed $TT/EE/TE$ over $600\le\ell<3500$ (looser at the
+ends and in the high-$\ell$ tail), $5\times10^{-3}$ for the lensing potential over
+$5\le L<2500$, and $10^{-3}$ for the linear matter power over the quasi-linear
+range $5\times10^{-3}<k/h<2$ (in $h\,\mathrm{Mpc}^{-1}$; looser outside it, and in
+the nonlinear regime where the nonlinear model sets the floor). A pointwise
+relative comparison is deliberately avoided where the spectra cross zero.
+
+Running this harness over a grid of more than a hundred parameter files -- spanning
+curvature, massive neutrinos, dynamical dark energy, nonlinear and transfer-only
+configurations, and a range of $l_{\max}$ -- the current default settings pass at
+the target tolerances in essentially all cases, with the residual failures
+confined to characterized endpoint and extreme-tail regions (the very edge of a
+requested $l_{\max}$, and the high-$\ell$ tail of $21\,$cm configurations) rather
+than to interior accuracy. We treat those edge cases as documented limitations
+rather than blockers. \todo{add the default-vs-reference residual summary figure
+across the model grid}
+
+This harness is also the objective function for the development methodology
+described next: it is what tells us, deterministically, whether a proposed change
+helps, leaves accuracy unchanged, or regresses some other model.
+
+\section{Agentic co-development}
+\label{sec:agentic}
+
+Building and, crucially, validating methods at this level of specificity is
+laborious, and almost all of the work described here was carried out by AI agents
+with a human in the loop. The agents operated against the deterministic
+\code{check_accuracy} harness of \cref{sec:validation} as an objective function,
+using a small toolchain packaged as reusable agent \emph{skills} and
+\emph{subagents}, so the same procedure could be invoked repeatably: an
+orchestrating skill that isolates a single, physically scoped accuracy fix at a
+time and retains sole authority over the patch; a diagnostic subagent that
+reproduces one failure in a disposable copy of the code and drills from the broad
+accuracy control down to the specific lines responsible, rebuilding before every
+test; and an independent read-only subagent that audits each proposed change for
+scope, gating and physical motivation. The human role was to set
+the targets, supervise the physics, and review and accept the final changes.
+
+\section{Performance}
+\label{sec:performance}
+
+\todo{}
+
+\section{Summary and recommendations}
+\label{sec:summary}
+
+We have described an update to \textsc{CAMB} aimed at the accuracy and speed
+required by the next generation of CMB and large-scale-structure surveys, focused
+on the lensed CMB and matter power spectra. The central technical development is a
+hyperspherical Bessel scheme based on a flat-Bessel comparison: it is exact in the
+flat limit, smooth through the turning point, reduces to a constant rescaling of
+the flat argument in near-flat models, and supplies robust starting values for a
+cheap Numerov propagation of neighbouring source points. Around this we have
+faster recombination and neutrino-background evaluation, a stabilized PPF
+dark-energy evolution, and recalibrated lensing and curvature accuracy, all
+validated by a deterministic harness across a large grid of models. The unboosted
+defaults are designed to reach the $10^{-3}$ level for the interior lensed CMB and
+the quasi-linear matter power (\cref{app:accuracy}).
+
+\Cref{app:accuracy} collects the accuracy parameters and our recommended settings.
+\todo{add the per-experiment recommended-settings table (the single most useful
+table for readers): default vs.\ high-accuracy columns for SO/extended-SO lensed
+CMB and for matter power, with the resulting validated tolerance.}
+
+We have also used this work as a worked example of custom-precision numerical
+methods developed with AI agents under human supervision. We expect this mode of
+development -- bespoke approximations, gated by physically motivated tests and
+validated deterministically -- to become an increasingly common way to meet the
+accuracy demands of precision cosmology.
+
+\begin{acknowledgments}
+AL is supported by the UK STFC grant ST/X001040/1. I thank Jens Chuba and Yacine Ali-Haimoud for recombination advice,
+Simons Observatory collaborators on likelihood and theory, and various CAMB github issue and PR contributors who
+reported errors or contributed new code or patches. The
+algorithms and code described here were co-developed with LLM chats and AI coding agents
+(Codex, Copilot and Claude Code) under the author's supervision; the author is responsible for the physics, the design of
+the validation, and the final review of all changes.
+\end{acknowledgments}
+
+\onecolumngrid
+\appendix
+
+\section{Hyperspherical Bessel details}
+\label{app:bessel}
+
+This appendix collects the formulae behind \cref{sec:bessel}.
+
+\subsection{Action integrals and the inverse map}
+\label{app:bessel-action}
+
+With $f_K(\chi)=\alpha^2-\SK^{-2}(\chi)$, the curved action measured from the
+turning point is
+\begin{equation}
+  Q_K(\chi)=
+  \begin{cases}
+  \displaystyle\int_\chi^{\chi_t}\sqrt{-f_K}\,\dd s, & \chi<\chi_t,\\[1.4ex]
+  \displaystyle\int_{\chi_t}^{\chi}\sqrt{f_K}\,\dd s, & \chi>\chi_t,
+  \end{cases}
+  \label{eq:curved-action}
+\end{equation}
+with $Q_K(\chi_t)=0$. Writing $x=\alpha\SK(\chi)$, the flat action obtained with
+$f_0=\alpha^2-z^{-2}$ and $x=\alpha z$ is
+\begin{equation}
+  I_0(x)=
+  \begin{cases}
+  \log\!\dfrac{1+\sqrt{1-x^2}}{x}-\sqrt{1-x^2}, & x<1,\\[1.4ex]
+  \sqrt{x^2-1}-\arccos(1/x), & x>1,
+  \end{cases}
+  \label{eq:flat-action}
+\end{equation}
+with $I_0(1)=0$; $x<1$ is the evanescent side and $x>1$ the oscillatory side. The
+curved integral \cref{eq:curved-action} has closed logarithm/$\atanTwo$ forms in
+$x$ (the same integrals that appear in the Langer/WKB
+treatments~\cite{Kosowsky:1998nc,tram2013}), evaluated without quadrature.
+
+The map \cref{eq:action-map} is inverted for $x=\alpha z$ branch by branch. Below
+the turning point write $x=\sech t$, so $I_0=t-\tanh t$; above it write
+$x=1/\cos\theta$, so $I_0=\tan\theta-\theta$. Near the turning point both give
+$I_0\simeq t^3/3$, so the code forms $p=(3Q_K)^{1/3}$ and uses a fitted polynomial
+in $p^2$ for $x$ (avoiding cancellation in the nearly-equal logarithmic or
+trigonometric terms); away from the turning point it uses the natural asymptotic
+inverses, $t\simeq Q_K+1$ on the evanescent side and $\theta\to\pi/2$ on the
+oscillatory side. Finally $z=z_t x=x/\alpha$.
+
+The leading omitted term of the leading-order map is seen by substituting
+$u=A\,w(z)$ into \cref{eq:reduced}, which gives
+\begin{equation}
+  \frac{\dd^2w}{\dd z^2}+\big[\ell^2 f_0(z)+\Psi(z)\big]w=0,\qquad
+  \Psi=-\frac{1}{2(\dd z/\dd\chi)^2}\{z,\chi\},
+  \label{eq:olver-residual}
+\end{equation}
+with $\{z,\chi\}=z'''/z'-\tfrac32(z''/z')^2$ (primes denoting $\chi$-derivatives)
+the Schwarzian derivative, a measure of how far the map $z(\chi)$ departs from a
+M\"obius (projective-linear) transformation, under which it vanishes. The leading
+approximation drops $\Psi$; the curvature-dependent remainder falls as
+$\alpha^{-4}$, motivating the $\alpha\simeq3$ gate boundary.
+
+\subsection{Small-\texorpdfstring{$\chi$}{chi} expansion}
+\label{app:bessel-smallchi}
+
+Writing $z=\chi F$, $a=K\chi^2$ and $h=K/\alpha^2$, the differentiated map
+$(\dd z/\dd\chi)^2(\alpha^2-z^{-2})=\alpha^2-\SK^{-2}$ has the cubic-order solution
+\begin{align}
+  F&=1-h\left[\frac16+\frac{4a+13h}{360}+\frac{48a^2+148ha+737h^2}{45360}\right],
+  \label{eq:F-smallchi}\\
+  D&\equiv\frac{\dd z}{\dd\chi}=1-h\left[\frac16+\frac{12a+13h}{360}+\frac{240a^2+444ha+737h^2}{45360}\right],
+  \label{eq:D-smallchi}
+\end{align}
+giving the local approximation
+$\phi_l^\nu\simeq (\chi F/\SK)\,D^{-1/2}\jl(\nu\chi F)$. Setting $a=0$ recovers
+$F_0=D_0$ of \cref{eq:F0}, the constant-map (shifted-$q$) limit.
+
+\subsection{Accuracy gates}
+\label{app:bessel-gates}
+
+For a pointwise call, \code{olver_reduced} decides as follows. For $l\le2$ it uses
+\code{phi_recurs}. For $l>2$ it first tries the small-$\chi$ map if
+\[
+  \left[\frac{\nu}{l}>2.5\quad{\rm or}\quad
+  \left(l\ge50\ {\rm and}\ \frac{\nu}{l}>1\right)\right],
+  \qquad
+  \frac{l^2\chi^7}{\nu}<5\times10^{-2},
+\]
+using $\nu/l$ and $l^2$ only as cheap high-$l$ gate proxies; the map itself uses
+the more accurate $\ell=\sqrt{l(l+1)}$ curvature scale. If that branch is not
+used, open models accept the full action-map value whenever
+\[
+  \frac{\nu}{l}\ge\alpha_{\rm open}(l),\qquad
+  \alpha_{\rm open}(l)=\max\!\left[
+  0.095,\,
+  0.12\left(\frac{500}{l}\right)^{p(l)}
+  \right],
+\]
+with $p(l)=0.70$ for $l<500$ and $p(l)=0.14$ for $l\ge500$. Below that cutoff,
+open models accept the full action-map value only in the endpoint corner
+\[
+  \frac{\chi}{2\nu}\le3.0\times10^{-3}.
+\]
+Closed models accept the full action-map value only when
+\[
+  \frac{\chi}{2(\nu-l)}\le7.0\times10^{-3}.
+\]
+Otherwise the fallback sequence first tries the second-order Airy one-point
+approximation for validated high-$l$ points ($l\ge100$ open, $l\ge150$ closed)
+and, in open models, a narrow small-$\nu$ approximation before calling
+\code{phi_recurs}. These thresholds are calibrated on peak-normalized error,
+keeping the raw Olver envelope near $10^{-4}$ on the validation grid.
+
+For source-integration fillers the small-$\chi$ map is used over a whole range
+when, with $\alpha_g=\nu/l$ and
+$m_\chi=l^2\chi_{\max}^7/\nu$,
+\[
+  \bigl[\alpha_g>2.5\ {\rm or}\ (l\ge50\ {\rm and}\ \alpha_g>1)\bigr],
+  \qquad
+  m_\chi<0.1/B_{\rm acc},
+\]
+with $B_{\rm acc}\ge1$ the non-flat source accuracy boost. The pointwise
+\code{phi_olver} small-$\chi$ gate is separate and uses the tighter current-point
+metric $l^2\chi^7/\nu<5\times10^{-2}$. The shifted-$q$ filler additionally
+requires the constant-map error estimate
+$\epsilon_{\rm shift}<10^{-3}/B_{\rm acc}$, where, with $t=\alpha\chi$,
+\begin{equation}
+  \epsilon_{\rm shift}=\frac12\frac{\ell\,t_{\max}^3}{90\alpha^4}+\frac{t_{\max}^2}{180\alpha^4}
+  \label{eq:shift-error}
+\end{equation}
+combines the leading omitted argument shift and amplitude correction at the range
+endpoint. A bookkeeping sampling-ratio test ($|s_{\rm peak}-1|\le0.03$, comparing
+the acoustic-peak sampling to a fiducial flat one) gates whether the flat-table
+machinery is reused at all.
+
+\subsection{Recurrence and the \textsc{CLASS} comparison}
+\label{app:bessel-recur}
+
+The exact seeds are $\phi_0^\nu=\sin(\nu\chi)/(\nu\SK)$ and
+$\phi_1^\nu=[\cotK\chi\,\sin(\nu\chi)/\nu-\cos(\nu\chi)]/(\SK\,b_1)$ (with Taylor
+safeguards for small arguments), reducing to $j_{0,1}(\nu\chi)$ for $K=0$. The
+three-term recurrence is
+\begin{equation}
+  b_j\phi_j^\nu=(2j-1)\cotK\chi\,\phi_{j-1}^\nu-b_{j-1}\phi_{j-2}^\nu,
+  \label{eq:up-recurrence}
+\end{equation}
+used upward only in the safely oscillatory region
+$|\cotK\chi|<b_l/\max(1,l)$, with an open-space refinement using
+$y_{\rm open}=\nu\sinh\chi/l$.  For $K=-1$ upward recurrence is also used in the
+near-turning layer $y_{\rm open}\ge1-5\times10^{-3}$, and for the very low
+$\nu/l$ family when $\nu/l\le2.1\times10^{-3}$ and $y_{\rm open}\ge0.9$.
+These extra open gates were calibrated with peak-normalized forward/Miller
+comparisons, keeping tiny-$\chi$ low-$\nu/l$ cases on Miller.  Elsewhere the
+recurrence is run downward (Miller),
+\begin{equation}
+  \phi_{j-1}^\nu=\frac{(2j+1)\cotK\chi\,\phi_j^\nu-b_{j+1}\phi_{j+1}^\nu}{b_j},
+  \label{eq:down-recurrence}
+\end{equation}
+from a top boundary condition and normalized to the exact seeds. For flat and open
+models the start uses the continued-fraction logarithmic derivative
+\begin{equation}
+  D_l=l\cotK\chi-\cfrac{b_{l+1}^2}{(2l+3)\cotK\chi-\cfrac{b_{l+2}^2}{(2l+5)\cotK\chi-\cdots}} .
+\end{equation}
+For closed models ($K=+1$, integer $\nu$) the regular solution is the finite
+Gegenbauer form $\phi_l^\nu\propto\sin^l\chi\,C_{\nu-l-1}^{l+1}(\cos\chi)$; the
+code starts Miller recurrence either from the finite endpoint $b_\nu\phi_\nu=0$
+(when $\nu-l>64$) or directly from $G=C_n^{l+1}(\cos\chi)$ and its derivative near
+the endpoint, computed together by the Gegenbauer recurrence and rescaled only
+where $G$ is safely non-zero. A direct comparison with \textsc{CLASS} v3.3.4 shows
+the same seeds, the same upward/Miller recurrences, the same continued-fraction
+derivative and the same Gegenbauer start; the differences are organizational
+(\textsc{CLASS} tabulates over $l$ and $\chi$ while \code{phi_recurs} is a
+pointwise reference; the normalization seed and the precise closed-start switch
+differ).
+
+\section{Accuracy parameters and recommended settings}
+\label{app:accuracy}
+
+The user-facing accuracy is controlled by a small number of boost parameters, each
+multiplying one aspect of the calculation: \code{AccuracyBoost} (overall sampling
+and step sizes), \code{lSampleBoost} (density of computed multipoles before
+interpolation), \code{lAccuracyBoost} (depth of the Boltzmann hierarchies),
+\code{IntTolBoost} (ODE integration tolerances), \code{BackgroundTimeStepBoost}
+(background and recombination grid), and \code{lens_potential_accuracy} (which
+mainly raises $k_{\max}$ for the lensing and transfer integration). All default to
+one, except \code{lens_potential_accuracy}, which by default is chosen
+automatically from the requested $\ell_{\max}$ as $\max(4,(\ell_{\max}-1500)/500)$
+(\cref{sec:lensing}); increasing any of them tightens the result towards the
+converged reference.
+
+The validation reference used by \code{check_accuracy} doubles
+\code{AccuracyBoost}, \code{lSampleBoost}, \code{lAccuracyBoost} and
+\code{IntTolBoost} together, which empirically brackets the converged result. The
+default, unboosted settings are designed so that the lensed CMB and matter power
+pass maximum-error tests at the $10^{-3}$ level over the range relevant to
+extended SO and to the matter-power surveys, with no boost. \Cref{tab:tol} lists
+the validated acceptance tolerances: these are maximum absolute fractional errors
+within each range, not RMS errors over the range. The actual errors are therefore
+usually much smaller than the quoted numbers, except for isolated points that
+happen to set the maximum.
+
+\begin{table}[t]
+\centering
+\small
+\begin{tabular}{lll}
+\toprule
+Output & Range & Tolerance \\
+\midrule
+Lensed $TT,EE$ & $2\le\ell<600$ & $3\times10^{-3}$ \\
+(and normalized $TE$) & $600\le\ell<3500$ & $1\times10^{-3}$ \\
+ & $3500\le\ell<6000$ & $3\times10^{-3}$ \\
+ & $\ell\ge6000$ & $2\times10^{-2}$ \\
+\midrule
+Lensing potential & $2\le L<5$ & $9\times10^{-3}$ \\
+$C_L^{\phi\phi}$ & $5\le L<2500$ & $5\times10^{-3}$ \\
+ & $2500\le L<4000$ & $1\times10^{-2}$ \\
+ & $L\ge4000$ & $2\times10^{-2}$ \\
+\midrule
+$BB$ & $2\le\ell<1000$ & $5\times10^{-3}$ \\
+ & $1000\le\ell<6000$ & $1\times10^{-2}$ \\
+ & $\ell\ge6000$ & $2\times10^{-2}$ \\
+\midrule
+Matter power & $k/h<5\times10^{-3}$ & $3\times10^{-3}$ \\
+(linear) & $5\times10^{-3}<k/h<2$ & $1\times10^{-3}$ \\
+ & $k/h>2$ & $3\times10^{-3}$ \\
+\midrule
+Matter power & $k/h<1$ & $3\times10^{-3}$ \\
+(nonlinear) & $1<k/h<10$ & $5\times10^{-3}$ \\
+ & $k/h>10$ & $1\times10^{-2}$ \\
+\bottomrule
+\end{tabular}
+\caption{Validated acceptance tolerances for the default settings, applied by
+\code{check_accuracy} as maximum absolute fractional differences against the
+boosted reference, not RMS differences over the range; $k/h$ is in
+$h\,\mathrm{Mpc}^{-1}$. The $10^{-3}$ entries -- the interior lensed CMB and the
+quasi-linear matter power -- are the design target for extended SO and the
+matter-power surveys; the looser entries are at the spectrum ends, in the
+high-$\ell$ lensed tail, and in the deeply nonlinear regime where the nonlinear
+model sets the floor.}
+\label{tab:tol}
+\end{table}
+
+To put these maximum-error tolerances on a likelihood scale, we evaluated the
+same SO-like Gaussian mean likelihood used by the accuracy-checking code, with
+the Planck-2018 best-fit spectra as the fiducial model and summed over
+$2\le\ell\le4000$. This is a pessimistic envelope calculation, not a model for
+the usual error distribution. If the errors in $TT$, $EE$, normalized $TE$ and
+$BB$ at every multipole were independent random numbers uniformly distributed up
+to the maximum values in \cref{tab:tol}, the expectation would be
+$\Delta\chi^2\simeq9.6$ (with approximately 2.4, 5.0 and 2.2 from the three
+multipole ranges $2\le\ell<600$, $600\le\ell<3500$ and
+$3500\le\ell\le4000$). If instead every one of these spectra sat coherently at
+the maximum-error boundary, the same calculation would give
+$\Delta\chi^2\simeq34$; choosing the global sign combination that maximizes the
+distance changes this only slightly, to $\Delta\chi^2\simeq35$. Real numerical
+differences are much smaller than this envelope: for the same Planck-2018
+fiducial model, the actual default calculation compared to the boosted
+\code{check_accuracy} reference gives $\Delta\chi^2\simeq0.46$.
+For the lensing-potential rows we use the public SO MV $N_L^{\kappa\kappa}$ curve,
+$f_{\rm sky}=0.4$, and the scalar Gaussian likelihood for $C_L^{\kappa\kappa}$
+over $2\le L\le3000$. The same maximum-error envelope gives
+$\Delta\chi^2\simeq0.14$ for independent random residuals and
+$\Delta\chi^2\simeq0.43$ for a coherent residual at the tolerance boundary. The
+result is dominated by $5\le L<2500$; extending the same proxy to $L=4000$
+changes the numbers by less than one per cent. The matter-power tolerances still
+need a separate large-scale-structure likelihood to map them to a likelihood
+distance.
+% Reproducible with docs/changelog/accuracy_tolerance_chi2.py.
+
+For analyses that need more than the default -- high-$\ell$ delensing, or matter
+power deep into the nonlinear regime -- the boosts above should be increased
+together. \todo{give a concrete recommended (\code{AccuracyBoost},
+\code{lSampleBoost}, \code{lAccuracyBoost}, \code{lens_potential_accuracy}) tuple
+per use case, with the resulting wall time and validated tolerance, once the
+performance numbers in \cref{sec:performance} are finalized.}
+
+% References are drawn from the shared CAMB/CosmoMC database docs/cosmomc.bib
+% where available; paper-specific references not in that database are in
+% docs/CAMB2refs.bib. See the header of CAMB2refs.bib for the key remappings
+% relative to the earlier hand-written bibliography.
+\bibliographystyle{apsrev4-2}
+\bibliography{cosmomc,CAMB2refs}
+
+\end{document}
