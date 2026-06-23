@@ -62,7 +62,7 @@ STRICT_REFERENCE_SETTINGS = {
     "AccuracyBoost": 3.0,
     "lSampleBoost": 3.0,
     "lAccuracyBoost": 3.0,
-    "min_l_logl_sampling": 10000,
+    "min_l_logl_sampling": 100000,
 }
 
 DEFAULT_NOISE_CONFIGS = {

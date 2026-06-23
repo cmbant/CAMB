@@ -200,6 +200,21 @@ CLASS neutrino-related parameters to check:
 - When debugging a discrepancy, first confirm that CLASS runs standalone before
   changing CAMB or CLASS precision settings.
 
+## Lensed CMB Accuracy Checks
+
+- Lensed spectra have high-ell convolution edge effects. For a plotted range
+  ending at `lmax_plot`, compute CLASS lensed spectra beyond the plotted range
+  and truncate only for the comparison. As a starting point, use
+  `l_max_scalars = lmax_plot + 2000`
+- For purely numerical comparisons, match the effective lensing cutoff, not just the named accuracy setting. If
+  CAMB's reference has `max_eta_k`, set CLASS
+  `k_max_tau0_over_l_max = max_eta_k / l_max_scalars` for the CLASS compute
+  `l_max_scalars`. If you change CLASS's compute `lmax`, recompute this ratio so
+  the physical `k_max eta0` remains fixed.
+- `cl_ref` or other high-accuracy CLASS lensed-CMB runs can be very slow and may
+  use more than 16 GB of memory, especially with large `l_max_scalars` and tight
+  source/perturbation settings. If a high-accuracy run approaches memory limits, reducing `OMP_NUM_THREADS` may help.
+
 ## CLASS-native Commands
 
 Useful CLASS commands from the extracted source tree:

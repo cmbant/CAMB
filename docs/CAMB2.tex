@@ -83,10 +83,13 @@ work to a fast flat spherical Bessel routine; near-flat models reduce to a
 rescaling of the flat argument, and a Numerov integrator advances
 neighbouring source points cheaply between occasional reference evaluations. We
 also describe a fast updated recombination model fit, a stabilized parameterized post-Friedmann dark-energy
-evolution, CMB lensing accuracy work, and discuss possible different definitions of the linear matter power spectrum in the presence of strongly non-linear sources from reionization. Accuracy is assessed
+evolution, CMB lensing accuracy work, and discuss the different possible definitions of the linear matter power spectrum in the presence of strongly non-linear sources from reionization. Accuracy is assessed
 with a deterministic validation harness that compares default runs to
-boosted references. Essentially all of the new code and algorithms were co-developed with AI agents under human supervision. The non-flat implementation is an example of building \emph{custom-precision} numerical libraries --
-numerical implementations AI-generated and calibrated to exactly the accuracy a problem need instead of wasting compute on the unnecessary precision of standard libraries.
+boosted references. Essentially all of the new code and algorithms were
+co-developed with AI agents under human supervision. The non-flat routine illustrates a more general shift towards
+\emph{custom-precision} numerical methods: implementations calibrated to exactly
+the accuracy a problem needs on the grid it actually samples, rather than carrying
+expensive fixed precision of general-purpose libraries.
 \end{abstract}
 
 \maketitle
@@ -138,7 +141,7 @@ functions used in curved-space line-of-sight integration
 (\cref{sec:bessel}), which is the technical heart of the paper. Instead of
 mapping the curved radial equation onto an Airy function near its turning point,
 as in the uniform WKB treatments of
-Refs.~\cite{Kosowsky:1998nc}, we map it onto the
+Ref.~\cite{Kosowsky:1998nc}, we map it onto the
 \emph{flat} spherical Bessel equation. The comparison solution is then the
 ordinary flat spherical Bessel function, evaluated by a fast dedicated
 routine~\cite{cambflatbessel}, which already carries the Airy transition, the
@@ -149,27 +152,28 @@ amplitude. The flat bessel mapping is very similar in spirit to the
 mapping approximation used by~\cite{tram2013,lesgourgues-tram2013}, but more general and implemented differently.
 We also describe a new fast fit to recombination models, direct fits for the massive-neutrino background and
 momentum sampling (\cref{sec:recomb,sec:neutrinos}), a stabilized parameterized
-post-Friedmann (PPF) dark-energy evolution (\cref{sec:de}), and the curvature and
-lensing accuracy work (\cref{sec:lensing,sec:curvature}).
+post-Friedmann (PPF) dark-energy evolution (\cref{sec:de}), and the lensing
+accuracy work (\cref{sec:lensing}).
 
-The second contribution is methodological. Almost all of this work was
-co-developed with AI agents, with a human in the loop, driven by an objective
-accuracy harness (\cref{sec:validation,sec:agentic}). This is a concrete example
-of a shift that we expect to become widespread: away from general-purpose
-special-function libraries with a fixed accuracy/speed trade-off, and towards
-\emph{custom-precision} numerical methods, hand-fitted and exhaustively
-calibrated to exactly the accuracy a given problem needs on the grid it actually
-samples. The hyperspherical Bessel routine is the clearest example, but the same
-philosophy -- spend accuracy where it matters, and prove it with a reproducible
-test -- runs through all of the changes.
+The second contribution is methodological, and has two related parts. The first
+is a design philosophy: away from general-purpose special-function libraries with
+a fixed accuracy/speed trade-off, and towards \emph{custom-precision} numerical
+methods, hand-fitted and exhaustively calibrated to exactly the accuracy a given
+problem needs on the grid it actually samples. The hyperspherical Bessel routine
+is the clearest example, but the same principle -- spend accuracy where it
+matters, and prove it with a reproducible test -- runs through all of the changes.
+The second is the process: almost all of this work was co-developed with AI tools.
+ For more analytic work, LLMs were used to suggest and critique possible implementation algorithms or approximations, with iterative testing and cross-LLM/human validation and review.
+For accuracy stability failures and bugs, agents with a human in the loop drove a deterministic validation harness to isolate and fix issues (\cref{sec:validation,sec:agentic}). The agents made it practical to
+hand-fit and exhaustively validate this many code tweaks and alternative numerical methods, a labour that would
+otherwise be prohibitive.
 
 We begin with conventions and code notation (\cref{sec:conventions}), then
 describe the line-of-sight and hyperspherical-Bessel calculation
 (\cref{sec:bessel}), recombination, reionization and background evolution
 (\cref{sec:recomb}), massive-neutrino background and momentum sampling
 (\cref{sec:neutrinos}), stabilized dark-energy evolution (\cref{sec:de}), lensed
-CMB and matter-power accuracy (\cref{sec:lensing}), and curvature-specific
-checks (\cref{sec:curvature}). We then describe the validation methodology
+CMB and matter-power accuracy (\cref{sec:lensing}). We then describe the validation methodology
 (\cref{sec:validation}), the agentic development approach (\cref{sec:agentic}),
 performance (\cref{sec:performance}), and recommended settings
 (\cref{sec:summary}). \Cref{app:bessel} collects the detailed Bessel mathematics
@@ -533,6 +537,29 @@ only once $s$ departs appreciably from one, so flat and near-fiducial models are
 left unchanged. This keeps the high-$\ell$ cost roughly fixed across the range of
 acoustic scales of interest.
 
+\subsection{Numerical performance}
+\label{sec:bessel-curvature}
+
+The non-flat path is also cheap. On a four-thread timing sweep of the 11
+default-accuracy models
+$\Omega_K=\{-0.03,-0.02,-0.01,-10^{-3},-10^{-5},0,10^{-5},10^{-3},0.01,0.02,0.03\}$
+used in the validation set, the new implementation has a geometric-mean CPU time
+of $5.14\,$s at $l_{\max}=4000$, against $68.3\,$s for the previous
+\textsc{CAMB} v1.x code at the same effective lensing-potential accuracy -- a
+factor $13.3$ speed-up (at higher accuracy). The corresponding \textsc{CLASS}~3.3.4 timings for the
+same models, with its CMB-lensing full-Limber cutoff set to the same physical
+reach as the new \textsc{CAMB} default lensing integration,
+$k_{\max}=6.41\,\mathrm{Mpc}^{-1}$, are $14.5\,$s at default precision and
+$24.3\,$s with \code{cl_permille} precision. Within the new \textsc{CAMB} sweep
+the near-flat cases with $|\Omega_K|\le10^{-3}$ have geometric-mean CPU time
+$4.58\,$s, against $3.74\,$s for the exactly flat $\Omega_K=0$ case; the most
+closed case ($\Omega_K=0.03$) takes $5.15\,$s and the slowest open case
+($\Omega_K=-0.03$) takes $7.21\,$s. Curvature is therefore a modest overhead
+rather than a separate slow path, and the source-integration and lensing work
+parallelizes well over the 4--8 threads typical of interactive analysis runs.
+Current CMB constraints concentrate close to flatness, where the overhead is
+smallest.
+
 \section{Recombination and the background}
 \label{sec:recomb}
 
@@ -774,7 +801,7 @@ $\ell\gtrsim3000$, again reflecting the residual modelling difference relative
 to the more detailed \textsc{CosmoRec} helium radiative-transfer calculation
 used as the reference.
 
-As a quantitative CMB-impact diagnostic, the accuracy checking code use a simple Gaussian
+As a quantitative CMB-impact diagnostic, the accuracy checking code uses a simple Gaussian
 mean likelihood, applied to lensed $TT,EE,BB$ spectra. At each
 multipole we use the covariance expected from cosmic variance on sky fraction
 $f_{\rm sky}=0.6$, a 1.4 arcmin beam, and white noise levels of 2.6 and
@@ -1179,11 +1206,11 @@ the truncation is apodized with a new $C^2$-continuous (quintic) taper that brin
 the correlation function smoothly to zero over a narrow window, suppressing the
 ringing that a sharp cut would alias into the spectra (the taper replaces a cruder
 earlier treatment)\footnote{At low multipoles the reionization bump in $EE$
-can cause instabilities in the apodized trucated correlation function calculation.
+can cause instabilities in the apodized truncated correlation function calculation.
 We apply a smooth taper that removes the low-$\ell$ bump to regularize the lensing
 calculation. We do not attempt to accurately model the tiny linear signal of lensed
 reionization rescattering, which the full angular range calculation slightly
-overestimtes due to the lower source redshift than the primary CMB.}. When accurate $BB$ is required -- for tensor B-mode analysis for
+overestimates due to the lower source redshift than the primary CMB.}. When accurate $BB$ is required -- for tensor B-mode analysis for
 example -- the correlation integrals are instead evaluated over the full angular
 range by Gauss--Legendre quadrature, accumulating the curved-sky Wigner-$d$
 combinations directly.
@@ -1211,28 +1238,8 @@ sampling and hierarchy settings -- for example the massive-neutrino multipole
 hierarchy depth at high mass -- which we do not enumerate individually; they are
 recorded in the code history and, more usefully, are captured by the validation
 suite, which now passes at the target tolerances across the model grid. Baryonic
-feedback on the small-scale matter power can be included with the \textsc{SP(k)}
+feedback on the small-scale matter power can now also be included with the \textsc{SP}(k)
 model~\cite{Salcido:2023etq}.
-
-\section{Curvature}
-\label{sec:curvature}
-
-The near-flat shortcuts of \cref{sec:bessel} are designed so that the curved
-calculation varies continuously into the flat one as $\Omega_K\to0$. We verify
-this explicitly by sweeping $\Omega_K$ through zero at fixed cosmology and
-checking that the lensed $C_\ell$ vary smoothly and agree with the flat result in
-the limit, with no discontinuity at the switch between flat and non-flat
-treatments. This continuity is a practical requirement for parameter estimation,
-where a sampler must be able to cross $\Omega_K=0$ without seeing a step in the
-likelihood. \todo{add the $\Omega_K\to0$ continuity figure (data in
-nearflat\_omk\_pm1e-6 sweep)}
-
-For genuinely non-flat models the source integration uses the Numerov path of
-\cref{sec:bessel-numerov}, re-seeded periodically from Olver reference values; the
-sampling in $l$ and the maximum wavenumber are adjusted for the geometric shift of
-the acoustic peaks, with the near-flat table shortcuts used only when a
-sampling-ratio test confirms the peak positions are close enough to the fiducial
-flat sampling.
 
 \section{Validating accuracy}
 \label{sec:validation}
@@ -1241,7 +1248,7 @@ Every accuracy claim in this paper rests on a deterministic validation harness,
 \code{camb.check_accuracy}, which compares a default run to a boosted reference and
 reports the fractional differences per output, multipole or wavenumber range. The
 reference doubles the main accuracy controls (\code{AccuracyBoost},
-\code{lSampleBoost}, \code{lAccuracyBoost}, \code{IntTolBoost}), which empirically
+\code{lSampleBoost}, \code{lAccuracyBoost}), which empirically
 brackets the converged result. The default, unboosted settings are designed so
 that the interior lensed CMB spectra and the matter power spectrum in the
 quasi-linear regime agree with this reference at the $10^{-3}$ level -- the
@@ -1261,29 +1268,95 @@ the target tolerances in essentially all cases, with the residual failures
 confined to characterized endpoint and extreme-tail regions (the very edge of a
 requested $l_{\max}$, and the high-$\ell$ tail of $21\,$cm configurations) rather
 than to interior accuracy. We treat those edge cases as documented limitations
-rather than blockers. \todo{add the default-vs-reference residual summary figure
-across the model grid}
+rather than blockers.
 
-This harness is also the objective function for the development methodology
-described next: it is what tells us, deterministically, whether a proposed change
-helps, leaves accuracy unchanged, or regresses some other model.
+The new non-flat approximations are built so that the curved calculation varies
+continuously into the flat one as $\Omega_K\to0$, with no step at the switch
+between the flat and non-flat treatments. We verify this directly: sweeping
+$\Omega_K$ through zero at fixed angular acoustic scale, the lensed $C_\ell$ and other spectra vary smoothly and
+approach the flat result to well wtihin tolerance as $\Omega_K\to0$.
+
+
+\Cref{fig:lensed-cl-validation} shows a representative high-resolution lensed
+CMB test at \(l_{\max}=4000\). To isolate numerical accuracy from changes in
+physical modelling, both \textsc{CAMB} and \textsc{CLASS} are run with the same
+late-time nonlinear model (standard HMCode 2020 with no feedback), the same
+physical cutoff \(k_{\max}\eta_0=144000\), fixed \(Y_{\rm He}=0.245\), and the
+older Planck-era RECFAST recombination settings rather than the updated
+recombination fit introduced in this paper. The comparison is therefore a
+like-for-like numerical test, not a statement that the shared physical model is
+the most accurate description of the Universe. The same figure also overlays a
+plausible baryonic-feedback change in
+\textsc{CAMB}, showing the scale of physical modelling uncertainty in the
+nonlinear lensing contribution, which dominates at very high $\ell$.
+
+\begin{figure*}[t!]
+  \begin{center}
+  \includegraphics[width=0.88\textwidth]{changelog/lensed_cls_validation/lensed_cls_validation_residuals_planck_recfast_cl_permille_boosted_ee_gt3000.pdf}
+  \caption{Lensed CMB numerical validation for a flat \(\Lambda\)CDM model with
+  \(\ell_{\max}=4000\), using a strict-reference boosted \textsc{CAMB} run as the
+  reference. Up to \(\ell=3000\) the plotted quantity is the envelope
+  \(\max(|\Delta TT|/TT,|\Delta EE|/EE,|\Delta TE|/\sqrt{TT\,EE})\); above
+  \(\ell=3000\), where foregrounds dominate temperature, the plot shows \(|\Delta EE|/EE\). The
+  \textsc{CLASS} comparisons use
+  version 3.3.4 with \code{cl_permille} precision and a targeted boosted
+  \code{cl_permille} variant; to avoid lensing-convolution edge effects the \code{cl_permille} curve is computed to
+  \(\ell=8000\), while the boosted  \code{cl_permille} curve is computed to \(\ell =6000\). Both
+  codes use Planck-era RECFAST with fixed \(Y_{\rm He}=0.245\), standard HMCode
+  2020 with no feedback, and matched \(k_{\max}\eta_0\), so the comparison as far as possible tests
+  numerical like-for-like accuracy rather than physical accuracy. The gray band
+  is the corresponding idealized \(1\sigma\)
+  uncertainty on an overall spectral-amplitude parameter for an SO-like
+  measurement in a bin of width \(\Delta \ell=\ell/2\) centred on each \(\ell\).
+  % using the \(TT+EE\) Fisher contribution for multipoles in the bin with \(\ell\le3000\) and the \(EE\)-only contribution for multipoles with  \(\ell >3000\).
+  The HMCode baryonic-feedback curve uses
+  the \code{mead2020_feedback} model with
+  \(\log_{10}(T_{\rm AGN}/{\rm K})=7.8\), relative to the no-feedback HMCode
+  result, to indicate the size of possible physical modelling uncertainties.}
+  \label{fig:lensed-cl-validation}
+  \end{center}
+\end{figure*}
+
 
 \section{Agentic co-development}
 \label{sec:agentic}
 
-Building and, crucially, validating methods at this level of specificity is
-laborious, and almost all of the work described here was carried out by AI agents
-with a human in the loop. The agents operated against the deterministic
-\code{check_accuracy} harness of \cref{sec:validation} as an objective function,
-using a small toolchain packaged as reusable agent \emph{skills} and
-\emph{subagents}, so the same procedure could be invoked repeatably: an
-orchestrating skill that isolates a single, physically scoped accuracy fix at a
-time and retains sole authority over the patch; a diagnostic subagent that
+The custom-precision approach of this paper is laborious to build and, more so, to
+validate, and almost all of that work was carried out by AI agents with a human in
+the loop, against the deterministic \code{check_accuracy} harness of
+\cref{sec:validation} as the validation target. In the common case the agents
+worked directly: generating diagnostic scripts that compare a routine against a
+high-accuracy reference, scan the region a gate will actually accept, and propose a
+local fix. Most of the hyperspherical Bessel calibration was done this way -- for
+example tuning the continuous \(\nu/l\) cutoff for the full-Olver fast path to the
+point where a handful of accepted errors between \(10^{-4}\) and \(2\times10^{-4}\)
+buy a large fraction of fast-path evaluations, a measured tradeoff chosen for the task in hand.
+
+For regressions whose cause was not obvious, the workflow separated the roles to
+keep fixes physically local and guard against overfitting: a diagnostic subagent
 reproduces one failure in a disposable copy of the code and drills from the broad
-accuracy control down to the specific lines responsible, rebuilding before every
-test; and an independent read-only subagent that audits each proposed change for
-scope, gating and physical motivation. The human role was to set
-the targets, supervise the physics, and review and accept the final changes.
+accuracy control down to the responsible lines; an orchestrating skill holds sole
+authority over the patch and changes one issue at a time; and an independent
+read-only subagent audits the result for scope, gating and physical motivation. The
+governing rule is locality -- a fix must match the measured extent of the problem
+and be gated in its natural coordinate (\(k\), \(\ell\), redshift, or \(\nu/l\)),
+neither broader than the runtime cost justifies nor narrower than correctness
+allows. The skills, subagents, and a dated changelog per fix are kept in the
+repository as part of the reproducible record.
+
+The agents were consistently good at isolating a minimal change that restores the
+harness, but markedly less reliable at finding the \emph{right} one: a patch could
+meet the target tolerances while resting on a numerical coincidence rather than a
+physical mechanism. Deciding whether the mechanism was correct required physical
+judgement, which current models are not yet good at, so the work was iterative --
+multiple rounds of search, with the human rejecting passing-but-unphysical
+candidates and redirecting the next pass. The harness makes a regression visible
+and reproducible, but does not by itself certify that a fix is physical; that,
+along with setting the accuracy targets and accepting the final changes, remained a
+human responsibility.
+
+The markdown files defining the \code{isolate-accuracy-fix} skill and subagents,
+along with a \code{classy-comparisons} skill guiding \code{CLASS} installation and like-with-like runs, are provided with the source code.
 
 \section{Performance}
 \label{sec:performance}
@@ -1318,7 +1391,7 @@ validated deterministically -- to become an increasingly common way to meet the
 accuracy demands of precision cosmology.
 
 \begin{acknowledgments}
-AL is supported by the UK STFC grant ST/X001040/1. I thank Jens Chuba and Yacine Ali-Haimoud for recombination advice,
+AL is supported by the UK STFC grant ST/X001040/1. I thank Jens Chluba and Yacine Ali-Haimoud for recombination advice,
 Simons Observatory collaborators on likelihood and theory, and various CAMB github issue and PR contributors who
 reported errors or contributed new code or patches. The
 algorithms and code described here were co-developed with LLM chats and AI coding agents
@@ -1580,6 +1653,12 @@ distance changes this only slightly, to $\Delta\chi^2\simeq35$. Real numerical
 differences are much smaller than this envelope: for the same Planck-2018
 fiducial model, the actual default calculation compared to the boosted
 \code{check_accuracy} reference gives $\Delta\chi^2\simeq0.46$.
+In real parameter analyses the required numerical accuracy is also less severe:
+foreground residuals, calibration, beams and other instrumental nuisance
+parameters, and nonlinear lensing modelling uncertainties generally set the
+practical floor before numerical errors at this conservative envelope would move
+parameters appreciably.
+
 For the lensing-potential rows we use the public SO MV $N_L^{\kappa\kappa}$ curve,
 $f_{\rm sky}=0.4$, and the scalar Gaussian likelihood for $C_L^{\kappa\kappa}$
 over $2\le L\le3000$. The same maximum-error envelope gives

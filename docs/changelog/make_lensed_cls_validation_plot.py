@@ -1,13 +1,37 @@
-"""Make a lensed-CMB validation plot for the CAMB2 paper draft.
+"""Make the lensed-CMB validation plot for the CAMB2 paper draft.
 
 The plotted residual metric is the pointwise envelope
 
     max(|Delta TT|/TT, |Delta EE|/EE, |Delta TE|/sqrt(TT EE)).
 
-The full CLASS ``cl_ref.pre`` lensed run is very expensive at L=4000, so the
-default reference-precision CLASS curve is generated only to ``--class-ref-lmax``
-and masked above that multipole. Use ``--class-ref-lmax 4000`` for an overnight
-full-reference version.
+For the paper figure the high-ell tail uses |Delta EE|/EE only for ell>3000,
+since this is where foregrounds strongly dominate.
+
+Running with no arguments reproduces the published figure
+(fig:lensed-cl-validation in docs/CAMB2.tex):
+
+    python docs/changelog/make_lensed_cls_validation_plot.py
+
+That is, a CAMB reference using ``STRICT_REFERENCE_SETTINGS``
+(AccuracyBoost=lSampleBoost=lAccuracyBoost=3 and min_l_logl_sampling=100000),
+the plain CLASS ``cl_permille`` curve, and a ``cl_targeted_tight``
+("cl_permille boosted") CLASS curve plotted over the full L<=lmax range. By
+default the targeted CLASS curve is computed to L=lmax+2000 and then truncated;
+all curves use Planck-era RECFAST, fixed Y_He, HMCode 2020 (no feedback), and
+matched k_max*eta0. The output is written to
+docs/changelog/lensed_cls_validation/lensed_cls_validation_residuals_planck_recfast_cl_permille_boosted_ee_gt3000.pdf,
+the file referenced by the paper.
+
+The higher-accuracy CLASS curve is very expensive over the full range (tens of
+minutes). For a quick plot, lower its plotted range or skip it, e.g.
+
+    python docs/changelog/make_lensed_cls_validation_plot.py --class-ref-lmax 500
+    python docs/changelog/make_lensed_cls_validation_plot.py --skip-class-ref
+
+To change where the plot switches to EE-only residuals, use e.g.
+
+    python docs/changelog/make_lensed_cls_validation_plot.py --ee-only-above 3500
+    python docs/changelog/make_lensed_cls_validation_plot.py --no-ee-only-above
 """
 
 from __future__ import annotations
@@ -28,7 +52,13 @@ import numpy as np
 
 import camb
 from camb import model
-from camb.check_accuracy import DEFAULT_NOISE_CONFIGS, NoiseConfig, make_cmb_noise_spectra
+from camb.check_accuracy import (
+    DEFAULT_NOISE_CONFIGS,
+    STRICT_REFERENCE_SETTINGS,
+    NoiseConfig,
+    apply_accuracy_settings,
+    make_cmb_noise_spectra,
+)
 
 try:
     from classy import Class
@@ -41,6 +71,7 @@ except ImportError as exc:  # pragma: no cover - exercised only when CLASS is ab
 
 DEFAULT_OUTDIR = Path("docs/changelog/lensed_cls_validation")
 DEFAULT_CLASS_WORKDIR = Path(os.environ.get("CLASS_WORKDIR", os.environ.get("TMPDIR", "/tmp") + "/classy-comparisons"))
+DEFAULT_OUTPUT_STEM = "lensed_cls_validation_residuals_planck_recfast_cl_permille_boosted_ee_gt3000"
 CLASS_PRECISION_IGNORED_KEYS = {"recfast_Nz0", "l_max_ur_ten"}
 SPECTRUM_COLUMNS = {"TT": 0, "EE": 1, "BB": 2, "TE": 3}
 CLASS_PRECISION_PROFILES = ("cl_permille", "cl_targeted", "cl_targeted_tight", "cl_ref")
@@ -75,17 +106,29 @@ COSMOLOGY = {
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     parser.add_argument("--lmax", type=int, default=4000)
-    parser.add_argument("--class-ref-lmax", type=int, default=500)
+    parser.add_argument(
+        "--class-ref-lmax",
+        type=int,
+        default=None,
+        help=(
+            "Plotted-multipole limit for the higher-accuracy CLASS curve; it is masked above this. "
+            "Defaults to --lmax (full range, matching the published figure). The higher-accuracy CLASS "
+            "run is expensive, so pass a smaller value (e.g. 500) or --skip-class-ref for a quick plot."
+        ),
+    )
     parser.add_argument(
         "--class-ref-profile",
         choices=CLASS_PRECISION_PROFILES,
-        default="cl_targeted",
+        default="cl_targeted_tight",
         help=(
             "CLASS precision profile for the higher-accuracy comparison curve. "
             "cl_targeted and cl_targeted_tight are moderate CMB/lensing profiles between "
-            "cl_permille.pre and cl_ref.pre."
+            "cl_permille.pre and cl_ref.pre (default cl_targeted_tight, used for the published figure)."
         ),
     )
     parser.add_argument("--outdir", type=Path, default=DEFAULT_OUTDIR)
@@ -132,7 +175,71 @@ def build_parser() -> argparse.ArgumentParser:
         type=float,
         help="Explicit CLASS k_max_tau0_over_l_max override; takes precedence over --class-kmax-mode",
     )
+    parser.add_argument(
+        "--mnu",
+        type=float,
+        default=0.0,
+        help=(
+            "Summed neutrino mass in eV. Default 0 for the baseline paper plot; "
+            "use --mnu 0.06 for the standard minimal-mass variant."
+        ),
+    )
+    parser.add_argument(
+        "--num-massive-neutrinos",
+        type=int,
+        help="Number of massive neutrinos in CAMB. Defaults to 0 for mnu=0 and 1 for mnu>0.",
+    )
+    parser.add_argument(
+        "--neutrino-hierarchy",
+        choices=("degenerate", "normal", "inverted"),
+        default="degenerate",
+        help="CAMB neutrino hierarchy setting for mnu>0.",
+    )
     parser.add_argument("--feedback-logt-agn", type=float, default=7.8)
+    parser.add_argument(
+        "--strict-camb-reference",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help=(
+            "use camb.check_accuracy.STRICT_REFERENCE_SETTINGS (AccuracyBoost=3) for the boosted CAMB "
+            "reference (default; pass --no-strict-camb-reference for the lighter AccuracyBoost=2 reference)"
+        ),
+    )
+    parser.add_argument(
+        "--linear-lensing-only",
+        action="store_true",
+        help="Use linear matter power for all lensed spectra instead of HMCode nonlinear corrections",
+    )
+    parser.add_argument("--skip-class-ref", action="store_true", help="omit the higher-accuracy CLASS curve")
+    parser.add_argument(
+        "--output-stem",
+        default=DEFAULT_OUTPUT_STEM,
+        help="base filename for outputs (default writes the file referenced by docs/CAMB2.tex)",
+    )
+    parser.add_argument("--ymax", type=float, default=1.0e-2, help="upper limit for the residual-envelope axis")
+    parser.add_argument(
+        "--ee-only-above",
+        type=int,
+        default=3000,
+        help=("Use only |Delta EE|/EE in the residual curve above this multipole. Default 3000 for the paper figure."),
+    )
+    parser.add_argument(
+        "--no-ee-only-above",
+        dest="ee_only_above",
+        action="store_const",
+        const=None,
+        help="use the full TT/EE/TE residual envelope at all plotted multipoles",
+    )
+    parser.add_argument(
+        "--historical-camb-cache",
+        type=Path,
+        help="optional cached CAMB case from another checkout to compare against the boosted reference",
+    )
+    parser.add_argument(
+        "--historical-camb-label",
+        default="CAMB origin/master default / boosted CAMB",
+        help="legend label for --historical-camb-cache",
+    )
     parser.add_argument("--force", action="store_true", help="rerun cases even if cached data exist")
     return parser
 
@@ -238,7 +345,12 @@ def make_camb_params(
     lens_potential_accuracy: float | None,
     lens_output_margin: int,
     boosted: bool,
+    mnu: float,
+    num_massive_neutrinos: int,
+    neutrino_hierarchy: str,
     feedback_logt_agn: float | None = None,
+    use_nonlinear_lensing: bool = True,
+    strict_reference: bool = False,
 ) -> camb.CAMBparams:
     params = camb.CAMBparams()
     params.set_classes(recombination_model="Recfast")
@@ -247,16 +359,19 @@ def make_camb_params(
         H0=COSMOLOGY["H0"],
         ombh2=COSMOLOGY["ombh2"],
         omch2=COSMOLOGY["omch2"],
-        mnu=0.0,
-        num_massive_neutrinos=0,
+        mnu=mnu,
+        num_massive_neutrinos=num_massive_neutrinos,
+        neutrino_hierarchy=neutrino_hierarchy,
         nnu=COSMOLOGY["nnu"],
         YHe=COSMOLOGY["YHe"],
         tau=COSMOLOGY["tau"],
         TCMB=COSMOLOGY["TCMB"],
     )
     params.InitPower.set_params(As=COSMOLOGY["As"], ns=COSMOLOGY["ns"])
-    params.NonLinear = model.NonLinear_both
-    if feedback_logt_agn is None:
+    params.NonLinear = model.NonLinear_both if use_nonlinear_lensing else model.NonLinear_none
+    if not use_nonlinear_lensing:
+        params.NonLinearModel.set_params(halofit_version="mead2020")
+    elif feedback_logt_agn is None:
         params.NonLinearModel.set_params(halofit_version="mead2020")
     else:
         params.NonLinearModel.set_params(halofit_version="mead2020_feedback", HMCode_logT_AGN=feedback_logt_agn)
@@ -264,16 +379,19 @@ def make_camb_params(
         lmax,
         lens_potential_accuracy=lens_potential_accuracy,
         lens_output_margin=lens_output_margin,
-        nonlinear=True,
+        nonlinear=use_nonlinear_lensing,
     )
     if boosted:
-        params.set_accuracy(
-            AccuracyBoost=2.0,
-            lSampleBoost=2.0,
-            lAccuracyBoost=2.0,
-            min_l_logl_sampling=100000,
-        )
-        params.Accuracy.IntTolBoost = 2.0
+        if strict_reference:
+            apply_accuracy_settings(params, STRICT_REFERENCE_SETTINGS, boost_from_raw=True)
+        else:
+            params.set_accuracy(
+                AccuracyBoost=2.0,
+                lSampleBoost=2.0,
+                lAccuracyBoost=2.0,
+                min_l_logl_sampling=100000,
+            )
+            params.Accuracy.IntTolBoost = 2.0
     params.WantCls = True
     params.Want_CMB = True
     params.WantTransfer = False
@@ -328,12 +446,13 @@ def make_class_params(
     *,
     lmax: int,
     precision_overrides: dict[str, float | int | str],
+    neutrino_params: dict[str, float | int | str],
+    use_nonlinear_lensing: bool = True,
 ) -> dict[str, float | int | str]:
     params: dict[str, float | int | str] = {
         "output": "tCl,pCl,lCl",
         "lensing": "yes",
-        "non linear": "hmcode",
-        "hmcode_version": "2020",
+        "non linear": "hmcode" if use_nonlinear_lensing else "none",
         "l_max_scalars": lmax,
         "H0": COSMOLOGY["H0"],
         "omega_b": COSMOLOGY["ombh2"],
@@ -344,9 +463,10 @@ def make_class_params(
         "tau_reio": COSMOLOGY["tau"],
         "YHe": COSMOLOGY["YHe"],
         "T_cmb": COSMOLOGY["TCMB"],
-        "N_ur": COSMOLOGY["nnu"],
-        "N_ncdm": 0,
     }
+    params.update(neutrino_params)
+    if use_nonlinear_lensing:
+        params["hmcode_version"] = "2020"
     params.update(CLASS_PLANCK_RECFAST_PARAMS)
     params.update(precision_overrides)
     params.update(CLASS_PLANCK_RECFAST_PARAMS)
@@ -359,8 +479,15 @@ def run_class_case(
     lmax: int,
     precision_overrides: dict[str, float | int | str],
     k_max_tau0_over_l_max: float | None,
+    neutrino_params: dict[str, float | int | str],
+    use_nonlinear_lensing: bool = True,
 ) -> dict[str, Any]:
-    params = make_class_params(lmax=lmax, precision_overrides=precision_overrides)
+    params = make_class_params(
+        lmax=lmax,
+        precision_overrides=precision_overrides,
+        neutrino_params=neutrino_params,
+        use_nonlinear_lensing=use_nonlinear_lensing,
+    )
     if k_max_tau0_over_l_max is not None:
         params["k_max_tau0_over_l_max"] = k_max_tau0_over_l_max
     dls, raw_cls, cpu_s, wall_s = class_lensed_dls(params, lmax)
@@ -406,6 +533,26 @@ def float_tag(value: float) -> str:
     return f"{value:.6g}".replace("-", "m").replace(".", "p")
 
 
+def mnu_tag(mnu: float) -> str:
+    return "" if mnu == 0 else f"_mnu{float_tag(mnu)}"
+
+
+def class_neutrino_params_from_camb(params: camb.CAMBparams) -> dict[str, float | int | str]:
+    if params.nu_mass_eigenstates == 0:
+        return {"N_ur": params.num_nu_massless, "N_ncdm": 0}
+    t_std = (4 / 11) ** (1 / 3)
+    n = params.nu_mass_eigenstates
+    return {
+        "N_ur": params.num_nu_massless,
+        "N_ncdm": n,
+        "deg_ncdm": ",".join(str(params.nu_mass_numbers[i]) for i in range(n)),
+        "T_ncdm": ",".join(
+            str(t_std * (params.nu_mass_degeneracies[i] / params.nu_mass_numbers[i]) ** 0.25) for i in range(n)
+        ),
+        "omega_ncdm": ",".join(str(params.omnuh2 * params.nu_mass_fractions[i]) for i in range(n)),
+    }
+
+
 def residual_components(candidate: np.ndarray, reference: np.ndarray) -> dict[str, np.ndarray]:
     with np.errstate(divide="ignore", invalid="ignore"):
         tt = (candidate[:, 0] - reference[:, 0]) / reference[:, 0]
@@ -414,11 +561,18 @@ def residual_components(candidate: np.ndarray, reference: np.ndarray) -> dict[st
     return {"TT": tt, "EE": ee, "TE": te}
 
 
-def residual_envelope(candidate: np.ndarray, reference: np.ndarray, lmax: int) -> np.ndarray:
+def residual_envelope(
+    candidate: np.ndarray, reference: np.ndarray, lmax: int, ee_only_above: int | None = None
+) -> np.ndarray:
     envelope = np.full(lmax + 1, np.nan)
     max_l = min(lmax, candidate.shape[0] - 1, reference.shape[0] - 1)
     components = residual_components(candidate[: max_l + 1], reference[: max_l + 1])
-    stacked = np.vstack([np.abs(values) for values in components.values()])
+    abs_components = {name: np.abs(values) for name, values in components.items()}
+    if ee_only_above is not None:
+        start = max(0, ee_only_above + 1)
+        abs_components["TT"][start:] = np.nan
+        abs_components["TE"][start:] = np.nan
+    stacked = np.vstack(list(abs_components.values()))
     finite_columns = np.any(np.isfinite(stacked), axis=0)
     envelope[: max_l + 1][finite_columns] = np.nanmax(stacked[:, finite_columns], axis=0)
     envelope[:2] = np.nan
@@ -432,30 +586,51 @@ def mask_above(values: np.ndarray, lmax: int) -> np.ndarray:
     return masked
 
 
-def amplitude_fisher_per_ell(dls: np.ndarray, config: NoiseConfig, lmax: int) -> np.ndarray:
+def amplitude_fisher_per_ell(dls: np.ndarray, config: NoiseConfig, lmax: int, fields: tuple[str, ...]) -> np.ndarray:
     ell = np.arange(lmax + 1)
     noise = make_cmb_noise_spectra(ell, config)
     fisher = np.zeros(lmax + 1)
     for multipole in range(max(2, config.lmin), lmax + 1):
-        signal = np.array(
-            [
-                [dls[multipole, 0], dls[multipole, 3]],
-                [dls[multipole, 3], dls[multipole, 1]],
-            ]
-        )
-        total = signal + np.diag([noise["T"][multipole], noise["E"][multipole]])
-        try:
-            inv_total = np.linalg.inv(total)
-        except np.linalg.LinAlgError:
-            continue
-        fisher[multipole] = config.fsky * (2 * multipole + 1) * np.trace(inv_total @ signal @ inv_total @ signal) / 2.0
+        if fields == ("E",):
+            signal = dls[multipole, 1]
+            total = signal + noise["E"][multipole]
+            if total <= 0:
+                continue
+            fisher[multipole] = config.fsky * (2 * multipole + 1) * (signal / total) ** 2 / 2.0
+        elif fields == ("T", "E"):
+            signal = np.array(
+                [
+                    [dls[multipole, 0], dls[multipole, 3]],
+                    [dls[multipole, 3], dls[multipole, 1]],
+                ]
+            )
+            total = signal + np.diag([noise["T"][multipole], noise["E"][multipole]])
+            try:
+                inv_total = np.linalg.inv(total)
+            except np.linalg.LinAlgError:
+                continue
+            fisher[multipole] = (
+                config.fsky * (2 * multipole + 1) * np.trace(inv_total @ signal @ inv_total @ signal) / 2.0
+            )
+        else:
+            raise ValueError(f"Unsupported fields for amplitude Fisher: {fields}")
     return fisher
 
 
 def binned_amplitude_sigma(
-    dls: np.ndarray, config: NoiseConfig, lmax: int, fractional_bin_width: float = 0.5
+    dls: np.ndarray,
+    config: NoiseConfig,
+    lmax: int,
+    fractional_bin_width: float = 0.5,
+    fields: tuple[str, ...] = ("T", "E"),
+    ee_only_above: int | None = None,
 ) -> np.ndarray:
-    fisher_per_ell = amplitude_fisher_per_ell(dls, config, lmax)
+    fisher_per_ell = amplitude_fisher_per_ell(dls, config, lmax, fields)
+    if ee_only_above is not None:
+        if fields != ("T", "E"):
+            raise ValueError("--ee-only-above only applies to the TT+EE amplitude band")
+        fisher_ee = amplitude_fisher_per_ell(dls, config, lmax, ("E",))
+        fisher_per_ell[ee_only_above + 1 :] = fisher_ee[ee_only_above + 1 :]
     cumulative = np.concatenate(([0.0], np.cumsum(fisher_per_ell)))
     fisher = np.zeros(lmax + 1)
     for multipole in range(max(2, config.lmin), lmax + 1):
@@ -489,6 +664,8 @@ def make_plot(
     curves: dict[str, np.ndarray],
     sigma_a: np.ndarray,
     summaries: dict[str, dict[str, dict[str, float | int]]],
+    y_max: float = 1.0e-2,
+    ee_only_above: int | None = None,
 ) -> None:
     plt.rcParams.update(
         {
@@ -504,6 +681,8 @@ def make_plot(
     )
 
     def color_for(label: str) -> str:
+        if label.startswith("CAMB origin/master"):
+            return "#8a5a00"
         if label.startswith("CAMB default"):
             return "#111111"
         if label.startswith("CLASS cl_permille"):
@@ -517,6 +696,8 @@ def make_plot(
         return "0.2"
 
     def linestyle_for(label: str):
+        if label.startswith("CAMB origin/master"):
+            return (0, (1.5, 1.5))
         if label.startswith("CLASS cl_permille") and "boosted /" not in label and "tuned /" not in label:
             return "-"
         if "boosted" in label or "tuned" in label or label.startswith("CLASS cl_ref"):
@@ -538,6 +719,8 @@ def make_plot(
         zorder=0,
     )
     ax.axhline(1.0e-3, color="0.35", linewidth=0.9, linestyle=":")
+    if ee_only_above is not None:
+        ax.axvline(ee_only_above, color="0.55", linewidth=0.8, linestyle="--", zorder=0.5)
     for label, values in curves.items():
         ax.plot(
             ell,
@@ -550,7 +733,7 @@ def make_plot(
     ax.set_xscale("function", functions=(np.sqrt, np.square))
     ax.set_yscale("log")
     ax.set_xlim(2, ell[-1])
-    ax.set_ylim(ymin, 1.0e-2)
+    ax.set_ylim(ymin, y_max)
     xticks = np.array([2, 10, 30, 100, 300, 1000, 2000, 3000, 4000, 6000])
     xticks = xticks[(xticks >= 2) & (xticks <= ell[-1])]
     ax.set_xticks(xticks)
@@ -559,13 +742,26 @@ def make_plot(
     ax.set_ylabel(r"lensed $C_\ell$ residual envelope")
     ax.grid(True, which="major", color="0.88", linewidth=0.6)
     ax.grid(True, which="minor", color="0.93", linewidth=0.35)
-    ax.legend(loc="upper left", frameon=True, framealpha=0.96, borderpad=0.6)
+    legend = ax.legend(
+        loc="upper left",
+        frameon=True,
+        framealpha=0.96,
+        borderpad=0.6,
+    )
+    fig.canvas.draw()
+    legend_bbox = legend.get_window_extent(fig.canvas.get_renderer()).transformed(ax.transAxes.inverted())
     ax.text(
         0.018,
-        0.745,
-        r"$\max(|\Delta TT|/TT,\ |\Delta EE|/EE,\ |\Delta TE|/\sqrt{TT\,EE})$",
+        max(0.05, legend_bbox.y0 - 0.018),
+        (
+            r"Envelope: $\max(TT,EE,TE)$ residual"
+            if ee_only_above is None
+            else rf"Envelope: $\max(TT,EE,TE)$ for $\ell\leq {ee_only_above}$; EE only at $\ell>{ee_only_above}$"
+        ),
         transform=ax.transAxes,
         color="0.25",
+        fontsize=8,
+        va="top",
     )
     fig.tight_layout(pad=0.6)
     fig.savefig(path)
@@ -577,8 +773,22 @@ def main() -> None:
     args = build_parser().parse_args()
     if args.lmax <= 2:
         raise ValueError("--lmax must be greater than 2")
+    if args.ee_only_above is not None and args.ee_only_above < 2:
+        raise ValueError("--ee-only-above must be at least 2")
+    if args.mnu < 0:
+        raise ValueError("--mnu must be non-negative")
+    if args.num_massive_neutrinos is None:
+        args.num_massive_neutrinos = 0 if args.mnu == 0 else 1
+    if args.mnu == 0 and args.num_massive_neutrinos != 0:
+        raise ValueError("--num-massive-neutrinos must be 0 when --mnu is 0")
+    if args.mnu > 0 and args.num_massive_neutrinos <= 0:
+        raise ValueError("--num-massive-neutrinos must be positive when --mnu is non-zero")
+    if args.class_ref_lmax is None:
+        args.class_ref_lmax = args.lmax
     if args.class_ref_lmax > args.lmax:
         raise ValueError("--class-ref-lmax cannot exceed --lmax")
+    if args.output_stem == DEFAULT_OUTPUT_STEM and args.mnu != 0:
+        args.output_stem = f"{args.output_stem}{mnu_tag(args.mnu)}"
 
     args.outdir.mkdir(parents=True, exist_ok=True)
     class_root = find_class_root(args.class_workdir)
@@ -589,12 +799,35 @@ def main() -> None:
     )
     class_permille_compute_lmax = args.lmax + args.class_permille_lensing_margin
     class_ref_compute_lmax = args.class_ref_lmax + class_ref_lensing_margin
+    lensing_tag = "linear_lensing" if args.linear_lensing_only else "nonlinear_lensing"
+    cache_tag = RECOMBINATION_TAG if not args.linear_lensing_only else f"{RECOMBINATION_TAG}_{lensing_tag}"
+    cache_tag = f"{cache_tag}{mnu_tag(args.mnu)}"
+    reference_tag = "strictref" if args.strict_camb_reference else "boost2ref"
+    camb_reference_settings = (
+        STRICT_REFERENCE_SETTINGS
+        if args.strict_camb_reference
+        else {
+            "AccuracyBoost": 2.0,
+            "lSampleBoost": 2.0,
+            "lAccuracyBoost": 2.0,
+            "IntTolBoost": 2.0,
+            "min_l_logl_sampling": 100000,
+        }
+    )
+    baseline_nonlinear = (
+        "linear matter power only" if args.linear_lensing_only else "CAMB/CLASS standard HMCode 2020 with no feedback"
+    )
+    neutrino_model = {
+        "mnu": args.mnu,
+        "num_massive_neutrinos": args.num_massive_neutrinos,
+        "neutrino_hierarchy": args.neutrino_hierarchy,
+    }
 
     print(f"CAMB {camb.__version__}: {Path(camb.__file__).resolve()}")
     print(f"CLASS {class_version}: {class_root}")
 
     default = cached_case(
-        args.outdir / f"camb_default_{RECOMBINATION_TAG}.npz",
+        args.outdir / f"camb_default_{cache_tag}.npz",
         args.force,
         lambda: run_camb_case(
             make_camb_params(
@@ -602,12 +835,14 @@ def main() -> None:
                 lens_potential_accuracy=None,
                 lens_output_margin=200,
                 boosted=False,
+                **neutrino_model,
+                use_nonlinear_lensing=not args.linear_lensing_only,
             ),
             args.lmax,
         ),
     )
     boosted = cached_case(
-        args.outdir / f"camb_boosted_reference_{RECOMBINATION_TAG}.npz",
+        args.outdir / f"camb_{reference_tag}_{cache_tag}.npz",
         args.force,
         lambda: run_camb_case(
             make_camb_params(
@@ -615,9 +850,22 @@ def main() -> None:
                 lens_potential_accuracy=args.reference_lens_potential_accuracy,
                 lens_output_margin=args.reference_lens_output_margin,
                 boosted=True,
+                **neutrino_model,
+                use_nonlinear_lensing=not args.linear_lensing_only,
+                strict_reference=args.strict_camb_reference,
             ),
             args.lmax,
         ),
+    )
+    class_neutrino_params = class_neutrino_params_from_camb(
+        make_camb_params(
+            lmax=args.lmax,
+            lens_potential_accuracy=None,
+            lens_output_margin=200,
+            boosted=False,
+            **neutrino_model,
+            use_nonlinear_lensing=not args.linear_lensing_only,
+        )
     )
     if args.class_k_max_tau0_over_l_max is not None:
         class_permille_kmax = args.class_k_max_tau0_over_l_max
@@ -630,55 +878,79 @@ def main() -> None:
         class_ref_kmax = None
     class_permille_kmax_tag = kmax_tag(class_permille_kmax)
     class_ref_kmax_tag = kmax_tag(class_ref_kmax)
-    feedback = cached_case(
-        args.outdir / f"camb_hmcode_feedback_{RECOMBINATION_TAG}_logt{float_tag(args.feedback_logt_agn)}.npz",
-        args.force,
-        lambda: run_camb_case(
-            make_camb_params(
-                lmax=args.lmax,
-                lens_potential_accuracy=args.reference_lens_potential_accuracy,
-                lens_output_margin=args.reference_lens_output_margin,
-                boosted=True,
-                feedback_logt_agn=args.feedback_logt_agn,
+    feedback = None
+    if not args.linear_lensing_only:
+        feedback = cached_case(
+            args.outdir / f"camb_hmcode_feedback_{cache_tag}_logt{float_tag(args.feedback_logt_agn)}.npz",
+            args.force,
+            lambda: run_camb_case(
+                make_camb_params(
+                    lmax=args.lmax,
+                    lens_potential_accuracy=args.reference_lens_potential_accuracy,
+                    lens_output_margin=args.reference_lens_output_margin,
+                    boosted=True,
+                    **neutrino_model,
+                    feedback_logt_agn=args.feedback_logt_agn,
+                ),
+                args.lmax,
             ),
-            args.lmax,
-        ),
-    )
+        )
     class_permille = cached_case(
-        args.outdir
-        / f"class_cl_permille_{RECOMBINATION_TAG}_lmax{class_permille_compute_lmax}_{class_permille_kmax_tag}.npz",
+        args.outdir / f"class_cl_permille_{cache_tag}_lmax{class_permille_compute_lmax}_{class_permille_kmax_tag}.npz",
         args.force,
         lambda: run_class_case(
             lmax=class_permille_compute_lmax,
             precision_overrides=precision["cl_permille"],
             k_max_tau0_over_l_max=class_permille_kmax,
+            neutrino_params=class_neutrino_params,
+            use_nonlinear_lensing=not args.linear_lensing_only,
         ),
     )
-    class_ref = cached_case(
-        args.outdir
-        / (
-            f"class_{args.class_ref_profile}_{RECOMBINATION_TAG}_compute_lmax{class_ref_compute_lmax}"
-            f"_plot_lmax{args.class_ref_lmax}_{class_ref_kmax_tag}.npz"
-        ),
-        args.force,
-        lambda: run_class_case(
-            lmax=class_ref_compute_lmax,
-            precision_overrides=precision[args.class_ref_profile],
-            k_max_tau0_over_l_max=class_ref_kmax,
-        ),
-    )
+    class_ref = None
+    if not args.skip_class_ref:
+        class_ref = cached_case(
+            args.outdir
+            / (
+                f"class_{args.class_ref_profile}_{cache_tag}_compute_lmax{class_ref_compute_lmax}"
+                f"_plot_lmax{args.class_ref_lmax}_{class_ref_kmax_tag}.npz"
+            ),
+            args.force,
+            lambda: run_class_case(
+                lmax=class_ref_compute_lmax,
+                precision_overrides=precision[args.class_ref_profile],
+                k_max_tau0_over_l_max=class_ref_kmax,
+                neutrino_params=class_neutrino_params,
+                use_nonlinear_lensing=not args.linear_lensing_only,
+            ),
+        )
 
     ell = np.arange(args.lmax + 1)
     curves = {
-        "CAMB default / boosted": residual_envelope(default["dls"], boosted["dls"], args.lmax),
-        "CLASS cl_permille / boosted CAMB": residual_envelope(class_permille["dls"], boosted["dls"], args.lmax),
-        (
-            f"{class_profile_label(args.class_ref_profile)} / boosted CAMB"
-            if args.class_ref_lmax == args.lmax
-            else f"{class_profile_label(args.class_ref_profile)} (L<={args.class_ref_lmax}) / boosted CAMB"
-        ): mask_above(residual_envelope(class_ref["dls"], boosted["dls"], args.lmax), args.class_ref_lmax),
-        "HMCode feedback / DM-only": residual_envelope(feedback["dls"], boosted["dls"], args.lmax),
+        "CAMB default / boosted": residual_envelope(default["dls"], boosted["dls"], args.lmax, args.ee_only_above),
+        "CLASS cl_permille / boosted CAMB": residual_envelope(
+            class_permille["dls"], boosted["dls"], args.lmax, args.ee_only_above
+        ),
     }
+    historical_camb = None
+    if args.historical_camb_cache is not None:
+        historical_camb = load_case(args.historical_camb_cache)
+        curves[args.historical_camb_label] = residual_envelope(
+            historical_camb["dls"], boosted["dls"], args.lmax, args.ee_only_above
+        )
+    if class_ref is not None:
+        curves[
+            (
+                f"{class_profile_label(args.class_ref_profile)} / boosted CAMB"
+                if args.class_ref_lmax == args.lmax
+                else f"{class_profile_label(args.class_ref_profile)} (L<={args.class_ref_lmax}) / boosted CAMB"
+            )
+        ] = mask_above(
+            residual_envelope(class_ref["dls"], boosted["dls"], args.lmax, args.ee_only_above), args.class_ref_lmax
+        )
+    if feedback is not None:
+        curves["HMCode feedback / no feedback"] = residual_envelope(
+            feedback["dls"], boosted["dls"], args.lmax, args.ee_only_above
+        )
     ranges = {
         "low": (2, 599),
         "interior": (600, 3499),
@@ -698,10 +970,12 @@ def main() -> None:
         fields=("T", "E"),
     )
     amplitude_error_bin_width = 0.5
-    sigma_a = binned_amplitude_sigma(boosted["dls"], noise_config, args.lmax, amplitude_error_bin_width)
+    sigma_a = binned_amplitude_sigma(
+        boosted["dls"], noise_config, args.lmax, amplitude_error_bin_width, ee_only_above=args.ee_only_above
+    )
 
-    plot_path = args.outdir / "lensed_cls_validation_residuals.pdf"
-    make_plot(plot_path, ell, curves, sigma_a, summaries)
+    plot_path = args.outdir / f"{args.output_stem}.pdf"
+    make_plot(plot_path, ell, curves, sigma_a, summaries, args.ymax, args.ee_only_above)
 
     metadata = {
         "plot": str(plot_path),
@@ -715,6 +989,19 @@ def main() -> None:
         "class_ref_profile": args.class_ref_profile,
         "class_ref_profile_label": class_profile_label(args.class_ref_profile),
         "class_precision_overrides": precision[args.class_ref_profile],
+        "lensing_power": "linear" if args.linear_lensing_only else "hmcode_nonlinear",
+        "skipped_class_ref": args.skip_class_ref,
+        "ymax": args.ymax,
+        "ee_only_above": args.ee_only_above,
+        "residual_envelope": (
+            "max(|Delta TT|/TT, |Delta EE|/EE, |Delta TE|/sqrt(TT EE))"
+            if args.ee_only_above is None
+            else (
+                "max(|Delta TT|/TT, |Delta EE|/EE, |Delta TE|/sqrt(TT EE)) for ell <= ee_only_above; "
+                "|Delta EE|/EE for ell > ee_only_above"
+            )
+        ),
+        "camb_reference_settings": camb_reference_settings,
         "class_lensing_margin": args.class_lensing_margin,
         "class_permille_lensing_margin": args.class_permille_lensing_margin,
         "class_ref_lensing_margin": class_ref_lensing_margin,
@@ -726,17 +1013,11 @@ def main() -> None:
             "camb_recfast_approx_model": CAMB_RECFAST_APPROX_MODEL,
             "class_params": CLASS_PLANCK_RECFAST_PARAMS,
         },
-        "cosmology": COSMOLOGY,
-        "baseline_nonlinear": "CAMB/CLASS HMCode 2020 dark-matter-only",
-        "feedback_curve": {
-            "halofit_version": "mead2020_feedback",
-            "HMCode_logT_AGN": args.feedback_logt_agn,
-        },
+        "cosmology": {**COSMOLOGY, **neutrino_model},
+        "class_neutrino_params": class_neutrino_params,
+        "baseline_nonlinear": baseline_nonlinear,
         "boosted_reference": {
-            "AccuracyBoost": 2.0,
-            "lSampleBoost": 2.0,
-            "lAccuracyBoost": 2.0,
-            "IntTolBoost": 2.0,
+            **camb_reference_settings,
             "lens_potential_accuracy": args.reference_lens_potential_accuracy,
             "lens_output_margin": args.reference_lens_output_margin,
             "max_eta_k": boosted["max_eta_k"],
@@ -749,6 +1030,14 @@ def main() -> None:
         "standard_reference_noise": noise_config.__dict__,
         "amplitude_error_band": {
             "kind": "single-bin spectral-amplitude 1 sigma",
+            "fields": (
+                "TT+EE at all plotted multipoles"
+                if args.ee_only_above is None
+                else (
+                    f"bin-summed TT+EE Fisher contributions for ell <= {args.ee_only_above}; "
+                    f"EE-only contributions for ell > {args.ee_only_above}"
+                )
+            ),
             "fractional_bin_width": amplitude_error_bin_width,
             "bin_definition": "for each plotted L, use integer multipoles in [ceil(0.75 L), floor(1.25 L)]",
         },
@@ -756,22 +1045,40 @@ def main() -> None:
         "run_times": {
             "camb_default": {"cpu_s": default["cpu_s"], "wall_s": default["wall_s"]},
             "camb_boosted_reference": {"cpu_s": boosted["cpu_s"], "wall_s": boosted["wall_s"]},
-            "camb_hmcode_feedback": {"cpu_s": feedback["cpu_s"], "wall_s": feedback["wall_s"]},
             "class_cl_permille": {"cpu_s": class_permille["cpu_s"], "wall_s": class_permille["wall_s"]},
-            f"class_{args.class_ref_profile}_compute_lmax{class_ref_compute_lmax}_{class_ref_kmax_tag}": {
-                "cpu_s": class_ref["cpu_s"],
-                "wall_s": class_ref["wall_s"],
-            },
         },
-        "note": (
-            "CLASS lensed spectra are computed above the plotted maximum and then truncated, to reduce high-ell "
-            "lensing-convolution edge effects. The CLASS reference curve is masked above class_ref_lmax."
-        ),
+        "note": "CLASS lensed spectra are computed above the plotted maximum and then truncated, to reduce high-ell "
+        "lensing-convolution edge effects.",
     }
-    (args.outdir / "lensed_cls_validation_residuals.json").write_text(json.dumps(metadata, indent=2) + "\n")
+    if feedback is not None:
+        metadata["feedback_curve"] = {
+            "halofit_version": "mead2020_feedback",
+            "HMCode_logT_AGN": args.feedback_logt_agn,
+        }
+        metadata["run_times"]["camb_hmcode_feedback"] = {"cpu_s": feedback["cpu_s"], "wall_s": feedback["wall_s"]}
+    if historical_camb is not None:
+        metadata["historical_camb_curve"] = {
+            "label": args.historical_camb_label,
+            "cache": str(args.historical_camb_cache),
+            "metadata": {key: value for key, value in historical_camb.items() if key not in {"dls", "raw_cls"}},
+        }
+        metadata["run_times"]["historical_camb"] = {
+            "cpu_s": historical_camb.get("cpu_s"),
+            "wall_s": historical_camb.get("wall_s"),
+        }
+    if class_ref is not None:
+        metadata["run_times"][
+            f"class_{args.class_ref_profile}_compute_lmax{class_ref_compute_lmax}_{class_ref_kmax_tag}"
+        ] = {
+            "cpu_s": class_ref["cpu_s"],
+            "wall_s": class_ref["wall_s"],
+        }
+        metadata["note"] += " The CLASS reference curve is masked above class_ref_lmax."
+    json_path = args.outdir / f"{args.output_stem}.json"
+    json_path.write_text(json.dumps(metadata, indent=2) + "\n")
     print(f"Wrote {plot_path}")
     print(f"Wrote {plot_path.with_suffix('.png')}")
-    print(f"Wrote {args.outdir / 'lensed_cls_validation_residuals.json'}")
+    print(f"Wrote {json_path}")
 
 
 if __name__ == "__main__":
