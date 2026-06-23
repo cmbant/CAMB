@@ -1302,9 +1302,12 @@ nonlinear lensing contribution, which dominates at very high $\ell$.
   version 3.3.4 with \code{cl_permille} precision and a targeted boosted
   \code{cl_permille} variant; to avoid lensing-convolution edge effects the \code{cl_permille} curve is computed to
   \(\ell=8000\), while the boosted  \code{cl_permille} curve is computed to \(\ell =6000\). Both
-  codes use Planck-era RECFAST with fixed \(Y_{\rm He}=0.245\), standard HMCode
+  codes use Planck-era RECFAST with fixed \(Y_{\rm He}=0.245\), no massive
+  neutrinos, standard HMCode
   2020 with no feedback, and matched \(k_{\max}\eta_0\), so the comparison as far as possible tests
-  numerical like-for-like accuracy rather than physical accuracy. The gray band
+  numerical like-for-like accuracy rather than physical accuracy. A corresponding
+  check with the standard minimal mass \(\sum m_\nu=0.06\,{\rm eV}\) gives a
+  similar result. The gray band
   is the corresponding idealized \(1\sigma\)
   uncertainty on an overall spectral-amplitude parameter for an SO-like
   measurement in a bin of width \(\Delta \ell=\ell/2\) centred on each \(\ell\).
@@ -1584,6 +1587,20 @@ one, except \code{lens_potential_accuracy}, which by default is chosen
 automatically from the requested $\ell_{\max}$ as $\max(4,(\ell_{\max}-1500)/500)$
 (\cref{sec:lensing}); increasing any of them tightens the result towards the
 converged reference.
+
+The boosts form a hierarchy, not a set of independent line-by-line tolerances.
+\code{AccuracyBoost} is the broad umbrella factor: it scales most of the
+lower-level controls below it, such as time sampling, integration tolerances,
+source sampling, and lensing sampling. By contrast, \code{lSampleBoost} and
+\code{lAccuracyBoost} are largely orthogonal high-level controls for output
+$C_\ell$ interpolation and Boltzmann-hierarchy truncation. The lower-level
+boosts can be tuned directly, but each may still feed several related numerical
+choices in the code. A useful workflow is therefore to use the high-level boosts
+in \code{check_accuracy} to expose instabilities and coupled failures, then
+drill down to the smallest lower-level control or code change that fixes the
+problem. Production analyses should rarely need \code{AccuracyBoost}>1; if the
+defaults are insufficient, targeted boosts usually give much better performance
+than increasing the global factor.
 
 The validation reference used by \code{check_accuracy} doubles
 \code{AccuracyBoost}, \code{lSampleBoost}, \code{lAccuracyBoost} and

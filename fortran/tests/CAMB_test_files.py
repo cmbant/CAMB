@@ -864,8 +864,10 @@ def getTestParams():
             + make_win(2, 0.2, "counts", 1.2, 0.04, -0.2)
         )
         params.append(["lensing_base", f"DEFAULT({repo_inifile('params_lensing.ini')})"] + source_lmax)
-        params.append(["21cm_base", f"DEFAULT({repo_inifile('params_21cm.ini')})"])
-        params.append(["21cm_base2", f"DEFAULT({repo_inifile('params_21cm.ini')})", "get_transfer = T"])
+        params.append(["21cm_base", f"DEFAULT({repo_inifile('params_21cm.ini')})", "l_max_scalar = 6000"])
+        params.append(
+            ["21cm_base2", f"DEFAULT({repo_inifile('params_21cm.ini')})", "get_transfer = T", "l_max_scalar = 6000"]
+        )
         params.append(
             ["counts_lens", f"DEFAULT({repo_inifile('params_counts.ini')})"]
             + source_lmax

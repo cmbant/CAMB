@@ -46,7 +46,7 @@ jobs:
           echo "upload=${upload}" >> "${GITHUB_OUTPUT}"
 
       - name: Run Build and Test Script
-        run: python fortran/tests/run_tests.py --verbose_diff_output
+        run: python fortran/tests/run_tests.py --reference_branch v2 --verbose_diff_output
 
       - name: Upload Test Files on Failure
         if: failure() && steps.failure_artifacts.outputs.upload == 'true'

@@ -55,6 +55,8 @@ testfile*
 *~
 *.whl
 *.pdf
+!docs/changelog/flat_bessel_approximations.pdf
+!docs/changelog/hyperspherical_bessels.pdf
 .vs
 *.toc
 *.aux

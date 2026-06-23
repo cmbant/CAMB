@@ -11,6 +11,7 @@ REPO_ROOT = os.path.abspath(os.path.join(FORTRAN_DIR, ".."))
 DEFAULT_WORK_DIR = os.path.join(FORTRAN_DIR, "testfiles")
 DEFAULT_BASE_SETTINGS = os.path.join(REPO_ROOT, "inifiles", "params.ini")
 DEFAULT_REFERENCE_REPO = "https://github.com/cmbant/CAMB_test_outputs.git"
+DEFAULT_REFERENCE_BRANCH = "v2"
 
 if TESTS_DIR not in sys.path:
     sys.path.insert(0, TESTS_DIR)
@@ -39,8 +40,8 @@ def build_parser():
         "--diff_tolerance",
         "--diff-tolerance",
         type=float,
-        default=1e-4,
-        help="fallback numerical tolerance for diffing",
+        default=1.0,
+        help="scale factor applied to numerical comparison tolerances",
     )
     parser.add_argument(
         "--verbose_diff_output",
@@ -64,10 +65,16 @@ def build_parser():
         default=DEFAULT_REFERENCE_REPO,
         help="repository to clone when reference outputs are needed",
     )
+    parser.add_argument(
+        "--reference_branch",
+        "--reference-branch",
+        default=DEFAULT_REFERENCE_BRANCH,
+        help="branch to clone from the reference output repository",
+    )
     return parser
 
 
-def extend_common_args(cmd_args, parsed_args):
+def extend_common_args(cmd_args, parsed_args, *, include_clean=True):
     cmd_args.extend(
         [
             parsed_args.work_dir,
@@ -81,7 +88,7 @@ def extend_common_args(cmd_args, parsed_args):
             parsed_args.prog,
         ]
     )
-    if parsed_args.clean:
+    if include_clean and parsed_args.clean:
         cmd_args.append("--clean")
     if parsed_args.no_validate:
         cmd_args.append("--no_validate")
@@ -136,7 +143,16 @@ def clone_reference_outputs(parsed_args):
     reference_root = os.path.join(parsed_args.work_dir, "CAMB_test_outputs")
     if os.path.exists(reference_root):
         remove_tree(reference_root)
-    subprocess.run(["git", "clone", "--depth=1", parsed_args.reference_repo, reference_root], check=True)
+    clone_cmd = [
+        "git",
+        "clone",
+        "--branch",
+        parsed_args.reference_branch,
+        "--depth=1",
+        parsed_args.reference_repo,
+        reference_root,
+    ]
+    subprocess.run(clone_cmd, check=True)
     return reference_root
 
 
@@ -160,7 +176,7 @@ def main(argv=None):
             reference_outputs = resolve_reference_outputs(cloned_reference)
 
         diff_args = ["--diff_to", reference_outputs, "--diff_tolerance", str(args.diff_tolerance)]
-        extend_common_args(diff_args, args)
+        extend_common_args(diff_args, args, include_clean=False)
         return run_camb_test_files(diff_args)
     finally:
         if cloned_reference and not args.keep_reference and os.path.exists(cloned_reference):
