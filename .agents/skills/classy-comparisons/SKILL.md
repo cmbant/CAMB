@@ -206,14 +206,45 @@ CLASS neutrino-related parameters to check:
   ending at `lmax_plot`, compute CLASS lensed spectra beyond the plotted range
   and truncate only for the comparison. As a starting point, use
   `l_max_scalars = lmax_plot + 2000`
-- For purely numerical comparisons, match the effective lensing cutoff, not just the named accuracy setting. If
-  CAMB's reference has `max_eta_k`, set CLASS
-  `k_max_tau0_over_l_max = max_eta_k / l_max_scalars` for the CLASS compute
-  `l_max_scalars`. If you change CLASS's compute `lmax`, recompute this ratio so
-  the physical `k_max eta0` remains fixed.
-- `cl_ref` or other high-accuracy CLASS lensed-CMB runs can be very slow and may
-  use more than 16 GB of memory, especially with large `l_max_scalars` and tight
-  source/perturbation settings. If a high-accuracy run approaches memory limits, reducing `OMP_NUM_THREADS` may help.
+- For purely numerical comparisons, match the effective lensing/source cutoff,
+  not just the named accuracy setting. If CAMB's reference has `max_eta_k`, first
+  convert it to a physical source cutoff using CAMB's conformal age:
+
+```python
+camb_kmax_1Mpc = camb_max_eta_k / camb_eta0
+```
+
+- For CLASS 3.2 and later, the default CMB lensing-potential calculation uses
+  the full-Limber scheme (`want_lcmb_full_limber = yes`) for `lCl`. Match the
+  CAMB source reach by setting
+
+```python
+class_params["k_max_limber_over_l_max_scalars"] = camb_kmax_1Mpc / class_l_max_scalars
+```
+
+  Here `class_l_max_scalars` is the CLASS compute value, including any
+  high-ell margin used before truncating to the plotted range. If you change the
+  CLASS compute `l_max_scalars`, recompute this ratio so the physical
+  `k_max [1/Mpc]` remains fixed.
+
+- Do not use `k_max_tau0_over_l_max` to match the high-k CMB lensing reach for
+  CLASS 3.2+ full-Limber `lCl` comparisons. That parameter controls the primary
+  CMB transfer/source cutoff and can make flat lensed-CMB runs much slower
+  without matching the full-Limber lensing cutoff being tested. Use it only when
+  deliberately matching primary-CMB transfer cutoffs, or explicitly setting
+  `want_lcmb_full_limber = no`.
+
+- `P_k_max_h/Mpc` and `P_k_max_1/Mpc` control output matter-power calculations.
+  They are not the CMB-lensing source cutoff and should not be used to match
+  CAMB lensed-CMB source reach unless the comparison is explicitly about
+  exported matter power.
+
+
+## Timing Hygiene
+
+- Set thread-control environment variable OMP_NUM_THREADS before importing CLASS if specific thread number is needed. Disgard first run which may be doing
+one off cached calculations (esp. for non-flat).
+
 
 ## CLASS-native Commands
 

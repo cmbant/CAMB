@@ -14,12 +14,12 @@ Running with no arguments reproduces the published figure
 
 That is, a CAMB reference using ``STRICT_REFERENCE_SETTINGS``
 (AccuracyBoost=lSampleBoost=lAccuracyBoost=3 and min_l_logl_sampling=100000),
-the plain CLASS ``cl_permille`` curve, and a ``cl_targeted_tight``
-("cl_permille boosted") CLASS curve plotted over the full L<=lmax range. By
-default the targeted CLASS curve is computed to L=lmax+2000 and then truncated;
+the plain CLASS ``cl_permille`` curve, and a CLASS ``cl_ref`` curve plotted over
+the full L<=lmax range. By default both CLASS curves are computed to
+L=lmax+4000 and then truncated;
 all curves use Planck-era RECFAST, fixed Y_He, HMCode 2020 (no feedback), and
-matched k_max*eta0. The output is written to
-docs/changelog/lensed_cls_validation/lensed_cls_validation_residuals_planck_recfast_cl_permille_boosted_ee_gt3000.pdf,
+matched physical CMB lensing source k_max. The output is written to
+docs/changelog/lensed_cls_validation/lensed_cls_validation_residuals_planck_recfast_cl_ref_ee_gt3000.pdf,
 the file referenced by the paper.
 
 The higher-accuracy CLASS curve is very expensive over the full range (tens of
@@ -71,7 +71,7 @@ except ImportError as exc:  # pragma: no cover - exercised only when CLASS is ab
 
 DEFAULT_OUTDIR = Path("docs/changelog/lensed_cls_validation")
 DEFAULT_CLASS_WORKDIR = Path(os.environ.get("CLASS_WORKDIR", os.environ.get("TMPDIR", "/tmp") + "/classy-comparisons"))
-DEFAULT_OUTPUT_STEM = "lensed_cls_validation_residuals_planck_recfast_cl_permille_boosted_ee_gt3000"
+DEFAULT_OUTPUT_STEM = "lensed_cls_validation_residuals_planck_recfast_cl_ref_ee_gt3000"
 CLASS_PRECISION_IGNORED_KEYS = {"recfast_Nz0", "l_max_ur_ten"}
 SPECTRUM_COLUMNS = {"TT": 0, "EE": 1, "BB": 2, "TE": 3}
 CLASS_PRECISION_PROFILES = ("cl_permille", "cl_targeted", "cl_targeted_tight", "cl_ref")
@@ -124,11 +124,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--class-ref-profile",
         choices=CLASS_PRECISION_PROFILES,
-        default="cl_targeted_tight",
+        default="cl_ref",
         help=(
             "CLASS precision profile for the higher-accuracy comparison curve. "
             "cl_targeted and cl_targeted_tight are moderate CMB/lensing profiles between "
-            "cl_permille.pre and cl_ref.pre (default cl_targeted_tight, used for the published figure)."
+            "cl_permille.pre and cl_ref.pre (default cl_ref, used for the published figure)."
         ),
     )
     parser.add_argument("--outdir", type=Path, default=DEFAULT_OUTDIR)
@@ -156,9 +156,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--class-ref-lensing-margin",
         type=int,
+        default=4000,
         help=(
             "Compute the higher-accuracy CLASS reference curve to this many multipoles above --class-ref-lmax. "
-            "Defaults to --class-lensing-margin."
+            "Default 4000, matching the published figure."
         ),
     )
     parser.add_argument(
@@ -166,14 +167,22 @@ def build_parser() -> argparse.ArgumentParser:
         choices=("boosted-camb", "precision-file"),
         default="boosted-camb",
         help=(
-            "For CLASS runs, either override k_max_tau0_over_l_max to match the boosted CAMB "
-            "max_eta_k/lmax, or leave the precision file value unchanged"
+            "For CLASS runs, either override k_max_limber_over_l_max_scalars to match the boosted CAMB "
+            "physical CMB lensing source kmax, or leave the precision file value unchanged"
         ),
+    )
+    parser.add_argument(
+        "--class-k-max-limber-over-l-max-scalars",
+        type=float,
+        help="Explicit CLASS k_max_limber_over_l_max_scalars override; takes precedence over --class-kmax-mode",
     )
     parser.add_argument(
         "--class-k-max-tau0-over-l-max",
         type=float,
-        help="Explicit CLASS k_max_tau0_over_l_max override; takes precedence over --class-kmax-mode",
+        help=(
+            "Deprecated explicit CLASS primary-transfer k_max_tau0_over_l_max override. "
+            "Only use for non-full-Limber checks; takes precedence over --class-kmax-mode."
+        ),
     )
     parser.add_argument(
         "--mnu",
@@ -406,6 +415,7 @@ def run_camb_case(params: camb.CAMBparams, lmax: int) -> dict[str, Any]:
     results = camb.get_results(params)
     cpu_s = time.process_time() - start_cpu
     wall_s = time.perf_counter() - start_wall
+    eta0 = float(results.conformal_time(0.0))
     return {
         "dls": results.get_lensed_scalar_cls(lmax=lmax, CMB_unit="muK"),
         "raw_cls": results.get_lensed_scalar_cls(lmax=lmax, CMB_unit="muK", raw_cl=True),
@@ -413,7 +423,18 @@ def run_camb_case(params: camb.CAMBparams, lmax: int) -> dict[str, Any]:
         "wall_s": wall_s,
         "max_l": int(params.max_l),
         "max_eta_k": float(params.max_eta_k),
+        "eta0": eta0,
+        "k_max_1/Mpc": float(params.max_eta_k / eta0),
     }
+
+
+def ensure_camb_lensing_metadata(payload: dict[str, Any], params: camb.CAMBparams) -> dict[str, Any]:
+    if "eta0" not in payload or "k_max_1/Mpc" not in payload:
+        background = camb.get_background(params)
+        eta0 = float(background.conformal_time(0.0))
+        payload["eta0"] = eta0
+        payload["k_max_1/Mpc"] = float(payload["max_eta_k"] / eta0)
+    return payload
 
 
 def class_lensed_dls(params: dict[str, float | int | str], lmax: int) -> tuple[np.ndarray, np.ndarray, float, float]:
@@ -478,7 +499,8 @@ def run_class_case(
     *,
     lmax: int,
     precision_overrides: dict[str, float | int | str],
-    k_max_tau0_over_l_max: float | None,
+    k_max_limber_over_l_max_scalars: float | None,
+    k_max_tau0_over_l_max: float | None = None,
     neutrino_params: dict[str, float | int | str],
     use_nonlinear_lensing: bool = True,
 ) -> dict[str, Any]:
@@ -488,6 +510,8 @@ def run_class_case(
         neutrino_params=neutrino_params,
         use_nonlinear_lensing=use_nonlinear_lensing,
     )
+    if k_max_limber_over_l_max_scalars is not None:
+        params["k_max_limber_over_l_max_scalars"] = k_max_limber_over_l_max_scalars
     if k_max_tau0_over_l_max is not None:
         params["k_max_tau0_over_l_max"] = k_max_tau0_over_l_max
     dls, raw_cls, cpu_s, wall_s = class_lensed_dls(params, lmax)
@@ -525,8 +549,12 @@ def cached_case(path: Path, force: bool, runner: Callable[[], dict[str, Any]]) -
     return payload
 
 
-def kmax_tag(k_max_tau0_over_l_max: float | None) -> str:
-    return "precision" if k_max_tau0_over_l_max is None else f"kmaxtau{k_max_tau0_over_l_max:.6g}".replace(".", "p")
+def kmax_tag(k_max_limber_over_l_max_scalars: float | None, k_max_tau0_over_l_max: float | None = None) -> str:
+    if k_max_tau0_over_l_max is not None:
+        return f"kmaxtau{k_max_tau0_over_l_max:.6g}".replace(".", "p")
+    if k_max_limber_over_l_max_scalars is not None:
+        return f"kmaxlimber{k_max_limber_over_l_max_scalars:.6g}".replace(".", "p")
+    return "precision"
 
 
 def float_tag(value: float) -> str:
@@ -688,7 +716,7 @@ def make_plot(
         if label.startswith("CLASS cl_permille"):
             return "#2f8f46" if "boosted /" in label or "tuned /" in label else "#1b6ca8"
         if label.startswith("CLASS cl_ref"):
-            return "#5b2a86"
+            return "#2f8f46"
         if label.startswith("HMCode feedback"):
             return "#b23a48"
         if "boosted" in label or "tuned" in label:
@@ -698,8 +726,10 @@ def make_plot(
     def linestyle_for(label: str):
         if label.startswith("CAMB origin/master"):
             return (0, (1.5, 1.5))
-        if label.startswith("CLASS cl_permille") and "boosted /" not in label and "tuned /" not in label:
+        if label.startswith("CAMB default"):
             return "-"
+        if label.startswith("CLASS cl_permille") and "boosted /" not in label and "tuned /" not in label:
+            return (0, (4, 2))
         if "boosted" in label or "tuned" in label or label.startswith("CLASS cl_ref"):
             return (0, (4, 2))
         if label.startswith("HMCode feedback"):
@@ -707,7 +737,7 @@ def make_plot(
         return "-"
 
     fig, ax = plt.subplots(figsize=(7.15, 4.15))
-    ymin = 1.0e-4
+    ymin = 0.7e-4
     ax.fill_between(
         ell,
         ymin,
@@ -739,9 +769,12 @@ def make_plot(
     ax.set_xticks(xticks)
     ax.set_xticklabels([str(int(tick)) for tick in xticks])
     ax.set_xlabel(r"Multipole $\ell$")
-    ax.set_ylabel(r"lensed $C_\ell$ residual envelope")
-    ax.grid(True, which="major", color="0.88", linewidth=0.6)
-    ax.grid(True, which="minor", color="0.93", linewidth=0.35)
+    ax.set_ylabel(r"lensed $C_\ell$ fractional difference")
+    ax.yaxis.grid(True, which="major", color="0.88", linewidth=0.6)
+    ax.yaxis.grid(True, which="minor", color="0.93", linewidth=0.35)
+    for tick in xticks:
+        if tick not in (1000, 2000):
+            ax.axvline(tick, color="0.88", linewidth=0.6, zorder=0.4)
     legend = ax.legend(
         loc="upper left",
         frameon=True,
@@ -752,11 +785,11 @@ def make_plot(
     legend_bbox = legend.get_window_extent(fig.canvas.get_renderer()).transformed(ax.transAxes.inverted())
     ax.text(
         0.018,
-        max(0.05, legend_bbox.y0 - 0.018),
+        max(0.05, legend_bbox.y0 - 0.006),
         (
-            r"Envelope: $\max(TT,EE,TE)$ residual"
+            r"$\max(TT,EE,TE)$ residual"
             if ee_only_above is None
-            else rf"Envelope: $\max(TT,EE,TE)$ for $\ell\leq {ee_only_above}$; EE only at $\ell>{ee_only_above}$"
+            else rf"$\max(TT,EE,TE)$ for $\ell\leq {ee_only_above}$; EE only at $\ell>{ee_only_above}$"
         ),
         transform=ax.transAxes,
         color="0.25",
@@ -787,6 +820,10 @@ def main() -> None:
         args.class_ref_lmax = args.lmax
     if args.class_ref_lmax > args.lmax:
         raise ValueError("--class-ref-lmax cannot exceed --lmax")
+    if args.class_k_max_limber_over_l_max_scalars is not None and args.class_k_max_tau0_over_l_max is not None:
+        raise ValueError(
+            "--class-k-max-limber-over-l-max-scalars and --class-k-max-tau0-over-l-max are mutually exclusive"
+        )
     if args.output_stem == DEFAULT_OUTPUT_STEM and args.mnu != 0:
         args.output_stem = f"{args.output_stem}{mnu_tag(args.mnu)}"
 
@@ -826,58 +863,52 @@ def main() -> None:
     print(f"CAMB {camb.__version__}: {Path(camb.__file__).resolve()}")
     print(f"CLASS {class_version}: {class_root}")
 
+    default_params = make_camb_params(
+        lmax=args.lmax,
+        lens_potential_accuracy=None,
+        lens_output_margin=200,
+        boosted=False,
+        **neutrino_model,
+        use_nonlinear_lensing=not args.linear_lensing_only,
+    )
     default = cached_case(
         args.outdir / f"camb_default_{cache_tag}.npz",
         args.force,
-        lambda: run_camb_case(
-            make_camb_params(
-                lmax=args.lmax,
-                lens_potential_accuracy=None,
-                lens_output_margin=200,
-                boosted=False,
-                **neutrino_model,
-                use_nonlinear_lensing=not args.linear_lensing_only,
-            ),
-            args.lmax,
-        ),
+        lambda: run_camb_case(default_params, args.lmax),
+    )
+    ensure_camb_lensing_metadata(default, default_params)
+    boosted_params = make_camb_params(
+        lmax=args.lmax,
+        lens_potential_accuracy=args.reference_lens_potential_accuracy,
+        lens_output_margin=args.reference_lens_output_margin,
+        boosted=True,
+        **neutrino_model,
+        use_nonlinear_lensing=not args.linear_lensing_only,
+        strict_reference=args.strict_camb_reference,
     )
     boosted = cached_case(
         args.outdir / f"camb_{reference_tag}_{cache_tag}.npz",
         args.force,
-        lambda: run_camb_case(
-            make_camb_params(
-                lmax=args.lmax,
-                lens_potential_accuracy=args.reference_lens_potential_accuracy,
-                lens_output_margin=args.reference_lens_output_margin,
-                boosted=True,
-                **neutrino_model,
-                use_nonlinear_lensing=not args.linear_lensing_only,
-                strict_reference=args.strict_camb_reference,
-            ),
-            args.lmax,
-        ),
+        lambda: run_camb_case(boosted_params, args.lmax),
     )
-    class_neutrino_params = class_neutrino_params_from_camb(
-        make_camb_params(
-            lmax=args.lmax,
-            lens_potential_accuracy=None,
-            lens_output_margin=200,
-            boosted=False,
-            **neutrino_model,
-            use_nonlinear_lensing=not args.linear_lensing_only,
-        )
-    )
+    ensure_camb_lensing_metadata(boosted, boosted_params)
+    class_neutrino_params = class_neutrino_params_from_camb(default_params)
+    class_permille_kmax_tau0 = args.class_k_max_tau0_over_l_max
+    class_ref_kmax_tau0 = args.class_k_max_tau0_over_l_max
     if args.class_k_max_tau0_over_l_max is not None:
-        class_permille_kmax = args.class_k_max_tau0_over_l_max
-        class_ref_kmax = args.class_k_max_tau0_over_l_max
+        class_permille_kmax_limber = None
+        class_ref_kmax_limber = None
+    elif args.class_k_max_limber_over_l_max_scalars is not None:
+        class_permille_kmax_limber = args.class_k_max_limber_over_l_max_scalars
+        class_ref_kmax_limber = args.class_k_max_limber_over_l_max_scalars
     elif args.class_kmax_mode == "boosted-camb":
-        class_permille_kmax = float(boosted["max_eta_k"]) / float(class_permille_compute_lmax)
-        class_ref_kmax = float(boosted["max_eta_k"]) / float(class_ref_compute_lmax)
+        class_permille_kmax_limber = float(boosted["k_max_1/Mpc"]) / float(class_permille_compute_lmax)
+        class_ref_kmax_limber = float(boosted["k_max_1/Mpc"]) / float(class_ref_compute_lmax)
     else:
-        class_permille_kmax = None
-        class_ref_kmax = None
-    class_permille_kmax_tag = kmax_tag(class_permille_kmax)
-    class_ref_kmax_tag = kmax_tag(class_ref_kmax)
+        class_permille_kmax_limber = None
+        class_ref_kmax_limber = None
+    class_permille_kmax_tag = kmax_tag(class_permille_kmax_limber, class_permille_kmax_tau0)
+    class_ref_kmax_tag = kmax_tag(class_ref_kmax_limber, class_ref_kmax_tau0)
     feedback = None
     if not args.linear_lensing_only:
         feedback = cached_case(
@@ -901,7 +932,8 @@ def main() -> None:
         lambda: run_class_case(
             lmax=class_permille_compute_lmax,
             precision_overrides=precision["cl_permille"],
-            k_max_tau0_over_l_max=class_permille_kmax,
+            k_max_limber_over_l_max_scalars=class_permille_kmax_limber,
+            k_max_tau0_over_l_max=class_permille_kmax_tau0,
             neutrino_params=class_neutrino_params,
             use_nonlinear_lensing=not args.linear_lensing_only,
         ),
@@ -918,7 +950,8 @@ def main() -> None:
             lambda: run_class_case(
                 lmax=class_ref_compute_lmax,
                 precision_overrides=precision[args.class_ref_profile],
-                k_max_tau0_over_l_max=class_ref_kmax,
+                k_max_limber_over_l_max_scalars=class_ref_kmax_limber,
+                k_max_tau0_over_l_max=class_ref_kmax_tau0,
                 neutrino_params=class_neutrino_params,
                 use_nonlinear_lensing=not args.linear_lensing_only,
             ),
@@ -1021,11 +1054,16 @@ def main() -> None:
             "lens_potential_accuracy": args.reference_lens_potential_accuracy,
             "lens_output_margin": args.reference_lens_output_margin,
             "max_eta_k": boosted["max_eta_k"],
+            "eta0": boosted["eta0"],
+            "k_max_1/Mpc": boosted["k_max_1/Mpc"],
             "max_l": boosted["max_l"],
         },
-        "class_permille_k_max_tau0_over_l_max": class_permille_kmax,
-        "class_ref_k_max_tau0_over_l_max": class_ref_kmax,
+        "class_permille_k_max_limber_over_l_max_scalars": class_permille_kmax_limber,
+        "class_ref_k_max_limber_over_l_max_scalars": class_ref_kmax_limber,
+        "class_permille_k_max_tau0_over_l_max": class_permille_kmax_tau0,
+        "class_ref_k_max_tau0_over_l_max": class_ref_kmax_tau0,
         "class_matched_max_eta_k": boosted["max_eta_k"] if args.class_kmax_mode == "boosted-camb" else None,
+        "class_matched_k_max_1/Mpc": boosted["k_max_1/Mpc"] if args.class_kmax_mode == "boosted-camb" else None,
         "class_kmax_mode": args.class_kmax_mode,
         "standard_reference_noise": noise_config.__dict__,
         "amplitude_error_band": {

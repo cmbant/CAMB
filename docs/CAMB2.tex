@@ -275,7 +275,7 @@ shortcuts below live in exactly this comfortable regime.
 Olver (uniform Liouville--Green) asymptotics map a second-order equation with a
 large parameter onto a comparison equation by matching the action integral from
 the turning point and including the corresponding amplitude
-factor~\cite{olver}. The textbook choice is the Airy equation, giving the uniform
+factor~\cite{olver1958uniform,olver}. The textbook choice is the Airy equation, giving the uniform
 WKB/Langer treatment used for hyperspherical Bessel functions by
 Refs.~\cite{Kosowsky:1998nc}. Our choice is different
 and better adapted to the problem: we use the \emph{flat} spherical Bessel
@@ -1030,6 +1030,20 @@ question being answered needs to be specified carefully.
 \section{Massive neutrinos}
 \label{sec:neutrinos}
 
+By default \textsc{CAMB} approximates the neutrino masses by a single massive
+eigenstate carrying the full $\sum m_\nu = 0.06\,{\rm eV}$, leaving the remaining
+relativistic degrees of freedom massless. This minimal-mass single-eigenstate model
+is the standard default: for a fixed small total mass the way it is divided between
+eigenstates has a negligible effect on the CMB, so resolving the individual masses
+is unnecessary. For work that does need the physical mass splittings, \textsc{CAMB}
+also provides explicit \code{normal} and \code{inverted} hierarchy settings. In the
+physically allowed regime these approximate the three masses by two eigenstates---a
+near-degenerate pair and a single state---fixing the masses from the total
+$\sum m_\nu$ and the measured squared-mass splittings $\Delta m^2_{21}$ and
+$\Delta m^2_{31}$, and reverting to a single eigenstate below the minimum total mass
+allowed by oscillation data. We use the default single-eigenstate model throughout
+this paper.
+
 The thermal massive-neutrino background density and pressure are needed throughout
 the evolution and were previously interpolated from a precomputed table. We now use
 direct low-order fits in the intermediate regime, with small- and large-mass
@@ -1281,7 +1295,7 @@ approach the flat result to well wtihin tolerance as $\Omega_K\to0$.
 CMB test at \(l_{\max}=4000\). To isolate numerical accuracy from changes in
 physical modelling, both \textsc{CAMB} and \textsc{CLASS} are run with the same
 late-time nonlinear model (standard HMCode 2020 with no feedback), the same
-physical cutoff \(k_{\max}\eta_0=144000\), fixed \(Y_{\rm He}=0.245\), and the
+physical CMB lensing source cutoff, fixed \(Y_{\rm He}=0.245\), and the
 older Planck-era RECFAST recombination settings rather than the updated
 recombination fit introduced in this paper. The comparison is therefore a
 like-for-like numerical test, not a statement that the shared physical model is
@@ -1292,22 +1306,19 @@ nonlinear lensing contribution, which dominates at very high $\ell$.
 
 \begin{figure*}[t!]
   \begin{center}
-  \includegraphics[width=0.88\textwidth]{changelog/lensed_cls_validation/lensed_cls_validation_residuals_planck_recfast_cl_permille_boosted_ee_gt3000.pdf}
+  \includegraphics[width=0.88\textwidth]{changelog/lensed_cls_validation/lensed_cls_validation_residuals_planck_recfast_cl_ref_ee_gt3000_mnu0p06.pdf}
   \caption{Lensed CMB numerical validation for a flat \(\Lambda\)CDM model with
   \(\ell_{\max}=4000\), using a strict-reference boosted \textsc{CAMB} run as the
   reference. Up to \(\ell=3000\) the plotted quantity is the envelope
   \(\max(|\Delta TT|/TT,|\Delta EE|/EE,|\Delta TE|/\sqrt{TT\,EE})\); above
   \(\ell=3000\), where foregrounds dominate temperature, the plot shows \(|\Delta EE|/EE\). The
   \textsc{CLASS} comparisons use
-  version 3.3.4 with \code{cl_permille} precision and a targeted boosted
-  \code{cl_permille} variant; to avoid lensing-convolution edge effects the \code{cl_permille} curve is computed to
-  \(\ell=8000\), while the boosted  \code{cl_permille} curve is computed to \(\ell =6000\). Both
-  codes use Planck-era RECFAST with fixed \(Y_{\rm He}=0.245\), no massive
-  neutrinos, standard HMCode
-  2020 with no feedback, and matched \(k_{\max}\eta_0\), so the comparison as far as possible tests
-  numerical like-for-like accuracy rather than physical accuracy. A corresponding
-  check with the standard minimal mass \(\sum m_\nu=0.06\,{\rm eV}\) gives a
-  similar result. The gray band
+  version 3.3.4 with \code{cl_permille} and \code{cl_ref} precision settings; to avoid lensing-convolution edge effects both \textsc{CLASS} curves are computed to
+  \(\ell=8000\) and then truncated to the plotted range. Both
+  codes use Planck-era RECFAST with fixed \(Y_{\rm He}=0.245\), one massive
+  neutrino eigenstate with \(\sum m_\nu=0.06\,{\rm eV}\), standard HMCode
+  2020 with no feedback, and matched physical CMB lensing source cutoff, so the comparison as far as possible tests
+  numerical like-for-like accuracy rather than physical accuracy. The gray band
   is the corresponding idealized \(1\sigma\)
   uncertainty on an overall spectral-amplitude parameter for an SO-like
   measurement in a bin of width \(\Delta \ell=\ell/2\) centred on each \(\ell\).
@@ -1327,36 +1338,28 @@ nonlinear lensing contribution, which dominates at very high $\ell$.
 The custom-precision approach of this paper is laborious to build and, more so, to
 validate, and almost all of that work was carried out by AI agents with a human in
 the loop, against the deterministic \code{check_accuracy} harness of
-\cref{sec:validation} as the validation target. In the common case the agents
-worked directly: generating diagnostic scripts that compare a routine against a
-high-accuracy reference, scan the region a gate will actually accept, and propose a
-local fix. Most of the hyperspherical Bessel calibration was done this way -- for
-example tuning the continuous \(\nu/l\) cutoff for the full-Olver fast path to the
-point where a handful of accepted errors between \(10^{-4}\) and \(2\times10^{-4}\)
-buy a large fraction of fast-path evaluations, a measured tradeoff chosen for the task in hand.
+\cref{sec:validation} as the validation target for final \code{CAMB} outputs.
 
-For regressions whose cause was not obvious, the workflow separated the roles to
-keep fixes physically local and guard against overfitting: a diagnostic subagent
-reproduces one failure in a disposable copy of the code and drills from the broad
-accuracy control down to the responsible lines; an orchestrating skill holds sole
-authority over the patch and changes one issue at a time; and an independent
-read-only subagent audits the result for scope, gating and physical motivation. The
+For developing new low-level numerical approximations (e.g. for Bessel functions) the AI agents worked
+directly: suggesting and deriving the required approximations, generating diagnostic scripts that compare options against a high-accuracy reference, scanning the regions of approximation validity with timings, and refining final code with gated fallbacks to more accurate or alternative approximations where needed. Most of the hyperspherical Bessel calibration was done this way -- for example tuning the continuous \(\nu/l\) cutoff for the full-Olver fast path to the
+point where a handful of accepted errors between \(10^{-4}\) and \(2\times10^{-4}\)
+buy a large fraction of fast-path evaluations, a measured tradeoff chosen for the task in hand. Initial passes were later optimized by the agents for code efficiency (e.g. using cheap Horner-form polynomial fits where possible).
+
+For accuracy target violations, a skill/subagent workflow separated the roles so
+code changes are targeted, physically reasonable, and guard against fixes that fix the diagnostic but not the underlying cause. A subagent reproduces one failure in a disposable copy of the code and drills from the broad
+accuracy control down to the responsible code lines. An orchestrator then develops a patch to fix one distinct failure at a time. An independent read-only subagent audits the result for scope, gating and physical motivation. The
 governing rule is locality -- a fix must match the measured extent of the problem
-and be gated in its natural coordinate (\(k\), \(\ell\), redshift, or \(\nu/l\)),
+and be gated in its natural coordinate (\(k\), \(\ell\), redshift, or \(\nu/l\)), etc.,
 neither broader than the runtime cost justifies nor narrower than correctness
-allows. The skills, subagents, and a dated changelog per fix are kept in the
-repository as part of the reproducible record.
+allows. Where higher accuracy is numerically cheap, the tolerance is exceeded by a safe margin.
 
 The agents were consistently good at isolating a minimal change that restores the
-harness, but markedly less reliable at finding the \emph{right} one: a patch could
+a test harness pass, but markedly less reliable at finding the \emph{right} one: a patch could
 meet the target tolerances while resting on a numerical coincidence rather than a
 physical mechanism. Deciding whether the mechanism was correct required physical
-judgement, which current models are not yet good at, so the work was iterative --
+judgement, which current models are not yet reliably good at, so the work was iterative --
 multiple rounds of search, with the human rejecting passing-but-unphysical
-candidates and redirecting the next pass. The harness makes a regression visible
-and reproducible, but does not by itself certify that a fix is physical; that,
-along with setting the accuracy targets and accepting the final changes, remained a
-human responsibility.
+candidates and redirecting the next pass.
 
 The markdown files defining the \code{isolate-accuracy-fix} skill and subagents,
 along with a \code{classy-comparisons} skill guiding \code{CLASS} installation and like-with-like runs, are provided with the source code.
@@ -1364,9 +1367,79 @@ along with a \code{classy-comparisons} skill guiding \code{CLASS} installation a
 \section{Performance}
 \label{sec:performance}
 
-\todo{}
+The revised defaults are intended to give next-generation CMB accuracy without
+making ordinary likelihood calculations substantially more expensive.  They
+automatically adjust the lensing convolution margin and the lensing source
+range, as described in \cref{sec:lensing}.  \Cref{tab:performance-timings}
+summarizes representative four-thread timings on a typical laptop.  The flat
+runs use a Planck-2018 \(\Lambda\)CDM model with \(m_\nu=0.06\,{\rm eV}\) and
+lensed spectra requested to \(l_{\max}=4000\).  The current default uses
+\(\max(k\eta_0)=90000\), or \(k_{\max}=6.36\,{\rm Mpc}^{-1}\).  The old
+\textsc{CAMB} v1.x default was faster only because it used the historical low
+lensing cutoff \(\max(k\eta_0)=10375\).  When the old code is run with the same
+high-\(k\) support as the new default, it is slightly slower than the current
+code and less accurate.
 
-\section{Summary and recommendations}
+\begin{table}[t]
+\centering
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{lrr}
+\hline
+Case & CPU [s] & wall [s] \\
+\hline
+\multicolumn{3}{c}{Flat \(l_{\max}=4000\), Planck-2018 model} \\
+\textsc{CAMB} current default & 4.0 & 1.0 \\
+\textsc{CAMB} v1.x, same high-\(k\) support & 4.4 & 1.1 \\
+\textsc{CAMB} v1.x, historical low-\(k\) default & 2.4 & 0.58 \\
+\textsc{CLASS} default, native reach, \(L=4000\) & 10 & 3.4 \\
+\textsc{CLASS} \code{cl_permille}, native reach, \(L=4000\) & 11 & 3.7 \\
+\textsc{CLASS} default, high-\(k\), \(L=6000\to4000\) & 15 & 4.6 \\
+\textsc{CLASS} \code{cl_permille}, high-\(k\), \(L=6000\to4000\) & 17 & 5.1 \\
+\hline
+\multicolumn{3}{c}{Non-flat 11-model geometric mean} \\
+\textsc{CAMB} current default & 5.1 & 1.2 \\
+\textsc{CAMB} v1.x, same high-\(k\) support & 68 & 16 \\
+\textsc{CLASS} default & 14 & 3.4 \\
+\textsc{CLASS} \code{cl_permille} defaults & 24 & 5.8 \\
+%\textsc{CLASS} default, same physical reach & 15 & 3.4 \\
+%\textsc{CLASS} \code{cl_permille}, same physical reach & 24 & 5.5 \\
+\hline
+\end{tabular}
+}
+\caption{Representative four-thread timings for lensed CMB calculations on a
+typical laptop.  The native-reach \textsc{CLASS} rows use CLASS's own default
+CMB source cutoff and, for the flat case, no lensed-spectrum margin.  The
+high-\(k\) flat \textsc{CLASS} rows raise the CLASS CMB source cutoff to match
+the current \textsc{CAMB} default, and compute lensed spectra to \(L=6000\)
+before truncating to the requested \(l_{\max}=4000\).  This changes the CLASS
+CMB source calculation, not the output matter-power grid.  The non-flat rows
+are geometric means over the curvature sweep described in
+\cref{sec:bessel-curvature}.
+% the ``same physical reach'' rows use the
+%corresponding high-reach CLASS lensing setting for that calculation.
+}
+\label{tab:performance-timings}
+\end{table}
+
+The \textsc{CLASS} timing depends sensitively on whether the calculation is set
+up as a converged high-\(L\) comparison.  If CLASS is run only to the requested
+\(l_{\max}=4000\), the lensed-spectrum convolution edge dominates the residual:
+for \code{cl_permille} at the same high source cutoff, stopping at \(4000\)
+rather than computing to \(6000\) and truncating changes the plotted spectra by
+\(1.8\times10^{-2}\) at \(l=4000\).  Once this edge is removed, changing from
+CLASS's default source cutoff to the high-\(k\) cutoff used in the table changes
+the \code{cl_permille} spectra by \(2.2\times10^{-3}\) in the full \(TT,EE,TE\)
+envelope at \(l=4000\).  These lensing-related settings mainly affect the last
+part of the damping tail, \(l\gtrsim3000\), but they are needed for a clean
+high-\(L\) accuracy comparison.
+
+The main conclusion is that the new \textsc{CAMB} defaults give substantially
+more accurate lensed spectra than the previous version with little timing cost
+at matched lensing support.  For the non-flat models, the revised
+hyperspherical-Bessel calculation also removes the large cost of running the
+previous version with accuracy settings that maintain the same target accuracy.
+
+\section{Conclusions}
 \label{sec:summary}
 
 We have described an update to \textsc{CAMB} aimed at the accuracy and speed
@@ -1382,10 +1455,8 @@ validated by a deterministic harness across a large grid of models. The unbooste
 defaults are designed to reach the $10^{-3}$ level for the interior lensed CMB and
 the quasi-linear matter power (\cref{app:accuracy}).
 
-\Cref{app:accuracy} collects the accuracy parameters and our recommended settings.
-\todo{add the per-experiment recommended-settings table (the single most useful
-table for readers): default vs.\ high-accuracy columns for SO/extended-SO lensed
-CMB and for matter power, with the resulting validated tolerance.}
+\Cref{app:accuracy} describes the accuracy parameters and default tolerances.
+The default settings are designed to be sufficient for next-generation CMB experiments up to Advanced SO precision. Tools are provided to easily tune parameters if higher accuracy is needed.
 
 We have also used this work as a worked example of custom-precision numerical
 methods developed with AI agents under human supervision. We expect this mode of
@@ -1691,12 +1762,6 @@ need a separate large-scale-structure likelihood to map them to a likelihood
 distance.
 % Reproducible with docs/changelog/accuracy_tolerance_chi2.py.
 
-For analyses that need more than the default -- high-$\ell$ delensing, or matter
-power deep into the nonlinear regime -- the boosts above should be increased
-together. \todo{give a concrete recommended (\code{AccuracyBoost},
-\code{lSampleBoost}, \code{lAccuracyBoost}, \code{lens_potential_accuracy}) tuple
-per use case, with the resulting wall time and validated tolerance, once the
-performance numbers in \cref{sec:performance} are finalized.}
 
 % References are drawn from the shared CAMB/CosmoMC database docs/cosmomc.bib
 % where available; paper-specific references not in that database are in
