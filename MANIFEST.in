@@ -35,5 +35,3 @@ exclude .readthedocs.yml
 exclude camb/cambdll.dll
 exclude camb/camblib.so
 exclude camb/HighLExtrapTemplate_lenspotentialCls.dat
-exclude fortran/sigma8.f90
-exclude fortran/writefits.f90

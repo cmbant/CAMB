@@ -125,13 +125,6 @@ endif
 
 IFLAG = -I
 
-#Settings for building camb_fits
-#Location of FITSIO and name of library
-FITSDIR       ?= /usr/local/lib
-FITSLIB       = cfitsio
-#Location of HEALPIX for building camb_fits
-HEALPIXDIR    ?= /usr/local/healpix
-
 ifneq ($(FISHER),)
 # Its dependencies are all meet by the libutils.a which always added.
 FFLAGS += -DFISHER

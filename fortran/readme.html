@@ -197,15 +197,6 @@
                     REIONIZATION is by default a simple relatively fast single-step reionization model (following <A HREF="http://arxiv.org/abs/0804.3865">arXiv:0804.3865</A>), but you could add alternative models by implementing other derived classes.
                   </P>
                   <P>
-                    It's rarely needed, but you can power spectrum produce files in <A
-                       HREF="http://heasarc.gsfc.nasa.gov/docs/software/fitsio/fitsio.html">FITS</A>
-                    format - to do this you will need to have <A
-                       HREF="http://www.eso.org/science/healpix/">HEALPIX</A> installed and make
-                    some edits to the Makefile - see the Makefile for details. After compiling with <B>make camb_fits</B>,
-                    you can then use <B>camb_fits</B> instead of <B>camb</B> - the FITS file
-                    produced is given the name specified in params.ini. Note that the FITS file format for polarization changed with HEALPIX 1.2, CAMB uses the new format.
-                  </P>
-                  <P>
                     All the equations that need to be modified for
                     simple non-standard models are in the equations.f90 file, or an in separate classes like the dark energy model.
                     <P>
@@ -234,7 +225,7 @@
                               CAMB_GetAge to compute the age of a model in gigayears, and
                               CAMB_GetCls to retrieve the computed Cls.
                             <P>
-                              Sample programs tester.f90 and sigma8.f90 are supplied showing how to
+                              The sample program tester.f90 shows how to
                               use CAMB from your own programs. You can also use CAMB_GetTransfers to access the C_l transfer functions directly without incorporating the initial power spectrum. In addition this module provides the routines to read settings from a .ini file.
                             </P>
                             <B>cmbmain.f90</B>
@@ -314,11 +305,6 @@
                               unlensed spectra and a lensing power spectrum. See <A HREF="http://arxiv.org/abs/astro-ph/0502425">astro-ph/0502425</A>.
                             </P>
 
-                            <B> writefits.f90</B>
-                            <P>
-                              Subroutine WriteFitsCls that uses HEALPIX routines to output power spectrum
-                              in FITS format. Not usually used (also not tested regularly).
-                            <P>
                               <B>recfast.f90</B>
                             <P>
                               RECFAST integrator for Cosmic Recombination of Hydrogen and Helium
@@ -552,7 +538,6 @@
                                     <B>October 2013</B><BR>
                                     <UL>
                                       <LI>Fix to equations_ppf for w/=-1 models; corrected source output fixes C<sub>L</sub> error at very low L (<2% for w&gt;-0.8, more for w&lt;-0.8). (thanks David Rapetti and Matteo Cataneo)
-                                            <LI>Updated writefits.f90 consistently
                                     </UL>
 
 
@@ -720,7 +705,7 @@
                                       </P>
                                       <B>April 2003</B><BR>
                                       <P>
-                                        Some major restructuring, including new functions to return the CMB transfer functions (see camb.f90). The tight coupling code has been re-written, adding quadrupole terms and accounting for the time variation of the opacity numerically. The code should be more accurate and faster, especially on small scales. Minor fixes to RECFAST to match version in CMBFAST (0.01% effect on C<sub>l</sub>s), and bug fix in output routine (0.3%). Includes constant w dark energy and running spectral index parameters by default (rather than with an add-on). New <B>use_physical</B> parameter to allow alternative model specification by Om_b h^2, Om_b h^2 and Om_k. Polarization .fits files now compatible with HEALPIX 1.2.
+                                        Some major restructuring, including new functions to return the CMB transfer functions (see camb.f90). The tight coupling code has been re-written, adding quadrupole terms and accounting for the time variation of the opacity numerically. The code should be more accurate and faster, especially on small scales. Minor fixes to RECFAST to match version in CMBFAST (0.01% effect on C<sub>l</sub>s), and bug fix in output routine (0.3%). Includes constant w dark energy and running spectral index parameters by default (rather than with an add-on). New <B>use_physical</B> parameter to allow alternative model specification by Om_b h^2, Om_b h^2 and Om_k.
                                       </P>
 
                                       <B>November 2002</B>
@@ -768,11 +753,6 @@
                                         subroutines have been changed because the argument that is passed has changed.
                                       </P>
 
-                                      <B>February 2002</B>
-                                      <P>
-                                        Fixed FITS file output to start at l=0 rather than l=2 to be consistent
-                                        with HEALPIX.
-                                      </P>
                                       <B>January 2002</B>
                                       <P>
                                         The code is now fully internally parallelized and lensing is
@@ -796,9 +776,7 @@
                                         gauge_sync.f90) - you now only need to edit these files to add
                                         additional matter components, use extended theories, etc. RECFAST now
                                         consistent with massive neutrinos.
-                                        Added Makefile for better compilation, and added option to create FITS
-                                        format power spectrum files. Changed driver.f90 to driver.F90, and new
-                                        file writefits.f90. Some minor changes to ease use with a
+                                        Added Makefile for better compilation. Changed driver.f90 to driver.F90. Some minor changes to ease use with a
                                         wider range of compilers (e.g. NaG F95 for Linux).
                                       <P>
                                         <B>May 2001</B>

@@ -834,9 +834,6 @@
     character(len=Ini_max_string_len), allocatable :: TransferFileNames(:), &
         MatterPowerFileNames(:), TransferClFileNames(:)
     real(dl) :: output_factor
-#ifdef WRITE_FITS
-    character(LEN=Ini_max_string_len) FITSfilename
-#endif
     logical PK_WantTransfer
     Type(CAMBdata) :: ActiveState
 
@@ -933,19 +930,6 @@
         VectorFileName = ''
     end if
 
-#ifdef WRITE_FITS
-    if (P%WantCls) then
-        FITSfilename = outroot // Ini%Read_String('FITS_filename', .true.)
-        if (FITSfilename /= '') then
-            inquire(file=FITSfilename, exist=bad)
-            if (bad) then
-                open(unit=18, file=FITSfilename, status='old')
-                close(18, status='delete')
-            end if
-        end if
-    end if
-#endif
-
     version_check = Ini%Read_String('version_check')
     if (version_check == '') then
         !tag the output used parameters .ini file with the version of CAMB being used now
@@ -995,9 +979,6 @@
             call State%CLData%output_veccl_files(State%CP,VectorFileName, output_factor)
         end if
 
-#ifdef WRITE_FITS
-        if (FITSfilename /= '') call WriteFitsCls(State, FITSfilename, CP%Max_l)
-#endif
     end if
 
     CAMB_RunFromIni = .true.

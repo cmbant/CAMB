@@ -12,7 +12,6 @@ BISPECTRUM ?= SeparableBispectrum
 
 #Driver program
 DRIVER        ?= inidriver
-#DRIVER       ?= sigma8
 #DRIVER       ?= tester
 
 Release: OUTPUT_DIR = Release
@@ -58,8 +57,6 @@ F90FLAGS      = $(FFLAGS)
 #F90FLAGS      += $(F90WFLAGS)
 
 SF90FLAGS      = $(SFFLAGS) $(FFLAGS)
-
-HEALPIXLD     = -L$(HEALPIXDIR)/lib -lhealpix -L$(FITSDIR) -l$(FITSLIB)
 
 
 CAMBOBJ       = $(patsubst %,%.o,$(SOURCEFILES))
@@ -142,10 +139,6 @@ $(DLL_DIR)/camblib.so: libcambobj
 
 $(CAMBLIB): $(CAMBOBJ)
 	$(AR) -r $@ $(CAMBOBJ)
-
-camb_fits: libforutils directories writefits.f90 $(CAMBOBJ) $(DRIVER).o
-	$(F90C) $(F90FLAGS) -I$(HEALPIXDIR)/include $(CAMBOBJ) writefits.f90 $(DRIVER).o \
-		$(F90CRLINK) $(LIBLINK) $(HEALPIXLD) -DWRITE_FITS -o $@
 
 #../Makefile ../Makefile_main
 %.o: ../%.f90 compiler.ver
