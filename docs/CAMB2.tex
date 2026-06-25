@@ -99,37 +99,45 @@ expensive fixed precision of general-purpose libraries.
 \label{sec:intro}
 
 The cosmic microwave background (CMB) and the large-scale matter distribution are
-the two pillars of precision cosmology, and both are computed for a given model
-by Einstein--Boltzmann codes such as \textsc{CAMB}~\cite{Lewis:1999bs} and
-\textsc{CLASS}~\cite{Blas:2011rf}. These codes solve the linearized perturbation
-equations and project them onto observable angular power spectra using
+the two pillars of precision cosmology. For a given model, Einstein--Boltzmann
+codes such as \textsc{CAMB}~\cite{Lewis:1999bs}\footnote{The
+\textsc{CAMB} source code is available at \url{https://github.com/cmbant/CAMB};
+the Python package can be installed from PyPI with
+\href{https://pypi.org/project/camb/}{\texttt{pip install camb}}.} and
+\textsc{CLASS}~\cite{Blas:2011rf} predict both: they solve the linearized
+perturbation equations and project them onto observable angular power spectra by
 line-of-sight integration~\cite{Seljak:1996is}. \textsc{CAMB} descends directly
 from \textsc{CMBFAST}~\cite{Seljak:1996is}, which introduced the line-of-sight
 method as a fast replacement for the explicit integration of the full Boltzmann
 hierarchy used in earlier codes such as
 \textsc{COSMICS}~\cite{Ma:1995ey,Bertschinger:1995er} and the closely related
-all-sky FRW treatments of the 1990s~\cite{Hu:1998mn}. \textsc{CMBFAST} was later
-generalized to non-flat geometries using hyperspherical Bessel
-functions~\cite{Zaldarriaga:1997va}, and \textsc{CAMB} itself originated as a
-rewrite supporting closed as well as open and flat FRW models~\cite{Lewis:1999bs},
-built on the covariant CMB formalism of Refs.~\cite{Hu:1998mn,Challinor:2000as}.
-The accuracy required of them is set by the data. For the \textit{Planck} satellite, default settings tuned to
-roughly the $0.1\%$ level were sufficient~\cite{Howlett:2012mh}. Ground-based CMB
-experiments such as the Simons Observatory and its planned Advanced SO
-extension~\cite{SO:2018sim}, together with the matter-power measurements from
-\textit{Euclid}, DESI and the Vera Rubin Observatory, demand both higher
-precision and a wider range of scales, and over a broader set of models.
+all-sky FRW treatments of the 1990s~\cite{Hu:1998mn}.
+Ref.~\cite{Zaldarriaga:1997va} later generalized \textsc{CMBFAST} to non-flat
+geometries using hyperspherical Bessel functions, and \textsc{CAMB} itself began
+as a rewrite supporting closed as well as open and flat FRW
+models~\cite{Lewis:1999bs}, built on the covariant CMB formalism of
+Refs.~\cite{Hu:1998mn,Challinor:2000as}.
 
-The last systematic description of \textsc{CAMB}'s accuracy and sampling
-machinery was given by Ref.~\cite{Howlett:2012mh}, in the context of
-\textit{Planck}. Much has changed since then, and the most substantial changes
-have no published description. This paper fills that gap. It is not a review of
-the underlying physics, which is standard and documented
+The accuracy these codes must reach is set by the data. \textit{Planck} analyses
+were well served by default settings tuned to roughly the $0.1\%$ level at
+$\ell\lesssim 2000$~\cite{Howlett:2012mh}. Higher-resolution ground-based CMB
+experiments such as the Simons Observatory and its planned Advanced SO
+extension~\cite{SO:2018sim}, together with forthcoming higher-precision galaxy
+lensing and large-scale-structure density probes, push to both finer precision
+and a wider range of scales. Over this whole range the theoretical spectra must
+stay accurate well below the measurement errors, and meeting that demand cheaply
+is the goal of the present work.
+
+Ref.~\cite{Howlett:2012mh} gave the last systematic description of
+\textsc{CAMB}'s accuracy and sampling machinery, in the context of
+\textit{Planck}. Much has changed since, and the most substantial changes have no
+published description; this paper fills that gap. It is not a review of the
+underlying physics, which is standard and documented
 elsewhere~\cite{Challinor:2000as,Lewis:2006fu,Lewis:1999bs}: we reproduce
 established results only as far as needed to state a numerical problem precisely,
-and concentrate on what is new.
+and otherwise concentrate on what is new.
 
-We concentrate on the two outputs that dominate practical analyses, the lensed
+We focus on the two outputs that dominate practical analyses, the lensed
 CMB spectra and the matter power spectrum. \textsc{CAMB} of course also computes
 cross-correlations, number-count and lensing observables, and a range of
 extended models; these are not the focus here, although the line-of-sight and
@@ -143,8 +151,7 @@ as in the uniform WKB treatments of
 Ref.~\cite{Kosowsky:1998nc}, we map it onto the
 \emph{flat} spherical Bessel equation. The comparison solution is then the
 ordinary flat spherical Bessel function, evaluated by a fast dedicated
-routine~\cite{cambflatbessel}, which already carries the Airy transition, the
-Debye tails and the oscillatory phase; the curved problem reduces to a coordinate
+routine; the curved problem then reduces to a coordinate
 map and an amplitude. The method is exact when the universe is flat, smooth
 through the turning point, and in near-flat models collapses to a rescaling of the flat Bessel argument and an
 amplitude. The flat-Bessel mapping is very similar in spirit to the
@@ -155,20 +162,24 @@ post-Friedmann (PPF) dark-energy evolution (\cref{sec:de}), and the lensing
 accuracy work (\cref{sec:lensing}).
 
 The second contribution is methodological, and has two related parts. The first
-is a design philosophy: away from general-purpose special-function libraries with
-a fixed accuracy/speed trade-off, and towards \emph{custom-precision} numerical
-methods, hand-fitted and exhaustively calibrated to exactly the accuracy a given
-problem needs on the grid it actually samples. The hyperspherical Bessel routine
-is the clearest example, but the same principle -- spend accuracy where it
-matters, and prove it with a reproducible test -- runs through all of the changes.
-The second is the process: almost all of this work was co-developed with AI tools.
- For more analytic work, LLMs were used to suggest and critique possible implementation algorithms or approximations, with iterative testing and cross-LLM/human validation and review.
-For accuracy stability failures and bugs, agents with a human in the loop drove a deterministic validation harness to isolate and fix issues (\cref{sec:validation,sec:agentic}). The agents made it practical to
-hand-fit and exhaustively validate this many code tweaks and alternative numerical methods, a labour that would
-otherwise be prohibitive.
+is a design philosophy: a move away from general-purpose special-function
+libraries with their fixed accuracy/speed trade-off, towards
+\emph{custom-precision} numerical methods, hand-fitted and exhaustively calibrated
+to exactly the accuracy a given problem needs on the grid it actually samples. The
+hyperspherical Bessel routine is the clearest example, but the same principle --
+spend accuracy where it matters, and prove it with a reproducible test -- runs
+through all of the changes. The second part is the process: we co-developed almost
+all of this work with AI tools. For the more analytic problems we used LLMs to
+suggest and critique candidate algorithms and approximations, with iterative
+testing and cross-LLM and human validation. For accuracy-stability failures and
+bugs, agents with a human in the loop drove a deterministic validation harness to
+isolate and fix each issue (\cref{sec:validation,sec:agentic}). The agents made it
+practical to hand-fit and exhaustively validate this many small numerical changes
+and alternative methods, a labour that would otherwise be prohibitive.
 
-We begin with conventions and code notation (\cref{sec:conventions}), then
-describe the line-of-sight and hyperspherical-Bessel calculation
+We begin with conventions and code notation (\cref{sec:conventions}) and an
+overview of how the perturbation equations are evolved (\cref{sec:evolution}),
+then describe the line-of-sight and hyperspherical-Bessel calculation
 (\cref{sec:bessel}), recombination, reionization and background evolution
 (\cref{sec:recomb}), massive-neutrino background and momentum sampling
 (\cref{sec:neutrinos}), stabilized dark-energy evolution (\cref{sec:de}), lensed
@@ -202,15 +213,68 @@ This makes the source and gauge conventions of the code programmatically explici
 which is useful both for adapting external results and for checking the
 implementation.
 
+\section{Evolving the perturbation equations}
+\label{sec:evolution}
+
+\textsc{CAMB} computes its observables from the linearized
+Einstein--Boltzmann system, evolved in conformal time independently for each
+wavenumber. The photon and neutrino phase-space distributions are expanded in
+angular multipoles, giving for each species a coupled hierarchy for the density,
+velocity, anisotropic stress and higher
+moments~\cite{Ma:1995ey,Hu:1998mn,Challinor:2000as}; massive neutrinos carry a
+separate hierarchy for each sampled momentum (\cref{sec:neutrinos}). The
+hierarchies are truncated at a finite multipole with a free-streaming closure
+that approximates the coupling to the first unevolved moment, so that the cut
+does not reflect spurious power back into the retained
+multipoles~\cite{Ma:1995ey}. Initial conditions are set deep in radiation
+domination from the regular series solution of the
+equations~\cite{Bucher:1999re}, adiabatic by default. The evolved variables are
+combined into the line-of-sight
+sources~\cite{Seljak:1996is,Zaldarriaga:1997va,Challinor:2000as}, stored on a
+sampled time grid, and projected against the radial functions of
+\cref{sec:bessel} to give the transfer functions and hence the $C_\ell$.
+
+Before recombination, rapid Thomson scattering couples the photons and baryons
+so tightly that the photon hierarchy is stiff: the scattering rate is far larger
+than the expansion and acoustic-oscillation rates. Rather than integrate this
+stiff system directly, \textsc{CAMB} evolves a reduced tight-coupling
+approximation, in which the photon--baryon velocity slip and the leading photon
+anisotropy are expanded to second order in the scattering
+time~\cite{CyrRacine:2010bk,Blas:2011rf}. The approximation is switched off mode
+by mode -- and the full hierarchy switched on -- once the scattering is no longer
+fast compared with the mode frequency and the expansion rate, after which the
+system is non-stiff for the rest of its evolution.
+
+This non-stiff system is advanced with an adaptive embedded Runge--Kutta
+integrator that sets its own step size from a built-in error estimate. The one
+substantive change here is the integrator itself: the long-standing
+\textsc{dverk} Runge--Kutta--Verner routine has been replaced by a
+Dormand--Prince 4(5) pair~\cite{DormandPrince:1980}, keeping the same
+step-control and interrupt interface. The Dormand--Prince pair reaches the same tolerances with fewer
+right-hand-side evaluations per step, and reuses the final stage of an accepted
+step as the first stage of the next; this evaluation is the dominant cost, since
+each one sweeps the full multipole hierarchy. The integration tolerance scales
+with \code{IntTolBoost} (\cref{app:accuracy}).
+
+By construction the explicit integrator is only ever applied where the
+equations are non-stiff. The early stiff radiation era is handled by the
+tight-coupling approximation above; the separately stiff early phase of the
+recombination network is integrated with an implicit Rosenbrock method before
+handing back to the same Dormand--Prince solver (\cref{sec:recomb-model}); and
+the stiff high-$k/\mathcal H$ limit of the PPF dark-energy equation is
+regularized analytically rather than integrated (\cref{sec:de}). Stiffness is
+thus removed by a method matched to each regime, leaving the explicit adaptive
+integrator a well-conditioned problem wherever it runs.
+
 \section{Line-of-sight integration and hyperspherical Bessel functions}
 \label{sec:bessel}
 
 The line-of-sight solution writes each transfer function as an integral of a
-source against a radial Bessel function~\cite{Seljak:1996is,Challinor:2000as}. In
+source against a radial Bessel function~\cite{Seljak:1996is,Zaldarriaga:1997va,Challinor:2000as}. In
 a flat universe the radial function is the ordinary spherical Bessel function
 $\jl(k\chi)$; in a curved Friedmann--Robertson--Walker (FRW) section it is the
 hyperspherical (ultraspherical) Bessel function $\phi_l^\nu(K,\chi)$, the
-non-flat generalization of $\jl$ \cite{abbott-schaefer,Kosowsky:1998nc,tram2013}.
+non-flat generalization of $\jl$ \cite{abbott-schaefer,Zaldarriaga:1997va,Kosowsky:1998nc,tram2013}.
 \textsc{CAMB} evaluates it for many source times, wavenumbers and multipoles, so a
 direct special-function call at every source point would be far too slow. This
 section describes how we avoid that. The detailed formulae are collected in
@@ -241,29 +305,36 @@ first-derivative term,
   u''=\left[\frac{l(l+1)}{\SK^2(\chi)}-\nu^2\right]u .
   \label{eq:reduced}
 \end{equation}
-The regular solution is fixed by $\phi_l^\nu\sim
-\big[\textstyle\prod_{j=1}^l b_j\big]\chi^l/(2l+1)!!$ as $\chi\to0$, with
+The regular solution is fixed by
+\begin{equation}
+\phi_l^\nu\sim
+\big[\textstyle\prod_{j=1}^l b_j\big]\chi^l/(2l+1)!!
+\end{equation}
+ as $\chi\to0$, with
 $b_j(K,\nu)=\sqrt{\nu^2-Kj^2}$; for $K=0$ this is the usual
 $\jl(\nu\chi)\sim(\nu\chi)^l/(2l+1)!!$. For $K=+1$, $\nu$ is a positive integer
 and the regular spectrum requires $\nu>l$.
 
-Writing $\ell=\sqrt{l(l+1)}$ and $\alpha=\nu/\ell$, \cref{eq:reduced} becomes
-$u''+\ell^2[\alpha^2-\SK^{-2}]u=0$, with a turning point where the bracket
+Writing $\hat\ell=\sqrt{l(l+1)}$ for the Langer-corrected multipole and
+$\alpha=\nu/\hat\ell$, \cref{eq:reduced} becomes
+$u''+\hat\ell^2[\alpha^2-\SK^{-2}]u=0$, with a turning point where the bracket
 vanishes,
 \begin{equation}
-  \SK(\chi_t)=\frac1\alpha=\frac{\ell}{\nu}.
+  \SK(\chi_t)=\frac1\alpha=\frac{\hat\ell}{\nu}.
   \label{eq:turning}
 \end{equation}
-Below $\chi_t$ the regular solution is exponentially small; above it the solution
-oscillates. A direct WKB amplitude diverges at the turning point even though the
-true function is finite, so any practical method must be uniform through this
-transition. This large-$\ell$ turning-point language organizes the moderate- and
-high-$l$ behaviour; for $l\le2$ and a few other corners the code uses the exact
-recurrence of \cref{sec:bessel-recur} instead.
+For $\chi<\chi_t$ the solution is on the evanescent, non-oscillatory branch; for
+$\chi>\chi_t$ it oscillates. The turning point is what makes accurate evaluation
+delicate: a naive WKB amplitude diverges there even though the true function
+stays finite, so any construction has to remain uniform through the transition.
+The uniform construction we develop below (\cref{sec:bessel-olver,sec:bessel-amp})
+does exactly this and is the method the code uses for general $l$; only for
+$l\le2$ and a few exceptional corners does it fall back on the exact recurrence of
+\cref{sec:bessel-recur}.
 
 For most cosmologies of interest the curvature radius is far larger than the
 horizon, so every source point has $\chi\lesssim\chi_0=\tau_0\sqrt{\abs{\mathcal
-K}}\ll1$. The Bessel factor for multipole $l$ peaks near $\SK(\chi)\simeq\ell/\nu$,
+K}}\ll1$. The Bessel factor for multipole $l$ peaks near $\SK(\chi)\simeq\hat\ell/\nu$,
 so the contributing modes have $\alpha\simeq1/\SK(\chi)\gtrsim1/\chi_0\gg1$,
 i.e.\ $\nu\gg l$ except in low-$l$, endpoint, or deep-tail regions. The near-flat
 shortcuts below live in exactly this comfortable regime.
@@ -302,13 +373,13 @@ The coordinate $z(\chi)$ is fixed by equality of the action measured from the
 turning point. With $f_K=\alpha^2-\SK^{-2}$ and $f_0=\alpha^2-z^{-2}$, and the
 dimensionless flat action $I_0$ defined in \cref{eq:flat-action}, the map is
 \begin{equation}
-  Q_K(\chi)=I_0(\alpha z),\qquad z_t=\frac1\alpha=\frac{\ell}{\nu},
+  Q_K(\chi)=I_0(\alpha z),\qquad z_t=\frac1\alpha=\frac{\hat\ell}{\nu},
   \label{eq:action-map}
 \end{equation}
 where $Q_K$ is the curved action integral \cref{eq:curved-action}. The intuition
 is the usual WKB one: away from the turning point the regular solution behaves as
-$|f|^{-1/4}\exp(\pm\ell Q)$ on the evanescent side and
-$|f|^{-1/4}\cos(\ell Q-\pi/4)$ on the oscillatory side, with $\ell Q$ the action.
+$|f|^{-1/4}\exp(\pm\hat\ell Q)$ on the evanescent side and
+$|f|^{-1/4}\cos(\hat\ell Q-\pi/4)$ on the oscillatory side, with $\hat\ell Q$ the action.
 Two equations with the same action measured from their turning points have
 solutions that stay in step everywhere -- same phase, same node count, same
 suppression -- so $\jl(\nu z(\chi))$ already carries the curved phase and
@@ -318,6 +389,10 @@ amplitude. The curved action $Q_K$ has closed analytic forms
 (\cref{app:bessel-action}), so no quadrature is needed in the hot loop; inverting
 the flat action for $z$ uses stable branch parameterizations, also given in the
 appendix.
+
+The flat bessel function that the Olver approximation maps to is calculated using a fast custom-precision code (better than $10^{-5}$ peak accuracy at high $l$; for details of the LLM-optimized approximations and fits see~\cite{cambflatbessel}).
+For flat and near-flat cases, the functions are splined from pre-computed tables of this function.
+
 
 \subsection{Amplitude, the flat limit, and the turning point}
 \label{sec:bessel-amp}
@@ -335,13 +410,9 @@ which keeps the Wronskian constant and reduces to the WKB $|f|^{-1/4}$ in the fl
 limit. At the turning point both numerator and denominator vanish but the limit is
 finite: with $C_t=\CK(\chi_t)$, $z-z_t\simeq C_t^{1/3}(\chi-\chi_t)$ and
 $A(\chi_t)=C_t^{-1/6}$. For $K=0$ we have $\SK=\chi$, $z=\chi$, $A=1$, so
-\cref{eq:basic-olver} reduces \emph{exactly} to the flat result. This exactness in
-the flat limit, and the smoothness through the turning point, are the two
-properties that make the flat comparison the right choice; both are a consequence
-of using $z\jl(\nu z)$, which solves the exact reduced flat equation, rather than
-a local Airy function.
+\cref{eq:basic-olver} reduces \emph{exactly} to the flat result.
 
-\subsection{The near-flat shifted-\texorpdfstring{$q$}{q} shortcut}
+\subsection{The near-flat shifted-wavenumber shortcut}
 \label{sec:bessel-shifted}
 
 Very near the origin the exact action map subtracts nearly equal quantities, so we
@@ -383,29 +454,12 @@ roughly the $10^{-4}$ level across the open and closed validation grid. The
 controlling combination is $\alpha\simeq\nu/l$: larger $\alpha$ means weaker
 curvature corrections and a smaller turning radius. The first omitted Olver term
 scales as $\alpha^{-4}$, which sets the broad $\alpha\simeq$ few boundary; the
-source fillers also allow a calibrated high-$l$ near-flat branch where the
+source integrators also allow a calibrated high-$l$ near-flat branch where the
 small-$\chi$ endpoint metric is tighter. Below the accepted regions the code
 organizes the residual by endpoint metrics, then tries validated Airy and open
 small-$\nu$ fallbacks before using the exact recurrence. The precise pointwise
 decision order and the source-integration filler gates are given in
-\cref{app:bessel-gates}. \Cref{fig:bessel-accuracy-domains} shows the resulting
-point-call domains and flags the worst-case validation errors.
-
-\begin{figure*}[t]
-\centering
-  \includegraphics[width=0.96\textwidth]{changelog/hyperspherical_bessel_accuracy_domains/hyperspherical_bessel_accuracy_domains.pdf}
-\caption{Hyperspherical-Bessel point-call domains in the current dispatcher.
-Each dot is a sampled validation-grid point, colored by the branch used by
-\code{phi_olver}; errors are measured against \code{phi_recurs} and normalized by
-the first peak amplitude. Yellow triangles mark cases whose maximum sampled
-error lies between \(10^{-4}\) and \(2\times10^{-4}\); no sampled case exceeds
-\(2\times10^{-4}\). The dashed lines show the raw-Olver endpoint gates. In the
-closed panel \(d\equiv\nu-l\); the dotted guides mark the large-\(l\) onset of
-the closed Airy fallback and the value of \(d\) above which the raw-Olver metric
-gate covers the full folded interval \(0\le\chi\le\pi/2\). The open small-\(\nu\)
-branch applies only in the open panel.}
-\label{fig:bessel-accuracy-domains}
-\end{figure*}
+\cref{app:bessel-gates}.
 
 For source integration the hierarchy is summarized in \cref{tab:hierarchy}. The
 overall accuracy is controlled jointly by the pointwise Olver gates, the near-flat
@@ -415,20 +469,21 @@ formula alone.
 \begin{table*}[t]
 \centering
 \small
+\setlength{\tabcolsep}{7pt}
 \begin{tabularx}{0.92\textwidth}{Z{0.78}Z{1.08}Z{1.14}}
 \toprule
 Regime & Computation & Reason \\
 \midrule
-Flat & table/spline of $\jl(q\chi)$ & exact flat result \\
+Flat & table/spline of $\jl(q\chi)$ & accurate flat result \\
 Near-flat, tiny curvature & constant-map shifted-$q$ lookup, \cref{eq:shifted-q} & fastest limit of small-$\chi$ Olver \\
 Near-flat, small-$\chi$ range & lookup at $\nu\chi F$, weight $F/\sqrt D$ & retains next curvature terms \\
-General non-flat range & start from Olver, propagate by Numerov & avoids repeated Olver calls \\
-Non-flat range, $n_{\rm sub}\ge10$ per step & direct Olver at each source point & one Olver call $\approx$ 13 substeps; avoids phase drift \\
+General non-flat range & start from Olver, propagate by Numerov  & avoids repeated Olver calls \\
+Non-flat range, $n_{\rm substep}\ge10$ per \\ sampled source & direct Olver at each source point & one Olver call $\approx$ 13 substeps; avoids phase drift \\
 Low-$l$ / low-$\alpha$ & Airy/open-small-$\nu$ fallbacks, then \code{phi_recurs} & asymptotics not valid \\
 \bottomrule
 \end{tabularx}
-\caption{The source-integration approximation hierarchy. Each near-flat path is
-accepted only when its calibrated accuracy gate passes (\cref{app:bessel-gates}).}
+\caption{Source-integration hierarchy. Near-flat paths require their calibrated
+accuracy gates to pass (\cref{app:bessel-gates}).}
 \label{tab:hierarchy}
 \end{table*}
 
@@ -507,23 +562,6 @@ Refs.~\cite{tram2013,lesgourgues-tram2013}, and a direct comparison with
 Because the recurrence is standard, we relegate the formulae and the detailed
 \textsc{CLASS} comparison to \cref{app:bessel-recur}.
 
-\subsection{Why the flat comparison helps}
-\label{sec:bessel-why}
-
-A first-order Langer approximation maps the curved equation onto an Airy function,
-uniform only at the level of the universal local turning-point shape. Our map
-instead sends
-\begin{equation}
-  \text{curved Bessel}\;\to\;\text{flat spherical Bessel at }z(\chi),
-\end{equation}
-and the flat spherical Bessel routine already contains its own Airy transition,
-Debye tails, oscillatory phase and low-order safeguards. The curved calculation
-therefore only has to describe how curvature changes the effective coordinate and
-amplitude, which is a smooth, slowly varying problem. It is also why the
-shifted-$q$ limit is so natural, and why the whole construction is exact in the
-flat limit: the comparison object is the exact flat solution, not a local model of
-it. The remaining error is the leading omitted Olver (Schwarzian) term of
-\cref{eq:olver-residual}, which is parametrically small in the gated regime.
 
 \subsection{Multipole sampling and template interpolation}
 \label{sec:bessel-lsampling}
@@ -535,7 +573,7 @@ step of about $50$ in $\ell$ at high $\ell$, up to a transition multipole (defau
 $5000$) above which the unlensed spectra are smoothly damping and a widening
 logarithmic spacing is used; computing every $\ell$ is available as a reference
 limit. Interpolating the $C_\ell$ directly at a $\Delta\ell\sim50$ spacing would
-not resolve the acoustic peaks, so for $TT$, $EE$ and $TE$ we instead
+not give quite enough accuracy at all the interpolated points, so for $TT$, $EE$ and $TE$ we instead
 spline-interpolate the \emph{difference} between the computed $C_\ell$ and a smooth
 fiducial template, adding the accurately interpolated template back afterwards;
 the residual is small and featureless, so the coarse sampling suffices.
@@ -545,36 +583,22 @@ before taking the difference. With $s$ the ratio of the model's acoustic scale t
 the template's -- set from the sound-horizon angle, the same geometric scale used
 by the near-flat source-integration gate of \cref{app:bessel-gates} -- the
 template is evaluated at $\ell/s$ so that its acoustic peaks line up with the
-model's. The residual then stays smooth even when the peaks are displaced from the
-fiducial, so a model with a different acoustic scale can reuse the same sparse
-$\ell$ sampling instead of needing a denser grid; the sampling step is scaled by
-$s$ for the same reason. Both the template shift and the step scaling are applied
-only once $s$ departs appreciably from one, so flat and near-fiducial models are
-left unchanged. This keeps the high-$\ell$ cost roughly fixed across the range of
-acoustic scales of interest.
+model's. The template then remains accurate enough for the small spline correction
+when the peaks are displaced from the fiducial position.
 
-\subsection{Numerical performance}
+\subsection{Curvature overhead}
 \label{sec:bessel-curvature}
 
-The non-flat path is also cheap. On a four-thread timing sweep of the 11
-default-accuracy models
-$\Omega_K=\{-0.03,-0.02,-0.01,-10^{-3},-10^{-5},0,10^{-5},10^{-3},0.01,0.02,0.03\}$
-used in the validation set, the new implementation has a geometric-mean CPU time
-of $5.14\,$s at $l_{\max}=4000$, against $68.3\,$s for the previous
-\textsc{CAMB} v1.x code at the same effective lensing-potential accuracy -- a
-factor $13.3$ speed-up at matched accuracy. The corresponding \textsc{CLASS}~3.3.4 timings for the
-same models, with its CMB-lensing full-Limber cutoff set to the same physical
-reach as the new \textsc{CAMB} default lensing integration,
-$k_{\max}=6.41\,\mathrm{Mpc}^{-1}$, are $14.5\,$s at default precision and
-$24.3\,$s with \code{cl_permille} precision. Within the new \textsc{CAMB} sweep
-the near-flat cases with $|\Omega_K|\le10^{-3}$ have geometric-mean CPU time
-$4.58\,$s, against $3.74\,$s for the exactly flat $\Omega_K=0$ case; the most
-closed case ($\Omega_K=0.03$) takes $5.15\,$s and the slowest open case
-($\Omega_K=-0.03$) takes $7.21\,$s. Curvature is therefore a modest overhead
-rather than a separate slow path, and the source-integration and lensing work
-parallelizes well over the 4--8 threads typical of interactive analysis runs.
-Current CMB constraints concentrate close to flatness, where the overhead is
-smallest.
+The non-flat integration is now only moderately more expensive than flat, rather
+than a separate slow path. On the validation curvature sweep
+$\Omega_K=\{\pm0.03,\pm0.02,\pm0.01,\pm10^{-3},\pm10^{-5}\}$ the overhead is
+modest -- the near-flat $|\Omega_K|\le10^{-3}$ models cost little more than the
+exactly flat case -- and the source-integration and lensing work parallelizes
+well over the 4--8 threads typical of interactive analysis runs. Current CMB
+constraints concentrate close to flatness, where the overhead is smallest.
+Detailed timings, including the large speed-up over the previous \textsc{CAMB}
+version at matched lensing accuracy and the \textsc{CLASS} comparison, are
+collected in \cref{sec:performance}.
 
 \section{Recombination and the background}
 \label{sec:recomb}
@@ -618,13 +642,8 @@ Planck-like model with \(\Omega_{\rm b}h^2=0.02237\) and
 \(\Delta N_{\rm eff}=0\), the 2024 \textsc{PRIMAT} calculation gives
 \(Y_{\rm He}=0.245656\); the older PArthENoPE calculation with
 \(\tau_n=880.2\,{\rm s}\) is lower by \(2.6\times10^{-4}\), and the 2021
-\textsc{PRIMAT} calculation is higher by \(2.0\times10^{-4}\). Across the
-representative range
-\(0.0218\le\Omega_{\rm b}h^2\le0.0230\) and
-\(-0.5\le\Delta N_{\rm eff}\le0.5\), the largest helium shift relative to the
-2024 \textsc{PRIMAT} prediction is \(3.0\times10^{-4}\), and at fixed cosmological
-parameters the lensed \(TT\) and \(EE\) spectra shift by less than
-\(7\times10^{-4}\) for \(30\le\ell\le4000\). The corresponding deuterium changes
+\textsc{PRIMAT} calculation is higher by \(2.0\times10^{-4}\).
+The corresponding deuterium changes
 can be larger -- for example the old standard PArthENoPE prediction is about \(5.7\%\)
 high in D/H at the same point -- but this only matters when using an external BBN
 abundance likelihood.
@@ -638,18 +657,16 @@ the photon diffusion scale. Future CMB data require per-mille-level predictions
 for the relevant spectra, so small recombination-history errors in the damping
 tail can no longer be treated as harmless implementation details. The statistical
 weight of many high-$\ell$ modes means that coherent $10^{-3}$-level residuals
-can give non-negligible shifts in spectra and likelihoods. We have therefore
-revisited both parts of the default recombination calculation: the effective
-recombination history used in the standard run, and the numerical integration of
-the resulting equations. This subsection describes the physical calibration of
-the effective model; the next subsection describes the new semi-stiff integrator
-used to solve it.
+can give non-negligible shifts in spectra and likelihoods. This subsection
+describes physical calibration of the effective model to more complete analyses and
+some implementation details.
 
 The basic physical bottleneck has been understood since the classic effective
 atom treatments of Peebles and of Zel'dovich, Kurt and
 Sunyaev~\cite{Peebles:1968ja,Zeldovich:1968}: direct recombination to the ground
 state mostly re-ionizes another atom, so the net rate is controlled by escape
-from Ly$\alpha$ and by the two-photon $2s\to1s$ channel. Modern CMB calculations
+from Ly$\alpha$ due to redshifting and by the two-photon $2s\to1s$ channel.
+Modern CMB calculations
 need this picture refined to the percent-to-subpercent level in $x_e$, including
 excited states, feedback between lines, two-photon and Raman processes, and
 radiative-transfer effects.
@@ -672,11 +689,11 @@ including overlapping singlet, triplet and quadrupole series, line scattering,
 electron scattering, H\,{\sc i} absorption, and feedback between helium
 lines~\cite{Chluba:2011hw}. \textsc{HyRec-2} further accelerates the hydrogen
 calculation by tabulating a cosmology-dependent correction to the Ly\(\alpha\)
-net decay rate calibrated on full \textsc{HyRec}~\cite{Lee:2020obi}; it does not
-introduce a comparably new helium calculation. For the helium radiative-transfer
+net decay rate calibrated on full \textsc{HyRec}~\cite{Lee:2020obi}; but does not
+introduce a similar helium correction. For the helium radiative-transfer
 modelling tested here, this makes \textsc{CosmoRec} the more complete baseline;
-\textsc{HyRec-2} remains a valuable independent high-accuracy comparison with a
-different set of approximations.
+\textsc{HyRec-2} remains a valuable independent high-accuracy comparison during the
+most important hydrogen ionization phase.
 
 \textsc{CAMB}'s default model remains based on the \textsc{RECFAST} effective
 few-level approximation~\cite{Seager:1999bc,Seager:1999km}. \textsc{RECFAST}
@@ -856,7 +873,8 @@ of the right-hand side together with its explicit time-derivative term, and an
 embedded lower-order solution for adaptive step control. Once the ionization
 fraction has fallen enough that the system is safely
 non-stiff (by default at $x_{\rm H}\simeq 0.976$), it hands off to the explicit
-Dormand--Prince solver. The Rosenbrock and Dormand--Prince tolerances and the
+Dormand--Prince integrator used for the perturbations (\cref{sec:evolution}).
+The Rosenbrock and Dormand--Prince tolerances and the
 recombination sampling scale with the global accuracy settings, so the
 recombination history converges smoothly as the overall calculation is tightened.
 The default overall recombination calculation is under a millisecond, very similar
@@ -1434,27 +1452,26 @@ Case & CPU [s] & wall [s] \\
 \textsc{CLASS} default, high-\(k\), \(L=6000\to4000\) & 15 & 4.6 \\
 \textsc{CLASS} \code{cl_permille}, high-\(k\), \(L=6000\to4000\) & 17 & 5.1 \\
 \hline
-\multicolumn{3}{c}{Non-flat 11-model geometric mean} \\
-\textsc{CAMB} current default & 5.1 & 1.2 \\
-\textsc{CAMB} v1.x, same high-\(k\) support & 68 & 16 \\
-\textsc{CLASS} default & 14 & 3.4 \\
-\textsc{CLASS} \code{cl_permille} defaults & 24 & 5.8 \\
-%\textsc{CLASS} default, same physical reach & 15 & 3.4 \\
-%\textsc{CLASS} \code{cl_permille}, same physical reach & 24 & 5.5 \\
+\multicolumn{3}{c}{Non-flat 10-model geometric mean} \\
+\textsc{CAMB} current default & 5.3 & 1.3 \\
+\textsc{CAMB} v1.x, same high-\(k\) support & 90 & 21 \\
+\textsc{CLASS} default & 15 & 3.6 \\
+\textsc{CLASS} \code{cl_permille} defaults & 27 & 6.4 \\
+%\textsc{CLASS} default, same physical reach & 15 & 3.6 \\
+%\textsc{CLASS} \code{cl_permille}, same physical reach & 27 & 6.1 \\
 \hline
 \end{tabular}
 }
 \caption{Representative four-thread timings for lensed CMB calculations on a
-typical laptop.  The native-reach \textsc{CLASS} rows use CLASS's own default
+typical laptop.  The native-reach \textsc{CLASS} rows use \textsc{CLASS}'s own default
 CMB source cutoff and, for the flat case, no lensed-spectrum margin.  The
-high-\(k\) flat \textsc{CLASS} rows raise the CLASS CMB source cutoff to match
+high-\(k\) flat \textsc{CLASS} rows raise the \textsc{CLASS} CMB source cutoff to match
 the current \textsc{CAMB} default, and compute lensed spectra to \(L=6000\)
 before truncating to the requested \(l_{\max}=4000\).  This changes the CLASS
 CMB source calculation, not the output matter-power grid.  The non-flat rows
 are geometric means over the curvature sweep described in
-\cref{sec:bessel-curvature}.
-% the ``same physical reach'' rows use the
-%corresponding high-reach CLASS lensing setting for that calculation.
+\cref{sec:bessel-curvature}. For non-flat models the \textsc{CLASS} timing results do not
+include hyperspherical bessel table precomputation.
 }
 \label{tab:performance-timings}
 \end{table}
@@ -1473,9 +1490,16 @@ high-\(L\) accuracy comparison.
 
 The main conclusion is that the new \textsc{CAMB} defaults give substantially
 more accurate lensed spectra than the previous version with little timing cost
-at matched lensing support.  For the non-flat models, the revised
-hyperspherical-Bessel calculation also removes the large cost of running the
-previous version with accuracy settings that maintain the same target accuracy.
+at matched lensing support.
+
+For the non-flat models, the revised
+hyperspherical-Bessel calculation scheme also removes the large cost of running the
+previous version:
+across the ten-model curvature sweep of \cref{sec:bessel-curvature} the
+geometric-mean CPU time falls from $90.1\,$s for \textsc{CAMB} v1.x to
+$5.30\,$s at $l_{\max}=4000$, a factor of $17$ at higher target accuracy, and
+the near-flat $|\Omega_K|\le10^{-3}$ models ($4.82\,$s geometric mean) cost only
+modestly more than the exactly flat case ($3.74\,$s).
 
 \section{Conclusions}
 \label{sec:summary}
@@ -1489,12 +1513,16 @@ the flat argument in near-flat models, and supplies robust starting values for a
 cheap Numerov propagation of neighbouring source points. Around this we have
 faster recombination and neutrino-background evaluation, a stabilized PPF
 dark-energy evolution, and recalibrated lensing and curvature accuracy, all
-validated by a deterministic harness across a large grid of models. The unboosted
-defaults are designed to reach the $10^{-3}$ level for the interior lensed CMB and
-the quasi-linear matter power (\cref{app:accuracy}).
+validated by a deterministic harness across a large grid of models. Although we
+have concentrated on the lensed CMB and matter power, the same line-of-sight and
+accuracy machinery carries over to the cross-correlations, number-count and
+lensing observables that \textsc{CAMB} also computes. The unboosted defaults are
+designed to reach the $10^{-3}$ level for the interior lensed CMB and the
+quasi-linear matter power.
 
-\Cref{app:accuracy} describes the accuracy parameters and default tolerances.
-The default settings are designed to be sufficient for next-generation CMB experiments up to Advanced SO precision. Tools are provided to easily tune parameters if higher accuracy is needed.
+\Cref{app:accuracy} documents the accuracy parameters and default tolerances. The
+defaults target next-generation CMB experiments up to Advanced SO precision, and
+where higher accuracy is needed we provide tools to tune them easily.
 
 We have also used this work as a worked example of custom-precision numerical
 methods developed with AI agents under human supervision. We expect this mode of
@@ -1560,7 +1588,7 @@ oscillatory side. Finally $z=z_t x=x/\alpha$.
 The leading omitted term of the leading-order map is seen by substituting
 $u=A\,w(z)$ into \cref{eq:reduced}, which gives
 \begin{equation}
-  \frac{\dd^2w}{\dd z^2}+\big[\ell^2 f_0(z)+\Psi(z)\big]w=0,\qquad
+  \frac{\dd^2w}{\dd z^2}+\big[\hat\ell^2 f_0(z)+\Psi(z)\big]w=0,\qquad
   \Psi=-\frac{1}{2(\dd z/\dd\chi)^2}\{z,\chi\},
   \label{eq:olver-residual}
 \end{equation}
@@ -1597,24 +1625,28 @@ For a pointwise call, \code{olver_reduced} decides as follows. For $l\le2$ it us
   \frac{l^2\chi^7}{\nu}<5\times10^{-2},
 \]
 using $\nu/l$ and $l^2$ only as cheap high-$l$ gate proxies; the map itself uses
-the more accurate $\ell=\sqrt{l(l+1)}$ curvature scale. If that branch is not
-used, open models accept the full action-map value whenever
-\[
-  \frac{\nu}{l}\ge\alpha_{\rm open}(l),\qquad
+the more accurate $\hat\ell=\sqrt{l(l+1)}$ curvature scale. If that branch is not
+used, open models accept the full action-map value whenever, with
+\(\alpha_g=\nu/l\),
+\begin{equation}
+  \alpha_g\ge\alpha_{\rm open}(l),\qquad
   \alpha_{\rm open}(l)=\max\!\left[
   0.095,\,
   0.12\left(\frac{500}{l}\right)^{p(l)}
   \right],
-\]
+  \label{eq:open-alpha-gate}
+\end{equation}
 with $p(l)=0.70$ for $l<500$ and $p(l)=0.14$ for $l\ge500$. Below that cutoff,
 open models accept the full action-map value only in the endpoint corner
-\[
+\begin{equation}
   \frac{\chi}{2\nu}\le3.0\times10^{-3}.
-\]
+\label{eq:open-endpoint-gate}
+\end{equation}
 Closed models accept the full action-map value only when
-\[
+\begin{equation}
   \frac{\chi}{2(\nu-l)}\le7.0\times10^{-3}.
-\]
+\label{eq:closed-endpoint-gate}
+\end{equation}
 It is useful to translate the closed gates into the distance from the finite
 closed-spectrum endpoint. Writing \(d=\nu-l\), so that the Gegenbauer degree is
 \(n=d-1\), and \(\lambda=l+1/2\), the closed Airy fallback's base gate is
@@ -1651,13 +1683,47 @@ metric $l^2\chi^7/\nu<5\times10^{-2}$. The shifted-$q$ filler additionally
 requires the constant-map error estimate
 $\epsilon_{\rm shift}<10^{-3}/B_{\rm acc}$, where, with $t=\alpha\chi$,
 \begin{equation}
-  \epsilon_{\rm shift}=\frac12\frac{\ell\,t_{\max}^3}{90\alpha^4}+\frac{t_{\max}^2}{180\alpha^4}
+  \epsilon_{\rm shift}=\frac12\frac{\hat\ell\,t_{\max}^3}{90\alpha^4}+\frac{t_{\max}^2}{180\alpha^4}
   \label{eq:shift-error}
 \end{equation}
 combines the leading omitted argument shift and amplitude correction at the range
 endpoint. A bookkeeping sampling-ratio test ($|s_{\rm peak}-1|\le0.03$, comparing
 the acoustic-peak sampling to a fiducial flat one) gates whether the flat-table
 machinery is reused at all.
+
+\Cref{fig:bessel-accuracy-domains} shows the point-call domains and flags the worst-case validation errors over a
+wide region of hyperspherical bessel parameter/argument space. Small $nu/\ell$ and other domains included here are rarely encountered in the CMB calculation, but the \code{phi_olver} function is tested to be valid over the full range of its arguments for completeness.
+
+\begin{figure*}[t]
+\centering
+  \includegraphics[width=0.96\textwidth]{changelog/hyperspherical_bessel_accuracy_domains/hyperspherical_bessel_accuracy_domains.pdf}
+\caption{Hyperspherical-Bessel point-call domains in the current dispatcher.
+Each dot is one sampled call \((K,l,\nu,\chi)\), colored by the branch selected
+by \code{phi_olver}; errors are measured against \code{phi_recurs} and
+normalized by the first peak amplitude. The axes project the full call onto the
+variables controlling the leading gates. In the open panel the horizontal
+coordinate is \(\alpha_g/\alpha_{\rm open}(l)\), where
+\(\alpha_g=\nu/l\) is the code's high-\(l\) proxy for
+\(\alpha=\nu/\hat\ell\) in \cref{eq:turning}, and
+\(\alpha_{\rm open}\) is defined in \cref{eq:open-alpha-gate}; the vertical
+coordinate is the endpoint metric \(\chi/(2\nu)\), with the dashed lines showing
+the raw-Olver gates of \cref{eq:open-alpha-gate,eq:open-endpoint-gate}. In the
+closed panel the horizontal coordinate is the finite-spectrum gap
+\(d\equiv\nu-l\) and the vertical coordinate is \(\chi/[2(\nu-l)]\); the dashed
+line is the raw-Olver metric gate \cref{eq:closed-endpoint-gate}. The dotted
+closed-panel guides mark the large-\(l\) Airy onset \(d\simeq8\) and the
+\(d\simeq112\) value above which \cref{eq:closed-endpoint-gate} covers the full
+folded interval \(0\le\chi\le\pi/2\). Because \(l\), \(\nu\), and \(\chi\) are
+not uniquely encoded by these two projected coordinates, different calls can
+land on the same plotted point; overlapping Airy and recurrence colors therefore
+mean different hidden cases selected different fallback branches, not that one
+call used multiple branches. Yellow triangles mark cases whose maximum sampled
+error lies between \(10^{-4}\) and \(2\times10^{-4}\); no sampled case exceeds
+\(2\times10^{-4}\). The open small-\(\nu\) branch applies only in the open
+panel.}
+\label{fig:bessel-accuracy-domains}
+\end{figure*}
+
 
 \subsection{Recurrence and the \textsc{CLASS} comparison}
 \label{app:bessel-recur}
