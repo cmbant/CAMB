@@ -9,6 +9,7 @@ repos:
         exclude_types:
           - python
       - id: check-added-large-files
+        exclude: ^docs/changelog/hyperspherical_bessels\.pdf$
       - id: check-merge-conflict
 
   - repo: https://github.com/asottile/pyupgrade

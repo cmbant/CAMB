@@ -53,7 +53,7 @@
 \newcommand{\cosech}{\operatorname{csch}}
 \emergencystretch=3em
 
-\title{Hyperspherical Bessel functions in CAMB: Olver mapping, recurrence fallback, shifted-\(q\), and Numerov source integration}
+\title{Hyperspherical Bessel functions in CAMB: Olver mapping, recurrence fallback, shifted-\(\nu\), and Numerov source integration}
 \author{Implementation note for CAMB non-flat Bessel calculations}
 \date{June 2026}
 
@@ -62,7 +62,7 @@
 \maketitle
 
 \begin{abstract}
-This note explains how CAMB evaluates the regular hyperspherical Bessel functions (also called ultraspherical Bessel functions) used in non-flat source integration.  The mathematical object is the curved-space radial function \(\phi_l^\nu(K,\chi)\), whose flat limit is the spherical Bessel function \(j_l(\nu\chi)\).  The main fast point approximation is a leading-order Olver, or uniform Liouville-Green, mapping: the curved radial equation is transformed into a flat spherical-Bessel equation at an effective radius \(z(\chi)\), with a transport amplitude \(A(\chi)\).  This makes the calculation exact in the flat limit and smooth through the turning point, but it does not evaluate the higher Olver correction terms.  The note also compares this with earlier Langer/Airy WKB and \textsc{CLASS} flat-rescaling approaches, explains the stable recursive fallback \code{phi_recurs} and the rare open small-\(\nu\) fallback, the closed-space Gegenbauer Miller start, how CAMB obtains nearby Bessel values by Numerov integration during source integration, and how the current shifted-\(q\) shortcut is the constant-map, fastest small-\(\chi\) limit of the Olver expansion.
+This note explains how CAMB evaluates the regular hyperspherical Bessel functions (also called ultraspherical Bessel functions) used in non-flat source integration.  The mathematical object is the curved-space radial function \(\phi_l^\nu(K,\chi)\), whose flat limit is the spherical Bessel function \(j_l(\nu\chi)\).  The main fast point approximation is a leading-order Olver, or uniform Liouville-Green, mapping: the curved radial equation is transformed into a flat spherical-Bessel equation at an effective radius \(z(\chi)\), with a transport amplitude \(A(\chi)\).  This makes the calculation exact in the flat limit and smooth through the turning point, but it does not evaluate the higher Olver correction terms.  The note also compares this with earlier Langer/Airy WKB and \textsc{CLASS} flat-rescaling approaches, explains the stable recursive fallback \code{phi_recurs} and the rare open small-\(\nu\) fallback, the closed-space Gegenbauer Miller start, how CAMB obtains nearby Bessel values by Numerov integration during source integration, and how the current shifted-\(\nu\) shortcut is the constant-map, fastest small-\(\chi\) limit of the Olver expansion.
 \end{abstract}
 
 \tableofcontents
@@ -242,7 +242,7 @@ Thus larger \(\alpha\) means both weaker curvature corrections in the local map
 and a smaller turning-point radius, \(\SK(\chi_t)=1/\alpha\).  The near-flat
 table shortcuts use calibrated endpoint gates based on \(\nu/l\) and the
 small-\(\chi\) range metric \(l^2\chi_{\max}^7/\nu\).  The exact source-range
-gate is given once in \eqref{eq:source-range-gate}; the shifted-\(q\) path then
+gate is given once in \eqref{eq:source-range-gate}; the shifted-\(\nu\) path then
 adds the constant-map residual test described below.
 
 This is also why the approximation is normally used in its comfortable regime
@@ -503,7 +503,7 @@ The local approximation is then
 \end{equation}
 In source-integration code this appears as an argument \(x=\nu\chi F\) for the flat Bessel table and a weight proportional to \(F/\sqrt D\), together with the geometrical factor \(\chi/\SK(\chi)\).
 
-\section{Shifted-\texorpdfstring{\(q\)}{q}: the constant-map small-\texorpdfstring{\(\chi\)}{chi} shortcut}
+\section{Shifted-\texorpdfstring{\(\nu\)}{nu}: the constant-map small-\texorpdfstring{\(\chi\)}{chi} shortcut}
 
 Flat-Bessel replacements in the near-flat regime were also the central acceleration idea in the \textsc{CLASS} flat-rescaling approximation \cite{lesgourgues-tram2013}.  The shortcut here has the same computational purpose, but its constant rescaling is the constant part of CAMB's local Olver map rather than the \textsc{CLASS} turning-point rescaling \(\gamma\) with a fitted smooth amplitude.
 
@@ -541,27 +541,27 @@ therefore gives
   \frac{\chi F_0}{\SK(\chi)}\frac{1}{\sqrt{F_0}}\,
   j_l(\nu F_0\chi)
   =
-  \sqrt{F_0}\,\frac{\chi}{\SK(\chi)}j_l(q_{\rm eff}\chi),
-  \qquad q_{\rm eff}=\nu F_0.
+  \sqrt{F_0}\,\frac{\chi}{\SK(\chi)}j_l(\nu_{\rm eff}\chi),
+  \qquad \nu_{\rm eff}=\nu F_0.
   \label{eq:shifted-q}
 \end{equation}
 For the reduced function this is equivalently
 \begin{equation}
-  u_l^\nu(K,\chi)\simeq \sqrt{F_0}\,\chi j_l(q_{\rm eff}\chi).
+  u_l^\nu(K,\chi)\simeq \sqrt{F_0}\,\chi j_l(\nu_{\rm eff}\chi).
 \end{equation}
 This is exactly what the production code implements in the shifted near-flat
 paths:
 \begin{equation}
-  \code{qeff}=\nu\,\code{F0},\qquad
-  \code{q_amp}=\sqrt{\code{F0}},
+  \code{nu_eff}=\nu\,\code{F0},\qquad
+  \code{nu_amp}=\sqrt{\code{F0}},
 \end{equation}
 followed by a lookup of the already-tabulated flat \(j_l\) at
-\(q_{\rm eff}\chi\), multiplication by \(\code{q_amp}\), and the geometrical
+\(\nu_{\rm eff}\chi\), multiplication by \(\code{nu_amp}\), and the geometrical
 factor \(\chi/\SK(\chi)\) for the unreduced value.
 
 It is useful to expand the effective wavenumber squared:
 \begin{equation}
-  q_{\rm eff}^2
+  \nu_{\rm eff}^2
   =\nu^2F_0^2
   =\nu^2\left[
   1-\frac{h}{3}-\frac{2h^2}{45}-\frac{58h^3}{2835}
@@ -575,7 +575,7 @@ the note below.  The implemented \(F_0\) form also keeps the constant \(h^2\)
 and \(h^3\) corrections from the Olver map at essentially no extra per-sample
 cost.
 
-The shifted-\(q\) gate is tied to the part of the local Olver map that this
+The shifted-\(\nu\) gate is tied to the part of the local Olver map that this
 constant shortcut omits.  With
 \begin{equation}
   t=\alpha\chi,\qquad \alpha=\frac{\nu}{\ell},\qquad \ell=\sqrt{l(l+1)},
@@ -608,9 +608,9 @@ as
   +\frac{t_{\max}^2}{180\alpha^4},
   \label{eq:shift-error}
 \end{equation}
-with a threshold scaled by the requested accuracy.  This shifted-\(q\) test is
+with a threshold scaled by the requested accuracy.  This shifted-\(\nu\) test is
 not the whole source-range decision: the caller first requires the common
-near-flat range gate \eqref{eq:source-range-gate}.  Thus the shifted-\(q\)
+near-flat range gate \eqref{eq:source-range-gate}.  Thus the shifted-\(\nu\)
 branch is used only when the local small-\(\chi\) Olver map is valid across the
 range and freezing that map to \(F_0\) is accurate enough.  The error estimate
 above is a comparison against omitted local Olver terms, rather than a
@@ -637,20 +637,20 @@ Substituting this into the reduced oscillator equation gives
 If only the constant curvature correction is retained, the result is a flat
 reduced spherical-Bessel equation with
 \begin{equation}
-  q_{\rm pot}^2=\nu^2-\frac{K l(l+1)}{3}
+  \nu_{\rm pot}^2=\nu^2-\frac{K l(l+1)}{3}
   =\nu^2\left(1-\frac{h}{3}\right).
   \label{eq:qeff-constant-potential}
 \end{equation}
 The corresponding amplitude-corrected form would be
 \begin{equation}
   \phi_l^\nu(\chi)\approx
-  \left(\frac{q_{\rm pot}}{\nu}\right)^{1/2}
-  \frac{\chi}{\SK(\chi)}j_l(q_{\rm pot}\chi).
+  \left(\frac{\nu_{\rm pot}}{\nu}\right)^{1/2}
+  \frac{\chi}{\SK(\chi)}j_l(\nu_{\rm pot}\chi).
   \label{eq:constant-potential-shift}
 \end{equation}
 This agrees with the implemented formula through first order in \(h\), since
 \begin{equation}
-  \frac{q_{\rm pot}}{\nu}
+  \frac{\nu_{\rm pot}}{\nu}
   =\sqrt{1-\frac{h}{3}}
   =1-\frac{h}{6}-\frac{h^2}{72}+\cdots,
 \end{equation}
@@ -838,7 +838,7 @@ ratio is
 The gate is one-sided, matching the current \(l\)-sampling logic.  When
 \(s_{\rm peak}\ge1-0.03\), CAMB keeps the fiducial \(l\)-sampling strategy and
 can reuse the flat spherical-Bessel table machinery, enlarging the maximum
-tabulated argument when needed for shifted-\(q\) calls.  If \(s_{\rm peak}>1\),
+tabulated argument when needed for shifted-\(\nu\) calls.  If \(s_{\rm peak}>1\),
 the acoustic peaks are wider-spaced in \(l\) than in the fiducial model, but the
 code does not coarsen the sampled \(l\) grid, so the existing Bessel-table
 sampling remains conservative.  Only when \(s_{\rm peak}<1-0.03\) are the peaks
@@ -853,7 +853,7 @@ geometries whose peak scale is already far from the data-supported value.
 
 Passing this bookkeeping gate does not by itself choose a Bessel
 approximation.  It only allows CAMB to consider the two source-integration
-branches that reuse the flat spherical-Bessel table: the shifted-\(q\) lookup
+branches that reuse the flat spherical-Bessel table: the shifted-\(\nu\) lookup
 and the local small-\(\chi\) Olver-map lookup.  Both of these branches must then
 pass their Bessel-accuracy gates.  They first require the common near-flat range
 gate
@@ -871,13 +871,13 @@ source gate, it is stricter in the endpoint metric but less restrictive in
 \begin{enumerate}[leftmargin=*]
 \item If the common range gate passes, \code{UseSmallChiNearFlatIntegration} may fill the range using
 \(j_l(\nu\chi F)\) and the \(F/\sqrt D\) weight.
-\item The shifted-\(q\) filler uses the same common range gate, and then adds the
+\item The shifted-\(\nu\) filler uses the same common range gate, and then adds the
 constant-map residual test from \eqref{eq:shift-error}:
 \begin{equation}
   \epsilon_{\rm shift}<\frac{10^{-3}}{B_{\rm acc}},
 \end{equation}
 with \(\epsilon_{\rm shift}\) defined in \eqref{eq:shift-error}.  Thus
-shifted-\(q\) is used only when the constant-map Olver limit is valid and the
+shifted-\(\nu\) is used only when the constant-map Olver limit is valid and the
 constant-map approximation to that map is valid.
 \end{enumerate}
 The pointwise \code{phi_olver} small-\(\chi\) fast path remains separate and
@@ -1046,13 +1046,13 @@ The line-of-sight source integral needs the Bessel function at many neighbouring
 
 For flat models, \code{DoFlatIntegration} uses precomputed flat Bessel tables.  It converts each time point to a flat argument \(x=q(\tau_0-\tau)\), finds the bracketing table point, and evaluates a cubic spline in Horner form.  This is the baseline fast method.
 
-For near-flat models there are two table-based shortcuts.  \code{DoNearFlatIntegration} uses the shifted-\(q\) argument \(x=q_{\rm eff}\chi\), with
+For near-flat models there are two table-based shortcuts.  \code{DoNearFlatIntegration} uses the shifted-\(\nu\) argument \(x=\nu_{\rm eff}\chi\), with
 \begin{equation}
   h=K\frac{l(l+1)}{\nu^2},\qquad
   F_0=1-\frac{h}{6}-\frac{13h^2}{360}-\frac{737h^3}{45360},
   \qquad
-  q_{\rm eff}=\nu F_0,\qquad
-  q_{\rm amp}=\sqrt{F_0}.
+  \nu_{\rm eff}=\nu F_0,\qquad
+  \nu_{\rm amp}=\sqrt{F_0}.
 \end{equation}
 The tabulated \(j_l\) value is multiplied by this amplitude factor and by precomputed time/geometric weights.  \code{DoNearFlatSmallChiIntegration} instead uses the small-\(\chi\) Olver map \(x=\nu\chi F\) and weights proportional to \(F/\sqrt D\).  Both paths reduce the curved Bessel problem to looking up the existing flat Bessel table.
 
@@ -1162,7 +1162,7 @@ This explains why the Olver approximation is used differently inside source inte
 
 Before doing Numerov, \code{DoRangeInt} checks two fast fillers:
 \begin{enumerate}[leftmargin=*]
-\item \code{UseShiftedQScalarApprox}: if the model is sufficiently near flat and the shifted-\(q\) error estimate passes, fill all source-grid Bessel values directly from \(j_l(\nu F_0\chi)\) with the amplitude \(\sqrt{F_0}\) and the \(\chi/\SK\) geometrical factor.
+\item \code{UseShiftedQScalarApprox}: if the model is sufficiently near flat and the shifted-\(\nu\) error estimate passes, fill all source-grid Bessel values directly from \(j_l(\nu F_0\chi)\) with the amplitude \(\sqrt{F_0}\) and the \(\chi/\SK\) geometrical factor.
 \item \code{UseSmallChiNearFlatIntegration}: if the small-\(\chi\) Olver map is accurate on the whole range, fill all values from \(j_l(\nu\chi F)\) with the \(F/\sqrt D\) amplitude and \(\chi/\SK\) geometrical factor.
 \end{enumerate}
 These branches avoid stepping the full hyperspherical ODE at all.  They are particularly useful in nearly flat models, where the exact curved function is very close to a flat Bessel function but a discontinuous switch between exact flat and non-flat treatment would be numerically undesirable.  This is the same continuity goal emphasized for the \textsc{CLASS} flat-rescaling approximation, although the CAMB fillers use the local Olver coefficients \(F,D\) and \(F_0\) rather than the \textsc{CLASS} \(\gamma,A_\nu^l\) model \cite{lesgourgues-tram2013}.
@@ -1175,7 +1175,7 @@ A useful way to think about the hierarchy is:
 Regime & Computation & Reason \\
 \midrule
 Flat & table/spline of \(j_l(q\chi)\) & exact flat result. \\
-Near-flat, very small curvature effect & constant-map shifted-\(q\) table lookup & fastest limit of small-\(\chi\) Olver. \\
+Near-flat, very small curvature effect & constant-map shifted-\(\nu\) table lookup & fastest limit of small-\(\chi\) Olver. \\
 Near-flat, local small-\(\chi\) range & table lookup at \(\nu\chi F\), weight \(F/\sqrt D\) & retains next curvature terms in Olver map. \\
 General non-flat range & start with \code{u_olver}, propagate by Numerov & avoids expensive repeated Olver calls. \\
 Non-flat range needing \(\ge10\) Numerov substeps per source step & direct \code{phi_olver} at each source-grid point (\code{FillDirectOlverPhiVals}) & one \code{phi_olver} call \(\approx\) 13 substeps; removes accumulated Numerov phase drift. \\
@@ -1242,7 +1242,7 @@ first residual correction to the transformed equation.  Thus the hierarchy is
   \hbox{second-order Airy at }\zeta(\chi),
 \]
 followed by exact recurrence only outside both calibrated approximation
-regions.  This is also why the shifted-\(q\) limit is tied to the main
+regions.  This is also why the shifted-\(\nu\) limit is tied to the main
 Olver-to-flat map rather than to the Airy fallback: in the local near-flat
 regime, the spherical-Bessel coordinate map becomes almost a constant
 rescaling of the flat argument.
@@ -1282,7 +1282,7 @@ Mathematical quantity & Code name or code path \\
 \(\phi_l^\nu=u/\SK\) & \code{phi_olver}; in source integration \code{phi=y1/sh} \\
 \(Q=l(l+1)/\SK^2-\nu^2\) & \code{q_now}, \code{q_prev}, \code{q_next} in Numerov stepping \\
 \(z(\chi),A(\chi)\) & \code{compute_olver_z_amp} / \code{compute_olver_z_amp_smallchi} \\
-\(q_{\rm eff}=\nu F_0\), \(q_{\rm amp}=\sqrt{F_0}\) & \code{F0}, \code{qeff}, \code{q_amp} in near-flat shifted-\(q\) paths \\
+\(\nu_{\rm eff}=\nu F_0\), \(\nu_{\rm amp}=\sqrt{F_0}\) & \code{F0}, \code{nu_eff}, \code{nu_amp} in near-flat shifted-\(\nu\) paths \\
 \(F,D\) small-\(\chi\) map & \code{F0,F2,F4,D0,D2,D4} polynomial coefficients \\
 Flat Bessel lookup & \code{BessRanges}, \code{bessel_horner}, \code{BJL} \\
 Second-order Airy fallback & high-\(l\) pointwise fallback before \code{phi_recurs} \\
@@ -1305,8 +1305,8 @@ high-\(l\) fallback, derived in Appendix~\ref{app:second-order-airy}, for
 points where the leading Olver-to-flat map is outside its calibrated gate.  In
 source integration, CAMB uses these point approximations mainly to seed
 Numerov stepping, while near-flat ranges can be filled from flat Bessel tables.
-The shifted-\(q\) approximation is the \(\chi\)-independent part of the local
-Olver-to-flat expansion, \(q_{\rm eff}=\nu F_0\), with the simpler
+The shifted-\(\nu\) approximation is the \(\chi\)-independent part of the local
+Olver-to-flat expansion, \(\nu_{\rm eff}=\nu F_0\), with the simpler
 \(q^2=\nu^2-Kl(l+1)/3\) formula retained only as a first-order explanatory
 limit.
 
