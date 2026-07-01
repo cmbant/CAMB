@@ -697,7 +697,7 @@ class CAMBparams(F2003Class):
             else:
                 self.bbn_predictor = bbn_predictor or bbn.get_predictor()
             YHe = self.bbn_predictor.Y_He(ombh2 * (constants.COBE_CMBTemp / TCMB) ** 3, nnu - standard_neutrino_neff)
-        self.YHe = YHe
+        self.YHe = float(np.asarray(YHe).reshape(-1)[0])
         self.TCMB = TCMB
         self.ombh2 = ombh2
         self.omch2 = omch2
