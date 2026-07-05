@@ -37,7 +37,7 @@ all tuning, validation, and implementation details.
 
 - Non-flat scalar line-of-sight integration has been substantially refactored
   and sped up. The main changes are Numerov/source-grid integration, improved
-  high-oscillation cutoffs, near-flat shifted-q approximations, and direct Olver
+  high-oscillation cutoffs, near-flat shifted-ν approximations, and direct Olver
   evaluation in high-substep ranges.
 - Near-flat open and closed models can reuse flat Bessel table machinery where
   controlled local error estimates allow it. This improves speed near the flat

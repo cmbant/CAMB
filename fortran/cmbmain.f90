@@ -273,7 +273,7 @@
         if (State%flat .or. State%scale >= 1._dl - near_flat_scale_tol) then
             spline_bessels_etak = max_bessels_etak
             if (.not. State%flat) then
-                spline_bessels_etak = ShiftedQBesselTableMaxEtak(ThisCT%ls%l(max_bessels_l_index), max_bessels_etak)
+                spline_bessels_etak = ShiftedNuBesselTableMaxEtak(ThisCT%ls%l(max_bessels_l_index), max_bessels_etak)
             end if
             call InitSpherBessels(ThisCT%ls, CP, max_bessels_l_index, spline_bessels_etak)
         end if
@@ -1507,7 +1507,7 @@
     real(dl) :: near_flat_boost
     real(dl) :: sixpibynu
     real(dl) :: near_flat_time_weight(IV%SourceSteps)
-    logical :: use_near_flat_gate, use_shifted_q_near_flat
+    logical :: use_near_flat_gate, use_shifted_nu_near_flat
     logical :: have_near_flat_time_weight
 
     nu=IV%q*State%curvature_radius
@@ -1542,14 +1542,14 @@
                 call DoCurvedOlverIntegration(IV, ThisCT, j, ll, nu)
                 cycle
             end if
-            use_shifted_q_near_flat = .false.
+            use_shifted_nu_near_flat = .false.
             use_near_flat_gate = CP%WantScalars .and. ThisSources%SourceNum <= 3 .and. &
                 enable_do_near_flat_integration .and. &
                 UseNearFlatSmallChiApprox(ll, nu, chi_full_max, near_flat_boost)
             if (use_near_flat_gate) then
-                use_shifted_q_near_flat = enable_shifted_q_scalar_approx .and. &
-                    UseShiftedQNearFlatIntegration(ll, nu, chi_full_max, near_flat_boost)
-                use_near_flat_gate = use_shifted_q_near_flat .or. enable_near_flat_smallchi_integration
+                use_shifted_nu_near_flat = enable_shifted_nu_scalar_approx .and. &
+                    UseShiftedNuNearFlatIntegration(ll, nu, chi_full_max, near_flat_boost)
+                use_near_flat_gate = use_shifted_nu_near_flat .or. enable_near_flat_smallchi_integration
             end if
 
             if (use_near_flat_gate) then
@@ -1566,7 +1566,7 @@
                     have_near_flat_time_weight = .true.
                 end if
 
-                if (use_shifted_q_near_flat) then
+                if (use_shifted_nu_near_flat) then
                     call DoNearFlatIntegration(IV, ThisCT, j, ll, nu, near_flat_time_weight)
                 else
                     call DoNearFlatSmallChiIntegration(IV, ThisCT, j, ll, nu, near_flat_time_weight)
@@ -1585,7 +1585,7 @@
 
     end function NearFlatIntegrationBoost
 
-    logical function UseShiftedQNearFlatIntegration(l, nu, chi_max, boost_scale) result(use_shifted_q)
+    logical function UseShiftedNuNearFlatIntegration(l, nu, chi_max, boost_scale) result(use_shifted_nu)
     integer, intent(in) :: l
     real(dl), intent(in) :: nu, chi_max
     real(dl), intent(in) :: boost_scale
@@ -1604,9 +1604,9 @@
     amp_err = tmax**2 / (180._dl * alpha**4)
     err_shift = 0.5_dl * arg_err + amp_err
 
-    use_shifted_q =  (err_shift < NEARFLAT_TOL / boost_scale)
+    use_shifted_nu =  (err_shift < NEARFLAT_TOL / boost_scale)
 
-    end function UseShiftedQNearFlatIntegration
+    end function UseShiftedNuNearFlatIntegration
 
 
     logical function UseNearFlatSmallChiApprox(l, nu, chi_max, boost_scale) result(use_smallchi)
@@ -1710,7 +1710,7 @@
         if (has_narrow_source_window) &
             BessIntBoostL = max(BessIntBoostL, 20._dl/ThisCT%ls%l(j))
         ! Cut where the hyperspherical Bessel before peak, approximated by
-        ! j_l(x_eff) with x_eff=q_eff*chi, is <~1e-4 of its peak.
+        ! j_l(x_eff) with x_eff=nu_eff*chi, is <~1e-4 of its peak.
         xlim = max(0._dl, ThisCT%ls%l(j) - bjl_pre_peak_start_factor*ThisCT%ls%l(j)**(1._dl/3._dl))
         if (full_bessel_integration .or. do_bispectrum) then
             tmin = State%TimeSteps%points(2)
@@ -1887,37 +1887,37 @@
     logical :: DoInt
     real(dl) :: xlim, xlmax1, tmin, tmax
     real(dl) :: a2, base, coeff1, coeff2, coeff3, dx, J_l, weight, x_hi, xf
-    real(dl) :: qeff, qeff_tau, q_amp, chi_here, sh, chi_over_sh
+    real(dl) :: nu_eff, nu_eff_tau, nu_amp, chi_here, sh, chi_over_sh
     real(dl) :: qmax_int, sums(ThisSources%SourceNum), left_weight(IV%SourceSteps)
     real(dl) :: BessIntBoost
     real(dl) :: h, h2, F0
 
     BessIntBoost = CP%Accuracy%AccuracyBoost*CP%Accuracy%BessIntBoost
 
-    ! qeff2 = nu**2 - State%Ksign * real(l * (l + 1), dl) / 3._dl
-    ! if (qeff2 <= 0._dl) return
-    ! qeff = sqrt(qeff2)
-    ! q_amp = sqrt(qeff / nu)
+    ! nu_eff2 = nu**2 - State%Ksign * real(l * (l + 1), dl) / 3._dl
+    ! if (nu_eff2 <= 0._dl) return
+    ! nu_eff = sqrt(nu_eff2)
+    ! nu_amp = sqrt(nu_eff / nu)
 
     h  = State%Ksign / (nu**2 / (l * (l + 1)))
     h2 = h*h
     F0 = 1._dl - h/6._dl - h2*(13._dl/360._dl + 737._dl/45360._dl*h)
-    qeff = nu * F0
-    q_amp = sqrt(F0)
+    nu_eff = nu * F0
+    nu_amp = sqrt(F0)
 
-    qeff_tau = qeff / State%curvature_radius
+    nu_eff_tau = nu_eff / State%curvature_radius
     ! Cut where the near-flat hyperspherical Bessel before peak, approximated by
-    ! j_l(x_eff) with x_eff=q_eff*chi, is <~1e-4 of its peak.
+    ! j_l(x_eff) with x_eff=nu_eff*chi, is <~1e-4 of its peak.
     xlim = real(l, dl) - bjl_pre_peak_start_factor * real(l, dl)**(1._dl/3._dl)
     xlim = max(0._dl, xlim)
-    tmax = State%tau0 - xlim / qeff_tau
+    tmax = State%tau0 - xlim / nu_eff_tau
     if (tmax < State%TimeSteps%points(2)) return
 
     if (full_bessel_integration .or. do_bispectrum) then
         tmin = State%TimeSteps%points(2)
     else
         xlmax1 = 80._dl * l * BessIntBoost
-        tmin = State%tau0 - xlmax1 / qeff_tau
+        tmin = State%tau0 - xlmax1 / nu_eff_tau
         tmin = max(State%TimeSteps%points(2), tmin)
     end if
     tmin = max(State%TimeSteps%points(2), tmin)
@@ -1926,14 +1926,14 @@
     DoInt = .true.
     if (ThisSources%SourceNum /= 2) then
         qmax_int = max(850, l) * 3 * BessIntBoost / State%tau0 * 1.2_dl
-        DoInt = qeff_tau < qmax_int
+        DoInt = nu_eff_tau < qmax_int
     end if
 
     if (DoInt) then
         ! Avoid the per-l spline lookup setup entirely when this mode only contributes via Limber.
         associate(BesselPoints => BessRanges%points, TimePoints => State%TimeSteps%points)
             do n=1,IV%SourceSteps
-                left_weight(n) = abs(qeff_tau * (State%tau0 - TimePoints(n)))
+                left_weight(n) = abs(nu_eff_tau * (State%tau0 - TimePoints(n)))
             end do
             call BessRanges%IndexOfOrdered(left_weight, IV%SourceSteps, bes_index)
             do n=1,IV%SourceSteps
@@ -1955,7 +1955,7 @@
             coeff3 = bessel_horner(4, bes_ix, j)
             J_l = base + a2 * (coeff1 + a2 * (coeff2 + a2 * coeff3))
 
-            weight = near_flat_time_weight(n) * q_amp * J_l
+            weight = near_flat_time_weight(n) * nu_amp * J_l
             sums(1) = sums(1) + IV%Source_q(n,1) * weight
             sums(2) = sums(2) + IV%Source_q(n,2) * weight
         end do
@@ -1970,7 +1970,7 @@
                 coeff3 = bessel_horner(4, bes_ix, j)
                 J_l = base + a2 * (coeff1 + a2 * (coeff2 + a2 * coeff3))
 
-                weight = near_flat_time_weight(n) * q_amp * J_l
+                weight = near_flat_time_weight(n) * nu_amp * J_l
                 sums(1) = sums(1) + IV%Source_q(n,1) * weight
                 sums(2) = sums(2) + IV%Source_q(n,2) * weight
                 sums(3) = sums(3) + IV%Source_q(n,3) * weight
@@ -2440,7 +2440,7 @@
     end subroutine IntegrateSourcesBessels
 
 
-    real(dl) function ShiftedQBesselTableMaxEtak(lmax, base_etak) result(bessel_etak)
+    real(dl) function ShiftedNuBesselTableMaxEtak(lmax, base_etak) result(bessel_etak)
     integer, intent(in) :: lmax
     real(dl), intent(in) :: base_etak
     real(dl), parameter :: safety_margin = 10._dl
@@ -2457,9 +2457,9 @@
     curve_x = chi_max * sqrt(ell * (ell + 1._dl) / 3._dl)
 
     bessel_etak = hypot(scale_x, curve_x) + safety_margin
-    end function ShiftedQBesselTableMaxEtak
+    end function ShiftedNuBesselTableMaxEtak
 
-    subroutine FillShiftedQPhiVals(j, l, nu, chi_start, dchisource, sgn, nIntSteps, phi_vals, y1, chi)
+    subroutine FillShiftedNuPhiVals(j, l, nu, chi_start, dchisource, sgn, nIntSteps, phi_vals, y1, chi)
     use SpherBessels, only: BessRanges, bessel_horner
 
     integer, intent(in) :: j, l, nIntSteps
@@ -2470,7 +2470,7 @@
     integer :: step_ix, ix, nVals, max_ix
     integer :: bes_ix(nIntSteps + 1)
 
-    real(dl) :: qeff, q_amp
+    real(dl) :: nu_eff, nu_amp
     real(dl) :: chi_here, chi_step
     real(dl) :: chi_over_sh, sh
     real(dl) :: x, x_step, x_hi, inv_dx, w
@@ -2488,11 +2488,11 @@
 
     F0 = 1._dl - h / 6._dl - h2 * (13._dl / 360._dl + 737._dl * h / 45360._dl)
 
-    qeff = nu * F0
-    q_amp = sqrt(F0)
+    nu_eff = nu * F0
+    nu_amp = sqrt(F0)
 
-    x = qeff * chi_start
-    x_step = qeff * chi_step
+    x = nu_eff * chi_start
+    x_step = nu_eff * chi_step
 
     do step_ix = 1, nVals
         x_vals(step_ix) = x
@@ -2524,7 +2524,7 @@
             chi_over_sh = chi_here / sh
         end if
 
-        phi_vals(step_ix) = q_amp * chi_over_sh * jl
+        phi_vals(step_ix) = nu_amp * chi_over_sh * jl
 
         chi_here = chi_here + chi_step
     end do
@@ -2532,7 +2532,7 @@
     chi = chi_start + real(nIntSteps, dl) * chi_step
     y1 = 0._dl
 
-    end subroutine FillShiftedQPhiVals
+    end subroutine FillShiftedNuPhiVals
 
 
     subroutine FillSmallChiPhiVals(j, l, nu, chi_start, dchisource, sgn, nIntSteps, phi_vals, y1, chi)
@@ -2678,7 +2678,7 @@
     real(dl) :: phi_vals(abs(nstart - nend) + 1)
 
     logical :: need_y2
-    logical :: use_near_flat_gate, use_shifted_q_near_flat
+    logical :: use_near_flat_gate, use_shifted_nu_near_flat
     logical :: do_rebootstrap
 
     out = 0._dl
@@ -2773,22 +2773,22 @@
     chi_end = chi + real(nIntSteps, dl) * dchisource * sgn
     chi_max_range = max(abs(chi), abs(chi_end))
 
-    use_shifted_q_near_flat = .false.
+    use_shifted_nu_near_flat = .false.
     use_near_flat_gate = UseNearFlatSmallChiApprox(l, nu, chi_max_range, near_flat_boost)
 
     if (use_near_flat_gate) then
         ! In the local chi << 1 regime, fill source-grid values directly from
         ! the near-flat approximation instead of stepping the full ODE.
-        use_shifted_q_near_flat = enable_shifted_q_scalar_approx .and. &
-            UseShiftedQNearFlatIntegration(l, nu, chi_max_range, near_flat_boost)
+        use_shifted_nu_near_flat = enable_shifted_nu_scalar_approx .and. &
+            UseShiftedNuNearFlatIntegration(l, nu, chi_max_range, near_flat_boost)
 
-        use_near_flat_gate = use_shifted_q_near_flat .or. &
+        use_near_flat_gate = use_shifted_nu_near_flat .or. &
             enable_near_flat_smallchi_integration
     end if
 
     if (use_near_flat_gate) then
-        if (use_shifted_q_near_flat) then
-            call FillShiftedQPhiVals(j, l, nu, chi, dchisource, sgn, nIntSteps, &
+        if (use_shifted_nu_near_flat) then
+            call FillShiftedNuPhiVals(j, l, nu, chi, dchisource, sgn, nIntSteps, &
                 phi_vals(1:nIntSteps + 1), y1, chi)
         else
             call FillSmallChiPhiVals(j, l, nu, chi, dchisource, sgn, nIntSteps, &

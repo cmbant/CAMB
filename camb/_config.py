@@ -24,7 +24,7 @@ class _config:
 
     enable_near_flat_smallchi_integration = import_property(c_bool, "config", "enable_near_flat_smallchi_integration")
 
-    enable_shifted_q_scalar_approx = import_property(c_bool, "config", "enable_shifted_q_scalar_approx")
+    enable_shifted_nu_scalar_approx = import_property(c_bool, "config", "enable_shifted_nu_scalar_approx")
 
     enable_olver_source_integration = import_property(c_bool, "config", "enable_olver_source_integration")
 

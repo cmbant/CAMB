@@ -9,7 +9,7 @@ by direct `phi_olver` evaluation at each time-step point (new helper
 on the finer `dchimax ~ 0.3/nu` chi grid.
 
 The former `ujl`/`ujl_vals` variables (and derived names: `minujl`, `MINUJl1`,
-`FillShiftedQUjlVals`, `FillSmallChiUjlVals`, `HypersphericalUjlOnsetChi`) were
+`FillShiftedNuUjlVals`, `FillSmallChiUjlVals`, `HypersphericalUjlOnsetChi`) were
 renamed to `phi`/`phi_vals` etc. throughout `cmbmain.f90` for consistency with the
 hyperspherical Bessel `phi` naming.
 

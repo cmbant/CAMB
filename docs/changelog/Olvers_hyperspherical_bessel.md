@@ -146,7 +146,7 @@ more accurate than the small-chi series. Apparent small-chi wins in the current
 Fortran comparison are mostly cancellations against the present `bjl` transition
 error, not evidence that the series map is better than the full map.
 
-## Shifted-q Approximation
+## Shifted-ν Approximation
 
 The simpler shifted approximation used for comparison is
 
@@ -310,7 +310,7 @@ with the threshold divided by the non-flat accuracy boost in production. This
 keeps the worst accepted case below $3\times10^{-4}$ in the broad scan, while
 the nearby relaxation $\eta_\chi<0.35$ is already slightly too loose.
 
-### Shifted-q Approximation Tests
+### Shifted-ν Approximation Tests
 
 For the shifted-$q$ approximation above, the same focused open/flat/closed grid
 was compared against `phi_recurs`. Without the phase/amplitude gate,

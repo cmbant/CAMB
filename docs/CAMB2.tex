@@ -431,7 +431,7 @@ and freezing the map at this value gives
 \begin{equation}
   \phi_l^\nu(K,\chi)\simeq \sqrt{F_0}\,\frac{\chi}{\SK(\chi)}\,\jl(\nu_{\rm eff}\chi),
   \qquad \nu_{\rm eff}=\nu F_0 .
-  \label{eq:shifted-q}
+  \label{eq:shifted-nu}
 \end{equation}
 This is as cheap as a flat-table lookup: a flat $\jl$ evaluated at a shifted
 argument $\nu_{\rm eff}\chi$, multiplied by $\sqrt{F_0}$ and the geometrical factor
@@ -475,7 +475,7 @@ decision order and the source-integration gates are given in
 %Regime & Computation & Reason \\
 %\midrule
 %Flat & table/spline of $\jl(q\chi)$ & accurate flat result \\
-%Near-flat, tiny curvature & constant-map shifted-$q$ lookup, \cref{eq:shifted-q} & fastest limit of small-$\chi$ Olver \\
+%Near-flat, tiny curvature & constant-map shifted-$\nu$ lookup, \cref{eq:shifted-nu} & fastest limit of small-$\chi$ Olver \\
 %Near-flat, small-$\chi$ range & lookup at $\nu\chi F$, weight $F/\sqrt D$ & retains next curvature terms \\
 %General non-flat range & start from Olver, propagate by Numerov  & avoids repeated Olver calls \\
 %Non-flat range, $n_{\rm substep}\ge10$ per \\ sampled source & direct Olver at each source point & one Olver call $\approx$ 13 substeps; avoids phase drift \\

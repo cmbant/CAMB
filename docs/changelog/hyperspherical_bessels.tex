@@ -543,7 +543,7 @@ therefore gives
   =
   \sqrt{F_0}\,\frac{\chi}{\SK(\chi)}j_l(\nu_{\rm eff}\chi),
   \qquad \nu_{\rm eff}=\nu F_0.
-  \label{eq:shifted-q}
+  \label{eq:shifted-nu}
 \end{equation}
 For the reduced function this is equivalently
 \begin{equation}
@@ -566,9 +566,9 @@ It is useful to expand the effective wavenumber squared:
   =\nu^2\left[
   1-\frac{h}{3}-\frac{2h^2}{45}-\frac{58h^3}{2835}
   +\order(h^4)\right].
-  \label{eq:qeff-F0-expanded}
+  \label{eq:nueff-F0-expanded}
 \end{equation}
-The first correction in \eqref{eq:qeff-F0-expanded} is
+The first correction in \eqref{eq:nueff-F0-expanded} is
 \(-\nu^2 h/3=-K l(l+1)/3\).  This is the same leading constant curvature
 correction obtained by expanding \(1/\SK^2\) in the radial equation, as shown in
 the note below.  The implemented \(F_0\) form also keeps the constant \(h^2\)
@@ -639,7 +639,7 @@ reduced spherical-Bessel equation with
 \begin{equation}
   \nu_{\rm pot}^2=\nu^2-\frac{K l(l+1)}{3}
   =\nu^2\left(1-\frac{h}{3}\right).
-  \label{eq:qeff-constant-potential}
+  \label{eq:nueff-constant-potential}
 \end{equation}
 The corresponding amplitude-corrected form would be
 \begin{equation}
@@ -1162,7 +1162,7 @@ This explains why the Olver approximation is used differently inside source inte
 
 Before doing Numerov, \code{DoRangeInt} checks two fast fillers:
 \begin{enumerate}[leftmargin=*]
-\item \code{UseShiftedQScalarApprox}: if the model is sufficiently near flat and the shifted-\(\nu\) error estimate passes, fill all source-grid Bessel values directly from \(j_l(\nu F_0\chi)\) with the amplitude \(\sqrt{F_0}\) and the \(\chi/\SK\) geometrical factor.
+\item \code{UseShiftedNuScalarApprox}: if the model is sufficiently near flat and the shifted-\(\nu\) error estimate passes, fill all source-grid Bessel values directly from \(j_l(\nu F_0\chi)\) with the amplitude \(\sqrt{F_0}\) and the \(\chi/\SK\) geometrical factor.
 \item \code{UseSmallChiNearFlatIntegration}: if the small-\(\chi\) Olver map is accurate on the whole range, fill all values from \(j_l(\nu\chi F)\) with the \(F/\sqrt D\) amplitude and \(\chi/\SK\) geometrical factor.
 \end{enumerate}
 These branches avoid stepping the full hyperspherical ODE at all.  They are particularly useful in nearly flat models, where the exact curved function is very close to a flat Bessel function but a discontinuous switch between exact flat and non-flat treatment would be numerically undesirable.  This is the same continuity goal emphasized for the \textsc{CLASS} flat-rescaling approximation, although the CAMB fillers use the local Olver coefficients \(F,D\) and \(F_0\) rather than the \textsc{CLASS} \(\gamma,A_\nu^l\) model \cite{lesgourgues-tram2013}.
