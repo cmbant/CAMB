@@ -2170,26 +2170,25 @@
 
     if (CP%WantDerivedParameters) then
         associate(ThermoDerivedParams => State%ThermoDerivedParams)
-            !$OMP PARALLEL SECTIONS DEFAULT(SHARED)
-            !$OMP SECTION
+            ! Not run as OMP PARALLEL SECTIONS: these calls share mutable state on State/this
+            ! (background/spline lookups used by sound_horizon, DeltaPhysicalTimeGyr, dtauda,
+            ! timeOfz, Integrate_Romberg), so running them concurrently is a data race that
+            ! silently corrupts the derived parameters below (reproduced with ifx; not caught
+            ! by gfortran, which doesn't make it safe, just not observed).
             ThermoDerivedParams( derived_Age ) = State%DeltaPhysicalTimeGyr(0.0_dl,1.0_dl)
             rstar =State%sound_horizon(this%z_star)
             ThermoDerivedParams( derived_rstar ) = rstar
             DA = State%AngularDiameterDistance(this%z_star)/(1/(this%z_star+1))
             ThermoDerivedParams( derived_zdrag ) = this%z_drag
-            !$OMP SECTION
             rs =State%sound_horizon(this%z_drag)
             ThermoDerivedParams( derived_rdrag ) = rs
             ThermoDerivedParams( derived_kD ) =  &
                 sqrt(1.d0/(Integrate_Romberg(State,ddamping_da, 1d-8, 1/(this%z_star+1), 1d-6)/6))
-            !$OMP SECTION
             ThermoDerivedParams( derived_zEQ ) = State%z_eq
             a_eq = 1/(1+State%z_eq)
             ThermoDerivedParams( derived_kEQ ) = 1/(a_eq*dtauda(State,a_eq))
             rs_eq = State%sound_horizon(State%z_eq)
             tau_eq = State%timeOfz(State%z_eq)
-            !$OMP SECTION
-            !$OMP END PARALLEL SECTIONS
 
             ThermoDerivedParams( derived_zstar ) = this%z_star
             ThermoDerivedParams( derived_thetastar ) = 100*rstar/DA
