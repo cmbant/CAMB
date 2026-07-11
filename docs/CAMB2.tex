@@ -22,7 +22,7 @@
 \Crefname{figure}{Figure}{Figures}
 \crefname{figure}{Fig.}{Figs.}
 \Crefname{table}{Table}{Tables}
-\crefname{table}{Table}{Table.}
+\crefname{table}{Table}{Tables}
 \Crefname{section}{Section}{Sections}
 \crefname{section}{Sec.}{Secs.}
 \Crefname{appendix}{Appendix}{Appendices}
@@ -800,7 +800,7 @@ cosmic-variance-limited CMB experiment to $\ell=5000$~\cite{Lee:2020obi}.
   axis gives the conformal time $\eta(z)$ in Mpc. Lower panel: fractional
   ionization-history residuals relative to the direct \textsc{CosmoRec}
   reference used for the updated
-  \textsc{RECFAST} approximation. The reference is the
+  \textsc{RECFAST} approximation. The reference is
   \textsc{CosmoRec} with \code{accuracy=6}, ten hydrogen shells, \code{n_s_2gamma=8},
   \code{n_s_raman=7} and two diffusion iterations. The ``No He-rate fit'' curve
   uses the same \textsc{RECFAST} refit but without the new multiplicative
@@ -1817,7 +1817,7 @@ used upward only in the safely oscillatory region
 $|\cotK\chi|<b_l/\max(1,l)$, with an open-space refinement using
 $y_{\rm open}=\nu\sinh\chi/l$.  For $K=-1$ upward recurrence is also used in the
 near-turning layer $y_{\rm open}\ge1-5\times10^{-3}$, and for the very low
-$\nu/l$ family when $\nu/l\le2.1\times10^{-3}$ and $y_{\rm open}\ge0.9$.
+$\nu/l$ family when $\nu/l\le2.0\times10^{-3}$ and $y_{\rm open}\ge0.8$.
 These extra open gates were calibrated with peak-normalized forward/Miller
 comparisons, keeping tiny-$\chi$ low-$\nu/l$ cases on Miller.  Elsewhere the
 recurrence is run downward (Miller),
@@ -1899,14 +1899,16 @@ $C_L^{\phi\phi}$ & $5\le L<2500$ & $5\times10^{-3}$ \\
 \midrule
 $BB$ & $2\le\ell<1000$ & $5\times10^{-3}$ \\
  & $1000\le\ell<6000$ & $1\times10^{-2}$ \\
- & $\ell\ge6000$ & $2\times10^{-2}$ \\
+ & $6000\le\ell<8000$ & $2\times10^{-2}$ \\
+ & $\ell\ge8000$ & $1\times10^{-1}$ \\
 \midrule
 Matter power & $k_h<5\times10^{-3}$ & $3\times10^{-3}$ \\
 (linear) & $5\times10^{-3}<k_h<2$ & $1\times10^{-3}$ \\
  & $k_h>2$ & $3\times10^{-3}$ \\
 \midrule
-Matter power & $k_h<1$ & $3\times10^{-3}$ \\
-(nonlinear) & $1<k_h<10$ & $5\times10^{-3}$ \\
+Matter power & $k_h<5\times10^{-3}$ & $3\times10^{-3}$ \\
+(nonlinear) & $5\times10^{-3}<k_h<2$ & $1\times10^{-3}$ \\
+ & $2<k_h<10$ & $3\times10^{-3}$ \\
  & $k_h>10$ & $1\times10^{-2}$ \\
 \bottomrule
 \end{tabular}
@@ -1917,7 +1919,9 @@ $k_h\equiv k/(h\,\mathrm{Mpc}^{-1})$. The $10^{-3}$ entries -- the interior lens
 quasi-linear matter power -- are the design target for Advanced SO and the
 matter-power surveys; the looser entries are at the spectrum ends, in the
 high-$\ell$ lensed tail, and in the deeply nonlinear regime where the nonlinear
-model sets the floor.}
+model sets the floor. The matter-power tolerances are those applied with
+\code{Transfer.high_precision} set, which should always be enabled when
+accurate matter power spectra are needed.}
 \label{tab:tol}
 \end{table}
 

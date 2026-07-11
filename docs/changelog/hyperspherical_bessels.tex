@@ -869,7 +869,7 @@ curvature scale in the hot source-integration path.  Relative to the earlier
 source gate, it is stricter in the endpoint metric but less restrictive in
 \(\nu/l\), which keeps the tested high-\(l\), low-\(\nu/l\) near-flat band.
 \begin{enumerate}[leftmargin=*]
-\item If the common range gate passes, \code{UseSmallChiNearFlatIntegration} may fill the range using
+\item If the common range gate passes, \code{UseNearFlatSmallChiApprox} may fill the range using
 \(j_l(\nu\chi F)\) and the \(F/\sqrt D\) weight.
 \item The shifted-\(\nu\) filler uses the same common range gate, and then adds the
 constant-map residual test from \eqref{eq:shift-error}:
@@ -947,9 +947,9 @@ recurrence for
 Peak-normalized forward/Miller scans show that the very small-\(\nu/l\) family
 has a wider safe forward region, so CAMB also uses
 \begin{equation}
-  \frac{\nu}{l}\le2.1\times10^{-3},
+  \frac{\nu}{l}\le2.0\times10^{-3},
   \qquad
-  y_{\rm open}\ge0.9.
+  y_{\rm open}\ge0.8.
   \label{eq:open-recurrence-low-beta}
 \end{equation}
 Tiny-\(\chi\), small-\(\nu/l\) cases such as \(l=4,\nu/l=0.002\) remain on
@@ -1129,8 +1129,9 @@ moderate-\(\nu\), high-\(\nu/l\) band
 where low- and mid-\(L\) EE is sensitive to small Numerov phase drift.  This
 nu-aware gate avoids applying the frequent re-seeding to all low \(l\) modes,
 while correcting the modes where source integration has too few weighted
-oscillations to average the drift away.  The minimum interval after accuracy
-scaling is 25 substeps.  This bounds the accumulated error without paying for
+oscillations to average the drift away.  The interval is divided by the
+integration accuracy boost, so higher accuracy settings re-seed more
+frequently.  This bounds the accumulated error without paying for
 an \code{u_olver} call at every step.
 
 \subsection{Direct Olver evaluation for high-substep ranges}
@@ -1162,8 +1163,8 @@ This explains why the Olver approximation is used differently inside source inte
 
 Before doing Numerov, \code{DoRangeInt} checks two fast fillers:
 \begin{enumerate}[leftmargin=*]
-\item \code{UseShiftedNuScalarApprox}: if the model is sufficiently near flat and the shifted-\(\nu\) error estimate passes, fill all source-grid Bessel values directly from \(j_l(\nu F_0\chi)\) with the amplitude \(\sqrt{F_0}\) and the \(\chi/\SK\) geometrical factor.
-\item \code{UseSmallChiNearFlatIntegration}: if the small-\(\chi\) Olver map is accurate on the whole range, fill all values from \(j_l(\nu\chi F)\) with the \(F/\sqrt D\) amplitude and \(\chi/\SK\) geometrical factor.
+\item \code{UseShiftedNuNearFlatIntegration}: if the model is sufficiently near flat and the shifted-\(\nu\) error estimate passes, fill all source-grid Bessel values directly from \(j_l(\nu F_0\chi)\) with the amplitude \(\sqrt{F_0}\) and the \(\chi/\SK\) geometrical factor.
+\item \code{UseNearFlatSmallChiApprox}: if the small-\(\chi\) Olver map is accurate on the whole range, fill all values from \(j_l(\nu\chi F)\) with the \(F/\sqrt D\) amplitude and \(\chi/\SK\) geometrical factor.
 \end{enumerate}
 These branches avoid stepping the full hyperspherical ODE at all.  They are particularly useful in nearly flat models, where the exact curved function is very close to a flat Bessel function but a discontinuous switch between exact flat and non-flat treatment would be numerically undesirable.  This is the same continuity goal emphasized for the \textsc{CLASS} flat-rescaling approximation, although the CAMB fillers use the local Olver coefficients \(F,D\) and \(F_0\) rather than the \textsc{CLASS} \(\gamma,A_\nu^l\) model \cite{lesgourgues-tram2013}.
 
