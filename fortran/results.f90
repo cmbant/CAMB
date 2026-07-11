@@ -1798,7 +1798,7 @@
     real(dl) dSF1, dSF2, delta, sf1, sf2
     real(dl), allocatable :: scale_factors(:), times(:), dt(:)
     ! Thermodynamic sound-speed temporaries.
-    real(dl) :: T_reion, denom, yheat, Tg, muinv, cs2_orig, cs2_heat, Tb_orig
+    real(dl) :: T_reion, denom, yheat, Tg, muinv, cs2_orig, cs2_heat, Tb_orig, xe_HHeI
     logical :: thermo_use_omp
     Type(TCubicSpline) :: dotmuSp
     integer ninverse, nlin
@@ -2111,8 +2111,12 @@
             ! and map cs^2 smoothly from the original formula to ideal-gas form.
             ! Use mu^{-1} = (1 - 0.75 Y_He) + (1 - Y_He) x_e.
             T_reion = CP%Reion%reion_temperature
-            ! yheat follows the reionization x_e shape, 0 before reionization, ->1 when x_e~1
-            denom = max(1.0d-12, 1._dl - xe_a(i))
+            ! yheat follows the H + first-He reionization x_e shape: 0 before reionization,
+            ! ->1 when x_e reaches 1 + fHe (hydrogen and first helium fully ionized). These are
+            ! assumed to track each other in the default model, so heating completes together
+            ! with them rather than partway through (when x_e~1) as it would if normalized to 1.
+            xe_HHeI = 1._dl + State%fHe
+            denom = max(1.0d-12, xe_HHeI - xe_a(i))
             yheat = (this%xe(i) - xe_a(i))/denom
             if (yheat < 0) yheat = 0
             if (yheat > 1) yheat = 1
