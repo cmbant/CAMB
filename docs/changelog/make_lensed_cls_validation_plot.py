@@ -709,7 +709,7 @@ def make_plot(
     )
 
     def color_for(label: str) -> str:
-        if label.startswith("CAMB origin/master"):
+        if label.startswith(("CAMB origin/master", "CAMB v1")):
             return "#8a5a00"
         if label.startswith("CAMB default"):
             return "#111111"
@@ -724,7 +724,7 @@ def make_plot(
         return "0.2"
 
     def linestyle_for(label: str):
-        if label.startswith("CAMB origin/master"):
+        if label.startswith(("CAMB origin/master", "CAMB v1")):
             return (0, (1.5, 1.5))
         if label.startswith("CAMB default"):
             return "-"

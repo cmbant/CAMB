@@ -1367,9 +1367,24 @@ confined to characterized endpoint and extreme-tail regions (the very edge of a
 requested $\ell_{\max}$, and the high-$\ell$ tail of $21\,$cm configurations)
 rather than to interior accuracy. We treat those edge cases as documented
 limitations rather than blockers. The grid itself is generated programmatically
-by a script distributed with the code (in \code{fortran/tests}), so the exact
-validation set is reproducible from the source distribution rather than a
-hand-maintained file list.
+by a script distributed with the code (in \code{fortran/tests}).
+
+The SO-like likelihood proxy described in \cref{app:accuracy} translates this
+grid-level agreement into its impact on parameter inference. For each grid model
+containing CMB spectra, we evaluate the Gaussian $\Delta\chi^2$ between the
+default and boosted-reference runs over $2\le\ell\le\min(4000,\,\ell_{\max}-200)$,
+excluding the documented endpoint region near the requested $\ell_{\max}$.
+Number-counts, tensor-only and pure matter-transfer files are left
+out of this proxy. Over the resulting set of roughly one hundred
+CMB models -- all with $\ell_{\max}\ge2500$ -- the grid has median
+$\Delta\chi^2\simeq0.4$, consistent with the single-model value quoted in
+\cref{app:accuracy}, and the maximum over the grid is $\Delta\chi^2\simeq1.0$
+(the $\ell_{\max}=4000$ dark-energy $\theta_\star$/PPF and heavy
+three-degenerate-neutrino models). Since coherent errors at the tolerance
+boundaries of \cref{tab:tol} could give $\Delta\chi^2\simeq34$
+(\cref{app:accuracy}), the measured grid values confirm that in practice the
+default-accuracy differences sit well over an order of magnitude below the
+acceptance envelope on the likelihood scale.
 
 This convergence check is complemented by a fixed-reference regression test. The
 standard \textsc{CAMB} test suite generates a broad grid of scalar, tensor, lensed,
@@ -1410,9 +1425,26 @@ plausible baryonic-feedback change in
 \textsc{CAMB}, showing the scale of physical modelling uncertainty in the
 nonlinear lensing contribution, which dominates at very high $\ell$.
 
+The figure also quantifies the accuracy gain over the previous generation of
+\textsc{CAMB}: the dotted curve is the last v1.x release (v1.6.6) run with the
+same physical model and the same high-$k$ lensing support as the current
+default (\code{lens_potential_accuracy}=5, matching the timing comparison of
+\cref{tab:performance-timings}). With matched support the old code stays below
+$10^{-3}$ up to $\ell\sim1900$, but then exceeds the SO-like sensitivity band
+over much of $\ell\sim1900$--$3000$ and degrades rapidly beyond, reaching
+$2.6\%$ in $TT$ and $1.1\%$ in $EE$ at $\ell=4000$ ($14\%$ in the lensed
+$BB$). On the SO-like likelihood scale of \cref{app:accuracy} (evaluated over
+$2\le\ell\le4000$ against the boosted reference) this corresponds to
+$\Delta\chi^2\simeq10^2$, compared to $\Delta\chi^2\simeq0.4$ for the current
+defaults on the same model. With default lensing settings (not shown), which
+using low lensing source cutoff $\max(k\eta_0)=10375$ tuned for
+Planck-era requirements, v1.6.6 is far less accurate: it leaves the
+sensitivity band above $\ell\sim1500$ and reaches $1.5\%$ error in $TT$ by
+$\ell=3000$, with $\Delta\chi^2\simeq6\times10^3$.
+
 \begin{figure*}[t!]
   \begin{center}
-  \includegraphics[width=0.88\textwidth]{changelog/lensed_cls_validation/lensed_cls_validation_residuals_planck_recfast_cl_ref_ee_gt3000_mnu0p06.pdf}
+  \includegraphics[width=0.88\textwidth]{changelog/lensed_cls_validation/lensed_cls_validation_residuals_planck_recfast_cl_ref_ee_gt3000_mnu0p06_v166.pdf}
   \caption{Lensed CMB numerical validation for a flat \(\Lambda\)CDM model with
   \(\ell_{\max}=4000\), using a strict-reference boosted \textsc{CAMB} run as the
   reference (the stricter \code{check_accuracy} preset, with the main accuracy boosts
@@ -1433,7 +1465,12 @@ nonlinear lensing contribution, which dominates at very high $\ell$.
   The HMCode baryonic-feedback curve uses
   the \code{mead2020_feedback} model with
   \(\log_{10}(T_{\rm AGN}/{\rm K})=7.8\), relative to the no-feedback HMCode
-  result, to indicate the size of possible physical modelling uncertainties.}
+  result, to indicate the size of possible physical modelling uncertainties.
+  The dotted curve shows the last previous-generation release,
+  \textsc{CAMB} v1.6.6, run with the same physical model and the same high-\(k\)
+  lensing support as the current default (\code{lens_potential_accuracy}=5),
+  relative to the same boosted reference; at its own historical default
+  lensing cutoff the old code is substantially less accurate still (see text).}
   \label{fig:lensed-cl-validation}
   \end{center}
 \end{figure*}
@@ -1483,10 +1520,11 @@ summarizes representative four-thread timings on a typical laptop.  The flat
 runs use a Planck-2018 \(\Lambda\)CDM model with \(m_\nu=0.06\,{\rm eV}\) and
 lensed spectra requested to \(\ell_{\max}=4000\).  The current default uses
 \(\max(k\eta_0)=90000\), or \(k_{\max}=6.36\,{\rm Mpc}^{-1}\).  The old
-\textsc{CAMB} v1.x default was faster only because it used the historical low
+\textsc{CAMB} v1.6.6 (the last v1.x release) default was faster only because it used the historical low
 lensing cutoff \(\max(k\eta_0)=10375\).  When the old code is run with the same
-high-\(k\) support as the new default, it is slightly slower than the current
-code and less accurate.
+high-\(k\) support as the new default, it is somewhat slower than the current
+code and still substantially less accurate at high $\ell$
+(\cref{fig:lensed-cl-validation,sec:validation}).
 
 \begin{table}[t]
 \centering
@@ -1496,21 +1534,19 @@ code and less accurate.
 Case & CPU [s] & wall [s] \\
 \hline
 \multicolumn{3}{c}{Flat \(\ell_{\max}=4000\), Planck-2018 model} \\
-\textsc{CAMB} current default & 4.0 & 1.0 \\
-\textsc{CAMB} v1.x, same high-\(k\) support & 4.4 & 1.1 \\
-\textsc{CAMB} v1.x, historical low-\(k\) default & 2.4 & 0.58 \\
-\textsc{CLASS} default, native reach, \(\ell=4000\) & 10 & 3.4 \\
-\textsc{CLASS} \code{cl_permille}, native reach, \(\ell=4000\) & 11 & 3.7 \\
-\textsc{CLASS} default, high-\(k\), \(\ell=6000\to4000\) & 15 & 4.6 \\
-\textsc{CLASS} \code{cl_permille}, high-\(k\), \(\ell=6000\to4000\) & 17 & 5.1 \\
+\textsc{CAMB} current default & 4.2 & 1.1 \\
+\textsc{CAMB} v1.6.6, same high-\(k\) support & 5.0 & 1.3 \\
+\textsc{CAMB} v1.6.6, historical low-\(k\) default & 2.8 & 0.70 \\
+\textsc{CLASS} default, native reach, \(\ell=4000\) & 13 & 4.3 \\
+\textsc{CLASS} \code{cl_permille}, native reach, \(\ell=4000\) & 14 & 4.6 \\
+\textsc{CLASS} default, high-\(k\), \(\ell=6000\to4000\) & 17 & 5.3 \\
+\textsc{CLASS} \code{cl_permille}, high-\(k\), \(\ell=6000\to4000\) & 20 & 6.1 \\
 \hline
 \multicolumn{3}{c}{Non-flat 10-model geometric mean} \\
-\textsc{CAMB} current default & 5.3 & 1.3 \\
-\textsc{CAMB} v1.x, same high-\(k\) support & 90 & 21 \\
-\textsc{CLASS} default & 15 & 3.6 \\
-\textsc{CLASS} \code{cl_permille} defaults & 27 & 6.4 \\
-%\textsc{CLASS} default, same physical reach & 15 & 3.6 \\
-%\textsc{CLASS} \code{cl_permille}, same physical reach & 27 & 6.1 \\
+\textsc{CAMB} current default & 5.8 & 1.5 \\
+\textsc{CAMB} v1.6.6, same high-\(k\) support & 98 & 25 \\
+\textsc{CLASS} default & 18 & 4.4 \\
+\textsc{CLASS} \code{cl_permille} defaults & 32 & 7.6 \\
 \hline
 \end{tabular}
 }
@@ -1548,10 +1584,10 @@ For the non-flat models, the revised
 hyperspherical-Bessel calculation scheme also removes the large cost of running the
 previous version:
 across the ten-model curvature sweep of \cref{sec:bessel-curvature} the
-geometric-mean CPU time falls from $90.1\,$s for \textsc{CAMB} v1.x to
-$5.30\,$s at $\ell_{\max}=4000$, a factor of $17$ at higher target accuracy, and
-the near-flat $|\Omega_K|\le10^{-3}$ models ($4.82\,$s geometric mean) cost only
-modestly more than the exactly flat case ($3.74\,$s).
+geometric-mean CPU time falls from $98.4\,$s for \textsc{CAMB} v1.6.6 to
+$5.79\,$s at $\ell_{\max}=4000$, a factor of $17$ at higher target accuracy, and
+the near-flat $|\Omega_K|\le10^{-3}$ models ($5.06\,$s geometric mean) cost only
+modestly more than the exactly flat case ($4.19\,$s).
 
 \section{Conclusions}
 \label{sec:summary}
@@ -1584,11 +1620,11 @@ accuracy and compute demands of physics codes.
 
 \begin{acknowledgments}
 I am supported by the UK STFC grant ST/X001040/1. I thank Jens Chluba and
-Yacine Ali-Haimoud for recombination discussions, Simons Observatory collaborators on
-likelihood and theory, and CAMB GitHub issue and pull-request
+Yacine Ali-Haimoud for recombination discussions, Simons Observatory collaborators,
+and CAMB GitHub issue and pull-request
 contributors for reporting errors and contributing code or patches. The
 algorithms and code described here were co-developed with LLM chats and AI coding
-agents (Claude Code, Codex and Copilot) under my supervision; I am responsible
+agents (Claude Code with Opus 4.8 or Fable, Codex with GPT 5.5/5.6 and Copilot with GPT 5.4/Claude Sonnet) under my supervision, with some cross-checks using Gemini 3.1 Pro; I am responsible
 for the physics, the validation design, and the final review of all changes.
 \end{acknowledgments}
 
