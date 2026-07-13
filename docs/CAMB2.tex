@@ -70,7 +70,7 @@ Upcoming cosmic microwave background (CMB) and large-scale-structure surveys
 require theoretical power spectra with numerical errors well below their
 observational uncertainties over the scales that carry most of the constraining
 power. We describe a substantial update to \textsc{CAMB} designed to provide
-fast, high-precision predictions for the two outputs that drive most analyses:
+fast, high-precision predictions for the two key outputs:
 the lensed CMB and matter power spectra. The central development is a new
 treatment of the hyperspherical Bessel functions used for line-of-sight
 integration in non-flat cosmologies. A leading-order Olver construction maps
@@ -82,22 +82,19 @@ Occasional evaluations of this map also provide accurate starting values for
 efficient Numerov propagation between neighbouring source points. We
 additionally describe a recalibrated fast recombination model, direct fits for
 the massive-neutrino background, stabilized parameterized post-Friedmann
-dark-energy evolution, and improvements to CMB lensing accuracy. We also
-discuss the convention dependence of the nominally linear matter power spectrum
-when a homogeneous calculation attempts to represent nonlinear reionization
-heating. A deterministic validation harness compares the unboosted defaults
+dark-energy evolution, and improvements to CMB lensing accuracy.
+Numerical stability is validated by comparing unboosted default results
 against more converged calculations across a grid of more than one hundred
 cosmological configurations. The defaults satisfy conservative $10^{-3}$
 pointwise convergence requirements for relevant lensed CMB spectra and
 quasi-linear matter power spectrum, while the errors measured in typical runs
-are substantially smaller. Essentially all
-of the new algorithms and code were co-developed with AI agents under human
-supervision, using deterministic tests and physical review to reject
-numerically successful but unjustified changes. This workflow illustrates a
-broader move towards \emph{custom-precision} numerical methods: algorithms
-calibrated to the accuracy required by the physical problem and the grid
-actually sampled, rather than to the fixed precision of general-purpose
-libraries.
+are substantially smaller. We also describe the convention dependence of the nominally linear matter power spectrum
+when a homogeneous calculation attempts to represent nonlinear reionization.
+Essentially all
+of the new algorithms and code were developed with LLMs/AI agents under human
+supervision. This development also illustrates the use of use of \emph{custom-precision} numerical methods:
+optimized algorithms calibrated to the accuracy required by the physical problem, rather than to
+the fixed precision of general-purpose libraries.
 \end{abstract}
 
 \maketitle
@@ -469,7 +466,7 @@ argument $\nu_{\rm eff}\chi$, multiplied by $\sqrt{F_0}$ and the geometrical fac
 $\chi/\SK$. Expanding, $\nu_{\rm eff}^2=\nu^2[1-h/3-2h^2/45-\dots]$, whose leading
 correction $-\nu^2 h/3=-Kl(l+1)/3$ is exactly the leading constant curvature shift
 obtained by expanding $1/\SK^2$ directly; the $F_0$ form retains the next two
-constant Olver terms at no extra cost. This near-flat behaviour is what makes the
+constant Olver terms at (almost) no extra cost. This near-flat behaviour is what makes the
 flat comparison so natural: in the near-flat regime the Olver coordinate map is
 almost a constant rescaling of the flat argument.
 
@@ -750,8 +747,16 @@ tracks photon temperature rather than raw redshift, and the factor is used only
 over the He\,{\sc i} recombination range \(1500\lesssim z_{\rm scale}\lesssim
 3000\). The constants in \(F_{\rm He}\) were fitted to the total
 \(x_e(z)\) residual relative to \textsc{CosmoRec}, not to a pointwise inferred
-helium derivative, and then the existing hydrogen Gaussians and helium
-normalization were jointly refitted.\footnote{The rounded helium-rate constants in
+helium derivative, and then the existing hydrogen Gaussians and overall helium
+normalization \code{RECFAST_fudge_He} were jointly refitted at fixed
+\code{RECFAST_fudge}. Each stage is a bounded nonlinear least-squares fit for $x_e$
+over a redshift grid
+spanning the recombination window (\(800\lesssim z\lesssim3000\)) against the
+fixed high-accuracy \textsc{CosmoRec} reference (the reference settings are those
+given in the caption of \cref{fig:recfast-cosmorec-fit}); the helium-rate stage
+additionally weights the residual towards the redshifts where the helium
+recombination rate is largest, anchoring the correction where the helium
+radiative-transfer difference is physically significant.\footnote{The rounded helium-rate constants in
 \(F_{\rm He}\) are \((a_0,a_1,a_2,d_2,d_4)=(0.0781,\,0.899,\,-3.06,\,3.75,\,18.1)\)
 with \((z_0,w)=(1968,\,774)\). The associated fitted \textsc{CAMB} \code{Recfast}
 parameters are \code{RECFAST_fudge}=1.125, \code{RECFAST_fudge_He}=0.84724,
@@ -1141,11 +1146,29 @@ which is \cref{eq:ppf-gamma} with the relaxation rate frozen at its threshold
 value, so it is continuous across $\beta=\beta_\star$ and leaves the equation
 unchanged below it. This removes the stiffness while keeping $\Gamma$ close to
 $\Gamma_{\rm qs}$, and avoids the matter-power and $C_\ell$ artefacts of a hard
-cutoff. For a near-$\Lambda$CDM example the peak-normalized dark-energy density perturbation at $k=0.1\,\mathrm{Mpc}^{-1}$ falls from $\sim3\times10^{3}$ to
-$\sim3\times10^{-2}$, and the sensitivity of the lensed $TT$ and lensing-potential
-spectra to the integration tolerance falls by roughly an order of magnitude, while
-the matter power and $C_\ell$ stay consistent with a stable fluid reference. This
-is the default PPF behaviour.
+cutoff. For a near-$\Lambda$CDM example the peak-normalized dark-energy density
+perturbation at $k=0.1\,\mathrm{Mpc}^{-1}$ falls from $\sim3\times10^{3}$ to
+$\sim3\times10^{-2}$. We have checked that the cap is harmless at the observable
+level and that $\beta_\star=30$ is not finely tuned: for dark-energy models from
+near-$\Lambda$CDM through phantom-crossing to non-flat crossing cases, the default
+capped code reproduces the un-regularized \cref{eq:ppf-gamma} integrated at a much
+tighter tolerance to $\lesssim10^{-5}$ in the lensed $C_\ell$, matter power and
+lensing potential---well below the accuracy target---with $\beta_\star$ anywhere in
+$10$--$300$ giving the same converged result.\footnote{Using the PPF fluid with
+$c_s^2=1$: $w_0=-0.98$; $(w_0,w_a)=(-0.9,\,0.3)$ (thawing, no crossing);
+$(-0.9,\,-0.5)$ (crossing); $(-1.15,\,0.4)$ (strongly phantom); and
+$\Omega_K=-0.03$ with $(-0.9,\,-0.5)$. Against the un-regularized reference
+(\cref{eq:ppf-gamma} with the perturbation tolerance tightened by
+$e^5\approx150$), the default $\beta_\star=30$ code agrees to $<6\times10^{-6}$
+($TT$), $<2\times10^{-6}$ ($EE$), $<10^{-6}$ (linear $P(k)$,
+$k\le2\,h\,\mathrm{Mpc}^{-1}$) and $<10^{-6}$ ($C_\ell^{\phi\phi}$), at the
+run-to-run numerical floor; varying $\beta_\star\in\{10,30,100,300\}$ changes these
+by $\lesssim4\times10^{-5}$.} Integrating the un-regularized equation at the
+default tolerance instead mis-estimates the lensed $TT$ spectrum by
+$\sim2\times10^{-3}$ and is strongly tolerance-dependent, so the cap removes this
+sensitivity---by more than two orders of magnitude---as well as the tiny
+integration steps the stiff equation would otherwise force. This is the default
+PPF behaviour.
 
 We stress that PPF is a phenomenological parameterization, not a physical model of
 dark-energy perturbations. The variable $\Gamma$, and especially its small-scale
