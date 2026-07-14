@@ -398,7 +398,37 @@ has analytic logarithm and \(\atanTwo\) forms, using
 \(x=\alpha\SK(\chi)\).  These are the same action integrals that appear in the
 older Langer/WKB formulae \cite{kosowsky1998,tram2013}; CAMB uses them to define
 a map to the flat spherical-Bessel equation rather than to build an Airy
-argument directly.  These closed forms are the expressions implemented in
+argument directly.  Explicitly, writing \(u=\sqrt{1-x^2}\) on the evanescent
+side, the open case is
+\begin{equation}
+  Q_{-1}=
+  \begin{cases}
+  \displaystyle
+  \frac{\alpha}{2}\,\atanTwo\!\left(-2u\sqrt{x^2+\alpha^2},\;2x^2+\alpha^2-1\right)
+  +\asinh\frac{\alpha u}{x\sqrt{1+\alpha^2}}, & x<1,\\[1.5ex]
+  \displaystyle
+  \alpha\,\asinh\frac{\sqrt{x^2-1}}{\sqrt{1+\alpha^2}}
+  -\atanTwo\!\left(\alpha\sqrt{x^2-1},\;\sqrt{x^2+\alpha^2}\right), & x>1,
+  \end{cases}
+  \label{eq:qexact-open}
+\end{equation}
+and the closed case (\(\alpha>1\) for the regular spectrum, with \(\chi\)
+already folded into \(0\le\chi\le\pi/2\)) is
+\begin{equation}
+  Q_{+1}=
+  \begin{cases}
+  \displaystyle
+  \asinh\frac{\alpha u}{x\sqrt{\alpha^2-1}}
+  -\alpha\,\asinh\frac{u}{\sqrt{\alpha^2-1}}, & x<1,\\[1.5ex]
+  \displaystyle
+  \frac{\alpha}{2}\,\atanTwo\!\left(2\sqrt{(x^2-1)(\alpha^2-x^2)},\;\alpha^2+1-2x^2\right)
+  -\atanTwo\!\left(\alpha\sqrt{x^2-1},\;\sqrt{\alpha^2-x^2}\right), & x>1,
+  \end{cases}
+  \label{eq:qexact-closed}
+\end{equation}
+where \(\atanTwo\) is the two-argument (quadrant-preserving) arctangent, and the
+evanescent closed branch degenerates smoothly to \(Q_{+1}=-\log x\) as
+\(\alpha\to1\).  These branch-stable forms are the expressions implemented in
 \code{qintegral_exact}; they avoid quadrature in a hot loop.
 
 The remaining numerical task is to solve \eqref{eq:action-map} for
