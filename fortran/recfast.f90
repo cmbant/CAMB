@@ -1,33 +1,32 @@
     !Recombination module for CAMB, using RECFAST
 
-    !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-    !C Integrator for Cosmic Recombination of Hydrogen and Helium,
-    !C developed by Douglas Scott (dscott@astro.ubc.ca)
-    !C based on calculations in the paper Seager, Sasselov & Scott
-    !C (ApJ, 523, L1, 1999).
+    !-------------------------------------------------------------------------------
+    ! Integrator for Cosmic Recombination of Hydrogen and Helium,
+    ! developed by Douglas Scott (dscott@astro.ubc.ca)
+    ! based on calculations in the paper Seager, Sasselov & Scott
+    ! (ApJ, 523, L1, 1999).
     !and "fudge" updates in Wong, Moss & Scott (2008).
-    !C
-    !C Permission to use, copy, modify and distribute without fee or royalty at
-    !C any tier, this software and its documentation, for any purpose and without
-    !C fee or royalty is hereby granted, provided that you agree to comply with
-    !C the following copyright notice and statements, including the disclaimer,
-    !C and that the same appear on ALL copies of the software and documentation,
-    !C including modifications that you make for internal use or for distribution:
-    !C
-    !C Copyright 1999-2010 by University of British Columbia.  All rights reserved.
-    !C
-    !C THIS SOFTWARE IS PROVIDED "AS IS", AND U.B.C. MAKES NO
-    !C REPRESENTATIONS OR WARRANTIES, EXPRESS OR IMPLIED.
-    !C BY WAY OF EXAMPLE, BUT NOT LIMITATION,
-    !c U.B.C. MAKES NO REPRESENTATIONS OR WARRANTIES OF
-    !C MERCHANTABILITY OR FITNESS FOR ANY PARTICULAR PURPOSE OR THAT
-    !C THE USE OF THE LICENSED SOFTWARE OR DOCUMENTATION WILL NOT INFRINGE
-    !C ANY THIRD PARTY PATENTS, COPYRIGHTS, TRADEMARKS OR OTHER RIGHTS.
-    !C
-    !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    !
+    ! Permission to use, copy, modify and distribute without fee or royalty at
+    ! any tier, this software and its documentation, for any purpose and without
+    ! fee or royalty is hereby granted, provided that you agree to comply with
+    ! the following copyright notice and statements, including the disclaimer,
+    ! and that the same appear on ALL copies of the software and documentation,
+    ! including modifications that you make for internal use or for distribution:
+    !
+    ! Copyright 1999-2010 by University of British Columbia.  All rights reserved.
+    !
+    ! THIS SOFTWARE IS PROVIDED "AS IS", AND U.B.C. MAKES NO
+    ! REPRESENTATIONS OR WARRANTIES, EXPRESS OR IMPLIED.
+    ! BY WAY OF EXAMPLE, BUT NOT LIMITATION,
+    ! U.B.C. MAKES NO REPRESENTATIONS OR WARRANTIES OF
+    ! MERCHANTABILITY OR FITNESS FOR ANY PARTICULAR PURPOSE OR THAT
+    ! THE USE OF THE LICENSED SOFTWARE OR DOCUMENTATION WILL NOT INFRINGE
+    ! ANY THIRD PARTY PATENTS, COPYRIGHTS, TRADEMARKS OR OTHER RIGHTS.
+    !
+    !-------------------------------------------------------------------------------
     !
     !CN     Name:        RECFAST
-    !CV     Version: 1.5.2
     !C
     !CP     Purpose:  Calculate ionised fraction as a function of redshift.
     !CP            Solves for H and He simultaneously, and includes
@@ -167,9 +166,7 @@
     !CH     CREATED            (simplest version) 19th March 1989
     !CH     RECREATED    11th January 1995
     !CH               includes variable Cosmology
-    !CH               uses RungeKuttaDP45 integrator
     !CH               initial conditions are Saha
-    !CH     TESTED              a bunch, well, OK, not really
     !CH     MODIFIED     January 1995 (include Hummer's 1994 alpha table)
     !CH               January 1995 (include new value for 2s-1s rate)
     !CH               January 1995 (expand comments)
@@ -198,11 +195,10 @@
     !CH              Sept 2008 (added extra term to make transition, smoother for Tmat evolution)
     !                Sept 2008 Recfast 1.4.2 changes above added (AML)
     !                          General recombination module structure, fix to make He x_e smooth also in recfast (AML)
-    !CH      Jan 2010 (added fitting function to modify K
-    !CH              to match x_e(z) for new H physics)
-    !AL             June 2012 updated fudge parameters to match HyRec and CosmoRec (AML)
-    !AL             Sept 2012 changes now in public recfast, version number changed to match Recfast 1.5.2.
-    !AL             Apr 2026 updated to use variable nZ and evolve/interpolate a*T_m with Rosenbrock while stiff,
+    !CH              Jan 2010 (added fitting function to modify K to match x_e(z) for new H physics)
+    !AL              June 2012 updated fudge parameters to match HyRec and CosmoRec (AML)
+    !AL              Sept 2012 changes now in public recfast, version number changed to match Recfast 1.5.2.
+    !AL              Apr 2026 updated to use variable nZ and evolve/interpolate a*T_m with Rosenbrock while stiff,
     !AL                      and added optional HeI recombination rate correction fit. New CosmoRec fudges.
 
 
@@ -1277,7 +1273,7 @@
     if (.not. this%RECFAST_Hswitch) then
         K = CK/Hz
     else
-        !c  fit a double Gaussian correction function
+        !  fit a double Gaussian correction function
         log_1pz = log(1.0d0 + z_scale)
         gauss_arg1 = (log_1pz - this%zGauss1)/this%wGauss1
         gauss_arg2 = (log_1pz - this%zGauss2)/this%wGauss2

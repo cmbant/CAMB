@@ -1027,7 +1027,7 @@ By default \textsc{CAMB} approximates the neutrino masses by a single massive
 eigenstate carrying the full $\sum m_\nu = 0.06\,{\rm eV}$, leaving the remaining
 relativistic degrees of freedom massless. This minimal-mass single-eigenstate model
 is the standard default: for a fixed small total mass the way it is divided between
-eigenstates has a negligible effect on the CMB, so resolving the individual masses
+eigenstates has a very small effect on the CMB, so resolving the individual masses
 is unnecessary. For work that does need the physical mass splittings, \textsc{CAMB}
 also provides explicit \code{normal} and \code{inverted} hierarchy settings. In the
 physically allowed regime these approximate the three masses by two eigenstates---a
@@ -1072,7 +1072,8 @@ $q$ finely would be costly, so \textsc{CAMB} uses a sparse quadrature: a handful
 momenta and weights chosen to integrate the Fermi--Dirac moment kernels accurately,
 as detailed in the appendix of Ref.~\cite{Howlett:2012mh}. The default three-point
 rule is adequate for the minimal-mass neutrino case. With the targeted-accuracy
-settings used here, \textsc{CAMB} automatically raises this to four points once the
+settings used here, \textsc{CAMB} automatically raises this to four points
+(per non-degenerate eigenstate) once the
 largest eigenstate has dimensionless mass
 $\tilde m_\nu\gtrsim600$ (roughly $0.1\,{\rm eV}$), and to five
 points above $\tilde m_\nu\gtrsim4300$ for the heaviest transfer
@@ -1084,18 +1085,22 @@ least-squares refit, and the five-point rule keeps the relativistic moment
 constraints while using the remaining freedom to improve velocity-dependent
 integrals as the neutrinos slow down.
 
-There are three distinct approximation switches. The first is the perturbatively
-relativistic \textsc{CAMB} expansion documented by
-Howlett et al.~\cite{Howlett:2012mh}: while a momentum bin is still highly
-relativistic its hierarchy is independent of $q$ and coincides with the massless
-one to leading order in $(a\tilde m_\nu/q)^2$, so \textsc{CAMB} evolves the massless
-hierarchy plus a single first-order correction until that bin becomes mildly
-relativistic. This lets the per-momentum integration start later and at lower
-$l_{\max}$. The second switch is the late-time non-relativistic
-velocity-integrated hierarchy of Ref.~\cite{Lewis:2002nc}. Once the neutrinos are safely
-non-relativistic, the default path integrates the distribution into
-a four-variable hierarchy for $\delta\rho_\nu$, $\delta P_\nu$, heat flux and
-anisotropic stress, with higher velocity moments redshifting analytically.
+There are three distinct approximation switches. The first is the perturbatively relativistic \textsc{CAMB} expansion documented
+by Howlett et al.~\cite{Howlett:2012mh}. While a massive eigenstate remains
+highly relativistic, its hierarchy is independent of momentum at leading order
+and coincides with the massless hierarchy, with the leading mass dependence
+captured by a perturbative correction of order
+$(a\tilde m_\nu/q)^2$. \textsc{CAMB} therefore evolves a common relativistic
+hierarchy and its first mass correction before initializing the full set of
+momentum-dependent hierarchies once the species becomes sufficiently
+non-relativistic. This delays the expensive momentum-resolved evolution and
+allows it to start with a smaller multipole hierarchy depth.
+The second switch is the late-time non-relativistic
+velocity-integrated hierarchy of Ref.~\cite{Lewis:2002nc}, evolving four
+perturbation variables associated with the density,
+pressure, heat flux and anisotropic stress. Contributions from higher velocity
+moments are included through their non-relativistic redshifting expansion and
+the corresponding hierarchy closure.
 The third switch applies to the massless species: the high-$k\eta$ subhorizon
 closure described for \textsc{CLASS}~\cite{Blas:2011rf}, in which the
 ultra-relativistic fluid approximation replaces the full radiation hierarchy
@@ -1156,11 +1161,12 @@ with $F=1+3\,\bar h_{\rm noDE}/(2k^2 k_f)$ and $k_f$ the curvature factor
 ($k_f=1$ for a flat model), closing the system~\cite{Hu:2008zd}.
 
 The difficulty is that the relaxation rate $(1+\beta)\mathcal H$ grows as
-$(k/\mathcal H)^2$. For high-redshift, high-$k/\mathcal H$ modes, where dark energy
-is dynamically negligible, \cref{eq:ppf-gamma} becomes very stiff: the source is
-large, the physical response is tiny, and integrating it directly produces
-enormous normalized dark-energy perturbations and a spectrum sensitive to the
-integration tolerance. Historically this was avoided by setting $\Gamma=0$ above a
+$k^2/\mathcal H$. For high-$k/\mathcal H$ modes  \cref{eq:ppf-gamma} therefore becomes
+numerically stiff. At high redshift the dark-energy enthalpy and its observable
+gravitational effect are generally tiny, but reconstructing perturbations
+normalized by this small background can produce very large formal
+dark-energy variables and strong sensitivity to the integration tolerance.
+Historically this was avoided by setting $\Gamma=0$ above a
 high threshold, but a hard cutoff is discontinuous and, for some extended models,
 leaves the dark energy far from a sensible fluid value.
 
@@ -1171,32 +1177,37 @@ $\beta>\beta_\star$ with $\beta_\star=30$ we replace \cref{eq:ppf-gamma} by
   \label{eq:ppf-fix}
 \end{equation}
 which is \cref{eq:ppf-gamma} with the relaxation rate frozen at its threshold
-value, so it is continuous across $\beta=\beta_\star$ and leaves the equation
+value, so it is continuous at $\beta=\beta_\star$ and leaves the equation
 unchanged below it. This removes the stiffness while keeping $\Gamma$ close to
 $\Gamma_{\rm qs}$, and avoids the matter-power and $C_\ell$ artefacts of a hard
-cutoff. For a near-$\Lambda$CDM example the peak-normalized dark-energy density
-perturbation at $k=0.1\,\mathrm{Mpc}^{-1}$ falls from $\sim3\times10^{3}$ to
-$\sim3\times10^{-2}$. We have checked that the cap is harmless at the observable
-level and that $\beta_\star=30$ is not finely tuned: for dark-energy models from
-near-$\Lambda$CDM through phantom-crossing to non-flat crossing cases, the default
-capped code reproduces the un-regularized \cref{eq:ppf-gamma} integrated at a much
-tighter tolerance to $\lesssim10^{-5}$ in the lensed $C_\ell$, matter power and
-lensing potential---well below the accuracy target---with $\beta_\star$ anywhere in
-$10$--$300$ giving the same converged result.\footnote{Using the PPF fluid with
-$c_s^2=1$: $w_0=-0.98$; $(w_0,w_a)=(-0.9,\,0.3)$ (thawing, no crossing);
+cutoff.
+
+We have checked that the cap is harmless at the observable level and that
+$\beta_\star=30$ is not finely tuned. For dark-energy models ranging from
+near-$\Lambda$CDM to phantom-crossing and non-flat crossing cases, the default
+capped code reproduces the unregularized \cref{eq:ppf-gamma}, integrated at a
+much tighter tolerance, to $\lesssim10^{-5}$ in the lensed $C_\ell$, matter
+power and lensing potential---well below the target accuracy. Values of
+$\beta_\star$ between $10$ and $300$ give similarly converged results.
+\footnote{Using the PPF fluid with $c_s^2=1$: $w_0=-0.98$;
+$(w_0,w_a)=(-0.9,\,0.3)$ (non-crossing);
 $(-0.9,\,-0.5)$ (crossing); $(-1.15,\,0.4)$ (strongly phantom); and
-$\Omega_K=-0.03$ with $(-0.9,\,-0.5)$. Against the un-regularized reference
+$\Omega_K=-0.03$ with $(-0.9,\,-0.5)$. Against the unregularized reference
 (\cref{eq:ppf-gamma} with the perturbation tolerance tightened by
-$e^5\approx150$), the default $\beta_\star=30$ code agrees to $<6\times10^{-6}$
-($TT$), $<2\times10^{-6}$ ($EE$), $<10^{-6}$ (linear $P(k)$,
-$k\le2\,h\,\mathrm{Mpc}^{-1}$) and $<10^{-6}$ ($C_\ell^{\phi\phi}$), at the
-run-to-run numerical floor; varying $\beta_\star\in\{10,30,100,300\}$ changes these
-by $\lesssim4\times10^{-5}$.} Integrating the un-regularized equation at the
-default tolerance instead mis-estimates the lensed $TT$ spectrum by
-$\sim2\times10^{-3}$ and is strongly tolerance-dependent, so the cap removes this
-sensitivity---by more than two orders of magnitude---as well as the tiny
-integration steps the stiff equation would otherwise force. This is the default
-PPF behaviour.
+$e^5\approx150$), the default $\beta_\star=30$ code agrees to
+$<6\times10^{-6}$ in $TT$, $<2\times10^{-6}$ in $EE$, $<10^{-6}$ in the
+linear matter power for $k\le2\,h\,\mathrm{Mpc}^{-1}$, and $<10^{-6}$ in
+$C_\ell^{\phi\phi}$, at the run-to-run numerical floor. Varying
+$\beta_\star\in\{10,30,100,300\}$ changes these observables by
+$\lesssim4\times10^{-5}$.}
+
+At the default tolerance, direct integration of the unregularized equation
+instead changes the lensed $TT$ spectrum by $\sim2\times10^{-3}$ relative to
+the tightly integrated result and is strongly tolerance-dependent. The cap
+removes this sensitivity by more than two orders of magnitude, as well as
+avoiding the very small integration steps that the stiff equation would
+otherwise require. This cap is the new default PPF behaviour.
+
 
 We stress that PPF is a phenomenological parameterization, not a physical model of
 dark-energy perturbations. The variable $\Gamma$, and especially its small-scale
