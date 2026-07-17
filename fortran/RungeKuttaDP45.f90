@@ -1,4 +1,7 @@
     module RungeKuttaDP45Module
+    ! Dormand-Prince RK5(4)7M (DOPRI5 / MATLAB ode45): 7-stage FSAL embedded
+    ! Runge-Kutta. The 5th-order solution (dp_b*) is propagated; the 4th-order
+    ! estimate only feeds the error term (dp_e* = b5 - b4).
     use Precision
     implicit none
     private

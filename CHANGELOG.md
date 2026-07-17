@@ -1,9 +1,9 @@
 # CAMB v2 Change Summary
 
 This is a high-level summary of important user-facing and result-facing changes
-on the development branch that will become CAMB v2. It is not a complete commit
-log; see the GitHub history and the detailed notes under `docs/changelog/` for
-all tuning, validation, and implementation details.
+in CAMB v2. It is not a complete commit log; see the GitHub history and the
+detailed notes under `docs/changelog/` for
+tuning, validation, and implementation details.
 
 ## Accuracy Defaults And Diagnostics
 
@@ -88,10 +88,10 @@ all tuning, validation, and implementation details.
   helium and deuterium table, replacing the 2021 PRIMAT table. For typical
   Planck-like models this lowers the default helium mass fraction by about
   2e-4, with sub-per-mille effects on fixed-parameter CMB spectra.
-- RECFAST now uses a fast Rosenbrock-to-RK45 handoff mode by default. The new
-  path is tuned against high-accuracy internal references and scales with CAMB
-  accuracy boosts. It is intended to improve the speed/accuracy tradeoff of the
-  recombination background calculation.
+- RECFAST now uses a Rosenbrock integrator while stiff. The new path is tuned
+  against high-accuracy internal references and scales with CAMB accuracy boosts.
+  It is intended to improve the speed/accuracy tradeoff of the recombination
+  background calculation.
 - The default RECFAST approximation is now the `recfast_cosmorec` fit, including
   the helium-rate correction calibrated against direct CosmoRec histories.
   Planck-era RECFAST parameters remain available as `recfast_planck` and are

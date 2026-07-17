@@ -4,6 +4,8 @@ CAMB
 :CAMB: Code for Anisotropies in the Microwave Background
 :Author: Antony Lewis and Anthony Challinor
 :Homepage: https://camb.info/
+:Paper: `arXiv:2607.14854 <https://arxiv.org/abs/2607.14854>`_
+:Changelog: `CHANGELOG.md <CHANGELOG.md>`_
 
 .. image:: https://img.shields.io/pypi/v/camb.svg?style=flat
    :target: https://pypi.python.org/pypi/camb/
@@ -59,6 +61,36 @@ After installation you can also run CAMB from the command line reading parameter
 To compile the Fortran command-line code run "make camb" in the fortran directory. For full details
 see the  `ReadMe <https://camb.info/readme.html>`_.
 
+Citation
+===================
+You can refer to the papers::
+
+    @article{Lewis:2026mif,
+        author = "Lewis, Antony",
+        title = "{CAMB v2: cosmological power spectra for high-precision surveys}",
+        eprint = "2607.14854",
+        archivePrefix = "arXiv",
+        primaryClass = "astro-ph.CO",
+        month = "7",
+        year = "2026"
+    }
+
+    @article{Lewis:1999bs,
+          author         = "Lewis, Antony and Challinor, Anthony and Lasenby, Anthony",
+          title          = "{Efficient computation of CMB anisotropies in closed FRW models}",
+          journal        = "Astrophys. J.",
+          volume         = "538",
+          year           = "2000",
+          pages          = "473-476",
+          doi            = "10.1086/309179",
+          eprint         = "astro-ph/9911177",
+          archivePrefix  = "arXiv",
+          primaryClass   = "astro-ph",
+          SLACcitation   = "%%CITATION = ASTRO-PH/9911177;%%"
+    }
+
+and references therein as appropriate.
+
 Branches
 =============================
 
@@ -67,8 +99,9 @@ The master branch contains latest changes to the main release version.
 There is a test suite, which runs automatically on GitHub actions for new commits and pull requests.
 Reference results and test outputs are stored in the `test outputs repository <https://github.com/cmbant/CAMB_test_outputs/>`_. Tests can also be run locally.
 
-To reproduce legacy results, see these branches:
+To reproduce legacy results, see these tags/branches:
 
+ - *1.6.6* is the last Planck-era precision version, as used by Planck analysis
  - *CAMB_sources* is the old public `CAMB Sources <https://camb.info/sources/>`_ code.
  - *CAMB_v0* is the old Fortran-oriented (gfortran 4.8-compatible) version as used by the Planck 2018 analysis.
  - *rayleigh* includes frequency-dependent Rayleigh scattering
