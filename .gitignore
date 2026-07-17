@@ -45,6 +45,7 @@ testfile*
 *.ipynb
 !CAMBdemo.ipynb
 !ScalEqs.ipynb
+!InitialConditionSeries.ipynb
 !docs/SPk_demo.ipynb
 *.dll
 *.a

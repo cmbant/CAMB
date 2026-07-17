@@ -1891,7 +1891,7 @@
     end subroutine outputv
 
     subroutine initial(EV,y, tau)
-    !  Scalar initial conditions.
+    !  Scalar initial conditions. See docs/InitialConditionsSeries.ipynb for derivation.
     implicit none
 
     type(EvolutionVars) EV
@@ -2026,15 +2026,15 @@
 
         !neutrino isocurvature velocity mode
 
-        initv(5,i_clxg)=Rv/Rg*x - 2*x*omtau/16*Rb*(2+Rg)/Rg**2
-        initv(5,i_clxr)=-x -3*x*omtau*Rb/16/Rg
+        initv(5,i_clxg)=Rv/Rg*x - 3*x*omtau/16*Rv*Rb*(2+Rg)/Rg**2
+        initv(5,i_clxr)=-x -3*x*omtau*Rv*Rb/16/Rg
         initv(5,i_clxc)=-9*omtau*x/64*Rv*Rb/Rg
-        initv(5,i_clxb)= 3*Rv/4/Rg*x - 9*omtau*x/64*Rb*(2+Rg)/Rg**2
+        initv(5,i_clxb)= 3*Rv/4/Rg*x - 9*omtau*x/64*Rv*Rb*(2+Rg)/Rg**2
         iqg = Rv/Rg*(-1 + 3*Rb/4/Rg*omtau+x2/6 +3*omtau**2/16*Rb/Rg**2*(Rg-3*Rb))
         initv(5,i_qg) =iqg
         initv(5,i_qr) = 1 - x2/6*(1+4*EV%Kf(1)/(4*Rv+5))
         initv(5,i_vb)=0.75_dl*iqg
-        initv(5,i_pir)=2*x/(4*Rv+5)+omtau*x*6/Rp15/(4*Rv+5)
+        initv(5,i_pir)=2*x/(4*Rv+5)+omtau*x*6*Rv/Rp15/(4*Rv+5)
         initv(5,i_eta)=2*EV%Kf(1)*x*Rv/(4*Rv+5) + omtau*x*3*EV%Kf(1)*Rv/32*(Rb/Rg - 80/Rp15/(4*Rv+5))
         initv(5,i_aj3r) = 3._dl/7*x2/(4*Rv+5)
 
