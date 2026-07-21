@@ -268,6 +268,7 @@
     !Fill the CAMB_Pk%nonlin_scaling array with sqrt(non-linear power/linear power)
     !for each redshift and wavenumber
     !This implementation uses Halofit
+    !$ use omp_lib, only: omp_set_num_threads
     class(THalofit) :: this
     class(TCAMBdata) :: State
     type(MatterPowerData), target :: CAMB_Pk

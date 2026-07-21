@@ -310,13 +310,13 @@
     real(dl) corr(4), Cg2, sigmasq, theta
     real(dl) dtheta
     real(dl) llp1,fac, fac1,fac2,fac3, rootllp1, rootfac1, rootfac2, rootfac3
-    real(dl) P(lmax),dP(lmax)
+    real(dl), allocatable :: P(:),dP(:)
     real(dl) sinth,halfsinth, x, T2,T4
-    real(dl) roots(-1:lmax+4), lfacs(lmax), lfacs2(lmax), lrootfacs(lmax)
-    real(dl) d_11(lmax),d_m11(lmax)
-    real(dl) d_22(lmax),d_2m2(lmax),d_20(lmax)
-    real(dl) Cphil3(lmin:lmax), CTT(lmin:lmax), CTE(lmin:lmax), CEE(lmin:lmax)
-    integer ls(lmax)
+    real(dl), allocatable :: roots(:), lfacs(:), lfacs2(:), lrootfacs(:)
+    real(dl), allocatable :: d_11(:),d_m11(:)
+    real(dl), allocatable :: d_22(:),d_2m2(:),d_20(:)
+    real(dl), allocatable :: Cphil3(:), CTT(:), CTE(:), CEE(:)
+    integer, allocatable :: ls(:)
     real(dl), allocatable :: lens_contrib(:,:,:)
     integer thread_ix
     real(dl) pmm, pmmp1
@@ -331,11 +331,14 @@
     logical :: short_integral_range
     real(dl) range_fac, apodize_width
     logical, parameter :: approx = .false.
-    real(dl) theta_cut(lmax), LensAccuracyBoost, ThetaSampleBoost, LensRangeBoost
+    real(dl), allocatable :: theta_cut(:)
+    real(dl) :: LensAccuracyBoost, ThetaSampleBoost, LensRangeBoost
     real(dl) high_l_lensed_lmax, high_l_ramp
     Type(TTimer) :: Timer
 
     if (lensing_includes_tensors) call MpiStop('Haven''t implemented tensor lensing')
+    allocate(roots(-1:lmax+4), lfacs(lmax), lfacs2(lmax), lrootfacs(lmax), theta_cut(lmax))
+    allocate(Cphil3(lmin:lmax), CTT(lmin:lmax), CTE(lmin:lmax), CEE(lmin:lmax), ls(lmax))
     associate(CP=>State%CP)
 
         high_l_lensed_lmax = real(CP%Max_l - CP%lens_output_margin, dl)
@@ -408,6 +411,7 @@
         !$OMP SHARED(jmax,ls,short_integral_range,apodize_point_width)
         thread_ix = 1
         !$ thread_ix = OMP_GET_THREAD_NUM()+1
+        allocate(P(lmax), dP(lmax), d_11(lmax), d_m11(lmax), d_22(lmax), d_2m2(lmax), d_20(lmax))
         !$OMP DO
         do i=1,npoints-1
 
@@ -650,12 +654,12 @@
     real(dl) :: contrib_sum(4)
     real(dl), pointer :: xvals(:), weights(:)
     !x-independent l factors shared by all integration points
-    real(dl) :: lfacs(lmax), lfacs2(lmax), invlfacs(lmax), invlfacs2(lmax), invlrootfacs(lmax)
-    real(dl) :: rootfac1(lmax), invrootfac1(lmax), rootfac2(lmax), invrootfac2(lmax)
-    real(dl) :: invrootfac3(lmax), rootrat(lmax), invlfacsm12(lmax), theta_cut(lmax)
-    real(dl) :: Cphil3(lmin:lmax), CTT(lmin:lmax), CTE(lmin:lmax), CEE(lmin:lmax)
+    real(dl), allocatable :: lfacs(:), lfacs2(:), invlfacs(:), invlfacs2(:), invlrootfacs(:)
+    real(dl), allocatable :: rootfac1(:), invrootfac1(:), rootfac2(:), invrootfac2(:)
+    real(dl), allocatable :: invrootfac3(:), rootrat(:), invlfacsm12(:), theta_cut(:)
+    real(dl), allocatable :: Cphil3(:), CTT(:), CTE(:), CEE(:)
     !per-point work arrays, private to each OpenMP thread
-    real(dl) :: P(lmax), dP(lmax), d11(lmax), dm11(lmax), d20(lmax), d22(lmax), d2m2(lmax)
+    real(dl), allocatable :: P(:), dP(:), d11(:), dm11(:), d20(:), d22(:), d2m2(:)
     real(dl) :: x, sin2, rsin2, sinth, sinfac, fac1, fac2, ffac, rfac
     real(dl) :: tfac1, tfac2, d2m4fac, d4m4fac, c22fac, c2m2fac
     real(dl) :: sigma2, Cg2, pmm, pmmp1, expsig, expl, facexp, c2fac, c2fac2, fEE, fTE
@@ -665,6 +669,10 @@
     Type(TTimer) :: Timer
 
     if (lensing_includes_tensors) call MpiStop('Haven''t implemented tensor lensing')
+    allocate(lfacs(lmax), lfacs2(lmax), invlfacs(lmax), invlfacs2(lmax), invlrootfacs(lmax))
+    allocate(rootfac1(lmax), invrootfac1(lmax), rootfac2(lmax), invrootfac2(lmax))
+    allocate(invrootfac3(lmax), rootrat(lmax), invlfacsm12(lmax), theta_cut(lmax))
+    allocate(Cphil3(lmin:lmax), CTT(lmin:lmax), CTE(lmin:lmax), CEE(lmin:lmax))
     associate(CP=>State%CP)
 
         LensAccuracyBoost = CP%Accuracy%AccuracyBoost*CP%Accuracy%LensingBoost
@@ -736,6 +744,7 @@
         !$OMP SHARED(theta_cut,apodize_theta_width,xtaper_start,theta_max)
         thread_ix = 1
         !$ thread_ix = OMP_GET_THREAD_NUM()+1
+        allocate(P(lmax), dP(lmax), d11(lmax), dm11(lmax), d20(lmax), d22(lmax), d2m2(lmax))
         !$OMP DO
         do i=imin, npoints
             x = xvals(i)

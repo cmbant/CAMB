@@ -862,9 +862,16 @@ def get_default_compiler():
     global _default_compiler, _default_flags
     if _default_compiler:
         return _default_compiler
-    from .baseconfig import gfortran
+    from .baseconfig import compiler as loaded_compiler
 
-    if gfortran:
+    if loaded_compiler == "flang":
+        from ._compilers import find_flang_command
+
+        # camblib.so was built with flang; use the same compiler at runtime so
+        # the JIT-compiled code links against a matching Fortran ABI/runtime.
+        _default_compiler = find_flang_command() or "flang"
+        _default_flags = "-shared -fPIC -O1"
+    elif loaded_compiler == "gfortran":
         _default_compiler = "gfortran"
         _default_flags = "-shared -fPIC -O1 -fmax-errors=4"
     else:
@@ -931,13 +938,11 @@ def compile_source_function_code(code_body, file_path="", compiler=None, fflags=
     import subprocess
     import tempfile
 
-    from ._compilers import check_gfortran, compiler_environ, is_32_bit, is_windows
+    from ._compilers import check_gfortran, compiler_environ, is_windows
 
     compiler = compiler or get_default_compiler()
     fflags = fflags or _default_flags
 
-    if is_32_bit:
-        fflags = "-m32 " + fflags
     if is_windows:
         fflags += " -static"
         if _first_compile:

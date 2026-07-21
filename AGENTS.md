@@ -18,7 +18,7 @@ This is the CAMB Python cosmology code, wrapping Fortran 2003 for numerics.
 `/home/vscode/.local/share/camb-devcontainer/.venv/`
 
 ## Fortran
-- Use modern Fortran 2003, compiled with **gfortran** or **ifort**.
+- Use modern Fortran 2003, compiled with **gfortran** or **ifort** (or - less tested - flang).
 - `/forutils` is a git submodule containing shared Fortran utilities and classes.
 - For guidance on modifying Fortran or wrapped Fortran code, see `/docs/source/modifying_code.rst`.
 
@@ -57,5 +57,6 @@ This is the CAMB Python cosmology code, wrapping Fortran 2003 for numerics.
 # Physics & Numerical Guidance
 - When plotting fractional differences for cross-spectra, use e.g. $\Delta TE / \sqrt{TT \cdot EE}$.
 - High-accuracy lensing spectra at high ell requires `lens_potential_accuracy = 8` or so (this mainly increases `kmax`).
+- In this latest version lens_potential_accuracy=None is normally the default (automatic accuracy for good enough)
 - Use `python -m camb.check_accuracy` to assess numerical stability by comparing a default run to a high-accuracy run.
 - When testing timing, always discard first camb call (which precomputed bessels etc.)

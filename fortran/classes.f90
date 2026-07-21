@@ -7,7 +7,7 @@
 
     Type MatterTransferData
         !Computed data
-        integer   ::  num_q_trans   !    number of steps in k for transfer calculation
+        integer   ::  num_q_trans = 0  !    number of steps in k for transfer calculation
         real(dl), dimension (:), allocatable :: q_trans
         real(dl), dimension (:), allocatable ::  sigma_8
         real(dl), dimension (:), allocatable ::  sigma2_vdelta_8 !growth from sigma_{v delta}

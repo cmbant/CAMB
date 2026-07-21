@@ -33,5 +33,6 @@ exclude .gitignore
 exclude .gitmodules
 exclude .readthedocs.yml
 exclude camb/cambdll.dll
+exclude camb/libomp.dll
 exclude camb/camblib.so
 exclude camb/HighLExtrapTemplate_lenspotentialCls.dat

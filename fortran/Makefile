@@ -28,9 +28,13 @@ ifneq ($(CLUSTER_SAFE), 0)
 NONNATIVE = 1
 endif
 
-#Will detect ifort/gfortran or edit for your compiler
+#Will detect ifort/gfortran/flang or edit for your compiler
 ifneq ($(COMPILER),gfortran)
+ifneq ($(COMPILER),flang)
 ifortErr = $(shell which ifort >/dev/null 2>&1; echo $$?)
+else
+ifortErr = 1
+endif
 else
 ifortErr = 1
 endif
@@ -86,6 +90,9 @@ endif
 
 else
 gfortErr = $(shell which gfortran >/dev/null; echo $$?)
+ifeq ($(COMPILER),flang)
+gfortErr = 1
+endif
 ifeq "$(gfortErr)" "0"
 #Gfortran compiler (version 6+):
 compiler_ver = $(shell gfortran -dumpversion 2>&1)
@@ -118,6 +125,42 @@ NONNATIVE = 1
 endif
 ifndef NONNATIVE
 #Note this seems to make code slightly slower in some cases, use CLUSTER_SAFE=1 to test without
+FFLAGS+=-march=native
+endif
+
+else
+#LLVM flang (experimental): used if explicitly requested with COMPILER=flang,
+#or as a last-resort fallback when neither ifort nor gfortran is found.
+#Set F90C to override which flang executable is used.
+FLANGCC := $(shell command -v flang-new 2>/dev/null || command -v flang 2>/dev/null || \
+	ls /usr/bin/flang-new-[0-9]* /usr/bin/flang-[0-9]* /usr/lib/llvm-*/bin/flang 2>/dev/null | sort -V | tail -n1)
+ifeq ($(FLANGCC),)
+$(error No supported Fortran compiler found (checked ifort, gfortran, flang). Install one, or set COMPILER/F90C)
+endif
+
+compiler_ver = flang-$(shell $(FLANGCC) --version 2>&1 | head -n1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -n1)
+COMPILER = flang
+F90C     ?= $(FLANGCC)
+#SFFLAGS/MODOUT are only meaningful at link time, but (as with the other compilers) get passed to every
+#per-file compile too; flang's clang-based driver warns about that, gfortran/ifort don't, hence -Qunused-arguments.
+COMMON_FFLAGS = -cpp -ffree-form -fopenmp -fPIC -Qunused-arguments
+FFLAGS = -O3 $(COMMON_FFLAGS)
+DEBUGFLAGS = -g -O0 $(COMMON_FFLAGS)
+
+ifeq ($(shell uname -s),Darwin)
+SFFLAGS = -dynamiclib -fPIC
+else
+SFFLAGS = -shared -fPIC
+endif
+
+MODOUT  = -module-dir $(OUTPUT_DIR)
+SMODOUT = -module-dir $(DLL_DIR)
+FISHER_LINK = -lblas -llapack
+
+ifeq ($(shell uname -s),Darwin)
+NONNATIVE = 1
+endif
+ifndef NONNATIVE
 FFLAGS+=-march=native
 endif
 endif

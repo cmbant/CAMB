@@ -1,17 +1,14 @@
 import os
 import platform
 import re
-import struct
+import shutil
 import subprocess
 
 is_windows = platform.system() == "Windows"
 
-is_32_bit = struct.calcsize("P") == 4
-
 compiler_environ = os.environ.copy()
 
 gfortran_min = "6"
-gfortran_bits = ("x86_64", "i686")[is_32_bit]
 
 
 def call_command(cmd):
@@ -36,6 +33,25 @@ def check_ifort():
     return get_ifort_version() or False
 
 
+def find_flang_command():
+    """Locate an LLVM flang executable on PATH, preferring an unversioned name
+    (flang-new/flang) but falling back to a versioned one (e.g. flang-21)."""
+    for name in ("flang-new", "flang"):
+        if shutil.which(name):
+            return name
+    candidates = []
+    for directory in os.environ.get("PATH", "").split(os.pathsep):
+        if not directory or not os.path.isdir(directory):
+            continue
+        for entry in os.listdir(directory):
+            if re.fullmatch(r"flang(-new)?-\d+", entry) and os.access(os.path.join(directory, entry), os.X_OK):
+                candidates.append(entry)
+    if candidates:
+        candidates.sort(key=lambda name: int(name.rsplit("-", 1)[1]))
+        return candidates[-1]
+    return None
+
+
 def check_gfortran(version=gfortran_min, msg=False, retry=False):
     from packaging.version import parse as parse_version
 
@@ -56,9 +72,7 @@ def check_gfortran(version=gfortran_min, msg=False, retry=False):
             if os.path.isdir(mingw):
                 # look for mingw installation
                 dirs = [
-                    name
-                    for name in os.listdir(mingw)
-                    if gfortran_bits in name and os.path.isdir(os.path.join(mingw, name))
+                    name for name in os.listdir(mingw) if "x86_64" in name and os.path.isdir(os.path.join(mingw, name))
                 ]
                 for x in dirs:
                     if "." in x:
@@ -82,7 +96,7 @@ def check_gfortran(version=gfortran_min, msg=False, retry=False):
             return check_gfortran(version, msg, retry=True)
     if ok and is_windows:
         version_str = str(subprocess.check_output("gfortran -dumpmachine", shell=True, env=compiler_environ))
-        ok = gfortran_bits in version_str
+        ok = "x86_64" in version_str
     if not ok and msg:
         raise RuntimeError(
             f"You need ifort or gfortran {version} or higher to compile (found: {gfortran_version}).\n"

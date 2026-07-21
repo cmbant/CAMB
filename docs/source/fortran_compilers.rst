@@ -24,10 +24,32 @@ If you do not have a suitable Fortran compiler, you can get one as follows:
 
      - "sudo apt-get update; sudo apt-get install gfortran"
 
-Alternatively you can compile and run in a container or virtual machine: e.g., see `CosmoBox <https://cosmologist.info/CosmoBox>`_.
-For example, to run a configured shell in docker where you can install and run camb from the command line (after changing to the camb directory)::
+Alternatively you can compile and run in a container: the repository's `.devcontainer`
+configuration (see `Dev Containers <https://code.visualstudio.com/docs/devcontainers/containers>`_ for VS Code, or open
+directly as a `GitHub Codespace <https://docs.github.com/en/codespaces>`_) builds a ready-to-use Linux environment with
+gfortran and other useful tools already installed.
 
-    docker run -v /local/git/path/CAMB:/camb -i -t cmbant/cosmobox
+LLVM Flang (experimental)
+--------------------------
+
+CAMB can also be built with `LLVM Flang <https://flang.llvm.org/docs/>`_, the Fortran front end that is part of
+the main LLVM project. Flang 21 or later is required (`download/install instructions
+<https://releases.llvm.org/download.html>`_; on Debian/Ubuntu the easiest route is the `apt.llvm.org
+<https://apt.llvm.org/>`_ bootstrap script, e.g. ``bash -c "$(wget -O - https://apt.llvm.org/llvm.sh)" -- 22``, plus
+the ``flang-22`` package).
+
+To build with flang, either set it explicitly::
+
+    COMPILER=flang python setup.py make
+
+or leave ``COMPILER`` unset: it is used automatically as a fallback if neither ifort nor gfortran is found on ``PATH``.
+The compiler actually used to build the installed ``camblib.so`` is auto-detected at import time (no separate
+configuration needed) and reported as ``camb.baseconfig.compiler``; the same compiler is then also used for any
+runtime-compiled code (e.g. :mod:`camb.symbolic`), so gfortran/ifort do not need to be installed at all if you only
+use flang.
+
+This is newer and less battle-tested than gfortran/ifort: the standard test suite passes, but it has not been used
+for production science runs. Report any issues on `GitHub <https://github.com/cmbant/CAMB/issues>`_.
 
 Updating modified Fortran code
 ------------------------------

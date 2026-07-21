@@ -131,6 +131,7 @@
 
 
     subroutine cmbmain
+    !$ use omp_lib, only: omp_set_num_threads
     integer q_ix
     type(EvolutionVars) EV
     Type(TTimer) :: Timer

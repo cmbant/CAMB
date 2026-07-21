@@ -131,6 +131,5 @@ tuning, validation, and implementation details.
   compare at fixed physical output ranges and k ranges. Avoid judging changes
   only from sparse grid-index differences, especially for matter power and
   high-l lensing.
-- Some new options are deliberately off by default because they change the
-  physical model rather than only the numerical method, for example reionization
-  heating.
+- 32 bit builds no longer supported
+- Added experimental support for LLVM flang compiler (all platforms)

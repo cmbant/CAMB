@@ -27,6 +27,8 @@ To install the CAMB on your computer run::
 
 The --user is optional and only required if you don't have write permission to your main python installation.
 Binary wheels are provided for most systems; to compile from source you will need gfortran installed
-(usually installed as part of gcc). gfortran is also required for just-in-time compilation of some functions like custom sources.
+(usually installed as part of gcc; ifort and, experimentally, LLVM flang also work, see the
+`compiler docs <https://camb.readthedocs.io/en/latest/fortran_compilers.html>`_). The same compiler is also used
+for just-in-time compilation of some functions like custom sources.
 
 The python module is  "camb". see the `CAMB documentation <https://camb.readthedocs.io/en/latest/>`_.

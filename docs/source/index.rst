@@ -29,8 +29,8 @@ If you want to work on the code from `GitHub <https://github.com/cmbant/camb>`_,
     git clone --recursive https://github.com/cmbant/CAMB.git
     pip install -e ./CAMB [--user]
 
-You will need ifort or gfortran installed (and on your path) to compile from source;
-you can see :ref:`fortran-compilers` for compiler installation details if needed.
+You will need ifort or gfortran installed (and on your path) to compile from source (LLVM flang also works
+experimentally); you can see :ref:`fortran-compilers` for compiler installation details if needed.
 If you have gfortran installed, "python setup.py make" will build
 the Fortran library on all systems (including Windows without directly using a Makefile), and can be used to update
 a source installation after changes or pulling an updated version.

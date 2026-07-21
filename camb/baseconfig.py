@@ -44,16 +44,36 @@ else:
     DLLNAME = "camblib.so"
 CAMBL = osp.join(BASEDIR, DLLNAME)
 
+
+# Fortran does not standardize how module procedure/variable names are exported from a
+# shared library. Every call site in this package spells names in gfortran's convention
+# (__module_MOD_name); _NAME_MANGLERS below remaps that to whichever convention the loaded
+# library actually uses, determined once by probing for a known symbol in _detect_compiler().
+def _gfortran_mangle(module, name, kind="proc"):
+    return f"__{module}_MOD_{name}"
+
+
+def _ifort_mangle(module, name, kind="proc"):
+    return f"{module}_mp_{name}_"
+
+
+def _flang_mangle(module, name, kind="proc"):
+    # LLVM flang: procedures are tagged P, module variables/parameters are tagged E.
+    return f"_QM{module}{'E' if kind == 'data' else 'P'}{name}"
+
+
+_NAME_MANGLERS = {"gfortran": _gfortran_mangle, "ifort": _ifort_mangle, "flang": _flang_mangle}
+
+compiler = "gfortran"
 gfortran = True
 
 
-class IfortGfortranLoader(ctypes.CDLL):
+class MultiCompilerLoader(ctypes.CDLL):
     def __getitem__(self, name_or_ordinal):
-        if gfortran:
-            res = super().__getitem__(name_or_ordinal)
-        else:
-            res = super().__getitem__(name_or_ordinal.replace("_MOD_", "_mp_").replace("__", "") + "_")
-        return res
+        if compiler == "gfortran" or not isinstance(name_or_ordinal, str) or "_MOD_" not in name_or_ordinal:
+            return super().__getitem__(name_or_ordinal)
+        module, name = name_or_ordinal[2:].split("_MOD_", 1)
+        return super().__getitem__(_NAME_MANGLERS[compiler](module, name))
 
 
 if not osp.isfile(CAMBL):
@@ -62,13 +82,31 @@ if not osp.isfile(CAMBL):
         '(e.g. using "python setup.py make"); or remove any old conflicting installation and install again.'
     )
 
-camblib = ctypes.LibraryLoader(IfortGfortranLoader).LoadLibrary(CAMBL)
+if platform.system() == "Windows" and osp.isfile(osp.join(BASEDIR, "libomp.dll")):
+    # Windows builds with LLVM flang link OpenMP dynamically against LLVM's own libomp.dll
+    # (bundled alongside cambdll.dll; see setup.py). If anything else already loaded in the
+    # process (e.g. scipy/MKL's libiomp5md.dll) has initialized a *different* OpenMP runtime,
+    # loading a second one aborts the process with "OMP: Error #15: ... already initialized."
+    # This is a well-known conflict across the numpy/scipy Windows ecosystem (the same fix is
+    # used by e.g. PyTorch); only applied here, and only if the user hasn't already set it.
+    os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
 
-try:
-    c_int.in_dll(camblib, "handles_mp_set_cls_template_")
-    gfortran = False
-except (OSError, AttributeError, ValueError):
-    pass
+camblib = ctypes.LibraryLoader(MultiCompilerLoader).LoadLibrary(CAMBL)
+
+_raw_getitem = ctypes.CDLL.__getitem__
+for compiler in _NAME_MANGLERS:
+    try:
+        _raw_getitem(camblib, _NAME_MANGLERS[compiler]("handles", "getallocatablesize"))
+        break
+    except (OSError, AttributeError, ValueError):
+        continue
+else:
+    sys.exit(
+        f"Could not determine the Fortran name-mangling convention used by {CAMBL}.\n"
+        "Recognized conventions: " + ", ".join(_NAME_MANGLERS) + "."
+    )
+
+gfortran = compiler == "gfortran"
 
 
 class _dll_value:
@@ -85,8 +123,8 @@ class _dll_value:
 
 
 def import_property(tp, module, func):
-    name = "__%s_MOD_%s" if gfortran else "%s_mp_%s_"
-    f = tp.in_dll(camblib, name % (module.lower(), func.lower()))
+    name = _NAME_MANGLERS[compiler](module.lower(), func.lower(), kind="data")
+    f = tp.in_dll(camblib, name)
     return _dll_value(f)
 
 

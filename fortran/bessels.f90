@@ -164,8 +164,12 @@
     do j = 1, max_ix
         block
             real(dl) :: h2over6, y0, y1, d0, d1, xlim, d_end
-            real(dl) :: knot_vals(num_xx), spline_y2(num_xx)
+            ! allocatable, not automatic: num_xx can be ~1e5, and compilers such as
+            ! flang put automatic arrays on the stack (gfortran heap-allocates them)
+            real(dl), allocatable :: knot_vals(:), spline_y2(:)
             integer :: min_ix, i
+
+            allocate(knot_vals(num_xx), spline_y2(num_xx))
 
             xlim = max(lSamp%l(j) - bjl_pre_peak_start_factor*lSamp%l(j)**(1._dl/3._dl) - 1, &
                 cut(min(cut_max_l, lSamp%l(j))))
@@ -173,7 +177,7 @@
             min_ix = max(1, BessRanges%IndexOf(xlim) - 1)
 
             knot_vals(1:max(min_ix-1, 1)) = 0
-            do i = min_ix, num_xx
+            do concurrent (i = min_ix:num_xx) ! concurrent for flang v21 workaround
                 call bjl(lSamp%l(j), BessRanges%points(i), knot_vals(i))
             end do
 
@@ -182,7 +186,7 @@
 
             bessel_horner(:, 1:max(min_ix-1, 1), j) = 0
 
-            do i = max(1, min_ix-1), num_xx-1
+            do concurrent (i = max(1, min_ix-1):num_xx-1)
                 y0 = knot_vals(i)
                 y1 = knot_vals(i+1)
                 d0 = spline_y2(i)
@@ -282,15 +286,17 @@
 !$OMP PARALLEL DO DEFAULT(SHARED), SCHEDULE(STATIC)
     do j = 1, max_ix
         block
-            real(dl) :: ext_x(n_ext), ext_y(n_ext), ext_y2(n_ext)
+            real(dl), allocatable :: ext_x(:), ext_y(:), ext_y2(:)
             real(dl) :: h2over6, y0, y1, d0, d1, d_end
             integer :: i, store_ix, first_new_i, overwrite_start
 
-            do i = 1, n_ext
+            allocate(ext_x(n_ext), ext_y(n_ext), ext_y2(n_ext))
+
+            do concurrent (i = 1:n_ext)
                 ext_x(i) = BessRanges%points(ext_start_ix + i - 1)
             end do
 
-            do i = 1, n_ext
+            do concurrent (i = 1:n_ext)
                 call bjl(file_l%l(j), ext_x(i), ext_y(i))
             end do
 
@@ -307,7 +313,7 @@
             ! the large artificial kink at old_num_xx.
             overwrite_start = max(1, first_new_i - max(1, JUNCTION_N/2))
 
-            do i = overwrite_start, n_ext - 1
+            do concurrent (i = overwrite_start:n_ext - 1)
                 store_ix = ext_start_ix + i - 1
 
                 y0 = ext_y(i)
