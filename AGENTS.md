@@ -7,7 +7,7 @@ This is the CAMB Python cosmology code, wrapping Fortran 2003 for numerics.
 # Coding Standards
 
 ## Python
-- Use Python 3.11+ with modern type-hint syntax.
+- Use Python 3.10+ with modern type-hint syntax.
 - Use double-quotes for strings; maximum line length is 120.
 - Code is auto-formatted by **ruff**, including import reordering.
 - Use the **pre-commit** command line to run ruff check/format (e.g., `pre-commit run --all-files`); do not invoke `ruff` directly.

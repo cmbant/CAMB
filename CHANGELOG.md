@@ -114,7 +114,7 @@ tuning, validation, and implementation details.
   returns small Fisher summaries when the library is built with Fisher support.
 - Documentation now includes pages for the bispectrum wrapper, SP(k), nonlinear
   models, check-accuracy workflow, and math utilities.
-- CAMB now targets Python 3.11+ and uses the ruff/pre-commit toolchain for
+- CAMB now targets Python 3.10+ and uses the ruff/pre-commit toolchain for
   Python formatting and linting.
 - The development tree includes updated devcontainer and CI configuration, but
   those changes are primarily for contributors rather than result-facing users.

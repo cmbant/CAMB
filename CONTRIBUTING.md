@@ -29,16 +29,16 @@ CAMB uses [Ruff](https://docs.astral.sh/ruff/) for Python formatting and linting
 
 - **Line length**: 120 characters
 - **Quote style**: Double quotes
-- **Python version**: 3.11+
+- **Python version**: 3.10+
 - **Import sorting**: Automatic via ruff
-- **Target version**: py311
+- **Target version**: py310
 
 The pre-commit hooks include:
 
 - **Ruff formatting and linting** (Python files)
 - **Trailing whitespace removal** (Python, Fortran, Jupyter notebooks)
 - **End-of-file fixing** (Python, Fortran, Jupyter notebooks)
-- **PyUpgrade** for Python 3.11+ syntax
+- **PyUpgrade** for Python 3.10+ syntax
 
 ### 4. Before Committing
 
