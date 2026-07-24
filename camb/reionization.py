@@ -49,8 +49,10 @@ class BaseTauWithHeReionization(ReionizationModel):
         (
             "fraction",
             c_double,
-            "Reionization fraction when complete, "
-            "or -1 for full ionization of hydrogen and first ionization of helium.",
+            (
+                "Reionization fraction when complete, "
+                "or -1 for full ionization of hydrogen and first ionization of helium."
+            ),
         ),
         ("include_helium_fullreion", c_bool, "Whether to include second reionization of helium"),
         ("helium_redshift", c_double, "Redshift for second reionization of helium"),

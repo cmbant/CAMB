@@ -2506,12 +2506,16 @@ def main(argv: list[str] | None = None, *, prog: str | None = None) -> int:
     base_params = load_params(ini_file, no_validate=args.no_validate)
     if args.mpk_tolerance is None:
         args.mpk_tolerance = default_mpk_tolerance(base_params)
-    if base_params.DoLensing and base_params.WantCls and base_params.Want_CMB:
-        if args.reference_lens_output_margin is not None:
-            print(
-                "Note: --reference-lens-output-margin probes support sensitivity near the output cutoff, but it is not by itself "
-                "a truth test unless the high-l reference spectra are also well converged."
-            )
+    if (
+        base_params.DoLensing
+        and base_params.WantCls
+        and base_params.Want_CMB
+        and args.reference_lens_output_margin is not None
+    ):
+        print(
+            "Note: --reference-lens-output-margin probes support sensitivity near the output cutoff, but it is not by itself "
+            "a truth test unless the high-l reference spectra are also well converged."
+        )
     noise_config = None
     if args.chi2:
         try:

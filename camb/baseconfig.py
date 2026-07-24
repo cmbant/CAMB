@@ -94,9 +94,9 @@ if platform.system() == "Windows" and osp.isfile(osp.join(BASEDIR, "libomp.dll")
 camblib = ctypes.LibraryLoader(MultiCompilerLoader).LoadLibrary(CAMBL)
 
 _raw_getitem = ctypes.CDLL.__getitem__
-for compiler in _NAME_MANGLERS:
+for compiler, mangler in _NAME_MANGLERS.items():
     try:
-        _raw_getitem(camblib, _NAME_MANGLERS[compiler]("handles", "getallocatablesize"))
+        _raw_getitem(camblib, mangler("handles", "getallocatablesize"))
         break
     except (OSError, AttributeError, ValueError):
         continue

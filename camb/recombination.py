@@ -57,8 +57,10 @@ class RecombinationModel(F2003Class):
         (
             "min_a_evolve_Tm",
             c_double,
-            "minimum scale factor at which to solve matter temperature "
-            "perturbation if evolving sound speed or ionization fraction perturbations",
+            (
+                "minimum scale factor at which to solve matter temperature "
+                "perturbation if evolving sound speed or ionization fraction perturbations"
+            ),
         ),
     )
 

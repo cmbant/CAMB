@@ -127,7 +127,7 @@ def extract_toctree_order(index_rst_path="docs/source/index.rst"):
             ordered_files.extend(section)
 
         return ordered_files
-    except Exception as e:
+    except OSError as e:
         print(f"Warning: Could not extract toctree order from index.rst: {e}")
         return []
 
@@ -308,7 +308,7 @@ def main():
         print(f"\nSuccess! Documentation has been built and combined into: {args.output}")
         return 0
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - top-level CLI boundary, must report any failure and exit cleanly
         print(f"ERROR: An exception occurred during the build process: {e}")
         traceback.print_exc()
         return 1

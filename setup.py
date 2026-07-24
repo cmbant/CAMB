@@ -2,7 +2,7 @@ import os
 import shutil
 import subprocess
 import sys
-from typing import Any
+from typing import Any, ClassVar
 
 from setuptools import Command, Extension, setup
 from setuptools.command.build_ext import build_ext
@@ -45,7 +45,7 @@ def get_forutils():
                     return os.path.join("..", "forutils")
             finally:
                 os.chdir("fortran")
-        except Exception:
+        except OSError:
             print("Failed to install using git")
 
     if not fpath:
@@ -66,10 +66,10 @@ def get_forutils():
                         os.chdir("..")
                         print("forutils directory found but no Makefile. Attempting to clone submodule...")
                         if subprocess.call("git submodule update --init --recursive", shell=True, cwd=main_dir) != 0:
-                            raise Exception()
+                            raise RuntimeError("git submodule update failed")
                     finally:
                         os.chdir("fortran")
-                except Exception:
+                except (OSError, RuntimeError):
                     fpath = None
                     print("Failed to install forutils using git")
             else:
@@ -80,7 +80,7 @@ def get_forutils():
                     fpath = None
 
     if not fpath:
-        raise Exception(
+        raise RuntimeError(
             "Install forutils from https://github.com/cmbant/forutils, "
             "pull the forutils submodule, or set FORUTILSPATH variable.\n"
             'If you are cloning with git, use "git clone --recursive"'
@@ -347,9 +347,9 @@ def make_library(cluster=False):
         if os.path.exists(lib_file) and not os.access(lib_file, os.W_OK):
             os.remove(lib_file)
         print("Compiling source...")
+        cluster_safe = int(cluster if not os.getenv("GITHUB_ACTIONS") else 1)
         subprocess.call(
-            "make python PYCAMB_OUTPUT_DIR=%s/camb/ CLUSTER_SAFE=%d"
-            % (pycamb_path, int(cluster if not os.getenv("GITHUB_ACTIONS") else 1)),
+            f"make python PYCAMB_OUTPUT_DIR={pycamb_path}/camb/ CLUSTER_SAFE={cluster_safe}",
             shell=True,
         )
 
@@ -367,7 +367,7 @@ def make_library(cluster=False):
 
 
 class MakeLibrary(Command):
-    user_options = []
+    user_options: ClassVar[list] = []
 
     def initialize_options(self):
         pass

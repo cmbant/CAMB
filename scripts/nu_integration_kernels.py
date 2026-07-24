@@ -389,12 +389,10 @@ def solve_code_five_point() -> QuadratureRule:
 
 
 def solve_three_point_physics_targeted() -> QuadratureRule:
-    conditions = tuple(
-        [
-            *(make_moment_condition(exponent) for exponent in (-4, -2, -1, 0)),
-            *(make_velocity_condition(am, 1) for am in REPRESENTATIVE_AMS),
-            *(make_velocity_condition(am, -1) for am in REPRESENTATIVE_AMS),
-        ]
+    conditions = (
+        *(make_moment_condition(exponent) for exponent in (-4, -2, -1, 0)),
+        *(make_velocity_condition(am, 1) for am in REPRESENTATIVE_AMS),
+        *(make_velocity_condition(am, -1) for am in REPRESENTATIVE_AMS),
     )
     base_rule = solve_three_point()
     initial_guess = np.array(
@@ -452,12 +450,10 @@ def solve_four_point_power_only() -> QuadratureRule:
 
 
 def solve_four_point_physics_targeted() -> QuadratureRule:
-    conditions = tuple(
-        [
-            *(make_moment_condition(exponent) for exponent in (-4, -2, -1, 0, 1, 2)),
-            *(make_velocity_condition(am, 1) for am in REPRESENTATIVE_AMS),
-            *(make_velocity_condition(am, -1) for am in REPRESENTATIVE_AMS),
-        ]
+    conditions = (
+        *(make_moment_condition(exponent) for exponent in (-4, -2, -1, 0, 1, 2)),
+        *(make_velocity_condition(am, 1) for am in REPRESENTATIVE_AMS),
+        *(make_velocity_condition(am, -1) for am in REPRESENTATIVE_AMS),
     )
     base_rule = solve_four_point()
     initial_guess = pack_free_four_point_guess(base_rule.q, base_rule.weights)
@@ -465,11 +461,9 @@ def solve_four_point_physics_targeted() -> QuadratureRule:
 
 
 def solve_four_point_exact_ls() -> QuadratureRule:
-    fit_conditions = tuple(
-        [
-            *(make_velocity_condition(am, 1) for am in REPRESENTATIVE_AMS),
-            *(make_velocity_condition(am, -1) for am in REPRESENTATIVE_AMS),
-        ]
+    fit_conditions = (
+        *(make_velocity_condition(am, 1) for am in REPRESENTATIVE_AMS),
+        *(make_velocity_condition(am, -1) for am in REPRESENTATIVE_AMS),
     )
     base_rule = solve_four_point()
     initial_guess = pack_free_four_point_nodes(base_rule.q)
@@ -523,12 +517,10 @@ def solve_five_point() -> QuadratureRule:
 
 
 def solve_five_point_physics_targeted() -> QuadratureRule:
-    conditions = tuple(
-        [
-            *(make_moment_condition(exponent) for exponent in (-4, -2, -1, 0, 1, 2, 3)),
-            *(make_velocity_condition(am, 1) for am in REPRESENTATIVE_AMS),
-            *(make_velocity_condition(am, -1) for am in REPRESENTATIVE_AMS),
-        ]
+    conditions = (
+        *(make_moment_condition(exponent) for exponent in (-4, -2, -1, 0, 1, 2, 3)),
+        *(make_velocity_condition(am, 1) for am in REPRESENTATIVE_AMS),
+        *(make_velocity_condition(am, -1) for am in REPRESENTATIVE_AMS),
     )
     base_rule = solve_five_point()
     initial_guess = pack_free_five_point_guess(base_rule.q, base_rule.weights)
@@ -536,11 +528,9 @@ def solve_five_point_physics_targeted() -> QuadratureRule:
 
 
 def solve_five_point_exact_ls() -> QuadratureRule:
-    fit_conditions = tuple(
-        [
-            *(make_velocity_condition(am, 1) for am in REPRESENTATIVE_AMS),
-            *(make_velocity_condition(am, -1) for am in REPRESENTATIVE_AMS),
-        ]
+    fit_conditions = (
+        *(make_velocity_condition(am, 1) for am in REPRESENTATIVE_AMS),
+        *(make_velocity_condition(am, -1) for am in REPRESENTATIVE_AMS),
     )
     base_rule = solve_five_point()
     initial_guess = pack_free_five_point_nodes(base_rule.q)

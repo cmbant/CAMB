@@ -1151,7 +1151,7 @@ class CambTest(unittest.TestCase):
                 usage = round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0, 1)
                 if 0 < last_usage != usage:
                     print(f"Memory usage: {usage:2.2f} KB vs {last_usage:2.2f} KB")
-                    raise Exception("Apparent memory leak")
+                    raise RuntimeError("Apparent memory leak")
                 last_usage = usage
 
         camb.free_global_memory()

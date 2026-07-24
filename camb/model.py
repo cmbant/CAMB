@@ -167,8 +167,10 @@ class AccuracyParams(CAMB_Structure):
         (
             "AccuracyBoost",
             c_double,
-            "general accuracy setting effecting everything related to step sizes etc. "
-            "(including separate settings below except the next two)",
+            (
+                "general accuracy setting effecting everything related to step sizes etc. "
+                "(including separate settings below except the next two)"
+            ),
         ),
         (
             "lSampleBoost",
@@ -223,8 +225,10 @@ class SourceTermParams(CAMB_Structure):
         (
             "limber_phi_lmin",
             c_int,
-            "When limber_windows=True, the minimum L to use Limber approximation for the "
-            "lensing potential and other sources (which may use higher but not lower)",
+            (
+                "When limber_windows=True, the minimum L to use Limber approximation for the "
+                "lensing potential and other sources (which may use higher but not lower)"
+            ),
         ),
         ("counts_density", c_bool, "Include the density perturbation source"),
         ("counts_redshift", c_bool, "Include redshift distortions"),
@@ -233,8 +237,10 @@ class SourceTermParams(CAMB_Structure):
         (
             "counts_radial",
             c_bool,
-            "Radial displacement velocity term; does not include time delay; "
-            "subset of counts_velocity, just 1 / (chi * H) term",
+            (
+                "Radial displacement velocity term; does not include time delay; "
+                "subset of counts_velocity, just 1 / (chi * H) term"
+            ),
         ),
         ("counts_timedelay", c_bool, "Include time delay terms * 1 / (H * chi)"),
         ("counts_ISW", c_bool, "Include tiny ISW terms"),
@@ -303,9 +309,11 @@ class CAMBparams(F2003Class):
         (
             "lens_output_margin",
             c_int,
-            "Number of L below max_l down to which lensed C_L are guaranteed to be output; "
-            "the unlensed C_L used in the lensing convolution is treated as reliable to "
-            "max_l - (lens_output_margin - 50), so this also sets the lensed convolution margin.",
+            (
+                "Number of L below max_l down to which lensed C_L are guaranteed to be output; "
+                "the unlensed C_L used in the lensing convolution is treated as reliable to "
+                "max_l - (lens_output_margin - 50), so this also sets the lensed convolution margin."
+            ),
         ),
         ("max_eta_k", c_double, "Maximum k*eta_0 for scalar C_L, where eta_0 is the conformal time today"),
         ("max_eta_k_tensor", c_double, "Maximum k*eta_0 for tensor C_L, where eta_0 is the conformal time today"),
@@ -322,8 +330,10 @@ class CAMBparams(F2003Class):
         (
             "share_delta_neff",
             c_bool,
-            "Share the non-integer part of num_nu_massless between the eigenstates. "
-            "This is not needed or used in the python interface.",
+            (
+                "Share the non-integer part of num_nu_massless between the eigenstates. "
+                "This is not needed or used in the python interface."
+            ),
         ),
         (
             "nu_mass_degeneracies",
@@ -376,8 +386,10 @@ class CAMBparams(F2003Class):
         (
             "DoLateRadTruncation",
             c_bool,
-            "If true, use smooth approx to radiation perturbations after decoupling on small"
-            " scales, saving evolution of irrelevant oscillatory multipole equations",
+            (
+                "If true, use smooth approx to radiation perturbations after decoupling on small"
+                " scales, saving evolution of irrelevant oscillatory multipole equations"
+            ),
         ),
         (
             "Evolve_baryon_cs",

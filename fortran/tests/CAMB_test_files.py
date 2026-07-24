@@ -3,6 +3,7 @@ import bisect
 import copy
 import filecmp
 import fnmatch
+import itertools
 import math
 import os
 import shutil
@@ -497,7 +498,7 @@ def runScript(fname):
     except subprocess.CalledProcessError as error:
         res = error.output
         code = error.returncode
-    except Exception as error:
+    except Exception as error:  # noqa: BLE001 - any failure of the test run itself is a failed test result
         res = str(error)
         code = 1
     return time.time() - now, res, code
@@ -1016,7 +1017,7 @@ def align_rows_by_interpolated_k(orig_rows, new_rows):
     if any(row[0] <= 0 for row in orig_numeric + new_numeric):
         return None
     orig_x = [row[0] for row in orig_numeric]
-    if any(x2 <= x1 for x1, x2 in zip(orig_x, orig_x[1:])):
+    if any(x2 <= x1 for x1, x2 in itertools.pairwise(orig_x)):
         return None
     orig_coord = [math.log(x) for x in orig_x]
     aligned_orig = []
@@ -1558,9 +1559,7 @@ def should_compare_source_column(column, inifile):
     left, right = components
     if not (left.startswith("W") or right.startswith("W")):
         return False
-    if not inifile.bool("want_CMB", True) and (left in {"T", "E"} or right in {"T", "E"}):
-        return False
-    return True
+    return inifile.bool("want_CMB", True) or (left not in {"T", "E"} and right not in {"T", "E"})
 
 
 def compare_source_window_columns(filename, pairs, cols, inifile):
@@ -1622,6 +1621,11 @@ def check_accuracy_output_num_unequal(filename):
     return failed
 
 
+def log_value_mismatch(row, col, cols, filename, o, n):
+    if args.verbose_diff_output:
+        printlog(f'value mismatch at {row}, {col + 1} ("{cols[col]}") of {filename}: {o} != {n}')
+
+
 def num_unequal(filename, cmpFcn):
     """
     Check whether two files are numerically unequal for the given compare function.
@@ -1661,7 +1665,7 @@ def num_unequal(filename, cmpFcn):
         aligned = align_mismatched_rows(filename, orig_rows, new_rows, cols)
         if aligned is None:
             if args.verbose_diff_output:
-                printlog("num rows do not match in %s: %d != %d" % (filename, len(orig_rows), len(new_rows)))
+                printlog(f"num rows do not match in {filename}: {len(orig_rows)} != {len(new_rows)}")
             return True
         orig_rows, new_rows = aligned
 
@@ -1688,7 +1692,7 @@ def num_unequal(filename, cmpFcn):
                 row += 1
                 if len(o_row) != len(n_row):
                     if args.verbose_diff_output:
-                        printlog("num columns do not match in %s: %d != %d" % (filename, len(o_row), len(n_row)))
+                        printlog(f"num columns do not match in {filename}: {len(o_row)} != {len(n_row)}")
                     return True
                 col = 0
                 of_row = numeric_row(o_row)
@@ -1704,11 +1708,7 @@ def num_unequal(filename, cmpFcn):
                         if compare_column:
                             if isinstance(tols, float):
                                 if not cmpFcn(o, n, scale_tolerance(tols)):
-                                    if args.verbose_diff_output:
-                                        printlog(
-                                            'value mismatch at %d, %d ("%s") of %s: %s != %s'
-                                            % (row, col + 1, cols[col], filename, o, n)
-                                        )
+                                    log_value_mismatch(row, col, cols, filename, o, n)
                                     return True
                             elif not isinstance(tols, Ignore):
                                 if not oldrowdict:
@@ -1723,27 +1723,14 @@ def num_unequal(filename, cmpFcn):
                                             break
                                     if isinstance(cand, float):
                                         if not cmpFcn(o, n, scale_tolerance(cand)):
-                                            if args.verbose_diff_output:
-                                                printlog(
-                                                    'value mismatch at %d, %d ("%s") of %s: %s != %s'
-                                                    % (row, col + 1, cols[col], filename, o, n)
-                                                )
+                                            log_value_mismatch(row, col, cols, filename, o, n)
                                             return True
-                                    elif not isinstance(cand, (bool, Ignore)):
-                                        if not cand(oldrowdict, newrowdict):
-                                            if args.verbose_diff_output:
-                                                printlog(
-                                                    'value mismatch at %d, %d ("%s") of %s: %s != %s'
-                                                    % (row, col + 1, cols[col], filename, o, n)
-                                                )
-                                            return True
+                                    elif not isinstance(cand, (bool, Ignore)) and not cand(oldrowdict, newrowdict):
+                                        log_value_mismatch(row, col, cols, filename, o, n)
+                                        return True
                                 else:
                                     if not tols(oldrowdict, newrowdict):
-                                        if args.verbose_diff_output:
-                                            printlog(
-                                                'value mismatch at %d, %d ("%s") of %s: %s != %s'
-                                                % (row, col + 1, cols[col], filename, o, n)
-                                            )
+                                        log_value_mismatch(row, col, cols, filename, o, n)
                                         return True
                     col += 1
             return False
@@ -1752,7 +1739,7 @@ def num_unequal(filename, cmpFcn):
             #                printlog("Skipped file %s" % (filename))
             return False
     except ValueError as e:
-        printlog("ValueError: '%s' at %d, %d in file: %s" % (e, row, col + 1, filename))
+        printlog(f"ValueError: '{e}' at {row}, {col + 1} in file: {filename}")
         return True
 
 
@@ -1833,7 +1820,7 @@ def run_diff():
     else:
         len_num_mismatch = 0
 
-    printlog("Done with %d numerical accuracy mismatches and %d extra/missing files" % (len_num_mismatch, len_errors))
+    printlog(f"Done with {len_num_mismatch} numerical accuracy mismatches and {len_errors} extra/missing files")
     return 1 if len_errors > 0 or len_num_mismatch > 0 else 0
 
 
