@@ -686,11 +686,13 @@ class CAMBparams(F2003Class):
         :param neutrino_hierarchy: 'degenerate', 'normal', or 'inverted' (1 or 2 eigenstate approximation)
         :param num_massive_neutrinos:  number of massive neutrinos. If meffsterile is set, this is the number of
                                        massive active neutrinos.
-        :param mnu: sum of neutrino masses (in eV). Omega_nu is calculated approximately from this assuming neutrinos
-               non-relativistic today; i.e. here is defined as a direct proxy for Omega_nu. Internally the actual
-               physical mass is calculated from the Omega_nu accounting for small mass-dependent velocity corrections
-               but neglecting spectral distortions to the neutrino distribution.
-               Set the neutrino field values directly if you need finer control or more complex neutrino models.
+        :param mnu: sum of neutrino masses (in eV). :math:`\Omega_\nu h^2` is calculated approximately from this
+               assuming the neutrinos are non-relativistic today; i.e. here it is defined as a direct proxy for the
+               physical density. Internally the actual physical mass is calculated from the Omega_nu accounting for
+               small mass-dependent velocity corrections (but neglecting spectral distortions to the neutrino
+               distribution). To match a given :math:`\Omega_\nu h^2` (omnuh2), in standard cases set
+               mnu ~ omnuh2 * 93.04; set the neutrino field values directly if you need finer control or more
+               complex neutrino models.
         :param nnu: N_eff, effective relativistic degrees of freedom
         :param YHe: Helium mass fraction. If None, set from BBN consistency.
         :param meffsterile: effective mass of sterile neutrinos (set along with nnu greater than the standard value).
