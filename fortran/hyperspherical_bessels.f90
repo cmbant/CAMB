@@ -4,6 +4,7 @@
 
     !Hyperspherical bessel routines assume arguments have been pre-validated to be valid.
     use Precision, only: dl
+    use constants, only: const_pi
     use MathUtils, only: brentq
     use MpiUtils, only: MpiStop
     use FlatBessels, only: bessel_horner, BessRanges, InitSpherBessels, bjl_pre_peak_start_factor, bjl, Bessels_Free
@@ -63,7 +64,6 @@
     integer :: iter, iflag
     real(dl) :: turn, upper, hi, delta, cot_t, fturn, fhi
     real(dl) :: froot
-    real(dl), parameter :: PI = 3.1415926535897932384626433832795_dl
     real(dl), parameter :: ROOT_X = 1.0188_dl
     real(dl), parameter :: MIN_CHI = 1.0e-8_dl
     real(dl), parameter :: MAX_OPEN_CHI = 1.0e4_dl
@@ -72,7 +72,7 @@
 
     turn = hyperspherical_turning_point(l, K, nu)
     if (K == 1) then
-        upper = PI / 2._dl
+        upper = const_pi / 2._dl
     else
         upper = MAX_OPEN_CHI
     end if
@@ -247,7 +247,6 @@
     real(dl), parameter :: OPEN_TURNING_TOL = 5.e-3_dl
     real(dl), parameter :: OPEN_LOW_BETA_RATIO = 2.0e-3_dl
     real(dl), parameter :: OPEN_LOW_BETA_MIN_TURNING_RATIO = 0.8_dl
-    real(dl), parameter :: PI = 3.1415926535897932384626433832795_dl
     integer, parameter :: closed_endpoint_min_degree = 64
 
     if (K == 1) then
@@ -264,13 +263,13 @@
     chi_use = chi
     symm = 1._dl
     if (K == 1) then
-        chi_use = modulo(chi_use, 2._dl * PI)
-        if (chi_use > PI) then
-            chi_use = 2._dl * PI - chi_use
+        chi_use = modulo(chi_use, 2._dl * const_pi)
+        if (chi_use > const_pi) then
+            chi_use = 2._dl * const_pi - chi_use
             if (mod(l, 2) /= 0) symm = -symm
         end if
-        if (chi_use > PI / 2._dl) then
-            chi_use = PI - chi_use
+        if (chi_use > const_pi / 2._dl) then
+            chi_use = const_pi - chi_use
             if (mod(inu - l - 1, 2) /= 0) symm = -symm
         end if
     end if

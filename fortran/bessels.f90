@@ -45,7 +45,28 @@
 
     contains
 
+    elemental subroutine spline_horner_coeffs(y0, y1, d0, d1, h2over6, c1, c2, c3, c4)
+    ! Pack one cubic-spline interval [x_i, x_i+1] (endpoint values y0,y1 and
+    ! second derivatives d0,d1; h2over6 = (x_i+1 - x_i)**2/6) into the
+    ! Horner-form coefficients stored in bessel_horner, evaluated elsewhere
+    ! (e.g. cmbmain.f90) as jl = c1 + w*(c2 + w*(c3 + w*c4)) with
+    ! w = (x_i+1 - x)/(x_i+1 - x_i) in [0,1] (so w=0, jl=c1=y1 at x_i+1).
+    real(dl), intent(in) :: y0, y1, d0, d1, h2over6
+    real(dl), intent(out) :: c1, c2, c3, c4
+
+    c1 = y1
+    c2 = y0 - y1 - h2over6*(d0 + 2*d1)
+    c3 = 3*h2over6*d1
+    c4 = y0 - y1 - c2 - c3
+
+    end subroutine spline_horner_coeffs
+
     subroutine InitSpherBessels(lSamp, CP, max_bessels_l_index, max_bessels_etak)
+    ! Ensure the module-level bessel_horner spline table covers lSamp,
+    ! max_bessels_l_index and the current accuracy settings, and reaches
+    ! x = max_bessels_etak. Reuses the existing table if it already matches
+    ! (extending it in x if only xmax has grown), otherwise regenerates it
+    ! from scratch.
     Type(lSamples) lSamp
     Type(CAMBParams) :: CP
     integer, intent(in) :: max_bessels_l_index
@@ -92,6 +113,8 @@
     end subroutine InitSpherBessels
 
     elemental subroutine bjl_deriv(l, x, jl, djl)
+    ! d(j_l)/dx via the standard recurrence dj_l/dx = j_{l-1}(x) - (l+1)*j_l(x)/x,
+    ! given the already-computed jl = j_l(x); handles x=0 and l=0 as special cases.
     integer, intent(in) :: l
     real(dl), intent(in) :: x, jl
     real(dl), intent(out) :: djl
@@ -115,12 +138,19 @@
     end subroutine bjl_deriv
 
     subroutine GenerateBessels(lSamp, CP, requested_xmax)
+    ! Build the bessel_horner spline table from scratch: set up the x sampling
+    ! (BessRanges, denser at low x and coarsening above x=25), then for each
+    ! sampled l evaluate bjl on the (small-x-truncated) grid and spline it into
+    ! Horner-form coefficients used for fast evaluation elsewhere (cmbmain.f90).
     Type(lSamples) lSamp
     Type(CAMBParams) :: CP
     real(dl), intent(in) :: requested_xmax
 
     integer j
     integer, parameter :: cut_max_l = 25
+    ! Minimum starting x for the table at low l (indexed by l, l=1..cut_max_l),
+    ! used as a floor on xlim below since the bjl_pre_peak_start_factor formula
+    ! is only a large-l asymptotic and can otherwise go negative/too small.
     real(dl), parameter :: cut(1:cut_max_l) = (/ &
         0.000000_dl, 0.000000_dl, 0.063316_dl, 0.208916_dl, &
         0.448187_dl, 0.769530_dl, 1.158338_dl, 1.601506_dl, 2.088363_dl, &
@@ -163,7 +193,7 @@
 !$OMP PARALLEL DO DEFAULT(SHARED), SCHEDULE(STATIC)
     do j = 1, max_ix
         block
-            real(dl) :: h2over6, y0, y1, d0, d1, xlim, d_end
+            real(dl) :: h2over6, xlim, d_end
             ! allocatable, not automatic: num_xx can be ~1e5, and compilers such as
             ! flang put automatic arrays on the stack (gfortran heap-allocates them)
             real(dl), allocatable :: knot_vals(:), spline_y2(:)
@@ -187,18 +217,9 @@
             bessel_horner(:, 1:max(min_ix-1, 1), j) = 0
 
             do concurrent (i = max(1, min_ix-1):num_xx-1)
-                y0 = knot_vals(i)
-                y1 = knot_vals(i+1)
-                d0 = spline_y2(i)
-                d1 = spline_y2(i+1)
-
                 h2over6 = (BessRanges%points(i+1) - BessRanges%points(i))**2/6
-
-                bessel_horner(1, i, j) = y1
-                bessel_horner(2, i, j) = y0 - y1 - h2over6*(d0 + 2*d1)
-                bessel_horner(3, i, j) = 3*h2over6*d1
-                bessel_horner(4, i, j) = y0 - y1 - &
-                    bessel_horner(2, i, j) - bessel_horner(3, i, j)
+                call spline_horner_coeffs(knot_vals(i), knot_vals(i+1), spline_y2(i), spline_y2(i+1), h2over6, &
+                    bessel_horner(1, i, j), bessel_horner(2, i, j), bessel_horner(3, i, j), bessel_horner(4, i, j))
             end do
         end block
     end do
@@ -287,7 +308,7 @@
     do j = 1, max_ix
         block
             real(dl), allocatable :: ext_x(:), ext_y(:), ext_y2(:)
-            real(dl) :: h2over6, y0, y1, d0, d1, d_end
+            real(dl) :: h2over6, d_end
             integer :: i, store_ix, first_new_i, overwrite_start
 
             allocate(ext_x(n_ext), ext_y(n_ext), ext_y2(n_ext))
@@ -316,18 +337,10 @@
             do concurrent (i = overwrite_start:n_ext - 1)
                 store_ix = ext_start_ix + i - 1
 
-                y0 = ext_y(i)
-                y1 = ext_y(i+1)
-                d0 = ext_y2(i)
-                d1 = ext_y2(i+1)
-
                 h2over6 = (ext_x(i+1) - ext_x(i))**2/6
-
-                bessel_horner(1, store_ix, j) = y1
-                bessel_horner(2, store_ix, j) = y0 - y1 - h2over6*(d0 + 2*d1)
-                bessel_horner(3, store_ix, j) = 3*h2over6*d1
-                bessel_horner(4, store_ix, j) = y0 - y1 - &
-                    bessel_horner(2, store_ix, j) - bessel_horner(3, store_ix, j)
+                call spline_horner_coeffs(ext_y(i), ext_y(i+1), ext_y2(i), ext_y2(i+1), h2over6, &
+                    bessel_horner(1, store_ix, j), bessel_horner(2, store_ix, j), &
+                    bessel_horner(3, store_ix, j), bessel_horner(4, store_ix, j))
             end do
         end block
     end do
@@ -336,6 +349,8 @@
     end subroutine ExtendBessels
 
     subroutine Bessels_Free
+    ! Release the module-level bessel table so the next InitSpherBessels call
+    ! regenerates it from scratch (used e.g. when freeing memory between runs).
 
     if (allocated(bessel_horner)) deallocate(bessel_horner)
     if (allocated(file_l%l)) deallocate(file_l%l)
@@ -345,19 +360,15 @@
 
     end subroutine Bessels_Free
 
-! Optimized spherical Bessel wrapper.
-! Strategy:
-!   For low L use (v accurate and still fast) recursive result
-!   Elsewhere use a two-term corrected uniform Airy asymptotic
-!   in the transition bands, using fast approximations elsewhere
-!   where they are accurate.
+! Optimized spherical Bessel wrapper j_l(x): low l uses explicit closed forms,
+! the moderate-l/x transition band uses a stable recurrence, and elsewhere
+! fast asymptotic approximations (ascending series, oscillatory expansion,
+! uniform Airy, or Debye) are used - see the branch order below.
 !
 ! accurate to peak-normalized fraction <7e-6 at L>=28 (worst at the
 ! Airy/Debye band edges), max ~9e-6 at BJL_RECURRENCE_MAX_L+1.
 
     ELEMENTAL SUBROUTINE BJL(L, X, JL)
-    ! Optimized spherical Bessel j_l(x).
-    !
     ! Branch order:
     !   low l           : explicit formulas/small-x series
     !   very small x    : zero for l >= 7
@@ -374,7 +385,6 @@
     REAL(dl), PARAMETER :: LN2=0.6931471805599453094_dl
     REAL(dl), PARAMETER :: ONEMLN2=0.30685281944005469058277_dl
     REAL(dl), PARAMETER :: PID2=1.5707963267948966192313217_dl
-    REAL(dl), PARAMETER :: PID4=0.78539816339744830961566084582_dl
     REAL(dl), PARAMETER :: ROOTPI12 = 21.269446210866192327578_dl
     REAL(dl), PARAMETER :: GAMMA1 = 2.6789385347077476336556_dl
     REAL(dl), PARAMETER :: GAMMA2 = 1.3541179394264004169452_dl
@@ -662,12 +672,12 @@
     ! ~3.5e-6 peak-normalized at l = 26, improving towards high l, on top
     ! of the ~1e-6 airy_fast floor (see below).
 
+    use constants, only: const_pi
     implicit none
     integer, intent(in) :: l
     real(dl), intent(in) :: x, nu23
     real(dl), intent(out) :: jl
 
-    real(dl), parameter :: pi = 3.141592653589793238462643383279502884197_dl
     real(dl) :: ax, nu, zeta, tau, eps, pref, ratio
     real(dl) :: u, pu
     real(dl) :: ai, aip
@@ -723,7 +733,7 @@
 
     call airy_fast(tau, ai, aip)
 
-    pref = sqrt(pi/(2.0_dl*ax*nu23) * sqrt(ratio))
+    pref = sqrt(const_pi/(2.0_dl*ax*nu23) * sqrt(ratio))
 
     ! Horner evaluation of correction polynomials.
     p1 = c(6)
@@ -750,6 +760,13 @@
 
 
     ELEMENTAL SUBROUTINE BJL_RECURRENCE(L, X, JL)
+    ! Stable recurrence evaluation of j_l(x), used by BJL in the moderate-l
+    ! transition band where the asymptotic expansions are not yet accurate.
+    !   ax > l : direct upward three-term recurrence from j_0, j_1 (stable here).
+    !   ax <= l: Miller's algorithm - downward recurrence from an order well
+    !            above l, rescaling to avoid overflow, then normalized against
+    !            the accurately-known j_0 or j_1 (upward recurrence would be
+    !            unstable in this regime).
     IMPLICIT NONE
 
     INTEGER, INTENT(IN) :: L
@@ -860,6 +877,9 @@
 
 
     SUBROUTINE BJL_EXTERNAL(L,X,JL)
+    ! External-linkage wrapper around FlatBessels::bjl, for callers (e.g.
+    ! results.f90) that declare it `external` rather than `use FlatBessels`,
+    ! to avoid a circular module dependency.
     use FlatBessels
     use Precision
     IMPLICIT NONE

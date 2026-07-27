@@ -455,11 +455,18 @@ are not meant to be read as an analytic Taylor expansion of the Olver
 solution; they are fitted inverse-action formulae for the flat comparison
 problem in the narrow region where a direct root solve would be wasteful and
 where subtracting nearly equal logarithmic or trigonometric terms would lose
-precision.  Away from the turning point the code switches to the natural
+precision.  (Their leading terms do agree with the analytic small-\(p\)
+behaviour \(x\simeq1\mp\tfrac12 p^2+0.075\,p^4\) to about one part in
+\(10^{5}\), which is a useful consistency check on the fits.)  Away from the
+turning point the code switches to the natural
 asymptotic inverses: in the evanescent tail \(t\simeq Q_K+1\) and
 \(x=\sech t\) is expanded in powers of \(\exp[-(Q_K+1)]\); on the oscillatory
 side \(\theta\) is close to \(\pi/2\), so the inverse is expanded in powers of
-\((Q_K+\pi/2)^{-1}\).  This keeps the Olver call fast: the map requires the
+\((Q_K+\pi/2)^{-1}\).  The switch is placed at \(p=1.72\) on the evanescent
+branch and \(p=1.97\) on the oscillatory branch, where the fitted and asymptotic
+forms have equal error against an exact root solve of \(Q=t-\tanh t\) and
+\(Q=\tan\theta-\theta\); the resulting worst relative errors in \(x\) over the
+whole line are \(1.5\times10^{-6}\) and \(8.5\times10^{-9}\).  This keeps the Olver call fast: the map requires the
 closed-form curved action, one branch choice, and a Horner polynomial or
 asymptotic formula before the final \code{BJL} call.  Finally
 \(z=x/\alpha=z_t x\), with the sign of the branch supplied by whether \(\chi\)
@@ -490,12 +497,38 @@ WKB amplitude: for \(K=0\), \(z=\chi\) and \(A=1\).  Rather, away from the
 turning point, if the flat comparison solution is also expanded in WKB form, its
 flat \(|f_0|^{-1/4}\) amplitude multiplied by \(A=(f_0/f_K)^{1/4}\) gives the
 curved \(|f_K|^{-1/4}\) amplitude.
-At the turning point both numerator and denominator vanish, but the limit is finite.  With \(C_t=\CK(\chi_t)\),
+At the turning point both numerator and denominator vanish, but the limit is
+finite.  Numerically, though, the ratio form \eqref{eq:amplitude} fails not only
+at \(\chi_t\) but throughout a neighbourhood of it, where it is a quotient of two
+catastrophically cancelled quantities; the code expands the map directly there
+instead.  Substituting \(z=z_t+c_1\epsilon+c_2\epsilon^2\) with
+\(\epsilon=\chi-\chi_t\) into the squared local map \eqref{eq:dzdchi} and
+matching order by order gives, with \(C_t=\CK(\chi_t)=\sqrt{1-Kz_t^2}\),
 \begin{equation}
-  z-z_t\simeq C_t^{1/3}(\chi-\chi_t),\qquad
-  A(\chi_t)=C_t^{-1/6}.
+  c_1=C_t^{1/3},\qquad
+  c_2=\frac{3\alpha^2\left(C_t^{4/3}-C_t^{2}\right)-K}{10\,\alpha\,C_t^{2/3}},
   \label{eq:turning-limit}
 \end{equation}
+so that
+\begin{equation}
+  z=z_t+\epsilon\left(c_1+c_2\epsilon\right),\qquad
+  A=\left(\frac{\dd z}{\dd\chi}\right)^{-1/2}
+   =\frac{1}{\sqrt{c_1+2c_2\epsilon}},
+  \label{eq:turning-expansion}
+\end{equation}
+which reduces to \(z-z_t\simeq C_t^{1/3}(\chi-\chi_t)\) and
+\(A(\chi_t)=C_t^{-1/6}\) at leading order.  Keeping \(c_2\) matters in practice.
+The window used by \code{compute_olver_z_amp} is
+\(|\chi-\chi_t|\le10^{-4}\max(\chi_t,z_t)\), and in open space at small
+\(\alpha\), where \(z_t\gg\chi_t\), that window is wide enough that a constant
+amplitude \(A=C_t^{-1/6}\) across it is wrong by more than \(10^{-4}\) in
+relative terms -- at the first peak, so directly at the level of the
+peak-normalized target.  With the \(O(\epsilon)\) amplitude term, the relative
+amplitude error at the window edge for \(K=-1\), \(\alpha=0.0955\) falls from
+\(1.5\times10^{-4}\) to \(4\times10^{-8}\), and the relative error in \(z\) from
+\(3\times10^{-8}\) to \(6\times10^{-12}\).  Since \(c_1\) is needed anyway,
+\(c_2\) costs no transcendental evaluations, and \eqref{eq:turning-expansion}
+replaces the fractional power \(C_t^{-1/6}\) by one square root.
 For \(K=0\), \(\SK=\chi\), \(z=\chi\), and \(A=1\).  Equations \eqref{eq:basic-olver-u} and \eqref{eq:basic-olver-phi} then reduce exactly to the flat result.
 
 \section{Small-\texorpdfstring{\(\chi\)}{chi} Olver expansion}
@@ -752,7 +785,7 @@ for \(K=\pm1\) it is still an asymptotic approximation.  The public pointwise
 calls therefore apply empirical gates before accepting that raw full action-map
 Olver value.
 
-The decision order in \code{olver_reduced} is:
+The decision order in \code{olver_value}/\code{olver_reduced} is:
 \begin{enumerate}[leftmargin=*]
 \item For \(l\le2\), use \code{phi_recurs}.
 \item For \(l>2\), first try the local small-\(\chi\) approximation to the

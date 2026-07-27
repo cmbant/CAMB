@@ -509,6 +509,7 @@
     pure elemental function airy_ai_reference(x) result(ai)
     ! High-precision real Airy Ai(x) reference, adapted from the Cephes Airy routine.
     ! This keeps only Ai(x); Bi and derivative branches from the original routine are omitted.
+    use constants, only: const_pi
     implicit none
 
     real(dl), intent(in) :: x
@@ -519,7 +520,6 @@
     real(dl), parameter :: c1 = 0.35502805388781723926_dl
     real(dl), parameter :: c2 = 0.258819403792806798405_dl
     real(dl), parameter :: sqpii = 5.64189583547756286948e-1_dl
-    real(dl), parameter :: pi = 3.141592653589793238462643383279502884_dl
     real(dl), parameter :: an(8) = [ &
         3.46538101525629032477e-1_dl, 1.20075952739645805542e1_dl, &
         7.62796053615234516538e1_dl, 1.68089224934630576269e2_dl, &
@@ -572,7 +572,7 @@
         zz = z*z
         uf = 1.0_dl + zz*airy_polevl(zz, afn)/airy_p1evl(zz, afd)
         ug = z*airy_polevl(zz, agn)/airy_p1evl(zz, agd)
-        theta = zeta + 0.25_dl*pi
+        theta = zeta + 0.25_dl*const_pi
         ai = ak*(sin(theta)*uf - cos(theta)*ug)
         return
     end if

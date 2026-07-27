@@ -4254,7 +4254,6 @@
     real(dl) kin, x, jl,ddJl,cross,k
     real(dl) Get21cmCl_l_avg
     real(dl) monopole, vv , vd,lphalf
-    external BJL_EXTERNAL
 
     if (Vars%logs) then
         k = exp(kin)
@@ -4279,7 +4278,6 @@
     Get21cmCl_l_avg = jl*monopole + ddjl*vv - 2._dl *cross*vd
     if (.not. Vars%logs)  Get21cmCl_l_avg =  Get21cmCl_l_avg / k
 
-    !       Get21cmCl_l_avg=Get21cmCl_l_avg
     end function Get21cmCl_l_avg
 
 

@@ -1,17 +1,22 @@
     module HypersphericalBesselUtils
     use iso_fortran_env, only: real64
+    use constants, only: const_pi
     implicit none
     private
 
     integer, parameter :: dp = real64
-    real(dp), parameter :: PI = acos(-1.0_dp)
     real(dp), parameter :: CACHE_EPS = 1.0e-12_dp
 
+    public :: dp, CACHE_EPS
     public :: normalize_chi, turning_point, curved_radius, qintegral_exact
 
     contains
 
     elemental subroutine normalize_chi(l, K, nu, chi, achi, symm)
+    ! Fold a nonnegative radial coordinate chi into the fundamental domain.
+    ! Open/flat retain chi unchanged; closed space additionally uses the pi-
+    ! and pi/2-reflection symmetries of phi_l^nu to reduce achi to [0, pi/2]
+    ! and returns the corresponding parity sign symm.
     integer, intent(in) :: l, K
     real(dp), intent(in) :: nu, chi
     real(dp), intent(out) :: achi, symm
@@ -23,19 +28,22 @@
     if (K /= 1) return
 
     inu = nint(nu)
-    achi = modulo(achi, 2.0_dp * PI)
-    if (achi > PI) then
-        achi = 2.0_dp * PI - achi
+    achi = modulo(achi, 2.0_dp * const_pi)
+    if (achi > const_pi) then
+        achi = 2.0_dp * const_pi - achi
         if (mod(l, 2) /= 0) symm = -symm
     end if
-    if (achi > PI / 2.0_dp) then
-        achi = PI - achi
+    if (achi > const_pi / 2.0_dp) then
+        achi = const_pi - achi
         if (mod(inu - l - 1, 2) /= 0) symm = -symm
     end if
     end subroutine normalize_chi
 
 
     elemental real(dp) function turning_point(ell, nu, K)
+    ! Classical turning point chi_t, where S_K(chi_t) = ell/nu and the
+    ! centrifugal term ell^2/S_K^2 balances nu^2.  Callers must supply
+    ! ell < nu for K=1.
     real(dp), intent(in) :: ell, nu
     integer, intent(in) :: K
 
@@ -53,14 +61,13 @@
 
 
     elemental real(dp) function curved_radius(K, chi)
+    ! Comoving angular-diameter distance S_K(chi): sinh, chi, sin for K=-1,0,1.
     integer, intent(in) :: K
     real(dp), intent(in) :: chi
 
     select case (K)
     case (-1)
         curved_radius = sinh(chi)
-    case (0)
-        curved_radius = chi
     case (1)
         curved_radius = sin(chi)
     case default
@@ -70,6 +77,9 @@
 
 
     elemental real(dp) function qintegral_exact(sin_K, alpha, K) result(q)
+    ! Closed-form Liouville-Green action |int_chi^chi_t sqrt(|1/S_K^2 - alpha^2|) dchi'|
+    ! between chi (with sin_K = S_K(chi)) and the turning point, for alpha = nu/ell.
+    ! The x = alpha*S_K > 1 branch is the oscillatory side, x < 1 the evanescent side.
     real(dp), intent(in) :: sin_K, alpha
     integer, intent(in) :: K
 
@@ -89,11 +99,7 @@
             q = self_minus_atan(r1)
         else
             r1 = sqrt(max(zero, one - x2))
-            if (r1 < one) then
-                q = atanh_minus_self(r1)
-            else
-                q = log(two / max(x, CACHE_EPS)) - one
-            end if
+            q = atanh_minus_self(r1, x)
         end if
 
     case (-1)
@@ -128,8 +134,12 @@
     end function qintegral_exact
 
 
-    elemental real(dp) function atanh_minus_self(y) result(res)
-    real(dp), intent(in) :: y
+    elemental real(dp) function atanh_minus_self(y, x) result(res)
+    ! atanh(y) - y for y = sqrt(1 - x^2) with x > 0.  Since (1+y)(1-y) = x^2,
+    ! atanh(y) = log((1+y)/x); using that identity instead of atanh avoids the
+    ! cancellation in 1 - y, which otherwise destroys the result as x -> 0
+    ! (about 0.4 absolute error at x = 1e-8).  Small y still needs the series.
+    real(dp), intent(in) :: y, x
 
     real(dp), parameter :: one = 1.0_dp
     real(dp), parameter :: small_cut = 1.0e-3_dp
@@ -139,12 +149,13 @@
         y2 = y * y
         res = y * y2 * (one/3.0_dp + y2 * (one/5.0_dp + y2 * (one/7.0_dp)))
     else
-        res = atanh(y) - y
+        res = log((one + y) / max(x, tiny(one))) - y
     end if
     end function atanh_minus_self
 
 
     elemental real(dp) function self_minus_atan(y) result(res)
+    ! y - atan(y), series-summed for small |y| where the two terms cancel.
     real(dp), intent(in) :: y
 
     real(dp), parameter :: one = 1.0_dp
@@ -169,16 +180,13 @@
     ! The local second-order correction is calibrated to about 1e-4 peak-relative
     ! accuracy in its gate against phi_recurs.
     ! Assume L > 0 and other variables already checked for physical limits
-    use iso_fortran_env, only: real64
-    use HypersphericalBesselUtils, only: curved_radius, qintegral_exact, turning_point, normalize_chi
+    use constants, only: const_pi
+    use HypersphericalBesselUtils, only: dp, CACHE_EPS, curved_radius, qintegral_exact, turning_point
     use MathUtils, only: airy_fast
     implicit none
     private
 
-    integer, parameter :: dp = real64
-    real(dp), parameter :: PI = acos(-1.0_dp)
-    real(dp), parameter :: LOG2PI = log(2.0_dp * PI)
-    real(dp), parameter :: CACHE_EPS = 1.0e-12_dp
+    real(dp), parameter :: LOG2PI = log(2.0_dp * const_pi)
 
     ! Fast second-order one-point Airy/Olver patch.  The correction is
     ! evaluated from local samples on the single requested chi segment; no
@@ -198,12 +206,23 @@
     real(dp), parameter :: AIRY_PSI_ZETA_LOCAL = 2.0e-3_dp
     real(dp), parameter :: AIRY_SECOND_FIT_ZETA_MIN = 1.6e-2_dp
 
-    public :: airy_u, airy_u_normalized
+    ! 1/(2i+1) and 1/(i+1), the fixed rational weights of the B0 and A1
+    ! quadratures below, tabulated to keep divides out of the inner loops.
+    real(dp), parameter :: INV_ODD(0:AIRY_SECOND_FAST_DEG) = &
+        [1.0_dp, 1.0_dp/3.0_dp, 1.0_dp/5.0_dp, 1.0_dp/7.0_dp, 1.0_dp/9.0_dp]
+    real(dp), parameter :: INV_NP1(0:2*AIRY_SECOND_FAST_DEG) = &
+        [1.0_dp, 1.0_dp/2.0_dp, 1.0_dp/3.0_dp, 1.0_dp/4.0_dp, 1.0_dp/5.0_dp, &
+        1.0_dp/6.0_dp, 1.0_dp/7.0_dp, 1.0_dp/8.0_dp, 1.0_dp/9.0_dp]
+
+    public :: airy_u_normalized
     public :: airy_ok
 
     contains
 
     pure real(dp) function log_origin_u0_fast(l, K, nu) result(logu0)
+    ! log of the exact small-chi coefficient u0 in u = S_K phi ~ u0 chi^(l+1),
+    ! i.e. log[ sqrt(prod_{j=1}^l (nu^2 - K j^2)) / (2l+1)!! ], written with
+    ! log_gamma so it stays finite for large l.
     integer, intent(in) :: l, K
     real(dp), intent(in) :: nu
 
@@ -211,7 +230,7 @@
 
     logdf = real(l + 1, dp) * log(2.0_dp) &
         + log_gamma(real(l, dp) + 1.5_dp) &
-        - 0.5_dp * log(PI)
+        - 0.5_dp * log(const_pi)
 
     select case (K)
     case (0)
@@ -220,6 +239,8 @@
         logprod = 0.5_dp * ( log_gamma(nu + l + 1) - log_gamma(nu - l) - log(nu) )
     case (-1)
         logprod = 0.5_dp * log_prod_plus_one(l, nu)
+    case default
+        logprod = -huge(1.0_dp)
     end select
 
     logu0 = logprod - logdf
@@ -227,12 +248,14 @@
 
 
     pure real(dp) function airy_q0(K, beta) result(q0)
+    ! Regularized origin action q0 = lim_{chi->0} [ qintegral_exact(S_K,beta,K) + log S_K ],
+    ! used to tie the Airy form to the exact origin amplitude in
+    ! compute_airy_second_norm_fast.  Branches are algebraically equal and split
+    ! only for stability at beta -> 1+ (K=1) and at large beta.
     integer, intent(in) :: K
     real(dp), intent(in) :: beta
 
-    real(dp) :: x, b2, invb
-
-    b2 = beta * beta
+    real(dp) :: x, invb
 
     select case (K)
     case (1)
@@ -274,6 +297,9 @@
 
 
     pure real(dp) function airy_B0_turn(K, beta) result(b0)
+    ! Value of Olver's psi at the turning point, psi(0) = B0(0), which is the
+    ! finite limit of airy_psi_from_s as zeta -> 0.  Used both as the zeta=0
+    ! interpolation node and as the near-turn value of psi.
     integer, intent(in) :: K
     real(dp), intent(in) :: beta
 
@@ -290,14 +316,21 @@
     end function airy_B0_turn
 
 
-    pure elemental subroutine airy_zeta_q(K, beta, chi, turn_chi, zeta, q)
+    pure subroutine airy_zeta_q(K, beta, chi, turn_chi, zeta, q, sin_k)
+    ! Liouville variable zeta (positive below the turning point, negative above)
+    ! from zeta*(dzeta/dchi)^2 = q, together with q = 1/S_K^2 - beta^2.
+    ! Within 1e-7 of the turning point both are replaced by their exact linear
+    ! limits, zeta = -a*(chi-chi_t) and q = -a^3*(chi-chi_t) with a = airy_turn_a.
+    ! Optionally returns S_K(chi) so callers need not recompute it.
     integer, intent(in) :: K
     real(dp), intent(in) :: beta, chi, turn_chi
     real(dp), intent(out) :: zeta, q
+    real(dp), intent(out), optional :: sin_k
 
     real(dp) :: s, action, delta, aturn, qprime_t
 
     s = curved_radius(K, chi)
+    if (present(sin_k)) sin_k = s
 
     if (abs(s) <= CACHE_EPS) then
         q = huge(1.0_dp)
@@ -327,6 +360,8 @@
 
 
     pure real(dp) function airy_liouville_amp(K, beta, zeta, q) result(amp)
+    ! Liouville-Green amplitude |zeta/q|^(1/4), with the removable 0/0 at the
+    ! turning point replaced by its limit a^(-1/2).
     integer, intent(in) :: K
     real(dp), intent(in) :: beta, zeta, q
 
@@ -342,6 +377,8 @@
 
 
     pure real(dp) function airy_turn_a(K, beta) result(a)
+    ! Turning-point scale a = (-dq/dchi)^(1/3) = (2 cos_K(chi_t) beta^3)^(1/3),
+    ! the local slope linking zeta and chi near chi_t.
     integer, intent(in) :: K
     real(dp), intent(in) :: beta
 
@@ -353,27 +390,14 @@
     end function airy_turn_a
 
 
-    function airy_u(l, K, nu, chi, ok, log_norm_in) result(u)
-    ! Fast second-order Airy/Olver one-point approximation to reduced u=S_K phi.
-    ! It builds only the local psi data needed for
-    ! the requested point, sampling directly in chi between the turn and chi.
-    integer, intent(in) :: l, K
-    real(dp), intent(in) :: nu, chi
-    logical, intent(out), optional :: ok
-    real(dp), intent(in), optional :: log_norm_in
-    real(dp) :: u
-
-    real(dp) :: achi, symm
-    logical :: lok
-
-    call normalize_chi(l, K, nu, chi, achi, symm)
-    u = symm * airy_u_normalized(l, K, nu, achi, lok, log_norm_in)
-    if (present(ok)) ok = lok
-    end function airy_u
-
-
     function airy_u_normalized(l, K, nu, achi, ok, log_norm_in) result(u)
-    ! Second-order approximation for already-normalized achi; no parity sign.
+    ! Fast second-order Airy/Olver one-point approximation to the reduced
+    ! u = S_K phi.  Only the local psi data for the requested point is built,
+    ! sampling directly in chi between the turning point and achi.
+    !
+    ! achi must already have been folded into the fundamental domain by
+    ! normalize_chi; the caller applies the resulting parity sign itself.
+    ! ok is false where the calibrated gate does not accept the point.
     integer, intent(in) :: l, K
     real(dp), intent(in) :: nu, achi
     logical, intent(out), optional :: ok
@@ -387,8 +411,7 @@
     u = 0.0_dp
     if (present(ok)) ok = .false.
 
-    if (.not. airy_second_base_ok(l, K, nu)) return
-    if (achi <= CACHE_EPS) return
+    if (.not. airy_ok(l, K, nu, achi)) return
 
     lambda = real(l, dp) + 0.5_dp
     beta = nu / lambda
@@ -440,7 +463,8 @@
     real(dp), intent(out) :: b0, a1
 
     integer :: i
-    real(dp) :: psi0, dchi, tau, chis, zs, qs, zscale, aturn
+    logical :: rescaled
+    real(dp) :: psi0, dchi, tau, chis, zs, qs, ss, zscale, aturn
     real(dp) :: w(0:AIRY_SECOND_FAST_DEG)
     real(dp) :: f(0:AIRY_SECOND_FAST_DEG)
     real(dp) :: c(0:AIRY_SECOND_FAST_DEG)
@@ -455,16 +479,17 @@
 
     zscale = zeta
     dchi = chi - turn_chi
+    rescaled = abs(zeta) < AIRY_SECOND_FIT_ZETA_MIN
 
-    if (abs(zeta) < AIRY_SECOND_FIT_ZETA_MIN) then
+    if (rescaled) then
         zscale = sign(AIRY_SECOND_FIT_ZETA_MIN, zeta)
         aturn = airy_turn_a(K, beta)
         dchi = -zscale / max(aturn, CACHE_EPS)
 
         if (turn_chi + dchi <= CACHE_EPS) then
             dchi = max(chi - turn_chi, -0.5_dp * turn_chi)
-        else if (K == 1 .and. turn_chi + dchi >= PI/2.0_dp - 10.0_dp*CACHE_EPS) then
-            dchi = max(chi - turn_chi, PI/2.0_dp - 10.0_dp*CACHE_EPS - turn_chi)
+        else if (K == 1 .and. turn_chi + dchi >= const_pi/2.0_dp - 10.0_dp*CACHE_EPS) then
+            dchi = max(chi - turn_chi, const_pi/2.0_dp - 10.0_dp*CACHE_EPS - turn_chi)
         end if
     end if
 
@@ -476,18 +501,14 @@
         tau = AIRY_SECOND_TAU(i)
         chis = turn_chi + tau * dchi
 
-        call airy_zeta_q(K, beta, chis, turn_chi, zs, qs)
+        call airy_zeta_q(K, beta, chis, turn_chi, zs, qs, ss)
         w(i) = zs / zscale
-
-        if (abs(zs) <= AIRY_PSI_ZETA_LOCAL) then
-            f(i) = psi0
-        else
-            f(i) = airy_psi_from_chi(K, beta, zs, chis)
-        end if
+        ! airy_psi_from_s falls back to psi0 itself for small |zs|.
+        f(i) = airy_psi_from_s(K, beta, ss, zs)
     end do
 
     call interp_power_from_nodes(w, f, c)
-    call eval_second_scaled_poly(c, zscale, zeta, b0, a1)
+    call eval_second_scaled_poly(c, zscale, zeta, rescaled, b0, a1)
     end subroutine second_coeffs_onepoint_fast
 
 
@@ -536,19 +557,25 @@
     end subroutine interp_power_from_nodes
 
 
-    pure subroutine eval_second_scaled_poly(c, zscale, zeta, b0, a1)
+    pure subroutine eval_second_scaled_poly(c, zscale, zeta, rescaled, b0, a1)
     ! psi(v) = sum_i c(i) * (v/zscale)**i.
     !
     ! Then
     !   B0(zeta) = sum_i c(i)*(zeta/zscale)**i/(2*i+1)
     ! and A1 follows from A1' = 0.5*(psi*B0 - B0''), A1(0)=0.
     ! This keeps the evaluation scaled, avoiding large powers of 1/zeta.
+    !
+    ! rescaled is false when zscale is just zeta, in which case every power of
+    ! zeta/zscale is one and the power ladder is skipped; the caller knows this
+    ! exactly, so it is passed in rather than tested for.
     real(dp), intent(in) :: c(0:AIRY_SECOND_FAST_DEG), zscale, zeta
+    logical, intent(in) :: rescaled
     real(dp), intent(out) :: b0, a1
 
     integer :: i, j
-    real(dp) :: rho, prod_int, d2_int
-    real(dp) :: rp(0:2*AIRY_SECOND_FAST_DEG)
+    real(dp) :: rho, prod_int, d2_int, inner
+    real(dp) :: rp(0:2*AIRY_SECOND_FAST_DEG), g(0:2*AIRY_SECOND_FAST_DEG)
+    real(dp) :: bw(0:AIRY_SECOND_FAST_DEG), cb(0:AIRY_SECOND_FAST_DEG)
 
     if (abs(zeta) <= 100.0_dp * tiny(1.0_dp)) then
         b0 = c(0)
@@ -556,28 +583,35 @@
         return
     end if
 
-    rho = zeta / zscale
-    rp(0) = 1.0_dp
-    do i = 1, 2*AIRY_SECOND_FAST_DEG
-        rp(i) = rp(i-1) * rho
-    end do
+    cb = c * INV_ODD
 
-    b0 = 0.0_dp
-    do i = 0, AIRY_SECOND_FAST_DEG
-        b0 = b0 + c(i) * rp(i) / real(2*i + 1, dp)
-    end do
+    if (rescaled) then
+        rho = zeta / zscale
+        rp(0) = 1.0_dp
+        do i = 1, 2*AIRY_SECOND_FAST_DEG
+            rp(i) = rp(i-1) * rho
+        end do
+        bw = cb * rp(0:AIRY_SECOND_FAST_DEG)
+        g = rp * INV_NP1
+    else
+        bw = cb
+        g = INV_NP1
+    end if
+
+    b0 = sum(bw)
 
     prod_int = 0.0_dp
     do i = 0, AIRY_SECOND_FAST_DEG
+        inner = 0.0_dp
         do j = 0, AIRY_SECOND_FAST_DEG
-            prod_int = prod_int + c(i) * c(j) * rp(i+j) / &
-                ( real(2*j + 1, dp) * real(i + j + 1, dp) )
+            inner = inner + cb(j) * g(i+j)
         end do
+        prod_int = prod_int + c(i) * inner
     end do
 
     d2_int = 0.0_dp
     do i = 2, AIRY_SECOND_FAST_DEG
-        d2_int = d2_int + c(i) * real(i, dp) * rp(i) / real(2*i + 1, dp)
+        d2_int = d2_int + real(i, dp) * bw(i)
     end do
 
     a1 = 0.5_dp * ( zeta * prod_int - d2_int / zeta )
@@ -585,6 +619,9 @@
 
 
     pure elemental logical function airy_ok(l, K, nu, achi) result(ok)
+    ! Public predicate: would airy_u_normalized return a usable value here?
+    ! It is the sole entry guard of airy_u_normalized, so callers can test
+    ! acceptance without evaluating.
     integer, intent(in) :: l, K
     real(dp), intent(in) :: nu, achi
 
@@ -597,6 +634,9 @@
 
 
     pure elemental logical function airy_second_base_ok(l, K, nu) result(ok)
+    ! Calibrated chi-independent validity gate: l above AIRY_SECOND_L_MIN, and
+    ! for K=-1 nu not too small, for K=1 the turning point safely inside the
+    ! sphere (lambda*(beta^2-1) large enough that the Airy region is resolved).
     integer, intent(in) :: l, K
     real(dp), intent(in) :: nu
 
@@ -624,6 +664,10 @@
 
 
     pure subroutine compute_airy_second_norm_fast(l, K, nu, log_norm)
+    ! log of the single scalar that fixes the overall Airy normalization, by
+    ! matching the chi -> 0 limit of amp*Ai(lambda^(2/3) zeta) to the exact
+    ! origin behaviour u ~ u0 chi^(l+1).  Returned as a log because both
+    ! factors overflow badly at large l.
     integer, intent(in) :: l, K
     real(dp), intent(in) :: nu
     real(dp), intent(out) :: log_norm
@@ -655,7 +699,7 @@
         - 1.0_dp / (360.0_dp * lambda**3) &
         + 1.0_dp / (1260.0_dp * lambda**5)
 
-    log_norm = log(2.0_dp * sqrt(PI)) &
+    log_norm = log(2.0_dp * sqrt(const_pi)) &
         + log(lambda) / 6.0_dp &
         + logu0 &
         + lambda * q0 &
@@ -664,23 +708,12 @@
 
 
 
-    pure elemental real(dp) function airy_psi_from_chi(K, beta, zeta, chi) result(psi)
-    integer, intent(in) :: K
-    real(dp), intent(in) :: beta, zeta, chi
-
-    real(dp) :: s
-
-    if (abs(zeta) <= AIRY_PSI_ZETA_LOCAL) then
-        psi = airy_B0_turn(K, beta)
-        return
-    end if
-
-    s = curved_radius(K, chi)
-    psi = airy_psi_from_s(K, beta, s, zeta)
-    end function airy_psi_from_chi
-
-
     pure elemental real(dp) function airy_psi_from_s(K, beta, s, zeta) result(psi)
+    ! Olver's error-control function
+    !   psi = zeta r/q + zeta(4 q q'' - 5 q'^2)/(16 q^3) + 5/(16 zeta^2),
+    ! for u'' = (lambda^2 q + r) u with q = 1/s^2 - beta^2 and r = -1/(4 s^2),
+    ! primes being d/dchi.  Individually singular at the turning point, so
+    ! near zeta = 0 the finite limit airy_B0_turn is returned instead.
     integer, intent(in) :: K
     real(dp), intent(in) :: beta, s, zeta
 
@@ -766,7 +799,7 @@
     tr = pr * qr - pi_ * qi
     corr = corr - (1.0_dp / 180.0_dp) * tr
 
-    t = PI * a
+    t = const_pi * a
 
     if (t < 0.5_dp) then
         y2 = t * t
@@ -786,11 +819,9 @@
             ee = 0.0_dp
         end if
 
-        if (a < x) then
-            phase = PI * a - 2.0_dp * a * atan2(a, x)
-        else
-            phase = 2.0_dp * a * atan2(x, a)
-        end if
+        ! pi*a - 2*a*atan2(a,x) written using atan2(a,x) + atan2(x,a) = pi/2,
+        ! which has no cancellation when a >> x.
+        phase = 2.0_dp * a * atan2(x, a)
 
         lp = (x - 0.5_dp) * logr2 - 2.0_dp * x - log(a) + phase + ee + corr
     end if
@@ -798,6 +829,10 @@
 
 
     pure elemental function exact_small_l(l, a) result(s)
+    ! Direct term-by-term sum of log(a^2+j^2) for the l <= 3 cases, where the
+    ! Stirling form in log_prod_plus_one is not accurate enough.
+    ! Assumes l >= 1: the empty l = 0 product would have to return 0, but every
+    ! caller is gated on l >= AIRY_SECOND_L_MIN, so it is never requested.
     integer, intent(in) :: l
     real(dp), intent(in) :: a
     real(dp) :: s
@@ -809,6 +844,7 @@
 
 
     pure elemental function log_y2_plus_j2(a, j) result(v)
+    ! log(a^2 + j^2), factoring out the larger square so neither term overflows.
     real(dp), intent(in) :: a, j
     real(dp) :: v, q
 
@@ -825,6 +861,7 @@
 
 
     elemental real(dp) function log1p_stable(y) result(res)
+    ! log(1+y), series-summed for small |y| (Fortran has no intrinsic log1p).
     real(dp), intent(in) :: y
 
     real(dp), parameter :: one = 1.0_dp

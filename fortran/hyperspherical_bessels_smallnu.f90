@@ -34,14 +34,13 @@
     module HypersphericalBesselSmallNu
     use, intrinsic :: iso_fortran_env, only : real64
     use, intrinsic :: ieee_arithmetic, only : ieee_value, ieee_quiet_nan, ieee_is_finite
+    use constants, only: pi_dp => const_pi, twopi_dp => const_twopi
     use MathUtils, only: airy_ai_fast
     implicit none
     private
 
     integer, parameter :: dp = real64
 
-    real(dp), parameter :: pi_dp      = 3.141592653589793238462643383279502884197_dp
-    real(dp), parameter :: twopi_dp   = 6.283185307179586476925286766559005768394_dp
     real(dp), parameter :: euler_gamma = 0.577215664901532860606512090082402431043_dp
     real(dp), parameter :: log_two = 0.6931471805599453094172321214581765680755_dp
     real(dp), parameter :: log_tiny_safe = -700.0_dp

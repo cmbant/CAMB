@@ -66,16 +66,18 @@ $$
 j_\ell(\beta z).
 $$
 
-At the turning point the ratio is evaluated by its limiting value,
-$(dS_K/d\chi|_{\chi_t})^{-1/6}$.
+Near the turning point both the numerator and the denominator vanish, so the
+ratio is replaced by a local expansion of the map (see below), whose leading
+term is $(dS_K/d\chi|_{\chi_t})^{-1/6}$.
 
 ## Fast Implementation Details
 
 The production `phi_olver`/`u_olver` implementation is in
-`fortran/hyperspherical_bessels_olver.f90`. `qintegral_exact` (the curved action)
-and `invert_flat_action` live in the shared `HypersphericalBesselUtils` module in
-`fortran/hyperspherical_bessels_airy.f90`, and are `use`-imported by the Olver
-module.
+`fortran/hyperspherical_bessels_olver.f90`. `qintegral_exact` (the curved
+action), together with `normalize_chi`, `turning_point` and `curved_radius`,
+lives in the shared `HypersphericalBesselUtils` module in
+`fortran/hyperspherical_bessels_airy.f90` and is `use`-imported by the Olver
+module; `invert_flat_action` is private to the Olver module itself.
 
 - `qintegral_exact` evaluates the curved action analytically for open and
   closed models. The inverse trigonometric branches use `atan2` forms to avoid
@@ -86,24 +88,36 @@ module.
 - The evanescent branch uses $q=t-\tanh t$ and $u=\alpha z=\operatorname{sech}t$.
 - The oscillatory branch uses $q=\tan\theta-\theta$ and
   $u=\alpha z=\sec\theta$.
-- Very close to the turning point, the code uses the analytic local limit of
-  the action map,
-  $z-z_t\simeq (dS_K/d\chi|_{\chi_t})^{1/3}(\chi-\chi_t)$, with the matching
-  amplitude limit. This avoids cancellation in the closed-form action before
-  the universal inverse-action approximation is used.
+- The polynomial/asymptotic switch is at $p=1.72$ (evanescent) and $p=1.97$
+  (oscillatory), placed where the two forms have equal error against an exact
+  root solve of the parameterizations above. Worst relative errors in $u$ over
+  the whole line are then $1.5\times10^{-6}$ and $8.5\times10^{-9}$.
+- Close to the turning point, `compute_olver_z_amp` expands the map directly in
+  $\epsilon=\chi-\chi_t$ rather than using the amplitude ratio, which there is a
+  quotient of two cancelling quantities. With $C_t=\sqrt{1-Kz_t^2}$,
+  $$
+  z=z_t+\epsilon(c_1+c_2\epsilon),\qquad
+  A=\frac{1}{\sqrt{c_1+2c_2\epsilon}},
+  $$
+  $$
+  c_1=C_t^{1/3},\qquad
+  c_2=\frac{3\alpha^2(C_t^{4/3}-C_t^2)-K}{10\,\alpha\,C_t^{2/3}} .
+  $$
+  The window is $|\chi-\chi_t|\le10^{-4}\max(\chi_t,z_t)$. The $c_2$ terms are
+  needed rather than optional: at small $\alpha$ in open space ($z_t\gg\chi_t$)
+  the window is wide enough that a constant amplitude $A=C_t^{-1/6}$ is wrong by
+  more than $10^{-4}$ relative, at the first peak.
 - `phi_olver` and `u_olver` are the only two public entry points into the
   shared internal reduced evaluation path (`olver_value`/`olver_reduced` in
   `hyperspherical_bessels_olver.f90`); there is no separately exported
-  `phi_olver_raw`. Internally, `olver_reduced` takes a `raw` flag that would
-  select the full action map with no small-$\chi$/recursive/Airy fallback,
-  but both `phi_olver` and `u_olver` currently call it with `raw=.false.`,
-  and no caller in the current code passes `raw=.true.` - the raw path exists
-  in the source but is not currently reachable/exercised. `u_olver` returns
-  $u_\ell=S_K\phi_\ell$ directly for callers that do not need the final
-  trigonometric division.
+  `phi_olver_raw` or `phi_olver_smallchi`, and no unreachable `raw` flag (an
+  earlier version of `olver_reduced` carried one, but it was never passed as
+  `.true.` and has been removed). `u_olver` returns $u_\ell=S_K\phi_\ell$
+  directly for callers that do not need the final trigonometric division, and
+  $S_K(\chi)$ is evaluated once per call and threaded through the map.
 - The production `phi_olver` path may use the small-$\chi$ map
-  (`phi_olver_smallchi`, also public) as a fast local approximation when its
-  pointwise gate is satisfied.
+  (`compute_olver_z_amp_smallchi`, private) as a fast local approximation when
+  its pointwise gate is satisfied.
 
 ## Small-Chi Approximation
 
@@ -227,23 +241,41 @@ $$
 $$
 
 rather than $\beta/\sqrt{\ell(\ell+1)}$. The action map itself still uses
-$\lambda=\sqrt{\ell(\ell+1)}$. With the $\alpha_g$ convention the calibrated
-pointwise fallback is
+$\lambda=\sqrt{\ell(\ell+1)}$. With the $\alpha_g$ convention the fallback
+calibrated on *this* (no-longer-present) grid was
 
 $$
 \alpha_g\ge4
 \quad\hbox{or}\quad
 \frac{\chi}{2\beta}\le2.6\times10^{-2}\quad (K=-1),
 \quad\hbox{or}\quad
-\frac{\chi}{2(\beta-\ell)}\le6.2\times10^{-3}\quad (K=+1).
+\frac{\chi}{2(\beta-\ell)}\le6.2\times10^{-3}\quad (K=+1),
 $$
 
-The small-$\chi$ fast path inside `phi_olver` uses a stricter pointwise version
-of the near-flat integration gate,
+and the small-$\chi$ fast path used a stricter pointwise version of the
+near-flat integration gate,
 
 $$
 \alpha_g>4,\qquad \frac{\ell^2\chi^7}{\beta}<5\times10^{-2}.
 $$
+
+These constants were subsequently re-calibrated on the committed
+`phi_olver_gate_validation` grid and are **not** the ones in the current code.
+The production gates now in `fortran/hyperspherical_bessels_olver.f90` are
+$\chi/(2\beta)\le3.0\times10^{-3}$ (open, and only when
+$\alpha_g<\alpha_{\rm open}(\ell)$),
+$\chi/[2(\beta-\ell)]\le7.0\times10^{-3}$ (closed), and a small-$\chi$ gate of
+$[\alpha_g>2.5$ or ($\ell\ge50$ and $\alpha_g>1)]$ with the same
+$\ell^2\chi^7/\beta<5\times10^{-2}$ metric, where
+
+$$
+\alpha_{\rm open}(\ell)=\max\left[0.095,\;
+0.12\left(\frac{500}{\ell}\right)^{p(\ell)}\right],
+\qquad p(\ell)=\begin{cases}0.70 & \ell<500\\ 0.14 & \ell\ge500\end{cases}.
+$$
+
+See `hyperspherical_bessels.tex`, section "Accuracy gates and approximation
+hierarchy", for the current authoritative statement.
 
 This keeps the pointwise `phi_olver` envelope at the original target while still
 using the cheaper small-$\chi$ map where it is clearly safe. The broader

@@ -1,5 +1,6 @@
     program phi_olver_gate_validation
     use Precision
+    use constants, only: PI => const_pi
     use HypersphericalBesselOlver, only: phi_olver
     use SpherBessels, only: phi_recurs, phi_first_peak_amplitude
     use omp_lib
@@ -8,7 +9,6 @@
     integer, parameter :: TOP_N = 20
     integer, parameter :: MAX_RAW_POINTS = 12000
     integer, parameter :: NBINS = 10
-    real(dl), parameter :: PI = 3.1415926535897932384626433832795_dl
     real(dl), parameter :: WARN_ERR = 1.0e-4_dl
     real(dl), parameter :: TARGET_ERR = 2.0e-4_dl
     real(dl), parameter :: SPLINE_TARGET_ERR = 1.0e-4_dl

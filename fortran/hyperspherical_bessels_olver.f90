@@ -4,17 +4,15 @@
     ! with fallback where not reliable to next order Olver/Airy approx or recursion.
     ! Precision target 1e-4 of peak, with max error < 2e-4.
     use Precision
-    use MpiUtils
+    use constants, only: const_pi
     use FlatBessels, only: bjl
     use SpherBessels, only: phi_recurs
-    use HypersphericalBesselUtils, only: normalize_chi, turning_point, curved_radius, qintegral_exact
+    use HypersphericalBesselUtils, only: normalize_chi, turning_point, curved_radius, qintegral_exact, CACHE_EPS
     use HypersphericalBesselAiry, only: airy_u_normalized, airy_ok
     use HypersphericalBesselSmallNu, only: open_smallnu_u
     implicit none
     private
 
-    real(dl), parameter :: PI = 3.1415926535897932384626433832795_dl
-    real(dl), parameter :: CACHE_EPS = 1.0e-12_dl
     ! Pointwise raw-Olver gate calibrated to keep peak-normalized errors below
     ! about 1e-4 on the open/closed validation grid.
     real(dl), parameter :: OLVER_OPEN_ALPHA_FLOOR = 0.095_dl
@@ -30,44 +28,40 @@
     integer, parameter :: AIRY_FALLBACK_OPEN_L_MIN = 100
     integer, parameter :: AIRY_FALLBACK_CLOSED_L_MIN = 150
 
-    public :: phi_olver, u_olver, phi_olver_smallchi
-    public :: olver_coordinate, compute_olver_z_amp_smallchi
+    public :: phi_olver, u_olver
 
     contains
 
-    pure function olver_coordinate(l, K, nu, chi) result(z)
-    integer, intent(in) :: l, K
-    real(dl), intent(in) :: nu, chi
-    real(dl) :: z, achi, symm
-
-    call normalize_chi(l, K, nu, chi, achi, symm)
-    call compute_olver_z_amp(l, K, nu, achi, z)
-    end function olver_coordinate
-
-
     function phi_olver(l, K, nu, chi) result(phi)
+    ! phi_l^nu(chi).  Assumes l >= 0, chi >= 0, and for K=1 an integer nu > l
+    ! (so nu > sqrt(l(l+1)) and the turning point asin(sqrt(l(l+1))/nu) exists);
+    ! the Python wrapper validates both.
     integer, intent(in) :: l, K
     real(dl), intent(in) :: nu, chi
     real(dl) :: phi
 
-    phi = olver_value(l, K, nu, chi, reduced=.false., raw=.false.)
+    phi = olver_value(l, K, nu, chi, reduced=.false.)
     end function phi_olver
 
     function u_olver(l, K, nu, chi) result(u)
+    ! Reduced function u = S_K(chi) phi_l^nu(chi).  Same input assumptions as phi_olver.
     integer, intent(in) :: l, K
     real(dl), intent(in) :: nu, chi
     real(dl) :: u
 
-    u = olver_value(l, K, nu, chi, reduced=.true., raw=.false.)
+    u = olver_value(l, K, nu, chi, reduced=.true.)
     end function u_olver
 
 
-    function olver_value(l, K, nu, chi, reduced, raw) result(val)
+    function olver_value(l, K, nu, chi, reduced) result(val)
+    ! Shared driver for phi_olver/u_olver: fold chi into the fundamental domain,
+    ! dispatch the special cases, and convert between phi and u using the single
+    ! S_K(achi) evaluation that the Olver map needs anyway.
     integer, intent(in) :: l, K
     real(dl), intent(in) :: nu, chi
-    logical, intent(in) :: reduced, raw
+    logical, intent(in) :: reduced
     real(dl) :: val
-    real(dl) :: achi, symm, j_l
+    real(dl) :: achi, symm, sin_k, j_l
 
     call normalize_chi(l, K, nu, chi, achi, symm)
 
@@ -92,26 +86,30 @@
         return
     end if
 
-    val = olver_reduced(l, K, nu, achi, symm, raw)
-    if (.not. reduced) val = val / curved_radius(K, achi)
+    sin_k = curved_radius(K, achi)
+    val = olver_reduced(l, K, nu, achi, sin_k, symm)
+    if (.not. reduced) val = val / sin_k
     end function olver_value
 
 
-    function olver_reduced(l, K, nu, achi, symm, raw) result(u)
+    function olver_reduced(l, K, nu, achi, sin_k, symm) result(u)
+    ! Reduced u for K = +-1 and l >= 3: pick the near-flat small-chi map, the
+    ! recurrence-class fallback, or the leading Olver map, then map the flat
+    ! solution z j_l(nu z) back with the Liouville-Green amplitude.
     integer, intent(in) :: l, K
-    real(dl), intent(in) :: nu, achi, symm
-    logical, intent(in) :: raw
+    real(dl), intent(in) :: nu, achi, sin_k, symm
     real(dl) :: u
-    real(dl) :: alpha_gate, metric, denom, z, amp, j_l
+    real(dl) :: alpha_gate, z, amp, j_l
 
     alpha_gate = nu / real(l, dl)
 
-    if (.not. raw) then
-        if (use_smallchi_map(l, nu, achi, alpha_gate)) then
-            u = olver_smallchi_reduced(l, K, nu, achi, symm)
+    if (use_smallchi_map(l, nu, achi, alpha_gate)) then
+        call compute_olver_z_amp_smallchi(l, K, nu, achi, z, amp)
+        if (amp <= 0._dl) then
+            u = 0._dl
             return
         end if
-
+    else
         ! Empirical recurrence fallback for corners where the leading Olver map
         ! is not pointwise reliable at the 1e-4 peak-normalized level.
         ! The raw open-space approximation is accepted over the full sampled
@@ -125,36 +123,37 @@
         ! Constants are grid-calibrated against phi_recurs, including low-l
         ! cases, high-l cases to l=10000, dense turning samples, very small chi,
         ! and open-space tails about 80 oscillations past the turning region.
+        !
+        ! Both metrics are cheap, so they are tested before open_alpha_cut,
+        ! which costs a real-exponent power.
         if (K == 1) then
-            denom = 2._dl * (nu - real(l, dl))
-            metric = achi / denom
-            if (metric > OLVER_GATE_CLOSED_EPS) then
-                u = fallback_reduced(l, K, nu, achi, symm)
+            ! nu is an integer mode > l for K=1, so the denominator is >= 2.
+            if (achi / (2._dl * (nu - real(l, dl))) > OLVER_GATE_CLOSED_EPS) then
+                u = fallback_reduced(l, K, nu, achi, sin_k, symm)
                 return
             end if
         else if (K == -1) then
-            if (alpha_gate < open_alpha_cut(l)) then
-                metric = achi / (2._dl * max(nu, tiny(1._dl)))
-                if (metric > OLVER_GATE_OPEN_EPS) then
-                    u = fallback_reduced(l, K, nu, achi, symm)
-                    return
-                end if
+            if (achi / (2._dl * max(nu, tiny(1._dl))) > OLVER_GATE_OPEN_EPS &
+                .and. alpha_gate < open_alpha_cut(l)) then
+                u = fallback_reduced(l, K, nu, achi, sin_k, symm)
+                return
             end if
         end if
+
+        call compute_olver_z_amp(l, K, nu, achi, sin_k, z, amp)
     end if
 
-    call compute_olver_z_amp(l, K, nu, achi, z, amp)
     call bjl(l, nu * z, j_l)
     u = symm * amp * z * j_l
     end function olver_reduced
 
 
-    function fallback_reduced(l, K, nu, achi, symm) result(u)
+    function fallback_reduced(l, K, nu, achi, sin_k, symm) result(u)
     ! The Olver gates above are unchanged; within their recursive fallback
     ! region, use validated faster approximations where available before
     ! falling back to phi_recurs.
     integer, intent(in) :: l, K
-    real(dl), intent(in) :: nu, achi, symm
+    real(dl), intent(in) :: nu, achi, sin_k, symm
     real(dl) :: u
     logical :: ok
 
@@ -174,11 +173,12 @@
         end if
     end if
 
-    u = symm * phi_recurs(l, K, nu, achi) * curved_radius(K, achi)
+    u = symm * phi_recurs(l, K, nu, achi) * sin_k
     end function fallback_reduced
 
 
     logical function use_airy_fallback(l, K, nu, achi) result(use_airy)
+    ! Second-order Olver/Airy patch: validated only well away from low l.
     integer, intent(in) :: l, K
     real(dl), intent(in) :: nu, achi
 
@@ -195,6 +195,8 @@
 
 
     elemental real(dl) function open_alpha_cut(l) result(alpha_cut)
+    ! Smooth grid-calibrated cutoff in alpha = nu/l below which the raw open-space
+    ! Olver map is not trusted pointwise; a broken power law in l with a floor.
     integer, intent(in) :: l
     real(dl) :: ell
 
@@ -216,61 +218,24 @@
     ! full integration uses 0.3 with chi_max; using the current achi as the
     ! local endpoint needs a smaller threshold to preserve the pointwise
     ! phi_olver envelope. The gate uses nu/l; the map below still uses the
-    ! more accurate sqrt(l(l+1)) curvature scale.
-    use_smallchi = l > 0 .and. &
-        (alpha_gate > SMALLCHI_GATE_ALPHA .or. &
+    ! more accurate sqrt(l(l+1)) curvature scale.  Callers guarantee l >= 3.
+    use_smallchi = (alpha_gate > SMALLCHI_GATE_ALPHA .or. &
         (l >= SMALLCHI_GATE_LOW_ALPHA_L_MIN .and. alpha_gate > 1._dl)) .and. &
         real(l, dl)**2 * achi**7 / nu < SMALLCHI_GATE_METRIC
     end function use_smallchi_map
 
 
-    pure function olver_smallchi_reduced(l, K, nu, achi, symm) result(u)
+    pure subroutine compute_olver_z_amp(l, K, nu, achi, sin_k, z, amp)
+    ! Leading Olver map chi -> z: the flat coordinate whose Liouville-Green
+    ! action from the turning point matches the curved one, with the amplitude
+    ! amp = (dz/dchi)^(-1/2) so that u(chi) = amp * z j_l(nu z).
+    ! sin_k = S_K(achi) is supplied by the caller, which needs it anyway.
     integer, intent(in) :: l, K
-    real(dl), intent(in) :: nu, achi, symm
-    real(dl) :: u
-    real(dl) :: z, amp, j_l
-
-    call compute_olver_z_amp_smallchi(l, K, nu, achi, z, amp)
-    if (amp <= 0._dl) then
-        u = 0._dl
-        return
-    end if
-
-    call bjl(l, nu * z, j_l)
-    u = symm * amp * z * j_l
-    end function olver_smallchi_reduced
-
-
-    pure function phi_olver_smallchi(l, K, nu, chi) result(phi)
-    integer, intent(in) :: l, K
-    real(dl), intent(in) :: nu, chi
-    real(dl) :: phi
-
-    real(dl) :: achi, symm
-
-    call normalize_chi(l, K, nu, chi, achi, symm)
-
-    if (achi <= CACHE_EPS) then
-        phi = 0._dl
-        return
-    end if
-
-    if (K == 0) then
-        call bjl(l, nu * achi, phi)
-        return
-    end if
-
-    phi = olver_smallchi_reduced(l, K, nu, achi, symm) / curved_radius(K, achi)
-    end function phi_olver_smallchi
-
-
-    pure subroutine compute_olver_z_amp(l, K, nu, achi, z, amp)
-    integer, intent(in) :: l, K
-    real(dl), intent(in) :: nu, achi
+    real(dl), intent(in) :: nu, achi, sin_k
     real(dl), intent(out) :: z
     real(dl), intent(out), optional :: amp
 
-    real(dl) :: ell, alpha, turn_z, turn_chi, sin_k, action, turn_scale
+    real(dl) :: ell, alpha, turn_z, turn_chi, action, eps, c1, c2, turn_scale
 
     if (K == 0) then
         z = achi
@@ -284,16 +249,25 @@
     turn_chi = turning_point(ell, nu, K)
 
     if (achi <= min(1.0e-6_dl, 1.0e-4_dl * max(turn_chi, 1._dl))) then
+        ! z -> chi only up to a factor 1 + O(K/alpha^2); wherever that factor is
+        ! not negligible alpha <~ 1, and then nu*achi <= 1e-6 nu << l makes phi
+        ! utterly negligible compared with its peak.
         z = achi
-        sin_k = curved_radius(K, achi)
     else if (abs(achi - turn_chi) <= 1.0e-4_dl * max(turn_chi, turn_z)) then
-        ! cos(asin(x)) and cosh(asinh(x)) both reduce to sqrt(1 - K x^2)
-        turn_scale = sqrt(1._dl - real(K, dl) * turn_z * turn_z)
-        z = turn_z + turn_scale**(1._dl / 3._dl) * (achi - turn_chi)
-        if (present(amp)) amp = turn_scale**(-1._dl / 6._dl)
+        ! Near the turning point analytic_amplitude below would be evaluated as a
+        ! ratio of two quantities that both vanish there, so expand the map
+        ! directly in eps = chi - chi_t instead.  Matching
+        ! (dz/dchi)^2 (alpha^2 - 1/z^2) = alpha^2 - 1/S_K^2 order by order gives
+        ! z = z_t + eps (c1 + c2 eps) with c1^3 = cos_K(chi_t); carrying c2 costs
+        ! no transcendentals and cuts the amplitude error here by ~1e4.
+        turn_scale = turning_scale(K, turn_z)
+        c1 = turn_scale**(1._dl / 3._dl)
+        c2 = (3._dl * alpha**2 * (c1**4 - turn_scale**2) - real(K, dl)) / (10._dl * alpha * c1**2)
+        eps = achi - turn_chi
+        z = turn_z + eps * (c1 + c2 * eps)
+        if (present(amp)) amp = 1._dl / sqrt(c1 + 2._dl * c2 * eps)
         return
     else
-        sin_k = curved_radius(K, achi)
         action = qintegral_exact(sin_k, alpha, K)
         z = invert_flat_action(action, turn_z, achi < turn_chi)
     end if
@@ -302,6 +276,16 @@
         amp = analytic_amplitude(achi, sin_k, z, K, alpha, turn_chi)
     end if
     end subroutine compute_olver_z_amp
+
+
+    elemental real(dl) function turning_scale(K, turn_z) result(turn_scale)
+    ! cos_K(chi_t) = sqrt(1 - K S_K(chi_t)^2) at the turning point S_K(chi_t) = turn_z;
+    ! cos(asin(x)) and cosh(asinh(x)) both reduce to sqrt(1 - K x^2).
+    integer, intent(in) :: K
+    real(dl), intent(in) :: turn_z
+
+    turn_scale = sqrt(1._dl - real(K, dl) * turn_z * turn_z)
+    end function turning_scale
 
 
     elemental subroutine compute_olver_z_amp_smallchi(l, K, nu, chi, z, amp)
@@ -338,8 +322,8 @@
 
     rk = real(K, dl)
 
-    ! ell^2 = l(l+1), avoiding sqrt(l(l+1)).
-    ell2 = real(l * (l + 1), dl)
+    ! ell^2 = l(l+1), avoiding sqrt(l(l+1))
+    ell2 = real(l, dl) * real(l + 1, dl)
 
     nu2 = nu * nu
     chi2  = chi * chi
@@ -376,10 +360,14 @@
 
 
     elemental real(dl) function analytic_amplitude(chi, sin_k, z, K, alpha, turn_chi)
+    ! Liouville-Green amplitude (dz/dchi)^(-1/2) = |(alpha^2 - 1/z^2)/(alpha^2 - 1/S_K^2)|^(1/4).
+    ! Both terms vanish at the turning point, so the ratio is only used away from it;
+    ! compute_olver_z_amp expands the map directly inside its near-turning window and
+    ! the guards here are a backstop for the residual cancellation.
     real(dl), intent(in) :: chi, sin_k, z, alpha, turn_chi
     integer, intent(in) :: K
 
-    real(dl) :: alpha2, flat_term, curved_term, turn_scale
+    real(dl) :: alpha2, flat_term, curved_term
 
     if (K == 0) then
         analytic_amplitude = 1._dl
@@ -393,8 +381,7 @@
 
     alpha2 = alpha * alpha
     if (abs(chi - turn_chi) <= 1.0e-10_dl * max(1._dl, turn_chi)) then
-        turn_scale = sqrt(1._dl - real(K, dl) / alpha2)
-        analytic_amplitude = turn_scale**(-1._dl / 6._dl)
+        analytic_amplitude = turning_scale(K, 1._dl / alpha)**(-1._dl / 6._dl)
         return
     end if
 
@@ -402,8 +389,7 @@
     curved_term = alpha2 - 1._dl / sin_k**2
 
     if (abs(flat_term) + abs(curved_term) <= 100._dl * CACHE_EPS * max(1._dl, alpha2)) then
-        turn_scale = sqrt(1._dl - real(K, dl) / alpha2)
-        analytic_amplitude = turn_scale**(-1._dl / 6._dl)
+        analytic_amplitude = turning_scale(K, 1._dl / alpha)**(-1._dl / 6._dl)
         return
     end if
 
@@ -411,6 +397,8 @@
     end function analytic_amplitude
 
     elemental real(dl) function invert_flat_action(action, z_turn, below_turn)
+    ! Invert the flat action q for u = z/z_turn: q = t - tanh(t), u = sech(t) below
+    ! the turning point, q = tan(theta) - theta, u = sec(theta) above it.
     real(dl), intent(in) :: action, z_turn
     logical, intent(in) :: below_turn
 
@@ -418,10 +406,12 @@
     real(dl) :: A, e
     real(dl) :: x, qplus, invqplus, invqplus2
 
-    ! Branch cuts in q equivalent to p = (3q)^(1/3) < 1.8 and < 2, so the
-    ! cube root is only taken on the near-turning polynomial branches.
-    real(dl), parameter :: Q_CUT_EVAN = 1.8_dl**3 / 3._dl
-    real(dl), parameter :: Q_CUT_OSC = 2._dl**3 / 3._dl
+    ! Branch cuts in q equivalent to p = (3q)^(1/3) < 1.72 and < 1.97, so the
+    ! cube root is only taken on the near-turning polynomial branches.  Both are
+    ! set where the polynomial fit and the asymptotic form have equal error
+    ! against the exact inverse (worst 1.5e-6 evanescent, 8.5e-9 oscillatory).
+    real(dl), parameter :: Q_CUT_EVAN = 1.72_dl**3 / 3._dl
+    real(dl), parameter :: Q_CUT_OSC = 1.97_dl**3 / 3._dl
 
     q = max(action, 0._dl)
 
@@ -479,7 +469,7 @@
                 + 1.0000000000000000_dl)
 
         else
-            qplus = q + PI / 2._dl
+            qplus = q + const_pi / 2._dl
             invqplus = 1._dl / qplus
             invqplus2 = invqplus * invqplus
 
