@@ -64,6 +64,9 @@
 
     logical :: HM_verbose = .false.
 
+    !Number of points used for the (Gaussian-filtered) sigma(R) integral in standard halofit
+    integer, parameter :: nint_wint = 3000
+
     type, extends(TNonLinearModel) :: THalofit
         integer :: halofit_version = halofit_default
         !!TT - These are the baryon parameters of HMCode
@@ -73,7 +76,6 @@
         !!AM - Added these types for HMcode
         integer, private :: imead !!AM - added these for HMcode, need to be visible to all subroutines and functions
         real(dl), private :: om_m,om_v,fnu,omm0, acur, w_hf, wa_hf
-        real(dl), private :: om_c, om_b
     contains
     procedure :: ReadParams => THalofit_ReadParams
     procedure :: GetNonLinRatios => THalofit_GetNonLinRatios
@@ -113,7 +115,7 @@
         real(dl) :: kmax
         real(dl) :: gnorm
         INTEGER :: nk, ng, nsig
-        real(dl) :: grow2_z, this_z !cached value at redshift being calculated
+        real(dl) :: grow_z, this_z !cached growth factor at redshift being calculated
         !AM - Added feedback parameters below at fixed fiducial (DMONLY) values
         REAL(dl) :: A_baryon=3.13
         REAL(dl) :: eta_baryon=0.603
@@ -152,14 +154,14 @@
     INTEGER, PARAMETER :: imeth_pk_interpolation=1    ! Method for P(k) interpolation
 
     ! HMcode dewiggle numerical parameters
-    REAL, PARAMETER :: kmin_wiggle=5e-3    ! Minimum wavenumber to calulate wiggle [Mpc/h]
-    REAL, PARAMETER :: kmax_wiggle=5.      ! Maximum wavenumber to calulate wiggle [Mpc/h]
-    INTEGER, PARAMETER :: nk_wiggle=512    ! Number of k points to store wiggle
-    INTEGER, PARAMETER :: iorder_wiggle=3  ! Order for wiggle interpolation
-    INTEGER, PARAMETER :: ifind_wiggle=3   ! 3 - Mid-point finding scheme for wiggle interpolation
-    INTEGER, PARAMETER :: imeth_wiggle=2   ! 2- Lagrange polynomial interpolation
-    REAL, PARAMETER :: wiggle_sigma=0.25   ! Smoothing width if using Gaussian smoothing
-    REAL, PARAMETER :: knorm_nowiggle=0.03 ! Wavenumber at which to force linear and nowiggle to be identical [Mpc/h]
+    REAL(dl), PARAMETER :: kmin_wiggle=5e-3_dl    ! Minimum wavenumber to calulate wiggle [Mpc/h]
+    REAL(dl), PARAMETER :: kmax_wiggle=5._dl      ! Maximum wavenumber to calulate wiggle [Mpc/h]
+    INTEGER, PARAMETER :: nk_wiggle=512           ! Number of k points to store wiggle
+    INTEGER, PARAMETER :: iorder_wiggle=3         ! Order for wiggle interpolation
+    INTEGER, PARAMETER :: ifind_wiggle=3          ! 3 - Mid-point finding scheme for wiggle interpolation
+    INTEGER, PARAMETER :: imeth_wiggle=2          ! 2- Lagrange polynomial interpolation
+    REAL(dl), PARAMETER :: wiggle_sigma=0.25_dl   ! Smoothing width if using Gaussian smoothing
+    REAL(dl), PARAMETER :: knorm_nowiggle=0.03_dl ! Wavenumber at which to force linear and nowiggle to be identical [Mpc/h]
 
     ! Linear growth integral numerical parameters (LCDM only; only used in Dolag correction)
     ! AM: Jul 19: Updated acc_growint from 1e-3 to 1e-4
@@ -258,7 +260,10 @@
     class(TIniFile), intent(in) :: Ini
 
     this%halofit_version = Ini%Read_Int('halofit_version', halofit_default)
-    IF(this%halofit_version == halofit_mead2020_feedback) THEN
+    IF(this%halofit_version == halofit_mead2015 .OR. this%halofit_version == halofit_mead2016) THEN
+        this%HMcode_A_baryon = Ini%Read_Double('HMcode_A_baryon', 3.13_dl)
+        this%HMcode_eta_baryon = Ini%Read_Double('HMcode_eta_baryon', 0.603_dl)
+    ELSE IF(this%halofit_version == halofit_mead2020_feedback) THEN
         this%HMcode_logT_AGN = Ini%Read_Double('HMcode_logT_AGN', 7.8_dl)
     END IF
 
@@ -276,6 +281,7 @@
     real(dl) a,plin,pq,ph,pnl,rk
     real(dl) sig,rknl,rneff,rncur,d1,d2
     real(dl) diff,xlogr1,xlogr2,rmid, h2
+    real(dl), allocatable :: pk_fac(:)
     integer i
 
     !$ if (ThreadNum /=0) call OMP_SET_NUM_THREADS(ThreadNum)
@@ -299,6 +305,7 @@
                 this%fnu = Params%omnuh2/h2/this%omm0
 
                 CAMB_Pk%nonlin_ratio = 1
+                allocate(pk_fac(nint_wint))
 
                 do itf = 1, CAMB_Pk%num_z
 
@@ -313,15 +320,15 @@
                     ! curvature (rncur) of the power spectrum at the desired redshift, using method
                     ! described in Smith et al (2002).
                     a = 1/real(1+CAMB_Pk%Redshifts(itf),dl)
-                    this%om_m = omega_m(a, this%omm0, State%omega_de, this%w_hf, this%wa_hf)
-                    this%om_v = omega_v(a, this%omm0, State%omega_de, this%w_hf, this%wa_hf)
+                    call omegas_hf(a, this%omm0, State%omega_de, this%w_hf, this%wa_hf, this%om_m, this%om_v)
                     this%acur = a
+                    call wint_pk_table(CAMB_Pk, itf, pk_fac)
                     xlogr1=-2.0
                     xlogr2=3.5
                     do
                         rmid=(xlogr2+xlogr1)/2.0
                         rmid=10**rmid
-                        call wint(CAMB_Pk,itf,rmid,sig,d1,d2)
+                        call wint(pk_fac,rmid,sig,d1,d2)
                         diff=sig-1.0
                         if (abs(diff).le.0.001) then
                             rknl=1./rmid
@@ -478,38 +485,51 @@
     ! at the nonlinear wavenumber and similarly the rncur is the second
     ! derivative at the nonlinear wavenumber.
 
-    subroutine wint(CAMB_Pk,itf,r,sig,d1,d2)
-    integer, intent(in) :: itf
+    subroutine wint_pk_table(CAMB_Pk,itf,fac)
+    !Tabulates the part of the wint integrand that does not depend on the filter scale r,
+    !so that the bisection for r_nl does not repeat the (expensive) power spectrum look-ups
     type(MatterPowerData) :: CAMB_Pk
-    real(dl) sum1,sum2,sum3,t,y,x,w1,w2,w3
-    real(dl) x2,rk, fac,r, sig, d1,d2, anorm
-    integer i,nint
-    integer index_cache
+    integer, intent(in) :: itf
+    real(dl), intent(out) :: fac(nint_wint)
+    real(dl) t,y,rk,anorm
+    integer i, index_cache
 
     index_cache = 1
-    nint=3000
+    anorm = 1/(2*const_pi**2)
+    do i=1,nint_wint
+        t=(i-0.5_dl)/nint_wint
+        y=-1.d0+1.d0/t
+        rk=y
+        fac(i)=MatterPowerData_k(CAMB_PK, rk, itf, index_cache)*(rk**3*anorm)/y/t/t
+    end do
+
+    end subroutine wint_pk_table
+
+    subroutine wint(fac,r,sig,d1,d2)
+    real(dl), intent(in) :: fac(nint_wint)
+    real(dl), intent(in) :: r
+    real(dl), intent(out) :: sig, d1, d2
+    real(dl) sum1,sum2,sum3,t,y,x,x2,w1,w2,w3
+    integer i
+
     sum1=0.d0
     sum2=0.d0
     sum3=0.d0
-    anorm = 1/(2*const_pi**2)
-    do i=1,nint
-        t=(i-0.5_dl)/nint
+    do i=1,nint_wint
+        t=(i-0.5_dl)/nint_wint
         y=-1.d0+1.d0/t
-        rk=y
-        d2=MatterPowerData_k(CAMB_PK, rk, itf, index_cache)*(rk**3*anorm)
         x=y*r
         x2=x*x
         w1=exp(-x2)
         w2=2*x2*w1
         w3=4*x2*(1-x2)*w1
-        fac=d2/y/t/t
-        sum1=sum1+w1*fac
-        sum2=sum2+w2*fac
-        sum3=sum3+w3*fac
+        sum1=sum1+w1*fac(i)
+        sum2=sum2+w2*fac(i)
+        sum3=sum3+w3*fac(i)
     enddo
-    sum1=sum1/nint
-    sum2=sum2/nint
-    sum3=sum3/nint
+    sum1=sum1/nint_wint
+    sum2=sum2/nint_wint
+    sum3=sum3/nint_wint
     sig=sqrt(sum1)
     d1=-sum2/sum1
     d2=-sum2*sum2/sum1/sum1 - sum3/sum1
@@ -518,23 +538,18 @@
 
     !!JD 08/13 generalize to variable w
 
-    function omega_m(aa,om_m0,om_v0,wval,waval)
-    real(dl) omega_m,omega_t,om_m0,om_v0,aa,wval,waval,Qa2
-    Qa2= aa**(-1.0-3.0*(wval+waval))*dexp(-3.0*(1-aa)*waval)
+    subroutine omegas_hf(aa,om_m0,om_v0,wval,waval,om_m,om_v)
+    !Evolution of omega_m and omega_lambda with expansion factor, generalized to w0-wa
+    real(dl), intent(in) :: aa,om_m0,om_v0,wval,waval
+    real(dl), intent(out) :: om_m, om_v
+    real(dl) omega_t,Qa2
+
+    Qa2= aa**(-1.0-3.0*(wval+waval))*exp(-3.0*(1-aa)*waval)
     omega_t=1.0+(om_m0+om_v0-1.0)/(1-om_m0-om_v0+om_v0*Qa2+om_m0/aa)
-    omega_m=omega_t*om_m0/(om_m0+om_v0*aa*Qa2)
-    end function omega_m
+    om_m=omega_t*om_m0/(om_m0+om_v0*aa*Qa2)
+    om_v=omega_t*om_v0*Qa2/(om_v0*Qa2+om_m0/aa)
 
-    !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-    ! evolution of omega lambda with expansion factor
-
-    function omega_v(aa,om_m0,om_v0,wval,waval)
-    real(dl) aa,omega_v,om_m0,om_v0,omega_t,wval,waval,Qa2
-    Qa2= aa**(-1.0-3.0*(wval+waval))*dexp(-3.0*(1-aa)*waval)
-    omega_t=1.0+(om_m0+om_v0-1.0)/(1-om_m0-om_v0+om_v0*Qa2+om_m0/aa)
-    omega_v=omega_t*om_v0*Qa2/(om_v0*Qa2+om_m0/aa)
-    end function omega_v
+    end subroutine omegas_hf
 
     !!JD end generalize to variable w
 
@@ -551,7 +566,6 @@
     REAL :: t1, t2
     TYPE(HM_cosmology) :: cosi
     TYPE(HM_tables) :: lut
-    REAL(dl), PARAMETER :: pi=pi_HM
     LOGICAL, PARAMETER :: timing_test = .FALSE.
 
     !HMcode developed by Alexander Mead (alexander.j.mead@googlemail.com)
@@ -790,19 +804,21 @@
     IF(this%imead==0 .OR. this%imead==4 .OR. this%imead==5) THEN
         !Set to 0 for the standard linear theory two halo term
         fdamp=0.
-    ELSE IF(this%imead==1) THEN
-        !Mead et al. (2016; arXiv 1602.02154) value
-        fdamp=0.0095*lut%sigv100**1.37
-    ELSE IF(this%imead==2) THEN
-        !Mead et al. (2015) value
-        fdamp=0.188*lut%sig8z**4.29
-    ELSE IF(this%imead==3) THEN
-        fdamp=0.2696*lut%sig8z_cold**0.9403
-    END IF
+    ELSE
+        IF(this%imead==1) THEN
+            !Mead et al. (2016; arXiv 1602.02154) value
+            fdamp=0.0095*lut%sigv100**1.37
+        ELSE IF(this%imead==2) THEN
+            !Mead et al. (2015) value
+            fdamp=0.188*lut%sig8z**4.29
+        ELSE IF(this%imead==3) THEN
+            fdamp=0.2696*lut%sig8z_cold**0.9403
+        END IF
 
-    !Catches extreme values of fdamp
-    IF(fdamp<fdamp_min) fdamp=fdamp_min
-    IF(fdamp>fdamp_max) fdamp=fdamp_max
+        !Catches extreme values of fdamp (only for the models that actually damp)
+        IF(fdamp<fdamp_min) fdamp=fdamp_min
+        IF(fdamp>fdamp_max) fdamp=fdamp_max
+    END IF
 
     END FUNCTION fdamp
 
@@ -911,7 +927,9 @@
     REAL(dl), PARAMETER :: pi=pi_HM
     REAL(dl), PARAMETER :: kmin=kmin_pk_interpolation
     REAL(dl), PARAMETER :: kmax=kmax_pk_interpolation
-    INTEGER :: nk=nk_pk_interpolation, index_cache
+    INTEGER :: nk, index_cache
+
+    nk = nk_pk_interpolation
 
     IF(HM_verbose) WRITE(*,*) 'LINEAR POWER: Filling linear power HM_tables'
 
@@ -967,7 +985,7 @@
 
     !Calculate the growth factor at the redshift of interest
     g=grow(z,cosm)
-    cosm%grow2_z = g**2
+    cosm%grow_z = g
     cosm%this_z = z
     ALLOCATE(cosm%log_plin(nk),cosm%log_plinc(nk))
 
@@ -992,7 +1010,7 @@
     REAL(dl), INTENT(IN) :: k, z
     REAL(dl) :: D, Dcb, Dcbnu, pcb, zeq, q, yfs
     REAL(dl) :: BigT
-    TYPE(HM_cosmology) :: cosm
+    TYPE(HM_cosmology), INTENT(IN) :: cosm
 
     IF(cosm%f_nu==0._dl) THEN
 
@@ -1007,7 +1025,7 @@
         BigT=cosm%Tcmb/2.7
 
         !The matter-radiation equality redshift
-        zeq=(2.5e4)*cosm%om_m*(cosm%h**2)*(BigT**(-4.))
+        zeq=(2.5e4)*cosm%om_m*(cosm%h**2)*(BigT**(-4))
 
         !The growth function normalised such that D=(1.+z_eq)/(1+z) at early times (when Omega_m \approx 1)
         IF (EdS_Tcold_growth) THEN
@@ -1372,10 +1390,11 @@
 
         !Make a LCDM HM_cosmology
         !Need to make sure model is flat with the same Omega_m and w=-1
-        !This is *only* used for a calculation of the growth function
-        cosm_lcdm=cosm
-        DEALLOCATE(cosm_lcdm%growth)
-        DEALLOCATE(cosm_lcdm%a_growth)
+        !This is *only* used for a calculation of the growth function, which depends on the
+        !scalars below alone, so avoid copying the (large) interpolation tables in cosm
+        cosm_lcdm%om_m=cosm%om_m
+        cosm_lcdm%om_c=cosm%om_c
+        cosm_lcdm%om_b=cosm%om_b
         cosm_lcdm%w=-1.
         cosm_lcdm%wa=0.
         cosm_lcdm%om_v=1.-cosm%om_m !Enforce flatness
@@ -1405,111 +1424,30 @@
     END SUBROUTINE conc_bull
 
     FUNCTION growint(z,cosm)
-    !Integrates between a and b until desired accuracy is reached
-    !Stores information to reduce function calls
+    !Approximate growth function from integrating Omega_m(a)^gamma dln(a) up to a=1
     REAL(dl) :: growint
     REAL(dl), INTENT(IN) :: z
     TYPE(HM_cosmology), INTENT(IN) :: cosm
-    REAL(dl) :: a, b
-    INTEGER :: i, j
-    INTEGER :: n
-    REAL(dl) :: x, dx
-    REAL(dl) :: f1, f2, fx
-    REAL(dl) :: sum_n, sum_2n, sum_new, sum_old
-    INTEGER, PARAMETER :: jmin=5
-    INTEGER, PARAMETER :: jmax=20
+    REAL(dl) :: a
+    REAL(dl), PARAMETER :: b=1._dl ! Integration range for integration parameter; note a -> 1
     REAL(dl), PARAMETER :: acc=acc_growth_integration
     INTEGER, PARAMETER :: iorder=iorder_growth_integration
 
     a=1./(1.+z)
-
-    !Integration range for integration parameter
-    !Note a -> 1
-    b=1.d0
-
-    IF(a==b) THEN
-
-        !Fix the answer to zero if the integration limits are identical
-        growint=exp(0.d0)
-
-    ELSE
-
-        !Reset the sum variable for the integration
-        sum_2n=0.d0
-        sum_n=0.d0
-        sum_old=0.d0
-        sum_new=0.d0
-
-        DO j=1,jmax
-
-            !Note, you need this to be 1+2**n for some integer n
-            !j=1 n=2; j=2 n=3; j=3 n=5; j=4 n=9; ...'
-            n=1+2**(j-1)
-
-            !Calculate the dx interval for this value of 'n'
-            dx=(b-a)/REAL(n-1)
-
-            IF(j==1) THEN
-
-                !The first go is just the trapezium of the end points
-                f1=growint_integrand(a,cosm)
-                f2=growint_integrand(b,cosm)
-                sum_2n=0.5d0*(f1+f2)*dx
-                sum_new=sum_2n
-
-            ELSE
-
-                !Loop over only new even points to add these to the integral
-                DO i=2,n,2
-                    x=a+(b-a)*REAL(i-1)/REAL(n-1)
-                    fx=growint_integrand(x,cosm)
-                    sum_2n=sum_2n+fx
-                END DO
-
-                !Now create the total using the old and new parts
-                sum_2n=sum_n/2.d0+sum_2n*dx
-
-                !Now calculate the new sum depending on the integration order
-                IF(iorder==1) THEN
-                    sum_new=sum_2n
-                ELSE IF(iorder==3) THEN
-                    sum_new=(4.d0*sum_2n-sum_n)/3.d0 !This is Simpson's rule and cancels error
-                ELSE
-                    ERROR STOP 'GROWINT: Error, iorder specified incorrectly'
-                END IF
-
-            END IF
-
-            IF(j>=jmin .and. sum_old /= 0) THEN
-                if (ABS(-1.d0+sum_new/sum_old)<acc) THEN
-                    !jmin avoids spurious early convergence
-                    growint=exp(sum_new)
-                    EXIT
-                end if
-            end if
-            IF(j==jmax) THEN
-                growint=exp(sum_new)
-                call GlobalError('HMCode GROWINT, Integration timed out', error_nonlinear)
-                return
-            ELSE
-                !Integral has not converged so store old sums and reset sum variables
-                sum_old=sum_new
-                sum_n=sum_2n
-                sum_2n=0.d0
-            END IF
-
-        END DO
-
-    END IF
+    growint=exp(integrate(a,b,growint_integrand,0._dl,0._dl,0,cosm,acc,iorder))
 
     END FUNCTION growint
 
-    FUNCTION growint_integrand(a,cosm)
+    FUNCTION growint_integrand(a,y,z,itype,cosm)
     !Integrand for the approximate growth integral
+    !y, z and itype are unused, but are needed to match the integrate() interface
     REAL(dl) :: growint_integrand
     REAL(dl), INTENT(IN) :: a
+    REAL(dl), INTENT(IN) :: y
+    REAL(dl), INTENT(IN) :: z
+    INTEGER, INTENT(IN) :: itype
     TYPE(HM_cosmology), INTENT(IN) :: cosm
-    REAL(dl) :: Om_m, z, gam
+    REAL(dl) :: Om_m, zz, gam
 
     IF(cosm%w<-1.) THEN
         gam=0.55+0.02*(1.+cosm%w)
@@ -1521,11 +1459,11 @@
 
     !Note the minus sign here
     !AM Jul 19: changed Omega_m to Omega_cold for massive neutrino cosmologies
-    z = -1.+1./a
+    zz = -1.+1./a
     IF (cold_growth) THEN
-        Om_m = Omega_cold_hm(z,cosm)
+        Om_m = Omega_cold_hm(zz,cosm)
     ELSE
-        Om_m = Omega_m_hm(z,cosm)
+        Om_m = Omega_m_hm(zz,cosm)
     END IF
     growint_integrand=-(Om_m**gam)/a
 
@@ -1574,17 +1512,6 @@
 
     END SUBROUTINE zcoll_bull
 
-    FUNCTION mass_r(r,cosm)
-    !Calcuates the average mass enclosed at co-moving radius r
-    REAL(dl) :: mass_r, r
-    TYPE(HM_cosmology) :: cosm
-    REAL(dl), PARAMETER :: pi=pi_HM
-
-    !Relation between mean cosmological mass and radius
-    mass_r=(4*pi/3)*cosmic_density(cosm)*(r**3)
-
-    END FUNCTION mass_r
-
     PURE FUNCTION cosmic_density(cosm)
     !The z=0 cosmological matter density
     REAL(dl) :: cosmic_density
@@ -1594,48 +1521,6 @@
     cosmic_density=(2.775d11)*cosm%om_m
 
     END FUNCTION cosmic_density
-
-    FUNCTION baryonify_wk(wk, m, lut, cosm)
-
-    ! Change halo window to account for feedback mass loss and star formation
-    IMPLICIT NONE
-    REAL(dl) :: baryonify_wk
-    REAL(dl), INTENT(IN) :: wk
-    REAL(dl), INTENT(IN) :: m
-    TYPE(HM_tables), INTENT(IN) :: lut
-    TYPE(HM_cosmology), INTENT(IN) :: cosm
-    REAL(dl) :: wkn, fs
-
-    wkn = wk
-    wkn = wkn*halo_mass_fraction(m, lut, cosm) ! Gas expulsion
-    fs = f_star(lut, cosm)
-    wkn = wkn+fs ! Star formation
-
-    baryonify_wk = wkn
-
-    END FUNCTION baryonify_wk
-
-    FUNCTION halo_mass_fraction(m, lut, cosm)
-
-    ! Simple baryon model where high-mass haloes have a mass fraction of 1 and low-mass haloes have Omega_c/Omega_m
-    ! This also accounts for massive neutrinos since it is written in terms of Om_c and Om_b (rather than Om_m)
-    ! TODO: Could just precompute this once for each M in the halomod init function
-    IMPLICIT NONE
-    REAL(dl) :: halo_mass_fraction
-    REAL(dl), INTENT(IN) :: m
-    TYPE(HM_tables), INTENT(IN) :: lut
-    TYPE(HM_cosmology), INTENT(IN) :: cosm
-    REAL(dl) :: r, fc, fb, fs, mb, beta
-
-    mb = m_baryon(lut, cosm) ! Feedback halo mass
-    beta = 2.                ! Power-law index
-    r = (m/mb)**beta         ! If m>>m0 then r becomes large, if m<<m0 then r=0
-    fb = cosm%Om_b/cosm%Om_m ! Halo baryon fraction
-    fc = cosm%Om_c/cosm%Om_m ! Halo CDM fraction
-    fs = f_star(lut, cosm)   ! Halo star fraction
-    halo_mass_fraction = fc+(fb-fs)*r/(1.+r) ! Remaining halo mass fraction
-
-    END FUNCTION halo_mass_fraction
 
     FUNCTION m_baryon(lut, cosm)
 
@@ -1703,24 +1588,32 @@
 
     END FUNCTION find_pk
 
+    FUNCTION cached_grow(z,cosm)
+    !The growth factor, using the value cached by fill_plintab where possible
+    REAL(dl) :: cached_grow
+    REAL(dl), INTENT(IN) :: z
+    TYPE(HM_cosmology), INTENT(IN) :: cosm
+
+    if (z==0._dl) then
+        cached_grow = 1
+    else if (z==cosm%this_z) then
+        cached_grow = cosm%grow_z
+    else
+        cached_grow = grow(z,cosm) !never actually needed
+    end if
+
+    END FUNCTION cached_grow
+
     FUNCTION p_lin(k,z,itype,cosm)
     !Looks up the value for the linear power spectrum
     REAL(dl) :: p_lin
     REAL(dl), INTENT (IN) :: k, z
-    REAL(dl) growth2
     INTEGER, INTENT(IN) :: itype
     TYPE(HM_cosmology), INTENT(IN) :: cosm
 
     !This gives the linear power spectrum for the model in question
     !P(k) should have been previously normalised to z=0
-    if (z==0._dl) then
-        growth2 = 1
-    else if (z==cosm%this_z) then
-        growth2 = cosm%grow2_z
-    else
-        growth2 = grow(z,cosm)**2 !never actually needed
-    end if
-    p_lin=growth2*find_pk(k,itype,cosm)
+    p_lin=cached_grow(z,cosm)**2*find_pk(k,itype,cosm)
 
     END FUNCTION p_lin
 
@@ -1736,11 +1629,12 @@
     !Damping function
     frac=lut%fdamp_hm
 
-    IF(this%imead==0 .OR. this%imead==4 .OR. this%imead==5 .OR. frac<1.e-3) THEN
+    !frac<=fdamp_min means the damping has been clamped to its minimum, i.e. it is negligible
+    IF(this%imead==0 .OR. this%imead==4 .OR. this%imead==5 .OR. frac<=fdamp_min) THEN
         p_2h=plin
     ELSE IF(this%imead==1 .OR. this%imead==2) THEN
         sigv=lut%sigv
-        p_2h=plin*(1.-frac*(tanh(k*sigv/sqrt(ABS(frac))))**2.)
+        p_2h=plin*(1.-frac*(tanh(k*sigv/sqrt(ABS(frac))))**2)
     ELSE IF(this%imead==3) THEN
         kdamp=0.05699*lut%sig8z_cold**(-1.089)
         ndamp=2.85
@@ -1774,23 +1668,21 @@
         integrand(i)=lut%p1h_weight(i)*(wk**2)
     END DO
 
-    IF(this%imead==3 .OR. this%imead==4) integrand=integrand*lut%one_minus_fnu_sq
-
-    !Carries out the integration
+    !Carries out the integration (the integral is linear, so scale the result rather than the integrand)
     sum=inttab(lut%nu,integrand,1,lut%n,iorder)/cosmic_density(cosm)
+    IF(this%imead==3 .OR. this%imead==4) sum=sum*lut%one_minus_fnu_sq
 
     !Numerical factors to convert from P(k) to Delta^2(k)
     p_1h=sum*k**3/(2.*pi**2)
 
     IF(this%imead==1 .OR. this%imead==2) THEN
         !Damping of the 1-halo term at very large scales
+        !Note kstar is only zero for imead==0, which does not reach here
         ks=lut%kstar_hm
-        IF(ks==0.) THEN
-            fac=0.
-        ELSE IF((k/ks)**2.>ks_limit) THEN
+        IF((k/ks)**2>ks_limit) THEN
             fac=0. !Prevents problems if k/ks is very large
         ELSE
-            fac=exp(-((k/ks)**2.))
+            fac=exp(-((k/ks)**2))
         END IF
         !Damping of the one-halo term at very large scales
         p_1h=p_1h*(1.-fac)
@@ -1818,7 +1710,7 @@
         p_wiggle = find(logk, cosm%log_k_wiggle, cosm%pk_wiggle, nk_wiggle, iorder, ifind, imeth)
     END IF
     f = exp(-(k*sigv)**2)
-    p_dewiggle = p_linear+(f-1)*p_wiggle*grow(z, cosm)**2
+    p_dewiggle = p_linear+(f-1)*p_wiggle*cached_grow(z, cosm)**2
 
     END FUNCTION p_dewiggle
 
@@ -1910,7 +1802,7 @@
     REAL(dl), ALLOCATABLE, INTENT(OUT) :: Pk_nw(:)
     TYPE(HM_cosmology), INTENT(IN) :: cosm
     INTEGER :: ik, nk
-    REAL(dl) :: Pk_norm, Pk_nw_norm
+    REAL(dl) :: Pk_norm, Pk_nw_norm, s, alpha
     REAL(dl), PARAMETER :: knorm = knorm_nowiggle
     INTEGER, PARAMETER :: type = 0 ! Matter here
     INTEGER, PARAMETER :: iorder = 3
@@ -1922,9 +1814,10 @@
     IF (nk /= size(Pk)) STOP 'CALCULATE_NOWIGGLE: Error, Pk should be same size as k and a'
     ALLOCATE(Pk_nw(nk))
 
-    ! Get the no-wiggle power spectrum
+    ! Get the no-wiggle power spectrum (s and alpha do not depend on k)
+    CALL Tk_nw_init(cosm, s, alpha)
     DO ik = 1, nk
-        Pk_nw(ik) = Pk_nowiggle(k(ik), cosm)
+        Pk_nw(ik) = Pk_nowiggle(k(ik), s, alpha, cosm)
     END DO
 
     ! Calculate the no-wiggle power spectrum and force spectra to agree at the normalisation wavenumber
@@ -1934,35 +1827,42 @@
 
     END SUBROUTINE calculate_nowiggle
 
-    REAL(dl) FUNCTION Pk_nowiggle(k, cosm)
+    REAL(dl) FUNCTION Pk_nowiggle(k, s, alpha, cosm)
     ! Calculates the un-normalised no-wiggle power spectrum
     ! Comes from the Eisenstein & Hu approximation
     REAL(dl), INTENT(IN) :: k
+    REAL(dl), INTENT(IN) :: s, alpha ! k-independent parameters from Tk_nw_init
     TYPE(HM_cosmology), INTENT(IN) :: cosm
 
-    Pk_nowiggle = (k**(cosm%ns+3.))*Tk_nw(k, cosm)**2
+    Pk_nowiggle = (k**(cosm%ns+3.))*Tk_nw(k, s, alpha, cosm)**2
 
     END FUNCTION Pk_nowiggle
 
-    REAL(dl) FUNCTION Tk_nw(k, cosm)
-    ! No-wiggle transfer function from Eisenstein & Hu: astro-ph:9709112
-    REAL(dl), INTENT(IN) :: k ! Wavenumber [h/Mpc]
+    SUBROUTINE Tk_nw_init(cosm, s, alpha)
+    ! The k-independent parameters of the no-wiggle transfer function; only needed once per cosmology
     TYPE(HM_cosmology), INTENT(IN) :: cosm
-    REAL(dl) :: q, L, C, Gamma, wm, wb, s, h, alpha, rb
-    REAL(dl), PARAMETER :: e = exp(1.)
+    REAL(dl), INTENT(OUT) :: s, alpha
+    REAL(dl) :: wm, wb, rb
 
-    ! Useful parameters to make equations shorter
     wm = cosm%Om_m*cosm%h**2 ! Real matter density
     wb = cosm%Om_b*cosm%h**2 ! Real baryon density
     rb = cosm%Om_b/cosm%Om_m ! Baryon ratio
-    h = cosm%h               ! Hubble factor
 
-    ! These only needs to be calculated once
     s = 44.5*log(9.83/wm)/sqrt(1.+10.*wb**0.75)              ! Equation (26)
     alpha = 1.-0.328*log(431.*wm)*rb+0.38*log(22.3*wm)*rb**2 ! Equation (31)
 
+    END SUBROUTINE Tk_nw_init
+
+    REAL(dl) FUNCTION Tk_nw(k, s, alpha, cosm)
+    ! No-wiggle transfer function from Eisenstein & Hu: astro-ph:9709112
+    REAL(dl), INTENT(IN) :: k        ! Wavenumber [h/Mpc]
+    REAL(dl), INTENT(IN) :: s, alpha ! k-independent parameters from Tk_nw_init
+    TYPE(HM_cosmology), INTENT(IN) :: cosm
+    REAL(dl) :: q, L, C, Gamma
+    REAL(dl), PARAMETER :: e = exp(1._dl)
+
     ! Functions of k
-    Gamma = cosm%Om_m*cosm%h*(alpha+(1.-alpha)/(1.+(0.43*k*s*h)**4)) ! Equation (30)
+    Gamma = cosm%Om_m*cosm%h*(alpha+(1.-alpha)/(1.+(0.43*k*s*cosm%h)**4)) ! Equation (30)
     q = k*(cosm%Tcmb/2.7)**2/Gamma ! Equation (28)
     L = log(2.*e+1.8*q)             ! Equation (29)
     C = 14.2+731./(1.+62.5*q)       ! Equation (29)
@@ -1972,12 +1872,15 @@
 
     SUBROUTINE smooth_array_Gaussian(x, f, sigma)
     ! Smooth an array f(x) using a Gaussian kernel
+    ! If x is equally spaced (as it is here) the kernel depends only on |i-j| and can be
+    ! tabulated once, which avoids the n^2 exponentials of the general case
     REAL(dl), INTENT(IN) :: x(:)    ! x coordinates
     REAL(dl), INTENT(INOUT) :: f(:) ! Array to smooth
     REAL(dl), INTENT(IN) :: sigma   ! Width of smoothing Gaussian
     INTEGER :: i, j, n
-    REAL(dl), ALLOCATABLE :: ff(:)
-    REAL(dl) :: weight, total
+    REAL(dl), ALLOCATABLE :: ff(:), kernel(:)
+    REAL(dl) :: weight, total, dx
+    LOGICAL :: equal_spacing
     REAL(dl), PARAMETER :: nsig = 3. ! Do not smooth if point lies within this number of sigma from edge
 
     IF (sigma  .NE. 0.) THEN
@@ -1991,6 +1894,22 @@
         ! Delete the original array
         f = 0.
 
+        ! Tabulate the kernel against index separation if the x values are equally spaced
+        dx = (x(n)-x(1))/real(n-1, dl)
+        equal_spacing = .TRUE.
+        DO i = 2, n
+            IF (abs(x(i)-x(i-1)-dx) > 1e-8*abs(dx)) THEN
+                equal_spacing = .FALSE.
+                EXIT
+            END IF
+        END DO
+        IF (equal_spacing) THEN
+            ALLOCATE(kernel(0:n-1))
+            DO i = 0, n-1
+                kernel(i) = exp(-(i*dx)**2/(2.*sigma**2))
+            END DO
+        END IF
+
         ! Apply Gaussian smoothing
         DO i = 1, n
             total = 0.
@@ -1998,7 +1917,11 @@
                 f(i) = ff(i)
             ELSE
                 DO j = 1, n
-                    weight = exp(-(x(i)-x(j))**2/(2.*sigma**2))
+                    IF (equal_spacing) THEN
+                        weight = kernel(abs(i-j))
+                    ELSE
+                        weight = exp(-(x(i)-x(j))**2/(2.*sigma**2))
+                    END IF
                     f(i) = f(i)+ff(j)*weight
                     total = total+weight
                 END DO
@@ -2021,7 +1944,7 @@
     !R vs. sigma(R) is approximately power-law below and above these values of R
     !This wouldn't be appropriate for models with a small-scale linear spectrum cut-off (e.g., WDM)
     INTEGER :: i
-    TYPE(HM_cosmology) :: cosm
+    TYPE(HM_cosmology), INTENT(INOUT) :: cosm
     REAL(dl), ALLOCATABLE :: r(:), sig(:)
     INTEGER :: itype
     REAL(dl), PARAMETER :: rmin=rmin_sigma_interpolation
@@ -2052,7 +1975,7 @@
     DO i=1,nsig
 
         !Equally spaced r in log
-        r(i)=exp(log(rmin)+log(rmax/rmin)*float(i-1)/float(nsig-1))
+        r(i)=exp(log(rmin)+log(rmax/rmin)*real(i-1,dl)/real(nsig-1,dl))
 
         sig(i)=sigma_integral(r(i),0.d0,itype,cosm)
 
@@ -2081,7 +2004,7 @@
     INTEGER, PARAMETER :: ifind=ifind_sigma_interpolation
     INTEGER, PARAMETER :: imeth=imeth_sigma_interpolation
 
-    sigma_lut=grow(z,cosm)*exp(find(log(r),cosm%log_r_sigma,cosm%log_sigma,cosm%nsig,iorder,ifind,imeth))
+    sigma_lut=cached_grow(z,cosm)*exp(find(log(r),cosm%log_r_sigma,cosm%log_sigma,cosm%nsig,iorder,ifind,imeth))
 
     END FUNCTION sigma_lut
 
@@ -2160,9 +2083,9 @@
 
             CALL fit_quadratic(a,b,c,x1,y1,x2,y2,x3,y3)
 
-            q1=a*(x1**3.)/3.+b*(x1**2.)/2.+c*x1
-            q2=a*(x2**3.)/3.+b*(x2**2.)/2.+c*x2
-            q3=a*(x3**3.)/3.+b*(x3**2.)/2.+c*x3
+            q1=a*(x1**3)/3.+b*(x1**2)/2.+c*x1
+            q2=a*(x2**3)/3.+b*(x2**2)/2.+c*x2
+            q3=a*(x3**3)/3.+b*(x3**2)/2.+c*x3
 
             !Takes value for first and last sections but averages over sections where you
             !have two independent estimates of the area
@@ -2224,8 +2147,8 @@
             xi=x(i)
             xf=x(i+1)
 
-            qi=a*(xi**4.)/4.+b*(xi**3.)/3.+c*(xi**2.)/2.+d*xi
-            qf=a*(xf**4.)/4.+b*(xf**3.)/3.+c*(xf**2.)/2.+d*xf
+            qi=a*(xi**4)/4.+b*(xi**3)/3.+c*(xi**2)/2.+d*xi
+            qf=a*(xf**4)/4.+b*(xf**3)/3.+c*(xf**2)/2.+d*xf
 
             sum=sum+qf-qi
 
@@ -2412,11 +2335,9 @@
     !Define the scale wavenumber
     ks=k*rv/c
 
-    !Sine and cosine integrals
-    si1=Si(ks)
-    si2=Si((1.+c)*ks)
-    ci1=Ci(ks)
-    ci2=Ci((1.+c)*ks)
+    !Sine and cosine integrals (computed in pairs since they share most of their work)
+    CALL SiCi(ks,si1,ci1)
+    CALL SiCi((1.+c)*ks,si2,ci2)
 
     !These three parts sum to give the full W(k)
     p1=cos(ks)*(ci2-ci1)
@@ -2648,12 +2569,14 @@
 
     END FUNCTION neff_integrand
 
-    FUNCTION Si(x)
+    SUBROUTINE SiCi(x, Six, Cix)
 
-    !Calculates the 'sine integral' function Si(x)
-    REAL(dl) :: Si
+    !Calculates the 'sine integral' Si(x) and 'cosine integral' Ci(x) together
+    !The large-x expansions share the same auxiliary functions f and g, so are done once
     REAL(dl), INTENT(IN) :: x
-    REAL(dl) :: x2, y, f, g, si8
+    REAL(dl), INTENT(OUT) :: Six, Cix
+    REAL(dl) :: x2, y, f, g, sinx, cosx
+    REAL(dl), PARAMETER :: em_const=0.577215664901532861d0
     REAL(dl), PARAMETER :: x0=4. ! Transition between two different approximations
 
     !Expansions for high and low x thieved from Wikipedia, two different expansions for above and below 4.
@@ -2661,16 +2584,20 @@
 
         x2=x*x
 
-        si8 = x*(1.d0+x2*(-4.54393409816329991d-2+x2*(1.15457225751016682d-3&
+        Six = x*(1.d0+x2*(-4.54393409816329991d-2+x2*(1.15457225751016682d-3&
             +x2*(-1.41018536821330254d-5+x2*(9.43280809438713025d-8+x2*(-3.53201978997168357d-10&
             +x2*(7.08240282274875911d-13+x2*(-6.05338212010422477d-16))))))))/ &
             (1.+x2*(1.01162145739225565d-2 +x2*(4.99175116169755106d-5+&
             x2*(1.55654986308745614d-7+x2*(3.28067571055789734d-10+x2*(4.5049097575386581d-13&
             +x2*(3.21107051193712168d-16)))))))
 
-        Si=si8
+        Cix=em_const+log(x)+x2*(-0.25d0+x2*(7.51851524438898291d-3+x2*(-1.27528342240267686d-4&
+            +x2*(1.05297363846239184d-6+x2*(-4.68889508144848019d-9+x2*(1.06480802891189243d-11&
+            +x2*(-9.93728488857585407d-15)))))))/ (1.+x2*(1.1592605689110735d-2+&
+            x2*(6.72126800814254432d-5+x2*(2.55533277086129636d-7+x2*(6.97071295760958946d-10+&
+            x2*(1.38536352772778619d-12+x2*(1.89106054713059759d-15+x2*(1.39759616731376855d-18))))))))
 
-    ELSE IF(ABS(x)>x0) THEN
+    ELSE
 
         y=1.d0/(x*x)
 
@@ -2693,60 +2620,15 @@
             + y*(2.23355543278099360d9 + y*(7.87465017341829930d10 + y*(1.39866710696414565d12 &
             + y*(1.17164723371736605d13 + y*(4.01839087307656620d13 +y*(3.99653257887490811d13))))))))))
 
-        Si=pi_HM/2.d0-f*cos(x)-g*sin(x)
+        sinx=sin(x)
+        cosx=cos(x)
+
+        Six=pi_HM/2.d0-f*cosx-g*sinx
+        Cix=f*sinx-g*cosx
 
     END IF
 
-    END FUNCTION Si
-
-    FUNCTION Ci(x)
-
-    !Calculates the 'cosine integral' function Ci(x)
-    REAL(dl) :: Ci
-    REAL(dl), INTENT(IN) :: x
-    REAL(dl) :: x2, y, f, g, ci8
-    REAL(dl), PARAMETER :: em_const=0.577215664901532861d0
-    REAL(dl), PARAMETER :: x0=4. ! Transition between two different approximations
-
-    !Expansions for high and low x thieved from Wikipedia, two different expansions for above and below 4.
-    IF(ABS(x)<=x0) THEN
-
-        x2=x*x
-
-        ci8=em_const+log(x)+x2*(-0.25d0+x2*(7.51851524438898291d-3+x2*(-1.27528342240267686d-4&
-            +x2*(1.05297363846239184d-6+x2*(-4.68889508144848019d-9+x2*(1.06480802891189243d-11&
-            +x2*(-9.93728488857585407d-15)))))))/ (1.+x2*(1.1592605689110735d-2+&
-            x2*(6.72126800814254432d-5+x2*(2.55533277086129636d-7+x2*(6.97071295760958946d-10+&
-            x2*(1.38536352772778619d-12+x2*(1.89106054713059759d-15+x2*(1.39759616731376855d-18))))))))
-
-        Ci=ci8
-
-    ELSE IF(ABS(x)>x0) THEN
-
-        y=1./(x*x)
-
-        f = (1.d0 + y*(7.44437068161936700618d2 + y*(1.96396372895146869801d5 + &
-            y*(2.37750310125431834034d7 +y*(1.43073403821274636888d9 + y*(4.33736238870432522765d10&
-            + y*(6.40533830574022022911d11 + y*(4.20968180571076940208d12 + y*(1.00795182980368574617d13&
-            + y*(4.94816688199951963482d12 +y*(-4.94701168645415959931d11)))))))))))/&
-            (x*(1. +y*(7.46437068161927678031d2 +y*(1.97865247031583951450d5 +&
-            y*(2.41535670165126845144d7 + y*(1.47478952192985464958d9 + &
-            y*(4.58595115847765779830d10 +y*(7.08501308149515401563d11 + y*(5.06084464593475076774d12 &
-            + y*(1.43468549171581016479d13 + y*(1.11535493509914254097d13)))))))))))
-
-        g = y*(1.d0 + y*(8.1359520115168615d2 + y*(2.35239181626478200d5 + y*(3.12557570795778731d7&
-            + y*(2.06297595146763354d9 + y*(6.83052205423625007d10 +&
-            y*(1.09049528450362786d12 + y*(7.57664583257834349d12 +&
-            y*(1.81004487464664575d13 + y*(6.43291613143049485d12 +y*(-1.36517137670871689d12)))))))))))&
-            / (1. + y*(8.19595201151451564d2 +y*(2.40036752835578777d5 +&
-            y*(3.26026661647090822d7 + y*(2.23355543278099360d9 + y*(7.87465017341829930d10 &
-            + y*(1.39866710696414565d12 + y*(1.17164723371736605d13 + y*(4.01839087307656620d13 +y*(3.99653257887490811d13))))))))))
-
-        Ci=f*sin(x)-g*cos(x)
-
-    END IF
-
-    END FUNCTION Ci
+    END SUBROUTINE SiCi
 
     recursive FUNCTION find(x,xtab,ytab,n,iorder,ifind,imeth) result(y)
     !Given two arrays x and y this routine interpolates to find the y_i value at position x_i
@@ -2963,7 +2845,7 @@
 
     x1=xtab(1)
     xn=xtab(n)
-    linear_table_integer=1+FLOOR(float(n-1)*(x-x1)/(xn-x1))
+    linear_table_integer=1+FLOOR(real(n-1,dl)*(x-x1)/(xn-x1))
 
     END FUNCTION linear_table_integer
 
@@ -2976,11 +2858,13 @@
 
     IF(xtab(1)>xtab(n)) ERROR STOP 'SEARCH_INT: table in wrong order'
 
-    DO i=1,n
-        IF(x>=xtab(i) .AND. x<=xtab(i+1)) EXIT
+    search_int=n-1
+    DO i=1,n-1
+        IF(x>=xtab(i) .AND. x<=xtab(i+1)) THEN
+            search_int=i
+            EXIT
+        END IF
     END DO
-
-    search_int=i
 
     END FUNCTION search_int
 
@@ -3188,8 +3072,8 @@
     REAL(dl) :: kx1, kx2, kx3, kx4, kv1, kv2, kv3, kv4
     REAL(dl), ALLOCATABLE :: x8(:), t8(:), v8(:), xh(:), th(:), vh(:)
     REAL(dl), ALLOCATABLE :: x(:), v(:), t(:)
-    INTEGER :: i, j, k, n, np, ifail, kn, imeth
-    TYPE(HM_cosmology) :: cosm
+    INTEGER :: i, j, k, n, ifail, kn, imeth
+    TYPE(HM_cosmology), INTENT(IN) :: cosm
     INTEGER, PARAMETER :: jmax=30
     INTEGER, PARAMETER :: ninit=100
 
@@ -3280,16 +3164,14 @@
 
         IF(j .NE. 1) THEN
 
-            np=1+(n-1)/2
-
             DO k=1,1+(n-1)/2
 
                 kn=2*k-1
 
                 IF(ifail==0) THEN
 
-                    IF(xh(k)>acc .AND. x8(kn)>acc .AND. (ABS(xh(k)/x8(kn))-1.)>acc) ifail=1
-                    IF(vh(k)>acc .AND. v8(kn)>acc .AND. (ABS(vh(k)/v8(kn))-1.)>acc) ifail=1
+                    IF(xh(k)>acc .AND. x8(kn)>acc .AND. ABS(xh(k)/x8(kn)-1.)>acc) ifail=1
+                    IF(vh(k)>acc .AND. v8(kn)>acc .AND. ABS(vh(k)/v8(kn)-1.)>acc) ifail=1
 
                     IF(ifail==1) THEN
                         DEALLOCATE(xh,th,vh)
@@ -3335,7 +3217,7 @@
     ELSE
         Om_m = Omega_m_hm(z,cosm)
     END IF
-    f1=3.*Om_m*d/(2.*a**2.)
+    f1=3.*Om_m*d/(2.*a**2)
     f2=(2.+AH(z,cosm)/Hubble2(z,cosm))*(v/a)
 
     fv=f1-f2
@@ -3352,13 +3234,29 @@
 
     END FUNCTION fd
 
+    SUBROUTINE Mead_growth_terms(z, cosm, x, y, Om_m)
+
+    ! Growth terms shared by the Mead (2017; 1606.05345) delta_c and Delta_v fitting functions
+    REAL(dl), INTENT(IN) :: z
+    TYPE(HM_cosmology), INTENT(IN) :: cosm
+    REAL(dl), INTENT(OUT) :: x, y, Om_m
+    REAL(dl) :: a
+
+    IF (cold_growth) ERROR STOP 'MEAD_GROWTH_TERMS: Error, this will not work if you want cold growth'
+
+    a = 1./(1.+z)
+    x = ungrow(z, cosm)/a
+    y = acc_growth(z, cosm)/a
+    Om_m = Omega_m_hm(z, cosm)
+
+    END SUBROUTINE Mead_growth_terms
+
     REAL(dl) FUNCTION dc_Mead(z, cosm)
 
     ! delta_c fitting function from Mead (2017; 1606.05345)
-    IMPLICIT NONE
     REAL(dl), INTENT(IN) :: z
     TYPE(HM_cosmology), INTENT(IN) :: cosm
-    REAL(dl) :: lg, bG, Om_m, a
+    REAL(dl) :: x, y, Om_m
 
     ! See Appendix A of Mead (2017) for naming convention
     REAL(dl), PARAMETER :: p10 = -0.0069
@@ -3370,19 +3268,14 @@
     REAL(dl), PARAMETER :: p21 = -0.0647
     REAL(dl), PARAMETER :: p22 = -0.0417
     REAL(dl), PARAMETER :: p23 = 0.0646
-    INTEGER, PARAMETER :: a2 = 0
+    ! a2 = 0 in the paper, so log10(Om_m)**a2 = 1 and is omitted below
     REAL(dl), PARAMETER :: dc0 = (3./20.)*(12.*pi_HM)**(2./3.)
 
-    IF (cold_growth) STOP 'DV_MEAD: Error, this will not work if you want cold growth'
-
-    lg = ungrow(z, cosm)
-    bG = acc_growth(z, cosm)
-    Om_m = Omega_m_hm(z, cosm)
-    a = 1./(1.+z)
+    CALL Mead_growth_terms(z, cosm, x, y, Om_m)
 
     dc_Mead = 1.
-    dc_Mead = dc_Mead+f_Mead(lg/a, bG/a, p10, p11, p12, p13)*log10(Om_m)**a1
-    dc_Mead = dc_Mead+f_Mead(lg/a, bG/a, p20, p21, p22, p23)
+    dc_Mead = dc_Mead+f_Mead(x, y, p10, p11, p12, p13)*log10(Om_m)**a1
+    dc_Mead = dc_Mead+f_Mead(x, y, p20, p21, p22, p23)
     dc_Mead = dc_Mead*dc0*(1.-0.041*cosm%f_nu)
 
     END FUNCTION dc_Mead
@@ -3390,10 +3283,9 @@
     REAL(dl) FUNCTION Dv_Mead(z, cosm)
 
     ! Delta_v fitting function from Mead (2017; 1606.05345)
-    IMPLICIT NONE
     REAL(dl), INTENT(IN) :: z
     TYPE(HM_cosmology), INTENT(IN) :: cosm
-    REAL(dl) :: lg, bG, Om_m, a
+    REAL(dl) :: x, y, Om_m
 
     ! See Appendix A of Mead (2017) for naming convention
     REAL(dl), PARAMETER :: p30 = -0.79
@@ -3408,16 +3300,11 @@
     INTEGER, PARAMETER :: a4 = 2
     REAL(dl), PARAMETER :: Dv0 = 18.*pi_HM**2
 
-    IF (cold_growth) STOP 'DV_MEAD: Error, this will not work if you want cold growth'
-
-    lg = ungrow(z, cosm)
-    bG = acc_growth(z, cosm)
-    Om_m = Omega_m_hm(z, cosm)
-    a = 1./(1.+z)
+    CALL Mead_growth_terms(z, cosm, x, y, Om_m)
 
     Dv_Mead = 1.
-    Dv_Mead = Dv_Mead+f_Mead(lg/a, bG/a, p30, p31, p32, p33)*log10(Om_m)**a3
-    Dv_Mead = Dv_Mead+f_Mead(lg/a, bG/a, p40, p41, p42, p43)*log10(Om_m)**a4
+    Dv_Mead = Dv_Mead+f_Mead(x, y, p30, p31, p32, p33)*log10(Om_m)**a3
+    Dv_Mead = Dv_Mead+f_Mead(x, y, p40, p41, p42, p43)*log10(Om_m)**a4
     Dv_Mead = Dv_Mead*Dv0*(1.+0.763*cosm%f_nu)
 
     END FUNCTION Dv_Mead

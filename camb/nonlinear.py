@@ -76,7 +76,11 @@ class Halofit(NonLinearModel):
         state.write_fields(
             self,
             names=("HMCode_A_baryon", "HMCode_eta_baryon", "HMCode_logT_AGN"),
-            rename={"HMCode_logT_AGN": "HMcode_logT_AGN"},
+            rename={
+                "HMCode_A_baryon": "HMcode_A_baryon",
+                "HMCode_eta_baryon": "HMcode_eta_baryon",
+                "HMCode_logT_AGN": "HMcode_logT_AGN",
+            },
         )
 
     def set_params(
