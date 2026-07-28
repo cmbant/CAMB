@@ -82,6 +82,7 @@
         real(dl), dimension(:), allocatable :: winlens, dwinlens
         Type(TThermoHorner), dimension(:), allocatable :: thermo_horner
         real(dl) tauminn,dlntau
+        real(dl) dlntau_inv !1/dlntau, to avoid division in the interpolation table lookups
         real(dl) :: tight_tau, actual_opt_depth
         !Times when 1/(opacity*tau) = 0.01, for use switching tight coupling approximation
         real(dl) :: matter_verydom_tau
@@ -303,6 +304,9 @@
     end interface
 
     procedure(state_function), private :: dtauda
+
+    !Small helpers used in the interpolation table lookups; private so they can be inlined
+    private :: Thermo_table_index, cubic_horner
 
     contains
 
@@ -1729,6 +1733,28 @@
     end subroutine InterpolateClArrTemplated
 
 
+    pure subroutine Thermo_table_index(this, tau, i, d)
+    !Index into the log-spaced thermal history tables, and fractional offset within the step
+    class(TThermoData), intent(in) :: this
+    real(dl), intent(in) :: tau
+    integer, intent(out) :: i
+    real(dl), intent(out) :: d
+
+    d=log(tau/this%tauminn)*this%dlntau_inv+1._dl
+    i=int(d)
+    d=d-i
+
+    end subroutine Thermo_table_index
+
+    pure function cubic_horner(c, d) result(y)
+    !Cubic in d from the pre-computed Horner coefficients
+    real(dl), intent(in) :: c(4), d
+    real(dl) y
+
+    y = c(1) + d*(c(2) + d*(c(3) + d*c(4)))
+
+    end function cubic_horner
+
     subroutine Thermo_values(this,tau, a, cs2b, opacity, dopacity)
     !Compute unperturbed sound speed squared,
     !and ionization fraction by interpolating pre-computed tables.
@@ -1740,9 +1766,7 @@
     integer i
     real(dl) d
 
-    d=log(tau/this%tauminn)/this%dlntau+1._dl
-    i=int(d)
-    d=d-i
+    call Thermo_table_index(this, tau, i, d)
     if (i < 1) then
         !Linear interpolation if out of bounds (should not occur).
         write(*,*) 'tau, taumin = ', tau, this%tauminn
@@ -1755,17 +1779,11 @@
             dopacity = this%ddotmu(this%nthermo)/(tau*this%dlntau)
         end if
     else
-        associate(cs2_coeffs => this%thermo_horner(i)%cs2b, &
-            opacity_coeffs => this%thermo_horner(i)%opacity, &
-            a_coeffs => this%thermo_horner(i)%a, &
-            dopacity_coeffs => this%thermo_horner(i)%dopacity)
-            cs2b = cs2_coeffs(1) + d*(cs2_coeffs(2) + d*(cs2_coeffs(3) + d*cs2_coeffs(4)))
-            opacity = opacity_coeffs(1) + d*(opacity_coeffs(2) + d*(opacity_coeffs(3) + d*opacity_coeffs(4)))
-            a = (a_coeffs(1) + d*(a_coeffs(2) + d*(a_coeffs(3) + d*a_coeffs(4))))*tau
-            if (present(dopacity)) then
-                dopacity = (dopacity_coeffs(1) + d*(dopacity_coeffs(2) + d*(dopacity_coeffs(3) + &
-                    d*dopacity_coeffs(4))))/(tau*this%dlntau)
-            end if
+        associate(horner => this%thermo_horner(i))
+            cs2b = cubic_horner(horner%cs2b, d)
+            opacity = cubic_horner(horner%opacity, d)
+            a = cubic_horner(horner%a, d)*tau
+            if (present(dopacity)) dopacity = cubic_horner(horner%dopacity, d)/(tau*this%dlntau)
         end associate
     end if
     end subroutine Thermo_values
@@ -1777,9 +1795,7 @@
     integer i
     real(dl) d
 
-    d=log(tau/this%tauminn)/this%dlntau+1._dl
-    i=int(d)
-    d=d-i
+    call Thermo_table_index(this, tau, i, d)
     if (i < 1) then
         call MpiStop('thermo out of bounds')
     else if (i >= this%nthermo) then
@@ -1787,10 +1803,9 @@
         a=1
         adot=this%adot(this%nthermo)
     else
-        associate(a_coeffs => this%thermo_horner(i)%a, &
-            opacity_coeffs => this%thermo_horner(i)%opacity)
-            a = (a_coeffs(1) + d*(a_coeffs(2) + d*(a_coeffs(3) + d*a_coeffs(4))))*tau
-            opacity = opacity_coeffs(1) + d*(opacity_coeffs(2) + d*(opacity_coeffs(3) + d*opacity_coeffs(4)))
+        associate(horner => this%thermo_horner(i))
+            a = cubic_horner(horner%a, d)*tau
+            opacity = cubic_horner(horner%opacity, d)
             adot = (this%adot(i)+d*(this%dadot(i)+d*(3*(this%adot(i+1)-this%adot(i)) &
                 -2*this%dadot(i)-this%dadot(i+1)+d*(this%dadot(i)+this%dadot(i+1) &
                 +2*(this%adot(i)-this%adot(i+1))))))
@@ -1834,6 +1849,7 @@
     real(dl) last_dotmu, om
     real(dl) a_verydom
     real(dl) awin_lens1p,awin_lens2p,dwing_lens, rs, DA
+    real(dl) da_lin !linear scale factor step used when inverting tau(a)
     real(dl) a_eq, rs_eq, tau_eq, rstar
     integer noutput
     Type(CalWins), dimension(:), allocatable, target :: RW
@@ -1884,6 +1900,7 @@
         end associate
     end do
     this%nthermo = nthermo
+    this%dlntau_inv = 1/this%dlntau
     allocate(spline_data(nthermo), sdotmu(nthermo), dcs2(nthermo))
 
     if (allocated(this%tb) .and. this%nthermo/=size(this%tb)) then
@@ -1981,9 +1998,9 @@
     end do
     scale_factors(1) = a0
     scale_factors(2) = a0*exp(dlna/3)
-    da = 0.8_dl/(nlin-2)
+    da_lin = 0.8_dl/(nlin-2)
     do i=1, nlin-2
-        scale_factors(ninverse+i) = 0.2_dl + (i-1)*da
+        scale_factors(ninverse+i) = 0.2_dl + (i-1)*da_lin
     end do
     scale_factors(ninverse+nlin-1) = 0.9_dl + 0.1_dl*scale_factors(ninverse+nlin-2)
     scale_factors(ninverse+nlin) = 1
@@ -2088,10 +2105,7 @@
     !$OMP END PARALLEL SECTIONS
 
     if (global_error_flag/=0) then
-        if (State%num_redshiftwindows >0) then
-            deallocate(this%arhos_fac, this%darhos_fac, this%ddarhos_fac)
-            deallocate(this%redshift_time, this%dredshift_time)
-        end if
+        call free_window_temps
         return
     end if
 
@@ -2280,10 +2294,7 @@
 
     if (iv /= 2) then
         call GlobalError('ThermoData Init: failed to find end of recombination',error_reionization)
-        if (State%num_redshiftwindows >0) then
-            deallocate(this%arhos_fac, this%darhos_fac, this%ddarhos_fac)
-            deallocate(this%redshift_time, this%dredshift_time)
-        end if
+        call free_window_temps
         return
     end if
 
@@ -2389,6 +2400,12 @@
     if (this%z_drag > 0) rs = State%sound_horizon(this%z_drag)
     if (this%z_drag > 0 .and. State%DMt0 > 0) State%scale = planck2018_drag_angle/(rs/State%DMt0)
     !$OMP END PARALLEL SECTIONS
+
+    if (global_error_flag/=0) then
+        !e.g. binary_search for z_star or z_drag failed, so rs and z_star are not usable below
+        call free_window_temps
+        return
+    end if
 
     if (State%num_redshiftwindows>0) then
         !$OMP PARALLEL DO DEFAULT(SHARED),SCHEDULE(STATIC)
@@ -2496,6 +2513,16 @@
     this%HasThermoData = .true.
 
     contains
+
+    subroutine free_window_temps
+    !Free the temporary window arrays allocated above, when returning early
+
+    if (State%num_redshiftwindows > 0) then
+        deallocate(this%arhos_fac, this%darhos_fac, this%ddarhos_fac)
+        deallocate(this%redshift_time, this%dredshift_time)
+    end if
+
+    end subroutine free_window_temps
 
     subroutine unit_grid_pade_derivative(y,dy,n,g)
     !Fits a cubic spline to y and returns dy/di at the grid points.
@@ -2904,10 +2931,7 @@
     Type(CalWins) :: RW(:)
 
     !     Cubic-spline interpolation.
-    d=log(tau/this%tauminn)/this%dlntau+1._dl
-    i=int(d)
-
-    d=d-i
+    call Thermo_table_index(this, tau, i, d)
     if (i < this%nthermo) then
 
         this%step_redshift(j2) = this%redshift_time(i)+d*(this%dredshift_time(i)+ &
@@ -2959,9 +2983,7 @@
 
     call this%Values(tau,a,cs2,opac,dopac)
 
-    d=log(tau/this%tauminn)/this%dlntau+1._dl
-    i=int(d)
-    d=d-i
+    call Thermo_table_index(this, tau, i, d)
 
     if (i < this%nthermo) then
         ddopac=(this%dddotmu(i)+d*(this%ddddotmu(i)+d*(3._dl*(this%dddotmu(i+1) &
@@ -2982,7 +3004,8 @@
         dvis=expmmu*(opac**2+dopac)
         ddvis=expmmu*(opac**3+3*opac*dopac+ddopac)
     else
-        ddopac=this%dddotmu(this%nthermo)
+        !Same conversion from d/di to d/dtau derivatives as above, at the end of the table
+        ddopac=(this%dddotmu(this%nthermo)-(this%dlntau**2)*tau*dopac)/(tau*this%dlntau)**2
         expmmu=this%emmu(this%nthermo)
         vis=opac*expmmu
         dvis=expmmu*(opac**2+dopac)
@@ -3910,7 +3933,7 @@
     type(MatterPowerData), pointer :: PK
     integer PK_ix
     integer :: nsub
-    integer index_cache, nextra
+    integer index_cache, nextra, s1, s2
 
     index_cache = 1
     nsub = 5 !interpolation steps
@@ -3918,12 +3941,14 @@
     minR = minval(R)/ h
     maxR = maxval(R)
     red_ix = PresentDefault(State%PK_redshifts_index(State%CP%Transfer%PK_num_redshifts), redshift_ix)
+    s1 = PresentDefault(transfer_power_var, var1)
+    s2 = PresentDefault(transfer_power_var, var2)
 
-    if (allocated(State%CAMB_PK) .and. var1==transfer_power_var .and. var2==transfer_power_var) then
+    if (allocated(State%CAMB_PK) .and. s1==transfer_power_var .and. s2==transfer_power_var) then
         PK => State%CAMB_PK
         PK_ix = red_ix
     else
-        call Transfer_GetMatterPowerData(State, MTrans, PKspline, red_ix, var1, var2)
+        call Transfer_GetMatterPowerData(State, MTrans, PKspline, red_ix, s1, s2)
         PK => PKspline
         PK_ix = 1
     end if
