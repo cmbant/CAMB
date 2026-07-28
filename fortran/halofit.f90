@@ -43,6 +43,9 @@
     !AL Sep 19: Propagate errors rather than stop, decrease jmax for integration time out (prevent very slow error)
     !AM Sep 20: Added HMcode-2020 model
     !AM Jan 23: Fixed HMcode-2020 feedback low-k predictions
+    !AL Jul 26: Code optimizations and cleanups
+    !AL Jul 26: Fixed halofit_casarini; PKequal had been a no-op since w_lam/wa_ppf stopped
+    !           being global variables, so it silently returned the takahashi result
     !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
     module NonLinear
@@ -66,6 +69,16 @@
 
     !Number of points used for the (Gaussian-filtered) sigma(R) integral in standard halofit
     integer, parameter :: nint_wint = 3000
+
+    type :: TEquivalent_wCDM
+        !Workspace for PKequal (halofit_casarini); describes a trial model with constant dark
+        !energy equation of state w, but otherwise the same densities as State.
+        class(CAMBdata), pointer :: State => null()
+        real(dl) :: w = -1._dl                  !equation of state of the trial model
+        real(dl) :: a_star = 0._dl, a_z = 0._dl !integration limits (last scattering, redshift of interest)
+        real(dl) :: dlsb = 0._dl                !comoving distance between them in the actual model
+        real(dl) :: tol = 1e-7_dl               !relative tolerance of the distance integrals
+    end type TEquivalent_wCDM
 
     type, extends(TNonLinearModel) :: THalofit
         integer :: halofit_version = halofit_default
@@ -281,6 +294,7 @@
     real(dl) a,plin,pq,ph,pnl,rk
     real(dl) sig,rknl,rneff,rncur,d1,d2
     real(dl) diff,xlogr1,xlogr2,rmid, h2
+    real(dl) w_eff, wa_eff
     real(dl), allocatable :: pk_fac(:)
     integer i
 
@@ -307,13 +321,17 @@
                 CAMB_Pk%nonlin_ratio = 1
                 allocate(pk_fac(nint_wint))
 
+                call Params%DarkEnergy%Effective_w_wa(w_eff, wa_eff)
+                this%w_hf = w_eff
+                this%wa_hf = wa_eff
+
                 do itf = 1, CAMB_Pk%num_z
 
-                    call Params%DarkEnergy%Effective_w_wa(this%w_hf, this%wa_hf)
                     if (this%halofit_version == halofit_casarini) then
                         ! calculate equivalent w-constant models (w_hf,0) for w_lam+wa_ppf(1-a) models
                         ! [Casarini+ (2009,2016)].
-                        call PKequal(State,CAMB_Pk%Redshifts(itf),this%w_hf,this%wa_hf,this%w_hf,this%wa_hf)
+                        call PKequal(State,CAMB_Pk%Redshifts(itf),w_eff,wa_eff,this%w_hf,this%wa_hf)
+                        if (global_error_flag /= 0) return
                     endif
 
                     ! calculate nonlinear wavenumber (rknl), effective spectral index (rneff) and
@@ -3322,33 +3340,106 @@
 
     !!AM End HMcode
 
-    subroutine PKequal(State,redshift,w_lam,wa_ppf,w_hf,wa_hf)
+    subroutine PKequal(State,redshift,w_eff,wa_eff,w_hf,wa_hf)
     !used by halofit_casarini: arXiv:0810.0190, arXiv:1601.07230
-    Type(CAMBdata) :: State
-    real(dl) :: redshift,w_lam,wa_ppf,w_hf,wa_hf
-    real(dl) :: z_star,tau_star,dlsb,dlsb_eq,w_true,wa_true,error
+    !Solve for the constant-w model (w_hf, wa_hf=0) that has the same comoving distance
+    !between redshift and last scattering as the actual dark energy model, keeping all the
+    !other densities (and the present dark energy density) fixed. The Takahashi halofit
+    !fit is then evaluated for that equivalent constant-w model.
+    !w_eff, wa_eff are the effective w0-wa of the actual model, used only to bracket the root.
+    class(CAMBdata), target :: State
+    real(dl), intent(in) :: redshift, w_eff, wa_eff
+    real(dl), intent(out) :: w_hf, wa_hf
+    !Range of constant w searched; the equivalent w need not be accelerating, but for w>=1/3
+    !the dark energy would no longer be subdominant at last scattering
+    real(dl), parameter :: w_search_min = -20._dl, w_search_max = 0._dl
+    integer, parameter :: max_widen = 20
+    type(TEquivalent_wCDM) :: trial
+    real(dl) :: w1, w2, f1, f2, fzero
+    integer :: iflag, i
 
-    z_star=State%ThermoDerivedParams( derived_zstar )
-    tau_star=State%TimeOfz(z_star)
-    dlsb=State%TimeOfz(redshift)-tau_star
-    w_true=w_lam
-    wa_true=wa_ppf
-    wa_ppf=0._dl
-    do
-        z_star=State%ThermoDerivedParams( derived_zstar )
-        tau_star=State%TimeOfz(State%ThermoData%z_star)
-        dlsb_eq=State%TimeOfz(redshift)-tau_star
-        error=1.d0-dlsb_eq/dlsb
-        if (abs(error) <= 1d-7) exit
-        w_lam=w_lam*(1+error)**10.d0
-    enddo
-    w_hf=w_lam
-    wa_hf=0._dl
-    w_lam=w_true
-    wa_ppf=wa_true
-    write(*,*)'at z = ',real(redshift),' equivalent w_const =', real(w_hf)
+    wa_hf = 0._dl
+    w_hf = w_eff
+    trial%State => State
+    trial%a_star = 1/(1 + State%ThermoDerivedParams(derived_zstar))
+    trial%a_z = 1/(1 + redshift)
+    trial%tol = base_tol/1000/exp(State%CP%Accuracy%AccuracyBoost*State%CP%Accuracy%IntTolBoost-1)
+    trial%dlsb = State%DeltaTime(trial%a_star, trial%a_z, trial%tol)
+
+    !distance_error decreases monotonically with w (more dark energy early on means a larger
+    !H and so a smaller distance), so widen the bracket in whichever direction is short
+    w1 = min(w_eff, w_eff + wa_eff) - 0.1_dl
+    w2 = max(w_eff, w_eff + wa_eff) + 0.1_dl
+    f1 = distance_error(trial, w1)
+    f2 = distance_error(trial, w2)
+    do i = 1, max_widen
+        if (f1*f2 <= 0 .or. global_error_flag /= 0) exit
+        if (w1 <= w_search_min .and. w2 >= w_search_max) exit
+        if (f1 < 0) then
+            w1 = max(w_search_min, w1 - max(0.5_dl, w2 - w1))
+            f1 = distance_error(trial, w1)
+        else
+            w2 = min(w_search_max, w2 + max(0.5_dl, w2 - w1))
+            f2 = distance_error(trial, w2)
+        end if
+    end do
+
+    if (global_error_flag == 0) then
+        if (f1*f2 > 0) then
+            call GlobalError('halofit_casarini: no equivalent constant-w model in ' // &
+                'searched range; try another halofit_version', error_unsupported_params)
+        else
+            call brentq(trial, distance_error, w1, w2, 1e-6_dl, w_hf, fzero, iflag, f1, f2)
+            if (iflag /= 0) call GlobalError('halofit_casarini: equivalent constant-w solve failed', &
+                error_unsupported_params)
+        end if
+    end if
+    if (FeedbackLevel > 1) write(*,'(a,f8.3,a,f9.5)') &
+        ' PKequal: at z = ', redshift, ' equivalent w_const = ', w_hf
 
     end subroutine PKequal
+
+    function distance_error(obj, w) result(error)
+    !Fractional difference between the comoving distance from a_z to a_star in a model with
+    !constant dark energy equation of state w and the same distance in the actual model
+    class(*) :: obj
+    real(dl), intent(in) :: w
+    real(dl) :: error
+
+    select type (this => obj)
+    type is (TEquivalent_wCDM)
+        this%w = w
+        error = Integrate_Romberg(this, dtauda_wconst, this%a_star, this%a_z, this%tol)/this%dlsb - 1
+    class default
+        error stop 'distance_error: expected TEquivalent_wCDM'
+    end select
+
+    end function distance_error
+
+    function dtauda_wconst(obj, a) result(dtauda_w)
+    !d tau/d a for a model with constant dark energy equation of state, and all other
+    !densities as in the actual model. Agrees with dtauda to the last bit when w is the
+    !actual (constant) equation of state.
+    class(*) :: obj
+    real(dl), intent(in) :: a
+    real(dl) :: dtauda_w, grhoa2
+
+    select type (this => obj)
+    type is (TEquivalent_wCDM)
+        !8*pi*G*rho*a**4, using 8*pi*G*rho_de*a**4 = grhov*a**(1-3w)
+        grhoa2 = this%State%grho_no_de(a) + this%State%grhov*a**(1 - 3*this%w)
+        if (grhoa2 <= 0) then
+            call GlobalError('halofit_casarini: trial model stops expanding before today', &
+                error_unsupported_params)
+            dtauda_w = 0
+        else
+            dtauda_w = sqrt(3/grhoa2)
+        end if
+    class default
+        error stop 'dtauda_wconst: expected TEquivalent_wCDM'
+    end select
+
+    end function dtauda_wconst
 
 
     end module NonLinear
