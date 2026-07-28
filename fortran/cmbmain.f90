@@ -123,7 +123,7 @@
 
     integer n_source_points ! number of CL source wavenumbers (for use when calculted remaining non-CL transfers)
 
-    procedure(obj_function), private :: dtauda
+    procedure(state_function), private :: dtauda
 
     public cmbmain, TimeSourcesToCl, ClTransferToCl, InitVars, GetTauStart, CAMBmain_Free !InitVars for BAO hack
 

@@ -68,10 +68,9 @@
 
     logical function BOBYQA(this, obj, funk, n, npt, x, xl, xu, rhobeg, rhoend, iprint, maxfun)
     !Main function for bounded minimization
-    use iso_c_binding
     class(TBOBYQA) :: this
     class(*), target :: obj
-    real(dp), external :: funk !a class function f(obj,x) where obj is any class instance
+    procedure(obj_vec_function) :: funk !funk(obj, x), unwrapping obj with select type
     integer, intent(in) :: n, npt, maxfun, iprint
     real(dp), intent(in) :: rhobeg, rhoend
     real(dp), intent(inout) :: x(*)
@@ -123,7 +122,7 @@
     !
     !   Return if the value of NPT is unacceptable.
 
-    call C_F_PROCPOINTER(c_funloc(funk), this%funkk)
+    this%funkk => funk
     this%obj => obj
 
     BOBYQA = .false.
@@ -2318,10 +2317,9 @@
     !  derivative of the quadratic model, beginning with a zero matrix.
 
     logical function newuoa (this, obj, funk, n, npt, x, rhobeg, rhoend, iprint, maxfun)
-    use iso_c_binding
     class(TNEWUOA) this
     class(*), target :: obj
-    real(dp), external :: funk !a class function f(obj,x) where obj is any class instance
+    procedure(obj_vec_function) :: funk !funk(obj, x), unwrapping obj with select type
 
     integer,intent(in)                  :: n       !! the number of variables. must be at least 2.
     integer,intent(in)                  :: npt     !! The number of interpolation conditions.
@@ -2353,7 +2351,7 @@
     ! Partition the working space array, so that different parts of it can be
     ! treated separately by the subroutine that performs the main calculation.
 
-    call C_F_PROCPOINTER(c_funloc(funk), this%funkk)
+    this%funkk => funk
     this%obj => obj
     this%Last_bestfit = huge(1._dp)
 

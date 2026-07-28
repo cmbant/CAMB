@@ -144,7 +144,7 @@
     logical, intent(in), optional :: WantTSpin
     integer :: i, label
     real(dl), dimension(21) :: runpars
-    procedure(obj_function) :: dtauda
+    procedure(state_function) :: dtauda
     real(dl) OmegaB, OmegaC, OmegaK, h2
     real(dl), allocatable :: Hz(:), zrec(:), tmrec(:), xrec(:), tmp(:)
     external CosmoRec_calc_h_cpp

@@ -703,7 +703,7 @@
     real(dl) yprime(EV%nvar), ddelta, delta, adotoa,growth, a
     real(dl), target :: sources(nsources), custom_sources(ncustomsources)
     real, target :: Arr(Transfer_max)
-    procedure(obj_function) :: dtauda
+    procedure(state_function) :: dtauda
 
     w=0
     y=0

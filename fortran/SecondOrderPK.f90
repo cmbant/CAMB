@@ -22,10 +22,6 @@
     procedure :: GetNonLinRatios => TSecondOrderPK_GetNonLinRatios
     procedure :: GetNonLinRatios_All => TSecondOrderPK_GetNonLinRatios_All
     procedure :: GetRatios
-    procedure, private :: Integrand
-    procedure, private :: Integrand_x
-    procedure, private :: Integrand_Log
-    procedure, private :: Integrand_series
     procedure, nopass :: SelfPointer => TSecondOrderPK_SelfPointer
     end type TSecondOrderPK
 
@@ -53,102 +49,115 @@
 
     end subroutine TSecondOrderPK_SelfPointer
 
-    function Integrand_x(this, x) result(int)
-    class(TSecondOrderPK) :: this
+    function Integrand_x(obj, x) result(int)
+    class(*) :: obj
     real(dl), intent(in) :: x
     real(dl) k, int
 
-    associate(this_r => this%r, this_k => this%k)
-        k = sqrt((1+this_r*(this_r-2*x)))*This_k
-        if (k > this%min_store .and. k< this%max_k) then
+    select type (this => obj)
+    class is (TSecondOrderPK)
+        associate(this_r => this%r, this_k => this%k)
+            k = sqrt((1+this_r*(this_r-2*x)))*This_k
+            if (k > this%min_store .and. k< this%max_k) then
 
-            if (this%term==term_dd) then
-                int = ((3*this_r + x*(7-10*this_r*x))/(1+this_r*(this_r-2*x)))**2
-            elseif (this%term==term_vv) then
-                int = ((this_r - x*(7-6*this_r*x))/(1+this_r*(this_r-2*x)))**2
-            elseif (this%term==term_dv) then
-                int = (this_r - x*(7-6*this_r*x))*(-3*this_r - x*(7-10*this_r*x))/(1+this_r*(this_r-2*x))**2
+                if (this%term==term_dd) then
+                    int = ((3*this_r + x*(7-10*this_r*x))/(1+this_r*(this_r-2*x)))**2
+                elseif (this%term==term_vv) then
+                    int = ((this_r - x*(7-6*this_r*x))/(1+this_r*(this_r-2*x)))**2
+                elseif (this%term==term_dv) then
+                    int = (this_r - x*(7-6*this_r*x))*(-3*this_r - x*(7-10*this_r*x))/(1+this_r*(this_r-2*x))**2
 
+                end if
+                int = int * MatterPowerData_k(this%CAMB_PK, k, this%itf)
+            else
+                int = 0
             end if
-            int = int * MatterPowerData_k(this%CAMB_PK, k, this%itf)
-        else
-            int = 0
-        end if
-    end associate
+        end associate
+    class default
+        error stop 'Integrand_x: expected TSecondOrderPK'
+    end select
     end function Integrand_x
 
-    function Integrand_Log(this,p) result(int)
+    function Integrand_Log(obj,p) result(int)
     !p = log r
-    class(TSecondOrderPK) :: this
+    class(*) :: obj
     real(dl), intent(in) ::p
-    real(dl) r,r2,int, int22
-    real(dl) :: xtol = 1.e-4_dl
-    integer i
+    real(dl) r,int
 
     r = exp(p)
-    int = this%Integrand(r)*r
+    int = Integrand(obj,r)*r
     end function Integrand_log
 
-    function Integrand(this,r) result(int)
-    class(TSecondOrderPK) :: this
+    function Integrand(obj,r) result(int)
+    class(*) :: obj
     real(dl), intent(in) ::r
     real(dl) r2,int, int22
     real(dl) :: xtol = 1.e-4_dl
-    integer i
 
-    this%r = r
-    r2=r**2
-    if (this%term==term_dd) then
+    select type (this => obj)
+    class is (TSecondOrderPK)
+        this%r = r
+        r2=r**2
+        if (this%term==term_dd) then
 
-        Int = (12._dl/r2-158._dl+100._dl*r2-42._dl*r2**2)
-        if (abs(r-1._dl) > 1e-6) then
-            Int=Int  +3._dl/r2/r*(r2-1)**3*(7*r2 +2)*log((1._dl+r)/abs(1._dl-r))
+            Int = (12._dl/r2-158._dl+100._dl*r2-42._dl*r2**2)
+            if (abs(r-1._dl) > 1e-6) then
+                Int=Int  +3._dl/r2/r*(r2-1)**3*(7*r2 +2)*log((1._dl+r)/abs(1._dl-r))
+            end if
+            Int=Int*this%pk/252._dl
+
+        elseif (this%term==term_vv) then
+
+            Int = (12._dl/r2-82._dl+4._dl*r2-6._dl*r2**2)
+            if (abs(r-1._dl) > 1e-6) then
+                Int=Int  +3._dl/r2/r*(r2-1)**3*(r2 +2)*log((1._dl+r)/abs(1._dl-r))
+            end if
+            Int=Int*this%pk/84._dl
+
+        elseif (this%term==term_dv) then
+
+            Int = (24._dl/r2-202._dl+56._dl*r2-30._dl*r2**2)
+            if (abs(r-1._dl) > 1e-6) then
+                Int=Int  +3._dl/r2/r*(r2-1)**3*(5*r2 +4)*log((1._dl+r)/abs(1._dl-r))
+            end if
+            Int=Int*this%pk/252._dl
+
         end if
-        Int=Int*this%pk/252._dl
 
-    elseif (this%term==term_vv) then
-
-        Int = (12._dl/r2-82._dl+4._dl*r2-6._dl*r2**2)
-        if (abs(r-1._dl) > 1e-6) then
-            Int=Int  +3._dl/r2/r*(r2-1)**3*(r2 +2)*log((1._dl+r)/abs(1._dl-r))
+        if (r<this%epsilon) then
+            int22=2*Integrate_Romberg(this,Integrand_x,-1._dl,1._dl, xtol)/98._dl
+        else if (r >= 1-this%epsilon .and. r<= 1+this%epsilon) then
+            int22=Integrate_Romberg(this,Integrand_x,-1._dl,(1._dl+r2-this%epsilon**2)/(2._dl*r), xtol)/98._dl
+        else
+            int22=Integrate_Romberg(this,Integrand_x,-1._dl,1._dl, xtol)/98._dl
         end if
-        Int=Int*this%pk/84._dl
 
-    elseif (this%term==term_dv) then
-
-        Int = (24._dl/r2-202._dl+56._dl*r2-30._dl*r2**2)
-        if (abs(r-1._dl) > 1e-6) then
-            Int=Int  +3._dl/r2/r*(r2-1)**3*(5*r2 +4)*log((1._dl+r)/abs(1._dl-r))
-        end if
-        Int=Int*this%pk/252._dl
-
-    end if
-
-    if (r<this%epsilon) then
-        int22=2*Integrate_Romberg(this,Integrand_x,-1._dl,1._dl, xtol)/98._dl
-    else if (r >= 1-this%epsilon .and. r<= 1+this%epsilon) then
-        int22=Integrate_Romberg(this,Integrand_x,-1._dl,(1._dl+r2-this%epsilon**2)/(2._dl*r), xtol)/98._dl
-    else
-        int22=Integrate_Romberg(this,Integrand_x,-1._dl,1._dl, xtol)/98._dl
-    end if
-
-    Int = Int+ int22
-    Int=  Int * this%k**3 * MatterPowerData_k(this%CAMB_PK, r*this%k, this%itf)/(2._dl*const_pi)**2
-    !put in k^3 here to keep answer sensible size
+        Int = Int+ int22
+        Int=  Int * this%k**3 * MatterPowerData_k(this%CAMB_PK, r*this%k, this%itf)/(2._dl*const_pi)**2
+        !put in k^3 here to keep answer sensible size
+    class default
+        error stop 'Integrand: expected TSecondOrderPK'
+    end select
     end function Integrand
 
 
-    function Integrand_series(this, p) result(int)
-    class(TSecondOrderPK) :: this
+    function Integrand_series(obj, p) result(int)
+    class(*) :: obj
     !For low r
     real(dl), intent(in) ::p
     real(dl) :: int, r
-    integer i
 
     r = exp(p)
-    Int=  r* r**2* this%pk* this%k**3 * MatterPowerData_k(this%CAMB_PK, r*this%k, this%itf)/(2._dl*const_pi)**2
-    !put in k^3 here to keep answer sensible size
-    !extra r because change to dr = r dp
+
+    select type (this => obj)
+    class is (TSecondOrderPK)
+        Int=  r* r**2* this%pk* this%k**3 * MatterPowerData_k(this%CAMB_PK, r*this%k, this%itf)/(2._dl*const_pi)**2
+        !put in k^3 here to keep answer sensible size
+        !extra r because change to dr = r dp
+    class default
+        error stop 'Integrand_series: expected TSecondOrderPK'
+    end select
+
     end function Integrand_series
 
     subroutine TSecondOrderPK_GetNonLinRatios(this, State, CAMB_Pk)
@@ -236,26 +245,26 @@
                         if (this%min_store/this%k < r_series) then
                             !Series result
                             if (term==term_vv) then
-                                pnl = 94./245*Integrate_romberg(this,Integrand_series,log(this%min_store/this%k), &
+                                pnl = 94./245*Integrate_Romberg(this,Integrand_series,log(this%min_store/this%k), &
                                     log(r_series),rtol*this%pk,abs_tol=.true.)
                                 pnl = pnl*(1 - 217._dl/141._dl*dPdLogK(i) &
                                     + 49._dl/94._dl*( CAMB_Pk%ddmat(i,it) + dPdLogK(i)**2))
                             else if (term==term_dv) then
-                                pnl = 2558./2205*Integrate_romberg(this,Integrand_series, &
+                                pnl = 2558./2205*Integrate_Romberg(this,Integrand_series, &
                                     log(this%min_store/this%k),log(r_series),rtol*this%pk,abs_tol=.true.)
                                 pnl = pnl*(1 - 819._dl/1279._dl*dPdLogK(i)  &
                                     + 441._dl/2558._dl*( CAMB_Pk%ddmat(i,it) + dPdLogK(i)**2))
                             else if (term==term_dd) then
-                                pnl = 5038./2205*Integrate_romberg(this,Integrand_series,&
+                                pnl = 5038./2205*Integrate_Romberg(this,Integrand_series,&
                                     log(this%min_store/this%k),log(r_series),rtol*this%pk,abs_tol=.true.)
                                 pnl = pnl*(1 - 987._dl/2519._dl*dPdLogK(i) &
                                     + 441._dl/5038._dl*( CAMB_Pk%ddmat(i,it) + dPdLogK(i)**2))
                             end if
                             !plus integral with log spacing
-                            pnl = pnl+Integrate_romberg(this,Integrand_Log,log(r_series), &
+                            pnl = pnl+Integrate_Romberg(this,Integrand_Log,log(r_series), &
                                 log(this%epsilon),rtol*this%pk,20,abs_tol=.true.)
                         else
-                            pnl = Integrate_romberg(this,Integrand_Log,log(this%min_store/this%k), &
+                            pnl = Integrate_Romberg(this,Integrand_Log,log(this%min_store/this%k), &
                                 log(this%epsilon),rtol*this%pk,20,abs_tol=.true.)
                         end if
 
@@ -264,17 +273,17 @@
                     end if
 
 
-                    t1 = Integrate_romberg(this,Integrand,this%epsilon,1-this%epsilon,rtol*this%pk,abs_tol=.true.)
+                    t1 = Integrate_Romberg(this,Integrand,this%epsilon,1-this%epsilon,rtol*this%pk,abs_tol=.true.)
 
                     if (1+this%epsilon*2<this%max_k/this%k) then
-                        t2 = Integrate_romberg(this,Integrand,1+this%epsilon,1+this%epsilon*2,&
+                        t2 = Integrate_Romberg(this,Integrand,1+this%epsilon,1+this%epsilon*2,&
                             rtol*this%pk,abs_tol=.true.) !function falls quite rapidly
-                        t2 =t2+ Integrate_romberg(this,Integrand,1+this%epsilon*2, &
+                        t2 =t2+ Integrate_Romberg(this,Integrand,1+this%epsilon*2, &
                             this%max_k/this%k,rtol*this%pk,abs_tol=.true.)
                     else
-                        t2 = Integrate_romberg(this,Integrand,1+this%epsilon,1+this%epsilon*2,rtol*this%pk,abs_tol=.true.)
+                        t2 = Integrate_Romberg(this,Integrand,1+this%epsilon,1+this%epsilon*2,rtol*this%pk,abs_tol=.true.)
                     end if
-                    t3 = Integrate_romberg(this,Integrand,1-this%epsilon,1+this%epsilon,rtol*this%pk,abs_tol=.true.)
+                    t3 = Integrate_Romberg(this,Integrand,1-this%epsilon,1+this%epsilon,rtol*this%pk,abs_tol=.true.)
                     ! sc = this_K**3/(2*pi**2)
                     ! write (*,'(5e15.5)') this_k,this_PK*sc,pnl*sc, (this_PK+pnl)*sc, pnl/this_PK
 

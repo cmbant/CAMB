@@ -95,7 +95,7 @@
     use MathUtils
     class(TBaseTauWithHeReionization) :: this
     class(TCAMBdata), target :: State
-    procedure(obj_function) :: dtauda
+    procedure(state_function) :: dtauda
 
     select type (State)
     class is (CAMBdata)

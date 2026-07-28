@@ -10,9 +10,11 @@
 
     interface
     FUNCTION obj_function(obj, x)
+    !Callback taking an arbitrary class instance; the callback does select type on obj.
     use precision
     class(*) :: obj
-    real(dl) :: x, obj_function
+    real(dl), intent(in) :: x
+    real(dl) :: obj_function
     END FUNCTION  obj_function
     end interface
 
@@ -650,7 +652,7 @@
 
 
 
-    function Integrate_Romberg(obj, fin, a, b, tol, maxit, minsteps, abs_tol)
+    function Integrate_Romberg(obj, f, a, b, tol, maxit, minsteps, abs_tol)
     !  Rombint returns the integral from a to b of f(obj,x) using Romberg integration.
     !  The method converges provided that f is continuous in (a,b).
     !  f must be real(dl). The first argument is a class instance.
@@ -658,12 +660,10 @@
 
     ! Modified by AL to specify max iterations and minimum number of steps
     ! (min steps useful to stop wrong results on periodic or sharp functions)
-    use iso_c_binding
     use MiscUtils
     use config, only : global_error_flag, print_fortran_warnings
     class(*) :: obj
-    real(dl), external :: fin !a class function
-    procedure(obj_function), pointer :: f
+    procedure(obj_function) :: f !f(obj, x), unwrapping obj with select type
     real(dl), intent(in) :: a,b,tol
     integer, intent(in), optional :: maxit,minsteps
     logical, intent(in), optional :: abs_tol
@@ -674,8 +674,6 @@
     real(dl) :: h, gmax, error, g(MAXJ+1), g0, g1, fourj
     logical abstol
 
-    !convert the class function (un-type-checked) into correct type to call correctly for class argument
-    call C_F_PROCPOINTER(c_funloc(fin), f)
     Integrate_Romberg = -1
     max_it = PresentDefault(25, maxit)
     min_steps = PresentDefault(0, minsteps)
@@ -732,8 +730,7 @@
     end function Integrate_Romberg
 
 
-    subroutine brentq(obj,func,ax,bx,tol,xzero,fzero,iflag,fax,fbx)
-    use iso_c_binding
+    subroutine brentq(obj,f,ax,bx,tol,xzero,fzero,iflag,fax,fbx)
 
     !>
     !  Find a zero of the function \( f(x) \) in the given interval
@@ -756,8 +753,7 @@
     use iso_fortran_env, only: error_unit
     implicit none
     class(*) :: obj
-    real(dl), external :: func !a class function f(obj,x)
-    procedure(obj_function), pointer :: f
+    procedure(obj_function) :: f !f(obj, x), unwrapping obj with select type
 
     real(dl),intent(in)              :: ax      !! left endpoint of initial interval
     real(dl),intent(in)              :: bx      !! right endpoint of initial interval
@@ -770,9 +766,6 @@
     real(dl), parameter :: one = 1._dl, zero = 0._dl, two =2._dl, three = 3._dl
     real(dl),parameter :: eps   = epsilon(one)  !! original code had d1mach(4)
     real(dl) :: a,b,c,d,e,fa,fb,fc,tol1,xm,p,q,r,s
-
-    !convert the class function (un-type-checked) into correct type to call correctly for class argument
-    call C_F_PROCPOINTER(c_funloc(func), f)
 
     tol1 = eps+one
 

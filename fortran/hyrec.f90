@@ -116,7 +116,7 @@
 
     real(dl) function THyrec_dtauda(a) BIND(C, NAME='exported_dtauda')
     real(dl), intent(in) :: a
-    procedure(obj_function) :: dtauda
+    procedure(state_function) :: dtauda
 
     THyrec_dtauda = dtauda(CurrentState,a)
     end function THyrec_dtauda

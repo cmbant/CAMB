@@ -302,7 +302,7 @@
     END FUNCTION  state_function
     end interface
 
-    procedure(obj_function), private :: dtauda
+    procedure(state_function), private :: dtauda
 
     contains
 
@@ -638,7 +638,7 @@
     real(dl), optional, intent(in) :: in_tol
 
     atol = PresentDefault(base_tol/1000/exp(this%CP%Accuracy%AccuracyBoost*this%CP%Accuracy%IntTolBoost-1), in_tol)
-    CAMBdata_DeltaTime = Integrate_Romberg(this, dtauda,a1,a2,atol)
+    CAMBdata_DeltaTime = Integrate_Romberg(this, dtauda_obj,a1,a2,atol)
 
     end function CAMBdata_DeltaTime
 
@@ -1153,57 +1153,96 @@
     endif
     end function invsinfunc
 
-    function dsound_da_exact(this,a)
-    class(CAMBdata) :: this
-    real(dl) dsound_da_exact,a,R,cs
+    function dtauda_obj(obj, a)
+    !obj_function wrapper for passing dtauda to Integrate_Romberg
+    class(*) :: obj
+    real(dl), intent(in) :: a
+    real(dl) :: dtauda_obj
 
-    R = 3*this%grhob*a / (4*this%grhog)
-    cs=1.0d0/sqrt(3*(1+R))
-    dsound_da_exact=dtauda(this,a)*cs
+    select type (this => obj)
+    class is (CAMBdata)
+        dtauda_obj = dtauda(this, a)
+    class default
+        error stop 'dtauda_obj: expected CAMBdata'
+    end select
+
+    end function dtauda_obj
+
+    function dsound_da_exact(obj,a)
+    class(*) :: obj
+    real(dl), intent(in) :: a
+    real(dl) dsound_da_exact,R,cs
+
+    select type (this => obj)
+    class is (CAMBdata)
+        R = 3*this%grhob*a / (4*this%grhog)
+        cs=1.0d0/sqrt(3*(1+R))
+        dsound_da_exact=dtauda(this,a)*cs
+    class default
+        error stop 'dsound_da_exact: expected CAMBdata'
+    end select
 
     end function dsound_da_exact
 
-    function dsound_da_approx(this,a)
+    function dsound_da_approx(obj,a)
     !approximate form used e.g. by CosmoMC for theta
-    class(CAMBdata) :: this
-    real(dl) dsound_da_approx,a,R,cs
+    class(*) :: obj
+    real(dl), intent(in) :: a
+    real(dl) dsound_da_approx,R,cs
 
-    R=3.0d4*a*this%CP%ombh2
-    !          R = 3*grhob*a / (4*grhog) //above is mostly within 0.2% and used for previous consistency
-    cs=1.0d0/sqrt(3*(1+R))
-    dsound_da_approx=dtauda(this,a)*cs
+    select type (this => obj)
+    class is (CAMBdata)
+        R=3.0d4*a*this%CP%ombh2
+        !          R = 3*grhob*a / (4*grhog) //above is mostly within 0.2% and used for previous consistency
+        cs=1.0d0/sqrt(3*(1+R))
+        dsound_da_approx=dtauda(this,a)*cs
+    class default
+        error stop 'dsound_da_approx: expected CAMBdata'
+    end select
 
     end function dsound_da_approx
 
-    function dtda(this,a)
-    class(CAMBdata) :: this
-    real(dl) dtda,a
+    function dtda(obj,a)
+    class(*) :: obj
+    real(dl), intent(in) :: a
+    real(dl) dtda
 
-    dtda= dtauda(this,a)*a
+    dtda= dtauda_obj(obj,a)*a
+
     end function
 
-    function ddamping_da(this, a)
-    class(CAMBdata) :: this
+    function ddamping_da(obj, a)
+    class(*) :: obj
     real(dl) :: ddamping_da
     real(dl), intent(in) :: a
     real(dl) :: R
 
-    R=this%ThermoData%r_drag0*a
-    !ignoring reionisation, not relevant for distance measures
-    ddamping_da = (R**2 + 16*(1+R)/15)/(1+R)**2*dtauda(this,a)*a**2/(this%CP%Recomb%x_e(a)*this%akthom)
+    select type (this => obj)
+    class is (CAMBdata)
+        R=this%ThermoData%r_drag0*a
+        !ignoring reionisation, not relevant for distance measures
+        ddamping_da = (R**2 + 16*(1+R)/15)/(1+R)**2*dtauda(this,a)*a**2/(this%CP%Recomb%x_e(a)*this%akthom)
+    class default
+        error stop 'ddamping_da: expected CAMBdata'
+    end select
 
     end function ddamping_da
 
-    function noreion_doptdepth_dz(this,z)
-    class(CAMBdata) :: this
+    function noreion_doptdepth_dz(obj,z)
+    class(*) :: obj
     real(dl) :: noreion_doptdepth_dz
     real(dl), intent(in) :: z
     real(dl) :: a
 
     a = 1._dl/(1._dl+z)
 
-    !ignoring reionisation, not relevant for distance measures
-    noreion_doptdepth_dz = this%CP%Recomb%x_e(a)*this%akthom*dtauda(this,a)
+    select type (this => obj)
+    class is (CAMBdata)
+        !ignoring reionisation, not relevant for distance measures
+        noreion_doptdepth_dz = this%CP%Recomb%x_e(a)*this%akthom*dtauda(this,a)
+    class default
+        error stop 'noreion_doptdepth_dz: expected CAMBdata'
+    end select
 
     end function noreion_doptdepth_dz
 
@@ -1216,14 +1255,20 @@
 
     end function noreion_optdepth
 
-    function ddragoptdepth_dz(this,z)
-    class(CAMBdata) :: this
+    function ddragoptdepth_dz(obj,z)
+    class(*) :: obj
     real(dl) :: ddragoptdepth_dz
     real(dl), intent(in) :: z
     real(dl) :: a
 
     a = 1._dl/(1._dl+z)
-    ddragoptdepth_dz = noreion_doptdepth_dz(this,z)/this%ThermoData%r_drag0/a
+
+    select type (this => obj)
+    class is (CAMBdata)
+        ddragoptdepth_dz = noreion_doptdepth_dz(this,z)/this%ThermoData%r_drag0/a
+    class default
+        error stop 'ddragoptdepth_dz: expected CAMBdata'
+    end select
 
     end function ddragoptdepth_dz
 
@@ -1236,12 +1281,17 @@
 
     end function dragoptdepth
 
-    function reion_doptdepth_dz(this,z)
-    class(CAMBdata) :: this
+    function reion_doptdepth_dz(obj,z)
+    class(*) :: obj
     real(dl) :: reion_doptdepth_dz
     real(dl), intent(in) :: z
 
-    reion_doptdepth_dz = this%CP%Reion%x_e(z)*this%akthom*dtauda(this,1._dl/(1._dl+z))
+    select type (this => obj)
+    class is (CAMBdata)
+        reion_doptdepth_dz = this%CP%Reion%x_e(z)*this%akthom*dtauda(this,1._dl/(1._dl+z))
+    class default
+        error stop 'reion_doptdepth_dz: expected CAMBdata'
+    end select
 
     end function reion_doptdepth_dz
 
@@ -4223,60 +4273,73 @@
 
     end subroutine Transfer_Get21cmPowerData
 
-    function Get21cmCl_l(Vars,kin)
+    function Get21cmCl_l(obj,kin)
     !Direct integration with j^2/r, etc.
-    class(Cl21cmVars) Vars
-    real(dl) kin, x, jl,ddJl,k, jlm1
+    class(*) :: obj
+    real(dl), intent(in) :: kin
+    real(dl) x, jl,ddJl,k, jlm1
     real(dl) Get21cmCl_l
     real(dl) monopole, vv , vd
     external BJL_EXTERNAL
-    if (Vars%logs) then
-        k = exp(kin)
-    else
-        k = kin
-    end if
-    x= Vars%chi*k
 
-    call MatterPower21cm_k(Vars%PK, k, Vars%itf, monopole, vv, vd)
-    call bjl_external(Vars%l, x, jl)
-    call bjl_external(Vars%l-1, x, jlm1)
-    ddjl = -( 2/x*jlm1-(Vars%l+2)*real(Vars%l+1,dl)/x**2*jl + jl)
+    select type (Vars => obj)
+    class is (Cl21cmVars)
+        if (Vars%logs) then
+            k = exp(kin)
+        else
+            k = kin
+        end if
+        x= Vars%chi*k
 
-    Get21cmCl_l = jl**2*monopole + ddjl**2*vv - 2._dl *ddjl*jl*vd
-    if (.not. Vars%logs)  Get21cmCl_l =  Get21cmCl_l / k
+        call MatterPower21cm_k(Vars%PK, k, Vars%itf, monopole, vv, vd)
+        call bjl_external(Vars%l, x, jl)
+        call bjl_external(Vars%l-1, x, jlm1)
+        ddjl = -( 2/x*jlm1-(Vars%l+2)*real(Vars%l+1,dl)/x**2*jl + jl)
+
+        Get21cmCl_l = jl**2*monopole + ddjl**2*vv - 2._dl *ddjl*jl*vd
+        if (.not. Vars%logs)  Get21cmCl_l =  Get21cmCl_l / k
+    class default
+        error stop 'Get21cmCl_l: expected Cl21cmVars'
+    end select
 
     end function Get21cmCl_l
 
 
-    function Get21cmCl_l_avg(Vars,kin)
+    function Get21cmCl_l_avg(obj,kin)
     !Asymptotic results where we take <cos^2>=1/2 assuming smooth power spectrum
-    class(Cl21cmVars) Vars
-    real(dl) kin, x, jl,ddJl,cross,k
+    class(*) :: obj
+    real(dl), intent(in) :: kin
+    real(dl) x, jl,ddJl,cross,k
     real(dl) Get21cmCl_l_avg
     real(dl) monopole, vv , vd,lphalf
 
-    if (Vars%logs) then
-        k = exp(kin)
-    else
-        k = kin
-    end if
-    x= Vars%chi*k
+    select type (Vars => obj)
+    class is (Cl21cmVars)
+        if (Vars%logs) then
+            k = exp(kin)
+        else
+            k = kin
+        end if
+        x= Vars%chi*k
 
-    call MatterPower21cm_k(Vars%PK, k, Vars%itf, monopole, vv, vd)
-    lphalf=Vars%l+0.5_dl
+        call MatterPower21cm_k(Vars%PK, k, Vars%itf, monopole, vv, vd)
+        lphalf=Vars%l+0.5_dl
 
-    jl = 1/(2*x**2) /sqrt(1-(lphalf/x)**2)
+        jl = 1/(2*x**2) /sqrt(1-(lphalf/x)**2)
 
-    !  ddjl = (4/x**4+1)/(2*x**2)
-    !
-    ddjl = (x**4-2*x**2*lphalf**2+lphalf**4)/(x**4*sqrt(x**2-lphalf**2)*x)/2
+        !  ddjl = (4/x**4+1)/(2*x**2)
+        !
+        ddjl = (x**4-2*x**2*lphalf**2+lphalf**4)/(x**4*sqrt(x**2-lphalf**2)*x)/2
 
-    !    cross = (2-x**2)/(2*x**4)
+        !    cross = (2-x**2)/(2*x**4)
 
-    cross = (-x**2+lphalf**2)/(x**2*sqrt(x**2-lphalf**2)*x)/2
+        cross = (-x**2+lphalf**2)/(x**2*sqrt(x**2-lphalf**2)*x)/2
 
-    Get21cmCl_l_avg = jl*monopole + ddjl*vv - 2._dl *cross*vd
-    if (.not. Vars%logs)  Get21cmCl_l_avg =  Get21cmCl_l_avg / k
+        Get21cmCl_l_avg = jl*monopole + ddjl*vv - 2._dl *cross*vd
+        if (.not. Vars%logs)  Get21cmCl_l_avg =  Get21cmCl_l_avg / k
+    class default
+        error stop 'Get21cmCl_l_avg: expected Cl21cmVars'
+    end select
 
     end function Get21cmCl_l_avg
 

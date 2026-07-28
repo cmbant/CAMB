@@ -617,33 +617,45 @@
 
     end function fde_peak
 
-    function match_zc(this, logm)
-    class(TEarlyQuintessence), intent(inout) :: this
+    function match_zc(obj, logm)
+    class(*) :: obj
     real(dl), intent(in) :: logm
     real(dl) match_zc, zc, fde_zc
 
-    this%m = exp(logm)
-    call this%calc_zc_fde(zc, fde_zc)
-    match_zc = zc - this%zc
+    select type (this => obj)
+    class is (TEarlyQuintessence)
+        this%m = exp(logm)
+        call this%calc_zc_fde(zc, fde_zc)
+        match_zc = zc - this%zc
+    class default
+        error stop 'match_zc: expected TEarlyQuintessence'
+    end select
 
     end function match_zc
 
-    function match_fde(this, logf)
-    class(TEarlyQuintessence), intent(inout) :: this
+    function match_fde(obj, logf)
+    class(*) :: obj
     real(dl), intent(in) :: logf
     real(dl) match_fde, zc, fde_zc
 
-    this%f = exp(logf)
-    call this%calc_zc_fde(zc, fde_zc)
-    match_fde = fde_zc - this%fde_zc
+    select type (this => obj)
+    class is (TEarlyQuintessence)
+        this%f = exp(logf)
+        call this%calc_zc_fde(zc, fde_zc)
+        match_fde = fde_zc - this%fde_zc
+    class default
+        error stop 'match_fde: expected TEarlyQuintessence'
+    end select
 
     end function match_fde
 
-    function match_fde_zc(this, x)
-    class(TEarlyQuintessence) :: this
+    function match_fde_zc(obj, x)
+    class(*), intent(inout) :: obj
     real(dl), intent(in) :: x(:)
     real(dl) match_fde_zc, zc, fde_zc
 
+    select type (this => obj)
+    class is (TEarlyQuintessence)
     this%f = exp(x(1))
     this%m = exp(x(2))
     call this%calc_zc_fde(zc, fde_zc)
@@ -652,6 +664,9 @@
     if (this%DebugLevel>1) then
         write(*,*) 'search f, m, zc, fde_zc, chi2', this%f, this%m, zc, fde_zc, match_fde_zc
     end if
+    class default
+        error stop 'match_fde_zc: expected TEarlyQuintessence'
+    end select
 
     end function match_fde_zc
 

@@ -203,7 +203,7 @@
 
     function phi_derivative_root(obj, chi) result(dphi)
     class(*) :: obj
-    real(dl) :: chi
+    real(dl), intent(in) :: chi
     real(dl) :: dphi
 
     select type(params => obj)

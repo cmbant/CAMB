@@ -227,13 +227,18 @@
 
     end subroutine ThermalNuBackground_rho
 
-    pure function rho_err(this, nu_mass)
-    class(TThermalNuBackground), intent(in) :: this
+    function rho_err(obj, nu_mass)
+    class(*) :: obj
     real(dl), intent(in) :: nu_mass
     real(dl) rho_err, rhonu
 
-    call this%rho(nu_mass, rhonu)
-    rho_err = rhonu - this%target_rho
+    select type (this => obj)
+    class is (TThermalNuBackground)
+        call this%rho(nu_mass, rhonu)
+        rho_err = rhonu - this%target_rho
+    class default
+        error stop 'rho_err: expected TThermalNuBackground'
+    end select
 
     end function rho_err
 
