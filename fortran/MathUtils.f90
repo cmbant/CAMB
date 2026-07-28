@@ -2,7 +2,11 @@
     use precision
     implicit none
 
+    ! Minimum work sizes below which OpenMP overhead outweighs the parallel speed-up.
     integer, parameter, private :: MATHUTILS_OMP_VECTOR_THRESHOLD = 256
+    integer, parameter, private :: MATHUTILS_OMP_CHI2_THRESHOLD = 512
+    integer, parameter, private :: MATHUTILS_OMP_GAUSS_THRESHOLD = 128
+    integer, parameter, private :: MATHUTILS_OMP_LEGENDRE_THRESHOLD = 8
 
     interface
     FUNCTION obj_function(obj, x)
@@ -18,7 +22,10 @@
     ! Fast real Airy Ai(x), optimized for < 5e-8 absolute error.
     !
     ! Ai-only version of airy_fast.  Uses the same branch cuts, Ai polynomial
-    ! coefficients, and simplified asymptotic fallbacks.
+    ! coefficients, and simplified asymptotic fallbacks.  The coefficients are
+    ! duplicated verbatim rather than shared, to keep both routines branch-free
+    ! of any present(aip) test on the hot path; a refit must update airy_fast
+    ! too.  camb.tests.mathutils_test checks the two agree to round-off.
     !
     ! Maximum absolute Ai error is about 4.9e-08 on [-6.5,6.5].  On [-50,-6.5) and
     ! (6.5,25.77], the corresponding asymptotic-branch max absolute Ai errors
@@ -189,6 +196,8 @@
     ! Fast real Airy Ai(x) and Ai'(x)
     ! Optimized for < 5e-8 absolute error on Ai and < 7e-8 on Ai'.
     !
+    ! The Ai branch cuts and polynomial coefficients are shared verbatim with
+    ! airy_ai_fast; keep the two in step when refitting.
     !
     ! Relative Airy errors can be large near Airy zeros, so absolute error
     ! is the intended accuracy diagnostic for this routine.
@@ -204,11 +213,10 @@
     ! asymptotic form.  They are not intended to be moved much closer to the
     ! origin without refitting.
 
-    ! Asymptotic-branch accuracy, measured against the high-accuracy Ai
-    ! routine on [-50,-6.5) and (6.5,25.77], has max absolute Ai errors about
-    ! 2.3e-8 on the negative side and 7.9e-10 on the positive side.  Checked
-    ! against scipy.special.airy, the corresponding max absolute Ai' errors
-    ! are about 5.9e-8 and 2.4e-9.  The positive decaying branch has worst
+    ! Asymptotic-branch accuracy, measured against scipy.special.airy on
+    ! [-50,-6.5) and (6.5,25.77], has max absolute Ai errors about 2.3e-8 on
+    ! the negative side and 7.9e-10 on the positive side, and max absolute Ai'
+    ! errors about 5.9e-8 and 2.4e-9.  The positive decaying branch has worst
     ! relative errors about 2.9e-4 for Ai and 3.3e-4 for Ai' before the
     ! x > 25.77 zero cutoff; beyond the cutoff relative error is 100%, but
     ! absolute error is below 1e-38 at entry.
@@ -471,15 +479,11 @@
     real(dl), intent(in) :: x(n)
     integer :: i
 
-    if (n >= MATHUTILS_OMP_VECTOR_THRESHOLD) then
-        !$OMP parallel do default(shared) private(i) schedule(static)
-        do i = 1, n
-            ai(i) = airy_ai_fast(x(i))
-        end do
-        !$OMP end parallel do
-    else
-        ai = airy_ai_fast(x)
-    end if
+    !$OMP parallel do default(shared) private(i) schedule(static) &
+    !$OMP& if(n >= MATHUTILS_OMP_VECTOR_THRESHOLD)
+    do i = 1, n
+        ai(i) = airy_ai_fast(x(i))
+    end do
 
     end subroutine AiryAiFastArray
 
@@ -492,15 +496,11 @@
     real(dl), intent(in) :: x(n)
     integer :: i
 
-    if (n >= MATHUTILS_OMP_VECTOR_THRESHOLD) then
-        !$OMP parallel do default(shared) private(i) schedule(static)
-        do i = 1, n
-            call airy_fast(x(i), ai(i), aip(i))
-        end do
-        !$OMP end parallel do
-    else
-        call airy_fast(x, ai, aip)
-    end if
+    !$OMP parallel do default(shared) private(i) schedule(static) &
+    !$OMP& if(n >= MATHUTILS_OMP_VECTOR_THRESHOLD)
+    do i = 1, n
+        call airy_fast(x(i), ai(i), aip(i))
+    end do
 
     end subroutine AiryFastArray
 
@@ -684,12 +684,14 @@
     gmax=h*(f(obj,a)+f(obj,b))
     if (global_error_flag /=0) return
     g(1)=gmax
+    g0=gmax !fallback if max_it is too small for any refinement step
     nint=1
     error=1.0d20
     i=0
     do
         i=i+1
-        if (i > max_it.or.(i > 5.and.abs(error) < tol) .and. nint > min_steps) exit
+        !note min_steps only restricts the converged exit, not the max_it exit
+        if (i > max_it .or. ((i > 5 .and. abs(error) < tol) .and. nint > min_steps)) exit
         !  Calculate next trapezoidal rule approximation to integral.
         g0=0._dl
         do k=1,nint
@@ -961,14 +963,16 @@
 
     integer  :: i, j, k, m, iter
     real(dl) :: p1, p2, p3, pp, z, dz, wi
+    logical  :: failed
 
     if (n < 1) error stop "Gauss_Legendre: n must be positive"
 
     m = (n + 1) / 2
+    failed = .false.
 
-!$omp parallel do default(none) schedule(static) if(n >= 128) &
+!$omp parallel do default(none) schedule(static) if(n >= MATHUTILS_OMP_GAUSS_THRESHOLD) &
 !$omp& private(i, j, k, iter, p1, p2, p3, pp, z, dz, wi) &
-!$omp& shared(x, w, n, m)
+!$omp& shared(x, w, n, m, failed)
     do i = 1, m
 
         z = cos(const_pi * (real(i, dl) - 0.25_dl) / &
@@ -991,7 +995,11 @@
             if (abs(dz) <= tol) exit
         end do
 
-        if (iter > max_iter) error stop "Gauss_Legendre: Newton iteration failed"
+        !cannot error stop inside the parallel region, so flag and stop after it
+        if (iter > max_iter) then
+!$omp atomic write
+            failed = .true.
+        end if
 
         k  = n + 1 - i
         wi = 2._dl / ((1._dl - z*z) * pp*pp)
@@ -1004,6 +1012,8 @@
         if (i == k) x(i) = 0._dl
     end do
 !$omp end parallel do
+
+    if (failed) error stop "Gauss_Legendre: Newton iteration failed"
 
     end subroutine Gauss_Legendre
 
@@ -1021,7 +1031,7 @@
     integer :: i, l
     real(dl) :: xi, pmm, pmmp1, pl, rsin2
 
-    !$omp parallel do default(shared) schedule(static) if(npoints >= 8) &
+    !$omp parallel do default(shared) schedule(static) if(npoints >= MATHUTILS_OMP_LEGENDRE_THRESHOLD) &
     !$omp& private(i, l, xi, pmm, pmmp1, pl, rsin2)
     do i = 1, npoints
         xi = x(i)
@@ -1079,8 +1089,8 @@
     m1 = -(m2+m3)
 
     ! check relative magnitude of l and m values
-    if (l2 < abs(m2) .or. l3 < m3) then
-        call MpiStop('GetThreeJs: invalid input (l2 < |m2| or l3 < m3)')
+    if (l2 < abs(m2) .or. l3 < abs(m3)) then
+        call MpiStop('GetThreeJs: invalid input (l2 < |m2| or l3 < |m3|)')
         return
     end if
 
@@ -1280,18 +1290,12 @@
     real(dl) ztemp, chi2
 
     chi2 = 0
-    if (n>=512) then
-        !$OMP parallel do private(j,ztemp) reduction(+:chi2) schedule(static,16)
-        do  j = 1, n
-            ztemp= dot_product(Y(j+1:n), c_inv(j+1:n, j))
-            chi2=chi2+ (ztemp*2 +c_inv(j, j)*Y(j))*Y(j)
-        end do
-    else
-        do  j = 1, n
-            ztemp= dot_product(Y(j+1:n), c_inv(j+1:n, j))
-            chi2=chi2+ (ztemp*2 +c_inv(j, j)*Y(j))*Y(j)
-        end do
-    end if
+    !$OMP parallel do private(j,ztemp) reduction(+:chi2) schedule(static,16) &
+    !$OMP& if(n >= MATHUTILS_OMP_CHI2_THRESHOLD)
+    do  j = 1, n
+        ztemp= dot_product(Y(j+1:n), c_inv(j+1:n, j))
+        chi2=chi2+ (ztemp*2 +c_inv(j, j)*Y(j))*Y(j)
+    end do
 
     end function GetChiSquared
 
@@ -1301,25 +1305,31 @@
     integer, intent(in) :: lmax, lmax_w, n
     real(dl), intent(in) :: W(0:lmax_w,n)
     logical, intent(in) :: dopol
-    real(dl), intent(out) :: M(0:lmax,0:lmax, n)
-    integer l1, l2, lplus, lminus, thread_ix, ix
+    !n is the number of input mask weight spectra; when dopol the output has the
+    !four TT, TE, EE, EB couplings whatever the number of masks (n is 1 or 3)
+    real(dl), intent(out) :: M(0:lmax,0:lmax, merge(4, n, dopol))
+    integer l1, l2, lplus, lminus, thread_ix, ix, nthread
     real(dl), allocatable :: threejj0(:,:), threejj2(:,:)
 
-    thread_ix = 1
-    !$ thread_ix = OMP_GET_MAX_THREADS()
+    nthread = 1
+    !$ nthread = OMP_GET_MAX_THREADS()
 
-    allocate(threejj0(0:2*lmax,thread_ix))
+    allocate(threejj0(0:2*lmax,nthread))
     if (dopol) then
-        allocate(threejj2(0:2*lmax,thread_ix))
+        allocate(threejj2(0:2*lmax,nthread))
     end if
+
+    !entries left untouched below (l<2 for polarization, or |l1-l2| > lmax_w) are zero
+    M = 0
 
     !$OMP parallel do private(l1,l2,lminus,lplus,thread_ix,ix), schedule(dynamic)
     do l1 = 0, lmax
         thread_ix =1
         !$ thread_ix = OMP_GET_THREAD_NUM()+1
         do l2 = 0, l1
-            lplus =  min(lmax_w,l1+l2)
             lminus = abs(l1-l2)
+            if (lminus > lmax_w) cycle !no overlap with the mask power, coupling is zero
+            lplus =  min(lmax_w,l1+l2)
 
             call GetThreeJs(threejj0(lminus:,thread_ix),l1,l2,0,0)
 
@@ -1332,13 +1342,15 @@
                 M(l2,l1,3) = sum(W(lminus:lplus:2,3)*threejj2(lminus:lplus:2,thread_ix)**2) !EE
                 M(l2,l1,4) = sum(W(lminus+1:lplus:2,3)*threejj2(lminus+1:lplus:2,thread_ix)**2) !EB
             end if
+            !the m=0 3j vanishes unless l1+l2+l is even, and lminus has the parity of
+            !l1+l2, so only every other entry from lminus is non-zero
             if (n>1 .and. .not. dopol) then
-                threejj0(lminus:lplus,thread_ix) = threejj0(lminus:lplus,thread_ix)**2
+                threejj0(lminus:lplus:2,thread_ix) = threejj0(lminus:lplus:2,thread_ix)**2
                 do ix=1,n
-                    M(l2,l1,ix) = sum(W(lminus:lplus,ix)* threejj0(lminus:lplus,thread_ix))
+                    M(l2,l1,ix) = sum(W(lminus:lplus:2,ix)* threejj0(lminus:lplus:2,thread_ix))
                 end do
             else
-                M(l2,l1,1) = sum(W(lminus:lplus,1)* threejj0(lminus:lplus,thread_ix)**2)
+                M(l2,l1,1) = sum(W(lminus:lplus:2,1)* threejj0(lminus:lplus:2,thread_ix)**2)
             end if
         end do
     end do
