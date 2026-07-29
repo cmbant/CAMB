@@ -3,7 +3,7 @@ import logging
 import numbers
 import os
 from ctypes import POINTER, byref, c_bool, c_double
-from inspect import FullArgSpec, getfullargspec
+from inspect import Parameter, signature
 
 from . import constants, model, recombination
 from ._config import config
@@ -17,15 +17,20 @@ from .results import MatterTransferData as MatterTransferData
 logger = logging.getLogger(__name__)
 
 _debug_params = False
-_setter_spec_cache: dict[object, FullArgSpec] = {}
+_setter_spec_cache: dict[object, dict[str, Parameter]] = {}
 
 
-def _get_setter_spec(setter) -> FullArgSpec:
+def _get_setter_spec(setter) -> dict[str, Parameter]:
     func = getattr(setter, "__func__", setter)
     try:
         return _setter_spec_cache[func]
     except KeyError:
-        spec = getfullargspec(func)
+        spec = {
+            name: parameter
+            for name, parameter in signature(func).parameters.items()
+            if parameter.kind in (Parameter.POSITIONAL_OR_KEYWORD, Parameter.KEYWORD_ONLY)
+            and name not in {"self", "cls"}
+        }
         _setter_spec_cache[func] = spec
         return spec
 
@@ -188,7 +193,7 @@ def set_params(cp=None, verbose=False, **params):
     used_params = set()
 
     def do_set(setter):
-        kwargs = {kk: params[kk] for kk in _get_setter_spec(setter).args[1:] if kk in params}
+        kwargs = {kk: params[kk] for kk in _get_setter_spec(setter) if kk in params}
         used_params.update(kwargs)
         if kwargs:
             if verbose:
@@ -248,12 +253,12 @@ def get_valid_numerical_params(transfer_only=False, **class_names):
 
     def extract_params(set_func):
         pars = _get_setter_spec(set_func)
-        for arg in pars.args[1 : len(pars.args) - len(pars.defaults or [])]:
-            params.add(arg)
-        if pars.defaults:
-            for arg, v in zip(pars.args[len(pars.args) - len(pars.defaults) :], pars.defaults):
-                if (isinstance(v, numbers.Number) and not isinstance(v, bool) or v is None) and "version" not in arg:
-                    params.add(arg)
+        for arg, parameter in pars.items():
+            v = parameter.default
+            if (
+                v is Parameter.empty or isinstance(v, numbers.Number) and not isinstance(v, bool) or v is None
+            ) and "version" not in arg:
+                params.add(arg)
 
     extract_params(cp.DarkEnergy.set_params)
     extract_params(cp.Reion.set_extra_params)
