@@ -1,6 +1,6 @@
 ---
 name: isolate-accuracy-fix
-description: "Isolate minimal, physically-scoped accuracy fixes in CAMB. Triages distinct failures, addresses the one the user asked for (or asks which, if unspecified and several exist), delegates diagnosis to an executing sensitivity probe, runs the acceptance matrix on rebuilt code, then delegates a final audit to a read-only checker, and writes a changelog entry per fix. Retains sole patch authority. Use for run_tests.py failures, check_accuracy instability, step-size/switch sensitivity, low-k or recombination-era regressions, and accuracy fixes that must preserve runtime."
+description: "Triage unresolved or multi-cause CAMB accuracy failures where the failing mechanism has not yet been isolated. Use for ambiguous run_tests.py failures, check_accuracy instability, or unexplained step-size and switch sensitivity. Not for well-scoped bug fixes or already-explained changes unless requested."
 argument-hint: "Describe the failing test, ini file, output mismatch, or accuracy-sensitive regime to isolate."
 user-invocable: true
 ---
