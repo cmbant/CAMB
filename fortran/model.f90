@@ -199,6 +199,7 @@
     procedure, nopass :: SelfPointer => CAMBparams_SelfPointer
     procedure :: Replace => CAMBParams_Replace
     procedure :: SetNeutrinoHierarchy => CAMBparams_SetNeutrinoHierarchy
+    procedure :: SetNeutrinoMasses => CAMBparams_SetNeutrinoMasses
     procedure :: Validate => CAMBparams_Validate
     procedure :: PrimordialPower => CAMBparams_PrimordialPower
     procedure :: SetCustomSourcesFunc => CAMBparams_SetCustomSourcesFunc
@@ -240,7 +241,22 @@
     end select
     end subroutine CAMBparams_Replace
 
-    subroutine CAMBparams_SetNeutrinoHierarchy(this, omnuh2, omnuh2_sterile, nnu, neutrino_hierarchy, num_massive_neutrinos)
+    subroutine CAMBparams_SetNeutrinoHierarchy(this, omnuh2, omnuh2_sterile, nnu, neutrino_hierarchy, &
+        num_massive_neutrinos, standard_neutrino_neff)
+    use MiscUtils
+    class(CAMBparams), intent(inout) :: this
+    real(dl), intent(in) :: omnuh2, omnuh2_sterile, nnu
+    integer, intent(in) :: neutrino_hierarchy
+    integer, intent(in), optional :: num_massive_neutrinos
+    real(dl), intent(in), optional :: standard_neutrino_neff !N_eff of standard cosmology, default 3.044
+
+    call CAMBparams_SetNeutrinoHierarchyBase(this, omnuh2, omnuh2_sterile, nnu, &
+        PresentDefault(default_nnu, standard_neutrino_neff), neutrino_hierarchy, num_massive_neutrinos)
+
+    end subroutine CAMBparams_SetNeutrinoHierarchy
+
+    subroutine CAMBparams_SetNeutrinoHierarchyBase(this, omnuh2, omnuh2_sterile, nnu, standard_neutrino_neff, &
+        neutrino_hierarchy, num_massive_neutrinos)
     !Set neutrino hierarchy in the approximate two-eigenstate model (treating two as exactly degenerate,
     !and assuming non-relativistic),
     !or use degenerate mass approximation.
@@ -249,22 +265,23 @@
     use MathUtils
     use constants
     class(CAMBparams), intent(inout) :: this
-    real(dl), intent(in) :: omnuh2, omnuh2_sterile, nnu
+    real(dl), intent(in) :: omnuh2, omnuh2_sterile, nnu, standard_neutrino_neff
     integer, intent(in) :: neutrino_hierarchy
     integer, intent(in), optional :: num_massive_neutrinos  !for degenerate hierarchy
     real(dl) normal_frac, m3, neff_massive_standard, mnu, m1
 
     this%omnuh2 = omnuh2
+    this%Num_Nu_Massive = 0
+    this%Nu_mass_eigenstates = 0
+    this%share_delta_neff = .false.
     if (omnuh2==0) then
         this%Num_Nu_Massless = nnu
         return
     end if
-    this%Nu_mass_eigenstates=0
-    this%share_delta_neff = .false.
     if (omnuh2 > omnuh2_sterile) then
         normal_frac =  (omnuh2-omnuh2_sterile)/omnuh2
         if (neutrino_hierarchy == neutrino_hierarchy_degenerate) then
-            neff_massive_standard = num_massive_neutrinos*default_nnu/3
+            neff_massive_standard = num_massive_neutrinos*standard_neutrino_neff/3
             this%Num_Nu_Massive = num_massive_neutrinos
             this%Nu_mass_eigenstates=this%Nu_mass_eigenstates+1
             if (nnu > neff_massive_standard) then
@@ -278,7 +295,8 @@
             this%Nu_mass_fractions(this%Nu_mass_eigenstates) = normal_frac
         else
             !Use normal or inverted hierarchy, approximated as two eigenstates in physical regime, 1 at minimum and below
-            mnu = (omnuh2 - omnuh2_sterile)*neutrino_mass_fac*(COBE_CMBTemp/this%TCMB)**3/ (default_nnu / 3) ** 0.75_dl
+            mnu = (omnuh2 - omnuh2_sterile)*neutrino_mass_fac*(COBE_CMBTemp/this%TCMB)**3/ &
+                (standard_neutrino_neff / 3) ** 0.75_dl
             if (neutrino_hierarchy == neutrino_hierarchy_normal) then
                 if (mnu > mnu_min_normal + 1e-4_dl) then
                     !Two eigenstate approximation.
@@ -291,7 +309,8 @@
             else if (neutrino_hierarchy == neutrino_hierarchy_inverted) then
                 if (mnu > sqrt(delta_mnu31)+sqrt(delta_mnu31+delta_mnu21) + 1e-4_dl ) then
                     !Valid case, two eigenstates
-                    m1=Newton_Raphson2(sqrt(delta_mnu31)+1e-6_dl, mnu, sum_mnu_for_m1, mnu, -1._dl)
+                    m3 = Newton_Raphson2(0._dl, mnu, sum_mnu_for_m3, mnu, 0._dl)
+                    m1 = sqrt(m3**2 + delta_mnu31)
                     this%Num_Nu_Massive = 3
                 else
                     !Unphysical low mass case: take one (2-degenerate) eigenstate
@@ -300,7 +319,7 @@
             else
                 error stop 'Unknown neutrino_hierarchy setting'
             end if
-            neff_massive_standard = this%Num_Nu_Massive *default_nnu/3
+            neff_massive_standard = this%Num_Nu_Massive *standard_neutrino_neff/3
             if (nnu > neff_massive_standard) then
                 this%Num_Nu_Massless = nnu - neff_massive_standard
             else
@@ -328,15 +347,58 @@
         neff_massive_standard=0
     end if
     if (omnuh2_sterile>0) then
-        if (nnu<default_nnu) call MpiStop('nnu < 3.044 with massive sterile')
-        this%Num_Nu_Massless = default_nnu - neff_massive_standard
+        if (nnu<standard_neutrino_neff) call MpiStop('nnu < standard_neutrino_neff with massive sterile')
+        this%Num_Nu_Massless = standard_neutrino_neff - neff_massive_standard
         this%Num_Nu_Massive=this%Num_Nu_Massive+1
         this%Nu_mass_eigenstates=this%Nu_mass_eigenstates+1
         this%Nu_mass_numbers(this%Nu_mass_eigenstates) = 1
-        this%Nu_mass_degeneracies(this%Nu_mass_eigenstates) = max(1d-6,nnu - default_nnu)
+        this%Nu_mass_degeneracies(this%Nu_mass_eigenstates) = max(1d-6,nnu - standard_neutrino_neff)
         this%Nu_mass_fractions(this%Nu_mass_eigenstates) = omnuh2_sterile/omnuh2
     end if
-    end subroutine CAMBparams_SetNeutrinoHierarchy
+    end subroutine CAMBparams_SetNeutrinoHierarchyBase
+
+    subroutine CAMBparams_SetNeutrinoMasses(this, mnu, omnuh2_sterile, nnu, neutrino_hierarchy, &
+        num_massive_neutrinos, standard_neutrino_neff)
+    !As SetNeutrinoHierarchy, but from the physical active-neutrino mass sum mnu (eV) rather than omnuh2.
+    !Omega_nu h^2 then includes the finite-temperature contribution to the density today, so this is the
+    !forward counterpart of find_nu_mass_for_rho and mnu -> omnuh2 -> nu_masses round trips exactly.
+    use MiscUtils
+    class(CAMBparams), intent(inout) :: this
+    real(dl), intent(in) :: mnu, omnuh2_sterile, nnu
+    integer, intent(in) :: neutrino_hierarchy
+    integer, intent(in), optional :: num_massive_neutrinos
+    real(dl), intent(in), optional :: standard_neutrino_neff !N_eff of standard cosmology, default 3.044
+    real(dl) neff_standard, omnuh2_active_nr, omnuh2_total_nr, active_frac, mass
+    real(dl) omnuh2_eigenstate(max_nu)
+    integer active_eigenstates, nu_i
+
+    neff_standard = PresentDefault(default_nnu, standard_neutrino_neff)
+
+    !Configure the hierarchy using the non-relativistic density proxy. SetNeutrinoHierarchyBase inverts
+    !the proxy exactly, so the mass fractions it sets give the requested physical mass splitting.
+    omnuh2_active_nr = mnu/neutrino_mass_fac*(this%TCMB/COBE_CMBTemp)**3*(neff_standard/3)**0.75_dl
+    omnuh2_total_nr = omnuh2_active_nr + omnuh2_sterile
+    call CAMBparams_SetNeutrinoHierarchyBase(this, omnuh2_total_nr, omnuh2_sterile, nnu, neff_standard, &
+        neutrino_hierarchy, num_massive_neutrinos)
+    if (omnuh2_active_nr == 0) return !no massive active neutrinos, nothing to correct
+
+    !Replace the proxy densities by the actual thermal densities of each eigenstate mass
+    active_eigenstates = this%Nu_mass_eigenstates
+    if (omnuh2_sterile > 0) active_eigenstates = active_eigenstates - 1
+    active_frac = omnuh2_active_nr/omnuh2_total_nr
+
+    do nu_i = 1, active_eigenstates
+        mass = mnu*this%Nu_mass_fractions(nu_i)/active_frac/this%Nu_mass_numbers(nu_i)
+        omnuh2_eigenstate(nu_i) = ThermalNuBackground%omnuh2_from_mass(mass, &
+            this%Nu_mass_degeneracies(nu_i), real(this%Nu_mass_numbers(nu_i), dl), this%TCMB)
+    end do
+
+    !omnuh2_sterile keeps its Planck-paper definition (meffsterile/neutrino_mass_fac), so is not corrected
+    this%omnuh2 = sum(omnuh2_eigenstate(1:active_eigenstates)) + omnuh2_sterile
+    this%Nu_mass_fractions(1:active_eigenstates) = omnuh2_eigenstate(1:active_eigenstates)/this%omnuh2
+    if (omnuh2_sterile > 0) this%Nu_mass_fractions(this%Nu_mass_eigenstates) = omnuh2_sterile/this%omnuh2
+
+    end subroutine CAMBparams_SetNeutrinoMasses
 
     real(dl) function CAMBparams_N_eff(this)
     class(CAMBparams), intent(in) :: this

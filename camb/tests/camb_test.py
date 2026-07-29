@@ -174,6 +174,7 @@ class CambTest(unittest.TestCase):
                 "cs2",
                 "H0",
                 "mnu",
+                "omnuh2_active",
                 "Alens",
                 "TCMB",
                 "ns",
@@ -458,7 +459,7 @@ class CambTest(unittest.TestCase):
         self.assertEqual(pars.num_nu_massive, 3)
         self.assertEqual(pars.nu_mass_numbers[1], 1)
         self.assertEqual(pars.nu_mass_eigenstates, 2)
-        self.assertAlmostEqual(pars.nu_mass_fractions[0], 0.915197, places=4)
+        self.assertAlmostEqual(pars.nu_mass_fractions[0], 0.915040, places=4)
 
         pars = new_def_params()
         pars.set_cosmology(H0=68.5, ombh2=0.022, omch2=0.122, YHe=0.2453, mnu=0.07, omk=0, zrei=zre)
@@ -486,6 +487,95 @@ class CambTest(unittest.TestCase):
         d = data.conformal_time_a1_a2(0, 0.5) + data.conformal_time_a1_a2(0.5, 1)
         self.assertAlmostEqual(d, data.conformal_time_a1_a2(0, 1))
         self.assertAlmostEqual(d, sum(data.conformal_time_a1_a2([0, 0.5], [0.5, 1])))
+
+    def testNuMassRoundTrip(self):
+        def physical_mass_sum(pars, data, eigenstates=None):
+            total = 0
+            for i in range(eigenstates if eigenstates is not None else pars.nu_mass_eigenstates):
+                temperature = (
+                    constants.k_B
+                    / constants.eV
+                    * (8 * data.grhor / data.grhog / 7) ** 0.25
+                    * pars.TCMB
+                    * (pars.nu_mass_degeneracies[i] / pars.nu_mass_numbers[i]) ** 0.25
+                )
+                total += pars.nu_mass_numbers[i] * temperature * data.nu_masses[i]
+            return total
+
+        # (hierarchy, num_massive_neutrinos, mnu, nnu, standard_neutrino_neff); the low mnu values
+        # exercise the low-mass series, direct-solve and perturbative branches of find_nu_mass_for_rho
+        cases = [
+            ("degenerate", 1, 0.01, constants.default_nnu, constants.default_nnu),
+            ("degenerate", 2, 0.01, constants.default_nnu, constants.default_nnu),
+            ("degenerate", 1, 1e-4, constants.default_nnu, constants.default_nnu),
+            ("degenerate", 2, 1e-4, constants.default_nnu, constants.default_nnu),
+            ("degenerate", 3, 1e-4, constants.default_nnu, constants.default_nnu),
+            ("degenerate", 3, 1e-3, constants.default_nnu, constants.default_nnu),
+            ("degenerate", 3, 3e-3, constants.default_nnu, constants.default_nnu),
+            ("degenerate", 3, 0.01, constants.default_nnu, constants.default_nnu),
+            ("degenerate", 3, 0.12, constants.default_nnu, constants.default_nnu),
+            ("degenerate", 3, 5.0, constants.default_nnu, constants.default_nnu),
+            ("degenerate", 1, 0.06, 2.0, constants.default_nnu),
+            ("normal", 3, 0.061, constants.default_nnu, constants.default_nnu),
+            ("normal", 3, 0.12, constants.default_nnu, constants.default_nnu),
+            ("normal", 3, 0.1, 3.0, constants.default_nnu),
+            ("inverted", 3, 0.101, constants.default_nnu, constants.default_nnu),
+            ("inverted", 3, 0.12, constants.default_nnu, constants.default_nnu),
+            ("degenerate", 1, 0.06, 3.046, 3.046),
+            ("normal", 3, 0.1, 3.2, 3.1),
+        ]
+        for hierarchy, num_massive, mnu, nnu, standard_neff in cases:
+            with self.subTest(hierarchy=hierarchy, num_massive=num_massive, mnu=mnu, nnu=nnu):
+                settings = {
+                    "H0": 67.5,
+                    "ombh2": 0.022,
+                    "omch2": 0.122,
+                    "neutrino_hierarchy": hierarchy,
+                    "num_massive_neutrinos": num_massive,
+                    "nnu": nnu,
+                    "standard_neutrino_neff": standard_neff,
+                }
+                pars = camb.set_params(mnu=mnu, **settings)
+                data = camb.get_background(pars, no_thermo=True)
+                # find_nu_mass_for_rho is least accurate at low mass, but absolute mass errors this
+                # far below 0.001 eV have no cosmological impact
+                self.assertAlmostEqual(physical_mass_sum(pars, data), mnu, delta=1e-5)
+                self.assertAlmostEqual(data.get_Omega("nu") * pars.h**2, pars.omnuh2, places=5)
+
+                # the massive eigenstates share the heating of num_nu_massive standard neutrinos
+                massive_neff = min(nnu, pars.num_nu_massive * standard_neff / 3)
+                self.assertAlmostEqual(sum(pars.nu_mass_degeneracies[: pars.nu_mass_eigenstates]), massive_neff)
+                self.assertAlmostEqual(pars.N_eff, nnu)
+
+                # setting the resulting omnuh2 directly must give the same heating, and for degenerate
+                # masses the same model. For normal/inverted it splits the hierarchy using the
+                # non-relativistic proxy, which near the minimum mass shifts the lightest eigenstate.
+                pars2 = camb.set_params(mnu=None, omnuh2_active=pars.omnuh2, **settings)
+                data2 = camb.get_background(pars2, no_thermo=True)
+                self.assertAlmostEqual(sum(pars2.nu_mass_degeneracies[: pars2.nu_mass_eigenstates]), massive_neff)
+                if hierarchy == "degenerate":
+                    np.testing.assert_allclose(
+                        data2.nu_masses[: pars2.nu_mass_eigenstates],
+                        data.nu_masses[: pars.nu_mass_eigenstates],
+                        rtol=1e-10,
+                    )
+
+        pars.set_cosmology(H0=67.5, mnu=0.06, nnu=3.2, meffsterile=0.1, neutrino_hierarchy="normal")
+        data = camb.get_background(pars, no_thermo=True)
+        self.assertAlmostEqual(physical_mass_sum(pars, data, pars.nu_mass_eigenstates - 1), 0.06, places=6)
+
+        pars.set_cosmology(H0=75, ombh2=0.021, omch2=0.09, mnu=None, omnuh2_active=0.0006)
+        data = camb.get_background(pars, no_thermo=True)
+        self.assertAlmostEqual(data.get_Omega("nu") * pars.h**2, 0.0006, places=5)
+
+    def testInvertedNuMassThreshold(self):
+        inverted_min = np.sqrt(2.46e-3) + np.sqrt(2.46e-3 + 7.54e-5)
+        for mnu in [inverted_min + 1.01e-4, 0.1001, 0.1002]:
+            pars = camb.set_params(H0=67.5, mnu=mnu, neutrino_hierarchy="inverted")
+            self.assertEqual(pars.num_nu_massive, 3)
+            self.assertEqual(pars.nu_mass_eigenstates, 2)
+            self.assertGreater(pars.nu_mass_fractions[1], 0)
+            self.assertAlmostEqual(sum(pars.nu_mass_fractions[:2]), 1)
 
     def testRecfastRosenbrockAgreement(self):
         redshifts = np.geomspace(1.0, 3001.0, 400) - 1.0

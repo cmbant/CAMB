@@ -125,6 +125,15 @@ neutrino_hierarchy_inverted = "inverted"
 neutrino_hierarchy_degenerate = "degenerate"
 neutrino_hierarchies = [neutrino_hierarchy_normal, neutrino_hierarchy_inverted, neutrino_hierarchy_degenerate]
 
+_set_neutrinos_args = [
+    POINTER(c_double),
+    POINTER(c_double),
+    POINTER(c_double),
+    POINTER(c_int),
+    POINTER(c_int),
+    POINTER(c_double),
+]
+
 
 class TransferParams(CAMB_Structure):
     """
@@ -417,10 +426,8 @@ class CAMBparams(F2003Class):
     _fortran_class_module_ = "model"
 
     _methods_ = (
-        (
-            "SetNeutrinoHierarchy",
-            [POINTER(c_double), POINTER(c_double), POINTER(c_double), POINTER(c_int), POINTER(c_int)],
-        ),
+        ("SetNeutrinoHierarchy", _set_neutrinos_args),
+        ("SetNeutrinoMasses", _set_neutrinos_args),
         ("Validate", None, c_int),
         ("PrimordialPower", [numpy_1d, numpy_1d, POINTER(c_int), POINTER(c_int)]),
         ("SetCustomSourcesFunc", [POINTER(c_int), POINTER(ctypes.c_void_p), numpy_1d_int]),
@@ -633,6 +640,7 @@ class CAMBparams(F2003Class):
 
     def set_cosmology(
         self,
+        *,
         H0: float | None = None,
         ombh2=0.022,
         omch2=0.12,
@@ -641,7 +649,8 @@ class CAMBparams(F2003Class):
         thetastar: float | None = None,
         neutrino_hierarchy: str | int = "degenerate",
         num_massive_neutrinos=1,
-        mnu=0.06,
+        mnu: float | None = 0.06,
+        omnuh2_active: float | None = None,
         nnu=constants.default_nnu,
         YHe: float | None = None,
         meffsterile=0.0,
@@ -684,15 +693,18 @@ class CAMBparams(F2003Class):
                     distance :math:`D_M`, where both quantities are evaluated at :math:`z_*`, the redshift at
                     which the optical depth (excluding reionization) is unity. Leave unset to use H0 or cosmomc_theta.
         :param neutrino_hierarchy: 'degenerate', 'normal', or 'inverted' (1 or 2 eigenstate approximation)
-        :param num_massive_neutrinos:  number of massive neutrinos. If meffsterile is set, this is the number of
-                                       massive active neutrinos.
-        :param mnu: sum of neutrino masses (in eV). :math:`\Omega_\nu h^2` is calculated approximately from this
-               assuming the neutrinos are non-relativistic today; i.e. here it is defined as a direct proxy for the
-               physical density. Internally the actual physical mass is calculated from the Omega_nu accounting for
-               small mass-dependent velocity corrections (but neglecting spectral distortions to the neutrino
-               distribution). To match a given :math:`\Omega_\nu h^2` (omnuh2), in standard cases set
-               mnu ~ omnuh2 * 93.04; set the neutrino field values directly if you need finer control or more
-               complex neutrino models.
+        :param num_massive_neutrinos: number of massive neutrinos for degenerate neutrinos.
+               Usually 1 for a single light mass, or 3 for degenerate approximation at any mass.
+               Ignored for 'normal' or 'inverted' neutrino_hierarchy
+               If meffsterile is set, this is the number of massive active neutrinos.
+        :param mnu: sum of neutrino masses (in eV). :math:`\Omega_\nu h^2` is calculated from this accounting for
+               the small finite-temperature contribution to the neutrino density today (but neglecting spectral
+               distortions to the neutrino distribution).
+
+               To match a given :math:`\Omega_\nu h^2` set omnuh2_active instead. Set the neutrino eigenstate
+               field values directly if you need finer control or more complex neutrino models.
+        :param omnuh2_active: alternative to mnu (which must then be set to None) that sets
+               :math:`\Omega_\nu h^2` for the active neutrinos directly.
         :param nnu: N_eff, effective relativistic degrees of freedom
         :param YHe: Helium mass fraction. If None, set from BBN consistency.
         :param meffsterile: effective mass of sterile neutrinos (set along with nnu greater than the standard value).
@@ -719,37 +731,38 @@ class CAMBparams(F2003Class):
             else:
                 self.bbn_predictor = bbn_predictor or bbn.get_predictor()
             YHe = self.bbn_predictor.Y_He(ombh2 * (constants.COBE_CMBTemp / TCMB) ** 3, nnu - standard_neutrino_neff)
-        self.YHe = YHe
+        self.YHe: float = YHe
         self.TCMB = TCMB
         self.ombh2 = ombh2
         self.omch2 = omch2
         self.Alens = Alens
 
-        neutrino_mass_fac = constants.neutrino_mass_fac * (constants.COBE_CMBTemp / TCMB) ** 3
-
         if not isinstance(neutrino_hierarchy, str):
             neutrino_hierarchy = neutrino_hierarchies[neutrino_hierarchy - 1]
 
-        if nnu >= standard_neutrino_neff or neutrino_hierarchy != neutrino_hierarchy_degenerate:
-            omnuh2 = mnu / neutrino_mass_fac * (standard_neutrino_neff / 3) ** 0.75
-        else:
-            omnuh2 = mnu / neutrino_mass_fac * (nnu / 3.0) ** 0.75
+        if omnuh2_active is not None and mnu is not None:
+            raise CAMBError("Set mnu=None when setting omnuh2_active.")
+        if omnuh2_active is None and mnu is None:
+            raise CAMBError("Set one of mnu or omnuh2_active.")
+
+        neutrino_mass_fac = constants.neutrino_mass_fac * (constants.COBE_CMBTemp / TCMB) ** 3
         omnuh2_sterile = meffsterile / neutrino_mass_fac
         if omnuh2_sterile > 0 and nnu < standard_neutrino_neff:
             raise CAMBError(f"sterile neutrino mass required Neff> {constants.default_nnu:.3g}")
-        if omnuh2 and not num_massive_neutrinos:
-            raise CAMBError("non-zero mnu with zero num_massive_neutrinos")
+        if (mnu or omnuh2_active) and not num_massive_neutrinos:
+            raise CAMBError("non-zero neutrino mass with zero num_massive_neutrinos")
 
-        omnuh2 = omnuh2 + omnuh2_sterile
-        self.omnuh2 = omnuh2
         self.omk = omk
         assert num_massive_neutrinos == int(num_massive_neutrinos)
-        self.f_SetNeutrinoHierarchy(
-            byref(c_double(omnuh2)),
+        # SetNeutrinoMasses takes the physical mass sum, SetNeutrinoHierarchy the (proxy) density directly
+        set_neutrinos = self.f_SetNeutrinoHierarchy if mnu is None else self.f_SetNeutrinoMasses
+        set_neutrinos(
+            byref(c_double(omnuh2_active + omnuh2_sterile if mnu is None else mnu)),
             byref(c_double(omnuh2_sterile)),
             byref(c_double(nnu)),
             byref(c_int(neutrino_hierarchies.index(neutrino_hierarchy) + 1)),
             byref(c_int(int(num_massive_neutrinos))),
+            byref(c_double(standard_neutrino_neff)),
         )
 
         if cosmomc_theta or thetastar:

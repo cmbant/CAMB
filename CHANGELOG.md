@@ -105,6 +105,22 @@ tuning, validation, and implementation details.
 - Thermal massive-neutrino background density and pressure now use direct smooth
   fits over the intermediate mass range, reducing setup/global state and modestly
   speeding repeated background evaluations.
+- `set_cosmology(mnu=...)` now treats `mnu` as the physical sum of neutrino
+  masses and calculates `Omega_nu h^2` from the actual thermal density, rather
+  than from the non-relativistic proxy `mnu/94.07`. At fixed `mnu` this raises
+  `omnuh2` fractionally by about 5e-5 for one 0.06eV neutrino, and by more for
+  lighter eigenstates (about 5e-4 for three degenerate 0.02eV masses). Very
+  light neutrinos, which previously inverted to zero mass and zero `Omega_nu`,
+  now get real masses and the correct relativistic density.
+- `set_cosmology(omnuh2_active=...)` (with `mnu=None`) sets `Omega_nu h^2` for
+  the active neutrinos directly. `meffsterile` keeps its Planck-paper definition.
+- `standard_neutrino_neff` is now applied consistently to the eigenstate
+  degeneracies and mass splitting as well as the density conversion; previously
+  the Fortran side always used 3.044 for the former.
+- The neutrino mass inversion used to set the eigenstate masses from
+  `Omega_nu h^2` is more accurate, and no longer fails just above the minimum
+  mass sum for the inverted hierarchy. See
+  `docs/changelog/2026-07-29-neutrino-mass-density-mapping.md`.
 
 ## Python Interface And New Capabilities
 

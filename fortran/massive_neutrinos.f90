@@ -81,11 +81,12 @@
     procedure :: rho => ThermalNuBackground_rho
     procedure :: drho => ThermalNuBackground_drho
     procedure :: find_nu_mass_for_rho => ThermalNuBackground_find_nu_mass_for_rho
+    procedure :: omnuh2_from_mass => ThermalNuBackground_omnuh2_from_mass
     end type TThermalNuBackground
 
     Type(TThermalNuBackground) :: ThermalNuBackground
 
-    public fermi_dirac_const,  sum_mnu_for_m1, neutrino_mass_fac, TNuPerturbations, &
+    public fermi_dirac_const, sum_mnu_for_m1, sum_mnu_for_m3, neutrino_mass_fac, TNuPerturbations, &
         ThermalNuBackground
     contains
 
@@ -101,6 +102,19 @@
     dsummnu = m1/m2+m1/m3 + 1
 
     end subroutine sum_mnu_for_m1
+
+    pure subroutine sum_mnu_for_m3(summnu, dsummnu, m3, targ, unused)
+    use constants
+    real(dl), intent(in) :: m3, targ, unused
+    real(dl), intent(out) :: summnu, dsummnu
+    real(dl) :: m1, m2
+
+    m1 = sqrt(m3**2 + delta_mnu31)
+    m2 = sqrt(m3**2 + delta_mnu31 + delta_mnu21)
+    summnu = m1 + m2 + m3 - targ
+    dsummnu = m3/m1 + m3/m2 + 1
+
+    end subroutine sum_mnu_for_m3
 
     subroutine TNuPerturbations_init(this,Accuracy)
     !Set up which momenta to integrate the neutrino perturbations, depending on accuracy
@@ -227,6 +241,25 @@
 
     end subroutine ThermalNuBackground_rho
 
+    pure function ThermalNuBackground_omnuh2_from_mass(this, mass, degeneracy, number, TCMB) result(omnuh2)
+    !Present-day physical density of an eigenstate of "number" neutrinos of physical mass "mass" in eV,
+    !sharing total relativistic degeneracy "degeneracy" (so the eigenstate temperature is
+    !(degeneracy/number)^(1/4) times the standard neutrino temperature).
+    !Exact inverse of the omnuh2 -> find_nu_mass_for_rho mapping used to set nu_masses.
+    class(TThermalNuBackground), intent(in) :: this
+    real(dl), intent(in) :: mass, degeneracy, number, TCMB
+    real(dl) omnuh2, T_nu, rhonu
+
+    T_nu = k_B*TCMB/eV*(4._dl/11)**(1._dl/3)  !standard neutrino temperature in eV
+    call this%rho(mass/(T_nu*(degeneracy/number)**0.25_dl), rhonu)
+
+    !One massless eigenstate has omnuh2 = T_nu*(TCMB/COBE_CMBTemp)**3/(neutrino_mass_fac*nu_fit_rho_scale),
+    !since rho -> nu_fit_rho_scale*am when non-relativistic. Using rhonu rather than the non-relativistic
+    !proxy sum(mass)/neutrino_mass_fac adds the finite-temperature correction, and stays finite as mass -> 0.
+    omnuh2 = degeneracy*T_nu*(TCMB/COBE_CMBTemp)**3*rhonu/(neutrino_mass_fac*nu_fit_rho_scale)
+
+    end function ThermalNuBackground_omnuh2_from_mass
+
     function rho_err(obj, nu_mass)
     class(*) :: obj
     real(dl), intent(in) :: nu_mass
@@ -252,33 +285,48 @@
     use config
     class(TThermalNuBackground) :: this
     real(dl), intent(in) :: rho
-    real(dl) nu_mass, rhonu, rhonu1, delta
+    real(dl) nu_mass, rhonu, delta, y, B, rhonudot, xzero
     real(dl) fzero
     integer iflag
 
-    if (rho <= 1.001_dl) then
-        !energy density all accounted for by massless result
-        nu_mass=0
+    if (rho <= 1._dl) then
+        ! rho < 1 is unphysical (massless is the minimum); can occur since the input rho is
+        ! only an approximate non-relativistic proxy for very light neutrinos.
+        nu_mass = 0
+    else if (rho <= 1.005_dl) then
+        ! Low-mass inverse series (reversion of rho-1 = const2*am**2 + nu_low_rho_c(0)*am**4 + ...
+        ! for y = am**2), where solving directly is poorly conditioned.
+
+        delta = rho - 1._dl
+
+        y = delta/const2 &
+            - nu_low_rho_c(0)*delta**2/const2**3
+
+        nu_mass = sqrt(max(0._dl, y))
     else
         !Get mass assuming fully non-relativistic
         nu_mass=fermi_dirac_const/(1.5d0*zeta3)*rho
 
-        if (nu_mass>4) then
+        if (nu_mass > 4) then
             !  perturbative correction for velocity when nearly non-relativistic
             !  Error due to velocity < 1e-5 for mnu~0.06 but can easily correct (assuming non-relativistic today)
-            !  Note that python does not propagate mnu to omnuh2 consistently to the same accuracy; but this makes
-            !  fortran more internally consistent between input and computed Omega_nu h^2
 
-            !Make perturbative correction for the tiny error due to the neutrino velocity
+            ! First relativistic correction from analytic asymptotic inversion
+            B = 15._dl*zeta5/(2._dl*zeta3)
+            nu_mass = nu_mass - B/nu_mass
+
+            ! One Newton correction using d rho / d ln(am)
             call this%rho(nu_mass, rhonu)
-            call this%rho(nu_mass*0.9, rhonu1)
-            delta = rhonu - rho
-            nu_mass = nu_mass*(1 + delta/((rhonu1 - rhonu)/0.1) )
+            rhonudot = this%drho(nu_mass, 1._dl)
+
+            ! drho(am,1) = am * d rho / d am
+            nu_mass = nu_mass - nu_mass*(rhonu - rho)/rhonudot
         else
             !Directly solve to avoid issues with perturbative result when no longer very relativistic
             this%target_rho = rho
-            call brentq(this,rho_err,0._dl,nu_mass,0.01_dl,nu_mass,fzero,iflag)
+            call brentq(this,rho_err,0._dl,nu_mass,0.01_dl,xzero,fzero,iflag)
             if (iflag/=0) call GlobalError('find_nu_mass_for_rho failed to find neutrino mass')
+            nu_mass = xzero
         end if
     end if
 
