@@ -115,6 +115,7 @@ class CambTest(unittest.TestCase):
         class FakeAccuracyParams:
             DoLensing = True
             max_l = 1000
+            lens_output_margin = 200
             max_eta_k = 2500.0
             NonLinear = model.NonLinear_none
 
@@ -123,7 +124,8 @@ class CambTest(unittest.TestCase):
 
             def set_for_lmax(self, lmax, **kwargs):
                 self.set_for_lmax_calls.append((lmax, kwargs))
-                self.max_l = lmax + kwargs.get("lens_output_margin", 200)
+                self.lens_output_margin = kwargs.get("lens_output_margin", 200)
+                self.max_l = lmax + self.lens_output_margin
                 self.max_eta_k = kwargs.get("max_eta_k") or self.max_l * kwargs.get("k_eta_fac", 2.5)
 
         fake = FakeAccuracyParams()
@@ -131,9 +133,15 @@ class CambTest(unittest.TestCase):
         self.assertEqual(fake.set_for_lmax_calls[0][1]["lens_potential_accuracy"], 0.0)
         self.assertFalse(fake.set_for_lmax_calls[0][1]["nonlinear"])
         fake = FakeAccuracyParams()
-        check_accuracy.apply_lensing_settings(fake, lens_output_margin=200)
+        check_accuracy.apply_lensing_settings(fake, lens_output_margin=300)
+        self.assertEqual(fake.set_for_lmax_calls[0][0], 800)
+        self.assertEqual(fake.max_l - fake.lens_output_margin, 800)
         self.assertEqual(fake.set_for_lmax_calls[0][1]["lens_potential_accuracy"], 0.0)
         self.assertEqual(fake.set_for_lmax_calls[0][1]["max_eta_k"], 2500.0)
+        fake = FakeAccuracyParams()
+        check_accuracy.apply_lensing_settings(fake, lens_potential_accuracy=8)
+        self.assertEqual(fake.set_for_lmax_calls[0][0], 800)
+        self.assertEqual(fake.set_for_lmax_calls[0][1]["lens_output_margin"], 200)
 
         from camb.sources import GaussianSourceWindow
 

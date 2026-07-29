@@ -301,6 +301,13 @@ def positive_int(value: str) -> int:
     return parsed
 
 
+def positive_float(value: str) -> float:
+    parsed = float(value)
+    if not math.isfinite(parsed) or parsed <= 0:
+        raise argparse.ArgumentTypeError("must be a finite positive value")
+    return parsed
+
+
 def comma_separated_floats(value: str) -> list[float]:
     values = [float(item.strip()) for item in value.split(",") if item.strip()]
     if not values:
@@ -437,7 +444,7 @@ def build_parser(prog: str | None = None) -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--search-tolerance",
-        type=float,
+        type=positive_float,
         default=0.02,
         help="target precision for refining numeric boost values",
     )
@@ -455,7 +462,7 @@ def build_parser(prog: str | None = None) -> argparse.ArgumentParser:
     parser.add_argument(
         "--strict-reference",
         action="store_true",
-        help="use a stricter boosted reference preset with AccuracyBoost=lSampleBoost=lAccuracyBoost=3 and min_l_logl_sampling=10000",
+        help="use a stricter boosted reference preset with AccuracyBoost=lSampleBoost=lAccuracyBoost=3 and min_l_logl_sampling=100000",
     )
     parser.add_argument(
         "--l-sample-boost",
@@ -483,6 +490,7 @@ def requested_accuracy_settings(args: argparse.Namespace) -> dict[str, float | b
         "lAccuracyBoost": args.l_accuracy_boost,
         "IntTolBoost": args.int_tol_boost,
         "DoLateRadTruncation": args.do_late_rad_truncation,
+        "min_l_logl_sampling": DEFAULT_ACCURACY_SETTINGS["min_l_logl_sampling"],
     }
     if args.strict_reference:
         for key, value in STRICT_REFERENCE_SETTINGS.items():
@@ -543,8 +551,9 @@ def apply_lensing_settings(
         )
         return
 
-    margin = 0 if lens_output_margin is None else lens_output_margin
-    target_lmax = params.max_l - margin if params.DoLensing else params.max_l
+    current_margin = int(params.lens_output_margin) if params.DoLensing else 0
+    target_lmax = int(params.max_l) - current_margin
+    margin = int(params.lens_output_margin) if lens_output_margin is None else lens_output_margin
     max_eta_k = params.max_eta_k if lens_potential_accuracy is None else None
     params.set_for_lmax(
         max(1, target_lmax),
@@ -1338,8 +1347,10 @@ def calculate_cmb_delta_chi2(standard: RunOutput, reference: RunOutput, config: 
         standard.params.WantCls and reference.params.WantCls and standard.params.Want_CMB and reference.params.Want_CMB
     ):
         return None
+    if standard.lensed_cls is None or reference.lensed_cls is None:
+        return None
 
-    lmax_available = min(standard.results.Params.max_l, reference.results.Params.max_l)
+    lmax_available = min(standard.lensed_cls.shape[0], reference.lensed_cls.shape[0]) - 1
     if config.lmax is not None:
         lmax_available = min(lmax_available, config.lmax)
     lmin = max(2, config.lmin)
@@ -1689,7 +1700,7 @@ def component_refinement_keys(params) -> tuple[str, ...]:
 
 def uses_nonlinear_sources(params) -> bool:
     return str(getattr(params, "NonLinear", "NonLinear_none")) in {
-        "NonLinear_pk",
+        "NonLinear_lens",
         "NonLinear_both",
     }
 
