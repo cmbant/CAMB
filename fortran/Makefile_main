@@ -14,15 +14,20 @@ BISPECTRUM ?= SeparableBispectrum
 DRIVER        ?= inidriver
 #DRIVER       ?= tester
 
-Release: OUTPUT_DIR = Release
-Debug: OUTPUT_DIR = Debug
+SOURCE_DIR ?= $(CURDIR)
 
-Release: DLL_DIR = Releaselib
-Debug: DLL_DIR = Debuglib
+# Set CAMB_BUILD_DIR to keep generated build artefacts off the source filesystem.
+# This is useful for bind-mounted worktrees whose host clock differs from the
+# container clock. CAMB and forutils use separate subdirectories under it.
+Release: OUTPUT_DIR = $(if $(CAMB_BUILD_DIR),$(CAMB_BUILD_DIR)/camb/Release,Release)
+Debug: OUTPUT_DIR = $(if $(CAMB_BUILD_DIR),$(CAMB_BUILD_DIR)/camb/Debug,Debug)
 
-OUTPUT_DIR ?= Release
+Release: DLL_DIR = $(if $(CAMB_BUILD_DIR),$(CAMB_BUILD_DIR)/camb/Releaselib,Releaselib)
+Debug: DLL_DIR = $(if $(CAMB_BUILD_DIR),$(CAMB_BUILD_DIR)/camb/Debuglib,Debuglib)
+
+OUTPUT_DIR ?= $(if $(CAMB_BUILD_DIR),$(CAMB_BUILD_DIR)/camb/Release,Release)
 PYCAMB_OUTPUT_DIR ?= ../camb
-DLL_DIR ?= Releaselib
+DLL_DIR ?= $(if $(CAMB_BUILD_DIR),$(CAMB_BUILD_DIR)/camb/Releaselib,Releaselib)
 
 
 CAMBLIB       = libcamb.a
@@ -42,9 +47,9 @@ DLL_LIBRARY_DEPFILES = $(addprefix $(DLL_DIR)/,$(CAMB_DEPFILES))
 define run_build_submake
 	+@if test -n "$(strip $(filter-out $(wildcard $(1)),$(1)))"; then \
 		echo "Bootstrapping $(2) with -j1 until dependency files are generated."; \
-		$(MAKE) -j1 -C $(2) $(MAKEOPT) -r -f ../Makefile_main $(3); \
+		$(MAKE) -j1 -C $(2) $(MAKEOPT) -r -f $(SOURCE_DIR)/Makefile_main SOURCE_DIR=$(SOURCE_DIR) $(3); \
 	else \
-		$(MAKE) -C $(2) $(MAKEOPT) -r -f ../Makefile_main $(3); \
+		$(MAKE) -C $(2) $(MAKEOPT) -r -f $(SOURCE_DIR)/Makefile_main SOURCE_DIR=$(SOURCE_DIR) $(3); \
 	fi
 endef
 
@@ -61,8 +66,8 @@ SF90FLAGS      = $(SFFLAGS) $(FFLAGS)
 
 CAMBOBJ       = $(patsubst %,%.o,$(SOURCEFILES))
 
-FORUTILS_DIR ?= $(FORUTILSPATH)/$(OUTPUT_DIR)/
-python: FORUTILS_DIR=$(FORUTILSPATH)/$(DLL_DIR)/
+FORUTILS_DIR ?= $(if $(CAMB_BUILD_DIR),$(CAMB_BUILD_DIR)/forutils/$(notdir $(OUTPUT_DIR))/,$(FORUTILSPATH)/$(OUTPUT_DIR)/)
+python: FORUTILS_DIR=$(if $(CAMB_BUILD_DIR),$(CAMB_BUILD_DIR)/forutils/$(notdir $(DLL_DIR))/,$(FORUTILSPATH)/$(DLL_DIR)/)
 
 LIBLINK = -L"$(FORUTILS_DIR)" -lforutils
 
@@ -108,7 +113,7 @@ compiler.ver:
 	@rm -f *.d
 
 camb: libforutils directories
-	$(call run_build_submake,$(OUTPUT_DRIVER_DEPFILES),$(OUTPUT_DIR),$(CAMBLIB) ../camb)
+	$(call run_build_submake,$(OUTPUT_DRIVER_DEPFILES),$(OUTPUT_DIR),$(CAMBLIB) $(SOURCE_DIR)/camb)
 
 libcamb: libforutils directories
 	$(call run_build_submake,$(OUTPUT_LIBRARY_DEPFILES),$(OUTPUT_DIR),$(CAMBLIB))
@@ -118,15 +123,15 @@ python: libforutils_so directories_so
 	@mkdir -p $(PYCAMB_OUTPUT_DIR)
 	cp $(DLL_DIR)/camblib.so $(PYCAMB_OUTPUT_DIR)
 
-../camb: $(CAMBLIB) $(DRIVER).o | silent
-	+@$(MAKE) -C .. $(MAKEOPT) -f Makefile_main camb_exe
+$(SOURCE_DIR)/camb: $(CAMBLIB) $(DRIVER).o | silent
+	+@$(MAKE) -C $(SOURCE_DIR) $(MAKEOPT) -f Makefile_main camb_exe
 
 camb_exe:
 	$(F90C) $(F90FLAGS) $(MODOUT) $(IFLAG)$(OUTPUT_DIR)/ $(IFLAG)"$(FORUTILS_DIR)" \
 		$(OUTPUT_DIR)/$(DRIVER).o $(OUTPUT_DIR)/$(CAMBLIB) $(F90CRLINK) $(LIBLINK) -o camb
 
 camblib.so: $(CAMBOBJ)
-	+@$(MAKE) -C .. $(MAKEOPT) -f Makefile_main $(DLL_DIR)/camblib.so
+	+@$(MAKE) -C $(SOURCE_DIR) $(MAKEOPT) -f Makefile_main $(DLL_DIR)/camblib.so
 
 libcambobj:
     LIBCAMBOBJ = $(patsubst %,$(DLL_DIR)/%.o,$(SOURCEFILES))
@@ -141,7 +146,7 @@ $(CAMBLIB): $(CAMBOBJ)
 	$(AR) -r $@ $(CAMBOBJ)
 
 #../Makefile ../Makefile_main
-%.o: ../%.f90 compiler.ver
+%.o: $(SOURCE_DIR)/%.f90 compiler.ver
 	$(F90C) $(F90FLAGS) $(IFLAG)"$(FORUTILS_DIR)" -c $< -o $*.o
 
 directories:
@@ -151,15 +156,21 @@ directories_so:
 	@mkdir -p $(DLL_DIR)
 
 libforutils_so:
-	+@$(MAKE) -C "$(FORUTILSPATH)" $(MAKEOPT) $(DLL_DIR)
+	+@$(MAKE) -C "$(FORUTILSPATH)" $(MAKEOPT) $(notdir $(DLL_DIR))
 
 libforutils:
-	+@$(MAKE) -C "$(FORUTILSPATH)" $(MAKEOPT) $(OUTPUT_DIR)
+	+@$(MAKE) -C "$(FORUTILSPATH)" $(MAKEOPT) $(notdir $(OUTPUT_DIR))
 
 
+ifneq ($(CAMB_BUILD_DIR),)
+CAMB_BUILD_OUTPUT_DIRS = $(addprefix $(CAMB_BUILD_DIR)/camb/,Release Debug Releaselib Debuglib)
+clean:
+	-rm -f -- $(foreach dir,$(CAMB_BUILD_OUTPUT_DIRS),"$(dir)"/*.o "$(dir)"/*.a "$(dir)"/*.so "$(dir)"/*.d "$(dir)"/*.mod "$(dir)"/*.optrpt "$(dir)"/compiler.ver "$(dir)"/core)
+else
 clean:
 	-rm -f *.o *.a *.d core *.mod *.optrpt
 	-rm -rf Release* Debug* WinDLL*
+endif
 
 delete:
 	rm -f camb

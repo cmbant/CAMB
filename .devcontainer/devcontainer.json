@@ -37,6 +37,7 @@
     "OPENBLAS_NUM_THREADS": "8",
     "RECOMBINATION_FILES": "recfast",
     "CAMB_DEVCONTAINER_VENV": "/home/vscode/.local/share/camb-devcontainer/.venv",
+    "CAMB_BUILD_DIR": "/tmp/camb-build",
     "PRE_COMMIT_HOME": "/home/vscode/.cache/pre-commit",
     "PYTHONPYCACHEPREFIX": "/home/vscode/.cache/pycache",
     "UV_CACHE_DIR": "/home/vscode/.cache/uv",
