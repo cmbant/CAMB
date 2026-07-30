@@ -697,9 +697,9 @@ class CAMBparams(F2003Class):
                Usually 1 for a single light mass, or 3 for degenerate approximation at any mass.
                Ignored for 'normal' or 'inverted' neutrino_hierarchy
                If meffsterile is set, this is the number of massive active neutrinos.
-        :param mnu: sum of neutrino masses (in eV). :math:`\Omega_\nu h^2` is calculated from this accounting for
-               the small finite-temperature contribution to the neutrino density today (but neglecting spectral
-               distortions to the neutrino distribution).
+        :param mnu: sum of neutrino masses (in eV).
+               :math:`\Omega_\nu h^2` is calculated from this accounting for the small finite-temperature contribution
+               to the neutrino density today (but neglecting spectral distortions to the neutrino distribution).
 
                To match a given :math:`\Omega_\nu h^2` set omnuh2_active instead. Set the neutrino eigenstate
                field values directly if you need finer control or more complex neutrino models.

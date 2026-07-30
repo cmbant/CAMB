@@ -59,4 +59,4 @@ inv_neutrino_mass_fac = (
 )
 
 neutrino_mass_fac = 1 / inv_neutrino_mass_fac
-# converts omnuh2 into sum m_nu in eV for non-relativistic but thermal neutrinos (no 0.046 factor); ~ 94.07
+# converts omnuh2 into sum m_nu in eV for non-relativistic but thermal neutrinos (no 0.044 factor); ~ 94.07
