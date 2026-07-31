@@ -1006,88 +1006,168 @@
     CAMBdata_get_lmax_lensed = this%CLdata%lmax_lensed
     end function CAMBdata_get_lmax_lensed
 
-    !JD 08/13 New function for nonlinear lensing of CMB + MPK compatibility
     !Build master redshift array from array of desired Nonlinear lensing (NLL)
     !redshifts and an array of desired Power spectrum (PK) redshifts.
     !At the same time fill arrays for NLL and PK that indicate indices
     !of their desired redshifts in the master redshift array.
-    !Finally define number of redshifts in master array. This is usually given by:
-    !P%num_redshifts = P%PK_num_redshifts + NLL_num_redshifts - 1.  The -1 comes
-    !from the fact that z=0 is in both arrays (when non-linear is on)
-    subroutine GetComputedPKRedshifts(this, Params,eta_k_max)
+    subroutine GetComputedPKRedshifts(this, Params, eta_k_max)
     use MpiUtils, only : MpiStop
+
     class(CAMBdata) :: this
-    Type(CAMBParams) :: Params
-    integer i, iPK, iNLL
-    real(dl), parameter :: tol = 1.d-5
-    real(dl) maxRedshift, NL_Boost
-    integer   ::  NLL_num_redshifts
-    real(dl), allocatable    ::  NLL_redshifts(:), redshifts(:)
-    !Sources, but unused currently
+    type(CAMBParams), intent(inout) :: Params
     real(dl), intent(in), optional :: eta_k_max
+    ! A PK redshift replaces an NLL interpolation node when it is within
+    ! this fraction of the local NLL grid spacing.
+    real(dl), parameter :: NLL_merge_fraction = 0.1_dl
+    real(dl), parameter :: roundoff_tol = 1.e-5_dl
+    integer i, iPK, iNLL, NLL_num_redshifts
+    real(dl) :: maxRedshift, NL_Boost, fraction, zPK, zNLL, merge_tol
+    real(dl), allocatable :: NLL_redshifts(:)
+    real(dl), allocatable :: NLL_spacing(:)
+    real(dl), allocatable :: redshifts(:)
 
     NLL_num_redshifts = 0
+
     associate(P => Params%Transfer)
-        if ((Params%NonLinear==NonLinear_lens .or. Params%NonLinear==NonLinear_both) .and. &
+
+        if ((Params%NonLinear == NonLinear_lens .or. &
+            Params%NonLinear == NonLinear_both) .and. &
             (Params%DoLensing .or. this%num_redshiftwindows > 0)) then
-            ! Want non-linear lensing or other sources
-            NL_Boost = Params%Accuracy%AccuracyBoost*Params%Accuracy%NonlinSourceBoost
+
             if (Params%Do21cm) then
-                !Sources
-                if (maxval(this%Redshift_w(1:this%num_redshiftwindows)%Redshift) &
-                    /= minval(this%Redshift_w(1:this%num_redshiftwindows)%Redshift))  &
-                    stop 'Non-linear 21cm currently only for narrow window at one redshift'
-                if (.not. present(eta_k_max)) stop 'bad call to GetComputedPKRedshifts'
-                P%kmax = eta_k_max/10000.
-                NLL_num_redshifts =  1
-                allocate(NLL_redshifts(NLL_num_redshifts+1))
-                NLL_redshifts(1) = this%Redshift_w(1)%Redshift
-            else
-                P%kmax = max(P%kmax,5*NL_Boost)
-                maxRedshift = 10
-                NLL_num_redshifts =  nint(10*5*NL_Boost)
-                if (NL_Boost>=2.5) then
-                    !only notionally more accuracy, more stable for RS
-                    maxRedshift =15
+
+                if (maxval( &
+                    this%Redshift_w(1:this%num_redshiftwindows)%Redshift) /=  &
+                    minval(this%Redshift_w(1:this%num_redshiftwindows)%Redshift)) then
+
+                    call MpiStop('Non-linear 21cm currently only for narrow window at one redshift')
                 end if
-                allocate(NLL_redshifts(NLL_num_redshifts+1)) !+1 to stop access issues below
-                do i=1,NLL_num_redshifts
-                    NLL_redshifts(i) = real(NLL_num_redshifts-i)/(NLL_num_redshifts/maxRedshift)
+
+                if (.not. present(eta_k_max)) then
+                    call MpiStop('Bad call to GetComputedPKRedshifts')
+                end if
+
+                P%kmax = eta_k_max / 10000._dl
+
+                NLL_num_redshifts = 1
+
+                allocate(NLL_redshifts(NLL_num_redshifts))
+                allocate(NLL_spacing(NLL_num_redshifts))
+
+                NLL_redshifts(1) = this%Redshift_w(1)%Redshift
+
+                ! No grid spacing exists for a single interpolation node.
+                NLL_spacing(1) = 0._dl
+
+            else
+
+                NL_Boost = Params%Accuracy%AccuracyBoost *Params%Accuracy%NonlinSourceBoost
+                P%kmax = max(P%kmax, 5._dl * NL_Boost)
+                maxRedshift = 10._dl
+
+                ! Number of z^{3/2}-spaced nodes for non-linear lensing interpolation
+                NLL_num_redshifts = max(2, nint(30._dl * NL_Boost))
+
+                if (NL_Boost >= 2.5_dl) then
+                    ! Only notionally more accurate, but more stable for RS.
+                    maxRedshift = 15._dl
+                end if
+
+                allocate(NLL_redshifts(NLL_num_redshifts))
+                allocate(NLL_spacing(NLL_num_redshifts))
+
+                NLL_spacing = 0._dl
+
+                do i = 1, NLL_num_redshifts
+                    fraction = real(NLL_num_redshifts - i, dl) / real(NLL_num_redshifts - 1, dl)
+
+                    ! z = z_max * fraction^(3/2)
+                    NLL_redshifts(i) = maxRedshift * fraction * sqrt(fraction)
+
+                    if (i > 1) then
+                        ! Associate each node with the interval on its
+                        ! lower-redshift side. For fraction^(3/2) sampling
+                        ! this is the smaller adjacent interval.
+                        NLL_spacing(i - 1) = abs(NLL_redshifts(i - 1) - NLL_redshifts(i))
+
+                        ! For the final node, use the preceding interval.
+                        NLL_spacing(i) = NLL_spacing(i - 1)
+                    end if
                 end do
+
             end if
         end if
-        if (allocated(this%transfer_redshifts)) deallocate(this%transfer_redshifts)
-        if (NLL_num_redshifts==0) then
-            this%num_transfer_redshifts=P%PK_num_redshifts
+
+        if (allocated(this%transfer_redshifts)) then
+            deallocate(this%transfer_redshifts)
+        end if
+
+        if (NLL_num_redshifts == 0) then
+
+            this%num_transfer_redshifts = P%PK_num_redshifts
+
             allocate(this%transfer_redshifts(this%num_transfer_redshifts))
-            this%transfer_redshifts = P%PK_redshifts(:this%num_transfer_redshifts)
-            this%PK_redshifts_index(:this%num_transfer_redshifts) = (/ (i, i=1, this%num_transfer_redshifts ) /)
+
+            if (this%num_transfer_redshifts > 0) then
+                this%transfer_redshifts = P%PK_redshifts(1:this%num_transfer_redshifts)
+                this%PK_redshifts_index( 1:this%num_transfer_redshifts) = &
+                    (/ (i, i = 1, this%num_transfer_redshifts) /)
+            end if
         else
-            i=0
-            iPK=1
-            iNLL=1
-            allocate(redshifts(NLL_num_redshifts+P%PK_num_redshifts))
-            do while (iPk<=P%PK_num_redshifts .or. iNLL<=NLL_num_redshifts)
-                !JD write the next line like this to account for roundoff issues with ==. Preference given to PK_Redshift
-                i=i+1
-                if(iNLL>NLL_num_redshifts .or. P%PK_redshifts(iPK)>NLL_redshifts(iNLL)+tol) then
-                    redshifts(i)=P%PK_redshifts(iPK)
-                    this%PK_redshifts_index(iPK)=i
-                    iPK=iPK+1
-                else if(iPK>P%PK_num_redshifts .or. NLL_redshifts(iNLL)>P%PK_redshifts(iPK)+tol) then
-                    redshifts(i)=NLL_redshifts(iNLL)
-                    iNLL=iNLL+1
+            allocate(redshifts( NLL_num_redshifts + P%PK_num_redshifts))
+
+            i = 0
+            iPK = 1
+            iNLL = 1
+
+            ! Both input lists are ordered from high to low redshift.
+            do while (iPK <= P%PK_num_redshifts .or. iNLL <= NLL_num_redshifts)
+
+                if (iPK > P%PK_num_redshifts) then
+                    i = i + 1
+                    redshifts(i) = NLL_redshifts(iNLL)
+                    iNLL = iNLL + 1
+                else if (iNLL > NLL_num_redshifts) then
+                    i = i + 1
+                    redshifts(i) = P%PK_redshifts(iPK)
+                    this%PK_redshifts_index(iPK) = i
+                    iPK = iPK + 1
                 else
-                    redshifts(i)=P%PK_redshifts(iPK)
-                    this%PK_redshifts_index(iPK)=i
-                    iPK=iPK+1
-                    iNLL=iNLL+1
+                    zPK = P%PK_redshifts(iPK)
+                    zNLL = NLL_redshifts(iNLL)
+
+                    merge_tol = max(roundoff_tol, NLL_merge_fraction * NLL_spacing(iNLL))
+
+                    if (zPK > zNLL + merge_tol) then
+                        i = i + 1
+                        redshifts(i) = zPK
+                        this%PK_redshifts_index(iPK) = i
+                        iPK = iPK + 1
+                    else if (zNLL > zPK + merge_tol) then
+                        i = i + 1
+                        redshifts(i) = zNLL
+                        iNLL = iNLL + 1
+                    else
+                        ! Keep the exact requested PK redshift and discard redundant nearby NLL interpolation node.
+                        ! Very close nodes could generate spurious numerical interpolation errors
+                        i = i + 1
+                        redshifts(i) = zPK
+                        this%PK_redshifts_index(iPK) = i
+
+                        iPK = iPK + 1
+                        iNLL = iNLL + 1
+                    end if
                 end if
             end do
-            this%num_transfer_redshifts=i
+
+            this%num_transfer_redshifts = i
+
             allocate(this%transfer_redshifts(this%num_transfer_redshifts))
-            this%transfer_redshifts = redshifts(:this%num_transfer_redshifts)
+
+            this%transfer_redshifts = redshifts(1:this%num_transfer_redshifts)
+
         end if
+
     end associate
 
     end subroutine GetComputedPKRedshifts
