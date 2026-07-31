@@ -1122,7 +1122,7 @@ class CAMBdata(F2003Class):
 
             def __call__(self, *args):
                 self.check_z(args[0])
-                # NB returns dimensionality as the 2D one: 1 dimension if z single
+                # Preserve the 2D interpolator's dimensionality for array z; return 1D for scalar z.
                 result = super().__call__(*(args[1:]))
                 return result[0] if np.isscalar(args[0]) else result
 
@@ -1316,7 +1316,7 @@ class CAMBdata(F2003Class):
         :param CMB_unit: scale results from dimensionless. Use 'muK' for :math:`\mu K^2` units for
           CMB :math:`C_\ell` and :math:`\mu K` units for lensing cross.
         :param raw_cl: return :math:`C_\ell` rather than :math:`\ell(\ell+1)C_\ell/2\pi`
-        :return: dictionary of power spectrum arrays, index as TxT, TxE, PxW1, W1xW2, custom_name_1xT... etc.
+        :return: dictionary of power spectrum arrays, indexed by TxT, TxE, PxW1, W1xW2, custom_name_1xT... etc.
                  Note that P is the lensing deflection, lensing windows Wx give convergence.
         """
 
@@ -1371,7 +1371,7 @@ class CAMBdata(F2003Class):
           (e.g. if you got this instance using :func:`.camb.get_results`),
         :param lmax: maximum :math:`\ell`
         :param raw_cl: return :math:`C_\ell` rather than :math:`\ell(\ell+1)C_\ell/2\pi`
-        :return: dictionary of power spectrum arrays, index as PXP, PxW1, W1xW2, ... etc.
+        :return: dictionary of power spectrum arrays, indexed by PXP, PxW1, W1xW2, ... etc.
         """
 
         try:
@@ -1628,7 +1628,7 @@ class CAMBdata(F2003Class):
         Note that this function requires the transfers or background to have been calculated with no_thermo=False
         (the default).
 
-        :param eta: conformal time from bing bang (in Mpc), scalar or array
+        :param eta: conformal time from the Big Bang (in Mpc), scalar or array
         :return: redshift at eta, scalar or array
         """
 
@@ -1652,7 +1652,7 @@ class CAMBdata(F2003Class):
 
     def luminosity_distance(self, z: NumberOrArray1D):
         """
-        Get luminosity distance from to redshift z.
+        Get luminosity distance to redshift z.
 
         Must have called :meth:`calc_background`, :meth:`calc_background_no_thermo` or calculated transfer functions or
         power spectra.

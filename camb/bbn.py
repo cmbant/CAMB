@@ -1,5 +1,5 @@
 # Classes to produce BBN predictions for helium mass fraction and D/H given other parameters
-# Fitting formula for Parthenelope via Julien Lesgourgues Dec 2014
+# Fitting formula for Parthenope via Julien Lesgourgues, December 2014
 # General interpolation tables, with defaults from Parthenope May 2017 (thanks Ofelia Pesanti)
 # Use PRIMAT_Yp_DH_Error.dat table for latest from the PRIMAT code (arXiv: 1801.08023, thanks Cyril Pitrou)
 # from 1.4.0, delta_nnu values are relative to 3.044, not 3.046
@@ -117,7 +117,7 @@ class BBN_table_interpolator(BBNPredictor):
 
     def Y_p(self, ombh2, delta_neff=0.0, grid=False):
         r"""
-        Get BBN helium nucleon fraction by intepolation in table.
+        Get BBN helium nucleon fraction by interpolation in table.
 
         :param ombh2: :math:`\Omega_b h^2` (or, more generally, value of function_of[0])
         :param delta_neff:  additional N_eff relative to standard value (of 3.044) (or value of function_of[1])
@@ -213,7 +213,8 @@ _predictors: dict[str, BBNPredictor] = {}
 
 def get_predictor(predictor_name=None):
     """
-    Get instance of default BBNPredictor class. Currently numerical table interpolation from the 2024 PRIMAT table.
+    Get an instance of the default BBNPredictor class. The current default uses numerical interpolation from the
+    2024 PRIMAT table.
     """
     predictor_name = predictor_name or default_interpolation_table
     predictor = _predictors.get(predictor_name, None)

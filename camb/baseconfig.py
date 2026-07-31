@@ -726,16 +726,16 @@ class _FortranSelf:
 
 
 class F2003Class(CAMB_Structure):
-    # Wraps a fortran type/class that is allocated in fortran, potentially containing allocatable  _fields_
-    # elements that are instances of classes, allocatable arrays that are wrapped in python, and list
-    # of class _methods_ from fortran.
+    # Wraps a Fortran type/class that is allocated in Fortran, potentially containing allocatable _fields_
+    # elements that are instances of classes, allocatable arrays that are wrapped in Python, and a list
+    # of class _methods_ from Fortran.
     #
     # Note that assigning to allocatable fields makes a deep copy of the object so the object always owns all memory
     # belonging to its fields. Accessing an allocatable field makes a new class pointer object on the fly. It can
     # become undefined if the allocatable field is reassigned.
 
-    # classes are referenced by their fortran null pointer object. _class_pointers is a dictionary relating these
-    # f_pointer to python classes. Elements are added each class by the @fortran_class decorator.
+    # Classes are referenced by their Fortran null pointer object. _class_pointers is a dictionary relating these
+    # f_pointer objects to Python classes. Elements are added for each class by the @fortran_class decorator.
     _class_pointers: ClassVar[dict[type, int]] = {}
 
     # dictionary mapping class names to classes

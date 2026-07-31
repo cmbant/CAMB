@@ -108,8 +108,8 @@ def LinearPerturbation(name, species=None, camb_var=None, camb_sub=None, frame_d
     :param species: tag for the species if relevant (not used)
     :param camb_var: relevant CAMB fortran variable
     :param camb_sub:  if not equal to camb_var, and string giving the expression in CAMB variables
-    :param frame_dependence: the change in the perturbation when the frame 4-velocity u change
-             from u to u + delta_frame. Should be a numpy expression involving delta_frame.
+    :param frame_dependence: the change in the perturbation when the frame 4-velocity u changes
+             from u to u + delta_frame. Should be a NumPy expression involving delta_frame.
     :param description: string describing variable
     :return: sympy Function instance (function of t), with attributes set to the arguments above.
     """
@@ -478,7 +478,7 @@ def newtonian_gauge(x):
 # Things for relating to cdm frame or traditional synchronous gauge variables
 
 # In the "cdm frame" we just fix to zero acceleration, comoving with CDM
-# the covariant hdot and eta variables differ from Ma & Bertshinger by factors (the latter have _s after the name)
+# The covariant hdot and eta variables differ from Ma & Bertschinger by factors (the latter have _s after the name).
 
 cdm_subs = [Eq(diff(A, t), 0), Eq(A, 0), Eq(diff(v_c, t), 0), Eq(v_c, 0)]
 

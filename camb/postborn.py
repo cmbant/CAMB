@@ -142,7 +142,7 @@ def get_field_rotation_power_from_PK(params, PK, chi_source, lmax=20000, acc=1, 
         if ll < 500:
             lcalc = lsall[0 : lpmax - 2]
         else:
-            # sampling in L', with denser around L~L'
+            # Sample in L', with denser sampling around L~L'.
             lcalc = np.hstack(
                 (
                     lsall[0:20:4],

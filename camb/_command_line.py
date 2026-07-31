@@ -52,7 +52,7 @@ def run_command_line():
 
     s, path_len = filepath_to_fortran(args.ini_file)
 
-    # Import wrapper function round fortran command line program
+    # Import the wrapper function around the Fortran command-line program
     CAMB_RunCommandLine = lib_import("camb", "camb", "CommandLineValidate" if args.validate else "CommandLineRun")
     CAMB_RunCommandLine.argtypes = [ctypes.c_char_p, ctypes.c_long]
     CAMB_RunCommandLine(s, path_len)

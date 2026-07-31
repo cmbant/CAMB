@@ -295,7 +295,7 @@ def set_params_cosmomc(
     inpars=None,
 ):
     """
-    get CAMBParams for dictionary of cosmomc-named parameters assuming Planck 2018 defaults
+    Get CAMBparams for a dictionary of CosmoMC-named parameters, assuming Planck 2018 defaults.
 
     :param p: dictionary of cosmomc parameters (e.g. from getdist.types.BestFit's getParamDict() function)
     :param num_massive_neutrinos: usually 1 if fixed mnu=0.06 eV, three if mnu varying
@@ -455,17 +455,17 @@ def get_matter_power_interpolator(
 
     For a description of outputs for different var1, var2 see :ref:`transfer-variables`.
 
-    This function re-calculates results from scratch with the given parameters.
+    This function recalculates results from scratch with the given parameters.
     If you already have a :class:`~.results.CAMBdata` result object, you should instead
     use :meth:`~.results.CAMBdata.get_matter_power_interpolator`
-    (call :meth:`.model.CAMBparams.set_matter_power` as need to set up the required ranges for the matter power
+    (call :meth:`.model.CAMBparams.set_matter_power` as needed to set up the required ranges for the matter power
     before calling get_results).
 
     :param params: :class:`.model.CAMBparams` instance
     :param zmin: minimum z (use 0 or smaller than you want for good interpolation)
     :param zmax: maximum z (use larger than you want for good interpolation)
     :param nz_step: number of steps to sample in z (default max allowed is 100)
-    :param zs: instead of zmin,zmax, nz_step, can specific explicit array of z values to spline from
+    :param zs: instead of zmin, zmax, and nz_step, can specify an explicit array of z values to spline from
     :param kmax: maximum k
     :param nonlinear: include non-linear correction from halo model
     :param var1: variable i (index, or name of variable; default delta_tot)
