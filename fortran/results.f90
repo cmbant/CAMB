@@ -47,6 +47,8 @@
     integer, parameter :: nthermo_derived = 13
     real(dl), parameter :: near_flat_scale_tol = 0.03_dl
     real(dl), parameter :: template_shift_scale_tol = 0.01_dl
+    integer, parameter :: arr_omp_min_n = 128
+    integer, parameter :: redshift_arr_omp_min_n = 256
     ! Fiducial r_s(zdrag)/D_M from inifiles/planck_2018.ini, matching the high-l template cosmology.
     real(dl), parameter :: planck2018_drag_angle = 0.010392206684501_dl
 
@@ -638,7 +640,7 @@
     function CAMBdata_DeltaTime(this, a1,a2, in_tol)
     class(CAMBdata) :: this
     real(dl) CAMBdata_DeltaTime, atol
-    real(dl), intent(IN) :: a1,a2
+    real(dl), intent(in) :: a1,a2
     real(dl), optional, intent(in) :: in_tol
 
     atol = PresentDefault(base_tol/1000/exp(this%CP%Accuracy%AccuracyBoost*this%CP%Accuracy%IntTolBoost-1), in_tol)
@@ -654,7 +656,7 @@
     real(dl), intent(in), optional :: tol
     integer i
 
-    !$OMP PARALLEL DO DEFAULT(SHARED),SCHEDULE(STATIC)
+    !$OMP PARALLEL DO DEFAULT(SHARED),SCHEDULE(STATIC),IF(n >= arr_omp_min_n)
     do i = 1, n
         arr(i) = this%DeltaTime(a1(i), a2(i), tol)
     end do
@@ -665,7 +667,7 @@
     class(CAMBdata) :: this
     real(dl) CAMBdata_TimeOfz
     real(dl), intent(in), optional :: tol
-    real(dl), intent(IN) :: z
+    real(dl), intent(in) :: z
 
     CAMBdata_TimeOfz= this%DeltaTime(0._dl,1._dl/(z+1._dl), tol)
     end function CAMBdata_TimeOfz
@@ -679,7 +681,7 @@
     real(dl), intent(in), optional :: tol
     integer i
 
-    !$OMP PARALLEL DO DEFAULT(SHARED),SCHEDULE(STATIC)
+    !$OMP PARALLEL DO DEFAULT(SHARED),SCHEDULE(STATIC),IF(n >= arr_omp_min_n)
     do i = 1, n
         if (i==1) then
             arr(i) = this%DeltaTime(0._dl, 1/(1+z(1)), tol)
@@ -719,7 +721,7 @@
     real(dl), intent(in), optional :: tol
     integer i
 
-    !$OMP PARALLEL DO DEFAULT(SHARED),SCHEDULE(STATIC)
+    !$OMP PARALLEL DO DEFAULT(SHARED),SCHEDULE(STATIC),IF(n >= arr_omp_min_n)
     do i = 1, n
         arr(i) = this%DeltaPhysicalTimeGyr(a1(i), a2(i), tol)
     end do
@@ -782,7 +784,7 @@
     real(dl), intent(in) :: z1(n), z2(n)
     integer i
 
-    !$OMP PARALLEL DO DEFAULT(SHARED),SCHEDULE(STATIC)
+    !$OMP PARALLEL DO DEFAULT(SHARED),SCHEDULE(STATIC),IF(n >= arr_omp_min_n)
     do i = 1, n
         arr(i) = this%AngularDiameterDistance2(z1(i),z2(i))
     end do
@@ -818,7 +820,7 @@
     real(dl), intent(in) :: tol
     integer i
 
-    !$OMP PARALLEL DO DEFAULT(SHARED),SCHEDULE(STATIC)
+    !$OMP PARALLEL DO DEFAULT(SHARED),SCHEDULE(STATIC),IF(n >= arr_omp_min_n)
     do i = 1, n
         if (i==1) then
             if (z(i) < 1e-6_dl) then
@@ -882,7 +884,7 @@
     real(dl), intent(in) :: z(n)
     integer i
 
-    !$OMP PARALLEL DO DEFAULT(SHARED), SCHEDULE(STATIC), IF(n>4)
+    !$OMP PARALLEL DO DEFAULT(SHARED), SCHEDULE(STATIC), IF(n >= arr_omp_min_n)
     do i=1,n
         arr(i) = this%sound_horizon(z(i))
     end do
@@ -900,7 +902,7 @@
     if (this%ThermoData%ScaleFactorAtTime%n==0) &
         call GlobalError('RedshiftAtTimeArr: background history not calculated', error_unsupported_params)
     if (global_error_flag/=0) return
-    !$OMP PARALLEL DO DEFAULT(SHARED), private(om, i)
+    !$OMP PARALLEL DO DEFAULT(SHARED), private(om, i), IF(n >= redshift_arr_omp_min_n)
     do i=1, n
         if (tau(i) < this%ThermoData%tauminn*1.1) then
             om = (this%grhob+this%grhoc)/&
@@ -924,7 +926,7 @@
 
     real(dl) function CAMBdata_BAO_D_v(this,z)
     class(CAMBdata) :: this
-    real(dl), intent(IN) :: z
+    real(dl), intent(in) :: z
 
     CAMBdata_BAO_D_v = BAO_D_v_from_DA_H(z,this%AngularDiameterDistance(z), this%Hofz(z))
 
@@ -1104,9 +1106,10 @@
 
     end subroutine CAMBdata_DarkEnergyStressEnergy
 
-    function rofChi(this,Chi) !sinh(chi) for open, sin(chi) for closed.
-    class(CAMBdata) :: this
-    real(dl) Chi,rofChi
+    pure function rofChi(this,Chi) !sinh(chi) for open, sin(chi) for closed.
+    class(CAMBdata), intent(in) :: this
+    real(dl), intent(in) :: Chi
+    real(dl) :: rofChi
 
     if (this%flat) then
         rofChi=chi
@@ -1118,9 +1121,10 @@
     end function rofChi
 
 
-    function cosfunc (this,Chi)
-    class(CAMBdata) :: this
-    real(dl) Chi,cosfunc
+    pure function cosfunc (this,Chi)
+    class(CAMBdata), intent(in) :: this
+    real(dl), intent(in) :: Chi
+    real(dl) :: cosfunc
 
     if (this%flat) then
         cosfunc = 1._dl
@@ -1131,9 +1135,10 @@
     endif
     end function cosfunc
 
-    function tanfunc(this,Chi)
-    class(CAMBdata) :: this
-    real(dl) Chi,tanfunc
+    pure function tanfunc(this,Chi)
+    class(CAMBdata), intent(in) :: this
+    real(dl), intent(in) :: Chi
+    real(dl) :: tanfunc
     if (this%flat) then
         tanfunc=Chi
     else if (this%closed) then
@@ -1144,9 +1149,10 @@
 
     end function tanfunc
 
-    function invsinfunc(this,x)
-    class(CAMBdata) :: this
-    real(dl) invsinfunc,x
+    pure function invsinfunc(this,x)
+    class(CAMBdata), intent(in) :: this
+    real(dl), intent(in) :: x
+    real(dl) :: invsinfunc
 
     if (this%flat) then
         invsinfunc = x
@@ -1415,7 +1421,7 @@
     ! This subroutines initializes lSet%l arrays. Other values will be interpolated.
     class(lSamples) :: this
     class(CAMBdata), target :: State
-    integer, intent(IN) :: lmin,max_l
+    integer, intent(in) :: lmin,max_l
     integer lind, lvar, step, top, bot, lmin_log
     integer, allocatable :: ls(:)
     real(dl) AScale, growth
@@ -3311,7 +3317,7 @@
     subroutine TCLdata_NormalizeClsAtL(this,CP,lnorm)
     class(TCLData) :: this
     Type(CAMBParams), intent(in) :: CP
-    integer, intent(IN) :: lnorm
+    integer, intent(in) :: lnorm
     real(dl) Norm
 
     if (CP%WantScalars) then
@@ -4125,7 +4131,7 @@
     Type(MatterTransferData), intent(in) :: MTrans
     class(CAMBdata) :: State
     integer i,ik
-    character(LEN=Ini_max_string_len), intent(IN) :: FileNames(*)
+    character(LEN=Ini_max_string_len), intent(in) :: FileNames(*)
     integer i_PK
     integer unit
 
@@ -4153,7 +4159,7 @@
     !Export files of total  matter power spectra in h^{-1} Mpc units, against k/h.
     Type(MatterTransferData), intent(in) :: MTrans
     Type(CAMBdata) :: State
-    character(LEN=Ini_max_string_len), intent(IN) :: FileNames(*)
+    character(LEN=Ini_max_string_len), intent(in) :: FileNames(*)
     character(LEN=name_tag_len) :: columns(3)
     integer itf, i, unit
     integer points
@@ -4374,7 +4380,7 @@
     !Get 21cm C_l from sharp shell, using only monopole source and redshift distortions
     Type(MatterTransferData), intent(in) :: MTrans
     Type(CAMBdata), target :: State
-    character(LEN=Ini_max_string_len), intent(IN) :: FileNames(*)
+    character(LEN=Ini_max_string_len), intent(in) :: FileNames(*)
     integer itf,ik, itf_PK
     integer points
     character(LEN=name_tag_len), dimension(3), parameter :: Transfer_21cm_name_tags = &
