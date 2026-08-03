@@ -103,3 +103,33 @@ reduced that to `5.337e-3` but still failed, whereas the local-spacing merge
 passes with comfortable margin.
 
 The production merge floor remains `1e-5`; no global `0.01` tolerance is used.
+
+## Requested-redshift stress test
+
+`camb/tests/nonlinear_lensing_redshift_test.py` exercises the automatic
+`lens_potential_accuracy=None` path at `lmax = 2500` and `4000` for both LCDM and the
+previously sensitive `w=-0.82, wa=0.35` PPF model, with:
+
+- no requested `P(k,z)` output;
+- sparse `[1, 0.5, 0]` and dense 101-node requests;
+- exact NLL nodes; and
+- requested nodes just inside and just outside the local merge-tolerance
+  boundaries around `z = 0.715909` and `z = 0.512263`.
+
+Run with:
+
+```text
+python -m unittest camb.tests.nonlinear_lensing_redshift_test -v
+```
+
+The test passes in 17.6 seconds. Each run is wrapped in CAMB's standard
+`check_accuracy.RunOutput` and compared with `check_accuracy.compare_runs`, so
+`compare_cls` and `compare_lensing` apply the normal lensed-CMB,
+TE-normalized, and lens-potential tolerances. No custom peak-relative metric or
+test-specific threshold is used. The largest standard-comparison errors are
+At `lmax=2500`, the largest errors are `4.353e-3` in LCDM lens PP at `L=2484`
+and `4.001e-3` in PPF lens PP at `L=2499` (both tolerance `5e-3`) for the
+just-outside-boundary requests. At `lmax=4000`, the corresponding maxima are
+`4.462e-3` at `L=2499` for LCDM and `3.928e-3` at `L=2452` for PPF. The
+largest lensed-CMB error at either `lmax` is about `5.25e-4` in PPF TT for
+`600 <= L < 3500` (tolerance `1e-3`).
