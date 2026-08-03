@@ -386,7 +386,6 @@
             !Sources
             this%CP%Reion%Reionization = this%CP%transfer_21cm_cl
         end if
-        call this%GetComputedPKRedshifts(this%CP)
     end if
     if (this%CP%WantTransfer.and. this%CP%MassiveNuMethod==Nu_approx) then
         this%CP%MassiveNuMethod = Nu_trunc
@@ -587,6 +586,10 @@
         this%CP%Max_eta_k/this%tau0 > this%CP%Transfer%kmax) then
         this%CP%Transfer%kmax =this%CP%Max_eta_k/this%tau0
         if (FeedbackLevel > 0) write (*,*) 'kmax changed to ', this%CP%Transfer%kmax
+    end if
+
+    if (P%WantTransfer .and. .not. back_only) then
+        call this%GetComputedPKRedshifts(this%CP, this%CP%Max_eta_k)
     end if
 
     if (global_error_flag/=0) then
@@ -1015,7 +1018,7 @@
 
     class(CAMBdata) :: this
     type(CAMBParams), intent(inout) :: Params
-    real(dl), intent(in), optional :: eta_k_max
+    real(dl), intent(in) :: eta_k_max
     ! A PK redshift replaces an NLL interpolation node when it is within
     ! this fraction of the local NLL grid spacing.
     real(dl), parameter :: NLL_merge_fraction = 0.1_dl
@@ -1041,10 +1044,6 @@
                     minval(this%Redshift_w(1:this%num_redshiftwindows)%Redshift)) then
 
                     call MpiStop('Non-linear 21cm currently only for narrow window at one redshift')
-                end if
-
-                if (.not. present(eta_k_max)) then
-                    call MpiStop('Bad call to GetComputedPKRedshifts')
                 end if
 
                 P%kmax = eta_k_max / 10000._dl
