@@ -4490,7 +4490,7 @@
             do ik =1, points-1
                 k =exp(PK_data%log_k(ik))
                 l=nint(k*chi)
-                !This is not an approximation, we are just chosing to sample l at values around (k samples)*chi
+                !This is not an approximation, we are just choosing to sample l at values around (k samples)*chi
 
                 if (l>1 .and. l/= lastl) then
                     lastl=l

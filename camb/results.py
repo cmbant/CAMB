@@ -275,7 +275,7 @@ class CAMBdata(F2003Class):
     def get_derived_params(self):
         """
         :return: dictionary of derived parameter values, indexed by name (age, zstar, thetastar, etc.)
-                 Definitions of derived parmeters follow those in the Planck parameter papers.
+                 Definitions of derived parameters follow those in the Planck parameter papers.
                  Note that all `theta__` derived parameters here are scaled by a factor of 100 for historical reasons.
         """
         return dict(zip(model.derived_names, self.ThermoDerivedParams))
@@ -1064,6 +1064,7 @@ class CAMBdata(F2003Class):
         power spectrum as function of z and k/h (or k). Uses self.Params.Transfer.PK_redshifts as the spline node
         points in z. If fewer than four redshift points are used the interpolator uses a reduced order spline in z
         (so results at intermediate z may be inaccurate), otherwise it uses bicubic.
+
         Usage example:
 
         .. code-block:: python
@@ -1072,6 +1073,8 @@ class CAMBdata(F2003Class):
            print("Power spectrum at z=0.5, k/h=0.1 is %s (Mpc/h)^3 " % (PK.P(0.5, 0.1)))
 
         For a description of outputs for different var1, var2 see :ref:`transfer-variables`.
+        Use :meth:`~camb.model.CAMBparams.set_matter_power` to set the requested redshift and k ranges before
+        calculating results.
 
         :param nonlinear: include non-linear correction from halo model
         :param var1: variable i (index, or name of variable; default delta_tot)

@@ -464,7 +464,7 @@ def get_matter_power_interpolator(
     :param params: :class:`.model.CAMBparams` instance
     :param zmin: minimum z (use 0 or smaller than you want for good interpolation)
     :param zmax: maximum z (use larger than you want for good interpolation)
-    :param nz_step: number of steps to sample in z (default max allowed is 100)
+    :param nz_step: number of log steps to sample in z (default 100; max allowed 226)
     :param zs: instead of zmin, zmax, and nz_step, can specify an explicit array of z values to spline from
     :param kmax: maximum k
     :param nonlinear: include non-linear correction from halo model

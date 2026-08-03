@@ -26,7 +26,7 @@
     type TransferParams
         logical     ::  high_precision = .false.
         logical     ::  accurate_massive_neutrinos = .false.
-        real(dl)    ::  kmax = 0.9_dl        !these are acutally q values, but same as k for flat
+        real(dl)    ::  kmax = 0.9_dl        !these are actually q values, but same as k for flat
         integer     ::  k_per_logint =0
         integer     ::  PK_num_redshifts = 1
         real(dl)    ::  PK_redshifts(max_transfer_redshifts) = 0._dl
@@ -47,7 +47,7 @@
         !Increase lSampleBoost to increase sampling in lSamp%l for Cl interpolation
 
         real(dl) :: lAccuracyBoost=1._dl
-        !Boost number of multipoles integrated in Boltzman heirarchy
+        !Boost number of multipoles integrated in Boltzmann hierarchy
 
         logical   :: AccuratePolarization = .true.
         !Do you care about the accuracy of the polarization Cls?
@@ -57,7 +57,7 @@
 
         !Reionization settings - used if Reion%Reionization=.true.
         logical   :: AccurateReionization = .true.
-        !Do you care about pecent level accuracy on EE signal from reionization?
+        !Do you care about percent level accuracy on EE signal from reionization?
 
         !The following allow separate tweaking (all also affected by AccuracyBoost above)
 

@@ -42,7 +42,7 @@
     !Description of this file. Change if you make modifications.
     character(LEN=*), parameter :: Eqns_name = 'cdm_gauge'
 
-    logical, parameter :: plot_evolve = .false. !for outputing time evolution
+    logical, parameter :: plot_evolve = .false. !for outputting time evolution
 
     integer, parameter :: basic_num_eqns = 4
     integer, parameter :: ix_etak=1, ix_clxc=2, ix_clxb=3, ix_vb=4 !Scalar array indices for each quantity
@@ -70,8 +70,8 @@
         logical :: is_cosmological_constant
 
         integer w_ix !Index of two quintessence equations
-        integer Tg_ix !index of matter temerature perturbation
-        integer reion_line_ix !index of matter temerature perturbation
+        integer Tg_ix !index of matter temperature perturbation
+        integer reion_line_ix !index of matter temperature perturbation
 
         integer xe_ix !index of x_e perturbation
         integer Ts_ix !index of Delta_{T_s}
@@ -116,7 +116,7 @@
         logical TightCoupling, TensTightCoupling
         real(dl) TightSwitchoffTime
 
-        !Numer of scalar equations we are propagating
+        !Number of scalar equations we are propagating
         integer ScalEqsToPropagate
         integer TensEqsToPropagate
         !beta > l for closed models
@@ -564,7 +564,7 @@
                 time=State%DeltaTime(0._dl,State%NuPerturbations%nu_q(1)*a_mass)
                 nu_tau_notmassless(1, nu_i) = time
                 do j=2,nqmax
-                    !times when each momentum mode becomes signficantly nonrelativistic
+                    !times when each momentum mode becomes significantly nonrelativistic
                     time= time + DeltaTimeMaxed(nu_q(j-1)*a_mass,nu_q(j)*a_mass, 0.01_dl)
                     nu_tau_notmassless(j, nu_i) = time
                 end do
@@ -888,7 +888,7 @@
                 EV%nq(nu_i)=q_rel
             end if
             !q_rel = nint(nu_masses(nu_i)*adotrad/EV%q) !two dffierent q's here EV%q ~k
-            !EV%nq(nu_i)=max(0,min(nqmax0,q_rel)) !number of momentum modes to evolve intitially
+            !EV%nq(nu_i)=max(0,min(nqmax0,q_rel)) !number of momentum modes to evolve initially
             EV%nu_nonrelativistic(nu_i) = .false.
         end do
 
@@ -1937,7 +1937,7 @@
     !Get time to switch off tight coupling
     !The numbers here are a bit of guesswork
     !The high k increase saves time for very small loss of accuracy
-    !The lower k ones are more delicate. Nead to avoid instabilities at same time
+    !The lower k ones are more delicate. Need to avoid instabilities at same time
     !as ensuring tight coupling is accurate enough
     if (EV%k_buf > epsw) then
         if (EV%k_buf > epsw*5) then
@@ -2377,7 +2377,7 @@
     dgrho = dgrho_matter
 
     if (EV%no_nu_multpoles) then
-        !RSA approximation of arXiv:1104.2933, dropping opactity terms in the velocity
+        !RSA approximation of arXiv:1104.2933, dropping opacity terms in the velocity
         !Approximate total density variables with just matter terms
         z=(0.5_dl*dgrho/k + etak)/adotoa
         dz= -adotoa*z - 0.5_dl*dgrho/k

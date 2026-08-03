@@ -121,7 +121,7 @@
     real(dl), dimension(:,:,:), allocatable :: ddScaledSrc !temporary source second derivative array
     real(dl), dimension(:,:,:), pointer ::  ScaledSrc => null() !linear source with optional non-linear scaling
 
-    integer n_source_points ! number of CL source wavenumbers (for use when calculted remaining non-CL transfers)
+    integer n_source_points ! number of CL source wavenumbers (for use when calculated remaining non-CL transfers)
 
     procedure(state_function), private :: dtauda
 
@@ -392,7 +392,7 @@
                         end do
 
                         reall = real(CTrans%ls%l(ell),dl)
-                        fac = (2 * const_pi ** 2)/const_fourpi/(reall+0.5_dl)**3 !fourpi because multipled by fourpi later
+                        fac = (2 * const_pi ** 2)/const_fourpi/(reall+0.5_dl)**3 !fourpi because multiplied by fourpi later
                         if (j >= 1) then
                             if (State%Redshift_w(j)%kind == window_lensing) &
                                 fac = fac / 2 * reall * (reall + 1)
@@ -675,7 +675,7 @@
 
         do q_ix = 1,ntodo
             if (q_transfer(q_ix) > ThisSources%Evolve_q%highest+1d-4) then
-                !Feb13 fix for case with closed universe where qmax is not neccessarily right quantized value
+                !Feb13 fix for case with closed universe where qmax is not necessarily right quantized value
                 !   if (q_transfer(q_ix) > qmax) then
                 first_i=q_ix
                 exit
@@ -1037,7 +1037,7 @@
             .and. .not. WantLateTime .and. (.not.CP%WantTransfer.or.tau > State%Transfer_Times(State%num_transfer_redshifts))) then
             ThisSources%LinearSrc(EV%q_ix,:,j)=0
         else
-            !Integrate over time, calulate end point derivs and calc output
+    !Integrate over time, calculate end point derivs and calc output
             call GaugeInterface_EvolveScal(EV, tau, y, tauend, tol1, ind, rk_settings, w)
             if (global_error_flag/=0) return
 
@@ -1637,7 +1637,7 @@
     logical :: UseLimber
     integer l
 
-    !note increasing non-limber is not neccessarily more accurate unless AccuracyBoost much higher
+    !note increasing non-limber is not necessarily more accurate unless AccuracyBoost much higher
     !use **0.5 to at least give some sensitivity to Limber effects
     !Could be lower but care with phi-T correlation at lower L
     if (CP%SourceTerms%limber_windows) then
@@ -1687,7 +1687,7 @@
         end do
     end if
 
-    !     Find the position in the xx table for the x correponding to each
+    !     Find the position in the xx table for the x corresponding to each
     !     timestep
 
     associate(BesselPoints => BessRanges%points, TimePoints => State%TimeSteps%points)

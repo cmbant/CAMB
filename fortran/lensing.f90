@@ -16,7 +16,7 @@
     !Set accurate_BB=T if you want BB accurately by integrating the full angular range
     !otherwise it saves a large amount of time by only integrating the small scales
     !accute_BB only does *not* include any non-linear corrections or ensure you have
-    !chosen sufficiently high l_max and k_max, so does not neccessarily give an accurate
+    !chosen sufficiently high l_max and k_max, so does not necessarily give an accurate
     !result
 
     !Uses the un-lensed Cls and the computed lensing potential power spectrum.
@@ -137,7 +137,7 @@
     end subroutine LensClsWithDefaultSpectrum
 
     subroutine lensClsWithSpectrum(State, CPP, lensedCls, lmax_lensed)
-    !Get lensed CL using CPP as the lensing specturm
+    !Get lensed CL using CPP as the lensing spectrum
     !CPP is [L(L+1)]^2C_phi_phi/2/pi
     type(CAMBdata) :: State
     real(dl), intent(in) :: CPP(0:State%CP%max_l)

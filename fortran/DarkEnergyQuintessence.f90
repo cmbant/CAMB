@@ -29,7 +29,7 @@
 
     real(dl), parameter :: Tpl= sqrt(kappa*hbar/c**5)  ! sqrt(8 pi G hbar/c^5), reduced planck time
 
-    ! General base class. Specific implemenetations should inherit, defining Vofphi and setting up
+    ! General base class. Specific implementations should inherit, defining Vofphi and setting up
     ! initial conditions and interpolation tables
     type, extends(TDarkEnergyModel) :: TQuintessence
         integer :: DebugLevel = 0 !higher then zero for some debug output to console
@@ -455,7 +455,7 @@
     !        end if
     !
     !    end do !iterations
-    !    if (.not. OK) stop 'Search for good intial conditions did not converge' !this shouldn't happen
+    !    if (.not. OK) stop 'Search for good initial conditions did not converge' !this shouldn't happen
     !
     !end if !Find initial
 

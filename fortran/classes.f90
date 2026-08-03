@@ -44,7 +44,7 @@
     !methods implemented in abstract classes
     Type TPythonInterfacedClass
     contains
-    !SelfPointer msust be overriden for each class to be referenced from python.
+    !SelfPointer must be overridden for each class to be referenced from python.
     !Gets a class pointer from an untyped pointer.
     procedure, nopass :: SelfPointer
     !PythonClass gets string of python class name; not actually used internally

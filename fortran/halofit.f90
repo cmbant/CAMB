@@ -62,7 +62,7 @@
     integer, parameter :: halofit_casarini=7
     integer, parameter :: halofit_mead2016=5, halofit_halomodel=6, halofit_mead2015=8, halofit_mead2020=9
     integer, parameter :: halofit_mead2020_feedback=10
-    integer, parameter :: halofit_mead=halofit_mead2016 ! AM Kept for backwards compatability
+    integer, parameter :: halofit_mead=halofit_mead2016 ! AM Kept for backwards compatibility
     integer, parameter :: halofit_default=halofit_mead2020
 
     logical :: HM_verbose = .false.
@@ -116,7 +116,7 @@
     public halofit_default, halofit_original, halofit_bird, halofit_peacock, halofit_takahashi
     public halofit_mead2016, halofit_mead2015, halofit_mead2020, halofit_halomodel, halofit_casarini
     public halofit_mead2020_feedback
-    public halofit_mead ! AM for backwards compatability
+    public halofit_mead ! AM for backwards compatibility
 
     TYPE HM_cosmology
         !Contains only things that do not need to be recalculated with each new z
@@ -167,8 +167,8 @@
     INTEGER, PARAMETER :: imeth_pk_interpolation=1    ! Method for P(k) interpolation
 
     ! HMcode dewiggle numerical parameters
-    REAL(dl), PARAMETER :: kmin_wiggle=5e-3_dl    ! Minimum wavenumber to calulate wiggle [Mpc/h]
-    REAL(dl), PARAMETER :: kmax_wiggle=5._dl      ! Maximum wavenumber to calulate wiggle [Mpc/h]
+    REAL(dl), PARAMETER :: kmin_wiggle=5e-3_dl    ! Minimum wavenumber to calculate wiggle [Mpc/h]
+    REAL(dl), PARAMETER :: kmax_wiggle=5._dl      ! Maximum wavenumber to calculate wiggle [Mpc/h]
     INTEGER, PARAMETER :: nk_wiggle=512           ! Number of k points to store wiggle
     INTEGER, PARAMETER :: iorder_wiggle=3         ! Order for wiggle interpolation
     INTEGER, PARAMETER :: ifind_wiggle=3          ! 3 - Mid-point finding scheme for wiggle interpolation
@@ -210,7 +210,7 @@
 
     ! Accumulated growth parameters
     INTEGER, PARAMETER :: iorder_integration_agrow=3     ! Polynomial order for accumulated growth integration
-    INTEGER, PARAMETER :: iorder_agrowth_interpolation=3 ! Polynomial order for accumlated growth interpolation
+    INTEGER, PARAMETER :: iorder_agrowth_interpolation=3 ! Polynomial order for accumulated growth interpolation
     INTEGER, PARAMETER :: ifind_agrowth_interpolation=3  ! Finding scheme for accumulated growth interpolation
     INTEGER, PARAMETER :: imeth_agrowth_interpolation=2  ! Method for accumulated growth interpolation
 
@@ -313,7 +313,7 @@
             ELSE
 
                 !!BR09 putting neutrinos into the matter as well, not sure if this is correct, but at least one
-                !!will get a consisent omk.
+                !!will get a consistent omk.
                 h2 = (Params%H0/100)**2
                 this%omm0 = (Params%omch2+Params%ombh2+Params%omnuh2)/h2
                 this%fnu = Params%omnuh2/h2/this%omm0
@@ -594,7 +594,7 @@
 
     IF (timing_test) CALL CPU_TIME(t1)
 
-    !Use imead to switch between the standard and accurate halo-model calcuation
+    !Use imead to switch between the standard and accurate halo-model calculation
     !0 - Standard (this is just a vanilla halo model calculation with no accuracy tweaks)
     !1 - Accurate from Mead et al. (2016; arXiv 1602.02154)
     !2 - Accurate from Mead et al. (2015; arXiv 1505.07833)
@@ -646,7 +646,7 @@
                 IF(ii==2) this%imead=4 ! Denominator for response
                 IF(ii==3) this%imead=5 ! Numerator for response
 
-                !Initiliasation for the halomodel calculation (needs to be done for each z)
+                !Initialisation for the halomodel calculation (needs to be done for each z)
                 CALL this%halomod_init(z,lut,cosi)
                 if (global_error_flag/=0) return
 
@@ -670,7 +670,7 @@
 
         ELSE
 
-            !Initiliasation for the halomodel calculation (needs to be done for each z)
+            !Initialisation for the halomodel calculation (needs to be done for each z)
             CALL this%halomod_init(z,lut,cosi)
             if (global_error_flag/=0) return
 
@@ -886,7 +886,7 @@
 
     SUBROUTINE halomod(this,k,p1h,p2h,pfull,plin,lut,cosm)
     class(THalofit) :: this
-    !Calcuates 1-halo and 2-halo terms and combines them to form the full halomodel power
+    !Calculates 1-halo and 2-halo terms and combines them to form the full halomodel power
     REAL(dl), INTENT(OUT) :: p1h, p2h, pfull
     REAL(dl), INTENT(IN) :: plin, k
     REAL(dl) :: a
@@ -1053,7 +1053,7 @@
         END IF
 
         !Wave number relative to the horizon scale at equality (equation 5)
-        !Extra factor of h becauase all my k are in units of h/Mpc
+        !Extra factor of h because all my k are in units of h/Mpc
         q=k*cosm%h*BigT**2/(cosm%om_m*cosm%h**2)
 
         !Free streaming scale (equation 14)
@@ -1267,7 +1267,7 @@
     IF(HM_verbose) WRITE(*,*) 'HALOMOD: r_nl [Mpc/h]:', lut%rnl
     IF(HM_verbose) WRITE(*,*) 'HALOMOD: k_nl [h/Mpc]:', lut%knl
 
-    !Calcuate the effective spectral index at the collapse scale
+    !Calculate the effective spectral index at the collapse scale
     lut%neff=neff(this,lut,cosm)
 
     IF(HM_verbose) WRITE(*,*) 'HALOMOD: n_eff:', lut%neff
@@ -1363,12 +1363,12 @@
 
     ! Choosings sig = delta_c should be equivalent to actually calculating it again, however
     ! Do the actual calculation to be consistent with HMx. Problems with weird cosmologies with
-    ! low spectral indices such that no collapse has occured. R_nl very small
+    ! low spectral indices such that no collapse has occurred. R_nl very small
     !sig=lut%dc ! Take great care here. This should be the same as below, but won't be for strange models
     sig=sigma_integral(lut%rnl,lut%z,itype,cosm)
     neff=-3.-2.*integrate(tmin,tmax,neff_integrand,lut%rnl,lut%z,itype,cosm,acc,iorder)/sig**2
 
-    !For some bizarre cosmological models r_nl is very small, so almost no collapse has occured
+    !For some bizarre cosmological models r_nl is very small, so almost no collapse has occurred
     !In this case the n_eff calculation goes mad and needs to be fixed using this fudge.
     ns=cosm%ns
     IF(neff<ns-4.) neff=ns-4.
@@ -1425,7 +1425,7 @@
             ! Mead et al. (2015) used the Dolag (2004) correction
             pow=1.
         ELSE IF(this%imead==1) THEN
-            ! Mead et al. (2016) changed the power to 1.5 to better accomodate more extreme dark-energy models
+            ! Mead et al. (2016) changed the power to 1.5 to better accommodate more extreme dark-energy models
             pow=1.5
         END IF
         lut%c=lut%c*(ginf_wcdm/ginf_lcdm)**pow
@@ -1489,7 +1489,7 @@
 
     SUBROUTINE zcoll_bull(this,z,cosm,lut)
     class(THalofit) :: this
-    !Calcuates the halo collapse redshift according to the Bullock (2001) prescription
+    !Calculates the halo collapse redshift according to the Bullock (2001) prescription
     REAL(dl), INTENT(IN) :: z
     TYPE(HM_cosmology) :: cosm
     TYPE(HM_tables) :: lut
@@ -2048,7 +2048,7 @@
     REAL(dl), INTENT(IN) :: x
     REAL(dl), PARAMETER :: dx=1e-3 ! Taylor expansion for |x|<dx
 
-    ! Taylor expansion used for low x to avoid cancelation problems
+    ! Taylor expansion used for low x to avoid cancellation problems
     IF (abs(x)<dx) THEN
         wk_tophat_deriv=-x/5+x**3/70
     ELSE
@@ -2398,7 +2398,7 @@
     REAL(dl), PARAMETER :: bigA=0.21616
 
     !Note I use nu=dc/sigma whereas ST (1999) use nu=(dc/sigma)^2
-    !This accounts for the different pre-factor and slighly changed nu dependence
+    !This accounts for the different pre-factor and slightly changed nu dependence
     !f(nu^2)d(nu^2)=2*nu*f(nu)dnu
 
     !Full mass function. Note this is normalised such that integral f(nu)dnu = 1
@@ -2477,7 +2477,7 @@
     END FUNCTION Omega_cold_hm
 
     FUNCTION grow(z,cosm)
-    !Finds the scale-independent growth fuction at redshift z
+    !Finds the scale-independent growth function at redshift z
     REAL(dl) :: grow
     REAL(dl), INTENT(IN) :: z
     REAL(dl) :: a
@@ -3114,12 +3114,12 @@
         !Allocate arrays
         ALLOCATE(x8(n),t8(n),v8(n))
 
-        !Set the arrays to initialy be zeroes (is this neceseary?)
+        !Set the arrays to initially be zeroes (is this necessary?)
         x8=0.d0
         t8=0.d0
         v8=0.d0
 
-        !Set the intial conditions at the intial time
+        !Set the initial conditions at the initial time
         x8(1)=xi
         v8(1)=vi
 
@@ -3129,7 +3129,7 @@
         !Set the time interval
         dt=(tf-ti)/real(n-1,dl)
 
-        !Intially fix this to zero. It will change to 1 if method is a 'failure'
+        !Initially fix this to zero. It will change to 1 if method is a 'failure'
         ifail=0
 
         DO i=1,n-1

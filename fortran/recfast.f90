@@ -69,7 +69,7 @@
     !CA     T_0 is Verner and Ferland type fitting parameter for Helium
     !CA     T_1 is Verner and Ferland type fitting parameter for Helium
     !CA     Tnow is the observed CMB temperature today
-    !CA     Yp is the primordial helium abundace
+    !CA     Yp is the primordial helium abundance
     !CA     fHe is He/H number ratio = Yp/4(1-Yp)
     !CA     Trad and Tmat are radiation and matter temperatures
     !CA     epsilon is the approximate difference (=Trad-Tmat) at high z
@@ -178,7 +178,7 @@
     !CH               Sept 1999 (switch to formula for alpha's, fix glitch)
     !CH                  Sept 1999 modified to CMBFAST by US & MZ
     !CH                     Nov 1999 modified for F90 and CAMB (AML)
-    !CH                     Aug 2000 modified to prevent overflow erorr in He_Boltz (AML)
+    !CH                     Aug 2000 modified to prevent overflow error in He_Boltz (AML)
     !CH                     Feb 2001 corrected fix of Aug 2000 (AML)
     !CH                     Oct 2001 fixed error in hubble parameter, now uses global function (AML)
     !                       March 2003 fixed bugs reported by savita gahlaut

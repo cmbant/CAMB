@@ -390,14 +390,14 @@ class ColTol(dict):
      method to return the tolerance of the asterisk key, which is denoting
      the tolerances for all not explicitly specified columns. The
      tolerance for a column can be Ignore()d be using the <b>Ignore()</b> value or
-     has to be a tupple, where the first item tells whether the second is to
+     has to be a tuple, where the first item tells whether the second is to
      be evaluated. The first item can be a bool (value does not matter), to always
      select the second item for evaluation, or a function accepting the
      dictionary of inifile setting. The function then has to return true,
-     when the second item of the tupple has to be evaluated.
+     when the second item of the tuple has to be evaluated.
      A tolerance for the |old-new| < tol can be specified by giving the
      scalar tolerance or a function of two vectors for the second item of
-     the tupple. The first vector contains all columns of the old values
+    the tuple. The first vector contains all columns of the old values
      the second all values of the new values. The values are addressed by
      the columns names taken from the newer file. The function has to return
      true, when the new value is ok, false else.
@@ -1630,7 +1630,7 @@ def num_unequal(filename, cmpFcn):
     """
     Check whether two files are numerically unequal for the given compare function.
     :param filename: The base name of the files to check.
-    :param cmpFcn: The default comparison function. Can be overriden by the filetolmatrix.
+    :param cmpFcn: The default comparison function. Can be overridden by the filetolmatrix.
     :return: True, when the files do not match, false else.
     """
     check_accuracy_mismatch = check_accuracy_output_num_unequal(filename)
