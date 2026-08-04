@@ -11,7 +11,8 @@
 
     integer, parameter :: outNone=1
 
-    integer, parameter :: neutrino_hierarchy_normal = 1, neutrino_hierarchy_inverted = 2, neutrino_hierarchy_degenerate = 3
+    integer, parameter :: neutrino_hierarchy_normal = 1, neutrino_hierarchy_inverted = 2, &
+        neutrino_hierarchy_degenerate = 3
 
     integer, parameter :: Nu_int = 0, Nu_trunc=1, Nu_approx = 2, Nu_best = 3
     !For CAMBparams%MassiveNuMethod
@@ -294,7 +295,8 @@
             this%Nu_mass_degeneracies(this%Nu_mass_eigenstates) = neff_massive_standard
             this%Nu_mass_fractions(this%Nu_mass_eigenstates) = normal_frac
         else
-            !Use normal or inverted hierarchy, approximated as two eigenstates in physical regime, 1 at minimum and below
+            !Use normal or inverted hierarchy, approximated as two eigenstates in physical
+            !regime, 1 at minimum and below
             mnu = (omnuh2 - omnuh2_sterile)*neutrino_mass_fac*(COBE_CMBTemp/this%TCMB)**3/ &
                 (standard_neutrino_neff / 3) ** 0.75_dl
             if (neutrino_hierarchy == neutrino_hierarchy_normal) then

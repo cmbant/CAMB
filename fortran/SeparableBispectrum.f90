@@ -92,7 +92,8 @@
 
     do i=1, CTrans%ls%nl
         !Spline agrees well
-        !  call cubic_spline_derivatives_from_second_derivs(BessRanges%points,ajl(1,i),ajlpr(1,i),dJl(1,i),BessRanges%npoints)
+        !  call cubic_spline_derivatives_from_second_derivs(BessRanges%points,ajl(1,i),ajlpr(1,i),dJl(1,i), &
+        !      BessRanges%npoints)
         !  call cubic_spline_second_derivs(BessRanges%points,dJl(1,i),BessRanges%npoints,dddJl(1,i))
 
         l1 = CTrans%ls%l(i)
@@ -900,7 +901,8 @@
                                         do field3=1,3
                                             if (parities(field1)+parities(field2)+parities(field3)/=1) cycle
                                             oddix=oddix+1
-                                            write(fileid,'(1E15.5)', advance='NO') OddBispectra(oddix)%b(bi_ix,il1)*Bscale
+                                            write(fileid,'(1E15.5)', advance='NO') &
+                                                OddBispectra(oddix)%b(bi_ix,il1)*Bscale
                                         end do
                                     end do
                                 end do
@@ -1047,11 +1049,13 @@
                                                         l3=l2
                                                         if (l2==l1) then
                                                             !l1=l2=l3
-                                                            tmp = Bispectrum%b(bi_ix,il1)*tmpf(2)*Bispectrum2%b(bi_ix,il1) &
+                                                            tmp = Bispectrum%b(bi_ix,il1)*tmpf(2) &
+                                                                *Bispectrum2%b(bi_ix,il1) &
                                                                 *InvC(l3)%C(field3,f3)*a3j_00(l3)/6
                                                         else
                                                             !l3=l2 (l3=l1<>l2 can't happen because l1<=l2<=l3)
-                                                            tmp = Bispectrum%b(bi_ix,il1)*tmpf(2)*Bispectrum2%b(bi_ix,il1) &
+                                                            tmp = Bispectrum%b(bi_ix,il1)*tmpf(2) &
+                                                                *Bispectrum2%b(bi_ix,il1) &
                                                                 * InvC(l3)%C(field3,f3)*a3j_00(l3)/2
                                                         end if
                                                         min_l = min_l+2
@@ -1103,7 +1107,8 @@
                     fish_contribs=0
                     do field1=1,nfields
                         do f1=1,nfields
-                            call InterpolateClArr(SampleL,ifish_contribs(1,bispectrum_type,bispectrum_type2,field1,f1), &
+                            call InterpolateClArr(SampleL, &
+                                ifish_contribs(1,bispectrum_type,bispectrum_type2,field1,f1), &
                                 fish_contribs(lmin,field1,f1),lmaxcuti)  !SampleL%nl)
                         end do
                     end do
@@ -1133,14 +1138,16 @@
                         ':', Fisher(bispectrum_type2,bispectrum_type)
 
                     !!!! contribution of lensing to the fnl variance for temperature:
-                    !           if (bispectrum_type == fnl_bispectrum_ix .and. bispectrum_type2 == fnl_bispectrum_ix ) then
+                    !           if (bispectrum_type == fnl_bispectrum_ix .and.
+                    !               bispectrum_type2 == fnl_bispectrum_ix ) then
                     !              fish_contribs_sig=0
                     !              tmpArr=0
                     !              call InterpolateClArr(SampleL,ifish_contribs(1,1,2,1,1),tmpArr(lmin),lmaxcuti)
                     !               do i=lmin, lmax_lensing_corrT
                     !               if (CPhi(1+1,i)/=0) then
                     !                 fish_contribs_sig(i) = &
-                    !                  tmpArr(i)**2*(1+ CPhi(1,i)*CForLensing(i)%C(1,1)/(CPhi(1+1,i)*CPhi(1+1,i)))/(2*i+1)
+                    !                  tmpArr(i)**2*(1+ CPhi(1,i)*CForLensing(i)%C(1,1) /
+                    !                      (CPhi(1+1,i)*CPhi(1+1,i)))/(2*i+1)
                     !               end if
                     !              end do
                     !              print *,'signal contribution to fnl variance', &
@@ -1190,9 +1197,11 @@
                                     do f1=1,nfields
                                         if (CPhi(1+f1,i)/=0) then
                                             ix2=ix2+1
-                                            fish_L_noise(ix1,ix2)= fish_contribs(i,field1, f1)*CPhi(1+f1,i)*CPhi(1+field1,i)
+                                            fish_L_noise(ix1,ix2)= fish_contribs(i,field1, f1) &
+                                                *CPhi(1+f1,i)*CPhi(1+field1,i)
                                             fish_L_ij(ix1,ix2) =  (1 + &
-                                                CPhi(1,i)*CForLensing(i)%C(field1,f1)/(CPhi(1+f1,i)*CPhi(1+field1,i)))/(2*i+1)
+                                                CPhi(1,i)*CForLensing(i)%C(field1,f1) &
+                                                    /(CPhi(1+f1,i)*CPhi(1+field1,i)))/(2*i+1)
 
                                         end if
                                     end do
@@ -1270,7 +1279,8 @@
                                         (lens_bispectrum_ix-1)*nfields+field2) = &
                                         tmpBigFisher((lens_bispectrum_ix-1)*nfields+field1, &
                                         (lens_bispectrum_ix-1)*nfields+field2) + &
-                                        (CPhi(1+field1,i)*CPhi(1+field2,i) + CPhi(1,i)*CForLensing(i)%C(field1,field2))/(2*i+1)
+                                        (CPhi(1+field1,i)*CPhi(1+field2,i) &
+                                            + CPhi(1,i)*CForLensing(i)%C(field1,field2))/(2*i+1)
                                 end do
                             end do
                             tmpBigFisher = (tmpBigFisher + transpose(tmpBigFisher))/2
@@ -1293,7 +1303,8 @@
                                         end if
                                         OptimalFisher(bispectrum_type,bispectrum_type2) = &
                                             OptimalFisher(bispectrum_type,bispectrum_type2) + &
-                                            tmp*tmpBigFisher((bispectrum_type-1)*nfields+field1,(bispectrum_type2-1)*nfields+field2)
+                                            tmp*tmpBigFisher((bispectrum_type-1)*nfields+field1, &
+                                                (bispectrum_type2-1)*nfields+field2)
                                     end do
                                 end do
                             end do
@@ -1307,7 +1318,8 @@
                     Result%OptimalFisher(1:nbispectra,1:nbispectra) = OptimalFisher(1:nbispectra,1:nbispectra)
                 end if
                 do bispectrum_type=1,nbispectra
-                    print *,'Optimal Inc. lensing:', trim(IntToStr(bispectrum_type))//'-'//trim(BispectrumNames(bispectrum_type)), &
+                    print *,'Optimal Inc. lensing:', trim(IntToStr(bispectrum_type))//'-'// &
+                        trim(BispectrumNames(bispectrum_type)), &
                         ': 1/sqrt(F_ii) = ',1/sqrt(OptimalFisher(bispectrum_type,bispectrum_type))
                     if (present(Result)) &
                         Result%OptimalSigma(bispectrum_type) = 1/sqrt(OptimalFisher(bispectrum_type,bispectrum_type))
@@ -1315,7 +1327,8 @@
                 tmpFisher=OptimalFisher
                 call Matrix_Inverse(tmpFIsher)
                 do bispectrum_type=1,nbispectra
-                    print *,'Optimal Inc. lensing:', trim(IntToStr(bispectrum_type))//'-'//trim(BispectrumNames(bispectrum_type)), &
+                    print *,'Optimal Inc. lensing:', trim(IntToStr(bispectrum_type))//'-'// &
+                        trim(BispectrumNames(bispectrum_type)), &
                         ': Cov_ii = ', sqrt(tmpFIsher(bispectrum_type,bispectrum_type))
                 end do
                 tmpFisher=OptimalFisher

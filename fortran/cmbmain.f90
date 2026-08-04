@@ -392,7 +392,8 @@
                         end do
 
                         reall = real(CTrans%ls%l(ell),dl)
-                        fac = (2 * const_pi ** 2)/const_fourpi/(reall+0.5_dl)**3 !fourpi because multiplied by fourpi later
+                        fac = (2 * const_pi ** 2)/const_fourpi/(reall+0.5_dl)**3 !fourpi because
+                                                                                  !multiplied by fourpi later
                         if (j >= 1) then
                             if (State%Redshift_w(j)%kind == window_lensing) &
                                 fac = fac / 2 * reall * (reall + 1)
@@ -1034,7 +1035,8 @@
         tauend=State%TimeSteps%points(j)
 
         if (.not. DebugEvolution .and. (EV%q*tauend > max_etak_scalar .and. tauend > State%taurend) &
-            .and. .not. WantLateTime .and. (.not.CP%WantTransfer.or.tau > State%Transfer_Times(State%num_transfer_redshifts))) then
+            .and. .not. WantLateTime .and. (.not.CP%WantTransfer &
+                .or.tau > State%Transfer_Times(State%num_transfer_redshifts))) then
             ThisSources%LinearSrc(EV%q_ix,:,j)=0
         else
     !Integrate over time, calculate end point derivs and calc output
@@ -1047,7 +1049,8 @@
             !     Calculation of transfer functions.
 101         if (CP%WantTransfer.and.itf <= State%num_transfer_redshifts) then
                 if (j < State%TimeSteps%npoints) then
-                    if (tauend < State%Transfer_Times(itf) .and. State%TimeSteps%points(j+1)  > State%Transfer_Times(itf)) then
+                    if (tauend < State%Transfer_Times(itf) .and. State%TimeSteps%points(j+1) &
+                        > State%Transfer_Times(itf)) then
                         call GaugeInterface_EvolveScal(EV, tau, y, State%Transfer_Times(itf), tol1, ind, &
                             rk_settings, w)
                         if (global_error_flag/=0) return
@@ -3328,7 +3331,8 @@
             fac(2) = sqrt(ctnorm)
             if (CTrans%NumSources > 2) then
                 fac(3) = sqrt(ell*(ell+1)*CP%ALens) !Changed Dec18 for consistency
-                do w_ix=3 + State%num_redshiftwindows+1,3 + State%num_redshiftwindows + CP%CustomSources%num_custom_sources
+                do w_ix=3 + State%num_redshiftwindows+1,3 + State%num_redshiftwindows &
+                    + CP%CustomSources%num_custom_sources
                     nscal= CP%CustomSources%custom_source_ell_scales(w_ix - State%num_redshiftwindows -3)
                     do i=1, nscal
                         fac(w_ix) = fac(w_ix)*(ell+i)*(ell-i+1)

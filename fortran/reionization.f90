@@ -73,12 +73,15 @@
     end type TTanhReionization
 
     type, extends(TBaseTauWithHeReionization) :: TExpReionization
-        ! An ionization fraction that decreases exponentially at high z, saturating to fully inionized at fixed redshift.
+        ! An ionization fraction that decreases exponentially at high z, saturating to
+        ! fully inionized at fixed redshift.
         ! This model has a minimum non-zero tau
         ! Similar to e.g.  arXiv:1509.02785, arXiv:2006.16828
         real(dl)   :: reion_redshift_complete = 6.1_dl
-        real(dl)   :: reion_exp_smooth_width = 0.02_dl !modifies expential at reion_redshift_complete so derivatives continuous
-        real(dl)   :: reion_exp_power = 1._dl  !scaling propto exp(-lambda (z-reion_redshift_complete)**reion_exp_power) at high z
+        real(dl)   :: reion_exp_smooth_width = 0.02_dl !modifies expential at reion_redshift_complete
+        !so derivatives continuous
+        real(dl)   :: reion_exp_power = 1._dl  !scaling propto exp(-lambda (z-reion_redshift_complete)**reion_exp_power)
+        !at high z
     contains
     procedure :: x_e => TExpReionization_xe
     procedure :: get_timesteps => TExpReionization_get_timesteps

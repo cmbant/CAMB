@@ -1534,7 +1534,8 @@
 
                 !Main density source
                 if (CP%SourceTerms%counts_density) then
-                    counts_density_source= W%wing(j)*(clxc*W%Window%GetBias(k,a) + (W%comoving_density_ev(j) - 3*adotoa)*sigma/k)
+                    counts_density_source= W%wing(j)*(clxc*W%Window%GetBias(k,a) &
+                        + (W%comoving_density_ev(j) - 3*adotoa)*sigma/k)
                     !Newtonian gauge count density; bias assumed to be on synchronous gauge CDM density
                 else
                     counts_density_source= 0
@@ -1585,7 +1586,8 @@
                 if (CP%SourceTerms%counts_velocity) then
                     counts_velocity_source =  (-2.D0*W%wingtau(j)*adotoa+W%dwingtau(j))/k*sigma &
                         +W%wingtau(j)*etak/k/EV%Kf(1) &
-                        - counts_radial_source  !don't double count terms; counts_radial is part of counts_velocity with 1/H/chi
+                        - counts_radial_source  !don't double count terms; counts_radial is part
+                        !of counts_velocity with 1/H/chi
                 else
                     counts_velocity_source = 0
                 end if
@@ -1825,7 +1827,8 @@
             + 4._dl*cothxor*(dvisibility*polter + visibility*polterdot) - &
             visibility*polter*(k2 -6*cothxor**2))
 
-        dtb=15._dl/4._dl*EV%q*State%curvature_radius/k/prefac*(visibility*(2._dl*cothxor*polter + polterdot) + dvisibility*polter)
+        dtb=15._dl/4._dl*EV%q*State%curvature_radius/k/prefac &
+            *(visibility*(2._dl*cothxor*polter + polterdot) + dvisibility*polter)
     else
         dt=0._dl
         dte=0._dl
@@ -2465,7 +2468,8 @@
         else
             Delta_TM = clxg/4
         end if
-        delta_p_b = barssc0*(1._dl-0.75d0*State%CP%yhe+(1._dl-State%CP%yhe)*opacity*a2/State%akthom)*Tmat*(clxb + delta_tm)
+        delta_p_b = barssc0*(1._dl-0.75d0*State%CP%yhe+(1._dl-State%CP%yhe)*opacity*a2/State%akthom) &
+            *Tmat*(clxb + delta_tm)
     else
         Delta_TM = clxg/4
         delta_p_b = cs2*clxb
@@ -2596,7 +2600,8 @@
             !                end if
             !                ddz=(2*adotoa**2 - adotdota)*z  &
             !                  + adotoa/(2*k)*( 6*(grhog_t*clxg+grhor_t*clxr) + 2*(grhoc_t*clxc+grhob_t*clxb) ) &
-            !                   - 1._dl/(2*k)*( 2*(grhog_t*clxgdot+grhor_t*clxrdot) + grhoc_t*clxcdot + grhob_t*clxbdot )
+            !                   - 1._dl/(2*k)*( 2*(grhog_t*clxgdot+grhor_t*clxrdot)
+            !                       + grhoc_t*clxcdot + grhob_t*clxbdot )
             !                dz= -adotoa*z - 0.5_dl*dgrho/k
             !                pirdot= -3*pir*cothxor + k*(qr+4._dl/3*z)
             pirdot= -3*pir*cothxor - clxrdot
@@ -2684,11 +2689,13 @@
                         - wing2_t * ay(EV%g_ix+2)/4
 
                     do  l=3,EV%lmaxline-1
-                        ayprime(lineoff+l)=EV%denlk(l)*ay(lineoff+l-1)-EV%denlk2(l)*ay(lineoff+l+1)-opacity*ay(lineoff+l) &
+                        ayprime(lineoff+l)=EV%denlk(l)*ay(lineoff+l-1) &
+                            -EV%denlk2(l)*ay(lineoff+l+1)-opacity*ay(lineoff+l) &
                             - wing2_t * ay(EV%g_ix+l)/4
                     end do
                     !truncate
-                    ayprime(lineoff+EV%lmaxline)=k*ay(lineoff+EV%lmaxline-1)-(EV%lmaxline+1)*cothxor*ay(lineoff+EV%lmaxline)  &
+                    ayprime(lineoff+EV%lmaxline)=k*ay(lineoff+EV%lmaxline-1) &
+                        -(EV%lmaxline+1)*cothxor*ay(lineoff+EV%lmaxline)  &
                         -opacity*ay(lineoff+EV%lmaxline) - wing2_t * ay(EV%g_ix+EV%lmaxline)/4
 
                     !  21cm Polarization

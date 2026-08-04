@@ -744,7 +744,8 @@
     !  * R. P. Brent, "[An algorithm with guaranteed convergence for
     !    finding a zero of a function](http://maths-people.anu.edu.au/~brent/pd/rpb005.pdf)",
     !    The Computer Journal, Vol 14, No. 4., 1971.
-    !  * R. P. Brent, "[Algorithms for minimization without derivatives](http://maths-people.anu.edu.au/~brent/pub/pub011.html)",
+    !  * R. P. Brent, "Algorithms for minimization without derivatives",
+    !    http://maths-people.anu.edu.au/~brent/pub/pub011.html
     !    Prentice-Hall, Inc., 1973.
     !
     !# See also
@@ -757,7 +758,8 @@
 
     real(dl),intent(in)              :: ax      !! left endpoint of initial interval
     real(dl),intent(in)              :: bx      !! right endpoint of initial interval
-    real(dl),intent(in)              :: tol     !! desired length of the interval of uncertainty of the final result (>=0)
+    real(dl),intent(in)              :: tol     !! desired length of the interval of uncertainty
+                                              !! of the final result (>=0)
     real(dl),intent(out)             :: xzero   !! abscissa approximating a zero of `f` in the interval `ax`,`bx`
     real(dl),intent(out)             :: fzero   !! value of `f` at the root (`f(xzero)`)
     integer,intent(out)              :: iflag   !! status flag (`-1`=error, `0`=root found)

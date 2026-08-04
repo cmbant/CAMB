@@ -89,7 +89,8 @@
     function count_obs_window_z(this, z, winamp)
     !distribution function W(z) for the observed sources, used for lensing and number count spectrum
     !Winamp is amplitude normalized to 1 so the code can tell when the window is very small
-    !note this is the total count distribution observed, not a fractional selection function on an underlying distribution
+    !note this is the total count distribution observed, not a fractional selection
+    !function on an underlying distribution
     class(TSourceWindow) :: this
     real(dl), intent(in) :: z
     real(dl) count_obs_window_z, winamp
@@ -156,7 +157,8 @@
     function TGaussianSourceWindow_count_obs_window_z(this, z, winamp)
     !distribution function W(z) for the observed sources, used for lensing and number count spectrum
     !Winamp is amplitude normalized to 1 so the code can tell when the window is very small
-    !note this is the total count distribution observed, not a fractional selection function on an underlying distribution
+    !note this is the total count distribution observed, not a fractional selection
+    !function on an underlying distribution
     class(TGaussianSourceWindow) :: this
     real(dl), intent(in) :: z
     real(dl) TGaussianSourceWindow_count_obs_window_z, dz,winamp
@@ -288,7 +290,8 @@
     function TSplinedSourceWindow_count_obs_window_z(this, z, winamp)
     !distribution function W(z) for the observed sources, used for lensing and number count spectrum
     !Winamp is amplitude normalized to 1 so the code can tell when the window is very small
-    !note this is the total count distribution observed, not a fractional selection function on an underlying distribution
+    !note this is the total count distribution observed, not a fractional selection
+    !function on an underlying distribution
     class(TSplinedSourceWindow) :: this
     real(dl), intent(in) :: z
     real(dl) TSplinedSourceWindow_count_obs_window_z, winamp

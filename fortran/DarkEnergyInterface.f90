@@ -232,7 +232,8 @@
                 al = dlog(a)
                 if(al <= this%logdensity%X(1)) then
                     ! assume here w=w_de(a_min)
-                    fint = exp(this%logdensity%F(1) + (1. - 3. * this%equation_of_state%F(1))*(al - this%logdensity%X(1)))
+                    fint = exp(this%logdensity%F(1) + (1. - 3. * this%equation_of_state%F(1)) &
+                        *(al - this%logdensity%X(1)))
                 else
                     fint = exp(this%logdensity%Value(al))
                 endif

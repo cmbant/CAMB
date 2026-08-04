@@ -61,9 +61,9 @@
     "ruff.organizeImports": true,
     "[fortran]": {
         "editor.rulers": [
-            132
+            120
         ],
-        "editor.wordWrapColumn": 132
+        "editor.wordWrapColumn": 120
     },
     "fortran.formatting.findentArgs": [
         "--indent=4",

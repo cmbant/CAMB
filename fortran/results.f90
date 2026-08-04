@@ -402,7 +402,8 @@
             if (this%CP%share_delta_neff) then
                 this%CP%Num_Nu_Massless = this%CP%Num_Nu_Massless + this%CP%Num_Nu_Massive
             else
-                this%CP%Num_Nu_Massless = this%CP%Num_Nu_Massless + sum(this%CP%Nu_mass_degeneracies(1:this%CP%Nu_mass_eigenstates))
+                this%CP%Num_Nu_Massless = this%CP%Num_Nu_Massless &
+                    + sum(this%CP%Nu_mass_degeneracies(1:this%CP%Nu_mass_eigenstates))
             end if
             this%CP%Num_Nu_Massive  = 0
             this%CP%Nu_mass_numbers = 0
@@ -414,7 +415,8 @@
                 call GlobalError('Have Num_nu_massive>0 but no nu_mass_eigenstates', error_unsupported_params)
             if (this%CP%Nu_mass_eigenstates==1 .and. this%CP%Nu_mass_numbers(1)==0) &
                 this%CP%Nu_mass_numbers(1) = this%CP%Num_Nu_Massive
-            if (all(this%CP%Nu_mass_numbers(1:this%CP%Nu_mass_eigenstates)==0)) this%CP%Nu_mass_numbers=1 !just assume one for all
+            if (all(this%CP%Nu_mass_numbers(1:this%CP%Nu_mass_eigenstates)==0)) &
+                this%CP%Nu_mass_numbers=1 !just assume one for all
             if (this%CP%share_delta_neff) then
                 !default case of equal heating of all neutrinos
                 fractional_number = this%CP%Num_Nu_massless + this%CP%Num_Nu_massive
@@ -492,12 +494,14 @@
 
         this%fHe = this%CP%YHe/(mass_ratio_He_H*(1.d0-this%CP%YHe))  !n_He_tot / n_H_tot
 
-        this%z_eq = (this%grhob+this%grhoc)/(this%grhog+this%grhornomass+sum(this%grhormass(1:this%CP%Nu_mass_eigenstates))) -1
+        this%z_eq = (this%grhob+this%grhoc) &
+            /(this%grhog+this%grhornomass+sum(this%grhormass(1:this%CP%Nu_mass_eigenstates))) -1
 
         if (this%CP%omnuh2/=0) then
             !  nu_masses=m_nu(i)*c**2/(k_B*T_nu0)
             do nu_i=1, this%CP%Nu_mass_eigenstates
-                this%nu_masses(nu_i)= ThermalNuBackground%find_nu_mass_for_rho(this%CP%omnuh2/h2*this%CP%Nu_mass_fractions(nu_i)&
+                this%nu_masses(nu_i)= ThermalNuBackground%find_nu_mass_for_rho( &
+                    this%CP%omnuh2/h2*this%CP%Nu_mass_fractions(nu_i) &
                     *this%grhocrit/this%grhormass(nu_i))
             end do
             if (all(this%nu_masses(1:this%CP%Nu_mass_eigenstates)==0)) then
@@ -2015,7 +2019,8 @@
         associate (RedWin => State%Redshift_w(RW_i))
             RedWin%tau_start = 0
             RedWin%tau_end = State%tau0
-            if (RedWin%kind == window_lensing .or.  RedWin%kind == window_counts .and. CP%SourceTerms%counts_lensing) then
+            if (RedWin%kind == window_lensing .or. RedWin%kind == window_counts &
+                .and. CP%SourceTerms%counts_lensing) then
                 allocate(RW(RW_i)%awin_lens(nthermo))
                 allocate(RW(RW_i)%dawin_lens(nthermo))
                 RW(RW_i)%awin_lens(1) = 0
@@ -2238,7 +2243,8 @@
                 this%dotmu(i)=(xe_a(i) - this%xe(i))*State%akthom/a2
 
                 if (last_dotmu /=0) then
-                    this%actual_opt_depth = this%actual_opt_depth - 2._dl*(tau-taus(i-1))/(1._dl/this%dotmu(i)+1._dl/last_dotmu)
+                    this%actual_opt_depth = this%actual_opt_depth &
+                        - 2._dl*(tau-taus(i-1))/(1._dl/this%dotmu(i)+1._dl/last_dotmu)
                 end if
                 last_dotmu = this%dotmu(i)
             end if
@@ -2571,7 +2577,8 @@
         do RW_i = 1, State%num_redshiftwindows
             associate (RedWin => State%Redshift_W(RW_i))
                 if (RedWin%kind == window_21cm) then
-                    outstr = 'z= '//trim(RealToStr(real(RedWin%Redshift),4))//': T_b = '//trim(RealToStr(real(RedWin%Fq),6))// &
+                    outstr = 'z= '//trim(RealToStr(real(RedWin%Redshift),4))//': T_b = '// &
+                        trim(RealToStr(real(RedWin%Fq),6))// &
                         'mK; tau21 = '//trim(RealToStr(real(RedWin%optical_depth_21),5))
                     write (*,*) RW_i,trim(outstr)
                 end if
@@ -3228,7 +3235,8 @@
 
     end function scalar_fieldname
 
-    subroutine TCLdata_output_cl_files(this, State, ScalFile,ScalCovFile,TensFile, TotFile, LensFile, LensTotFile, factor)
+    subroutine TCLdata_output_cl_files(this, State, ScalFile,ScalCovFile,TensFile, TotFile, &
+        LensFile, LensTotFile, factor)
     class(TCLData) :: this
     class(CAMBdata), target :: State
     character(LEN=*) ScalFile, TensFile, TotFile, LensFile, LensTotFile,ScalCovfile
@@ -3263,7 +3271,8 @@
 
         do i=1, 3+State%num_redshiftwindows
             do j=1, 3+State%num_redshiftwindows
-                cov_names(j + (i-1)*(3+State%num_redshiftwindows)) = trim(scalar_fieldname(i))//'x'//trim(scalar_fieldname(j))
+                cov_names(j + (i-1)*(3+State%num_redshiftwindows)) = trim(scalar_fieldname(i))//'x'// &
+                    trim(scalar_fieldname(j))
             end do
         end do
         unit = open_file_header(ScalCovFile, 'L', cov_names)
@@ -3541,7 +3550,8 @@
 
     call Transfer_GetUnsplinedPower(State,M,PK,var1,var2, hubble_units)
     do zix=1, State%CP%Transfer%PK_num_redshifts
-        call Transfer_GetNonLinRatio_index(State, M, ratio,State%PK_redshifts_index(State%CP%Transfer%PK_num_redshifts-zix+1))
+        call Transfer_GetNonLinRatio_index(State, M, ratio, &
+            State%PK_redshifts_index(State%CP%Transfer%PK_num_redshifts-zix+1))
         PK(:,zix) =  PK(:,zix) *ratio**2
     end do
 
@@ -4272,7 +4282,8 @@
                 else
                     call Transfer_GetMatterPowerData(State, MTrans, PK_data, itf_PK)
                     !JD 08/13 for nonlinear lensing of CMB + LSS compatibility
-                    !Changed (CP%NonLinear/=NonLinear_None) to CP%NonLinear/=NonLinear_none .and. CP%NonLinear/=NonLinear_Lens)
+                    !Changed (CP%NonLinear/=NonLinear_None) to CP%NonLinear/=NonLinear_none
+                    !.and. CP%NonLinear/=NonLinear_Lens)
                     if(State%CP%NonLinear/=NonLinear_none .and. State%CP%NonLinear/=NonLinear_Lens) then
                         call State%CP%NonLinearModel%GetNonLinRatios(State, PK_data)
                         PK_data%matpower = PK_data%matpower +  2*log(PK_data%nonlin_ratio)
@@ -4544,7 +4555,8 @@
                     Cl=exp(-2*State%optical_depths_for21cm(itf_PK))*const_fourpi*Cl* &
                         real(l,dl)*(l+1)/const_twopi/1d10
 
-                    write (unit, '(1I8,3E15.5)') l, Cl, exp(PK_data%matpower(ik,1)/1d10), exp(PK_data%vvpower(ik,1)/1d10)
+                write (unit, '(1I8,3E15.5)') l, Cl, exp(PK_data%matpower(ik,1)/1d10), &
+                    exp(PK_data%vvpower(ik,1)/1d10)
                 end if
             end do
 

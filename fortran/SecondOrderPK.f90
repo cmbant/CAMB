@@ -281,7 +281,8 @@
                         t2 =t2+ Integrate_Romberg(this,Integrand,1+this%epsilon*2, &
                             this%max_k/this%k,rtol*this%pk,abs_tol=.true.)
                     else
-                        t2 = Integrate_Romberg(this,Integrand,1+this%epsilon,1+this%epsilon*2,rtol*this%pk,abs_tol=.true.)
+                        t2 = Integrate_Romberg(this,Integrand,1+this%epsilon,1+this%epsilon*2, &
+                            rtol*this%pk,abs_tol=.true.)
                     end if
                     t3 = Integrate_Romberg(this,Integrand,1-this%epsilon,1+this%epsilon,rtol*this%pk,abs_tol=.true.)
                     ! sc = this_K**3/(2*pi**2)

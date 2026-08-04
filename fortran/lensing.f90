@@ -797,7 +797,8 @@
                 d22(l) = ((c22fac + lfacs(l))*P(l) + 4._dl*ffac*(fac2 + (x - 2._dl)*invlfacs(l))*dP(l))*invlfacs2(l)
                 !For small theta use Taylor expansion for better stability
                 if (theta > theta_cut(l)) then
-                    d2m2(l) = ((lfacs(l) - c2m2fac)*P(l) + 4._dl*rfac*(-fac1 + (x + 2._dl)*invlfacs(l))*dP(l))*invlfacs2(l)
+                    d2m2(l) = ((lfacs(l) - c2m2fac)*P(l) &
+                        + 4._dl*rfac*(-fac1 + (x + 2._dl)*invlfacs(l))*dP(l))*invlfacs2(l)
                 else
                     d2m2(l) = lfacs(l)*lfacs2(l)*sin2**2/7680._dl*(20._dl + sin2*(16._dl - lfacs(l)))
                 end if

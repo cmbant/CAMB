@@ -205,13 +205,15 @@
             !(but mu may not exactly agree with what they used)
             n = nint((1+this%w_n)/(1-this%w_n))
             !Assume radiation domination, standard neutrino model; H0 factors cancel
-            grho_rad = (kappa/c**2*4*sigma_boltz/c**3*State%CP%tcmb**4*Mpc**2*(1+default_nnu*7._dl/8*(4._dl/11)**(4._dl/3)))
+            grho_rad = (kappa/c**2*4*sigma_boltz/c**3*State%CP%tcmb**4*Mpc**2 &
+                *(1+default_nnu*7._dl/8*(4._dl/11)**(4._dl/3)))
             xc = this%a_c**2/2/sqrt(grho_rad/3)
             F=7./8
             p=1./2
             mu = 1/xc*(1-cos(this%theta_i))**((1-n)/2.)*sqrt((1-F)*(6*p+2)*this%theta_i/n/sin(this%theta_i))
             this%freq =  mu*(1-cos(this%theta_i))**((n-1)/2.)* &
-                sqrt(const_pi)*Gamma((n+1)/(2.*n))/Gamma(1+0.5/n)*2.**(-(n**2+1)/(2.*n))*3.**((1./n-1)/2)*this%a_c**(-6./(n+1)+3) &
+                sqrt(const_pi)*Gamma((n+1)/(2.*n))/Gamma(1+0.5/n)*2.**(-(n**2+1)/(2.*n)) &
+                    *3.**((1./n-1)/2)*this%a_c**(-6./(n+1)+3) &
                 *( this%a_c**(6*n/(n+1.))+1)**(0.5*(1./n-1))
             this%n = n
         end if

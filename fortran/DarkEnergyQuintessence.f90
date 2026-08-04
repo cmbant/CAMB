@@ -64,7 +64,8 @@
         real(dl) :: frac_lambda0 = 1._dl !fraction of dark energy density that is cosmological constant today
         logical :: use_zc = .true. !adjust m to fit zc
         real(dl) :: zc, fde_zc !readshift for peak f_de and f_de at that redshift
-        integer :: npoints = 5000 !baseline number of log a steps; will be increased if needed when there are oscillations
+        integer :: npoints = 5000 !baseline number of log a steps; increased if needed
+                                  !when there are oscillations
         integer :: min_steps_per_osc = 10
         real(dl), dimension(:), allocatable :: fde, ddfde
         integer, private :: int_n = 0
@@ -232,7 +233,8 @@
     b0 = 1 - a0
     ho2o6 = da**2/6._dl
     aphi=b0*this%phi_a(ix+1) + a0*(this%phi_a(ix)-b0*((a0+1)*this%ddphi_a(ix)+(2-a0)*this%ddphi_a(ix+1))*ho2o6)
-    aphidot=b0*this%phidot_a(ix+1) + a0*(this%phidot_a(ix)-b0*((a0+1)*this%ddphidot_a(ix)+(2-a0)*this%ddphidot_a(ix+1))*ho2o6)
+    aphidot=b0*this%phidot_a(ix+1) + a0*(this%phidot_a(ix) &
+        -b0*((a0+1)*this%ddphidot_a(ix)+(2-a0)*this%ddphidot_a(ix+1))*ho2o6)
 
     end subroutine ValsAta
 

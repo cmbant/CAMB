@@ -754,7 +754,8 @@
     if (ErrMsg /= '') return
     if (print_fortran_warnings .and. P%Accuracy%AccurateBB .and. P%WantCls .and. (P%Max_l < 3500 .or. &
         (P%NonLinear/=NonLinear_lens .and. P%NonLinear/=NonLinear_both) .or. P%Max_eta_k < 18000)) &
-        write(*,*) 'WARNING: for accurate lensing BB you need high l_max_scalar, k_eta_max_scalar and non-linear lensing'
+        write(*,*) 'WARNING: for accurate lensing BB you need high l_max_scalar,' // &
+            ' k_eta_max_scalar and non-linear lensing'
 
     !Mess here to fix typo with backwards compatibility
     if (Ini%HasKey('do_late_rad_trunction')) then
@@ -863,7 +864,8 @@
             if (i == 1) then
                 MatterPowerFilenames(i) = Ini%Read_String_Default(ArrayKey, 'matterpower.dat', .true.)
             else
-                MatterPowerFilenames(i) = Ini%Read_String_Default(ArrayKey, trim(numcat('matterpower_',i))//'.dat', .true.)
+                MatterPowerFilenames(i) = Ini%Read_String_Default(ArrayKey, &
+                    trim(numcat('matterpower_',i))//'.dat', .true.)
             end if
 
             TransferFileNames(i) = outroot // TransferFileNames(i)

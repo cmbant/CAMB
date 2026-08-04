@@ -783,7 +783,8 @@
     global_error_flag = 0
     outputs = 0
     taustart = min(times(1),GetTauStart(maxval(q)))
-    if (.not. this%ThermoData%HasTHermoData .or. taustart < this%ThermoData%tauminn) call this%ThermoData%Init(this,taustart)
+    if (.not. this%ThermoData%HasTHermoData .or. taustart < this%ThermoData%tauminn) &
+        call this%ThermoData%Init(this,taustart)
     !$OMP PARALLEL DO DEFAUlT(SHARED),SCHEDUlE(DYNAMIC), PRIVATE(EV, q_ix)
     do q_ix= 1, nq
         if (global_error_flag==0) then

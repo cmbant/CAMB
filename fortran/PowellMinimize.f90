@@ -2324,19 +2324,19 @@
     integer,intent(in)                  :: n       !! the number of variables. must be at least 2.
     integer,intent(in)                  :: npt     !! The number of interpolation conditions.
     !! Its value must be in the interval `[N+2,(N+1)(N+2)/2]`.
-    real(dp),dimension(*),intent(inout) :: x       !! Initial values of the variables must be set in X(1),X(2),...,X(N). They
+    real(dp),dimension(*),intent(inout) :: x       !! Initial values must be set in X(1),X(2),...,X(N). They
     !! will be changed to the values that give the least calculated F.
-    real(dp),intent(in)                 :: rhobeg  !! RHOBEG and RHOEND must be set to the initial and final values of a trust
+    real(dp),intent(in)                 :: rhobeg  !! RHOBEG and RHOEND must be set to the initial and final values
     !! region radius, so both must be positive with RHOEND<=RHOBEG. Typically
     !! RHOBEG should be about one tenth of the greatest expected change to a
     !! variable, and RHOEND should indicate the accuracy that is required in
     !! the final values of the variables.
-    real(dp),intent(in)                 :: rhoend  !! RHOBEG and RHOEND must be set to the initial and final values of a trust
+    real(dp),intent(in)                 :: rhoend  !! RHOBEG and RHOEND must be set to the initial and final values
     !! region radius, so both must be positive with RHOEND<=RHOBEG. Typically
     !! RHOBEG should be about one tenth of the greatest expected change to a
     !! variable, and RHOEND should indicate the accuracy that is required in
     !! the final values of the variables.
-    integer,intent(in)                  :: iprint  !! The value of IPRINT should be set to 0, 1, 2 or 3, which controls the
+    integer,intent(in)                  :: iprint  !! IPRINT should be set to 0, 1, 2 or 3, which controls the
     !! amount of printing. Specifically, there is no output if IPRINT=0 and
     !! there is output only at the return if IPRINT=1. Otherwise, each new
     !! value of RHO is printed, with the best vector of variables so far and
