@@ -194,7 +194,7 @@
     REAL(dl), PARAMETER :: kmax_wiggle=5._dl      ! Maximum wavenumber to calculate wiggle [Mpc/h]
     INTEGER, PARAMETER :: nk_wiggle=512           ! Number of k points to store wiggle
     INTEGER, PARAMETER :: iorder_wiggle=3         ! Order for wiggle interpolation
-    INTEGER, PARAMETER :: ifind_wiggle=3          ! 3 - Mid-point finding scheme for wiggle interpolation
+    INTEGER, PARAMETER :: ifind_wiggle=1          ! 1 - Table is equally spaced in log(k)
     INTEGER, PARAMETER :: imeth_wiggle=2          ! 2- Lagrange polynomial interpolation
     REAL(dl), PARAMETER :: wiggle_sigma=0.25_dl   ! Smoothing width if using Gaussian smoothing
     REAL(dl), PARAMETER :: knorm_nowiggle=0.03_dl ! Wavenumber where linear and nowiggle, forced to be identical [Mpc/h]
@@ -207,12 +207,11 @@
     LOGICAL, PARAMETER :: cold_growth=.FALSE.          ! Should growth be of cold or all matter?
 
     ! Linear growth factor tabulation and interpolation numerical parameters
-    ! AM: TODO: Change finding scheme to assume linear spacing may save time
     REAL(dl), PARAMETER :: amin_growth_interpolation=1e-3 ! Minimum scale factor for growth interpolation
     REAL(dl), PARAMETER :: amax_growth_interpolation=1.   ! Maximum scale factor for growth interpolation
     INTEGER, PARAMETER :: n_growth_interpolation=64       ! Number of entries for growth look-up table
     INTEGER, PARAMETER :: iorder_growth_interpolation=3   ! Polynomial order for growth function interpolation
-    INTEGER, PARAMETER :: ifind_growth_interpolation=3    ! Finding scheme for growth function interpolation
+    INTEGER, PARAMETER :: ifind_growth_interpolation=1    ! 1 - Table is equally spaced in a
     INTEGER, PARAMETER :: imeth_growth_interpolation=2    ! Method for growth function interpolation
 
     ! Growth function ODE numerical parameters
@@ -223,7 +222,7 @@
     REAL(dl), PARAMETER :: acc_growth_ODE=1e-4              ! Accuracy for growth integral or ODE
     INTEGER, PARAMETER :: imeth_growth_ODE=3                ! Method for growth function ODE solving
     INTEGER, PARAMETER :: iorder_growth_ODE_interpolation=3 ! Polynomial order for growth function ODE interpolation
-    INTEGER, PARAMETER :: ifind_growth_ODE_interpolation=3  ! Finding scheme for growth function ODE interpolation
+    INTEGER, PARAMETER :: ifind_growth_ODE_interpolation=1  ! 1 - ODE solution is on an equally spaced a grid
     INTEGER, PARAMETER :: imeth_growth_ODE_interpolation=2  ! Method growth function ODE interpolation
 
     ! Linear growth function inversion numerical parameters (used for c(M) only)
@@ -234,7 +233,7 @@
     ! Accumulated growth parameters
     INTEGER, PARAMETER :: iorder_integration_agrow=3     ! Polynomial order for accumulated growth integration
     INTEGER, PARAMETER :: iorder_agrowth_interpolation=3 ! Polynomial order for accumulated growth interpolation
-    INTEGER, PARAMETER :: ifind_agrowth_interpolation=3  ! Finding scheme for accumulated growth interpolation
+    INTEGER, PARAMETER :: ifind_agrowth_interpolation=1  ! 1 - Shares the equally spaced a grid of the growth table
     INTEGER, PARAMETER :: imeth_agrowth_interpolation=2  ! Method for accumulated growth interpolation
 
     ! HMcode numerical parameters for sigma(R) tabulation and interpolation
@@ -242,7 +241,7 @@
     REAL(dl), PARAMETER :: rmax_sigma_interpolation=1e3  ! Maximum scale for sigma(R) look-up tables [Mpc/h]
     INTEGER, PARAMETER :: n_sigma_interpolation=64       ! Number of points in look-up tables
     INTEGER, PARAMETER :: iorder_sigma_interpolation=3   ! Polynomial order for sigma(R) interpolation
-    INTEGER, PARAMETER :: ifind_sigma_interpolation=3    ! Finding scheme for sigma(R) interpolation
+    INTEGER, PARAMETER :: ifind_sigma_interpolation=1    ! 1 - Table is equally spaced in log(R)
     INTEGER, PARAMETER :: imeth_sigma_interpolation=2    ! Method sigma(R) interpolation
 
     ! HMcode numerical parameters for sigma(R) integration (dominates run time as of Jul 2019)
@@ -1868,9 +1867,11 @@
     ! Allocate arrays
     ALLOCATE (Pk(nk), Pk_wiggle(nk), Pk_smooth(nk))
 
-    ! Allocate array for k
-    CALL fill_table(log(kmin), log(kmax), k, nk)
-    k=exp(k)
+    ! Allocate array for k; fill log(k) directly (rather than as log of the k array) so
+    ! that the look-up table is exactly equally spaced, as assumed by ifind_wiggle=1
+    CALL fill_table(log(kmin), log(kmax), cosm%log_k_wiggle, nk)
+    ALLOCATE(k(nk))
+    k=exp(cosm%log_k_wiggle)
 
     ! Get the linear power spectrum in an array
     DO i = 1, nk
@@ -1893,11 +1894,9 @@
 
     IF (HM_verbose) WRITE(*, *) 'INIT_WIGGLE: Initialising interpolator'
 
-    ! Fill look-up tables
-    IF(ALLOCATED(cosm%log_k_wiggle)) DEALLOCATE(cosm%log_k_wiggle)
+    ! Fill look-up table (log_k_wiggle was filled above)
     IF(ALLOCATED(cosm%pk_wiggle)) DEALLOCATE(cosm%pk_wiggle)
-    ALLOCATE(cosm%log_k_wiggle(nk), cosm%pk_wiggle(nk))
-    cosm%log_k_wiggle = log(k)
+    ALLOCATE(cosm%pk_wiggle(nk))
     cosm%pk_wiggle = pk_wiggle
 
     IF (HM_verbose) THEN
@@ -2094,13 +2093,13 @@
         itype=1 ! 1 - Cold matter
     END IF
 
-    !Allocate arrays
-    IF(ALLOCATED(cosm%log_r_sigma)) DEALLOCATE(cosm%log_r_sigma)
-    IF(ALLOCATED(cosm%log_sigma))   DEALLOCATE(cosm%log_sigma)
-
     !These values of 'r' work fine for any power spectrum of cosmological importance
-    !Having nsig as a 2** number is most efficient for the look-up routines
+    !Fill log(R) directly (rather than as log(r)) so that it is exactly equally spaced,
+    !as assumed by ifind_sigma_interpolation=1
+    IF(ALLOCATED(cosm%log_sigma)) DEALLOCATE(cosm%log_sigma)
+    CALL fill_table(log(rmin),log(rmax),cosm%log_r_sigma,nsig)
     ALLOCATE(r(nsig),sig(nsig))
+    r=exp(cosm%log_r_sigma)
 
     IF(HM_verbose) WRITE(*,*) 'SIGTAB: Filling sigma interpolation table'
     IF(HM_verbose) WRITE(*,*) 'SIGTAB: R_min:', rmin
@@ -2110,12 +2109,7 @@
     !Cost per point varies a lot with R (adaptive integration), so balance dynamically
     !$OMP PARALLEL DO IF(HM_par_inner()) default(shared), SCHEDULE(DYNAMIC)
     DO i=1,nsig
-
-        !Equally spaced r in log
-        r(i)=exp(log(rmin)+log(rmax/rmin)*real(i-1,dl)/real(nsig-1,dl))
-
         sig(i)=sigma_integral(r(i),0.d0,itype,cosm)
-
     END DO
     !$OMP END PARALLEL DO
 
@@ -2123,8 +2117,7 @@
     IF(HM_verbose) WRITE(*,*) 'SIGTAB: sigma_max:', sig(1)
 
     cosm%nsig=nsig
-    ALLOCATE(cosm%log_r_sigma(nsig),cosm%log_sigma(nsig))
-    cosm%log_r_sigma=log(r)
+    ALLOCATE(cosm%log_sigma(nsig))
     cosm%log_sigma=log(sig)
 
     IF(HM_verbose) WRITE(*,*) 'SIGTAB: Done'
@@ -2790,8 +2783,7 @@
     !iorder = 2 => quadratic interpolation
     !iorder = 3 => cubic interpolation
 
-    !ifind = 1 => find x in xtab quickly assuming the table is linearly spaced
-    !ifind = 2 => find x in xtab by crudely searching from x(1) to x(n)
+    !ifind = 1 => find x in xtab quickly assuming the table is equally spaced
     !ifind = 3 => find x in xtab using midpoint splitting (iterations=CEILING(log2(n)))
 
     !imeth = 1 => Uses cubic polynomials for interpolation
@@ -2952,19 +2944,14 @@
 
     FUNCTION table_integer(x,xtab,n,imeth)
     !Chooses between ways to find the integer location below some value in an array
+    !find() only calls this for x inside the table, and both methods clamp anyway
     INTEGER :: table_integer
     INTEGER, INTENT(IN) :: n
     REAL(dl), INTENT(IN) :: x, xtab(n)
     INTEGER, INTENT(IN) :: imeth
 
-    IF(x<xtab(1)) THEN
-        table_integer=0
-    ELSE IF(x>xtab(n)) THEN
-        table_integer=n
-    ELSE IF(imeth==1) THEN
+    IF(imeth==1) THEN
         table_integer=linear_table_integer(x,xtab,n)
-    ELSE IF(imeth==2) THEN
-        table_integer=search_int(x,xtab,n)
     ELSE IF(imeth==3) THEN
         table_integer=int_split(x,xtab,n)
     ELSE
@@ -2975,35 +2962,16 @@
 
     FUNCTION linear_table_integer(x,xtab,n)
     !Assuming the table is exactly linear this gives you the integer position
+    !Clamped because the tabulated points can differ from the exactly equally spaced
+    !values by a last bit, which could otherwise put x in a neighbouring cell
     INTEGER :: linear_table_integer
     INTEGER, INTENT(IN) :: n
     REAL(dl), INTENT(IN) :: x, xtab(n)
-    REAL(dl) :: x1, xn
 
-    x1=xtab(1)
-    xn=xtab(n)
-    linear_table_integer=1+FLOOR(real(n-1,dl)*(x-x1)/(xn-x1))
+    linear_table_integer=1+FLOOR(real(n-1,dl)*(x-xtab(1))/(xtab(n)-xtab(1)))
+    linear_table_integer=max(1,min(n-1,linear_table_integer))
 
     END FUNCTION linear_table_integer
-
-    FUNCTION search_int(x,xtab,n)
-    !Does a stupid search through the table from beginning to end to find integer
-    INTEGER :: search_int
-    INTEGER, INTENT(IN) :: n
-    REAL(dl), INTENT(IN) :: x, xtab(n)
-    INTEGER :: i
-
-    IF(xtab(1)>xtab(n)) ERROR STOP 'SEARCH_INT: table in wrong order'
-
-    search_int=n-1
-    DO i=1,n-1
-        IF(x>=xtab(i) .AND. x<=xtab(i+1)) THEN
-            search_int=i
-            EXIT
-        END IF
-    END DO
-
-    END FUNCTION search_int
 
     FUNCTION int_split(x,xtab,n)
     !Finds the position of the value in the table by continually splitting it in half
@@ -3136,15 +3104,12 @@
     !Fills a table of values of the scale-independent growth function
     TYPE(HM_cosmology) :: cosm
     INTEGER :: i
-    REAL(dl) :: a
     REAL(dl), ALLOCATABLE :: d_tab(:), v_tab(:), a_tab(:)
     REAL(dl) :: dinit, vinit, zinit, f
     REAL(dl), PARAMETER :: aini=aini_growth_ODE
     REAL(dl), PARAMETER :: afin=afin_growth_ODE
     REAL(dl), PARAMETER :: amin=amin_growth_interpolation
     REAL(dl), PARAMETER :: amax=amax_growth_interpolation
-    !REAL(dl), PARAMETER :: ainit=ainit_growth_interpolation
-    !REAL(dl), PARAMETER :: amax=amax_growth_interpolation
     INTEGER, PARAMETER :: n=n_growth_interpolation
     REAL(dl), PARAMETER :: acc_ODE=acc_growth_ODE
     INTEGER, PARAMETER :: imeth_ODE=imeth_growth_ODE
@@ -3170,16 +3135,14 @@
     IF(HM_verbose) WRITE(*,*) 'GROWTH: Unnormalised g(a=1):', cosm%gnorm
     d_tab=d_tab/cosm%gnorm
 
-    !Could use some table-interpolation routine here to save time
-    IF(ALLOCATED(cosm%a_growth)) DEALLOCATE(cosm%a_growth)
+    !Equally spaced in a, as assumed by ifind_growth_interpolation=1
     IF(ALLOCATED(cosm%growth)) DEALLOCATE(cosm%growth)
 
     cosm%ng=n
-    ALLOCATE(cosm%a_growth(n),cosm%growth(n))
+    CALL fill_table(amin,amax,cosm%a_growth,n)
+    ALLOCATE(cosm%growth(n))
     DO i=1,n
-        a=amin+(amax-amin)*(i-1)/real(n-1,dl)
-        cosm%a_growth(i)=a
-        cosm%growth(i)=find(a,a_tab,d_tab,SIZE(a_tab),iorder_int,ifind_int,imeth_int)
+        cosm%growth(i)=find(cosm%a_growth(i),a_tab,d_tab,SIZE(a_tab),iorder_int,ifind_int,imeth_int)
     END DO
 
     ! Table integration to calculate G(a)=int_0^a g(a')/a' da'
