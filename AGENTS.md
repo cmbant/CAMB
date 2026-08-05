@@ -43,7 +43,7 @@ This is the CAMB Python cosmology code, wrapping Fortran 2003 for numerics.
 ## Temporary Worktrees
 - if a temp worktree is needed can use this script: .agents/skills/isolate-accuracy-fix/scripts/make_tmp_tracked_copy.py
   (isolate-accuracy-fix fill should not usually be read unless specifically requested; script can be used separately)
-
+- For temp worktree builds, temporarily set env var CAMB_BUILD_DIR to a new temp location to avoid conflicts (default: /tmp/camb-build in container)
 ---
 
 # Maintenance & Versioning
@@ -59,4 +59,4 @@ This is the CAMB Python cosmology code, wrapping Fortran 2003 for numerics.
 - High-accuracy lensing spectra at high ell requires `lens_potential_accuracy = 8` or so (this mainly increases `kmax`).
 - In this latest version lens_potential_accuracy=None is normally the default (automatic accuracy for good enough)
 - Use `python -m camb.check_accuracy` to assess numerical stability by comparing a default run to a high-accuracy run.
-- When testing timing, always discard first camb call (which precomputed bessels etc.)
+- When testing timing, always discard first camb call (which precompute Bessels etc.)
