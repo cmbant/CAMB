@@ -1065,7 +1065,7 @@
     IF(HM_verbose) WRITE(*,*) 'LINEAR POWER: z of input:', z
     index_cache = 1
     !Fill power table, both cold- and all-matter
-    !$OMP PARALLEL DO IF(HM_par_inner()) DEFAULT(SHARED), FIRSTPRIVATE(index_cache)
+    !$OMP PARALLEL DO IF(HM_par_inner() .and. nk>256) DEFAULT(SHARED), FIRSTPRIVATE(index_cache), SCHEDULE(STATIC)
     DO i=1,nk
         !Take the power from the current redshift choice
         Pk(i)=MatterPowerData_k(CAMB_PK,k(i),iz, index_cache)*(k(i)**3/(2*pi**2))
@@ -1339,14 +1339,10 @@
     nm=256
 
     !Find value of sigma_v, sig8, etc.
-    !$OMP PARALLEL SECTIONS IF(HM_par_inner()) DEFAULT(SHARED)
-    !$OMP SECTION
     lut%sigv=sigmaV(0.d0,z,0,cosm)
     IF(HM_verbose) WRITE(*,*) 'HALOMOD: sigv [Mpc/h]:', lut%sigv
-    !$OMP SECTION
     if (global_error_flag==0) lut%sigv100=sigmaV(100.d0,z,0,cosm)
     IF(HM_verbose) WRITE(*,*) 'HALOMOD: sigv100 [Mpc/h]:', lut%sigv100
-    !$OMP SECTION
     if (global_error_flag==0) then
         lut%sig8z=sigma_integral(8.d0,z,0,cosm)
         lut%sig8z_cold=sigma_integral(8.d0,z,1,cosm)
@@ -1355,7 +1351,6 @@
         WRITE(*,*) 'HALOMOD: sig8(z):', lut%sig8z
         WRITE(*,*) 'HALOMOD: cold sig8(z):', lut%sig8z_cold
     END IF
-    !$OMP END PARALLEL SECTIONS
     if (global_error_flag/=0) return
 
     CALL allocate_lut(lut, nm)

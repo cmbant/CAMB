@@ -3768,9 +3768,9 @@
         a0=(PK%log_kh(lhi)-logk)/ho
         b0=1-a0
 
-        outpower = a0*PK%matpower(llo,itf)+ b0*PK%matpower(lhi,itf)+&
-            ((a0**3-a0)* PK%ddmat(llo,itf) &
-            +(b0**3-b0)*PK%ddmat(lhi,itf))*ho**2/6
+        outpower = a0*PK%matpower(llo,itf) + b0*PK%matpower(lhi,itf) - &
+            a0*b0*( (a0+1)*PK%ddmat(llo,itf) + (b0+1)*PK%ddmat(lhi,itf) )*ho**2/6
+
     end if
 
     outpower = exp(outpower)
@@ -4573,8 +4573,8 @@
                     Cl=exp(-2*State%optical_depths_for21cm(itf_PK))*const_fourpi*Cl* &
                         real(l,dl)*(l+1)/const_twopi/1d10
 
-                write (unit, '(1I8,3E15.5)') l, Cl, exp(PK_data%matpower(ik,1)/1d10), &
-                    exp(PK_data%vvpower(ik,1)/1d10)
+                    write (unit, '(1I8,3E15.5)') l, Cl, exp(PK_data%matpower(ik,1)/1d10), &
+                        exp(PK_data%vvpower(ik,1)/1d10)
                 end if
             end do
 
