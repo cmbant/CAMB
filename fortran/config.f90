@@ -3,12 +3,11 @@
     use constants, only: const_twopi
     implicit none
 
-    character(LEN=*), parameter :: version = '2.0.1'
+    character(LEN=*), parameter :: version = '2.0.2'
 
     integer :: FeedbackLevel = 0 !if >0 print out useful information about the model
 
-    logical :: print_fortran_warnings = .true. !if true, Fortran code prints warnings
-                                               !(e.g. low resolution, narrow window, etc.)
+    logical :: print_fortran_warnings = .true. ! Whether Fortran code prints warnings (resolution, narrow window, etc.)
 
     integer :: AccuracyTarget = 1 !if >0 enable targeted accuracy improvements
 

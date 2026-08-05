@@ -273,13 +273,18 @@ class CambTest(unittest.TestCase):
         )
         pars.set_for_lmax(2200, lens_potential_accuracy=1)
         pars.WantTensors = True
-        pars.NonLinearModel.set_params(halofit_version="mead2020_feedback", HMCode_logT_AGN=7.7)
+        pars.NonLinearModel.set_params(
+            halofit_version="mead2020_feedback", HMCode_logT_AGN=7.7, HMCode_wiggle_max_fnu=0.02
+        )
+        self.assertAlmostEqual(pars.NonLinearModel.HMCode_wiggle_max_fnu, 0.02)
         pars.Alens = 0.95
 
         with tempfile.TemporaryDirectory() as temp_dir:
             ini_file = os.path.join(temp_dir, "python_params.ini")
             pars.write_ini(ini_file)
             self.assertTrue(os.path.exists(ini_file))
+            round_tripped = camb.read_ini(ini_file)
+            self.assertAlmostEqual(round_tripped.NonLinearModel.HMCode_wiggle_max_fnu, 0.02)
 
     def testIniThetaInput(self):
         base_ini = os.path.join(os.path.dirname(__file__), "..", "..", "inifiles", "planck_2018.ini")

@@ -3513,12 +3513,34 @@
 
     end subroutine Transfer_GetUnsplinedPower
 
+    subroutine Transfer_CacheNonLinRatios(State)
+    !Calculate the non-linear ratios for all of the transfer redshifts at once, and cache them
+    !in State%CAMB_PK. Non-linear models can share redshift-independent set-up between redshifts
+    !(e.g. the HMcode growth table and BAO wiggle extraction), so this is faster than making
+    !one call per redshift.
+    !With non-linear lensing there are extra transfer redshifts for interpolating the non-linear
+    !scaling of the sources, so the redshift lists differ; MakeNonlinearSources has then already
+    !cached the ratios for all of them (including the power spectrum redshifts) and this does nothing.
+    Type(CAMBdata) :: State
+
+    if (.not. allocated(State%CAMB_Pk) .and. State%CP%Transfer%PK_num_redshifts == State%num_transfer_redshifts &
+        .and. .not. State%OnlyTransfer) then
+        allocate(State%CAMB_PK)
+        call Transfer_GetMatterPowerData(State, State%MT, State%CAMB_PK)
+        call State%CP%NonLinearModel%GetNonLinRatios(State, State%CAMB_PK)
+    end if
+
+    end subroutine Transfer_CacheNonLinRatios
+
     subroutine Transfer_GetNonLinRatio_index(State,M, ratio, itf)
     Type(MatterTransferData), intent(in) :: M
     Type(CAMBdata) :: State
     real(dl), allocatable, intent(out) :: ratio(:)
     integer, intent(in) :: itf
     Type(MatterPowerData) :: PKdata
+
+    !All of the power spectrum redshifts are normally wanted, so get them in one call
+    if (State%CP%Transfer%PK_num_redshifts > 1) call Transfer_CacheNonLinRatios(State)
 
     if (allocated(State%CAMB_PK)) then
         allocate(ratio, source = State%CAMB_PK%nonlin_ratio(:,itf))
@@ -3541,12 +3563,7 @@
     integer zix
     real(dl), allocatable :: ratio(:)
 
-    if (.not. allocated(State%CAMB_Pk) .and. State%CP%Transfer%PK_num_redshifts == State%num_transfer_redshifts &
-        .and. .not. State%OnlyTransfer) then
-        allocate(State%CAMB_PK)
-        call Transfer_GetMatterPowerData(State, State%MT, State%CAMB_PK)
-        call State%CP%NonLinearModel%GetNonLinRatios(State, State%CAMB_PK)
-    end if
+    call Transfer_CacheNonLinRatios(State)
 
     call Transfer_GetUnsplinedPower(State,M,PK,var1,var2, hubble_units)
     do zix=1, State%CP%Transfer%PK_num_redshifts
@@ -4258,6 +4275,7 @@
     integer ncol
     logical, intent(in), optional :: all21cm
     logical all21
+    real(dl), allocatable :: ratio(:)
     !JD 08/13 Changes in here to PK arrays and variables
     integer itf_PK
 
@@ -4285,8 +4303,8 @@
                     !Changed (CP%NonLinear/=NonLinear_None) to CP%NonLinear/=NonLinear_none
                     !.and. CP%NonLinear/=NonLinear_Lens)
                     if(State%CP%NonLinear/=NonLinear_none .and. State%CP%NonLinear/=NonLinear_Lens) then
-                        call State%CP%NonLinearModel%GetNonLinRatios(State, PK_data)
-                        PK_data%matpower = PK_data%matpower +  2*log(PK_data%nonlin_ratio)
+                        call Transfer_GetNonLinRatio_index(State, MTrans, ratio, itf_PK)
+                        PK_data%matpower(:,1) = PK_data%matpower(:,1) +  2*log(ratio)
                         call MatterPowerdata_getsplines(PK_data)
                     end if
                 end if

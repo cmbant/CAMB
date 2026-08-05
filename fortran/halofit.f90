@@ -46,6 +46,10 @@
     !AL Jul 26: Code optimizations and cleanups
     !AL Jul 26: Fixed halofit_casarini; PKequal had been a no-op since w_lam/wa_ppf stopped
     !           being global variables, so it silently returned the takahashi result
+    !AL Aug 26: Only extract the HMcode BAO wiggle for the 2020 versions that use it, and only once
+    !           (growth-scaled from z=0) for cosmologies with nearly scale-independent growth
+    !           (see HMcode_wiggle_max_fnu, DarkEnergy%assume_scale_indep_lowz_growth); non-linear ratios
+    !           for all matter power redshifts are now obtained in one call
     !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
     module NonLinear
@@ -86,6 +90,9 @@
         real(dl) :: HMcode_A_baryon=3.13_dl
         real(dl) :: HMcode_eta_baryon=0.603_dl
         real(dl) :: HMcode_logT_AGN=7.8_dl
+        !Condition for extracting the HMcode-2020 BAO wiggle only once (see assign_HM_cosmology);
+        !relaxing it is faster, at the cost of assuming growth is more nearly scale-independent
+        real(dl) :: HMcode_wiggle_max_fnu=0.01_dl !largest neutrino fraction for which the wiggle is re-used
         !!AM - Added these types for HMcode
         integer, private :: imead !!AM - added these for HMcode, need to be visible to all subroutines and functions
         real(dl), private :: om_m,om_v,fnu,omm0, acur, w_hf, wa_hf
@@ -128,7 +135,10 @@
         real(dl) :: kmax
         real(dl) :: gnorm
         INTEGER :: nk, ng, nsig
+        INTEGER :: plin_iz = 0 !redshift index currently stored in the linear power table (0 if none)
         real(dl) :: grow_z, this_z !cached growth factor at redshift being calculated
+        LOGICAL :: wiggle_once = .FALSE. !extract the BAO wiggle once, at z=0
+        LOGICAL :: wiggle_each_z = .FALSE. !extract the BAO wiggle separately at each redshift
         !AM - Added feedback parameters below at fixed fiducial (DMONLY) values
         REAL(dl) :: A_baryon=3.13
         REAL(dl) :: eta_baryon=0.603
@@ -174,7 +184,7 @@
     INTEGER, PARAMETER :: ifind_wiggle=3          ! 3 - Mid-point finding scheme for wiggle interpolation
     INTEGER, PARAMETER :: imeth_wiggle=2          ! 2- Lagrange polynomial interpolation
     REAL(dl), PARAMETER :: wiggle_sigma=0.25_dl   ! Smoothing width if using Gaussian smoothing
-    REAL(dl), PARAMETER :: knorm_nowiggle=0.03_dl ! Wavenumber at which to force linear and nowiggle to be identical [Mpc/h]
+    REAL(dl), PARAMETER :: knorm_nowiggle=0.03_dl ! Wavenumber where linear and nowiggle, forced to be identical [Mpc/h]
 
     ! Linear growth integral numerical parameters (LCDM only; only used in Dolag correction)
     ! AM: Jul 19: Updated acc_growint from 1e-3 to 1e-4
@@ -279,6 +289,7 @@
     ELSE IF(this%halofit_version == halofit_mead2020_feedback) THEN
         this%HMcode_logT_AGN = Ini%Read_Double('HMcode_logT_AGN', 7.8_dl)
     END IF
+    this%HMcode_wiggle_max_fnu = Ini%Read_Double('HMcode_wiggle_max_fnu', this%HMcode_wiggle_max_fnu)
 
     end subroutine THalofit_ReadParams
 
@@ -297,6 +308,7 @@
     real(dl) w_eff, wa_eff
     real(dl), allocatable :: pk_fac(:)
     integer i
+    logical found_nonlinear_scale
 
     !$ if (ThreadNum /=0) call OMP_SET_NUM_THREADS(ThreadNum)
 
@@ -343,6 +355,7 @@
                     call wint_pk_table(CAMB_Pk, itf, pk_fac)
                     xlogr1=-2.0
                     xlogr2=3.5
+                    found_nonlinear_scale = .true.
                     do
                         rmid=(xlogr2+xlogr1)/2.0
                         rmid=10**rmid
@@ -360,13 +373,17 @@
                         endif
                         if (xlogr2 < -1.9999) then
                             !is still linear, exit
-                            goto 101
+                            found_nonlinear_scale = .false.
+                            exit
                         else if (xlogr1>3.4999) then
                             ! Totally crazy non-linear
                             call GlobalError('Error in halofit (xlogr1>3.4999)', error_nonlinear)
-                            goto 101
+                            found_nonlinear_scale = .false.
+                            exit
                         end if
                     end do
+
+                    if (.not. found_nonlinear_scale) cycle
 
                     ! now calculate power spectra for a logarithmic range of wavenumbers (rk)
 
@@ -389,9 +406,7 @@
 
                         end if
 
-                    enddo
-
-101                 continue
+                    end do
                 end do
 
             END IF
@@ -580,7 +595,7 @@
     REAL(dl) :: z, k
     REAL(dl) :: p1h, p2h, pfull, plin
     REAL(dl), ALLOCATABLE :: p_den(:,:), p_num(:,:)
-    INTEGER :: i, j, ii, nk, nz
+    INTEGER :: i, j, ii, nk, nz, iz_wiggle
     REAL :: t1, t2
     TYPE(HM_cosmology) :: cosi
     TYPE(HM_tables) :: lut
@@ -624,6 +639,15 @@
 
     !Fill growth function table (only needs to be done once)
     CALL fill_growtab(cosi)
+
+    IF (cosi%wiggle_once) THEN
+        ! Extract the BAO wiggle from the available spectrum nearest z=0. The
+        ! wiggle is stored at z=0 and scaled to each redshift in p_dewiggle.
+        iz_wiggle = MINLOC(ABS(CAMB_PK%Redshifts), DIM=1)
+        CALL fill_plintab(iz_wiggle,cosi,CAMB_PK)
+        if (global_error_flag/=0) return
+        CALL init_wiggle(cosi)
+    END IF
 
     !Loop over redshifts
     DO j=1,nz
@@ -947,6 +971,9 @@
     REAL(dl), PARAMETER :: kmax=kmax_pk_interpolation
     INTEGER :: nk, index_cache
 
+    !The table for this redshift is already there (e.g. filled to extract the BAO wiggle)
+    IF(cosm%plin_iz == iz) RETURN
+
     nk = nk_pk_interpolation
 
     IF(HM_verbose) WRITE(*,*) 'LINEAR POWER: Filling linear power HM_tables'
@@ -1010,6 +1037,7 @@
     !Grow the power to z=0
     cosm%log_plin=log(Pk/(g**2))
     cosm%log_plinc=log(Pkc/(g**2))
+    cosm%plin_iz = iz
 
     !Check sigma_8 value
     IF(HM_verbose) WRITE(*,*) 'LINEAR POWER: sigma_8:', sigma_integral(8.d0,0.d0,0,cosm)
@@ -1079,6 +1107,7 @@
     !Assigns the internal HMcode cosmological parameters
     TYPE(HM_cosmology) :: cosm
     real(dl) h2
+    logical use_wiggle
 
     associate(CP => State%CP)
         !Converts CAMB parameters to Meadfit parameters
@@ -1094,6 +1123,14 @@
         cosm%Tcmb=CP%tcmb
         cosm%Nnu=CP%Num_Nu_massive
         cosm%ns= CP%InitPower%Effective_ns()
+        !The de-wiggled spectrum is only used by the 2020 versions. The wiggle is stored at z=0 and
+        !scaled to other redshifts by the scale-independent growth factor, so it only needs extracting
+        !once when growth is nearly scale-independent (small neutrino fraction) and the dark energy
+        !model does not itself introduce scale-dependent growth. Otherwise re-extract it at each redshift.
+        use_wiggle = this%halofit_version==halofit_mead2020 .OR. this%halofit_version==halofit_mead2020_feedback
+        cosm%wiggle_once = use_wiggle .and. cosm%f_nu < this%HMcode_wiggle_max_fnu .and. &
+            CP%DarkEnergy%assume_scale_indep_lowz_growth()
+        cosm%wiggle_each_z = use_wiggle .and. .not. cosm%wiggle_once
     end associate
 
     ! Baryon feedback parameters
@@ -1141,9 +1178,9 @@
     !Fill sigma(r) table
     CALL fill_sigtab(this,cosm)
 
-    ! Extract BAO wiggle from P(k)
-    ! AM: TODO: Maybe move this so that it is not done every z
-    CALL init_wiggle(cosm)
+    ! Extract BAO wiggle from P(k); only needed at each z for models where the
+    ! wiggle is not simply growth-scaled (otherwise done once in HMcode)
+    IF (cosm%wiggle_each_z) CALL init_wiggle(cosm)
 
     END SUBROUTINE initialise_HM_cosmology
 

@@ -81,6 +81,19 @@ tuning, validation, and implementation details.
 - New non-linear model hooks include `ExternalNonLinearRatio` for externally
   supplied non-linear ratios and `SecondOrderPK` for second-order perturbative
   matter-power ratios.
+- HMcode-2020's BAO wiggle extraction is now only performed once (at z=0) and
+  scaled by the growth factor for cosmologies with low neutrino mass fraction
+  (below the new `Halofit.HMcode_wiggle_max_fnu`, default 0.01) and a dark
+  energy model with scale-independent low-redshift growth (a new
+  `TDarkEnergyModel.assume_scale_indep_lowz_growth()` method, true by default
+  for `w`/`wa` and PPF dark energy with unit sound speed, general quintessence,
+  and the early dark energy/axion-effective-fluid models).
+  `get_matter_power_spectrum` also now computes non-linear ratios for all
+  requested redshifts in a single call instead of one call per redshift.
+  Together these give up to about 15% faster non-linear matter-power
+  evaluation, at accuracy costs many orders of magnitude below HMcode's own
+  uncertainty. See
+  `docs/changelog/2026-08-04-hmcode-wiggle-reuse-batched-nonlinear.md`.
 
 ## Recombination, Reionization, And Backgrounds
 

@@ -58,6 +58,16 @@ class Halofit(NonLinearModel):
         ("HMCode_A_baryon", c_double, "HMcode parameter A_baryon"),
         ("HMCode_eta_baryon", c_double, "HMcode parameter eta_baryon"),
         ("HMCode_logT_AGN", c_double, "HMcode parameter log10(T_AGN/K)"),
+        (
+            "HMCode_wiggle_max_fnu",
+            c_double,
+            (
+                "for HMcode-2020, largest neutrino mass fraction for which the BAO wiggle is extracted once at "
+                "z=0 and then scaled by the growth factor (rather than extracted at each redshift), "
+                "provided the dark energy model's assume_scale_indep_lowz_growth() is also true; "
+                "raise it for speed if scale-dependent growth is unimportant"
+            ),
+        ),
     )
 
     _fortran_class_module_ = "NonLinear"
@@ -75,16 +85,27 @@ class Halofit(NonLinearModel):
         state.set("halofit_version", halofit_version)
         state.write_fields(
             self,
-            names=("HMCode_A_baryon", "HMCode_eta_baryon", "HMCode_logT_AGN"),
+            names=(
+                "HMCode_A_baryon",
+                "HMCode_eta_baryon",
+                "HMCode_logT_AGN",
+                "HMCode_wiggle_max_fnu",
+            ),
             rename={
                 "HMCode_A_baryon": "HMcode_A_baryon",
                 "HMCode_eta_baryon": "HMcode_eta_baryon",
                 "HMCode_logT_AGN": "HMcode_logT_AGN",
+                "HMCode_wiggle_max_fnu": "HMcode_wiggle_max_fnu",
             },
         )
 
     def set_params(
-        self, halofit_version=halofit_default, HMCode_A_baryon=3.13, HMCode_eta_baryon=0.603, HMCode_logT_AGN=7.8
+        self,
+        halofit_version=halofit_default,
+        HMCode_A_baryon=3.13,
+        HMCode_eta_baryon=0.603,
+        HMCode_logT_AGN=7.8,
+        HMCode_wiggle_max_fnu=0.01,
     ):
         """
         Set the halofit model for non-linear corrections.
@@ -107,11 +128,14 @@ class Halofit(NonLinearModel):
         :param HMCode_eta_baryon: HMcode parameter eta_baryon. Default 0.603.
                                 Used only in mead2015 and mead2016 (and its alias mead).
         :param HMCode_logT_AGN: HMcode parameter logT_AGN. Default 7.8. Used only in model mead2020_feedback.
+        :param HMCode_wiggle_max_fnu: Largest neutrino mass fraction for which HMcode-2020 reuses the
+                                     growth-scaled BAO wiggle across redshifts. Default 0.01.
         """
         self.halofit_version = halofit_version
         self.HMCode_A_baryon = HMCode_A_baryon
         self.HMCode_eta_baryon = HMCode_eta_baryon
         self.HMCode_logT_AGN = HMCode_logT_AGN
+        self.HMCode_wiggle_max_fnu = HMCode_wiggle_max_fnu
 
 
 @fortran_class
@@ -198,6 +222,7 @@ class SPkNonLinear(NonLinearModel):
         HMCode_A_baryon=3.13,
         HMCode_eta_baryon=0.603,
         HMCode_logT_AGN=7.8,
+        HMCode_wiggle_max_fnu=0.01,
     ):
         """
         Configure the SP(k) baryon suppression model.
@@ -237,6 +262,8 @@ class SPkNonLinear(NonLinearModel):
         :param HMCode_A_baryon: HMcode A_baryon parameter (mead2015/2016 only). Default 3.13.
         :param HMCode_eta_baryon: HMcode eta_baryon parameter (mead2015/2016 only). Default 0.603.
         :param HMCode_logT_AGN: HMcode log10(T_AGN/K) parameter (mead2020_feedback only). Default 7.8.
+        :param HMCode_wiggle_max_fnu: Largest neutrino mass fraction for reusing the HMcode-2020 BAO wiggle.
+                                     Default 0.01.
         :return: Self, for fluent configuration.
         :raises CAMBValueError: If parameters are invalid or incompatible with the base model.
 
@@ -302,6 +329,7 @@ class SPkNonLinear(NonLinearModel):
                 HMCode_A_baryon=HMCode_A_baryon,
                 HMCode_eta_baryon=HMCode_eta_baryon,
                 HMCode_logT_AGN=HMCode_logT_AGN,
+                HMCode_wiggle_max_fnu=HMCode_wiggle_max_fnu,
             )
 
         self.SPk_feedback = SPk_feedback

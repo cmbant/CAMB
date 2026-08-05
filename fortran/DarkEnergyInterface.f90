@@ -21,6 +21,7 @@
     procedure :: w_de => TDarkEnergyModel_w_de
     procedure :: grho_de => TDarkEnergyModel_grho_de
     procedure :: Effective_w_wa !Used as approximate values for non-linear corrections
+    procedure :: assume_scale_indep_lowz_growth => TDarkEnergyModel_assume_scale_indep_lowz_growth
     end type TDarkEnergyModel
 
     type, extends(TDarkEnergyModel) :: TDarkEnergyEqnOfState
@@ -40,6 +41,7 @@
     procedure :: w_de => TDarkEnergyEqnOfState_w_de
     procedure :: grho_de => TDarkEnergyEqnOfState_grho_de
     procedure :: Effective_w_wa => TDarkEnergyEqnOfState_Effective_w_wa
+    procedure :: assume_scale_indep_lowz_growth => TDarkEnergyEqnOfState_assume_scale_indep_lowz_growth
 #if defined(__GFORTRAN__) && (( __GNUC__ < 15 ) || ( __GNUC__ == 15 && __GNUC_MINOR__ < 2 ))
     final :: TDarkEnergyEqnOfState_Free ! safer for gcc mem-leak bug
 #endif
@@ -111,6 +113,19 @@
 
     end subroutine Effective_w_wa
 
+    function TDarkEnergyModel_assume_scale_indep_lowz_growth(this)
+    !Whether growth of matter perturbations at the low redshifts relevant for late-time structure
+    !can be assumed scale-independent (as for LCDM), e.g. because dark energy does not cluster
+    !significantly on the scales of interest. Used by non-linear models (e.g. HMcode) to decide
+    !whether quantities computed from the shape of the z=0 spectrum can be re-used, rescaled by the
+    !growth factor, at other redshifts, rather than being recomputed at each redshift.
+    !Conservatively false by default; override in specific dark energy implementations.
+    class(TDarkEnergyModel) :: this
+    logical :: TDarkEnergyModel_assume_scale_indep_lowz_growth
+
+    TDarkEnergyModel_assume_scale_indep_lowz_growth = .false.
+
+    end function TDarkEnergyModel_assume_scale_indep_lowz_growth
 
     subroutine PerturbedStressEnergy(this, dgrhoe, dgqe, &
         a, dgq, dgrho, grho, grhov_t, w, gpres_noDE, etak, adotoa, k, kf1, ay, ayprime, w_ix)
@@ -213,6 +228,17 @@
     wa = this%wa
 
     end subroutine TDarkEnergyEqnOfState_Effective_w_wa
+
+    function TDarkEnergyEqnOfState_assume_scale_indep_lowz_growth(this)
+    !w, wa (or tabulated w) dark energy with cs=1 is smooth on the sub-horizon scales relevant for late-time
+    !structure, so growth is scale-independent to good approximation regardless of the equation
+    !of state; see TDarkEnergyModel_assume_scale_indep_lowz_growth.
+    class(TDarkEnergyEqnOfState) :: this
+    logical :: TDarkEnergyEqnOfState_assume_scale_indep_lowz_growth
+
+    TDarkEnergyEqnOfState_assume_scale_indep_lowz_growth = this%cs2_lam > 0.99_dl
+
+    end function TDarkEnergyEqnOfState_assume_scale_indep_lowz_growth
 
     function TDarkEnergyEqnOfState_grho_de(this, a) result(grho_de) !relative density (8 pi G a^4 rho_de /grhov)
     class(TDarkEnergyEqnOfState) :: this

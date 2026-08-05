@@ -51,6 +51,7 @@
     procedure :: EvolveBackground
     procedure :: EvolveBackgroundLog
     procedure, private :: phidot_start => TQuintessence_phidot_start
+    procedure :: assume_scale_indep_lowz_growth => TQuintessence_assume_scale_indep_lowz_growth
     end type TQuintessence
 
     ! Specific implementation for early quintessence + cosmologial constant, assuming the early component
@@ -65,7 +66,7 @@
         logical :: use_zc = .true. !adjust m to fit zc
         real(dl) :: zc, fde_zc !readshift for peak f_de and f_de at that redshift
         integer :: npoints = 5000 !baseline number of log a steps; increased if needed
-                                  !when there are oscillations
+        !when there are oscillations
         integer :: min_steps_per_osc = 10
         real(dl), dimension(:), allocatable :: fde, ddfde
         integer, private :: int_n = 0
@@ -80,6 +81,7 @@
     procedure, private :: fde_peak
     procedure, private :: check_error
     procedure :: calc_zc_fde
+    procedure :: assume_scale_indep_lowz_growth => TEarlyQuintessence_assume_scale_indep_lowz_growth
 
     end type TEarlyQuintessence
 
@@ -274,6 +276,18 @@
     ayprime(w_ix+1) = - 2*adotoa*vq - k*z*phidot - k**2*clxq - a**2*clxq*this%Vofphi(phi,2)
 
     end subroutine TQuintessence_PerturbationEvolve
+
+    function TQuintessence_assume_scale_indep_lowz_growth(this)
+    !The canonical field perturbation equation above has unit rest-frame sound speed, so
+    !perturbations are Jeans-suppressed on sub-horizon scales provided the effective mass
+    !a^2*V'' stays well below k^2 there, as for a slowly-rolling potential; see
+    !TDarkEnergyModel_assume_scale_indep_lowz_growth. Subclasses may need to test.
+    class(TQuintessence) :: this
+    logical :: TQuintessence_assume_scale_indep_lowz_growth
+
+    TQuintessence_assume_scale_indep_lowz_growth = .true.
+
+    end function TQuintessence_assume_scale_indep_lowz_growth
 
     ! Early Quintessence example, axion potential from e.g. arXiv: 1908.06995
 
@@ -658,14 +672,14 @@
 
     select type (this => obj)
     class is (TEarlyQuintessence)
-    this%f = exp(x(1))
-    this%m = exp(x(2))
-    call this%calc_zc_fde(zc, fde_zc)
+        this%f = exp(x(1))
+        this%m = exp(x(2))
+        call this%calc_zc_fde(zc, fde_zc)
 
-    match_fde_zc = (log(this%fde_zc)-log(fde_zc))**2 + (log(zc)-log(this%zc))**2
-    if (this%DebugLevel>1) then
-        write(*,*) 'search f, m, zc, fde_zc, chi2', this%f, this%m, zc, fde_zc, match_fde_zc
-    end if
+        match_fde_zc = (log(this%fde_zc)-log(fde_zc))**2 + (log(zc)-log(this%zc))**2
+        if (this%DebugLevel>1) then
+            write(*,*) 'search f, m, zc, fde_zc, chi2', this%f, this%m, zc, fde_zc, match_fde_zc
+        end if
     class default
         error stop 'match_fde_zc: expected TEarlyQuintessence'
     end select
@@ -785,6 +799,22 @@
     P => PType
 
     end subroutine TEarlyQuintessence_SelfPointer
+
+    function TEarlyQuintessence_assume_scale_indep_lowz_growth(this)
+    !Unlike a generic slowly-rolling TQuintessence, this field oscillates near zc, where the
+    !effective mass a^2*V'' can be comparable to or exceed k^2 for matter-power-relevant scales
+    !(the same physics that gives TAxionEffectiveFluid's fluid approximation a scale-dependent
+    !effective sound speed). But by construction the early component's density fraction is
+    !only significant close to zc and negligible by z=0 (frac_lambda0 ~ 1), and this method only
+    !has to hold for the low redshifts relevant for late-time structure (see
+    !TDarkEnergyModel_assume_scale_indep_lowz_growth), well below zc for the intended use of this
+    !class. So the inherited TQuintessence default of scale-independent low-z growth still applies.
+    class(TEarlyQuintessence) :: this
+    logical :: TEarlyQuintessence_assume_scale_indep_lowz_growth
+
+    TEarlyQuintessence_assume_scale_indep_lowz_growth = this%use_zc .and. this%zc > 50._dl
+
+    end function TEarlyQuintessence_assume_scale_indep_lowz_growth
 
 
     !real(dl) function GetOmegaFromInitial(this, astart,phi,phidot,atol)
