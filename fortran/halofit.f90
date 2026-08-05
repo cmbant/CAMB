@@ -50,6 +50,9 @@
     !           (growth-scaled from z=0) for cosmologies with nearly scale-independent growth
     !           (see HMcode_wiggle_max_fnu, DarkEnergy%assume_scale_indep_lowz_growth); non-linear ratios
     !           for all matter power redshifts are now obtained in one call
+    !AL Aug 26: Parallelize over redshift rather than inside each redshift (no per-redshift state is
+    !           kept on THalofit any more, so the loops are re-entrant); re-use the redshift set-up
+    !           between the passes of the HMcode-2020 feedback response. Results are unchanged.
     !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
     module NonLinear
@@ -59,6 +62,7 @@
     use Transfer
     use constants
     use config
+    use MiscUtils, only : DefaultFalse
     implicit none
     private
 
@@ -73,6 +77,13 @@
 
     !Number of points used for the (Gaussian-filtered) sigma(R) integral in standard halofit
     integer, parameter :: nint_wint = 3000
+
+    type :: THalofit_zparams
+        !Per-redshift background quantities used by the standard halofit fitting formulae.
+        !Held in a local variable (not on THalofit) so that redshifts can be done in parallel.
+        real(dl) :: om_m = 1._dl, om_v = 0._dl, fnu = 0._dl, acur = 1._dl
+        real(dl) :: w_hf = -1._dl, wa_hf = 0._dl
+    end type THalofit_zparams
 
     type :: TEquivalent_wCDM
         !Workspace for PKequal (halofit_casarini); describes a trial model with constant dark
@@ -93,9 +104,9 @@
         !Condition for extracting the HMcode-2020 BAO wiggle only once (see assign_HM_cosmology);
         !relaxing it is faster, at the cost of assuming growth is more nearly scale-independent
         real(dl) :: HMcode_wiggle_max_fnu=0.01_dl !largest neutrino fraction for which the wiggle is re-used
-        !!AM - Added these types for HMcode
-        integer, private :: imead !!AM - added these for HMcode, need to be visible to all subroutines and functions
-        real(dl), private :: om_m,om_v,fnu,omm0, acur, w_hf, wa_hf
+        !Note THalofit holds no per-redshift state: it is read-only while GetNonLinRatios runs, so
+        !that the loop over redshifts can be parallelized (HMcode's imead lives in HM_tables%imead,
+        !and the standard halofit background quantities in a local THalofit_zparams).
     contains
     procedure :: ReadParams => THalofit_ReadParams
     procedure :: GetNonLinRatios => THalofit_GetNonLinRatios
@@ -103,16 +114,16 @@
     procedure :: HMcode
     procedure, nopass :: PythonClass => THalofit_PythonClass
     procedure, nopass :: SelfPointer => THalofit_SelfPointer
-    procedure, private :: Delta_v
-    procedure, private :: delta_c
-    procedure, private :: eta
-    procedure, private :: kstar
-    procedure, private :: As
+    procedure, nopass, private :: Delta_v
+    procedure, nopass, private :: delta_c
+    procedure, nopass, private :: eta
+    procedure, nopass, private :: kstar
+    procedure, nopass, private :: As
     procedure, private :: conc_bull
-    procedure, private :: fdamp
-    procedure, private :: p_1h
-    procedure, private :: p_2h
-    procedure, private :: alpha
+    procedure, nopass, private :: fdamp
+    procedure, nopass, private :: p_1h
+    procedure, nopass, private :: p_2h
+    procedure, nopass, private :: alpha
     procedure, private :: halomod
     procedure, private :: halomod_init
     procedure, private :: write_parameters
@@ -151,7 +162,9 @@
         REAL(dl), ALLOCATABLE :: p1h_weight(:), nu_eta(:), baryon_mass_fraction(:)
         REAL(dl) :: sigv, sigv100, knl, rnl, neff, sig8z, z, dc, sig8z_cold
         REAL(dl) :: eta_hm, kstar_hm, alpha_hm, fdamp_hm, one_minus_fnu_sq, f_star_hm
+        REAL(dl) :: dolag_inf=1, dolag_z=1 !cached Dolag (2004) concentration corrections
         INTEGER :: n
+        INTEGER :: imead=-1 !HMcode variant these HM_tables were filled for (see HMcode)
     END TYPE HM_tables
     !!AM - End of my additions
 
@@ -305,9 +318,10 @@
     real(dl) a,plin,pq,ph,pnl,rk
     real(dl) sig,rknl,rneff,rncur,d1,d2
     real(dl) diff,xlogr1,xlogr2,rmid, h2
-    real(dl) w_eff, wa_eff
+    real(dl) w_eff, wa_eff, omm0, fnu
     real(dl), allocatable :: pk_fac(:)
-    integer i
+    type(THalofit_zparams) :: hf
+    integer i, index_cache
     logical found_nonlinear_scale
 
     !$ if (ThreadNum /=0) call OMP_SET_NUM_THREADS(ThreadNum)
@@ -327,31 +341,37 @@
                 !!BR09 putting neutrinos into the matter as well, not sure if this is correct, but at least one
                 !!will get a consistent omk.
                 h2 = (Params%H0/100)**2
-                this%omm0 = (Params%omch2+Params%ombh2+Params%omnuh2)/h2
-                this%fnu = Params%omnuh2/h2/this%omm0
+                omm0 = (Params%omch2+Params%ombh2+Params%omnuh2)/h2
+                fnu = Params%omnuh2/h2/omm0
 
                 CAMB_Pk%nonlin_ratio = 1
-                allocate(pk_fac(nint_wint))
 
                 call Params%DarkEnergy%Effective_w_wa(w_eff, wa_eff)
-                this%w_hf = w_eff
-                this%wa_hf = wa_eff
 
+                !Each redshift is independent; hf and pk_fac hold all the per-redshift state
+                !$OMP PARALLEL DO IF(CAMB_Pk%num_z > 1) DEFAULT(SHARED) SCHEDULE(DYNAMIC) &
+                !$OMP PRIVATE(itf,hf,pk_fac,a,i,rk,plin,pnl,pq,ph,index_cache), &
+                !$OMP PRIVATE(sig,rknl,rneff,rncur,d1,d2,diff,xlogr1,xlogr2,rmid,found_nonlinear_scale)
                 do itf = 1, CAMB_Pk%num_z
+                    if (global_error_flag /= 0) cycle
+                    if (.not. allocated(pk_fac)) allocate(pk_fac(nint_wint))
 
+                    hf%fnu = fnu
+                    hf%w_hf = w_eff
+                    hf%wa_hf = wa_eff
                     if (this%halofit_version == halofit_casarini) then
                         ! calculate equivalent w-constant models (w_hf,0) for w_lam+wa_ppf(1-a) models
                         ! [Casarini+ (2009,2016)].
-                        call PKequal(State,CAMB_Pk%Redshifts(itf),w_eff,wa_eff,this%w_hf,this%wa_hf)
-                        if (global_error_flag /= 0) return
+                        call PKequal(State,CAMB_Pk%Redshifts(itf),w_eff,wa_eff,hf%w_hf,hf%wa_hf)
+                        if (global_error_flag /= 0) cycle
                     endif
 
                     ! calculate nonlinear wavenumber (rknl), effective spectral index (rneff) and
                     ! curvature (rncur) of the power spectrum at the desired redshift, using method
                     ! described in Smith et al (2002).
                     a = 1/real(1+CAMB_Pk%Redshifts(itf),dl)
-                    call omegas_hf(a, this%omm0, State%omega_de, this%w_hf, this%wa_hf, this%om_m, this%om_v)
-                    this%acur = a
+                    call omegas_hf(a, omm0, State%omega_de, hf%w_hf, hf%wa_hf, hf%om_m, hf%om_v)
+                    hf%acur = a
                     call wint_pk_table(CAMB_Pk, itf, pk_fac)
                     xlogr1=-2.0
                     xlogr2=3.5
@@ -387,6 +407,7 @@
 
                     ! now calculate power spectra for a logarithmic range of wavenumbers (rk)
 
+                    index_cache = 1
                     do i=1, CAMB_PK%num_k
                         rk = exp(CAMB_Pk%log_kh(i))
 
@@ -395,19 +416,20 @@
                             ! linear power spectrum !! Remember => plin = k^3 * P(k) * constant
                             ! constant = 4*pi*V/(2*pi)^3
 
-                            plin= MatterPowerData_k(CAMB_PK, rk, itf)*(rk**3/(2*const_pi**2))
+                            plin= MatterPowerData_k(CAMB_PK, rk, itf, index_cache)*(rk**3/(2*const_pi**2))
 
                             ! calculate nonlinear power according to halofit: pnl = pq + ph,
                             ! where pq represents the quasi-linear (halo-halo) power and
                             ! where ph is represents the self-correlation halo term.
 
-                            call this%halofit(rk,rneff,rncur,rknl,plin,pnl,pq,ph)   ! halo fitting formula
+                            call this%halofit(hf,rk,rneff,rncur,rknl,plin,pnl,pq,ph)   ! halo fitting formula
                             CAMB_Pk%nonlin_ratio(i,itf) = sqrt(pnl/plin)
 
                         end if
 
                     end do
                 end do
+                !$OMP END PARALLEL DO
 
             END IF
         end associate
@@ -418,8 +440,9 @@
     !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
-    subroutine halofit(this,rk,rn,rncur,rknl,plin,pnl,pq,ph)
+    subroutine halofit(this,hf,rk,rn,rncur,rknl,plin,pnl,pq,ph)
     class(THalofit) :: this
+    type(THalofit_zparams), intent(in) :: hf
     real(dl) gam,a,b,c,xmu,xnu,alpha,beta,f1,f2,f3
     real(dl) rk,rn,plin,pnl,pq,ph,plinaa
     real(dl) rknl,y,rncur
@@ -447,7 +470,7 @@
         xmu=10**(-3.54419+0.19086*rn)
         xnu=10**(0.95897+1.2857*rn)
         alpha=1.38848+0.3701*rn-0.1452*rn*rn
-        beta=0.8291+0.9854*rn+0.3400*rn**2+this%fnu*(-6.4868+1.4373*rn**2)
+        beta=0.8291+0.9854*rn+0.3400*rn**2+hf%fnu*(-6.4868+1.4373*rn**2)
     elseif (this%halofit_version == halofit_takahashi .or. this%halofit_version == halofit_casarini) then
         !RT12 Oct: the halofit in Smith+ 2003 predicts a smaller power
         !than latest N-body simulations at small scales.
@@ -458,28 +481,28 @@
         !LC16 Jun: Casarini+ 2009,2016 extended constant w prediction for w(a).
         gam=0.1971-0.0843*rn+0.8460*rncur
         a=1.5222+2.8553*rn+2.3706*rn*rn+0.9903*rn*rn*rn+ &
-            0.2250*rn*rn*rn*rn-0.6038*rncur+0.1749*this%om_v*(1.+this%w_hf+this%wa_hf*(1-this%acur))
+            0.2250*rn*rn*rn*rn-0.6038*rncur+0.1749*hf%om_v*(1.+hf%w_hf+hf%wa_hf*(1-hf%acur))
         a=10**a
         b=10**(-0.5642+0.5864*rn+0.5716*rn*rn-1.5474*rncur+ &
-            0.2279*this%om_v*(1.+this%w_hf+this%wa_hf*(1-this%acur)))
+            0.2279*hf%om_v*(1.+hf%w_hf+hf%wa_hf*(1-hf%acur)))
         c=10**(0.3698+2.0404*rn+0.8161*rn*rn+0.5869*rncur)
         xmu=0.
         xnu=10**(5.2105+3.6902*rn)
         alpha=abs(6.0835+1.3373*rn-0.1959*rn*rn-5.5274*rncur)
         beta=2.0379-0.7354*rn+0.3157*rn**2+1.2490*rn**3+ &
-            0.3980*rn**4-0.1682*rncur + this%fnu*(1.081 + 0.395*rn**2)
+            0.3980*rn**4-0.1682*rncur + hf%fnu*(1.081 + 0.395*rn**2)
     else
         call MpiStop('Unknown halofit_version')
     end if
 
-    if(abs(1-this%om_m).gt.0.01) then ! omega evolution
-        f1a=this%om_m**(-0.0732)
-        f2a=this%om_m**(-0.1423)
-        f3a=this%om_m**(0.0725)
-        f1b=this%om_m**(-0.0307)
-        f2b=this%om_m**(-0.0585)
-        f3b=this%om_m**(0.0743)
-        frac=this%om_v/(1.-this%om_m)
+    if(abs(1-hf%om_m).gt.0.01) then ! omega evolution
+        f1a=hf%om_m**(-0.0732)
+        f2a=hf%om_m**(-0.1423)
+        f3a=hf%om_m**(0.0725)
+        f1b=hf%om_m**(-0.0307)
+        f2b=hf%om_m**(-0.0585)
+        f3b=hf%om_m**(0.0743)
+        frac=hf%om_v/(1.-hf%om_m)
         f1=frac*f1b + (1-frac)*f1a
         f2=frac*f2b + (1-frac)*f2a
         f3=frac*f3b + (1-frac)*f3a
@@ -493,8 +516,8 @@
 
 
     ph=a*y**(f1*3)/(1+b*y**(f2)+(f3*c*y)**(3-gam))
-    ph=ph/(1+xmu*y**(-1)+xnu*y**(-2))*(1+this%fnu*0.977)
-    plinaa=plin*(1+this%fnu*47.48*rk**2/(1+1.5*rk**2))
+    ph=ph/(1+xmu*y**(-1)+xnu*y**(-2))*(1+hf%fnu*0.977)
+    plinaa=plin*(1+hf%fnu*47.48*rk**2/(1+1.5*rk**2))
     pq=plin*(1+plinaa)**beta/(1+plinaa*alpha)*exp(-y/4.0-y**2/8.0)
 
     pnl=pq+ph
@@ -586,18 +609,28 @@
 
     !!JD end generalize to variable w
 
+    LOGICAL FUNCTION HM_par_inner()
+    !The loops over redshift are the outermost parallel regions, and give much better scaling than
+    !the small regions used to set up each redshift. Those inner regions are therefore only used
+    !when the redshift loop is not itself running in parallel (e.g. for a single redshift).
+    !$ use omp_lib, only : omp_in_parallel
+
+    HM_par_inner = .TRUE.
+    !$ HM_par_inner = .NOT. omp_in_parallel()
+
+    END FUNCTION HM_par_inner
+
     !!AM Below is for HMcode
     SUBROUTINE HMcode(this,State,CAMB_Pk)
     !!AM - A CAMB derived type that I need
     class(THalofit) :: this
     Class(CAMBdata) :: State
     TYPE(MatterPowerData) :: CAMB_Pk
-    REAL(dl) :: z, k
-    REAL(dl) :: p1h, p2h, pfull, plin
     REAL(dl), ALLOCATABLE :: p_den(:,:), p_num(:,:)
-    INTEGER :: i, j, ii, nk, nz, iz_wiggle
+    INTEGER :: j, nk, nz, iz_wiggle, npass, imead_base
+    INTEGER :: imead_pass(3)
     REAL :: t1, t2
-    TYPE(HM_cosmology) :: cosi
+    TYPE(HM_cosmology) :: cosi, cosm
     TYPE(HM_tables) :: lut
     LOGICAL, PARAMETER :: timing_test = .FALSE.
 
@@ -616,10 +649,20 @@
     !3 - Accurate from Mead et al. (2020; arXiv 2009.01858)
     !4 - Denominator for feedback reaction model from Mead et al. (2020; arXiv 2009.01858)
     !5 - Numerator for feedback reaction from Mead et al. (2020; arXiv 2009.01858)
-    IF(this%halofit_version==halofit_halomodel) this%imead=0
-    IF(this%halofit_version==halofit_mead2016) this%imead=1
-    IF(this%halofit_version==halofit_mead2015) this%imead=2
-    IF(this%halofit_version==halofit_mead2020) this%imead=3
+    imead_base = -1
+    IF(this%halofit_version==halofit_halomodel) imead_base=0
+    IF(this%halofit_version==halofit_mead2016) imead_base=1
+    IF(this%halofit_version==halofit_mead2015) imead_base=2
+    IF(this%halofit_version==halofit_mead2020) imead_base=3
+
+    !The 2020 feedback model is a response: HMcode 2020, then the denominator and numerator
+    IF(this%halofit_version==halofit_mead2020_feedback) THEN
+        npass=3
+        imead_pass=[3,4,5]
+    ELSE
+        npass=1
+        imead_pass(1)=imead_base
+    END IF
 
     HM_verbose = (FeedbackLevel>1)
 
@@ -649,68 +692,28 @@
         CALL init_wiggle(cosi)
     END IF
 
-    !Loop over redshifts
-    DO j=1,nz
-
-        !Initialise the specific HM_cosmology (fill sigma(R) and P_lin HM_tables)
-        !Currently this needs to be done at each z (mainly because of scale-dependent growth with neutrinos)
-        !For non-massive-neutrino models this could only be done once, which would speed things up a bit
-        CALL initialise_HM_cosmology(this,j,cosi,CAMB_PK)
-        if (global_error_flag/=0) return
-
-        !Sets the current redshift from the table
-        z=CAMB_Pk%Redshifts(j)
-
-        IF(this%halofit_version==halofit_mead2020_feedback) THEN
-
-            ! Loop over numerator, denominator and HMcode to make feedback response model
-            DO ii = 1, 3
-
-                IF(ii==1) this%imead=3 ! HMcode 2020
-                IF(ii==2) this%imead=4 ! Denominator for response
-                IF(ii==3) this%imead=5 ! Numerator for response
-
-                !Initialisation for the halomodel calculation (needs to be done for each z)
-                CALL this%halomod_init(z,lut,cosi)
-                if (global_error_flag/=0) return
-
-                !Loop over k values and calculate P(k)
-                !$OMP PARALLEL DO DEFAULT(SHARED), private(k,plin,pfull,p1h,p2h)
-                DO i=1,nk
-                    k=exp(CAMB_Pk%log_kh(i))
-                    plin=p_lin(k,z,0,cosi)
-                    CALL this%halomod(k,p1h,p2h,pfull,plin,lut,cosi)
-                    IF(this%imead==3) THEN
-                        CAMB_Pk%nonlin_ratio(i,j)=sqrt(pfull/plin)
-                    ELSE IF(this%imead==4) THEN
-                        p_den(i,j)=pfull
-                    ELSE IF(this%imead==5) THEN
-                        p_num(i,j)=pfull
-                    END IF
-                END DO
-                !$OMP END PARALLEL DO
-
-            END DO
-
-        ELSE
-
-            !Initialisation for the halomodel calculation (needs to be done for each z)
-            CALL this%halomod_init(z,lut,cosi)
-            if (global_error_flag/=0) return
-
-            !Loop over k values and calculate P(k)
-            !$OMP PARALLEL DO DEFAULT(SHARED), private(k,plin,pfull,p1h,p2h)
-            DO i=1,nk
-                k=exp(CAMB_Pk%log_kh(i))
-                plin=p_lin(k,z,0,cosi)
-                CALL this%halomod(k,p1h,p2h,pfull,plin,lut,cosi)
-                CAMB_Pk%nonlin_ratio(i,j)=sqrt(pfull/plin)
-            END DO
-            !$OMP END PARALLEL DO
-
-        END IF
-
-    END DO
+    !Loop over redshifts. The redshifts are independent, and give much better scaling than the
+    !small parallel regions used to set each one up, so this is the outermost parallel region:
+    !each thread takes its own copy of the cosmology (intrinsic assignment deep-copies the
+    !interpolation tables) and its own look-up tables. The regions inside then run serially
+    !(see HM_par_inner). For a single redshift it is faster not to open the region at all.
+    IF (nz>1 .AND. .NOT. HM_verbose) THEN
+        !$OMP PARALLEL DEFAULT(SHARED), PRIVATE(cosm,lut,j)
+        cosm = cosi
+        !$OMP DO SCHEDULE(DYNAMIC)
+        DO j=1,nz
+            CALL HMcode_redshift(this,CAMB_Pk,j,npass,imead_pass,cosm,lut,p_den,p_num)
+        END DO
+        !$OMP END DO
+        !$OMP END PARALLEL
+    ELSE
+        cosm = cosi
+        DO j=1,nz
+            CALL HMcode_redshift(this,CAMB_Pk,j,npass,imead_pass,cosm,lut,p_den,p_num)
+            !Only report the halo-model set-up for the first redshift
+            HM_verbose = .false.
+        END DO
+    END IF
 
     ! Make the non-linear correction from the response for HMcode 2020
     IF(this%halofit_version==halofit_mead2020_feedback) THEN
@@ -727,56 +730,105 @@
 
     END SUBROUTINE HMcode
 
-    FUNCTION Delta_v(this,z,cosm)
+    SUBROUTINE HMcode_redshift(this,CAMB_Pk,j,npass,imead_pass,cosm,lut,p_den,p_num)
+    !Everything HMcode does for one redshift; cosm and lut are the caller's working space, so
+    !this can be called either serially or from a thread with its own private copies of them
     class(THalofit) :: this
+    TYPE(MatterPowerData) :: CAMB_Pk
+    INTEGER, INTENT(IN) :: j, npass, imead_pass(:)
+    TYPE(HM_cosmology) :: cosm
+    TYPE(HM_tables) :: lut
+    REAL(dl), ALLOCATABLE :: p_den(:,:), p_num(:,:)
+    REAL(dl) :: z, k, p1h, p2h, pfull, plin
+    INTEGER :: i, ii, imead
+
+    if (global_error_flag/=0) return
+
+    !Initialise the specific HM_cosmology (fill sigma(R) and P_lin HM_tables)
+    !Currently this needs to be done at each z (mainly because of scale-dependent growth with neutrinos)
+    !For non-massive-neutrino models this could only be done once, which would speed things up a bit
+    CALL initialise_HM_cosmology(this,j,cosm,CAMB_PK)
+    if (global_error_flag/=0) return
+
+    !Sets the current redshift from the table
+    z=CAMB_Pk%Redshifts(j)
+
+    DO ii = 1, npass
+        imead = imead_pass(ii)
+
+        !Initialisation for the halomodel calculation (needs to be done for each z).
+        !imead=3,4,5 share everything except the halo concentration amplitude, so only the
+        !first pass of the feedback response model does the expensive set-up.
+        CALL this%halomod_init(imead,z,lut,cosm,reuse=ii>1)
+        if (global_error_flag/=0) return
+
+        !Loop over k values and calculate P(k)
+        !$OMP PARALLEL DO IF(HM_par_inner()) DEFAULT(SHARED), private(k,plin,pfull,p1h,p2h)
+        DO i=1,CAMB_Pk%num_k
+            k=exp(CAMB_Pk%log_kh(i))
+            plin=p_lin(k,z,0,cosm)
+            CALL this%halomod(k,p1h,p2h,pfull,plin,lut,cosm)
+            IF(npass==1 .OR. imead==3) THEN
+                CAMB_Pk%nonlin_ratio(i,j)=sqrt(pfull/plin)
+            ELSE IF(imead==4) THEN
+                p_den(i,j)=pfull
+            ELSE
+                p_num(i,j)=pfull
+            END IF
+        END DO
+        !$OMP END PARALLEL DO
+    END DO
+
+    END SUBROUTINE HMcode_redshift
+
+    FUNCTION Delta_v(z,lut,cosm)
     !Function for the virialised overdensity
     REAL(dl) :: Delta_v
     REAL(dl), INTENT(IN) :: z
     TYPE(HM_cosmology), INTENT(IN) :: cosm
+    TYPE(HM_tables), INTENT(IN) :: lut
 
-    IF(this%imead==1 .OR. this%imead==2) THEN
+    IF(lut%imead==1 .OR. lut%imead==2) THEN
         !Mead et al. (2015; arXiv 1505.07833) value
         Delta_v=418*Omega_m_hm(z,cosm)**(-0.352_dl)
         !Mead et al. (2016; arXiv 1602.02154) neutrino addition
-        IF(this%imead==1) Delta_v=Delta_v*(1+0.916_dl*cosm%f_nu)
-    ELSE IF(this%imead==0 .OR. this%imead==3 .OR. this%imead==4 .OR. this%imead==5) THEN
+        IF(lut%imead==1) Delta_v=Delta_v*(1+0.916_dl*cosm%f_nu)
+    ELSE IF(lut%imead==0 .OR. lut%imead==3 .OR. lut%imead==4 .OR. lut%imead==5) THEN
         Delta_v=Dv_Mead(z, cosm)
     END IF
 
     END FUNCTION Delta_v
 
-    FUNCTION delta_c(this,z,lut,cosm)
-    class(THalofit) :: this
+    FUNCTION delta_c(z,lut,cosm)
     !Function for the linear collapse density
     REAL(dl) :: delta_c
     REAL(dl), INTENT(IN) :: z
     TYPE(HM_cosmology), INTENT(IN) :: cosm
     TYPE(HM_tables), INTENT(IN) :: lut
 
-    IF(this%imead==1 .or. this%imead==2) THEN
+    IF(lut%imead==1 .or. lut%imead==2) THEN
         !Mead et al. (2015; arXiv 1505.07833) value
         delta_c=1.59+0.0314*log(lut%sig8z)
-        IF(this%imead==1) THEN
+        IF(lut%imead==1) THEN
             delta_c=delta_c*(1.+0.262*cosm%f_nu) !Mead et al. (2016; arXiv 1602.02154) neutrino addition
             delta_c=delta_c*(1.+0.0123*log10(Omega_m_hm(z,cosm))) !Nakamura & Suto (1997) fitting formula for LCDM
         END IF
-    ELSE IF(this%imead==0 .OR. this%imead==3 .OR. this%imead==4 .OR. this%imead==5) THEN
+    ELSE IF(lut%imead==0 .OR. lut%imead==3 .OR. lut%imead==4 .OR. lut%imead==5) THEN
         delta_c=dc_Mead(z, cosm)
     END IF
 
     END FUNCTION delta_c
 
-    FUNCTION eta(this,lut,cosm)
-    class(THalofit) :: this
+    FUNCTION eta(lut,cosm)
     !Function eta that puffs halo profiles
     REAL(dl) :: eta
     TYPE(HM_cosmology), INTENT(IN) :: cosm
     TYPE(HM_tables), INTENT(IN) :: lut
     REAL(dl) :: eta0
 
-    IF(this%imead==0 .OR. this%imead==4 .OR. this%imead==5) THEN
+    IF(lut%imead==0 .OR. lut%imead==4 .OR. lut%imead==5) THEN
         eta=0.
-    ELSE IF(this%imead==1 .or. this%imead==2) THEN
+    ELSE IF(lut%imead==1 .or. lut%imead==2) THEN
         !The first parameter here is 'eta_0' in Mead et al. (2015; arXiv 1505.07833)
         !eta=0.603-0.3*lut%sig8z
         !AM - made baryon feedback parameter obvious
@@ -784,76 +836,73 @@
         !eta0=1.03-0.11*cosm%A_baryon !Original one-parameter relation from 1505.07833
         !eta0=0.98-0.12*cosm%A_baryon !Updated one-parameter relation: Section 4.1.2 of 1707.06627
         eta=eta0-0.3*lut%sig8z
-    ELSE IF(this%imead==3) THEN
+    ELSE IF(lut%imead==3) THEN
         eta=0.1281*lut%sig8z_cold**(-0.3644)
     END IF
 
     END FUNCTION eta
 
-    FUNCTION kstar(this,lut)
-    class(THalofit) :: this
+    FUNCTION kstar(lut)
     !Function k* that cuts off the 1-halo term at large scales
     REAL(dl) :: kstar
     TYPE(HM_tables), INTENT(IN) :: lut
 
-    IF(this%imead==0) THEN
+    IF(lut%imead==0) THEN
         !Set to zero for the standard Poisson one-halo term
         kstar=0.
-    ELSE IF(this%imead==1 .or. this%imead==2) THEN
+    ELSE IF(lut%imead==1 .or. lut%imead==2) THEN
         !One-halo cut-off wavenumber
         !Mead et al. (2015; arXiv 1505.07833) value
         kstar=0.584*(lut%sigv)**(-1.)
-    ELSE IF(this%imead==3 .OR. this%imead==4 .OR. this%imead==5) THEN
+    ELSE IF(lut%imead==3 .OR. lut%imead==4 .OR. lut%imead==5) THEN
         kstar=0.05618*lut%sig8z_cold**(-1.013)
     END IF
 
     END FUNCTION kstar
 
-    FUNCTION As(this,lut,cosm)
-    class(THalofit) :: this
+    FUNCTION As(lut,cosm)
     !Halo concentration pre-factor from Bullock et al. (2001) relation
     TYPE(HM_tables), INTENT(IN) :: lut
     TYPE(HM_cosmology), INTENT(IN) :: cosm
     REAL(dl) :: As
     REAL(dl) :: B0, Bz, theta
 
-    IF(this%imead==0 .OR. this%imead==4) THEN
+    IF(lut%imead==0 .OR. lut%imead==4) THEN
         !Set to 4 for the standard Bullock value
         As=4.
-    ELSE IF(this%imead==5) THEN
+    ELSE IF(lut%imead==5) THEN
         theta=cosm%logT_AGN-7.8
         B0=3.44-0.496*theta
         Bz=-0.0671-0.0371*theta
         As=B0*10**(lut%z*Bz)
-    ELSE IF(this%imead==1 .or. this%imead==2) THEN
+    ELSE IF(lut%imead==1 .or. lut%imead==2) THEN
         !This is the 'A' halo-concentration parameter in Mead et al. (2015; arXiv 1505.07833)
         !As=3.13
         !AM - added for easy modification of feedback parameter
         As=cosm%A_baryon
-    ELSE IF(this%imead==3) THEN
+    ELSE IF(lut%imead==3) THEN
         As=5.196
     END IF
 
     END FUNCTION As
 
-    FUNCTION fdamp(this,lut)
-    class(THalofit) :: this
+    FUNCTION fdamp(lut)
     !Linear power damping function from Mead et al. (2015; arXiv 1505.07833)
     REAL(dl) ::fdamp
     TYPE(HM_tables), INTENT(IN) :: lut
 
     !Linear theory damping factor
-    IF(this%imead==0 .OR. this%imead==4 .OR. this%imead==5) THEN
+    IF(lut%imead==0 .OR. lut%imead==4 .OR. lut%imead==5) THEN
         !Set to 0 for the standard linear theory two halo term
         fdamp=0.
     ELSE
-        IF(this%imead==1) THEN
+        IF(lut%imead==1) THEN
             !Mead et al. (2016; arXiv 1602.02154) value
             fdamp=0.0095*lut%sigv100**1.37
-        ELSE IF(this%imead==2) THEN
+        ELSE IF(lut%imead==2) THEN
             !Mead et al. (2015) value
             fdamp=0.188*lut%sig8z**4.29
-        ELSE IF(this%imead==3) THEN
+        ELSE IF(lut%imead==3) THEN
             fdamp=0.2696*lut%sig8z_cold**0.9403
         END IF
 
@@ -864,23 +913,22 @@
 
     END FUNCTION fdamp
 
-    FUNCTION alpha(this,lut)
-    class(THalofit) :: this
+    FUNCTION alpha(lut)
     !Two- to one-halo transition smoothing from Mead et al. (2015; arXiv 1505.07833)
     REAL(dl) :: alpha
     TYPE(HM_tables), INTENT(IN) :: lut
 
-    IF(this%imead==0 .OR. this%imead==4 .OR. this%imead==5) THEN
+    IF(lut%imead==0 .OR. lut%imead==4 .OR. lut%imead==5) THEN
         !Set to 1 for the standard halomodel sum of one- and two-halo terms
         alpha=1.
-    ELSE IF(this%imead==1) THEN
+    ELSE IF(lut%imead==1) THEN
         !This uses the top-hat defined neff (HALOFIT uses Gaussian filtered fields instead)
         !Mead et al. (2016; arXiv 1602.02154) value
         alpha=3.24*1.85**lut%neff
-    ELSE IF(this%imead==2) THEN
+    ELSE IF(lut%imead==2) THEN
         !Mead et al. (2015) value
         alpha=2.93*1.77**lut%neff
-    ELSE IF (this%imead==3) THEN
+    ELSE IF (lut%imead==3) THEN
         alpha=1.875*(1.603)**lut%neff
     END IF
 
@@ -927,7 +975,7 @@
         p2h=this%p_2h(k,plin,lut,cosm)
     END IF
 
-    IF (this%imead==1 .OR. this%imead==2 .OR. this%imead==3) THEN
+    IF (lut%imead==1 .OR. lut%imead==2 .OR. lut%imead==3) THEN
         a=lut%alpha_hm
         pfull=(p2h**a+p1h**a)**(1./a)
     ELSE
@@ -1017,7 +1065,7 @@
     IF(HM_verbose) WRITE(*,*) 'LINEAR POWER: z of input:', z
     index_cache = 1
     !Fill power table, both cold- and all-matter
-    !$OMP PARALLEL DO DEFAULT(SHARED), FIRSTPRIVATE(index_cache)
+    !$OMP PARALLEL DO IF(HM_par_inner()) DEFAULT(SHARED), FIRSTPRIVATE(index_cache)
     DO i=1,nk
         !Take the power from the current redshift choice
         Pk(i)=MatterPowerData_k(CAMB_PK,k(i),iz, index_cache)*(k(i)**3/(2*pi**2))
@@ -1215,21 +1263,75 @@
 
     END SUBROUTINE allocate_LUT
 
-    SUBROUTINE halomod_init(this,z,lut,cosm)
+    SUBROUTINE halomod_init(this,imead,z,lut,cosm,reuse)
     class(THalofit) :: this
     !Halo-model initialisation routine
     !Computes look-up HM_tables necessary for the halo model calculations
+    INTEGER, INTENT(IN) :: imead
     REAL(dl), INTENT(IN) :: z
-    INTEGER :: i,nm
-    REAL(dl) :: Dv, dc, m, nu, r, sig, mmin, mmax
+    !reuse: the tables in lut were already filled at this z for a variant of HMcode that shares
+    !everything except the halo-model parameters set here (only used for the 2020 feedback response,
+    !where imead=3,4,5 give identical delta_c, Delta_v, n_eff, collapse redshifts and Dolag correction)
+    LOGICAL, INTENT(IN), OPTIONAL :: reuse
+    INTEGER :: i
     REAL(dl) :: fb, fc, fs, mb, beta, ratio
     TYPE(HM_cosmology) :: cosm
     TYPE(HM_tables) :: lut
+
+    lut%imead=imead
+    lut%z=z
+
+    IF(.NOT. DefaultFalse(reuse)) THEN
+        CALL halomod_tables(this,z,lut,cosm)
+        if (global_error_flag/=0) return
+    END IF
+
+    !Get the concentration for all the haloes (cheap, and the only part of the set-up that
+    !changes between the passes of the 2020 feedback response model)
+    CALL fill_conc(this,z,lut,cosm)
+
+    !Cache redshift-only halo-model factors used in every k evaluation.
+    lut%eta_hm=this%eta(lut,cosm)
+    lut%kstar_hm=this%kstar(lut)
+    lut%fdamp_hm=this%fdamp(lut)
+    lut%alpha_hm=this%alpha(lut)
+    lut%one_minus_fnu_sq=(1._dl-cosm%f_nu)**2
+    lut%nu_eta=lut%nu**lut%eta_hm
+    IF(lut%imead==5) THEN
+        mb=m_baryon(lut,cosm)
+        beta=2._dl
+        fb=cosm%Om_b/cosm%Om_m
+        fc=cosm%Om_c/cosm%Om_m
+        fs=f_star(lut,cosm)
+        lut%f_star_hm=fs
+        DO i=1,lut%n
+            ratio=(lut%m(i)/mb)**beta
+            lut%baryon_mass_fraction(i)=fc+(fb-fs)*ratio/(1._dl+ratio)
+        END DO
+    END IF
+
+    IF(HM_verbose) WRITE(*,*) 'HALOMOD: c HM_tables filled'
+    IF(HM_verbose) WRITE(*,*) 'HALOMOD: c min [Msun/h]:', lut%c(lut%n)
+    IF(HM_verbose) WRITE(*,*) 'HALOMOD: c max [Msun/h]:', lut%c(1)
+    IF(HM_verbose) WRITE(*,*) 'HALOMOD: Done'
+    IF(HM_verbose) WRITE(*,*)
+    IF(HM_verbose) CALL this%write_parameters(z,lut,cosm)
+
+    END SUBROUTINE halomod_init
+
+    SUBROUTINE halomod_tables(this,z,lut,cosm)
+    class(THalofit) :: this
+    !Fills the look-up tables for the halo model at redshift z that do not depend on the
+    !halo concentration amplitude (see halomod_init)
+    REAL(dl), INTENT(IN) :: z
+    TYPE(HM_cosmology) :: cosm
+    TYPE(HM_tables) :: lut
+    INTEGER :: i,nm
+    REAL(dl) :: Dv, dc, m, nu, r, sig, mmin, mmax
     REAL(dl), PARAMETER :: f_Bullock=0.01_dl**(1/3._dl)
 
     IF(HM_verbose) WRITE(*,*) 'HALOMOD: Filling look-up HM_tables'
     IF(HM_verbose) WRITE(*,*) 'HALOMOD: HM_tables being filled at redshift:', z
-    lut%z=z
 
     ! Mass range and number of points
     mmin=1e0
@@ -1237,7 +1339,7 @@
     nm=256
 
     !Find value of sigma_v, sig8, etc.
-    !$OMP PARALLEL SECTIONS DEFAULT(SHARED)
+    !$OMP PARALLEL SECTIONS IF(HM_par_inner()) DEFAULT(SHARED)
     !$OMP SECTION
     lut%sigv=sigmaV(0.d0,z,0,cosm)
     IF(HM_verbose) WRITE(*,*) 'HALOMOD: sigv [Mpc/h]:', lut%sigv
@@ -1264,7 +1366,7 @@
     dc=this%delta_c(z,lut,cosm)
     lut%dc=dc
 
-    !$OMP PARALLEL DO default(shared), private(m,r,sig,nu)
+    !$OMP PARALLEL DO IF(HM_par_inner()) default(shared), private(m,r,sig,nu)
     DO i=1,lut%n
 
         m=exp(log(mmin)+log(mmax/mmin)*real(i-1,dl)/(lut%n-1))
@@ -1286,7 +1388,7 @@
     IF(HM_verbose) WRITE(*,*) 'HALOMOD: m, r, nu, sig, sigf HM_tables filled'
 
     !Fill virial radius table using real radius table
-    Dv=this%Delta_v(z,cosm)
+    Dv=this%Delta_v(z,lut,cosm)
     lut%rv=lut%rr/(Dv**(1/3._dl))
 
     IF(HM_verbose) WRITE(*,*) 'HALOMOD: rv HM_tables filled'
@@ -1305,44 +1407,36 @@
     IF(HM_verbose) WRITE(*,*) 'HALOMOD: k_nl [h/Mpc]:', lut%knl
 
     !Calculate the effective spectral index at the collapse scale
-    lut%neff=neff(this,lut,cosm)
+    lut%neff=neff(lut,cosm)
 
     IF(HM_verbose) WRITE(*,*) 'HALOMOD: n_eff:', lut%neff
 
-    !Get the concentration for all the haloes
+    !Get the halo collapse redshifts and the Dolag (2004) dark-energy correction
     CALL this%conc_bull(z,lut,cosm)
 
-    !Cache redshift-only halo-model factors used in every k evaluation.
-    lut%eta_hm=this%eta(lut,cosm)
-    lut%kstar_hm=this%kstar(lut)
-    lut%fdamp_hm=this%fdamp(lut)
-    lut%alpha_hm=this%alpha(lut)
-    lut%one_minus_fnu_sq=(1._dl-cosm%f_nu)**2
-    lut%nu_eta=lut%nu**lut%eta_hm
-    IF(this%imead==5) THEN
-        mb=m_baryon(lut,cosm)
-        beta=2._dl
-        fb=cosm%Om_b/cosm%Om_m
-        fc=cosm%Om_c/cosm%Om_m
-        fs=f_star(lut,cosm)
-        lut%f_star_hm=fs
-        DO i=1,lut%n
-            ratio=(lut%m(i)/mb)**beta
-            lut%baryon_mass_fraction(i)=fc+(fb-fs)*ratio/(1._dl+ratio)
-        END DO
-    END IF
+    END SUBROUTINE halomod_tables
 
-    IF(HM_verbose) WRITE(*,*) 'HALOMOD: c HM_tables filled'
-    IF(HM_verbose) WRITE(*,*) 'HALOMOD: c min [Msun/h]:', lut%c(lut%n)
-    IF(HM_verbose) WRITE(*,*) 'HALOMOD: c max [Msun/h]:', lut%c(1)
-    IF(HM_verbose) WRITE(*,*) 'HALOMOD: Done'
-    IF(HM_verbose) WRITE(*,*)
-    IF(HM_verbose) CALL this%write_parameters(z,lut,cosm)
+    SUBROUTINE fill_conc(this,z,lut,cosm)
+    class(THalofit) :: this
+    !Fills the halo concentration table from the collapse redshifts and the (already cached)
+    !Dolag (2004) dark-energy corrections. This is the only z set-up that depends on the
+    !halo-concentration amplitude A, which is what differs between the feedback response passes.
+    REAL(dl), INTENT(IN) :: z
+    TYPE(HM_cosmology), INTENT(IN) :: cosm
+    TYPE(HM_tables) :: lut
+    REAL(dl) :: A
+    INTEGER :: i
 
-    !Switch off verbose mode if doing multiple z
-    HM_verbose= .false.
+    !Amplitude of relation (4. in Bullock et al. 2001)
+    A=this%As(lut,cosm)
 
-    END SUBROUTINE halomod_init
+    DO i=1,lut%n
+        lut%c(i)=A*(1.+lut%zc(i))/(1.+z)
+    END DO
+    lut%c=lut%c*lut%dolag_inf
+    lut%c=lut%c*lut%dolag_z
+
+    END SUBROUTINE fill_conc
 
     SUBROUTINE write_parameters(this,z,lut,cosm)
     class(THalofit) :: this
@@ -1354,7 +1448,7 @@
     IF(HM_verbose) WRITE(*,*) 'WRITE_PARAMETERS: at this redshift'
     IF(HM_verbose) WRITE(*,*) '=================================='
     IF(HM_verbose) WRITE(*,fmt='(A10,F10.5)') 'z:', z
-    IF(HM_verbose) WRITE(*,fmt='(A10,F10.5)') 'Dv:', this%Delta_v(z,cosm)
+    IF(HM_verbose) WRITE(*,fmt='(A10,F10.5)') 'Dv:', this%Delta_v(z,lut,cosm)
     IF(HM_verbose) WRITE(*,fmt='(A10,F10.5)') 'dc:', this%delta_c(z,lut,cosm)
     IF(HM_verbose) WRITE(*,fmt='(A10,F10.5)') 'eta:', this%eta(lut,cosm)
     IF(HM_verbose) WRITE(*,fmt='(A10,F10.5)') 'k*:', this%kstar(lut)
@@ -1377,8 +1471,7 @@
 
     END FUNCTION radius_m
 
-    FUNCTION neff(this,lut,cosm)
-    class(THalofit) :: this
+    FUNCTION neff(lut,cosm)
     !Finds the effective spectral index at the collapse scale r_nl, where nu(r_nl)=1.
     REAL(dl) :: neff
     REAL(dl) :: ns
@@ -1392,7 +1485,7 @@
     INTEGER, PARAMETER :: iorder=iorder_neff_integration
 
     ! Choose type of sigma(R) to tabulate depending on HMcode version
-    IF (this%imead==1 .OR. this%imead==3 .OR. this%imead==4 .OR. this%imead==5) THEN
+    IF (lut%imead==1 .OR. lut%imead==3 .OR. lut%imead==4 .OR. lut%imead==5) THEN
         itype=1 ! 1 - Cold matter
     ELSE
         itype=0 ! 0 - All matter
@@ -1415,26 +1508,21 @@
 
     SUBROUTINE conc_bull(this,z,lut,cosm)
     class(THalofit) :: this
-    !Calculates the Bullock et al. (2001) concentration-mass relation
+    !Sets up the Bullock et al. (2001) concentration-mass relation: fills the collapse redshift
+    !table and caches the Dolag (2004) dark-energy corrections. The concentrations themselves are
+    !then filled by fill_conc, which is all that has to be redone if only the amplitude A changes.
     REAL(dl), INTENT(IN) :: z
     TYPE(HM_cosmology) :: cosm, cosm_lcdm
     TYPE(HM_tables) :: lut
-    REAL(dl) :: A, zf, pow
+    REAL(dl) :: pow
     REAL(dl) :: ginf_lcdm, ginf_wcdm, g_lcdm, g_wcdm
-    INTEGER :: i
     REAL(dl), PARAMETER :: zinf=zc_Dolag
-
-    !Amplitude of relation (4. in Bullock et al. 2001)
-    A=this%As(lut,cosm)
 
     !Fill the collapse time look-up table
     CALL this%zcoll_bull(z,cosm,lut)
 
-    !Fill the concentration look-up table
-    DO i=1,lut%n
-        zf=lut%zc(i)
-        lut%c(i)=A*(1.+zf)/(1.+z)
-    END DO
+    lut%dolag_inf=1
+    lut%dolag_z=1
 
     IF(z<zinf) THEN
 
@@ -1458,20 +1546,20 @@
         ginf_lcdm=growint(zinf,cosm_lcdm)
 
         !This is the Dolag et al. (2004) correction for halo concentrations
-        IF(this%imead==0 .OR. this%imead==2 .OR. this%imead==3 .OR. this%imead==4 .OR. this%imead==5) THEN
+        IF(lut%imead==0 .OR. lut%imead==2 .OR. lut%imead==3 .OR. lut%imead==4 .OR. lut%imead==5) THEN
             ! Mead et al. (2015) used the Dolag (2004) correction
             pow=1.
-        ELSE IF(this%imead==1) THEN
+        ELSE IF(lut%imead==1) THEN
             ! Mead et al. (2016) changed the power to 1.5 to better accommodate more extreme dark-energy models
             pow=1.5
         END IF
-        lut%c=lut%c*(ginf_wcdm/ginf_lcdm)**pow
+        lut%dolag_inf=(ginf_wcdm/ginf_lcdm)**pow
 
         ! This is needed for the correction to make sense at high z
-        IF(this%imead==3 .OR. this%imead==4 .OR. this%imead==5) THEN
+        IF(lut%imead==3 .OR. lut%imead==4 .OR. lut%imead==5) THEN
             g_lcdm=growint(z,cosm_lcdm)
             g_wcdm=grow(z,cosm)
-            lut%c=lut%c*(g_lcdm/g_wcdm)**pow
+            lut%dolag_z=(g_lcdm/g_wcdm)**pow
         END IF
 
     END IF
@@ -1672,8 +1760,7 @@
 
     END FUNCTION p_lin
 
-    FUNCTION p_2h(this,k,plin,lut,cosm)
-    class(THalofit) :: this
+    FUNCTION p_2h(k,plin,lut,cosm)
     !Calculates the 2-halo term
     REAL(dl) :: p_2h
     REAL(dl), INTENT(IN) :: k, plin
@@ -1685,12 +1772,12 @@
     frac=lut%fdamp_hm
 
     !frac<=fdamp_min means the damping has been clamped to its minimum, i.e. it is negligible
-    IF(this%imead==0 .OR. this%imead==4 .OR. this%imead==5 .OR. frac<=fdamp_min) THEN
+    IF(lut%imead==0 .OR. lut%imead==4 .OR. lut%imead==5 .OR. frac<=fdamp_min) THEN
         p_2h=plin
-    ELSE IF(this%imead==1 .OR. this%imead==2) THEN
+    ELSE IF(lut%imead==1 .OR. lut%imead==2) THEN
         sigv=lut%sigv
         p_2h=plin*(1.-frac*(tanh(k*sigv/sqrt(ABS(frac))))**2)
-    ELSE IF(this%imead==3) THEN
+    ELSE IF(lut%imead==3) THEN
         kdamp=0.05699*lut%sig8z_cold**(-1.089)
         ndamp=2.85
         x=(k/kdamp)**ndamp
@@ -1702,8 +1789,7 @@
 
     END FUNCTION p_2h
 
-    FUNCTION p_1h(this,k,lut,cosm)
-    class(THalofit) :: this
+    FUNCTION p_1h(k,lut,cosm)
     !Calculates the 1-halo term
     REAL(dl) :: p_1h
     REAL(dl), INTENT(IN) :: k
@@ -1719,18 +1805,18 @@
     !Calculates the value of the integrand at all nu values!
     DO i=1,lut%n
         wk=win(k*lut%nu_eta(i),lut%rv(i),lut%c(i))
-        IF(this%imead==5) wk=wk*lut%baryon_mass_fraction(i)+lut%f_star_hm
+        IF(lut%imead==5) wk=wk*lut%baryon_mass_fraction(i)+lut%f_star_hm
         integrand(i)=lut%p1h_weight(i)*(wk**2)
     END DO
 
     !Carries out the integration (the integral is linear, so scale the result rather than the integrand)
     sum=inttab(lut%nu,integrand,1,lut%n,iorder)/cosmic_density(cosm)
-    IF(this%imead==3 .OR. this%imead==4) sum=sum*lut%one_minus_fnu_sq
+    IF(lut%imead==3 .OR. lut%imead==4) sum=sum*lut%one_minus_fnu_sq
 
     !Numerical factors to convert from P(k) to Delta^2(k)
     p_1h=sum*k**3/(2.*pi**2)
 
-    IF(this%imead==1 .OR. this%imead==2) THEN
+    IF(lut%imead==1 .OR. lut%imead==2) THEN
         !Damping of the 1-halo term at very large scales
         !Note kstar is only zero for imead==0, which does not reach here
         ks=lut%kstar_hm
@@ -1741,7 +1827,7 @@
         END IF
         !Damping of the one-halo term at very large scales
         p_1h=p_1h*(1.-fac)
-    ELSE IF(this%imead==3 .OR. this%imead==4 .OR. this%imead==5) THEN
+    ELSE IF(lut%imead==3 .OR. lut%imead==4 .OR. lut%imead==5) THEN
         ks=lut%kstar_hm
         x=(k/ks)**4
         p_1h=p_1h*x/(1.+x)
@@ -2026,7 +2112,8 @@
     IF(HM_verbose) WRITE(*,*) 'SIGTAB: R_max:', rmax
     IF(HM_verbose) WRITE(*,*) 'SIGTAB: Values:', nsig
 
-    !$OMP PARALLEL DO default(shared)
+    !Cost per point varies a lot with R (adaptive integration), so balance dynamically
+    !$OMP PARALLEL DO IF(HM_par_inner()) default(shared), SCHEDULE(DYNAMIC)
     DO i=1,nsig
 
         !Equally spaced r in log

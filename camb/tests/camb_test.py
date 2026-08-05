@@ -176,6 +176,7 @@ class CambTest(unittest.TestCase):
                 "HMCode_A_baryon",
                 "HMCode_eta_baryon",
                 "HMCode_logT_AGN",
+                "HMCode_wiggle_max_fnu",
                 "cosmomc_theta",
                 "YHe",
                 "wa",
