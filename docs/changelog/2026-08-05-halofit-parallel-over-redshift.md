@@ -88,5 +88,4 @@ Standard halofit was entirely serial before; at nz=96 on 4 threads, `takahashi` 
 ## Follow-up
 
 Hoisting `fill_plintab` + `fill_sigtab` out of the redshift loop when growth is scale-independent
-removes about half of what is left. It is not bit-identical, so it is a separate opt-in parameter;
-see `2026-08-05-hmcode-plin-reuse.md`.
+removes about half of what is left. It is not bit-identical, and was tried as an opt-in parameter and rejected as only accurate for very low neutrino masses.
