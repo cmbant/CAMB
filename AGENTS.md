@@ -20,6 +20,7 @@ This is the CAMB Python cosmology code, wrapping Fortran 2003 for numerics.
 ## Fortran
 - Use modern Fortran 2003, compiled with **gfortran** or **ifort** (or - less tested - flang).
 - `/forutils` is a git submodule containing shared Fortran utilities and classes.
+- Use lowercase for fortran keywords (uppercase for $OMP lines); max line length 120
 - For guidance on modifying Fortran or wrapped Fortran code, see `/docs/source/modifying_code.rst`.
 
 ---
