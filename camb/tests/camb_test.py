@@ -827,7 +827,7 @@ class CambTest(unittest.TestCase):
         data.calc_power_spectra(pars)
         _kh3, _z3, pk3 = data.get_matter_power_spectrum(1e-4, 1, 20)
         self.assertAlmostEqual(pk[-1][-3], 51.924, 2)
-        self.assertAlmostEqual(pk3[-1][-3], 57.723, 2)
+        self.assertAlmostEqual(pk3[-1][-3], 57.734, 2)
         self.assertAlmostEqual(pk2[-2][-4], 56.454, 2)
         camb.set_feedback_level(0)
 
