@@ -80,7 +80,7 @@
     public lens_Cls, lensing_includes_tensors, lensing_method, lensing_method_flat_corr,&
         lensing_method_curv_corr,lensing_method_harmonic, lensing_method_curv_corr_full, lensing_method_optimized, &
         ALens_Fiducial, lensing_sanity_check_amplitude, lensClsWithSpectrum, &
-        GetFlatSkyCGrads, GetFlatSkyCgradsWithSpectrum
+        GetFlatSkyCGrads, GetFlatSkyCGradsWithSpectrum
     contains
 
 
@@ -239,7 +239,36 @@
     allocate(CLout%Cl_lensed(lmin:CLout%lmax_lensed,1:4), source = 0._dl)
     end subroutine InitLensedClArrays
 
-    subroutine PrepareLensedCLSpectra(State, CL, lmin, lmax, ee_taper, CPP, Cphil3, CTT, CEE, CTE)
+    pure function LensingClWeight(l, flat_sky) result(sc)
+    !Weight of each l in the correlation function integrands: sum_l (2l+1)/4pi on the
+    !curved sky, int l dl/2pi in the flat-sky approximation. The 2pi/(l(l+1)) undoes the
+    !l(l+1)/2pi in the stored spectra.
+    integer, intent(in) :: l
+    logical, intent(in) :: flat_sky
+    real(dl) :: sc
+
+    if (flat_sky) then
+        sc = l/const_twopi * const_twopi/(l*(l+1))
+    else
+        sc = (2*l+1)/const_fourpi * const_twopi/(l*(l+1))
+    end if
+    end function LensingClWeight
+
+    pure function LensingPhiWeight(l, flat_sky) result(sc)
+    !Weight turning CPP = [l(l+1)]^2 C_l^phiphi/2pi into the deflection correlation
+    !integrand: (2l+1)l(l+1)C_l^phiphi/4pi on the curved sky, l^3 C_l^phiphi/2pi flat.
+    integer, intent(in) :: l
+    logical, intent(in) :: flat_sky
+    real(dl) :: sc
+
+    if (flat_sky) then
+        sc = l/real((l+1)**2, dl)
+    else
+        sc = (l+0.5_dl)/real((l+1)*l, dl)
+    end if
+    end function LensingPhiWeight
+
+    subroutine PrepareLensedCLSpectra(State, CL, lmin, lmax, ee_taper, flat_sky, CPP, Cphil3, CTT, CEE, CTE)
     !Weighted unlensed spectra and lensing potential entering the correlation function
     !integrands, extended above CP%Max_l using the (rescaled) high-L template.
     !Sets global error (via AmplitudeError) if the lensing spectrum is unrealistically large.
@@ -247,6 +276,7 @@
     Type(TCLData), intent(in) :: CL
     integer, intent(in) :: lmin, lmax
     logical, intent(in) :: ee_taper
+    logical, intent(in) :: flat_sky !use the flat-sky rather than curved-sky l weights
     real(dl), intent(in) :: CPP(0:State%CP%max_l) ! [L(L+1)]^2 C_L_phi_phi/2pi
     real(dl), intent(out) :: Cphil3(lmin:lmax), CTT(lmin:lmax), CEE(lmin:lmax), CTE(lmin:lmax)
     integer :: l
@@ -254,9 +284,8 @@
 
     associate(CP=>State%CP)
         do l=lmin,CP%Max_l
-            ! (2*l+1)l(l+1)/4pi C_phi_phi
-            Cphil3(l) = CPP(l)*(l+0.5_dl)/real((l+1)*l, dl)
-            fac = (2*l+1)/const_fourpi * const_twopi/(l*(l+1))
+            Cphil3(l) = CPP(l)*LensingPhiWeight(l, flat_sky)
+            fac = LensingClWeight(l, flat_sky)
             CTT(l) =  CL%Cl_scalar(l,C_Temp)*fac
             CEE(l) =  CL%Cl_scalar(l,C_E)*fac
             ! In the short-range convolution, reionization-bump EE has negligible
@@ -270,15 +299,15 @@
         end if
         if (lmax > CP%Max_l) then
             l=CP%Max_l
-            sc = (2*l+1)/const_fourpi * const_twopi/(l*(l+1))
+            sc = LensingClWeight(l, flat_sky)
             fac2 = CTT(CP%Max_l)/(sc*highL_CL_template(CP%Max_l, C_Temp))
             fac3 = CEE(CP%Max_l)/(sc*highL_CL_template(CP%Max_l, C_E))
             tail_te_fac = sqrt(max(0._dl, fac2*fac3))
-            fac = Cphil3(CP%Max_l)/(sc*highL_CL_template(CP%Max_l, C_Phi))
+            fac = Cphil3(CP%Max_l)/(LensingPhiWeight(l, flat_sky)*highL_CL_template(CP%Max_l, C_Phi))
             do l=CP%Max_l+1, lmax
                 !Fill in tail from template
-                sc = (2*l+1)/const_fourpi * const_twopi/(l*(l+1))
-                Cphil3(l) = highL_CL_template(l, C_Phi)*fac*sc
+                sc = LensingClWeight(l, flat_sky)
+                Cphil3(l) = highL_CL_template(l, C_Phi)*fac*LensingPhiWeight(l, flat_sky)
 
                 CTT(l) =  highL_CL_template(l, C_Temp)*fac2*sc
                 CEE(l) =  highL_CL_template(l, C_E)*fac3*sc
@@ -290,8 +319,7 @@
         end if
         if (ALens_Fiducial > 0) then
             do l=2, lmax
-                sc = (2*l+1)/const_fourpi * const_twopi/(l*(l+1))
-                Cphil3(l) =  sc * highL_CL_template(l, C_Phi) * ALens_Fiducial
+                Cphil3(l) =  LensingPhiWeight(l, flat_sky) * highL_CL_template(l, C_Phi) * ALens_Fiducial
             end do
         end if
     end associate
@@ -400,7 +428,7 @@
         !$ thread_ix = OMP_GET_MAX_THREADS()
         allocate(lens_contrib(4,CLout%lmax_lensed,thread_ix))
 
-        call PrepareLensedCLSpectra(State, CL, lmin, lmax, .true., CPP, Cphil3, CTT, CEE, CTE)
+        call PrepareLensedCLSpectra(State, CL, lmin, lmax, .true., .false., CPP, Cphil3, CTT, CEE, CTE)
         if (global_error_flag /= 0) return
 
         lens_contrib=0
@@ -727,7 +755,7 @@
         !low-L lensed BB contribution is otherwise window-sensitive (does not converge
         !with the integration range for high tau). The full-range AccurateBB=T mode
         !keeps it. Matches python lensed_cls with low_l_ee_taper=True.
-        call PrepareLensedCLSpectra(State, CL, lmin, lmax, .not. CP%Accuracy%AccurateBB, &
+        call PrepareLensedCLSpectra(State, CL, lmin, lmax, .not. CP%Accuracy%AccurateBB, .false., &
             CPP, Cphil3, CTT, CEE, CTE)
         if (global_error_flag /= 0) return
 
@@ -904,38 +932,34 @@
 
     subroutine CorrFuncFlatSky(State)
     !Do flat sky approx partially non-perturbative lensing, lensing_method=2
-    class(CAMBdata) :: State
+    class(CAMBdata), target :: State
     integer l, i
-    integer :: npoints
+    integer :: npoints, lmax
     real(dl) Cgl2,  sigmasq, theta
     real(dl) dtheta
     real(dl) dbessfac, fac, fac1,fac2,  C2term, expsig, corr(4)
-    real(dl) Bessel(State%CP%Min_l:State%CP%Max_l,0:maxbessel)
-    real(dl) Cphil3(State%CP%Min_l:State%CP%Max_l), CTT(State%CP%Min_l:State%CP%Max_l), &
-        CTE(State%CP%Min_l:State%CP%Max_l),CEE(State%CP%Min_l:State%CP%Max_l)
-    integer max_lensed_ix
+    real(dl), allocatable :: Bessel(:,:)
+    real(dl), allocatable :: Cphil3(:), CTT(:), CTE(:), CEE(:), lfacs(:)
+    real(dl) CPP(0:State%CP%max_l)
     integer b_lo, ix
     real(dl) T2,T4,a0, b0
-    real(dl) lfacs(State%CP%Max_l), LensAccuracyBoost
+    real(dl) LensAccuracyBoost
     real(dl), allocatable, dimension(:,:,:) :: lens_contrib(:,:,:)
     integer, parameter :: bess_need(4) = (/ 0,2,4,6 /)
     integer thread_ix
     Type(TTimer) :: Timer
 
-    if (lensing_includes_tensors) stop 'Haven''t implemented tensor lensing'
+    if (lensing_includes_tensors) call MpiStop('Haven''t implemented tensor lensing')
 
-    associate(lSamp => State%CLData%CTransScal%ls, CP=>State%CP, CL=> State%ClData, lmin => State%CP%Min_l)
+    associate(CP=>State%CP, CL=> State%ClData, lmin => State%CP%Min_l)
 
         LensAccuracyBoost = CP%Accuracy%AccuracyBoost*CP%Accuracy%LensingBoost
 
-        max_lensed_ix = lSamp%nl-1
-        do while(lSamp%l(max_lensed_ix) > CP%Max_l - 250)
-            !Wider margin here as not using template
-            max_lensed_ix = max_lensed_ix -1
-        end do
-        CL%lmax_lensed = lSamp%l(max_lensed_ix)
-        if (allocated(CL%Cl_lensed)) deallocate(CL%Cl_lensed)
-        allocate(CL%Cl_lensed(lmin:CL%lmax_lensed,1:4), source=0._dl)
+        !Extend the l sums above CP%Max_l using the high-L template, as in the curved-sky
+        !routines, so lmax_lensed can use the same margin as the curved-sky methods
+        lmax = LensingExtrapLmax(State)
+        call InitLensedClArrays(State, CL, lmin)
+        allocate(Cphil3(lmin:lmax), CTT(lmin:lmax), CEE(lmin:lmax), CTE(lmin:lmax), lfacs(lmin:lmax))
 
         npoints = CP%Max_l  * 2
         if (CP%Accuracy%AccurateBB) npoints = npoints * 2
@@ -947,7 +971,7 @@
             !this induces high frequency ringing on very small scales
         end if
 
-        call GetBessels(npoints*dtheta*CP%Max_l)
+        call GetBessels(npoints*dtheta*lmax)
 
         if (DebugMsgs) call Timer%Start()
 
@@ -955,30 +979,22 @@
 
         thread_ix = 1
         !$  thread_ix = OMP_GET_MAX_THREADS()
-        allocate(lens_contrib(4,CL%lmax_lensed,thread_ix))
+        allocate(lens_contrib(4,CL%lmax_lensed,thread_ix), source=0._dl)
 
-        do l=lmin,CP%Max_l
-            ! l^3 C_phi_phi/2/pi: Cl_scalar(l,1,C_Phi) is l^4 C_phi_phi
-            Cphil3(l) = CL%Cl_scalar(l,C_Phi)/l /const_twopi
-            fac = l/const_twopi*const_twopi/(l*(l+1))
-            CTT(l) =  CL%Cl_scalar(l,C_Temp)*fac
-            CEE(l) =  CL%Cl_scalar(l,C_E)*fac
-            CTE(l) =  CL%Cl_scalar(l,C_Cross)*fac
+        call SetLensingPotentialSpectrum(State, CPP)
+        call PrepareLensedCLSpectra(State, CL, lmin, lmax, .false., .true., CPP, Cphil3, CTT, CEE, CTE)
+        if (global_error_flag /= 0) return
+
+        do l=lmin,lmax
             lfacs(l) = l**2*0.5_dl
         end do
-
-        if (Cphil3(10) > 1e-7) then
-            call AmplitudeError()
-            return
-        end if
-
-        lens_contrib=0
 
         !$OMP PARALLEL DEFAULT(SHARED), &
         !$OMP PRIVATE(theta, sigmasq,cgl2,b_lo,a0,b0,fac,fac1,fac2), &
         !$OMP PRIVATE(Bessel,ix,corr,expsig,C2term,T2,T4,i,l, thread_ix)
         thread_ix = 1
         !$ thread_ix = OMP_GET_THREAD_NUM()+1
+        allocate(Bessel(lmin:lmax,0:maxbessel))
         !$OMP DO
         do i=1,npoints-1
 
@@ -987,7 +1003,7 @@
             Cgl2=0
             fac = theta /dbessel
 
-            do l=lmin,CP%Max_l
+            do l=lmin,lmax
 
                 !Interpolate the Bessel functions, and compute sigma^2 and C_{gl,2}
                 b0 = l*fac
@@ -1009,7 +1025,7 @@
 
             !Get difference between lensed and unlensed correlation function
             corr = 0
-            do l=lmin,CP%Max_l
+            do l=lmin,lmax
                 !For 2nd order perturbative result use
                 !         expsig = 1 -sigmasq*l**2/2._dl
                 !         C2term = l**2*Cgl2/2._dl
@@ -1053,6 +1069,7 @@
 
         end do
         !$OMP END DO
+        deallocate(Bessel)
         !$OMP END PARALLEL
 
         do l=lmin, CL%lmax_lensed
@@ -1081,52 +1098,55 @@
     integer, parameter :: ncorr = 8
     real(dl) :: CGrads(ncorr,0:lmax)
     real(dl) CPP(0:State%CP%max_l)
-    integer l
 
-    do l= State%CP%min_l,State%CP%max_l
-        ! Cl_scalar(l,1,C_Phi) is l^4 C_phi_phi
-        CPP(l) = State%CLdata%Cl_scalar(l,C_Phi)*(l+1)**2/real(l,dl)**2/const_twopi
-    end do
-    call GetFlatSkyCgradsWithSpectrum(State, CPP, lmax, CGrads)
+    call SetLensingPotentialSpectrum(State, CPP)
+    call GetFlatSkyCGradsWithSpectrum(State, CPP, lmax, CGrads)
 
     end subroutine GetFlatSkyCGrads
 
 
     subroutine GetFlatSkyCGradsWithSpectrum(State, CPP, lmax, CGrads)
-    !Do flat skyapprox calculation of gradient spectra C^(T\grad T) etc.
+    !Do flat sky approx calculation of gradient spectra C^(T\grad T) etc.
     !See Appendix C of https://arxiv.org/abs/1101.2234
-    type(CAMBdata) :: State
+    !Accurate to O(C_{gl,2}^2) for the first four spectra, O(C_{gl,2}) for the others
+    type(CAMBdata), target :: State
     real(dl), intent(in) :: CPP(0:State%CP%max_l)
     integer, intent(in) :: lmax
     integer, parameter :: ncorr = 8
     real(dl) :: CGrads(ncorr,0:lmax)
     integer l, i
-    integer :: npoints
+    integer :: npoints, lmax_sum
     real(dl) Cgl2,  sigmasq, theta
     real(dl) dtheta
     real(dl) dbessfac, fac, fac1,fac2,  C2term, expsig, corr(ncorr)
-    real(dl) Bessel(State%CP%Min_l:State%CP%Max_l,0:maxbessel)
-    real(dl) Cphil3(State%CP%Min_l:State%CP%Max_l), CTT(State%CP%Min_l:State%CP%Max_l), &
-        CTE(State%CP%Min_l:State%CP%Max_l),CEE(State%CP%Min_l:State%CP%Max_l)
+    real(dl), allocatable :: Bessel(:,:)
+    real(dl), allocatable :: Cphil3(:), CTT(:), CTE(:), CEE(:), lfacs(:)
     integer b_lo, ix
     real(dl) T2,T4,a0, b0
-    real(dl) lfacs(State%CP%Max_l), LensAccuracyBoost
+    real(dl) LensAccuracyBoost
     real(dl), allocatable, dimension(:,:,:) :: lens_contrib(:,:,:)
     integer, parameter :: bess_need(8) = (/ 0,1,2,3,4,5,7,9 /)
     integer thread_ix
     Type(TTimer) :: Timer
 
-    if (lensing_includes_tensors) stop 'Haven''t implemented tensor lensing'
+    if (lensing_includes_tensors) call MpiStop('Haven''t implemented tensor lensing')
 
-    associate(lSamp => State%CLData%CTransScal%ls, CP=>State%CP, CL=> State%ClData, lmin => State%CP%Min_l)
+    associate(CP=>State%CP, CL=> State%ClData, lmin => State%CP%Min_l)
 
+        CGrads = 0
         LensAccuracyBoost = CP%Accuracy%AccuracyBoost*CP%Accuracy%LensingBoost
 
-        npoints = CP%Max_l  * 2 *2
+        !Extend the l sums above CP%Max_l using the high-L template, as in the curved-sky
+        !routines, so results near CL%lmax_lensed are not sensitive to Max_l
+        lmax_sum = LensingExtrapLmax(State)
+        allocate(Cphil3(lmin:lmax_sum), CTT(lmin:lmax_sum), CEE(lmin:lmax_sum), &
+            CTE(lmin:lmax_sum), lfacs(lmin:lmax_sum))
+
+        npoints = nint(CP%Max_l * 4 * LensAccuracyBoost)
 
         dtheta = const_pi / npoints
 
-        call GetBessels(npoints*dtheta*CP%Max_l)
+        call GetBessels(npoints*dtheta*lmax_sum)
 
         if (DebugMsgs) call Timer%Start()
 
@@ -1136,26 +1156,19 @@
         !$  thread_ix = OMP_GET_MAX_THREADS()
         allocate(lens_contrib(ncorr,CL%lmax_lensed,thread_ix), source=0._dl)
 
-        do l=lmin,CP%Max_l
-            ! l^3 C_phi_phi/2/pi: Cl_scalar(l,1,C_Phi) is l^4 C_phi_phi
-            Cphil3(l) = CPP(l)*l/real((l+1)**2, dl)
-            fac = l/const_twopi*const_twopi/(l*(l+1))
-            CTT(l) =  CL%Cl_scalar(l,C_Temp)*fac
-            CEE(l) =  CL%Cl_scalar(l,C_E)*fac
-            CTE(l) =  CL%Cl_scalar(l,C_Cross)*fac
+        call PrepareLensedCLSpectra(State, CL, lmin, lmax_sum, .false., .true., CPP, Cphil3, CTT, CEE, CTE)
+        if (global_error_flag /= 0) return
+
+        do l=lmin,lmax_sum
             lfacs(l) = l**2*0.5_dl
         end do
-
-        if (Cphil3(10) > 1e-7) then
-            call AmplitudeError()
-            return
-        end if
 
         !$OMP PARALLEL DEFAULT(SHARED), &
         !$OMP PRIVATE(theta, sigmasq,cgl2,b_lo,a0,b0,fac,fac1,fac2), &
         !$OMP PRIVATE(Bessel,ix,corr,expsig,C2term,T2,T4,i,l, thread_ix)
         thread_ix = 1
         !$ thread_ix = OMP_GET_THREAD_NUM()+1
+        allocate(Bessel(lmin:lmax_sum,0:maxbessel))
         !$OMP DO
         do i=1,npoints-1
 
@@ -1164,7 +1177,7 @@
             Cgl2=0
             fac = theta /dbessel
 
-            do l=lmin,CP%Max_l
+            do l=lmin,lmax_sum
 
                 !Interpolate the Bessel functions, and compute sigma^2 and C_{gl,2}
                 b0 = l*fac
@@ -1186,7 +1199,7 @@
 
             !Get difference between lensed and unlensed correlation function
             corr = 0
-            do l=lmin,CP%Max_l
+            do l=lmin,lmax_sum
                 !For 2nd order perturbative result use
                 !         expsig = 1 -sigmasq*l**2/2._dl
                 !         C2term = l**2*Cgl2/2._dl
@@ -1258,9 +1271,9 @@
 
         end do
         !$OMP END DO
+        deallocate(Bessel)
         !$OMP END PARALLEL
 
-        CGrads = 0
         do l=lmin, min(CL%lmax_lensed, lmax)
             corr = 0._dl
             do thread_ix = 1, size(lens_contrib, 3)
@@ -1279,7 +1292,7 @@
 
         deallocate(lens_contrib)
 
-        if (DebugMsgs) call Timer%WriteTime('Time for GetFlatSkyCgrads')
+        if (DebugMsgs) call Timer%WriteTime('Time for GetFlatSkyCGrads')
     end associate
 
     end subroutine GetFlatSkyCGradsWithSpectrum
@@ -1352,7 +1365,7 @@
         end if
 
         max_lensed_ix = lSamp%nl-1
-        do while(lSamp%l(max_lensed_ix) > maxl -250)
+        do while(lSamp%l(max_lensed_ix) > maxl - (CP%lens_output_margin - lens_convolution_gap))
             max_lensed_ix = max_lensed_ix -1
         end do
         CL%lmax_lensed = lSamp%l(max_lensed_ix)

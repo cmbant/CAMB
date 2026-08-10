@@ -1415,9 +1415,10 @@ class CAMBdata(F2003Class):
         r"""
         Get lensed gradient scalar CMB power spectra in flat sky approximation
         (`arXiv:1101.2234 <https://arxiv.org/abs/1101.2234>`_).
-        Note that lmax used to calculate results may need to be substantially larger than the lmax
-        output from this function (there is no extrapolation as in the main lensing routines).
-        Lensed power spectra must be already calculated.
+        The l ranges and high-L template extrapolation match the main lensing routines, so
+        results are output over the same l range and are similarly insensitive to the input
+        lmax; as there, :attr:`.model.AccuracyParams.LensingBoost` can be used to check
+        numerical convergence. Lensed power spectra must be already calculated.
 
         :param lmax: lmax to output to
         :param CMB_unit: scale results from dimensionless. Use 'muK' for :math:`\mu K^2` units for CMB :math:`C_\ell`
