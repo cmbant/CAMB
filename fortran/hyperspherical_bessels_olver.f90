@@ -3,9 +3,9 @@
     ! Uses the Olver approximation to relate to normal spherical bessels,
     ! with fallback where not reliable to next order Olver/Airy approx or recursion.
     ! Precision target 1e-4 of peak, with max error < 2e-4.
-    use Precision
+    use precision
     use constants, only: const_pi
-    use FlatBessels, only: bjl
+    use FlatBessels, only: BJL
     use SpherBessels, only: phi_recurs
     use HypersphericalBesselUtils, only: normalize_chi, turning_point, curved_radius, qintegral_exact, CACHE_EPS
     use HypersphericalBesselAiry, only: airy_u_normalized, airy_ok
@@ -41,6 +41,7 @@
     real(dl) :: phi
 
     phi = olver_value(l, K, nu, chi, reduced=.false.)
+
     end function phi_olver
 
     function u_olver(l, K, nu, chi) result(u)
@@ -50,8 +51,8 @@
     real(dl) :: u
 
     u = olver_value(l, K, nu, chi, reduced=.true.)
-    end function u_olver
 
+    end function u_olver
 
     function olver_value(l, K, nu, chi, reduced) result(val)
     ! Shared driver for phi_olver/u_olver: fold chi into the fundamental domain,
@@ -66,9 +67,9 @@
     call normalize_chi(l, K, nu, chi, achi, symm)
 
     if (K == 0) then
-        call bjl(l, nu * achi, j_l)
+        call BJL(l, nu*achi, j_l)
         if (reduced) then
-            val = achi * j_l
+            val = achi*j_l
         else
             val = j_l
         end if
@@ -76,8 +77,8 @@
     end if
 
     if (l <= 2) then
-        val = symm * phi_recurs(l, K, nu, achi)
-        if (reduced) val = val * curved_radius(K, achi)
+        val = symm*phi_recurs(l, K, nu, achi)
+        if (reduced) val = val*curved_radius(K, achi)
         return
     end if
 
@@ -88,9 +89,9 @@
 
     sin_k = curved_radius(K, achi)
     val = olver_reduced(l, K, nu, achi, sin_k, symm)
-    if (.not. reduced) val = val / sin_k
-    end function olver_value
+    if (.not. reduced) val = val/sin_k
 
+    end function olver_value
 
     function olver_reduced(l, K, nu, achi, sin_k, symm) result(u)
     ! Reduced u for K = +-1 and l >= 3: pick the near-flat small-chi map, the
@@ -101,7 +102,7 @@
     real(dl) :: u
     real(dl) :: alpha_gate, z, amp, j_l
 
-    alpha_gate = nu / real(l, dl)
+    alpha_gate = nu/real(l, dl)
 
     if (use_smallchi_map(l, nu, achi, alpha_gate)) then
         call compute_olver_z_amp_smallchi(l, K, nu, achi, z, amp)
@@ -128,12 +129,12 @@
         ! which costs a real-exponent power.
         if (K == 1) then
             ! nu is an integer mode > l for K=1, so the denominator is >= 2.
-            if (achi / (2._dl * (nu - real(l, dl))) > OLVER_GATE_CLOSED_EPS) then
+            if (achi/(2._dl*(nu - real(l, dl))) > OLVER_GATE_CLOSED_EPS) then
                 u = fallback_reduced(l, K, nu, achi, sin_k, symm)
                 return
             end if
         else if (K == -1) then
-            if (achi / (2._dl * max(nu, tiny(1._dl))) > OLVER_GATE_OPEN_EPS &
+            if (achi/(2._dl*max(nu, tiny(1._dl))) > OLVER_GATE_OPEN_EPS &
                 .and. alpha_gate < open_alpha_cut(l)) then
                 u = fallback_reduced(l, K, nu, achi, sin_k, symm)
                 return
@@ -143,10 +144,10 @@
         call compute_olver_z_amp(l, K, nu, achi, sin_k, z, amp)
     end if
 
-    call bjl(l, nu * z, j_l)
-    u = symm * amp * z * j_l
-    end function olver_reduced
+    call BJL(l, nu*z, j_l)
+    u = symm*amp*z*j_l
 
+    end function olver_reduced
 
     function fallback_reduced(l, K, nu, achi, sin_k, symm) result(u)
     ! The Olver gates above are unchanged; within their recursive fallback
@@ -160,7 +161,7 @@
     if (use_airy_fallback(l, K, nu, achi)) then
         u = airy_u_normalized(l, K, nu, achi, ok)
         if (ok) then
-            u = symm * u
+            u = symm*u
             return
         end if
     end if
@@ -168,14 +169,14 @@
     if (K == -1) then
         u = open_smallnu_u(l, nu, achi, ok)
         if (ok) then
-            u = symm * u
+            u = symm*u
             return
         end if
     end if
 
-    u = symm * phi_recurs(l, K, nu, achi) * sin_k
-    end function fallback_reduced
+    u = symm*phi_recurs(l, K, nu, achi)*sin_k
 
+    end function fallback_reduced
 
     logical function use_airy_fallback(l, K, nu, achi) result(use_airy)
     ! Second-order Olver/Airy patch: validated only well away from low l.
@@ -191,8 +192,8 @@
     case (1)
         use_airy = l >= AIRY_FALLBACK_CLOSED_L_MIN
     end select
-    end function use_airy_fallback
 
+    end function use_airy_fallback
 
     elemental real(dl) function open_alpha_cut(l) result(alpha_cut)
     ! Smooth grid-calibrated cutoff in alpha = nu/l below which the raw open-space
@@ -202,13 +203,13 @@
 
     ell = real(l, dl)
     if (ell < OLVER_OPEN_L_JOIN) then
-        alpha_cut = OLVER_OPEN_ALPHA_JOIN * (OLVER_OPEN_L_JOIN / ell)**OLVER_OPEN_ALPHA_LOW_EXP
+        alpha_cut = OLVER_OPEN_ALPHA_JOIN*(OLVER_OPEN_L_JOIN/ell)**OLVER_OPEN_ALPHA_LOW_EXP
     else
-        alpha_cut = OLVER_OPEN_ALPHA_JOIN * (OLVER_OPEN_L_JOIN / ell)**OLVER_OPEN_ALPHA_HIGH_EXP
+        alpha_cut = OLVER_OPEN_ALPHA_JOIN*(OLVER_OPEN_L_JOIN/ell)**OLVER_OPEN_ALPHA_HIGH_EXP
     end if
     alpha_cut = max(OLVER_OPEN_ALPHA_FLOOR, alpha_cut)
-    end function open_alpha_cut
 
+    end function open_alpha_cut
 
     elemental logical function use_smallchi_map(l, nu, achi, alpha_gate) result(use_smallchi)
     integer, intent(in) :: l
@@ -221,9 +222,9 @@
     ! more accurate sqrt(l(l+1)) curvature scale.  Callers guarantee l >= 3.
     use_smallchi = (alpha_gate > SMALLCHI_GATE_ALPHA .or. &
         (l >= SMALLCHI_GATE_LOW_ALPHA_L_MIN .and. alpha_gate > 1._dl)) .and. &
-        real(l, dl)**2 * achi**7 / nu < SMALLCHI_GATE_METRIC
-    end function use_smallchi_map
+        real(l, dl)**2*achi**7/nu < SMALLCHI_GATE_METRIC
 
+    end function use_smallchi_map
 
     pure subroutine compute_olver_z_amp(l, K, nu, achi, sin_k, z, amp)
     ! Leading Olver map chi -> z: the flat coordinate whose Liouville-Green
@@ -243,17 +244,17 @@
         return
     end if
 
-    ell = sqrt(real(l, dl) * real(l + 1, dl))
-    alpha = nu / ell
-    turn_z = ell / nu
+    ell = sqrt(real(l, dl)*real(l + 1, dl))
+    alpha = nu/ell
+    turn_z = ell/nu
     turn_chi = turning_point(ell, nu, K)
 
-    if (achi <= min(1.0e-6_dl, 1.0e-4_dl * max(turn_chi, 1._dl))) then
+    if (achi <= min(1.0e-6_dl, 1.0e-4_dl*max(turn_chi, 1._dl))) then
         ! z -> chi only up to a factor 1 + O(K/alpha^2); wherever that factor is
         ! not negligible alpha <~ 1, and then nu*achi <= 1e-6 nu << l makes phi
         ! utterly negligible compared with its peak.
         z = achi
-    else if (abs(achi - turn_chi) <= 1.0e-4_dl * max(turn_chi, turn_z)) then
+    else if (abs(achi - turn_chi) <= 1.0e-4_dl*max(turn_chi, turn_z)) then
         ! Near the turning point analytic_amplitude below would be evaluated as a
         ! ratio of two quantities that both vanish there, so expand the map
         ! directly in eps = chi - chi_t instead.  Matching
@@ -261,11 +262,11 @@
         ! z = z_t + eps (c1 + c2 eps) with c1^3 = cos_K(chi_t); carrying c2 costs
         ! no transcendentals and cuts the amplitude error here by ~1e4.
         turn_scale = turning_scale(K, turn_z)
-        c1 = turn_scale**(1._dl / 3._dl)
-        c2 = (3._dl * alpha**2 * (c1**4 - turn_scale**2) - real(K, dl)) / (10._dl * alpha * c1**2)
+        c1 = turn_scale**(1._dl/3._dl)
+        c2 = (3._dl*alpha**2*(c1**4 - turn_scale**2) - real(K, dl))/(10._dl*alpha*c1**2)
         eps = achi - turn_chi
-        z = turn_z + eps * (c1 + c2 * eps)
-        if (present(amp)) amp = 1._dl / sqrt(c1 + 2._dl * c2 * eps)
+        z = turn_z + eps*(c1 + c2*eps)
+        if (present(amp)) amp = 1._dl/sqrt(c1 + 2._dl*c2*eps)
         return
     else
         action = qintegral_exact(sin_k, alpha, K)
@@ -275,8 +276,8 @@
     if (present(amp)) then
         amp = analytic_amplitude(achi, sin_k, z, K, alpha, turn_chi)
     end if
-    end subroutine compute_olver_z_amp
 
+    end subroutine compute_olver_z_amp
 
     elemental real(dl) function turning_scale(K, turn_z) result(turn_scale)
     ! cos_K(chi_t) = sqrt(1 - K S_K(chi_t)^2) at the turning point S_K(chi_t) = turn_z;
@@ -284,9 +285,9 @@
     integer, intent(in) :: K
     real(dl), intent(in) :: turn_z
 
-    turn_scale = sqrt(1._dl - real(K, dl) * turn_z * turn_z)
-    end function turning_scale
+    turn_scale = sqrt(1._dl - real(K, dl)*turn_z*turn_z)
 
+    end function turning_scale
 
     elemental subroutine compute_olver_z_amp_smallchi(l, K, nu, chi, z, amp)
     ! Small-chi curvature expansion for the Olver action map.
@@ -310,9 +311,9 @@
     real(dl) :: rk, h, h2, a, a2, ha
     real(dl) :: F, D
 
-    real(dl), parameter :: c6     = 1._dl / 6._dl
-    real(dl), parameter :: c360   = 1._dl / 360._dl
-    real(dl), parameter :: c45360 = 1._dl / 45360._dl
+    real(dl), parameter :: c6 = 1._dl/6._dl
+    real(dl), parameter :: c360 = 1._dl/360._dl
+    real(dl), parameter :: c45360 = 1._dl/45360._dl
 
     if (K == 0 .or. abs(chi) <= CACHE_EPS) then
         z = chi
@@ -323,41 +324,40 @@
     rk = real(K, dl)
 
     ! ell^2 = l(l+1), avoiding sqrt(l(l+1))
-    ell2 = real(l, dl) * real(l + 1, dl)
+    ell2 = real(l, dl)*real(l + 1, dl)
 
-    nu2 = nu * nu
-    chi2  = chi * chi
+    nu2 = nu*nu
+    chi2 = chi*chi
 
     ! h = K / alpha^2 = K * ell^2 / nu^2.
-    h = rk * ell2 / nu2
+    h = rk*ell2/nu2
 
     ! a = h * t^2 = K * chi^2.
-    a  = rk * chi2
-    a2 = a * a
+    a = rk*chi2
+    a2 = a*a
 
-    h2 = h * h
-    ha = h * a
+    h2 = h*h
+    ha = h*a
 
-    F = 1._dl - h * ( &
+    F = 1._dl - h*( &
         c6 &
-        + c360   * (4._dl   * a  + 13._dl  * h) &
-        + c45360 * (48._dl  * a2 + 148._dl * ha + 737._dl * h2) )
+        + c360*(4._dl*a + 13._dl*h) &
+        + c45360*(48._dl*a2 + 148._dl*ha + 737._dl*h2))
 
-    D = 1._dl - h * ( &
+    D = 1._dl - h*( &
         c6 &
-        + c360   * (12._dl  * a  + 13._dl  * h) &
-        + c45360 * (240._dl * a2 + 444._dl * ha + 737._dl * h2) )
+        + c360*(12._dl*a + 13._dl*h) &
+        + c45360*(240._dl*a2 + 444._dl*ha + 737._dl*h2))
 
-    z = chi * F
+    z = chi*F
 
     if (D > 0._dl) then
-        amp = 1._dl / sqrt(D)
+        amp = 1._dl/sqrt(D)
     else
         amp = 0._dl
     end if
 
     end subroutine compute_olver_z_amp_smallchi
-
 
     elemental real(dl) function analytic_amplitude(chi, sin_k, z, K, alpha, turn_chi)
     ! Liouville-Green amplitude (dz/dchi)^(-1/2) = |(alpha^2 - 1/z^2)/(alpha^2 - 1/S_K^2)|^(1/4).
@@ -379,21 +379,22 @@
         return
     end if
 
-    alpha2 = alpha * alpha
-    if (abs(chi - turn_chi) <= 1.0e-10_dl * max(1._dl, turn_chi)) then
-        analytic_amplitude = turning_scale(K, 1._dl / alpha)**(-1._dl / 6._dl)
+    alpha2 = alpha*alpha
+    if (abs(chi - turn_chi) <= 1.0e-10_dl*max(1._dl, turn_chi)) then
+        analytic_amplitude = turning_scale(K, 1._dl/alpha)**(-1._dl/6._dl)
         return
     end if
 
-    flat_term = alpha2 - 1._dl / z**2
-    curved_term = alpha2 - 1._dl / sin_k**2
+    flat_term = alpha2 - 1._dl/z**2
+    curved_term = alpha2 - 1._dl/sin_k**2
 
-    if (abs(flat_term) + abs(curved_term) <= 100._dl * CACHE_EPS * max(1._dl, alpha2)) then
-        analytic_amplitude = turning_scale(K, 1._dl / alpha)**(-1._dl / 6._dl)
+    if (abs(flat_term) + abs(curved_term) <= 100._dl*CACHE_EPS*max(1._dl, alpha2)) then
+        analytic_amplitude = turning_scale(K, 1._dl/alpha)**(-1._dl/6._dl)
         return
     end if
 
-    analytic_amplitude = sqrt(sqrt(abs(flat_term / curved_term)))
+    analytic_amplitude = sqrt(sqrt(abs(flat_term/curved_term)))
+
     end function analytic_amplitude
 
     elemental real(dl) function invert_flat_action(action, z_turn, below_turn)
@@ -410,8 +411,8 @@
     ! cube root is only taken on the near-turning polynomial branches.  Both are
     ! set where the polynomial fit and the asymptotic form have equal error
     ! against the exact inverse (worst 1.5e-6 evanescent, 8.5e-9 oscillatory).
-    real(dl), parameter :: Q_CUT_EVAN = 1.72_dl**3 / 3._dl
-    real(dl), parameter :: Q_CUT_OSC = 1.97_dl**3 / 3._dl
+    real(dl), parameter :: Q_CUT_EVAN = 1.72_dl**3/3._dl
+    real(dl), parameter :: Q_CUT_OSC = 1.97_dl**3/3._dl
 
     q = max(action, 0._dl)
 
@@ -425,23 +426,23 @@
         ! Near the turning point use a polynomial fit in p^2.
         ! Farther out use the large-q asymptotic inversion for sech(t).
         if (q < Q_CUT_EVAN) then
-            s = (3._dl * q)**(2._dl / 3._dl)
+            s = (3._dl*q)**(2._dl/3._dl)
 
             u = (((((( &
-                2.2687533176976695e-05_dl * s &
-                - 1.7210470362266376e-04_dl) * s &
-                - 3.1231653154203167e-04_dl) * s &
-                + 2.1586618823186233e-04_dl) * s &
-                + 7.5055874727872618e-02_dl) * s &
-                - 5.0000720190143755e-01_dl) * s &
+                2.2687533176976695e-05_dl*s &
+                - 1.7210470362266376e-04_dl)*s &
+                - 3.1231653154203167e-04_dl)*s &
+                + 2.1586618823186233e-04_dl)*s &
+                + 7.5055874727872618e-02_dl)*s &
+                - 5.0000720190143755e-01_dl)*s &
                 + 1.0000000000000000_dl)
 
         else
             A = q + 1._dl
             x = exp(-A)
-            e = x * x
+            e = x*x
 
-            u = 2._dl * x * (1._dl + e * (1._dl + 3._dl * e))
+            u = 2._dl*x*(1._dl + e*(1._dl + 3._dl*e))
         end if
 
     else
@@ -454,38 +455,37 @@
         ! Uses a polynomial fit in p^2 near the turning point and a high-order
         ! asymptotic expansion in q + pi/2 farther out.
 
-
         if (q < Q_CUT_OSC) then
-            s = (3._dl * q)**(2._dl / 3._dl)
+            s = (3._dl*q)**(2._dl/3._dl)
 
             u = ((((((( &
-                3.4828644185221886e-07_dl * s &
-                - 8.3097833638549810e-06_dl) * s &
-                + 8.8500265224195657e-05_dl) * s &
-                - 4.8620948599887724e-04_dl) * s &
-                - 3.5056578112088423e-04_dl) * s &
-                + 7.4998103457285289e-02_dl) * s &
-                + 5.0000018483290443e-01_dl) * s &
+                3.4828644185221886e-07_dl*s &
+                - 8.3097833638549810e-06_dl)*s &
+                + 8.8500265224195657e-05_dl)*s &
+                - 4.8620948599887724e-04_dl)*s &
+                - 3.5056578112088423e-04_dl)*s &
+                + 7.4998103457285289e-02_dl)*s &
+                + 5.0000018483290443e-01_dl)*s &
                 + 1.0000000000000000_dl)
 
         else
-            qplus = q + const_pi / 2._dl
-            invqplus = 1._dl / qplus
-            invqplus2 = invqplus * invqplus
+            qplus = q + const_pi/2._dl
+            invqplus = 1._dl/qplus
+            invqplus2 = invqplus*invqplus
 
-            u = qplus - invqplus * ( &
-                0.5_dl + invqplus2 * ( &
-                7._dl / 24._dl + invqplus2 * ( &
-                83._dl / 240._dl + invqplus2 * ( &
-                6949._dl / 13440._dl + invqplus2 * ( &
-                23399._dl / 26880._dl + invqplus2 * &
-                266317._dl / 168960._dl)))))
+            u = qplus - invqplus*( &
+                0.5_dl + invqplus2*( &
+                7._dl/24._dl + invqplus2*( &
+                83._dl/240._dl + invqplus2*( &
+                6949._dl/13440._dl + invqplus2*( &
+                23399._dl/26880._dl + invqplus2* &
+                266317._dl/168960._dl)))))
         end if
 
     end if
 
-    invert_flat_action = z_turn * u
-    end function invert_flat_action
+    invert_flat_action = z_turn*u
 
+    end function invert_flat_action
 
     end module HypersphericalBesselOlver

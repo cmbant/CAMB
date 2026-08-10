@@ -1,5 +1,5 @@
     program phi_olver_gate_validation
-    use Precision
+    use precision
     use constants, only: PI => const_pi
     use HypersphericalBesselOlver, only: phi_olver
     use SpherBessels, only: phi_recurs, phi_first_peak_amplitude
@@ -86,8 +86,8 @@
     write(*, '(a, f12.4)') "spline-check CPU seconds: ", spline_cpu
     write(*, '(a, f12.4)') "wall seconds: ", wall_end - wall_start
     if (total_points > 0) then
-        write(*, '(a, es12.4)') "phi_olver CPU seconds/eval: ", approx_cpu / real(total_points, dl)
-        write(*, '(a, es12.4)') "phi_recurs CPU seconds/eval: ", recurs_cpu / real(total_points, dl)
+        write(*, '(a, es12.4)') "phi_olver CPU seconds/eval: ", approx_cpu/real(total_points, dl)
+        write(*, '(a, es12.4)') "phi_recurs CPU seconds/eval: ", recurs_cpu/real(total_points, dl)
     end if
 
     call print_fast_fraction_table()
@@ -113,10 +113,10 @@
         call get_command_argument(1, arg)
         command_argument_is = trim(arg) == expected
     end if
+
     end function command_argument_is
 
-
-    subroutine run_open_cases()
+    subroutine run_open_cases
     integer, allocatable :: ls(:)
     real(dl), allocatable :: alphas(:)
     integer :: il, ia, l
@@ -129,15 +129,15 @@
         l = ls(il)
         do ia = 1, size(alphas)
             alpha = alphas(ia)
-            nu = alpha * real(l, dl)
+            nu = alpha*real(l, dl)
             if (nu <= 0._dl) cycle
             call run_case(l, -1, nu)
         end do
     end do
+
     end subroutine run_open_cases
 
-
-    subroutine run_closed_cases()
+    subroutine run_closed_cases
     integer, allocatable :: ls(:)
     integer, allocatable :: deltas(:)
     integer :: il, id, l, delta
@@ -155,8 +155,8 @@
             call run_case(l, 1, nu)
         end do
     end do
-    end subroutine run_closed_cases
 
+    end subroutine run_closed_cases
 
     subroutine make_l_grid(ls)
     integer, allocatable, intent(out) :: ls(:)
@@ -170,8 +170,8 @@
 
     n = 0
     n = n + 250
-    n = n + ((600 - 260) / 20 + 1)
-    n = n + ((2000 - 700) / 100 + 1)
+    n = n + ((600 - 260)/20 + 1)
+    n = n + ((2000 - 700)/100 + 1)
     n = n + 7
     allocate(ls(n))
 
@@ -189,8 +189,8 @@
         ls(n) = l
     end do
     ls(n + 1:n + 7) = [2500, 3000, 4000, 5000, 6000, 8000, 10000]
-    end subroutine make_l_grid
 
+    end subroutine make_l_grid
 
     subroutine make_open_alpha_grid(alphas)
     real(dl), allocatable, intent(out) :: alphas(:)
@@ -203,8 +203,8 @@
         alphas = [0.002_dl, 0.005_dl, 0.01_dl, 0.02_dl, 0.05_dl, 0.08_dl, 0.10_dl, 0.12_dl, &
             0.15_dl, 0.20_dl, 0.30_dl, 0.50_dl, 0.75_dl, 1.0_dl, 1.5_dl, 2.5_dl, 2.9_dl]
     end if
-    end subroutine make_open_alpha_grid
 
+    end subroutine make_open_alpha_grid
 
     subroutine make_closed_delta_grid(deltas)
     integer, allocatable, intent(out) :: deltas(:)
@@ -217,8 +217,8 @@
         deltas = [1, 2, 3, 5, 8, 10, 15, 20, 30, 50, 80, 100, 150, 175, 200, 300, 500, &
             900, 1500, 3000]
     end if
-    end subroutine make_closed_delta_grid
 
+    end subroutine make_closed_delta_grid
 
     subroutine run_case(l, k, nu)
     integer, intent(in) :: l, k
@@ -238,27 +238,27 @@
     allocate(approx(n), recurs(n))
 
     call cpu_time(t0)
-!$omp parallel do default(shared) private(i) schedule(static)
+!$OMP PARALLEL DO DEFAULT(SHARED), PRIVATE(i), SCHEDULE(STATIC)
     do i = 1, n
         approx(i) = phi_olver(l, k, nu, chi(i))
     end do
-!$omp end parallel do
+!$OMP END PARALLEL DO
     call cpu_time(t1)
     approx_cpu = approx_cpu + t1 - t0
 
     call cpu_time(t0)
-!$omp parallel do default(shared) private(i) schedule(static)
+!$OMP PARALLEL DO DEFAULT(SHARED), PRIVATE(i), SCHEDULE(STATIC)
     do i = 1, n
         recurs(i) = phi_recurs(l, k, nu, chi(i))
     end do
-!$omp end parallel do
+!$OMP END PARALLEL DO
     call cpu_time(t1)
     recurs_cpu = recurs_cpu + t1 - t0
 
     peak = phi_first_peak_amplitude(l, k, nu)
     if (peak <= tiny(peak)) peak = tiny(peak)
     imax = maxloc(abs(approx - recurs), dim=1)
-    err = abs(approx(imax) - recurs(imax)) / peak
+    err = abs(approx(imax) - recurs(imax))/peak
     metric = case_metric(l, k, nu, chi(imax))
 
     rec = make_record(l, k, nu, chi(imax), metric, err, TARGET_ERR, peak, imax)
@@ -301,8 +301,8 @@
     end if
 
     deallocate(chi, approx, recurs)
-    end subroutine run_case
 
+    end subroutine run_case
 
     subroutine accumulate_fast_fraction_bins(l, k, n, nfast, nfallback)
     integer, intent(in) :: l, k, n, nfast, nfallback
@@ -319,8 +319,8 @@
     bin_total(ig, ib) = bin_total(ig, ib) + n
     bin_fast(ig, ib) = bin_fast(ig, ib) + nfast
     bin_fallback(ig, ib) = bin_fallback(ig, ib) + nfallback
-    end subroutine accumulate_fast_fraction_bins
 
+    end subroutine accumulate_fast_fraction_bins
 
     integer function l_bin(l)
     integer, intent(in) :: l
@@ -347,8 +347,8 @@
     case default
         l_bin = 10
     end select
-    end function l_bin
 
+    end function l_bin
 
     function l_bin_label(ib) result(label)
     integer, intent(in) :: ib
@@ -376,10 +376,10 @@
     case default
         label = "6001-10000"
     end select
+
     end function l_bin_label
 
-
-    subroutine print_fast_fraction_table()
+    subroutine print_fast_fraction_table
     integer :: ig, ib
     real(dl) :: frac
     character(len=8) :: geometry
@@ -390,13 +390,13 @@
         geometry = merge("open    ", "closed  ", ig == 1)
         do ib = 1, NBINS
             if (bin_total(ig, ib) == 0) cycle
-            frac = real(bin_fast(ig, ib), dl) / real(bin_total(ig, ib), dl)
+            frac = real(bin_fast(ig, ib), dl)/real(bin_total(ig, ib), dl)
             write(*, '(a8, 1x, a12, 1x, i10, 1x, i10, 1x, i10, 1x, f9.5)') &
                 geometry, l_bin_label(ib), bin_total(ig, ib), bin_fast(ig, ib), bin_fallback(ig, ib), frac
         end do
     end do
-    end subroutine print_fast_fraction_table
 
+    end subroutine print_fast_fraction_table
 
     logical function predicts_recursive_fallback(l, k, nu, chi)
     integer, intent(in) :: l, k
@@ -411,20 +411,20 @@
     end if
     if (chi <= 1.0e-12_dl) return
 
-    alpha_gate = nu / real(l, dl)
+    alpha_gate = nu/real(l, dl)
     if (use_smallchi_map_test(l, nu, chi, alpha_gate)) return
 
     if (k == 1) then
-        metric = chi / (2._dl * (nu - real(l, dl)))
+        metric = chi/(2._dl*(nu - real(l, dl)))
         predicts_recursive_fallback = metric > OLVER_GATE_CLOSED_EPS
     else if (k == -1) then
         if (alpha_gate < open_alpha_cut(l)) then
-            metric = chi / (2._dl * max(nu, tiny(1._dl)))
+            metric = chi/(2._dl*max(nu, tiny(1._dl)))
             predicts_recursive_fallback = metric > OLVER_GATE_OPEN_EPS
         end if
     end if
-    end function predicts_recursive_fallback
 
+    end function predicts_recursive_fallback
 
     real(dl) function open_alpha_cut(l)
     integer, intent(in) :: l
@@ -432,13 +432,13 @@
 
     ell = real(l, dl)
     if (ell < OLVER_OPEN_L_JOIN) then
-        open_alpha_cut = OLVER_OPEN_ALPHA_JOIN * (OLVER_OPEN_L_JOIN / ell)**OLVER_OPEN_ALPHA_LOW_EXP
+        open_alpha_cut = OLVER_OPEN_ALPHA_JOIN*(OLVER_OPEN_L_JOIN/ell)**OLVER_OPEN_ALPHA_LOW_EXP
     else
-        open_alpha_cut = OLVER_OPEN_ALPHA_JOIN * (OLVER_OPEN_L_JOIN / ell)**OLVER_OPEN_ALPHA_HIGH_EXP
+        open_alpha_cut = OLVER_OPEN_ALPHA_JOIN*(OLVER_OPEN_L_JOIN/ell)**OLVER_OPEN_ALPHA_HIGH_EXP
     end if
     open_alpha_cut = max(OLVER_OPEN_ALPHA_FLOOR, open_alpha_cut)
-    end function open_alpha_cut
 
+    end function open_alpha_cut
 
     logical function use_smallchi_map_test(l, nu, chi, alpha_gate)
     integer, intent(in) :: l
@@ -447,9 +447,9 @@
     use_smallchi_map_test = l > 0 .and. &
         (alpha_gate > SMALLCHI_GATE_ALPHA .or. &
         (l >= SMALLCHI_GATE_LOW_ALPHA_L_MIN .and. alpha_gate > 1._dl)) .and. &
-        real(l, dl)**2 * chi**7 / nu < SMALLCHI_GATE_METRIC
-    end function use_smallchi_map_test
+        real(l, dl)**2*chi**7/nu < SMALLCHI_GATE_METRIC
 
+    end function use_smallchi_map_test
 
     function make_record(l, k, nu, chi, metric, err, expected, peak, index) result(rec)
     integer, intent(in) :: l, k, index
@@ -464,27 +464,27 @@
     rec%l = l
     rec%k = k
     rec%nu = nu
-    rec%alpha = nu / real(l, dl)
+    rec%alpha = nu/real(l, dl)
     rec%chi = chi
     rec%metric = metric
     rec%err = err
     rec%expected = expected
     rec%peak = peak
     rec%index = index
-    end function make_record
 
+    end function make_record
 
     real(dl) function case_metric(l, k, nu, chi)
     integer, intent(in) :: l, k
     real(dl), intent(in) :: nu, chi
 
     if (k == 1) then
-        case_metric = chi / (2._dl * (nu - real(l, dl)))
+        case_metric = chi/(2._dl*(nu - real(l, dl)))
     else
-        case_metric = chi / (2._dl * max(nu, tiny(1._dl)))
+        case_metric = chi/(2._dl*max(nu, tiny(1._dl)))
     end if
-    end function case_metric
 
+    end function case_metric
 
     subroutine make_open_chi_grid(l, nu, chi)
     integer, intent(in) :: l
@@ -496,10 +496,10 @@
 
     allocate(raw(MAX_RAW_POINTS))
     n = 0
-    ell = sqrt(real(l, dl) * real(l + 1, dl))
-    turn = asinh(ell / nu)
-    end_chi = min(turn + 80._dl * PI / nu, 80._dl)
-    width = max(0.08_dl, 0.02_dl * turn)
+    ell = sqrt(real(l, dl)*real(l + 1, dl))
+    turn = asinh(ell/nu)
+    end_chi = min(turn + 80._dl*PI/nu, 80._dl)
+    width = max(0.08_dl, 0.02_dl*turn)
 
     call append_geom(raw, n, 1.0e-8_dl, min(0.5_dl, end_chi), 180)
     call append_lin(raw, n, 1.0e-7_dl, end_chi, merge(600, 1200, quick))
@@ -510,8 +510,8 @@
     end if
     call sort_unique(raw, n, chi)
     deallocate(raw)
-    end subroutine make_open_chi_grid
 
+    end subroutine make_open_chi_grid
 
     subroutine make_closed_chi_grid(chi)
     real(dl), allocatable, intent(out) :: chi(:)
@@ -521,18 +521,18 @@
     allocate(raw(MAX_RAW_POINTS))
     n = 0
     call append_geom(raw, n, 1.0e-8_dl, 0.5_dl, 180)
-    call append_lin(raw, n, 1.0e-7_dl, PI / 2._dl, merge(800, 1800, quick))
+    call append_lin(raw, n, 1.0e-7_dl, PI/2._dl, merge(800, 1800, quick))
     nedge = merge(1000, 2400, quick)
     allocate(endpoint(nedge))
     call geom_values(endpoint, 1.0e-12_dl, 0.25_dl)
     do i = 1, nedge
-        call append_value(raw, n, PI / 2._dl - endpoint(i))
+        call append_value(raw, n, PI/2._dl - endpoint(i))
     end do
     deallocate(endpoint)
     call sort_unique(raw, n, chi)
     deallocate(raw)
-    end subroutine make_closed_chi_grid
 
+    end subroutine make_closed_chi_grid
 
     subroutine append_lin(raw, n, a, b, m)
     real(dl), intent(inout) :: raw(:)
@@ -547,11 +547,11 @@
         return
     end if
     do i = 1, m
-        x = a + (b - a) * real(i - 1, dl) / real(m - 1, dl)
+        x = a + (b - a)*real(i - 1, dl)/real(m - 1, dl)
         call append_value(raw, n, x)
     end do
-    end subroutine append_lin
 
+    end subroutine append_lin
 
     subroutine append_geom(raw, n, a, b, m)
     real(dl), intent(inout) :: raw(:)
@@ -571,8 +571,8 @@
         call append_value(raw, n, vals(i))
     end do
     deallocate(vals)
-    end subroutine append_geom
 
+    end subroutine append_geom
 
     subroutine geom_values(vals, a, b)
     real(dl), intent(out) :: vals(:)
@@ -588,10 +588,10 @@
     loga = log(a)
     logb = log(b)
     do i = 1, m
-        vals(i) = exp(loga + (logb - loga) * real(i - 1, dl) / real(m - 1, dl))
+        vals(i) = exp(loga + (logb - loga)*real(i - 1, dl)/real(m - 1, dl))
     end do
-    end subroutine geom_values
 
+    end subroutine geom_values
 
     subroutine append_value(raw, n, x)
     real(dl), intent(inout) :: raw(:)
@@ -602,8 +602,8 @@
     if (n >= size(raw)) error stop "increase MAX_RAW_POINTS"
     n = n + 1
     raw(n) = x
-    end subroutine append_value
 
+    end subroutine append_value
 
     subroutine sort_unique(raw, n, values)
     real(dl), intent(inout) :: raw(:)
@@ -617,7 +617,7 @@
     call quicksort(work, 1, n)
     m = 1
     do i = 2, n
-        if (work(i) > work(m) * (1._dl + 1.0e-13_dl) + 1.0e-14_dl) then
+        if (work(i) > work(m)*(1._dl + 1.0e-13_dl) + 1.0e-14_dl) then
             m = m + 1
             work(m) = work(i)
         end if
@@ -625,8 +625,8 @@
     allocate(values(m))
     values = work(1:m)
     deallocate(work)
-    end subroutine sort_unique
 
+    end subroutine sort_unique
 
     recursive subroutine quicksort(a, left, right)
     real(dl), intent(inout) :: a(:)
@@ -637,7 +637,7 @@
     if (left >= right) return
     i = left
     j = right
-    pivot = a((left + right) / 2)
+    pivot = a((left + right)/2)
     do
         do while (a(i) < pivot)
             i = i + 1
@@ -656,8 +656,8 @@
     end do
     if (left < j) call quicksort(a, left, j)
     if (i < right) call quicksort(a, i, right)
-    end subroutine quicksort
 
+    end subroutine quicksort
 
     subroutine recursive_spline_error(l, k, nu, x, y, peak, max_err, expected_err, imax)
     integer, intent(in) :: l, k
@@ -670,7 +670,7 @@
     real(dl) :: ys, err, max_phase, wave_number
 
     n = size(x)
-    m = (n + 4) / 5
+    m = (n + 4)/5
     if (mod(n - 1, 5) /= 0) m = m + 1
     allocate(xk(m), yk(m), y2(m))
     j = 0
@@ -690,27 +690,27 @@
     wave_number = spline_wave_number(l, k, nu)
     max_phase = 0._dl
     do i = 1, m - 1
-        max_phase = max(max_phase, wave_number * (xk(i + 1) - xk(i)))
+        max_phase = max(max_phase, wave_number*(xk(i + 1) - xk(i)))
     end do
 ! Natural cubic interpolation has an O((k h)^4) envelope for resolved smooth
 ! oscillations. If the every-fifth knot grid is deliberately under-resolving a
 ! high-frequency closed mode, use this scale so the check flags unexpected
 ! spikes rather than ordinary interpolation undersampling.
-    expected_err = max(SPLINE_TARGET_ERR, 2.0e-2_dl * max_phase**4)
+    expected_err = max(SPLINE_TARGET_ERR, 2.0e-2_dl*max_phase**4)
 
     max_err = -1._dl
     imax = 1
     do i = 1, n
         ys = spline_value(xk(1:m), yk(1:m), y2(1:m), x(i))
-        err = abs(ys - y(i)) / peak
+        err = abs(ys - y(i))/peak
         if (err > max_err) then
             max_err = err
             imax = i
         end if
     end do
     deallocate(xk, yk, y2)
-    end subroutine recursive_spline_error
 
+    end subroutine recursive_spline_error
 
     real(dl) function spline_wave_number(l, k, nu)
     integer, intent(in) :: l, k
@@ -721,8 +721,8 @@
     else
         spline_wave_number = max(1._dl, sqrt(nu**2 + real(l, dl)**2))
     end if
-    end function spline_wave_number
 
+    end function spline_wave_number
 
     subroutine natural_spline(x, y, y2)
     real(dl), intent(in) :: x(:), y(:)
@@ -736,19 +736,19 @@
     y2(1) = 0._dl
     u(1) = 0._dl
     do i = 2, n - 1
-        sig = (x(i) - x(i - 1)) / (x(i + 1) - x(i - 1))
-        p = sig * y2(i - 1) + 2._dl
-        y2(i) = (sig - 1._dl) / p
-        u(i) = (6._dl * ((y(i + 1) - y(i)) / (x(i + 1) - x(i)) - &
-            (y(i) - y(i - 1)) / (x(i) - x(i - 1))) / (x(i + 1) - x(i - 1)) - sig * u(i - 1)) / p
+        sig = (x(i) - x(i - 1))/(x(i + 1) - x(i - 1))
+        p = sig*y2(i - 1) + 2._dl
+        y2(i) = (sig - 1._dl)/p
+        u(i) = (6._dl*((y(i + 1) - y(i))/(x(i + 1) - x(i)) - &
+            (y(i) - y(i - 1))/(x(i) - x(i - 1)))/(x(i + 1) - x(i - 1)) - sig*u(i - 1))/p
     end do
     y2(n) = 0._dl
     do k = n - 1, 1, -1
-        y2(k) = y2(k) * y2(k + 1) + u(k)
+        y2(k) = y2(k)*y2(k + 1) + u(k)
     end do
     deallocate(u)
-    end subroutine natural_spline
 
+    end subroutine natural_spline
 
     real(dl) function spline_value(x, y, y2, xval)
     real(dl), intent(in) :: x(:), y(:), y2(:), xval
@@ -758,7 +758,7 @@
     klo = 1
     khi = size(x)
     do while (khi - klo > 1)
-        k = (khi + klo) / 2
+        k = (khi + klo)/2
         if (x(k) > xval) then
             khi = k
         else
@@ -767,11 +767,11 @@
     end do
     h = x(khi) - x(klo)
     if (h <= 0._dl) error stop "bad spline knots"
-    a = (x(khi) - xval) / h
-    b = (xval - x(klo)) / h
-    spline_value = a * y(klo) + b * y(khi) + ((a**3 - a) * y2(klo) + (b**3 - b) * y2(khi)) * h**2 / 6._dl
-    end function spline_value
+    a = (x(khi) - xval)/h
+    b = (xval - x(klo))/h
+    spline_value = a*y(klo) + b*y(khi) + ((a**3 - a)*y2(klo) + (b**3 - b)*y2(khi))*h**2/6._dl
 
+    end function spline_value
 
     subroutine insert_record(records, rec)
     type(worst_record), intent(inout) :: records(:)
@@ -787,8 +787,8 @@
             exit
         end if
     end do
-    end subroutine insert_record
 
+    end subroutine insert_record
 
     subroutine print_records(title, records)
     character(len=*), intent(in) :: title
@@ -804,21 +804,21 @@
             i, records(i)%geometry, records(i)%l, records(i)%k, records(i)%nu, records(i)%alpha, &
             records(i)%chi, records(i)%metric, records(i)%err, records(i)%expected, records(i)%peak, records(i)%index
     end do
+
     end subroutine print_records
 
-
-    subroutine run_timing_benchmarks()
+    subroutine run_timing_benchmarks
     write(*, '(/, a)') "Timing benchmarks by predicted gate region"
     write(*, '(a)') "label region L K nu alpha selected repeats phi_olver_cpu/eval " // &
         "phi_recurs_cpu/eval phi_olver_wall/eval phi_recurs_wall/eval ratio_cpu ratio_wall"
-    call timing_benchmark_case("open high-L accepted", 6000, -1, 0.12_dl * 6000._dl, want_fallback=.false.)
-    call timing_benchmark_case("open high-L fallback", 6000, -1, 0.05_dl * 6000._dl, want_fallback=.true.)
+    call timing_benchmark_case("open high-L accepted", 6000, -1, 0.12_dl*6000._dl, want_fallback=.false.)
+    call timing_benchmark_case("open high-L fallback", 6000, -1, 0.05_dl*6000._dl, want_fallback=.true.)
     call timing_benchmark_case("closed high-L accepted", 6000, 1, 6200._dl, want_fallback=.false.)
     call timing_benchmark_case("closed high-L fallback", 6000, 1, 6100._dl, want_fallback=.true.)
     call timing_benchmark_case("closed mid-L accepted", 500, 1, 700._dl, want_fallback=.false.)
     call timing_benchmark_case("closed mid-L fallback", 500, 1, 600._dl, want_fallback=.true.)
-    end subroutine run_timing_benchmarks
 
+    end subroutine run_timing_benchmarks
 
     subroutine timing_benchmark_case(label, l, k, nu, want_fallback)
     character(len=*), intent(in) :: label
@@ -848,21 +848,21 @@
         return
     end if
 
-    repeats = max(1, min(50, 200000 / selected))
-    if (quick) repeats = max(1, min(10, 50000 / selected))
+    repeats = max(1, min(50, 200000/selected))
+    if (quick) repeats = max(1, min(10, 50000/selected))
     region = merge("fallback", "fast    ", want_fallback)
 
     sink = 0._dl
     call cpu_time(t0_cpu)
     t0_wall = omp_get_wtime()
     do repeat = 1, repeats
-        !$omp parallel do default(shared) private(i) reduction(+:sink) schedule(static)
+        !$OMP PARALLEL DO DEFAULT(SHARED), PRIVATE(i), REDUCTION(+:sink), SCHEDULE(STATIC)
         do i = 1, n
             if (predicts_recursive_fallback(l, k, nu, chi(i)) .eqv. want_fallback) then
                 sink = sink + phi_olver(l, k, nu, chi(i))
             end if
         end do
-        !$omp end parallel do
+        !$OMP END PARALLEL DO
     end do
     t1_wall = omp_get_wtime()
     call cpu_time(t1_cpu)
@@ -872,33 +872,34 @@
     call cpu_time(t0_cpu)
     t0_wall = omp_get_wtime()
     do repeat = 1, repeats
-        !$omp parallel do default(shared) private(i) reduction(+:sink) schedule(static)
+        !$OMP PARALLEL DO DEFAULT(SHARED), PRIVATE(i), REDUCTION(+:sink), SCHEDULE(STATIC)
         do i = 1, n
             if (predicts_recursive_fallback(l, k, nu, chi(i)) .eqv. want_fallback) then
                 sink = sink + phi_recurs(l, k, nu, chi(i))
             end if
         end do
-        !$omp end parallel do
+        !$OMP END PARALLEL DO
     end do
     t1_wall = omp_get_wtime()
     call cpu_time(t1_cpu)
     recurs_cpu_case = t1_cpu - t0_cpu
     recurs_wall_case = t1_wall - t0_wall
 
-    approx_eval_cpu = approx_cpu_case / real(selected * repeats, dl)
-    recurs_eval_cpu = recurs_cpu_case / real(selected * repeats, dl)
-    approx_eval_wall = approx_wall_case / real(selected * repeats, dl)
-    recurs_eval_wall = recurs_wall_case / real(selected * repeats, dl)
+    approx_eval_cpu = approx_cpu_case/real(selected*repeats, dl)
+    recurs_eval_cpu = recurs_cpu_case/real(selected*repeats, dl)
+    approx_eval_wall = approx_wall_case/real(selected*repeats, dl)
+    recurs_eval_wall = recurs_wall_case/real(selected*repeats, dl)
 
     write(*, '(a, 1x, a8, 1x, i6, 1x, i2, 1x, es12.4, 1x, es10.3, 1x, i8, 1x, i4, &
         1x, es12.4, 1x, es12.4, 1x, es12.4, 1x, es12.4, 1x, f9.3, 1x, f9.3)') &
-        trim(label), region, l, k, nu, nu / real(l, dl), selected, repeats, &
+        trim(label), region, l, k, nu, nu/real(l, dl), selected, repeats, &
         approx_eval_cpu, recurs_eval_cpu, approx_eval_wall, recurs_eval_wall, &
-        recurs_eval_cpu / max(approx_eval_cpu, tiny(1._dl)), &
-        recurs_eval_wall / max(approx_eval_wall, tiny(1._dl))
+        recurs_eval_cpu/max(approx_eval_cpu, tiny(1._dl)), &
+        recurs_eval_wall/max(approx_eval_wall, tiny(1._dl))
     if (abs(sink) > huge(1._dl)) write(*, *) sink
 
     deallocate(chi)
+
     end subroutine timing_benchmark_case
 
     end program phi_olver_gate_validation

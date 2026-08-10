@@ -32,8 +32,8 @@
 ! Assume inputs all pre-validated
 
     module HypersphericalBesselSmallNu
-    use, intrinsic :: iso_fortran_env, only : real64
-    use, intrinsic :: ieee_arithmetic, only : ieee_value, ieee_quiet_nan, ieee_is_finite
+    use, intrinsic :: iso_fortran_env, only: real64
+    use, intrinsic :: ieee_arithmetic, only: ieee_value, ieee_quiet_nan, ieee_is_finite
     use constants, only: pi_dp => const_pi, twopi_dp => const_twopi
     use MathUtils, only: airy_ai_fast
     implicit none
@@ -52,7 +52,7 @@
     ! leading uniform Airy approximation avoids the catastrophic cancellation
     ! of the I-series near and beyond the turning point x ~= nu.
     real(dp), parameter :: nu_airy_min = 20.0_dp
-    real(dp), parameter :: series_q_max  = 25.0_dp
+    real(dp), parameter :: series_q_max = 25.0_dp
     real(dp), parameter :: series_term2_tol = 4.0e-32_dp
     integer, parameter :: smallnu_l_min = 20
     integer, parameter :: smallnu_amp_l_min = 3000
@@ -66,12 +66,13 @@
     contains
 
     function open_smallnu_action_u(l, nu, chi) result(u)
-    integer,  intent(in) :: l
+    integer, intent(in) :: l
     real(dp), intent(in) :: nu, chi
     real(dp) :: u, loglambda
 
     loglambda = open_smallnu_loglambda(l, nu)
     u = open_smallnu_action_u_from_loglambda(l, nu, chi, loglambda)
+
     end function open_smallnu_action_u
 
     function open_smallnu_action_u_from_loglambda(l, nu, chi, loglambda) result(u)
@@ -83,7 +84,7 @@
     ! the additive constant chosen so x_* -> 2 Lambda exp(-chi) at infinity.
     !
     ! No Liouville amplitude factor is applied.
-    integer,  intent(in) :: l
+    integer, intent(in) :: l
     real(dp), intent(in) :: nu, chi, loglambda
     real(dp) :: u, x
 
@@ -101,8 +102,8 @@
     else
         u = scaled_ki_nu(abs(nu), x)
     end if
-    end function open_smallnu_action_u_from_loglambda
 
+    end function open_smallnu_action_u_from_loglambda
 
     function open_smallnu_u(l, nu, chi, ok) result(u)
     ! Validated small-nu reduced radial approximation for the regular open
@@ -122,8 +123,8 @@
 
     loglambda = open_smallnu_loglambda(l, nu)
     u = open_smallnu_u_from_loglambda(l, nu, chi, loglambda)
-    end function open_smallnu_u
 
+    end function open_smallnu_u
 
     function open_smallnu_u_from_loglambda(l, nu, chi, loglambda) result(u)
     integer, intent(in) :: l
@@ -137,40 +138,40 @@
         else
             kval = scaled_ki_nu(abs(nu), x)
         end if
-        u = open_smallnu_liouville_amp_a0(l, abs(nu), chi) * kval
+        u = open_smallnu_liouville_amp_a0(l, abs(nu), chi)*kval
     else
         u = open_smallnu_action_u_from_loglambda(l, nu, chi, loglambda)
     end if
-    end function open_smallnu_u_from_loglambda
 
+    end function open_smallnu_u_from_loglambda
 
     elemental logical function open_smallnu_ok(l, nu) result(ok)
     integer, intent(in) :: l
     real(dp), intent(in) :: nu
 
     ok = l > smallnu_l_min .and. nu > 0.0_dp .and. nu <= open_smallnu_gate(l)
-    end function open_smallnu_ok
 
+    end function open_smallnu_ok
 
     elemental real(dp) function open_smallnu_gate(l) result(nu_max)
     integer, intent(in) :: l
     real(dp) :: ell, old_gate
 
     ell = real(l, dp)
-    old_gate = max(1.2e-4_dp * ell**1.5_dp, &
-        min(12.0_dp * (ell / 1000.0_dp)**3, 0.032_dp * ell))
+    old_gate = max(1.2e-4_dp*ell**1.5_dp, &
+        min(12.0_dp*(ell/1000.0_dp)**3, 0.032_dp*ell))
     if (l >= smallnu_amp_l_min) then
-        nu_max = max(old_gate, 0.04_dp * ell, &
-            min(8.0_dp * (ell / 1000.0_dp)**2, 0.16_dp * ell))
+        nu_max = max(old_gate, 0.04_dp*ell, &
+            min(8.0_dp*(ell/1000.0_dp)**2, 0.16_dp*ell))
     else
         nu_max = old_gate
     end if
-    end function open_smallnu_gate
 
+    end function open_smallnu_gate
 
     function action_argument_x(l, nu, chi, loglambda) result(x)
     ! Return the action-matched comparison argument x_*(chi).
-    integer,  intent(in) :: l
+    integer, intent(in) :: l
     real(dp), intent(in) :: nu, chi, loglambda
     real(dp) :: x, b, A, sh, y, signed_action, cphase, target
 
@@ -186,7 +187,7 @@
         return
     end if
 
-    A = sqrt(real(l,dp)*(real(l,dp) + 1.0_dp))
+    A = sqrt(real(l, dp)*(real(l, dp) + 1.0_dp))
     if (chi < 350.0_dp) then
         sh = sinh(max(chi, 1.0e-300_dp))
         y = A/sh
@@ -209,8 +210,8 @@
     else
         x = inv_comp_forb(b, -target)
     end if
-    end function action_argument_x
 
+    end function action_argument_x
 
     function true_action_osc(A, b, y) result(act)
     ! int_y^b sqrt(b^2-t^2)/(t sqrt(1+t^2/A^2)) dt, for 0 <= y <= b.
@@ -221,7 +222,7 @@
     if (yy <= 1.0e-4_dp*b) then
         ! Stable y -> 0 limit.  The next correction is O(y^2).
         yy = max(yy, tiny(1.0_dp))
-        act = b*log(2.0_dp*b*A/(yy*sqrt(A*A+b*b))) - A*atan(b/A)
+        act = b*log(2.0_dp*b*A/(yy*sqrt(A*A + b*b))) - A*atan(b/A)
         return
     end if
 
@@ -232,8 +233,8 @@
     arg2 = s/sqrt(A*A + b*b)
     arg2 = min(max(arg2, 0.0_dp), 1.0_dp)
     act = b*atanh(arg1) - A*asin(arg2)
-    end function true_action_osc
 
+    end function true_action_osc
 
     function true_action_forb(A, b, y) result(act)
     ! int_b^y sqrt(t^2-b^2)/(t sqrt(1+t^2/A^2)) dt, for y >= b.
@@ -251,8 +252,8 @@
     end if
     arg2 = min(max(arg2, 0.0_dp), 1.0_dp)
     act = A*atanh(arg1) - b*asin(arg2)
-    end function true_action_forb
 
+    end function true_action_forb
 
     function inv_comp_osc(b, target) result(x)
     ! Invert int_x^b sqrt(b^2-t^2)/t dt = target without bisection.
@@ -297,8 +298,8 @@
     do it = 1, 4
         s_old = s
         one = max(1.0_dp - s*s, tiny(1.0_dp))
-        f   = atanh(s) - s - T
-        fp  = s*s/one
+        f = atanh(s) - s - T
+        fp = s*s/one
         fpp = 2.0_dp*s/(one*one)
         den = 2.0_dp*fp*fp - f*fpp
         if (den == 0.0_dp) exit
@@ -309,8 +310,8 @@
     end do
 
     x = b*sqrt(max(0.0_dp, 1.0_dp - s*s))
-    end function inv_comp_osc
 
+    end function inv_comp_osc
 
     function inv_comp_forb(b, target) result(x)
     ! Invert int_b^x sqrt(t^2-b^2)/t dt = target without bisection.
@@ -343,8 +344,8 @@
     do it = 1, 3
         s_old = s
         one = 1.0_dp + s*s
-        f   = s - atan(s) - T
-        fp  = s*s/one
+        f = s - atan(s) - T
+        fp = s*s/one
         fpp = 2.0_dp*s/(one*one)
         den = 2.0_dp*fp*fp - f*fpp
         if (den == 0.0_dp) exit
@@ -354,6 +355,7 @@
     end do
 
     x = b*sqrt(1.0_dp + s*s)
+
     end function inv_comp_forb
 
     function comparison_u_from_loglambda(nu, chi, loglambda) result(u)
@@ -363,10 +365,10 @@
     real(dp) :: u, b, logz2
 
     b = abs(nu)
-    logz2 = loglambda - chi        ! x/2 = Lambda exp(-chi)
+    logz2 = loglambda - chi ! x/2 = Lambda exp(-chi)
     u = scaled_ki_from_logz2(b, logz2)
-    end function comparison_u_from_loglambda
 
+    end function comparison_u_from_loglambda
 
     function open_smallnu_loglambda(l, nu) result(loglambda)
     ! Branch-continuous evaluation of
@@ -376,7 +378,7 @@
     !     H_l - gamma + sum_{m>=1} (-1)^(m+1) nu^(2m)/(2m+1)
     !                    * sum_{n=l+1}^infty n^{-(2m+1)}.
     ! Otherwise compute Im log Gamma(1+i nu) plus sum atan(nu/j).
-    integer,  intent(in) :: l
+    integer, intent(in) :: l
     real(dp), intent(in) :: nu
     real(dp) :: loglambda
     real(dp) :: b, a, b2, corr, powb
@@ -395,18 +397,18 @@
     if (l >= 8 .and. b/a < 0.30_dp) then
         b2 = b*b
         powb = b2
-        corr =  powb/3.0_dp * zeta_tail_em(3, a)
+        corr = powb/3.0_dp*zeta_tail_em(3, a)
         powb = powb*b2
-        corr = corr - powb/5.0_dp * zeta_tail_em(5, a)
+        corr = corr - powb/5.0_dp*zeta_tail_em(5, a)
         powb = powb*b2
-        corr = corr + powb/7.0_dp * zeta_tail_em(7, a)
+        corr = corr + powb/7.0_dp*zeta_tail_em(7, a)
         powb = powb*b2
-        corr = corr - powb/9.0_dp * zeta_tail_em(9, a)
+        corr = corr - powb/9.0_dp*zeta_tail_em(9, a)
         if (b/a >= 0.20_dp) then
             powb = powb*b2
-            corr = corr + powb/11.0_dp * zeta_tail_em(11, a)
+            corr = corr + powb/11.0_dp*zeta_tail_em(11, a)
             powb = powb*b2
-            corr = corr - powb/13.0_dp * zeta_tail_em(13, a)
+            corr = corr - powb/13.0_dp*zeta_tail_em(13, a)
         end if
         loglambda = harmonic_minus_euler(l) + corr
         return
@@ -414,11 +416,11 @@
 
     loglambda = arg_gamma_1_plus_i(b)
     do j = 1, l
-        loglambda = loglambda + atan(b/real(j,dp))
+        loglambda = loglambda + atan(b/real(j, dp))
     end do
     loglambda = loglambda/b
-    end function open_smallnu_loglambda
 
+    end function open_smallnu_loglambda
 
     function scaled_ki_nu(nu, x) result(val)
     ! Standalone evaluator of
@@ -444,8 +446,8 @@
 
     logz2 = log(0.5_dp*x)
     val = scaled_ki_from_xlog(b, x, logz2)
-    end function scaled_ki_nu
 
+    end function scaled_ki_nu
 
     function scaled_ki_from_logz2(nu, logz2) result(val)
     ! Same evaluator as scaled_ki_nu(), but accepts log(x/2).  This avoids
@@ -474,8 +476,8 @@
 
     x = 2.0_dp*exp(logz2)
     val = scaled_ki_from_xlog(b, x, logz2)
-    end function scaled_ki_from_logz2
 
+    end function scaled_ki_from_logz2
 
     function scaled_ki_from_xlog(nu, x, logz2) result(val)
     ! Core router.  nu must be positive and x>0.
@@ -529,19 +531,19 @@
     end if
 
     val = scaled_ki_airy_leading(b, x)
-    end function scaled_ki_from_xlog
 
+    end function scaled_ki_from_xlog
 
     function scaled_ki_series(nu, logz2, x, leading_only) result(val)
     ! Compatibility wrapper around the checked series evaluator.
     real(dp), intent(in) :: nu, logz2, x
-    logical,  intent(in) :: leading_only
+    logical, intent(in) :: leading_only
     real(dp) :: val
     logical :: ok
 
     call scaled_ki_series_checked(nu, logz2, x, leading_only, val, ok)
-    end function scaled_ki_series
 
+    end function scaled_ki_series
 
     subroutine scaled_ki_series_checked(nu, logz2, x, leading_only, val, ok)
     ! Scaled imaginary-order Macdonald function from the I_{i nu} series.
@@ -553,11 +555,11 @@
     ! Gamma(1+i nu), giving the stable expression
     !
     ! scaled K = - Im[ exp(i phase) * series ]/nu,
-    ! phase = nu log(x/2) - arg Gamma(1+i nu).
+    ! phase = nu log(x/2) - arg Gamma(1 + i nu).
     real(dp), intent(in) :: nu, logz2, x
-    logical,  intent(in) :: leading_only
+    logical, intent(in) :: leading_only
     real(dp), intent(out) :: val
-    logical,  intent(out) :: ok
+    logical, intent(out) :: ok
     real(dp) :: b, y, phase, cph, sph
     real(dp) :: term_re, term_im, sum_re, sum_im
     real(dp) :: fac_re, fac_im, new_re, new_im, kk, den, term2, sum2
@@ -584,12 +586,12 @@
     y = 0.25_dp*x*x
     term_re = 1.0_dp
     term_im = 0.0_dp
-    sum_re  = 1.0_dp
-    sum_im  = 0.0_dp
+    sum_re = 1.0_dp
+    sum_im = 0.0_dp
     ok = .false.
 
     do k = 1, max_series_iter
-        kk = real(k,dp)
+        kk = real(k, dp)
         den = kk*kk + b*b
         fac_re = y/den
         fac_im = -y*b/(kk*den)
@@ -613,8 +615,8 @@
     end do
 
     val = -(cph*sum_im + sph*sum_re)/b
-    end subroutine scaled_ki_series_checked
 
+    end subroutine scaled_ki_series_checked
 
     function scaled_ki_airy_leading(nu, x) result(val)
     ! Leading uniform Airy approximation for
@@ -624,12 +626,12 @@
     real(dp) :: b, z, s, t, act, zeta_abs, phi, arg, ai
     real(dp) :: logb, b23, scale
 
-    real(dp), parameter :: one_third  = 0.333333333333333333333333333333333333333_dp
-    real(dp), parameter :: one_fifth  = 0.2_dp
+    real(dp), parameter :: one_third = 0.333333333333333333333333333333333333333_dp
+    real(dp), parameter :: one_fifth = 0.2_dp
     real(dp), parameter :: one_seventh = 0.142857142857142857142857142857142857143_dp
-    real(dp), parameter :: one_ninth  = 0.111111111111111111111111111111111111111_dp
+    real(dp), parameter :: one_ninth = 0.111111111111111111111111111111111111111_dp
     real(dp), parameter :: one_eleventh = 0.090909090909090909090909090909090909091_dp
-    real(dp), parameter :: two_third  = 0.666666666666666666666666666666666666667_dp
+    real(dp), parameter :: two_third = 0.666666666666666666666666666666666666667_dp
     real(dp), parameter :: five_sixth = 0.833333333333333333333333333333333333333_dp
     real(dp), parameter :: sqrt_pi_over_two = 1.253314137315500251207882642405522626504_dp
     real(dp), parameter :: phi_turn = 1.259921049894873164767210607278228350570_dp
@@ -647,8 +649,8 @@
     b23 = exp(two_third*logb)
 
     if (pi_dp*b >= 20.0_dp) then
-        !log_sinh(pi*b) = pi*b - log(2) to double precision here
-        scale = sqrt_pi_over_two * exp(-five_sixth*logb)
+        ! log_sinh(pi*b) = pi*b - log(2) to double precision here
+        scale = sqrt_pi_over_two*exp(-five_sixth*logb)
     else
         scale = exp(0.5_dp*(log_sinh(pi_dp*b) - log(pi_dp*b)) &
             + log(pi_dp) - 0.5_dp*pi_dp*b - logb/3.0_dp)
@@ -702,8 +704,8 @@
 
     ai = airy_ai_fast(arg)
     val = scale*phi*ai
-    end function scaled_ki_airy_leading
 
+    end function scaled_ki_airy_leading
 
     function scaled_ki_integral(nu, x) result(val)
     ! Fallback quadrature for the scaled K_{i nu}:
@@ -724,7 +726,7 @@
         0.755404408355003033895101194847442268354_dp, &
         0.865631202387831743880467897712393132387_dp, &
         0.944575023073232576077988415534608345091_dp, &
-        0.989400934991649932596154173450332627426_dp ]
+        0.989400934991649932596154173450332627426_dp]
     real(dp), parameter :: gw(8) = [ &
         0.189450610455068496285396723208283105146_dp, &
         0.182603415044923588866763667969219939384_dp, &
@@ -733,7 +735,7 @@
         0.124628971255533872052476282192016420144_dp, &
         0.095158511682492784809925107602246226355_dp, &
         0.062253523938647892862843836994377694274_dp, &
-        0.027152459411754094851780572456018103512_dp ]
+        0.027152459411754094851780572456018103512_dp]
 
     b = abs(nu)
     if (b < nu_zero) then
@@ -763,18 +765,18 @@
     end if
     h = max(h, 0.0025_dp)
     n_panel = max(1, ceiling(tmax/h))
-    h = tmax/real(n_panel,dp)
+    h = tmax/real(n_panel, dp)
 
     integ = 0.0_dp
-    do p = 0, n_panel-1
-        a = real(p,dp)*h
+    do p = 0, n_panel - 1
+        a = real(p, dp)*h
         c = a + h
-        mid = 0.5_dp*(a+c)
+        mid = 0.5_dp*(a + c)
         halfw = 0.5_dp*h
         do i = 1, 8
-            integ = integ + halfw*gw(i) * &
-                ( exp(-x*cosh(mid + halfw*gx(i))) * cos(b*(mid + halfw*gx(i))) + &
-                exp(-x*cosh(mid - halfw*gx(i))) * cos(b*(mid - halfw*gx(i))) )
+            integ = integ + halfw*gw(i)* &
+                (exp(-x*cosh(mid + halfw*gx(i)))*cos(b*(mid + halfw*gx(i))) + &
+                exp(-x*cosh(mid - halfw*gx(i)))*cos(b*(mid - halfw*gx(i))))
         end do
     end do
 
@@ -792,8 +794,8 @@
             val = sign(exp(exponent), integ)
         end if
     end if
-    end function scaled_ki_integral
 
+    end function scaled_ki_integral
 
     function scaled_ki_asymptotic(nu, x) result(val)
     ! Large-x asymptotic for scaled K_{i nu}(x).
@@ -808,7 +810,7 @@
     term = 1.0_dp
     sum = 1.0_dp
     do m = 1, 80
-        term = term * (mu - real((2*m-1)*(2*m-1),dp)) / (real(m,dp)*8.0_dp*x)
+        term = term*(mu - real((2*m - 1)*(2*m - 1), dp))/(real(m, dp)*8.0_dp*x)
         if (abs(term) > 0.5_dp*abs(sum) .and. m > 8) exit
         sum = sum + term
         if (abs(term) <= 2.0e-16_dp*abs(sum)) exit
@@ -821,8 +823,8 @@
     else
         val = exp(exponent)*sum
     end if
-    end function scaled_ki_asymptotic
 
+    end function scaled_ki_asymptotic
 
     function k0_from_logz2(logz2) result(val)
     ! K_0(2 exp(logz2)), retaining accuracy when the argument underflows.
@@ -830,7 +832,7 @@
     real(dp) :: val, x
 
     if (logz2 < -20.0_dp) then
-        ! K0(x) = -log(x/2)-gamma + O(x^2 log x), x=2 exp(logz2)
+        ! K0(x) = -log(x/2)-gamma + O(x^2 log x), x = 2 exp(logz2)
         val = -logz2 - euler_gamma
     else if (logz2 > 120.0_dp) then
         val = 0.0_dp
@@ -838,8 +840,8 @@
         x = 2.0_dp*exp(logz2)
         val = k0_approx(x)
     end if
-    end function k0_from_logz2
 
+    end function k0_from_logz2
 
     pure function open_smallnu_liouville_amp_a0(l, nu, chi) result(amp)
     ! Leading fast Liouville amplitude for the high-l small-nu branch:
@@ -858,9 +860,9 @@
     end if
 
     if (chi > chi_large) then
-        eta = 2.0_dp * exp(-chi)
+        eta = 2.0_dp*exp(-chi)
     else
-        eta = 1.0_dp / sinh(chi)
+        eta = 1.0_dp/sinh(chi)
     end if
 
     if (eta < 1.e-3_dp) then
@@ -871,12 +873,12 @@
     if (eta > 1.e100_dp) then
         p = log(eta) + log_two
     else
-        p = log(eta + sqrt(1.0_dp + eta * eta))
+        p = log(eta + sqrt(1.0_dp + eta*eta))
     end if
 
-    amp = sqrt(p / eta)
-    end function open_smallnu_liouville_amp_a0
+    amp = sqrt(p/eta)
 
+    end function open_smallnu_liouville_amp_a0
 
     function k0_approx(x) result(ans)
     ! Modified Bessel K0 approximation, adapted from the classic Cephes/NR
@@ -895,13 +897,13 @@
             y*0.00000740_dp))))))
     else
         y = 2.0_dp/x
-        ans = exp(-x)/sqrt(x) * &
+        ans = exp(-x)/sqrt(x)* &
             (1.25331414_dp + y*(-0.07832358_dp + y*(0.02189568_dp + &
             y*(-0.01062446_dp + y*(0.00587872_dp + y*(-0.00251540_dp + &
             y*0.00053208_dp))))))
     end if
-    end function k0_approx
 
+    end function k0_approx
 
     function i0_approx(x) result(ans)
     real(dp), intent(in) :: x
@@ -914,17 +916,17 @@
             y*(0.2659732_dp + y*(0.0360768_dp + y*0.0045813_dp)))))
     else
         y = 3.75_dp/ax
-        ans = exp(ax)/sqrt(ax) * &
+        ans = exp(ax)/sqrt(ax)* &
             (0.39894228_dp + y*(0.01328592_dp + y*(0.00225319_dp + &
             y*(-0.00157565_dp + y*(0.00916281_dp + y*(-0.02057706_dp + &
             y*(0.02635537_dp + y*(-0.01647633_dp + y*0.00392377_dp))))))))
     end if
-    end function i0_approx
 
+    end function i0_approx
 
     function arg_gamma_1_plus_i(nu) result(arg)
     ! Imaginary part of log Gamma(1+i nu), evaluated with the same
-    ! g=7, n=9 Lanczos approximation using real arithmetic specialized to z = 1+i nu.
+    ! g = 7, n = 9 Lanczos approximation using real arithmetic specialized to z = 1 + i nu.
     real(dp), intent(in) :: nu
     real(dp) :: arg, b, t_re, logabs_t, theta_t, x_re, x_im
     real(dp) :: a, den
@@ -939,7 +941,7 @@
         12.507343278686904814458936853_dp, &
         -0.13857109526572011689554707_dp, &
         0.000009984369578019570859563e0_dp, &
-        0.000000150563273514931155834e0_dp ]
+        0.000000150563273514931155834e0_dp]
 
     b = abs(nu)
     t_re = g + 0.5_dp
@@ -949,15 +951,15 @@
     x_re = p(1)
     x_im = 0.0_dp
     do i = 2, 9
-        a = real(i-1, dp)
+        a = real(i - 1, dp)
         den = a*a + b*b
         x_re = x_re + p(i)*a/den
         x_im = x_im - p(i)*b/den
     end do
 
     arg = 0.5_dp*theta_t + b*logabs_t - b + atan2(x_im, x_re)
-    end function arg_gamma_1_plus_i
 
+    end function arg_gamma_1_plus_i
 
     function harmonic_minus_euler(l) result(hmg)
     ! H_l - gamma, with a direct sum for small l and an asymptotic expansion
@@ -971,10 +973,10 @@
     else if (l < 10000) then
         hmg = -euler_gamma
         do j = 1, l
-            hmg = hmg + 1.0_dp/real(j,dp)
+            hmg = hmg + 1.0_dp/real(j, dp)
         end do
     else
-        n = real(l,dp)
+        n = real(l, dp)
         invn = 1.0_dp/n
         invn2 = invn*invn
         ! H_l = log l + gamma + 1/(2l) - 1/(12l^2)
@@ -982,24 +984,24 @@
         hmg = log(n) + 0.5_dp*invn - invn2/12.0_dp &
             + invn2*invn2/120.0_dp - invn2*invn2*invn2/252.0_dp
     end if
-    end function harmonic_minus_euler
 
+    end function harmonic_minus_euler
 
     function zeta_tail_em(p, a) result(s)
     ! Euler-Maclaurin estimate of sum_{n=a}^infty n^{-p}, p>1.
     ! Good for a >= roughly 8; only used in that regime above.
-    integer,  intent(in) :: p
+    integer, intent(in) :: p
     real(dp), intent(in) :: a
     real(dp) :: s, pp
 
-    pp = real(p,dp)
-    s = a**(1.0_dp-pp)/(pp-1.0_dp) &
+    pp = real(p, dp)
+    s = a**(1.0_dp - pp)/(pp - 1.0_dp) &
         + 0.5_dp*a**(-pp) &
-        + (pp/12.0_dp)*a**(-pp-1.0_dp) &
-        - (pp*(pp+1.0_dp)*(pp+2.0_dp)/720.0_dp)*a**(-pp-3.0_dp) &
-        + (pp*(pp+1.0_dp)*(pp+2.0_dp)*(pp+3.0_dp)*(pp+4.0_dp)/30240.0_dp)*a**(-pp-5.0_dp)
-    end function zeta_tail_em
+        + (pp/12.0_dp)*a**(-pp - 1.0_dp) &
+        - (pp*(pp + 1.0_dp)*(pp + 2.0_dp)/720.0_dp)*a**(-pp - 3.0_dp) &
+        + (pp*(pp + 1.0_dp)*(pp + 2.0_dp)*(pp + 3.0_dp)*(pp + 4.0_dp)/30240.0_dp)*a**(-pp - 5.0_dp)
 
+    end function zeta_tail_em
 
     function log_sinh(x) result(y)
     real(dp), intent(in) :: x
@@ -1010,8 +1012,8 @@
     else
         y = x - log_two + log(1.0_dp - exp(-2.0_dp*x))
     end if
-    end function log_sinh
 
+    end function log_sinh
 
     function acosh_safe(x) result(y)
     real(dp), intent(in) :: x
@@ -1019,12 +1021,13 @@
 
     xx = max(x, 1.0_dp)
     y = log(xx + sqrt(max(0.0_dp, xx*xx - 1.0_dp)))
-    end function acosh_safe
 
+    end function acosh_safe
 
     function ieee_nan() result(x)
     real(dp) :: x
     x = ieee_value(1.0_dp, ieee_quiet_nan)
+
     end function ieee_nan
 
     end module HypersphericalBesselSmallNu

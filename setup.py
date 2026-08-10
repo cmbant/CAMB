@@ -34,7 +34,7 @@ def get_forutils():
         try:
             print("forutils not found, attempting to install using git...")
             os.chdir("..")
-            fbranch = os.getenv("FORUTILSBRANCH", "1.1.1" if os.environ.get("CONDA_BUILD") else "master")
+            fbranch = os.getenv("FORUTILSBRANCH", "1.1.2" if os.environ.get("CONDA_BUILD") else "master")
             try:
                 if (
                     subprocess.call(

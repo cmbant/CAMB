@@ -14,7 +14,7 @@
     real(dl), parameter :: SPk_calibrated_k_max = 12.0_dl
     real(dl), parameter :: SPk_log_calibrated_k_min = log(SPk_calibrated_k_min)
     real(dl), parameter :: SPk_log_calibrated_k_max = log(SPk_calibrated_k_max)
-    real(dl), parameter :: SPk_inv_log_10 = 1.0_dl / log(10.0_dl)
+    real(dl), parameter :: SPk_inv_log_10 = 1.0_dl/log(10.0_dl)
     real(dl), parameter :: SPk_min_suppression = 1e-6_dl
 
     integer, parameter :: SPk_rel_power_law = 1
@@ -81,7 +81,7 @@
     real(dl), intent(in) :: x, c0, c1, c2
     real(dl) :: y
 
-    y = c2 * x * x + c1 * x + c0
+    y = c2*x*x + c1*x + c0
 
     end function SPk_Poly2
 
@@ -148,35 +148,35 @@
     end if
 
     do i = 1, n - 1
-        delta(i) = (y_nodes(i + 1) - y_nodes(i)) / (x_nodes(i + 1) - x_nodes(i))
+        delta(i) = (y_nodes(i + 1) - y_nodes(i))/(x_nodes(i + 1) - x_nodes(i))
     end do
 
     ! Extend slopes at both ends using Akima endpoint construction.
     mext(3:n + 1) = delta
-    mext(2) = 2.0_dl * mext(3) - mext(4)
-    mext(1) = 2.0_dl * mext(2) - mext(3)
-    mext(n + 2) = 2.0_dl * mext(n + 1) - mext(n)
-    mext(n + 3) = 2.0_dl * mext(n + 2) - mext(n + 1)
+    mext(2) = 2.0_dl*mext(3) - mext(4)
+    mext(1) = 2.0_dl*mext(2) - mext(3)
+    mext(n + 2) = 2.0_dl*mext(n + 1) - mext(n)
+    mext(n + 3) = 2.0_dl*mext(n + 2) - mext(n + 1)
 
     do i = 1, n
         w1 = abs(mext(i + 3) - mext(i + 2))
         w2 = abs(mext(i + 1) - mext(i))
         if (w1 + w2 > 0.0_dl) then
-            t(i) = (w1 * mext(i + 1) + w2 * mext(i + 2)) / (w1 + w2)
+            t(i) = (w1*mext(i + 1) + w2*mext(i + 2))/(w1 + w2)
         else
-            t(i) = 0.5_dl * (mext(i + 1) + mext(i + 2))
+            t(i) = 0.5_dl*(mext(i + 1) + mext(i + 2))
         end if
     end do
 
     do i = 1, n - 1
         if (z < x_nodes(i + 1)) then
             h = x_nodes(i + 1) - x_nodes(i)
-            s = (z - x_nodes(i)) / h
-            h00 = (1.0_dl + 2.0_dl * s) * (1.0_dl - s) * (1.0_dl - s)
-            h10 = s * (1.0_dl - s) * (1.0_dl - s)
-            h01 = s * s * (3.0_dl - 2.0_dl * s)
-            h11 = s * s * (s - 1.0_dl)
-            y = h00 * y_nodes(i) + h10 * h * t(i) + h01 * y_nodes(i + 1) + h11 * h * t(i + 1)
+            s = (z - x_nodes(i))/h
+            h00 = (1.0_dl + 2.0_dl*s)*(1.0_dl - s)*(1.0_dl - s)
+            h10 = s*(1.0_dl - s)*(1.0_dl - s)
+            h01 = s*s*(3.0_dl - 2.0_dl*s)
+            h11 = s*s*(s - 1.0_dl)
+            y = h00*y_nodes(i) + h10*h*t(i) + h01*y_nodes(i + 1) + h11*h*t(i + 1)
             return
         end if
     end do
@@ -194,19 +194,19 @@
     real(dl), intent(out) :: fb, m_opt
     real(dl) :: best_mass, e_ratio_eff
 
-    best_mass = spk_a - (spk_a - spk_b) * exp(spk_g * log_kh)
-    m_opt = 10.0_dl ** best_mass
+    best_mass = spk_a - (spk_a - spk_b)*exp(spk_g*log_kh)
+    m_opt = 10.0_dl**best_mass
     e_ratio_eff = max(e_ratio, SPk_calibrated_k_min)
 
     select case (relation_kind)
     case (SPk_rel_cosmo_power_law)
-        fb = (exp(rel_alpha) / 100.0_dl) * ((m_opt / 1.0e14_dl) ** (rel_beta - 1.0_dl)) * &
-            (e_ratio_eff ** rel_gamma)
+        fb = (exp(rel_alpha)/100.0_dl)*((m_opt/1.0e14_dl)**(rel_beta - 1.0_dl))* &
+            (e_ratio_eff**rel_gamma)
     case (SPk_rel_double_power_law)
-        fb = 0.5_dl * rel_epsilon * (((m_opt / rel_m_pivot) ** rel_alpha) + &
-            ((m_opt / rel_m_pivot) ** rel_beta)) * (e_ratio_eff ** rel_gamma)
+        fb = 0.5_dl*rel_epsilon*(((m_opt/rel_m_pivot)**rel_alpha) + &
+            ((m_opt/rel_m_pivot)**rel_beta))*(e_ratio_eff**rel_gamma)
     case default
-        fb = fb_a * ((m_opt / fb_pivot) ** fb_pow)
+        fb = fb_a*((m_opt/fb_pivot)**fb_pow)
     end select
 
     end subroutine SPk_ComputeFbFromParams
@@ -241,8 +241,8 @@
     real(dl) :: logm
 
     logm = log10(m_halo)
-    min_fb = 0.8_dl * 10.0_dl ** (min_c0 + min_c1 * logm + min_c2 * logm * logm)
-    max_fb = 1.2_dl * 10.0_dl ** (max_c0 + max_c1 * logm + max_c2 * logm * logm)
+    min_fb = 0.8_dl*10.0_dl**(min_c0 + min_c1*logm + min_c2*logm*logm)
+    max_fb = 1.2_dl*10.0_dl**(max_c0 + max_c1*logm + max_c2*logm*logm)
 
     end subroutine SPk_GetFbLimitsFromCoefficients
 
@@ -255,17 +255,17 @@
     real(dl) :: x, x0, x1, x2
 
     x = log10_kh
-    x0 = 1.0_dl + lambda_a * exp(lambda_b * x)
-    x1 = mu_a + ((1.0_dl - mu_a) / (1.0_dl + exp(mu_b * x + mu_c)))
-    x2 = nu_a * exp(-0.5_dl * ((x - nu_b) / nu_c) ** 2)
+    x0 = 1.0_dl + lambda_a*exp(lambda_b*x)
+    x1 = mu_a + ((1.0_dl - mu_a)/(1.0_dl + exp(mu_b*x + mu_c)))
+    x2 = nu_a*exp(-0.5_dl*((x - nu_b)/nu_c)**2)
 
-    sup = x0 - (x0 - x1) * exp(-x2 * fb)
+    sup = x0 - (x0 - x1)*exp(-x2*fb)
     sup = max(sup, SPk_min_suppression)
 
     end function SPk_Suppression
 
     function TSPkNonLinear_PythonClass()
-    character(LEN=:), allocatable :: TSPkNonLinear_PythonClass
+    character(len=:), allocatable :: TSPkNonLinear_PythonClass
 
     TSPkNonLinear_PythonClass = 'SPkNonLinear'
 
@@ -273,8 +273,8 @@
 
     subroutine TSPkNonLinear_SelfPointer(cptr, P)
     use iso_c_binding
-    Type(c_ptr) :: cptr
-    Type(TSPkNonLinear), pointer :: PType
+    type(c_ptr) :: cptr
+    type(TSPkNonLinear), pointer :: PType
     class(TPythonInterfacedClass), pointer :: P
 
     call c_f_pointer(cptr, PType)
@@ -286,7 +286,7 @@
     class(TSPkNonLinear) :: this
     class(TCAMBdata), target :: State
 
-    if (.not. allocated(this%BaseModel)) allocate(THalofit::this%BaseModel)
+    if (.not. allocated(this%BaseModel)) allocate(THalofit :: this%BaseModel)
     this%Min_kh_nonlinear = this%BaseModel%Min_kh_nonlinear
     call this%BaseModel%Init(State)
 
@@ -297,7 +297,7 @@
     class(TSPkNonLinear) :: this
     class(TIniFile), intent(in) :: Ini
 
-    if (.not. allocated(this%BaseModel)) allocate(THalofit::this%BaseModel)
+    if (.not. allocated(this%BaseModel)) allocate(THalofit :: this%BaseModel)
     call this%BaseModel%ReadParams(Ini)
 
     this%SPk_feedback = Ini%Read_Logical('SPk_feedback', .false.)
@@ -364,7 +364,7 @@
     logical, save :: warned_spk_k_clamped = .false.
     logical, save :: warned_spk_fb_outside = .false.
 
-    if (.not. allocated(this%BaseModel)) allocate(THalofit::this%BaseModel)
+    if (.not. allocated(this%BaseModel)) allocate(THalofit :: this%BaseModel)
 
     call this%ValidateConfig()
     call this%BaseModel%GetNonLinRatios(State, CAMB_Pk)
@@ -386,7 +386,7 @@
     do itf = 1, CAMB_Pk%num_z
         if (CAMB_Pk%redshifts(itf) < SPk_calibrated_z_min .or. CAMB_Pk%redshifts(itf) > SPk_calibrated_z_max) then
             if (FeedbackLevel > 0 .and. .not. warned_spk_z_outside) then
-                write(*,'(A,F8.3,A,F6.2,A,F6.2,A)') 'WARNING: SP(k) skipped outside calibrated redshift range. z=', &
+                write(*, '(A,F8.3,A,F6.2,A,F6.2,A)') 'WARNING: SP(k) skipped outside calibrated redshift range. z=', &
                     CAMB_Pk%redshifts(itf), ', &
                     calibrated range=[', SPk_calibrated_z_min, ',', SPk_calibrated_z_max, '].'
                 warned_spk_z_outside = .true.
@@ -397,7 +397,7 @@
         class is (CAMBdata)
             if (this%SPk_relation_kind == SPk_rel_cosmo_power_law &
                 .or. this%SPk_relation_kind == SPk_rel_double_power_law) then
-                spk_eratio = State%Hofz(CAMB_Pk%redshifts(itf)) / spk_href
+                spk_eratio = State%Hofz(CAMB_Pk%redshifts(itf))/spk_href
             else
                 spk_eratio = 1.0_dl
             end if
@@ -414,7 +414,7 @@
             if (log_rk > SPk_log_calibrated_k_max) then
                 if (FeedbackLevel > 0 .and. .not. warned_spk_k_clamped) then
                     rk = exp(log_rk)
-                    write(*,'(A,F8.3,A,F6.2,A)') &
+                    write(*, '(A,F8.3,A,F6.2,A)') &
                         'WARNING: SP(k) input k exceeds calibrated range; clamping to k_max=', &
                         rk, ' -> ', SPk_calibrated_k_max, ' h/Mpc.'
                     warned_spk_k_clamped = .true.
@@ -428,16 +428,16 @@
                 spk_fb_min, spk_fb_max)
             if (spk_fb < spk_fb_min .or. spk_fb > spk_fb_max) then
                 if (FeedbackLevel > 0 .and. .not. warned_spk_fb_outside) then
-                    write(*,'(A)') 'WARNING: SP(k) baryon fraction outside calibrated fitting limits; ' &
+                    write(*, '(A)') 'WARNING: SP(k) baryon fraction outside calibrated fitting limits; ' &
                         // 'setting out-of-range points to NaN.'
                     warned_spk_fb_outside = .true.
                 end if
                 CAMB_Pk%nonlin_ratio(i, itf) = ieee_value(1.0_dl, ieee_quiet_nan)
                 cycle
             end if
-            spk_sup = SPk_Suppression(log_rk_eval * SPk_inv_log_10, spk_fb, &
+            spk_sup = SPk_Suppression(log_rk_eval*SPk_inv_log_10, spk_fb, &
                 lambda_a, lambda_b, mu_a, mu_b, mu_c, nu_a, nu_b, nu_c)
-            CAMB_Pk%nonlin_ratio(i, itf) = CAMB_Pk%nonlin_ratio(i, itf) * sqrt(spk_sup)
+            CAMB_Pk%nonlin_ratio(i, itf) = CAMB_Pk%nonlin_ratio(i, itf)*sqrt(spk_sup)
         end do
     end do
 

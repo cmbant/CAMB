@@ -4,13 +4,13 @@
     ! from an external source (e.g. CCL, axionHMcode).
     ! The ratio is stored as a 2D interpolation grid over (k/h, z).
     use results
-    use transfer
-    use Interpolation, only : TInterpGrid2D
+    use Transfer
+    use Interpolation, only: TInterpGrid2D
     implicit none
     private
 
     type, extends(TNonLinearModel) :: TExternalNonLinearRatio
-        Type(TInterpGrid2D) :: Ratio
+        type(TInterpGrid2D) :: Ratio
         logical :: ratio_set = .false.
     contains
     procedure :: GetNonLinRatios => TExternalNonLinearRatio_GetNonLinRatios
@@ -21,12 +21,13 @@
     end type TExternalNonLinearRatio
 
     public TExternalNonLinearRatio
+
     contains
 
     subroutine TExternalNonLinearRatio_SelfPointer(cptr, P)
     use iso_c_binding
-    Type(c_ptr) :: cptr
-    Type(TExternalNonLinearRatio), pointer :: PType
+    type(c_ptr) :: cptr
+    type(TExternalNonLinearRatio), pointer :: PType
     class(TPythonInterfacedClass), pointer :: P
 
     call c_f_pointer(cptr, PType)

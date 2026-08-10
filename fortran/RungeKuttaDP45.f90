@@ -2,7 +2,7 @@
     ! Dormand-Prince RK5(4)7M (DOPRI5 / MATLAB ode45): 7-stage FSAL embedded
     ! Runge-Kutta. The 5th-order solution (dp_b*) is propagated; the 4th-order
     ! estimate only feeds the error term (dp_e* = b5 - b4).
-    use Precision
+    use precision
     implicit none
     private
 
@@ -75,8 +75,8 @@
     public :: TClassRungeKuttaDP45
     abstract interface
     subroutine TClassRungeKuttaDP45(this, n, fcn, x, y, xend, tol, ind, settings, nw, w)
-    use Precision
-    use classes, only : TCambComponent
+    use precision
+    use classes, only: TCambComponent
     import :: RungeKuttaDP45Settings
     class(TCambComponent), target :: this
     integer, intent(in) :: n, nw
@@ -92,9 +92,9 @@
 
 
     subroutine RungeKuttaDP45(EV, n, fcn, x, y, xend, tol_in, ind, settings, nw, w)
-    use Precision
-    use Config, only : GlobalError, error_evolution
-    use RungeKuttaDP45Module, only : RK45ErrorMixed, RK45ErrorAbsolute, RK45ErrorRelative, &
+    use precision
+    use config, only: GlobalError, error_evolution
+    use RungeKuttaDP45Module, only: RK45ErrorMixed, RK45ErrorAbsolute, RK45ErrorRelative, &
         RK45ErrorRelativeFloor, RungeKuttaDP45Settings
     implicit none
     integer, intent(in) :: n, nw
@@ -103,34 +103,34 @@
     real(dl), intent(in) :: xend, tol_in
     type(RungeKuttaDP45Settings), intent(inout) :: settings
     real(dl) :: tol, temp
-    real(dl), parameter :: one_fifth = 1._dl / 5._dl
+    real(dl), parameter :: one_fifth = 1._dl/5._dl
     real(dl), parameter :: default_max_step_size = 20._dl
-    real(dl), parameter :: dp_a21 = 1._dl / 5._dl
-    real(dl), parameter :: dp_a31 = 3._dl / 40._dl
-    real(dl), parameter :: dp_a32 = 9._dl / 40._dl
-    real(dl), parameter :: dp_a41 = 44._dl / 45._dl
-    real(dl), parameter :: dp_a42 = -56._dl / 15._dl
-    real(dl), parameter :: dp_a43 = 32._dl / 9._dl
-    real(dl), parameter :: dp_a51 = 19372._dl / 6561._dl
-    real(dl), parameter :: dp_a52 = -25360._dl / 2187._dl
-    real(dl), parameter :: dp_a53 = 64448._dl / 6561._dl
-    real(dl), parameter :: dp_a54 = -212._dl / 729._dl
-    real(dl), parameter :: dp_a61 = 9017._dl / 3168._dl
-    real(dl), parameter :: dp_a62 = -355._dl / 33._dl
-    real(dl), parameter :: dp_a63 = 46732._dl / 5247._dl
-    real(dl), parameter :: dp_a64 = 49._dl / 176._dl
-    real(dl), parameter :: dp_a65 = -5103._dl / 18656._dl
-    real(dl), parameter :: dp_b1 = 35._dl / 384._dl
-    real(dl), parameter :: dp_b3 = 500._dl / 1113._dl
-    real(dl), parameter :: dp_b4 = 125._dl / 192._dl
-    real(dl), parameter :: dp_b5 = -2187._dl / 6784._dl
-    real(dl), parameter :: dp_b6 = 11._dl / 84._dl
-    real(dl), parameter :: dp_e1 = 71._dl / 57600._dl
-    real(dl), parameter :: dp_e3 = -71._dl / 16695._dl
-    real(dl), parameter :: dp_e4 = 71._dl / 1920._dl
-    real(dl), parameter :: dp_e5 = -17253._dl / 339200._dl
-    real(dl), parameter :: dp_e6 = 22._dl / 525._dl
-    real(dl), parameter :: dp_e7 = -1._dl / 40._dl
+    real(dl), parameter :: dp_a21 = 1._dl/5._dl
+    real(dl), parameter :: dp_a31 = 3._dl/40._dl
+    real(dl), parameter :: dp_a32 = 9._dl/40._dl
+    real(dl), parameter :: dp_a41 = 44._dl/45._dl
+    real(dl), parameter :: dp_a42 = -56._dl/15._dl
+    real(dl), parameter :: dp_a43 = 32._dl/9._dl
+    real(dl), parameter :: dp_a51 = 19372._dl/6561._dl
+    real(dl), parameter :: dp_a52 = -25360._dl/2187._dl
+    real(dl), parameter :: dp_a53 = 64448._dl/6561._dl
+    real(dl), parameter :: dp_a54 = -212._dl/729._dl
+    real(dl), parameter :: dp_a61 = 9017._dl/3168._dl
+    real(dl), parameter :: dp_a62 = -355._dl/33._dl
+    real(dl), parameter :: dp_a63 = 46732._dl/5247._dl
+    real(dl), parameter :: dp_a64 = 49._dl/176._dl
+    real(dl), parameter :: dp_a65 = -5103._dl/18656._dl
+    real(dl), parameter :: dp_b1 = 35._dl/384._dl
+    real(dl), parameter :: dp_b3 = 500._dl/1113._dl
+    real(dl), parameter :: dp_b4 = 125._dl/192._dl
+    real(dl), parameter :: dp_b5 = -2187._dl/6784._dl
+    real(dl), parameter :: dp_b6 = 11._dl/84._dl
+    real(dl), parameter :: dp_e1 = 71._dl/57600._dl
+    real(dl), parameter :: dp_e3 = -71._dl/16695._dl
+    real(dl), parameter :: dp_e4 = 71._dl/1920._dl
+    real(dl), parameter :: dp_e5 = -17253._dl/339200._dl
+    real(dl), parameter :: dp_e6 = 22._dl/525._dl
+    real(dl), parameter :: dp_e7 = -1._dl/40._dl
     real(dl), parameter :: machine_roundoff = epsilon(1._dl)
     real(dl), parameter :: machine_tiny = tiny(1._dl)
     logical :: resume_after_interrupt1, resume_after_interrupt2
@@ -235,15 +235,15 @@
                 case (RK45ErrorRelative)
                     settings%weighted_norm_y = 1._dl
                 case (RK45ErrorRelativeFloor)
-                    temp = maxval(abs(y(1:n)) / settings%error_floor)
+                    temp = maxval(abs(y(1:n))/settings%error_floor)
                     settings%weighted_norm_y = min(temp, 1._dl)
                 case default
                     temp = maxval(abs(y(1:n)))
                     settings%weighted_norm_y = min(temp, 1._dl)
                 end select
 
-                settings%computed_min_step_size = 10._dl * max( &
-                    machine_tiny, machine_roundoff * max(settings%weighted_norm_y / tol, abs(x)) &
+                settings%computed_min_step_size = 10._dl*max( &
+                    machine_tiny, machine_roundoff*max(settings%weighted_norm_y/tol, abs(x)) &
                     )
             end if
 
@@ -251,11 +251,11 @@
             if (settings%computed_scale == 0._dl) settings%computed_scale = 1._dl
 
             if (settings%max_step_size /= 0._dl .and. settings%problem_scale /= 0._dl) then
-                settings%computed_max_step_size = min(abs(settings%max_step_size), 2._dl / abs(settings%problem_scale))
+                settings%computed_max_step_size = min(abs(settings%max_step_size), 2._dl/abs(settings%problem_scale))
             else if (settings%max_step_size /= 0._dl) then
                 settings%computed_max_step_size = abs(settings%max_step_size)
             else if (settings%problem_scale /= 0._dl) then
-                settings%computed_max_step_size = 2._dl / abs(settings%problem_scale)
+                settings%computed_max_step_size = 2._dl/abs(settings%problem_scale)
             else
                 settings%computed_max_step_size = default_max_step_size
             end if
@@ -268,16 +268,16 @@
             if (ind <= 2) then
                 settings%current_step_size = abs(settings%initial_step_size)
                 if (settings%current_step_size == 0._dl) then
-                    settings%current_step_size = settings%computed_max_step_size * tol**one_fifth
+                    settings%current_step_size = settings%computed_max_step_size*tol**one_fifth
                 end if
             else if (settings%successive_failures <= 1) then
-                temp = 2._dl * settings%current_step_size
-                if (tol < (2._dl / 0.9_dl)**5 * settings%estimated_error) then
-                    temp = 0.9_dl * (tol / settings%estimated_error)**one_fifth * settings%current_step_size
+                temp = 2._dl*settings%current_step_size
+                if (tol < (2._dl/0.9_dl)**5*settings%estimated_error) then
+                    temp = 0.9_dl*(tol/settings%estimated_error)**one_fifth*settings%current_step_size
                 end if
-                settings%current_step_size = max(temp, 0.5_dl * settings%current_step_size)
+                settings%current_step_size = max(temp, 0.5_dl*settings%current_step_size)
             else
-                settings%current_step_size = 0.5_dl * settings%current_step_size
+                settings%current_step_size = 0.5_dl*settings%current_step_size
             end if
 
             settings%current_step_size = min(settings%current_step_size, settings%computed_max_step_size)
@@ -292,9 +292,9 @@
         if (.not. resume_after_interrupt2) then
             temp = abs(xend - x)
             if (settings%current_step_size < temp .and. &
-                (temp > settings%xend_stretch * settings%current_step_size .or. &
+                (temp > settings%xend_stretch*settings%current_step_size .or. &
                 temp > settings%computed_max_step_size)) then
-                settings%current_step_size = min(settings%current_step_size, 0.5_dl * temp)
+                settings%current_step_size = min(settings%current_step_size, 0.5_dl*temp)
                 settings%trial_x = x + sign(settings%current_step_size, xend - x)
             else
                 settings%current_step_size = temp
@@ -303,45 +303,45 @@
 
             settings%trial_step = settings%trial_x - x
 
-            w(1:n, 9) = y(1:n) + settings%trial_step * dp_a21 * w(1:n, 1)
-            call fcn(EV, n, x + settings%trial_step / 5._dl, w(1, 9), w(1, 2))
+            w(1:n, 9) = y(1:n) + settings%trial_step*dp_a21*w(1:n, 1)
+            call fcn(EV, n, x + settings%trial_step/5._dl, w(1, 9), w(1, 2))
 
-            w(1:n, 9) = y(1:n) + settings%trial_step * (dp_a31 * w(1:n, 1) + dp_a32 * w(1:n, 2))
-            call fcn(EV, n, x + settings%trial_step * (3._dl / 10._dl), w(1, 9), w(1, 3))
+            w(1:n, 9) = y(1:n) + settings%trial_step*(dp_a31*w(1:n, 1) + dp_a32*w(1:n, 2))
+            call fcn(EV, n, x + settings%trial_step*(3._dl/10._dl), w(1, 9), w(1, 3))
 
-            w(1:n, 9) = y(1:n) + settings%trial_step * (dp_a41 * w(1:n, 1) + dp_a42 * w(1:n, 2) + &
-                dp_a43 * w(1:n, 3))
-            call fcn(EV, n, x + settings%trial_step * (4._dl / 5._dl), w(1, 9), w(1, 4))
+            w(1:n, 9) = y(1:n) + settings%trial_step*(dp_a41*w(1:n, 1) + dp_a42*w(1:n, 2) + &
+                dp_a43*w(1:n, 3))
+            call fcn(EV, n, x + settings%trial_step*(4._dl/5._dl), w(1, 9), w(1, 4))
 
-            w(1:n, 9) = y(1:n) + settings%trial_step * (dp_a51 * w(1:n, 1) + dp_a52 * w(1:n, 2) + &
-                dp_a53 * w(1:n, 3) + dp_a54 * w(1:n, 4))
-            call fcn(EV, n, x + settings%trial_step * (8._dl / 9._dl), w(1, 9), w(1, 5))
+            w(1:n, 9) = y(1:n) + settings%trial_step*(dp_a51*w(1:n, 1) + dp_a52*w(1:n, 2) + &
+                dp_a53*w(1:n, 3) + dp_a54*w(1:n, 4))
+            call fcn(EV, n, x + settings%trial_step*(8._dl/9._dl), w(1, 9), w(1, 5))
 
-            w(1:n, 9) = y(1:n) + settings%trial_step * (dp_a61 * w(1:n, 1) + dp_a62 * w(1:n, 2) + &
-                dp_a63 * w(1:n, 3) + dp_a64 * w(1:n, 4) + dp_a65 * w(1:n, 5))
+            w(1:n, 9) = y(1:n) + settings%trial_step*(dp_a61*w(1:n, 1) + dp_a62*w(1:n, 2) + &
+                dp_a63*w(1:n, 3) + dp_a64*w(1:n, 4) + dp_a65*w(1:n, 5))
             call fcn(EV, n, x + settings%trial_step, w(1, 9), w(1, 6))
 
-            w(1:n, 9) = y(1:n) + settings%trial_step * (dp_b1 * w(1:n, 1) + dp_b3 * w(1:n, 3) + &
-                dp_b4 * w(1:n, 4) + dp_b5 * w(1:n, 5) + dp_b6 * w(1:n, 6))
+            w(1:n, 9) = y(1:n) + settings%trial_step*(dp_b1*w(1:n, 1) + dp_b3*w(1:n, 3) + &
+                dp_b4*w(1:n, 4) + dp_b5*w(1:n, 5) + dp_b6*w(1:n, 6))
             call fcn(EV, n, x + settings%trial_step, w(1, 9), w(1, 7))
 
             settings%function_evaluations = settings%function_evaluations + 6
 
-            w(1:n, 2) = dp_e1 * w(1:n, 1) + dp_e3 * w(1:n, 3) + dp_e4 * w(1:n, 4) + &
-                dp_e5 * w(1:n, 5) + dp_e6 * w(1:n, 6) + dp_e7 * w(1:n, 7)
+            w(1:n, 2) = dp_e1*w(1:n, 1) + dp_e3*w(1:n, 3) + dp_e4*w(1:n, 4) + &
+                dp_e5*w(1:n, 5) + dp_e6*w(1:n, 6) + dp_e7*w(1:n, 7)
 
             select case (settings%error_control)
             case (RK45ErrorAbsolute)
                 temp = maxval(abs(w(1:n, 2)))
             case (RK45ErrorRelative)
-                temp = maxval(abs(w(1:n, 2) / y(1:n)))
+                temp = maxval(abs(w(1:n, 2)/y(1:n)))
             case (RK45ErrorRelativeFloor)
-                temp = maxval(abs(w(1:n, 2)) / max(settings%error_floor, abs(y(1:n))))
+                temp = maxval(abs(w(1:n, 2))/max(settings%error_floor, abs(y(1:n))))
             case default
-                temp = maxval(abs(w(1:n, 2)) / max(1._dl, abs(y(1:n))))
+                temp = maxval(abs(w(1:n, 2))/max(1._dl, abs(y(1:n))))
             end select
 
-            settings%estimated_error = temp * settings%current_step_size * settings%computed_scale
+            settings%estimated_error = temp*settings%current_step_size*settings%computed_scale
 
             ind = 5
             if (settings%estimated_error > tol) ind = 6
@@ -399,9 +399,10 @@
 
     end subroutine normalize_settings
 
-    subroutine abort_runge_kutta_dp45()
-    write (*,*) 'Error in RungeKuttaDP45, x =', x, ' xend =', xend
+    subroutine abort_runge_kutta_dp45
+    write(*, *) 'Error in RungeKuttaDP45, x =', x, ' xend =', xend
     call GlobalError('RungeKuttaDP45 error', error_evolution)
+
     end subroutine abort_runge_kutta_dp45
 
     end subroutine RungeKuttaDP45

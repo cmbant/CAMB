@@ -1,7 +1,9 @@
 """Make fortran case consistent and reformat for more consistent spacing.
 
-Run without arguments, or with ``--all``, to update every tracked ``.f90`` or
-``.F90`` source in this repository. Positional paths limit the update to those files.
+Run without arguments, or with ``--all``, to update every tracked free-form
+Fortran source in this repository (``.f90``, ``.f95``, ``.f03``, ``.f08``,
+``.f18``, or ``.f23``, including uppercase variants). Positional paths limit
+the update to those files.
 
 Quoted text and C-preprocessor lines are left unchanged; comment text is preserved
 apart from normalizing the comment marker's surrounding spaces.
@@ -23,6 +25,7 @@ import tempfile
 from collections import Counter
 from collections.abc import Collection, Iterable, Mapping
 from dataclasses import dataclass, field
+from functools import lru_cache
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -86,7 +89,13 @@ SPACED_OPERATOR = re.compile(
 ARITHMETIC_OPERATOR = re.compile(r"\*\*|//|[+*/-]")
 COMPACT_ARITHMETIC_OPERATORS = frozenset(("*", "/", "**"))
 MAX_LINE_LENGTH = 120
+FORTRAN_SOURCE_EXTENSIONS = frozenset({".f90", ".f95", ".f03", ".f08", ".f18", ".f23"})
+FORTRAN_SOURCE_PATTERNS = tuple(
+    f"*{extension}"
+    for extension in sorted(FORTRAN_SOURCE_EXTENSIONS | {ext.upper() for ext in FORTRAN_SOURCE_EXTENSIONS})
+)
 COMPOUND_KEYWORDS = {
+    "blockdata": "block data",
     "elseif": "else if",
     "endif": "end if",
     "endassociate": "end associate",
@@ -104,6 +113,35 @@ COMPOUND_KEYWORDS = {
     "endtype": "end type",
     "endwhere": "end where",
 }
+GO_TO = re.compile(r"(?<![A-Za-z0-9_])go[ \t]+to\b", re.IGNORECASE)
+MULTIWORD_KEYWORD_PAIRS = (
+    ("abstract", "interface"),
+    ("change", "team"),
+    ("class", "default"),
+    ("class", "is"),
+    ("do", "concurrent"),
+    ("double", "precision"),
+    ("event", "post"),
+    ("event", "wait"),
+    ("fail", "image"),
+    ("form", "team"),
+    ("impure", "elemental"),
+    ("pure", "elemental"),
+    ("rank", "default"),
+    ("select", "case"),
+    ("select", "rank"),
+    ("sync", "all"),
+    ("sync", "images"),
+    ("sync", "memory"),
+    ("sync", "team"),
+    ("type", "default"),
+    ("type", "is"),
+)
+MULTIWORD_KEYWORD_SPACING = re.compile(
+    r"\b(?:" + "|".join(rf"{first}[ \t]+{second}" for first, second in MULTIWORD_KEYWORD_PAIRS) + r")\b",
+    re.IGNORECASE,
+)
+
 COMPOUND_KEYWORD = re.compile(
     rf"^([ \t]*)(?P<keyword>{'|'.join(sorted(COMPOUND_KEYWORDS, key=len, reverse=True))})\b",
     re.IGNORECASE,
@@ -203,13 +241,17 @@ COMMENTED_ASSIGNMENT = re.compile(
 # ranked behind every well-filled one and used only if nothing else is left.
 MINIMUM_BREAK_FILL = 0.25
 
-# Fortran 2003 language keywords. Keep identifiers out of this list even if
-# they happen to be uppercase in the current source.
+# Fortran 90 through 2018 language keywords, including the multi-word
+# statement components that are normalized independently. Keep identifiers
+# out of this list even if they happen to be uppercase in the current source.
 FORTRAN_KEYWORDS = frozenset(
     [
+        "all",
         "abstract",
         "allocatable",
         "allocate",
+        "assign",
+        "assigned",
         "assignment",
         "associate",
         "asynchronous",
@@ -221,6 +263,7 @@ FORTRAN_KEYWORDS = frozenset(
         "case",
         "character",
         "class",
+        "change",
         "close",
         "codimension",
         "common",
@@ -228,6 +271,8 @@ FORTRAN_KEYWORDS = frozenset(
         "concurrent",
         "contains",
         "continue",
+        "contiguous",
+        "critical",
         "cycle",
         "data",
         "deallocate",
@@ -264,13 +309,17 @@ FORTRAN_KEYWORDS = frozenset(
         "exit",
         "extends",
         "external",
+        "event",
+        "fail",
         "final",
         "flush",
         "forall",
         "format",
+        "form",
         "function",
         "generic",
         "go",
+        "to",
         "goto",
         "if",
         "implicit",
@@ -283,17 +332,27 @@ FORTRAN_KEYWORDS = frozenset(
         "interface",
         "intrinsic",
         "kind",
+        "image",
+        "images",
+        "impure",
         "logical",
+        "lock",
+        "local",
+        "local_init",
+        "memory",
         "module",
         "mold",
         "namelist",
         "none",
+        "non_intrinsic",
         "non_overridable",
+        "non_recursive",
         "nopass",
         "nullify",
         "only",
         "open",
         "operator",
+        "post",
         "optional",
         "out",
         "inout",
@@ -308,23 +367,30 @@ FORTRAN_KEYWORDS = frozenset(
         "protected",
         "public",
         "pure",
+        "rank",
         "read",
         "real",
         "recursive",
+        "reduce",
         "result",
         "return",
+        "rewrite",
         "rewind",
         "save",
         "select",
         "sequence",
+        "shared",
         "source",
         "stop",
         "submodule",
         "subroutine",
         "sync",
+        "team",
         "target",
         "then",
         "type",
+        "unlock",
+        "until_count",
         "use",
         "value",
         "volatile",
@@ -332,6 +398,7 @@ FORTRAN_KEYWORDS = frozenset(
         "where",
         "while",
         "write",
+        "notify",
     ]
 )
 
@@ -342,6 +409,7 @@ FORTRAN_KEYWORDS = frozenset(
 FORTRAN_SPECIFIERS = frozenset(
     {
         "acquired_lock",
+        "access",
         "action",
         "advance",
         "blank",
@@ -364,12 +432,16 @@ FORTRAN_SPECIFIERS = frozenset(
         "nextrec",
         "nml",
         "number",
+        "name",
+        "new_index",
         "opened",
         "pad",
         "pending",
         "pos",
         "position",
+        "quiet",
         "readwrite",
+        "rec",
         "recl",
         "round",
         "sequential",
@@ -378,6 +450,7 @@ FORTRAN_SPECIFIERS = frozenset(
         "stat",
         "status",
         "stream",
+        "leading_zero",
         "unformatted",
         "unit",
     }
@@ -573,8 +646,8 @@ def replace_preprocessor_cases(source: str, macro_cases: Mapping[str, str]) -> s
     if not macro_cases:
         return source
     output: list[str] = []
-    lines = source.splitlines(keepends=True)
-    for state in scan_physical_lines(lines):
+    _, states = _scan_source(source)
+    for state in states:
         line = state.text
         if state.is_cpp:
             output.append(line)
@@ -752,6 +825,13 @@ def scan_physical_lines(lines: Iterable[str]) -> tuple[PhysicalLine, ...]:
     return tuple(states)
 
 
+@lru_cache(maxsize=128)
+def _scan_source(source: str) -> tuple[tuple[str, ...], tuple[PhysicalLine, ...]]:
+    """Split and lex *source* once, reusing physical-line state across passes."""
+    lines = tuple(source.splitlines(keepends=True))
+    return lines, scan_physical_lines(lines)
+
+
 def _statement_end_index(states: tuple[PhysicalLine, ...], start: int) -> int:
     """Return the last physical line belonging to a Fortran statement."""
     state = states[start]
@@ -786,10 +866,11 @@ def _join_statement_parts(parts: Iterable[tuple[str, bool]]) -> str:
 def _statement_parts(statement: Iterable[str]) -> list[tuple[str, bool]]:
     """Remove continuation markers while retaining whether each boundary joins tokens."""
     lines = list(statement)
+    contexts = [code_context(line) for line in lines]
     parts: list[tuple[str, bool]] = []
-    for index, statement_line in enumerate(lines):
-        code = code_context(statement_line).strip()
-        leading = code_context(statement_line).lstrip(" \t")
+    for index, context in enumerate(contexts):
+        code = context.strip()
+        leading = context.lstrip(" \t")
         leading_token_continuation = (
             index > 0 and leading.startswith("&") and len(leading) > 1 and not leading[1].isspace()
         )
@@ -798,7 +879,13 @@ def _statement_parts(statement: Iterable[str]) -> list[tuple[str, bool]]:
         if index + 1 < len(lines):
             code = re.sub(r"\s*&$", "", code)
         if code:
-            joins_previous = index > 0 and leading_token_continuation and _trailing_token_continuation(lines[index - 1])
+            previous = contexts[index - 1].rstrip("\r\n \t") if index else ""
+            joins_previous = (
+                leading_token_continuation
+                and previous.endswith("&")
+                and len(previous) > 1
+                and not previous[-2].isspace()
+            )
             parts.append((code, joins_previous))
     return parts
 
@@ -809,10 +896,11 @@ def _trailing_token_continuation(line: str) -> bool:
     return code.endswith("&") and len(code) > 1 and not code[-2].isspace()
 
 
-def _iter_code_statements_with_lines(source: str) -> Iterable[CodeStatement]:
-    """Yield Fortran statements while ignoring CPP and interleaved comments."""
-    lines = source.splitlines(keepends=True)
-    states = scan_physical_lines(lines)
+@lru_cache(maxsize=128)
+def _code_statements(source: str) -> tuple[CodeStatement, ...]:
+    """Return logical Fortran statements, reusing the result across analysis passes."""
+    lines, states = _scan_source(source)
+    statements: list[CodeStatement] = []
     index = 0
     while index < len(lines):
         state = states[index]
@@ -820,28 +908,44 @@ def _iter_code_statements_with_lines(source: str) -> Iterable[CodeStatement]:
             index += 1
             continue
         end_index = _statement_end_index(states, index)
-        statement_lines = [
-            lines[pos]
-            for pos in range(index, end_index + 1)
-            if not states[pos].is_cpp and not states[pos].is_blank and not states[pos].is_comment
-        ]
-        parts = _statement_parts(statement_lines)
-        if parts:
-            text = _join_statement_parts(parts)
+        if end_index == index:
+            text = code_context(lines[index]).strip()
+        else:
+            statement_lines = (
+                lines[pos]
+                for pos in range(index, end_index + 1)
+                if not states[pos].is_cpp and not states[pos].is_blank and not states[pos].is_comment
+            )
+            parts = _statement_parts(statement_lines)
+            text = _join_statement_parts(parts) if parts else ""
+        if text:
             for statement_text in _split_top_level_statements(text):
                 if statement_text:
-                    yield CodeStatement(index, end_index, statement_text)
+                    statements.append(CodeStatement(index, end_index, statement_text))
         index = end_index + 1
+    return tuple(statements)
+
+
+def _iter_code_statements_with_lines(source: str) -> Iterable[CodeStatement]:
+    """Yield Fortran statements while ignoring CPP and interleaved comments."""
+    return iter(_code_statements(source))
 
 
 def _iter_code_statements(source: str) -> Iterable[str]:
     """Yield continued Fortran statements with comments and layout removed."""
-    return (statement.text for statement in _iter_code_statements_with_lines(source))
+    return (statement.text for statement in _code_statements(source))
+
+
+DECLARED_TYPE_HEADER = re.compile(r"^\s*(?:abstract\s+)?type\b(?P<rest>.*)$", re.IGNORECASE)
+TYPE_CLASS_CONTEXT = re.compile(r"^\s*(?:type|class)\s+(?:is|default|\()", re.IGNORECASE)
+PROCEDURE_WORD = re.compile(r"\b(?:function|subroutine)\b", re.IGNORECASE)
+DECLARATION_ENTITY = re.compile(rf"\s*({IDENTIFIER})\b")
+DECLARED_VARIABLE_TYPE = re.compile(rf"^\s*(?:type|class)\s*\(\s*({IDENTIFIER})\s*\)", re.IGNORECASE)
 
 
 def _declared_type_name(statement: str) -> str | None:
     """Return a derived-type name from a type declaration, if present."""
-    match = re.match(r"^\s*(?:abstract\s+)?type\b(?P<rest>.*)$", statement, re.IGNORECASE)
+    match = DECLARED_TYPE_HEADER.match(statement)
     if match is None:
         return None
     rest = match.group("rest").lstrip()
@@ -854,7 +958,7 @@ def _declared_type_name(statement: str) -> str | None:
         rest = rest[separator + 2 :].lstrip()
     elif rest.startswith("::"):
         rest = rest[2:].lstrip()
-    match = re.match(rf"({IDENTIFIER})\b", rest)
+    match = DECLARATION_ENTITY.match(rest)
     return None if match is None else match.group(1)
 
 
@@ -874,6 +978,8 @@ OLD_STYLE_DECLARATION = re.compile(
 
 def _split_top_level(text: str, separator: str = ",") -> list[str]:
     """Split *text* at separators outside delimiters and character literals."""
+    if separator not in text:
+        return [text]
     parts: list[str] = []
     start = 0
     depth = 0
@@ -897,6 +1003,8 @@ def _split_top_level(text: str, separator: str = ",") -> list[str]:
 
 def _split_top_level_statements(text: str) -> list[str]:
     """Split semicolon-separated statements outside parentheses and literals."""
+    if ";" not in text:
+        return [text.strip()]
     parts: list[str] = []
     start = 0
     depth = 0
@@ -928,9 +1036,9 @@ def _declared_variable_names(statement: str) -> list[str]:
     """Return variable names from a type or attribute declaration statement."""
     if not DECLARATION_STATEMENT.match(statement):
         return []
-    if _declared_type_name(statement) or re.match(r"^\s*(?:type|class)\s+(?:is|default|\()", statement, re.IGNORECASE):
+    if _declared_type_name(statement) or TYPE_CLASS_CONTEXT.match(statement):
         return []
-    if re.search(r"\b(?:function|subroutine)\b", statement, re.IGNORECASE):
+    if PROCEDURE_WORD.search(statement):
         return []
 
     separator = statement.find("::")
@@ -944,7 +1052,7 @@ def _declared_variable_names(statement: str) -> list[str]:
 
     names: list[str] = []
     for entity in _split_top_level(entities):
-        match = re.match(rf"\s*({IDENTIFIER})\b", entity)
+        match = DECLARATION_ENTITY.match(entity)
         if match:
             names.append(match.group(1))
     return names
@@ -952,7 +1060,7 @@ def _declared_variable_names(statement: str) -> list[str]:
 
 def _declared_variable_types(statement: str) -> dict[str, str]:
     """Return names and declared type names for a TYPE/CLASS declaration."""
-    match = re.match(rf"^\s*(?:type|class)\s*\(\s*({IDENTIFIER})\s*\)", statement, re.IGNORECASE)
+    match = DECLARED_VARIABLE_TYPE.match(statement)
     if match is None:
         return {}
     return {name.lower(): match.group(1) for name in _declared_variable_names(statement)}
@@ -967,19 +1075,34 @@ def extract_variable_types(source: str) -> dict[str, str]:
     return {name: next(iter(type_names)) for name, type_names in occurrences.items() if len(type_names) == 1}
 
 
-def _scope_header_names(statement: str) -> tuple[str, list[str]] | None:
-    """Return a procedure/program name and header argument/result names, if declared."""
-    if re.match(r"^\s*end\b", statement, re.IGNORECASE):
+SCOPE_END_START = re.compile(r"^\s*end\b", re.IGNORECASE)
+SCOPE_HEADER = re.compile(rf"\b(function|subroutine|program)\s+({IDENTIFIER})\b", re.IGNORECASE)
+RESULT_CLAUSE = re.compile(rf"\bresult\s*\(\s*({IDENTIFIER})\s*\)", re.IGNORECASE)
+LEADING_IDENTIFIER = re.compile(rf"\s*({IDENTIFIER})\b")
+PROCEDURE_UNIT_END = re.compile(r"^\s*end\s*(?:function|subroutine|program)\b", re.IGNORECASE)
+CONTAINS_STATEMENT = re.compile(r"^\s*contains\b", re.IGNORECASE)
+TYPE_DECLARATION_START = re.compile(r"^\s*(?:abstract\s+)?type\b", re.IGNORECASE)
+SELECT_TYPE_ALIAS = re.compile(rf"^\s*select\s+type\s*\(\s*({IDENTIFIER})\s*=>", re.IGNORECASE)
+FORMAT_STATEMENT_START = re.compile(r"^\s*(?:\d+\s+)?format\s*\(", re.IGNORECASE)
+IF_STATEMENT_START = re.compile(r"^(\s*(?:else\s+)?if\s*\()", re.IGNORECASE)
+FUNCTION_OR_SUBROUTINE_WORD = re.compile(r"\b(function|subroutine)\b", re.IGNORECASE)
+
+
+def _scope_header(statement: str) -> tuple[str, str, list[str]] | None:
+    """Return kind, name, and header argument/result names for a program unit."""
+    if SCOPE_END_START.match(statement):
         return None
-    match = re.search(rf"\b(function|subroutine|program)\s+({IDENTIFIER})\b", statement, re.IGNORECASE)
+    match = SCOPE_HEADER.search(statement)
     if match is None:
         return None
 
+    kind = match.group(1).lower()
+    name = match.group(2)
     names: list[str] = []
     position = match.end()
     while position < len(statement) and statement[position].isspace():
         position += 1
-    if match.group(1).lower() != "program" and position < len(statement) and statement[position] == "(":
+    if kind != "program" and position < len(statement) and statement[position] == "(":
         depth = 0
         close = None
         for index in range(position, len(statement)):
@@ -992,20 +1115,26 @@ def _scope_header_names(statement: str) -> tuple[str, list[str]] | None:
                     break
         if close is not None:
             for argument in _split_top_level(statement[position + 1 : close]):
-                argument_match = re.match(rf"\s*({IDENTIFIER})\b", argument)
+                argument_match = LEADING_IDENTIFIER.match(argument)
                 if argument_match:
                     names.append(argument_match.group(1))
             position = close + 1
 
-    result = re.search(rf"\bresult\s*\(\s*({IDENTIFIER})\s*\)", statement[position:], re.IGNORECASE)
+    result = RESULT_CLAUSE.search(statement, position)
     if result:
         names.append(result.group(1))
-    return match.group(2), names
+    return kind, name, names
+
+
+def _scope_header_names(statement: str) -> tuple[str, list[str]] | None:
+    """Return a procedure/program name and header argument/result names, if declared."""
+    header = _scope_header(statement)
+    return None if header is None else (header[1], header[2])
 
 
 def _select_type_alias(statement: str) -> str | None:
     """Return the construct-local associate name from a SELECT TYPE alias."""
-    match = re.match(rf"^\s*select\s+type\s*\(\s*({IDENTIFIER})\s*=>", statement, re.IGNORECASE)
+    match = SELECT_TYPE_ALIAS.match(statement)
     return None if match is None else match.group(1)
 
 
@@ -1023,6 +1152,11 @@ TYPE_DEFINITION_START = re.compile(rf"^\s*type(?!\s+is\b)(?:\s*,[^:]*)?\s*(?:::)
 TYPE_DEFINITION_END = re.compile(r"^\s*end\s*type\b", re.IGNORECASE)
 INTERFACE_START = re.compile(r"^\s*(?:abstract\s+)?interface\b", re.IGNORECASE)
 INTERFACE_END = re.compile(r"^\s*end\s*interface\b", re.IGNORECASE)
+DECLARATION_PROCEDURE_START = re.compile(r"^\s*procedure\b", re.IGNORECASE)
+END_STATEMENT = re.compile(r"^\s*end\b", re.IGNORECASE)
+END_MODULE = re.compile(r"^\s*end\s*module\b", re.IGNORECASE)
+CONTAINS_STATEMENT = re.compile(r"^\s*contains\b", re.IGNORECASE)
+PROCEDURE_DECLARATION_NAME = re.compile(rf"\b(function|subroutine)\s+({IDENTIFIER})\b", re.IGNORECASE)
 
 
 def active_procedure_at(
@@ -1039,11 +1173,56 @@ def active_procedure_at(
     )
 
 
+def _active_procedures_by_line(
+    procedure_cases: Iterable[ProcedureDeclarationCases], line_count: int
+) -> tuple[ProcedureDeclarationCases | None, ...]:
+    """Return the innermost active procedure for every physical line."""
+    procedures = sorted(procedure_cases, key=lambda procedure: procedure.start_line)
+    active: list[ProcedureDeclarationCases] = []
+    result: list[ProcedureDeclarationCases | None] = []
+    next_procedure = 0
+    for line_number in range(line_count):
+        while active and active[-1].end_line < line_number:
+            active.pop()
+        while next_procedure < len(procedures) and procedures[next_procedure].start_line <= line_number:
+            active.append(procedures[next_procedure])
+            next_procedure += 1
+        while active and active[-1].end_line < line_number:
+            active.pop()
+        result.append(active[-1] if active else None)
+    return tuple(result)
+
+
+def _declared_names_by_line(scoped_names: Iterable[ScopedDeclaredNames], line_count: int) -> tuple[frozenset[str], ...]:
+    """Return the union of declared names visible on every physical line."""
+    starts: dict[int, list[frozenset[str]]] = {}
+    ends: dict[int, list[frozenset[str]]] = {}
+    for scope in scoped_names:
+        starts.setdefault(scope.start_line, []).append(scope.names)
+        ends.setdefault(scope.end_line, []).append(scope.names)
+
+    counts: dict[str, int] = {}
+    result: list[frozenset[str]] = []
+    for line_number in range(line_count):
+        for names in starts.get(line_number, ()):
+            for name in names:
+                counts[name] = counts.get(name, 0) + 1
+        result.append(frozenset(counts))
+        for names in ends.get(line_number, ()):
+            for name in names:
+                remaining = counts[name] - 1
+                if remaining:
+                    counts[name] = remaining
+                else:
+                    del counts[name]
+    return tuple(result)
+
+
 def extract_named_scope_cases(source: str) -> tuple[NamedScopeCase, ...]:
     """Extract start-name cases for named module, program, and procedure scopes."""
     records: list[dict[str, object]] = []
     stack: list[int] = []
-    statements = list(_iter_code_statements_with_lines(source))
+    statements = _code_statements(source)
     last_line = statements[-1].end_line if statements else 0
     for statement in statements:
         text = statement.text
@@ -1059,13 +1238,10 @@ def extract_named_scope_cases(source: str) -> tuple[NamedScopeCase, ...]:
                     break
             continue
 
-        header = _scope_header_names(text)
+        header = _scope_header(text)
         module = MODULE_DECLARATION.match(text)
         if header:
-            kind, name = (
-                re.search(r"\b(function|subroutine|program)\b", text, re.IGNORECASE).group(1).lower(),
-                header[0],
-            )
+            kind, name = header[0], header[1]
         elif module:
             kind, name = "module", module.group(1)
         else:
@@ -1097,10 +1273,10 @@ def extract_procedure_cases(source: str) -> tuple[ProcedureDeclarationCases, ...
     """Extract local variable cases for each function or subroutine in *source*."""
     records: list[dict[str, object]] = []
     stack: list[int] = []
-    statements = list(_iter_code_statements_with_lines(source))
+    statements = _code_statements(source)
     for statement in statements:
         text = statement.text
-        if re.match(r"^\s*end\s*(?:function|subroutine|program)\b", text, re.IGNORECASE):
+        if PROCEDURE_UNIT_END.match(text):
             if stack:
                 records[stack.pop()]["end_line"] = statement.end_line
             continue
@@ -1109,9 +1285,9 @@ def extract_procedure_cases(source: str) -> tuple[ProcedureDeclarationCases, ...
                 records[stack.pop()]["end_line"] = statement.end_line
             continue
 
-        header = _scope_header_names(text)
+        header = _scope_header(text)
         if header:
-            procedure_name, header_names = header
+            _, procedure_name, header_names = header
             records.append(
                 {
                     "start_line": statement.start_line,
@@ -1129,7 +1305,7 @@ def extract_procedure_cases(source: str) -> tuple[ProcedureDeclarationCases, ...
         if not stack:
             continue
         record = records[stack[-1]]
-        if re.match(r"^\s*contains\b", text, re.IGNORECASE):
+        if CONTAINS_STATEMENT.match(text):
             record["contains"] = True
         elif not record["contains"]:
             record["declarations"].extend(_declared_variable_names(text))
@@ -1161,175 +1337,137 @@ def extract_procedure_cases(source: str) -> tuple[ProcedureDeclarationCases, ...
     return tuple(local_cases)
 
 
-def extract_module_variable_names(source: str) -> list[str]:
-    """Extract variable names declared in module specification parts."""
-    names: list[str] = []
+@dataclass(frozen=True)
+class DeclarationSummary:
+    """Project-wide declaration facts extracted in one logical-statement pass."""
+
+    declared_names: tuple[DeclaredName, ...]
+    module_variable_names: tuple[str, ...]
+    module_variable_types: tuple[tuple[str, str], ...]
+    type_bound_procedure_names: tuple[str, ...]
+    type_component_names: tuple[tuple[str, str], ...]
+    type_component_types: tuple[tuple[str, str, str], ...]
+
+
+@lru_cache(maxsize=128)
+def _declaration_summary(source: str) -> DeclarationSummary:
+    """Extract declaration facts once instead of rescanning the same statements."""
+    declarations: list[DeclaredName] = []
+    module_variable_names: list[str] = []
+    module_variable_types: dict[str, str] = {}
+    type_bound_procedure_names: list[str] = []
+    type_component_names: list[tuple[str, str]] = []
+    type_component_types: list[tuple[str, str, str]] = []
+
     in_module = False
     module_contains = False
-    type_depth = 0
-    interface_depth = 0
-    for statement in _iter_code_statements_with_lines(source):
+    module_type_depth = 0
+    module_interface_depth = 0
+    type_stack: list[str] = []
+
+    for statement in _code_statements(source):
         text = statement.text
-        if MODULE_DECLARATION.match(text):
+        module = MODULE_DECLARATION.match(text)
+        type_name = _declared_type_name(text)
+        type_start = type_name is not None
+        type_end = TYPE_DEFINITION_END.match(text) is not None
+        procedure_declaration = DECLARATION_PROCEDURE_START.match(text) is not None
+        variable_names = _declared_variable_names(text)
+
+        # General module/type/procedure declarations.
+        if END_STATEMENT.match(text) is None:
+            if module:
+                declarations.append(DeclaredName("module", module.group(1)))
+            if type_name:
+                declarations.append(DeclaredName("type", type_name))
+            procedure = PROCEDURE_DECLARATION_NAME.search(text)
+            if procedure:
+                declarations.append(DeclaredName("procedure", procedure.group(2)))
+
+        # Module specification-part names and types. This intentionally mirrors
+        # the previous extractor's treatment of ordinary derived-type components
+        # as globally available symbol-case evidence while excluding bindings.
+        if module:
             in_module = True
             module_contains = False
-            type_depth = 0
-            interface_depth = 0
-            continue
-        if not in_module:
-            continue
-        if re.match(r"^\s*end\s*module\b", text, re.IGNORECASE):
+            module_type_depth = 0
+            module_interface_depth = 0
+        elif in_module and END_MODULE.match(text):
             in_module = False
-            continue
-        if module_contains:
-            continue
-        if INTERFACE_END.match(text):
-            interface_depth = max(0, interface_depth - 1)
-            continue
-        if INTERFACE_START.match(text):
-            interface_depth += 1
-            continue
-        if interface_depth:
-            continue
-        if re.match(r"^\s*(?:abstract\s+)?type\b", text, re.IGNORECASE) and _declared_type_name(text):
-            type_depth += 1
-            continue
-        if type_depth:
-            if re.match(r"^\s*end\s*type\b", text, re.IGNORECASE):
-                type_depth -= 1
-            elif not re.match(r"^\s*procedure\b", text, re.IGNORECASE):
-                # Type-bound procedures are components, not module-level
-                # procedures.  A reference outside the type must use `%`.
-                names.extend(_declared_variable_names(text))
-            continue
-        if re.match(r"^\s*contains\b", text, re.IGNORECASE):
-            module_contains = True
-            continue
-        if not module_contains:
-            names.extend(_declared_variable_names(text))
-    return names
+        elif in_module and not module_contains:
+            if INTERFACE_END.match(text):
+                module_interface_depth = max(0, module_interface_depth - 1)
+            elif INTERFACE_START.match(text):
+                module_interface_depth += 1
+            elif module_interface_depth:
+                pass
+            elif type_start:
+                module_type_depth += 1
+            elif module_type_depth:
+                if type_end:
+                    module_type_depth -= 1
+                elif not procedure_declaration:
+                    module_variable_names.extend(variable_names)
+            elif CONTAINS_STATEMENT.match(text):
+                module_contains = True
+            else:
+                module_variable_names.extend(variable_names)
+                module_variable_types.update(_declared_variable_types(text))
+
+        # Type-bound procedure and component facts for every derived-type body.
+        if type_start:
+            type_stack.append(type_name)
+        elif type_stack:
+            if type_end:
+                type_stack.pop()
+            elif procedure_declaration:
+                type_bound_procedure_names.extend(variable_names)
+            else:
+                owner_type = type_stack[-1]
+                type_component_names.extend((owner_type, name) for name in variable_names)
+                type_component_types.extend(
+                    (owner_type, name, component_type)
+                    for name, component_type in _declared_variable_types(text).items()
+                )
+
+    return DeclarationSummary(
+        tuple(declarations),
+        tuple(module_variable_names),
+        tuple(module_variable_types.items()),
+        tuple(type_bound_procedure_names),
+        tuple(type_component_names),
+        tuple(type_component_types),
+    )
+
+
+def extract_module_variable_names(source: str) -> list[str]:
+    """Extract variable names declared in module specification parts."""
+    return list(_declaration_summary(source).module_variable_names)
 
 
 def extract_module_variable_types(source: str) -> dict[str, str]:
     """Extract derived types for variables in module specification parts."""
-    types: dict[str, str] = {}
-    in_module = False
-    module_contains = False
-    type_depth = 0
-    interface_depth = 0
-    for statement in _iter_code_statements(source):
-        if MODULE_DECLARATION.match(statement):
-            in_module = True
-            module_contains = False
-            type_depth = 0
-            interface_depth = 0
-            continue
-        if not in_module:
-            continue
-        if re.match(r"^\s*end\s*module\b", statement, re.IGNORECASE):
-            in_module = False
-            continue
-        if module_contains:
-            continue
-        if INTERFACE_END.match(statement):
-            interface_depth = max(0, interface_depth - 1)
-            continue
-        if INTERFACE_START.match(statement):
-            interface_depth += 1
-            continue
-        if interface_depth:
-            continue
-        if re.match(r"^\s*(?:abstract\s+)?type\b", statement, re.IGNORECASE) and _declared_type_name(statement):
-            type_depth += 1
-            continue
-        if type_depth:
-            if re.match(r"^\s*end\s*type\b", statement, re.IGNORECASE):
-                type_depth -= 1
-            continue
-        if re.match(r"^\s*contains\b", statement, re.IGNORECASE):
-            module_contains = True
-            continue
-        if not module_contains:
-            types.update(_declared_variable_types(statement))
-    return types
+    return dict(_declaration_summary(source).module_variable_types)
 
 
 def extract_type_bound_procedure_names(source: str) -> list[str]:
     """Extract type-bound procedure binding names from module type definitions."""
-    names: list[str] = []
-    type_depth = 0
-    for statement in _iter_code_statements(source):
-        if re.match(r"^\s*(?:abstract\s+)?type\b", statement, re.IGNORECASE) and _declared_type_name(statement):
-            type_depth += 1
-            continue
-        if not type_depth:
-            continue
-        if re.match(r"^\s*end\s*type\b", statement, re.IGNORECASE):
-            type_depth -= 1
-        elif re.match(r"^\s*procedure\b", statement, re.IGNORECASE):
-            names.extend(_declared_variable_names(statement))
-    return names
+    return list(_declaration_summary(source).type_bound_procedure_names)
 
 
 def extract_type_component_names(source: str) -> list[tuple[str, str]]:
     """Extract ordinary derived-type component names with their type."""
-    names: list[tuple[str, str]] = []
-    type_stack: list[str] = []
-    for statement in _iter_code_statements(source):
-        type_name = _declared_type_name(statement)
-        if re.match(r"^\s*(?:abstract\s+)?type\b", statement, re.IGNORECASE) and type_name:
-            type_stack.append(type_name)
-            continue
-        if not type_stack:
-            continue
-        if re.match(r"^\s*end\s*type\b", statement, re.IGNORECASE):
-            type_stack.pop()
-        elif not re.match(r"^\s*procedure\b", statement, re.IGNORECASE):
-            names.extend((type_stack[-1], name) for name in _declared_variable_names(statement))
-    return names
+    return list(_declaration_summary(source).type_component_names)
 
 
 def extract_type_component_types(source: str) -> list[tuple[str, str, str]]:
     """Extract derived-type component types for resolving chained members."""
-    types: list[tuple[str, str, str]] = []
-    type_stack: list[str] = []
-    for statement in _iter_code_statements(source):
-        type_name = _declared_type_name(statement)
-        if re.match(r"^\s*(?:abstract\s+)?type\b", statement, re.IGNORECASE) and type_name:
-            type_stack.append(type_name)
-            continue
-        if not type_stack:
-            continue
-        if re.match(r"^\s*end\s*type\b", statement, re.IGNORECASE):
-            type_stack.pop()
-        elif not re.match(r"^\s*procedure\b", statement, re.IGNORECASE):
-            types.extend(
-                (type_stack[-1], name, component_type)
-                for name, component_type in _declared_variable_types(statement).items()
-            )
-    return types
+    return list(_declaration_summary(source).type_component_types)
 
 
 def extract_declared_names(source: str) -> list[DeclaredName]:
     """Extract module, derived-type, function, and subroutine declaration names."""
-    declarations: list[DeclaredName] = []
-    for statement in _iter_code_statements(source):
-        if re.match(r"^\s*end\b", statement, re.IGNORECASE):
-            continue
-
-        module = MODULE_DECLARATION.match(statement)
-        if module:
-            declarations.append(DeclaredName("module", module.group(1)))
-
-        type_name = _declared_type_name(statement)
-        if type_name:
-            declarations.append(DeclaredName("type", type_name))
-
-        for kind in ("function", "subroutine"):
-            procedure = re.search(rf"\b{kind}\s+({IDENTIFIER})\b", statement, re.IGNORECASE)
-            if procedure:
-                declarations.append(DeclaredName("procedure", procedure.group(1)))
-    return declarations
+    return list(_declaration_summary(source).declared_names)
 
 
 def extract_scoped_declared_names(source: str) -> tuple[ScopedDeclaredNames, ...]:
@@ -1348,7 +1486,7 @@ def extract_scoped_declared_names(source: str) -> tuple[ScopedDeclaredNames, ...
     """
     records: list[dict[str, object]] = []
     stack: list[int] = []
-    statements = list(_iter_code_statements_with_lines(source))
+    statements = _code_statements(source)
     last_line = statements[-1].end_line if statements else 0
 
     def add_name(name: str) -> None:
@@ -1369,13 +1507,10 @@ def extract_scoped_declared_names(source: str) -> tuple[ScopedDeclaredNames, ...
                     break
             continue
 
-        header = _scope_header_names(text)
+        header = _scope_header(text)
         module = MODULE_DECLARATION.match(text)
         if header:
-            kind, name = (
-                re.search(r"\b(function|subroutine|program)\b", text, re.IGNORECASE).group(1).lower(),
-                header[0],
-            )
+            kind, name = header[0], header[1]
         elif module:
             kind, name = "module", module.group(1)
         else:
@@ -1411,12 +1546,12 @@ def extract_scoped_declared_names(source: str) -> tuple[ScopedDeclaredNames, ...
         if frame["interface_depth"]:
             continue
         type_name = _declared_type_name(text)
-        if re.match(r"^\s*(?:abstract\s+)?type\b", text, re.IGNORECASE) and type_name:
+        if TYPE_DECLARATION_START.match(text) and type_name:
             add_name(type_name)
             frame["type_depth"] += 1
             continue
         if frame["type_depth"]:
-            if re.match(r"^\s*end\s*type\b", text, re.IGNORECASE):
+            if TYPE_DEFINITION_END.match(text):
                 frame["type_depth"] -= 1
             # A type body's own `contains` (introducing type-bound procedures)
             # must not be mistaken for the enclosing scope's `contains`, so
@@ -1424,7 +1559,7 @@ def extract_scoped_declared_names(source: str) -> tuple[ScopedDeclaredNames, ...
             # Components require `%` access and are handled separately; they
             # are not candidates for overriding a bare token's lowercasing.
             continue
-        if re.match(r"^\s*contains\b", text, re.IGNORECASE):
+        if CONTAINS_STATEMENT.match(text):
             frame["contains_seen"] = True
             continue
         if frame["kind"] == "module" and not frame["contains_seen"]:
@@ -1471,35 +1606,48 @@ def _case_for_file(
     return selected
 
 
-def collect_declaration_cases(sources: Mapping[Path, str]) -> dict[Path, FileDeclarationCases]:
-    """Collect declaration spellings and resolve them for every processed file.
+def collect_declaration_cases(
+    sources: Mapping[Path, str],
+    target_paths: Collection[Path] | None = None,
+) -> dict[Path, FileDeclarationCases]:
+    """Collect project declarations and resolve casing for requested target files.
+
+    All *sources* participate in project-wide declaration resolution, but local
+    procedure/scope metadata is only needed for files that will actually be
+    formatted. Omitting *target_paths* preserves the original all-files API.
 
     A declaration in the current file wins over declarations in other files. A
     name declared with different spellings more than once in the current file,
     or ambiguously elsewhere with no current-file declaration, is omitted.
     """
+    targets = tuple(sources) if target_paths is None else tuple(dict.fromkeys(target_paths))
+    missing = [path for path in targets if path not in sources]
+    if missing:
+        raise KeyError(f"Target paths are missing from sources: {missing}")
+
     declarations: dict[tuple[str, str], list[tuple[Path, str]]] = {}
     variable_type_occurrences: dict[str, set[str]] = {}
     component_type_occurrences: dict[tuple[str, str], set[str]] = {}
-    procedure_cases = {path: extract_procedure_cases(source) for path, source in sources.items()}
-    scope_cases = {path: extract_named_scope_cases(source) for path, source in sources.items()}
+    procedure_cases = {path: extract_procedure_cases(sources[path]) for path in targets}
+    scope_cases = {path: extract_named_scope_cases(sources[path]) for path in targets}
     for path, source in sources.items():
-        for declaration in extract_declared_names(source):
+        summary = _declaration_summary(source)
+        for declaration in summary.declared_names:
             kind = "module" if declaration.kind == "module" else "symbol"
             key = (kind, declaration.name.lower())
             declarations.setdefault(key, []).append((path, declaration.name))
-        for name in extract_module_variable_names(source):
+        for name in summary.module_variable_names:
             key = ("symbol", name.lower())
             declarations.setdefault(key, []).append((path, name))
-        for name in extract_type_bound_procedure_names(source):
+        for name in summary.type_bound_procedure_names:
             key = ("type_procedure", name.lower())
             declarations.setdefault(key, []).append((path, name))
-        for type_name, name in extract_type_component_names(source):
+        for type_name, name in summary.type_component_names:
             key = ("type_component", f"{type_name.lower()}\0{name.lower()}")
             declarations.setdefault(key, []).append((path, name))
-        for name, type_name in extract_module_variable_types(source).items():
+        for name, type_name in summary.module_variable_types:
             variable_type_occurrences.setdefault(name, set()).add(type_name)
-        for type_name, name, component_type in extract_type_component_types(source):
+        for type_name, name, component_type in summary.type_component_types:
             component_type_occurrences.setdefault((type_name.lower(), name.lower()), set()).add(component_type)
 
     variable_type_cases = _resolve_type_occurrences(variable_type_occurrences)
@@ -1508,7 +1656,7 @@ def collect_declaration_cases(sources: Mapping[Path, str]) -> dict[Path, FileDec
     )
 
     cases: dict[Path, FileDeclarationCases] = {}
-    for path in sources:
+    for path in targets:
         module_cases = _case_for_file(path, declarations, "module")
         # Procedure-local names are handled while replacing tokens, where their
         # scope is known. Filtering them here would also suppress a global
@@ -1544,14 +1692,36 @@ def member_owner_type(
     type_component_types: Mapping[tuple[str, str], str],
 ) -> str | None:
     """Resolve the type of the member expression immediately before a component."""
-    chain_match = re.search(rf"({IDENTIFIER}(?:\s*%\s*{IDENTIFIER})*)\s*%\s*$", context[:index])
-    if chain_match is None:
+    position = index - 1
+    while position >= 0 and context[position].isspace():
+        position -= 1
+    if position < 0 or context[position] != "%":
         return None
-    chain = re.findall(IDENTIFIER, chain_match.group(1))
-    if not chain:
+    position -= 1
+
+    reversed_chain: list[str] = []
+    while position >= 0:
+        while position >= 0 and context[position].isspace():
+            position -= 1
+        end = position + 1
+        while position >= 0 and _is_identifier_char(context[position]):
+            position -= 1
+        start = position + 1
+        if start == end or not _is_identifier_start(context[start]):
+            return None
+        reversed_chain.append(context[start:end])
+        while position >= 0 and context[position].isspace():
+            position -= 1
+        if position < 0 or context[position] != "%":
+            break
+        position -= 1
+
+    chain = reversed(reversed_chain)
+    first = next(chain, None)
+    if first is None:
         return None
-    owner_type = local_types.get(chain[0].lower()) or variable_types.get(chain[0].lower())
-    for component in chain[1:]:
+    owner_type = local_types.get(first.lower()) or variable_types.get(first.lower())
+    for component in chain:
         if owner_type is None:
             return None
         owner_type = type_component_types.get((owner_type.lower(), component.lower()))
@@ -1575,6 +1745,7 @@ def replace_declared_cases(
     scope_cases = tuple(scope_cases)
     variable_types = extract_variable_types(source)
     variable_type_cases = variable_type_cases or {}
+    resolved_variable_types = {**variable_type_cases, **variable_types}
     type_procedure_cases = type_procedure_cases or {}
     type_component_cases = type_component_cases or {}
     type_component_type_cases = type_component_type_cases or {}
@@ -1592,8 +1763,10 @@ def replace_declared_cases(
 
     output: list[str] = []
     prefix = ""
-    source_lines = source.splitlines(keepends=True)
-    for state in scan_physical_lines(source_lines):
+    _, states = _scan_source(source)
+    active_procedures = _active_procedures_by_line(procedure_cases, len(states))
+    end_scope_by_line = {scope.end_line: scope for scope in scope_cases}
+    for state in states:
         line_number = state.number
         line = state.text
         if state.is_cpp:
@@ -1601,21 +1774,19 @@ def replace_declared_cases(
             prefix = ""
             continue
 
-        active_procedure = active_procedure_at(procedure_cases, line_number)
+        active_procedure = active_procedures[line_number]
         local_cases = active_procedure.local_cases if active_procedure else {}
         local_names = active_procedure.local_names if active_procedure else frozenset()
         starting_quote = state.quote_in
         quote = starting_quote
         context_line = blank_leading_continuation(line) if prefix else line
         context = prefix + context_line
+        masked_context = code_context(context)
         use_match = USE_MODULE.match(context)
         end_match = NAMED_SCOPE_END.match(context)
         module_start = use_match.start(1) if use_match else -1
         module_end = use_match.end(1) if use_match else -1
-        end_scope = next(
-            (scope for scope in reversed(scope_cases) if scope.end_line == line_number),
-            None,
-        )
+        end_scope = end_scope_by_line.get(line_number)
         end_name_start = end_match.start(2) if end_match and end_match.group(2) else -1
         end_name_end = end_match.end(2) if end_match and end_match.group(2) else -1
         line_output: list[str] = []
@@ -1638,59 +1809,86 @@ def replace_declared_cases(
             elif char == "!":
                 line_output.append(line[index:])
                 break
-            else:
-                match = TOKEN.match(line, index)
-                if match:
-                    normalized = match.group().lower()
-                    absolute_start = len(prefix) + index
-                    member_component = context[:absolute_start].rstrip().endswith("%")
-                    if (
-                        (not member_component and is_contextual_identifier(context, absolute_start))
-                        or match.group() in preprocessor_names
-                        or is_real_literal_exponent_marker(context, absolute_start, match.group())
-                    ):
-                        replacement = None
-                    elif (
-                        end_scope
-                        and end_match
-                        and end_scope.kind == end_match.group(1).lower()
-                        and end_name_start <= absolute_start < end_name_end
-                    ):
-                        replacement = end_scope.name
-                    elif member_component:
-                        owner = re.search(rf"({IDENTIFIER})\s*%\s*$", context[:absolute_start])
-                        owner_type = local_cases.get(owner.group(1).lower()) if owner else None
-                        if owner:
-                            owner_type = member_owner_type(
-                                context,
-                                absolute_start,
-                                local_types=active_procedure.local_types if active_procedure else {},
-                                variable_types={**variable_type_cases, **variable_types},
-                                type_component_types=type_component_type_cases,
-                            )
-                        replacement = (
-                            type_procedure_cases.get(normalized)
-                            or (type_component_cases.get((owner_type.lower(), normalized)) if owner_type else None)
-                            or symbol_cases.get(normalized)
-                        )
-                    elif module_start <= absolute_start < module_end:
-                        replacement = module_cases.get(normalized)
-                    elif use_match:
-                        replacement = symbol_cases.get(normalized)
-                    else:
-                        replacement = local_cases.get(normalized)
-                        if replacement is None and normalized not in local_names and normalized not in INTRINSIC_NAMES:
-                            replacement = symbol_cases.get(normalized)
-                    line_output.append(replacement or match.group())
-                    index = match.end()
+            elif _is_identifier_start(char):
+                token_end = _identifier_end(line, index)
+                token = line[index:token_end]
+                normalized = token.lower()
+                absolute_start = len(prefix) + index
+                member_component = _preceded_by_percent(context, absolute_start)
+                if (
+                    (
+                        not member_component
+                        and masked_context.rfind("::", 0, absolute_start) >= 0
+                        and is_contextual_identifier(context, absolute_start, context=masked_context)
+                    )
+                    or token in preprocessor_names
+                    or (normalized in {"e", "d"} and is_real_literal_exponent_marker(context, absolute_start, token))
+                ):
+                    replacement = None
+                elif (
+                    end_scope
+                    and end_match
+                    and end_scope.kind == end_match.group(1).lower()
+                    and end_name_start <= absolute_start < end_name_end
+                ):
+                    replacement = end_scope.name
+                elif member_component:
+                    owner_type = member_owner_type(
+                        context,
+                        absolute_start,
+                        local_types=active_procedure.local_types if active_procedure else {},
+                        variable_types=resolved_variable_types,
+                        type_component_types=type_component_type_cases,
+                    )
+                    replacement = (
+                        type_procedure_cases.get(normalized)
+                        or (type_component_cases.get((owner_type.lower(), normalized)) if owner_type else None)
+                        or symbol_cases.get(normalized)
+                    )
+                elif module_start <= absolute_start < module_end:
+                    replacement = module_cases.get(normalized)
+                elif use_match:
+                    replacement = symbol_cases.get(normalized)
                 else:
-                    line_output.append(char)
-                    index += 1
+                    replacement = local_cases.get(normalized)
+                    if replacement is None and normalized not in local_names and normalized not in INTRINSIC_NAMES:
+                        replacement = symbol_cases.get(normalized)
+                line_output.append(replacement or token)
+                index = token_end
+            else:
+                line_output.append(char)
+                index += 1
         updated_line = "".join(line_output)
         output.append(updated_line)
         if not state.is_blank and not state.is_comment:
             prefix = statement_context(prefix, line, starting_quote) if state.continuation_out else ""
     return "".join(output)
+
+
+def _is_identifier_start(char: str) -> bool:
+    return "A" <= char <= "Z" or "a" <= char <= "z"
+
+
+def _is_identifier_char(char: str) -> bool:
+    return _is_identifier_start(char) or "0" <= char <= "9" or char == "_"
+
+
+def _identifier_end(text: str, index: int) -> int:
+    end = index + 1
+    length = len(text)
+    while end < length:
+        char = text[end]
+        if not ("A" <= char <= "Z" or "a" <= char <= "z" or "0" <= char <= "9" or char == "_"):
+            break
+        end += 1
+    return end
+
+
+def _preceded_by_percent(text: str, index: int) -> bool:
+    index -= 1
+    while index >= 0 and text[index].isspace():
+        index -= 1
+    return index >= 0 and text[index] == "%"
 
 
 def is_real_literal_exponent_marker(context: str, index: int, token: str) -> bool:
@@ -1702,33 +1900,51 @@ def is_real_literal_exponent_marker(context: str, index: int, token: str) -> boo
     return re.search(r"(?:\d+(?:\.\d*)?|\.\d+)$", mantissa) is not None and re.match(r"[+-]?\d", exponent) is not None
 
 
+@lru_cache(maxsize=8192)
 def code_context(line: str) -> str:
     """Return code from *line* with quoted text and comments masked."""
+    if "'" not in line and '"' not in line:
+        comment_start = line.find("!")
+        return line if comment_start < 0 else line[:comment_start]
     context = mask_quoted_text(line)
     comment_start = context.find("!")
     return context if comment_start < 0 else context[:comment_start]
 
 
-def is_contextual_identifier(line: str, index: int) -> bool:
+def is_contextual_identifier(line: str, index: int, *, context: str | None = None) -> bool:
     """Return whether the token at *index* is being used as an identifier."""
-    context = code_context(line)
-    before = context[:index].rstrip()
-    if before.endswith("%"):
+    context = code_context(line) if context is None else context
+
+    previous = index - 1
+    while previous >= 0 and context[previous].isspace():
+        previous -= 1
+    if previous >= 0 and context[previous] == "%":
         return True
-    declaration_start = before.rfind("::")
+
+    declaration_start = context.rfind("::", 0, index)
     if declaration_start < 0:
         return False
     item_start = declaration_start + 2
     depth = 0
-    for position, char in enumerate(context[item_start:index], item_start):
+    for position in range(item_start, index):
+        char = context[position]
         if char == "(":
             depth += 1
         elif char == ")":
             depth -= 1
         elif char == "," and depth == 0:
             item_start = position + 1
-    declaration = context[item_start:index]
-    return re.search(r"=>|(?<![<>=/])=(?!=|>)", declaration) is None
+
+    # An initializer/association makes the token a value expression rather than
+    # the name being declared.
+    for position in range(item_start, index):
+        if context[position] != "=":
+            continue
+        previous_char = context[position - 1] if position > item_start else ""
+        following = context[position + 1 : position + 2]
+        if following == ">" or (previous_char not in "<>=/" and following not in {"=", ">"}):
+            return False
+    return True
 
 
 def lowercase_keyword(
@@ -1740,53 +1956,79 @@ def lowercase_keyword(
     preprocessor_names: Collection[str] = frozenset(),
     file_declared_names: Collection[str] = frozenset(),
     uppercase_single_l: bool = False,
+    *,
+    context: str | None = None,
 ) -> str:
     """Lowercase language and intrinsic names without overriding declarations."""
     token_lower = token.lower()
-    context = code_context(line)
-    after = context[index + len(token) :]
-    before = context[:index].rstrip()
-    if is_real_literal_exponent_marker(context, index, token):
+    context = code_context(line) if context is None else context
+    token_end = index + len(token)
+
+    if token_lower in {"e", "d"} and is_real_literal_exponent_marker(context, index, token):
         return token_lower
-    if is_contextual_identifier(line, index):
+    if _preceded_by_percent(context, index):
+        return token
+    if context.rfind("::", 0, index) >= 0 and is_contextual_identifier(line, index, context=context):
         return token
     if token in preprocessor_names:
         return token
-    # A name declared in the current procedure, or anywhere in the enclosing
-    # module/procedure scope (see declared_names_at()), always refers to that
-    # declaration -- except where the spelling is pinned by statement syntax:
-    # a `keyword=` specifier in a bracketed argument list (`inquire(...,
-    # size=n)`) is never a variable reference, no matter what is declared in
-    # scope. `preserved_names` (a cross-file table that may name an
-    # unrelated, out-of-scope declaration) keeps its narrower, unconditional
-    # treatment below.
-    if token_lower in local_names or (
-        token_lower in file_declared_names and not is_specifier_keyword_argument(context, index + len(token))
-    ):
+
+    if token_lower in local_names:
         return token
+    if token_lower in file_declared_names and not is_specifier_keyword_argument(context, token_end):
+        return token
+
+    def next_nonspace(start: int) -> int:
+        while start < len(context) and context[start] in " \t":
+            start += 1
+        return start
+
+    def previous_word_is_double() -> bool:
+        end = index
+        while end > 0 and context[end - 1].isspace():
+            end -= 1
+        start = end
+        while start > 0 and _is_identifier_char(context[start - 1]):
+            start -= 1
+        return context[start:end].lower() == "double"
+
     if token_lower in FORTRAN_STANDARD_WORDS:
-        if token_lower in DECLARATION_ATTRIBUTES and "::" not in after:
+        if token_lower in DECLARATION_ATTRIBUTES and context.find("::", token_end) < 0:
             return token
-        if token_lower == "only" and not re.match(r"\s*:", after):
-            return token
-        if token_lower == "bind" and not re.match(r"\s*\(\s*c\s*\)", after, re.IGNORECASE):
-            return token
-        if token_lower == "kind" and not re.match(r"\s*(?:\(|=)", after):
-            return token
-        if token_lower == "precision" and not re.search(r"\bdouble\s*$", before, re.IGNORECASE):
+        if token_lower == "only":
+            following = next_nonspace(token_end)
+            if following >= len(context) or context[following] != ":":
+                return token
+        elif token_lower == "bind":
+            following = next_nonspace(token_end)
+            if following >= len(context) or context[following] != "(":
+                return token
+            following = next_nonspace(following + 1)
+            if following >= len(context) or context[following].lower() != "c":
+                return token
+            following = next_nonspace(following + 1)
+            if following >= len(context) or context[following] != ")":
+                return token
+        elif token_lower == "kind":
+            following = next_nonspace(token_end)
+            if following >= len(context) or context[following] not in "(=":
+                return token
+        elif token_lower == "precision" and not previous_word_is_double():
             return token
         return token_lower
-    if token_lower in PARENTHESIZED_STATEMENT_NAMES and re.match(r"\s*\(", after) and token_lower not in local_names:
-        return token_lower
+
+    if token_lower in PARENTHESIZED_STATEMENT_NAMES and token_lower not in local_names:
+        following = next_nonspace(token_end)
+        if following < len(context) and context[following] == "(":
+            return token_lower
+
     if uppercase_single_l and token_lower == "l":
         return "L"
     if token_lower in INTRINSIC_NAMES:
-        if (
-            token_lower == "precision"
-            and not re.match(r"\s*\(", after)
-            and not re.search(r"\bdouble\s*$", before, re.IGNORECASE)
-        ):
-            return token
+        if token_lower == "precision":
+            following = next_nonspace(token_end)
+            if (following >= len(context) or context[following] != "(") and not previous_word_is_double():
+                return token
         return token_lower
     if token_lower in preserved_names:
         return token
@@ -1818,34 +2060,52 @@ def is_binary_arithmetic_operator(line: str, index: int, operator: str) -> bool:
 
 
 def is_named_parameter(line: str, index: int) -> bool:
-    """Return whether ``=`` at *index* is a named argument or specification.
+    """Return whether ``=`` at *index* is a named argument or specification."""
+    end = index
+    while end > 0 and line[end - 1].isspace():
+        end -= 1
+    start = end
+    while start > 0 and _is_identifier_char(line[start - 1]):
+        start -= 1
+    if start == end or not _is_identifier_start(line[start]):
+        return False
+    prefix = start
+    while prefix > 0 and line[prefix - 1].isspace():
+        prefix -= 1
+    if prefix == 0 or line[prefix - 1] not in "(,":
+        return False
 
-    A keyword argument or a kind/length specification only exists inside a
-    bracketed list, so the preceding `(` or `,` has to be an unclosed one. At
-    depth zero the same shape is an assignment or a declaration initializer
-    (`integer :: a = 1, b = 2`), which is spaced like any other assignment.
-    """
-    before = line[:index].rstrip()
-    match = re.search(r"[A-Za-z][A-Za-z0-9_]*$", before)
-    if match is None:
-        return False
-    prefix = before[: match.start()].rstrip()
-    if not prefix or prefix[-1] not in "(,":
-        return False
-    return paren_depth_profile(line)[index] > 0
+    depth = 0
+    quote: str | None = None
+    position = 0
+    while position < index:
+        char = line[position]
+        if quote:
+            if char == quote:
+                if line[position + 1 : position + 2] == quote:
+                    position += 2
+                    continue
+                quote = None
+        elif char in "\"'":
+            quote = char
+        elif char in "([":
+            depth += 1
+        elif char in ")]":
+            depth -= 1
+        position += 1
+    return depth > 0
 
 
 def is_specifier_keyword_argument(context: str, token_end: int) -> bool:
-    """Return whether the token ending at *token_end* names a fixed ``keyword=`` specifier.
-
-    A statement specifier such as ``size=`` in ``inquire(unit=1, size=n)`` names a
-    position fixed by that statement's syntax, not a reference to any declared
-    entity with the same spelling -- even one declared in the current file.
-    """
-    match = re.match(r"[ \t]*=(?!=|>)", context[token_end:])
-    if match is None:
+    """Return whether the token ending at *token_end* names a fixed ``keyword=`` specifier."""
+    equals_index = token_end
+    while equals_index < len(context) and context[equals_index] in " \t":
+        equals_index += 1
+    if equals_index >= len(context) or context[equals_index] != "=":
         return False
-    equals_index = token_end + match.end() - 1
+    following = context[equals_index + 1 : equals_index + 2]
+    if following in {"=", ">"}:
+        return False
     return is_named_parameter(context, equals_index)
 
 
@@ -1886,42 +2146,52 @@ def skip_operator_whitespace(line: str, index: int) -> int:
 
 
 def append_normalized_operator(output: list[str], line: str, index: int, context: str, offset: int) -> int | None:
-    """Append the normalized operator at *index*, if there is one.
+    """Append the normalized operator at *index*, if there is one."""
+    char = line[index]
+    if char not in ".=<>+-*/":
+        return None
 
-    *context* is the statement's code up to and including *line*, and *offset*
-    the position of *line* within it, so that an operator on a continuation
-    line is read against the whole statement rather than the line alone.
-    """
-    operator = LEGACY_OPERATOR.match(line, index)
-    if operator:
-        append_spaced_operator(output, MODERN_OPERATOR[operator.group(1).lower()])
-        return skip_operator_whitespace(line, operator.end())
+    if char == ".":
+        operator = LEGACY_OPERATOR.match(line, index)
+        if operator:
+            append_spaced_operator(output, MODERN_OPERATOR[operator.group(1).lower()])
+            return skip_operator_whitespace(line, operator.end())
+        operator = SPACED_OPERATOR.match(line, index)
+        if operator:
+            operator_text = operator.group().lower()
+            append_spaced_operator(output, operator_text)
+            return skip_operator_whitespace(line, operator.end())
+        return None
 
-    operator = SPACED_OPERATOR.match(line, index)
+    # Relational/assignment operators overlap arithmetic '/' so try this tier
+    # first only for characters that can actually begin one.
+    if char in "=<>/":
+        operator = SPACED_OPERATOR.match(line, index)
+        if operator:
+            operator_text = operator.group()
+            if operator_text == "=" and is_named_parameter(context, offset + index):
+                append_compact_operator(output, operator_text)
+            else:
+                append_spaced_operator(output, operator_text)
+            return skip_operator_whitespace(line, operator.end())
+
+    operator = ARITHMETIC_OPERATOR.match(line, index)
     if operator:
         operator_text = operator.group()
-        if operator_text.lower() in {".and.", ".or.", ".not.", ".eqv.", ".neqv."}:
-            operator_text = operator_text.lower()
-        if operator_text == "=" and is_named_parameter(context, offset + index):
+        if not is_binary_arithmetic_operator(context, offset + index, operator_text):
+            output.append(operator_text)
+            return skip_operator_whitespace(line, operator.end())
+        if operator_text in COMPACT_ARITHMETIC_OPERATORS:
             append_compact_operator(output, operator_text)
         else:
             append_spaced_operator(output, operator_text)
         return skip_operator_whitespace(line, operator.end())
-
-    operator = ARITHMETIC_OPERATOR.match(line, index)
-    if operator:
-        if not is_binary_arithmetic_operator(context, offset + index, operator.group()):
-            output.append(operator.group())
-            return skip_operator_whitespace(line, operator.end())
-        if operator.group() in COMPACT_ARITHMETIC_OPERATORS:
-            append_compact_operator(output, operator.group())
-        else:
-            append_spaced_operator(output, operator.group())
-        return skip_operator_whitespace(line, operator.end())
     return None
 
 
-def uppercase_openmp_keywords(line: str) -> str:
+def uppercase_openmp_keywords(line: str, preprocessor_names: Collection[str] = frozenset()) -> str:
+    """Uppercase OpenMP vocabulary without changing case-sensitive macro names."""
+    macro_names = {name.lower() for name in preprocessor_names}
     output: list[str] = []
     quote: str | None = None
     index = 0
@@ -1930,7 +2200,7 @@ def uppercase_openmp_keywords(line: str) -> str:
         if quote:
             output.append(char)
             if char == quote:
-                if index + 1 < len(line) and line[index + 1] == quote:
+                if line[index + 1 : index + 2] == quote:
                     output.append(line[index + 1])
                     index += 2
                     continue
@@ -1943,21 +2213,64 @@ def uppercase_openmp_keywords(line: str) -> str:
         elif char == "!":
             output.append(line[index:])
             break
+        elif _is_identifier_start(char):
+            end = _identifier_end(line, index)
+            token = line[index:end]
+            normalized = token.lower()
+            replacement = (
+                token if normalized in macro_names else token.upper() if normalized in OPENMP_KEYWORDS else token
+            )
+            output.append(replacement)
+            index = end
         else:
-            match = TOKEN.match(line, index)
-            if match:
-                token = match.group()
-                output.append(token.upper() if token.lower() in OPENMP_KEYWORDS else token)
-                index = match.end()
-            else:
-                output.append(char)
-                index += 1
+            output.append(char)
+            index += 1
     return "".join(output)
 
 
 def normalize_openmp_clause_separators(line: str) -> str:
-    """Separate adjacent parenthesized OpenMP clauses with a comma."""
-    return re.sub(r"\)[ \t]+(?=[A-Za-z][A-Za-z0-9_]*[ \t]*\()", "), ", line)
+    """Separate adjacent OpenMP clauses without touching literals or comments."""
+    output: list[str] = []
+    quote: str | None = None
+    index = 0
+    length = len(line)
+    while index < length:
+        char = line[index]
+        if quote:
+            output.append(char)
+            if char == quote:
+                if line[index + 1 : index + 2] == quote:
+                    output.append(line[index + 1])
+                    index += 2
+                    continue
+                quote = None
+            index += 1
+            continue
+        if char in "\"'":
+            quote = char
+            output.append(char)
+            index += 1
+            continue
+        if char == "!":
+            output.append(line[index:])
+            break
+        if char == ")":
+            whitespace_end = index + 1
+            while whitespace_end < length and line[whitespace_end] in " \t":
+                whitespace_end += 1
+            token_end = whitespace_end
+            if token_end < length and _is_identifier_start(line[token_end]):
+                token_end = _identifier_end(line, token_end)
+                opening = token_end
+                while opening < length and line[opening] in " \t":
+                    opening += 1
+                if opening < length and line[opening] == "(" and whitespace_end > index + 1:
+                    output.append("), ")
+                    index = whitespace_end
+                    continue
+        output.append(char)
+        index += 1
+    return "".join(output)
 
 
 def lowercase_line(
@@ -1970,22 +2283,20 @@ def lowercase_line(
     file_declared_names: Collection[str] = frozenset(),
     uppercase_single_l: bool = False,
 ) -> tuple[str, str | None]:
-    """Lowercase keywords and normalize code operators outside quoted text.
-
-    *prefix* is the code of the statement before *line*, empty unless *line*
-    continues one. Whether ``tol=1`` is a named argument or an assignment, and
-    whether ``-`` is a sign or a subtraction, is decided by what precedes it in
-    the statement, which for a continuation line is not on the line itself.
-    """
+    """Lowercase keywords and normalize code operators outside quoted text."""
     if is_preprocessor_line(line):
         return line, quote
 
-    directive_match = re.match(r"^[ \t]*!\$", line)
-    if directive_match:
-        sentinel = directive_match.group()
-        directive = line[directive_match.end() :]
-        if re.match(r"\s*omp\b", directive, re.IGNORECASE):
-            normalized = uppercase_openmp_keywords(directive)
+    stripped = line.lstrip(" \t")
+    if stripped.startswith("!$"):
+        sentinel_end = len(line) - len(stripped) + 2
+        sentinel = line[:sentinel_end]
+        directive = line[sentinel_end:]
+        directive_body = directive.lstrip(" \t")
+        if directive_body[:3].lower() == "omp" and (
+            len(directive_body) == 3 or not _is_identifier_char(directive_body[3])
+        ):
+            normalized = uppercase_openmp_keywords(directive, preprocessor_names)
             normalized, _ = normalize_delimiter_spacing(normalized)
             return sentinel + normalize_openmp_clause_separators(normalized), quote
         normalized, quote = lowercase_line(
@@ -2002,6 +2313,7 @@ def lowercase_line(
         return sentinel + normalized, quote
 
     context = prefix + (blank_leading_continuation(line) if prefix else line)
+    masked_context = code_context(context)
     offset = len(prefix)
     output: list[str] = []
     index = 0
@@ -2018,15 +2330,20 @@ def lowercase_line(
             index += 1
             continue
 
-        if char in (chr(34), chr(39)):
+        if char in "\"'":
             quote = char
             output.append(char)
             index += 1
-        elif char == "!":
+            continue
+        if char == "!":
             comment = line[index:]
             output.append(format_comment_operators(comment) if comment_contains_assignment(comment) else comment)
             break
-        else:
+
+        # Numeric exponent matching is meaningful only at a numeric literal
+        # start; the previous implementation attempted this regex at almost
+        # every character in every line.
+        if "0" <= char <= "9" or char == ".":
             real_literal = REAL_LITERAL_EXPONENT.match(line, index)
             if real_literal:
                 output.append(
@@ -2036,28 +2353,34 @@ def lowercase_line(
                 )
                 index = real_literal.end()
                 continue
+
+        if char in ".=<>+-*/":
             operator_end = append_normalized_operator(output, line, index, context, offset)
             if operator_end is not None:
                 index = operator_end
                 continue
-            match = TOKEN.match(line, index)
-            if match:
-                output.append(
-                    lowercase_keyword(
-                        match.group(),
-                        context,
-                        offset + index,
-                        preserved_names,
-                        local_names,
-                        preprocessor_names,
-                        file_declared_names=file_declared_names,
-                        uppercase_single_l=uppercase_single_l,
-                    )
+
+        if _is_identifier_start(char):
+            end = _identifier_end(line, index)
+            token = line[index:end]
+            output.append(
+                lowercase_keyword(
+                    token,
+                    context,
+                    offset + index,
+                    preserved_names,
+                    local_names,
+                    preprocessor_names,
+                    file_declared_names=file_declared_names,
+                    uppercase_single_l=uppercase_single_l,
+                    context=masked_context,
                 )
-                index = match.end()
-            else:
-                output.append(char)
-                index += 1
+            )
+            index = end
+            continue
+
+        output.append(char)
+        index += 1
     return "".join(output), quote
 
 
@@ -2065,62 +2388,104 @@ def _modernize_array_constructor_delimiters(code: str) -> str:
     """Modernize old ``(/ ... /)`` array constructors, but never FORMAT syntax."""
     # Slash is an edit descriptor inside FORMAT(...), where the same character
     # sequence is legal and has completely different semantics.
-    if re.match(r"^\s*(?:\d+\s+)?format\s*\(", code, re.IGNORECASE):
+    if FORMAT_STATEMENT_START.match(code):
         return code
     code = re.sub(r"\(\s*/\s*", "[", code)
     return re.sub(r"/\s*\)", "]", code)
 
 
-def normalize_keyword_spacing(line: str, quote: str | None = None) -> tuple[str, str | None]:
-    """Normalize compound keywords and spacing around Fortran syntax delimiters."""
+def _normalize_keyword_spacing_code(code: str) -> str:
+    """Normalize keyword/layout spacing in an unquoted code segment."""
+    if not code:
+        return code
 
-    def normalize_code(code: str) -> str:
-        # `/` is normally an arithmetic operator, but in a named COMMON block
-        # it is a delimiter. Operator normalization has already compacted the
-        # slashes by this point, so restore conventional statement spacing.
+    lowered = code.lower()
+
+    # Most lines need only a tiny subset of these rules. Cheap substring guards
+    # avoid dispatching dozens of regex substitutions for unrelated statements.
+    if "common" in lowered and "/" in code:
         code = COMMON_BLOCK_PREFIX.sub(lambda match: f"{match.group(1)} /{match.group(2)}/ ", code, count=1)
+    if "(" in code and "/" in code:
         code = _modernize_array_constructor_delimiters(code)
-        code = COMPOUND_KEYWORD.sub(
-            lambda match: match.group(1) + COMPOUND_KEYWORDS[match.group("keyword").lower()], code
-        )
+    if "go" in lowered:
+        code = GO_TO.sub("goto", code)
+
+    # One combined substitution replaces the former loop of thirteen re.sub
+    # calls per code segment.
+    code = MULTIWORD_KEYWORD_SPACING.sub(lambda match: " ".join(match.group().lower().split()), code)
+    code = COMPOUND_KEYWORD.sub(lambda match: match.group(1) + COMPOUND_KEYWORDS[match.group("keyword").lower()], code)
+
+    if "end" in lowered:
         code = re.sub(r"(?<![A-Za-z0-9_])end[ \t]+", "end ", code, flags=re.IGNORECASE)
         code = re.sub(r"(?<![A-Za-z0-9_])end ([A-Za-z]+)[ \t]+", r"end \1 ", code, flags=re.IGNORECASE)
+    if "do" in lowered:
         code = re.sub(r"(?<![A-Za-z0-9_])do[ \t]+", "do ", code, flags=re.IGNORECASE)
         code = re.sub(r"(?<![A-Za-z0-9_])do[ \t]+while[ \t]*\(", "do while (", code, flags=re.IGNORECASE)
+    if "dimension" in lowered and "(" in code:
         code = re.sub(r"(?<![A-Za-z0-9_])dimension[ \t]*\(", "dimension(", code, flags=re.IGNORECASE)
+    if "if" in lowered and "(" in code:
         code = re.sub(r"(?<![A-Za-z0-9_])if[ \t]*\(", "if (", code, flags=re.IGNORECASE)
+    if "associate" in lowered and "(" in code:
         code = re.sub(r"(?<![A-Za-z0-9_])associate[ \t]*\(", "associate(", code, flags=re.IGNORECASE)
+    if "result" in lowered and "(" in code:
         code = re.sub(r"(?<![A-Za-z0-9_])result[ \t]*\(", "result(", code, flags=re.IGNORECASE)
+    if ("type" in lowered or "class" in lowered) and "(" in code:
         code = re.sub(
             r"(?<![A-Za-z0-9_])(?:type|class)[ \t]*\(",
             lambda match: match.group()[:-1].rstrip() + "(",
             code,
             flags=re.IGNORECASE,
         )
+    if "select" in lowered and "type" in lowered and "(" in code:
         code = re.sub(r"\bselect[ \t]+type[ \t]*\(", "select type (", code, flags=re.IGNORECASE)
         code = re.sub(r"\bselect[ \t]+type[ \t]+is[ \t]*\(", "select type is (", code, flags=re.IGNORECASE)
+    if "(" in code:
         code = PARENTHESIZED_STATEMENT.sub(lambda match: match.group()[:-1].rstrip() + "(", code)
+    if "subroutine" in lowered and "(" in code:
         code = EMPTY_SUBROUTINE_ARGUMENTS.sub(r"\1", code)
+    if "only" in lowered and ":" in code:
         code = re.sub(r"\bonly[ \t]*:", "only:", code, flags=re.IGNORECASE)
+    if any(char in code for char in "([]"):
         code = re.sub(r"([([])[ \t]+", r"\1", code)
+    if any(char in code for char in ")]"):
         code = re.sub(r"(?<=\S)[ \t]+([)\]])", r"\1", code)
+    if ")" in code and "then" in lowered:
         code = re.sub(r"\)[ \t]*then\b", ") then", code, flags=re.IGNORECASE)
+    if "(" in code and any(word in lowered for word in ("change", "form", "select", "sync")):
+        code = re.sub(
+            r"\b(?:change|form|select|sync)[ \t]+(?:rank|team)[ \t]*\(",
+            lambda match: match.group()[:-1].rstrip() + " (",
+            code,
+            flags=re.IGNORECASE,
+        )
 
-        match = re.match(r"^(\s*(?:else\s+)?if\s*\()", code, re.IGNORECASE)
-        if match is None:
-            return code
-        depth = 0
-        for index in range(match.end() - 1, len(code)):
-            if code[index] == "(":
-                depth += 1
-            elif code[index] == ")":
-                depth -= 1
-                if depth == 0:
-                    suffix = code[index + 1 :]
-                    if suffix and not re.match(r"\s*(?:then\b|&|$)", suffix, re.IGNORECASE):
-                        return code[: index + 1] + " " + suffix.lstrip()
-                    return code
+    # Arithmetic IF and single-line IF statements need a space between the
+    # closing condition and the following statement.
+    match = IF_STATEMENT_START.match(code)
+    if match is None:
         return code
+    depth = 0
+    for index in range(match.end() - 1, len(code)):
+        if code[index] == "(":
+            depth += 1
+        elif code[index] == ")":
+            depth -= 1
+            if depth == 0:
+                suffix = code[index + 1 :]
+                if suffix:
+                    stripped = suffix.lstrip()
+                    if stripped and stripped != "&" and not stripped.lower().startswith("then"):
+                        return code[: index + 1] + " " + stripped
+                return code
+    return code
+
+
+def normalize_keyword_spacing(line: str, quote: str | None = None) -> tuple[str, str | None]:
+    """Normalize compound keywords and spacing around Fortran syntax delimiters."""
+    # The overwhelming common case contains no literal or comment, so avoid the
+    # segment-building loop entirely.
+    if quote is None and "'" not in line and '"' not in line and "!" not in line:
+        return _normalize_keyword_spacing_code(line), None
 
     output: list[str] = []
     segment_start = 0
@@ -2137,22 +2502,24 @@ def normalize_keyword_spacing(line: str, quote: str | None = None) -> tuple[str,
                 segment_start = index + 1
             index += 1
         elif char in "\"'":
-            output.append(normalize_code(line[segment_start:index]))
+            output.append(_normalize_keyword_spacing_code(line[segment_start:index]))
             quote = char
             segment_start = index
             index += 1
         elif char == "!":
-            output.append(normalize_code(line[segment_start:index]))
+            output.append(_normalize_keyword_spacing_code(line[segment_start:index]))
             output.append(line[index:])
             return "".join(output), quote
         else:
             index += 1
-    output.append(line[segment_start:] if quote else normalize_code(line[segment_start:]))
+    output.append(line[segment_start:] if quote else _normalize_keyword_spacing_code(line[segment_start:]))
     return "".join(output), quote
 
 
 def normalize_write_output_spacing(line: str, quote: str | None = None) -> str:
     """Put a space between a WRITE control list and an adjacent output item."""
+    if "write" not in line.lower():
+        return line
     insertions: list[int] = []
     index = 0
     active_quote = quote
@@ -2221,19 +2588,77 @@ def normalize_write_output_spacing(line: str, quote: str | None = None) -> str:
     return "".join(" " + char if index in insertion_points else char for index, char in enumerate(line))
 
 
+_DECLARATION_START_WORDS = frozenset(
+    {
+        "integer",
+        "real",
+        "complex",
+        "logical",
+        "character",
+        "type",
+        "class",
+        "procedure",
+        "dimension",
+        "allocatable",
+        "pointer",
+        "target",
+        "optional",
+        "parameter",
+        "save",
+        "value",
+        "volatile",
+        "asynchronous",
+        "contiguous",
+        "codimension",
+    }
+)
+
+
+def _is_declaration_statement(code: str) -> bool:
+    index = 0
+    while index < len(code) and code[index].isspace():
+        index += 1
+    if index >= len(code) or not _is_identifier_start(code[index]):
+        return False
+    end = _identifier_end(code, index)
+    word = code[index:end].lower()
+    if word in _DECLARATION_START_WORDS:
+        return True
+    if word != "double":
+        return False
+    precision = end
+    if precision >= len(code) or not code[precision].isspace():
+        return False
+    while precision < len(code) and code[precision].isspace():
+        precision += 1
+    if precision >= len(code) or not _is_identifier_start(code[precision]):
+        return False
+    precision_end = _identifier_end(code, precision)
+    return code[precision:precision_end].lower() == "precision"
+
+
 def normalize_delimiter_spacing(line: str, quote: str | None = None) -> tuple[str, str | None]:
     """Normalize spacing around declaration separators and non-quoted commas."""
     newline = "\n" if line.endswith("\n") else ""
     content = line.removesuffix(newline)
-    comment_start = inline_comment_start(content, quote)
+    comment_start = inline_comment_start(content, quote) if "!" in content else None
     code_end = comment_start if comment_start is not None else len(content)
     code = content[:code_end]
-    if DECLARATION_STATEMENT.match(code):
+
+    if _is_declaration_statement(code):
         if "::" not in code:
             code = normalize_unseparated_declaration_spacing(code, quote)
         else:
             code = normalize_declaration_attribute_order(code)
         content = code + content[code_end:]
+        code_end = len(code)
+
+    # Most normalized lines contain neither delimiter. If there is no active or
+    # newly opened literal, there is also no quote state to update.
+    code = content[:code_end]
+    if quote is None and "'" not in content and '"' not in content and "," not in code and "::" not in code:
+        return content + newline, None
+
     output: list[str] = []
     index = 0
     while index < len(content):
@@ -2249,7 +2674,7 @@ def normalize_delimiter_spacing(line: str, quote: str | None = None) -> tuple[st
             index += 1
             continue
 
-        if char in (chr(34), chr(39)):
+        if char in "\"'":
             quote = char
             output.append(char)
             index += 1
@@ -2282,7 +2707,7 @@ def normalize_delimiter_spacing(line: str, quote: str | None = None) -> tuple[st
 
 
 def remove_redundant_nested_parentheses(source: str) -> str:
-    """Remove one layer from nested ``((expression))`` parentheses.
+    """Remove redundant nested ``((expression))`` parentheses.
 
     This is limited to ordinary right-hand-side expressions and ``if``/``while``
     conditions. Parentheses in procedure arguments and association contexts can
@@ -2291,83 +2716,153 @@ def remove_redundant_nested_parentheses(source: str) -> str:
     preserved.
     """
 
-    def remove_one_layer(text: str) -> str:
-        removals: set[int] = set()
-        stack: list[tuple[int, bool, bool]] = []
-        quote: str | None = None
-        comment = False
-        line_start = True
-        index = 0
-        while index < len(text):
-            char = text[index]
-            if comment:
-                if char == "\n":
-                    comment = False
-                    line_start = True
-                index += 1
-                continue
-            if line_start and char in " \t":
-                index += 1
-                continue
-            if line_start and char == "#":
-                comment = True
-                line_start = False
-                index += 1
-                continue
-            if quote is not None:
-                if char == quote:
-                    if text[index + 1 : index + 2] == quote:
-                        index += 2
-                        continue
-                    quote = None
-                index += 1
-                line_start = False
-                continue
-            if char in "'\"":
-                quote = char
-            elif char == "!":
-                comment = True
-            elif char == "(":
-                preceding_name = re.search(rf"({IDENTIFIER})\s*$", text[:index])
-                is_argument_list = bool(
-                    preceding_name and preceding_name.group(1).lower() not in FORTRAN_STANDARD_WORDS
-                )
-                line_start_index = text.rfind("\n", 0, index) + 1
-                statement_prefix = code_context(text[line_start_index:index])
-                is_rhs = any(match.group() != "=>" for match in ASSIGNMENT_BREAK_OPERATOR.finditer(statement_prefix))
-                is_condition = re.search(r"\b(?:if|while)\s*$", statement_prefix, re.IGNORECASE) is not None
-                inherited_protection = any(protected for _, protected, _ in stack)
-                inherited_safety = any(safe for _, _, safe in stack)
+    def preceding_identifier(index: int, start: int = 0) -> str | None:
+        """Return the identifier immediately before *index*, ignoring whitespace."""
+        end = index
+        while end > start and source[end - 1].isspace():
+            end -= 1
+
+        token_start = end
+        while token_start > start and (source[token_start - 1].isalnum() or source[token_start - 1] == "_"):
+            token_start -= 1
+
+        if token_start == end:
+            return None
+
+        # Preserve the existing regex's behaviour for odd inputs such as
+        # ``123name(``, where it finds the identifier suffix ``name``.
+        match = re.search(rf"({IDENTIFIER})$", source[token_start:end])
+        return None if match is None else match.group(1)
+
+    removals: set[int] = set()
+
+    # opening position, protected, safe, directly nested in parent
+    stack: list[tuple[int, bool, bool, bool]] = []
+
+    quote: str | None = None
+    comment = False
+    line_start = True
+    physical_line_start = 0
+    line_has_assignment = False
+
+    # Last non-whitespace character. This lets us determine whether
+    # parent + child openings are separated only by whitespace without
+    # slicing and stripping source[outer + 1 : inner].
+    last_nonwhitespace = -1
+
+    index = 0
+    length = len(source)
+
+    while index < length:
+        char = source[index]
+
+        if comment:
+            if char == "\n":
+                comment = False
+                line_start = True
+                physical_line_start = index + 1
+                line_has_assignment = False
+            index += 1
+            continue
+
+        if line_start and char in " \t":
+            index += 1
+            continue
+
+        if line_start and char == "#":
+            comment = True
+            line_start = False
+            last_nonwhitespace = index
+            index += 1
+            continue
+
+        if quote is not None:
+            if char == quote:
+                if source[index + 1 : index + 2] == quote:
+                    index += 2
+                    continue
+                quote = None
+
+            if char == "\n":
+                physical_line_start = index + 1
+                line_has_assignment = False
+
+            index += 1
+            line_start = False
+            continue
+
+        if char in "'\"":
+            quote = char
+            last_nonwhitespace = index
+
+        elif char == "!":
+            comment = True
+            last_nonwhitespace = index
+
+        else:
+            # Equivalent to finding a non-"=>" ASSIGNMENT_BREAK_OPERATOR
+            # in code_context(source[physical_line_start:index]).
+            if char == "=":
+                previous = source[index - 1] if index > physical_line_start else ""
+                following = source[index + 1 : index + 2]
+
+                if previous not in "<>=/" and following not in {"=", ">"}:
+                    line_has_assignment = True
+
+            if char == "(":
+                preceding_name = preceding_identifier(index)
+                condition_name = preceding_identifier(index, physical_line_start)
+
+                is_argument_list = bool(preceding_name and preceding_name.lower() not in FORTRAN_STANDARD_WORDS)
+                is_condition = bool(condition_name and condition_name.lower() in {"if", "while"})
+
+                if stack:
+                    parent_open, parent_protected, parent_safe, _ = stack[-1]
+                    directly_nested = last_nonwhitespace == parent_open
+                else:
+                    parent_protected = False
+                    parent_safe = False
+                    directly_nested = False
+
                 stack.append(
                     (
                         index,
-                        is_argument_list or inherited_protection,
-                        is_rhs or is_condition or inherited_safety,
+                        is_argument_list or parent_protected,
+                        line_has_assignment or is_condition or parent_safe,
+                        directly_nested,
                     )
                 )
+
             elif char == ")" and stack:
-                inner, _, _ = stack.pop()
+                inner, _, _, directly_nested = stack.pop()
+
                 if stack:
-                    outer, protected, safe = stack[-1]
-                    if safe and not protected and text[outer + 1 : inner].strip() == "":
+                    _, protected, safe, _ = stack[-1]
+
+                    if safe and not protected and directly_nested:
                         following = index + 1
-                        while following < len(text) and text[following].isspace():
+                        while following < length and source[following].isspace():
                             following += 1
-                        if following < len(text) and text[following] == ")":
+
+                        if following < length and source[following] == ")":
                             removals.update((inner, index))
-            index += 1
-            line_start = char == "\n"
 
-        if not removals:
-            return text
-        return "".join(char for index, char in enumerate(text) if index not in removals)
+            if not char.isspace():
+                last_nonwhitespace = index
 
-    previous = source
-    while True:
-        updated = remove_one_layer(previous)
-        if updated == previous:
-            return updated
-        previous = updated
+        index += 1
+
+        if char == "\n":
+            line_start = True
+            physical_line_start = index
+            line_has_assignment = False
+        else:
+            line_start = False
+
+    if not removals:
+        return source
+
+    return "".join(char for index, char in enumerate(source) if index not in removals)
 
 
 def normalize_unseparated_declaration_spacing(code: str, quote: str | None = None) -> str:
@@ -2574,7 +3069,7 @@ def normalize_program_unit_spacing(lines: list[str]) -> list[str]:
         if interface_depth == 0 and (header or MODULE_DECLARATION.match(code)):
             unit_depth += 1
 
-        is_contains = unit_depth > 0 and type_depth == 0 and re.match(r"^\s*contains\b", code, re.IGNORECASE)
+        is_contains = unit_depth > 0 and type_depth == 0 and CONTAINS_STATEMENT.match(code)
         if is_contains or is_end:
             while normalized and not normalized[-1].strip():
                 normalized.pop()
@@ -2708,6 +3203,9 @@ def inline_comment_start(line: str, quote: str | None = None) -> int | None:
 
     *quote* is the character-literal delimiter left open by the preceding line.
     """
+    if quote is None and "'" not in line and '"' not in line:
+        index = line.find("!")
+        return None if index < 0 else index
     for index, char in enumerate(line):
         if quote:
             if char == quote:
@@ -2728,6 +3226,8 @@ def quote_after(line: str, quote: str | None = None) -> str | None:
     literal rather than layout that may be rewritten.
     """
     content = line.rstrip("\n")
+    if quote is None and "'" not in content and '"' not in content:
+        return None
     index = 0
     while index < len(content):
         char = content[index]
@@ -2788,6 +3288,8 @@ def normalize_continuation_marker(line: str) -> str:
 
 def mask_quoted_text(text: str) -> str:
     """Replace quoted spans with filler so operator scans never match inside them."""
+    if "'" not in text and '"' not in text:
+        return text
     output: list[str] = []
     quote: str | None = None
     for char in text:
@@ -3083,6 +3585,15 @@ def continues_statement(line: str, quote: str | None = None) -> tuple[bool, str 
     *quote* is the literal delimiter left open by the preceding line. An open
     literal always continues, since a literal cannot end at a line break.
     """
+    if quote is None and "'" not in line and '"' not in line:
+        content = line.rstrip("\n")
+        openmp = OPENMP_DIRECTIVE.match(content)
+        if openmp is not None:
+            return openmp.group("body").rstrip().endswith("&"), None
+        comment_start = content.find("!")
+        if comment_start >= 0:
+            content = content[:comment_start]
+        return content.rstrip().endswith("&"), None
     closing_quote = quote_after(line, quote)
     return closing_quote is not None or ends_with_continuation(line, quote), closing_quote
 
@@ -3236,33 +3747,37 @@ def normalize_openmp_continuation_sentinels(lines: list[str]) -> list[str]:
     return normalized
 
 
-def remove_terminal_procedure_returns(lines: list[str]) -> list[str]:
+def remove_terminal_procedure_returns(
+    lines: list[str], procedure_cases: Iterable[ProcedureDeclarationCases] = ()
+) -> list[str]:
     """Remove a bare final ``return`` from function and subroutine bodies."""
     source = "".join(lines)
-    statements = list(_iter_code_statements_with_lines(source))
+    statements = _code_statements(source)
     statements_by_end_line = {statement.end_line: statement for statement in statements}
+    statement_index_by_end_line = {statement.end_line: index for index, statement in enumerate(statements)}
+    procedures = tuple(procedure_cases) or extract_procedure_cases(source)
     removed_lines: set[int] = set()
-    for procedure in extract_procedure_cases(source):
+    for procedure in procedures:
         header = statements_by_end_line.get(procedure.start_line)
         end = statements_by_end_line.get(procedure.end_line)
         if header is None or end is None:
             continue
-        header_match = re.search(r"\b(function|subroutine)\b", header.text, re.IGNORECASE)
+        header_match = FUNCTION_OR_SUBROUTINE_WORD.search(header.text)
         if header_match is None:
             continue
-        previous = next(
-            (
-                statement
-                for statement in reversed(statements)
-                if procedure.start_line < statement.end_line < procedure.end_line
-            ),
-            None,
-        )
-        if previous is None or previous.text.lower() != "return" or previous.start_line != previous.end_line:
+        end_index = statement_index_by_end_line.get(procedure.end_line)
+        if end_index is None or end_index == 0:
+            continue
+        previous = statements[end_index - 1]
+        if not (procedure.start_line < previous.end_line < procedure.end_line):
+            continue
+        if previous.text.lower() != "return" or previous.start_line != previous.end_line:
             continue
         line = lines[previous.start_line]
         if code_context(line).strip().lower() == "return" and inline_comment_start(line) is None:
             removed_lines.add(previous.start_line)
+    if not removed_lines:
+        return lines
     return [line for line_number, line in enumerate(lines) if line_number not in removed_lines]
 
 
@@ -3406,17 +3921,22 @@ def format_text(
         type_component_type_cases,
         preprocessor_names,
     )
-    source = join_lexical_token_continuations(source)
-    source = remove_redundant_nested_parentheses(source)
-    # Joining split tokens can collapse physical lines, so all subsequent
-    # line-number-based local-scope lookups need fresh source ranges.
-    procedure_cases = extract_procedure_cases(source)
+    joined_source = join_lexical_token_continuations(source)
+    lexical_lines_changed = joined_source != source
+    source = remove_redundant_nested_parentheses(joined_source)
+    # Only lexical token joins can collapse physical lines here. Casing and
+    # parenthesis cleanup preserve line ranges and declaration spellings, so
+    # retain the existing procedure analysis unless a join actually occurred.
+    if lexical_lines_changed:
+        procedure_cases = extract_procedure_cases(source)
     scoped_declared_names = extract_scoped_declared_names(source)
     prefix = ""
     lines: list[str] = []
-    source_lines = source.splitlines(keepends=True)
+    source_lines, source_states = _scan_source(source)
+    active_procedures = _active_procedures_by_line(procedure_cases, len(source_states))
+    declared_names_per_line = _declared_names_by_line(scoped_declared_names, len(source_states))
     preserved_comment_lines = comment_block_lines(source_lines)
-    for state in scan_physical_lines(source_lines):
+    for state in source_states:
         line_number = state.number
         line = state.text
         if state.is_cpp:
@@ -3431,7 +3951,7 @@ def format_text(
             continue
 
         starting_quote = state.quote_in
-        active_procedure = active_procedure_at(procedure_cases, line_number)
+        active_procedure = active_procedures[line_number]
         local_names = active_procedure.local_names if active_procedure else frozenset()
         lowercase, _ = lowercase_line(
             line,
@@ -3440,7 +3960,7 @@ def format_text(
             preserved_names=symbol_cases,
             local_names=local_names,
             preprocessor_names=preprocessor_names,
-            file_declared_names=declared_names_at(scoped_declared_names, line_number),
+            file_declared_names=declared_names_per_line[line_number],
             uppercase_single_l=uppercase_single_l,
         )
         normalized, _ = normalize_keyword_spacing(lowercase, starting_quote)
@@ -3458,14 +3978,18 @@ def format_text(
 
     normalized_lines = normalize_continuations(lines)
     normalized_lines = normalize_openmp_continuation_sentinels(normalized_lines)
-    normalized_lines = remove_terminal_procedure_returns(normalized_lines)
-    # Removing terminal RETURN statements changes physical line numbers. Refresh
-    # every line-range-based scope before any later lookup (notably wrapping).
-    post_return_source = "".join(normalized_lines)
-    procedure_cases = extract_procedure_cases(post_return_source)
-    scoped_declared_names = extract_scoped_declared_names(post_return_source)
-    formatted_lines = (
-        rewrap_lines(
+    line_count_before_returns = len(normalized_lines)
+    normalized_lines = remove_terminal_procedure_returns(normalized_lines, procedure_cases)
+    returns_removed = len(normalized_lines) != line_count_before_returns
+
+    if wrap:
+        # RETURN removal is the only operation since the last scope analysis
+        # that can shift physical line numbers. Rebuild only when it happened.
+        if returns_removed:
+            post_return_source = "".join(normalized_lines)
+            procedure_cases = extract_procedure_cases(post_return_source)
+            scoped_declared_names = extract_scoped_declared_names(post_return_source)
+        formatted_lines = rewrap_lines(
             normalized_lines,
             procedure_cases=procedure_cases,
             preserved_names=symbol_cases,
@@ -3473,9 +3997,8 @@ def format_text(
             scoped_declared_names=scoped_declared_names,
             uppercase_single_l=uppercase_single_l,
         )
-        if wrap
-        else normalized_lines
-    )
+    else:
+        formatted_lines = normalized_lines
     formatted_lines = normalize_declaration_separator_alignment(formatted_lines)
     formatted_lines = normalize_program_unit_spacing(formatted_lines)
     formatted_lines = limit_blank_lines(formatted_lines)
@@ -3545,11 +4068,11 @@ def read_text_preserving_newlines(path: Path) -> str:
 
 
 def tracked_fortran_paths() -> list[Path]:
-    """Return all tracked Fortran files, including recursively listed submodules."""
+    """Return all tracked free-form Fortran files, including submodules."""
     if REPOSITORY_ROOT is None:
         raise RuntimeError("tracked Fortran paths require a valid Git checkout")
     result = subprocess.run(
-        ["git", "ls-files", "--recurse-submodules", "-z", "--", "*.f90", "*.F90"],
+        ["git", "ls-files", "--recurse-submodules", "-z", "--", *FORTRAN_SOURCE_PATTERNS],
         cwd=REPOSITORY_ROOT,
         env=_git_env(),
         check=True,
@@ -3578,8 +4101,11 @@ def _validated_fortran_path(path: Path) -> Path:
         if candidate.exists():
             path = candidate
     resolved = path.resolve()
-    if resolved.suffix.lower() != ".f90":
-        raise ValueError(f"Expected a .f90 or .F90 file: {resolved}")
+    if resolved.suffix.lower() not in FORTRAN_SOURCE_EXTENSIONS:
+        extensions = ", ".join(sorted(FORTRAN_SOURCE_EXTENSIONS))
+        raise ValueError(f"Expected a free-form Fortran source ({extensions}): {resolved}")
+    if not resolved.is_file():
+        raise ValueError(f"Fortran source file does not exist: {resolved}")
     return resolved
 
 
@@ -3594,13 +4120,20 @@ def _display_path(path: Path) -> Path:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("paths", nargs="*", type=Path, help=".f90/.F90 files to update in place")
-    parser.add_argument("--all", action="store_true", help="update every tracked .f90/.F90 source in this repository")
+    parser.add_argument("paths", nargs="*", type=Path, help="free-form Fortran source files to update in place")
+    parser.add_argument(
+        "--all", action="store_true", help="update every tracked free-form Fortran source in this repository"
+    )
     parser.add_argument(
         "--stdin", action="store_true", help="read Fortran source from standard input and write it to standard output"
     )
     parser.add_argument(
         "--stdout", action="store_true", help="write one input file's formatted source to standard output"
+    )
+    parser.add_argument(
+        "--isolated",
+        action="store_true",
+        help="resolve declaration cases from the specified files only, without scanning repository sources",
     )
     parser.add_argument("--check", action="store_true", help="report files that would change without rewriting them")
     parser.add_argument("--diff", action="store_true", help="show unified diffs without rewriting files")
@@ -3626,12 +4159,14 @@ def parse_args() -> argparse.Namespace:
         help="preserve/use this exact case for a macro supplied externally; may be repeated",
     )
     args = parser.parse_args()
-    if args.stdin and (args.paths or args.all or args.stdout or args.check or args.diff):
-        parser.error("--stdin cannot be combined with paths, --all, --stdout, --check, or --diff")
+    if args.stdin and (args.paths or args.all or args.stdout or args.check or args.diff or args.isolated):
+        parser.error("--stdin cannot be combined with paths, --all, --stdout, --check, --diff, or --isolated")
     if args.stdout and (len(args.paths) != 1 or args.all or args.check or args.diff):
         parser.error("--stdout requires exactly one path and cannot be combined with --all, --check, or --diff")
     if args.all and args.paths:
         parser.error("--all cannot be combined with paths")
+    if args.isolated and (args.all or not args.paths):
+        parser.error("--isolated requires one or more explicit paths")
     return args
 
 
@@ -3660,13 +4195,17 @@ def main() -> int:
         return 0
 
     if args.stdout:
-        path = _validated_fortran_path(args.paths[0])
-        source = read_text_preserving_newlines(path)
+        try:
+            path = _validated_fortran_path(args.paths[0])
+        except ValueError as error:
+            print(error, file=sys.stderr)
+            return 2
         source_paths = [path]
-        if REPOSITORY_ROOT is not None:
+        if REPOSITORY_ROOT is not None and not args.isolated:
             source_paths = [*tracked_fortran_paths(), path]
-        sources = read_source_files(source_paths)
-        cases = collect_declaration_cases(sources)[path]
+        sources = read_source_files(dict.fromkeys(source_paths))
+        source = sources[path]
+        cases = collect_declaration_cases(sources, target_paths=(path,))[path]
         sys.stdout.write(
             format_text(
                 source,
@@ -3691,11 +4230,19 @@ def main() -> int:
             return 2
         target_paths = tracked_fortran_paths()
     else:
-        target_paths = [_validated_fortran_path(path) for path in args.paths]
+        try:
+            target_paths = [_validated_fortran_path(path) for path in args.paths]
+        except ValueError as error:
+            print(error, file=sys.stderr)
+            return 2
     changed_paths: list[Path] = []
-    source_paths = [*tracked_fortran_paths(), *target_paths] if REPOSITORY_ROOT is not None else target_paths
+    source_paths = (
+        [*tracked_fortran_paths(), *target_paths]
+        if REPOSITORY_ROOT is not None and not args.isolated and args.paths
+        else target_paths
+    )
     originals = read_source_files(dict.fromkeys(source_paths))
-    declaration_cases = collect_declaration_cases(originals)
+    declaration_cases = collect_declaration_cases(originals, target_paths=target_paths)
 
     for path in target_paths:
         original = originals[path]

@@ -1,18 +1,18 @@
-    !First version AL October 2010
+    ! First version AL October 2010
 
-    !Calculates local fnl and CMB lensing bispectra
-    !CMB lensing bispectra are calculated in the approximation in which the first-order
-    !result is used replacing the unlensed with the lensing power spectra
-    !This is non-perturbatively correct to about 1%
-    !Note the lensing bispectrum only includes the linear potentials, no Rees-Sciama or SZ
-    !See Lewis, Challinor & Hanson 2010 for details
+    ! Calculates local fnl and CMB lensing bispectra
+    ! CMB lensing bispectra are calculated in the approximation in which the first-order
+    ! result is used replacing the unlensed with the lensing power spectra
+    ! This is non-perturbatively correct to about 1%
+    ! Note the lensing bispectrum only includes the linear potentials, no Rees-Sciama or SZ
+    ! See Lewis, Challinor & Hanson 2010 for details
 
-    !Note that the primordial local bispectra are unlensed (see arXiv: 0905.4732)
+    ! Note that the primordial local bispectra are unlensed (see arXiv: 0905.4732)
 
-    !Compile with LAPACK and -DFISHER if you want to get the fisher matrix outputs
-    !This is disabled by default in order not to require LAPACK
+    ! Compile with LAPACK and -DFISHER if you want to get the fisher matrix outputs
+    ! This is disabled by default in order not to require LAPACK
 
-    !Fisher results are with and without the cosmic variance from low L_1
+    ! Fisher results are with and without the cosmic variance from low L_1
 
     module Bispectrum
     use results
@@ -22,9 +22,9 @@
     use MpiUtils
     implicit none
 
-    integer, parameter :: max_bispectrum_deltas = 5, max_bispectrum_fields=3, max_bispectra=2
+    integer, parameter :: max_bispectrum_deltas = 5, max_bispectrum_fields = 3, max_bispectra = 2
 
-    Type TBispectrumParams
+    type TBispectrumParams
         logical :: do_lensing_bispectrum = .true.
         logical :: do_primordial_bispectrum = .false.
         integer :: nfields = 2
@@ -37,224 +37,225 @@
         real(dl) :: FisherNoise = 0
         real(dl) :: FisherNoisePol = 0
         real(dl) :: FisherNoiseFwhmArcmin = 7
-        character(LEN=Ini_max_string_len) :: FullOutputFile = ''
+        character(len=Ini_max_string_len) :: FullOutputFile = ''
         logical :: SparseFullOutput = .false.
-    end Type
+    end type
 
-    Type TBispectrumResult
+    type TBispectrumResult
         integer nbispectra, nfields
         logical has_fisher, has_optimal_fisher, has_lensing_variance
-        real(dl) Fisher(max_bispectra,max_bispectra)
-        real(dl) OptimalFisher(max_bispectra,max_bispectra)
+        real(dl) Fisher(max_bispectra, max_bispectra)
+        real(dl) OptimalFisher(max_bispectra, max_bispectra)
         real(dl) Sigma(max_bispectra)
         real(dl) OptimalSigma(max_bispectra)
         real(dl) LensingFisherWithVariance
-    end Type
+    end type
 
-    !global parameter for now, only intend for this module to be used interactively for the moment
-    Type(TBispectrumParams)  :: BispectrumParams
+    ! global parameter for now, only intend for this module to be used interactively for the moment
+    type(TBispectrumParams) :: BispectrumParams
 
-    Type TBispectrum
-        real(dl), pointer :: b(:,:)
-    end Type
-    Type TCov
-        real(dl), pointer :: C(:,:)
+    type TBispectrum
+        real(dl), pointer :: b(:, :)
+    end type
+    type TCov
+        real(dl), pointer :: C(:, :)
     end type TCov
 
-    Type TCov2
-        real(dl) :: C(2,2)
+    type TCov2
+        real(dl) :: C(2, 2)
     end type TCov2
 
-    Type TCov3
-        real(dl) :: C(3,3)
+    type TCov3
+        real(dl) :: C(3, 3)
     end type TCov3
 
-    real(dl), allocatable :: dJl(:,:), dddJl(:,:)
+    real(dl), allocatable :: dJl(:, :), dddJl(:, :)
     real(dl), parameter :: InternalScale = 1d10
-    character(LEN=1024) :: output_root =''
+    character(len=1024) :: output_root = ''
     integer, parameter :: shape_local = 1, shape_warm = 2, shape_warm2 = 3
     integer, parameter :: shape = shape_local
 
-    real(dl), allocatable :: TransferPolFac(:)      !sqrt((l+2)!/(l-2)!)
+    real(dl), allocatable :: TransferPolFac(:) ! sqrt((l+2)!/(l-2)!)
+
     contains
 
     subroutine InitBesselDerivs(CTrans)
     ! j_l' array for interpolation if needed; not needed for local fnl
-    use Interpolation, only : cubic_spline_second_derivs
-    Type(ClTransferData) :: CTrans
-    integer i,l1,j
+    use Interpolation, only: cubic_spline_second_derivs
+    type(ClTransferData) :: CTrans
+    integer i, l1, j
     real(dl) Jm, Jp
 
     if (allocated(dJl)) then
-        deallocate(dJL, dddJl)
+        deallocate(dJl, dddJl)
     end if
-    allocate(dJl(BessRanges%npoints,CTrans%ls%nl),dddJl(BessRanges%npoints,CTrans%ls%nl))
+    allocate(dJl(BessRanges%npoints, CTrans%ls%nl), dddJl(BessRanges%npoints, CTrans%ls%nl))
 
-    do i=1, CTrans%ls%nl
-        !Spline agrees well
+    do i = 1, CTrans%ls%nl
+        ! Spline agrees well
         !  call cubic_spline_derivatives_from_second_derivs(BessRanges%points,ajl(1,i),ajlpr(1,i),dJl(1,i), &
         !      BessRanges%npoints)
         !  call cubic_spline_second_derivs(BessRanges%points,dJl(1,i),BessRanges%npoints,dddJl(1,i))
 
         l1 = CTrans%ls%l(i)
-        do j=1, BessRanges%npoints
-            call BJL(l1-1,BessRanges%points(j),Jm)
-            call BJL(l1+1,BessRanges%points(j),Jp)
-            dJl(j,i)=  ( l1*Jm - (l1+1)*Jp)/(2*l1+1)
+        do j = 1, BessRanges%npoints
+            call BJL(l1 - 1, BessRanges%points(j), Jm)
+            call BJL(l1 + 1, BessRanges%points(j), Jp)
+            dJl(j, i) = (l1*Jm - (l1 + 1)*Jp)/(2*l1 + 1)
         end do
-        call cubic_spline_second_derivs(BessRanges%points,dJl(:,i),BessRanges%npoints,dddJl(:,i))
+        call cubic_spline_second_derivs(BessRanges%points, dJl(:, i), BessRanges%npoints, dddJl(:, i))
 
     end do
 
     end subroutine InitBesselDerivs
 
-    subroutine NonGauss_l_r_localOpt(CP,CTrans, ind, indP, res, resP, nfields, r)
-    !functions of the form int dk k^2 k^i j_l(kr) Delta_l(k) [P]
-    !ind and indP are arrays of required k^i powers
-    !res and resP are the results without and with the power spectrum P in the integrand
-    Class(CAMBPArams) :: CP
-    Type(ClTransferData) :: CTrans
+    subroutine NonGauss_l_r_localOpt(CP, CTrans, ind, indP, res, resP, nfields, r)
+    ! functions of the form int dk k^2 k^i j_l(kr) Delta_l(k) [P]
+    ! ind and indP are arrays of required k^i powers
+    ! res and resP are the results without and with the power spectrum P in the integrand
+    class(CAMBParams) :: CP
+    type(ClTransferData) :: CTrans
     integer, intent(in) :: ind(:), indP(:)
     integer :: nfields
-    real(dl) res(CTrans%ls%nl,size(ind),nfields), resP(CTrans%ls%nl,size(indP),nfields)
+    real(dl) res(CTrans%ls%nl, size(ind), nfields), resP(CTrans%ls%nl, size(indP), nfields)
     real(dl), intent(in) :: r
     integer q_ix, j, bes_ix
     integer n, nP, ellmax
-    real(dl) xf , J_l, a2, base, coeff1, coeff2, coeff3, dx, k, dlnk, term, P, kpow, kpowP, x_hi, xsafe
+    real(dl) xf, J_l, a2, base, coeff1, coeff2, coeff3, dx, k, dlnk, term, P, kpow, kpowP, x_hi, xsafe
 
     n = size(ind)
-    nP =size(indP)
-    res=0
+    nP = size(indP)
+    res = 0
     resP = 0
     do q_ix = 1, CTrans%q%npoints
         k = CTrans%q%points(q_ix)
         xf = k*r
-        bes_ix=BessRanges%IndexOf(xf)
-        x_hi = BessRanges%points(bes_ix+1)
-        dx = x_hi-BessRanges%points(bes_ix)
-        a2=(x_hi-xf)/dx
-        dlnk = CTrans%q%dpoints(q_ix) /k
+        bes_ix = BessRanges%IndexOf(xf)
+        x_hi = BessRanges%points(bes_ix + 1)
+        dx = x_hi - BessRanges%points(bes_ix)
+        a2 = (x_hi - xf)/dx
+        dlnk = CTrans%q%dpoints(q_ix)/k
         P = CP%InitPower%ScalarPower(k)*InternalScale  !!only first index for now
 
-        !ellmax = max(xf/(1-xlimfrac), xf + xlimmin) * CP%Accuracy%AccuracyBoost
+        ! ellmax = max(xf/(1-xlimfrac), xf + xlimmin) * CP%Accuracy%AccuracyBoost
         xsafe = max(xf, 1._dl)
-        ellmax = ceiling((xf + bjl_pre_peak_start_factor *xsafe**(1._dl/3._dl) + &
-            bjl_pre_peak_start_factor**2/(3._dl*xsafe**(1._dl/3._dl)) + 2._dl) * CP%Accuracy%AccuracyBoost)
-        kpow =  k**(ind(1)+3)
-        kpowP = k**indP(1) * P
-        do j=1,CTrans%ls%nl
+        ellmax = ceiling((xf + BJL_pre_peak_start_factor*xsafe**(1._dl/3._dl) + &
+            BJL_pre_peak_start_factor**2/(3._dl*xsafe**(1._dl/3._dl)) + 2._dl)*CP%Accuracy%AccuracyBoost)
+        kpow = k**(ind(1) + 3)
+        kpowP = k**indP(1)*P
+        do j = 1, CTrans%ls%nl
             if (CTrans%ls%l(j) <= ellmax) then
-                base = bessel_horner(1,bes_ix,j)
-                coeff1 = bessel_horner(2,bes_ix,j)
-                coeff2 = bessel_horner(3,bes_ix,j)
-                coeff3 = bessel_horner(4,bes_ix,j)
-                J_l = base + a2*(coeff1 + a2*(coeff2 + a2*coeff3)) !cubic spline in Horner form
-                term = CTrans%Delta_p_l_k(1,j,q_ix)*J_l*dlnk
-                res(j,1,1) = res(j,1,1) + term * kpow
-                resP(j,1,1) = resP(j,1,1) + term * kpowP
-                if (nfields>1) then
-                    !E pol
-                    term = CTrans%Delta_p_l_k(2,j,q_ix)*J_l*dlnk * TransferPolFac(CTrans%ls%l(j))
-                    res(j,1,2) = res(j,1,2) + term * kpow
-                    resP(j,1,2) = resP(j,1,2) + term * kpowP
-                    if (nfields>2) then
-                        !lensing potential
-                        term = CTrans%Delta_p_l_k(3,j,q_ix)*J_l*dlnk
-                        res(j,1,3) = res(j,1,3) + term * kpow
-                        resP(j,1,3) = resP(j,1,3) + term * kpowP
+                base = bessel_horner(1, bes_ix, j)
+                coeff1 = bessel_horner(2, bes_ix, j)
+                coeff2 = bessel_horner(3, bes_ix, j)
+                coeff3 = bessel_horner(4, bes_ix, j)
+                J_l = base + a2*(coeff1 + a2*(coeff2 + a2*coeff3)) ! cubic spline in Horner form
+                term = CTrans%Delta_p_l_k(1, j, q_ix)*J_l*dlnk
+                res(j, 1, 1) = res(j, 1, 1) + term*kpow
+                resP(j, 1, 1) = resP(j, 1, 1) + term*kpowP
+                if (nfields > 1) then
+                    ! E pol
+                    term = CTrans%Delta_p_l_k(2, j, q_ix)*J_l*dlnk*TransferPolFac(CTrans%ls%l(j))
+                    res(j, 1, 2) = res(j, 1, 2) + term*kpow
+                    resP(j, 1, 2) = resP(j, 1, 2) + term*kpowP
+                    if (nfields > 2) then
+                        ! lensing potential
+                        term = CTrans%Delta_p_l_k(3, j, q_ix)*J_l*dlnk
+                        res(j, 1, 3) = res(j, 1, 3) + term*kpow
+                        resP(j, 1, 3) = resP(j, 1, 3) + term*kpowP
                     end if
                 end if
 
             end if
         end do
     end do
-    resP = resP * const_fourpi
-    res = res * 2/const_pi
+    resP = resP*const_fourpi
+    res = res*2/const_pi
 
     end subroutine NonGauss_l_r_localOpt
 
-    subroutine NonGauss_l_r(CP,CTrans, ind, indP,res, resP,nfields, r)
-    !functions of the form int dk k^2 k^i j_l(kr) Delta_l(k) [P]
-    !ind and indP are arrays of required k^i powers
-    !res and resP are the results without and with the power spectrum P in the integrand
-    !Output of P scaled by 1d10 (so bispectrum by 1d20)
-    Class(CAMBParams) :: CP
-    Type(ClTransferData) :: CTrans
-    integer:: nfields
+    subroutine NonGauss_l_r(CP, CTrans, ind, indP, res, resP, nfields, r)
+    ! functions of the form int dk k^2 k^i j_l(kr) Delta_l(k) [P]
+    ! ind and indP are arrays of required k^i powers
+    ! res and resP are the results without and with the power spectrum P in the integrand
+    ! Output of P scaled by 1d10 (so bispectrum by 1d20)
+    class(CAMBParams) :: CP
+    type(ClTransferData) :: CTrans
+    integer :: nfields
     integer, intent(in) :: ind(:), indP(:)
-    real(dl) res(CTrans%ls%nl,size(ind),nfields), resP(CTrans%ls%nl,size(indP),nfields)
+    real(dl) res(CTrans%ls%nl, size(ind), nfields), resP(CTrans%ls%nl, size(indP), nfields)
     real(dl), intent(in) :: r
     integer q_ix, j, bes_ix, i
     integer n, nP, ellmax
-    real(dl) xf , J_l, a2, base, coeff1, coeff2, coeff3, dx, k, dlnk, term, P, kpow(size(ind)), &
+    real(dl) xf, J_l, a2, base, coeff1, coeff2, coeff3, dx, k, dlnk, term, P, kpow(size(ind)), &
         kpow2(size(indP)), x_hi, xsafe
 
     if (shape == shape_local) then
-        call NonGauss_l_r_localOpt(CP,CTrans, ind, indP,res, resP, nfields, r)
+        call NonGauss_l_r_localOpt(CP, CTrans, ind, indP, res, resP, nfields, r)
         return
     end if
 
     n = size(ind)
-    nP =size(indP)
-    res=0
+    nP = size(indP)
+    res = 0
     resP = 0
     do q_ix = 1, CTrans%q%npoints
         k = CTrans%q%points(q_ix)
         xf = k*r
-        bes_ix=BessRanges%IndexOf(xf)
-        x_hi = BessRanges%points(bes_ix+1)
-        dx = x_hi-BessRanges%points(bes_ix)
-        a2=(x_hi-xf)/dx
-        dlnk = CTrans%q%dpoints(q_ix) /k
+        bes_ix = BessRanges%IndexOf(xf)
+        x_hi = BessRanges%points(bes_ix + 1)
+        dx = x_hi - BessRanges%points(bes_ix)
+        a2 = (x_hi - xf)/dx
+        dlnk = CTrans%q%dpoints(q_ix)/k
         P = CP%InitPower%ScalarPower(k)*InternalScale  !!only first index for now
 
-        !ellmax = max(xf/(1-xlimfrac), xf + xlimmin) * CP%Accuracy%AccuracyBoost
+        ! ellmax = max(xf/(1-xlimfrac), xf + xlimmin) * CP%Accuracy%AccuracyBoost
         xsafe = max(xf, 1._dl)
-        ellmax = ceiling((xf + bjl_pre_peak_start_factor *xsafe**(1._dl/3._dl) + &
-            bjl_pre_peak_start_factor**2/(3._dl*xsafe**(1._dl/3._dl)) + 2._dl) * CP%Accuracy%AccuracyBoost)
-        do i=1,n
-            kpow(i)=k**(ind(i)+3)
+        ellmax = ceiling((xf + BJL_pre_peak_start_factor*xsafe**(1._dl/3._dl) + &
+            BJL_pre_peak_start_factor**2/(3._dl*xsafe**(1._dl/3._dl)) + 2._dl)*CP%Accuracy%AccuracyBoost)
+        do i = 1, n
+            kpow(i) = k**(ind(i) + 3)
         end do
-        do i=1,nP
-            kpow2(i)=k**indP(i) * P
+        do i = 1, nP
+            kpow2(i) = k**indP(i)*P
         end do
 
-        do j=1,CTrans%ls%nl
+        do j = 1, CTrans%ls%nl
             if (CTrans%ls%l(j) <= ellmax) then
 
-                base = bessel_horner(1,bes_ix,j)
-                coeff1 = bessel_horner(2,bes_ix,j)
-                coeff2 = bessel_horner(3,bes_ix,j)
-                coeff3 = bessel_horner(4,bes_ix,j)
-                J_l = base + a2*(coeff1 + a2*(coeff2 + a2*coeff3)) !cubic spline in Horner form
-                !call BJL(CTrans%ls%l(j), xf, J_l)
-                term = CTrans%Delta_p_l_k(1,j,q_ix)*J_l*dlnk
-                do i=1,n
-                    res(j,i,1) = res(j,i,1) + term *kpow(i)
+                base = bessel_horner(1, bes_ix, j)
+                coeff1 = bessel_horner(2, bes_ix, j)
+                coeff2 = bessel_horner(3, bes_ix, j)
+                coeff3 = bessel_horner(4, bes_ix, j)
+                J_l = base + a2*(coeff1 + a2*(coeff2 + a2*coeff3)) ! cubic spline in Horner form
+                ! call BJL(CTrans%ls%l(j), xf, J_l)
+                term = CTrans%Delta_p_l_k(1, j, q_ix)*J_l*dlnk
+                do i = 1, n
+                    res(j, i, 1) = res(j, i, 1) + term*kpow(i)
                 end do
-                do i=1,nP
-                    resP(j,i,1) = resP(j,i,1) + term * kpow2(i)
+                do i = 1, nP
+                    resP(j, i, 1) = resP(j, i, 1) + term*kpow2(i)
                 end do
                 !     if (CTrans%ls%l(j)==8) write (1,'(9D20.7)') &
                 !      k, xf, real(term * k**3/dlnk), real(term * k**indP(1) * P), &
                 !      real(res(j,1)),real(resP(j,1)), J_l, real(term), real(CTrans%Delta_p_l_k(1,j,q_ix))
-                if (nfields>1) then
-                    !E pol
-                    term = CTrans%Delta_p_l_k(2,j,q_ix)*J_l*dlnk* TransferPolFac(CTrans%ls%l(j))
-                    do i=1,n
-                        res(j,i,2) = res(j,i,2) + term *kpow(i)
+                if (nfields > 1) then
+                    ! E pol
+                    term = CTrans%Delta_p_l_k(2, j, q_ix)*J_l*dlnk*TransferPolFac(CTrans%ls%l(j))
+                    do i = 1, n
+                        res(j, i, 2) = res(j, i, 2) + term*kpow(i)
                     end do
-                    do i=1,nP
-                        resP(j,i,2) = resP(j,i,2) + term * kpow2(i)
+                    do i = 1, nP
+                        resP(j, i, 2) = resP(j, i, 2) + term*kpow2(i)
                     end do
-                    if (nfields>2) then
-                        !lensing potential
-                        term = CTrans%Delta_p_l_k(3,j,q_ix)*J_l*dlnk
-                        do i=1,n
-                            res(j,i,3) = res(j,i,3) + term *kpow(i)
+                    if (nfields > 2) then
+                        ! lensing potential
+                        term = CTrans%Delta_p_l_k(3, j, q_ix)*J_l*dlnk
+                        do i = 1, n
+                            res(j, i, 3) = res(j, i, 3) + term*kpow(i)
                         end do
-                        do i=1,nP
-                            resP(j,i,3) = resP(j,i,3) + term * kpow2(i)
+                        do i = 1, nP
+                            resP(j, i, 3) = resP(j, i, 3) + term*kpow2(i)
                         end do
                     end if
                 end if
@@ -262,14 +263,13 @@
             end if
         end do
     end do
-    resP = resP * const_fourpi
-    res = res * 2/const_pi
+    resP = resP*const_fourpi
+    res = res*2/const_pi
 
     end subroutine NonGauss_l_r
 
-
     subroutine Bispectrum_InitResult(Result)
-    Type(TBispectrumResult) :: Result
+    type(TBispectrumResult) :: Result
 
     Result%nbispectra = 0
     Result%nfields = 0
@@ -284,11 +284,10 @@
 
     end subroutine Bispectrum_InitResult
 
-
-    subroutine GetBispectrum(State,CTrans, Params, Result, outroot)
-    !Note: may need high maxetak to make sure oscillatory k integrals cancel correctly
-    !for accurate alpha(r), beta(r), e.g. 8000; not so important for bispectrum
-    !increase accuracy_boost
+    subroutine GetBispectrum(State, CTrans, Params, Result, outroot)
+    ! Note: may need high maxetak to make sure oscillatory k integrals cancel correctly
+    ! for accurate alpha(r), beta(r), e.g. 8000; not so important for bispectrum
+    ! increase accuracy_boost
     use lensing
     use constants
     use RangeUtils
@@ -298,74 +297,74 @@
 #ifdef FISHER
     use MatrixUtils
 #endif
-    Class(CAMBdata), target :: State
-    !fnl, lensing
-    Type(ClTransferData) :: CTrans
-    Type(TBispectrumParams), optional, intent(in) :: Params
-    Type(TBispectrumResult), optional :: Result
-    character(LEN=*), optional, intent(in) :: outroot
-    Type(TBispectrumParams) :: ThisParams
-    character(LEN=1024) :: ThisOutputRoot
+    class(CAMBdata), target :: State
+    ! fnl, lensing
+    type(ClTransferData) :: CTrans
+    type(TBispectrumParams), intent(in), optional :: Params
+    type(TBispectrumResult), optional :: Result
+    character(len=*), intent(in), optional :: outroot
+    type(TBispectrumParams) :: ThisParams
+    character(len=1024) :: ThisOutputRoot
     type(TRanges) :: TimeStepsNongauss
-    integer, allocatable ::  ind(:), indP(:), indPd(:)
-    real(dl), allocatable :: res(:,:,:), resP(:,:,:), resPd(:,:)
-    real(dl), allocatable :: res_l(:,:,:), resP_l(:,:,:), resPd_l(:,:)
+    integer, allocatable :: ind(:), indP(:), indPd(:)
+    real(dl), allocatable :: res(:, :, :), resP(:, :, :), resPd(:, :)
+    real(dl), allocatable :: res_l(:, :, :), resP_l(:, :, :), resPd_l(:, :)
     real(dl) r, term
-    Type(TBispectrum), target,allocatable :: Bispectra(:,:,:,:), OddBispectra (:)
-    !TTT, TTE, etc; last index is bispectrum kind, default 1=fnl, 2=lensing
-    !OddBispectra are parity odd terms like TEB (if do_parity_odd requested for lensing)
-    Type(TBispectrum), pointer :: Bispectrum
-    !For use in Fisher approximations
+    type(TBispectrum), target, allocatable :: Bispectra(:, :, :, :), OddBispectra (:)
+    ! TTT, TTE, etc; last index is bispectrum kind, default 1=fnl, 2=lensing
+    ! OddBispectra are parity odd terms like TEB (if do_parity_odd requested for lensing)
+    type(TBispectrum), pointer :: Bispectrum
+    ! For use in Fisher approximations
     real(dl) test(CTrans%ls%lmin:CTrans%ls%l(CTrans%ls%nl))
-    integer i, j, l1,l2,l3, il1, n,np, npd
+    integer i, j, l1, l2, l3, il1, n, np, npd
     integer min_l, max_l, lmin, lmax
     real(dl) tmp, tmp1, tmp2, tmp3
-    real(dl) a3j(0:CTrans%ls%l(CTrans%ls%nl)*2+1)
-    real(dl) a3j2(0:CTrans%ls%l(CTrans%ls%nl)*2+1,4,2)
-    real(dl) CLForLensingIn(4,CTrans%ls%lmin:CTrans%ls%l(CTrans%ls%nl))
-    real(dl) CPhi(3,CTrans%ls%lmin:CTrans%ls%l(CTrans%ls%nl))
-    Type(lSamples) :: SampleL
+    real(dl) a3j(0:CTrans%ls%l(CTrans%ls%nl)*2 + 1)
+    real(dl) a3j2(0:CTrans%ls%l(CTrans%ls%nl)*2 + 1, 4, 2)
+    real(dl) CLForLensingIn(4, CTrans%ls%lmin:CTrans%ls%l(CTrans%ls%nl))
+    real(dl) CPhi(3, CTrans%ls%lmin:CTrans%ls%l(CTrans%ls%nl))
+    type(lSamples) :: SampleL
     integer, allocatable :: ls(:)
     real(dl) Bscale
-    integer field, field1,field2,field3, bi_ix,bix
-    Type(TCov2), allocatable :: CForLensing(:)
+    integer field, field1, field2, field3, bi_ix, bix
+    type(TCov2), allocatable :: CForLensing(:)
     integer nfields, nbispectra, bispectrum_type
     integer :: fnl_bispectrum_ix = 1
     integer :: lens_bispectrum_ix = 2
-    character(LEN=256) ::  file_tag = ''
+    character(len=256) :: file_tag = ''
     integer idelta, fileid
-    character(LEN=26) :: BispectrumNames(max_bispectra)
+    character(len=26) :: BispectrumNames(max_bispectra)
     integer :: parities(3), oddix
     integer, parameter :: lmax_lensing_corrT = 300
-    !assume C^{T\psi} zero above this for CMB lensing; also neglect lensing contributions to variance
-    integer, parameter :: lmax_lensing_corrE = 40 !assume C^{E\psi} zero above this for CMB lensing
+    ! assume C^{T\psi} zero above this for CMB lensing; also neglect lensing contributions to variance
+    integer, parameter :: lmax_lensing_corrE = 40 ! assume C^{E\psi} zero above this for CMB lensing
 
     integer, parameter :: first_order_unlensed = 1, first_order_lensed = 2
     integer, parameter :: lens_bispectrum_approx = first_order_lensed
 #ifdef FISHER
-    Type(TBispectrum), pointer :: Bispectrum2
-    real(dl), allocatable :: Cl(:,:)
-    real(dl)  a3j_00(0:CTrans%ls%l(CTrans%ls%nl)*2+1)
+    type(TBispectrum), pointer :: Bispectrum2
+    real(dl), allocatable :: Cl(:, :)
+    real(dl) a3j_00(0:CTrans%ls%l(CTrans%ls%nl)*2 + 1)
     integer lstart
     real(dl) Noise, NoiseP, bias
-    real(dl), allocatable:: fish_contribs(:,:,:)
+    real(dl), allocatable :: fish_contribs(:, :, :)
     real(dl), allocatable :: fish_contribs_sig(:)
-    real(dl), allocatable :: ifish_contribs(:,:,:,:,:), Fisher(:,:), tmpFisher(:,:),OptimalFisher(:,:)
-    real(dl), allocatable :: tmpBigFisher(:,:), Fisher_L1(:,:,:),tmpProjFisher(:,:)
-    real(dl), allocatable :: fish_l1(:,:,:,:), fish_L_ij(:,:), fish_L_noise(:,:)
-    Type(TBispectrum), target,allocatable :: SqueezedLensingKernel(:,:)
+    real(dl), allocatable :: ifish_contribs(:, :, :, :, :), Fisher(:, :), tmpFisher(:, :), OptimalFisher(:, :)
+    real(dl), allocatable :: tmpBigFisher(:, :), Fisher_L1(:, :, :), tmpProjFisher(:, :)
+    real(dl), allocatable :: fish_l1(:, :, :, :), fish_L_ij(:, :), fish_L_noise(:, :)
+    type(TBispectrum), target, allocatable :: SqueezedLensingKernel(:, :)
     real(dl) sigma2, xlc, tmpf(3)
-    integer  f1,f2,f3, minl2,bigi,bigj, bispectrum_type2, lmaxcuti
-    integer sz,corrsize
-    Type(TCov), allocatable :: InvC(:)
-    integer ix1,ix2
+    integer f1, f2, f3, minl2, bigi, bigj, bispectrum_type2, lmaxcuti
+    integer sz, corrsize
+    type(TCov), allocatable :: InvC(:)
+    integer ix1, ix2
 #endif
     type(TTextFile) :: file_alpha, file_beta, file_alpha_beta_r
     type(TTextFile), allocatable, dimension(:) :: slice_bispectrum_files, full_bispectrum_files
-    Type(CAMBParams), pointer :: CP
-    Type(TTimer) :: Timer
+    type(CAMBParams), pointer :: CP
+    type(TTimer) :: Timer
 
-    CP =>State%CP
+    CP => State%CP
     if (present(Params)) then
         ThisParams = Params
     else
@@ -375,75 +374,74 @@
     if (present(outroot)) ThisOutputRoot = outroot
     if (present(Result)) call Bispectrum_InitResult(Result)
 
-    parities(1)=1  !T
-    parities(2)=1  !E
-    parities(3)=-1 !B
-
+    parities(1) = 1 ! T
+    parities(2) = 1 ! E
+    parities(3) = -1 ! B
 
     if (ThisParams%do_primordial_bispectrum) then
         fnl_bispectrum_ix = 1
-        nbispectra=1
-        BispectrumNames(fnl_bispectrum_ix)='fnl'
+        nbispectra = 1
+        BispectrumNames(fnl_bispectrum_ix) = 'fnl'
     else
         fnl_bispectrum_ix = 0
-        nbispectra=0
+        nbispectra = 0
     end if
     if (ThisParams%do_lensing_bispectrum) then
-        lens_bispectrum_ix = fnl_bispectrum_ix+1
-        nbispectra=nbispectra+1
-        BispectrumNames(lens_bispectrum_ix)='lensing'
+        lens_bispectrum_ix = fnl_bispectrum_ix + 1
+        nbispectra = nbispectra + 1
+        BispectrumNames(lens_bispectrum_ix) = 'lensing'
     end if
-    if (nbispectra>max_bispectra) call MpiStop('check max_bispectra')
+    if (nbispectra > max_bispectra) call MpiStop('check max_bispectra')
 
-    nfields=ThisParams%nfields
+    nfields = ThisParams%nfields
     if (present(Result)) then
         Result%nbispectra = nbispectra
         Result%nfields = nfields
     end if
 
-    if (CP%Accuracy%lSampleBoost <50) call MpiStop('Bispectrum assumes lSampleBoost=50 (all L sampled)')
+    if (CP%Accuracy%lSampleBoost < 50) call MpiStop('Bispectrum assumes lSampleBoost=50 (all L sampled)')
 
-    if (lens_bispectrum_approx == first_order_unlensed) file_tag='_unlens'
+    if (lens_bispectrum_approx == first_order_unlensed) file_tag = '_unlens'
 
     lmax = CTrans%ls%l(CTrans%ls%nl)
     lmin = CTrans%ls%lmin
-    if (CP%DoLensing) lmax = State%CLData%lmax_lensed
-    SampleL%lmin=2
+    if (CP%DoLensing) lmax = State%CLdata%lmax_lensed
+    SampleL%lmin = 2
     allocate(ls(lmax))
-    SampleL%nl=0
-    l1=1
+    SampleL%nl = 0
+    l1 = 1
     do
-        if (l1<=lmax_lensing_corrE) then
-            l1 = l1+1
-        else if (l1<120) then
-            l1 =l1+nint(7/CP%Accuracy%AccuracyBoost)
+        if (l1 <= lmax_lensing_corrE) then
+            l1 = l1 + 1
+        else if (l1 < 120) then
+            l1 = l1 + nint(7/CP%Accuracy%AccuracyBoost)
         else
-            l1 =l1+nint(50/CP%Accuracy%AccuracyBoost)
+            l1 = l1 + nint(50/CP%Accuracy%AccuracyBoost)
         end if
-        if (l1>lmax) then
-            l1 =lmax
+        if (l1 > lmax) then
+            l1 = lmax
         end if
-        if (ThisParams%Slice_Base_L>0 .and. SampleL%nl>0) then
-            !Make sure requested slice base is actually calculated
-            if ( ThisParams%Slice_Base_L <l1 .and. ThisParams%Slice_Base_L>ls(SampleL%nl)) then
-                SampleL%nl= SampleL%nl + 1
+        if (ThisParams%Slice_Base_L > 0 .and. SampleL%nl > 0) then
+            ! Make sure requested slice base is actually calculated
+            if (ThisParams%Slice_Base_L < l1 .and. ThisParams%Slice_Base_L > ls(SampleL%nl)) then
+                SampleL%nl = SampleL%nl + 1
                 ls(SampleL%nl) = ThisParams%Slice_Base_L
             end if
         end if
-        SampleL%nl= SampleL%nl + 1
+        SampleL%nl = SampleL%nl + 1
         ls(SampleL%nl) = l1
         if (l1 == lmax) exit
     end do
     allocate(SampleL%l, source=ls(1:SampleL%nl))
 
-    allocate(Bispectra(nfields,nfields,nfields,nbispectra))
-    do field1=1,nfields
-        do field2=1,nfields
-            do field3=1,nfields
-                !Only store l2,l3 that are non-zero, array size is approx
-                do bispectrum_type=1,nbispectra
-                    allocate(Bispectra(field1,field2,field3,bispectrum_type)%b((lmax*(lmax+1))/4,SampleL%nl))
-                    Bispectra(field1,field2,field3,bispectrum_type)%b=0
+    allocate(Bispectra(nfields, nfields, nfields, nbispectra))
+    do field1 = 1, nfields
+        do field2 = 1, nfields
+            do field3 = 1, nfields
+                ! Only store l2,l3 that are non-zero, array size is approx
+                do bispectrum_type = 1, nbispectra
+                    allocate(Bispectra(field1, field2, field3, bispectrum_type)%b((lmax*(lmax + 1))/4, SampleL%nl))
+                    Bispectra(field1, field2, field3, bispectrum_type)%b = 0
                 end do
             end do
         end do
@@ -452,94 +450,94 @@
     if (ThisParams%do_lensing_bispectrum) then
 
         if (.not. CP%DoLensing) call MpiStop('Must turn on lensing to get lensing bispectra')
-        print *,'Getting lensing reduced bispectra'
+        print *, 'Getting lensing reduced bispectra'
 
         allocate(CForLensing(lmax))
 
-        CPhi=0
-        do i=lmin,lmax
-            CPhi(1,i) = State%CLData%Cl_scalar(i,C_Phi)/real(i,dl)**4 * InternalScale
-            !set correlations to zero where very small to avoid numerical issues
-            if (i<=lmax_lensing_corrT) then
-                CPhi(2,i) = State%CLData%Cl_scalar(i,C_PhiTemp) /real(i,dl)**3 * InternalScale
+        CPhi = 0
+        do i = lmin, lmax
+            CPhi(1, i) = State%CLdata%Cl_scalar(i, C_Phi)/real(i, dl)**4*InternalScale
+            ! set correlations to zero where very small to avoid numerical issues
+            if (i <= lmax_lensing_corrT) then
+                CPhi(2, i) = State%CLdata%Cl_scalar(i, C_PhiTemp)/real(i, dl)**3*InternalScale
             end if
-            if (i<=lmax_lensing_corrE) then
-                CPhi(3,i) = State%CLData%Cl_scalar(i,C_PhiE) /real(i,dl)**3 * InternalScale
+            if (i <= lmax_lensing_corrE) then
+                CPhi(3, i) = State%CLdata%Cl_scalar(i, C_PhiE)/real(i, dl)**3*InternalScale
             end if
-            tmp = i*(i+1)/const_twopi
-            CLForLensingIn(:,i) = State%CLData%CL_lensed(i,CT_Temp:CT_Cross) * InternalScale/tmp
-            ! CForLensing(i)%C=0
-            CForLensing(i)%C(1,1)=CLForLensingIn(1,i)
-            CForLensing(i)%C(1,2)=CLForLensingIn(4,i)
-            CForLensing(i)%C(2,1)=CLForLensingIn(4,i)
-            CForLensing(i)%C(2,2)=CLForLensingIn(2,i)
-            ! CForLensing(i)%C(3,3)=CL_lensed(i,1,CT_B) * InternalScale/tmp
+            tmp = i*(i + 1)/const_twopi
+            CLForLensingIn(:, i) = State%CLdata%Cl_lensed(i, CT_Temp:CT_Cross)*InternalScale/tmp
+            ! CForLensing(i)%C = 0
+            CForLensing(i)%C(1, 1) = CLForLensingIn(1, i)
+            CForLensing(i)%C(1, 2) = CLForLensingIn(4, i)
+            CForLensing(i)%C(2, 1) = CLForLensingIn(4, i)
+            CForLensing(i)%C(2, 2) = CLForLensingIn(2, i)
+            ! CForLensing(i)%C(3,3) = CL_lensed(i,1,CT_B) * InternalScale/tmp
         end do
 
 #ifdef FISHER
-        allocate(SqueezedLensingKernel(nfields,nfields))
-        do field2=1,nfields
-            do field3=1,nfields
-                allocate(SqueezedLensingKernel(field2,field3)%b((lmax*(lmax+1))/4,SampleL%nl))
-                SqueezedLensingKernel(field2,field3)%b=0
+        allocate(SqueezedLensingKernel(nfields, nfields))
+        do field2 = 1, nfields
+            do field3 = 1, nfields
+                allocate(SqueezedLensingKernel(field2, field3)%b((lmax*(lmax + 1))/4, SampleL%nl))
+                SqueezedLensingKernel(field2, field3)%b = 0
             end do
         end do
 #endif
         if (DebugMsgs) call Timer%Start()
 
-        !$OMP PARALLEL DO DEFAULT(SHARED), SCHEDULE(STATIC,3), &
+        !$OMP PARALLEL DO DEFAULT(SHARED), SCHEDULE(STATIC, 3), &
         !$OMP PRIVATE(l1, l2, l3, max_l, min_l, bix, bi_ix, tmp1, tmp2, tmp3), &
         !$OMP PRIVATE(field1, field2, field3, Bispectrum, a3j, a3j2)
-        do il1= 1, SampleL%nl
+        do il1 = 1, SampleL%nl
             l1 = SampleL%l(il1)
-            if (l1 > lmax_lensing_corrT) cycle !no exit in parallel loop
-            tmp1=l1*(l1+1)
-            bi_ix=0
-            do l2= max(lmin,l1), lmax
-                tmp2= l2*(l2+1)
-                min_l = max(abs(l1-l2),l2)
-                if (mod(l1+l2+min_l,2)/=0) then
-                    min_l = min_l+1
+            if (l1 > lmax_lensing_corrT) cycle ! no exit in parallel loop
+            tmp1 = l1*(l1 + 1)
+            bi_ix = 0
+            do l2 = max(lmin, l1), lmax
+                tmp2 = l2*(l2 + 1)
+                min_l = max(abs(l1 - l2), l2)
+                if (mod(l1 + l2 + min_l, 2) /= 0) then
+                    min_l = min_l + 1
                 end if
-                max_l = min(lmax,l1+l2)
-                bix=bi_ix
-                a3j2(:,:,1)=0.5d0
-                if (nfields>1) then
-                    call GetThreeJs(a3j(abs(l2-l1)),l1,l2,0,0)
-                    call GetThreeJs(a3j2(max(2,abs(l2-l1)),1,2),l1,l2,2,0)
-                    call GetThreeJs(a3j2(max(2,abs(l2-l1)),2,2),l1,l2,0,2)
-                    call GetThreeJs(a3j2(max(0,abs(l2-l1)),3,2),l1,l2,2,-2)
-                    do l3=min_l,max_l ,2
-                        a3j2(l3,:,2) = a3j2(l3,:,2)/a3j(l3)*0.5d0
+                max_l = min(lmax, l1 + l2)
+                bix = bi_ix
+                a3j2(:, :, 1) = 0.5d0
+                if (nfields > 1) then
+                    call GetThreeJs(a3j(abs(l2 - l1)), l1, l2, 0, 0)
+                    call GetThreeJs(a3j2(max(2, abs(l2 - l1)), 1, 2), l1, l2, 2, 0)
+                    call GetThreeJs(a3j2(max(2, abs(l2 - l1)), 2, 2), l1, l2, 0, 2)
+                    call GetThreeJs(a3j2(max(0, abs(l2 - l1)), 3, 2), l1, l2, 2, -2)
+                    do l3 = min_l, max_l, 2
+                        a3j2(l3, :, 2) = a3j2(l3, :, 2)/a3j(l3)*0.5d0
                     end do
                 end if
-                do field1=1,nfields
-                    do field2=1,nfields
-                        do field3=1,nfields
-                            Bispectrum=> Bispectra(field1,field2,field3, lens_bispectrum_ix)
-                            bi_ix=bix
-                            do l3=min_l,max_l ,2
-                                bi_ix=bi_ix+1
-                                tmp3=l3*(l3+1)
-                                !bispectrum is the reduced bispectrum
+                do field1 = 1, nfields
+                    do field2 = 1, nfields
+                        do field3 = 1, nfields
+                            Bispectrum => Bispectra(field1, field2, field3, lens_bispectrum_ix)
+                            bi_ix = bix
+                            do l3 = min_l, max_l, 2
+                                bi_ix = bi_ix + 1
+                                tmp3 = l3*(l3 + 1)
+                                ! bispectrum is the reduced bispectrum
 #ifdef FISHER
-                                if (field1==1) then
-                                    SqueezedLensingKernel(field2,field3)%b(bi_ix,il1)=  &
-                                        (-tmp2+tmp3+tmp1)*(a3j2(l3,2,field2)*CForLensing(l3)%C(field2,field3)) + &
-                                        (-tmp3+tmp1+tmp2)*(a3j2(l3,2,field3)*CForLensing(l2)%C(field3,field2))
+                                if (field1 == 1) then
+                                    SqueezedLensingKernel(field2, field3)%b(bi_ix, il1) = (-tmp2 + tmp3 + tmp1)* &
+                                        (a3j2(l3, 2, field2)*CForLensing(l3)%C(field2, field3)) + &
+                                        (-tmp3 + tmp1 + tmp2)*(a3j2(l3, 2, field3)*CForLensing(l2)%C(field3, field2))
                                 end if
 #endif
 
-                                Bispectrum%b(bi_ix,il1)=  &
-                                    (-tmp1+tmp2+tmp3) *  &
-                                    (a3j2(l3,1,field1)*CPhi(1+field2,l2)*CForLensing(l3)%C(field1,field3) + &
-                                    a3j2(l3,3,field1)*CPhi(1+field3,l3)*CForLensing(l2)%C(field1,field2) ) + &
-                                    (-tmp2+tmp3+tmp1)* &
-                                    (a3j2(l3,3,field2)*CPhi(1+field3,l3)*CForLensing(l1)%C(field2,field1) + &
-                                    a3j2(l3,2,field2)*CPhi(1+field1,l1)*CForLensing(l3)%C(field2,field3) ) + &
-                                    (-tmp3+tmp1+tmp2)* &
-                                    (a3j2(l3,2,field3)*CPhi(1+field1,l1)*CForLensing(l2)%C(field3,field2) + &
-                                    a3j2(l3,1,field3)*CPhi(1+field2,l2)*CForLensing(l1)%C(field3,field1) )
+                                Bispectrum%b(bi_ix, il1) = &
+                                    (-tmp1 + tmp2 + tmp3)* &
+                                    (a3j2(l3, 1, field1)*CPhi(1 + field2, l2)*CForLensing(l3)%C(field1, field3) + &
+                                    a3j2(l3, 3, field1)*CPhi(1 + field3, l3)*CForLensing(l2)%C(field1, field2)) + &
+                                    (-tmp2 + tmp3 + tmp1)* &
+                                    (a3j2(l3, 3, field2)*CPhi(1 + field3, l3)*CForLensing(l1)%C(field2, field1) + &
+                                    a3j2(l3, 2, field2)*CPhi(1 + field1, l1)*CForLensing(l3)%C(field2, field3)) + &
+                                    (-tmp3 + tmp1 + tmp2)* &
+                                    (a3j2(l3, 2, field3)*CPhi(1 + field1, l1)*CForLensing(l2)%C(field3, field2) + &
+                                    a3j2(l3, 1, field3)*CPhi(1 + field2, l2)*CForLensing(l1)%C(field3, field1))
 
                             end do
                         end do
@@ -551,79 +549,82 @@
 
         if (DebugMsgs) call Timer%WriteTime('Time for lensing:')
 
-        if (nfields==1) ThisParams%do_parity_odd=.false.
+        if (nfields == 1) ThisParams%do_parity_odd = .false.
 
         if (ThisParams%do_parity_odd) then
 
             allocate(OddBispectra(12))
-            oddix=0
-            do field1=1,3
-                do field2=1,3
-                    do field3=1,3
-                        if (parities(field1)+parities(field2)+parities(field3)/=1) cycle
-                        oddix=oddix+1
-                        !Only store l2,l3 that are non-zero, array size is approx
-                        allocate(OddBispectra(oddix)%b((lmax*(lmax+1))/4,SampleL%nl))
-                        OddBispectra(oddix)%b=0
+            oddix = 0
+            do field1 = 1, 3
+                do field2 = 1, 3
+                    do field3 = 1, 3
+                        if (parities(field1) + parities(field2) + parities(field3) /= 1) cycle
+                        oddix = oddix + 1
+                        ! Only store l2,l3 that are non-zero, array size is approx
+                        allocate(OddBispectra(oddix)%b((lmax*(lmax + 1))/4, SampleL%nl))
+                        OddBispectra(oddix)%b = 0
                     end do
                 end do
             end do
 
-            !$OMP PARALLEL DO DEFAULT(SHARED), SCHEDULE(STATIC,3), &
+            !$OMP PARALLEL DO DEFAULT(SHARED), SCHEDULE(STATIC, 3), &
             !$OMP PRIVATE(l1, l2, l3, max_l, min_l, bix, bi_ix, tmp1, tmp2, tmp3), &
             !$OMP PRIVATE(field1, field2, field3, Bispectrum, a3j2, oddix)
-            do il1= 1, SampleL%nl
+            do il1 = 1, SampleL%nl
                 l1 = SampleL%l(il1)
-                if (l1 > lmax_lensing_corrT) cycle !no exit in parallel loop
-                tmp1=l1*(l1+1)
-                bi_ix=0
-                do l2= max(lmin,l1), lmax
-                    tmp2=l2*(l2+1)
-                    min_l = max(abs(l1-l2),l2)
-                    if (mod(l1+l2+min_l,2)/=1) then
-                        min_l = min_l+1
+                if (l1 > lmax_lensing_corrT) cycle ! no exit in parallel loop
+                tmp1 = l1*(l1 + 1)
+                bi_ix = 0
+                do l2 = max(lmin, l1), lmax
+                    tmp2 = l2*(l2 + 1)
+                    min_l = max(abs(l1 - l2), l2)
+                    if (mod(l1 + l2 + min_l, 2) /= 1) then
+                        min_l = min_l + 1
                     end if
-                    max_l = min(lmax,l1+l2)
-                    bix=bi_ix
+                    max_l = min(lmax, l1 + l2)
+                    bix = bi_ix
 
-                    a3j2(:,:,1)=0.5d0
-                    call GetThreeJs(a3j2(max(2,abs(l2-l1)),1,2),l1,l2,2,0)
-                    call GetThreeJs(a3j2(max(2,abs(l2-l1)),2,2),l1,l2,0,2)
-                    call GetThreeJs(a3j2(max(0,abs(l2-l1)),3,2),l1,l2,2,-2)
-                    do l3=min_l,max_l ,2
-                        a3j2(l3,:,2) = a3j2(l3,:,2)*0.5d0*sqrt(real((2*L1+1)*(2*L2+1),dl)*(2*L3+1)/(3.1415926535*4))
+                    a3j2(:, :, 1) = 0.5d0
+                    call GetThreeJs(a3j2(max(2, abs(l2 - l1)), 1, 2), l1, l2, 2, 0)
+                    call GetThreeJs(a3j2(max(2, abs(l2 - l1)), 2, 2), l1, l2, 0, 2)
+                    call GetThreeJs(a3j2(max(0, abs(l2 - l1)), 3, 2), l1, l2, 2, -2)
+                    do l3 = min_l, max_l, 2
+                        a3j2(l3, :, 2) = &
+                            a3j2(l3, :, 2)*0.5d0*sqrt(real((2*l1 + 1)*(2*l2 + 1), dl)*(2*l3 + 1)/(3.1415926535*4))
                     end do
 
+                    oddix = 0
+                    do field1 = 1, 3
+                        do field2 = 1, 3
+                            do field3 = 1, 3
+                                ! Only calculate terms with one B
+                                if (parities(field1) + parities(field2) + parities(field3) /= 1) cycle
+                                oddix = oddix + 1
+                                Bispectrum => OddBispectra(oddix)
+                                bi_ix = bix
+                                do l3 = min_l, max_l, 2
+                                    bi_ix = bi_ix + 1
 
-                    oddix=0
-                    do field1=1,3
-                        do field2=1,3
-                            do field3=1,3
-                                !Only calculate terms with one B
-                                if (parities(field1)+parities(field2)+parities(field3)/=1) cycle
-                                oddix=oddix+1
-                                Bispectrum=> OddBispectra(oddix)
-                                bi_ix=bix
-                                do l3=min_l,max_l ,2
-                                    bi_ix=bi_ix+1
-
-                                    tmp3=l3*(l3+1)
-                                    !bispectrum the non-reduced bispectrum without the i
-                                    if (parities(field1)==-1) then
-                                        Bispectrum%b(bi_ix,il1)=  &
-                                            (-tmp1+tmp2+tmp3) *  &
-                                            (a3j2(l3,1,min(2,field1))*CPhi(1+field2,l2)*CForLensing(l3)%C(2,field3)  &
-                                            -a3j2(l3,3,min(2,field1))*CPhi(1+field3,l3)*CForLensing(l2)%C(2,field2) )
-                                    elseif (parities(field2)==-1) then
-                                        Bispectrum%b(bi_ix,il1)=  &
-                                            (-tmp2+tmp3+tmp1)* &
-                                            (-a3j2(l3,3,min(2,field2))*CPhi(1+field3,l3)*CForLensing(l1)%C(2,field1)  &
-                                            -a3j2(l3,2,min(2,field2))*CPhi(1+field1,l1)*CForLensing(l3)%C(2,field3) )
-                                    else if (parities(field3)==-1) then
-                                        Bispectrum%b(bi_ix,il1)=  &
-                                            (-tmp3+tmp1+tmp2)* &
-                                            (-a3j2(l3,2,min(2,field3))*CPhi(1+field1,l1)*CForLensing(l2)%C(2,field2) + &
-                                            a3j2(l3,1,min(2,field3))*CPhi(1+field2,l2)*CForLensing(l1)%C(2,field1) )
+                                    tmp3 = l3*(l3 + 1)
+                                    ! bispectrum the non-reduced bispectrum without the i
+                                    if (parities(field1) == -1) then
+                                        Bispectrum%b(bi_ix, il1) = (-tmp1 + tmp2 + tmp3)* &
+                                            (a3j2(l3, 1, min(2, field1))*CPhi(1 + field2, l2)* &
+                                            CForLensing(l3)%C(2, field3) - &
+                                            a3j2(l3, 3, min(2, field1))*CPhi(1 + field3, l3)* &
+                                            CForLensing(l2)%C(2, field2))
+                                    else if (parities(field2) == -1) then
+                                        Bispectrum%b(bi_ix, il1) = (-tmp2 + tmp3 + tmp1)* &
+                                            (-a3j2(l3, 3, min(2, field2))*CPhi(1 + field3, l3)* &
+                                            CForLensing(l1)%C(2, field1) - &
+                                            a3j2(l3, 2, min(2, field2))*CPhi(1 + field1, l1)* &
+                                            CForLensing(l3)%C(2, field3))
+                                    else if (parities(field3) == -1) then
+                                        Bispectrum%b(bi_ix, il1) = (-tmp3 + tmp1 + tmp2)* &
+                                            (-a3j2(l3, 2, min(2, field3))*CPhi(1 + field1, l1)* &
+                                            CForLensing(l2)%C(2, field2) + &
+                                            a3j2(l3, 1, min(2, field3))*CPhi(1 + field2, l2)* &
+                                            CForLensing(l1)%C(2, field1))
                                     end if
 
                                 end do
@@ -638,27 +639,27 @@
 
     if (ThisParams%do_primordial_bispectrum) then
 
-        print *,'getting reduced local fnl bispectra'
+        print *, 'getting reduced local fnl bispectra'
 
         allocate(TransferPolFac(lmax))
-        do i=2,lmax
-            TransferPolFac(i) =sqrt( real((i+1)*i,dl)*(i+2)*(i-1))
+        do i = 2, lmax
+            TransferPolFac(i) = sqrt(real((i + 1)*i, dl)*(i + 2)*(i - 1))
         end do
 
         if (shape /= shape_local) call MpiStop('Non-local shapes not working')
 
         if (shape == shape_local) then
-            n=1
-            np=1
-            npd=0 !derivatives of function
+            n = 1
+            np = 1
+            npd = 0 ! derivatives of function
         else if (shape == shape_warm) then
-            n=2
-            np=3
-            npd=0
+            n = 2
+            np = 3
+            npd = 0
         else if (shape == shape_warm2) then
-            n=1
-            np=2
-            npd=2
+            n = 1
+            np = 2
+            npd = 2
         else
             call MpiStop('unknown shape')
         end if
@@ -666,19 +667,19 @@
         allocate(ind(n))
         allocate(indP(np))
 
-        if (npd>0) then
+        if (npd > 0) then
             call InitBesselDerivs(CTrans)
             allocate(indPd(npd))
         end if
 
-        if (shape==shape_warm) then
-            !Separable form is very unstable and unworkable probably
+        if (shape == shape_warm) then
+            ! Separable form is very unstable and unworkable probably
             ind(1) = 0
             ind(2) = 2
             indP(1) = 0
             indP(2) = 2
             indP(3) = -2
-        else if (shape==shape_warm2) then
+        else if (shape == shape_warm2) then
             ind(1) = 0
             indP(1) = 0
             indP(2) = -2
@@ -689,186 +690,185 @@
             indP(1) = 0
         end if
 
-        test=0
+        test = 0
         TimeStepsNongauss = State%TimeSteps
         call TimeStepsNongauss%Add_delta(-State%taurst*10*CP%Accuracy%AccuracyBoost, State%taurst, State%dtaurec)
-        call TimeStepsNongauss%getArray(.true.)
+        call TimeStepsNongauss%GetArray(.true.)
 
         if (ThisParams%export_alpha_beta) then
-            !Note that all the points outside recombination are not really needed
-            !And these are for curvature perturbation, so do not include 3/5 factor
-            call file_alpha%CreateFile(trim(ThisOutputRoot)//'_alpha.txt') ! 100
-            call file_beta%CreateFile(trim(ThisOutputRoot)//'_beta.txt')   ! 101
-            call file_alpha_beta_r%CreateFile(trim(ThisOutputRoot)//'_alpha_beta_r.txt') ! 102
+            ! Note that all the points outside recombination are not really needed
+            ! And these are for curvature perturbation, so do not include 3/5 factor
+            call file_alpha%CreateFile(trim(ThisOutputRoot) // '_alpha.txt') ! 100
+            call file_beta%CreateFile(trim(ThisOutputRoot) // '_beta.txt') ! 101
+            call file_alpha_beta_r%CreateFile(trim(ThisOutputRoot) // '_alpha_beta_r.txt') ! 102
         end if
 
         if (DebugMsgs) call Timer%Start()
 
-        !When writing to the files is requested, then do not OMP. This is done
-        !by the IF(.not. ...).
-        !$OMP PARALLEL DO DEFAUlT(SHARED), SCHEDULE(STATIC,3), &
+        ! When writing to the files is requested, then do not OMP. This is done
+        ! by the IF(.not. ...).
+        !$OMP PARALLEL DO DEFAULT(SHARED), SCHEDULE(STATIC, 3), &
         !$OMP IF(.not. ThisParams%export_alpha_beta) &
         !$OMP PRIVATE(r, res, resP, resPd, res_l, resP_l, resPd_l, term, j), &
         !$OMP PRIVATE(il1, l1, l2, l3, min_l, max_l, tmp, tmp1, tmp2, Bispectrum), &
         !$OMP PRIVATE(bi_ix, bix, field1, field2, field3, field)
-        do i= TimeStepsNongauss%npoints-1, 2,-1
-            r=(State%tau0-TimeStepsNongauss%points(i))
+        do i = TimeStepsNongauss%npoints - 1, 2, -1
+            r = (State%tau0 - TimeStepsNongauss%points(i))
 
-            allocate(res(CTrans%ls%nl,n,nfields))
-            allocate(resP(CTrans%ls%nl,np,nfields))
+            allocate(res(CTrans%ls%nl, n, nfields))
+            allocate(resP(CTrans%ls%nl, np, nfields))
 
-            allocate(res_l(1:CTrans%ls%l(CTrans%ls%nl),n,nfields))
-            allocate(resP_l(1:CTrans%ls%l(CTrans%ls%nl),np,nfields))
-            if (npd>0) then
-                allocate(resPd(CTrans%ls%nl,npd))
-                allocate(resPd_l(1:CTrans%ls%l(CTrans%ls%nl),npd))
+            allocate(res_l(1:CTrans%ls%l(CTrans%ls%nl), n, nfields))
+            allocate(resP_l(1:CTrans%ls%l(CTrans%ls%nl), np, nfields))
+            if (npd > 0) then
+                allocate(resPd(CTrans%ls%nl, npd))
+                allocate(resPd_l(1:CTrans%ls%l(CTrans%ls%nl), npd))
             end if
 
-            call NonGauss_l_r(CP,CTrans, ind, indP,res, resP, nfields, r)
-            if (npd>0) call NonGauss_deriv_l_r(CP,CTrans, indPd,resPd, r, dJl,dddJl)
+            call NonGauss_l_r(CP, CTrans, ind, indP, res, resP, nfields, r)
+            if (npd > 0) call NonGauss_deriv_l_r(CP, CTrans, indPd, resPd, r, dJl, dddJl)
 
-            do field=1,nfields
-                do j=1,n
-                    call CTrans%ls%InterpolateClArr(res(1,j,field),res_l(lmin,j,field))
+            do field = 1, nfields
+                do j = 1, n
+                    call CTrans%ls%InterpolateClArr(res(1, j, field), res_l(lmin, j, field))
                 end do
-                do j=1,np
-                    call CTrans%ls%InterpolateClArr(resP(1,j,field),resP_l(lmin,j,field))
+                do j = 1, np
+                    call CTrans%ls%InterpolateClArr(resP(1, j, field), resP_l(lmin, j, field))
                 end do
             end do
-            deallocate(res,resP)
+            deallocate(res, resP)
 
             if (ThisParams%export_alpha_beta) then
-                write(file_alpha%unit, concat('(',lmax-lmin+1 ,'E15.5)')) res_l(lmin:lmax,1,1)
-                write(file_beta%unit, concat('(',lmax-lmin+1 ,'E15.5)')) resP_l(lmin:lmax,1,1)
+                write(file_alpha%unit, concat('(', lmax - lmin + 1, 'E15.5)')) res_l(lmin:lmax, 1, 1)
+                write(file_beta%unit, concat('(', lmax - lmin + 1, 'E15.5)')) resP_l(lmin:lmax, 1, 1)
                 write(file_alpha_beta_r%unit, '(1E15.5)') r
             end if
 
-            if (npd>0) then
-                do j=1,npd
-                    call InterpolateClArr(CTrans%ls,resPd(1,j),resPd_l(lmin,j))
+            if (npd > 0) then
+                do j = 1, npd
+                    call InterpolateClArr(CTrans%ls, resPd(1, j), resPd_l(lmin, j))
                 end do
                 deallocate(resPd)
             end if
 
-            term = r**2 * TimeStepsNongauss%dpoints(i) * (3./5)
+            term = r**2*TimeStepsNongauss%dpoints(i)*(3./5)
 
-
-            !Restrict to l1<=l2<=l3
-            do il1= 1, SampleL%nl
+            ! Restrict to l1<=l2<=l3
+            do il1 = 1, SampleL%nl
                 l1 = SampleL%l(il1)
-                bi_ix=0
-                do l2= max(lmin,l1), lmax
-                    min_l = max(abs(l1-l2),l2)
-                    if (mod(l1+l2+min_l,2)/=0) then
-                        min_l = min_l+1
+                bi_ix = 0
+                do l2 = max(lmin, l1), lmax
+                    min_l = max(abs(l1 - l2), l2)
+                    if (mod(l1 + l2 + min_l, 2) /= 0) then
+                        min_l = min_l + 1
                     end if
-                    max_l = min(lmax,l1+l2)
-                    do field1=1,nfields
-                        do field2=1,nfields
-                            tmp1 = 2*term*(res_l(l1,1,field1)*resP_l(l2,1,field2) + &
-                                res_l(l2,1,field2)*resP_l(l1,1,field1))
-                            tmp2 = 2*term*(resP_l(l1,1,field1)*resP_l(l2,1,field2))
-                            do field3=1,nfields
-                                Bispectrum => Bispectra(field1,field2,field3,fnl_bispectrum_ix)
-                                bix=bi_ix
-                                do l3=min_l,max_l ,2
-                                    bix=bix+1
-                                    Bispectrum%b(bix,il1) = Bispectrum%b(bix,il1) + &
-                                        (tmp1*resP_l(l3,1,field3) +   tmp2*res_l(l3,1,field3))
+                    max_l = min(lmax, l1 + l2)
+                    do field1 = 1, nfields
+                        do field2 = 1, nfields
+                            tmp1 = 2*term*(res_l(l1, 1, field1)*resP_l(l2, 1, field2) + &
+                                res_l(l2, 1, field2)*resP_l(l1, 1, field1))
+                            tmp2 = 2*term*(resP_l(l1, 1, field1)*resP_l(l2, 1, field2))
+                            do field3 = 1, nfields
+                                Bispectrum => Bispectra(field1, field2, field3, fnl_bispectrum_ix)
+                                bix = bi_ix
+                                do l3 = min_l, max_l, 2
+                                    bix = bix + 1
+                                    Bispectrum%b(bix, il1) = Bispectrum%b(bix, il1) + &
+                                        (tmp1*resP_l(l3, 1, field3) + tmp2*res_l(l3, 1, field3))
                                 end do
                             end do
                         end do
                     end do
-                    bi_ix=bix
+                    bi_ix = bix
 
-                end do !l2
-            end do !il1
+                end do ! l2
+            end do ! il1
 
-            deallocate(res_l,resP_l)
-            if (npd>0) deallocate(resPd_l)
-        end do !TimeStepsNongauss
+            deallocate(res_l, resP_l)
+            if (npd > 0) deallocate(resPd_l)
+        end do ! TimeStepsNongauss
         !$OMP END PARALLEL DO
 
         if (ThisParams%export_alpha_beta) then
-            call file_alpha%close()
-            call file_beta%close()
-            call file_alpha_beta_r%close()
+            call file_alpha%Close()
+            call file_beta%Close()
+            call file_alpha_beta_r%Close()
         end if
         deallocate(TransferPolFac)
         call TimeStepsNongauss%Free()
 
         if (DebugMsgs) call Timer%WriteTime('Time for fnl bispectrum:')
 
-    end if !DoPrimordial
+    end if ! DoPrimordial
 
-    if (ThisParams%Slice_Base_L>0 .or. ThisParams%FullOutputFile/='') then
-        !write out slice in (muK)^3 units
-        if (ThisParams%Slice_Base_L>0) allocate(slice_bispectrum_files(nbispectra*ThisParams%ndelta))
-        if (ThisParams%FullOutputFile/='') allocate(full_bispectrum_files(nbispectra))
-        Bscale=(COBE_CMBTemp*1d6)**3/InternalScale**2;
-        do bispectrum_type=1,nbispectra
-            if (ThisParams%Slice_Base_L>0) then
-                do idelta=1,ThisParams%ndelta
-                    if (mod(ThisParams%Slice_Base_L + ThisParams%deltas(idelta),2)==1 &
-                        .and. bispectrum_type/=lens_bispectrum_ix) cycle
-                    call slice_bispectrum_files(ThisParams%ndelta*(bispectrum_type-1)+idelta)% &
-                        CreateFile(concat(trim(ThisOutputRoot)//'bispectrum_'//&
-                        trim(BispectrumNames(bispectrum_type))//'_base_', &
-                        ThisParams%Slice_Base_L,'_delta_',ThisParams%deltas(idelta), &
-                        trim(file_tag)//'.dat'))
+    if (ThisParams%Slice_Base_L > 0 .or. ThisParams%FullOutputFile /= '') then
+        ! write out slice in (muK)^3 units
+        if (ThisParams%Slice_Base_L > 0) allocate(slice_bispectrum_files(nbispectra*ThisParams%ndelta))
+        if (ThisParams%FullOutputFile /= '') allocate(full_bispectrum_files(nbispectra))
+        Bscale = (COBE_CMBTemp*1d6)**3/InternalScale**2;
+        do bispectrum_type = 1, nbispectra
+            if (ThisParams%Slice_Base_L > 0) then
+                do idelta = 1, ThisParams%ndelta
+                    if (mod(ThisParams%Slice_Base_L + ThisParams%deltas(idelta), 2) == 1 &
+                        .and. bispectrum_type /= lens_bispectrum_ix) cycle
+                    call slice_bispectrum_files(ThisParams%ndelta*(bispectrum_type - 1) + idelta)% &
+                        CreateFile(concat(trim(ThisOutputRoot) // 'bispectrum_' // &
+                        trim(BispectrumNames(bispectrum_type)) // '_base_', &
+                        ThisParams%Slice_Base_L, '_delta_', ThisParams%deltas(idelta), &
+                        trim(file_tag) // '.dat'))
                 end do
             end if
-            if (ThisParams%FullOutputFile/='') then
+            if (ThisParams%FullOutputFile /= '') then
                 call full_bispectrum_files(bispectrum_type)%CreateFile(concat(trim(ThisOutputRoot), &
                     ThisParams%FullOutputFile, '_', BispectrumNames(bispectrum_type), &
                     file_tag, '.dat'))
             end if
         end do
-        do il1= 1, SampleL%nl
+        do il1 = 1, SampleL%nl
             l1 = SampleL%l(il1)
-            bi_ix=0
-            do l2= max(lmin,l1), lmax
-                min_l = max(abs(l1-l2),l2)
-                if (mod(l1+l2+min_l,2)/=0) then
-                    min_l = min_l+1
+            bi_ix = 0
+            do l2 = max(lmin, l1), lmax
+                min_l = max(abs(l1 - l2), l2)
+                if (mod(l1 + l2 + min_l, 2) /= 0) then
+                    min_l = min_l + 1
                 end if
-                max_l = min(lmax,l1+l2)
-                do l3=min_l, max_l ,2
-                    bi_ix=bi_ix+1
-                    if (l1==ThisParams%Slice_Base_L &
-                        .and. any(l3-l2==ThisParams%deltas(1:ThisParams%ndelta))) then
-                        !Particular slice
-                        idelta=IndexOf(l3-l2,ThisParams%deltas,ThisParams%ndelta)
-                        do bispectrum_type=1,nbispectra
-                            fileid=slice_bispectrum_files(ThisParams%ndelta*(bispectrum_type-1)+idelta)%unit
-                            write (fileid,'(1I5)', advance='NO') L2
-                            do field1=1,nfields
-                                do field2=1,nfields
-                                    do field3=1,nfields
-                                        write(fileid,'(1E15.5)', advance='NO') &
-                                            Bispectra(field1,field2,field3,bispectrum_type)%b(bi_ix,il1)*Bscale
+                max_l = min(lmax, l1 + l2)
+                do l3 = min_l, max_l, 2
+                    bi_ix = bi_ix + 1
+                    if (l1 == ThisParams%Slice_Base_L &
+                        .and. any(l3 - l2 == ThisParams%deltas(1:ThisParams%ndelta))) then
+                        ! Particular slice
+                        idelta = IndexOf(l3 - l2, ThisParams%deltas, ThisParams%ndelta)
+                        do bispectrum_type = 1, nbispectra
+                            fileid = slice_bispectrum_files(ThisParams%ndelta*(bispectrum_type - 1) + idelta)%unit
+                            write(fileid, '(1I5)', advance='NO') l2
+                            do field1 = 1, nfields
+                                do field2 = 1, nfields
+                                    do field3 = 1, nfields
+                                        write(fileid, '(1E15.5)', advance='NO') &
+                                            Bispectra(field1, field2, field3, bispectrum_type)%b(bi_ix, il1)*Bscale
                                     end do
                                 end do
                             end do
-                            write (fileid,'(a)') ''
+                            write(fileid, '(a)') ''
                         end do
-                    end if !slice
-                    if (ThisParams%FullOutputFile/='') then
-                        if (ThisParams%SparseFullOutput .and. .not. any( SampleL%l(1:SampleL%nl)==L2) .or. &
-                            l1 > 30 .and. mod(l3-min_l,10)/=0 .and. l3 /= max_l) cycle
+                    end if ! slice
+                    if (ThisParams%FullOutputFile /= '') then
+                        if (ThisParams%SparseFullOutput .and. .not. any(SampleL%l(1:SampleL%nl) == l2) .or. &
+                            l1 > 30 .and. mod(l3 - min_l, 10) /= 0 .and. l3 /= max_l) cycle
 
-                        do bispectrum_type=1,nbispectra
-                            if (bispectrum_type==lens_bispectrum_ix .and. L1 > lmax_lensing_corrT) cycle
-                            write(full_bispectrum_files(bispectrum_type)%unit,'(3I5)', advance='NO') L1, L2, L3
-                            do field1=1,nfields
-                                do field2=1,nfields
-                                    do field3=1,nfields
-                                        write(full_bispectrum_files(bispectrum_type)%unit,'(1E14.5)', advance='NO') &
-                                            Bispectra(field1,field2,field3,bispectrum_type)%b(bi_ix,il1)*Bscale
+                        do bispectrum_type = 1, nbispectra
+                            if (bispectrum_type == lens_bispectrum_ix .and. l1 > lmax_lensing_corrT) cycle
+                            write(full_bispectrum_files(bispectrum_type)%unit, '(3I5)', advance='NO') l1, l2, l3
+                            do field1 = 1, nfields
+                                do field2 = 1, nfields
+                                    do field3 = 1, nfields
+                                        write(full_bispectrum_files(bispectrum_type)%unit, '(1E14.5)', advance='NO') &
+                                            Bispectra(field1, field2, field3, bispectrum_type)%b(bi_ix, il1)*Bscale
                                     end do
                                 end do
                             end do
-                            write (full_bispectrum_files(bispectrum_type)%unit,'(a)') ''
+                            write(full_bispectrum_files(bispectrum_type)%unit, '(a)') ''
                         end do
                     end if
 
@@ -876,39 +876,39 @@
             end do
         end do
         if (ThisParams%do_parity_odd) then
-            do il1= 1, SampleL%nl
+            do il1 = 1, SampleL%nl
                 l1 = SampleL%l(il1)
-                bi_ix=0
-                do l2= max(lmin,l1), lmax
-                    min_l = max(abs(l1-l2),l2)
-                    if (mod(l1+l2+min_l,2)/=1) then
-                        min_l = min_l+1
+                bi_ix = 0
+                do l2 = max(lmin, l1), lmax
+                    min_l = max(abs(l1 - l2), l2)
+                    if (mod(l1 + l2 + min_l, 2) /= 1) then
+                        min_l = min_l + 1
                     end if
-                    max_l = min(lmax,l1+l2)
-                    do l3=min_l, max_l ,2
-                        bi_ix=bi_ix+1
-                        if (l1==ThisParams%Slice_Base_L &
-                            .and. any(l3-l2==ThisParams%deltas(1:ThisParams%ndelta))) then
-                            !Particular slice
-                            idelta=IndexOf(l3-l2,ThisParams%deltas,ThisParams%ndelta)
-                            do bispectrum_type=1,nbispectra
-                                if (bispectrum_type/=lens_bispectrum_ix) cycle
-                                fileid=slice_bispectrum_files(ThisParams%ndelta*(bispectrum_type-1)+idelta)%unit
-                                write (fileid,'(1I5)', advance='NO') L2
-                                oddix=0
-                                do field1=1,3
-                                    do field2=1,3
-                                        do field3=1,3
-                                            if (parities(field1)+parities(field2)+parities(field3)/=1) cycle
-                                            oddix=oddix+1
-                                            write(fileid,'(1E15.5)', advance='NO') &
-                                                OddBispectra(oddix)%b(bi_ix,il1)*Bscale
+                    max_l = min(lmax, l1 + l2)
+                    do l3 = min_l, max_l, 2
+                        bi_ix = bi_ix + 1
+                        if (l1 == ThisParams%Slice_Base_L &
+                            .and. any(l3 - l2 == ThisParams%deltas(1:ThisParams%ndelta))) then
+                            ! Particular slice
+                            idelta = IndexOf(l3 - l2, ThisParams%deltas, ThisParams%ndelta)
+                            do bispectrum_type = 1, nbispectra
+                                if (bispectrum_type /= lens_bispectrum_ix) cycle
+                                fileid = slice_bispectrum_files(ThisParams%ndelta*(bispectrum_type - 1) + idelta)%unit
+                                write(fileid, '(1I5)', advance='NO') l2
+                                oddix = 0
+                                do field1 = 1, 3
+                                    do field2 = 1, 3
+                                        do field3 = 1, 3
+                                            if (parities(field1) + parities(field2) + parities(field3) /= 1) cycle
+                                            oddix = oddix + 1
+                                            write(fileid, '(1E15.5)', advance='NO') &
+                                                OddBispectra(oddix)%b(bi_ix, il1)*Bscale
                                         end do
                                     end do
                                 end do
-                                write (fileid,'(a)') ''
+                                write(fileid, '(a)') ''
                             end do
-                        end if !slice
+                        end if ! slice
 
                     end do
                 end do
@@ -923,225 +923,226 @@
 
 #ifdef FISHER
     if (ThisParams%DoFisher) then
-        !Get stuff for Fisher etc.
+        ! Get stuff for Fisher etc.
 
-        print *,'Getting Fisher for lmax = ', lmax
+        print *, 'Getting Fisher for lmax = ', lmax
 
-        allocate(Cl(4,lmin:CTrans%ls%l(CTrans%ls%nl)))
+        allocate(Cl(4, lmin:CTrans%ls%l(CTrans%ls%nl)))
         allocate(fish_contribs_sig(lmin:CTrans%ls%l(CTrans%ls%nl)))
 
-        Noise = ThisParams%FisherNoise/ (COBE_CMBTemp*1e6)**2  !Planckish, dimensionless units
-        NoiseP = ThisParams%FisherNoisePol/ (COBE_CMBTemp*1e6)**2
+        Noise = ThisParams%FisherNoise/(COBE_CMBTemp*1e6)**2 ! Planckish, dimensionless units
+        NoiseP = ThisParams%FisherNoisePol/(COBE_CMBTemp*1e6)**2
 
-        do i=lmin,lmax
+        do i = lmin, lmax
             if (CP%DoLensing) then
-                cl(:,i) = State%CLData%CL_lensed(i,CT_Temp:CT_Cross)
+                Cl(:, i) = State%CLdata%Cl_lensed(i, CT_Temp:CT_Cross)
             else
-                cl(1,i) = State%CLData%CL_Scalar(i,C_Temp)
-                cl(2,i) = State%CLData%CL_Scalar(i,C_E)
-                cl(4,i) = State%CLData%CL_Scalar(i,C_Cross)
-                cl(3,i) = 0
+                Cl(1, i) = State%CLdata%Cl_scalar(i, C_Temp)
+                Cl(2, i) = State%CLdata%Cl_scalar(i, C_E)
+                Cl(4, i) = State%CLdata%Cl_scalar(i, C_Cross)
+                Cl(3, i) = 0
             end if
-            if (CP%WantTensors .and. i<= CP%Max_l_tensor .and. i>=2) then
-                cl(:,i) = cl(:,i) + State%CLData%Cl_tensor(i,CT_Temp:CT_Cross)
+            if (CP%WantTensors .and. i <= CP%Max_l_tensor .and. i >= 2) then
+                Cl(:, i) = Cl(:, i) + State%CLdata%Cl_tensor(i, CT_Temp:CT_Cross)
             end if
         end do
         if (.false.) then
-            call OpenTxtFile('CAMBdefault_lensedCls.dat',3)
-            do i=lmin,lmax
-                !Assume T,E,B,X ordering
-                read(3,*) j, cl(1:4,i)
-                if (j<lmin) read(3,*) j, cl(1:4,i)
-                cl(:,i)=cl(:,i)/(COBE_CMBTemp*1e6)**2
+            call OpenTxtFile('CAMBdefault_lensedCls.dat', 3)
+            do i = lmin, lmax
+                ! Assume T,E,B,X ordering
+                read(3, *) j, Cl(1:4, i)
+                if (j < lmin) read(3, *) j, Cl(1:4, i)
+                Cl(:, i) = Cl(:, i)/(COBE_CMBTemp*1e6)**2
             end do
             close(3)
         end if
 
-        if (Noise >0) then
-            file_tag = concat(file_tag,'_noise')
+        if (Noise > 0) then
+            file_tag = concat(file_tag, '_noise')
         end if
-        xlc= 180*sqrt(8.*log(2.))/3.14159
+        xlc = 180*sqrt(8.*log(2.))/3.14159
         sigma2 = (ThisParams%FisherNoiseFwhmArcmin/60/xlc)**2
         allocate(InvC(lmax))
-        do l1= lmin, lmax
-            tmp = l1*(l1+1)/const_twopi
-            Cl(1,l1) = Cl(1,l1)/tmp + Noise*exp(l1*(l1+1)*sigma2)
-            Cl(2:3,l1) = Cl(2:3,l1)/tmp + NoiseP*exp(l1*(l1+1)*sigma2)
-            Cl(4,l1) = Cl(4,l1)/tmp
-            allocate(InvC(l1)%C(nfields,nfields))
+        do l1 = lmin, lmax
+            tmp = l1*(l1 + 1)/const_twopi
+            Cl(1, l1) = Cl(1, l1)/tmp + Noise*exp(l1*(l1 + 1)*sigma2)
+            Cl(2:3, l1) = Cl(2:3, l1)/tmp + NoiseP*exp(l1*(l1 + 1)*sigma2)
+            Cl(4, l1) = Cl(4, l1)/tmp
+            allocate(InvC(l1)%C(nfields, nfields))
             if (nfields > 2) call MpiStop('Not implemented nfields>2 in detail')
-            if (nfields==1) then
-                InvC(l1)%C(1,1)=(2*l1+1)/cl(1,l1)/InternalScale
+            if (nfields == 1) then
+                InvC(l1)%C(1, 1) = (2*l1 + 1)/Cl(1, l1)/InternalScale
             else
-                InvC(l1)%C(1,1)=cl(2,l1)
-                InvC(l1)%C(1,2)=-cl(4,l1)
-                InvC(l1)%C(2,1)=-cl(4,l1)
-                InvC(l1)%C(2,2)=cl(1,l1)
-                InvC(l1)%C= InvC(l1)%C * (2*l1+1)/(cl(1,l1)*cl(2,l1)-cl(4,l1)**2)/InternalScale
+                InvC(l1)%C(1, 1) = Cl(2, l1)
+                InvC(l1)%C(1, 2) = -Cl(4, l1)
+                InvC(l1)%C(2, 1) = -Cl(4, l1)
+                InvC(l1)%C(2, 2) = Cl(1, l1)
+                InvC(l1)%C = InvC(l1)%C*(2*l1 + 1)/(Cl(1, l1)*Cl(2, l1) - Cl(4, l1)**2)/InternalScale
             end if
         end do
 
-        if (debugMsgs) call Timer%Start()
-        allocate(ifish_contribs(SampleL%nl,nbispectra,nbispectra,nfields,nfields) )
-        !This loop is just in case want to plot out lmax dependence
-        do lmaxcuti=SampleL%nl, SampleL%nl
+        if (DebugMsgs) call Timer%Start()
+        allocate(ifish_contribs(SampleL%nl, nbispectra, nbispectra, nfields, nfields))
+        ! This loop is just in case want to plot out lmax dependence
+        do lmaxcuti = SampleL%nl, SampleL%nl
             !    call CreateTxtFile('TE-Planck-LensFish.txt',20)
             !   do lmaxcuti=1, SampleL%nl
             !   if (SampleL%l(lmaxcuti) < 425) cycle
 
-            lmax= SampleL%l(lmaxcuti)
+            lmax = SampleL%l(lmaxcuti)
 
-            ifish_contribs=0
-            lstart = 2 !lmin
-            !$OMP PARALLEL DO DEFAULT(SHARED), SCHEDULE(STATIC,3), &
-            !$OMP PRIVATE(il1,l1,l2,l3,fish_l1,bi_ix,min_l,max_l,a3j_00,a3j), &
-            !$OMP PRIVATE(Bispectrum,Bispectrum2,minl2,bix,tmp,tmp1,tmp2,tmpf), &
-            !$OMP PRIVATE(field1,field2,field3,f1,f2,f3,bispectrum_type,bispectrum_type2)
-            do il1= 1,  lmaxcuti !!!SampleL%nl
-                allocate(fish_l1(nbispectra,nbispectra,nfields,nfields)) !last indices are field1,f1
+            ifish_contribs = 0
+            lstart = 2 ! lmin
+            !$OMP PARALLEL DO DEFAULT(SHARED), SCHEDULE(STATIC, 3), &
+            !$OMP PRIVATE(il1, l1, l2, l3, fish_l1, bi_ix, min_l, max_l, a3j_00, a3j), &
+            !$OMP PRIVATE(Bispectrum, Bispectrum2, minl2, bix, tmp, tmp1, tmp2, tmpf), &
+            !$OMP PRIVATE(field1, field2, field3, f1, f2, f3, bispectrum_type, bispectrum_type2)
+            do il1 = 1, lmaxcuti !!!SampleL%nl
+                allocate(fish_l1(nbispectra, nbispectra, nfields, nfields)) ! last indices are field1,f1
                 l1 = SampleL%l(il1)
-                if (l1< lstart) cycle
-                fish_l1=0
-                bi_ix=0
-                do l2 = l1,lmax
-                    if (l2< lstart) cycle
-                    min_l = max(lstart,max(abs(l1-l2),l2))
-                    if (mod(l1+l2+min_l,2)/=0) then
-                        min_l = min_l+1
+                if (l1 < lstart) cycle
+                fish_l1 = 0
+                bi_ix = 0
+                do l2 = l1, lmax
+                    if (l2 < lstart) cycle
+                    min_l = max(lstart, max(abs(l1 - l2), l2))
+                    if (mod(l1 + l2 + min_l, 2) /= 0) then
+                        min_l = min_l + 1
                     end if
-                    max_l = min(lmax,l1+l2)
-                    call GetThreeJs(a3j(abs(l2-l1)),l1,l2,0,0)
-                    do l3=min_l,max_l ,2
-                        a3j_00(l3)=a3j(l3)**2
+                    max_l = min(lmax, l1 + l2)
+                    call GetThreeJs(a3j(abs(l2 - l1)), l1, l2, 0, 0)
+                    do l3 = min_l, max_l, 2
+                        a3j_00(l3) = a3j(l3)**2
                     end do
 
-                    tmp1= 1.d0/const_fourpi  !(2l+1) factors included in InvC
-                    minl2=min_l
-                    bix=bi_ix
-                    do field1=1,nfields
-                        do f1=1,nfields
-                            tmpf(1)= InvC(l1)%C(field1,f1)*tmp1
-                            do field2=1,nfields
-                                do f2=1,nfields
-                                    tmpf(2)= InvC(l2)%C(field2,f2)*tmpf(1)
-                                    do field3=1,nfields
-                                        do bispectrum_type=1,nbispectra
-                                            if (bispectrum_type==lens_bispectrum_ix) then
-                                                Bispectrum=>SqueezedLensingKernel(field2,field3)
+                    tmp1 = 1.d0/const_fourpi ! (2l+1) factors included in InvC
+                    minl2 = min_l
+                    bix = bi_ix
+                    do field1 = 1, nfields
+                        do f1 = 1, nfields
+                            tmpf(1) = InvC(l1)%C(field1, f1)*tmp1
+                            do field2 = 1, nfields
+                                do f2 = 1, nfields
+                                    tmpf(2) = InvC(l2)%C(field2, f2)*tmpf(1)
+                                    do field3 = 1, nfields
+                                        do bispectrum_type = 1, nbispectra
+                                            if (bispectrum_type == lens_bispectrum_ix) then
+                                                Bispectrum => SqueezedLensingKernel(field2, field3)
                                             else
-                                                Bispectrum=>bispectra(field1,field2,field3,bispectrum_type)
+                                                Bispectrum => Bispectra(field1, field2, field3, bispectrum_type)
                                             end if
-                                            do f3=1,nfields
+                                            do f3 = 1, nfields
 
-                                                do bispectrum_type2=bispectrum_type,nbispectra
-                                                    if (bispectrum_type2==lens_bispectrum_ix) then
-                                                        Bispectrum2=>SqueezedLensingKernel(f2,f3)
+                                                do bispectrum_type2 = bispectrum_type, nbispectra
+                                                    if (bispectrum_type2 == lens_bispectrum_ix) then
+                                                        Bispectrum2 => SqueezedLensingKernel(f2, f3)
                                                     else
-                                                        Bispectrum2=>Bispectra(f1,f2,f3,bispectrum_type2)
+                                                        Bispectrum2 => Bispectra(f1, f2, f3, bispectrum_type2)
                                                     end if
 
-
-                                                    min_l=minl2
-                                                    bi_ix=bix
-                                                    if (min_l==l2) then
-                                                        !Symmetry factors
-                                                        bi_ix=bi_ix+1
-                                                        l3=l2
-                                                        if (l2==l1) then
-                                                            !l1=l2=l3
-                                                            tmp = Bispectrum%b(bi_ix,il1)*tmpf(2) &
-                                                                *Bispectrum2%b(bi_ix,il1) &
-                                                                *InvC(l3)%C(field3,f3)*a3j_00(l3)/6
+                                                    min_l = minl2
+                                                    bi_ix = bix
+                                                    if (min_l == l2) then
+                                                        ! Symmetry factors
+                                                        bi_ix = bi_ix + 1
+                                                        l3 = l2
+                                                        if (l2 == l1) then
+                                                            ! l1 = l2 = l3
+                                                            tmp = Bispectrum%b(bi_ix, il1)*tmpf(2) &
+                                                                *Bispectrum2%b(bi_ix, il1) &
+                                                                *InvC(l3)%C(field3, f3)*a3j_00(l3)/6
                                                         else
-                                                            !l3=l2 (l3=l1<>l2 can't happen because l1<=l2<=l3)
-                                                            tmp = Bispectrum%b(bi_ix,il1)*tmpf(2) &
-                                                                *Bispectrum2%b(bi_ix,il1) &
-                                                                * InvC(l3)%C(field3,f3)*a3j_00(l3)/2
+                                                            ! l3 = l2 (l3=l1<>l2 can't happen because l1<=l2<=l3)
+                                                            tmp = Bispectrum%b(bi_ix, il1)*tmpf(2) &
+                                                                *Bispectrum2%b(bi_ix, il1) &
+                                                                *InvC(l3)%C(field3, f3)*a3j_00(l3)/2
                                                         end if
-                                                        min_l = min_l+2
+                                                        min_l = min_l + 2
                                                     else
-                                                        tmp=0
+                                                        tmp = 0
                                                     end if
-                                                    tmp2=0
-                                                    do l3=min_l,max_l ,2
-                                                        bi_ix=bi_ix+1
-                                                        tmp2 = tmp2 + Bispectrum%b(bi_ix,il1)*Bispectrum2%b(bi_ix,il1) &
-                                                            * InvC(l3)%C(field3,f3)*a3j_00(l3)
+                                                    tmp2 = 0
+                                                    do l3 = min_l, max_l, 2
+                                                        bi_ix = bi_ix + 1
+                                                        tmp2 = tmp2 + Bispectrum%b(bi_ix, il1)* &
+                                                            Bispectrum2%b(bi_ix, il1)*InvC(l3)%C(field3, f3)*a3j_00(l3)
                                                     end do
-                                                    if (l2==l1) then
-                                                        tmp2=tmp2*tmpf(2)/2
+                                                    if (l2 == l1) then
+                                                        tmp2 = tmp2*tmpf(2)/2
                                                     else
-                                                        tmp2=tmp2*tmpf(2)
+                                                        tmp2 = tmp2*tmpf(2)
                                                     end if
-                                                    fish_l1(bispectrum_type,bispectrum_type2,field1,f1)= &
-                                                        fish_l1(bispectrum_type,bispectrum_type2,field1,f1)+(tmp+tmp2)
+                                                    fish_l1(bispectrum_type, bispectrum_type2, field1, f1) = &
+                                                        fish_l1(bispectrum_type, bispectrum_type2, field1, f1) + &
+                                                        (tmp + tmp2)
 
-                                                end do !bispectrum_type2
+                                                end do ! bispectrum_type2
 
                                             end do
-                                        end do !bispectrum_type
-                                    end do !field3
-                                end do !f2
-                            end do !field2
-                        end do !f1
-                    end do  !field1
+                                        end do ! bispectrum_type
+                                    end do ! field3
+                                end do ! f2
+                            end do ! field2
+                        end do ! f1
+                    end do ! field1
 
-                end do !l2
+                end do ! l2
 
-                ifish_contribs(il1,:,:,:,:)=fish_l1(1:nbispectra,1:nbispectra,:,:) /InternalScale
-                deallocate(fish_L1)
+                ifish_contribs(il1, :, :, :, :) = fish_l1(1:nbispectra, 1:nbispectra, :, :)/InternalScale
+                deallocate(fish_l1)
 
             end do
             !$OMP END PARALLEL DO
 
             if (DebugMsgs) call Timer%WriteTime('Time for Fisher:')
 
-            allocate(fish_contribs(lmin:CTrans%ls%l(CTrans%ls%nl),nfields,nfields))
-            allocate(Fisher(nbispectra,nbispectra))
-            allocate(tmpFisher(nbispectra,nbispectra))
-            allocate(Fisher_L1(lmin:CTrans%ls%l(CTrans%ls%nl),nbispectra*nfields,nbispectra*nfields))
+            allocate(fish_contribs(lmin:CTrans%ls%l(CTrans%ls%nl), nfields, nfields))
+            allocate(Fisher(nbispectra, nbispectra))
+            allocate(tmpFisher(nbispectra, nbispectra))
+            allocate(Fisher_L1(lmin:CTrans%ls%l(CTrans%ls%nl), nbispectra*nfields, nbispectra*nfields))
 
-            do bispectrum_type=1,nbispectra
-                do bispectrum_type2=bispectrum_type,nbispectra
+            do bispectrum_type = 1, nbispectra
+                do bispectrum_type2 = bispectrum_type, nbispectra
 
-                    fish_contribs=0
-                    do field1=1,nfields
-                        do f1=1,nfields
+                    fish_contribs = 0
+                    do field1 = 1, nfields
+                        do f1 = 1, nfields
                             call InterpolateClArr(SampleL, &
-                                ifish_contribs(1,bispectrum_type,bispectrum_type2,field1,f1), &
-                                fish_contribs(lmin,field1,f1),lmaxcuti)  !SampleL%nl)
+                                ifish_contribs(1, bispectrum_type, bispectrum_type2, field1, f1), &
+                                fish_contribs(lmin, field1, f1), lmaxcuti) ! SampleL%nl)
                         end do
                     end do
-                    Fisher(bispectrum_type,bispectrum_type2)=0
-                    do i=lmin, CTrans%ls%l(CTrans%ls%nl)
-                        do field1=1,nfields
-                            do f1=1,nfields
-                                Fisher_L1(i,(bispectrum_type-1)*nfields+field1, &
-                                    (bispectrum_type2-1)*nfields+f1) = fish_contribs(i,field1,f1)
-                                Fisher_L1(i,(bispectrum_type2-1)*nfields+f1, &
-                                    (bispectrum_type-1)*nfields+field1) = fish_contribs(i,field1,f1)
-                                tmp=fish_contribs(i,field1,f1)
-                                if (bispectrum_type==lens_bispectrum_ix) then
-                                    tmp = tmp * CPhi(1+field1,i)
+                    Fisher(bispectrum_type, bispectrum_type2) = 0
+                    do i = lmin, CTrans%ls%l(CTrans%ls%nl)
+                        do field1 = 1, nfields
+                            do f1 = 1, nfields
+                                Fisher_L1(i, (bispectrum_type - 1)*nfields + field1, &
+                                    (bispectrum_type2 - 1)*nfields + f1) = fish_contribs(i, field1, f1)
+                                Fisher_L1(i, (bispectrum_type2 - 1)*nfields + f1, &
+                                    (bispectrum_type - 1)*nfields + field1) = fish_contribs(i, field1, f1)
+                                tmp = fish_contribs(i, field1, f1)
+                                if (bispectrum_type == lens_bispectrum_ix) then
+                                    tmp = tmp*CPhi(1 + field1, i)
                                 end if
-                                if (bispectrum_type2==lens_bispectrum_ix) then
-                                    tmp = tmp * CPhi(1+f1,i)
+                                if (bispectrum_type2 == lens_bispectrum_ix) then
+                                    tmp = tmp*CPhi(1 + f1, i)
                                 end if
-                                Fisher(bispectrum_type,bispectrum_type2)=Fisher(bispectrum_type,bispectrum_type2)+ tmp
+                                Fisher(bispectrum_type, bispectrum_type2) = &
+                                    Fisher(bispectrum_type, bispectrum_type2) + tmp
                             end do
                         end do
                     end do
-                    Fisher(bispectrum_type2,bispectrum_type) = Fisher(bispectrum_type,bispectrum_type2)
+                    Fisher(bispectrum_type2, bispectrum_type) = Fisher(bispectrum_type, bispectrum_type2)
 
-                    print *,'Zero-signal Fisher ', &
-                        trim(BispectrumNames(bispectrum_type))//'-'//trim(BispectrumNames(bispectrum_type2)), &
-                        ':', Fisher(bispectrum_type2,bispectrum_type)
+                    print *, 'Zero-signal Fisher ', &
+                        trim(BispectrumNames(bispectrum_type)) // '-' // trim(BispectrumNames(bispectrum_type2)), &
+                        ':', Fisher(bispectrum_type2, bispectrum_type)
 
                     !!!! contribution of lensing to the fnl variance for temperature:
                     !           if (bispectrum_type == fnl_bispectrum_ix .and.
                     !               bispectrum_type2 == fnl_bispectrum_ix ) then
-                    !              fish_contribs_sig=0
-                    !              tmpArr=0
+                    !              fish_contribs_sig = 0
+                    !              tmpArr = 0
                     !              call InterpolateClArr(SampleL,ifish_contribs(1,1,2,1,1),tmpArr(lmin),lmaxcuti)
                     !               do i=lmin, lmax_lensing_corrT
                     !               if (CPhi(1+1,i)/=0) then
@@ -1155,24 +1156,24 @@
                     !           end if
                     !!! same with polarization
                     !  if (bispectrum_type == fnl_bispectrum_ix .and. bispectrum_type2 == lens_bispectrum_ix ) then
-                    !            fish_contribs_sig=0
+                    !            fish_contribs_sig = 0
                     !            do i=lmin, lmax_lensing_corrT
-                    !             corrsize = count(CPhi(2:1+nfields,i)/=0)
+                    !             corrsize = count(CPhi(2:1 + nfields,i) /= 0)
                     !             allocate(fish_L_ij(corrsize,corrsize))
                     !             allocate(fish_L_noise(corrsize,corrsize))
-                    !             fish_L_ij=0
-                    !             ix1=0
+                    !             fish_L_ij = 0
+                    !             ix1 = 0
                     !             do field1=1,nfields
-                    !              ix1=ix1+1
-                    !              ix2=0
+                    !              ix1 = ix1 + 1
+                    !              ix2 = 0
                     !              do f1=1,nfields
-                    !                 ix2=ix2+1
-                    !                 fish_L_noise(ix1,ix2)= fish_contribs(i,field1, f1)
-                    !                 fish_L_ij(ix1,ix2) = (CPhi(1+f1,i)*CPhi(1+field1,i) + &
+                    !                 ix2 = ix2 + 1
+                    !                 fish_L_noise(ix1,ix2) = fish_contribs(i,field1, f1)
+                    !                 fish_L_ij(ix1,ix2) = (CPhi(1 + f1,i)*CPhi(1 + field1,i) + &
                     !                     CPhi(1,i)*CForLensing(i)%C(field1,f1) )/(2*i+1)
                     !              end do
                     !             end do
-                    !             fish_L_ij=matmul(matmul((fish_L_noise(:,:)),fish_L_ij),transpose(fish_L_noise(:,:)))
+                    !             fish_L_ij = matmul(matmul((fish_L_noise(:,:)),fish_L_ij),transpose(fish_L_noise(:,:)))
                     !             fish_contribs_sig(i) = sum(fish_L_ij)!Matrix_trace(fish_L_ij)
                     !             deallocate(fish_L_ij)
                     !             deallocate(fish_L_noise)
@@ -1180,41 +1181,40 @@
                     !            print *,'fnl signal factor', sum(fish_contribs_sig)
                     !       end if
 
-
-                    if (bispectrum_type == lens_bispectrum_ix .and. bispectrum_type2 == lens_bispectrum_ix ) then
-                        print *,'doing signal part of the lensing variance'
-                        fish_contribs_sig=0
-                        do i=lmin, min(lmax, lmax_lensing_corrT)
-                            corrsize = count(CPhi(2:1+nfields,i)/=0)
-                            allocate(fish_L_ij(corrsize,corrsize))
-                            allocate(fish_L_noise(corrsize,corrsize))
-                            fish_L_ij=0
-                            ix1=0
-                            do field1=1,nfields
-                                if (CPhi(1+field1,i)/=0) then
-                                    ix1=ix1+1
-                                    ix2=0
-                                    do f1=1,nfields
-                                        if (CPhi(1+f1,i)/=0) then
-                                            ix2=ix2+1
-                                            fish_L_noise(ix1,ix2)= fish_contribs(i,field1, f1) &
-                                                *CPhi(1+f1,i)*CPhi(1+field1,i)
-                                            fish_L_ij(ix1,ix2) =  (1 + &
-                                                CPhi(1,i)*CForLensing(i)%C(field1,f1) &
-                                                    /(CPhi(1+f1,i)*CPhi(1+field1,i)))/(2*i+1)
+                    if (bispectrum_type == lens_bispectrum_ix .and. bispectrum_type2 == lens_bispectrum_ix) then
+                        print *, 'doing signal part of the lensing variance'
+                        fish_contribs_sig = 0
+                        do i = lmin, min(lmax, lmax_lensing_corrT)
+                            corrsize = count(CPhi(2:1 + nfields, i) /= 0)
+                            allocate(fish_L_ij(corrsize, corrsize))
+                            allocate(fish_L_noise(corrsize, corrsize))
+                            fish_L_ij = 0
+                            ix1 = 0
+                            do field1 = 1, nfields
+                                if (CPhi(1 + field1, i) /= 0) then
+                                    ix1 = ix1 + 1
+                                    ix2 = 0
+                                    do f1 = 1, nfields
+                                        if (CPhi(1 + f1, i) /= 0) then
+                                            ix2 = ix2 + 1
+                                            fish_L_noise(ix1, ix2) = fish_contribs(i, field1, f1) &
+                                                *CPhi(1 + f1, i)*CPhi(1 + field1, i)
+                                            fish_L_ij(ix1, ix2) = (1 + &
+                                                CPhi(1, i)*CForLensing(i)%C(field1, f1) &
+                                                /(CPhi(1 + f1, i)*CPhi(1 + field1, i)))/(2*i + 1)
 
                                         end if
                                     end do
                                 end if
                             end do
                             call Matrix_Inverse(fish_L_noise)
-                            fish_L_ij=fish_L_ij+fish_L_noise
+                            fish_L_ij = fish_L_ij + fish_L_noise
                             call Matrix_Inverse(fish_L_ij)
                             fish_contribs_sig(i) = sum(fish_L_ij)
                             deallocate(fish_L_ij)
                             deallocate(fish_L_noise)
                         end do
-                        print *,'Lensing Fisher including lensing variance ', sum(fish_contribs_sig)
+                        print *, 'Lensing Fisher including lensing variance ', sum(fish_contribs_sig)
                         if (present(Result)) then
                             Result%has_lensing_variance = .true.
                             Result%LensingFisherWithVariance = sum(fish_contribs_sig)
@@ -1228,59 +1228,59 @@
 
             if (present(Result)) then
                 Result%has_fisher = .true.
-                Result%Fisher(1:nbispectra,1:nbispectra) = Fisher(1:nbispectra,1:nbispectra)
+                Result%Fisher(1:nbispectra, 1:nbispectra) = Fisher(1:nbispectra, 1:nbispectra)
             end if
 
             print *, 'Results assuming zero fiducial bispectra'
-            do bispectrum_type=1,nbispectra
-                print *,trim(IntToStr(bispectrum_type))//'-'//trim(BispectrumNames(bispectrum_type)), &
-                    ': 1/sqrt(F_ii) = ',1/sqrt(Fisher(bispectrum_type,bispectrum_type))
+            do bispectrum_type = 1, nbispectra
+                print *, trim(IntToStr(bispectrum_type)) // '-' // trim(BispectrumNames(bispectrum_type)), &
+                    ': 1/sqrt(F_ii) = ', 1/sqrt(Fisher(bispectrum_type, bispectrum_type))
                 if (present(Result)) &
-                    Result%Sigma(bispectrum_type) = 1/sqrt(Fisher(bispectrum_type,bispectrum_type))
+                    Result%Sigma(bispectrum_type) = 1/sqrt(Fisher(bispectrum_type, bispectrum_type))
             end do
 
-            do bispectrum_type=1,nbispectra
-                do bispectrum_type2=bispectrum_type+1,nbispectra
-                    bias = Fisher(bispectrum_type2,bispectrum_type)/Fisher(bispectrum_type,bispectrum_type)
-                    print *,'Bias of ',trim(BispectrumNames(bispectrum_type2)),' on ', &
-                        trim(BispectrumNames(bispectrum_type)),':', bias
+            do bispectrum_type = 1, nbispectra
+                do bispectrum_type2 = bispectrum_type + 1, nbispectra
+                    bias = Fisher(bispectrum_type2, bispectrum_type)/Fisher(bispectrum_type, bispectrum_type)
+                    print *, 'Bias of ', trim(BispectrumNames(bispectrum_type2)), ' on ', &
+                        trim(BispectrumNames(bispectrum_type)), ':', bias
                 end do
                 !           if (bispectrum_type==1) write(1,concat('(1I10,',nbispectra,'E15.5)')) lmax, Fisher(1,1), &
                 !                                  Fisher(2:nbispectra,1)/Fisher(1,1)
             end do
 
-            tmpFisher=Fisher
-            do bispectrum_type=1,nbispectra
-                tmp = sqrt(tmpFisher(bispectrum_type,bispectrum_type))
-                tmpFisher(bispectrum_type,:)=tmpFisher(bispectrum_type,:)/tmp
-                tmpFisher(:,bispectrum_type)=tmpFisher(:,bispectrum_type)/tmp
+            tmpFisher = Fisher
+            do bispectrum_type = 1, nbispectra
+                tmp = sqrt(tmpFisher(bispectrum_type, bispectrum_type))
+                tmpFisher(bispectrum_type, :) = tmpFisher(bispectrum_type, :)/tmp
+                tmpFisher(:, bispectrum_type) = tmpFisher(:, bispectrum_type)/tmp
             end do
-            if (nbispectra>1) then
-                print *,'Zero-signal Bispectrum correlation matrix:'
-                do bispectrum_type=1,nbispectra
-                    print *,tmpFisher(:,bispectrum_type)
+            if (nbispectra > 1) then
+                print *, 'Zero-signal Bispectrum correlation matrix:'
+                do bispectrum_type = 1, nbispectra
+                    print *, tmpFisher(:, bispectrum_type)
                 end do
 
                 if (nbispectra > 1) then
-                    allocate(OptimalFisher(nbispectra,nbispectra))
-                    allocate(tmpBigFisher(nbispectra*nfields,nbispectra*nfields))
-                    !              allocate(diag(nbispectra*nfields))
-                    OptimalFisher=0
-                    do i=lmin, lmax
-                        tmpBigFisher=Fisher_L1(i,:,:)
-                        if (lens_bispectrum_ix/=0 .and. i<=lmax_lensing_corrT) then
+                    allocate(OptimalFisher(nbispectra, nbispectra))
+                    allocate(tmpBigFisher(nbispectra*nfields, nbispectra*nfields))
+                    ! allocate(diag(nbispectra*nfields))
+                    OptimalFisher = 0
+                    do i = lmin, lmax
+                        tmpBigFisher = Fisher_L1(i, :, :)
+                        if (lens_bispectrum_ix /= 0 .and. i <= lmax_lensing_corrT) then
 
                             tmpBigFisher = (tmpBigFisher + transpose(tmpBigFisher))/2
                             call Matrix_InverseAsymm(tmpBigFisher)
                             tmpBigFisher = (tmpBigFisher + transpose(tmpBigFisher))/2
-                            do field1 = 1,nfields
-                                do field2 =1, nfields
-                                    tmpBigFisher((lens_bispectrum_ix-1)*nfields+field1, &
-                                        (lens_bispectrum_ix-1)*nfields+field2) = &
-                                        tmpBigFisher((lens_bispectrum_ix-1)*nfields+field1, &
-                                        (lens_bispectrum_ix-1)*nfields+field2) + &
-                                        (CPhi(1+field1,i)*CPhi(1+field2,i) &
-                                            + CPhi(1,i)*CForLensing(i)%C(field1,field2))/(2*i+1)
+                            do field1 = 1, nfields
+                                do field2 = 1, nfields
+                                    tmpBigFisher((lens_bispectrum_ix - 1)*nfields + field1, &
+                                        (lens_bispectrum_ix - 1)*nfields + field2) = &
+                                        tmpBigFisher((lens_bispectrum_ix - 1)*nfields + field1, &
+                                        (lens_bispectrum_ix - 1)*nfields + field2) + &
+                                        (CPhi(1 + field1, i)*CPhi(1 + field2, i) &
+                                        + CPhi(1, i)*CForLensing(i)%C(field1, field2))/(2*i + 1)
                                 end do
                             end do
                             tmpBigFisher = (tmpBigFisher + transpose(tmpBigFisher))/2
@@ -1289,22 +1289,22 @@
 
                         end if
 
-                        do field1=1,nfields
-                            do field2=1,nfields
-                                do bispectrum_type=1,nbispectra
-                                    do bispectrum_type2=1,nbispectra
-                                        if (bispectrum_type==lens_bispectrum_ix) then
-                                            tmp=CPhi(1+field1,i)
+                        do field1 = 1, nfields
+                            do field2 = 1, nfields
+                                do bispectrum_type = 1, nbispectra
+                                    do bispectrum_type2 = 1, nbispectra
+                                        if (bispectrum_type == lens_bispectrum_ix) then
+                                            tmp = CPhi(1 + field1, i)
                                         else
-                                            tmp=1
+                                            tmp = 1
                                         end if
-                                        if (bispectrum_type2==lens_bispectrum_ix) then
-                                            tmp=tmp*CPhi(1+field2,i)
+                                        if (bispectrum_type2 == lens_bispectrum_ix) then
+                                            tmp = tmp*CPhi(1 + field2, i)
                                         end if
-                                        OptimalFisher(bispectrum_type,bispectrum_type2) = &
-                                            OptimalFisher(bispectrum_type,bispectrum_type2) + &
-                                            tmp*tmpBigFisher((bispectrum_type-1)*nfields+field1, &
-                                                (bispectrum_type2-1)*nfields+field2)
+                                        OptimalFisher(bispectrum_type, bispectrum_type2) = &
+                                            OptimalFisher(bispectrum_type, bispectrum_type2) + &
+                                            tmp*tmpBigFisher((bispectrum_type - 1)*nfields + field1, &
+                                            (bispectrum_type2 - 1)*nfields + field2)
                                     end do
                                 end do
                             end do
@@ -1315,31 +1315,31 @@
 
                 if (present(Result)) then
                     Result%has_optimal_fisher = .true.
-                    Result%OptimalFisher(1:nbispectra,1:nbispectra) = OptimalFisher(1:nbispectra,1:nbispectra)
+                    Result%OptimalFisher(1:nbispectra, 1:nbispectra) = OptimalFisher(1:nbispectra, 1:nbispectra)
                 end if
-                do bispectrum_type=1,nbispectra
-                    print *,'Optimal Inc. lensing:', trim(IntToStr(bispectrum_type))//'-'// &
+                do bispectrum_type = 1, nbispectra
+                    print *, 'Optimal Inc. lensing:', trim(IntToStr(bispectrum_type)) // '-' // &
                         trim(BispectrumNames(bispectrum_type)), &
-                        ': 1/sqrt(F_ii) = ',1/sqrt(OptimalFisher(bispectrum_type,bispectrum_type))
+                        ': 1/sqrt(F_ii) = ', 1/sqrt(OptimalFisher(bispectrum_type, bispectrum_type))
                     if (present(Result)) &
-                        Result%OptimalSigma(bispectrum_type) = 1/sqrt(OptimalFisher(bispectrum_type,bispectrum_type))
+                        Result%OptimalSigma(bispectrum_type) = 1/sqrt(OptimalFisher(bispectrum_type, bispectrum_type))
                 end do
-                tmpFisher=OptimalFisher
-                call Matrix_Inverse(tmpFIsher)
-                do bispectrum_type=1,nbispectra
-                    print *,'Optimal Inc. lensing:', trim(IntToStr(bispectrum_type))//'-'// &
+                tmpFisher = OptimalFisher
+                call Matrix_Inverse(tmpFisher)
+                do bispectrum_type = 1, nbispectra
+                    print *, 'Optimal Inc. lensing:', trim(IntToStr(bispectrum_type)) // '-' // &
                         trim(BispectrumNames(bispectrum_type)), &
-                        ': Cov_ii = ', sqrt(tmpFIsher(bispectrum_type,bispectrum_type))
+                        ': Cov_ii = ', sqrt(tmpFisher(bispectrum_type, bispectrum_type))
                 end do
-                tmpFisher=OptimalFisher
-                do bispectrum_type=1,nbispectra
-                    tmp = sqrt(tmpFisher(bispectrum_type,bispectrum_type))
-                    tmpFisher(bispectrum_type,:)=tmpFisher(bispectrum_type,:)/tmp
-                    tmpFisher(:,bispectrum_type)=tmpFisher(:,bispectrum_type)/tmp
+                tmpFisher = OptimalFisher
+                do bispectrum_type = 1, nbispectra
+                    tmp = sqrt(tmpFisher(bispectrum_type, bispectrum_type))
+                    tmpFisher(bispectrum_type, :) = tmpFisher(bispectrum_type, :)/tmp
+                    tmpFisher(:, bispectrum_type) = tmpFisher(:, bispectrum_type)/tmp
                 end do
-                print *,'Optimal Bispectrum correlation matrix with lensing variance:'
-                do bispectrum_type=1,nbispectra
-                    print *,tmpFisher(:,bispectrum_type)
+                print *, 'Optimal Bispectrum correlation matrix with lensing variance:'
+                do bispectrum_type = 1, nbispectra
+                    print *, tmpFisher(:, bispectrum_type)
                 end do
             end if
 
@@ -1351,17 +1351,17 @@
         deallocate(InvC)
         deallocate(Cl, fish_contribs_sig)
 
-    end if !DoFIsher
+    end if ! DoFIsher
 #else
     if (ThisParams%DoFisher) call MpiStop('compile with FISHER defined')
 #endif
 
-    !Tidy up a bit
-    do field1=1,nfields
-        do field2=1,nfields
-            do field3=1,nfields
-                do bispectrum_type=1,nbispectra
-                    deallocate(Bispectra(field1,field2,field3,bispectrum_type)%b)
+    ! Tidy up a bit
+    do field1 = 1, nfields
+        do field2 = 1, nfields
+            do field3 = 1, nfields
+                do bispectrum_type = 1, nbispectra
+                    deallocate(Bispectra(field1, field2, field3, bispectrum_type)%b)
                 end do
             end do
         end do
@@ -1370,12 +1370,12 @@
     if (allocated(CForLensing)) deallocate(CForLensing)
 
     if (allocated(OddBispectra)) then
-        oddix=0
-        do field1=1,3
-            do field2=1,3
-                do field3=1,3
-                    if (parities(field1)+parities(field2)+parities(field3)/=1) cycle
-                    oddix=oddix+1
+        oddix = 0
+        do field1 = 1, 3
+            do field2 = 1, 3
+                do field3 = 1, 3
+                    if (parities(field1) + parities(field2) + parities(field3) /= 1) cycle
+                    oddix = oddix + 1
                     deallocate(OddBispectra(oddix)%b)
                 end do
             end do
@@ -1385,65 +1385,64 @@
 
     end subroutine GetBispectrum
 
-
-    !not needed for local NG
-    subroutine NonGauss_deriv_l_r(CP,CTrans, indP,resP, r, dJl, dddJl)
-    !As above, but integral against derivative of bessel function to get derivative of function
-    Class(CAMBParams) :: CP
-    Type(ClTransferData) :: CTrans
-    real(dl), intent(in) :: dJl(BessRanges%npoints,CTrans%ls%nl), dddJl(BessRanges%npoints,CTrans%ls%nl)
+    ! not needed for local NG
+    subroutine NonGauss_deriv_l_r(CP, CTrans, indP, resP, r, dJl, dddJl)
+    ! As above, but integral against derivative of bessel function to get derivative of function
+    class(CAMBParams) :: CP
+    type(ClTransferData) :: CTrans
+    real(dl), intent(in) :: dJl(BessRanges%npoints, CTrans%ls%nl), dddJl(BessRanges%npoints, CTrans%ls%nl)
     integer, intent(in) :: indP(:)
-    real(dl) resP(CTrans%ls%nl,size(indP))
+    real(dl) resP(CTrans%ls%nl, size(indP))
     real(dl), intent(in) :: r
     integer q_ix, j, bes_ix, i
     integer nP, ellmax
-    real(dl) xf , dJ_l, fac, a2,  k, dlnk, term, P, xsafe
+    real(dl) xf, dJ_l, fac, a2, k, dlnk, term, P, xsafe
 
-    nP =size(indP)
+    nP = size(indP)
     resP = 0
     do q_ix = 1, CTrans%q%npoints
 
         k = CTrans%q%points(q_ix)
-        xf = k*r  !kr
-        bes_ix= BessRanges%indexOf(xf)
-        fac=BessRanges%points(bes_ix+1)-BessRanges%points(bes_ix)
-        a2=(BessRanges%points(bes_ix+1)-xf)/fac
-        fac=fac**2*a2/6
-        dlnk = CTrans%q%dpoints(q_ix) /k
+        xf = k*r ! kr
+        bes_ix = BessRanges%IndexOf(xf)
+        fac = BessRanges%points(bes_ix + 1) - BessRanges%points(bes_ix)
+        a2 = (BessRanges%points(bes_ix + 1) - xf)/fac
+        fac = fac**2*a2/6
+        dlnk = CTrans%q%dpoints(q_ix)/k
         P = CP%InitPower%ScalarPower(k)  !!only first index for now
-        !ellmax = max(xf/(1-xlimfrac), xf + xlimmin) * CP%Accuracy%AccuracyBoost
+        ! ellmax = max(xf/(1-xlimfrac), xf + xlimmin) * CP%Accuracy%AccuracyBoost
         xsafe = max(xf, 1._dl)
-        ellmax = ceiling((xf + bjl_pre_peak_start_factor *xsafe**(1._dl/3._dl) + &
-            bjl_pre_peak_start_factor**2/(3._dl*xsafe**(1._dl/3._dl)) + 2._dl) * CP%Accuracy%AccuracyBoost)
+        ellmax = ceiling((xf + BJL_pre_peak_start_factor*xsafe**(1._dl/3._dl) + &
+            BJL_pre_peak_start_factor**2/(3._dl*xsafe**(1._dl/3._dl)) + 2._dl)*CP%Accuracy%AccuracyBoost)
 
-        do j=1,CTrans%ls%nl
+        do j = 1, CTrans%ls%nl
             if (CTrans%ls%l(j) <= ellmax) then
-                dJ_l=a2*djl(bes_ix,j)+(1-a2)*(djl(bes_ix+1,j) - ((a2+1) &
-                    *dddjl(bes_ix,j)+(2-a2)*dddjl(bes_ix+1,j))* fac) !cubic spline
+                dJ_l = a2*dJl(bes_ix, j) + (1 - a2)*(dJl(bes_ix + 1, j) - ((a2 + 1) &
+                    *dddJl(bes_ix, j) + (2 - a2)*dddJl(bes_ix + 1, j))*fac) ! cubic spline
 
-                term = CTrans%Delta_p_l_k(1,j,q_ix)*dJ_l*dlnk *k
-                do i=1,nP
-                    resP(j,i) = resP(j,i) + term * k**indP(i) * P
+                term = CTrans%Delta_p_l_k(1, j, q_ix)*dJ_l*dlnk*k
+                do i = 1, nP
+                    resP(j, i) = resP(j, i) + term*k**indP(i)*P
                 end do
 
             end if
         end do
     end do
-    resP = resP * const_fourpi
+    resP = resP*const_fourpi
 
     end subroutine NonGauss_deriv_l_r
 
     subroutine Bispectrum_SetDefParams(B)
-    Type(TBispectrumParams) :: B
+    type(TBispectrumParams) :: B
 
-    B%nfields=2
-    B%Slice_Base_L=0
-    B%ndelta=0
+    B%nfields = 2
+    B%Slice_Base_L = 0
+    B%ndelta = 0
     B%DoFisher = .true.
-    B%FisherNoise = 0 !2d-4 !Planckish
+    B%FisherNoise = 0 ! 2d-4 !Planckish
     B%FisherNoisePol = 4*B%FisherNoise
     B%FisherNoiseFwhmArcmin = 7
-    B%FullOutputFile='' !quite large
+    B%FullOutputFile = '' ! quite large
     B%SparseFullOutput = .false.
     B%do_lensing_bispectrum = .true.
     B%do_primordial_bispectrum = .true.
@@ -1452,12 +1451,11 @@
 
     end subroutine Bispectrum_SetDefParams
 
-
     subroutine Bispectrum_ReadParams(B, Ini, outroot)
     use IniObjects
-    Type(TBispectrumParams) :: B
-    character(LEN=*), intent(in) :: outroot
-    Type(TIniFile) :: Ini
+    type(TBispectrumParams) :: B
+    character(len=*), intent(in) :: outroot
+    type(TIniFile) :: Ini
     integer i
 
     call Bispectrum_SetDefParams(B)
@@ -1465,28 +1463,28 @@
     B%do_lensing_bispectrum = Ini%Read_Logical('do_lensing_bispectrum', .false.)
     B%do_primordial_bispectrum = Ini%Read_Logical('do_primordial_bispectrum', .false.)
 
-    do_bispectrum= B%do_lensing_bispectrum .or. B%do_primordial_bispectrum
+    do_bispectrum = B%do_lensing_bispectrum .or. B%do_primordial_bispectrum
 
     if (do_bispectrum) then
 
         output_root = outroot
 
         call Ini%Read('bispectrum_nfields', B%nfields)
-        if (B%nfields /= 2 .and. B%nfields/=1) call MpiStop('Bispectrum: nfields=1 for T only or 2 for polarization')
+        if (B%nfields /= 2 .and. B%nfields /= 1) call MpiStop('Bispectrum: nfields=1 for T only or 2 for polarization')
         B%do_parity_odd = Ini%Read_Logical('do_parity_odd', .false.)
-        if (B%do_parity_odd .and. (.not.  B%do_lensing_bispectrum .or. B%nfields==1)) then
+        if (B%do_parity_odd .and. (.not. B%do_lensing_bispectrum .or. B%nfields == 1)) then
             B%do_parity_odd = .false.
-            write(*,*) 'Ignoring do_parity_odd since do_lensing_bispectrum=F or no polarization'
+            write(*, *) 'Ignoring do_parity_odd since do_lensing_bispectrum=F or no polarization'
         end if
         call Ini%Read('bispectrum_slice_base_L', B%Slice_Base_L)
-        if (B%Slice_Base_L>0) then
+        if (B%Slice_Base_L > 0) then
             call Ini%Read('bispectrum_ndelta', B%ndelta)
             if (B%ndelta > max_bispectrum_deltas) call MpiStop('Bispectrum : increase max_bispectrum_deltas')
-            do i=1, B%ndelta
+            do i = 1, B%ndelta
                 B%deltas(i) = Ini%Read_Int_Array('bispectrum_delta', i)
             end do
-            if (.not. B%do_parity_odd .and. B%Slice_Base_L>0 .and. &
-                any(mod(B%Slice_Base_L + B%deltas(1:B%ndelta),2) /= 0)) &
+            if (.not. B%do_parity_odd .and. B%Slice_Base_L > 0 .and. &
+                any(mod(B%Slice_Base_L + B%deltas(1:B%ndelta), 2) /= 0)) &
                 stop 'Slice is zero for even parity with L1+L2+L3 odd, i.e. Base+DeltaL3 odd'
 
         end if
@@ -1497,7 +1495,7 @@
             call Ini%Read('bispectrum_fisher_fwhm_arcmin', B%FisherNoiseFwhmArcmin)
         end if
         B%FullOutputFile = Ini%Read_String('bispectrum_full_output_file')
-        if (B%FullOutputFile /='') then
+        if (B%FullOutputFile /= '') then
             call Ini%Read('bispectrum_full_output_sparse', B%SparseFullOutput)
         end if
 

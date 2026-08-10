@@ -9,13 +9,13 @@
     integer, parameter, private :: MATHUTILS_OMP_LEGENDRE_THRESHOLD = 8
 
     interface
-    FUNCTION obj_function(obj, x)
-    !Callback taking an arbitrary class instance; the callback does select type on obj.
+    function obj_function(obj, x)
+    ! Callback taking an arbitrary class instance; the callback does select type on obj.
     use precision
     class(*) :: obj
     real(dl), intent(in) :: x
     real(dl) :: obj_function
-    END FUNCTION  obj_function
+    end function obj_function
     end interface
 
     contains
@@ -58,7 +58,7 @@
 
     if (x >= 0.0_dl) then
         if (x < xpos1) then
-            y = (x - 1.04499999999999993e+0_dl) * 9.56937799043062309e-1_dl
+            y = (x - 1.04499999999999993e+0_dl)*9.56937799043062309e-1_dl
 
             a0 = 6.44822251131735552e-5_dl
             a0 = a0*y - 1.40391640977827854e-4_dl
@@ -73,7 +73,7 @@
             airy_ai_fast = a0
             return
         else if (x <= xpos2) then
-            y = (x - 2.53500000000000014e+0_dl) * 2.24719101123595477e+0_dl
+            y = (x - 2.53500000000000014e+0_dl)*2.24719101123595477e+0_dl
 
             a0 = -1.15727770414950082e-6_dl
             a0 = a0*y + 7.33423129841212084e-5_dl
@@ -85,7 +85,7 @@
             airy_ai_fast = a0
             return
         else if (x <= xpos_tail) then
-            y = (x - 4.74000000000000021e+0_dl) * 5.68181818181818232e-1_dl
+            y = (x - 4.74000000000000021e+0_dl)*5.68181818181818232e-1_dl
 
             a0 = 4.78267577513511941e-6_dl
             a0 = a0*y - 9.97689952930635397e-5_dl
@@ -106,17 +106,17 @@
             end if
 
             rt = sqrt(x)
-            zeta = twothird * x * rt
+            zeta = twothird*x*rt
             qtr = sqrt(rt)
-            z = 1.0_dl / zeta
+            z = 1.0_dl/zeta
 
-            a0 = half_sqpii * exp(-zeta) / qtr
-            airy_ai_fast = a0 * (1.0_dl - 6.94444444444444444e-2_dl*z)
+            a0 = half_sqpii*exp(-zeta)/qtr
+            airy_ai_fast = a0*(1.0_dl - 6.94444444444444444e-2_dl*z)
             return
         end if
     else
         if (x >= xneg2) then
-            y = (x + 1.04499999999999993e+0_dl) * 9.56937799043062309e-1_dl
+            y = (x + 1.04499999999999993e+0_dl)*9.56937799043062309e-1_dl
 
             a0 = 2.63179257460660381e-6_dl
             a0 = a0*y - 4.61163744426384145e-4_dl
@@ -132,7 +132,7 @@
             airy_ai_fast = a0
             return
         else if (x >= xneg1) then
-            y = (x + 3.24500000000000011e+0_dl) * 8.65800865800865571e-1_dl
+            y = (x + 3.24500000000000011e+0_dl)*8.65800865800865571e-1_dl
 
             a0 = -9.32008077263815366e-5_dl
             a0 = a0*y - 2.62795924501147912e-4_dl
@@ -150,7 +150,7 @@
             airy_ai_fast = a0
             return
         else if (x >= xneg_tail) then
-            y = (x + 5.45000000000000018e+0_dl) * 9.52380952380952550e-1_dl
+            y = (x + 5.45000000000000018e+0_dl)*9.52380952380952550e-1_dl
 
             a0 = -1.05869308595918040e-3_dl
             a0 = a0*y + 1.60649285553263622e-3_dl
@@ -170,11 +170,11 @@
             q = -x
             rt = sqrt(q)
 
-            zeta = twothird * q * rt
+            zeta = twothird*q*rt
             qtr = sqrt(rt)
-            ak = sqpii / qtr
+            ak = sqpii/qtr
 
-            z = 1.0_dl / zeta
+            z = 1.0_dl/zeta
             zz = z*z
 
             rf = -3.71305224980621948e-2_dl + zz*5.54256415602097374e-2_dl
@@ -250,7 +250,7 @@
 
     if (x >= 0.0_dl) then
         if (x < xpos1) then
-            y = (x - 1.04499999999999993e+0_dl) * 9.56937799043062309e-1_dl
+            y = (x - 1.04499999999999993e+0_dl)*9.56937799043062309e-1_dl
 
             a0 = 6.44822251131735552e-5_dl
             a0 = a0*y - 1.40391640977827854e-4_dl
@@ -272,11 +272,11 @@
             p0 = p0*y + 1.40071151898272322e-1_dl
             p0 = p0*y - 1.53086081995339490e-1_dl
 
-            ai  = a0
+            ai = a0
             aip = p0
             return
         else if (x <= xpos2) then
-            y = (x - 2.53500000000000014e+0_dl) * 2.24719101123595477e+0_dl
+            y = (x - 2.53500000000000014e+0_dl)*2.24719101123595477e+0_dl
 
             a0 = -1.15727770414950082e-6_dl
             a0 = a0*y + 7.33423129841212084e-5_dl
@@ -292,11 +292,11 @@
             p0 = p0*y + 1.67303006042858714e-2_dl
             p0 = p0*y - 2.49050323424267611e-2_dl
 
-            ai  = a0
+            ai = a0
             aip = p0
             return
         else if (x <= xpos_tail) then
-            y = (x - 4.74000000000000021e+0_dl) * 5.68181818181818232e-1_dl
+            y = (x - 4.74000000000000021e+0_dl)*5.68181818181818232e-1_dl
 
             a0 = 4.78267577513511941e-6_dl
             a0 = a0*y - 9.97689952930635397e-5_dl
@@ -319,7 +319,7 @@
             p0 = p0*y + 1.62470672928840122e-3_dl
             p0 = p0*y - 4.33663076753041949e-4_dl
 
-            ai  = a0
+            ai = a0
             aip = p0
             return
         else
@@ -330,18 +330,18 @@
             end if
 
             rt = sqrt(x)
-            zeta = twothird * x * rt
+            zeta = twothird*x*rt
             qtr = sqrt(rt)
-            z = 1.0_dl / zeta
+            z = 1.0_dl/zeta
 
-            a0 = half_sqpii * exp(-zeta) / qtr
-            ai = a0 * (1.0_dl - 6.94444444444444444e-2_dl*z)
-            aip = -a0 * rt * (1.0_dl + 9.72222222222222222e-2_dl*z)
+            a0 = half_sqpii*exp(-zeta)/qtr
+            ai = a0*(1.0_dl - 6.94444444444444444e-2_dl*z)
+            aip = -a0*rt*(1.0_dl + 9.72222222222222222e-2_dl*z)
             return
         end if
     else
         if (x >= xneg2) then
-            y = (x + 1.04499999999999993e+0_dl) * 9.56937799043062309e-1_dl
+            y = (x + 1.04499999999999993e+0_dl)*9.56937799043062309e-1_dl
 
             a0 = 2.63179257460660381e-6_dl
             a0 = a0*y - 4.61163744426384145e-4_dl
@@ -366,11 +366,11 @@
             p0 = p0*y - 5.84744021609954867e-1_dl
             p0 = p0*y + 1.44839531108773359e-2_dl
 
-            ai  = a0
+            ai = a0
             aip = p0
             return
         else if (x >= xneg1) then
-            y = (x + 3.24500000000000011e+0_dl) * 8.65800865800865571e-1_dl
+            y = (x + 3.24500000000000011e+0_dl)*8.65800865800865571e-1_dl
 
             a0 = -9.32008077263815366e-5_dl
             a0 = a0*y - 2.62795924501147912e-4_dl
@@ -398,11 +398,11 @@
             p0 = p0*y + 1.57043350541346061e+0_dl
             p0 = p0*y + 4.34982024717498091e-3_dl
 
-            ai  = a0
+            ai = a0
             aip = p0
             return
         else if (x >= xneg_tail) then
-            y = (x + 5.45000000000000018e+0_dl) * 9.52380952380952550e-1_dl
+            y = (x + 5.45000000000000018e+0_dl)*9.52380952380952550e-1_dl
 
             a0 = -1.05869308595918040e-3_dl
             a0 = a0*y + 1.60649285553263622e-3_dl
@@ -429,19 +429,19 @@
             p0 = p0*y - 3.47762968362381963e-1_dl
             p0 = p0*y + 8.53442069032961381e-1_dl
 
-            ai  = a0
+            ai = a0
             aip = p0
             return
         else
             q = -x
-            invq = 1.0_dl / q
+            invq = 1.0_dl/q
             rt = sqrt(q)
 
-            zeta = twothird * q * rt
+            zeta = twothird*q*rt
             qtr = sqrt(rt)
-            ak = sqpii / qtr
+            ak = sqpii/qtr
 
-            z = 1.0_dl / zeta
+            z = 1.0_dl/zeta
             zz = z*z
 
             rf = -3.71305224980621948e-2_dl + zz*5.54256415602097374e-2_dl
@@ -450,7 +450,7 @@
             drg = -3.70901829479361872e-2_dl
 
             uf = 1.0_dl + zz*rf
-            duf_dz = (2.0_dl*z) * (rf + zz*drf)
+            duf_dz = (2.0_dl*z)*(rf + zz*drf)
 
             ug = z*rg
             dug_dz = rg + (2.0_dl*zz)*drg
@@ -472,7 +472,6 @@
 
     end subroutine airy_fast
 
-
     subroutine AiryAiFastArray(ai, x, n)
     implicit none
 
@@ -481,14 +480,13 @@
     real(dl), intent(in) :: x(n)
     integer :: i
 
-    !$OMP parallel do default(shared) private(i) schedule(static) &
-    !$OMP& if(n >= MATHUTILS_OMP_VECTOR_THRESHOLD)
+    !$OMP PARALLEL DO DEFAULT(SHARED), PRIVATE(i), SCHEDULE(STATIC) &
+    !$OMP IF(n >= MATHUTILS_OMP_VECTOR_THRESHOLD)
     do i = 1, n
         ai(i) = airy_ai_fast(x(i))
     end do
 
     end subroutine AiryAiFastArray
-
 
     subroutine AiryFastArray(ai, aip, x, n)
     implicit none
@@ -498,15 +496,13 @@
     real(dl), intent(in) :: x(n)
     integer :: i
 
-    !$OMP parallel do default(shared) private(i) schedule(static) &
-    !$OMP& if(n >= MATHUTILS_OMP_VECTOR_THRESHOLD)
+    !$OMP PARALLEL DO DEFAULT(SHARED), PRIVATE(i), SCHEDULE(STATIC) &
+    !$OMP IF(n >= MATHUTILS_OMP_VECTOR_THRESHOLD)
     do i = 1, n
         call airy_fast(x(i), ai(i), aip(i))
     end do
 
     end subroutine AiryFastArray
-
-
 
     pure elemental function airy_ai_reference(x) result(ai)
     ! High-precision real Airy Ai(x) reference, adapted from the Cephes Airy routine.
@@ -614,6 +610,7 @@
     end do
 
     ai = c1*f - c2*g
+
     contains
 
     pure function airy_polevl(x, coef) result(value)
@@ -631,7 +628,6 @@
 
     end function airy_polevl
 
-
     pure function airy_p1evl(x, coef) result(value)
     implicit none
 
@@ -647,10 +643,7 @@
 
     end function airy_p1evl
 
-
     end function airy_ai_reference
-
-
 
     function Integrate_Romberg(obj, f, a, b, tol, maxit, minsteps, abs_tol)
     !  Rombint returns the integral from a to b of f(obj,x) using Romberg integration.
@@ -661,78 +654,77 @@
     ! Modified by AL to specify max iterations and minimum number of steps
     ! (min steps useful to stop wrong results on periodic or sharp functions)
     use MiscUtils
-    use config, only : global_error_flag, print_fortran_warnings
+    use config, only: global_error_flag, print_fortran_warnings
     class(*) :: obj
-    procedure(obj_function) :: f !f(obj, x), unwrapping obj with select type
-    real(dl), intent(in) :: a,b,tol
-    integer, intent(in), optional :: maxit,minsteps
+    procedure(obj_function) :: f ! f(obj, x), unwrapping obj with select type
+    real(dl), intent(in) :: a, b, tol
+    integer, intent(in), optional :: maxit, minsteps
     logical, intent(in), optional :: abs_tol
     integer max_it, min_steps
     real(dl) :: Integrate_Romberg
-    integer, parameter :: MAXJ=5
+    integer, parameter :: MAXJ = 5
     integer :: nint, i, k, jmax, j
-    real(dl) :: h, gmax, error, g(MAXJ+1), g0, g1, fourj
+    real(dl) :: h, gmax, error, g(MAXJ + 1), g0, g1, fourj
     logical abstol
 
     Integrate_Romberg = -1
     max_it = PresentDefault(25, maxit)
     min_steps = PresentDefault(0, minsteps)
     abstol = DefaultFalse(abs_tol)
-    h=0.5d0*(b-a)
-    gmax=h*(f(obj,a)+f(obj,b))
-    if (global_error_flag /=0) return
-    g(1)=gmax
-    g0=gmax !fallback if max_it is too small for any refinement step
-    nint=1
-    error=1.0d20
-    i=0
+    h = 0.5d0*(b - a)
+    gmax = h*(f(obj, a) + f(obj, b))
+    if (global_error_flag /= 0) return
+    g(1) = gmax
+    g0 = gmax ! fallback if max_it is too small for any refinement step
+    nint = 1
+    error = 1.0d20
+    i = 0
     do
-        i=i+1
-        !note min_steps only restricts the converged exit, not the max_it exit
+        i = i + 1
+        ! note min_steps only restricts the converged exit, not the max_it exit
         if (i > max_it .or. ((i > 5 .and. abs(error) < tol) .and. nint > min_steps)) exit
-        !  Calculate next trapezoidal rule approximation to integral.
-        g0=0._dl
-        do k=1,nint
-            g0=g0+f(obj, a+(k+k-1)*h)
-            if (global_error_flag /=0) return
+        ! Calculate next trapezoidal rule approximation to integral.
+        g0 = 0._dl
+        do k = 1, nint
+            g0 = g0 + f(obj, a + (k + k - 1)*h)
+            if (global_error_flag /= 0) return
         end do
-        g0=0.5d0*g(1)+h*g0
-        h=0.5d0*h
-        nint=nint+nint
-        jmax=min(i,MAXJ)
-        fourj=1._dl
-        do j=1,jmax
-            !  Use Richardson extrapolation.
-            fourj=4._dl*fourj
-            g1=g0+(g0-g(j))/(fourj-1._dl)
-            g(j)=g0
-            g0=g1
+        g0 = 0.5d0*g(1) + h*g0
+        h = 0.5d0*h
+        nint = nint + nint
+        jmax = min(i, MAXJ)
+        fourj = 1._dl
+        do j = 1, jmax
+            ! Use Richardson extrapolation.
+            fourj = 4._dl*fourj
+            g1 = g0 + (g0 - g(j))/(fourj - 1._dl)
+            g(j) = g0
+            g0 = g1
         end do
         if (abstol) then
-            error=abs(gmax-g0)
+            error = abs(gmax - g0)
         else
-            if (abs(g0).gt.tol) then
-                error=1._dl-gmax/g0
+            if (abs(g0) > tol) then
+                error = 1._dl - gmax/g0
             else
-                error=gmax
+                error = gmax
             end if
         end if
-        gmax=g0
-        g(jmax+1)=g0
+        gmax = g0
+        g(jmax + 1) = g0
     end do
 
-    Integrate_Romberg=g0
-    if (i > max_it .and. abs(error) > tol .and. print_fortran_warnings)  then
-        write(*,*) 'Warning: Integrate_Romberg failed to converge; '
-        write (*,*)'integral, error, tol:', Integrate_Romberg,error, tol
+    Integrate_Romberg = g0
+    if (i > max_it .and. abs(error) > tol .and. print_fortran_warnings) then
+        write(*, *) 'Warning: Integrate_Romberg failed to converge; '
+        write(*, *) 'integral, error, tol:', Integrate_Romberg, error, tol
     end if
 
     end function Integrate_Romberg
 
+    subroutine brentq(obj, f, ax, bx, tol, xzero, fzero, iflag, fax, fbx)
 
-    subroutine brentq(obj,f,ax,bx,tol,xzero,fzero,iflag,fax,fbx)
-
-    !>
+    ! >
     !  Find a zero of the function \( f(x) \) in the given interval
     !  \( [a_x,b_x] \) to within a tolerance \( 4 \epsilon |x| + tol \),
     !  where \( \epsilon \) is the relative machine precision defined as
@@ -740,7 +732,7 @@
     !
     !  It is assumed that \( f(a_x) \) and \( f(b_x) \) have opposite signs.
     !
-    !#References
+    ! #References
     !  * R. P. Brent, "[An algorithm with guaranteed convergence for
     !    finding a zero of a function](http://maths-people.anu.edu.au/~brent/pd/rpb005.pdf)",
     !    The Computer Journal, Vol 14, No. 4., 1971.
@@ -748,128 +740,127 @@
     !    http://maths-people.anu.edu.au/~brent/pub/pub011.html
     !    Prentice-Hall, Inc., 1973.
     !
-    !# See also
+    ! # See also
     !  1. [zeroin.f](http://www.netlib.org/go/zeroin.f) from Netlib
 
     use iso_fortran_env, only: error_unit
     implicit none
     class(*) :: obj
-    procedure(obj_function) :: f !f(obj, x), unwrapping obj with select type
+    procedure(obj_function) :: f ! f(obj, x), unwrapping obj with select type
 
-    real(dl),intent(in)              :: ax      !! left endpoint of initial interval
-    real(dl),intent(in)              :: bx      !! right endpoint of initial interval
-    real(dl),intent(in)              :: tol     !! desired length of the interval of uncertainty
-                                              !! of the final result (>=0)
-    real(dl),intent(out)             :: xzero   !! abscissa approximating a zero of `f` in the interval `ax`,`bx`
-    real(dl),intent(out)             :: fzero   !! value of `f` at the root (`f(xzero)`)
-    integer,intent(out)              :: iflag   !! status flag (`-1`=error, `0`=root found)
-    real(dl),intent(in),optional     :: fax     !! if `f(ax)` is already known, it can be input here
-    real(dl),intent(in),optional     :: fbx     !! if `f(bx)` is already known, it can be input here
-    real(dl), parameter :: one = 1._dl, zero = 0._dl, two =2._dl, three = 3._dl
-    real(dl),parameter :: eps   = epsilon(one)  !! original code had d1mach(4)
-    real(dl) :: a,b,c,d,e,fa,fb,fc,tol1,xm,p,q,r,s
+    real(dl), intent(in)           :: ax      !! left endpoint of initial interval
+    real(dl), intent(in)           :: bx      !! right endpoint of initial interval
+    real(dl), intent(in)           :: tol     !! desired uncertainty interval of result (>=0)
+    real(dl), intent(out)          :: xzero   !! abscissa approximating a zero of `f` in the interval `ax`,`bx`
+    real(dl), intent(out)          :: fzero   !! value of `f` at the root (`f(xzero)`)
+    integer, intent(out)           :: iflag   !! status flag (`-1`=error, `0`=root found)
+    real(dl), intent(in), optional :: fax     !! if `f(ax)` is already known, it can be input here
+    real(dl), intent(in), optional :: fbx     !! if `f(bx)` is already known, it can be input here
+    real(dl), parameter :: one = 1._dl, zero = 0._dl, two = 2._dl, three = 3._dl
+    real(dl), parameter :: eps = epsilon(one)  !! original code had d1mach(4)
+    real(dl) :: a, b, c, d, e, fa, fb, fc, tol1, xm, p, q, r, s
 
-    tol1 = eps+one
+    tol1 = eps + one
 
-    a=ax
-    b=bx
+    a = ax
+    b = bx
 
     if (present(fax)) then
         fa = fax
     else
-        fa=f(obj,a)
+        fa = f(obj, a)
     end if
     if (present(fbx)) then
         fb = fbx
     else
-        fb=f(obj,b)
+        fb = f(obj, b)
     end if
 
-    !check trivial cases first:
-    if (fa==zero) then
+    ! check trivial cases first:
+    if (fa == zero) then
 
         iflag = 0
         xzero = a
         fzero = fa
 
-    elseif (fb==zero) then
+    else if (fb == zero) then
 
         iflag = 0
         xzero = b
         fzero = fb
 
-    elseif (fa*(fb/abs(fb))<zero) then  ! check that f(ax) and f(bx) have different signs
+    else if (fa*(fb/abs(fb)) < zero) then ! check that f(ax) and f(bx) have different signs
 
-        c=a
-        fc=fa
-        d=b-a
-        e=d
+        c = a
+        fc = fa
+        d = b - a
+        e = d
 
         do
 
-            if (abs(fc)<abs(fb)) then
-                a=b
-                b=c
-                c=a
-                fa=fb
-                fb=fc
-                fc=fa
+            if (abs(fc) < abs(fb)) then
+                a = b
+                b = c
+                c = a
+                fa = fb
+                fb = fc
+                fc = fa
             end if
 
-            tol1=two*eps*abs(b)+0.5_dl*tol
-            xm = 0.5_dl*(c-b)
-            if ((abs(xm)<=tol1).or.(fb==zero)) exit
+            tol1 = two*eps*abs(b) + 0.5_dl*tol
+            xm = 0.5_dl*(c - b)
+            if ((abs(xm) <= tol1) .or. (fb == zero)) exit
 
             ! see if a bisection is forced
-            if ((abs(e)>=tol1).and.(abs(fa)>abs(fb))) then
-                s=fb/fa
-                if (a/=c) then
+            if ((abs(e) >= tol1) .and. (abs(fa) > abs(fb))) then
+                s = fb/fa
+                if (a /= c) then
                     ! inverse quadratic interpolation
-                    q=fa/fc
-                    r=fb/fc
-                    p=s*(two*xm*q*(q-r)-(b-a)*(r-one))
-                    q=(q-one)*(r-one)*(s-one)
+                    q = fa/fc
+                    r = fb/fc
+                    p = s*(two*xm*q*(q - r) - (b - a)*(r - one))
+                    q = (q - one)*(r - one)*(s - one)
                 else
                     ! linear interpolation
-                    p=two*xm*s
-                    q=one-s
+                    p = two*xm*s
+                    q = one - s
                 end if
-                if (p<=zero) then
-                    p=-p
+                if (p <= zero) then
+                    p = -p
                 else
-                    q=-q
+                    q = -q
                 end if
-                s=e
-                e=d
-                if (((two*p)>=(three*xm*q-abs(tol1*q))) .or. &
-                    (p>=abs(0.5_dl*s*q))) then
-                    d=xm
-                    e=d
+                s = e
+                e = d
+                if (((two*p) >= (three*xm*q - abs(tol1*q))) .or. &
+                    (p >= abs(0.5_dl*s*q))) then
+                    d = xm
+                    e = d
                 else
-                    d=p/q
+                    d = p/q
                 end if
             else
-                d=xm
-                e=d
+                d = xm
+                e = d
             end if
 
-            a=b
-            fa=fb
-            if (abs(d)<=tol1) then
-                if (xm<=zero) then
-                    b=b-tol1
+            a = b
+            fa = fb
+            if (abs(d) <= tol1) then
+                if (xm <= zero) then
+                    b = b - tol1
                 else
-                    b=b+tol1
+                    b = b + tol1
                 end if
             else
-                b=b+d
+                b = b + d
             end if
-            fb=f(obj,b)
-            if ((fb*(fc/abs(fc)))>zero) then
-                c=a
-                fc=fa
-                d=b-a
-                e=d
+            fb = f(obj, b)
+            if ((fb*(fc/abs(fc))) > zero) then
+                c = a
+                fc = fa
+                d = b - a
+                e = d
             end if
 
         end do
@@ -881,80 +872,79 @@
     else
 
         iflag = -1
-        write(error_unit,'(A)')&
+        write(error_unit, '(A)') &
             'Error in zeroin: f(ax) and f(bx) do not have different signs.'
 
     end if
 
     end subroutine brentq
 
-    function Newton_Raphson2(xxl,xxh,funcs, param, param2) result(xm)
-    use Precision
+    function Newton_Raphson2(xxl, xxh, funcs, param, param2) result(xm)
+    use precision
     implicit none
-    real(dl), intent(in) :: xxl     ! root bracket 1
-    real(dl), intent(in) :: xxh     ! root bracket 2
-    real(dl)  :: xl,xh, xm     ! root
-    external funcs        ! subroutine for non-linear equation
-    real(dl), intent(in) :: param, param2 !parameters for function
-    integer  :: k                      ! iteration count
-    real(dl) :: xn, f,f2,df, error
-    real(dl), parameter :: half=0.5_dl
-    integer, parameter :: ITERMAX=1000 ! max number of iteration
-    real(dl), parameter :: tol=1.e-8_dl ! tolerance for error
+    real(dl), intent(in) :: xxl ! root bracket 1
+    real(dl), intent(in) :: xxh ! root bracket 2
+    real(dl) :: xl, xh, xm ! root
+    external funcs ! subroutine for non-linear equation
+    real(dl), intent(in) :: param, param2 ! parameters for function
+    integer  :: k ! iteration count
+    real(dl) :: xn, f, f2, df, error
+    real(dl), parameter :: half = 0.5_dl
+    integer, parameter :: ITERMAX = 1000 ! max number of iteration
+    real(dl), parameter :: tol = 1.e-8_dl ! tolerance for error
 
-    xl =xxl
+    xl = xxl
     xh = xxh
-    call funcs(f,df,xl, param, param2)  ! Set xm=f(xl)
-    call funcs(f2,df,xh, param, param2)  ! Set xn=f(xh)
-    if (f*f2 > 0._dl) then           ! check if function changes sign
+    call funcs(f, df, xl, param, param2) ! Set xm=f(xl)
+    call funcs(f2, df, xh, param, param2) ! Set xn=f(xh)
+    if (f*f2 > 0._dl) then ! check if function changes sign
         error stop 'Newton_Raphson: root is not bracketed'
-    endif
-    if (f > 0._dl) then               ! Rearrange so that f(xl)< 0.d0 < f(xh)
+    end if
+    if (f > 0._dl) then ! Rearrange so that f(xl)< 0.d0 < f(xh)
         xm = xl
         xl = xh
         xh = xm
-    endif
+    end if
 
-    error = abs(xh-xl)                ! error is width of bracketing interval
-    xm = half*(xl+xh)                 ! Initialize guess for root
-    k = 0                             ! initialize iteration count
+    error = abs(xh - xl) ! error is width of bracketing interval
+    xm = half*(xl + xh) ! Initialize guess for root
+    k = 0 ! initialize iteration count
     do while (error > tol .and. k < ITERMAX) ! iterate
-        k = k+1                         ! increment iteration count
-        call funcs(f,df,xm, param, param2) ! calculate f(xm), df(xm)
-        if (f > 0._dl) then              ! Update root bracketing
-            xh = xm                       ! update high
+        k = k + 1 ! increment iteration count
+        call funcs(f, df, xm, param, param2) ! calculate f(xm), df(xm)
+        if (f > 0._dl) then ! Update root bracketing
+            xh = xm ! update high
         else
-            xl = xm                       ! update low
-        endif
-        xn = xm - f/df                  ! Tentative newton-Raphson step
-        if ( (xn-xl)*(xn-xh) > 0._dl ) then ! check if new root falls within bracket
-            xm = half* (xh+xl)            ! if no use a Bisection step
-            error = abs(xh-xl)            ! error is width of interval
+            xl = xm ! update low
+        end if
+        xn = xm - f/df ! Tentative newton-Raphson step
+        if ((xn - xl)*(xn - xh) > 0._dl) then ! check if new root falls within bracket
+            xm = half*(xh + xl) ! if no use a Bisection step
+            error = abs(xh - xl) ! error is width of interval
         else
-            error = abs(xn-xm)            ! if within bracket: error is change in root
-            xm = xn                       ! update successful Newton-Raphson step
-        endif
-    enddo
+            error = abs(xn - xm) ! if within bracket: error is change in root
+            xm = xn ! update successful Newton-Raphson step
+        end if
+    end do
 
-    if (error > tol) then       ! Check if solution converged
-        write(*,*) 'Newton_Raphson:solution did not converge, xn, funcs(xn),D(xn)'
-        write(*,*) xn, f, error
-    endif
+    if (error > tol) then ! Check if solution converged
+        write(*, *) 'Newton_Raphson:solution did not converge, xn, funcs(xn),D(xn)'
+        write(*, *) xn, f, error
+    end if
 
     end function Newton_Raphson2
-
 
     subroutine Gauss_Legendre(x, w, n)
     ! Get n-point Gauss-Legendre nodes x and weights w on [-1, 1].
 
-    use constants, only : dl, const_pi
+    use constants, only: dl, const_pi
     implicit none
 
-    integer,  intent(in)  :: n
+    integer, intent(in) :: n
     real(dl), intent(out) :: x(n), w(n)
 
     real(dl), parameter :: tol = 1.0e-15_dl
-    integer,  parameter :: max_iter = 50
+    integer, parameter :: max_iter = 50
 
     integer  :: i, j, k, m, iter
     real(dl) :: p1, p2, p3, pp, z, dz, wi
@@ -962,15 +952,15 @@
 
     if (n < 1) error stop "Gauss_Legendre: n must be positive"
 
-    m = (n + 1) / 2
+    m = (n + 1)/2
     failed = .false.
 
-!$omp parallel do default(none) schedule(static) if(n >= MATHUTILS_OMP_GAUSS_THRESHOLD) &
-!$omp& private(i, j, k, iter, p1, p2, p3, pp, z, dz, wi) &
-!$omp& shared(x, w, n, m, failed)
+!$OMP PARALLEL DO DEFAULT(none), SCHEDULE(STATIC), IF(n >= MATHUTILS_OMP_GAUSS_THRESHOLD) &
+!$OMP PRIVATE(i, j, k, iter, p1, p2, p3, pp, z, dz, wi) &
+!$OMP SHARED(x, w, n, m, failed)
     do i = 1, m
 
-        z = cos(const_pi * (real(i, dl) - 0.25_dl) / &
+        z = cos(const_pi*(real(i, dl) - 0.25_dl)/ &
             (real(n, dl) + 0.5_dl))
 
         do iter = 1, max_iter
@@ -980,33 +970,33 @@
             do j = 1, n
                 p3 = p2
                 p2 = p1
-                p1 = ((2*j - 1) * z * p2 - (j - 1) * p3) / j
+                p1 = ((2*j - 1)*z*p2 - (j - 1)*p3)/j
             end do
 
-            pp = real(n, dl) * (z*p1 - p2) / (z*z - 1._dl)
-            dz = p1 / pp
-            z  = z - dz
+            pp = real(n, dl)*(z*p1 - p2)/(z*z - 1._dl)
+            dz = p1/pp
+            z = z - dz
 
             if (abs(dz) <= tol) exit
         end do
 
-        !cannot error stop inside the parallel region, so flag and stop after it
+        ! cannot error stop inside the parallel region, so flag and stop after it
         if (iter > max_iter) then
-!$omp atomic write
+!$OMP ATOMIC write
             failed = .true.
         end if
 
-        k  = n + 1 - i
-        wi = 2._dl / ((1._dl - z*z) * pp*pp)
+        k = n + 1 - i
+        wi = 2._dl/((1._dl - z*z)*pp*pp)
 
         x(i) = -z
-        x(k) =  z
+        x(k) = z
         w(i) = wi
         w(k) = wi
 
         if (i == k) x(i) = 0._dl
     end do
-!$omp end parallel do
+!$OMP END PARALLEL DO
 
     if (failed) error stop "Gauss_Legendre: Newton iteration failed"
 
@@ -1017,7 +1007,7 @@
     ! at each of the npoints x values, requiring |x| < 1.
     ! P and dP are (0:lmax, npoints) arrays (C-ordered (npoints, lmax+1) from python).
 
-    use constants, only : dl
+    use constants, only: dl
     implicit none
 
     integer, intent(in) :: lmax, npoints
@@ -1026,8 +1016,8 @@
     integer :: i, l
     real(dl) :: xi, pmm, pmmp1, pl, rsin2
 
-    !$omp parallel do default(shared) schedule(static) if(npoints >= MATHUTILS_OMP_LEGENDRE_THRESHOLD) &
-    !$omp& private(i, l, xi, pmm, pmmp1, pl, rsin2)
+    !$OMP PARALLEL DO DEFAULT(SHARED), SCHEDULE(STATIC), IF(npoints >= MATHUTILS_OMP_LEGENDRE_THRESHOLD) &
+    !$OMP PRIVATE(i, l, xi, pmm, pmmp1, pl, rsin2)
     do i = 1, npoints
         xi = x(i)
         P(0, i) = 1._dl
@@ -1035,23 +1025,23 @@
         if (lmax < 1) cycle
         P(1, i) = xi
         dP(1, i) = 1._dl
-        rsin2 = 1._dl / (1._dl - xi*xi)
+        rsin2 = 1._dl/(1._dl - xi*xi)
         pmm = 1._dl
         pmmp1 = xi
         do l = 2, lmax
-            pl = ((2*l - 1)*xi*pmmp1 - (l - 1)*pmm) / l
+            pl = ((2*l - 1)*xi*pmmp1 - (l - 1)*pmm)/l
             P(l, i) = pl
             dP(l, i) = l*(pmmp1 - xi*pl)*rsin2
             pmm = pmmp1
             pmmp1 = pl
         end do
     end do
-    !$omp end parallel do
+    !$OMP END PARALLEL DO
 
     end subroutine Legendre_Table
 
-    subroutine GetThreeJs(thrcof,l2in,l3in,m2in,m3in)
-    !Recursive evaluation of 3j symbols. Does minimal error checking on input parameters.
+    subroutine GetThreeJs(thrcof, l2in, l3in, m2in, m3in)
+    ! Recursive evaluation of 3j symbols. Does minimal error checking on input parameters.
     !
     ! Generates the set of 3j-coeffs (l1,l2,l3\\ m1,m2,m3) for all allowed l1
     ! from l1min = max(abs(l2-l3),abs(m1)) to l1max = l2+l3, with m1 = -(m2+m3).
@@ -1060,7 +1050,7 @@
     ! For numerical stability the recursion proceeds simultaneously forwards from
     ! l1min and backwards from l1max, with the two branches matched over three
     ! overlapping points where the forward recursion stops being stable.
-    use MpiUtils, only : MpiStop
+    use MpiUtils, only: MpiStop
     implicit none
     integer, intent(in) :: l2in, l3in, m2in, m3in
     real(dl), intent(out) :: thrcof(*)
@@ -1081,7 +1071,7 @@
     m2 = m2in
     m3 = m3in
     newfac = 0
-    m1 = -(m2+m3)
+    m1 = -(m2 + m3)
 
     ! check relative magnitude of l and m values
     if (l2 < abs(m2) .or. l3 < abs(m3)) then
@@ -1090,8 +1080,8 @@
     end if
 
     ! limits for l1
-    l1min = max(abs(l2-l3), abs(m1))
-    l1max = l2+l3
+    l1min = max(abs(l2 - l3), abs(m1))
+    l1max = l2 + l3
 
     if (l1min >= l1max) then
         if (l1min /= l1max) then
@@ -1100,46 +1090,46 @@
         end if
 
         ! reached if l1 can take only one value, i.e. l1min = l1max
-        thrcof(1) = (-1)**abs(l2+m2-l3+m3)/sqrt(real(l1min+l2+l3+1,dl))
+        thrcof(1) = (-1)**abs(l2 + m2 - l3 + m3)/sqrt(real(l1min + l2 + l3 + 1, dl))
         return
 
     end if
 
-    nfin = l1max-l1min+1
-    m32 = m3-m2
-    dv0 = (l3*(l3+1) - l2*(l2+1))*m1
+    nfin = l1max - l1min + 1
+    m32 = m3 - m2
+    dv0 = (l3*(l3 + 1) - l2*(l2 + 1))*m1
 
     ! forward recursion from l1min
     l1 = l1min
     thrcof(1) = srtiny
-    sum1 = (2*l1+1)*tiny_val
+    sum1 = (2*l1 + 1)*tiny_val
     lstep = 1
     forward_done = .false.
 
     forward: do
-        lstep = lstep+1
-        l1 = l1+1
+        lstep = lstep + 1
+        l1 = l1 + 1
 
         oldfac = newfac
-        a1 = (l1+l2+l3+1)*(l1-l2+l3)*(l1+l2-l3)
-        a2 = (l1+m1)*(l1-m1)*(-l1+l2+l3+1)
-        newfac = sqrt(a2*real(a1,dl))
+        a1 = (l1 + l2 + l3 + 1)*(l1 - l2 + l3)*(l1 + l2 - l3)
+        a2 = (l1 + m1)*(l1 - m1)*(-l1 + l2 + l3 + 1)
+        newfac = sqrt(a2*real(a1, dl))
         if (l1 == 1) then
             ! if l1 = 1, (l1-1) has to be factored out of dv, hence
-            c1 = -(2*l1-1)*l1*m32/newfac
+            c1 = -(2*l1 - 1)*l1*m32/newfac
         else
-            dv = dv0 + l1*(l1-1)*m32
-            denom = (l1-1)*newfac
+            dv = dv0 + l1*(l1 - 1)*m32
+            denom = (l1 - 1)*newfac
 
             if (lstep > 2) c1old = abs(c1)
-            c1 = -(2*l1-1)*real(dv,dl)/denom
+            c1 = -(2*l1 - 1)*real(dv, dl)/denom
         end if
 
         if (lstep <= 2) then
             ! if l1 = l1min+1 the third term in the recursion eqn vanishes, hence
             x = srtiny*c1
             thrcof(2) = x
-            sum1 = sum1 + tiny_val*(2*l1+1)*c1*c1
+            sum1 = sum1 + tiny_val*(2*l1 + 1)*c1*c1
             if (lstep == nfin) then
                 forward_done = .true.
                 exit forward
@@ -1150,10 +1140,10 @@
         c2 = -l1*oldfac/denom
 
         ! recursion to the next 3j-coeff x
-        x = c1*thrcof(lstep-1) + c2*thrcof(lstep-2)
+        x = c1*thrcof(lstep - 1) + c2*thrcof(lstep - 2)
         thrcof(lstep) = x
         sumfor = sum1
-        sum1 = sum1 + (2*l1+1)*x*x
+        sum1 = sum1 + (2*l1 + 1)*x*x
         if (lstep == nfin) exit forward
 
         ! rescale if the last 3j-coeff exceeds srhuge, to prevent overflow
@@ -1180,57 +1170,57 @@
         ! keep three 3j-coeffs around the matching point for comparison with
         ! the backward recursion
         x1 = x
-        x2 = thrcof(lstep-1)
-        x3 = thrcof(lstep-2)
-        nstep2 = nfin-lstep+3
+        x2 = thrcof(lstep - 1)
+        x3 = thrcof(lstep - 2)
+        nstep2 = nfin - lstep + 3
 
         ! backward recursion from l1max taking nstep2 steps, so that
         ! forward and backward recursion overlap at the three points
-        ! l1 = lmatch-1, lmatch, lmatch+1
+        ! l1 = lmatch-1, lmatch, lmatch + 1
         l1 = l1max
         thrcof(nfin) = srtiny
-        sum2 = tiny_val*(2*l1+1)
+        sum2 = tiny_val*(2*l1 + 1)
 
-        l1 = l1+2
+        l1 = l1 + 2
         lstep = 1
 
         backward: do
-            lstep = lstep+1
-            l1 = l1-1
+            lstep = lstep + 1
+            l1 = l1 - 1
 
             oldfac = newfac
-            a1 = (l1+l2+l3)*(l1-l2+l3-1)*(l1+l2-l3-1)
-            a2 = (l1+m1-1)*(l1-m1-1)*(-l1+l2+l3+2)
-            newfac = sqrt(a1*real(a2,dl))
+            a1 = (l1 + l2 + l3)*(l1 - l2 + l3 - 1)*(l1 + l2 - l3 - 1)
+            a2 = (l1 + m1 - 1)*(l1 - m1 - 1)*(-l1 + l2 + l3 + 2)
+            newfac = sqrt(a1*real(a2, dl))
 
-            dv = dv0 + l1*(l1-1)*m32
+            dv = dv0 + l1*(l1 - 1)*m32
             denom = l1*newfac
-            c1 = -(2*l1-1)*real(dv,dl)/denom
+            c1 = -(2*l1 - 1)*real(dv, dl)/denom
 
             if (lstep <= 2) then
                 ! if l1 = l1max-1 the third term in the recursion vanishes
                 y = srtiny*c1
-                thrcof(nfin-1) = y
+                thrcof(nfin - 1) = y
                 sumbac = sum2
-                sum2 = sum2 + tiny_val*(2*l1-3)*c1*c1
+                sum2 = sum2 + tiny_val*(2*l1 - 3)*c1*c1
                 cycle backward
             end if
 
-            c2 = -(l1-1)*oldfac/denom
+            c2 = -(l1 - 1)*oldfac/denom
 
             ! recursion to the next 3j-coeff y
-            y = c1*thrcof(nfin+2-lstep) + c2*thrcof(nfin+3-lstep)
+            y = c1*thrcof(nfin + 2 - lstep) + c2*thrcof(nfin + 3 - lstep)
 
             if (lstep == nstep2) exit backward
 
-            thrcof(nfin+1-lstep) = y
+            thrcof(nfin + 1 - lstep) = y
             sumbac = sum2
-            sum2 = sum2 + (2*l1-3)*y*y
+            sum2 = sum2 + (2*l1 - 3)*y*y
 
             ! rescale if the last 3j-coeff exceeds srhuge, to prevent overflow
             if (abs(y) >= srhuge) then
                 do i = 1, lstep
-                    idx = nfin-i+1
+                    idx = nfin - i + 1
                     if (abs(thrcof(idx)) < srtiny) thrcof(idx) = zero
                     thrcof(idx) = thrcof(idx)/srhuge
                 end do
@@ -1243,25 +1233,25 @@
         ! corresponding backward recursion values y1, y2, y3, determining the
         ! ratio such that yi = ratio*xi (i=1,2,3) holds with minimal error
         y3 = y
-        y2 = thrcof(nfin+2-lstep)
-        y1 = thrcof(nfin+3-lstep)
+        y2 = thrcof(nfin + 2 - lstep)
+        y1 = thrcof(nfin + 3 - lstep)
 
         ratio = (x1*y1 + x2*y2 + x3*y3)/(x1*x1 + x2*x2 + x3*x3)
-        nlim = nfin-nstep2+1
+        nlim = nfin - nstep2 + 1
 
         if (abs(ratio) >= 1) then
             thrcof(1:nlim) = ratio*thrcof(1:nlim)
             sumuni = ratio*ratio*sumfor + sumbac
         else
             ratio = 1/ratio
-            thrcof(nlim+1:nfin) = ratio*thrcof(nlim+1:nfin)
+            thrcof(nlim + 1:nfin) = ratio*thrcof(nlim + 1:nfin)
             sumuni = sumfor + ratio*ratio*sumbac
         end if
     end if
 
     ! normalise 3j-coeffs; sign convention for the last coeff fixes the overall phase
     cnorm = 1/sqrt(sumuni)
-    if (sign(one,thrcof(nfin))*(-1)**abs(l2+m2-l3+m3) <= 0) cnorm = -cnorm
+    if (sign(one, thrcof(nfin))*(-1)**abs(l2 + m2 - l3 + m3) <= 0) cnorm = -cnorm
 
     if (abs(cnorm) >= one) then
         thrcof(1:nfin) = cnorm*thrcof(1:nfin)
@@ -1275,86 +1265,86 @@
 
     end subroutine GetThreeJs
 
-
     function GetChiSquared(c_inv, Y, n) result(chi2)
-    !get dot_product(matmul(C_inv,Y), Y) efficiently assuming c_inv symmetric
+    ! get dot_product(matmul(C_inv,Y), Y) efficiently assuming c_inv symmetric
     integer, intent(in) :: n
     real(dl), intent(in) :: Y(n)
-    real(dl), intent(in) :: c_inv(n,n)
+    real(dl), intent(in) :: c_inv(n, n)
     integer j
     real(dl) ztemp, chi2
 
     chi2 = 0
-    !$OMP parallel do private(j,ztemp) reduction(+:chi2) schedule(static,16) &
-    !$OMP& if(n >= MATHUTILS_OMP_CHI2_THRESHOLD)
-    do  j = 1, n
-        ztemp= dot_product(Y(j+1:n), c_inv(j+1:n, j))
-        chi2=chi2+ (ztemp*2 +c_inv(j, j)*Y(j))*Y(j)
+    !$OMP PARALLEL DO PRIVATE(j, ztemp), REDUCTION(+:chi2), SCHEDULE(STATIC, 16) &
+    !$OMP IF(n >= MATHUTILS_OMP_CHI2_THRESHOLD)
+    do j = 1, n
+        ztemp = dot_product(Y(j + 1:n), c_inv(j + 1:n, j))
+        chi2 = chi2 + (ztemp*2 + c_inv(j, j)*Y(j))*Y(j)
     end do
 
     end function GetChiSquared
 
-    subroutine integrate_3j(W,lmax_w, n, dopol, M, lmax)
+    subroutine integrate_3j(W, lmax_w, n, dopol, M, lmax)
     !$ use omp_lib, only: omp_get_thread_num, omp_get_max_threads
-    !Get coupling matrix, eg for pesudo-CL
+    ! Get coupling matrix, eg for pesudo-CL
     integer, intent(in) :: lmax, lmax_w, n
-    real(dl), intent(in) :: W(0:lmax_w,n)
+    real(dl), intent(in) :: W(0:lmax_w, n)
     logical, intent(in) :: dopol
-    !n is the number of input mask weight spectra; when dopol the output has the
-    !four TT, TE, EE, EB couplings whatever the number of masks (n is 1 or 3)
-    real(dl), intent(out) :: M(0:lmax,0:lmax, merge(4, n, dopol))
+    ! n is the number of input mask weight spectra; when dopol the output has the
+    ! four TT, TE, EE, EB couplings whatever the number of masks (n is 1 or 3)
+    real(dl), intent(out) :: M(0:lmax, 0:lmax, merge(4, n, dopol))
     integer l1, l2, lplus, lminus, thread_ix, ix, nthread
-    real(dl), allocatable :: threejj0(:,:), threejj2(:,:)
+    real(dl), allocatable :: threejj0(:, :), threejj2(:, :)
 
     nthread = 1
     !$ nthread = OMP_GET_MAX_THREADS()
 
-    allocate(threejj0(0:2*lmax,nthread))
+    allocate(threejj0(0:2*lmax, nthread))
     if (dopol) then
-        allocate(threejj2(0:2*lmax,nthread))
+        allocate(threejj2(0:2*lmax, nthread))
     end if
 
-    !entries left untouched below (l<2 for polarization, or |l1-l2| > lmax_w) are zero
+    ! entries left untouched below (l<2 for polarization, or |l1-l2| > lmax_w) are zero
     M = 0
 
-    !$OMP parallel do private(l1,l2,lminus,lplus,thread_ix,ix), schedule(dynamic)
+    !$OMP PARALLEL DO PRIVATE(l1, l2, lminus, lplus, thread_ix, ix), SCHEDULE(DYNAMIC)
     do l1 = 0, lmax
-        thread_ix =1
-        !$ thread_ix = OMP_GET_THREAD_NUM()+1
+        thread_ix = 1
+        !$ thread_ix = OMP_GET_THREAD_NUM() + 1
         do l2 = 0, l1
-            lminus = abs(l1-l2)
-            if (lminus > lmax_w) cycle !no overlap with the mask power, coupling is zero
-            lplus =  min(lmax_w,l1+l2)
+            lminus = abs(l1 - l2)
+            if (lminus > lmax_w) cycle ! no overlap with the mask power, coupling is zero
+            lplus = min(lmax_w, l1 + l2)
 
-            call GetThreeJs(threejj0(lminus:,thread_ix),l1,l2,0,0)
+            call GetThreeJs(threejj0(lminus:, thread_ix), l1, l2, 0, 0)
 
-            if (dopol .and. l1>=2 .and. l2>=2) then
-                !note that lminus is correct, want max(abs(l1-l2),abs(m1)) where m1=0 here
-                !(polarization coupling depends on lowest multipoles of the mask)
-                call GetThreeJs(threejj2(lminus:,thread_ix),l1,l2,-2,2)
-                M(l2,l1,2) = sum(W(lminus:lplus:2,2)*threejj0(lminus:lplus:2,thread_ix) &
-                    *threejj2(lminus:lplus:2,thread_ix)) !TE
-                M(l2,l1,3) = sum(W(lminus:lplus:2,3)*threejj2(lminus:lplus:2,thread_ix)**2) !EE
-                M(l2,l1,4) = sum(W(lminus+1:lplus:2,3)*threejj2(lminus+1:lplus:2,thread_ix)**2) !EB
+            if (dopol .and. l1 >= 2 .and. l2 >= 2) then
+                ! note that lminus is correct, want max(abs(l1-l2),abs(m1)) where m1=0 here
+                ! (polarization coupling depends on lowest multipoles of the mask)
+                call GetThreeJs(threejj2(lminus:, thread_ix), l1, l2, -2, 2)
+                M(l2, l1, 2) = sum(W(lminus:lplus:2, 2)*threejj0(lminus:lplus:2, thread_ix) &
+                    *threejj2(lminus:lplus:2, thread_ix)) ! TE
+                M(l2, l1, 3) = sum(W(lminus:lplus:2, 3)*threejj2(lminus:lplus:2, thread_ix)**2) ! EE
+                M(l2, l1, 4) = sum(W(lminus + 1:lplus:2, 3)*threejj2(lminus + 1:lplus:2, thread_ix)**2) ! EB
             end if
-            !the m=0 3j vanishes unless l1+l2+l is even, and lminus has the parity of
-            !l1+l2, so only every other entry from lminus is non-zero
-            if (n>1 .and. .not. dopol) then
-                threejj0(lminus:lplus:2,thread_ix) = threejj0(lminus:lplus:2,thread_ix)**2
-                do ix=1,n
-                    M(l2,l1,ix) = sum(W(lminus:lplus:2,ix)* threejj0(lminus:lplus:2,thread_ix))
+            ! the m=0 3j vanishes unless l1+l2+l is even, and lminus has the parity of
+            ! l1+l2, so only every other entry from lminus is non-zero
+            if (n > 1 .and. .not. dopol) then
+                threejj0(lminus:lplus:2, thread_ix) = threejj0(lminus:lplus:2, thread_ix)**2
+                do ix = 1, n
+                    M(l2, l1, ix) = sum(W(lminus:lplus:2, ix)*threejj0(lminus:lplus:2, thread_ix))
                 end do
             else
-                M(l2,l1,1) = sum(W(lminus:lplus:2,1)* threejj0(lminus:lplus:2,thread_ix)**2)
+                M(l2, l1, 1) = sum(W(lminus:lplus:2, 1)*threejj0(lminus:lplus:2, thread_ix)**2)
             end if
         end do
     end do
 
-    do l1=0, lmax
-        do l2 = l1+1,lmax
-            M(l2,l1,:) = M(l1,l2,:)
+    do l1 = 0, lmax
+        do l2 = l1 + 1, lmax
+            M(l2, l1, :) = M(l1, l2, :)
         end do
     end do
+
     end subroutine integrate_3j
 
     end module MathUtils

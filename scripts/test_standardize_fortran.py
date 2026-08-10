@@ -47,6 +47,10 @@ class CommandLineTests(unittest.TestCase):
         with patch("sys.argv", ["standardize_fortran.py", "--uppercase-single-l", "input.f90"]):
             self.assertTrue(parse_args().uppercase_single_l)
 
+    def test_isolated_option(self) -> None:
+        with patch("sys.argv", ["standardize_fortran.py", "--isolated", "input.f90"]):
+            self.assertTrue(parse_args().isolated)
+
     def test_explicit_path_does_not_require_git_checkout(self) -> None:
         with TemporaryDirectory() as directory:
             path = Path(directory) / "source.f90"
@@ -55,6 +59,16 @@ class CommandLineTests(unittest.TestCase):
                 patch.object(formatter, "REPOSITORY_ROOT", None),
                 patch.object(formatter, "tracked_fortran_paths", side_effect=AssertionError("unexpected Git lookup")),
                 patch("sys.argv", ["standardize_fortran.py", "--check", str(path)]),
+            ):
+                self.assertEqual(formatter.main(), 0)
+
+    def test_isolated_path_does_not_scan_repository_sources(self) -> None:
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "source.f90"
+            path.write_text("x = 1\n")
+            with (
+                patch.object(formatter, "tracked_fortran_paths", side_effect=AssertionError("unexpected Git lookup")),
+                patch("sys.argv", ["standardize_fortran.py", "--isolated", "--check", str(path)]),
             ):
                 self.assertEqual(formatter.main(), 0)
 
@@ -879,6 +893,9 @@ subroutine work(values, prototype, status, message)
     integer :: values, prototype, status
     character(*) :: message
     allocate(values, SOURCE=prototype, MOLD=prototype, STAT=status, ERRMSG=message)
+    inquire (UNIT=1, ACCESS='stream', NAME=message)
+    read (UNIT=1, REC=1, IOSTAT=status)
+    stop 1, QUIET=.TRUE.
 end subroutine work
 end module demo
 """
@@ -893,6 +910,9 @@ subroutine work(values, prototype, status, message)
     integer :: values, prototype, status
     character(*) :: message
     allocate(values, source=prototype, mold=prototype, stat=status, errmsg=message)
+    inquire(unit=1, access='stream', name=message)
+    read(unit=1, rec=1, iostat=status)
+    stop 1, quiet = .true.
 
 end subroutine work
 
@@ -1296,6 +1316,62 @@ endif
 value = endif + enddo + endmodule + elseif
 call work(endif, enddo, endmodule, elseif)
 end if
+""",
+        )
+
+    def test_normalizes_go_to_to_goto(self) -> None:
+        source = """\
+GO TO 10
+if (x) Go To 20
+print *, "GO TO 30" ! GO TO 40
+"""
+        self.assertEqual(
+            format_text(source, wrap=False),
+            """\
+goto 10
+if (x) goto 20
+print *, "GO TO 30" ! GO TO 40
+""",
+        )
+
+    def test_normalizes_post_f2008_language_keywords(self) -> None:
+        source = """\
+IMPURE  ELEMENTAL FUNCTION f(x)
+PURE   ELEMENTAL SUBROUTINE s
+CONTIGUOUS :: x
+CRITICAL(STAT = istat)
+CHANGE   TEAM(newteam)
+SELECT  RANK(a)
+RANK  DEFAULT
+FORM  TEAM(n, team, STAT=istat)
+SYNC  ALL(STAT=istat)
+SYNC   TEAM(team)
+EVENT  POST(event)
+EVENT WAIT(event, UNTIL_COUNT =n)
+FAIL  IMAGE
+LOCK(lockvar, ACQUIRED_LOCK = acquired)
+UNLOCK(lockvar)
+DO  CONCURRENT(i=1:n) LOCAL_INIT(x) SHARED(y) REDUCE(+:z)
+"""
+        self.assertEqual(
+            format_text(source, wrap=False),
+            """\
+impure elemental function f(x)
+pure elemental subroutine s
+contiguous :: x
+critical(stat=istat)
+change team (newteam)
+select rank (a)
+rank default
+form team (n, team, stat=istat)
+sync all(stat=istat)
+sync team (team)
+event post(event)
+event wait(event, until_count=n)
+fail image
+lock(lockvar, acquired_lock=acquired)
+unlock(lockvar)
+do concurrent(i=1:n) local_init(x) shared(y) reduce(+:z)
 """,
         )
 
@@ -1768,8 +1844,13 @@ end module m
         self.assertEqual(formatter._display_path(path), path)
 
     def test_invalid_extension_is_rejected_before_reading(self) -> None:
-        with self.assertRaisesRegex(ValueError, "Expected a .f90 or .F90 file"):
+        with self.assertRaisesRegex(ValueError, "Expected a free-form Fortran source"):
             formatter._validated_fortran_path(Path("does-not-exist.txt"))
+
+    def test_standard_free_form_extensions_are_accepted(self) -> None:
+        for extension in (".f90", ".f95", ".f03", ".f08", ".f18", ".f23", ".F90", ".F23"):
+            with self.subTest(extension=extension):
+                self.assertEqual(formatter._validated_fortran_path(Path(f"source{extension}")).suffix, extension)
 
     def test_wrapped_statement_keeps_not_against_its_bracket(self) -> None:
         source = (

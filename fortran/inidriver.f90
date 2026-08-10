@@ -9,7 +9,7 @@
     character(len=:), allocatable :: InputFile
 
     InputFile = ''
-    if (GetParamCount() /= 0)  InputFile = GetParam(1)
+    if (GetParamCount() /= 0) InputFile = GetParam(1)
     if (InputFile == '') error stop 'No parameter input file'
 
     call CAMB_CommandLineRun(InputFile)
