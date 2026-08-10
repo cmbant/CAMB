@@ -1,4 +1,5 @@
-    ! Equations module for background and ! To avoid circular module issues, some things are not part of module
+    ! Equations module for background and perturbations
+    ! To avoid circular module issues, some things are not part of module
 
     ! Background evolution, return d tau/ d a, where tau is the conformal time
     function dtauda(this,a)
@@ -21,8 +22,6 @@
     end if
 
     end function dtauda
-
-    !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
     !Gauge-dependent perturbation equations
 
@@ -2117,13 +2116,12 @@
     end subroutine initial
 
 
-    !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-    subroutine initialt(EV,yt,tau)
+    subroutine initialt(eV,yt,tau)
     !  Initial conditions for tensors
     implicit none
     real(dl) bigR,tau,x,aj3r,elec, pir, rhomass
     integer l
-    type(EvolutionVars) EV
+    type(EvolutionVars) eV
     real(dl) k,k2 ,a, omtau
     real(dl) yt(EV%nvart)
     real(dl) tens0, ep, tensfac

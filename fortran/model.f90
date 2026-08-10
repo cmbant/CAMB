@@ -108,7 +108,7 @@
     integer, parameter :: NonLinear_both=3
 
     ! Main parameters type
-    type, extends (TCAMBParameters) :: CAMBparams
+    type, extends (TCAMBParameters) :: CAMBParams
         logical   :: WantCls  = .true.
         logical   :: WantTransfer = .false.
 
@@ -205,7 +205,7 @@
     procedure :: PrimordialPower => CAMBparams_PrimordialPower
     procedure :: SetCustomSourcesFunc => CAMBparams_SetCustomSourcesFunc
     procedure :: N_eff => CAMBparams_N_eff
-    end type CAMBparams
+    end type CAMBParams
 
     contains
 

@@ -69,7 +69,7 @@
         integer nqmax !actual number of q modes evolves
         real(dl), allocatable ::  nu_q(:), nu_int_kernel(:)
     contains
-    procedure :: init => TNuPerturbations_init
+    procedure :: Init => TNuPerturbations_init
     end type TNuPerturbations
 
     Type TThermalNuBackground

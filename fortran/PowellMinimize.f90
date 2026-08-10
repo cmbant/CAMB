@@ -59,7 +59,7 @@
     type, extends(TMinimizer) :: TNEWUOA
     contains
     procedure :: NEWUOA
-    procedure, private :: newuob
+    procedure, private :: NEWUOB
     end type
 
     public :: TBOBYQA, TNEWUOA, Powell_CO_prec

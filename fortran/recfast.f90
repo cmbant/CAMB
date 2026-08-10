@@ -580,7 +580,7 @@
     class(TRecfast), target :: this
     class(TCAMBdata), target :: State
     real(dl) :: Trad,Tmat,Tspin, ainv
-    integer :: I
+    integer :: i
     Type(RecombinationData), pointer :: Calc
     logical, intent(in), optional :: WantTSpin
     real(dl) :: z,n,x,x0,rhs,x_H,x_He,x_H0,x_He0,H, Yp
@@ -840,7 +840,7 @@
     end subroutine TRecfast_init
 
     !       ===============================================================
-    subroutine GET_INIT(Calc,z,x_H0,x_He0,x0)
+    subroutine get_init(Calc,z,x_H0,x_He0,x0)
 
     !       Set up the initial conditions so it will work for general,
     !       but not pathological choices of zstart
@@ -884,7 +884,7 @@
         x0 = x_H0
     end if
 
-    end subroutine GET_INIT
+    end subroutine get_init
 
     subroutine EscapeProbabilityAndDerivative(tau, p_escape, dp_dtau)
     real(dl), intent(in) :: tau
@@ -1645,7 +1645,7 @@
     real(dl) Rup,Rdown,K
     !       the Pequignot, Petitjean & Boisson fitting parameters for Hydrogen
     real(dl), parameter :: a_PPB = 4.309d0, b_PPB = -0.6166d0, c_PPB = 0.6703d0, d_PPB = 0.5300d0
-    real(dl) delta_alpha, delta_beta, delta_K, clh
+    real(dl) Delta_alpha, Delta_beta, Delta_K, clh
     real(dl) xe
 
     associate(Calc=>this%Calc)

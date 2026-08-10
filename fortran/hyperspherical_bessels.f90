@@ -242,7 +242,7 @@
     real(dl) :: cf, bphi_plus
     real(dl) :: phi_cur, phi_lm1, phi0_down, phi1_down
     real(dl) :: scale
-    real(dl), parameter :: BIG = 1.e100_dl, TINY = 1.e-280_dl
+    real(dl), parameter :: BIG = 1.e100_dl, tiny = 1.e-280_dl
     real(dl), parameter :: UNDERFLOW_LOG = -744.4400719213812_dl
     real(dl), parameter :: OPEN_TURNING_TOL = 5.e-3_dl
     real(dl), parameter :: OPEN_LOW_BETA_RATIO = 2.0e-3_dl

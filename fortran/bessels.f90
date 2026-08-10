@@ -33,8 +33,8 @@
     ! For x = l-delta below the turning point, j_l is suppressed roughly as
     ! exp[-(2*sqrt(2)/3)*d**(3/2)/sqrt(l)].  Requiring ~1e-4 of peak
     ! gives delta ~ 4.2*l**(1/3), with a small safety margin.
-    real(dl), parameter :: bjl_pre_peak_start_factor  = 4.2_dl
-    integer, parameter :: BJL_RECURRENCE_MAX_L = 25
+    real(dl), parameter :: BJL_pre_peak_start_factor  = 4.2_dl
+    integer, parameter :: BJL_recurrence_MAX_L = 25
     real(dl) file_acc, file_bessel_boost
     real(dl) bessel_xmaxfile
 
@@ -112,7 +112,7 @@
 
     end subroutine InitSpherBessels
 
-    elemental subroutine bjl_deriv(l, x, jl, djl)
+    elemental subroutine BJL_deriv(l, x, jl, djl)
     ! d(j_l)/dx via the standard recurrence dj_l/dx = j_{l-1}(x) - (l+1)*j_l(x)/x,
     ! given the already-computed jl = j_l(x); handles x=0 and l=0 as special cases.
     integer, intent(in) :: l
@@ -135,7 +135,7 @@
         djl = jm1 - real(l + 1, dl)*jl/x
     end if
 
-    end subroutine bjl_deriv
+    end subroutine BJL_deriv
 
     subroutine GenerateBessels(lSamp, CP, requested_xmax)
     ! Build the bessel_horner spline table from scratch: set up the x sampling
@@ -399,8 +399,8 @@
     ! for the shoulder bands below; widening BJL_AIRY_ETA_LOW/HIGH beyond
     ! [-2.4, 3.85] (or the u caps beyond [-0.26, 0.42]) requires refitting its
     ! zeta/u and correction coefficients.
-    real(dl), parameter :: BJL_RECURRENCE_ETA_LOW  = -5.0_dl
-    real(dl), parameter :: BJL_RECURRENCE_ETA_HIGH =  5.6_dl
+    real(dl), parameter :: BJL_recurrence_ETA_LOW  = -5.0_dl
+    real(dl), parameter :: BJL_recurrence_ETA_HIGH =  5.6_dl
     real(dl), parameter :: BJL_AIRY_ETA_LOW  = -2.4_dl
     real(dl), parameter :: BJL_PEAK_ETA_LOW  = -0.65_dl
     real(dl), parameter :: BJL_PEAK_ETA_HIGH =  0.65_dl
@@ -565,7 +565,7 @@
     END SUBROUTINE BJL
 
 
-    elemental subroutine bjl_postpeak_debye(nu, ax, jl)
+    elemental subroutine BJL_postpeak_debye(nu, ax, jl)
     ! Oscillatory Debye asymptotic above the turning point, valid above the
     ! Airy band (u = ax/nu - 1 > 0.42, or eta above the gates in BJL).
     ! Identical to the standard two-correction form but with
@@ -640,10 +640,10 @@
         *sec2b*cot6b**2/128.0_dl/nu2)/nu2
     jl = (1.0_dl - expterm*(1.0_dl - 0.5_dl*expterm))*cos(trigarg)/sqrt(sx*ax)
 
-    end subroutine bjl_postpeak_debye
+    end subroutine BJL_postpeak_debye
 
 
-    elemental subroutine bjl_uniform_airy_fast(l, x, nu23, jl)
+    elemental subroutine BJL_uniform_airy_fast(l, x, nu23, jl)
     ! Two-term corrected Olver uniform Airy approximation:
     !
     !   j_l(x) ~= pref * [ Ai(tau)
@@ -752,14 +752,14 @@
 
     if (x < 0.0_dl .and. mod(l, 2) /= 0) jl = -jl
 
-    end subroutine bjl_uniform_airy_fast
+    end subroutine BJL_uniform_airy_fast
 
 
 
 
 
 
-    ELEMENTAL SUBROUTINE BJL_RECURRENCE(L, X, JL)
+    ELEMENTAL SUBROUTINE BJL_recurrence(L, X, JL)
     ! Stable recurrence evaluation of j_l(x), used by BJL in the moderate-l
     ! transition band where the asymptotic expansions are not yet accurate.
     !   ax > l : direct upward three-term recurrence from j_0, j_1 (stable here).
@@ -871,12 +871,12 @@
 
     IF (X < 0.0E0_dl .AND. MOD(L, 2) /= 0) JL = -JL
 
-    END SUBROUTINE BJL_RECURRENCE
+    END SUBROUTINE BJL_recurrence
 
     end module FlatBessels
 
 
-    SUBROUTINE BJL_EXTERNAL(L,X,JL)
+    SUBROUTINE BJL_external(L,X,JL)
     ! External-linkage wrapper around FlatBessels::bjl, for callers (e.g.
     ! results.f90) that declare it `external` rather than `use FlatBessels`,
     ! to avoid a circular module dependency.
@@ -888,4 +888,4 @@
 
     call BJL(L,X,JL)
 
-    END SUBROUTINE BJL_EXTERNAL
+    END SUBROUTINE BJL_external

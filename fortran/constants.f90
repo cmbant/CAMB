@@ -1,11 +1,12 @@
 
 
-    module Precision
+    module precision
+    use, intrinsic :: iso_fortran_env, only : real32, real64
     implicit none
 
-    integer, parameter :: dl = KIND(1.d0)
-    integer, parameter :: sp = KIND(1.0)
-    end module Precision
+    integer, parameter :: sp = real32
+    integer, parameter :: dl = real64
+    end module precision
 
     module constants
     use precision

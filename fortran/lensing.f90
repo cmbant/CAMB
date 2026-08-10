@@ -1075,7 +1075,7 @@
     end subroutine CorrFuncFlatSky
 
 
-    subroutine GetFlatSkyCgrads(State, lmax, CGrads)
+    subroutine GetFlatSkyCGrads(State, lmax, CGrads)
     type(CAMBdata) :: State
     integer, intent(in) :: lmax
     integer, parameter :: ncorr = 8
@@ -1089,10 +1089,10 @@
     end do
     call GetFlatSkyCgradsWithSpectrum(State, CPP, lmax, CGrads)
 
-    end subroutine GetFlatSkyCgrads
+    end subroutine GetFlatSkyCGrads
 
 
-    subroutine GetFlatSkyCgradsWithSpectrum(State, CPP, lmax, CGrads)
+    subroutine GetFlatSkyCGradsWithSpectrum(State, CPP, lmax, CGrads)
     !Do flat skyapprox calculation of gradient spectra C^(T\grad T) etc.
     !See Appendix C of https://arxiv.org/abs/1101.2234
     type(CAMBdata) :: State
@@ -1282,7 +1282,7 @@
         if (DebugMsgs) call Timer%WriteTime('Time for GetFlatSkyCgrads')
     end associate
 
-    end subroutine GetFlatSkyCgradsWithSpectrum
+    end subroutine GetFlatSkyCGradsWithSpectrum
 
     subroutine BadHarmonic(State)
     use MathUtils

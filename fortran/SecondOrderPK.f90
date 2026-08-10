@@ -13,7 +13,7 @@
     private
 
     type, extends(TNonLinearModel) :: TSecondOrderPK
-        type(MatterPowerData), pointer :: CAMB_Pk
+        type(MatterPowerData), pointer :: CAMB_PK
         real(dl) :: min_store,min_k,max_k, k, PK, r, epsilon
         integer itf
         integer term
@@ -171,7 +171,7 @@
 
     end subroutine TSecondOrderPK_GetNonLinRatios
 
-    subroutine TSecondOrderPK_GetNonLinRatios_all(this,State, CAMB_Pk)
+    subroutine TSecondOrderPK_GetNonLinRatios_All(this,State, CAMB_Pk)
     !Fill the CAMB_Pk%nonlin_scaling array with sqrt(non-linear power/linear power)
     !for each redshift and wavenumber
     class(TSecondOrderPK) :: this
@@ -180,7 +180,7 @@
 
     call this%GetRatios(CAMB_PK, .true.)
 
-    end subroutine TSecondOrderPK_GetNonLinRatios_all
+    end subroutine TSecondOrderPK_GetNonLinRatios_All
 
     subroutine GetRatios(this,CAMB_Pk, DoVel)
     !Fill the CAMB_Pk%nonlin_scaling array with sqrt(non-linear power/linear power)
