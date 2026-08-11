@@ -35,7 +35,7 @@ jobs:
       - name: Pre-commit checks
         if: matrix.os == 'ubuntu-latest'
         run: |
-          pip install pre-commit
+          python -m pip install -e ".[dev]"
           pre-commit run --all-files
 
       - name: Format Help Message
