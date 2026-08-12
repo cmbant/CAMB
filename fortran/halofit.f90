@@ -2245,16 +2245,31 @@
     ! where rho_n is the profile normalisation [i.e. rho=rho_n/((r/rs)*(1+r/rs)^2]
     real(dl) :: win
     real(dl), intent(in) :: k, rs, c, norm
-    real(dl) :: si1, si2, ci1, ci2, ks, ks2
+    real(dl) :: si1, si2, ci1, ci2, sin1, sin2, cos1, cos2, ks, ks2, moment2
 
     ks = k*rs
     ks2 = (1 + c)*ks
 
-    ! Sine and cosine integrals (computed in pairs since they share most of their work)
-    call SiCi(ks, si1, ci1)
-    call SiCi(ks2, si2, ci2)
-
-    win = (cos(ks)*(ci2 - ci1) + sin(ks)*(si2 - si1) - sin(c*ks)/ks2)*norm
+    ! The small-k expansion is the second radial moment of the NFW profile. Its
+    ! parameter is k*r_vir=c*ks; below 0.2 the pointwise fourth-order remainder is
+    ! bounded by (k*r_vir)^4/120 < 1.4e-5, safely below the HMcode accuracy target.
+    if (c*ks < 0.2_dl) then
+        moment2 = 0.5_dl*c*c - 2._dl*c + 3._dl*log(1._dl + c) - c/(1._dl + c)
+        win = 1._dl - ks*ks*moment2*norm/6._dl
+        ! At large arguments SiCi already evaluates the sine and cosine needed below.
+        ! Return those values and get sin(c*ks)=sin(ks2-ks) by angle subtraction, avoiding
+        ! three otherwise redundant trigonometric calls in the common high-k branch.
+    else if (ks2 > 4._dl) then
+        sin1 = sin(ks); cos1 = cos(ks)
+        sin2 = sin(ks2); cos2 = cos(ks2)
+        call SiCi(ks, si1, ci1, sin1, cos1)
+        call SiCi(ks2, si2, ci2, sin2, cos2)
+        win = (cos1*(ci2 - ci1) + sin1*(si2 - si1) - (sin2*cos1 - cos2*sin1)/ks2)*norm
+    else
+        call SiCi(ks, si1, ci1)
+        call SiCi(ks2, si2, ci2)
+        win = (cos(ks)*(ci2 - ci1) + sin(ks)*(si2 - si1) - sin(c*ks)/ks2)*norm
+    end if
 
     ! Correct for the case of disasters (a bit sloppy, not sure if this is ever used)
     if (win > 1._dl) win = 1._dl
@@ -2463,15 +2478,16 @@
 
     end function neff_integrand
 
-    subroutine SiCi(x, Six, Cix)
+    subroutine SiCi(x, Six, Cix, sinx, cosx)
 
     ! Calculates the 'sine integral' Si(x) and 'cosine integral' Ci(x) together
     ! The large-x expansions share the same auxiliary functions f and g, so are done once
     real(dl), intent(in) :: x
     real(dl), intent(out) :: Six, Cix
-    real(dl) :: x2, y, f, g, sinx, cosx
+    real(dl), intent(in), optional :: sinx, cosx
+    real(dl) :: x2, y, f, g, sin_x, cos_x
     real(dl), parameter :: em_const = 0.577215664901532861d0
-    real(dl), parameter :: x0 = 4. ! Transition between two different approximations
+    real(dl), parameter :: x0 = 4.d0 ! Transition between two different approximations
 
     ! Expansions for high and low x thieved from Wikipedia, two different expansions for above and below 4.
     if (abs(x) <= x0) then
@@ -2513,11 +2529,16 @@
             + y*(2.23355543278099360d9 + y*(7.87465017341829930d10 + y*(1.39866710696414565d12 &
             + y*(1.17164723371736605d13 + y*(4.01839087307656620d13 + y*(3.99653257887490811d13))))))))))
 
-        sinx = sin(x)
-        cosx = cos(x)
+        if (present(sinx) .and. present(cosx)) then
+            sin_x = sinx
+            cos_x = cosx
+        else
+            sin_x = sin(x)
+            cos_x = cos(x)
+        end if
 
-        Six = pi_HM/2.d0 - f*cosx - g*sinx
-        Cix = f*sinx - g*cosx
+        Six = pi_HM/2.d0 - f*cos_x - g*sin_x
+        Cix = f*sin_x - g*cos_x
 
     end if
 
