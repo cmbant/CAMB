@@ -3512,43 +3512,27 @@
     end subroutine Transfer_GetUnsplinedPower
 
     subroutine Transfer_CacheNonLinRatios(State)
-    ! Calculate the non-linear ratios for all of the transfer redshifts at once, and cache them
-    ! in State%CAMB_PK. Non-linear models can share redshift-independent set-up between redshifts
-    ! (e.g. the HMcode growth table and BAO wiggle extraction), so this is faster than making
-    ! one call per redshift.
+    ! Calculate the non-linear ratios for all of the transfer redshifts at once, and cache them in
+    ! State%CAMB_PK (indexed by transfer redshift, so use State%PK_redshifts_index to get the power
+    ! spectrum redshifts). Non-linear models can share redshift-independent set-up between redshifts
+    ! (e.g. the HMcode growth table and BAO wiggle extraction) and parallelize over redshift, so this
+    ! is much faster than making one call per redshift.
     ! With non-linear lensing there are extra transfer redshifts for interpolating the non-linear
-    ! scaling of the sources, so the redshift lists differ; MakeNonlinearSources has then already
-    ! cached the ratios for all of them (including the power spectrum redshifts) and this does nothing.
+    ! scaling of the sources; MakeNonlinearSources has then usually filled the cache already, and this
+    ! only does something if it was dropped (e.g. by CAMB_TransfersToPowers on changing the initial power).
     type(CAMBdata) :: State
 
-    if (.not. allocated(State%CAMB_PK) .and. State%CP%Transfer%PK_num_redshifts == State%num_transfer_redshifts &
-        .and. .not. State%OnlyTransfer) then
+    if (.not. allocated(State%CAMB_PK)) then
         allocate(State%CAMB_PK)
         call Transfer_GetMatterPowerData(State, State%MT, State%CAMB_PK)
+        if (global_error_flag /= 0) then
+            deallocate(State%CAMB_PK)
+            return
+        end if
         call State%CP%NonLinearModel%GetNonLinRatios(State, State%CAMB_PK)
     end if
 
     end subroutine Transfer_CacheNonLinRatios
-
-    subroutine Transfer_GetNonLinRatio_index(State, M, ratio, itf)
-    type(MatterTransferData), intent(in) :: M
-    type(CAMBdata) :: State
-    real(dl), allocatable, intent(out) :: ratio(:)
-    integer, intent(in) :: itf
-    type(MatterPowerData) :: PKdata
-
-    ! All of the power spectrum redshifts are normally wanted, so get them in one call
-    if (State%CP%Transfer%PK_num_redshifts > 1) call Transfer_CacheNonLinRatios(State)
-
-    if (allocated(State%CAMB_PK)) then
-        allocate(ratio, source=State%CAMB_PK%nonlin_ratio(:, itf))
-    else
-        call Transfer_GetMatterPowerData(State, M, PKdata, itf)
-        call State%CP%NonLinearModel%GetNonLinRatios(State, PKdata)
-        allocate(ratio, source=PKdata%nonlin_ratio(:, 1))
-    end if
-
-    end subroutine Transfer_GetNonLinRatio_index
 
     subroutine Transfer_GetUnsplinedNonlinearPower(State, M, PK, var1, var2, hubble_units)
     ! Get 2pi^2/k^3 T_1 T_2 P_R(k) after re-scaling for non-linear evolution (if turned on)
@@ -3558,16 +3542,15 @@
     integer, intent(in), optional :: var1
     integer, intent(in), optional :: var2
     logical, intent(in), optional :: hubble_units
-    integer zix
-    real(dl), allocatable :: ratio(:)
+    integer zix, nz
 
     call Transfer_CacheNonLinRatios(State)
+    if (global_error_flag /= 0) return
 
     call Transfer_GetUnsplinedPower(State, M, PK, var1, var2, hubble_units)
-    do zix = 1, State%CP%Transfer%PK_num_redshifts
-        call Transfer_GetNonLinRatio_index(State, M, ratio, &
-            State%PK_redshifts_index(State%CP%Transfer%PK_num_redshifts - zix + 1))
-        PK(:, zix) = PK(:, zix)*ratio**2
+    nz = State%CP%Transfer%PK_num_redshifts
+    do zix = 1, nz
+        PK(:, zix) = PK(:, zix)*State%CAMB_PK%nonlin_ratio(:, State%PK_redshifts_index(nz - zix + 1))**2
     end do
 
     end subroutine Transfer_GetUnsplinedNonlinearPower
@@ -3875,8 +3858,7 @@
     real(dl) atransfer, xi, a0, b0, ho, logmink, k, h
     integer itf
     integer :: s1, s2, sign
-    logical log_interp
-    real(dl), allocatable :: ratio(:)
+    logical log_interp, nonlinear
 
     s1 = PresentDefault (transfer_power_var, var1)
     s2 = PresentDefault (transfer_power_var, var2)
@@ -3889,8 +3871,11 @@
         .and. FeedbackLevel > 0 .and. print_fortran_warnings) &
         write(*, *) 'Warning: extrapolating matter power in Transfer_GetMatterPower'
 
-    if (state%CP%NonLinear /= NonLinear_none .and. state%CP%NonLinear /= NonLinear_Lens) then
-        call Transfer_GetNonLinRatio_index(state, MTrans, ratio, itf)
+    nonlinear = state%CP%NonLinear /= NonLinear_none .and. state%CP%NonLinear /= NonLinear_Lens
+    if (nonlinear) then
+        ! Cached for all redshifts, so this only does the calculation on the first call
+        call Transfer_CacheNonLinRatios(state)
+        if (global_error_flag /= 0) return
     end if
 
     h = state%CP%H0/100
@@ -3900,8 +3885,7 @@
         k = kh*h
         kvals(ik) = log(kh)
         atransfer = MTrans%TransferData(s1, ik, itf)*MTrans%TransferData(s2, ik, itf)
-        if (state%CP%NonLinear /= NonLinear_none .and. state%CP%NonLinear /= NonLinear_Lens) &
-            atransfer = atransfer*ratio(ik)**2 ! only one element, this itf
+        if (nonlinear) atransfer = atransfer*state%CAMB_PK%nonlin_ratio(ik, itf)**2
         matpower(ik) = atransfer*k*const_pi*const_twopi*h**3
         ! Put in power spectrum later: transfer functions should be smooth, initial power may not be
     end do
@@ -4269,7 +4253,6 @@
     integer ncol
     logical, intent(in), optional :: all21cm
     logical all21
-    real(dl), allocatable :: ratio(:)
     ! JD 08/13 Changes in here to PK arrays and variables
     integer itf_PK
 
@@ -4297,8 +4280,10 @@
                     ! Changed (CP%NonLinear/=NonLinear_None) to CP%NonLinear/=NonLinear_none
                     ! .and. CP%NonLinear/=NonLinear_Lens)
                     if (State%CP%NonLinear /= NonLinear_none .and. State%CP%NonLinear /= NonLinear_Lens) then
-                        call Transfer_GetNonLinRatio_index(State, MTrans, ratio, itf_PK)
-                        PK_data%matpower(:, 1) = PK_data%matpower(:, 1) + 2*log(ratio)
+                        call Transfer_CacheNonLinRatios(State)
+                        if (global_error_flag /= 0) return
+                        PK_data%matpower(:, 1) = PK_data%matpower(:, 1) + &
+                            2*log(State%CAMB_PK%nonlin_ratio(:, itf_PK))
                         call MatterPowerdata_getsplines(PK_data)
                     end if
                 end if

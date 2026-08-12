@@ -1196,11 +1196,11 @@
     real(dl) ho, a0, b0, ascale
     integer tf_lo, tf_hi
 
+    ! Recalculate rather than use any cached ratios, since the transfer functions have just changed
     if (allocated(State%CAMB_PK)) deallocate(State%CAMB_PK)
-    allocate(State%CAMB_PK)
-    call Transfer_GetMatterPowerData(State, State%MT, State%CAMB_PK)
+    call Transfer_CacheNonLinRatios(State)
+    if (global_error_flag /= 0) return
 
-    call CP%NonLinearModel%GetNonLinRatios(State, State%CAMB_PK)
     first_step = 1
     do while (State%TimeSteps%points(first_step) < State%transfer_times(1))
         first_step = first_step + 1
