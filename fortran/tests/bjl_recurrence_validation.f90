@@ -237,7 +237,7 @@
 ! Postpeak-Debye fast-precheck boundaries.
     call add_gate(l, 1.5_dl*nu, peak_abs, worst_err, worst_x, worst_l, n_points)
     call add_gate(l, 2.5_dl*nu, peak_abs, worst_err, worst_x, worst_l, n_points)
-    if (l > BJL_recurrence_MAX_L) then
+    if (l > BJL_RECURRENCE_MAX_L) then
         ! Internal simplified-Debye threshold for the far post-peak tail.
         call add_gate(l, 3.0_dl*nu, peak_abs, worst_err, worst_x, worst_l, n_points)
     end if
@@ -257,7 +257,7 @@
 
 ! BJL_RECURRENCE_MAX_L itself (recurrence band L cutoff): check the
 ! neighbouring L value too, so both sides of the L cutoff are covered.
-    if (l == BJL_recurrence_MAX_L .or. l == BJL_recurrence_MAX_L + 1) then
+    if (l == BJL_RECURRENCE_MAX_L .or. l == BJL_RECURRENCE_MAX_L + 1) then
         call check_point(l, nu, peak_abs, worst_err, worst_x, worst_l, n_points)
     end if
 

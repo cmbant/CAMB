@@ -703,7 +703,7 @@ class FileDeclarationCases:
     symbol_cases: Mapping[str, str]
     procedure_cases: tuple["ProcedureDeclarationCases", ...] = ()
     scope_cases: tuple["NamedScopeCase", ...] = ()
-    type_procedure_cases: Mapping[str, str] = field(default_factory=dict)
+    type_procedure_cases: Mapping[tuple[str, str], str] = field(default_factory=dict)
     type_component_cases: Mapping[tuple[str, str], str] = field(default_factory=dict)
     variable_type_cases: Mapping[str, str] = field(default_factory=dict)
     type_component_type_cases: Mapping[tuple[str, str], str] = field(default_factory=dict)
@@ -1033,10 +1033,14 @@ def _split_top_level_statements(text: str) -> list[str]:
 
 
 def _declared_variable_names(statement: str) -> list[str]:
-    """Return variable names from a type or attribute declaration statement."""
+    """Return variable names from a type or attribute declaration statement.
+
+    A derived-type definition is not a variable declaration, but an ordinary
+    object declaration such as ``type(EvolutionVars) :: EVOut`` is.
+    """
     if not DECLARATION_STATEMENT.match(statement):
         return []
-    if _declared_type_name(statement) or TYPE_CLASS_CONTEXT.match(statement):
+    if _declared_type_name(statement):
         return []
     if PROCEDURE_WORD.search(statement):
         return []
@@ -1344,7 +1348,7 @@ class DeclarationSummary:
     declared_names: tuple[DeclaredName, ...]
     module_variable_names: tuple[str, ...]
     module_variable_types: tuple[tuple[str, str], ...]
-    type_bound_procedure_names: tuple[str, ...]
+    type_bound_procedure_names: tuple[tuple[str, str], ...]
     type_component_names: tuple[tuple[str, str], ...]
     type_component_types: tuple[tuple[str, str, str], ...]
 
@@ -1355,7 +1359,7 @@ def _declaration_summary(source: str) -> DeclarationSummary:
     declarations: list[DeclaredName] = []
     module_variable_names: list[str] = []
     module_variable_types: dict[str, str] = {}
-    type_bound_procedure_names: list[str] = []
+    type_bound_procedure_names: list[tuple[str, str]] = []
     type_component_names: list[tuple[str, str]] = []
     type_component_types: list[tuple[str, str, str]] = []
 
@@ -1421,7 +1425,8 @@ def _declaration_summary(source: str) -> DeclarationSummary:
             if type_end:
                 type_stack.pop()
             elif procedure_declaration:
-                type_bound_procedure_names.extend(variable_names)
+                owner_type = type_stack[-1]
+                type_bound_procedure_names.extend((owner_type, name) for name in variable_names)
             else:
                 owner_type = type_stack[-1]
                 type_component_names.extend((owner_type, name) for name in variable_names)
@@ -1450,8 +1455,8 @@ def extract_module_variable_types(source: str) -> dict[str, str]:
     return dict(_declaration_summary(source).module_variable_types)
 
 
-def extract_type_bound_procedure_names(source: str) -> list[str]:
-    """Extract type-bound procedure binding names from module type definitions."""
+def extract_type_bound_procedure_names(source: str) -> list[tuple[str, str]]:
+    """Extract ``(owner type, binding)`` pairs from derived-type definitions."""
     return list(_declaration_summary(source).type_bound_procedure_names)
 
 
@@ -1590,20 +1595,83 @@ def _case_for_file(
     path: Path,
     declarations: Mapping[tuple[str, str], list[tuple[Path, str]]],
     kind: str,
+    file_cases: Mapping[str, str] | None = None,
 ) -> dict[str, str]:
-    """Choose unambiguous declaration spellings for *path* and *kind*."""
+    """Choose unambiguous declaration spellings for *path* and *kind*.
+
+    ``file_cases`` contains declarations from a file-level scope that is not
+    represented in the project-wide declaration summary, such as an implicit
+    or explicit top-level program unit. Those declarations govern this file
+    and therefore take precedence during this resolution step.
+    """
     selected: dict[str, str] = {}
     for (declaration_kind, normalized), occurrences in declarations.items():
         if declaration_kind != kind:
             continue
         local = [spelling for declaration_path, spelling in occurrences if declaration_path == path]
-        local_cases = set(local)
+        local_spelling_cases = set(local)
         all_cases = {spelling for _, spelling in occurrences}
-        if local_cases and len(local_cases) == 1:
+        if local_spelling_cases and len(local_spelling_cases) == 1:
             selected[normalized] = local[0]
         elif not local and len(all_cases) == 1:
             selected[normalized] = occurrences[0][1]
+    selected.update(file_cases or {})
     return selected
+
+
+def _owner_cases_for_file(
+    path: Path,
+    declarations: Mapping[tuple[str, str], list[tuple[Path, str]]],
+    kind: str,
+) -> dict[tuple[str, str], str]:
+    """Choose unambiguous owner-keyed declaration spellings for *path*."""
+    selected: dict[tuple[str, str], str] = {}
+    for (declaration_kind, normalized), occurrences in declarations.items():
+        if declaration_kind != kind:
+            continue
+        owner, member = normalized.split("\0", 1)
+        local = [spelling for declaration_path, spelling in occurrences if declaration_path == path]
+        local_cases = set(local)
+        all_cases = {spelling for _, spelling in occurrences}
+        if local_cases and len(local_cases) == 1:
+            selected[(owner, member)] = local[0]
+        elif not local and len(all_cases) == 1:
+            selected[(owner, member)] = occurrences[0][1]
+    return selected
+
+
+def _top_level_cases(source: str) -> dict[str, str]:
+    """Collect declarations in an implicit or explicit top-level program unit."""
+    procedures = extract_procedure_cases(source)
+    statements = _code_statements(source)
+    program_scope = None
+    if statements:
+        header = _scope_header(statements[0].text)
+        if header and header[0] == "program":
+            program_scope = next(
+                (procedure for procedure in procedures if procedure.start_line == statements[0].start_line),
+                None,
+            )
+    if program_scope is not None:
+        return dict(program_scope.local_cases)
+
+    occurrences: dict[str, list[str]] = {}
+    type_depth = 0
+    for statement in statements:
+        text = statement.text
+        type_name = _declared_type_name(text)
+        if type_name:
+            type_depth += 1
+            continue
+        if type_depth:
+            if TYPE_DEFINITION_END.match(text):
+                type_depth -= 1
+            continue
+        if active_procedure_at(procedures, statement.start_line):
+            continue
+        for name in _declared_variable_names(text):
+            occurrences.setdefault(name.lower(), []).append(name)
+    return _resolve_case_occurrences(occurrences)
 
 
 def collect_declaration_cases(
@@ -1639,8 +1707,8 @@ def collect_declaration_cases(
         for name in summary.module_variable_names:
             key = ("symbol", name.lower())
             declarations.setdefault(key, []).append((path, name))
-        for name in summary.type_bound_procedure_names:
-            key = ("type_procedure", name.lower())
+        for owner_type, name in summary.type_bound_procedure_names:
+            key = ("type_procedure", f"{owner_type.lower()}\0{name.lower()}")
             declarations.setdefault(key, []).append((path, name))
         for type_name, name in summary.type_component_names:
             key = ("type_component", f"{type_name.lower()}\0{name.lower()}")
@@ -1662,8 +1730,8 @@ def collect_declaration_cases(
         # scope is known. Filtering them here would also suppress a global
         # component spelling everywhere else in this file (e.g. P%H0 when a
         # different procedure has a local H0 argument).
-        symbol_cases = _case_for_file(path, declarations, "symbol")
-        type_procedure_cases = _case_for_file(path, declarations, "type_procedure")
+        symbol_cases = _case_for_file(path, declarations, "symbol", _top_level_cases(sources[path]))
+        type_procedure_cases = _owner_cases_for_file(path, declarations, "type_procedure")
         type_component_cases = {
             tuple(key.split("\0", 1)): spelling
             for key, spelling in _case_for_file(path, declarations, "type_component").items()
@@ -1728,19 +1796,33 @@ def member_owner_type(
     return owner_type
 
 
+def conditional_sentinel_body_start(line: str) -> int | None:
+    """Return the body offset for a non-OpenMP ``!$`` sentinel line."""
+    stripped = line.lstrip(" \t")
+    if not stripped.startswith("!$"):
+        return None
+    body_start = len(line) - len(stripped) + 2
+    if line[body_start : body_start + 1] not in ("", " ", "\t", "\r", "\n"):
+        return None
+    body = line[body_start:].lstrip(" \t")
+    if body[:3].lower() == "omp" and (len(body) == 3 or not _is_identifier_char(body[3])):
+        return None
+    return body_start
+
+
 def replace_declared_cases(
     source: str,
     module_cases: Mapping[str, str],
     symbol_cases: Mapping[str, str],
     procedure_cases: Iterable[ProcedureDeclarationCases] = (),
     scope_cases: Iterable[NamedScopeCase] = (),
-    type_procedure_cases: Mapping[str, str] | None = None,
+    type_procedure_cases: Mapping[tuple[str, str], str] | None = None,
     type_component_cases: Mapping[tuple[str, str], str] | None = None,
     variable_type_cases: Mapping[str, str] | None = None,
     type_component_type_cases: Mapping[tuple[str, str], str] | None = None,
     preprocessor_names: Collection[str] = frozenset(),
 ) -> str:
-    """Match declaration case in USE statements and references to declared symbols."""
+    """Match declaration case in USE statements and owner-resolved members."""
     procedure_cases = tuple(procedure_cases)
     scope_cases = tuple(scope_cases)
     variable_types = extract_variable_types(source)
@@ -1774,12 +1856,15 @@ def replace_declared_cases(
             prefix = ""
             continue
 
+        sentinel_start = conditional_sentinel_body_start(line)
+        sentinel = line[:sentinel_start] if sentinel_start is not None else ""
+        case_line = line[sentinel_start:] if sentinel_start is not None else line
         active_procedure = active_procedures[line_number]
         local_cases = active_procedure.local_cases if active_procedure else {}
         local_names = active_procedure.local_names if active_procedure else frozenset()
         starting_quote = state.quote_in
         quote = starting_quote
-        context_line = blank_leading_continuation(line) if prefix else line
+        context_line = blank_leading_continuation(case_line) if prefix else case_line
         context = prefix + context_line
         masked_context = code_context(context)
         use_match = USE_MODULE.match(context)
@@ -1791,8 +1876,8 @@ def replace_declared_cases(
         end_name_end = end_match.end(2) if end_match and end_match.group(2) else -1
         line_output: list[str] = []
         index = 0
-        while index < len(line):
-            char = line[index]
+        while index < len(case_line):
+            char = case_line[index]
             if quote:
                 line_output.append(char)
                 if char == quote:
@@ -1807,11 +1892,11 @@ def replace_declared_cases(
                 line_output.append(char)
                 index += 1
             elif char == "!":
-                line_output.append(line[index:])
+                line_output.append(case_line[index:])
                 break
             elif _is_identifier_start(char):
-                token_end = _identifier_end(line, index)
-                token = line[index:token_end]
+                token_end = _identifier_end(case_line, index)
+                token = case_line[index:token_end]
                 normalized = token.lower()
                 absolute_start = len(prefix) + index
                 member_component = _preceded_by_percent(context, absolute_start)
@@ -1841,7 +1926,7 @@ def replace_declared_cases(
                         type_component_types=type_component_type_cases,
                     )
                     replacement = (
-                        type_procedure_cases.get(normalized)
+                        (type_procedure_cases.get((owner_type.lower(), normalized)) if owner_type else None)
                         or (type_component_cases.get((owner_type.lower(), normalized)) if owner_type else None)
                         or symbol_cases.get(normalized)
                     )
@@ -1859,7 +1944,7 @@ def replace_declared_cases(
                 line_output.append(char)
                 index += 1
         updated_line = "".join(line_output)
-        output.append(updated_line)
+        output.append(sentinel + updated_line)
         if not state.is_blank and not state.is_comment:
             prefix = statement_context(prefix, line, starting_quote) if state.continuation_out else ""
     return "".join(output)
@@ -2384,17 +2469,17 @@ def lowercase_line(
     return "".join(output), quote
 
 
-def _modernize_array_constructor_delimiters(code: str) -> str:
+def _modernize_array_constructor_delimiters(code: str, *, format_statement: bool = False) -> str:
     """Modernize old ``(/ ... /)`` array constructors, but never FORMAT syntax."""
     # Slash is an edit descriptor inside FORMAT(...), where the same character
     # sequence is legal and has completely different semantics.
-    if FORMAT_STATEMENT_START.match(code):
+    if format_statement or FORMAT_STATEMENT_START.match(code):
         return code
     code = re.sub(r"\(\s*/\s*", "[", code)
     return re.sub(r"/\s*\)", "]", code)
 
 
-def _normalize_keyword_spacing_code(code: str) -> str:
+def _normalize_keyword_spacing_code(code: str, *, format_statement: bool = False) -> str:
     """Normalize keyword/layout spacing in an unquoted code segment."""
     if not code:
         return code
@@ -2405,8 +2490,10 @@ def _normalize_keyword_spacing_code(code: str) -> str:
     # avoid dispatching dozens of regex substitutions for unrelated statements.
     if "common" in lowered and "/" in code:
         code = COMMON_BLOCK_PREFIX.sub(lambda match: f"{match.group(1)} /{match.group(2)}/ ", code, count=1)
-    if "(" in code and "/" in code:
-        code = _modernize_array_constructor_delimiters(code)
+    # The closing ``/)`` may be on a different physical line from the opening
+    # ``(/``.  Check for slash alone rather than requiring ``(`` on this line.
+    if "/" in code:
+        code = _modernize_array_constructor_delimiters(code, format_statement=format_statement)
     if "go" in lowered:
         code = GO_TO.sub("goto", code)
 
@@ -2480,12 +2567,17 @@ def _normalize_keyword_spacing_code(code: str) -> str:
     return code
 
 
-def normalize_keyword_spacing(line: str, quote: str | None = None) -> tuple[str, str | None]:
+def normalize_keyword_spacing(
+    line: str,
+    quote: str | None = None,
+    *,
+    format_statement: bool = False,
+) -> tuple[str, str | None]:
     """Normalize compound keywords and spacing around Fortran syntax delimiters."""
     # The overwhelming common case contains no literal or comment, so avoid the
     # segment-building loop entirely.
     if quote is None and "'" not in line and '"' not in line and "!" not in line:
-        return _normalize_keyword_spacing_code(line), None
+        return _normalize_keyword_spacing_code(line, format_statement=format_statement), None
 
     output: list[str] = []
     segment_start = 0
@@ -2502,17 +2594,21 @@ def normalize_keyword_spacing(line: str, quote: str | None = None) -> tuple[str,
                 segment_start = index + 1
             index += 1
         elif char in "\"'":
-            output.append(_normalize_keyword_spacing_code(line[segment_start:index]))
+            output.append(_normalize_keyword_spacing_code(line[segment_start:index], format_statement=format_statement))
             quote = char
             segment_start = index
             index += 1
         elif char == "!":
-            output.append(_normalize_keyword_spacing_code(line[segment_start:index]))
+            output.append(_normalize_keyword_spacing_code(line[segment_start:index], format_statement=format_statement))
             output.append(line[index:])
             return "".join(output), quote
         else:
             index += 1
-    output.append(line[segment_start:] if quote else _normalize_keyword_spacing_code(line[segment_start:]))
+    output.append(
+        line[segment_start:]
+        if quote
+        else _normalize_keyword_spacing_code(line[segment_start:], format_statement=format_statement)
+    )
     return "".join(output), quote
 
 
@@ -3891,7 +3987,7 @@ def format_text(
     symbol_cases: Mapping[str, str] | None = None,
     procedure_cases: Iterable[ProcedureDeclarationCases] = (),
     scope_cases: Iterable[NamedScopeCase] = (),
-    type_procedure_cases: Mapping[str, str] | None = None,
+    type_procedure_cases: Mapping[tuple[str, str], str] | None = None,
     type_component_cases: Mapping[tuple[str, str], str] | None = None,
     variable_type_cases: Mapping[str, str] | None = None,
     type_component_type_cases: Mapping[tuple[str, str], str] | None = None,
@@ -3931,6 +4027,7 @@ def format_text(
         procedure_cases = extract_procedure_cases(source)
     scoped_declared_names = extract_scoped_declared_names(source)
     prefix = ""
+    format_statement = False
     lines: list[str] = []
     source_lines, source_states = _scan_source(source)
     active_procedures = _active_procedures_by_line(procedure_cases, len(source_states))
@@ -3963,7 +4060,14 @@ def format_text(
             file_declared_names=declared_names_per_line[line_number],
             uppercase_single_l=uppercase_single_l,
         )
-        normalized, _ = normalize_keyword_spacing(lowercase, starting_quote)
+        format_statement = state.continuation_in and format_statement
+        if not state.continuation_in:
+            format_statement = bool(FORMAT_STATEMENT_START.match(code_context(line)))
+        normalized, _ = normalize_keyword_spacing(
+            lowercase,
+            starting_quote,
+            format_statement=format_statement,
+        )
         normalized = normalize_write_output_spacing(normalized, starting_quote)
         if not is_preprocessor_line(line):
             normalized, _ = normalize_delimiter_spacing(normalized, starting_quote)
@@ -4013,7 +4117,7 @@ def lowercase_file(
     symbol_cases: Mapping[str, str] | None = None,
     procedure_cases: Iterable[ProcedureDeclarationCases] = (),
     scope_cases: Iterable[NamedScopeCase] = (),
-    type_procedure_cases: Mapping[str, str] | None = None,
+    type_procedure_cases: Mapping[tuple[str, str], str] | None = None,
     type_component_cases: Mapping[tuple[str, str], str] | None = None,
     variable_type_cases: Mapping[str, str] | None = None,
     type_component_type_cases: Mapping[tuple[str, str], str] | None = None,
@@ -4104,8 +4208,6 @@ def _validated_fortran_path(path: Path) -> Path:
     if resolved.suffix.lower() not in FORTRAN_SOURCE_EXTENSIONS:
         extensions = ", ".join(sorted(FORTRAN_SOURCE_EXTENSIONS))
         raise ValueError(f"Expected a free-form Fortran source ({extensions}): {resolved}")
-    if not resolved.is_file():
-        raise ValueError(f"Fortran source file does not exist: {resolved}")
     return resolved
 
 

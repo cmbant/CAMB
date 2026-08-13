@@ -627,7 +627,7 @@
     P%Num_Nu_massless = Ini%Read_Double('massless_neutrinos')
 
     P%Nu_mass_eigenstates = Ini%Read_Int('nu_mass_eigenstates', 1)
-    if (P%Nu_mass_eigenstates > max_Nu) then
+    if (P%Nu_mass_eigenstates > max_nu) then
         ErrMsg = 'too many mass eigenstates'
         return
     end if

@@ -21,7 +21,7 @@
     ! Nu_approx: approximate scheme - good for CMB, but not formally correct and no good for matter power
     ! Nu_best: automatically use mixture which is fastest and most accurate
 
-    integer, parameter :: max_Nu = 5 ! Maximum number of neutrino species
+    integer, parameter :: max_nu = 5 ! Maximum number of neutrino species
     integer, parameter :: max_transfer_redshifts = 256
 
     type TransferParams
@@ -373,7 +373,7 @@
     integer, intent(in), optional :: num_massive_neutrinos
     real(dl), intent(in), optional :: standard_neutrino_neff ! N_eff of standard cosmology, default 3.044
     real(dl) neff_standard, omnuh2_active_nr, omnuh2_total_nr, active_frac, mass
-    real(dl) omnuh2_eigenstate(max_Nu)
+    real(dl) omnuh2_eigenstate(max_nu)
     integer active_eigenstates, nu_i
 
     neff_standard = PresentDefault(default_nnu, standard_neutrino_neff)

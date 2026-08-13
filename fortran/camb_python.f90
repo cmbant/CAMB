@@ -770,7 +770,7 @@
     type(C_FUNPTR), intent(in) :: c_source_func
     integer err, q_ix
     real(dl) taustart
-    type(EvolutionVars) :: Ev
+    type(EvolutionVars) :: EV
     type(TCustomSourceParams) :: Old
 
     call SetActiveState(this)
@@ -789,13 +789,13 @@
     !$OMP PARALLEL DO DEFAULT(SHARED), SCHEDULE(DYNAMIC), PRIVATE(EV, q_ix)
     do q_ix = 1, nq
         if (global_error_flag == 0) then
-            Ev%q_ix = q_ix
-            Ev%q = q(q_ix)
-            Ev%TransferOnly = .false.
-            Ev%q2 = Ev%q**2
-            Ev%ThermoData => this%ThermoData
-            call GetNumEqns(Ev)
-            call GetOutputEvolutionFork(State, Ev, times, outputs, 3, ncustomsources)
+            EV%q_ix = q_ix
+            EV%q = q(q_ix)
+            EV%TransferOnly = .false.
+            EV%q2 = EV%q**2
+            EV%ThermoData => this%ThermoData
+            call GetNumEqns(EV)
+            call GetOutputEvolutionFork(State, EV, times, outputs, 3, ncustomsources)
         end if
     end do
     !$OMP END PARALLEL DO

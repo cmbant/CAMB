@@ -87,23 +87,23 @@
         ! Max_l for the various hierarchies
         integer lmaxg, lmaxnr, lmaxnu, lmaxgpol, MaxlNeeded
         integer lmaxnrt, lmaxnut, lmaxt, lmaxpolt, MaxlNeededt
-        logical EvolveTensorMassiveNu(max_Nu)
+        logical EvolveTensorMassiveNu(max_nu)
         integer lmaxnrv, lmaxv, lmaxpolv
         integer lmaxline ! 21cm multipoles for getting reionization effect
 
         integer polind ! index into scalar array of polarization hierarchy
 
         ! array indices for massive neutrino equations
-        integer nu_ix(max_Nu), nu_pert_ix
-        integer nq(max_Nu), lmaxnu_pert
+        integer nu_ix(max_nu), nu_pert_ix
+        integer nq(max_nu), lmaxnu_pert
         logical has_nu_relativistic
 
         ! Initial values for massive neutrino v*3 variables calculated when switching
         ! to non-relativistic approx
-        real(dl) G11(max_Nu), G30(max_Nu)
+        real(dl) G11(max_nu), G30(max_nu)
         ! True when using non-relativistic approximation
-        logical MassiveNuApprox(max_Nu)
-        real(dl) MassiveNuApproxTime(max_Nu)
+        logical MassiveNuApprox(max_nu)
+        real(dl) MassiveNuApproxTime(max_nu)
 
         ! True when truncating at l=2,3 when k*tau>>1 (see arXiv:1104.2933)
         logical high_ktau_neutrino_approx
@@ -127,8 +127,8 @@
         real(dl) poltruncfac
 
         logical no_nu_multpoles, no_phot_multpoles
-        integer lmaxnu_tau(max_Nu) ! lmax for massive neutinos at time being integrated
-        logical nu_nonrelativistic(max_Nu)
+        integer lmaxnu_tau(max_nu) ! lmax for massive neutinos at time being integrated
+        logical nu_nonrelativistic(max_nu)
 
         real(dl) denlk(max_l_evolve), denlk2(max_l_evolve), polfack(max_l_evolve)
         real(dl) Kf(max_l_evolve)
@@ -195,7 +195,7 @@
 
     real(dl) epsw
     real(dl), allocatable :: nu_tau_notmassless(:, :)
-    real(dl) nu_tau_nonrelativistic_physical(max_Nu), nu_tau_nonrelativistic(max_Nu), nu_tau_massive(max_Nu)
+    real(dl) nu_tau_nonrelativistic_physical(max_nu), nu_tau_nonrelativistic(max_nu), nu_tau_massive(max_nu)
 
     procedure(state_function), private :: dtauda
 
@@ -558,7 +558,7 @@
     if (CP%Nu_mass_eigenstates > 0) then
         associate(nqmax => State%NuPerturbations%nqmax, nu_q => State%NuPerturbations%nu_q)
             if (allocated(nu_tau_notmassless)) deallocate(nu_tau_notmassless)
-            allocate(nu_tau_notmassless(nqmax, max_Nu))
+            allocate(nu_tau_notmassless(nqmax, max_nu))
             do nu_i = 1, CP%Nu_mass_eigenstates
                 nu_mass = max(0.1_dl, State%nu_masses(nu_i))
                 a_mass = 1.e-1_dl/nu_mass/CP%Accuracy%lAccuracyBoost
@@ -703,7 +703,7 @@
     subroutine CopyScalarVariableArray(y, yout, EV, EVOut)
     type(EvolutionVars) EV, EVOut
     real(dl), intent(in) :: y(EV%nvar)
-    real(dl), intent(out) :: yout(EVout%nvar)
+    real(dl), intent(out) :: yout(EVOut%nvar)
     integer lmax, i, nq
     integer nnueq, nu_i, ix_off, ix_off2, ind, ind2
     real(dl) q, pert_scale
@@ -828,7 +828,7 @@
     subroutine CopyTensorVariableArray(y, yout, EV, EVOut)
     type(EvolutionVars) EV, EVOut
     real(dl), intent(in) :: y(EV%nvart)
-    real(dl), intent(out) :: yout(EVout%nvart)
+    real(dl), intent(out) :: yout(EVOut%nvart)
     integer lmaxpolt, lmaxt, nu_i, ind, ind2, i
 
     yout = 0
@@ -2285,7 +2285,7 @@
     real(dl) photbar, cs2, pb43, grho, slip, clxgdot, &
         clxcdot, clxbdot, adotdota, gpres, clxrdot, etak
     real(dl) q, aq, v
-    real(dl) G11_t, G30_t, wnu_arr(max_Nu)
+    real(dl) G11_t, G30_t, wnu_arr(max_nu)
 
     real(dl) dgq, grhob_t, grhor_t, grhoc_t, grhog_t, grhov_t, grhonu_t, sigma, polter
     real(dl) w_dark_energy_t ! equation of state of dark energy
@@ -3130,7 +3130,7 @@
     k2 = EV%k2_buf
     k = EV%k_buf
 
-    call EV%ThermoData%expansion_values(tau, a, adot, opacity)
+    call EV%ThermoData%ExpansionValues(tau, a, adot, opacity)
 
     Hchi = ayt(ixt_H)
 

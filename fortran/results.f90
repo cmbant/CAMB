@@ -102,8 +102,8 @@
     contains
     procedure :: Init => Thermo_Init
     procedure :: OpacityToTime => Thermo_OpacityToTime
-    procedure :: values => Thermo_values
-    procedure :: expansion_values => Thermo_expansion_values
+    procedure :: Values => Thermo_values
+    procedure :: ExpansionValues => Thermo_expansion_values
     procedure :: IonizationFunctionsAtTime
     procedure, private :: DoWindowSpline
     procedure, private :: SetTimeSteps
@@ -202,9 +202,9 @@
         real(dl) Nnow
         real(dl) z_eq ! defined assuming all neutrinos massless
         ! Neutrinos
-        real(dl) grhormass(max_Nu)
+        real(dl) grhormass(max_nu)
         ! nu_masses = m_nu*c**2/(k_B*T_nu0)
-        real(dl) nu_masses(max_Nu)
+        real(dl) nu_masses(max_nu)
         integer :: num_transfer_redshifts = 1
         real(dl), allocatable :: transfer_redshifts(:)
         integer :: PK_redshifts_index(max_transfer_redshifts)
@@ -3073,7 +3073,7 @@
     real(dl) d, cs2
     integer i
 
-    call this%values(tau, a, cs2, opac, dopac)
+    call this%Values(tau, a, cs2, opac, dopac)
 
     call Thermo_table_index(this, tau, i, d)
 
