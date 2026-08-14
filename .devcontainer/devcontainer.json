@@ -55,7 +55,7 @@
         "scm.repositories.selectionMode": "single",
         "git.autoRepositoryDetection": false,
         "fortran.formatting.formatter": "findent",
-        "fortran.formatting.path": "/home/vscode/.local/share/camb-devcontainer/.venv/bin",
+        "fortran.formatting.path": ".vscode",
         "python.defaultInterpreterPath": "/home/vscode/.local/share/camb-devcontainer/.venv/bin/python3",
         "python-envs.workspaceSearchPaths": [
           "/home/vscode/.local/share/camb-devcontainer"

@@ -28,16 +28,9 @@ repos:
 
   - repo: local
     hooks:
-      - id: findent-fortran
-        name: findent Fortran
-        entry: python scripts/findent_fortran.py
-        language: system
-        pass_filenames: true
-        files: \.(?:f90|F90)$
-        exclude: ^forutils/
-      - id: standardize-fortran
-        name: standardize Fortran
-        entry: python scripts/standardize_fortran.py
+      - id: forformat-fortran
+        name: forformat Fortran
+        entry: python scripts/forformat_fortran.py
         language: system
         pass_filenames: true
         files: \.(?:f90|F90)$

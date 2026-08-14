@@ -36,16 +36,13 @@ CAMB uses [Ruff](https://docs.astral.sh/ruff/) for Python formatting and linting
 The pre-commit hooks include:
 
 - **Ruff formatting and linting** (Python files)
-- **findent** for Fortran indentation, using the arguments configured in `.vscode/settings.json`
-- **`scripts/standardize_fortran.py`** for Fortran case, spacing, operators, and line wrapping
+- **forformat** for Fortran formatting, using the arguments configured in `.vscode/settings.json`
 - **Trailing whitespace removal** (Python, Fortran, Jupyter notebooks)
 - **End-of-file fixing** (Python, Fortran, Jupyter notebooks)
 - **PyUpgrade** for Python 3.10+ syntax
 
-The Fortran hooks run in this order: `findent` first, followed by
-`scripts/standardize_fortran.py`. Both hooks operate on the Fortran files selected by
-pre-commit and exclude the `forutils` submodule. The standardization script still reads all tracked Fortran files,
-including `forutils`, when collecting declaration names so that case normalization is consistent.
+The Fortran hook operates on the Fortran files selected by pre-commit and excludes the `forutils` submodule.
+`forformat` uses the surrounding Git checkout to resolve declarations while modifying only the selected files.
 
 ### 4. Before Committing
 
@@ -56,8 +53,7 @@ The pre-commit hooks will run automatically, but you can also run them manually:
 pre-commit run --all-files
 
 # Run the Fortran hooks on selected files
-pre-commit run findent-fortran --files fortran/path.f90
-pre-commit run standardize-fortran --files fortran/path.f90
+pre-commit run forformat-fortran --files fortran/path.f90
 
 # Run only ruff formatting
 ruff format camb fortran/tests
@@ -97,8 +93,7 @@ The repository includes VS Code configuration files with:
 - **Format on save**: Enabled with Ruff as the default Python formatter
 - **Rulers at 120 characters**
 - **Pylance settings**: Configured to silence most NumPy-related type errors
-- **Fortran formatting**: Configured with findent; the same settings are used by the `findent-fortran` pre-commit hook
-- **Fortran standardization**: Applied by `scripts/standardize_fortran.py` after findent in pre-commit
+- **Fortran formatting**: Configured with forformat; the same settings are used by the `forformat-fortran` pre-commit hook
 
 ### Recommended Extensions
 
@@ -117,7 +112,7 @@ container-local interpreter separately, so host and container environments do no
 For enhanced Fortran development, you may want to install:
 
 ```bash
-pip install findent fortls
+pip install forformat fortls
 ```
 
 Note: You may need to configure global VS Code settings for Fortran tool paths.

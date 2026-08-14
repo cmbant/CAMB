@@ -1,0 +1,27 @@
+#!/usr/bin/env python3
+"""Expose forformat through Modern Fortran's findent-only formatter interface."""
+
+import shutil
+import subprocess
+import sys
+
+
+def main() -> int:
+    forformat = shutil.which("forformat")
+    if forformat is None:
+        print("forformat is required to format Fortran files", file=sys.stderr)
+        return 1
+
+    result = subprocess.run(
+        [forformat, "--stdin", "--full", *sys.argv[1:]],
+        input=sys.stdin.buffer.read(),
+        capture_output=True,
+        check=False,
+    )
+    sys.stdout.buffer.write(result.stdout)
+    sys.stderr.buffer.write(result.stderr)
+    return result.returncode
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

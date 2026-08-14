@@ -13,8 +13,8 @@ jobs:
         os:
           [
             macos-14,
-            macos-14-xlarge,
-            macos-latest,
+            macos-14-large,
+            macos-26,
             ubuntu-latest,
             ubuntu-24.04-arm,
             windows-latest,
@@ -39,17 +39,8 @@ jobs:
       - name: Install cibuildwheel
         run: python -m pip install cibuildwheel
 
-      - name: Build macos-13 wheels
-        if: matrix.os == 'macos-13' || matrix.os == 'macos-13-xlarge'
-        env:
-          MACOSX_DEPLOYMENT_TARGET: 13
-          CIBW_BUILD: cp311-*
-          CIBW_SKIP: pp*
-          CIBW_BUILD_VERBOSITY: 1
-        run: python -m cibuildwheel --output-dir wheelhouse
-
-      - name: Build macos-15 wheels
-        if: matrix.os == 'macos-15' || matrix.os == 'macos-15-large'
+      - name: Build macos-26 wheels
+        if: startsWith(matrix.os, 'macos-26')
         env:
           MACOSX_DEPLOYMENT_TARGET: 15
           CIBW_BUILD: cp311-*
@@ -58,7 +49,7 @@ jobs:
         run: python -m cibuildwheel --output-dir wheelhouse
 
       - name: Build wheels
-        if: matrix.os == 'macos-14' || startsWith(matrix.os, 'ubuntu') || matrix.os == 'windows-latest'
+        if: startsWith(matrix.os, 'macos-14') || startsWith(matrix.os, 'ubuntu') || matrix.os == 'windows-latest'
         env:
           MACOSX_DEPLOYMENT_TARGET: 14
           CIBW_BUILD: cp311-*

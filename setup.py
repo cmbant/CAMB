@@ -347,7 +347,16 @@ def make_library(cluster=False):
         if os.path.exists(lib_file) and not os.access(lib_file, os.W_OK):
             os.remove(lib_file)
         print("Compiling source...")
-        cluster_safe = int(cluster if not os.getenv("GITHUB_ACTIONS") else 1)
+        # Wheel builds must not depend on the CPU features of the build host. The explicit
+        # environment variable also works inside cibuildwheel's isolated Linux containers,
+        # where the host's GITHUB_ACTIONS environment is not a reliable signal.
+        cluster_safe = int(
+            cluster
+            or os.getenv(
+                "CAMB_CLUSTER_SAFE",
+                "1" if os.getenv("CIBUILDWHEEL") or os.getenv("GITHUB_ACTIONS") else "0",
+            )
+        )
         subprocess.call(
             f"make python PYCAMB_OUTPUT_DIR={pycamb_path}/camb/ CLUSTER_SAFE={cluster_safe}",
             shell=True,

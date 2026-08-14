@@ -29,8 +29,10 @@ When the container is created it:
 - configures `core.hooksPath` to use the tracked `.githooks/pre-commit` wrapper, which can use `pre-commit` from the container venv or from a host `.venv`
 - pre-installs the `pre-commit` hook environments into a container-local cache so later hook runs can work offline
 
-The devcontainer also installs `findent` and `fortls` into the container-local virtual environment so the Modern Fortran
-extension can format and index code without depending on host-side tools.
+The devcontainer also installs `forformat` and `fortls` into the container-local virtual environment so the Modern Fortran
+extension can format and index code without depending on host-side tools. Modern Fortran currently exposes only a
+`findent` formatter identifier, so the workspace's `.vscode/findent` Python adapter forwards formatting requests to
+`forformat`.
 
 Codex state is stored in the Docker volume `camb-codex`, so sessions and container-side caches survive devcontainer
 rebuilds and are shared across CAMB worktrees using this devcontainer. Only the host `~/.codex/auth.json` file is bind

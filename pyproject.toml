@@ -39,7 +39,7 @@ docs = [
     "sphinx_markdown_builder",
     "jupytext",
 ]
-dev = ["ruff>=0.11.0", "pre-commit>=3.0.0", "findent>=4.3.6"]
+dev = ["ruff>=0.11.0", "pre-commit>=3.0.0", "forformat>=0.1.1"]
 
 [project.scripts]
 camb = "camb._command_line:run_command_line"
@@ -76,6 +76,22 @@ indent-style = "space"
 line-ending = "auto"
 skip-magic-trailing-comma = false
 docstring-code-format = true
+
+[tool.forformat]
+mode = "full"
+indent = 4
+line_length = 120
+indent_module=0
+indent_procedure=0
+start_indent=4
+indent-contains = "restart"
+indent_select=4
+indent_case=4
+indent_interface=0
+indent_continuation=4
+indent_ampersand=true
+openmp=0
+
 
 [tool.flake8]
 select = [

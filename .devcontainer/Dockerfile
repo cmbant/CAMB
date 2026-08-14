@@ -45,7 +45,7 @@ RUN mkdir -p \
         pip \
         setuptools \
         wheel \
-        findent \
+        forformat \
         fortls \
         matplotlib \
         numpy \
