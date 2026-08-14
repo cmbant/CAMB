@@ -166,10 +166,10 @@
     type HM_tables
         ! Stuff that needs to be recalculated for each new z
         real(dl), allocatable :: c(:), rv(:), nu(:), sig(:), zc(:), m(:), rr(:), sigf(:)
-        real(dl), allocatable :: rs(:), nfw_norm(:) ! halo profile scale radius and normalisation
-        real(dl), allocatable :: p1h_weight(:), nu_eta(:), baryon_mass_fraction(:)
+        real(dl), allocatable :: rs(:), nfw_norm(:), nfw_moment2(:) ! cached halo-profile quantities
+        real(dl), allocatable :: p1h_quad_weight(:), nu_eta(:), baryon_mass_fraction(:)
         real(dl) :: sigv, sigv100, knl, rnl, neff, sig8z, z, dc, sig8z_cold
-        real(dl) :: eta_hm, kstar_hm, alpha_hm, fdamp_hm, one_minus_fnu_sq, f_star_hm
+        real(dl) :: eta_hm, kstar_hm, alpha_hm, fdamp_hm, kdamp_hm, one_minus_fnu_sq, f_star_hm
         real(dl) :: dolag_inf = 1, dolag_z = 1 ! cached Dolag (2004) concentration corrections
         integer :: n
         integer :: imead = -1 ! HMcode variant these HM_tables were filled for (see HMcode)
@@ -602,6 +602,7 @@
     type(MatterPowerData) :: CAMB_Pk
     integer :: j, nz, iz_wiggle, npass, imead_base
     integer :: imead_pass(3)
+    real(dl), allocatable :: kh(:)
     type(HM_cosmology) :: cosi, cosm
     type(HM_tables) :: lut
 
@@ -645,6 +646,9 @@
     !!AM - Assign cosmological parameters for the halo model calculation
     call assign_HM_cosmology(this, State, cosi)
 
+    ! Requested wavenumbers are shared by every redshift and feedback pass.
+    kh = exp(CAMB_Pk%log_kh)
+
     ! Fill growth function table (only needs to be done once)
     call fill_growtab(cosi)
 
@@ -667,14 +671,14 @@
         cosm = cosi
         !$OMP DO SCHEDULE(DYNAMIC)
         do j = 1, nz
-            call HMcode_redshift(this, CAMB_Pk, j, npass, imead_pass, cosm, lut)
+            call HMcode_redshift(this, CAMB_Pk, j, npass, imead_pass, kh, cosm, lut)
         end do
         !$OMP END DO
         !$OMP END PARALLEL
     else
         cosm = cosi
         do j = 1, nz
-            call HMcode_redshift(this, CAMB_Pk, j, npass, imead_pass, cosm, lut)
+            call HMcode_redshift(this, CAMB_Pk, j, npass, imead_pass, kh, cosm, lut)
             ! Only report the halo-model set-up for the first redshift
             HM_verbose = .false.
         end do
@@ -682,15 +686,16 @@
 
     end subroutine HMcode
 
-    subroutine HMcode_redshift(this, CAMB_Pk, j, npass, imead_pass, cosm, lut)
+    subroutine HMcode_redshift(this, CAMB_Pk, j, npass, imead_pass, kh, cosm, lut)
     ! Everything HMcode does for one redshift; cosm and lut are the caller's working space, so
     ! this can be called either serially or from a thread with its own private copies of them
     class(THalofit) :: this
     type(MatterPowerData) :: CAMB_Pk
     integer, intent(in) :: j, npass, imead_pass(:)
+    real(dl), intent(in) :: kh(:)
     type(HM_cosmology) :: cosm
     type(HM_tables) :: lut
-    real(dl), allocatable :: p_den(:) ! feedback-model denominator, used by the pass that follows it
+    real(dl), allocatable :: p_den(:), plin_k(:)
     real(dl) :: z, k, p1h, p2h, pfull, plin
     integer :: i, ii, imead
 
@@ -705,7 +710,14 @@
     ! Sets the current redshift from the table
     z = CAMB_Pk%redshifts(j)
 
-    if (npass > 1) allocate(p_den(CAMB_Pk%num_k))
+    if (npass > 1) then
+        allocate(p_den(CAMB_Pk%num_k), plin_k(CAMB_Pk%num_k))
+        !$OMP PARALLEL DO IF(HM_par_inner()), DEFAULT(SHARED)
+        do i = 1, CAMB_Pk%num_k
+            plin_k(i) = p_lin(kh(i), z, 0, cosm)
+        end do
+        !$OMP END PARALLEL DO
+    end if
 
     do ii = 1, npass
         imead = imead_pass(ii)
@@ -719,8 +731,12 @@
         ! Loop over k values and calculate P(k)
         !$OMP PARALLEL DO IF(HM_par_inner()), DEFAULT(SHARED), PRIVATE(k, plin, pfull, p1h, p2h)
         do i = 1, CAMB_Pk%num_k
-            k = exp(CAMB_Pk%log_kh(i))
-            plin = p_lin(k, z, 0, cosm)
+            k = kh(i)
+            if (npass > 1) then
+                plin = plin_k(i)
+            else
+                plin = p_lin(k, z, 0, cosm)
+            end if
             call this%halomod(k, p1h, p2h, pfull, plin, lut, cosm)
             if (npass == 1 .or. imead == 3) then
                 CAMB_Pk%nonlin_ratio(i, j) = sqrt(pfull/plin)
@@ -936,16 +952,27 @@
 
     end subroutine halomod
 
+    subroutine ensure_table_size(arr, n)
+    ! Allocate a work table once and only resize it if its required extent changes.
+    real(dl), allocatable, intent(inout) :: arr(:)
+    integer, intent(in) :: n
+
+    if (allocated(arr)) then
+        if (size(arr) == n) return
+        deallocate(arr)
+    end if
+    allocate(arr(n))
+
+    end subroutine ensure_table_size
+
     subroutine fill_table(min, max, arr, n)
     ! Fills array 'arr' in equally spaced intervals
     integer :: i
     real(dl), intent(in) :: min, max
-    real(dl), allocatable :: arr(:)
+    real(dl), allocatable, intent(inout) :: arr(:)
     integer, intent(in) :: n
 
-    ! Allocate the array, and deallocate it if it is full
-    if (allocated(arr)) deallocate(arr)
-    allocate(arr(n))
+    call ensure_table_size(arr, n)
 
     if (n == 1) then
         arr(1) = min
@@ -963,8 +990,7 @@
     integer, intent(in) :: iz
     type(HM_cosmology) :: cosm
     integer :: i
-    real(dl) :: z, g
-    real(dl), allocatable :: k(:), Pk(:), Pkc(:)
+    real(dl) :: z, g, g2, k, Pk, Pkc
     real(dl), parameter :: pi = pi_HM
     real(dl), parameter :: kmin = kmin_pk_interpolation
     real(dl), parameter :: kmax = kmax_pk_interpolation
@@ -977,51 +1003,44 @@
 
     if (HM_verbose) write(*, *) 'LINEAR POWER: Filling linear power HM_tables'
 
-    ! Fill arrays
-    if (allocated(cosm%log_k_plin)) deallocate(cosm%log_k_plin)
-    if (allocated(cosm%log_plin)) deallocate(cosm%log_plin)
-    if (allocated(cosm%log_plinc)) deallocate(cosm%log_plinc)
-
     ! Fill a k-table with an equal-log-spaced k range (find_pk assumes this spacing)
     ! Note that the minimum should be such that the linear spectrum is accurately a power-law below this wavenumber
     cosm%nk = nk
     call fill_table(log(kmin), log(kmax), cosm%log_k_plin, nk)
+    call ensure_table_size(cosm%log_plin, nk)
+    call ensure_table_size(cosm%log_plinc, nk)
+    cosm%kmax = exp(cosm%log_k_plin(nk))
 
-    allocate(k(nk))
-    k = exp(cosm%log_k_plin)
-    cosm%kmax = k(nk)
-
-    if (HM_verbose) write(*, *) 'LINEAR POWER: k_min:', k(1)
-    if (HM_verbose) write(*, *) 'LINEAR POWER: k_max:', k(nk)
+    if (HM_verbose) write(*, *) 'LINEAR POWER: k_min:', exp(cosm%log_k_plin(1))
+    if (HM_verbose) write(*, *) 'LINEAR POWER: k_max:', cosm%kmax
     if (HM_verbose) write(*, *) 'LINEAR POWER: nk:', nk
-
-    allocate(Pk(nk), Pkc(nk))
 
     ! Find the redshift
     z = CAMB_PK%redshifts(iz)
     if (HM_verbose) write(*, *) 'LINEAR POWER: z of input:', z
+    g = grow(z, cosm)
+    g2 = g**2
+    cosm%grow_z = g
+    cosm%this_z = z
     index_cache = 1
     ! Fill power table, both cold- and all-matter
-    !$OMP PARALLEL DO IF(HM_par_inner() .and. nk>256), DEFAULT(SHARED), FIRSTPRIVATE(index_cache), SCHEDULE(STATIC)
+    !$OMP PARALLEL DO IF(HM_par_inner() .and. nk>256), DEFAULT(SHARED), PRIVATE(k, Pk, Pkc), &
+    !$OMP FIRSTPRIVATE(index_cache), SCHEDULE(STATIC)
     do i = 1, nk
         ! Take the power from the current redshift choice
-        Pk(i) = MatterPowerData_k(CAMB_PK, k(i), iz, index_cache)*(k(i)**3/(2*pi**2))
-        Pkc(i) = Pk(i)*Tcb_Tcbnu_ratio(k(i), z, cosm)**2
+        k = exp(cosm%log_k_plin(i))
+        Pk = MatterPowerData_k(CAMB_PK, k, iz, index_cache)*(k**3/(2*pi**2))
+        ! Pk is zero if MatterPowerData_k flagged an error; skip the log and let the check below fire
+        if (Pk > 0) then
+            Pkc = Pk*Tcb_Tcbnu_ratio(k, z, cosm)**2
+            cosm%log_plin(i) = log(Pk/g2)
+            cosm%log_plinc(i) = log(Pkc/g2)
+        end if
     end do
     if (global_error_flag /= 0) return
 
-    if (HM_verbose) write(*, *) 'LINEAR POWER: Delta2_min:', Pk(1)
-    if (HM_verbose) write(*, *) 'LINEAR POWER: Delta2_max:', Pk(nk)
-
-    ! Calculate the growth factor at the redshift of interest
-    g = grow(z, cosm)
-    cosm%grow_z = g
-    cosm%this_z = z
-    allocate(cosm%log_plin(nk), cosm%log_plinc(nk))
-
-    ! Grow the power to z=0
-    cosm%log_plin = log(Pk/(g**2))
-    cosm%log_plinc = log(Pkc/(g**2))
+    if (HM_verbose) write(*, *) 'LINEAR POWER: Delta2_min:', exp(cosm%log_plin(1))*g2
+    if (HM_verbose) write(*, *) 'LINEAR POWER: Delta2_max:', exp(cosm%log_plin(nk))*g2
     cosm%plin_iz = iz
 
     ! Check sigma_8 value
@@ -1169,19 +1188,29 @@
 
     end subroutine initialise_HM_cosmology
 
-    subroutine allocate_LUT(lut, n)
+    subroutine allocate_LUT(lut, n, new_mass_grid)
     ! Allocates memory for the HMcode look-up HM_tables. Nothing is initialised here: every
     ! array and cached scalar is fully overwritten before use, by halomod_tables/fill_conc (once
     ! per redshift) or by halomod_init immediately afterwards; the feedback-only fields
     ! (baryon_mass_fraction, f_star_hm) are only ever read by the imead variant that fills them.
     type(HM_tables) :: lut
     integer, intent(in) :: n
+    logical, intent(out) :: new_mass_grid
 
+    new_mass_grid = .false.
+    if (allocated(lut%zc)) then
+        if (size(lut%zc) /= n) then
+            deallocate(lut%zc, lut%m, lut%c, lut%rv, lut%rs, lut%nfw_norm, lut%nfw_moment2)
+            deallocate(lut%nu, lut%rr, lut%sigf, lut%sig)
+            deallocate(lut%p1h_quad_weight, lut%nu_eta, lut%baryon_mass_fraction)
+        end if
+    end if
     if (.not. allocated(lut%zc)) then
         lut%n = n
-        allocate(lut%zc(n), lut%m(n), lut%c(n), lut%rv(n), lut%rs(n), lut%nfw_norm(n))
+        allocate(lut%zc(n), lut%m(n), lut%c(n), lut%rv(n), lut%rs(n), lut%nfw_norm(n), lut%nfw_moment2(n))
         allocate(lut%nu(n), lut%rr(n), lut%sigf(n), lut%sig(n))
-        allocate(lut%p1h_weight(n), lut%nu_eta(n), lut%baryon_mass_fraction(n))
+        allocate(lut%p1h_quad_weight(n), lut%nu_eta(n), lut%baryon_mass_fraction(n))
+        new_mass_grid = .true.
     end if
 
     end subroutine allocate_LUT
@@ -1218,6 +1247,7 @@
     lut%kstar_hm = this%kstar(lut)
     lut%fdamp_hm = this%fdamp(lut)
     lut%alpha_hm = this%alpha(lut)
+    if (lut%imead == 3) lut%kdamp_hm = 0.05699_dl*lut%sig8z_cold**(-1.089_dl)
     lut%one_minus_fnu_sq = (1._dl - cosm%f_nu)**2
     lut%nu_eta = lut%nu**lut%eta_hm
     if (lut%imead == 5) then
@@ -1252,6 +1282,7 @@
     integer :: i, nm
     real(dl) :: Dv, dc, m, nu, r, sig, mmin, mmax
     real(dl), parameter :: f_Bullock = 0.01_dl**(1/3._dl)
+    logical :: new_mass_grid
 
     if (HM_verbose) write(*, *) 'HALOMOD: Filling look-up HM_tables'
     if (HM_verbose) write(*, *) 'HALOMOD: HM_tables being filled at redshift:', z
@@ -1276,7 +1307,7 @@
     end if
     if (global_error_flag /= 0) return
 
-    call allocate_LUT(lut, nm)
+    call allocate_LUT(lut, nm, new_mass_grid)
 
     if (HM_verbose) write(*, *) 'HALOMOD: M_min [log10(Msun/h)]:', log10(mmin)
     if (HM_verbose) write(*, *) 'HALOMOD: M_max [log10(Msun/h)]:', log10(mmax)
@@ -1287,21 +1318,30 @@
     !$OMP PARALLEL DO IF(HM_par_inner()), DEFAULT(SHARED), PRIVATE(m, r, sig, nu)
     do i = 1, lut%n
 
-        m = exp(log(mmin) + log(mmax/mmin)*real(i - 1, dl)/(lut%n - 1))
-        r = radius_m(m, cosm)
+        if (new_mass_grid) then
+            lut%m(i) = exp(log(mmin) + log(mmax/mmin)*real(i - 1, dl)/(lut%n - 1))
+            lut%rr(i) = radius_m(lut%m(i), cosm)
+        end if
+        m = lut%m(i)
+        r = lut%rr(i)
         sig = sigma_lut(r, z, cosm)
         nu = dc/sig
 
-        lut%m(i) = m
-        lut%rr(i) = r
         lut%sig(i) = sig
         lut%nu(i) = nu
         lut%sigf(i) = sigma_lut(r*f_Bullock, z, cosm)
-        lut%p1h_weight(i) = gnu(nu)*m
 
     end do
     !$OMP END PARALLEL DO
     if (global_error_flag /= 0) return
+
+    ! Fold the trapezium-rule intervals into per-node weights once per redshift.
+    lut%p1h_quad_weight(1) = 0.5_dl*gst(lut%nu(1))*lut%m(1)*(lut%nu(2) - lut%nu(1))
+    do i = 2, lut%n - 1
+        lut%p1h_quad_weight(i) = 0.5_dl*gst(lut%nu(i))*lut%m(i)*(lut%nu(i + 1) - lut%nu(i - 1))
+    end do
+    lut%p1h_quad_weight(lut%n) = &
+        0.5_dl*gst(lut%nu(lut%n))*lut%m(lut%n)*(lut%nu(lut%n) - lut%nu(lut%n - 1))
 
     if (HM_verbose) write(*, *) 'HALOMOD: m, r, nu, sig, sigf HM_tables filled'
 
@@ -1354,6 +1394,7 @@
         ! Scale radius and profile normalisation, cached since win() is called at every k
         lut%rs(i) = lut%rv(i)/c
         lut%nfw_norm(i) = 1/(log(1 + c) - c/(1 + c))
+        lut%nfw_moment2(i) = 0.5_dl*c*c - 2._dl*c + 3._dl*log(1._dl + c) - c/(1._dl + c)
     end do
 
     end subroutine fill_conc
@@ -1675,7 +1716,8 @@
     ! Calculates the 2-halo term
     real(dl) :: p_2h
     real(dl), intent(in) :: k, plin
-    real(dl) :: sigv, frac, kdamp, ndamp, x
+    real(dl) :: sigv, frac, x
+    real(dl), parameter :: ndamp = 2.85_dl
     type(HM_tables), intent(in) :: lut
     type(HM_cosmology), intent(in) :: cosm
 
@@ -1689,9 +1731,7 @@
         sigv = lut%sigv
         p_2h = plin*(1. - frac*(tanh(k*sigv/sqrt(abs(frac))))**2)
     else if (lut%imead == 3) then
-        kdamp = 0.05699*lut%sig8z_cold**(-1.089)
-        ndamp = 2.85
-        x = (k/kdamp)**ndamp
+        x = (k/lut%kdamp_hm)**ndamp
         p_2h = p_dewiggle(k, lut%z, plin, lut%sigv, cosm)*(1. - frac*x/(1. + x))
     end if
 
@@ -1707,20 +1747,18 @@
     type(HM_tables), intent(in) :: lut
     type(HM_cosmology), intent(in) :: cosm
     real(dl) :: fac, ks, x
-    real(dl) :: g0, g1, sum
+    real(dl) :: sum, wk
     integer :: i
     real(dl), parameter :: pi = pi_HM
 
-    ! Trapezium rule over nu, accumulated as the (expensive) halo windows are evaluated
-    ! (the integral is linear, so scale the result rather than the integrand)
+    ! Trapezium rule over nu; the redshift-only node weights were cached by halomod_tables.
     sum = 0
-    g1 = integrand(1)
-    do i = 2, lut%n
-        g0 = g1
-        g1 = integrand(i)
-        sum = sum + (g0 + g1)*(lut%nu(i) - lut%nu(i - 1))
+    do i = 1, lut%n
+        wk = win(k*lut%nu_eta(i), lut%rs(i), lut%c(i), lut%nfw_norm(i), lut%nfw_moment2(i))
+        if (lut%imead == 5) wk = wk*lut%baryon_mass_fraction(i) + lut%f_star_hm
+        sum = sum + lut%p1h_quad_weight(i)*wk*wk
     end do
-    sum = sum/(2*cosmic_density(cosm))
+    sum = sum/cosmic_density(cosm)
     if (lut%imead == 3 .or. lut%imead == 4) sum = sum*lut%one_minus_fnu_sq
 
     ! Numerical factors to convert from P(k) to Delta^2(k)
@@ -1742,19 +1780,6 @@
         x = (k/ks)**4
         p_1h = p_1h*x/(1. + x)
     end if
-
-    contains
-
-    real(dl) function integrand(i)
-    ! The one-halo integrand at the i'th mass point, without the constant factors
-    integer, intent(in) :: i
-    real(dl) :: wk
-
-    wk = win(k*lut%nu_eta(i), lut%rs(i), lut%c(i), lut%nfw_norm(i))
-    if (lut%imead == 5) wk = wk*lut%baryon_mass_fraction(i) + lut%f_star_hm
-    integrand = lut%p1h_weight(i)*wk**2
-
-    end function integrand
 
     end function p_1h
 
@@ -1815,8 +1840,7 @@
     if (HM_verbose) write(*, *) 'INIT_WIGGLE: Isolating wiggle'
 
     ! Isolate the wiggle in the look-up table (log_k_wiggle was filled above)
-    if (allocated(cosm%pk_wiggle)) deallocate(cosm%pk_wiggle)
-    allocate(cosm%pk_wiggle(nk))
+    call ensure_table_size(cosm%pk_wiggle, nk)
     cosm%pk_wiggle = Pk - Pk_smooth
 
     if (HM_verbose) then
@@ -1979,7 +2003,6 @@
     ! This wouldn't be appropriate for models with a small-scale linear spectrum cut-off (e.g., WDM)
     integer :: i
     type(HM_cosmology), intent(inout) :: cosm
-    real(dl), allocatable :: r(:), sig(:)
     integer :: itype
     real(dl), parameter :: rmin = rmin_sigma_interpolation
     real(dl), parameter :: rmax = rmax_sigma_interpolation
@@ -1995,10 +2018,8 @@
     ! These values of 'r' work fine for any power spectrum of cosmological importance
     ! Fill log(R) directly (rather than as log(r)) so that it is exactly equally spaced,
     ! as assumed by interp_cubic_uniform
-    if (allocated(cosm%log_sigma)) deallocate(cosm%log_sigma)
     call fill_table(log(rmin), log(rmax), cosm%log_r_sigma, nsig)
-    allocate(r(nsig), sig(nsig))
-    r = exp(cosm%log_r_sigma)
+    call ensure_table_size(cosm%log_sigma, nsig)
 
     if (HM_verbose) write(*, *) 'SIGTAB: Filling sigma interpolation table'
     if (HM_verbose) write(*, *) 'SIGTAB: R_min:', rmin
@@ -2008,16 +2029,14 @@
     ! Cost per point varies a lot with R (adaptive integration), so balance dynamically
     !$OMP PARALLEL DO IF(HM_par_inner()), DEFAULT(SHARED), SCHEDULE(DYNAMIC)
     do i = 1, nsig
-        sig(i) = sigma_integral(r(i), 0.d0, itype, cosm)
+        cosm%log_sigma(i) = log(sigma_integral(exp(cosm%log_r_sigma(i)), 0.d0, itype, cosm))
     end do
     !$OMP END PARALLEL DO
 
-    if (HM_verbose) write(*, *) 'SIGTAB: sigma_min:', sig(nsig)
-    if (HM_verbose) write(*, *) 'SIGTAB: sigma_max:', sig(1)
+    if (HM_verbose) write(*, *) 'SIGTAB: sigma_min:', exp(cosm%log_sigma(nsig))
+    if (HM_verbose) write(*, *) 'SIGTAB: sigma_max:', exp(cosm%log_sigma(1))
 
     cosm%nsig = nsig
-    allocate(cosm%log_sigma(nsig))
-    cosm%log_sigma = log(sig)
 
     if (HM_verbose) write(*, *) 'SIGTAB: Done'
     if (HM_verbose) write(*, *)
@@ -2238,14 +2257,14 @@
 
     end function integrate
 
-    function win(k, rs, c, norm)
+    function win(k, rs, c, norm, moment2)
     ! The halo window function (k-space halo profile): the analytic Fourier transform of the
     ! NFW profile of scale radius rs and concentration c, normalised so that W(k->0)=1.
     ! norm is 1/(log(1+c)-c/(1+c)), the reciprocal of the halo mass in units of 4*pi*rho_n*rs^3,
     ! where rho_n is the profile normalisation [i.e. rho=rho_n/((r/rs)*(1+r/rs)^2]
     real(dl) :: win
-    real(dl), intent(in) :: k, rs, c, norm
-    real(dl) :: si1, si2, ci1, ci2, sin1, sin2, cos1, cos2, ks, ks2, moment2
+    real(dl), intent(in) :: k, rs, c, norm, moment2
+    real(dl) :: si1, si2, ci1, ci2, sin1, sin2, cos1, cos2, ks, ks2
 
     ks = k*rs
     ks2 = (1 + c)*ks
@@ -2254,7 +2273,6 @@
     ! parameter is k*r_vir=c*ks; below 0.2 the pointwise fourth-order remainder is
     ! bounded by (k*r_vir)^4/120 < 1.4e-5, safely below the HMcode accuracy target.
     if (c*ks < 0.2_dl) then
-        moment2 = 0.5_dl*c*c - 2._dl*c + 3._dl*log(1._dl + c) - c/(1._dl + c)
         win = 1._dl - ks*ks*moment2*norm/6._dl
         ! At large arguments SiCi already evaluates the sine and cosine needed below.
         ! Return those values and get sin(c*ks)=sin(ks2-ks) by angle subtraction, avoiding
@@ -2276,16 +2294,6 @@
     if (win < 0._dl) win = 0._dl
 
     end function win
-
-    function gnu(nu)
-    ! Select the mass function
-    real(dl) :: gnu
-    real(dl), intent(in) :: nu
-
-    ! Sheth & Torman (1999)
-    gnu = gst(nu)
-
-    end function gnu
 
     function gst(nu)
     ! Sheth & Tormen (1999) mass function!
@@ -2719,8 +2727,7 @@
     cosm%ng = n
     call fill_table(amin, amax, cosm%a_growth, n)
     if (amax /= 1) error stop 'FILL_GROWTAB: the growth table must end at a=1 to normalise there'
-    if (allocated(cosm%growth)) deallocate(cosm%growth)
-    allocate(cosm%growth(n))
+    call ensure_table_size(cosm%growth, n)
 
     if (HM_verbose) write(*, *) 'GROWTH: Solving growth equation'
     call solve_growth_ODE(cosm, cosm%a_growth, cosm%growth)
@@ -2732,8 +2739,7 @@
     cosm%growth = cosm%growth/cosm%gnorm
 
     ! Table integration to calculate G(a)=int_0^a g(a')/a' da'
-    if (allocated(cosm%agrow)) deallocate(cosm%agrow)
-    allocate(cosm%agrow(n))
+    call ensure_table_size(cosm%agrow, n)
 
     ! Each interval contributes the same however far the integral goes, so accumulate them.
     ! The missing section below a_growth(1): g(a=0)/0 = 1, so just add a rectangle of height g*a/a=g
