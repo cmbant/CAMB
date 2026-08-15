@@ -123,7 +123,7 @@
 
     end subroutine TCambComponent_ReadParams
 
-    subroutine  TCambComponent_Validate(this, OK)
+    subroutine TCambComponent_Validate(this, OK)
     class(TCambComponent), intent(in) :: this
     logical, intent(inout) :: OK
 

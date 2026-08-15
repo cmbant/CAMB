@@ -243,7 +243,7 @@
 
     end function
 
-    subroutine  TSplinedSourceWindow_SetTable(this, n, z, W, bias_z)
+    subroutine TSplinedSourceWindow_SetTable(this, n, z, W, bias_z)
     class(TSplinedSourceWindow) :: this
     integer, intent(in) :: n
     real(dl), intent(in) :: z(n), W(n)
@@ -266,7 +266,7 @@
 
     end subroutine TSplinedSourceWindow_SetTable
 
-    subroutine  TSplinedSourceWindow_SetTable2DBias(this, n, nk, z, k, W, bias_zk)
+    subroutine TSplinedSourceWindow_SetTable2DBias(this, n, nk, z, k, W, bias_zk)
     class(TSplinedSourceWindow) :: this
     integer, intent(in) :: n, nk
     real(dl), intent(in) :: z(n), W(n), k(nk)

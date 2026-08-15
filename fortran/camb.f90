@@ -227,7 +227,7 @@
     integer error
     type(CAMBdata) :: OutData
 
-    call  OutData%SetParams(P, error, .false., .false., .true.)
+    call OutData%SetParams(P, error, .false., .false., .true.)
 
     if (error /= 0) then
         CAMB_GetAge = -1

@@ -2387,7 +2387,7 @@
     deallocate(w)
 
     end function newuoa
-    ! *****************************************************************************************
+
 
     logical function newuob (this, N, Npt, x, Rhobeg, Rhoend, Iprint, Maxfun, xbase, xopt, &
         xnew, xpt, fval, gq, hq, pq, bmat, zmat, Ndim, d, vlag, w)
