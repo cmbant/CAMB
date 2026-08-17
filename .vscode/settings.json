@@ -65,21 +65,6 @@
         ],
         "editor.wordWrapColumn": 120
     },
-    "fortran.formatting.findentArgs": [
-        "--full",
-        "--indent=4",
-        "--indent_module=0",
-        "--indent_procedure=0",
-        "--start_indent=4",
-        "--indent_contains=0",
-        "--openmp=0",
-        "--indent_contains=restart",
-        "--indent_select=4",
-        "--indent_case=4",
-        "--indent_interface=0",
-        "--indent_continuation=4",
-        "--indent_ampersand",
-    ],
     // Modern Fortran currently invokes only a formatter named "findent". The adapter in this directory runs forformat.
     "fortran.formatting.path": ".vscode",
     "files.exclude": {
@@ -128,5 +113,5 @@
         "**/*.u2d": true,
     },
     "git.autoRepositoryDetection": false,
-    "git.detectSubmodules": false,
+    "git.detectSubmodules": true,
 }
