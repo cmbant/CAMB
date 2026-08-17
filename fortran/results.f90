@@ -1140,7 +1140,8 @@
 
                     merge_tol = max(roundoff_tol, NLL_merge_fraction*NLL_spacing(iNLL))
 
-                    if (zPK > zNLL + merge_tol) then
+                    ! Keep the NLL z=0 endpoint to bound the source-time interpolation.
+                    if (zPK > zNLL + merge_tol .or. (zNLL == 0._dl .and. zPK > roundoff_tol)) then
                         i = i + 1
                         redshifts(i) = zPK
                         this%PK_redshifts_index(iPK) = i
