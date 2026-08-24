@@ -105,8 +105,14 @@ DEBUGFLAGS = -g -fbacktrace -ffpe-trap=invalid,overflow,zero -fbounds-check $(CO
 ifeq ($(shell uname -s),Darwin)
 SFFLAGS = -dynamiclib #-fpic
 ifneq ($(shell echo $(compiler_ver) | awk '{print ($$1 >= 14.0)}'),0)
+# Static runtimes help isolate the Python extension from differently compiled
+# libraries loaded into the same process. Only request them when the complete
+# static runtime needed by this OpenMP build is available.
 LIBGFORTRAN_A := $(shell $(F90C) -print-file-name=libgfortran.a)
-ifneq ($(shell [ -f "$(LIBGFORTRAN_A)" ] && echo yes),)
+LIBQUADMATH_A := $(shell $(F90C) -print-file-name=libquadmath.a)
+LIBGCC_A := $(shell $(F90C) -print-file-name=libgcc.a)
+LIBGOMP_A := $(shell $(F90C) -print-file-name=libgomp.a)
+ifneq ($(shell [ -f "$(LIBGFORTRAN_A)" ] && [ -f "$(LIBQUADMATH_A)" ] && [ -f "$(LIBGCC_A)" ] && [ -f "$(LIBGOMP_A)" ] && echo yes),)
 SFFLAGS += -static-libgfortran -static-libquadmath -static-libgcc
 endif
 endif
