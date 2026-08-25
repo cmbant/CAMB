@@ -27,10 +27,13 @@ When the container is created it:
 - clones HYREC-2 into `external/HYREC-2`
 - rebuilds `camb` with `recfast`, `cosmorec`, and `hyrec` enabled, and adds the workspace to the environment with a `.pth` file, but leaves recfast default for new builds.
 - configures `core.hooksPath` to use the tracked `.githooks/pre-commit` wrapper, which can use `pre-commit` from the container venv or from a host `.venv`
-- pre-installs the `pre-commit` hook environments into a container-local cache so later hook runs can work offline
+- pre-installs the `pre-commit` hook environments, including the published `forformat` wheel from the
+  [`forformat-pre-commit`](https://github.com/cmbant/forformat-pre-commit) hook repository, into a container-local cache
+  so later hook runs can work offline
 
-The devcontainer also installs `forformat` and `fortls` into the container-local virtual environment so the Modern Fortran
-extension can format and index code without depending on host-side tools. Modern Fortran currently exposes only a
+The devcontainer also installs [`forformat`](https://github.com/cmbant/forformat) and `fortls` into the container-local
+virtual environment so the Modern Fortran extension can format and index code without depending on host-side tools.
+Modern Fortran currently exposes only a
 `findent` formatter identifier, so the workspace's `.vscode/findent` Python adapter forwards formatting requests to
 `forformat`.
 

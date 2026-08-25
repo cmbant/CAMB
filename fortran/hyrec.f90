@@ -113,7 +113,7 @@
 
     end subroutine THyRec_xe_Tm
 
-    real(dl) function THyrec_dtauda(a) BIND(C, name='exported_dtauda')
+    real(dl) function THyrec_dtauda(a) bind(c, name='exported_dtauda')
     real(dl), intent(in) :: a
     procedure(state_function) :: dtauda
 

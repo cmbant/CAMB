@@ -178,7 +178,7 @@
 
     end function get_effective_null
 
-    function CAMB_GetPhiOlver(l, K, nu, chi) result(phi) bind(C, name="camb_getphiolver")
+    function CAMB_GetPhiOlver(l, K, nu, chi) result(phi) bind(c, name="camb_getphiolver")
     integer(c_int), value :: l, K
     real(c_double), value :: nu, chi
     real(c_double) :: phi
@@ -187,7 +187,7 @@
 
     end function CAMB_GetPhiOlver
 
-    subroutine CAMB_GetPhiOlverArray(phi, l, K, nu, chi, n) bind(C, name="camb_getphiolverarray")
+    subroutine CAMB_GetPhiOlverArray(phi, l, K, nu, chi, n) bind(c, name="camb_getphiolverarray")
     integer(c_int), value :: l, K, n
     real(c_double), value :: nu
     real(c_double), intent(out) :: phi(*)
@@ -208,7 +208,7 @@
 
     end subroutine CAMB_GetPhiOlverArray
 
-    function CAMB_GetPhiRecurs(l, K, nu, chi) result(phi) bind(C, name="camb_getphirecurs")
+    function CAMB_GetPhiRecurs(l, K, nu, chi) result(phi) bind(c, name="camb_getphirecurs")
     integer(c_int), value :: l, K
     real(c_double), value :: nu, chi
     real(c_double) :: phi
@@ -217,7 +217,7 @@
 
     end function CAMB_GetPhiRecurs
 
-    subroutine CAMB_GetPhiRecursArray(phi, l, K, nu, chi, n) bind(C, name="camb_getphirecursarray")
+    subroutine CAMB_GetPhiRecursArray(phi, l, K, nu, chi, n) bind(c, name="camb_getphirecursarray")
     integer(c_int), value :: l, K, n
     real(c_double), value :: nu
     real(c_double), intent(out) :: phi(*)
@@ -238,7 +238,7 @@
 
     end subroutine CAMB_GetPhiRecursArray
 
-    function CAMB_GetPhiDerivative(l, K, nu, chi) result(dphi) bind(C, name="camb_getphiderivative")
+    function CAMB_GetPhiDerivative(l, K, nu, chi) result(dphi) bind(c, name="camb_getphiderivative")
     integer(c_int), value :: l, K
     real(c_double), value :: nu, chi
     real(c_double) :: dphi
@@ -247,7 +247,7 @@
 
     end function CAMB_GetPhiDerivative
 
-    function CAMB_GetPhiFirstPeakChi(l, K, nu) result(chi) bind(C, name="camb_getphifirstpeakchi")
+    function CAMB_GetPhiFirstPeakChi(l, K, nu) result(chi) bind(c, name="camb_getphifirstpeakchi")
     integer(c_int), value :: l, K
     real(c_double), value :: nu
     real(c_double) :: chi
@@ -257,7 +257,7 @@
     end function CAMB_GetPhiFirstPeakChi
 
     function CAMB_GetPhiFirstPeakNoPeakFound(l, K, nu) result(no_peak) &
-        bind(C, name="camb_getphifirstpeaknopeakfound")
+        bind(c, name="camb_getphifirstpeaknopeakfound")
     integer(c_int), value :: l, K
     real(c_double), value :: nu
     integer(c_int) :: no_peak
@@ -269,7 +269,7 @@
 
     end function CAMB_GetPhiFirstPeakNoPeakFound
 
-    function CAMB_GetPhiFirstPeakAmplitude(l, K, nu) result(peak) bind(C, name="camb_getphifirstpeakamplitude")
+    function CAMB_GetPhiFirstPeakAmplitude(l, K, nu) result(peak) bind(c, name="camb_getphifirstpeakamplitude")
     integer(c_int), value :: l, K
     real(c_double), value :: nu
     real(c_double) :: peak

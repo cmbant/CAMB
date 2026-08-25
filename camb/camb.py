@@ -455,6 +455,13 @@ def get_matter_power_interpolator(
 
     For a description of outputs for different var1, var2 see :ref:`transfer-variables`.
 
+    .. note::
+
+       For arbitrary ``var1``/``var2``, the nonlinear option applies the same
+       default matter-spectrum correction to the requested linear spectrum;
+       it does not provide a separately calibrated nonlinear model for each
+       pair of transfer variables.
+
     This function recalculates results from scratch with the given parameters.
     If you already have a :class:`~.results.CAMBdata` result object, you should instead
     use :meth:`~.results.CAMBdata.get_matter_power_interpolator`

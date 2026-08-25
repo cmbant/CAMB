@@ -955,7 +955,7 @@
     m = (n + 1)/2
     failed = .false.
 
-!$OMP PARALLEL DO DEFAULT(none), SCHEDULE(STATIC), IF(n >= MATHUTILS_OMP_GAUSS_THRESHOLD) &
+!$OMP PARALLEL DO DEFAULT(NONE), SCHEDULE(STATIC), IF(n >= MATHUTILS_OMP_GAUSS_THRESHOLD) &
 !$OMP PRIVATE(i, j, k, iter, p1, p2, p3, pp, z, dz, wi) &
 !$OMP SHARED(x, w, n, m, failed)
     do i = 1, m

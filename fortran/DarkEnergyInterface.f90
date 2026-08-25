@@ -292,7 +292,7 @@
         if (this%w_lam + this%wa > 0) &
             error stop 'w + wa > 0, giving w>0 at high redshift'
     else
-        call file%LoadTxt(Ini%Read_String('wafile'), table)
+        call File%LoadTxt(Ini%Read_String('wafile'), table)
         call this%SetwTable(table(:, 1), table(:, 2), size(table(:, 1)))
     end if
 

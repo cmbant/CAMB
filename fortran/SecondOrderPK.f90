@@ -58,7 +58,7 @@
     select type (this => obj)
     class is (TSecondOrderPK)
         associate(this_r => this%r, this_k => this%k)
-            k = sqrt((1 + this_r*(this_r - 2*x)))*This_k
+            k = sqrt((1 + this_r*(this_r - 2*x)))*this_k
             if (k > this%min_store .and. k < this%max_k) then
 
                 if (this%term == term_dd) then

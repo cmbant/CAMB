@@ -4072,7 +4072,7 @@
             x = kh*R
             where (x < 1e-2_dl)
                 win = 1._dl - x**2/5
-            elsewhere
+            else where
                 win = (3*(sin(x) - x*cos(x))/x**3)**2
             end where
             if (ik == 1 .and. subk == 1) then

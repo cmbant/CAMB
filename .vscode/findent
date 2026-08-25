@@ -13,7 +13,7 @@ def main() -> int:
         return 1
 
     result = subprocess.run(
-        [forformat, "--stdin", "--full", *sys.argv[1:]],
+        [forformat, "--stdin", *sys.argv[1:]],
         input=sys.stdin.buffer.read(),
         capture_output=True,
         check=False,

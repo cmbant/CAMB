@@ -343,21 +343,21 @@
     ! Set up some constants so they don't have to be calculated later
     real(dl), parameter :: Lalpha = 1.d0/L_H_alpha
     real(dl), parameter :: Lalpha_He = 1.d0/L_He_2p
-    real(dl), parameter :: DeltaB = h_P*C*(L_H_ion - L_H_alpha)
+    real(dl), parameter :: DeltaB = h_P*c*(L_H_ion - L_H_alpha)
     real(dl), parameter :: CDB = DeltaB/k_B
-    real(dl), parameter :: DeltaB_He = h_P*C*(L_He1_ion - L_He_2s) ! 2s, not 2p
+    real(dl), parameter :: DeltaB_He = h_P*c*(L_He1_ion - L_He_2s) ! 2s, not 2p
     real(dl), parameter :: CDB_He = DeltaB_He/k_B
-    real(dl), parameter :: CB1 = h_P*C*L_H_ion/k_B
-    real(dl), parameter :: CB1_He1 = h_P*C*L_He1_ion/k_B ! ionization for HeI
-    real(dl), parameter :: CB1_He2 = h_P*C*L_He2_ion/k_B ! ionization for HeII
+    real(dl), parameter :: CB1 = h_P*c*L_H_ion/k_B
+    real(dl), parameter :: CB1_He1 = h_P*c*L_He1_ion/k_B ! ionization for HeI
+    real(dl), parameter :: CB1_He2 = h_P*c*L_He2_ion/k_B ! ionization for HeII
     real(dl), parameter :: CR = const_twopi*(m_e/h_P)*(k_B/h_P)
     real(dl), parameter :: CK = Lalpha**3/(const_eightpi)
     real(dl), parameter :: CK_He = Lalpha_He**3/(const_eightpi)
-    real(dl), parameter :: CL = C*h_P/(k_B*Lalpha)
-    real(dl), parameter :: CL_He = C*h_P/(k_B/L_He_2s) ! comes from det.bal. of 2s-1s
+    real(dl), parameter :: CL = c*h_P/(k_B*Lalpha)
+    real(dl), parameter :: CL_He = c*h_P/(k_B/L_He_2s) ! comes from det.bal. of 2s-1s
     real(dl), parameter :: CT = Compton_CT/MPC_in_sec
 
-    real(dl), parameter :: Bfact = h_P*C*(L_He_2p - L_He_2s)/k_B
+    real(dl), parameter :: Bfact = h_P*c*(L_He_2p - L_He_2s)/k_B
 
     !       Matter departs from radiation when t(Th) > H_frac * t(H)
     !       choose some safely small number
@@ -1283,7 +1283,7 @@
     ! add the HeI part, using same T_0 and T_1 values
     Rdown_trip = a_trip/sq_0*exp(-((1.d0 - b_trip)*log_one_plus_sq_0 &
         + (1.d0 + b_trip)*log_one_plus_sq_1))
-    Rup_trip = Rdown_trip*exp(-h_P*C*L_He2St_ion/k_B*inv_Tmat)*cr_tmat_32*(4.d0/3.d0)
+    Rup_trip = Rdown_trip*exp(-h_P*c*L_He2St_ion/k_B*inv_Tmat)*cr_tmat_32*(4.d0/3.d0)
     ! last factor here is the statistical weight
 
     tauHe_s = 0._dl
@@ -1320,11 +1320,11 @@
             ! H continuum opacity in the HeI singlet channel, using the fitting
             ! formula suggested by Kholupenko, Ivanchik & Varshalovich (2007).
             ! First get the Doppler width parameter.
-            Doppler = 2.d0*k_B*Tmat/(m_H*not4*C*C)
-            Doppler = C*L_He_2p*sqrt(Doppler)
-            gamma_2Ps = 3.d0*A2P_s*Recomb%fHe*(1.d0 - x_He)*C*C
+            Doppler = 2.d0*k_B*Tmat/(m_H*not4*c*c)
+            Doppler = c*L_He_2p*sqrt(Doppler)
+            gamma_2Ps = 3.d0*A2P_s*Recomb%fHe*(1.d0 - x_He)*c*c
             gamma_2Ps = gamma_2Ps/(sqrt(const_pi)*sigma_He_2Ps*const_eightpi*Doppler*(1.d0 - x_H))
-            gamma_2Ps = gamma_2Ps/((C*L_He_2p)**2)
+            gamma_2Ps = gamma_2Ps/((c*L_He_2p)**2)
             qb_s = this%RECFAST_fudge_He
             ! calculate AHcon, the value of A*p_(con,H) for H continuum opacity
             pgq_s = pb_s*gamma_2Ps**qb_s
@@ -1337,17 +1337,17 @@
         tauHe_t = A2P_t*n_He*(1.d0 - x_He)*3.d0
         tauHe_t = tauHe_t/(const_eightpi*Hz*L_He_2Pt**3)
         call EscapeProbabilityAndDerivative(tauHe_t, pHe_t, dpHe_t_dtau)
-        CL_PSt = h_P*C*(L_He_2Pt - L_He_2St)/k_B
+        CL_PSt = h_P*c*(L_He_2Pt - L_He_2St)/k_B
         EPSt = exp(-CL_PSt*inv_Tmat)
         if (x_H > 0.99999d0) then
             CfHe_t = A2P_t*pHe_t*EPSt
             CfHe_t = CfHe_t/(Rup_trip + CfHe_t)
         else
-            Doppler = 2.d0*k_B*Tmat/(m_H*not4*C*C)
-            Doppler = C*L_He_2Pt*sqrt(Doppler)
-            gamma_2Pt = 3.d0*A2P_t*Recomb%fHe*(1.d0 - x_He)*C*C
+            Doppler = 2.d0*k_B*Tmat/(m_H*not4*c*c)
+            Doppler = c*L_He_2Pt*sqrt(Doppler)
+            gamma_2Pt = 3.d0*A2P_t*Recomb%fHe*(1.d0 - x_He)*c*c
             gamma_2Pt = gamma_2Pt/(sqrt(const_pi)*sigma_He_2Pt*const_eightpi*Doppler*(1.d0 - x_H))
-            gamma_2Pt = gamma_2Pt/((C*L_He_2Pt)**2)
+            gamma_2Pt = gamma_2Pt/((c*L_He_2Pt)**2)
             pgq_t = pb_t*gamma_2Pt**qb_t
             AHcon_t = A2P_t/(1.d0 + pgq_t)/3.d0
             CfHe_t = (A2P_t*pHe_t + AHcon_t)*EPSt
@@ -1395,7 +1395,7 @@
         f(2) = A_He*BHe/(denH*CHe)
 
         if (he_corrections) then
-            ETrip = exp(-h_P*C*L_He_2St/k_B*inv_Tmat)
+            ETrip = exp(-h_P*c*L_He_2St/k_B*inv_Tmat)
             RupTripE = 3.d0*Rup_trip*ETrip
             A_trip_term = x*x_He*n*Rdown_trip - (1.d0 - x_He)*RupTripE
             f(2) = f(2) + A_trip_term*CfHe_t/denH
@@ -1533,7 +1533,7 @@
                 + (1.d0 + b_trip)*sq_1/one_plus_sq_1)
             dlnRdown_trip = 0.5d0*dlnRdown_trip*inv_Tmat
             dRdown_trip = Rdown_trip*dlnRdown_trip
-            dRup_trip = Rup_trip*(dlnRdown_trip + 1.5d0*inv_Tmat + h_P*C*L_He2St_ion/k_B*inv_Tmat2)
+            dRup_trip = Rup_trip*(dlnRdown_trip + 1.5d0*inv_Tmat + h_P*c*L_He2St_ion/k_B*inv_Tmat2)
             ! exact exponent in RupTripE is h_P*C*(L_He2St_ion + L_He_2St)/k_B, which equals
             ! CB1_He1 up to ~5e-6 relative (atomic-data rounding); good enough for the Jacobian
             dRupTripE = RupTripE*(dlnRdown_trip + 1.5d0*inv_Tmat + CB1_He1*inv_Tmat2)

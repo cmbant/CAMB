@@ -805,7 +805,7 @@
         ! write out slice in (muK)^3 units
         if (ThisParams%Slice_Base_L > 0) allocate(slice_bispectrum_files(nbispectra*ThisParams%ndelta))
         if (ThisParams%FullOutputFile /= '') allocate(full_bispectrum_files(nbispectra))
-        Bscale = (COBE_CMBTemp*1d6)**3/InternalScale**2;
+        Bscale = (COBE_CMBTemp*1d6)**3/InternalScale**2
         do bispectrum_type = 1, nbispectra
             if (ThisParams%Slice_Base_L > 0) then
                 do idelta = 1, ThisParams%ndelta

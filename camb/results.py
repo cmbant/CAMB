@@ -871,6 +871,12 @@ class CAMBdata(F2003Class):
 
         For a description of outputs for different var1, var2 see :ref:`transfer-variables`.
 
+        .. note::
+
+           The nonlinear correction is the same default matter-spectrum
+           correction for every requested ``var1``/``var2`` pair; arbitrary
+           cross-spectra are not separately calibrated nonlinear models.
+
         :param var1: variable i (index, or name of variable; default delta_tot)
         :param var2: variable j (index, or name of variable; default delta_tot)
         :param hubble_units: if true, output power spectrum in :Math:`({\rm Mpc}/h)^{3}` units,
@@ -1008,7 +1014,7 @@ class CAMBdata(F2003Class):
 
         :param minkh: minimum value of k/h for output grid (very low values < 1e-4 may not be calculated)
         :param maxkh: maximum value of k/h (check consistent with input params.Transfer.kmax)
-        :param npoints: number of points equally spaced in log k
+        :param npoints: number of points equally spaced in log k (at least 3)
         :param var1: variable i (index, or name of variable; default delta_tot)
         :param var2: variable j (index, or name of variable; default delta_tot)
         :param have_power_spectra: set to True if already computed power spectra
@@ -1020,8 +1026,9 @@ class CAMBdata(F2003Class):
         if not have_power_spectra:
             self.calc_power_spectra(params)
 
-        if not npoints >= 2:
-            raise CAMBError("Need at least two points in get_matter_power_spectrum")
+        # Require three points so extrapolation in the Fortran routine is safe.
+        if npoints < 3:
+            raise CAMBError("Need at least three points in get_matter_power_spectrum")
 
         assert self.Params.WantTransfer
         if self.Params.Transfer.kmax < maxkh * self.Params.h:

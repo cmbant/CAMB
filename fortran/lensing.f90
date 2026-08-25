@@ -1543,7 +1543,7 @@
         x(1) = 0
         do i = 2, max_bes_ix
             x(i) = (i - 1)*dbessel
-            Bess(i, :) = Bessel_jn(0, maxbessel, x(i))
+            Bess(i, :) = bessel_jn(0, maxbessel, x(i))
         end do
         do ix = 0, maxbessel
             call cubic_spline_second_derivs(x, Bess(:, ix), max_bes_ix, ddBess(:, ix))

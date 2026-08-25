@@ -26,12 +26,8 @@ repos:
       - id: ruff-format
         exclude: ^docs/ScalEqs\.ipynb$
 
-  - repo: local
+  - repo: https://github.com/cmbant/forformat-pre-commit
+    rev: v0.1.4
     hooks:
-      - id: forformat-fortran
-        name: forformat Fortran
-        entry: python scripts/forformat_fortran.py
-        language: system
-        pass_filenames: true
-        files: \.(?:f90|F90)$
+      - id: forformat
         exclude: ^forutils/

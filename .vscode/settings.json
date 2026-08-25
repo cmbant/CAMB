@@ -67,6 +67,9 @@
     },
     // Modern Fortran currently invokes only a formatter named "findent". The adapter in this directory runs forformat.
     "fortran.formatting.path": ".vscode",
+    "fortran.formatting.findentArgs": [
+        "--project-context=${workspaceFolder}"
+    ],
     "files.exclude": {
         "**/__pycache__": true,
         "**/.ruff_cache": true,

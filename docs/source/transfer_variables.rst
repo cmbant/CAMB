@@ -38,6 +38,10 @@ So for example, requesting var1='delta_b', var2='Weyl' or alternatively var1=mod
 would get the power spectrum for the cross-correlation of the baryon density with the Weyl potential.
 All density variables :math:`\Delta_i` here are synchronous gauge.
 
+When a nonlinear spectrum is requested, the linear spectrum is formed from the requested transfer variables,
+but the same default matter-spectrum nonlinear correction is applied to every ``var1``/``var2`` pair. Thus,
+for example, nonlinear ``delta_cdm`` :math:`\times` ``delta_cdm`` is not a separately calibrated nonlinear CDM model.
+
 For transfer function variables (rather than matter power spectra), the variables are normalized corresponding to
 unit primordial curvature perturbation on super-horizon scales. The
 :meth:`~camb.results.CAMBdata.get_matter_transfer_data` function returns the above quantities

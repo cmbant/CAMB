@@ -36,13 +36,16 @@ CAMB uses [Ruff](https://docs.astral.sh/ruff/) for Python formatting and linting
 The pre-commit hooks include:
 
 - **Ruff formatting and linting** (Python files)
-- **forformat** for Fortran formatting, using the arguments configured in `.vscode/settings.json`
+- [`forformat`](https://github.com/cmbant/forformat) for Fortran formatting, using the `[tool.forformat]` settings in
+  `pyproject.toml`
 - **Trailing whitespace removal** (Python, Fortran, Jupyter notebooks)
 - **End-of-file fixing** (Python, Fortran, Jupyter notebooks)
 - **PyUpgrade** for Python 3.10+ syntax
 
-The Fortran hook operates on the Fortran files selected by pre-commit and excludes the `forutils` submodule.
-`forformat` uses the surrounding Git checkout to resolve declarations while modifying only the selected files.
+The Fortran hook comes from the [`forformat-pre-commit`](https://github.com/cmbant/forformat-pre-commit) hook
+repository, installs the published [`forformat`](https://github.com/cmbant/forformat) wheel, operates on the Fortran
+files selected by pre-commit, and excludes the `forutils` submodule. `forformat` uses the surrounding Git checkout to
+resolve declarations while modifying only the selected files.
 
 ### 4. Before Committing
 
@@ -53,13 +56,13 @@ The pre-commit hooks will run automatically, but you can also run them manually:
 pre-commit run --all-files
 
 # Run the Fortran hooks on selected files
-pre-commit run forformat-fortran --files fortran/path.f90
+pre-commit run forformat fortran/path.f90
 
 # Run only ruff formatting
-ruff format camb fortran/tests
+pre-commit run ruff-format --files camb fortran/tests
 
 # Run only ruff linting with fixes
-ruff check --fix camb fortran/tests
+pre-commit run ruff-check --files camb fortran/tests
 ```
 
 ## Testing
@@ -93,7 +96,10 @@ The repository includes VS Code configuration files with:
 - **Format on save**: Enabled with Ruff as the default Python formatter
 - **Rulers at 120 characters**
 - **Pylance settings**: Configured to silence most NumPy-related type errors
-- **Fortran formatting**: Configured with forformat; the same settings are used by the `forformat-fortran` pre-commit hook
+- **Fortran formatting**: Configured with forformat in `pyproject.toml`; the same settings are used by the `forformat`
+  pre-commit hook
+- **Fortran project context**: The Modern Fortran adapter passes the workspace folder to forformat so it can find the
+  checkout and its `pyproject.toml`
 
 ### Recommended Extensions
 

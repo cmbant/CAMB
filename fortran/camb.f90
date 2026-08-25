@@ -419,7 +419,7 @@
         allocate(TGaussianSourceWindow :: P%SourceWindows(i)%Window)
         select type (RedWin => P%SourceWindows(i)%Window)
         class is (TGaussianSourceWindow)
-            RedWin%Redshift = Ini%Read_Double_Array('redshift', i)
+            RedWin%redshift = Ini%Read_Double_Array('redshift', i)
             S = Ini%Read_String_Array('redshift_kind', i)
             if (S == '21cm') then
                 RedWin%source_type = window_21cm
@@ -442,7 +442,7 @@
                 end if
                 ! with 21cm widths are in Mhz, make dimensionless scale factor
                 RedWin%sigma = RedWin%sigma/(f_21cm/1e6)
-                if (FeedbackLevel > 0) write(*, *) i, 'delta_z = ', RedWin%sigma*(1 + RedWin%RedShift)**2
+                if (FeedbackLevel > 0) write(*, *) i, 'delta_z = ', RedWin%sigma*(1 + RedWin%redshift)**2
             end if
             if (RedWin%source_type == window_counts) then
                 DoCounts = .true.
@@ -779,7 +779,7 @@
 
     if (present(IniName)) then
         if (Ini%HasKey(Name) .and. Ini%HasKey(IniName)) then
-            errmsg = 'Cannot set both ' // trim(Name) // ' and ' // trim(IniName)
+            ErrMsg = 'Cannot set both ' // trim(Name) // ' and ' // trim(IniName)
             return
         end if
     end if
@@ -799,7 +799,7 @@
 
     if (present(IniName)) then
         if (Ini%HasKey(Name) .and. Ini%HasKey(IniName)) then
-            errmsg = 'Cannot set both ' // trim(Name) // ' and ' // trim(IniName)
+            ErrMsg = 'Cannot set both ' // trim(Name) // ' and ' // trim(IniName)
             return
         end if
     end if
