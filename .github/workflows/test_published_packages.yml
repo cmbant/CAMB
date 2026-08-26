@@ -1,0 +1,112 @@
+name: Test published packages
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-published-package:
+    name: ${{ matrix.source }} on ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - source: pypi
+            name: Linux x86_64
+            os: ubuntu-latest
+          - source: pypi
+            name: Linux aarch64
+            os: ubuntu-24.04-arm
+          - source: pypi
+            name: macOS x86_64
+            os: macos-26-intel
+          - source: pypi
+            name: macOS arm64
+            os: macos-latest
+          - source: pypi
+            name: Windows x86_64
+            os: windows-latest
+          - source: conda-forge
+            name: Linux x86_64
+            os: ubuntu-latest
+          - source: conda-forge
+            name: Linux aarch64
+            os: ubuntu-24.04-arm
+          - source: conda-forge
+            name: macOS x86_64
+            os: macos-26-intel
+          - source: conda-forge
+            name: macOS arm64
+            os: macos-latest
+          - source: conda-forge
+            name: Windows x86_64
+            os: windows-latest
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Get expected version from the latest release tag
+        id: version
+        shell: bash
+        run: |
+          version=$(git tag --list --sort=-version:refname | grep -E '^(v)?[0-9]+(\.[0-9]+)*$' | head -n 1)
+          test -n "${version}"
+          echo "version=${version#v}" >> "${GITHUB_OUTPUT}"
+
+      - name: Set up Conda
+        uses: conda-incubator/setup-miniconda@v4
+        with:
+          auto-activate-base: false
+          channels: conda-forge
+          channel-priority: strict
+
+      - name: Create test environment
+        shell: bash
+        run: conda create --yes --name camb-test --override-channels --channel conda-forge python=3.12 pip
+
+      - name: Install CAMB from PyPI
+        if: matrix.source == 'pypi'
+        shell: bash
+        run: |
+          conda run --no-capture-output --name camb-test python -m pip install --upgrade pip
+          conda run --no-capture-output --name camb-test python -m pip install --only-binary=camb "camb==${{ steps.version.outputs.version }}"
+
+      - name: Install CAMB from conda-forge
+        if: matrix.source == 'conda-forge'
+        shell: bash
+        run: |
+          conda install --yes --name camb-test --override-channels --channel conda-forge \
+            "camb=${{ steps.version.outputs.version }}"
+
+      - name: Verify version and calculate spectra
+        shell: bash
+        env:
+          EXPECTED_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          cd "${RUNNER_TEMP}"
+          conda run --no-capture-output --name camb-test python - <<'PY'
+          import importlib.metadata
+          import os
+
+          import numpy as np
+
+          import camb
+
+          expected_version = os.environ["EXPECTED_VERSION"]
+          installed_version = importlib.metadata.version("camb")
+          assert camb.__version__ == expected_version, (camb.__version__, expected_version)
+          assert installed_version == expected_version, (installed_version, expected_version)
+
+          params = camb.set_params(H0=67.5, ombh2=0.022, omch2=0.122, lmax=100)
+          spectra = camb.get_results(params).get_cmb_power_spectra(lmax=100, CMB_unit="muK")["total"]
+          assert spectra.shape == (101, 4), spectra.shape
+          assert np.isfinite(spectra).all()
+          assert spectra[100, 0] > 0
+
+          print(f"CAMB {camb.__version__} from {camb.__file__}")
+          PY
