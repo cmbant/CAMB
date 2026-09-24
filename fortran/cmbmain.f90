@@ -1217,7 +1217,8 @@
             ! Do not use an associate for scaling. It does not work.
             scaling = State%CAMB_PK%nonlin_ratio(ik, 1:State%num_transfer_redshifts)
             if (all(abs(scaling - 1) < 5e-4)) cycle
-            call cubic_spline_second_derivs(State%transfer_times, scaling, State%num_transfer_redshifts, ddScaling)
+            call cubic_spline_second_derivs(State%transfer_times(1:State%num_transfer_redshifts), scaling, &
+                State%num_transfer_redshifts, ddScaling)
 
             tf_lo = 1
             tf_hi = tf_lo + 1
