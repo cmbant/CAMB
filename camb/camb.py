@@ -228,6 +228,8 @@ def set_params(cp=None, verbose=False, **params):
             if "." in k:
                 parts = k.split(".")
                 for p in parts[:-1]:
+                    if not hasattr(obj, p):
+                        raise CAMBUnknownArgumentError(f"Unrecognized parameter: {k}")
                     obj = getattr(obj, p)
                 par = parts[-1]
             else:
@@ -401,7 +403,8 @@ def read_ini(ini_filename, no_validate=False):
         except ImportError:
             raise ImportError("install 'requests' package, required for reading ini files from URLs")
 
-        data = requests.get(ini_filename)
+        data = requests.get(ini_filename, timeout=60)
+        data.raise_for_status()
         with tempfile.NamedTemporaryFile(suffix=".ini", delete=False) as f:
             ini_filename = f.name
         with open(ini_filename, "wb") as file:
@@ -421,7 +424,8 @@ def read_ini(ini_filename, no_validate=False):
         if not read_inifile(cp, s, path_len):
             config.check_global_error("read_ini")
     finally:
-        if data:
+        # note a requests.Response is falsy for error status codes, so test against None
+        if data is not None:
             os.unlink(ini_filename)
     return cp
 

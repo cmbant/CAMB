@@ -453,6 +453,8 @@ class NamedIntField:
 
     def __set__(self, instance, value):
         if isinstance(value, str):
+            if value not in self.name_values:
+                raise ValueError(f"Value {value!r} not in allowed: {list(self.name_values)}")
             value = self.name_values[value]
         elif value not in self.values:
             raise ValueError(f"Value {value} not in allowed: {self.name_values}")
@@ -469,7 +471,10 @@ class BoolField:  # fortran-compatible boolean (actually c_int internally)
         return getattr(instance, self.real_name) != 0
 
     def __set__(self, instance, value):
-        setattr(instance, self.real_name, (0, 1)[value])
+        if isinstance(value, str):
+            # bool("F") is True, so do not silently convert strings
+            raise TypeError(f"{self.real_name[1:]} must be a boolean, not a string ({value!r})")
+        setattr(instance, self.real_name, 1 if value else 0)
 
 
 class SizedArrayField:  # statically sized array with another field determining size

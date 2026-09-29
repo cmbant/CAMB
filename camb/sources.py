@@ -101,6 +101,7 @@ class SplinedSourceWindow(SourceWindow):
                 raise ValueError("bias array must be same size as the redshift array")
         if bias_kz is not None:
             k = np.ascontiguousarray(k_bias, dtype=np.float64)
+            bias_kz = np.ascontiguousarray(bias_kz, dtype=np.float64)
             if bias_kz.shape[0] != len(k) or bias_kz.shape[1] != len(z):
                 raise ValueError("Bias array does not match shape of k,z arrays")
             self.f_SetTable2DBias(byref(c_int(len(z))), byref(c_int(len(k))), z, k, W, bias_kz)

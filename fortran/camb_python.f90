@@ -592,9 +592,9 @@
     cls = 0
     if (Data%CP%WantScalars .and. Data%CP%DoLensing) then
         do l = Data%CP%Min_l, min(lmax, Data%CP%Max_l)
-            cls(1, l) = Data%CLdata%Cl_scalar(l, C_Phi)*(real(l + 1)/l)**2/const_twopi
+            cls(1, l) = Data%CLdata%Cl_scalar(l, C_Phi)*(real(l + 1, dl)/l)**2/const_twopi
             cls(2:3, l) = Data%CLdata%Cl_scalar(l, C_PhiTemp:C_PhiE) &
-                *((real(l + 1)/l)**1.5/const_twopi)
+                *((real(l + 1, dl)/l)**1.5_dl/const_twopi)
         end do
     end if
 
@@ -783,9 +783,16 @@
 
     global_error_flag = 0
     outputs = 0
+    if (.not. this%ThermoData%HasThermoData) then
+        ! Thermo_Init needs the recombination time steps set by InitVars
+        call GlobalError('CAMB_TimeEvolution: thermal history not calculated ' // &
+            '(use calc_background rather than calc_background_no_thermo)', error_unsupported_params)
+        if (ncustomsources > 0) State%CP%CustomSources = Old
+        err = global_error_flag
+        return
+    end if
     taustart = min(times(1), GetTauStart(maxval(q)))
-    if (.not. this%ThermoData%HasThermoData .or. taustart < this%ThermoData%tauminn) &
-        call this%ThermoData%Init(this, taustart)
+    if (taustart < this%ThermoData%tauminn) call this%ThermoData%Init(this, taustart)
     !$OMP PARALLEL DO DEFAULT(SHARED), SCHEDULE(DYNAMIC), PRIVATE(EV, q_ix)
     do q_ix = 1, nq
         if (global_error_flag == 0) then
@@ -815,7 +822,12 @@
         visibility, dvisibility, ddvisibility, exptau, lenswindow
     integer ix
 
-    if (.not. this%ThermoData%HasThermoData) call this%ThermoData%Init(this, min(1d-3, max(1d-5, minval(times))))
+    if (.not. this%ThermoData%HasThermoData) then
+        ! Initializing here is not possible as InitVars has not set up e.g. the recombination time steps
+        call GlobalError('GetBackgroundThermalEvolution: thermal history not calculated ' // &
+            '(use calc_background rather than calc_background_no_thermo)', error_unsupported_params)
+        return
+    end if
 
     associate(T => this%ThermoData)
         tau_max = T%tauminn*exp((T%nthermo - 1)*T%dlntau)

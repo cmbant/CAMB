@@ -305,7 +305,12 @@
     else
         select type (Reion => State%CP%Reion)
         class is (TBaseTauWithHeReionization)
-            TBaseTauWithHeReionization_GetZreFromTau = Reion%redshift
+            if (Reion%Reionization) then
+                TBaseTauWithHeReionization_GetZreFromTau = Reion%redshift
+            else
+                ! tau too small, so reionization was switched off; redshift is not a solution for tau
+                TBaseTauWithHeReionization_GetZreFromTau = 0
+            end if
         end select
     end if
 

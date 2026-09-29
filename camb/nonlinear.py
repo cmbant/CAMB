@@ -439,6 +439,10 @@ class ExternalNonLinearRatio(NonLinearModel):
         """
         k_h = np.ascontiguousarray(k_h, dtype=np.float64)
         z = np.ascontiguousarray(z, dtype=np.float64)
+        ratio = np.asarray(ratio, dtype=np.float64)
+        for name, values in (("k_h", k_h), ("z", z)):
+            if len(values) < 2 or np.any(np.diff(values) <= 0):
+                raise ValueError(f"{name} must have at least two strictly increasing values")
         if ratio.shape != (len(z), len(k_h)):
             raise ValueError(f"ratio shape {ratio.shape} must be (len(z), len(k_h)) = ({len(z)}, {len(k_h)})")
         # Fortran expects (nk, nz) column-major; C-order (nz, nk) has the same memory layout

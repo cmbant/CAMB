@@ -90,6 +90,8 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
             raise ValueError("Dark energy w(a) arrays must end at a=1")
         if np.any(a <= 0):
             raise ValueError("Dark energy w(a) table cannot be set for a<=0")
+        if np.any(np.diff(a) <= 0):
+            raise ValueError("Dark energy w(a) table must have strictly increasing a")
 
         self.f_SetWTable(a, w, byref(c_int(len(a))))
         return self

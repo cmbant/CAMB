@@ -357,6 +357,12 @@
     this%n_is_int = abs(this%n - this%int_n) < 1.e-12_dl
 
     if (this%use_zc) then
+        if (this%zc >= 1/this%astart - 1) then
+            ! the minimizer can hang or crash searching for a peak before the start of integration
+            global_error_flag = error_darkenergy
+            global_error_message = 'TEarlyQuintessence: zc must be less than 1/astart - 1'
+            return
+        end if
         ! Find underlying parameters m,f to give specified zc and fde_zc (peak early dark energy fraction)
         ! Input m,f are used as starting values for search, which is done by brute force
         ! (so should generalize easily, but not optimized for this specific potential)

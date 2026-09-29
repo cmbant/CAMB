@@ -13,7 +13,7 @@ try:
 except ImportError:
     sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
     import camb
-from camb import bbn, constants, correlations, dark_energy, initialpower, model, recombination
+from camb import bbn, constants, correlations, dark_energy, inifile, initialpower, model, recombination, sources
 from camb.baseconfig import CAMBError, CAMBParamRangeError, CAMBValueError
 
 
@@ -279,13 +279,31 @@ class CambTest(unittest.TestCase):
         )
         self.assertAlmostEqual(pars.NonLinearModel.HMCode_wiggle_max_fnu, 0.02)
         pars.Alens = 0.95
+        pars.Accuracy.TimeStepBoost = 1.5
+        pars.Accuracy.LensingBoost = 1.2
 
         with tempfile.TemporaryDirectory() as temp_dir:
             ini_file = os.path.join(temp_dir, "python_params.ini")
             pars.write_ini(ini_file)
             self.assertTrue(os.path.exists(ini_file))
+            lensing_method = camb.config.lensing_method
             round_tripped = camb.read_ini(ini_file)
+            # an ini file without lensing_method must not change the global setting
+            self.assertEqual(camb.config.lensing_method, lensing_method)
             self.assertAlmostEqual(round_tripped.NonLinearModel.HMCode_wiggle_max_fnu, 0.02)
+            self.assertAlmostEqual(round_tripped.Accuracy.TimeStepBoost, 1.5)
+            self.assertAlmostEqual(round_tripped.Accuracy.LensingBoost, 1.2)
+
+            # original_filename should be the top-level file, not the last INCLUDEd one
+            os.mkdir(os.path.join(temp_dir, "sub"))
+            with open(os.path.join(temp_dir, "sub", "base.ini"), "w") as f:
+                f.write("a = 1\n")
+            main_ini = os.path.join(temp_dir, "main.ini")
+            with open(main_ini, "w") as f:
+                f.write("INCLUDE(sub/base.ini)\nb = 2\n")
+            ini = inifile.IniFile(main_ini)
+            self.assertEqual(ini.original_filename, main_ini)
+            self.assertEqual(ini.int("a"), 1)
 
     def testIniThetaInput(self):
         base_ini = os.path.join(os.path.dirname(__file__), "..", "..", "inifiles", "planck_2018.ini")
@@ -326,6 +344,9 @@ class CambTest(unittest.TestCase):
         zre = camb.get_zre_from_tau(pars, 0.06)
         age = camb.get_age(pars)
         self.assertAlmostEqual(zre, 8.39, 2)
+        # tau small enough to switch off reionization should not return an unrelated stored redshift
+        self.assertEqual(camb.get_zre_from_tau(pars, 0.0), 0)
+        self.assertLess(camb.get_zre_from_tau(pars, 0.0005), camb.get_zre_from_tau(pars, 0.005))
         self.assertAlmostEqual(age, 13.65, 2)
 
         data = camb.CAMBdata()
@@ -338,6 +359,61 @@ class CambTest(unittest.TestCase):
         H = data.hubble_parameter(0.27)
         self.assertAlmostEqual(DA, bao[0][2], 3)
         self.assertAlmostEqual(H, bao[1][1], 3)
+        np.testing.assert_allclose(data.get_BAO([0.57, 0.27]), bao)
+
+        # plain lists and integer inputs are accepted like float arrays
+        np.testing.assert_allclose(
+            data.comoving_radial_distance([0.57, 0.27]), data.comoving_radial_distance(np.array([0.57, 0.27]))
+        )
+        self.assertAlmostEqual(data.get_background_densities(1)["tot"][0], data.get_background_densities(1.0)["tot"][0])
+        np.testing.assert_allclose(data.get_dark_energy_rho_w(np.array([1, 1]))[0], [1, 1])
+        self.assertEqual(data.get_background_redshift_evolution(10.0, "x_e", format="array").shape, (1, 1))
+        with self.assertRaises(camb.baseconfig.CAMBUnknownArgumentError):
+            camb.set_params(H0=67, **{"NotAField.AccuracyBoost": 1})
+        with self.assertRaises(ValueError):
+            pars.NonLinear = "not_a_mode"
+
+        # settings that previously stopped the whole process in Fortran now raise Python exceptions
+        with self.assertRaises(CAMBError):
+            camb.get_background(pars, no_thermo=True).get_background_redshift_evolution([10.0])
+        with self.assertRaises(CAMBValueError):
+            pars.copy().set_matter_power(redshifts=[-0.5, 0])
+        bad = pars.copy()
+        bad.min_l = 0
+        with self.assertRaises(CAMBValueError):
+            camb.get_results(bad)
+        bad = pars.copy()
+        bad.WantVectors = True
+        with self.assertRaises(CAMBValueError):
+            camb.get_results(bad)
+        with self.assertRaises(CAMBValueError):
+            pars.copy().set_initial_power_table([1e-1, 1e-4, 1e-2], [2e-9, 2e-9, 2e-9])
+        with self.assertRaises(CAMBValueError):
+            initialpower.SplinedInitialPower().set_scalar_log_regular(10, 1e-4, [2e-9] * 10)
+        with self.assertRaises(ValueError):
+            pars.copy().set_dark_energy_w_a(np.array([0.5, 0.1, 1.0]), np.array([-0.9, -0.9, -0.9]))
+        with self.assertRaises(CAMBError):
+            camb.get_background(pars, no_thermo=True).get_time_evolution(0.1, [100.0])
+        with self.assertRaises(CAMBError):
+            data.get_time_evolution(-0.1, [100.0])
+        with self.assertRaises(CAMBError):
+            data.get_time_evolution(0.1, [data.tau0 * 2])
+        bad = pars.copy()
+        bad.SourceWindows = [sources.GaussianSourceWindow(redshift=0.5, source_type="counts", sigma=0.0)]
+        with self.assertRaises(CAMBValueError):
+            camb.get_results(bad)
+        bad = pars.copy()
+        bad.omk = -0.05
+        bad.SourceWindows = [sources.GaussianSourceWindow(redshift=0.5, source_type="counts", sigma=0.05)]
+        with self.assertRaises(CAMBValueError):
+            camb.get_results(bad)
+        with self.assertRaises(TypeError):
+            pars.WantCls = "F"
+        np.testing.assert_allclose(data.get_Omega("cdm", [0, 1.0]), data.get_Omega("cdm", np.array([0, 1.0])))
+        chis = [1000.0, 2000.0]
+        np.testing.assert_allclose(
+            data.comoving_radial_distance(data.redshift_at_comoving_radial_distance(chis)), chis, rtol=1e-4
+        )
 
         age2 = data.physical_time(0)
         self.assertAlmostEqual(age, age2, 4)
@@ -1279,3 +1355,9 @@ class CambTest(unittest.TestCase):
         camb.get_background(pars)
         results = camb.get_results(pars)
         self.assertAlmostEqual(results.get_derived_params()["thetastar"], 1.044341764253, delta=1e-5)
+
+        # zc before the start of the background integration cannot be solved for (previously hung or crashed)
+        with self.assertRaises(CAMBError):
+            camb.get_background(
+                def_set_params(H0=67, dark_energy_model="EarlyQuintessence", n=n, zc=1e7, fde_zc=0.05, theta_i=0.5)
+            )

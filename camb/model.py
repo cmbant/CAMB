@@ -548,15 +548,14 @@ class CAMBparams(F2003Class):
         initpower = self.InitPower
         if effective_ns_for_nonlinear is not None:
             initpower.effective_ns_for_nonlinear = effective_ns_for_nonlinear
-        if pk is None:
-            pk = np.empty(0)
-        elif len(k) != len(pk):
+        if pk is not None and len(k) != len(pk):
             raise CAMBValueError("k and P(k) arrays must be same size")
         if pk_tensor is not None:
             if len(k) != len(pk_tensor):
                 raise CAMBValueError("k and P_tensor(k) arrays must be same size")
             initpower.set_tensor_table(k, pk_tensor)
-        initpower.set_scalar_table(k, pk)
+        if pk is not None:
+            initpower.set_scalar_table(k, pk)
         return self
 
     def set_initial_power(self, initial_power_params):
@@ -625,7 +624,8 @@ class CAMBparams(F2003Class):
 
         try:
             # noinspection PyTypeChecker
-            self.H0 = brentq(f, theta_H0_range[0], theta_H0_range[1], rtol=5e-5)  # type: ignore
+            # use _set_H0 so any model state updated by setter_H0 matches the final H0
+            _set_H0(self, brentq(f, theta_H0_range[0], theta_H0_range[1], rtol=5e-5))
             if not cosmomc_approx and abs(self.H0 - est_H0) > iteration_threshold:
                 # iterate with recalculation of recombination and zstar
                 self.set_H0_for_theta(
@@ -748,7 +748,7 @@ class CAMBparams(F2003Class):
         neutrino_mass_fac = constants.neutrino_mass_fac * (constants.COBE_CMBTemp / TCMB) ** 3
         omnuh2_sterile = meffsterile / neutrino_mass_fac
         if omnuh2_sterile > 0 and nnu < standard_neutrino_neff:
-            raise CAMBError(f"sterile neutrino mass required Neff> {constants.default_nnu:.3g}")
+            raise CAMBError(f"sterile neutrino mass required Neff> {standard_neutrino_neff:.3g}")
         if (mnu or omnuh2_active) and not num_massive_neutrinos:
             raise CAMBError("non-zero neutrino mass with zero num_massive_neutrinos")
 
@@ -899,7 +899,7 @@ class CAMBparams(F2003Class):
         :param dark_energy_model:  model to use ('fluid' or 'ppf'), default is 'fluid'
         :return: self
         """
-        if dark_energy_model == "fluid" and np.any(w < -1):
+        if dark_energy_model == "fluid" and np.any(np.asarray(w) < -1):
             raise CAMBError("fluid dark energy model does not support w crossing -1")
         self.DarkEnergy = self.make_class_named(dark_energy_model, DarkEnergyEqnOfState)
         # Note that assigning to allocatable fields makes deep copies of the object
@@ -932,14 +932,14 @@ class CAMBparams(F2003Class):
 
     def get_DH(self, ombh2=None, delta_neff=None):
         r"""
-        Get deuterium ration D/H by interpolation using the
+        Get deuterium ratio D/H by interpolation using the
         :class:`.bbn.BBNPredictor` instance passed to :meth:`set_cosmology`
         (or the default one, if `Y_He` has not been set).
 
         :param ombh2: :math:`\Omega_b h^2` (default: value passed to :meth:`set_cosmology`)
         :param delta_neff:  additional :math:`N_{\rm eff}` relative to standard value (of 3.044)
                            (default: from values passed to :meth:`set_cosmology`)
-        :return: BBN helium nucleon fraction D/H
+        :return: BBN deuterium ratio D/H
         """
         try:
             ombh2 = ombh2 if ombh2 is not None else self.ombh2
@@ -970,6 +970,8 @@ class CAMBparams(F2003Class):
         """
         if not len(redshifts):
             raise CAMBError("set_matter_power redshifts list is empty")
+        if np.any(np.asarray(redshifts) < 0):
+            raise CAMBValueError("set_matter_power redshifts must be non-negative")
 
         self.WantTransfer = True
         self.Transfer.high_precision = True
@@ -1176,11 +1178,17 @@ class CAMBparams(F2003Class):
 
         :param params: another CAMBparams instance
         """
-        p1 = str(params)
-        p2 = str(self)
-        for line1, line2 in zip(p1.split("\n"), p2.split("\n")):
-            if line1 != line2:
-                print(line1, " <-> ", line2)
+        import difflib
+
+        lines1 = str(params).split("\n")
+        lines2 = str(self).split("\n")
+        # align the lines, so extra lines in one structure (e.g. source windows) don't shift all later lines
+        for tag, i1, i2, j1, j2 in difflib.SequenceMatcher(None, lines1, lines2, autojunk=False).get_opcodes():
+            if tag == "equal":
+                continue
+            block1, block2 = lines1[i1:i2], lines2[j1:j2]
+            for k in range(max(len(block1), len(block2))):
+                print(block1[k] if k < len(block1) else "", " <-> ", block2[k] if k < len(block2) else "")
 
 
 def set_default_params(P):
