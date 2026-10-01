@@ -935,6 +935,7 @@ def compile_source_function_code(code_body, file_path="", compiler=None, fflags=
     end function
     """
 
+    import shutil
     import subprocess
     import tempfile
 
@@ -950,13 +951,11 @@ def compile_source_function_code(code_body, file_path="", compiler=None, fflags=
             _first_compile = False
     if file_path:
         workdir = os.path.abspath(file_path)
-        if not os.access(workdir, os.F_OK):
-            os.mkdir(workdir)
+        os.makedirs(workdir, exist_ok=True)
     else:
         # use a private directory so concurrent processes cannot overwrite each other's generated files
         workdir = tempfile.mkdtemp(prefix="camb_source_")
 
-    source_file = None
     try:
         _source_file_count += 1
         while True:
@@ -982,26 +981,16 @@ def compile_source_function_code(code_body, file_path="", compiler=None, fflags=
             print(E.output)
             print(f"Source is:\n {code_body}")
             raise
+
+        # Had weird crashes when LoadLibrary path was relative to current dir, so dll_name is absolute
+        func_lib = ctypes.LibraryLoader(ctypes.CDLL).LoadLibrary(dll_name)
     finally:
         if not file_path:
-            if source_file and os.path.exists(source_file):
-                os.remove(source_file)
-            if not os.path.exists(dll_name):
-                os.rmdir(workdir)  # compilation failed
-
-    # Had weird crashes when LoadLibrary path was relative to current dir, so dll_name is absolute
-    func_lib = ctypes.LibraryLoader(ctypes.CDLL).LoadLibrary(dll_name)
+            # removing the loaded DLL won't work on Windows while it is in use
+            shutil.rmtree(workdir, ignore_errors=True)
 
     if cache:
         _func_cache[code_body] = func_lib
-
-    if not file_path:
-        # won't work on Windows while DLL in use
-        try:
-            os.remove(dll_name)
-            os.rmdir(workdir)
-        except OSError:
-            pass
 
     return func_lib.source_func_
 

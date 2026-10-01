@@ -293,6 +293,10 @@ class CambTest(unittest.TestCase):
             self.assertAlmostEqual(round_tripped.NonLinearModel.HMCode_wiggle_max_fnu, 0.02)
             self.assertAlmostEqual(round_tripped.Accuracy.TimeStepBoost, 1.5)
             self.assertAlmostEqual(round_tripped.Accuracy.LensingBoost, 1.2)
+            vector_pars = pars.copy()
+            vector_pars.WantScalars = vector_pars.WantTensors = False
+            vector_pars.WantVectors = True
+            vector_pars.write_ini(os.path.join(temp_dir, "vector_params.ini"))
 
             # original_filename should be the top-level file, not the last INCLUDEd one
             os.mkdir(os.path.join(temp_dir, "sub"))
@@ -378,14 +382,18 @@ class CambTest(unittest.TestCase):
             camb.get_background(pars, no_thermo=True).get_background_redshift_evolution([10.0])
         with self.assertRaises(CAMBValueError):
             pars.copy().set_matter_power(redshifts=[-0.5, 0])
-        bad = pars.copy()
-        bad.min_l = 0
-        with self.assertRaises(CAMBValueError):
-            camb.get_results(bad)
-        bad = pars.copy()
-        bad.WantVectors = True
-        with self.assertRaises(CAMBValueError):
-            camb.get_results(bad)
+        for settings in (
+            {"min_l": 0},
+            {"WantVectors": True},  # with massive neutrinos
+            {"WantVectors": True, "omk": -0.05},
+            {"SourceWindows": [sources.GaussianSourceWindow(redshift=0.5, source_type="counts", sigma=0.0)]},
+            {"omk": -0.05, "SourceWindows": [sources.GaussianSourceWindow(redshift=0.5, source_type="counts")]},
+        ):
+            bad = pars.copy()
+            for name, value in settings.items():
+                setattr(bad, name, value)
+            with self.assertRaises(CAMBError):
+                camb.get_results(bad)
         with self.assertRaises(CAMBValueError):
             pars.copy().set_initial_power_table([1e-1, 1e-4, 1e-2], [2e-9, 2e-9, 2e-9])
         with self.assertRaises(CAMBValueError):
@@ -398,15 +406,6 @@ class CambTest(unittest.TestCase):
             data.get_time_evolution(-0.1, [100.0])
         with self.assertRaises(CAMBError):
             data.get_time_evolution(0.1, [data.tau0 * 2])
-        bad = pars.copy()
-        bad.SourceWindows = [sources.GaussianSourceWindow(redshift=0.5, source_type="counts", sigma=0.0)]
-        with self.assertRaises(CAMBValueError):
-            camb.get_results(bad)
-        bad = pars.copy()
-        bad.omk = -0.05
-        bad.SourceWindows = [sources.GaussianSourceWindow(redshift=0.5, source_type="counts", sigma=0.05)]
-        with self.assertRaises(CAMBValueError):
-            camb.get_results(bad)
         with self.assertRaises(TypeError):
             pars.WantCls = "F"
         np.testing.assert_allclose(data.get_Omega("cdm", [0, 1.0]), data.get_Omega("cdm", np.array([0, 1.0])))

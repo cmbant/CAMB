@@ -6,8 +6,10 @@ import os
 from ctypes import c_double
 
 from . import model
-from .baseconfig import CAMB_Structure, CAMBValueError, import_property
+from ._config import config
+from .baseconfig import CAMB_Structure, CAMBValueError
 from .inifile import IniFile
+from .initialpower import InitialPowerLaw
 
 _initial_condition_names = [
     "initial_vector",
@@ -18,30 +20,9 @@ _initial_condition_names = [
     "initial_iso_neutrino_vel",
 ]
 _massive_nu_method_names = ["Nu_int", "Nu_trunc", "Nu_approx", "Nu_best"]
-# AccuracyParams fields read by name in camb.f90 (others use the legacy ini names written separately)
-_accuracy_ini_names = (
-    "TimeStepBoost",
-    "BackgroundTimeStepBoost",
-    "TimeSwitchBoost",
-    "IntTolBoost",
-    "SourcekAccuracyBoost",
-    "IntkAccuracyBoost",
-    "TransferkBoost",
-    "NonFlatIntAccuracyBoost",
-    "BessIntBoost",
-    "LensingBoost",
-    "NonlinSourceBoost",
-    "BesselBoost",
-    "LimberBoost",
-    "SourceLimberBoost",
-    "neutrino_q_boost",
-)
+# AccuracyParams written under legacy ini names; other boosts are read by field name in camb.f90
+_legacy_accuracy_names = {"AccuracyBoost", "lAccuracyBoost", "lSampleBoost", "KmaxBoost"}
 _roundtrip_float_tolerance_paths = {"params.Transfer.kmax"}
-
-
-class _VectorModeState:
-    # vector_mode is stored as Fortran module state rather than in CAMBparams
-    magnetic = import_property(c_double, "gaugeinterface", "magnetic")
 
 
 class CambIniFile(IniFile):
@@ -161,8 +142,9 @@ def _update_ini_state_from_params(params: model.CAMBparams, state: CambIniFile) 
     state.set("accuracy_boost", params.Accuracy.AccuracyBoost)
     state.set("l_accuracy_boost", params.Accuracy.lAccuracyBoost)
     state.set("l_sample_boost", params.Accuracy.lSampleBoost)
-    for name in _accuracy_ini_names:
-        state.set(name, getattr(params.Accuracy, name))
+    for name, tp in params.Accuracy.get_all_fields():
+        if tp is c_double and name not in _legacy_accuracy_names and getattr(params.Accuracy, name) != 1:
+            state.set(name, getattr(params.Accuracy, name))
     state.set("min_l_logl_sampling", params.min_l_logl_sampling)
     state.set("do_late_rad_truncation", params.DoLateRadTruncation)
     state.set("massive_nu_approx", _massive_nu_method_value(params.MassiveNuMethod))
@@ -172,7 +154,8 @@ def _update_ini_state_from_params(params: model.CAMBparams, state: CambIniFile) 
         state.set("k_eta_max_scalar", params.max_eta_k)
         state.set("lens_output_margin", params.lens_output_margin)
         if params.WantVectors:
-            state.set("vector_mode", 1 if _VectorModeState().magnetic else 0)
+            # vector_mode is stored as Fortran module state rather than in CAMBparams
+            state.set("vector_mode", 1 if config._magnetic else 0)
         if params.WantScalars:
             state.set("do_lensing", params.DoLensing)
     if params.WantCls and params.WantTensors:
@@ -218,6 +201,10 @@ def _roundtrip_expected_params(params: model.CAMBparams) -> model.CAMBparams:
         expected.max_l = defaults.max_l
         expected.max_eta_k = defaults.max_eta_k
         expected.lens_output_margin = defaults.lens_output_margin
+    if not expected.WantScalars:
+        expected.DoLensing = False  # only read for scalars
+    if not expected.WantTensors and isinstance(expected.InitPower, InitialPowerLaw):
+        # tensor parameters only read for tensors
         expected.InitPower.r = 0
         expected.InitPower.nt = 0
         expected.InitPower.ntrun = 0

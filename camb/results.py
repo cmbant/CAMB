@@ -32,8 +32,6 @@ logger = logging.getLogger(__name__)
 int_arg = POINTER(c_int)
 d_arg = POINTER(c_double)
 
-_omega_k_flat = 5e-7  # OmegaKFlat in config.f90: |omk| at or below which the flat code is used
-
 
 class _MatterTransferData(CAMB_Structure):
     # contains complex types with pointers, so just set up dummy
@@ -352,7 +350,6 @@ class CAMBdata(F2003Class):
         :return: non-zero if error, zero if OK
         """
         self._check_params(params)
-        self._check_transfer_params(params)
         if not (only_transfers or only_time_sources):
             self._check_powers(params)
         if CAMBdata_gettransfers(
@@ -362,28 +359,6 @@ class CAMBdata(F2003Class):
             byref(c_int(1 if only_time_sources else 0)),
         ):
             config.check_global_error("calc_transfer")
-
-    @staticmethod
-    def _check_transfer_params(params):
-        # Settings that would otherwise stop the whole process in the Fortran code
-        if params.WantCls and params.min_l not in (1, 2):
-            raise CAMBValueError("min_l must be 1 or 2")
-        if params.WantTransfer and np.any(
-            np.asarray(params.Transfer.PK_redshifts[: params.Transfer.PK_num_redshifts]) < 0
-        ):
-            raise CAMBValueError("Matter power redshifts must be non-negative")
-        if params.WantCls and params.WantVectors and params.num_nu_massive:
-            raise CAMBValueError("Massive neutrinos are not supported for vector modes")
-        if (
-            params.WantCls
-            and params.WantScalars
-            and abs(params.omk) > _omega_k_flat
-            and (len(params.SourceWindows) or params.CustomSources.num_custom_sources)
-        ):
-            raise CAMBValueError("Source windows and custom sources are only supported in flat models")
-        for window in params.SourceWindows:
-            if getattr(window, "sigma", 1) <= 0:
-                raise CAMBValueError("GaussianSourceWindow sigma must be positive")
 
     def _check_powers(self, params=None):
         if params is None:
