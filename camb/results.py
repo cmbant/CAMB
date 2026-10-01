@@ -743,7 +743,7 @@ class CAMBdata(F2003Class):
         :return: rho, w arrays at redshifts :math:`1/a-1` [or scalars if :math:`a` is scalar]
         """
         if scalar := np.isscalar(a):
-            scales = np.array([a])
+            scales = np.array([a], dtype=np.float64)
         else:
             scales = np.ascontiguousarray(a, dtype=np.float64)
         rho = np.zeros(scales.shape)
@@ -1521,8 +1521,9 @@ class CAMBdata(F2003Class):
             clpp *= Alens
         else:
             Alens = np.asarray(Alens, dtype=np.float64)
-            n = min(Alens.size, clpp.size)
-            clpp[:n] *= Alens[:n]
+            if Alens.size > clpp.size:
+                raise CAMBValueError("Alens array longer than the lensing potential spectrum")
+            clpp[: Alens.size] *= Alens
         return self.get_lensed_cls_with_spectrum(clpp, lmax, CMB_unit, raw_cl, lensing_method=lensing_method)
 
     @overload
@@ -1615,7 +1616,7 @@ class CAMBdata(F2003Class):
         :return: comoving radial distance (Mpc)
         """
         if not np.isscalar(z):
-            z = np.asarray(z)
+            z = np.asarray(z, dtype=np.float64)
             indices = np.argsort(z)
             redshifts = np.array(z[indices], dtype=np.float64)
             chis = np.empty(redshifts.shape)

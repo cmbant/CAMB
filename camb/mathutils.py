@@ -332,8 +332,10 @@ def scalar_coupling_matrix(P, lmax):
     :return: coupling matrix (square but not symmetric), or list of couplings for different masks
     """
 
-    if not isinstance(P, (list, tuple)) or np.isscalar(P[0]):
+    if not isinstance(P, (list, tuple)) or (P and np.isscalar(P[0])):
         P = [P]
+    if not P:
+        raise ValueError("P must be a mask power spectrum, or a non-empty list of them")
     P = [np.asarray(power, dtype=np.float64) for power in P]
     if any(x.size != P[0].size for x in P[1:]):
         raise ValueError("Mask power spectra must have same lmax")

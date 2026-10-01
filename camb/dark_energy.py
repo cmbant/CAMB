@@ -5,6 +5,7 @@ from .baseconfig import (
     CAMBError,
     CAMBValueError,
     F2003Class,
+    check_strictly_increasing,
     f_pointer,
     fortran_class,
     np,
@@ -85,13 +86,10 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
         w = np.ascontiguousarray(w, dtype=np.float64)
 
         if len(a) != len(w):
-            raise ValueError("Dark energy w(a) table non-equal sized arrays")
+            raise CAMBValueError("Dark energy w(a) table non-equal sized arrays")
+        check_strictly_increasing("Dark energy w(a) table a", a, positive=True)
         if not np.isclose(a[-1], 1):
-            raise ValueError("Dark energy w(a) arrays must end at a=1")
-        if np.any(a <= 0):
-            raise ValueError("Dark energy w(a) table cannot be set for a<=0")
-        if np.any(np.diff(a) <= 0):
-            raise ValueError("Dark energy w(a) table must have strictly increasing a")
+            raise CAMBValueError("Dark energy w(a) arrays must end at a=1")
 
         self.f_SetWTable(a, w, byref(c_int(len(a))))
         return self

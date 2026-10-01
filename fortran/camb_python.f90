@@ -759,6 +759,19 @@
 
     end subroutine GetOutputEvolutionFork
 
+    function RequireThermoData(this, caller) result(ok)
+    ! Thermo_Init needs the recombination time steps set by InitVars, so background-only
+    ! CAMBdata (from calc_background_no_thermo) cannot be used here.
+    type(CAMBdata), intent(in) :: this
+    character(len=*), intent(in) :: caller
+    logical :: ok
+
+    ok = this%ThermoData%HasThermoData
+    if (.not. ok) call GlobalError(trim(caller) // ': thermal history not calculated ' // &
+        '(use calc_background rather than calc_background_no_thermo)', error_unsupported_params)
+
+    end function RequireThermoData
+
     function CAMB_TimeEvolution(this, nq, q, ntimes, times, noutputs, outputs, &
         ncustomsources, c_source_func) result(err)
     use GaugeInterface
@@ -775,10 +788,7 @@
 
     global_error_flag = 0
     outputs = 0
-    if (.not. this%ThermoData%HasThermoData) then
-        ! Thermo_Init needs the recombination time steps set by InitVars
-        call GlobalError('CAMB_TimeEvolution: thermal history not calculated ' // &
-            '(use calc_background rather than calc_background_no_thermo)', error_unsupported_params)
+    if (.not. RequireThermoData(this, 'CAMB_TimeEvolution')) then
         err = global_error_flag
         return
     end if
@@ -822,12 +832,7 @@
     integer ix
 
     global_error_flag = 0
-    if (.not. this%ThermoData%HasThermoData) then
-        ! Initializing here is not possible as InitVars has not set up e.g. the recombination time steps
-        call GlobalError('GetBackgroundThermalEvolution: thermal history not calculated ' // &
-            '(use calc_background rather than calc_background_no_thermo)', error_unsupported_params)
-        return
-    end if
+    if (.not. RequireThermoData(this, 'GetBackgroundThermalEvolution')) return
 
     associate(T => this%ThermoData)
         tau_max = T%tauminn*exp((T%nthermo - 1)*T%dlntau)

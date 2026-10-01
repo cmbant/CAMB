@@ -8,6 +8,7 @@ from .baseconfig import (
     byref,
     c_double,
     c_int,
+    check_strictly_increasing,
     fortran_class,
     np,
     numpy_1d,
@@ -24,10 +25,7 @@ def _spline_table(k, PK):
         raise CAMBValueError("k and P(k) must be 1D arrays of the same size")
     if len(k) == 0:
         return k, PK  # empty table clears the spectrum
-    if len(k) < 2:
-        raise CAMBValueError("Need at least two points to spline the power spectrum")
-    if np.any(k <= 0) or np.any(np.diff(k) <= 0):
-        raise CAMBValueError("k values must be positive and strictly increasing")
+    check_strictly_increasing("k", k, positive=True)
     return k, PK
 
 

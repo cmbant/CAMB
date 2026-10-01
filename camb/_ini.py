@@ -154,7 +154,10 @@ def _update_ini_state_from_params(params: model.CAMBparams, state: CambIniFile) 
         state.set("k_eta_max_scalar", params.max_eta_k)
         state.set("lens_output_margin", params.lens_output_margin)
         if params.WantVectors:
-            # vector_mode is stored as Fortran module state rather than in CAMBparams
+            # vector_mode (regular vs magnetic) is not a CAMBparams field: it is only ever set as Fortran
+            # module state by read_ini. This reports whatever that state currently is, which is only
+            # guaranteed to match `params` if nothing else has read a different vector-mode ini in the
+            # same process since `params` was configured.
             state.set("vector_mode", 1 if config._magnetic else 0)
         if params.WantScalars:
             state.set("do_lensing", params.DoLensing)

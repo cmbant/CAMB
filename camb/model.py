@@ -544,6 +544,8 @@ class CAMBparams(F2003Class):
         :param pk_tensor: array of tensor spectrum values
         :param effective_ns_for_nonlinear: an effective n_s for use with approximate non-linear corrections
         """
+        if pk is None and pk_tensor is None:
+            raise CAMBValueError("Must provide at least one of pk or pk_tensor")
         self.InitPower = SplinedInitialPower()
         initpower = self.InitPower
         if effective_ns_for_nonlinear is not None:

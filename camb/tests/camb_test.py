@@ -296,7 +296,12 @@ class CambTest(unittest.TestCase):
             vector_pars = pars.copy()
             vector_pars.WantScalars = vector_pars.WantTensors = False
             vector_pars.WantVectors = True
-            vector_pars.write_ini(os.path.join(temp_dir, "vector_params.ini"))
+            vector_ini = os.path.join(temp_dir, "vector_params.ini")
+            vector_pars.write_ini(vector_ini)
+            # vector_mode is not stored on CAMBparams (only as Fortran module state), so write_ini can only
+            # report the regular/magnetic mode last used in this process; check it reflects the default here
+            round_tripped_vector = camb.read_ini(vector_ini)
+            self.assertTrue(round_tripped_vector.WantVectors)
 
             # original_filename should be the top-level file, not the last INCLUDEd one
             os.mkdir(os.path.join(temp_dir, "sub"))
