@@ -37,6 +37,9 @@ class _config:
 
     DoTensorNeutrinos = import_property(c_bool, "gaugeinterface", "dotensorneutrinos")
 
+    # non-zero for magnetic vector modes (vector_mode=1 in ini files); read-only, also needs vec_sig0 set
+    _magnetic = import_property(c_double, "gaugeinterface", "magnetic")
+
     DebugParam = import_property(c_double, "config", "debugparam")
 
     lensing_method = import_property(c_int, "lensing", "lensing_method")

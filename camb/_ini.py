@@ -3,10 +3,13 @@ from __future__ import annotations
 import math
 import numbers
 import os
+from ctypes import c_double
 
 from . import model
+from ._config import config
 from .baseconfig import CAMB_Structure, CAMBValueError
 from .inifile import IniFile
+from .initialpower import InitialPowerLaw
 
 _initial_condition_names = [
     "initial_vector",
@@ -17,6 +20,8 @@ _initial_condition_names = [
     "initial_iso_neutrino_vel",
 ]
 _massive_nu_method_names = ["Nu_int", "Nu_trunc", "Nu_approx", "Nu_best"]
+# AccuracyParams written under legacy ini names; other boosts are read by field name in camb.f90
+_legacy_accuracy_names = {"AccuracyBoost", "lAccuracyBoost", "lSampleBoost", "KmaxBoost"}
 _roundtrip_float_tolerance_paths = {"params.Transfer.kmax"}
 
 
@@ -137,6 +142,9 @@ def _update_ini_state_from_params(params: model.CAMBparams, state: CambIniFile) 
     state.set("accuracy_boost", params.Accuracy.AccuracyBoost)
     state.set("l_accuracy_boost", params.Accuracy.lAccuracyBoost)
     state.set("l_sample_boost", params.Accuracy.lSampleBoost)
+    for name, tp in params.Accuracy.get_all_fields():
+        if tp is c_double and name not in _legacy_accuracy_names and getattr(params.Accuracy, name) != 1:
+            state.set(name, getattr(params.Accuracy, name))
     state.set("min_l_logl_sampling", params.min_l_logl_sampling)
     state.set("do_late_rad_truncation", params.DoLateRadTruncation)
     state.set("massive_nu_approx", _massive_nu_method_value(params.MassiveNuMethod))
@@ -145,6 +153,12 @@ def _update_ini_state_from_params(params: model.CAMBparams, state: CambIniFile) 
         state.set("l_max_scalar", params.max_l)
         state.set("k_eta_max_scalar", params.max_eta_k)
         state.set("lens_output_margin", params.lens_output_margin)
+        if params.WantVectors:
+            # vector_mode (regular vs magnetic) is not a CAMBparams field: it is only ever set as Fortran
+            # module state by read_ini. This reports whatever that state currently is, which is only
+            # guaranteed to match `params` if nothing else has read a different vector-mode ini in the
+            # same process since `params` was configured.
+            state.set("vector_mode", 1 if config._magnetic else 0)
         if params.WantScalars:
             state.set("do_lensing", params.DoLensing)
     if params.WantCls and params.WantTensors:
@@ -190,6 +204,10 @@ def _roundtrip_expected_params(params: model.CAMBparams) -> model.CAMBparams:
         expected.max_l = defaults.max_l
         expected.max_eta_k = defaults.max_eta_k
         expected.lens_output_margin = defaults.lens_output_margin
+    if not expected.WantScalars:
+        expected.DoLensing = False  # only read for scalars
+    if not expected.WantTensors and isinstance(expected.InitPower, InitialPowerLaw):
+        # tensor parameters only read for tensors
         expected.InitPower.r = 0
         expected.InitPower.nt = 0
         expected.InitPower.ntrun = 0

@@ -23,7 +23,9 @@ def chi_squared(covinv, x):
     :param x: vector
     :return: covinv.dot(x).dot(x), but parallelized and using symmetry
     """
-    if len(x) != covinv.shape[0] or covinv.shape[0] != covinv.shape[1]:
+    covinv = np.ascontiguousarray(covinv, dtype=np.float64)
+    x = np.ascontiguousarray(x, dtype=np.float64)
+    if covinv.ndim != 2 or len(x) != covinv.shape[0] or covinv.shape[0] != covinv.shape[1]:
         raise ValueError("Wrong shape in chi_squared")
     return _chi2(covinv, x, c_int(len(x)))
 
@@ -233,6 +235,9 @@ def threej(l2, l3, m2, m3):
     :param m3: M_3
     :return: array of 3j from  max(abs(l2-l3),abs(m2+m3)) .. l2+l3
     """
+    if l2 < abs(m2) or l3 < abs(m3):
+        # the Fortran routine stops the whole process for these inputs
+        raise ValueError("threej requires l2 >= |m2| and l3 >= |m3|")
     l1min = max(np.abs(l2 - l3), np.abs(m2 + m3))
     result = np.zeros(int(l3 + l2 - l1min + 1))
     l2in, l3in, m2in, m3in = c_int(l2), c_int(l3), c_int(m2), c_int(m3)
@@ -253,7 +258,7 @@ def threej_pt(l1, l2, l3, m1, m2, m3):
     :param m3: M_3
     :return: Wigner 3j (integer zero if outside triangle constraints)
     """
-    if m1 + m2 + m3:
+    if m1 + m2 + m3 or l2 < abs(m2) or l3 < abs(m3):
         return 0
     l1min = max(np.abs(l2 - l3), np.abs(m1))
     if l1 < l1min or l1 > l2 + l3:
@@ -327,9 +332,12 @@ def scalar_coupling_matrix(P, lmax):
     :return: coupling matrix (square but not symmetric), or list of couplings for different masks
     """
 
-    if not isinstance(P, (list, tuple)):
+    if not isinstance(P, (list, tuple)) or (P and np.isscalar(P[0])):
         P = [P]
-    elif any(x.size != P[0].size for x in P[1:]):
+    if not P:
+        raise ValueError("P must be a mask power spectrum, or a non-empty list of them")
+    P = [np.asarray(power, dtype=np.float64) for power in P]
+    if any(x.size != P[0].size for x in P[1:]):
         raise ValueError("Mask power spectra must have same lmax")
 
     lmax_power = min(P[0].size - 1, 2 * lmax)
@@ -337,7 +345,7 @@ def scalar_coupling_matrix(P, lmax):
         print("Warning: power spectrum lmax is less than 2*lmax")
 
     fac = (2 * np.arange(lmax_power + 1) + 1) / 4 / np.pi
-    M = threej_coupling([fac * power for power in P], lmax)
+    M = threej_coupling([fac * power[: lmax_power + 1] for power in P], lmax)
     factor = 2 * np.arange(lmax + 1) + 1
     if len(P) == 1:
         return M * factor
@@ -356,11 +364,12 @@ def pcl_coupling_matrix(P, lmax, pol=False):
     :return: coupling matrix (square but not symmetric), or list of TT, TE, EE, BB if pol
     """
 
+    P = np.asarray(P, dtype=np.float64)
     lmax_power = min(P.size - 1, 2 * lmax)
     if lmax_power < 2 * lmax:
         print("Warning: power spectrum lmax is less than 2*lmax")
 
-    W = (2 * np.arange(lmax_power + 1) + 1) * P / (4 * np.pi)
+    W = (2 * np.arange(lmax_power + 1) + 1) * P[: lmax_power + 1] / (4 * np.pi)
     M = threej_coupling(W, lmax, pol=pol)
 
     factor = 2 * np.arange(lmax + 1) + 1

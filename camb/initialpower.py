@@ -8,12 +8,36 @@ from .baseconfig import (
     byref,
     c_double,
     c_int,
+    check_strictly_increasing,
     fortran_class,
     np,
     numpy_1d,
 )
 
 tensor_parameterization_names = ["tensor_param_indeptilt", "tensor_param_rpivot", "tensor_param_AT"]
+
+
+def _spline_table(k, PK):
+    # checks here avoid Fortran spline errors that would stop the whole process
+    k = np.ascontiguousarray(k, dtype=np.float64)
+    PK = np.ascontiguousarray(PK, dtype=np.float64)
+    if k.ndim != 1 or k.shape != PK.shape:
+        raise CAMBValueError("k and P(k) must be 1D arrays of the same size")
+    if len(k) == 0:
+        return k, PK  # empty table clears the spectrum
+    check_strictly_increasing("k", k, positive=True)
+    return k, PK
+
+
+def _log_regular_table(kmin, kmax, PK):
+    PK = np.ascontiguousarray(PK, dtype=np.float64)
+    if len(PK) < 2:
+        raise CAMBValueError("Need at least two points to spline the power spectrum")
+    if not 0 < kmin < kmax:
+        raise CAMBValueError("Must have 0 < kmin < kmax")
+    return PK
+
+
 tensor_param_indeptilt = 1
 tensor_param_rpivot = 2
 tensor_param_AT = 3
@@ -86,9 +110,8 @@ class SplinedInitialPower(InitialPower):
         :param k: array of k values (Mpc^{-1})
         :param PK: array of scalar power spectrum values
         """
-        self.f_SetScalarTable(
-            byref(c_int(len(k))), np.ascontiguousarray(k, dtype=np.float64), np.ascontiguousarray(PK, dtype=np.float64)
-        )
+        k, PK = _spline_table(k, PK)
+        self.f_SetScalarTable(byref(c_int(len(k))), k, PK)
 
     def set_tensor_table(self, k, PK):
         """
@@ -97,9 +120,8 @@ class SplinedInitialPower(InitialPower):
         :param k: array of k values (Mpc^{-1})
         :param PK: array of tensor power spectrum values
         """
-        self.f_SetTensorTable(
-            byref(c_int(len(k))), np.ascontiguousarray(k, dtype=np.float64), np.ascontiguousarray(PK, dtype=np.float64)
-        )
+        k, PK = _spline_table(k, PK)
+        self.f_SetTensorTable(byref(c_int(len(k))), k, PK)
 
     def set_scalar_log_regular(self, kmin, kmax, PK):
         """
@@ -109,12 +131,8 @@ class SplinedInitialPower(InitialPower):
         :param kmax: maximum k value (inclusive)
         :param PK: array of scalar power spectrum values, with PK[0]=P(kmin) and PK[-1]=P(kmax)
         """
-        self.f_SetScalarLogRegular(
-            byref(c_double(kmin)),
-            byref(c_double(kmax)),
-            byref(c_int(len(PK))),
-            np.ascontiguousarray(PK, dtype=np.float64),
-        )
+        PK = _log_regular_table(kmin, kmax, PK)
+        self.f_SetScalarLogRegular(byref(c_double(kmin)), byref(c_double(kmax)), byref(c_int(len(PK))), PK)
 
     def set_tensor_log_regular(self, kmin, kmax, PK):
         """
@@ -125,12 +143,8 @@ class SplinedInitialPower(InitialPower):
         :param PK: array of scalar power spectrum values, with PK[0]=P_t(kmin) and PK[-1]=P_t(kmax)
         """
 
-        self.f_SetTensorLogRegular(
-            byref(c_double(kmin)),
-            byref(c_double(kmax)),
-            byref(c_int(len(PK))),
-            np.ascontiguousarray(PK, dtype=np.float64),
-        )
+        PK = _log_regular_table(kmin, kmax, PK)
+        self.f_SetTensorLogRegular(byref(c_double(kmin)), byref(c_double(kmax)), byref(c_int(len(PK))), PK)
 
 
 @fortran_class

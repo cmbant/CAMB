@@ -394,6 +394,17 @@ class CAMBFortranError(Exception):
     pass
 
 
+def check_strictly_increasing(name: str, values, min_points: int = 2, positive: bool = False) -> None:
+    # shared validation for tabulated x-arrays (k, z, a, ...) passed to Fortran splines, which otherwise
+    # either error unhelpfully or silently interpolate garbage for non-monotonic or too-short input
+    if len(values) < min_points:
+        raise CAMBValueError(f"{name} must have at least {min_points} points")
+    if positive and np.any(values <= 0):
+        raise CAMBValueError(f"{name} values must be positive and strictly increasing")
+    if np.any(np.diff(values) <= 0):
+        raise CAMBValueError(f"{name} must be strictly increasing")
+
+
 def method_import(module_name, class_name, func_name, restype=None, extra_args=(), nopass=False):
     func = lib_import(module_name, class_name, func_name, restype)
     if extra_args is not None and len(extra_args):
@@ -453,6 +464,8 @@ class NamedIntField:
 
     def __set__(self, instance, value):
         if isinstance(value, str):
+            if value not in self.name_values:
+                raise ValueError(f"Value {value!r} not in allowed: {list(self.name_values)}")
             value = self.name_values[value]
         elif value not in self.values:
             raise ValueError(f"Value {value} not in allowed: {self.name_values}")
@@ -469,7 +482,12 @@ class BoolField:  # fortran-compatible boolean (actually c_int internally)
         return getattr(instance, self.real_name) != 0
 
     def __set__(self, instance, value):
-        setattr(instance, self.real_name, (0, 1)[value])
+        if isinstance(value, str):
+            # bool("F") is True, so do not silently convert strings
+            raise TypeError(f"{self.real_name[1:]} must be a boolean, not a string ({value!r})")
+        if not isinstance(value, (bool, int, np.integer, np.bool_)) or int(value) not in (0, 1):
+            raise TypeError(f"{self.real_name[1:]} must be a boolean (True/False or 0/1), not {value!r}")
+        setattr(instance, self.real_name, int(value))
 
 
 class SizedArrayField:  # statically sized array with another field determining size

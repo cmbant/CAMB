@@ -592,9 +592,9 @@
     cls = 0
     if (Data%CP%WantScalars .and. Data%CP%DoLensing) then
         do l = Data%CP%Min_l, min(lmax, Data%CP%Max_l)
-            cls(1, l) = Data%CLdata%Cl_scalar(l, C_Phi)*(real(l + 1)/l)**2/const_twopi
+            cls(1, l) = Data%CLdata%Cl_scalar(l, C_Phi)*(real(l + 1, dl)/l)**2/const_twopi
             cls(2:3, l) = Data%CLdata%Cl_scalar(l, C_PhiTemp:C_PhiE) &
-                *((real(l + 1)/l)**1.5/const_twopi)
+                *((real(l + 1, dl)/l)**1.5_dl/const_twopi)
         end do
     end if
 
@@ -759,6 +759,19 @@
 
     end subroutine GetOutputEvolutionFork
 
+    function RequireThermoData(this, caller) result(ok)
+    ! Thermo_Init needs the recombination time steps set by InitVars, so background-only
+    ! CAMBdata (from calc_background_no_thermo) cannot be used here.
+    type(CAMBdata), intent(in) :: this
+    character(len=*), intent(in) :: caller
+    logical :: ok
+
+    ok = this%ThermoData%HasThermoData
+    if (.not. ok) call GlobalError(trim(caller) // ': thermal history not calculated ' // &
+        '(use calc_background rather than calc_background_no_thermo)', error_unsupported_params)
+
+    end function RequireThermoData
+
     function CAMB_TimeEvolution(this, nq, q, ntimes, times, noutputs, outputs, &
         ncustomsources, c_source_func) result(err)
     use GaugeInterface
@@ -773,6 +786,12 @@
     type(EvolutionVars) :: EV
     type(TCustomSourceParams) :: Old
 
+    global_error_flag = 0
+    outputs = 0
+    if (.not. RequireThermoData(this, 'CAMB_TimeEvolution')) then
+        err = global_error_flag
+        return
+    end if
     call SetActiveState(this)
     if (ncustomsources > 0) then
         ! Convert C to Fortran procedure pointer.
@@ -781,11 +800,8 @@
         State%CP%CustomSources%num_custom_sources = ncustomsources
     end if
 
-    global_error_flag = 0
-    outputs = 0
     taustart = min(times(1), GetTauStart(maxval(q)))
-    if (.not. this%ThermoData%HasThermoData .or. taustart < this%ThermoData%tauminn) &
-        call this%ThermoData%Init(this, taustart)
+    if (taustart < this%ThermoData%tauminn) call this%ThermoData%Init(this, taustart)
     !$OMP PARALLEL DO DEFAULT(SHARED), SCHEDULE(DYNAMIC), PRIVATE(EV, q_ix)
     do q_ix = 1, nq
         if (global_error_flag == 0) then
@@ -815,7 +831,8 @@
         visibility, dvisibility, ddvisibility, exptau, lenswindow
     integer ix
 
-    if (.not. this%ThermoData%HasThermoData) call this%ThermoData%Init(this, min(1d-3, max(1d-5, minval(times))))
+    global_error_flag = 0
+    if (.not. RequireThermoData(this, 'GetBackgroundThermalEvolution')) return
 
     associate(T => this%ThermoData)
         tau_max = T%tauminn*exp((T%nthermo - 1)*T%dlntau)

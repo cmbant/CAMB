@@ -906,7 +906,7 @@ def compile_source_function_code(code_body, file_path="", compiler=None, fflags=
     if cache and code_body in _func_cache:
         return _func_cache[code_body].source_func_
 
-    global _source_file_count
+    global _source_file_count, _first_compile
 
     template = """
     REAL*8 function source_func(sources, tau, a, adotoa, grho, gpres,w_lam, cs2_lam,  &
@@ -935,6 +935,7 @@ def compile_source_function_code(code_body, file_path="", compiler=None, fflags=
     end function
     """
 
+    import shutil
     import subprocess
     import tempfile
 
@@ -947,18 +948,19 @@ def compile_source_function_code(code_body, file_path="", compiler=None, fflags=
         fflags += " -static"
         if _first_compile:
             check_gfortran(msg=True)
-    workdir = file_path or tempfile.gettempdir()
-    if not os.access(workdir, os.F_OK):
-        os.mkdir(workdir)
+            _first_compile = False
+    if file_path:
+        workdir = os.path.abspath(file_path)
+        os.makedirs(workdir, exist_ok=True)
+    else:
+        # use a private directory so concurrent processes cannot overwrite each other's generated files
+        workdir = tempfile.mkdtemp(prefix="camb_source_")
 
-    oldwork = os.getcwd()
-    source_file = None
     try:
-        os.chdir(workdir)
         _source_file_count += 1
         while True:
             name_tag = f"camb_source{_source_file_count}"
-            dll_name = name_tag + ".dll"
+            dll_name = os.path.join(workdir, name_tag + ".dll")
             if not os.path.exists(dll_name):
                 break
             try:
@@ -966,11 +968,11 @@ def compile_source_function_code(code_body, file_path="", compiler=None, fflags=
             except OSError:
                 _source_file_count += 1
 
-        source_file = name_tag + ".f90"
+        source_file = os.path.join(workdir, name_tag + ".f90")
         with open(source_file, "w") as f:
             f.write(template % code_body)
 
-        command = " ".join([compiler, fflags or "", source_file, "-o", dll_name])
+        command = " ".join([compiler, fflags or "", f'"{source_file}"', "-o", f'"{dll_name}"'])
         try:
             subprocess.check_output(command, stderr=subprocess.STDOUT, shell=True, cwd=workdir, env=compiler_environ)
         except subprocess.CalledProcessError as E:
@@ -979,24 +981,16 @@ def compile_source_function_code(code_body, file_path="", compiler=None, fflags=
             print(E.output)
             print(f"Source is:\n {code_body}")
             raise
-    finally:
-        if not file_path and source_file:
-            os.remove(source_file)
-        os.chdir(oldwork)
 
-    # Had weird crashes when LoadLibrary path was relative to current dir
-    dll_name = os.path.join(workdir, dll_name)
-    func_lib = ctypes.LibraryLoader(ctypes.CDLL).LoadLibrary(dll_name)
+        # Had weird crashes when LoadLibrary path was relative to current dir, so dll_name is absolute
+        func_lib = ctypes.LibraryLoader(ctypes.CDLL).LoadLibrary(dll_name)
+    finally:
+        if not file_path:
+            # removing the loaded DLL won't work on Windows while it is in use
+            shutil.rmtree(workdir, ignore_errors=True)
 
     if cache:
         _func_cache[code_body] = func_lib
-
-    if not file_path:
-        # won't work on Windows while DLL in use
-        try:
-            os.remove(dll_name)
-        except OSError:
-            pass
 
     return func_lib.source_func_
 

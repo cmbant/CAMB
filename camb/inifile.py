@@ -133,6 +133,8 @@ class IniFile:
                             os.path.join(os.path.dirname(filename), ffile),
                             if_not_defined=True,
                         )
+                # recursive reads of included files overwrite this, so restore the top-level file name
+                self.original_filename = filename
 
             return self.params
         except Exception:
