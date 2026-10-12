@@ -83,11 +83,11 @@ class BaseTauWithHeReionization(ReionizationModel):
         :param tau: if set, calculate the redshift for optical depth tau, otherwise uses currently set parameters
         :return: reionization mid-point redshift
         """
-        if self.use_optical_depth or tau:
+        if self.use_optical_depth or tau is not None:
             from .camb import CAMBparams
 
             assert isinstance(params, CAMBparams)
-            return self.f_GetZreFromTau(byref(params), c_double(tau or self.optical_depth))
+            return self.f_GetZreFromTau(byref(params), c_double(self.optical_depth if tau is None else tau))
         else:
             return self.redshift
 

@@ -56,7 +56,7 @@
 
     ! For 21cm
     real(dl), parameter :: f_21cm = 1420.40575e6_dl, l_21cm = c/f_21cm, T_21cm = h_P*f_21cm/k_B
-    real(dl), parameter :: A10 = 2.869e-15, B10 = l_21cm**3/2/h_P/c*A10
+    real(dl), parameter :: A10 = 2.869e-15_dl, B10 = l_21cm**3/2/h_P/c*A10
 
     real(dl), parameter :: line21_const = 3*l_21cm**2*c*h_P/32/const_pi/k_B*A10*MPC_in_sec*1000
     ! 1000 to get in MiliKelvin

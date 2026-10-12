@@ -295,15 +295,15 @@ class CAMBdata(F2003Class):
         CAMB_GetBackgroundOutputs(byref(self), outputs, byref(c_int(n)))
         return outputs
 
-    def get_BAO(self, redshifts, params):
+    def get_BAO(self, redshifts, params=None):
         """
         Get BAO parameters at given redshifts, using parameters in params
 
         :param redshifts: list of redshifts
-        :param params: optional :class:`~.model.CAMBparams` instance to use
+        :param params: optional :class:`~.model.CAMBparams` instance to use (default: current Params)
         :return: array of rs/DV, H, DA, F_AP for each redshift as 2D array
         """
-        P = params.copy()
+        P = (params if params is not None else self.Params).copy()
         P.z_outputs = redshifts
         self.calc_background(P)
         return self.get_background_outputs()
@@ -617,6 +617,12 @@ class CAMBdata(F2003Class):
             outputs = np.empty((k.shape[0], times.shape[0], nvars))
             if times[indices[0]] <= 1e-8:
                 raise CAMBError("Initial time nearly zero or negative for time evolution calculation")
+            if not self.tau0:
+                raise CAMBError("Background must be calculated before calling get_time_evolution")
+            if times[indices[-1]] > self.tau0 * (1 + 1e-8):
+                raise CAMBError("Requested time is later than today (conformal time tau0) for time evolution")
+            if np.any(k <= 0):
+                raise CAMBError("Wavenumbers must be positive for time evolution calculation")
             if CAMB_TimeEvolution(
                 byref(self),
                 byref(c_int(k.shape[0])),
@@ -668,8 +674,10 @@ class CAMBdata(F2003Class):
             vars = [vars]
         if unknown := set(vars).difference(model.background_names):
             raise CAMBError(f"Unknown names {unknown}; valid names are {model.background_names}")
+        eta = np.ascontiguousarray(np.atleast_1d(eta), dtype=np.float64)
         outputs = np.zeros((eta.shape[0], 9))
         CAMB_BackgroundThermalEvolution(byref(self), byref(c_int(eta.shape[0])), eta, outputs)
+        config.check_global_error("get_background_time_evolution")
         indices = [model.background_names.index(var) for var in vars]
         if format == "dict":
             return {var: outputs[:, index] for var, index in zip(vars, indices)}
@@ -710,7 +718,7 @@ class CAMBdata(F2003Class):
             vars = [vars]
         if unknown := set(vars).difference(model.density_names):
             raise CAMBError(f"Unknown names {unknown}; valid names are {model.density_names}")
-        arr = np.atleast_1d(a)
+        arr = np.ascontiguousarray(np.atleast_1d(a), dtype=np.float64)
         outputs = np.zeros((arr.shape[0], 8))
         self.f_GetBackgroundDensities(byref(c_int(arr.shape[0])), arr, outputs)
         indices = [model.density_names.index(var) for var in vars]
@@ -735,9 +743,9 @@ class CAMBdata(F2003Class):
         :return: rho, w arrays at redshifts :math:`1/a-1` [or scalars if :math:`a` is scalar]
         """
         if scalar := np.isscalar(a):
-            scales = np.array([a])
+            scales = np.array([a], dtype=np.float64)
         else:
-            scales = np.ascontiguousarray(a)
+            scales = np.ascontiguousarray(a, dtype=np.float64)
         rho = np.zeros(scales.shape)
         w = np.zeros(scales.shape)
         self.f_DarkEnergyStressEnergy(scales, rho, w, byref(c_int(len(scales))))
@@ -760,6 +768,8 @@ class CAMBdata(F2003Class):
         :param z: redshift
         :return:  :math:`\Omega_i(a)`
         """
+        if not np.isscalar(z):
+            z = np.asarray(z, dtype=np.float64)
         dic = self.get_background_densities(1.0 / (1 + z), ["tot", var])
         res = dic[var] / dic["tot"]
         return res[0] if np.isscalar(z) else res
@@ -1127,7 +1137,7 @@ class CAMBdata(F2003Class):
             def check_z(self, z):
                 if not np.allclose(z, self._single_z):
                     raise CAMBError(
-                        f"P(z,k) requested at z={z:g}, but only computed for z={self._single_z}. Cannot extrapolate!"
+                        f"P(z,k) requested at z={z}, but only computed for z={self._single_z}. Cannot extrapolate!"
                     )
 
             def __call__(self, *args):
@@ -1442,9 +1452,9 @@ class CAMBdata(F2003Class):
         res = np.empty((lmax + 1, 8))
         opt = c_int(lmax)
         if clpp is not None:
+            clpp = np.array(clpp, dtype=np.float64)
             if clpp.shape[0] < self.Params.max_l + 1:
                 raise CAMBValueError("clpp must go to at least Params.max_l (zero based)")
-            clpp = np.array(clpp, dtype=np.float64)
             GetFlatSkyCgrads = lib_import("lensing", "", "getflatskycgradswithspectrum")
             GetFlatSkyCgrads.argtypes = [POINTER(CAMBdata), numpy_1d, int_arg, numpy_1d]
             GetFlatSkyCgrads(byref(self), clpp, byref(opt), res)
@@ -1469,13 +1479,13 @@ class CAMBdata(F2003Class):
         """
         assert self.Params.DoLensing
         lmax_unlens = self.Params.max_l
+        clpp = np.array(clpp, dtype=np.float64)
         if clpp.shape[0] < lmax_unlens + 1:
             raise CAMBValueError("clpp must go to at least Params.max_l (zero based)")
         res = np.zeros((lmax_unlens + 1, 4), dtype=np.float64)
         lmax_lensed = c_int(0)
         lensClsWithSpectrum = lib_import("lensing", "", "lensclswithspectrum")
         lensClsWithSpectrum.argtypes = [POINTER(CAMBdata), numpy_1d, numpy_2d, int_arg]
-        clpp = np.array(clpp, dtype=np.float64)
         original_method = None
         if lensing_method is not None:
             original_method = config.lensing_method
@@ -1510,6 +1520,9 @@ class CAMBdata(F2003Class):
         if np.isscalar(Alens):
             clpp *= Alens
         else:
+            Alens = np.asarray(Alens, dtype=np.float64)
+            if Alens.size > clpp.size:
+                raise CAMBValueError("Alens array longer than the lensing potential spectrum")
             clpp[: Alens.size] *= Alens
         return self.get_lensed_cls_with_spectrum(clpp, lmax, CMB_unit, raw_cl, lensing_method=lensing_method)
 
@@ -1603,8 +1616,9 @@ class CAMBdata(F2003Class):
         :return: comoving radial distance (Mpc)
         """
         if not np.isscalar(z):
+            z = np.asarray(z, dtype=np.float64)
             indices = np.argsort(z)
-            redshifts = np.array(z[indices], dtype=np.float64)  # type: ignore
+            redshifts = np.array(z[indices], dtype=np.float64)
             chis = np.empty(redshifts.shape)
             self.f_ComovingRadialDistanceArr(chis, redshifts, byref(c_int(chis.shape[0])), byref(c_double(tol)))
             chis[indices] = chis.copy()
@@ -1625,6 +1639,8 @@ class CAMBdata(F2003Class):
         :param chi: comoving radial distance (in Mpc), scalar or array
         :return: redshift at chi, scalar or array
         """
+        if not np.isscalar(chi):
+            chi = np.asarray(chi, dtype=np.float64)
         return self.redshift_at_conformal_time(self.tau0 - chi)
 
     @overload

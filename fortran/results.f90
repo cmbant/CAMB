@@ -309,6 +309,7 @@
 
     ! Small helpers used in the interpolation table lookups; private so they can be inlined
     private :: Thermo_table_index, cubic_horner
+    private :: CheckSupportedParams
 
     contains
 
@@ -357,6 +358,8 @@
     if (.not. allocated(P%DarkEnergy)) then
         call GlobalError('DarkEnergy not set', error_darkenergy)
     end if
+
+    if (.not. DefaultFalse(background_only)) call CheckSupportedParams(P)
 
     if (present(error)) error = global_error_flag
     if (global_error_flag /= 0) return
@@ -625,6 +628,41 @@
     end if
 
     end subroutine CAMBdata_SetParams
+
+    subroutine CheckSupportedParams(P)
+    ! Settings that are not supported by the perturbation code (rather than stopping there)
+    type(CAMBParams), intent(in) :: P
+    integer i
+    logical non_flat, has_sources
+
+    if (P%WantTransfer) then
+        if (any(P%Transfer%PK_redshifts(1:P%Transfer%PK_num_redshifts) < 0)) &
+            call GlobalError('Matter power redshifts must be non-negative', error_unsupported_params)
+    end if
+    if (.not. P%WantCls) return
+    if (P%Min_l < 1 .or. P%Min_l > 2) call GlobalError('min_l must be 1 or 2', error_unsupported_params)
+    non_flat = abs(P%omk) > OmegaKFlat
+    if (P%WantVectors) then
+        if (P%Num_Nu_massive /= 0 .and. P%omnuh2 >= 1.e-7_dl) &
+            call GlobalError('Massive neutrinos are not supported for vector modes', error_unsupported_params)
+        if (non_flat) call GlobalError('Vectors not supported in non-flat models', error_unsupported_params)
+    end if
+    has_sources = P%CustomSources%num_custom_sources > 0
+    if (allocated(P%SourceWindows)) then
+        has_sources = has_sources .or. size(P%SourceWindows) > 0
+        do i = 1, size(P%SourceWindows)
+            select type (Win => P%SourceWindows(i)%Window)
+            class is (TGaussianSourceWindow)
+                if (Win%sigma <= 0) call GlobalError('GaussianSourceWindow sigma must be positive', &
+                    error_unsupported_params)
+            end select
+        end do
+    end if
+    if (P%WantScalars .and. non_flat .and. has_sources) &
+        call GlobalError('Source windows and custom sources are only supported in flat models', &
+        error_unsupported_params)
+
+    end subroutine CheckSupportedParams
 
     subroutine CAMBdata_final(this)
     type(CAMBdata) :: this

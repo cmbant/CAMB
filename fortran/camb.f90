@@ -522,7 +522,8 @@
             P%lens_output_margin = Ini%Read_Int('lens_output_margin', P%lens_output_margin)
             if (P%WantScalars) then
                 P%DoLensing = Ini%Read_Logical('do_lensing', .false.)
-                if (P%DoLensing) lensing_method = Ini%Read_Int('lensing_method', 1)
+                ! keep the current (default optimized) method if not set, rather than changing global state
+                if (P%DoLensing) lensing_method = Ini%Read_Int('lensing_method', lensing_method)
             end if
             if (P%WantVectors) then
                 if (P%WantScalars .or. P%WantTensors) then

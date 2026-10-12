@@ -387,8 +387,8 @@
         if (CAMB_Pk%redshifts(itf) < SPk_calibrated_z_min .or. CAMB_Pk%redshifts(itf) > SPk_calibrated_z_max) then
             if (FeedbackLevel > 0 .and. .not. warned_spk_z_outside) then
                 write(*, '(A,F8.3,A,F6.2,A,F6.2,A)') 'WARNING: SP(k) skipped outside calibrated redshift range. z=', &
-                    CAMB_Pk%redshifts(itf), ', &
-                    calibrated range=[', SPk_calibrated_z_min, ',', SPk_calibrated_z_max, '].'
+                    CAMB_Pk%redshifts(itf), ', calibrated range=[', &
+                    SPk_calibrated_z_min, ',', SPk_calibrated_z_max, '].'
                 warned_spk_z_outside = .true.
             end if
             cycle

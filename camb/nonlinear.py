@@ -4,7 +4,14 @@ from ctypes import POINTER, byref, c_bool, c_double, c_int
 import numpy as np
 from numpy.ctypeslib import ndpointer
 
-from .baseconfig import AllocatableObject, CAMBValueError, F2003Class, fortran_class, numpy_1d
+from .baseconfig import (
+    AllocatableObject,
+    CAMBValueError,
+    F2003Class,
+    check_strictly_increasing,
+    fortran_class,
+    numpy_1d,
+)
 
 
 class NonLinearModel(F2003Class):
@@ -439,8 +446,11 @@ class ExternalNonLinearRatio(NonLinearModel):
         """
         k_h = np.ascontiguousarray(k_h, dtype=np.float64)
         z = np.ascontiguousarray(z, dtype=np.float64)
+        ratio = np.asarray(ratio, dtype=np.float64)
+        check_strictly_increasing("k_h", k_h)
+        check_strictly_increasing("z", z)
         if ratio.shape != (len(z), len(k_h)):
-            raise ValueError(f"ratio shape {ratio.shape} must be (len(z), len(k_h)) = ({len(z)}, {len(k_h)})")
+            raise CAMBValueError(f"ratio shape {ratio.shape} must be (len(z), len(k_h)) = ({len(z)}, {len(k_h)})")
         # Fortran expects (nk, nz) column-major; C-order (nz, nk) has the same memory layout
         ratio_f = np.asfortranarray(ratio.T, dtype=np.float64)
         self.f_SetRatio(byref(c_int(len(k_h))), byref(c_int(len(z))), k_h, z, ratio_f)

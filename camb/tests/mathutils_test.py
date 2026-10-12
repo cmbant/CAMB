@@ -25,7 +25,9 @@ from camb.mathutils import (
     phi_olver,
     phi_recurs,
     scalar_coupling_matrix,
+    threej,
     threej_coupling,
+    threej_pt,
 )
 
 
@@ -121,6 +123,22 @@ class MathutilsTest(unittest.TestCase):
         cinv = np.linalg.inv(np.array([[1.2, 3], [3, 18.2]]))
         vec = np.array([0.5, 5.0])
         self.assertAlmostEqual(chi_squared(cinv, vec), cinv.dot(vec).dot(vec))
+        self.assertAlmostEqual(chi_squared(np.asfortranarray(cinv), list(vec)), cinv.dot(vec).dot(vec))
+
+        # out-of-range m must not reach the Fortran routine (which stops the process)
+        self.assertEqual(threej_pt(3, 2, 3, 0, 3, -3), 0)
+        with self.assertRaises(ValueError):
+            threej(2, 3, 3, -3)
+
+        # mask power spectra computed beyond 2*lmax are truncated
+        mask_power = 1 / (1 + np.arange(100.0)) ** 2
+        np.testing.assert_allclose(
+            scalar_coupling_matrix(mask_power, 10), scalar_coupling_matrix(mask_power[:21], 10), rtol=1e-14
+        )
+        for long, short in zip(
+            pcl_coupling_matrix(mask_power, 10, pol=True), pcl_coupling_matrix(mask_power[:21], 10, pol=True)
+        ):
+            np.testing.assert_allclose(long, short, rtol=1e-14)
 
         for function in (phi_recurs, phi_olver):
             with self.assertRaisesRegex(ValueError, "chi must be non-negative"):

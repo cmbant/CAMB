@@ -255,11 +255,15 @@
     end function TSplinedInitialPower_HasTensors
 
     function TSplinedInitialPower_ScalarPower(this, k)
+    use config, only: GlobalError, error_inital_power
     class(TSplinedInitialPower) :: this
     real(dl), intent(in) :: k
     real(dl) TSplinedInitialPower_ScalarPower
 
-    if (k <= this%kmin_scalar) then
+    if (.not. allocated(this%Pscalar)) then
+        call GlobalError('TSplinedInitialPower: scalar power spectrum table not set', error_inital_power)
+        TSplinedInitialPower_ScalarPower = 0
+    else if (k <= this%kmin_scalar) then
         TSplinedInitialPower_ScalarPower = this%Pscalar%F(1)
     else if (k >= this%kmax_scalar) then
         TSplinedInitialPower_ScalarPower = this%Pscalar%F(this%Pscalar%n)
@@ -270,11 +274,15 @@
     end function TSplinedInitialPower_ScalarPower
 
     function TSplinedInitialPower_TensorPower(this, k)
+    use config, only: GlobalError, error_inital_power
     class(TSplinedInitialPower) :: this
     real(dl), intent(in) :: k
     real(dl) TSplinedInitialPower_TensorPower
 
-    if (k <= this%kmin_tensor) then
+    if (.not. allocated(this%Ptensor)) then
+        call GlobalError('TSplinedInitialPower: tensor power spectrum table not set', error_inital_power)
+        TSplinedInitialPower_TensorPower = 0
+    else if (k <= this%kmin_tensor) then
         TSplinedInitialPower_TensorPower = this%Ptensor%F(1)
     else if (k >= this%kmax_tensor) then
         TSplinedInitialPower_TensorPower = this%Ptensor%F(this%Ptensor%n)

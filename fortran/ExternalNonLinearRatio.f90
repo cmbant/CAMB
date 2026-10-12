@@ -68,8 +68,11 @@
     real(dl) :: k_min, k_max, z_min, z_max
     real(dl) :: kh_clamped(CAMB_Pk%num_k), z_work(CAMB_Pk%num_k)
 
-    if (.not. this%ratio_set) &
-        error stop 'ExternalNonLinearRatio: ratio not set. Call SetRatio first.'
+    if (.not. this%ratio_set) then
+        CAMB_Pk%nonlin_ratio = 1
+        call GlobalError('ExternalNonLinearRatio: ratio not set. Call SetRatio first.', error_nonlinear)
+        return
+    end if
 
     ! Get bounds of the ratio grid to clamp values
     k_min = this%Ratio%x(1)
