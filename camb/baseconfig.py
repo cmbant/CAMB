@@ -399,9 +399,9 @@ def check_strictly_increasing(name: str, values, min_points: int = 2, positive: 
     # either error unhelpfully or silently interpolate garbage for non-monotonic or too-short input
     if len(values) < min_points:
         raise CAMBValueError(f"{name} must have at least {min_points} points")
-    if positive and np.any(values <= 0):
+    if positive and values[0] <= 0:  # increasing, so the first value is the smallest
         raise CAMBValueError(f"{name} values must be positive and strictly increasing")
-    if np.any(np.diff(values) <= 0):
+    if not np.all(np.diff(values) > 0):  # also rejects NaN
         raise CAMBValueError(f"{name} must be strictly increasing")
 
 
