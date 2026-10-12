@@ -1181,6 +1181,7 @@ class CAMBparams(F2003Class):
         :param params: another CAMBparams instance
         """
         import difflib
+        from itertools import zip_longest
 
         lines1 = str(params).split("\n")
         lines2 = str(self).split("\n")
@@ -1188,9 +1189,8 @@ class CAMBparams(F2003Class):
         for tag, i1, i2, j1, j2 in difflib.SequenceMatcher(None, lines1, lines2, autojunk=False).get_opcodes():
             if tag == "equal":
                 continue
-            block1, block2 = lines1[i1:i2], lines2[j1:j2]
-            for k in range(max(len(block1), len(block2))):
-                print(block1[k] if k < len(block1) else "", " <-> ", block2[k] if k < len(block2) else "")
+            for line1, line2 in zip_longest(lines1[i1:i2], lines2[j1:j2], fillvalue=""):
+                print(line1, " <-> ", line2)
 
 
 def set_default_params(P):

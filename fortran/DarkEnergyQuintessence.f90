@@ -359,8 +359,7 @@
     if (this%use_zc) then
         if (this%zc >= 1/this%astart - 1) then
             ! the minimizer can hang or crash searching for a peak before the start of integration
-            global_error_flag = error_darkenergy
-            global_error_message = 'TEarlyQuintessence: zc must be less than 1/astart - 1'
+            call GlobalError('TEarlyQuintessence: zc must be less than 1/astart - 1', error_darkenergy)
             return
         end if
         ! Find underlying parameters m,f to give specified zc and fde_zc (peak early dark energy fraction)

@@ -935,9 +935,9 @@ def compile_source_function_code(code_body, file_path="", compiler=None, fflags=
     end function
     """
 
-    import shutil
     import subprocess
     import tempfile
+    from contextlib import nullcontext
 
     from ._compilers import check_gfortran, compiler_environ, is_windows
 
@@ -949,14 +949,13 @@ def compile_source_function_code(code_body, file_path="", compiler=None, fflags=
         if _first_compile:
             check_gfortran(msg=True)
             _first_compile = False
-    if file_path:
-        workdir = os.path.abspath(file_path)
+    # Keep explicit output directories; otherwise use a private temporary directory.
+    with (
+        nullcontext(os.path.abspath(file_path))
+        if file_path
+        else tempfile.TemporaryDirectory(prefix="camb_source_", ignore_cleanup_errors=True)
+    ) as workdir:
         os.makedirs(workdir, exist_ok=True)
-    else:
-        # use a private directory so concurrent processes cannot overwrite each other's generated files
-        workdir = tempfile.mkdtemp(prefix="camb_source_")
-
-    try:
         _source_file_count += 1
         while True:
             name_tag = f"camb_source{_source_file_count}"
@@ -984,10 +983,6 @@ def compile_source_function_code(code_body, file_path="", compiler=None, fflags=
 
         # Had weird crashes when LoadLibrary path was relative to current dir, so dll_name is absolute
         func_lib = ctypes.LibraryLoader(ctypes.CDLL).LoadLibrary(dll_name)
-    finally:
-        if not file_path:
-            # removing the loaded DLL won't work on Windows while it is in use
-            shutil.rmtree(workdir, ignore_errors=True)
 
     if cache:
         _func_cache[code_body] = func_lib
