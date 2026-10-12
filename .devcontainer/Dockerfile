@@ -17,6 +17,7 @@ RUN apt-get update \
     curl \
     g++ \
     gfortran \
+    gh \
     git \
     libgsl-dev \
     make \
