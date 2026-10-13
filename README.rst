@@ -68,26 +68,29 @@ You can refer to the papers::
 
     @article{Lewis:2026mif,
         author = "Lewis, Antony",
-        title = "{CAMB v2: cosmological power spectra for high-precision surveys}",
+        title = "{CAMB~2: cosmological power spectra for high-precision surveys}",
         eprint = "2607.14854",
         archivePrefix = "arXiv",
         primaryClass = "astro-ph.CO",
-        month = "7",
+        doi = "10.1088/1475-7516/2026/10/013",
+        journal = "JCAP",
+        volume = "10",
+        pages = "013",
         year = "2026"
     }
 
     @article{Lewis:1999bs,
-          author         = "Lewis, Antony and Challinor, Anthony and Lasenby, Anthony",
-          title          = "{Efficient computation of CMB anisotropies in closed FRW models}",
-          journal        = "Astrophys. J.",
-          volume         = "538",
-          year           = "2000",
-          pages          = "473-476",
-          doi            = "10.1086/309179",
-          eprint         = "astro-ph/9911177",
-          archivePrefix  = "arXiv",
-          primaryClass   = "astro-ph",
-          SLACcitation   = "%%CITATION = ASTRO-PH/9911177;%%"
+        author         = "Lewis, Antony and Challinor, Anthony and Lasenby, Anthony",
+        title          = "{Efficient computation of CMB anisotropies in closed FRW models}",
+        journal        = "Astrophys. J.",
+        volume         = "538",
+        year           = "2000",
+        pages          = "473-476",
+        doi            = "10.1086/309179",
+        eprint         = "astro-ph/9911177",
+        archivePrefix  = "arXiv",
+        primaryClass   = "astro-ph",
+        SLACcitation   = "%%CITATION = ASTRO-PH/9911177;%%"
     }
 
 and references therein as appropriate.
