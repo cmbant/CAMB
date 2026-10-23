@@ -811,6 +811,93 @@ class CambTest(unittest.TestCase):
             roundtrip = camb.read_ini(ini_path)
             self.assertTrue(roundtrip.Recomb.snap_saha_z)
 
+    def testRecfastLagCorrections(self):
+        # lag_corrections gives every Saha row and the tightly coupled temperature their
+        # equilibrium value plus the first-order lag.  It moves the history only slightly.
+        redshifts = np.geomspace(1.0, 3001.0, 400) - 1.0
+
+        def make_pars(lag_corrections, use_rosenbrock=True, **recomb):
+            pars = def_set_params(H0=67.4, ombh2=0.02237, omch2=0.12, mnu=0.06, tau=0.054, YHe=0.2453)
+            pars.Recomb.lag_corrections = lag_corrections
+            pars.Recomb.use_rosenbrock = use_rosenbrock
+            for name, value in recomb.items():
+                setattr(pars.Recomb, name, value)
+            return pars
+
+        self.assertFalse(new_def_params().Recomb.lag_corrections)
+        # each result is bound to a name: an attribute read straight off a returned object can see freed memory
+        for use_rosenbrock in (True, False):
+            with self.subTest(use_rosenbrock=use_rosenbrock):
+                base = camb.get_background(make_pars(False, use_rosenbrock))
+                base_hist = base.get_background_redshift_evolution(redshifts, vars=["x_e", "T_b"], format="array")
+                res = camb.get_background(make_pars(True, use_rosenbrock))
+                hist = res.get_background_redshift_evolution(redshifts, vars=["x_e", "T_b"], format="array")
+                xe_rel = np.abs(hist[:, 0] / base_hist[:, 0] - 1)
+                self.assertGreater(np.max(xe_rel), 1e-6)
+                self.assertLess(np.max(xe_rel), 2e-3)
+                self.assertLess(np.max(np.abs(hist[:, 1] / base_hist[:, 1] - 1)), 1e-5)
+                theta_rel = res.get_derived_params()["thetastar"] / base.get_derived_params()["thetastar"] - 1
+                self.assertLess(abs(theta_rel), 5e-6)
+                # The Saha rows use the same temperature formula as the integrated rows, so T_m
+                # stays below T_rad with no step where they meet.  The grid resolves a feature
+                # about 14 wide in z, which the 400-point grid above steps over.
+                z_fine = np.linspace(2700.0, 3000.0, 60001)
+                fine = res.get_background_redshift_evolution(z_fine, vars=["T_b"], format="array")[:, 0]
+                self.assertLess(np.max(fine / (res.Params.TCMB * (1 + z_fine)) - 1.0), 0.0)
+
+        # Tm_handover_frac moves the history, and setting it to its default changes nothing.
+        default_pars = make_pars(True, False)
+        self.assertAlmostEqual(default_pars.Recomb.Tm_handover_frac, 3.7e-4)
+        default_run = camb.get_background(default_pars)
+        default_hist = default_run.get_background_redshift_evolution(redshifts, vars=["x_e", "T_b"], format="array")
+        explicit_run = camb.get_background(make_pars(True, False, Tm_handover_frac=3.7e-4))
+        np.testing.assert_array_equal(
+            explicit_run.get_background_redshift_evolution(redshifts, vars=["x_e", "T_b"], format="array"), default_hist
+        )
+        early_run = camb.get_background(make_pars(True, False, Tm_handover_frac=1e-4))
+        early_tb = early_run.get_background_redshift_evolution(redshifts, vars=["T_b"], format="array")[:, 0]
+        self.assertGreater(np.max(np.abs(early_tb / default_hist[:, 1] - 1)), 1e-8)
+
+        # rk45_tol names a number that was hard-coded before, so setting it to that number
+        # changes nothing.
+        self.assertAlmostEqual(default_pars.Recomb.rk45_tol, 3e-6)
+        plain_run = camb.get_background(make_pars(False))
+        tol_run = camb.get_background(make_pars(False, rk45_tol=3e-6))
+        np.testing.assert_array_equal(
+            tol_run.get_background_redshift_evolution(redshifts, vars=["x_e", "T_b"], format="array"),
+            plain_run.get_background_redshift_evolution(redshifts, vars=["x_e", "T_b"], format="array"),
+        )
+
+        # Out-of-range values are reported by validate().  hydrogen_saha_xH may go below
+        # 0.985 only with lag_corrections on, which removes the bare-rate band above it.
+        # Saha_He_end_xHe may go below 0.99 only with lag_corrections off, since the
+        # first-order helium lag overshoots there; exactly 0.99 passes.
+        self.assertTrue(make_pars(True, False, hydrogen_saha_xH=0.98).validate())
+        self.assertTrue(make_pars(True, False, Saha_He_end_xHe=0.99).validate())
+        self.assertTrue(make_pars(False, False, Saha_He_end_xHe=0.98).validate())
+        for lag_corrections, name, bad in [
+            (True, "Saha_He_end_xHe", 0.98),
+            (False, "hydrogen_saha_xH", 0.98),
+            (True, "hydrogen_saha_xH", 1.0),
+            (True, "Tm_handover_frac", 0.0),
+            (True, "Tm_handover_frac", 2e-3),
+            (False, "Saha_He_end_xHe", 1.0),
+            (False, "rk45_tol", 0.0),
+        ]:
+            self.assertFalse(make_pars(lag_corrections, **{name: bad}).validate(), f"{name}={bad} should be refused")
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            ini_path = os.path.join(temp_dir, "recfast_lag.ini")
+            pars = make_pars(True, False, hydrogen_saha_xH=0.995, Saha_He_end_xHe=0.995, Tm_handover_frac=3e-4)
+            pars.write_ini(ini_path)
+            roundtrip = camb.read_ini(ini_path)
+            self.assertTrue(roundtrip.Recomb.lag_corrections)
+            self.assertFalse(roundtrip.Recomb.use_rosenbrock)
+            self.assertAlmostEqual(roundtrip.Recomb.hydrogen_saha_xH, 0.995)
+            self.assertAlmostEqual(roundtrip.Recomb.Saha_He_end_xHe, 0.995)
+            self.assertAlmostEqual(roundtrip.Recomb.Tm_handover_frac, 3e-4)
+            self.assertAlmostEqual(roundtrip.Recomb.rk45_tol, 3e-6)
+
     def testTCMBRecombinationConsistency(self):
         default_tcmb = constants.COBE_CMBTemp
         low_tcmb = 1.7
