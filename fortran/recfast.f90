@@ -294,6 +294,13 @@
         logical  :: use_rosenbrock = RECFAST_use_rosenbrock_default
         real(dl) :: rosenbrock_handoff_xH = RECFAST_rosenbrock_handoff_xH_default
         real(dl) :: rosenbrock_tol = RECFAST_rosenbrock_tol_default
+        ! Off by default.  When on, the rows with 3500 < z_scale <= 5000 use the same
+        ! He++ <-> He+ Saha root as the rows above them, instead of x_e = 1 + fHe.  At
+        ! z_scale = 5000 that root still has about 1.1e-3 of the helium doubly ionized, so
+        ! the constant puts a step of about 9e-5 into x_e there, while the continued root
+        ! reaches 1 + fHe smoothly by z_scale = 3500.  get_init already uses this root down
+        ! to z_scale = 3500.
+        logical  :: heIII_saha_continued = .false.
         type(RecombinationData), allocatable :: Calc
     contains
     procedure :: ReadParams => TRecfast_ReadParams
@@ -405,6 +412,7 @@
     this%use_rosenbrock = Ini%Read_Logical("RECFAST_use_rosenbrock", this%use_rosenbrock)
     this%rosenbrock_handoff_xH = Ini%Read_Double("RECFAST_rosenbrock_handoff_xH", this%rosenbrock_handoff_xH)
     this%rosenbrock_tol = Ini%Read_Double("RECFAST_rosenbrock_tol", this%rosenbrock_tol)
+    this%heIII_saha_continued = Ini%Read_Logical("RECFAST_heIII_saha_continued", this%heIII_saha_continued)
 
     end subroutine TRecfast_ReadParams
 
@@ -675,6 +683,8 @@
             ! Everything ionized above z=8000.  First ionization over by z=5000.
             ! Assume He all singly ionized down to z=3500, then use He Saha until
             ! He is 99% singly ionized, and *then* switch to joint H/He recombination.
+            ! With heIII_saha_continued the He++ <-> He+ Saha root replaces the
+            ! singly ionized assumption down to z=3500.
 
             z = zend
             ainv = 1._dl + z
@@ -694,7 +704,7 @@
                 y(3) = Calc%Tnow
                 y(4) = Calc%Tnow
 
-            else if (z_scale > 5000._dl) then
+            else if (z_scale > 5000._dl .or. (this%heIII_saha_continued .and. z_scale > 3500._dl)) then
 
                 x_H0 = 1._dl
                 x_He0 = 1._dl

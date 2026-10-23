@@ -93,6 +93,16 @@ class Recfast(RecombinationModel):
         ("use_rosenbrock", c_bool),
         ("rosenbrock_handoff_xH", c_double),
         ("rosenbrock_tol", c_double),
+        (
+            "heIII_saha_continued",
+            c_bool,
+            (
+                "continue the He++ <-> He+ Saha root used above z = 5000 down to z = 3500, instead of "
+                "setting x_e = 1 + fHe in between; this removes a step of about 9e-5 in x_e at z = 5000. "
+                "Both cuts apply to z_scale = (1 + z)*TCMB/2.7255 K - 1, so the redshifts scale as "
+                "2.7255 K/TCMB, like RECFAST's other fixed redshift cuts"
+            ),
+        ),
     )
 
     _fortran_class_module_ = "Recombination"
@@ -143,12 +153,14 @@ class Recfast(RecombinationModel):
                 "use_rosenbrock",
                 "rosenbrock_handoff_xH",
                 "rosenbrock_tol",
+                "heIII_saha_continued",
             ),
             rename={
                 "Nz": "RECFAST_nz",
                 "use_rosenbrock": "RECFAST_use_rosenbrock",
                 "rosenbrock_handoff_xH": "RECFAST_rosenbrock_handoff_xH",
                 "rosenbrock_tol": "RECFAST_rosenbrock_tol",
+                "heIII_saha_continued": "RECFAST_heIII_saha_continued",
             },
         )
 

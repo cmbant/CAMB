@@ -749,6 +749,40 @@ class CambTest(unittest.TestCase):
             legacy_roundtrip = camb.read_ini(legacy_ini_path)
             self.assertAlmostEqual(legacy_roundtrip.Recomb.RECFAST_fudge, 1.125)
 
+    def testRecfastHeIIIContinued(self):
+        # heIII_saha_continued keeps the He++ <-> He+ Saha root between z = 5000 and 3500,
+        # where the default sets x_e = 1 + fHe and so leaves a step in x_e at z = 5000.
+        pars = def_set_params(H0=67.4, ombh2=0.0224, omch2=0.12, mnu=0.06)
+        self.assertFalse(pars.Recomb.heIII_saha_continued)
+        nz = pars.Recomb.Nz
+        nodes = 1e4 - np.arange(1, nz + 1, dtype=np.float64) * (1e4 / nz)
+        base = camb.get_background(pars)
+        base_xe = base.get_background_redshift_evolution(nodes, vars=["x_e"], format="array")[:, 0]
+        pars.Recomb.heIII_saha_continued = True
+        cont = camb.get_background(pars)
+        cont_xe = cont.get_background_redshift_evolution(nodes, vars=["x_e"], format="array")[:, 0]
+        between = (nodes > 3600) & (nodes < 4990)
+        # helium is still partly doubly ionized there, by up to about 1e-4 in x_e
+        self.assertTrue(np.all(cont_xe[between] > base_xe[between]))
+        self.assertLess(np.max(cont_xe[between] - base_xe[between]), 2e-4)
+        # nothing changes above z = 5000 or below z = 3400, apart from rounding where
+        # the history is splined across the edges of that range
+        outside = (nodes > 5100) | (nodes < 3400)
+        np.testing.assert_allclose(cont_xe[outside], base_xe[outside], rtol=1e-12, atol=0)
+        # the default's step at z = 5000 is gone: the change across that node is no
+        # larger than the change across its neighbours
+        near = np.abs(nodes - 5000.0) < 25.0
+        jumps = np.abs(np.diff(cont_xe[near]))
+        self.assertLess(np.max(jumps), 3.0 * np.median(jumps))
+        self.assertGreater(np.max(np.abs(np.diff(base_xe[near]))), 10.0 * np.median(jumps))
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            ini_path = os.path.join(temp_dir, "recfast_heiii.ini")
+            pars.write_ini(ini_path)
+            # bound to a name: an attribute read straight off the returned object can see freed memory
+            roundtrip = camb.read_ini(ini_path)
+            self.assertTrue(roundtrip.Recomb.heIII_saha_continued)
+
     def testTCMBRecombinationConsistency(self):
         default_tcmb = constants.COBE_CMBTemp
         low_tcmb = 1.7
