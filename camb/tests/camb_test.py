@@ -783,6 +783,34 @@ class CambTest(unittest.TestCase):
             roundtrip = camb.read_ini(ini_path)
             self.assertTrue(roundtrip.Recomb.heIII_saha_continued)
 
+    def testRecfastSnapSahaZ(self):
+        # snap_saha_z records Recombination_saha_z, where delta x_e starts to be evolved, at the
+        # last output node with x_H > 0.985. At CAMB's defaults the value recorded with the
+        # setting off is that node too, so the spectra do not change even with Evolve_delta_xe on.
+        pars = def_set_params(H0=67.4, ombh2=0.0224, omch2=0.12, mnu=0.06, lmax=1200)
+        self.assertFalse(pars.Recomb.snap_saha_z)
+        pars.Evolve_delta_xe = True
+        base = camb.get_results(pars).get_cmb_power_spectra(CMB_unit="muK")["total"]
+        pars.Recomb.snap_saha_z = True
+        snapped = camb.get_results(pars).get_cmb_power_spectra(CMB_unit="muK")["total"]
+        np.testing.assert_array_equal(snapped, base)
+        # with the explicit solver and the setting off, CAMB records a point between two nodes, so the
+        # recorded redshift moves by less than one node and TT by far less than 1e-8
+        pars.Recomb.use_rosenbrock = False
+        moved = camb.get_results(pars).get_cmb_power_spectra(CMB_unit="muK")["total"]
+        pars.Recomb.snap_saha_z = False
+        unsnapped = camb.get_results(pars).get_cmb_power_spectra(CMB_unit="muK")["total"]
+        self.assertFalse(np.array_equal(moved, unsnapped))
+        np.testing.assert_allclose(moved[2:, 0], unsnapped[2:, 0], rtol=1e-8, atol=0)
+
+        pars.Recomb.snap_saha_z = True
+        with tempfile.TemporaryDirectory() as temp_dir:
+            ini_path = os.path.join(temp_dir, "recfast_snap.ini")
+            pars.write_ini(ini_path)
+            # bound to a name: an attribute read straight off the returned object can see freed memory
+            roundtrip = camb.read_ini(ini_path)
+            self.assertTrue(roundtrip.Recomb.snap_saha_z)
+
     def testTCMBRecombinationConsistency(self):
         default_tcmb = constants.COBE_CMBTemp
         low_tcmb = 1.7

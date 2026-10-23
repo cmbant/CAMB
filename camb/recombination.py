@@ -103,6 +103,15 @@ class Recfast(RecombinationModel):
                 "2.7255 K/TCMB, like RECFAST's other fixed redshift cuts"
             ),
         ),
+        (
+            "snap_saha_z",
+            c_bool,
+            (
+                "record Recombination_saha_z, the redshift below which the delta x_e perturbation is "
+                "evolved when Evolve_delta_xe is on, at the last output node with x_H > 0.985 on every "
+                "path, instead of wherever the integrator steps inside 0.985 < x_H < 0.99"
+            ),
+        ),
     )
 
     _fortran_class_module_ = "Recombination"
@@ -154,6 +163,7 @@ class Recfast(RecombinationModel):
                 "rosenbrock_handoff_xH",
                 "rosenbrock_tol",
                 "heIII_saha_continued",
+                "snap_saha_z",
             ),
             rename={
                 "Nz": "RECFAST_nz",
@@ -161,6 +171,7 @@ class Recfast(RecombinationModel):
                 "rosenbrock_handoff_xH": "RECFAST_rosenbrock_handoff_xH",
                 "rosenbrock_tol": "RECFAST_rosenbrock_tol",
                 "heIII_saha_continued": "RECFAST_heIII_saha_continued",
+                "snap_saha_z": "RECFAST_snap_saha_z",
             },
         )
 

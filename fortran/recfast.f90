@@ -301,6 +301,12 @@
         ! reaches 1 + fHe smoothly by z_scale = 3500.  get_init already uses this root down
         ! to z_scale = 3500.
         logical  :: heIII_saha_continued = .false.
+        ! Off by default.  When on, Recombination_saha_z, the redshift below which the
+        ! delta x_e perturbation is evolved when Evolve_delta_xe is on, is recorded at the
+        ! last output node with x_H > 0.985, whichever branch produced that node.  When off,
+        ! the Rosenbrock rows record it at their nodes and the right-hand side records it
+        ! wherever the integrator steps inside 0.985 < x_H < 0.99.
+        logical  :: snap_saha_z = .false.
         type(RecombinationData), allocatable :: Calc
     contains
     procedure :: ReadParams => TRecfast_ReadParams
@@ -413,6 +419,7 @@
     this%rosenbrock_handoff_xH = Ini%Read_Double("RECFAST_rosenbrock_handoff_xH", this%rosenbrock_handoff_xH)
     this%rosenbrock_tol = Ini%Read_Double("RECFAST_rosenbrock_tol", this%rosenbrock_tol)
     this%heIII_saha_continued = Ini%Read_Logical("RECFAST_heIII_saha_continued", this%heIII_saha_continued)
+    this%snap_saha_z = Ini%Read_Logical("RECFAST_snap_saha_z", this%snap_saha_z)
 
     end subroutine TRecfast_ReadParams
 
@@ -797,6 +804,10 @@
                 x0 = y(1) + Calc%fHe*y(2)
 
             end if
+
+            ! With snap_saha_z the perturbations switch from the Saha-derived delta x_e to the
+            ! evolved one at the last node with x_H > 0.985, whichever branch produced it.
+            if (this%snap_saha_z .and. y(1) > 0.985d0) Calc%Recombination_saha_z = zend
 
             ainv = 1._dl + zend
             Trad = Calc%Tnow*ainv
@@ -1379,7 +1390,7 @@
             f(1) = 0._dl
         else if (x_H > 0.985d0) then
             f(1) = A_H/denH
-            Recomb%Recombination_saha_z = z
+            if (.not. this%snap_saha_z) Recomb%Recombination_saha_z = z
         else
             B_H = 1.d0 + K*Lambda*n*(1.d0 - x_H)
             C_H = 1.d0/Recomb%fu + K*Lambda*n*(1.d0 - x_H)/Recomb%fu + K*Rup*n*(1.d0 - x_H)
