@@ -582,10 +582,11 @@
         k_per_logint = CP%Transfer%k_per_logint
         if (CP%Transfer%high_precision) boost = boost*1.5
 
-        q_switch_lowk1 = 0.7/State%taurst
+        ! cap at kmax: InitVars starts the thermal history at GetTauStart(1.05*kmax) when no C_l are wanted
+        q_switch_lowk1 = min(CP%Transfer%kmax, 0.7/State%taurst)
         dlog_lowk1 = max(2*boost, k_per_logint)
 
-        q_switch_lowk = 8/State%taurst
+        q_switch_lowk = min(CP%Transfer%kmax, 8/State%taurst)
         dlog_lowk = max(8*boost*2.5, k_per_logint)
 
         q_switch_osc = min(CP%Transfer%kmax, 30/State%taurst)
@@ -1094,6 +1095,7 @@
             ThisSources%LinearSrc(EV%q_ix, :, j) = 0
         else
             call GaugeInterface_EvolveTens(EV, tau, yt, tauend, tol, ind, rk_settings, wt)
+            if (global_error_flag /= 0) return
 
             call outputt(EV, yt, EV%nvart, tau, ThisSources%LinearSrc(EV%q_ix, CT_Temp, j), &
                 ThisSources%LinearSrc(EV%q_ix, CT_E, j), ThisSources%LinearSrc(EV%q_ix, CT_B, j))

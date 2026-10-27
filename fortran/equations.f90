@@ -215,6 +215,12 @@
     real(dl) w(EV%nvar, 9), y(EV%nvar), tol1, tau, tauend
     integer ind
 
+    if (ind == 1) then
+        ! ind = 1 makes RungeKuttaDP45 reset every setting to its default (max_step_size=20), discarding the
+        ! limit set below for the whole first segment after each (re)start. Reset here and use ind = 2 instead.
+        rk_settings = RungeKuttaDP45Settings()
+        ind = 2
+    end if
     if (EV%q < 2e-3_dl .and. tau <= State%taurend .and. CP%WantCls) then
         rk_settings%max_step_size = 2._dl
     else
@@ -471,6 +477,10 @@
         if (EV%TightSwitchoffTime > tau) then
             call RungeKuttaDP45(EV, EV%TensEqsToPropagate, derivst, tau, y, EV%TightSwitchoffTime, tol1, ind, &
                 rk_settings, EV%nvart, w)
+            if (ind == -3) then
+                call TensorEvolutionError
+                return
+            end if
         end if
         EVOut = EV
         EVOut%TensTightCoupling = .false.
@@ -486,6 +496,16 @@
     end if
 
     call RungeKuttaDP45(EV, EV%TensEqsToPropagate, derivst, tau, y, tauend, tol1, ind, rk_settings, EV%nvart, w)
+    if (ind == -3) call TensorEvolutionError
+
+    contains
+
+    subroutine TensorEvolutionError
+    ! as in GaugeInterface_ScalEv: without this the next call with ind = -3 aborts inside RungeKuttaDP45
+    call GlobalError('RungeKuttaDP45 error -3 in tensor evolution: the subroutine was unable to satisfy the ' &
+        // 'error requirement with a step-size less than or equal to hmin, which may mean that tol is too small', &
+        error_evolution)
+    end subroutine TensorEvolutionError
 
     end subroutine GaugeInterface_EvolveTens
 
@@ -2562,7 +2582,7 @@
             ! l = 2
             ix = EV%polind + 2
             if (EV%lmaxgpol > 2) then
-                ayprime(ix) = -opacity*(ay(ix) - polter) - k/3._dl*ay(ix + 1)
+                ayprime(ix) = -opacity*(ay(ix) - polter) - k/3._dl*EV%Kf(2)*ay(ix + 1)
                 do l = 3, EV%lmaxgpol - 1
                     ix = ix + 1
                     ayprime(ix) = -opacity*ay(ix) + (EV%denlk(l)*ay(ix - 1) - EV%polfack(l)*ay(ix + 1))
@@ -2692,7 +2712,8 @@
 
                     !  21cm Polarization
                     ! l = 2
-                    ayprime(lineoffpol + 2) = -opacity*(ay(lineoffpol + 2) - polter_line) - k/3._dl*ay(lineoffpol + 3)
+                    ayprime(lineoffpol + 2) = -opacity*(ay(lineoffpol + 2) - polter_line) &
+                        - k/3._dl*EV%Kf(2)*ay(lineoffpol + 3)
                     ! and the rest
                     do l = 3, EV%lmaxline - 1
                         ayprime(lineoffpol + l) = -opacity*ay(lineoffpol + l) + EV%denlk(l)*ay(lineoffpol + l - 1) - &
@@ -2910,7 +2931,9 @@
                     ! We include the lensing factor of two here
                 end if
             end if
-            if (State%num_redshiftwindows > 0) then
+            if (State%num_redshiftwindows > 0 .and. size(EV%OutputSources) > 3) then
+                ! Window sources need room in OutputSources and EV%OutputStep on the TimeSteps grid; the time
+                ! evolution (GetOutputEvolutionFork) passes only the 3 CMB sources, with OutputStep = 0
                 call output_window_sources(EV, EV%OutputSources, ay, ayprime, &
                     tau, a, adotoa, grho, gpres, &
                     k, etak, z, ayprime(ix_etak), phi, phidot, sigma, sigmadot, &
