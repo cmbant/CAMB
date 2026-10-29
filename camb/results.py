@@ -350,6 +350,10 @@ class CAMBdata(F2003Class):
         :return: non-zero if error, zero if OK
         """
         self._check_params(params)
+        if ctypes.addressof(params) == ctypes.addressof(self.Params):
+            # self.Params is a view of the Fortran CAMBdata%CP, which CAMB_GetResults overwrites between its
+            # tensor, vector and scalar passes, so pass a copy
+            params = params.copy()
         if not (only_transfers or only_time_sources):
             self._check_powers(params)
         if CAMBdata_gettransfers(
@@ -573,9 +577,13 @@ class CAMBdata(F2003Class):
         """
 
         old_boost = self.Params.Accuracy.lAccuracyBoost
+        old_want_scalars = self.Params.WantScalars
         try:
             if lAccuracyBoost:
                 self.Params.Accuracy.lAccuracyBoost = lAccuracyBoost
+            # the evolution is of scalar modes; a transfer-only or tensor-only run leaves WantScalars False,
+            # and GetNumEqns then leaves the scalar hierarchy sizes unset
+            self.Params.WantScalars = True
             if not isinstance(vars, (tuple, list)):
                 vars = [vars]
             import sympy
@@ -640,6 +648,7 @@ class CAMBdata(F2003Class):
             outputs = outputs[:, i_rev, :]
         finally:
             self.Params.Accuracy.lAccuracyBoost = old_boost
+            self.Params.WantScalars = old_want_scalars
         if np.isscalar(q):
             return outputs[0, :, :][:, ix]
         else:

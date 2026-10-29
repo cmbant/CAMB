@@ -785,6 +785,7 @@
     real(dl) taustart
     type(EvolutionVars) :: EV
     type(TCustomSourceParams) :: Old
+    logical :: want_tensors, want_vectors
 
     global_error_flag = 0
     outputs = 0
@@ -802,6 +803,12 @@
 
     taustart = min(times(1), GetTauStart(maxval(q)))
     if (taustart < this%ThermoData%tauminn) call this%ThermoData%Init(this, taustart)
+    ! Scalar modes only: with WantTensors, GetNumEqns would set up the tensor indices in the same EV,
+    ! overwriting the scalar g_ix and r_ix (as in CAMB_TransfersToPowers)
+    want_tensors = this%CP%WantTensors
+    want_vectors = this%CP%WantVectors
+    this%CP%WantTensors = .false.
+    this%CP%WantVectors = .false.
     !$OMP PARALLEL DO DEFAULT(SHARED), SCHEDULE(DYNAMIC), PRIVATE(EV, q_ix)
     do q_ix = 1, nq
         if (global_error_flag == 0) then
@@ -815,6 +822,8 @@
         end if
     end do
     !$OMP END PARALLEL DO
+    this%CP%WantTensors = want_tensors
+    this%CP%WantVectors = want_vectors
     if (ncustomsources > 0) State%CP%CustomSources = Old
     err = global_error_flag
 

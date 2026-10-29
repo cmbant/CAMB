@@ -1,3 +1,4 @@
+import logging
 from ctypes import POINTER, byref, c_bool, c_double, c_int
 
 from .baseconfig import (
@@ -11,6 +12,8 @@ from .baseconfig import (
     np,
     numpy_1d,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class DarkEnergyModel(F2003Class):
@@ -113,6 +116,10 @@ class DarkEnergyFluid(DarkEnergyEqnOfState):
     Class implementing the w, wa or splined w(a) parameterization using the constant sound-speed single fluid model
     (as for single-field quintessence).
 
+    The velocity equation is singular as w -> -1, so the fluid velocity perturbation is held fixed where
+    abs(1 + w) <= 5e-7 and switched on smoothly up to abs(1 + w) = 1e-6. Models whose w(a) only comes within
+    ~1e-6 of -1 over part of the evolution can therefore be significantly biased on large scales.
+
     """
 
     _fortran_class_module_ = "DarkEnergyFluid"
@@ -128,6 +135,12 @@ class DarkEnergyFluid(DarkEnergyEqnOfState):
         # Check that the w array does not cross -1.
         if np.sign(1 + np.max(w)) - np.sign(1 + np.min(w)) == 2:
             raise CAMBError("fluid dark energy model does not support w crossing -1")
+        one_plus_w = np.abs(1 + np.asarray(w))
+        if np.min(one_plus_w) < 1e-6 < np.max(one_plus_w):
+            logger.warning(
+                "fluid dark energy: abs(1 + w) goes below 1e-6, where the fluid velocity is frozen; "
+                "results are biased on large scales"
+            )
         return super().set_w_a_table(a, w)
 
 

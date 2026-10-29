@@ -118,7 +118,8 @@
     real(dl), intent(inout) :: ayprime(:)
     real(dl), intent(in) :: a, adotoa, w, k, z, y(:)
     integer, intent(in) :: w_ix
-    real(dl) Hv3_over_k, loga, one_plus_w
+    real(dl) Hv3_over_k, loga, one_plus_w, ramp
+    real(dl), parameter :: w_freeze = 1e-6_dl
 
     one_plus_w = 1 + w
     Hv3_over_k = 3*adotoa*y(w_ix + 1)/k
@@ -134,10 +135,14 @@
     else if (this%wa /= 0) then
         ayprime(w_ix) = ayprime(w_ix) + Hv3_over_k*this%wa*adotoa*a
     end if
-    ! velocity
-    if (abs(one_plus_w) > 1e-6) then
+    ! velocity: the equation is singular as 1 + w -> 0, so the velocity is frozen for abs(1 + w) <= w_freeze/2.
+    ! Between w_freeze/2 and w_freeze it is switched on continuously (cubic smoothstep): a jump in the derivatives
+    ! where w(a) crosses the threshold stops RungeKuttaDP45 (error -3) at tight tolerances.
+    ramp = (abs(one_plus_w) - w_freeze/2)/(w_freeze/2)
+    if (ramp > 0) then
         ayprime(w_ix + 1) = -adotoa*(1 - 3*this%cs2_lam)*y(w_ix + 1) + &
             k*this%cs2_lam*y(w_ix)/one_plus_w
+        if (ramp < 1) ayprime(w_ix + 1) = ramp**2*(3 - 2*ramp)*ayprime(w_ix + 1)
     else
         ayprime(w_ix + 1) = 0
     end if

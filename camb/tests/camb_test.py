@@ -848,6 +848,57 @@ class CambTest(unittest.TestCase):
         ix = 1
         self.assertAlmostEqual(transfer_k2[ix] * kh[ix] ** 2 * (pars.H0 / 100) ** 2, ev[ix, 1, 0], 4)
 
+    def testEvolutionRunSettings(self):
+        # time evolution is of scalar modes, whatever modes the stored run wanted
+        pars = def_set_params(H0=67.5, ombh2=0.022, omch2=0.122, As=2e-9, ns=0.965, silent=True)
+        ks, times = [0.01, 0.1], [100.0, 1000.0, 10000.0]
+        ref = camb.get_background(pars).get_time_evolution(ks, times, ["delta_cdm", "delta_photon"])
+        pars_t = pars.copy()
+        pars_t.WantTensors = True
+        ev = camb.get_background(pars_t).get_time_evolution(ks, times, ["delta_cdm", "delta_photon"])
+        np.testing.assert_array_equal(ev, ref)
+
+        pars_k = pars.copy()
+        pars_k.WantCls = False
+        pars_k.set_matter_power(redshifts=[0.0], kmax=0.5)
+        ref = camb.get_results(pars_k).get_time_evolution(ks, times, ["delta_cdm"])
+        pars_k.WantScalars = False
+        results = camb.get_results(pars_k)
+        np.testing.assert_allclose(results.get_time_evolution(ks, times, ["delta_cdm"]), ref, rtol=1e-6)
+        self.assertFalse(results.Params.WantScalars)
+
+        # first output time before the thermal history table re-initialises it, also with source windows
+        pars_w = pars.copy()
+        pars_w.SourceWindows = [sources.GaussianSourceWindow(redshift=0.5, source_type="counts", sigma=0.1)]
+        times = [1e-6, 200.0, 1000.0]
+        ref = camb.get_background(pars).get_time_evolution([10.0], times, ["delta_cdm"])
+        np.testing.assert_array_equal(camb.get_background(pars_w).get_time_evolution([10.0], times, ["delta_cdm"]), ref)
+
+    def testTransferOnlyEdgeCases(self):
+        pars = def_set_params(H0=67.5, ombh2=0.022, omch2=0.122, As=2e-9, ns=0.965, silent=True)
+        pars.WantCls = False
+        # kmax below the internal low-k node spacing
+        pars.set_matter_power(redshifts=[0.0], kmax=0.01)
+        _, _, pk = camb.get_results(pars).get_linear_matter_power_spectrum()
+        self.assertTrue(np.all(np.isfinite(pk)) and np.all(pk > 0))
+
+        # source windows are ignored (not used uninitialised) when no C_l are wanted
+        pars.set_matter_power(redshifts=[0.0], kmax=0.5)
+        ref = camb.get_results(pars).get_matter_transfer_data().transfer_data
+        zstar = camb.get_background(pars).get_derived_params()["zstar"]
+        pars.SourceWindows = [sources.GaussianSourceWindow(redshift=0.5, source_type="counts", sigma=0.1)]
+        np.testing.assert_array_equal(camb.get_results(pars).get_matter_transfer_data().transfer_data, ref)
+        self.assertEqual(camb.get_background(pars).get_derived_params()["zstar"], zstar)
+
+    def testCalcPowerSpectraOwnParams(self):
+        # results.Params is a view of the Fortran parameters, which are reset between the tensor and scalar passes
+        pars = def_set_params(H0=67.5, ombh2=0.022, omch2=0.122, As=2e-9, ns=0.965, r=0.1, lmax=600, silent=True)
+        results = camb.get_results(pars)
+        ref = results.get_cmb_power_spectra(CMB_unit="muK")["total"]
+        results.calc_power_spectra(results.Params)
+        np.testing.assert_allclose(results.get_cmb_power_spectra(CMB_unit="muK")["total"], ref, rtol=1e-10)
+        self.assertTrue(results.Params.WantScalars and results.Params.WantTensors)
+
     def testInstances(self):
         pars = def_set_params(H0=69.1, ombh2=0.032, omch2=0.122, As=3e-9, ns=0.91, omk=0.013, redshifts=[0.0], kmax=0.5)
         data = camb.get_background(pars)
@@ -1200,6 +1251,9 @@ class CambTest(unittest.TestCase):
                 np.testing.assert_allclose(C1[f][2:, 0], C2[f][2:, 0], rtol=1e-4, atol=5e-14)
             pars3 = pars2.copy()
             self.assertAlmostEqual(-0.7, pars3.DarkEnergy.w)
+        a = np.logspace(-5, 0, 200)
+        with self.assertLogs("camb.dark_energy", level="WARNING"):
+            dark_energy.DarkEnergyFluid().set_w_a_table(a, -1 + 1e-7 + 0.5 * (0.5 - a) ** 2)
 
     def testInitialPower(self):
         pars = new_def_params()

@@ -544,7 +544,8 @@
         end if
     end if
     if (allocated(this%CP%SourceWindows) .and. .not. back_only) then
-        if (.not. this%CP%WantScalars) then
+        if (.not. (this%CP%WantScalars .and. this%CP%WantCls)) then
+            ! Redshift_W is only allocated (below) when C_l are wanted
             this%num_redshiftwindows = 0
         else
             this%num_redshiftwindows = size(this%CP%SourceWindows)
@@ -2032,13 +2033,16 @@
     this%dlntau_inv = 1/this%dlntau
     allocate(spline_data(nthermo), sdotmu(nthermo), dcs2(nthermo))
 
-    if (allocated(this%tb) .and. this%nthermo /= size(this%tb)) then
-        deallocate(this%ScaleFactor, this%cs2, this%ddotmu)
-        deallocate(this%adot, this%dadot)
-        deallocate(this%tb, this%xe, this%emmu, this%dotmu)
-        deallocate(this%demmu, this%dddotmu, this%ddddotmu)
-        deallocate(this%thermo_horner)
-        if (dowinlens .and. allocated(this%winlens)) deallocate(this%winlens, this%dwinlens)
+    if (allocated(this%tb)) then
+        ! nested: .and. does not short-circuit, and size() of an unallocated array is invalid
+        if (this%nthermo /= size(this%tb)) then
+            deallocate(this%ScaleFactor, this%cs2, this%ddotmu)
+            deallocate(this%adot, this%dadot)
+            deallocate(this%tb, this%xe, this%emmu, this%dotmu)
+            deallocate(this%demmu, this%dddotmu, this%ddddotmu)
+            deallocate(this%thermo_horner)
+            if (dowinlens .and. allocated(this%winlens)) deallocate(this%winlens, this%dwinlens)
+        end if
     end if
     if (.not. allocated(this%tb)) then
         allocate(this%ScaleFactor(nthermo), this%cs2(nthermo), this%ddotmu(nthermo))
@@ -2801,6 +2805,11 @@
         allocate(this%step_redshift(nstep), this%rhos_fac(nstep), this%drhos_fac(nstep))
         do i = 1, State%num_redshiftwindows
             associate(win => State%Redshift_W(i))
+                ! Thermo_Init can run again on the same State (time evolution starting before tauminn)
+                if (allocated(win%winF)) deallocate(win%winF, win%wing, win%dwing, win%ddwing, win%winV, &
+                    win%dwinV, win%ddwinV, win%win_lens, win%wing2, win%dwing2, win%ddwing2, win%wingtau, &
+                    win%dwingtau, win%ddwingtau)
+                if (allocated(win%comoving_density_ev)) deallocate(win%comoving_density_ev)
                 allocate(win%winF(nstep), win%wing(nstep), win%dwing(nstep), win%ddwing(nstep), &
                     win%winV(nstep), win%dwinV(nstep), win%ddwinV(nstep))
                 allocate(win%win_lens(nstep), win%wing2(nstep), win%dwing2(nstep), win%ddwing2(nstep))
