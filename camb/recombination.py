@@ -93,6 +93,73 @@ class Recfast(RecombinationModel):
         ("use_rosenbrock", c_bool),
         ("rosenbrock_handoff_xH", c_double),
         ("rosenbrock_tol", c_double),
+        (
+            "heIII_saha_continued",
+            c_bool,
+            (
+                "continue the He++ <-> He+ Saha root used above z = 5000 down to z = 3500, instead of "
+                "setting x_e = 1 + fHe in between; this removes a step of about 9e-5 in x_e at z = 5000. "
+                "Both cuts apply to z_scale = (1 + z)*TCMB/2.7255 K - 1, so the redshifts scale as "
+                "2.7255 K/TCMB, like RECFAST's other fixed redshift cuts"
+            ),
+        ),
+        (
+            "snap_saha_z",
+            c_bool,
+            (
+                "record Recombination_saha_z, the redshift below which the delta x_e perturbation is "
+                "evolved when Evolve_delta_xe is on, at the last output node with x_H > 0.985 on every "
+                "path, instead of wherever the integrator steps inside 0.985 < x_H < 0.99"
+            ),
+        ),
+        (
+            "lag_corrections",
+            c_bool,
+            (
+                "start each quantity that RECFAST sets by a Saha row or by tight coupling from its "
+                "equilibrium value plus the first-order lag (dx_eq/dz)/J, without the fitted dH/dz: "
+                "T_m = T_rad*(1 - H t_C/(1 + 2 H t_C)) while H t_C < Tm_handover_frac, where t_C is the "
+                "Compton cooling time; heIII_saha_continued and snap_saha_z; the lag on the helium "
+                "Saha rows; and either the lag on the hydrogen Saha rows (use_rosenbrock=F) or the full "
+                "hydrogen equation after the helium Saha rows (use_rosenbrock=T). Off by default, and "
+                "results are unchanged when off"
+            ),
+        ),
+        (
+            "Tm_handover_frac",
+            c_double,
+            (
+                "with lag_corrections, the algebraic matter temperature hands over to the full "
+                "temperature equation once H t_C > Tm_handover_frac, where H is the Hubble rate and t_C "
+                "the Compton cooling time, so the threshold is the handover value of the formula's small "
+                "parameter in any background. The default 3.7e-4 hands over at z = 855 in LCDM, close to "
+                "where CAMB's tight-coupling test ends with lag_corrections off; 1e-4 is more accurate"
+            ),
+        ),
+        (
+            "hydrogen_saha_xH",
+            c_double,
+            (
+                "hydrogen fraction above which a row of the explicit integrator sets x_H from Saha "
+                "instead of integrating it; the default is 0.99. Without lag_corrections the band "
+                "0.985 < x_H < hydrogen_saha_xH is integrated with the bare recombination rate, so the "
+                "value must then be above 0.985"
+            ),
+        ),
+        (
+            "Saha_He_end_xHe",
+            c_double,
+            (
+                "singly ionized helium fraction at which the helium Saha rows stop and joint integration "
+                "begins; non-positive uses the default 0.99. With lag_corrections on, validate() "
+                "refuses a positive value below 0.99, where the first-order lag overshoots"
+            ),
+        ),
+        (
+            "rk45_tol",
+            c_double,
+            "input tolerance for the RungeKuttaDP45 recombination solver, divided by Accuracy.IntTolBoost at run time",
+        ),
     )
 
     _fortran_class_module_ = "Recombination"
@@ -143,12 +210,26 @@ class Recfast(RecombinationModel):
                 "use_rosenbrock",
                 "rosenbrock_handoff_xH",
                 "rosenbrock_tol",
+                "heIII_saha_continued",
+                "snap_saha_z",
+                "lag_corrections",
+                "Tm_handover_frac",
+                "hydrogen_saha_xH",
+                "Saha_He_end_xHe",
+                "rk45_tol",
             ),
             rename={
                 "Nz": "RECFAST_nz",
                 "use_rosenbrock": "RECFAST_use_rosenbrock",
                 "rosenbrock_handoff_xH": "RECFAST_rosenbrock_handoff_xH",
                 "rosenbrock_tol": "RECFAST_rosenbrock_tol",
+                "heIII_saha_continued": "RECFAST_heIII_saha_continued",
+                "snap_saha_z": "RECFAST_snap_saha_z",
+                "lag_corrections": "RECFAST_lag_corrections",
+                "Tm_handover_frac": "RECFAST_Tm_handover_frac",
+                "hydrogen_saha_xH": "RECFAST_hydrogen_saha_xH",
+                "Saha_He_end_xHe": "RECFAST_Saha_He_end_xHe",
+                "rk45_tol": "RECFAST_rk45_tol",
             },
         )
 
