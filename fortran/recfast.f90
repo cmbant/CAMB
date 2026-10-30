@@ -251,36 +251,24 @@
     real(dl), parameter :: RECFAST_rosenbrock_ion_scale_floor = 1.e-3_dl
     ! Tuned for the fast handoff path; full-range Rosenbrock should use a tighter tol.
     real(dl), parameter :: RECFAST_rosenbrock_tol_default = 3.e-4_dl
-    ! Input tolerance for RungeKuttaDP45, divided by Accuracy%IntTolBoost at run
-    ! time.  Exposed so the recombination solver can be tightened on its own.
-    ! Raising IntTolBoost instead also tightens unrelated background integrals,
-    ! which slows the run down and produces convergence warnings from them.
-    real(dl), parameter :: RECFAST_rk45_tol_default = 3.e-6_dl
     integer, parameter :: RECFAST_rosenbrock_max_steps = 4096
 
-    ! lag_corrections only: the algebraic temperature hands over to the full temperature
-    ! equation once H t_C exceeds this, where H is the Hubble rate and t_C the Compton
-    ! cooling time.  H t_C is the small parameter of the algebraic formula, so the
-    ! threshold is its value at the handover, in any background.  In LCDM the default
-    ! hands over at z = 855, close to where the tight-coupling test used with
-    ! lag_corrections off ends (z = 847, where H t_C = 4.3e-4).  1e-4 hands over at
-    ! z = 934 and is more accurate.
-    real(dl), parameter :: RECFAST_Tm_handover_frac_default = 3.7e-4_dl
+    ! Explicit solver (use_rosenbrock = F) only: the algebraic temperature hands over to
+    ! the full temperature equation once H t_C exceeds this, where H is the Hubble rate
+    ! and t_C the Compton cooling time.  H t_C is the small parameter of the algebraic
+    ! formula, so the threshold is its value at the handover, in any background.  In LCDM
+    ! it hands over at z = 855, close to where the default solver's tight-coupling test
+    ! ends (z = 847, where H t_C = 4.3e-4).
+    real(dl), parameter :: RECFAST_Tm_handover_frac = 3.7e-4_dl
 
-    ! Singly ionized helium fraction x_He = y(2) at which the helium Saha rows stop and
-    ! joint H/He integration begins.  Written as a default-real literal on purpose.
-    ! CAMB 2.0.5 compares y(2) with the single-precision 0.99, which promotes to a
-    ! double slightly above 0.99_dl, and this default keeps that comparison bit for bit.
-    real(dl), parameter :: RECFAST_Saha_He_end_xHe_default = 0.99
+    ! Singly ionized helium fraction x_He at which the helium Saha rows stop and joint
+    ! H/He integration begins.  A default-real literal, as in the test it replaces, so
+    ! that test is bit for bit unchanged.
+    real(dl), parameter :: RECFAST_Saha_He_end_xHe = 0.99
 
-    ! lag_corrections only: Validate refuses a positive Saha_He_end_xHe below this.  It is
-    ! a double so that a value of exactly 0.99 passes, since the default above is the
-    ! single-precision 0.99, which is slightly larger.
-    real(dl), parameter :: RECFAST_Saha_He_end_xHe_lag_min = 0.99_dl
-
-    ! lag_corrections only: helium Saha rows whose equilibrium value is above this get no
-    ! lag correction.  The lag there is at most about 1e-7 in x_e.  At the default Nz and
-    ! Saha_He_end_xHe = 0.99 the gate leaves 41 of the 142 helium Saha rows to correct.
+    ! Explicit solver only: helium Saha rows whose equilibrium value is above this get no
+    ! lag correction.  The lag there is at most about 1e-7 in x_e.  At the default Nz the
+    ! gate leaves 41 of the 142 helium Saha rows to correct.
     real(dl), parameter :: RECFAST_He_lag_xHe_max = 0.999_dl
 
     type RecombinationData
@@ -297,23 +285,19 @@
         real(dl), private :: HO, Tnow, fu
         integer, private :: n_eq = 3
         logical :: doTspin = .false.
-        ! The parts of lag_corrections that depend on the solver, set when the history is
-        ! computed.  hydrogen_lag (use_rosenbrock = F) corrects the hydrogen Saha rows, and
-        ! full_hydrogen_ode (use_rosenbrock = T) integrates the full hydrogen equation.
-        logical :: hydrogen_lag = .false.
-        logical :: full_hydrogen_ode = .false.
+        ! The three flags below are used only by the explicit solver (use_rosenbrock = F).
         ! True while the matter temperature is being evaluated algebraically.
         ! Latched, not re-tested inside a step, so a single integrator step never
         ! changes which temperature branch the right-hand side uses.
         logical :: algebraic_Tm_active = .false.
-        ! True during the step of a hydrogen Saha row when hydrogen_lag is on, so the whole
-        ! step moves x_H along the Saha slope, whatever value x_H takes part-way through it.
+        ! True during the step of a hydrogen Saha row, so the whole step moves x_H along the
+        ! Saha slope, whatever value x_H takes part-way through it.
         logical :: hydrogen_saha_slope_active = .false.
-        ! True only while hydrogen_lag redoes a row whose value is not above hydrogen_saha_xH,
-        ! so that row integrates the full hydrogen equation.  The redone row starts with x_H
-        ! above hydrogen_saha_xH, where the right-hand side otherwise holds x_H fixed
-        ! (f(1) = 0).  Without this flag x_H could not leave the Saha region, every later row
-        ! would be redone in turn, and the history would stall at the threshold.
+        ! True only while a row whose value is not above 0.99 is redone, so that row
+        ! integrates the full hydrogen equation.  The redone row starts with x_H above
+        ! 0.99, where the right-hand side otherwise holds x_H fixed (f(1) = 0).  Without
+        ! this flag x_H could not leave the Saha region, every later row would be redone in
+        ! turn, and the history would stall at the threshold.
         logical :: full_hydrogen_row = .false.
 
         ! The following only used for approximations where small effect
@@ -339,61 +323,21 @@
         real(dl) :: wGauss1 = 0.1638966410d0 ! Width of 1st Gaussian
         real(dl) :: wGauss2 = 0.2785834127d0 ! Width of 2nd Gaussian
         integer  :: Nz = RECFAST_nz_default
+        ! With use_rosenbrock = F each quantity that RECFAST sets by a Saha row or by tight
+        ! coupling is given its equilibrium value plus the first-order lag
+        ! delta = (dx_eq/dz)/J, with J = d(dx/dz)/dx at equilibrium, until it is integrated:
+        !   T_m = T_rad*(1 - H t_C/(1 + 2 H t_C)) on the Saha rows and the integrated rows
+        !     until H t_C > RECFAST_Tm_handover_frac, then the full temperature equation,
+        !     so the fitted dH/dz of the tight-coupling temperature equation is not used;
+        !   the lag on the helium Saha rows (HeliumLag);
+        !   the hydrogen Saha rows include helium's electrons, follow the Saha slope through
+        !     each step and add the lag (HydrogenLag).  A row whose value is not above 0.99
+        !     is redone with the full hydrogen equation, and x_H < 0.99 is integrated with
+        !     the full Peebles rate instead of the bare recombination rate;
+        !   Recombination_saha_z is recorded at the last output node with x_H > 0.985.
         logical  :: use_rosenbrock = RECFAST_use_rosenbrock_default
         real(dl) :: rosenbrock_handoff_xH = RECFAST_rosenbrock_handoff_xH_default
         real(dl) :: rosenbrock_tol = RECFAST_rosenbrock_tol_default
-        ! Off by default.  When on, the rows with 3500 < z_scale <= 5000 use the same
-        ! He++ <-> He+ Saha root as the rows above them, instead of x_e = 1 + fHe.  At
-        ! z_scale = 5000 that root still has about 1.1e-3 of the helium doubly ionized, so
-        ! the constant puts a step of about 9e-5 into x_e there, while the continued root
-        ! reaches 1 + fHe smoothly by z_scale = 3500.  get_init already uses this root down
-        ! to z_scale = 3500.
-        logical  :: heIII_saha_continued = .false.
-        ! Off by default.  When on, Recombination_saha_z, the redshift below which the
-        ! delta x_e perturbation is evolved when Evolve_delta_xe is on, is recorded at the
-        ! last output node with x_H > 0.985, whichever branch produced that node.  When off,
-        ! the Rosenbrock rows record it at their nodes and the right-hand side records it
-        ! wherever the integrator steps inside 0.985 < x_H < 0.99.
-        logical  :: snap_saha_z = .false.
-        ! Off by default, and with it off the history is bitwise unchanged.  When on, each
-        ! quantity that RECFAST sets by a Saha row or by tight coupling is given its
-        ! equilibrium value plus the first-order lag delta = (dx_eq/dz)/J, with
-        ! J = d(dx/dz)/dx at equilibrium, until it is integrated, so the fitted dH/dz of the
-        ! tight-coupling temperature equation is not used.  The switch turns on
-        !   T_m = T_rad*(1 - H t_C/(1 + 2 H t_C)) on the Saha rows and the integrated rows
-        !     until H t_C > Tm_handover_frac, then the full temperature equation;
-        !   the He++ <-> He+ Saha root continued to z = 3500, as heIII_saha_continued;
-        !   Recombination_saha_z recorded at the last node with x_H > 0.985, as snap_saha_z;
-        !   the lag on the helium Saha rows (HeliumLag);
-        !   with use_rosenbrock = F, the hydrogen Saha rows include helium's electrons,
-        !     follow the Saha slope through each step and add the lag (HydrogenLag).  A row
-        !     whose value is not above hydrogen_saha_xH is redone with the full hydrogen
-        !     equation, and 0.985 < x_H < hydrogen_saha_xH is integrated with the full
-        !     Peebles rate instead of the bare recombination rate;
-        !   with use_rosenbrock = T, the full hydrogen equation from the end of the helium
-        !     Saha rows, with no Saha reset after the implicit solver hands back.
-        logical  :: lag_corrections = .false.
-        ! lag_corrections only: the algebraic temperature hands over to the full temperature
-        ! equation once H t_C > Tm_handover_frac (see RECFAST_Tm_handover_frac_default).  A
-        ! smaller value hands over earlier, while the neglected O((H t_C)^2) term is still
-        ! small.  With lag_corrections off, the tight-coupling test uses H_frac.
-        real(dl) :: Tm_handover_frac = RECFAST_Tm_handover_frac_default
-        ! Hydrogen fraction above which a row of the explicit integrator sets x_H from Saha
-        ! instead of integrating it.  Four places read it and must agree: the two driver
-        ! branches, the right-hand side branch that holds x_H fixed, and the Jacobian rows that
-        ! match it.  The default is 0.99.  With use_rosenbrock = F and
-        ! lag_corrections on, 0.995 lowers the error at the hydrogen release.  Without
-        ! lag_corrections, 0.985 < x_H < hydrogen_saha_xH is integrated with the bare
-        ! recombination rate, so Validate then requires a value above 0.985.
-        real(dl) :: hydrogen_saha_xH = 0.99_dl
-        ! Value of x_He below which the helium Saha rows stop and integration begins.
-        ! Non-positive uses RECFAST_Saha_He_end_xHe_default, 0.99.  With lag_corrections
-        ! on, Validate refuses a positive value below 0.99, because the first-order lag
-        ! overshoots there: with either solver, the x_e error near z = 2800 grows above its
-        ! value at 0.99.
-        real(dl) :: Saha_He_end_xHe = -1._dl
-        ! Input tolerance for RungeKuttaDP45 (see RECFAST_rk45_tol_default).
-        real(dl) :: rk45_tol = RECFAST_rk45_tol_default
         type(RecombinationData), allocatable :: Calc
     contains
     procedure :: ReadParams => TRecfast_ReadParams
@@ -505,13 +449,6 @@
     this%use_rosenbrock = Ini%Read_Logical("RECFAST_use_rosenbrock", this%use_rosenbrock)
     this%rosenbrock_handoff_xH = Ini%Read_Double("RECFAST_rosenbrock_handoff_xH", this%rosenbrock_handoff_xH)
     this%rosenbrock_tol = Ini%Read_Double("RECFAST_rosenbrock_tol", this%rosenbrock_tol)
-    this%heIII_saha_continued = Ini%Read_Logical("RECFAST_heIII_saha_continued", this%heIII_saha_continued)
-    this%snap_saha_z = Ini%Read_Logical("RECFAST_snap_saha_z", this%snap_saha_z)
-    this%lag_corrections = Ini%Read_Logical("RECFAST_lag_corrections", this%lag_corrections)
-    this%Tm_handover_frac = Ini%Read_Double("RECFAST_Tm_handover_frac", this%Tm_handover_frac)
-    this%hydrogen_saha_xH = Ini%Read_Double("RECFAST_hydrogen_saha_xH", this%hydrogen_saha_xH)
-    this%Saha_He_end_xHe = Ini%Read_Double("RECFAST_Saha_He_end_xHe", this%Saha_He_end_xHe)
-    this%rk45_tol = Ini%Read_Double("RECFAST_rk45_tol", this%rk45_tol)
 
     end subroutine TRecfast_ReadParams
 
@@ -527,37 +464,9 @@
         OK = .false.
         write(*, *) "RECFAST_rosenbrock_handoff_xH must be in [0, 1)"
     end if
-    if (this%hydrogen_saha_xH <= 0._dl .or. this%hydrogen_saha_xH >= 1._dl) then
-        OK = .false.
-        write(*, *) "RECFAST_hydrogen_saha_xH must be in (0, 1)"
-    end if
-    if (.not. this%lag_corrections .and. this%hydrogen_saha_xH <= 0.985_dl) then
-        OK = .false.
-        write(*, *) "RECFAST_hydrogen_saha_xH must be above 0.985 unless RECFAST_lag_corrections " // &
-            "is on, because 0.985 < x_H < RECFAST_hydrogen_saha_xH is otherwise integrated with the " // &
-            "bare recombination rate"
-    end if
     if (this%rosenbrock_tol <= 0._dl) then
         OK = .false.
         write(*, *) "RECFAST_rosenbrock_tol must be > 0"
-    end if
-    if (this%rk45_tol <= 0._dl) then
-        OK = .false.
-        write(*, *) "RECFAST_rk45_tol must be > 0"
-    end if
-    if (this%Tm_handover_frac <= 0._dl .or. this%Tm_handover_frac > H_frac) then
-        OK = .false.
-        write(*, *) "RECFAST_Tm_handover_frac must be in (0, H_frac]"
-    end if
-    if (this%Saha_He_end_xHe >= 1._dl) then
-        OK = .false.
-        write(*, *) "RECFAST_Saha_He_end_xHe must be < 1"
-    end if
-    if (this%lag_corrections .and. this%Saha_He_end_xHe > 0._dl .and. &
-        this%Saha_He_end_xHe < RECFAST_Saha_He_end_xHe_lag_min) then
-        OK = .false.
-        write(*, *) "RECFAST_Saha_He_end_xHe must be at least 0.99, or non-positive for the default, " // &
-            "when RECFAST_lag_corrections is on, because below 0.99 the first-order helium lag overshoots"
     end if
 
     end subroutine TRecfast_Validate
@@ -728,10 +637,11 @@
     real(dl) :: y(4), y_rosen_start(4), y_row_start(4)
     real(dl) :: C10, tau_21Ts
     integer :: ind, nw, internal_nz
+    real(dl), parameter :: rk45_tol = 3d-6 ! Input tolerance for RungeKuttaDP45
     procedure(TClassRungeKuttaDP45) :: RungeKuttaDP45
     logical :: storage_ok, rosenbrock_handed_off, rosenbrock_ok
-    logical :: row_uses_ode, node_tight
-    real(dl) :: aTm_alg, Hz_node, x_He_saha_end, delta_lag
+    logical :: lag, row_uses_ode, node_tight
+    real(dl) :: aTm_alg, Hz_node, delta_lag
     real(dl) :: x_He_eq_prev, x_He_release_test, z_row_start
 
     if (.not. allocated(this%Calc)) allocate(this%Calc)
@@ -780,7 +690,7 @@
         ! Fudge factor to approximate for low z out of equilibrium effect
         Calc%fu = this%RECFAST_fudge
         rosenbrock_tol = this%rosenbrock_tol/State%CP%Accuracy%IntTolBoost
-        rk45_tol_use = this%rk45_tol/State%CP%Accuracy%IntTolBoost
+        rk45_tol_use = rk45_tol/State%CP%Accuracy%IntTolBoost
 
         call get_init(Calc, z, x_H0, x_He0, x0)
 
@@ -788,17 +698,13 @@
         y(2) = x_He0
 
         ! Set initial matter temperature. y(3) stores a*Tmat directly.
-        ! With lag_corrections this uses the same leading-order tightly-coupled
-        ! value as every later row, so the temperature comes from one formula
-        ! from here to the thermal handover.  x0 from get_init is the total
-        ! electron fraction, which includes doubly ionized helium.
+        ! The explicit solver uses the same tightly-coupled value as every later row, so
+        ! the temperature comes from one formula from here to the thermal handover.  x0
+        ! from get_init is the total electron fraction, which includes doubly ionized helium.
+        lag = .not. this%use_rosenbrock
         Hz_node = 0._dl
-        x_He_saha_end = RECFAST_Saha_He_end_xHe_default
-        if (this%Saha_He_end_xHe > 0._dl) x_He_saha_end = this%Saha_He_end_xHe
-        if (this%lag_corrections) then
-            Hz_node = ainv*ainv/dtauda(State, 1._dl/ainv)/MPC_in_sec
-        end if
-        call SetSahaTemperature(this, Calc, ainv, x0, Hz_node, y)
+        if (lag) Hz_node = ainv*ainv/dtauda(State, 1._dl/ainv)/MPC_in_sec
+        call SetSahaTemperature(lag, Calc, ainv, x0, Hz_node, y)
         Tmat = ainv*y(3)
         Tspin = Tmat
 
@@ -809,12 +715,10 @@
         nw = Calc%n_eq
         rosenbrock_handed_off = .not. this%use_rosenbrock
         rk_settings%reuse_first_derivative = .true.
-        Calc%algebraic_Tm_active = this%lag_corrections
-        Calc%hydrogen_lag = this%lag_corrections .and. .not. this%use_rosenbrock
-        Calc%full_hydrogen_ode = this%lag_corrections .and. this%use_rosenbrock
-        ! With lag_corrections on, the helium release test reads this instead of y(2).  It
-        ! starts above any allowed Saha_He_end_xHe, so the first helium Saha row is taken
-        ! either way, and each helium Saha row then replaces it with its own equilibrium root.
+        Calc%algebraic_Tm_active = lag
+        ! On the explicit solver the helium release test reads this instead of y(2).  It
+        ! starts above 1, so the first helium Saha row is taken either way, and each helium
+        ! Saha row then replaces it with its own equilibrium root.
         x_He_eq_prev = 2._dl
 
         do i = 1, Calc%nz
@@ -828,8 +732,6 @@
             ! Everything ionized above z=8000.  First ionization over by z=5000.
             ! Assume He all singly ionized down to z=3500, then use He Saha until
             ! He is 99% singly ionized, and *then* switch to joint H/He recombination.
-            ! With heIII_saha_continued the He++ <-> He+ Saha root replaces the
-            ! singly ionized assumption down to z=3500.
 
             z = zend
             ainv = 1._dl + z
@@ -837,7 +739,7 @@
 
             ! One H(z) evaluation per row, shared by the Saha temperature writes
             ! below and the node write after the chain.
-            if (this%lag_corrections) then
+            if (lag) then
                 Hz_node = ainv*ainv/dtauda(State, 1._dl/ainv)/MPC_in_sec
             end if
 
@@ -845,23 +747,20 @@
                 rosenbrock_handed_off = .true.
             end if
 
-            ! The four Saha rows below set the temperature without calling the ODE.
-            ! With lag_corrections they use the same formula the integrated rows use,
-            ! so T_m has no step where they hand over.  Their ionization formulas
-            ! are untouched and depend on T_rad rather than on T_m, so x_e is
-            ! unaffected either way.
-            ! x_He_saha_end is the same number the helium Saha branch below
-            ! tests, read from one place so the two cannot disagree.  The value
-            ! compared with it, x_He_release_test, is also set once for both, so
+            ! The four Saha rows below set the temperature without calling the ODE.  On
+            ! the explicit solver they use the same formula the integrated rows use, so T_m
+            ! has no step where they hand over.  Their ionization formulas depend on T_rad
+            ! rather than on T_m, so x_e is unaffected either way.  The helium release test
+            ! is set once, here, for the helium Saha branch below and for row_uses_ode, so
             ! row_uses_ode marks the row where integration actually begins.
-            if (this%lag_corrections) then
+            if (lag) then
                 x_He_release_test = x_He_eq_prev
             else
                 x_He_release_test = y(2)
             end if
-            row_uses_ode = .not. (z_scale > 3500._dl .or. x_He_release_test > x_He_saha_end)
+            row_uses_ode = .not. (z_scale > 3500._dl .or. x_He_release_test > RECFAST_Saha_He_end_xHe)
 
-            ! The row's starting state, kept so hydrogen_lag can redo a row that turns
+            ! The row's starting state, kept so the explicit solver can redo a row that turns
             ! out not to be a Saha row.  zstart is kept too, because RungeKuttaDP45 advances
             ! its x argument to xend, so zstart no longer holds the row's start after the
             ! first call.
@@ -875,11 +774,10 @@
                 x0 = 1._dl + 2._dl*Calc%fHe
                 y(1) = x_H0
                 y(2) = x_He0
-                call SetSahaTemperature(this, Calc, ainv, x0, Hz_node, y)
+                call SetSahaTemperature(lag, Calc, ainv, x0, Hz_node, y)
                 Tmat = ainv*y(3)
 
-            else if (z_scale > 5000._dl .or. ((this%heIII_saha_continued .or. this%lag_corrections) &
-                .and. z_scale > 3500._dl)) then
+            else if (z_scale > 5000._dl) then
 
                 x_H0 = 1._dl
                 x_He0 = 1._dl
@@ -889,7 +787,7 @@
                     + 4._dl*(1._dl + 2._dl*Calc%fHe)*rhs) - (rhs - 1._dl - Calc%fHe))
                 y(1) = x_H0
                 y(2) = x_He0
-                call SetSahaTemperature(this, Calc, ainv, x0, Hz_node, y)
+                call SetSahaTemperature(lag, Calc, ainv, x0, Hz_node, y)
                 Tmat = ainv*y(3)
 
             else if (z_scale > 3500._dl) then
@@ -899,10 +797,10 @@
                 x0 = x_H0 + Calc%fHe*x_He0
                 y(1) = x_H0
                 y(2) = x_He0
-                call SetSahaTemperature(this, Calc, ainv, x0, Hz_node, y)
+                call SetSahaTemperature(lag, Calc, ainv, x0, Hz_node, y)
                 Tmat = ainv*y(3)
 
-            else if (x_He_release_test > x_He_saha_end) then
+            else if (x_He_release_test > RECFAST_Saha_He_end_xHe) then
 
                 x_H0 = 1._dl
                 rhs = exp(1.5d0*log(CR*Calc%Tnow/ainv) - CB1_He1/(Calc%Tnow*ainv))/Calc%NNow
@@ -912,9 +810,9 @@
                 x0 = x_He0
                 x_He0 = (x0 - 1._dl)/Calc%fHe
                 ! This row's equilibrium root, before any lag is added.  The next row's
-                ! release test reads it when lag_corrections is on.
+                ! release test reads it on the explicit solver.
                 x_He_eq_prev = x_He0
-                if (this%lag_corrections .and. x_He0 < RECFAST_He_lag_xHe_max) then
+                if (lag .and. x_He0 < RECFAST_He_lag_xHe_max) then
                     ! The true fraction trails the falling equilibrium value.  The stored
                     ! value carries the correction; the release test above does not read it.
                     call HeliumLag(this, Calc, z, x_H0, x_He0, delta_lag)
@@ -923,7 +821,7 @@
                 end if
                 y(1) = x_H0
                 y(2) = x_He0
-                call SetSahaTemperature(this, Calc, ainv, x0, Hz_node, y)
+                call SetSahaTemperature(lag, Calc, ainv, x0, Hz_node, y)
                 Tmat = ainv*y(3)
 
             else if (.not. rosenbrock_handed_off) then
@@ -943,7 +841,7 @@
                     ! crossing interval with the original RungeKuttaDP45 evolution.
                     y = y_rosen_start
                     rosenbrock_handed_off = .true.
-                    if (y(1) > this%hydrogen_saha_xH .and. .not. Calc%full_hydrogen_ode) then
+                    if (y(1) > 0.99d0) then
                         rhs = exp(1.5d0*log(CR*Calc%Tnow/ainv) - CB1/(Calc%Tnow*ainv))/Calc%NNow
                         x_H0 = 0.5d0*(sqrt(rhs**2 + 4._dl*rhs) - rhs)
 
@@ -961,24 +859,23 @@
                     if (y(1) > 0.985d0) Calc%Recombination_saha_z = zend
                 end if
 
-            else if (y(1) > this%hydrogen_saha_xH .and. .not. Calc%full_hydrogen_ode) then
+            else if (y(1) > 0.99d0) then
 
                 rhs = exp(1.5d0*log(CR*Calc%Tnow/ainv) - CB1/(Calc%Tnow*ainv))/Calc%NNow
                 x_H0 = 0.5d0*(sqrt(rhs**2 + 4._dl*rhs) - rhs)
 
                 rk_settings%first_derivative_valid = .false.
                 ! Latched for the whole step, so helium sees x_H move along the Saha curve
-                ! instead of a value frozen at the start of the step.  hydrogen_lag is on only
-                ! with use_rosenbrock = F.
-                Calc%hydrogen_saha_slope_active = Calc%hydrogen_lag
+                ! instead of a value frozen at the start of the step.
+                Calc%hydrogen_saha_slope_active = lag
                 call RungeKuttaDP45(this, 3, ION, zstart, y, zend, rk45_tol_use, ind, rk_settings, nw, w)
                 Calc%hydrogen_saha_slope_active = .false.
-                if (Calc%hydrogen_lag) then
+                if (lag) then
                     call SahaHandoffHydrogen(Calc, ainv, Hz_node, y, x_H0)
                     call HydrogenLag(this, Calc, z, x_H0, y, delta_lag)
                     x_H0 = x_H0 + delta_lag
                 end if
-                if (Calc%hydrogen_lag .and. x_H0 <= this%hydrogen_saha_xH) then
+                if (lag .and. x_H0 <= 0.99d0) then
                     ! The value this row assigns is not above the threshold, so it is not a
                     ! Saha row.  Discard the step just taken and redo it from its start with
                     ! the full equations.
@@ -1007,11 +904,11 @@
 
             end if
 
-            ! With snap_saha_z, which lag_corrections turns on, the perturbations switch from the
-            ! Saha-derived delta x_e to the evolved one at the last node with x_H > 0.985, whichever
-            ! branch produced it.
-            if ((this%snap_saha_z .or. this%lag_corrections) .and. y(1) > 0.985d0) &
-                Calc%Recombination_saha_z = zend
+            ! On the explicit solver the perturbations switch from the Saha-derived delta x_e to
+            ! the evolved one at the last node with x_H > 0.985, whichever branch produced it.
+            ! The default solver keeps its own records, in the Rosenbrock rows above and in the
+            ! right-hand side.
+            if (lag .and. y(1) > 0.985d0) Calc%Recombination_saha_z = zend
 
             ainv = 1._dl + zend
 
@@ -1021,7 +918,7 @@
                 ! temperature is set, and it is also the value handed to the full
                 ! temperature equation at the transition below.
                 call AlgebraicMatterTemperature(Calc%Tnow, Calc%fHe, ainv, x0, Hz_node, &
-                    this%Tm_handover_frac, aTm_alg, node_tight)
+                    RECFAST_Tm_handover_frac, aTm_alg, node_tight)
                 y(3) = aTm_alg
                 if (.not. evolve_Ts) y(4) = y(3)
                 if (.not. node_tight) then
@@ -1433,7 +1330,7 @@
     end function SahaHydrogenGivenElectrons
 
     subroutine SahaHandoffHydrogen(Calc, ainv, Hz, y, x_H)
-    ! Value of a hydrogen Saha row with lag_corrections on.  Helium is taken from the
+    ! Value of a hydrogen Saha row on the explicit solver.  Helium is taken from the
     ! evolved state rather than from equilibrium, because by this redshift helium has left
     ! equilibrium, and its electrons are included in the hydrogen relation.  The relation
     ! is evaluated at the algebraic T_m, because every rate coefficient in
@@ -1480,7 +1377,7 @@
     ! needs dH/dz or a stencil in z.  The limit 0 <= delta <= (1 - x_eq)/2 leaves delta
     ! unchanged near equilibrium and keeps x_eq + delta below 1 where the expansion fails.
     ! The rows still end where the previous row's equilibrium root, not the stored
-    ! x_eq + delta, falls below Saha_He_end_xHe: since delta > 0, testing the stored value
+    ! x_eq + delta, falls below RECFAST_Saha_He_end_xHe: since delta > 0, testing the stored value
     ! would keep the rows going for about two more, into the region where the first-order
     ! expansion fails.
     class(TRecfast), target :: this
@@ -1503,11 +1400,10 @@
 
     subroutine HydrogenLag(this, Calc, z, x_H, y, delta)
     ! The hydrogen counterpart of HeliumLag, for the hydrogen Saha rows.  J = df_H/dx_H must
-    ! come from the full Peebles rate: above hydrogen_saha_xH the right-hand side otherwise
-    ! holds x_H fixed and returns 0, and the bare recombination rate it uses in
-    ! 0.985 < x_H < hydrogen_saha_xH without lag_corrections gives a J about 170 times too
-    ! large.  J is taken at the Saha root, with the evolved helium fraction and matter
-    ! temperature.
+    ! come from the full Peebles rate: above 0.99 the right-hand side otherwise holds x_H
+    ! fixed and returns 0, and the bare recombination rate the default solver uses in
+    ! 0.985 < x_H < 0.99 gives a J about 170 times too large.  J is taken at the Saha root,
+    ! with the evolved helium fraction and matter temperature.
     class(TRecfast), target :: this
     type(RecombinationData), intent(in) :: Calc
     real(dl), intent(in) :: z, x_H, y(:)
@@ -1555,24 +1451,24 @@
 
     end subroutine AlgebraicMatterTemperature
 
-    subroutine SetSahaTemperature(this, Calc, ainv, x, Hz, y)
-    ! Give a Saha row the same tightly-coupled temperature the integrated rows use when
-    ! lag_corrections is on, so T_m follows one prescription throughout, and T_m = T_rad
-    ! otherwise.  Only the temperature is set here: the Saha
-    ! ionization formulas are evaluated by the caller from T_rad and are not affected.
+    subroutine SetSahaTemperature(lag, Calc, ainv, x, Hz, y)
+    ! Give a Saha row the same tightly-coupled temperature the integrated rows use when lag
+    ! is true (the explicit solver), so T_m follows one prescription throughout, and
+    ! T_m = T_rad otherwise.  Only the temperature is set here: the Saha ionization
+    ! formulas are evaluated by the caller from T_rad and are not affected.
     !
     ! x is that branch's own total electron fraction.  Above z_scale = 8000 that
     ! is 1 + 2*fHe, because helium is doubly ionized there; taking x_H + fHe*x_He
     ! instead would miss the second helium electron and overstate the Compton
     ! cooling time.
-    class(TRecfast), intent(in) :: this
+    logical, intent(in) :: lag
     type(RecombinationData), intent(in) :: Calc
     real(dl), intent(in) :: ainv, x, Hz
     real(dl), intent(inout) :: y(:)
     real(dl) :: aTm
     logical :: tight
 
-    if (this%lag_corrections) then
+    if (lag) then
         ! A Saha row is never the handover point, so the returned flag is unused.
         call AlgebraicMatterTemperature(Calc%Tnow, Calc%fHe, ainv, x, Hz, H_frac, aTm, tight)
         y(3) = aTm
@@ -1637,7 +1533,7 @@
     real(dl) :: tauHe_s_const, tauHe_t_const
     integer :: col, row
     real(dl) :: dfdTmat
-    logical :: full_hydrogen, he_corrections, tight_coupling, algebraic_Tm, use_tight_ode
+    logical :: full_hydrogen, he_corrections, tight_coupling, algebraic_Tm, use_tight_ode, lag
     type(RecombinationData), pointer :: Recomb
 
     Recomb => this%Calc
@@ -1666,7 +1562,7 @@
 
     ! Estimates of Thomson scattering time and Hubble time.  timeH is the
     ! Einstein-de Sitter age 2/(3 H0 (1+z)^1.5), a proxy for the Hubble time that
-    ! does not use H(z).  With lag_corrections off, the test chooses between the two temperature
+    ! does not use H(z).  On the default solver the test chooses between the two temperature
     ! equations below; the algebraic branch follows the flag the driver latches.
     timeTh = (1._dl/(CT*Trad4))*ion_sum/x
     timeH = 2._dl/(3._dl*Recomb%HO*ainv*sqrt(ainv))
@@ -1675,13 +1571,13 @@
     eps_tc = Hz*ion_sum/(CT*Trad3*x)
     ! Latched by the driver, so the branch cannot change part-way through a step.
     algebraic_Tm = Recomb%algebraic_Tm_active
-    ! The differentiated tight-coupling approximation is the only place
-    ! dH/dz is needed, and it is used only without lag_corrections.  With it, the full
-    ! temperature equation takes over directly once the algebraic phase ends: dropping
-    ! back into the differentiated form would reintroduce exactly the dH/dz this path
-    ! removes, which matters whenever the algebraic phase ends before the tight-coupling
-    ! test does, as it does at the default Tm_handover_frac.
-    use_tight_ode = tight_coupling .and. .not. this%lag_corrections
+    ! The differentiated tight-coupling approximation is the only place dH/dz is needed,
+    ! and the explicit solver does not use it.  There the full temperature equation takes
+    ! over directly once the algebraic phase ends: dropping back into the differentiated
+    ! form would reintroduce exactly the dH/dz this path removes, because the algebraic
+    ! phase ends before the tight-coupling test does.
+    lag = .not. this%use_rosenbrock
+    use_tight_ode = tight_coupling .and. .not. lag
 
     if (algebraic_Tm) then
         ! T_m = T_rad - eps_eq with eps_eq = eps_tc/(1 + 2*eps_tc/T_rad), the root with
@@ -1824,12 +1720,11 @@
         if (Recomb%hydrogen_saha_slope_active) then
             ! Set after f(2) below, because the slope also follows helium's change.
             f(1) = 0._dl
-        else if (x_H > this%hydrogen_saha_xH) then
+        else if (x_H > 0.99d0) then
             f(1) = 0._dl
-        else if (.not. Recomb%hydrogen_lag .and. x_H > 0.985d0) then
+        else if (.not. lag .and. x_H > 0.985d0) then
             f(1) = A_H/denH
-            if (.not. (this%snap_saha_z .or. this%lag_corrections)) &
-                Recomb%Recombination_saha_z = z
+            Recomb%Recombination_saha_z = z
         else
             B_H = 1.d0 + K*Lambda*n*(1.d0 - x_H)
             C_H = 1.d0/Recomb%fu + K*Lambda*n*(1.d0 - x_H)/Recomb%fu + K*Rup*n*(1.d0 - x_H)
@@ -1922,10 +1817,9 @@
     A_H_xHe = n*Rdown*Recomb%fHe*x_H
     A_H_T = n*x*x_H*dRdown - (1.d0 - x_H)*dRupE
 
-    if (.not. full_hydrogen .and. (Recomb%hydrogen_saha_slope_active .or. &
-        x_H > this%hydrogen_saha_xH)) then
+    if (.not. full_hydrogen .and. (Recomb%hydrogen_saha_slope_active .or. x_H > 0.99d0)) then
         jacobian(1, 1:3) = 0._dl
-    else if (.not. full_hydrogen .and. .not. Recomb%hydrogen_lag .and. x_H > 0.985d0) then
+    else if (.not. full_hydrogen .and. .not. lag .and. x_H > 0.985d0) then
         jacobian(1, 1) = A_H_xH/denH
         jacobian(1, 2) = A_H_xHe/denH
         jacobian(1, 3) = ainv*A_H_T/denH
@@ -2120,8 +2014,7 @@
     real(dl) :: z
     real(dl) :: y(Ndim), f(Ndim)
 
-    call EvaluateRecfastODE(this, Ndim, z, y, f, &
-        this%Calc%full_hydrogen_ode .or. this%Calc%full_hydrogen_row)
+    call EvaluateRecfastODE(this, Ndim, z, y, f, this%Calc%full_hydrogen_row)
 
     end subroutine ION
 
