@@ -100,6 +100,7 @@ ending at 0.99, it is 5.1e-5 lower at z ≈ 2815.
   `use_rosenbrock = True` outputs match the pull request's first version, whose new settings were all off by
   default, bit for bit in 1,381,116 numbers.
 - `testRecfastRosenbrockAgreement` now requires the two solvers to agree in x_e to 1e-4, instead of 1e-3. It allows
-  5e-6 in T_b, instead of 1e-6, because only the Rosenbrock path still uses the dH/dz fit. The two T_b differ by up
-  to about 3.6e-6 near z = 825, most of it the Rosenbrock path's own error.
+  5e-6 in T_b, instead of 1e-6. Only the Rosenbrock path still uses the dH/dz fit, so near z = 850 the two T_b
+  differ by up to about 1.5e-6. Near z = 825 a step error of `RungeKuttaDP45` in either solver raises that to about
+  3.6e-6, and `IntTolBoost = 2` removes it.
 - `testRecfastExplicitSolverSahaTemperature` checks that T_m stays below T_rad where the helium Saha rows end.
