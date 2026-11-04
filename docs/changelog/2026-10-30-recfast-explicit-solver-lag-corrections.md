@@ -91,7 +91,7 @@ ending at 0.99, it is 5.1e-5 lower at z ≈ 2815.
 
 ## Validation
 
-- With `use_rosenbrock = True`, outputs match those of an unmodified CAMB 2.0.5 build bit for bit in 562,586
+- With `use_rosenbrock = True`, outputs match those of a CAMB 2.0.5 build without this change bit for bit in 562,586
   saved values from 20 runs, parameter names included. The runs vary the RECFAST and accuracy settings,
   `rosenbrock_handoff_xH` 0.995 and 0.996 included, and include `Evolve_delta_xe`. They cover LCDM, a curved w0wa
   model with massive neutrinos and an `AxionEffectiveFluid` model. Each run records background histories and derived
