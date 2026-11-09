@@ -42,6 +42,10 @@ rebuilds and are shared across CAMB worktrees using this devcontainer. Only the 
 mounted into the volume, which gives the container the host login without mounting host-specific Codex logs, caches,
 SQLite state, or plugin files.
 
+The GitHub CLI (`gh`) is installed in the image. To authenticate it, set `GH_TOKEN` in the host environment before
+starting the container (it is forwarded via `remoteEnv`), or run `gh auth login` inside the container. An unset host
+variable leaves `gh` unauthenticated.
+
 The container is configured as a trusted AI-agent sandbox: Codex starts with `approval_policy = "never"` and
 `default_permissions = ":danger-full-access"` in its container `config.toml`, and Claude Code starts new sessions in
 `bypassPermissions` mode.

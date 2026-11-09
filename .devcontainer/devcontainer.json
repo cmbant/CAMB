@@ -44,6 +44,7 @@
     "UV_PROJECT_ENVIRONMENT": "/home/vscode/.local/share/camb-devcontainer/.venv"
   },
   "remoteEnv": {
+    "GH_TOKEN": "${localEnv:GH_TOKEN}",
     "PATH": "/home/vscode/.local/share/camb-devcontainer/.venv/bin:${containerEnv:PATH}",
     "VIRTUAL_ENV": "/home/vscode/.local/share/camb-devcontainer/.venv"
   },
