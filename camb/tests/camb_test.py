@@ -702,8 +702,15 @@ class CambTest(unittest.TestCase):
                 theta_rel = abs(ros_derived["thetastar"] / base_derived["thetastar"] - 1.0)
                 zstar_rel = abs(ros_derived["zstar"] / base_derived["zstar"] - 1.0)
 
-                np.testing.assert_allclose(xe_rel, 0, atol=1e-3)
-                np.testing.assert_allclose(tb_rel, 0, atol=1e-6)
+                # The explicit solver adds the first-order lag to its Saha rows, so its x_e agrees with the
+                # Rosenbrock solver's to about 4e-5 (5.6e-4 without the lag). It also takes the tightly
+                # coupled T_m without the fitted dH/dz the Rosenbrock path uses, so near z = 850 the two
+                # temperatures differ by up to about 1.5e-6. Near z = 825 a step error of RungeKuttaDP45 in
+                # either solver raises that to about 3.2e-6 in the first case, and IntTolBoost = 2 removes it.
+                # With these changes theta* and z* differ by up to 4.8e-7 and 7.1e-7, against about 1e-8
+                # before, so their 1e-6 bounds still hold.
+                np.testing.assert_allclose(xe_rel, 0, atol=1e-4)
+                np.testing.assert_allclose(tb_rel, 0, atol=5e-6)
                 self.assertLess(theta_rel, 1e-6)
                 self.assertLess(zstar_rel, 1e-6)
 
@@ -748,6 +755,18 @@ class CambTest(unittest.TestCase):
                         legacy_ini.write(line)
             legacy_roundtrip = camb.read_ini(legacy_ini_path)
             self.assertAlmostEqual(legacy_roundtrip.Recomb.RECFAST_fudge, 1.125)
+
+    def testRecfastExplicitSolverSahaTemperature(self):
+        # With use_rosenbrock = False the Saha rows use the same tightly coupled temperature as the
+        # integrated rows, so T_m stays below T_rad with no step where they meet.  The grid resolves
+        # a feature about 14 wide in z.
+        pars = def_set_params(H0=67.4, ombh2=0.02237, omch2=0.12, mnu=0.06, tau=0.054, YHe=0.2453)
+        pars.Recomb.use_rosenbrock = False
+        # bound to a name: an attribute read straight off the returned object can see freed memory
+        res = camb.get_background(pars)
+        z_fine = np.linspace(2700.0, 3000.0, 60001)
+        fine = res.get_background_redshift_evolution(z_fine, vars=["T_b"], format="array")[:, 0]
+        self.assertLess(np.max(fine / (res.Params.TCMB * (1 + z_fine)) - 1.0), 0.0)
 
     def testTCMBRecombinationConsistency(self):
         default_tcmb = constants.COBE_CMBTemp
