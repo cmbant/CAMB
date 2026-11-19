@@ -294,8 +294,10 @@
     end if
 
     if (allocated(ddScaledSrc)) deallocate(ddScaledSrc)
-    if (associated(ScaledSrc) .and. .not. associated(ScaledSrc, ThisSources%LinearSrc)) then
-        deallocate(ScaledSrc)
+    ! Always nullify: if ScaledSrc only points at LinearSrc it must not be left dangling, or a later call
+    ! whose MakeNonlinearSources returns early on an error (before allocating ScaledSrc) deallocates it again.
+    if (associated(ScaledSrc)) then
+        if (.not. associated(ScaledSrc, ThisSources%LinearSrc)) deallocate(ScaledSrc)
         nullify(ScaledSrc)
     end if
 
