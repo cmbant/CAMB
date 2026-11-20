@@ -105,6 +105,12 @@ tuning, validation, and implementation details.
   against high-accuracy internal references and scales with CAMB accuracy boosts.
   It is intended to improve the speed/accuracy tradeoff of the recombination
   background calculation.
+- With `use_rosenbrock = False`, RECFAST now adds the first-order lag to the
+  helium and hydrogen values it sets from the Saha equation, and takes the
+  tightly coupled matter temperature without the fitted dH/dz. Against a strict
+  internal reference this lowers that path's peak x_e error from 5.7e-4 to
+  1.7e-5 and its lensed TT error from 6.3e-5 to 1.1e-6, at 0.92 of the default
+  path's time. The default Rosenbrock path is unchanged.
 - The default RECFAST approximation is now the `recfast_cosmorec` fit, including
   the helium-rate correction calibrated against direct CosmoRec histories.
   Planck-era RECFAST parameters remain available as `recfast_planck` and are
