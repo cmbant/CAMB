@@ -328,7 +328,7 @@
         ! delta = (dx_eq/dz)/J, with J = d(dx/dz)/dx at equilibrium, until it is integrated:
         !   T_m = T_rad*(1 - H t_C/(1 + 2 H t_C)) on the Saha rows and the integrated rows
         !     until H t_C > RECFAST_Tm_handover_frac, then the full temperature equation,
-        !     so the fitted dH/dz of the tight-coupling temperature equation is not used;
+        !     so the dH/dz formula of the tight-coupling temperature equation is not used;
         !   the lag on the helium Saha rows (HeliumLag);
         !   the hydrogen Saha rows include helium's electrons, follow the Saha slope through
         !     each step and add the lag (HydrogenLag).  A row whose value is not above 0.99
@@ -1768,7 +1768,7 @@
         ! adiabatic term, whenever dH/dz is
         ! the true derivative of Hz, which is the only way dH/dz enters it.  That
         ! is not an identity for the code as written: Hz comes from dtauda but
-        ! dH/dz from a matter, radiation and curvature fit that is low by about
+        ! dH/dz from a matter, radiation and curvature formula that is low by about
         ! 1e-4 at z = 1500 for the default cosmology.  The algebraic branch avoids that
         ! mismatch.
         daTmat_dz = 0._dl

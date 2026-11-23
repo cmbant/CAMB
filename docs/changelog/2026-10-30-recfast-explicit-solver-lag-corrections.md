@@ -1,4 +1,4 @@
-# RECFAST explicit solver: first-order lag corrections
+# RECFAST: T_m without dH/dz, plus Saha lag corrections, for `use_rosenbrock = False`
 
 - Date: 2026-10-30
 - Scope: RECFAST with `use_rosenbrock = False`, the path that integrates with `RungeKuttaDP45` alone. No new
@@ -7,6 +7,9 @@
 Here x_H and x_He are RECFAST's ionized fractions of hydrogen and helium, n_H+/n_H and n_He+/n_He.
 
 ## Symptom
+
+In RECFAST, the tight-coupling T_m equation takes dH/dz from a formula with matter, radiation and curvature terms,
+which leaves out other components of the background, such as early dark energy or an axion field.
 
 RECFAST sets helium and hydrogen from their Saha equilibrium values on its Saha rows, and starts integrating each one
 only once it falls below 0.99. The true fractions trail the falling equilibrium values. RECFAST also starts the
@@ -30,8 +33,8 @@ makes four changes.
 - T_m is the tightly coupled solution T_m = T_rad (1 - H t_C/(1 + 2 H t_C)), with t_C the Compton cooling time, on
   the Saha rows and on the integrated rows until H t_C reaches 3.7e-4, at z ≈ 855 in LCDM. RECFAST then integrates
   the full T_m equation. This solution needs H(z), which it takes from CAMB's background for the model being run, but
-  no dH/dz. The tight-coupling equation that the Rosenbrock path keeps takes dH/dz from a fit to H(z) in matter,
-  radiation and curvature only.
+  no dH/dz. The tight-coupling equation that the Rosenbrock path keeps takes dH/dz from the formula with matter,
+  radiation and curvature terms.
 - `Recombination_saha_z`, the redshift below which `Evolve_delta_xe` evolves the perturbation to x_e, is recorded at
   the last output node with x_H > 0.985. The explicit solver needs this record: the bare-rate branch for
   0.985 < x_H < 0.99, which the full Peebles rate replaces, was where RECFAST recorded that redshift. The Rosenbrock
@@ -100,7 +103,7 @@ ending at 0.99, it is 5.1e-5 lower at z ≈ 2815.
   `use_rosenbrock = True` outputs match the pull request's first version, whose new settings were all off by
   default, bit for bit in 1,381,116 numbers.
 - `testRecfastRosenbrockAgreement` now requires the two solvers to agree in x_e to 1e-4, instead of 1e-3. It allows
-  5e-6 in T_b, instead of 1e-6. Only the Rosenbrock path still uses the dH/dz fit, so near z = 850 the two T_b
-  differ by up to about 1.5e-6. Near z = 825 a step error of `RungeKuttaDP45` in either solver raises that to about
-  3.6e-6, and `IntTolBoost = 2` removes it.
+  5e-6 in T_b, instead of 1e-6. Unlike the `use_rosenbrock = False` path, the Rosenbrock path still uses the dH/dz
+  formula, so near z = 850 the two T_b differ by up to about 1.5e-6. Near z = 825 a step error of `RungeKuttaDP45` in
+  either solver raises that to about 3.6e-6, and `IntTolBoost = 2` removes it.
 - `testRecfastExplicitSolverSahaTemperature` checks that T_m stays below T_rad where the helium Saha rows end.

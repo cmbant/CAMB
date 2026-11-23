@@ -704,7 +704,7 @@ class CambTest(unittest.TestCase):
 
                 # The explicit solver adds the first-order lag to its Saha rows, so its x_e agrees with the
                 # Rosenbrock solver's to about 4e-5 (5.6e-4 without the lag). It also takes the tightly
-                # coupled T_m without the fitted dH/dz the Rosenbrock path uses, so near z = 850 the two
+                # coupled T_m without the dH/dz formula the Rosenbrock path uses, so near z = 850 the two
                 # temperatures differ by up to about 1.5e-6. Near z = 825 a step error of RungeKuttaDP45 in
                 # either solver raises that to about 3.2e-6 in the first case, and IntTolBoost = 2 removes it.
                 # With these changes theta* and z* differ by up to 4.8e-7 and 7.1e-7, against about 1e-8
