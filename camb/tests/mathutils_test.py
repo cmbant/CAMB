@@ -109,7 +109,12 @@ class MathutilsTest(unittest.TestCase):
 
     def test_olver_analytic_airy_and_closed_endpoint(self):
         # Probe both sides of the local Airy coefficient switch and the turn.
-        for ell, curvature, nu in ((100, -1, 7.0), (3000, -1, 7.0), (150, 1, 160.0), (3000, 1, 3010.0)):
+        for ell, curvature, nu in (
+            (100, -1, 7.0),
+            (3000, -1, 7.0),
+            (150, 1, 160.0),
+            (3000, 1, 3010.0),
+        ):
             beta = nu / (ell + 0.5)
             kappa = curvature / beta**2
             y = np.array([-0.051, -0.05, -0.049, -1e-8, 0.0, 1e-8, 0.049, 0.05, 0.051])
@@ -130,6 +135,12 @@ class MathutilsTest(unittest.TestCase):
                 ref = np.exp(log_norm) * np.sin(chi)**ell * eval_gegenbauer(n, a, np.cos(chi))
                 actual = phi_olver(ell, 1, nu, chi)
                 np.testing.assert_allclose((actual - ref) / np.max(np.abs(ref)), 0, atol=1e-7)
+
+            # Degree 9 uses the ordinary Airy fallback, immediately above
+            # the direct-polynomial gate.
+            nu = float(ell + 10)
+            chi = np.linspace(max(0.01, np.pi / 2 - 8 / np.sqrt(ell)), np.pi / 2, 97)
+            self.assert_hyperspherical_peak_relative(ell, 1, nu, chi)
 
     def test_mathutils(self):
         airy_x = np.array([-20.0, -6.5, -4.4, -2.09, -1.0, 0.0, 2.09, 2.98, 6.5, 20.0, 30.0])

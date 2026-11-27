@@ -239,6 +239,8 @@
     call add_gate(l, 2.5_dl*nu, peak_abs, worst_err, worst_x, worst_l, n_points)
     if (l > BJL_RECURRENCE_MAX_L) then
         ! Internal simplified-Debye threshold for the far post-peak tail.
+        ! The additional l>=150 shortcut at x=1.5*nu is covered by the
+        ! postpeak precheck gate above (every integer l is tested).
         call add_gate(l, 3.0_dl*nu, peak_abs, worst_err, worst_x, worst_l, n_points)
     end if
 
