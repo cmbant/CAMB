@@ -27,6 +27,7 @@
     real(dl), parameter :: SMALLCHI_GATE_METRIC = 5.0e-2_dl
     integer, parameter :: AIRY_FALLBACK_OPEN_L_MIN = 100
     integer, parameter :: AIRY_FALLBACK_CLOSED_L_MIN = 150
+    integer, parameter :: CLOSED_DIRECT_MAX_DEGREE = 8
 
     public :: phi_olver, u_olver
 
@@ -157,6 +158,18 @@
     real(dl), intent(in) :: nu, achi, sin_k, symm
     real(dl) :: u
     logical :: ok
+    integer :: n
+
+    ! Near the closed spectral endpoint the polynomial degree is small even
+    ! at large l.  Evaluate the normalized solution directly, before Airy
+    ! (whose two turning points coalesce) or the O(l) Miller normalization.
+    if (K == 1 .and. l >= AIRY_FALLBACK_CLOSED_L_MIN) then
+        n = nint(nu) - l - 1
+        if (n >= 0 .and. n <= CLOSED_DIRECT_MAX_DEGREE) then
+            u = symm*closed_endpoint_u(l, n, achi, sin_k)
+            return
+        end if
+    end if
 
     if (use_airy_fallback(l, K, nu, achi)) then
         u = airy_u_normalized(l, K, nu, achi, ok)
@@ -177,6 +190,36 @@
     u = symm*phi_recurs(l, K, nu, achi)*sin_k
 
     end function fallback_reduced
+
+    pure real(dl) function closed_endpoint_u(l, n, chi, sin_k) result(u)
+    ! u=N sin(chi)**(l+1) C_n^(l+1)(cos chi), n=nu-l-1.
+    ! n<=8 and l>=150 in the caller, so no long recurrence or gamma calls.
+    ! With a=l+1, N**2=sqrt(pi)*Gamma(a)*n! /
+    ! [2*(a+n)*Gamma(a+1/2)*(2*a)_n].  The gamma ratio is
+    ! a**(-1/2)*(1+1/(8*a)+1/(128*a**2)+O(a**(-3))).
+    integer, intent(in) :: l, n
+    real(dl), intent(in) :: chi, sin_k
+    real(dl) :: a, x, prev, p, next, norm2, ri
+    integer :: i
+
+    a = real(l, dl) + 1._dl
+    x = cos(chi)
+    prev = 0._dl
+    p = 1._dl
+    norm2 = 1._dl
+    do i = 1, n
+        ri = real(i, dl)
+        next = (2._dl*(a + ri - 1._dl)*x*p - (2._dl*a + ri - 2._dl)*prev)/ri
+        prev = p
+        p = next
+        norm2 = norm2*ri/(2._dl*a + ri - 1._dl)
+    end do
+
+    norm2 = norm2*sqrt(const_pi)/(2._dl*(a + n)*sqrt(a)) &
+        *(1._dl + (1._dl/8._dl + 1._dl/(128._dl*a))/a)
+    u = sqrt(norm2)*sin_k**(l + 1)*p
+
+    end function closed_endpoint_u
 
     logical function use_airy_fallback(l, K, nu, achi) result(use_airy)
     ! Second-order Olver/Airy patch: validated only well away from low l.

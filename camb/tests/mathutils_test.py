@@ -6,7 +6,7 @@ import unittest
 
 import numpy as np
 from scipy.optimize import brentq
-from scipy.special import airy, spherical_jn
+from scipy.special import airy, eval_gegenbauer, gammaln, spherical_jn
 
 try:
     import camb
@@ -106,6 +106,30 @@ class MathutilsTest(unittest.TestCase):
             atol=max_peak_error,
             err_msg=f"peak-relative hyperspherical Bessel error for L={ell}, K={curvature}, nu={nu:g}",
         )
+
+    def test_olver_analytic_airy_and_closed_endpoint(self):
+        # Probe both sides of the local Airy coefficient switch and the turn.
+        for ell, curvature, nu in ((100, -1, 7.0), (3000, -1, 7.0), (150, 1, 160.0), (3000, 1, 3010.0)):
+            beta = nu / (ell + 0.5)
+            kappa = curvature / beta**2
+            y = np.array([-0.051, -0.05, -0.049, -1e-8, 0.0, 1e-8, 0.049, 0.05, 0.051])
+            y /= max(1, abs(kappa))
+            s = np.sqrt((1 - y) / (1 - kappa * y)) / beta
+            chi = np.arcsinh(s) if curvature == -1 else np.arcsin(s)
+            self.assert_hyperspherical_peak_relative(ell, curvature, nu, chi)
+
+        # Exact normalized Gegenbauer reference, including zeros and folding.
+        for ell in (150, 500, 3000):
+            for n in (0, 1, 7, 8):
+                a = ell + 1
+                nu = float(a + n)
+                chi = np.pi / 2 + np.linspace(-4, 4, 97) * np.sqrt((n + 1) / a)
+                log_norm = ell * np.log(2) + gammaln(a) + (
+                    gammaln(n + 1) - np.log(nu) - gammaln(n + 2 * a)
+                ) / 2
+                ref = np.exp(log_norm) * np.sin(chi)**ell * eval_gegenbauer(n, a, np.cos(chi))
+                actual = phi_olver(ell, 1, nu, chi)
+                np.testing.assert_allclose((actual - ref) / np.max(np.abs(ref)), 0, atol=1e-7)
 
     def test_mathutils(self):
         airy_x = np.array([-20.0, -6.5, -4.4, -2.09, -1.0, 0.0, 2.09, 2.98, 6.5, 20.0, 30.0])
