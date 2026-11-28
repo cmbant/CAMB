@@ -230,7 +230,7 @@
         w = kappa*y
         p = y + w
         r = y*w
-        ! h_j = sum_{i=0}^j y^(j-i) w^i; F = sum 3 h_j/(2j+3).
+        ! h_j = sum_{i = 0}^j y^(j-i) w^i; F = sum 3 h_j/(2j + 3).
         h2 = p*p - r
         h3 = p*h2 - r*p
         h4 = p*h3 - r*h2
