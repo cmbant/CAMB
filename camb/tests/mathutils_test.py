@@ -136,6 +136,25 @@ class MathutilsTest(unittest.TestCase):
             atol=1e-15,
         )
 
+    def test_hyperspherical_refined_closed_zeros(self):
+        # Independent 70-digit values on both sides of even/odd polynomial
+        # zeros. Use absolute errors: a relative tolerance is meaningless here.
+        cases = [
+            (
+                10003.0,
+                [1.5637259069745468, 1.5637259070745468, 1.5637259071745468],
+                [1.4662119167884593e-11, 1.4516170551027714e-17, -1.4662090135522757e-11],
+            ),
+            (
+                10004.0,
+                [1.5585504086159, 1.5585504087159001, 1.5585504088159001],
+                [1.5403540016903692e-11, -5.980742695480393e-19, -1.5403541213014503e-11],
+            ),
+        ]
+        for nu, chi, expected in cases:
+            with self.subTest(nu=nu):
+                np.testing.assert_allclose(phi_olver(10000, 1, nu, np.array(chi)), expected, atol=5e-15, rtol=0)
+
     def test_hyperspherical_corrected_airy(self):
         # Both curvature signs and both sides of the effective-mu=4,16 cuts.
         cases = [

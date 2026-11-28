@@ -16,7 +16,6 @@ jobs:
       - name: Format candidate and verify hooks
         run: |
           files="fortran/hyperspherical_bessels_refined.f90 fortran/tests/generate_refined_airy.py camb/tests/mathutils_test.py"
-          pre-commit run --files $files || true
           pre-commit run --files $files
       - name: Report formatted source
         if: always()
@@ -43,7 +42,7 @@ jobs:
       - name: Build candidate and run focused tests
         run: |
           python -m pip install -e .
-          OMP_NUM_THREADS=1 python -m unittest camb.tests.mathutils_test.MathutilsTest.test_hyperspherical_refined_exact_representations camb.tests.mathutils_test.MathutilsTest.test_hyperspherical_corrected_airy
+          OMP_NUM_THREADS=1 python -m unittest camb.tests.mathutils_test.MathutilsTest.test_hyperspherical_refined_exact_representations camb.tests.mathutils_test.MathutilsTest.test_hyperspherical_corrected_airy camb.tests.mathutils_test.MathutilsTest.test_hyperspherical_refined_closed_zeros
       - name: Build unmodified baseline
         run: |
           git worktree add --detach "$RUNNER_TEMP/camb-baseline" 3d524fece061bd88e3b2786312bfe99391826fc6
@@ -71,7 +70,7 @@ jobs:
               start = time.perf_counter()
               r = camb.get_results(p)
               elapsed = time.perf_counter() - start
-              spectra = r.get_cmb_power_spectra(p=None, lmax=1200, CMB_unit="muK")
+              spectra = r.get_cmb_power_spectra(params=None, lmax=1200, CMB_unit="muK")
               transfer = r.get_cmb_transfer_data()
               arrays = dict(total=spectra["total"], unlensed=spectra["unlensed_scalar"], lens=r.get_lens_potential_cls(lmax=1200), delta=transfer.delta_p_l_k, L=transfer.L, q=transfer.q, elapsed=elapsed)
               np.savez_compressed(out / f"{omk:+.2f}.npz", **arrays)
@@ -101,4 +100,7 @@ jobs:
                       scale=np.maximum(np.max(np.abs(x[2:]),axis=0,keepdims=True),1e-300)
                   e=np.max(np.abs(x-y)/scale,axis=tuple(range(x.ndim-1))) if name!="delta" else np.max(np.abs(x-y)/scale,axis=(1,2))
                   print(name,"max normalized",e.tolist())
+                  if name != "delta":
+                      local=np.maximum(np.abs(x),1e-5*scale)
+                      print(name,"max local-relative",np.max(np.abs(x-y)/local,axis=0).tolist())
           PY

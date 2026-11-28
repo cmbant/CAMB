@@ -71,9 +71,10 @@ In terms of $y=c^2$ and $t_0=1$,
  D_0^2&=\frac{1}{2\nu}\frac{\Gamma(\ell+1+m)}{\Gamma(\ell+3/2+m)}
  \frac{\Gamma(m+1/2)}{\Gamma(m+1)}.
 \end{align}
-Half-step gamma ratios are evaluated by Stirling differences. The same
-geometric tail and cancellation tests apply; there is no recurrence in
-multipole order. In particular $p=0$ is a single normalized $s^{\ell+1}$.
+Half-step gamma ratios are evaluated by Stirling differences. Use geometric tail and roundoff tests with an absolute floor in units of
+$D_0 s^{\ell+1}$, dividing the floor by the odd-parity factor when it exceeds one.
+This avoids rejecting accurate results near polynomial zeros. There is no
+recurrence in multipole order. In particular $p=0$ is a single normalized $s^{\ell+1}$.
 
 \paragraph{Compact open integral.}
 For low open frequencies not covered by the short Jost series, use the
