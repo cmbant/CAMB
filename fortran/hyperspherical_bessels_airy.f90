@@ -285,7 +285,7 @@
     real(dp), intent(in) :: kappa
 
     bp = (1.0_dp + kappa)*(8.0_dp*kappa*kappa - 9.0_dp*kappa + 8.0_dp) &
-        / (900.0_dp*(1.0_dp - kappa)**2)
+        /(900.0_dp*(1.0_dp - kappa)**2)
 
     end function airy_b0_prime_turn
 
@@ -423,7 +423,7 @@
 
     pure subroutine second_coeffs_onepoint_fast(K, beta, s, zeta, b0, a1)
     ! B0+2*zeta*B0'=psi and 2*A1'=psi*B0-B0'' give
-    ! A1=(zeta*B0**2-B0'+B0'(0))/2.  The B0 integral has an
+    ! A1 = (zeta*B0**2-B0'+B0'(0))/2.  The B0 integral has an
     ! elementary primitive for q=1/S_K**2-beta**2 and r=-1/(4*S_K**2).
     ! Use the real formula on both sides of the turn.  A quadratic
     ! expansion in y is sufficient for the peak-relative accuracy target
@@ -467,7 +467,7 @@
         t = sqrt(c2/delta)
         zinv = 1.0_dp/zeta
         b0 = ((5.0_dp/3.0_dp)*t*t - sig*(1.0_dp + kappa))*t &
-            / (8.0_dp*(1.0_dp - kappa)*sqrt(abs(zeta))) - (5.0_dp/48.0_dp)*zinv*zinv
+            /(8.0_dp*(1.0_dp - kappa)*sqrt(abs(zeta))) - (5.0_dp/48.0_dp)*zinv*zinv
         bp = -sig*(5.0_dp*t*t - sig*(1.0_dp + kappa))*b2*s2/(8.0_dp*delta*delta) &
             - 0.5_dp*b0*zinv + (5.0_dp/32.0_dp)*zinv**3
     end if

@@ -192,7 +192,7 @@
     end function fallback_reduced
 
     pure real(dl) function closed_endpoint_u(l, n, chi, sin_k) result(u)
-    ! u=N sin(chi)**(l+1) C_n^(l+1)(cos chi), n=nu-l-1.
+    ! u = N sin(chi)**(l + 1) C_n^(l + 1)(cos chi), n = nu-l-1.
     ! n<=8 and l>=150 in the caller, so no long recurrence or gamma calls.
     ! With a=l+1, N**2=sqrt(pi)*Gamma(a)*n! /
     ! [2*(a+n)*Gamma(a+1/2)*(2*a)_n].  The gamma ratio is

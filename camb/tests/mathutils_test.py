@@ -129,10 +129,8 @@ class MathutilsTest(unittest.TestCase):
                 a = ell + 1
                 nu = float(a + n)
                 chi = np.pi / 2 + np.linspace(-4, 4, 97) * np.sqrt((n + 1) / a)
-                log_norm = ell * np.log(2) + gammaln(a) + (
-                    gammaln(n + 1) - np.log(nu) - gammaln(n + 2 * a)
-                ) / 2
-                ref = np.exp(log_norm) * np.sin(chi)**ell * eval_gegenbauer(n, a, np.cos(chi))
+                log_norm = ell * np.log(2) + gammaln(a) + (gammaln(n + 1) - np.log(nu) - gammaln(n + 2 * a)) / 2
+                ref = np.exp(log_norm) * np.sin(chi) ** ell * eval_gegenbauer(n, a, np.cos(chi))
                 actual = phi_olver(ell, 1, nu, chi)
                 np.testing.assert_allclose((actual - ref) / np.max(np.abs(ref)), 0, atol=1e-7)
 

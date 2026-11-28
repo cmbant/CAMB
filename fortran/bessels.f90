@@ -568,7 +568,7 @@
     ! Oscillatory Debye asymptotic above the turning point, valid above the
     ! Airy band (u = ax/nu - 1 > 0.42, or eta above the gates in BJL).
     ! Standard two-correction form (first phase correction only in the
-    ! far tail or sufficiently large-order post-peak region), with
+    ! far tail), with
     !   sqrt(cotb*cosb)/nu = 1/sqrt(sx*ax),  nu/cotb = sx,
     ! exp(-expterm) expanded to second order (expterm < ~1e-3 over the
     ! accepted domain, so the expansion error is < ~1e-9), and
@@ -592,14 +592,13 @@
     real(dl) :: sx, cotb, trigarg, expterm, h, h2, w
     real(dl) :: cb, s, p
     integer :: k
-    logical :: far_tail, short_tail
+    logical :: far_tail
 
     sx = sqrt(ax*ax - nu*nu)
 
     cb = nu/ax
     s = cb*cb
     far_tail = nu > real(BJL_recurrence_MAX_L, dl) + 0.5_dl .and. ax >= 3.0_dl*nu
-    short_tail = far_tail .or. (nu >= 150.5_dl .and. ax >= 1.5_dl*nu)
 
     if (far_tail) then
         ! In the far post-peak tail the first phase correction dominates the
@@ -627,10 +626,7 @@
     w = cotb*cotb
     trigarg = trigarg - pid4 - h*(3.0_dl + 5.0_dl*w)/24.0_dl
 
-    ! The neglected amplitude/next phase corrections are already smaller
-    ! than the direct BJL error budget for l>=150 and ax>=1.5*nu.
-    ! Sampled peak-normalized error < 8.1e-6 (l up to 20000).
-    if (short_tail) then
+    if (far_tail) then
         jl = cos(trigarg)/sqrt(sx*ax)
         return
     end if

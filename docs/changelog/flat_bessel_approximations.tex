@@ -392,7 +392,7 @@ logarithmic amplitude.  This branch is accurate quickly above the peak, but
 like the below-peak form it is not used in the immediate turning-point layer
 where the Debye powers become ill-conditioned.
 
-The implementation of \code{BJL\_POSTPEAK\_DEBYE} is algebraically arranged for speed.  The leading prefactor is evaluated as $1/\sqrt{u\,a}$, with $u=\sqrt{a^2-\nu^2}$; the small logarithmic amplitude correction is applied as the second-order expansion $1-E_{>}+E_{>}^2/2$; and, when $a$ is far enough above the peak, $\arccos(\nu/a)$ is replaced by a polynomial approximation to $\arcsin(\nu/a)/(\nu/a)$.  For $\ell\ge26$ and $a\ge3\nu$ the routine uses a still shorter far-tail form retaining the dominant phase correction, which the source comments bound below about $5\times10^{-6}$ peak-normalized at the gate and better farther out.  For $\ell\ge150$ this first-correction form is also used at $a\ge1.5\nu$, since the omitted terms are small enough there for the direct Bessel error budget.  The shorter far-tail phase polynomial itself is unchanged.
+The implementation of \code{BJL\_POSTPEAK\_DEBYE} is algebraically arranged for speed.  The leading prefactor is evaluated as $1/\sqrt{u\,a}$, with $u=\sqrt{a^2-\nu^2}$; the small logarithmic amplitude correction is applied as the second-order expansion $1-E_{>}+E_{>}^2/2$; and, when $a$ is far enough above the peak, $\arccos(\nu/a)$ is replaced by a polynomial approximation to $\arcsin(\nu/a)/(\nu/a)$.  For $\ell\ge26$ and $a\ge3\nu$ the routine uses a still shorter far-tail form retaining the dominant phase correction, which the source comments bound below about $5\times10^{-6}$ peak-normalized at the gate and better farther out.
 
 The correction algebra is evaluated in terms of
 $h=1/\sqrt{a^2-\nu^2}$ and $w=(\nu h)^2$, avoiding the inverse
@@ -406,12 +406,8 @@ in the full branch become
  -\frac{h^2[13+w(271+w(791+565w))]}{128}\right].
 \end{align}
 These are algebraic rearrangements of the previous full Debye terms;
-the short branch uses only the first term of $\Delta\theta$ and sets
-$E_>=0$.  A standalone compiled-kernel comparison with SciPy spherical
-Bessels on a sampled post-peak grid up to $\ell=20000$ gave a worst
-peak-normalized error of $8.1\times10^{-6}$ in the newly shortened region,
-still within the existing $10^{-5}$ direct-Bessel validation tolerance.
-This is a kernel test, not a timing measurement of full CAMB.
+the far-tail branch uses only the first term of $\Delta\theta$ and sets
+$E_>=0$.
 
 \section{The turning point: why Airy functions appear}
 
