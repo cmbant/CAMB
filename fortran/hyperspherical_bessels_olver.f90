@@ -126,7 +126,7 @@
     alpha_gate = nu/real(l, dl)
 
     if (use_smallchi_map(l, nu, achi, alpha_gate) .and. &
-        .not.(audit_variant == 4 .and. K == 1 .and. nu-real(l,dl) <= 112._dl)) then
+        .not.((audit_variant == 4 .or. audit_variant == 8) .and. K == 1 .and. nu-real(l,dl) <= 112._dl)) then
         call compute_olver_z_amp_smallchi(l, K, nu, achi, z, amp)
         if (amp <= 0._dl) then
             u = 0._dl
