@@ -277,6 +277,24 @@
 
     end function LensingPhiWeight
 
+    pure function ShiftedHighLTemplate(l_template, ix) result(cl)
+    ! High-L template evaluated at a non-integer multipole, linearly interpolated
+    ! (clamped at the ends of the tabulated range).
+    real(dl), intent(in) :: l_template
+    integer, intent(in) :: ix
+    real(dl) :: cl, frac
+    integer :: lo
+
+    if (l_template >= lmax_extrap_highl) then
+        cl = highL_CL_template(lmax_extrap_highl, ix)
+    else
+        lo = max(1, int(l_template))
+        frac = max(0._dl, l_template - lo)
+        cl = (1._dl - frac)*highL_CL_template(lo, ix) + frac*highL_CL_template(lo + 1, ix)
+    end if
+
+    end function ShiftedHighLTemplate
+
     subroutine PrepareLensedCLSpectra(State, CL, lmin, lmax, ee_taper, flat_sky, CPP, Cphil3, CTT, CEE, CTE)
     ! Weighted unlensed spectra and lensing potential entering the correlation function
     ! integrands, extended above CP%Max_l using the (rescaled) high-L template.
@@ -289,7 +307,7 @@
     real(dl), intent(in) :: CPP(0:State%CP%Max_l) ! [L(L+1)]^2 C_L_phi_phi/2pi
     real(dl), intent(out) :: Cphil3(lmin:lmax), CTT(lmin:lmax), CEE(lmin:lmax), CTE(lmin:lmax)
     integer :: l
-    real(dl) :: sc, fac, fac2, fac3, tail_te_fac
+    real(dl) :: sc, fac, fac2, fac3, tail_te_fac, template_l_scale
 
     associate(CP => State%CP)
         do l = lmin, CP%Max_l
@@ -307,10 +325,17 @@
             return
         end if
         if (lmax > CP%Max_l) then
+            ! The template is the Planck 2018 fiducial model. Shift its TT, EE and TE in l by the
+            ! acoustic peak-scale ratio State%scale (as for the Cl interpolation template), so the
+            ! acoustic phase of the tail matches the model at CP%Max_l. Without this, TE (matched
+            ! only in amplitude) can jump by tens of percent at CP%Max_l, and the short-range
+            ! correlation-function lensing rings from the step into the top few hundred output L.
+            ! The lensing potential has no acoustic phase, so its tail is not shifted.
+            template_l_scale = State%scale
             l = CP%Max_l
             sc = LensingClWeight(l, flat_sky)
-            fac2 = CTT(CP%Max_l)/(sc*highL_CL_template(CP%Max_l, C_Temp))
-            fac3 = CEE(CP%Max_l)/(sc*highL_CL_template(CP%Max_l, C_E))
+            fac2 = CTT(CP%Max_l)/(sc*ShiftedHighLTemplate(CP%Max_l/template_l_scale, C_Temp))
+            fac3 = CEE(CP%Max_l)/(sc*ShiftedHighLTemplate(CP%Max_l/template_l_scale, C_E))
             tail_te_fac = sqrt(max(0._dl, fac2*fac3))
             fac = Cphil3(CP%Max_l)/(LensingPhiWeight(l, flat_sky)*highL_CL_template(CP%Max_l, C_Phi))
             do l = CP%Max_l + 1, lmax
@@ -318,9 +343,9 @@
                 sc = LensingClWeight(l, flat_sky)
                 Cphil3(l) = highL_CL_template(l, C_Phi)*fac*LensingPhiWeight(l, flat_sky)
 
-                CTT(l) = highL_CL_template(l, C_Temp)*fac2*sc
-                CEE(l) = highL_CL_template(l, C_E)*fac3*sc
-                CTE(l) = highL_CL_template(l, C_Cross)*tail_te_fac*sc
+                CTT(l) = ShiftedHighLTemplate(l/template_l_scale, C_Temp)*fac2*sc
+                CEE(l) = ShiftedHighLTemplate(l/template_l_scale, C_E)*fac3*sc
+                CTE(l) = ShiftedHighLTemplate(l/template_l_scale, C_Cross)*tail_te_fac*sc
             end do
             if (Cphil3(CP%Max_l + 1) > 1e-7_dl) then
                 call MpiStop('You need to normalize the high-L template so it is dimensionless')
